@@ -41,7 +41,7 @@ trap 'make -s > /dev/null' EXIT
 rm -rf "$STAGE"
 mkdir -p "$STAGE/DEBIAN"
 make -s PREFIX=/usr > /dev/null
-make -s PREFIX=/usr APPS=none DESTDIR="$STAGE" install > /dev/null
+make -s PREFIX=/usr DESTDIR="$STAGE" install > /dev/null
 
 glibc=$(for f in "$STAGE/usr/bin/hibr" "$STAGE"/usr/lib/hibr/*.so; do
 	objdump -T "$f"

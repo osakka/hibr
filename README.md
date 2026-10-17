@@ -83,9 +83,10 @@ sudo make install          # to /usr/local; PREFIX=$HOME/.local for yours alone
 `PREFIX` is compiled into the binary as the place it looks for modules;
 `make install` rebuilds by itself when it is given a different one from the
 build before it. The desktop it installs is the window manager and what
-manages it, with **no applications**: they come from the catalogue, and
-`catalogue install apps/` places all of them (`make install APPS=all` places
-them from this tree instead). `make TLS=0` leaves TLS out
+manages it, with Files, Terminal and five accessories, and one theme and
+two colour schemes; everything else comes from the catalogue, and
+`catalogue install apps/` places every application in it (`make install
+SHIP=all` places the lot from this tree instead). `make TLS=0` leaves TLS out
 entirely. [`deploy.sh`](docs/deployment.md) does the same install but also
 runs every suite first, keeps the previous version to roll back to, and can
 update itself from the tree on a timer.

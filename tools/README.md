@@ -150,3 +150,24 @@ downloads what it reads; `python3 tools/unigen.py gen build/ucd >
 mods/uni/tab.c` writes the tables, naming the version. Replace the gzipped
 conformance suites in `tests/uni` from the same download: the tables and the
 tests must never be from different versions (ADR 0030).
+
+## ships.hibr
+
+Which of the desktop's files the package installs ([ADR
+0047](../docs/adr/0047-what-the-package-ships.md)). `packaging/ships` lists
+the installables that ship, one path a line; this reads it with every
+owner's `# part:` lines and a theme's `image`, so a part goes where its
+owner goes, and prints the files that ship, or with `-n` the ones that do
+not. `-c` checks the list and the parts: a name that is not there, a part
+listed on its own, a shipped theme whose colours do not ship, and a pane
+whose `cp_pane` says `app` that no application brings.
+
+```text
+hibr tools/ships.hibr          # what make install places
+hibr tools/ships.hibr -n       # what make install-extras places
+hibr tools/ships.hibr -c       # the check tests/541-ships.t runs
+```
+
+It is the one place that decides. The Makefile runs it with the shell it
+has just built, and `tests/scopes.py` and `docshots.py` build their
+desktop "as shipped" from its answer rather than a rule of their own.

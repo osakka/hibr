@@ -1056,6 +1056,34 @@ try:
     check("and once it matches, update leaves it alone",
           rc == 0 and "up to date" in out, (rc, out, err))
 
+    # A pane somebody installed on its own while the index still offered
+    # it alone, and then an index where it is only an app's part -- which
+    # is what 0.99.230 did to thirteen panes and a strip module (Gitea
+    # #271). `update` died on the first entry the index no longer had, so
+    # it updated nothing for anyone who had installed one. It says so and
+    # goes on now, and leaves the file where it is.
+    E5C = json.loads(json.dumps(E5))
+    E5C["entries"]["control-panel/ixpane"] = {
+        "title": "Index Pane", "version": "1.0", "kind": "control-panel",
+        "name": "ixpane", "about": "the pane, offered on its own",
+        "bundle": "bundles/ixpane.hibr", "sha256": hp_pane}
+    put("index5c.json", json.dumps(E5C, indent=1))
+    E6ENV = dict(E5ENV, XDG_DATA_HOME=os.path.join(HOME, "d6"),
+                 HIBR_APPS_URL="http://127.0.0.1:%d/index5c.json" % PORT)
+    rc6, out6, err6 = apps("install", "control-panel/ixpane", env=E6ENV)
+    E6ENV["HIBR_APPS_URL"] = "http://127.0.0.1:%d/index5.json" % PORT
+    rc, out, err = apps("update", env=E6ENV)
+    check("update goes on past a pane the index offers only as an app's part "
+          "now, names the app, and leaves the pane in place",
+          rc6 == 0 and rc == 0 and "comes with ixparts" in out
+          and os.path.exists(os.path.join(HOME, "d6", "hibr", "control-panel",
+                                          "ixpane.hibr")),
+          (rc6, err6, rc, out, err))
+    rc, out, err = apps("update", "control-panel/ixpane", env=E6ENV)
+    check("and a name somebody types that the index does not have is still "
+          "refused, by name",
+          rc != 0 and "control-panel/ixpane" in err, (rc, out, err))
+
     # This one passes against 0.99.188 as well, and says so: there the
     # install placed no part, so removing it had nothing to leave behind.
     # It is here because the claim counting is what must keep working now
@@ -1620,4 +1648,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(137)
+report(139)

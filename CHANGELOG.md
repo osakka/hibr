@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.99.230
+
+**What the package ships is one list, and an app's pane comes with its
+app** (Gitea #271, ADR 0047).
+
+Asked: *"I do not understand why youtube control panel would be installed
+without the youtube app"*, and then *"why do we also ship all the themes
+and all the colours?"* Because `make install` copied the desktop folder
+whole and took out `apps/` alone (0.99.194), so everything that was not an
+application shipped, whatever it belonged to: **eight panes of apps the
+package did not ship**, each a row in a fresh Control Panel saying *"YouTube
+is not loaded"*, Prayer Times' strip module, and **every theme and colour
+scheme**. And `mkindex` made every file in the catalogue's panes folder an
+entry, so each app's pane was installable on its own with nothing behind
+it.
+
+There is no new kind. A file's **kind** is where it lands; its **owner** is
+the entry that places it, and a **part** -- declared by the owner's `#
+part:` line -- **goes where its owner goes, and is never an entry of its
+own**. What the package ships is now **`packaging/ships`**, one path a
+line, read by one tool, **`tools/ships.hibr`**, which the Makefile, the
+scope suite and the documentation's pictures all ask. As the owner chose,
+it ships:
+
+- the desktop's own apps, panes, strip modules, savers and languages, as
+  before;
+- **Files, Terminal, Stickies, Calculator, Clock, Puzzle and Image
+  Viewer** -- the package ships applications again, with their panes;
+- **the Classic theme and the Midnight and Paper colours**, where it
+  shipped four themes (2.1 MB of it three wallpaper pictures) and twelve
+  schemes;
+- and nothing else: Mail, Calendar, Contacts, Vault, YouTube, Prayer Times
+  and their panes, the games, the office apps, the browser and the other
+  themes and schemes come from the catalogue.
+
+`make install SHIP=all` places everything, for a machine with no catalogue,
+and `make install-extras` places exactly the rest -- the renamed `APPS=all`
+and `install-apps`. `tools/ships.hibr -c` refuses a list naming a file that
+is not there, a part listed on its own, a shipped theme whose colours do
+not ship, and a pane filed under Applications that no app brings, and
+`tests/541-ships.t` holds the install to the list file for file; it fails
+against the old Makefile.
+
+The catalogue drops thirteen entries that were only parts -- `tube`,
+`notes`, `mailset`, `pimset`, `vaultset`, `filesview`, `terminal`,
+`prayerset`, `abouthibr`, `cliphist`, `taskmgr`, `notifications` and
+`nextprayer` -- each of which still arrives with its app. **`catalogue
+update` died at the first installed entry the index no longer had**, which
+would have stopped every update for anybody holding one; it says which app
+the pane comes with now and goes on. An older `catalogue` still stops
+there, and upgrading hibr, or `catalogue remove` of the pane, answers it.
+
+The tour shows a desktop with an Applications menu and installs Mail, and
+every picture was made again from what the package installs.
+
 ## 0.99.229
 
 **`set` lists the shell, and `declare -p` prints what reads back in**

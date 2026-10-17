@@ -43,17 +43,18 @@ terminal can join the same desktop as another display with `desktop -j`.
 
 The menu at the far left, under the ✎, is the desktop's own.
 
-![The hibr menu open: About This Computer, then Catalogue, Clipboard, Control Panel, Modules, Screenshot and Task Manager, then Screen Saver, Lock Screen, Restart Desktop, Detach and Quit](../programs/desktop/img/tour-2-menu.png)
+![The hibr menu open: About This Computer, then Applications, Catalogue, Clipboard, Control Panel, Modules, Screenshot and Task Manager, then Screen Saver, Lock Screen, Restart Desktop, Detach and Quit](../programs/desktop/img/tour-2-menu.png)
 
 What is listed there manages or reports on the desktop: About This
 Computer, the Control Panel, the Task Manager, the clipboard's history, a
 screenshot tool, the modules that are loaded. Restart Desktop starts the
 window manager again without closing your windows; Quit ends it.
 
-Notice what is **not** there: no Applications. The package installs the
-desktop and nothing you open -- not a terminal, not a file browser. That
-is deliberate. Everything you open comes from one place, which is the
-next step.
+**Applications** opens the programs that come with the desktop: Files and
+Terminal, and under Accessories a calculator, a clock, an image viewer,
+sticky notes and a sliding puzzle. Everything else -- mail, calendars, a
+browser, a spreadsheet, games -- comes from one place, which is the next
+step.
 
 ## 3. Open the Catalogue
 
@@ -72,18 +73,22 @@ The same catalogue is a command, for a shell with no desktop in it:
 
 <!-- not run: fetches the index over HTTPS -->
 ```sh
-catalogue list calc
-catalogue install calc files
+catalogue list mail
+catalogue install mail snake
 ```
 
 ```text
-apps           calc          Calculator                1.0
-installed calc as ~/.local/share/hibr/apps/Accessories/calc.hibr
-installed control-panel/filesview.hibr, which files brings with it
-installed files as ~/.local/share/hibr/apps/files.hibr
+apps           contacts      Contacts                  1.2
+apps           calendar      Calendar                  1.1
+apps           mail          Mail                      1.2
+installed control-panel/mailset.hibr, which mail brings with it
+installed mail as ~/.local/share/hibr/apps/Internet/mail.hibr
+installed snake as ~/.local/share/hibr/apps/Games/snake.hibr
 ```
 
-Files brought a Control Panel pane with it, and said so. The index is
+Mail brought its Control Panel pane with it, and said so: an
+application's pane comes with the application and goes when it goes. The
+index is
 signed, and it holds every bundle's sha256, so what arrives is what the
 catalogue published; `catalogue show NAME` prints a script without
 placing it, if you would rather read it first. [The
@@ -92,10 +97,10 @@ and how to run a catalogue of your own.
 
 ## 4. Open some windows
 
-What the Catalogue installs is on the menus the moment it is installed:
-the hibr menu now has an Applications submenu with your new programs in
-it, and the same goes for something installed with `catalogue install`
-from a terminal, which tells every desktop you are running.
+What the Catalogue installs is on the menus the moment it is installed,
+under Applications beside what came with the desktop, and the same goes
+for something installed with `catalogue install` from a terminal, which
+tells every desktop you are running.
 
 ![Calculator and Files side by side, Files showing a home folder with Documents, Downloads, Music, Pictures and Projects](../programs/desktop/img/tour-4-windows.png)
 
@@ -125,16 +130,17 @@ Open the **Control Panel** from the hibr menu and choose **Appearance**.
 ![The Control Panel with Appearance chosen: Theme, Colours, Glyphs and Tree Style at the top, then the wallpaper's pattern, picture and mode, the menu bar, shadows and controls](../programs/desktop/img/tour-5-appearance.png)
 
 A **theme** sets how the desktop is drawn, and a **colour scheme** what
-colours it is drawn in, and the two are chosen apart: four themes and a
-dozen schemes ship, and the Catalogue has more. The wallpaper can be a
+colours it is drawn in, and the two are chosen apart. The desktop comes
+with the Classic theme and two schemes, Midnight and the light Paper, and
+the Catalogue has more of each. The wallpaper can be a
 pattern of characters or a picture -- on a terminal that can show pixels
 (kitty, or one that speaks sixel) it is the picture itself, and anywhere
 else it is drawn in coloured half blocks. Every change applies at once
 and is kept for next time.
 
 The **Control Strip** along the bottom holds small controls of its own:
-the cursor's shape, the next prayer time, shadows, the theme, the
-wallpaper. Click one, or press **alt-s** and use the arrows. The arrow at
+the cursor's shape, shadows, the theme, the wallpaper -- and an app can
+bring one, as Prayer Times brings the next prayer's time. Click one, or press **alt-s** and use the arrows. The arrow at
 its end is a handle: drag it up or down to move the strip, sideways to
 shorten it, past the middle of the screen to dock it on the other side,
 and click it to fold the strip away to the arrow alone.

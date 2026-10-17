@@ -11,7 +11,9 @@ made an app a folder of plain files and a bundle only how it travels.
 way and decided what has to be true before one may be trusted. 0.99.194
 (Gitea #220) stopped the package shipping applications at all, because
 shipping them *and* publishing them is two copies of one thing with
-nothing saying which is real.
+nothing saying which is real. (This ADR's scopes turned out to be that
+saying, and 0.99.230 ships seven applications again: [ADR
+0047](0047-what-the-package-ships.md).)
 
 Then the owner asked two questions a week apart, and they turn out to be
 the same question.

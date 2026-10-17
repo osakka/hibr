@@ -27,12 +27,11 @@ import argparse, os, subprocess, sys
 # unphotographable: `programs/desktop/session.hibr` ends in
 # `dt_autohold`, which re-execs into a held session, and the tool's pty
 # then watches the parent exit and renders nothing at all. Everything
-# else is here in its order -- the scan roots and their loaders. The
-# shipped apps/ root is left out because the package has none; `dt_apps`
-# still reads the person's own and the catalogue's folders, which is
-# where the tour's apps are.
+# else is here in its order -- the scan roots and their loaders, over a
+# copy of exactly what the package installs (STAGE, below), so a picture
+# shows what a visitor's desktop has and nothing the tree merely holds.
 BARE = (
-    'dt_apps\n'
+    'DT_APPDIRS+=("%(apps)s")\ndt_apps\n'
     'DT_SYSDIRS+=("%(sys)s")\ndt_sysapps\n'
     'CP_PANEDIRS+=("%(cp)s")\ncp_panes\n'
     'CS_MODDIRS+=("%(cs)s")\ncs_modules\n'
@@ -50,12 +49,11 @@ SHOTS = {
     # --- the tour, docs/desktop.md ------------------------------------
     #
     # One first hour a visitor could have had, in order, on the desktop
-    # the package installs -- which has no applications (Gitea #220).
-    # Calculator and Files come from the catalogue: `prepare()` serves a
-    # copy of the real one on this machine and installs them with the
-    # real `catalogue` command into a data folder of the tour's own, and
-    # the shots after that read that folder. Nothing here loads the
-    # tree's apps/, which no install has.
+    # the package installs, with the seven applications it ships (Gitea
+    # #271). Mail comes from the catalogue: `prepare()` serves a copy of
+    # the real one on this machine and installs it with the real
+    # `catalogue` command into a data folder of the tour's own, and the
+    # shots marked "installed" read that folder.
 
     # "The desktop as it starts: a menu bar, a wallpaper and its icons"
     "tour-1-start": (BARE, ["--rows", "26", "--cols", "86"]),
@@ -65,14 +63,14 @@ SHOTS = {
                            "--keys", "f10"], "empty"),
 
     # "The Catalogue: what there is to install, and what you have"
-    # Seven rows down is calc, the app the tour installs next; the list
+    # Fourteen rows down is mail, the app the tour installs next; the list
     # opens on its first entry, whose description is the vault's.
     "tour-3-catalogue": (
         BARE + 'dt_new "Catalogue" 17 84 2 1 catalogue\n',
         ["--rows", "26", "--cols", "86", "--until", "in the catalogue"] +
-        ["--keys", "down"] * 7, "empty"),
+        ["--keys", "down"] * 14, "empty"),
 
-    # "Calculator and Files, installed a moment ago, side by side"
+    # "Calculator and Files, which come with the desktop, side by side"
     "tour-4-windows": (
         BARE + 'dt_new "Calculator" 16 24 3 3 calc\n'
                'dt_new "Files" 16 44 3 30 files\n',
@@ -157,15 +155,33 @@ SHOTS = {
 }
 
 
-APPS = os.path.join(ROOT, "programs", "desktop", "apps")
-SYS = os.path.join(ROOT, "programs", "desktop", "system")
-CP = os.path.join(ROOT, "programs", "desktop", "control-panel")
-CS = os.path.join(ROOT, "programs", "desktop", "control-strip")
+def stage():
+    """A copy of what the package installs of the desktop, asked of the
+    one tool that decides it, tools/ships.hibr -- not a rule of this
+    file's own, which is what the tour's "no applications" was until the
+    package changed under it."""
+    import shutil, tempfile
+    d = tempfile.mkdtemp(prefix="hibr-docshots-stage-")
+    desk = os.path.join(ROOT, "programs", "desktop")
+    out = subprocess.run([os.path.join(ROOT, "build", "hibr"),
+                          os.path.join(ROOT, "tools", "ships.hibr")],
+                         cwd=ROOT, capture_output=True, text=True, check=True)
+    for rel in out.stdout.split():
+        os.makedirs(os.path.dirname(os.path.join(d, rel)), exist_ok=True)
+        shutil.copy(os.path.join(desk, rel), os.path.join(d, rel))
+    return d
+
+
+STAGE = stage()
+APPS = os.path.join(STAGE, "apps")
+SYS = os.path.join(STAGE, "system")
+CP = os.path.join(STAGE, "control-panel")
+CS = os.path.join(STAGE, "control-strip")
 
 
 # The tour's catalogue and the two data folders it is photographed over:
 # `empty`, as the package leaves a person, and `installed`, after
-# `catalogue install calc files`. Set by prepare(), once.
+# `catalogue install mail`. Set by prepare(), once.
 TOUR = {}
 
 
@@ -216,7 +232,7 @@ def prepare():
     env.pop("HIBR_HOLD", None)
     r = subprocess.run([os.path.join(ROOT, "build", "hibr"),
                         os.path.join(ROOT, "programs", "catalogue.hibr"),
-                        "install", "calc", "files"],
+                        "install", "mail"],
                        env=env, capture_output=True, text=True, timeout=120)
     if r.returncode:
         srv.kill()

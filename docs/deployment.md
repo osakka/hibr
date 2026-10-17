@@ -111,11 +111,14 @@ A package installs under `/usr`: the shell in `/usr/bin`, its modules in
 `/usr/lib/hibr`, the manual page and the desktop beside them, and the
 `desktop` launcher.
 
-The desktop in it is **bare** since 0.99.194 (Gitea #220): the window
-manager, the desktop's own `system/` apps, the Control Panel panes, the
-Control Strip modules and the savers, and no applications. There is one
-package and one route for the rest -- `catalogue install apps/` places every
-application in the catalogue, `catalogue install themes/` every theme. A
+The desktop in it is what `packaging/ships` lists and what those bring
+([ADR 0047](adr/0047-what-the-package-ships.md)): the window manager, the
+desktop's own `system/` apps, its own Control Panel panes, the Control
+Strip modules, the savers and the languages, Files, Terminal and five
+accessories, and the Classic theme with the Midnight and Paper colours.
+There is one package and one route for the rest -- `catalogue install
+apps/` places every application in the catalogue, `catalogue install
+themes/` every theme. A
 second `hibr-desktop-apps` package was built and dropped: it is the
 second route again, and `Recommends:` reaches a fresh install only,
 never an upgrade, so nobody upgrading would have received it.

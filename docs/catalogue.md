@@ -4,9 +4,12 @@
 installed as a command of its own, the way `vw` is, so it works for somebody who never
 starts the desktop.
 
-Since 0.99.194 it is also the **only** route (Gitea #220): a hibr install
-is the window manager and what manages it, and no applications at all --
-not Terminal and not Files. One command puts them back:
+It is also the **only** route for everything the package does not ship. A
+hibr install is the window manager and what manages it, Files, Terminal
+and five accessories, and one theme with two colour schemes ([ADR
+0047](adr/0047-what-the-package-ships.md)); an application's Control
+Panel pane comes with the application. One command puts every application
+in:
 
 <!-- not run: fetches bundles over HTTPS -->
 ```sh

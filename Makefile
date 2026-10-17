@@ -66,16 +66,16 @@ HOLD_SRC = $(wildcard mods/hold/*.c)
 CAT_SRC = $(wildcard mods/cat/*.c)
 
 PREFIX ?= /usr/local
-# Which applications `make install` places. **None by default** since
-# 0.99.194 (Gitea #220): the desktop is the window manager and what
-# manages it, and nothing you open -- not Terminal and not Files. They
-# come from the catalogue, `apps install apps/`, which is the one route,
-# so what a package holds and what a source install holds cannot drift
-# and there is no second copy to keep in step.
+# Which of the desktop's installables `make install` places: what
+# packaging/ships lists and the parts those bring, and nothing else
+# (Gitea #271, ADR 0047). tools/ships.hibr answers it, run by the shell
+# just built, so a package, a source install, Homebrew and the AUR all
+# hold the same set without any of them naming it.
 #
-# APPS=all puts them in anyway, for a machine that will never reach a
-# catalogue; `make install-apps` is the same thing on its own.
-APPS ?= none
+# SHIP=all places every one, for a machine that will never reach a
+# catalogue; `make install-extras` places exactly the ones the default
+# leaves out.
+SHIP ?= listed
 MODDIR ?= $(PREFIX)/lib/hibr
 # Where an administrator's catalogue installs for every user of the
 # machine (ADR 0045). Not under PREFIX on purpose: `make install` does
@@ -279,13 +279,15 @@ check-all: all
 next-version:
 	tools/next-version.sh $(FROM)
 
-# Just the applications, into the same folder `make install APPS=all`
-# would have placed them in. Nothing ships them any more -- the
-# catalogue is the route -- so this is for a machine that will never
-# reach one, and for the suite that checks the two halves add up.
-install-apps:
-	install -d $(DESTDIR)$(DESKDIR)/apps
-	cp -R programs/desktop/apps/. $(DESTDIR)$(DESKDIR)/apps/
+# Exactly what a default install leaves out, where `make install
+# SHIP=all` would have put it: for a machine that will never reach a
+# catalogue, and for the suite that checks the two halves add up.
+install-extras: all
+	$(BIN) tools/ships.hibr -n > $(B)/extras.txt
+	while IFS= read -r f; do \
+		mkdir -p "$(DESTDIR)$(DESKDIR)/$${f%/*}" && \
+		cp "programs/desktop/$$f" "$(DESTDIR)$(DESKDIR)/$$f" || exit 1; \
+	done < $(B)/extras.txt
 
 install: all
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr
@@ -301,17 +303,18 @@ install: all
 	rm -rf $(DESTDIR)$(DESKDIR)
 	install -d $(DESTDIR)$(DESKDIR)
 	cp -R programs/desktop/. $(DESTDIR)$(DESKDIR)/
-# APPS=none leaves the applications out: the window manager, the desktop's
-# own system apps, the Control Panel panes, the Control Strip modules and
-# the savers, and nothing you open -- not Terminal and not Files either,
-# which is the line the owner chose (Gitea #220). They come from the
-# catalogue -- one package, one route -- or, on a machine that will never
-# reach one, from this same tree's `install-apps`. `dt_apps` globs the
-# folder and skips a pattern
-# that matched nothing, so a desktop with no apps folder at all starts
-# normally and has an empty Applications menu.
-ifneq ($(APPS),all)
-	rm -rf $(DESTDIR)$(DESKDIR)/apps
+# The default takes out what packaging/ships does not list and no listed
+# file brings -- the applications that come from the catalogue, their
+# panes and strip modules, and every theme and colour scheme but Classic,
+# Midnight and Paper (ADR 0047) -- and then the folders that leaves empty.
+# The tool's list goes to a file first, so a tool that fails stops the
+# install rather than taking nothing out.
+ifneq ($(SHIP),all)
+	$(BIN) tools/ships.hibr -n > $(B)/extras.txt
+	while IFS= read -r f; do \
+		rm -f "$(DESTDIR)$(DESKDIR)/$$f" || exit 1; \
+	done < $(B)/extras.txt
+	find $(DESTDIR)$(DESKDIR)/apps -depth -type d -empty -exec rmdir {} \;
 endif
 	sed 's|@DESKDIR@|$(DESKDIR)|' tools/desktop-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/desktop
@@ -354,4 +357,4 @@ uninstall:
 clean:
 	rm -rf $(B)
 
-.PHONY: all clean strip check check-all census asan next-version install install-apps uninstall FORCE
+.PHONY: all clean strip check check-all census asan next-version install install-extras uninstall FORCE

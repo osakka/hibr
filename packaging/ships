@@ -1,0 +1,78 @@
+# What the package ships of the desktop's installables (Gitea #271, ADR 0047).
+#
+# One path a line, under programs/desktop. Everything listed here ships,
+# and so does every part it brings -- the `# part:` lines in its header,
+# and a theme's `image` -- because a part goes where its owner goes. A part
+# is never listed itself. The platform (wm/, widgets/, lib/, login/ and
+# every file that says `# platform:` of itself) always ships and is not
+# listed either. Anything else in the nine kind folders comes from the
+# catalogue only.
+#
+# tools/ships.hibr reads this; the Makefile, tests/scopes.py,
+# tools/docshots.py and tests/541-bare-desktop.t all ask it rather than
+# keeping a rule of their own.
+
+# The desktop's own apps, on the hibr menu. Their panes are their parts.
+system/about.hibr
+system/catalogue.hibr
+system/clipboard.hibr
+system/modman.hibr
+system/notifications.hibr
+system/screenshot.hibr
+system/tasks.hibr
+
+# The applications that ship, the owner's choice of 2026-10-17. Files,
+# Terminal and Stickies bring their panes.
+apps/files.hibr
+apps/term.hibr
+apps/Accessories/stickies.hibr
+apps/Accessories/calc.hibr
+apps/Accessories/clock.hibr
+apps/Accessories/puzzle.hibr
+apps/Accessories/imgview.hibr
+
+# The desktop's own Control Panel panes, and the two dialogs that two of
+# them open.
+control-panel/aboutme.hibr
+control-panel/appearance.hibr
+control-panel/control-strip.hibr
+control-panel/datetime.hibr
+control-panel/desktop.hibr
+control-panel/displays.hibr
+control-panel/filetypes.hibr
+control-panel/keyboard.hibr
+control-panel/language.hibr
+control-panel/mouse.hibr
+control-panel/network.hibr
+control-panel/pictures.hibr
+control-panel/screensaver.hibr
+control-panel/screenshots.hibr
+control-panel/shortcuts.hibr
+control-panel/versions.hibr
+control-panel/wallpaper.hibr
+control-panel/windows.hibr
+
+# The Control Strip's modules that belong to no app.
+control-strip/cursor.hibr
+control-strip/shadow.hibr
+control-strip/theme.hibr
+control-strip/wallpaper.hibr
+
+# The screen savers.
+savers/classicmac.hibr
+savers/clock.hibr
+savers/matrix.hibr
+savers/mystify.hibr
+savers/pipes.hibr
+savers/toasters.hibr
+
+# The theme and colour schemes a desktop starts with: Classic, Midnight,
+# and Paper, the one light scheme. The rest are in the catalogue.
+themes/classic.json
+colours/midnight.json
+colours/paper.json
+
+# Arabic, and the two pseudo-languages a translator checks a layout with.
+lang/ar.json
+lang/xx.json
+lang/xy.json

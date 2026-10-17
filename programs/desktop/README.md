@@ -34,18 +34,22 @@ at `$PREFIX/bin/desktop`:
 running `session.hibr` directly does -- the wrapper forwards its own
 arguments straight through, it does nothing else.
 
-An install -- and the package -- is **bare** since 0.99.194 (Gitea #220):
-the window manager, the desktop's own `system/` apps, the Control Panel
-panes, the Control Strip modules and the savers, and nothing you open,
-not Terminal and not Files. Applications come from the catalogue, which
-is the one route, and a whole desktop is one command:
+An install -- and the package -- holds what `packaging/ships`
+names, and what each of those brings (ADR 0047, Gitea #271): the window
+manager, the desktop's own `system/` apps, its own Control Panel panes,
+the Control Strip modules, the savers and the languages, **Files,
+Terminal, Stickies, Calculator, Clock, Puzzle and Image Viewer**, and the
+Classic theme with the Midnight and Paper colours. An app's pane comes
+with its app and goes when it goes. Everything else comes from the
+catalogue, and all of it is one command:
 
     catalogue install apps/
 
-`make install APPS=all` places them from this tree instead, for a machine
-that will never reach a catalogue, and `make install-apps` is the same
-thing on its own. A checkout run with `session.hibr`, as above, has
-everything in it either way -- it reads this directory, not the install.
+`make install SHIP=all` places everything from this tree instead, for a
+machine that will never reach a catalogue, and `make install-extras`
+places exactly what the default leaves out. A checkout run with
+`session.hibr`, as above, has everything in it either way -- it reads
+this directory, not the install.
 
 Drag a title bar to move a window, and any of its four corners to resize
 it -- the `◢` at the bottom-right is the one this always had; the other

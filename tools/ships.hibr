@@ -1,0 +1,212 @@
+#!/usr/bin/env hibr
+#
+# ships -- which of the desktop's files the package installs (Gitea #271,
+# ADR 0047). One list says what ships, packaging/ships; this reads it with
+# every owner's parts and answers for everyone who needs to know, so the
+# Makefile, the scope suite and the tour's pictures cannot each keep a rule
+# of their own.
+#
+#   hibr tools/ships.hibr        every file in the kind folders that ships
+#   hibr tools/ships.hibr -n     every one that does not
+#   hibr tools/ships.hibr -c     check the list, the parts and the panes
+#
+# Paths are relative to programs/desktop, one a line, sorted. Run from the
+# top of the tree, or with SHIPS_ROOT naming it.
+#
+# A file in one of the kind folders ships when the list names it, when it
+# is a part of something that ships, or when it is not an installable at
+# all -- a `# platform:` file, or a file nobody claims that is not of its
+# kind's own extension (lang/strings.txt). A part goes where its owner
+# goes: two owners may claim one file (pimset), and it ships if either does.
+
+ROOT=${SHIPS_ROOT:-.}
+DESK=$ROOT/programs/desktop
+LIST=$ROOT/packaging/ships
+KINDS=(apps system control-panel control-strip savers themes colours lang)
+
+declare -A SHIP
+declare -A PARTOF
+declare -A INST
+declare -a ALL
+ERRS=0
+
+# What a kind calls its installables.
+fn ext(kind) {
+	case $kind in
+	themes | colours | lang) ret ".json" ;;
+	*) ret ".hibr" ;;
+	esac
+}
+
+# Whether a file says it is part of the desktop, before anything it runs.
+fn isplatform(f) {
+	local l
+
+	while IFS= read -r l; do
+		case $l in "# platform:"*) return 0 ;; "#"*) ;; *) return 1 ;; esac
+	done < "$f"
+	return 1
+}
+
+# What a file brings with it, as paths under the desktop: its `# part:`
+# lines, read the way addapp and mkindex read them, or a theme's picture.
+fn partsof(rel, kind) {
+	local l out= img
+	local -A j
+
+	case $kind in
+	themes)
+		if json parse j < "$DESK/$rel" 2> /dev/null; then
+			img=${j["image"]-}
+			[ -n "$img" ] && out="themes/$img"
+		fi
+		ret "$out"
+		return 0 ;;
+	colours | lang)
+		ret ""
+		return 0 ;;
+	esac
+	while read -r l; do
+		case $l in
+		"# part: "*) out="$out${out:+ }${l#"# part: "}" ;;
+		esac
+	done < "$DESK/$rel"
+	ret "$out"
+}
+
+fn bad(msg) {
+	printf 'ships: %s\n' "$msg" >&2
+	ERRS=$((ERRS + 1))
+}
+
+# Every file in the kind folders, which of them are installables, and who
+# claims each part.
+fn scan() {
+	local k f rel e p ps
+	local -a pl
+
+	for k in "${KINDS[@]}"; do
+		[ -d "$DESK/$k" ] || continue
+		e := ext "$k"
+		for f in "$DESK/$k"/**; do
+			[ -f "$f" ] || continue
+			rel=${f#"$DESK/"}
+			ALL+=("$rel")
+			case $rel in *"$e") ;; *) continue ;; esac
+			isplatform "$f" && continue
+			INST["$rel"]=$k
+			ps := partsof "$rel" "$k"
+			read -ra pl <<< "$ps"
+			for p in "${pl[@]}"; do
+				PARTOF["$p"]="${PARTOF["$p"]-}${PARTOF["$p"]+ }$rel"
+			done
+		done
+	done
+}
+
+# The list, each name an installable that is nobody's part.
+fn readlist() {
+	local l
+
+	[ -r "$LIST" ] || { bad "$LIST: cannot read it"; return 1; }
+	while IFS= read -r l; do
+		case $l in "" | "#"*) continue ;; esac
+		if [ -z "${INST["$l"]+x}" ]; then
+			if [ -f "$DESK/$l" ]; then
+				bad "$l is listed, and it is not an installable"
+			else
+				bad "$l is listed, and there is no such file"
+			fi
+			continue
+		fi
+		[ -n "${PARTOF["$l"]+x}" ] &&
+			bad "$l is listed, and it is a part of ${PARTOF["$l"]}: a part goes where its owner goes"
+		SHIP["$l"]=1
+	done < "$LIST"
+}
+
+# Whether a file ships: listed, a part of a file that ships, or not an
+# installable and nobody's part.
+fn ships(rel) {
+	local -a own
+	local o
+
+	[ -n "${SHIP["$rel"]+x}" ] && return 0
+	if [ -n "${PARTOF["$rel"]+x}" ]; then
+		read -ra own <<< "${PARTOF["$rel"]}"
+		for o in "${own[@]}"; do
+			ships "$o" && return 0
+		done
+		return 1
+	fi
+	[ -z "${INST["$rel"]+x}" ]
+}
+
+# What -c holds the tree to, beyond what readlist already refused.
+fn check() {
+	local p o t c g l claimed
+	local -A j
+
+	for p in "${!PARTOF[@]}"; do
+		[ -f "$DESK/$p" ] || bad "$p is claimed as a part by ${PARTOF["$p"]}, and there is no such file"
+	done
+	for t in "${!SHIP[@]}"; do
+		case $t in themes/*) ;; *) continue ;; esac
+		json parse j < "$DESK/$t" 2> /dev/null || { bad "$t does not parse"; continue; }
+		c=${j["colours"]-}
+		[ -z "$c" ] || ships "colours/$c.json" ||
+			bad "$t ships and draws in colours/$c.json, which does not"
+	done
+	# A pane is listed under the Control Panel's Applications heading when
+	# its cp_pane line says `app`; that must be true exactly of the panes an
+	# application brings, or the picker files one under the wrong heading.
+	for p in "${!INST[@]}"; do
+		case $p in control-panel/*) ;; *) continue ;; esac
+		g=
+		while read -r l; do
+			case $l in *"cp_pane "*) g=$l; break ;; esac
+		done < "$DESK/$p"
+		[ -n "$g" ] || continue
+		claimed=
+		for o in ${PARTOF["$p"]-}; do
+			case $o in apps/*) claimed=1 ;; esac
+		done
+		case $g in
+		*'" app') [ -n "$claimed" ] || bad "$p is filed under Applications, and no application brings it" ;;
+		*) [ -z "$claimed" ] || bad "$p is brought by ${PARTOF["$p"]}, and its cp_pane does not say app" ;;
+		esac
+	done
+}
+
+mode=ship
+case ${1-} in
+-n) mode=not ;;
+-c) mode=check ;;
+"") ;;
+*) printf 'usage: ships [-n|-c]\n' >&2; exit 2 ;;
+esac
+
+scan
+readlist
+case $mode in
+check)
+	check
+	[ "$ERRS" = 0 ] || exit 1
+	printf 'ships: %d listed, %d files ship, %d do not\n' "${#SHIP[@]}" \
+		"$(for f in "${ALL[@]}"; do ships "$f" && echo; done | wc -l)" \
+		"$(for f in "${ALL[@]}"; do ships "$f" || echo; done | wc -l)"
+	;;
+*)
+	[ "$ERRS" = 0 ] || exit 1
+	out=()
+	for f in "${ALL[@]}"; do
+		if ships "$f"; then
+			[ "$mode" = ship ] && out+=("$f")
+		else
+			[ "$mode" = not ] && out+=("$f")
+		fi
+	done
+	arr sort out
+	[ "${#out[@]}" = 0 ] || printf '%s\n' "${out[@]}"
+	;;
+esac

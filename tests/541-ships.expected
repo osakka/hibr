@@ -1,0 +1,18 @@
+0
+the list and the parts check out
+the default install is the list and its parts, file for file
+and still has the window manager: yes
+ships apps/files.hibr
+ships apps/Accessories/calc.hibr
+ships control-panel/filesview.hibr
+ships themes/classic.json
+ships colours/paper.json
+leaves out apps/Internet/youtube.hibr
+leaves out control-panel/tube.hibr
+leaves out control-strip/nextprayer.hibr
+leaves out themes/meadow.json
+leaves out themes/meadow.png
+leaves out colours/dracula.json
+no empty folder is left behind: 0
+install-extras places exactly the rest
+the default plus the extras is the whole desktop

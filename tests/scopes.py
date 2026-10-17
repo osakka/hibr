@@ -18,8 +18,10 @@ any shell error any of them prints -- naming which installable it was:
   * **platform only**: the core and the two frameworks every pane and
     every saver build on, and nothing else at all. The strictest case, and
     the answer to "what if nothing was installed?".
-  * **as shipped**: what the package installs -- which since 0.99.194 is
-    no applications, so this is every fresh install.
+  * **as shipped**: what the package installs, which is every fresh
+    install -- the files `tools/ships.hibr` names, copied out of the tree
+    the way `make install` copies them, so this cannot drift from the
+    package (Gitea #271).
   * **each installable alone**, in an otherwise empty data folder over the
     platform: loaded, and then used -- an application launched, a pane
     opened in the Control Panel, a saver started -- because a missing
@@ -39,6 +41,7 @@ does unasked.
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -161,7 +164,15 @@ def use(path, k):
 
 
 PLATDIRS = {k: [os.path.join(PLATDIR, k)] for k in set(k for k, _, _ in PLAT)}
-SHIPPED = {k: [os.path.join(DESK, k)] for k in KINDS if k != "apps"}
+
+# What the package installs, asked of the one tool that decides it.
+SHIPDIR = os.path.join(D, "shipped")
+for rel in subprocess.run([sx.HIBR, tree("tools/ships.hibr")], cwd=tree("."),
+                          capture_output=True, text=True,
+                          check=True).stdout.split():
+    os.makedirs(os.path.dirname(os.path.join(SHIPDIR, rel)), exist_ok=True)
+    shutil.copy(os.path.join(DESK, rel), os.path.join(SHIPDIR, rel))
+SHIPPED = {k: [os.path.join(SHIPDIR, k)] for k in KINDS}
 
 empty = os.path.join(D, "empty")
 os.makedirs(empty)
@@ -170,8 +181,8 @@ check("a desktop with nothing installed but the platform starts, draws its "
       "bar and prints no error", bar and not errs, (errs[:3], sc))
 
 errs, bar, sc = start("shipped", session(SHIPPED), empty)
-check("a desktop as the package ships it -- no applications -- starts and "
-      "prints no error", bar and not errs, (errs[:3], sc))
+check("a desktop as the package ships it starts and prints no error",
+      bar and not errs, (errs[:3], sc))
 
 broken = []
 for k, r, p in INST:
@@ -206,7 +217,6 @@ check("every installable over the shipped desktop, shadowing its copies, "
 # with each name -- load what is new, take off what has gone, and leave
 # alone what changed, saying so -- is read from the menus and the bar,
 # where a person would see it.
-import subprocess
 import threading
 
 live = os.path.join(D, "live")
@@ -244,7 +254,7 @@ def lrescan():
 
 def lmenu():
     """The hibr menu open, with Applications > Accessories open under it
-    when there is one -- the calculator is an accessory -- and every menu
+    -- the probe below is placed as an accessory -- and every menu
     shut again after by a click on the bare desktop, which shuts however
     many are open. Escape would not do: once they are all shut it opens
     the bar again."""
@@ -254,45 +264,55 @@ def lmenu():
     return sc
 
 
-def lcalc(sc):
-    """Whether the menu shows Calculator: on the Accessories row, where its
-    submenu opens. Not anywhere on the screen, since the note a change
-    raises names it too."""
+def lin(sc, title):
+    """Whether the Accessories submenu shows `title`: in the rows it opens
+    on, beside the Accessories row. Not anywhere on the screen, since the
+    note a change raises names it too, at the right."""
     a = sc.find("Accessories")
-    return a is not None and "Calculator" in sc.row(a[0])[a[1]:]
+    return a is not None and any(
+        title in sc.row(r)[a[1]:a[1] + 40] for r in range(a[0], a[0] + 9))
 
 
-CALC = os.path.join(DESK, "apps", "Accessories", "calc.hibr")
+def lsnake(sc):
+    """Whether the menu shows the probe, Snake: an application the package
+    does not ship, placed as an accessory so it opens beside the ones that
+    do. Calculator ships, so it could not be the probe."""
+    return lin(sc, "Snake")
+
+
+SNAKE = os.path.join(DESK, "apps", "Games", "snake.hibr")
 sc = lmenu()
-check("a desktop as shipped has no Applications on its menu",
-      sc.find("Applications") is None and sc.find("Calculator") is None, sc)
-place(live, "apps", "Accessories/calc.hibr", CALC)
+check("a desktop as shipped lists its own applications and not one the "
+      "catalogue has yet",
+      lin(sc, "Calculator") and lin(sc, "Stickies") and not lsnake(sc), sc)
+place(live, "apps", "Accessories/snake.hibr", SNAKE)
 out = lrescan()
 sc = lmenu()
 check("an app placed while it runs is on the menu once it is told, with no "
       "restart, and the socket says one arrived",
-      '"added":1' in out and lcalc(sc), (out, sc))
+      '"added":1' in out and lsnake(sc), (out, sc))
 
 # Changed: a newer file at the same path. Not sourced again, so the menu
 # keeps the title it was loaded with, and the bar says a restart is owed.
-lcalcf = os.path.join(live, "hibr", "apps", "Accessories", "calc.hibr")
-src = open(lcalcf).read().replace('"Calculator"', '"Abacus"', 1)
-open(lcalcf, "w").write(src)
+lsnakef = os.path.join(live, "hibr", "apps", "Accessories", "snake.hibr")
+src = open(lsnakef).read().replace('"Snake"', '"Serpent"', 1)
+open(lsnakef, "w").write(src)
 out = lrescan()
 sc = lmenu()
 check("an app that changed on disk is not sourced again under the running "
       "desktop -- the menu keeps what was loaded -- and the bar asks for a "
       "restart",
-      '"changed":1' in out and lcalc(sc)
-      and sc.find("Abacus") is None and "↻" in sc.row(0), (out, sc))
+      '"changed":1' in out and lsnake(sc)
+      and sc.find("Serpent") is None and "↻" in sc.row(0), (out, sc))
 
 # Gone: the file removed. Off the menu, and the socket says so.
-os.unlink(lcalcf)
+os.unlink(lsnakef)
 out = lrescan()
 sc = lmenu()
-check("an app removed while it runs leaves the menu once it is told",
-      '"removed":1' in out and not lcalc(sc)
-      and sc.find("Applications") is None, (out, sc))
+check("an app removed while it runs leaves the menu once it is told, and the "
+      "ones that ship stay on it",
+      '"removed":1' in out and not lsnake(sc)
+      and lin(sc, "Calculator"), (out, sc))
 
 # A pane and a strip module, which their own owners read again.
 os.makedirs(os.path.join(live, "hibr", "control-panel"), exist_ok=True)
@@ -309,13 +329,13 @@ check("a Control Panel pane and a strip module placed while it runs are read "
       "too", '"added":2' in out, out)
 
 # Refresh Desktop, for a file put there by hand: the same scan, from a key.
-place(live, "apps", "Accessories/calc.hibr", CALC)
+place(live, "apps", "Accessories/snake.hibr", SNAKE)
 lt.keys([b"\x1b\x12"])
 lt.collect(0.3)
 sc = lmenu()
 check("Refresh Desktop reads the folders again, for a file nothing "
       "announced -- and a name that went and came back is on the menu again "
-      "without being sourced twice", lcalc(sc), sc)
+      "without being sourced twice", lsnake(sc), sc)
 lt.close()
 
 print("%d installable files in %s, %d of them platform%s"

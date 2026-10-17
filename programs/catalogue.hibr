@@ -2748,8 +2748,25 @@ nothing behind them."
 	return 0
 }
 
+# Which entry in the index brings `kind/name` as a part, if one does: what a
+# pane installed on its own before 0.99.230 belongs to now that a part is
+# never an entry of its own (Gitea #271).
+fn cat_partof(id) {
+	local k i e
+
+	e := cat_kext "${id%%/*}"
+	for k in "${!CAT_IX["$CAT_SECT"][@]}"; do
+		for i in "${!CAT_IX["$CAT_SECT"]["$k"]["parts"][@]}"; do
+			[ "${CAT_IX["$CAT_SECT"]["$k"]["parts"]["$i"]["kind"]}" = "${id%%/*}" ] &&
+				[ "${CAT_IX["$CAT_SECT"]["$k"]["parts"]["$i"]["as"]}" = "${id#*/}$e" ] &&
+				{ ret "${CAT_IX["$CAT_SECT"]["$k"]["name"]:-${k##*/}}"; return 0; }
+		done
+	done
+	return 1
+}
+
 fn cat_update(...names) {
-	local name w n=0 kind where ext moved i np same
+	local name w n=0 kind where ext moved i np same owner
 	local -a want
 
 	cat_load 1
@@ -2763,6 +2780,22 @@ fn cat_update(...names) {
 		# Either an id from the state or a name somebody typed:
 		# cat_entry takes both, and cat_resolve is for the ambiguous
 		# bare name it cannot.
+		#
+		# Something installed that the index no longer offers is said
+		# and left alone, never the end of the whole update: the index
+		# dropped thirteen panes and a strip module in 0.99.230, when a
+		# part stopped being an entry of its own, and an update that
+		# died on the first of them updated nothing for anyone who had
+		# installed one (Gitea #271). Only an update of everything gets
+		# this; a name somebody typed still says it is not there.
+		if [ "${#names[@]}" = 0 ] && ! cat_entry "$w"; then
+			if owner := cat_partof "$w"; then
+				cat_say "$w is not offered on its own any more: it comes with $owner. It stays as it is -- \`catalogue remove $w\` takes it away, and \`catalogue install $owner\` brings it with its app"
+			else
+				cat_say "$w is not in the catalogue any more, so there is nothing to update it to; it stays as it is -- \`catalogue remove $w\` takes it away"
+			fi
+			continue
+		fi
 		if ! cat_entry "$w"; then
 			name := cat_resolve "$w" ||
 				cat_die "$w: no such app in the index"

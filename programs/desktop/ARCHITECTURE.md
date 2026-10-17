@@ -189,7 +189,7 @@ Clock, Control Panel, About This Computer, Screenshot, and every dialog --
 is given `File > Close` and Edit by the window manager, so the two menus a
 person reaches for most never move.
 
-![The hibr menu open: About This Computer, the desktop's own programs from Catalogue to Task Manager, Screen Saver, Lock Screen, Restart Desktop, Detach dimmed because this session is not held, and Quit](img/desktop-menu.png)
+![The hibr menu open: About This Computer, Applications, the desktop's own programs from Catalogue to Task Manager, Screen Saver, Lock Screen, Restart Desktop, Detach dimmed because this session is not held, and Quit](img/desktop-menu.png)
 
 A right-click gets a different menu, specific to what was clicked rather
 than to what has focus — the desktop background, a title bar, or an app's
@@ -218,10 +218,12 @@ tab or right or enter steps into the selected pane, and the same keys then
 move its row cursor instead. The picker has three groups under headings:
 **Hardware** — Date & Time (the machine's clock and time zone), Displays,
 Keyboard, Mouse — then **Desktop** — Appearance, Control Strip, Desktop,
-File Types, Notifications, Shortcuts, Windows — and **Apps**, one pane per app that has something to choose: About
-hibr, Files, Task Manager, Terminal. An app's
-pane is always listed and says so when its app is not loaded, so the list
-does not move under you. Everything an app keeps across restarts has a row in
+File Types, Notifications, Shortcuts, Windows — and **Apps**, one pane per app that has something to choose:
+Files, Terminal and Stickies as shipped, and Mail, Calendar & Contacts,
+Vault, YouTube and Prayer Times once installed. An app's pane is one of the
+files the app brings, so it is there exactly when the app is (ADR 0047);
+it says so when its app is installed and not loaded in this session.
+Everything an app keeps across restarts has a row in
 some pane; `tests/540-examples.t` fails otherwise. Appearance holds the theme,
 the wallpaper — a glyph, or an image chosen in a picker window of its own —
 the menu bar's spacing and icon, and the four shadows; Windows holds a
