@@ -858,11 +858,12 @@ check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 76) == "░", sc)
 
 # Wallpaper -- #2 -- browses for an image and previews it, in a window of
-# its own opened from Appearance's "Wallpaper Image…" row, reusing files.hibr's
-# own fb_scan/fb_go/fb_path for the directory side of that rather than a
-# picker built from scratch (the ticket's own explicit constraint). Its
-# own $HOME, so what it lists is known: a non-image, a subdirectory, and
-# the same 2x2 PNG fixture other img tests already use.
+# its own opened from Appearance's "Wallpaper Image…" row. Its folders come
+# from the desktop's own Open dialog (fp_go), so none of these sessions
+# loads the Files app: until 0.99.228 the picker was built on Files and a
+# fresh install could not choose a wallpaper (Gitea #265). Its own $HOME,
+# so what it lists is known: a non-image, a subdirectory, and the same 2x2
+# PNG fixture other img tests already use.
 AWHOME = tempfile.mkdtemp(prefix="hibr-wp-home-")
 shutil.copy(os.path.abspath("tests/img-2x2.png"),
             os.path.join(AWHOME, "wall.png"))
@@ -885,25 +886,25 @@ sc = cprun(reach("appearance", "Mode") + [b"\x1b[C"])
 check("which cycles to scale",
       "scale" in brow(sc, "Mode"), sc)
 
-sc = cprun(DOWN_WP + [b"\r"], env={"HOME": AWHOME}, extra=("files",))
-check("it lists the home directory, through files.hibr's own scan",
-      sc.find("wall.png") is not None and sc.find("notes.txt") is not None,
-      sc)
+sc = cprun(DOWN_WP + [b"\r"], env={"HOME": AWHOME})
+check("with no Files app installed, it lists the home directory's folders "
+      "and images, and leaves out what is not an image",
+      sc.find("wall.png") is not None and sc.find("sub/") is not None
+      and sc.find("notes.txt") is None, sc)
 check("nothing is selected yet, so there is no preview",
       sc.find("Select an image") is not None, sc)
 check("it is a window of its own, with Apply and Close buttons",
       sc.find("┤ Wallpaper ├") is not None and
       re.search(r" Apply .* Close ", sc.text()) is not None, sc)
 
-# fb_scan lists directories first, then files sorted -- with one
-# directory here, entries are 0 "..", 1 "sub/", 2 "notes.txt", 3 "wall.png".
-sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B"], env={"HOME": AWHOME},
-           extra=("files",))
-check("selecting the non-image leaves the preview cleared",
+# fp_go lists the folder above, then folders, then the images -- here
+# 0 "..", 1 "sub/", 2 "wall.png".
+sc = cprun(DOWN_WP + [b"\r", b"\x1b[B"], env={"HOME": AWHOME})
+check("selecting a folder leaves the preview cleared",
       sc.find("Select an image") is not None, sc)
 
-sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\x1b[B"],
-           env={"HOME": AWHOME}, extra=("files",))
+sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B"],
+           env={"HOME": AWHOME})
 check("selecting the .png shows a preview instead",
       sc.find("Select an image") is None, sc)
 
@@ -911,8 +912,8 @@ check("selecting the .png shows a preview instead",
 # choosing it draws it. Named to sort last, so the rows above keep their
 # places.
 shutil.copy(os.path.abspath("tests/img-quad.jpg"), os.path.join(AWHOME, "zz.jpg"))
-sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\x1b[B", b"\x1b[B"],
-           env={"HOME": AWHOME}, extra=("files",), pre=load("img"))
+sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\x1b[B"],
+           env={"HOME": AWHOME}, pre=load("img"))
 check("a JPEG is offered too, and choosing it shows a preview",
       sc.find("zz.jpg") is not None and sc.find("Select an image") is None, sc)
 
@@ -934,7 +935,7 @@ WIDEHOME = tempfile.mkdtemp(prefix="hibr-wp-wide-")
 shutil.copy(os.path.abspath("tests/img-wide.png"),
             os.path.join(WIDEHOME, "wide.png"))
 sc = cprun(DOWN_WP + [b"\r", b"\x1b[B"], env={"HOME": WIDEHOME},
-           extra=("files",), pre=load("img"))
+           pre=load("img"))
 filledrows = [r for r in range(sc.rows) if "-" in sc.row(r)]
 check("a very wide image is fitted, not stretched to fill the box",
       0 < len(filledrows) < 10, sc)
@@ -953,15 +954,16 @@ shutil.rmtree(WIDEHOME, True)
 WPWHEEL = (
     '. %s\n'
     '. %s/wallpaper.hibr\n'
+    'declare -gA FP\n'
     'wp_refresh() { :; }\n'
-    'FB[1]["n"]=20; FB[1]["top"]=0; FB[1]["sel"]=0\n'
+    'FP[1]["n"]=20; FP[1]["top"]=0; FP[1]["sel"]=0\n'
     'WPK[1]["vis"]=5\n'
-    'wallpick_wheel 1 down; echo "d1=${FB[1]["top"]}"\n'
+    'wallpick_wheel 1 down; echo "d1=${FP[1]["top"]}"\n'
     'wallpick_wheel 1 down; wallpick_wheel 1 down\n'
     'wallpick_wheel 1 down; wallpick_wheel 1 down\n'
-    'wallpick_wheel 1 down; echo "d6=${FB[1]["top"]}"\n'
+    'wallpick_wheel 1 down; echo "d6=${FP[1]["top"]}"\n'
     'i=0; while [ "$i" -lt 9 ]; do wallpick_wheel 1 up; i=$((i + 1)); done\n'
-    'echo "u9=${FB[1]["top"]}"\n'
+    'echo "u9=${FP[1]["top"]}"\n'
     % (tree("programs/desktop/widgets/scrollbar.hibr"), CP)
 )
 out = subprocess.run([sx.HIBR, "-c", WPWHEEL], capture_output=True, text=True,
@@ -980,13 +982,22 @@ check("but not above the first entry",
 # every click in it -- not just a repeated one -- was silently rejected,
 # which is what "not navigatable by mouse" turned out to mean in full.
 sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, WPCOL)],
-           env={"HOME": AWHOME}, extra=("files",))
+           env={"HOME": AWHOME})
 check("a single click on a directory only selects it, not enters it",
       sc.find("wall.png") is not None, sc)
 sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, WPCOL), press(R0 + 2, WPCOL)],
-           env={"HOME": AWHOME}, extra=("files",))
+           env={"HOME": AWHOME})
 check("a second click on the same row enters the directory",
       sc.find("deep.png") is not None and sc.find("wall.png") is None, sc)
+
+# Backspace goes up a folder, and from one just under the root -- /tmp,
+# /home -- it reaches the root. fp_go was handed the empty name that
+# `${dir%/*}` makes of such a folder, said it could not open it, and
+# stayed: in Open and Save As too, which share it.
+sc = cprun(DOWN_WP + [b"\r"] + [b"\x7f"] * AWHOME.count("/"),
+           env={"HOME": AWHOME})
+check("going up a folder at a time reaches the root",
+      sc.find("etc/") is not None and sc.find("Cannot open") is None, sc)
 
 # Applying is keyboard-reachable, not only a mouse click on the button --
 # enter on an already-previewed file, the same as everywhere else in
@@ -1000,9 +1011,8 @@ check("a second click on the same row enters the directory",
 # screen changing in one frame. The saved config is the real, reliable
 # proof this worked.
 AWCONF = tempfile.mkdtemp(prefix="hibr-wp-conf-")
-run(*PANEL, feed=DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\x1b[B", b"\r"],
-    env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF}, pre=CPANES,
-    extra=("files",))
+run(*PANEL, feed=DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\r"],
+    env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF}, pre=CPANES)
 saved = os.path.join(AWCONF, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("enter on a previewed file applies it, saved as the wallpaper",
@@ -1016,14 +1026,14 @@ shutil.rmtree(AWCONF, True)
 # wrong fallback to it would find nothing.
 sc = run(*PANEL, feed=DOWN_WP + [b"\r"],
          env={"HOME": "/nonexistent-for-this-check"},
-         pre=CPANES + "\nDT_WALLIMG=%s/wall.png" % AWHOME, extra=("files",))
+         pre=CPANES + "\nDT_WALLIMG=%s/wall.png" % AWHOME)
 check("with no directory remembered yet, it starts at the wallpaper's own",
       sc.find("wall.png") is not None, sc)
 cl = sc.find(" Close ")
 sc = run(*PANEL, feed=DOWN_WP + [b"\r"] +
          ([press(cl[0], cl[1] + 1)] if cl else []),
          env={"HOME": "/nonexistent-for-this-check"},
-         pre=CPANES + "\nDT_WALLIMG=%s/wall.png" % AWHOME, extra=("files",))
+         pre=CPANES + "\nDT_WALLIMG=%s/wall.png" % AWHOME)
 check("and Close closes the picker, leaving the Control Panel",
       cl is not None and sc.find("┤ Wallpaper ├") is None and
       sc.find("┤ Panel ├") is not None, sc)
@@ -1116,12 +1126,11 @@ check("the Control Panel's divider drags: the list wider, the pane narrower",
 # so this is not just the check above by coincidence.
 AWCONF2 = tempfile.mkdtemp(prefix="hibr-wp-conf2-")
 run(*PANEL, feed=DOWN_WP + [b"\r", b"\x1b[B", b"\r"],
-    env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF2}, pre=CPANES,
-    extra=("files",))
+    env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF2}, pre=CPANES)
 sc = run(*PANEL, feed=DOWN_WP + [b"\r"],
          env={"HOME": "/nonexistent-for-this-check",
               "XDG_CONFIG_HOME": AWCONF2},
-         pre=CPANES, extra=("files",))
+         pre=CPANES)
 check("once it has browsed a directory, that is where it starts next",
       sc.find("deep.png") is not None, sc)
 shutil.rmtree(AWHOME, True)
@@ -4864,4 +4873,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(635)
+report(636)

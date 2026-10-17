@@ -10,7 +10,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 1.4
+app appearance "The Control Panel pane for how the desktop looks" 1.5
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -581,9 +581,7 @@ fn appearance_do(int w, k, int dir) {
 		[ "$v" -gt 4 ] && v=4
 		DT_BARGAP=$v
 		;;
-	# The picker browses folders with the Files app's own model, so it
-	# says so when Files is absent rather than opening nothing.
-	wallimg) dt_needs files fb_scan && dt_has wp_dialog && wp_dialog
+	wallimg) dt_has wp_dialog && wp_dialog
 		return 0 ;;
 	wallmode) v := cp_next "$DT_WALLMODE" "$dir" "${WP_MODES[@]}"
 		DT_WALLMODE=$v ;;

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.228
+
+**A wallpaper image can be chosen without the Files app** (Gitea #265).
+
+The picker Appearance opens for *Wallpaper image* read its folders with
+the Files app's own model (`fb_scan`, `fb_go`, `fb_path`). The package has
+shipped no applications since 0.99.194, so on a fresh install the row did
+nothing but say that Files was not installed -- a core setting needing an
+application. The picker now reads folders with the desktop's own Open
+dialog (`fp_go` and `fp_path` in `wm/filepick.hibr`), which ships with the
+window manager. That dialog filters by type, so the picker lists folders
+and PNG and JPEG files only, where it used to list everything and leave a
+non-image unpreviewed. A folder it remembered that has since gone starts
+it at home rather than failing.
+
+Moving it found a bug in the Open dialog itself: going up from a folder
+just under the root -- `/tmp`, `/home` -- handed `fp_go` the empty name
+`${dir%/*}` makes of it, which said *Cannot open the folder* and stayed
+put. Open, Save As and Export in every app had it. An empty name is the
+root now.
+
+Appearance goes to 1.5 in the catalogue, since its guard for the missing
+Files app is gone.
+
 ## 0.99.227
 
 **A running desktop picks up what the catalogue installs, without a

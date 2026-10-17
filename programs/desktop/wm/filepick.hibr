@@ -90,10 +90,13 @@ fn fp_match(int id, nm) {
 	return 1
 }
 
-# Read a folder: its folders, then its files of the type chosen.
+# Read a folder: its folders, then its files of the type chosen. An empty
+# name is the root: it is what `${dir%/*}` makes of a folder like /home,
+# and going up from one used to say "Cannot open the folder" and stay put.
 fn fp_go(int id, d) {
 	local f n=0 nm
 
+	[ -n "$d" ] || d=/
 	while [ "${#d}" -gt 1 ] && [ "${d%/}" != "$d" ]; do d=${d%/}; done
 	if [ ! -d "$d" ] || [ ! -r "$d" ]; then
 		dt_notep high "Cannot open the folder %s" "$d"

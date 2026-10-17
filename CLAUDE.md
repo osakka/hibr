@@ -3956,6 +3956,15 @@ went in the shell.
   tree before using it** -- `540-examples.t` catches it at the gate, but
   the symptom before that was a rescan silently running somebody else's
   code.
+- **`${dir%/*}` of a folder just under the root is empty, not `/`.** The
+  Open dialog went up a folder with `fp_go "${dir%/*}"`, so from `/tmp` or
+  `/home` it was handed an empty name, said *Cannot open the folder*, and
+  stayed -- and its own "fall back to `/`" line never fired, because it
+  tested whether the folder was empty and a failed `fp_go` leaves the old
+  one in place (Gitea #265, 0.99.228). It surfaced only when the wallpaper
+  picker moved onto `fp_go` and a check walked up to the root. The fix is
+  in `fp_go`, `[ -n "$d" ] || d=/`, not in each caller. Anything else that
+  takes a parent with `%/*` wants the same look.
 - **A ledger of what a program placed is not an inventory of what the
   machine has, and naming it `installed` makes it read as one**
   (Gitea #254, 0.99.212). The catalogue records what it placed, so
