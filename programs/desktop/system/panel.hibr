@@ -448,15 +448,15 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 # of widget, not what key a click reaches, which is what made it look
 # like a rendering glitch rather than the stale field it was.
 fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
-	local i r t v n top sel kind wtype on kv
-	local wc=$((bx + w - 11))
-	local xc=$((bx + w - 4))
+	local i r t v n top sel kind wtype on kv vw wc xc
 	local sb=$((bx + w))
-
-	case $DT_MIRRORON in 1) wc=$bx; xc=$bx; sb=$((bx - 1)) ;; esac
 
 	unset "CP[$id]"
 	n := "${pane}_rows" "$id"
+	vw := cp_valw "$id" "$n" "$w"
+	wc=$((bx + w - 1 - vw))
+	xc=$((bx + w - 4))
+	case $DT_MIRRORON in 1) wc=$bx; xc=$bx; sb=$((bx - 1)) ;; esac
 	PW[$id]["n"]=$n
 	PW[$id]["vis"]=$h
 	sel=${PW[$id]["sel"]}
@@ -507,38 +507,39 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 				console pen "$DT_INK" "$DT_FACE"
 			fi
 			[ "$kind" = key ] && kv=$v
-			t := cp_rowm "$t" "$kind" "$v" "$w"
+			t := cp_rowm "$t" "$kind" "$v" "$w" "$vw"
 		else
 			if [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; then
 				console pen "$DT_SELINK" "$DT_ACTIVE" bold
 			else
 				console pen "$DT_INK" "$DT_FACE"
 			fi
-			t="  $t"
-			[ "${#t}" -gt $((w - 13)) ] && t="${t:0:$((w - 14))}${GL[ellipsis]}"
-			t := str pad "$t" $((w - 12))
 			# A "set" row's value is drawn as a widget below, in the
 			# same pen, rather than appended to this string -- a real
 			# checkbox or a dropdown caret instead of on/off text. A
 			# shortcut's leaves room for the ✕ that clears it.
 			if [ "$kind" = key ]; then
 				kv=$v
-				t="  $t"
-				[ "${#t}" -gt $((w - 16)) ] &&
-					t="${t:0:$((w - 17))}${GL[ellipsis]}"
-				t := str pad "$t" $((w - 15))
-				v := str pad "$v" 11
+				t := cp_fit "  $t" $((w - vw - 6))
+				t := str pad "$t" $((w - vw - 4))
+				v := cp_fit "$v" "$vw"
+				v := str pad "$v" "$vw"
 				t="$t$v"
-			elif [ "$kind" != set ]; then
-				v := str pad "$v" 11
-				t="$t$v"
+			else
+				t := cp_fit "  $t" $((w - vw - 3))
+				t := str pad "$t" $((w - vw - 1))
+				if [ "$kind" != set ]; then
+					v := cp_fit "$v" "$vw"
+					v := str pad "$v" "$vw"
+					t="$t$v"
+				fi
 			fi
 		fi
 		console put -p "w$id" "$r" "$bx" "$t"
 		if [ -n "${CP[$id][$i]["btns"]}" ] && [ "$i" -lt "$n" ]; then
 			case $DT_MIRRORON in
-			1) cp_rowbtns "$id" "$i" "$r" $((bx + 12)) $((bx + w - ${#CP[$id][$i]["text"]} - 4)) ;;
-			*) cp_rowbtns "$id" "$i" "$r" $((bx + ${#CP[$id][$i]["text"]} + 4)) $((bx + w - 12)) ;;
+			1) cp_rowbtns "$id" "$i" "$r" $((bx + vw + 1)) $((bx + w - ${#CP[$id][$i]["text"]} - 4)) ;;
+			*) cp_rowbtns "$id" "$i" "$r" $((bx + ${#CP[$id][$i]["text"]} + 4)) "$wc" ;;
 			esac
 		fi
 		if [ "$kind" = key ] && [ -n "$kv" ]; then
@@ -558,7 +559,7 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 					"${CP[$id][$i]["max"]:-10}" \
 					"${CP[$id][$i]["key"]}"
 			else
-				dt_wdrop "$id" "$r" "$wc" 11 "$v" \
+				dt_wdrop "$id" "$r" "$wc" "$vw" "$v" \
 					"${CP[$id][$i]["key"]}"
 			fi
 		fi
@@ -571,16 +572,60 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 	dt_scrollbar "$id" 1 "$sb" "$h" "$n" "$h" "$top"
 }
 
+# How wide a pane's value column is: eleven columns, or as wide as its
+# widest value or dropdown when one is wider -- so a value is shown whole
+# rather than run past the window's edge (Gitea #282) -- but never more
+# than half the pane, which the labels keep. Every row shares it, so the
+# values and widgets of a pane line up whatever their length; one wider
+# still is cut by cp_fit, and a dropdown's by dt_wdrop.
+fn cp_valw(int id, int n, int w) {
+	local i=0 x vw=11 vmax=$(((w - 4) / 2))
+
+	while [ "$i" -lt "$n" ]; do
+		x=0
+		case ${CP[$id][$i]["kind"]} in
+		head) ;;
+		set)
+			case ${CP[$id][$i]["wtype"]} in
+			bool|slider) ;;
+			*) x := str width "${CP[$id][$i]["val"]}"; x=$((x + 2)) ;;
+			esac
+			;;
+		*) x := str width "${CP[$id][$i]["val"]}" ;;
+		esac
+		[ "$x" -gt "$vw" ] && vw=$x
+		i=$((i + 1))
+	done
+	[ "$vw" -gt "$vmax" ] && vw=$vmax
+	[ "$vw" -lt 11 ] && vw=11
+	ret "$vw"
+}
+
+# Text cut to n display columns, ending in an ellipsis when it was cut.
+fn cp_fit(t, int n) {
+	local -i tw
+
+	tw := str width "$t"
+	[ "$tw" -le "$n" ] && { ret "$t"; return 0; }
+	t := dt_cut "$t" $((n - 1))
+	ret "$t${GL[ellipsis]}"
+}
+
 # A pane's row mirrored: its value or widget at the left, its label right-aligned.
-fn cp_rowm(t, kind, v, int w) {
-	local n=$((w - 12)) lead="" pad
+fn cp_rowm(t, kind, v, int w, int vw = 11) {
+	local n=$((w - vw - 1)) lead="" pad
 	local -i tw
 
 	case $kind in
 	head) n=$w ;;
-	key) n=$((w - 15)); v := str pad "$v" 11; lead="   $v"; t="$t  " ;;
-	set) lead := str repeat " " 12 ;;
-	*) v := str pad "$v" 11; lead="$v " ;;
+	key)
+		n=$((w - vw - 4))
+		v := cp_fit "$v" "$vw"
+		v := str pad "$v" "$vw"
+		lead="   $v"
+		;;
+	set) lead := str repeat " " $((vw + 1)) ;;
+	*) v := cp_fit "$v" "$vw"; v := str pad "$v" "$vw"; lead="$v " ;;
 	esac
 	[ "$kind" = head ] || t="$t  "
 	[ "${#t}" -gt "$n" ] && t="${GL[ellipsis]}${t:$((${#t} - n + 1))}"

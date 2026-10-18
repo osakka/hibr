@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.245
+
+**Control Panel values stay inside the window** (Gitea #282).
+
+Reported by the owner: in Network Servers, Language, Pictures, Versions
+and others, values, buttons and widgets ran off the right-hand edge. Every
+value had an eleven-column slot that was padded but never cut, so a longer
+one ran over the margin and the border and was clipped there:
+`Automatic (hibr)`, `0.99.244 (abi 16)`, a server's address, a wallpaper's
+file name. A dropdown was eleven columns too, so a long choice covered its
+own caret. Plain values also started one column left of the widgets beside
+them.
+
+- A pane's value column is as wide as its widest value, eleven columns at
+  least and half the pane at most, and every row in the pane shares it, so
+  values and widgets line up. A label that no longer fits ends in an
+  ellipsis; a value wider than half the pane does too (the owner's choice).
+- A dropdown cuts a choice too long for it with an ellipsis, so its caret
+  always shows. This is in the widget itself, so it holds for every app.
+- Shortcuts showed an ellipsis before every key, because a shortcut's label
+  was indented twice and so always read as too long. Gone, and the mirrored
+  layout's shortcut labels no longer sit two columns off the others.
+
+Two new checks in `tests/apps.py`: Language's dropdowns keep their carets
+on one column inside the window with `Automatic (hibr)` whole, and a
+shortcut's row has no ellipsis before its key. Both fail against the
+release before.
+
+Notifications 1.2 is in the catalogue for 0.99.244's Show On row.
+
 ## 0.99.244
 
 **Notifications go to the primary display, or to every display** (Gitea

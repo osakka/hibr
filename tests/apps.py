@@ -345,13 +345,15 @@ TICK = "DT_TICK=200"
 CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
 
 # Absolute screen coordinates for PW's geometry (row 2, col 2): a pane's
-# own first content row is at 3, its dropdown/checkbox column at 47 --
+# own first content row is at 3, its dropdown/checkbox column at 58 --
+# for a pane whose values fit eleven columns: a wider one moves the column
+# left (cp_valw, Gitea #282), and a click at 58 still lands inside it --
 # derived once here from CP_DIVCOL and the window's body width, rather than
 # copied by eye into every check below. BODYCOL is a body-shape pane's own
 # left content column (CP_DIVCOL + 1, plus the window's own left edge) --
 # where Wallpaper's own file list starts, not LISTCOL, which is the
 # picker's own sidebar column to its left.
-R0, VALCOL = 3, 59
+R0, VALCOL = 3, 58
 LISTCOL = 5
 BODYCOL = 22
 TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Control Strip",
@@ -702,6 +704,22 @@ check("Shortcuts lists the desktop's actions, the Control Strip's among "
                                         "Cycle Windows", "Control Strip",
                                         "Control Panel")) and
       "alt-s" in brow(sc, "Control Strip") and brow(sc, "Apps") != "", sc)
+# A shortcut's label was given its indent twice, so it always read as too
+# long and every row showed an ellipsis before its key (Gitea #282).
+check("a shortcut's row has no ellipsis before its key",
+      "…" not in brow(sc, "Close Window") and
+      "…" not in brow(sc, "Control Panel"), sc)
+
+# A value wider than the eleven-column slot ran past the window's edge,
+# and a dropdown's over its own caret (Gitea #282): Language's
+# "Automatic (hibr)" is the one every desktop has. The column widens to
+# fit it, and every dropdown in the pane keeps its caret on one column,
+# inside the window.
+sc = cprun([b"\x1b[B"] * downs("language"))
+lgcar = [sc.row(r).find("▾", BODYCOL) for r in range(R0, R0 + 4)]
+check("a long value widens the pane's column and stays inside the window",
+      "Automatic (hibr) ▾" in sc.row(R0 + 1) and len(set(lgcar)) == 1 and
+      0 < lgcar[0] < 71, sc)
 sc = cprun(reach("shortcuts", "Control Panel"))
 
 # Clearing one: a ✕ beside every key that is set, and delete or backspace
@@ -4923,4 +4941,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(649)
+report(651)

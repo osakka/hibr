@@ -6,11 +6,19 @@
 strict
 
 # Draw a value that opens a list of choices: "value ▾", padded to w
-# columns. tag is what dt_hit answers for a click on it.
+# columns, and a value too long for them cut with an ellipsis, so it can
+# never cover its own caret or run past what is beside it (Gitea #282).
+# tag is what dt_hit answers for a click on it.
 fn dt_wdrop(int id, int r, int c, int w, value, tag) {
-	local tag=${tag:-$value} lb
+	local tag=${tag:-$value} lb=$value
+	local -i vw
 
-	lb := str pad "$value" $((w - 2))
+	vw := str width "$value"
+	if [ "$vw" -gt $((w - 2)) ]; then
+		lb := dt_cut "$value" $((w - 3))
+		lb="$lb${GL[ellipsis]}"
+	fi
+	lb := str pad "$lb" $((w - 2))
 	console put -p "w$id" "$r" "$c" "$lb ${GL[sdown]}"
 	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }
