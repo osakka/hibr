@@ -58,6 +58,36 @@ wsz() {
     grep -x '[0-9]* [0-9]*' | uniq
 }
 
+# Wait until session $1 lists ${2:-1} attached clients -- what a fixed
+# sleep after spawning a client used to guess at. A client that has not
+# attached yet reads what is typed at it itself: under a loaded gate the
+# held shell then never saw `v=5`, ctrl-\ never reached hold, and the
+# detach line and `back rc=0` were missing, one run in six (Gitea #283).
+# Bounded, so a client that never attaches fails the recording rather than
+# hanging it.
+attached() {
+  local n=0 k
+  while [ $n -lt 200 ]; do
+    k=$(hold clients "$1" 2>/dev/null | grep -c .)
+    [ "$k" -ge "${2:-1}" ] && return 0
+    sleep 0.05
+    n=$((n + 1))
+  done
+  return 1
+}
+
+# And until it lists none: a client let go with ctrl-\ is gone a moment
+# later, and the next one's count must not include it.
+unattached() {
+  local n=0
+  while [ $n -lt 200 ]; do
+    hold clients "$1" 2>/dev/null | grep -q . || return 0
+    sleep 0.05
+    n=$((n + 1))
+  done
+  return 1
+}
+
 echo "--- a session starts detached and is listed"
 hold new -d t1 /bin/sh -c 'sleep 120'
 echo "new: $?"
@@ -71,7 +101,7 @@ hold attach nosuch 2>/dev/null < /dev/null; echo "attach to nothing: $?"
 echo "--- attach, detach with ctrl-\\, and the shell is still there"
 hold new -d t2 $H
 c := pty spawn $H -c "$L; hold attach t2; echo \"back rc=\$?\""
-sleep 0.6
+attached t2
 pty write $c 'v=5
 '
 sleep 0.4
@@ -82,14 +112,14 @@ state t2
 
 echo "--- the terminal going away detaches it, as a logout does"
 c := pty spawn $H -c "$L; hold attach t2; echo \"back rc=\$?\""
-sleep 0.6
+attached t2
 pty close $c
 sleep 0.3
 state t2
 
 echo "--- attached again, from a new terminal, everything is as it was"
 c := pty spawn $H -c "$L; hold attach t2; echo \"back rc=\$?\""
-sleep 0.6
+attached t2
 pty write $c 'echo "v=$v"
 '
 sleep 0.4
@@ -103,14 +133,14 @@ echo "gone from the list: $(hold list | grep -c '^t2 ')"
 echo "--- hold detach, from outside"
 hold new -d t3 $H
 c := pty spawn $H -c "$L; hold attach t3; echo \"back rc=\$?\""
-sleep 0.6
+attached t3
 hold detach t3; echo "detach: $?"
 seen $c
 pty close $c
 
 echo "--- a second attach takes over from the first"
 a := pty spawn $H -c "$L; hold attach t3; echo \"back rc=\$?\""
-sleep 0.6
+attached t3
 b := pty spawn $H -c "$L; hold attach t3; echo \"back rc=\$?\""
 sleep 0.6
 seen $a
@@ -121,9 +151,9 @@ pty close $a
 echo "--- -m joins alongside a client instead of taking over from it"
 hold new -d t5 $H
 a := pty spawn $H -c "$L; hold attach t5; echo \"back rc=\$?\""
-sleep 0.6
+attached t5
 b := pty spawn $H -c "$L; hold attach -m t5; echo \"back rc=\$?\""
-sleep 0.6
+attached t5 2
 pty write $a 'echo "v=9"
 '
 sleep 0.4
@@ -141,7 +171,7 @@ pty close $a
 echo "--- viewport offsets: the pty is sized to the union of all attached"
 hold new -d t6 $H
 a := pty spawn -r 24 -c 80 $H -c "$L; hold attach t6; echo \"back rc=\$?\""
-sleep 0.6
+attached t6
 echo "a solo plain attach: the pty matches its own size"
 pty write $a 'stty size
 '
@@ -152,12 +182,12 @@ sleep 0.4
 # times it happened to be redrawn first.
 wsz $a | tail -1
 pty write $a $'\x1c'
-sleep 0.3
+unattached t6
 
 b := pty spawn -r 24 -c 80 $H -c "$L; hold attach -m t6; echo \"back rc=\$?\""
-sleep 0.6
+attached t6
 c := pty spawn -r 30 -c 100 $H -c "$L; hold attach -m t6 0 80; echo \"back rc=\$?\""
-sleep 0.6
+attached t6 2
 echo "a 24x80 client at 0,0 and a 30x100 client at 0,80: union is 30x180"
 pty write $b 'stty size
 '
@@ -170,9 +200,9 @@ pty close $c
 echo "--- each attached client sees only its own rectangle of the union"
 hold new -d t7 $H
 a := pty spawn -r 10 -c 40 $H -c "$L; hold attach t7; echo \"back rc=\$?\""
-sleep 0.6
+attached t7
 b := pty spawn -r 10 -c 40 $H -c "$L; hold attach -m t7 0 40; echo \"back rc=\$?\""
-sleep 0.6
+attached t7 2
 # 40 spaces then a marker built from two halves, so the marker itself never
 # appears in the typed line's own echo -- only in the program's real output,
 # which lands at column 40: inside b's own rectangle, outside a's.
@@ -196,7 +226,7 @@ echo "--- on the first attach or a resize, not on every frame after that"
 # regardless of exactly how many.
 hold new -d t12 $H
 a := pty spawn -r 24 -c 80 $H -c "$L; hold attach t12; echo \"back rc=\$?\""
-sleep 0.6
+attached t12
 o1 := pty drain $a 1500
 echo "first frame, a full repaint: $(( ${#o1} > 500 ? 1 : 0 ))"
 pty write $a 'x'
@@ -220,7 +250,7 @@ pty close $a
 echo "--- mode state (alt screen here) is sent on change, not every frame"
 hold new -d t9 $H
 a := pty spawn $H -c "$L; hold attach t9; echo \"back rc=\$?\""
-sleep 0.6
+attached t9
 pty write $a $'printf "\\033[?1049h"\n'
 sleep 0.6
 o1 := pty drain $a 1500
@@ -239,9 +269,9 @@ echo "--- a just-attached client is rendered at once, program or no program"
 # itself sends a first frame rather than waiting on the program to redraw.
 hold new -d t10 /bin/sh -c 'stty raw -echo; printf "\033[?1002h\033[?1006h"; cat -v'
 a := pty spawn -r 5 -c 100 $H -c "$L; hold attach t10; echo \"back rc=\$?\""
-sleep 0.6
+attached t10
 b := pty spawn -r 5 -c 60 $H -c "$L; hold attach -m t10 0 40; echo \"back rc=\$?\""
-sleep 0.8
+attached t10 2
 ob1 := pty drain $b 1500
 echo "b got its mode escapes immediately, unprompted: $(printf '%s' "$ob1" | cat -v | grep -Fc '^[[?1006h')"
 
@@ -266,9 +296,9 @@ echo "--- re-encoded to legacy for a program that never asked for SGR"
 # column+32, row+32. 'M' is 0x4D = 77 = 45+32; '#' is 0x23 = 35 = 3+32.
 hold new -d t11 /bin/sh -c 'stty raw -echo; printf "\033[?1000h"; cat -v'
 a := pty spawn -r 5 -c 100 $H -c "$L; hold attach t11; echo \"back rc=\$?\""
-sleep 0.6
+attached t11
 b := pty spawn -r 5 -c 60 $H -c "$L; hold attach -m t11 0 40; echo \"back rc=\$?\""
-sleep 0.8
+attached t11 2
 pty write $b $'\033[<0;5;3M'
 sleep 1.0
 oa2 := pty drain $a 2000
@@ -289,10 +319,10 @@ pty close $b
 echo "--- an unnamed client gets client-<fd>; a named one keeps its own name"
 hold new -d t13 /bin/sh -c 'sleep 120'
 a := pty spawn -r 24 -c 80 $H -c "$L; hold attach t13; echo \"back rc=\$?\""
-sleep 0.6
+attached t13
 echo "default name looks like client-N: $(hold clients t13 | grep -Ec '^client-[0-9]+ ')"
 b := pty spawn -r 10 -c 40 $H -c "$L; hold attach -m -n second t13 0 80; echo \"back rc=\$?\""
-sleep 0.6
+attached t13 2
 echo "named client keeps its own name: $(hold clients t13 | grep -c '^second ')"
 echo "the first to attach is primary: $(hold clients t13 | awk '$1 ~ /^client-/ {print $NF}')"
 
@@ -351,9 +381,9 @@ case $(cat "$TMPDIR/where") in */hibr-hold-*/t4) echo "HIBR_HOLD names t4" ;; es
 echo "--- a display above or left of the origin is taken into the union, not left outside it"
 hold new -d t14 /bin/sh -c 'sleep 120'
 a := pty spawn -r 24 -c 80 $H -c "$L; export HIBR_GFX=kitty; hold attach -n main t14; echo \"back rc=\$?\""
-sleep 0.6
+attached t14
 b := pty spawn -r 10 -c 40 $H -c "$L; export HIBR_GFX=none; hold attach -m -n above t14; echo \"back rc=\$?\""
-sleep 0.6
+attached t14 2
 # What each display's terminal said it draws -- here forced, so neither
 # waits on a question a test pty cannot answer (Gitea #258).
 echo "each display says what it draws: $(hold gfx t14 | sort | awk '{printf "%s %s ", $1, $2}')"
