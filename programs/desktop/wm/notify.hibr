@@ -36,6 +36,12 @@ DT_NOTEHISTMAX=50
 # setting replaces them, the same as DT_TICK and the rest of DT_KEEP.
 DT_NOTEMS="${DT_NOTEMS-2500}"
 DT_NOTEPOS="${DT_NOTEPOS-top-right}"
+# Which display the stack is on: the primary, where the bar and the icons
+# are, or every display, each with the same stack in its own corner
+# (Gitea #280). Notes were placed against the whole of every display put
+# together until then, so "top right" was the corner of whichever display
+# was right-most, primary or not.
+DT_NOTEWHERE="${DT_NOTEWHERE-primary}"
 
 # How small and how large a note's box may be, border included, in columns
 # and rows (Gitea #227). A note had no maximum but the screen, so a
@@ -209,9 +215,9 @@ fn dt_notehist_add(int id) {
 # A note that was cut, or opened, does not time out: it waits to be
 # clicked, or its mark would be gone before anybody could use it.
 dt_note_draw() {
-	local id now age w h r c t n=0 top bar f used=0 i
+	local id now age w h r c t n=0 top bar f used i k ar ac arows acols gx
 	local wmin wmax hmin hmax hopen
-	local -a keep
+	local -a keep areas
 
 	now := dt_ms
 	for id in "${DT_NOTEQ_ORDER[@]}"; do
@@ -228,72 +234,95 @@ dt_note_draw() {
 	for id in "${!DT_NOTERECT[@]}"; do unset DT_NOTERECT["$id"]; done
 	[ "${#DT_NOTEQ_ORDER[@]}" = 0 ] && return 0
 
-	wmax=$DT_NOTEWMAX
-	[ "$wmax" -gt $((DT_COLS - 2)) ] && wmax=$((DT_COLS - 2))
-	wmin=$DT_NOTEWMIN
-	[ "$wmin" -gt "$wmax" ] && wmin=$wmax
-	hmax=$DT_NOTEHMAX
-	[ "$hmax" -gt $((DT_ROWS - 2)) ] && hmax=$((DT_ROWS - 2))
-	hmin=$DT_NOTEHMIN
-	[ "$hmin" -gt "$hmax" ] && hmin=$hmax
-	hopen=$((DT_ROWS - 2))
+	# Where the stack goes: the primary display's rectangle, or every
+	# display's, the primary first so the note's cut and open marks are
+	# the ones laid out where the bar is.
+	areas=("${DT_PRIMARY_ROW:-0} ${DT_PRIMARY_COL:-0} ${DT_PRIMARY_H:-$DT_ROWS} ${DT_PRIMARY_W:-$DT_COLS} 1")
+	if [ "$DT_NOTEWHERE" = every ]; then
+		for t in "${DT_DISPLAYS[@]}"; do
+			read -r ar ac arows acols gx <<< "$t"
+			[ "$ar $ac $arows $acols" = "${areas[0]% *}" ] && continue
+			areas+=("$ar $ac $arows $acols 0")
+		done
+	fi
 	case $DT_NOTEPOSX in
 	*bottom*) top=0 ;;
 	*) top=1 ;;
 	esac
-	for id in "${DT_NOTEQ_ORDER[@]}"; do
-		t=${DT_NOTEQ[$id]["text"]}
-		f=${DT_NOTEQ[$id]["from"]}
-		if [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
-			dt_textfit "$t" $((wmin - 4)) $((wmax - 4)) $((hmin - 2)) $((hopen - 2))
-		else
-			dt_textfit "$t" $((wmin - 4)) $((wmax - 4)) $((hmin - 2)) $((hmax - 2))
-		fi
-		DT_NOTEQ[$id]["cut"]=
-		[ "$DT_FITCUT" -gt 0 ] && DT_NOTEQ[$id]["cut"]=1
-		w=$((DT_FITW + 4))
-		[ ${#f} -gt $((w - 6)) ] && f="${f:0:$((w - 6))}"
-		h=$((2 + DT_FITH))
-		case $DT_NOTEPOSX in
-		*left*) c=1 ;;
-		*) c=$((DT_COLS - w - 1)) ;;
-		esac
-		# Each note is as tall as its own text now, so the next one
-		# starts below this one rather than a fixed three rows down.
-		if [ "$top" = 1 ]; then
-			r=$((1 + used))
-		else
-			r=$((DT_ROWS - used - h))
-		fi
-		used=$((used + h + 1))
-		DT_NOTERECT[$id]["r"]=$r
-		DT_NOTERECT[$id]["c"]=$c
-		DT_NOTERECT[$id]["w"]=$w
-		DT_NOTERECT[$id]["h"]=$h
-		case ${DT_NOTEQ[$id]["prio"]} in
-		urgent) console pen "$DT_BAD" "$DT_FACE" bold ;;
-		high) console pen "$DT_WARN" "$DT_FACE" bold ;;
-		low) console pen "$DT_DIM" "$DT_FACE" ;;
-		*) console pen "$DT_ACTIVE" "$DT_FACE" bold ;;
-		esac
-		bar := dt_rep $((w - 2)) "${GL[hline]}"
-		console put "$r" "$c" "${GL[tl]}$bar${GL[tr]}"
-		console put $((r + h - 1)) "$c" "${GL[bl]}$bar${GL[br]}"
-		if [ -n "${DT_NOTEQ[$id]["cut"]}" ]; then
-			dt_fitmark $((r + h - 1)) "$c" "$w"
-		elif [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
-			dt_fitmark $((r + h - 1)) "$c" "$w" open
-		fi
-		console pen "$DT_INK" "$DT_FACE" bold
-		[ -n "$f" ] && console put "$r" $((c + 2)) " $f "
-		console pen "$DT_INK" "$DT_FACE" bold
-		i=0
-		while [ "$i" -lt "$DT_FITH" ]; do
-			t := str pad "${DT_FITLINES[$i]-}" $((w - 4))
-			console put $((r + 1 + i)) "$c" "${GL[vline]} $t ${GL[vline]}"
-			i=$((i + 1))
+	k=0
+	for t in "${areas[@]}"; do
+		read -r ar ac arows acols bar <<< "$t"
+		# The primary's first row is the bar's; another display has
+		# no bar, so its stack starts at its own top.
+		[ "$bar" = 1 ] && bar=1 || bar=0
+		wmax=$DT_NOTEWMAX
+		[ "$wmax" -gt $((acols - 2)) ] && wmax=$((acols - 2))
+		wmin=$DT_NOTEWMIN
+		[ "$wmin" -gt "$wmax" ] && wmin=$wmax
+		hmax=$DT_NOTEHMAX
+		[ "$hmax" -gt $((arows - 2)) ] && hmax=$((arows - 2))
+		hmin=$DT_NOTEHMIN
+		[ "$hmin" -gt "$hmax" ] && hmin=$hmax
+		hopen=$((arows - 2))
+		used=0
+		for id in "${DT_NOTEQ_ORDER[@]}"; do
+			t=${DT_NOTEQ[$id]["text"]}
+			f=${DT_NOTEQ[$id]["from"]}
+			if [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
+				dt_textfit "$t" $((wmin - 4)) $((wmax - 4)) $((hmin - 2)) $((hopen - 2))
+			else
+				dt_textfit "$t" $((wmin - 4)) $((wmax - 4)) $((hmin - 2)) $((hmax - 2))
+			fi
+			if [ "$k" = 0 ]; then
+				DT_NOTEQ[$id]["cut"]=
+				[ "$DT_FITCUT" -gt 0 ] && DT_NOTEQ[$id]["cut"]=1
+			fi
+			w=$((DT_FITW + 4))
+			[ ${#f} -gt $((w - 6)) ] && f="${f:0:$((w - 6))}"
+			h=$((2 + DT_FITH))
+			case $DT_NOTEPOSX in
+			*left*) c=$((ac + 1)) ;;
+			*) c=$((ac + acols - w - 1)) ;;
+			esac
+			# Each note is as tall as its own text, so the next
+			# one starts below this one.
+			if [ "$top" = 1 ]; then
+				r=$((ar + bar + used))
+			else
+				r=$((ar + arows - used - h))
+			fi
+			used=$((used + h + 1))
+			DT_NOTERECT[$id]["r$k"]=$r
+			DT_NOTERECT[$id]["c$k"]=$c
+			DT_NOTERECT[$id]["w$k"]=$w
+			DT_NOTERECT[$id]["h$k"]=$h
+			DT_NOTERECT[$id]["n"]=$((k + 1))
+			case ${DT_NOTEQ[$id]["prio"]} in
+			urgent) console pen "$DT_BAD" "$DT_FACE" bold ;;
+			high) console pen "$DT_WARN" "$DT_FACE" bold ;;
+			low) console pen "$DT_DIM" "$DT_FACE" ;;
+			*) console pen "$DT_ACTIVE" "$DT_FACE" bold ;;
+			esac
+			i := dt_rep $((w - 2)) "${GL[hline]}"
+			console put "$r" "$c" "${GL[tl]}$i${GL[tr]}"
+			console put $((r + h - 1)) "$c" "${GL[bl]}$i${GL[br]}"
+			if [ -n "${DT_NOTEQ[$id]["cut"]}" ]; then
+				dt_fitmark $((r + h - 1)) "$c" "$w"
+			elif [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
+				dt_fitmark $((r + h - 1)) "$c" "$w" open
+			fi
+			console pen "$DT_INK" "$DT_FACE" bold
+			[ -n "$f" ] && console put "$r" $((c + 2)) " $f "
+			console pen "$DT_INK" "$DT_FACE" bold
+			i=0
+			while [ "$i" -lt "$DT_FITH" ]; do
+				t := str pad "${DT_FITLINES[$i]-}" $((w - 4))
+				console put $((r + 1 + i)) "$c" "${GL[vline]} $t ${GL[vline]}"
+				i=$((i + 1))
+			done
+			n=$((n + 1))
 		done
-		n=$((n + 1))
+		k=$((k + 1))
 	done
 }
 
@@ -301,18 +330,35 @@ dt_note_draw() {
 # rectangle contains it, or a miss. Reads DT_NOTERECT, filled by the same
 # dt_note_draw pass that drew them.
 fn dt_note_hit(int mr, int mc) {
-	local id r c w h
+	local id r c w h k
 
 	for id in "${DT_NOTEQ_ORDER[@]}"; do
-		r=${DT_NOTERECT[$id]["r"]}
-		c=${DT_NOTERECT[$id]["c"]}
-		w=${DT_NOTERECT[$id]["w"]}
-		h=${DT_NOTERECT[$id]["h"]}
-		if [ "$mr" -ge "$r" ] && [ "$mr" -lt $((r + h)) ] &&
-		   [ "$mc" -ge "$c" ] && [ "$mc" -lt $((c + w)) ]; then
-			ret "$id"
+		k=0
+		while [ "$k" -lt "${DT_NOTERECT[$id]["n"]:-0}" ]; do
+			r=${DT_NOTERECT[$id]["r$k"]}
+			c=${DT_NOTERECT[$id]["c$k"]}
+			w=${DT_NOTERECT[$id]["w$k"]}
+			h=${DT_NOTERECT[$id]["h$k"]}
+			if [ "$mr" -ge "$r" ] && [ "$mr" -lt $((r + h)) ] &&
+			   [ "$mc" -ge "$c" ] && [ "$mc" -lt $((c + w)) ]; then
+				ret "$id"
+				return 0
+			fi
+			k=$((k + 1))
+		done
+	done
+	return 1
+}
+
+# Whether screen row r is the bottom edge of any copy of a note: where
+# its cut or open mark is.
+fn dt_note_edge(int id, int r) {
+	local k=0
+
+	while [ "$k" -lt "${DT_NOTERECT[$id]["n"]:-0}" ]; do
+		[ "$r" = $((${DT_NOTERECT[$id]["r$k"]} + ${DT_NOTERECT[$id]["h$k"]} - 1)) ] &&
 			return 0
-		fi
+		k=$((k + 1))
 	done
 	return 1
 }
@@ -328,7 +374,7 @@ DT_NOTEDBLT=0
 fn dt_note_click(int id, int? r = "") {
 	local now hid
 
-	if [ -n "$r" ] && [ "$r" = $((${DT_NOTERECT[$id]["r"]} + ${DT_NOTERECT[$id]["h"]} - 1)) ] &&
+	if [ -n "$r" ] && dt_note_edge "$id" "$r" &&
 	   [ -n "${DT_NOTEQ[$id]["cut"]}${DT_NOTEQ[$id]["open"]}" ]; then
 		if [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
 			DT_NOTEQ[$id]["open"]=

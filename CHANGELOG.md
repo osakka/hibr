@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.244
+
+**Notifications go to the primary display, or to every display** (Gitea
+#280).
+
+Asked by the owner: should notes be on the primary screen, or on all of
+them, selectable? They were on neither on purpose. A note was placed
+against every display put together, so "top right" was the corner of
+whichever display was right-most, or bottom-most when stacked, primary or
+not. The bar, the icons and the wallpaper have kept to the primary since
+#238 and #258; notes had been left out.
+
+- **Control Panel > Notifications > Show On**: primary (the default, as
+  the owner chose) or every. Primary puts the stack in Position's corner
+  of the primary display, below the bar. Every puts the same stack in that
+  corner of each attached display, and a click on any copy acts on the
+  note. The size limits are held to the display the stack is on, not to
+  all of them together.
+
+Three new checks. `tests/desktop.py`, with two displays and the primary on
+the left: a note goes to the primary's corner and not to the right-hand
+display, where it went before. `tests/holdpix.py`, with Show On set to
+every: the note is on both displays, and a click on the second display's
+copy removes it from both. Against the release before, the note was on one
+display only. Arabic 2.2 in the catalogue (the row's name).
+
 ## 0.99.243
 
 **Under the login screen, the wallpaper is pixels again and Task Manager

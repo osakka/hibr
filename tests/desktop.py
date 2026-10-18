@@ -3743,6 +3743,26 @@ primary = next((row[0] for row in rows if row[-1] == "1"), None)
 joined = next((row[0] for row in rows if row[-1] == "0"), None)
 check("exactly one is primary, the other is not",
       primary is not None and joined is not None, r3.stdout)
+# A note goes to the primary display's own corner (Gitea #280). It was
+# placed against both displays put together, so "top right" was the right
+# edge of the joined display on the right, not the primary's.
+t1.send(b"\x1b2")
+t1.collect(0.6)
+t2.collect(0.3)
+n1, n2 = t1.screen(), t2.screen()
+check("a note goes to the primary display's corner, not the corner of both "
+      "displays put together",
+      n1.find("Workspace 2") is not None and n2.find("Workspace 2") is None,
+      str(n1) + "\n" + str(n2))
+t1.send(b"\x1b1")
+t1.collect(0.6)
+# And let "Workspace 1" go before going on: the primary's top right is
+# where the Home icon is, and the next check double-clicks it -- a note
+# still showing there takes the click.
+for _ in range(20):
+    if t1.screen().find("Workspace 1") is None:
+        break
+    t1.collect(0.25)
 
 # A window's own titlebar context menu gets a "Move to" submenu (Slice C):
 # open Files from the desktop's own Home icon, right-click its titlebar,
@@ -5699,4 +5719,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(637)
+report(638)

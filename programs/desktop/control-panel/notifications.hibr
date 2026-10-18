@@ -20,6 +20,8 @@ app notify "The Control Panel pane for the corner-stacked notes" 1.1
 command -v cp_pane > /dev/null && cp_pane notify "Notifications" "◉"
 
 CP_NOTEPOS=(top-right top-left bottom-right bottom-left)
+# The primary display, where the bar is, or every display (Gitea #280).
+CP_NOTEWHERE=(primary every)
 CP_NOTETICKS=(1000 1500 2500 4000 6000 10000)
 # A note's box, border included (Gitea #227): the widths in columns and the
 # heights in rows a note may be, from the smallest it is drawn at to the
@@ -28,6 +30,7 @@ CP_NOTEWIDTHS=(16 20 24 32 40 52 64 80 100)
 CP_NOTEHEIGHTS=(3 4 5 6 8 10 12 16)
 
 fn cp_set_notepos(int? id = "", value = "") { DT_NOTEPOS=$value; cp_save; }
+fn cp_set_notewhere(int? id = "", value = "") { DT_NOTEWHERE=$value; cp_save; }
 fn cp_set_notems(int? id = "", int? value = "") { DT_NOTEMS=$value; cp_save; }
 fn cp_set_notecount(int? id = "", value = "") { DT_NOTECOUNT=$value; cp_save; }
 
@@ -67,6 +70,9 @@ fn notify_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Position"
 	CP[$w][$n]["val"]="$DT_NOTEPOS"; CP[$w][$n]["key"]=notepos
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show On"
+	CP[$w][$n]["val"]="$DT_NOTEWHERE"; CP[$w][$n]["key"]=notewhere
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Timeout"
 	CP[$w][$n]["val"]="$DT_NOTEMS ms"; CP[$w][$n]["key"]=notems
 	n=$((n + 1))
@@ -104,6 +110,8 @@ fn notify_do(int? w = "", k = "", int? dir = "") {
 	case $k in
 	notepos) v := cp_next "$DT_NOTEPOS" "$dir" "${CP_NOTEPOS[@]}"
 	         DT_NOTEPOS=$v ;;
+	notewhere) v := cp_next "$DT_NOTEWHERE" "$dir" "${CP_NOTEWHERE[@]}"
+	         DT_NOTEWHERE=$v ;;
 	notems) v := cp_next "$DT_NOTEMS" "$dir" "${CP_NOTETICKS[@]}"
 	        DT_NOTEMS=$v ;;
 	notecount) v := cp_next "$DT_NOTECOUNT" "$dir" "${DT_NOTELEVELS[@]}"
@@ -125,6 +133,7 @@ fn notify_do(int? w = "", k = "", int? dir = "") {
 fn notify_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	notepos) dt_droplist "$w" "$r" "$c" cp_set_notepos "${CP_NOTEPOS[@]}" ;;
+	notewhere) dt_droplist "$w" "$r" "$c" cp_set_notewhere "${CP_NOTEWHERE[@]}" ;;
 	notems) dt_droplist "$w" "$r" "$c" cp_set_notems "${CP_NOTETICKS[@]}" ;;
 	notecount) dt_droplist "$w" "$r" "$c" cp_set_notecount \
 		"${DT_NOTELEVELS[@]}" ;;

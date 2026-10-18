@@ -662,5 +662,52 @@ check("a display from a hibr that never says what it draws is unasked, not "
 t.quit(None, 0.5)
 kill(nm)
 
+# Control Panel > Notifications > Show On, Every Display (Gitea #280): the
+# same note in the corner of each display, and a click on any copy acts on
+# it. The default, the primary display alone, is tests/desktop.py's.
+nm = name()
+sess = os.path.join(D, "notes%s.hibr" % nm)
+open(sess, "w").write(
+    load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
+    + "DT_NOTEWHERE=every\nDT_NOTEMS=60000\nNOTED=\n"
+    + "nb() { [ -n \"$NOTED\" ] && return 0; [ \"${#DT_DISPLAYS[@]}\" -ge 2 ] "
+    + "|| { dt_want 200; return 0; }; NOTED=1; dt_notep normal \"Seen on both\"; "
+    + "dt_want 30; }\ndt_ticker nb\n"
+    + "dt_open || exit 1\ndt_run\ndt_close\n")
+one = os.path.join(D, "none%s.hibr" % nm)
+two = os.path.join(D, "ntwo%s.hibr" % nm)
+open(one, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, sess)
+                     + "sleep 0.8\nhold attach -m -n one %s 0 0\n" % nm)
+open(two, "w").write(load("hold") + "hold attach -m -n two %s 0 80\n" % nm)
+t1 = Term(one, rows=24, cols=80, settle=1.0, env={"TMPDIR": D})
+for _ in range(int(16 * SLOW)):
+    t1.collect(0.25)
+t2 = Term(two, rows=24, cols=80, settle=1.0, env={"TMPDIR": D})
+for _ in range(int(40 * SLOW)):
+    t2.collect(0.25)
+    t1.collect(0.05)
+    if t1.screen().find("Seen on both") and t2.screen().find("Seen on both"):
+        break
+s1, s2 = t1.screen(), t2.screen()
+check("with Show On at every display, a note is in the corner of each",
+      s1.find("Seen on both") is not None and s2.find("Seen on both") is not None,
+      str(s1) + "\n" + str(s2))
+p2 = s2.find("Seen on both")
+if p2:
+    t2.send(sx.press(p2[0], p2[1]))
+    t2.send(sx.release(p2[0], p2[1]))
+for _ in range(int(12 * SLOW)):
+    t1.collect(0.25)
+    t2.collect(0.05)
+    if t1.screen().find("Seen on both") is None:
+        break
+check("and a click on the copy on the other display acts on the note, so it "
+      "goes from both", p2 is not None and t1.screen().find("Seen on both") is None
+      and t2.screen().find("Seen on both") is None,
+      str(t1.screen()) + "\n" + str(t2.screen()))
+t2.quit(None, 0.5)
+t1.quit(None, 0.5)
+kill(nm)
+
 shutil.rmtree(D, True)
-report(30)
+report(32)

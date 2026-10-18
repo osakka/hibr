@@ -1413,6 +1413,11 @@ unless set) or above raise the count, so the count stays worth reading. The
 history lists each with its time and priority; up and down select one,
 delete clears it, and its History menu clears the low ones or all.
 
+**Notes appear on the primary display**, in the corner Control Panel >
+Notifications > Position names, where the bar and the icons are; Show On
+set to every puts the same stack in that corner of every attached display,
+and a click on any copy acts on the note.
+
 **A note has a smallest and a largest size**, set in Control Panel >
 Notifications as four rows -- Smallest Width and Largest Width in columns,
 Smallest Height and Largest Height in rows, each the whole box with its

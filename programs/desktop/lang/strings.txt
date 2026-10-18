@@ -762,6 +762,7 @@ Shortcuts
 Shortcuts in Terminals
 Show
 Show All Notes
+Show On
 Show Pictures
 Shown on the login screen, with your picture.
 Shows:

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "2.1",
+ "version": "2.2",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -800,6 +800,7 @@
   "Shortcuts in Terminals": "الاختصارات في الطرفيات",
   "Show": "إظهار",
   "Show All Notes": "إظهار كل الملاحظات",
+  "Show On": "العرض على",
   "Show Pictures": "إظهار الصور",
   "Shown on the login screen, with your picture.": "يظهر على شاشة الدخول مع صورتك.",
   "Shows:": "يعرض:",
