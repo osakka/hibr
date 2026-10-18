@@ -44,6 +44,15 @@ web close $t; web quit
 | `web set T js\|images\|dark on\|off` | what this tab's pages may do: run their scripts, fetch their pictures (refused by resource type, so an image with no extension is caught too), and be asked for their dark scheme (`prefers-color-scheme`). Per tab, so another program's tabs in the same browser keep theirs; scripts and pictures already loaded stay until the page loads again |
 | `web set T zoom PCT` | lay the page out PCT percent larger or smaller, 25 to 500; the extraction, the picture and the text all follow |
 | `web set T ua TEXT` | the user agent this tab's pages are told; empty puts back the module's own |
+| `web set T lang TAGS` | the languages this tab's pages are asked for, as an `Accept-Language` list (`fr-FR,fr;q=0.9`), riding on the user-agent override, and the locale its scripts see from the first; empty is the browser's own |
+| `web set T dnt on\|off` | Do Not Track and Global Privacy Control: `DNT: 1` and `Sec-GPC: 1` on every request, and `navigator.doNotTrack` and `navigator.globalPrivacyControl` for the page's scripts |
+| `web set T block PATTERNS` | addresses this tab never fetches, `*` for anything, separated by spaces or commas; empty fetches everything |
+| `web set T geo 'LAT LON'` | where this tab says it is when a page asks and location is allowed; empty is no position |
+| `web set T notes on\|off` | a page's notifications kept for `web notes` rather than lost, since a headless browser has nowhere to show them |
+| `web permit NAME allow\|refuse`, `web permit reset` | what any page may be given -- `geolocation`, `camera`, `microphone` or `notifications` -- for the whole browser, which is what the protocol offers; a headless browser can ask nobody, so asking is not an answer. `reset` forgets every grant |
+| `web downloads DIR\|off` | downloads into DIR, for the whole browser, each told to `web downloaded` when it ends; `off` refuses them, as the browser does unless told |
+| `web downloaded`, `web notes` | what has happened since the last asking, a line each, and forgotten once told: `done PATH` or `failed NAME` for a download, `TITLE BODY` for a notification, a tab between. Status 1 when there is nothing |
+| `web pdf T PATH` | the tab's page printed to PATH as a PDF, backgrounds included |
 | `web config browser\|profile\|args VALUE` | what the browser is started with next, over `HIBR_WEB_BROWSER`, `HIBR_WEB_PROFILE` and `HIBR_WEB_ARGS`; empty puts the environment's back |
 | `web clear cookies\|cache` | forget the whole profile's cookies, or its cache, starting the browser if it is not running |
 | `web clear history [T...]` | empty the back and forward lists of the tabs named, or of every tab |
@@ -136,6 +145,7 @@ every time, on the videos it guards most.
 - **Text is placed, not reflowed.** A page whose text is much larger or
   smaller than a cell keeps its layout and loses spacing; a heading set
   huge is drawn as plain characters where it starts.
-- **No downloads, file uploads, audio or video.**
+- **No file uploads, audio or video**, and no downloads unless `web
+  downloads` gives them a folder.
 - It loads only by name under `--plan`: a browser reaches the network,
   which a plan refuses.

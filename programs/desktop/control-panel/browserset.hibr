@@ -6,10 +6,17 @@
 # started with, and forgetting cookies, the cache and the back and forward
 # lists. Named browserset, not browser, because the app owns the browser_
 # prefix. The words are typed in a small window of their own, bwfield.
+#
+# Gitea #285 adds the languages pages are asked for, Do Not Track and the
+# addresses never fetched; what a page may be given -- location, camera,
+# microphone, notifications -- refused or allowed, since a headless browser
+# can ask nobody, with Allow saying what it can do here; and downloads into
+# a folder. Permissions and downloads are the whole browser's, so the
+# YouTube player's tabs share them.
 
 strict
 
-app browserset "The Control Panel pane for the Browser" 1.0
+app browserset "The Control Panel pane for the Browser" 1.1
 command -v cp_pane > /dev/null && cp_pane browserset "Browser" "◎" app
 command -v dt_app > /dev/null &&
 	dt_app bwfield "Browser Setting" 8 64 "" "" fixed hidden
@@ -25,8 +32,19 @@ BW_UA="${BW_UA-}"
 BW_PROGRAM="${BW_PROGRAM-}"
 BW_PROFILE="${BW_PROFILE-}"
 BW_ARGS="${BW_ARGS-}"
+BW_LANG="${BW_LANG-}"
+BW_DNT="${BW_DNT-0}"
+BW_BLOCK="${BW_BLOCK-}"
+BW_PGEO="${BW_PGEO-refuse}"
+BW_PCAM="${BW_PCAM-refuse}"
+BW_PMIC="${BW_PMIC-refuse}"
+BW_PNOTE="${BW_PNOTE-refuse}"
+BW_DL="${BW_DL-0}"
+BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
 command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
-	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS
+	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
+	BW_LANG BW_DNT BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR
+BS_PERMS=(refuse allow)
 
 # follow is Control Panel > Pictures; text draws the page's words alone.
 BS_MODES=(follow half pixels text)
@@ -40,6 +58,16 @@ fn bs_tell(again = "") {
 }
 
 fn cp_set_bwmode(int? id = "", value = "") { BW_MODE=$value; cp_save; }
+fn cp_set_bwpgeo(int? id = "", value = "") { BW_PGEO=$value; cp_save; bs_tell; }
+fn cp_set_bwpcam(int? id = "", value = "") { BW_PCAM=$value; cp_save; bs_tell; }
+fn cp_set_bwpmic(int? id = "", value = "") { BW_PMIC=$value; cp_save; bs_tell; }
+fn cp_set_bwpnote(int? id = "", value = "") { BW_PNOTE=$value; cp_save; bs_tell again; }
+
+# One permission's row: refuse or allow, a dropdown.
+fn bs_perm(int w, int n, var, key) {
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["val"]="${!var}"
+	CP[$w][$n]["key"]=$key
+}
 fn cp_set_bwzoom(int? id = "", int? value = "") {
 	BW_ZOOM=$value
 	cp_save
@@ -84,6 +112,50 @@ fn browserset_rows(int w) {
 	CP[$w][$n]["val"]="$BW_ZOOM"; CP[$w][$n]["key"]=zoom
 	n=$((n + 1))
 	CP[$w][$n]["text"]="User Agent"; bs_row "$w" "$n" BW_UA; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Privacy"; n=$((n + 1))
+	CP[$w][$n]["text"]="Languages"; bs_row "$w" "$n" BW_LANG; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Do Not Track"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$BW_DNT" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=BW_DNT; n=$((n + 1))
+	CP[$w][$n]["text"]="Block Addresses"; bs_row "$w" "$n" BW_BLOCK
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="What a Page May Have"
+	n=$((n + 1))
+	CP[$w][$n]["text"]="Location"; bs_perm "$w" "$n" BW_PGEO pgeo
+	n=$((n + 1))
+	if [ "$BW_PGEO" = allow ]; then
+		md=
+		dt_has dt_ploc && md := dt_ploc
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Position Given"
+		CP[$w][$n]["val"]=${md:-none}
+		[ -n "$md" ] || CP[$w][$n]["val"] := dt_tr "none"
+		n=$((n + 1))
+	fi
+	CP[$w][$n]["text"]="Camera"; bs_perm "$w" "$n" BW_PCAM pcam
+	n=$((n + 1))
+	CP[$w][$n]["text"]="Microphone"; bs_perm "$w" "$n" BW_PMIC pmic
+	n=$((n + 1))
+	if [ "$BW_PCAM" = allow ] || [ "$BW_PMIC" = allow ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Devices"
+		CP[$w][$n]["val"] := dt_tr "none here"
+		n=$((n + 1))
+	fi
+	CP[$w][$n]["text"]="Notifications"; bs_perm "$w" "$n" BW_PNOTE pnote
+	n=$((n + 1))
+	if [ "$BW_PNOTE" = allow ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Shown As"
+		CP[$w][$n]["val"] := dt_tr "desktop notes"
+		n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Reset Permissions"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=preset; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Downloads"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Allow Downloads"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$BW_DL" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=BW_DL; n=$((n + 1))
+	CP[$w][$n]["text"]="Folder"; bs_row "$w" "$n" BW_DLDIR; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="When Chromium Next Starts"
 	n=$((n + 1))
 	CP[$w][$n]["text"]="Program"; bs_row "$w" "$n" BW_PROGRAM; n=$((n + 1))
@@ -124,7 +196,14 @@ fn browserset_do(int? w = "", k = "", int? dir = "") {
 		BW_ZOOM=$v
 		bs_tell
 		;;
-	BW_DARK) cp_toggle "$k"; bs_tell ;;
+	BW_DARK | BW_DL) cp_toggle "$k"; bs_tell ;;
+	BW_DNT) cp_toggle "$k"; bs_tell again ;;
+	pgeo) v := cp_next "$BW_PGEO" "$dir" "${BS_PERMS[@]}"; BW_PGEO=$v; bs_tell ;;
+	pcam) v := cp_next "$BW_PCAM" "$dir" "${BS_PERMS[@]}"; BW_PCAM=$v; bs_tell ;;
+	pmic) v := cp_next "$BW_PMIC" "$dir" "${BS_PERMS[@]}"; BW_PMIC=$v; bs_tell ;;
+	pnote) v := cp_next "$BW_PNOTE" "$dir" "${BS_PERMS[@]}"; BW_PNOTE=$v
+		bs_tell again ;;
+	preset) bs_preset ;;
 	BW_JS | BW_IMAGES) cp_toggle "$k"; bs_tell again ;;
 	field:*) bs_dialog "${k#field:}" ;;
 	cookies | cache | history) bs_clear "$k" ;;
@@ -136,7 +215,25 @@ fn browserset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	mode) dt_droplist "$w" "$r" "$c" cp_set_bwmode "${BS_MODES[@]}" ;;
 	zoom) dt_droplist "$w" "$r" "$c" cp_set_bwzoom "${BS_ZOOMS[@]}" ;;
+	pgeo) dt_droplist "$w" "$r" "$c" cp_set_bwpgeo "${BS_PERMS[@]}" ;;
+	pcam) dt_droplist "$w" "$r" "$c" cp_set_bwpcam "${BS_PERMS[@]}" ;;
+	pmic) dt_droplist "$w" "$r" "$c" cp_set_bwpmic "${BS_PERMS[@]}" ;;
+	pnote) dt_droplist "$w" "$r" "$c" cp_set_bwpnote "${BS_PERMS[@]}" ;;
 	esac
+}
+
+# Reset Permissions: every page's grants forgotten, and each of the four
+# back to refuse, as a fresh browser has them.
+bs_preset() {
+	BW_PGEO=refuse
+	BW_PCAM=refuse
+	BW_PMIC=refuse
+	BW_PNOTE=refuse
+	cp_save
+	need web 2> /dev/null && web tabs > /dev/null 2>&1 &&
+		web permit reset 2> /dev/null
+	bs_tell again
+	dt_note "Permissions reset"
 }
 
 # --- the field dialog ---------------------------------------------------------
@@ -168,6 +265,9 @@ fn bwfield_draw(int id, int h, int w, int row, int col) {
 	BW_PROGRAM) dt_tput "$id" 1 2 "Program to run as the browser:" ;;
 	BW_PROFILE) dt_tput "$id" 1 2 "Folder for cookies, the cache and history:" ;;
 	BW_ARGS) dt_tput "$id" 1 2 "Extra flags for the browser:" ;;
+	BW_LANG) dt_tput "$id" 1 2 "Languages pages are asked for, first wanted most:" ;;
+	BW_BLOCK) dt_tput "$id" 1 2 "Addresses never fetched, * for anything:" ;;
+	BW_DLDIR) dt_tput "$id" 1 2 "Folder downloads are saved in:" ;;
 	esac
 	dt_textdraw "$id" 2 2 $((w - 4)) "${BSF[$id]["buf"]}" \
 		"${BSF[$id]["cur"]}" "$on"
@@ -180,6 +280,9 @@ fn bwfield_draw(int id, int h, int w, int row, int col) {
 	BW_PROGRAM) dt_tput "$id" 4 2 "Empty finds Chromium or Chrome. Used at the next start." ;;
 	BW_PROFILE) dt_tput "$id" 4 2 "Empty is hibr's own. Used at the next start." ;;
 	BW_ARGS) dt_tput "$id" 4 2 "Separated by spaces. Used at the next start." ;;
+	BW_LANG) dt_tput "$id" 4 2 "Such as fr-FR, fr, en. Empty is the browser's own." ;;
+	BW_BLOCK) dt_tput "$id" 4 2 "Separated by spaces, such as *doubleclick.net*" ;;
+	BW_DLDIR) dt_tput "$id" 4 2 "Made if it is not there. Used once downloads are on." ;;
 	esac
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 }
@@ -189,11 +292,15 @@ fn bwfield_ok(int id) {
 	local var=${BSF[$id]["var"]} v=${BSF[$id]["buf"]}
 
 	case $var in
-	BW_PROFILE) case $v in "~") v=$HOME ;; "~/"*) v="$HOME/${v#"~/"}" ;; esac ;;
+	BW_PROFILE | BW_DLDIR)
+		case $v in "~") v=$HOME ;; "~/"*) v="$HOME/${v#"~/"}" ;; esac ;;
 	esac
 	printf -v "$var" '%s' "$v"
 	cp_save
-	[ "$var" = BW_UA ] && bs_tell again
+	case $var in
+	BW_UA | BW_LANG | BW_BLOCK) bs_tell again ;;
+	BW_DLDIR) bs_tell ;;
+	esac
 	dt_del "$id"
 }
 

@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.99.247
+
+**Control Panel > Browser, part two** (Gitea #285).
+
+The owner chose the next settings from what #276 left for later: language,
+privacy, blocking, permissions, downloads and Print to PDF. Proxy and
+pop-ups still wait.
+
+- **Privacy.** *Languages*: what pages are asked for (`Accept-Language`),
+  and the locale their scripts see from the first. *Do Not Track*: `DNT`
+  and `Sec-GPC` on every request, and `navigator.doNotTrack` and
+  `navigator.globalPrivacyControl`. *Block Addresses*: patterns never
+  fetched, `*` for anything. All three per tab, as #276's were, so the
+  YouTube player's tabs keep their own.
+- **What a Page May Have**: Location, Camera, Microphone and
+  Notifications, each refuse (the default) or allow, and Reset
+  Permissions. A headless Chromium can show nobody a prompt, so there is no
+  "ask"; the pane says what Allow comes to here. An allowed location is the
+  place Prayer Times knows, an allowed camera or microphone finds no
+  device, and an allowed notification becomes one of the desktop's notes,
+  title and body.
+- **Downloads**: none until Allow Downloads is on (as before), then into
+  Folder, `~/Downloads` by default, each told in a note as it lands.
+- **File > Save as PDF** prints the page to a file chosen in the desktop's
+  save dialog.
+
+Permissions and downloads are the whole browser's, which is what Chromium's
+protocol offers, so the YouTube player shares them. The web module gains
+`web set T lang|dnt|block|geo|notes`, `web permit`, `web downloads`, `web
+downloaded`, `web notes` and `web pdf`.
+
+Measured before choosing how to block and add headers: they need
+Chromium's network event stream on, several messages a request, and hibr's
+CPU with it on and off was the same within run-to-run noise (1.4 to 1.7 s
+for three loads of a 300-image page, Chromium included). A notification
+needs the runtime domain on as well, or the binding it reports through is
+never there; that is turned on only for a tab whose notifications are
+allowed.
+
+Nine new checks in `tests/web.py`, each reading the effect rather than the
+setting: the server's own echo of `Accept-Language`, `DNT` and `Sec-GPC`
+and the page's `navigator.language`; a blocked script that never ran; a
+position given when allowed and error 1 when refused; a page's
+notification handed over; no file in the folder until downloads are on,
+then the file and a `done` line; a file that begins `%PDF-`; and through
+the Browser itself, the headers it sends and the note a download raises.
+The Control Panel suite's dropdown walk covers the four permission rows.
+Browser 1.2 and its pane 1.1, and Arabic 2.4 (28 new strings), are in the
+catalogue.
+
 ## 0.99.246
 
 **A wallpaper for each display, remembered by its name** (Gitea #284).

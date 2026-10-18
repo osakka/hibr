@@ -159,8 +159,13 @@ void wb_usage(void)
 		      "url|title|text|links|loading|dirty|focus T | go T url | "
 		      "wait T [ms] | size T rows cols | mode T cells|pixels|text | "
 		      "set T js|images|dark on|off | set T zoom pct | set T ua text | "
+		      "set T lang tags | set T dnt|notes on|off | "
+		      "set T block patterns | set T geo 'lat lon' | "
 		      "config browser|profile|args value | "
 		      "clear cookies|cache|history [T...] | "
+		      "permit geolocation|camera|microphone|notifications "
+		      "allow|refuse | permit reset | downloads dir|off | "
+		      "downloaded | notes | pdf T path | "
 		      "draw T row col [h w] "
 		      "[-p pane] | click T row col | wheel T rows | key T name | "
 		      "type T text | eval T js | tap|tapseek T | take T "
@@ -231,6 +236,34 @@ int m_web(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "clear"))
 		return wb_clear(ac, av);
+	if (!strcmp(sub, "permit")) {
+		if (ac < 3) {
+			wb_usage();
+			return 2;
+		}
+		return wb_permit(av[2], ac > 3 ? av[3] : 0);
+	}
+	if (!strcmp(sub, "downloads")) {
+		if (ac < 3) {
+			wb_usage();
+			return 2;
+		}
+		return wb_downloads(av[2]);
+	}
+	/* What has happened since the last asking, and forgotten once told:
+	   status 1 when nothing has, so a poll costs nothing. */
+	if (!strcmp(sub, "downloaded") || !strcmp(sub, "notes")) {
+		vec *q = sub[0] == 'd' ? &wb.dlended : &wb.notes;
+
+		if (wb_alive())
+			wb_events();
+		if (!q->n) {
+			hibr_ret(s, "");
+			return HIBR_FAIL;
+		}
+		wb_drain(s, q);
+		return HIBR_OK;
+	}
 	if (ac < 3) {
 		wb_usage();
 		return 2;
@@ -298,6 +331,13 @@ int m_web(sh *s, int ac, char **av)
 			return 2;
 		}
 		return wb_set(t, av[3], av[4]);
+	}
+	if (!strcmp(sub, "pdf")) {
+		if (ac < 4) {
+			wb_usage();
+			return 2;
+		}
+		return wb_pdf(t, av[3]);
 	}
 	if (!strcmp(sub, "render")) {
 		wb_events();

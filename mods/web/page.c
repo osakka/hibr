@@ -161,6 +161,10 @@ void wb_tabclose(wb_tab *t)
 	free(t->shot);
 	free(t->target);
 	free(t->session);
+	free(t->lang);
+	free(t->uaset);
+	free(t->dntjs);
+	free(t->notejs);
 	s_free(&t->url);
 	s_free(&t->title);
 	free(t);

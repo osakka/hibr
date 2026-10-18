@@ -88,11 +88,56 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    # Three answers of its own for Gitea #285: what the request carried
+    # (/echo), a file to save rather than show (/dl), and a script whose
+    # only work is to say it ran (/mark.js) -- so each setting is checked
+    # by what reached the server or the page, not by what was asked for.
+    def do_GET(self):
+        if self.path.startswith("/echo"):
+            body = ("<html><head><title>Echo</title></head><body>"
+                    "<p id=h>LANG=%s DNT=%s GPC=%s</p></body></html>"
+                    % (self.headers.get("Accept-Language", "-"),
+                       self.headers.get("DNT", "-"),
+                       self.headers.get("Sec-GPC", "-"))).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+        elif self.path.startswith("/dl"):
+            body = b"hello download\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Disposition",
+                             "attachment; filename=got.txt")
+        elif self.path.startswith("/mark.js"):
+            body = b"window.MARK = 1;"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript")
+        else:
+            return super().do_GET()
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
 
 SRV = http.server.ThreadingHTTPServer(
     ("127.0.0.1", 0), functools.partial(Quiet, directory=D))
 threading.Thread(target=SRV.serve_forever, daemon=True).start()
 HTTPB = "http://127.0.0.1:%d/b.html" % SRV.server_address[1]
+HTTP = "http://127.0.0.1:%d" % SRV.server_address[1]
+open(os.path.join(D, "mk.html"), "w").write(
+    "<html><head><title>Mark</title><script src='/mark.js'></script>"
+    "</head><body>MARKPAGE</body></html>")
+open(os.path.join(D, "nt.html"), "w").write(
+    "<html><head><title>Note</title></head><body><script>"
+    "setTimeout(()=>{new Notification('Hi',{body:'there'})},200)"
+    "</script></body></html>")
+open(os.path.join(D, "geo.html"), "w").write(
+    "<html><head><title>Geo</title></head><body><script>"
+    "window.GEO='wait';navigator.geolocation.getCurrentPosition("
+    "p=>{window.GEO=p.coords.latitude.toFixed(1)+' '+"
+    "p.coords.longitude.toFixed(1)},e=>{window.GEO='refused '+e.code})"
+    "</script></body></html>")
+DLD = os.path.join(D, "downloads")
+os.mkdir(DLD)
 A = "file://" + os.path.join(D, "a.html")
 B = "file://" + os.path.join(D, "b.html")
 S = "file://" + os.path.join(D, "s.html")
@@ -397,6 +442,79 @@ out, err = hb("t := web open; web set $t js maybe; echo \"st $?\";"
 check("web set and web clear refuse what they do not know",
       out.split() == ["st", "2", "st", "2", "st", "2"], out + err)
 
+# Gitea #285, each by what reached the server or the page.
+out, err = hb("t := web open; web go $t %s/echo; web wait $t 10000;"
+              " a := web text $t; web set $t lang 'fr-FR,fr;q=0.9';"
+              " web go $t %s/echo; web wait $t 10000; b := web text $t;"
+              " c := web eval $t navigator.language;"
+              " echo \"[$a] [$b] [$c]\"" % (HTTP, HTTP))
+check("Language: the pages are asked for the languages given, and a "
+      "page's scripts see the first",
+      "LANG=fr-FR,fr;q=0.9" in out and "] [fr-FR]" in out and
+      "[LANG=fr-FR,fr;q=0.9" not in out.split("] [")[0], out + err)
+out, err = hb("t := web open; web set $t dnt on; web go $t %s/echo;"
+              " web wait $t 10000; a := web text $t;"
+              " g := web eval $t navigator.globalPrivacyControl;"
+              " web set $t dnt off; web go $t %s/echo; web wait $t 10000;"
+              " b := web text $t; echo \"[$a] [$g] [$b]\"" % (HTTP, HTTP))
+check("Do Not Track: every request says so, and so does the page; off "
+      "says nothing",
+      "[LANG=" in out and "DNT=1 GPC=1]" in out and "[true]" in out and
+      "DNT=- GPC=-]" in out, out + err)
+out, err = hb("t := web open; web go $t %s/mk.html; web wait $t 10000;"
+              " a := web eval $t 'String(window.MARK)';"
+              " web set $t block '*mark.js*'; web go $t %s/mk.html;"
+              " web wait $t 10000; b := web eval $t 'String(window.MARK)';"
+              " echo \"[$a] [$b]\"" % (HTTP, HTTP))
+check("Block: an address that matches a pattern is never fetched",
+      "[1] [undefined]" in out, out + err)
+out, err = hb("web permit geolocation allow; t := web open;"
+              " web set $t geo '51.5 -0.1'; web go $t %s/geo.html;"
+              " web wait $t 10000; sleep 0.5; a := web eval $t window.GEO;"
+              " web permit geolocation refuse; web reload $t;"
+              " web wait $t 10000; sleep 0.5; b := web eval $t window.GEO;"
+              " echo \"[$a] [$b]\"" % HTTP)
+check("Location: allowed, a page is told the position given; refused, "
+      "it is refused",
+      "[51.5 -0.1] [refused 1]" in out, out + err)
+out, err = hb("web permit notifications allow; t := web open;"
+              " web set $t notes on; web go $t %s/nt.html; web wait $t 10000;"
+              " n=0; while [ $n -lt 50 ] && ! web notes > /dev/null 2>&1;"
+              " do sleep 0.1; n=$((n + 1)); done;"
+              " web go $t %s/nt.html; web wait $t 10000; sleep 0.6;"
+              " x := web notes; echo \"[$x]\"" % (HTTP, HTTP))
+check("Notifications: a page's note is handed over, title and body",
+      "[Hi\tthere]" in out, out + err)
+out, err = hb("t := web open; web go $t %s/dl; sleep 1.5;"
+              " ls %s | wc -l; web downloads %s; web go $t %s/dl;"
+              " n=0; while [ $n -lt 50 ]; do"
+              "   x := web downloaded && break; sleep 0.1; n=$((n + 1));"
+              " done; echo \"[$x]\"; cat %s/got.txt"
+              % (HTTP, DLD, DLD, HTTP, DLD))
+check("Downloads: none until a folder is given; then the file lands there "
+      "and is told",
+      out.split("\n")[0].strip() == "0" and
+      ("[done\t%s/got.txt]" % DLD) in out and "hello download" in out,
+      out + err)
+# And through the Browser, from its settings: what a tab is told, and a
+# download told in a note as it lands.
+sc = brun([], arg=HTTP + "/echo", until="DNT=1",
+          env={"DT_IMGMODE": "half", "BW_LANG": "de-DE", "BW_DNT": "1"})
+check("the Browser sends a tab the languages and Do Not Track it is set to",
+      sc.find("LANG=de-DE DNT=1 GPC=1") is not None, sc)
+DLD2 = os.path.join(D, "dl2")
+sc = brun([], arg=HTTP + "/dl", until="Downloaded got.txt",
+          env={"DT_IMGMODE": "half", "BW_DL": "1", "BW_DLDIR": DLD2})
+check("and with downloads on, a file lands in the folder and a note says so",
+      sc.find("Downloaded got.txt") is not None and
+      os.path.exists(os.path.join(DLD2, "got.txt")), sc)
+pdf = os.path.join(D, "page.pdf")
+out, err = hb("t := web open %s; web wait $t 10000; web pdf $t %s;"
+              " echo \"st $?\"" % (A, pdf))
+check("Print to PDF writes the page as a PDF",
+      "st 0" in out and os.path.exists(pdf) and
+      open(pdf, "rb").read(5) == b"%PDF-", out + err)
+
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(31)
+report(40)

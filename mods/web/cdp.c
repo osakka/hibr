@@ -352,6 +352,13 @@ void wb_stop(void)
 		nftw(wb.profile, wb_rmone, 16, FTW_DEPTH | FTW_PHYS);
 	free(wb.profile);
 	wb.profile = 0;
+	/* A download under way ends with the browser; one that had ended,
+	   and a notification not yet read, are still the caller's. */
+	for (i = 0; i < wb.dlbegun.n; i++)
+		free(wb.dlbegun.p[i]);
+	v_free(&wb.dlbegun);
+	free(wb.dldir);
+	wb.dldir = 0;
 }
 
 /* The tab a session belongs to, or null. */
@@ -401,6 +408,12 @@ void wb_event(jv *m)
 		}
 		return;
 	}
+	/* The browser's own, on no tab's session (Gitea #285). */
+	if (!strcmp(meth, "Browser.downloadWillBegin") ||
+	    !strcmp(meth, "Browser.downloadProgress")) {
+		wb_dlevent(meth, m);
+		return;
+	}
 	if (!t)
 		return;
 	if (!strcmp(meth, "Page.frameStartedLoading")) {
@@ -415,6 +428,8 @@ void wb_event(jv *m)
 		t->dirty = 1;
 	} else if (!strcmp(meth, "Fetch.requestPaused")) {
 		wb_imgpaused(t, m);
+	} else if (!strcmp(meth, "Runtime.bindingCalled")) {
+		wb_noteevent(m);
 	} else if (!strcmp(meth, "Page.javascriptDialogOpening")) {
 		wb_send("Page.handleJavaScriptDialog", "{\"accept\":true}",
 			t->session);

@@ -23,11 +23,17 @@
 # blocks, pixels, or text only, the page's words wrapped to the window with
 # each link numbered -- and what each tab is told: JavaScript, images, dark
 # pages, zoom, the user agent. The program, the profile and extra flags
-# are read when Chromium next starts.
+# are read when Chromium next starts. Since Gitea #285 it also sets the
+# languages pages are asked for, Do Not Track, addresses never fetched,
+# what a page may be given (location, camera, microphone, notifications,
+# each refused or allowed, since a headless browser can ask nobody), and
+# downloads into a folder, each told in a note as it lands; a page's own
+# notifications become the desktop's notes. File > Save as PDF prints the
+# page to a file.
 
 strict
 
-app browser "The web, in a window" 1.1
+app browser "The web, in a window" 1.2
 # modules: web
 # part: control-panel/browserset.hibr
 
@@ -47,8 +53,18 @@ BW_UA="${BW_UA-}"
 BW_PROGRAM="${BW_PROGRAM-}"
 BW_PROFILE="${BW_PROFILE-}"
 BW_ARGS="${BW_ARGS-}"
+BW_LANG="${BW_LANG-}"
+BW_DNT="${BW_DNT-0}"
+BW_BLOCK="${BW_BLOCK-}"
+BW_PGEO="${BW_PGEO-refuse}"
+BW_PCAM="${BW_PCAM-refuse}"
+BW_PMIC="${BW_PMIC-refuse}"
+BW_PNOTE="${BW_PNOTE-refuse}"
+BW_DL="${BW_DL-0}"
+BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
 command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
-	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS
+	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
+	BW_LANG BW_DNT BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR
 declare -gA BWX
 BW_MARKS="${BW_MARKS-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/bookmarks.tsv}"
 BW_FD=
@@ -116,6 +132,68 @@ fn bw_apply(t) {
 	web set "$t" dark "$on" 2> /dev/null
 	web set "$t" zoom "${BW_ZOOM:-100}" 2> /dev/null
 	web set "$t" ua "$BW_UA" 2> /dev/null
+	web set "$t" lang "$BW_LANG" 2> /dev/null
+	on=off
+	[ "$BW_DNT" = 1 ] && on=on
+	web set "$t" dnt "$on" 2> /dev/null
+	web set "$t" block "$BW_BLOCK" 2> /dev/null
+	bw_geo "$t"
+	on=off
+	[ "$BW_PNOTE" = allow ] && on=on
+	web set "$t" notes "$on" 2> /dev/null
+	return 0
+}
+
+# Where a page is told it is when location is allowed: the place Prayer
+# Times knows -- set there, or the time zone's own -- and no position at all
+# when location is refused or no place is known.
+fn bw_geo(t) {
+	local p=
+
+	[ "$BW_PGEO" = allow ] && dt_has dt_ploc && p := dt_ploc
+	web set "$t" geo "$p" 2> /dev/null
+	return 0
+}
+
+# What the whole browser is told, which the YouTube player's tabs share:
+# what a page may be given, and whether downloads land in a folder.
+bw_wide() {
+	local p v
+
+	for p in geolocation:BW_PGEO camera:BW_PCAM microphone:BW_PMIC \
+		 notifications:BW_PNOTE; do
+		v=${p#*:}
+		web permit "${p%%:*}" "${!v}" 2> /dev/null
+	done
+	if [ "$BW_DL" = 1 ] && [ -n "$BW_DLDIR" ]; then
+		mkdir -p "$BW_DLDIR" 2> /dev/null
+		web downloads "$BW_DLDIR" 2> /dev/null
+	else
+		web downloads off 2> /dev/null
+	fi
+	return 0
+}
+
+# What the browser has to say since it was last asked: a download that
+# ended, and a page's notification, each a note of the desktop's own.
+bw_heard() {
+	local l k x
+
+	if x := web downloaded 2> /dev/null; then
+		while IFS=$'\t' read -r k l; do
+			case $k in
+			done) dt_notep normal "Downloaded %s" "${l##*/}" ;;
+			failed) dt_notep high "The download of %s did not finish" "$l" ;;
+			esac
+		done <<< "$x"
+	fi
+	# A page's own words, which no catalogue holds: passed as they are.
+	if x := web notes 2> /dev/null; then
+		while IFS=$'\t' read -r k l; do
+			x="${k:-${l:-?}}${l:+: $l}"
+			dt_notify "$x"
+		done <<< "$x"
+	fi
 	return 0
 }
 
@@ -134,6 +212,9 @@ fn bw_reapply(again = "") {
 		done
 		BW[$id]["tdone"]=
 	done
+	# Only to a browser already running: a setting changed in the panel
+	# should not start one.
+	[ -n "$BW_FD" ] && bw_wide
 	return 0
 }
 
@@ -148,6 +229,7 @@ fn bw_newtab(int id, url = "") {
 		BW[$id]["err"]="No Chromium or Chrome to show pages with -- install one, or set HIBR_WEB_BROWSER"
 		return 1
 	}
+	bw_wide
 	bw_apply "$t"
 	[ -n "$url" ] && web go "$t" "$url" 2> /dev/null
 	bw_watch
@@ -268,6 +350,7 @@ fn browser_resume(int id) {
 # wake the desktop for ever.
 fn browser_idle(int id) {
 	[ -n "$BW_FD" ] && web poll > /dev/null 2>&1
+	[ -n "$BW_FD" ] && bw_heard
 	return 0
 }
 
@@ -369,6 +452,7 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 		BW[$id]["pixels"]="$t $bwm"
 	fi
 	web poll > /dev/null 2>&1
+	bw_heard
 	st=
 	web loading "$t" 2> /dev/null && st=loading
 	if [ "$bwm" = text ]; then
@@ -726,6 +810,31 @@ fn bw_back(int id) { [ -n "${BW[$id]["cur"]}" ] && web back "${BW[$id]["cur"]}" 
 fn bw_fwd(int id) { [ -n "${BW[$id]["cur"]}" ] && web forward "${BW[$id]["cur"]}" 2> /dev/null; return 0; }
 fn bw_reload(int id) { [ -n "${BW[$id]["cur"]}" ] && web reload "${BW[$id]["cur"]}" 2> /dev/null; return 0; }
 
+# File > Save as PDF: the page shown, printed the way the browser prints
+# it, to a file chosen in the desktop's own save dialog -- in the downloads
+# folder, named for the page's title.
+fn bw_pdfask(int id) {
+	local t=${BW[$id]["cur"]} nm d=$BW_DLDIR
+
+	[ -n "$t" ] || return 0
+	nm := web title "$t" 2> /dev/null
+	nm=${nm//[\/:]/-}
+	[ -d "$d" ] || d=$HOME
+	dt_filepick save "Save as PDF" "PDF:*.pdf" "$d" "${nm:-page}.pdf" \
+		bw_pdfsaved "$id"
+}
+fn bw_pdfsaved(id = "", path = "", type = "") {
+	local t=${BW[$id]["cur"]}
+
+	[ -n "$t" ] && [ -n "$path" ] || return 0
+	case $path in *.pdf) ;; *) path="$path.pdf" ;; esac
+	if web pdf "$t" "$path" 2> /dev/null; then
+		dt_notep normal "Saved %s" "${path##*/}"
+	else
+		dt_notep high "The page could not be saved as a PDF"
+	fi
+}
+
 browser_menus() {
 	local id=$DT_FOCUS i=0 u= on=0
 
@@ -733,6 +842,11 @@ browser_menus() {
 	dt_item "New Window" n dt_launch browser
 	dt_item "New Tab" t bw_newtab "$id"
 	dt_item "Open Location${GL[ellipsis]}" l bw_editaddr "$id"
+	if [ -n "${BW[$id]["cur"]}" ]; then
+		dt_item "Save as PDF${GL[ellipsis]}" p bw_pdfask "$id"
+	else
+		dt_dim "Save as PDF${GL[ellipsis]}"
+	fi
 	dt_sep
 	if [ -n "${BW[$id]["cur"]}" ]; then
 		dt_item "Close Tab" c bw_closetab "$id" "${BW[$id]["cur"]}"

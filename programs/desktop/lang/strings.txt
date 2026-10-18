@@ -98,11 +98,13 @@ Add a Mail Account
 Add a server in Control Panel > Network Servers
 Added %s to Contacts
 Added to your calendar
+Addresses never fetched, * for anything:
 Adjust
 Agenda
 Align
 All Displays
 All Mail
+Allow Downloads
 An event stays in its calendar; make a new one in the other
 And Minutes Before
 App
@@ -134,6 +136,7 @@ Back 30 Seconds
 Backspace
 Bar Shadow
 Blank
+Block Addresses
 Bold
 Bookmark removed
 Bookmarked %s
@@ -156,6 +159,7 @@ Calculator
 Calendar
 Calendar & Contacts
 Calendar needs the pim and db modules, which are not installed.
+Camera
 Cancel
 Cancelled
 Cannot hold the pasted text to send it
@@ -288,6 +292,7 @@ Desktop
 Desktop Icons
 Detach
 Detect
+Devices
 Dhu al-Hijjah
 Dhu al-Qa'dah
 Dhuhr
@@ -301,7 +306,10 @@ Disk Icons
 Display
 Display Structure
 Displays
+Do Not Track
 Download Whole Messages
+Downloaded %s
+Downloads
 Draft saved
 Drafts
 Drag Modifier
@@ -357,6 +365,8 @@ Find Next
 Find:
 Find…
 Flowchart
+Folder
+Folder downloads are saved in:
 Folder for cookies, the cache and history:
 Folder, %s items
 Folder:
@@ -445,6 +455,8 @@ Kind:
 Labelled %s
 Label…
 Language
+Languages
+Languages pages are asked for, first wanted most:
 Largest Height
 Largest Width
 Last Synced
@@ -465,6 +477,7 @@ Log In…
 Look
 Louder
 MODULE
+Made if it is not there. Used once downloads are on.
 Made if it is not there; ~ is your home.
 Maghrib
 Mail
@@ -483,6 +496,7 @@ Menus
 Message
 Message sent
 Method
+Microphone
 Midnight
 Mine
 Mines
@@ -621,6 +635,7 @@ Pasted the first %s characters of %s
 Pattern
 Pause
 Pause or Play
+Permissions reset
 Picture
 Picture Detail
 Pictures
@@ -634,6 +649,7 @@ Play
 Play Next Automatically
 Player
 Position
+Position Given
 Prayer
 Prayer Location
 Prayer Times
@@ -642,6 +658,7 @@ Press a key for %s…
 Preview
 Previous
 Previous Month
+Privacy
 Process Details
 Profile Folder
 Program
@@ -691,6 +708,7 @@ Report Spam
 Rescan
 Reset
 Reset All Views
+Reset Permissions
 Resize
 Restart Desktop
 Restart failed: %s would not run
@@ -711,6 +729,7 @@ Save
 Save As…
 Save Drafts Every (seconds)
 Save as Draft
+Save as PDF…
 Saved %s
 Saved %s to %s
 Saved as %s
@@ -739,6 +758,7 @@ Send Interrupt
 Sending…
 Sent
 Sep
+Separated by spaces, such as *doubleclick.net*
 Separated by spaces. Used at the next start.
 September
 Sequence
@@ -766,6 +786,7 @@ Show
 Show All Notes
 Show On
 Show Pictures
+Shown As
 Shown on the login screen, with your picture.
 Shows:
 Side
@@ -792,6 +813,7 @@ Sticky
 Still working
 Stop
 Strikethrough
+Such as fr-FR, fr, en. Empty is the browser's own.
 Sum
 Sun
 Sunday
@@ -826,8 +848,10 @@ The date is YYYY-MM-DD
 The date is YYYY-MM-DD, the time HH:MM
 The desktop is drawn through %s
 The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)
+The download of %s did not finish
 The end is a time, HH:MM
 The mermaid module is not loaded
+The page could not be saved as a PDF
 The record could not be added
 The remote file cache is empty
 The time is HH:MM or HH:MM:SS
@@ -919,6 +943,7 @@ Wallpaper set
 Wed
 Wednesday
 Week
+What a Page May Have
 What it prints is the cell's value:
 When Chromium Next Starts
 Where are you? Control Panel > Prayer Times
@@ -963,6 +988,7 @@ clicks and drags
 current
 dBASE
 dBASE Help
+desktop notes
 email
 escape closes
 every movement
@@ -985,6 +1011,8 @@ lifts that for one sheet, here only.
 moving — arrows, then enter
 no
 no reason given
+none
+none here
 not reported
 note
 nothing answered on the usual ports

@@ -66,6 +66,15 @@ struct wb_tab {
 	   requests are refused, and text only -- a render that reads nothing,
 	   since the caller draws the page's text itself. */
 	int zoom, zoomed, noimg, textonly;
+	/* Gitea #285: the languages the pages are asked for (null for the
+	   browser's own) and whether the user agent override has carried
+	   one, so clearing it is sent too; the user agent `web set ua` gave;
+	   whether the network domain is on, which the extra headers and the
+	   blocked addresses both need; and the scripts added to every new
+	   document for Do Not Track and for notifications, kept by the
+	   identifiers the browser gave them so they can be taken off. */
+	char *lang, *uaset, *dntjs, *notejs;
+	int langsent, netup;
 };
 
 /* The browser: one Chromium for the whole shell, driven over a pipe. */
@@ -81,6 +90,12 @@ struct wb_br {
 	char *ua;
 	/* `web config`: what the next start runs, over the environment. */
 	char *cfbin, *cfprof, *cfargs;
+	/* Downloads (Gitea #285): where they go, each one begun as its guid
+	   and name in turn, and each one ended as a line for `web
+	   downloaded`; and a page's notifications as lines for `web notes`.
+	   Browser-wide, since that is what the protocol offers. */
+	char *dldir;
+	vec dlbegun, dlended, notes;
 };
 
 extern wb_br wb;
@@ -128,5 +143,11 @@ void wb_imgpaused(wb_tab *t, jv *m);
 void wb_zoomapply(wb_tab *t);
 int wb_config(const char *k, const char *v);
 int wb_clear(int ac, char **av);
+int wb_permit(const char *name, const char *how);
+int wb_downloads(const char *dir);
+void wb_drain(sh *s, vec *q);
+void wb_dlevent(const char *meth, jv *m);
+void wb_noteevent(jv *m);
+int wb_pdf(wb_tab *t, const char *path);
 
 #endif
