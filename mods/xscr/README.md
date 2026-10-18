@@ -23,6 +23,16 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
   screens with it. Restart Desktop is an exec of the same process, so the
   server should survive it; that is not yet checked by a suite. Elsewhere
   it is ended when the shell exits.
+- **A window manager of its own** (Gitea #291), for a program fitted to
+  its window: `xscr manage` takes the root's SubstructureRedirect, which
+  only one client may hold, and reads back BadAccess after a round trip, so
+  a screen where the person's own window manager runs is known to be
+  unmanaged. A normal toplevel is placed at 0,0 at the size `xscr fit`
+  gives and placed again when that changes; one with `WM_TRANSIENT_FOR` (a
+  dialog) keeps its own size, centred; focus goes to what was mapped last
+  and to the window under a click; the main window's title is read from
+  `_NET_WM_NAME` or `WM_NAME` as it changes. Menus and tooltips are
+  override-redirect and never reach it.
 - **DAMAGE is taken off only once the screen has been drawn** (`xscr draw`
   or `xscr seen`), so at the NonEmpty level a window that is hidden or
   minimised hears of one change and then nothing. The app holds frames to
@@ -40,7 +50,10 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
 | `xscr dirty ID` | the same answer without reading |
 | `xscr seen ID` | mark the screen drawn and take the damage off, so the next change is reported; `draw` does this itself |
 | `xscr size ID` | the screen's size, `W H` |
-| `xscr draw ID row col h w [-p pane] [-m pixels\|half]` | the screen scaled to h by w cells, as pixels where the display can place them and half blocks where it cannot or `-m half` says so |
+| `xscr manage ID` | become the screen's window manager: status 0, or 1 when another one already is |
+| `xscr fit ID W H` | the region a managed normal window fills, every such window placed again |
+| `xscr title ID` | the main window's title, as it is now |
+| `xscr draw ID row col h w [-p pane] [-m pixels\|half] [-c]` | the screen scaled to h by w cells, as pixels where the display can place them and half blocks where it cannot or `-m half` says so; with `-c`, only the region `fit` set, which a fitted window shows 1:1 |
 | `xscr key ID NAME` | a key by the console's name for it -- a character, or `enter`, `left`, `f5`..., with `ctrl-`, `alt-` and `shift-` in front |
 | `xscr type ID TEXT` | type text, a character at a time |
 | `xscr move ID X Y` | move the pointer to a pixel of the screen |
@@ -64,8 +77,10 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
   been clicked. GTK and Qt programs take it. A key the desktop holds, such
   as its quit key, goes to the desktop, and any other goes to the screen,
   as in a terminal window.
-- **Resizing** a running screen: Xvfb cannot, so the size is chosen when
-  the window opens and the screen is scaled into the window.
+- **Resizing** a running screen: Xvfb cannot (RandR's maximum is the
+  starting size, and it refuses new modes), so a fitted window's screen
+  starts at the Largest Screen size and the program, not the screen, is
+  resized; a window larger than that is the screen, scaled.
 - **Speed** is the picture path's: each changed frame is a whole picture
   to the terminal, and over ssh the link is what limits motion. OpenGL is
   Mesa's, in software where there is no GPU.

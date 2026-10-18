@@ -74,12 +74,13 @@ A Note at Each Prayer
 A cell a formula names is a variable of that name, and a
 A cell holds at most 4096 bytes
 A command is needed
-A command, such as a window manager or one program.
 A contact needs a name or an email
 A folder is needed
 A formula is = and then hibr.
 A message was not sent: %s
+A program needs a name and a command
 A rule is an operator, a number and a colour: < 0 bad
+A screen of Fixed Size, scaled into the window.
 A terminal cannot start in a folder on a server
 A theme's name is letters, digits, spaces, dots and dashes
 About %s
@@ -119,6 +120,7 @@ April
 Archive
 Arrange Icons
 As It Is
+As the program places itself: for a window manager.
 Ask Before Closing
 Ask Sites for Dark Pages
 Asked %s to join
@@ -279,6 +281,7 @@ December
 Default View
 Degrees, north and east positive. Empty: the time zone's.
 Delete
+Delete %s from X Screen's programs?
 Delete %s from the server? It cannot be undone.
 Delete Column
 Delete Note…
@@ -361,10 +364,12 @@ File Types
 Files
 Files on Servers
 Fill
+Fills the window, 1:1, and follows it when it is resized.
 Find
 Find Next
 Find:
 Find…
+Fixed Size
 Flowchart
 Folder
 Folder downloads are saved in:
@@ -459,6 +464,7 @@ Language
 Languages
 Languages pages are asked for, first wanted most:
 Largest Height
+Largest Screen
 Largest Width
 Last Synced
 Left
@@ -639,6 +645,7 @@ Pause or Play
 Permissions reset
 Picture
 Picture Detail
+Picture:
 Pictures
 Pictures: %s
 Pie
@@ -664,6 +671,7 @@ Process Details
 Profile Folder
 Program
 Program to run as the browser:
+Programs
 Programs Set Clipboard
 Puzzle
 Quality Fetched
@@ -739,7 +747,7 @@ Saved the server %s
 Saved, and the invitation sent to %s
 Saved; the server has it at the next sync
 Screen Saver
-Screen Size
+Screens
 Screenshot Folder
 Screenshot Format
 Screenshot Starts On
@@ -810,7 +818,6 @@ Standby displays join on their own
 Star
 Starred
 Start After (minutes)
-Start With
 Starting the X screen…
 Stickies
 Sticky
@@ -871,6 +878,7 @@ The vw command is not installed.
 The web module is not installed
 Theme
 There is a theme called %s already
+There is already a program called %s
 There is no file %s
 There is no folder %s
 There is nothing in that field
@@ -949,12 +957,12 @@ Wednesday
 Week
 What a Page May Have
 What it prints is the cell's value:
-What runs when a new X Screen opens:
 When Chromium Next Starts
 Where are you? Control Panel > Prayer Times
 Where:
 Wider Column
 Window
+Window:
 Windows
 Windows: %s open
 Windows: %s open, %s hidden
@@ -968,7 +976,7 @@ Workspace: %s of %s
 Write
 Write an Email
 X Screen
-X Screen Setting
+X Screen Program
 YYYY-MM-DD and HH:MM:SS, local time
 YouTube
 YouTube did not answer -- trying again

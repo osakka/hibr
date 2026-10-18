@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.99.251
+
+**X Screen keeps a list of programs, each fitted to its window** (Gitea
+#291).
+
+Asked by the owner: name programs and their command lines in the Control
+Panel, have each one under the menu, title its window with that name, and
+size the program to its window.
+
+- **Control Panel > X Screen** lists the programs: Add Program, and a row
+  per program that opens it to change or delete. A program is a name, a
+  command, a **Window** choice and a **Picture** choice. The list is
+  `~/.local/share/hibr/xscreen.tsv`, one program a line.
+- Each program is an entry under **Applications > X Screen**. The plain X
+  Screen entry is gone: the app is hidden, and opens only for a program.
+  The menu entries are a new kind in the window manager, `dt_appvia`, an
+  entry that opens another app with an argument; they come off and go back
+  with the app's file on a rescan, and are put back whenever the list
+  changes.
+- **Window: Fit** (the default, the owner's choice): the xscr module is
+  the screen's window manager. The program's window is kept the hibr
+  window's body in the screen's pixels, 1:1, and follows a resize; a
+  dialog keeps its own size, centred; focus goes to what was mapped last
+  and to the window under a click, so a program no longer needs clicking
+  before it takes keys. Xvfb cannot change its size once running
+  (measured: RandR's maximum is the starting size and it refuses new
+  modes), so the screen starts at **Largest Screen**, 1920x1080 by
+  default, 8.3 MB of memory-backed storage per window, and a window
+  larger than that is the screen, scaled. **Fixed** is a screen of Fixed
+  Size scaled in, as before. **Program's own** leaves the program to place
+  itself, for an entry that starts a window manager: two cannot share a
+  screen, and the module reads back the BadAccess a second one is
+  answered with, so it knows rather than looking managed.
+- The window is titled with the program's name, then `Name [its title]`
+  once the program names its window.
+
+Measured: a picture costs the same fitted or scaled, about 340 KB a frame
+for a 14x48-cell window, since the console sizes every picture to the
+window's pixels either way. What Fit buys is a sharp 1:1 picture, a
+program laid out for the window it is in, and converting only the
+window's corner of the screen.
+
+Six new checks in `tests/xscreen.py`:
+- each program is an entry under Applications > X Screen and the plain
+  one is not;
+- deleting a program takes it off the menu at once;
+- a fitted program's window is the hibr window's body in pixels;
+- that window follows a resize;
+- the window is titled `Entry [entry]`;
+- a program left to place itself keeps GTK's own 600x120.
+
+X Screen 1.1 and its pane, and Arabic 2.7 (thirteen new strings, five
+gone with Start With), are in the catalogue.
+
 ## 0.99.250
 
 **X Screen: X11 programs in a window** (Gitea #290).

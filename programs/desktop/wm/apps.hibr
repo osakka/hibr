@@ -71,6 +71,44 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 	DT_APPS[$name]["src"]="$DT_LOADING"
 }
 
+# An entry on the hibr menu that opens another app with an argument (Gitea
+# #291): each program X Screen keeps is one, in its folder, opening an X
+# Screen window for that program. It takes the size, icon and fixedness of
+# the app it opens, is never `once`, and its source is that app's file, so
+# a rescan takes it off and puts it back with that file. The app that
+# registers these registers them again whenever its list changes, since
+# they come from data rather than from a file of their own.
+fn dt_appvia(name, title, via, arg = "", dir = "") {
+	[ -n "${DT_APPS[$via]["title"]}" ] || return 1
+	DT_APPPLANK=
+	DT_MENUIN=
+	DT_APPS[$name]["title"]="$title"
+	DT_APPS[$name]["h"]=${DT_APPS[$via]["h"]}
+	DT_APPS[$name]["w"]=${DT_APPS[$via]["w"]}
+	DT_APPS[$name]["once"]=
+	DT_APPS[$name]["icon"]=${DT_APPS[$via]["icon"]}
+	DT_APPS[$name]["fixed"]=${DT_APPS[$via]["fixed"]}
+	DT_APPS[$name]["hidden"]=
+	DT_APPS[$name]["bare"]=
+	DT_APPS[$name]["dir"]="$dir"
+	DT_APPS[$name]["src"]=${DT_APPS[$via]["src"]}
+	DT_APPS[$name]["via"]="$via"
+	DT_APPS[$name]["arg"]="$arg"
+	return 0
+}
+
+# Take every such entry that opens via off the menu.
+fn dt_appunvia(via) {
+	local n
+
+	for n in "${!DT_APPS[@]}"; do
+		[ "${DT_APPS[$n]["via"]}" = "$via" ] && unset DT_APPS["$n"]
+	done
+	DT_APPPLANK=
+	DT_MENUIN=
+	return 0
+}
+
 # Where apps are found: every .hibr in each of these, at any depth, in this
 # order.  The user's own folder comes first, so a file there replaces a
 # bundled app of the same name; a session adds its own folders after.
@@ -614,6 +652,17 @@ fn dt_launch(n, arg = "") {
 	if [ -z "${DT_APPS[$n]["title"]}" ]; then
 		dt_notep high "%s is not installed. Find it in the Catalogue." "$n"
 		return 1
+	fi
+	# An entry that opens another app with an argument (dt_appvia): a
+	# window of that app, titled for the entry.
+	if [ -n "${DT_APPS[$n]["via"]}" ]; then
+		h=${DT_APPS[$n]["h"]}
+		w=${DT_APPS[$n]["w"]}
+		pl := dt_place "$h" "$w"
+		read -r r c h w <<< "$pl"
+		dt_new "${DT_APPS[$n]["title"]}" "$h" "$w" "$r" "$c" \
+			"${DT_APPS[$n]["via"]}" "${arg:-${DT_APPS[$n]["arg"]}}"
+		return
 	fi
 	# An app that does something rather than showing a window -- the
 	# Screenshot desk accessory -- gives <app>_launch, and that is all.

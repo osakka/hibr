@@ -1,43 +1,61 @@
 #!/usr/bin/env hibr
 #
-# xscreenset -- the Control Panel pane for X Screen (Gitea #290): the size
-# of the X screen a new window starts, how the screen is drawn, and what
-# runs on it when the window opens. Named xscreenset, not xscreen, because
-# the app owns the xscreen_ prefix. Start With is typed in a small window
-# of its own, xsfield.
+# xscreenset -- the Control Panel pane for X Screen (Gitea #290, #291): the
+# programs it runs, each an entry under Applications > X Screen, and the
+# sizes of the screens they run on. A program is a name, a command, how
+# its window behaves -- fit the window, a fixed size, or the program's own
+# for a window manager -- and how it is drawn; a row opens it to change or
+# delete, and Add Program makes another. Named xscreenset, not xscreen,
+# because the app owns the xscreen_ prefix; the dialog is xsfield.
+#
+# The list itself is the app's (xs_load, xs_save, xs_reload in
+# apps/xscreen.hibr), and every change here puts it on the menu again.
 
 strict
 
-app xscreenset "The Control Panel pane for X Screen" 1.0
+app xscreenset "The Control Panel pane for X Screen" 1.1
 command -v cp_pane > /dev/null && cp_pane xscreenset "X Screen" "▣" app
 command -v dt_app > /dev/null &&
-	dt_app xsfield "X Screen Setting" 8 64 "" "" fixed hidden
+	dt_app xsfield "X Screen Program" 11 66 "" "" fixed hidden
 
 XS_SIZE="${XS_SIZE-1280x800}"
-XS_MODE="${XS_MODE-follow}"
-XS_RUN="${XS_RUN-}"
-command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MODE XS_RUN
+XS_MAX="${XS_MAX-1920x1080}"
+command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MAX
+XSP_NAME=()
+XSP_CMD=()
+XSP_WIN=()
+XSP_PIC=()
 
 XSS_SIZES=(1024x768 1280x800 1366x768 1600x900 1920x1080)
+XSS_MAXES=(1280x800 1600x900 1920x1080 2560x1440)
+XSS_WINS=(fit fixed own)
 # follow is Control Panel > Pictures, as YouTube's and the wallpaper's are.
-XSS_MODES=(follow half pixels)
+XSS_PICS=(follow half pixels)
 declare -gA XSF
 
 fn cp_set_xssize(int? id = "", value = "") { XS_SIZE=$value; cp_save; }
-fn cp_set_xsmode(int? id = "", value = "") { XS_MODE=$value; cp_save; }
+fn cp_set_xsmax(int? id = "", value = "") { XS_MAX=$value; cp_save; }
 
 fn xscreenset_rows(int w) {
-	local n=0
+	local n=0 i
 
 	dt_has xscreen_draw || { cp_absent "$w" "X Screen"; ret 1; }
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screen Size"
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Programs"; n=$((n + 1))
+	for i in "${!XSP_NAME[@]}"; do
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="${XSP_NAME[$i]}"
+		CP[$w][$n]["val"]="${XSP_CMD[$i]}"; CP[$w][$n]["key"]="prog:$i"
+		n=$((n + 1))
+	done
+	CP[$w][$n]["kind"]=action
+	CP[$w][$n]["text"]="Add Program${GL[ellipsis]}"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=add
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Screens"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Largest Screen"
+	CP[$w][$n]["val"]="$XS_MAX"; CP[$w][$n]["key"]=max
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Fixed Size"
 	CP[$w][$n]["val"]="$XS_SIZE"; CP[$w][$n]["key"]=size
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
-	CP[$w][$n]["val"]="$XS_MODE"; CP[$w][$n]["key"]=mode
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Start With"
-	CP[$w][$n]["val"]="$XS_RUN"; CP[$w][$n]["key"]=run
 	n=$((n + 1))
 	ret "$n"
 }
@@ -46,54 +64,175 @@ fn xscreenset_do(int? w = "", k = "", int? dir = "") {
 	local v
 
 	case $k in
+	max) v := cp_next "$XS_MAX" "$dir" "${XSS_MAXES[@]}"; XS_MAX=$v ;;
 	size) v := cp_next "$XS_SIZE" "$dir" "${XSS_SIZES[@]}"; XS_SIZE=$v ;;
-	mode) v := cp_next "$XS_MODE" "$dir" "${XSS_MODES[@]}"; XS_MODE=$v ;;
-	run) xss_dialog; return 0 ;;
+	add) xss_dialog -1; return 0 ;;
+	prog:*) xss_dialog "${k#prog:}"; return 0 ;;
 	esac
 	cp_save
 }
 
 fn xscreenset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
+	max) dt_droplist "$w" "$r" "$c" cp_set_xsmax "${XSS_MAXES[@]}" ;;
 	size) dt_droplist "$w" "$r" "$c" cp_set_xssize "${XSS_SIZES[@]}" ;;
-	mode) dt_droplist "$w" "$r" "$c" cp_set_xsmode "${XSS_MODES[@]}" ;;
 	esac
 }
 
-# --- the field dialog ---------------------------------------------------------
+# --- the program dialog -------------------------------------------------------
 
-# Type what a new window runs: a small window with the field, Save and
-# Cancel.
-xss_dialog() {
-	local h=8 w=64 r c rid
+# A program to add (k is -1) or to change: its name and command typed, its
+# window and picture chosen with left and right or a click.
+fn xss_dialog(int k) {
+	local h=11 w=66 r c rid
 
 	r=$((DT_ROWS / 2 - h / 2))
 	c=$(((DT_COLS - w) / 2))
-	rid := dt_new "X Screen Setting" "$h" "$w" "$r" "$c" xsfield
-	XSF[$rid]["buf"]=$XS_RUN
-	XSF[$rid]["cur"]=${#XS_RUN}
-	XSF[$rid]["focus"]=text
+	rid := dt_new "X Screen Program" "$h" "$w" "$r" "$c" xsfield
+	XSF[$rid]["k"]=$k
+	XSF[$rid]["name"]=
+	XSF[$rid]["cmd"]=
+	XSF[$rid]["win"]=fit
+	XSF[$rid]["pic"]=follow
+	if [ "$k" -ge 0 ]; then
+		XSF[$rid]["name"]=${XSP_NAME[$k]}
+		XSF[$rid]["cmd"]=${XSP_CMD[$k]}
+		XSF[$rid]["win"]=${XSP_WIN[$k]}
+		XSF[$rid]["pic"]=${XSP_PIC[$k]}
+	fi
+	XSF[$rid]["cur"]=${#XSF[$rid]["name"]}
+	XSF[$rid]["focus"]=name
+}
+
+# The places tab moves through, in order: Delete only for a program that
+# is there to delete.
+fn xsf_order(int id) {
+	if [ "${XSF[$id]["k"]}" -ge 0 ]; then
+		ret "name cmd win pic ok del cancel"
+	else
+		ret "name cmd win pic ok cancel"
+	fi
 }
 
 fn xsfield_draw(int id, int h, int w, int row, int col) {
-	local f=${XSF[$id]["focus"]} on=0
+	local f=${XSF[$id]["focus"]} on cur
 
 	dt_wclear "$id"
-	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
-	dt_tput "$id" 1 2 "What runs when a new X Screen opens:"
-	dt_textdraw "$id" 2 2 $((w - 4)) "${XSF[$id]["buf"]}" \
-		"${XSF[$id]["cur"]}" "$on"
-	dt_wreg "$id" 2 2 $((w - 4)) text
+	dt_tput "$id" 1 2 "Name:"
+	on=0; cur=0
+	[ "$f" = name ] && { on=1; cur=${XSF[$id]["cur"]}; }
+	dt_textdraw "$id" 1 12 $((w - 14)) "${XSF[$id]["name"]}" "$cur" "$on"
+	dt_wreg "$id" 1 12 $((w - 14)) name
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 3 2 "Command:"
+	on=0; cur=0
+	[ "$f" = cmd ] && { on=1; cur=${XSF[$id]["cur"]}; }
+	dt_textdraw "$id" 3 12 $((w - 14)) "${XSF[$id]["cmd"]}" "$cur" "$on"
+	dt_wreg "$id" 3 12 $((w - 14)) cmd
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 5 2 "Window:"
+	[ "$f" = win ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 5 12 14 "${XSF[$id]["win"]}" win
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 5 30 "Picture:"
+	[ "$f" = pic ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 5 40 12 "${XSF[$id]["pic"]}" pic
 	console pen "$DT_DIM" "$DT_FACE"
-	dt_tput "$id" 4 2 "A command, such as a window manager or one program."
-	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+	case ${XSF[$id]["win"]} in
+	fit) dt_tput "$id" 7 2 "Fills the window, 1:1, and follows it when it is resized." ;;
+	fixed) dt_tput "$id" 7 2 "A screen of Fixed Size, scaled into the window." ;;
+	*) dt_tput "$id" 7 2 "As the program places itself: for a window manager." ;;
+	esac
+	if [ "${XSF[$id]["k"]}" -ge 0 ]; then
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Delete cancel Cancel
+	else
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+	fi
 }
 
+# Step one of the choices on, or back.
+fn xsf_cycle(int id, field, int dir) {
+	local v
+
+	case $field in
+	win) v := cp_next "${XSF[$id]["win"]}" "$dir" "${XSS_WINS[@]}" ;;
+	pic) v := cp_next "${XSF[$id]["pic"]}" "$dir" "${XSS_PICS[@]}" ;;
+	*) return 0 ;;
+	esac
+	XSF[$id]["$field"]=$v
+}
+
+# The dropdowns' callbacks: the dialog's id comes back as the first word.
+fn xsf_setwin(int id, value = "") { XSF[$id]["win"]=$value; }
+fn xsf_setpic(int id, value = "") { XSF[$id]["pic"]=$value; }
+
+# Keep the program: a name no other program has, and a command. A tab or
+# a new line in either would break the file's lines, so they become spaces.
 fn xsfield_ok(int id) {
-	XS_RUN=${XSF[$id]["buf"]}
-	cp_save
+	local k=${XSF[$id]["k"]} nm=${XSF[$id]["name"]} cm=${XSF[$id]["cmd"]} i
+
+	nm=${nm//[$'\t\n']/ }
+	cm=${cm//[$'\t\n']/ }
+	if [ -z "${nm// /}" ] || [ -z "${cm// /}" ]; then
+		dt_notep high "A program needs a name and a command"
+		return 0
+	fi
+	for i in "${!XSP_NAME[@]}"; do
+		[ "$i" = "$k" ] && continue
+		if [ "${XSP_NAME[$i]}" = "$nm" ]; then
+			dt_notep high "There is already a program called %s" "$nm"
+			return 0
+		fi
+	done
+	if [ "$k" -lt 0 ]; then
+		k=${#XSP_NAME[@]}
+	fi
+	XSP_NAME[$k]=$nm
+	XSP_CMD[$k]=$cm
+	XSP_WIN[$k]=${XSF[$id]["win"]}
+	XSP_PIC[$k]=${XSF[$id]["pic"]}
+	xsf_store
 	dt_del "$id"
+}
+
+# Delete the program, after asking.
+fn xsfield_del(int id) {
+	local k=${XSF[$id]["k"]} t
+
+	[ "$k" -ge 0 ] || return 0
+	XSF_DEL=$id
+	t := dt_tr "Delete %s from X Screen's programs?" "${XSP_NAME[$k]}"
+	dt_confirm "$t" xsf_delok
+}
+XSF_DEL=
+xsf_delok() {
+	local id=$XSF_DEL k i
+	local -a n c w p
+
+	[ -n "$id" ] || return 0
+	k=${XSF[$id]["k"]}
+	for i in "${!XSP_NAME[@]}"; do
+		[ "$i" = "$k" ] && continue
+		n+=("${XSP_NAME[$i]}")
+		c+=("${XSP_CMD[$i]}")
+		w+=("${XSP_WIN[$i]}")
+		p+=("${XSP_PIC[$i]}")
+	done
+	XSP_NAME=("${n[@]}")
+	XSP_CMD=("${c[@]}")
+	XSP_WIN=("${w[@]}")
+	XSP_PIC=("${p[@]}")
+	xsf_store
+	XSF_DEL=
+	dt_del "$id"
+}
+
+# Write the list and put it on the menu again, through the app.
+xsf_store() {
+	dt_needs xscreen xs_save && xs_save
+	dt_needs xscreen xs_reload && xs_reload
+	return 0
 }
 
 fn xsfield_click(int id, int r, int c, btn = "") {
@@ -101,32 +240,60 @@ fn xsfield_click(int id, int r, int c, btn = "") {
 
 	tag := dt_hit "$id" "$r" "$c"
 	case $tag in
-	text) XSF[$id]["focus"]=text ;;
+	name | cmd)
+		XSF[$id]["focus"]=$tag
+		XSF[$id]["cur"]=${#XSF[$id]["$tag"]}
+		;;
+	win) XSF[$id]["focus"]=win
+		dt_droplist "$id" "$r" "$c" xsf_setwin "${XSS_WINS[@]}" ;;
+	pic) XSF[$id]["focus"]=pic
+		dt_droplist "$id" "$r" "$c" xsf_setpic "${XSS_PICS[@]}" ;;
 	ok) xsfield_ok "$id" ;;
+	del) xsfield_del "$id" ;;
 	cancel) dt_del "$id" ;;
 	esac
 	return 0
 }
 
 fn xsfield_key(int id, key) {
-	local res f=${XSF[$id]["focus"]} d onb=1
+	local res f=${XSF[$id]["focus"]} d onb=1 ord
+	local -a o
 
-	[ "$f" = text ] && onb=0
+	case $f in name | cmd) onb=0 ;; esac
+	ord := xsf_order "$id"
+	read -ra o <<< "$ord"
 	if d := dt_focuskey "$key" "$onb"; then
-		XSF[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		XSF[$id]["focus"] := dt_focus "$f" "$d" "${o[@]}"
+		f=${XSF[$id]["focus"]}
+		case $f in name | cmd) XSF[$id]["cur"]=${#XSF[$id]["$f"]} ;; esac
 		return 0
 	fi
 	case $key in
 	escape) dt_del "$id"; return 0 ;;
 	enter)
-		if [ "$f" = cancel ]; then dt_del "$id"; else xsfield_ok "$id"; fi
+		case $f in
+		cancel) dt_del "$id" ;;
+		del) xsfield_del "$id" ;;
+		win | pic) xsf_cycle "$id" "$f" 1 ;;
+		*) xsfield_ok "$id" ;;
+		esac
 		return 0
 		;;
 	esac
-	[ "$f" = text ] || return 0
-	res := dt_textkey "${XSF[$id]["buf"]}" "${XSF[$id]["cur"]}" "$key" ||
+	case $f in
+	win | pic)
+		case $key in
+		left) xsf_cycle "$id" "$f" -1 ;;
+		right | " ") xsf_cycle "$id" "$f" 1 ;;
+		esac
+		return 0
+		;;
+	name | cmd) ;;
+	*) return 0 ;;
+	esac
+	res := dt_textkey "${XSF[$id]["$f"]}" "${XSF[$id]["cur"]}" "$key" ||
 		return 1
-	XSF[$id]["buf"]=${res% *}
+	XSF[$id]["$f"]=${res% *}
 	XSF[$id]["cur"]=${res##* }
 	return 0
 }
@@ -136,24 +303,27 @@ fn xsfield_close(int id) {
 }
 
 fn xsfield_copy(int id) {
-	[ "${XSF[$id]["focus"]}" = text ] || return 1
-	ret "${XSF[$id]["buf"]}"
+	local f=${XSF[$id]["focus"]}
+
+	case $f in name | cmd) ret "${XSF[$id]["$f"]}" ;; esac
+	return 1
 }
 
 fn xsfield_cut(int id) {
-	[ "${XSF[$id]["focus"]}" = text ] || return 1
-	local t=${XSF[$id]["buf"]}
+	local f=${XSF[$id]["focus"]} t
 
-	XSF[$id]["buf"]=
+	case $f in name | cmd) ;; *) return 1 ;; esac
+	t=${XSF[$id]["$f"]}
+	XSF[$id]["$f"]=
 	XSF[$id]["cur"]=0
 	ret "$t"
 }
 
 fn xsfield_paste(int id, text, op = "") {
-	local r
+	local r f=${XSF[$id]["focus"]}
 
-	XSF[$id]["focus"]=text
-	r := dt_textpaste "${XSF[$id]["buf"]}" "${XSF[$id]["cur"]}" "$text"
-	XSF[$id]["buf"]=${r% *}
+	case $f in name | cmd) ;; *) f=cmd; XSF[$id]["focus"]=cmd ;; esac
+	r := dt_textpaste "${XSF[$id]["$f"]}" "${XSF[$id]["cur"]}" "$text"
+	XSF[$id]["$f"]=${r% *}
 	XSF[$id]["cur"]=${r##* }
 }

@@ -1,43 +1,122 @@
 #!/usr/bin/env hibr
 #
-# xscreen -- an X screen in a window (Gitea #290): ordinary X11 programs,
-# and the GTK, Qt, Firefox and Chromium ones that speak X11, run on the
-# desktop. Each window starts an Xvfb of its own, a virtual X server that
-# draws the screen into a file it maps, and the xscr module maps the same
-# file and puts the screen into the window -- as pixels where the terminal
-# can place them, half blocks where it cannot. Keys, clicks, drags and the
-# wheel go to it through XTEST; the screen is drawn only when the server
-# says it changed (DAMAGE), so an idle one costs nothing.
+# xscreen -- X11 programs in windows (Gitea #290, #291): Firefox, GTK and Qt
+# programs, and anything else that speaks X11, run on the desktop. Each
+# window starts an Xvfb of its own, a virtual X server that draws the screen
+# into a file it maps, and the xscr module maps the same file and puts the
+# screen into the window -- as pixels where the terminal can place them,
+# half blocks where it cannot. Keys, clicks, drags, the wheel and paste go
+# to it through XTEST; the screen is drawn only when the server says it
+# changed (DAMAGE), so an idle or hidden one costs nothing.
 #
-# One window is one X screen, of the size Control Panel > X Screen says,
-# scaled into the window with its shape kept. Programs run full screen, or
-# under a window manager started in it -- Start With is what runs when the
-# window opens. Needs Xvfb (the xvfb package); OpenGL comes from Mesa, in
-# software where there is no GPU.
+# The programs are a list Control Panel > X Screen keeps -- a name, a
+# command, how its window behaves and how it is drawn -- and each one is an
+# entry under Applications > X Screen, opening a window titled for it and,
+# once the program names its own window, `Name [its title]`. The app itself
+# is hidden: an empty screen with nothing on it is nothing to choose.
 #
-# What it cannot do yet: hover with no button pressed (the desktop does
-# not ask the terminal for every movement), keys outside the server's US
+# How a program's window behaves:
+#   fit    the module is the screen's window manager, keeps the program's
+#          window exactly the hibr window's size in pixels and follows a
+#          resize; only that corner of the screen is sent, so a small window
+#          is a small picture. The screen is Largest Screen in size, and a
+#          window larger than that is the screen, scaled.
+#   fixed  a screen of Fixed Size, scaled into the window with its shape.
+#   own    the same, with no window manager of the module's, for a program
+#          that is one -- two cannot share a screen.
+#
+# What it cannot do yet: hover with no button pressed (the desktop does not
+# ask the terminal for every movement), keys outside the server's US
 # keyboard map, and the clipboard between the X screen and the desktop.
 
 strict
 
 
-app xscreen "An X screen in a window: run X11 programs on the desktop" 1.0
+app xscreen "X11 programs in windows of their own" 1.1
 # modules: xscr
 # part: control-panel/xscreenset.hibr
-command -v dt_app > /dev/null && dt_app xscreen "X Screen" 26 90 many "▣"
+command -v dt_app > /dev/null &&
+	dt_app xscreen "X Screen" 26 90 many "▣" "" hidden
 command -v dt_keepstate > /dev/null && dt_keepstate xscreen XS
 
 declare -gA XS
 XS_SIZE="${XS_SIZE-1280x800}"
-XS_MODE="${XS_MODE-follow}"
-XS_RUN="${XS_RUN-}"
-command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MODE XS_RUN
+XS_MAX="${XS_MAX-1920x1080}"
+command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MAX
+
+# The programs, as the file holds them: a name, a command, a window and a
+# picture, a tab between, each a line; the four arrays are that file read.
+XS_LIST="${XS_LIST-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/xscreen.tsv}"
+XSP_NAME=()
+XSP_CMD=()
+XSP_WIN=()
+XSP_PIC=()
+
+# Read the list. A line with a field missing is passed over; no field is
+# ever written empty, since a tab is IFS whitespace and an empty middle
+# field would shift the rest.
+xs_load() {
+	local n c w p
+
+	XSP_NAME=()
+	XSP_CMD=()
+	XSP_WIN=()
+	XSP_PIC=()
+	[ -r "$XS_LIST" ] || return 0
+	while IFS=$'\t' read -r n c w p; do
+		[ -n "$n" ] && [ -n "$c" ] || continue
+		case $w in fit | fixed | own) ;; *) w=fit ;; esac
+		case $p in follow | half | pixels) ;; *) p=follow ;; esac
+		XSP_NAME+=("$n")
+		XSP_CMD+=("$c")
+		XSP_WIN+=("$w")
+		XSP_PIC+=("$p")
+	done < "$XS_LIST"
+	return 0
+}
+
+# Write the list back, through a temporary file and a rename.
+xs_save() {
+	local i tmp="$XS_LIST.$$"
+
+	mkdir -p "${XS_LIST%/*}" 2> /dev/null
+	{
+		for i in "${!XSP_NAME[@]}"; do
+			printf '%s\t%s\t%s\t%s\n' "${XSP_NAME[$i]}" "${XSP_CMD[$i]}" \
+				"${XSP_WIN[$i]}" "${XSP_PIC[$i]}"
+		done
+	} > "$tmp" && command mv -f -- "$tmp" "$XS_LIST"
+}
+
+# Put every program on the menu, under Applications > X Screen, taking off
+# whatever was there: called when the app loads and whenever the list
+# changes.
+xs_register() {
+	local i
+
+	dt_has dt_appvia || return 0
+	dt_appunvia xscreen
+	for i in "${!XSP_NAME[@]}"; do
+		dt_appvia "xscreen:$i" "${XSP_NAME[$i]}" xscreen \
+			"${XSP_NAME[$i]}" "Applications/X Screen"
+	done
+	return 0
+}
+
+# Read the list again and put it on the menu: what the pane calls after
+# every change.
+xs_reload() {
+	xs_load
+	xs_register
+}
+
+xs_load
+xs_register
 
 # Take away the screen folders a desktop that is no longer running left
 # behind -- one that crashed or was killed never closed its windows, and
-# each holds a 4 MB screen in memory-backed storage. A folder is named for
-# the desktop's pid, which is how one still in use is told apart.
+# each holds a screen in memory-backed storage. A folder is named for the
+# desktop's pid, which is how one still in use is told apart.
 xs_sweep() {
 	local d p
 
@@ -63,9 +142,9 @@ xs_free() {
 }
 
 # Start a program on the window's screen, as a job of this shell so the
-# shell reaps it, its pid kept so closing the window can end it.
-# The environment goes through env as words, not as assignments, which a
-# strict file would read as globals being made.
+# shell reaps it, its pid kept so closing the window can end it. The
+# environment goes through env as words, not as assignments, which a strict
+# file would read as globals being made.
 fn xs_run(int id, cmd) {
 	local n=${XS[$id]["n"]}
 	local -a e
@@ -82,8 +161,19 @@ fn xs_run(int id, cmd) {
 # desktop takes the screen and the programs on it with it, where a job
 # would run on after the desktop had gone.
 fn xscreen_open(int id, arg = "") {
-	local n dir t srv=
+	local n dir srv= i k=-1 sz
 
+	for i in "${!XSP_NAME[@]}"; do
+		[ "${XSP_NAME[$i]}" = "$arg" ] && { k=$i; break; }
+	done
+	if [ "$k" -lt 0 ]; then
+		XS[$id]["err"]="No such program -- add one in Control Panel > X Screen"
+		return 0
+	fi
+	XS[$id]["name"]=${XSP_NAME[$k]}
+	XS[$id]["run"]=${XSP_CMD[$k]}
+	XS[$id]["win"]=${XSP_WIN[$k]}
+	XS[$id]["pic"]=${XSP_PIC[$k]}
 	if ! command -v Xvfb > /dev/null; then
 		XS[$id]["err"]="X Screen needs Xvfb -- install the xvfb package"
 		return 0
@@ -92,59 +182,72 @@ fn xscreen_open(int id, arg = "") {
 		XS[$id]["err"]="The xscr module is not installed"
 		return 0
 	}
+	sz=$XS_SIZE
+	[ "${XS[$id]["win"]}" = fit ] && sz=$XS_MAX
 	xs_sweep
 	n := xs_free
 	dir="${XDG_RUNTIME_DIR:-/tmp}/hibr-xscreen-$$-$id"
 	mkdir -p "$dir" 2> /dev/null
-	srv := xscr start "$n" "$XS_SIZE" "$dir" 2> /dev/null
+	srv := xscr start "$n" "$sz" "$dir" 2> /dev/null
 	XS[$id]["n"]=$n
 	XS[$id]["dir"]=$dir
 	XS[$id]["srv"]=$srv
 	XS[$id]["pids"]=
 	XS[$id]["x"]=
 	XS[$id]["err"]=
+	XS[$id]["title"]=
+	XS[$id]["fitwh"]=
 	XS[$id]["t0"]=$EPOCHSECONDS
-	XS[$id]["run"]=${arg:-$XS_RUN}
-	t := dt_wintitle "X Screen" ":$n"
-	dt_retitle "$id" "$t"
 }
 
 # Connect once the server is up: its socket and its screen file both
 # there. Asked from _draw, so a slow start is a few frames of "Starting",
-# never a wait.
+# never a wait. A fitted window's screen gets the module as its window
+# manager first, so the program is fitted from its first frame.
 fn xs_connect(int id) {
 	local n=${XS[$id]["n"]} f="${XS[$id]["dir"]}/Xvfb_screen0" x fd
 
 	[ -n "${XS[$id]["x"]}" ] && return 0
 	[ -n "$n" ] || return 1
 	[ -S "/tmp/.X11-unix/X$n" ] && [ -s "$f" ] || return 1
-	need xscr 2> /dev/null || {
-		XS[$id]["err"]="The xscr module is not installed"
-		return 1
-	}
 	x := xscr open "$n" "$f" "${XS[$id]["srv"]}" 2> /dev/null || return 1
 	XS[$id]["x"]=$x
 	fd := xscr fd "$x"
 	XS[$id]["fd"]=$fd
 	command -v console > /dev/null && console watch "$fd"
+	if [ "${XS[$id]["win"]}" = fit ] && ! xscr manage "$x" 2> /dev/null; then
+		XS[$id]["win"]=own
+	fi
 	[ -n "${XS[$id]["run"]}" ] && xs_run "$id" "${XS[$id]["run"]}"
 	XS[$id]["run"]=
 	return 0
 }
 
-# Where the screen sits in the window, its shape kept: in cells, from the
-# body's h by w and what a cell measures (two pixels a cell tall for half
-# blocks), into XS[id] r0 c0 rh rw.
-fn xs_fit(int id, int h, int w, int sw, int sh) {
-	local g cw=1 ch=2 rw rh
+# What a cell measures in the screen's pixels: the terminal's own when
+# pixels are drawn, and 8 by 16 for half blocks, so a program fitted to a
+# window is the size it would be at that window's size on a terminal.
+XS_CW=8
+XS_CH=16
+fn xs_cell(int id) {
+	local g
 	local -a p
 
-	if [ "${XS[$id]["pix"]}" = 1 ]; then
-		g := dt_imggfx
-		read -ra p <<< "$g"
-		[ "${p[1]:-0}" -gt 1 ] && cw=${p[1]}
-		[ "${p[2]:-0}" -gt 1 ] && ch=${p[2]}
-	fi
+	XS_CW=8
+	XS_CH=16
+	[ "${XS[$id]["pix"]}" = 1 ] || return 0
+	g := dt_imggfx
+	read -ra p <<< "$g"
+	[ "${p[1]:-0}" -gt 1 ] && XS_CW=${p[1]}
+	[ "${p[2]:-0}" -gt 1 ] && XS_CH=${p[2]}
+	return 0
+}
+
+# Where the screen sits in the window, its shape kept: in cells, from the
+# body's h by w, into XS[id] r0 c0 rh rw.
+fn xs_place(int id, int h, int w, int sw, int sh) {
+	local cw=$XS_CW ch=$XS_CH rw rh
+
+	[ "${XS[$id]["pix"]}" = 1 ] || { cw=1; ch=2; }
 	rw=$w
 	rh=$((rw * cw * sh / (sw * ch)))
 	if [ "$rh" -gt "$h" ]; then
@@ -160,7 +263,7 @@ fn xs_fit(int id, int h, int w, int sw, int sh) {
 }
 
 fn xscreen_draw(int id, int h, int w, int row, int col) {
-	local x sz sw sh m t
+	local x sz sw sh m t fw fh crop=
 
 	XS[$id]["h"]=$h
 	XS[$id]["w"]=$w
@@ -183,24 +286,60 @@ fn xscreen_draw(int id, int h, int w, int row, int col) {
 	sz := xscr size "$x"
 	sw=${sz% *}
 	sh=${sz#* }
-	m=$XS_MODE
+	m=${XS[$id]["pic"]}
 	[ "$m" = follow ] && m=${DT_IMGMODE:-auto}
 	XS[$id]["pix"]=0
 	case $m in
 	pixels | sixel) XS[$id]["pix"]=1 ;;
 	auto) dt_imgwill auto && XS[$id]["pix"]=1 ;;
 	esac
-	xs_fit "$id" "$h" "$w" "$sw" "$sh"
+	xs_cell "$id"
+	# Fitted: the program is the window's size in pixels and the window
+	# shows that corner of the screen 1:1. The size is sent again only
+	# when it changes -- a resize, or a terminal with another cell size.
+	if [ "${XS[$id]["win"]}" = fit ]; then
+		fw=$((w * XS_CW))
+		fh=$((h * XS_CH))
+		if [ "$fw" -le "$sw" ] && [ "$fh" -le "$sh" ]; then
+			if [ "${XS[$id]["fitwh"]}" != "$fw $fh" ]; then
+				xscr fit "$x" "$fw" "$fh"
+				XS[$id]["fitwh"]="$fw $fh"
+			fi
+			XS[$id]["r0"]=1
+			XS[$id]["c0"]=1
+			XS[$id]["rh"]=$h
+			XS[$id]["rw"]=$w
+			sw=$fw
+			sh=$fh
+			crop=-c
+		fi
+	fi
+	[ -n "$crop" ] || xs_place "$id" "$h" "$w" "$sw" "$sh"
 	XS[$id]["sw"]=$sw
 	XS[$id]["sh"]=$sh
 	m=half
 	[ "${XS[$id]["pix"]}" = 1 ] && m=pixels
 	xscr draw "$x" "${XS[$id]["r0"]}" "${XS[$id]["c0"]}" \
-		"${XS[$id]["rh"]}" "${XS[$id]["rw"]}" -p "w$id" -m "$m" \
+		"${XS[$id]["rh"]}" "${XS[$id]["rw"]}" -p "w$id" -m "$m" $crop \
 		2> /dev/null
-	XS[$id]["drew"]="${DT[$id]["h"]} ${DT[$id]["w"]} $XS_MODE $DT_IMGMODE"
+	xs_retitle "$id"
+	XS[$id]["drew"]="${DT[$id]["h"]} ${DT[$id]["w"]} ${XS[$id]["pic"]} $DT_IMGMODE"
 	XS[$id]["at"] := dt_ms
 	return 0
+}
+
+# The window wears the program's name, and the program's own title beside
+# it once it gives one.
+fn xs_retitle(int id) {
+	local t c
+
+	t := xscr title "${XS[$id]["x"]}" 2> /dev/null
+	[ "$t" = "${XS[$id]["title"]}" ] && [ -n "${XS[$id]["titled"]}" ] &&
+		return 0
+	XS[$id]["title"]=$t
+	XS[$id]["titled"]=1
+	c := dt_wintitle "${XS[$id]["name"]}" "$t"
+	dt_retitle "$id" "$c"
 }
 
 # Clean while the screen has not changed and nothing about the window has:
@@ -224,7 +363,7 @@ fn xscreen_dirty(int id) {
 		fi
 		return 0
 	fi
-	[ "${XS[$id]["drew"]}" = "${DT[$id]["h"]} ${DT[$id]["w"]} $XS_MODE $DT_IMGMODE" ] &&
+	[ "${XS[$id]["drew"]}" = "${DT[$id]["h"]} ${DT[$id]["w"]} ${XS[$id]["pic"]} $DT_IMGMODE" ] &&
 		return 1
 	return 0
 }
@@ -315,8 +454,8 @@ fn xscreen_close(int id) {
 }
 
 # Restart Desktop: the server and its programs are this shell's children
-# and run on across the exec; the connection does not, so it is made again
-# on the first frame after.
+# and should run on across the exec; the connection does not, so it is made
+# again on the first frame after, and the window manager taken up again.
 fn xscreen_stash(int id, dir) {
 	XS[$id]["x"]=
 	XS[$id]["fd"]=
@@ -326,13 +465,12 @@ fn xscreen_resume(int id) {
 	XS[$id]["x"]=
 	XS[$id]["fd"]=
 	XS[$id]["run"]=
+	XS[$id]["fitwh"]=
 	return 0
 }
 
 xscreen_menus() {
 	dt_menu "File"
-	dt_item "New Window" n dt_launch xscreen
-	dt_sep
 	dt_item "Close Window" w dt_close_focused
 	dt_editmenu
 }

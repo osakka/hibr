@@ -51,6 +51,16 @@ struct xs_scr {
 	unsigned short seq;
 	str in;
 	unsigned char *rgb;
+	/* The window manager this module is for the screen (Gitea #291):
+	   whether it holds the root's redirect, the region a normal window is
+	   fitted to, the toplevels it manages and those waiting to be, the one
+	   that has focus and the main one whose title the window wears. */
+	int wm, fitw, fith, titledirty;
+	vec mwin, mtr, pend;
+	unsigned focus, main, netname, utf8;
+	unsigned short errseq;
+	int errcode;
+	str title;
 };
 
 static vec xs_scrs;
@@ -220,17 +230,156 @@ int xs_fill(xs_scr *x, int ms)
 	return 1;
 }
 
-/* An event, as the server's packets arrive: a DamageNotify is the screen
+/* Send one simple request: the opcode, a byte, and words after. */
+void xs_simple(xs_scr *x, int op, int b, const unsigned *v, int n)
+{
+	str o;
+	int i;
+
+	s_init(&o);
+	s_ch(&o, op);
+	s_ch(&o, b);
+	xs_p16(&o, (unsigned)(1 + n));
+	for (i = 0; i < n; i++)
+		xs_p32(&o, v[i]);
+	xs_send(x, &o);
+	s_free(&o);
+}
+
+/* Move and size a window: ConfigureWindow with x, y, width, height and no
+   border, which is all a window here needs. */
+void xs_place(xs_scr *x, unsigned w, int px, int py, unsigned ww, unsigned wh)
+{
+	str o;
+
+	if (ww < 1)
+		ww = 1;
+	if (wh < 1)
+		wh = 1;
+	s_init(&o);
+	s_ch(&o, 12);
+	s_ch(&o, 0);
+	xs_p16(&o, 8);
+	xs_p32(&o, w);
+	xs_p16(&o, 1 | 2 | 4 | 8 | 16);
+	xs_p16(&o, 0);
+	xs_p32(&o, (unsigned)px);
+	xs_p32(&o, (unsigned)py);
+	xs_p32(&o, ww);
+	xs_p32(&o, wh);
+	xs_p32(&o, 0);
+	xs_send(x, &o);
+	s_free(&o);
+}
+
+/* Give a window the keyboard and bring it to the top. */
+void xs_focus(xs_scr *x, unsigned w)
+{
+	unsigned v[2];
+	str o;
+
+	x->focus = w;
+	v[0] = w;
+	v[1] = 0;
+	xs_simple(x, 42, 2, v, 2);
+	s_init(&o);
+	s_ch(&o, 12);
+	s_ch(&o, 0);
+	xs_p16(&o, 4);
+	xs_p32(&o, w);
+	xs_p16(&o, 64);
+	xs_p16(&o, 0);
+	xs_p32(&o, 0);
+	xs_send(x, &o);
+	s_free(&o);
+}
+
+/* An error the server sent for a request nobody waits on: kept, so a
+   caller that sent one and then a round trip can ask whether it failed --
+   which is how a window manager already on the screen is told apart. */
+void xs_err(xs_scr *x)
+{
+	const unsigned char *e = (const unsigned char *)x->in.p;
+
+	x->errseq = (unsigned short)xs_g16(e + 2);
+	x->errcode = e[1];
+	lg(HIBR_LDBG, "xscr: X error %d on request %d.%d", e[1], e[10],
+	   xs_g16(e + 8));
+}
+
+/* Whether a window is one this module manages, and its place in the list. */
+int xs_managed(xs_scr *x, unsigned w)
+{
+	size_t i;
+
+	for (i = 0; i < x->mwin.n; i++)
+		if ((unsigned)(uintptr_t)x->mwin.p[i] == w)
+			return (int)i;
+	return -1;
+}
+
+/* An event, as the server's packets arrive. A DamageNotify is the screen
    having changed. The damage is not taken off here but once the screen has
    been drawn (xs_seen): at the NonEmpty level the server says nothing more
    until then, so a window that is hidden or minimised hears of one change
    and then nothing, however busy the program on the screen is -- taking it
    off on arrival woke the desktop for every frame such a program drew,
-   whether or not anything was shown. */
+   whether or not anything was shown. The rest is the window manager's:
+   a window asking to be shown waits for xs_pending, which needs round
+   trips an event handler must not make; one asking to move or resize is
+   fitted again if it is a normal window this manages, and given what it
+   asked for otherwise; one that goes takes the focus with it. */
 void xs_event(xs_scr *x, const unsigned char *e)
 {
-	if (x->dmgop && (e[0] & 0x7f) == x->dmgev)
+	int code = e[0] & 0x7f, i;
+	unsigned w;
+
+	if (x->dmgop && code == x->dmgev) {
 		x->dirty = 1;
+		return;
+	}
+	if (!x->wm)
+		return;
+	switch (code) {
+	case 20:
+		v_add(&x->pend, (void *)(uintptr_t)xs_g32(e + 8));
+		break;
+	case 23:
+		w = xs_g32(e + 8);
+		i = xs_managed(x, w);
+		if (i >= 0 && !(uintptr_t)x->mtr.p[i])
+			xs_place(x, w, 0, 0, x->fitw, x->fith);
+		else
+			xs_place(x, w, (short)xs_g16(e + 16), (short)xs_g16(e + 18),
+				 xs_g16(e + 20), xs_g16(e + 22));
+		break;
+	case 17:
+	case 18:
+		w = xs_g32(e + 8);
+		i = xs_managed(x, w);
+		if (i >= 0 && code == 17) {
+			x->mwin.p[i] = x->mwin.p[x->mwin.n - 1];
+			x->mtr.p[i] = x->mtr.p[x->mtr.n - 1];
+			x->mwin.n--;
+			x->mtr.n--;
+		}
+		if (w == x->main && code == 17) {
+			x->main = 0;
+			x->titledirty = 1;
+		}
+		if (w == x->focus) {
+			x->focus = x->mwin.n ?
+				(unsigned)(uintptr_t)x->mwin.p[x->mwin.n - 1] : 0;
+			if (x->focus)
+				xs_focus(x, x->focus);
+		}
+		break;
+	case 28:
+		if (xs_g32(e + 4) == x->main &&
+		    (xs_g32(e + 8) == 39 || xs_g32(e + 8) == x->netname))
+			x->titledirty = 1;
+		break;
+	}
 }
 
 /* The screen has been drawn as it is now: clear the mark and take the
@@ -283,11 +432,9 @@ void xs_drain(xs_scr *x)
 	size_t n;
 
 	while ((n = xs_pktlen(x))) {
-		if (x->in.p[0] == 0)
-			lg(HIBR_LDBG, "xscr: X error %d on request %d.%d",
-			   (unsigned char)x->in.p[1], (unsigned char)x->in.p[10],
-			   xs_g16((unsigned char *)x->in.p + 8));
-		else if (x->in.p[0] != 1)
+		if (x->in.p[0] == 0) {
+			xs_err(x);
+		} else if (x->in.p[0] != 1)
 			xs_event(x, (const unsigned char *)x->in.p);
 		xs_shift(x, n);
 	}
@@ -322,7 +469,9 @@ int xs_reply(xs_scr *x, str *out)
 				xs_shift(x, n);
 				return HIBR_FAIL;
 			}
-			if (x->in.p[0] > 1)
+			if (x->in.p[0] == 0)
+				xs_err(x);
+			else if (x->in.p[0] > 1)
 				xs_event(x, (const unsigned char *)x->in.p);
 			xs_shift(x, n);
 		}
@@ -595,6 +744,230 @@ void xs_xtest(xs_scr *x)
 	s_free(&r);
 }
 
+/* A property of a window as GetProperty answers it: its data into out,
+   up to words 32-bit words of it; whether there was any. */
+int xs_prop(xs_scr *x, unsigned w, unsigned atom, unsigned type, unsigned words,
+	    str *out)
+{
+	str o, r;
+	unsigned n;
+	int ok = 0;
+
+	s_init(&o);
+	s_init(&r);
+	s_ch(&o, 20);
+	s_ch(&o, 0);
+	xs_p16(&o, 6);
+	xs_p32(&o, w);
+	xs_p32(&o, atom);
+	xs_p32(&o, type);
+	xs_p32(&o, 0);
+	xs_p32(&o, words);
+	out->n = 0;
+	if (xs_send(x, &o) == HIBR_OK && xs_reply(x, &r) == HIBR_OK) {
+		n = xs_g32((unsigned char *)r.p + 16) *
+		    ((unsigned char)r.p[1] / 8);
+		if (n && 32 + (size_t)n <= r.n) {
+			s_add(out, r.p + 32, n);
+			ok = 1;
+		}
+	}
+	s_free(&o);
+	s_free(&r);
+	return ok;
+}
+
+/* An atom by name, made if the server has none yet. */
+unsigned xs_atom(xs_scr *x, const char *nm)
+{
+	str o, r;
+	size_t n = strlen(nm);
+	unsigned a = 0;
+
+	s_init(&o);
+	s_init(&r);
+	s_ch(&o, 16);
+	s_ch(&o, 0);
+	xs_p16(&o, (unsigned)(2 + (n + 3) / 4));
+	xs_p16(&o, (unsigned)n);
+	xs_p16(&o, 0);
+	s_add(&o, nm, n);
+	while (o.n % 4)
+		s_ch(&o, 0);
+	if (xs_send(x, &o) == HIBR_OK && xs_reply(x, &r) == HIBR_OK)
+		a = xs_g32((unsigned char *)r.p + 8);
+	s_free(&o);
+	s_free(&r);
+	return a;
+}
+
+/* Wait until the server has answered everything sent so far: a
+   GetInputFocus round trip. */
+void xs_sync(xs_scr *x)
+{
+	str r;
+
+	s_init(&r);
+	xs_simple(x, 43, 0, 0, 0);
+	xs_reply(x, &r);
+	s_free(&r);
+}
+
+/* Become the screen's window manager: the root's SubstructureRedirect,
+   which only one client may hold. Another one already holding it -- a
+   window manager the person started on this screen -- answers BadAccess,
+   which arrives as an error on that request and is read back after a round
+   trip, so a screen with a manager of its own is known to be unmanaged
+   rather than looking managed. Status 0 when this manages it. */
+int xs_manage(xs_scr *x)
+{
+	unsigned v[3];
+	unsigned short seq;
+
+	v[0] = x->root;
+	v[1] = 1u << 11;
+	v[2] = (1u << 20) | (1u << 19);
+	x->errseq = 0;
+	xs_simple(x, 2, 0, v, 3);
+	seq = x->seq;
+	xs_sync(x);
+	if (x->errseq == seq && x->errcode == 10) {
+		lg(HIBR_LDBG, "xscr: another window manager has the screen");
+		x->wm = 0;
+		return HIBR_FAIL;
+	}
+	x->wm = 1;
+	if (!x->fitw) {
+		x->fitw = x->w;
+		x->fith = x->h;
+	}
+	x->netname = xs_atom(x, "_NET_WM_NAME");
+	x->utf8 = xs_atom(x, "UTF8_STRING");
+	return HIBR_OK;
+}
+
+/* Show the windows that asked to be shown: a dialog -- one with
+   WM_TRANSIENT_FOR -- centred at its own size, any other filling the
+   region; each watched for its title, mapped, and given the keyboard. */
+void xs_pending(xs_scr *x)
+{
+	unsigned w, v[3], gw, gh;
+	str t, r, o;
+	int tr, guard = 0;
+
+	if (!x->wm)
+		return;
+	s_init(&t);
+	s_init(&r);
+	s_init(&o);
+	while (x->pend.n && guard++ < 64) {
+		w = (unsigned)(uintptr_t)x->pend.p[0];
+		memmove(x->pend.p, x->pend.p + 1,
+			(x->pend.n - 1) * sizeof *x->pend.p);
+		x->pend.n--;
+		tr = xs_prop(x, w, 68, 33, 1, &t);
+		if (tr) {
+			o.n = 0;
+			s_ch(&o, 14);
+			s_ch(&o, 0);
+			xs_p16(&o, 2);
+			xs_p32(&o, w);
+			gw = gh = 200;
+			if (xs_send(x, &o) == HIBR_OK && xs_reply(x, &r) == HIBR_OK) {
+				gw = xs_g16((unsigned char *)r.p + 16);
+				gh = xs_g16((unsigned char *)r.p + 18);
+			}
+			if (gw > (unsigned)x->fitw)
+				gw = (unsigned)x->fitw;
+			if (gh > (unsigned)x->fith)
+				gh = (unsigned)x->fith;
+			xs_place(x, w, (x->fitw - (int)gw) / 2,
+				 (x->fith - (int)gh) / 2, gw, gh);
+		} else {
+			xs_place(x, w, 0, 0, (unsigned)x->fitw, (unsigned)x->fith);
+			x->main = w;
+			x->titledirty = 1;
+		}
+		v[0] = w;
+		v[1] = 1u << 11;
+		v[2] = 1u << 22;
+		xs_simple(x, 2, 0, v, 3);
+		if (xs_managed(x, w) < 0) {
+			v_add(&x->mwin, (void *)(uintptr_t)w);
+			v_add(&x->mtr, (void *)(uintptr_t)tr);
+		}
+		v[0] = w;
+		xs_simple(x, 8, 0, v, 1);
+		xs_focus(x, w);
+	}
+	s_free(&t);
+	s_free(&r);
+	s_free(&o);
+}
+
+/* The region a normal window fills, w by h pixels of the screen, and
+   every normal window this manages fitted to it again. */
+void xs_fit(xs_scr *x, int w, int h)
+{
+	size_t i;
+
+	if (w > x->w)
+		w = x->w;
+	if (h > x->h)
+		h = x->h;
+	if (w < 1 || h < 1)
+		return;
+	if (w == x->fitw && h == x->fith)
+		return;
+	x->fitw = w;
+	x->fith = h;
+	for (i = 0; i < x->mwin.n; i++)
+		if (!(uintptr_t)x->mtr.p[i])
+			xs_place(x, (unsigned)(uintptr_t)x->mwin.p[i], 0, 0,
+				 (unsigned)w, (unsigned)h);
+	x->dirty = 1;
+}
+
+/* The main window's title, read again when it has changed: its
+   _NET_WM_NAME, or its WM_NAME. */
+void xs_title(xs_scr *x)
+{
+	str t;
+
+	if (!x->titledirty)
+		return;
+	x->titledirty = 0;
+	x->title.n = 0;
+	if (!x->main)
+		return;
+	s_init(&t);
+	if ((x->netname && xs_prop(x, x->main, x->netname, x->utf8, 64, &t)) ||
+	    xs_prop(x, x->main, 39, 31, 64, &t))
+		s_add(&x->title, t.p, strcspn(t.p, "\n\t"));
+	s_free(&t);
+}
+
+/* A press goes to the window under the pointer, which this then gives the
+   keyboard to, as a window manager does on a click. */
+void xs_clickfocus(xs_scr *x)
+{
+	str r;
+	unsigned c;
+	unsigned v[1];
+
+	if (!x->wm)
+		return;
+	s_init(&r);
+	v[0] = x->root;
+	xs_simple(x, 38, 0, v, 1);
+	if (xs_reply(x, &r) == HIBR_OK) {
+		c = xs_g32((unsigned char *)r.p + 12);
+		if (c && c != x->focus && xs_managed(x, c) >= 0)
+			xs_focus(x, c);
+	}
+	s_free(&r);
+}
+
 /* Forget a screen: its connection, its mapping and what it kept. */
 void xs_free(xs_scr *x)
 {
@@ -610,6 +983,10 @@ void xs_free(xs_scr *x)
 	free(x->kmap);
 	free(x->rgb);
 	s_free(&x->in);
+	s_free(&x->title);
+	v_free(&x->mwin);
+	v_free(&x->mtr);
+	v_free(&x->pend);
 	for (i = 0; i < xs_scrs.n; i++)
 		if (xs_scrs.p[i] == x)
 			xs_scrs.p[i] = 0;
@@ -624,6 +1001,7 @@ xs_scr *xs_open(int n, const char *path)
 	memset(x, 0, sizeof *x);
 	x->fd = x->fbfd = -1;
 	s_init(&x->in);
+	s_init(&x->title);
 	if (xs_map(x, path) != HIBR_OK || xs_connect(x, n) != HIBR_OK) {
 		xs_free(x);
 		return 0;
@@ -833,8 +1211,10 @@ unsigned xs_pix(xs_scr *x, int px, int py)
 	       ((v & x->bmask) >> x->bsh & 0xff);
 }
 
-/* The whole screen as RGB triples, what the display's picture call takes. */
-void xs_torgb(xs_scr *x)
+/* The top-left rw by rh of the screen as RGB triples, what the display's
+   picture call takes: the whole screen, or the region a fitted window
+   fills, which is then all that is sent. */
+void xs_torgb(xs_scr *x, int rw, int rh)
 {
 	size_t n = (size_t)x->w * x->h;
 	unsigned char *o;
@@ -844,8 +1224,8 @@ void xs_torgb(xs_scr *x)
 	if (!x->rgb)
 		x->rgb = xm(n * 3);
 	o = x->rgb;
-	for (py = 0; py < x->h; py++)
-		for (px = 0; px < x->w; px++) {
+	for (py = 0; py < rh; py++)
+		for (px = 0; px < rw; px++) {
 			v = xs_pix(x, px, py);
 			*o++ = (unsigned char)(v >> 16);
 			*o++ = (unsigned char)(v >> 8);
@@ -856,7 +1236,7 @@ void xs_torgb(xs_scr *x)
 /* The screen as half blocks over h by w cells at row, col of the display
    -- two pixels a cell, sampled -- clipped to the pane's rectangle. */
 void xs_cells(xs_scr *x, int row, int col, int h, int w, int prow, int pcol,
-	      int ph, int pw)
+	      int ph, int pw, int rw, int rh)
 {
 	int r, c, c0, sr;
 	unsigned a, b, fa = 0, ba = 0;
@@ -872,10 +1252,10 @@ void xs_cells(xs_scr *x, int row, int col, int h, int w, int prow, int pcol,
 			c0 = c;
 			run.n = 0;
 			while (c < w) {
-				a = xs_pix(x, (int)((long)c * x->w / w),
-					   (int)((long)(2 * r) * x->h / (2 * h)));
-				b = xs_pix(x, (int)((long)c * x->w / w),
-					   (int)((long)(2 * r + 1) * x->h / (2 * h)));
+				a = xs_pix(x, (int)((long)c * rw / w),
+					   (int)((long)(2 * r) * rh / (2 * h)));
+				b = xs_pix(x, (int)((long)c * rw / w),
+					   (int)((long)(2 * r + 1) * rh / (2 * h)));
 				if (c > c0 && (a != fa || b != ba))
 					break;
 				fa = a;
@@ -900,7 +1280,7 @@ int xs_draw(sh *s, xs_scr *x, int ac, char **av)
 {
 	const char *pane = 0, *mode = "pixels";
 	int i, n = 0, v[4] = { 0, 0, 0, 0 }, prow = 0, pcol = 0, ph = 0, pw = 0;
-	int rows, cols;
+	int rows, cols, crop = 0, rw, rh;
 
 	for (i = 3; i < ac; i++) {
 		if (!strcmp(av[i], "-p") && i + 1 < ac) {
@@ -911,11 +1291,15 @@ int xs_draw(sh *s, xs_scr *x, int ac, char **av)
 			mode = av[++i];
 			continue;
 		}
+		if (!strcmp(av[i], "-c")) {
+			crop = 1;
+			continue;
+		}
 		if (n < 4)
 			v[n++] = atoi(av[i]);
 	}
 	if (n < 4 || v[2] < 1 || v[3] < 1) {
-		lg(HIBR_LERR, "usage: xscr draw ID row col h w [-p pane] [-m pixels|half]");
+		lg(HIBR_LERR, "usage: xscr draw ID row col h w [-p pane] [-m pixels|half] [-c]");
 		return 2;
 	}
 	if (!xs_dp)
@@ -933,11 +1317,17 @@ int xs_draw(sh *s, xs_scr *x, int ac, char **av)
 		lg(HIBR_LERR, "xscr draw: no such pane: %s", pane);
 		return HIBR_FAIL;
 	}
+	rw = x->w;
+	rh = x->h;
+	if (crop && x->fitw > 0 && x->fith > 0) {
+		rw = x->fitw;
+		rh = x->fith;
+	}
 	if (strcmp(mode, "half") && xs_dp->image) {
-		xs_torgb(x);
+		xs_torgb(x, rw, rh);
 		xs_seen(x);
-		if (xs_dp->image(s, pane, v[0], v[1], v[2], v[3], x->rgb, x->w,
-				 x->h, 0))
+		if (xs_dp->image(s, pane, v[0], v[1], v[2], v[3], x->rgb, rw,
+				 rh, 0))
 			return HIBR_OK;
 	}
 	xs_seen(x);
@@ -945,7 +1335,7 @@ int xs_draw(sh *s, xs_scr *x, int ac, char **av)
 		v[0] += prow;
 		v[1] += pcol;
 	}
-	xs_cells(x, v[0], v[1], v[2], v[3], prow, pcol, ph, pw);
+	xs_cells(x, v[0], v[1], v[2], v[3], prow, pcol, ph, pw, rw, rh);
 	return HIBR_OK;
 }
 
@@ -960,8 +1350,8 @@ void xs_say(sh *s, const char *t)
 void xs_usage(void)
 {
 	lg(HIBR_LERR, "usage: xscr start N WxH DIR | stop PID | open N FILE [PID] | "
-		      "fd|poll|dirty|seen|size|close ID | "
-		      "draw ID row col h w [-p pane] [-m pixels|half] | "
+		      "fd|poll|dirty|seen|size|manage|title|close ID | fit ID W H | "
+		      "draw ID row col h w [-p pane] [-m pixels|half] [-c] | "
 		      "key ID name | type ID text | move ID x y | "
 		      "button ID press|release N x y | click ID N x y | "
 		      "wheel ID up|down x y | list");
@@ -1062,8 +1452,27 @@ int m_xscr(sh *s, int ac, char **av)
 				return 2;
 			}
 			xs_drain(x);
+			xs_pending(x);
 		}
 		return x->dirty || !x->dmgop ? HIBR_OK : HIBR_FAIL;
+	}
+	/* Become the screen's window manager: 0 when this is, 1 when a window
+	   manager of the person's own already is (Gitea #291). */
+	if (!strcmp(sub, "manage")) {
+		if (xs_manage(x) != HIBR_OK)
+			return HIBR_FAIL;
+		xs_pending(x);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "fit") && ac > 4) {
+		xs_fit(x, atoi(av[3]), atoi(av[4]));
+		xs_pending(x);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "title")) {
+		xs_title(x);
+		xs_say(s, x->title.p ? x->title.p : "");
+		return HIBR_OK;
 	}
 	if (!strcmp(sub, "seen")) {
 		xs_seen(x);
@@ -1099,6 +1508,8 @@ int m_xscr(sh *s, int ac, char **av)
 		x->px = atoi(av[a + 1]);
 		x->py = atoi(av[a + 2]);
 		xs_fake(x, 6, 0, x->px, x->py);
+		if (sub[0] != 'w' && (sub[0] != 'b' || strcmp(av[3], "release")))
+			xs_clickfocus(x);
 		if (sub[0] == 'b')
 			return xs_fake(x, strcmp(av[3], "release") ? 4 : 5, bt, 0, 0);
 		xs_fake(x, 4, bt, 0, 0);
