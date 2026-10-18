@@ -299,12 +299,17 @@ fn dt_move(int id, int r, int c) {
 # bottom, below the menu bar -- or in its middle, keeping its size, for
 # center. Snapping the same way again puts it back where it was. A fixed
 # window can only be centred: its size is not the desktop's to change.
+#
+# On the display the window is on, not the primary (Gitea #286): it was the
+# primary's rectangle whatever display the window stood on.
 fn dt_snap(int id, dir) {
-	local top left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
-	# The primary's first content row, which is 1 only while the primary
-	# starts at the top of the union (Gitea #240).
-	top := dt_ptop
-	local ph=$((${DT_PRIMARY_H:-$DT_ROWS} - 1)) r c h w
+	local top left pw ph r c h w
+
+	dt_windisp "$id"
+	top=$DTW_R
+	left=$DTW_C
+	ph=$DTW_H
+	pw=$DTW_W
 
 	if [ "${DT[$id]["snap"]}" = "$dir" ] && [ -n "${DT[$id]["sh"]}" ]; then
 		r=${DT[$id]["sr"]}
@@ -353,7 +358,48 @@ fn dt_snap(int id, dir) {
 
 dt_snap_focused() { [ -n "$DT_FOCUS" ] && dt_snap "$DT_FOCUS" "$1"; }
 
-# Fill the screen, or go back to where the window was.
+# The rectangle a window's own display gives it, in DTW_R, DTW_C, DTW_H
+# and DTW_W (Gitea #286): the display holding the window's centre -- the
+# primary when none does, which a window between two displays of different
+# heights can manage -- less the bar's row when that display is the
+# primary, the only one with a bar. One display, held or not, is the
+# screen less the bar, which is what Zoom and the snaps always gave.
+DTW_R=0
+DTW_C=0
+DTW_H=0
+DTW_W=0
+fn dt_windisp(int id) {
+	local r=${DT[$id]["row"]} c=${DT[$id]["col"]} dsp dr dc drows dcols dgx
+	local hit= cr cc pr=${DT_PRIMARY_ROW:-0} pc=${DT_PRIMARY_COL:-0}
+
+	cr=$((r + ${DT[$id]["h"]} / 2))
+	cc=$((c + ${DT[$id]["w"]} / 2))
+	for dsp in "${DT_DISPLAYS[@]}"; do
+		IFS=' ' read -r dr dc drows dcols dgx <<< "$dsp"
+		[ "$cr" -ge "$dr" ] && [ "$cr" -lt $((dr + drows)) ] &&
+			[ "$cc" -ge "$dc" ] && [ "$cc" -lt $((dc + dcols)) ] &&
+			{ hit=1; break; }
+	done
+	if [ -z "$hit" ]; then
+		dr=$pr
+		dc=$pc
+		drows=${DT_PRIMARY_H:-$DT_ROWS}
+		dcols=${DT_PRIMARY_W:-$DT_COLS}
+	fi
+	if [ "$dr" = "$pr" ] && [ "$dc" = "$pc" ]; then
+		dr=$((dr + 1))
+		drows=$((drows - 1))
+	fi
+	DTW_R=$dr
+	DTW_C=$dc
+	DTW_H=$drows
+	DTW_W=$dcols
+	return 0
+}
+
+# Fill the window's own display, or every display when Control Panel >
+# Windows > Zoom Fills says so (Gitea #286) -- or go back to where the
+# window was.
 fn dt_zoom(int id) {
 	if [ -n "${DT[$id]["oh"]}" ]; then
 		DT[$id]["row"]=${DT[$id]["or"]}
@@ -366,10 +412,18 @@ fn dt_zoom(int id) {
 		DT[$id]["oc"]=${DT[$id]["col"]}
 		DT[$id]["oh"]=${DT[$id]["h"]}
 		DT[$id]["ow"]=${DT[$id]["w"]}
-		DT[$id]["row"]=1
-		DT[$id]["col"]=0
-		DT[$id]["h"]=$((DT_ROWS - 1))
-		DT[$id]["w"]=$DT_COLS
+		if [ "$DT_ZOOMFILL" = every ]; then
+			DT[$id]["row"]=1
+			DT[$id]["col"]=0
+			DT[$id]["h"]=$((DT_ROWS - 1))
+			DT[$id]["w"]=$DT_COLS
+		else
+			dt_windisp "$id"
+			DT[$id]["row"]=$DTW_R
+			DT[$id]["col"]=$DTW_C
+			DT[$id]["h"]=$DTW_H
+			DT[$id]["w"]=$DTW_W
+		fi
 	fi
 	console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
 		"${DT[$id]["h"]}" "${DT[$id]["w"]}"

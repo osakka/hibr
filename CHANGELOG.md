@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.99.248
+
+**Zoom and snapping act on the display the window is on** (Gitea #286).
+
+Asked by the owner: a Zoom should fill the display it is on, not the whole
+union. It never looked at displays at all: a zoomed window filled every
+display put together, and the snaps (left, right, top, bottom, centre)
+always used the primary's rectangle, so a window on another display jumped
+to the primary when snapped.
+
+- Both now use the display holding the window's centre: its whole height
+  on a display with no bar, and below the bar on the primary, the only
+  one with a bar. With one display nothing changes.
+- **Control Panel > Windows > Zoom Fills**: `display` (the default) or
+  `every`, which fills every display at once as before. Snapping always
+  keeps to the window's own display (the owner's choice).
+
+Three new checks in `tests/desktop.py`, with two displays side by side and
+the window on the right one: Zoom fills that display alone; with Zoom
+Fills at every, both; and a snap to the left takes the left half of the
+window's own display. The first and the third fail against the release
+before. Windows 1.1 and Arabic 2.5 in the catalogue.
+
 ## 0.99.247
 
 **Control Panel > Browser, part two** (Gitea #285).

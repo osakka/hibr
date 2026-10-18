@@ -968,6 +968,7 @@ YouTube did not answer -- trying again
 YouTube stopped -- picking up again at %s
 Your answer is sent to %s
 Zoom
+Zoom Fills
 [exited %s — close this window]
 a command; the file goes after it, in a terminal
 a new hibr is installed -- click to restart the desktop

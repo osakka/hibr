@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "2.4",
+ "version": "2.5",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1013,6 +1013,7 @@
   "YouTube stopped -- picking up again at %s": "توقف YouTube -- يُستأنف عند %s",
   "Your answer is sent to %s": "أُرسل ردك إلى %s",
   "Zoom": "تكبير",
+  "Zoom Fills": "ما يملؤه التكبير",
   "[exited %s — close this window]": "[انتهى %s — أغلق هذه النافذة]",
   "a command; the file goes after it, in a terminal": "أمر؛ يأتي الملف بعده، في طرفية",
   "a new hibr is installed -- click to restart the desktop": "تم تثبيت إصدار جديد من hibr — انقر لإعادة تشغيل سطح المكتب",

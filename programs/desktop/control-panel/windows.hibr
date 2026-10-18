@@ -2,15 +2,16 @@
 #
 # windows -- the Control Panel pane for how a window looks and where a new
 # one goes: its frame, which side its buttons dock to, where its title
-# sits, which glyphs the buttons are drawn with, Placement, and how wide a
-# tiled workspace's main window is. How the mouse moves, resizes and double-clicks one is the
+# sits, which glyphs the buttons are drawn with, Placement, what Zoom fills
+# -- the window's own display or every display (Gitea #286) -- and how wide
+# a tiled workspace's main window is. How the mouse moves, resizes and double-clicks one is the
 # Mouse pane's. Every value here is read by wm/frame.hibr; this pane only
 # ever changes the DT_* settings, never the drawing itself.
 
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.0
+app windows "The Control Panel pane for how a window looks and where it opens" 1.1
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
@@ -19,6 +20,7 @@ fn cp_set_side(int? id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
 fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
 fn cp_set_btnstyle(int? id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
 fn cp_set_place(int? id = "", value = "") { DT_PLACE=$value; cp_save; }
+fn cp_set_zoomfill(int? id = "", value = "") { DT_ZOOMFILL=$value; cp_save; }
 
 fn windows_rows(int w) {
 	local n=0
@@ -37,6 +39,9 @@ fn windows_rows(int w) {
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Placement"
 	CP[$w][$n]["val"]="$DT_PLACE"; CP[$w][$n]["key"]=place
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Zoom Fills"
+	CP[$w][$n]["val"]="$DT_ZOOMFILL"; CP[$w][$n]["key"]=zoomfill
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tiled Main"
 	CP[$w][$n]["after"]="($DT_TILEMAIN%)"
@@ -63,6 +68,8 @@ fn windows_do(int w, k, int dir) {
 	          DT_BTNSTYLE=$v ;;
 	place) v := cp_next "$DT_PLACE" "$dir" "${DT_PLACES[@]}"
 	       DT_PLACE=$v ;;
+	zoomfill) v := cp_next "$DT_ZOOMFILL" "$dir" "${DT_ZOOMFILLS[@]}"
+	          DT_ZOOMFILL=$v ;;
 	tilemain)
 		v=$((DT_TILEMAIN + dir * 10))
 		[ "$v" -lt 30 ] && v=30
@@ -95,6 +102,7 @@ fn windows_drop(int w, int r, int c, k) {
 	frame) dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
 	titlebar) dt_droplist "$w" "$r" "$c" cp_set_titlebar "${DT_TITLEBARS[@]}" ;;
 	place) dt_droplist "$w" "$r" "$c" cp_set_place "${DT_PLACES[@]}" ;;
+	zoomfill) dt_droplist "$w" "$r" "$c" cp_set_zoomfill "${DT_ZOOMFILLS[@]}" ;;
 	side) dt_droplist "$w" "$r" "$c" cp_set_side "${WS_SIDES[@]}" ;;
 	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
 	btnstyle) dt_droplist "$w" "$r" "$c" cp_set_btnstyle \

@@ -2847,6 +2847,25 @@ sc, _ = run(ONE, [press(6, 20, 2), b"z"])
 top = sc.find("┤ Hello ├")
 check("Zoom from the Window menu fills the screen with the window",
       top is not None and top[0] < 6 and sc.g[6][10] != "┌", sc)
+# Zoom and the snaps act on the display the window is on (Gitea #286). Two
+# displays side by side, forty columns each, the primary on the left, set
+# after dt_open has read the one real terminal; the window stands on the
+# right one. Zoom fills that display alone, from its top row, since only
+# the primary has a bar -- or every display, under Zoom Fills: every.
+TWOD = ('DT_DISPLAYS=("0 0 24 40 self" "0 40 24 40 self")\n'
+        'DT_DISPNAMES=(a b)\nDT_PRIMARY_COL=0\nDT_PRIMARY_W=40\n'
+        'DT_PRIMARY_ROW=0\nDT_PRIMARY_H=24\n'
+        'dt_new "Hello" 8 20 6 50\n')
+sc, _ = run(TWOD, [press(6, 60, 2), b"z"])
+check("Zoom fills the display the window is on, not both",
+      sc.g[0][40] == "┌" and sc.g[0][79] == "┐" and
+      sc.find("┤ Hello ├") is not None and sc.find("┤ Hello ├")[1] > 40, sc)
+sc, _ = run(TWOD, [press(6, 60, 2), b"z"], pre="DT_ZOOMFILL=every")
+check("and with Zoom Fills at every display, it fills both, below the bar",
+      sc.g[1][0] == "┌" and sc.g[1][79] == "┐", sc)
+sc, _ = run(TWOD + 'dt_snap "$DT_FOCUS" left\n')
+check("snapping to the left takes the left half of the window's own display",
+      sc.g[0][40] == "┌" and sc.g[0][59] == "┐" and sc.g[0][60] != "─", sc)
 sc, _ = run(ONE, [press(6, 20, 2), b"h"])
 check("Hide from it hides the window",
       sc.find("┤ Hello ├") is None, sc)
@@ -5731,4 +5750,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(639)
+report(642)

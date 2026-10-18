@@ -77,6 +77,13 @@ Center. Snapping the same way again puts the window back where it was. A
 fixed window can only be centred. The keys are Shortcuts like any other;
 Center has none until you give it one.
 
+**With more than one display**, snapping and **Zoom** act on the display
+holding the window's centre, its whole height on a display with no bar
+and below the bar on the primary (Gitea #286). Control Panel > Windows >
+**Zoom Fills** says `every` to have Zoom fill every display at once
+instead, as it did before; snapping always keeps to the window's own
+display.
+
 **Workspaces**: three by default (Control Panel > Desktop > Workspaces, 1
 to 9), for the whole desktop at once, every window on the one that was
 current when it opened. The bar shows the numbers left of the notification
