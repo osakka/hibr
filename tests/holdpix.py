@@ -576,8 +576,13 @@ open(sess, "w").write(
     + "dt_open || exit 1\ndt_run\ndt_close\n")
 fresh = os.path.join(D, "freshc%s.hibr" % nm)
 open(fresh, "w").write(load("hold") + 'hold new %s "$HIBR" %s\n' % (nm, sess))
+# And with no _ in the environment, as a session the login screen starts
+# has none: the desktop read hold's list of what each display draws with
+# `read -r gnm gv _`, strict vars refused it there, every display was taken
+# for unknown, and the wallpaper was half blocks while `hold gfx` said
+# kitty and YouTube drew pixels -- Blit, every session (Gitea #281).
 t = Term(fresh, rows=24, cols=80, settle=1.0, cellw=8, cellh=16,
-         env={"TMPDIR": D}, caps=["kitty"])
+         env={"TMPDIR": D, "_": None}, caps=["kitty"])
 for _ in range(int(32 * SLOW)):
     t.collect(0.25)
     if t.raw.count(b"a=T"):

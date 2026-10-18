@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.99.243
+
+**Under the login screen, the wallpaper is pixels again and Task Manager
+shows your processes as yours** (Gitea #281).
+
+This was one bug, and it was also why Blit's wallpaper stayed in half
+blocks while `hold gfx` said `kitty` and YouTube drew pixels. The desktop
+reads hold's list of what each display draws with `read -r gnm gv _`, so
+in a login-screen session that read was refused too. The desktop never
+learned the display drew kitty, took it for `unknown`, and drew the
+wallpaper in half blocks on every restart and reattach. YouTube and the
+image viewer ask the console directly, so they were unaffected.
+
+Reported by the owner: logged in through the login screen as osakka, Task
+Manager > This Desktop showed every process owned by root, while `ps` and
+`/proc` said osakka.
+
+The cause was in the shell, and it reached further than the Task Manager.
+`read -r k v _` is the usual way to throw a field away, and `_` normally
+comes in with the environment, because a parent shell exports it. The
+login screen starts a session with a cleared environment, so there `_` did
+not exist, and `strict vars` refused the read as a desktop function
+creating a global. The refusal fails the read. Task Manager read each
+process's uid that way, got nothing, and handed back `" 0"`: read as `uid
+rss`, that is uid 0, which is root, beside a memory of 0K. Thirteen other
+desktop functions read into `_` and failed the same way in such a session.
+This is #251's class again, which was PWD and OLDPWD.
+
+- `_` is now one of the names the shell manages, which `strict vars` never
+  takes for a new global. It is the shell's own parameter, as in bash.
+- Task Manager's reading of a process's uid fails when there is no uid,
+  and the scan skips that row, so a missing reading can no longer show as
+  root. Task Manager 1.1.
+
+Two new checks, and one made stricter. `tests/216-strict-underscore.t`
+reads into `_` in a strict function with `_` taken out of the environment:
+two lines read, against none and a refusal on the release before. A name
+the script really creates is still refused. `tests/apps.py` scans This
+Desktop with no `_` in the environment and finds the row is this user's,
+with its memory. And `tests/holdpix.py`'s new-session check now starts the
+held desktop with no `_`, as the login screen does: on 0.99.242 that is
+Blit exactly, with no picture, 18 rows of half blocks and `hold gfx`
+saying kitty, and on this release the picture.
+
 ## 0.99.242
 
 **A display attached from an older hibr is sent pictures again** (Gitea

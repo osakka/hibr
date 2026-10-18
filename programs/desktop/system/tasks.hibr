@@ -12,7 +12,7 @@
 
 strict
 
-app tasks "What is running, and a way to end one" 1.0
+app tasks "What is running, and a way to end one" 1.1
 # part: control-panel/taskmgr.hibr
 
 # 64 columns rather than the 50 it opened at until 0.99.133: the names are
@@ -304,6 +304,11 @@ fn tasks_uidrss(int pid) {
 		esac
 		[ -n "$uid" ] && [ -n "$rss" ] && break
 	done 2> /dev/null < "/proc/$pid/status"
+	# No uid is no reading -- a process that went between two reads, or
+	# a read that failed -- and it must not come back as " 0": read back
+	# as `uid rss`, that is uid 0, and every such row said root (Gitea
+	# #281).
+	[ -n "$uid" ] || return 1
 	ret "$uid ${rss:-0}"
 }
 
@@ -509,7 +514,7 @@ fn tasks_scan(int id) {
 		# process, and it is done in the scan rather than in the draw
 		# so that sorting by Name agrees with what Name shows.
 		[ ${#name} -ge 15 ] && name := tasks_fullname "$pid" "$name"
-		uidrss := tasks_uidrss "$pid"
+		uidrss := tasks_uidrss "$pid" || continue
 		read -r uid rss <<< "$uidrss"
 		pct=0
 		if [ -n "$prevt" ] && [ -n "${TK_PREV[$id]["$pid.u"]}" ]; then

@@ -3885,6 +3885,15 @@ went in the shell.
   could only add a name; `None` removes one now. That is the
   `DT_SUPERVISED` leak in reverse: there a variable's *presence* leaked
   in and broke the suites, here its presence hid a bug from them.
+  **And `_` was the third** (Gitea #281, 0.99.243): `read -r k v _`
+  discards a field, `_` is inherited because a parent shell exports it,
+  and a login-screen session has none -- so the read was refused and
+  failed, Task Manager's uid came back empty, `" 0"` read as uid 0, and
+  every process said root. **Before shipping anything for the login
+  screen, run it under `env -i HOME=... USER=... LOGNAME=... SHELL=...
+  PATH=/usr/local/bin:/usr/bin:/bin TERM=...`** -- what `auth run` gives
+  a session -- since every suite inherits a developer's shell, and three
+  separate names have now hidden behind it.
 - **Adding a check means bumping `apps.py`'s `report(N)` and the right
   row of `appslice.PLAN`, and the sum being right is not enough.** The
   Sheet section lives inside *"what nothing reached before 0.56"*, not

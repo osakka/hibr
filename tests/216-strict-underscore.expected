@@ -1,0 +1,7 @@
+0
+lines: 2
+status 0
+hibr: g.hibr:3: a is not declared -- local a, or declare -g a (strict vars)
+hibr: g.hibr:3: mine is not declared -- local mine, or declare -g mine (strict vars)
+made: 
+status 0

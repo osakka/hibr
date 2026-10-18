@@ -159,7 +159,7 @@ int v_shellvar(const char *k)
 	static const char *nm[] = { "RET", "M", "REPLY", "OPTARG", "OPTIND",
 				    "ERR", "ERRMSG", "ERRSTATUS", "CMD",
 				    "REMOTE", "PIPESTATUS", "MAPFILE",
-				    "BASH_REMATCH", "PWD", "OLDPWD", 0 };
+				    "BASH_REMATCH", "PWD", "OLDPWD", "_", 0 };
 	int i;
 
 	for (i = 0; nm[i]; i++)
@@ -178,7 +178,14 @@ int v_shellvar(const char *k)
    Sheet evaluates every formula that way, so on a desktop whose session
    had no OLDPWD -- a fresh PAM one from the login screen has none -- every
    formula in the spreadsheet was empty, always, and only the log said why
-   (Gitea #251). A script that calls cd is not creating a global. */
+   (Gitea #251). A script that calls cd is not creating a global.
+
+   _ is the same class, found the same way (Gitea #281): `read -r k v _`
+   is the idiomatic discard, and _ is normally inherited from the
+   environment a parent shell exports it into -- a login-screen session's
+   is cleared, so there the read was refused and failed. Task Manager read
+   every process's uid that way, came back empty, and called them all
+   root. */
 int v_strict(sh *s, const char *k)
 {
 	if (!(s->sfl & SF_VAR) || s->decl || s->scope.n <= s->srcdep ||

@@ -3364,6 +3364,25 @@ check("and only this desktop's is this process and what it has started: "
       TF.get("desktop", (0, 0))[0] == 1 and one["one"] == one["self"] and
       kidw.get("n") == "2" and kidw.get("kid") in kidw.get("pids", "").split(),
       out)
+# With no _ in the environment, as a session the login screen starts has
+# none: the scan read each process's uid with `while read -r k v _`, which
+# strict vars refused there, so it came back empty, read back as uid 0,
+# and every row of this desktop said root, with 0K of memory (Gitea #281).
+envu = dict(os.environ, DT_ROWS="1")
+envu.pop("_", None)
+out = subprocess.run(
+    [sx.HIBR, "-c", '. %s\ntasks_loadusers\nme := tasks_ownername "$EUID"\n'
+     'TK_FILTER=desktop; tasks_scan 1\n'
+     'echo "me=$me owner=${TK[1][0]["owner"]} mem=${TK[1][0]["mem"]}"\n'
+     % (appdir("tasks") + "/tasks.hibr")],
+    capture_output=True, text=True, env=envu).stdout
+row = dict(w.split("=", 1) for w in
+           next((l for l in out.splitlines() if l.startswith("me=")),
+                "me=? owner=- mem=0").split())
+check("in a session with no _ in its environment, as the login screen "
+      "starts one, this desktop's rows are still this user's, not root's",
+      row["owner"] == row["me"] and row["owner"] != "root" and
+      row["mem"].isdigit() and int(row["mem"]) > 0, out)
 
 # A uid /etc/passwd does not have (Gitea #138). Reading that file alone is
 # right for a machine whose users are all local and wrong for every other
@@ -4904,4 +4923,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(647)
+report(648)
