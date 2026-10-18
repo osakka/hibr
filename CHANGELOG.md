@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.99.250
+
+**X Screen: X11 programs in a window** (Gitea #290).
+
+Asked by the owner: an application that is to graphical programs what the
+Terminal is to text ones, drawn through the kitty and sixel picture path,
+self-contained and light. Talked through with the owner and the advisor
+first, and measured: Steam's client, Big Picture included, needs an X
+display with GLX, and on a machine with no GPU GLX comes only from X.org's
+own servers with Mesa in software; a small X server of our own would not
+run it. So the engine is **Xvfb**, X.org's smallest server (the `xvfb`
+package, now in the package's Suggests), and hibr is everything around it.
+
+- **The xscr module**: starts Xvfb, maps the file it draws the screen into
+  (`-fbdir`), and speaks the few X requests it needs over the socket itself,
+  with no libX11: **DAMAGE**, so the screen is drawn only when the server
+  says it changed and an idle one costs nothing; **XTEST** for keys,
+  buttons, drags and the wheel; and the server's own keyboard map, so
+  shifted characters type as themselves. The screen goes into the window's
+  pane as pixels where the terminal can place them, as the video player's
+  frames do, and as half blocks where it cannot.
+- **The X Screen app**: each window is one X screen with an Xvfb of its own,
+  scaled into the window with its shape kept; programs run full screen or
+  under a window manager started in it. Paste types into it.
+- **Control Panel > X Screen**: Screen Size for a new window, Picture
+  (follow, half, pixels) and Start With, what runs when a window opens.
+- **Lifetime**: the server is the shell's own child, in a session of its
+  own, reaped by the module, and on Linux ended by the kernel when the
+  desktop's process ends, so quitting, a crash or a kill takes the screen
+  and its programs with it. Restart Desktop is an exec of the same process,
+  so the server should survive it and the window reconnect; that is not yet
+  checked by a suite. A screen folder a dead desktop left behind is swept
+  when the next window opens.
+
+Measured on this machine, with the desktop at 80x24:
+- **Software OpenGL:** GTK 3 and OpenGL (llvmpipe, OpenGL 4.5) both read
+  back from Xvfb's mapped screen; glxgears runs at about 2,000 frames a
+  second in a small window and 340 full screen.
+- **What the desktop pays, in half blocks:** a GTK label changing ten
+  times a second is drawn at 9.9 frames a second, for 3.2% of a core.
+  glxgears is held to 14.2 frames a second by `DT_TERMMS`, for 5.8%.
+  Either costs **0.0%** minimised, and so does a screen with nothing
+  changing.
+- **In pixels**, each changed frame is a whole kitty picture, about 814 KB
+  for a 640x400 screen, which a local terminal takes easily and a link
+  slower than a gigabit does not. Sending only the damaged rectangles is
+  the next step.
+
+Not yet: hover with no button held, keys outside the US map, a shared
+clipboard, and resizing a running screen. Steam needs i386 enabled before
+it can install, and games are not realistic without a GPU.
+
+New suite `tests/xscreen.py`, eleven checks against a real Xvfb and a real
+GTK program: the module reads the screen and its size, DAMAGE reports a
+change, XTEST typing reaches GTK (shifted characters too), closing ends
+the server; in a desktop, the screen is drawn as pixels on a terminal that
+takes them and as half blocks on one that does not, typing reaches the
+program, a killed desktop leaves no Xvfb behind, and a screen changing ten
+times a second is drawn about that often when shown and not at all when
+minimised. That last check fails against the module re-arming DAMAGE the
+moment a change arrives, which is how it was first written. The suite
+skips when Xvfb or the GTK bindings are missing. Two dropdown checks for the pane in
+`tests/apps.py`. X Screen 1.0 with its pane, and Arabic 2.6 (seven new
+strings), in the catalogue.
+
+Also in this release, test-only (Gitea #283): `tests/790-hold.t` waits for
+each client to attach instead of a fixed 0.6 seconds. Under a loaded gate
+the keys reached a client that had not attached yet, one run in six.
+
 ## 0.99.249
 
 **A right-click menu stays on the display it was opened on** (Gitea #287).

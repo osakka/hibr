@@ -74,6 +74,7 @@ A Note at Each Prayer
 A cell a formula names is a variable of that name, and a
 A cell holds at most 4096 bytes
 A command is needed
+A command, such as a window manager or one program.
 A contact needs a name or an email
 A folder is needed
 A formula is = and then hibr.
@@ -738,6 +739,7 @@ Saved the server %s
 Saved, and the invitation sent to %s
 Saved; the server has it at the next sync
 Screen Saver
+Screen Size
 Screenshot Folder
 Screenshot Format
 Screenshot Starts On
@@ -808,6 +810,8 @@ Standby displays join on their own
 Star
 Starred
 Start After (minutes)
+Start With
+Starting the X screen…
 Stickies
 Sticky
 Still working
@@ -945,6 +949,7 @@ Wednesday
 Week
 What a Page May Have
 What it prints is the cell's value:
+What runs when a new X Screen opens:
 When Chromium Next Starts
 Where are you? Control Panel > Prayer Times
 Where:
@@ -962,6 +967,8 @@ Workspace %s: windows float
 Workspace: %s of %s
 Write
 Write an Email
+X Screen
+X Screen Setting
 YYYY-MM-DD and HH:MM:SS, local time
 YouTube
 YouTube did not answer -- trying again

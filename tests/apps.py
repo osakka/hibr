@@ -322,10 +322,10 @@ check("panes register and sort by title within their group, not load order",
                 "network", "notify", "pictures", "screensaver", "shortcuts",
                 "taskmgr", "versions", "wallset", "windows",
                 "browserset", "pimset", "filesview", "mailset", "prayerset",
-                "notes", "terminal", "vaultset", "tube"], out)
+                "notes", "terminal", "vaultset", "xscreenset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 17 + ["app"] * 9, out)
+      ["hardware"] * 4 + ["system"] * 17 + ["app"] * 10, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -368,7 +368,8 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "windows": "Windows", "abouthibr": "About This",
          "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
          "terminal": "Terminal", "tube": "YouTube", "versions": "Versions",
-         "browserset": "Browser", "wallset": "Wallpaper"}
+         "browserset": "Browser", "wallset": "Wallpaper",
+         "xscreenset": "X Screen"}
 
 
 def prow(name):
@@ -521,7 +522,7 @@ check("the first pane's own rows show on the right without entering it",
 # its own _rows. Date & Time is left out: its dialogs run sudo.
 PANE_APPS = {"abouthibr": ("about",), "filesview": ("files",),
              "taskmgr": ("tasks",), "terminal": ("term",),
-             "browserset": ("browser",)}
+             "browserset": ("browser",), "xscreenset": ("xscreen",)}
 
 
 PANEHOME = tempfile.mkdtemp(prefix="hibr-pane-conf-")
@@ -5001,4 +5002,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(663)
+report(665)

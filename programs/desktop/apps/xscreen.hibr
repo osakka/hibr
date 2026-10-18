@@ -1,0 +1,338 @@
+#!/usr/bin/env hibr
+#
+# xscreen -- an X screen in a window (Gitea #290): ordinary X11 programs,
+# and the GTK, Qt, Firefox and Chromium ones that speak X11, run on the
+# desktop. Each window starts an Xvfb of its own, a virtual X server that
+# draws the screen into a file it maps, and the xscr module maps the same
+# file and puts the screen into the window -- as pixels where the terminal
+# can place them, half blocks where it cannot. Keys, clicks, drags and the
+# wheel go to it through XTEST; the screen is drawn only when the server
+# says it changed (DAMAGE), so an idle one costs nothing.
+#
+# One window is one X screen, of the size Control Panel > X Screen says,
+# scaled into the window with its shape kept. Programs run full screen, or
+# under a window manager started in it -- Start With is what runs when the
+# window opens. Needs Xvfb (the xvfb package); OpenGL comes from Mesa, in
+# software where there is no GPU.
+#
+# What it cannot do yet: hover with no button pressed (the desktop does
+# not ask the terminal for every movement), keys outside the server's US
+# keyboard map, and the clipboard between the X screen and the desktop.
+
+strict
+
+
+app xscreen "An X screen in a window: run X11 programs on the desktop" 1.0
+# modules: xscr
+# part: control-panel/xscreenset.hibr
+command -v dt_app > /dev/null && dt_app xscreen "X Screen" 26 90 many "▣"
+command -v dt_keepstate > /dev/null && dt_keepstate xscreen XS
+
+declare -gA XS
+XS_SIZE="${XS_SIZE-1280x800}"
+XS_MODE="${XS_MODE-follow}"
+XS_RUN="${XS_RUN-}"
+command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MODE XS_RUN
+
+# Take away the screen folders a desktop that is no longer running left
+# behind -- one that crashed or was killed never closed its windows, and
+# each holds a 4 MB screen in memory-backed storage. A folder is named for
+# the desktop's pid, which is how one still in use is told apart.
+xs_sweep() {
+	local d p
+
+	for d in "${XDG_RUNTIME_DIR:-/tmp}"/hibr-xscreen-*; do
+		[ -d "$d" ] || continue
+		p=${d##*/hibr-xscreen-}
+		p=${p%%-*}
+		case $p in *[!0-9]* | "") continue ;; esac
+		kill -0 "$p" 2> /dev/null && continue
+		command rm -rf -- "$d"
+	done
+	return 0
+}
+
+# A display number nothing else has: the first from 20 up with no socket.
+xs_free() {
+	local n=20
+
+	while [ -e "/tmp/.X11-unix/X$n" ] || [ -e "/tmp/.X$n-lock" ]; do
+		n=$((n + 1))
+	done
+	ret "$n"
+}
+
+# Start a program on the window's screen, as a job of this shell so the
+# shell reaps it, its pid kept so closing the window can end it.
+# The environment goes through env as words, not as assignments, which a
+# strict file would read as globals being made.
+fn xs_run(int id, cmd) {
+	local n=${XS[$id]["n"]}
+	local -a e
+
+	[ -n "$n" ] && [ -n "$cmd" ] || return 1
+	e=("DISPLAY=:$n" "GDK_BACKEND=x11" "QT_QPA_PLATFORM=xcb")
+	env -u WAYLAND_DISPLAY "${e[@]}" /bin/sh -c "$cmd" > /dev/null 2>&1 &
+	XS[$id]["pids"]="${XS[$id]["pids"]} $!"
+	return 0
+}
+
+# The server is the module's to start and end (xscr start), not a job of
+# this shell's: the module ends it when the shell goes, so quitting the
+# desktop takes the screen and the programs on it with it, where a job
+# would run on after the desktop had gone.
+fn xscreen_open(int id, arg = "") {
+	local n dir t srv=
+
+	if ! command -v Xvfb > /dev/null; then
+		XS[$id]["err"]="X Screen needs Xvfb -- install the xvfb package"
+		return 0
+	fi
+	need xscr 2> /dev/null || {
+		XS[$id]["err"]="The xscr module is not installed"
+		return 0
+	}
+	xs_sweep
+	n := xs_free
+	dir="${XDG_RUNTIME_DIR:-/tmp}/hibr-xscreen-$$-$id"
+	mkdir -p "$dir" 2> /dev/null
+	srv := xscr start "$n" "$XS_SIZE" "$dir" 2> /dev/null
+	XS[$id]["n"]=$n
+	XS[$id]["dir"]=$dir
+	XS[$id]["srv"]=$srv
+	XS[$id]["pids"]=
+	XS[$id]["x"]=
+	XS[$id]["err"]=
+	XS[$id]["t0"]=$EPOCHSECONDS
+	XS[$id]["run"]=${arg:-$XS_RUN}
+	t := dt_wintitle "X Screen" ":$n"
+	dt_retitle "$id" "$t"
+}
+
+# Connect once the server is up: its socket and its screen file both
+# there. Asked from _draw, so a slow start is a few frames of "Starting",
+# never a wait.
+fn xs_connect(int id) {
+	local n=${XS[$id]["n"]} f="${XS[$id]["dir"]}/Xvfb_screen0" x fd
+
+	[ -n "${XS[$id]["x"]}" ] && return 0
+	[ -n "$n" ] || return 1
+	[ -S "/tmp/.X11-unix/X$n" ] && [ -s "$f" ] || return 1
+	need xscr 2> /dev/null || {
+		XS[$id]["err"]="The xscr module is not installed"
+		return 1
+	}
+	x := xscr open "$n" "$f" "${XS[$id]["srv"]}" 2> /dev/null || return 1
+	XS[$id]["x"]=$x
+	fd := xscr fd "$x"
+	XS[$id]["fd"]=$fd
+	command -v console > /dev/null && console watch "$fd"
+	[ -n "${XS[$id]["run"]}" ] && xs_run "$id" "${XS[$id]["run"]}"
+	XS[$id]["run"]=
+	return 0
+}
+
+# Where the screen sits in the window, its shape kept: in cells, from the
+# body's h by w and what a cell measures (two pixels a cell tall for half
+# blocks), into XS[id] r0 c0 rh rw.
+fn xs_fit(int id, int h, int w, int sw, int sh) {
+	local g cw=1 ch=2 rw rh
+	local -a p
+
+	if [ "${XS[$id]["pix"]}" = 1 ]; then
+		g := dt_imggfx
+		read -ra p <<< "$g"
+		[ "${p[1]:-0}" -gt 1 ] && cw=${p[1]}
+		[ "${p[2]:-0}" -gt 1 ] && ch=${p[2]}
+	fi
+	rw=$w
+	rh=$((rw * cw * sh / (sw * ch)))
+	if [ "$rh" -gt "$h" ]; then
+		rh=$h
+		rw=$((rh * ch * sw / (sh * cw)))
+	fi
+	[ "$rw" -lt 1 ] && rw=1
+	[ "$rh" -lt 1 ] && rh=1
+	XS[$id]["r0"]=$((1 + (h - rh) / 2))
+	XS[$id]["c0"]=$((1 + (w - rw) / 2))
+	XS[$id]["rh"]=$rh
+	XS[$id]["rw"]=$rw
+}
+
+fn xscreen_draw(int id, int h, int w, int row, int col) {
+	local x sz sw sh m t
+
+	XS[$id]["h"]=$h
+	XS[$id]["w"]=$w
+	console pen "$DT_INK" "$DT_FACE"
+	if [ -n "${XS[$id]["err"]}" ]; then
+		dt_tput "$id" 2 2 "${XS[$id]["err"]}"
+		return 0
+	fi
+	if ! xs_connect "$id"; then
+		if [ $((EPOCHSECONDS - ${XS[$id]["t0"]:-0})) -gt 10 ]; then
+			XS[$id]["err"]="Xvfb did not start"
+		else
+			t := dt_tr "Starting the X screen…"
+			console put -p "w$id" 2 2 "$t"
+			dt_want 200
+		fi
+		return 0
+	fi
+	x=${XS[$id]["x"]}
+	sz := xscr size "$x"
+	sw=${sz% *}
+	sh=${sz#* }
+	m=$XS_MODE
+	[ "$m" = follow ] && m=${DT_IMGMODE:-auto}
+	XS[$id]["pix"]=0
+	case $m in
+	pixels | sixel) XS[$id]["pix"]=1 ;;
+	auto) dt_imgwill auto && XS[$id]["pix"]=1 ;;
+	esac
+	xs_fit "$id" "$h" "$w" "$sw" "$sh"
+	XS[$id]["sw"]=$sw
+	XS[$id]["sh"]=$sh
+	m=half
+	[ "${XS[$id]["pix"]}" = 1 ] && m=pixels
+	xscr draw "$x" "${XS[$id]["r0"]}" "${XS[$id]["c0"]}" \
+		"${XS[$id]["rh"]}" "${XS[$id]["rw"]}" -p "w$id" -m "$m" \
+		2> /dev/null
+	XS[$id]["drew"]="${DT[$id]["h"]} ${DT[$id]["w"]} $XS_MODE $DT_IMGMODE"
+	XS[$id]["at"] := dt_ms
+	return 0
+}
+
+# Clean while the screen has not changed and nothing about the window has:
+# its size and how it is drawn. A screen that changes faster than
+# DT_TERMMS -- an animation, a film -- is drawn at that rate and no faster,
+# as a terminal's output is: the change is kept, and the frame is asked
+# for when the period is up. The server says nothing more until the screen
+# has been drawn, so a window waiting, hidden or minimised costs nothing.
+fn xscreen_dirty(int id) {
+	local x=${XS[$id]["x"]} st=0 now left
+
+	[ -n "$x" ] || return 0
+	xscr poll "$x" 2> /dev/null || st=$?
+	[ "$st" = 2 ] && { XS[$id]["err"]="The X screen has ended"; return 0; }
+	if [ "$st" = 0 ]; then
+		now := dt_ms
+		left=$((${XS[$id]["at"]:-0} + ${DT_TERMMS:-70} - now))
+		if [ "$left" -gt 0 ]; then
+			dt_want "$left"
+			return 1
+		fi
+		return 0
+	fi
+	[ "${XS[$id]["drew"]}" = "${DT[$id]["h"]} ${DT[$id]["w"]} $XS_MODE $DT_IMGMODE" ] &&
+		return 1
+	return 0
+}
+
+# The server's messages are read whether or not the window is drawn, or its
+# socket would wake the desktop for ever.
+fn xscreen_idle(int id) {
+	[ -n "${XS[$id]["x"]}" ] && xscr poll "${XS[$id]["x"]}" > /dev/null 2>&1
+	return 0
+}
+
+# A window cell to the X screen's pixel under it, into XS_PX and XS_PY;
+# status 1 outside the screen.
+XS_PX=0
+XS_PY=0
+fn xs_at(int id, int r, int c) {
+	local r0=${XS[$id]["r0"]} c0=${XS[$id]["c0"]} rh=${XS[$id]["rh"]} rw=${XS[$id]["rw"]}
+
+	[ -n "$r0" ] || return 1
+	[ "$r" -ge "$r0" ] && [ "$r" -lt $((r0 + rh)) ] &&
+		[ "$c" -ge "$c0" ] && [ "$c" -lt $((c0 + rw)) ] || return 1
+	XS_PX=$(((2 * (c - c0) + 1) * ${XS[$id]["sw"]} / (2 * rw)))
+	XS_PY=$(((2 * (r - r0) + 1) * ${XS[$id]["sh"]} / (2 * rh)))
+	return 0
+}
+
+fn xscreen_key(int id, key) {
+	local x=${XS[$id]["x"]}
+
+	[ -n "$x" ] || return 1
+	if [ "$DT_TERMKEEP" = 1 ] && dt_has dt_keyassigned &&
+	   dt_keyassigned "$key"; then
+		return 1
+	fi
+	xscr key "$x" "$key" 2> /dev/null
+	return 0
+}
+
+# A press, a drag and a release, as the window manager hands them over:
+# the button goes down where it was pressed and the pointer follows it.
+fn xscreen_mouse(int id, act, btn, int r, int c, mods = "") {
+	local x=${XS[$id]["x"]} b=1
+
+	[ -n "$x" ] || return 0
+	xs_at "$id" "$r" "$c" || return 0
+	case $btn in middle) b=2 ;; right) b=3 ;; esac
+	case ${act##*-} in
+	press) xscr button "$x" press "$b" "$XS_PX" "$XS_PY" ;;
+	release) xscr button "$x" release "$b" "$XS_PX" "$XS_PY" ;;
+	drag) xscr move "$x" "$XS_PX" "$XS_PY" ;;
+	esac
+	return 0
+}
+
+fn xscreen_click(int id, int r, int c, btn = "") {
+	return 0
+}
+
+fn xscreen_wheel(int id, dir, int r, int c) {
+	local x=${XS[$id]["x"]}
+
+	[ -n "$x" ] || return 0
+	xs_at "$id" "$r" "$c" || return 0
+	xscr wheel "$x" "$dir" "$XS_PX" "$XS_PY"
+	return 0
+}
+
+# Text pasted into the window is typed into the screen.
+fn xscreen_paste(int id, text, op = "") {
+	[ -n "${XS[$id]["x"]}" ] && xscr type "${XS[$id]["x"]}" "$text"
+	return 0
+}
+
+fn xscreen_close(int id) {
+	local p fd=${XS[$id]["fd"]}
+
+	[ -n "$fd" ] && command -v console > /dev/null && console unwatch "$fd"
+	if [ -n "${XS[$id]["x"]}" ]; then
+		xscr close "${XS[$id]["x"]}" 2> /dev/null
+	elif [ -n "${XS[$id]["srv"]}" ]; then
+		xscr stop "${XS[$id]["srv"]}" 2> /dev/null
+	fi
+	for p in ${XS[$id]["pids"]}; do
+		kill "$p" 2> /dev/null
+	done
+	[ -n "${XS[$id]["dir"]}" ] && command rm -rf -- "${XS[$id]["dir"]}"
+	unset "XS[$id]"
+}
+
+# Restart Desktop: the server and its programs are this shell's children
+# and run on across the exec; the connection does not, so it is made again
+# on the first frame after.
+fn xscreen_stash(int id, dir) {
+	XS[$id]["x"]=
+	XS[$id]["fd"]=
+	return 0
+}
+fn xscreen_resume(int id) {
+	XS[$id]["x"]=
+	XS[$id]["fd"]=
+	XS[$id]["run"]=
+	return 0
+}
+
+xscreen_menus() {
+	dt_menu "File"
+	dt_item "New Window" n dt_launch xscreen
+	dt_sep
+	dt_item "Close Window" w dt_close_focused
+	dt_editmenu
+}

@@ -1,0 +1,159 @@
+#!/usr/bin/env hibr
+#
+# xscreenset -- the Control Panel pane for X Screen (Gitea #290): the size
+# of the X screen a new window starts, how the screen is drawn, and what
+# runs on it when the window opens. Named xscreenset, not xscreen, because
+# the app owns the xscreen_ prefix. Start With is typed in a small window
+# of its own, xsfield.
+
+strict
+
+app xscreenset "The Control Panel pane for X Screen" 1.0
+command -v cp_pane > /dev/null && cp_pane xscreenset "X Screen" "▣" app
+command -v dt_app > /dev/null &&
+	dt_app xsfield "X Screen Setting" 8 64 "" "" fixed hidden
+
+XS_SIZE="${XS_SIZE-1280x800}"
+XS_MODE="${XS_MODE-follow}"
+XS_RUN="${XS_RUN-}"
+command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MODE XS_RUN
+
+XSS_SIZES=(1024x768 1280x800 1366x768 1600x900 1920x1080)
+# follow is Control Panel > Pictures, as YouTube's and the wallpaper's are.
+XSS_MODES=(follow half pixels)
+declare -gA XSF
+
+fn cp_set_xssize(int? id = "", value = "") { XS_SIZE=$value; cp_save; }
+fn cp_set_xsmode(int? id = "", value = "") { XS_MODE=$value; cp_save; }
+
+fn xscreenset_rows(int w) {
+	local n=0
+
+	dt_has xscreen_draw || { cp_absent "$w" "X Screen"; ret 1; }
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screen Size"
+	CP[$w][$n]["val"]="$XS_SIZE"; CP[$w][$n]["key"]=size
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
+	CP[$w][$n]["val"]="$XS_MODE"; CP[$w][$n]["key"]=mode
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Start With"
+	CP[$w][$n]["val"]="$XS_RUN"; CP[$w][$n]["key"]=run
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn xscreenset_do(int? w = "", k = "", int? dir = "") {
+	local v
+
+	case $k in
+	size) v := cp_next "$XS_SIZE" "$dir" "${XSS_SIZES[@]}"; XS_SIZE=$v ;;
+	mode) v := cp_next "$XS_MODE" "$dir" "${XSS_MODES[@]}"; XS_MODE=$v ;;
+	run) xss_dialog; return 0 ;;
+	esac
+	cp_save
+}
+
+fn xscreenset_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	size) dt_droplist "$w" "$r" "$c" cp_set_xssize "${XSS_SIZES[@]}" ;;
+	mode) dt_droplist "$w" "$r" "$c" cp_set_xsmode "${XSS_MODES[@]}" ;;
+	esac
+}
+
+# --- the field dialog ---------------------------------------------------------
+
+# Type what a new window runs: a small window with the field, Save and
+# Cancel.
+xss_dialog() {
+	local h=8 w=64 r c rid
+
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "X Screen Setting" "$h" "$w" "$r" "$c" xsfield
+	XSF[$rid]["buf"]=$XS_RUN
+	XSF[$rid]["cur"]=${#XS_RUN}
+	XSF[$rid]["focus"]=text
+}
+
+fn xsfield_draw(int id, int h, int w, int row, int col) {
+	local f=${XSF[$id]["focus"]} on=0
+
+	dt_wclear "$id"
+	[ "$f" = text ] && on=1
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 1 2 "What runs when a new X Screen opens:"
+	dt_textdraw "$id" 2 2 $((w - 4)) "${XSF[$id]["buf"]}" \
+		"${XSF[$id]["cur"]}" "$on"
+	dt_wreg "$id" 2 2 $((w - 4)) text
+	console pen "$DT_DIM" "$DT_FACE"
+	dt_tput "$id" 4 2 "A command, such as a window manager or one program."
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+}
+
+fn xsfield_ok(int id) {
+	XS_RUN=${XSF[$id]["buf"]}
+	cp_save
+	dt_del "$id"
+}
+
+fn xsfield_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	text) XSF[$id]["focus"]=text ;;
+	ok) xsfield_ok "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn xsfield_key(int id, key) {
+	local res f=${XSF[$id]["focus"]} d onb=1
+
+	[ "$f" = text ] && onb=0
+	if d := dt_focuskey "$key" "$onb"; then
+		XSF[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		if [ "$f" = cancel ]; then dt_del "$id"; else xsfield_ok "$id"; fi
+		return 0
+		;;
+	esac
+	[ "$f" = text ] || return 0
+	res := dt_textkey "${XSF[$id]["buf"]}" "${XSF[$id]["cur"]}" "$key" ||
+		return 1
+	XSF[$id]["buf"]=${res% *}
+	XSF[$id]["cur"]=${res##* }
+	return 0
+}
+
+fn xsfield_close(int id) {
+	unset "XSF[$id]"
+}
+
+fn xsfield_copy(int id) {
+	[ "${XSF[$id]["focus"]}" = text ] || return 1
+	ret "${XSF[$id]["buf"]}"
+}
+
+fn xsfield_cut(int id) {
+	[ "${XSF[$id]["focus"]}" = text ] || return 1
+	local t=${XSF[$id]["buf"]}
+
+	XSF[$id]["buf"]=
+	XSF[$id]["cur"]=0
+	ret "$t"
+}
+
+fn xsfield_paste(int id, text, op = "") {
+	local r
+
+	XSF[$id]["focus"]=text
+	r := dt_textpaste "${XSF[$id]["buf"]}" "${XSF[$id]["cur"]}" "$text"
+	XSF[$id]["buf"]=${r% *}
+	XSF[$id]["cur"]=${r##* }
+}

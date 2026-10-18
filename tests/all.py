@@ -39,7 +39,7 @@ SUITES = ["run.sh", "desktop", "apps_panel", "apps_reach", "apps_core", "apps_mo
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars", "deps", "scopes",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "media", "youtube",
           "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "archive", "mermaid",
-          "appmgr", "shots"]
+          "appmgr", "xscreen", "shots"]
 
 
 def one(name):
