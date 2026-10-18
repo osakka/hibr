@@ -2866,6 +2866,17 @@ check("and with Zoom Fills at every display, it fills both, below the bar",
 sc, _ = run(TWOD + 'dt_snap "$DT_FOCUS" left\n')
 check("snapping to the left takes the left half of the window's own display",
       sc.g[0][40] == "┌" and sc.g[0][59] == "┐" and sc.g[0][60] != "─", sc)
+# A right-click menu stays on the display it was opened on (Gitea #287).
+# It was kept inside the primary's rows whatever display the pointer was
+# on, so on a display stacked below the primary it was pushed up onto the
+# primary. The primary here is eight rows on top, the other sixteen below.
+STACKD = ('DT_DISPLAYS=("0 0 8 80 self" "8 0 16 80 self")\n'
+          'DT_DISPNAMES=(a b)\nDT_PRIMARY_COL=0\nDT_PRIMARY_W=80\n'
+          'DT_PRIMARY_ROW=0\nDT_PRIMARY_H=8\n')
+sc, _ = run(STACKD, [press(9, 40, 2)])
+check("a right-click on a display below the primary opens its menu there, "
+      "at the pointer",
+      sc.find("Arrange Icons") == (9, 42), sc)
 sc, _ = run(ONE, [press(6, 20, 2), b"h"])
 check("Hide from it hides the window",
       sc.find("┤ Hello ├") is None, sc)
@@ -5750,4 +5761,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(642)
+report(643)

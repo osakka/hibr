@@ -369,11 +369,17 @@ DTW_C=0
 DTW_H=0
 DTW_W=0
 fn dt_windisp(int id) {
-	local r=${DT[$id]["row"]} c=${DT[$id]["col"]} dsp dr dc drows dcols dgx
-	local hit= cr cc pr=${DT_PRIMARY_ROW:-0} pc=${DT_PRIMARY_COL:-0}
+	local r=${DT[$id]["row"]} c=${DT[$id]["col"]}
 
-	cr=$((r + ${DT[$id]["h"]} / 2))
-	cc=$((c + ${DT[$id]["w"]} / 2))
+	dt_dispat $((r + ${DT[$id]["h"]} / 2)) $((c + ${DT[$id]["w"]} / 2))
+}
+
+# The same rectangle for the display holding a point, row cr and column cc
+# -- what a menu opening there is kept inside (Gitea #287).
+fn dt_dispat(int cr, int cc) {
+	local dsp dr dc drows dcols dgx hit= pr=${DT_PRIMARY_ROW:-0}
+	local pc=${DT_PRIMARY_COL:-0}
+
 	for dsp in "${DT_DISPLAYS[@]}"; do
 		IFS=' ' read -r dr dc drows dcols dgx <<< "$dsp"
 		[ "$cr" -ge "$dr" ] && [ "$cr" -lt $((dr + drows)) ] &&

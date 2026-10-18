@@ -851,7 +851,7 @@ dt_drop() {
 # occupies so it can sit beside it rather than on top of it.
 fn dt_menu_draw(int m, int? px, int parent) {
 	local i=0 r x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
-	local ac aw ptop pbot
+	local ac aw ptop pbot dl=0 dr=$DT_COLS at=
 
 	# A bar menu drops from the row under the bar, which is the
 	# primary's own first content row rather than a literal 1 once the
@@ -867,14 +867,29 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	if [ -n "$px" ]; then
 		x=$px
 		r=${MB[$m]["py"]:-$ptop}
+		at=1
 	elif [ -n "$MB_CX" ]; then
 		x=$MB_CX
 		r=${MB_CY:-$ptop}
+		at=1
 	else
 		case $DT_MIRRORON in 1) x=$((x + ${MB[$m]["tw"]:-0} - w)) ;; esac
 	fi
+	# A menu that opens at a point -- a right-click, a submenu, a
+	# dropdown's choices -- is kept on the display that point is on, not
+	# the primary's rows, which a menu on a display stacked above or below
+	# was pushed onto (Gitea #287). A bar menu drops from the bar, which
+	# is the primary's.
+	if [ -n "$at" ] && dt_has dt_dispat; then
+		dt_dispat "$r" "$x"
+		ptop=$DTW_R
+		pbot=$((DTW_R + DTW_H))
+		dl=$DTW_C
+		dr=$((DTW_C + DTW_W))
+	fi
+	[ "$x" -lt "$dl" ] && x=$dl
+	[ $((x + w)) -gt "$dr" ] && x=$((dr - w))
 	[ "$x" -lt 0 ] && x=0
-	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
 	[ $((r + n + 1)) -gt "$pbot" ] && r=$((pbot - n - 1))
 	[ "$r" -lt "$ptop" ] && r=$ptop
 	MB[$m]["dy"]=$r

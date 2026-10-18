@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.249
+
+**A right-click menu stays on the display it was opened on** (Gitea #287).
+
+Reported by the owner: a right-click menu was placed correctly on the
+primary display and wrongly on the others. A menu that opens at a point --
+a right-click, a submenu, a dropdown's choices -- was kept inside the
+primary's rows, and its columns inside the whole union, so on a display
+stacked above or below the primary it was pushed onto the primary, and on
+one beside it of a different height it moved near the top or bottom
+edge. It is kept inside the display the point is on now, with the bar's
+row clear only on the primary. Bar menus still drop from the bar, which
+is the primary's.
+
+The display under a point is `dt_dispat`, split out of 0.99.248's
+`dt_windisp`, so Zoom, the snaps and the menus share one rule.
+
+One new check in `tests/desktop.py`, with an eight-row primary above a
+sixteen-row display: a right-click on the lower display opens its menu at
+the pointer. It fails against the release before.
+
 ## 0.99.248
 
 **Zoom and snapping act on the display the window is on** (Gitea #286).
