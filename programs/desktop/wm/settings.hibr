@@ -107,11 +107,12 @@ DT_GLYPH="${DT_GLYPH-·}"
 # A real image as the wallpaper instead of the repeated glyph, drawn by the
 # img module (mods/img) if it can be loaded -- empty means the glyph, same
 # as it always has been. Setting one and setting DT_GLYPH are mutually
-# exclusive in the UI (Appearance's Wallpaper row, the strip's own wallpaper
-# module) for the same reason a radio button only shows one choice at a
-# time, but nothing stops a hand-edited config from having both; DT_WALLIMG
-# wins when it does. DT_WALLTRIED is not a setting -- it just stops dt_wall
-# from retrying `need img` every single frame once it is known not to load.
+# exclusive in the UI (Control Panel > Wallpaper's Pattern row, the strip's
+# own wallpaper module) for the same reason a radio button only shows one
+# choice at a time, but nothing stops a hand-edited config from having
+# both; DT_WALLIMG wins when it does. DT_WALLTRIED is not a setting -- it
+# just stops dt_wall from retrying `need img` every single frame once it is
+# known not to load.
 DT_WALLIMG="${DT_WALLIMG-}"
 DT_WALLTRIED=
 
@@ -215,6 +216,10 @@ WS_STYLES=(brackets circles squares diamonds dashes)
 
 # How a wallpaper image is fitted to the screen -- see dt_wallfit.
 WP_MODES=(stretch scale zoom center)
+# And the glyphs the pattern may be: what Control Panel > Wallpaper offers
+# and what a theme's "wallpaper" is checked against, so it lives here, with
+# the window manager, rather than in either of those two panes.
+WP_GLYPHS=("·" "░" "▒" "⋅" "+" "╱" "▞")
 
 # How an on/off choice is drawn, wherever there is one: theme -- what the
 # theme suggests (DT_THEMECHECKS, set when one is applied), a box when it
@@ -471,6 +476,12 @@ dt_save() {
 		done
 		for v in "${!DT_ICONPOS[@]}"; do
 			printf 'dt_iconpos %q %q\n' "$v" "${DT_ICONPOS["$v"]}"
+		done
+		# A display's own wallpaper (Gitea #284).
+		for v in "${!DT_WALLDMODE[@]}"; do
+			printf 'dt_walldisp %q %q %q %q\n' "$v" \
+				"${DT_WALLDIMG["$v"]}" "${DT_WALLDMODE["$v"]}" \
+				"${DT_WALLDPIC["$v"]}"
 		done
 		for v in "${!DT_KEYS[@]}"; do
 			printf 'DT_KEYS["%s"]=%q\n' "$v" "${DT_KEYS["$v"]}"

@@ -320,12 +320,12 @@ check("panes register and sort by title within their group, not load order",
                 "aboutme", "abouthibr", "appearance", "cliphist",
                 "control_strip", "desktop", "filetypes", "language",
                 "network", "notify", "pictures", "screensaver", "shortcuts",
-                "taskmgr", "versions", "windows",
+                "taskmgr", "versions", "wallset", "windows",
                 "browserset", "pimset", "filesview", "mailset", "prayerset",
                 "notes", "terminal", "vaultset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 16 + ["app"] * 9, out)
+      ["hardware"] * 4 + ["system"] * 17 + ["app"] * 9, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -368,7 +368,7 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "windows": "Windows", "abouthibr": "About This",
          "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
          "terminal": "Terminal", "tube": "YouTube", "versions": "Versions",
-         "browserset": "Browser"}
+         "browserset": "Browser", "wallset": "Wallpaper"}
 
 
 def prow(name):
@@ -580,8 +580,11 @@ DROPS = []
 for pane in ORDER:
     if pane in ("datetime", "language"):
         continue
+    # Wallpaper's Display offers the displays attached and saved, and
+    # this session has neither, so it has one value and nothing to step
+    # to; its own checks give it a display to choose.
+    keys = dropkeys(pane) - {"wdisp"}
     extra = PANE_APPS.get(pane, ())
-    keys = dropkeys(pane)
     for i, (kind, text, key, val) in enumerate(panefull(pane, extra)):
         # Prayer Times' six minute rows are one widget six times: the
         # first stands for them all.
@@ -875,16 +878,73 @@ check("Rename moves the file and keeps it chosen",
       os.path.exists(os.path.join(TD, "hibr", "themes", "ours.json")), out)
 shutil.rmtree(TD, True)
 
-# Two more downs than before: Tree Style and Tree Rules sit between
-# Glyphs and the Wallpaper heading now, so the Pattern row is two further
-# down the pane. A check that walks a pane by counting downs is only right
-# for the pane it was written against.
-sc = cprun(DOWN_APP + [b"\x1b[C"] + [b"\x1b[B"] * 5 + [b"\x1b[C"])
+# The wallpaper has a pane of its own since 0.99.246 (Gitea #284): Display
+# first, then Pattern, so the glyph is one down.
+DOWN_WS = [b"\x1b[B"] * downs("wallset")
+sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 76) == "░", sc)
+sc = cprun(reach("appearance", "Menus"))
+check("Appearance no longer carries the wallpaper's rows",
+      brow(sc, "Pattern") == "" and brow(sc, "Theme") != "", sc)
+
+# A wallpaper of a display's own, by the display's name (Gitea #284). A
+# saved one is offered beside All Displays; choosing it hides the pattern,
+# which is the whole desktop's, and a change to its Mode is its own while
+# All Displays keeps stretch.
+WSKIT = "dt_walldisp kitchen '' stretch follow\n"
+sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C", b"\x1b[B", b"\x1b[B",
+                      b"\x1b[C"], post=WSKIT)
+check("a display with a wallpaper of its own is offered by name, and its "
+      "Mode is its own",
+      "kitchen" in brow(sc, "Display") and brow(sc, "Pattern") == "" and
+      "scale" in brow(sc, "Mode"), sc)
+sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C", b"\x1b[B", b"\x1b[B",
+                      b"\x1b[C", b"\x1b[A", b"\x1b[A", b"\x1b[D"],
+           post=WSKIT)
+check("while All Displays keeps its own Mode and shows the pattern again",
+      "All Displays" in brow(sc, "Display") and brow(sc, "Pattern") != "" and
+      "stretch" in brow(sc, "Mode"), sc)
+sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C", b"d", b"\x1b[C"], post=WSKIT)
+check("and Delete forgets it: it follows All Displays, and is no longer "
+      "offered once nothing attached has its name",
+      "All Displays" in brow(sc, "Display") and brow(sc, "Pattern") != "" and
+      sc.find("kitchen") is None, sc)
+
+# What it is kept as, and the name a display gets when nobody gave one:
+# the machine an ssh connection comes from, or the terminal program, with
+# nothing in it that would break `hold clients`' space-separated lines.
+wsout = subprocess.run(
+    [sx.HIBR, "-c", ". %s\n" % WM +
+     "SSH_CONNECTION='127.0.0.1 5 10.0.0.1 22'; n := dt_dispname\n"
+     "echo \"[$n]\"; unset SSH_CONNECTION; TERM_PROGRAM='My Term'\n"
+     "n := dt_dispname; echo \"[$n]\"; DT_CONF=%s\n"
+     "dt_walldisp work-laptop '/x y.png' zoom half; dt_save\n"
+     "unset DT_WALLDMODE; declare -gA DT_WALLDMODE; . \"$DT_CONF\"\n"
+     "echo \"${DT_WALLDIMG[work-laptop]}|${DT_WALLDMODE[work-laptop]}|"
+     "${DT_WALLDPIC[work-laptop]}\"\n"
+     % os.path.join(PANEHOME, "wsconf.hibr")],
+    capture_output=True, text=True).stdout
+check("a display with no --name is named for where it connects from, with "
+      "no space in it",
+      "[localhost]" in wsout and "[My-Term]" in wsout, wsout)
+check("and its wallpaper is saved and read back by that name",
+      "/x y.png|zoom|half" in wsout, wsout)
+# Two terminals on one machine attach as laptop and laptop#2, since hold
+# needs the names to differ, and share laptop's wallpaper -- the owner's
+# choice -- which the pane offers once, as laptop.
+wsout = subprocess.run(
+    [sx.HIBR, "-c", CPLOAD +
+     "DT_DISPNAMES=(laptop 'laptop#2'); dt_walldisp laptop /x.png zoom half\n"
+     "dt_walluse 'laptop#2' '' stretch follow; echo \"[$DT_WALLIMG $DT_WALLMODE]\"\n"
+     "cp_wdnames; echo \"<${CP_WDLIST[*]}>\"\n"],
+    capture_output=True, text=True).stdout
+check("a second display from one machine shares the first one's wallpaper, "
+      "offered once by its name",
+      "[/x.png zoom]" in wsout and "<laptop>" in wsout, wsout)
 
 # Wallpaper -- #2 -- browses for an image and previews it, in a window of
-# its own opened from Appearance's "Wallpaper Image…" row. Its folders come
+# its own opened from Control Panel > Wallpaper's "Image…" row. Its folders come
 # from the desktop's own Open dialog (fp_go), so none of these sessions
 # loads the Files app: until 0.99.228 the picker was built on Files and a
 # fresh install could not choose a wallpaper (Gitea #265). Its own $HOME,
@@ -897,28 +957,28 @@ open(os.path.join(AWHOME, "notes.txt"), "w").write("hi\n")
 os.mkdir(os.path.join(AWHOME, "sub"))
 shutil.copy(os.path.abspath("tests/img-2x2.png"),
             os.path.join(AWHOME, "sub", "deep.png"))
-DOWN_WP = reach("appearance", "Image")
+DOWN_WP = reach("wallset", "Image")
 # The picker window sits centred, 20 by 64, so on this 24 by 80 screen its
 # border is at row 2, column 8: a list row r is at screen row 2 + r, and
 # the list itself starts one column in.
 WPCOL = 10
 
 sc = cprun(DOWN_WP)
-check("Appearance offers the wallpaper image picker as a row of its own",
+check("Control Panel > Wallpaper offers the image picker as a row of its own",
       brow(sc, "Image…") != "", sc)
 check("and the way an image fills the screen, stretch by default",
       "stretch" in brow(sc, "Mode"), sc)
-sc = cprun(reach("appearance", "Mode") + [b"\x1b[C"])
+sc = cprun(reach("wallset", "Mode") + [b"\x1b[C"])
 check("which cycles to scale",
       "scale" in brow(sc, "Mode"), sc)
 # The wallpaper's own Picture row, as YouTube's player has one (Gitea #275):
 # follow, the Pictures setting, until somebody chooses, with a Drawn Now
 # row saying what that comes to; and it cycles through the same five.
-sc = cprun(reach("appearance", "Picture"))
-check("Appearance draws the wallpaper by a Picture setting of its own, "
+sc = cprun(reach("wallset", "Picture"))
+check("the wallpaper is drawn by a Picture setting of its own, "
       "following Pictures until chosen, and says what that comes to",
       "follow" in brow(sc, "Picture") and brow(sc, "Drawn Now") != "", sc)
-sc = cprun(reach("appearance", "Picture") + [b"\x1b[C"])
+sc = cprun(reach("wallset", "Picture") + [b"\x1b[C"])
 check("which steps to half blocks",
       "half" in brow(sc, "Picture") and brow(sc, "Drawn Now") == "", sc)
 
@@ -1074,14 +1134,14 @@ check("and Close closes the picker, leaving the Control Panel",
       cl is not None and sc.find("┤ Wallpaper ├") is None and
       sc.find("┤ Panel ├") is not None, sc)
 
-# The search finds panes by their titles and by their rows, so "wall"
+# The search finds panes by their titles and by their rows, so "glyph"
 # finds Appearance; escape clears it. Reached with `/` since 0.99.193 and
 # drawn on the window's own bottom row: it used to be a box at the top of
 # this list that typing went into, which was one of the six shapes the
 # desktop's searches had before they were made one.
-sc = cprun([b"/"] + [c.encode() for c in "wall"] + [0.3])
+sc = cprun([b"/"] + [c.encode() for c in "glyph"] + [0.3])
 check("the Control Panel's search finds a pane by a row inside it",
-      "/wall" in sc.text() and "Appearance" in sc.row(R0 + 1) and
+      "/glyph" in sc.text() and "Appearance" in sc.row(R0 + 1) and
       sc.find("Date & Time") is None and sc.find("Mouse") is None, sc)
 sc = cprun([b"/"] + [c.encode() for c in "zzzx"] + [0.3])
 check("and says when nothing matches", sc.find("Nothing found") is not None,
@@ -1144,10 +1204,10 @@ check("and pasted back, though an empty field draws a placeholder and not "
       "a field at all", sbox(sc) == "xmail", sc)
 
 # Change Wallpaper… on the desktop's own menu opens the Control Panel at
-# Appearance, where the wallpaper is chosen.
+# Wallpaper, where the wallpaper is chosen (Gitea #284).
 sc = cprun(feed=[press(20, 76, 2), b"w", 0.5])
-check("Change Wallpaper on the desktop opens the Control Panel at Appearance",
-      sc.find("Wallpaper") is not None and sc.find("Theme") is not None, sc)
+check("Change Wallpaper on the desktop opens the Control Panel at Wallpaper",
+      sc.find("Display") is not None and sc.find("Pattern") is not None, sc)
 
 # The divider between the list and the pane is dragged (widgets/split.hibr),
 # and where it is left is a setting kept for next time.
@@ -4941,4 +5001,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(651)
+report(658)

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "2.2",
+ "version": "2.3",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -45,6 +45,7 @@
    "other": "ومعه %s ملف"
   },
   "%s files with it": "ومعه %s ملف",
+  "%s follows All Displays again": "يتبع %s جميع الشاشات مجددًا",
   "%s has no address book yet -- sync it first": "ليس لـ %s دفتر عناوين بعد -- زامنه أولًا",
   "%s has no shortcut now": "لم يعد لـ %s اختصار",
   "%s in %s h %s min": "%s بعد %s س %s د",
@@ -125,6 +126,7 @@
   "Adjust": "التعديل",
   "Agenda": "جدول الأعمال",
   "Align": "محاذاة",
+  "All Displays": "جميع الشاشات",
   "All Mail": "كل البريد",
   "An event stays in its calendar; make a new one in the other": "يبقى الحدث في تقويمه؛ أنشئ حدثًا جديدًا في التقويم الآخر",
   "And Minutes Before": "وقبلها بدقائق",

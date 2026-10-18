@@ -27,6 +27,10 @@ DT_STANDBYAUTO="${DT_STANDBYAUTO-1}"
 DT_BLANK=
 DT_BLANKR=()
 DT_SBNAME=
+# The name it joins under, which is the one a display's wallpaper is
+# remembered by (Gitea #284): DT_SBNAME stays the waiting file's own,
+# standby-<pid> unless named, so two waiting on one machine never clash.
+DT_SBDISP=
 DT_SBBASE=
 DT_SBSTATE=waiting
 DT_SBLIST=()
@@ -75,7 +79,7 @@ dt_sbdraw() {
 # go on purpose -- released, until asked again; gone means it quit, and the
 # next one is waited for.
 fn dt_sbjoin(base) {
-	local line wxh cols
+	local line wxh cols dn
 
 	line := dt_holdline "$base"
 	[ -n "$line" ] || return 1
@@ -84,7 +88,8 @@ fn dt_sbjoin(base) {
 	console close
 	DT_SBSTATE=joined
 	dt_sbwrite
-	hold attach -m -n "$DT_SBNAME" "$base" 0 "$cols"
+	dn := dt_dispfree "$base" "$DT_SBDISP"
+	hold attach -m -n "$dn" "$base" 0 "$cols"
 	line := dt_holdline "$base"
 	if [ -n "$line" ]; then
 		DT_SBSTATE=released
@@ -104,6 +109,8 @@ fn dt_standby(base, dname = "") {
 
 	need console || { echo "$0: --standby needs the console module" >&2; exit 1; }
 	DT_SBNAME=${dname:-standby-$$}
+	DT_SBDISP=$dname
+	[ -n "$DT_SBDISP" ] || DT_SBDISP := dt_dispname
 	DT_SBBASE=$base
 	DT_SBSTATE=waiting
 	mkdir -p "$DT_STANDBYDIR" 2> /dev/null

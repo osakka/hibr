@@ -50,6 +50,7 @@ control-panel/screenshots.hibr
 control-panel/shortcuts.hibr
 control-panel/versions.hibr
 control-panel/wallpaper.hibr
+control-panel/wallset.hibr
 control-panel/windows.hibr
 
 # The Control Strip's modules that belong to no app.

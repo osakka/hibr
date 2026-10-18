@@ -3,7 +3,7 @@
 # wallpaper -- browse for an image, preview it in real colour (fitted to
 # its own aspect ratio, not stretched), apply it as the desktop's
 # wallpaper, also in full colour. A dialog window of its own, opened from
-# Appearance's "Wallpaper Image…" row, the same way Date & Time opens its
+# Control Panel > Wallpaper's "Image…" row, the same way Date & Time opens its
 # time zone picker. See wp_preview for how the preview itself is drawn
 # straight into this window's own pane.
 # The folder side is the desktop's own Open dialog's (wm/filepick.hibr):
@@ -38,6 +38,33 @@ WPK_TYPES="Images:png jpg jpeg"
 WPK_DIR=
 command -v dt_keep > /dev/null && dt_keep WPK_DIR
 
+# The image or the Mode for the display Control Panel > Wallpaper has
+# chosen, when that pane is here to say (Gitea #284), or All Displays'.
+fn wp_cur(field) {
+	local v
+
+	if command -v cp_wdget > /dev/null; then
+		v := cp_wdget "$field"
+		ret "$v"
+	fi
+	case $field in
+	img) ret "$DT_WALLIMG" ;;
+	*) ret "$DT_WALLMODE" ;;
+	esac
+}
+
+# And set one, for that display.
+fn wp_put(field, value = "") {
+	if command -v cp_wdset > /dev/null; then
+		cp_wdset "$field" "$value"
+		return 0
+	fi
+	case $field in
+	img) DT_WALLIMG=$value ;;
+	*) DT_WALLMODE=$value ;;
+	esac
+}
+
 # Open the picker in a window of its own, over the Control Panel.
 wp_dialog() {
 	local h=20 w=64 r c
@@ -61,11 +88,12 @@ fn wallpick_close(int id) {
 # leaves the folder unset when it cannot open one, and _draw calls this
 # while it is unset, so a missing one would be a note on every frame.
 fn wp_init(int id) {
-	local d=$WPK_DIR
+	local d=$WPK_DIR img
 
-	if [ -z "$d" ] && [ -n "$DT_WALLIMG" ]; then
-		d=${DT_WALLIMG%/*}
-		[ "$d" = "$DT_WALLIMG" ] && d=.
+	img := wp_cur img
+	if [ -z "$d" ] && [ -n "$img" ]; then
+		d=${img%/*}
+		[ "$d" = "$img" ] && d=.
 	fi
 	[ "$d" = . ] && d=$PWD
 	[ -d "$d" ] && [ -r "$d" ] || d=${HOME:-/}
@@ -286,7 +314,8 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 	fi
 
 	console pen "$DT_INK" "$DT_FACE"
-	t="Mode: ${DT_WALLMODE^} ${GL[sdown]}"
+	t := wp_cur mode
+	t="Mode: ${t^} ${GL[sdown]}"
 	t := str pad "$t" "$prevw"
 	console put -p "w$id" "$moderow" "$prevx" "$t"
 	dt_wreg "$id" "$moderow" "$prevx" "$prevw" mode
@@ -320,9 +349,10 @@ fn wallpick_key(int id, key) {
 	up) sel=$((sel - 1)) ;;
 	down) sel=$((sel + 1)) ;;
 	m)
-		local i
+		local i cm
+		cm := wp_cur mode
 		for i in "${!WP_MODES[@]}"; do
-			[ "${WP_MODES[$i]}" = "$DT_WALLMODE" ] && break
+			[ "${WP_MODES[$i]}" = "$cm" ] && break
 		done
 		wp_setmode "$id" "${WP_MODES[$(((i + 1) % ${#WP_MODES[@]}))]}"
 		return 0
@@ -374,7 +404,7 @@ fn wallpick_wheel(int id, dir, r = "", c = "") {
 # same "cb id value" shape every dropdown here uses, since the value alone
 # is enough to set a desktop-wide mode.
 fn wp_setmode(int? id = "", value = "") {
-	DT_WALLMODE=$value
+	wp_put mode "$value"
 	command -v dt_save > /dev/null && dt_save
 }
 
@@ -384,7 +414,7 @@ fn wp_setmode(int? id = "", value = "") {
 # mouse one.
 fn wp_apply(int id) {
 	[ -n "${WPK[$id]["previewfor"]}" ] || return 0
-	DT_WALLIMG=${WPK[$id]["previewfor"]}
+	wp_put img "${WPK[$id]["previewfor"]}"
 	command -v dt_save > /dev/null && dt_save
 	command -v dt_note > /dev/null && dt_notep low "Wallpaper set"
 }

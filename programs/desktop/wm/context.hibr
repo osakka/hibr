@@ -72,7 +72,7 @@ dt_deskcontext() {
 	dt_menu "Desktop"
 	dt_item "Arrange Icons" a dt_iconclean
 	if dt_has panel_goto; then
-		dt_item "Change Wallpaper${GL[ellipsis]}" w dt_panelpane appearance
+		dt_item "Change Wallpaper${GL[ellipsis]}" w dt_panelpane wallset
 	else
 		dt_dim "Change Wallpaper${GL[ellipsis]}"
 	fi

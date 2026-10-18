@@ -1,31 +1,27 @@
 #!/usr/bin/env hibr
 #
 # appearance -- the Control Panel pane for how the desktop looks: the
-# theme (the whole look at once), the colour scheme, the wallpaper (a
-# glyph, or an image chosen in a picker of its own), the menu bar's spacing
-# and notification icon, the shadows, and how dialog buttons look. A theme
+# theme (the whole look at once), the colour scheme, the menu bar's spacing
+# and notification icon, the shadows, and how dialog buttons look. The
+# wallpaper has a pane of its own since 0.99.246 (wallset.hibr, Gitea
+# #284), though a theme still carries one and applies it here. A theme
 # or a colour scheme sets the variables the window manager already reads
 # every frame, so a change shows on the next one, in every window at once.
 
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 1.6
+app appearance "The Control Panel pane for how the desktop looks" 1.7
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
 CP_COLOURS="${CP_COLOURS-midnight}"
 command -v dt_keep > /dev/null && dt_keep CP_THEME CP_COLOURS
-CP_GLYPHS=("·" "░" "▒" "⋅" "+" "╱" "▞")
 
 # How an on/off choice is drawn: what the theme suggests, a box, a knob, a
 # block or a tick -- see DT_CHECKS in wm/settings.hibr.
 CP_CHECKS=(theme box knob block tick)
 fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
-# How the wallpaper is drawn, the same five values and order as YouTube's
-# Picture row (Gitea #275): follow is Control Panel > Pictures.
-CP_WALLPICS=(follow half ascii mono pixels)
-fn cp_set_wallpic(int? id = "", value = "") { DT_WALLIMGMODE=$value; cp_save; }
 
 # A colour scheme is a JSON file, one to a scheme, named for it: seven
 # colours -- wall, dot, bar, active, idle, face, ink -- seven optional roles
@@ -173,7 +169,7 @@ CP_THEMEDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
 CP_THEMES=()
 declare -gA CP_TH
 declare -gA CP_THDEF
-CP_THDEF["wallpaper"]=${CP_GLYPHS[0]}; CP_THDEF["image"]=; CP_THDEF["mode"]=stretch
+CP_THDEF["wallpaper"]=${WP_GLYPHS[0]}; CP_THDEF["image"]=; CP_THDEF["mode"]=stretch
 CP_THDEF["frame"]=single; CP_THDEF["titlebar"]=line; CP_THDEF["buttons"]=brackets
 # A tree is decoration the same way the window buttons are, so a theme
 # carries it too: a theme that draws its windows one way and leaves every
@@ -204,7 +200,7 @@ fn cp_themeread(n, f) {
 	for k in "${!CP_THDEF[@]}"; do
 		v=${j["$k"]-${CP_THDEF["$k"]}}
 		case $k in
-		wallpaper) cp_oneof "$v" "${CP_GLYPHS[@]}" || return 1 ;;
+		wallpaper) cp_oneof "$v" "${WP_GLYPHS[@]}" || return 1 ;;
 		mode) cp_oneof "$v" "${WP_MODES[@]}" || return 1 ;;
 		frame) cp_oneof "$v" "${WS_FRAMES[@]}" || return 1 ;;
 		titlebar) cp_oneof "$v" "${DT_TITLEBARS[@]}" || return 1 ;;
@@ -362,13 +358,8 @@ cp_setver4() {
 	return 0
 }
 
-# Picking a glyph is choosing the plain wallpaper over a real image, the
-# same as picking one theme is choosing it over another -- so it clears
-# DT_WALLIMG rather than leaving it set underneath a glyph that would never
-# actually show while an image wins in dt_wall.
 fn cp_set_theme(int id, value) { cp_theme "$value" && cp_save; }
 fn cp_set_colours(int id, value) { cp_colours "$value" && cp_save; }
-fn cp_set_glyph(int? id = "", value = "") { DT_GLYPH=$value; DT_WALLIMG=; cp_save; }
 
 # Whether the look now is the theme t as it was applied: its colours and
 # every setting it carries.
@@ -490,28 +481,6 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tree Rules"
 	CP[$w][$n]["val"]=$tl; CP[$w][$n]["key"]=treelines
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Wallpaper"; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Pattern"
-	if [ -n "$DT_WALLIMG" ]; then
-		CP[$w][$n]["val"]="(image)"
-	else
-		CP[$w][$n]["val"]="$DT_GLYPH"
-	fi
-	CP[$w][$n]["key"]=glyph; n=$((n + 1))
-	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Image${GL[ellipsis]}"
-	CP[$w][$n]["val"]="${DT_WALLIMG##*/}"; CP[$w][$n]["key"]=wallimg
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mode"
-	CP[$w][$n]["val"]="$DT_WALLMODE"; CP[$w][$n]["key"]=wallmode
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
-	CP[$w][$n]["val"]="$DT_WALLIMGMODE"; CP[$w][$n]["key"]=wallpic
-	n=$((n + 1))
-	if [ "$DT_WALLIMGMODE" = follow ] && dt_has dt_walldrawn; then
-		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Drawn Now"
-		CP[$w][$n]["val"] := dt_walldrawn
-		n=$((n + 1))
-	fi
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Menu Bar"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set
 	CP[$w][$n]["text"]="Spacing (${DT_BARGAP:-2})"
@@ -581,8 +550,6 @@ fn appearance_do(int w, k, int dir) {
 		v := cp_next "$v" "$dir" "${CP_TREELINES[@]}"
 		cp_set_treelines "" "$v"
 		;;
-	glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
-	       DT_GLYPH=$v; DT_WALLIMG= ;;
 	bellicon)
 		v := cp_next "$DT_BELLICON" "$dir" "${DT_BELLICONS[@]}"
 		DT_BELLICON=$v
@@ -593,12 +560,6 @@ fn appearance_do(int w, k, int dir) {
 		[ "$v" -gt 4 ] && v=4
 		DT_BARGAP=$v
 		;;
-	wallimg) dt_has wp_dialog && wp_dialog
-		return 0 ;;
-	wallmode) v := cp_next "$DT_WALLMODE" "$dir" "${WP_MODES[@]}"
-		DT_WALLMODE=$v ;;
-	wallpic) v := cp_next "$DT_WALLIMGMODE" "$dir" "${CP_WALLPICS[@]}"
-		DT_WALLIMGMODE=$v ;;
 	glyphset) v := cp_next "$DT_GLYPHSET" "$dir" "${DT_GLYPHSETS[@]}"
 		cp_set_glyphset "" "$v"; return 0 ;;
 	dlgbtn) v := cp_next "$DT_DLGBTN" "$dir" "${DT_DLGBTNS[@]}"
@@ -612,15 +573,11 @@ fn appearance_drop(int w, int r, int c, k) {
 	case $k in
 	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
 	colours) dt_droplist "$w" "$r" "$c" cp_set_colours "${CP_COLOURLIST[@]}" ;;
-	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${CP_GLYPHS[@]}" ;;
 	checks) dt_droplist "$w" "$r" "$c" cp_set_checks "${CP_CHECKS[@]}" ;;
 	treestyle) dt_droplist "$w" "$r" "$c" cp_set_treestyle \
 		"${DT_TREESTYLES[@]}" ;;
 	treelines) dt_droplist "$w" "$r" "$c" cp_set_treelines \
 		"${CP_TREELINES[@]}" ;;
-	wallmode) dt_has wp_setmode &&
-		dt_droplist "$w" "$r" "$c" wp_setmode "${WP_MODES[@]}" ;;
-	wallpic) dt_droplist "$w" "$r" "$c" cp_set_wallpic "${CP_WALLPICS[@]}" ;;
 	glyphset) dt_droplist "$w" "$r" "$c" cp_set_glyphset "${DT_GLYPHSETS[@]}" ;;
 	dlgbtn) dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
 	bellicon)

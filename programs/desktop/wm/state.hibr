@@ -127,6 +127,11 @@ DT_PRIMARY_ROW=0
 # one never asked is drawn as it was before the asking (Gitea #274). The
 # table of what each means is in mods/gfxask.h.
 DT_DISPLAYS=()
+# And each display's name, at the same index: what it is remembered by
+# (Gitea #284), and empty for a desktop that is not held. A list of its
+# own rather than a sixth field, because three readers take the entry
+# apart into five and a sixth would land inside the last of them.
+DT_DISPNAMES=()
 
 # What `hold shift` answered when dt_size last asked -- "row col",
 # empty until the first read, and only ever read when held.

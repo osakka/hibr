@@ -212,6 +212,7 @@ dt_size() {
 	# drawn as before rather than in half blocks (Gitea #274) -- which is
 	# what 0.99.235 did, and a kitty display lost its picture for it.
 	DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS self")
+	DT_DISPNAMES=("")
 	if [ -n "$HIBR_HOLD" ] && need hold; then
 		lst := hold clients
 		if gl := hold gfx 2> /dev/null; then
@@ -223,6 +224,7 @@ dt_size() {
 			gv=unasked
 		fi
 		DT_DISPLAYS=()
+		DT_DISPNAMES=()
 		# No `break` on finding the primary: every display is wanted,
 		# and the primary is not always the first line. Breaking there
 		# is what the version before this did, when the primary was
@@ -230,6 +232,7 @@ dt_size() {
 		while IFS=' ' read -r nm row col rows cols pri; do
 			[ -n "$nm" ] || continue
 			DT_DISPLAYS+=("$row $col $rows $cols ${dgfx["$nm"]:-$gv}")
+			DT_DISPNAMES+=("$nm")
 			if [ "$pri" = 1 ]; then
 				DT_PRIMARY_COL=$col
 				DT_PRIMARY_W=$cols
@@ -242,8 +245,10 @@ dt_size() {
 			fi
 		done <<< "$lst"
 		# Held but nothing attached: the screen is still a screen.
-		[ "${#DT_DISPLAYS[@]}" -gt 0 ] ||
+		if [ "${#DT_DISPLAYS[@]}" = 0 ]; then
 			DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS unknown")
+			DT_DISPNAMES=("")
+		fi
 		# A second round trip, and only here: dt_size runs on open
 		# and on every resize, and a client attaching, leaving or
 		# being moved is a resize, so this is asked exactly when the

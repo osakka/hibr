@@ -27,7 +27,7 @@ DT_IMGARG=()
 # How the wallpaper itself is drawn: follow, the Pictures setting above, or
 # half, ascii, mono or pixels of its own -- the same five YouTube's player
 # offers, so a wallpaper in half blocks no longer means every picture in
-# half blocks (Gitea #275). Control Panel > Appearance > Wallpaper >
+# half blocks (Gitea #275). Control Panel > Wallpaper >
 # Picture. Pixels on a display whose terminal cannot show them is still
 # half blocks there (#258): this says what is wanted, dt_wallpixon where it
 # can be had.
@@ -175,7 +175,9 @@ fn dt_imgwill(mode = "") {
 # is free, so it is done per display rather than cached -- a desktop
 # spanning two panes fits the picture to each of them, and one cached
 # answer keyed on "the screen size" would thrash between them (#238).
-DT_WALLSRCFOR=
+# One answer per image, since each display may show its own (Gitea #284)
+# and one cached answer would be asked again for every display every frame.
+declare -gA DT_WALLSRC
 DT_WALLSRCW=0
 DT_WALLSRCH=0
 
@@ -183,14 +185,47 @@ DT_WALLSRCH=0
 fn dt_wallsrc() {
 	local out
 
-	[ "$DT_WALLSRCFOR" = "$DT_WALLIMG" ] && return 0
-	DT_WALLSRCFOR=$DT_WALLIMG
-	DT_WALLSRCW=0
-	DT_WALLSRCH=0
-	out := img size "$DT_WALLIMG"
-	[ -n "$out" ] || return 0
+	if [ -z "${DT_WALLSRC["$DT_WALLIMG"]+x}" ]; then
+		out := img size "$DT_WALLIMG"
+		DT_WALLSRC["$DT_WALLIMG"]=${out:-0 0}
+	fi
+	out=${DT_WALLSRC["$DT_WALLIMG"]}
 	DT_WALLSRCW=${out% *}
 	DT_WALLSRCH=${out#* }
+	return 0
+}
+
+# A wallpaper of a display's own (Gitea #284): its image, Mode and Picture,
+# the same kinds of value as DT_WALLIMG, DT_WALLMODE and DT_WALLIMGMODE,
+# kept by the display's name -- the part before any #, so two displays
+# from one machine, which dt_dispfree calls laptop and laptop#2, share
+# one. A display with no record follows those three, which is what All
+# Displays in Control Panel > Wallpaper sets. An empty image is the
+# pattern, as it is for DT_WALLIMG. Written to the settings file by
+# dt_save as dt_walldisp lines; room for more fields later.
+declare -gA DT_WALLDIMG DT_WALLDMODE DT_WALLDPIC
+
+# One display's record, as the settings file says it.
+fn dt_walldisp(name, img = "", mode = "", pic = "") {
+	DT_WALLDIMG["$name"]=$img
+	DT_WALLDMODE["$name"]=${mode:-stretch}
+	DT_WALLDPIC["$name"]=${pic:-follow}
+}
+
+# Put the wallpaper settings in force for the display called name: its own
+# record if it has one, otherwise gi, gm and gp -- the settings every
+# display follows, which dt_wall keeps aside while it walks the displays.
+fn dt_walluse(name = "", gi = "", gm = "", gp = "") {
+	local k=${name%%#*}
+
+	DT_WALLIMG=$gi
+	DT_WALLMODE=$gm
+	DT_WALLIMGMODE=$gp
+	[ -n "$k" ] || return 0
+	[ -n "${DT_WALLDMODE["$k"]+x}" ] || return 0
+	DT_WALLIMG=${DT_WALLDIMG["$k"]}
+	DT_WALLMODE=${DT_WALLDMODE["$k"]}
+	DT_WALLIMGMODE=${DT_WALLDPIC["$k"]}
 	return 0
 }
 
@@ -250,8 +285,11 @@ fn dt_wallsig() {
 	s="$s|$DT_ICONS|$DI_SCANT|$DT_ROWS|$DT_COLS|$DT_WS|$DT_MIRRORON"
 	s="$s|$DT_PRIMARY_COL|$DT_PRIMARY_W|$DT_PRIMARY_ROW|$DT_PRIMARY_H"
 	# And every display with what it draws, so one whose terminal's
-	# answer arrives, or changes, is painted the right way at once.
-	s="$s|${DT_DISPLAYS[*]}"
+	# answer arrives, or changes, is painted the right way at once --
+	# and by name, with every display's own wallpaper (Gitea #284), so a
+	# change to one of them paints it.
+	s="$s|${DT_DISPLAYS[*]}|${DT_DISPNAMES[*]}"
+	s="$s|${!DT_WALLDMODE[*]}|${DT_WALLDIMG[*]}|${DT_WALLDMODE[*]}|${DT_WALLDPIC[*]}"
 	s="$s|$MB_OPEN|$MB_CTXWHO|$DT_DND|$DT_DNDR|$DT_DNDN|$DT_DNDG"
 	s="$s|${#DT_NOTEQ_ORDER[@]}|$DT_IDNAME|$DT_BLANK|${#DT_BLANKR[@]}"
 	s="$s|$DT_CONFIRM|$DT_SHOT|$DT_SAVING|$DT_LOCKED"
@@ -279,19 +317,22 @@ fn dt_wallsig() {
 # that only kept the wallpaper, and the first display's picture was
 # deleted and sent again over and over -- ten times in six seconds -- which
 # is a primary going black (Gitea #258).
+#
+# Each with the picture and mode it was placed with, which since a display
+# may have a wallpaper of its own (Gitea #284) is not always the session's.
 DT_WALLPIX=()
+DT_WALLPIXI=()
+DT_WALLPIXM=()
 fn dt_wallkeep() {
-	local p r c h w m
+	local i r c h w
 
-	[ -n "$DT_WALLIMG" ] || return 0
 	dt_has img || return 0
 	[ "${#DT_WALLPIX[@]}" -gt 0 ] || return 0
-	m := dt_wallimgmode
-	dt_imgm "$m"
-	for p in "${DT_WALLPIX[@]}"; do
-		IFS=' ' read -r r c h w <<< "$p"
-		img keep "$DT_WALLIMG" "$r" "$c" "$h" "$w" "${DT_IMGARG[@]}" ||
-			true
+	for i in "${!DT_WALLPIX[@]}"; do
+		IFS=' ' read -r r c h w <<< "${DT_WALLPIX[$i]}"
+		dt_imgm "${DT_WALLPIXM[$i]}"
+		img keep "${DT_WALLPIXI[$i]}" "$r" "$c" "$h" "$w" \
+			"${DT_IMGARG[@]}" || true
 	done
 	return 0
 }
@@ -337,7 +378,8 @@ DT_WALLCARG=()
 # Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
 # drop-down menu covers them.
 dt_wall() {
-	local drawn= sig ms dsp dr dc drows dcols dgx wm
+	local drawn= sig ms dsp dr dc drows dcols dgx wm gi gm gp i=0 p
+	local -a plain
 
 	# The icons' own rescan, and the frame it asks for, happen whether or
 	# not anything is painted: inside the gate below they would stop the
@@ -372,77 +414,96 @@ dt_wall() {
 	# and a note or a menu that has gone had its cells outside the windows
 	# as well.
 	console behind on
-	if [ -n "$DT_WALLIMG" ]; then
-		if ! dt_has img && [ -z "$DT_WALLTRIED" ]; then
+	DT_WALLPIX=()
+	DT_WALLPIXI=()
+	DT_WALLPIXM=()
+	# One picture per attached display, not one across the union. hold
+	# forwards a picture only to a client whose rectangle **contains**
+	# it, because a bitmap cannot be clipped -- so a single wallpaper
+	# spanning two stacked panes was contained by neither and reached
+	# neither (Gitea #238). Fitted to each display, each one is contained
+	# by construction, and that rule stays true rather than being
+	# reversed. And each display's own picture, mode and Picture where
+	# it has a wallpaper of its own (Gitea #284): the session's three are
+	# kept aside and put back once every display is drawn.
+	#
+	# Not held, or one display: exactly one placement, the same as before.
+	gi=$DT_WALLIMG
+	gm=$DT_WALLMODE
+	gp=$DT_WALLIMGMODE
+	for dsp in "${DT_DISPLAYS[@]}"; do
+		IFS=' ' read -r dr dc drows dcols dgx <<< "$dsp"
+		dt_walluse "${DT_DISPNAMES[$i]-}" "$gi" "$gm" "$gp"
+		i=$((i + 1))
+		if [ -n "$DT_WALLIMG" ] && ! dt_has img &&
+		   [ -z "$DT_WALLTRIED" ]; then
 			DT_WALLTRIED=1
 			need img
 		fi
-		if dt_has img; then
-			case $DT_WALLMODE in
-			scale | center)
-				console pen "$DT_DOT" "$DT_WALL"
-				console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
-				;;
-			esac
-			wm := dt_wallimgmode
-			dt_imgm "$wm"
-			dt_wallcells
-			DT_WALLPIX=()
-			# One picture per attached display, not one across
-			# the union. hold forwards a picture only to a client
-			# whose rectangle **contains** it, because a bitmap
-			# cannot be clipped -- so a single wallpaper spanning
-			# two stacked panes was contained by neither and
-			# reached neither (Gitea #238). Fitted to each
-			# display, each one is contained by construction, and
-			# that rule stays true rather than being reversed.
-			#
-			# Not held, or one display: exactly one placement, the
-			# same as before.
-			for dsp in "${DT_DISPLAYS[@]}"; do
-				IFS=' ' read -r dr dc drows dcols dgx <<< "$dsp"
-				dt_wallfit "$dr" "$dc" "$drows" "$dcols"
-				# A display that cannot show the session's
-				# pixels gets half blocks in its own
-				# rectangle (Gitea #258).
-				if ! dt_wallpixon "$dgx"; then
-					img draw "$DT_WALLIMG" "$DT_WALLR" \
-						"$DT_WALLC" "$DT_WALLH" "$DT_WALLW" \
-						"${DT_WALLCARG[@]}" && drawn=1
-					continue
-				fi
-				# Where a picture of real pixels is going,
-				# the cells it covers are blanked with no
-				# colours of their own first: a bitmap writes
-				# no cells, so last frame's text would stay
-				# on top of it -- and a cell with a
-				# background colour paints over a picture the
-				# terminal composites below the text, which
-				# is how a kitty wallpaper would be invisible
-				# under the very fill that used to stand in
-				# for it.
-				if dt_imgwill "$wm"; then
-					console pen default default
-					console fill "$DT_WALLR" "$DT_WALLC" \
-						"$DT_WALLH" "$DT_WALLW" " "
-				fi
-				# -u: text is drawn over the wallpaper in
-				# this same frame -- the bar, every window,
-				# the icons -- and a picture that owns its
-				# cells would be dropped before it was ever
-				# sent (ADR 0037, Gitea #104).
-				if img draw "$DT_WALLIMG" "$DT_WALLR" \
-					"$DT_WALLC" "$DT_WALLH" "$DT_WALLW" \
-					"${DT_IMGARG[@]}" -u; then
-					drawn=1
-					DT_WALLPIX+=("$DT_WALLR $DT_WALLC $DT_WALLH $DT_WALLW")
-				fi
-			done
+		if [ -z "$DT_WALLIMG" ] || ! dt_has img; then
+			plain+=("$dr $dc $drows $dcols")
+			continue
 		fi
-	fi
+		case $DT_WALLMODE in
+		scale | center)
+			console pen "$DT_DOT" "$DT_WALL"
+			console fill "$dr" "$dc" "$drows" "$dcols" "$DT_GLYPH"
+			;;
+		esac
+		wm := dt_wallimgmode
+		dt_imgm "$wm"
+		dt_wallcells
+		dt_wallfit "$dr" "$dc" "$drows" "$dcols"
+		# A display that cannot show the session's pixels gets half
+		# blocks in its own rectangle (Gitea #258).
+		if ! dt_wallpixon "$dgx"; then
+			if img draw "$DT_WALLIMG" "$DT_WALLR" "$DT_WALLC" \
+				"$DT_WALLH" "$DT_WALLW" "${DT_WALLCARG[@]}"; then
+				drawn=1
+			else
+				plain+=("$dr $dc $drows $dcols")
+			fi
+			continue
+		fi
+		# Where a picture of real pixels is going, the cells it covers
+		# are blanked with no colours of their own first: a bitmap
+		# writes no cells, so last frame's text would stay on top of
+		# it -- and a cell with a background colour paints over a
+		# picture the terminal composites below the text, which is how
+		# a kitty wallpaper would be invisible under the very fill that
+		# used to stand in for it.
+		if dt_imgwill "$wm"; then
+			console pen default default
+			console fill "$DT_WALLR" "$DT_WALLC" "$DT_WALLH" \
+				"$DT_WALLW" " "
+		fi
+		# -u: text is drawn over the wallpaper in this same frame --
+		# the bar, every window, the icons -- and a picture that owns
+		# its cells would be dropped before it was ever sent (ADR
+		# 0037, Gitea #104).
+		if img draw "$DT_WALLIMG" "$DT_WALLR" "$DT_WALLC" \
+			"$DT_WALLH" "$DT_WALLW" "${DT_IMGARG[@]}" -u; then
+			drawn=1
+			DT_WALLPIX+=("$DT_WALLR $DT_WALLC $DT_WALLH $DT_WALLW")
+			DT_WALLPIXI+=("$DT_WALLIMG")
+			DT_WALLPIXM+=("$wm")
+		else
+			plain+=("$dr $dc $drows $dcols")
+		fi
+	done
+	DT_WALLIMG=$gi
+	DT_WALLMODE=$gm
+	DT_WALLIMGMODE=$gp
+	# The pattern: across everything when no picture went anywhere, as
+	# it always was, and otherwise on each display that has none.
+	console pen "$DT_DOT" "$DT_WALL"
 	if [ -z "$drawn" ]; then
-		console pen "$DT_DOT" "$DT_WALL"
 		console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
+	else
+		for p in "${plain[@]}"; do
+			IFS=' ' read -r dr dc drows dcols <<< "$p"
+			console fill "$dr" "$dc" "$drows" "$dcols" "$DT_GLYPH"
+		done
 	fi
 	# The icons are the desktop's too, and a window covers them whether
 	# they were painted under it or skipped, so this stays inside the

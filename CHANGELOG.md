@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.246
+
+**A wallpaper for each display, remembered by its name** (Gitea #284).
+
+Asked by the owner: a different wallpaper on each attached display, kept
+across reattaches and restarts. A display had no name worth remembering:
+hold calls an unnamed one `client-<fd>`, the socket's number on that
+attach.
+
+- **A display names itself when it attaches.** `--name` still wins.
+  Otherwise the name is the machine an ssh connection comes from, by its
+  short host name where it resolves and its address where it does not, or
+  for a terminal on this machine its terminal program. Two terminals on
+  one machine get one name and share its wallpaper (the owner's choice);
+  hold needs the names to differ, since the Displays pane moves, drops and
+  makes primary by name, so the second attaches as `laptop#2`, and the
+  wallpaper is looked up by the part before the `#`. `--standby` joins
+  under the same name.
+- **Control Panel > Wallpaper**, a new shipped pane: the wallpaper rows
+  move here from Appearance. **Display** offers All Displays, then every
+  display attached now and every one with a wallpaper saved. Choosing one
+  makes Image, Mode and Picture that display's. Its first change gives it a
+  wallpaper of its own, starting from what it showed, and **Delete** (or
+  `d`) forgets it, so it follows All Displays again. The pattern is the
+  whole desktop's and only offered under All Displays. The desktop's
+  Change Wallpaper opens this pane.
+- Each record is a `dt_walldisp name image mode picture` line in the
+  settings file. A settings file from before means what it did: All
+  Displays is the three settings there always were.
+
+Measured, since a cost was expected: two displays in pixels showing two
+different 3840x2160 pictures cost the same per frame as one picture on
+both, about 65 us. `img draw` keeps a picture already placed in the same
+rectangle before it looks at its one-picture cache, and keeps a record per
+rectangle since #258, so a repaint decodes nothing.
+
+Deliberately unchanged: a theme's picture, the Image Viewer's Set as
+Wallpaper and the Control Strip's wallpaper module set All Displays, so a
+display with a wallpaper of its own keeps it. And a desktop joined from a
+terminal window inside another held session inherits that session's ssh
+connection, so it is named for the machine that session came from.
+
+New checks. `tests/holdpix.py`: two held displays, one with a wallpaper of
+its own, are each sent their own picture as pixels, and its control, two
+with none, are sent the same bytes. `tests/apps.py`: the pane offers a
+saved display, whose Mode is its own while All Displays keeps stretch;
+Delete forgets it; Appearance no longer has the rows; a display with no
+`--name` is named for where it connects from, with no space in it; its
+record is saved and read back; and `laptop#2` shares `laptop`'s, offered
+once. Arabic 2.3 in the catalogue (two new
+strings), Appearance 1.7.
+
 ## 0.99.245
 
 **Control Panel values stay inside the window** (Gitea #282).

@@ -54,8 +54,61 @@ fn dt_holdline(base) {
 	ret ""
 }
 
+# What a display is called when nobody named it, so that what it remembers
+# -- its own wallpaper -- finds it again next time (Gitea #284). hold's own
+# default is `client-<fd>`, the socket's number on that attach, which a
+# reattach does not keep. Every display is a process on this machine, so a
+# file in the home folder cannot tell two apart; what can is where the
+# terminal is: the machine an ssh connection comes from, by its short name
+# where it resolves and its address otherwise, or the terminal program for
+# one on this machine. Two terminals on one machine get the same name and
+# share what it remembers unless one is given --name. Nothing but letters,
+# digits and ._:- survives, because `hold clients` is space-separated.
+dt_dispname() {
+	local a h n=
+
+	a=${SSH_CONNECTION%% *}
+	if [ -n "$a" ]; then
+		# A reverse lookup the resolver cannot answer waits out its
+		# timeout, before anything is on the screen; a second is
+		# plenty, and the address stands in after it.
+		if command -v timeout > /dev/null; then
+			h := timeout 1 getent hosts "$a" 2> /dev/null
+		else
+			h := getent hosts "$a" 2> /dev/null
+		fi
+		read -r _ n _ <<< "$h"
+		n=${n%%.*}
+		[ -n "$n" ] || n=$a
+	elif [ -n "${TERM_PROGRAM-}" ]; then
+		n=$TERM_PROGRAM
+	else
+		n=$HOSTNAME
+	fi
+	n=${n//[!A-Za-z0-9._:-]/-}
+	ret "${n:-display}"
+}
+
+# A name no display attached to base has now: n itself, or n#2, n#3...
+# The Displays pane moves, drops and makes primary by name, so two
+# displays from one machine must not share one there, while sharing what
+# they remember is what the owner asked for -- so what a display
+# remembers is looked up by the part before the #.
+fn dt_dispfree(base, n) {
+	local lst k=1 out=$n
+
+	lst := hold clients "$base" 2> /dev/null
+	while :; do
+		case $'\n'"$lst" in
+		*$'\n'"$out "*) k=$((k + 1)); out="$n#$k" ;;
+		*) break ;;
+		esac
+	done
+	ret "$out"
+}
+
 fn dt_autojoin(base, dname) {
-	local line wxh cols
+	local line wxh cols dn
 
 	line := dt_holdline "$base"
 	if [ -z "$line" ]; then
@@ -65,11 +118,8 @@ fn dt_autojoin(base, dname) {
 	fi
 	wxh=${line##* }
 	cols=${wxh#*x}
-	if [ -n "$dname" ]; then
-		hold attach -m -n "$dname" "$base" 0 "$cols"
-	else
-		hold attach -m "$base" 0 "$cols"
-	fi
+	dn := dt_dispfree "$base" "$dname"
+	hold attach -m -n "$dn" "$base" 0 "$cols"
 	exit $?
 }
 
@@ -106,6 +156,7 @@ fn dt_autohold(base, int resume, int join, dname, int standby = 0) {
 	[ -t 0 ] && [ -t 1 ] || return 0
 	need hold || return 0
 	[ "$standby" = 1 ] && dt_standby "$base" "$dname"
+	[ -n "$dname" ] || dname := dt_dispname
 	[ "$join" = 1 ] && dt_autojoin "$base" "$dname"
 	have := dt_holdnames
 	case " $have " in

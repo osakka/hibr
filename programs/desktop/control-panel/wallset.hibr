@@ -1,0 +1,243 @@
+#!/usr/bin/env hibr
+#
+# wallset -- the Control Panel pane for the wallpaper: the pattern, or an
+# image chosen in a picker of its own (control-panel/wallpaper.hibr), how
+# it fills the screen, and how it is drawn -- for every display at once, or
+# for one display by its name (Gitea #284). It was a section of Appearance
+# until then; it is a pane of its own because a Display row choosing what
+# every row below it applies to reads plainly here, and would not among
+# Appearance's rows, which all apply everywhere.
+#
+# A display is known by the name it attached under: --name if it was
+# given one, otherwise the machine it connects from (dt_dispname), so a
+# reattach finds it again. One with a wallpaper of its own keeps it in
+# DT_WALLDIMG, DT_WALLDMODE and DT_WALLDPIC (wm/wallpaper.hibr); one with
+# none follows All Displays, which is DT_WALLIMG, DT_WALLMODE and
+# DT_WALLIMGMODE as before -- so a settings file written before this pane
+# existed means exactly what it did. The pattern is one for the whole
+# desktop, and is only offered under All Displays.
+
+strict
+
+
+app wallset "The Control Panel pane for the wallpaper of each display" 1.0
+command -v cp_pane > /dev/null && cp_pane wallset "Wallpaper" "▧"
+
+# Declared again because a pane is loaded without the window manager's
+# own files under some fixtures, and a strict file may not create a global.
+declare -gA DT_WALLDIMG DT_WALLDMODE DT_WALLDPIC
+DT_WALLIMGMODE="${DT_WALLIMGMODE-follow}"
+
+# How the wallpaper is drawn, the same five values and order as YouTube's
+# Picture row (Gitea #275): follow is Control Panel > Pictures.
+CP_WALLPICS=(follow half ascii mono pixels)
+
+# The display the rows apply to: its name, or empty for All Displays. Not
+# kept: it is where the pane is looking, not a setting.
+CP_WDISP=
+CP_WDLIST=()
+
+# Every display name worth offering: those attached now, in the order hold
+# lists them, then those with a wallpaper saved and not attached. A name
+# with a # in it is a second display from one machine, which shares the
+# first one's wallpaper, so it is offered as the first one's name.
+cp_wdnames() {
+	local n k
+	local -A seen
+
+	CP_WDLIST=()
+	for n in "${DT_DISPNAMES[@]}"; do
+		k=${n%%#*}
+		[ -n "$k" ] || continue
+		[ -n "${seen["$k"]+x}" ] && continue
+		seen["$k"]=1
+		CP_WDLIST+=("$k")
+	done
+	for k in "${!DT_WALLDMODE[@]}"; do
+		[ -n "${seen["$k"]+x}" ] && continue
+		seen["$k"]=1
+		CP_WDLIST+=("$k")
+	done
+	return 0
+}
+
+# Whether the display chosen has a wallpaper of its own.
+cp_wdown() {
+	[ -n "$CP_WDISP" ] && [ -n "${DT_WALLDMODE["$CP_WDISP"]+x}" ]
+}
+
+# One of the three for the display chosen -- img, mode or pic -- its own
+# where it has a wallpaper of its own, All Displays' otherwise.
+fn cp_wdget(field) {
+	if cp_wdown; then
+		case $field in
+		img) ret "${DT_WALLDIMG["$CP_WDISP"]}" ;;
+		mode) ret "${DT_WALLDMODE["$CP_WDISP"]}" ;;
+		*) ret "${DT_WALLDPIC["$CP_WDISP"]}" ;;
+		esac
+	fi
+	case $field in
+	img) ret "$DT_WALLIMG" ;;
+	mode) ret "$DT_WALLMODE" ;;
+	*) ret "$DT_WALLIMGMODE" ;;
+	esac
+}
+
+# Set one of the three for the display chosen. A display's first change
+# gives it a wallpaper of its own, starting from what it showed until then,
+# so changing its Mode does not also change the picture it had.
+fn cp_wdset(field, value = "") {
+	if [ -z "$CP_WDISP" ]; then
+		case $field in
+		img) DT_WALLIMG=$value ;;
+		mode) DT_WALLMODE=$value ;;
+		*) DT_WALLIMGMODE=$value ;;
+		esac
+		return 0
+	fi
+	cp_wdown || dt_walldisp "$CP_WDISP" "$DT_WALLIMG" "$DT_WALLMODE" \
+		"$DT_WALLIMGMODE"
+	case $field in
+	img) DT_WALLDIMG["$CP_WDISP"]=$value ;;
+	mode) DT_WALLDMODE["$CP_WDISP"]=$value ;;
+	*) DT_WALLDPIC["$CP_WDISP"]=$value ;;
+	esac
+	return 0
+}
+
+# Forget the chosen display's own wallpaper: it follows All Displays again.
+cp_wddel() {
+	cp_wdown || return 0
+	unset DT_WALLDIMG["$CP_WDISP"] DT_WALLDMODE["$CP_WDISP"] \
+		DT_WALLDPIC["$CP_WDISP"]
+	cp_save
+	dt_notep low "%s follows All Displays again" "$CP_WDISP"
+}
+
+# The Display row's value as a person reads it, and back.
+cp_wdlabel() {
+	local t
+
+	if [ -z "$CP_WDISP" ]; then
+		t := dt_tr "All Displays"
+		ret "$t"
+	fi
+	ret "$CP_WDISP"
+}
+fn cp_set_wdisp(int? id = "", value = "") {
+	local all
+
+	all := dt_tr "All Displays"
+	if [ "$value" = "$all" ]; then
+		CP_WDISP=
+	else
+		CP_WDISP=$value
+	fi
+	return 0
+}
+
+# Picking a glyph is choosing the plain wallpaper over a real image, the
+# same as picking one theme is choosing it over another -- so it clears
+# DT_WALLIMG rather than leaving it set underneath a glyph that would never
+# actually show while an image wins in dt_wall.
+fn cp_set_glyph(int? id = "", value = "") { DT_GLYPH=$value; DT_WALLIMG=; cp_save; }
+fn cp_set_wallpic(int? id = "", value = "") { cp_wdset pic "$value"; cp_save; }
+fn cp_set_wallmode(int? id = "", value = "") { cp_wdset mode "$value"; cp_save; }
+
+fn wallset_rows(int w) {
+	local n=0 img pic
+
+	cp_wdnames
+	[ -n "$CP_WDISP" ] && [[ " ${CP_WDLIST[*]} " != *" $CP_WDISP "* ]] &&
+		CP_WDISP=
+	img := cp_wdget img
+	pic := cp_wdget pic
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Display"
+	CP[$w][$n]["val"] := cp_wdlabel
+	CP[$w][$n]["key"]=wdisp
+	cp_wdown && CP[$w][$n]["btns"]="wdispdel:Delete"
+	n=$((n + 1))
+	if [ -z "$CP_WDISP" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Pattern"
+		if [ -n "$DT_WALLIMG" ]; then
+			CP[$w][$n]["val"]="(image)"
+		else
+			CP[$w][$n]["val"]="$DT_GLYPH"
+		fi
+		CP[$w][$n]["key"]=glyph; n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Image${GL[ellipsis]}"
+	CP[$w][$n]["val"]="${img##*/}"; CP[$w][$n]["key"]=wallimg
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mode"
+	CP[$w][$n]["val"] := cp_wdget mode
+	CP[$w][$n]["key"]=wallmode
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
+	CP[$w][$n]["val"]="$pic"; CP[$w][$n]["key"]=wallpic
+	n=$((n + 1))
+	if [ "$pic" = follow ] && dt_has dt_walldrawn; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Drawn Now"
+		CP[$w][$n]["val"] := dt_walldrawn
+		n=$((n + 1))
+	fi
+	ret "$n"
+}
+
+# Delete from the keyboard, on the Display row: d.
+fn wallset_key(int w, key) {
+	local i=${PW[$w]["sel"]}
+
+	[ "${CP[$w][$i]["key"]}" = wdisp ] || return 1
+	case $key in
+	d) cp_wdown || return 1; cp_wddel ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+fn wallset_do(int w, k, int dir) {
+	local v all
+
+	case $k in
+	wdisp)
+		cp_wdnames
+		all := dt_tr "All Displays"
+		v := cp_wdlabel
+		v := cp_next "$v" "$dir" "$all" "${CP_WDLIST[@]}"
+		cp_set_wdisp "" "$v"
+		return 0
+		;;
+	wdispdel) cp_wddel; return 0 ;;
+	glyph) v := cp_next "$DT_GLYPH" "$dir" "${WP_GLYPHS[@]}"
+	       DT_GLYPH=$v; DT_WALLIMG= ;;
+	wallimg) dt_has wp_dialog && wp_dialog
+		return 0 ;;
+	wallmode)
+		v := cp_wdget mode
+		v := cp_next "$v" "$dir" "${WP_MODES[@]}"
+		cp_wdset mode "$v"
+		;;
+	wallpic)
+		v := cp_wdget pic
+		v := cp_next "$v" "$dir" "${CP_WALLPICS[@]}"
+		cp_wdset pic "$v"
+		;;
+	esac
+	cp_save
+}
+
+fn wallset_drop(int w, int r, int c, k) {
+	local all
+
+	case $k in
+	wdisp)
+		cp_wdnames
+		all := dt_tr "All Displays"
+		dt_droplist "$w" "$r" "$c" cp_set_wdisp "$all" "${CP_WDLIST[@]}"
+		;;
+	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${WP_GLYPHS[@]}" ;;
+	wallmode) dt_droplist "$w" "$r" "$c" cp_set_wallmode "${WP_MODES[@]}" ;;
+	wallpic) dt_droplist "$w" "$r" "$c" cp_set_wallpic "${CP_WALLPICS[@]}" ;;
+	esac
+}

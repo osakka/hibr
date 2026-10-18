@@ -182,7 +182,7 @@ A theme is a JSON file too:
 ```
 
 `colours` names a colour scheme and is the one key a theme must have. The
-rest, each optional: `wallpaper` (a glyph from Appearance's list), `image`
+rest, each optional: `wallpaper` (a glyph from Control Panel > Wallpaper's list), `image`
 and `mode` (a picture, its path relative to the theme's own folder so a
 theme can carry it, and how it is fitted), `frame` (`single`, `double`,
 `rounded`, `none`), `titlebar` (`line`, or `solid` -- the top row a bar of
@@ -299,8 +299,8 @@ a block, or a tick `[✓]`, or what the theme suggests.
 ## The wallpaper
 
 `dt_wall` fills the whole screen before anything else draws: `DT_GLYPH`
-repeated (`·` by default, Appearance's own Wallpaper row and the strip's
-`wallpaper` module both cycle it), or a real picture in `DT_WALLIMG` instead
+repeated (`·` by default, Control Panel > Wallpaper's Pattern row and the
+strip's `wallpaper` module both cycle it), or a real picture in `DT_WALLIMG` instead
 when one is set. A picture is decoded and drawn by the `img` module
 (`mods/img`, `need img` on first use so a desktop that never sets one never
 loads it) -- `img draw` blits it straight into the display, resampled to
@@ -314,13 +314,37 @@ Wallpaper" from its own **Image** menu. If the file cannot be decoded --
 moved, deleted, not actually a PNG -- `dt_wall` falls back to the glyph
 rather than leaving the screen blank.
 
-How a picture wallpaper is drawn is its own setting, Appearance >
+How a picture wallpaper is drawn is its own setting, Control Panel >
 Wallpaper > **Picture** (`DT_WALLIMGMODE`): Follow, which is whatever
 Control Panel > Pictures says for every other picture, or Half Blocks,
 Characters, Grey Blocks or Pixels for the wallpaper alone -- the same five
 YouTube's player offers -- with a Drawn Now row saying what Follow comes to
 on this terminal. Pixels on a display whose terminal cannot show them is
 half blocks there, never a bitmap it cannot draw.
+
+**Each display can have a wallpaper of its own** (Gitea #284). Control
+Panel > Wallpaper opens on **All Displays**, which is the three settings
+above; its **Display** row also offers every display attached now and every
+one with a wallpaper saved, and choosing one makes the Image, Mode and
+Picture rows that display's. Its first change gives it a record of its own,
+starting from what it showed until then, and **Delete** on the Display row
+forgets the record, so it follows All Displays again. The pattern is the
+whole desktop's and is only offered under All Displays.
+
+A display is remembered by its name: `--name` if it was started with one,
+otherwise the machine it connects from -- the ssh client's short host name,
+or its address when that does not resolve -- or, for a terminal on this
+machine, its terminal program (`dt_dispname`). Two terminals on one machine
+get one name, and so share a wallpaper unless one is given `--name`; hold
+needs every attached display's name to be different, since the Displays
+pane moves, drops and makes primary by name, so the second attaches as
+`laptop#2`, and what is remembered is looked up by the part before the
+`#`. The records are `dt_walldisp name image mode picture` lines in the
+settings file. A theme's picture, the Image Viewer's Set as Wallpaper and
+the Control Strip's wallpaper module set All Displays, so a display with a
+wallpaper of its own keeps it. A desktop joined from a terminal window
+inside another held session inherits that session's `SSH_CONNECTION`, and
+so is named for the machine that session came from; give it `--name`.
 
 ## Icons on the desktop
 

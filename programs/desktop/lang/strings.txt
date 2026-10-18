@@ -20,6 +20,7 @@
 %s edited file(s) not yet saved to a server were kept
 %s file with it
 %s files with it
+%s follows All Displays again
 %s has no address book yet -- sync it first
 %s has no shortcut now
 %s in %s h %s min
@@ -100,6 +101,7 @@ Added to your calendar
 Adjust
 Agenda
 Align
+All Displays
 All Mail
 An event stays in its calendar; make a new one in the other
 And Minutes Before

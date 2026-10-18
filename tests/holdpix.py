@@ -25,6 +25,7 @@ The control, as with OSC 52, is the unheld run of the same script: the
 sixel suite and the kitty suite are that control, and they pass.
 """
 import os
+import re
 import shutil
 import struct
 import sys
@@ -483,7 +484,25 @@ check("and it drew blocks there instead", "▀" in sc.row(2), repr(sc.row(2)))
 # only to a terminal that said it draws that kind, and the desktop draws
 # each display's wallpaper as pixels or half blocks by what that display
 # said. A real held desktop, a picture wallpaper, two ptys.
-def pair(cap1, cap2, fast=False):
+def payload(raw):
+    """The bytes of the last kitty picture a client was sent, every chunk of
+    it: two displays the same size sent the same picture are sent the same
+    bytes. The last, because a display attached alone is sent its picture
+    again when a second joins and the union changes."""
+    segs = re.findall(rb"\x1b_G([^\x1b]*)\x1b\\", raw)
+    at = [i for i, s in enumerate(segs) if b"a=T" in s.split(b";", 1)[0]]
+    if not at:
+        return b""
+    out = []
+    for s in segs[at[-1]:]:
+        ctl, _, data = s.partition(b";")
+        out.append(data)
+        if b"m=1" not in ctl:
+            break
+    return b"".join(out)
+
+
+def pair(cap1, cap2, fast=False, extra=""):
     """A held desktop with a picture wallpaper, one display attached and a
     second joining beside it. Each cap is kitty (answers kitty's query and
     has a cell size) or none (answers the device attributes without sixel,
@@ -497,7 +516,7 @@ def pair(cap1, cap2, fast=False):
         + "DT_WALLIMG=%s\nDT_IMGMODE=auto\nDT_WALLMODE=stretch\n"
         % sx.tree("tests/img-quad.jpg")
         + ("busyf() { dt_want 50; }\ndt_ticker busyf\n" if fast else "")
-        + "dt_open || exit 1\ndt_run\ndt_close\n")
+        + extra + "dt_open || exit 1\ndt_run\ndt_close\n")
     one = os.path.join(D, "one%s.hibr" % nm)
     two = os.path.join(D, "two%s.hibr" % nm)
     open(one, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, sess)
@@ -532,7 +551,8 @@ def pair(cap1, cap2, fast=False):
         t2.collect(0.05)
     r = {"one": sent(t1, m1), "two": sent(t2), "one_settled": sent(t1, a1),
          "two_settled": sent(t2, a2), "one_half": half(t1.screen()),
-         "two_half": half(t2.screen())}
+         "two_half": half(t2.screen()), "one_pl": payload(t1.raw),
+         "two_pl": payload(t2.raw)}
     g = os.path.join(D, "g%s.hibr" % nm)
     open(g, "w").write(load("hold") + "hold gfx %s\n" % nm)
     r["gfx"] = os.popen("TMPDIR=%s %s %s 2>&1" % (D, sx.HIBR, g)).read().split("\n")
@@ -559,6 +579,22 @@ check("two displays that both draw pictures each keep theirs on a busy "
       "desktop, rather than the first being deleted and sent again",
       r["one_settled"] == (0, 0) and r["two_settled"] == (0, 0)
       and r["two"][0] == 1, r)
+# The control for the check below: two displays the same size showing the
+# one wallpaper are sent the very same bytes.
+check("two displays with no wallpaper of their own are sent the same picture",
+      r["one_pl"] and r["one_pl"] == r["two_pl"],
+      (len(r["one_pl"]), len(r["two_pl"])))
+
+# A wallpaper of a display's own, kept by the display's name (Gitea #284):
+# `two` has one, `one` follows the session's. Each is sent its own picture,
+# as pixels, and the one with none is unchanged.
+r = pair("kitty", "kitty", extra="dt_walldisp two %s stretch follow\n"
+         % sx.tree("tests/img-wide.png"))
+check("a display with a wallpaper of its own is sent that picture, and the "
+      "other display the session's",
+      r["one_pl"] and r["two_pl"] and r["one_pl"] != r["two_pl"]
+      and r["one_half"] == 0 and r["two_half"] == 0,
+      (len(r["one_pl"]), len(r["two_pl"]), r["one_half"], r["two_half"]))
 
 # A new session, attached at once, the way `desktop` starts one: the
 # desktop asks its terminal what it draws in its very first output, and
@@ -710,4 +746,4 @@ t1.quit(None, 0.5)
 kill(nm)
 
 shutil.rmtree(D, True)
-report(32)
+report(34)

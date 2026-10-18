@@ -3716,12 +3716,21 @@ def unjoin():
 
 atexit.register(unjoin)
 
-t1 = Term(SESSION, env=JENV, cols=80, settle=2.0)
+# A display with no --name names itself for where it is (Gitea #284): the
+# machine an ssh connection comes from, else its terminal program. Each of
+# these says a program of its own, short and unlike the others, so the
+# Displays pane's rectangles show each name whole and none is the start of
+# another, as two machines' would be.
+def jenv(prog):
+    return dict(JENV, TERM_PROGRAM=prog, SSH_CONNECTION=None)
+
+
+t1 = Term(SESSION, env=jenv("dpa"), cols=80, settle=2.0)
 sc = t1.screen()
 check("a plain desktop starts, ready to be joined",
       sc.find("Home") is not None, sc)
 
-t2 = Term(SESSION, "--join", env=JENV, cols=60, settle=1.5)
+t2 = Term(SESSION, "--join", env=jenv("dpb"), cols=60, settle=1.5)
 out2 = t2.out.decode(errors="replace")
 r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
                    env=dict(os.environ, **JENV), capture_output=True,
@@ -3743,6 +3752,8 @@ primary = next((row[0] for row in rows if row[-1] == "1"), None)
 joined = next((row[0] for row in rows if row[-1] == "0"), None)
 check("exactly one is primary, the other is not",
       primary is not None and joined is not None, r3.stdout)
+check("and each is named for where it is, with no --name given",
+      primary == "dpa" and joined == "dpb", r3.stdout)
 # A note goes to the primary display's own corner (Gitea #280). It was
 # placed against both displays put together, so "top right" was the right
 # edge of the joined display on the right, not the primary's.
@@ -4008,7 +4019,7 @@ check("choosing Identify flashes the display's own name on its own screen",
 # Detach, on a third display joined just for this, so the two the checks
 # below still use stay attached: right-click its rectangle, choose Detach,
 # and that terminal is let go, told why: it was switched off.
-t3 = Term(SESSION, "--join", env=JENV, cols=40, settle=1.5)
+t3 = Term(SESSION, "--join", env=jenv("dpc"), cols=40, settle=1.5)
 r6 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
                     env=dict(os.environ, **JENV), capture_output=True,
                     text=True)
@@ -4017,8 +4028,9 @@ third = next((ln.split()[0] for ln in r6.stdout.splitlines()
 t1.collect(1.0)
 sc = t1.screen()
 # A display's rectangle is drawn to scale, and a narrow one shows only as
-# much of its name as fits -- a 40-column terminal's reads "clie" -- so it
-# is found as the label that starts its name without being another's.
+# much of its name as fits -- a 40-column terminal's may read only its
+# first letters -- so it is found as the label that starts its name
+# without being another's.
 lbl6 = None
 jrow = sc.find_from(joined, canvas0)
 if third and jrow:
@@ -5719,4 +5731,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(638)
+report(639)
