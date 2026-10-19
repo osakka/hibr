@@ -86,6 +86,16 @@ and so did how far it had moved: 10 4
 the arrangement is kept: above 0,0 main 10,4 
 and the union grew to hold it: 34x84
 and so did what each display draws: above none main kitty 
+--- a display that hangs up and comes back by name lands where it was
+up above low: low 10,0 1 up 0,0 0 shift 10 0
+nothing to say while it is here: 1
+where up was: 0 0 10 80 0
+back, and moved again: low 10,0 1 up 0,0 0 shift 10 0
+--- the primary that hangs up takes it back when it returns
+the other is primary meanwhile: up 1 
+and low is again: low 10,0 1 up 0,0 0 
+--- a remembered place another display has taken is not offered
+up's place, now other's: 1
 --- upgrade takes the session onto the hibr on disk now
 upgrade: 0
 still listed: 1

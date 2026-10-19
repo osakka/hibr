@@ -28,8 +28,16 @@ enum {
 	   primary. A server without it closes the request unanswered, at once,
 	   which the reader takes as unknown. */
 	HD_GFXLIST = 'l',
-	/* Reposition a named client: name row col. */
+	/* Reposition a named client: name row col, relative to where the
+	   primary display is -- which every normalisation moves with the
+	   rest, so the same request means the same place whenever it is
+	   sent (Gitea #297). With no primary it is the union's own frame. */
 	HD_MOVE = 'v',
+	/* Where a named display was when it last went, as "row col rows cols
+	   primary" in the union's frame now, or an empty reply when none is
+	   remembered or one by that name is attached (Gitea #297). A server
+	   that does not know it closes the request unanswered. */
+	HD_SLOT = 'S',
 	/* Detach a named client, server-side, by name rather than by fd. */
 	HD_DROP = 'o',
 	/* Make a named client the primary; every other client stops being it. */
@@ -160,7 +168,18 @@ unsigned hd_imgid(const char *p, size_t n);
 int hd_canshow(const struct hd_cli *cn, const char *p, size_t n);
 void hd_relay(int tid);
 int hd_gfxdue(vec *cls, int m);
+/* Where a named display was when it last went (Gitea #297): in the frame
+   from before any normalisation, a position less hd_shiftr/hd_shiftc,
+   which no later shift moves; by the name before any #. */
+struct hd_slot {
+	str name;
+	int row, col, rows, cols, primary;
+};
+
 void hd_cdrop(vec *cls, int fd);
+void hd_slotkeep(struct hd_cli *cn);
+struct hd_slot *hd_slotfind(const char *nm, size_t n);
+struct hd_cli *hd_cprimary(vec *cls);
 struct hd_cli *hd_cfind(vec *cls, int fd);
 struct hd_cli *hd_cfindname(vec *cls, const char *name);
 int hd_chas(vec *cls, int fd);

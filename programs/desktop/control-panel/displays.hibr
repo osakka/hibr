@@ -22,7 +22,7 @@
 strict
 
 
-app displays "Control Panel's own picture of a multi-monitor arrangement" 1.0
+app displays "Control Panel's own picture of a multi-monitor arrangement" 1.1
 command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦" hardware
 
 declare -gA DPY
@@ -314,7 +314,7 @@ fn displays_standby(int id, int h, int w, int bx) {
 # through to panel_click; only a press that hit no rectangle at all
 # does (returns 1).
 fn displays_mouse(int id, act, button, int r, int c) {
-	local n i sess nm mr mc s row col nrow ncol amr amc tag wc vals
+	local n i j sess nm mr mc s row col nrow ncol amr amc tag wc vals
 
 	n=${DPY[$id]["n"]:-0}
 	if [ "$act" = press ]; then
@@ -395,6 +395,15 @@ fn displays_mouse(int id, act, button, int r, int c) {
 			# parses both as plain signed ints); this clamp was the bug.
 			nrow=$((row + mr * 100 / s))
 			ncol=$((col + mc * 100 / s))
+			# And sent relative to the primary display, which is what
+			# hold move means since 0.99.256 (Gitea #297): the same
+			# request then names the same place after any shift.
+			for ((j = 0; j < ${DPY[$id]["n"]}; j++)); do
+				[ "${DPY[$id][$j]["primary"]}" = 1 ] || continue
+				nrow=$((nrow - ${DPY[$id][$j]["row"]}))
+				ncol=$((ncol - ${DPY[$id][$j]["col"]}))
+				break
+			done
 			hold move "$sess" "$nm" "$nrow" "$ncol"
 		fi
 		DPY[$id]["drag"]=

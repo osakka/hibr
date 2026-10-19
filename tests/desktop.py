@@ -4194,6 +4194,18 @@ def holdrun(*a):
                           text=True, timeout=20)
 
 
+def holdto(name, r, c):
+    """Put a display at r,c in hold's own frame: hold move counts from the
+    primary display since 0.99.256 (Gitea #297), so the primary's place,
+    whichever display that is now, is taken off first."""
+    pr = pc = 0
+    for ln in holdrun("hold clients desktop").stdout.splitlines():
+        f = ln.split()
+        if len(f) >= 6 and f[-1] == "1":
+            pr, pc = int(f[1]), int(f[2])
+    return holdrun("hold move desktop %s %d %d" % (name, int(r) - pr, int(c) - pc))
+
+
 rc, j = ctl("move", fid, primary)
 t1.collect(1.0)
 rc, dw0 = ctl("displays")
@@ -4204,7 +4216,7 @@ rc, ww0 = ctl("windows")
 jwas = next((r[1] + " " + r[2] for r in
              [ln.split() for ln in holdrun("hold clients desktop").stdout.splitlines()
               if ln.split()] if r[0] == joined), "0 0")
-holdrun("hold move desktop %s -12 0" % joined)
+holdto(joined, -12, 0)
 time.sleep(2.5)
 t1.collect(1.0)
 cl = [ln.split() for ln in holdrun("hold clients desktop").stdout.splitlines()
@@ -4239,9 +4251,9 @@ check("so the window on it moved with it, rather than staying at its own "
 # minimum out, so moving the join alone would leave the primary at the
 # row the shift put it on, and every section below is written against
 # the primary being at the union's own top-left.
-holdrun("hold move desktop %s 0 0" % primary)
+holdto(primary, 0, 0)
 time.sleep(1.0)
-holdrun("hold move desktop %s %s" % (joined, jwas))
+holdto(joined, *jwas.split())
 time.sleep(2.0)
 t1.collect(1.0)
 t2.collect(1.0)
@@ -4654,6 +4666,16 @@ check("and draws a picture in its preview as a picture",
       sum("▀" in l or "▄" in l for l in pv) >= 3 and
       sc.find("PNG") is None and sc.find("IHDR") is None, sc)
 shutil.rmtree(FPD, True)
+
+# A window larger than the screen still moves when dragged: the far-edge
+# clamp gave it the same place from every drag -- off the screen's top
+# left -- so one zoomed on a display that had since gone could not be
+# moved at all (Gitea #297).
+sc, _ = run('dt_new "Big" 30 100 2 0',
+            feed=[press(2, 4), drag(4, 8), drag(5, 10), release(5, 10)])
+bp = sc.find("\u2524 Big \u251c")
+check("a window larger than the screen can still be dragged",
+      bp is not None and bp[0] == 5 and bp[1] > 4, (bp, sc))
 
 # Dates as a region writes them (#69, ADR 0034): the Hijri date beside the
 # clock when it is on, Arabic-Indic digits when chosen, nothing otherwise.
@@ -5879,4 +5901,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(652)
+report(653)

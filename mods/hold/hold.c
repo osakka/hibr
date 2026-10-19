@@ -325,7 +325,34 @@ int hd_okreply(int ok, str *r)
 	return HIBR_FAIL;
 }
 
-/* Reposition a named display within its session's own virtual space. */
+/* Where a named display was when it last went, as "row col rows cols
+   primary", or nothing and status 1: none remembered, one by that name is
+   attached, or a server from before 0.99.256 that does not know to say
+   (Gitea #297). Quiet either way, since nothing is not a fault here. */
+int hd_slot(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok, ret;
+
+	if (ac < 4) {
+		lg(HIBR_LERR, "usage: hold slot session display");
+		return 2;
+	}
+	s_init(&path);
+	if (!hd_which(av[2], &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_askp(path.p, HD_SLOT, av[3], strlen(av[3]), &r);
+	s_free(&path);
+	ret = ok && r.n ? HIBR_OK : HIBR_FAIL;
+	hd_ret(s, ret == HIBR_OK ? r.p : "");
+	s_free(&r);
+	return ret;
+}
+
+/* Reposition a named display, relative to where the primary display is. */
 int hd_move(sh *s, int ac, char **av)
 {
 	str path, req, r;
@@ -427,6 +454,8 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_shift(s, ac, av);
 	if (!strcmp(sub, "move"))
 		return hd_move(s, ac, av);
+	if (!strcmp(sub, "slot"))
+		return hd_slot(s, ac, av);
 	if (!strcmp(sub, "drop"))
 		return hd_drop(s, ac, av);
 	if (!strcmp(sub, "primary"))
@@ -523,7 +552,7 @@ int m_hold(sh *s, int ac, char **av)
 	}
 	s_free(&path);
 	lg(HIBR_LERR,
-	   "usage: hold new|attach|detach|list|kill|clients|gfx|shift|move|drop|primary|upgrade ...");
+	   "usage: hold new|attach|detach|list|kill|clients|gfx|shift|move|slot|drop|primary|upgrade ...");
 	return 2;
 }
 

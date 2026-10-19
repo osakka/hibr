@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.99.256
+
+**A display that sleeps and comes back has its windows again, and they
+move** (Gitea #297). Reported from a desktop with two monitors under Blit,
+one stacked above the other: after a screen slept and woke, the windows
+showed where they had been and could not be moved, and the only way back
+was to close every one. Reproduced in a held desktop set out the way Blit
+sets it out -- a primary, a second display joined and moved above it --
+and three things were wrong, one after another:
+
+- A display whose terminal hung up was dropped and nothing else: no new
+  primary, no new screen size, nothing told the desktop. Only Displays >
+  Detach did those. Every way a display goes now does what Detach does.
+- Joined again under the same name, it came back beside everything,
+  because nothing remembered where it had been -- so the windows it had
+  were on no screen. hold remembers each display's place by name as it
+  goes, and `desktop --join` and `--standby` ask (`hold slot`): it comes
+  back where it was. A primary that comes back takes the role back,
+  unless another was chosen in the meantime.
+- Blit then sends its move again, `hold move ... -20 0`, and a move was
+  absolute: the second one pushed everything down another twenty rows,
+  opening a strip no display showed, with the windows in it -- drawn
+  still on the screen above from before, so a press there found nothing.
+  **A move counts from the primary display now**, which is what Blit's
+  own `-20 0` meant from the start ("twenty rows above the primary"), so
+  sent again it changes nothing. Blit needs no change; Control Panel >
+  Displays sends the new coordinates. A script that moved displays in
+  hold's absolute frame with the primary not at 0,0 needs the primary's
+  place taken off.
+
+A display that shrinks and comes back, the other way a screen can sleep,
+was measured and was already fine.
+
+And a window larger than the whole screen -- zoomed on a display since
+gone -- got the same place from every drag, off the screen's top left,
+and could not be moved at all. It keeps its corner on the screen now.
+
+The hold half reaches a session only when its server is new: `hold
+upgrade <session>`, or a new session. The remembered places are not
+carried across an upgrade.
+
 ## 0.99.255
 
 Three of the owner's reports, each small once found.

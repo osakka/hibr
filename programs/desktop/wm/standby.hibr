@@ -79,7 +79,7 @@ dt_sbdraw() {
 # go on purpose -- released, until asked again; gone means it quit, and the
 # next one is waited for.
 fn dt_sbjoin(base) {
-	local line wxh cols dn
+	local line wxh cols dn at
 
 	line := dt_holdline "$base"
 	[ -n "$line" ] || return 1
@@ -89,7 +89,8 @@ fn dt_sbjoin(base) {
 	DT_SBSTATE=joined
 	dt_sbwrite
 	dn := dt_dispfree "$base" "$DT_SBDISP"
-	hold attach -m -n "$dn" "$base" 0 "$cols"
+	at := dt_joinat "$base" "$dn" "$cols"
+	hold attach -m -n "$dn" "$base" ${at% *} ${at#* }
 	line := dt_holdline "$base"
 	if [ -n "$line" ]; then
 		DT_SBSTATE=released

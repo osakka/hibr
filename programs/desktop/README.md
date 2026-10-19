@@ -1104,9 +1104,16 @@ the one doing the choosing. Both are built from `hold clients`, which also
 answers directly:
 
     hold clients desktop        # name row col rows cols primary, one per line
-    hold move desktop NAME 0 80 # reposition a named display
+    hold move desktop NAME 0 80 # reposition a named display, from the primary
+    hold slot desktop NAME      # where a display that went was
     hold drop desktop NAME      # switch one off
     hold primary desktop NAME   # change which one anchors the bar
+
+A display that goes without being detached -- its terminal hangs up, as a
+monitor's does when it sleeps under Blit -- and joins again under the same
+name comes back where it was, with the windows it had, rather than beside
+everything with those windows on no screen; and since a move counts from
+the primary, a launcher that sends its move again changes nothing.
 
 A terminal that should always be a screen of this desktop waits for it
 instead of joining once:

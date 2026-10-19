@@ -282,14 +282,26 @@ fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
 	esac
 }
 
-# Move a window, clamped to the screen below the menu bar.
+# Move a window, clamped to the screen below the menu bar. The far edge
+# holds only a window that fits: one larger than the screen -- zoomed on
+# a display that has since gone, or on a screen since made smaller -- got
+# the same place from every drag and could not be moved at all (Gitea
+# #297), so it keeps its corner on the screen instead.
 fn dt_move(int id, int r, int c) {
+	local h=${DT[$id]["h"]} w=${DT[$id]["w"]}
+
+	if [ "$h" -le "$DT_ROWS" ]; then
+		[ $((r + h)) -gt "$DT_ROWS" ] && r=$((DT_ROWS - h))
+	elif [ "$r" -gt $((DT_ROWS - 2)) ]; then
+		r=$((DT_ROWS - 2))
+	fi
+	if [ "$w" -le "$DT_COLS" ]; then
+		[ $((c + w)) -gt "$DT_COLS" ] && c=$((DT_COLS - w))
+	elif [ "$c" -gt $((DT_COLS - 4)) ]; then
+		c=$((DT_COLS - 4))
+	fi
 	[ "$r" -lt 1 ] && r=1
 	[ "$c" -lt 0 ] && c=0
-	[ $((r + DT[$id]["h"])) -gt "$DT_ROWS" ] &&
-		r=$((DT_ROWS - DT[$id]["h"]))
-	[ $((c + DT[$id]["w"])) -gt "$DT_COLS" ] &&
-		c=$((DT_COLS - DT[$id]["w"]))
 	DT[$id]["row"]=$r
 	DT[$id]["col"]=$c
 	console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"

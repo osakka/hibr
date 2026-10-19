@@ -416,6 +416,60 @@ hold kill t14
 pty close $a
 pty close $b
 
+# A display that goes without being detached -- its terminal hung up, as a
+# monitor's does when it sleeps under Blit -- and comes back under the same
+# name lands where it was, so the windows it had are on it again; and a
+# move is relative to the primary, so the same move sent again changes
+# nothing. It came back beside everything, and the move sent again opened
+# a strip no display showed, with those windows in it (Gitea #297).
+echo "--- a display that hangs up and comes back by name lands where it was"
+hold new -d t15 /bin/sh -c 'sleep 120'
+a := pty spawn -r 24 -c 80 $H -c "$L; export HIBR_GFX=none; hold attach -n low t15; echo \"back rc=\$?\""
+attached t15
+b := pty spawn -r 10 -c 80 $H -c "$L; export HIBR_GFX=none; hold attach -m -n up t15 0 80; echo \"back rc=\$?\""
+attached t15 2
+hold move t15 up -10 0
+sleep 0.3
+echo "up above low: $(hold clients t15 | sort | awk '{printf "%s %s,%s %s ", $1, $2, $3, $NF}')shift $(hold shift t15)"
+hold slot t15 up > /dev/null; echo "nothing to say while it is here: $?"
+pty close $b
+fewer() {
+  local n=0
+  while [ $n -lt 200 ]; do
+    [ "$(hold clients "$1" 2>/dev/null | grep -c .)" -le "$2" ] && return 0
+    sleep 0.05
+    n=$((n + 1))
+  done
+  return 1
+}
+fewer t15 1
+s := hold slot t15 up
+echo "where up was: $s"
+read -r sr sc _ <<< "$s"
+b := pty spawn -r 10 -c 80 $H -c "$L; export HIBR_GFX=none; hold attach -m -n up t15 $sr $sc; echo \"back rc=\$?\""
+attached t15 2
+hold move t15 up -10 0
+sleep 0.3
+echo "back, and moved again: $(hold clients t15 | sort | awk '{printf "%s %s,%s %s ", $1, $2, $3, $NF}')shift $(hold shift t15)"
+echo "--- the primary that hangs up takes it back when it returns"
+pty close $a
+fewer t15 1
+echo "the other is primary meanwhile: $(hold clients t15 | awk '{printf "%s %s ", $1, $NF}')"
+s := hold slot t15 low
+read -r sr sc _ <<< "$s"
+a := pty spawn -r 24 -c 80 $H -c "$L; export HIBR_GFX=none; hold attach -m -n low t15 $sr $sc; echo \"back rc=\$?\""
+attached t15 2
+echo "and low is again: $(hold clients t15 | sort | awk '{printf "%s %s,%s %s ", $1, $2, $3, $NF}')"
+echo "--- a remembered place another display has taken is not offered"
+pty close $b
+fewer t15 1
+c := pty spawn -r 10 -c 80 $H -c "$L; export HIBR_GFX=none; hold attach -m -n other t15 0 0; echo \"back rc=\$?\""
+attached t15 2
+hold slot t15 up > /dev/null; echo "up's place, now other's: $?"
+hold kill t15
+pty close $a
+pty close $c
+
 echo "--- upgrade takes the session onto the hibr on disk now"
 hold new -d t6 /bin/sh -c 'echo UPGRADE-MARKER; sleep 120'
 sleep 0.5

@@ -107,8 +107,24 @@ fn dt_dispfree(base, n) {
 	ret "$out"
 }
 
+# Where a display named dn joins, as "row col": where it was when it last
+# went, if the session remembers and nothing by that name is attached --
+# so the windows it had are on it again (Gitea #297) -- or else beside
+# everything, at column cols.
+fn dt_joinat(base, dn, int cols) {
+	local s r c
+
+	if [ -n "$dn" ] && s := hold slot "$base" "$dn" 2> /dev/null &&
+	   [ -n "$s" ]; then
+		read -r r c _ <<< "$s"
+		ret "$r $c"
+		return 0
+	fi
+	ret "0 $cols"
+}
+
 fn dt_autojoin(base, dname) {
-	local line wxh cols dn
+	local line wxh cols dn at
 
 	line := dt_holdline "$base"
 	if [ -z "$line" ]; then
@@ -119,7 +135,8 @@ fn dt_autojoin(base, dname) {
 	wxh=${line##* }
 	cols=${wxh#*x}
 	dn := dt_dispfree "$base" "$dname"
-	hold attach -m -n "$dn" "$base" 0 "$cols"
+	at := dt_joinat "$base" "$dn" "$cols"
+	hold attach -m -n "$dn" "$base" ${at% *} ${at#* }
 	exit $?
 }
 

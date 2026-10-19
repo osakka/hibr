@@ -82,9 +82,16 @@ int hd_gfxdue(vec *cls, int m)
 	return (int)best;
 }
 
-/* Remove a client by fd, closing it.  A no-op if it is not (or no longer)
-   in the list: a poll() snapshot taken at the top of the loop can still
-   name a client that an earlier part of the same pass already dropped. */
+/* Set by hd_cdrop, so the loop puts the arrangement right once a pass is
+   over however a display went -- a hangup, its own detach, a send that
+   failed while drawing -- where only Displays > Detach used to (Gitea
+   #297): the program was left drawing for a display no longer there. */
+int hd_gone;
+
+/* Remove a client by fd, closing it, and remember where it was.  A no-op
+   if it is not (or no longer) in the list: a poll() snapshot taken at the
+   top of the loop can still name a client that an earlier part of the
+   same pass already dropped. */
 void hd_cdrop(vec *cls, int fd)
 {
 	size_t i;
@@ -93,6 +100,8 @@ void hd_cdrop(vec *cls, int fd)
 	for (i = 0; i < cls->n; i++) {
 		cn = cls->p[i];
 		if (cn->fd == fd) {
+			hd_slotkeep(cn);
+			hd_gone = 1;
 			close(fd);
 			free(cn->front);
 			free(cn->pid);
@@ -144,12 +153,72 @@ struct hd_cli *hd_cfindname(vec *cls, const char *name)
 /* Whether any attached client is already marked primary. */
 int hd_anyprimary(vec *cls)
 {
+	return hd_cprimary(cls) != 0;
+}
+
+/* The attached client marked primary, or NULL. */
+struct hd_cli *hd_cprimary(vec *cls)
+{
 	size_t i;
 
 	for (i = 0; i < cls->n; i++)
 		if (((struct hd_cli *)cls->p[i])->primary)
-			return 1;
+			return cls->p[i];
 	return 0;
+}
+
+/* Every display that has gone, by name: a display that joins again under
+   the same name asks where it was (HD_SLOT) and lands there, rather than
+   beside everything, where the windows it had are on no screen at all
+   (Gitea #297). hd_autoprim says the primary now is only primary because
+   the one that was went; that one takes it back when it returns, unless a
+   person chose another in between. */
+vec hd_slots;
+int hd_autoprim;
+
+/* The remembered place of the display a name belongs to: the part of it
+   before any #, since a second display from one machine is n#2. */
+struct hd_slot *hd_slotfind(const char *nm, size_t n)
+{
+	const char *h = memchr(nm, '#', n);
+	size_t i;
+	struct hd_slot *sl;
+
+	if (h)
+		n = (size_t)(h - nm);
+	for (i = 0; i < hd_slots.n; i++) {
+		sl = hd_slots.p[i];
+		if (sl->name.n == n && !memcmp(sl->name.p, nm, n))
+			return sl;
+	}
+	return 0;
+}
+
+/* Remember where a display is as it goes. A name hold made up from the
+   descriptor (client-N) names nothing that can come back. */
+void hd_slotkeep(struct hd_cli *cn)
+{
+	struct hd_slot *sl;
+	const char *h;
+	size_t n;
+
+	if (!cn->name.n || !strncmp(cn->name.p, "client-", 7))
+		return;
+	sl = hd_slotfind(cn->name.p, cn->name.n);
+	if (!sl) {
+		h = memchr(cn->name.p, '#', cn->name.n);
+		n = h ? (size_t)(h - cn->name.p) : cn->name.n;
+		sl = xm(sizeof *sl);
+		memset(sl, 0, sizeof *sl);
+		s_init(&sl->name);
+		s_add(&sl->name, cn->name.p, n);
+		v_add(&hd_slots, sl);
+	}
+	sl->row = cn->row - hd_shiftr;
+	sl->col = cn->col - hd_shiftc;
+	sl->rows = cn->rows;
+	sl->cols = cn->cols;
+	sl->primary = cn->primary;
 }
 
 /* The furthest row and column any attached client's viewport reaches --
@@ -380,8 +449,20 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			s_cat(&cn->name, "client-");
 			s_num(&cn->name, cn->fd);
 		}
-		if (!hd_anyprimary(cls))
-			cn->primary = 1;
+		{
+			struct hd_slot *sl = hd_slotfind(cn->name.p, cn->name.n);
+			struct hd_cli *pc = hd_cprimary(cls);
+
+			/* The primary that went, coming back to a primary
+			   that is only primary because it went. */
+			if (sl && sl->primary && pc && hd_autoprim) {
+				pc->primary = 0;
+				cn->primary = 1;
+				hd_autoprim = 0;
+			} else if (!pc) {
+				cn->primary = 1;
+			}
+		}
 		v_add(cls, cn);
 		/* A normalised origin moves everyone, so everyone is
 		   repainted rather than only the client that arrived. */
@@ -495,6 +576,12 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			}
 		}
 		if (cn2) {
+			struct hd_cli *pc = hd_cprimary(cls);
+
+			if (pc) {
+				nrow += pc->row;
+				ncol += pc->col;
+			}
 			cn2->row = nrow;
 			cn2->col = ncol;
 			free(cn2->front);
@@ -510,6 +597,40 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		}
 		rep = cn2 ? "ok" : "no such display";
 		hd_send(c, HD_MOVE, rep, strlen(rep));
+		break;
+	}
+	case HD_SLOT: {
+		struct hd_slot *sl = in.n ? hd_slotfind(in.p, in.n) : 0;
+		struct hd_cli *ci;
+		size_t si;
+		int sr, sc2;
+
+		/* Not while one by that name is here, and not a place another
+		   display has taken since: a -r drops everyone, and two
+		   displays on one place would both show the same thing. */
+		for (si = 0; sl && si < cls->n; si++) {
+			ci = cls->p[si];
+			sr = sl->row + hd_shiftr;
+			sc2 = sl->col + hd_shiftc;
+			if (hd_slotfind(ci->name.p, ci->name.n) == sl ||
+			    (sr < ci->row + ci->rows && ci->row < sr + sl->rows &&
+			     sc2 < ci->col + ci->cols && ci->col < sc2 + sl->cols))
+				sl = 0;
+		}
+		s_init(&o);
+		if (sl) {
+			s_num(&o, sl->row + hd_shiftr);
+			s_ch(&o, ' ');
+			s_num(&o, sl->col + hd_shiftc);
+			s_ch(&o, ' ');
+			s_num(&o, sl->rows);
+			s_ch(&o, ' ');
+			s_num(&o, sl->cols);
+			s_ch(&o, ' ');
+			s_num(&o, sl->primary);
+		}
+		hd_send(c, HD_SLOT, o.p, o.n);
+		s_free(&o);
 		break;
 	}
 	case HD_SHIFT:
@@ -529,8 +650,10 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			hd_send(cn2->fd, HD_DETACH, "switched off", 12);
 			hd_cdrop(cls, cn2->fd);
 			hd_union(cls, id, tid);
-			if (wasp && cls->n)
+			if (wasp && cls->n) {
 				((struct hd_cli *)cls->p[0])->primary = 1;
+				hd_autoprim = 1;
+			}
 			/* The union shrank, or the primary changed, or both. */
 			hd_poke(m);
 		}
@@ -547,6 +670,7 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			for (pi = 0; pi < cls->n; pi++)
 				((struct hd_cli *)cls->p[pi])->primary = 0;
 			cn2->primary = 1;
+			hd_autoprim = 0;
 			/* Nudge the program to re-read who is primary now. */
 			hd_poke(m);
 		}
@@ -737,6 +861,18 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 			} else if (t == HD_DETACH) {
 				hd_cdrop(&cls, fd);
 			}
+		}
+		/* A display went this pass, by whatever way: what Displays >
+		   Detach has always done, for every way (Gitea #297). */
+		if (hd_gone) {
+			hd_gone = 0;
+			if (cls.n && !hd_anyprimary(&cls)) {
+				((struct hd_cli *)cls.p[0])->primary = 1;
+				hd_autoprim = 1;
+			}
+			if (cls.n && hd_union(&cls, id, tid))
+				hd_rensend(&cls, tid);
+			hd_poke(m);
 		}
 		if (q[0].revents & POLLIN) {
 			int c = accept(l, 0, 0);
