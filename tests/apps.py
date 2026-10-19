@@ -1167,9 +1167,10 @@ check("escape clears it, and every pane is back",
 # Servers dialog, already had all three and would prove nothing.
 #
 # The field's value belongs to its app, so the write is done by typing:
-# every one of those files routes keys through dt_textkey, and a cut is
-# ctrl-u then ctrl-k, which that function already means as "to the start"
-# and "to the end".
+# every one of those files routes keys through dt_textkey. Since Gitea
+# #295 a field has a selection and Copy and Cut take it, so each check
+# selects the word first with shift and home; a cut is backspace typed
+# over the selection.
 # Each check reads the box itself rather than the note beside it: a note
 # times out, so asserting on one makes the check a bet on how long the
 # teardown takes.
@@ -1185,13 +1186,14 @@ def sbox(sc):
     return ""
 
 
+SHOME, FEND = b"\x1b[1;2H", b"\x1b[F"
 sc = cprun([b"/"] + [c.encode() for c in "mail"] +
-           [b"\x1bc", 0.4, b"\x1bv", 0.8])
+           [SHOME, b"\x1bc", 0.4, FEND, b"\x1bv", 0.8])
 check("a field whose window has no clipboard of its own can still be "
       "copied, and pasted", sbox(sc) == "mailmail", sc)
-sc = cprun([b"/"] + [c.encode() for c in "mail"] + [b"\x1bx", 0.6])
-check("and cut, which empties it -- a one-line field has no selection, so "
-      "copy and cut are the whole of it", sbox(sc) != "mail", sc)
+sc = cprun([b"/"] + [c.encode() for c in "mail"] + [SHOME, b"\x1bx", 0.6])
+check("and cut, which takes what is selected out of it",
+      sbox(sc) != "mail", sc)
 # Pasting into an **empty** field is the case that needs the *window* to be
 # remembered rather than the field: several apps draw a placeholder in
 # place of the field while it is empty -- the picker says `Search…` -- so
@@ -1203,8 +1205,8 @@ check("and cut, which empties it -- a one-line field has no selection, so "
 # the cut did nothing, so nothing had to be put back -- which is this
 # file's own rule about a check on an absence, caught here by running the
 # new check against the previous release before trusting it.
-sc = cprun([b"/"] + [c.encode() for c in "mail"] + [b"\x1bx", 0.4, b"x", b"\x1bv",
-                                           0.8])
+sc = cprun([b"/"] + [c.encode() for c in "mail"] + [SHOME, b"\x1bx", 0.4, b"x",
+                                                     b"\x1bv", 0.8])
 check("and pasted back, though an empty field draws a placeholder and not "
       "a field at all", sbox(sc) == "xmail", sc)
 
@@ -3100,15 +3102,17 @@ check("and it is the real file on disk that moved",
 for f in os.listdir(RD):
     os.unlink(os.path.join(RD, f))
 open(os.path.join(RD, "old.txt"), "w").write("hi\n")
+# Shift and home select the name first: Cut takes what is selected since
+# Gitea #295, where it took the whole field.
 sc = run("files", FW,
-         [b"\x1b[B", b"n", b"\x1bx", b"\x1bv", b"\x1bv", b"\r"],
+         [b"\x1b[B", b"n", b"\x1b[1;2H", b"\x1bx", b"\x1bv", b"\x1bv", b"\r"],
          pre=RPRE)
 check("cut and paste reach the Rename field: cut empties it, paste puts "
       "the name back at the cursor, twice",
       os.path.exists(os.path.join(RD, "old.txtold.txt")), sc)
 sc = run("files", FW,
-         [b"\x1b[B", b"n", b"\x1bx", b"\x1b[200~pasted.txt\x1b[201~",
-          b"\r"], pre=RPRE)
+         [b"\x1b[B", b"n", b"\x1b[1;2H", b"\x1bx",
+          b"\x1b[200~pasted.txt\x1b[201~", b"\r"], pre=RPRE)
 check("and a paste from the real terminal lands in the field the same way",
       os.path.exists(os.path.join(RD, "pasted.txt")), sc)
 shutil.rmtree(RD, True)
@@ -3994,7 +3998,7 @@ check("About can be copied", b"Copied" in sc.out, sc)
 sc = run("clock", "8 24 2 2", [b"\x1bc"])
 check("so can the clock's time", b"Copied" in sc.out, sc)
 sc = run("dbase", "20 72 1 2", [c.encode() for c in "LIST"] +
-         [b"\x1bx", b"\x1bv", b"\x1bv"], pre=DBPRE, end=None)
+         [b"\x1b[1;2H", b"\x1bx", b"\x1bv", b"\x1bv"], pre=DBPRE, end=None)
 check("dBASE's prompt cuts and pastes", sc.find(". LISTLIST") is not None, sc)
 
 SHD2 = tempfile.mkdtemp(prefix="hibr-shotfiles-")

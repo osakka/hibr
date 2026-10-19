@@ -49,7 +49,7 @@
 
 strict
 
-app sheet "A spreadsheet whose formulas are hibr" 1.3
+app sheet "A spreadsheet whose formulas are hibr" 1.4
 # modules: csv db math
 
 command -v dt_app > /dev/null && dt_app sheet "Sheet" 24 84 many "⊞"
@@ -1543,7 +1543,12 @@ fn sheet_wheel(int id, dir, int r = 0, int c = 0) {
 fn sheet_copy(int id) {
 	local s r c r0 c0 r1 c1 out= line
 
-	[ "${SS[$id]["ed"]}" = 1 ] && { ret "${SS[$id]["buf"]}"; return 0; }
+	# Editing a cell: what is selected in the formula bar (Gitea #295).
+	if [ "${SS[$id]["ed"]}" = 1 ]; then
+		s := dt_fieldsel || return 1
+		ret "$s"
+		return 0
+	fi
 	s := ss_sel "$id"
 	read -r r0 c0 r1 c1 <<< "$s"
 	r=$r0
@@ -1564,8 +1569,12 @@ fn sheet_copy(int id) {
 fn sheet_cut(int id) {
 	local t
 
+	if [ "${SS[$id]["ed"]}" = 1 ]; then
+		t := dt_fieldcut "$id" || return 1
+		ret "$t"
+		return 0
+	fi
 	t := sheet_copy "$id"
-	[ "${SS[$id]["ed"]}" = 1 ] && { SS[$id]["buf"]=; SS[$id]["cur"]=0; ret "$t"; return 0; }
 	ss_clear "$id"
 	ret "$t"
 }
@@ -1887,8 +1896,11 @@ fn ssask_paste(int id, text, op = "") {
 }
 
 fn ssask_copy(int id) {
+	local t
+
 	[ "${SSA[$id]["focus"]}" = text ] || return 1
-	ret "${SSA[$id]["buf"]}"
+	t := dt_fieldsel || return 1
+	ret "$t"
 }
 
 fn ssask_close(int id) {

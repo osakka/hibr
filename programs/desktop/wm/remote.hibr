@@ -825,11 +825,12 @@ fn dsv_field(int id) {
 }
 
 fn dsv_copy(int id) {
-	local k
+	local k t
 
 	k := dsv_field "$id" || return 1
 	[ "$k" = pass ] && return 1
-	ret "${DSV[$id]["$k"]}"
+	t := dt_fieldsel || return 1
+	ret "$t"
 }
 
 fn dsv_cut(int id) {
@@ -837,9 +838,7 @@ fn dsv_cut(int id) {
 
 	k := dsv_field "$id" || return 1
 	[ "$k" = pass ] && return 1
-	t=${DSV[$id]["$k"]}
-	DSV[$id]["$k"]=
-	DSV[$id]["${k}cur"]=0
+	t := dt_fieldcut "$id" || return 1
 	ret "$t"
 }
 

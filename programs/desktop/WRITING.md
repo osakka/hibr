@@ -183,6 +183,16 @@ back unhandled (status 1, text and cursor unchanged), for the app's own
 is not applied until enter, unlike a checkbox, which always acts the
 moment it is clicked.
 
+A field has a selection, which the widget keeps for the focused field and
+nothing in an app has to: shift with an arrow, home or end draws it out,
+typing replaces it, backspace and delete remove it, and a press and a drag
+on the focused field set it with the mouse -- the window manager does that
+by typing into the app's own `_key`. The desktop's Copy, Cut, Paste and
+Select All reach a field in a window whose app has none of its own; an app
+that does keep its own `_copy` and `_cut` for a field takes the selection
+with `t := dt_fieldsel` and `t := dt_fieldcut id`, each failing when
+nothing is selected.
+
 `dt_scrollbar id row0 col h total shown pos` draws a vertical scrollbar:
 a track of `│` over `h` rows starting at `row0`, one cell shown as the
 thumb `█` at a position proportional to how far through `total` the view

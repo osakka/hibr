@@ -198,6 +198,10 @@ dt_mouse() {
 			   dt_sbpress "$id" $((mr - wr)) $((mc - wc)); then
 				return 0
 			fi
+			if [ "$1" = left ] &&
+			   dt_fdpress "$id" $((mr - wr)) $((mc - wc)) "$mods"; then
+				return 0
+			fi
 			mo=${DT[$id]["mouse"]}
 			if [ -n "$mo" ]; then
 				DT_MOUSE=$id
@@ -302,6 +306,11 @@ dt_mouse() {
 		# A scrollbar being held, whoever's window it is in.
 		if [ -n "$DT_SBDRAG" ]; then
 			dt_sbdrag "$act" "$mr" "$mc"
+			return 0
+		fi
+		# A selection being drawn out in a field.
+		if [ -n "$DT_FDRAG" ]; then
+			dt_fddrag "$act" "$mr" "$mc"
 			return 0
 		fi
 		# A window that took the press with _mouse is told the rest of it,
@@ -574,6 +583,13 @@ fn dt_event(k) {
 			# call sites that disagreed is what made a paste
 			# into a terminal window do nothing (Gitea #250).
 			${DT[$DT_FOCUS]["paste"]} "$DT_FOCUS" "${k#paste }" copy
+			return 0
+		fi
+		# A window with no _paste of its own but a field focused gets
+		# it typed in, as the Paste key gives it (Gitea #295): this
+		# path dropped it.
+		if [ -n "$DT_FOCUS" ] && dt_fieldedit paste; then
+			DT_NOTEWIN=$DT_FOCUS
 			return 0
 		fi
 		;;

@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.99.260
+
+**Select, copy and cut in every field and editor** (Gitea #295). A
+one-line field had no selection at all -- the Browser's address bar, the
+Control Panel's fields and every dialog's -- so Copy and Cut took the
+whole field, and nothing could be highlighted to cut.
+
+- **A field has a selection.** Shift with an arrow, home or end draws it
+  out, typing replaces it, backspace and delete remove it, and Paste goes
+  over it. A press on the focused field puts the cursor there, a drag
+  across the text selects it, and shift with a press extends it -- done
+  once, in the window manager, by typing into each app's own key handler,
+  so all thirty-four fields have it with no app changed for it.
+- **Copy and Cut take the selection**, the same as everywhere else in the
+  desktop; with nothing selected they copy nothing and say so, which is
+  the owner's choice over the whole field. Sixteen dialogs and apps had a
+  Copy and Cut of their own that took the whole field -- Files' Rename,
+  Get Info and Open With, Sheet's formula bar, Database, the Browser's
+  address, the Open dialog, the Date & Time and Browser settings dialogs,
+  File Types, Network Servers, X Screen's, the screenshot folder and more
+  -- and each takes the selection now (`dt_fieldsel`, `dt_fieldcut`).
+- **What already had a selection gets Copy and Cut.** Mail's compose body
+  and Diagram's source had a selection and no Copy or Cut, so Copy said
+  there was nothing there; they have Copy, Cut and Select All, Diagram
+  Paste too. The Browser had no Cut.
+- **The Edit menu says what works.** Copy, Cut, Paste and Select All were
+  dimmed in a window that had only fields, though the keys worked there;
+  they are live wherever a field has focus. And a paste from the host
+  terminal into such a window went nowhere -- it is typed in, as the Paste
+  key's is.
+
 ## 0.99.259
 
 **A wallpaper picture that will not draw says so once, and is not tried

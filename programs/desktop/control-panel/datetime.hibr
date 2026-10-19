@@ -15,7 +15,7 @@
 strict
 
 
-app datetime "The Control Panel pane for the time, the date and the time zone" 1.2
+app datetime "The Control Panel pane for the time, the date and the time zone" 1.3
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷" hardware
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"
@@ -908,16 +908,18 @@ fi
 # Copy, cut and paste reach each dialog's text field: a field has no
 # selection of its own, so copy takes the whole of it and cut empties it.
 fn dtf_copy(int id) {
+	local t
+
 	[ "${DTF[$id]["focus"]}" = text ] || return 1
-	ret "${DTF[$id]["buf"]}"
+	t := dt_fieldsel || return 1
+	ret "$t"
 }
 
 fn dtf_cut(int id) {
-	[ "${DTF[$id]["focus"]}" = text ] || return 1
-	local t=${DTF[$id]["buf"]}
+	local t
 
-	DTF[$id]["buf"]=
-	DTF[$id]["cur"]=0
+	[ "${DTF[$id]["focus"]}" = text ] || return 1
+	t := dt_fieldcut "$id" || return 1
 	ret "$t"
 }
 
@@ -931,16 +933,18 @@ fn dtf_paste(int id, text, op = "") {
 }
 
 fn dtz_copy(int id) {
+	local t
+
 	[ "${DTZ[$id]["focus"]}" = text ] || return 1
-	ret "${DTZ[$id]["buf"]}"
+	t := dt_fieldsel || return 1
+	ret "$t"
 }
 
 fn dtz_cut(int id) {
-	[ "${DTZ[$id]["focus"]}" = text ] || return 1
-	local t=${DTZ[$id]["buf"]}
+	local t
 
-	DTZ[$id]["buf"]=
-	DTZ[$id]["cur"]=0
+	[ "${DTZ[$id]["focus"]}" = text ] || return 1
+	t := dt_fieldcut "$id" || return 1
 	ret "$t"
 }
 
@@ -954,20 +958,18 @@ fn dtz_paste(int id, text, op = "") {
 }
 
 fn dts_copy(int id) {
-	local f=${DTS[$id]["focus"]}
+	local f=${DTS[$id]["focus"]} t
 
 	case $f in d | t) ;; *) return 1 ;; esac
-	ret "${DTS[$id]["${f}buf"]}"
+	t := dt_fieldsel || return 1
+	ret "$t"
 }
 
 fn dts_cut(int id) {
-	local f=${DTS[$id]["focus"]}
+	local f=${DTS[$id]["focus"]} t
 
 	case $f in d | t) ;; *) return 1 ;; esac
-	local t=${DTS[$id]["${f}buf"]}
-
-	DTS[$id]["${f}buf"]=
-	DTS[$id]["${f}cur"]=0
+	t := dt_fieldcut "$id" || return 1
 	ret "$t"
 }
 

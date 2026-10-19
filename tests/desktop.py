@@ -4667,6 +4667,51 @@ check("and draws a picture in its preview as a picture",
       sc.find("PNG") is None and sc.find("IHDR") is None, sc)
 shutil.rmtree(FPD, True)
 
+# A one-line field has a selection (Gitea #295): shift with an arrow draws
+# it out, Copy and Cut take it -- Copy with nothing selected copies
+# nothing, the owner's choice -- typing replaces it, and a drag across the
+# text selects with the mouse. The fixture is a window whose app routes
+# its keys through dt_textkey and has no clipboard of its own, the shape
+# twenty of the desktop's windows with fields have.
+FX = ('declare -gA FX\n'
+      'fn fx_draw(int id, int h, int w, int row, int col) {\n'
+      '    dt_textdraw "$id" 2 2 30 "${FX[$id]["t"]-hello world}" "${FX[$id]["c"]:-0}" 1\n'
+      '}\n'
+      'fn fx_key(int id, key) {\n'
+      '    local r\n'
+      '    case $key in q | y) return 1 ;; esac\n'
+      '    r := dt_textkey "${FX[$id]["t"]-hello world}" "${FX[$id]["c"]:-0}" "$key" || return 1\n'
+      '    FX[$id]["t"]=${r% *}; FX[$id]["c"]=${r##* }\n'
+      '}\n'
+      'dt_new "FX" 8 40 2 4 fx')
+SR, SL, HOME, END = b"\x1b[1;2C", b"\x1b[1;2D", b"\x1b[H", b"\x1b[F"
+sc, _ = run(FX, feed=[HOME] + [SR] * 5 + [b"\x1bc", END, b"\x1bv"])
+check("shift and an arrow select in a field, and Copy takes the selection",
+      "hello worldhello " in sc.row(4) and "worldhello world" not in sc.row(4),
+      sc.row(4))
+sc, _ = run(FX, feed=[HOME] + [SR] * 5 + [b"\x1bx"])
+check("Cut takes the selection out of the field",
+      sc.row(4)[6:13] == " world ", sc.row(4))
+sc, _ = run(FX, feed=[END] + [SL] * 5 + [b"J"])
+check("and a character typed over a selection replaces it",
+      "hello J " in sc.row(4), sc.row(4))
+# Copy with nothing selected says so, read before Quit's box clears notes.
+fxp = scratch("desktop-fx.hibr")
+open(fxp, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                     % (load(MOD), WM, FX))
+fxt = Term(fxp, env={"DT_TICK": "60", "DT_NOTEMS": "60000"}, rows=ROWS,
+           cols=COLS, settle=0.6)
+fxt.keys([b"\x1bc"])
+fxt.until(lambda s: s.find("Nothing is selected") is not None)
+sc = fxt.screen()
+fxt.quit(b"qy", 1.0)
+check("and Copy with nothing selected copies nothing, and says so",
+      sc.find("Nothing is selected") is not None, sc)
+sc, _ = run(FX, feed=[press(4, 12), drag(4, 14), drag(4, 17), release(4, 17),
+                      b"\x1bx"])
+check("a drag across a field's text selects it, for Cut to take",
+      sc.row(4)[6:13] == "hello  " and "world" not in sc.row(4), sc.row(4))
+
 # A scrollbar drawn with a key can be held and dragged (Gitea #298): a
 # press on its track puts the view where it lands, and a drag carries it
 # -- in a window with no _mouse of its own, which never sees a drag
@@ -5941,4 +5986,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(656)
+report(661)

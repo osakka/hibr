@@ -652,7 +652,8 @@ fn fpick_copy(int id) {
 	local p
 
 	if [ "${FP[$id]["focus"]}" = name ]; then
-		ret "${FP[$id]["buf"]}"
+		p := dt_fieldsel || return 1
+		ret "$p"
 		return 0
 	fi
 	p := fp_path "$id" "${FP[$id]["sel"]}"

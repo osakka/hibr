@@ -24,7 +24,7 @@
 
 strict
 
-app dbase "A little dBASE III: dot prompt, BROWSE, APPEND" 1.0
+app dbase "A little dBASE III: dot prompt, BROWSE, APPEND" 1.1
 # modules: db
 
 command -v dt_app > /dev/null && dt_app dbase "dBASE" 20 72 many "▦"
@@ -1048,30 +1048,26 @@ fi
 
 # Copy and cut take the line being typed -- at the dot prompt, or the
 # APPEND field the cursor is in; BROWSE and LIST have nothing typed.
+# What is selected in the line being typed (Gitea #295).
 fn dbase_copy(int id) {
+	local t
+
 	case ${DBA[$id]["mode"]} in
-	append) ret "${DBA[$id]["f${DBA[$id]["ff"]}"]}" ;;
-	dot | ask) ret "${DBA[$id]["in"]}" ;;
+	append | dot | ask) ;;
 	*) return 1 ;;
 	esac
+	t := dt_fieldsel || return 1
+	ret "$t"
 }
 
 fn dbase_cut(int id) {
-	local t f=${DBA[$id]["ff"]}
+	local t
 
 	case ${DBA[$id]["mode"]} in
-	append)
-		t=${DBA[$id]["f$f"]}
-		DBA[$id]["f$f"]=
-		DBA[$id]["fc"]=0
-		;;
-	dot | ask)
-		t=${DBA[$id]["in"]}
-		DBA[$id]["in"]=
-		DBA[$id]["cur"]=0
-		;;
+	append | dot | ask) ;;
 	*) return 1 ;;
 	esac
+	t := dt_fieldcut "$id" || return 1
 	ret "$t"
 }
 

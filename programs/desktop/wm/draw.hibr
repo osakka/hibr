@@ -297,7 +297,14 @@ dt_draw() {
 	# focused is never pasted into.
 	DT_FIELD["text"]=
 	DT_FIELD["cur"]=0
-	[ "${DT_FIELD["id"]}" = "$DT_FOCUS" ] || DT_FIELD["id"]=
+	# Its selection and place go with the window, so a selection is never
+	# found in a window other than the one it was made in (Gitea #295).
+	if [ "${DT_FIELD["id"]}" != "$DT_FOCUS" ]; then
+		DT_FIELD["id"]=
+		DT_FIELD["anc"]=
+		DT_FIELD["at"]=
+		DT_FIELD["rect"]=
+	fi
 	CS_SIDEX=$CS_SIDE
 	DT_NOTEPOSX=$DT_NOTEPOS
 	case $DT_MIRRORON in 1) dt_mirrorx ;; esac

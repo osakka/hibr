@@ -293,10 +293,12 @@ dt_trash() {
 # "to the end". Nothing per app to implement, and no second rule to keep
 # in step.
 #
-# A one-line field has no selection, so Copy is the whole of it and Cut is
-# the whole of it and empty: that is a rule to state rather than a
-# limitation to apologise for, since every other Copy in the desktop
-# copies a selection.
+# Copy and Cut take what is selected in the field, the same as every other
+# Copy in the desktop, and say so when nothing is (Gitea #295, which also
+# chose that over the whole field): a field had no selection until then,
+# and its Copy and Cut were the whole of it. Cut is backspace typed over
+# the selection, which dt_textkey takes as "remove what is selected", and
+# Select All is end typed and the far end put at the start.
 fn dt_fieldedit(op) {
 	local cb=${DT[$DT_FOCUS]["key"]} t i c n
 	local -a part
@@ -305,23 +307,23 @@ fn dt_fieldedit(op) {
 	[ "${DT_FIELD["id"]}" = "$DT_FOCUS" ] || return 1
 	case $op in
 	copy | cut)
-		t=${DT_FIELD["text"]}
-		if [ -z "$t" ]; then
-			dt_notep low "There is nothing in that field"
+		if ! t := dt_fieldsel || [ -z "$t" ]; then
+			dt_notep low "Nothing is selected"
 			return 0
 		fi
 		dt_clipset "$t" "$op" text
 		if [ "$op" = cut ]; then
-			# Both, so the whole field goes wherever the cursor
-			# happens to be: ctrl-u takes what is before it and
-			# ctrl-k what is after. A key the app does not handle
-			# answers 1, which is not a failure here.
-			$cb "$DT_FOCUS" ctrl-u || true
-			$cb "$DT_FOCUS" ctrl-k || true
+			$cb "$DT_FOCUS" backspace || true
 			dt_notep low "Cut %s characters" "${#t}"
 		else
 			dt_notep low "Copied %s characters" "${#t}"
 		fi
+		return 0
+		;;
+	selall)
+		$cb "$DT_FOCUS" end || true
+		[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
+		dt_want 10
 		return 0
 		;;
 	paste)

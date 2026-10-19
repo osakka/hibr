@@ -102,16 +102,18 @@ fn shotdir_close(int id) {
 }
 
 fn shotdir_copy(int id) {
+	local t
+
 	[ "${SHD[$id]["focus"]}" = text ] || return 1
-	ret "${SHD[$id]["buf"]}"
+	t := dt_fieldsel || return 1
+	ret "$t"
 }
 
 fn shotdir_cut(int id) {
-	[ "${SHD[$id]["focus"]}" = text ] || return 1
-	local t=${SHD[$id]["buf"]}
+	local t
 
-	SHD[$id]["buf"]=
-	SHD[$id]["cur"]=0
+	[ "${SHD[$id]["focus"]}" = text ] || return 1
+	t := dt_fieldcut "$id" || return 1
 	ret "$t"
 }
 

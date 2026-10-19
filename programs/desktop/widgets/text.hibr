@@ -30,6 +30,14 @@ declare -gA DT_FIELD
 DT_FIELD["id"]=
 DT_FIELD["text"]=
 DT_FIELD["cur"]=0
+# And its selection (Gitea #295): anc is the end the selection was started
+# from, empty for none, the cursor being the other end. at names the field
+# as window, row and column, so a selection is dropped the moment another
+# field is the focused one; rect is where it is drawn, "row col width",
+# for a press and a drag to land on. None of these is cleared per frame.
+DT_FIELD["anc"]=
+DT_FIELD["at"]=
+DT_FIELD["rect"]=
 
 # The most characters a paste puts into a one-line field. DT_CLIP can hold
 # Files' own list of paths or a whole selection from Write, and a field
@@ -38,18 +46,33 @@ DT_FIELD["cur"]=0
 DT_FIELDMAX=1024
 
 fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
-	local shown t ch
+	local shown t ch lo hi
 
 	if [ "$focused" = 1 ]; then
+		[ "${DT_FIELD["at"]}" = "$id $r $c" ] || DT_FIELD["anc"]=
+		DT_FIELD["at"]="$id $r $c"
+		DT_FIELD["rect"]="$r $c $w"
 		DT_FIELD["id"]=$id
 		DT_FIELD["text"]=$text
 		DT_FIELD["cur"]=$cur
+		[ -n "${DT_FIELD["anc"]}" ] && [ "${DT_FIELD["anc"]}" -gt "${#text}" ] &&
+			DT_FIELD["anc"]=${#text}
 	fi
 	shown="$text"
 	[ ${#shown} -gt "$w" ] && shown="${shown:0:$w}"
 	console pen "$DT_INK" "$DT_FACE"
 	t := str pad "$shown" "$w"
 	console put -p "w$id" "$r" "$c" "$t"
+	# The selection, in the colours a selected row wears.
+	if [ "$focused" = 1 ] && lo := dt_fieldrange; then
+		hi=${lo#* }
+		lo=${lo% *}
+		[ "$hi" -gt "${#shown}" ] && hi=${#shown}
+		if [ "$lo" -lt "$hi" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+			console put -p "w$id" "$r" $((c + lo)) "${shown:$lo:$((hi - lo))}"
+		fi
+	fi
 	if [ "$focused" = 1 ] && [ "$cur" -lt "$w" ]; then
 		ch=" "
 		[ "$cur" -lt "${#shown}" ] && ch="${shown:$cur:1}"
@@ -64,7 +87,68 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
 # value they draw either. Status is 1 for a key this does not handle
 # (enter, escape, tab...), so a caller's own _key still decides those for
 # itself; nothing is returned then, and the caller's own pair stands.
+#
+# The selection is the focused field's, as it was last drawn -- a pair
+# that is not that field's has none. Shift with an arrow, home or end
+# moves the cursor and keeps the other end where it was; any other move
+# lets the selection go; typing, backspace and delete replace or remove
+# what is selected (Gitea #295). The pair is written back to DT_FIELD as
+# each key changes it, so several keys between two frames still find
+# their field.
 fn dt_textkey(text, int cur, key) {
+	local own=0 anc= lo hi
+
+	if [ -n "${DT_FIELD["at"]}" ] && [ "${DT_FIELD["text"]}" = "$text" ] &&
+	   [ "${DT_FIELD["cur"]}" = "$cur" ]; then
+		own=1
+		anc=${DT_FIELD["anc"]}
+	fi
+	lo=$cur
+	hi=$cur
+	if [ -n "$anc" ] && [ "$anc" != "$cur" ]; then
+		lo=$anc
+		hi=$cur
+		[ "$lo" -gt "$hi" ] && { lo=$cur; hi=$anc; }
+	fi
+	case $key in
+	shift-left | shift-right | shift-home | shift-end)
+		[ -n "$anc" ] || anc=$cur
+		case $key in
+		shift-left) [ "$cur" -gt 0 ] && cur=$((cur - 1)) ;;
+		shift-right) [ "$cur" -lt "${#text}" ] && cur=$((cur + 1)) ;;
+		shift-home) cur=0 ;;
+		shift-end) cur=${#text} ;;
+		esac
+		dt_textown "$own" "$text" "$cur" "$anc"
+		ret "$text $cur"
+		return 0
+		;;
+	esac
+	# Something selected, and a key that acts on it: it goes, and a
+	# character typed takes its place.
+	if [ "$lo" != "$hi" ]; then
+		case $key in
+		left) cur=$lo ;;
+		right) cur=$hi ;;
+		backspace | delete)
+			text="${text:0:$lo}${text:$hi}"
+			cur=$lo
+			;;
+		*)
+			if [ ${#key} = 1 ]; then
+				text="${text:0:$lo}$key${text:$hi}"
+				cur=$((lo + 1))
+			else
+				lo=$hi
+			fi
+			;;
+		esac
+		if [ "$lo" != "$hi" ]; then
+			dt_textown "$own" "$text" "$cur" ""
+			ret "$text $cur"
+			return 0
+		fi
+	fi
 	case $key in
 	left) [ "$cur" -gt 0 ] && cur=$((cur - 1)) ;;
 	right) [ "$cur" -lt "${#text}" ] && cur=$((cur + 1)) ;;
@@ -94,15 +178,150 @@ fn dt_textkey(text, int cur, key) {
 		fi
 		;;
 	esac
+	dt_textown "$own" "$text" "$cur" ""
 	ret "$text $cur"
+}
+
+# Write a field's pair and its selection's far end back to DT_FIELD, when
+# the pair was the focused field's (own); otherwise leave it be.
+fn dt_textown(int own, text, int cur, anc = "") {
+	[ "$own" = 1 ] || return 0
+	DT_FIELD["text"]=$text
+	DT_FIELD["cur"]=$cur
+	DT_FIELD["anc"]=$anc
+}
+
+# The focused field's selection as "lo hi", start and end in characters;
+# status 1 when nothing is selected, or the field is not in the focused
+# window.
+fn dt_fieldrange() {
+	local anc=${DT_FIELD["anc"]} cur=${DT_FIELD["cur"]:-0}
+
+	[ -n "$anc" ] && [ "$anc" != "$cur" ] || return 1
+	[ -z "${DT_FOCUS-}" ] || [ "${DT_FIELD["id"]}" = "$DT_FOCUS" ] || return 1
+	if [ "$anc" -lt "$cur" ]; then
+		ret "$anc $cur"
+	else
+		ret "$cur $anc"
+	fi
+}
+
+# The focused field's selected text; status 1 when nothing is selected.
+fn dt_fieldsel() {
+	local r lo hi
+
+	r := dt_fieldrange || return 1
+	lo=${r% *}
+	hi=${r#* }
+	ret "${DT_FIELD["text"]:$lo:$((hi - lo))}"
 }
 
 # Paste into a one-line field at its cursor: what was copied on several
 # lines becomes one, its newlines and tabs spaces. Gives "text cur", the
 # same as dt_textkey.
 fn dt_textpaste(text, int cur, ins) {
+	local r lo=$cur hi=$cur
+
 	ins=${ins//$'\r'/}
 	ins=${ins//$'\n'/ }
 	ins=${ins//$'\t'/ }
-	ret "${text:0:$cur}$ins${text:$cur} $((cur + ${#ins}))"
+	# Over a selection in the focused field, the paste replaces it.
+	if [ "${DT_FIELD["text"]}" = "$text" ] && [ "${DT_FIELD["cur"]}" = "$cur" ] &&
+	   r := dt_fieldrange; then
+		lo=${r% *}
+		hi=${r#* }
+	fi
+	text="${text:0:$lo}$ins${text:$hi}"
+	cur=$((lo + ${#ins}))
+	[ "$lo" != "$hi" ] && dt_textown 1 "$text" "$cur" ""
+	ret "$text $cur"
+}
+
+# Selecting in the focused field with the mouse (Gitea #295), carried by
+# the window manager, so every field has it without its app doing a
+# thing: the cursor is put where a press lands and a drag extends the
+# selection, by typing -- home and arrows, shift and arrows -- into the
+# app's own _key, the same write path the field's Paste already uses.
+# A press on the focused field is not handed to the app: it is focused
+# already, so its click could only move the cursor, and moving it here
+# keeps DT_FIELD in step with the app's own pair. Shift with the press
+# extends the selection to it.
+DT_FDRAG=
+
+# Whether pane row r, column c of window id is on its focused field.
+fn dt_fdhit(id, int r, int c) {
+	local fr fc fw
+
+	[ "${DT_FIELD["id"]}" = "$id" ] && [ -n "${DT_FIELD["rect"]}" ] || return 1
+	read -r fr fc fw <<< "${DT_FIELD["rect"]}"
+	[ "$r" = "$fr" ] && [ "$c" -ge "$fc" ] && [ "$c" -le $((fc + fw)) ]
+}
+
+# Type k of one key into window id's own _key.
+fn dt_fdtype(id, key, int k) {
+	local cb=${DT[$id]["key"]}
+
+	[ -n "$cb" ] || return 0
+	while [ "$k" -gt 0 ]; do
+		$cb "$id" "$key" || true
+		k=$((k - 1))
+	done
+}
+
+# Move window id's focused field's cursor to column c of its pane, as a
+# selection's far end when ext is 1.
+fn dt_fdmove(id, int c, int ext) {
+	local fr fc fw t cur=${DT_FIELD["cur"]:-0} n=${#DT_FIELD["text"]} p=
+
+	read -r fr fc fw <<< "${DT_FIELD["rect"]}"
+	t=$((c - fc))
+	[ "$t" -lt 0 ] && t=0
+	[ "$t" -gt "$n" ] && t=$n
+	# A plain move lets any selection go first: left over one goes to its
+	# start rather than one character back, which would land the cursor
+	# short of the press.
+	[ "$ext" = 1 ] && p=shift- || DT_FIELD["anc"]=
+	if [ -z "$p" ] && [ "$t" -lt $((cur > t ? cur - t : t - cur)) ]; then
+		dt_fdtype "$id" home 1
+		cur=0
+	fi
+	if [ "$t" -gt "$cur" ]; then
+		dt_fdtype "$id" "${p}right" $((t - cur))
+	elif [ "$t" -lt "$cur" ]; then
+		dt_fdtype "$id" "${p}left" $((cur - t))
+	fi
+	dt_want 10
+}
+
+# A press at pane row r, column c: on window id's focused field, the cursor
+# goes there (or the selection does, with shift) and the drag is held.
+fn dt_fdpress(id, int r, int c, mods = "") {
+	local ext=0
+
+	dt_fdhit "$id" "$r" "$c" || return 1
+	case "-$mods-" in *-shift-*) ext=1 ;; esac
+	dt_fdmove "$id" "$c" "$ext"
+	DT_FDRAG=$id
+	return 0
+}
+
+# A drag or a release while a field's selection is being drawn out, at
+# screen row mr, column mc.
+fn dt_fddrag(act, int mr, int mc) {
+	local id=$DT_FDRAG
+
+	[ "$act" = release ] && DT_FDRAG=
+	[ -n "${DT[$id]["col"]+x}" ] || { DT_FDRAG=; return 0; }
+	dt_fdmove "$id" $((mc - DT[$id]["col"])) 1
+}
+
+# An app's own Cut on its focused field: the selected text, taken out of
+# the field by a backspace typed into window id's own _key (Gitea #295).
+# Status 1 when nothing is selected.
+fn dt_fieldcut(id) {
+	local t
+
+	t := dt_fieldsel || return 1
+	dt_fdtype "$id" backspace 1
+	ret "$t"
 }

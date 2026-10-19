@@ -649,8 +649,12 @@ fn dtabout_close(int id) {
 # holding the person's own key, which no catalogue can hold, so none of
 # these five was ever translated (Gitea #200).
 dt_editmenu() {
-	local who=${DT_FOCUS:-}
+	local who=${DT_FOCUS:-} fld=
 
+	# A field focused in the window: the desktop's own Copy, Cut, Paste
+	# and Select All reach it whether or not its app has any, so they are
+	# not dimmed there (Gitea #295), as they were while the keys worked.
+	[ -n "$who" ] && [ "${DT_FIELD["id"]}" = "$who" ] && fld=1
 	[ "$MB_EDITED" = 1 ] && return 0
 	MB_EDITED=1
 	dt_menu "Edit"
@@ -667,19 +671,19 @@ dt_editmenu() {
 	fi
 	dt_rowaccel "${DT_KEYS["redo"]}"
 	dt_sep
-	if [ -n "$who" ] && [ -n "${DT[$who]["copy"]}" ]; then
+	if [ -n "$who" ] && [ -n "${DT[$who]["copy"]}${fld}" ]; then
 		dt_item "Copy" c dt_edit copy
 	else
 		dt_dim "Copy"
 	fi
 	dt_rowaccel "${DT_KEYS["copy"]}"
-	if [ -n "$who" ] && [ -n "${DT[$who]["cut"]}" ]; then
+	if [ -n "$who" ] && [ -n "${DT[$who]["cut"]}${fld}" ]; then
 		dt_item "Cut" t dt_edit cut
 	else
 		dt_dim "Cut"
 	fi
 	dt_rowaccel "${DT_KEYS["cut"]}"
-	if [ -n "$who" ] && [ -n "${DT[$who]["paste"]}" ] &&
+	if [ -n "$who" ] && [ -n "${DT[$who]["paste"]}${fld}" ] &&
 	   [ -n "$DT_CLIP" ]; then
 		dt_item "Paste" v dt_edit paste
 	else
@@ -687,7 +691,7 @@ dt_editmenu() {
 	fi
 	dt_rowaccel "${DT_KEYS["paste"]}"
 	dt_sep
-	if [ -n "$who" ] && [ -n "${DT[$who]["selall"]}" ]; then
+	if [ -n "$who" ] && [ -n "${DT[$who]["selall"]}${fld}" ]; then
 		dt_item "Select All" a dt_editdo selall
 	else
 		dt_dim "Select All"
@@ -714,6 +718,7 @@ fn dt_editdo(op) {
 	[ -n "$DT_FOCUS" ] || return 0
 	cb=${DT[$DT_FOCUS]["$op"]}
 	if [ -z "$cb" ]; then
+		[ "$op" = selall ] && dt_fieldedit selall && return 0
 		DT_T := dt_tr "${DT[$DT_FOCUS]["title"]}"
 		dt_notep low "%s cannot %s" "$DT_T" "$op"
 		return 0

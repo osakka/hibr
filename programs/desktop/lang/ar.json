@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "2.9",
+ "version": "3.0",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -929,7 +929,7 @@
   "There is already a program called %s": "يوجد برنامج باسم %s بالفعل",
   "There is no file %s": "لا يوجد ملف %s",
   "There is no folder %s": "لا يوجد مجلد %s",
-  "There is nothing in that field": "لا يوجد شيء في هذا الحقل",
+
   "There was nothing to read": "لا يوجد ما يُقرأ",
   "This Computer": "هذا الحاسوب",
   "This Desktop": "سطح المكتب هذا",

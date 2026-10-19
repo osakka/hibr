@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 1.4
+app mail "Email, offline, labels and conversations as Gmail has them" 1.5
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -1935,6 +1935,42 @@ fn mailc_wheel(int id, dir, int r = 0, int c = 0) {
 	down) tb_scroll "$id" 3 ;;
 	esac
 	return 0
+}
+
+# Copy, Cut and Select All, in the body or in a header field (Gitea
+# #295). There were none, so Copy in the body -- which has a selection --
+# fell to the desktop's field fallback and said there was nothing there.
+fn mailc_copy(int id) {
+	local t
+
+	case ${MC[$id]["focus"]} in
+	body) t := tb_seltext "$id" || return 1 ;;
+	*) t := dt_fieldsel || return 1 ;;
+	esac
+	ret "$t"
+}
+
+fn mailc_cut(int id) {
+	local t
+
+	case ${MC[$id]["focus"]} in
+	body)
+		t := tb_cut "$id" || return 1
+		MC[$id]["dirty"]=1
+		;;
+	*)
+		t := dt_fieldsel || return 1
+		mailc_key "$id" backspace
+		;;
+	esac
+	ret "$t"
+}
+
+fn mailc_selall(int id) {
+	case ${MC[$id]["focus"]} in
+	body) tb_selall "$id" ;;
+	*) dt_fieldedit selall ;;
+	esac
 }
 
 fn mailc_paste(int id, text, op = "") {
