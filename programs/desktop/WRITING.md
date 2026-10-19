@@ -81,6 +81,7 @@ these, and the window manager calls only the ones that exist:
 | `hello_drop` | `id row col move\|copy path...` | files dragged from elsewhere, let go over this one; there may be several |
 | `hello_refresh` | `id` | something on disk changed: a move, a copy, the trash |
 | `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
+| `hello_scroll` | `id key top` | a scrollbar drawn with a key, held and dragged -- set the offset |
 | `hello_close` | `id` | once, when the window closes |
 
 Draw with `console put -p "w$id" row col text` — the pane is the window, so
@@ -189,6 +190,21 @@ already is. `shown` is how many of `total` are visible at once; nothing is
 drawn when everything already is. The file browser's own list view and a
 terminal's scrollback (`DT_TERMBAR` in the Terminal pane, off by default) both use
 this one widget rather than each drawing their own.
+
+Give it a key as an eighth argument -- `dt_scrollbar ... pos list` -- and
+it can be held and dragged: a press on the track puts the view where it
+lands, and the window manager carries the drag to the release, whether or
+not the window has a `_mouse` of its own, telling the app each step with
+`name_scroll id key top`. The app keeps the offset, as it always does:
+
+    fn hello_scroll(int id, key, int top) { HELLO[$id]["top"]=$top; }
+
+A ninth argument of `1` makes only the thumb live, for a bar drawn on a
+split divider whose other cells still drag the divider. `dt_hscrollbar`
+takes a key the same way. A list with a selection brings its view to the
+selection with `dt_scrollview top total vis sel seen` -- only when the
+selection has moved since it last did, so the wheel, the page keys and a
+held scrollbar are not pulled back on the next frame.
 
 `dt_hit id row col` answers which widget, if any, is at a click -- an app's
 `_click` asks it first, and falls back to its own per-row logic when it

@@ -129,7 +129,8 @@ drawing in the wrong place. The calls:
 | `_key` | `id key` |
 | `_click` | `id r c btn` |
 | `_mouse` | `id act btn r c mods` |
-| `_wheel` | `id dir r c` |
+| `_wheel` | `id dir r c` -- dir is up, down, left or right, never wheelup |
+| `_scroll` | `id key top` -- a scrollbar drawn with that key, held and dragged |
 | `_drop` | `id r c op paths...` |
 | `_menus` | nothing -- the menus are built for whichever window has focus, `$DT_FOCUS` |
 | `_context` | `id` |

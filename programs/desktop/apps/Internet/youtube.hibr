@@ -31,7 +31,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 1.8
+app youtube "YouTube, in a window" 1.9
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -839,8 +839,8 @@ fn yt_drawlist(int id, int h, int w) {
 		console pen "$DT_DIM" "$DT_FACE"
 		dt_tput "$id" 2 2 "Type what to look for, or a playlist's or a channel's address, and enter."
 	fi
-	[ "$sel" -lt "$top" ] && top=$sel
-	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	top := dt_scrollview "$top" "$n" "$vis" "$sel" "${YT[$id]["seen"]-}"
+	YT[$id]["seen"]=$sel
 	YT[$id]["top"]=$top
 	YT[$id]["vis"]=$vis
 	i=$top
@@ -878,7 +878,7 @@ fn yt_drawlist(int id, int h, int w) {
 	done
 	r=$w
 	[ "$DT_MIRRORON" = 1 ] && r=1
-	dt_scrollbar "$id" 2 "$r" "$vis" "$n" "$vis" "$top"
+	dt_scrollbar "$id" 2 "$r" "$vis" "$n" "$vis" "$top" list
 	console pen "$DT_DIM" "$DT_FACE"
 	lab := str pad " enter open ${GL[dot]} f favourite ${GL[dot]} h history ${GL[dot]} v favourites ${GL[dot]} / search ${GL[dot]} esc back" "$w"
 	console put -p "w$id" $((h - srows)) 1 "${lab:0:$w}"
@@ -1114,18 +1114,20 @@ fn youtube_click(int id, int r, int c, btn = "") {
 }
 
 fn youtube_wheel(int id, dir, int r = 0, int c = 0) {
-	local n=${YT[$id]["n"]} sel=${YT[$id]["sel"]}
+	local n=${YT[$id]["n"]:-0} top
 
 	if [ "${YT[$id]["view"]}" = play ]; then
 		[ "$dir" = up ] && yt_seek "$id" +5 || yt_seek "$id" -5
 		return 0
 	fi
-	[ "$dir" = up ] && sel=$((sel - 3)) || sel=$((sel + 3))
-	[ "$sel" -ge "$n" ] && sel=$((n - 1))
-	[ "$sel" -lt 0 ] && sel=0
-	YT[$id]["sel"]=$sel
+	top := dt_scrollmove "$dir" "${YT[$id]["top"]:-0}" "$n" \
+		"${YT[$id]["vis"]:-1}" "$DT_SCROLLWHEEL" || return 1
+	YT[$id]["top"]=$top
 	return 0
 }
+
+# The list's scrollbar held and dragged (Gitea #298).
+fn youtube_scroll(int id, key, int top) { YT[$id]["top"]=$top; }
 
 # The address of what is chosen or playing, or the search being typed.
 fn youtube_copy(int id) {

@@ -18,7 +18,7 @@
 
 strict
 
-app panel "Control Panel, a picker of panes, and the window list" 1.2
+app panel "Control Panel, a picker of panes, and the window list" 1.3
 
 command -v dt_app > /dev/null && dt_app panel "Control Panel" 26 70 once "≡"
 
@@ -414,7 +414,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	dt_splitbar "$id" "$dv" 1 "$h" "${PW[$id]["split"]:-0}"
 	# The list's own bar, on the divider rather than over the list, so the
 	# titles keep every column.
-	dt_scrollbar "$id" 2 "$dv" "$vis" "${#lines[@]}" "$vis" "$lt"
+	dt_scrollbar "$id" 2 "$dv" "$vis" "${#lines[@]}" "$vis" "$lt" list 1
 	if [ "${#lines[@]}" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		t="Nothing found"
@@ -569,7 +569,15 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 	# A pane longer than the window says so: Shortcuts outgrew it, and a
 	# row below the edge with nothing to show it was there is one nobody
 	# finds. The wheel and the arrows scroll it.
-	dt_scrollbar "$id" 1 "$sb" "$h" "$n" "$h" "$top"
+	dt_scrollbar "$id" 1 "$sb" "$h" "$n" "$h" "$top" body
+}
+
+# A scrollbar held and dragged (Gitea #298): the pane list's, or the pane's.
+fn panel_scroll(int id, key, int top) {
+	case $key in
+	list) PW[$id]["ltop"]=$top ;;
+	body) PW[$id]["top"]=$top ;;
+	esac
 }
 
 # How wide a pane's value column is: eleven columns, or as wide as its

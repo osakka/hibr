@@ -25,7 +25,7 @@
 
 strict
 
-app modman "What this shell can load, what it has loaded, and a way to change either" 1.0
+app modman "What this shell can load, what it has loaded, and a way to change either" 1.1
 
 declare -gA MM
 MM_FLOOR="console pty term hold"
@@ -107,7 +107,8 @@ fn modman_draw(int id, int h, int w, int row, int col) {
 	[ "$sel" -ge "$n" ] && sel=$((n - 1))
 	[ "$sel" -lt 0 ] && sel=0
 	top=${MM[$id]["top"]:-0}
-	top := dt_scrollfit "$top" "$n" "$vis" "$sel"
+	top := dt_scrollview "$top" "$n" "$vis" "$sel" "${MM[$id]["seen"]-}"
+	MM[$id]["seen"]=$sel
 	MM[$id]["sel"]=$sel
 	MM[$id]["top"]=$top
 	MM[$id]["vis"]=$vis
@@ -165,7 +166,7 @@ fn modman_draw(int id, int h, int w, int row, int col) {
 		i=$((i + 1))
 		r=$((r + 1))
 	done
-	[ "$n" -gt "$vis" ] && dt_scrollbar "$id" 2 $((w - 1)) "$vis" "$n" "$vis" "$top"
+	[ "$n" -gt "$vis" ] && dt_scrollbar "$id" 2 $((w - 1)) "$vis" "$n" "$vis" "$top" list
 
 	# The selected module's own two lines: what it is for, and where it
 	# is -- the description is the thing a list has no room for, which is
@@ -298,14 +299,14 @@ fn modman_wheel(int id, dir, int? r = "", int? c = "") {
 	top=${MM[$id]["top"]:-0}
 	n=${MM[$id]["n"]:-0}
 	vis=${MM[$id]["vis"]:-1}
-	case $dir in
-	up) top=$((top - 1)) ;;
-	down) top=$((top + 1)) ;;
-	esac
-	top := dt_scrollfit "$top" "$n" "$vis"
+	top := dt_scrollmove "$dir" "$top" "$n" "$vis" "$DT_SCROLLWHEEL" ||
+		return 1
 	MM[$id]["top"]=$top
 	return 0
 }
+
+# The scrollbar held and dragged (Gitea #298).
+fn modman_scroll(int id, key, int top) { MM[$id]["top"]=$top; }
 
 modman_menus() {
 	dt_menu "File"

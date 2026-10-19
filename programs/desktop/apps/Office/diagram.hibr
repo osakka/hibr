@@ -22,7 +22,7 @@
 
 strict
 
-app diagram "A Mermaid diagram editor: the text, and the diagram" 1.1
+app diagram "A Mermaid diagram editor: the text, and the diagram" 1.2
 # modules: mermaid
 
 command -v dt_app > /dev/null && dt_app diagram "Diagram" 24 86 many "◈"
@@ -299,7 +299,7 @@ fn diagram_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 1))
 	done
 	[ "$n" -gt "$vis" ] && dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" \
-		"$top"
+		"$top" rows
 	dia_foot "$id" "$h" "$w" "$sp"
 	dia_drawn "$id"
 	return 0
@@ -321,7 +321,7 @@ fn dia_foot(int id, int h, int w, int sp) {
 	fi
 	if [ "$wide" -gt "$room" ]; then
 		dt_hscrollbar "$id" "$h" $((sp + 2)) "$room" "$wide" "$room" \
-			"$off"
+			"$off" across
 	elif [ "$n" -gt "$vis" ]; then
 		# The column is a local, never `$((sp + 2))` written into the
 		# call: tools/strings.py counts a dt_tput argument by word, so
@@ -420,25 +420,36 @@ fn diagram_mouse(int id, act, btn, int r, int c, mods = "") {
 
 # The wheel scrolls whichever half it is over, which is what a person
 # means by it: over the diagram it moves the diagram.
+# The drawing's scrollbars held and dragged (Gitea #298).
+fn diagram_scroll(int id, key, int top) {
+	case $key in
+	rows) DIA[$id]["top"]=$top ;;
+	across) DIA[$id]["off"]=$top ;;
+	esac
+}
+
 fn diagram_wheel(int id, dir, int? r = "", int? c = "") {
 	local sp=${DIA[$id]["drawnsplit"]:-$DIA_SPLIT}
 	local top=${DIA[$id]["top"]:-0} vis=${DIA[$id]["vis"]:-1}
 	local off=${DIA[$id]["off"]:-0} room=${DIA[$id]["room"]:-4}
 	local n=${DIA[$id]["rows"]:-0} wide=${DIA[$id]["dw"]:-0}
 
+	# The window manager says up, down, left and right; this matched
+	# wheelup and the rest, so the wheel had never moved either half
+	# (Gitea #298).
 	if [ -n "$c" ] && [ "$c" -le "$sp" ]; then
 		case $dir in
-		wheelup) tb_scroll "$id" -2 ;;
-		wheeldown) tb_scroll "$id" 2 ;;
+		up) tb_scroll "$id" -"$DT_SCROLLWHEEL" ;;
+		down) tb_scroll "$id" "$DT_SCROLLWHEEL" ;;
 		*) return 1 ;;
 		esac
 		return 0
 	fi
 	case $dir in
-	wheelup) top=$((top - 2)) ;;
-	wheeldown) top=$((top + 2)) ;;
-	wheelleft) off=$((off - 4)) ;;
-	wheelright) off=$((off + 4)) ;;
+	up) top=$((top - DT_SCROLLWHEEL)) ;;
+	down) top=$((top + DT_SCROLLWHEEL)) ;;
+	left) off=$((off - 4)) ;;
+	right) off=$((off + 4)) ;;
 	*) return 1 ;;
 	esac
 	top := dt_scrollfit "$top" "$n" "$vis"

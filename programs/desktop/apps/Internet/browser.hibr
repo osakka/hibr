@@ -33,7 +33,7 @@
 
 strict
 
-app browser "The web, in a window" 1.4
+app browser "The web, in a window" 1.5
 # modules: web
 # part: control-panel/browserset.hibr
 
@@ -550,7 +550,7 @@ fn bw_body(int id, t, int h, int w, int pt, int ph) {
 		BW[$id]["sbt"]=${sv[1]}
 		BW[$id]["sbv"]=${sv[2]}
 		dt_scrollbar "$id" "$pt" "$w" "$ph" $((sv[1] / 16)) \
-			$((sv[2] / 16)) $((sv[0] / 16))
+			$((sv[2] / 16)) $((sv[0] / 16)) page
 	else
 		BW[$id]["sbt"]=
 	fi
@@ -683,8 +683,22 @@ fn bw_text(int id, t, int ph, int w, int pt = 3) {
 		r=$((r + 1))
 	done
 	[ "$n" -gt "$vis" ] && command -v dt_scrollbar > /dev/null &&
-		dt_scrollbar "$id" 3 "$w" "$vis" "$n" "$vis" "$top"
+		dt_scrollbar "$id" 3 "$w" "$vis" "$n" "$vis" "$top" text
 	return 0
+}
+
+# A scrollbar held and dragged (Gitea #298): the page's, counted in the
+# sixteen-pixel steps it is drawn in, or the text view's, in lines.
+fn browser_scroll(int id, key, int top) {
+	local t=${BW[$id]["cur"]}
+
+	case $key in
+	page)
+		[ -n "$t" ] && web eval "$t" "scrollTo(0,$((top * 16)))" \
+			> /dev/null 2>&1
+		;;
+	text) BW[$id]["ttop"]=$top ;;
+	esac
 }
 
 # Scroll the text a key's or a wheel's worth; status 1 for a key it does

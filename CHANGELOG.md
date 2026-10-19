@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.99.258
+
+**Every scrollbar can be held and dragged, and the wheel goes where it is
+pointed** (Gitea #298). Reported as the Catalogue's wheel stopping at the
+end of one category, and no scrollbar's thumb, vertical or horizontal,
+moving when held.
+
+- **Holding a bar.** The bars were drawing and nothing else: no region,
+  no press, no drag. `dt_scrollbar` and `dt_hscrollbar` take a key now,
+  and a bar drawn with one is a clickable track: a press puts the view
+  where it lands and the window manager carries the drag to the release
+  -- for a window with only `_click` as well, which never sees a drag
+  itself -- telling the app each step as `<app>_scroll id key top`. All
+  nineteen bars in the desktop have one: Catalogue (list and entry),
+  Control Panel (list and pane), the Open dialog, Files, Terminal's
+  scrollback, Sheet, Task Manager, the Browser (page and text), Diagram
+  (both ways), About (both ways), Contacts, YouTube, Modules, the
+  Clipboard, a notification's detail and the mail account test. A bar on
+  a split divider makes its thumb alone live, so the rest of the column
+  still moves the divider.
+- **The wheel and the selection.** The Catalogue brought its view back to
+  the selection on every frame, so the wheel, the page keys and now a
+  held bar were pulled back on the next one -- the wheel never got past
+  the category the selection was in. A list is brought to its selection
+  only when the selection has moved now (`dt_scrollview`, the rule the
+  Control Panel's list already kept), and the wheel moves the view, not
+  the selection, in the Catalogue, Modules, the Clipboard, the Open
+  dialog, Contacts and YouTube alike -- three of them moved the
+  selection by three instead. Every wheel moves `DT_SCROLLWHEEL` rows.
+- **Three wheels had never worked.** Contacts, Diagram and Calendar
+  matched `wheelup` and `wheeldown`, where the window manager hands a
+  `_wheel` `up` and `down`, so their wheels did nothing at all.
+  `tests/540-examples.t` fails on that now.
+
+Every app and system app named above is bumped, and needs this hibr: a
+bar drawn with a key is refused by an older `dt_scrollbar`.
+
 ## 0.99.257
 
 **A pattern's `?` and bracket take one character, not one byte** (Gitea

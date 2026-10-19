@@ -10,7 +10,7 @@
 strict
 
 
-app mailset "The Control Panel pane for Mail" 1.2
+app mailset "The Control Panel pane for Mail" 1.3
 # modules: email
 command -v cp_pane > /dev/null && cp_pane mailset "Mail" "✉" app
 command -v dt_app > /dev/null && dt_app mlad "Mail Account" 20 66 "" "" fixed hidden
@@ -344,7 +344,7 @@ fn mst_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 1))
 		i=$((i + 1))
 	done
-	[ "$n" -gt "$vis" ] && dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" "$top"
+	[ "$n" -gt "$vis" ] && dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" "$top" ladder
 	# Live while the job has not written its status file: asked of this
 	# window's own file, so one window finishing says nothing about
 	# another's. A finished ladder asks for no more frames, which is
@@ -385,6 +385,12 @@ fn mst_key(int id, key) {
 	MST[$id]["top"]=$t
 	dt_want 20
 	return 0
+}
+
+# The scrollbar held and dragged (Gitea #298).
+fn mst_scroll(int id, key, int top) {
+	MST[$id]["top"]=$top
+	dt_want 20
 }
 
 fn mst_wheel(int id, dir, int r = 0, int c = 0) {

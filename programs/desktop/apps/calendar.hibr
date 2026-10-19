@@ -19,7 +19,7 @@
 
 strict
 
-app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.2
+app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.3
 # part: control-panel/pimset.hibr
 # modules: dav db email pim
 
@@ -739,18 +739,20 @@ fn calendar_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	return 0
 }
 
+# The window manager says up and down; this matched wheelup and wheeldown,
+# so the wheel had never moved the agenda or the month (Gitea #298).
 fn calendar_wheel(int id, act, int r, int c) {
 	[ "${CVW[$id]["nopim"]}" = 1 ] && return 0
 	if [ "${CVW[$id]["view"]}" = agenda ]; then
 		case $act in
-		wheelup) calendar_key "$id" up ;;
-		wheeldown) calendar_key "$id" down ;;
+		up) calendar_key "$id" up ;;
+		down) calendar_key "$id" down ;;
 		esac
 		return 0
 	fi
 	case $act in
-	wheelup) cv_month "$id" -1 ;;
-	wheeldown) cv_month "$id" 1 ;;
+	up) cv_month "$id" -1 ;;
+	down) cv_month "$id" 1 ;;
 	esac
 }
 

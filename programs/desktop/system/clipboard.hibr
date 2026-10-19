@@ -9,7 +9,7 @@
 
 strict
 
-app clipboard "The clipboard's history: copy something back, pin it, keep it" 1.0
+app clipboard "The clipboard's history: copy something back, pin it, keep it" 1.1
 # part: control-panel/cliphist.hibr
 
 command -v dt_app > /dev/null && dt_app clipboard "Clipboard" 16 52 once "⎘"
@@ -41,12 +41,14 @@ fn cb_fit(int id) {
 
 	[ "$sel" -ge "$n" ] && sel=$((n - 1))
 	[ "$sel" -lt 0 ] && sel=0
-	[ "$sel" -lt "$top" ] && top=$sel
-	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
-	[ "$top" -lt 0 ] && top=0
+	top := dt_scrollview "$top" "$n" "$vis" "$sel" "${CB[$id]["seen"]-}"
+	CB[$id]["seen"]=$sel
 	CB[$id]["sel"]=$sel
 	CB[$id]["top"]=$top
 }
+
+# The scrollbar held and dragged (Gitea #298).
+fn clipboard_scroll(int id, key, int top) { CB[$id]["top"]=$top; }
 
 fn clipboard_draw(int id, int h, int w, int row, int col) {
 	local n=${#DT_CHORDER[@]} vis=$((h - 2)) r=1 i hid t at mark line
@@ -91,7 +93,7 @@ fn clipboard_draw(int id, int h, int w, int row, int col) {
 	done
 	t=$w
 	[ "$DT_MIRRORON" = 1 ] && t=1
-	dt_scrollbar "$id" 1 "$t" "$vis" "$n" "$vis" "${CB[$id]["top"]}"
+	dt_scrollbar "$id" 1 "$t" "$vis" "$n" "$vis" "${CB[$id]["top"]}" list
 	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" "$h" 2 \
 		"enter uses it ${GL[dot]} p pins ${GL[dot]} delete removes"
@@ -131,13 +133,11 @@ fn clipboard_click(int id, int r, int c, btn = "") {
 }
 
 fn clipboard_wheel(int id, dir, int r = 0, int c = 0) {
-	local sel=${CB[$id]["sel"]:-0}
+	local top
 
-	case $dir in
-	up) CB[$id]["sel"]=$((sel - 3)) ;;
-	down) CB[$id]["sel"]=$((sel + 3)) ;;
-	esac
-	cb_fit "$id"
+	top := dt_scrollmove "$dir" "${CB[$id]["top"]:-0}" "${#DT_CHORDER[@]}" \
+		"${CB[$id]["vis"]:-1}" "$DT_SCROLLWHEEL" || return 1
+	CB[$id]["top"]=$top
 	return 0
 }
 

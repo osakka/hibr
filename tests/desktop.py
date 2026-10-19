@@ -4667,6 +4667,26 @@ check("and draws a picture in its preview as a picture",
       sc.find("PNG") is None and sc.find("IHDR") is None, sc)
 shutil.rmtree(FPD, True)
 
+# A scrollbar drawn with a key can be held and dragged (Gitea #298): a
+# press on its track puts the view where it lands, and a drag carries it
+# -- in a window with no _mouse of its own, which never sees a drag
+# itself; the window manager holds it and tells the app with _scroll.
+SBX = ('declare -gA SBX\n'
+       'fn sbx_draw(int id, int h, int w, int row, int col) {\n'
+       '    local i top=${SBX[$id]["top"]:-0}\n'
+       '    dt_wclear "$id"\n'
+       '    for ((i = 0; i < h; i++)); do console put -p "w$id" $((i + 1)) 1 "line $((top + i))  "; done\n'
+       '    dt_scrollbar "$id" 1 "$w" "$h" 100 "$h" "$top" list\n'
+       '}\n'
+       'fn sbx_scroll(int id, key, int top) { SBX[$id]["top"]=$top; }\n'
+       'dt_new "SB" 12 30 2 4 sbx')
+sc, _ = run(SBX, feed=[press(12, 32), release(12, 32)])
+check("a press on a scrollbar's track puts the view where it lands",
+      sc.find("line 90") is not None and sc.find("line 90")[0] == 3, sc)
+sc, _ = run(SBX, feed=[press(12, 32), drag(9, 32), drag(7, 32), release(7, 32)])
+check("and dragging the thumb carries the view, in a window with no _mouse",
+      sc.find("line 40") is not None and sc.find("line 40")[0] == 3, sc)
+
 # A window larger than the screen still moves when dragged: the far-edge
 # clamp gave it the same place from every drag -- off the screen's top
 # left -- so one zoomed on a display that had since gone could not be
@@ -5901,4 +5921,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(653)
+report(655)

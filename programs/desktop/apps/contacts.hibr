@@ -16,7 +16,7 @@
 
 strict
 
-app contacts "The people in your address books, kept offline from CardDAV" 1.3
+app contacts "The people in your address books, kept offline from CardDAV" 1.4
 # part: control-panel/pimset.hibr
 # modules: dav db pim
 
@@ -307,8 +307,8 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 		dt_tput "$id" 5 2 "from the Network Servers list."
 		return 0
 	fi
-	[ "$sel" -lt "$top" ] && top=$sel
-	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	top := dt_scrollview "$top" "$nl" "$vis" "$sel" "${PCW[$id]["seen"]-}"
+	PCW[$id]["seen"]=$sel
 	PCW[$id]["top"]=$top
 	PCW[$id]["vis"]=$vis
 	if [ "$nl" = 0 ]; then
@@ -341,11 +341,11 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 		k=$((k + 1))
 	done
 	if [ "$m" = 1 ]; then
-		[ "$nl" -gt "$vis" ] && dt_scrollbar "$id" 2 "$lx" "$vis" "$nl" "$vis" "$top"
+		[ "$nl" -gt "$vis" ] && dt_scrollbar "$id" 2 "$lx" "$vis" "$nl" "$vis" "$top" list
 		console pen "$DT_DIM" "$DT_FACE"
 		console fill -p "w$id" 1 $((lx - 1)) $((h - 2)) 1 "${GL[vline]}"
 	else
-		[ "$nl" -gt "$vis" ] && dt_scrollbar "$id" 2 $((lw - 1)) "$vis" "$nl" "$vis" "$top"
+		[ "$nl" -gt "$vis" ] && dt_scrollbar "$id" 2 $((lw - 1)) "$vis" "$nl" "$vis" "$top" list
 		console pen "$DT_DIM" "$DT_FACE"
 		console fill -p "w$id" 1 "$lw" $((h - 2)) 1 "${GL[vline]}"
 	fi
@@ -559,17 +559,19 @@ fn contacts_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	esac
 }
 
+# The wheel moves the list, DT_SCROLLWHEEL rows a notch. It matched
+# wheelup and wheeldown, where the window manager says up and down, so
+# it had never moved anything (Gitea #298).
 fn contacts_wheel(int id, act, int r, int c) {
-	local nl=${PCW[$id]["nl"]:-0} sel=${PCW[$id]["sel"]:-0}
+	local top
 
-	case $act in
-	wheelup) sel=$((sel - 3)) ;;
-	wheeldown) sel=$((sel + 3)) ;;
-	esac
-	[ "$sel" -ge "$nl" ] && sel=$((nl - 1))
-	[ "$sel" -lt 0 ] && sel=0
-	PCW[$id]["sel"]=$sel
+	top := dt_scrollmove "$act" "${PCW[$id]["top"]:-0}" "${PCW[$id]["nl"]:-0}" \
+		"${PCW[$id]["vis"]:-1}" "$DT_SCROLLWHEEL" || return 1
+	PCW[$id]["top"]=$top
 }
+
+# The list's scrollbar held and dragged (Gitea #298).
+fn contacts_scroll(int id, key, int top) { PCW[$id]["top"]=$top; }
 
 contacts_menus() {
 	dt_menu "File"

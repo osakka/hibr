@@ -194,6 +194,10 @@ dt_mouse() {
 					;;
 				esac
 			fi
+			if [ "$1" = left ] &&
+			   dt_sbpress "$id" $((mr - wr)) $((mc - wc)); then
+				return 0
+			fi
 			mo=${DT[$id]["mouse"]}
 			if [ -n "$mo" ]; then
 				DT_MOUSE=$id
@@ -293,6 +297,11 @@ dt_mouse() {
 		# A press on an icon that moves becomes a drag of the selection.
 		if [ -n "$DI_PRESS" ]; then
 			dt_iconmove "$act" "$mr" "$mc"
+			return 0
+		fi
+		# A scrollbar being held, whoever's window it is in.
+		if [ -n "$DT_SBDRAG" ]; then
+			dt_sbdrag "$act" "$mr" "$mc"
 			return 0
 		fi
 		# A window that took the press with _mouse is told the rest of it,

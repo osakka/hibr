@@ -187,9 +187,9 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 	FP[$id]["vis"]=$vis
 	sel=${FP[$id]["sel"]}
 	top=${FP[$id]["top"]}
-	[ "$sel" -lt "$top" ] && top=$sel
-	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
-	[ "$top" -lt 0 ] && top=0
+	top := dt_scrollview "$top" "${FP[$id]["n"]:-0}" "$vis" "$sel" \
+		"${FP[$id]["seen"]-}"
+	FP[$id]["seen"]=$sel
 	FP[$id]["top"]=$top
 	r=0
 	while [ "$r" -lt "$vis" ]; do
@@ -231,11 +231,11 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 	done
 	pw=$((w - lw - 3))
 	if [ "$m" = 1 ]; then
-		dt_scrollbar "$id" 2 $((w - lw)) "$vis" "$n" "$vis" "$top"
+		dt_scrollbar "$id" 2 $((w - lw)) "$vis" "$n" "$vis" "$top" list
 		dt_splitbar "$id" $((w - lw - 1)) 2 "$vis" "${FP[$id]["split"]:-0}"
 		fp_preview "$id" 2 1 "$vis" "$pw"
 	else
-		dt_scrollbar "$id" 2 "$lw" "$vis" "$n" "$vis" "$top"
+		dt_scrollbar "$id" 2 "$lw" "$vis" "$n" "$vis" "$top" list
 		dt_splitbar "$id" $((lw + 1)) 2 "$vis" "${FP[$id]["split"]:-0}"
 		fp_preview "$id" 2 $((lw + 3)) "$vis" "$pw"
 	fi
@@ -628,17 +628,16 @@ fn fpick_click(int id, int r, int c, btn = "") {
 }
 
 fn fpick_wheel(int id, dir, int r = 0, int c = 0) {
-	local sel=${FP[$id]["sel"]} n=${FP[$id]["n"]}
+	local top
 
-	case $dir in
-	up) sel=$((sel - 3)) ;;
-	down) sel=$((sel + 3)) ;;
-	esac
-	[ "$sel" -ge "$n" ] && sel=$((n - 1))
-	[ "$sel" -lt 0 ] && sel=0
-	FP[$id]["sel"]=$sel
+	top := dt_scrollmove "$dir" "${FP[$id]["top"]:-0}" "${FP[$id]["n"]:-0}" \
+		"${FP[$id]["vis"]:-1}" "$DT_SCROLLWHEEL" || return 1
+	FP[$id]["top"]=$top
 	return 0
 }
+
+# The list's scrollbar held and dragged (Gitea #298).
+fn fpick_scroll(int id, key, int top) { FP[$id]["top"]=$top; }
 
 fn fpick_paste(int id, text, op = "") {
 	local r

@@ -12,7 +12,7 @@
 
 strict
 
-app tasks "What is running, and a way to end one" 1.2
+app tasks "What is running, and a way to end one" 1.3
 # part: control-panel/taskmgr.hibr
 
 # 64 columns rather than the 50 it opened at until 0.99.133: the names are
@@ -821,7 +821,7 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 	done
 	t=$((w - 1))
 	[ "$DT_MIRRORON" = 1 ] && t=1
-	[ "$TK_BAR" = 1 ] && dt_scrollbar "$id" 2 "$t" "$vis" "$n" "$vis" "$top"
+	[ "$TK_BAR" = 1 ] && dt_scrollbar "$id" 2 "$t" "$vis" "$n" "$vis" "$top" list
 	if [ "$showgraph" = 1 ]; then
 		leftw=$(((w - 2 - 1) / 2))
 		rightw=$((w - 2 - 1 - leftw))
@@ -998,6 +998,9 @@ fn tasks_wheel(int id, dir, int? r = "", int? c = "") {
 	return 0
 }
 fn tasks_fulltoggle(int? id = "") { TK[$id]["full"]=$((1 - ${TK[$id]["full"]:-0})); }
+
+# The scrollbar held and dragged (Gitea #298).
+fn tasks_scroll(int id, key, int top) { TK[$id]["top"]=$top; }
 
 tasks_menus() {
 	local full=${TK[$DT_FOCUS]["full"]:-0}

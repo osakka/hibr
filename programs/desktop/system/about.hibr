@@ -12,7 +12,7 @@
 
 strict
 
-app about "About this computer: the machine, and the desktop running on it" 1.1
+app about "About this computer: the machine, and the desktop running on it" 1.2
 # part: control-panel/abouthibr.hibr
 
 # 20 by 52, the same as about_size, which is what dt_launch actually asks
@@ -723,9 +723,9 @@ fn about_draw(int id, int h, int w, int row, int col) {
 		i=$((i + 1))
 		r=$((r + 1))
 	done
-	dt_scrollbar "$id" $((1 + AB_PINS)) "$w" "$vis" "$n" "$vis" "$top"
+	dt_scrollbar "$id" $((1 + AB_PINS)) "$w" "$vis" "$n" "$vis" "$top" box
 	dt_hscrollbar "$id" "$((1 + AB_PINS + vis))" 2 "$room" "$wide" "$room" \
-		"$off"
+		"$off" side
 
 	# What this desktop is, under the box rather than over it: the
 	# desktop's own version above hibr's, which is the one thing sysinfo
@@ -823,6 +823,14 @@ fn about_dirty(int id) {
 	[ "$left" -lt 1 ] && left=1
 	dt_want "$left"
 	return 1
+}
+
+# The box's scrollbars held and dragged (Gitea #298): down, or across.
+fn about_scroll(int id, key, int top) {
+	case $key in
+	box) AB[$id]["top"]=$top ;;
+	side) AB[$id]["off"]=$top ;;
+	esac
 }
 
 fn about_wheel(int id, dir, int? r = "", int? c = "") {

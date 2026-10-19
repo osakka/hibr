@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.2
+app term "A shell in a window" 1.3
 # part: control-panel/terminal.hibr
 # modules: pty term
 
@@ -419,8 +419,21 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	# scrollbar draws.
 	[ "$DT_TERMBAR" = 1 ] &&
 		dt_scrollbar "$id" 1 "$w" "$h" $((stored + h)) "$h" \
-			$((stored - view))
+			$((stored - view)) back
 	return 0
+}
+
+# The scrollback's bar held and dragged (Gitea #298): top is the bar's
+# position, stored less how far back the view is, so the view goes to
+# stored - top by however far that is from where it is now.
+fn term_scroll(int id, key, int top) {
+	local t=${TW[$id]["t"]} sb view stored
+
+	[ -n "$t" ] || return 0
+	sb := term scroll "$t"
+	view=${sb% *}
+	stored=${sb#* }
+	term scroll "$t" $((stored - top - view))
 }
 
 # Everything goes to the program except the window manager's Menu Bar key,

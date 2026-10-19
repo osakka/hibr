@@ -20,7 +20,7 @@
 
 strict
 
-app notifications "A read-only look back at recent notifications" 1.2
+app notifications "A read-only look back at recent notifications" 1.3
 # part: control-panel/notifications.hibr
 
 command -v dt_app > /dev/null && dt_app notifications "Notifications" 16 66 \
@@ -284,7 +284,7 @@ fn notedetail_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 1))
 		i=$((i + 1))
 	done
-	dt_scrollbar "$id" 3 $((w - 1)) "$vis" "${#lines[@]}" "$vis" "$top"
+	dt_scrollbar "$id" 3 $((w - 1)) "$vis" "${#lines[@]}" "$vis" "$top" text
 	# The action as a button, where there is one. Its own first word is
 	# what it is called: a notification's action is kept as argv words,
 	# so there is a command to name rather than a line to re-split.
@@ -320,6 +320,9 @@ fn notedetail_key(int? id = "", key = "") {
 	esac
 	return 0
 }
+
+# The scrollbar held and dragged (Gitea #298).
+fn notedetail_scroll(int id, key, int top) { NDW[$id]["top"]=$top; }
 
 # The wheel scrolls a long note, DT_SCROLLWHEEL rows a notch.
 fn notedetail_wheel(int id, dir, int? r = "", int? c = "") {

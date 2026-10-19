@@ -128,6 +128,9 @@ awk '
     # that could not take the short call wm/input.hibr was making, so a
     # paste from the host terminal into a terminal window did nothing.
     W["paste"] = 3; W["copy"] = 1; W["cut"] = 1; W["awake"] = 1
+    # The new top of a scrollbar being held, from the window manager
+    # (Gitea #298).
+    W["scroll"] = 3
     P["draw"] = 4; P["key"] = 2; P["click"] = 3; P["drop"] = 4; P["wheel"] = 2
     P["slide"] = 3
     S["draw"] = 2; S["click"] = 2
@@ -376,3 +379,13 @@ grep -rnE --include=*.hibr '\(\(\(?DT_ROWS *(/ *2 *-|- *[a-z0-9]+\) */ *2)' \
 	programs/desktop | grep -v ':[[:space:]]*#' |
 	sed 's/^/centred on the whole screen, not with dt_dlgat: /'
 echo "every dialog is placed with dt_dlgat"
+
+# A window's _wheel is told up, down, left or right: the window manager
+# strips "wheel" from the action before it calls one (wm/input.hibr).
+# Contacts and Diagram matched wheelup and the rest, so their wheels had
+# never moved anything (Gitea #298). Only the window manager itself, and
+# the workspaces it switches on the empty desktop, see the raw action.
+grep -rnE --include=*.hibr '^[[:space:]]*wheel(up|down|left|right)[ |)]' \
+	programs/desktop | grep -v '^programs/desktop/wm/\(input\|workspaces\)\.hibr:' |
+	sed 's/^/a _wheel matching the raw action, which it is never handed: /'
+echo "every _wheel matches what it is handed"

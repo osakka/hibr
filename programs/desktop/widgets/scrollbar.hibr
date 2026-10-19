@@ -84,12 +84,32 @@ fn dt_scrollmove(k, int top, int total, int vis, int? step = "") {
 	ret "$top"
 }
 
-fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos) {
+#
+# Given a key, the bar can be held and dragged (Gitea #298): its track is
+# a clickable region, a press puts the view where it lands and the window
+# manager carries the drag to the release, telling the app each step as
+# <app>_scroll id key top -- whether or not the window takes drags itself.
+# thumb=1 registers the thumb alone, for a bar drawn on a split divider
+# whose other cells still drag the divider.
+declare -gA DT_SB
+DT_SBDRAG=
+
+fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos, key = "", thumb1 = "") {
 	local thumb r tg=${GL[block]} kg=${GL[vline]}
 
 	[ "$total" -gt "$shown" ] || return 0
 	thumb=$((row0 + pos * (h - 1) / (total - shown)))
 	[ "$thumb" -ge $((row0 + h)) ] && thumb=$((row0 + h - 1))
+	if [ -n "$key" ]; then
+		DT_SB["$id:$key"]="v $row0 $col $h $total $shown"
+		if [ "$thumb1" = 1 ]; then
+			dt_wreg "$id" "$thumb" "$col" 1 "dtsb:$key"
+		else
+			for ((r = row0; r < row0 + h; r++)); do
+				dt_wreg "$id" "$r" "$col" 1 "dtsb:$key"
+			done
+		fi
+	fi
 	r=$row0
 	while [ "$r" -lt $((row0 + h)) ]; do
 		if [ "$r" = "$thumb" ]; then
@@ -108,12 +128,16 @@ fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos)
 # it is for -- the About window's own sysinfo block, whose logo is wider
 # than anything else it shows -- and the arithmetic is the vertical one
 # turned on its side, so the two stay in step by being the same.
-fn dt_hscrollbar(int id, int row, int col0, int w, int total, int shown, int pos) {
+fn dt_hscrollbar(int id, int row, int col0, int w, int total, int shown, int pos, key = "") {
 	local thumb c tg=${GL[block]} kg=${GL[hline]}
 
 	[ "$total" -gt "$shown" ] || return 0
 	thumb=$((col0 + pos * (w - 1) / (total - shown)))
 	[ "$thumb" -ge $((col0 + w)) ] && thumb=$((col0 + w - 1))
+	if [ -n "$key" ]; then
+		DT_SB["$id:$key"]="h $row $col0 $w $total $shown"
+		dt_wreg "$id" "$row" "$col0" "$w" "dtsb:$key"
+	fi
 	c=$col0
 	while [ "$c" -lt $((col0 + w)) ]; do
 		if [ "$c" = "$thumb" ]; then
@@ -125,4 +149,79 @@ fn dt_hscrollbar(int id, int row, int col0, int w, int total, int shown, int pos
 		fi
 		c=$((c + 1))
 	done
+}
+
+# The top a place along a bar stands for: at is the row (or column) the
+# pointer is on, start and len the track's, and the answer runs 0 to
+# total-shown -- the thumb's own arithmetic turned round.
+fn dt_scrollpos(int at, int start, int len, int total, int shown) {
+	local t
+
+	if [ "$len" -le 1 ] || [ "$total" -le "$shown" ]; then
+		ret 0
+		return 0
+	fi
+	t=$(((at - start) * (total - shown) / (len - 1)))
+	[ "$t" -lt 0 ] && t=0
+	[ "$t" -gt $((total - shown)) ] && t=$((total - shown))
+	ret "$t"
+}
+
+# A press at pane row r, column c: on a bar drawn with a key, in a window
+# whose app offers _scroll, the view goes there and the drag is held.
+fn dt_sbpress(int id, int r, int c) {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	dtsb:*) ;;
+	*) return 1 ;;
+	esac
+	dt_has "${DT[$id]["app"]}_scroll" || return 1
+	DT_SBDRAG="$id ${tag#dtsb:}"
+	dt_sbto "$id" "${tag#dtsb:}" "$r" "$c"
+	return 0
+}
+
+# Tell the app the top that pane row r, column c on its bar stands for.
+fn dt_sbto(int id, key, int r, int c) {
+	local g t
+	local -a f
+
+	g=${DT_SB["$id:$key"]}
+	[ -n "$g" ] || return 0
+	read -ra f <<< "$g"
+	if [ "${f[0]}" = v ]; then
+		t := dt_scrollpos "$r" "${f[1]}" "${f[3]}" "${f[4]}" "${f[5]}"
+	else
+		t := dt_scrollpos "$c" "${f[2]}" "${f[3]}" "${f[4]}" "${f[5]}"
+	fi
+	"${DT[$id]["app"]}_scroll" "$id" "$key" "$t"
+	dt_want 10
+}
+
+# A drag or a release while a bar is held, at screen row mr, column mc.
+fn dt_sbdrag(act, int mr, int mc) {
+	local id key
+
+	read -r id key <<< "$DT_SBDRAG"
+	[ "$act" = release ] && DT_SBDRAG=
+	[ -n "${DT[$id]["row"]+x}" ] || { DT_SBDRAG=; return 0; }
+	dt_sbto "$id" "$key" $((mr - DT[$id]["row"])) $((mc - DT[$id]["col"]))
+}
+
+# Where a list with a selection starts this frame: brought to the selection
+# only when the selection has moved since it last was (seen, which the
+# caller stores back as sel), and otherwise only kept in range -- so the
+# wheel, the page keys or a held scrollbar, which move the view and not the
+# selection, are not pulled back on the next frame. Bringing it every frame
+# is what stopped the Catalogue's wheel at the end of one category, and
+# Task Manager's and Modules' at a screen from the selection (Gitea #298).
+fn dt_scrollview(int top, int total, int vis, int sel, seen = "") {
+	if [ "$sel" != "$seen" ]; then
+		top := dt_scrollfit "$top" "$total" "$vis" "$sel"
+	else
+		top := dt_scrollfit "$top" "$total" "$vis"
+	fi
+	ret "$top"
 }

@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 1.2
+app files "A file browser" 1.3
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -1012,7 +1012,14 @@ fn fb_bar(int id, int h, int w) {
 	shown=$((vis / per))
 	case $DT_MIRRORON in 1) w=1 ;; esac
 	dt_scrollbar "$id" "$y0" "$w" $((h - y0)) "$rows" "$shown" \
-		$((top / per))
+		$((top / per)) list
+}
+
+# The scrollbar held and dragged (Gitea #298): it counts rows, and the
+# view counts items, per of them a row.
+fn files_scroll(int id, key, int top) {
+	FB[$id]["top"]=$((top * ${FB[$id]["per"]:-1}))
+	fb_clamp "$id"
 }
 
 # Keys.  The arrows move the cursor and leave only it selected; with shift
@@ -2078,8 +2085,8 @@ fn files_wheel(int id, dir, int r, int c) {
 	local top=${FB[$id]["top"]} per=${FB[$id]["per"]}
 
 	case $dir in
-	up) FB[$id]["top"]=$((top - 3 * per)) ;;
-	down) FB[$id]["top"]=$((top + 3 * per)) ;;
+	up) FB[$id]["top"]=$((top - DT_SCROLLWHEEL * per)) ;;
+	down) FB[$id]["top"]=$((top + DT_SCROLLWHEEL * per)) ;;
 	esac
 	fb_clamp "$id"
 }

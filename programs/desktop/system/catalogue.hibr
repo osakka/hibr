@@ -19,7 +19,7 @@
 
 strict
 
-app catalogue "The application catalogue: browse, install, update and remove" 2.3
+app catalogue "The application catalogue: browse, install, update and remove" 2.4
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
@@ -489,7 +489,16 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 
 	sel=${CAT[$id]["sel"]:-0}
 	top=${CAT[$id]["top"]:-0}
-	top := dt_scrollfit "$top" "$m" "$vis" "$sel"
+	# Brought to the selection only when the selection moved: done every
+	# frame, it pulled back whatever the wheel, the page keys or the
+	# scrollbar had just done, so the wheel never got past the category
+	# the selection was in (Gitea #298).
+	if [ "${CAT[$id]["selseen"]-}" != "$sel" ]; then
+		top := dt_scrollfit "$top" "$m" "$vis" "$sel"
+		CAT[$id]["selseen"]=$sel
+	else
+		top := dt_scrollfit "$top" "$m" "$vis"
+	fi
 	CAT[$id]["top"]=$top
 	CAT[$id]["vis"]=$vis
 
@@ -630,7 +639,7 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 	# third column of the list rather than the top of a second pane.
 	dt_splitbar "$id" $((listw + 1)) 1 $((h - 2 - srows)) \
 		"${CAT[$id]["drag"]:-0}"
-	dt_scrollbar "$id" 2 $((listw + 1)) "$vis" "$m" "$vis" "$top"
+	dt_scrollbar "$id" 2 $((listw + 1)) "$vis" "$m" "$vis" "$top" list 1
 
 	# The detail: what this one says about itself. Blanked first, for
 	# the same reason the list rows are: a shorter entry after a longer
@@ -733,7 +742,7 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 		done
 		[ "$dn" -gt "$dvis" ] &&
 			dt_scrollbar "$id" 5 $((w - 1)) "$dvis" "$dn" \
-				"$dvis" "$dtop"
+				"$dvis" "$dtop" detail
 	fi
 	cat_btns "$id" $((h - srows)) "$w"
 	console pen "$DT_DIM" "$DT_FACE"
@@ -1028,14 +1037,22 @@ fn catalogue_wheel(int id, dir, int? r = "", int? c = "") {
 	if [ -n "$c" ] && [ "$c" -gt $((listw + 1)) ]; then
 		t := dt_scrollmove "$dir" "${CAT[$id]["dtop"]:-0}" \
 				   "${CAT[$id]["dn"]:-0}" \
-				   "${CAT[$id]["dvis"]:-1}" || return 1
+				   "${CAT[$id]["dvis"]:-1}" "$DT_SCROLLWHEEL" || return 1
 		CAT[$id]["dtop"]=$t
 		return 0
 	fi
 	t := dt_scrollmove "$dir" "${CAT[$id]["top"]:-0}" "${CAT[$id]["m"]:-0}" \
-			   "${CAT[$id]["vis"]:-1}" || return 1
+			   "${CAT[$id]["vis"]:-1}" "$DT_SCROLLWHEEL" || return 1
 	CAT[$id]["top"]=$t
 	return 0
+}
+
+# A scrollbar held and dragged (Gitea #298): the list's, or the entry's.
+fn catalogue_scroll(int id, key, int top) {
+	case $key in
+	list) CAT[$id]["top"]=$top ;;
+	detail) CAT[$id]["dtop"]=$top ;;
+	esac
 }
 
 # No argument: the window manager calls `<app>_menus` with none and the

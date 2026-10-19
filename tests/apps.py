@@ -4948,6 +4948,29 @@ sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
 check("and the Edit menu every window has carries Find, naming the key",
       sc.find("Find") is not None and "/" in sc.row(sc.find("Find")[0]), sc)
 
+# The wheel goes past the category the selection is in (Gitea #298). The
+# window brought its view back to the selection on every frame, so with
+# Applications open the wheel stopped a screen from the selection and the
+# Themes heading below forty apps could not be reached without the keys.
+BIGCAT = json.dumps({"entries": dict(
+    [("apps/a%02d" % i, {"id": "apps/a%02d" % i, "name": "a%02d" % i, "kind": "apps",
+                         "title": "App %02d" % i, "version": "1.0", "installed": "",
+                         "update": "0", "about": "number %d" % i}) for i in range(40)]
+    + [("themes/zz", {"id": "themes/zz", "name": "zz", "kind": "themes",
+                      "title": "Last Theme", "version": "1.0", "installed": "",
+                      "update": "0", "about": "the last"})])})
+asstub(BIGCAT)
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("a00") is not None,
+         feed=[wheel(10, 10, up=False)] * 16,
+         until=lambda s: s.find("Themes (1)") is not None)
+listhalf = "\n".join("".join(sc.g[r])[:44] for r in range(sc.rows))
+check("the wheel scrolls the Catalogue past the category the selection "
+      "is in, to the next heading, leaving the selection where it was",
+      "Themes (1)" in listhalf and "a39" in listhalf and "a00" not in listhalf
+      and sc.find("number 0") is not None, sc)
+asstub()
+
 # The split of Gitea #220, from the desktop's own side: `hibr` ships no
 # applications at all, so the folder `dt_apps` globs may not exist -- and
 # an app you fetched into the data folder, which `apps install` writes
@@ -5012,4 +5035,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(665)
+report(666)
