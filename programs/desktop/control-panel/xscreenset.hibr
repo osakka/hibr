@@ -13,7 +13,7 @@
 
 strict
 
-app xscreenset "The Control Panel pane for X Screen" 1.2
+app xscreenset "The Control Panel pane for X Screen" 1.3
 command -v cp_pane > /dev/null && cp_pane xscreenset "X Screen" "▣" app
 command -v dt_app > /dev/null &&
 	dt_app xsfield "X Screen Program" 11 66 "" "" fixed hidden
@@ -21,10 +21,10 @@ command -v dt_app > /dev/null &&
 XS_SIZE="${XS_SIZE-1280x800}"
 XS_MAX="${XS_MAX-1920x1080}"
 command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MAX
-XSP_NAME=()
-XSP_CMD=()
-XSP_WIN=()
-XSP_PIC=()
+# Declared, never emptied: the app has read the list into them before any
+# pane loads, and emptying them here showed no programs after every new
+# session -- and the next one added saved over the rest (Gitea #300).
+declare -ga XSP_NAME XSP_CMD XSP_WIN XSP_PIC
 
 XSS_SIZES=(1024x768 1280x800 1366x768 1600x900 1920x1080)
 XSS_MAXES=(1280x800 1600x900 1920x1080 2560x1440)
@@ -44,6 +44,7 @@ fn xscreenset_rows(int w) {
 	for i in "${!XSP_NAME[@]}"; do
 		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="${XSP_NAME[$i]}"
 		CP[$w][$n]["val"]="${XSP_CMD[$i]}"; CP[$w][$n]["key"]="prog:$i"
+		CP[$w][$n]["btns"]="del$i:Delete"
 		n=$((n + 1))
 	done
 	CP[$w][$n]["kind"]=action
@@ -68,6 +69,7 @@ fn xscreenset_do(int? w = "", k = "", int? dir = "") {
 	size) v := cp_next "$XS_SIZE" "$dir" "${XSS_SIZES[@]}"; XS_SIZE=$v ;;
 	add) xss_dialog -1; return 0 ;;
 	prog:*) xss_dialog "${k#prog:}"; return 0 ;;
+	del[0-9]*) xss_delask "${k#del}"; return 0 ;;
 	esac
 	cp_save
 }
@@ -207,11 +209,35 @@ fn xsfield_del(int id) {
 }
 XSF_DEL=
 xsf_delok() {
-	local id=$XSF_DEL k i
-	local -a n c w p
+	local id=$XSF_DEL
 
 	[ -n "$id" ] || return 0
-	k=${XSF[$id]["k"]}
+	xss_remove "${XSF[$id]["k"]}"
+	XSF_DEL=
+	dt_del "$id"
+}
+
+# The Delete button on a program's own row in the pane, after asking.
+XSS_DEL=
+fn xss_delask(int k) {
+	local t
+
+	[ -n "${XSP_NAME[$k]+x}" ] || return 0
+	XSS_DEL=$k
+	t := dt_tr "Delete %s from X Screen's programs?" "${XSP_NAME[$k]}"
+	dt_confirm "$t" xss_delok
+}
+xss_delok() {
+	[ -n "$XSS_DEL" ] || return 0
+	xss_remove "$XSS_DEL"
+	XSS_DEL=
+}
+
+# Take program k off the list, then save it and put the menu right.
+fn xss_remove(int k) {
+	local i
+	local -a n c w p
+
 	for i in "${!XSP_NAME[@]}"; do
 		[ "$i" = "$k" ] && continue
 		n+=("${XSP_NAME[$i]}")
@@ -224,8 +250,6 @@ xsf_delok() {
 	XSP_WIN=("${w[@]}")
 	XSP_PIC=("${p[@]}")
 	xsf_store
-	XSF_DEL=
-	dt_del "$id"
 }
 
 # Write the list and put it on the menu again, through the app.

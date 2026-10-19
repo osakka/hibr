@@ -4621,6 +4621,40 @@ check("the file dialog mirrors: its list and Name at the right, Type at the left
       nm[1] > ty[1] and sub[1] > COLS // 2, sc)
 shutil.rmtree(FBD, True)
 
+# The file dialog's preview draws a picture as a picture, and calls a file
+# with a NUL in it binary: both were read as text, and a line is cut at its
+# first NUL, so About Me's picker showed a PNG as rows of random characters
+# (Gitea #302). The selection starts on .., so one key down is blob.dat and
+# two are pic.png.
+import struct as _st302, zlib as _zl302
+FPD = tempfile.mkdtemp(prefix="hibr-fpd-")
+_raw = b"".join(b"\x00" + bytes(v for x in range(48)
+                                for v in ((x * 5) % 256, (y * 8) % 256, 90))
+                for y in range(32))
+
+
+def _chunk302(tag, data):
+    return (_st302.pack(">I", len(data)) + tag + data
+            + _st302.pack(">I", _zl302.crc32(tag + data)))
+
+
+open(os.path.join(FPD, "pic.png"), "wb").write(
+    b"\x89PNG\r\n\x1a\n"
+    + _chunk302(b"IHDR", _st302.pack(">IIBBBBB", 48, 32, 8, 2, 0, 0, 0))
+    + _chunk302(b"IDAT", _zl302.compress(_raw)) + _chunk302(b"IEND", b""))
+open(os.path.join(FPD, "blob.dat"), "wb").write(
+    b"HEADER v2\x00\x00\x00\x07payload text after the nul\n" * 3)
+FPS = 'dt_filepick open "Picture" "All files:*" "%s" "" : 0' % FPD
+sc, _ = run(FPS, feed=[b"\x1b[B"])
+check("the file dialog calls a file with a NUL in it binary, not text",
+      sc.find("Not text") is not None and sc.find("HEADER") is None, sc)
+sc, _ = run(FPS, feed=[b"\x1b[B", b"\x1b[B"])
+pv = [sc.row(r)[43:76] for r in range(4, 16)]
+check("and draws a picture in its preview as a picture",
+      sum("▀" in l or "▄" in l for l in pv) >= 3 and
+      sc.find("PNG") is None and sc.find("IHDR") is None, sc)
+shutil.rmtree(FPD, True)
+
 # Dates as a region writes them (#69, ADR 0034): the Hijri date beside the
 # clock when it is on, Arabic-Indic digits when chosen, nothing otherwise.
 HMON = r"(Muharram|Safar|Rabi' al-Awwal|Rabi' al-Thani|Jumada al-Ula|Jumada al-Akhirah|Rajab|Sha'ban|Ramadan|Shawwal|Dhu al-Qa'dah|Dhu al-Hijjah)"
@@ -5845,4 +5879,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(650)
+report(652)

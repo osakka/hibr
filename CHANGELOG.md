@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.99.255
+
+Three of the owner's reports, each small once found.
+
+**YouTube keeps the screen saver away for as long as the picture moves**
+(Gitea #299). The app answered "awake" from what state it believed it was
+in, and a real stream can put that wrong while the picture plays on -- an
+ad's length taken for the video's, a reset -- so the saver came over a
+video being watched, in the app's own visible window. It asks the one
+thing that cannot be mistaken now: is the frame on screen a later one
+than when the desktop last asked. Not the position, which runs on past a
+stream's end with no frames in it -- a twelve-second clip read 0:29 --
+and would have kept the saver away from a finished video for ever. A
+paused, finished or minimised video still lets the saver come, and a new
+check says so for a finished one. The check that had failed the
+0.99.254 gate was right that something was off and wrong about what:
+the suite's history took the clip up seconds in, and under load it
+reached its end inside the check's four seconds. It has a history of
+its own now.
+
+**X Screen keeps its programs across a restart, and each has a Delete on
+its row** (Gitea #300). A session loads the apps before the Control
+Panel's panes, and the X Screen pane emptied the list the app had just
+read -- so after every new session the pane showed no programs, and the
+next one added was saved over all the rest. The pane declares the list
+and leaves it alone. Delete was in each program's dialog only; it is a
+button on the program's own row in the pane now, as well.
+
+**The Open dialog shows a picture as a picture** (Gitea #302). Its
+preview read every file as text and called it binary only on bytes 1 to
+3 -- and a line is cut at its first NUL when read, so the bytes after one
+were never looked at: About Me's picker drew a PNG as rows of random
+characters. A PNG or JPEG is drawn in the preview with `img draw -p`,
+fitted to its shape, as the wallpaper picker does; any other file with a
+NUL in its first 4 kB, or a control character other than tab, newline,
+return or escape, says "Not text".
+
 ## 0.99.254
 
 **`${s//pat/rep}` takes time in proportion to the string, not its cube**

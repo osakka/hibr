@@ -186,6 +186,27 @@ check("each program is an entry under Applications > X Screen, and the "
 check("and a program taken off the list is off the menu at once",
       "after=Two||1" in out, out + err)
 
+# The pane is loaded after the app, as a session loads them, and must not
+# empty the list the app has read: it did, so a new session's pane showed
+# no programs and the next one added saved over the rest (Gitea #300).
+# Each program's row carries its own Delete.
+progs(("One", "true", "fit", "follow"), ("Two", "true", "own", "half"))
+out, err = hb(
+    "XS_LIST=%s\n. %s\n. %s\n. %s\n. %s\n"
+    "echo \"pane=${#XSP_NAME[@]}\"\n"
+    "declare -gA CP; xscreenset_rows 40 > /dev/null\n"
+    "echo \"row1=${CP[40][1][text]}|${CP[40][1][btns]}\"\n"
+    "xss_remove 0\n"
+    "echo \"left=${XSP_NAME[*]}|$(cut -f1 %s)|${DT_APPS[xscreen:0][title]}\"\n"
+    % (LIST, tree("programs/desktop/desktop.hibr"),
+       tree("programs/desktop/apps/xscreen.hibr"),
+       tree("programs/desktop/system/panel.hibr"),
+       tree("programs/desktop/control-panel/xscreenset.hibr"), LIST))
+check("the pane, loaded after the app, still lists every program",
+      "pane=2" in out and "row1=One|del0:Delete" in out, out + err)
+check("and a program's own Delete takes it off the list, the file and "
+      "the menu", "left=Two|Two|Two" in out, out + err)
+
 # A program fitted to its window (Gitea #291): the module is the screen's
 # window manager, so the program's window is the hibr window's body in the
 # screen's pixels -- 8 by 16 a cell in half blocks -- and follows a resize;
@@ -304,4 +325,4 @@ check("a screen that changes ten times a second is drawn about that often",
 check("and not at all while its window is minimised", hidden < 1, hidden)
 
 shutil.rmtree(D, True)
-report(17)
+report(19)

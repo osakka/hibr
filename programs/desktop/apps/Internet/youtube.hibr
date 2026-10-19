@@ -31,7 +31,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 1.7
+app youtube "YouTube, in a window" 1.8
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -761,27 +761,31 @@ fn youtube_resume(int id) {
 
 # A window not drawn still carries what the page fetches, or the pipes and
 # the page would fall behind; it is drawn again when it is seen.
-# Whether this window is keeping the screen awake: a video playing, not
-# paused or finished, in a window that is not minimised, with Control Panel
-# > YouTube's Keep the Screen Saver Away While Playing on (Gitea #277). The
-# desktop asks only at the moment its screen saver would start, so this
-# reads the player once then, rather than every frame, and holds nothing
-# that could be left behind.
+# Whether this window is keeping the screen awake, with Control Panel >
+# YouTube's Keep the Screen Saver Away While Playing on (Gitea #277): the
+# picture is moving -- not paused, and the frame on screen a later one than
+# when the desktop last asked -- in a window that is not minimised. Not the
+# position, which runs on past a stream's end with no frames in it: a
+# twelve-second clip read 0:29. The desktop asks only at
+# the moment its screen saver would start. The first version asked what
+# state the app thought it was in, and a real stream can put that wrong
+# while the picture plays on -- an ad's length taken for the video's, a
+# reset -- so the saver came over a video being watched (Gitea #299).
+# Whether the clock moved is the one thing that cannot be mistaken.
 fn youtube_awake(int id) {
-	local i
+	local i was
 
 	[ "${YT_SAVERHOLD:-1}" = 1 ] || return 1
 	dt_hidden "$id" && return 1
 	# Loading is still watching: the start of a video, the next one in a
-	# list, or the page's player being brought back after it gave up. A
-	# deadline landing in that moment should not let the saver in.
-	case ${YT[$id]["state"]} in
-	loading) return 0 ;;
-	playing) [ -n "${YT[$id]["p"]}" ] || return 1 ;;
-	*) return 1 ;;
-	esac
+	# list, or the page's player being brought back after it gave up.
+	[ "${YT[$id]["state"]}" = loading ] && return 0
+	[ -n "${YT[$id]["p"]}" ] || return 1
 	i := media info "${YT[$id]["p"]}" 2> /dev/null
-	[ "${i["paused"]}" != 1 ] && [ "${i["ended"]}" != 1 ]
+	[ "${i["paused"]}" = 1 ] && return 1
+	was=${YT[$id]["awshown"]}
+	YT[$id]["awshown"]=${i["shown"]}
+	[ "${i["shown"]}" != "$was" ]
 }
 
 fn youtube_idle(int id) {

@@ -160,14 +160,33 @@ try:
     # loaded runs could not show. Reproduced 2 runs in 3 under a spinner per core and
     # the desktop suite beside it, by logging what the desktop asked the
     # window: an empty state at every deadline in the failing runs.
+    #
+    # And a history of its own. The checks above leave this clip in the
+    # shared one, so it was taken up seconds in -- 5, 8, 9.5 in a logged
+    # run -- and under load the twelve-second clip reached its end inside
+    # the four seconds, where the saver rightly comes (Gitea #299).
     s = yrun([([], "A test pattern"), ([b"\x1b[H"], None), ([b"\r"], playing),
               ([4.0], None),
               ([b" "], "paused"), ([3.5], None)],
-             env={"DT_SAVERSECS": "2", "DT_SAVER": "clock"})
+             env={"DT_SAVERSECS": "2", "DT_SAVER": "clock",
+                  "YT_DATA": os.path.join(D, "data-saver")})
     check("a playing video keeps the screen saver away past its idle time",
           "playing" in s[3].text() and "█" not in s[3].text(), s[3])
     check("and a paused one lets it come",
           "█" in s[5].text() and "paused" not in s[5].text(), s[5])
+
+    # A video that has finished lets it come too: the picture stopped
+    # moving, whatever the app's own state says. Four seconds rather than
+    # two, so that the saver's own start -- one to two idle times after the
+    # last frame -- cannot fall before a loaded run's next look at the bar.
+    s = yrun([([], "A test pattern"), ([b"\x1b[H"], None), ([b"\r"], playing),
+              ([], lambda sc: at(sc) >= 12 or sc.find("█") is not None, 40),
+              ([], lambda sc: sc.find("█") is not None, 20)],
+             env={"DT_SAVERSECS": "4", "DT_SAVER": "clock",
+                  "YT_DATA": os.path.join(D, "data-saver2")})
+    check("and so does one that has finished playing, though not before",
+          at(s[3]) >= 12 and "█" not in s[3].text() and "█" in s[4].text(),
+          (at(s[3]), s[3].text()[-200:], s[4].text()[-200:]))
 
     s = yrun([([], "A test pattern"), ([b"\r"], playing), ([1.0], None),
               ([b"\x1b[C"], lambda sc: at(sc) >= 6), ([1.5], None)])
@@ -378,4 +397,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(35)
+report(36)

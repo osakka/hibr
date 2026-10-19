@@ -270,11 +270,40 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok "$lab" cancel Cancel
 }
 
-# What is selected, beside the list: a text file's first lines, a folder's
-# count, or what kind of file it is.
+# Where a picture goes in an h by w preview, keeping its shape: rows, cols
+# and the offsets that centre it, into FP[id]["fit"] as four words. A cell
+# is one column by two of the picture's rows, so cols/rows is 2*sw/sh.
+# Kept for the path and the box, since img size decodes the whole file.
+fn fp_picfit(int id, p, int h, int w) {
+	local key="$p|$h|$w" out sw sh fr=$h fc=$w
+
+	[ "${FP[$id]["fitfor"]}" = "$key" ] && return 0
+	out := img size "$p" 2> /dev/null
+	sw=${out% *}
+	sh=${out#* }
+	if [ "${sw:-0}" -gt 0 ] 2> /dev/null && [ "${sh:-0}" -gt 0 ] 2> /dev/null; then
+		fr=$((w * sh / (2 * sw)))
+		fc=$w
+		if [ "$fr" -gt "$h" ]; then
+			fr=$h
+			fc=$((h * 2 * sw / sh))
+		fi
+		[ "$fr" -lt 1 ] && fr=1
+		[ "$fc" -lt 1 ] && fc=1
+		[ "$fc" -gt "$w" ] && fc=$w
+	fi
+	FP[$id]["fitfor"]=$key
+	FP[$id]["fit"]="$fr $fc $(((h - fr) / 2)) $(((w - fc) / 2))"
+}
+
+# What is selected, beside the list: a picture drawn as one, a text file's
+# first lines, a folder's count, or what kind of file it is. A picture's
+# bytes were read as text, and a PNG's header carries none of the control
+# bytes the test looked for, so About Me's picker drew it as rows of
+# random characters (Gitea #302).
 fn fp_preview(int id, int r0, int c0, int h, int w) {
-	local i=${FP[$id]["sel"]} p k r=0 line n=0 f
-	local -a lines
+	local i=${FP[$id]["sel"]} p k r=0 line n=0 f head
+	local -a lines fit
 
 	k=${FP[$id]["k$i"]}
 	p := fp_path "$id" "$i"
@@ -291,12 +320,39 @@ fn fp_preview(int id, int r0, int c0, int h, int w) {
 		dt_tput "$id" "$r0" "$c0" "Folder, %s items" "$n"
 		return 0
 	fi
+	# Only a plain file is opened to look at: a FIFO or a device under the
+	# cursor would block the whole desktop in the read.
+	if [ ! -f "$p" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" "$r0" "$c0" "Not text"
+		return 0
+	fi
+	case ${p,,} in
+	*.png | *.jpg | *.jpeg)
+		if { dt_has img || need img > /dev/null 2>&1; } && dt_has img; then
+			fp_picfit "$id" "$p" "$h" "$w"
+			read -ra fit <<< "${FP[$id]["fit"]}"
+			img draw "$p" $((r0 + fit[2])) $((c0 + fit[3])) "${fit[0]}" \
+				"${fit[1]}" -p "w$id" 2> /dev/null && return 0
+		fi
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" "$r0" "$c0" "Picture"
+		return 0
+		;;
+	esac
 	if [ "${FP[$id]["pv"]}" != "$p" ]; then
 		FP[$id]["pv"]=$p
 		FP[$id]["pvn"]=0
-		[ -r "$p" ] && readarray -n "$h" -t lines < "$p" 2> /dev/null
+		# A NUL in the first 4 kB is binary: a line is cut at its first
+		# NUL when read, so the bytes after one are never looked at.
+		if read -r -d '' -n 4096 head < "$p" 2> /dev/null &&
+		   [ "${#head}" -lt 4096 ]; then
+			FP[$id]["pvn"]=-1
+		elif [ -r "$p" ]; then
+			readarray -n "$h" -t lines < "$p" 2> /dev/null
+		fi
 		for line in "${lines[@]}"; do
-			case $line in *$'\001'* | *$'\002'* | *$'\003'*) FP[$id]["pvn"]=-1; break ;; esac
+			case $line in *[$'\001'-$'\010'$'\016'-$'\032'$'\034'-$'\037'$'\177']*) FP[$id]["pvn"]=-1; break ;; esac
 			FP[$id]["pv${FP[$id]["pvn"]}"]=${line//$'\t'/    }
 			FP[$id]["pvn"]=$((FP[$id]["pvn"] + 1))
 		done
