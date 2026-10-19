@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.99.254
+
+**`${s//pat/rep}` takes time in proportion to the string, not its cube**
+(Gitea #294).
+
+Each replacement tried every end of the rest of the string, longest
+first, and copied that piece out before matching it: a copy and a match
+per candidate end, at every position. 2 KB took 0.064 s, 8 KB 2.8 s and
+16 KB 20 s. It is bash's own method now:
+before each search, `*pat*` says whether anything is left to find; a
+pattern that matches one length (`e`, `[0-9]`, `a?`) has one end to try;
+a literal first byte is found with `memchr`; and each end is tried by
+writing a NUL into one copy of the string, never by copying it out.
+
+| 70 KB | 0.99.253 | 0.99.254 | bash 5 |
+|---|---|---|---|
+| `${s//e/E}` | over 60 s | 0.001 s | 0.402 s |
+| `${s//[0-9]/N}` | over 60 s | 0.003 s | 0.738 s |
+| `${s//$'\n'/ }` | over 60 s | 0.000 s | 0.202 s |
+| `${s#zz}` | 0.105 s | 0.000 s | 0.167 s |
+
+The anchored forms (`#`, `##`, `%`, `%%`, `/#`, `/%`) had the same copy
+per candidate and get the same treatment. A pattern of many lengths with
+an extended group, `${s//+([0-9])/N}`, is still quadratic -- 0.05 s for
+1 KB, against bash's 2.9 s.
+
+Rewriting it to bash's method brought two of bash's answers with it,
+each a difference the old code had and no test had caught:
+
+- **An empty pattern replaces nothing.** `${s//$sep/-}` with `sep` empty
+  put a `-` between every character; it now leaves `s` alone.
+- **An empty match is replaced.** `${s//*(a)/R}` skipped the positions
+  where `*(a)` matches nothing, so `banana` gave `bRnRnR`; it gives
+  bash's `RbRRnRRnR`, an empty match taking the whole character after it
+  along -- never half of a multibyte one.
+
+`tests/191-patsub.t` runs 347 pairs of a value and a pattern through all
+ten forms and compares them against bash, with the long values, which
+take 0.08 s here and over a minute on 0.99.253. Two differences it leaves out are filed as Gitea #296: `?`
+and a bracket match one byte rather than one character, and a lone
+unquoted backslash matches one. The bracket scan `gmatch` did inline is
+`gbrk` now, shared with the new length count, so the two cannot read a
+bracket differently. None of the expansion fast paths are touched.
+
+**hibr builds on macOS again.** The X Screen module of 0.99.250 opened its
+socket with `SOCK_CLOEXEC`, which macOS does not have, and sent with
+`MSG_NOSIGNAL`, which it may not either, so `brew install hibr` stopped
+at `xscr.so`. It sets close-on-exec with `fcntl` and sends through
+`hibr_wrall`, the SIGPIPE-safe write the http, dav and web modules use.
+Checked by compiling the module with both names made undeclared, which
+fails against 0.99.253's copy and passes against this one; no Mac was
+at hand to build it on.
+
 ## 0.99.253
 
 **The menu bar is always on top; the window list and every dialog open

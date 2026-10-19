@@ -208,6 +208,7 @@ const char *gnext(const char *a, const char *close);
 int gneg(const char *body, const char *close, const char *rest, const char *t);
 int gext(const char *p, const char *t);
 int gmatch(const char *p, const char *t);
+int gbrk(const char *p, int c, const char **end);
 int gclass(const char *nm, size_t n, int c);
 const char *xsep(sh *s, int q);
 int xstar(char **ks, int nk);

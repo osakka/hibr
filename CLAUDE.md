@@ -3625,6 +3625,19 @@ went in the shell.
   (`x := json keys M .a named` sets both), because that is what `get` does
   and a second rule would be one to remember.
 
+- **A pattern search tries ends in place, and asks first whether there is
+  anything left to find.** `${s//pat/rep}` copied the rest of the string
+  out once per candidate end and matched each copy -- cubic: 16 KB took
+  20 s (Gitea #294). `xfind` is bash's method: `*pat*` against what is
+  left (`gwrap`, which declines where a star would change the pattern's
+  meaning -- a leading `(` becomes `*(`), one end for a pattern of one
+  length (`glen`), `memchr` to a literal first byte (`gfirst`), and each
+  end tried by writing a NUL into a single copy (`gcut`). `glen` reads a
+  bracket with `gbrk`, the scan `gmatch` itself uses, because a length
+  counted with a second reading of `[...]` would silently try the wrong
+  end and lose matches. bash's quick check is per match, so it is skipped
+  for a pattern of one length, where the scan is already linear.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

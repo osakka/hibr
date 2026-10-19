@@ -190,17 +190,8 @@ unsigned xs_g32(const unsigned char *p)
 /* Send a whole request, without a SIGPIPE if the server has gone. */
 int xs_send(xs_scr *x, str *o)
 {
-	size_t done = 0;
-	ssize_t n;
-
-	while (done < o->n) {
-		n = send(x->fd, o->p + done, o->n - done, MSG_NOSIGNAL);
-		if (n < 0 && errno == EINTR)
-			continue;
-		if (n <= 0)
-			return HIBR_FAIL;
-		done += (size_t)n;
-	}
+	if (hibr_wrall(x->fd, o->p, o->n) != (ssize_t)o->n)
+		return HIBR_FAIL;
 	x->seq++;
 	return HIBR_OK;
 }
@@ -629,9 +620,10 @@ int xs_connect(xs_scr *x, int n)
 	size_t vl, at;
 	int nf;
 
-	x->fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	x->fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (x->fd < 0)
 		return HIBR_FAIL;
+	fcntl(x->fd, F_SETFD, FD_CLOEXEC);
 	memset(&a, 0, sizeof a);
 	a.sun_family = AF_UNIX;
 	snprintf(a.sun_path, sizeof a.sun_path, "/tmp/.X11-unix/X%d", n);

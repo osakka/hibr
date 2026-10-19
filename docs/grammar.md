@@ -247,7 +247,7 @@ expansion produced; text written in the word still splits and globs
 | `${x:-d}` `${x:=d}` `${x:?m}` `${x:+a}` | default, assign, error, alternative |
 | `${#x}` | length; `${#a[@]}` the number of elements, and `${#@}` `${#*}` how many positional parameters, which is what `$#` says |
 | `${x#p}` `${x##p}` `${x%p}` `${x%%p}` | strip shortest or longest prefix, suffix |
-| `${x/p/r}` `${x//p/r}` | replace first, replace all |
+| `${x/p/r}` `${x//p/r}` | replace first, replace all: the leftmost longest match each time, an empty match taking the character after it along, and an empty `p` replacing nothing, as in bash |
 | `${x/#p/r}` `${x/%p/r}` | replace only at the start, at the end |
 | `${x:off:len}` | substring; a negative offset counts from the end |
 | `${x^} ${x^^} ${x,} ${x,,}` | upper or lower the first letter, or all: the cased letters of Latin, Greek, Cyrillic and Armenian, whatever the locale, since hibr reads text as UTF-8 (in bash's C locale `é` stays `é`) |

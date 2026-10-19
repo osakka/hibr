@@ -269,136 +269,241 @@ char *xpat(sh *s, word *w)
 	return r;
 }
 
-/* Strip a matching prefix or suffix from a value. */
-char *xtrim(sh *s, const char *v, const char *pat, int op)
+/* The number of bytes a pattern always matches, or -1 when it can match
+   more than one length -- or is an unclosed bracket, which matches
+   nothing, so that a caller falls back to trying every end. */
+long glen(const char *p)
 {
-	size_t n = strlen(v), i;
-	str t;
-	char *r = 0;
+	long n = 0;
+	const char *q;
 
-	s_init(&t);
-	if (op == V_RS || op == V_RL) {
-		size_t best = 0;
-		int got = 0;
-		for (i = 0; i <= n; i++) {
-			t.n = 0;
-			s_add(&t, v, i);
-			if (gmatch(pat, t.p ? t.p : "")) {
-				if (!got || (op == V_RL ? i > best : i < best)) {
-					best = i;
-					got = 1;
-				}
-				if (op == V_RS)
-					break;
-			}
+	while (*p) {
+		if (*p == '*' || (p[1] == '(' && (*p == '?' || *p == '+' ||
+						  *p == '@' || *p == '!')))
+			return -1;
+		if (*p == '[') {
+			gbrk(p, 0, &q);
+			if (!q)
+				return -1;
+			p = q + 1;
+		} else {
+			if (*p == '\\' && p[1])
+				p++;
+			p++;
 		}
-		r = ar_dup(s->xa, v + (got ? best : 0), n - (got ? best : 0));
-	} else {
-		size_t best = 0;
-		int got = 0;
-		for (i = 0; i <= n; i++) {
-			t.n = 0;
-			s_add(&t, v + n - i, i);
-			if (gmatch(pat, t.p ? t.p : "")) {
-				if (!got || (op == V_SL ? i > best : i < best)) {
-					best = i;
-					got = 1;
-				}
-				if (op == V_SS)
-					break;
-			}
-		}
-		r = ar_dup(s->xa, v, n - (got ? best : 0));
+		n++;
 	}
-	s_free(&t);
+	return n;
+}
+
+/* The byte a pattern's first element must be, or -1 when it may be any. */
+int gfirst(const char *p)
+{
+	if (!*p || *p == '*' || *p == '?' || *p == '[' ||
+	    (p[1] == '(' && (*p == '+' || *p == '@' || *p == '!')))
+		return -1;
+	if (*p == '\\' && p[1])
+		p++;
+	return (unsigned char)*p;
+}
+
+/* The pattern with a star before it, after it or both, which says whether
+   any part of a text could match at all; 0 where adding one would change
+   what the pattern means -- a leading ( would become *( and a trailing
+   lone backslash would escape the star. */
+const char *gwrap(sh *s, const char *pat, int pre, int post)
+{
+	size_t n = strlen(pat), k = 0;
+	str b;
+	char *r;
+
+	if (pre && *pat == '(')
+		return 0;
+	while (k < n && pat[n - 1 - k] == '\\')
+		k++;
+	if (post && (k & 1))
+		return 0;
+	s_init(&b);
+	if (pre)
+		s_ch(&b, '*');
+	s_cat(&b, pat);
+	if (post)
+		s_ch(&b, '*');
+	r = ar_dup(s->xa, b.p, b.n);
+	s_free(&b);
 	return r;
 }
 
-/* Replace the first or every match of a pattern inside a value. */
-char *xrepl(sh *s, const char *v, const char *pat, const char *rep, int all)
+/* Match a pattern against bytes a to b of a writable text, in place. */
+int gcut(const char *pat, char *w, size_t a, size_t b)
 {
-	size_t n = strlen(v), i, j;
-	str out, t;
+	char c = w[b];
+	int ok;
+
+	w[b] = 0;
+	ok = gmatch(pat, w + a);
+	w[b] = c;
+	return ok;
+}
+
+/* Find the leftmost longest match of a pattern in w at or after byte i,
+   into ms and me: len is glen's answer, any the starred pattern that says
+   whether one is left at all (or 0), and w is writable so that each end
+   is tried in place rather than copied out. */
+int xfind(char *w, size_t n, size_t i, const char *pat, long len,
+	  const char *any, size_t *ms, size_t *me)
+{
+	int c0 = gfirst(pat), got;
+	size_t p, e;
+	char *q;
+
+	if (any && !gmatch(any, w + i))
+		return 0;
+	for (p = i; p <= n; p++) {
+		if (c0 >= 0) {
+			if (p >= n || !(q = memchr(w + p, c0, n - p)))
+				return 0;
+			p = (size_t)(q - w);
+		}
+		if (len >= 0) {
+			e = p + (size_t)len;
+			if (e > n)
+				return 0;
+			if (!gcut(pat, w, p, e))
+				continue;
+		} else {
+			got = 0;
+			for (e = n + 1; e-- > p;)
+				if ((got = gcut(pat, w, p, e)))
+					break;
+			if (!got)
+				continue;
+		}
+		*ms = p;
+		*me = e;
+		return 1;
+	}
+	return 0;
+}
+
+/* Strip the shortest or longest matching prefix or suffix from a value:
+   a pattern of one length has one candidate, and none is tried when the
+   starred pattern says no prefix (or suffix) can match. */
+char *xtrim(sh *s, const char *v, const char *pat, int op)
+{
+	size_t n = strlen(v), i = 0, k;
+	long len = glen(pat);
+	int pre = op == V_RS || op == V_RL, lng = op == V_RL || op == V_SL;
+	int got = 0;
+	const char *any;
+	str w;
 	char *r;
 
-	s_init(&out);
-	s_init(&t);
-	i = 0;
-	while (i <= n) {
-		size_t best = 0;
-		int got = 0;
-		for (j = n; j >= i; j--) {
-			t.n = 0;
-			s_add(&t, v + i, j - i);
-			if (gmatch(pat, t.p ? t.p : "")) {
-				best = j;
-				got = 1;
-				break;
-			}
-			if (j == i)
-				break;
+	if (!n || (len >= 0 && (size_t)len > n))
+		return ar_dup(s->xa, v, n);
+	any = len < 0 ? gwrap(s, pat, !pre, pre) : 0;
+	if (any && !gmatch(any, v))
+		return ar_dup(s->xa, v, n);
+	s_init(&w);
+	s_add(&w, v, n);
+	for (k = 0; k <= n; k++) {
+		i = len >= 0 ? (size_t)len : lng ? n - k : k;
+		if (pre ? gcut(pat, w.p, 0, i) : gmatch(pat, v + n - i)) {
+			got = 1;
+			break;
 		}
-		if (got && best > i) {
-			s_cat(&out, rep);
-			i = best;
-			if (!all)
-				break;
-			continue;
-		}
-		if (got && !*pat) {
-			s_cat(&out, rep);
-			if (!all)
-				break;
-		}
-		if (i < n)
-			s_ch(&out, v[i]);
-		i++;
+		if (len >= 0)
+			break;
 	}
-	if (i < n)
-		s_add(&out, v + i, n - i);
+	s_free(&w);
+	if (!got)
+		i = 0;
+	r = pre ? ar_dup(s->xa, v + i, n - i) : ar_dup(s->xa, v, n - i);
+	return r;
+}
+
+/* Replace the first or every match of a pattern inside a value, as bash
+   does: the leftmost longest each time, an empty match taking the whole
+   character after it along, and an empty pattern matching nothing. */
+char *xrepl(sh *s, const char *v, const char *pat, const char *rep, int all)
+{
+	size_t n = strlen(v), i = 0, ms, me;
+	long len;
+	const char *any;
+	str w, out;
+	char *r;
+
+	if (!*pat)
+		return ar_dup(s->xa, v, n);
+	if (!n)
+		return gmatch(pat, "") ? ar_dup(s->xa, rep, strlen(rep)) :
+					 ar_dup(s->xa, "", 0);
+	len = glen(pat);
+	any = len < 0 ? gwrap(s, pat, 1, 1) : 0;
+	s_init(&w);
+	s_init(&out);
+	s_add(&w, v, n);
+	while (i < n && xfind(w.p, n, i, pat, len, any, &ms, &me)) {
+		s_add(&out, v + i, ms - i);
+		s_cat(&out, rep);
+		i = me;
+		if (me == ms && i < n) {
+			s_ch(&out, v[i++]);
+			while (i < n && ((unsigned char)v[i] & 0xc0) == 0x80)
+				s_ch(&out, v[i++]);
+		}
+		if (!all)
+			break;
+	}
+	s_add(&out, v + i, n - i);
 	r = ar_dup(s->xa, out.p ? out.p : "", out.n);
 	s_free(&out);
-	s_free(&t);
+	s_free(&w);
 	return r;
 }
 
 /* Replace a match anchored at one end of the value, longest first. */
 char *xrepl_a(sh *s, const char *v, const char *pat, const char *rep, int end)
 {
-	size_t n = strlen(v), i, j;
-	str t, out;
+	size_t n = strlen(v), i = 0, k;
+	long len = glen(pat);
+	int got = 0;
+	const char *any;
+	str w, out;
 	char *r;
 
-	s_init(&t);
+	if (!n)
+		return gmatch(pat, "") ? ar_dup(s->xa, rep, strlen(rep)) :
+					 ar_dup(s->xa, "", 0);
+	if (len >= 0 && (size_t)len > n)
+		return ar_dup(s->xa, v, n);
+	any = len < 0 ? gwrap(s, pat, end, !end) : 0;
+	if (any && !gmatch(any, v))
+		return ar_dup(s->xa, v, n);
+	s_init(&w);
 	s_init(&out);
-	if (!end) {
-		for (j = n + 1; j-- > 0;) {
-			t.n = 0;
-			s_add(&t, v, j);
-			if (gmatch(pat, t.p ? t.p : "")) {
-				s_cat(&out, rep);
-				s_add(&out, v + j, n - j);
-				break;
-			}
+	s_add(&w, v, n);
+	for (k = 0; k <= n; k++) {
+		i = len >= 0 ? (size_t)len : n - k;
+		if (end ? gmatch(pat, v + n - i) : gcut(pat, w.p, 0, i)) {
+			got = 1;
+			break;
 		}
-		if (!out.n && !out.p)
-			s_add(&out, v, n);
+		if (len >= 0)
+			break;
+	}
+	if (!got)
+		s_add(&out, v, n);
+	else if (end) {
+		s_add(&out, v, n - i);
+		s_cat(&out, rep);
 	} else {
-		for (i = 0; i <= n; i++) {
-			t.n = 0;
-			s_add(&t, v + i, n - i);
-			if (gmatch(pat, t.p ? t.p : "")) {
-				s_add(&out, v, i);
-				s_cat(&out, rep);
-				break;
-			}
-		}
-		if (i > n)
-			s_add(&out, v, n);
+		s_cat(&out, rep);
+		s_add(&out, v + i, n - i);
 	}
 	r = ar_dup(s->xa, out.p ? out.p : "", out.n);
 	s_free(&out);
-	s_free(&t);
+	s_free(&w);
 	return r;
 }
 
@@ -1060,6 +1165,45 @@ int gclass(const char *nm, size_t n, int c)
 	return 0;
 }
 
+/* Read the bracket expression opening at p: its closing ] into *end (0
+   when it is never closed, and then it matches nothing), and whether
+   byte c is one it takes. */
+int gbrk(const char *p, int c, const char **end)
+{
+	int neg = 0, hit = 0, k;
+	const char *q = p + 1, *e;
+
+	if (*q == '!' || *q == '^') {
+		neg = 1;
+		q++;
+	}
+	for (k = 0; *q && (*q != ']' || !k); q++, k++) {
+		if (q[0] == '[' && q[1] == ':' &&
+		    (e = strstr(q + 2, ":]")) != 0) {
+			if (gclass(q + 2, (size_t)(e - q - 2), c))
+				hit = 1;
+			q = e + 1;
+			continue;
+		}
+		if (q[0] == '\\' && q[1]) {
+			q++;
+			if ((unsigned char)*q == c)
+				hit = 1;
+			continue;
+		}
+		if (q[1] == '-' && q[2] && q[2] != ']') {
+			if (c >= (unsigned char)q[0] && c <= (unsigned char)q[2])
+				hit = 1;
+			q += 2;
+			continue;
+		}
+		if ((unsigned char)*q == c)
+			hit = 1;
+	}
+	*end = *q ? q : 0;
+	return hit != neg;
+}
+
 /* Match a pattern against text with escapes, star and class support. */
 int gmatch(const char *p, const char *t)
 {
@@ -1086,40 +1230,9 @@ int gmatch(const char *p, const char *t)
 			continue;
 		}
 		if (*p == '[') {
-			int neg = 0, hit = 0, k;
-			const char *q = p + 1, *e;
-			if (*q == '!' || *q == '^') {
-				neg = 1;
-				q++;
-			}
-			for (k = 0; *q && (*q != ']' || !k); q++, k++) {
-				if (q[0] == '[' && q[1] == ':' &&
-				    (e = strstr(q + 2, ":]")) != 0) {
-					if (gclass(q + 2, (size_t)(e - q - 2),
-						   (unsigned char)*t))
-						hit = 1;
-					q = e + 1;
-					continue;
-				}
-				if (q[0] == '\\' && q[1]) {
-					q++;
-					if (*q == *t)
-						hit = 1;
-					continue;
-				}
-				if (q[1] == '-' && q[2] && q[2] != ']') {
-					if ((unsigned char)*t >= (unsigned char)q[0] &&
-					    (unsigned char)*t <= (unsigned char)q[2])
-						hit = 1;
-					q += 2;
-					continue;
-				}
-				if (*q == *t)
-					hit = 1;
-			}
-			if (!*q)
-				return 0;
-			if (hit == neg)
+			const char *q;
+			int hit = gbrk(p, (unsigned char)*t, &q);
+			if (!q || !hit)
 				return 0;
 			p = q + 1;
 			t++;
