@@ -403,6 +403,50 @@ fn dt_dispat(int cr, int cc) {
 	return 0
 }
 
+# Where a dialog h by w opens, in DT_DLGR, DT_DLGC, DT_DLGH and DT_DLGW:
+# centred over the window being worked in -- the focused one -- and kept
+# inside that window's display, or in the middle of the primary when no
+# window has focus. It is made smaller to fit that display, less m columns
+# and m - 1 rows (2 by default): the rows the old screen-wide clamp kept
+# back were the bar's and a shadow's, and a primary's own rectangle has
+# the bar taken out already. Centred on the whole screen instead, a dialog
+# opened from a window on one of several displays landed on another, or
+# between two (Gitea #293).
+DT_DLGR=1
+DT_DLGC=0
+DT_DLGH=1
+DT_DLGW=1
+fn dt_dlgat(int h, int w, int? m = "") {
+	local f=$DT_FOCUS cr cc r c
+
+	[ -n "$m" ] || m=2
+	if [ -n "$f" ] && [ -n "${DT[$f]["row"]+x}" ] &&
+		[ "${DT[$f]["min"]}" != 1 ] && ! dt_away "$f"; then
+		dt_windisp "$f"
+		cr=$((DT[$f]["row"] + DT[$f]["h"] / 2))
+		cc=$((DT[$f]["col"] + DT[$f]["w"] / 2))
+	else
+		dt_dispat "${DT_PRIMARY_ROW:-0}" "${DT_PRIMARY_COL:-0}"
+		cr=$((DTW_R + DTW_H / 2))
+		cc=$((DTW_C + DTW_W / 2))
+	fi
+	[ "$h" -gt $((DTW_H - m + 1)) ] && h=$((DTW_H - m + 1))
+	[ "$w" -gt $((DTW_W - m)) ] && w=$((DTW_W - m))
+	[ "$h" -lt 1 ] && h=1
+	[ "$w" -lt 1 ] && w=1
+	r=$((cr - h / 2))
+	c=$((cc - w / 2))
+	[ $((r + h)) -gt $((DTW_R + DTW_H)) ] && r=$((DTW_R + DTW_H - h))
+	[ $((c + w)) -gt $((DTW_C + DTW_W)) ] && c=$((DTW_C + DTW_W - w))
+	[ "$r" -lt "$DTW_R" ] && r=$DTW_R
+	[ "$c" -lt "$DTW_C" ] && c=$DTW_C
+	DT_DLGR=$r
+	DT_DLGC=$c
+	DT_DLGH=$h
+	DT_DLGW=$w
+	return 0
+}
+
 # Fill the window's own display, or every display when Control Panel >
 # Windows > Zoom Fills says so (Gitea #286) -- or go back to where the
 # window was.

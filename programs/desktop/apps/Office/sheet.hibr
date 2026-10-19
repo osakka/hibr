@@ -49,7 +49,7 @@
 
 strict
 
-app sheet "A spreadsheet whose formulas are hibr" 1.1
+app sheet "A spreadsheet whose formulas are hibr" 1.2
 # modules: csv db math
 
 command -v dt_app > /dev/null && dt_app sheet "Sheet" 24 84 many "⊞"
@@ -1771,8 +1771,8 @@ fn ss_ruleask(int id) {
 	else
 		v=
 	fi
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "Sheet" "$h" "$w" "$r" "$c" ssask
 	SSA[$rid]["for"]=$id
 	SSA[$rid]["buf"]=$v
@@ -1958,14 +1958,10 @@ fn ss_helpshow(int id) {
 	local h=22 w=66 r c
 
 	# Eighteen lines and a button need all of twenty-two rows, so on a
-	# short screen the window is clamped rather than drawn off the end --
+	# short display the window is clamped rather than drawn off the end --
 	# at 80 by 24, the smallest the suites run, it fits exactly.
-	[ "$h" -gt $((DT_ROWS - 2)) ] && h=$((DT_ROWS - 2))
-	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
-	[ "$r" -lt 1 ] && r=1
-	[ "$c" -lt 1 ] && c=1
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	dt_new "Sheet" "$h" "$w" "$r" "$c" sshelp
 }
 

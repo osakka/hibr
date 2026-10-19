@@ -326,4 +326,42 @@ check("a cell written again loses the mark, so its shadow is cast afresh",
             'console fill 0 0 3 8 " "\nconsole darken -s 1 1 1 4 55\n')
       == one, one)
 
-report(len(WANT) + len(MWANT) + 53)
+# A pane marked `top` is above everything: its cells are written only by
+# drawing through it, whatever else is drawn over it and in whatever order.
+# That is the desktop's menu bar, which a window dragged over it, a window's
+# shadow, a menu or an overlay drew over before -- a window filling the
+# display above the primary cast its shadow on the bar. Text written at
+# absolute coordinates, through another pane, a fill and a shadow all go
+# under it; the bar's own drawing still lands; and `console hit` answers the
+# top pane even with a window raised over it.
+def top(cmd, row=0):
+    o, _ = run('console open\nconsole pane bar 0 2 1 10\n'
+               'console pane top bar\nconsole pane w1 0 0 3 20\n'
+               'console pane raise w1\n' + cmd +
+               'h := console hit 0 4\nconsole put 2 0 "hit=$h"\n'
+               'console flush\nconsole close\n')
+    sc = Screen()
+    sc.feed(o.decode("utf-8", "replace"))
+    return sc
+
+
+sc = top('console put -p bar 0 0 BARBARBAR!\n'
+         'console put 0 0 xxxxxxxxxxxxxxxx\n'
+         'console put -p w1 0 0 wwwwwwwwwwwwwwww\n'
+         'console fill 0 0 1 16 "#"\n')
+check("nothing written over a top pane covers it: absolute, another pane, "
+      "a fill", sc.row(0).startswith("##BARBARBAR!####"), sc.row(0))
+check("and a top pane answers a hit even with a window raised over it",
+      sc.row(2).startswith("hit=bar"), sc.row(2))
+sc = top('console pen "#c0c0c8" "#203048"\nconsole fill 0 0 2 16 " "\n'
+         'console put -p bar 0 0 "          "\n'
+         'console darken -s 0 0 1 16 55\nconsole darken 0 0 1 16 55\n')
+check("a shadow cast over it darkens the cells beside it and not its own",
+      sc.p[0][2] == sc.p[1][2] and sc.p[0][0] != sc.p[1][0],
+      (sc.p[0][0], sc.p[0][2], sc.p[1][0]))
+sc = top('console put -p bar 0 0 BARBARBAR!\nconsole pane top bar off\n'
+         'console put 0 0 xxxxxxxxxxxxxxxx\n')
+check("and `pane top name off` gives its cells back",
+      sc.row(0).startswith("xxxxxxxxxxxx"), sc.row(0))
+
+report(len(WANT) + len(MWANT) + 57)

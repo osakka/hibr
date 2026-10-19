@@ -367,3 +367,12 @@ for k in $apk; do
 		echo "the Catalogue has no name for the kind $k"
 done
 echo "every kind apps declares has a name in the Catalogue"
+
+# A dialog opens where the person is working: dt_dlgat, over the focused
+# window on its own display (Gitea #293). Centred on DT_ROWS and DT_COLS
+# it opened between two displays or on another one -- some thirty dialogs
+# did, and one placed off-screen is how it was found.
+grep -rnE --include=*.hibr '\(\(\(?DT_ROWS *(/ *2 *-|- *[a-z0-9]+\) */ *2)' \
+	programs/desktop | grep -v ':[[:space:]]*#' |
+	sed 's/^/centred on the whole screen, not with dt_dlgat: /'
+echo "every dialog is placed with dt_dlgat"

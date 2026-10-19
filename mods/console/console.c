@@ -29,6 +29,67 @@ vec cn_panes;
    overlay built out of one of those has to say so for itself. */
 static size_t cn_drawn;
 
+int cn_ttop, cn_tbot, cn_tok;
+const cn_pane *cn_wpane;
+
+/* The rows the top panes span, worked out again whenever a pane has moved:
+   cn_owninval says so, since every change to a pane already calls it. */
+void cn_tband(void)
+{
+	size_t i;
+	cn_pane *p;
+	int t = 0, b = 0;
+
+	for (i = 0; i < cn_panes.n; i++) {
+		p = (cn_pane *)cn_panes.p[i];
+		if (!p->top || p->h < 1 || p->w < 1)
+			continue;
+		if (t == b || p->row < t)
+			t = p->row;
+		if (p->row + p->h > b)
+			b = p->row + p->h;
+	}
+	cn_ttop = t;
+	cn_tbot = b;
+	cn_tok = 1;
+}
+
+/* Is this cell inside a top pane other than the one being drawn through? */
+int cn_ptopat(int row, int col)
+{
+	size_t i;
+	cn_pane *p;
+
+	for (i = 0; i < cn_panes.n; i++) {
+		p = (cn_pane *)cn_panes.p[i];
+		if (p->top && p != cn_wpane && row >= p->row &&
+		    row < p->row + p->h && col >= p->col &&
+		    col < p->col + p->w)
+			return 1;
+	}
+	return 0;
+}
+
+/* The first top pane a rectangle overlaps, or null: what a picture is cut
+   around, since a bitmap cannot leave a hole for one. */
+cn_pane *cn_ptopin(int row, int col, int h, int w)
+{
+	size_t i;
+	cn_pane *p;
+
+	if (!cn_tok)
+		cn_tband();
+	if (row >= cn_tbot || row + h <= cn_ttop)
+		return 0;
+	for (i = 0; i < cn_panes.n; i++) {
+		p = (cn_pane *)cn_panes.p[i];
+		if (p->top && p->row < row + h && row < p->row + p->h &&
+		    p->col < col + w && col < p->col + p->w)
+			return p;
+	}
+	return 0;
+}
+
 /* Find a named pane, or null. */
 cn_pane *cn_pfind(const char *nm)
 {
@@ -65,6 +126,7 @@ cn_pane *cn_pset(const char *nm, int row, int col, int h, int w)
 
 	if (!p) {
 		p = xm(sizeof *p);
+		memset(p, 0, sizeof *p);
 		p->nm = xs(nm);
 		v_add(&cn_panes, p);
 	}
@@ -148,12 +210,20 @@ int cn_pdrop(const char *nm)
 	return 0;
 }
 
-/* The topmost pane covering a screen cell, or null. */
+/* The topmost pane covering a screen cell, or null. A top pane answers
+   before the stack is asked, because it is drawn over everything in it. */
 cn_pane *cn_phit(int row, int col)
 {
 	size_t i = cn_panes.n;
 	cn_pane *p;
 
+	for (i = 0; i < cn_panes.n; i++) {
+		p = (cn_pane *)cn_panes.p[i];
+		if (p->top && row >= p->row && row < p->row + p->h &&
+		    col >= p->col && col < p->col + p->w)
+			return p;
+	}
+	i = cn_panes.n;
 	while (i--) {
 		p = (cn_pane *)cn_panes.p[i];
 		if (row >= p->row && row < p->row + p->h &&
@@ -212,9 +282,12 @@ int cn_pput(sh *s, const cn_pane *p, int row, int col, const char *t)
 		/* Drawing through a pane is the pane's own: it must land even
 		   while the wallpaper is painting behind the windows. */
 		int was = cn_behind(0);
+		const cn_pane *wp = cn_wpane;
 
+		cn_wpane = p;
 		adv = cn_put(p->row + row, p->col + col,
 			     cn_vis(s, clip.p ? clip.p : "", &vis));
+		cn_wpane = wp;
 		cn_behind(was);
 	}
 	s_free(&vis);
@@ -247,9 +320,15 @@ int cn_pfill(const cn_pane *p, int row, int col, int h, int w, const char *t)
 		w = p->w - col;
 	if (h <= 0 || w <= 0)
 		return 0;
-	was = cn_behind(0);
-	cn_fill(p->row + row, p->col + col, h, w, t);
-	cn_behind(was);
+	{
+		const cn_pane *wp = cn_wpane;
+
+		was = cn_behind(0);
+		cn_wpane = p;
+		cn_fill(p->row + row, p->col + col, h, w, t);
+		cn_wpane = wp;
+		cn_behind(was);
+	}
 	return 1;
 }
 
@@ -892,6 +971,20 @@ int m_console(sh *s, int ac, char **av)
 			s_free(&k);
 			return HIBR_OK;
 		}
+		/* `pane top name [on|off]`: above everything, its cells
+		   written only through it. */
+		if ((ac == 4 || ac == 5) && !strcmp(verb, "top")) {
+			p = cn_pfind(av[3]);
+			if (!p) {
+				lg(HIBR_LERR, "console pane top: %s: no such "
+					      "pane", av[3]);
+				return HIBR_FAIL;
+			}
+			p->top = ac == 4 || strcmp(av[4], "off");
+			cn_tok = 0;
+			lg(HIBR_LDBG, "pane %s top %d", p->nm, p->top);
+			return HIBR_OK;
+		}
 		if (ac == 4 && (!strcmp(verb, "raise") ||
 				!strcmp(verb, "lower") ||
 				!strcmp(verb, "drop"))) {
@@ -930,6 +1023,7 @@ int m_console(sh *s, int ac, char **av)
 		if (ac < 7) {
 			lg(HIBR_LERR, "usage: console pane name row col h w, "
 				      "or pane raise|lower|drop name, "
+				      "or pane top name [on|off], "
 				      "or pane list|clear");
 			return 2;
 		}

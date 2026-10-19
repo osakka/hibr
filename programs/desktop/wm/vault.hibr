@@ -368,8 +368,8 @@ fn dt_vwdialog(mode) {
 
 	[ "$mode" = login ] && h=15
 	[ "$mode" = unlock ] && h=12
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	case $mode in
 	login) t="Log In to a Vault" ;;
 	unlock) t="Unlock the Vault" ;;

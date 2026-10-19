@@ -31,7 +31,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 1.6
+app youtube "YouTube, in a window" 1.7
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -1226,12 +1226,16 @@ fn yt_mini(int id) {
 	fi
 	[ "${YT[$id]["view"]}" = play ] || return 0
 	YT[$id]["norm"]="${DT[$id]["row"]} ${DT[$id]["col"]} ${DT[$id]["h"]} ${DT[$id]["w"]} ${DT[$id]["sticky"]:-0}"
-	w=$((DT_COLS / 3))
+	# The corner of the display the player is on, not of the whole
+	# screen, which with several displays is a corner of another one
+	# (Gitea #293).
+	dt_windisp "$id"
+	w=$((DTW_W / 3))
 	[ "$w" -gt 64 ] && w=64
 	[ "$w" -lt 24 ] && w=24
 	h=$(((w * 9 / 16 + 1) / 2 + 1))
-	r=$((DT_ROWS - h - 1))
-	c=$((DT_COLS - w - 2))
+	r=$((DTW_R + DTW_H - h - 1))
+	c=$((DTW_C + DTW_W - w - 2))
 	YT[$id]["mini"]=1
 	DT[$id]["chrome"]=none
 	command -v dt_sticky > /dev/null && dt_sticky "$id" 1

@@ -107,6 +107,7 @@ and the flush cost shown live. Run it and press things.
 | `console pane name row col h w` | define a region, or move one |
 | `console pane name` | its row, column, height and width |
 | `console pane raise\|lower\|drop name` | restack a pane, or forget it |
+| `console pane top name [on\|off]` | put a pane above everything: its cells are written only through it |
 | `console pane list` | every pane, bottom to top |
 | `console pane clear` | forget every pane |
 | `console hit row col` | the topmost pane at a cell, or nothing |
@@ -299,6 +300,31 @@ side
 side body
 body
 2 2 20 40
+```
+
+One pane can be above all of them, whatever the stack says: `console pane top
+name` makes its cells writable only by drawing through it (`-p name`). Text
+at absolute coordinates, another pane's drawing, a fill and a `darken` all
+leave them alone, a picture that owns its cells is placed as the parts on
+either side of it, and `console hit` names it even with a pane raised over
+it. The desktop's menu bar is such a pane, which is what lets a window be
+dragged across the bar and go under it. `console pane top name off` gives
+the cells back; the screenshot chooser does that while its band is drawn.
+
+```sh
+need console
+console pane bar 0 0 1 80
+console pane top bar
+console pane body 0 0 20 40
+console pane list
+console hit 0 5
+console hit 3 5
+```
+
+```output
+bar body
+bar
+body
 ```
 
 ## Wide and combining characters

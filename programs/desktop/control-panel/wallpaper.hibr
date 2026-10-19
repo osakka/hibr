@@ -69,8 +69,8 @@ fn wp_put(field, value = "") {
 wp_dialog() {
 	local h=20 w=64 r c
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	dt_new "Wallpaper" "$h" "$w" "$r" "$c" wallpick
 }
 

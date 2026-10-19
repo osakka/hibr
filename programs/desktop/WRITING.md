@@ -363,6 +363,17 @@ manager's own table:
 | `dt_min <id>` | minimise it, or restore it if it already is |
 | `dt_del <id>` | close it |
 | `dt_new <title> <h> <w> <row> <col> [app]` | open one; the id lands in `$RET` |
+| `dt_dlgat <h> <w> [margin]` | where a dialog opens: over the focused window, on its display, made to fit it -- in `DT_DLGR`, `DT_DLGC`, `DT_DLGH`, `DT_DLGW` |
+
+A dialog is placed with `dt_dlgat`, never centred on `DT_ROWS` and
+`DT_COLS`: with several displays the middle of the whole screen is between
+them, and a dialog opened from a window on one landed on another
+(Gitea #293).
+
+```text
+dt_dlgat 10 50
+id := dt_new "Rename" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" rn
+```
 
 The first four exist so that reaching into `DT` is never the answer. An app
 that reads it is depending on how the window manager happens to be written

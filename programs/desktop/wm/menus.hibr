@@ -39,6 +39,9 @@ MB_PAR=
 MB_IN=0
 MB_AX=0
 MB_AN=
+# Where the window list was drawn, so a click reads the same rectangle.
+MB_ADY=1
+MB_ADX=0
 
 # A menu that opened at the pointer rather than under its bar title: MB_CX
 # and MB_CY are where it goes instead, MB_CTXWHO is what to ask for its
@@ -565,7 +568,8 @@ fn dt_aboutapp(ap) {
 	fi
 	local wt
 	wt := dt_tr "About %s" "${DT_ABOUT["$ap"]["title"]}"
-	id := dt_new "$wt" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) dtabout
+	dt_dlgat "$h" "$w"
+	id := dt_new "$wt" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" dtabout
 	DTAB[$id]["app"]=$ap
 	return 0
 }
@@ -1014,13 +1018,22 @@ fn dt_menu_draw(int m, int? px, int parent) {
 # The application menu: every window, the hidden ones marked, and one on
 # another workspace marked with that workspace's number -- choosing it
 # switches there.
+#
+# It drops from the bar, so it opens under the bar on the primary, inside
+# the primary's own columns: from row 1 and the whole screen's width it
+# opened on whatever display was stacked above the primary.
 dt_drop_apps() {
-	local ids id i=0 r=1 x w=18 t mark n il
+	local ids id i=0 r x w=18 t mark n il pl=${DT_PRIMARY_COL:-0}
+	local pr=$((${DT_PRIMARY_COL:-0} + ${DT_PRIMARY_W:-$DT_COLS}))
 
 	ids := dt_ids
 	read -ra il <<< "$ids"
+	r := dt_ptop
 	x=$((MB_AX - 4))
-	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
+	[ $((x + w)) -gt "$pr" ] && x=$((pr - w))
+	[ "$x" -lt "$pl" ] && x=$pl
+	MB_ADY=$r
+	MB_ADX=$x
 	n=${#il[@]}
 	[ "$n" = 0 ] && n=1
 	# The same.
@@ -1184,9 +1197,9 @@ fn dt_mpick(int r, int c) {
 
 	n := dt_mrows
 	if [ "$MB_OPEN" = app ]; then
-		x=$((MB_AX - 4))
+		x=$MB_ADX
 		w=18
-		dy=1
+		dy=$MB_ADY
 	else
 		x=${MB[$MB_OPEN]["dx"]:-${MB[$MB_OPEN]["x"]}}
 		# The width it was *drawn* at, and the same minimum as the

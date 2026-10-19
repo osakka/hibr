@@ -959,10 +959,6 @@ os.mkdir(os.path.join(AWHOME, "sub"))
 shutil.copy(os.path.abspath("tests/img-2x2.png"),
             os.path.join(AWHOME, "sub", "deep.png"))
 DOWN_WP = reach("wallset", "Image")
-# The picker window sits centred, 20 by 64, so on this 24 by 80 screen its
-# border is at row 2, column 8: a list row r is at screen row 2 + r, and
-# the list itself starts one column in.
-WPCOL = 10
 
 sc = cprun(DOWN_WP)
 check("Control Panel > Wallpaper offers the image picker as a row of its own",
@@ -1078,11 +1074,19 @@ check("but not above the first entry",
 # list's own *width* rather than on where its body actually starts, so
 # every click in it -- not just a repeated one -- was silently rejected,
 # which is what "not navigatable by mouse" turned out to mean in full.
-sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, WPCOL)],
+#
+# Where the picker is comes from the screen: it opens over the Control
+# Panel it was asked from (Gitea #293), not in the middle of the screen,
+# so its first entry -- the row under `../` -- is read rather than
+# assumed.
+sc = cprun(DOWN_WP + [b"\r"], env={"HOME": AWHOME})
+wpt = sc.find("┤ Wallpaper ├") or (2, 10)
+WPROW, WPCOL = wpt[0] + 3, wpt[1]
+sc = cprun(DOWN_WP + [b"\r", press(WPROW, WPCOL)],
            env={"HOME": AWHOME})
 check("a single click on a directory only selects it, not enters it",
       sc.find("wall.png") is not None, sc)
-sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, WPCOL), press(R0 + 2, WPCOL)],
+sc = cprun(DOWN_WP + [b"\r", press(WPROW, WPCOL), press(WPROW, WPCOL)],
            env={"HOME": AWHOME})
 check("a second click on the same row enters the directory",
       sc.find("deep.png") is not None and sc.find("wall.png") is None, sc)
@@ -3182,14 +3186,20 @@ check("Info opens a real Get Info window with the entry's own details",
       sc.find("Size: 6B") is not None and
       sc.find("Owner:") is not None and sc.find("Group:") is not None,
       sc)
+# Read from where the box rows are rather than from where a dialog
+# centred on the screen would put them: Get Info opens over the Files
+# window it was asked from (Gitea #293).
+gio = sc.find("Owner [") or (0, 0)
+gir, gic = gio[0], gio[1] + 7
 check("and the nine permission bits read as checkboxes, matching -rw-r--r--",
-      sc.at(13, 25) == "x" and sc.at(13, 31) == "x" and
-      sc.at(13, 37) == " " and
-      sc.at(14, 25) == "x" and sc.at(14, 31) == " ", sc)
+      sc.at(gir, gic) == "x" and sc.at(gir, gic + 6) == "x" and
+      sc.at(gir, gic + 12) == " " and
+      sc.at(gir + 1, gic) == "x" and sc.at(gir + 1, gic + 6) == " ", sc)
 
 NP = os.path.join(HD, "note.txt")
 os.chmod(NP, 0o644)
-sc = run("files", FW, [press(5, 10, 2), press(12, 12), press(14, 31)],
+sc = run("files", FW, [press(5, 10, 2), press(12, 12),
+                       press(gir + 1, gic + 6)],
          pre=HPRE, end=None)
 check("clicking a permission box chmods the real file at once",
       oct(os.stat(NP).st_mode & 0o777) == "0o664", sc)

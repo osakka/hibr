@@ -10,7 +10,7 @@
 strict
 
 
-app mailset "The Control Panel pane for Mail" 1.1
+app mailset "The Control Panel pane for Mail" 1.2
 # modules: email
 command -v cp_pane > /dev/null && cp_pane mailset "Mail" "✉" app
 command -v dt_app > /dev/null && dt_app mlad "Mail Account" 20 66 "" "" fixed hidden
@@ -214,14 +214,10 @@ fn ms_testshow(acct = "") {
 		return 0
 	fi
 	ms_test "$acct"
-	[ "$h" -gt $((DT_ROWS - 4)) ] && h=$((DT_ROWS - 4))
-	[ "$w" -gt $((DT_COLS - 4)) ] && w=$((DT_COLS - 4))
 	[ "$h" -lt 6 ] && h=6
 	[ "$w" -lt 24 ] && w=24
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
-	[ "$r" -lt 1 ] && r=1
-	[ "$c" -lt 0 ] && c=0
+	dt_dlgat "$h" "$w" 4
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	t := dt_wintitle "Mail Test" "$acct"
 	id := dt_new "$t" "$h" "$w" "$r" "$c" mst
 	f := ms_testfile "$acct"
@@ -546,21 +542,23 @@ fn mailset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 # Open the dialog on an account by name, or empty for a new one; or, with
 # "sig", the signature.
 fn mlad_show(name = "", what = "") {
-	local id h=22 w=66 r k i
+	local id h=22 w=66 r c k i
 
-	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
 	if [ "$what" = sig ]; then
-		id := dt_new "Signature" 8 "$w" $(((DT_ROWS - 8) / 2)) $(((DT_COLS - w) / 2)) mlad
+		dt_dlgat 8 "$w"
+		id := dt_new "Signature" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" mlad
 		MLAD[$id]["sig"]=1
 		MLAD[$id]["full"]=$DT_MAILSIG
 		MLAD[$id]["fullcur"]=${#DT_MAILSIG}
 		MLAD[$id]["focus"]=full
 		return 0
 	fi
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	if [ -n "$name" ]; then
-		id := dt_new "Mail Account" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mlad
+		id := dt_new "Mail Account" "$h" "$w" "$r" "$c" mlad
 	else
-		id := dt_new "Add a Mail Account" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mlad
+		id := dt_new "Add a Mail Account" "$h" "$w" "$r" "$c" mlad
 	fi
 	MLAD[$id]["orig"]=$name
 	for k in name email alias user full pass host port shost sport; do MLAD[$id]["$k"]=; done

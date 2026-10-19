@@ -166,6 +166,23 @@ something drawn inside a pane, where `darken` cannot reach, gets a shadow of
 exactly the same depth: the desktop's buttons draw theirs as `▄` and `▀` in
 this colour. The formula is `darken`'s own, in one place.
 
+`console pane top name` puts one pane above everything (Gitea #293): its
+cells are written only by drawing through it. The check lives in the grid's
+three writers -- `cn_put`, `cn_fill`, `cn_darken1` -- as `cn_guard`, two
+comparisons against the rows any top pane spans (`cn_ttop`, `cn_tbot`) for
+every cell outside that band, so a full-screen fill pays nothing measurable;
+`cn_pput` and `cn_pfill` name the pane being drawn through in `cn_wpane`,
+which is how the pane's own drawing gets past. A bitmap cannot leave a hole,
+so `cn_image` places a picture that owns its cells as the parts above and
+below the pane, each its own region over its own rows of the bitmap (a row
+of RGB at an offset into the buffer, nothing copied); one drawn under the
+text is left whole, since the pane's cells are over it already. A picture
+that reaches past the pane's columns is still cut by whole rows, so the part
+of it level with the bar and beside it goes too, on a display beside the
+primary -- one placement is a rectangle, not an L. `console hit` asks the
+top panes first. The desktop's menu bar is the one user: a window dragged
+across it, its shadow, a menu or a picture goes under the bar.
+
 ## Naming
 
 Everything is `cn_`, not `sc_`. `src/net.c` already uses `sc_` for schemes and

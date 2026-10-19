@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.99.253
+
+**The menu bar is always on top; the window list and every dialog open
+where you are working** (Gitea #293).
+
+Three reports from a desktop with a display stacked above the primary:
+
+- **The bar is above everything, always.** A window filling the display
+  above cast its shadow on the bar, and a window dragged across the bar
+  drew over it. Windows can still go anywhere; they now go *under* the
+  bar. The console has a **top pane** (`console pane top name`): its
+  cells are written only by drawing through it, so text, fills and
+  shadows from anywhere else leave them alone, `console hit` names it
+  even with a window raised over it, and a picture that owns its cells
+  -- a Browser, a film or an X Screen in pixels -- is placed as the parts
+  above and below it, since a bitmap cannot have a hole. A picture under
+  the text, the wallpaper, crosses it whole, because the bar's own cells
+  already cover it. The bar's pane is marked top when it is made. The
+  screenshot chooser is the one thing allowed over it while its band is
+  drawn, and its status line now goes on the bar wherever the bar is.
+  **The cost was measured, not reasoned**: the check asks once a row
+  whether the row is the bar's, never once a cell. A first version asked
+  per cell and cost 2 ns a cell, about 35 us a frame at 232x71. Now 1000
+  full-screen fills and shadows take 108 ms against 0.99.252's 112, medians
+  of nine runs, so nothing measurable.
+- **The window list opens under the bar.** It drew from row 1 across the
+  whole screen's width, so with a display above the primary it opened up
+  there. It opens at the bar's row now, inside the primary's columns, and
+  a click reads the same rectangle it was drawn in.
+- **A dialog opens over the window you are working in, on that window's
+  display**, or in the middle of the primary when nothing has focus. Some
+  thirty dialogs centred themselves on the whole screen, which with
+  several displays is somewhere between them. X Screen's Add Program,
+  opened from a Control Panel on another display, was out of sight. They
+  go through one helper, `dt_dlgat h w [margin]`, which also shrinks a
+  dialog to fit that display rather than the whole screen. That covers
+  Files' Rename, Get Info and Open With, Sheet, Write, Mail's compose and
+  account dialogs, Contacts, Calendar, Prayer Times, About Me, Date &
+  Time, File Types, Screenshots, the Browser and X Screen settings, the
+  wallpaper picker, the vault, network servers, the file dialog, About
+  <App> and Task Manager's Process Details. YouTube's mini player goes to
+  the corner of its own display, and About This Computer is sized to the
+  primary. The calendar's event editor, 23 rows, used to start on the
+  bar's own row at 80x24; it now takes the primary under the bar.
+
+The checks for the bar had to be made able to fail first. They passed
+against 0.99.252, because the fault is on frames where the bar is left
+alone while windows are drawn again, and Quit's confirm box is an overlay
+whose next frame draws the bar afresh. A window that keeps asking for
+frames, and a screen read before quitting, are what make them fail
+there (`tests/desktop.py`). `tests/console.py` and `tests/kitgfx.py`
+check the console's side, including pictures cut around a top pane.
+
+Found on the way and filed as #294: `${s//pat/rep}` grows nearly with
+the cube of the string's length (8 KB 2.8 s, 16 KB 20 s; bash 8 ms for
+60 KB).
+
+The apps and panes above go to the catalogue at new versions and need
+this hibr.
+
 ## 0.99.252
 
 **The Browser: one tab without a strip, tab keys, live pages, a scroll

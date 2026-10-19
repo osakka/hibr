@@ -12,7 +12,7 @@
 
 strict
 
-app tasks "What is running, and a way to end one" 1.1
+app tasks "What is running, and a way to end one" 1.2
 # part: control-panel/taskmgr.hibr
 
 # 64 columns rather than the 50 it opened at until 0.99.133: the names are
@@ -944,13 +944,12 @@ fn tasks_click(int id, int r, int? c = "", btn = "") {
 # its own scan cadence for what is meant to be a quick glance, not a
 # second Task Manager.
 fn tasks_opendetails(int? pid = "", name = "", owner = "", int? cpu = "", int? mem = "") {
-	local gid r c cmd
+	local gid cmd
 
 	[ -z "$pid" ] && return 0
 	cmd := tasks_cmdline "$pid" || cmd=$name
-	r=$((DT_ROWS / 2 - 5))
-	c=$(((DT_COLS - 56) / 2))
-	gid := dt_new "Process Details" 11 56 "$r" "$c" tdetail
+	dt_dlgat 11 56
+	gid := dt_new "Process Details" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" tdetail
 	TD[$gid]["pid"]=$pid
 	TD[$gid]["name"]=$name
 	TD[$gid]["owner"]=$owner

@@ -12,7 +12,7 @@
 
 strict
 
-app about "About this computer: the machine, and the desktop running on it" 1.0
+app about "About this computer: the machine, and the desktop running on it" 1.1
 # part: control-panel/abouthibr.hibr
 
 # 20 by 52, the same as about_size, which is what dt_launch actually asks
@@ -638,8 +638,8 @@ about_size() {
 	# The screen has the last word: a minimum applied after the clamp
 	# asks for a window taller than the screen on a very short one.
 	[ "$rows" -lt 12 ] && rows=12
-	[ "$rows" -gt $((DT_ROWS - 2)) ] && rows=$((DT_ROWS - 2))
-	[ "$cols" -gt $((DT_COLS - 2)) ] && cols=$((DT_COLS - 2))
+	[ "$rows" -gt $((${DT_PRIMARY_H:-$DT_ROWS} - 2)) ] && rows=$((${DT_PRIMARY_H:-$DT_ROWS} - 2))
+	[ "$cols" -gt $((${DT_PRIMARY_W:-$DT_COLS} - 2)) ] && cols=$((${DT_PRIMARY_W:-$DT_COLS} - 2))
 	ret "$rows $cols"
 }
 

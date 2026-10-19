@@ -19,7 +19,7 @@
 
 strict
 
-app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.1
+app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.2
 # part: control-panel/pimset.hibr
 # modules: dav db email pim
 
@@ -898,9 +898,12 @@ fn cedit_open(int id, arg = "") {
 # Open the editor on an occurrence a Calendar window shows (its number),
 # or on a new event on that window's chosen day.
 fn cedit_show(int from, i = "") {
-	local id h=23 w=70 c st en f k j=0 v r y m d
+	local id h=23 w=70 c st en f k j=0 v r y m d dr dc
 
-	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
+	# All of a primary under the bar, which at 80 by 24 is the 23 rows
+	# it needs; it used to start on the bar's own row there.
+	dt_dlgat "$h" "$w" 1
+	dr=$DT_DLGR dc=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	cv_cals
 	if [ "${CVK["n"]:-0}" = 0 ]; then
 		dt_notep high "No calendar yet: choose a server in Control Panel > PIM, then sync"
@@ -921,7 +924,7 @@ fn cedit_show(int from, i = "") {
 			fi
 			k=$((k + 1))
 		done
-		id := dt_new "Edit Event" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) cedit
+		id := dt_new "Edit Event" "$h" "$w" "$dr" "$dc" cedit
 		CED[$id]["srv"]=${CVI[$from][$i]["srv"]}
 		CED[$id]["coll"]=${CVI[$from][$i]["coll"]}
 		CED[$id]["href"]=${CVI[$from][$i]["href"]}
@@ -956,7 +959,7 @@ fn cedit_show(int from, i = "") {
 			[ "${CVK[$k]["srv"]}" = "${CED[$id]["srv"]}" ] && [ "${CVK[$k]["href"]}" = "${CED[$id]["coll"]}" ] && CED[$id]["cal"]=$k
 		done
 	else
-		id := dt_new "New Event" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) cedit
+		id := dt_new "New Event" "$h" "$w" "$dr" "$dc" cedit
 		c := cv_civil "${CVW[$from]["sel"]:-$EPOCHSECONDS}"
 		read -r y m d c <<< "$c"
 		st := pim when epoch "$y" "$m" "$d" 9 0 0

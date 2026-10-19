@@ -832,5 +832,26 @@ check("and an explicit HIBR_GFX wins over what the terminal answered",
       run(GFX, gfx="sixel", caps=["kitty"]).row(1).strip().startswith("sixel"),
       run(GFX, gfx="sixel", caps=["kitty"]).row(1))
 
+# A top pane -- the desktop's menu bar -- is above every picture as it is
+# above every cell, and a bitmap cannot leave a hole: a window in pixels
+# dragged across the bar drew over it. So a picture that owns its cells is
+# placed as the parts above and below the pane's rows, two placements of
+# two and three rows, and the pane's own text is still there between them.
+# One drawn under the text is left whole, since the pane's own cells are
+# over it already.
+TOPPANE = ("console pane bar 4 0 1 60\nconsole pane top bar\n"
+           "console put -p bar 0 0 BARTEXT\n")
+sc = run(TOPPANE + "img draw %s 2 2 6 12 -m pixels\nconsole flush\n" % GRAD)
+p = places(sc)
+check("a picture across a top pane is placed as the parts either side of it",
+      [(i[0], i[1]) for i in sc.images] == [(2, 2), (5, 2)] and
+      [key(a, "r") for a in p] == ["2", "3"], (sc.images, p))
+check("and the pane's own text is between them",
+      sc.row(4).startswith("BARTEXT"), sc.row(4))
+sc = run(TOPPANE + "img draw %s 2 2 6 12 -m pixels -u\nconsole flush\n" % GRAD)
+check("a picture under the text crosses it whole",
+      len(places(sc)) == 1 and sc.row(4).startswith("BARTEXT"),
+      (places(sc), sc.row(4)))
+
 shutil.rmtree(D, True)
-report(79)
+report(82)

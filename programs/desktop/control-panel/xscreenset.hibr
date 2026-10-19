@@ -13,7 +13,7 @@
 
 strict
 
-app xscreenset "The Control Panel pane for X Screen" 1.1
+app xscreenset "The Control Panel pane for X Screen" 1.2
 command -v cp_pane > /dev/null && cp_pane xscreenset "X Screen" "▣" app
 command -v dt_app > /dev/null &&
 	dt_app xsfield "X Screen Program" 11 66 "" "" fixed hidden
@@ -86,8 +86,8 @@ fn xscreenset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 fn xss_dialog(int k) {
 	local h=11 w=66 r c rid
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "X Screen Program" "$h" "$w" "$r" "$c" xsfield
 	XSF[$rid]["k"]=$k
 	XSF[$rid]["name"]=

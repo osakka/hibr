@@ -34,10 +34,8 @@ DT_FPPEND=
 fn dt_filepick(mode, title, types, dir, name, callback, for) {
 	local h=20 w=76 r c rid
 
-	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
-	[ "$h" -gt $((DT_ROWS - 2)) ] && h=$((DT_ROWS - 2))
-	r=$(((DT_ROWS - h) / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	[ -n "${DT_FPLAST["$callback"]}" ] && [ -d "${DT_FPLAST["$callback"]}" ] &&
 		[ -z "$dir" ] && dir=${DT_FPLAST["$callback"]}
 	[ -d "$dir" ] || dir=${HOME:-/}

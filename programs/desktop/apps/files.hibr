@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 1.1
+app files "A file browser" 1.2
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -1141,8 +1141,8 @@ fn files_rename(int id) {
 	[ "${FL[$id][$sel]["kind"]}" = up ] && return 0
 	nm=${FL[$id][$sel]["name"]}
 	p := fb_path "$id" "$sel"
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "Rename" "$h" "$w" "$r" "$c" rn
 	RN[$rid]["dir"]=${FB[$id]["dir"]}
 	RN[$rid]["path"]=$p
@@ -1260,8 +1260,8 @@ fn files_info(int id) {
 	nm=${FL[$id][$sel]["name"]}
 	p := fb_path "$id" "$sel"
 	isdir=${FL[$id][$sel]["dir"]}
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	gid := dt_new "Get Info" "$h" "$w" "$r" "$c" gi
 	GI[$gid]["dir"]=${FB[$id]["dir"]}
 	GI[$gid]["path"]=$p
@@ -1552,8 +1552,8 @@ fn files_openother(int id) {
 	sel=${FB[$id]["sel"]}
 	[ "${FL[$id][$sel]["dir"]}" = 1 ] && return 0
 	p := fb_path "$id" "$sel"
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "Open With" "$h" "$w" "$r" "$c" ow
 	OW[$rid]["path"]=$p
 	OW[$rid]["buf"]=

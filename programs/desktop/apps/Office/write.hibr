@@ -19,7 +19,7 @@
 
 strict
 
-app write "A word processor for markdown, shown as it reads" 1.1
+app write "A word processor for markdown, shown as it reads" 1.2
 # modules: md mermaid
 
 command -v dt_app > /dev/null && dt_app write "Write" 22 78 many "¶"
@@ -1191,8 +1191,8 @@ fn wr_html(int id) {
 fn wr_dialog(int id, mode) {
 	local h=8 w=56 r c rid v=
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	v=${WR[$id]["find"]}
 	rid := dt_new "Write" "$h" "$w" "$r" "$c" wrfile
 	WRF[$rid]["mode"]=$mode

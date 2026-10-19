@@ -406,6 +406,40 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		row += prow;
 		col += pcol;
 	}
+	/* A top pane -- the desktop's menu bar -- is above every picture, and
+	   a bitmap cannot leave a hole for it: a window in pixels dragged over
+	   the bar would cover it. So a picture that owns its cells is placed
+	   as the parts on either side of the pane's rows, each a picture of
+	   its own rows of the bitmap, which a row of RGB already is at an
+	   offset into the buffer. A picture under the text is left whole,
+	   since the pane's own cells cover it by construction. */
+	if (!(flags & DP_IMG_UNDER)) {
+		cn_pane *tp = cn_ptopin(row, col, h, w);
+
+		if (tp) {
+			int a = 0, b = 0, th = tp->row - row;
+			int bh = row + h - (tp->row + tp->h);
+			int py;
+
+			if (th > 0) {
+				py = (int)((long long)th * ih / h);
+				if (py > 0)
+					a = cn_image(s, 0, row, col, th, w, rgb,
+						     iw, py, flags);
+			}
+			if (bh > 0) {
+				py = (int)((long long)(h - bh) * ih / h);
+				if (py < ih)
+					b = cn_image(s, 0, tp->row + tp->h, col,
+						     bh, w,
+						     rgb + (size_t)py * iw * 3,
+						     iw, ih - py, flags);
+			}
+			lg(HIBR_LDBG, "picture at %d,%d cut around top pane %s",
+			   row, col, tp->nm);
+			return a || b;
+		}
+	}
 	/* What the caller asked for, before the screen's edges are allowed to
 	   crop it: that rectangle is what names this region from one frame to
 	   the next, so the identity checks below and cn_imgkeep compare it

@@ -15,7 +15,7 @@
 strict
 
 
-app datetime "The Control Panel pane for the time, the date and the time zone" 1.1
+app datetime "The Control Panel pane for the time, the date and the time zone" 1.2
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷" hardware
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"
@@ -302,8 +302,8 @@ declare -gA DTF
 dtf_dialog() {
 	local h=9 w=50 r c rid
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "Clock Format" "$h" "$w" "$r" "$c" dtf
 	DTF[$rid]["buf"]=$DT_BARTIME
 	DTF[$rid]["cur"]=${#DT_BARTIME}
@@ -433,8 +433,8 @@ dtz_dialog() {
 	local h=16 w=46 r c rid
 
 	dtp_zones
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "Time Zone" "$h" "$w" "$r" "$c" dtz
 	DTZ[$rid]["buf"]=
 	DTZ[$rid]["cur"]=0
@@ -571,8 +571,8 @@ declare -gA DTS
 dts_dialog() {
 	local h=10 w=46 r c rid d t ntp=
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "Set Date & Time" "$h" "$w" "$r" "$c" dts
 	printf -v d '%(%Y-%m-%d)T' -1
 	printf -v t '%(%H:%M:%S)T' -1

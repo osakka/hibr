@@ -16,7 +16,7 @@
 
 strict
 
-app contacts "The people in your address books, kept offline from CardDAV" 1.2
+app contacts "The people in your address books, kept offline from CardDAV" 1.3
 # part: control-panel/pimset.hibr
 # modules: dav db pim
 
@@ -593,12 +593,13 @@ PE_ORDER=(name emails tels org note ok cancel)
 
 # Open the editor on a contact (its list position), or empty for a new one.
 fn pedit_show(i = "") {
-	local id h=16 w=64 k
+	local id h=16 w=64 k r c
 
-	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
 	pe_servers || { dt_notep high "Choose a server for contacts first, in Control Panel > PIM"; return 0; }
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	if [ -n "$i" ]; then
-		id := dt_new "Edit Contact" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) pedit
+		id := dt_new "Edit Contact" "$h" "$w" "$r" "$c" pedit
 		PED[$id]["srv"]=${PE[$i]["srv"]}
 		for k in href coll uid etag org note; do
 			PED[$id]["$k"] := pe_f "$i" "$k"
@@ -609,7 +610,7 @@ fn pedit_show(i = "") {
 		k := pe_f "$i" tels
 		PED[$id]["tels"]=${k//$'\t'/, }
 	else
-		id := dt_new "New Contact" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) pedit
+		id := dt_new "New Contact" "$h" "$w" "$r" "$c" pedit
 		PED[$id]["srv"]=${PE_SRVS[0]}
 		for k in href coll uid etag name emails tels org note; do PED[$id]["$k"]=; done
 	fi

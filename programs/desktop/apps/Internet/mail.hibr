@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 1.2
+app mail "Email, offline, labels and conversations as Gmail has them" 1.3
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -1629,7 +1629,7 @@ fn mlc_accept(int id, int k) {
 # else sent; when every one is the account's own, it goes to whoever the
 # newest was sent to.
 fn mlc_new(int? from = "", mode = new, toaddr = "") {
-	local acct= r i f id h=22 w=76 me full body= subj= to= cc= ref= irt= d q line k
+	local acct= r i f id h=22 w=76 me full body= subj= to= cc= ref= irt= d q line k dr dc
 	local duid=
 	local -a ls
 
@@ -1641,8 +1641,8 @@ fn mlc_new(int? from = "", mode = new, toaddr = "") {
 	fi
 	[ -n "$acct" ] || { ml_accounts && acct=${ML_ACCTS[0]}; }
 	[ -n "$acct" ] || { dt_notep high "Set up a mail account first, in Control Panel > Mail"; return 0; }
-	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
-	[ "$h" -gt $((DT_ROWS - 2)) ] && h=$((DT_ROWS - 2))
+	dt_dlgat "$h" "$w"
+	dr=$DT_DLGR dc=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	r := email accounts 2> /dev/null
 	me=${r["$acct"]["email"]}
 	full=${r["$acct"]["name"]}
@@ -1707,7 +1707,7 @@ fn mlc_new(int? from = "", mode = new, toaddr = "") {
 	if [ -z "$wt" ]; then
 		wt := dt_tr "New Message"
 	fi
-	id := dt_new "$wt" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mailc
+	id := dt_new "$wt" "$h" "$w" "$dr" "$dc" mailc
 	MC[$id]["acct"]=$acct
 	MC[$id]["from"]=$me
 	[ -n "$full" ] && MC[$id]["from"]="$full <$me>"

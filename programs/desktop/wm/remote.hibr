@@ -541,8 +541,8 @@ fn dt_davserver(name = "") {
 	local id h=15 w=66 r c s
 
 	dt_davok || { dt_notep high "$DT_WHY"; return 1; }
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	if [ -n "$name" ]; then
 		id := dt_new "Edit Server" "$h" "$w" "$r" "$c" dsv
 	else

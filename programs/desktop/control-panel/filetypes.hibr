@@ -9,7 +9,7 @@
 strict
 
 
-app filetypes "Which program opens which kind of file" 1.0
+app filetypes "Which program opens which kind of file" 1.1
 command -v cp_pane > /dev/null && cp_pane filetypes "File Types" "◈"
 command -v dt_app > /dev/null && dt_app ft "File Type" 9 54 "" "" fixed hidden
 command -v dt_app > /dev/null && dt_app owt "Open With" 14 50 "" "" fixed hidden
@@ -128,8 +128,8 @@ fn filetypes_do(int w, k, ...rest) {
 fn ft_dialog(ext) {
 	local h=10 w=54 r c cmd rid
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "File Type" "$h" "$w" "$r" "$c" ft
 	FT[$rid]["orig"]=$ext
 	FT[$rid]["extbuf"]=$ext
@@ -346,8 +346,8 @@ fn owt_dialog(ext) {
 
 	dt_openers "x.$ext"
 	cand=("${DT_OWLIST[@]}")
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	local wt
 	wt := dt_tr "Open With: .%s" "$ext"
 	rid := dt_new "$wt" "$h" "$w" "$r" "$c" owt

@@ -100,6 +100,10 @@ dt_shot_band() {
 		[ "$c0" -gt "$c1" ] && { r=$c0; c0=$c1; c1=$r; }
 		t="$((r1 - r0 + 1)) x $((c1 - c0 + 1)): enter takes it"
 	fi
+	# The one thing allowed over the bar: a band being chosen may
+	# include it, and its outline has to be seen there. The frame after
+	# the chooser is a full one, which draws the bar again.
+	console pane top bar off
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	if [ "$r0" = "$r1" ] && [ "$c0" = "$c1" ]; then
 		console put "$r0" "$c0" "+"
@@ -115,7 +119,8 @@ dt_shot_band() {
 		done
 	fi
 	console pen "$DT_BAR" "$DT_ACTIVE" bold
-	console put 0 0 " $t, escape cancels "
+	console put -p bar 0 0 " $t, escape cancels "
+	console pane top bar on
 }
 
 # Every key and click goes here while the chooser or the band is up.

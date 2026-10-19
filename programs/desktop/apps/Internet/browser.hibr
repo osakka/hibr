@@ -33,7 +33,7 @@
 
 strict
 
-app browser "The web, in a window" 1.3
+app browser "The web, in a window" 1.4
 # modules: web
 # part: control-panel/browserset.hibr
 

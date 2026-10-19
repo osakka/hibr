@@ -32,7 +32,7 @@
 strict
 
 
-app xscreen "X11 programs in windows of their own" 1.1
+app xscreen "X11 programs in windows of their own" 1.2
 # modules: xscr
 # part: control-panel/xscreenset.hibr
 command -v dt_app > /dev/null &&

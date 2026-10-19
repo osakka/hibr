@@ -241,6 +241,10 @@ dt_bar() {
 	# and a bar at row 0 there is a bar drawn on somebody else's display.
 	if [ "$DT_BARPANE" != "$DT_PRIMARY_ROW $DT_PRIMARY_COL $w" ]; then
 		console pane bar "$DT_PRIMARY_ROW" "$DT_PRIMARY_COL" 1 "$w"
+		# Above everything: a window dragged over the bar, its shadow,
+		# a menu or a picture goes under it, since the console writes
+		# a top pane's cells only through the pane itself.
+		console pane top bar
 		DT_BARPANE="$DT_PRIMARY_ROW $DT_PRIMARY_COL $w"
 		DT_BARWAS=
 	fi

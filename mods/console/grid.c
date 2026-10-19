@@ -29,6 +29,7 @@ static int cn_ownr, cn_ownc, cn_ownok, cn_behindon;
 size_t cn_wrote;
 static size_t cn_wflush;
 static int cn_skip(int row, int col);
+static int cn_gband(int row);
 unsigned cn_fg, cn_bg, cn_penat;
 /* While this is non-zero, a cell written with no background colour of its
    own, over a picture drawn under the text, takes that picture's colour
@@ -325,7 +326,7 @@ void cn_darken(int row, int col, int h, int w, int pct)
    moving away, gets its shadow cast afresh. */
 void cn_darken1(int row, int col, int h, int w, int pct, int once)
 {
-	int r, c;
+	int r, c, g;
 	unsigned pic;
 	cn_cell *k;
 
@@ -339,8 +340,11 @@ void cn_darken1(int row, int col, int h, int w, int pct, int once)
 	for (r = row; r < row + h; r++) {
 		if (r < 0 || r >= cn_back.rows)
 			continue;
+		g = cn_gband(r);
 		for (c = col; c < col + w; c++) {
 			if (c < 0 || c >= cn_back.cols)
+				continue;
+			if (g && cn_ptopat(r, c))
 				continue;
 			k = &cn_back.c[r * cn_back.cols + c];
 			if (once && (k->attr & CN_SHADOWED))
@@ -391,7 +395,7 @@ void cn_split(int row, int col)
 int cn_put(int row, int col, const char *t)
 {
 	size_t n, i = 0;
-	int start = col, w, l;
+	int start = col, w, l, g;
 	unsigned cp;
 	cn_cell *c;
 
@@ -399,6 +403,7 @@ int cn_put(int row, int col, const char *t)
 		return 0;
 	cn_wrote++;
 	n = strlen(t);
+	g = cn_gband(row);
 	while (i < n) {
 		l = u8dec(t + i, n - i, &cp);
 		w = u8w(cp);
@@ -421,7 +426,9 @@ int cn_put(int row, int col, const char *t)
 			continue;
 		}
 		if (row < 0 || row >= cn_back.rows || col < 0 ||
-		    col + w > cn_back.cols || cn_skip(row, col)) {
+		    col + w > cn_back.cols || cn_skip(row, col) ||
+		    (g && (cn_ptopat(row, col) ||
+			   (w == 2 && cn_ptopat(row, col + 1))))) {
 			col += w;
 			i += (size_t)l;
 			continue;
@@ -466,7 +473,7 @@ int cn_put(int row, int col, const char *t)
    wide glyph or a string, still goes through cn_put. */
 void cn_fill(int row, int col, int h, int w, const char *t)
 {
-	int r, c, adv, l, gw;
+	int r, c, adv, l, gw, g;
 	unsigned cp;
 	cn_cell *p;
 
@@ -481,9 +488,10 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 		for (r = row; r < row + h; r++) {
 			if (r < 0 || r >= cn_back.rows)
 				continue;
+			g = cn_gband(r);
 			for (c = col; c < col + w; c++) {
 				if (c < 0 || c >= cn_back.cols ||
-				    cn_skip(r, c))
+				    cn_skip(r, c) || (g && cn_ptopat(r, c)))
 					continue;
 				cn_split(r, c);
 				p = &cn_back.c[r * cn_back.cols + c];
@@ -628,6 +636,18 @@ int cn_near(int r, int c)
 void cn_owninval(void)
 {
 	cn_ownok = 0;
+	cn_tok = 0;
+}
+
+/* Whether a row is one a top pane spans: asked once a row, never once a
+   cell, so a row outside the band -- every row but the bar's -- costs the
+   writers nothing per cell. Asking per cell measured 2 ns a cell, about
+   35 us a frame at 232x71, against a 0.7 ms frame budget. */
+static int cn_gband(int row)
+{
+	if (!cn_tok)
+		cn_tband();
+	return row >= cn_ttop && row < cn_tbot;
 }
 
 /* Make the map describe the panes as they are now. */

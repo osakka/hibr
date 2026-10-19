@@ -2877,6 +2877,86 @@ sc, _ = run(STACKD, [press(9, 40, 2)])
 check("a right-click on a display below the primary opens its menu there, "
       "at the pointer",
       sc.find("Arrange Icons") == (9, 42), sc)
+# The bar is above everything (Gitea #293), here on a primary with a
+# display stacked *above* it, so the bar is at row 8 with a display's worth
+# of room over it. A window filling that display cast its shadow on the bar,
+# and one dragged across it drew over it. Row 8, glyphs and pens, must be
+# exactly what it is with the same window somewhere else; the clock is
+# pinned, since a glyph comparison seconds apart is exposed to the minute.
+#
+# Two things make the check able to fail, and without either it passed
+# against the old desktop. The fault is on the frames where the bar is
+# left alone, unchanged, while windows are drawn again -- so a window that
+# asks for a frame every 40 ms keeps them coming, which is what a moving
+# window or a terminal does in life. And the screen is read before
+# quitting, because Quit's confirm box is an overlay and the frame after
+# one draws the bar again, over whatever was on it.
+STACKUP = ('DT_DISPLAYS=("0 0 8 80 self" "8 0 16 80 self")\n'
+           'DT_DISPNAMES=(a b)\nDT_PRIMARY_COL=0\nDT_PRIMARY_W=80\n'
+           'DT_PRIMARY_ROW=8\nDT_PRIMARY_H=16\n')
+PIN = {"DT_BARTIME": "hibr"}
+TICK = ('tk_open() { return 0; }\ntk_draw() { dt_want 40; return 0; }\n'
+        'dt_app tk "Tk" 4 16 "" "" "" "" ""\ndt_new "Tk" 4 16 18 60 tk\n')
+
+
+def live(session):
+    """The screen a second into a session that keeps drawing, read while it
+    is still running."""
+    path = screen.scratch("desktop-live.hibr")
+    open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, STACKUP + session + TICK))
+    t = Term(path, env=dict({"DT_TICK": "60"}, **PIN), rows=ROWS, cols=COLS,
+             settle=0.5)
+    t.keys([1.0])
+    sc = t.screen()
+    t.quit(b"qy", 1.2)
+    os.unlink(path)
+    return sc
+
+
+base = live('dt_new "Win" 6 40 12 10\n')
+fill = live('dt_new "Win" 8 80 0 0\n')
+over = live('dt_new "Win" 6 40 5 10\n')
+check("a window filling the display above casts no shadow on the bar",
+      fill.row(8) == base.row(8) and fill.p[8] == base.p[8],
+      (base.row(8), fill.row(8), [i for i in range(80)
+                                  if fill.p[8][i] != base.p[8][i]][:8]))
+check("and one dragged across the bar goes under it",
+      over.row(8) == base.row(8) and over.p[8] == base.p[8] and
+      over.find("┤ Win ├") is not None, (base.row(8), over.row(8)))
+# The window list drops from the bar, so it opens under the bar: it drew
+# from row 1, on the display above. And a click on its row picks what it
+# shows there -- the hidden window comes back.
+WL = STACKUP + 'id := dt_new "Zed" 6 30 12 5\ndt_min "$id"\ndt_new "Yon" 6 30 12 40\n'
+sc, _ = run(WL, [press(8, 72), release(8, 72)], env=PIN)
+check("the window list opens under the bar on the primary",
+      "Zed" in sc.row(9)[60:] and "Yon" in sc.row(10)[60:] and
+      "Zed" not in sc.row(1), (sc.row(1), sc.row(9), sc.row(10)))
+sc, _ = run(WL, [press(8, 72), release(8, 72), 0.2, press(9, 68),
+                 release(9, 68)], env=PIN)
+check("and a click on its row picks that window",
+      sc.find("┤ Zed ├") is not None, sc)
+# A dialog opens over the window being worked in, on that window's display,
+# and in the middle of the primary when nothing has focus: centred on the
+# whole screen it opened between displays or on another one.
+DLG = 'dt_dlgat 4 30\ndt_new "Dlg" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC"\n'
+up, _ = run(STACKUP + 'dt_new "Work" 6 40 1 20\n' + DLG, env=PIN)
+down, _ = run(STACKUP + 'dt_new "Work" 6 40 12 20\n' + DLG, env=PIN)
+none, _ = run(STACKUP + DLG, env=PIN)
+where = [s.find("┤ Dlg ├") for s in (up, down, none)]
+check("a dialog opens over the focused window, on its own display",
+      where[0] and where[0][0] == 2 and where[1] and where[1][0] == 13,
+      (where, up, down))
+check("and in the middle of the primary when nothing has focus",
+      where[2] and where[2][0] == 14, (where, none))
+sc, _ = run(STACKUP + 'dt_new "Work" 6 40 1 20\ndt_dlgat 30 100\n'
+            'dt_new "Big" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC"\n',
+            env=PIN)
+big = sc.find("┤ Big ├")
+check("and one too large for that display is made to fit it",
+      big is not None and big[0] == 1 and sc.row(7).lstrip("·").startswith("└"),
+      sc)
+
 sc, _ = run(ONE, [press(6, 20, 2), b"h"])
 check("Hide from it hides the window",
       sc.find("┤ Hello ├") is None, sc)
@@ -4895,10 +4975,14 @@ os.unlink(path)
 # Both, because either alone is thin: with the line removed this measures 57
 # frames and 5.2% of a core, against 8 and 0.5% with it, twice in a row -- and
 # a frame count on its own was 37 against a threshold of 40, which is a check
-# that passes the bug on a slow box.
+# that passes the bug on a slow box. The CPU bound widens under the
+# sanitizers, which cost several times as much a frame: 0.99.253's quick
+# gate measured the right 8 frames at 2.0%, beside 39 other suites. The
+# bug is 57 frames, which the count still refuses.
+SANSLOW = 4 if os.environ.get("ASAN_OPTIONS") else 1
 check("no saver to run clears the screen once a period, not every frame "
       "(%d frames, %.1f%% of a core in 4s)" % (drew, hot * 100),
-      drew < 25 and hot < 0.02, (drew, hot))
+      drew < 25 and hot < 0.02 * SANSLOW, (drew, hot))
 
 # --- the login screen --------------------------------------------------------
 #
@@ -5761,4 +5845,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(643)
+report(650)

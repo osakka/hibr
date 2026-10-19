@@ -10,7 +10,7 @@
 strict
 
 
-app aboutme "The Control Panel pane for About Me" 1.0
+app aboutme "The Control Panel pane for About Me" 1.1
 command -v cp_pane > /dev/null && cp_pane aboutme "About Me" "☺"
 command -v dt_app > /dev/null && dt_app abm "About Me" 11 60 "" "" fixed hidden
 
@@ -120,8 +120,8 @@ fn ab_picked(id = "", path = "", type = "") {
 ab_dialog() {
 	local id h=11 w=60 r c v
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	ab_load
 	id := dt_new "About Me" "$h" "$w" "$r" "$c" abm
 	v=${AB_ME["name"]}

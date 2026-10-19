@@ -21,8 +21,8 @@ fn cp_set_shotlast(int? id = "", value = "") { DT_SHOTLAST=$value; cp_save; }
 shd_dialog() {
 	local h=8 w=54 r c rid
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "Screenshot Folder" "$h" "$w" "$r" "$c" shotdir
 	SHD[$rid]["buf"]=$DT_SHOTDIR
 	SHD[$rid]["cur"]=${#DT_SHOTDIR}

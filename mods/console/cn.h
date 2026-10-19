@@ -55,7 +55,20 @@ struct cn_grid {
 struct cn_pane {
 	char *nm;
 	int row, col, h, w;
+	int top;
 };
+
+/* A pane marked `top` is above everything, whatever the stack says: a cell
+   inside it is written only by drawing through that pane, so no window, no
+   shadow, no menu and no picture can cover it (the desktop's menu bar).
+   cn_ttop and cn_tbot are the rows any top pane spans, a band a write
+   outside it is refused by in two comparisons; cn_wpane is the pane a write
+   is being made through, set by cn_pput and cn_pfill for its length. */
+extern int cn_ttop, cn_tbot, cn_tok;
+extern const cn_pane *cn_wpane;
+void cn_tband(void);
+int cn_ptopat(int row, int col);
+cn_pane *cn_ptopin(int row, int col, int h, int w);
 
 int cn_open(sh *s);
 void cn_close(sh *s);

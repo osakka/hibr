@@ -7,7 +7,7 @@
 
 strict
 
-app prayer "Today's prayer times for where you are, the next one lit" 1.0
+app prayer "Today's prayer times for where you are, the next one lit" 1.1
 # part: control-panel/prayerset.hibr
 # part: control-strip/nextprayer.hibr
 # modules: salat
@@ -115,8 +115,8 @@ prayer_menus() {
 pyloc_show() {
 	local id h=9 w=50 r c loc a b
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	id := dt_new "Prayer Location" "$h" "$w" "$r" "$c" pyloc
 	a=$DT_PLAT
 	b=$DT_PLON

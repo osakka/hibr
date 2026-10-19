@@ -16,7 +16,7 @@
 
 strict
 
-app browserset "The Control Panel pane for the Browser" 1.1
+app browserset "The Control Panel pane for the Browser" 1.2
 command -v cp_pane > /dev/null && cp_pane browserset "Browser" "◎" app
 command -v dt_app > /dev/null &&
 	dt_app bwfield "Browser Setting" 8 64 "" "" fixed hidden
@@ -242,8 +242,8 @@ bs_preset() {
 fn bs_dialog(var) {
 	local h=8 w=64 r c rid v
 
-	r=$((DT_ROWS / 2 - h / 2))
-	c=$(((DT_COLS - w) / 2))
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
 	rid := dt_new "Browser Setting" "$h" "$w" "$r" "$c" bwfield
 	BSF[$rid]["var"]=$var
 	BSF[$rid]["buf"]=${!var}
