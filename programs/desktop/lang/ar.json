@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.2",
+ "version": "3.3",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -676,6 +676,7 @@
   "PIN": "الرمز السري",
   "Page Zoom": "تكبير الصفحة",
   "Pages": "الصفحات",
+  "Pages May Play Sound On Their Own": "للصفحات أن تشغّل الصوت من تلقاء نفسها",
   "Pass Every Key": "تمرير كل المفاتيح",
   "Password": "كلمة المرور",
   "Password Box On": "مربع كلمة المرور على",

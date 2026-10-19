@@ -30,10 +30,15 @@
 # downloads into a folder, each told in a note as it lands; a page's own
 # notifications become the desktop's notes. File > Save as PDF prints the
 # page to a file.
+#
+# A page's sound plays through the media module (Gitea #305): the browser
+# records each tab's own sound once the page is pressed or typed into --
+# or as it loads, with Pages May Play Sound On Their Own -- and each tab
+# has a player of its own for it.
 
 strict
 
-app browser "The web, in a window" 1.6
+app browser "The web, in a window" 1.7
 # modules: web
 # part: control-panel/browserset.hibr
 
@@ -62,10 +67,16 @@ BW_PMIC="${BW_PMIC-refuse}"
 BW_PNOTE="${BW_PNOTE-refuse}"
 BW_DL="${BW_DL-0}"
 BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
+BW_AUTOPLAY="${BW_AUTOPLAY-0}"
 command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
 	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
-	BW_LANG BW_DNT BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR
+	BW_LANG BW_DNT BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
+	BW_AUTOPLAY
 declare -gA BWX
+# A tab's sound: its player, the pipe into it, and when it was last
+# pressed, typed into or sent somewhere -- the moments a recording may
+# begin -- keyed by the tab, which is the browser's and so unique.
+declare -gA BWS BWSF BWSA
 BW_MARKS="${BW_MARKS-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/bookmarks.tsv}"
 BW_FD=
 BW_TABS=()
@@ -141,6 +152,70 @@ fn bw_apply(t) {
 	on=off
 	[ "$BW_PNOTE" = allow ] && on=on
 	web set "$t" notes "$on" 2> /dev/null
+	on=click
+	[ "$BW_AUTOPLAY" = 1 ] && on=load
+	web sound "$t" "$on" 2> /dev/null
+	return 0
+}
+
+# A tab may be about to start its sound: it was just pressed, typed into
+# or sent to a page, so it is taken from at once rather than when it has
+# something already.
+fn bw_sndarm(t) {
+	[ -n "$t" ] && BWSA["$t"]=$EPOCHSECONDS
+	return 0
+}
+
+# A tab's player, closed with the tab or at a new recording.
+fn bw_sndstop(t) {
+	[ -n "${BWS["$t"]-}" ] && media close "${BWS["$t"]}" 2> /dev/null
+	unset BWS["$t"] BWSF["$t"]
+	return 0
+}
+
+# Take what a window's tabs have recorded into their players. A recording
+# opens with a reset that comes alone, before any of its sound, which is
+# when the tab's player is started afresh. A tab playing is taken from
+# every 200 ms; one gone quiet -- the browser pauses its recording after
+# two seconds of silence -- once a second, to hear it start again; and
+# one with no recording only for ten seconds after it was pressed, typed
+# into or sent somewhere, so a desktop with a Browser open and nothing
+# playing asks for nothing.
+fn bw_sound(int id) {
+	local t s p fd want=
+	local -a w
+
+	bw_tabs "$id"
+	for t in "${BW_TABS[@]}"; do
+		if [ -z "${BWS["$t"]-}" ] &&
+		   [ $((EPOCHSECONDS - ${BWSA["$t"]:-0})) -gt 10 ]; then
+			continue
+		fi
+		fd=${BWSF["$t"]:--}
+		s := web take "$t" - "$fd" 2> /dev/null || continue
+		read -ra w <<< "$s"
+		if [ "${w[5]}" = 1 ]; then
+			bw_sndstop "$t"
+			need media 2> /dev/null || continue
+			p := media feed 2> /dev/null || continue
+			fd := media pipe "$p" audio 2> /dev/null || {
+				media close "$p" 2> /dev/null
+				continue
+			}
+			BWS["$t"]=$p
+			BWSF["$t"]=$fd
+			want=50
+		fi
+		case ${w[11]} in
+		on) [ "${want:-9999}" -gt 200 ] && want=200 ;;
+		quiet) [ -z "$want" ] && want=1000 ;;
+		*)
+			[ -n "${BWS["$t"]-}" ] && [ "${w[5]}" != 1 ] && bw_sndstop "$t"
+			[ -z "$want" ] && want=250
+			;;
+		esac
+	done
+	[ -n "$want" ] && dt_want "$want"
 	return 0
 }
 
@@ -231,6 +306,7 @@ fn bw_newtab(int id, url = "") {
 	}
 	bw_wide
 	bw_apply "$t"
+	bw_sndarm "$t"
 	[ -n "$url" ] && web go "$t" "$url" 2> /dev/null
 	bw_watch
 	BW[$id]["tabs"]="${BW[$id]["tabs"]:+${BW[$id]["tabs"]} }$t"
@@ -251,6 +327,7 @@ fn bw_closetab(int id, t) {
 		out="${out:+$out }$x"
 		n=$((n + 1))
 	done
+	bw_sndstop "$t"
 	web close "$t" 2> /dev/null
 	BW[$id]["tabs"]=$out
 	if [ "$n" = 0 ]; then
@@ -287,7 +364,11 @@ fn browser_close(int id) {
 	local -a il
 
 	bw_tabs "$id"
-	for t in "${BW_TABS[@]}"; do web close "$t" 2> /dev/null; done
+	for t in "${BW_TABS[@]}"; do
+		bw_sndstop "$t"
+		unset BWSA["$t"]
+		web close "$t" 2> /dev/null
+	done
 	unset "BW[$id]"
 	for t in "${!BWX[@]}"; do
 		[[ $t == "$id:"* ]] && unset BWX["$t"]
@@ -357,6 +438,7 @@ fn browser_idle(int id) {
 		web set "${BW[$id]["live"]}" live off 2> /dev/null
 		BW[$id]["live"]=
 	fi
+	bw_sound "$id"
 	return 0
 }
 
@@ -397,6 +479,7 @@ fn bw_goaddr(int id) {
 	if [ -z "$t" ]; then
 		bw_newtab "$id" "$a"
 	else
+		bw_sndarm "$t"
 		web go "$t" "$a" 2> /dev/null
 	fi
 }
@@ -419,6 +502,7 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	[ "$ar" = 2 ] && bw_strip "$id" "$t" "$w"
 	bw_bar "$id" "$t" "$w" "$ar"
 	bw_body "$id" "$t" "$h" "$w" "$pt" "$ph"
+	bw_sound "$id"
 }
 
 # The tab strip on row 1: each tab, its close box, and + for another.
@@ -773,6 +857,7 @@ fn browser_key(int id, key) {
 	ctrl-pageup) bw_steptab "$id" -1; return 0 ;;
 	esac
 	[ -n "$t" ] || return 1
+	bw_sndarm "$t"
 	web key "$t" "$key" 2> /dev/null || return 1
 	return 0
 }
@@ -812,6 +897,7 @@ fn browser_click(int id, int r, int c, btn = "") {
 			> /dev/null 2>&1
 		return 0
 	fi
+	bw_sndarm "$t"
 	[ -n "$t" ] && [ "$r" -ge "$pt" ] &&
 		web click "$t" $((r - pt)) $((c - 1)) 2> /dev/null
 	return 0
@@ -930,6 +1016,7 @@ fn bw_open(int id, url) {
 
 	[ -n "$url" ] && url := bw_addr "$url"
 	if [ -n "$t" ]; then
+		bw_sndarm "$t"
 		web go "$t" "$url" 2> /dev/null
 	else
 		bw_newtab "$id" "$url"

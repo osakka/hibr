@@ -134,6 +134,7 @@ wb_tab *wb_tabopen(const char *url)
 		jv_free(r);
 	}
 	wb_size(t, 24, 80);
+	wb_sndguard(t);
 	if (url && *url)
 		wb_go(t, url);
 	return t;
@@ -165,6 +166,7 @@ void wb_tabclose(wb_tab *t)
 	free(t->lang);
 	free(t->uaset);
 	free(t->dntjs);
+	free(t->sndjs);
 	free(t->notejs);
 	s_free(&t->url);
 	s_free(&t->title);
@@ -224,13 +226,24 @@ int wb_size(wb_tab *t, int rows, int cols)
    as it is, anything else as JSON. */
 int wb_eval(wb_tab *t, const char *js, str *out)
 {
+	return wb_evalg(t, js, out, 0);
+}
+
+/* The same, as if the person had just pressed something when gesture is
+   set: what the page may then do -- play sound, ask for its own tab --
+   follows from it. */
+int wb_evalg(wb_tab *t, const char *js, str *out, int gesture)
+{
 	str p;
 	jv *r, *v, *x;
 
 	s_init(&p);
 	s_cat(&p, "{\"expression\":");
 	jv_quote(&p, js);
-	s_cat(&p, ",\"returnByValue\":true,\"awaitPromise\":true}");
+	s_cat(&p, ",\"returnByValue\":true,\"awaitPromise\":true");
+	if (gesture)
+		s_cat(&p, ",\"userGesture\":true");
+	s_cat(&p, "}");
 	r = wb_call("Runtime.evaluate", p.p, t->session);
 	s_free(&p);
 	if (!r)

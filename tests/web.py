@@ -293,7 +293,7 @@ check("a click on a link in the window follows it",
 # from everywhere else. alt-[ and alt-] cannot be bound at all -- ESC [ and
 # ESC ] are the CSI and OSC introducers, and the decoder consumes them.
 sc = brun([press(lk[0], lk[1] + 2), release(lk[0], lk[1] + 2), 2.5,
-           b"\x1bb", 1.5], until="Hello hibr")
+           b"\x1bb", 1.5], until="Hello hibr", ready="Hello hibr")
 check("alt-b goes back", sc.find("Hello hibr") is not None and
       sc.find("This is page B.") is None, sc)
 # A lone tab has no tab strip, so the address is the window's first row
@@ -557,6 +557,81 @@ check("Print to PDF writes the page as a PDF",
       "st 0" in out and os.path.exists(pdf) and
       open(pdf, "rb").read(5) == b"%PDF-", out + err)
 
+# A page's sound plays through hibr's own media module (Gitea #305): the
+# browser records the tab -- the only way that reaches sound from another
+# origin, which is where every site's media lives -- and the Browser feeds
+# it to a player of its own, here writing to a file. The tone is served
+# from a second server, so it is cross-origin, as a CDN's would be.
+import math, wave
+TONE = os.path.join(D, "tone.wav")
+with wave.open(TONE, "wb") as wv:
+    wv.setnchannels(1)
+    wv.setsampwidth(2)
+    wv.setframerate(48000)
+    wv.writeframes(b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * 440 * i / 48000)))
+                            for i in range(48000 * 20)))
+SRV2 = http.server.ThreadingHTTPServer(
+    ("127.0.0.1", 0), functools.partial(Quiet, directory=D))
+threading.Thread(target=SRV2.serve_forever, daemon=True).start()
+TONEURL = "http://127.0.0.1:%d/tone.wav" % SRV2.server_address[1]
+open(os.path.join(D, "snd.html"), "w").write(
+    "<html><head><title>Sound</title></head><body>"
+    "<audio id=a src='%s' loop></audio>"
+    "<button style='width:100%%;height:200px' onclick='a.play()'>PLAYBUTTON</button>"
+    "</body></html>" % TONEURL)
+open(os.path.join(D, "auto.html"), "w").write(
+    "<html><head><title>Auto</title></head><body>"
+    "<audio id=a src='%s' loop autoplay></audio><p>AUTOPAGE</p>"
+    "</body></html>" % TONEURL)
+
+
+def heard(path):
+    """The level of what reached the player's file, in dB below full scale;
+    -200 for no file or silence. The samples after the header, whatever it
+    says: a desktop the suite ends never closes its player, so the header
+    still holds the length it had when the file was opened."""
+    try:
+        raw = open(path, "rb").read()[44:]
+    except OSError:
+        return -200
+    if len(raw) < 2:
+        return -200
+    xs = struct.unpack("<%dh" % (len(raw) // 2), raw[:len(raw) // 2 * 2])
+    rms = math.sqrt(sum(x * x for x in xs) / len(xs))
+    return 20 * math.log10(rms / 32768) if rms > 0 else -200
+
+
+out = os.path.join(D, "snd1.wav")
+sc = brun([3.0], arg=HTTP + "/snd.html", ready="PLAYBUTTON", click=("PLAYBUTTON", 2),
+          env={"DT_IMGMODE": "half", "HIBR_MEDIA_AUDIO": "wav:" + out})
+check("a click on a page plays its sound, from another origin, through the media module",
+      heard(out) > -30, (heard(out), sc))
+out = os.path.join(D, "snd2.wav")
+sc = brun([3.0], arg=HTTP + "/auto.html", until="AUTOPAGE",
+          env={"DT_IMGMODE": "half", "HIBR_MEDIA_AUDIO": "wav:" + out})
+check("a page that plays on its own is not heard until it is pressed, by default",
+      heard(out) < -60, (heard(out), sc))
+out = os.path.join(D, "snd3.wav")
+sc = brun([4.0], arg=HTTP + "/auto.html", until="AUTOPAGE",
+          env={"DT_IMGMODE": "half", "HIBR_MEDIA_AUDIO": "wav:" + out,
+               "BW_AUTOPLAY": "1"})
+check("and with Pages May Play Sound On Their Own, it is heard as it loads",
+      heard(out) > -30, (heard(out), sc))
+# The browser takes a tab's capture of itself without asking, so a page's
+# own call is refused -- in a frame it makes as well -- or any page could
+# read the pixels of whatever it frames.
+out, err = hb("t := web open %s/snd.html; web wait $t 10000; web size $t 24 80;"
+              " web render $t > /dev/null; web click $t 4 10;"
+              " web eval $t 'navigator.mediaDevices.getDisplayMedia({video:true,"
+              "preferCurrentTab:true}).then(()=>\"GRANTED\",e=>e.name)';"
+              " web eval $t 'var f=document.createElement(\"iframe\");"
+              "document.body.appendChild(f);f.contentWindow.navigator.mediaDevices"
+              ".getDisplayMedia({video:true,preferCurrentTab:true})"
+              ".then(()=>\"GRANTED\",e=>e.name)'" % HTTP)
+check("a page cannot capture its own tab, nor from a frame it makes",
+      out.split() == ["NotAllowedError", "NotAllowedError"], out + err)
+
+SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(44)
+report(48)

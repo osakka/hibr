@@ -2186,6 +2186,20 @@ went in the shell.
   check only fails half the time, add a knob that makes the window
   certain (`ytserve.py`'s `/control?slow=VID:MS` and its `/early` count)
   rather than leaving the guard to luck.
+- **A page's sound can be recorded only as the whole tab, and only from
+  an unmuted browser** (Gitea #305, 0.99.263). An element's
+  `captureStream()` is the obvious way and works on a test page -- and
+  throws `SecurityError` the moment the media comes from another origin,
+  which is every real site, since media lives on a CDN: measure with the
+  file on a second server, never the page's own. Tab capture
+  (`getDisplayMedia`, `--auto-accept-this-tab-capture`) reaches it, but
+  under `--mute-audio` it records silence, so the mute had to go; its
+  voice processing must be off or a steady note sinks; and accepting a
+  tab's capture without asking hands any page the pixels of whatever it
+  frames, so a page's own call is refused in every frame and only the
+  module's script keeps the real one. And the autoplay half: a gesture
+  given after load comes after the browser refused the page's
+  `autoplay`, so what was refused is played again, never assumed.
 - **A queue that drops its oldest when full keeps the future when nobody
   takes from it.** The media player's frame queue made room that way, and
   a window that is not drawn takes no frames, so on another workspace or

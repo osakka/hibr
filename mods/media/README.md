@@ -63,7 +63,9 @@ picture stood still while the sound went on (Gitea #288).
 
 `HIBR_MEDIA_AUDIO` chooses where sound goes: `alsa`, `audioqueue`, `none`
 (silent, at the same pace), or `wav:PATH` (written to a file, at the same
-pace -- what the tests listen to). Unset, the platform's own device is
+pace -- what the tests listen to; each write is flushed, since a desktop a
+suite ends is killed rather than closed, and the header's length is only
+put right when the player closes). Unset, the platform's own device is
 used, and a machine with none plays silently and says so in `info`'s
 `error`.
 

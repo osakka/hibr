@@ -637,6 +637,7 @@ PID:    %s
 PIN
 Page Zoom
 Pages
+Pages May Play Sound On Their Own
 Pass Every Key
 Password
 Password Box On

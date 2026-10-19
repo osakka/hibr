@@ -169,7 +169,8 @@ void wb_usage(void)
 		      "set T live on|off | "
 		      "draw T row col [h w] "
 		      "[-p pane] | click T row col | wheel T rows | key T name | "
-		      "type T text | eval T js | tap|tapseek T | take T "
+		      "type T text | eval T js | tap|tapseek T | "
+		      "sound T off|click|load | take T "
 		      "[vfd|- [afd|-]] | tabs | fd | poll | quit");
 }
 
@@ -397,6 +398,13 @@ int m_web(sh *s, int ac, char **av)
 		return wb_tap(t);
 	if (!strcmp(sub, "tapseek"))
 		return wb_tapseek(t);
+	if (!strcmp(sub, "sound")) {
+		if (ac < 4) {
+			wb_usage();
+			return 2;
+		}
+		return wb_sound(t, av[3]);
+	}
 	if (!strcmp(sub, "take"))
 		return wb_take(s, t, ac > 3 && strcmp(av[3], "-") ? atoi(av[3]) : -1,
 			       ac > 4 && strcmp(av[4], "-") ? atoi(av[4]) : -1);

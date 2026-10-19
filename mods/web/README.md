@@ -64,7 +64,8 @@ web close $t; web quit
 | `web type T text` | text into whatever has the focus |
 | `web loading T`, `web dirty T`, `web focus T` | status 0 while loading, when the page has changed since the last frame, when a field has the keyboard |
 | `web tap T` | copy everything the tab's pages hand a media source: installed before each page's own scripts, it notes each buffer as video or audio by its type and keeps every chunk appended to it |
-| `web take T [VFD\|- [AFD\|-]]` | write what the tap has kept since last asked -- video to one descriptor, audio to the other -- and say what happened: `v BYTES a BYTES reset 0\|1 vtype TYPE atype TYPE`; a reset is a new media source (the next video, an ad break): a take stops at one, and the reset comes alone on the next take, with the new streams -- from their init segments -- on the one after, so a player can be started afresh before any of them arrives |
+| `web sound T off\|click\|load` | record what the tab plays, for `web take` to hand over as audio: from the page's first press or key (`click`, the browser's own rule for sound), as each page loads (`load`, given as a gesture, so the page may play unasked -- and what it was refused before that is played again), or not at all (`off`). See Sound below |
+| `web take T [VFD\|- [AFD\|-]]` | write what the tap has kept since last asked -- video to one descriptor, audio to the other -- and say what happened: `v BYTES a BYTES reset 0\|1 vtype TYPE atype TYPE snd on\|quiet\|-`, `snd` being a recording tab's state; a reset is a new media source (the next video, an ad break): a take stops at one, and the reset comes alone on the next take, with the new streams -- from their init segments -- on the one after, so a player can be started afresh before any of them arrives |
 | `web tapseek T` | after a seek: drop what was kept and keep each buffer's init segment again, so what is taken next reads from its start |
 | `web fd` | the browser's pipe, for `console watch`, so a desktop wakes when a page changes |
 | `web poll` | act on whatever the browser has said; status 0 if a tab wants a new frame |
@@ -139,6 +140,32 @@ automated browser is free to treat it as a robot, and YouTube's did: its
 player stopped about a minute into a video with "Something went wrong",
 every time, on the videos it guards most.
 
+## Sound
+
+Chromium is started with `--auto-accept-this-tab-capture` and **without**
+`--mute-audio` (Gitea #305): a muted browser's capture of a tab is
+silence. `web sound` records a tab with the page's own
+`getDisplayMedia` -- the tab itself, so sound from another origin is
+caught, where an element's `captureStream()` throws `SecurityError` for
+exactly the media every site keeps on a CDN, and Web Audio is caught
+too -- with the voice processing off (left on, a steady tone sank two
+decibels in three seconds) and `suppressLocalAudioPlayback`, so a tab
+being recorded does not also play on the machine Chromium runs on. The
+video track that call insists on is stopped at once. What comes out is
+WebM/Opus in quarter seconds, a reset first, in the tap's own queue; the
+recording pauses after two seconds of silence (`snd quiet`) and goes on
+when there is sound again, so a tab that played something once does not
+keep its reader taking from it for ever.
+
+Accepting a tab's capture of itself without asking would let any page
+take the pixels of whatever it frames, so every tab, from its opening and
+in every frame, has a page's own `getDisplayMedia` refused
+(`NotAllowedError`); only the module's script holds the real one. A tab
+the tap is installed in has every media element muted, so the YouTube
+player's own page stays silent at the browser. A tab neither recorded nor
+tapped would play on the machine Chromium runs on: the Browser records
+every tab it opens.
+
 ## What it does not do
 
 - **No JavaScript of its own on the page beyond what it asks.** Pages run
@@ -147,7 +174,8 @@ every time, on the videos it guards most.
 - **Text is placed, not reflowed.** A page whose text is much larger or
   smaller than a cell keeps its layout and loses spacing; a heading set
   huge is drawn as plain characters where it starts.
-- **No file uploads, audio or video**, and no downloads unless `web
-  downloads` gives them a folder.
+- **No file uploads**, and no downloads unless `web downloads` gives them
+  a folder. A page's video is the picture its frames are drawn from; its
+  sound comes out only through `web sound` or the tap.
 - It loads only by name under `--plan`: a browser reaches the network,
   which a plan refuses.

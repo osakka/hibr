@@ -81,6 +81,13 @@ struct wb_tab {
 	   repaints a render itself causes kept quiet until hushto. */
 	long sh, vh, hushto;
 	int live, hush;
+	/* Gitea #305: when the tab's sound is recorded (`web sound`: 0 off,
+	   1 at the first press, 2 as each page loads), the script that says
+	   so to each new document, and sndgo, a page loaded with snd 2 whose
+	   recording the next take starts -- not the event, which arrives
+	   inside another call's wait. */
+	int snd, sndgo;
+	char *sndjs;
 };
 
 /* The browser: one Chromium for the whole shell, driven over a pipe. */
@@ -131,6 +138,10 @@ int wb_go(wb_tab *t, const char *url);
 int wb_size(wb_tab *t, int rows, int cols);
 int wb_render(wb_tab *t);
 int wb_eval(wb_tab *t, const char *js, str *out);
+int wb_evalg(wb_tab *t, const char *js, str *out, int gesture);
+int wb_sndguard(wb_tab *t);
+int wb_sound(wb_tab *t, const char *mode);
+int wb_docjs(wb_tab *t, char **slot, const char *js);
 int wb_click(wb_tab *t, int row, int col);
 int wb_wheel(wb_tab *t, int dy);
 int wb_key(wb_tab *t, const char *key);

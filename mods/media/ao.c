@@ -45,6 +45,7 @@ int ao_nwrite(mv_ao *a, const int16_t *s, int n)
 		p->t0 = mv_now();
 	if (p->wav) {
 		fwrite(s, sizeof *s, (size_t)n * a->ch, p->wav);
+		fflush(p->wav);
 		p->bytes += (long long)n * a->ch * 2;
 	}
 	p->frames += n;

@@ -13,10 +13,14 @@
 # can ask nobody, with Allow saying what it can do here; and downloads into
 # a folder. Permissions and downloads are the whole browser's, so the
 # YouTube player's tabs share them.
+#
+# Gitea #305: Pages May Play Sound On Their Own, off -- a page's sound
+# starts with the first press or key on it, the browser's own rule, or as
+# it loads.
 
 strict
 
-app browserset "The Control Panel pane for the Browser" 1.3
+app browserset "The Control Panel pane for the Browser" 1.4
 command -v cp_pane > /dev/null && cp_pane browserset "Browser" "◎" app
 command -v dt_app > /dev/null &&
 	dt_app bwfield "Browser Setting" 8 64 "" "" fixed hidden
@@ -41,9 +45,11 @@ BW_PMIC="${BW_PMIC-refuse}"
 BW_PNOTE="${BW_PNOTE-refuse}"
 BW_DL="${BW_DL-0}"
 BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
+BW_AUTOPLAY="${BW_AUTOPLAY-0}"
 command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
 	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
-	BW_LANG BW_DNT BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR
+	BW_LANG BW_DNT BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
+	BW_AUTOPLAY
 BS_PERMS=(refuse allow)
 
 # follow is Control Panel > Pictures; text draws the page's words alone.
@@ -104,6 +110,10 @@ fn browserset_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$BW_IMAGES" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=BW_IMAGES; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Pages May Play Sound On Their Own"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$BW_AUTOPLAY" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=BW_AUTOPLAY; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Ask Sites for Dark Pages"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$BW_DARK" = 1 ] && CP[$w][$n]["val"]=on
@@ -196,7 +206,7 @@ fn browserset_do(int? w = "", k = "", int? dir = "") {
 		BW_ZOOM=$v
 		bs_tell
 		;;
-	BW_DARK | BW_DL) cp_toggle "$k"; bs_tell ;;
+	BW_DARK | BW_DL | BW_AUTOPLAY) cp_toggle "$k"; bs_tell ;;
 	BW_DNT) cp_toggle "$k"; bs_tell again ;;
 	pgeo) v := cp_next "$BW_PGEO" "$dir" "${BS_PERMS[@]}"; BW_PGEO=$v; bs_tell ;;
 	pcam) v := cp_next "$BW_PCAM" "$dir" "${BS_PERMS[@]}"; BW_PCAM=$v; bs_tell ;;

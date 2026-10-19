@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.263
+
+**The Browser plays a page's sound, through hibr's own media module**
+(Gitea #305). suno.com, and every page with sound, was silent: Chromium
+ran muted, and only YouTube's app, which catches its own player's stream,
+had a way out. Now each tab is recorded -- the tab itself, through
+Chromium's tab capture, which is the only way that reaches sound served
+from another site's address, where every site keeps its media -- and its
+sound plays through a player of the media module's own, one a tab, where
+hibr's sound goes. A page starts making sound once it is pressed or typed
+into, the browser's own rule; Control Panel > Browser > **Pages May Play
+Sound On Their Own** lets it start as it loads. The recording pauses after
+two seconds of silence, so a tab that played once costs nothing while
+quiet. Chromium is no longer started muted, a recorded tab is kept off the
+machine's own device, and a page may no longer ask for its own tab --
+which the browser would now grant without asking. `web sound T
+off|click|load` is the module's half, and `web take` says the tab's state
+as a last word, `snd`.
+
 ## 0.99.262
 
 **A video comes back moving after a workspace switch or the screen

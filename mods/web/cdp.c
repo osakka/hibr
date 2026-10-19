@@ -181,7 +181,7 @@ int wb_spawn(const char *bin, const char *prof)
 	v_add(&av, "--no-default-browser-check");
 	v_add(&av, "--disable-gpu");
 	v_add(&av, "--hide-scrollbars");
-	v_add(&av, "--mute-audio");
+	v_add(&av, "--auto-accept-this-tab-capture");
 	v_add(&av, "--disable-background-networking");
 	v_add(&av, "--disable-blink-features=AutomationControlled");
 	v_add(&av, ud.p);
@@ -426,6 +426,8 @@ void wb_event(jv *m)
 		   !strcmp(meth, "Page.navigatedWithinDocument") ||
 		   !strcmp(meth, "Page.frameNavigated")) {
 		t->dirty = 1;
+		if (t->snd == 2 && !strcmp(meth, "Page.domContentEventFired"))
+			t->sndgo = 1;
 	} else if (!strcmp(meth, "Fetch.requestPaused")) {
 		wb_imgpaused(t, m);
 	} else if (!strcmp(meth, "Runtime.bindingCalled")) {
