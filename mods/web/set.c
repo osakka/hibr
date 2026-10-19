@@ -300,6 +300,17 @@ int wb_set(wb_tab *t, const char *k, const char *v)
 			goto bad;
 		if (z != HIBR_OK)
 			return HIBR_FAIL;
+	} else if (!strcmp(k, "live")) {
+		if (!wb_onoff(v))
+			goto bad;
+		if (on != t->live && wb_callq(on ? "Page.startScreencast" :
+					      "Page.stopScreencast",
+					      on ? "{\"format\":\"jpeg\",\"quality\":1,"
+						   "\"maxWidth\":32,\"maxHeight\":32,"
+						   "\"everyNthFrame\":1}" : "{}",
+					      t->session) != HIBR_OK)
+			return HIBR_FAIL;
+		t->live = on;
 	} else if (!strcmp(k, "notes")) {
 		if (!wb_onoff(v))
 			goto bad;
@@ -307,7 +318,7 @@ int wb_set(wb_tab *t, const char *k, const char *v)
 			return HIBR_FAIL;
 	} else {
 		lg(HIBR_LERR, "web set: js, images, dark, zoom, ua, lang, dnt, "
-			      "block, geo or notes, not %s", k);
+			      "block, geo, notes or live, not %s", k);
 		return 2;
 	}
 	lg(HIBR_LDBG, "web: tab %d: %s %s", t->id, k, v);

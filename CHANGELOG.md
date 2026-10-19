@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.99.252
+
+**The Browser: one tab without a strip, tab keys, live pages, a scroll
+bar, and wide windows in pixels** (Gitea #292, #289).
+
+Reported by the owner, five things at once:
+
+- **A lone tab has no tab strip**: the address is the window's first row
+  and the page gets the strip's row. A second tab brings the strip back.
+- **Tab keys**: ctrl-t New Tab, ctrl-w Close Tab, ctrl-PageDown and
+  ctrl-PageUp to the next and previous tab, shown on File and on Go (Next
+  Tab, Previous Tab). They come after the desktop's own shortcuts, so a
+  desktop key on one of them still wins.
+- **A page that changes on its own is drawn as it changes** (#289), where
+  before it was read again only on a load, a click or a key. The tab on
+  show has Chromium say when the page repaints -- a screencast at 32
+  pixels kept running only as that signal (`web set T live`) -- and the
+  window reads it again, no more often than `DT_TERMMS`. A tab not shown
+  and a window hidden have it off. A repaint a render itself causes (cells
+  mode hides the page's text and shows it again) is kept quiet for 200 ms,
+  or every render would ask for another. Measured: a still page settles to
+  no renders at all, and a page changing four times a second renders 18
+  times in four seconds.
+- **A scroll bar** in the page's last column, from where the page is and
+  how tall it is (`web scroll T`, read with the render it already makes),
+  and a click on it scrolls the page there.
+- **Garbled and empty when the window is very wide, in pixels.** Every
+  picture a held program shows reaches the display only as hold's
+  emulator keeps it, and it kept at most 4 MB of escapes. A Browser frame
+  is sent uncompressed, so a window wider than about 160 columns crossed
+  that and the picture was refused: an empty area, with the page's own
+  cells around it. Measured through hold with a kitty display: a 960x640
+  picture arrived, 2.5 MB, and a 2000x960 one, 7.7 MB, did not arrive at
+  all. The bound is 64 MB now, a full 3840x2160 screen sent raw with
+  room, and a picture past it is let go to its last chunk. It reaches a
+  running session after `hold upgrade` or a new session, since the
+  session keeps its own copy of the emulator.
+
+New checks. `tests/web.py`: one tab has no strip and its address is the
+first row; ctrl-t opens a second and the strip is back; ctrl-w on the last
+tab closes the window; a ticking page is drawn again with nothing typed; a
+long page has a scroll bar; and a click low on it scrolls there.
+`tests/holdpix.py`: a picture past 4 MB reaches the held display whole,
+which fails against the old bound. Browser 1.3 and Arabic 2.8 in the
+catalogue.
+
 ## 0.99.251
 
 **X Screen keeps a list of programs, each fitted to its window** (Gitea

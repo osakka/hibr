@@ -430,6 +430,20 @@ void wb_event(jv *m)
 		wb_imgpaused(t, m);
 	} else if (!strcmp(meth, "Runtime.bindingCalled")) {
 		wb_noteevent(m);
+	} else if (!strcmp(meth, "Page.screencastFrame")) {
+		/* The page has repainted (Gitea #289): a screencast is kept
+		   running only for this, at 32 pixels, so a page that changes
+		   on its own -- an animation, a feed -- is read again. Each
+		   frame is acknowledged or no more are sent. One that a
+		   render's own changes caused is not a change of the page's:
+		   counting it would render again, for ever. */
+		char b[64];
+
+		snprintf(b, sizeof b, "{\"sessionId\":%ld}",
+			 (long)jv_num(jv_path(m, "params.sessionId")));
+		wb_send("Page.screencastFrameAck", b, t->session);
+		if (!t->hush && wb_ms() >= t->hushto)
+			t->dirty = 1;
 	} else if (!strcmp(meth, "Page.javascriptDialogOpening")) {
 		wb_send("Page.handleJavaScriptDialog", "{\"accept\":true}",
 			t->session);

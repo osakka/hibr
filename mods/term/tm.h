@@ -60,8 +60,15 @@ struct tm_img {
 	str data;
 };
 
+/* The most a kept picture's escapes may hold. A program's picture reaches a
+   held display only through what this emulator keeps (hold re-emits it), so
+   one past the bound is not shown at all: at 4 MB, a Browser window wider
+   than about 160 columns in pixels -- a raw frame, uncompressed -- arrived
+   as an empty area (Gitea #292). 64 MB is a full 3840x2160 screen sent raw,
+   about 33 MB of base64, with room; the bound is still there so a program
+   cannot make the emulator hold without limit. */
 #ifndef TM_IMGMAX
-#define TM_IMGMAX (4u << 20)
+#define TM_IMGMAX (64u << 20)
 #endif
 
 /* Conceal (SGR 8) has no display attribute of its own: the cell is drawn

@@ -165,7 +165,8 @@ void wb_usage(void)
 		      "clear cookies|cache|history [T...] | "
 		      "permit geolocation|camera|microphone|notifications "
 		      "allow|refuse | permit reset | downloads dir|off | "
-		      "downloaded | notes | pdf T path | "
+		      "downloaded | notes | pdf T path | scroll T | "
+		      "set T live on|off | "
 		      "draw T row col [h w] "
 		      "[-p pane] | click T row col | wheel T rows | key T name | "
 		      "type T text | eval T js | tap|tapseek T | take T "
@@ -180,6 +181,7 @@ int m_web(sh *s, int ac, char **av)
 	str o;
 	size_t i;
 	int r;
+	char b64[96];
 
 	if (ac < 2) {
 		wb_usage();
@@ -341,7 +343,18 @@ int m_web(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "render")) {
 		wb_events();
-		return wb_render(t);
+		t->hush = 1;
+		r = wb_render(t);
+		t->hush = 0;
+		t->hushto = wb_ms() + 200;
+		return r;
+	}
+	/* Where the page is scrolled to, how tall it is and how much shows,
+	   in CSS pixels, from the last render: "top height shown". */
+	if (!strcmp(sub, "scroll")) {
+		snprintf(b64, sizeof b64, "%ld %ld %ld", t->sy, t->sh, t->vh);
+		wb_say(s, b64);
+		return HIBR_OK;
 	}
 	if (!strcmp(sub, "draw"))
 		return wb_drawcmd(s, t, ac, av);

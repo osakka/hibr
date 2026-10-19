@@ -126,7 +126,8 @@ def inner(body, settle=12000, nm="p"):
 
 
 def run(body, attach="hold attach %s\n", cell=CELL, settle=12000, wait=40,
-        gfx="kitty", until="HELD", bg=None, caps=None, term=None):
+        gfx="kitty", until="HELD", bg=None, caps=None, term=None, rows=24,
+        cols=60, pics=0):
     """Hold that program, attach to it from a pty that says what a cell
     measures, and give back the client's own screen. HIBR_GFX stands in for
     the terminal's own name, which the harness scrubs on purpose: the held
@@ -145,13 +146,23 @@ def run(body, attach="hold attach %s\n", cell=CELL, settle=12000, wait=40,
         env["HIBR_GFX"] = gfx
     if term:
         env["TERM"] = term
-    t = Term(outer, rows=24, cols=60, settle=1.0, cellw=cell[0],
+    t = Term(outer, rows=rows, cols=cols, settle=1.0, cellw=cell[0],
              cellh=cell[1], env=env, bg=bg, caps=caps)
     for _ in range(wait):
         t.collect(0.25)
         if until in t.text:
             break
     t.collect(1.0)
+    # A picture that is megabytes takes longer than the text beside it to
+    # come through, so a check that wants pictures waits for them, bounded.
+    # `pics` is a count, or a test given the screen: the model counts a
+    # picture from its first chunk, so one that is megabytes is there long
+    # before all of it is.
+    want = pics if callable(pics) else (lambda s: len(s.images) >= pics)
+    for _ in range(wait if pics else 0):
+        if want(t.screen()):
+            break
+        t.collect(0.25)
     sc = t.screen()
     t.quit(None, 0.5)
     kill(nm)
@@ -173,6 +184,22 @@ check("whole, every chunk of it",
       sc.images)
 check("with the text around it still text",
       sc.row(0).startswith("HELD PICTURE HERE"), sc.row(0))
+
+# A picture reaches a held display only as hold's emulator keeps it, and it
+# kept at most 4 MB of escapes: a wider one was refused and the display got
+# nothing, which is a Browser window in pixels wider than about 160 columns
+# arriving as an empty area (Gitea #292). This one is 70 by 260 cells, 2080
+# by 1120 pixels, which the console sends as well over 4 MB of escapes, and
+# it must arrive, one picture, all of it. Against the old bound nothing
+# arrived at all.
+BIG = ("console put 0 0 'HELD PICTURE HERE'\n"
+       "img draw %s 1 0 70 260 -m pixels\n"
+       "console flush\n" % GRAD)
+sc, log = run(BIG, rows=72, cols=262, wait=160,
+              pics=lambda s: s.images and s.images[0][2] > (4 << 20))
+check("a picture past 4 MB reaches the held display whole",
+      len(sc.images) == 1 and sc.images[0][2] > (4 << 20),
+      ([i[:3] for i in sc.images], log))
 
 # A picture drawn *under* the text -- which is what a wallpaper is, and the
 # only user of DP_IMG_UNDER -- reaches a client not at all: measured at
@@ -746,4 +773,4 @@ t1.quit(None, 0.5)
 kill(nm)
 
 shutil.rmtree(D, True)
-report(34)
+report(35)

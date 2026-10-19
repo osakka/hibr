@@ -215,8 +215,12 @@ void tm_apcend(tm_t *t)
 		t->imgon = 1;
 		tm_apcraw(t, &t->imgb);
 	} else if (t->imgon && !act) {
-		/* A chunk after the first carries no action of its own. */
-		tm_apcraw(t, &t->imgb);
+		/* A chunk after the first carries no action of its own. One
+		   whose picture has already gone past TM_IMGMAX is let go
+		   rather than kept: the picture is not shown either way, and
+		   each later chunk read as a picture of its own would be. */
+		if (t->imgon == 1)
+			tm_apcraw(t, &t->imgb);
 	} else if (act == 'q' && t->relayed) {
 		/* A query about the protocol itself, which only the real
 		   terminal can answer -- passed on where somebody is
@@ -235,8 +239,19 @@ void tm_apcend(tm_t *t)
 	} else {
 		return;
 	}
-	if (tm_imgkey(s, 'm') == 1 && t->imgb.n < TM_IMGMAX)
+	if (tm_imgkey(s, 'm') == 1) {
+		if (t->imgon == 1 && t->imgb.n > TM_IMGMAX) {
+			lg(HIBR_LDBG, "term: a picture past %u bytes is not kept",
+			   TM_IMGMAX);
+			t->imgon = 2;
+			t->imgb.n = 0;
+		}
 		return;
+	}
+	if (t->imgon == 2) {
+		t->imgon = 0;
+		return;
+	}
 	tm_imgkeep(t, t->imgr, t->imgc, t->imgrows, t->imgcols, t->imgid,
 		   t->imgunder, t->imgb.p, t->imgb.n);
 	t->imgb.n = 0;

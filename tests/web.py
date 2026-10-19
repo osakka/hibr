@@ -296,9 +296,16 @@ sc = brun([press(lk[0], lk[1] + 2), release(lk[0], lk[1] + 2), 2.5,
            b"\x1bb", 1.5], until="Hello hibr")
 check("alt-b goes back", sc.find("Hello hibr") is not None and
       sc.find("This is page B.") is None, sc)
-sc = brun([1.0] + [c.encode() for c in B] + [b"\r", 2.0], ready="Test page",
-          click=(" + ", 1), until="This is page B.")
-check("+ opens a tab with the keyboard in the address; enter goes there",
+# A lone tab has no tab strip, so the address is the window's first row
+# and the page starts on its second; a second tab brings the strip back
+# (Gitea #292). ctrl-t is New Tab, with the keyboard in the address.
+sc = brun([1.0], ready="Test page")
+check("one tab: no tab strip, the address on the first row",
+      sc.find("Test page ✕") is None and "file://" in sc.row(2), sc)
+sc = brun([1.0, b"\x14"] + [c.encode() for c in B] + [b"\r", 2.0],
+          ready="Test page", until="This is page B.")
+check("ctrl-t opens a tab with the keyboard in the address; enter goes "
+      "there, and the strip is back for two",
       sc.find("Test page ✕") is not None and sc.find("Page B ✕") is not None
       and sc.find("This is page B.") is not None, sc)
 sc = brun([b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\r", 0.8])
@@ -310,9 +317,8 @@ sc = brun([b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C", 0.5])
 check("and the Bookmarks menu lists it, and offers to remove it",
       sc.find("Remove Bookmark") is not None and sc.find("Test page") is not None,
       sc)
-sc = brun([1.0], ready="Test page", click=("\u2715", 0),
-          gone="\u2524 Browser")
-check("closing the last tab closes the window",
+sc = brun([1.0, b"\x17"], ready="Test page", gone="\u2524 Browser")
+check("ctrl-w on the last tab closes the window",
       sc.find("┤ Browser") is None, sc)
 # A terminal that can paint pixels gets the page as a picture and no text
 # layer at all: a text cell paints its own background, so anything drawn over
@@ -364,6 +370,16 @@ check("without a browser to drive, the window says what is missing",
 
 J = "file://" + os.path.join(D, "j.html")
 IM = "file://" + os.path.join(D, "i.html")
+open(os.path.join(D, "tick.html"), "w").write(
+    "<html><head><title>Tick</title></head><body><p>TICK <span id=n>0</span>"
+    "</p><script>let i=0;setInterval(()=>{document.getElementById('n')"
+    ".textContent=++i},200)</script></body></html>")
+TK = "file://" + os.path.join(D, "tick.html")
+open(os.path.join(D, "long.html"), "w").write(
+    "<html><head><title>Long</title></head><body style='margin:0'>"
+    + "".join("<div style='height:16px'>line %d</div>" % i for i in range(300))
+    + "</body></html>")
+LG = "file://" + os.path.join(D, "long.html")
 K = "file://" + os.path.join(D, "k.html")
 Z = "file://" + os.path.join(D, "z.html")
 
@@ -508,6 +524,32 @@ sc = brun([], arg=HTTP + "/dl", until="Downloaded got.txt",
 check("and with downloads on, a file lands in the folder and a note says so",
       sc.find("Downloaded got.txt") is not None and
       os.path.exists(os.path.join(DLD2, "got.txt")), sc)
+# A page that changes on its own is drawn as it changes, with nothing
+# typed (#289): the browser says when the page repaints, and the window
+# reads it again, no more often than DT_TERMMS.
+import re as _re
+
+
+def ticked(sc):
+    m = _re.search(r"TICK (\d+)", sc.text())
+    return int(m.group(1)) if m else -1
+
+
+sc1 = brun([1.0], arg=TK, until="TICK", env={"DT_IMGMODE": "half"})
+sc2 = brun([3.0], arg=TK, until="TICK", env={"DT_IMGMODE": "half"})
+check("a page that changes on its own is drawn again with nothing typed",
+      ticked(sc2) >= 8, (ticked(sc1), ticked(sc2), sc2))
+# A scroll bar in the page's last column (#292), and a click low on it
+# scrolls the page down there.
+sc = brun([1.0], arg=LG, until="line 3", env={"DT_IMGMODE": "half"})
+bar = [r for r in range(3, 24) if sc.at(r, 76) in ("\u2588", "\u2502")]
+check("a long page has a scroll bar beside it", len(bar) >= 10,
+      ([sc.at(r, 76) for r in range(3, 24)], sc))
+sc = brun([1.0, press(20, 76), release(20, 76), 1.5], arg=LG,
+          ready="line 3", until="line 2", env={"DT_IMGMODE": "half"})
+check("and a click low on it scrolls the page down there",
+      sc.find("line 0") is None and
+      _re.search(r"line 2[0-9][0-9]", sc.text()) is not None, sc)
 pdf = os.path.join(D, "page.pdf")
 out, err = hb("t := web open %s; web wait $t 10000; web pdf $t %s;"
               " echo \"st $?\"" % (A, pdf))
@@ -517,4 +559,4 @@ check("Print to PDF writes the page as a PDF",
 
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(40)
+report(44)

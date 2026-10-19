@@ -53,6 +53,8 @@ web close $t; web quit
 | `web downloads DIR\|off` | downloads into DIR, for the whole browser, each told to `web downloaded` when it ends; `off` refuses them, as the browser does unless told |
 | `web downloaded`, `web notes` | what has happened since the last asking, a line each, and forgotten once told: `done PATH` or `failed NAME` for a download, `TITLE BODY` for a notification, a tab between. Status 1 when there is nothing |
 | `web pdf T PATH` | the tab's page printed to PATH as a PDF, backgrounds included |
+| `web set T live on\|off` | have the browser say when this tab's page repaints, so a page that changes on its own is marked dirty and read again: a screencast at 32 pixels kept running only as that signal, each frame acknowledged, and a repaint a render itself causes (cells mode hides and shows the page's text) kept quiet for 200 ms after it |
+| `web scroll T` | where the page is scrolled to, how tall it is and how much of it shows, in CSS pixels, from the last render: `top height shown` |
 | `web config browser\|profile\|args VALUE` | what the browser is started with next, over `HIBR_WEB_BROWSER`, `HIBR_WEB_PROFILE` and `HIBR_WEB_ARGS`; empty puts the environment's back |
 | `web clear cookies\|cache` | forget the whole profile's cookies, or its cache, starting the browser if it is not running |
 | `web clear history [T...]` | empty the back and forward lists of the tabs named, or of every tab |

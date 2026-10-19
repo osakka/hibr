@@ -75,6 +75,12 @@ struct wb_tab {
 	   identifiers the browser gave them so they can be taken off. */
 	char *lang, *uaset, *dntjs, *notejs;
 	int langsent, netup;
+	/* Gitea #289, #292: how tall the page is and how much of it shows,
+	   from the last render, for a scroll bar; and live, a screencast
+	   kept running only as the signal that the page has repainted, with
+	   repaints a render itself causes kept quiet until hushto. */
+	long sh, vh, hushto;
+	int live, hush;
 };
 
 /* The browser: one Chromium for the whole shell, driven over a pipe. */

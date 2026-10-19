@@ -553,6 +553,7 @@ New name:
 Next
 Next Month
 Next Prayer in the Menu Bar
+Next Tab
 Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER
 No Chromium or Chrome to clear
@@ -666,6 +667,7 @@ Press a key for %s…
 Preview
 Previous
 Previous Month
+Previous Tab
 Privacy
 Process Details
 Profile Folder

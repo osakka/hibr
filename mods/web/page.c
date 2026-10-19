@@ -14,7 +14,8 @@
 static const char wb_extract[] =
 	"(function(CW,CH){"
 	"const W=innerWidth,H=innerHeight;"
-	"const o={t:[],l:[],f:[],u:location.href,ti:document.title,sx:scrollX,sy:scrollY};"
+	"const o={t:[],l:[],f:[],u:location.href,ti:document.title,sx:scrollX,sy:scrollY,"
+	"sh:Math.max((document.documentElement||{}).scrollHeight||0,(document.body||{}).scrollHeight||0),vh:H};"
 	"function col(c){const m=/rgba?\\(([\\d.]+),\\s*([\\d.]+),\\s*([\\d.]+)(?:,\\s*([\\d.]+))?/.exec(c||'');"
 	"if(!m)return -1;if(m[4]!==undefined&&+m[4]<0.1)return -1;"
 	"return ((+m[1]|0)<<16)|((+m[2]|0)<<8)|(+m[3]|0);}"
@@ -492,6 +493,8 @@ int wb_render(wb_tab *t)
 	}
 	t->sx = (long)jv_num(jv_get(v, "sx"));
 	t->sy = (long)jv_num(jv_get(v, "sy"));
+	t->sh = (long)jv_num(jv_get(v, "sh"));
+	t->vh = (long)jv_num(jv_get(v, "vh"));
 	t->url.n = 0;
 	s_cat(&t->url, jv_str(jv_get(v, "u")));
 	t->title.n = 0;
