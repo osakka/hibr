@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.257
+
+**A pattern's `?` and bracket take one character, not one byte** (Gitea
+#296). `${v//?/R}` over `héllo wörld` gave thirteen R's, one for each
+byte, where bash gives eleven, and `${v#??}` left half of `é` at the
+front -- the same in `case`, `[[ == ]]`, file names and every trim and
+substitution, against ADR 0021's rule that the shell counts characters.
+`?` takes a whole UTF-8 character, a bracket compares code points (so
+`[à-ü]` is a range of letters, and `[é€]` holds two characters rather
+than five bytes), and a star, a search and a trim step only from one
+character to the next, so nothing is cut in the middle of one.
+`[:alpha:]`, `[:upper:]` and `[:lower:]` take the cased letters of
+Latin, Greek, Cyrillic and Armenian -- the ones `${x^^}` already knows --
+and `[:print:]`/`[:graph:]` everything from U+00A0 on; bash answers those
+from its locale, which hibr does not read. `tests/192-utf8-patterns.t`
+compares all of it against bash in a UTF-8 locale, and 191's grid has
+`héllo wörld` in it again.
+
+**Classes are cheaper.** Every `[[:digit:]]` test walked a table of
+twelve names with a `strlen` and a `strncmp` each; it is one `memcmp` on
+the name's length and first letter now. On a loop of `case` and `[[ ]]`
+tests, 649.7 million instructions went to 542.4 million (-16.5%) with
+the character work included; the character work alone costs 1.0% on
+that loop (stepping a character means looking at its first byte), and
+nothing on a loop with no patterns in it. None of the expansion fast
+paths are touched.
+
+A lone unquoted backslash as a whole substitution pattern still matches
+a backslash here, as it does in `[[ ]]` and `case` in both shells: bash's
+substitution alone misses it, because its quick check wraps the pattern
+as `*\*` and the backslash escapes the star.
+
 ## 0.99.256
 
 **A display that sleeps and comes back has its windows again, and they

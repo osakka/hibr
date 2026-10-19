@@ -269,13 +269,14 @@ char *xpat(sh *s, word *w)
 	return r;
 }
 
-/* The number of bytes a pattern always matches, or -1 when it can match
-   more than one length -- or is an unclosed bracket, which matches
+/* The number of characters a pattern always matches, or -1 when it can
+   match more than one length -- or is an unclosed bracket, which matches
    nothing, so that a caller falls back to trying every end. */
 long glen(const char *p)
 {
 	long n = 0;
 	const char *q;
+	unsigned cp;
 
 	while (*p) {
 		if (*p == '*' || (p[1] == '(' && (*p == '?' || *p == '+' ||
@@ -289,11 +290,48 @@ long glen(const char *p)
 		} else {
 			if (*p == '\\' && p[1])
 				p++;
-			p++;
+			p += gch(p, &cp);
 		}
 		n++;
 	}
 	return n;
+}
+
+/* The byte k characters on from byte i of w, n bytes long, or (size_t)-1
+   when the text ends first. */
+size_t gfw(const char *w, size_t n, size_t i, long k)
+{
+	unsigned cp;
+
+	for (; k > 0; k--) {
+		if (i >= n)
+			return (size_t)-1;
+		i += (size_t)gch(w + i, &cp);
+	}
+	return i <= n ? i : (size_t)-1;
+}
+
+/* How many bytes the last k characters of w, n bytes long, take, or
+   (size_t)-1 when it has fewer. */
+size_t gbk(const char *w, size_t n, long k)
+{
+	size_t i = n;
+
+	for (; k > 0; k--) {
+		if (!i)
+			return (size_t)-1;
+		do
+			i--;
+		while (i > 0 && ((unsigned char)w[i] & 0xC0) == 0x80);
+	}
+	return n - i;
+}
+
+/* Whether byte i of w, n bytes long, begins a character: the end does,
+   and so does anything but a UTF-8 continuation byte. */
+int gat(const char *w, size_t n, size_t i)
+{
+	return i >= n || ((unsigned char)w[i] & 0xC0) != 0x80;
 }
 
 /* The byte a pattern's first element must be, or -1 when it may be any. */
@@ -356,25 +394,26 @@ int xfind(char *w, size_t n, size_t i, const char *pat, long len,
 	int c0 = gfirst(pat), got;
 	size_t p, e;
 	char *q;
+	unsigned cp;
 
 	if (any && !gmatch(any, w + i))
 		return 0;
-	for (p = i; p <= n; p++) {
+	for (p = i; p <= n; p = p < n ? p + (size_t)gch(w + p, &cp) : n + 1) {
 		if (c0 >= 0) {
 			if (p >= n || !(q = memchr(w + p, c0, n - p)))
 				return 0;
 			p = (size_t)(q - w);
 		}
 		if (len >= 0) {
-			e = p + (size_t)len;
-			if (e > n)
+			e = gfw(w, n, p, len);
+			if (e == (size_t)-1)
 				return 0;
 			if (!gcut(pat, w, p, e))
 				continue;
 		} else {
 			got = 0;
 			for (e = n + 1; e-- > p;)
-				if ((got = gcut(pat, w, p, e)))
+				if (gat(w, n, e) && (got = gcut(pat, w, p, e)))
 					break;
 			if (!got)
 				continue;
@@ -407,7 +446,14 @@ char *xtrim(sh *s, const char *v, const char *pat, int op)
 	s_init(&w);
 	s_add(&w, v, n);
 	for (k = 0; k <= n; k++) {
-		i = len >= 0 ? (size_t)len : lng ? n - k : k;
+		if (len >= 0)
+			i = pre ? gfw(v, n, 0, len) : gbk(v, n, len);
+		else
+			i = lng ? n - k : k;
+		if (i == (size_t)-1)
+			break;
+		if (len < 0 && !gat(v, n, pre ? i : n - i))
+			continue;
 		if (pre ? gcut(pat, w.p, 0, i) : gmatch(pat, v + n - i)) {
 			got = 1;
 			break;
@@ -484,7 +530,14 @@ char *xrepl_a(sh *s, const char *v, const char *pat, const char *rep, int end)
 	s_init(&out);
 	s_add(&w, v, n);
 	for (k = 0; k <= n; k++) {
-		i = len >= 0 ? (size_t)len : n - k;
+		if (len >= 0)
+			i = end ? gbk(v, n, len) : gfw(v, n, 0, len);
+		else
+			i = n - k;
+		if (i == (size_t)-1)
+			break;
+		if (len < 0 && !gat(v, n, end ? n - i : i))
+			continue;
 		if (end ? gmatch(pat, v + n - i) : gcut(pat, w.p, 0, i)) {
 			got = 1;
 			break;
@@ -1069,6 +1122,8 @@ int gneg(const char *body, const char *close, const char *rest, const char *t)
 	int bad;
 
 	for (i = 0; i <= n; i++) {
+		if (i < n && ((unsigned char)t[i] & 0xC0) == 0x80)
+			continue;
 		if (!gmatch(rest, t + i))
 			continue;
 		bad = 0;
@@ -1135,78 +1190,139 @@ int gext(const char *p, const char *t)
 	return ok;
 }
 
+/* Whether a character beyond ASCII is in a class: a letter of a script
+   whose case pairs u8case knows (Latin, Greek, Cyrillic, Armenian) is
+   alpha and upper or lower, anything from U+00A0 on prints, and the rest
+   are ASCII's alone -- bash answers from the locale, which hibr does not
+   read (ADR 0021). */
+int gclassu(const char *nm, size_t n, unsigned c)
+{
+	int up = u8case(c, 0) != c, lo = u8case(c, 1) != c;
+
+	if (n != 5)
+		return 0;
+	if (!memcmp(nm, "alpha", 5) || !memcmp(nm, "alnum", 5))
+		return up || lo;
+	if (!memcmp(nm, "upper", 5))
+		return up;
+	if (!memcmp(nm, "lower", 5))
+		return lo;
+	if (!memcmp(nm, "print", 5) || !memcmp(nm, "graph", 5))
+		return c >= 0xA0;
+	return 0;
+}
+
 /* Whether a byte is in a POSIX character class, named by its n bytes:
    [:alpha:], [:space:] and the rest, in the C locale. An unknown name
    holds nothing. */
 int gclass(const char *nm, size_t n, int c)
 {
-	static const char *names[] = { "alnum", "alpha", "blank", "cntrl",
-		"digit", "graph", "lower", "print", "punct", "space", "upper",
-		"xdigit", 0 };
-	int i;
-
-	for (i = 0; names[i]; i++)
-		if (strlen(names[i]) == n && !strncmp(names[i], nm, n))
-			break;
-	switch (i) {
-	case 0: return isalnum(c) != 0;
-	case 1: return isalpha(c) != 0;
-	case 2: return c == ' ' || c == '\t';
-	case 3: return iscntrl(c) != 0;
-	case 4: return isdigit(c) != 0;
-	case 5: return isgraph(c) != 0;
-	case 6: return islower(c) != 0;
-	case 7: return isprint(c) != 0;
-	case 8: return ispunct(c) != 0;
-	case 9: return isspace(c) != 0;
-	case 10: return isupper(c) != 0;
-	case 11: return isxdigit(c) != 0;
+	if (n == 6)
+		return !memcmp(nm, "xdigit", 6) && isxdigit(c);
+	if (n != 5)
+		return 0;
+	switch (nm[0]) {
+	case 'a':
+		if (!memcmp(nm, "alnum", 5))
+			return isalnum(c) != 0;
+		return !memcmp(nm, "alpha", 5) && isalpha(c);
+	case 'b': return !memcmp(nm, "blank", 5) && (c == ' ' || c == '\t');
+	case 'c': return !memcmp(nm, "cntrl", 5) && iscntrl(c);
+	case 'd': return !memcmp(nm, "digit", 5) && isdigit(c);
+	case 'g': return !memcmp(nm, "graph", 5) && isgraph(c);
+	case 'l': return !memcmp(nm, "lower", 5) && islower(c);
+	case 'p':
+		if (!memcmp(nm, "print", 5))
+			return isprint(c) != 0;
+		return !memcmp(nm, "punct", 5) && ispunct(c);
+	case 's': return !memcmp(nm, "space", 5) && isspace(c);
+	case 'u': return !memcmp(nm, "upper", 5) && isupper(c);
 	}
 	return 0;
 }
 
-/* Read the bracket expression opening at p: its closing ] into *end (0
-   when it is never closed, and then it matches nothing), and whether
-   byte c is one it takes. */
-int gbrk(const char *p, int c, const char **end)
+#ifndef GCH
+#define GCH(t, cp) (((unsigned char)*(t) & 0x80) ? gch((t), &(cp)) : \
+		    ((cp) = (unsigned char)*(t), 1))
+#endif
+#ifndef GSKIP
+#define GSKIP(t) (((unsigned char)*(t) & 0x80) ? gskip(t) : 1)
+#endif
+
+/* How many bytes the character at t takes, for a caller that steps over
+   it without looking. */
+int gskip(const char *t)
 {
-	int neg = 0, hit = 0, k;
+	unsigned cp;
+
+	return gch(t, &cp);
+}
+
+/* One character of NUL-terminated text: its code point into *cp and its
+   length in bytes returned -- a byte that does not begin a whole UTF-8
+   character is one character of its own. */
+int gch(const char *t, unsigned *cp)
+{
+	if (!((unsigned char)*t & 0x80)) {
+		*cp = (unsigned char)*t;
+		return 1;
+	}
+	return u8dec(t, 4, cp);
+}
+
+/* Read the bracket expression opening at p: its closing ] into *end (0
+   when it is never closed, and then it matches nothing), and whether the
+   character c, a code point, is one it takes. A class names ASCII only,
+   in the C locale. */
+int gbrk(const char *p, unsigned c, const char **end)
+{
+	int neg = 0, hit = 0, k, l;
 	const char *q = p + 1, *e;
+	unsigned lo, hi;
 
 	if (*q == '!' || *q == '^') {
 		neg = 1;
 		q++;
 	}
-	for (k = 0; *q && (*q != ']' || !k); q++, k++) {
+	for (k = 0; *q && (*q != ']' || !k); k++) {
 		if (q[0] == '[' && q[1] == ':' &&
 		    (e = strstr(q + 2, ":]")) != 0) {
-			if (gclass(q + 2, (size_t)(e - q - 2), c))
+			if (c < 0x80 ? gclass(q + 2, (size_t)(e - q - 2), (int)c) :
+			    gclassu(q + 2, (size_t)(e - q - 2), c))
 				hit = 1;
-			q = e + 1;
+			q = e + 2;
 			continue;
 		}
 		if (q[0] == '\\' && q[1]) {
 			q++;
-			if ((unsigned char)*q == c)
+			q += GCH(q, lo);
+			if (c == lo)
 				hit = 1;
 			continue;
 		}
-		if (q[1] == '-' && q[2] && q[2] != ']') {
-			if (c >= (unsigned char)q[0] && c <= (unsigned char)q[2])
+		l = GCH(q, lo);
+		if (q[l] == '-' && q[l + 1] && q[l + 1] != ']') {
+			q += l + 1;
+			q += GCH(q, hi);
+			if (c >= lo && c <= hi)
 				hit = 1;
-			q += 2;
 			continue;
 		}
-		if ((unsigned char)*q == c)
+		q += l;
+		if (c == lo)
 			hit = 1;
 	}
 	*end = *q ? q : 0;
 	return hit != neg;
 }
 
-/* Match a pattern against text with escapes, star and class support. */
+/* Match a pattern against text with escapes, star and class support. `?`
+   and a bracket each take one character, not one byte, and a star steps a
+   character at a time (Gitea #296). */
 int gmatch(const char *p, const char *t)
 {
+	unsigned cp;
+
 	while (*p) {
 		if (p[1] == '(' && (*p == '?' || *p == '*' || *p == '+' ||
 				    *p == '@' || *p == '!'))
@@ -1218,7 +1334,7 @@ int gmatch(const char *p, const char *t)
 			while (*t) {
 				if (gmatch(p, t))
 					return 1;
-				t++;
+				t += GSKIP(t);
 			}
 			return gmatch(p, t);
 		}
@@ -1226,16 +1342,16 @@ int gmatch(const char *p, const char *t)
 			return 0;
 		if (*p == '?') {
 			p++;
-			t++;
+			t += GSKIP(t);
 			continue;
 		}
 		if (*p == '[') {
 			const char *q;
-			int hit = gbrk(p, (unsigned char)*t, &q);
+			int l = GCH(t, cp), hit = gbrk(p, cp, &q);
 			if (!q || !hit)
 				return 0;
 			p = q + 1;
-			t++;
+			t += l;
 			continue;
 		}
 		if (*p == '\\' && p[1])

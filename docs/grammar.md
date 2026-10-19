@@ -288,6 +288,13 @@ key `content-type`, while `h[content-type]` is still arithmetic and lands on
 ([0008](adr/0008-globstar-is-always-on.md)); the extended groups are always on
 too ([0017](adr/0017-one-namespace-for-options.md)).
 
+**[hibr]** A character is a UTF-8 character whatever the locale: `?` and a
+bracket take `é` or `日` whole, and a range compares code points, as bash does
+in a UTF-8 locale and not in its C locale. `[:alpha:]`, `[:upper:]` and
+`[:lower:]` take the cased letters of Latin, Greek, Cyrillic and Armenian as
+well as ASCII's, `[:print:]` and `[:graph:]` everything from U+00A0 on, and
+the other classes ASCII alone.
+
 ---
 
 [← documentation index](README.md)

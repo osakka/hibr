@@ -3,17 +3,20 @@
 # to copy the rest of the string once per candidate end: 8 KB took 2.8 s
 # and 16 KB 20 s (Gitea #294).
 #
-# Left out, each a difference that is not this test's: `?` and `[!a]`
-# match one *byte* where bash matches a character, so no multibyte value
-# meets them, and a lone unquoted backslash matches one here and nothing
-# in bash (both Gitea #296); and over an empty value, or as `/%` of
-# `!(a)`, bash answers from its own count of how long an extended group
-# is -- `@(a|)` matches the empty string and bash still leaves an empty
-# value alone -- where this shell asks whether the pattern matches.
+# Left out, each a difference that is not this test's: a lone unquoted
+# backslash as the whole pattern matches one here, as it does in `[[ ]]`
+# and `case` in both shells, and nothing in bash's substitution alone --
+# its quick check wraps the pattern as `*\*`, where the backslash escapes
+# the star (Gitea #296); and over an empty value, or as `/%` of `!(a)`,
+# bash answers from its own count of how long an extended group is --
+# `@(a|)` matches the empty string and bash still leaves an empty value
+# alone -- where this shell asks whether the pattern matches. Bash counts
+# characters only in a UTF-8 locale, so one is set for it.
+export LC_ALL=C.UTF-8
 shopt -s extglob
 
 vals=("" "a" "abc" "aaa" "banana" "a.b.c" 'x\y' "123abc456" "a*b?c"
-      "  sp  ce  " "abab" "zzz")
+      "  sp  ce  " "abab" "zzz" "héllo wörld")
 pats=("" "a" "?" "*" "a*" "*a" "a*b" "[ab]" "[!a]" "[[:digit:]]" "an" "na"
       '\*' '\?' "*(a)" "+(a)" "@(a|b)" "?(x)" "a?" "??" "[0-9]*([0-9])" ' '
       'b*' "*c" 'x\\y' "[a-c]" "z" "[]a]" "[a-]")
