@@ -47,6 +47,23 @@ if have:
             and ff("-i", "a.webm", "-c", "copy", "-f", "dash", "-dash_segment_type", "webm",
                    "-seg_duration", "2", "-init_seg_name", "ainit.webm",
                    "-media_seg_name", "aseg-$Number$.webm", "a.mpd"))
+# A clip long enough to be well past the end of its own frame queue: the
+# twelve-second one ends its input before a decoder racing ahead could
+# get ahead of the clock (Gitea #288).
+LONG = os.path.join(D, "long")
+if have:
+    os.makedirs(LONG)
+    have = all(subprocess.run(["ffmpeg", "-loglevel", "error", "-y"] + a, cwd=LONG,
+                              capture_output=True).returncode == 0 for a in (
+        ["-f", "lavfi", "-i", "testsrc=size=256x144:rate=24:duration=40", "-c:v",
+         "libvpx-vp9", "-b:v", "200k", "-g", "48", "-keyint_min", "48", "-an", "v.webm"],
+        ["-f", "lavfi", "-i", "sine=frequency=440:duration=40", "-c:a", "libopus", "a.webm"],
+        ["-i", "v.webm", "-c", "copy", "-f", "dash", "-dash_segment_type", "webm",
+         "-seg_duration", "2", "-init_seg_name", "vinit.webm",
+         "-media_seg_name", "vseg-$Number$.webm", "v.mpd"],
+        ["-i", "a.webm", "-c", "copy", "-f", "dash", "-dash_segment_type", "webm",
+         "-seg_duration", "2", "-init_seg_name", "ainit.webm",
+         "-media_seg_name", "aseg-$Number$.webm", "a.mpd"]))
 if have:
     r = subprocess.run([sx.HIBR, "-c", "mod load %s; media list" %
                         tree("build/mods/media.so")], capture_output=True, text=True)
@@ -60,6 +77,9 @@ if not have:
 srv = subprocess.Popen([sys.executable, tree("tests/ytserve.py"), MEDIA],
                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
 BASE = "http://127.0.0.1:%s" % srv.stdout.readline().split()[1]
+lsrv = subprocess.Popen([sys.executable, tree("tests/ytserve.py"), LONG, "40"],
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+LBASE = "http://127.0.0.1:%s" % lsrv.stdout.readline().split()[1]
 PROF = os.path.join(D, "profile")
 DATA = os.path.join(D, "data")
 
@@ -116,11 +136,9 @@ def playing(sc):
 def at(sc):
     """The time the player's bar shows, in seconds."""
     for r in range(sc.rows):
-        line = sc.row(r)
-        i = line.find(" / 0:12")
-        if i > 0:
-            m, s = line[:i].split()[-1].split(":")
-            return int(m) * 60 + int(s)
+        m = re.search(r"(\d+):(\d\d) / \d+:\d\d", sc.row(r))
+        if m:
+            return int(m.group(1)) * 60 + int(m.group(2))
     return -1
 
 
@@ -204,6 +222,23 @@ try:
     check("m walks the picture list: half, ASCII, plain, pixels, and back",
           any(c in s[4].text() for c in "#%@*") and s[4].find("▀") is None and
           "mono" in s[5].text() and "pixels" in s[6].text(), s[4])
+
+    # A window that is not drawn takes no frames, and the picture must
+    # still be where the clock is when it is drawn again (Gitea #288).
+    # Away long enough for the queue of frames to fill: then the decoder
+    # went on dropping the oldest -- the present -- until all it held was
+    # frames from seconds ahead, and the picture stood still on coming
+    # back while the clock and the sound went on.
+    def picture(sc):
+        return tuple((sc.style(r, c)["fg"], sc.style(r, c)["bg"])
+                     for r in range(3, 20) for c in range(2, 80))
+    s = yrun([([], "A test pattern"), ([b"\r"], playing), ([], lambda sc: at(sc) >= 1),
+              ([b"\x1b2"], None, 0.1), ([14.0], None), ([b"\x1b1"], "YouTube ["),
+              ([0.6], None), ([0.6], None)],
+             env={"YT_DATA": os.path.join(D, "data-away"), "YT_BASE": LBASE})
+    check("a player on another workspace comes back moving, not on a frame from before",
+          len({picture(s[5]), picture(s[6]), picture(s[7])}) > 1 and
+          at(s[7]) >= 14, (at(s[5]), at(s[7]), s[7]))
 
     # The mini player: the picture alone, no border, bottom right, on every
     # workspace; escape goes back to the full player where it was.
@@ -407,7 +442,8 @@ try:
           and sc.find("tiny") is not None, sc)
 finally:
     srv.kill()
+    lsrv.kill()
     srv.wait()
     shutil.rmtree(D, True)
 
-report(38)
+report(39)

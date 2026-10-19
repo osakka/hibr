@@ -2186,6 +2186,18 @@ went in the shell.
   check only fails half the time, add a knob that makes the window
   certain (`ytserve.py`'s `/control?slow=VID:MS` and its `/early` count)
   rather than leaving the guard to luck.
+- **A queue that drops its oldest when full keeps the future when nobody
+  takes from it.** The media player's frame queue made room that way, and
+  a window that is not drawn takes no frames, so on another workspace or
+  under the saver the decoder dropped the present, frame by frame, until
+  it held only what was seconds ahead -- and a shared "is it full" gate let
+  it run faster than the clock, since the sound thread waited on the
+  picture's queue too and the gate opened every time the sound dipped.
+  The picture stood still on coming back (Gitea #288, 0.99.262).
+  `mv_prune` drops what the clock has passed, drawn or not, and each fed
+  thread waits on its own queue. A check for it needs a clip longer than
+  the queue: the suite's twelve-second one ran out of input before the
+  race could pass the clock, and passed against the bug.
 - **A timing check waits for the thing, and widens under the
   sanitizers.** `tests/media.py` and `tests/youtube.py` wait on the
   condition with a deadline rather than a fixed sleep, and scale their

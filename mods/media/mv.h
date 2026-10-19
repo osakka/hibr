@@ -216,6 +216,7 @@ void mv_feedclose(mv_pl *p);
 void mv_pause(mv_pl *p, int on);
 void mv_seek(mv_pl *p, double t);
 double mv_clock(mv_pl *p);
+double mv_clocklk(mv_pl *p);
 int mv_frame(mv_pl *p);
 void mv_size(mv_pl *p, int cols, int rows, int mode);
 long mv_next(mv_pl *p);

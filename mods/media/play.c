@@ -261,12 +261,49 @@ void mv_recv(mv_pl *p, void *cc, void *fr, int video)
 	}
 }
 
+/* Drop the frames waiting that a later one has already passed, the mutex
+   held: nothing will show them now, and a queue full of them let a
+   decoder nobody was drawing for go on dropping the oldest -- the present
+   -- until all it held was the future, a picture frozen until the clock
+   caught up (Gitea #288). The last frame due stays, for the next draw. */
+void mv_prune(mv_pl *p)
+{
+	double c;
+	mv_vf *v;
+
+	if (p->vqn < 2)
+		return;
+	c = mv_clocklk(p);
+	while (p->vqn >= 2 && p->vq[(p->vqh + 1) % MV_VQ].pts <= c) {
+		v = &p->vq[p->vqh];
+		free(v->rgb);
+		v->rgb = 0;
+		p->vqh = (p->vqh + 1) % MV_VQ;
+		p->vqn--;
+	}
+}
+
+/* Whether one fed input has run far enough ahead to wait. Each has a
+   thread of its own, so each waits on its own queue: the one rule for
+   both held the sound at 0.3 s whenever the picture's queue was full,
+   and every time it dipped the picture decoded on past the clock. */
+int mv_kfull(mv_pl *p, int video)
+{
+	if (!video)
+		return p->aqd >= MV_AHEAD;
+	mv_prune(p);
+	return p->vqn >= MV_VQ - 1;
+}
+
 /* Whether decoding has run far enough ahead to wait. Video alone never
    holds it back while the sound is about to run dry -- a file whose
    streams are far apart would otherwise stop both. */
 int mv_full(mv_pl *p)
 {
-	int vfull = p->vi >= 0 && p->vqn >= MV_VQ - 1;
+	int vfull;
+
+	mv_prune(p);
+	vfull = p->vi >= 0 && p->vqn >= MV_VQ - 1;
 	int afull = p->ai >= 0 && p->aqd >= MV_AHEAD;
 
 	if (afull)

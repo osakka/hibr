@@ -6,7 +6,8 @@ clip through a media source as YouTube's player does -- an init segment
 and then two-second fragments of VP9 and of Opus, and after a seek only
 the fragments from the one holding the time asked for -- so the web module's
 tap, the pipes, the media player and the app are all exercised without
-the network. Prints "port N" once it is listening.
+the network. Prints "port N" once it is listening. A second argument is
+the clip's length in seconds, 12 when not given.
 
 GET /control?fail=VID:SECONDS makes the next load of that video fail the
 way YouTube's player does: it stops fetching at that second and its player
@@ -25,13 +26,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = sys.argv[1]
+DUR = int(sys.argv[2]) if len(sys.argv) > 2 else 12
+LEN = "%d:%02d" % (DUR // 60, DUR % 60)
 FAILS = {}
 SLOWS = {}
 LOADS = {}
 EARLY = {}
-VIDEOS = [("vid1", "A test pattern", "Pattern Channel", "0:12"),
-          ("vid2", "Another clip", "Second Channel", "0:12"),
-          ("vid3", "Third result", "Pattern Channel", "0:12")]
+VIDEOS = [("vid1", "A test pattern", "Pattern Channel", LEN),
+          ("vid2", "Another clip", "Second Channel", LEN),
+          ("vid3", "Third result", "Pattern Channel", LEN)]
 
 WATCH = """<!doctype html><html><head><title>%(title)s - YouTube</title></head>
 <body><div id="movie_player"></div><video id="v" muted></video><script>
@@ -65,7 +68,7 @@ ms.addEventListener("sourceopen", function () {
 });
 var state = -1, quality = "auto";
 P.getPlayerState = function () { return state; };
-P.getDuration = function () { return 12; };
+P.getDuration = function () { return %(dur)s; };
 P.getVideoData = function () { return {title: "%(title)s", author: "%(author)s"}; };
 P.setPlaybackQualityRange = function (q) { quality = q; window.__quality = q; };
 P.mute = function () { V.muted = true; };
@@ -170,7 +173,7 @@ class H(BaseHTTPRequestHandler):
             LOADS[vid] = LOADS.get(vid, 0) + 1
             t = dict((i, (t, c)) for i, t, c, l in VIDEOS).get(vid, ("Unknown", "Nobody"))
             return self.send(200, WATCH % {"title": t[0], "author": t[1],
-                                           "vid": vid,
+                                           "vid": vid, "dur": DUR,
                                            "fail": FAILS.pop(vid, 0),
                                            "slow": SLOWS.get(vid, 0)})
         if u.path == "/media/list":

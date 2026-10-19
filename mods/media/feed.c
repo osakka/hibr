@@ -12,7 +12,7 @@ void *mv_codec(void *st, const void *dec, char **why);
 void mv_recv(mv_pl *p, void *cc, void *fr, int video);
 void mv_wait(mv_pl *p, int ms);
 void mv_wake(mv_pl *p);
-int mv_full(mv_pl *p);
+int mv_kfull(mv_pl *p, int video);
 void *mv_aud(void *arg);
 int fd_high(int fd);
 
@@ -239,7 +239,8 @@ void *mv_fdec(void *arg)
 		}
 		while (cc) {
 			pthread_mutex_lock(&p->mu);
-			while (!p->quit && in->gen == gen && mv_full(p))
+			while (!p->quit && in->gen == gen &&
+			       mv_kfull(p, in->kind == MV_VIDEO))
 				mv_wait(p, 50);
 			r = p->quit || in->gen != gen;
 			pthread_mutex_unlock(&p->mu);

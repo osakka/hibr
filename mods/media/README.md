@@ -53,6 +53,14 @@ decoding, with the picture's shape kept and black around it; a frame made
 before a resize or a change of mode is resampled when it is drawn, so a
 change shows at once and sharpens as new frames arrive.
 
+A frame the clock has gone past is dropped as soon as a later one is also
+due, whether or not anything is drawing, so the frames waiting are always
+the ones still to come. A window that is not drawn -- on another
+workspace, under the screen saver -- takes no frames, and before this the
+full queue made room by dropping its oldest frame, which was the present:
+the decoder ran on until it held only frames from seconds ahead, and the
+picture stood still while the sound went on (Gitea #288).
+
 `HIBR_MEDIA_AUDIO` chooses where sound goes: `alsa`, `audioqueue`, `none`
 (silent, at the same pace), or `wav:PATH` (written to a file, at the same
 pace -- what the tests listen to). Unset, the platform's own device is
@@ -64,8 +72,11 @@ used, and a machine with none plays silently and says so in `info`'s
 A fed player's pipes are drained into memory by a thread each, so a
 writer is never held up by a decoder that has run as far ahead as it may;
 a demuxing thread per stream reads that memory through FFmpeg's own I/O
-callbacks. A seek drops everything queued and each stream starts again at
-the next init segment it is given -- anything before one is taken for a
+callbacks. Each of those threads waits on its own queue -- the picture's
+frames, the sound's three seconds -- since one rule for both held the
+sound back whenever the picture's queue was full. A seek drops everything
+queued and each stream starts again at the next init segment it is
+given -- anything before one is taken for a
 leftover from before the seek and skipped. The player says it has ended
 when its clock reaches the length the init segments declared.
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.262
+
+**A video comes back moving after a workspace switch or the screen
+saver** (Gitea #288). A window that is not drawn takes no frames, and
+the player's queue of frames, once full, made room by dropping its oldest
+-- which was the present. The picture's decoder then ran on, faster than
+the clock, every time the sound's queue dipped, until all it held were
+frames from seconds or a minute ahead: coming back, the picture stood on
+the last frame drawn while the clock and the sound went on, until the
+clock caught up. A frame the clock has passed is now dropped as soon as a
+later one is due, drawn or not, and a fed player's picture and sound each
+wait on their own queue, so neither holds the other back. A file played
+with `media open` (`examples/play.hibr`) gets the first half too.
+
 ## 0.99.261
 
 **The lock's password box is on the primary display** (Gitea #303). With
