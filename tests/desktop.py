@@ -4687,6 +4687,26 @@ sc, _ = run(SBX, feed=[press(12, 32), drag(9, 32), drag(7, 32), release(7, 32)])
 check("and dragging the thumb carries the view, in a window with no _mouse",
       sc.find("line 40") is not None and sc.find("line 40")[0] == 3, sc)
 
+# A wallpaper picture that will not draw is said so once and the pattern
+# shown, not tried again on every frame: a theme's picture the package had
+# stopped shipping filled one desktop's log with 135,170 lines of it
+# (Gitea #301). The one line it does log is expected.
+# Read before quitting: Quit's confirm box clears every note on screen.
+expect(r"cannot open .*hibr-no-such-wallpaper\.png")
+wbpath = scratch("desktop-wallbad.hibr")
+open(wbpath, "w").write("%s. %s\n%sdt_open\ndt_run\ndt_close\n"
+                        % (load(MOD), WM, IMGMOD))
+wbt = Term(wbpath, env={"DT_TICK": "60", "DT_NOTEMS": "60000",
+                        "DT_WALLIMG": "/nonexistent/hibr-no-such-wallpaper.png"},
+           rows=ROWS, cols=COLS, settle=0.6)
+wbt.until(lambda s: s.find("Cannot show the wallpaper picture") is not None)
+sc = wbt.screen()
+wbt.quit(b"qy", 1.0)
+check("a wallpaper picture that cannot be drawn says so, and the pattern "
+      "shows instead",
+      sc.find("Cannot show the wallpaper picture") is not None
+      and sc.row(1)[0:1] == "·", sc)
+
 # A window larger than the screen still moves when dragged: the far-edge
 # clamp gave it the same place from every drag -- off the screen's top
 # left -- so one zoomed on a display that had since gone could not be
@@ -5921,4 +5941,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(655)
+report(656)

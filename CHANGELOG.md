@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.259
+
+**A wallpaper picture that will not draw says so once, and is not tried
+again on every frame** (Gitea #301, the part found so far). The desktop
+tried the picture on each frame that painted the wallpaper, logging the
+failure each time, and showed the pattern with nothing on screen to say
+why. One desktop's log held 135,170 lines of `cannot open
+.../themes/retro_car.png` -- a theme's picture from when the package still
+shipped that theme, saved as a path into the package's own folder, which
+0.99.230 stopped shipping. A picture that fails now gives one note,
+*Cannot show the wallpaper picture …*, and the pattern; choosing a
+picture again -- in either wallpaper pane, the image viewer's Set as
+Wallpaper, or a theme -- tries afresh. Why some pictures do not draw at
+all is still open: a picture that fails is what is needed to find out.
+
 ## 0.99.258
 
 **Every scrollbar can be held and dragged, and the wheel goes where it is

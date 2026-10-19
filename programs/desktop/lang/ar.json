@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "2.8",
+ "version": "2.9",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -201,6 +201,7 @@
   "Cannot restart: %s cannot be made": "تعذّرت إعادة التشغيل: تعذّر إنشاء %s",
   "Cannot restart: no hibr at %s, or no %s": "تعذّرت إعادة التشغيل: لا يوجد hibr في %s، أو لا يوجد %s",
   "Cannot restart: the state could not be written": "تعذّرت إعادة التشغيل: لم تُكتب الحالة",
+  "Cannot show the wallpaper picture %s": "تعذّر عرض صورة الخلفية %s",
   "Cannot write %s": "تعذّرت كتابة %s",
   "Cannot write in %s": "تعذّرت الكتابة في %s",
   "Catalogue": "الفهرس",

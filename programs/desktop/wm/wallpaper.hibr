@@ -440,7 +440,8 @@ dt_wall() {
 			DT_WALLTRIED=1
 			need img
 		fi
-		if [ -z "$DT_WALLIMG" ] || ! dt_has img; then
+		if [ -z "$DT_WALLIMG" ] || ! dt_has img ||
+		   [ "$DT_WALLIMG" = "$DT_WALLBAD" ]; then
 			plain+=("$dr $dc $drows $dcols")
 			continue
 		fi
@@ -461,6 +462,7 @@ dt_wall() {
 				"$DT_WALLH" "$DT_WALLW" "${DT_WALLCARG[@]}"; then
 				drawn=1
 			else
+				dt_wallbad
 				plain+=("$dr $dc $drows $dcols")
 			fi
 			continue
@@ -488,6 +490,7 @@ dt_wall() {
 			DT_WALLPIXI+=("$DT_WALLIMG")
 			DT_WALLPIXM+=("$wm")
 		else
+			dt_wallbad
 			plain+=("$dr $dc $drows $dcols")
 		fi
 	done
@@ -510,6 +513,21 @@ dt_wall() {
 	# behind-the-panes mode. Its rescan is above, outside the gate.
 	[ "$DT_ICONS" = 1 ] && dt_icondraw
 	console behind off
+}
+
+# A picture that would not draw -- gone, unreadable, or a file img cannot
+# decode -- is said so once and not tried again while it is still the
+# wallpaper, where it was tried on every frame that painted: a theme's
+# picture left behind by a package that stopped shipping it filled one
+# desktop's log with 135,170 lines of it (Gitea #301). Choosing another
+# picture, or the same one again, tries afresh.
+dt_wallbad() {
+	[ "$DT_WALLBAD" = "$DT_WALLIMG" ] && return 0
+	DT_WALLBAD=$DT_WALLIMG
+	dt_note "Cannot show the wallpaper picture %s" "${DT_WALLIMG##*/}"
+	# Raised in the middle of a frame, after the notes were drawn: an idle
+	# desktop would draw no other to show it in.
+	dt_want 30
 }
 
 # Right-click on the bare desktop.

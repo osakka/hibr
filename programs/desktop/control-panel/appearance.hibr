@@ -11,7 +11,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 1.7
+app appearance "The Control Panel pane for how the desktop looks" 1.8
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -264,6 +264,7 @@ fn cp_theme(t) {
 	DT_GLYPH=${CP_TH["$t"]["wallpaper"]}
 	DT_WALLIMG=${CP_TH["$t"]["image"]}
 	DT_WALLTRIED=
+	DT_WALLBAD=
 	DT_WALLMODE=${CP_TH["$t"]["mode"]}
 	DT_FRAME=${CP_TH["$t"]["frame"]}
 	DT_TITLEBAR=${CP_TH["$t"]["titlebar"]}

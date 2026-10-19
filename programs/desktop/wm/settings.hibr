@@ -115,6 +115,9 @@ DT_GLYPH="${DT_GLYPH-·}"
 # known not to load.
 DT_WALLIMG="${DT_WALLIMG-}"
 DT_WALLTRIED=
+# Nor is DT_WALLBAD: a picture img could not draw, tried once and not
+# again while it is still the wallpaper (Gitea #301).
+DT_WALLBAD=
 
 # How the wallpaper image fills the screen: stretch (ignore its own aspect
 # ratio, the original and only behaviour), scale (fit entirely within the

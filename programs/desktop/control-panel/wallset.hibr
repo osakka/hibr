@@ -20,7 +20,7 @@
 strict
 
 
-app wallset "The Control Panel pane for the wallpaper of each display" 1.0
+app wallset "The Control Panel pane for the wallpaper of each display" 1.1
 command -v cp_pane > /dev/null && cp_pane wallset "Wallpaper" "▧"
 
 # Declared again because a pane is loaded without the window manager's
@@ -89,7 +89,7 @@ fn cp_wdget(field) {
 fn cp_wdset(field, value = "") {
 	if [ -z "$CP_WDISP" ]; then
 		case $field in
-		img) DT_WALLIMG=$value ;;
+		img) DT_WALLIMG=$value; DT_WALLBAD= ;;
 		mode) DT_WALLMODE=$value ;;
 		*) DT_WALLIMGMODE=$value ;;
 		esac

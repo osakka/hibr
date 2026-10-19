@@ -176,6 +176,7 @@ Cannot read %s
 Cannot restart: %s cannot be made
 Cannot restart: no hibr at %s, or no %s
 Cannot restart: the state could not be written
+Cannot show the wallpaper picture %s
 Cannot write %s
 Cannot write in %s
 Catalogue

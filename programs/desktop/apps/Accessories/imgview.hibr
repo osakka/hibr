@@ -8,7 +8,7 @@
 
 strict
 
-app imgview "A picture in a window" 1.0
+app imgview "A picture in a window" 1.1
 # modules: img term
 
 command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"
@@ -142,6 +142,7 @@ fn imgview_setwall(int id) {
 		return 0
 	fi
 	DT_WALLIMG=$path
+	DT_WALLBAD=
 	dt_save
 	dt_notep low "Wallpaper set"
 }
