@@ -555,10 +555,10 @@ int b_read(sh *s, int ac, char **av)
 	str b;
 	long n;
 	int i = 1, want = 0, cnt = 0, exact = 0, silent = 0, fd = 0;
-	int delim = '\n', eof = 0;
+	int delim = '\n', eof = 0, rdy;
 	const char *arr = 0, *prompt = 0;
 	char *ov;
-	long tmo = 0;
+	double tmo = -1;
 	const char *ifs = sh_ifs(s);
 	size_t p = 0, st;
 	struct termios sv, raw;
@@ -618,7 +618,17 @@ int b_read(sh *s, int ac, char **av)
 				}
 				break;
 			case 't':
-				tmo = atol(ov);
+				{
+					char *e3;
+
+					tmo = strtod(ov, &e3);
+					if (!*ov || *e3 || tmo < 0) {
+						lg(HIBR_LERR,
+						   "read: %s: invalid timeout specification",
+						   ov);
+						return 1;
+					}
+				}
 				break;
 			case 'u':
 				fd = atoi(ov);
@@ -639,14 +649,19 @@ int b_read(sh *s, int ac, char **av)
 		fputs(prompt, stderr);
 		fflush(stderr);
 	}
-	if (tmo > 0) {
+	if (tmo >= 0) {
 		FD_ZERO(&rs);
 		FD_SET(fd, &rs);
-		tv.tv_sec = tmo;
-		tv.tv_usec = 0;
-		if (select(fd + 1, &rs, 0, 0, &tv) <= 0) {
-			lg(HIBR_LDBG, "read timed out after %ld s", tmo);
-			return HIBR_FAIL;
+		tv.tv_sec = (time_t)tmo;
+		tv.tv_usec = (suseconds_t)((tmo - (double)tv.tv_sec) * 1e6);
+		rdy = select(fd + 1, &rs, 0, 0, &tv);
+		if (tmo == 0) {
+			lg(HIBR_LDBG, "read -t 0: input %s", rdy > 0 ? "waiting" : "none");
+			return rdy > 0 ? 0 : 1;
+		}
+		if (rdy <= 0) {
+			lg(HIBR_LDBG, "read timed out after %g s", tmo);
+			return 142;
 		}
 	}
 	if (silent && tcgetattr(fd, &sv) == 0) {

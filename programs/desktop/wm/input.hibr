@@ -420,6 +420,14 @@ dt_mouse() {
 		DT_SIZECORNER=
 		;;
 	wheelup | wheeldown | wheelleft | wheelright)
+		# An item an app put on the bar may take the wheel too -- the
+		# speaker does, for the volume (Gitea #306).
+		if dt_onbar "$mr" "$mc" && bi := dt_barihit "$mc"; then
+			if [ -n "${DT_BARI["$bi"]["wheel"]-}" ]; then
+				"${DT_BARI["$bi"]["wheel"]}" "${act#wheel}"
+				return 0
+			fi
+		fi
 		if cs_hit "$mr" "$mc"; then
 			case $act in
 			wheelup) cs_scroll -1 ;;
@@ -660,6 +668,12 @@ fn dt_event(k) {
 		dt_snap_focused bottom
 	elif dt_keyis snapcenter "$k"; then
 		dt_snap_focused center
+	elif dt_keyis volup "$k"; then
+		dt_sndstep 1
+	elif dt_keyis voldown "$k"; then
+		dt_sndstep -1
+	elif dt_keyis mute "$k"; then
+		dt_sndmutekey
 	elif [ "$knorm" = "$sn" ]; then
 		if [ "$CS_ATTN" = 1 ]; then
 			CS_ATTN=0

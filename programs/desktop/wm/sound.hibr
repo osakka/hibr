@@ -1,0 +1,532 @@
+# wm/sound -- the machine's sound: which output and input are used, their
+# volume and mute, the speaker on the menu bar and the keys that change it
+# (Gitea #306). Control Panel > Sound is the pane over it.
+#
+# A sound server first: PipeWire and PulseAudio both answer `pactl`
+# (PipeWire's own PulseAudio side is what makes it so), so one path covers
+# both, and choosing a device makes it the server's default -- which is
+# where the media module's own sound goes, and every other program's.
+# Without a server, ALSA's mixer through `amixer`: one card's Master and
+# Capture, and the card chosen in ~/.asoundrc. HIBR_SOUND chooses: auto,
+# pulse, alsa or none; the suites start every desktop with none, so no
+# test, random input included, can touch a real machine's sound.
+#
+# A server says when anything changes -- another program, a headset
+# plugged in -- through `pactl subscribe`, which the desktop watches, so
+# the bar follows without polling and an idle desktop stays asleep. Its
+# lines for clients coming and going, which every pactl call makes, are
+# not changes.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# The state: kind (pulse, alsa, none; empty until the first frame looks),
+# server (what the server calls itself), out and in (the chosen devices'
+# names), vol, mute, ivol and imute (the chosen ones' levels, 0 to 100,
+# and 1 for muted).
+declare -gA DT_SND
+# The outputs and the inputs, names and what each is called, in step.
+declare -ga DT_SNDON DT_SNDOD DT_SNDIN DT_SNDID
+DT_SNDFD=
+DT_SNDPID=
+DT_SNDAT=0
+DT_SNDRC="${DT_SNDRC-$HOME/.asoundrc}"
+
+# The one place a sound server is spoken to: pactl, in the C locale so its
+# words are the ones read here, saying nothing on stderr.
+fn dt_snpa(...a) {
+	LC_ALL=C pactl "${a[@]}" 2> /dev/null
+}
+
+# Which kind of sound this machine has, looked at once: a server answering
+# pactl, else ALSA's mixer, else none.
+dt_sndkind() {
+	local k=${HIBR_SOUND:-auto}
+
+	case $k in
+	none) DT_SND["kind"]=none; return 0 ;;
+	pulse | alsa) DT_SND["kind"]=$k; return 0 ;;
+	esac
+	if command -v pactl > /dev/null && dt_snpa info > /dev/null; then
+		DT_SND["kind"]=pulse
+	elif command -v amixer > /dev/null && amixer sget Master > /dev/null 2>&1; then
+		DT_SND["kind"]=alsa
+	else
+		DT_SND["kind"]=none
+	fi
+}
+
+# The first number before a % in a mixer's line, which is the volume of
+# its first channel.
+fn dt_sndpct(l) {
+	local v
+
+	case $l in *%*) ;; *) ret 0; return 0 ;; esac
+	v=${l%%%*}
+	v=${v##*[!0-9]}
+	ret "${v:-0}"
+}
+
+# Read a server's outputs or inputs (what is sinks or sources) into the
+# name and description arrays, and the default one's level into vol/mute
+# or ivol/imute. A source that is another output's monitor is not an
+# input anyone means. A server with no default yet says `@DEFAULT_SINK@`
+# itself, which names nothing: the first device is the one in use then.
+fn dt_sndplist(what, def) {
+	local out l nm= ds= mu= vo= mon= v i=0 at=0
+	local -a ns ds2 vs ms
+
+	out=$(dt_snpa list "$what")
+	out="$out
+Sink #end"
+	while IFS= read -r l; do
+		case $l in
+		"Sink #"* | "Source #"*)
+			if [ -n "$nm" ] && [ -z "$mon" ]; then
+				ns+=("$nm")
+				ds2+=("${ds:-$nm}")
+				v := dt_sndpct "$vo"
+				vs+=("$v")
+				ms+=("$mu")
+			fi
+			nm=; ds=; mu=0; vo=; mon=
+			;;
+		*)
+			l=${l#"${l%%[![:space:]]*}"}
+			case $l in
+			"Name: "*) nm=${l#Name: } ;;
+			"Description: "*) ds=${l#Description: } ;;
+			"Mute: yes") mu=1 ;;
+			"Volume: "*) vo=$l ;;
+			"Monitor of Sink: n/a") ;;
+			"Monitor of Sink: "*) mon=1 ;;
+			esac
+			;;
+		esac
+	done <<< "$out"
+	while [ "$i" -lt "${#ns[@]}" ]; do
+		[ "${ns[$i]}" = "$def" ] && at=$i
+		i=$((i + 1))
+	done
+	if [ "$what" = sinks ]; then
+		DT_SNDON=("${ns[@]}")
+		DT_SNDOD=("${ds2[@]}")
+		[ "${#ns[@]}" -gt 0 ] || return 0
+		DT_SND["out"]=${ns[$at]}
+		DT_SND["vol"]=${vs[$at]}
+		DT_SND["mute"]=${ms[$at]}
+	else
+		DT_SNDIN=("${ns[@]}")
+		DT_SNDID=("${ds2[@]}")
+		[ "${#ns[@]}" -gt 0 ] || return 0
+		DT_SND["in"]=${ns[$at]}
+		DT_SND["ivol"]=${vs[$at]}
+		DT_SND["imute"]=${ms[$at]}
+	fi
+}
+
+# ALSA's cards, as the outputs and inputs there are: a card number and
+# what /proc calls it.
+dt_sndacards() {
+	local l n d
+	local -a ns ds
+
+	if [ -r /proc/asound/cards ]; then
+		while IFS= read -r l; do
+			case $l in
+			" "[0-9]* | [0-9]*)
+				n=${l#"${l%%[! ]*}"}
+				n=${n%% *}
+				d=${l#* - }
+				ns+=("$n")
+				ds+=("$d")
+				;;
+			esac
+		done < /proc/asound/cards
+	fi
+	DT_SNDON=("${ns[@]}")
+	DT_SNDOD=("${ds[@]}")
+	DT_SNDIN=("${ns[@]}")
+	DT_SNDID=("${ds[@]}")
+}
+
+# The card ~/.asoundrc makes the default, when it is the one this desktop
+# wrote; 0, ALSA's own default, otherwise.
+dt_sndacard() {
+	local l c=0
+
+	if [ -r "$DT_SNDRC" ]; then
+		while IFS= read -r l; do
+			case $l in "defaults.pcm.card "*) c=${l#defaults.pcm.card } ;; esac
+		done < "$DT_SNDRC"
+	fi
+	ret "$c"
+}
+
+# One ALSA control's level and mute, Master or Capture, on a card.
+fn dt_sndactl(int card, ctl) {
+	local out l v=0 mu=0
+
+	out=$(LC_ALL=C amixer -c "$card" sget "$ctl" 2> /dev/null) || { ret "0 0"; return 0; }
+	while IFS= read -r l; do
+		case $l in
+		*"["*"%]"*)
+			v := dt_sndpct "$l"
+			case $l in *"[off]"*) mu=1 ;; esac
+			break
+			;;
+		esac
+	done <<< "$out"
+	ret "$v $mu"
+}
+
+# Read everything the kind of sound here can say.
+dt_sndread() {
+	local l c r
+
+	case ${DT_SND["kind"]} in
+	pulse)
+		while IFS= read -r l; do
+			case $l in
+			"Server Name: "*) DT_SND["server"]=${l#Server Name: } ;;
+			"Default Sink: "*) DT_SND["out"]=${l#Default Sink: } ;;
+			"Default Source: "*) DT_SND["in"]=${l#Default Source: } ;;
+			esac
+		done <<< "$(dt_snpa info)"
+		dt_sndplist sinks "${DT_SND["out"]}"
+		dt_sndplist sources "${DT_SND["in"]}"
+		;;
+	alsa)
+		DT_SND["server"]=ALSA
+		dt_sndacards
+		c := dt_sndacard
+		DT_SND["out"]=$c
+		DT_SND["in"]=$c
+		r := dt_sndactl "$c" Master
+		DT_SND["vol"]=${r% *}
+		DT_SND["mute"]=${r#* }
+		r := dt_sndactl "$c" Capture
+		DT_SND["ivol"]=${r% *}
+		DT_SND["imute"]=${r#* }
+		;;
+	esac
+	return 0
+}
+
+# The speaker on the menu bar: the level, or that it is muted. Clicked, the
+# sound menu opens beneath it; the wheel over it changes the volume.
+dt_sndbar() {
+	local t
+
+	if [ "${DT_SNDBAR:-1}" != 1 ] || [ "${DT_SND["kind"]:-none}" = none ]; then
+		dt_baritem sound ""
+		return 0
+	fi
+	if [ "${DT_SND["mute"]}" = 1 ]; then
+		t=${GL[soundoff]}
+	else
+		t="${GL[sound]} ${DT_SND["vol"]:-0}%"
+	fi
+	dt_baritem sound "$t" dt_sndmenu
+	dt_bariwheel sound dt_sndwheel
+}
+
+# Look at the machine's sound, the first frame there is one to draw; and
+# watch the server's changes when there is a server.
+dt_sndstart() {
+	dt_sndkind
+	dt_sndread
+	dt_sndbar
+	[ "${DT_SND["kind"]}" = pulse ] || return 0
+	exec {DT_SNDFD}< <(LC_ALL=C exec pactl subscribe 2> /dev/null)
+	DT_SNDPID=$!
+	command -v console > /dev/null && console watch "$DT_SNDFD" 2> /dev/null
+	DT_SNDAT=$EPOCHSECONDS
+}
+
+# Stop watching the server, and end the pactl that was told to: at the
+# desktop's close and restart, and when the server goes.
+dt_sndstop() {
+	if [ -n "$DT_SNDFD" ]; then
+		command -v console > /dev/null && console unwatch "$DT_SNDFD" 2> /dev/null
+		exec {DT_SNDFD}<&-
+		DT_SNDFD=
+	fi
+	if [ -n "$DT_SNDPID" ]; then
+		kill "$DT_SNDPID" 2> /dev/null
+		DT_SNDPID=
+	fi
+	return 0
+}
+
+# Every frame: look the first time, then read what the server has said --
+# only a change to a device or the server reads everything again. A server
+# that has gone is looked for again after half a minute, on whatever frame
+# comes then.
+dt_sndtick() {
+	local l stale=
+
+	if [ -z "${DT_SND["kind"]}" ]; then
+		dt_sndstart
+		return 0
+	fi
+	if [ "${DT_SND["kind"]}" = gone ]; then
+		[ $((EPOCHSECONDS - DT_SNDAT)) -ge 30 ] || return 0
+		DT_SND["kind"]=
+		return 0
+	fi
+	[ -n "$DT_SNDFD" ] || return 0
+	while read -t 0 -u "$DT_SNDFD"; do
+		if ! IFS= read -r -u "$DT_SNDFD" l; then
+			dt_sndstop
+			DT_SND["kind"]=gone
+			DT_SNDAT=$EPOCHSECONDS
+			dt_baritem sound ""
+			return 0
+		fi
+		case $l in
+		*" on sink "* | *" on source "* | *" on server "* | *" on card "*) stale=1 ;;
+		esac
+	done
+	if [ -n "$stale" ]; then
+		dt_sndread
+		dt_sndbar
+	fi
+	return 0
+}
+
+# Set the chosen output's volume, 0 to 100.
+fn dt_sndvol(int v) {
+	[ "$v" -lt 0 ] && v=0
+	[ "$v" -gt 100 ] && v=100
+	case ${DT_SND["kind"]} in
+	pulse) dt_snpa set-sink-volume "${DT_SND["out"]}" "$v%" > /dev/null ;;
+	alsa) amixer -q -c "${DT_SND["out"]:-0}" sset Master "$v%" 2> /dev/null ;;
+	*) return 0 ;;
+	esac
+	DT_SND["vol"]=$v
+	dt_sndbar
+}
+
+# A step up (1) or down (-1), by Control Panel > Sound > Volume Step; a
+# step up takes the mute off, as a speaker's own knob would.
+fn dt_sndstep(int d) {
+	[ "$d" -gt 0 ] && [ "${DT_SND["mute"]}" = 1 ] && dt_sndmute
+	dt_sndvol $((${DT_SND["vol"]:-0} + d * ${DT_SNDSTEP:-5}))
+	dt_sndnote
+}
+
+# Say the level a key left it at, as a note, so a key pressed with the bar
+# item hidden still answers.
+dt_sndnote() {
+	[ "${DT_SND["kind"]:-none}" = none ] && return 0
+	if [ "${DT_SND["mute"]}" = 1 ]; then
+		dt_notep low "Sound muted"
+	else
+		dt_notep low "Volume %s%%" "${DT_SND["vol"]:-0}"
+	fi
+}
+
+# Mute the chosen output, or let it be heard again.
+dt_sndmute() {
+	case ${DT_SND["kind"]} in
+	pulse) dt_snpa set-sink-mute "${DT_SND["out"]}" toggle > /dev/null ;;
+	alsa) amixer -q -c "${DT_SND["out"]:-0}" sset Master toggle 2> /dev/null ;;
+	*) return 0 ;;
+	esac
+	if [ "${DT_SND["mute"]}" = 1 ]; then
+		DT_SND["mute"]=0
+	else
+		DT_SND["mute"]=1
+	fi
+	dt_sndbar
+}
+
+# The mute key: a mute, said as a note.
+dt_sndmutekey() {
+	dt_sndmute
+	dt_sndnote
+}
+
+# The input's level and mute.
+fn dt_sndivol(int v) {
+	[ "$v" -lt 0 ] && v=0
+	[ "$v" -gt 100 ] && v=100
+	case ${DT_SND["kind"]} in
+	pulse) dt_snpa set-source-volume "${DT_SND["in"]}" "$v%" > /dev/null ;;
+	alsa) amixer -q -c "${DT_SND["in"]:-0}" sset Capture "$v%" 2> /dev/null ;;
+	*) return 0 ;;
+	esac
+	DT_SND["ivol"]=$v
+}
+
+dt_sndimute() {
+	case ${DT_SND["kind"]} in
+	pulse) dt_snpa set-source-mute "${DT_SND["in"]}" toggle > /dev/null ;;
+	alsa) amixer -q -c "${DT_SND["in"]:-0}" sset Capture toggle 2> /dev/null ;;
+	*) return 0 ;;
+	esac
+	if [ "${DT_SND["imute"]}" = 1 ]; then
+		DT_SND["imute"]=0
+	else
+		DT_SND["imute"]=1
+	fi
+}
+
+# Make an output the one used. With a server, what is already playing moves
+# to it too, since PulseAudio leaves a stream where it was; with ALSA, the
+# card goes in ~/.asoundrc -- only a file this desktop wrote, or none, is
+# ever written, since a hand-made one is somebody's own.
+fn dt_sndout(nm) {
+	local l id
+	local -a w
+
+	case ${DT_SND["kind"]} in
+	pulse)
+		dt_snpa set-default-sink "$nm" > /dev/null || return 1
+		while IFS= read -r l; do
+			read -ra w <<< "$l"
+			id=${w[0]}
+			[ -n "$id" ] && dt_snpa move-sink-input "$id" "$nm" > /dev/null
+		done <<< "$(dt_snpa list short sink-inputs)"
+		;;
+	alsa) dt_sndrcwrite "$nm" || return 1 ;;
+	*) return 0 ;;
+	esac
+	dt_sndread
+	dt_sndbar
+}
+
+# Make an input the one used.
+fn dt_sndin(nm) {
+	case ${DT_SND["kind"]} in
+	pulse) dt_snpa set-default-source "$nm" > /dev/null || return 1 ;;
+	alsa) dt_sndrcwrite "$nm" || return 1 ;;
+	*) return 0 ;;
+	esac
+	dt_sndread
+}
+
+# Write ALSA's default card, when ~/.asoundrc is absent or this desktop's.
+fn dt_sndrcwrite(int card) {
+	local l mine=
+
+	if [ -e "$DT_SNDRC" ]; then
+		while IFS= read -r l; do
+			[ "$l" = "# hibr: Control Panel > Sound" ] && mine=1
+		done < "$DT_SNDRC"
+		if [ -z "$mine" ]; then
+			dt_notep high "%s is your own; the card is not changed" "$DT_SNDRC"
+			return 1
+		fi
+	fi
+	printf '%s\n' "# hibr: Control Panel > Sound" "defaults.pcm.card $card" \
+		"defaults.ctl.card $card" > "$DT_SNDRC"
+}
+
+# What a device is called, from its name: the outputs' or the inputs'.
+fn dt_snddesc(which, nm) {
+	local i=0
+
+	if [ "$which" = in ]; then
+		while [ "$i" -lt "${#DT_SNDIN[@]}" ]; do
+			[ "${DT_SNDIN[$i]}" = "$nm" ] && { ret "${DT_SNDID[$i]}"; return 0; }
+			i=$((i + 1))
+		done
+	else
+		while [ "$i" -lt "${#DT_SNDON[@]}" ]; do
+			[ "${DT_SNDON[$i]}" = "$nm" ] && { ret "${DT_SNDOD[$i]}"; return 0; }
+			i=$((i + 1))
+		done
+	fi
+	ret "$nm"
+}
+
+# The other way: a device's name from what it is called, as a dropdown
+# hands it back.
+fn dt_sndname(which, ds) {
+	local i=0
+
+	if [ "$which" = in ]; then
+		while [ "$i" -lt "${#DT_SNDID[@]}" ]; do
+			[ "${DT_SNDID[$i]}" = "$ds" ] && { ret "${DT_SNDIN[$i]}"; return 0; }
+			i=$((i + 1))
+		done
+	else
+		while [ "$i" -lt "${#DT_SNDOD[@]}" ]; do
+			[ "${DT_SNDOD[$i]}" = "$ds" ] && { ret "${DT_SNDON[$i]}"; return 0; }
+			i=$((i + 1))
+		done
+	fi
+	ret "$ds"
+}
+
+# The wheel over the speaker.
+fn dt_sndwheel(dir) {
+	case $dir in
+	up) dt_sndstep 1 ;;
+	down) dt_sndstep -1 ;;
+	esac
+	return 0
+}
+
+# The sound menu, opened beneath the speaker.
+dt_sndmenu() {
+	dt_context_open snd "" 1 "${DT_BARI["sound"]["c"]:-0}"
+}
+
+# What the sound menu holds: the level, up, down and mute with their keys,
+# then the outputs and the inputs with the one in use ticked, then the pane.
+fn snd_context(id = "") {
+	local i on lb
+
+	dt_menu "Sound"
+	if [ "${DT_SND["mute"]}" = 1 ]; then
+		dt_dim "Muted"
+	else
+		lb := dt_tr "Volume %s%%" "${DT_SND["vol"]:-0}"
+		dt_dim "$lb"
+	fi
+	dt_item "Volume Up" u dt_sndstep 1
+	dt_rowaccel "${DT_KEYS["volup"]}"
+	dt_item "Volume Down" d dt_sndstep -1
+	dt_rowaccel "${DT_KEYS["voldown"]}"
+	on=0
+	[ "${DT_SND["mute"]}" = 1 ] && on=1
+	dt_mark "Mute" m "$on" dt_sndmute
+	dt_rowaccel "${DT_KEYS["mute"]}"
+	if [ "${#DT_SNDON[@]}" -gt 0 ]; then
+		dt_sep
+		dt_dim "Output"
+		i=0
+		while [ "$i" -lt "${#DT_SNDON[@]}" ]; do
+			on=0
+			[ "${DT_SNDON[$i]}" = "${DT_SND["out"]}" ] && on=1
+			lb=${DT_SNDOD[$i]:0:40}
+			dt_mark "$lb" "" "$on" dt_sndout "${DT_SNDON[$i]}"
+			i=$((i + 1))
+		done
+	fi
+	if [ "${#DT_SNDIN[@]}" -gt 0 ] && [ "${DT_SND["kind"]}" = pulse ]; then
+		dt_sep
+		dt_dim "Input"
+		i=0
+		while [ "$i" -lt "${#DT_SNDIN[@]}" ]; do
+			on=0
+			[ "${DT_SNDIN[$i]}" = "${DT_SND["in"]}" ] && on=1
+			lb=${DT_SNDID[$i]:0:40}
+			dt_mark "$lb" "" "$on" dt_sndin "${DT_SNDIN[$i]}"
+			i=$((i + 1))
+		done
+	fi
+	dt_sep
+	if dt_has panel_goto; then
+		dt_item "Sound Settings${GL[ellipsis]}" s dt_panelpane sound
+	else
+		dt_dim "Sound Settings${GL[ellipsis]}"
+	fi
+}
+
+dt_ticker dt_sndtick

@@ -3664,6 +3664,27 @@ went in the shell.
   end and lose matches. bash's quick check is per match, so it is skipped
   for a pattern of one length, where the scan is already linear.
 
+- **`read -t 0` reads nothing, and that was found by a desktop file, not
+  a test** (Gitea #306, 0.99.264). It read a whole line into `REPLY` --
+  so the obvious "drain what is waiting" loop, `while read -t 0 -u $fd; do
+  read -r -u $fd l; done`, threw every other line away -- and `-t` went
+  through `atol`, so `read -t 0.5` was a timeout of 0, which the code took
+  for "no timeout" and waited for ever. `$!` was never set for a process
+  substitution either, so a script could not end the `<(...)` it started.
+  All three are bash's and were checked against it, `tests/193-read-timeout.t`.
+  The sound layer needed every one of them, which is the argument for
+  building the desktop on the shell: the shell's gaps show up as the
+  desktop's bugs first.
+- **A private PipeWire for a test needs a session bus of its own and no
+  system bus.** Started bare in a container, its realtime requests go to
+  RTKit over the system bus, RTKit fails, and each request waits out
+  D-Bus's 25-second timeout before the PulseAudio socket exists -- which
+  reads as the server not starting. With no bus at all it starts in a
+  second, but WirePlumber then exits, and `pactl set-default-sink` answers
+  "Not supported" from a server that otherwise works. `tests/sound.py`
+  runs a `dbus-daemon --session` in the server's own runtime folder and
+  points the system bus at nothing: 1.1 s, and everything works.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

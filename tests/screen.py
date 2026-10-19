@@ -272,6 +272,14 @@ for _v, _d in (("XDG_CONFIG_HOME", "config"), ("XDG_STATE_HOME", "state"),
                ("XDG_DATA_HOME", "data"), ("XDG_CACHE_HOME", "cache")):
     os.environ[_v] = os.path.join(HOME, "suite", _d)
     os.makedirs(os.environ[_v], exist_ok=True)
+# Nor the machine's own sound: a desktop's volume keys, its speaker and its
+# mute act on whatever sound server or ALSA mixer it finds, and random
+# input presses keys (Gitea #306). HIBR_SOUND=none turns the desktop's
+# sound layer off; an unreachable PULSE_SERVER keeps the media module and
+# pactl from finding the real server. tests/sound.py gives a session a
+# server of its own.
+os.environ["HIBR_SOUND"] = "none"
+os.environ["PULSE_SERVER"] = "unix:/nonexistent/hibr-test"
 
 # What the desktop prints, when HIBR_TESTIDLE is set, each time a frame is on
 # screen and it is about to wait for input -- an OSC a terminal ignores,

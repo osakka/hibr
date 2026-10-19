@@ -489,7 +489,9 @@ a strip module. `CS_MODDIRS` (default `~/.config/hibr/control-strip`) and
 
 The menu bar takes items too, since 0.99.129: `dt_baritem name text
 [cmd...]`, drawn left of the notification icon, and clicked it runs the
-words it was given. The two look similar and are for different things.
+words it was given; `dt_bariwheel name fn` has the wheel over it call `fn
+up` or `fn down`, which is how the speaker turns the volume (Gitea #306).
+The two look similar and are for different things.
 
 A **strip module** is a glyph and a click, and **the person decides where it
 sits** -- they dock the strip, size it, scroll it, drag it about. It is a

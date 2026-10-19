@@ -37,7 +37,7 @@ for _v in ("HIBR_MODPATH", "HIBR_MODULES", "HIBR_HOLD", "HIBR_SYSDIR"):
     ENV.pop(_v, None)
 SUITES = ["run.sh", "desktop", "apps_panel", "apps_reach", "apps_core", "apps_more", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars", "deps", "scopes",
-          "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "media", "youtube",
+          "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "media", "youtube", "sound",
           "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "archive", "mermaid",
           "appmgr", "xscreen", "shots"]
 

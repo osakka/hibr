@@ -102,6 +102,12 @@ fn dt_baritem(name, text = "", ...cmd) {
 	return 0
 }
 
+# What the wheel over an item runs, given up or down; an item with none
+# lets the wheel go on to whatever is under the bar.
+fn dt_bariwheel(name, fn) {
+	DT_BARI["$name"]["wheel"]=$fn
+}
+
 # Which item is at column c on the bar, if any. A bare `return 1` on a
 # miss and no `ret ""`: ret ends the function, so the caller of a `:=`
 # would see status 0 and the slot's last value -- the trap dt_mhit's own

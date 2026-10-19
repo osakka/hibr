@@ -792,6 +792,35 @@ answer is mailed to the organiser and the event kept in your calendar
 (unless the answer is no). An answer to one of your own invitations
 offers to record it in your copy, and a cancellation to remove it.
 
+## Sound
+
+The machine's sound is the desktop's (Gitea #306): a speaker on the menu
+bar shows the volume of the output in use -- `♪ 50%`, or `♪ ✕` muted --
+and a click opens the sound menu beneath it: the level, Volume Up, Volume
+Down and Mute with their keys, the outputs and the inputs with the one in
+use ticked, and Sound Settings…; the wheel over it turns the volume.
+`alt-=` and `alt--` turn it up and down a step, `alt-0` mutes, each saying
+the level in a note -- rows in Control Panel > Shortcuts, like every key
+the desktop holds; a keyboard's own volume keys never reach a terminal.
+
+**Control Panel > Sound** has the sound server it found, the output
+Device, its Volume and Mute, the input Device, its Level and Mute, Volume
+on Menu Bar, and Volume Step (how far a key or a notch moves it, 5% unless
+set). Choosing an output makes it the server's default, and what is
+already playing moves to it -- hibr's own sound included, which plays to
+the server's default output.
+
+It works through a sound server first: PipeWire and PulseAudio both answer
+`pactl`, PipeWire through its own PulseAudio side, so one path covers both.
+The desktop watches the server's events, so a volume another program sets,
+or a headset plugged in, reaches the bar with nothing pressed, and an idle
+desktop asks nothing. With no server, ALSA's mixer through `amixer`:
+Master and Capture on the card `~/.asoundrc` names, a card chosen in the
+pane written there -- only into a file this desktop wrote, or none, never
+over one of your own. macOS is not done yet (CoreAudio). `HIBR_SOUND`
+chooses -- `auto`, `pulse`, `alsa` or `none` -- and the test suites start
+every desktop with `none`, so no test can touch a machine's real sound.
+
 ## Screen savers
 
 After ten minutes with no key and no click the screen is given to a

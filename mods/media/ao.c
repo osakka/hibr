@@ -119,6 +119,130 @@ void ao_nclose(mv_ao *a)
 	a->st = 0;
 }
 
+/* --- PulseAudio, and PipeWire through it, on Linux ----------------------- */
+
+/* libpulse-simple's sample format and buffer sizes, as its headers have
+   them; they are not included, since tcc reads none of it and the calls
+   are few. S16 in the machine's own order. */
+typedef struct ao_pss ao_pss;
+struct ao_pss {
+	int format;
+	uint32_t rate;
+	uint8_t channels;
+};
+typedef struct ao_pba ao_pba;
+struct ao_pba {
+	uint32_t maxlength, tlength, prebuf, minreq, fragsize;
+};
+typedef struct ao_pulse ao_pulse;
+struct ao_pulse {
+	void *s;
+	void *(*snew)(const char *, const char *, int, const char *,
+		      const char *, const ao_pss *, const void *,
+		      const ao_pba *, int *);
+	int (*swrite)(void *, const void *, size_t, int *);
+	uint64_t (*slat)(void *, int *);
+	int (*sflush)(void *, int *);
+	void (*sfree)(void *);
+};
+
+/* Open a stream to the sound server's default output, which is the device
+   chosen in Control Panel > Sound (Gitea #306). A tenth of a second
+   buffered, as ALSA is asked for; the server's own default is seconds. */
+int ao_popen(mv_ao *a, int rate, int ch)
+{
+	ao_pulse *x;
+	ao_pss ss;
+	ao_pba ba;
+	void *h = dlopen("libpulse-simple.so.0", RTLD_NOW | RTLD_LOCAL);
+	int bad = 0, e = 0;
+
+	if (!h)
+		return HIBR_FAIL;
+	x = xm(sizeof *x);
+	memset(x, 0, sizeof *x);
+	x->snew = mv_sym(h, "pa_simple_new", &bad);
+	x->swrite = mv_sym(h, "pa_simple_write", &bad);
+	x->slat = mv_sym(h, "pa_simple_get_latency", &bad);
+	x->sflush = mv_sym(h, "pa_simple_flush", &bad);
+	x->sfree = mv_sym(h, "pa_simple_free", &bad);
+	if (bad) {
+		free(x);
+		dlclose(h);
+		return HIBR_FAIL;
+	}
+	memset(&ss, 0, sizeof ss);
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	ss.format = 4;
+#else
+	ss.format = 3;
+#endif
+	ss.rate = (uint32_t)rate;
+	ss.channels = (uint8_t)ch;
+	ba.maxlength = (uint32_t)-1;
+	ba.tlength = (uint32_t)(rate / 10) * (uint32_t)ch * 2;
+	ba.prebuf = (uint32_t)-1;
+	ba.minreq = (uint32_t)-1;
+	ba.fragsize = (uint32_t)-1;
+	x->s = x->snew(0, "hibr", 1, 0, "media", &ss, 0, &ba, &e);
+	if (!x->s) {
+		lg(HIBR_LDBG, "media: no sound server (%d)", e);
+		free(x);
+		dlclose(h);
+		return HIBR_FAIL;
+	}
+	a->h = h;
+	a->st = x;
+	a->rate = rate;
+	a->ch = ch;
+	return HIBR_OK;
+}
+
+/* Write sound to the server; it blocks while the buffer is full, as ALSA's
+   write does. */
+int ao_pwrite(mv_ao *a, const int16_t *s, int n)
+{
+	ao_pulse *x = a->st;
+	int e = 0;
+
+	if (x->swrite(x->s, s, (size_t)n * (size_t)a->ch * 2, &e) < 0)
+		return HIBR_FAIL;
+	return HIBR_OK;
+}
+
+/* How long until the last sample written is heard. */
+double ao_pdelay(mv_ao *a)
+{
+	ao_pulse *x = a->st;
+	int e = 0;
+	uint64_t us = x->slat(x->s, &e);
+
+	return e ? 0 : (double)us / 1e6;
+}
+
+/* Throw away what is waiting to be played, for a pause or a seek. */
+void ao_pflush(mv_ao *a)
+{
+	ao_pulse *x = a->st;
+	int e = 0;
+
+	x->sflush(x->s, &e);
+}
+
+/* Close the stream. */
+void ao_pclose(mv_ao *a)
+{
+	ao_pulse *x = a->st;
+
+	if (!x)
+		return;
+	x->sfree(x->s);
+	free(x);
+	dlclose(a->h);
+	a->st = 0;
+	a->h = 0;
+}
+
 /* --- ALSA, on Linux ------------------------------------------------------ */
 
 /* The few libasound calls used, loaded at run time. */
@@ -463,9 +587,11 @@ int ao_null(mv_ao *a, int rate, int ch, const char *wav)
 	return HIBR_OK;
 }
 
-/* Open somewhere for sound to go: HIBR_MEDIA_AUDIO names it -- alsa,
-   audioqueue, none, or wav:PATH -- or the platform's own is tried, and
-   no device at all plays silently at the same pace, saying why. */
+/* Open somewhere for sound to go: HIBR_MEDIA_AUDIO names it -- pulse,
+   alsa, audioqueue, none, or wav:PATH -- or the platform's own is tried:
+   a sound server first, since it is what follows the device chosen in
+   Control Panel > Sound, then ALSA; no device at all plays silently at
+   the same pace, saying why. */
 int mv_aopen(mv_ao *a, int rate, int ch, char **why)
 {
 	const char *w = getenv("HIBR_MEDIA_AUDIO");
@@ -483,6 +609,16 @@ int mv_aopen(mv_ao *a, int rate, int ch, char **why)
 			a->delay = ao_qdelay;
 			a->flush = ao_qflush;
 			a->close = ao_qclose;
+			return HIBR_OK;
+		}
+	}
+	if (!w || !strcmp(w, "pulse")) {
+		if (ao_popen(a, rate, ch) == HIBR_OK) {
+			a->name = "pulse";
+			a->write = ao_pwrite;
+			a->delay = ao_pdelay;
+			a->flush = ao_pflush;
+			a->close = ao_pclose;
 			return HIBR_OK;
 		}
 	}

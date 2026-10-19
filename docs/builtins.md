@@ -111,7 +111,7 @@ hibr: source: /dev/tcp/example.com/80: No such file or directory
 | `shopt [-s\|-u\|-q\|-p] [name…]` | read or set shell options; `-p` prints the `shopt -s`/`-u` lines that put them back |
 | `strict [off] [functions\|vars\|expansion…]` / `strict -p` | **[hibr]** refuse, in the file that runs it, what is usually a mistake: a function defined twice in it, a function creating a global without `local`, an expansion that splits -- see [0023](adr/0023-strict-is-per-file.md) |
 | `shift [n]` | drop the first `n` positional parameters |
-| `read [-rs] [-p s] [-n k] [-N k] [-d c] [-t s] [-u fd] [-a arr] [name…]` | read one line; `-n` stops at `k` characters *or* the delimiter, whichever comes first, and `-N` takes exactly `k` and splits nothing; a name may be subscripted, as in `read h[k]` |
+| `read [-rs] [-p s] [-n k] [-N k] [-d c] [-t s] [-u fd] [-a arr] [name…]` | read one line; `-n` stops at `k` characters *or* the delimiter, whichever comes first, and `-N` takes exactly `k` and splits nothing; `-t` waits that many seconds, fractions too, for input to begin -- 142 when none came -- and `-t 0` reads nothing at all, only saying whether input is waiting, as in bash; a name may be subscripted, as in `read h[k]` |
 | `mapfile` / `readarray [-t] [-n k] [-s k] [-O k] [-d c] [-u fd] [arr]` | read lines into an array |
 | `getopts optstring name [args…]` | parse option letters, one call at a time |
 

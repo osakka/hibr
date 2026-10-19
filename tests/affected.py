@@ -55,6 +55,7 @@ SUITE_MODS = {
     "web": ["web"],
     "media": ["media"],
     "youtube": ["web", "media"],
+    "sound": ["media"],
     "xscreen": ["xscr"],
     "pim": ["pim", "dav"],
     "contacts": ["pim", "dav", "email", "db"],
@@ -77,7 +78,8 @@ SUITE_MODS = {
     "appmgr": ["dav", "archive", "inflate"],
 }
 APPS = ("apps_panel", "apps_reach", "apps_core", "apps_more")
-DESKTOP = ("desktop", "vault") + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp")
+DESKTOP = ("desktop", "vault") + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
+                                         "sound")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 

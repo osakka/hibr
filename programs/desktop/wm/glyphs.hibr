@@ -54,6 +54,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["arrowup"]="^"; GL["hook"]=">"
 		GL["file"]="-"; GL["folder"]="+"
 		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"; GL["tick"]="v"
+		GL["sound"]="vol"; GL["soundoff"]="vol x"
 		GL["star"]="*"; GL["flag"]="!"; GL["heart"]="*"; GL["warn"]="!"
 		GL["unlocked"]="!"
 		GL["task"]="[ ]"; GL["taskdone"]="[x]"; GL["pin"]="*"
@@ -119,6 +120,8 @@ fn dt_glyphs(set = "unicode") {
 		GL["xmark"]=$'✗'     # BALLOT X
 		GL["check"]=$'✓'     # CHECK MARK
 		GL["tick"]=$'✓'      # CHECK MARK, a checkbox's tick
+		GL["sound"]=$'♪'     # EIGHTH NOTE, the speaker on the bar
+		GL["soundoff"]=$'♪ ✕' # EIGHTH NOTE, MULTIPLICATION X: muted
 		GL["star"]=$'✱'      # HEAVY ASTERISK
 		GL["task"]=$'☐'      # BALLOT BOX
 		GL["taskdone"]=$'☑'  # BALLOT BOX WITH CHECK
@@ -163,6 +166,8 @@ fn dt_glyphs(set = "unicode") {
 # terminal can be asked, so it is chosen, never detected; a "Mono" variant
 # keeps every icon one cell wide.
 dt_glyphsnerd() {
+	GL["sound"]=$'\uf028'     # nf-fa-volume_up
+	GL["soundoff"]=$'\uf026'  # nf-fa-volume_off
 	GL["folder"]=$'\uf07b'    # nf-fa-folder
 	GL["file"]=$'\uf15b'      # nf-fa-file
 	GL["home"]=$'\uf015'      # nf-fa-home

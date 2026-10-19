@@ -1233,6 +1233,7 @@ char *xpsub(sh *s, part *p)
 	rec[0] = fd;
 	rec[1] = (int)pid;
 	v_add(&s->psub, rec);
+	hibr_set(s, "!", xnum(s, (long)pid), 0);
 	s_init(&nm);
 	s_cat(&nm, "/dev/fd/");
 	s_num(&nm, fd);

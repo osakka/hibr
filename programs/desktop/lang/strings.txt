@@ -43,6 +43,7 @@
 %s is the primary display -- make another primary first
 %s is there already. Replace it?
 %s is trusted
+%s is your own; the card is not changed
 %s items
 %s items, unlocked until %s
 %s keeps files, not calendars or contacts
@@ -297,6 +298,7 @@ Desktop
 Desktop Icons
 Detach
 Detect
+Device
 Devices
 Dhu al-Hijjah
 Dhu al-Qa'dah
@@ -434,6 +436,7 @@ In the Control Strip
 In:
 Inbox
 Info
+Input
 Insert Column Left
 Insert Column Right
 Insert Row Above
@@ -533,6 +536,8 @@ Moved %s item to the trash
 Moved %s items to the trash
 Moved %s to the trash
 Muharram
+Mute
+Muted
 Name
 Name:
 Name:   %s
@@ -630,6 +635,7 @@ Order Right-to-Left Text
 Other
 Other Side
 Other…
+Output
 Owner
 Owner:
 Owner:  %s
@@ -819,6 +825,9 @@ Sort By
 Sort by CPU
 Sort by Memory
 Sound
+Sound Server
+Sound Settings…
+Sound muted
 Special
 Standby displays join on their own
 Star
@@ -952,6 +961,10 @@ Versions
 View
 View Details
 View History
+Volume %s%%
+Volume Down
+Volume Up
+Volume on Menu Bar
 WHERE
 Wait for the transfers running to finish first
 Wallpaper
@@ -1033,6 +1046,7 @@ moving — arrows, then enter
 no
 no reason given
 none
+none found
 none here
 not reported
 note

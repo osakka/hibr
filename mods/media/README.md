@@ -6,8 +6,9 @@ draws the picture into the display as coloured half blocks or as ASCII.
 The decoding is libavformat and libavcodec, loaded at run time the way
 hibr loads libssl and libpng: nothing is linked, no FFmpeg headers are
 needed to build, and no ffmpeg or mpv process is started. Sound goes to
-the machine's own device -- ALSA on Linux, AudioQueue on macOS -- and the
-picture follows the sound's clock.
+the machine's sound server when there is one -- PipeWire or PulseAudio,
+through libpulse-simple -- else to its own device, ALSA on Linux,
+AudioQueue on macOS, and the picture follows the sound's clock.
 
 ```text
 mod load media                       # or need media
@@ -61,13 +62,18 @@ full queue made room by dropping its oldest frame, which was the present:
 the decoder ran on until it held only frames from seconds ahead, and the
 picture stood still while the sound went on (Gitea #288).
 
-`HIBR_MEDIA_AUDIO` chooses where sound goes: `alsa`, `audioqueue`, `none`
-(silent, at the same pace), or `wav:PATH` (written to a file, at the same
+`HIBR_MEDIA_AUDIO` chooses where sound goes: `pulse`, `alsa`,
+`audioqueue`, `none` (silent, at the same pace), or `wav:PATH` (written to
+a file, at the same
 pace -- what the tests listen to; each write is flushed, since a desktop a
 suite ends is killed rather than closed, and the header's length is only
-put right when the player closes). Unset, the platform's own device is
-used, and a machine with none plays silently and says so in `info`'s
-`error`.
+put right when the player closes). Unset, a sound server is tried first
+-- it is what follows the output chosen in Control Panel > Sound (Gitea
+#306), where ALSA's `default` follows it only through a plugin a machine
+may not have -- then the platform's own device, and a machine with none
+plays silently and says so in `info`'s `error`. The server's stream is
+asked for a tenth of a second of buffer, as ALSA is; its own default is
+seconds, which a pause or a seek would then have to wait out.
 
 ## Fed players
 

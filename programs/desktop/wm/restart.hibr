@@ -108,6 +108,7 @@ dt_restart() {
 	# terminal, where a message would be drawn over the screen.
 	dt_upsession || true
 	dt_ctlclose
+	dt_sndstop
 	console close
 	if [ -n "$DT_ERR" ]; then
 		exec 2>&"$DT_ERR"

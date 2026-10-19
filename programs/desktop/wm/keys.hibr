@@ -20,7 +20,7 @@ DT_KEYPEND_FROM=
 DT_KEYORDER=(menu menu2 save undo redo copy cut paste selectall scrollup scrolldown
 	snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
 	ws7 ws8 ws9 wsnext wsprev tile tilemain close quitapp cycle strip shot
-	refresh lock
+	refresh lock volup voldown mute
 	detach quit)
 declare -gA DT_KEYNAME
 DT_KEYNAME["menu"]="Menu Bar"
@@ -47,6 +47,9 @@ DT_KEYNAME["tile"]="Tile Workspace"
 DT_KEYNAME["tilemain"]="Make Main"
 DT_KEYNAME["close"]="Close Window"
 DT_KEYNAME["quitapp"]="Quit Application"
+DT_KEYNAME["volup"]="Volume Up"
+DT_KEYNAME["voldown"]="Volume Down"
+DT_KEYNAME["mute"]="Mute"
 
 # Two actions on one chord is silent: dt_keyed asks about each in a fixed
 # order, so the first of them fires and the other simply never does. A saved

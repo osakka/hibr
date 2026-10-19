@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.264
+
+**Sound: a Control Panel pane, volume keys and a speaker on the menu bar**
+(Gitea #306). The speaker shows the volume of the output in use, or that
+it is muted; clicked, a menu with the level, Volume Up, Volume Down, Mute,
+the outputs and inputs with the one in use ticked, and Sound Settings…;
+the wheel over it turns the volume. `alt-=`, `alt--` and `alt-0` turn it
+up, down and mute -- rows in Shortcuts. Control Panel > Sound: the server
+found, the output Device, Volume and Mute, the input Device, Level and
+Mute, Volume on Menu Bar, and Volume Step. PipeWire and PulseAudio both
+through `pactl`, ALSA's mixer without a server; the desktop watches the
+server's events, so a change made anywhere reaches the bar and an idle
+desktop asks nothing. Choosing an output moves what is playing to it.
+macOS (CoreAudio) is still to come.
+
+**hibr's own sound goes to the sound server when there is one**: the media
+module plays through libpulse-simple (`HIBR_MEDIA_AUDIO=pulse`) before
+ALSA, so YouTube and the Browser follow the output chosen in the pane.
+
+**`read -t` as bash has it.** A timeout of 0 now only says whether input is
+waiting, where it read a whole line into `REPLY` and lost it; a fraction
+of a second is a fraction, where `read -t 0.5` was cut to 0 and then
+waited for ever; a timeout is status 142, and one that is not a number is
+refused. And `$!` names a process substitution's child, as in bash, so a
+script can end the one it started.
+
 ## 0.99.263
 
 **The Browser plays a page's sound, through hibr's own media module**
