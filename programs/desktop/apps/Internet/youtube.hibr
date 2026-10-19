@@ -31,7 +31,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 1.9
+app youtube "YouTube, in a window" 2.0
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -55,7 +55,13 @@ YT_AUTONEXT="${YT_AUTONEXT-1}"
 # Whether a playing video keeps the screen saver, and the lock with it,
 # away: on unless chosen otherwise, the owner's choice (Gitea #277).
 YT_SAVERHOLD="${YT_SAVERHOLD-1}"
-command -v dt_keep > /dev/null && dt_keep YT_MODE YT_QUALITY YT_FPS YT_DETAIL YT_AUTONEXT YT_SAVERHOLD
+# The mini player (Gitea #304): whether it casts a shadow, whether it is
+# on every workspace, and where it was last left, "row col h w", so it
+# opens there again rather than in its display's corner each time.
+YT_MINISHADOW="${YT_MINISHADOW-1}"
+YT_MINISTICKY="${YT_MINISTICKY-1}"
+YT_MINIGEO="${YT_MINIGEO-}"
+command -v dt_keep > /dev/null && dt_keep YT_MODE YT_QUALITY YT_FPS YT_DETAIL YT_AUTONEXT YT_SAVERHOLD YT_MINISHADOW YT_MINISTICKY YT_MINIGEO
 YT_MODES=(follow half ascii mono pixels)
 YT_DATA="${YT_DATA-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/youtube}"
 YT_HIST="$YT_DATA/history.tsv"
@@ -708,6 +714,7 @@ fn youtube_find(int id) {
 fn youtube_close(int id) {
 	local t
 
+	yt_minikeep "$id"
 	yt_stop "$id"
 	for t in "${YT[$id]["st"]}" "${YT[$id]["pt"]}"; do
 		[ -n "$t" ] && web close "$t" 2> /dev/null
@@ -1213,13 +1220,15 @@ youtube_menus() {
 # A double click or escape goes back to the full player, where it was;
 # a right click on the picture has the player's and the window's controls.
 fn yt_mini(int id) {
-	local g r c h w
-	local -a was
+	local r c h w
+	local -a was g
 
 	if [ "${YT[$id]["mini"]}" = 1 ]; then
+		yt_minikeep "$id"
 		read -ra was <<< "${YT[$id]["norm"]}"
 		YT[$id]["mini"]=
 		DT[$id]["chrome"]=
+		DT[$id]["noshadow"]=
 		[ "${was[4]}" = 1 ] || { command -v dt_sticky > /dev/null && dt_sticky "$id" 0; }
 		if [ "${#was[@]}" -ge 4 ]; then
 			DT[$id]["row"]=${was[0]}
@@ -1242,9 +1251,21 @@ fn yt_mini(int id) {
 	h=$(((w * 9 / 16 + 1) / 2 + 1))
 	r=$((DTW_R + DTW_H - h - 1))
 	c=$((DTW_C + DTW_W - w - 2))
+	# Where it was last left, while that still fits the screen.
+	read -ra g <<< "$YT_MINIGEO"
+	if [ "${#g[@]}" = 4 ] && [ $((g[0] + g[2])) -le "$DT_ROWS" ] &&
+	   [ $((g[1] + g[3])) -le "$DT_COLS" ] && [ "${g[2]}" -ge 3 ] &&
+	   [ "${g[3]}" -ge 12 ]; then
+		r=${g[0]}
+		c=${g[1]}
+		h=${g[2]}
+		w=${g[3]}
+	fi
 	YT[$id]["mini"]=1
 	DT[$id]["chrome"]=none
-	command -v dt_sticky > /dev/null && dt_sticky "$id" 1
+	DT[$id]["noshadow"]=
+	[ "${YT_MINISHADOW:-1}" = 1 ] || DT[$id]["noshadow"]=1
+	command -v dt_sticky > /dev/null && dt_sticky "$id" "${YT_MINISTICKY:-1}"
 	DT[$id]["row"]=$r
 	DT[$id]["col"]=$c
 	dt_resize "$id" "$h" "$w"
@@ -1286,8 +1307,49 @@ fn youtube_context(int? id = "") {
 		dt_dim "Pause or Play"
 	fi
 	dt_sep
+	dt_mark "Sticky" k "${DT[$id]["sticky"]:-0}" yt_ministicky "$id"
+	dt_mark "Shadow" h "${YT_MINISHADOW:-1}" yt_minishadow "$id"
+	dt_sep
 	dt_item "Full Player" f yt_mini "$id"
 	dt_item "Close" c dt_closereq "$id"
+}
+
+# Remember where the mini player is, for the next time it opens.
+fn yt_minikeep(int id) {
+	[ "${YT[$id]["mini"]}" = 1 ] || return 0
+	YT_MINIGEO="${DT[$id]["row"]} ${DT[$id]["col"]} ${DT[$id]["h"]} ${DT[$id]["w"]}"
+	command -v dt_save > /dev/null && dt_save
+}
+
+# The mini player on every workspace or on its own, from its right-click
+# menu, kept for the next time.
+fn yt_ministicky(int id) {
+	if [ "${DT[$id]["sticky"]:-0}" = 1 ]; then YT_MINISTICKY=0; else YT_MINISTICKY=1; fi
+	command -v dt_sticky > /dev/null && dt_sticky "$id" "$YT_MINISTICKY"
+	command -v dt_save > /dev/null && dt_save
+}
+
+# A mini player already open takes the settings as Control Panel changes
+# them, rather than at the next time it opens.
+yt_miniapply() {
+	local id
+
+	for id in "${!YT[@]}"; do
+		[ "${YT[$id]["mini"]}" = 1 ] || continue
+		DT[$id]["noshadow"]=
+		[ "${YT_MINISHADOW:-1}" = 1 ] || DT[$id]["noshadow"]=1
+		command -v dt_sticky > /dev/null && dt_sticky "$id" "${YT_MINISTICKY:-1}"
+	done
+	dt_want 10
+}
+
+# Its shadow, on or off, from the same menu.
+fn yt_minishadow(int id) {
+	if [ "${YT_MINISHADOW:-1}" = 1 ]; then YT_MINISHADOW=0; else YT_MINISHADOW=1; fi
+	DT[$id]["noshadow"]=
+	[ "$YT_MINISHADOW" = 1 ] || DT[$id]["noshadow"]=1
+	command -v dt_save > /dev/null && dt_save
+	dt_want 10
 }
 
 fn yt_setmode(v) {

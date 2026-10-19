@@ -223,11 +223,16 @@ def winfo(n):
     return None
 
 
-def state():
+def state(n=4):
+    """The n fields the desktop's ticker writes, or None -- also for a read
+    that met the file half written, which is what a ticker truncating it
+    with `>` leaves for a moment: one gate read it with one field and the
+    next line indexed the second."""
     try:
-        return open(STATE).read().split("|")
+        f = open(STATE).read().split("|")
     except OSError:
         return None
+    return f if len(f) == n else None
 
 
 fitted = shutil.which("xwininfo") is not None
@@ -278,7 +283,7 @@ t = desk("xsl() { printf '%s' \"${XS[$XSID][n]}\" > " + STATE +
 g3 = None
 for _ in range(40):
     t.collect(0.25)
-    s3 = state()
+    s3 = state(1)
     if s3 and s3[0] and fitted:
         g3 = winfo(s3[0])
         if g3:

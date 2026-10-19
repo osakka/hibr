@@ -18,7 +18,12 @@
 strict
 
 DT_LOCKAFTER="${DT_LOCKAFTER-never}"
-command -v dt_keep > /dev/null && dt_keep DT_LOCKAFTER
+# Where the box asking for the password goes with several displays: the
+# primary, where the bar is, or every one, so whichever screen a person
+# faces asks (Gitea #303). It was centred on all of them put together,
+# which is between them.
+DT_LOCKWHERE="${DT_LOCKWHERE-primary}"
+command -v dt_keep > /dev/null && dt_keep DT_LOCKAFTER DT_LOCKWHERE
 
 # The lock's time in seconds instead, for a script or a test, as
 # DT_SAVERSECS is the saver's; and the PAM service and folder to ask,
@@ -89,21 +94,37 @@ dt_lockdue() {
 	[ $((EPOCHSECONDS - DT_SAVERFROM)) -ge "$secs" ]
 }
 
-# The box asking for the password, drawn over the saver each frame.
+# The box asking for the password, drawn over the saver each frame: in the
+# middle of the primary display, or of every display.
 dt_lockbox() {
-	local rows cols sz w=46 h=9 r c i dots fw n pen
+	local sz t ar ac arows acols gx
 	local -a s
 
 	sz := console size
 	read -ra s <<< "$sz"
-	rows=${s[0]:-24}
-	cols=${s[1]:-80}
+	# Every other display first, so the primary's box is drawn last and
+	# the cursor -- one for the whole screen -- is left in it.
+	if [ "$DT_LOCKWHERE" = every ] && [ "${#DT_DISPLAYS[@]}" -gt 1 ]; then
+		for t in "${DT_DISPLAYS[@]}"; do
+			read -r ar ac arows acols gx <<< "$t"
+			[ "$ar $ac" = "${DT_PRIMARY_ROW:-0} ${DT_PRIMARY_COL:-0}" ] && continue
+			dt_lockbox1 "$ar" "$ac" "$arows" "$acols"
+		done
+	fi
+	dt_lockbox1 "${DT_PRIMARY_ROW:-0}" "${DT_PRIMARY_COL:-0}" \
+		"${DT_PRIMARY_H:-${s[0]:-24}}" "${DT_PRIMARY_W:-${s[1]:-80}}"
+}
+
+# The box itself, centred in the area at r0, c0 of rows by cols.
+fn dt_lockbox1(int r0, int c0, int rows, int cols) {
+	local w=46 h=9 r c i dots fw n pen
+
 	[ "$w" -gt $((cols - 2)) ] && w=$((cols - 2))
 	[ "$w" -lt 20 ] && w=20
-	r=$(( (rows - h) / 2 ))
-	c=$(( (cols - w) / 2 ))
-	[ "$r" -lt 0 ] && r=0
-	[ "$c" -lt 0 ] && c=0
+	r=$((r0 + (rows - h) / 2))
+	c=$((c0 + (cols - w) / 2))
+	[ "$r" -lt "$r0" ] && r=$r0
+	[ "$c" -lt "$c0" ] && c=$c0
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$r" "$c" "$h" "$w" " "
 	console put "$r" "$c" "${GL[tl]}"

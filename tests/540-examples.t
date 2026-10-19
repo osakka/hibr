@@ -211,9 +211,9 @@ for v in $kept; do
   # sits and how long it is, whether it is collapsed, where the Control
   # Panel's, the file dialog's and the diagram editor's dividers were left,
   # which sheets this machine trusts (never in a sheet, so one cannot
-  # arrive trusted), the wallpaper picker's last folder, and the settings
-  # file's own version.
-  case $v in CS_Y | CS_LEN | CS_COLLAPSED | CP_DIVCOL | FP_LISTW | DIA_SPLIT | CAT_SPLIT | SS_TRUST | WPK_DIR | DT_SETVER) continue ;; esac
+  # arrive trusted), the wallpaper picker's last folder, where YouTube's
+  # mini player was last left, and the settings file's own version.
+  case $v in CS_Y | CS_LEN | CS_COLLAPSED | CP_DIVCOL | FP_LISTW | DIA_SPLIT | CAT_SPLIT | SS_TRUST | WPK_DIR | YT_MINIGEO | DT_SETVER) continue ;; esac
   grep -qw "$v" $panes || echo "kept but in no Control Panel pane: $v"
 done
 echo "every kept preference is in the Control Panel"

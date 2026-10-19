@@ -8,11 +8,12 @@
 strict
 
 
-app screensaver "The Control Panel pane for the screen saver" 1.0
+app screensaver "The Control Panel pane for the screen saver" 1.1
 command -v cp_pane > /dev/null && cp_pane screensaver "Screen Saver" "◌"
 
 SS_IDLES=(never 1 2 5 10 15 30 60)
 SS_LOCKS=(never "at once" 1 2 5 10 15 30 60)
+SS_LOCKWHERE=(primary every)
 SS_NAMES=()
 
 # The choices: random, then every saver there is.
@@ -29,6 +30,8 @@ fn cp_set_saveridle(int? id = "", value = "") {
 	DT_SAVERIDLE=$value
 	cp_save
 }
+
+fn cp_set_lockwhere(int? id = "", value = "") { DT_LOCKWHERE=$value; cp_save; }
 
 fn cp_set_saverlock(int? id = "", value = "") {
 	[ "$value" = "at once" ] && value=0
@@ -49,6 +52,9 @@ fn screensaver_rows(int w) {
 	[ "$v" = 0 ] && v="at once"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Lock After (minutes)"
 	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=lock; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Password Box On"
+	CP[$w][$n]["val"]="${DT_LOCKWHERE:-primary}"; CP[$w][$n]["key"]=lockwhere
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Preview"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=preview; n=$((n + 1))
 	ret "$n"
@@ -72,6 +78,10 @@ fn screensaver_do(int? w = "", k = "", int? dir = "") {
 		[ "$v" = "at once" ] && v=0
 		DT_LOCKAFTER=$v
 		;;
+	lockwhere)
+		v := cp_next "${DT_LOCKWHERE:-primary}" "$dir" "${SS_LOCKWHERE[@]}"
+		DT_LOCKWHERE=$v
+		;;
 	preview) dt_saverstart preview ;;
 	esac
 	cp_save
@@ -82,5 +92,6 @@ fn screensaver_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	saver) ss_names; dt_droplist "$w" "$r" "$c" cp_set_saver "${SS_NAMES[@]}" ;;
 	idle) dt_droplist "$w" "$r" "$c" cp_set_saveridle "${SS_IDLES[@]}" ;;
 	lock) dt_droplist "$w" "$r" "$c" cp_set_saverlock "${SS_LOCKS[@]}" ;;
+	lockwhere) dt_droplist "$w" "$r" "$c" cp_set_lockwhere "${SS_LOCKWHERE[@]}" ;;
 	esac
 }

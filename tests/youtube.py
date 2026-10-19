@@ -217,6 +217,19 @@ try:
     check("and escape goes back to the full player, where it was",
           s[5].find("YouTube [") is not None and s[5].find("YouTube [")[0] == 1, s[5])
 
+    # Where the mini player was last left is where it opens (Gitea #304),
+    # and its right-click menu carries Sticky and Shadow.
+    def minithere(sc):
+        return any("▀" in sc.row(r)[4:34] for r in range(2, 8))
+    s = yrun([([], "A test pattern"), ([b"\r"], playing), ([b"i"], minithere),
+              ([lambda sc: press(4, 12, 2)], "Shadow")],
+             env={"YT_MINIGEO": "2 4 6 30"})
+    check("the mini player opens where it was last left",
+          minithere(s[2]) and not mini(s[2]), s[2])
+    check("and its right-click menu has Sticky and Shadow",
+          s[3].find("Sticky") is not None and s[3].find("Shadow") is not None,
+          s[3])
+
     s = yrun([([], "A test pattern"), ([b"\r"], playing), ([b"\x1b"], "Third result")])
     check("escape stops it and goes back to the results",
           s[2].find("Third result (pattern)") is not None and
@@ -397,4 +410,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(36)
+report(38)

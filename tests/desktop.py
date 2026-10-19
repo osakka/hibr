@@ -1099,7 +1099,7 @@ check("a right-click after the menu table shrinks opens the desktop's menu",
       sc.find("Arrange Icons") is not None, sc)
 check("and draws nothing else beside it",
       sc.find("Resize") is None and sc.find("Move to Workspace") is None and
-      sc.find("On Every Workspace") is None, sc)
+      sc.find("Sticky") is None, sc)
 
 # px and py go stale the same way, and are the other half of #169: dt_mdown
 # gives a submenu the column to sit beside its parent in, dt_mclose does not
@@ -1706,8 +1706,9 @@ check("taken off every workspace, it stays on the one it was seen on",
       sc.find("Over") is None and sc.find("┤ Under ├") == (6, 12), sc)
 sc, _ = run(WS2 + "dt_sticky 2 1\ndt_wsmove 2 3\n", [b"\x1b2"])
 check("and sent to one workspace, it is on that one only", sc.find("Over") is None, sc)
-sc, _ = run(WS2, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"e", b"\x1b2"])
-check("the Window menu's On Every Workspace makes it so",
+# Called Sticky since Gitea #304, its key k.
+sc, _ = run(WS2, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"k", b"\x1b2"])
+check("the Window menu's Sticky makes it so",
       sc.find("┤ Over ├") == (9, 27), sc)
 
 sc, _ = run(WS2, [wheel(20, 5, up=False)])
@@ -4961,6 +4962,28 @@ shutil.rmtree(MINE, True)
 
 # --- the screen lock ---------------------------------------------------------
 #
+# Where the box asking for the password goes with several displays (Gitea
+# #303): in the middle of the primary, or of every display with the
+# primary's drawn last, where it was in the middle of all of them, which
+# is between them. Asked of dt_lockbox itself with console stood in for,
+# since a locked desktop reads its displays afresh every frame.
+LKS = screen.scratch("desktop-lockbox.hibr")
+open(LKS, "w").write(
+    ". %s\n"
+    "console() { case $1 in size) ret \"24 80\" ;; put) [[ $4 == \"Locked -- \"* ]] && echo \"box $2\" ;; esac; return 0; }\n"
+    "DT_DISPLAYS=(\"0 0 8 80 self\" \"8 0 16 80 self\")\n"
+    "DT_PRIMARY_ROW=8; DT_PRIMARY_COL=0; DT_PRIMARY_H=16; DT_PRIMARY_W=80\n"
+    "DT_LOCKUSER=me\n"
+    "DT_LOCKWHERE=primary; dt_lockbox; echo --\n"
+    "DT_LOCKWHERE=every; dt_lockbox\n" % WM)
+lk = subprocess.run([screen.HIBR, LKS], capture_output=True, text=True,
+                    env=dict(os.environ, HIBR_MODPATH=tree("build/mods")))
+check("locked, the password box is in the middle of the primary display",
+      lk.stdout.split("--")[0].split() == ["box", "14"], lk.stdout + lk.stderr)
+check("and with every display chosen there is one on each, the primary's "
+      "last", lk.stdout.split("--")[-1].split() == ["box", "3", "box", "14"],
+      lk.stdout + lk.stderr)
+#
 # Locked, the saver runs and a key shows a box asking for the password,
 # checked through PAM by the auth module. The suite gives PAM a folder of
 # its own (DT_LOCKCONF, `auth check -c`): one service whose only password
@@ -5986,4 +6009,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(661)
+report(663)

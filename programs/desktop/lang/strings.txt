@@ -509,6 +509,8 @@ Midnight
 Mine
 Mines
 Mini Player
+Mini Player Shadow
+Mini Player Sticky
 Minutes Added
 Mirror Layout
 Mode
@@ -606,7 +608,6 @@ October
 Offline
 On 10 Seconds
 On 30 Seconds
-On Every Workspace
 On a server: no owner or permissions here.
 On the clipboard: %s characters
 One that begins with an expansion is that expansion:
@@ -638,6 +639,7 @@ Page Zoom
 Pages
 Pass Every Key
 Password
+Password Box On
 Paste
 Pasted as %s
 Pasted the first %s characters of %s

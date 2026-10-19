@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.0",
+ "version": "3.2",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -541,6 +541,8 @@
   "Mine": "الخاصة بي",
   "Mines": "الألغام",
   "Mini Player": "المشغل المصغّر",
+  "Mini Player Shadow": "ظل المشغل المصغّر",
+  "Mini Player Sticky": "المشغل المصغّر ثابت",
   "Minutes Added": "الدقائق المضافة",
   "Mirror Layout": "عكس التخطيط",
   "Mode": "الوضع",
@@ -644,7 +646,7 @@
   "Offline": "غير متصل",
   "On 10 Seconds": "تقديم 10 ثوانٍ",
   "On 30 Seconds": "تقديم 30 ثانية",
-  "On Every Workspace": "على كل مساحات العمل",
+
   "On a server: no owner or permissions here.": "على خادم: لا مالك ولا أذونات هنا.",
   "On the clipboard: %s characters": "في الحافظة: %s حرفًا",
   "One that begins with an expansion is that expansion:": "ما يبدأ بتوسيع هو ذلك التوسيع:",
@@ -676,6 +678,7 @@
   "Pages": "الصفحات",
   "Pass Every Key": "تمرير كل المفاتيح",
   "Password": "كلمة المرور",
+  "Password Box On": "مربع كلمة المرور على",
   "Paste": "لصق",
   "Pasted as %s": "لُصق باسم %s",
   "Pasted the first %s characters of %s": "لُصق أول %s حرفًا من %s",

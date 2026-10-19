@@ -155,6 +155,9 @@ fn dt_shadow(int id) {
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]}
 
 	[ "$DT_SHADOW" = 1 ] || return 0
+	# A window can do without one: YouTube's mini player, by a setting of
+	# its own (Gitea #304).
+	[ "${DT[$id]["noshadow"]}" = 1 ] && return 0
 	console darken -s $((wr + h)) $((wc + 2)) 1 "$w" "$DT_SHADOW_PCT"
 	[ "$h" -gt 1 ] &&
 		console darken -s $((wr + 1)) $((wc + w)) $((h - 1)) 2 \

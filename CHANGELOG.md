@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.261
+
+**The lock's password box is on the primary display** (Gitea #303). With
+several displays it was centred on all of them together, which is
+between them. It is in the middle of the primary now -- where the bar
+is -- or, with Control Panel > Screen Saver > Password Box On set to
+every, on each display at once, typing filling them all, so whichever
+screen a person faces asks; the primary's is drawn last and keeps the
+cursor.
+
+**YouTube's mini player remembers where it was, and has a shadow and
+Sticky of its own** (Gitea #304). It opens where it was last left -- its
+place and size kept when it goes back to the full player or closes, and
+used again while they still fit the screen -- rather than in its
+display's corner each time. Its right-click menu, and Control Panel >
+YouTube, carry Sticky (on every workspace, as it always was) and Shadow,
+each kept; a window can do without a shadow at all now
+(`DT[id]["noshadow"]`). And the Window menu's *On Every Workspace* is
+called **Sticky**, its key `k`, in the menu bar and on a right click.
+
 ## 0.99.260
 
 **Select, copy and cut in every field and editor** (Gitea #295). A
