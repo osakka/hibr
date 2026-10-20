@@ -199,6 +199,24 @@ static int im_ppmload(const char *path, image *out, str *err)
 	return HIBR_OK;
 }
 
+/* Say why a picture would not decode, once for each reason: a desktop
+   asks for a picture again on every frame that shows it, and a missing
+   decoder said the same line some 135,000 times into the owner's log
+   (Gitea #301). The first 64 reasons are kept; past that, each is said. */
+vec im_said;
+void im_fail(str *err)
+{
+	const char *m = err->p ? err->p : "decode failed";
+	size_t i;
+
+	for (i = 0; i < im_said.n; i++)
+		if (!strcmp(im_said.p[i], m))
+			return;
+	if (im_said.n < 64)
+		v_add(&im_said, xs(m));
+	lg(HIBR_LERR, "%s", m);
+}
+
 /* Decode an image by what its first bytes say it is, not its name: PNG's
    signature or JPEG's start-of-image marker, so a photo called .JPG, .jpeg
    or nothing at all still opens. */
@@ -301,7 +319,7 @@ static int im_cat(sh *s, int ac, char **av)
 	}
 	s_init(&err);
 	if (im_load(path, &im, &err) != HIBR_OK) {
-		lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+		im_fail(&err);
 		s_free(&err);
 		return HIBR_FAIL;
 	}
@@ -693,7 +711,7 @@ static int im_draw(sh *s, int ac, char **av)
 					s_init(&err);
 					if (im_load(path, &im, &err) != HIBR_OK) {
 						if (mode == IM_SIXEL) {
-							lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+							im_fail(&err);
 							s_free(&err);
 							return HIBR_FAIL;
 						}
@@ -742,7 +760,7 @@ cells:
 		   path, rows, cols);
 		s_init(&err);
 		if (im_load(path, &im, &err) != HIBR_OK) {
-			lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+			im_fail(&err);
 			s_free(&err);
 			return HIBR_FAIL;
 		}
@@ -889,7 +907,7 @@ static int im_size(sh *s, int ac, char **av)
 	if (!im_hdrsize(av[2], &w, &h)) {
 		s_init(&err);
 		if (im_load(av[2], &im, &err) != HIBR_OK) {
-			lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+			im_fail(&err);
 			s_free(&err);
 			return HIBR_FAIL;
 		}

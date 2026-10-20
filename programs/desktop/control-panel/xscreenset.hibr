@@ -10,27 +10,33 @@
 #
 # The list itself is the app's (xs_load, xs_save, xs_reload in
 # apps/xscreen.hibr), and every change here puts it on the menu again.
+#
+# Gitea #308: whether a program's window closes when the program ends --
+# Close When It Ends for every program, and each program's
+# own When It Ends, default (that setting), close or keep.
 
 strict
 
-app xscreenset "The Control Panel pane for X Screen" 1.4
+app xscreenset "The Control Panel pane for X Screen" 1.5
 command -v cp_pane > /dev/null && cp_pane xscreenset "X Screen" "▣" app
 command -v dt_app > /dev/null &&
-	dt_app xsfield "X Screen Program" 11 66 "" "" fixed hidden
+	dt_app xsfield "X Screen Program" 13 66 "" "" fixed hidden
 
 XS_SIZE="${XS_SIZE-1280x800}"
 XS_MAX="${XS_MAX-1920x1080}"
-command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MAX
+XS_CLOSEEND="${XS_CLOSEEND-0}"
+command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MAX XS_CLOSEEND
 # Declared, never emptied: the app has read the list into them before any
 # pane loads, and emptying them here showed no programs after every new
 # session -- and the next one added saved over the rest (Gitea #300).
-declare -ga XSP_NAME XSP_CMD XSP_WIN XSP_PIC
+declare -ga XSP_NAME XSP_CMD XSP_WIN XSP_PIC XSP_END
 
 XSS_SIZES=(1024x768 1280x800 1366x768 1600x900 1920x1080)
 XSS_MAXES=(1280x800 1600x900 1920x1080 2560x1440)
 XSS_WINS=(fit fixed own)
 # follow is Control Panel > Pictures, as YouTube's and the wallpaper's are.
 XSS_PICS=(follow half pixels)
+XSS_ENDS=(default close keep)
 declare -gA XSF
 
 fn cp_set_xssize(int? id = "", value = "") { XS_SIZE=$value; cp_save; }
@@ -51,6 +57,10 @@ fn xscreenset_rows(int w) {
 	CP[$w][$n]["text"]="Add Program${GL[ellipsis]}"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=add
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Close When It Ends"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$XS_CLOSEEND" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=XS_CLOSEEND; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Screens"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Largest Screen"
 	CP[$w][$n]["val"]="$XS_MAX"; CP[$w][$n]["key"]=max
@@ -67,6 +77,7 @@ fn xscreenset_do(int? w = "", k = "", int? dir = "") {
 	case $k in
 	max) v := cp_next "$XS_MAX" "$dir" "${XSS_MAXES[@]}"; XS_MAX=$v ;;
 	size) v := cp_next "$XS_SIZE" "$dir" "${XSS_SIZES[@]}"; XS_SIZE=$v ;;
+	XS_CLOSEEND) cp_toggle "$k" ;;
 	add) xss_dialog -1; return 0 ;;
 	prog:*) xss_dialog "${k#prog:}"; return 0 ;;
 	del[0-9]*) xss_delask "${k#del}"; return 0 ;;
@@ -86,7 +97,7 @@ fn xscreenset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 # A program to add (k is -1) or to change: its name and command typed, its
 # window and picture chosen with left and right or a click.
 fn xss_dialog(int k) {
-	local h=11 w=66 r c rid
+	local h=13 w=66 r c rid
 
 	dt_dlgat "$h" "$w"
 	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
@@ -96,11 +107,13 @@ fn xss_dialog(int k) {
 	XSF[$rid]["cmd"]=
 	XSF[$rid]["win"]=fit
 	XSF[$rid]["pic"]=follow
+	XSF[$rid]["end"]=default
 	if [ "$k" -ge 0 ]; then
 		XSF[$rid]["name"]=${XSP_NAME[$k]}
 		XSF[$rid]["cmd"]=${XSP_CMD[$k]}
 		XSF[$rid]["win"]=${XSP_WIN[$k]}
 		XSF[$rid]["pic"]=${XSP_PIC[$k]}
+		XSF[$rid]["end"]=${XSP_END[$k]:-default}
 	fi
 	XSF[$rid]["cur"]=${#XSF[$rid]["name"]}
 	XSF[$rid]["focus"]=name
@@ -110,9 +123,9 @@ fn xss_dialog(int k) {
 # is there to delete.
 fn xsf_order(int id) {
 	if [ "${XSF[$id]["k"]}" -ge 0 ]; then
-		ret "name cmd win pic ok del cancel"
+		ret "name cmd win pic end ok del cancel"
 	else
-		ret "name cmd win pic ok cancel"
+		ret "name cmd win pic end ok cancel"
 	fi
 }
 
@@ -140,11 +153,15 @@ fn xsfield_draw(int id, int h, int w, int row, int col) {
 	dt_tput "$id" 5 30 "Picture:"
 	[ "$f" = pic ] && console pen "$DT_SELINK" "$DT_ACTIVE"
 	dt_wdrop "$id" 5 40 12 "${XSF[$id]["pic"]}" pic
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 7 2 "When It Ends:"
+	[ "$f" = end ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 7 16 12 "${XSF[$id]["end"]}" end
 	console pen "$DT_DIM" "$DT_FACE"
 	case ${XSF[$id]["win"]} in
-	fit) dt_tput "$id" 7 2 "Fills the window, 1:1, and follows it when it is resized." ;;
-	fixed) dt_tput "$id" 7 2 "A screen of Fixed Size, scaled into the window." ;;
-	*) dt_tput "$id" 7 2 "As the program places itself: for a window manager." ;;
+	fit) dt_tput "$id" 9 2 "Fills the window, 1:1, and follows it when it is resized." ;;
+	fixed) dt_tput "$id" 9 2 "A screen of Fixed Size, scaled into the window." ;;
+	*) dt_tput "$id" 9 2 "As the program places itself: for a window manager." ;;
 	esac
 	if [ "${XSF[$id]["k"]}" -ge 0 ]; then
 		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Delete cancel Cancel
@@ -160,6 +177,7 @@ fn xsf_cycle(int id, field, int dir) {
 	case $field in
 	win) v := cp_next "${XSF[$id]["win"]}" "$dir" "${XSS_WINS[@]}" ;;
 	pic) v := cp_next "${XSF[$id]["pic"]}" "$dir" "${XSS_PICS[@]}" ;;
+	end) v := cp_next "${XSF[$id]["end"]}" "$dir" "${XSS_ENDS[@]}" ;;
 	*) return 0 ;;
 	esac
 	XSF[$id]["$field"]=$v
@@ -168,6 +186,7 @@ fn xsf_cycle(int id, field, int dir) {
 # The dropdowns' callbacks: the dialog's id comes back as the first word.
 fn xsf_setwin(int id, value = "") { XSF[$id]["win"]=$value; }
 fn xsf_setpic(int id, value = "") { XSF[$id]["pic"]=$value; }
+fn xsf_setend(int id, value = "") { XSF[$id]["end"]=$value; }
 
 # Keep the program: a name no other program has, and a command. A tab or
 # a new line in either would break the file's lines, so they become spaces.
@@ -194,6 +213,7 @@ fn xsfield_ok(int id) {
 	XSP_CMD[$k]=$cm
 	XSP_WIN[$k]=${XSF[$id]["win"]}
 	XSP_PIC[$k]=${XSF[$id]["pic"]}
+	XSP_END[$k]=${XSF[$id]["end"]}
 	xsf_store
 	dt_del "$id"
 }
@@ -236,7 +256,7 @@ xss_delok() {
 # Take program k off the list, then save it and put the menu right.
 fn xss_remove(int k) {
 	local i
-	local -a n c w p
+	local -a n c w p e
 
 	for i in "${!XSP_NAME[@]}"; do
 		[ "$i" = "$k" ] && continue
@@ -244,11 +264,13 @@ fn xss_remove(int k) {
 		c+=("${XSP_CMD[$i]}")
 		w+=("${XSP_WIN[$i]}")
 		p+=("${XSP_PIC[$i]}")
+		e+=("${XSP_END[$i]:-default}")
 	done
 	XSP_NAME=("${n[@]}")
 	XSP_CMD=("${c[@]}")
 	XSP_WIN=("${w[@]}")
 	XSP_PIC=("${p[@]}")
+	XSP_END=("${e[@]}")
 	xsf_store
 }
 
@@ -272,6 +294,8 @@ fn xsfield_click(int id, int r, int c, btn = "") {
 		dt_droplist "$id" "$r" "$c" xsf_setwin "${XSS_WINS[@]}" ;;
 	pic) XSF[$id]["focus"]=pic
 		dt_droplist "$id" "$r" "$c" xsf_setpic "${XSS_PICS[@]}" ;;
+	end) XSF[$id]["focus"]=end
+		dt_droplist "$id" "$r" "$c" xsf_setend "${XSS_ENDS[@]}" ;;
 	ok) xsfield_ok "$id" ;;
 	del) xsfield_del "$id" ;;
 	cancel) dt_del "$id" ;;
@@ -298,14 +322,14 @@ fn xsfield_key(int id, key) {
 		case $f in
 		cancel) dt_del "$id" ;;
 		del) xsfield_del "$id" ;;
-		win | pic) xsf_cycle "$id" "$f" 1 ;;
+		win | pic | end) xsf_cycle "$id" "$f" 1 ;;
 		*) xsfield_ok "$id" ;;
 		esac
 		return 0
 		;;
 	esac
 	case $f in
-	win | pic)
+	win | pic | end)
 		case $key in
 		left) xsf_cycle "$id" "$f" -1 ;;
 		right | " ") xsf_cycle "$id" "$f" 1 ;;

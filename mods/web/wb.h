@@ -19,6 +19,10 @@
 #ifndef WB_WAITMS
 #define WB_WAITMS 8000
 #endif
+/* How long after a browser stopped answering before another is started. */
+#ifndef WB_RESTMS
+#define WB_RESTMS 30000
+#endif
 
 enum { JV_NULL, JV_BOOL, JV_NUM, JV_STR, JV_ARR, JV_OBJ };
 
@@ -109,6 +113,14 @@ struct wb_br {
 	   Browser-wide, since that is what the protocol offers. */
 	char *dldir;
 	vec dlbegun, dlended, notes;
+	/* A browser that stops answering is stopped: stuck counts calls in a
+	   row that got no answer (two, or one at the browser's own level, end
+	   it), and failat is when it was stopped or failed to start, so no
+	   other is started for WB_RESTMS -- every call meanwhile fails at
+	   once, where each used to wait WB_WAITMS and a hung browser held the
+	   desktop's every frame for seconds (owner, 2026-10-20). */
+	int stuck;
+	long failat;
 };
 
 extern wb_br wb;

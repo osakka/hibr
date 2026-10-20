@@ -79,6 +79,12 @@ dt_btnstr() {
 }
 
 # Draw one window: its face, then its app, then its frame over the top.
+# Its widget regions are forgotten just before its app draws, whichever
+# shape it is: an app that never called dt_wclear itself -- the terminal,
+# About, Task Manager and four more -- added a frame's worth to the list on
+# every frame, 18 a frame for a terminal's scrollbar, so in a long session
+# a press there walked tens of thousands of them before it could find the
+# thumb, and every click in the window paid the same.
 # A bare window: the window's own colour throughout, the app drawing in
 # the same place as in a framed one, a strip along the top a shade darker
 # -- darker still with focus -- with a close box at its left and the title
@@ -91,6 +97,7 @@ fn dt_winbare(int id) {
 	console pen "$fg" "$bg"
 	console fill "$wr" "$wc" "$h" "$w" " "
 	DT_NOTEWIN=$id
+	dt_wclear "$id"
 	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
 	DT_NOTEWIN=
 	console pen "$fg" "$bg"
@@ -205,6 +212,7 @@ fn dt_win(int id) {
 		console pen "$DT_INK" "$DT_FACE"
 		console fill "$wr" "$wc" "$h" "$w" " "
 		DT_NOTEWIN=$id
+		dt_wclear "$id"
 		[ -n "$dr" ] && $dr "$id" "$h" "$w" "$wr" "$wc"
 		DT_NOTEWIN=
 		return 0
@@ -222,6 +230,7 @@ fn dt_win(int id) {
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "
 	DT_NOTEWIN=$id
+	dt_wclear "$id"
 	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
 	DT_NOTEWIN=
 

@@ -108,7 +108,7 @@ def progs(*rows):
     open(LIST, "w").write("".join("\t".join(r) + "\n" for r in rows))
 
 
-def desk(body, pix=False):
+def desk(body, pix=False, env=None):
     """A desktop session that opens a program through its menu entry, then
     runs body (session lines) besides."""
     p = sx.scratch("xscreen.hibr")
@@ -118,8 +118,9 @@ def desk(body, pix=False):
         % (load("console"), tree("programs/desktop/desktop.hibr"),
            tree("programs/desktop/apps/xscreen.hibr"), body))
     kw = dict(cellw=8, cellh=16, caps=["kitty"]) if pix else {}
-    return Term(p, rows=26, cols=82, settle=1.0,
-                env={"XDG_RUNTIME_DIR": D, "XS_LIST": LIST}, **kw)
+    e = {"XDG_RUNTIME_DIR": D, "XS_LIST": LIST}
+    e.update(env or {})
+    return Term(p, rows=26, cols=82, settle=1.0, env=e, **kw)
 
 
 def session(pix, kill=False):
@@ -329,5 +330,61 @@ check("a screen that changes ten times a second is drawn about that often",
       shown >= 5, shown)
 check("and not at all while its window is minimised", hidden < 1, hidden)
 
+# When the program ends (Gitea #308): a program's own When It Ends --
+# default, close or keep -- and Close When It Ends for the default. Ended
+# is every process it started gone and no window of it on the screen, so a
+# launcher whose first process forks and leaves keeps its window up until
+# that window goes. QUICK shows a window for five seconds, then ends.
+QUICK = os.path.join(D, "quick.py")
+open(QUICK, "w").write(
+    "import gi; gi.require_version('Gtk','3.0')\n"
+    "from gi.repository import Gtk, GLib\n"
+    "w = Gtk.Window(title='quick'); w.set_default_size(300, 100)\n"
+    "w.show_all(); GLib.timeout_add(5000, Gtk.main_quit); Gtk.main()\n")
+
+
+def ending(cmd, end, closeend, win="fit"):
+    """Run QUICK as X Screen's program: whether its window was drawn, was
+    still there four seconds after it was, and is there twelve seconds on."""
+    progs(("Quick", cmd, win, "half", end))
+    t = desk("", env={"XS_CLOSEEND": closeend})
+
+    def up(sc):
+        return sc.find("Quick") is not None and sc.find("Quick")[0] <= 2
+    seen = t.until(up, 200) is not None and up(t.screen())
+    t0 = time.time()
+    while time.time() - t0 < 4.0:
+        t.collect(0.25)
+    mid = up(t.screen())
+    while time.time() - t0 < 12.0:
+        t.collect(0.25)
+        if not up(t.screen()) and not mid:
+            break
+    last = up(t.screen())
+    t.signal(9)
+    time.sleep(0.5)
+    t.close()
+    return seen, mid, last
+
+
+py = "%s %s" % (sys.executable, QUICK)
+s, m, l = ending(py, "close", "0")
+check("a program set to close takes its window with it when it ends",
+      s and not l, (s, m, l))
+s, m, l = ending(py, "default", "1")
+check("and one on default does, with Close When It Ends on", s and not l, (s, m, l))
+s, m, l = ending(py, "keep", "1")
+check("but one set to keep stays, whatever that says", s and l, (s, m, l))
+s, m, l = ending(py, "default", "0")
+check("and with it off, a window stays when its program ends", s and l, (s, m, l))
+s, m, l = ending("sh -c '%s &'" % py, "close", "0")
+check("a launcher that forks and leaves keeps its window while the program's is up",
+      s and m and not l, (s, m, l))
+# Left to place itself, the module manages no window, and the server is
+# asked which of the screen's own windows are shown.
+s, m, l = ending("sh -c '%s &'" % py, "close", "0", "own")
+check("and the same for a program left to place itself, asked of the X server",
+      s and m and not l, (s, m, l))
+
 shutil.rmtree(D, True)
-report(19)
+report(25)

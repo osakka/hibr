@@ -209,6 +209,7 @@ Clock Format
 Close
 Close Database
 Close Tab
+Close When It Ends
 Close When a Program Ends
 Close Window
 Close without saving? The changes are lost.
@@ -881,6 +882,7 @@ The colours are good, warn, bad, info and dim
 The date is YYYY-MM-DD
 The date is YYYY-MM-DD, the time HH:MM
 The desktop is drawn through %s
+The desktop stopped soon after putting its windows back, twice -- started without them
 The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)
 The download of %s did not finish
 The end is a time, HH:MM
@@ -984,6 +986,7 @@ Week
 What a Page May Have
 What it prints is the cell's value:
 When Chromium Next Starts
+When It Ends:
 Where are you? Control Panel > Prayer Times
 Where:
 Wider Column

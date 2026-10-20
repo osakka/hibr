@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.99.266
+
+**X Screen can close a program's window when the program ends** (Gitea
+#308). Each program in Control Panel > X Screen has When It Ends --
+default, close or keep -- and Close When It Ends is the default for every
+program, off. Ended means every process it started has gone and none of
+its windows is left on the screen, so a launcher that forks and leaves
+keeps its window while the program's own is up; and not in the first
+three seconds, before a slow program has shown one. The xscr module's
+`xscr windows ID` says how many there are: the ones it manages as the
+window manager, else the shown ones the X server lists. A program list
+written now has a fifth field; an older desktop reading it falls back to
+the default picture for that program.
+
+**A browser that hangs no longer takes the desktop with it.** Restoring a
+Browser window whose Chromium had stopped answering waited out two
+eight-second timeouts per frame, and the stop that followed wrote the
+windows back, so every Restart Desktop froze the same way. A Chromium that
+misses two answers in a row (or its first) is stopped now and no new one
+starts for 30 seconds, so a restore costs seconds once rather than on every
+frame. And Chromium ends with the
+desktop: the web module asks the kernel to stop it when the process that
+started it goes (`PR_SET_PDEATHSIG`, Linux), where a desktop that died
+used to leave it running.
+
+**A desktop that dies soon after putting its windows back starts without
+them.** Twice within ten minutes, each time within a minute of restoring,
+and the snapshot is set aside (`snap-<session>.json.skipped` in the state
+folder) and a note says so, rather than restoring into the same crash for
+ever. The snapshot is also written to a file of its own per writer, so a
+restart and the supervisor no longer race over one name (`mv: cannot
+stat`).
+
+**A page's sound is recorded from when it plays, not from every click.**
+The Browser started its capture on the first click or key, which also
+meant a click on a page with no sound at all started one; it starts when
+the page plays a video or audio element or makes an AudioContext.
+
+**A missing JPEG or PNG library is said once, with what to install**
+(Gitea #301). The img module logged "no libturbojpeg" on every frame that
+drew a JPEG -- one desktop's log grew by a line per frame of it -- and now
+says it once per message, naming the package: libturbojpeg0, libpng16-16,
+or jpeg-turbo and libpng with Homebrew. The Debian package now recommends
+both, so an ordinary install has them.
+
+**A terminal's scrollbar thumb can be dragged again in a long session.**
+A window's widget regions are forgotten just before its app draws now.
+The terminal, About, Task Manager, Clipboard, Modules, Notifications and
+the Displays pane never forgot their own, so each frame added another
+frame's worth -- 18 a frame for a terminal's scrollbar -- and a press
+walked all of them before finding the thumb, which in a session open for a
+day was long enough to look like nothing happening. Every click in such a
+window paid the same, and a column the bar had been at before a resize
+still answered as the bar.
+
 ## 0.99.265
 
 **A window can go to the top row of a display with no menu bar.** Every

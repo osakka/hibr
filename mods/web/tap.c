@@ -60,12 +60,14 @@ static const char wb_tapjs[] =
    __hibrSndStart records the tab's sound with it into the tap's queue --
    a reset, then WebM/Opus in quarter seconds, read with web take -- with
    the browser's voice processing off, since it wears a steady note down,
-   and the sound kept off the machine's own device. The page's first
-   click or key starts it once a tab's sound is on (__hibrSndClick) -- a
-   tick after it, not in it: started inside a pointerdown, the capture
-   swallowed the press, and a click on a link failed to follow it about
-   one time in three. The press's own gesture lasts long enough for a
-   tick.
+   and the sound kept off the machine's own device. Once a tab's sound is
+   on (__hibrSndClick), it starts when the page plays something -- a media
+   element's play, or a Web Audio context made -- never on any click: every
+   click on every page recorded its tab, a page of nothing but text
+   included, which cost the browser for nothing. A tick after, not inside
+   the event: started inside a pointerdown, the capture swallowed the press
+   and a link failed to follow about one time in three. The press that set
+   the playing going still counts as one for that tick.
    As each page loads, with that allowed, __hibrSndStart(1) comes as a
    gesture and plays again what the page was refused before it: its
    autoplay elements, and any play() turned down for want of a press.
@@ -119,8 +121,10 @@ static const char wb_sndjs[] =
 	"rec=cap=ac=null;tick=0;st='idle';T.snd='';return 'ok'};"
 	"function go(){if(window.__hibrSndClick&&st==='idle')"
 	"setTimeout(function(){window.__hibrSndStart()},0)}"
-	"window.addEventListener('click',go,true);"
-	"window.addEventListener('keydown',go,true)})()";
+	"document.addEventListener('play',go,true);"
+	"['AudioContext','webkitAudioContext'].forEach(function(n){var A=window[n];"
+	"if(A)window[n]=new Proxy(A,{construct:function(t,a,w){go();"
+	"return Reflect.construct(t,a,w)}})})})()";
 
 /* Guard a new tab's getDisplayMedia and give it the means of recording
    its sound: on every document it loads, and on the one there now. */

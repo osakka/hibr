@@ -53,6 +53,7 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
 | `xscr manage ID` | become the screen's window manager: status 0, or 1 when another one already is |
 | `xscr fit ID W H` | the region a managed normal window fills, every such window placed again |
 | `xscr title ID` | the main window's title, as it is now |
+| `xscr windows ID` | how many of a program's windows are on the screen: those the module manages when it is the window manager, else the root's children that are shown and not override-redirect, asked of the server (Gitea #308) -- what tells a program that has ended from one whose first process forked and left |
 | `xscr draw ID row col h w [-p pane] [-m pixels\|half] [-c]` | the screen scaled to h by w cells, as pixels where the display can place them and half blocks where it cannot or `-m half` says so; with `-c`, only the region `fit` set, which a fitted window shows 1:1 |
 | `xscr key ID NAME` | a key by the console's name for it -- a character, or `enter`, `left`, `f5`..., with `ctrl-`, `alt-` and `shift-` in front |
 | `xscr type ID TEXT` | type text, a character at a time |

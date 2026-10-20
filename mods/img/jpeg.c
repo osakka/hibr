@@ -40,6 +40,12 @@ struct jp_api {
 	char *(*error)(void *);
 };
 
+/* What a missing decoder is said as, naming what to install. */
+#ifndef JP_NONE
+#define JP_NONE "no libturbojpeg to decode JPEG with -- install libturbojpeg0 " \
+		"(jpeg-turbo with Homebrew)"
+#endif
+
 jp_api jp;
 void *jp_lib;
 int jp_tried;
@@ -60,14 +66,14 @@ int jp_load(str *err)
 	if (jp_lib)
 		return HIBR_OK;
 	if (jp_tried) {
-		s_cat(err, "no libturbojpeg to decode JPEG with");
+		s_cat(err, JP_NONE);
 		return HIBR_FAIL;
 	}
 	jp_tried = 1;
 	for (i = 0; names[i] && !jp_lib; i++)
 		jp_lib = dlopen(names[i], RTLD_NOW | RTLD_LOCAL);
 	if (!jp_lib) {
-		s_cat(err, "no libturbojpeg to decode JPEG with (libjpeg-turbo)");
+		s_cat(err, JP_NONE);
 		return HIBR_FAIL;
 	}
 	jp.init = dlsym(jp_lib, "tjInitDecompress");

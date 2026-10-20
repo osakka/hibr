@@ -64,7 +64,7 @@ web close $t; web quit
 | `web type T text` | text into whatever has the focus |
 | `web loading T`, `web dirty T`, `web focus T` | status 0 while loading, when the page has changed since the last frame, when a field has the keyboard |
 | `web tap T` | copy everything the tab's pages hand a media source: installed before each page's own scripts, it notes each buffer as video or audio by its type and keeps every chunk appended to it |
-| `web sound T off\|click\|load` | record what the tab plays, for `web take` to hand over as audio: from the page's first press or key (`click`, the browser's own rule for sound), as each page loads (`load`, given as a gesture, so the page may play unasked -- and what it was refused before that is played again), or not at all (`off`). See Sound below |
+| `web sound T off\|click\|load` | record what the tab plays, for `web take` to hand over as audio: from when the page first plays -- a video or audio element, or an AudioContext made (`click`, after the browser's own rule that sound waits for a gesture), as each page loads (`load`, given as a gesture, so the page may play unasked -- and what it was refused before that is played again), or not at all (`off`). See Sound below |
 | `web take T [VFD\|- [AFD\|-]]` | write what the tap has kept since last asked -- video to one descriptor, audio to the other -- and say what happened: `v BYTES a BYTES reset 0\|1 vtype TYPE atype TYPE snd on\|quiet\|-`, `snd` being a recording tab's state; a reset is a new media source (the next video, an ad break): a take stops at one, and the reset comes alone on the next take, with the new streams -- from their init segments -- on the one after, so a player can be started afresh before any of them arrives |
 | `web tapseek T` | after a seek: drop what was kept and keep each buffer's init segment again, so what is taken next reads from its start |
 | `web fd` | the browser's pipe, for `console watch`, so a desktop wakes when a page changes |
@@ -156,6 +156,24 @@ WebM/Opus in quarter seconds, a reset first, in the tap's own queue; the
 recording pauses after two seconds of silence (`snd quiet`) and goes on
 when there is sound again, so a tab that played something once does not
 keep its reader taking from it for ever.
+
+In `click` the recording starts when the page plays something, not on
+the press itself: it used to start on the first press or key, inside the
+page's own `pointerdown`, which swallowed about one click in three, and
+it started a recording for a page with no sound at all.
+
+## The browser's own life
+
+Chromium is the module's child, and on Linux it is asked to end with the
+process that started it (`PR_SET_PDEATHSIG`), so a desktop that dies does
+not leave one running; one that misses that moment, its parent already
+gone, ends itself. Each call waits `WB_WAITMS` for its answer. A browser
+that misses two in a row, or the first of a session, is stopped rather
+than waited on again, and none is started for `WB_RESTMS` (30 s) after it
+is stopped or fails to start: every call meanwhile fails at once. A
+Browser window restored over a hung Chromium cost two waits on every
+frame before, and the desktop's stop wrote it back, so each restart froze
+the same way.
 
 Accepting a tab's capture of itself without asking would let any page
 take the pixels of whatever it frames, so every tab, from its opening and

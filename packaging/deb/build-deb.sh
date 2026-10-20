@@ -131,7 +131,8 @@ Architecture: $ARCH
 Maintainer: osakka <osakka@gmail.com>
 Installed-Size: $size
 Depends: libc6 (>= $glibc)
-Suggests: libssl3 | libssl1.1, libargon2-1, libpng16-16, libturbojpeg0, libavformat62 | libavformat61 | libavformat60 | libavformat59, xvfb
+Recommends: libpng16-16t64 | libpng16-16, libturbojpeg0
+Suggests: libssl3 | libssl1.1, libargon2-1, libavformat62 | libavformat61 | libavformat60 | libavformat59, xvfb
 Section: shells
 Priority: optional
 Homepage: https://github.com/osakka/hibr

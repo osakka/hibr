@@ -131,13 +131,34 @@ fn dt_svlog(text) {
 # Point dt_restore at the snapshot, when there is one and nothing else is
 # being restored. It is moved aside first, so a window whose restore itself
 # brings the desktop down cannot do it again on the next start.
+#
+# Moving it aside was not enough: a restore that *hangs* the desktop -- a
+# Browser whose Chromium would not answer -- ends with a person stopping
+# it, and the stop writes the same windows down again, so every start froze
+# the same way until the sessions were wiped by hand (owner, 2026-10-20).
+# So each restore is counted in $f.loop, and the count is taken away once
+# the desktop has run DT_RSSAFE seconds after it; two restores in a row
+# that did not get that far, within ten minutes, and the next start comes
+# up without the windows, keeping them as $f.skipped and saying so.
+DT_RSSAFE="${DT_RSSAFE-60}"
+DT_RSLOOPAT=
 dt_snaptake() {
-	local f
+	local f n=0 at=0
 
 	[ -z "$DT_RESTORE" ] || return 0
 	f := dt_snapfile
 	[ -r "$f" ] || return 0
+	[ -r "$f.loop" ] && read -r at n < "$f.loop"
+	if [ "${n:-0}" -ge 2 ] && [ $((EPOCHSECONDS - ${at:-0})) -lt 600 ]; then
+		mv -f "$f" "$f.skipped" 2> /dev/null
+		rm -f "$f.loop"
+		dt_rslog "the desktop stopped soon after putting its windows back, twice; started without them, kept as ${f##*/}.skipped"
+		dt_notep high "The desktop stopped soon after putting its windows back, twice -- started without them"
+		return 0
+	fi
 	mv -f "$f" "$f.taken" 2> /dev/null || return 0
+	printf '%s %s\n' "$EPOCHSECONDS" $((${n:-0} + 1)) > "$f.loop" 2> /dev/null
+	DT_RSLOOPAT=$EPOCHSECONDS
 	DT_RESTORE="$f.taken"
 	dt_rslog "found ${f##*/}: its windows are put back"
 }
@@ -147,6 +168,11 @@ dt_snaptake() {
 dt_snapcheck() {
 	local now k f
 
+	if [ -n "$DT_RSLOOPAT" ] && [ $((EPOCHSECONDS - DT_RSLOOPAT)) -ge "$DT_RSSAFE" ]; then
+		f := dt_snapfile
+		rm -f "$f.loop" 2> /dev/null
+		DT_RSLOOPAT=
+	fi
 	[ -n "$DT_SUPERVISED" ] || return 0
 	now=${EPOCHREALTIME/./}
 	now=$((now / 1000))
@@ -185,6 +211,6 @@ dt_snapdrop() {
 
 	[ -z "$DT_STOPPING" ] || return 0
 	f := dt_snapfile
-	rm -f "$f" "$f.new" "$f.taken" 2> /dev/null
+	rm -f "$f" "$f.new" "$f.$$.new" "$f.taken" "$f.loop" 2> /dev/null
 	return 0
 }

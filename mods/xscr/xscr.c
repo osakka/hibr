@@ -897,6 +897,46 @@ void xs_pending(xs_scr *x)
 	s_free(&o);
 }
 
+/* How many of a program's windows are on the screen (Gitea #308): those
+   this module manages when it is the window manager, and otherwise the
+   root's children that are shown and not override-redirect, asked of the
+   server -- what tells a program that has ended from one whose first
+   process forked and left, its window still up. */
+int xs_windows(xs_scr *x)
+{
+	str o, r, a;
+	unsigned n, i, w;
+	int c = 0;
+
+	if (x->wm)
+		return (int)x->mwin.n;
+	s_init(&o);
+	s_init(&r);
+	s_init(&a);
+	s_ch(&o, 15);
+	s_ch(&o, 0);
+	xs_p16(&o, 2);
+	xs_p32(&o, x->root);
+	if (xs_send(x, &o) == HIBR_OK && xs_reply(x, &r) == HIBR_OK && r.n >= 32) {
+		n = xs_g16((unsigned char *)r.p + 16);
+		for (i = 0; i < n && 32 + (size_t)(i + 1) * 4 <= r.n; i++) {
+			w = xs_g32((unsigned char *)r.p + 32 + i * 4);
+			o.n = 0;
+			s_ch(&o, 3);
+			s_ch(&o, 0);
+			xs_p16(&o, 2);
+			xs_p32(&o, w);
+			if (xs_send(x, &o) == HIBR_OK && xs_reply(x, &a) == HIBR_OK &&
+			    a.n >= 28 && (unsigned char)a.p[26] == 2 && !a.p[27])
+				c++;
+		}
+	}
+	s_free(&o);
+	s_free(&r);
+	s_free(&a);
+	return c;
+}
+
 /* The region a normal window fills, w by h pixels of the screen, and
    every normal window this manages fitted to it again. */
 void xs_fit(xs_scr *x, int w, int h)
@@ -1342,7 +1382,7 @@ void xs_say(sh *s, const char *t)
 void xs_usage(void)
 {
 	lg(HIBR_LERR, "usage: xscr start N WxH DIR | stop PID | open N FILE [PID] | "
-		      "fd|poll|dirty|seen|size|manage|title|close ID | fit ID W H | "
+		      "fd|poll|dirty|seen|size|manage|title|windows|close ID | fit ID W H | "
 		      "draw ID row col h w [-p pane] [-m pixels|half] [-c] | "
 		      "key ID name | type ID text | move ID x y | "
 		      "button ID press|release N x y | click ID N x y | "
@@ -1464,6 +1504,11 @@ int m_xscr(sh *s, int ac, char **av)
 	if (!strcmp(sub, "title")) {
 		xs_title(x);
 		xs_say(s, x->title.p ? x->title.p : "");
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "windows")) {
+		snprintf(b, sizeof b, "%d", xs_windows(x));
+		xs_say(s, b);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "seen")) {

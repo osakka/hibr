@@ -171,7 +171,11 @@ fn dt_rswrite(f, int carry, why = "restart") {
 		done
 	done
 	json set DT_RS .carry "${DT_RSCARRY[*]}" -s
-	json emit DT_RS > "$f.new" 2> /dev/null && mv -f "$f.new" "$f"
+	# Through a file of this process's own, then renamed: a desktop and
+	# its supervisor stopped by one signal both write, and with one
+	# name for both, one renamed it from under the other ("mv: cannot
+	# stat ... .new"), and the windows were not written down at all.
+	json emit DT_RS > "$f.$$.new" 2> /dev/null && mv -f "$f.$$.new" "$f"
 }
 
 # A line in the desktop's log, the one place a restart can say what it did

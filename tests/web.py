@@ -653,8 +653,17 @@ out, err = hb("n=0; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do t := web open %s; we
               " web close $t; done; echo \"followed $n\"" % A)
 check("with a tab's sound on, a click on a link still follows it, every time",
       "followed 12" in out, out + err)
+# And a click that plays nothing records nothing: the recording starts when
+# the page plays, so a page of text -- Gitea, say -- never has its tab
+# captured, where every click on every page used to start one.
+out, err = hb("t := web open %s; web wait $t 10000; web size $t 22 74;"
+              " web render $t > /dev/null; web sound $t click; web click $t 0 2;"
+              " sleep 1.5; s=$(web eval $t '(window.__hibrTap||{}).snd||\"-\"');"
+              " echo \"snd $s\"" % A)
+check("and a click on a page that plays nothing starts no recording",
+      "snd -" in out, out + err)
 
 SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(51)
+report(52)

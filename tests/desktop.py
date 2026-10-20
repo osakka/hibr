@@ -4785,6 +4785,18 @@ check("a press on a scrollbar's track puts the view where it lands",
 sc, _ = run(SBX, feed=[press(12, 32), drag(9, 32), drag(7, 32), release(7, 32)])
 check("and dragging the thumb carries the view, in a window with no _mouse",
       sc.find("line 40") is not None and sc.find("line 40")[0] == 3, sc)
+# And an app that never forgets its own regions -- the terminal did not --
+# is not left with a frame's worth more of them on every frame: the window
+# manager forgets them before it draws. Each frame here shows how many the
+# window had as its draw began, which grew by the bar's height per frame.
+SBN = SBX.replace('    dt_wclear "$id"\n',
+                  '    console put -p "w$id" "$h" 1 "regs=${WG[$id]["n"]:-0}."\n'
+                  ).replace("console put -p \"w$id\" $((i + 1))",
+                            "((i < h - 1)) && console put -p \"w$id\" $((i + 1))")
+sc, _ = run(SBN, feed=[b"x", 0.2, b"x", 0.2, b"x", 0.2, press(12, 32), release(12, 32)])
+check("a window's widget regions are forgotten before each draw, so they "
+      "do not pile up frame after frame",
+      sc.find("regs=0.") is not None and sc.find("line 90") is not None, sc)
 
 # A wallpaper picture that will not draw is said so once and the pattern
 # shown, not tried again on every frame: a theme's picture the package had
@@ -6065,4 +6077,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(672)
+report(673)

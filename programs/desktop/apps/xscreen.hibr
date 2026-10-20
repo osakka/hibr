@@ -32,7 +32,7 @@
 strict
 
 
-app xscreen "X11 programs in windows of their own" 1.4
+app xscreen "X11 programs in windows of their own" 1.5
 # modules: xscr
 # part: control-panel/xscreenset.hibr
 command -v dt_app > /dev/null &&
@@ -42,35 +42,44 @@ command -v dt_keepstate > /dev/null && dt_keepstate xscreen XS
 declare -gA XS
 XS_SIZE="${XS_SIZE-1280x800}"
 XS_MAX="${XS_MAX-1920x1080}"
-command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MAX
+XS_CLOSEEND="${XS_CLOSEEND-0}"
+command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MAX XS_CLOSEEND
 
-# The programs, as the file holds them: a name, a command, a window and a
-# picture, a tab between, each a line; the four arrays are that file read.
+# The programs, as the file holds them: a name, a command, a window, a
+# picture and what happens when it ends (Gitea #308: default, close or
+# keep -- default is Close When It Ends), a tab between, each a line; the
+# five arrays are that file read. The fifth was added after, so a line
+# without one reads as default; an older desktop reading a line with one
+# takes the picture and the fifth together and falls back to follow.
 XS_LIST="${XS_LIST-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/xscreen.tsv}"
 XSP_NAME=()
 XSP_CMD=()
 XSP_WIN=()
 XSP_PIC=()
+XSP_END=()
 
 # Read the list. A line with a field missing is passed over; no field is
 # ever written empty, since a tab is IFS whitespace and an empty middle
 # field would shift the rest.
 xs_load() {
-	local n c w p
+	local n c w p e
 
 	XSP_NAME=()
 	XSP_CMD=()
 	XSP_WIN=()
 	XSP_PIC=()
+	XSP_END=()
 	[ -r "$XS_LIST" ] || return 0
-	while IFS=$'\t' read -r n c w p; do
+	while IFS=$'\t' read -r n c w p e; do
 		[ -n "$n" ] && [ -n "$c" ] || continue
 		case $w in fit | fixed | own) ;; *) w=fit ;; esac
 		case $p in follow | half | pixels) ;; *) p=follow ;; esac
+		case $e in default | close | keep) ;; *) e=default ;; esac
 		XSP_NAME+=("$n")
 		XSP_CMD+=("$c")
 		XSP_WIN+=("$w")
 		XSP_PIC+=("$p")
+		XSP_END+=("$e")
 	done < "$XS_LIST"
 	return 0
 }
@@ -82,8 +91,8 @@ xs_save() {
 	mkdir -p "${XS_LIST%/*}" 2> /dev/null
 	{
 		for i in "${!XSP_NAME[@]}"; do
-			printf '%s\t%s\t%s\t%s\n' "${XSP_NAME[$i]}" "${XSP_CMD[$i]}" \
-				"${XSP_WIN[$i]}" "${XSP_PIC[$i]}"
+			printf '%s\t%s\t%s\t%s\t%s\n' "${XSP_NAME[$i]}" "${XSP_CMD[$i]}" \
+				"${XSP_WIN[$i]}" "${XSP_PIC[$i]}" "${XSP_END[$i]:-default}"
 		done
 	} > "$tmp" && command mv -f -- "$tmp" "$XS_LIST"
 }
@@ -174,6 +183,7 @@ fn xscreen_open(int id, arg = "") {
 	XS[$id]["run"]=${XSP_CMD[$k]}
 	XS[$id]["win"]=${XSP_WIN[$k]}
 	XS[$id]["pic"]=${XSP_PIC[$k]}
+	XS[$id]["end"]=${XSP_END[$k]:-default}
 	if ! command -v Xvfb > /dev/null; then
 		XS[$id]["err"]="X Screen needs Xvfb -- install the xvfb package"
 		return 0
@@ -348,10 +358,43 @@ fn xs_retitle(int id) {
 # as a terminal's output is: the change is kept, and the frame is asked
 # for when the period is up. The server says nothing more until the screen
 # has been drawn, so a window waiting, hidden or minimised costs nothing.
+# Whether the window's program has ended and the window is to close with it
+# (Gitea #308): the program's own When It Ends, or for default Close When
+# It Ends. Ended is every process it started gone *and* no window of it
+# left on the screen -- a program whose first process forks and leaves has
+# its window up still -- and not before the screen has had three seconds
+# to show one. The server is asked about windows once a second at most.
+fn xs_endcheck(int id) {
+	local x=${XS[$id]["x"]} e=${XS[$id]["end"]:-default} p n
+
+	case $e in
+	close) ;;
+	default) [ "$XS_CLOSEEND" = 1 ] || return 0 ;;
+	*) return 0 ;;
+	esac
+	[ -n "$x" ] || return 0
+	if [ $((EPOCHSECONDS - ${XS[$id]["t0"]:-$EPOCHSECONDS})) -lt 3 ]; then
+		dt_want 1000
+		return 0
+	fi
+	for p in ${XS[$id]["pids"]}; do
+		kill -0 "$p" 2> /dev/null && return 0
+	done
+	if [ $((EPOCHSECONDS - ${XS[$id]["wat"]:-0})) -lt 1 ]; then
+		dt_want 1000
+		return 0
+	fi
+	XS[$id]["wat"]=$EPOCHSECONDS
+	n := xscr windows "$x" 2> /dev/null
+	[ "${n:-1}" -gt 0 ] && return 0
+	dt_wantclose "$id"
+}
+
 fn xscreen_dirty(int id) {
 	local x=${XS[$id]["x"]} st=0 now left
 
 	[ -n "$x" ] || return 0
+	xs_endcheck "$id"
 	xscr poll "$x" 2> /dev/null || st=$?
 	[ "$st" = 2 ] && { XS[$id]["err"]="The X screen has ended"; return 0; }
 	if [ "$st" = 0 ]; then
@@ -372,6 +415,7 @@ fn xscreen_dirty(int id) {
 # socket would wake the desktop for ever.
 fn xscreen_idle(int id) {
 	[ -n "${XS[$id]["x"]}" ] && xscr poll "${XS[$id]["x"]}" > /dev/null 2>&1
+	xs_endcheck "$id"
 	return 0
 }
 

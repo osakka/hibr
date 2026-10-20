@@ -853,5 +853,33 @@ check("a picture under the text crosses it whole",
       len(places(sc)) == 1 and sc.row(4).startswith("BARTEXT"),
       (places(sc), sc.row(4)))
 
+# A picture that cannot be decoded is said once, naming what to install
+# (Gitea #301): a desktop asks for a picture on every frame that shows it,
+# and a missing libturbojpeg wrote the same line some 135,000 times into
+# the owner's log. The library is hidden from one process with a private
+# mount namespace, which needs nothing installed or changed.
+import subprocess
+JPG = os.path.join(D, "pic.jpg")
+open(JPG, "wb").write(base64.b64decode(
+    "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP////////////////////////////////////////"
+    "//////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAA"
+    "AAAAAAAAAAAAAAAAAP/aAAgBAQABPxA="))
+libs = [p for p in ("/usr/lib/x86_64-linux-gnu/libturbojpeg.so.0",
+                    "/usr/lib/aarch64-linux-gnu/libturbojpeg.so.0",
+                    "/usr/lib/libturbojpeg.so.0") if os.path.exists(p)]
+ok_ns = libs and subprocess.run(["unshare", "-rm", "true"], capture_output=True).returncode == 0
+if ok_ns:
+    r = subprocess.run(["unshare", "-rm", "sh", "-c",
+                        "mount --bind /dev/null %s && %s -c 'mod load %s; for i in 1 2 3 4 5; do "
+                        "img -o ppm -w 8 -h 4 %s > /dev/null; done'"
+                        % (libs[0], sx.HIBR, sx.tree("build/mods/img.so"), JPG)],
+                       capture_output=True, text=True, timeout=60)
+    said = [l for l in r.stderr.splitlines() if "libturbojpeg" in l]
+    check("a picture with no decoder is said once in five, naming what to install",
+          len(said) == 1 and "install libturbojpeg0" in said[0], r.stderr)
+else:
+    check("a picture with no decoder is said once (skipped: no user namespaces "
+          "or no libturbojpeg to hide here)", True)
+
 shutil.rmtree(D, True)
-report(82)
+report(83)

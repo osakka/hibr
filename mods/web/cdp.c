@@ -13,6 +13,9 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 
 wb_br wb;
 
@@ -156,7 +159,12 @@ void wb_useragent(void)
 	lg(HIBR_LDBG, "web: tabs say they are %s", wb.ua ? wb.ua : "what the browser says");
 }
 
-/* Start the browser on a profile; whether it came up and answered. */
+/* Start the browser on a profile; whether it came up and answered. On
+   Linux the kernel ends it when this process does (PR_SET_PDEATHSIG): a
+   desktop that was killed left its Chromium running, holding the profile,
+   and the next desktop's Chromium then never answered -- a black screen on
+   every restart, until the sessions were wiped by hand (owner, 2026-10-20).
+   Restart Desktop is an exec, the same process, which keeps it. */
 int wb_spawn(const char *bin, const char *prof)
 {
 	int toc[2], fromc[2], i, n;
@@ -165,7 +173,7 @@ int wb_spawn(const char *bin, const char *prof)
 	str ud;
 	char *xa = 0, *t;
 	jv *r;
-	pid_t pid;
+	pid_t pid, me = getpid();
 
 	if (pipe(toc) < 0 || pipe(fromc) < 0) {
 		lg(HIBR_LERR, "web: cannot make a pipe: %s", strerror(errno));
@@ -208,6 +216,11 @@ int wb_spawn(const char *bin, const char *prof)
 		dup2(nul, 0);
 		dup2(nul, 1);
 		dup2(nul, 2);
+#ifdef __linux__
+		prctl(PR_SET_PDEATHSIG, SIGTERM);
+		if (getppid() != me)
+			_exit(0);
+#endif
 		dup2(a, 3);
 		dup2(b, 4);
 		n = (int)sysconf(_SC_OPEN_MAX);
@@ -231,6 +244,7 @@ int wb_spawn(const char *bin, const char *prof)
 	s_free(&ud);
 	r = wb_call("Target.setDiscoverTargets", "{\"discover\":true}", 0);
 	if (!r) {
+		wb.failat = wb_ms();
 		wb_stop();
 		return HIBR_FAIL;
 	}
@@ -259,6 +273,11 @@ int wb_start(void)
 
 	if (wb_alive())
 		return HIBR_OK;
+	if (wb.failat && wb_ms() - wb.failat < WB_RESTMS) {
+		lg(HIBR_LERR, "web: the browser stopped answering %ld s ago; "
+			      "not starting another yet", (wb_ms() - wb.failat) / 1000);
+		return HIBR_FAIL;
+	}
 	bin = wb_find();
 	if (!bin) {
 		lg(HIBR_LERR, "web: no Chromium or Chrome found -- install one, "
@@ -587,6 +606,7 @@ jv *wb_call(const char *method, const char *params, const char *session)
 			v = rp->v;
 			free(rp);
 			wb_resps.p[i] = wb_resps.p[--wb_resps.n];
+			wb.stuck = 0;
 			e = jv_get(v, "error");
 			if (e) {
 				lg(HIBR_LERR, "web: %s: %s", method,
@@ -598,6 +618,11 @@ jv *wb_call(const char *method, const char *params, const char *session)
 		}
 		if (wb_ms() > until || !wb_alive()) {
 			lg(HIBR_LERR, "web: %s: no answer from the browser", method);
+			if (wb_alive() && (++wb.stuck >= 2 || !session)) {
+				lg(HIBR_LERR, "web: the browser is not answering; it is stopped");
+				wb.failat = wb_ms();
+				wb_stop();
+			}
 			return 0;
 		}
 		wb_pump(50);

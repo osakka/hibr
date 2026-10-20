@@ -120,7 +120,7 @@ int im_pngfile(FILE *fp, const char *name, image *out, str *err)
 	const char *path = name;
 
 	if (png_load() != HIBR_OK) {
-		s_cat(err, "libpng is not available");
+		s_cat(err, "libpng is not available -- install libpng16-16 (libpng with Homebrew)");
 		return HIBR_FAIL;
 	}
 	p = png.create_read(png.ver(0), 0, 0, 0);
