@@ -1999,6 +1999,19 @@ went in the shell.
   the descriptor, so the next such mistake costs a log line rather than a
   core -- but a guard bounds the cost and does not fix the loop. A new wait
   loop runs the tickers.
+- **A drain reads with a bound, because a program on the other end of a
+  pipe may print half a line and stop** (0.99.272). The Bluetooth watcher
+  ran an interactive `bluetoothctl`, which reprints its prompt after every
+  event with no newline, and the drain was `read -t 0` and then a plain
+  `read -r`: the prompt is something waiting, the read then waits for a
+  newline, and **the whole desktop froze** a few seconds after starting,
+  every start. Under it was a shell bug: hibr's `read -t` bounded only the
+  wait for the *first* byte, where bash bounds the whole read -- fixed,
+  status 142 with the partial kept. The suites passed because the stand-in
+  printed only whole lines: **a stand-in for an interactive program prints
+  its prompt**, or it cannot catch the one thing an interactive program
+  does that a line-oriented one does not. Pass a watcher through `grep
+  --line-buffered` when only its event lines matter, and read with `-t`.
 - **A watched descriptor must be read whether or not its window is drawn.**
   `term_draw` was the only reader of a terminal's pty, and a minimised or
   away window is not drawn, so a program still writing kept the fd readable

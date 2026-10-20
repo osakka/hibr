@@ -1,11 +1,13 @@
 #include "pri.h"
 #include <ctype.h>
 #include <errno.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <termios.h>
+#include <time.h>
 #include <sys/select.h>
 #include <unistd.h>
 
@@ -509,15 +511,39 @@ char *bi_oval(int ac, char **av, int *i, size_t len)
    among them (Gitea #107). Both spellings read N bytes regardless until
    0.99.144, which made them one command written two ways.
    Returns the last read's own result, so the caller can still tell end of
-   file from a delimiter. */
-long bi_rddelim(int fd, int delim, int want, int exact, str *b)
+   file from a delimiter. dl, when not 0, is a CLOCK_MONOTONIC deadline in
+   milliseconds for the whole read, as `read -t` means it in bash: a pipe
+   that sends half a line and then nothing more -- an interactive
+   program's prompt -- used to hold the read until a newline came, however
+   short the timeout, which froze a desktop draining such a program (Gitea
+   #327's sibling, 0.99.272). On the deadline *tout is set and what was
+   taken is kept. A file never blocks, so only the byte path waits. */
+long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
+		int *tout)
 {
 	long n = 0;
 	char c, *buf, *d;
 	size_t cap;
+	struct pollfd q;
+	long long left;
 
 	if (lseek(fd, 0, SEEK_CUR) == (off_t)-1) {
-		while ((n = read(fd, &c, 1)) == 1) {
+		for (;;) {
+			if (dl) {
+				left = dl - bi_ms();
+				q.fd = fd;
+				q.events = POLLIN;
+				if (left <= 0 || poll(&q, 1, (int)left) == 0) {
+					if (tout)
+						*tout = 1;
+					return -1;
+				}
+			}
+			n = read(fd, &c, 1);
+			if (n < 0 && errno == EINTR)
+				continue;
+			if (n != 1)
+				break;
 			if (!exact && (unsigned char)c == (unsigned char)delim)
 				break;
 			s_ch(b, c);
@@ -547,6 +573,15 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b)
 	}
 	free(buf);
 	return n;
+}
+
+/* Milliseconds on a clock nobody sets, for read's deadline. */
+long long bi_ms(void)
+{
+	struct timespec t;
+
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (long long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
 /* Read a line from standard input into variables. */
@@ -581,7 +616,8 @@ int b_read(sh *s, int ac, char **av)
 	str b;
 	long n;
 	int i = 1, want = 0, cnt = 0, exact = 0, silent = 0, fd = 0;
-	int delim = '\n', eof = 0, rdy;
+	int delim = '\n', eof = 0, rdy, tout = 0, rv;
+	long long dl = 0;
 	const char *arr = 0, *prompt = 0;
 	char *ov;
 	double tmo = -1;
@@ -675,6 +711,8 @@ int b_read(sh *s, int ac, char **av)
 		fputs(prompt, stderr);
 		fflush(stderr);
 	}
+	if (tmo > 0)
+		dl = bi_ms() + (long long)(tmo * 1000);
 	if (tmo >= 0) {
 		FD_ZERO(&rs);
 		FD_SET(fd, &rs);
@@ -700,12 +738,15 @@ int b_read(sh *s, int ac, char **av)
 	s_init(&b);
 	/* A count of 0 reads nothing and succeeds, taking not even a byte
 	   from the descriptor, so the next command sees all of it. */
-	n = cnt && !want ? 1 : bi_rddelim(fd, delim, want, exact, &b);
+	n = cnt && !want ? 1 : bi_rddelim(fd, delim, want, exact, &b, dl, &tout);
 	if (silent) {
 		tcsetattr(fd, TCSADRAIN, &sv);
 		fputc('\n', stderr);
 	}
 	eof = n <= 0;
+	rv = tout ? 142 : eof ? HIBR_FAIL : HIBR_OK;
+	if (tout)
+		lg(HIBR_LDBG, "read timed out after %g s with %zu bytes taken", tmo, b.n);
 	/* `read -N` splits nothing: the whole of what was taken goes to the
 	   first name, leading and trailing blanks and all, and any further
 	   name is left empty -- which is what the form is for, and is bash's
@@ -718,14 +759,14 @@ int b_read(sh *s, int ac, char **av)
 		v_arr(s, arr, el);
 		vb_put(s, el);
 		s_free(&b);
-		return eof ? HIBR_FAIL : HIBR_OK;
+		return rv;
 	}
 	if (exact && i < ac) {
 		hibr_set(s, av[i], b.p ? b.p : "", 0);
 		for (i++; i < ac; i++)
 			hibr_set(s, av[i], "", 0);
 		s_free(&b);
-		return eof ? HIBR_FAIL : HIBR_OK;
+		return rv;
 	}
 	if (arr) {
 		vec *el = vb_get(s);
@@ -735,12 +776,12 @@ int b_read(sh *s, int ac, char **av)
 		v_arr(s, arr, el);
 		vb_put(s, el);
 		s_free(&b);
-		return eof ? HIBR_FAIL : HIBR_OK;
+		return rv;
 	}
 	if (i >= ac) {
 		hibr_set(s, "REPLY", b.p ? b.p : "", 0);
 		s_free(&b);
-		return eof ? HIBR_FAIL : HIBR_OK;
+		return rv;
 	}
 	for (; i < ac; i++) {
 		size_t fs = b.n, fe = b.n;
@@ -770,7 +811,7 @@ int b_read(sh *s, int ac, char **av)
 		}
 	}
 	s_free(&b);
-	return eof ? HIBR_FAIL : HIBR_OK;
+	return rv;
 }
 
 /* Evaluate arithmetic expressions for their effect. */

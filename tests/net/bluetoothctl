@@ -90,7 +90,22 @@ def connect(s, mac):
     say("Connection successful")
 
 
+PROMPT = "[bluetooth]# "
+
+
+def isay(t):
+    """A line from an interactive session, as bluez's shell writes one:
+    the prompt it was showing wiped, the line, and the prompt again with no
+    newline after it (src/shared/shell.c, bt_shell_printf). A reader that
+    waits for a whole line is left holding that prompt -- which is what froze
+    a desktop draining the watcher until 0.99.272."""
+    sys.stdout.write("\r\x1b[K" + t + "\n" + PROMPT)
+    sys.stdout.flush()
+
+
 def interactive():
+    sys.stdout.write(PROMPT)
+    sys.stdout.flush()
     s = load()
     pend = None
     last = os.stat(ST).st_mtime_ns
@@ -102,7 +117,7 @@ def interactive():
             m = last
         if m != last:
             last = m
-            say("[CHG] Controller %s Powered: %s" % ("C8:26:E2:59:1D:E4", load()["power"]))
+            isay("[CHG] Controller %s Powered: %s" % ("C8:26:E2:59:1D:E4", load()["power"]))
         if not r:
             continue
         l = sys.stdin.readline()
@@ -118,45 +133,45 @@ def interactive():
             if ok:
                 d["paired"] = True
                 save(s)
-                say("[CHG] Device %s Paired: yes" % mac)
-                say("Pairing successful")
+                isay("[CHG] Device %s Paired: yes" % mac)
+                isay("Pairing successful")
             else:
-                say("Failed to pair: org.bluez.Error.%s" %
+                isay("Failed to pair: org.bluez.Error.%s" %
                     ("AuthenticationRejected" if kind == "confirm" else "AuthenticationFailed"))
             continue
         w = l.split()
         if not w:
             continue
         if w[0] == "agent":
-            say("Agent registered")
+            isay("Agent registered")
         elif w[0] == "default-agent":
-            say("Default agent request successful")
+            isay("Default agent request successful")
         elif w[0] == "pair" and len(w) > 1:
             d = dev(s, w[1])
-            say("Attempting to pair with %s" % w[1])
+            isay("Attempting to pair with %s" % w[1])
             if not d:
-                say("Failed to pair: org.bluez.Error.DoesNotExist")
+                isay("Failed to pair: org.bluez.Error.DoesNotExist")
             elif d.get("pairmode") == "confirm":
-                say("Request confirmation")
+                isay("Request confirmation")
                 sys.stdout.write("[agent] Confirm passkey 123456 (yes/no): ")
                 sys.stdout.flush()
                 pend = ("confirm", w[1])
             elif d.get("pairmode") == "pin":
-                say("Request PIN code")
+                isay("Request PIN code")
                 sys.stdout.write("[agent] Enter PIN code: ")
                 sys.stdout.flush()
                 pend = ("pin", w[1])
             else:
                 d["paired"] = True
                 save(s)
-                say("[CHG] Device %s Paired: yes" % w[1])
-                say("Pairing successful")
+                isay("[CHG] Device %s Paired: yes" % w[1])
+                isay("Pairing successful")
         elif w[0] == "trust" and len(w) > 1:
             d = dev(s, w[1])
             d["trusted"] = True
             save(s)
-            say("[CHG] Device %s Trusted: yes" % w[1])
-            say("Changing %s trust succeeded" % w[1])
+            isay("[CHG] Device %s Trusted: yes" % w[1])
+            isay("Changing %s trust succeeded" % w[1])
         elif w[0] == "connect" and len(w) > 1:
             connect(s, w[1])
         elif w[0] in ("quit", "exit"):

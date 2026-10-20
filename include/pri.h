@@ -281,6 +281,7 @@ var *v_take(sh *s, const char *k);
 void v_back(sh *s, var *v);
 void asg_pop(sh *s, vec *old);
 int bi_mask(const char *nm);
+long long bi_ms(void);
 int bi_argk(const char *nm);
 int w_assign(word *w);
 int w_bind(word *w);

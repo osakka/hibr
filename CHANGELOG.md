@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.272
+
+**A desktop with Bluetooth no longer freezes a few seconds after it starts.**
+0.99.271's Bluetooth watcher runs an interactive bluetoothctl. That
+program reprints its `[bluetooth]# ` prompt after every line it prints,
+with no newline after the prompt. The desktop drained the watcher by asking
+whether anything was waiting and then reading a line. A prompt is
+something waiting, and the read then waited for a newline that never came.
+That froze every window until bluetoothctl next said something or went
+away, then the watcher was started again and did the same. The watcher
+now passes only whole event lines, through grep, the way the PipeWire
+watcher always has. All three watchers' drains (sound, network and
+Bluetooth) read with a bound and leave a partial line where it is. The
+suite's stand-in for bluetoothctl now prints its prompt the way the real
+one does. Against 0.99.271's watcher it fails at the first click on the
+Bluetooth item.
+
+**`read -t` bounds the whole read, as bash's does.** hibr's timeout covered
+only the wait for the first byte. Once half a line had arrived, `read`
+waited for the rest of it however short the timeout, which is what the
+desktop fell into. It now times out with status 142 and keeps what it took
+in the variable, and `read -t 0` afterwards says nothing is waiting. Bash
+answers the same, and `tests/193-read-timeout.t` compares the two.
+
 ## 0.99.271
 
 **Bluetooth on the menu bar, and Control Panel > Bluetooth** (Gitea #312).

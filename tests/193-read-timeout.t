@@ -27,3 +27,16 @@ echo "not a number: $?"
 read -t -1 x 2> /dev/null
 echo "negative: $?"
 echo hi | { read -t 2 v; echo "piped: $? $v"; }
+
+# The timeout bounds the whole read, not only its first byte: half a line
+# and then nothing -- an interactive program's prompt -- times out with what
+# came kept, where hibr waited for a newline however short the timeout.
+exec {fd}< <(printf 'whole\nprompt> '; sleep 2)
+sleep 0.3
+IFS= read -r -t 0.2 -u $fd l
+echo "a whole line: $? [$l]"
+IFS= read -r -t 0.2 -u $fd l
+echo "half a line: $? [$l]"
+read -t 0 -u $fd
+echo "and nothing waiting after: $?"
+exec {fd}<&-
