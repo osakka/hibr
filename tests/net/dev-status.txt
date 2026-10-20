@@ -1,0 +1,4 @@
+wlp3s0:wifi:connected:.gibnet/5ghz 2
+lo:loopback:connected (externally):lo
+p2p-dev-wlp3s0:wifi-p2p:disconnected:
+eno1:ethernet:unavailable:

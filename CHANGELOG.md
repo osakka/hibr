@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.99.270
+
+**The network on the menu bar, and Control Panel > Network** (Gitea #311).
+An item beside the speaker shows Wi-Fi's four signal bars, a cable or no
+network. A left click lists the Wi-Fi networks in reach -- the one in use
+first and ticked, a key on each that asks for a password -- with Wi-Fi's
+switch at the top; a right click opens the network menu. A network joined
+before is joined through the connection NetworkManager keeps for it, never
+a new one; an open one at once; a secured one asks its password in a small
+window, starred, and the password reaches NetworkManager through nmcli's
+own editor on its standard input -- never on a command line, where any
+user's `ps` would show it. A wrong password leaves no connection behind.
+Joining runs in the background and a note says how it went. The pane has
+the Network System (Auto, NetworkManager, None), the address, gateway and
+name servers, Wi-Fi on or off, the networks in reach, the known ones to
+Forget, and Network on Menu Bar. With no NetworkManager the bar still says
+wired or wireless, from iproute2. The WebDAV pane is called **Servers**
+now.
+
+**The desktop asks for the password polkit wants.** From a session that
+is not the machine's active local one, polkit answers NetworkManager's
+every action with "a password first" -- the owner's own session did, so a
+join failed with "Insufficient privileges" rather than asking. While a
+join, a Disconnect, a Forget or Look Again runs, the desktop keeps polkit's
+own text agent (`pkttyagent`) on a pty and asks in a window of its own,
+naming what is wanted and whose password; the answer reaches the agent by
+a builtin, never a command line. A wrong one is said as such. Opening the
+list never asks: where a scan wants a password, it shows what
+NetworkManager already knows. What polkit refuses outright -- Wi-Fi's
+switch, from the owner's session -- is shown locked; where a connection for
+everyone may not be saved but one's own may, a new network is saved as
+one's own. Built against stand-ins for nmcli and pkttyagent whose output is
+captured from the real ones; nmcli's editor reading its commands on stdin
+is confirmed on the owner's machine, and the whole of a join through the
+agent is still to be run there.
+
+**Splitting on an IFS that is not whitespace keeps empty fields** (Gitea
+#317), in `read` and in word splitting: `IFS=: read -ra a <<< ":x:y:"` is
+three fields, the first empty, and `a::b` is three, as POSIX and bash have
+them. hibr dropped every empty field, so a terse nmcli line with nothing
+in its first field moved every field one place left. IFS whitespace still
+collapses; `read`'s last variable takes the rest of the line, losing a
+single trailing delimiter only when one field is left, as bash does.
+`tests/201-ifs-fields.t` compares 26 cases against bash. A loop that does
+nothing but split costs 0.39% more, for the one check of whether IFS holds
+anything but whitespace.
+
 ## 0.99.269
 
 **A menu row no longer shows a shortcut left over from the frame before**

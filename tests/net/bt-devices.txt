@@ -1,0 +1,6 @@
+Device 56:FC:9C:F8:E4:04 SoundForm Adapt
+Device 98:47:44:C5:4C:03 soundcore C30i
+Device E7:87:3C:F0:44:F5 ProtoArc EM11 NL
+Device D9:FA:6A:82:58:2C MX-LP 2.1-BT1
+Device E4:17:D8:8E:8A:CD 8BitDo Retro Keyboard
+Device DA:DD:60:7A:64:8C ProtoArc EM01

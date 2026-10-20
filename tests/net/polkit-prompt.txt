@@ -1,0 +1,4 @@
+[1;31m==== AUTHENTICATING FOR org.freedesktop.policykit.exec ====
+[0mAuthentication is required to run a program as another user
+Authenticating as: root
+Password: 

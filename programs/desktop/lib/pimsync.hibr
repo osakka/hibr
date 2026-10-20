@@ -5,7 +5,7 @@
 #
 #     hibr pimsync.hibr SERVER DIR
 #
-# SERVER is a server from `dav server set` -- the Network Servers list --
+# SERVER is a server from `dav server set` -- the Servers list --
 # and DIR the folder its copy lives in. First the queue the apps write
 # (DIR/queue: "put<TAB>collection<TAB>name<TAB>file<TAB>etag" to upload a
 # card, "del<TAB>collection<TAB>href<TAB>etag" to remove one, the ETag

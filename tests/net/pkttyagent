@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""A stand-in for polkit's pkttyagent, for tests/net.py (Gitea #311).
+
+The real one registers with polkit and is asked when an action needs a
+password; here the stand-in nmcli asks by writing auth.req in
+$HIBR_NMSTATE and waits for auth.res. What it prints is polkit's own, as
+captured from pkttyagent on this machine (tests/net/polkit-prompt.txt,
+polkit-failed.txt): the red banner, the reason, whose password, then
+"Password: ", and on a wrong password pam's line and the red FAILED
+banner. Success was not captured -- this machine has no password to give
+-- and is polkit's own text from its source (polkitagenttextlistener.c):
+the green COMPLETE banner. The right password is state.json's agentpw."""
+import json
+import os
+import sys
+import time
+
+D = os.environ.get("HIBR_NMSTATE", "")
+REQ = os.path.join(D, "auth.req")
+RES = os.path.join(D, "auth.res")
+MSG = {"network-control": "System policy prevents control of network connections",
+       "settings.modify.system": "System policy prevents modification of network settings for all users",
+       "settings.modify.own": "System policy prevents modification of personal network settings",
+       "enable-disable-wifi": "System policy prevents enabling or disabling Wi-Fi devices",
+       "wifi.scan": "System policy prevents Wi-Fi scans"}
+
+
+def w(t):
+    sys.stdout.write(t)
+    sys.stdout.flush()
+
+
+def main():
+    while True:
+        if not os.path.exists(REQ):
+            time.sleep(0.1)
+            continue
+        act = open(REQ).read().strip()
+        os.unlink(REQ)
+        st = json.load(open(os.path.join(D, "state.json")))
+        short = act.replace("org.freedesktop.NetworkManager.", "")
+        w("\x1b[1;31m==== AUTHENTICATING FOR %s ====\r\n\x1b[0m%s\r\nAuthenticating as: %s\r\nPassword: "
+          % (act, MSG.get(short, "Authentication is required"), os.environ.get("USER", "user")))
+        line = sys.stdin.readline()
+        pw = line.rstrip("\r\n")
+        if pw == st.get("agentpw"):
+            w("\r\n\x1b[1;32m==== AUTHENTICATION COMPLETE ====\r\n\x1b[0m")
+            ok = "ok"
+        else:
+            w("\r\npolkit-agent-helper-1: pam_authenticate failed: Authentication failure\r\n"
+              "\x1b[1;31m==== AUTHENTICATION FAILED ====\r\n\x1b[0m")
+            ok = "fail"
+        with open(RES, "w") as f:
+            f.write(ok + "\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (KeyboardInterrupt, BrokenPipeError):
+        pass

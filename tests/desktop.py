@@ -3089,10 +3089,10 @@ PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
 # what 0.99.126's regrouping made necessary: About This Computer and Task
 # Manager became the desktop's, Vault and Prayer Times the apps', and PIM
 # became Calendar & Contacts, so it sorts first among them now.
-ORDER = ["datetime", "displays", "keyboard", "mouse", "sound",
+ORDER = ["datetime", "displays", "keyboard", "mouse", "networks", "sound",
          "aboutme", "abouthibr", "appearance", "cliphist", "control_strip",
-         "desktop", "filetypes", "language", "network", "notify", "pictures",
-         "screensaver", "shortcuts", "taskmgr", "windows",
+         "desktop", "filetypes", "language", "notify", "pictures",
+         "screensaver", "network", "shortcuts", "taskmgr", "windows",
          "pimset", "filesview", "mailset", "prayerset", "notes", "terminal",
          "vaultset", "tube"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")

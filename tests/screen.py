@@ -280,6 +280,10 @@ for _v, _d in (("XDG_CONFIG_HOME", "config"), ("XDG_STATE_HOME", "state"),
 # server of its own.
 os.environ["HIBR_SOUND"] = "none"
 os.environ["PULSE_SERVER"] = "unix:/nonexistent/hibr-test"
+# Nor its network: a click on the bar's network item could turn Wi-Fi off or
+# leave the network the machine is on (Gitea #311). HIBR_NET=none turns the
+# desktop's network layer off; tests/net.py gives a session a stand-in nmcli.
+os.environ["HIBR_NET"] = "none"
 
 # What the desktop prints, when HIBR_TESTIDLE is set, each time a frame is on
 # screen and it is about to wait for input -- an OSC a terminal ignores,

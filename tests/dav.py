@@ -336,7 +336,7 @@ try:
               % tree("programs/desktop/control-panel"),
               [([], "Upload Edits on Save")])[0]
     check("Control Panel lists the servers and the settings for files on them",
-          sc.find("Network Serve") is not None and sc.find("nc") is not None and
+          sc.find("\u21c5 Servers") is not None and sc.find("nc") is not None and
           sc.find("Add Server") is not None and sc.find("Timeout (seconds)") is not None
           and sc.find("Clear Cache") is not None, sc)
     out, err = hb("mod load %s; . %s; dav server set far http://localhost:%d/ -u u -p p; dt_davok;"

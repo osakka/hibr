@@ -55,6 +55,9 @@ fn dt_glyphs(set = "unicode") {
 		GL["file"]="-"; GL["folder"]="+"
 		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"; GL["tick"]="v"
 		GL["sound"]="vol"; GL["soundoff"]="vol x"
+		GL["wifi"]="wifi"; GL["wired"]="lan"; GL["netoff"]="net x"
+		GL["bar1"]="."; GL["bar2"]=":"; GL["bar3"]="i"; GL["bar4"]="I"; GL["baroff"]="_"
+		GL["secure"]="*"
 		GL["star"]="*"; GL["flag"]="!"; GL["heart"]="*"; GL["warn"]="!"
 		GL["unlocked"]="!"
 		GL["task"]="[ ]"; GL["taskdone"]="[x]"; GL["pin"]="*"
@@ -122,6 +125,12 @@ fn dt_glyphs(set = "unicode") {
 		GL["tick"]=$'✓'      # CHECK MARK, a checkbox's tick
 		GL["sound"]=$'♪'     # EIGHTH NOTE, the speaker on the bar
 		GL["soundoff"]=$'♪ ✕' # EIGHTH NOTE, MULTIPLICATION X: muted
+		GL["wifi"]=""         # Wi-Fi is its signal bars alone, as nmcli draws it
+		GL["wired"]=$'⇌'     # RIGHTWARDS HARPOON OVER LEFTWARDS HARPOON
+		GL["netoff"]=$'✕'    # MULTIPLICATION X: no network
+		GL["bar1"]=$'▂'; GL["bar2"]=$'▄'; GL["bar3"]=$'▆'; GL["bar4"]=$'█' # LOWER ONE QUARTER BLOCK .. FULL BLOCK
+		GL["baroff"]=$'_'    # LOW LINE: a bar the signal does not reach
+		GL["secure"]=$'⚿'    # SQUARED KEY: a network that asks for a password
 		GL["star"]=$'✱'      # HEAVY ASTERISK
 		GL["task"]=$'☐'      # BALLOT BOX
 		GL["taskdone"]=$'☑'  # BALLOT BOX WITH CHECK
@@ -168,6 +177,10 @@ fn dt_glyphs(set = "unicode") {
 dt_glyphsnerd() {
 	GL["sound"]=$'\uf028'     # nf-fa-volume_up
 	GL["soundoff"]=$'\uf026'  # nf-fa-volume_off
+	GL["wifi"]=$'\uf1eb'      # nf-fa-wifi
+	GL["wired"]=$'\uf1e6'     # nf-fa-plug
+	GL["netoff"]=$'\uf05e'    # nf-fa-ban
+	GL["secure"]=$'\uf023'    # nf-fa-lock
 	GL["folder"]=$'\uf07b'    # nf-fa-folder
 	GL["file"]=$'\uf15b'      # nf-fa-file
 	GL["home"]=$'\uf015'      # nf-fa-home

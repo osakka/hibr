@@ -175,6 +175,10 @@ DT_SNDKIND="${DT_SNDKIND-Auto}"
 DT_SNDBAR="${DT_SNDBAR-1}"
 DT_SNDLEVEL="${DT_SNDLEVEL-1}"
 DT_SNDSTEP="${DT_SNDSTEP-5}"
+# Control Panel > Network: which network system -- Auto takes NetworkManager,
+# else iproute2's view of the default route -- and the item on the menu bar.
+DT_NETKIND="${DT_NETKIND-Auto}"
+DT_NETBAR="${DT_NETBAR-1}"
 # Control Panel > Appearance > Bold Menu Titles: an app's own menu titles
 # on the bar -- File, Edit and the rest -- in bold. The hibr menu and the
 # open menu are bold either way; nothing else on the bar changes.
@@ -341,7 +345,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_FRAME DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_TERMMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEWHERE DT_NOTECOUNT DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
-	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_SETVER)
+	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_NETKIND DT_NETBAR DT_SETVER)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a

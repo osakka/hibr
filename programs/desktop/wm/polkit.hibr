@@ -1,0 +1,250 @@
+# wm/polkit -- the password polkit asks for, asked in a dialog of the
+# desktop's own (Gitea #311).
+#
+# A system service asks polkit whether the person may do something, and
+# polkit's answer for a session that is not the machine's active local one
+# is usually "auth": a password, given through an authentication agent. A
+# terminal session has none, so NetworkManager refused every join from one
+# with "Insufficient privileges" rather than asking. The desktop runs
+# polkit's own text agent, pkttyagent, on a pty of its own while something
+# that may need it runs, follows what it prints -- the format captured from
+# pkttyagent itself, tests/net/polkit-*.txt -- and when it asks for a
+# password, asks in a window instead. The password is written to that pty by
+# a builtin, so it is on no command line, and polkit checks it with PAM; the
+# desktop keeps it no longer than the write. --fallback, so an agent the
+# session already has -- a graphical one, another desktop's -- is used and
+# this one stands aside.
+#
+# A caller says it may need one with dt_pkstart and that it is done with
+# dt_pkstop; the agent runs while anything still holds it.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_PKID=
+DT_PKUSES=0
+DT_PKBUF=
+DT_PKACT=
+DT_PKMSG=
+DT_PKUSER=
+DT_PKWIN=
+# How the last request went: ok, fail, or empty while none has finished.
+DT_PKRES=
+declare -gA PKA
+
+# Hold the agent, starting it when nothing holds it yet. Status 1 when there
+# is no agent to start, which leaves whoever asked to be refused as before.
+dt_pkstart() {
+	local id
+
+	DT_PKUSES=$((DT_PKUSES + 1))
+	[ -n "$DT_PKID" ] && return 0
+	command -v pkttyagent > /dev/null || return 1
+	need pty 2> /dev/null || return 1
+	id := pty spawn -r 24 -c 200 env LC_ALL=C pkttyagent --fallback || return 1
+	DT_PKID=$id
+	DT_PKBUF=
+	DT_PKRES=
+	DT_PKACT=
+	DT_PKMSG=
+	DT_PKUSER=
+	dt_want 150
+	return 0
+}
+
+# Let go of it; the last to let go ends it, and any dialog it had open.
+dt_pkstop() {
+	[ "$DT_PKUSES" -gt 0 ] && DT_PKUSES=$((DT_PKUSES - 1))
+	[ "$DT_PKUSES" = 0 ] || return 0
+	dt_pkend
+}
+
+# End the agent now.
+dt_pkend() {
+	if [ -n "$DT_PKID" ]; then
+		pty close "$DT_PKID" 2> /dev/null
+		DT_PKID=
+	fi
+	DT_PKBUF=
+	if [ -n "$DT_PKWIN" ]; then
+		dt_wantclose "$DT_PKWIN"
+		DT_PKWIN=
+	fi
+}
+
+# Every frame while it runs: read what it has said, and act on each line --
+# the request's banner, its reason and whose password, the verdict -- and on
+# a prompt left open at the end, "Password: ", which has no newline after
+# it, or the choice of identity polkit offers when more than one may answer.
+dt_pktick() {
+	local out l tail i
+
+	[ -n "$DT_PKID" ] || return 0
+	dt_want 150
+	out := pty read "$DT_PKID" 0
+	if [ -z "$out" ] && ! pty alive "$DT_PKID" > /dev/null 2>&1; then
+		dt_pklog "the agent ended"
+		DT_PKID=
+		DT_PKUSES=0
+		[ -n "$DT_PKWIN" ] && { dt_wantclose "$DT_PKWIN"; DT_PKWIN=; }
+		return 0
+	fi
+	[ -n "$out" ] || return 0
+	out=${out//$'\e[1;31m'/}
+	out=${out//$'\e[1;32m'/}
+	out=${out//$'\e[0m'/}
+	out=${out//$'\r'/}
+	DT_PKBUF+=$out
+	while [ "${DT_PKBUF#*$'\n'}" != "$DT_PKBUF" ]; do
+		l=${DT_PKBUF%%$'\n'*}
+		DT_PKBUF=${DT_PKBUF#*$'\n'}
+		case $l in
+		"==== AUTHENTICATING FOR "*)
+			l=${l#==== AUTHENTICATING FOR }
+			DT_PKACT=${l% ====}
+			DT_PKMSG=
+			DT_PKUSER=
+			DT_PKRES=
+			;;
+		"==== AUTHENTICATION COMPLETE"*)
+			DT_PKRES=ok
+			dt_pkclose
+			;;
+		"==== AUTHENTICATION FAILED"* | "==== AUTHENTICATION CANCELED"*)
+			# Said by whoever held the agent, which knows what was being
+			# asked -- "Could not join X: the password was not accepted"
+			# -- rather than a second note beside its own.
+			DT_PKRES=fail
+			dt_pkclose
+			;;
+		"Authenticating as: "*) DT_PKUSER=${l#Authenticating as: } ;;
+		polkit-agent-helper-1:* | "" | " "*) ;;
+		"Multiple identities"*) ;;
+		*) [ -n "$DT_PKACT" ] && [ -z "$DT_PKMSG" ] && DT_PKMSG=$l ;;
+		esac
+	done
+	tail=$DT_PKBUF
+	case $tail in
+	*"assword: ")
+		DT_PKBUF=
+		dt_pkask
+		;;
+	"Choose identity to authenticate as"*": ")
+		DT_PKBUF=
+		i=1
+		pty write "$DT_PKID" "$i"$'\r'
+		;;
+	esac
+}
+
+# Log through the desktop's own channel, visible with hibr -d.
+fn dt_pklog(what) {
+	[ -n "${DT_ERR-}" ] && echo "polkit: $what" >&2
+	return 0
+}
+
+# The dialog: what is asked and why, whose password, a starred field.
+dt_pkask() {
+	local id t
+
+	[ -n "$DT_PKWIN" ] && return 0
+	dt_dlgat 12 56
+	t := dt_tr "Authentication"
+	id := dt_new "$t" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" pkauth
+	DT_PKWIN=$id
+	dt_want 30
+}
+
+fn dt_pkclose() {
+	if [ -n "$DT_PKWIN" ]; then
+		dt_wantclose "$DT_PKWIN"
+		DT_PKWIN=
+	fi
+}
+
+fn pkauth_open(int id, arg = "") {
+	PKA[$id]["pass"]=
+	PKA[$id]["passcur"]=0
+}
+
+fn pkauth_draw(int id, int h, int w, int row, int col) {
+	local t fw=$((w - 13)) r=1
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE" bold
+	t := dt_tr "The system asks for a password"
+	console put -p "w$id" "$r" 2 "$t"
+	r=$((r + 1))
+	console pen "$DT_DIM" "$DT_FACE"
+	t := dt_cut "${DT_PKMSG:-$DT_PKACT}" $((w - 3))
+	console put -p "w$id" "$r" 2 "$t"
+	r=$((r + 1))
+	t := dt_cut "$DT_PKACT" $((w - 3))
+	console put -p "w$id" "$r" 2 "$t"
+	r=$((r + 2))
+	console pen "$DT_INK" "$DT_FACE"
+	t := dt_tr "Authenticating as %s" "${DT_PKUSER:-?}"
+	console put -p "w$id" "$r" 2 "$t"
+	r=$((r + 2))
+	t := dt_tr "Password:"
+	console put -p "w$id" "$r" 2 "$t"
+	t=${PKA[$id]["pass"]}
+	t := str repeat "*" "${#t}"
+	dt_textdraw "$id" "$r" 13 "$fw" "$t" "${PKA[$id]["passcur"]}" 1
+	dt_wreg "$id" "$r" 13 "$fw" pass
+	r=$((r + 2))
+	dt_button "$id" "$r" $((w - 28)) "Cancel" 0 cancel
+	dt_button "$id" "$r" $((w - 17)) "Authenticate" 2 ok
+}
+
+fn pkauth_key(int id, key) {
+	local r
+
+	case $key in
+	enter) pkauth_do "$id" ok; return 0 ;;
+	escape) pkauth_do "$id" cancel; return 0 ;;
+	esac
+	r := dt_textkey "${PKA[$id]["pass"]}" "${PKA[$id]["passcur"]}" "$key" || return 1
+	PKA[$id]["pass"]=${r% *}
+	PKA[$id]["passcur"]=${r##* }
+	return 0
+}
+
+fn pkauth_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	pkauth_do "$id" "$tag"
+}
+
+# Authenticate writes the password to the agent and forgets it; Cancel
+# interrupts the agent, which tells polkit the request was refused.
+fn pkauth_do(int id, what) {
+	local pw=${PKA[$id]["pass"]}
+
+	case $what in
+	ok)
+		PKA[$id]["pass"]=
+		[ -n "$DT_PKID" ] && pty write "$DT_PKID" "$pw"$'\r'
+		DT_PKWIN=
+		dt_del "$id"
+		;;
+	cancel)
+		PKA[$id]["pass"]=
+		[ -n "$DT_PKID" ] && pty write "$DT_PKID" $'\x03'
+		DT_PKWIN=
+		dt_del "$id"
+		;;
+	esac
+}
+
+fn pkauth_close(int id) {
+	unset PKA["$id"]
+	[ "$DT_PKWIN" = "$id" ] && DT_PKWIN=
+	return 0
+}
+
+command -v dt_app > /dev/null && dt_app pkauth "Authentication" 12 56 "" "" fixed hidden
+dt_ticker dt_pktick

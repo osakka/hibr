@@ -1,0 +1,4 @@
+
+polkit-agent-helper-1: pam_authenticate failed: Authentication failure
+[1;31m==== AUTHENTICATION FAILED ====
+[0m

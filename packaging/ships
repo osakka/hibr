@@ -44,6 +44,7 @@ control-panel/keyboard.hibr
 control-panel/language.hibr
 control-panel/mouse.hibr
 control-panel/network.hibr
+control-panel/networks.hibr
 control-panel/pictures.hibr
 control-panel/screensaver.hibr
 control-panel/screenshots.hibr

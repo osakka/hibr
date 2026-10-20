@@ -19,7 +19,7 @@
 
 strict
 
-app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.3
+app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.4
 # part: control-panel/pimset.hibr
 # modules: dav db email pim
 
@@ -310,7 +310,7 @@ fn calendar_draw(int id, int h, int w, int row, int col) {
 		console pen "$DT_DIM" "$DT_FACE"
 		dt_tput "$id" 1 2 "No server chosen for calendars yet."
 		dt_tput "$id" 2 2 "Control Panel > PIM chooses one"
-		dt_tput "$id" 3 2 "from the Network Servers list."
+		dt_tput "$id" 3 2 "from the Servers list."
 		return 0
 	fi
 	cv_fresh "$id"

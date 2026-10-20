@@ -550,6 +550,32 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b)
 }
 
 /* Read a line from standard input into variables. */
+/* What read's last variable takes: the rest of the line, less trailing IFS
+   whitespace -- and, when that rest is one field and a single delimiter after
+   it, less the delimiter too, which is bash's rule: a:b: gives b, a:b:: b::. */
+void bi_rdrest(str *b, size_t *p, const char *ifs, size_t *fs, size_t *fe)
+{
+	size_t i = *p, k, j;
+
+	if (!i)
+		while (i < b->n && xifsws(b->p, 0, i, ifs))
+			i++;
+	*fs = i;
+	*fe = b->n;
+	while (*fe > *fs && xifsws(b->p, 0, *fe - 1, ifs))
+		(*fe)--;
+	if (*fe > *fs && xifsat(b->p, 0, *fe - 1, ifs)) {
+		k = *fe - 1;
+		while (k > *fs && xifsws(b->p, 0, k - 1, ifs))
+			k--;
+		for (j = *fs; j < k && !xifsat(b->p, 0, j, ifs); j++)
+			;
+		if (j == k)
+			*fe = k;
+	}
+	*p = b->n;
+}
+
 int b_read(sh *s, int ac, char **av)
 {
 	str b;
@@ -703,16 +729,9 @@ int b_read(sh *s, int ac, char **av)
 	}
 	if (arr) {
 		vec *el = vb_get(s);
-		while (p < b.n) {
-			while (p < b.n && strchr(ifs, b.p[p]))
-				p++;
-			if (p >= b.n)
-				break;
-			st = p;
-			while (p < b.n && !strchr(ifs, b.p[p]))
-				p++;
-			v_add(el, ar_dup(s->xa, b.p + st, p - st));
-		}
+		size_t fs, fe;
+		while (xifs(b.p, 0, b.n, &p, ifs, &fs, &fe))
+			v_add(el, ar_dup(s->xa, b.p + fs, fe - fs));
 		v_arr(s, arr, el);
 		vb_put(s, el);
 		s_free(&b);
@@ -724,23 +743,19 @@ int b_read(sh *s, int ac, char **av)
 		return eof ? HIBR_FAIL : HIBR_OK;
 	}
 	for (; i < ac; i++) {
-		while (p < b.n && strchr(ifs, b.p[p]))
-			p++;
-		st = p;
+		size_t fs = b.n, fe = b.n;
 		if (i == ac - 1) {
-			p = b.n;
-			while (p > st && strchr(ifs, b.p[p - 1]))
-				p--;
-		} else {
-			while (p < b.n && !strchr(ifs, b.p[p]))
-				p++;
+			bi_rdrest(&b, &p, ifs, &fs, &fe);
+		} else if (!xifs(b.p, 0, b.n, &p, ifs, &fs, &fe)) {
+			fs = fe = b.n;
 		}
+		st = fs;
 		{
-			char svc = b.p ? b.p[p] : 0;
+			char svc = b.p ? b.p[fe] : 0;
 			vec *ks = vb_get(s);
 			char *br;
 			if (b.p)
-				b.p[p] = 0;
+				b.p[fe] = 0;
 			br = bi_keys(s, av[i], s->amask ? s->amask[i] : 0, ks);
 			if (br) {
 				v_setp(s, av[i], (char **)ks->p, (int)ks->n,
@@ -751,7 +766,7 @@ int b_read(sh *s, int ac, char **av)
 			}
 			vb_put(s, ks);
 			if (b.p)
-				b.p[p] = svc;
+				b.p[fe] = svc;
 		}
 	}
 	s_free(&b);

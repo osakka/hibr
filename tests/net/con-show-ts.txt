@@ -1,0 +1,13 @@
+.gibnet/5ghz 2:79c165af-b2d3-43d2-a141-6a119f173759:802-11-wireless:1792490683:yes
+lo:9a652007-c8bb-414a-912d-23d6df0d6579:loopback:1792490678:no
+gibnet:bce19d86-3053-4d0b-972f-a9a536294fae:802-11-wireless:1785859788:yes
+gibnet 1:cc988bfe-52ec-4220-a968-2dbc1b10f603:802-11-wireless:0:yes
+.gibnet/5ghz:f7f85feb-bb75-4854-9f78-4e2f504544d5:802-11-wireless:1787402940:yes
+.gibnet/5ghz 1:76f5eecf-24bd-4e90-ad89-83779dbe3ba5:802-11-wireless:1786872351:yes
+.gibnet/console:4ad807a3-7cd6-4246-a6ea-c4ad00ae8181:802-11-wireless:1787495057:yes
+.gibnet/console 1:23ef3ea0-232f-4359-9c6b-6bef2913540d:802-11-wireless:0:yes
+.gibnet/console 2:c2880803-3460-4165-af3c-13bafea3dc0f:802-11-wireless:1790416174:yes
+.gibnet/pixel:0b195351-60f5-483a-af27-cce254f0f37b:802-11-wireless:1784206643:yes
+TP-Link_7DF4_5G:2d795bff-18eb-4e26-8dfd-60c7508b2d22:802-11-wireless:1785880367:yes
+TP-Link_Extender:06aa1a02-d25e-4ae8-8ead-1a0989c576e1:802-11-wireless:1785882890:yes
+Wired connection 1:c3bb9aa3-df74-3586-9182-10292c6e8823:802-3-ethernet:0:yes

@@ -8,7 +8,7 @@
 # edits, # or delete removes, / searches, j and k move, R syncs now.
 #
 # Which servers are used is Control Panel > PIM, from the
-# Network Servers list; each is kept under ~/.local/share/hibr/pim/SERVER
+# Servers list; each is kept under ~/.local/share/hibr/pim/SERVER
 # by lib/pimsync.hibr, run in the background -- the only thing that writes
 # there. A change made here is made to the list at once and queued for the
 # server, conditional on the copy it was read from; the next sync sends it.
@@ -16,7 +16,7 @@
 
 strict
 
-app contacts "The people in your address books, kept offline from CardDAV" 1.4
+app contacts "The people in your address books, kept offline from CardDAV" 1.5
 # part: control-panel/pimset.hibr
 # modules: dav db pim
 
@@ -304,7 +304,7 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 		console pen "$DT_DIM" "$DT_FACE"
 		dt_tput "$id" 3 2 "No server chosen for contacts yet."
 		dt_tput "$id" 4 2 "Control Panel > PIM chooses one"
-		dt_tput "$id" 5 2 "from the Network Servers list."
+		dt_tput "$id" 5 2 "from the Servers list."
 		return 0
 	fi
 	top := dt_scrollview "$top" "$nl" "$vis" "$sel" "${PCW[$id]["seen"]-}"

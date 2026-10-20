@@ -52,11 +52,13 @@
 %s modules on the path
 %s moved to workspace %s
 %s moves around the Control Panel, so it cannot be a shortcut
+%s needs a username and a certificate -- set it up with nmcli
 %s of %s
 %s of %s rows
 %s pixels, a cell is %s by %s
 %s rows
 %s selected
+%s uses WEP, which is not joined from here
 %s was updated: Restart Desktop to use the new version
 %s would not load
 %s would not unload
@@ -73,6 +75,7 @@
 < <= > >= = !=, a number, then good, warn, bad,
 = then hibr:
 A Note at Each Prayer
+A Wi-Fi password is at least 8 characters
 A cell a formula names is a variable of that name, and a
 A cell holds at most 4096 bytes
 A command is needed
@@ -99,9 +102,10 @@ Add Bookmark
 Add File Type…
 Add Sender to Contacts
 Add a Mail Account
-Add a server in Control Panel > Network Servers
+Add a server in Control Panel > Servers
 Added %s to Contacts
 Added to your calendar
+Address
 Addresses never fetched, * for anything:
 Adjust
 Agenda
@@ -109,6 +113,8 @@ Align
 All Displays
 All Mail
 Allow Downloads
+Already joining %s
+Already on %s
 An event stays in its calendar; make a new one in the other
 And Minutes Before
 App
@@ -133,6 +139,8 @@ Attach File…
 Attach…
 Aug
 August
+Authenticating as %s
+Authentication
 Automatic Means
 Average
 Back
@@ -225,6 +233,11 @@ Command:
 Compress Pictures
 Connect to Server
 Connect to Server…
+Connected
+Connected by cable
+Connected to %s
+Connecting%s
+Connection
 Contact
 Contacts
 Contacts is not here to add to
@@ -252,7 +265,11 @@ Copy something anywhere, or paste here,
 Copying
 Could not change owner or group
 Could not change permissions
+Could not forget %s: %s
+Could not join %s: %s
 Could not keep the event
+Could not leave %s: %s
+Could not look for networks: %s
 Could not make a folder in %s
 Could not make a folder: %s
 Could not make the answer
@@ -269,6 +286,7 @@ Could not save %s
 Could not save %s: %s -- it will be tried again on the next save
 Could not save About Me in %s
 Could not send to %s%s
+Could not switch Wi-Fi: %s
 Could not write %s
 Count
 Count From
@@ -313,6 +331,7 @@ Digits
 Directory
 Discard
 Discard this message?
+Disconnect
 Disk Icons
 Display
 Display Structure
@@ -386,6 +405,8 @@ Folder:
 Follow Program Title
 For Fajr
 Forget
+Forget %s, and its password?
+Forgot %s
 Format
 Format:
 Formulas run as a dry run: one that would write or connect
@@ -401,6 +422,7 @@ From:
 Full Command Line
 Full Player
 Game
+Gateway
 Get Info
 Glyphs
 Gmail wants an app password, made in your Google account
@@ -448,11 +470,14 @@ Insert Row Below
 Install
 Inviting people needs a mail account to send from
 Isha
+It asks for a password (%s).
 Italic
 Item
 Jan
 January
 JavaScript
+Join %s
+Joined %s
 Jul
 July
 Jumada al-Akhirah
@@ -466,6 +491,7 @@ Keep the Screen Saver Away While Playing
 Kept as a favourite: %s
 Keyboard
 Kind:
+Known Networks
 Labelled %s
 Label…
 Language
@@ -474,8 +500,10 @@ Languages pages are asked for, first wanted most:
 Largest Height
 Largest Screen
 Largest Width
+Last Join
 Last Synced
 Left
+Left %s
 Level on Menu Bar
 Line Under It
 Link
@@ -492,6 +520,8 @@ Locking
 Log In
 Log In…
 Look
+Look Again
+Looking for networks
 Louder
 MODULE
 Made if it is not there. Used once downloads are on.
@@ -502,6 +532,7 @@ Mail Account
 Mail Test
 Mail is not here to write with
 Make Main
+Managed By
 Mar
 March
 Mark as Read
@@ -545,12 +576,18 @@ Muharram
 Mute
 Muted
 Name
+Name Servers
 Name:
 Name:   %s
 Narrower Column
 Needs a command
 Needs an extension
-Network Servers
+Network
+Network Settings%s
+Network Settings…
+Network System
+Network on Menu Bar
+NetworkManager does not allow joining networks from this session
 New
 New Contact
 New Database…
@@ -580,6 +617,7 @@ No file type registered for this -- open in hvi anyway?
 No folders to move to
 No labels to choose from
 No more in this list
+No networks in reach
 No one matches "%s"
 No picture open to set as wallpaper
 No records.
@@ -588,10 +626,11 @@ No server chosen for contacts yet.
 No vault yet. Log in to a Bitwarden or Vaultwarden
 No zone matches
 None
-None yet -- add one in Network Servers
+None yet -- add one in Servers
 Not a place: latitude -90 to 90, longitude -180 to 180
 Not a valid name
 Not changed
+Not connected
 Not held -- nothing to detach from
 Not started
 Not text
@@ -617,7 +656,9 @@ OFFERS, BUILTINS
 OK
 Oct
 October
+Off
 Offline
+On
 On 10 Seconds
 On 30 Seconds
 On 5 Seconds
@@ -655,6 +696,7 @@ Pages May Play Sound On Their Own
 Pass Every Key
 Password
 Password Box On
+Password:
 Paste
 Pasted as %s
 Pasted the first %s characters of %s
@@ -816,6 +858,7 @@ Show
 Show All Notes
 Show On
 Show Pictures
+Show the password
 Shown As
 Shown on the login screen, with your picture.
 Shows:
@@ -890,6 +933,7 @@ The mermaid module is not loaded
 The page could not be saved as a PDF
 The record could not be added
 The remote file cache is empty
+The system asks for a password
 The time is HH:MM or HH:MM:SS
 The timeout could not be set
 The tour is not installed
@@ -989,6 +1033,10 @@ When Chromium Next Starts
 When It Ends:
 Where are you? Control Panel > Prayer Times
 Where:
+Wi-Fi
+Wi-Fi cannot be switched from this session
+Wi-Fi is off
+Wi-Fi, %s
 Wider Column
 Window
 Window:
@@ -1020,6 +1068,7 @@ a number, worked out
 and it is kept to come back to.
 any command you can run
 arithmetic
+asked when needed
 asking
 asking %s
 asking the servers
@@ -1027,9 +1076,11 @@ blocks only, no cell size given
 blocks only, no pixels
 blocks only: it does not draw pixels
 blocks only: it does not say what a cell measures
+by cable
 case does not matter
 clicks
 clicks and drags
+connecting%s
 current
 dBASE
 dBASE Help
@@ -1042,7 +1093,7 @@ every step passed -- r tests again
 file
 folder
 found %s for incoming and %s for outgoing
-from the Network Servers list.
+from the Servers list.
 hibr %s is installed -- click to restart the desktop
 hibr %s — a desktop written in the shell it runs on
 hibr desktop v%s
@@ -1059,12 +1110,16 @@ no reason given
 none
 none found
 none here
+not allowed from this session
 not reported
 note
+nothing -- the address alone
 nothing answered on the usual ports
 nothing came back
 nothing came back -- r tests again
+off -- locked here
 older than the hibr on disk
+on -- locked here
 order they need each other; one needing itself says #CYCLE.
 outgoing
 over a range, row by row
@@ -1082,6 +1137,7 @@ shipped with hibr
 system
 text
 the machine has this, and its copy is read first
+the password was not accepted
 there is no account to test yet
 this session still runs the older hibr: 'hold upgrade %s' takes it onto the new one without losing your windows or your terminals' programs. Restart Desktop cannot, since it re-execs the desktop inside this session
 type a server or an address first

@@ -601,7 +601,7 @@ machine's own clipboard cannot reach it: a terminal carries text only.
 Files reaches a WebDAV server -- Nextcloud, ownCloud, a NAS, Apache or
 nginx DAV, rclone, anything that speaks it -- as though it were a folder
 here. **Servers > Connect to Server…** in Files (or **Add Server…** in
-Control Panel > Network Servers) asks for a name, the server's address,
+Control Panel > Servers) asks for a name, the server's address,
 a user and a password, and whether to check its certificate; **Test**
 tries what is typed before anything is saved. For Nextcloud the address
 is `https://HOST/remote.php/dav/files/USER`, and an app password is the
@@ -619,7 +619,7 @@ a server, so delete asks first, and what it removes is gone.
 
 Opening a file on a server fetches a copy into
 `~/.cache/hibr/dav` and opens that, in whatever opens the type. While
-**Upload Edits on Save** is on (Control Panel > Network Servers), saving
+**Upload Edits on Save** is on (Control Panel > Servers), saving
 the copy puts it back -- but only over the version it was fetched as.
 If someone changed the server's copy in the meantime, the edit goes up
 beside it as `name (conflict DATE).ext`, and a note says so; nobody's
@@ -749,13 +749,13 @@ click on one, or `m`, writes to them in Mail -- phones, organisation and
 note. `n` adds someone, `e` or enter edits, `#` or delete removes after
 asking, `R` syncs now; the File and Contact menus have the same.
 
-A server is one of the Network Servers (Control Panel > Network Servers:
+A server is one of the Servers (Control Panel > Servers:
 its address and an app password), switched on for this in Control Panel >
 PIM, which also says how often to sync. One list of servers serves Files as
 well, since a Nextcloud or Fastmail account is one address and one login for
 files, calendars and contacts; PIM asks each server once what it keeps and
 lists a plain file server as files only, so only servers with calendars or
-contacts can be switched on. Add Server… there opens Network Servers. A background job
+contacts can be switched on. Add Server… there opens Servers. A background job
 (`programs/desktop/lib/pimsync.hibr`) finds the address books from the
 server's `.well-known` address, keeps each up to date with its sync token,
 and is the only thing that writes the copy in
@@ -835,6 +835,66 @@ bar item opens, opens under the bar on the primary display, wherever that
 display sits. macOS is not done yet (CoreAudio). `HIBR_SOUND` overrides
 the setting -- `pulse`, `pw`, `alsa` or `none` -- and the test suites start
 every desktop with `none`, so no test can touch a machine's real sound.
+
+## Network
+
+The machine's network is the desktop's too (Gitea #311). An item on the
+menu bar says what it is on: Wi-Fi's four signal bars, as `nmcli` draws
+them, a cable (`⇌`), or no network (`✕`). A **left click** lists the
+Wi-Fi networks in reach beneath it -- the one in use first and ticked, the
+rest strongest first, a key (`⚿`) on each that asks for a password -- with
+Wi-Fi's own switch at the top and Network Settings… at the foot; a click on
+a network joins it, and so do the arrows and enter. A **right click** opens
+the network menu: what the machine is on, Wi-Fi on or off, the networks in
+reach, Disconnect, and Network Settings….
+
+Joining runs in the background, so the desktop goes on while a network
+comes up, and a note says when it has or why it could not. A network you
+have joined before is joined through the connection NetworkManager already
+keeps for it -- a new one is never made beside it. An open network is
+joined at once. A secured one never joined before asks for its password in
+a small window, starred as it is typed, with Show the password beside it;
+the password goes to NetworkManager through `nmcli`'s own connection
+editor on its standard input -- **never on a command line**, where `ps`
+would show it to every user on the machine -- and NetworkManager keeps it.
+The desktop writes it nowhere. A wrong password leaves nothing behind: the
+connection made for it is taken away again. WEP and enterprise networks
+(a username and a certificate) are not joined from here, and say so.
+
+**When the system wants your password.** NetworkManager asks polkit
+whether you may do each thing, and from a session that is not the
+machine's active local one -- a remote login, a held session -- polkit
+usually answers "a password first". A terminal session has no one to ask
+it, so the desktop is the one: while a join, a Disconnect, a Forget or
+Look Again runs, it keeps polkit's own text agent (`pkttyagent`) on a pty
+of its own and, when polkit asks, asks you in a window -- what is wanted,
+and whose password -- and hands your answer to the agent, never on a
+command line. A wrong one is said as such. Opening the list never asks:
+where a scan wants a password the list shows the networks NetworkManager
+already knows, and Look Again is the scan. Where polkit refuses outright --
+from your own session it refuses Wi-Fi's switch -- the switch is shown
+locked rather than offered, and where a connection for everyone may not be
+saved but one for you may, a new network is saved as yours alone. An agent
+the session already has, a graphical one, is used instead and this one
+stands aside (`--fallback`).
+
+**Control Panel > Network** has the Network System -- Auto, NetworkManager
+or None -- and what manages the network now; what the machine is on, its
+device, address, gateway and name servers; Wi-Fi on or off, Disconnect,
+the networks in reach to join and Look Again; the networks it knows, each
+by the name NetworkManager gave it and the network it joins, with Forget,
+which asks first; and Network on Menu Bar. The WebDAV servers that used to
+be called Network Servers are **Servers** now.
+
+Auto takes NetworkManager when it answers, and otherwise iproute2's view
+of the default route alone -- wired or wireless, the address and the
+gateway, and nothing to join a network with. The desktop watches
+NetworkManager (`nmcli monitor`), so a network joined elsewhere, or a cable
+pulled, reaches the bar with nothing pressed, and a burst of changes is
+read once a second at most. macOS is not done yet. `HIBR_NET` overrides
+the setting -- `nm`, `ip` or `none` -- and the test suites start every
+desktop with `none`; `tests/net.py` gives its own a stand-in `nmcli`
+whose answers are captured from a real one.
 
 ## Screen savers
 

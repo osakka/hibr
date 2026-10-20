@@ -1,0 +1,1078 @@
+# wm/net -- the machine's network: whether it is on Wi-Fi, a cable or
+# neither, the Wi-Fi networks in reach and the ones it knows, joining and
+# leaving them, and the item on the menu bar that says which (Gitea #311).
+# Control Panel > Network is the pane over it.
+#
+# Two ways to see it, the first that answers taken:
+#
+#   nm   NetworkManager, through nmcli's terse output -- what a desktop
+#        Linux machine runs, and the only one of the two that can join a
+#        network. Read as captured from nmcli 1.52 (tests/net/): one record
+#        a line, a value's own ':' and '\' escaped with a backslash, so a
+#        line is never split on a bare ':'.
+#   ip   iproute2 alone: which interface the default route leaves by, its
+#        address and gateway, and whether it is wireless -- enough to say
+#        "wired" or "Wi-Fi" on a machine with no NetworkManager, nothing to
+#        join a network with.
+#
+# HIBR_NET chooses -- auto, nm, ip or none; the suites start every desktop
+# with none, so no test can touch a real machine's network.
+#
+# A Wi-Fi password never goes on a command line, where `ps` shows it to
+# every user on the machine: a new network's is written to nmcli's own
+# connection editor through a pipe, by a builtin, and NetworkManager keeps
+# it. The desktop writes it nowhere and keeps it no longer than the join.
+#
+# NetworkManager says when anything changes and the desktop watches
+# (`nmcli monitor`), so the bar follows with no polling, and a burst of
+# changes reads everything again at most once a second. Joining a network
+# takes seconds, so it runs as a job and the frame goes on.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# The state: kind (nm, ip, none, or gone for a NetworkManager that went;
+# empty until the first frame looks), why (the system asked for that did
+# not answer), radio (enabled or disabled), wdev and wstate (the Wi-Fi
+# device and its state), edev and estate (the first wired one), state
+# (wifi, wired, connecting or offline), ssid and signal (the network in
+# use), con (its connection's name), dev, addr, gw and dns (the device in
+# use and its IPv4 address, gateway and name servers), busy (the network
+# being joined) and err (why the last join failed).
+declare -gA DT_NET
+# The networks in reach, strongest first and the one in use first of all,
+# one row a name: its name, signal, security, and 1 for the one in use.
+declare -ga DT_NETAS DT_NETAG DT_NETAK DT_NETAU
+# The connections NetworkManager keeps: uuid, name, type, device, and
+# when each was last used (seconds, 0 for never).
+declare -ga DT_NETCU DT_NETCN DT_NETCT DT_NETCD DT_NETCS
+# A saved Wi-Fi connection's network name, by uuid, asked once each.
+declare -gA DT_NETSSID
+# A terse line's fields, from dt_netsplit.
+declare -ga DT_NF
+# What polkit says to what the desktop asks of NetworkManager -- control
+# (joining and leaving), system and own (saving a connection for everyone
+# or for this person), wifi (the switch) and scan: yes, no, or auth for a
+# password, which wm/polkit.hibr asks for. Empty is an nmcli too old to say,
+# and is taken as yes.
+declare -gA DT_NETPERM
+DT_NETFD=
+DT_NETPID=
+DT_NETAT=0
+DT_NETREAD=0
+DT_NETLATE=
+DT_NETJOB=
+DT_NETJF=
+DT_NETJSSID=
+DT_NETJKIND=
+DT_NETJPK=
+DT_NETJKNOWN=
+DT_NETTOP=0
+DT_NETSEL=0
+DT_NETSEEN=
+
+# The one place NetworkManager is spoken to, in the C locale so its words
+# are the ones read here, saying nothing on stderr.
+fn dt_netq(...a) {
+	LC_ALL=C nmcli "${a[@]}" 2> /dev/null
+}
+
+# A terse line's fields into DT_NF: split on the colons nmcli did not
+# escape, then each field's \: and \\ put back.
+fn dt_netsplit(l) {
+	local i
+
+	l=${l//\\\\/$'\001'}
+	l=${l//\\:/$'\002'}
+	IFS=: read -ra DT_NF <<< "$l"
+	i=0
+	while [ "$i" -lt "${#DT_NF[@]}" ]; do
+		DT_NF[$i]=${DT_NF[$i]//$'\002'/:}
+		DT_NF[$i]=${DT_NF[$i]//$'\001'/\\}
+		i=$((i + 1))
+	done
+}
+
+# Whether one kind of network answers here.
+fn dt_nethas(k) {
+	local r
+
+	case $k in
+	nm)
+		command -v nmcli > /dev/null || return 1
+		r=$(dt_netq -t -f RUNNING general)
+		[ "$r" = running ]
+		;;
+	ip) command -v ip > /dev/null ;;
+	*) return 1 ;;
+	esac
+}
+
+# Which kind to use, looked at once: Control Panel > Network > Network
+# System -- Auto takes NetworkManager, else iproute2; NetworkManager asked
+# for and not answering is said (DT_NET why), with iproute2's view kept so
+# the bar is not simply blank. HIBR_NET, a kind's own name, is ahead of the
+# setting, for the suites.
+dt_netkind() {
+	local k=${HIBR_NET:-}
+
+	[ "$k" = auto ] && k=
+	DT_NET["why"]=
+	if [ -z "$k" ]; then
+		case ${DT_NETKIND:-Auto} in
+		NetworkManager) k=nm ;;
+		None) k=none ;;
+		*) k=auto ;;
+		esac
+	fi
+	case $k in
+	none) DT_NET["kind"]=none; return 0 ;;
+	ip) DT_NET["kind"]=ip; return 0 ;;
+	nm)
+		if dt_nethas nm; then
+			DT_NET["kind"]=nm
+		else
+			DT_NET["why"]=NetworkManager
+			DT_NET["kind"]=ip
+			dt_nethas ip || DT_NET["kind"]=none
+		fi
+		return 0
+		;;
+	esac
+	if dt_nethas nm; then
+		DT_NET["kind"]=nm
+	elif dt_nethas ip; then
+		DT_NET["kind"]=ip
+	else
+		DT_NET["kind"]=none
+	fi
+}
+
+# Choose again, as Control Panel > Network > Network System changes.
+dt_netagain() {
+	dt_netstop
+	DT_NET["kind"]=
+	dt_netstart
+}
+
+# Ask polkit, through NetworkManager, what this session may do: read as
+# `nmcli general permissions` prints it, captured from the owner's machine
+# -- a heading, then each permission and its answer in two columns.
+dt_netperms() {
+	local k v
+
+	DT_NETPERM=()
+	while read -r k v; do
+		case $k in
+		*.network-control) DT_NETPERM["control"]=$v ;;
+		*.settings.modify.system) DT_NETPERM["system"]=$v ;;
+		*.settings.modify.own) DT_NETPERM["own"]=$v ;;
+		*.enable-disable-wifi) DT_NETPERM["wifi"]=$v ;;
+		*.wifi.scan) DT_NETPERM["scan"]=$v ;;
+		esac
+	done <<< "$(dt_netq general permissions)"
+}
+
+# Whether this session may do one of those, with or without a password.
+fn dt_netmay(what) {
+	[ "${DT_NETPERM["$what"]:-yes}" != no ]
+}
+
+# The network name a saved Wi-Fi connection joins, asked of
+# NetworkManager once per connection: a connection's own name is not its
+# network's -- ".gibnet/5ghz 2" joins ".gibnet/5ghz".
+fn dt_netssidof(u) {
+	local r
+
+	if [ -z "${DT_NETSSID["$u"]+x}" ]; then
+		r=$(dt_netq -g 802-11-wireless.ssid connection show uuid "$u")
+		r=${r#802-11-wireless.ssid:}
+		DT_NETSSID["$u"]=$r
+	fi
+	ret "${DT_NETSSID["$u"]}"
+}
+
+# The saved connection that joins a network, if one does: the one in use,
+# else the one used last -- the owner's machine keeps three for one network.
+fn dt_netconfor(ssid) {
+	local i=0 s hit= at=-1
+
+	while [ "$i" -lt "${#DT_NETCU[@]}" ]; do
+		if [ "${DT_NETCT[$i]}" = 802-11-wireless ]; then
+			s := dt_netssidof "${DT_NETCU[$i]}"
+			if [ "$s" = "$ssid" ]; then
+				if [ -n "${DT_NETCD[$i]}" ]; then
+					ret "${DT_NETCU[$i]}"
+					return 0
+				fi
+				if [ "${DT_NETCS[$i]:-0}" -gt "$at" ]; then
+					hit=${DT_NETCU[$i]}
+					at=${DT_NETCS[$i]:-0}
+				fi
+			fi
+		fi
+		i=$((i + 1))
+	done
+	[ -n "$hit" ] || return 1
+	ret "$hit"
+}
+
+# Read everything again, in whichever way this machine has.
+dt_netread() {
+	DT_NETREAD=$EPOCHREALTIME
+	case ${DT_NET["kind"]} in
+	nm) dt_netnmread ;;
+	ip) dt_netipread ;;
+	esac
+	return 0
+}
+
+# NetworkManager: the radio, the devices, the networks in reach, the
+# saved connections, and the address of the device in use.
+dt_netnmread() {
+	local l r i j sig dev=
+	local -a s g k u
+	local -A seen
+
+	r=$(dt_netq -t -f WIFI radio)
+	DT_NET["radio"]=${r:-enabled}
+	DT_NET["wdev"]=; DT_NET["wstate"]=; DT_NET["wcon"]=
+	DT_NET["edev"]=; DT_NET["estate"]=
+	while IFS= read -r l; do
+		[ -n "$l" ] || continue
+		dt_netsplit "$l"
+		case ${DT_NF[1]} in
+		wifi)
+			if [ -z "${DT_NET["wdev"]}" ]; then
+				DT_NET["wdev"]=${DT_NF[0]}
+				DT_NET["wstate"]=${DT_NF[2]}
+				DT_NET["wcon"]=${DT_NF[3]}
+			fi
+			;;
+		ethernet)
+			if [ -z "${DT_NET["edev"]}" ] || [ "${DT_NF[2]}" = connected ]; then
+				DT_NET["edev"]=${DT_NF[0]}
+				DT_NET["estate"]=${DT_NF[2]}
+			fi
+			;;
+		esac
+	done <<< "$(dt_netq -t -f DEVICE,TYPE,STATE,CONNECTION device status)"
+	while IFS= read -r l; do
+		[ -n "$l" ] || continue
+		dt_netsplit "$l"
+		[ -n "${DT_NF[1]}" ] || continue
+		sig=${DT_NF[2]:-0}
+		if [ -n "${seen["${DT_NF[1]}"]+x}" ]; then
+			j=${seen["${DT_NF[1]}"]}
+			[ "${DT_NF[0]}" = "*" ] && u[$j]=1
+			[ "$sig" -gt "${g[$j]}" ] && g[$j]=$sig
+			continue
+		fi
+		seen["${DT_NF[1]}"]=${#s[@]}
+		s+=("${DT_NF[1]}")
+		g+=("$sig")
+		k+=("${DT_NF[3]}")
+		if [ "${DT_NF[0]}" = "*" ]; then u+=(1); else u+=(0); fi
+	done <<< "$(dt_netq -t -f IN-USE,SSID,SIGNAL,SECURITY device wifi list --rescan no)"
+	DT_NETAS=(); DT_NETAG=(); DT_NETAK=(); DT_NETAU=()
+	# In use first, then by signal: a selection sort, since a list in
+	# reach is a few dozen at the most.
+	while [ "${#s[@]}" -gt 0 ]; do
+		j=0
+		i=1
+		while [ "$i" -lt "${#s[@]}" ]; do
+			if [ "${u[$i]}" -gt "${u[$j]}" ] ||
+			   { [ "${u[$i]}" = "${u[$j]}" ] && [ "${g[$i]}" -gt "${g[$j]}" ]; }; then
+				j=$i
+			fi
+			i=$((i + 1))
+		done
+		DT_NETAS+=("${s[$j]}"); DT_NETAG+=("${g[$j]}"); DT_NETAK+=("${k[$j]}"); DT_NETAU+=("${u[$j]}")
+		s=("${s[@]:0:$j}" "${s[@]:$((j + 1))}")
+		g=("${g[@]:0:$j}" "${g[@]:$((j + 1))}")
+		k=("${k[@]:0:$j}" "${k[@]:$((j + 1))}")
+		u=("${u[@]:0:$j}" "${u[@]:$((j + 1))}")
+	done
+	DT_NETCU=(); DT_NETCN=(); DT_NETCT=(); DT_NETCD=(); DT_NETCS=()
+	while IFS= read -r l; do
+		[ -n "$l" ] || continue
+		dt_netsplit "$l"
+		DT_NETCN+=("${DT_NF[0]}")
+		DT_NETCU+=("${DT_NF[1]}")
+		DT_NETCT+=("${DT_NF[2]}")
+		DT_NETCD+=("${DT_NF[3]}")
+		DT_NETCS+=("${DT_NF[4]:-0}")
+	done <<< "$(dt_netq -t -f NAME,UUID,TYPE,DEVICE,TIMESTAMP connection show)"
+	DT_NET["ssid"]=; DT_NET["signal"]=; DT_NET["con"]=
+	if [ "${DT_NET["wstate"]}" = connected ]; then
+		DT_NET["state"]=wifi
+		DT_NET["con"]=${DT_NET["wcon"]}
+		dev=${DT_NET["wdev"]}
+		i=0
+		while [ "$i" -lt "${#DT_NETAS[@]}" ]; do
+			if [ "${DT_NETAU[$i]}" = 1 ]; then
+				DT_NET["ssid"]=${DT_NETAS[$i]}
+				DT_NET["signal"]=${DT_NETAG[$i]}
+				break
+			fi
+			i=$((i + 1))
+		done
+		[ -n "${DT_NET["ssid"]}" ] || DT_NET["ssid"]=${DT_NET["wcon"]}
+	elif [ "${DT_NET["estate"]}" = connected ]; then
+		DT_NET["state"]=wired
+		dev=${DT_NET["edev"]}
+	elif [ "${DT_NET["wstate"]#connecting}" != "${DT_NET["wstate"]}" ] ||
+	     [ "${DT_NET["estate"]#connecting}" != "${DT_NET["estate"]}" ]; then
+		DT_NET["state"]=connecting
+	else
+		DT_NET["state"]=offline
+	fi
+	DT_NET["dev"]=$dev
+	dt_netaddr "$dev"
+}
+
+# The IPv4 address, gateway and name servers of a device, as
+# NetworkManager has them.
+fn dt_netaddr(dev = "") {
+	local l d=
+
+	DT_NET["addr"]=; DT_NET["gw"]=; DT_NET["dns"]=
+	[ -n "$dev" ] || return 0
+	while IFS= read -r l; do
+		case $l in
+		IP4.ADDRESS\[1\]:*) DT_NET["addr"]=${l#*:} ;;
+		IP4.GATEWAY:*) DT_NET["gw"]=${l#*:} ;;
+		IP4.DNS\[*) d="${d:+$d, }${l#*:}" ;;
+		esac
+	done <<< "$(dt_netq -t -f IP4.ADDRESS,IP4.GATEWAY,IP4.DNS device show "$dev")"
+	DT_NET["dns"]=$d
+}
+
+# iproute2 alone: the device the default route leaves by, its gateway and
+# address, and whether it is wireless; nothing to join with.
+dt_netipread() {
+	local j dev= gw= a=
+
+	DT_NET["radio"]=; DT_NET["ssid"]=; DT_NET["signal"]=; DT_NET["con"]=
+	DT_NETAS=(); DT_NETAG=(); DT_NETAK=(); DT_NETAU=()
+	DT_NETCU=(); DT_NETCN=(); DT_NETCT=(); DT_NETCD=(); DT_NETCS=()
+	j=$(ip -j route show default 2> /dev/null)
+	if [ -n "$j" ] && [ "$j" != "[]" ]; then
+		json parse DT_NIPR <<< "$j" 2> /dev/null
+		dev=${DT_NIPR[0]["dev"]-}
+		gw=${DT_NIPR[0]["gateway"]-}
+	fi
+	DT_NET["dev"]=$dev
+	DT_NET["gw"]=$gw
+	DT_NET["dns"]=
+	if [ -n "$dev" ]; then
+		j=$(ip -j -4 addr show dev "$dev" 2> /dev/null)
+		json parse DT_NIPA <<< "$j" 2> /dev/null
+		a=${DT_NIPA[0]["addr_info"][0]["local"]-}
+		[ -n "$a" ] && a="$a/${DT_NIPA[0]["addr_info"][0]["prefixlen"]-}"
+		if [ -d "/sys/class/net/$dev/wireless" ]; then
+			DT_NET["state"]=wifi
+		else
+			DT_NET["state"]=wired
+		fi
+	else
+		DT_NET["state"]=offline
+	fi
+	DT_NET["addr"]=$a
+}
+declare -gA DT_NIPR DT_NIPA
+
+# A signal of 0 to 100 as the four bars nmcli itself draws, the ones it
+# does not reach as a low line.
+fn dt_netbars(int sig) {
+	local n=0 b="" i=1
+
+	[ "$sig" -gt 5 ] && n=1
+	[ "$sig" -gt 25 ] && n=2
+	[ "$sig" -gt 50 ] && n=3
+	[ "$sig" -gt 75 ] && n=4
+	while [ "$i" -le 4 ]; do
+		if [ "$i" -le "$n" ]; then
+			b="$b${GL["bar$i"]}"
+		else
+			b="$b${GL[baroff]}"
+		fi
+		i=$((i + 1))
+	done
+	ret "$b"
+}
+
+# The item on the menu bar: Wi-Fi's bars, a cable, or no network -- while
+# Control Panel > Network > Network on Menu Bar is on. A left click lists
+# the networks to join beneath it, a right click opens the network menu.
+dt_netbar() {
+	local t b
+
+	if [ "${DT_NETBAR:-1}" != 1 ] || [ "${DT_NET["kind"]:-none}" = none ] ||
+	   [ "${DT_NET["kind"]}" = gone ]; then
+		dt_baritem net ""
+		return 0
+	fi
+	case ${DT_NET["state"]} in
+	wifi)
+		b := dt_netbars "${DT_NET["signal"]:-0}"
+		t="${GL[wifi]:+${GL[wifi]} }$b"
+		;;
+	wired) t=${GL[wired]} ;;
+	connecting) t="${GL[wifi]:+${GL[wifi]} }${GL[ellipsis]}" ;;
+	*) t=${GL[netoff]} ;;
+	esac
+	[ -n "${DT_NET["busy"]}" ] && t="${GL[wifi]:+${GL[wifi]} }${GL[ellipsis]}"
+	dt_baritem net "$t" dt_netpopopen
+	dt_bariright net dt_netmenu
+}
+
+# Look the first time there is a frame to draw, and watch NetworkManager.
+dt_netstart() {
+	dt_netkind
+	[ "${DT_NET["kind"]}" = nm ] && dt_netperms
+	dt_netread
+	dt_netbar
+	case ${DT_NET["kind"]} in
+	nm)
+		exec {DT_NETFD}< <(LC_ALL=C exec nmcli monitor 2> /dev/null)
+		DT_NETPID=$!
+		;;
+	*) return 0 ;;
+	esac
+	command -v console > /dev/null && console watch "$DT_NETFD" 2> /dev/null
+	DT_NETAT=$EPOCHSECONDS
+}
+
+# Stop watching, and end what was told to watch: at the desktop's close and
+# restart, and when NetworkManager goes.
+dt_netstop() {
+	if [ -n "$DT_NETFD" ]; then
+		command -v console > /dev/null && console unwatch "$DT_NETFD" 2> /dev/null
+		exec {DT_NETFD}<&-
+		DT_NETFD=
+	fi
+	if [ -n "$DT_NETPID" ]; then
+		kill "$DT_NETPID" 2> /dev/null
+		DT_NETPID=
+	fi
+	return 0
+}
+
+# Every frame: look the first time, see to a join that is running, then
+# read what NetworkManager has said -- everything again at most once a
+# second. One that has gone is looked for again after half a minute.
+dt_nettick() {
+	local l stale=$DT_NETLATE ms
+
+	if [ -z "${DT_NET["kind"]}" ]; then
+		dt_netstart
+		return 0
+	fi
+	[ -n "$DT_NETJOB" ] && dt_netjobpoll
+	if [ "${DT_NET["kind"]}" = gone ]; then
+		[ $((EPOCHSECONDS - DT_NETAT)) -ge 30 ] || return 0
+		DT_NET["kind"]=
+		return 0
+	fi
+	[ -n "$DT_NETFD" ] || return 0
+	while read -t 0 -u "$DT_NETFD"; do
+		if ! IFS= read -r -u "$DT_NETFD" l; then
+			dt_netstop
+			DT_NET["kind"]=gone
+			DT_NETAT=$EPOCHSECONDS
+			dt_baritem net ""
+			return 0
+		fi
+		stale=1
+	done
+	[ -n "$stale" ] || return 0
+	ms=$(( (${EPOCHREALTIME/./} - ${DT_NETREAD/./}) / 1000 ))
+	if [ "$ms" -lt 1000 ]; then
+		DT_NETLATE=1
+		dt_want $((1000 - ms))
+		return 0
+	fi
+	DT_NETLATE=
+	dt_netread
+	dt_netbar
+	return 0
+}
+
+# Where a join's files are kept while it runs: the runtime folder, the
+# owner's alone.
+dt_netrun() {
+	local d=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-net-$UID
+
+	(umask 077; mkdir -p "$d")
+	ret "$d"
+}
+
+# Start something that waits on NetworkManager as a job -- a join, a
+# leave, Wi-Fi's switch, a Forget -- with what it is about (a network's
+# name) for what is said afterwards. A second while one runs is refused.
+# When polkit answers any of it with auth, polkit's agent is held while it
+# runs, so a password asked for is asked in the desktop.
+fn dt_netjob(kind, what, ...cmd) {
+	local d k
+
+	if [ -n "$DT_NETJOB" ]; then
+		dt_notep low "Already joining %s" "$DT_NETJSSID"
+		return 1
+	fi
+	d := dt_netrun
+	DT_NETJF="$d/job.$$"
+	rm -f "$DT_NETJF.st" "$DT_NETJF.out"
+	DT_NETJSSID=$what
+	DT_NETJKIND=$kind
+	DT_NETJPK=
+	for k in control system own wifi scan; do
+		if [ "${DT_NETPERM["$k"]}" = auth ]; then
+			dt_pkstart && DT_NETJPK=1
+			break
+		fi
+	done
+	[ "$kind" = join ] && DT_NET["busy"]=$what
+	DT_NET["err"]=
+	( "${cmd[@]}" > "$DT_NETJF.out" 2>&1; echo "$?" > "$DT_NETJF.st" ) &
+	DT_NETJOB=$!
+	dt_netbar
+	dt_want 300
+}
+
+# See whether the running job has finished: say what happened, read again.
+# A refusal is said as one: no password was given, or this session may not
+# do it at all.
+dt_netjobpoll() {
+	local st l why=
+
+	if [ ! -s "$DT_NETJF.st" ]; then
+		dt_want 300
+		return 0
+	fi
+	read -r st < "$DT_NETJF.st"
+	while IFS= read -r l; do
+		case $l in
+		Error:*) why=${l#Error: } ;;
+		esac
+	done < "$DT_NETJF.out"
+	rm -f "$DT_NETJF.st" "$DT_NETJF.out"
+	DT_NETJOB=
+	DT_NET["busy"]=
+	[ "$DT_NETJPK" = 1 ] && dt_pkstop
+	why=${why#Connection activation failed: }
+	case $why in
+	*"Insufficient privileges"* | *"Not authorized"*)
+		if [ "$DT_PKRES" = fail ]; then
+			why := dt_tr "the password was not accepted"
+		else
+			why := dt_tr "not allowed from this session"
+		fi
+		;;
+	esac
+	if [ "$st" = 0 ]; then
+		case $DT_NETJKIND in
+		join) dt_notep low "Joined %s" "$DT_NETJSSID" ;;
+		leave) dt_notep low "Left %s" "$DT_NETJSSID" ;;
+		forget) dt_notep low "Forgot %s" "$DT_NETJSSID" ;;
+		esac
+	else
+		DT_NET["err"]=${why:-$st}
+		case $DT_NETJKIND in
+		join) dt_notep high "Could not join %s: %s" "$DT_NETJSSID" "${why:-nmcli $st}" ;;
+		leave) dt_notep high "Could not leave %s: %s" "$DT_NETJSSID" "${why:-nmcli $st}" ;;
+		radio) dt_notep high "Could not switch Wi-Fi: %s" "${why:-nmcli $st}" ;;
+		scan) dt_notep high "Could not look for networks: %s" "${why:-nmcli $st}" ;;
+		forget) dt_notep high "Could not forget %s: %s" "$DT_NETJSSID" "${why:-nmcli $st}" ;;
+		esac
+	fi
+	DT_NETJSSID=
+	DT_NETJKIND=
+	dt_netread
+	dt_netbar
+}
+
+# A join, run in the job: up a saved connection, or for an open network
+# have NetworkManager make one; -w bounds how long it may take.
+fn dt_netjoinup(u) {
+	LC_ALL=C nmcli -w 45 connection up uuid "$u"
+}
+
+fn dt_netjoinopen(ssid) {
+	LC_ALL=C nmcli -w 45 device wifi connect "$ssid"
+}
+
+# A new secured network, run in the job: a connection made through
+# nmcli's own editor, which reads its commands -- the password among them
+# -- on its standard input, so nothing of it is on any command line; then
+# brought up, and taken away again if it would not come up, so a wrong
+# password leaves no connection behind (the owner's machine had three for
+# one network). printf is a builtin: the password reaches the pipe with no
+# process of its own to show it in.
+fn dt_netjoinnew(ssid, km, pw, own = "") {
+	local u= l before
+
+	before=" ${DT_NETJKNOWN} "
+	{
+		printf 'set connection.id %s\n' "$ssid"
+		[ -n "$own" ] && printf 'set connection.permissions user:%s\n' "$own"
+		printf 'set 802-11-wireless.ssid %s\n' "$ssid"
+		printf 'set 802-11-wireless-security.key-mgmt %s\n' "$km"
+		printf 'set 802-11-wireless-security.psk %s\n' "$pw"
+		printf 'save\nquit\n'
+	} | dt_netedit type wifi || return 1
+	while IFS= read -r l; do
+		dt_netsplit "$l"
+		[ "${DT_NF[0]}" = "$ssid" ] || continue
+		[ "${before/ ${DT_NF[1]} /}" = "$before" ] || continue
+		u=${DT_NF[1]}
+	done <<< "$(LC_ALL=C nmcli -t -f NAME,UUID connection show 2> /dev/null)"
+	[ -n "$u" ] || { echo "Error: the network's settings were not saved"; return 1; }
+	if ! LC_ALL=C nmcli -w 45 connection up uuid "$u"; then
+		LC_ALL=C nmcli connection delete uuid "$u" > /dev/null 2>&1
+		return 4
+	fi
+}
+
+# nmcli's connection editor, its commands on standard input: what it says
+# is a transcript of a prompt, and only its Error: lines are passed on, for
+# the job's note; its status is the editor's.
+fn dt_netedit(...a) {
+	local out l st
+
+	out=$(LC_ALL=C nmcli connection edit "${a[@]}" 2>&1)
+	st=$?
+	while IFS= read -r l; do
+		case $l in
+		*"Error: "*) echo "Error: ${l#*Error: }" ;;
+		esac
+	done <<< "$out"
+	return "$st"
+}
+
+# A saved network whose password has changed: the password set again
+# through the editor, then brought up.
+fn dt_netjoinpw(u, pw) {
+	{
+		printf 'set 802-11-wireless-security.psk %s\n' "$pw"
+		printf 'save\nquit\n'
+	} | dt_netedit uuid "$u" || return 1
+	LC_ALL=C nmcli -w 45 connection up uuid "$u"
+}
+
+# What a network's security asks of the editor: WPA3 alone is SAE, any
+# WPA (and WPA3 alongside WPA2) a pre-shared key; WEP and enterprise are
+# not joined from here, and say so.
+fn dt_netkm(sec) {
+	case " $sec " in
+	*802.1X*) return 1 ;;
+	*WEP*) return 2 ;;
+	*WPA2* | *WPA1* | *" WPA "*) ret wpa-psk ;;
+	*WPA3*) ret sae ;;
+	*) ret wpa-psk ;;
+	esac
+}
+
+# Join a network in reach, by its row: one saved is brought up; an open
+# one is joined; a secured one never saved asks for its password first.
+fn dt_netjoin(int i) {
+	local ssid=${DT_NETAS[$i]} sec=${DT_NETAK[$i]} u r
+
+	[ -n "$ssid" ] || return 0
+	[ "${DT_NET["kind"]}" = nm ] || return 0
+	if ! dt_netmay control; then
+		dt_notep high "NetworkManager does not allow joining networks from this session"
+		return 0
+	fi
+	if [ "${DT_NETAU[$i]}" = 1 ]; then
+		dt_notep low "Already on %s" "$ssid"
+		return 0
+	fi
+	if u := dt_netconfor "$ssid"; then
+		dt_netjob join "$ssid" dt_netjoinup "$u"
+		return 0
+	fi
+	if [ -z "$sec" ]; then
+		dt_netjob join "$ssid" dt_netjoinopen "$ssid"
+		return 0
+	fi
+	dt_netkm "$sec"
+	r=$?
+	case $r in
+	1) dt_notep high "%s needs a username and a certificate -- set it up with nmcli" "$ssid"; return 0 ;;
+	2) dt_notep high "%s uses WEP, which is not joined from here" "$ssid"; return 0 ;;
+	esac
+	dt_netpwask "$ssid" "$sec"
+}
+
+# Leave the network in use.
+dt_netleave() {
+	[ "${DT_NET["kind"]}" = nm ] && [ -n "${DT_NET["wdev"]}" ] || return 0
+	dt_netjob leave "${DT_NET["ssid"]}" dt_netdisc "${DT_NET["wdev"]}"
+}
+
+fn dt_netdisc(dev) {
+	LC_ALL=C nmcli device disconnect "$dev"
+}
+
+# Wi-Fi on or off -- or, where polkit says this session may not, a note
+# saying so; a switch that only might need a password goes through a job.
+dt_netradio() {
+	local to=on
+
+	[ "${DT_NET["kind"]}" = nm ] || return 0
+	if ! dt_netmay wifi; then
+		dt_notep high "Wi-Fi cannot be switched from this session"
+		return 0
+	fi
+	[ "${DT_NET["radio"]}" = enabled ] && to=off
+	if [ "${DT_NETPERM["wifi"]}" = auth ]; then
+		dt_netjob radio Wi-Fi dt_netradioset "$to"
+		return 0
+	fi
+	dt_netq radio wifi "$to" > /dev/null
+	dt_netread
+	dt_netbar
+}
+
+fn dt_netradioset(to) {
+	LC_ALL=C nmcli radio wifi "$to"
+}
+
+# Forget a saved connection, by uuid.
+fn dt_netforget(u) {
+	local i=0 nm=$u
+
+	[ "${DT_NET["kind"]}" = nm ] || return 0
+	while [ "$i" -lt "${#DT_NETCU[@]}" ]; do
+		[ "${DT_NETCU[$i]}" = "$u" ] && nm=${DT_NETCN[$i]}
+		i=$((i + 1))
+	done
+	unset DT_NETSSID["$u"]
+	dt_netjob forget "$nm" dt_netdel "$u"
+}
+
+fn dt_netdel(u) {
+	LC_ALL=C nmcli connection delete uuid "$u"
+}
+
+# Ask NetworkManager to look for networks again; what it finds arrives
+# through the monitor. Quietly in the background only where polkit lets
+# this session scan freely: where a scan wants a password it is not asked
+# for each time the list opens -- the list shows what NetworkManager already
+# knows -- and only Look Again (asked) runs it, as a job holding the agent.
+fn dt_netrescan(asked = "") {
+	[ "${DT_NET["kind"]}" = nm ] || return 0
+	case ${DT_NETPERM["scan"]:-yes} in
+	yes) (dt_netq device wifi rescan > /dev/null &) ;;
+	auth) [ -n "$asked" ] && dt_netjob scan "" dt_netscan ;;
+	esac
+	return 0
+}
+
+fn dt_netscan() {
+	LC_ALL=C nmcli device wifi rescan
+}
+
+# The list beneath the bar item, opened by a left click: Wi-Fi on or off,
+# the networks in reach to click to join, and the settings.
+dt_netpopopen() {
+	local n=${#DT_NETAS[@]} h
+
+	[ "${DT_NET["kind"]}" = nm ] || { dt_netmenu; return 0; }
+	dt_netrescan
+	h=$((n + 4))
+	[ "$n" = 0 ] && h=5
+	[ "$h" -gt 16 ] && h=16
+	DT_NETTOP=0
+	DT_NETSEL=0
+	DT_NETSEEN=
+	dt_baripop net net "$h" 38
+}
+
+# The rows of the list: 0 is Wi-Fi's switch, then a rule, the networks, a
+# rule and the settings -- or a line saying there are none.
+fn net_popdraw(int r, int c, int h, int w) {
+	local n=${#DT_NETAS[@]} vis=$((h - 4)) i row t b lk g sw
+
+	sw="off"
+	[ "${DT_NET["radio"]}" = enabled ] && sw="on"
+	console pen "$DT_INK" "$DT_FACE" bold
+	t := dt_tr "Wi-Fi"
+	console put "$r" $((c + 1)) "$t"
+	if ! dt_netmay wifi; then
+		console pen "$DT_DIM" "$DT_FACE"
+		if [ "$sw" = on ]; then t := dt_tr "On"; else t := dt_tr "Off"; fi
+	elif [ "$sw" = on ]; then
+		console pen "$DT_ACTIVE" "$DT_FACE" bold
+		t := dt_tr "On"
+	else
+		console pen "$DT_IDLE" "$DT_FACE"
+		t := dt_tr "Off"
+	fi
+	console put "$r" $((c + w - 1 - ${#t})) "$t"
+	console pen "$DT_IDLE" "$DT_FACE"
+	t := dt_rep "$w" "${GL[hline]}"
+	console put $((r + 1)) "$c" "$t"
+	console put $((r + h - 2)) "$c" "$t"
+	if [ "$n" = 0 ] || [ "$sw" = off ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		if [ "$sw" = off ]; then
+			t := dt_tr "Wi-Fi is off"
+		else
+			t := dt_tr "No networks in reach"
+		fi
+		console put $((r + 2)) $((c + 2)) "$t"
+	else
+		# Brought to the selection only when the selection has moved, so a
+		# wheel that moved the view is not undone by the next frame
+		# (Gitea #298's trap, the Catalogue's first).
+		DT_NETTOP := dt_scrollview "$DT_NETTOP" "$n" "$vis" "$DT_NETSEL" "$DT_NETSEEN"
+		DT_NETSEEN=$DT_NETSEL
+		row=0
+		while [ "$row" -lt "$vis" ] && [ $((DT_NETTOP + row)) -lt "$n" ]; do
+			i=$((DT_NETTOP + row))
+			if [ "$i" = "$DT_NETSEL" ]; then
+				console pen "$DT_SELINK" "$DT_ACTIVE"
+				t := str repeat " " "$w"
+				console put $((r + 2 + row)) "$c" "$t"
+			elif [ "${DT_NETAU[$i]}" = 1 ]; then
+				console pen "$DT_INK" "$DT_FACE" bold
+			else
+				console pen "$DT_INK" "$DT_FACE"
+			fi
+			g=" "
+			[ "${DT_NETAU[$i]}" = 1 ] && g=${GL[check]}
+			[ "${DT_NETAS[$i]}" = "${DT_NET["busy"]}" ] && g=${GL[ellipsis]}
+			lk=" "
+			[ -n "${DT_NETAK[$i]}" ] && lk=${GL[secure]}
+			b := dt_netbars "${DT_NETAG[$i]}"
+			t := dt_cut "${DT_NETAS[$i]}" $((w - 12))
+			console put $((r + 2 + row)) "$c" "$g $t"
+			console put $((r + 2 + row)) $((c + w - 7)) "$lk $b"
+			row=$((row + 1))
+		done
+		[ "$n" -gt "$vis" ] && dt_netpopbar "$r" "$c" "$h" "$w" "$n" "$vis"
+	fi
+	console pen "$DT_INK" "$DT_FACE"
+	t := dt_tr "Network Settings%s" "${GL[ellipsis]}"
+	console put $((r + h - 1)) $((c + 1)) "$t"
+}
+
+# A thumb on the list's right edge when it holds more than it shows.
+fn dt_netpopbar(int r, int c, int h, int w, int n, int vis) {
+	local t i=0
+
+	t=$((r + 2 + DT_NETTOP * (vis - 1) / (n - vis)))
+	while [ "$i" -lt "$vis" ]; do
+		if [ $((r + 2 + i)) = "$t" ]; then
+			console pen "$DT_ACTIVE" "$DT_FACE"
+			console put $((r + 2 + i)) $((c + w - 1)) "${GL[block]}"
+		fi
+		i=$((i + 1))
+	done
+}
+
+# A press on a row: the switch turns Wi-Fi on or off, a network is joined,
+# the last row opens the settings; the wheel scrolls the list.
+fn net_popmouse(act, int r, int c) {
+	local n=${#DT_NETAS[@]} i
+
+	case $act in
+	press) ;;
+	up) DT_NETTOP=$((DT_NETTOP > 0 ? DT_NETTOP - 1 : 0)); return 0 ;;
+	down) DT_NETTOP=$((DT_NETTOP + 1)); return 0 ;;
+	*) return 0 ;;
+	esac
+	if [ "$r" = 0 ]; then
+		dt_netradio
+		return 0
+	fi
+	if [ "$r" = $((DT_POPH - 1)) ]; then
+		dt_popclose
+		dt_netsettings
+		return 0
+	fi
+	i=$((DT_NETTOP + r - 2))
+	[ "$r" -ge 2 ] && [ "$i" -lt "$n" ] && [ "$r" -lt $((DT_POPH - 2)) ] || return 0
+	[ "${DT_NET["radio"]}" = enabled ] || return 0
+	DT_NETSEL=$i
+	dt_popclose
+	dt_netjoin "$i"
+}
+
+# The keys the list takes: up and down move, enter joins, w turns Wi-Fi on
+# or off.
+fn net_popkey(k) {
+	local n=${#DT_NETAS[@]}
+
+	case $k in
+	up) [ "$DT_NETSEL" -gt 0 ] && DT_NETSEL=$((DT_NETSEL - 1)) ;;
+	down) [ "$DT_NETSEL" -lt $((n - 1)) ] && DT_NETSEL=$((DT_NETSEL + 1)) ;;
+	enter)
+		[ "$n" -gt 0 ] || return 0
+		dt_popclose
+		dt_netjoin "$DT_NETSEL"
+		;;
+	w) dt_netradio ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+# Control Panel > Network, from the list or the menu.
+dt_netsettings() {
+	dt_has dt_panelpane && dt_panelpane networks
+}
+
+# The network menu, opened beneath the bar item by a right click.
+dt_netmenu() {
+	dt_barmenu net net
+}
+
+# What the network menu holds: what the machine is on, Wi-Fi's switch, the
+# networks in reach with the one in use ticked, Disconnect, and the pane.
+fn net_context(id = "") {
+	local i on lb n=0
+
+	dt_menu "Network"
+	case ${DT_NET["state"]} in
+	wifi) lb := dt_tr "Connected to %s" "${DT_NET["ssid"]}" ;;
+	wired) lb := dt_tr "Connected by cable" ;;
+	connecting) lb := dt_tr "Connecting%s" "${GL[ellipsis]}" ;;
+	*) lb := dt_tr "Not connected" ;;
+	esac
+	dt_dim "$lb"
+	if [ "${DT_NET["kind"]}" = nm ] && [ -n "${DT_NET["wdev"]}" ]; then
+		on=0
+		[ "${DT_NET["radio"]}" = enabled ] && on=1
+		if dt_netmay wifi; then
+			dt_mark "Wi-Fi" w "$on" dt_netradio
+		else
+			dt_dim "Wi-Fi"
+		fi
+		if [ "$on" = 1 ] && [ "${#DT_NETAS[@]}" -gt 0 ]; then
+			dt_sep
+			i=0
+			while [ "$i" -lt "${#DT_NETAS[@]}" ] && [ "$n" -lt 10 ]; do
+				lb=${DT_NETAS[$i]:0:32}
+				dt_mark "$lb" "" "${DT_NETAU[$i]}" dt_netjoin "$i"
+				i=$((i + 1))
+				n=$((n + 1))
+			done
+		fi
+		if [ "${DT_NET["state"]}" = wifi ]; then
+			dt_sep
+			dt_item "Disconnect" d dt_netleave
+		fi
+	fi
+	dt_sep
+	if dt_has panel_goto; then
+		dt_item "Network Settings${GL[ellipsis]}" s dt_netsettings
+	else
+		dt_dim "Network Settings${GL[ellipsis]}"
+	fi
+}
+
+# The password asked for a secured network not yet saved -- or a saved one
+# whose password no longer works -- in a small window of its own, starred
+# as it is typed. It lives in that window's state until the join starts
+# and is cleared from it then.
+declare -gA NPW
+fn dt_netpwask(ssid, sec, u = "") {
+	local id t
+
+	dt_dlgat 11 52
+	t := dt_tr "Wi-Fi"
+	id := dt_new "$t" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" netpw
+	NPW[$id]["ssid"]=$ssid
+	NPW[$id]["sec"]=$sec
+	NPW[$id]["uuid"]=$u
+}
+
+fn netpw_open(int id, arg = "") {
+	NPW[$id]["pass"]=
+	NPW[$id]["passcur"]=0
+	NPW[$id]["show"]=0
+}
+
+fn netpw_draw(int id, int h, int w, int row, int col) {
+	local t fw=$((w - 13))
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE" bold
+	t := dt_tr "Join %s" "${NPW[$id]["ssid"]}"
+	t := dt_cut "$t" $((w - 3))
+	console put -p "w$id" 1 2 "$t"
+	console pen "$DT_DIM" "$DT_FACE"
+	t := dt_tr "It asks for a password (%s)." "${NPW[$id]["sec"]}"
+	t := dt_cut "$t" $((w - 3))
+	console put -p "w$id" 2 2 "$t"
+	console pen "$DT_INK" "$DT_FACE"
+	t := dt_tr "Password:"
+	console put -p "w$id" 4 2 "$t"
+	t=${NPW[$id]["pass"]}
+	[ "${NPW[$id]["show"]}" = 1 ] || t := str repeat "*" "${#t}"
+	dt_textdraw "$id" 4 13 "$fw" "$t" "${NPW[$id]["passcur"]}" 1
+	dt_wreg "$id" 4 13 "$fw" pass
+	dt_check "$id" 6 13 "${NPW[$id]["show"]}" "Show the password" show
+	dt_button "$id" 8 $((w - 22)) "Cancel" 0 cancel
+	dt_button "$id" 8 $((w - 11)) "Join" 2 join
+}
+
+fn netpw_key(int id, key) {
+	local r
+
+	case $key in
+	enter) netpw_do "$id" join; return 0 ;;
+	escape) dt_del "$id"; return 0 ;;
+	esac
+	r := dt_textkey "${NPW[$id]["pass"]}" "${NPW[$id]["passcur"]}" "$key" || return 1
+	NPW[$id]["pass"]=${r% *}
+	NPW[$id]["passcur"]=${r##* }
+	return 0
+}
+
+fn netpw_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	netpw_do "$id" "$tag"
+}
+
+fn netpw_do(int id, what) {
+	local ssid=${NPW[$id]["ssid"]} pw=${NPW[$id]["pass"]} u=${NPW[$id]["uuid"]} km own
+
+	case $what in
+	show)
+		NPW[$id]["show"]=$((1 - ${NPW[$id]["show"]:-0}))
+		;;
+	cancel) dt_del "$id" ;;
+	join)
+		if [ "${#pw}" -lt 8 ]; then
+			dt_notep high "A Wi-Fi password is at least 8 characters"
+			return 0
+		fi
+		NPW[$id]["pass"]=
+		dt_del "$id"
+		if [ -n "$u" ]; then
+			dt_netjob join "$ssid" dt_netjoinpw "$u" "$pw"
+		else
+			km := dt_netkm "${NPW[$id]["sec"]}"
+			DT_NETJKNOWN="${DT_NETCU[*]}"
+			own=
+			dt_netmay system || own=$USER
+			dt_netjob join "$ssid" dt_netjoinnew "$ssid" "$km" "$pw" "$own"
+		fi
+		;;
+	esac
+}
+
+fn netpw_close(int id) {
+	unset NPW["$id"]
+}
+
+command -v dt_app > /dev/null && dt_app netpw "Wi-Fi" 11 52 "" "" fixed hidden
+dt_ticker dt_nettick

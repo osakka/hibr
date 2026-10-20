@@ -3,7 +3,7 @@
 # remote -- folders on WebDAV servers, wherever the desktop handles files.
 #
 # A location dav://NAME/path names a folder or file on a server set up in
-# Control Panel > Network Servers (the dav module's own list). Files lists
+# Control Panel > Servers (the dav module's own list). Files lists
 # one like a local folder; this file is everything else: moving and copying
 # between local and remote, opening a remote file, and putting it back.
 #

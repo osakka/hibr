@@ -1627,11 +1627,67 @@ void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out,
 	s_free(&pat);
 }
 
+/* Whether IFS holds a character that is not whitespace, which splits differently. */
+int xifsnws(const char *ifs)
+{
+	return ifs[strspn(ifs, " \t\n")] != 0;
+}
+
+/* Whether byte i of b is an IFS character that splits: unquoted, and in ifs. */
+int xifsat(const char *b, const char *m, size_t i, const char *ifs)
+{
+	return (!m || !m[i]) && *ifs && strchr(ifs, b[i]);
+}
+
+/* Whether byte i of b is IFS whitespace. */
+int xifsws(const char *b, const char *m, size_t i, const char *ifs)
+{
+	return (b[i] == ' ' || b[i] == '\t' || b[i] == '\n') && xifsat(b, m, i, ifs);
+}
+
+/* The next field of POSIX splitting from *p, as [*fs, *fe); 0 when none is left.
+   IFS whitespace collapses; any other IFS character ends a field on its own, so
+   two in a row make an empty one; a field still open at the end counts only if
+   it is not empty, so a single delimiter at the very end makes none. */
+int xifs(const char *b, const char *m, size_t n, size_t *p, const char *ifs,
+	 size_t *fs, size_t *fe)
+{
+	size_t i = *p;
+
+	if (!i)
+		while (i < n && xifsws(b, m, i, ifs))
+			i++;
+	if (i >= n) {
+		*p = n;
+		return 0;
+	}
+	*fs = i;
+	while (i < n && !xifsat(b, m, i, ifs))
+		i++;
+	*fe = i;
+	if (i >= n) {
+		*p = n;
+		return *fe > *fs;
+	}
+	if (xifsws(b, m, i, ifs)) {
+		while (i < n && xifsws(b, m, i, ifs))
+			i++;
+		if (i < n && xifsat(b, m, i, ifs))
+			i++;
+	} else {
+		i++;
+	}
+	while (i < n && xifsws(b, m, i, ifs))
+		i++;
+	*p = i;
+	return 1;
+}
+
 /* Split an expanded buffer into fields on unquoted IFS characters. */
 void xsplit(sh *s, str *b, str *m, vec *out, vec *outm)
 {
 	const char *ifs = sh_ifs(s);
-	size_t i = 0, st;
+	size_t i = 0, st, fs, fe;
 
 	if (!ifs)
 		ifs = " \t\n";
@@ -1642,6 +1698,11 @@ void xsplit(sh *s, str *b, str *m, vec *out, vec *outm)
 			break;
 		}
 #endif
+	if (xifsnws(ifs)) {
+		while (xifs(b->p, m->p, b->n, &i, ifs, &fs, &fe))
+			xfield(s, b->p + fs, m->p + fs, fe - fs, out, outm);
+		return;
+	}
 	while (i < b->n) {
 		while (i < b->n && !m->p[i] && *ifs && strchr(ifs, b->p[i]))
 			i++;

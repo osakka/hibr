@@ -79,7 +79,7 @@ SUITE_MODS = {
 }
 APPS = ("apps_panel", "apps_reach", "apps_core", "apps_more")
 DESKTOP = ("desktop", "vault") + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
-                                         "sound")
+                                         "sound", "net")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 

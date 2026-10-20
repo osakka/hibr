@@ -1,9 +1,9 @@
 #!/usr/bin/env hibr
 #
-# pimset -- the Control Panel pane called PIM: which of the Network Servers
+# pimset -- the Control Panel pane called PIM: which of the Servers
 # keep your calendars and contacts, and how often they are synced. A server
 # is any CalDAV/CardDAV one -- Nextcloud, Fastmail, iCloud, Radicale -- set
-# up in Network Servers with its address and an app password (one list, one
+# up in Servers with its address and an app password (one list, one
 # login, for its files as well); each is asked once what it keeps, so a
 # plain file server is shown as files only rather than offered. Switching a
 # server on here starts its first sync.
@@ -11,7 +11,7 @@
 strict
 
 
-app pimset "The Control Panel pane for calendars and contacts" 1.1
+app pimset "The Control Panel pane for calendars and contacts" 1.2
 # modules: dav
 command -v cp_pane > /dev/null && cp_pane pimset "Calendar & Contacts" "☺" app
 
@@ -110,7 +110,7 @@ fn pimset_rows(int w) {
 		for k in "${!s[@]}"; do names+=("$k"); done
 	fi
 	if [ "${#names[@]}" = 0 ]; then
-		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="None yet -- add one in Network Servers"
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="None yet -- add one in Servers"
 		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=none; n=$((n + 1))
 	fi
 	for k in "${names[@]}"; do
@@ -169,7 +169,7 @@ fn pimset_do(int w, k, int dir) {
 		if dt_has panel_goto; then
 			panel_goto "$w" network
 		else
-			dt_notep low "Add a server in Control Panel > Network Servers"
+			dt_notep low "Add a server in Control Panel > Servers"
 		fi
 		;;
 	files:*) dt_notep low "%s keeps files, not calendars or contacts" "${k#files:}" ;;

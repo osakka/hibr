@@ -265,6 +265,11 @@ void asg_keep(sh *s, vec *old, const char *k);
 int asg_hide(sh *s, vec *old, const char *k);
 int asg_wasex(vec *old);
 long pf_arg(const char *arg, int uns);
+int xifsnws(const char *ifs);
+int xifsat(const char *b, const char *m, size_t i, const char *ifs);
+int xifsws(const char *b, const char *m, size_t i, const char *ifs);
+int xifs(const char *b, const char *m, size_t n, size_t *p, const char *ifs,
+	 size_t *fs, size_t *fe);
 void ex_arrasg(sh *s, node *f);
 void ex_arrlate(sh *s, node *n);
 int ex_arrro(sh *s, node *n);

@@ -1,0 +1,188 @@
+#!/usr/bin/env hibr
+#
+# networks -- the Control Panel pane called Network (Gitea #311): what the
+# machine is on and its address, Wi-Fi on or off, the networks in reach to
+# join, the ones it knows to forget, and the item on the menu bar. It acts
+# through wm/net.hibr, which says how this machine is networked:
+# NetworkManager, or iproute2's view alone.
+#
+# The pane is called networks, not network, on purpose: network is the
+# WebDAV servers' pane (titled Servers), shipped and in the catalogue, and a
+# copy of it installed in a person's own scope would win over a shipped file
+# of the same name -- so a new pane there would be shadowed by an old one.
+
+strict
+
+app networks "The Control Panel pane for the machine's network and Wi-Fi" 1.0
+command -v cp_pane > /dev/null && cp_pane networks "Network" "⇌" hardware
+
+NT_KINDS=(Auto NetworkManager None)
+# The saved connection Forget is about to take, while the confirm is up.
+NT_FORGET=
+
+fn cp_set_netkind(int? id = "", value = "") {
+	DT_NETKIND=$value
+	cp_save
+	dt_netagain
+}
+
+fn networks_rows(int w) {
+	local n=0 i b t lk s
+
+	[ -n "${DT_NET["kind"]}" ] || dt_netstart
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Network System"
+	CP[$w][$n]["val"]=${DT_NETKIND:-Auto}; CP[$w][$n]["key"]=kind
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Managed By"
+	case ${DT_NET["kind"]} in
+	nm) CP[$w][$n]["val"]="NetworkManager" ;;
+	ip)
+		if [ -n "${DT_NET["why"]}" ]; then
+			CP[$w][$n]["val"] := dt_tr "%s is not answering" "${DT_NET["why"]}"
+		else
+			CP[$w][$n]["val"] := dt_tr "nothing -- the address alone"
+		fi
+		;;
+	*) CP[$w][$n]["val"] := dt_tr "none found" ;;
+	esac
+	n=$((n + 1))
+	case ${DT_NET["kind"]} in
+	nm | ip) ;;
+	*) ret "$n"; return 0 ;;
+	esac
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Connection"; n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Connected"
+	case ${DT_NET["state"]} in
+	wifi) CP[$w][$n]["val"] := dt_tr "Wi-Fi, %s" "${DT_NET["ssid"]:-?}" ;;
+	wired) CP[$w][$n]["val"] := dt_tr "by cable" ;;
+	connecting) CP[$w][$n]["val"] := dt_tr "connecting%s" "${GL[ellipsis]}" ;;
+	*) CP[$w][$n]["val"] := dt_tr "no" ;;
+	esac
+	n=$((n + 1))
+	if [ -n "${DT_NET["dev"]}" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Device"
+		CP[$w][$n]["val"]=${DT_NET["dev"]}; n=$((n + 1))
+	fi
+	if [ -n "${DT_NET["addr"]}" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Address"
+		CP[$w][$n]["val"]=${DT_NET["addr"]}; n=$((n + 1))
+	fi
+	if [ -n "${DT_NET["gw"]}" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Gateway"
+		CP[$w][$n]["val"]=${DT_NET["gw"]}; n=$((n + 1))
+	fi
+	if [ -n "${DT_NET["dns"]}" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Name Servers"
+		CP[$w][$n]["val"]=${DT_NET["dns"]}; n=$((n + 1))
+	fi
+	if [ -n "${DT_NET["err"]}" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Last Join"
+		CP[$w][$n]["val"]=${DT_NET["err"]}; n=$((n + 1))
+	fi
+	if [ "${DT_NET["kind"]}" = nm ] && [ -n "${DT_NET["wdev"]}" ]; then
+		CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Wi-Fi"; n=$((n + 1))
+		if dt_netmay wifi; then
+			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wi-Fi"
+			CP[$w][$n]["wtype"]=bool
+			CP[$w][$n]["val"]=off; [ "${DT_NET["radio"]}" = enabled ] && CP[$w][$n]["val"]=on
+			CP[$w][$n]["key"]=radio; n=$((n + 1))
+		else
+			# polkit's no: a switch that cannot be moved is not drawn as one.
+			CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Wi-Fi"
+			if [ "${DT_NET["radio"]}" = enabled ]; then
+				CP[$w][$n]["val"] := dt_tr "on -- locked here"
+			else
+				CP[$w][$n]["val"] := dt_tr "off -- locked here"
+			fi
+			n=$((n + 1))
+		fi
+		if [ "${DT_NETPERM["control"]}" = auth ]; then
+			CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Password"
+			CP[$w][$n]["val"] := dt_tr "asked when needed"
+			n=$((n + 1))
+		fi
+		if [ "${DT_NET["state"]}" = wifi ]; then
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Disconnect"
+			CP[$w][$n]["val"]=${DT_NET["ssid"]}; CP[$w][$n]["key"]=leave
+			n=$((n + 1))
+		fi
+		if [ "${DT_NET["radio"]}" = enabled ]; then
+			i=0
+			while [ "$i" -lt "${#DT_NETAS[@]}" ] && [ "$i" -lt 12 ]; do
+				b := dt_netbars "${DT_NETAG[$i]}"
+				lk=" "
+				[ -n "${DT_NETAK[$i]}" ] && lk=${GL[secure]}
+				t=${DT_NETAS[$i]}
+				[ "${DT_NETAU[$i]}" = 1 ] && t="${GL[check]} $t"
+				CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]=$t
+				CP[$w][$n]["val"]="$lk $b"; CP[$w][$n]["key"]="join:$i"
+				n=$((n + 1))
+				i=$((i + 1))
+			done
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Look Again"
+			CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=rescan
+			n=$((n + 1))
+		fi
+		CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Known Networks"; n=$((n + 1))
+		i=0
+		while [ "$i" -lt "${#DT_NETCU[@]}" ]; do
+			if [ "${DT_NETCT[$i]}" = 802-11-wireless ]; then
+				s := dt_netssidof "${DT_NETCU[$i]}"
+				CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]=${DT_NETCN[$i]}
+				t := dt_tr "Forget"
+				[ -n "$s" ] && [ "$s" != "${DT_NETCN[$i]}" ] && t="$s  $t"
+				CP[$w][$n]["val"]=$t; CP[$w][$n]["key"]="forget:${DT_NETCU[$i]}"
+				n=$((n + 1))
+			fi
+			i=$((i + 1))
+		done
+	fi
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Desktop"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Network on Menu Bar"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_NETBAR:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_NETBAR; n=$((n + 1))
+	ret "$n"
+}
+
+fn networks_do(int w, k, int dir) {
+	local v i nm
+
+	case $k in
+	kind)
+		v := cp_next "${DT_NETKIND:-Auto}" "$dir" "${NT_KINDS[@]}"
+		cp_set_netkind "" "$v"
+		return 0
+		;;
+	radio) dt_netradio ;;
+	leave) dt_netleave ;;
+	rescan) dt_netrescan asked; dt_notep low "Looking for networks" ;;
+	join:*) dt_netjoin "${k#join:}" ;;
+	forget:*)
+		NT_FORGET=${k#forget:}
+		nm=
+		i=0
+		while [ "$i" -lt "${#DT_NETCU[@]}" ]; do
+			[ "${DT_NETCU[$i]}" = "$NT_FORGET" ] && nm=${DT_NETCN[$i]}
+			i=$((i + 1))
+		done
+		DT_T := dt_tr "Forget %s, and its password?" "$nm"
+		dt_confirm "$DT_T" networks_forget
+		return 0
+		;;
+	DT_NETBAR) cp_toggle "$k"; dt_netbar ;;
+	esac
+	cp_save
+}
+
+# Yes on the confirm: the saved connection goes, password and all.
+networks_forget() {
+	[ -n "$NT_FORGET" ] && dt_netforget "$NT_FORGET"
+	NT_FORGET=
+}
+
+fn networks_drop(int w, int r, int c, k) {
+	case $k in
+	kind) dt_droplist "$w" "$r" "$c" cp_set_netkind "${NT_KINDS[@]}" ;;
+	esac
+}

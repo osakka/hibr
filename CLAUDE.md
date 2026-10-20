@@ -3701,6 +3701,20 @@ went in the shell.
   the frame and gone. Check a bar where its thumb is, not where its track
   ends.
 
+- **An IFS character that is not whitespace ends a field on its own, so two
+  in a row are an empty field** (Gitea #317, 0.99.270). hibr collapsed every
+  run of IFS characters as if all were blanks, in `read` and in `xsplit`
+  alike, so `IFS=: read -ra a <<< ":x:y"` lost its empty first field and
+  every field after it moved one place left -- which is how a terse `nmcli`
+  line, whose first field is empty for a network not in use, put a signal
+  where a network's name belonged. The earlier note that empty
+  tab-separated fields collapse is still right, because a tab *is* IFS
+  whitespace; a colon or a comma is not. `xifs` is the one splitter for the
+  non-whitespace case and `xsplit` keeps its old loop for a whitespace-only
+  IFS, the default, so the hot path did not move; `read`'s last variable has
+  its own rule (`bi_rdrest`), taken from bash case by case rather than from
+  the standard's prose.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

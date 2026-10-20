@@ -10,8 +10,8 @@
 strict
 
 
-app network "The Control Panel pane for WebDAV servers" 1.0
-command -v cp_pane > /dev/null && cp_pane network "Network Servers" "⇅"
+app network "The Control Panel pane for WebDAV servers" 1.1
+command -v cp_pane > /dev/null && cp_pane network "Servers" "⇅"
 
 NW_TIMEOUTS=(5 10 15 30 60 120)
 

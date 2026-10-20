@@ -1,0 +1,368 @@
+#!/usr/bin/env python3
+"""A stand-in for NetworkManager's nmcli, for tests/net.py (Gitea #311).
+
+Its reads answer in the formats captured from the owner's machine (nmcli
+1.52.1, kept in tests/net/): terse output, one record a line, a value's
+own ':' and '\\' escaped with a backslash, `dev show` as blocks with a
+blank line between devices. Its actions are judged by their exit status
+only -- nothing in the desktop parses what nmcli says on success -- and
+it refuses what the real one refuses: a secured network with no secret
+given, a wrong one, a connection or a network that does not exist.
+
+State is a JSON file in $HIBR_NMSTATE, and every call's argv is appended
+to its log, which is how a check proves a password never reached a
+command line. `monitor` prints a line whenever the state file changes."""
+import json
+import os
+import sys
+import time
+import uuid
+
+D = os.environ.get("HIBR_NMSTATE", "")
+ST = os.path.join(D, "state.json")
+LOG = os.path.join(D, "argv.log")
+
+
+def load():
+    with open(ST) as f:
+        return json.load(f)
+
+
+def save(s):
+    tmp = ST + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(s, f)
+    os.replace(tmp, ST)
+
+
+def esc(v):
+    return str(v).replace("\\", "\\\\").replace(":", "\\:")
+
+
+def out(rows, fields):
+    for r in rows:
+        print(":".join(esc(r.get(f, "")) for f in fields))
+
+
+def die(msg, code):
+    sys.stderr.write("Error: %s\n" % msg)
+    sys.exit(code)
+
+
+PERMS = ["checkpoint-rollback", "enable-disable-connectivity-check", "enable-disable-network",
+         "enable-disable-statistics", "enable-disable-wifi", "enable-disable-wimax",
+         "enable-disable-wwan", "network-control", "reload", "settings.modify.global-dns",
+         "settings.modify.hostname", "settings.modify.own", "settings.modify.system",
+         "sleep-wake", "wifi.scan", "wifi.share.open", "wifi.share.protected"]
+
+
+def allowed(s, perm, msg="Insufficient privileges"):
+    """What polkit says to one of NetworkManager's actions: yes goes on, no is
+    refused, and auth asks the agent -- tests/net/pkttyagent -- and waits for
+    its verdict, as NetworkManager waits for polkit's."""
+    v = s.get("perms", {}).get(perm, "yes")
+    if v == "yes":
+        return
+    if v == "auth":
+        req, res = os.path.join(D, "auth.req"), os.path.join(D, "auth.res")
+        try:
+            os.unlink(res)
+        except OSError:
+            pass
+        with open(req, "w") as f:
+            f.write("org.freedesktop.NetworkManager.%s\n" % perm)
+        end = time.time() + 20
+        while time.time() < end and not os.path.exists(res):
+            time.sleep(0.1)
+        ok = os.path.exists(res) and open(res).read().strip() == "ok"
+        for x in (req, res):
+            try:
+                os.unlink(x)
+            except OSError:
+                pass
+        if ok:
+            return
+    die(msg, 4)
+
+
+def bars(sig):
+    n = 4 if sig > 75 else 3 if sig > 50 else 2 if sig > 25 else 1 if sig > 5 else 0
+    return "".join(b if i < n else "_" for i, b in enumerate("▂▄▆█"))
+
+
+def wifidev(s):
+    return next((d for d in s["devices"] if d["TYPE"] == "wifi"), None)
+
+
+def findcon(s, how, key):
+    for c in s["cons"]:
+        if (how == "uuid" and c["UUID"] == key) or (how in ("id", "") and c["NAME"] == key):
+            return c
+    return None
+
+
+def activate(s, c, secret):
+    d = wifidev(s) if c["TYPE"] == "802-11-wireless" else None
+    if c["TYPE"] == "802-11-wireless":
+        if not d or s["wifi"] != "enabled":
+            die("Connection activation failed: No suitable device found for this connection.", 4)
+        ap = next((a for a in s["aps"] if a["SSID"] == c.get("ssid", c["NAME"])), None)
+        if not ap:
+            die("Connection activation failed: The Wi-Fi network could not be found", 4)
+        if ap["SECURITY"]:
+            psk = secret if secret is not None else c.get("psk")
+            if psk is None:
+                die("Connection activation failed: Secrets were required, but not provided", 4)
+            if ap.get("password") is not None and psk != ap["password"]:
+                die("Connection activation failed: Secrets were required, but not provided", 4)
+            c["psk"] = psk
+        for o in s["cons"]:
+            if o is not c and o["DEVICE"] == d["DEVICE"]:
+                o["DEVICE"] = ""
+        for a in s["aps"]:
+            a["IN-USE"] = "*" if a is ap else ""
+        c["DEVICE"] = d["DEVICE"]
+        d["STATE"] = "connected"
+        d["CONNECTION"] = c["NAME"]
+        s["show"][d["DEVICE"]] = {"GENERAL.STATE": "100 (connected)",
+                                  "IP4.ADDRESS[1]": "192.168.10.54/24",
+                                  "IP4.GATEWAY": "192.168.10.254",
+                                  "IP4.DNS[1]": "192.168.15.100"}
+    save(s)
+    print("Connection successfully activated (D-Bus active path: "
+          "/org/freedesktop/NetworkManager/ActiveConnection/7)")
+
+
+def down(s, d):
+    if not d:
+        return
+    for c in s["cons"]:
+        if c["DEVICE"] == d["DEVICE"]:
+            c["DEVICE"] = ""
+    for a in s["aps"]:
+        a["IN-USE"] = ""
+    d["STATE"] = "disconnected"
+    d["CONNECTION"] = ""
+    s["show"][d["DEVICE"]] = {"GENERAL.STATE": "30 (disconnected)"}
+
+
+def main(a):
+    if D:
+        with open(LOG, "a") as f:
+            f.write(json.dumps(a) + "\n")
+    fields, terse, getv = None, False, False
+    while a and a[0].startswith("-"):
+        o = a.pop(0)
+        if o in ("-t", "--terse"):
+            terse = True
+        elif o in ("-f", "--fields"):
+            fields = a.pop(0).split(",")
+        elif o in ("-g", "--get-values"):
+            fields = a.pop(0).split(",")
+            getv = True
+        elif o in ("-s", "--show-secrets"):
+            pass
+        elif o in ("-w", "--wait"):
+            a.pop(0)
+        elif o == "--version":
+            print("nmcli tool, version 1.52.1")
+            return
+    s = load()
+    if not s.get("running", True):
+        die("NetworkManager is not running.", 8)
+    obj = a.pop(0) if a else "general"
+    verb = a.pop(0) if a else ""
+    if obj in ("g", "general") and verb == "permissions":
+        print("%-66s%s" % ("PERMISSION", "VALUE"))
+        for p in PERMS:
+            print("%-66s%s" % ("org.freedesktop.NetworkManager." + p, s.get("perms", {}).get(p, "yes")))
+    elif obj in ("g", "general"):
+        out([{"RUNNING": "running", "STATE": "connected", "WIFI": s["wifi"]}], fields or ["RUNNING"])
+    elif obj in ("r", "radio"):
+        if verb == "wifi" and a:
+            allowed(s, "enable-disable-wifi")
+            s = load()
+            s["wifi"] = "enabled" if a[0] == "on" else "disabled"
+            d = wifidev(s)
+            if d:
+                if s["wifi"] == "disabled":
+                    down(s, d)
+                    d["STATE"] = "unavailable"
+                    s["show"][d["DEVICE"]] = {"GENERAL.STATE": "20 (unavailable)"}
+                else:
+                    d["STATE"] = "disconnected"
+            save(s)
+        else:
+            print(s["wifi"])
+    elif obj in ("d", "dev", "device"):
+        if verb in ("", "status"):
+            out(s["devices"], fields or ["DEVICE", "TYPE", "STATE", "CONNECTION"])
+        elif verb == "show":
+            want = a[0] if a else None
+            blocks = []
+            for d in s["devices"]:
+                if want and d["DEVICE"] != want:
+                    continue
+                v = s["show"].get(d["DEVICE"], {})
+                lines = []
+                for f in fields or list(v):
+                    keys = [k for k in v if k == f or k.startswith(f + "[")]
+                    for k in keys:
+                        lines.append("%s:%s" % (k, esc(v[k])))
+                    if not keys and f in ("IP4.GATEWAY",) and "IP4.GATEWAY" in v:
+                        lines.append("IP4.GATEWAY:")
+                blocks.append("\n".join(lines))
+            print("\n\n".join(blocks))
+        elif verb == "wifi":
+            w = a.pop(0) if a else "list"
+            if w == "list":
+                if s["wifi"] != "enabled":
+                    return
+                rows = [dict(ap, BARS=ap.get("BARS") or bars(int(ap["SIGNAL"]))) for ap in s["aps"]]
+                out(rows, fields or ["IN-USE", "SSID", "BSSID", "MODE", "CHAN", "SIGNAL", "BARS", "SECURITY"])
+            elif w == "rescan":
+                allowed(s, "wifi.scan")
+                return
+            elif w == "connect":
+                allowed(s, "network-control", "Connection activation failed: Not authorized to control networking.")
+                allowed(s, "settings.modify.system")
+                s = load()
+                ssid = a.pop(0)
+                if "password" in a:
+                    secret = a[a.index("password") + 1]
+                else:
+                    secret = None
+                ap = next((x for x in s["aps"] if x["SSID"] == ssid), None)
+                if not ap:
+                    die("No network with SSID '%s' found." % ssid, 10)
+                c = findcon(s, "id", ssid)
+                if not c:
+                    c = {"NAME": ssid, "UUID": str(uuid.uuid4()), "TYPE": "802-11-wireless",
+                         "DEVICE": "", "ssid": ssid}
+                    s["cons"].append(c)
+                activate(s, c, secret)
+        elif verb == "disconnect":
+            allowed(s, "network-control", "Not authorized to control networking.")
+            s = load()
+            d = next((x for x in s["devices"] if x["DEVICE"] == a[0]), None)
+            if not d:
+                die("Device '%s' not found." % a[0], 10)
+            down(s, d)
+            save(s)
+            print("Device '%s' successfully disconnected." % a[0])
+    elif obj in ("c", "con", "connection"):
+        if verb in ("", "show") and a:
+            how = a.pop(0) if a[0] in ("uuid", "id") else ""
+            c = findcon(s, how, a[0])
+            if not c:
+                die("%s - no such connection profile." % a[0], 10)
+            prop = {"802-11-wireless.ssid": c.get("ssid", ""),
+                    "802-11-wireless-security.key-mgmt": c.get("km", ""),
+                    "802-11-wireless-security.psk": c.get("psk", ""),
+                    "connection.id": c["NAME"], "connection.uuid": c["UUID"]}
+            for f in fields or list(prop):
+                print(esc(prop.get(f, "")) if getv else "%s:%s" % (f, esc(prop.get(f, ""))))
+        elif verb in ("", "show"):
+            out(s["cons"], fields or ["NAME", "UUID", "TYPE", "DEVICE"])
+        elif verb == "edit":
+            how = a.pop(0) if a and a[0] in ("uuid", "id", "type") else ""
+            key = a.pop(0) if a else ""
+            c = None if how == "type" else findcon(s, how, key)
+            if how != "type" and not c:
+                die("unknown connection '%s'." % key, 10)
+            new = c is None
+            if new:
+                c = {"NAME": "", "UUID": str(uuid.uuid4()), "TYPE": "802-11-wireless", "DEVICE": ""}
+            for l in sys.stdin:
+                l = l.rstrip("\n")
+                if l.startswith("set "):
+                    k, _, v = l[4:].partition(" ")
+                    k = {"connection.id": "NAME", "802-11-wireless.ssid": "ssid", "wifi.ssid": "ssid",
+                         "802-11-wireless-security.key-mgmt": "km", "wifi-sec.key-mgmt": "km",
+                         "802-11-wireless-security.psk": "psk", "wifi-sec.psk": "psk"}.get(k, k)
+                    c[k] = v
+                elif l == "save":
+                    try:
+                        allowed(s, "settings.modify.own" if c.get("connection.permissions")
+                                else "settings.modify.system",
+                                "Failed to save '%s' (%s) connection: Insufficient privileges"
+                                % (c.get("NAME") or c.get("ssid", ""), c["UUID"]))
+                    except SystemExit:
+                        print("The connection is not saved. Do you really want to quit? (yes/no) [no] ", end="")
+                        sys.exit(1)
+                    s = load()
+                    if c.get("connection.permissions"):
+                        c["owner"] = c["connection.permissions"]
+                    if new:
+                        if not c["NAME"]:
+                            c["NAME"] = c.get("ssid", "wifi")
+                        s["cons"].append(c)
+                        new = False
+                    else:
+                        s["cons"] = [c if x["UUID"] == c["UUID"] else x for x in s["cons"]]
+                    save(s)
+                    print("Connection '%s' (%s) successfully saved." % (c["NAME"], c["UUID"]))
+                elif l == "quit":
+                    break
+        elif verb in ("up", "down", "delete"):
+            how = a.pop(0) if a and a[0] in ("uuid", "id") else ""
+            key = a.pop(0)
+            c = findcon(s, how, key)
+            if not c:
+                die("unknown connection '%s'." % key, 10)
+            if verb in ("up", "down"):
+                allowed(s, "network-control", "Connection activation failed: Not authorized to control networking.")
+            else:
+                allowed(s, "settings.modify.own" if c.get("owner") else "settings.modify.system")
+            s = load()
+            c = findcon(s, how, key)
+            if verb == "up":
+                secret = None
+                if "passwd-file" in a:
+                    with open(a[a.index("passwd-file") + 1]) as f:
+                        for l in f:
+                            k, _, v = l.rstrip("\n").partition(":")
+                            if k == "802-11-wireless-security.psk":
+                                secret = v
+                activate(s, c, secret)
+            elif verb == "down":
+                d = next((x for x in s["devices"] if x["DEVICE"] == c["DEVICE"]), None)
+                if not d:
+                    die("'%s' is not an active connection." % key, 10)
+                down(s, d)
+                save(s)
+            else:
+                if c["DEVICE"]:
+                    down(s, next(x for x in s["devices"] if x["DEVICE"] == c["DEVICE"]))
+                s["cons"].remove(c)
+                save(s)
+                print("Connection '%s' (%s) successfully deleted." % (c["NAME"], c["UUID"]))
+        elif verb == "add":
+            kv = dict(zip(a[::2], a[1::2]))
+            c = {"NAME": kv.get("con-name", kv.get("ssid", "")), "UUID": str(uuid.uuid4()),
+                 "TYPE": "802-11-wireless", "DEVICE": "", "ssid": kv.get("ssid", "")}
+            for k in kv:
+                if k.endswith(".psk") or k == "wifi-sec.psk":
+                    c["psk"] = kv[k]
+            s["cons"].append(c)
+            save(s)
+            print("Connection '%s' (%s) successfully added." % (c["NAME"], c["UUID"]))
+    elif obj in ("m", "monitor"):
+        last = os.stat(ST).st_mtime_ns
+        sys.stdout.flush()
+        while True:
+            time.sleep(0.2)
+            try:
+                m = os.stat(ST).st_mtime_ns
+            except OSError:
+                continue
+            if m != last:
+                last = m
+                print("wlp3s0: state changed", flush=True)
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except BrokenPipeError:
+        pass
