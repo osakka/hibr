@@ -413,8 +413,11 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	done
 	dt_splitbar "$id" "$dv" 1 "$h" "${PW[$id]["split"]:-0}"
 	# The list's own bar, on the divider rather than over the list, so the
-	# titles keep every column.
-	dt_scrollbar "$id" 2 "$dv" "$vis" "${#lines[@]}" "$vis" "$lt" list 1
+	# titles keep every column -- beside the rows the list draws, 1 to vis.
+	# It started at row 2 from when the search sat above the list (0.99.4),
+	# and went on doing so after the search moved below it, so its last
+	# cell was the window's bottom border (Gitea #314).
+	dt_scrollbar "$id" 1 "$dv" "$vis" "${#lines[@]}" "$vis" "$lt" list 1
 	if [ "${#lines[@]}" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		t="Nothing found"

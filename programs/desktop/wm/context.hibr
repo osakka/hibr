@@ -132,8 +132,10 @@ fn dt_titlecontext(int id) {
 	else
 		dt_item "Resize" r dt_grab size
 		dt_item "Zoom" z dt_zoom "$id"
+		dt_rowaccel "${DT_KEYS["zoom"]}"
 	fi
 	dt_item "Hide" h dt_min "$id"
+	dt_rowaccel "${DT_KEYS["hide"]}"
 	dt_mark "Sticky" k "${DT[$id]["sticky"]:-0}" dt_sticky "$id"
 	if [ "$DT_WSN" -gt 1 ]; then
 		local wsi=1

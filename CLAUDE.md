@@ -3685,6 +3685,22 @@ went in the shell.
   runs a `dbus-daemon --session` in the server's own runtime folder and
   points the system bus at nothing: 1.1 s, and everything works.
 
+- **A field a builder does not reset is a field the last frame fills in,
+  and #169 was not the last of them** (Gitea #313, 0.99.269). `MI[m][n]
+  ["accel"]`, added for shortcut labels in 0.99.264, was set by
+  `dt_rowaccel` and cleared by none of `dt_row`, `dt_sub` or `dt_sep`, so
+  a row built on an index a bigger bar used the frame before showed that
+  row's shortcut -- and it read as drawing corruption. When a row or record
+  grows a field, the builder that starts one sets it, every time. The
+  sweep is one command: every `MI[...]["x"]=` outside the builders.
+- **A window's frame is drawn over its contents, so an off-by-one onto the
+  border hides itself** (Gitea #314). The pane list's scrollbar ended on the
+  bottom border for releases, and a check that looked at the border row
+  passed against the bug -- the frame had painted over the bar's last cell.
+  What differs is the other end: scrolled to the bottom, the thumb is under
+  the frame and gone. Check a bar where its thumb is, not where its track
+  ends.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

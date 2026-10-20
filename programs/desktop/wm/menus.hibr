@@ -124,6 +124,7 @@ fn dt_sub(label, key = "") {
 	MI[$p][$n]["sep"]=0
 	MI[$p][$n]["dim"]=0
 	MI[$p][$n]["tick"]=""
+	MI[$p][$n]["accel"]=
 	MI[$p][$n]["sub"]=$((MB_N - 1))
 	# Which menu owns this one, kept per menu rather than only in MB_PAR:
 	# MB_PAR is the one level dt_mdown came from, so a submenu inside a
@@ -173,6 +174,12 @@ fn dt_row(tick, int dim, lb, k, ...rest) {
 	MI[$m][$n]["dim"]="$dim"
 	MI[$m][$n]["tick"]="$tick"
 	MI[$m][$n]["sub"]=
+	# Every field a row can carry is set here, accel included: the menus
+	# are rebuilt from index 0 each frame, so a row left with last frame's
+	# shortcut showed it -- "alt-..." stuck to a dropdown's or a context
+	# menu's label in a menu never widened for it (Gitea #313, the
+	# stale-field trap #169 recorded for par).
+	MI[$m][$n]["accel"]=
 	MB[$m]["n"]=$((n + 1))
 	dt_wide "$m" $((${#lb} + 8))
 }
@@ -212,6 +219,7 @@ dt_sep() {
 	MI[$m][$n]["dim"]=0
 	MI[$m][$n]["tick"]=""
 	MI[$m][$n]["sub"]=
+	MI[$m][$n]["accel"]=
 	MB[$m]["n"]=$((n + 1))
 }
 

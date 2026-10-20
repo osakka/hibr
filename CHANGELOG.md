@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.269
+
+**A menu row no longer shows a shortcut left over from the frame before**
+(Gitea #313). The menus are rebuilt from the first index on every frame,
+and a row's shortcut was the one field its builder never cleared, so a
+dropdown or a context menu built where a bigger bar's Window menu had
+been showed that row's `alt-...`, stuck to its own label in a menu never
+widened for it -- "Move to Workspacealt". Every row now starts with none.
+The title bar's own menu shows the Window menu's two shortcuts, Zoom and
+Hide, on purpose: it had shown Zoom's only by that same accident.
+
+**The Control Panel's pane list stops its scrollbar above the bottom
+border** (Gitea #314). It started a row low, a leftover from when the
+search sat above the list, so its last cell was the border: scrolled to
+the end, the thumb went under the frame and the border answered as the
+bar.
+
 ## 0.99.268
 
 **`printf` takes a width or a precision from an argument with `*`**, as

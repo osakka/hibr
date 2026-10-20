@@ -463,6 +463,19 @@ sc = cprun()
 check("the picker lists every pane it has room for, sorted by title",
       all(TITLE[n] in sc.row(prow(n)) for n in ORDER if prow(n) < R0 + 19),
       sc)
+# The list's scrollbar is beside the rows it scrolls and never on the
+# window's bottom border: it started a row low, from when the search sat
+# above the list, so scrolled to the end its thumb was on the border row,
+# under the frame -- gone, and the border a target for it (Gitea #314). At
+# the top the two cannot be told apart, since the frame is drawn over the
+# bar's last cell either way; the end is where they differ.
+psc = cprun(feed=[wheel(R0 + 5, 10, up=False)] * 8 + [0.3])
+pdv = next((c for c in range(3, 34) for r in range(R0, R0 + 20)
+            if psc.at(r, c) == "\u2588"), None)
+pbot = R0 + 20
+check("the pane list's scrollbar stops above the window's bottom border",
+      pdv is not None and psc.at(pbot - 1, pdv) == "\u2588" and
+      psc.row(pbot)[2] == "\u2514", (pdv, psc))
 check("under a Hardware heading, then Desktop, then Apps",
       "Hardware" in sc.row(R0) and
       "Desktop" in sc.row(prow("aboutme") - 1) and
@@ -5039,4 +5052,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(668)
+report(669)

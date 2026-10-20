@@ -4798,6 +4798,26 @@ check("a window's widget regions are forgotten before each draw, so they "
       "do not pile up frame after frame",
       sc.find("regs=0.") is not None and sc.find("line 90") is not None, sc)
 
+# A menu row keeps no shortcut from the frame before (Gitea #313). The menus
+# are rebuilt from index 0 each frame, and a row's accel was the one field
+# its builder never cleared: focus an app with more menus than the next
+# window, and that window's title-bar menu, built where the bigger bar's
+# Window menu had been, showed "Move to Workspacealt" -- the old row's
+# shortcut, stuck to a label in a menu never widened for it.
+BIGM = ('fn big_menus(id = "") { dt_menu File; dt_item Close c :; dt_editmenu; '
+        'dt_menu One; dt_item Aaa a :; dt_menu Two; dt_item Bbb b :; '
+        'dt_menu Three; dt_item Ccc x :; }\n'
+        'fn big_draw(id, h, w, row, col) { :; }\n'
+        'dt_app big Big 8 30\n'
+        'dt_new Big 8 30 3 2 big\ndt_new Plain 8 30 3 40')
+sc, _ = run(BIGM, feed=[press(5, 10), release(5, 10), 0.3, press(5, 50), release(5, 50),
+                        0.3, press(3, 50, 2), release(3, 50, 2), 0.4])
+mw = sc.find("Move to Workspace")
+check("a menu row shows no shortcut left over from the menu built there the frame "
+      "before, and the title bar's own menu shows the Window menu's",
+      mw is not None and "alt" not in sc.row(mw[0])
+      and sc.find("Zoom") is not None and "alt-up" in sc.row(sc.find("Zoom")[0]), sc)
+
 # A wallpaper picture that will not draw is said so once and the pattern
 # shown, not tried again on every frame: a theme's picture the package had
 # stopped shipping filled one desktop's log with 135,170 lines of it
@@ -6077,4 +6097,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(673)
+report(674)
