@@ -368,6 +368,7 @@ dt_draw() {
 	n0 := console drawn
 	[ -n "$DT_DND" ] && dt_dnddraw
 	dt_drop
+	dt_popdraw
 	dt_note_draw
 	dt_identify_draw
 	dt_blankdraw

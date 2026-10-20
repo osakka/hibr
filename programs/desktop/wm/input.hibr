@@ -46,6 +46,24 @@ dt_mouse() {
 
 	case $act in
 	press)
+		# A bar item's own panel takes a press inside it, and goes on a
+		# press anywhere else, like a menu (Gitea #310): a left one on its
+		# own item only closes it, one elsewhere on the bar goes on to what
+		# it was aimed at, and one anywhere else is taken by the close.
+		if [ -n "$DT_POP" ]; then
+			if dt_pophit "$mr" "$mc"; then
+				if [ "$1" = left ]; then
+					DT_POPHELD=1
+					dt_popmouse press "$mr" "$mc"
+				fi
+				return 0
+			fi
+			b=$DT_POPITEM
+			dt_popclose
+			dt_onbar "$mr" "$mc" || return 0
+			[ "$1" != right ] && bi := dt_barihit "$mc" &&
+				[ "$bi" = "$b" ] && return 0
+		fi
 		if dt_onbar "$mr" "$mc"; then
 			if [ "$1" != right ] && wsn := dt_wshit "$mc"; then
 				dt_mclose
@@ -69,7 +87,7 @@ dt_mouse() {
 			# and keep their places.
 			if bi := dt_barihit "$mc"; then
 				dt_mclose
-				dt_barido "$bi"
+				dt_barido "$bi" "$1"
 				return 0
 			fi
 			if [ "$1" = right ]; then
@@ -253,6 +271,13 @@ dt_mouse() {
 		DT_DC=$((mc - wc))
 		;;
 	drag | release)
+		# A press that began inside a bar item's panel is its own until
+		# the button comes up, wherever the pointer goes.
+		if [ -n "$DT_POPHELD" ]; then
+			[ "$act" = release ] && DT_POPHELD=
+			[ -n "$DT_POP" ] && dt_popmouse "$act" "$mr" "$mc"
+			return 0
+		fi
 		# A title-bar button held down: while dragging, just track whether
 		# the pointer is still over the one that was pressed, for dt_win's
 		# own highlight; the action itself only ever fires from release,
@@ -420,6 +445,12 @@ dt_mouse() {
 		DT_SIZECORNER=
 		;;
 	wheelup | wheeldown | wheelleft | wheelright)
+		if dt_pophit "$mr" "$mc"; then
+			case $act in
+			wheelup | wheeldown) dt_popmouse "${act#wheel}" "$mr" "$mc" ;;
+			esac
+			return 0
+		fi
 		# An item an app put on the bar may take the wheel too -- the
 		# speaker does, for the volume (Gitea #306).
 		if dt_onbar "$mr" "$mc" && bi := dt_barihit "$mc"; then
@@ -548,6 +579,19 @@ fn dt_event(k) {
 	if [ "$MB_OPEN" != -1 ]; then
 		dt_mkey "$k" && return 0
 		return 0
+	fi
+	# A bar item's panel takes the keys it has a use for; escape closes
+	# it, and any other key closes it and then goes where it would have.
+	if [ -n "$DT_POP" ]; then
+		if [ "$k" = escape ]; then
+			dt_popclose
+			return 0
+		fi
+		if dt_has "${DT_POP}_popkey" && "${DT_POP}_popkey" "$k"; then
+			dt_want 10
+			return 0
+		fi
+		dt_popclose
 	fi
 	# The strip takes left/right ahead of the focused window once CS_ATTN
 	# has been given to it explicitly by its own shortcut -- there is no

@@ -120,6 +120,96 @@ fn dt_bariwheel(name, fn) {
 	DT_BARI["$name"]["wheel"]=$fn
 }
 
+# What a right click on an item runs, its words kept as words; an item
+# with none runs the same thing for either button.
+fn dt_bariright(name, ...cmd) {
+	local i=0
+
+	DT_BARI["$name"]["rargc"]=${#cmd[@]}
+	while [ "$i" -lt "${#cmd[@]}" ]; do
+		DT_BARI["$name"]["r$i"]=${cmd[$i]}
+		i=$((i + 1))
+	done
+}
+
+
+# A small panel of an item's own beneath it -- the speaker's volume slider
+# (Gitea #310) -- placed as an item's menu is, at the first row under the
+# bar and the item's own column, kept on the primary. It is drawn over the
+# finished frame like a menu and goes like one: a press outside it, escape,
+# or any key its owner has no use for. Its owner offers <who>_popdraw (row,
+# column, height, width, all on the screen), <who>_popmouse (an action --
+# press, drag, release, or up and down for the wheel -- and a row and column inside
+# the panel, counted from 0) and, if it takes keys, <who>_popkey.
+DT_POP=
+DT_POPITEM=
+DT_POPR=0
+DT_POPC=0
+DT_POPH=0
+DT_POPW=0
+DT_POPHELD=
+fn dt_baripop(name, who, int h, int w) {
+	local r c pl pr pbot
+
+	if [ "$DT_POP" = "$who" ]; then
+		dt_popclose
+		return 0
+	fi
+	dt_mclose
+	r := dt_ptop
+	pbot := dt_pbot
+	c=${DT_BARI["$name"]["c"]:-${DT_PRIMARY_COL:-0}}
+	pl=${DT_PRIMARY_COL:-0}
+	pr=$((pl + ${DT_PRIMARY_W:-$DT_COLS}))
+	[ $((c + w)) -gt "$pr" ] && c=$((pr - w))
+	[ "$c" -lt "$pl" ] && c=$pl
+	[ $((r + h)) -gt "$pbot" ] && h=$((pbot - r))
+	DT_POP=$who
+	DT_POPITEM=$name
+	DT_POPR=$r
+	DT_POPC=$c
+	DT_POPH=$h
+	DT_POPW=$w
+	DT_POPHELD=
+	dt_want 10
+}
+
+fn dt_popclose() {
+	[ -n "$DT_POP" ] || return 0
+	DT_POP=
+	DT_POPITEM=
+	DT_POPHELD=
+	dt_want 10
+}
+
+# Whether screen row r, column c is inside the open panel.
+fn dt_pophit(int r, int c) {
+	[ -n "$DT_POP" ] || return 1
+	[ "$r" -ge "$DT_POPR" ] && [ "$r" -lt $((DT_POPR + DT_POPH)) ] &&
+		[ "$c" -ge "$DT_POPC" ] && [ "$c" -lt $((DT_POPC + DT_POPW)) ]
+}
+
+# Tell the owner about the mouse, at screen row r, column c.
+fn dt_popmouse(act, int r, int c) {
+	"${DT_POP}_popmouse" "$act" $((r - DT_POPR)) $((c - DT_POPC))
+	dt_want 10
+}
+
+# Draw the open panel, with a shadow as a menu has one, -s so a panel drawn
+# on every frame it stays open is not darker each time.
+dt_popdraw() {
+	[ -n "$DT_POP" ] || return 0
+	if ! dt_has "${DT_POP}_popdraw"; then
+		DT_POP=
+		return 0
+	fi
+	[ "$DT_MSHADOW" = 1 ] &&
+		console darken -s $((DT_POPR + 1)) $((DT_POPC + 2)) "$DT_POPH" "$DT_POPW" "$DT_SHADOW_PCT"
+	console pen "$DT_INK" "$DT_FACE"
+	console fill "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW" " "
+	"${DT_POP}_popdraw" "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW"
+}
+
 # Which item is at column c on the bar, if any. A bare `return 1` on a
 # miss and no `ret ""`: ret ends the function, so the caller of a `:=`
 # would see status 0 and the slot's last value -- the trap dt_mhit's own
@@ -137,14 +227,19 @@ fn dt_barihit(int c) {
 	return 1
 }
 
-# Run what an item was registered with, its words as words.
-fn dt_barido(name) {
-	local i=0 n=${DT_BARI["$name"]["argc"]:-0}
+# Run what an item was registered with, its words as words -- or, for a
+# right click, what dt_bariright gave it, when it gave anything.
+fn dt_barido(name, btn = "") {
+	local i=0 n=${DT_BARI["$name"]["argc"]:-0} p=a
 	local -a a
 
+	if [ "$btn" = right ] && [ "${DT_BARI["$name"]["rargc"]:-0}" -gt 0 ]; then
+		n=${DT_BARI["$name"]["rargc"]}
+		p=r
+	fi
 	[ "$n" -gt 0 ] || return 0
 	while [ "$i" -lt "$n" ]; do
-		a+=("${DT_BARI["$name"]["a$i"]}")
+		a+=("${DT_BARI["$name"]["$p$i"]}")
 		i=$((i + 1))
 	done
 	"${a[@]}"

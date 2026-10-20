@@ -675,11 +675,17 @@ check("the display asks the terminal what its background is",
       b"\x1b]11;?" in out)
 check("and asks for the palette entries an index can name",
       b"\x1b]4;0;?" in out and b"\x1b]4;15;?" in out)
+# The answer is waited for rather than given a fixed 400 ms: under a full
+# gate's eighty ptys it once took longer, and the check read "assumed"
+# (0 of 40 alone or under six spinners). Bounded, so a terminal that answers
+# nothing still ends in four seconds.
+WAITBG = ('for i in 1 2 3 4 5 6 7 8 9 10; do console key 400 > /dev/null; '
+          'b := console termbg; [[ $b == *answered* ]] && break; done\n')
 # And this one only means anything beside the two above: a release that
 # never asked would pass it for nothing, since nothing would answer. So it
 # reads both halves -- the answer arrived (the display knows the colour)
 # and no part of it reached the screen as text.
-sc = run("console key 400 > /dev/null\n"
+sc = run(WAITBG +
          "b := console termbg\n"
          "console put 1 1 \"$b\"\n"
          "console flush\n", bg="#101418")
@@ -688,14 +694,14 @@ check("the answer is taken as an answer, never typed in as a key",
       and "]11" not in sc.text(), sc.row(1))
 
 # The answer is what it then compares a cell's background against.
-TBG = ("console key 400 > /dev/null\n"
+TBG = (WAITBG +
        "b := console termbg\n"
        "console put 1 1 \"$b\"\n"
        "console flush\n")
 sc = run(TBG, bg="#101418")
 check("and it keeps what the terminal answered",
       sc.row(1).strip() == "#101418 answered", sc.row(1))
-sc = run(TBG)
+sc = run(TBG.replace(WAITBG, "console key 400 > /dev/null\n"))
 check("a terminal that answers nothing leaves black assumed",
       sc.row(1).strip() == "#000000 assumed", sc.row(1))
 

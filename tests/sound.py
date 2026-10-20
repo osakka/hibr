@@ -15,7 +15,7 @@ import math, os, re, shutil, struct, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, tree, load, press, release
+from screen import Term, check, report, tree, load, press, release, drag, wheel
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -206,6 +206,19 @@ def bar(sc):
     return sc.row(0)
 
 
+def slider(sc, top=1):
+    """The slider's level row and its track's column: the first row under
+    the bar with a percentage, and the column of the thumb below it."""
+    lv = sc.find_from("%", top)
+    if lv is None:
+        return None
+    for r in range(lv[0] + 1, lv[0] + 12):
+        c = sc.row(r).find("\u2588")
+        if c >= 0:
+            return (lv[0], c)
+    return None
+
+
 try:
     reset()
     sc = srun([])
@@ -286,18 +299,61 @@ try:
     check("the wheel over the speaker turns the volume", volume("spk") == 55,
           (volume("spk"), bar(sc)))
 
-    # The sound menu: a click on the speaker opens it, with the outputs and
-    # the one in use ticked; choosing another makes it the server's default.
+    # A left click on the speaker opens the volume as a slider beneath it
+    # (Gitea #310): the level, a track with its thumb where the level is,
+    # and the mute -- and not the menu, which is the right click's.
     reset()
-    sc = srun([press(0, col), release(0, col)], until="Headphones")
-    check("a click on the speaker opens the sound menu: the level, the outputs, the inputs",
+    sc = srun([press(0, col), release(0, col)],
+              until=lambda sc: slider(sc) is not None)
+    sl = slider(sc)
+    check("a left click on the speaker opens a volume slider beneath it, not the menu",
+          sl is not None and sl[0] == 1 and sc.find_from("50%", 1) is not None and
+          sc.find("Headphones") is None, sc)
+    if sl:
+        tr, tc = sl[0] + 1, sl[1]
+        sc = srun([press(0, col), release(0, col), 0.3, press(tr + 2, tc), release(tr + 2, tc)],
+                  until=lambda sc: volume("spk") == 78)
+        check("a click on its track puts the volume where it lands",
+              volume("spk") == 78, sc)
+        reset()
+        thumb = tr + 4
+        sc = srun([press(0, col), release(0, col), 0.3, press(thumb, tc), drag(thumb + 2, tc),
+                   drag(tr + 9, tc), drag(tr + 12, tc), release(tr + 12, tc)],
+                  until=lambda sc: volume("spk") == 0)
+        check("and dragging its thumb carries the volume, past the end of the track too",
+              volume("spk") == 0, sc)
+        reset()
+        sc = srun([press(0, col), release(0, col), 0.3, wheel(tr + 3, tc), wheel(tr + 3, tc)],
+                  until=lambda sc: volume("spk") == 60)
+        check("the wheel over the slider steps the volume", volume("spk") == 60,
+              (volume("spk"), sc))
+        reset()
+        sc = srun([press(0, col), release(0, col), 0.3, press(tr + 10, tc), release(tr + 10, tc)],
+                  until=lambda sc: muted("spk"))
+        check("the speaker at its foot mutes", muted("spk"), (muted("spk"), sc))
+        reset()
+        sc = srun([press(0, col), release(0, col), 0.3, b"\x1b", 0.3])
+        check("and escape closes it", slider(sc) is None, sc)
+        sc = srun([press(0, col), release(0, col), 0.3, press(20, 60), release(20, 60), 0.3])
+        check("as a click anywhere else does", slider(sc) is None and volume("spk") == 50, sc)
+        sc = srun([press(0, col), release(0, col), 0.3, press(0, col, 2), release(0, col, 2)],
+                  until="Headphones")
+        check("and a right click on the speaker while it is open swaps it for the menu",
+              slider(sc) is None and sc.find("Headphones") is not None, sc)
+
+    # The sound menu: a right click on the speaker opens it, with the
+    # outputs and the one in use ticked; choosing another makes it the
+    # server's default.
+    reset()
+    sc = srun([press(0, col, 2), release(0, col, 2)], until="Headphones")
+    check("a right click on the speaker opens the sound menu: the level, the outputs, the inputs",
           sc.find("Volume 50%") is not None and sc.find("Speakers") is not None and
           sc.find("Headphones") is not None and sc.find("Microphone") is not None, sc)
     hp = sc.find("Headphones")
     tick = sc.find("✓ Speakers") or sc.find("✓Speakers")
     check("and the output in use is ticked", tick is not None, sc)
     if hp:
-        sc = srun([press(0, col), release(0, col), 0.6, press(hp[0], hp[1] + 2),
+        sc = srun([press(0, col, 2), release(0, col, 2), 0.6, press(hp[0], hp[1] + 2),
                    release(hp[0], hp[1] + 2)],
                   until=lambda sc: pa("get-default-sink").strip() == "hp")
     check("choosing Headphones there makes it the output the server uses",
@@ -336,10 +392,14 @@ try:
              'DT_PRIMARY_ROW=10\nDT_PRIMARY_H=20\n')
     sc = srun([], pre=stack, until=lambda sc: "♪" in sc.row(10))
     scol = sc.row(10).find("♪")
-    sc = srun([press(10, scol), release(10, scol)], pre=stack, until="Headphones")
+    sc = srun([press(10, scol, 2), release(10, scol, 2)], pre=stack, until="Headphones")
     hp2 = sc.find("Headphones")
     check("with the bar on a display below another, the sound menu opens under it",
           scol > 0 and hp2 is not None and hp2[0] > 10, (scol, hp2, sc))
+    sc = srun([press(10, scol), release(10, scol)], pre=stack,
+              until=lambda sc: slider(sc, 11) is not None)
+    sl2 = slider(sc, 11)
+    check("and so does the slider", sl2 is not None and sl2[0] == 11, (sl2, sc))
 
     # Control Panel > Sound.
     reset()
@@ -417,10 +477,10 @@ try:
         check("and alt-= turns PipeWire's own volume up",
               "Volume: 0.45" in wp("get-volume", spk), wp("get-volume", spk))
         col2 = bar(sc).find("♪")
-        sc = srun([press(0, col2), release(0, col2), 0.6], rt=RT2, until="Headphones")
+        sc = srun([press(0, col2, 2), release(0, col2, 2), 0.6], rt=RT2, until="Headphones")
         h4 = sc.find("Headphones")
         if h4:
-            sc = srun([press(0, col2), release(0, col2), 0.6, press(h4[0], h4[1] + 2),
+            sc = srun([press(0, col2, 2), release(0, col2, 2), 0.6, press(h4[0], h4[1] + 2),
                        release(h4[0], h4[1] + 2)], rt=RT2,
                       until=lambda sc: wdefault("Sinks") == "Headphones")
         check("choosing Headphones makes it PipeWire's output, and the input stays",
@@ -452,7 +512,7 @@ try:
     # apart: one card for both was what chose the input with the output.
     rc = os.path.join(D, "asoundrc-alsa")
     out = subprocess.run([sx.HIBR, "-c",
-        "fn dt_baritem(...a) { :; }\nfn dt_bariwheel(...a) { :; }\nfn dt_ticker(n) { :; }\n"
+        "fn dt_baritem(...a) { :; }\nfn dt_bariwheel(...a) { :; }\nfn dt_bariright(...a) { :; }\nfn dt_ticker(n) { :; }\n"
         "fn dt_notep(...a) { :; }\nfn dt_want(n) { :; }\ndeclare -gA GL DT_KEYS\n"
         ". %s\nDT_SND[\"kind\"]=alsa\nDT_SND[\"in\"]=2\nDT_SND[\"out\"]=1\n"
         "dt_sndrcwrite 1 2\nr := dt_sndacard; echo \"first $r\"\n"
@@ -512,4 +572,4 @@ finally:
     shutil.rmtree(RT, True)
     shutil.rmtree(RT2, True)
     shutil.rmtree(D, True)
-report(27)
+report(36)

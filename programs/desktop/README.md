@@ -800,9 +800,13 @@ offers to record it in your copy, and a cancellation to remove it.
 
 The machine's sound is the desktop's (Gitea #306): a speaker on the menu
 bar shows the volume of the output in use -- `♪ 50%`, or `♪ ✕` muted --
-and a click opens the sound menu beneath it: the level, Volume Up, Volume
-Down and Mute with their keys, the outputs and the inputs with the one in
-use ticked, and Sound Settings…; the wheel over it turns the volume.
+and a click opens the volume beneath it as a slider: the level, a track to
+click or drag the thumb along, and the speaker at its foot, which mutes;
+the wheel over it, or the arrow keys while it is open, step the volume, and
+escape or a click anywhere else closes it (Gitea #310). A right click opens
+the sound menu instead: the level, Volume Up, Volume Down and Mute with
+their keys, the outputs and the inputs with the one in use ticked, and
+Sound Settings…; the wheel over the speaker itself turns the volume too.
 `alt-=` and `alt--` turn it up and down a step, `alt-0` mutes, each saying
 the level in a note -- rows in Control Panel > Shortcuts, like every key
 the desktop holds; a keyboard's own volume keys never reach a terminal.

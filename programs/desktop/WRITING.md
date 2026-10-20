@@ -490,8 +490,19 @@ a strip module. `CS_MODDIRS` (default `~/.config/hibr/control-strip`) and
 The menu bar takes items too, since 0.99.129: `dt_baritem name text
 [cmd...]`, drawn left of the notification icon, and clicked it runs the
 words it was given; `dt_bariwheel name fn` has the wheel over it call `fn
-up` or `fn down`, which is how the speaker turns the volume (Gitea #306).
-The two look similar and are for different things.
+up` or `fn down`, which is how the speaker turns the volume (Gitea #306);
+and `dt_bariright name cmd...` gives a right click words of its own, so the
+speaker's left click can be the slider and its right click the menu
+(Gitea #310). An item's menu opens with `dt_barmenu name who`, built by
+`<who>_context`; a small panel of its own -- the slider -- with
+`dt_baripop name who h w`, placed the same way and drawn over the frame
+like a menu, through `<who>_popdraw row col h w`, `<who>_popmouse act row
+col` (press, drag, release, or up and down for the wheel, counted from the panel's
+own top left; a press held inside it gets the drag wherever it goes) and,
+for keys, `<who>_popkey key`, which answers 1 for a key it has no use for.
+It closes on escape, a press outside it, or any key it turns down, which
+then goes where it would have. The two look similar and are for different
+things.
 
 A **strip module** is a glyph and a click, and **the person decides where it
 sits** -- they dock the strip, size it, scroll it, drag it about. It is a

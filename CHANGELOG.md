@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.267
+
+**A left click on the menu bar's speaker opens the volume as a slider**
+(Gitea #310). Beneath the speaker, as its menu opens: the level, a track to
+click or drag the thumb along -- 100% at the top, and a drag past either
+end goes to it -- and the speaker at its foot, which mutes. The wheel over
+it and the arrow keys step the volume, page up and down four steps, home
+and end go to the top and the bottom, and escape or a click anywhere else
+closes it, like a menu. A right click on the speaker opens the sound menu
+as a left click did before. Any bar item can have such a panel now
+(`dt_baripop`) and a right click of its own (`dt_bariright`), in
+`programs/desktop/WRITING.md`.
+
 ## 0.99.266
 
 **X Screen can close a program's window when the program ends** (Gitea

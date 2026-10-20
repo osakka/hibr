@@ -408,7 +408,8 @@ dt_sndbar() {
 	else
 		t=${GL[sound]}
 	fi
-	dt_baritem sound "$t" dt_sndmenu
+	dt_baritem sound "$t" dt_sndslider
+	dt_bariright sound dt_sndmenu
 	dt_bariwheel sound dt_sndwheel
 }
 
@@ -518,9 +519,15 @@ fn dt_sndvol(int v) {
 # A step up (1) or down (-1), by Control Panel > Sound > Volume Step; a
 # step up takes the mute off, as a speaker's own knob would.
 fn dt_sndstep(int d) {
+	dt_sndnudge "$d"
+	dt_sndnote
+}
+
+# The same step with nothing said, for the slider, which shows the level
+# itself.
+fn dt_sndnudge(int d) {
 	[ "$d" -gt 0 ] && [ "${DT_SND["mute"]}" = 1 ] && dt_sndmute
 	dt_sndvol $((${DT_SND["vol"]:-0} + d * ${DT_SNDSTEP:-5}))
-	dt_sndnote
 }
 
 # Say the level a key left it at, as a note, so a key pressed with the bar
@@ -686,9 +693,122 @@ fn dt_sndwheel(dir) {
 	return 0
 }
 
-# The sound menu, opened beneath the speaker.
+# The sound menu, opened beneath the speaker by a right click.
 dt_sndmenu() {
 	dt_barmenu sound snd
+}
+
+# A left click on the speaker: the volume as a slider beneath it (Gitea
+# #310) -- the level above, a track to click or drag along, the mute below.
+dt_sndslider() {
+	dt_baripop sound snd 12 6
+}
+
+# Where the slider was pressed: the track, the mute, or nothing.
+DT_SNDTRK=
+
+# The slider: the level on row 0, the track down the middle column of
+# rows 1 to h-2 with 100% at the top, and the speaker on the last row,
+# which mutes. What is under the thumb is the accent, what is above it the
+# idle colour, and all of it idle while muted.
+fn snd_popdraw(int r, int c, int h, int w) {
+	local n v t i x lb on=$DT_ACTIVE
+
+	case ${DT_SND["kind"]:-none} in
+	pulse | pw | alsa) ;;
+	*) dt_popclose; return 0 ;;
+	esac
+	n=$((h - 2))
+	[ "$n" -ge 2 ] || return 0
+	v=${DT_SND["vol"]:-0}
+	[ "${DT_SND["mute"]}" = 1 ] && on=$DT_IDLE
+	t := dt_sndrow "$v" "$n"
+	x=$((c + w / 2))
+	lb="$v%"
+	if [ "${DT_SND["mute"]}" = 1 ]; then
+		console pen "$DT_IDLE" "$DT_FACE"
+	else
+		console pen "$DT_INK" "$DT_FACE" bold
+	fi
+	console put "$r" $((c + (w - ${#lb} + 1) / 2)) "$lb"
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		if [ "$i" = "$t" ]; then
+			console pen "$on" "$DT_FACE"
+			console put $((r + 1 + i)) "$x" "${GL[block]}"
+		elif [ "$i" -gt "$t" ]; then
+			console pen "$on" "$DT_FACE"
+			console put $((r + 1 + i)) "$x" "${GL[vline]}"
+		else
+			console pen "$DT_IDLE" "$DT_FACE"
+			console put $((r + 1 + i)) "$x" "${GL[vline]}"
+		fi
+		i=$((i + 1))
+	done
+	if [ "${DT_SND["mute"]}" = 1 ]; then
+		console pen "$DT_WARN" "$DT_FACE"
+		lb=${GL[soundoff]}
+	else
+		console pen "$DT_INK" "$DT_FACE"
+		lb=${GL[sound]}
+	fi
+	i := str width "$lb"
+	console put $((r + h - 1)) $((c + (w - i) / 2)) "$lb"
+}
+
+# The track row, counted from 0 at the top, that a level stands on, of n.
+fn dt_sndrow(int v, int n) {
+	ret $(((100 - v) * (n - 1) / 100))
+}
+
+# The level a track row stands for, rounded, kept to 0..100.
+fn dt_sndlevel(int row, int n) {
+	[ "$row" -lt 0 ] && row=0
+	[ "$row" -gt $((n - 1)) ] && row=$((n - 1))
+	ret $((((n - 1 - row) * 100 + (n - 1) / 2) / (n - 1)))
+}
+
+# A press on the track puts the level where it lands and holds it for the
+# drag; a press on the speaker mutes; the wheel steps.
+fn snd_popmouse(act, int r, int c) {
+	local n=$((DT_POPH - 2)) v
+
+	[ "$n" -ge 2 ] || return 0
+	case $act in
+	press)
+		DT_SNDTRK=
+		if [ "$r" = $((DT_POPH - 1)) ]; then
+			dt_sndmute
+			return 0
+		fi
+		[ "$r" -ge 1 ] && [ "$r" -le "$n" ] || return 0
+		DT_SNDTRK=1
+		;;
+	drag) [ "$DT_SNDTRK" = 1 ] || return 0 ;;
+	release) DT_SNDTRK=; return 0 ;;
+	up) dt_sndnudge 1; return 0 ;;
+	down) dt_sndnudge -1; return 0 ;;
+	*) return 0 ;;
+	esac
+	v := dt_sndlevel $((r - 1)) "$n"
+	[ "$v" -gt 0 ] && [ "${DT_SND["mute"]}" = 1 ] && dt_sndmute
+	[ "$v" = "${DT_SND["vol"]}" ] || dt_sndvol "$v"
+}
+
+# The keys the slider takes: up and down step, page up and down step four
+# times, home and end go to the top and the bottom, m mutes.
+fn snd_popkey(k) {
+	case $k in
+	up | right) dt_sndnudge 1 ;;
+	down | left) dt_sndnudge -1 ;;
+	pageup) dt_sndnudge 4 ;;
+	pagedown) dt_sndnudge -4 ;;
+	home) dt_sndvol 100 ;;
+	end) dt_sndvol 0 ;;
+	m) dt_sndmute ;;
+	*) return 1 ;;
+	esac
+	return 0
 }
 
 # What the sound menu holds: the level, up, down and mute with their keys,
