@@ -40,7 +40,7 @@ req=$json
 if [ -z "$req" ]; then
 	op=${1-}
 	case $op in
-	displays | windows | session | rescan) req="{\"op\":\"$op\"}" ;;
+	displays | windows | session | rescan | state) req="{\"op\":\"$op\"}" ;;
 	move)
 		[ $# -eq 3 ] || { echo "usage: desktop ctl move ID DISPLAY" >&2; exit 2; }
 		i := ctl_num "$2"
@@ -60,7 +60,7 @@ if [ -z "$req" ]; then
 		req="{\"op\":\"$op\",\"id\":$i}"
 		;;
 	*)
-		echo "usage: desktop ctl displays|windows|session|rescan|move|resize|focus ..." >&2
+		echo "usage: desktop ctl displays|windows|session|rescan|state|move|resize|focus ..." >&2
 		exit 2
 		;;
 	esac

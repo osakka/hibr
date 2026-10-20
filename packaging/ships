@@ -35,6 +35,7 @@ apps/Accessories/imgview.hibr
 # them open.
 control-panel/aboutme.hibr
 control-panel/appearance.hibr
+control-panel/bluetooth.hibr
 control-panel/control-strip.hibr
 control-panel/datetime.hibr
 control-panel/desktop.hibr

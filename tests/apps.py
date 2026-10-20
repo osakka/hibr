@@ -316,7 +316,7 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + 'for p in "${CP_PANE_LIST[@]}"; '
 ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
-      ORDER == ["datetime", "displays", "keyboard", "mouse", "networks", "sound",
+      ORDER == ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "sound",
                 "aboutme", "abouthibr", "appearance", "cliphist",
                 "control_strip", "desktop", "filetypes", "language",
                 "notify", "pictures", "screensaver", "network", "shortcuts",
@@ -325,7 +325,7 @@ check("panes register and sort by title within their group, not load order",
                 "notes", "terminal", "vaultset", "xscreenset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 6 + ["system"] * 17 + ["app"] * 10, out)
+      ["hardware"] * 7 + ["system"] * 17 + ["app"] * 10, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -360,7 +360,7 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types", "language": "Language",
-         "network": "Servers", "networks": "Network", "prayerset": "Prayer Times", "vaultset": "Vault",
+         "network": "Servers", "networks": "Network", "bluetooth": "Bluetooth", "prayerset": "Prayer Times", "vaultset": "Vault",
          "pictures": "Pictures",
          "screensaver": "Screen Saver",
          "keyboard": "Keyboard", "mouse": "Mouse", "sound": "Sound",
@@ -525,7 +525,7 @@ check("the wheel over the list scrolls the list, not the pane beside it",
 sc = cprun()
 check("the first pane's own rows show on the right without entering it",
       sc.find(TITLE[ORDER[0]]) is not None and
-      sc.find("Change…") is not None, sc)
+      sc.find("Bluetooth System") is not None, sc)
 
 # Every dropdown in every pane, walked the same way: open it by clicking its
 # value, take the next choice with the keyboard, and see the value change.
@@ -2003,7 +2003,7 @@ check("clicking a pane in the picker shows it, the headings counted",
       brow(sc, "Digits") != "", sc)
 sc = cprun([press(R0 - 1, LISTCOL)])
 check("and clicking a heading shows nothing new",
-      sc.find("Change…") is not None, sc)
+      sc.find("Bluetooth System") is not None, sc)
 
 sc2 = run("tasks", "16 50 4 4", feed=[b"\x1b\x14"], extra=("term",))
 check("alt-ctrl-t opens a terminal, even with another app focused",
@@ -5052,4 +5052,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(670)
+report(671)

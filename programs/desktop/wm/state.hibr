@@ -194,3 +194,51 @@ DT_QWAIT=
 # And whether it was a drag or a wheel, either of which dt_run will not draw
 # while the next report is already waiting.
 DT_LASTMOVE=0
+
+# Start a watcher -- a program kept running for what it prints when
+# something changes (`pactl subscribe`, `pw-mon`, `nmcli monitor`, an idle
+# `bluetoothctl`) -- in a process group of its own that ends with the
+# desktop. Its first line is the group's own id, so a clean stop ends the
+# whole group however setsid placed it; and a guard inside the group ends
+# it within five seconds of the desktop's pid going away, which is the only
+# end a desktop killed with -9 gives -- until 0.99.271 such a watcher
+# lingered until its next event, and a sleep feeding bluetoothctl for ever.
+# Gone means no /proc entry or a zombie: `kill -0` answers for a zombie,
+# so a desktop killed but not yet reaped would have kept its watcher.
+# Where there is no setsid (macOS) the guard is left out, since `kill 0`
+# there would be the desktop's own group. The descriptor and the group land
+# in DT_WFD and DT_WPID; the command is sh's. Each start and stop goes in
+# the log, and DT_WATCHES keeps them by descriptor for `desktop ctl state`:
+# a desktop found spinning on a watched pipe nobody read (Gitea #323) left
+# nothing anywhere to say which watcher it was.
+DT_WFD=
+DT_WPID=
+declare -gA DT_WATCHES=()
+fn dt_watchstart(cmd) {
+	DT_WFD=
+	DT_WPID=
+	if command -v setsid > /dev/null; then
+		exec {DT_WFD}< <(exec setsid sh -c 'echo "$$"; d=$1
+			(while s=$(cut -d")" -f2- "/proc/$d/stat" 2> /dev/null) &&
+			       case $s in " Z"* | " X"*) false ;; esac; do sleep 5; done; kill 0) > /dev/null &
+			eval "$2"' sh "$$" "$cmd" 2> /dev/null)
+		read -r -t 5 -u "$DT_WFD" DT_WPID || DT_WPID=
+	else
+		exec {DT_WFD}< <(exec sh -c "$cmd" 2> /dev/null)
+	fi
+	DT_WATCHES["$DT_WFD"]="${DT_WPID:--} $cmd"
+	echo "desktop: watching on descriptor $DT_WFD, group ${DT_WPID:-none}: $cmd" >&2
+	return 0
+}
+
+# Stop one: close what it writes to, and end its group.
+fn dt_watchstop(fd = "", pid = "") {
+	if [ -n "$fd" ]; then
+		command -v console > /dev/null && console unwatch "$fd" 2> /dev/null
+		exec {fd}<&-
+		unset DT_WATCHES["$fd"]
+	fi
+	[ -n "$pid" ] && kill -- "-$pid" 2> /dev/null
+	[ -n "$fd$pid" ] && echo "desktop: stopped watching descriptor ${fd:-none}, group ${pid:-none}" >&2
+	return 0
+}

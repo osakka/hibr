@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.99.271
+
+**Bluetooth on the menu bar, and Control Panel > Bluetooth** (Gitea #312).
+An item beside the network's shows Bluetooth's sign with how many devices
+are connected, or that it is off. A left click lists the devices it knows
+-- connected ones ticked, with their battery -- and any in reach, to pair;
+a click connects, disconnects or pairs. A right click opens the Bluetooth
+menu. Pairing runs an interactive bluetoothctl on a pty with an agent, and
+asks what the agent asks in a window: confirm a passkey both show, type a
+PIN, or type the number shown on a keyboard; then trusts and connects.
+Connecting, scanning and forgetting run in the background and say how they
+went, in words. The pane has the Bluetooth System (Auto, BlueZ, None), the
+adapter, Bluetooth and Visible to Others, My Devices with Forget a Device,
+Other Devices with Look for Devices, and Bluetooth on Menu Bar. Built
+against a stand-in for bluetoothctl whose show, devices and info are byte
+for byte the owner's own bluetoothctl 5.82; its replies to actions and the
+agent's questions are bluez's own words from its source, not yet captured
+from a real pairing.
+
+**A forked child no longer touches the terminal its parent's console holds**
+(Gitea #320). The console's cleanup on a fatal signal -- restore the
+terminal's modes, leave the alternate screen -- is installed when a display
+opens and inherited by every fork, and ran in whichever process the signal
+reached. A background child ended with SIGTERM was stopped by SIGTTOU for
+setting the terminal's modes: the login screen's watchdog left two root
+processes stopped for a session's whole life under Blit. Any other child
+would have taken the display out of the alternate screen under the desktop
+still drawing on it. Only the process that opened the console cleans up
+now; a child takes the signal's default and leaves the terminal alone, and a
+child's `console close` only forgets it. Found and reproduced by the Blit
+side.
+
+**Exactly one process is called `desktop [desktop::NAME]`** (Gitea #323).
+The supervisor wore the same `[session::NAME]` as the desktop, so every
+session showed two of them, which reads as two desktops; it is
+`supervisor [NAME]` now, and the network and Bluetooth jobs name
+themselves for what they do, as every other job already did.
+
+**A watcher ends with its desktop, however the desktop ends.** The sound,
+network and Bluetooth watchers (`pactl subscribe`, `pw-mon`, `nmcli
+monitor`, an idle `bluetoothctl`) outlived a desktop killed with -9 -- until
+their next event, and Bluetooth's for ever. Each runs in a process group of
+its own now with a guard that ends the group within five seconds of the
+desktop's pid going away, a zombie counting as gone.
+
+**A desktop no longer spins at a whole core behind its screen saver or its
+lock** (Gitea #323). The saver's wait read what windows' programs wrote and
+nothing else. The sound, network and Bluetooth watchers, the control socket
+and the polkit agent are all read by tickers, and the tickers did not run
+there. So from the first event on any of them, every wait ended at once
+until a key came. A desktop nobody was looking at -- a second stack left
+in a terminal server's screen -- went round its loop 1,200 times a second
+at up to 82% of a core, with tens of thousands of `wait4` calls a second.
+Measured on a stand-in watcher: nothing read in two seconds of saver and a
+third of a core, against every line read and 1%. The tickers run in the
+saver's wait now.
+
+**The console stops waking for a watched pipe nobody reads, and says so.**
+If a pipe stays readable for two seconds and what is waiting never goes
+down, the console stops waking for it. That covers end of file, which is
+readable with nothing in it. The log names the descriptor. The pipe is
+looked at again once a second and woken for once something has read it.
+Only pipes: a terminal's pty may stay full while it is being read. This
+bounds what any such mistake can cost. It costs about 3 us a wait with
+three watchers, an `ioctl` and at most one `select` each.
+
+**`desktop ctl state`** says what the desktop is waiting on: its pid,
+whether the saver or the lock is up, each watcher's descriptor, process
+group and command, and what the console wakes for (`console watching`, a
+muted one marked). Each watcher's start and stop goes in the log.
+
 ## 0.99.270
 
 **The network on the menu bar, and Control Panel > Network** (Gitea #311).

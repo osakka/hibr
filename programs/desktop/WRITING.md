@@ -561,13 +561,20 @@ protocol and the pixel size of a cell. Those are the three things that
 decide a picture, so a wallpaper in half blocks says here which one is the
 reason.
 
+`state` is what the desktop is waiting on, read-only: its `pid`, whether
+the saver (`saving`) or the lock (`locked`) is up, each watcher it runs for
+sound, the network or Bluetooth (`fd`, process `group`, `cmd`), and
+`console`, the descriptors the console wakes for -- one marked `:muted` was
+found ready with nothing reading it and is no longer woken for, which the
+log names too.
+
 The socket is `${TMPDIR:-/tmp}/hibr-ctl-<uid>/<session>.ctl`, beside hold's
 own and outlasting a logout the same way, in a folder only its owner can
 enter; a connection from another user is refused. One request per
 connection, a line of JSON -- `{"op":"displays"}`, `{"op":"windows"}`,
 `{"op":"session"}`, `{"op":"move","id":3,"display":"right"}`,
 `{"op":"resize","id":3,"h":20,"w":60}`, `{"op":"focus","id":3}`,
-`{"op":"rescan"}` -- and one
+`{"op":"rescan"}`, `{"op":"state"}` -- and one
 line back, `{"ok":true,...}` or `{"ok":false,"error":...,"detail":...}`
 with the errors `bad-request`, `unknown-op`, `no-window`, `no-display`,
 `detached`, `bad-geometry` and `unauthorized`. `desktop ctl -j '{...}'`

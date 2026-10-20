@@ -436,12 +436,11 @@ dt_netstart() {
 	dt_netread
 	dt_netbar
 	case ${DT_NET["kind"]} in
-	nm)
-		exec {DT_NETFD}< <(LC_ALL=C exec nmcli monitor 2> /dev/null)
-		DT_NETPID=$!
-		;;
+	nm) dt_watchstart 'LC_ALL=C exec nmcli monitor' ;;
 	*) return 0 ;;
 	esac
+	DT_NETFD=$DT_WFD
+	DT_NETPID=$DT_WPID
 	command -v console > /dev/null && console watch "$DT_NETFD" 2> /dev/null
 	DT_NETAT=$EPOCHSECONDS
 }
@@ -449,15 +448,9 @@ dt_netstart() {
 # Stop watching, and end what was told to watch: at the desktop's close and
 # restart, and when NetworkManager goes.
 dt_netstop() {
-	if [ -n "$DT_NETFD" ]; then
-		command -v console > /dev/null && console unwatch "$DT_NETFD" 2> /dev/null
-		exec {DT_NETFD}<&-
-		DT_NETFD=
-	fi
-	if [ -n "$DT_NETPID" ]; then
-		kill "$DT_NETPID" 2> /dev/null
-		DT_NETPID=
-	fi
+	dt_watchstop "$DT_NETFD" "$DT_NETPID"
+	DT_NETFD=
+	DT_NETPID=
 	return 0
 }
 
@@ -536,7 +529,11 @@ fn dt_netjob(kind, what, ...cmd) {
 	done
 	[ "$kind" = join ] && DT_NET["busy"]=$what
 	DT_NET["err"]=
-	( "${cmd[@]}" > "$DT_NETJF.out" 2>&1; echo "$?" > "$DT_NETJF.st" ) &
+	(
+		command -v dt_jobname > /dev/null && dt_jobname "net:$kind" "$what"
+		"${cmd[@]}" > "$DT_NETJF.out" 2>&1
+		echo "$?" > "$DT_NETJF.st"
+	) &
 	DT_NETJOB=$!
 	dt_netbar
 	dt_want 300

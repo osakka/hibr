@@ -13,6 +13,7 @@
 int cn_fd = -1;
 int cn_own;
 int cn_on;
+pid_t cn_pid;
 struct termios cn_sv;
 volatile sig_atomic_t cn_winch;
 volatile sig_atomic_t cn_wgen;
@@ -326,10 +327,11 @@ void cn_onwinch(int n)
 	cn_wgen++;
 }
 
-/* Put the terminal back before a fatal signal is allowed to finish us. */
+/* Put the terminal back before a fatal signal is allowed to finish us -- in
+   the process that took it, and nowhere else. */
 void cn_onfatal(int n)
 {
-	if (cn_on && cn_fd >= 0) {
+	if (cn_on && cn_fd >= 0 && getpid() == cn_pid) {
 		tcsetattr(cn_fd, TCSANOW, &cn_sv);
 		cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 		cn_on = 0;
@@ -735,6 +737,7 @@ int cn_open(sh *s)
 	usleep(1000000);
 #endif
 	cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
+	cn_pid = getpid();
 	cn_hook();
 	cn_on = 1;
 	if (cn_mousemode) {
@@ -750,11 +753,23 @@ int cn_open(sh *s)
 	return HIBR_OK;
 }
 
-/* Give the terminal back exactly as it was found. */
+/* Give the terminal back exactly as it was found -- or, in a forked child,
+   only forget it: the terminal is the parent's, and a child that reset its
+   modes or left the alternate screen would take the display from under the
+   process still drawing on it. */
 void cn_close(sh *s)
 {
 	if (!cn_on)
 		return;
+	if (getpid() != cn_pid) {
+		lg(HIBR_LDBG, "screen forgotten in a forked child, left to its owner");
+		if (cn_own)
+			close(cn_fd);
+		cn_own = 0;
+		cn_fd = -1;
+		cn_on = 0;
+		return;
+	}
 	cn_imgclear();
 	if (cn_gfx(s) == CN_GFX_KITTY) {
 		str o;

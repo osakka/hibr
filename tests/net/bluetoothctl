@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""A stand-in for BlueZ's bluetoothctl, for tests/bt.py (Gitea #312).
+
+`show`, `devices` and `info` answer in the shapes captured from the owner's
+bluetoothctl 5.82 (tests/net/bt-*.txt): the controller's block, one
+"Device MAC name" a line, a device's block -- the captured text itself,
+with its values put in. What was not captured is bluez's own wording from
+its source, and says so where it is used: the replies to actions
+(client/main.c), a connected device's "Battery Percentage: 0x.. (N)", and
+an interactive session's agent questions (client/agent.c). Run with no
+command it is interactive: a watcher with nothing to read prints a [CHG]
+line whenever the state changes; a pairing session reads agent, pair,
+trust and connect commands and answers as bluez does.
+
+State is $HIBR_BTSTATE/state.json; every call's argv goes to argv.log."""
+import json
+import os
+import select
+import sys
+import time
+
+D = os.environ.get("HIBR_BTSTATE", "")
+ST = os.path.join(D, "state.json")
+HERE = os.path.dirname(os.path.realpath(__file__))
+
+
+def load():
+    with open(ST) as f:
+        return json.load(f)
+
+
+def save(s):
+    with open(ST + ".tmp", "w") as f:
+        json.dump(s, f)
+    os.replace(ST + ".tmp", ST)
+
+
+def say(t):
+    sys.stdout.write(t + "\n")
+    sys.stdout.flush()
+
+
+def dev(s, mac):
+    return next((d for d in s["devices"] if d["mac"] == mac), None)
+
+
+def show(s):
+    out = []
+    for l in open(os.path.join(HERE, "bt-show.txt")).read().splitlines():
+        k = l.strip().split(":")[0]
+        v = {"Powered": s["power"], "PowerState": "on" if s["power"] == "yes" else "off",
+             "Discoverable": s["disc"], "Discovering": s["scan"]}.get(k)
+        out.append("\t%s: %s" % (k, v) if v is not None and l.startswith("\t") else l)
+    print("\n".join(out))
+
+
+def info(d):
+    tpl = open(os.path.join(HERE, "bt-info.txt")).read().splitlines()
+    out = ["Device %s (%s)" % (d["mac"], d.get("addrtype", "random"))]
+    for l in tpl[1:]:
+        k = l.strip().split(":")[0]
+        v = {"Name": d["name"], "Alias": d["name"], "Icon": d.get("icon", "input-keyboard"),
+             "Paired": "yes" if d["paired"] else "no", "Bonded": "yes" if d["paired"] else "no",
+             "Trusted": "yes" if d.get("trusted") else "no",
+             "Connected": "yes" if d["connected"] else "no"}.get(k)
+        out.append("\t%s: %s" % (k, v) if v is not None else l)
+        if k == "Connected" and d["connected"] and d.get("battery") is not None:
+            out.append("\tBattery Percentage: 0x%02x (%d)" % (d["battery"], d["battery"]))
+    print("\n".join(out))
+
+
+def refuse(s, what):
+    """What the owner's session may not do -- state's refuse list --
+    answers as bluez does when D-Bus refuses it."""
+    if what in s.get("refuse", []):
+        say("Failed to %s: org.bluez.Error.NotPermitted" % what)
+        return True
+    return False
+
+
+def connect(s, mac):
+    d = dev(s, mac)
+    say("Attempting to connect to %s" % mac)
+    if not d or not d["paired"] or d.get("away"):
+        say("Failed to connect: org.bluez.Error.Failed br-connection-page-timeout")
+        return
+    d["connected"] = True
+    save(s)
+    say("[CHG] Device %s Connected: yes" % mac)
+    say("Connection successful")
+
+
+def interactive():
+    s = load()
+    pend = None
+    last = os.stat(ST).st_mtime_ns
+    while True:
+        r, _, _ = select.select([sys.stdin], [], [], 0.2)
+        try:
+            m = os.stat(ST).st_mtime_ns
+        except OSError:
+            m = last
+        if m != last:
+            last = m
+            say("[CHG] Controller %s Powered: %s" % ("C8:26:E2:59:1D:E4", load()["power"]))
+        if not r:
+            continue
+        l = sys.stdin.readline()
+        if not l:
+            return
+        l = l.strip()
+        s = load()
+        if pend:
+            kind, mac = pend
+            pend = None
+            d = dev(s, mac)
+            ok = (kind == "confirm" and l == "yes") or (kind == "pin" and l == d.get("pin"))
+            if ok:
+                d["paired"] = True
+                save(s)
+                say("[CHG] Device %s Paired: yes" % mac)
+                say("Pairing successful")
+            else:
+                say("Failed to pair: org.bluez.Error.%s" %
+                    ("AuthenticationRejected" if kind == "confirm" else "AuthenticationFailed"))
+            continue
+        w = l.split()
+        if not w:
+            continue
+        if w[0] == "agent":
+            say("Agent registered")
+        elif w[0] == "default-agent":
+            say("Default agent request successful")
+        elif w[0] == "pair" and len(w) > 1:
+            d = dev(s, w[1])
+            say("Attempting to pair with %s" % w[1])
+            if not d:
+                say("Failed to pair: org.bluez.Error.DoesNotExist")
+            elif d.get("pairmode") == "confirm":
+                say("Request confirmation")
+                sys.stdout.write("[agent] Confirm passkey 123456 (yes/no): ")
+                sys.stdout.flush()
+                pend = ("confirm", w[1])
+            elif d.get("pairmode") == "pin":
+                say("Request PIN code")
+                sys.stdout.write("[agent] Enter PIN code: ")
+                sys.stdout.flush()
+                pend = ("pin", w[1])
+            else:
+                d["paired"] = True
+                save(s)
+                say("[CHG] Device %s Paired: yes" % w[1])
+                say("Pairing successful")
+        elif w[0] == "trust" and len(w) > 1:
+            d = dev(s, w[1])
+            d["trusted"] = True
+            save(s)
+            say("[CHG] Device %s Trusted: yes" % w[1])
+            say("Changing %s trust succeeded" % w[1])
+        elif w[0] == "connect" and len(w) > 1:
+            connect(s, w[1])
+        elif w[0] in ("quit", "exit"):
+            return
+
+
+def main(a):
+    if D:
+        with open(os.path.join(D, "argv.log"), "a") as f:
+            f.write(json.dumps(a) + "\n")
+    while a and a[0].startswith("-"):
+        o = a.pop(0)
+        if o == "--timeout":
+            a.pop(0)
+        elif o == "--version":
+            print("bluetoothctl: 5.82")
+            return
+    if not a:
+        interactive()
+        return
+    s = load()
+    if not s.get("adapter", True):
+        print("No default controller available")
+        return
+    c = a.pop(0)
+    if c == "show":
+        show(s)
+    elif c == "devices":
+        f = a[0] if a else ""
+        for d in s["devices"]:
+            if (f == "Paired" and not d["paired"]) or (f == "Connected" and not d["connected"]):
+                continue
+            print("Device %s %s" % (d["mac"], d["name"]))
+    elif c == "info":
+        d = dev(s, a[0]) if a else None
+        if not d:
+            print("Device %s not available" % (a[0] if a else ""))
+            return
+        info(d)
+    elif c == "power":
+        if refuse(s, "set power " + a[0]):
+            return
+        s["power"] = "yes" if a[0] == "on" else "no"
+        if s["power"] == "no":
+            for d in s["devices"]:
+                d["connected"] = False
+        save(s)
+        say("Changing power %s succeeded" % a[0])
+    elif c == "discoverable":
+        s["disc"] = "yes" if a[0] == "on" else "no"
+        save(s)
+        say("Changing discoverable %s succeeded" % a[0])
+    elif c == "connect":
+        connect(s, a[0])
+    elif c == "disconnect":
+        d = dev(s, a[0])
+        say("Attempting to disconnect from %s" % a[0])
+        if d:
+            d["connected"] = False
+            save(s)
+            say("[CHG] Device %s Connected: no" % a[0])
+        say("Successful disconnected")
+    elif c == "remove":
+        d = dev(s, a[0])
+        if not d:
+            say("Device %s not available" % a[0])
+            return
+        s["devices"].remove(d)
+        save(s)
+        say("[DEL] Device %s %s" % (d["mac"], d["name"]))
+        say("Device has been removed")
+    elif c == "scan":
+        say("Discovery started")
+        s["scan"] = "yes"
+        save(s)
+        time.sleep(0.5)
+        s = load()
+        for d in s.get("inreach", []):
+            if not dev(s, d["mac"]):
+                s["devices"].append(d)
+                say("[NEW] Device %s %s" % (d["mac"], d["name"]))
+        s["scan"] = "no"
+        save(s)
+        say("Discovery stopped")
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except BrokenPipeError:
+        pass

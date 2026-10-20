@@ -102,7 +102,8 @@ and the flush cost shown live. Run it and press things.
 | `console link url\|-` | make later writes a link (OSC 8), or stop |
 | `console bell` | ring the terminal's bell |
 | `console notify text` | ask the terminal for a notification (OSC 9) |
-| `console watch fd` / `console unwatch fd` | let `console key` also wake when a descriptor is readable |
+| `console watch fd` / `console unwatch fd` | let `console key` also wake when a descriptor is readable; a watched pipe that stays readable for two seconds with nothing reading it is no longer woken for, and the log says which, until it is read again |
+| `console watching` | the watched descriptors, a muted one marked `:muted` |
 | `console consumed` | how many bytes of input have become keys |
 | `console pane name row col h w` | define a region, or move one |
 | `console pane name` | its row, column, height and width |

@@ -276,19 +276,27 @@ try:
     check("a volume changed by another program reaches the bar with nothing pressed",
           "♪ 30%" in bar(sc1), bar(sc1))
 
-    # The pactl the desktop watches goes when the desktop does.
-    time.sleep(0.5)
-    left = []
-    for d in os.listdir("/proc"):
-        if not d.isdigit():
-            continue
-        try:
-            cmd = open("/proc/%s/cmdline" % d, "rb").read().split(b"\0")
-            env = open("/proc/%s/environ" % d, "rb").read()
-        except OSError:
-            continue
-        if cmd[:2] == [b"pactl", b"subscribe"] and ("XDG_RUNTIME_DIR=" + RT).encode() in env:
-            left.append(d)
+    # The pactl the desktop watches goes when the desktop does: at once when
+    # the desktop stops itself, and within five seconds when it is killed
+    # outright, by the guard in the watcher's own process group.
+    def subscribers():
+        out = []
+        for d in os.listdir("/proc"):
+            if not d.isdigit():
+                continue
+            try:
+                cmd = open("/proc/%s/cmdline" % d, "rb").read().split(b"\0")
+                env = open("/proc/%s/environ" % d, "rb").read()
+            except OSError:
+                continue
+            if cmd[:2] == [b"pactl", b"subscribe"] and ("XDG_RUNTIME_DIR=" + RT).encode() in env:
+                out.append(d)
+        return out
+    end = time.time() + 7
+    left = subscribers()
+    while left and time.time() < end:
+        time.sleep(0.5)
+        left = subscribers()
     check("the pactl it watches is ended when the desktop ends", not left, left)
 
     # The wheel over the speaker.

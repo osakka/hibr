@@ -3089,7 +3089,7 @@ PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
 # what 0.99.126's regrouping made necessary: About This Computer and Task
 # Manager became the desktop's, Vault and Prayer Times the apps', and PIM
 # became Calendar & Contacts, so it sorts first among them now.
-ORDER = ["datetime", "displays", "keyboard", "mouse", "networks", "sound",
+ORDER = ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "sound",
          "aboutme", "abouthibr", "appearance", "cliphist", "control_strip",
          "desktop", "filetypes", "language", "notify", "pictures",
          "screensaver", "network", "shortcuts", "taskmgr", "windows",
@@ -4004,6 +4004,14 @@ rc, j = ctl("windows")
 fw = [w for w in j.get("windows", []) if w["title"].startswith("Files")]
 check("desktop ctl windows lists the Files window with its place and size",
       rc == 0 and len(fw) == 1 and all(k in fw[0] for k in ("id", "row", "col", "h", "w", "workspace", "focused")), j)
+# What the desktop waits on, read-only (Gitea #323): its pid, the saver and
+# the lock, each watcher, and what the console wakes for.
+rc, j = ctl("state")
+check("desktop ctl state names the desktop's pid, its watchers and what the "
+      "console wakes for",
+      rc == 0 and isinstance(j.get("pid"), int) and j.get("saving") is False
+      and isinstance(j.get("watchers"), list) and isinstance(j.get("console"), str)
+      and os.path.exists("/proc/%d" % j["pid"]), j)
 fid = str(fw[0]["id"]) if fw else "0"
 rc, j = ctl("move", fid, primary)
 t1.collect(1.0)
@@ -4632,7 +4640,7 @@ srch = sc.find("Displays")
 bar = [c for c in range(COLS) if sc.at(5, c) == "\u2502"][1]
 check("Control Panel's list of panes is on the right, its body on the left",
       srch is not None and srch[1] > 50 and
-      re.search(r"\u2502 \d\d:\d\d:\d\d", sc.row(2)) is not None, sc)
+      0 <= sc.row(2).find("Bluetooth System") < bar, sc)
 disp = sc.find("Displays")
 sc, _ = run(XYPANEL, feed=[press(disp[0], disp[1]), release(disp[0], disp[1])],
             env=XY, pre=CPAN)
@@ -4990,6 +4998,8 @@ t1.close()
 unstandby()
 
 # --- the screen saver --------------------------------------------------------
+
+SANSLOW = 4 if os.environ.get("ASAN_OPTIONS") else 1
 #
 # After the idle time a saver takes the screen; a key ends it and goes
 # nowhere else -- here q, the suite's quit key, which must not quit. The
@@ -5199,6 +5209,41 @@ os.unlink(path)
 check("the saver over a terminal that keeps writing costs little, not a "
       "core (%.0f%%)" % (used * 100), "\u2588" in sc.text() and used < 0.3, sc)
 
+# The saver's wait read what windows' programs wrote and nothing else, so a
+# watcher's pipe -- sound, the network, Bluetooth, the control socket, the
+# polkit agent, every one read by a ticker -- ended each of its waits at once
+# from the first event until a key: an unwatched desktop with its saver up
+# went round at 82% of a core (Gitea #323). The tickers run there too now;
+# the ticker here counts what it read while the saver was up, and the
+# console's own guard, were the pipe left unread, would log a line the
+# session's error check refuses.
+mark = scratch("desktop-saverwatch.mark")
+path = scratch("desktop-saverwatch.hibr")
+open(path, "w").write(
+    "%s. %s\n%s\nTK_N=0\ntk_tick() {\n\tlocal l\n\t[ -n \"$TK_FD\" ] || return 0\n"
+    "\twhile read -t 0 -u \"$TK_FD\"; do IFS= read -r -u \"$TK_FD\" l || break; "
+    "[ -n \"$DT_SAVING\" ] && TK_N=$((TK_N + 1)); done\n"
+    "\techo \"$TK_N\" > %s\n}\ndt_ticker tk_tick\ndt_open\n"
+    "dt_watchstart 'while :; do echo x; sleep 0.1; done'\nTK_FD=$DT_WFD\nconsole watch \"$TK_FD\"\n"
+    "dt_run\ndt_close\n" % (load(MOD), WM, ONE, mark))
+t = Term(path, env={"DT_SAVERSECS": "1", "DT_SAVER": "clock"}, rows=ROWS,
+         cols=COLS, settle=0.6)
+t.collect(1.6)
+c0 = ticks(t.pid)
+t.collect(2.0)
+used = (ticks(t.pid) - c0) / os.sysconf("SC_CLK_TCK") / 2.0
+sc = t.screen()
+t.quit(b"xqy", 1.2)
+os.unlink(path)
+try:
+    read = int(open(mark).read().split()[0])
+    os.unlink(mark)
+except (OSError, ValueError, IndexError):
+    read = -1
+check("a watcher's pipe is still read while the saver is up (%d lines, "
+      "%.0f%% of a core)" % (read, used * 100),
+      "\u2588" in sc.text() and read > 5 and used < 0.1 * SANSLOW, (read, used))
+
 # With nothing to run, dt_saverstart clears the screen and leaves DT_SAVING
 # empty -- so the next frame is an ordinary one, and dt_saverwait looks at the
 # idle clock again. It reset DT_SAVERFROM and not DT_IDLEFROM, so the time was
@@ -5231,7 +5276,6 @@ os.unlink(path)
 # sanitizers, which cost several times as much a frame: 0.99.253's quick
 # gate measured the right 8 frames at 2.0%, beside 39 other suites. The
 # bug is 57 frames, which the count still refuses.
-SANSLOW = 4 if os.environ.get("ASAN_OPTIONS") else 1
 check("no saver to run clears the screen once a period, not every frame "
       "(%d frames, %.1f%% of a core in 4s)" % (drew, hot * 100),
       drew < 25 and hot < 0.02 * SANSLOW, (drew, hot))
@@ -6097,4 +6141,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(674)
+report(676)

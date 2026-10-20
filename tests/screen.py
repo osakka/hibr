@@ -284,6 +284,8 @@ os.environ["PULSE_SERVER"] = "unix:/nonexistent/hibr-test"
 # leave the network the machine is on (Gitea #311). HIBR_NET=none turns the
 # desktop's network layer off; tests/net.py gives a session a stand-in nmcli.
 os.environ["HIBR_NET"] = "none"
+# Nor its Bluetooth (Gitea #312); tests/bt.py gives its own a stand-in.
+os.environ["HIBR_BT"] = "none"
 
 # What the desktop prints, when HIBR_TESTIDLE is set, each time a frame is on
 # screen and it is about to wait for input -- an OSC a terminal ignores,

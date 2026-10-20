@@ -7,7 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/select.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -23,6 +25,37 @@ int cn_pendo;
 static int *cn_wfd;
 static size_t cn_wn;
 
+/* Per watched descriptor, in step with cn_wfd: whether it is a pipe, the
+   bytes waiting on it when the last wait began, whether it was readable
+   then, since when it has stayed readable with what waits never going down,
+   whether it is muted, and when a muted one was last looked at. */
+typedef struct {
+	int fifo;
+	long av;
+	int ready;
+	long long since;
+	int mute;
+	long long check;
+} cn_wst;
+static cn_wst *cn_ws;
+
+/* The ready-and-never-drained span after which a watched pipe stops waking
+   the wait, and how often a muted one is looked at again. */
+#ifndef CN_WSTUCK
+#define CN_WSTUCK 2000
+#endif
+#ifndef CN_WRECHECK
+#define CN_WRECHECK 1000
+#endif
+
+long long cn_wms(void)
+{
+	struct timespec t;
+
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (long long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
 /* Watch an extra descriptor -- a terminal's own pty master -- alongside key
    input, so a caller blocked in cn_key wakes the instant it has real output
    to show, rather than only finding out on its next scheduled redraw. */
@@ -32,10 +65,16 @@ void cn_watchadd(int fd)
 
 	if (fd < 0)
 		return;
+	struct stat st;
+
 	for (i = 0; i < cn_wn; i++)
 		if (cn_wfd[i] == fd)
 			return;
 	cn_wfd = xr(cn_wfd, (cn_wn + 1) * sizeof *cn_wfd);
+	cn_ws = xr(cn_ws, (cn_wn + 1) * sizeof *cn_ws);
+	memset(&cn_ws[cn_wn], 0, sizeof *cn_ws);
+	cn_ws[cn_wn].av = -1;
+	cn_ws[cn_wn].fifo = fstat(fd, &st) == 0 && S_ISFIFO(st.st_mode);
 	cn_wfd[cn_wn++] = fd;
 }
 
@@ -51,6 +90,8 @@ void cn_watchdel(int fd)
 			continue;
 		memmove(cn_wfd + i, cn_wfd + i + 1,
 			(cn_wn - i - 1) * sizeof *cn_wfd);
+		memmove(cn_ws + i, cn_ws + i + 1,
+			(cn_wn - i - 1) * sizeof *cn_ws);
 		cn_wn--;
 		return;
 	}
@@ -119,6 +160,90 @@ int cn_waiting(void)
    what a buffer is for, and one drain at the end of the wait takes the lot. */
 int cn_quiet;
 
+/* Whether a descriptor is readable this instant. */
+int cn_wready(int fd)
+{
+	struct timeval tv = { 0, 0 };
+	fd_set r;
+
+	FD_ZERO(&r);
+	FD_SET(fd, &r);
+	return select(fd + 1, &r, 0, 0, &tv) > 0;
+}
+
+/* A watched pipe that stays ready while nothing reads it -- what it holds
+   never going down from one wait to the next, end of file included, which
+   stays ready at nothing -- would end every wait at once for ever: a desktop
+   whose sound watcher's pipe was no longer drained went round its frame loop
+   1,200 times a second at 82% of a core (Gitea #323). After CN_WSTUCK of
+   that it stops waking the wait, and says which; it is looked at again every
+   CN_WRECHECK and woken for once somebody has read from it. Only pipes: a
+   terminal's pty is drained a share at a time and may stay full while it is
+   being read, which is busy rather than stuck. */
+void cn_wguard(void)
+{
+	long long now = cn_wms();
+	int i, n;
+	long av;
+
+	for (i = 0; i < (int)cn_wn; i++) {
+		cn_wst *w = &cn_ws[i];
+
+		if (!w->fifo)
+			continue;
+		if (ioctl(cn_wfd[i], FIONREAD, &n) < 0)
+			continue;
+		av = n;
+		if (w->mute) {
+			if (now - w->check < CN_WRECHECK)
+				continue;
+			w->check = now;
+			if (!cn_wready(cn_wfd[i]) || av < w->av) {
+				w->mute = 0;
+				w->since = 0;
+				w->ready = 0;
+				lg(HIBR_LWRN, "console: watched descriptor %d is being read again; waking for it",
+				   cn_wfd[i]);
+			}
+			w->av = av;
+			continue;
+		}
+		n = av > 0 || cn_wready(cn_wfd[i]);
+		if (n && w->ready && av >= w->av) {
+			if (!w->since)
+				w->since = now;
+			else if (now - w->since >= CN_WSTUCK) {
+				w->mute = 1;
+				w->check = now;
+				lg(HIBR_LERR, "console: watched descriptor %d has been ready for %lld ms with nothing reading it (%ld bytes waiting); no longer waking for it",
+				   cn_wfd[i], now - w->since, av);
+			}
+		} else {
+			w->since = 0;
+		}
+		w->ready = n;
+		w->av = av;
+	}
+}
+
+/* Whether watched descriptor i is muted, for `console watching`. */
+int cn_wmuted(int fd)
+{
+	size_t i;
+
+	for (i = 0; i < cn_wn; i++)
+		if (cn_wfd[i] == fd)
+			return cn_ws[i].mute;
+	return 0;
+}
+
+/* The watched descriptors, for `console watching`: how many, and each. */
+size_t cn_wlist(int **fds)
+{
+	*fds = cn_wfd;
+	return cn_wn;
+}
+
 int cn_wait(int ms)
 {
 	fd_set r;
@@ -135,10 +260,14 @@ int cn_wait(int ms)
 		lg(HIBR_LDBG, "console: a resize arrived before the wait began");
 		return 0;
 	}
+	if (!cn_quiet)
+		cn_wguard();
 	FD_ZERO(&r);
 	FD_SET(cn_fd, &r);
 	mx = cn_fd;
 	for (i = 0; !cn_quiet && i < (int)cn_wn; i++) {
+		if (cn_ws[i].mute)
+			continue;
 		FD_SET(cn_wfd[i], &r);
 		if (cn_wfd[i] > mx)
 			mx = cn_wfd[i];

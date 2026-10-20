@@ -1,0 +1,159 @@
+#!/usr/bin/env hibr
+#
+# bluetooth -- the Control Panel pane called Bluetooth (Gitea #312): the
+# adapter on or off and visible to others or not, the devices it knows --
+# each connected or not, with its battery, a click to connect or
+# disconnect -- forgetting one, looking for new ones and pairing them, and
+# the item on the menu bar. It acts through wm/bt.hibr.
+
+strict
+
+app bluetooth "The Control Panel pane for Bluetooth" 1.0
+command -v cp_pane > /dev/null && cp_pane bluetooth "Bluetooth" "ᛒ" hardware
+
+BT_KINDS=(Auto BlueZ None)
+# The device Forget is about to take, while the confirm is up.
+BT_FORGET=
+
+fn cp_set_btkind(int? id = "", value = "") {
+	DT_BTKIND=$value
+	cp_save
+	dt_btagain
+}
+
+# Forget, from the dropdown of known devices: asks first.
+fn cp_set_btforget(int? id = "", value = "") {
+	local i=0
+
+	BT_FORGET=
+	while [ "$i" -lt "${#DT_BTM[@]}" ]; do
+		[ "${DT_BTN[$i]}" = "$value" ] && [ "${DT_BTP[$i]}" = 1 ] && BT_FORGET=${DT_BTM[$i]}
+		i=$((i + 1))
+	done
+	[ -n "$BT_FORGET" ] || return 0
+	DT_T := dt_tr "Forget %s? It will have to be paired again." "$value"
+	dt_confirm "$DT_T" bluetooth_forget
+}
+
+bluetooth_forget() {
+	[ -n "$BT_FORGET" ] && dt_btforget "$BT_FORGET"
+	BT_FORGET=
+}
+
+fn bluetooth_rows(int w) {
+	local n=0 i v others=0
+
+	[ -n "${DT_BT["kind"]}" ] || dt_btstart
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bluetooth System"
+	CP[$w][$n]["val"]=${DT_BTKIND:-Auto}; CP[$w][$n]["key"]=kind
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Adapter"
+	if [ "${DT_BT["kind"]}" = bluez ]; then
+		CP[$w][$n]["val"]=${DT_BT["name"]}
+		n=$((n + 1))
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Address"
+		CP[$w][$n]["val"]=${DT_BT["addr"]}
+	elif [ -n "${DT_BT["why"]}" ]; then
+		CP[$w][$n]["val"] := dt_tr "%s is not answering" "${DT_BT["why"]}"
+	else
+		CP[$w][$n]["val"] := dt_tr "none found"
+	fi
+	n=$((n + 1))
+	if [ "${DT_BT["kind"]}" != bluez ]; then
+		ret "$n"
+		return 0
+	fi
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bluetooth"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_BT["power"]}" = yes ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=power; n=$((n + 1))
+	if [ "${DT_BT["power"]}" = yes ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Visible to Others"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "${DT_BT["disc"]}" = yes ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=visible; n=$((n + 1))
+	fi
+	if [ -n "${DT_BT["err"]}" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Last Action"
+		CP[$w][$n]["val"]=${DT_BT["err"]}; n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="My Devices"; n=$((n + 1))
+	i=0
+	while [ "$i" -lt "${#DT_BTM[@]}" ]; do
+		if [ "${DT_BTP[$i]}" = 1 ]; then
+			if [ "${DT_BTC[$i]}" = 1 ]; then
+				v := dt_tr "connected"
+				[ -n "${DT_BTB[$i]}" ] && v="$v, ${DT_BTB[$i]}%"
+			else
+				v := dt_tr "not connected"
+			fi
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]=${DT_BTN[$i]}
+			CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]="dev:$i"
+			n=$((n + 1))
+		else
+			others=$((others + 1))
+		fi
+		i=$((i + 1))
+	done
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Forget a Device"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=forget
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Other Devices"; n=$((n + 1))
+	i=0
+	while [ "$i" -lt "${#DT_BTM[@]}" ]; do
+		if [ "${DT_BTP[$i]}" != 1 ]; then
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]=${DT_BTN[$i]}
+			CP[$w][$n]["val"] := dt_tr "Pair"
+			CP[$w][$n]["key"]="dev:$i"
+			n=$((n + 1))
+		fi
+		i=$((i + 1))
+	done
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Look for Devices"
+	if [ "${DT_BT["scan"]}" = yes ]; then
+		CP[$w][$n]["val"] := dt_tr "looking%s" "${GL[ellipsis]}"
+	else
+		CP[$w][$n]["val"]=""
+	fi
+	CP[$w][$n]["key"]=scan; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Desktop"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bluetooth on Menu Bar"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_BTBAR:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_BTBAR; n=$((n + 1))
+	ret "$n"
+}
+
+fn bluetooth_do(int w, k, int dir) {
+	local v
+
+	case $k in
+	kind)
+		v := cp_next "${DT_BTKIND:-Auto}" "$dir" "${BT_KINDS[@]}"
+		cp_set_btkind "" "$v"
+		return 0
+		;;
+	power) dt_btpower ;;
+	visible) dt_btvisible ;;
+	scan) dt_btscan ;;
+	dev:*) dt_bttoggle "${k#dev:}" ;;
+	DT_BTBAR) cp_toggle "$k"; dt_btbar ;;
+	esac
+	cp_save
+}
+
+fn bluetooth_drop(int w, int r, int c, k) {
+	local i=0
+	local -a names
+
+	case $k in
+	kind) dt_droplist "$w" "$r" "$c" cp_set_btkind "${BT_KINDS[@]}" ;;
+	forget)
+		while [ "$i" -lt "${#DT_BTM[@]}" ]; do
+			[ "${DT_BTP[$i]}" = 1 ] && names+=("${DT_BTN[$i]}")
+			i=$((i + 1))
+		done
+		[ "${#names[@]}" -gt 0 ] && dt_droplist "$w" "$r" "$c" cp_set_btforget "${names[@]}"
+		;;
+	esac
+}

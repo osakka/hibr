@@ -54,21 +54,28 @@ fn dt_shortname(role, inst = "", handle = "") {
 # this file's own rule about a rule living in three places being kept in
 # one of them.
 #
-#     desktop [session::work]
-#     supervisor [session::work]
+#     desktop [desktop::work]
+#     supervisor [work]
 #     term [work::5:Files]
 #     job [work::sync:dav.home.arpa]
 #
-# The desktop and its supervisor name the session with the word, since
-# being that session is all they are; anything *inside* one leads with the
-# session's own name and then says which part of it this is. An unheld
-# desktop says so rather than naming a session it does not have.
+# Exactly one process a session names as `desktop::NAME`: the desktop
+# itself. Its supervisor wore the same `[session::NAME]` until 0.99.271,
+# so every session showed two of them in `ps`, which reads as two
+# desktops (owner, 2026-10-20) -- it says only which session it watches
+# now. Anything *inside* a session leads with the session's own name and
+# then says which part of it this is. An unheld desktop says so rather
+# than naming a session it does not have.
 fn dt_procfull(role, sess = "", handle = "", detail = "") {
 	local s=$sess
 
 	if [ -z "$handle" ] && [ -z "$detail" ]; then
 		[ -n "$s" ] || { ret "$role [not held]"; return 0; }
-		ret "$role [session::$s]"
+		if [ "$role" = desktop ]; then
+			ret "desktop [desktop::$s]"
+		else
+			ret "$role [$s]"
+		fi
 		return 0
 	fi
 	# An unheld desktop has no session to name, so the inner form leaves

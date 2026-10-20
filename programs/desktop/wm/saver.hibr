@@ -91,7 +91,11 @@ dt_saverdraw() {
 # Wait for a key until the next frame is due. A terminal's program goes on
 # writing behind the saver, and its pty, watched, ends every wait at once:
 # so each window's idle callback reads it, as dt_idle does for a hidden
-# window, and the wait goes on for what is left.
+# window, and the wait goes on for what is left. The tickers run too, since
+# what they read is watched the same way -- sound, the network, Bluetooth,
+# the control socket, the polkit agent: left out, the first event on any of
+# them ended every wait until a key, and a desktop nobody was looking at
+# went round at 82% of a core behind its saver (Gitea #323).
 fn dt_saverkey(int ms) {
 	local now due k id
 
@@ -103,6 +107,7 @@ fn dt_saverkey(int ms) {
 		for id in "${!DT[@]}"; do
 			[ -n "${DT[$id]["idle"]}" ] && ${DT[$id]["idle"]} "$id"
 		done
+		dt_tickers
 		now := dt_ms
 		[ "$now" -lt "$due" ] || break
 	done

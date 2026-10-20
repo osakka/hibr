@@ -231,6 +231,54 @@ expect(r"^usage: console mouse")
 o, _ = run('console mouse nonsense\n')
 check("a bad mouse mode is refused", b"usage" in o)
 
+# A forked child that is ended by a signal leaves the terminal to the process
+# that took it (Gitea #320): the console's fatal-signal cleanup, which every
+# fork inherits, restored the terminal's modes and left the alternate screen
+# from whichever process was signalled -- a background one was stopped by
+# SIGTTOU for touching the terminal (the login screen's watchdog, left as two
+# root processes in state T), and any other would have taken the display out
+# of the alternate screen under the process still drawing on it.
+o, st = run('console open\nconsole flush\nm1=$(stty -g)\n'
+            '( sleep 30 ) &\nc=$!\nsleep 0.3\nkill -TERM "$c"\nsleep 0.6\n'
+            'cs=$(ps -o stat= -p "$c" 2> /dev/null)\nm2=$(stty -g)\n'
+            'console close\necho "child [${cs// /}] modes $([ "$m1" = "$m2" ] && echo same || echo changed)"\n',
+            wait=1.0)
+tail = o.decode("utf-8", "replace")
+check("a forked child ended by a signal is not stopped, and leaves the terminal alone",
+      "modes same" in tail and "child [T" not in tail and o.count(b"\x1b[?1049l") == 1,
+      (tail[-120:], o.count(b"\x1b[?1049l")))
+
+# A watched pipe nobody reads stops waking the wait (Gitea #323): a desktop
+# whose watcher's pipe was no longer drained went round its loop 1,200 times
+# a second. Muted after two seconds of that, said so, woken for again once it
+# is read; a pipe that is read is never muted.
+WLOOP = ('fn spin(secs) {\n local n=0 e\n e=$(( ${EPOCHREALTIME/./} + secs * 1000000 ))\n'
+         ' while [ "${EPOCHREALTIME/./}" -lt "$e" ]; do console key 200 > /dev/null; n=$((n + 1)); done\n ret "$n"\n}\n')
+expect(r"watched descriptor \d+ has been ready for \d+ ms with nothing reading it")
+expect(r"watched descriptor \d+ is being read again")
+o, _ = run('console open\nconsole flush\n' + WLOOP +
+           'exec {f}< <(while :; do echo x; sleep 0.5; done)\nconsole watch "$f"\n'
+           'a := spin 3\nb := spin 1\nw1 := console watching\n'
+           'while read -t 0 -u "$f"; do read -r -u "$f" l; done\n'
+           'spin 2 > /dev/null\nw2 := console watching\n'
+           'console close\necho "W a=$a b=$b w1=[$w1] w2=[$w2] f=$f"\n', wait=8)
+m = re.search(rb"W a=(\d+) b=(\d+) w1=\[([^]]*)\] w2=\[([^]]*)\] f=(\d+)", o)
+check("a watched pipe nobody reads stops waking the wait after two seconds",
+      m and int(m.group(1)) > 50 and int(m.group(2)) <= 8 and m.group(3) == m.group(5) + b":muted",
+      m and m.groups() or o[-300:])
+check("and it is woken for again once something reads it",
+      m and m.group(4) == m.group(5), m and m.groups())
+check("and the log names the descriptor", re.search(rb"watched descriptor \d+ has been ready", o) is not None)
+o, _ = run('console open\nconsole flush\n'
+           'exec {f}< <(while :; do echo x; sleep 0.05; done)\nconsole watch "$f"\nn=0\n'
+           'e=$(( ${EPOCHREALTIME/./} + 3000000 ))\n'
+           'while [ "${EPOCHREALTIME/./}" -lt "$e" ]; do console key 500 > /dev/null; '
+           'while read -t 0 -u "$f"; do read -r -u "$f" l; done; n=$((n + 1)); done\n'
+           'w := console watching\nconsole close\necho "W n=$n w=[$w] f=$f"\n', wait=6)
+m = re.search(rb"W n=(\d+) w=\[([^]]*)\] f=(\d+)", o)
+check("a busy pipe that is read is never muted",
+      m and m.group(2) == m.group(3) and int(m.group(1)) > 20, m and m.groups() or o[-300:])
+
 o, st = run('console open\nconsole flush\nconsole key 5000\n',
             after=lambda t: t.signal(signal.SIGINT), wait=1.5)
 check("an interrupt still leaves the alternate screen", b"\x1b[?1049l" in o)
@@ -364,4 +412,4 @@ sc = top('console put -p bar 0 0 BARBARBAR!\nconsole pane top bar off\n'
 check("and `pane top name off` gives its cells back",
       sc.row(0).startswith("xxxxxxxxxxxx"), sc.row(0))
 
-report(len(WANT) + len(MWANT) + 57)
+report(len(WANT) + len(MWANT) + 62)

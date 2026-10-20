@@ -1985,6 +1985,20 @@ went in the shell.
   would make every restart hang up every shell. After the exec the input
   count `console consumed` restarts at zero, so `DT_INBASE` carries the old
   one into the test idle marker, or every pty suite would wait for ever.
+- **Every loop that waits on `console key` must drain everything watched,
+  not only what its own author thought of** (Gitea #323, 0.99.271). The
+  saver's and the lock's wait (`dt_saverkey`) called each window's `_idle`
+  for the ptys, and not `dt_tickers` -- which is where the sound, network
+  and Bluetooth watchers, the control socket and the polkit agent are read.
+  So the first event on any of them ended every wait at once until a key:
+  a desktop nobody was looking at, which is a desktop whose saver is up,
+  spun at 82% of a core for weeks. It looked like a mystery because only
+  the unwatched desktops did it, and they were unwatched because they were
+  duplicates nobody knew about. The console now stops waking for a
+  watched **pipe** that stays readable with nothing reading it, and logs
+  the descriptor, so the next such mistake costs a log line rather than a
+  core -- but a guard bounds the cost and does not fix the loop. A new wait
+  loop runs the tickers.
 - **A watched descriptor must be read whether or not its window is drawn.**
   `term_draw` was the only reader of a terminal's pty, and a minimised or
   away window is not drawn, so a program still writing kept the fd readable
@@ -3714,6 +3728,21 @@ went in the shell.
   IFS, the default, so the hot path did not move; `read`'s last variable has
   its own rule (`bi_rdrest`), taken from bash case by case rather than from
   the standard's prose.
+
+- **A signal handler a module installs is inherited by every fork, so its
+  cleanup must ask whose terminal it is** (Gitea #320, 0.99.271). The
+  console's `cn_onfatal` restored the terminal's modes and left the
+  alternate screen in whichever process a fatal signal reached -- a desktop
+  job, the login screen's watchdog -- and a background process setting
+  terminal modes is stopped by SIGTTOU: two root processes in state T for a
+  session's life under Blit, found and reproduced by the Blit side with
+  strace (`SIGTERM`, then `ioctl(120, TCSETS)`, then `SIGTTOU`). `cn_pid` is
+  who opened the console, and the handler and `cn_close` act only there. A
+  check of this has to end a forked child with a signal while the console
+  is open; one that only opens and closes the console passes against it.
+  Anything else a module does in a handler or a finaliser that reaches
+  shared state -- a terminal, a socket, a file a parent owns -- wants the
+  same question.
 
 ## Testing discipline
 

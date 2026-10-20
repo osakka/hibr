@@ -16,6 +16,7 @@
 %s changed on the server while you edited it; yours is saved as %s
 %s changed on the server, and your edit could not be saved beside it: %s
 %s columns
+%s connected
 %s does not take files
 %s edited file(s) not yet saved to a server were kept
 %s file with it
@@ -96,6 +97,7 @@ About This Computer…
 Account
 Account %s saved
 Accounts
+Adapter
 Add 10 Rows
 Add 5 Columns
 Add Bookmark
@@ -115,6 +117,7 @@ All Mail
 Allow Downloads
 Already joining %s
 Already on %s
+Already pairing %s
 An event stays in its calendar; make a new one in the other
 And Minutes Before
 App
@@ -151,6 +154,14 @@ Backspace
 Bar Shadow
 Blank
 Block Addresses
+Bluetooth
+Bluetooth Settings%s
+Bluetooth Settings…
+Bluetooth System
+Bluetooth is busy with %s
+Bluetooth is off
+Bluetooth on Menu Bar
+Bluetooth said: %s
 Bold
 Bold Menu Titles
 Bookmark removed
@@ -234,6 +245,7 @@ Compress Pictures
 Connect to Server
 Connect to Server…
 Connected
+Connected %s
 Connected by cable
 Connected to %s
 Connecting%s
@@ -265,6 +277,8 @@ Copy something anywhere, or paste here,
 Copying
 Could not change owner or group
 Could not change permissions
+Could not connect %s: %s
+Could not disconnect %s: %s
 Could not forget %s: %s
 Could not join %s: %s
 Could not keep the event
@@ -277,6 +291,8 @@ Could not make the contact: %s
 Could not make the event: %s
 Could not make the message to %s
 Could not open %s: %s
+Could not pair %s: %s
+Could not pair %s: no answer
 Could not read it
 Could not record the answer
 Could not rename %s
@@ -332,11 +348,13 @@ Directory
 Discard
 Discard this message?
 Disconnect
+Disconnected %s
 Disk Icons
 Display
 Display Structure
 Displays
 Do Not Track
+Does it show this number?
 Download Whole Messages
 Downloaded %s
 Downloads
@@ -406,6 +424,8 @@ Follow Program Title
 For Fajr
 Forget
 Forget %s, and its password?
+Forget %s? It will have to be paired again.
+Forget a Device
 Forgot %s
 Format
 Format:
@@ -473,6 +493,7 @@ Isha
 It asks for a password (%s).
 Italic
 Item
+Its passkey or PIN:
 Jan
 January
 JavaScript
@@ -500,6 +521,7 @@ Languages pages are asked for, first wanted most:
 Largest Height
 Largest Screen
 Largest Width
+Last Action
 Last Join
 Last Synced
 Left
@@ -521,6 +543,8 @@ Log In
 Log In…
 Look
 Look Again
+Look for Devices
+Looking for devices
 Looking for networks
 Louder
 MODULE
@@ -575,6 +599,7 @@ Moved %s to the trash
 Muharram
 Mute
 Muted
+My Devices
 Name
 Name Servers
 Name:
@@ -612,6 +637,7 @@ No Chromium or Chrome to clear
 No Picture
 No Rule
 No calendar yet: choose a server in Control Panel > PIM, then sync
+No devices yet
 No file is selected
 No file type registered for this -- open in hvi anyway?
 No folders to move to
@@ -682,6 +708,7 @@ Open…
 Order
 Order Right-to-Left Text
 Other
+Other Devices
 Other Side
 Other…
 Output
@@ -693,6 +720,11 @@ PIN
 Page Zoom
 Pages
 Pages May Play Sound On Their Own
+Pair
+Paired with %s
+Paired with %s; it did not connect
+Pairing cancelled
+Pairing with %s
 Pass Every Key
 Password
 Password Box On
@@ -986,6 +1018,7 @@ Trust This Sheet…
 Tue
 Tuesday
 Turns off automatic time (NTP) first
+Type this on it, then Enter:
 Type what to look for, or a playlist's or a channel's address, and enter.
 Type: %s
 Undo
@@ -1015,6 +1048,7 @@ Versions
 View
 View Details
 View History
+Visible to Others
 Volume %s%%
 Volume Down
 Volume Up
@@ -1080,6 +1114,7 @@ by cable
 case does not matter
 clicks
 clicks and drags
+connected
 connecting%s
 current
 dBASE
@@ -1103,7 +1138,9 @@ installed %s
 installed %s, %s available
 installed on this machine for everyone
 integers only
+it did not answer -- is it on and near?
 lifts that for one sheet, here only.
+looking%s
 moving — arrows, then enter
 no
 no reason given
@@ -1111,6 +1148,7 @@ none
 none found
 none here
 not allowed from this session
+not connected
 not reported
 note
 nothing -- the address alone
@@ -1123,6 +1161,7 @@ on -- locked here
 order they need each other; one needing itself says #CYCLE.
 outgoing
 over a range, row by row
+pair
 phone
 range A1_B9 an array of its values, worked out in the
 reading the catalogue

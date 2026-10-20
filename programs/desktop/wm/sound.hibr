@@ -40,7 +40,6 @@ declare -gA DT_SND
 declare -ga DT_SNDON DT_SNDOD DT_SNDIN DT_SNDID
 DT_SNDFD=
 DT_SNDPID=
-DT_SNDGRP=
 DT_SNDAT=0
 DT_SNDREAD=0
 DT_SNDLATE=
@@ -421,20 +420,15 @@ dt_sndstart() {
 	dt_sndread
 	dt_sndbar
 	case ${DT_SND["kind"]} in
-	pulse)
-		exec {DT_SNDFD}< <(LC_ALL=C exec pactl subscribe 2> /dev/null)
-		DT_SNDPID=$!
-		DT_SNDGRP=
-		;;
+	pulse) dt_watchstart 'LC_ALL=C exec pactl subscribe' ;;
 	pw)
 		command -v pw-mon > /dev/null || return 0
-		exec {DT_SNDFD}< <(exec setsid sh -c 'pw-mon -N 2> /dev/null |
-			grep --line-buffered -E "^(changed|added|removed):"')
-		DT_SNDPID=$!
-		DT_SNDGRP=1
+		dt_watchstart 'pw-mon -N | grep --line-buffered -E "^(changed|added|removed):"'
 		;;
 	*) return 0 ;;
 	esac
+	DT_SNDFD=$DT_WFD
+	DT_SNDPID=$DT_WPID
 	command -v console > /dev/null && console watch "$DT_SNDFD" 2> /dev/null
 	DT_SNDAT=$EPOCHSECONDS
 }
@@ -442,19 +436,9 @@ dt_sndstart() {
 # Stop watching the server, and end what was told to watch it: at the
 # desktop's close and restart, and when the server goes.
 dt_sndstop() {
-	if [ -n "$DT_SNDFD" ]; then
-		command -v console > /dev/null && console unwatch "$DT_SNDFD" 2> /dev/null
-		exec {DT_SNDFD}<&-
-		DT_SNDFD=
-	fi
-	if [ -n "$DT_SNDPID" ]; then
-		if [ -n "$DT_SNDGRP" ]; then
-			kill -- "-$DT_SNDPID" 2> /dev/null
-		else
-			kill "$DT_SNDPID" 2> /dev/null
-		fi
-		DT_SNDPID=
-	fi
+	dt_watchstop "$DT_SNDFD" "$DT_SNDPID"
+	DT_SNDFD=
+	DT_SNDPID=
 	return 0
 }
 

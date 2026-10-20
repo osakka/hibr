@@ -193,6 +193,12 @@ fn dt_onstop(sig) {
 	local f
 
 	DT_STOPPING=1
+	# The watchers first: each runs in a session of its own, so the
+	# terminal's hang-up that brought this here does not reach them, and
+	# the snapshot below can take longer than whoever sent the signal waits.
+	dt_sndstop
+	dt_netstop
+	dt_btstop
 	f := dt_snapfile
 	[ -d "$DT_RSDIR" ] || mkdir -p "$DT_RSDIR" 2> /dev/null
 	if dt_rswrite "$f" 0 stop; then

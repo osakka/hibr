@@ -896,6 +896,39 @@ the setting -- `nm`, `ip` or `none` -- and the test suites start every
 desktop with `none`; `tests/net.py` gives its own a stand-in `nmcli`
 whose answers are captured from a real one.
 
+## Bluetooth
+
+Bluetooth is the desktop's too (Gitea #312). An item on the menu bar shows
+Bluetooth's sign (`ᛒ`) with how many devices are connected -- `ᛒ 2` -- or
+that it is off (`ᛒ ✕`). A **left click** lists the devices it knows, the
+connected ones ticked with their battery where they say it (`85%`), and
+under them any a scan has found, to pair; a click connects a device,
+disconnects a connected one, or pairs one in reach, and so do the arrows
+and enter. Bluetooth's own switch is at the top and Bluetooth Settings… at
+the foot. A **right click** opens the Bluetooth menu: how many are
+connected, Bluetooth on or off, the devices, and Look for Devices.
+
+Pairing pairs, trusts and connects, one after the other, in an interactive
+`bluetoothctl` the desktop keeps on a pty of its own with an agent
+registered: a device that shows a passkey asks whether it is the same
+number, with Yes and No; one that wants a PIN or a passkey typed asks for
+it; one that shows a number to type on itself -- a keyboard -- says which.
+A wrong PIN says it could not pair and leaves it as it was. Connecting,
+disconnecting, scanning and forgetting run in the background, with a note
+when each is done or why it was not -- in words: "not allowed from this
+session" for what BlueZ refuses, "is it on and near?" for a device that did
+not answer.
+
+**Control Panel > Bluetooth** has the Bluetooth System (Auto, BlueZ or
+None), the adapter's name and address, Bluetooth and Visible to Others; My
+Devices, each connected (with its battery) or not, a click to connect or
+disconnect it, and Forget a Device, which asks first; Other Devices, found
+by Look for Devices, each a click to pair; and Bluetooth on Menu Bar. The
+desktop keeps a `bluetoothctl` running with nothing to read and watches
+what it prints, so a device connected elsewhere reaches the bar with
+nothing pressed. macOS is not done yet. `HIBR_BT` overrides the setting --
+`bluez` or `none` -- and the test suites start every desktop with `none`.
+
 ## Screen savers
 
 After ten minutes with no key and no click the screen is given to a

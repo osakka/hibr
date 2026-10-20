@@ -45,6 +45,16 @@ pty, and prints the captured failure or, for the right password (state's
 `agentpw`), the green COMPLETE banner -- which was not captured, there
 being no password to give here, and is polkit's own text from its source.
 
+`bluetoothctl` is `tests/bt.py`'s stand-in for BlueZ: `show`, `devices`
+and `info` are the captured text with their values put in, checked byte
+for byte against `bt-*.txt`. Not captured, and bluez's own wording from its
+source: what an action replies (`Connection successful`, `Failed to
+connect: org.bluez.Error...`), a connected device's `Battery Percentage:
+0x55 (85)`, and an interactive session's agent questions (`Confirm passkey
+123456 (yes/no):`, `Enter PIN code:`) -- the owner's machine has not yet
+been asked to pair anything for a capture. Its state is
+`$HIBR_BTSTATE/state.json`.
+
 State lives in `$HIBR_NMSTATE/state.json`; every call's argv is appended to
 `argv.log` there, which is how the suite shows a password never reaches a
 command line. `monitor` prints a line whenever the state file changes.

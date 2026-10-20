@@ -215,6 +215,7 @@ fn dt_ctlserve(int c) {
 		resize) out := dt_ctlresize "${q["id"]}" "${q["h"]}" "${q["w"]}" ;;
 		focus | raise) out := dt_ctlfocus "${q["id"]}" ;;
 		rescan) out := dt_ctlrescan ;;
+		state) out := dt_ctlstate ;;
 		"") out := dt_ctlerr bad-request "no op" ;;
 		*) out := dt_ctlerr unknown-op "$op" ;;
 		esac
@@ -246,6 +247,27 @@ dt_ctlrescan() {
 	dt_rescan
 	read -r a g c <<< "$RET"
 	ret "{\"ok\":true,\"added\":${a:-0},\"removed\":${g:-0},\"changed\":${c:-0}}"
+}
+
+# What the desktop is waiting on, read-only (Gitea #323): its pid, whether
+# the saver or the lock is up, each watcher's descriptor, process group and
+# command, and the descriptors the console wakes for, a muted one marked --
+# so a desktop found spinning says which descriptor and whose it is.
+dt_ctlstate() {
+	local fd out= c w s=false l=false
+
+	for fd in "${!DT_WATCHES[@]}"; do
+		w=${DT_WATCHES["$fd"]}
+		c := dt_jstr "${w#* }"
+		w=${w%% *}
+		[ "$w" = - ] && w=null
+		out+="${out:+,}{\"fd\":$fd,\"group\":$w,\"cmd\":$c}"
+	done
+	w := console watching 2> /dev/null
+	w := dt_jstr "$w"
+	[ -n "$DT_SAVING" ] && s=true
+	[ -n "$DT_LOCKED" ] && l=true
+	ret "{\"ok\":true,\"pid\":$$,\"saving\":$s,\"locked\":$l,\"watchers\":[$out],\"console\":$w}"
 }
 
 dt_ctlsession() {

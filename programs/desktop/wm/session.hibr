@@ -268,6 +268,7 @@ dt_close() {
 	dt_ctlclose
 	dt_sndstop
 	dt_netstop
+	dt_btstop
 	dt_snapdrop
 	if [ -n "$DT_ERR" ]; then
 		exec 2>&$DT_ERR {DT_ERR}>&-

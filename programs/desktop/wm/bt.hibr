@@ -1,0 +1,804 @@
+# wm/bt -- the machine's Bluetooth: the adapter on or off and visible or
+# not, the devices it knows and which are connected (and their battery),
+# finding new ones and pairing them, and the item on the menu bar that says
+# which (Gitea #312). Control Panel > Bluetooth is the pane over it.
+#
+# BlueZ, through bluetoothctl, read as captured from bluetoothctl 5.82 on
+# the owner's machine (tests/net/bt-*.txt): `show` for the adapter,
+# `devices Paired` and `devices Connected` for the devices -- one
+# "Device MAC name" a line -- and `info MAC` for one device's battery and
+# icon. HIBR_BT chooses -- auto, bluez or none; the suites start every
+# desktop with none, so no test can touch a real machine's Bluetooth.
+#
+# bluetoothctl prints what changes while it runs, so the desktop keeps one
+# running with nothing to read and watches its output -- a [CHG], [NEW] or
+# [DEL] line is something changed -- and reads everything again at most once
+# a second. Connecting, scanning and pairing take seconds, so each runs as a
+# job and the frame goes on. Pairing a device that shows or asks for a
+# passkey needs an agent: it runs in an interactive bluetoothctl on a pty of
+# the desktop's own, whose agent's questions are asked in a window.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# The state: kind (bluez, none, or gone for a bluetoothd that went; empty
+# until the first frame looks), why (asked for and not answering), addr and
+# name (the adapter), power, disc and scan (yes or no: powered, visible to
+# others, looking), busy (the device being acted on) and err (why the last
+# action failed).
+declare -gA DT_BT
+# The devices it knows -- paired first, then ones a scan found -- one row
+# each: address, name, 1 when paired, 1 when connected, battery percent
+# (empty when not said) and BlueZ's icon name (input-keyboard,
+# audio-headset, ...).
+declare -ga DT_BTM DT_BTN DT_BTP DT_BTC DT_BTB DT_BTI
+# A device's icon, asked of `info` once.
+declare -gA DT_BTICON
+DT_BTFD=
+DT_BTPID=
+DT_BTAT=0
+DT_BTREAD=0
+DT_BTLATE=
+DT_BTJOB=
+DT_BTJF=
+DT_BTJKIND=
+DT_BTJWHO=
+DT_BTTOP=0
+DT_BTSEL=0
+DT_BTSEEN=
+
+# The one place BlueZ is spoken to, saying nothing on stderr. bluetoothctl
+# colours its words for a terminal and puts a \r before some of them; both
+# are taken out, so what is read is what the captures show.
+fn dt_btq(...a) {
+	local out
+
+	out=$(LC_ALL=C bluetoothctl "${a[@]}" 2> /dev/null)
+	out=${out//$'\r'/}
+	out=${out//$'\e[0m'/}
+	out=${out//$'\e[0;92m'/}
+	out=${out//$'\e[0;93m'/}
+	out=${out//$'\e[0;91m'/}
+	out=${out//$'\e[0;94m'/}
+	printf '%s\n' "$out"
+}
+
+# Which kind to use: Control Panel > Bluetooth > Bluetooth System -- Auto
+# takes BlueZ when it has an adapter to show, BlueZ asked for and not
+# answering is said (DT_BT why). HIBR_BT is ahead of the setting.
+dt_btkind() {
+	local k=${HIBR_BT:-} r
+
+	[ "$k" = auto ] && k=
+	DT_BT["why"]=
+	if [ -z "$k" ]; then
+		case ${DT_BTKIND:-Auto} in
+		None) k=none ;;
+		*) k=bluez ;;
+		esac
+	fi
+	if [ "$k" = none ]; then
+		DT_BT["kind"]=none
+		return 0
+	fi
+	if command -v bluetoothctl > /dev/null; then
+		r=$(dt_btq show)
+		case $r in
+		Controller*) DT_BT["kind"]=bluez; return 0 ;;
+		esac
+	fi
+	DT_BT["kind"]=none
+	[ "${DT_BTKIND:-Auto}" = BlueZ ] && DT_BT["why"]=BlueZ
+	return 0
+}
+
+dt_btagain() {
+	dt_btstop
+	DT_BT["kind"]=
+	dt_btstart
+}
+
+# Read everything again: the adapter, then the devices -- paired ones,
+# which of them are connected, and any a scan has found -- and for a
+# connected one its battery, which `info` gives only while it is connected.
+dt_btread() {
+	local l k v mac nm i
+	local -A con pai
+
+	DT_BTREAD=$EPOCHREALTIME
+	[ "${DT_BT["kind"]}" = bluez ] || return 0
+	DT_BT["power"]=no; DT_BT["disc"]=no; DT_BT["scan"]=no
+	while IFS= read -r l; do
+		case $l in
+		Controller\ *) l=${l#Controller }; DT_BT["addr"]=${l%% *} ;;
+		*$'\t'Alias:\ * | *" Alias: "*) DT_BT["name"]=${l#*Alias: } ;;
+		*Powered:\ *) DT_BT["power"]=${l#*Powered: } ;;
+		*Discoverable:\ *) DT_BT["disc"]=${l#*Discoverable: } ;;
+		*Discovering:\ *) DT_BT["scan"]=${l#*Discovering: } ;;
+		esac
+	done <<< "$(dt_btq show)"
+	while IFS= read -r l; do
+		case $l in Device\ *) l=${l#Device }; pai["${l%% *}"]=1 ;; esac
+	done <<< "$(dt_btq devices Paired)"
+	while IFS= read -r l; do
+		case $l in Device\ *) l=${l#Device }; con["${l%% *}"]=1 ;; esac
+	done <<< "$(dt_btq devices Connected)"
+	DT_BTM=(); DT_BTN=(); DT_BTP=(); DT_BTC=(); DT_BTB=(); DT_BTI=()
+	# Paired first, in the order BlueZ lists them, then the rest.
+	for k in 1 0; do
+		while IFS= read -r l; do
+			case $l in Device\ *) ;; *) continue ;; esac
+			l=${l#Device }
+			mac=${l%% *}
+			nm=${l#* }
+			[ "$nm" = "$l" ] && nm=$mac
+			if [ "$k" = 1 ]; then
+				[ -n "${pai["$mac"]+x}" ] || continue
+			else
+				[ -z "${pai["$mac"]+x}" ] || continue
+				# A device BlueZ knows only by its address -- most of what a
+				# scan hears -- is noise in a list of things to pair with.
+				[ "$nm" = "${mac//:/-}" ] && continue
+			fi
+			DT_BTM+=("$mac"); DT_BTN+=("$nm"); DT_BTP+=("$k")
+			if [ -n "${con["$mac"]+x}" ]; then DT_BTC+=(1); else DT_BTC+=(0); fi
+			DT_BTB+=(""); DT_BTI+=("${DT_BTICON["$mac"]-}")
+		done <<< "$(dt_btq devices)"
+	done
+	i=0
+	while [ "$i" -lt "${#DT_BTM[@]}" ]; do
+		if [ "${DT_BTC[$i]}" = 1 ] || { [ "${DT_BTP[$i]}" = 1 ] && [ -z "${DT_BTICON["${DT_BTM[$i]}"]+x}" ]; }; then
+			dt_btinfo "$i"
+		fi
+		i=$((i + 1))
+	done
+	return 0
+}
+
+# One device's battery and icon, from `info`: "Battery Percentage: 0x55
+# (85)", the decimal in the brackets, and "Icon: input-keyboard".
+fn dt_btinfo(int i) {
+	local l mac=${DT_BTM[$i]} b=
+
+	DT_BTICON["$mac"]=
+	while IFS= read -r l; do
+		case $l in
+		*"Battery Percentage: "*) b=${l##*"("}; b=${b%")"*} ;;
+		*"Icon: "*) DT_BTICON["$mac"]=${l#*Icon: } ;;
+		esac
+	done <<< "$(dt_btq info "$mac")"
+	DT_BTB[$i]=$b
+	DT_BTI[$i]=${DT_BTICON["$mac"]}
+}
+
+# How many devices are connected now.
+dt_btconnected() {
+	local i=0 n=0
+
+	while [ "$i" -lt "${#DT_BTC[@]}" ]; do
+		[ "${DT_BTC[$i]}" = 1 ] && n=$((n + 1))
+		i=$((i + 1))
+	done
+	ret "$n"
+}
+
+# The item on the menu bar: Bluetooth's sign, with how many devices are
+# connected, or that it is off -- while Control Panel > Bluetooth >
+# Bluetooth on Menu Bar is on. A left click lists the devices beneath it, a
+# right click opens the Bluetooth menu.
+dt_btbar() {
+	local t n
+
+	if [ "${DT_BTBAR:-1}" != 1 ] || [ "${DT_BT["kind"]:-none}" != bluez ]; then
+		dt_baritem bt ""
+		return 0
+	fi
+	if [ "${DT_BT["power"]}" != yes ]; then
+		t=${GL[btoff]}
+	else
+		n := dt_btconnected
+		t=${GL[bt]}
+		[ "$n" -gt 0 ] && t="$t $n"
+	fi
+	[ -n "${DT_BT["busy"]}" ] && t="${GL[bt]} ${GL[ellipsis]}"
+	dt_baritem bt "$t" dt_btpopopen
+	dt_bariright bt dt_btmenu
+}
+
+# Look the first time there is a frame to draw, and watch bluetoothctl: one
+# kept running with nothing to read, so it says only what changes, in a
+# session of its own so the whole of it can be ended.
+dt_btstart() {
+	dt_btkind
+	dt_btread
+	dt_btbar
+	[ "${DT_BT["kind"]}" = bluez ] || return 0
+	dt_watchstart 'sleep 2147483647 | LC_ALL=C bluetoothctl'
+	DT_BTFD=$DT_WFD
+	DT_BTPID=$DT_WPID
+	command -v console > /dev/null && console watch "$DT_BTFD" 2> /dev/null
+	DT_BTAT=$EPOCHSECONDS
+}
+
+dt_btstop() {
+	dt_watchstop "$DT_BTFD" "$DT_BTPID"
+	DT_BTFD=
+	DT_BTPID=
+	[ -n "$DT_BTPAIR" ] && dt_btpairend
+	return 0
+}
+
+# Every frame: look the first time, see to a job or a pairing that is
+# running, then read what bluetoothctl has said -- a change to anything
+# reads everything again, at most once a second.
+dt_bttick() {
+	local l stale=$DT_BTLATE ms
+
+	if [ -z "${DT_BT["kind"]}" ]; then
+		dt_btstart
+		return 0
+	fi
+	[ -n "$DT_BTJOB" ] && dt_btjobpoll
+	[ -n "$DT_BTPAIR" ] && dt_btpairtick
+	if [ "${DT_BT["kind"]}" = gone ]; then
+		[ $((EPOCHSECONDS - DT_BTAT)) -ge 30 ] || return 0
+		DT_BT["kind"]=
+		return 0
+	fi
+	[ -n "$DT_BTFD" ] || return 0
+	while read -t 0 -u "$DT_BTFD"; do
+		if ! IFS= read -r -u "$DT_BTFD" l; then
+			dt_btstop
+			DT_BT["kind"]=gone
+			DT_BTAT=$EPOCHSECONDS
+			dt_baritem bt ""
+			return 0
+		fi
+		case $l in
+		*"[CHG]"* | *"[NEW]"* | *"[DEL]"*) stale=1 ;;
+		esac
+	done
+	[ -n "$stale" ] || return 0
+	ms=$(( (${EPOCHREALTIME/./} - ${DT_BTREAD/./}) / 1000 ))
+	if [ "$ms" -lt 1000 ]; then
+		DT_BTLATE=1
+		dt_want $((1000 - ms))
+		return 0
+	fi
+	DT_BTLATE=
+	dt_btread
+	dt_btbar
+	return 0
+}
+
+# Run something that waits on BlueZ as a job -- connect, disconnect,
+# forget, power, visibility, a scan -- with whom it is about, for what is
+# said afterwards. A second while one runs is refused.
+fn dt_btjob(kind, who, ...cmd) {
+	local d=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-bt-$UID
+
+	if [ -n "$DT_BTJOB" ]; then
+		dt_notep low "Bluetooth is busy with %s" "${DT_BTJWHO:-something}"
+		return 1
+	fi
+	(umask 077; mkdir -p "$d")
+	DT_BTJF="$d/job.$$"
+	rm -f "$DT_BTJF.st" "$DT_BTJF.out"
+	DT_BTJKIND=$kind
+	DT_BTJWHO=$who
+	DT_BT["err"]=
+	case $kind in connect | disconnect | forget) DT_BT["busy"]=$who ;; esac
+	(
+		command -v dt_jobname > /dev/null && dt_jobname "bt:$kind" "$who"
+		LC_ALL=C "${cmd[@]}" > "$DT_BTJF.out" 2>&1
+		echo "$?" > "$DT_BTJF.st"
+	) &
+	DT_BTJOB=$!
+	dt_btbar
+	dt_want 300
+}
+
+# A job finished: bluetoothctl's exit status is not to be trusted to say
+# whether it worked, so what it printed is: a line saying it failed, or an
+# error BlueZ named, is a failure, whatever the status.
+dt_btjobpoll() {
+	local st l why= ok=
+
+	if [ ! -s "$DT_BTJF.st" ]; then
+		dt_want 300
+		return 0
+	fi
+	read -r st < "$DT_BTJF.st"
+	while IFS= read -r l; do
+		l=${l//$'\r'/}
+		case $l in
+		*"Failed to "* | *"org.bluez.Error"* | *"not available"* | *"No default controller"*)
+			[ -n "$why" ] || why=${l#*Failed to }
+			;;
+		*successful* | *Successful* | *succeeded* | *"has been removed"*) ok=1 ;;
+		esac
+	done < "$DT_BTJF.out"
+	rm -f "$DT_BTJF.st" "$DT_BTJF.out"
+	DT_BTJOB=
+	DT_BT["busy"]=
+	[ -z "$why" ] && [ "$st" = 0 ] && ok=1
+	if [ -n "$why" ]; then
+		ok=
+		why=${why#*org.bluez.Error.}
+		case $why in
+		NotPermitted* | NotAuthorized* | *AccessDenied*) why := dt_tr "not allowed from this session" ;;
+		*page-timeout*) why := dt_tr "it did not answer -- is it on and near?" ;;
+		esac
+	fi
+	if [ -n "$ok" ]; then
+		case $DT_BTJKIND in
+		connect) dt_notep low "Connected %s" "$DT_BTJWHO" ;;
+		disconnect) dt_notep low "Disconnected %s" "$DT_BTJWHO" ;;
+		forget) dt_notep low "Forgot %s" "$DT_BTJWHO" ;;
+		esac
+	else
+		DT_BT["err"]=${why:-$st}
+		case $DT_BTJKIND in
+		connect) dt_notep high "Could not connect %s: %s" "$DT_BTJWHO" "${why:-bluetoothctl $st}" ;;
+		disconnect) dt_notep high "Could not disconnect %s: %s" "$DT_BTJWHO" "${why:-bluetoothctl $st}" ;;
+		forget) dt_notep high "Could not forget %s: %s" "$DT_BTJWHO" "${why:-bluetoothctl $st}" ;;
+		*) dt_notep high "Bluetooth said: %s" "${why:-bluetoothctl $st}" ;;
+		esac
+	fi
+	DT_BTJKIND=
+	DT_BTJWHO=
+	dt_btread
+	dt_btbar
+}
+
+# Connect a known device, or disconnect it when it is connected: by row.
+fn dt_bttoggle(int i) {
+	local mac=${DT_BTM[$i]} nm=${DT_BTN[$i]}
+
+	[ -n "$mac" ] || return 0
+	if [ "${DT_BTP[$i]}" != 1 ]; then
+		dt_btpair "$i"
+		return 0
+	fi
+	if [ "${DT_BTC[$i]}" = 1 ]; then
+		dt_btjob disconnect "$nm" bluetoothctl disconnect "$mac"
+	else
+		[ "${DT_BT["power"]}" = yes ] || { dt_notep low "Bluetooth is off"; return 0; }
+		dt_btjob connect "$nm" bluetoothctl connect "$mac"
+	fi
+}
+
+# Forget a device, by address: unpaired and removed, its keys with it.
+fn dt_btforget(mac) {
+	local i=0 nm=$mac
+
+	while [ "$i" -lt "${#DT_BTM[@]}" ]; do
+		[ "${DT_BTM[$i]}" = "$mac" ] && nm=${DT_BTN[$i]}
+		i=$((i + 1))
+	done
+	unset DT_BTICON["$mac"]
+	dt_btjob forget "$nm" bluetoothctl remove "$mac"
+}
+
+# The adapter on or off, and visible to other devices or not.
+dt_btpower() {
+	local to=on
+
+	[ "${DT_BT["kind"]}" = bluez ] || return 0
+	[ "${DT_BT["power"]}" = yes ] && to=off
+	dt_btjob power "" bluetoothctl power "$to"
+}
+
+dt_btvisible() {
+	local to=on
+
+	[ "${DT_BT["kind"]}" = bluez ] || return 0
+	[ "${DT_BT["disc"]}" = yes ] && to=off
+	dt_btjob visible "" bluetoothctl discoverable "$to"
+}
+
+# Look for devices in reach for a while; what is heard arrives through the
+# watch as [NEW] lines, and the list then holds them under the paired ones.
+dt_btscan() {
+	[ "${DT_BT["kind"]}" = bluez ] || return 0
+	[ "${DT_BT["power"]}" = yes ] || { dt_notep low "Bluetooth is off"; return 0; }
+	dt_notep low "Looking for devices"
+	dt_btjob scan "" bluetoothctl --timeout 15 scan on
+}
+
+# Pairing, in an interactive bluetoothctl on a pty: an agent registered,
+# then pair, trust and connect, one after the other, each when the last has
+# said it is done. What its agent asks -- confirm a passkey both devices
+# show, type a passkey or a PIN, or type the one shown on a keyboard -- is
+# asked in a window (btpair). bluez's own words (client/agent.c, and the
+# "Pairing successful" of client/main.c); not yet captured from a real
+# pairing, which this machine cannot do.
+DT_BTPAIR=
+DT_BTPMAC=
+DT_BTPNAME=
+DT_BTPBUF=
+DT_BTPSTEP=
+DT_BTPAT=0
+DT_BTPWIN=
+declare -gA BTP
+
+fn dt_btpair(int i) {
+	local id
+
+	[ -n "$DT_BTPAIR" ] && { dt_notep low "Already pairing %s" "$DT_BTPNAME"; return 0; }
+	[ "${DT_BT["power"]}" = yes ] || { dt_notep low "Bluetooth is off"; return 0; }
+	need pty 2> /dev/null || return 0
+	id := pty spawn -r 24 -c 200 env LC_ALL=C bluetoothctl || return 0
+	DT_BTPAIR=$id
+	DT_BTPMAC=${DT_BTM[$i]}
+	DT_BTPNAME=${DT_BTN[$i]}
+	DT_BTPBUF=
+	DT_BTPSTEP=pair
+	DT_BTPAT=$EPOCHSECONDS
+	DT_BT["busy"]=$DT_BTPNAME
+	pty write "$DT_BTPAIR" $'agent KeyboardDisplay\rdefault-agent\rpair '"$DT_BTPMAC"$'\r'
+	dt_notep low "Pairing with %s" "$DT_BTPNAME"
+	dt_btbar
+	dt_want 150
+}
+
+# Every frame while pairing: read what it says, and act on the agent's
+# questions and on each step's end. A minute with no end is a failure.
+dt_btpairtick() {
+	local out l tail
+
+	dt_want 150
+	out := pty read "$DT_BTPAIR" 0
+	if [ -n "$out" ]; then
+		out=${out//$'\r'/}
+		out=${out//$'\e[0m'/}; out=${out//$'\e[0;92m'/}; out=${out//$'\e[0;93m'/}
+		out=${out//$'\e[0;91m'/}; out=${out//$'\e[0;94m'/}; out=${out//$'\e[1;39m'/}
+		DT_BTPBUF+=$out
+	fi
+	while [ "${DT_BTPBUF#*$'\n'}" != "$DT_BTPBUF" ]; do
+		l=${DT_BTPBUF%%$'\n'*}
+		DT_BTPBUF=${DT_BTPBUF#*$'\n'}
+		case $l in
+		*"Pairing successful"*)
+			DT_BTPSTEP=trust
+			pty write "$DT_BTPAIR" "trust $DT_BTPMAC"$'\r'
+			;;
+		*"trust succeeded"*)
+			DT_BTPSTEP=connect
+			pty write "$DT_BTPAIR" "connect $DT_BTPMAC"$'\r'
+			;;
+		*"Connection successful"*)
+			dt_notep low "Paired with %s" "$DT_BTPNAME"
+			dt_btpairend
+			return 0
+			;;
+		*"Failed to connect"*)
+			dt_notep low "Paired with %s; it did not connect" "$DT_BTPNAME"
+			dt_btpairend
+			return 0
+			;;
+		*"Failed to pair"* | *"Failed to trust"*)
+			l=${l#*org.bluez.Error.}
+			dt_notep high "Could not pair %s: %s" "$DT_BTPNAME" "$l"
+			dt_btpairend
+			return 0
+			;;
+		*"[agent] Passkey: "* | *"[agent] PIN code: "*)
+			dt_btpask show "${l##*: }"
+			;;
+		esac
+	done
+	tail=${DT_BTPBUF##*$'\n'}
+	case $tail in
+	*"Confirm passkey "*"(yes/no): ")
+		l=${tail#*Confirm passkey }
+		DT_BTPBUF=
+		dt_btpask confirm "${l%% *}"
+		;;
+	*"Enter passkey"*": " | *"Enter PIN code: ")
+		DT_BTPBUF=
+		dt_btpask enter ""
+		;;
+	*"(yes/no): ")
+		DT_BTPBUF=
+		pty write "$DT_BTPAIR" $'yes\r'
+		;;
+	esac
+	if [ $((EPOCHSECONDS - DT_BTPAT)) -ge 60 ]; then
+		dt_notep high "Could not pair %s: no answer" "$DT_BTPNAME"
+		dt_btpairend
+	fi
+}
+
+dt_btpairend() {
+	[ -n "$DT_BTPAIR" ] && pty close "$DT_BTPAIR" 2> /dev/null
+	DT_BTPAIR=
+	DT_BT["busy"]=
+	if [ -n "$DT_BTPWIN" ]; then
+		dt_wantclose "$DT_BTPWIN"
+		DT_BTPWIN=
+	fi
+	dt_btread
+	dt_btbar
+}
+
+# The agent's question in a window: a passkey both devices show, to
+# confirm; one shown here, to type on the device; or one to type here.
+fn dt_btpask(how, code = "") {
+	local id t
+
+	if [ -n "$DT_BTPWIN" ]; then
+		BTP[$DT_BTPWIN]["how"]=$how
+		BTP[$DT_BTPWIN]["code"]=$code
+		return 0
+	fi
+	dt_dlgat 11 52
+	t := dt_tr "Bluetooth"
+	id := dt_new "$t" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" btpair
+	BTP[$id]["how"]=$how
+	BTP[$id]["code"]=$code
+	DT_BTPWIN=$id
+}
+
+fn btpair_open(int id, arg = "") {
+	BTP[$id]["pin"]=
+	BTP[$id]["pincur"]=0
+}
+
+fn btpair_draw(int id, int h, int w, int row, int col) {
+	local t r=1
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE" bold
+	t := dt_tr "Pairing with %s" "$DT_BTPNAME"
+	t := dt_cut "$t" $((w - 3))
+	console put -p "w$id" "$r" 2 "$t"
+	r=$((r + 2))
+	console pen "$DT_INK" "$DT_FACE"
+	case ${BTP[$id]["how"]} in
+	confirm)
+		t := dt_tr "Does it show this number?"
+		console put -p "w$id" "$r" 2 "$t"
+		console pen "$DT_ACTIVE" "$DT_FACE" bold
+		console put -p "w$id" $((r + 2)) 4 "${BTP[$id]["code"]}"
+		dt_button "$id" $((r + 4)) $((w - 20)) "No" 0 no
+		dt_button "$id" $((r + 4)) $((w - 11)) "Yes" 2 yes
+		;;
+	show)
+		t := dt_tr "Type this on it, then Enter:"
+		console put -p "w$id" "$r" 2 "$t"
+		console pen "$DT_ACTIVE" "$DT_FACE" bold
+		console put -p "w$id" $((r + 2)) 4 "${BTP[$id]["code"]}"
+		dt_button "$id" $((r + 4)) $((w - 14)) "Cancel" 0 cancel
+		;;
+	*)
+		t := dt_tr "Its passkey or PIN:"
+		console put -p "w$id" "$r" 2 "$t"
+		dt_textdraw "$id" $((r + 2)) 4 $((w - 7)) "${BTP[$id]["pin"]}" "${BTP[$id]["pincur"]}" 1
+		dt_button "$id" $((r + 4)) $((w - 22)) "Cancel" 0 cancel
+		dt_button "$id" $((r + 4)) $((w - 11)) "Pair" 2 ok
+		;;
+	esac
+}
+
+fn btpair_key(int id, key) {
+	local r
+
+	case $key in
+	escape) btpair_do "$id" cancel; return 0 ;;
+	enter)
+		case ${BTP[$id]["how"]} in
+		confirm) btpair_do "$id" yes ;;
+		enter) btpair_do "$id" ok ;;
+		esac
+		return 0
+		;;
+	esac
+	[ "${BTP[$id]["how"]}" = enter ] || return 1
+	r := dt_textkey "${BTP[$id]["pin"]}" "${BTP[$id]["pincur"]}" "$key" || return 1
+	BTP[$id]["pin"]=${r% *}
+	BTP[$id]["pincur"]=${r##* }
+	return 0
+}
+
+fn btpair_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	btpair_do "$id" "$tag"
+}
+
+fn btpair_do(int id, what) {
+	case $what in
+	yes) [ -n "$DT_BTPAIR" ] && pty write "$DT_BTPAIR" $'yes\r' ;;
+	no) [ -n "$DT_BTPAIR" ] && pty write "$DT_BTPAIR" $'no\r' ;;
+	ok) [ -n "$DT_BTPAIR" ] && pty write "$DT_BTPAIR" "${BTP[$id]["pin"]}"$'\r' ;;
+	cancel)
+		dt_notep low "Pairing cancelled"
+		DT_BTPWIN=
+		dt_del "$id"
+		dt_btpairend
+		return 0
+		;;
+	*) return 0 ;;
+	esac
+	DT_BTPWIN=
+	dt_del "$id"
+}
+
+fn btpair_close(int id) {
+	unset BTP["$id"]
+	[ "$DT_BTPWIN" = "$id" ] && DT_BTPWIN=
+	return 0
+}
+
+# The list beneath the bar item, opened by a left click: Bluetooth's
+# switch, the known devices to click to connect or disconnect -- with their
+# battery -- and any a scan found to click to pair; then the settings.
+dt_btpopopen() {
+	local n=${#DT_BTM[@]} h
+
+	h=$((n + 4))
+	[ "$n" = 0 ] && h=5
+	[ "$h" -gt 16 ] && h=16
+	DT_BTTOP=0
+	DT_BTSEL=0
+	DT_BTSEEN=
+	dt_baripop bt bt "$h" 40
+}
+
+fn bt_popdraw(int r, int c, int h, int w) {
+	local n=${#DT_BTM[@]} vis=$((h - 4)) i row t g v
+
+	console pen "$DT_INK" "$DT_FACE" bold
+	t := dt_tr "Bluetooth"
+	console put "$r" $((c + 1)) "$t"
+	if [ "${DT_BT["power"]}" = yes ]; then
+		console pen "$DT_ACTIVE" "$DT_FACE" bold
+		t := dt_tr "On"
+	else
+		console pen "$DT_IDLE" "$DT_FACE"
+		t := dt_tr "Off"
+	fi
+	console put "$r" $((c + w - 1 - ${#t})) "$t"
+	console pen "$DT_IDLE" "$DT_FACE"
+	t := dt_rep "$w" "${GL[hline]}"
+	console put $((r + 1)) "$c" "$t"
+	console put $((r + h - 2)) "$c" "$t"
+	if [ "${DT_BT["power"]}" != yes ] || [ "$n" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		if [ "${DT_BT["power"]}" != yes ]; then
+			t := dt_tr "Bluetooth is off"
+		else
+			t := dt_tr "No devices yet"
+		fi
+		console put $((r + 2)) $((c + 2)) "$t"
+	else
+		DT_BTTOP := dt_scrollview "$DT_BTTOP" "$n" "$vis" "$DT_BTSEL" "$DT_BTSEEN"
+		DT_BTSEEN=$DT_BTSEL
+		row=0
+		while [ "$row" -lt "$vis" ] && [ $((DT_BTTOP + row)) -lt "$n" ]; do
+			i=$((DT_BTTOP + row))
+			if [ "$i" = "$DT_BTSEL" ]; then
+				console pen "$DT_SELINK" "$DT_ACTIVE"
+				t := str repeat " " "$w"
+				console put $((r + 2 + row)) "$c" "$t"
+			elif [ "${DT_BTP[$i]}" != 1 ]; then
+				console pen "$DT_DIM" "$DT_FACE"
+			elif [ "${DT_BTC[$i]}" = 1 ]; then
+				console pen "$DT_INK" "$DT_FACE" bold
+			else
+				console pen "$DT_INK" "$DT_FACE"
+			fi
+			g=" "
+			[ "${DT_BTC[$i]}" = 1 ] && g=${GL[check]}
+			[ "${DT_BTN[$i]}" = "${DT_BT["busy"]}" ] && g=${GL[ellipsis]}
+			v=
+			[ -n "${DT_BTB[$i]}" ] && v="${DT_BTB[$i]}%"
+			if [ "${DT_BTP[$i]}" != 1 ]; then
+				v := dt_tr "pair"
+			fi
+			t := dt_cut "${DT_BTN[$i]}" $((w - 9))
+			console put $((r + 2 + row)) "$c" "$g $t"
+			console put $((r + 2 + row)) $((c + w - 1 - ${#v})) "$v"
+			row=$((row + 1))
+		done
+	fi
+	console pen "$DT_INK" "$DT_FACE"
+	t := dt_tr "Bluetooth Settings%s" "${GL[ellipsis]}"
+	console put $((r + h - 1)) $((c + 1)) "$t"
+}
+
+fn bt_popmouse(act, int r, int c) {
+	local n=${#DT_BTM[@]} i
+
+	case $act in
+	press) ;;
+	up) DT_BTTOP=$((DT_BTTOP > 0 ? DT_BTTOP - 1 : 0)); return 0 ;;
+	down) DT_BTTOP=$((DT_BTTOP + 1)); return 0 ;;
+	*) return 0 ;;
+	esac
+	if [ "$r" = 0 ]; then
+		dt_btpower
+		return 0
+	fi
+	if [ "$r" = $((DT_POPH - 1)) ]; then
+		dt_popclose
+		dt_btsettings
+		return 0
+	fi
+	i=$((DT_BTTOP + r - 2))
+	[ "$r" -ge 2 ] && [ "$i" -lt "$n" ] && [ "$r" -lt $((DT_POPH - 2)) ] || return 0
+	DT_BTSEL=$i
+	dt_popclose
+	dt_bttoggle "$i"
+}
+
+fn bt_popkey(k) {
+	local n=${#DT_BTM[@]}
+
+	case $k in
+	up) [ "$DT_BTSEL" -gt 0 ] && DT_BTSEL=$((DT_BTSEL - 1)) ;;
+	down) [ "$DT_BTSEL" -lt $((n - 1)) ] && DT_BTSEL=$((DT_BTSEL + 1)) ;;
+	enter)
+		[ "$n" -gt 0 ] || return 0
+		dt_popclose
+		dt_bttoggle "$DT_BTSEL"
+		;;
+	b) dt_btpower ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+dt_btsettings() {
+	dt_has dt_panelpane && dt_panelpane bluetooth
+}
+
+dt_btmenu() {
+	dt_barmenu bt bt
+}
+
+# What the Bluetooth menu holds: how many are connected, the switch, the
+# known devices with the connected ones ticked, Look for Devices, the pane.
+fn bt_context(id = "") {
+	local i on lb n
+
+	dt_menu "Bluetooth"
+	if [ "${DT_BT["power"]}" != yes ]; then
+		lb := dt_tr "Bluetooth is off"
+	else
+		n := dt_btconnected
+		lb := dt_tr "%s connected" "$n"
+	fi
+	dt_dim "$lb"
+	on=0
+	[ "${DT_BT["power"]}" = yes ] && on=1
+	dt_mark "Bluetooth" b "$on" dt_btpower
+	if [ "$on" = 1 ]; then
+		i=0
+		n=0
+		while [ "$i" -lt "${#DT_BTM[@]}" ] && [ "$n" -lt 10 ]; do
+			if [ "${DT_BTP[$i]}" = 1 ]; then
+				[ "$n" = 0 ] && dt_sep
+				lb=${DT_BTN[$i]:0:32}
+				dt_mark "$lb" "" "${DT_BTC[$i]}" dt_bttoggle "$i"
+				n=$((n + 1))
+			fi
+			i=$((i + 1))
+		done
+		dt_sep
+		dt_item "Look for Devices" l dt_btscan
+	fi
+	dt_sep
+	if dt_has panel_goto; then
+		dt_item "Bluetooth Settings${GL[ellipsis]}" s dt_btsettings
+	else
+		dt_dim "Bluetooth Settings${GL[ellipsis]}"
+	fi
+}
+
+command -v dt_app > /dev/null && dt_app btpair "Bluetooth" 11 52 "" "" fixed hidden
+dt_ticker dt_bttick

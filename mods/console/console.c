@@ -416,7 +416,7 @@ int m_console(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: console open|close|size|clear|pen|put|"
-			      "fill|cursor|flush|shot|key|watch|unwatch|pane|hit|mouse");
+			      "fill|cursor|flush|shot|key|watch|unwatch|watching|pane|hit|mouse");
 		return 2;
 	}
 	if (!strcmp(sub, "open"))
@@ -937,6 +937,23 @@ int m_console(sh *s, int ac, char **av)
 		}
 		s_free(&k);
 		return r == 1 ? HIBR_OK : HIBR_FAIL;
+	}
+	if (!strcmp(sub, "watching")) {
+		int *fds;
+		size_t n = cn_wlist(&fds), i;
+		char b[32];
+
+		s_init(&k);
+		for (i = 0; i < n; i++) {
+			snprintf(b, sizeof b, "%s%d%s", i ? " " : "", fds[i],
+				 cn_wmuted(fds[i]) ? ":muted" : "");
+			s_cat(&k, b);
+		}
+		hibr_ret(s, k.p ? k.p : "");
+		if (!s->bind)
+			printf("%s\n", k.p ? k.p : "");
+		s_free(&k);
+		return HIBR_OK;
 	}
 	if (!strcmp(sub, "watch") || !strcmp(sub, "unwatch")) {
 		if (ac < 3) {
