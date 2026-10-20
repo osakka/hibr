@@ -216,7 +216,7 @@ All four work in the shell's own process. No pipeline, no fork.
 | `json op var args…` | **[hibr]** `parse get set emit keys len type` |
 | `match [-i] [-a] subject pattern [var]` | **[hibr]** match a regex, groups land in `M` |
 | `rsub [-i] [-g] subject pattern replacement [var]` | **[hibr]** substitute regex matches |
-| `printf fmt [args…]` | formatted output, including `%q` and `%(fmt)T` |
+| `printf fmt [args…]` | formatted output, including `%q`, `%(fmt)T` and a `*` width or precision taken from the next argument; an argument that is not a number says so and fails, as in bash |
 | `echo [-n] [-e] [-E] args…` | write arguments |
 
 <!-- setup

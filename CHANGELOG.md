@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.268
+
+**`printf` takes a width or a precision from an argument with `*`**, as
+bash does: `printf '%*s' 5 ab` pads to five, `%-*s` and a negative width
+left-justify, `%.*s` cuts, a negative precision is none, and a missing
+argument is 0. hibr printed the star and the letter after it -- `5s` --
+with every argument after it shifted by one.
+
+**A number argument that is not a number says so and fails**, as bash's
+does: `printf '%d' 12abc` prints `12`, says `printf: 12abc: invalid
+number` and returns 1, for `%d`, `%i`, `%u`, `%x`, `%o` and the floating
+conversions alike. hibr printed what it could read and returned 0. Leading
+blanks, `0x`, a leading quote's character code and an empty argument are
+still numbers, as in bash; a trailing blank is not. `tests/194-printf-star.t`
+compares both against bash.
+
 ## 0.99.267
 
 **A left click on the menu bar's speaker opens the volume as a slider**

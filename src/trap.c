@@ -1,6 +1,7 @@
 #include "pri.h"
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -583,11 +584,50 @@ long pf_arg(const char *arg, int uns)
 	return uns ? (long)strtoul(arg, 0, 0) : strtol(arg, 0, 0);
 }
 
+/* A numeric argument read as bash reads it: what strtol takes, and
+   anything left over said to be no number, with bad set for the status. */
+long pf_num(const char *arg, int uns, int *bad)
+{
+	char *e;
+	long v;
+
+	if (!arg || !*arg || *arg == '\'' || *arg == '"')
+		return pf_arg(arg, uns);
+	v = uns ? (long)strtoul(arg, &e, 0) : strtol(arg, &e, 0);
+	if (*e) {
+		lg(HIBR_LERR, "printf: %s: invalid number", arg);
+		*bad = 1;
+	}
+	return v;
+}
+
+/* A width or precision given as `*`: the next argument, kept to an int. */
+void pf_star(str *spec, const char *arg, int prec, int *bad)
+{
+	long v = pf_num(arg, 0, bad);
+	char d[32];
+
+	if (v < 0) {
+		if (prec) {
+			spec->n--;
+			spec->p[spec->n] = 0;
+			return;
+		}
+		s_ch(spec, '-');
+		v = v == LONG_MIN ? LONG_MAX : -v;
+	}
+	if (v > INT_MAX)
+		v = INT_MAX;
+	snprintf(d, sizeof d, "%ld", v);
+	s_cat(spec, d);
+}
+
 /* Emit one conversion with its flags, width and precision. */
-void pf_one(str *o, const char *spec, char cv, const char *arg)
+void pf_one(str *o, const char *spec, char cv, const char *arg, int *bad)
 {
 	str f;
 	char *e;
+	double dv;
 	size_t room = pf_wide(spec) + 64;
 
 	s_init(&f);
@@ -597,7 +637,7 @@ void pf_one(str *o, const char *spec, char cv, const char *arg)
 	case 'i':
 		s_cat(&f, "ld");
 		s_grow(o, room);
-		o->n += (size_t)sprintf(o->p + o->n, f.p, pf_arg(arg, 0));
+		o->n += (size_t)sprintf(o->p + o->n, f.p, pf_num(arg, 0, bad));
 		break;
 	case 'u':
 	case 'x':
@@ -607,7 +647,7 @@ void pf_one(str *o, const char *spec, char cv, const char *arg)
 		s_ch(&f, cv);
 		s_grow(o, room);
 		o->n += (size_t)sprintf(o->p + o->n, f.p,
-					(unsigned long)pf_arg(arg, 1));
+					(unsigned long)pf_num(arg, 1, bad));
 		break;
 	case 'f':
 	case 'e':
@@ -616,8 +656,12 @@ void pf_one(str *o, const char *spec, char cv, const char *arg)
 	case 'G':
 		s_ch(&f, cv);
 		s_grow(o, room + 320);
-		o->n += (size_t)sprintf(o->p + o->n, f.p,
-					arg ? strtod(arg, &e) : 0.0);
+		dv = arg ? strtod(arg, &e) : 0.0;
+		if (arg && *arg && *e) {
+			lg(HIBR_LERR, "printf: %s: invalid number", arg);
+			*bad = 1;
+		}
+		o->n += (size_t)sprintf(o->p + o->n, f.p, dv);
 		break;
 	case 'c':
 		s_ch(&f, 'c');
@@ -639,7 +683,7 @@ int b_printf(sh *s, int ac, char **av)
 {
 	str o, spec;
 	const char *p, *into = 0;
-	int i = 2, used;
+	int i = 2, used, bad = 0;
 
 	if (ac > 2 && !strcmp(av[1], "-v")) {
 		into = av[2];
@@ -690,10 +734,24 @@ int b_printf(sh *s, int ac, char **av)
 			s_ch(&spec, '%');
 			while (*p && strchr("-+ #0", *p))
 				s_ch(&spec, *p++);
+			if (*p == '*') {
+				pf_star(&spec, i < ac ? av[i] : 0, 0, &bad);
+				if (i < ac)
+					used = 1;
+				i++;
+				p++;
+			}
 			while (isdigit((unsigned char)*p))
 				s_ch(&spec, *p++);
 			if (*p == '.') {
 				s_ch(&spec, *p++);
+				if (*p == '*') {
+					pf_star(&spec, i < ac ? av[i] : 0, 1, &bad);
+					if (i < ac)
+						used = 1;
+					i++;
+					p++;
+				}
 				while (isdigit((unsigned char)*p))
 					s_ch(&spec, *p++);
 			}
@@ -760,7 +818,7 @@ int b_printf(sh *s, int ac, char **av)
 				p++;
 				continue;
 			}
-			pf_one(&o, spec.p, *p, i < ac ? av[i] : 0);
+			pf_one(&o, spec.p, *p, i < ac ? av[i] : 0, &bad);
 			s_free(&spec);
 			if (i < ac)
 				used = 1;
@@ -776,7 +834,7 @@ int b_printf(sh *s, int ac, char **av)
 		fflush(stdout);
 	}
 	s_free(&o);
-	return HIBR_OK;
+	return bad ? HIBR_FAIL : HIBR_OK;
 }
 
 /* Release the trap tables. */
