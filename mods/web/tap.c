@@ -61,7 +61,11 @@ static const char wb_tapjs[] =
    a reset, then WebM/Opus in quarter seconds, read with web take -- with
    the browser's voice processing off, since it wears a steady note down,
    and the sound kept off the machine's own device. The page's first
-   press or key starts it once a tab's sound is on (__hibrSndClick).
+   click or key starts it once a tab's sound is on (__hibrSndClick) -- a
+   tick after it, not in it: started inside a pointerdown, the capture
+   swallowed the press, and a click on a link failed to follow it about
+   one time in three. The press's own gesture lasts long enough for a
+   tick.
    As each page loads, with that allowed, __hibrSndStart(1) comes as a
    gesture and plays again what the page was refused before it: its
    autoplay elements, and any play() turned down for want of a press.
@@ -113,8 +117,9 @@ static const char wb_sndjs[] =
 	"if(cap)cap.getTracks().forEach(function(k){k.stop()});"
 	"if(tick)clearInterval(tick);if(ac)try{ac.close()}catch(x){}"
 	"rec=cap=ac=null;tick=0;st='idle';T.snd='';return 'ok'};"
-	"function go(){if(window.__hibrSndClick)window.__hibrSndStart()}"
-	"window.addEventListener('pointerdown',go,true);"
+	"function go(){if(window.__hibrSndClick&&st==='idle')"
+	"setTimeout(function(){window.__hibrSndStart()},0)}"
+	"window.addEventListener('click',go,true);"
 	"window.addEventListener('keydown',go,true)})()";
 
 /* Guard a new tab's getDisplayMedia and give it the means of recording

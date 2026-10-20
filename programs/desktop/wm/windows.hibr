@@ -225,8 +225,8 @@ fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
 	case $corner in
 	tl)
 		r=$mr; c=$mc
-		[ "$r" -lt 1 ] && r=1
 		[ "$c" -lt 0 ] && c=0
+		r := dt_toprow "$r" "$c" $((ar - r + 1)) $((ac - c + 1))
 		[ "$r" -gt $((ar - DT_MINH + 1)) ] && r=$((ar - DT_MINH + 1))
 		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
 		DT[$id]["row"]=$r
@@ -243,7 +243,7 @@ fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
 		# small once it clamps against the screen's far edge, can never
 		# actually fire here; only its far-edge clamp on the width does.
 		r=$mr
-		[ "$r" -lt 1 ] && r=1
+		r := dt_toprow "$r" "${DT[$id]["col"]}" $((ar - r + 1)) $((mc - ${DT[$id]["col"]} + 1))
 		[ "$r" -gt $((ar - DT_MINH + 1)) ] && r=$((ar - DT_MINH + 1))
 		DT[$id]["row"]=$r
 		dt_resize "$id" $((ar - r + 1)) $((mc - ac + 1))
@@ -287,6 +287,22 @@ fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
 # a display that has since gone, or on a screen since made smaller -- got
 # the same place from every drag and could not be moved at all (Gitea
 # #297), so it keeps its corner on the screen instead.
+# The highest row a window of h rows and w columns at column c may stand
+# at. The menu bar's row is the primary display's own, so a window over the
+# primary's columns is kept below it; one beside it, on a display with no
+# bar, may go to that display's top -- every clamp said row 1 for every
+# display, which left a second display's top row out of reach.
+fn dt_toprow(int r, int c, int h, int w) {
+	local pr=${DT_PRIMARY_ROW:-0} pc=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
+
+	[ "$r" -lt 0 ] && r=0
+	if [ "$r" -le "$pr" ] && [ $((r + h)) -gt "$pr" ] &&
+	   [ $((c + w)) -gt "$pc" ] && [ "$c" -lt $((pc + pw)) ]; then
+		r=$((pr + 1))
+	fi
+	ret "$r"
+}
+
 fn dt_move(int id, int r, int c) {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]}
 
@@ -300,8 +316,8 @@ fn dt_move(int id, int r, int c) {
 	elif [ "$c" -gt $((DT_COLS - 4)) ]; then
 		c=$((DT_COLS - 4))
 	fi
-	[ "$r" -lt 1 ] && r=1
 	[ "$c" -lt 0 ] && c=0
+	r := dt_toprow "$r" "$c" "$h" "$w"
 	DT[$id]["row"]=$r
 	DT[$id]["col"]=$c
 	console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
@@ -600,7 +616,6 @@ fn dt_movewin(int id, int drow, int dcol, int drows, int dcols) {
 	local r c
 
 	r=$drow
-	[ "$r" -lt 1 ] && r=1
 	c=$dcol
 	[ $((r + DT[$id]["h"])) -gt $((drow + drows)) ] &&
 		r=$((drow + drows - DT[$id]["h"]))
@@ -608,6 +623,7 @@ fn dt_movewin(int id, int drow, int dcol, int drows, int dcols) {
 		c=$((dcol + dcols - DT[$id]["w"]))
 	[ "$r" -lt "$drow" ] && r=$drow
 	[ "$c" -lt "$dcol" ] && c=$dcol
+	r := dt_toprow "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
 	DT[$id]["row"]=$r
 	DT[$id]["col"]=$c
 	console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"

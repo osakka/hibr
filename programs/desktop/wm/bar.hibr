@@ -102,6 +102,18 @@ fn dt_baritem(name, text = "", ...cmd) {
 	return 0
 }
 
+# Open an item's menu beneath it, built by <who>_context: at the first row
+# under the bar and the item's own column. An item never works out a row of
+# its own -- the bar is on the primary, which in a stacked union is not at
+# the top, and the sound menu given row 1 opened on the display above the
+# bar (owner, 2026-10-19). tests/540-examples.t refuses a literal row.
+fn dt_barmenu(name, who, id = "") {
+	local r
+
+	r := dt_ptop
+	dt_context_open "$who" "$id" "$r" "${DT_BARI["$name"]["c"]:-${DT_PRIMARY_COL:-0}}"
+}
+
 # What the wheel over an item runs, given up or down; an item with none
 # lets the wheel go on to whatever is under the bar.
 fn dt_bariwheel(name, fn) {
@@ -206,7 +218,7 @@ dt_barkey() {
 	k="$MB_OPEN|$MB_PAR|$MB_APP|$MB_N|$MB_AX|$DT_NOTEUNSEEN|$DT_UPNEW|$DT_UPAPPS|$DT_UPSESSION"
 	k="$k|$DT_CLOCKWAS|$DT_WS|$DT_WSN|$DT_MIRRORON|$DT_PRIMARY_W"
 	k="$k|$DT_PRIMARY_COL|$DT_PRIMARY_ROW|$DT_PRIMARY_H"
-	k="$k|$DT_BARGAP|$DT_BELLICON|$DT_PBAR"
+	k="$k|$DT_BARGAP|$DT_BELLICON|$DT_PBAR|$DT_MENUBOLD"
 	k="$k|$DT_BARTIME|$DT_BARSHADOW|$DT_INK|$DT_BAR|$DT_ACTIVE|$DT_IDLE"
 	k="$k|$DT_GLYPHSET|$DT_LANG|$DT_DIGITS|$DT_SHADOW_PCT|$DT_MENUIN"
 	# The items are not in here: dt_baritem clears the gate itself, which
@@ -314,6 +326,8 @@ dt_bar() {
 			console pen "$DT_BAR" "$DT_ACTIVE" bold
 		elif [ "$i" = 0 ]; then
 			console pen "$DT_ACTIVE" "$DT_BAR" bold
+		elif [ "$DT_MENUBOLD" = 1 ]; then
+			console pen "$DT_INK" "$DT_BAR" bold
 		else
 			console pen "$DT_INK" "$DT_BAR"
 		fi

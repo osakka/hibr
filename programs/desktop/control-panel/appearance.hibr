@@ -11,7 +11,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 1.8
+app appearance "The Control Panel pane for how the desktop looks" 1.9
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -496,6 +496,10 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BARSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_BARSHADOW; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bold Menu Titles"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_MENUBOLD" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_MENUBOLD; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Shadows"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Windows"
 	CP[$w][$n]["wtype"]=bool
@@ -565,7 +569,7 @@ fn appearance_do(int w, k, int dir) {
 		cp_set_glyphset "" "$v"; return 0 ;;
 	dlgbtn) v := cp_next "$DT_DLGBTN" "$dir" "${DT_DLGBTNS[@]}"
 		DT_DLGBTN=$v ;;
-	DT_SHADOW | DT_MSHADOW | DT_BARSHADOW | DT_BTNSHADOW) cp_toggle "$k" ;;
+	DT_SHADOW | DT_MSHADOW | DT_BARSHADOW | DT_BTNSHADOW | DT_MENUBOLD) cp_toggle "$k" ;;
 	esac
 	cp_save
 }

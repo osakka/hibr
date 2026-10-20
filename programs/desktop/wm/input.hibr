@@ -658,6 +658,12 @@ fn dt_event(k) {
 		dt_tiletoggle
 	elif dt_keyis tilemain "$k"; then
 		dt_tilemain
+	elif dt_keyis zoom "$k"; then
+		[ -n "$DT_FOCUS" ] &&
+			[ "${DT_APPS[${DT[$DT_FOCUS]["app"]}]["fixed"]}" != 1 ] &&
+			dt_zoom_focused
+	elif dt_keyis hide "$k"; then
+		dt_hide_focused
 	elif dt_keyis snapleft "$k"; then
 		dt_snap_focused left
 	elif dt_keyis snapright "$k"; then

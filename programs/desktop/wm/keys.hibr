@@ -18,7 +18,7 @@ DT_KEYPEND_FROM=
 # launch shortcut is DT_APPKEY, keyed by the app's name. Nothing the
 # desktop does is on a key that is not in one of the two.
 DT_KEYORDER=(menu menu2 save undo redo copy cut paste selectall scrollup scrolldown
-	snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
+	zoom hide snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
 	ws7 ws8 ws9 wsnext wsprev tile tilemain close quitapp cycle strip shot
 	refresh lock volup voldown mute
 	detach quit)
@@ -34,6 +34,8 @@ DT_KEYNAME["paste"]="Paste"
 DT_KEYNAME["selectall"]="Select All Icons"
 DT_KEYNAME["scrollup"]="Terminal Page Back"
 DT_KEYNAME["scrolldown"]="Terminal Page On"
+DT_KEYNAME["zoom"]="Zoom"
+DT_KEYNAME["hide"]="Minimise"
 DT_KEYNAME["snapleft"]="Snap Left"
 DT_KEYNAME["snapright"]="Snap Right"
 DT_KEYNAME["snaptop"]="Snap Top"

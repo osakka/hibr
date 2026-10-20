@@ -1571,12 +1571,49 @@ check("alt-left snaps the window to the left half",
 sc, _ = run(ONE, [AR])
 check("alt-right to the right half",
       sc.at(1, 40) == "┌" and sc.at(23, 79) == "◢", sc)
-sc, _ = run(ONE, [AU])
-check("alt-up to the top half",
+# Since 0.99.265 alt-up and alt-down are Zoom and Minimise, the owner's
+# choice, and Snap Top and Bottom are on ctrl-alt-up and ctrl-alt-down.
+CU, CD = b"\x1b[1;7A", b"\x1b[1;7B"
+sc, _ = run(ONE, [CU])
+check("ctrl-alt-up to the top half",
       sc.at(1, 0) == "┌" and sc.at(11, 79) == "◢", sc)
-sc, _ = run(ONE, [AD])
-check("alt-down to the bottom half",
+sc, _ = run(ONE, [CD])
+check("ctrl-alt-down to the bottom half",
       sc.at(12, 0) == "┌" and sc.at(23, 79) == "◢", sc)
+sc, _ = run(ONE, [AU])
+check("alt-up zooms the window to fill the display below the bar",
+      sc.at(1, 0) == "┌" and sc.at(23, 79) == "◢", sc)
+sc, _ = run(ONE, [AU, AU])
+check("and alt-up again puts it back", sc.find("┤ Hello ├") == (6, 12), sc)
+sc, _ = run(ONE, [AD])
+check("alt-down minimises it", sc.find("┤ Hello ├") is None, sc)
+# Control Panel > Appearance > Bold Menu Titles: an app's own titles on the
+# bar in bold, and nothing else on it changed -- the hibr menu is bold
+# either way, the clock never.
+sc, _ = run(ONE)
+fp = sc.find("File")
+plain = sc.style(0, fp[1])["bold"] if fp else None
+sc, _ = run(ONE, pre="DT_MENUBOLD=1")
+fb = sc.find("File")
+cl = sc.row(0).find(":")
+check("Bold Menu Titles puts the bar's menu titles in bold, and only them",
+      plain is False and fb is not None and sc.style(0, fb[1])["bold"] and
+      sc.style(0, sc.find("Window")[1])["bold"] and cl > 0 and
+      not sc.style(0, cl - 1)["bold"], (plain, sc.row(0)))
+# A settings file from before keeps a key somebody chose and moves one that
+# still holds the old default: Snap Top on alt-up goes to ctrl-alt-up, and
+# Snap Bottom, put on x by hand, stays there.
+OLDKEYS = tempfile.mkdtemp(prefix="hibr-oldkeys-")
+os.makedirs(os.path.join(OLDKEYS, "hibr"))
+open(os.path.join(OLDKEYS, "hibr", "desktop.hibr"), "w").write(
+    'DT_SETVER=11\nDT_KEYS["snaptop"]=alt-up\nDT_KEYS["snapbottom"]=x\n')
+sc, _ = run(ONE, [CU], env={"XDG_CONFIG_HOME": OLDKEYS})
+check("a saved Snap Top still on alt-up moves to ctrl-alt-up",
+      sc.at(1, 0) == "┌" and sc.at(11, 79) == "◢", sc)
+sc, _ = run(ONE, [b"x"], env={"XDG_CONFIG_HOME": OLDKEYS})
+check("and a key chosen by hand is kept",
+      sc.at(12, 0) == "┌" and sc.at(23, 79) == "◢", sc)
+shutil.rmtree(OLDKEYS, True)
 sc, _ = run(ONE, [AL, AL])
 check("and the same snap again puts it back where it was",
       sc.find("┤ Hello ├") == (6, 12) and sc.at(13, 39) == "◢", sc)
@@ -2867,6 +2904,22 @@ check("and with Zoom Fills at every display, it fills both, below the bar",
 sc, _ = run(TWOD + 'dt_snap "$DT_FOCUS" left\n')
 check("snapping to the left takes the left half of the window's own display",
       sc.g[0][40] == "┌" and sc.g[0][59] == "┐" and sc.g[0][60] != "─", sc)
+# A window may stand at the top row of a display with no menu bar: every
+# clamp said row 1 for every display, so beside the primary that row was
+# out of reach by a move, a drag or a corner. Only the bar's own row --
+# the primary's top, within the primary's columns -- keeps a window off.
+sc, _ = run(TWOD + 'dt_move "$DT_FOCUS" 0 50\n')
+check("a window moves to the top row of a display with no menu bar",
+      sc.g[0][50] == "┌" and sc.find("┤ Hello ├") is not None and
+      sc.find("┤ Hello ├")[0] == 0, sc)
+sc, _ = run(TWOD, [press(6, 58), drag(3, 58), drag(0, 58), release(0, 58)])
+check("and a window dragged by its title bar goes there too",
+      sc.find("┤ Hello ├") is not None and
+      sc.find("┤ Hello ├")[0] == 0, sc)
+sc, _ = run(TWOD + 'dt_move "$DT_FOCUS" 0 5\n')
+check("while on the primary it still stops below the bar",
+      sc.find("┤ Hello ├") is not None and
+      sc.find("┤ Hello ├")[0] == 1 and sc.g[0][5] != "┌", sc)
 # A right-click menu stays on the display it was opened on (Gitea #287).
 # It was kept inside the primary's rows whatever display the pointer was
 # on, so on a display stacked below the primary it was pushed up onto the
@@ -4862,21 +4915,24 @@ check("when the desktop starts, a waiting display joins it on its own",
       "spare" in sbclients(), sbclients())
 subprocess.run([screen.HIBR, "-c", HOLDC + "hold drop desktop spare"],
                env=dict(os.environ, **SBENV), capture_output=True)
-ts.collect(2.0)
-sc = ts.screen()
+# Each of these waits for the thing, not for the clock: a fixed two
+# seconds read the state before the standby display had finished being
+# let go, three checks at once, once the box was busier than usual.
+sc = ts.until(lambda sc: sc.find("let go") is not None and
+              sbstate("spare") == "released", 150)
 check("let go from the desktop, it waits again instead of ending",
       sc.find("let go") is not None and sbstate("spare") == "released", sc)
 t1.collect(6.0)
 check("and a display the desktop let go is not joined again on its own",
       "spare" not in sbclients(), sbclients())
 open(os.path.join(SBDIR, "spare.join"), "w").close()
-ts.collect(2.5)
+ts.until(lambda sc: "spare" in sbclients(), 150)
 check("asked by the desktop (Displays > Standby), it joins again",
       "spare" in sbclients(), sbclients())
 t1.send(b"\x1b[21~")
 t1.send(b"q", settle=1.0)
-ts.collect(2.5)
-sc = ts.screen()
+sc = ts.until(lambda sc: sc.find("waiting for the desktop") is not None and
+              sbstate("spare") == "waiting", 150)
 check("when the desktop quits, it goes back to waiting for the next",
       sc.find("waiting for the desktop") is not None and
       sbstate("spare") == "waiting", sc)
@@ -6009,4 +6065,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(663)
+report(672)

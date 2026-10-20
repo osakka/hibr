@@ -25,8 +25,13 @@ declare -gA DT_KEYS
 [ -n "${DT_KEYS["scrolldown"]+x}" ] || DT_KEYS["scrolldown"]="shift-pagedown"
 [ -n "${DT_KEYS["snapleft"]+x}" ] || DT_KEYS["snapleft"]="alt-left"
 [ -n "${DT_KEYS["snapright"]+x}" ] || DT_KEYS["snapright"]="alt-right"
-[ -n "${DT_KEYS["snaptop"]+x}" ] || DT_KEYS["snaptop"]="alt-up"
-[ -n "${DT_KEYS["snapbottom"]+x}" ] || DT_KEYS["snapbottom"]="alt-down"
+[ -n "${DT_KEYS["snaptop"]+x}" ] || DT_KEYS["snaptop"]="ctrl-alt-up"
+[ -n "${DT_KEYS["snapbottom"]+x}" ] || DT_KEYS["snapbottom"]="ctrl-alt-down"
+# Zoom and Minimise on the vertical arrows since 0.99.265, the owner's
+# choice; Snap Top and Bottom moved to ctrl-alt, a settings file still
+# holding their old keys moved with them (DT_SETVER 12).
+[ -n "${DT_KEYS["zoom"]+x}" ] || DT_KEYS["zoom"]="alt-up"
+[ -n "${DT_KEYS["hide"]+x}" ] || DT_KEYS["hide"]="alt-down"
 [ -n "${DT_KEYS["snapcenter"]+x}" ] || DT_KEYS["snapcenter"]=
 [ -n "${DT_KEYS["ws1"]+x}" ] || DT_KEYS["ws1"]="alt-1"
 [ -n "${DT_KEYS["ws2"]+x}" ] || DT_KEYS["ws2"]="alt-2"
@@ -164,8 +169,16 @@ DT_MSHADOW="${DT_MSHADOW-1}"
 DT_BARSHADOW="${DT_BARSHADOW-1}"
 # Control Panel > Sound: the speaker on the menu bar, and how far a key or a
 # wheel notch moves the volume, in percent.
+# Which sound system: Auto takes the first that answers -- PulseAudio, then
+# PipeWire, then ALSA -- and a named one is used or said not to answer.
+DT_SNDKIND="${DT_SNDKIND-Auto}"
 DT_SNDBAR="${DT_SNDBAR-1}"
+DT_SNDLEVEL="${DT_SNDLEVEL-1}"
 DT_SNDSTEP="${DT_SNDSTEP-5}"
+# Control Panel > Appearance > Bold Menu Titles: an app's own menu titles
+# on the bar -- File, Edit and the rest -- in bold. The hibr menu and the
+# open menu are bold either way; nothing else on the bar changes.
+DT_MENUBOLD="${DT_MENUBOLD-0}"
 
 # A shadow under a dialog's buttons -- widgets/button.hibr draws it, and
 # this is its own setting for the same reason each of the others is.
@@ -328,7 +341,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_FRAME DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_TERMMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEWHERE DT_NOTECOUNT DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
-	DT_SNDBAR DT_SNDSTEP DT_SETVER)
+	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_SETVER)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -450,8 +463,16 @@ dt_load() {
 		if [ "${DT_SETVER:-0}" -lt 11 ] && dt_has cp_setver11; then
 			cp_setver11
 		fi
+		# 0.99.265 gives alt-up and alt-down to Zoom and Minimise, and
+		# Snap Top and Bottom go to ctrl-alt-up and ctrl-alt-down -- a
+		# key somebody chose for either is kept, as always.
+		if [ "${DT_SETVER:-0}" -lt 12 ]; then
+			[ "${DT_KEYS["snaptop"]}" = alt-up ] && DT_KEYS["snaptop"]="ctrl-alt-up"
+			[ "${DT_KEYS["snapbottom"]}" = alt-down ] &&
+				DT_KEYS["snapbottom"]="ctrl-alt-down"
+		fi
 	fi
-	DT_SETVER=11
+	DT_SETVER=12
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"

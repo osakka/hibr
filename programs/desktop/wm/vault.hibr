@@ -68,23 +68,29 @@ fn dt_vwwhy(line) {
 
 # Run vw with text on its standard input (a password, a PIN, or nothing):
 # its output in DT_VWOUT, the reason it gave in DT_VWERR, its status back.
+#
+# The reason goes through a file named after this desktop, never one name
+# for every desktop: two desktops of one person share the runtime folder,
+# and one removed desk.err while another was reading it -- found as a
+# release gate's shell error, with suites running side by side.
 fn dt_vw(input, ...args) {
-	local st l=
+	local st l= ef
 
 	dt_vwdirs
+	ef="$DT_VWRUN/desk.$$.err"
 	DT_VWERR=
 	if [ -n "$input" ]; then
-		DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$DT_VWRUN/desk.err")
+		DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef")
 	else
-		DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$DT_VWRUN/desk.err" < /dev/null)
+		DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef" < /dev/null)
 	fi
 	st=$?
-	if [ "$st" != 0 ] && [ -s "$DT_VWRUN/desk.err" ]; then
+	if [ "$st" != 0 ] && [ -s "$ef" ]; then
 		while IFS= read -r l; do
 			[ -n "$l" ] && DT_VWERR := dt_vwwhy "$l"
-		done < "$DT_VWRUN/desk.err"
+		done < "$ef"
 	fi
-	rm -f "$DT_VWRUN/desk.err"
+	rm -f "$ef"
 	return "$st"
 }
 

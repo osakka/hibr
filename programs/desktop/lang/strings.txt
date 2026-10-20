@@ -34,6 +34,7 @@
 %s is blank
 %s is in use again
 %s is loaded already
+%s is not answering
 %s is not installed. Find it in the Catalogue.
 %s is not loaded
 %s is now %s
@@ -137,11 +138,13 @@ Average
 Back
 Back 10 Seconds
 Back 30 Seconds
+Back 5 Seconds
 Backspace
 Bar Shadow
 Blank
 Block Addresses
 Bold
+Bold Menu Titles
 Bookmark removed
 Bookmarked %s
 Bookmarks
@@ -472,11 +475,13 @@ Largest Screen
 Largest Width
 Last Synced
 Left
+Level on Menu Bar
 Line Under It
 Link
 List
 Load
 Loaded %s
+Loading…
 Location
 Lock
 Lock After (minutes)
@@ -560,6 +565,7 @@ New Window
 New name:
 Next
 Next Month
+Next Picture
 Next Prayer in the Menu Bar
 Next Tab
 Next Wallpaper
@@ -613,6 +619,7 @@ October
 Offline
 On 10 Seconds
 On 30 Seconds
+On 5 Seconds
 On a server: no owner or permissions here.
 On the clipboard: %s characters
 One that begins with an expansion is that expansion:
@@ -827,6 +834,7 @@ Sort by Memory
 Sound
 Sound Server
 Sound Settings…
+Sound System
 Sound muted
 Special
 Standby displays join on their own

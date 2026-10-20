@@ -10,6 +10,7 @@ every kept preference is in the Control Panel
 every dropdown row has its popup
 the desktop is strict
 no window content draws at absolute screen coordinates
+no menu is opened at a literal row
 every glyph drawn is named
 every declared program answers --help
 [auth]

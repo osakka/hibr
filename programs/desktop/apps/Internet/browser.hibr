@@ -38,7 +38,7 @@
 
 strict
 
-app browser "The web, in a window" 1.7
+app browser "The web, in a window" 1.8
 # modules: web
 # part: control-panel/browserset.hibr
 
@@ -495,7 +495,7 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	ar=1
 	[ "${#BW_TABS[@]}" -gt 1 ] && ar=2
 	pt=$((ar + 1))
-	ph=$((h - pt))
+	ph=$((h - pt + 1))
 	BW[$id]["pt"]=$pt
 	BW[$id]["ph"]=$ph
 	BW[$id]["w"]=$w
@@ -539,7 +539,7 @@ fn bw_strip(int id, t, int w) {
 
 # Back, forward, reload and the address, on row ar.
 fn bw_bar(int id, t, int w, int ar) {
-	local lab u on=0
+	local lab u on=0 ld= lw=0
 
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" "$ar" 1 " ${GL[larr]} ${GL[rarr]} ${GL[reload]} "
@@ -553,15 +553,26 @@ fn bw_bar(int id, t, int w, int ar) {
 		u=
 		[ -n "$t" ] && u := web url "$t" 2> /dev/null
 		[ "$u" = about:blank ] && u=
+		# A page still loading says so at the address's own end: the
+		# window's bottom line, which said it before, is the page's now.
+		if [ -n "$t" ] && web loading "$t" 2> /dev/null; then
+			ld := dt_tr "Loading${GL[ellipsis]}"
+			lw := str width " $ld "
+		fi
 		console pen "$DT_INK" "$DT_WELL"
-		lab := str pad "${u:0:$((w - 9))}" $((w - 9))
+		lab := str pad "${u:0:$((w - 9 - lw))}" $((w - 9 - lw))
 		console put -p "w$id" "$ar" 9 "$lab"
+		if [ -n "$ld" ]; then
+			console pen "$DT_DIM" "$DT_WELL"
+			console put -p "w$id" "$ar" $((w - lw)) " $ld "
+		fi
 	fi
 	dt_wreg "$id" "$ar" 9 $((w - 9)) addr
 }
 
-# The page, from row pt for ph rows, with a scroll bar in its last column;
-# the status line under it.
+# The page, from row pt for ph rows -- to the window's bottom row, since
+# the line of key hints under it went to the menus, beside each item --
+# with a scroll bar in its last column.
 fn bw_body(int id, t, int h, int w, int pt, int ph) {
 	local st bwm tt now sc pw=$((w - 1))
 	local -a sv
@@ -569,7 +580,6 @@ fn bw_body(int id, t, int h, int w, int pt, int ph) {
 	if [ -n "${BW[$id]["err"]}" ] || [ -z "$t" ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" $((pt + 1)) 2 "${BW[$id]["err"]:-Type an address above.}"
-		bw_status "$id" "$h" "$w" ""
 		return 0
 	fi
 	if [ "${BW[$id]["sized"]}" != "$ph $pw" ]; then
@@ -603,7 +613,6 @@ fn bw_body(int id, t, int h, int w, int pt, int ph) {
 	if [ "$bwm" = text ]; then
 		bw_text "$id" "$t" "$ph" "$w" "$pt"
 		[ "$st" = loading ] && dt_want 400
-		bw_status "$id" "$h" "$w" "$st"
 		command -v dt_retitle > /dev/null && {
 			tt := web title "$t" 2> /dev/null
 			tt := dt_wintitle Browser "$tt"
@@ -649,7 +658,6 @@ fn bw_body(int id, t, int h, int w, int pt, int ph) {
 	elif web dirty "$t" 2> /dev/null; then
 		dt_want 30
 	fi
-	bw_status "$id" "$h" "$w" "$st"
 	command -v dt_retitle > /dev/null && {
 		tt := web title "$t" 2> /dev/null
 		tt := dt_wintitle Browser "$tt"
@@ -796,21 +804,6 @@ fn bw_textmove(int id, k) {
 	return 0
 }
 
-# The bottom line: loading, or the page's address.
-fn bw_status(int id, int h, int w, st = "") {
-	local t
-
-	if [ "$st" = loading ]; then
-		t="Loading${GL[ellipsis]}"
-	elif [ "$BW_MODE" = text ]; then
-		t="Text only ${GL[dot]} f6 address ${GL[dot]} click a [number] to follow it"
-	else
-		t="f6 address ${GL[dot]} alt-b back ${GL[dot]} alt-f forward"
-	fi
-	t := str pad "${t:0:$w}" "$w"
-	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" "$h" 1 "$t"
-}
 
 fn browser_key(int id, key) {
 	local t=${BW[$id]["cur"]} r k
@@ -1060,6 +1053,7 @@ browser_menus() {
 	dt_item "New Tab" t bw_newtab "$id"
 	dt_rowaccel ctrl-t
 	dt_item "Open Location${GL[ellipsis]}" l bw_editaddr "$id"
+	dt_rowaccel f6
 	if [ -n "${BW[$id]["cur"]}" ]; then
 		dt_item "Save as PDF${GL[ellipsis]}" p bw_pdfask "$id"
 	else
@@ -1076,8 +1070,11 @@ browser_menus() {
 	dt_editmenu
 	dt_menu "Go"
 	dt_item "Back" b bw_back "$id"
+	dt_rowaccel alt-b
 	dt_item "Forward" f bw_fwd "$id"
+	dt_rowaccel alt-f
 	dt_item "Reload" r bw_reload "$id"
+	dt_rowaccel f5
 	dt_item "Home" h bw_open "$id" "$BW_HOME"
 	dt_sep
 	dt_item "Next Tab" n bw_steptab "$id" 1

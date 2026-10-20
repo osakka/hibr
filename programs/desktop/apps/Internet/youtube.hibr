@@ -31,7 +31,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 2.0
+app youtube "YouTube, in a window" 2.1
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -824,7 +824,7 @@ fn yt_drawlist(int id, int h, int w) {
 	# search now (widgets/search.hibr), on this window's bottom row
 	# and drawn only once `/` has asked for it.
 	srows := dt_searchrows "$id"
-	vis=$((h - 2 - srows))
+	vis=$((h - 1 - srows))
 	[ "$vis" -lt 1 ] && vis=1
 	console pen "$DT_INK" "$DT_FACE"
 	hd := yt_heading "$id"
@@ -886,9 +886,6 @@ fn yt_drawlist(int id, int h, int w) {
 	r=$w
 	[ "$DT_MIRRORON" = 1 ] && r=1
 	dt_scrollbar "$id" 2 "$r" "$vis" "$n" "$vis" "$top" list
-	console pen "$DT_DIM" "$DT_FACE"
-	lab := str pad " enter open ${GL[dot]} f favourite ${GL[dot]} h history ${GL[dot]} v favourites ${GL[dot]} / search ${GL[dot]} esc back" "$w"
-	console put -p "w$id" $((h - srows)) 1 "${lab:0:$w}"
 	dt_searchdraw "$id" "$h" "$w"
 }
 
@@ -907,7 +904,7 @@ fn yt_mmss(t) {
 
 # The player: the title, the picture, the bar, the keys.
 fn yt_drawplay(int id, int h, int w) {
-	local p=${YT[$id]["p"]} ph=$((h - 3)) i pos dur lab fill st a b mk="" md pm
+	local p=${YT[$id]["p"]} ph=$((h - 2)) i pos dur lab fill st a b mk="" md pm
 
 	if command -v dt_retitle > /dev/null; then
 		local wt
@@ -979,13 +976,10 @@ fn yt_drawplay(int id, int h, int w) {
 	[ "$fill" -gt "$w" ] && fill=$w
 	lab := str pad "$lab" "$w"
 	console pen "$DT_SELINK" "$DT_ACTIVE"
-	[ "$fill" -gt 0 ] && console put -p "w$id" $((h - 1)) 1 "${lab:0:$fill}"
+	[ "$fill" -gt 0 ] && console put -p "w$id" "$h" 1 "${lab:0:$fill}"
 	console pen "$DT_INK" "$DT_WELL"
-	console put -p "w$id" $((h - 1)) $((fill + 1)) "${lab:$fill}"
-	dt_wreg "$id" $((h - 1)) 1 "$w" bar
-	console pen "$DT_DIM" "$DT_FACE"
-	lab := str pad " space pause ${GL[dot]} ${GL[larr]}${GL[rarr]} seek ${GL[dot]} n/p next ${GL[dot]} f favourite ${GL[dot]} m picture ${GL[dot]} esc list" "$w"
-	console put -p "w$id" "$h" 1 "${lab:0:$w}"
+	console put -p "w$id" "$h" $((fill + 1)) "${lab:$fill}"
+	dt_wreg "$id" "$h" 1 "$w" bar
 }
 
 fn youtube_key(int id, key) {
@@ -1171,31 +1165,62 @@ fn youtube_paste(int id, text, op = "") {
 youtube_menus() {
 	local id=$DT_FOCUS v on
 
+	# Every key the window takes is here, beside its item: the line of
+	# hints under the list and the player went, and their rows with it.
 	dt_menu "File"
 	dt_item "New Window" n dt_launch youtube
 	dt_item "Search${GL[ellipsis]}" s youtube_key "$id" /
+	dt_rowaccel /
 	dt_item "Favourite" f yt_fav "$id"
+	dt_rowaccel f
 	dt_sep
 	dt_item "Close Window" w dt_close_focused
 	dt_editmenu
 	dt_menu "Go"
+	if [ "${YT[$id]["view"]}" != play ] && [ "${YT[$id]["n"]:-0}" -gt 0 ]; then
+		dt_item "Open" o youtube_key "$id" enter
+	else
+		dt_dim "Open"
+	fi
+	dt_rowaccel enter
 	dt_item "Back" b yt_back "$id"
+	dt_rowaccel escape
 	dt_item "History" h yt_load "$id" history ""
+	dt_rowaccel h
 	dt_item "Favourites" v yt_load "$id" favourites ""
+	dt_rowaccel v
 	dt_menu "Play"
 	if [ -n "${YT[$id]["p"]}" ]; then
 		dt_item "Pause or Play" p yt_toggle "$id"
+		dt_rowaccel space
 		dt_item "Next" n yt_next "$id" 1
+		dt_rowaccel n
 		dt_item "Previous" r yt_next "$id" -1
+		dt_rowaccel p
+		dt_item "Back 5 Seconds" k yt_seek "$id" -5
+		dt_rowaccel left
+		dt_item "On 5 Seconds" l yt_seek "$id" +5
+		dt_rowaccel right
 		dt_item "Back 30 Seconds" b yt_seek "$id" -30
+		dt_rowaccel shift-left
 		dt_item "On 30 Seconds" o yt_seek "$id" +30
+		dt_rowaccel shift-right
+		dt_item "Volume Up" u youtube_key "$id" up
+		dt_rowaccel up
+		dt_item "Volume Down" d youtube_key "$id" down
+		dt_rowaccel down
 		dt_item "Stop" s youtube_key "$id" escape
+		dt_rowaccel escape
 	else
 		dt_dim "Pause or Play"
 		dt_dim "Next"
 		dt_dim "Previous"
+		dt_dim "Back 5 Seconds"
+		dt_dim "On 5 Seconds"
 		dt_dim "Back 30 Seconds"
 		dt_dim "On 30 Seconds"
+		dt_dim "Volume Up"
+		dt_dim "Volume Down"
 		dt_dim "Stop"
 	fi
 	dt_sep
@@ -1204,6 +1229,7 @@ youtube_menus() {
 	else
 		dt_dim "Mini Player"
 	fi
+	dt_rowaccel i
 	on=0
 	[ "$YT_AUTONEXT" = 1 ] && on=1
 	dt_mark "Play Next Automatically" a "$on" yt_autonext
@@ -1213,6 +1239,9 @@ youtube_menus() {
 		[ "$YT_MODE" = "$v" ] && on=1
 		dt_mark "${v^}" "${v:0:1}" "$on" yt_setmode "$v"
 	done
+	dt_sep
+	dt_item "Next Picture" x yt_mode
+	dt_rowaccel m
 }
 
 # The mini player: only the picture, in a small window with no border,

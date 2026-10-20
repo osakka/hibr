@@ -557,6 +557,16 @@ check("Print to PDF writes the page as a PDF",
       "st 0" in out and os.path.exists(pdf) and
       open(pdf, "rb").read(5) == b"%PDF-", out + err)
 
+# The line of key hints under the page went to the menus, each key beside
+# its item, and the page has that row now.
+sc = brun([], until="Hello hibr", ready="Hello hibr")
+check("no line of key hints under the page", "alt-b back" not in sc.text() and
+      "f6 address" not in sc.text(), sc)
+sc = brun([], until="Reload", ready="Hello hibr", click=("Go", 0))
+gb = sc.find("Back")
+check("the Go menu shows each key beside its item",
+      gb is not None and "alt-b" in sc.row(gb[0]) and
+      sc.find("Reload") is not None and "f5" in sc.row(sc.find("Reload")[0]), sc)
 # A page's sound plays through hibr's own media module (Gitea #305): the
 # browser records the tab -- the only way that reaches sound from another
 # origin, which is where every site's media lives -- and the Browser feeds
@@ -630,8 +640,21 @@ out, err = hb("t := web open %s/snd.html; web wait $t 10000; web size $t 24 80;"
               ".then(()=>\"GRANTED\",e=>e.name)'" % HTTP)
 check("a page cannot capture its own tab, nor from a frame it makes",
       out.split() == ["NotAllowedError", "NotAllowedError"], out + err)
+# The capture starts a tick after the press that asks for it, never inside
+# it: started in the page's pointerdown it swallowed the press, and a click
+# on a link failed to follow it about one time in three -- 4 of 12, measured
+# -- at random. Twelve tries: the old way passes all of them by luck less
+# than one run in a hundred.
+out, err = hb("n=0; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do t := web open %s; web wait $t 10000;"
+              " web size $t 22 74; web render $t > /dev/null; web sound $t click;"
+              " rc=$(web eval $t 'var r=document.querySelector(\"a\").getBoundingClientRect();"
+              "Math.floor((r.top+r.height/2)/16)+\" \"+Math.floor((r.left+4)/8)');"
+              " web click $t $rc; sleep 1.2; case $(web url $t) in *b.html) n=$((n+1)) ;; esac;"
+              " web close $t; done; echo \"followed $n\"" % A)
+check("with a tab's sound on, a click on a link still follows it, every time",
+      "followed 12" in out, out + err)
 
 SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(48)
+report(51)

@@ -66,6 +66,61 @@ def started():
     return False
 
 
+# A second server of PipeWire alone, with no PulseAudio side: what a
+# machine with PipeWire and no pipewire-pulse has, where pactl reaches
+# nothing and the desktop talks to PipeWire through wpctl. Its devices are
+# made with pw-cli, there being no PulseAudio modules to load.
+RT2 = tempfile.mkdtemp(prefix="hibr-snd-rt-")
+os.chmod(RT2, 0o700)
+WENV = dict(os.environ, XDG_RUNTIME_DIR=RT2, LC_ALL="C")
+
+
+def wp(*a):
+    """wpctl against the PipeWire-only server."""
+    return subprocess.run(["wpctl"] + list(a), env=WENV, capture_output=True,
+                          text=True, timeout=10).stdout
+
+
+def started2():
+    bus = os.path.join(RT2, "bus")
+    procs.append(subprocess.Popen(["dbus-daemon", "--session", "--nofork",
+                                   "--address=unix:path=" + bus],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+    time.sleep(0.3)
+    e = dict(WENV, DBUS_SYSTEM_BUS_ADDRESS="unix:path=/nonexistent/hibr-sys",
+             DBUS_SESSION_BUS_ADDRESS="unix:path=" + bus)
+    for n in ("pipewire", "wireplumber"):
+        procs.append(subprocess.Popen([n], env=e, stdout=subprocess.DEVNULL,
+                                      stderr=subprocess.DEVNULL))
+        time.sleep(0.5)
+    for nm, ds, cl in (("spk", "Speakers", "Audio/Sink"), ("hp", "Headphones", "Audio/Sink"),
+                       ("mic", "Microphone", "Audio/Source"), ("cam", "Webcam Mic", "Audio/Source")):
+        subprocess.run(["pw-cli", "create-node", "adapter",
+                        "{ factory.name=support.null-audio-sink node.name=%s "
+                        "node.description=\"%s\" media.class=%s object.linger=true "
+                        "audio.position=[FL FR] }" % (nm, ds, cl)],
+                       env=WENV, capture_output=True, timeout=10)
+    for _ in range(50):
+        if "Headphones" in wp("status") and "Webcam Mic" in wp("status"):
+            return True
+        time.sleep(0.2)
+    return False
+
+
+def wid(desc):
+    """A device's id in wpctl's own status, by what it is called."""
+    m = re.search(r"(\d+)\. %s\s" % re.escape(desc), wp("status"))
+    return m.group(1) if m else ""
+
+
+def wdefault(section):
+    """What wpctl's status stars in its Sinks or Sources."""
+    out = wp("status")
+    part = out.split(section + ":", 1)[1] if section + ":" in out else ""
+    m = re.search(r"\*\s+\d+\. (.+?)\s+\[vol", part)
+    return m.group(1) if m else ""
+
+
 def stop():
     for p in procs:
         p.terminate()
@@ -113,23 +168,25 @@ CPD = tree("programs/desktop/control-panel")
 SYS = tree("programs/desktop/system")
 
 
-def srun(feed, until=None, panel=False, env=None, rows=30, cols=100, settle=2.0):
+def srun(feed, until=None, panel=False, env=None, rows=30, cols=100, settle=2.0,
+         rt=None, pre=""):
     """A desktop with this suite's sound server, and with the Control Panel
     open at Sound when asked; then keys, and the screen once `until` (text
     or a function of the screen) holds."""
     s = tempfile.mkdtemp(prefix="hibr-snd-s-", dir=D)
     p = os.path.join(s, "session.hibr")
     open(p, "w").write(
-        "%s. %s\n. %s/panel.hibr\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n%s"
+        "%s. %s\n. %s/panel.hibr\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n%s%s"
         "dt_run\ndt_close\n"
-        % (load("console"), tree("programs/desktop/desktop.hibr"), SYS, CPD,
+        % (load("console"), tree("programs/desktop/desktop.hibr"), SYS, CPD, pre,
            "dt_panelpane sound\n" if panel else ""))
-    e = {"HIBR_SOUND": "auto", "PULSE_SERVER": None, "XDG_RUNTIME_DIR": RT,
-         "DT_BARTIME": "12:00"}
+    e = {"HIBR_SOUND": "auto", "XDG_RUNTIME_DIR": rt or RT, "DT_BARTIME": "12:00"}
+    if not rt:
+        e["PULSE_SERVER"] = None
     e.update(env or {})
     t = Term(p, env=e, rows=rows, cols=cols, settle=settle)
     for _ in range(40):
-        if "%" in t.screen().row(0) or "✕" in t.screen().row(0):
+        if "♪" in t.screen().text():
             break
         t.collect(0.25)
     if feed:
@@ -245,6 +302,44 @@ try:
                   until=lambda sc: pa("get-default-sink").strip() == "hp")
     check("choosing Headphones there makes it the output the server uses",
           pa("get-default-sink").strip() == "hp", pa("get-default-sink"))
+    check("and the input is left where it was",
+          pa("get-default-source").strip() == "mic", pa("get-default-source"))
+
+    # Control Panel > Sound > Sound System: Auto takes the first that
+    # answers; a named one is used, here PipeWire on a machine with its
+    # PulseAudio side too; and one that does not answer says so -- this box
+    # has no ALSA mixer -- rather than another being taken in its place.
+    reset()
+    sc = srun([], panel=True, env={"DT_SNDKIND": "PipeWire"}, until="Sound Server")
+    r = sc.find("Sound Server")
+    check("Sound System set to PipeWire uses PipeWire itself",
+          r is not None and "PipeWire" in sc.row(r[0]) and "PulseAudio" not in sc.row(r[0]) and
+          "♪ 50%" in bar(sc), (bar(sc), sc))
+    if shutil.which("amixer") is None:
+        sc = srun([], panel=True, env={"DT_SNDKIND": "ALSA"}, until="not answering")
+        check("and one that does not answer says so, with no speaker on the bar",
+              sc.find("ALSA is not answering") is not None and "♪" not in bar(sc), sc)
+    else:
+        check("and one that does not answer says so (skipped: amixer here answers)", True)
+
+    # Control Panel > Sound > Level on Menu Bar off: the speaker alone.
+    reset()
+    sc = srun([], env={"DT_SNDLEVEL": "0"}, until=lambda sc: "♪" in bar(sc))
+    check("with Level on Menu Bar off the speaker shows no percentage",
+          "♪" in bar(sc) and "%" not in bar(sc), bar(sc))
+
+    # Two displays stacked, the primary -- and its bar -- below: the sound
+    # menu opens under the bar, on the primary, never on the display above.
+    reset()
+    stack = ('DT_DISPLAYS=("0 0 10 100 self" "10 0 20 100 self")\n'
+             'DT_DISPNAMES=(a b)\nDT_PRIMARY_COL=0\nDT_PRIMARY_W=100\n'
+             'DT_PRIMARY_ROW=10\nDT_PRIMARY_H=20\n')
+    sc = srun([], pre=stack, until=lambda sc: "♪" in sc.row(10))
+    scol = sc.row(10).find("♪")
+    sc = srun([press(10, scol), release(10, scol)], pre=stack, until="Headphones")
+    hp2 = sc.find("Headphones")
+    check("with the bar on a display below another, the sound menu opens under it",
+          scol > 0 and hp2 is not None and hp2[0] > 10, (scol, hp2, sc))
 
     # Control Panel > Sound.
     reset()
@@ -306,6 +401,70 @@ try:
         lv[sink] = (level(rec), level(other))
     check("hibr's own sound goes to the output in use, and only to it",
           all(a > -40 and b < -60 for a, b in lv.values()), lv)
+    # PipeWire with no PulseAudio side, the owner's own machine: pactl
+    # reaches nothing, so the desktop speaks to PipeWire through wpctl --
+    # where it used to fall to ALSA's mixer, read 0% while sound played and
+    # choose the input with the output.
+    if started2():
+        spk, hp3, mic = wid("Speakers"), wid("Headphones"), wid("Microphone")
+        wp("set-default", spk)
+        wp("set-default", mic)
+        wp("set-volume", spk, "0.4")
+        sc = srun([], rt=RT2, until=lambda sc: "40%" in bar(sc))
+        check("with PipeWire and no PulseAudio side, the speaker shows the real volume",
+              "♪ 40%" in bar(sc), (bar(sc), wp("status")))
+        sc = srun([b"\x1b="], rt=RT2, until=lambda sc: "45%" in bar(sc))
+        check("and alt-= turns PipeWire's own volume up",
+              "Volume: 0.45" in wp("get-volume", spk), wp("get-volume", spk))
+        col2 = bar(sc).find("♪")
+        sc = srun([press(0, col2), release(0, col2), 0.6], rt=RT2, until="Headphones")
+        h4 = sc.find("Headphones")
+        if h4:
+            sc = srun([press(0, col2), release(0, col2), 0.6, press(h4[0], h4[1] + 2),
+                       release(h4[0], h4[1] + 2)], rt=RT2,
+                      until=lambda sc: wdefault("Sinks") == "Headphones")
+        check("choosing Headphones makes it PipeWire's output, and the input stays",
+              wdefault("Sinks") == "Headphones" and wdefault("Sources") == "Microphone",
+              (wdefault("Sinks"), wdefault("Sources"), sc))
+        wp("set-default", spk)
+        e2 = {"HIBR_SOUND": "auto", "XDG_RUNTIME_DIR": RT2, "DT_BARTIME": "12:00"}
+        s2 = tempfile.mkdtemp(prefix="hibr-snd-s-", dir=D)
+        p2 = os.path.join(s2, "session.hibr")
+        open(p2, "w").write("%s. %s\ndt_open\ndt_run\ndt_close\n"
+                            % (load("console"), tree("programs/desktop/desktop.hibr")))
+        t2 = Term(p2, env=e2, rows=30, cols=100, settle=2.0)
+        t2.until(lambda sc: "%" in sc.row(0), 80)
+        time.sleep(1.2)
+        wp("set-volume", spk, "0.3")
+        t2.until(lambda sc: "♪ 30%" in sc.row(0), 100)
+        sc2 = t2.screen()
+        t2.quit(None, 0.5)
+        check("and a volume PipeWire changes elsewhere reaches the bar with nothing pressed",
+              "♪ 30%" in bar(sc2), bar(sc2))
+    else:
+        for name in ("with PipeWire and no PulseAudio side, the speaker shows the real volume",
+                     "and alt-= turns PipeWire's own volume up",
+                     "choosing Headphones makes it PipeWire's output, and the input stays",
+                     "and a volume PipeWire changes elsewhere reaches the bar with nothing pressed"):
+            check(name + " (the PipeWire-only server did not start)", False)
+
+    # With ALSA alone the output and the input are a card each, chosen
+    # apart: one card for both was what chose the input with the output.
+    rc = os.path.join(D, "asoundrc-alsa")
+    out = subprocess.run([sx.HIBR, "-c",
+        "fn dt_baritem(...a) { :; }\nfn dt_bariwheel(...a) { :; }\nfn dt_ticker(n) { :; }\n"
+        "fn dt_notep(...a) { :; }\nfn dt_want(n) { :; }\ndeclare -gA GL DT_KEYS\n"
+        ". %s\nDT_SND[\"kind\"]=alsa\nDT_SND[\"in\"]=2\nDT_SND[\"out\"]=1\n"
+        "dt_sndrcwrite 1 2\nr := dt_sndacard; echo \"first $r\"\n"
+        "DT_SND[\"in\"]=2\ndt_sndrcwrite 3 \"${DT_SND[\"in\"]}\"\n"
+        "r := dt_sndacard; echo \"then $r\"\n" % tree("programs/desktop/wm/sound.hibr")],
+        env=dict(os.environ, DT_SNDRC=rc), capture_output=True, text=True, timeout=30)
+    body = open(rc).read() if os.path.exists(rc) else ""
+    check("with ALSA alone, choosing an output writes it apart from the input",
+          "first 1 2" in out.stdout and "then 3 2" in out.stdout and
+          'playback.pcm "plughw:3"' in body and 'capture.pcm "plughw:2"' in body,
+          (out.stdout, out.stderr, body))
+
     # Without a server, ALSA's mixer: a stand-in amixer that answers as
     # alsa-utils' own does ("Front Left: Playback 32768 [50%] [on]"), since
     # this box has no sound card for the real one to drive.
@@ -351,5 +510,6 @@ try:
 finally:
     stop()
     shutil.rmtree(RT, True)
+    shutil.rmtree(RT2, True)
     shutil.rmtree(D, True)
-report(17)
+report(27)

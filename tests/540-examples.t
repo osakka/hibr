@@ -297,6 +297,25 @@ for e in programs/desktop/apps/*.hibr programs/desktop/apps/*/*.hibr \
 done
 echo "no window content draws at absolute screen coordinates"
 
+# A menu opened at the pointer is given a screen row, and a literal one is
+# right only while the primary display -- the one with the bar -- is at the
+# top of the screen. With two displays stacked and the primary below, the
+# sound menu given row 1 opened on the display above the bar, the way the
+# bar's own menus did until 0.99.253: a menu under the bar asks dt_ptop, or
+# for a bar item dt_barmenu, never a number.
+for e in programs/desktop/wm/*.hibr programs/desktop/widgets/*.hibr \
+         programs/desktop/apps/*.hibr programs/desktop/apps/*/*.hibr \
+         programs/desktop/control-panel/*.hibr programs/desktop/system/*.hibr \
+         programs/desktop/control-strip/*.hibr; do
+  awk -v f="$e" '
+    /^[[:space:]]*#/ { next }
+    /dt_context_open[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[0-9]+([[:space:]]|$)/ {
+      print f ": a menu at a literal row: " $0
+    }
+  ' "$e"
+done
+echo "no menu is opened at a literal row"
+
 # A glyph the desktop draws is named in GL (wm/glyphs.hibr), never written
 # into the code -- see CLAUDE.md. What stays literal: an app's or a pane's
 # icon, a menu's or a note's own words (an ellipsis, a dash), and lists

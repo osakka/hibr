@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.265
+
+**A window can go to the top row of a display with no menu bar.** Every
+move, drag, corner resize and move to another display stopped at row 1,
+for the bar -- which is only on the primary display, so beside it that row
+was out of reach. Only the bar's own row keeps a window off now.
+
+**Control Panel > Appearance > Bold Menu Titles**, off: an app's own menu
+titles on the bar -- File, Edit and the rest -- in bold, and nothing else.
+
+**alt-up zooms the focused window, alt-down minimises it** (again puts a
+zoomed one back). Snap Top and Bottom move to ctrl-alt-up and
+ctrl-alt-down; a settings file still holding their old keys moves with
+them, a key you chose stays. The Window menu shows each key beside its
+item.
+
+**The Browser has no line of key hints under the page.** The keys are in
+the File and Go menus, beside each item, the page runs to the window's
+bottom, and a page still loading says so at the end of the address.
+**Nor has YouTube**, under its list or its player: every key is beside its
+item in the menus, and the ones the menus lacked are there now -- Open
+(enter), Back and On 5 Seconds (left, right), Volume Up and Down, and Next
+Picture (m).
+
+**Sound on PipeWire without its PulseAudio side.** Such a machine has no
+`pactl` to answer, so the desktop fell to ALSA's raw mixer: it read 0%
+while sound played, and choosing an output chose the input with it. The
+desktop speaks to PipeWire itself through `wpctl` now, and watches it
+with `pw-mon`. Control Panel > Sound gains **Sound System** -- Auto,
+PulseAudio, PipeWire, ALSA or None, a chosen one said not to answer
+rather than replaced -- and **Level on Menu Bar**, to show the speaker
+without its percentage. With ALSA alone, the output and the input are
+chosen apart, and the level is read from the control the card has.
+
+**A click on a link in the Browser follows it again.** Since 0.99.263 the
+first press on a page started the recording of its sound, inside the
+page's own pointerdown -- and that swallowed the press about one time in
+three, so the link did nothing. The recording starts a tick after the
+click now. Found by the release gate, as "alt-b goes back" landing on a
+blank page: the click before it had never left.
+
+**Two desktops no longer share the Vault's error file.** Every desktop of
+one person wrote the reason a Vault command failed to the same
+`desk.err` in the runtime folder, so one could remove it while another
+read it; the file is named after the desktop now. Found as a shell error
+in a release gate, with suites running side by side.
+
+**The sound menu opens under the bar on a display stacked below another.**
+It was given row 1, which is the top display's; a bar item's menu now
+opens through one helper that asks where the bar is, and
+`tests/540-examples.t` refuses a menu opened at a literal row anywhere.
+
 ## 0.99.264
 
 **Sound: a Control Panel pane, volume keys and a speaker on the menu bar**
