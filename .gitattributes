@@ -1,3 +1,4 @@
 * text=auto eol=lf
 *.expected -diff linguist-generated
 tests/term/*.bin binary
+tests/net/polkit-*.txt binary
