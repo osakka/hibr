@@ -175,6 +175,16 @@ Browser window restored over a hung Chromium cost two waits on every
 frame before, and the desktop's stop wrote it back, so each restart froze
 the same way.
 
+What Chromium says on its own error output goes to
+`$XDG_STATE_HOME/hibr/web/chromium.log`, emptied at each start, and a
+browser that will not start is logged with the last line it wrote there
+-- "Running as root without --no-sandbox is not supported", say. A page
+the browser refuses to load is logged with its reason
+(`net::ERR_NAME_NOT_RESOLVED`), and one still loading after `WB_SLOWMS`
+(20 s) is logged once. All three went to nobody before 0.99.275: the
+output to `/dev/null` and the refusal at debug level, so a Browser window
+that showed nothing left nothing to read (Gitea #327).
+
 Accepting a tab's capture of itself without asking would let any page
 take the pixels of whatever it frames, so every tab, from its opening and
 in every frame, has a page's own `getDisplayMedia` refused

@@ -190,7 +190,7 @@ int wb_go(wb_tab *t, const char *url)
 		return HIBR_FAIL;
 	err = jv_str(jv_path(r, "result.errorText"));
 	if (*err) {
-		lg(HIBR_LDBG, "web: %s: %s", url, err);
+		lg(HIBR_LWRN, "web: %s: %s", url, err);
 		t->url.n = 0;
 		s_cat(&t->url, url);
 	}
@@ -466,6 +466,29 @@ void wb_puttext(wb_tab *t, int col, int row, const char *s, long fg,
 
 /* Draw a tab's page into its frame: the pixels, then the text and the
    form fields over them. */
+/* Say once in the log that a page has been loading for too long -- the
+   one thing a window showing nothing could not tell anybody (Gitea #327).
+   Asked at each render, which a loading tab has every frame. */
+void wb_slow(wb_tab *t)
+{
+	long now = wb_ms();
+
+	if (!t->loading) {
+		t->navat = 0;
+		return;
+	}
+	if (!t->navat) {
+		t->navat = now;
+		t->navwarn = 0;
+		return;
+	}
+	if (t->navwarn || now - t->navat < WB_SLOWMS)
+		return;
+	t->navwarn = 1;
+	lg(HIBR_LWRN, "web: %s is still loading after %ld s",
+	   t->url.p ? t->url.p : "a page", (now - t->navat) / 1000);
+}
+
 int wb_render(wb_tab *t)
 {
 	char *js;
@@ -477,6 +500,7 @@ int wb_render(wb_tab *t)
 
 	if (t->rows < 1 || t->cols < 1)
 		return HIBR_FAIL;
+	wb_slow(t);
 	/* Cleared before the extraction, never after it: wb_eval waits for
 	   its own reply by pumping the pipe, and wb_pump hands every event
 	   queued behind it to wb_event -- Page.loadEventFired among them,

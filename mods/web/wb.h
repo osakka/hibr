@@ -47,9 +47,18 @@ struct wb_cell {
 };
 
 /* A tab: a page target in the browser, attached on a session of its own. */
+/* How long a page may go on loading before the log says so. */
+#ifndef WB_SLOWMS
+#define WB_SLOWMS 20000
+#endif
+
 typedef struct wb_tab wb_tab;
 struct wb_tab {
 	int id, rows, cols, loading, dirty, focus;
+	/* When this tab began loading what it is loading, and whether the
+	   log has been told it is taking too long (Gitea #327). */
+	long navat;
+	int navwarn;
 	char *target, *session;
 	str url, title;
 	wb_cell *grid;
@@ -148,6 +157,8 @@ wb_tab *wb_tabopen(const char *url);
 void wb_tabclose(wb_tab *t);
 int wb_go(wb_tab *t, const char *url);
 int wb_size(wb_tab *t, int rows, int cols);
+void wb_slow(wb_tab *t);
+long wb_ms(void);
 int wb_render(wb_tab *t);
 int wb_eval(wb_tab *t, const char *js, str *out);
 int wb_evalg(wb_tab *t, const char *js, str *out, int gesture);

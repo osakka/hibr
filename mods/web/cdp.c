@@ -99,6 +99,69 @@ void wb_mkdirs(const char *d)
 	free(p);
 }
 
+/* Where the browser's own error output goes: a file in the state folder,
+   emptied at each start, for wb_whyfail and for a person -- Chromium sent
+   it to /dev/null until 0.99.275, so a browser that would not start, or
+   one that started and could load nothing, said why to nobody (Gitea
+   #327). Opened for the child with trunc set; a descriptor, or -1. */
+int wb_errlog(int trunc)
+{
+	const char *x = getenv("XDG_STATE_HOME"), *h = getenv("HOME");
+	str p, d;
+	int fd;
+
+	s_init(&d);
+	if (x && *x) {
+		s_cat(&d, x);
+	} else {
+		s_cat(&d, h ? h : "/tmp");
+		s_cat(&d, "/.local/state");
+	}
+	s_cat(&d, "/hibr/web");
+	wb_mkdirs(d.p);
+	s_init(&p);
+	s_cat(&p, d.p);
+	s_cat(&p, "/chromium.log");
+	fd = open(p.p, O_RDWR | O_CREAT | O_APPEND | O_CLOEXEC |
+		      (trunc ? O_TRUNC : 0), 0600);
+	s_free(&p);
+	s_free(&d);
+	return fd;
+}
+
+/* Say why the browser did not start: the last line it wrote of its own. */
+void wb_whyfail(void)
+{
+	int fd = wb_errlog(0);
+	str b, l;
+	char *c;
+	ssize_t n;
+	size_t i, j;
+
+	s_init(&b);
+	if (fd >= 0) {
+		c = xm(HIBR_IOCH);
+		lseek(fd, 0, SEEK_SET);
+		while ((n = read(fd, c, HIBR_IOCH)) > 0)
+			s_add(&b, c, (size_t)n);
+		free(c);
+		close(fd);
+	}
+	while (b.n && (b.p[b.n - 1] == '\n' || b.p[b.n - 1] == '\r'))
+		b.p[--b.n] = 0;
+	for (i = b.n; i > 0 && b.p[i - 1] != '\n'; i--)
+		;
+	s_init(&l);
+	for (j = i; j < b.n; j++)
+		s_ch(&l, b.p[j]);
+	if (l.n)
+		lg(HIBR_LERR, "web: the browser did not start: %s", l.p);
+	else
+		lg(HIBR_LERR, "web: the browser did not start, and said nothing");
+	s_free(&l);
+	s_free(&b);
+}
+
 /* The profile the browser keeps its cookies and history in. */
 char *wb_profdir(void)
 {
@@ -167,7 +230,7 @@ void wb_useragent(void)
    Restart Desktop is an exec, the same process, which keeps it. */
 int wb_spawn(const char *bin, const char *prof)
 {
-	int toc[2], fromc[2], i, n;
+	int toc[2], fromc[2], i, n, elog;
 	const char *extra = wb.cfargs ? wb.cfargs : getenv("HIBR_WEB_ARGS");
 	vec av = { 0, 0, 0 };
 	str ud;
@@ -200,10 +263,13 @@ int wb_spawn(const char *bin, const char *prof)
 	}
 	v_add(&av, "about:blank");
 	v_add(&av, 0);
+	elog = wb_errlog(1);
 	fflush(0);
 	pid = fork();
 	if (pid < 0) {
 		lg(HIBR_LERR, "web: cannot fork: %s", strerror(errno));
+		if (elog >= 0)
+			close(elog);
 		goto fail;
 	}
 	if (!pid) {
@@ -215,7 +281,7 @@ int wb_spawn(const char *bin, const char *prof)
 		setsid();
 		dup2(nul, 0);
 		dup2(nul, 1);
-		dup2(nul, 2);
+		dup2(elog >= 0 ? elog : nul, 2);
 #ifdef __linux__
 		prctl(PR_SET_PDEATHSIG, SIGTERM);
 		if (getppid() != me)
@@ -231,6 +297,8 @@ int wb_spawn(const char *bin, const char *prof)
 	}
 	close(toc[0]);
 	close(fromc[1]);
+	if (elog >= 0)
+		close(elog);
 	fcntl(toc[1], F_SETFD, FD_CLOEXEC);
 	fcntl(fromc[0], F_SETFD, FD_CLOEXEC);
 	fcntl(fromc[0], F_SETFL, fcntl(fromc[0], F_GETFL) | O_NONBLOCK);
@@ -307,7 +375,7 @@ int wb_start(void)
 		nftw(tmp.p, wb_rmone, 16, FTW_DEPTH | FTW_PHYS);
 		s_free(&tmp);
 		free(bin);
-		lg(HIBR_LERR, "web: the browser did not start");
+		wb_whyfail();
 		return HIBR_FAIL;
 	}
 	free(wb.profile);

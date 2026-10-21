@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.275
+
+**A Browser that shows nothing now says why in the log** (Gitea #327). The
+owner's Browser drew nothing: an address typed and entered went nowhere,
+and the start page never appeared, with not one line in desktop.log. All
+three reasons it could have had were invisible:
+- **Chromium's own error output** went to `/dev/null`. It goes to
+  `~/.local/state/hibr/web/chromium.log` now, emptied at each start, and a
+  browser that will not start is logged with the last thing it said
+  ("Running as root without --no-sandbox is not supported", for one).
+- **A page the browser refused to load** was a debug line. It is a
+  warning now, with the browser's own reason, such as
+  `net::ERR_NAME_NOT_RESOLVED`.
+- **A page that never finishes loading** said nothing. It is logged once,
+  after twenty seconds.
+
+The suite passes against the owner's Chromium 155, so the cause is still
+to be found on their machine. These three lines are how it will be named.
+
 ## 0.99.274
 
 **A folder can be one thing: bundle extensions in Files** (Gitea #318). An

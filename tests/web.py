@@ -366,6 +366,27 @@ sc = brun([], env={"HIBR_WEB_BROWSER": "/nonexistent/chromium"})
 check("without a browser to drive, the window says what is missing",
       sc.find("No Chromium or Chrome") is not None, sc)
 
+# A browser that will not start says why in the log, and a page the browser
+# refuses to load says so too (Gitea #327): Chromium's own output went to
+# /dev/null, and a refused navigation was a debug line, so a Browser window
+# that showed nothing left nothing behind to read. The stand-in browser here
+# says what Chromium says when it is run as root.
+FAKE = os.path.join(D, "fakechromium")
+open(FAKE, "w").write("#!/bin/sh\necho 'Running as root without --no-sandbox"
+                      " is not supported. See https://crbug.com/638180.' >&2\n"
+                      "exit 1\n")
+os.chmod(FAKE, 0o755)
+r = subprocess.run([sx.HIBR, "-c", "mod load %s\nweb open about:blank"
+                    % tree("build/mods/web.so")],
+                   env=dict(ENV, HIBR_WEB_BROWSER=FAKE), capture_output=True,
+                   text=True, timeout=60)
+check("a browser that will not start says why, in its own words",
+      "web: the browser did not start: Running as root without --no-sandbox"
+      in r.stderr, r.stderr)
+out, err = hb("t := web open http://nosuch.invalid/; web wait $t 8000")
+check("a page the browser refuses to load is named in the log with the "
+      "browser's reason", "web: http://nosuch.invalid/: net::ERR_" in err, err)
+
 # --- Control Panel > Browser (Gitea #276) --------------------------------------
 
 J = "file://" + os.path.join(D, "j.html")
@@ -666,4 +687,4 @@ check("and a click on a page that plays nothing starts no recording",
 SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(52)
+report(54)
