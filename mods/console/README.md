@@ -35,10 +35,22 @@ Measured, on an eighty by twenty-four terminal:
 
 | | bytes written |
 |---|---|
-| the first flush, painting everything | 2095 |
-| writing four characters | 11 |
-| changing one of them | 8 |
+| the first flush, painting everything | 2111 |
+| writing four characters | 27 |
+| changing one of them | 24 |
 | flushing with nothing changed | **0** |
+
+Sixteen bytes of each are synchronized output's pair, below; the diff itself
+is 2095, 11 and 8.
+
+Every frame that sends anything is one synchronized update (mode 2026, Gitea
+#338): `CSI ?2026h` before its first byte and `CSI ?2026l` after the cursor,
+with the copies, the pictures and the cells all inside. A terminal that knows
+the mode presents the frame at once, however the bytes are split on the way,
+so a drag cannot be seen half drawn; one that does not ignores the pair. A
+flush with nothing to send still sends nothing, the pair included -- and a
+visible cursor left where it was is not placed again, which had cost every
+empty flush of a window with a cursor seven bytes.
 
 A cell holds a codepoint, a width, a pen, and a pointer that is null until
 combining marks arrive — so the common case costs no allocation and `e` plus

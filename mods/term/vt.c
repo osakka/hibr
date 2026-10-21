@@ -426,11 +426,14 @@ void tm_altswap(tm_t *t, int on)
    nothing half-drawn is ever shown. The screen as it was when the frame
    began is kept, and tm_draw shows that until the frame ends -- or for a
    second at most, so a program that dies mid-frame cannot freeze the
-   window. */
+   window. A relay keeps no copy: nothing reads it mid-frame, since hold
+   waits for the frame to end before it renders (tm_syncleft), and the copy
+   was a whole grid -- 460 kB at 232x71 -- made and thrown away on every
+   frame a console now brackets (Gitea #338). */
 void tm_setsync(tm_t *t, int on)
 {
 	if (on) {
-		if (!t->sync) {
+		if (!t->sync && !t->relayed) {
 			free(t->frz);
 			t->frz = xm((size_t)t->rows * t->cols * sizeof *t->frz);
 			memcpy(t->frz, t->g,
@@ -445,6 +448,20 @@ void tm_setsync(tm_t *t, int on)
 	t->sync = 0;
 	free(t->frz);
 	t->frz = 0;
+}
+
+/* How many milliseconds a frame the program has opened may still hold back
+   a relay's render: 0 when none is open, and 0 again once the second the
+   guard allows has passed, so a program that dies mid-frame cannot freeze
+   anybody's screen. */
+long tm_syncleft(tm_t *t)
+{
+	long left;
+
+	if (!t->sync)
+		return 0;
+	left = 1000 - (long)(tm_ms() - t->synct);
+	return left > 0 ? left : 0;
 }
 
 /* Whether drawing should show the frozen frame rather than the live one. */

@@ -8,6 +8,14 @@
 
 
 
+/* Synchronized output's pair, which brackets every frame cn_flush sends. */
+#ifndef CN_SYNCH
+#define CN_SYNCH "\033[?2026h"
+#endif
+#ifndef CN_SYNCL
+#define CN_SYNCL "\033[?2026l"
+#endif
+
 /* Where the console's own copy of the terminal's descriptor starts: clear of
    0-9, of a {var} redirection's own 10 upward, and of a process
    substitution's 60. */

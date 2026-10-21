@@ -861,5 +861,73 @@ check("with the same screen either way",
           for r in range(1, 24) for q in range(60)),
       (sc1.row(11), sc2.row(11)))
 
+# Synchronized output (Gitea #338). hold renders from its emulator's live
+# grid, so a program's frame larger than one read used to reach every client
+# half drawn; it waits now for the frame to close -- or for the emulator's
+# one-second guard, so a program that dies inside one cannot freeze the
+# screen -- and brackets every frame it sends a client in the pair itself.
+SYNH, SYNL = b"\x1b[?2026h", b"\x1b[?2026l"
+
+
+def syncheld(body, mid, last, gap=0.4):
+    """Hold a program, wait for `mid` on the client's screen, then a little
+    longer, and answer that screen, the one once `last` is there, and every
+    byte the client was sent."""
+    nm = name()
+    open(LOG, "w").close()
+    outer = os.path.join(D, "s%s.hibr" % nm)
+    open(outer, "w").write(
+        load("hold")
+        + 'hold new -d %s "$HIBR" %s\n' % (nm, inner(body, 1500, nm))
+        + "sleep 0.6\nhold attach %s\n" % nm)
+    t = Term(outer, rows=24, cols=60, settle=1.0, cellw=CELL[0],
+             cellh=CELL[1], env={"TMPDIR": D})
+    t.until(lambda s: mid in s.text(), tries=80 * SLOW)
+    t.collect(gap * SLOW)
+    early = t.screen()
+    late = t.until(lambda s: last in s.text(), tries=60 * SLOW)
+    t.quit(None, 0.5)
+    kill(nm)
+    return early, late, t.raw
+
+
+def paired(raw):
+    """Every opening of the pair closed before the next one opens."""
+    on, seen = False, 0
+    for m in re.finditer(rb"\x1b\[\?2026([hl])", raw):
+        if (m.group(1) == b"h") == on:
+            return False
+        on = not on
+        seen += 1
+    return not on and seen >= 4
+
+
+# What decides it is the order on the wire, not a moment to look at: the
+# program writes FIRST, waits, then SECOND on a row above it, inside the
+# guard's second. Held back, the two arrive in one frame, SECOND first,
+# since a frame is sent row by row; not held back, FIRST went out alone,
+# earlier. Under the sanitizers a fixed look was once later than the guard.
+early, late, raw = syncheld(
+    "printf '\\033[3;1HREADY'\nsleep 0.3\n"
+    "printf '\\033[?2026h\\033[6;1HFIRST'\nsleep 0.5\n"
+    "printf '\\033[4;1HSECOND\\033[?2026l'\n",
+    "READY", "SECOND", gap=0)
+fi, se = raw.find(b"FIRST"), raw.find(b"SECOND")
+fh = raw.rfind(SYNH, 0, fi)
+check("a held program's open frame is not shown half drawn",
+      0 <= se < fi and fh >= 0 and se > fh
+      and raw.find(SYNL, fh) > fi, (fi, se, fh))
+check("and is shown whole once the program closes it",
+      "FIRST" in late.text() and "SECOND" in late.text(), late.text())
+check("every frame a client is sent is one synchronized update",
+      paired(raw), raw.count(SYNH))
+
+early, late, raw = syncheld(
+    "printf '\\033[3;1HREADY'\nsleep 0.5\n"
+    "printf '\\033[?2026h\\033[4;1HLOST'\nsleep %s\n" % (4 * SLOW),
+    "READY", "LOST", gap=0)
+check("a frame the program never closes is shown after the guard's second",
+      "LOST" in late.text(), late.text())
+
 shutil.rmtree(D, True)
-report(42)
+report(46)

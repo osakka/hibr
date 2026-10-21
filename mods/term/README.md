@@ -162,7 +162,8 @@ What it implements, by group:
   DECKPAM/DECKPNM, DECAWM, DECTCEM, focus reports (1004), mouse (9, 1000,
   1002, 1003, 1006), bracketed paste (2004), synchronized output (2026: the
   frame as it was when the program began one is shown until it ends, or for
-  a second at most).
+  a second at most; a relay keeps no such copy, and `tm_api` version 8's
+  `syncleft` tells it how long to wait instead -- see hold's README).
 - **Replies:** DA1, DA2, DSR 5 and 6 (CPR, relative to the margins under
   DECOM), DECXCPR, DECRQM for every mode above, XTVERSION, the window size
   (`CSI 18 t`).

@@ -265,12 +265,21 @@ int tm_api_copyop(int id, unsigned seq, int *r, int *c, int *h, int *w,
 	return 1;
 }
 
+/* How long an open synchronized frame may still hold a render back. */
+long tm_api_syncleft(int id)
+{
+	tm_t *t = tm_find(id);
+
+	return t ? tm_syncleft(t) : 0;
+}
+
 static const tm_api term_api = {
 	tm_api_new, tm_api_free, tm_api_resize, tm_api_rows, tm_api_cols,
 	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor, tm_api_modes,
 	tm_api_clip, tm_api_pass, tm_api_title, tm_api_linkat, tm_api_linkuri,
 	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image,
-	tm_api_save, tm_api_load, tm_api_kbd, tm_api_copyseq, tm_api_copyop
+	tm_api_save, tm_api_load, tm_api_kbd, tm_api_copyseq, tm_api_copyop,
+	tm_api_syncleft
 };
 
 const tm_api *tm_apiget(void)

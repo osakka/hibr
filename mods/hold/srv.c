@@ -755,7 +755,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 {
 	struct pollfd *q = 0, pm;
 	vec cls;
-	int quit = 0, st, fed, upg = 0;
+	int quit = 0, st, fed, upg = 0, owed = 0, due;
+	long left;
 	size_t i, j, nc;
 	ssize_t k;
 	str rb, in, mo;
@@ -777,7 +778,13 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 			q[2 + i].fd = ((struct hd_cli *)cls.p[i])->fd;
 			q[2 + i].events = POLLIN;
 		}
-		if (poll(q, (nfds_t)(2 + nc), hd_gfxdue(&cls, m)) < 0) {
+		/* A render held back for an open frame wakes the loop when
+		   that frame's guard runs out, if nothing else does first. */
+		due = hd_gfxdue(&cls, m);
+		if (owed && (left = hd_tm->syncleft(tid)) >= 0 &&
+		    (due < 0 || left + 1 < due))
+			due = (int)left + 1;
+		if (poll(q, (nfds_t)(2 + nc), due) < 0) {
 			if (errno == EINTR)
 				continue;
 			break;
@@ -906,11 +913,22 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				upg = 0;
 			}
 		}
-		if (fed) {
+		/* Render once the pty is drained, and not while the program is
+		   inside a synchronized frame: the emulator holds the live grid,
+		   so a frame larger than one read would otherwise reach every
+		   client half drawn (Gitea #338). It is owed until the frame
+		   closes, or until the emulator's one-second guard says the
+		   program is not going to close it. */
+		if (fed)
+			owed = 1;
+		if (owed) {
 			pm.fd = m;
 			pm.events = POLLIN;
-			if (poll(&pm, 1, 0) <= 0 || !(pm.revents & POLLIN))
+			if ((poll(&pm, 1, 0) <= 0 || !(pm.revents & POLLIN)) &&
+			    !hd_tm->syncleft(tid)) {
 				hd_rensend(&cls, tid);
+				owed = 0;
+			}
 		}
 	}
 	unlink(path);

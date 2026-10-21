@@ -49,7 +49,7 @@ static int cn_transpct;
 static unsigned cn_transfb;
 int cn_crow, cn_ccol, cn_cvis;
 unsigned cn_lfg, cn_lbg, cn_lat;
-int cn_lset, cn_lvis = -1;
+int cn_lset, cn_lvis = -1, cn_lcr = -1, cn_lcc = -1;
 
 /* What a cell left at the terminal's own default colour should darken
    toward -- the console has no way to ask the terminal what that colour
@@ -972,6 +972,13 @@ long cn_flush(void)
 	cn_imgcheck(cn_wrote == cn_wflush);
 	cn_wflush = cn_wrote;
 	s_init(&b);
+	/* The frame is one synchronized update (mode 2026): a terminal that
+	   knows it presents everything below at once, pictures and cursor
+	   included, so a drag cannot tear however the bytes are split on the
+	   way; one that does not ignores the pair. Taken back off below when
+	   nothing follows it, so an empty flush still costs nothing (Gitea
+	   #338). */
+	s_cat(&b, CN_SYNCH);
 	/* Then the deletes those drops owe the terminal, for a protocol that
 	   keeps a picture rather than painting it: they go before the diff, so
 	   the text that was underneath is painted in the same frame. */
@@ -1103,15 +1110,28 @@ long cn_flush(void)
 	   delete belongs -- the text underneath has to paint in the same
 	   frame -- and it is the wrong place for this one (Gitea #199). */
 	cn_imgdlate(&b);
+	/* The cursor is placed outright after any drawing, which moves the
+	   terminal's own; with nothing drawn and it shown where it was left,
+	   it is still there, and placing it again made every empty flush of a
+	   window with a cursor seven bytes -- twenty-three in the pair. */
 	if (cn_cvis) {
-		cn_goto(&b, cn_crow, cn_ccol, cr, cc);
-		if (cn_lvis != 1)
-			s_cat(&b, "\033[?25h");
+		if (b.n > sizeof CN_SYNCH - 1 || cn_lvis != 1 ||
+		    cn_lcr != cn_crow || cn_lcc != cn_ccol) {
+			cn_goto(&b, cn_crow, cn_ccol, cr, cc);
+			if (cn_lvis != 1)
+				s_cat(&b, "\033[?25h");
+		}
 		cn_lvis = 1;
+		cn_lcr = cn_crow;
+		cn_lcc = cn_ccol;
 	} else if (cn_lvis != 0) {
 		s_cat(&b, "\033[?25l");
 		cn_lvis = 0;
 	}
+	if (b.n == sizeof CN_SYNCH - 1)
+		b.n = 0;
+	else
+		s_cat(&b, CN_SYNCL);
 	n = (long)b.n;
 	if (b.n)
 		cn_wr(cn_fd, b.p, b.n);

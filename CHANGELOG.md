@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.284
+
+**Every frame lands whole: synchronized output** (Gitea #338).
+- **The console** brackets every frame that sends anything in
+  `CSI ?2026h` ... `CSI ?2026l`: the copies, the pictures, the cells and the
+  cursor, all inside. A terminal that knows mode 2026 (Blit, kitty, and
+  most current ones) presents the frame at once however its bytes are split
+  on the way, so a drag cannot be seen half drawn. One that does not ignores
+  the pair. An empty flush still sends nothing, and a visible cursor that
+  has not moved is no longer placed again on every flush (7 bytes each).
+- **hold** brackets every frame it sends a client the same way, and honours
+  the program's own pair: it renders from its emulator's live grid, so a
+  frame larger than one read of the pty -- any full repaint -- used to reach
+  every client half drawn. A render now waits for the frame to close, or
+  for the emulator's one-second guard (`tm_api` 8's `syncleft`), sleeping
+  exactly that long rather than polling.
+- **hibr's emulator**, as a relay, keeps no frozen copy of the grid during a
+  frame, since nothing reads it then. That copy would otherwise have been a
+  whole grid, 460 kB at 232x71, made and thrown away on every desktop frame.
+  A terminal window still freezes on a program's own pair, as before.
+
+A held session gets hold's half of this only once its server is new:
+Restart Desktop upgrades it.
+
 ## 0.99.283
 
 **Solid window moves copy rectangles where the terminal can** (Gitea #337,

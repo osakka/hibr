@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 7u
+#define TM_API_VER 8u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -112,6 +112,11 @@ struct tm_api {
 	unsigned (*copyseq)(int id);
 	int (*copyop)(int id, unsigned seq, int *r, int *c, int *h, int *w,
 		      int *dr, int *dc);
+	/* Version 8: how many milliseconds a frame the program opened with
+	   synchronized output (mode 2026) may still hold back a render -- 0
+	   when none is open, and 0 once its one-second guard has passed --
+	   so a relay presents a frame whole, never half of one (Gitea #338). */
+	long (*syncleft)(int id);
 };
 
 #endif

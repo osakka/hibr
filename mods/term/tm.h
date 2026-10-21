@@ -225,6 +225,7 @@ void tm_feed(tm_t *t, const char *b, size_t n);
 void tm_reset(tm_t *t, int hard);
 long tm_ms(void);
 int tm_syncing(tm_t *t);
+long tm_syncleft(tm_t *t);
 void tm_utf8(str *b, unsigned cp);
 void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 	     int curon);

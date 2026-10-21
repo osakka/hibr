@@ -60,9 +60,14 @@ o, _ = run('console open\na := console flush\n'
            'console put 5 10 "0001"\nc := console flush\n'
            'd := console flush\nconsole close\necho "R $a $b $c $d"\n')
 n = counts(o)
+# Every frame is bracketed in synchronized output's pair (Gitea #338), so
+# what the diff itself cost is the count less the pair.
+SYNC = len(b"\x1b[?2026h\x1b[?2026l")
 check("the first flush paints the whole screen", n and n[0] > 1900)
-check("only the changed run is sent afterwards", len(n) > 1 and n[1] < 20)
-check("one changed cell costs about one escape", len(n) > 2 and n[2] < 12)
+check("only the changed run is sent afterwards",
+      len(n) > 1 and n[1] - SYNC < 20)
+check("one changed cell costs about one escape",
+      len(n) > 2 and n[2] - SYNC < 12)
 check("an unchanged screen sends nothing at all", len(n) > 3 and n[3] == 0)
 
 o, _ = run('console open\nconsole flush\n'
@@ -558,4 +563,41 @@ sc = top('console put -p bar 0 0 BARBARBAR!\nconsole pane top bar off\n'
 check("and `pane top name off` gives its cells back",
       sc.row(0).startswith("xxxxxxxxxxxx"), sc.row(0))
 
-report(len(WANT) + len(MWANT) + 78)
+# Synchronized output (Gitea #338): a frame that sends anything is one
+# update, opened before its first byte and closed after the cursor, so a
+# terminal that knows mode 2026 presents it whole however the bytes are
+# split on the way; a flush with nothing to send still sends nothing.
+o, _ = run('console open\na := console flush\nconsole put 2 4 "SYNCED"\n'
+           'console cursor 7 9\n'
+           'b := console flush\nc := console flush\nconsole close\n'
+           'echo "R $a $b $c"\n')
+n = counts(o)
+fr = re.findall(rb"\x1b\[\?2026h(.*?)\x1b\[\?2026l", o, re.S)
+check("each frame that draws is opened and closed with the pair",
+      len(fr) == 2 and o.count(b"\x1b[?2026h") == 2
+      and o.count(b"\x1b[?2026l") == 2 and b"SYNCED" in fr[1],
+      (len(fr), o.count(b"\x1b[?2026h")))
+check("with the cursor placed inside it, last",
+      len(fr) == 2 and re.search(rb"\x1b\[8;10H\x1b\[\?25h$", fr[1]) is not None,
+      fr[1][-12:] if len(fr) == 2 else fr)
+check("and an empty flush costs nothing, the pair included",
+      len(n) == 3 and n[2] == 0 and n[1] == len(fr[1]) + SYNC if len(fr) == 2
+      else False, n)
+
+# A program's own pair still freezes a window's emulator: what is drawn
+# while its frame is open is the frame before it, so a flush then has
+# nothing new to send, and the frame lands when the program closes it.
+o, _ = run('mod load %s\nmod load %s\n' % (tree("build/mods/pty.so"),
+                                            tree("build/mods/term.so"))
+           + 'console open\nt := term new -r 3 -c 12\n'
+           'term feed "$t" "before"\nterm draw "$t" 1 1 3 12\nconsole flush\n'
+           "term feed \"$t\" $'\\e[?2026h\\e[1;1Hduring'\n"
+           'term draw "$t" 1 1 3 12\na := console flush\n'
+           "term feed \"$t\" $'\\e[?2026l'\n"
+           'term draw "$t" 1 1 3 12\nb := console flush\n'
+           'console close\necho "R $a $b"\n')
+n = counts(o)
+check("a window's emulator still shows the frame before a program's open one",
+      len(n) == 2 and n[0] == 0 and n[1] > 0 and b"during" in drawn(o), n)
+
+report(len(WANT) + len(MWANT) + 82)

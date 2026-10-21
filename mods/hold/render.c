@@ -335,6 +335,12 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	size_t n, i;
 
 	out->n = 0;
+	/* The whole frame, the modes, the copies, the cells, the pictures
+	   and the cursor, as one synchronized update: a terminal that knows
+	   mode 2026 presents it at once and never half of it, however the
+	   bytes are split on the way; one that does not ignores the pair
+	   (Gitea #338). */
+	s_cat(out, HD_SYNCH);
 	clear = hd_modes(tid, cn, out);
 	if (!cn->front) {
 		n = (size_t)cn->rows * (size_t)cn->cols;
@@ -517,6 +523,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	} else {
 		s_cat(out, "\033[?25l");
 	}
+	s_cat(out, HD_SYNCL);
 }
 
 /* Render and send one client its own rectangle; drop it from the list on a

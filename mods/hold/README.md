@@ -242,6 +242,28 @@ server older than 0.99.283 is never told, and never copies, even when the
 real terminal's feature 28 is relayed to it, since that old server's
 emulator would ignore the copy.
 
+## Synchronized output
+
+Every frame a client is sent is one synchronized update (mode 2026, Gitea
+#338): `CSI ?2026h` before the modes, the copies, the cells, the pictures
+and the cursor, and `CSI ?2026l` after them, so the client's terminal
+presents it whole however the bytes are split on the way there.
+
+And a program's own pair is honoured. The server renders from its
+emulator's live grid, so a frame larger than one read of the pty -- a
+desktop's full repaint is hundreds of kilobytes -- used to reach every
+client half drawn. A render is now owed until the program closes its frame,
+or until the emulator's one-second guard says it is not going to: `tm_api`
+version 8's `syncleft` answers how many milliseconds that may still be, and
+the loop sleeps exactly that long when nothing else wakes it. Since nothing
+reads the emulator mid-frame, a relay keeps no frozen copy of the grid --
+which for every frame a console brackets would have been a whole grid,
+460 kB at 232x71, made and thrown away.
+
+A client attaching, or resizing, mid-frame is still rendered at once: one
+frame of it may be half drawn, and the next, at the frame's close, puts it
+right.
+
 ## Upgrading a session without ending it
 
 A `Restart Desktop` re-execs the desktop **inside** this server, so it can

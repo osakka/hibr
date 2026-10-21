@@ -7,6 +7,14 @@
 #include "../term.h"
 #include "../gfxask.h"
 
+/* Synchronized output's pair, which brackets every frame sent a client. */
+#ifndef HD_SYNCH
+#define HD_SYNCH "\033[?2026h"
+#endif
+#ifndef HD_SYNCL
+#define HD_SYNCL "\033[?2026l"
+#endif
+
 enum {
 	HD_ATTACH = 'a',
 	HD_DATA = 'd',
