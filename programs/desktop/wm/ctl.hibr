@@ -250,8 +250,8 @@ dt_ctlrescan() {
 }
 
 # What the desktop is waiting on, read-only (Gitea #323): its pid, whether
-# the saver or the lock is up, each watcher's descriptor, process group and
-# command, and the descriptors the console wakes for, a muted one marked --
+# the saver or the lock is up, each watcher's descriptor, pty and command,
+# and the descriptors the console wakes for, a muted one marked --
 # so a desktop found spinning says which descriptor and whose it is.
 dt_ctlstate() {
 	local fd out= c w s=false l=false
@@ -260,8 +260,7 @@ dt_ctlstate() {
 		w=${DT_WATCHES["$fd"]}
 		c := dt_jstr "${w#* }"
 		w=${w%% *}
-		[ "$w" = - ] && w=null
-		out+="${out:+,}{\"fd\":$fd,\"group\":$w,\"cmd\":$c}"
+		out+="${out:+,}{\"fd\":$fd,\"pty\":$w,\"cmd\":$c}"
 	done
 	w := console watching 2> /dev/null
 	w := dt_jstr "$w"

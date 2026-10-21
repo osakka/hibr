@@ -2,6 +2,7 @@
 
 #include "tt.h"
 #include "../pty.h"
+#include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,13 +33,13 @@ void tt_ret(sh *s, const char *t)
 int m_pty(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "";
-	int rows = 24, cols = 80, i, r;
+	int rows = 24, cols = 80, i, r, cx = 0;
 	tt_p *p;
 	str o;
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: pty spawn|read|drain|write|resize|size|"
-			      "alive|wait|signal|pid|close|adopt|release|list ...");
+			      "alive|wait|signal|fd|pid|close|adopt|release|list ...");
 		return 2;
 	}
 	if (!strcmp(sub, "spawn")) {
@@ -48,6 +49,8 @@ int m_pty(sh *s, int ac, char **av)
 				rows = atoi(av[++i]);
 			else if (!strcmp(av[i], "-c") && i + 1 < ac)
 				cols = atoi(av[++i]);
+			else if (!strcmp(av[i], "-x"))
+				cx = 1;
 			else if (!strcmp(av[i], "--")) {
 				i++;
 				break;
@@ -59,7 +62,7 @@ int m_pty(sh *s, int ac, char **av)
 			i++;
 		}
 		if (i >= ac) {
-			lg(HIBR_LERR, "usage: pty spawn [-r rows] [-c cols] "
+			lg(HIBR_LERR, "usage: pty spawn [-r rows] [-c cols] [-x] "
 				      "command [args...]");
 			return 2;
 		}
@@ -70,6 +73,14 @@ int m_pty(sh *s, int ac, char **av)
 		p = tt_spawn(s, rows, cols, av + i);
 		if (!p)
 			return HIBR_FAIL;
+		/* -x: no program this process starts afterwards inherits the
+		   master, so this process is the only one holding it and the
+		   program is hung up the moment it goes, however it goes --
+		   and a restart's exec closes it too. A terminal window's pty
+		   must not have it: Restart Desktop keeps those across the
+		   exec. */
+		if (cx)
+			fcntl(p->fd, F_SETFD, FD_CLOEXEC);
 		s_init(&o);
 		s_num(&o, (long)p->id);
 		tt_ret(s, o.p);
@@ -181,6 +192,18 @@ int m_pty(sh *s, int ac, char **av)
 			return HIBR_FAIL;
 		return kill((pid_t)p->pid, atoi(av[3])) == 0 ? HIBR_OK
 							     : HIBR_FAIL;
+	}
+	if (!strcmp(sub, "fd")) {
+		if (ac < 3)
+			return 2;
+		p = tt_arg(sub, av[2]);
+		if (!p)
+			return HIBR_FAIL;
+		s_init(&o);
+		s_num(&o, (long)p->fd);
+		tt_ret(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
 	}
 	if (!strcmp(sub, "pid")) {
 		if (ac < 3)

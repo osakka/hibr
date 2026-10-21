@@ -2030,6 +2030,24 @@ went in the shell.
   its prompt**, or it cannot catch the one thing an interactive program
   does that a line-oriented one does not. Pass a watcher through `grep
   --line-buffered` when only its event lines matter, and read with `-t`.
+- **A program the desktop keeps running is that program and nothing else**
+  (Gitea #339, 0.99.285). The watchers were `setsid sh -c` with a second
+  `sh` looping `cut`/`sleep` over `/proc` to die with the desktop, a
+  `sleep |` to hold bluetoothctl's input open, and `grep --line-buffered`
+  to pass whole lines. Three `sh`, two `grep` and three `sleep` under every
+  desktop, each a workaround for something hibr already does. `pty spawn
+  -x` puts the program on a pty whose master is close-on-exec, so the
+  desktop is the only holder and the kernel hangs the program up however
+  the desktop ends. The pty is its input, which never ends, and a terminal
+  is its output, which is line-buffered. `dt_watchlines` does the
+  splitting and the filtering. `-x` matters: a master another child
+  inherits is still open after the desktop dies, and the hangup never
+  comes. And a terminal window's pty must **not** have it, since Restart
+  Desktop keeps those across the exec. On a pty a program colours its
+  output, and bluetoothctl's `[CHG]` arrives with escapes inside the
+  brackets, so the escapes come off before anything matches. The check is
+  the process tree, not the behaviour: bt.py and sound.py fail on any
+  `sh`, `grep`, `sleep` or `cut` under the desktop.
 - **A watched descriptor must be read whether or not its window is drawn.**
   `term_draw` was the only reader of a terminal's pty, and a minimised or
   away window is not drawn, so a program still writing kept the fd readable

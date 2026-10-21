@@ -74,10 +74,36 @@ def strip(line):
     return "".join(out)
 
 
+def prefix(s, i):
+    """Whether the assignment whose value starts at s[i] is a prefix to a
+    command -- `LC_ALL=C TERM=dumb pty spawn ...` -- which sets nothing
+    after the command and so creates no global (Gitea #339)."""
+    n = len(s)
+    if s[i:i + 1] == "(":
+        return False
+    while True:
+        while i < n and not s[i].isspace() and s[i] not in ";&|)":
+            if s[i] in "'\"":
+                j = s.find(s[i], i + 1)
+                i = n if j < 0 else j + 1
+            else:
+                i += 1
+        while i < n and s[i] in " \t":
+            i += 1
+        if i >= n or s[i] in ";&|)":
+            return False
+        m = re.match(r"(%s)(?:\[[^]]*\])*\+?=(?!=)" % NAME, s[i:])
+        if not m:
+            return True
+        i += m.end()
+
+
 def assigned(s):
     """Every name a stripped line assigns."""
     names = set()
-    for rx in (ASG, BIND, FOR, PRV):
+    names.update(m.group(1) for m in ASG.finditer(s)
+                 if not prefix(s, m.end()))
+    for rx in (BIND, FOR, PRV):
         names.update(m.group(1) for m in rx.finditer(s))
     m = READ.search(s)
     if m:

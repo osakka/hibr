@@ -563,7 +563,7 @@ reason.
 
 `state` is what the desktop is waiting on, read-only: its `pid`, whether
 the saver (`saving`) or the lock (`locked`) is up, each watcher it runs for
-sound, the network or Bluetooth (`fd`, process `group`, `cmd`), and
+sound, the network or Bluetooth (`fd`, the `pty` it runs on, `cmd`), and
 `console`, the descriptors the console wakes for -- one marked `:muted` was
 found ready with nothing reading it and is no longer woken for, which the
 log names too.

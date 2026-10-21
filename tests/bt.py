@@ -226,9 +226,10 @@ try:
     check("Forget a Device asks first, then removes it, pairing and all",
           b.dev("ProtoArc EM01") is None, sc)
     # A desktop killed with -9 -- what the owner does to a spinning one --
-    # takes its watcher with it: a guard in the watcher's own process group
-    # ends the group once the desktop's pid has gone. Until 0.99.271 the
-    # watcher lived on, and the sleep feeding it for ever.
+    # takes its watcher with it. Until 0.99.271 the watcher lived on, and
+    # the sleep feeding it for ever; until 0.99.285 a guard of sh and sleep
+    # ended it. Now it is bluetoothctl alone on a pty only the desktop
+    # holds, and the kernel hangs it up (Gitea #339).
     b = Bt()
     s9 = tempfile.mkdtemp(prefix="s-", dir=D)
     p9 = os.path.join(s9, "session.hibr")
@@ -243,6 +244,24 @@ try:
         return [l for l in os.popen("ps -eo pid=,args=").read().splitlines()
                 if BIN in l and "bluetoothctl" in l]
     before = len(watchers())
+
+    def tree_of(p):
+        out = []
+        try:
+            kids = open("/proc/%d/task/%d/children" % (p, p)).read().split()
+        except OSError:
+            return out
+        for k in kids:
+            try:
+                out.append(open("/proc/%s/comm" % k).read().strip())
+            except OSError:
+                continue
+            out += tree_of(int(k))
+        return out
+    names = tree_of(t9.pid)
+    check("the desktop watches with bluetoothctl alone, no sh, grep or sleep",
+          before == 1 and not set(names) & {"sh", "dash", "bash", "grep", "sleep", "cut"},
+          (before, names))
     t9.signal(9)
     end = time.time() + 12
     while time.time() < end and watchers():
@@ -262,4 +281,4 @@ try:
 finally:
     shutil.rmtree(D, True)
 
-report(22)
+report(23)

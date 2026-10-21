@@ -98,7 +98,16 @@ def isay(t):
     the prompt it was showing wiped, the line, and the prompt again with no
     newline after it (src/shared/shell.c, bt_shell_printf). A reader that
     waits for a whole line is left holding that prompt -- which is what froze
-    a desktop draining the watcher until 0.99.272."""
+    a desktop draining the watcher until 0.99.272.
+
+    On a terminal -- the desktop's watcher runs it on a pty since 0.99.285
+    (Gitea #339) -- the tag is coloured as bluez's client colours it
+    (COLORED_CHG and its siblings, each colour inside readline's \\001 \\002
+    markers), so a reader that matched the bare "[CHG]" would see nothing."""
+    if sys.stdout.isatty():
+        for tag, col in (("CHG", "93"), ("NEW", "92"), ("DEL", "91")):
+            t = t.replace("[%s]" % tag,
+                          "[\001\x1b[0;%sm\002%s\001\x1b[0m\002]" % (col, tag), 1)
     sys.stdout.write("\r\x1b[K" + t + "\n" + PROMPT)
     sys.stdout.flush()
 

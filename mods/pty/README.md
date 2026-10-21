@@ -30,7 +30,7 @@ driven through a terminal of its own.
 
 | form | does |
 |---|---|
-| `pty spawn [-r rows] [-c cols] cmd [args…]` | start it; the id lands in `$RET`. The size is on the terminal **before** the program is forked, so what it reads of its own width on its first line is already right (Gitea #203) |
+| `pty spawn [-r rows] [-c cols] [-x] cmd [args…]` | start it; the id lands in `$RET`. The size is on the terminal **before** the program is forked, so what it reads of its own width on its first line is already right (Gitea #203). `-x` makes the master close-on-exec: no program started afterwards inherits it, so this process alone holds it and the program is hung up the moment this process goes, however it goes -- which is how the desktop's watchers end with it (Gitea #339). A pty that must survive an `exec`, as a terminal window's does across Restart Desktop, must not have it |
 | `pty read <id> [ms]` | what is there now, waiting up to `ms` for the first byte |
 | `pty drain <id> [ms]` | keep reading until it stops, or `ms` passes with nothing |
 | `pty write <id> text…` | send bytes, as if typed |
@@ -39,6 +39,7 @@ driven through a terminal of its own.
 | `pty alive <id>` | status: is it still running |
 | `pty wait <id> [ms]` | wait for it; the exit status lands in `$RET` |
 | `pty signal <id> n` | send it a signal |
+| `pty fd <id>` | the master's descriptor, for `console watch` -- read it through `pty read`, which knows the descriptor is non-blocking |
 | `pty pid <id>` | its process id |
 | `pty close <id>` | kill it if it is still going, and release the pty |
 | `pty adopt <fd> <pid> [rows cols]` | take over a pty this process already has open -- after an `exec`, which keeps the master descriptor (it is not close-on-exec) and the program as this process's child; the id lands in `$RET` |

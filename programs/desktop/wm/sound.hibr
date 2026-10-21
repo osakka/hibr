@@ -39,7 +39,7 @@ declare -gA DT_SND
 # The outputs and the inputs, names and what each is called, in step.
 declare -ga DT_SNDON DT_SNDOD DT_SNDIN DT_SNDID
 DT_SNDFD=
-DT_SNDPID=
+DT_SNDPTY=
 DT_SNDAT=0
 DT_SNDREAD=0
 DT_SNDLATE=
@@ -413,22 +413,22 @@ dt_sndbar() {
 }
 
 # Look at the machine's sound, the first frame there is one to draw; and
-# watch the server's changes when there is a server. PipeWire's watcher is
-# a pipe of two, put in a process group of its own so ending it ends both.
+# watch the server's changes when there is a server, through the one
+# program that says what changes, on a pty of its own.
 dt_sndstart() {
 	dt_sndkind
 	dt_sndread
 	dt_sndbar
 	case ${DT_SND["kind"]} in
-	pulse) dt_watchstart 'LC_ALL=C exec pactl subscribe' ;;
+	pulse) dt_watchstart pactl subscribe ;;
 	pw)
 		command -v pw-mon > /dev/null || return 0
-		dt_watchstart 'pw-mon -N | grep --line-buffered -E "^(changed|added|removed):"'
+		dt_watchstart pw-mon -N
 		;;
 	*) return 0 ;;
 	esac
 	DT_SNDFD=$DT_WFD
-	DT_SNDPID=$DT_WPID
+	DT_SNDPTY=$DT_WPTY
 	command -v console > /dev/null && console watch "$DT_SNDFD" 2> /dev/null
 	DT_SNDAT=$EPOCHSECONDS
 }
@@ -436,9 +436,9 @@ dt_sndstart() {
 # Stop watching the server, and end what was told to watch it: at the
 # desktop's close and restart, and when the server goes.
 dt_sndstop() {
-	dt_watchstop "$DT_SNDFD" "$DT_SNDPID"
+	dt_watchstop "$DT_SNDFD" "$DT_SNDPTY"
 	DT_SNDFD=
-	DT_SNDPID=
+	DT_SNDPTY=
 	return 0
 }
 
@@ -448,7 +448,7 @@ dt_sndstop() {
 # that has gone is looked for again after half a minute, on whatever frame
 # comes then.
 dt_sndtick() {
-	local l stale=$DT_SNDLATE ms rst
+	local l stale=$DT_SNDLATE ms
 
 	if [ -z "${DT_SND["kind"]}" ]; then
 		dt_sndstart
@@ -460,19 +460,16 @@ dt_sndtick() {
 		return 0
 	fi
 	[ -n "$DT_SNDFD" ] || return 0
-	while read -t 0 -u "$DT_SNDFD"; do
-		IFS= read -r -t 0.01 -u "$DT_SNDFD" l
-		rst=$?
-		# Half a line and nothing more -- a program's prompt -- is left:
-		# a read that waited for its newline froze the whole desktop.
-		[ "$rst" -gt 128 ] && break
-		if [ "$rst" != 0 ]; then
-			dt_sndstop
-			DT_SND["kind"]=gone
-			DT_SNDAT=$EPOCHSECONDS
-			dt_baritem sound ""
-			return 0
-		fi
+	if ! dt_watchlines "$DT_SNDPTY"; then
+		dt_sndstop
+		DT_SND["kind"]=gone
+		DT_SNDAT=$EPOCHSECONDS
+		dt_baritem sound ""
+		return 0
+	fi
+	# pw-mon prints each object whole; only its first line, saying what
+	# happened to it, matters here.
+	for l in "${DT_WLINES[@]}"; do
 		case $l in
 		*" on sink "* | *" on source "* | *" on server "* | *" on card "*) stale=1 ;;
 		changed:* | added:* | removed:*) stale=1 ;;
@@ -692,7 +689,7 @@ dt_sndmenu() {
 # below it any more, and a column narrower: mute is `m`, and on the right
 # click's menu, and five columns hold "100%" with room either side.
 dt_sndslider() {
-	dt_baripop sound snd 11 5
+	dt_baripop sound snd 12 5
 }
 
 # Where the slider was pressed: the track, the mute, or nothing.
@@ -708,7 +705,9 @@ fn snd_popdraw(int r, int c, int h, int w) {
 	pulse | pw | alsa) ;;
 	*) dt_popclose; return 0 ;;
 	esac
-	n=$((h - 1))
+	# The level on the top row, the track under it, and the last row
+	# blank, as every drop-down ends.
+	n=$((h - 2))
 	[ "$n" -ge 2 ] || return 0
 	v=${DT_SND["vol"]:-0}
 	[ "${DT_SND["mute"]}" = 1 ] && on=$DT_IDLE
@@ -752,7 +751,7 @@ fn dt_sndlevel(int row, int n) {
 # A press on the track puts the level where it lands and holds it for the
 # drag; the wheel steps.
 fn snd_popmouse(act, int r, int c) {
-	local n=$((DT_POPH - 1)) v
+	local n=$((DT_POPH - 2)) v
 
 	[ "$n" -ge 2 ] || return 0
 	case $act in

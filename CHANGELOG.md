@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.285
+
+**The desktop's watchers are one program each** (Gitea #339). Sound,
+network and Bluetooth each ran their watcher through shell plumbing:
+- a `setsid sh -c`;
+- a second `sh` looping `cut` and `sleep 5` over the desktop's `/proc`
+  entry, so a watcher died with the desktop;
+- for PipeWire, `pw-mon | grep`;
+- for Bluetooth, `sleep 2147483647 | bluetoothctl | grep`.
+
+That was three `sh`, two `grep` and three `sleep` under every desktop.
+Now each watcher is `pactl`, `pw-mon`, `nmcli` or `bluetoothctl` alone,
+straight under the desktop:
+- **On a pty of its own:** `pty spawn -x`, close-on-exec, so the desktop is
+  the only process holding it. However the desktop ends, `kill -9`
+  included, the kernel hangs the program up.
+- **No `sleep |`:** its input is the pty, which never ends.
+- **Line by line:** its output is a terminal, so it comes a line at a time.
+- **Filtered in hibr:** `dt_watchlines` splits the lines, keeps a prompt
+  with no newline for later rather than waiting on it, and takes a
+  terminal's escapes off before the desktop matches what changed.
+
+The `pty` module gains `spawn -x` and `pty fd`. `desktop ctl state` names
+each watcher's `pty` where it named a process group. Pairing a Bluetooth
+device no longer goes through `env` either.
+
+**The volume slider ends in a blank row**, as every drop-down does. The
+track keeps its ten rows.
+
 ## 0.99.284
 
 **Every frame lands whole: synchronized output** (Gitea #338).

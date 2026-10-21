@@ -5516,11 +5516,12 @@ check("the saver over a terminal that keeps writing costs little, not a "
 mark = scratch("desktop-saverwatch.mark")
 path = scratch("desktop-saverwatch.hibr")
 open(path, "w").write(
-    "%s. %s\n%s\nTK_N=0\ntk_tick() {\n\tlocal l\n\t[ -n \"$TK_FD\" ] || return 0\n"
-    "\twhile read -t 0 -u \"$TK_FD\"; do IFS= read -r -u \"$TK_FD\" l || break; "
-    "[ -n \"$DT_SAVING\" ] && TK_N=$((TK_N + 1)); done\n"
+    "%s. %s\n%s\nTK_N=0\ntk_tick() {\n\t[ -n \"$TK_PTY\" ] || return 0\n"
+    "\tdt_watchlines \"$TK_PTY\" || return 0\n"
+    "\t[ -n \"$DT_SAVING\" ] && TK_N=$((TK_N + ${#DT_WLINES[@]}))\n"
     "\techo \"$TK_N\" > %s\n}\ndt_ticker tk_tick\ndt_open\n"
-    "dt_watchstart 'while :; do echo x; sleep 0.1; done'\nTK_FD=$DT_WFD\nconsole watch \"$TK_FD\"\n"
+    "dt_watchstart \"$HIBR\" -c 'while :; do echo x; sleep 0.1; done'\n"
+    "TK_PTY=$DT_WPTY\nconsole watch \"$DT_WFD\"\n"
     "dt_run\ndt_close\n" % (load(MOD), WM, ONE, mark))
 t = Term(path, env={"DT_SAVERSECS": "1", "DT_SAVER": "clock"}, rows=ROWS,
          cols=COLS, settle=0.6)

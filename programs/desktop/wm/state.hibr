@@ -197,48 +197,82 @@ DT_LASTMOVE=0
 
 # Start a watcher -- a program kept running for what it prints when
 # something changes (`pactl subscribe`, `pw-mon`, `nmcli monitor`, an idle
-# `bluetoothctl`) -- in a process group of its own that ends with the
-# desktop. Its first line is the group's own id, so a clean stop ends the
-# whole group however setsid placed it; and a guard inside the group ends
-# it within five seconds of the desktop's pid going away, which is the only
-# end a desktop killed with -9 gives -- until 0.99.271 such a watcher
-# lingered until its next event, and a sleep feeding bluetoothctl for ever.
-# Gone means no /proc entry or a zombie: `kill -0` answers for a zombie,
-# so a desktop killed but not yet reaped would have kept its watcher.
-# Where there is no setsid (macOS) the guard is left out, since `kill 0`
-# there would be the desktop's own group. The descriptor and the group land
-# in DT_WFD and DT_WPID; the command is sh's. Each start and stop goes in
-# the log, and DT_WATCHES keeps them by descriptor for `desktop ctl state`:
-# a desktop found spinning on a watched pipe nobody read (Gitea #323) left
-# nothing anywhere to say which watcher it was.
+# `bluetoothctl`) -- on a pty of its own, and nothing else: no sh, no grep,
+# no sleep (Gitea #339). The pty is close-on-exec (`pty spawn -x`), so the
+# desktop is the only process holding its master, and however the desktop
+# ends -- killed with -9 included -- the kernel hangs the program up with
+# it. Its standard input is the pty, which never ends, so an interactive
+# program waits rather than exits; its output is a terminal, so it comes a
+# line at a time without being asked. dt_watchlines reads it. The words are
+# the program and its arguments; the descriptor (for `console watch`) and
+# the pty land in DT_WFD and DT_WPTY. Each start and stop goes in the log,
+# and DT_WATCHES keeps them by descriptor for `desktop ctl state`: a desktop
+# found spinning on a watched pipe nobody read (Gitea #323) left nothing
+# anywhere to say which watcher it was.
 DT_WFD=
-DT_WPID=
-declare -gA DT_WATCHES=()
-fn dt_watchstart(cmd) {
+DT_WPTY=
+declare -gA DT_WATCHES DT_WTAIL
+declare -ga DT_WLINES
+fn dt_watchstart(...cmd) {
+	local id fd
+
 	DT_WFD=
-	DT_WPID=
-	if command -v setsid > /dev/null; then
-		exec {DT_WFD}< <(exec setsid sh -c 'echo "$$"; d=$1
-			(while s=$(cut -d")" -f2- "/proc/$d/stat" 2> /dev/null) &&
-			       case $s in " Z"* | " X"*) false ;; esac; do sleep 5; done; kill 0) > /dev/null &
-			eval "$2"' sh "$$" "$cmd" 2> /dev/null)
-		read -r -t 5 -u "$DT_WFD" DT_WPID || DT_WPID=
-	else
-		exec {DT_WFD}< <(exec sh -c "$cmd" 2> /dev/null)
-	fi
-	DT_WATCHES["$DT_WFD"]="${DT_WPID:--} $cmd"
-	dt_log "watching on descriptor $DT_WFD, group ${DT_WPID:-none}: $cmd"
+	DT_WPTY=
+	need pty 2> /dev/null || return 0
+	id := LC_ALL=C TERM=dumb NO_COLOR=1 pty spawn -x -r 24 -c 250 "${cmd[@]}" 2> /dev/null || return 0
+	fd := pty fd "$id"
+	DT_WPTY=$id
+	DT_WFD=$fd
+	DT_WTAIL["$id"]=
+	DT_WATCHES["$fd"]="$id ${cmd[*]}"
+	dt_log "watching on descriptor $fd, pty $id: ${cmd[*]}"
 	return 0
 }
 
-# Stop one: close what it writes to, and end its group.
-fn dt_watchstop(fd = "", pid = "") {
-	if [ -n "$fd" ]; then
-		command -v console > /dev/null && console unwatch "$fd" 2> /dev/null
-		exec {fd}<&-
-		unset DT_WATCHES["$fd"]
+# What a watcher has said since it was last asked, as whole lines in
+# DT_WLINES with a terminal's escapes and carriage returns taken off. Half a
+# line -- an interactive program's prompt, which it reprints after every
+# event with no newline -- is kept for the next call, never waited for: a
+# read that waited for its newline froze the whole desktop (0.99.272). It
+# never blocks. Status 1 once the program has gone.
+fn dt_watchlines(int id) {
+	local o t l
+	local -a ls
+
+	DT_WLINES=()
+	o := pty read "$id" 0 2> /dev/null || return 1
+	[ -n "$o" ] || return 0
+	t=${DT_WTAIL["$id"]}$o
+	case $t in
+	*$'\n'*) ;;
+	*)
+		DT_WTAIL["$id"]=${t: -4096}
+		return 0
+		;;
+	esac
+	DT_WTAIL["$id"]=${t##*$'\n'}
+	t=${t%$'\n'*}
+	IFS=$'\n' read -r -d '' -a ls <<< "$t"
+	for l in "${ls[@]}"; do
+		case $l in
+		*$'\e'* | *$'\001'* | *$'\002'* | *$'\r'*)
+			l := rsub -g "$l" $'\e\\[[0-9;?]*[A-Za-z]|[\001\002\r]' ''
+			;;
+		esac
+		DT_WLINES+=("$l")
+	done
+	return 0
+}
+
+# Stop one: no longer watch its descriptor, and end the program with its
+# pty -- the module owns the descriptor and closes it.
+fn dt_watchstop(fd = "", id = "") {
+	[ -n "$fd" ] && command -v console > /dev/null && console unwatch "$fd" 2> /dev/null
+	[ -n "$fd" ] && unset DT_WATCHES["$fd"]
+	if [ -n "$id" ]; then
+		pty close "$id" 2> /dev/null
+		unset DT_WTAIL["$id"]
 	fi
-	[ -n "$pid" ] && kill -- "-$pid" 2> /dev/null
-	[ -n "$fd$pid" ] && dt_log "stopped watching descriptor ${fd:-none}, group ${pid:-none}"
+	[ -n "$fd$id" ] && dt_log "stopped watching descriptor ${fd:-none}, pty ${id:-none}"
 	return 0
 }

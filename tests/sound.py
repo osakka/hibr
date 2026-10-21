@@ -272,13 +272,34 @@ try:
     seen = t1.until(lambda sc: "♪ 30%" in sc.row(0), 80)
     sc1 = t1.screen()
     pid = t1.pid
+
+    # The watcher is the one program, a child of the desktop's own, and
+    # nothing is run to help it (Gitea #339): no sh, grep, sleep or cut.
+    def tree_of(p):
+        out = []
+        try:
+            kids = open("/proc/%d/task/%d/children" % (p, p)).read().split()
+        except OSError:
+            return out
+        for k in kids:
+            try:
+                out.append((int(k), p, open("/proc/%s/comm" % k).read().strip()))
+            except OSError:
+                continue
+            out += tree_of(int(k))
+        return out
+    wtree = tree_of(pid)
+    names = [n for _, _, n in wtree]
+    check("the desktop watches with pactl alone, with no sh, grep, sleep or cut",
+          "pactl" in names and not set(names) & {"sh", "dash", "bash", "grep", "sleep", "cut"}
+          and all(pp == pid for _, pp, n in wtree if n == "pactl"), wtree)
     t1.quit(None, 0.5)
     check("a volume changed by another program reaches the bar with nothing pressed",
           "♪ 30%" in bar(sc1), bar(sc1))
 
     # The pactl the desktop watches goes when the desktop does: at once when
-    # the desktop stops itself, and within five seconds when it is killed
-    # outright, by the guard in the watcher's own process group.
+    # the desktop stops itself, and when it is killed outright the kernel
+    # hangs up the pty only the desktop held.
     def subscribers():
         out = []
         for d in os.listdir("/proc"):
@@ -317,6 +338,11 @@ try:
     check("a left click on the speaker opens a volume slider beneath it, not the menu",
           sl is not None and sl[0] == 1 and sc.find_from("50%", 1) is not None and
           sc.find("Headphones") is None, sc)
+    # The track is ten rows and the slider's last row is blank, as every
+    # drop-down's is (the owner, 2026-10-21).
+    check("the slider ends in a blank row, under ten rows of track",
+          sl is not None and sc.row(sl[0] + 10)[sl[1]] in "│█" and
+          sc.row(sl[0] + 11)[sl[1]] == " ", sc)
     if sl:
         tr, tc = sl[0] + 1, sl[1]
         sc = srun([press(0, col), release(0, col), 0.3, press(tr + 2, tc), release(tr + 2, tc)],
@@ -511,6 +537,11 @@ try:
         wp("set-volume", spk, "0.3")
         t2.until(lambda sc: "♪ 30%" in sc.row(0), 100)
         sc2 = t2.screen()
+        wtree = tree_of(t2.pid)
+        names = [n for _, _, n in wtree]
+        check("and watches PipeWire with pw-mon alone, filtering it itself, no grep",
+              "pw-mon" in names and not set(names) & {"sh", "dash", "bash", "grep", "sleep", "cut"},
+              wtree)
         t2.quit(None, 0.5)
         check("and a volume PipeWire changes elsewhere reaches the bar with nothing pressed",
               "♪ 30%" in bar(sc2), bar(sc2))
@@ -518,7 +549,8 @@ try:
         for name in ("with PipeWire and no PulseAudio side, the speaker shows the real volume",
                      "and alt-= turns PipeWire's own volume up",
                      "choosing Headphones makes it PipeWire's output, and the input stays",
-                     "and a volume PipeWire changes elsewhere reaches the bar with nothing pressed"):
+                     "and a volume PipeWire changes elsewhere reaches the bar with nothing pressed",
+                     "and watches PipeWire with pw-mon alone, filtering it itself, no grep"):
             check(name + " (the PipeWire-only server did not start)", False)
 
     # With ALSA alone the output and the input are a card each, chosen
@@ -585,4 +617,4 @@ finally:
     shutil.rmtree(RT, True)
     shutil.rmtree(RT2, True)
     shutil.rmtree(D, True)
-report(36)
+report(39)

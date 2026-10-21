@@ -37,7 +37,7 @@ declare -ga DT_BTM DT_BTN DT_BTP DT_BTC DT_BTB DT_BTI
 # A device's icon, asked of `info` once.
 declare -gA DT_BTICON
 DT_BTFD=
-DT_BTPID=
+DT_BTPTY=
 DT_BTAT=0
 DT_BTREAD=0
 DT_BTLATE=
@@ -208,26 +208,24 @@ dt_btbar() {
 }
 
 # Look the first time there is a frame to draw, and watch bluetoothctl: one
-# kept running with nothing to read, so it says only what changes, in a
-# session of its own so the whole of it can be ended.
+# kept running on a pty with nothing typed at it, so it says only what
+# changes.
 dt_btstart() {
 	dt_btkind
 	dt_btread
 	dt_btbar
 	[ "${DT_BT["kind"]}" = bluez ] || return 0
-	# Through grep, which passes whole lines only: an interactive
-	# bluetoothctl reprints its prompt after every event with no newline.
-	dt_watchstart 'sleep 2147483647 | LC_ALL=C bluetoothctl | grep --line-buffered -E "\[(CHG|NEW|DEL)\]"'
+	dt_watchstart bluetoothctl
 	DT_BTFD=$DT_WFD
-	DT_BTPID=$DT_WPID
+	DT_BTPTY=$DT_WPTY
 	command -v console > /dev/null && console watch "$DT_BTFD" 2> /dev/null
 	DT_BTAT=$EPOCHSECONDS
 }
 
 dt_btstop() {
-	dt_watchstop "$DT_BTFD" "$DT_BTPID"
+	dt_watchstop "$DT_BTFD" "$DT_BTPTY"
 	DT_BTFD=
-	DT_BTPID=
+	DT_BTPTY=
 	[ -n "$DT_BTPAIR" ] && dt_btpairend
 	return 0
 }
@@ -236,7 +234,7 @@ dt_btstop() {
 # running, then read what bluetoothctl has said -- a change to anything
 # reads everything again, at most once a second.
 dt_bttick() {
-	local l stale=$DT_BTLATE ms rst
+	local l stale=$DT_BTLATE ms
 
 	if [ -z "${DT_BT["kind"]}" ]; then
 		dt_btstart
@@ -250,19 +248,14 @@ dt_bttick() {
 		return 0
 	fi
 	[ -n "$DT_BTFD" ] || return 0
-	while read -t 0 -u "$DT_BTFD"; do
-		IFS= read -r -t 0.01 -u "$DT_BTFD" l
-		rst=$?
-		# Half a line and nothing more -- a program's prompt -- is left:
-		# a read that waited for its newline froze the whole desktop.
-		[ "$rst" -gt 128 ] && break
-		if [ "$rst" != 0 ]; then
-			dt_btstop
-			DT_BT["kind"]=gone
-			DT_BTAT=$EPOCHSECONDS
-			dt_baritem bt ""
-			return 0
-		fi
+	if ! dt_watchlines "$DT_BTPTY"; then
+		dt_btstop
+		DT_BT["kind"]=gone
+		DT_BTAT=$EPOCHSECONDS
+		dt_baritem bt ""
+		return 0
+	fi
+	for l in "${DT_WLINES[@]}"; do
 		case $l in
 		*"[CHG]"* | *"[NEW]"* | *"[DEL]"*) stale=1 ;;
 		esac
@@ -437,7 +430,7 @@ fn dt_btpair(int i) {
 	[ -n "$DT_BTPAIR" ] && { dt_notep low "Already pairing %s" "$DT_BTPNAME"; return 0; }
 	[ "${DT_BT["power"]}" = yes ] || { dt_notep low "Bluetooth is off"; return 0; }
 	need pty 2> /dev/null || return 0
-	id := pty spawn -r 24 -c 200 env LC_ALL=C bluetoothctl || return 0
+	id := LC_ALL=C pty spawn -x -r 24 -c 200 bluetoothctl || return 0
 	DT_BTPAIR=$id
 	DT_BTPMAC=${DT_BTM[$i]}
 	DT_BTPNAME=${DT_BTN[$i]}
