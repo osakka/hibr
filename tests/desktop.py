@@ -516,6 +516,17 @@ check("the window is drawn whole at its new place",
 check("and nothing of it is left behind",
       sc.g[6][10] == "·" and sc.g[8][39] == "·" and sc.g[13][12] == "·", sc)
 
+# Glyphs: Blit (Gitea #330) is the nerd set with Blit's own originals over
+# it: the hibr menu is Blit's colour pen, and the notification icon is the
+# Nerd Font's own for the style chosen, where unicode draws a text symbol.
+sc, _ = run(ONE, pre="DT_GLYPHSET=blit")
+check("with the Blit glyphs the bar wears Blit's pen and a Nerd notification icon",
+      sc.row(0).lstrip().startswith(chr(0x100001)) and chr(0xf024) in sc.row(0)
+      and "⚑" not in sc.row(0), sc.row(0))
+sc, _ = run(ONE)
+check("and with the unicode glyphs, the pen and the flag it always had",
+      sc.row(0).lstrip().startswith("✎") and "⚑" in sc.row(0), sc.row(0))
+
 # Drag Windows: Outline, the default. While the button is held the window
 # stays where it was and its outline -- its title in the top edge -- follows
 # the mouse, composited by the console and never drawn into the screen; let
@@ -6379,4 +6390,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(704)
+report(706)

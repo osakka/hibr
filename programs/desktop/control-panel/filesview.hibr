@@ -1,8 +1,8 @@
 #!/usr/bin/env hibr
 #
 # filesview -- the Control Panel pane for Files: the view a folder opens in
-# until it is given one of its own, and forgetting every folder's; how big
-# a folder's own cover is in the icon view; whether
+# until it is given one of its own, and forgetting every folder's; whether
+# a folder's own cover is its icon, and how big; whether
 # its right-click menu offers Open With and Open Terminal Here, and what
 # shell the second starts. Named
 # filesview, not files, because the app already owns the files_ prefix.
@@ -10,7 +10,7 @@
 strict
 
 
-app filesview "The Control Panel pane for Files" 1.2
+app filesview "The Control Panel pane for Files" 1.3
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
@@ -27,8 +27,13 @@ fn filesview_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Default View"
 	CP[$w][$n]["val"]="${FB_DEFAULTVIEW:-list}"; CP[$w][$n]["key"]=fileview
 	n=$((n + 1))
-	# How big a folder's own picture is in the icon view (#336): large
-	# tiles of 7 rows, or the glyph's own place in the 3-row tile.
+	# Whether a folder's own picture is its icon in the icon view (#336),
+	# and how big: large tiles of 7 rows, or the glyph's own place in the
+	# 3-row tile.
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Use Covers"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${FB_USECOVER:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=FB_USECOVER; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cover Size"
 	CP[$w][$n]["val"]="${FB_COVER:-large}"; CP[$w][$n]["key"]=cover
 	n=$((n + 1))
@@ -56,7 +61,7 @@ fn filesview_do(int w, k, int dir) {
 	fileview) v := cp_next "${FB_DEFAULTVIEW:-list}" "$dir" "${FILES_VIEWS[@]}"
 		FB_DEFAULTVIEW=$v ;;
 	resetviews) dt_needs files fb_reset_views && fb_reset_views ;;
-	DT_FBOPENWITH | DT_FBTERMHERE) cp_toggle "$k" ;;
+	DT_FBOPENWITH | DT_FBTERMHERE | FB_USECOVER) cp_toggle "$k" ;;
 	termhere) v := cp_next "$DT_TERMHERE" "$dir" "${FV_SHELLS[@]}"
 		DT_TERMHERE=$v ;;
 	cover) v := cp_next "${FB_COVER:-large}" "$dir" "${FV_COVERS[@]}"

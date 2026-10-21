@@ -244,7 +244,9 @@ dt_menus() {
 	[ -n "$who" ] && ap=${DT[$who]["app"]}
 	MB_N=0
 
-	dt_menu "✎"
+	# Named, so a glyph set can give the menu its own mark: Blit's colour
+	# pen in the blit set (Gitea #330), U+270E everywhere else.
+	dt_menu "${GL[hibr]}"
 	# One About, and it belongs to whatever is in front: the focused app's
 	# own, or the computer's when the desktop itself is. Both at once is
 	# what this used to show, and it is not how the menu works anywhere

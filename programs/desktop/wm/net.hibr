@@ -393,6 +393,15 @@ fn dt_netbars(int sig) {
 	[ "$sig" -gt 25 ] && n=2
 	[ "$sig" -gt 50 ] && n=3
 	[ "$sig" -gt 75 ] && n=4
+	# The blit set has a glyph for each of the four levels, one cell and
+	# in its own colours (Gitea #330): the level the bars would have
+	# drawn, and the lowest for a signal nmcli gives no bar at all, since
+	# Blit defines no fifth, empty state and a network listed is one
+	# that is there.
+	if [ -n "${GL["wifi4"]}" ]; then
+		[ "$n" -lt 1 ] && n=1
+		ret "${GL["wifi$n"]}"
+	fi
 	while [ "$i" -le 4 ]; do
 		if [ "$i" -le "$n" ]; then
 			b="$b${GL["bar$i"]}"
@@ -419,6 +428,8 @@ dt_netbar() {
 	wifi)
 		b := dt_netbars "${DT_NET["signal"]:-0}"
 		t="${GL[wifi]:+${GL[wifi]} }$b"
+		# A Blit level glyph is the Wi-Fi icon and its bars in one.
+		[ -n "${GL["wifi4"]}" ] && t=$b
 		;;
 	wired) t=${GL[wired]} ;;
 	connecting) t="${GL[wifi]:+${GL[wifi]} }${GL[ellipsis]}" ;;

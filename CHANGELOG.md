@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.282
+
+**Blit's own glyphs** (Gitea #330). Control Panel > Appearance > Glyphs
+gains **blit**, for Blit's Retro and Modern fonts. It is the nerd set,
+since those fonts carry the whole Nerd catalogue, with Blit's originals for
+hibr over it. The hibr menu is Blit's colour pen (U+100001), Bluetooth is
+Blit's own glyph (U+100006) in place of the runic letter, and the Wi-Fi in
+use is one of Blit's four signal levels (U+100002 to U+100005), chosen from
+the signal as the bars were, the icon and its bars in one cell. Each is one
+column wide, as Blit specifies and as hibr measures it. The notification
+icon is the Nerd Font's own for the chosen style in the nerd and blit sets.
+The hibr menu's mark has a name now (`GL[hibr]`), still U+270E in every
+other set. Blit's icons are private to its fonts, so the set is chosen, like
+nerd, and never detected.
+
+**Covers can be turned off** (Gitea #336). Control Panel > Files > **Use
+Covers**, on by default: off, the icon view draws every folder's glyph and
+the 3-row tile, whatever pictures the folders hold. Files 1.7, Files pane
+1.3.
+
 ## 0.99.281
 
 **A folder can show its own picture in Files** (Gitea #336). In the icon

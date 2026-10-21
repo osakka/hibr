@@ -504,8 +504,23 @@ dt_bar() {
 	dt_barput "$MB_AX" " $t ${GL[sdown]}"
 }
 
-# The glyph a notification icon name stands for.
+# The glyph a notification icon name stands for -- its Nerd Font icon in
+# the nerd and blit sets, which have one for each (Gitea #330), where the
+# emoji bell is two cells in most fonts and the rest are text symbols.
 fn dt_bellglyph(style) {
+	case $DT_GLYPHSET in
+	nerd | blit)
+		case $style in
+		bell) ret $'\uf0f3' ;;
+		note) ret $'\uf001' ;;
+		mail) ret $'\uf0e0' ;;
+		dot) ret $'\uf111' ;;
+		diamond) ret $'\uf219' ;;
+		star) ret $'\uf005' ;;
+		*) ret $'\uf024' ;;
+		esac
+		;;
+	esac
 	case $style in
 	bell) ret "🔔" ;;
 	note) ret "♪" ;;

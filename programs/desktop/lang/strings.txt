@@ -1044,6 +1044,7 @@ Upload Edits on Save
 Uptime: %s
 Use
 Use Answer
+Use Covers
 User Agent
 User agent the pages are told:
 Username

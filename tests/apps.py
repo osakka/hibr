@@ -4109,6 +4109,10 @@ sc = run("files", "20 70 2 2", [0.5], pre=CPRE + "FB_COVER=small\n", end=None, *
 check("Cover Size small keeps the 3-row tile, the picture in the glyph's place",
       len([a for a in sc.apc if "a=T" in a]) == 2 and
       sc.find("Cc") is not None and sc.find("Cc")[0] == 5, sc)
+sc = run("files", "20 70 2 2", [0.5], pre=CPRE + "FB_USECOVER=0\n", end=None, **PIX)
+check("Use Covers off keeps every glyph and the 3-row tile, pixels or not",
+      not [a for a in sc.apc if "a=T" in a] and sc.find("Cc") is not None and
+      sc.find("Cc")[0] == 5, sc)
 sc = run("files", "20 70 2 2", [0.5], pre=CPRE, end=None)
 check("on a terminal that draws no pixels, folders keep their glyphs",
       not [a for a in sc.apc if "a=T" in a] and sc.find("Cc") is not None and
@@ -5161,4 +5165,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(687)
+report(688)

@@ -316,6 +316,14 @@ icons, and everything it has no icon for stays unicode. No terminal can be
 asked what font it uses, so this one is chosen, never guessed; with an
 ordinary font its icons draw as empty boxes. The icon each app and pane
 chooses for itself stays as its own `dt_app` or `cp_pane` line writes it.
+**blit** is for Blit's own Retro and Modern fonts (Gitea #330). Those carry
+the whole Nerd catalogue, so it is the nerd set, plus the colour icons Blit
+drew for hibr, one cell each: the hibr menu's pen, Bluetooth, and Wi-Fi as
+four signal levels that stand for the icon and its bars together. With the
+nerd and blit sets, the notification icon is the Nerd Font's own for the
+style chosen, rather than a text symbol. Blit's icons are private to its
+fonts, so the set is a choice, like nerd; anywhere else, pick one of the
+other three.
 
 A menu is no wider than **Menu Width** (Appearance > Menu Bar): 40 columns
 by default, or 30 to 80, or No Limit. A row longer than that -- a window's
@@ -503,7 +511,8 @@ folder is not taken for its cover. Boxer's games carry one already, and an
 album, a photo set or a project gets one by dropping a PNG in. A listing
 with any cover lays its tiles out 7 rows high, each picture 5 rows by 10
 columns in its own shape, or keeps the 3-row tile with the picture in the
-glyph's place: Control Panel > Files > **Cover Size**, Large or Small. A
+glyph's place: Control Panel > Files > **Cover Size**, Large or Small;
+**Use Covers** off draws glyphs everywhere and leaves the pictures be. A
 folder with no cover, one whose picture does not decode, a terminal that
 draws no pixels, and the list and details views all show the glyph as
 before. Each folder is checked with one file test, once per listing.

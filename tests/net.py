@@ -183,6 +183,15 @@ try:
     check("the network item is on the menu bar, with the Wi-Fi in use's four bars",
           BARS in bar(sc), bar(sc))
     col = item(sc)
+    # Control Panel > Appearance > Glyphs: Blit (Gitea #330) draws the Wi-Fi
+    # in use as one of Blit's own four level glyphs, the icon and its bars in
+    # one cell, and the hibr menu as Blit's colour pen. The in-use network
+    # here has the signal of four bars, so it is the fourth level.
+    sc = srun(n, [], env={"DT_GLYPHSET": "blit"},
+              until=lambda sc: chr(0x100005) in bar(sc))
+    check("with the Blit glyphs the Wi-Fi is Blit's level glyph and the menu its pen",
+          chr(0x100005) in bar(sc) and BARS[0] not in bar(sc) and
+          bar(sc).lstrip().startswith(chr(0x100001)), bar(sc))
 
     # A left click lists the networks in reach: the one in use first and
     # ticked, the rest by signal, a key on each that asks a password.
@@ -341,4 +350,4 @@ try:
 finally:
     shutil.rmtree(D, True)
 
-report(26)
+report(27)

@@ -4,8 +4,9 @@
 # by name: GL[vline] rather than a literal │ in the middle of a line of
 # code. One place to read what a glyph is for, one place to change it, and
 # a second set in plain ASCII for a terminal or a font that has none of
-# them -- a Linux console, an old ssh client -- and a third, nerd, for a
-# terminal whose font is a Nerd Font -- chosen by DT_GLYPHSET
+# them -- a Linux console, an old ssh client -- a third, nerd, for a
+# terminal whose font is a Nerd Font, and a fourth, blit, for Blit's own
+# fonts, which add colour icons of their own to Nerd's -- chosen by DT_GLYPHSET
 # (Control Panel > Appearance > Glyphs).
 #
 # Written as $'\uXXXX', the character's code point, with its Unicode name
@@ -26,11 +27,17 @@ strict
 declare -gA GL
 declare -gA DT_FRAMES
 DT_GLYPHSET="${DT_GLYPHSET-unicode}"
-DT_GLYPHSETS=(unicode ascii nerd)
+DT_GLYPHSETS=(unicode ascii nerd blit)
 
 # Fill GL, and the frame styles drawn from it, with one set: unicode or
 # ascii. Anything else is unicode.
 fn dt_glyphs(set = "unicode") {
+	# Names only the blit set fills, emptied first so that a set chosen
+	# after it does not keep them: dt_netbars draws Blit's four Wi-Fi
+	# levels whenever wifi4 has a glyph.
+	GL["wifi1"]=; GL["wifi2"]=; GL["wifi3"]=; GL["wifi4"]=
+	# The hibr menu's own mark, U+270E in every set but blit's.
+	GL["hibr"]=$'\u270e'      # LOWER RIGHT PENCIL
 	if [ "$set" = ascii ]; then
 		GL["hline"]="-"; GL["vline"]="|"
 		GL["tl"]="+"; GL["tr"]="+"; GL["bl"]="+"; GL["br"]="+"
@@ -162,6 +169,10 @@ fn dt_glyphs(set = "unicode") {
 		GL["spark8"]=$'█'    # FULL BLOCK
 	fi
 	[ "$set" = nerd ] && dt_glyphsnerd
+	if [ "$set" = blit ]; then
+		dt_glyphsnerd
+		dt_glyphsblit
+	fi
 	DT_FRAMES["single"]["tl"]=${GL["tl"]}; DT_FRAMES["single"]["tr"]=${GL["tr"]}
 	DT_FRAMES["single"]["bl"]=${GL["bl"]}; DT_FRAMES["single"]["br"]=${GL["br"]}
 	DT_FRAMES["single"]["h"]=${GL["hline"]}; DT_FRAMES["single"]["v"]=${GL["vline"]}
@@ -207,6 +218,23 @@ dt_glyphsnerd() {
 	GL["pin"]=$'\uf08d'       # nf-fa-thumb_tack
 	GL["task"]=$'\uf096'      # nf-fa-square_o
 	GL["taskdone"]=$'\uf046'  # nf-fa-check_square_o
-	GL["fx"]=$'\uf1ec'       # nf-fa-calculator
+	GL["fx"]=$''       # nf-fa-calculator
+}
+
+# The blit set (Gitea #330): the nerd set, since Blit's own fonts carry the
+# whole Nerd catalogue, and over it the originals Blit drew for hibr --
+# intrinsic-colour icons one cell wide, at supplementary private-use code
+# points that mean nothing in any other font (Blit's
+# assets/fonts/icons/catalogue.json, docs/font-reference.md). Chosen, never
+# detected, like nerd: a person on Blit's Retro or Modern profile picks it,
+# and anywhere else the other three are what to pick.
+dt_glyphsblit() {
+	GL["hibr"]=$'\U00100001'   # Blit hibr-pen, the colour hibr menu mark
+	GL["wifi1"]=$'\U00100002'  # Blit wifi-1, signal level 1 of 4
+	GL["wifi2"]=$'\U00100003'  # Blit wifi-2
+	GL["wifi3"]=$'\U00100004'  # Blit wifi-3
+	GL["wifi4"]=$'\U00100005'  # Blit wifi-4
+	GL["bt"]=$'\U00100006'     # Blit bluetooth, in its own colours
+	GL["btoff"]=$'\U00100006 \uf00d' # the same, nf-fa-times
 }
 dt_glyphs "$DT_GLYPHSET"

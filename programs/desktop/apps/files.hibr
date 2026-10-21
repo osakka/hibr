@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 1.6
+app files "A file browser" 1.7
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -61,8 +61,11 @@ FILES_TILE=12
 # cover.png is not taken for one. Large tiles are 7 rows, the picture in 5
 # by 10 of them; small ones keep the 3-row tile and put it in the glyph's
 # place. Control Panel > Files > Cover Size.
+# Control Panel > Files > Use Covers turns them off altogether, for glyphs
+# everywhere without removing anybody's pictures.
 FB_COVER="${FB_COVER-large}"
-command -v dt_keep > /dev/null && dt_keep FB_COVER
+FB_USECOVER="${FB_USECOVER-1}"
+command -v dt_keep > /dev/null && dt_keep FB_COVER FB_USECOVER
 FB_PATHS=()
 
 # What a directory never shown before opens as -- the Files pane's own
@@ -1068,7 +1071,7 @@ fn fb_drawicons(int id, int h, int w) {
 
 	# Covers only where pixels can be drawn: in half blocks a 5 by 10
 	# picture is a smear, and the folder's glyph says more.
-	dt_imgpix && pix=1
+	[ "${FB_USECOVER:-1}" = 1 ] && dt_imgpix && pix=1
 	if [ -n "$pix" ] && [ "${FB_COVER:-large}" != small ] && fb_hascovers "$id"; then
 		th=7
 		bh=5

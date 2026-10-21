@@ -119,6 +119,12 @@ try:
     check("the Bluetooth item is on the menu bar, with how many devices are connected",
           BT + " 1" in bar(sc), bar(sc))
     col = bar(sc).find(BT)
+    # Glyphs: Blit (Gitea #330) draws Bluetooth as Blit's own colour glyph,
+    # not the runic letter that stands for it everywhere else.
+    sc = srun(b, [], env={"DT_GLYPHSET": "blit"},
+              until=lambda sc: chr(0x100006) + " 1" in bar(sc))
+    check("with the Blit glyphs Bluetooth is Blit's own glyph",
+          chr(0x100006) + " 1" in bar(sc) and BT not in bar(sc), bar(sc))
 
     sc = srun(b, [press(0, col), release(0, col)], until="8BitDo Retro Keyboard")
     hp = at(sc, "soundcore C30i")
@@ -256,4 +262,4 @@ try:
 finally:
     shutil.rmtree(D, True)
 
-report(21)
+report(22)
