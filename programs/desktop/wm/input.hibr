@@ -103,6 +103,7 @@ dt_mouse() {
 			return 0
 		fi
 		if [ "$MB_OPEN" != -1 ]; then
+			dt_mfoot "$mr" "$mc" && return 0
 			if dt_mpick "$mr" "$mc"; then
 				dt_mdo
 			else

@@ -52,6 +52,18 @@ MB_CY=
 MB_CTXWHO=
 MB_CTXID=
 
+# The hibr menu's search (Gitea #325): `/` with the hibr menu or one of its
+# submenus open. MB_SON is 1 while it has the keyboard, MB_SQ and MB_SCUR
+# the query and its cursor, MB_SRES the index of the menu of results --
+# built after the rest every frame, at the end of MB, the way a context
+# menu is. Its rows are copies of the rows they were found in, so choosing
+# one runs what the row in its own menu runs.
+MB_SON=
+MB_SQ=
+MB_SCUR=0
+MB_SRES=
+declare -ga MB_FHIT MB_FDIR MB_FHIT2 MB_FDIR2
+
 # Start a menu.  Called from an app's <app>_menus.
 fn dt_menu(title) {
 	case $DT_LANG in ?*) title := dt_tr "$title" ;; esac
@@ -1058,6 +1070,31 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	console pen "$DT_INK" "$DT_FACE"
 	lb := dt_rep "$w" " "
 	console put "$r" "$x" "$lb"
+	[ "$MB_SON" = 1 ] && [ "$m" = "$MB_SRES" ] && dt_mfootdraw "$r" "$x" "$w"
+	return 0
+}
+
+# The search's own row: the menu's bottom one, blank on every other menu,
+# so no row is taken from anything while nobody is searching. A slash, then
+# what was typed with its cursor, the end of it kept in view.
+fn dt_mfootdraw(int r, int x, int w) {
+	local fw off=0 shown ch c
+
+	fw=$((w - 4))
+	[ "$fw" -lt 1 ] && return 0
+	[ "$MB_SCUR" -ge "$fw" ] && off=$((MB_SCUR - fw + 1))
+	shown=${MB_SQ:$off:$fw}
+	console pen "$DT_DIM" "$DT_FACE"
+	console put "$r" $((x + 1)) "/"
+	console pen "$DT_INK" "$DT_FACE"
+	console put "$r" $((x + 3)) "$shown"
+	c=$((MB_SCUR - off))
+	ch=" "
+	[ "$c" -lt "${#shown}" ] && ch=${shown:$c:1}
+	console pen "$DT_FACE" "$DT_INK" bold
+	console put "$r" $((x + 3 + c)) "$ch"
+	console pen "$DT_INK" "$DT_FACE"
+	return 0
 }
 
 # The application menu: every window, the hidden ones marked, and one on
@@ -1142,6 +1179,10 @@ fn dt_mopen(m) {
 	MB_OPEN=$m
 	MB_PAR=
 	MB_SEL=0
+	MB_SON=
+	MB_SQ=
+	MB_SCUR=0
+	MB_SRES=
 	MB_CX=
 	MB_CY=
 	MB_CTXWHO=
@@ -1159,6 +1200,150 @@ dt_mclose() {
 	MB_CY=
 	MB_CTXWHO=
 	MB_CTXID=
+	MB_SON=
+	MB_SQ=
+	MB_SCUR=0
+	MB_SRES=
+}
+
+# Whether the open menu is the hibr menu or a submenu inside it, which is
+# where `/` searches from.
+dt_mhibr() {
+	local m=$MB_OPEN
+
+	case $m in -1 | app | "") return 1 ;; esac
+	while [ -n "${MB[$m]["par"]}" ]; do
+		m=${MB[$m]["par"]}
+	done
+	[ "$m" = 0 ]
+}
+
+# Every row under menu m whose label holds q, walking into submenus: one
+# that begins with q goes in MB_FHIT, one that only holds it in MB_FHIT2,
+# so what was typed as the start of a name comes first. Each with the
+# submenu it was found in, the innermost, in the matching MB_FDIR.
+fn dt_mfwalk(int m, dir, q) {
+	local i=0 n lb l
+
+	n=${MB[$m]["n"]:-0}
+	while [ "$i" -lt "$n" ]; do
+		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
+			i=$((i + 1))
+			continue
+		fi
+		lb=${MI[$m][$i]["label"]}
+		if [ -n "${MI[$m][$i]["sub"]}" ]; then
+			dt_mfwalk "${MI[$m][$i]["sub"]}" "$lb" "$q"
+		else
+			l := str lower "$lb"
+			if [ -z "$q" ] || [ "${l#"$q"}" != "$l" ]; then
+				MB_FHIT+=("$m:$i")
+				MB_FDIR+=("$dir")
+			elif [ "${l#*"$q"}" != "$l" ]; then
+				MB_FHIT2+=("$m:$i")
+				MB_FDIR2+=("$dir")
+			fi
+		fi
+		i=$((i + 1))
+	done
+	return 0
+}
+
+# One result: the row it was found as, copied field by field rather than
+# through dt_row -- the label is already translated, and one carrying its
+# folder is a value no catalogue holds -- and every field set, since this
+# index held another menu's rows last frame (Gitea #313).
+fn dt_mfrow(int s, int m, int i, dir) {
+	local n lb j=0 argc
+
+	n=${MB[$s]["n"]}
+	lb=${MI[$m][$i]["label"]}
+	[ -n "$dir" ] && lb="$lb ${GL[dash]} $dir"
+	argc=${MI[$m][$i]["argc"]:-0}
+	MI[$s][$n]["label"]=$lb
+	MI[$s][$n]["key"]=
+	MI[$s][$n]["cmd"]=${MI[$m][$i]["cmd"]}
+	while [ "$j" -lt "$argc" ]; do
+		MI[$s][$n]["a$j"]=${MI[$m][$i]["a$j"]}
+		j=$((j + 1))
+	done
+	MI[$s][$n]["argc"]=$argc
+	MI[$s][$n]["sep"]=0
+	MI[$s][$n]["dim"]=${MI[$m][$i]["dim"]:-0}
+	MI[$s][$n]["tick"]=${MI[$m][$i]["tick"]}
+	MI[$s][$n]["sub"]=
+	MI[$s][$n]["accel"]=${MI[$m][$i]["accel"]}
+	MB[$s]["n"]=$((n + 1))
+	dt_wide "$s" $((${#lb} + ${#MI[$s][$n]["accel"]} + 10))
+	return 0
+}
+
+# Build the menu of results, at index `at` when it is being rebuilt for a
+# changed query and at the end of MB when it is new this frame -- which is
+# every frame, since the bar is rebuilt from 0 each one. As many rows as
+# the display has room for; typing more narrows it.
+fn dt_mfind(at = "") {
+	local s q k max ptop pbot e
+
+	[ "$MB_SON" = 1 ] || return 0
+	if [ -n "$at" ]; then
+		s=$at
+	else
+		s=$MB_N
+		MB_N=$((MB_N + 1))
+	fi
+	MB[$s]["title"]=
+	MB[$s]["n"]=0
+	MB[$s]["w"]=28
+	MB[$s]["bar"]=0
+	MB[$s]["own"]=
+	MB[$s]["par"]=
+	MB[$s]["px"]=
+	MB[$s]["py"]=
+	MB[$s]["x"]=${MB[0]["x"]}
+	MB[$s]["tw"]=${MB[0]["tw"]}
+	q := str lower "$MB_SQ"
+	MB_FHIT=()
+	MB_FDIR=()
+	MB_FHIT2=()
+	MB_FDIR2=()
+	dt_mfwalk 0 "" "$q"
+	ptop := dt_ptop
+	pbot := dt_pbot
+	max=$((pbot - ptop - 1))
+	k=0
+	while [ "$k" -lt "${#MB_FHIT[@]}" ] && [ "${MB[$s]["n"]}" -lt "$max" ]; do
+		e=${MB_FHIT[$k]}
+		dt_mfrow "$s" "${e%:*}" "${e#*:}" "${MB_FDIR[$k]}"
+		k=$((k + 1))
+	done
+	k=0
+	while [ "$k" -lt "${#MB_FHIT2[@]}" ] && [ "${MB[$s]["n"]}" -lt "$max" ]; do
+		e=${MB_FHIT2[$k]}
+		dt_mfrow "$s" "${e%:*}" "${e#*:}" "${MB_FDIR2[$k]}"
+		k=$((k + 1))
+	done
+	if [ "${MB[$s]["n"]}" = 0 ]; then
+		MB_CUR=$s
+		dt_dim "Nothing matches."
+		MB_CUR=
+	fi
+	MB_SRES=$s
+	MB_OPEN=$s
+	[ "$MB_SEL" -ge "${MB[$s]["n"]}" ] && MB_SEL=0
+	[ "${MI[$s][$MB_SEL]["dim"]}" = 1 ] && dt_mmove 1
+	return 0
+}
+
+# A click on the search's own row, which keeps the menu open rather than
+# closing it as a click outside does.
+fn dt_mfoot(int r, int c) {
+	local m=$MB_SRES
+
+	[ "$MB_SON" = 1 ] && [ -n "$m" ] || return 1
+	[ "$r" = $((${MB[$m]["dy"]:-0} + ${MB[$m]["n"]:-0})) ] || return 1
+	[ "$c" -ge "${MB[$m]["dx"]:-0}" ] &&
+		[ "$c" -lt $((${MB[$m]["dx"]:-0} + ${MB[$m]["dw"]:-0})) ]
 }
 
 # Step into the submenu of the highlighted item, if it has one.
@@ -1312,8 +1497,43 @@ fn dt_mbar(int i, int dir) {
 
 # Keys while the bar has the keyboard.  Returns 1 for a key it does not use.
 fn dt_mkey(k) {
-	local n i=0 lb
+	local n i=0 lb r
 
+	# The search has the keyboard ahead of the menu's own keys: space,
+	# left and right are text and the cursor in it, and a letter is part
+	# of the name rather than an item's own letter. Every key reaches
+	# here while a menu is open, so nothing is refused to the desktop:
+	# input.hibr swallows whatever this does not take.
+	if [ "$MB_SON" = 1 ]; then
+		case $k in
+		escape) dt_mopen 0; return 0 ;;
+		enter)
+			# Not on a dim row -- Nothing matches, or Detach with no
+			# session -- which dt_mdo would close the menu for
+			# before finding it dim.
+			[ "${MB[$MB_OPEN]["n"]:-0}" -gt 0 ] &&
+				[ "${MI[$MB_OPEN][$MB_SEL]["dim"]}" != 1 ] && dt_mdo
+			return 0
+			;;
+		up) dt_mmove -1; return 0 ;;
+		down) dt_mmove 1; return 0 ;;
+		esac
+		r := dt_textkey "$MB_SQ" "$MB_SCUR" "$k" || return 0
+		[ "${r% *}" != "$MB_SQ" ] && MB_SEL=0
+		MB_SQ=${r% *}
+		MB_SCUR=${r##* }
+		dt_mfind "$MB_SRES"
+		return 0
+	fi
+	if [ "$k" = "/" ] && dt_mhibr; then
+		MB_SON=1
+		MB_SQ=
+		MB_SCUR=0
+		MB_SEL=0
+		MB_PAR=
+		dt_mfind
+		return 0
+	fi
 	case $k in
 	escape) dt_mup || dt_mclose; return 0 ;;
 	left)

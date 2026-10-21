@@ -1654,6 +1654,18 @@ while a terminal has focus, and Terminals Keep Ctrl+A-Z (on) keeps ctrl
 with a letter for the program inside -- ctrl-c, a shell's ctrl-w -- even
 where it is a desktop shortcut.
 
+**`/` searches the hibr menu.** With the hibr menu or any submenu of it
+open, `/` turns the menu's bottom row into a search, and the menu becomes
+the list of what matches: every application in every folder, the
+desktop's own (Control Panel, Task Manager, About...) and its actions
+(Screen Saver, Lock Screen, Restart Desktop, Quit), each beside the folder
+it was found in -- `Calculator — Accessories`. Names that begin with what
+was typed come first, then names that only contain it. Up and down move,
+enter or a click opens, and escape goes back to the hibr menu. While the
+search is open every letter is part of the name, never an item's own
+letter, so `q` searches for Quit rather than choosing it. From the keyboard
+alone it is F10, then `/`.
+
 The application menu lists every window, with `•` against the active one and
 `·` against a hidden one; choosing a hidden one brings it back. That is the
 only way back from minimising, and it is where System 7 put it too.

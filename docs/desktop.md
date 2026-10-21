@@ -24,7 +24,9 @@ folder, the root of the disk, and the trash), and the Control Strip near
 the bottom. The mouse works in any terminal that reports it -- click,
 drag, right-click, the wheel. The keyboard works everywhere: **F10** or
 **escape** opens the menu bar, and the arrows and the underlined letters
-move through it.
+move through it. With the hibr menu open, **`/`** searches everything on
+it -- each application, in whatever folder, and the desktop's own apps
+and actions -- and enter opens what is highlighted.
 
 The desktop is **held**, which is the first thing worth knowing: it does
 not belong to the terminal you started it in. Press **ctrl-\\** and you are

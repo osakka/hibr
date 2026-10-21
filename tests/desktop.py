@@ -2422,6 +2422,79 @@ check("and Accessories lists Stickies and Puzzle two levels down",
       sc3)
 shutil.rmtree(DACONF, True)
 
+# `/` in the hibr menu searches everything on it (Gitea #325): the apps in
+# every folder, the desktop's own and its actions, each result with the
+# folder it was found in. The screen is read before leaving, since every
+# letter is text while the search has the keyboard -- the usual qy would
+# be typed into it -- and escape twice then closes it for the quit.
+SQCONF = tempfile.mkdtemp(prefix="hibr-menu-search-")
+
+
+def sqrun(feed, click=None):
+    path = "/tmp/hibr-desktop-sq-%d.hibr" % os.getpid()
+    open(path, "w").write("%s. %s\n%s\ndt_open\n\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, DASRC))
+    t = Term(path, env={"DT_TICK": "60", "XDG_CONFIG_HOME": SQCONF},
+             rows=ROWS, cols=COLS, settle=0.5)
+    t.keys(feed)
+    if click:
+        at = t.screen().find(click)
+        if at:
+            t.keys([press(at[0], at[1] + 1), release(at[0], at[1] + 1)])
+    sc = t.screen()
+    t.keys([b"\x1b", b"\x1b", b"\x1b"])
+    t.quit(b"qy", 1.2)
+    os.unlink(path)
+    return sc
+
+
+F10 = b"\x1b[21~"
+sc = sqrun([F10, b"/"])
+foot = [r for r in range(ROWS) if sc.row(r)[:4] == "· / " or
+        sc.row(r)[1:4] == " / "]
+check("/ in the hibr menu opens a search on the menu's bottom row",
+      foot != [] and sc.find("Calculator — Accessories") is not None,
+      sc)
+sc = sqrun([F10, b"/", b"c", b"a", b"l"])
+check("what is typed narrows it, each result naming its folder",
+      sc.find("Calculator — Accessories") is not None and
+      sc.find("Calendar — Applications") is not None and
+      sc.find("Clock") is None and sc.find("/ cal") is not None, sc)
+sc = sqrun([F10, b"/", b"c", b"a", b"l", b"c", b"\r"])
+check("enter opens the highlighted result",
+      sc.find("┤ Calculator ├") is not None and
+      sc.find("/ calc") is None, sc)
+sc = sqrun([F10, b"/", b"c", b"o", b"n", b"t", b"r", b"o", b"l", b"\r"])
+check("the desktop's own apps are found as well as the applications",
+      sc.find("┤ Control Panel ├") is not None, sc)
+sc = sqrun([F10, b"/", b"q"])
+check("a letter is text in the search, not the item it would choose",
+      sc.find("/ q") is not None and sc.find("Quit") is not None and
+      sc.find("Lock Screen") is None, sc)
+sc = sqrun([F10, b"/", b"z", b"z", b"q", b"\r"])
+check("a query nothing matches says so, and enter there does nothing",
+      sc.find("Nothing matches") is not None and
+      sc.find("/ zzq") is not None, sc)
+sc = sqrun([F10, b"/", b"c", b"a", b"l", b"c", b"\x1b"])
+# And from the menu it went back to, `/` starts a new search with nothing
+# left of the old query: on 0.99.276 the hibr menu is up at the end of the
+# first run for the wrong reason, so the second is what tells them apart.
+sc2 = sqrun([F10, b"/", b"c", b"a", b"l", b"c", b"\x1b", b"/", b"c", b"l",
+             b"o"])
+check("escape closes the search and goes back to the hibr menu",
+      sc.find("Applications") is not None and
+      sc.find("About This Computer") is not None and
+      sc.find("/ calc") is None and sc2.find("/ clo") is not None and
+      sc2.find("Clock — Accessories") is not None, sc2)
+sc = sqrun([F10, b"/", b"c", b"a", b"l", b"x", b"\x7f"])
+check("backspace edits the query",
+      sc.find("Calculator — Accessories") is not None and
+      sc.find("/ cal") is not None and sc.find("/ calx") is None, sc)
+sc = sqrun([F10, b"/", b"c", b"a", b"l", b"e"], click="Calendar")
+check("a click on a result opens it",
+      sc.find("┤ Calendar ├") is not None, sc)
+shutil.rmtree(SQCONF, True)
+
 # --- the control strip ---------------------------------------------------
 #
 # One line of quick-toggle modules, each in its own brackets, drawn
@@ -6224,4 +6297,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(686)
+report(695)

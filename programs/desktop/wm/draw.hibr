@@ -360,6 +360,7 @@ dt_draw() {
 	   [ "$MB_OPEN" != -1 ] || [ -n "$MB_CTXWHO" ]; then
 		dt_menus
 		dt_ctxbuild
+		dt_mfind
 		DT_MENUIN=1
 		DT_MENUFOC=$DT_FOCUS
 	fi

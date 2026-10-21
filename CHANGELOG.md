@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.277
+
+**`/` searches the hibr menu** (Gitea #325). With the hibr menu or one of
+its submenus open, `/` opens a search on the menu's own bottom row, and the
+menu becomes what matches. The search covers everything on the hibr menu:
+every application in every folder, the desktop's own apps and its actions.
+Each result names the folder it came from (`Calculator — Accessories`).
+Names that begin with what was typed come first. Enter or a click opens the
+highlighted result, and escape goes back to the hibr menu. While it is open,
+every letter is text, so `q` looks for Quit instead of choosing it. Nothing
+is drawn until `/` is pressed, as with every other search in the desktop.
+From the keyboard alone, it is F10 then `/`.
+
 ## 0.99.276
 
 **A menu stays on its own display, and no wider than Menu Width** (Gitea
