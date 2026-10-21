@@ -10,6 +10,13 @@ typedef struct tm_cell tm_cell;
 typedef struct tm_line tm_line;
 typedef struct tm_save tm_save;
 typedef struct tm_t tm_t;
+typedef struct tm_cop tm_cop;
+
+/* One rectangle copy as it was applied: h rows by w columns from (r, c)
+   to (dr, dc), clipped to the grid, 0-based. */
+struct tm_cop {
+	int r, c, h, w, dr, dc;
+};
 
 /* One cell. x is 0, or 1 + an index into the terminal's own pool of
    combining sequences (tm_t.xp): the marks, joiners and variation
@@ -69,6 +76,13 @@ struct tm_img {
    cannot make the emulator hold without limit. */
 #ifndef TM_KSTK
 #define TM_KSTK 32
+#endif
+
+/* How many rectangle copies (DECCRA) are remembered for a relay to replay
+   on a real terminal that does them too (Gitea #337): a relay further
+   behind than this diffs instead, which is always correct. */
+#ifndef TM_COPMAX
+#define TM_COPMAX 64
 #endif
 
 #ifndef TM_IMGMAX
@@ -140,6 +154,11 @@ struct tm_t {
 	   whether or not anybody relays them; answered only for a relay. */
 	int kbd;
 	str kst;
+	/* The copies DECCRA made, a ring of TM_COPMAX: copseq counts every
+	   one ever made, copbase is the first still meaningful -- a resize
+	   moves it, since the coordinates no longer describe this grid. */
+	tm_cop *cops;
+	unsigned copseq, copbase;
 	int nobg;
 	int nofg;
 	unsigned rgbfg, rgbbg;
@@ -178,6 +197,9 @@ void tm_unwide(tm_t *t, int r, int c);
 void tm_erase(tm_t *t, int r0, int c0, int r1, int c1);
 void tm_scroll(tm_t *t, int n);
 void tm_ilines(tm_t *t, int n);
+long tm_par(tm_t *t, int n, long def);
+void tm_deccra(tm_t *t);
+int tm_copyop(tm_t *t, unsigned seq, tm_cop *out);
 void tm_dlines(tm_t *t, int n);
 void tm_ichars(tm_t *t, int n);
 void tm_dchars(tm_t *t, int n);

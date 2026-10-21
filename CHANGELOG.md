@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.99.283
+
+**Solid window moves copy rectangles where the terminal can** (Gitea #337,
+blit#120). This is for Drag Windows: Solid. The default, Outline, is
+unchanged.
+- **The console:** when a window moves whole, the console sends it as one
+  DECCRA (CSI ... $ v). It copies the cells in both of its buffers exactly
+  as the terminal will, so the frame after sends only what the copy did not
+  already put there. Only cells where the copy cut a wide glyph are sent
+  again. `console copy` and `console copied` are the verbs.
+- **hibr's emulator** applies DECCRA itself, blanking a wide glyph cut by an
+  edge as Blit does. It remembers the copies for hold (`tm_api` 7), and
+  answers XTVERSION `hibr-term 0.25 deccra`.
+- **hold** replays each copy to a client whose own terminal said it copies
+  (feature 28, sent as `HD_COPY`), clipped to that client's view, and diffs
+  as always for one that did not.
+- **The desktop** leaves a moved window undrawn when the copy has drawn it
+  and its app says nothing changed. The wallpaper paints the strip it left.
+  A translucent terminal is drawn again, since its colours depend on what is
+  behind it.
+
+Whether to copy is decided by what will *apply* the copy, never by the
+terminal's name:
+- one of hibr's own emulators, by its XTVERSION answer;
+- a hold server, by `HIBR_HOLDCOPY` in its program's environment, since
+  nothing inside hold answers the program;
+- any other terminal, by feature 28.
+
+A program under a hold server older than this one is never told, so it
+never copies, even when Blit's 28 is relayed to it. That old server's
+emulator would ignore the copy, and that was the false positive the Blit
+side's audit warned about. A control run against 0.99.282's hold confirms
+that no copy is sent.
+
+Moving a window whose cells each have their own colour cost 194 bytes
+against 2,140. A three-step solid drag cost 2.2 kB against 14 kB, with the
+window drawn twice instead of five times.
+
+**Smaller things in the bar's pop-ups.**
+- The Bluetooth and Network pop-ups end with a blank row, the way a menu
+  does.
+- The volume slider no longer has a speaker at its foot. Mute is `m`, or the
+  right click's menu.
+- The volume slider is a column narrower.
+
 ## 0.99.282
 
 **Blit's own glyphs** (Gitea #330). Control Panel > Appearance > Glyphs

@@ -126,6 +126,11 @@ void cn_askcolours(void)
 		s_num(&q, i);
 		s_cat(&q, ";?\033\\");
 	}
+	/* Who is answering, before the device attributes: an emulator of
+	   hibr's names itself, so its feature 28 can be told from a real
+	   terminal's relayed through one (Gitea #337). A terminal answers in
+	   the order it is asked. */
+	s_cat(&q, "\033[>q");
 	s_cat(&q, gx_ask);
 	cn_wr(cn_fd, q.p, q.n);
 	s_free(&q);

@@ -642,17 +642,41 @@ static int cn_apc(const char *p, size_t n, size_t *used)
    either capability query can give (Gitea #216). */
 static int cn_report(const char *p, size_t n, size_t *used)
 {
-	int da, sixel, kbd, r = gx_report(p, n, CN_OSCMAX, used, &da, &sixel,
-					   &kbd);
+	int da, sixel, kbd, copy, r = gx_report(p, n, CN_OSCMAX, used, &da,
+						 &sixel, &kbd, &copy);
 
-	if (r == 2 && da)
+	if (r == 2 && da) {
 		cn_gotcap(CN_GFX_SIXEL, sixel);
+		cn_da28 = copy;
+	}
 	if (r == 2 && kbd)
 		cn_gotkbd();
 	return r;
 }
 
 int cn_dec(const char *p, size_t n, str *o, size_t *used, int last);
+
+/* XTVERSION's answer, DCS > | text ST, taken rather than typed in: which
+   emulator this is, and whether it copies rectangles itself (Gitea #337).
+   Only hibr's own names itself hibr-term. 0 for one not finished yet, -1
+   for something that is not one. */
+static int cn_dcs(const char *p, size_t n, size_t *used)
+{
+	size_t i;
+
+	for (i = 4; i + 1 < n; i++)
+		if ((unsigned char)p[i] == 27 && p[i + 1] == '\\') {
+			*used = i + 2;
+			if (memmem(p, i, "hibr-term", 9)) {
+				cn_hterm = 1;
+				cn_vouch = memmem(p, i, "deccra", 6) != 0;
+				lg(HIBR_LDBG, "console: hibr's emulator %s rectangles",
+				   cn_vouch ? "copies" : "does not copy");
+			}
+			return 2;
+		}
+	return n < CN_OSCMAX ? 0 : -1;
+}
 
 /* A code point as UTF-8 into e, which has room for four bytes; how many. */
 size_t cn_u8put(char *e, unsigned c)
@@ -796,6 +820,10 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		return cn_osc(p, n, used);
 	if (p[1] == '_')
 		return cn_apc(p, n, used);
+	if (p[1] == 'P' && n >= 4 && p[2] == '>' && p[3] == '|')
+		return cn_dcs(p, n, used);
+	if (p[1] == 'P' && n == 3 && p[2] == '>')
+		return 0;
 	if (p[1] == '[' && n >= 3 && p[2] == '?')
 		return cn_report(p, n, used);
 	if (p[1] == 'O' || p[1] == '[') {

@@ -81,6 +81,80 @@ void hd_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, int have,
 	s_ch(b, 'm');
 }
 
+/* One of the program's rectangle copies, replayed on a client whose
+   terminal copies too (Gitea #337): clipped so that both ends lie inside
+   this client's own view -- what it cannot see it cannot copy from -- sent
+   as DECCRA, and made to this client's front exactly as sent, so the diff
+   that follows sends only what the copy did not already put right. The
+   destination's edge columns and the one each side are marked unknown,
+   since how a terminal splits a wide glyph at an edge is its own business
+   and the diff is what settles it: a copy can only ever save bytes. */
+void hd_copyto(struct hd_cli *cn, str *out, int r, int c, int h, int w,
+	       int dr, int dc)
+{
+	int sr = r - cn->row, sc = c - cn->col, tr = dr - cn->row, tc = dc - cn->col;
+	int lo, hi, i, k;
+	struct hd_cell *tmp;
+
+	lo = 0;
+	if (-sr > lo) lo = -sr;
+	if (-tr > lo) lo = -tr;
+	hi = h;
+	if (cn->rows - sr < hi) hi = cn->rows - sr;
+	if (cn->rows - tr < hi) hi = cn->rows - tr;
+	if (hi <= lo)
+		return;
+	sr += lo;
+	tr += lo;
+	h = hi - lo;
+	lo = 0;
+	if (-sc > lo) lo = -sc;
+	if (-tc > lo) lo = -tc;
+	hi = w;
+	if (cn->cols - sc < hi) hi = cn->cols - sc;
+	if (cn->cols - tc < hi) hi = cn->cols - tc;
+	if (hi <= lo)
+		return;
+	sc += lo;
+	tc += lo;
+	w = hi - lo;
+	s_cat(out, "\033[");
+	s_num(out, (long)sr + 1);
+	s_ch(out, ';');
+	s_num(out, (long)sc + 1);
+	s_ch(out, ';');
+	s_num(out, (long)(sr + h));
+	s_ch(out, ';');
+	s_num(out, (long)(sc + w));
+	s_cat(out, ";1;");
+	s_num(out, (long)tr + 1);
+	s_ch(out, ';');
+	s_num(out, (long)tc + 1);
+	s_cat(out, ";1$v");
+	tmp = xm(sizeof *tmp * (size_t)h * (size_t)w);
+	for (i = 0; i < h; i++)
+		memcpy(tmp + (size_t)i * w,
+		       cn->front + (size_t)(sr + i) * cn->cols + sc,
+		       sizeof *tmp * (size_t)w);
+	for (i = 0; i < h; i++)
+		memcpy(cn->front + (size_t)(tr + i) * cn->cols + tc,
+		       tmp + (size_t)i * w, sizeof *tmp * (size_t)w);
+	free(tmp);
+	for (i = 0; i < h; i++) {
+		struct hd_cell *row = cn->front + (size_t)(tr + i) * cn->cols;
+
+		k = tc + w - 1;
+		if (row[tc].w == 0)
+			row[tc].cp = ~0u;
+		if (tc > 0 && row[tc - 1].w == 2)
+			row[tc - 1].cp = ~0u;
+		if (row[k].w == 2)
+			row[k].cp = ~0u;
+		if (k + 1 < cn->cols && row[k + 1].w == 0)
+			row[k + 1].cp = ~0u;
+	}
+}
+
 /* FNV-1a, to tell one picture's bytes from another's without keeping them. */
 unsigned hd_hash(const char *p, size_t n)
 {
@@ -265,12 +339,28 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	if (!cn->front) {
 		n = (size_t)cn->rows * (size_t)cn->cols;
 		cn->front = xm(sizeof *cn->front * n);
-		for (i = 0; i < n; i++)
+		for (i = 0; i < n; i++) {
 			cn->front[i].cp = ~0u;
+			cn->front[i].w = 1;
+		}
 		clear = 1;
 	}
 	if (clear)
 		s_cat(out, "\033[H\033[2J");
+	/* The program's copies since this client was last sent one, for a
+	   terminal that copies: replayed before the diff, which then sends
+	   what they did not put right. A full repaint needs none of them. */
+	if (clear || !cn->copy) {
+		cn->cseq = hd_tm->copyseq(tid);
+	} else {
+		unsigned cur = hd_tm->copyseq(tid), q;
+		int cr0, cc0, ch0, cw0, cdr, cdc;
+
+		for (q = cn->cseq + 1; q <= cur; q++)
+			if (hd_tm->copyop(tid, q, &cr0, &cc0, &ch0, &cw0, &cdr, &cdc))
+				hd_copyto(cn, out, cr0, cc0, ch0, cw0, cdr, cdc);
+		cn->cseq = cur;
+	}
 	lr = -1;
 	lc = -1;
 	have = 0;
@@ -307,14 +397,17 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			f->bg = bg;
 			f->attr = at;
 			f->link = lk;
+			f->w = (unsigned char)w;
 			/* The continuation half is never itself read from
 			   tm_api (w is 0 there, skipped above) so it is never
 			   otherwise kept in step -- left stale, a wide glyph
 			   later replaced by two narrow ones would find its
 			   second half's old value here matching by
 			   coincidence and never get sent. */
-			if (w == 2 && c + 1 < cn->cols)
+			if (w == 2 && c + 1 < cn->cols) {
 				cn->front[(size_t)r * cn->cols + c + 1] = *f;
+				cn->front[(size_t)r * cn->cols + c + 1].w = 0;
+			}
 			lr = r;
 			lc = c + (int)w;
 		}

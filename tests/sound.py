@@ -336,9 +336,14 @@ try:
         check("the wheel over the slider steps the volume", volume("spk") == 60,
               (volume("spk"), sc))
         reset()
-        sc = srun([press(0, col), release(0, col), 0.3, press(tr + 10, tc), release(tr + 10, tc)],
+        # No speaker at its foot any more, and a column narrower (the owner,
+        # 2026-10-21): mute is `m` here and on the right click's menu.
+        sc = srun([press(0, col), release(0, col), 0.3, b"m"],
                   until=lambda sc: muted("spk"))
-        check("the speaker at its foot mutes", muted("spk"), (muted("spk"), sc))
+        check("m mutes from the slider, which has no speaker at its foot",
+              muted("spk") and "♪" not in "".join(sc.row(r)[tc - 3:tc + 4]
+                                                   for r in range(tr, tr + 12)),
+              (muted("spk"), sc))
         reset()
         sc = srun([press(0, col), release(0, col), 0.3, b"\x1b", 0.3])
         check("and escape closes it", slider(sc) is None, sc)

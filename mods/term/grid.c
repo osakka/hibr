@@ -43,6 +43,100 @@ tm_cell *tm_at(tm_t *t, int r, int c)
 	return t->g + (size_t)r * t->cols + c;
 }
 
+/* A blank in place of half a wide glyph a copy split, so neither half is
+   left on its own. */
+void tm_cpblank(tm_cell *k)
+{
+	k->cp = ' ';
+	k->x = 0;
+	k->w = 1;
+}
+
+/* DECCRA, CSI Pts;Pls;Pbs;Prs;Pps;Ptd;Pld;Ppd $ v: the rectangle of cells
+   from top-left (Pts, Pls) to bottom-right (Pbs, Prs), 1-based and
+   inclusive, copied whole to (Ptd, Pld), relative to the margins in
+   origin mode, the page numbers ignored. Through a copy of its own, so an
+   overlap reads the source as it was. A wide glyph cut by either edge of
+   the destination is blanked on both halves, as Blit does. The cursor and
+   the pen do not move. Each copy is remembered, for a relay to replay on
+   a real terminal that copies too (Gitea #337). */
+void tm_deccra(tm_t *t)
+{
+	int off = t->om ? t->top : 0;
+	int r0 = (int)tm_par(t, 0, 1) - 1 + off, c0 = (int)tm_par(t, 1, 1) - 1;
+	int r1 = (int)tm_par(t, 2, t->rows) - 1 + off;
+	int c1 = (int)tm_par(t, 3, t->cols) - 1;
+	int dr = (int)tm_par(t, 5, 1) - 1 + off, dc = (int)tm_par(t, 6, 1) - 1;
+	int h, w, i, j;
+	tm_cell *tmp, *k;
+	tm_cop *op;
+
+	if (r0 < 0)
+		r0 = 0;
+	if (c0 < 0)
+		c0 = 0;
+	if (r1 >= t->rows)
+		r1 = t->rows - 1;
+	if (c1 >= t->cols)
+		c1 = t->cols - 1;
+	if (dr < 0)
+		dr = 0;
+	if (dc < 0)
+		dc = 0;
+	h = r1 - r0 + 1;
+	w = c1 - c0 + 1;
+	if (h <= 0 || w <= 0 || dr >= t->rows || dc >= t->cols)
+		return;
+	if (dr + h > t->rows)
+		h = t->rows - dr;
+	if (dc + w > t->cols)
+		w = t->cols - dc;
+	tmp = xm((size_t)h * (size_t)w * sizeof *tmp);
+	for (i = 0; i < h; i++)
+		memcpy(tmp + (size_t)i * w, tm_at(t, r0 + i, c0),
+		       (size_t)w * sizeof *tmp);
+	for (i = 0; i < h; i++)
+		memcpy(tm_at(t, dr + i, dc), tmp + (size_t)i * w,
+		       (size_t)w * sizeof *tmp);
+	free(tmp);
+	for (i = 0; i < h; i++) {
+		k = tm_at(t, dr + i, dc);
+		if (k->w == 0)
+			tm_cpblank(k);
+		if (dc > 0 && (k = tm_at(t, dr + i, dc - 1)) && k->w == 2)
+			tm_cpblank(k);
+		j = dc + w - 1;
+		k = tm_at(t, dr + i, j);
+		if (k->w == 2)
+			tm_cpblank(k);
+		if (j + 1 < t->cols && (k = tm_at(t, dr + i, j + 1)) && k->w == 0)
+			tm_cpblank(k);
+	}
+	if (!t->cops)
+		t->cops = xm(TM_COPMAX * sizeof *t->cops);
+	op = &t->cops[t->copseq % TM_COPMAX];
+	op->r = r0;
+	op->c = c0;
+	op->h = h;
+	op->w = w;
+	op->dr = dr;
+	op->dc = dc;
+	t->copseq++;
+	lg(HIBR_LDBG, "terminal %d copied %dx%d from %d,%d to %d,%d", t->id,
+	   h, w, r0, c0, dr, dc);
+}
+
+/* One remembered copy, seq counting from 1: 0 for one made before the
+   last resize or too long ago to be kept. */
+int tm_copyop(tm_t *t, unsigned seq, tm_cop *out)
+{
+	if (!t->cops || seq == 0 || seq > t->copseq || seq <= t->copbase ||
+	    t->copseq - seq >= TM_COPMAX)
+		return 0;
+	*out = t->cops[(seq - 1) % TM_COPMAX];
+	return 1;
+}
+
 /* Tab stops back to every eighth column, for the width the screen has. */
 void tm_tabreset(tm_t *t)
 {
@@ -103,6 +197,7 @@ void tm_free(tm_t *t)
 			break;
 		}
 	free(t->g);
+	free(t->cops);
 	free(t->alt);
 	free(t->frz);
 	free(t->pv);
@@ -177,6 +272,9 @@ int tm_size(tm_t *t, int rows, int cols)
 	   every attach (hold sizes the union each time), and clearing the
 	   pictures there would take them away from the client that is about
 	   to be sent them. */
+	/* A copy remembered from before is in coordinates this grid no
+	   longer has. */
+	t->copbase = t->copseq;
 	if (t->imgn)
 		tm_imgclear(t);
 	mg = t->inalt ? t->alt : t->g;

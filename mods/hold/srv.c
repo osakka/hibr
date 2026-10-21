@@ -723,6 +723,12 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	}
 	chmod(path, 0600);
 	setenv("HIBR_HOLD", path, 1);
+	/* This server's emulator applies a rectangle copy and replays it, or
+	   diffs, for every client (Gitea #337) -- said here, since the
+	   program's own questions to it are answered by no one: it has no pty
+	   of its own to answer on. A program under an older server is never
+	   told, so it never copies, which is what keeps that one correct. */
+	setenv("HIBR_HOLDCOPY", "1", 1);
 	id = hd_pty->spawn(s, rows, cols, av);
 	hd_wall(ready, id ? "1" : "0", 1);
 	close(ready);
@@ -863,6 +869,11 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 
 				if (cn)
 					cn->kbd = 1;
+			} else if (t == HD_COPY && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+
+				if (cn)
+					cn->copy = 1;
 			} else if (t == HD_DETACH) {
 				hd_cdrop(&cls, fd);
 			}

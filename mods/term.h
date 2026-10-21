@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 6u
+#define TM_API_VER 7u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -102,6 +102,16 @@ struct tm_api {
 	   asked for, 0 for none or no such id -- for a relay to put on each
 	   real terminal that speaks the protocol (Gitea #326). */
 	int (*kbd)(int id);
+	/* Version 7. The rectangle copies (DECCRA) the program made, for a
+	   relay to replay on a real terminal that copies too rather than
+	   sending every cell of the destination again (Gitea #337).
+	   copyseq is how many there have been; copyop hands one over by its
+	   number, counting from 1, as rows h by columns w from (r, c) to
+	   (dr, dc), 0-based and clipped -- and 0 for one too old to be kept
+	   or made before a resize, which the relay then simply diffs. */
+	unsigned (*copyseq)(int id);
+	int (*copyop)(int id, unsigned seq, int *r, int *c, int *h, int *w,
+		      int *dr, int *dc);
 };
 
 #endif

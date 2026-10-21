@@ -810,6 +810,8 @@ void tm_csiin(tm_t *t, int f, const char *in)
 		tm_reply2(t, "\033[", a,
 			  a == 4 ? (t->irm ? 1 : 2) : a == 20 ? (t->lnm ? 1 : 2) : 0,
 			  "$y");
+	} else if (!strcmp(in, "$") && f == 'v') {
+		tm_deccra(t);
 	} else {
 		lg(HIBR_LTRC, "terminal %d ignored CSI %s%c", t->id, in, f);
 	}
@@ -899,7 +901,12 @@ void tm_csigt(tm_t *t, int f, const char *in)
 	if (!*in && f == 'c' && tm_par(t, 0, 0) == 0)
 		tm_reply(t, "\033[>1;10;0c");
 	else if (!*in && f == 'q')
-		tm_reply(t, "\033P>|hibr-term 0.24\033\\");
+		/* deccra says this grid applies a rectangle copy itself, which
+		   is the one answer a display inside hold can trust: a relayed
+		   DA1 feature 28 is the real terminal's, and an emulator before
+		   0.99.283 ignored the copy (Gitea #337). Answered here and
+		   never passed on, as it always was. */
+		tm_reply(t, "\033P>|hibr-term 0.25 deccra\033\\");
 	else
 		lg(HIBR_LTRC, "terminal %d ignored CSI >%s%c", t->id, in, f);
 }

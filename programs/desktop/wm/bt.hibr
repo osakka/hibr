@@ -647,9 +647,11 @@ fn btpair_close(int id) {
 dt_btpopopen() {
 	local n=${#DT_BTM[@]} h
 
-	h=$((n + 4))
-	[ "$n" = 0 ] && h=5
-	[ "$h" -gt 16 ] && h=16
+	# A row more than it lists, left blank at the bottom the way a menu
+	# ends, so the settings line does not sit on the edge.
+	h=$((n + 5))
+	[ "$n" = 0 ] && h=6
+	[ "$h" -gt 17 ] && h=17
 	DT_BTTOP=0
 	DT_BTSEL=0
 	DT_BTSEEN=
@@ -657,7 +659,11 @@ dt_btpopopen() {
 }
 
 fn bt_popdraw(int r, int c, int h, int w) {
-	local n=${#DT_BTM[@]} vis=$((h - 4)) i row t g v
+	local n=${#DT_BTM[@]} vis i row t g v
+
+	# The last row is the blank margin dt_popdraw has already filled.
+	h=$((h - 1))
+	vis=$((h - 4))
 
 	console pen "$DT_INK" "$DT_FACE" bold
 	t := dt_tr "Bluetooth"
@@ -731,13 +737,13 @@ fn bt_popmouse(act, int r, int c) {
 		dt_btpower
 		return 0
 	fi
-	if [ "$r" = $((DT_POPH - 1)) ]; then
+	if [ "$r" = $((DT_POPH - 2)) ]; then
 		dt_popclose
 		dt_btsettings
 		return 0
 	fi
 	i=$((DT_BTTOP + r - 2))
-	[ "$r" -ge 2 ] && [ "$i" -lt "$n" ] && [ "$r" -lt $((DT_POPH - 2)) ] || return 0
+	[ "$r" -ge 2 ] && [ "$i" -lt "$n" ] && [ "$r" -lt $((DT_POPH - 3)) ] || return 0
 	DT_BTSEL=$i
 	dt_popclose
 	dt_bttoggle "$i"

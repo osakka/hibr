@@ -239,12 +239,38 @@ int tm_api_kbd(int id)
 	return t ? t->kbd : 0;
 }
 
+/* How many rectangle copies the program has made. */
+unsigned tm_api_copyseq(int id)
+{
+	tm_t *t = tm_find(id);
+
+	return t ? t->copseq : 0;
+}
+
+/* One of them, by its number. */
+int tm_api_copyop(int id, unsigned seq, int *r, int *c, int *h, int *w,
+		  int *dr, int *dc)
+{
+	tm_t *t = tm_find(id);
+	tm_cop op;
+
+	if (!t || !tm_copyop(t, seq, &op))
+		return 0;
+	*r = op.r;
+	*c = op.c;
+	*h = op.h;
+	*w = op.w;
+	*dr = op.dr;
+	*dc = op.dc;
+	return 1;
+}
+
 static const tm_api term_api = {
 	tm_api_new, tm_api_free, tm_api_resize, tm_api_rows, tm_api_cols,
 	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor, tm_api_modes,
 	tm_api_clip, tm_api_pass, tm_api_title, tm_api_linkat, tm_api_linkuri,
 	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image,
-	tm_api_save, tm_api_load, tm_api_kbd
+	tm_api_save, tm_api_load, tm_api_kbd, tm_api_copyseq, tm_api_copyop
 };
 
 const tm_api *tm_apiget(void)

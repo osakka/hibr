@@ -224,6 +224,24 @@ reason, a system with `KillUserProcesses=yes` in `logind.conf` kills
 everything a user started when they log out, this included. Allow lingering
 with `loginctl enable-linger` there.
 
+## Rectangle copies
+
+A program that moves a block of cells whole can send it as one DECCRA
+(Gitea #337), and hold's emulator applies it to the session's grid. A client
+whose own terminal said so (feature 28 in its device attributes, asked before
+it joins and sent as `HD_COPY`) is sent the copy as well, replayed where its
+own view holds both ends. Its picture of the screen is changed exactly as the
+copy changes the terminal's, and the ordinary diff then runs, so a copy can
+only ever save bytes. A client whose terminal does not copy is diffed as
+always. So a session can have both kinds of display attached at once.
+
+The program has to be told the server does this, and nothing inside hold
+answers its questions: the emulator has no pty to answer on. So the server
+puts `HIBR_HOLDCOPY=1` in its program's environment. A program under a
+server older than 0.99.283 is never told, and never copies, even when the
+real terminal's feature 28 is relayed to it, since that old server's
+emulator would ignore the copy.
+
 ## Upgrading a session without ending it
 
 A `Restart Desktop` re-execs the desktop **inside** this server, so it can

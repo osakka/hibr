@@ -60,6 +60,21 @@ same (`cn_sgrto`), and hold's renderer does too (`hd_sgrto`). Since 0.99.280
 a cell over a translucent window or a picture, which differs from the one
 before it only in its background, is about half of what it cost.
 
+`console copy [auto|on|off]` decides whether a pane moved whole is sent as a
+rectangle copy (DECCRA, Gitea #337): the cells it held are copied on the
+terminal and in both buffers, so the frame that draws it at its new place sends
+only what the copy did not already put there. The terminal also blanks a wide
+glyph cut by the copy's edge, and only those cells are sent again. `auto`,
+the default, copies when whatever will apply the copy has said it can:
+- one of hibr's emulators, by answering XTVERSION with `hibr-term ... deccra`;
+- a hold server, by `HIBR_HOLDCOPY`;
+- any other terminal, by feature 28 in its device attributes.
+
+An emulator that names itself without `deccra` is believed over its relayed
+28. With no argument, the verb says `on` or `off`. `console copied pane` says
+whether that pane's last move was copied, which is how the desktop knows it may
+leave the window undrawn.
+
 `console darken row col h w [pct]` scales a rectangle of the **back** buffer's
 existing colours toward black by `pct` percent (55 if not given) and sets the
 dim attribute, in place — a shadow cast on whatever is already drawn there,

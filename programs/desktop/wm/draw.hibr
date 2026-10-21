@@ -150,6 +150,16 @@ DT_MENUFOC=
 DT_ALONE=
 DT_ALONEFOR=
 DT_FORCEONCE=
+# A move the console sent as a rectangle copy (Gitea #337) has already put
+# the window's cells where it now is, so the frame after it need not redraw
+# every window: only the wallpaper, over the strip the window left. dt_move
+# says which moves were copied (DT_MOVECOPY), dt_alone keeps the look and
+# each window's place apart (DT_ALONELOOK, DT_ALONEPOS) to tell such a move
+# from any other change, and DT_WALLONCE asks the wallpaper alone to paint.
+declare -gA DT_MOVECOPY DT_ALONEPOS
+DT_ALONELOOK=
+DT_ALONEN=0
+DT_WALLONCE=
 # Whether every window is clear of every other, which is what lets the
 # wallpaper be left alone: a shadow falling on another window has to be cast
 # onto cells that window painted this very frame, and only a wallpaper that
@@ -193,7 +203,7 @@ DT_OVERDREW=
 # frame: five windows is ten comparisons and the answer only changes when
 # something moves.
 fn dt_alone(...rest) {
-	local sig= id a b ar ac ah aw br bc bh bw ok out=
+	local sig= id a b ar ac ah aw br bc bh bw ok out= look quiet= old new
 	local -a w alone
 
 	# The look goes in the same signature as the geometry, so a theme or a
@@ -204,16 +214,48 @@ fn dt_alone(...rest) {
 	sig="$DT_FACE|$DT_INK|$DT_ACTIVE|$DT_IDLE|$DT_FRAME|$DT_TITLEBAR"
 	sig="$sig|$DT_SHADOW|$DT_SHADOW_PCT|$DT_GLYPHSET|$DT_LANG|$DT_TITLEALIGN"
 	sig="$sig|$DT_BTNSIDE|$DT_DIM|$DT_SELINK|$DT_ROWS|$DT_COLS "
+	look=$sig
 	for id in "${rest[@]}"; do
 		id=${id#w}
 		w+=("$id")
 		sig="$sig$id,${DT[$id]["row"]},${DT[$id]["col"]},${DT[$id]["h"]},${DT[$id]["w"]} "
 	done
 	if [ "$sig" = "$DT_ALONEFOR" ]; then
+		DT_MOVECOPY=()
 		return 0
 	fi
-	# Something moved or the look changed: draw everything once.
-	DT_FORCEONCE=1
+	# Something moved or the look changed: draw everything once -- unless
+	# all that changed is where windows are, each moved by a copy, each the
+	# same size, and each clear of every other window before it moved, so
+	# that what it left uncovered was wallpaper and nothing else. Then the
+	# copy has drawn it, and only the wallpaper is owed.
+	if [ "$look" = "$DT_ALONELOOK" ] && [ "${#DT_MOVECOPY[@]}" -gt 0 ] &&
+	   [ "${#w[@]}" = "$DT_ALONEN" ]; then
+		quiet=1
+		for id in "${w[@]}"; do
+			old=${DT_ALONEPOS["$id"]-}
+			new="${DT[$id]["row"]},${DT[$id]["col"]},${DT[$id]["h"]},${DT[$id]["w"]}"
+			[ "$old" = "$new" ] && continue
+			if [ -z "${DT_MOVECOPY["$id"]-}" ] || [ -z "$old" ] ||
+			   [ "${old#*,*,}" != "${new#*,*,}" ]; then
+				quiet=
+				break
+			fi
+			case " $DT_ALONE " in *" $id "*) ;; *) quiet=; break ;; esac
+		done
+	fi
+	if [ -n "$quiet" ]; then
+		DT_WALLONCE=1
+	else
+		DT_FORCEONCE=1
+	fi
+	DT_MOVECOPY=()
+	DT_ALONELOOK=$look
+	DT_ALONEN=${#w[@]}
+	DT_ALONEPOS=()
+	for id in "${w[@]}"; do
+		DT_ALONEPOS["$id"]="${DT[$id]["row"]},${DT[$id]["col"]},${DT[$id]["h"]},${DT[$id]["w"]}"
+	done
 	for a in "${w[@]}"; do
 		ar=$((DT[$a]["row"]))
 		ac=$((DT[$a]["col"]))

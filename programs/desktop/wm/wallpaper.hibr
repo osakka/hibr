@@ -397,13 +397,14 @@ dt_wall() {
 	sig := dt_wallsig
 	ms := dt_ms
 	if [ "$sig" = "$DT_WALLFOR" ] && [ "$DT_FORCEDRAW" != 1 ] &&
-	   [ -n "$DT_NOOVERLAP" ] &&
+	   [ -n "$DT_NOOVERLAP" ] && [ -z "$DT_WALLONCE" ] &&
 	   [ -z "$DT_FORCEONCE" ] && [ $((ms - DT_WALLMS)) -lt 1000 ]; then
 		dt_wallkeep
 		return 0
 	fi
 	DT_WALLFOR=$sig
 	DT_WALLMS=$ms
+	DT_WALLONCE=
 
 	# Paint around the windows, not over them. Nothing visible changes --
 	# every window is drawn after this and covers its own cells anyway --

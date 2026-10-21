@@ -432,6 +432,63 @@ sc = olrun('console fill 8 0 1 20 漢\nconsole flush\n' + OL % "7 3 3 6" +
 check("an outline across a wide glyph leaves it whole once it goes",
       sc.row(8)[:20] == "漢 " * 10, sc.row(8)[:22])
 
+# A pane moved whole is sent as a rectangle copy, DECCRA, where the terminal
+# applies one (Gitea #337): the cells it held are copied on the terminal and
+# in both of the console's grids, so the frame that draws it again at its
+# new place sends only what the copy did not already put there. Whether the
+# terminal copies is what it said: feature 28 in its device attributes --
+# unless it is one of hibr's own emulators, which names itself to XTVERSION
+# and is believed only when it says deccra, since an old one inside hold
+# passes on the real terminal's 28 and then ignores the copy itself.
+# The window's cells each in a colour of their own, as a translucent one's
+# are: what a diff of it costs, and what a copy saves.
+MVWIN = ('win() { local r=0 c; while [ $r -lt 6 ]; do c=0; while [ $c -lt 20 ]; do '
+         'console pen "#c0c0c8" "#$(printf %02x%02x40 $((r * 30)) $((c * 12)))"; '
+         'console put -p w1 $r $c x; c=$((c + 1)); done; r=$((r + 1)); done; '
+         'console pen "#ffffff" "#000000"; console put -p w1 1 1 "moved by a copy"; }\n')
+MV = (MVWIN + 'console open\nconsole pen "#c0c0c8" "#203048"\n'
+      'console fill 0 0 24 80 .\nconsole flush\nconsole key 400\n'
+      'console pane w1 2 2 6 20\nwin\nconsole flush\n'
+      '@PRE@console pane w1 10 40 6 20\nconsole behind on\n'
+      'console pen "#c0c0c8" "#203048"\nconsole fill 0 0 24 80 .\n'
+      'console behind off\nwin\n'
+      'n := console flush\nc := console copy\nconsole close\necho "R $n $c"\n')
+
+
+def mvrun(caps, pre=""):
+    o, _ = run(MV.replace("@PRE@", pre), caps=caps)
+    sc = Screen()
+    sc.feed(o.decode("utf-8", "replace"))
+    m = re.search(rb"R (\d+) (\w+)", o)
+    return o, sc, (int(m.group(1)), m.group(2).decode()) if m else (0, "")
+
+
+o, sc, (n, c) = mvrun(["deccra"])
+o2, sc2, (n2, c2) = mvrun([])
+check("a pane moved whole is a copy on a terminal that says it copies",
+      o.count(b"$v") == 1 and c == "on" and sc.row(11)[41:56] == "moved by a copy",
+      (c, o.count(b"$v"), sc.row(11)))
+check("and the frame after it sends less than one with no copy",
+      0 < n < n2 and o2.count(b"$v") == 0 and sc2.row(11)[41:56] == "moved by a copy",
+      (n, n2))
+check("where the old place was, what is behind it is painted back, and the "
+      "copy's screen is the diff's, cell for cell",
+      sc.row(3)[2:22] == "." * 20 and
+      all(sc.g[r][q] == sc2.g[r][q] and sc.p[r][q] == sc2.p[r][q]
+          for r, q in [(r, q) for r in range(2, 8) for q in range(2, 22)] +
+          [(r, q) for r in range(10, 16) for q in range(40, 60)]),
+      sc.row(3))
+o, sc, (n, c) = mvrun(["deccra", "hterm"])
+check("an old hibr emulator's relayed feature 28 is not believed",
+      o.count(b"$v") == 0 and c == "off", (c, o.count(b"$v")))
+o, sc, (n, c) = mvrun(["hcopy"])
+check("and one that says it copies is, whatever the real terminal said",
+      o.count(b"$v") == 1 and c == "on", (c, o.count(b"$v")))
+o, sc, (n, c) = mvrun(["deccra"], pre="console copy off\n")
+check("console copy off sends none",
+      o.count(b"$v") == 0 and c == "off" and sc.row(11)[41:56] == "moved by a copy",
+      (c, o.count(b"$v")))
+
 # A shadow is cast on every frame, so it has to be idempotent: darkening is
 # multiplicative, and `console darken -s` leaves a cell it has already
 # shadowed alone. Three releases tried instead to work out which frame was
@@ -501,4 +558,4 @@ sc = top('console put -p bar 0 0 BARBARBAR!\nconsole pane top bar off\n'
 check("and `pane top name off` gives its cells back",
       sc.row(0).startswith("xxxxxxxxxxxx"), sc.row(0))
 
-report(len(WANT) + len(MWANT) + 72)
+report(len(WANT) + len(MWANT) + 78)

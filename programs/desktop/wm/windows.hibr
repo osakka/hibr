@@ -355,6 +355,14 @@ fn dt_move(int id, int r, int c) {
 	DT[$id]["row"]=${p% *}
 	DT[$id]["col"]=${p#* }
 	console pane "w$id" "${p% *}" "${p#* }" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
+	# The console sent the move as a rectangle copy, so the window's cells
+	# are already where it is (Gitea #337) -- unless it is a translucent
+	# terminal, whose cells are its picture blended through and are wrong
+	# anywhere else, so it is drawn again like any moved window.
+	if console copied "w$id" &&
+	   ! { [ "${DT[$id]["app"]}" = term ] && [ "${DT_TERMTRANS:-0}" != 0 ]; }; then
+		DT_MOVECOPY["$id"]=1
+	fi
 }
 
 # Dragging by an outline (Control Panel > Mouse > Drag Windows): while the

@@ -33,7 +33,8 @@ ENV.setdefault("V", "1")
 # suites': each sets what it needs, and one inherited is a module found
 # that should be gone, or a suite talking to the owner's held desktop
 # (Gitea #253, #180).
-for _v in ("HIBR_MODPATH", "HIBR_MODULES", "HIBR_HOLD", "HIBR_SYSDIR"):
+for _v in ("HIBR_MODPATH", "HIBR_MODULES", "HIBR_HOLD", "HIBR_HOLDCOPY",
+           "HIBR_SYSDIR"):
     ENV.pop(_v, None)
 SUITES = ["run.sh", "desktop", "apps_panel", "apps_reach", "apps_core", "apps_more", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars", "deps", "scopes",

@@ -129,6 +129,11 @@ cn_pane *cn_pset(const char *nm, int row, int col, int h, int w)
 		memset(p, 0, sizeof *p);
 		p->nm = xs(nm);
 		v_add(&cn_panes, p);
+	} else if (p->h == h && p->w == w && (p->row != row || p->col != col)) {
+		p->copied = cn_copyok() &&
+			    cn_copyrect(p->row, p->col, h, w, row, col);
+	} else {
+		p->copied = 0;
 	}
 	p->row = row;
 	p->col = col;
@@ -786,6 +791,39 @@ int m_console(sh *s, int ac, char **av)
 		cn_oltitle(ac > 13 ? av[13] : "");
 		cn_olay.on = cn_olay.h >= 2 && cn_olay.w >= 2;
 		return HIBR_OK;
+	}
+	/* Rectangle copies for a moved pane (Gitea #337): auto by default,
+	   on or off to force either; asked with nothing, whether one would be
+	   sent now. */
+	if (!strcmp(sub, "copy")) {
+		if (ac > 2) {
+			if (!strcmp(av[2], "on"))
+				cn_copym = 1;
+			else if (!strcmp(av[2], "off"))
+				cn_copym = 2;
+			else if (!strcmp(av[2], "auto"))
+				cn_copym = 0;
+			else {
+				lg(HIBR_LERR, "usage: console copy [auto|on|off]");
+				return 2;
+			}
+			return HIBR_OK;
+		}
+		hibr_ret(s, cn_copyok() ? "on" : "off");
+		if (!s->bind)
+			printf("%s\n", cn_copyok() ? "on" : "off");
+		return HIBR_OK;
+	}
+	/* Whether a pane's last move was sent as a copy. */
+	if (!strcmp(sub, "copied")) {
+		cn_pane *p;
+
+		if (ac < 3) {
+			lg(HIBR_LERR, "usage: console copied pane");
+			return 2;
+		}
+		p = cn_pfind(av[2]);
+		return p && p->copied ? HIBR_OK : HIBR_FAIL;
 	}
 	if (!strcmp(sub, "waiting"))
 		return cn_waiting() ? HIBR_OK : HIBR_FAIL;

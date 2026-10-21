@@ -37,17 +37,18 @@ int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit)
 }
 
 /* A private report at the front of p, and whether it is the device
-   attributes, and whether those say sixel, or the keyboard protocol's own
-   answer. */
+   attributes, and whether those say sixel and the rectangle copy (feature
+   28, DECCRA: Gitea #337), or the keyboard protocol's own answer. */
 int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
-	      int *sixel, int *kbd)
+	      int *sixel, int *kbd, int *copy)
 {
 	size_t i;
-	int six = 0, v = -1;
+	int six = 0, cp = 0, v = -1;
 
 	*da = 0;
 	*sixel = 0;
 	*kbd = 0;
+	*copy = 0;
 	for (i = 3; i < n; i++) {
 		if (p[i] >= '0' && p[i] <= '9') {
 			v = (v < 0 ? 0 : v * 10) + (p[i] - '0');
@@ -56,6 +57,8 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
 		if (p[i] == ';') {
 			if (v == 4)
 				six = 1;
+			if (v == 28)
+				cp = 1;
 			v = -1;
 			continue;
 		}
@@ -71,6 +74,7 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
 	if (p[i] == 'c') {
 		*da = 1;
 		*sixel = six || v == 4;
+		*copy = cp || v == 28;
 	}
 	if (p[i] == 'u')
 		*kbd = 1;
@@ -90,17 +94,18 @@ long gx_now(void)
    whatever was not an answer. The wait is against a deadline rather than a
    count of reads: every read here can be interrupted, and restarting the
    wait per signal would make the bound meaningless. */
-int gx_probe(int in, int out, long ms, str *rest, int *kbd)
+int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy)
 {
 	const char *f = getenv("HIBR_GFX");
 	str b;
 	size_t i, used, off = 0;
 	long end, left;
-	int kit = 0, da = 0, six = 0, k, s, d, r, kb;
+	int kit = 0, da = 0, six = 0, k, s, d, r, kb, cy;
 	ssize_t w;
 	struct pollfd q;
 
 	*kbd = 0;
+	*copy = 0;
 	if (f && *f) {
 		if (!strcmp(f, "kitty"))
 			return GX_KITTY;
@@ -149,10 +154,11 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd)
 					kit = 1;
 			} else if (b.p[off + 1] == '[' && b.p[off + 2] == '?') {
 				r = gx_report(b.p + off, b.n - off, 64, &used, &d, &s,
-					      &kb);
+					      &kb, &cy);
 				if (r == 2 && d) {
 					da = 1;
 					six = s;
+					*copy = cy;
 				}
 				if (r == 2 && kb)
 					*kbd = 1;

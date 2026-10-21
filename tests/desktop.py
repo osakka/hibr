@@ -575,6 +575,53 @@ check("dropped on a workspace's number, it goes to that workspace",
       ws2 > 0 and sc.find("Hello") is None and sc.g[6][10] == "·", (ws2, sc))
 
 
+# Drag Windows: Solid on a terminal that copies rectangles (Gitea #337): each
+# step is sent as a copy of the window, and a window that says nothing in it
+# changed is not drawn again -- the wallpaper paints the strip it left. The
+# screen is the same as without the copy; what moves on the wire is less.
+CPYAPP = ('fn cpy_draw(int id, int h, int w, int row, int col) {\n'
+          '\tlocal r=1 c\n'
+          '\twhile [ $r -le "$h" ]; do c=1; while [ $c -le "$w" ]; do\n'
+          '\t\tconsole pen "#c0c0c8" "#$(printf %02x%02x40 $((r * 20)) $((c * 8)))"\n'
+          '\t\tconsole put -p "w$id" $r $c x; c=$((c + 1)); done; r=$((r + 1)); done\n'
+          '\tCPYN=$((CPYN + 1))\n'
+          '}\n'
+          'fn cpy_dirty(int id) { return 1; }\n'
+          'CPYN=0\n'
+          'dt_app cpy "Copy" 8 30\n')
+
+
+def cpyrun(caps):
+    path = "/tmp/hibr-desktop-cpy-%d.hibr" % os.getpid()
+    open(path, "w").write("%s. %s\nDT_MOVEMODE=solid\n%s\ndt_open\n"
+                          'dt_new "Copy" 8 30 6 10 cpy\ndt_run\ndt_close\n'
+                          % (load(MOD), WM, CPYAPP))
+    t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.8,
+             caps=caps)
+    t.keys([0.5, press(6, 20)])
+    n0 = len(t.raw)
+    t.keys([drag(7, 22), 0.2, drag(8, 24), 0.2, drag(9, 26), 0.2])
+    n = len(t.raw) - n0
+    t.keys([release(9, 26), 0.4])
+    sc = t.screen()
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return sc, n, t.raw
+
+
+csc, cn, craw = cpyrun(["deccra"])
+psc, pn, praw = cpyrun([])
+check("a solid drag on a terminal that copies sends the window as copies",
+      craw.count(b"$v") >= 3 and praw.count(b"$v") == 0,
+      (craw.count(b"$v"), praw.count(b"$v")))
+check("and puts the same screen there, for fewer bytes",
+      csc.find("┤ Copy ├") == psc.find("┤ Copy ├") and
+      csc.find("┤ Copy ├") is not None and cn < pn and
+      all(csc.g[r][q] == psc.g[r][q] and csc.p[r][q] == psc.p[r][q]
+          for r in range(1, 23) for q in range(0, 70)),
+      (cn, pn, csc.find("┤ Copy ├"), psc.find("┤ Copy ├")))
+
+
 def rzmid(feed):
     path = "/tmp/hibr-desktop-olrz-%d.hibr" % os.getpid()
     open(path, "w").write("%s. %s\n\ndt_open\n%s\ndt_run\ndt_close\n"
@@ -6390,4 +6437,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(706)
+report(708)

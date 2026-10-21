@@ -56,6 +56,10 @@ struct cn_pane {
 	char *nm;
 	int row, col, h, w;
 	int top;
+	/* Whether its last move was sent as a rectangle copy (Gitea #337),
+	   which `console copied` answers, so the desktop can leave a window
+	   the copy already drew undrawn. */
+	int copied;
 };
 
 /* A pane marked `top` is above everything, whatever the stack says: a cell
@@ -233,6 +237,17 @@ struct cn_ol {
 	int tn;
 };
 extern cn_ol cn_olay;
+
+/* Rectangle copies (DECCRA, Gitea #337): cn_copym is `console copy`, 0
+   auto, 1 on, 2 off. In auto a copy is sent when the thing that will apply
+   it has said it can: hibr's own emulator by answering XTVERSION with
+   `hibr-term ... deccra` (cn_vouch, cn_hterm), a hold server by
+   HIBR_HOLDCOPY in the program's environment, and any other terminal by
+   feature 28 in its device attributes (cn_da28) -- see cn_copyok. */
+extern int cn_copym, cn_da28, cn_vouch, cn_hterm;
+int cn_copyok(void);
+int cn_copyrect(int r, int c, int h, int w, int dr, int dc);
+void cn_copyclear(void);
 unsigned cn_olat(int r, int c);
 unsigned cn_olglyph(const char *t);
 void cn_oltitle(const char *t);

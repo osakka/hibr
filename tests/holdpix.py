@@ -820,5 +820,46 @@ raw, log = kbdrun(["sixel"])
 check("a client whose terminal does not speak it is given no flags at all",
       b"\x1b[=" not in raw and b"\x1b[>1u" not in raw, raw[-300:])
 
+# A window moved whole, through hold (Gitea #337). The held program's own
+# terminal is hold's emulator, which says it copies rectangles itself, so the
+# program sends DECCRA; hold applies it to its grid and replays it to a
+# client whose own terminal said feature 28 -- and diffs for one that did
+# not. Either way the client's screen is the same; only the bytes differ.
+MVBODY = ('win() { local r=0 c; while [ $r -lt 6 ]; do c=0; while [ $c -lt 20 ]; do '
+          'console pen "#c0c0c8" "#$(printf %02x%02x40 $((r * 30)) $((c * 12)))"; '
+          'console put -p w1 $r $c x; c=$((c + 1)); done; r=$((r + 1)); done; '
+          'console pen "#ffffff" "#000000"; console put -p w1 1 1 "moved by a copy"; }\n'
+          'console pen "#c0c0c8" "#203048"\nconsole fill 0 0 24 60 .\n'
+          'console pane w1 2 2 6 20\nwin\nconsole flush\nconsole key 1500 > /dev/null\n'
+          'console pane w1 10 30 6 20\nconsole behind on\n'
+          'console pen "#c0c0c8" "#203048"\nconsole fill 0 0 24 60 .\n'
+          'console behind off\nwin\nc := console copy\n'
+          'console pen "#ffffff" "#000000"\nconsole put 0 0 "HELD copy $c"\nconsole flush\n')
+
+
+def mvheld(caps):
+    t = None
+    raw = []
+
+    def grab(tt):
+        raw.append(tt.raw)
+    sc, log = run(MVBODY, gfx=None, caps=caps, settle=1500, until="HELD copy")
+    return sc
+
+
+sc1 = mvheld(["deccra"])
+sc2 = mvheld([])
+check("inside hold the program copies, since hold's own emulator says it can",
+      "HELD copy on" in sc1.row(0) and "HELD copy on" in sc2.row(0),
+      (sc1.row(0), sc2.row(0)))
+check("and a client whose terminal copies is sent the copy, one that does not "
+      "only cells",
+      sc1.copies >= 1 and sc2.copies == 0, (sc1.copies, sc2.copies))
+check("with the same screen either way",
+      sc1.row(11)[31:46] == "moved by a copy" and
+      all(sc1.g[r][q] == sc2.g[r][q] and sc1.p[r][q] == sc2.p[r][q]
+          for r in range(1, 24) for q in range(60)),
+      (sc1.row(11), sc2.row(11)))
+
 shutil.rmtree(D, True)
-report(39)
+report(42)

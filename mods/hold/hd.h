@@ -68,7 +68,15 @@ enum {
 	   protocol's query, asked with the picture questions before it
 	   joined (Gitea #326). One int, 1. A server that does not know it
 	   ignores it, and a client that never sends it is sent no flags. */
-	HD_KBD = 'b'
+	HD_KBD = 'b',
+	/* From a client: its own terminal said it copies a rectangle of cells
+	   (DA1 feature 28, DECCRA), asked with the rest before it joined
+	   (Gitea #337). One int, 1. Such a client is sent the copies the
+	   program made, replayed where its view holds both ends of one,
+	   rather than every cell of the destination again. A server that does
+	   not know it ignores it, and a client that never sends it is diffed,
+	   as every client was. */
+	HD_COPY = 'y'
 };
 
 /* How long an attaching client waits for its terminal to say what it
@@ -109,7 +117,10 @@ extern int hd_shiftr, hd_shiftc;
    tm_api hands back, ~0u a cell this client has not been sent yet at all,
    so a fresh or just-resized front is invalid everywhere without a second
    fill pass). */
-struct hd_cell { unsigned cp, fg, bg, attr, link; };
+/* A cell as a client was last sent it. w is its width, 0 for the second
+   half of a wide glyph, which is what lets a replayed rectangle copy send
+   again only the cells it cut a wide glyph at (Gitea #337). */
+struct hd_cell { unsigned cp, fg, bg, attr, link; unsigned char w; };
 
 /* One attached terminal: its connection, where it sits in the session's own
    virtual space -- row,col its top-left corner, rows,cols its own size --
@@ -167,6 +178,10 @@ struct hd_cli {
 	   and the flags last put on it, which hd_modes keeps in step with
 	   what the program asked for. */
 	int kbd, kset;
+	/* Whether this client's terminal copies rectangles, and the last of
+	   the program's copies it has been sent or no longer needs. */
+	int copy;
+	unsigned cseq;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;

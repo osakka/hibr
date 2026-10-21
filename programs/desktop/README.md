@@ -62,7 +62,14 @@ escape while dragging puts it back. That costs one outline's edge per step
 and no frame at all: dragged whole, every step redrew the desktop and sent
 the window's whole area, which was about 18 ms and 7.8 kB a step on a
 232x71 screen with a picture wallpaper. Control Panel > Mouse > **Drag
-Windows** is Outline by default, or Solid to drag it whole as before.
+Windows** is Outline by default, or Solid to drag it whole as before. Solid
+is cheap on a terminal that copies rectangles (DECCRA: Blit from 0.1.589, and
+hibr's own emulators): each step goes as one copy of the window, and a window
+whose app says nothing in it changed is not drawn again; the wallpaper paints
+the strip it left. On the owner's settings, a three-step drag went from 14 kB
+to 2 kB, with the window drawn twice instead of five times. A translucent
+terminal is still drawn at every step, since its colours are the picture
+behind it.
 `alt-tab` cycles windows, `alt-w` closes the
 focused one, `escape` or `F10` opens the menu bar, and Quit on its hibr
 menu ends the desktop and gives the terminal back -- it has no key of its

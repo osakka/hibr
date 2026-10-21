@@ -688,18 +688,19 @@ dt_sndmenu() {
 }
 
 # A left click on the speaker: the volume as a slider beneath it (Gitea
-# #310) -- the level above, a track to click or drag along, the mute below.
+# #310) -- the level above and a track to click or drag along. No speaker
+# below it any more, and a column narrower: mute is `m`, and on the right
+# click's menu, and five columns hold "100%" with room either side.
 dt_sndslider() {
-	dt_baripop sound snd 12 6
+	dt_baripop sound snd 11 5
 }
 
 # Where the slider was pressed: the track, the mute, or nothing.
 DT_SNDTRK=
 
-# The slider: the level on row 0, the track down the middle column of
-# rows 1 to h-2 with 100% at the top, and the speaker on the last row,
-# which mutes. What is under the thumb is the accent, what is above it the
-# idle colour, and all of it idle while muted.
+# The slider: the level on row 0 and the track down the middle column of
+# rows 1 to h-1, with 100% at the top. What is under the thumb is the
+# accent, what is above it the idle colour, and all of it idle while muted.
 fn snd_popdraw(int r, int c, int h, int w) {
 	local n v t i x lb on=$DT_ACTIVE
 
@@ -707,7 +708,7 @@ fn snd_popdraw(int r, int c, int h, int w) {
 	pulse | pw | alsa) ;;
 	*) dt_popclose; return 0 ;;
 	esac
-	n=$((h - 2))
+	n=$((h - 1))
 	[ "$n" -ge 2 ] || return 0
 	v=${DT_SND["vol"]:-0}
 	[ "${DT_SND["mute"]}" = 1 ] && on=$DT_IDLE
@@ -734,15 +735,6 @@ fn snd_popdraw(int r, int c, int h, int w) {
 		fi
 		i=$((i + 1))
 	done
-	if [ "${DT_SND["mute"]}" = 1 ]; then
-		console pen "$DT_WARN" "$DT_FACE"
-		lb=${GL[soundoff]}
-	else
-		console pen "$DT_INK" "$DT_FACE"
-		lb=${GL[sound]}
-	fi
-	i := str width "$lb"
-	console put $((r + h - 1)) $((c + (w - i) / 2)) "$lb"
 }
 
 # The track row, counted from 0 at the top, that a level stands on, of n.
@@ -758,18 +750,14 @@ fn dt_sndlevel(int row, int n) {
 }
 
 # A press on the track puts the level where it lands and holds it for the
-# drag; a press on the speaker mutes; the wheel steps.
+# drag; the wheel steps.
 fn snd_popmouse(act, int r, int c) {
-	local n=$((DT_POPH - 2)) v
+	local n=$((DT_POPH - 1)) v
 
 	[ "$n" -ge 2 ] || return 0
 	case $act in
 	press)
 		DT_SNDTRK=
-		if [ "$r" = $((DT_POPH - 1)) ]; then
-			dt_sndmute
-			return 0
-		fi
 		[ "$r" -ge 1 ] && [ "$r" -le "$n" ] || return 0
 		DT_SNDTRK=1
 		;;

@@ -60,7 +60,7 @@ int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit);
    parameters, and *kbd 1 when it was the keyboard protocol's answer (final
    `u`). */
 int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
-	      int *sixel, int *kbd);
+	      int *sixel, int *kbd, int *copy);
 
 /* Ask the terminal on in/out, wait up to ms for its answers, and say what it
    draws: GX_KITTY, GX_SIXEL, GX_NONE, or GX_UNKNOWN when nothing answered.
@@ -69,7 +69,7 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
    is appended to rest, for the caller to pass on. *kbd is 1 when the
    terminal answered the keyboard protocol's query. HIBR_GFX skips the
    asking, and with it the keyboard question, which then answers 0. */
-int gx_probe(int in, int out, long ms, str *rest, int *kbd);
+int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy);
 
 /* Milliseconds on a clock that only goes forward. */
 long gx_now(void);

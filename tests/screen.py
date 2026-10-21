@@ -91,6 +91,7 @@ class Screen:
         self.r = self.c = 0
         self.pen = ""
         self.pst = None
+        self.copies = 0
         # Pictures sent as DCS (sixel) or APC (the kitty graphics protocol):
         # where each landed and how many payload bytes it was.
         self.images = []
@@ -123,6 +124,10 @@ class Screen:
                 if j >= n:
                     break
                 seq, fin = t[i + 2:j], t[j]
+                if fin == "v" and seq.endswith("$"):
+                    self.deccra(seq[:-1])
+                    i = j + 1
+                    continue
                 if fin == "H":
                     a = seq.split(";")
                     self.r = int(a[0]) - 1 if a and a[0].isdigit() else 0
@@ -198,6 +203,31 @@ class Screen:
             self.c += 2 if wide else 1
             i += 1
         return self
+
+    def deccra(self, seq):
+        """DECCRA, CSI Pts;Pls;Pbs;Prs;Pps;Ptd;Pld;Ppd $ v: copy a
+        rectangle, 1-based and inclusive, clipped, the source read whole
+        first (Gitea #337). A terminal that does it -- Blit -- is told it
+        by the console and by hold, so the model has to do it as well, or
+        a screen read back after one is a screen that never was."""
+        a = [int(x) if x.isdigit() else 0 for x in seq.split(";")] + [0] * 8
+        r0 = max((a[0] or 1) - 1, 0)
+        c0 = max((a[1] or 1) - 1, 0)
+        r1 = min((a[2] or self.rows) - 1, self.rows - 1)
+        c1 = min((a[3] or self.cols) - 1, self.cols - 1)
+        dr = max((a[5] or 1) - 1, 0)
+        dc = max((a[6] or 1) - 1, 0)
+        h, w = r1 - r0 + 1, c1 - c0 + 1
+        if h <= 0 or w <= 0 or dr >= self.rows or dc >= self.cols:
+            return
+        h = min(h, self.rows - dr)
+        w = min(w, self.cols - dc)
+        g = [self.g[r0 + i][c0:c0 + w] for i in range(h)]
+        p = [self.p[r0 + i][c0:c0 + w] for i in range(h)]
+        for i in range(h):
+            self.g[dr + i][dc:dc + w] = g[i]
+            self.p[dr + i][dc:dc + w] = p[i]
+        self.copies += 1
 
     def sgr(self, seq):
         """The pen an SGR leaves, as a terminal resolves it -- not the text
@@ -359,7 +389,7 @@ def expect(pattern):
 # pass over what has not been read yet.
 QUERY = re.compile(rb"\x1b(?:\](?P<osc>[^\x07\x1b]*)(?:\x07|\x1b\\)"
                    rb"|_(?P<apc>[^\x1b]*)\x1b\\"
-                   rb"|(?P<da>\[c)|(?P<kbd>\[\?u))")
+                   rb"|(?P<da>\[c)|(?P<kbd>\[\?u)|(?P<xtv>\[>0?q))")
 
 
 class Term:
@@ -405,6 +435,7 @@ class Term:
             # desktop still comes up looking entirely normal, and every
             # hold-dependent check fails confusingly far from this cause.
             os.environ.pop("HIBR_HOLD", None)
+            os.environ.pop("HIBR_HOLDCOPY", None)
             # And the same for what a *desktop* exports. A suite is often
             # run from a terminal window inside a running desktop -- that is
             # how this was found, three supervisor checks failing on code
@@ -471,7 +502,8 @@ class Term:
         whose parameters carry 4 for sixel). "kbd" among the caps answers
         the kitty keyboard protocol's query, `CSI ? u`, with no flags set
         (Gitea #326); every other Term answers it nothing, as a terminal
-        without the protocol does.
+        without the protocol does. "deccra" adds feature 28, the rectangle
+        copy, to the device attributes (Gitea #337).
 
         A real terminal answers all of these; nothing in the model did, so
         a display could ask and never hear, which is indistinguishable
@@ -492,14 +524,26 @@ class Term:
                         "a=q" in m.group("apc").decode("latin1"):
                     os.write(self.fd, b"\x1b_Gi=4201;OK\x1b\\")
                 continue
+            if m.group("xtv") is not None:
+                # XTVERSION, as one of hibr's own emulators answers it:
+                # "hterm" an old one that ignores a rectangle copy, "hcopy"
+                # one that applies it (Gitea #337). A real terminal's answer
+                # names itself, so the rest answer nothing.
+                if self.caps is not None and "hcopy" in self.caps:
+                    os.write(self.fd, b"\x1bP>|hibr-term 0.25 deccra\x1b\\")
+                elif self.caps is not None and "hterm" in self.caps:
+                    os.write(self.fd, b"\x1bP>|hibr-term 0.24\x1b\\")
+                continue
             if m.group("kbd") is not None:
                 if self.caps is not None and "kbd" in self.caps:
                     os.write(self.fd, b"\x1b[?0u")
                 continue
             if m.group("da") is not None:
                 if self.caps is not None:
-                    os.write(self.fd, b"\x1b[?62;4;22c"
-                             if "sixel" in self.caps else b"\x1b[?62;22c")
+                    # Feature 28 is the rectangle copy, DECCRA (Gitea #337).
+                    f = b"62" + (b";4" if "sixel" in self.caps else b"") + \
+                        b";22" + (b";28" if "deccra" in self.caps else b"")
+                    os.write(self.fd, b"\x1b[?" + f + b"c")
                 continue
             if self.bg is None:
                 continue

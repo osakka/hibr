@@ -1,0 +1,55 @@
+0
+-- a copy, and the source left as it was
+0|abcdef|
+1||
+2|    abc|
+3||
+4||
+5||
+6||
+7||
+-- overlapping: the source as it was before the copy
+0||
+1|ababcdef|
+2||
+3||
+4||
+5||
+6||
+7||
+-- clipped where the destination runs off the screen
+0||
+1||
+2|0123456789|
+3|              012345|
+4||
+5||
+6||
+7||
+-- a wide glyph cut by the destination's edges is blanked
+0|漢字漢字|
+1||
+2||
+3||
+4| 字|
+5||
+6||
+7||
+-- a block of rows, and the cursor where it was
+0|aa|
+1|bb|
+2|cc|
+3|       aa|
+4|       bb|
+5|       cc|
+6|         X|
+7||
+-- origin mode counts from the top margin
+0||
+1||
+2|mm|
+3||
+4|    mm|
+5||
+6||
+7||

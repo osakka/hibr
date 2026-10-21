@@ -170,6 +170,27 @@ What it implements, by group:
   reverse, conceal, strike and their resets; 16, 256 and 24-bit colour in
   both spellings.
 
+## Rectangle copies
+
+`CSI Pts;Pls;Pbs;Prs;Pps;Ptd;Pld;Ppd $ v` (DECCRA, Gitea #337) copies the
+rectangle from (Pts, Pls) to (Pbs, Prs), 1-based and inclusive, to (Ptd, Pld).
+It is relative to the margins in origin mode, the page numbers are ignored,
+and it is clipped to the screen. The source is read whole before anything is
+written, so an overlapping copy reads what was there. A wide glyph cut by an
+edge of the destination is blanked on both halves, as Blit does. The cursor
+and the pen do not move (`tests/218-deccra.t`).
+
+Each copy is remembered, the last `TM_COPMAX` (64) of them, for a relay:
+`tm_api` version 7's `copyseq` and `copyop` hand them to hold, which replays
+them on a client whose own terminal copies. A resize forgets them, since
+their coordinates no longer describe the grid.
+
+XTVERSION (`CSI > q`) is answered `hibr-term 0.25 deccra`, and never passed on
+to a real terminal. That is how a program on one of hibr's emulators, a
+desktop's terminal window, learns that the emulator applies a copy itself.
+Inside `hold`, the emulator has no pty to answer on, so the server says the
+same thing in `HIBR_HOLDCOPY` instead.
+
 ## Scrollback
 
 What scrolls off the top of the main screen is kept, 1000 lines unless

@@ -112,10 +112,149 @@ void cn_cellset(cn_cell *c, unsigned cp, const char *ext, size_t en)
 	}
 }
 
+int cn_copym, cn_da28, cn_vouch, cn_hterm;
+int *cn_cops;
+size_t cn_copn, cn_copcap;
+
+/* Whether a copy may be sent now. An emulator of hibr's that answered
+   XTVERSION -- a desktop's terminal window -- says so itself. Inside hold
+   nothing answers the program (hold's emulator has no pty to reply on), so
+   the server says it at start in HIBR_HOLDCOPY, and a program under a
+   server that does not is never told and never copies: the device
+   attributes reaching it there are the real terminal's, relayed, and say
+   nothing about what the emulator in between will do with a copy. Only
+   anywhere else does feature 28 decide. */
+int cn_copyok(void)
+{
+	const char *h;
+
+	if (cn_copym == 1)
+		return 1;
+	if (cn_copym == 2)
+		return 0;
+	if (cn_hterm)
+		return cn_vouch;
+	if ((h = getenv("HIBR_HOLD")) && *h) {
+		h = getenv("HIBR_HOLDCOPY");
+		return h && !strcmp(h, "1");
+	}
+	return cn_da28;
+}
+
+/* Forget the copies not yet sent: what they would copy is no longer what
+   the terminal has. */
+void cn_copyclear(void)
+{
+	cn_copn = 0;
+}
+
+/* Copy one grid's rectangle through a copy of its own, every field and a
+   combining sequence's own bytes, so an overlap reads the source whole. */
+void cn_gridcopy(cn_grid *g, int r, int c, int h, int w, int dr, int dc)
+{
+	cn_cell *tmp = xm(sizeof *tmp * (size_t)h * (size_t)w), *s, *d;
+	int i, j;
+
+	for (i = 0; i < h; i++)
+		for (j = 0; j < w; j++) {
+			s = &g->c[(r + i) * g->cols + c + j];
+			d = &tmp[i * w + j];
+			*d = *s;
+			d->ext = s->ext ? xs(s->ext) : 0;
+		}
+	for (i = 0; i < h; i++)
+		for (j = 0; j < w; j++) {
+			s = &tmp[i * w + j];
+			d = &g->c[(dr + i) * g->cols + dc + j];
+			free(d->ext);
+			*d = *s;
+		}
+	free(tmp);
+}
+
+/* A pane that moved, its content the same, while the terminal can copy
+   (Gitea #337): the rectangle it held is copied to where it is now, in
+   the back buffer -- so the frame that redraws it there writes what is
+   already there, and one that leaves it alone still shows it -- and in the
+   front buffer exactly as the terminal will, with DECCRA queued for the
+   next flush. Clipped so both ends are on the screen. Not over a picture,
+   which is not cells. The destination's edge columns and the one each side
+   are made unknown in the front buffer, since how a terminal splits a wide
+   glyph at an edge is its own: the diff after settles them, so a copy can
+   only ever save bytes, never leave a wrong screen. */
+int cn_copyrect(int r, int c, int h, int w, int dr, int dc)
+{
+	int lo, hi, i, j, k;
+
+	if (!cn_on || cn_back.rows != cn_front.rows ||
+	    cn_back.cols != cn_front.cols)
+		return 0;
+	lo = 0;
+	if (-r > lo) lo = -r;
+	if (-dr > lo) lo = -dr;
+	hi = h;
+	if (cn_back.rows - r < hi) hi = cn_back.rows - r;
+	if (cn_back.rows - dr < hi) hi = cn_back.rows - dr;
+	if (hi <= lo)
+		return 0;
+	r += lo;
+	dr += lo;
+	h = hi - lo;
+	lo = 0;
+	if (-c > lo) lo = -c;
+	if (-dc > lo) lo = -dc;
+	hi = w;
+	if (cn_back.cols - c < hi) hi = cn_back.cols - c;
+	if (cn_back.cols - dc < hi) hi = cn_back.cols - dc;
+	if (hi <= lo)
+		return 0;
+	c += lo;
+	dc += lo;
+	w = hi - lo;
+	if (cn_imgn())
+		for (i = 0; i < h; i++)
+			for (j = 0; j < w; j++)
+				if (cn_imgat(r + i, c + j) || cn_imgat(dr + i, dc + j))
+					return 0;
+	cn_gridcopy(&cn_back, r, c, h, w, dr, dc);
+	cn_gridcopy(&cn_front, r, c, h, w, dr, dc);
+	/* Where a wide glyph is cut by an edge, the terminal blanks it, as
+	   hibr's emulator does: those cells, and only those, are made unknown
+	   so the diff sends them again. */
+	for (i = 0; i < h; i++) {
+		cn_cell *row = &cn_front.c[(dr + i) * cn_front.cols];
+
+		k = dc + w - 1;
+		if (row[dc].cont)
+			row[dc].cp = 0xFFFFFFFFu;
+		if (dc > 0 && row[dc - 1].w == 2)
+			row[dc - 1].cp = 0xFFFFFFFFu;
+		if (row[k].w == 2)
+			row[k].cp = 0xFFFFFFFFu;
+		if (k + 1 < cn_front.cols && row[k + 1].cont)
+			row[k + 1].cp = 0xFFFFFFFFu;
+	}
+	if (cn_copn + 6 > cn_copcap) {
+		cn_copcap = cn_copcap ? cn_copcap * 2 : 24;
+		cn_cops = xr(cn_cops, cn_copcap * sizeof *cn_cops);
+	}
+	cn_cops[cn_copn++] = r;
+	cn_cops[cn_copn++] = c;
+	cn_cops[cn_copn++] = h;
+	cn_cops[cn_copn++] = w;
+	cn_cops[cn_copn++] = dr;
+	cn_cops[cn_copn++] = dc;
+	lg(HIBR_LDBG, "console: copy %dx%d from %d,%d to %d,%d", h, w, r, c,
+	   dr, dc);
+	return 1;
+}
+
 /* Make the front buffer describe nothing, so the next flush paints it all. */
 void cn_inval(void)
 {
 	int i, n = cn_front.rows * cn_front.cols;
+
+	cn_copyclear();
 
 	/* Everything is painted again, which paints over any picture: the
 	   regions go, and whatever still wants one places it afresh. */
@@ -837,6 +976,28 @@ long cn_flush(void)
 	   keeps a picture rather than painting it: they go before the diff, so
 	   the text that was underneath is painted in the same frame. */
 	cn_imgdels(&b);
+	/* The copies a moved pane made, before the diff and in the order they
+	   were made, since each was applied to the front buffer as it came. */
+	if (cn_copn) {
+		size_t q;
+
+		for (q = 0; q + 6 <= cn_copn; q += 6) {
+			s_cat(&b, "\033[");
+			s_num(&b, (long)cn_cops[q] + 1);
+			s_ch(&b, ';');
+			s_num(&b, (long)cn_cops[q + 1] + 1);
+			s_ch(&b, ';');
+			s_num(&b, (long)(cn_cops[q] + cn_cops[q + 2]));
+			s_ch(&b, ';');
+			s_num(&b, (long)(cn_cops[q + 1] + cn_cops[q + 3]));
+			s_cat(&b, ";1;");
+			s_num(&b, (long)cn_cops[q + 4] + 1);
+			s_ch(&b, ';');
+			s_num(&b, (long)cn_cops[q + 5] + 1);
+			s_cat(&b, ";1$v");
+		}
+		cn_copn = 0;
+	}
 	/* A picture text is drawn over goes out first, so the text lands on
 	   top of it; the pen and the cursor are then unknown. */
 	if (cn_imgn() && cn_imgsend(&b, 1)) {

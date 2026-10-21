@@ -796,9 +796,11 @@ dt_netpopopen() {
 
 	[ "${DT_NET["kind"]}" = nm ] || { dt_netmenu; return 0; }
 	dt_netrescan
-	h=$((n + 4))
-	[ "$n" = 0 ] && h=5
-	[ "$h" -gt 16 ] && h=16
+	# A row more than it lists, left blank at the bottom the way a menu
+	# ends, so the settings line does not sit on the edge.
+	h=$((n + 5))
+	[ "$n" = 0 ] && h=6
+	[ "$h" -gt 17 ] && h=17
 	DT_NETTOP=0
 	DT_NETSEL=0
 	DT_NETSEEN=
@@ -808,7 +810,11 @@ dt_netpopopen() {
 # The rows of the list: 0 is Wi-Fi's switch, then a rule, the networks, a
 # rule and the settings -- or a line saying there are none.
 fn net_popdraw(int r, int c, int h, int w) {
-	local n=${#DT_NETAS[@]} vis=$((h - 4)) i row t b lk g sw
+	local n=${#DT_NETAS[@]} vis i row t b lk g sw
+
+	# The last row is the blank margin dt_popdraw has already filled.
+	h=$((h - 1))
+	vis=$((h - 4))
 
 	sw="off"
 	[ "${DT_NET["radio"]}" = enabled ] && sw="on"
@@ -903,13 +909,13 @@ fn net_popmouse(act, int r, int c) {
 		dt_netradio
 		return 0
 	fi
-	if [ "$r" = $((DT_POPH - 1)) ]; then
+	if [ "$r" = $((DT_POPH - 2)) ]; then
 		dt_popclose
 		dt_netsettings
 		return 0
 	fi
 	i=$((DT_NETTOP + r - 2))
-	[ "$r" -ge 2 ] && [ "$i" -lt "$n" ] && [ "$r" -lt $((DT_POPH - 2)) ] || return 0
+	[ "$r" -ge 2 ] && [ "$i" -lt "$n" ] && [ "$r" -lt $((DT_POPH - 3)) ] || return 0
 	[ "${DT_NET["radio"]}" = enabled ] || return 0
 	DT_NETSEL=$i
 	dt_popclose
