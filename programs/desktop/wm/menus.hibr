@@ -148,6 +148,38 @@ fn dt_sub(label, key = "") {
 	MB_STACK="$p $MB_STACK"
 }
 
+# The hibr menu's own items after the applications. Built twice a rebuild:
+# once with DT_KEYCOLLECT set, when a row records only its letter in
+# DT_KEYSEEN, so dt_menus can keep those letters from the applications, and
+# once for real (Gitea #341).
+DT_KEYCOLLECT=
+DT_KEYSEEN=
+dt_hibrtail() {
+	dt_item "Screen Saver" s dt_saverstart
+	dt_item "Lock Screen" l dt_lock
+	dt_sep
+	dt_item "Restart Desktop" r dt_restart
+	# Dimmed when the desktop is not held, and its letter kept either way,
+	# so no application's letter moves with whether it is.
+	if [ -n "$HIBR_HOLD" ]; then
+		dt_item "Detach" d dt_detach
+	else
+		dt_row "" 1 "Detach" d :
+	fi
+	dt_item "Quit" q dt_quit
+}
+
+# The letters the menu being declared has handed out so far, joined.
+dt_menukeys() {
+	local m=${MB_CUR:-$((MB_N - 1))} i=0 out=
+
+	while [ "$i" -lt "${MB[$m]["n"]:-0}" ]; do
+		out+=${MI[$m][$i]["key"]}
+		i=$((i + 1))
+	done
+	ret "$out"
+}
+
 # Finish a submenu and go back to the menu that owns it.
 dt_end() {
 	MB_CUR=${MB_STACK%% *}
@@ -169,6 +201,10 @@ fn dt_wide(int m, int w) {
 fn dt_row(tick, int dim, lb, k, ...rest) {
 	local m n i=0 a
 
+	if [ -n "$DT_KEYCOLLECT" ]; then
+		DT_KEYSEEN+=$k
+		return 0
+	fi
 	shift 4
 	case $DT_LANG in ?*) lb := dt_tr "$lb" ;; esac
 	m=${MB_CUR:-$((MB_N - 1))}
@@ -223,6 +259,7 @@ fn dt_rowaccel(text) {
 dt_sep() {
 	local m=${MB_CUR:-$((MB_N - 1))} n
 
+	[ -n "$DT_KEYCOLLECT" ] && return 0
 	n=${MB[$m]["n"]}
 	MI[$m][$n]["sep"]=1
 	MI[$m][$n]["label"]=
@@ -239,7 +276,7 @@ dt_sep() {
 # Rebuild the bar for whatever has focus.  Cheap enough to do every frame:
 # it is a handful of assignments, and it has to follow the focus anyway.
 dt_menus() {
-	local who=${DT_FOCUS:-} ap=
+	local who=${DT_FOCUS:-} ap= used
 
 	[ -n "$who" ] && ap=${DT[$who]["app"]}
 	MB_N=0
@@ -269,24 +306,23 @@ dt_menus() {
 	# dt_app only so dt_launch about can find it, not to be listed a
 	# second time as an ordinary app -- its own dt_app call marks it
 	# hidden, which is what dt_appmenu actually skips.
-	# The letters the fixed items below already use, so dt_akey never
-	# hands one out twice: a About, q Quit, d Detach, u (unused, kept),
-	# r Restart, l Lock, s Screen Saver. Screenshot… and Screen Saver
-	# both wanted s the moment Screenshot moved from a submenu onto this
-	# menu, and an item that cannot be reached is worse than one with no
-	# letter at all.
-	dt_appmenu "" aqdurls
+	# The applications are given every letter the rest of this menu has
+	# not taken, so dt_akey never hands one out twice: an item that cannot
+	# be reached is worse than one with no letter at all, and Screenshot…
+	# and Screen Saver both wanted s the day Screenshot moved onto this
+	# menu. What the rest has taken is read from it rather than written
+	# down a second time -- the About above, and the items below collected
+	# by building them once for their letters alone (Gitea #341) -- since
+	# a list kept by hand beside them was out of step the moment an item
+	# was added or renamed.
+	used := dt_menukeys
+	DT_KEYCOLLECT=1
+	DT_KEYSEEN=
+	dt_hibrtail
+	DT_KEYCOLLECT=
+	dt_appmenu "" "$used$DT_KEYSEEN"
 	dt_sep
-	dt_item "Screen Saver" s dt_saverstart
-	dt_item "Lock Screen" l dt_lock
-	dt_sep
-	dt_item "Restart Desktop" r dt_restart
-	if [ -n "$HIBR_HOLD" ]; then
-		dt_item "Detach" d dt_detach
-	else
-		dt_dim "Detach"
-	fi
-	dt_item "Quit" q dt_quit
+	dt_hibrtail
 
 	# The bar's app name follows focus regardless of whether the app has
 	# menus of its own to add -- Clock and About have none, and still have

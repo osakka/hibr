@@ -181,6 +181,19 @@ text is a value the app sets when it changes, never a callback the bar asks
 per frame; setting it is what clears the bar's gate. An empty text takes the
 item off.
 
+`dt_barilabel name label` says what the item is called. Control Panel >
+Appearance > Item Order lists items by that label, so the panel keeps no list
+of who puts what on the bar (Gitea #341). `DT_BARORDER` is the names in the
+order they read across the bar. An item it does not name follows in the
+order it registered, and a name with no item is passed over, so unset the
+bar is as it always was.
+
+The hibr menu gives the applications every letter its own items have not
+taken. Those letters are read from the items themselves: the About above
+the applications, and `dt_hibrtail` below them, built once with only their
+letters collected. Nothing is kept by hand beside them, so a new item
+cannot share a letter with an application.
+
 The rest of the bar reads the same in every window: the hibr menu, **File**, **Edit**, then
 the focused app's own menus, then Window. Edit and Window belong to the
 desktop rather than to any app. An app defines `<app>_menus` and builds its

@@ -6460,4 +6460,67 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(711)
+# The hibr menu's letters (Gitea #341): the applications are given every
+# letter the menu's own items have not taken, read from those items rather
+# than from a list kept beside them. Five apps here want the fixed items'
+# own letters -- s, l, r, q, a -- and one more wants d, which Detach keeps
+# even dimmed, as this unheld desktop has it. And the fixture adds a fixed
+# item of its own, Power Off on p, beside an app called Pinball: that is the
+# case a list kept by hand got wrong, two rows on one letter, since nobody
+# had added the new item's letter to it.
+mark = scratch("desktop-hkeys.mark")
+path = scratch("desktop-hkeys.hibr")
+open(path, "w").write(
+    "%s. %s\n" % (load(MOD), WM)
+    + "for a in squash:Squash lockpick:Lockpick rally:Rally quoits:Quoits "
+      "abacus:Abacus darts:Darts pinball:Pinball; do "
+      "dt_app \"${a%%:*}\" \"${a#*:}\" 8 30; done\n"
+    + "f=$(declare -f dt_hibrtail)\neval \"${f%\\}} dt_item 'Power Off' p :; }\"\n"
+    + "dt_open\ndt_menus\nk=\nl=\ni=0\n"
+      "while [ $i -lt ${MB[0][\"n\"]} ]; do k+=\"${MI[0][$i][\"key\"]}\"; "
+      "l+=\"${MI[0][$i][\"label\"]}=${MI[0][$i][\"key\"]};\"; i=$((i + 1)); done\n"
+      "printf '%%s\\n%%s\\n' \"$k\" \"$l\" > %s\ndt_close\n" % mark)
+t = Term(path, rows=ROWS, cols=COLS, settle=1.0)
+t.close()
+os.unlink(path)
+try:
+    keys, rows = open(mark).read().split("\n")[:2]
+    os.unlink(mark)
+except (OSError, ValueError):
+    keys, rows = "", ""
+fixed = dict(x.split("=") for x in rows.split(";") if "=" in x)
+check("no two rows of the hibr menu answer to the same letter, the fixed ones "
+      "keeping theirs",
+      len(keys) >= 12 and len(set(keys)) == len(keys) and
+      fixed.get("Screen Saver") == "s" and fixed.get("Quit") == "q" and
+      fixed.get("Detach") == "d" and fixed.get("Power Off") == "p", (keys, rows))
+check("and an app whose name begins with one of them is given another",
+      all(fixed.get(n) and fixed.get(n) != n[0].lower()
+          for n in ("Squash", "Lockpick", "Rally", "Quoits", "Abacus", "Darts",
+                    "Pinball")),
+      rows)
+
+# Item Order (Gitea #341): the items on the bar's right, read across it, by
+# the names their owners gave them. Empty is the order they registered in;
+# a set order puts the named first and the rest after, and a name with no
+# item changes nothing.
+def bar_order(order):
+    path = scratch("desktop-barorder.hibr")
+    open(path, "w").write(
+        "%s. %s\ndt_open\ndt_baritem aa AAA :\ndt_baritem bb BBB :\n"
+        "dt_baritem cc CCC :\nDT_BARORDER='%s'\ndt_run\ndt_close\n"
+        % (load(MOD), WM, order))
+    t = Term(path, rows=ROWS, cols=COLS, settle=1.0)
+    sc = t.screen()
+    t.quit(b"qy", 0.6)
+    os.unlink(path)
+    r = sc.row(0)
+    return [n for _, n in sorted((r.find(n), n) for n in ("AAA", "BBB", "CCC")
+                                 if r.find(n) >= 0)]
+check("the bar's items keep the order they registered in, unset",
+      bar_order("") == ["CCC", "BBB", "AAA"], bar_order(""))
+check("and Item Order puts the named first, the rest after, skipping a name "
+      "that is not there",
+      bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
+
+report(715)

@@ -419,6 +419,7 @@ fn dt_netbars(int sig) {
 dt_netbar() {
 	local t b
 
+	dt_barilabel net "Network"
 	if [ "${DT_NETBAR:-1}" != 1 ] || [ "${DT_NET["kind"]:-none}" = none ] ||
 	   [ "${DT_NET["kind"]}" = gone ]; then
 		dt_baritem net ""

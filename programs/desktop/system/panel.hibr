@@ -597,8 +597,12 @@ fn cp_valw(int id, int n, int w) {
 		case ${CP[$id][$i]["kind"]} in
 		head) ;;
 		set)
-			case ${CP[$id][$i]["wtype"]} in
-			bool|slider) ;;
+			# A row whose value is a list -- Item Order's -- says
+			# so with vcut: it is cut to the column rather than
+			# widening it, since one long list would take the room
+			# every other row's buttons are drawn in (Gitea #341).
+			case ${CP[$id][$i]["wtype"]}:${CP[$id][$i]["vcut"]} in
+			bool:* | slider:* | *:1) ;;
 			*) x := str width "${CP[$id][$i]["val"]}"; x=$((x + 2)) ;;
 			esac
 			;;

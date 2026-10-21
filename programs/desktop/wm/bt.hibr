@@ -191,6 +191,7 @@ dt_btconnected() {
 dt_btbar() {
 	local t n
 
+	dt_barilabel bt "Bluetooth"
 	if [ "${DT_BTBAR:-1}" != 1 ] || [ "${DT_BT["kind"]:-none}" != bluez ]; then
 		dt_baritem bt ""
 		return 0

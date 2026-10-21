@@ -102,6 +102,44 @@ fn dt_baritem(name, text = "", ...cmd) {
 	return 0
 }
 
+# What an item is called where a person chooses its place on the bar
+# (Control Panel > Appearance > Item Order): set by its owner beside its
+# dt_baritem, so nothing else keeps a list of who puts what on the bar
+# (Gitea #341).
+fn dt_barilabel(name, label) {
+	DT_BARI["$name"]["label"]=$label
+}
+
+# The items in the order dt_barilay places them -- nearest the notification
+# icon first -- into DT_BARSEQ. DT_BARORDER names items in the order they
+# read across the bar; one it does not name follows in the order it
+# registered, and a name no item has is passed over, so with it empty the
+# bar is exactly as it was before there was a setting (Gitea #341).
+declare -ga DT_BARSEQ
+dt_barseq() {
+	local nm i
+	local -a want rd
+
+	read -ra want <<< "${DT_BARORDER-}"
+	for nm in "${want[@]}"; do
+		case " ${DT_BARIN[*]} " in *" $nm "*) ;; *) continue ;; esac
+		case " ${rd[*]-} " in *" $nm "*) continue ;; esac
+		rd+=("$nm")
+	done
+	i=$((${#DT_BARIN[@]} - 1))
+	while [ "$i" -ge 0 ]; do
+		nm=${DT_BARIN[$i]}
+		case " ${want[*]-} " in *" $nm "*) ;; *) rd+=("$nm") ;; esac
+		i=$((i - 1))
+	done
+	DT_BARSEQ=()
+	i=$((${#rd[@]} - 1))
+	while [ "$i" -ge 0 ]; do
+		DT_BARSEQ+=("${rd[$i]}")
+		i=$((i - 1))
+	done
+}
+
 # Open an item's menu beneath it, built by <who>_context: at the first row
 # under the bar and the item's own column. An item never works out a row of
 # its own -- the bar is on the primary, which in a stacked union is not at
@@ -258,7 +296,8 @@ fn dt_barilay(int from, int gap) {
 	local nm t iw c=$from
 
 	console pen "$DT_INK" "$DT_BAR"
-	for nm in "${DT_BARIN[@]}"; do
+	dt_barseq
+	for nm in "${DT_BARSEQ[@]}"; do
 		t=${DT_BARI["$nm"]["text"]}
 		DT_BARI["$nm"]["w"]=0
 		[ -n "$t" ] || continue

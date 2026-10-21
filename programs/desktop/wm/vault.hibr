@@ -219,6 +219,7 @@ dt_vwbar() {
 
 	command -v dt_baritem > /dev/null || return 0
 	[ -n "$DT_VWW" ] && t=${GL[unlocked]}
+	dt_barilabel vault "Vault"
 	dt_baritem vault "$t" dt_launch vault
 }
 

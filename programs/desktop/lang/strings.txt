@@ -320,6 +320,7 @@ Date/time
 Date:
 Dec
 December
+Default
 Default View
 Degrees, north and east positive. Empty: the time zone's.
 Delete
@@ -496,6 +497,7 @@ Isha
 It asks for a password (%s).
 Italic
 Item
+Item Order
 Its passkey or PIN:
 Jan
 January
@@ -1057,6 +1059,7 @@ View
 View Details
 View History
 Visible to Others
+Volume
 Volume %s%%
 Volume Down
 Volume Up

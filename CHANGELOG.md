@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.287
+
+**The menu bar keeps no hand-written lists** (Gitea #341). The owner asked
+whether the bar is built from what is loaded and set. It is, and these were
+its two exceptions:
+- **The hibr menu's shortcut letters** were a typed string, `aqdurls`,
+  beside the items they belonged to. An item added or renamed without
+  editing it could share a letter with an application, and then one of the
+  two could not be reached. The applications are now given every letter
+  the menu's own items have not taken, read from those items: the About
+  above them, and the items below them, built once with only their letters
+  collected. Detach keeps its `d` while dimmed, so no application's letter
+  moves with whether the desktop is held.
+- **The order of the items on the bar's right** was whichever registered
+  first. Control Panel > Appearance > **Item Order** shows them in the order
+  they read across the bar:
+  - choosing one from its drop-down puts it first;
+  - left and right turn the order one place round;
+  - Default goes back.
+
+  Each item's owner names it (`dt_barilabel`): Volume, Network, Bluetooth,
+  Vault. An item the order does not name follows in the order it
+  registered, so with nothing set the bar is as it was.
+
+Arabic 3.17.
+
 ## 0.99.286
 
 **Half Block shadows** (Gitea #340): half a row below and one column right,

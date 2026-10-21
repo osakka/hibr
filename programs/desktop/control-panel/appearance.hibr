@@ -492,6 +492,9 @@ fn appearance_rows(int w) {
 	g := dt_bellglyph "$DT_BELLICON"
 	CP[$w][$n]["val"]="$g $DT_BELLICON"; CP[$w][$n]["key"]=bellicon
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Item Order"
+	CP[$w][$n]["val"] := cp_barorderlabel; CP[$w][$n]["vcut"]=1
+	CP[$w][$n]["key"]=barorder; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bar Shadow"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BARSHADOW" = 1 ] && CP[$w][$n]["val"]=on
@@ -582,6 +585,7 @@ fn appearance_do(int w, k, int dir) {
 		cp_set_menumax "" "$v"
 		return 0
 		;;
+	barorder) cp_barrotate "$dir"; return 0 ;;
 	shadowshape)
 		v := cp_shadowlabel
 		v := cp_next "$v" "$dir" "${CP_SHADOWL[@]}"
@@ -605,6 +609,17 @@ fn appearance_drop(int w, int r, int c, k) {
 	dlgbtn) dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
 	menumax) dt_droplist "$w" "$r" "$c" cp_set_menumax "${CP_MENUMAXL[@]}" ;;
 	shadowshape) dt_droplist "$w" "$r" "$c" cp_set_shadowshape "${CP_SHADOWL[@]}" ;;
+	barorder)
+		local -a bl
+		local bn
+		cp_barread
+		bn := dt_tr "Default"
+		bl=("$bn")
+		for bn in "${CP_BARLABS[@]}"; do
+			bl+=("$bn")
+		done
+		dt_droplist "$w" "$r" "$c" cp_set_barorder "${bl[@]}"
+		;;
 	bellicon)
 		local -a vals
 		local nm g
@@ -645,6 +660,90 @@ fn cp_set_menumax(int? id = "", value = "") {
 	DT_MENUIN=
 	cp_save
 }
+# Item Order (Gitea #341): the items on the bar's right as they read across
+# it, by name in CP_BARNAMES and as their owners call them in CP_BARLABS.
+# Each owner names its own item (dt_barilabel), so nothing here lists who
+# puts what on the bar; one that never said is shown by its name.
+declare -ga CP_BARNAMES CP_BARLABS
+cp_barread() {
+	local i nm l
+
+	CP_BARNAMES=()
+	CP_BARLABS=()
+	command -v dt_barseq > /dev/null || return 0
+	dt_barseq
+	i=$((${#DT_BARSEQ[@]} - 1))
+	while [ "$i" -ge 0 ]; do
+		nm=${DT_BARSEQ[$i]}
+		l=${DT_BARI["$nm"]["label"]:-$nm}
+		l := dt_tr "$l"
+		CP_BARNAMES+=("$nm")
+		CP_BARLABS+=("$l")
+		i=$((i - 1))
+	done
+}
+
+fn cp_barorderlabel() {
+	local out= l
+
+	cp_barread
+	if [ "${#CP_BARLABS[@]}" = 0 ]; then
+		l := dt_tr "None"
+		ret "$l"
+		return 0
+	fi
+	for l in "${CP_BARLABS[@]}"; do
+		out+="${out:+, }$l"
+	done
+	ret "$out"
+}
+
+# Choosing an item puts it first, at the far left; Default goes back to the
+# order the items registered in.
+fn cp_set_barorder(int? id = "", value = "") {
+	local i=0 nm= o
+
+	cp_barread
+	while [ "$i" -lt "${#CP_BARLABS[@]}" ]; do
+		[ "${CP_BARLABS[$i]}" = "$value" ] && nm=${CP_BARNAMES[$i]}
+		i=$((i + 1))
+	done
+	if [ -z "$nm" ]; then
+		DT_BARORDER=
+	else
+		o=$nm
+		for i in "${CP_BARNAMES[@]}"; do
+			[ "$i" = "$nm" ] || o+=" $i"
+		done
+		DT_BARORDER=$o
+	fi
+	DT_BARWAS=
+	cp_save
+}
+
+# Left and right turn the order one place round.
+fn cp_barrotate(int dir) {
+	local n o= i
+
+	cp_barread
+	n=${#CP_BARNAMES[@]}
+	[ "$n" -gt 1 ] || return 0
+	if [ "$dir" -gt 0 ]; then
+		for i in "${CP_BARNAMES[@]:1}"; do
+			o+="${o:+ }$i"
+		done
+		o+=" ${CP_BARNAMES[0]}"
+	else
+		o=${CP_BARNAMES[$((n - 1))]}
+		for i in "${CP_BARNAMES[@]:0:$((n - 1))}"; do
+			o+=" $i"
+		done
+	fi
+	DT_BARORDER=$o
+	DT_BARWAS=
+	cp_save
+}
+
 # Shadow Shape's choices, as the row shows them and as DT_SHADOWSHAPE keeps
 # them (Gitea #340).
 CP_SHADOWV=(half cols)

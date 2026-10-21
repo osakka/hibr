@@ -395,6 +395,7 @@ dt_sndread() {
 dt_sndbar() {
 	local t
 
+	dt_barilabel sound "Volume"
 	if [ "${DT_SNDBAR:-1}" != 1 ] || [ "${DT_SND["kind"]:-none}" = none ] ||
 	   [ "${DT_SND["kind"]}" = gone ]; then
 		dt_baritem sound ""

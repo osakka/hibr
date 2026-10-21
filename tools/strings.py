@@ -26,6 +26,7 @@ SINKS = {
     # listed, not whether everything that reaches dt_tr was found
     # (Gitea #137).
     "dt_menu": [1], "dt_item": [1], "dt_sub": [1], "dt_dim": [1],
+    "dt_barilabel": [2],
     "dt_mark": [1],
     "dt_row": [3], "dt_app": [2], "cp_pane": [2], "dt_note": [1],
     # dt_notify and dt_notifyp were missing for as long as they have
