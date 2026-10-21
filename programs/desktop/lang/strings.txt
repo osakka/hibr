@@ -564,6 +564,7 @@ Mark as Read
 Mark as Unread
 May
 Menu Bar
+Menu Width
 Menu bar
 Menus
 Message

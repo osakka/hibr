@@ -500,6 +500,9 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_MENUBOLD" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_MENUBOLD; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Menu Width"
+	CP[$w][$n]["val"] := cp_menumaxlabel
+	CP[$w][$n]["key"]=menumax; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Shadows"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Windows"
 	CP[$w][$n]["wtype"]=bool
@@ -570,6 +573,12 @@ fn appearance_do(int w, k, int dir) {
 	dlgbtn) v := cp_next "$DT_DLGBTN" "$dir" "${DT_DLGBTNS[@]}"
 		DT_DLGBTN=$v ;;
 	DT_SHADOW | DT_MSHADOW | DT_BARSHADOW | DT_BTNSHADOW | DT_MENUBOLD) cp_toggle "$k" ;;
+	menumax)
+		v := cp_menumaxlabel
+		v := cp_next "$v" "$dir" "${CP_MENUMAXL[@]}"
+		cp_set_menumax "" "$v"
+		return 0
+		;;
 	esac
 	cp_save
 }
@@ -585,6 +594,7 @@ fn appearance_drop(int w, int r, int c, k) {
 		"${CP_TREELINES[@]}" ;;
 	glyphset) dt_droplist "$w" "$r" "$c" cp_set_glyphset "${DT_GLYPHSETS[@]}" ;;
 	dlgbtn) dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
+	menumax) dt_droplist "$w" "$r" "$c" cp_set_menumax "${CP_MENUMAXL[@]}" ;;
 	bellicon)
 		local -a vals
 		local nm g
@@ -598,6 +608,33 @@ fn appearance_drop(int w, int r, int c, k) {
 }
 
 fn cp_set_dlgbtn(int? id = "", value = "") { DT_DLGBTN=$value; cp_save; }
+
+# Menu Width's choices, as the row shows them and as DT_MENUMAX keeps them:
+# a number of columns, or 0 for as wide as the longest row.
+CP_MENUMAXV=(30 40 50 60 80 0)
+CP_MENUMAXL=("30 columns" "40 columns" "50 columns" "60 columns" "80 columns" "No Limit")
+
+# Menu Width as the row shows it.
+fn cp_menumaxlabel() {
+	local i=0
+
+	while [ "$i" -lt "${#CP_MENUMAXV[@]}" ]; do
+		[ "${CP_MENUMAXV[$i]}" = "${DT_MENUMAX:-40}" ] && ret "${CP_MENUMAXL[$i]}" && return 0
+		i=$((i + 1))
+	done
+	ret "${DT_MENUMAX:-40} columns"
+}
+
+fn cp_set_menumax(int? id = "", value = "") {
+	local i=0
+
+	while [ "$i" -lt "${#CP_MENUMAXL[@]}" ]; do
+		[ "${CP_MENUMAXL[$i]}" = "$value" ] && DT_MENUMAX=${CP_MENUMAXV[$i]}
+		i=$((i + 1))
+	done
+	DT_MENUIN=
+	cp_save
+}
 # The glyph set takes effect at once: every name in GL, and the frames.
 fn cp_set_glyphset(int? id = "", value = "") {
 	DT_GLYPHSET=$value

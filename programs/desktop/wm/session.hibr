@@ -50,6 +50,24 @@ dt_tdone() {
 # ctrl-c, ctrl-\ and ctrl-z become keys rather than signals: the desktop is
 # left by Quit, never by a stray interrupt, and the key goes to the focused
 # window -- which is how a program in a terminal window gets its ctrl-c.
+# The log is kept to DT_LOGMAX bytes: past it, at a start, it becomes
+# desktop.log.1 (the one before goes) and a new one begins (Gitea #328).
+# The owner's had grown to 75 MB, nearly all of it one line repeated, and a
+# log nobody can open says nothing. Asking its size is one wc a start --
+# about a millisecond, there being no builtin that knows a file's size.
+DT_LOGMAX="${DT_LOGMAX-8388608}"
+
+dt_logturn() {
+	local n
+
+	[ -f "$DT_LOG" ] || return 0
+	n=$(command wc -c < "$DT_LOG" 2> /dev/null)
+	n=${n//[!0-9]/}
+	[ "${n:-0}" -gt "$DT_LOGMAX" ] || return 0
+	mv -f -- "$DT_LOG" "$DT_LOG.1" 2> /dev/null
+	return 0
+}
+
 dt_open() {
 	local sess
 
@@ -117,6 +135,7 @@ dt_open() {
 	# mkdir is a process, and startup should not pay for one per folder
 	# every time: only when the folder is not there yet.
 	if [ -d "${DT_LOG%/*}" ] || mkdir -p "${DT_LOG%/*}" 2> /dev/null; then
+		dt_logturn
 		exec {DT_ERR}>&2 2>> "$DT_LOG"
 	fi
 	dt_langapply

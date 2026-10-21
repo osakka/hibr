@@ -310,6 +310,12 @@ asked what font it uses, so this one is chosen, never guessed; with an
 ordinary font its icons draw as empty boxes. The icon each app and pane
 chooses for itself stays as its own `dt_app` or `cp_pane` line writes it.
 
+A menu is no wider than **Menu Width** (Appearance > Menu Bar): 40 columns
+by default, or 30 to 80, or No Limit. A row longer than that -- a window's
+title, a device's name -- is cut with an ellipsis. A menu dropped from the
+bar stays on the display the bar is on, shadow and all, rather than opening
+onto a display beside it (Gitea #324).
+
 Checkboxes (Appearance > Controls > Checkboxes) are a box `[x]`, a knob,
 a block, or a tick `[✓]`, or what the theme suggests.
 

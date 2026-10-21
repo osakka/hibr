@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.276
+
+**A menu stays on its own display, and no wider than Menu Width** (Gitea
+#324). A menu dropped from the bar was kept inside the whole screen, not
+the display the bar is on. So the Window menu, at the end of a bar full of
+an app's menus, opened onto the monitor to the right of it. It is kept to
+the bar's display now, its shadow clipped at the edge too. A menu is also
+no wider than Control Panel > Appearance > **Menu Width** (40 columns by
+default, 30 to 80, or No Limit), and a row longer than that is cut with an
+ellipsis rather than making the menu as wide as itself. A menu opened at a
+point (a right-click, a submenu) already kept to its own display.
+
+**The desktop's log turns over** (Gitea #328). Past 8 MB at a start it
+becomes `desktop.log.1` and a new one begins, so it cannot grow for ever.
+The 75 MB log on the ticket came from a desktop still running code from
+before 0.99.259. That release had already stopped a
+missing wallpaper being retried on every frame; it is tried once and said
+so once.
+
 ## 0.99.275
 
 **A Browser that shows nothing now says why in the log** (Gitea #327). The

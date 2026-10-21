@@ -60,6 +60,59 @@ ONE = 'dt_new "Hello" 8 30 6 10'
 # default silently did nothing whenever one had focus (0.99.90).
 sc, _ = run(ONE, [b"\x1bw"])
 check("alt-w closes the focused window", sc.find("Hello") is None, sc)
+# Menu Width and the bar's own display (Gitea #324). A row longer than a
+# menu may be is cut, with an ellipsis -- an app's own item here, as a long
+# window or device name would be -- and a menu dropped from the bar stays on
+# the primary display: a primary of 40 columns on an 80-column screen is
+# what a display joined to its right looks like from inside the desktop,
+# and the Window menu at the bar's end opened onto it.
+LONG = "An item whose label goes on and on and on and on"
+LAPP = ('longm_menus() { dt_menu "File"; dt_editmenu; dt_menu "Long"; '
+        'dt_item "%s" l :; }\n'
+        'longm_draw() { :; }\n'
+        'dt_app longm "Long Menus" 8 30\n'
+        'dt_new "Long Menus" 8 30 6 10 longm' % LONG)
+sc0, _ = run(LAPP)
+col = sc0.row(0).find("Long")
+sc, _ = run(LAPP, [press(0, col + 1), release(0, col + 1)])
+rows = [sc.row(r) for r in range(1, 6)]
+check("a row longer than Menu Width is cut, with an ellipsis",
+      any("…" in r and "An item whose" in r for r in rows) and
+      not any(LONG in r for r in rows), rows)
+# A ticker holds the primary at 40 columns: dt_size puts the whole screen
+# back when the loop starts, so a plain assignment before it does not last.
+# The Long menu is the one that crosses: uncapped it is fifty-odd columns,
+# opening at its title near column 20.
+NARROW = (LAPP + "\ntk_narrow() { DT_PRIMARY_W=40; }\ndt_ticker tk_narrow")
+sc0, _ = run(NARROW, [0.3])
+col = sc0.row(0).find("Long")
+sc, _ = run(NARROW, [0.3, press(0, col + 1), release(0, col + 1)])
+it = [r for r in range(1, 24) if "An item" in sc.row(r)]
+# By colour, not by glyph: past the edge a menu's own padding reads as
+# blank, and its background is the menu's face.
+wbg = sc.style(it[0], 75)["bg"] if it else None
+check("a bar menu stays on the bar's own display, ending at its edge",
+      col > 0 and it and all(sc.style(it[0], c)["bg"] == wbg
+                             for c in range(40, 70)),
+      [sc.row(r) for r in range(0, 8)])
+
+# The log turns over past DT_LOGMAX at a start, so it cannot grow for ever
+# (Gitea #328): the old one becomes desktop.log.1 and a new one begins.
+LOGST = tempfile.mkdtemp(prefix="hibr-logturn-")
+os.makedirs(os.path.join(LOGST, "hibr"))
+open(os.path.join(LOGST, "hibr", "desktop.log"), "w").write("an old line\n" * 20)
+sc, _ = run(ONE, env={"XDG_STATE_HOME": LOGST}, pre="DT_LOGMAX=100")
+old = os.path.join(LOGST, "hibr", "desktop.log.1")
+new = os.path.join(LOGST, "hibr", "desktop.log")
+check("a desktop log past its size is kept as desktop.log.1 and a new one begun",
+      os.path.exists(old) and "an old line" in open(old).read() and
+      (not os.path.exists(new) or "an old line" not in open(new).read()),
+      os.listdir(os.path.join(LOGST, "hibr")))
+open(new, "w").write("small\n")
+sc, _ = run(ONE, env={"XDG_STATE_HOME": LOGST}, pre="DT_LOGMAX=100")
+check("and one under it is left alone", "small" in open(new).read(),
+      open(new).read()[:80])
+shutil.rmtree(LOGST, True)
 # Shortcut Key (Gitea #326): the desktop's own chords are written with
 # `mod`, and DT_MOD says which modifiers that is. Super arrives only as the
 # kitty keyboard protocol's CSI u, which the console decodes whatever the
@@ -6171,4 +6224,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(682)
+report(686)
