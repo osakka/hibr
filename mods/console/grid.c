@@ -454,7 +454,58 @@ int cn_translucent(int pct, unsigned fb)
    frames, so there is nothing to restore when the window moves. */
 void cn_darken(int row, int col, int h, int w, int pct)
 {
-	cn_darken1(row, col, h, w, pct, 0);
+	cn_darken1(row, col, h, w, pct, 0, 0);
+}
+
+/* What a half of a cell shows now, top or bottom, and whether that came
+   from the cell's background: a half block -- a wallpaper drawn in half
+   blocks is all of them -- shows one colour in each half, a full block its
+   ink in both, and anything else its background in both. */
+unsigned cn_halfof(const cn_cell *k, int top, int *isbg)
+{
+	unsigned f = k->fg, b = k->bg, t;
+
+	if (k->attr & DP_REV) {
+		t = f;
+		f = b;
+		b = t;
+	}
+	*isbg = 0;
+	if (k->cp == 0x2588 || (k->cp == 0x2580 && top) ||
+	    (k->cp == 0x2584 && !top))
+		return f;
+	*isbg = 1;
+	return b;
+}
+
+/* One cell of a half-block shadow (Gitea #340): the half it falls on is
+   darkened and the other shown as it was, as one half block. Only a cell
+   with nothing to read comes here -- a blank, or a block a wallpaper drawn
+   in half blocks is made of -- and a picture
+   under the text shows through the other half, since a default background
+   is left default: the darkened half is the picture's own colour, scaled,
+   the way a whole-cell shadow on it is. */
+void cn_darkhalf(cn_cell *k, int r, int c, int pct, int half)
+{
+	unsigned on, off, pic, v;
+	int isbg, offbg;
+
+	on = cn_halfof(k, half == 1, &isbg);
+	off = cn_halfof(k, half != 1, &offbg);
+	if (on == DP_DEFAULT && isbg && cn_imgcellat(r, c, &pic))
+		v = cn_dim1(pic, pct, 0);
+	else
+		v = cn_dim1(on, pct, isbg ? cn_defbg : cn_deffg);
+	if (off == DP_DEFAULT && !offbg)
+		off = cn_deffg;
+	cn_split(r, c);
+	cn_cellset(k, half == 1 ? 0x2580 : 0x2584, 0, 0);
+	k->w = 1;
+	k->cont = 0;
+	k->link = 0;
+	k->fg = v;
+	k->bg = off;
+	k->attr = (v & DP_RGB) ? 0 : DP_DIM;
 }
 
 /* The same, and `once` makes it a shadow: a cell it has already darkened is
@@ -463,7 +514,7 @@ void cn_darken(int row, int col, int h, int w, int pct)
    to work out which frame is allowed to cast it -- and any ordinary write to
    the cell clears the mark, so the wallpaper painting underneath, or a window
    moving away, gets its shadow cast afresh. */
-void cn_darken1(int row, int col, int h, int w, int pct, int once)
+void cn_darken1(int row, int col, int h, int w, int pct, int once, int half)
 {
 	int r, c, g;
 	unsigned pic;
@@ -488,6 +539,22 @@ void cn_darken1(int row, int col, int h, int w, int pct, int once)
 			k = &cn_back.c[r * cn_back.cols + c];
 			if (once && (k->attr & CN_SHADOWED))
 				continue;
+			/* Only where there is nothing to read: a half block
+			   replaces the glyph, so a cell of a window -- where
+			   even a space is part of what is written, the two
+			   either side of a title -- or one holding text is
+			   dimmed whole instead, as a shadow always was. What
+			   a fill laid down is the wallpaper's pattern, not
+			   text, and may go. */
+			if (half && (k->cp == ' ' || !k->cp || k->cp == 0x2580 ||
+				     k->cp == 0x2584 || k->cp == 0x2588 ||
+				     (k->attr & CN_FILLED)) &&
+			    !k->ext && !k->cont && k->w <= 1 && !cn_inpane(r, c)) {
+				cn_darkhalf(k, r, c, pct, half);
+				if (once)
+					k->attr |= CN_SHADOWED;
+				continue;
+			}
 			k->fg = cn_dim1(k->fg, pct, cn_deffg);
 			/* A cell left at the default colour means two
 			   different things, and only one of them is
@@ -645,7 +712,7 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 						  cn_bg == DP_DEFAULT ?
 							  cn_bgtrans(r, c) :
 							  cn_bg);
-				p->attr = cn_penat;
+				p->attr = cn_penat | CN_FILLED;
 				p->link = cn_plink;
 			}
 		}
@@ -757,8 +824,8 @@ void cn_goto(str *b, int row, int col, int cr, int cc)
 int cn_same(const cn_cell *a, const cn_cell *b)
 {
 	if (a->cp != b->cp || a->fg != b->fg || a->bg != b->bg ||
-	    a->attr != b->attr || a->w != b->w || a->cont != b->cont ||
-	    a->link != b->link)
+	    (a->attr & ~CN_FILLED) != (b->attr & ~CN_FILLED) ||
+	    a->w != b->w || a->cont != b->cont || a->link != b->link)
 		return 0;
 	if (!a->ext && !b->ext)
 		return 1;
@@ -844,6 +911,15 @@ static void cn_ownsync(void)
 		}
 	}
 	cn_ownok = 1;
+}
+
+/* Whether a pane covers this cell, whether or not anything is skipping it. */
+int cn_inpane(int row, int col)
+{
+	cn_ownsync();
+	if (row < 0 || row >= cn_ownr || col < 0 || col >= cn_ownc)
+		return 0;
+	return cn_own[row * cn_ownc + col];
 }
 
 /* Whether this cell belongs to a pane and is being skipped. */
@@ -1053,11 +1129,12 @@ long cn_flush(void)
 				continue;
 			cn_goto(&b, r, c, cr, cc);
 			if (!cn_lset || e->fg != cn_lfg ||
-			    e->bg != cn_lbg || e->attr != cn_lat) {
-				cn_sgrto(&b, e->fg, e->bg, e->attr);
+			    e->bg != cn_lbg ||
+			    (e->attr & ~CN_FILLED) != cn_lat) {
+				cn_sgrto(&b, e->fg, e->bg, e->attr & ~CN_FILLED);
 				cn_lfg = e->fg;
 				cn_lbg = e->bg;
-				cn_lat = e->attr;
+				cn_lat = e->attr & ~CN_FILLED;
 				cn_lset = 1;
 			}
 			if (e->link != cn_llink) {

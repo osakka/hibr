@@ -157,10 +157,26 @@ click it. Its label on the bar across the top is the only way back — click it
 to restore the window. The bar also says how many windows are open and how
 many are hidden.
 
-A window casts a shadow, one row down and two columns right, darkening
-whatever it falls across -- another window, or the desktop underneath.
-`DT_SHADOW`, a Control Panel entry, turns it off; it costs one `console darken`
-call per window, and nothing at all when off.
+A window casts a shadow, darkening whatever it falls across -- another
+window, or the desktop underneath. `DT_SHADOW`, a Control Panel entry, turns
+it off; it costs a few `console darken` calls per window, and nothing at all
+when off.
+
+Its shape is Control Panel > Appearance > **Shadow Shape** (`DT_SHADOWSHAPE`,
+Gitea #340), and every shadow takes it: windows, menus, the bar's pop-ups,
+the menu bar and the Control Strip.
+- **Half Block**, the default since 0.99.286, is half a row below and one
+  column right. A cell is about twice as tall as it is wide, so that is as
+  thick each way, and thinner. It is a lower half block beside the box's top
+  row, one column down its side, and upper half blocks along the row under
+  it.
+- **Two Columns** is a row below and two columns right, as shadows were
+  before 0.99.286.
+
+A half block replaces the cell it is drawn in, so it is drawn only where
+nothing can be read: on the wallpaper, its pattern included. Over a window,
+or over any text, the shadow dims the whole cell as Two Columns does. The
+ASCII glyph set has no half blocks and keeps Two Columns.
 
 An open menu -- a bar menu, a submenu, a right-click context menu, or a
 dropdown's own popup -- casts one the same way, governed by its own

@@ -671,26 +671,32 @@ int m_console(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "darken")) {
-		int once = 0;
+		int once = 0, half = 0;
 
 		if (!cn_need())
 			return HIBR_FAIL;
 		/* -s: a shadow. Idempotent -- a cell already darkened by one
 		   is left alone -- so it can be cast on every frame without
 		   coming out darker each time, and nothing has to decide
-		   which frame may cast it. */
-		if (ac > 2 && !strcmp(av[2], "-s")) {
-			once = 1;
+		   which frame may cast it. -t and -b darken only the top or
+		   the bottom half of each cell, drawn as a half block: the
+		   Half Block shadow, half a row thick (Gitea #340). */
+		while (ac > 2 && (!strcmp(av[2], "-s") || !strcmp(av[2], "-t") ||
+				  !strcmp(av[2], "-b"))) {
+			if (av[2][1] == 's')
+				once = 1;
+			else
+				half = av[2][1] == 't' ? 1 : 2;
 			av++;
 			ac--;
 		}
 		if (ac < 6) {
-			lg(HIBR_LERR, "usage: console darken [-s] row col h w"
+			lg(HIBR_LERR, "usage: console darken [-s] [-t|-b] row col h w"
 				      " [pct]");
 			return 2;
 		}
 		cn_darken1(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),
-			   ac > 6 ? atoi(av[6]) : 55, once);
+			   ac > 6 ? atoi(av[6]) : 55, once, half);
 		cn_drawn++;
 		return HIBR_OK;
 	}

@@ -165,10 +165,38 @@ fn dt_shadow(int id) {
 	# A window can do without one: YouTube's mini player, by a setting of
 	# its own (Gitea #304).
 	[ "${DT[$id]["noshadow"]}" = 1 ] && return 0
-	console darken -s $((wr + h)) $((wc + 2)) 1 "$w" "$DT_SHADOW_PCT"
-	[ "$h" -gt 1 ] &&
-		console darken -s $((wr + 1)) $((wc + w)) $((h - 1)) 2 \
-			"$DT_SHADOW_PCT"
+	dt_castshadow "$wr" "$wc" "$h" "$w"
+}
+
+# The shadow of a box -- a window, a menu, a pop-up, the Control Strip -- at
+# row r and column c, h rows by w columns, cast only outside it, so the box
+# may be drawn before it or after. Every shadow the desktop casts comes
+# through here, so Shadow Shape reaches all of them (Gitea #340). Two
+# Columns is a row below and two columns right; Half Block half a row below
+# and one column right, as thick each way and thinner: a lower half block
+# beside the box's top row, one column down its side, and an upper half
+# block along the row under it. lim, when given, is the first column it
+# must not reach -- the right edge of the display the box is on.
+fn dt_castshadow(int r, int c, int h, int w, int? lim = "") {
+	local p=$DT_SHADOW_PCT bw rw
+
+	[ -n "$lim" ] || lim=$((c + w + 2))
+	if [ "$DT_SHADOWSHAPE" != cols ] && [ "$DT_GLYPHSET" != ascii ]; then
+		bw=$w
+		[ $((c + 1 + bw)) -gt "$lim" ] && bw=$((lim - c - 1))
+		if [ $((c + w)) -lt "$lim" ]; then
+			console darken -s -b "$r" $((c + w)) 1 1 "$p"
+			[ "$h" -gt 1 ] && console darken -s $((r + 1)) $((c + w)) $((h - 1)) 1 "$p"
+		fi
+		[ "$bw" -gt 0 ] && console darken -s -t $((r + h)) $((c + 1)) 1 "$bw" "$p"
+		return 0
+	fi
+	bw=$w
+	[ $((c + 2 + bw)) -gt "$lim" ] && bw=$((lim - c - 2))
+	rw=2
+	[ $((c + w + rw)) -gt "$lim" ] && rw=$((lim - c - w))
+	[ "$bw" -gt 0 ] && console darken -s $((r + h)) $((c + 2)) 1 "$bw" "$p"
+	[ "$rw" -gt 0 ] && [ "$h" -gt 1 ] && console darken -s $((r + 1)) $((c + w)) $((h - 1)) "$rw" "$p"
 	return 0
 }
 

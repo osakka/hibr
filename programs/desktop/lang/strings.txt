@@ -883,6 +883,7 @@ Set up a mail account first, in Control Panel > Mail
 Several emails or phones: separate them with commas.
 Sha'ban
 Shadow
+Shadow Shape
 Shadows
 Shawwal
 Sheet

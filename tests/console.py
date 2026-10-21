@@ -600,4 +600,30 @@ n = counts(o)
 check("a window's emulator still shows the frame before a program's open one",
       len(n) == 2 and n[0] == 0 and n[1] > 0 and b"during" in drawn(o), n)
 
-report(len(WANT) + len(MWANT) + 82)
+# Half Block shadows (Gitea #340): -t and -b darken one half of each cell
+# as a half block, the half it falls on dimmed and the other shown as it
+# was. A plain cell shows its background in both halves; a cell that is
+# already a half block -- a wallpaper drawn in them -- has a colour of its
+# own in each, and only the shadowed one changes. Idempotent under -s.
+o, _ = run('console open\nconsole pen "#c0c0c0" "#806040"\nconsole fill 0 0 5 10 " "\n'
+           'console put 4 0 "ab"\nconsole put 1 2 "x"\nconsole put 2 1 "x"\n'
+           'console pen "#ff0000" "#0000ff"\nconsole put 3 0 "▀"\n'
+           'console darken -s -t 1 0 1 2 50\nconsole darken -s -t 1 0 1 2 50\n'
+           'console darken -s -t 1 0 1 2 50\nconsole darken -s -b 2 0 1 1 50\n'
+           'console darken -s -t 3 0 1 1 50\nconsole darken -s -t 4 0 1 2 50\n'
+           'console flush\nconsole close\n')
+sc = Screen()
+sc.feed(o.decode("utf-8", "replace"))
+DIMBG = "38;2;64;48;32;48;2;128;96;64"
+check("-t makes an upper half block, its top the background dimmed",
+      sc.row(1)[:3] == "▀▀x" and sc.p[1][0].endswith(DIMBG), (sc.row(1), sc.p[1][0]))
+check("cast three times it is the same as once",
+      sc.p[1][1] == sc.p[1][0], (sc.p[1][0], sc.p[1][1]))
+check("-b makes a lower half block the same way",
+      sc.row(2)[:2] == "▄x" and sc.p[2][0].endswith(DIMBG), (sc.row(2), sc.p[2][0]))
+check("over a half block, only the half the shadow falls on changes",
+      sc.row(3)[0] == "▀" and sc.p[3][0].endswith("38;2;128;0;0;48;2;0;0;255"), sc.p[3][0])
+check("and text under it keeps its glyphs, dimmed whole, as a shadow always was",
+      sc.row(4)[:2] == "ab" and "48;2;64;48;32" in sc.p[4][0], (sc.row(4), sc.p[4][0]))
+
+report(len(WANT) + len(MWANT) + 87)

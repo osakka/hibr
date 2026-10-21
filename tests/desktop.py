@@ -218,6 +218,21 @@ check("a window casts a shadow on the wallpaper under it",
 # second, unrelated shadow source cannot make "none" look like "some".
 raw_noshadow = shadow_run(env={"DT_SHADOW": "0", "DT_BARSHADOW": "0"})
 check("DT_SHADOW=0 casts none", SHADOW_RGB not in raw_noshadow, raw_noshadow)
+# Half Block, the default (Gitea #340): a lower half block beside the
+# window's top row, one column down its side, and upper half blocks along
+# the row under it from one column in -- half a row and one column, as
+# thick each way, where Two Columns is a row and two.
+sc, _ = run(ONE, [])
+tr = sc.find("┐")
+bl = sc.find("└")
+check("a window's Half Block shadow is a half block beside its top, and half a "
+      "row under it from one column in",
+      tr is not None and bl is not None and sc.at(tr[0], tr[1] + 1) == "▄"
+      and sc.at(bl[0] + 1, bl[1]) != "▀"
+      and sc.row(bl[0] + 1)[bl[1] + 1:tr[1] + 2] == "▀" * (tr[1] - bl[1] + 1), sc)
+sc, _ = run(ONE, [], env={"DT_SHADOWSHAPE": "cols"})
+check("and Two Columns casts no half block at all",
+      "▀" not in sc.text() and "▄" not in sc.text(), sc)
 raw_long = shadow_run(settle=2.5)
 check("more frames before quitting does not darken it further -- damage "
       "sends an unchanged cell once",
@@ -253,9 +268,16 @@ def barshadow_run(env=None):
     return t.raw
 
 
-raw_barshadow = barshadow_run()
+raw_barshadow = barshadow_run(env={"DT_SHADOWSHAPE": "cols"})
 check("the menu bar casts a shadow too, with nothing else open at all",
       SHADOW_RGB in raw_barshadow, raw_barshadow)
+# Half Block, the default since 0.99.286 (Gitea #340): the row under the bar
+# is upper half blocks, their top the wallpaper's own colour dimmed and
+# their bottom that colour as it was.
+raw_barhalf = barshadow_run(env={"DT_SHADOWSHAPE": "half"})
+check("and in Half Block, the default, it is half a row of upper half blocks",
+      b"38;2;7;15;23;48;2;" in raw_barhalf and "\u2580".encode() in raw_barhalf,
+      raw_barhalf[-400:])
 raw_nobarshadow = barshadow_run(env={"DT_BARSHADOW": "0"})
 check("DT_BARSHADOW=0 casts none, independently of the other two",
       SHADOW_RGB not in raw_nobarshadow, raw_nobarshadow)
@@ -1469,7 +1491,7 @@ check("clicking away from an open menu shuts it",
 sc, _ = run(MENUS, [press(0, 45)])
 check("a click on empty bar space, nothing open, opens nothing",
       sc.find("Bump") is None and sc.find("Move") is None and
-      sc.at(1, 45) == "·" and sc.row(0).startswith("  ✎  Count  More"), sc)
+      sc.at(2, 45) == "·" and sc.row(0).startswith("  ✎  Count  More"), sc)
 
 sc, _ = run(MENUS, [press(0, 6), b"b"])
 check("a letter picks the item beside it", sc.find("count 1") is not None
@@ -2862,7 +2884,7 @@ check("and so can a JPEG",
 expect(r"^cannot open /does/not/exist\.png$")
 sc, raw = run("", env={"DT_WALLIMG": "/does/not/exist.png"}, pre=IMGMOD)
 check("an unusable wallpaper image falls back to the glyph instead",
-      sc.row(1)[0:1] == "·", sc)
+      sc.row(2)[0:1] == "·", sc)
 
 # DT_WALLMODE: stretch (the default, checked above already) ignores the
 # image's own shape; scale fits it in keeping that shape, letterboxed;
@@ -2877,7 +2899,7 @@ WIDEFIX = tree("tests/img-wide.png")
 sc, raw = run("", env={"DT_WALLIMG": WIDEFIX, "DT_WALLMODE": "scale"},
               pre=IMGMOD)
 check("scale fits the image within the screen, letterboxed",
-      "·" in sc.row(1) and "·" not in sc.row(11) and
+      "·" in sc.row(2) and "·" not in sc.row(11) and
       sc.at(11, 0) != "·" and sc.at(11, 79) != "·", sc)
 
 sc, raw = run("", env={"DT_WALLIMG": WIDEFIX, "DT_WALLMODE": "zoom"},
@@ -5140,7 +5162,7 @@ wbt.quit(b"qy", 1.0)
 check("a wallpaper picture that cannot be drawn says so, and the pattern "
       "shows instead",
       sc.find("Cannot show the wallpaper picture") is not None
-      and sc.row(1)[0:1] == "·", sc)
+      and sc.row(2)[0:1] == "·", sc)
 
 # A window larger than the screen still moves when dragged: the far-edge
 # clamp gave it the same place from every drag -- off the screen's top
@@ -6438,4 +6460,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(708)
+report(711)

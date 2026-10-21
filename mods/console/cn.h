@@ -181,7 +181,11 @@ unsigned cn_rgbof(unsigned v);
    through it. */
 unsigned cn_opaque(int row, int col, unsigned bg);
 void cn_darken(int row, int col, int h, int w, int pct);
-void cn_darken1(int row, int col, int h, int w, int pct, int once);
+void cn_darken1(int row, int col, int h, int w, int pct, int once, int half);
+unsigned cn_halfof(const cn_cell *k, int top, int *isbg);
+void cn_darkhalf(cn_cell *k, int r, int c, int pct, int half);
+void cn_split(int row, int col);
+int cn_inpane(int row, int col);
 void cn_setdim(unsigned fg, unsigned bg);
 void cn_cursor(int row, int col, int vis);
 long cn_flush(void);
@@ -213,6 +217,12 @@ int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w);
    clears it, because cn_put and cn_fill assign the pen's own attributes. */
 #ifndef CN_SHADOWED
 #define CN_SHADOWED (1u << 16)
+#endif
+/* A cell a fill laid down, glyph and all: a pattern, such as a wallpaper's,
+   rather than text, which a half-block shadow may replace (Gitea #340).
+   Private like CN_SHADOWED, and never emitted. */
+#ifndef CN_FILLED
+#define CN_FILLED (1u << 17)
 #endif
 
 /* What a still picture's payload is compressed as before it goes out

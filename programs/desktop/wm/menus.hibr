@@ -890,7 +890,7 @@ dt_drop() {
 # occupies so it can sit beside it rather than on top of it.
 fn dt_menu_draw(int m, int? px, int parent) {
 	local i=0 r x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
-	local ac aw ptop pbot dl=0 dr=$DT_COLS at= room lw sw
+	local ac aw ptop pbot dl=0 dr=$DT_COLS at= room lw
 
 	# A bar menu drops from the row under the bar, which is the
 	# primary's own first content row rather than a literal 1 once the
@@ -950,10 +950,7 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	# make its shadow darker each time. Clipped at the display's edge as
 	# well: a shadow is part of the menu, and one falling on the next
 	# monitor is still a spill (Gitea #324).
-	sw=$w
-	[ $((x + 2 + sw)) -gt "$dr" ] && sw=$((dr - x - 2))
-	[ "$DT_MSHADOW" = 1 ] && [ "$sw" -gt 0 ] &&
-		console darken -s $((r + 1)) $((x + 2)) $((n + 1)) "$sw" "$DT_SHADOW_PCT"
+	[ "$DT_MSHADOW" = 1 ] && dt_castshadow "$r" "$x" $((n + 1)) "$w" "$dr"
 	while [ "$i" -lt "$n" ]; do
 		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
 			console pen "$DT_IDLE" "$DT_FACE"
@@ -1121,8 +1118,7 @@ dt_drop_apps() {
 	n=${#il[@]}
 	[ "$n" = 0 ] && n=1
 	# The same.
-	[ "$DT_MSHADOW" = 1 ] &&
-		console darken -s $((r + 1)) $((x + 2)) $((n + 1)) "$w" "$DT_SHADOW_PCT"
+	[ "$DT_MSHADOW" = 1 ] && dt_castshadow "$r" "$x" $((n + 1)) "$w" "$pr"
 	for id in "${il[@]}"; do
 		if [ "$i" = "$MB_SEL" ]; then
 			console pen "$DT_FACE" "$DT_ACTIVE" bold

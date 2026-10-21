@@ -96,6 +96,21 @@ terminal's own default colour has no table to scale by, so those cells get
 the dim attribute alone. It reads back what `cn_put` already wrote, which
 `cn_fill` and `cn_put` themselves never do.
 
+`-t` and `-b` darken only the top or the bottom half of each cell, drawn as
+an upper or lower half block (Gitea #340): the desktop's Half Block shadow.
+The other half shows what the cell showed:
+- a plain cell: its background;
+- a half block, such as a wallpaper drawn in them: that half's own colour;
+- over a picture under the text: the picture, since a default background is
+  left default, and the darkened half is the picture's own colour scaled.
+
+The glyph is replaced, so only a cell with nothing to read takes one: a
+blank, a block, or a glyph a `fill` laid down outside every pane, which is a
+pattern such as the wallpaper's. A pane's cell, where even a space is part
+of what is written, or a cell holding text, is darkened whole instead. A
+filled cell carries a private bit, `CN_FILLED`, which is never emitted and
+never makes a cell look changed.
+
 A cell left at the terminal's own default colour is the one case where "scale
 what is there" has no answer, and it means two different things. `console
 darkdefault fg bg` names the colours such a cell should be taken to be -- the

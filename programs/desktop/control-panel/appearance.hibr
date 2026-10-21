@@ -512,6 +512,9 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_MSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_MSHADOW; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shadow Shape"
+	CP[$w][$n]["val"] := cp_shadowlabel
+	CP[$w][$n]["key"]=shadowshape; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Controls"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Checkboxes"
 	CP[$w][$n]["val"]="$DT_CHECKS"; CP[$w][$n]["key"]=checks; n=$((n + 1))
@@ -579,6 +582,12 @@ fn appearance_do(int w, k, int dir) {
 		cp_set_menumax "" "$v"
 		return 0
 		;;
+	shadowshape)
+		v := cp_shadowlabel
+		v := cp_next "$v" "$dir" "${CP_SHADOWL[@]}"
+		cp_set_shadowshape "" "$v"
+		return 0
+		;;
 	esac
 	cp_save
 }
@@ -595,6 +604,7 @@ fn appearance_drop(int w, int r, int c, k) {
 	glyphset) dt_droplist "$w" "$r" "$c" cp_set_glyphset "${DT_GLYPHSETS[@]}" ;;
 	dlgbtn) dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
 	menumax) dt_droplist "$w" "$r" "$c" cp_set_menumax "${CP_MENUMAXL[@]}" ;;
+	shadowshape) dt_droplist "$w" "$r" "$c" cp_set_shadowshape "${CP_SHADOWL[@]}" ;;
 	bellicon)
 		local -a vals
 		local nm g
@@ -635,6 +645,27 @@ fn cp_set_menumax(int? id = "", value = "") {
 	DT_MENUIN=
 	cp_save
 }
+# Shadow Shape's choices, as the row shows them and as DT_SHADOWSHAPE keeps
+# them (Gitea #340).
+CP_SHADOWV=(half cols)
+CP_SHADOWL=("Half Block" "Two Columns")
+
+fn cp_shadowlabel() {
+	[ "$DT_SHADOWSHAPE" = cols ] && ret "Two Columns" && return 0
+	ret "Half Block"
+}
+
+fn cp_set_shadowshape(int? id = "", value = "") {
+	local i=0
+
+	while [ "$i" -lt "${#CP_SHADOWL[@]}" ]; do
+		[ "${CP_SHADOWL[$i]}" = "$value" ] && DT_SHADOWSHAPE=${CP_SHADOWV[$i]}
+		i=$((i + 1))
+	done
+	DT_FORCEONCE=1
+	cp_save
+}
+
 # The glyph set takes effect at once: every name in GL, and the frames.
 fn cp_set_glyphset(int? id = "", value = "") {
 	DT_GLYPHSET=$value

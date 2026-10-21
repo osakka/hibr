@@ -204,7 +204,7 @@ dt_popdraw() {
 		return 0
 	fi
 	[ "$DT_MSHADOW" = 1 ] &&
-		console darken -s $((DT_POPR + 1)) $((DT_POPC + 2)) "$DT_POPH" "$DT_POPW" "$DT_SHADOW_PCT"
+		dt_castshadow "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW"
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW" " "
 	"${DT_POP}_popdraw" "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW"
@@ -374,9 +374,17 @@ dt_bar() {
 	# -s: idempotent, so casting it on every frame cannot come out darker
 	# each time. Pairing it to "a frame that painted the wallpaper"
 	# instead made this very strip pulse once a second.
-	[ "$DT_BARSHADOW" = 1 ] &&
-		console darken -s $((DT_PRIMARY_ROW + 1)) "$DT_PRIMARY_COL" \
-			1 "$w" "$DT_SHADOW_PCT"
+	# Across the whole width, so with no offset; Half Block makes it half
+	# a row (Gitea #340).
+	if [ "$DT_BARSHADOW" = 1 ]; then
+		if [ "$DT_SHADOWSHAPE" != cols ] && [ "$DT_GLYPHSET" != ascii ]; then
+			console darken -s -t $((DT_PRIMARY_ROW + 1)) "$DT_PRIMARY_COL" \
+				1 "$w" "$DT_SHADOW_PCT"
+		else
+			console darken -s $((DT_PRIMARY_ROW + 1)) "$DT_PRIMARY_COL" \
+				1 "$w" "$DT_SHADOW_PCT"
+		fi
+	fi
 	# The clock next, because its rendered text is part of the key: it is
 	# cached against everything it depends on and costs nothing to ask.
 	now := dt_clocktext "$DT_BARTIME" -1

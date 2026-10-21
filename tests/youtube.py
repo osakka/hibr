@@ -124,13 +124,28 @@ def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False,
     return shots
 
 
+def half(sc):
+    """Whether the video is drawn in half blocks: an upper half block inside
+    the window, not in the shadows the window and the menu bar cast beside
+    and below it, which are half blocks too since 0.99.286 (Gitea #340)."""
+    tl = sc.find("\u250c")
+    if tl is None:
+        return False
+    top, left = tl
+    right = sc.row(top).rfind("\u2510")
+    bottom = next((r for r in range(top + 1, sc.rows)
+                   if sc.row(r)[left:left + 1] == "\u2514"), sc.rows)
+    return any("\u2580" in sc.row(r)[left + 1:right]
+               for r in range(top + 1, bottom))
+
+
 def playing(sc):
     """Playing, with something of the frame on screen. A half block is what
     the cell modes draw and a bitmap has no glyph at all -- the cells under
     a picture are deliberately blank -- so asking only for the half block
     asked about the mechanism rather than the outcome, and no suite could
     then drive the pixel path at all (Gitea #199)."""
-    return "playing" in sc.text() and (sc.find("▀") is not None or sc.images)
+    return "playing" in sc.text() and (half(sc) or sc.images)
 
 
 def at(sc):
@@ -154,7 +169,7 @@ try:
     check("enter plays the chosen result: its title from the page's player, "
           "the picture in the clip's colours, the clock going",
           s[1].find("A test pattern -- Pattern Channel") is not None and
-          s[2].find("▀") is not None and at(s[2]) >= 1 and
+          half(s[2]) and at(s[2]) >= 1 and
           len({s[2].style(8, c)["bg"] for c in range(6, 78, 4)} - {None}) >= 3,
           (at(s[2]), s[2].dump()))
     check("space pauses it, and the clock stops", "paused" in s[3].text() and
@@ -209,7 +224,7 @@ try:
     s = yrun([([], "A test pattern"), ([b"\r"], playing), ([1.0], None),
               ([b"\x1b[C"], lambda sc: at(sc) >= 6), ([1.5], None)])
     check("right goes five seconds on, and the picture goes on from there",
-          at(s[3]) >= 6 and at(s[4]) >= at(s[3]) and s[4].find("▀") is not None,
+          at(s[3]) >= 6 and at(s[4]) >= at(s[3]) and half(s[4]),
           (at(s[2]), at(s[3]), at(s[4])))
 
     # The picture setting starts at `follow` -- Control Panel > Pictures --
@@ -220,7 +235,7 @@ try:
               ([b"m"], "ascii"), ([1.0], None), ([b"m"], "mono"),
               ([b"m"], "pixels"), ([b"m"], "follow:")])
     check("m walks the picture list: half, ASCII, plain, pixels, and back",
-          any(c in s[4].text() for c in "#%@*") and s[4].find("▀") is None and
+          any(c in s[4].text() for c in "#%@*") and not half(s[4]) and
           "mono" in s[5].text() and "pixels" in s[6].text(), s[4])
 
     # A window that is not drawn takes no frames, and the picture must
@@ -397,7 +412,7 @@ try:
               ([], lambda sc: at(sc) >= 1)], cell=(8, 16),
              env={"HIBR_GFX": "kitty"})
     check("on a terminal that can place pixels the frame is a picture, not "
-          "cells", s[1].images and s[1].find("▀") is None, (s[1].images, s[1]))
+          "cells", s[1].images and not half(s[1]), (s[1].images, s[1]))
     check("and the player says which it is drawing", "pixels" in s[2].text(),
           s[2])
 
@@ -410,7 +425,7 @@ try:
               ([], lambda sc: at(sc) >= 1)], cell=(8, 16), caps=["kitty"])
     check("and the same where the terminal answers for itself rather than "
           "being told, which is the path a real session is on",
-          s[1].images and s[1].find("▀") is None, (s[1].images, s[1]))
+          s[1].images and not half(s[1]), (s[1].images, s[1]))
 
     # The same session on a terminal that says nothing about its cells: the
     # player wanted pixels, cannot have them, and until 0.99.161 drew blocks
@@ -418,7 +433,7 @@ try:
     # than the terminal not offering one (Gitea #199).
     s = yrun([([], "A test pattern"), ([b"\r"], playing)])
     check("where the terminal can place none, it says so beside the mode",
-          "no pixels here" in s[1].text() and s[1].find("▀") is not None, s[1])
+          "no pixels here" in s[1].text() and half(s[1]), s[1])
 
     # And the case that reads as the player ignoring the setting: a cell
     # size is known, so `dt_imgpix`'s own gate passes and the mode resolves
@@ -432,7 +447,7 @@ try:
              env={"DT_IMGMODE": "pixels"})
     check("and where pixels were resolved but the display declined, the bar "
           "says what was drawn rather than what was asked for",
-          "drawn as blocks" in s[1].text() and s[1].find("▀") is not None
+          "drawn as blocks" in s[1].text() and half(s[1])
           and not s[1].images, s[1])
 
     t.quit(b"q", 1.0)

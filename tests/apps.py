@@ -2862,14 +2862,14 @@ sc = run("bricks", BW)
 check("the wall is up and the ball waits on the bat",
       sc.find("space to serve") is not None and
       all("████" in sc.row(r) for r in range(5, 10)) and
-      sc.find("♥♥♥") is not None and sc.find("▀▀▀▀▀▀▀") == (20, 20), sc)
+      sc.find("♥♥♥") is not None and sc.find_from("▀▀▀▀▀▀▀", 2) == (20, 20), sc)
 
 sc = run("bricks", BW, feed=[b"\x1b[D"])
 check("the arrows move the bat, and the ball rides along",
-      sc.find("▀▀▀▀▀▀▀") == (20, 17) and sc.at(19, 20) == "●", sc)
+      sc.find_from("▀▀▀▀▀▀▀", 2) == (20, 17) and sc.at(19, 20) == "●", sc)
 
 sc = run("bricks", BW, feed=[press(10, 36)])
-check("a click puts the bat under it", sc.find("▀▀▀▀▀▀▀") == (20, 33), sc)
+check("a click puts the bat under it", sc.find_from("▀▀▀▀▀▀▀", 2) == (20, 33), sc)
 
 sc = run("bricks", BW, feed=[b" ", 2.0])
 check("served, the ball knocks a brick out and scores it",
@@ -5165,4 +5165,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(688)
+report(689)

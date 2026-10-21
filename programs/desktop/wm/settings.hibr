@@ -164,6 +164,13 @@ DT_CURSOR_BLINK="${DT_CURSOR_BLINK-0}"
 # costs one console darken call per window and nothing when off.
 DT_SHADOW="${DT_SHADOW-1}"
 
+# The shape every shadow is cast in (Gitea #340): `half`, half a row below
+# and one column right, drawn in half blocks -- as thick each way, since a
+# cell is about twice as tall as it is wide, and thinner -- or `cols`, a row
+# below and two columns right, as shadows were until 0.99.286. Half by
+# default; a glyph set without half blocks casts cols whatever this says.
+DT_SHADOWSHAPE="${DT_SHADOWSHAPE-half}"
+
 # The same, for an open menu -- a separate setting, since a menu is drawn
 # far more often than a window is moved, and someone who wants one without
 # the other should be able to say so.
@@ -362,7 +369,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_MOVEMODE DT_DRAWSKIP DT_TERMMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEWHERE DT_NOTECOUNT DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
-	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
+	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_SHADOWSHAPE DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
 	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_MENUMAX DT_NETKIND DT_NETBAR DT_BTKIND DT_BTBAR DT_MOD DT_SETVER)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.15",
+ "version": "3.16",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -926,6 +926,7 @@
   "%s or %s": "%s أو %s",
   "Show Contents": "إظهار المحتويات",
   "Menu Width": "عرض القائمة",
+  "Shadow Shape": "شكل الظل",
   "Drag Windows": "سحب النوافذ",
   "Cover Size": "حجم الغلاف",
   "Use Covers": "استخدام الأغلفة",

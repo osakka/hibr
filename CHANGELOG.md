@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.286
+
+**Half Block shadows** (Gitea #340): half a row below and one column right,
+in place of a row and two columns. A cell is about twice as tall as it is
+wide, so the shadow is as thick each way, and thinner.
+- **The shape:** a lower half block beside the box's top row, one column
+  down its side, and upper half blocks along the row under it.
+- **The setting:** Control Panel > Appearance > Shadow Shape, Half Block or
+  Two Columns. Half Block is the default and needs no migration, since no
+  saved file has the setting yet.
+- **Everywhere:** every shadow takes it, since all of them now go through
+  one helper, `dt_castshadow`: windows, menus, the bar's pop-ups, the menu
+  bar and the Control Strip.
+- **Nothing readable is lost:** a half block replaces its cell, so it is
+  drawn only on the wallpaper, its pattern included. Over a window or any
+  text the shadow dims whole cells, as before. Over a picture wallpaper the
+  other half stays the picture. The ASCII glyph set keeps Two Columns.
+- **The console:** `console darken -t|-b` darkens one half of each cell,
+  working out what each half shows: a plain cell's background, a half
+  block's own two colours, or the picture under the text.
+
 ## 0.99.285
 
 **The desktop's watchers are one program each** (Gitea #339). Sound,
