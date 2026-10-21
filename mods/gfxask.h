@@ -42,7 +42,11 @@
 #define GX_UNASKED 4
 #endif
 
-/* The two questions, kitty's first, as one string to write. */
+/* The questions, kitty's first and the device attributes last, as one
+   string to write. Between them is the kitty keyboard protocol's own query,
+   `CSI ? u`, answered `CSI ? flags u` by a terminal that speaks it (Gitea
+   #326): asked before the device attributes for the same reason kitty's
+   picture query is, so an answer to those with none before it is a no. */
 extern const char gx_ask[];
 
 /* An APC at the front of p: 0 when more bytes are needed, -1 when it is not
@@ -53,16 +57,19 @@ int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit);
 /* A control sequence with the private `?` prefix at the front of p -- a
    report, never a key: the same three answers as gx_apc, with *da 1 when it
    was the device attributes (final `c`) and *sixel 1 when 4 was among its
-   parameters. */
+   parameters, and *kbd 1 when it was the keyboard protocol's answer (final
+   `u`). */
 int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
-	      int *sixel);
+	      int *sixel, int *kbd);
 
 /* Ask the terminal on in/out, wait up to ms for its answers, and say what it
    draws: GX_KITTY, GX_SIXEL, GX_NONE, or GX_UNKNOWN when nothing answered.
    HIBR_GFX, when set, is the answer without asking, as it is for the
    console. Anything else read meanwhile -- a key pressed while it waited --
-   is appended to rest, for the caller to pass on. */
-int gx_probe(int in, int out, long ms, str *rest);
+   is appended to rest, for the caller to pass on. *kbd is 1 when the
+   terminal answered the keyboard protocol's query. HIBR_GFX skips the
+   asking, and with it the keyboard question, which then answers 0. */
+int gx_probe(int in, int out, long ms, str *rest, int *kbd);
 
 /* Milliseconds on a clock that only goes forward. */
 long gx_now(void);

@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 5u
+#define TM_API_VER 6u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -98,6 +98,10 @@ struct tm_api {
 	   session across an upgrade at all. 1 on success. */
 	int (*save)(int id, const char *path);
 	int (*load)(int id, const char *path);
+	/* Version 6. The kitty keyboard protocol's flags the program has
+	   asked for, 0 for none or no such id -- for a relay to put on each
+	   real terminal that speaks the protocol (Gitea #326). */
+	int (*kbd)(int id);
 };
 
 #endif

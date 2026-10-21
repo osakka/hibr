@@ -178,6 +178,8 @@ extern size_t cn_eaten;
 void cn_watchadd(int fd);
 void cn_watchdel(int fd);
 size_t cn_wlist(int **fds);
+void cn_gotkbd(void);
+extern int cn_kbdon;
 int cn_wmuted(int fd);
 int cn_colour(const char *t, unsigned *out);
 unsigned cn_attr(const char *t);

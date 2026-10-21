@@ -135,8 +135,10 @@ void hd_utf8(str *b, unsigned cp)
 
 /* Bring a client's own terminal to the mode state the session is actually
    in right now, transition by transition: the alternate screen, mouse
-   reporting and its encoding, bracketed paste, the cursor's shape, and the
-   window title the program set. Each is
+   reporting and its encoding, bracketed paste, the cursor's shape, the
+   window title the program set, and the kitty keyboard protocol's flags on
+   a terminal that speaks it -- set after the screen switch, since such a
+   terminal keeps one set of flags per screen (Gitea #326). Each is
    sent only the first time (cn->primed still 0) or on a genuine change,
    never every frame -- unlike the cell content below, still repainted in
    full every settled frame, this is cheap to get right from the start and
@@ -145,7 +147,7 @@ void hd_utf8(str *b, unsigned cp)
    instead, burning over whatever scrollback was there before it attached. */
 int hd_modes(int tid, struct hd_cli *cn, str *out)
 {
-	int alt = 0, bpaste = 0, cshape = 0, mmode, sgr = 0, clear;
+	int alt = 0, bpaste = 0, cshape = 0, mmode, sgr = 0, clear, kf;
 	str tt;
 
 	hd_tm->modes(tid, &alt, &bpaste, &cshape);
@@ -154,6 +156,14 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 
 	if (!cn->primed || alt != cn->alt)
 		s_cat(out, alt ? "\033[?1049h" : "\033[?1049l");
+	kf = cn->kbd ? hd_tm->kbd(tid) : 0;
+	if (cn->kbd && (!cn->primed || alt != cn->alt || kf != cn->kset)) {
+		s_cat(out, "\033[=");
+		s_num(out, kf);
+		s_cat(out, ";1u");
+		cn->kset = kf;
+		lg(HIBR_LDBG, "hold: keyboard flags %d put on a display", kf);
+	}
 	if (!cn->primed || mmode != cn->mmode) {
 		s_cat(out, "\033[?1003l\033[?1002l\033[?1000l\033[?1006l");
 		if (mmode == 1000)

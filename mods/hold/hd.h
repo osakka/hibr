@@ -63,7 +63,12 @@ enum {
 	   it joins (Gitea #258). A server that does not know the message
 	   ignores it, and a client that never sends it is GX_UNKNOWN, which
 	   is sent no pictures. */
-	HD_GFX = 'g'
+	HD_GFX = 'g',
+	/* From a client: its own terminal answered the kitty keyboard
+	   protocol's query, asked with the picture questions before it
+	   joined (Gitea #326). One int, 1. A server that does not know it
+	   ignores it, and a client that never sends it is sent no flags. */
+	HD_KBD = 'b'
 };
 
 /* How long an attaching client waits for its terminal to say what it
@@ -158,6 +163,10 @@ struct hd_cli {
 	   becomes unasked, 0 once it has (Gitea #279). */
 	int gfx;
 	long gfxwait;
+	/* Whether this client's terminal speaks the kitty keyboard protocol,
+	   and the flags last put on it, which hd_modes keeps in step with
+	   what the program asked for. */
+	int kbd, kset;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;

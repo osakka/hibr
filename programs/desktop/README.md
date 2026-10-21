@@ -60,7 +60,13 @@ closes, and holding alt while dragging anywhere in a window moves it
 focused one, `escape` or `F10` opens the menu bar, and Quit on its hibr
 menu ends the desktop and gives the terminal back -- it has no key of its
 own by default, so no stray keystroke ends everything. Each of these keys
-can be changed, or Quit given one, in Control Panel > Shortcuts.
+can be changed, or Quit given one, in Control Panel > Shortcuts. The alt
+in every one of the desktop's own is a single setting there, **Shortcut
+Key** -- Alt, Super or Alt, or Super -- stored as `mod-` in `DT_KEYS` and
+read in one place, `dt_keynorm`; a key you chose with a literal modifier
+keeps it. Super reaches the desktop only from a terminal that speaks the
+kitty keyboard protocol, which the console asks for and `hold` passes on
+to each display that answers.
 
 **Where a new window goes** is Control Panel > Windows > Placement.
 **smart**, the default, puts it in the first spot on the display that

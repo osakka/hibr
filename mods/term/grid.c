@@ -81,6 +81,7 @@ tm_t *tm_new(int rows, int cols)
 	s_init(&t->clip);
 	s_init(&t->out);
 	s_init(&t->nq);
+	s_init(&t->kst);
 	for (i = 0; i < (size_t)rows * cols; i++)
 		tm_blank(t, t->g + i);
 	tm_tabreset(t);
@@ -120,6 +121,7 @@ void tm_free(tm_t *t)
 	s_free(&t->clip);
 	s_free(&t->out);
 	s_free(&t->nq);
+	s_free(&t->kst);
 	for (k = 0; k < t->lkn; k++)
 		free(t->lk[k]);
 	free(t->lk);

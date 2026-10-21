@@ -56,6 +56,7 @@
 %s needs a username and a certificate -- set it up with nmcli
 %s of %s
 %s of %s rows
+%s or %s
 %s pixels, a cell is %s by %s
 %s rows
 %s selected
@@ -884,6 +885,7 @@ Shawwal
 Sheet
 Sheet needs the db module
 Shell
+Shortcut Key
 Shortcuts
 Shortcuts in Terminals
 Show

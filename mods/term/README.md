@@ -128,7 +128,13 @@ follows from it:
   in a window is still told what this emulator is (`CSI ?62;22c`), and a
   display inside a held session is told what the terminal it is really
   drawing on can do, which is the only honest answer to that question
-  (Gitea #216). DECRQSS
+  (Gitea #216). The **kitty keyboard protocol**'s query (`CSI ? u`) is
+  passed on the same way, and its push, pop and set (`CSI > u`, `CSI < u`,
+  `CSI = u`) are kept as a record of the flags the program asked for --
+  `kbd` in the interface, version 6, and in a save -- which `hold` puts on
+  each display whose terminal speaks the protocol (Gitea #326). Nothing
+  here turns a key into anything, so in a window of the desktop the query
+  is not answered and a program there reads keys as it always has. DECRQSS
   (`DCS $ q`) answers for the scroll region, cursor shape and pen; XTGETTCAP
   (`DCS + q`) says it has nothing, which is still an answer.
 - Parameters keep their `:` sub-parameters, so `38:2::r:g:b`, `4:3` (curly

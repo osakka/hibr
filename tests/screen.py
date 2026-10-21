@@ -317,7 +317,7 @@ def expect(pattern):
 # pass over what has not been read yet.
 QUERY = re.compile(rb"\x1b(?:\](?P<osc>[^\x07\x1b]*)(?:\x07|\x1b\\)"
                    rb"|_(?P<apc>[^\x1b]*)\x1b\\"
-                   rb"|(?P<da>\[c))")
+                   rb"|(?P<da>\[c)|(?P<kbd>\[\?u))")
 
 
 class Term:
@@ -426,7 +426,10 @@ class Term:
         (OSC 11 and OSC 4, in the `rgb:RRRR/GGGG/BBBB` form xterm replies
         with) and what it can draw with `caps` (the kitty graphics
         protocol's own `a=q`, answered `OK`, and primary device attributes,
-        whose parameters carry 4 for sixel).
+        whose parameters carry 4 for sixel). "kbd" among the caps answers
+        the kitty keyboard protocol's query, `CSI ? u`, with no flags set
+        (Gitea #326); every other Term answers it nothing, as a terminal
+        without the protocol does.
 
         A real terminal answers all of these; nothing in the model did, so
         a display could ask and never hear, which is indistinguishable
@@ -446,6 +449,10 @@ class Term:
                 if self.caps is not None and "kitty" in self.caps and \
                         "a=q" in m.group("apc").decode("latin1"):
                     os.write(self.fd, b"\x1b_Gi=4201;OK\x1b\\")
+                continue
+            if m.group("kbd") is not None:
+                if self.caps is not None and "kbd" in self.caps:
+                    os.write(self.fd, b"\x1b[?0u")
                 continue
             if m.group("da") is not None:
                 if self.caps is not None:

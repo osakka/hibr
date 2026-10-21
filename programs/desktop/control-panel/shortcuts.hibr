@@ -7,13 +7,57 @@
 # before taking a key another action has. Every key the desktop acts on is
 # here, the menu bar's, Copy's, Cut's and Paste's included.
 # A key two actions share, which only a settings file edited by hand can
-# arrange, is marked ⚠ on both.
+# arrange, is marked ⚠ on both. Above them all, Shortcut Key: which
+# modifiers the desktop's own chords use (DT_MOD, Gitea #326) -- Alt,
+# Super or Alt, or Super -- every row then showing what to press.
 
 strict
 
 
 app shortcuts "The Control Panel pane for every shortcut in one list" 1.0
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌘"
+
+# Shortcut Key's three choices, as the pane shows them and as DT_MOD
+# keeps them. Ctrl+Alt is not one: the desktop already has chords on
+# ctrl-alt, and those would land on the same keys as the mod ones.
+SC_MODLABELS=("Alt" "Super or Alt" "Super")
+SC_MODVALS=("alt" "super alt" "super")
+
+# What DT_MOD is called in the pane.
+fn shortcuts_modlabel() {
+	local i=0
+
+	while [ "$i" -lt "${#SC_MODVALS[@]}" ]; do
+		[ "${SC_MODVALS[$i]}" = "${DT_MOD:-alt}" ] && ret "${SC_MODLABELS[$i]}" && return 0
+		i=$((i + 1))
+	done
+	ret "Alt"
+}
+
+fn cp_set_dtmod(int? id = "", value = "") {
+	local i=0
+
+	while [ "$i" -lt "${#SC_MODLABELS[@]}" ]; do
+		[ "${SC_MODLABELS[$i]}" = "$value" ] && DT_MOD=${SC_MODVALS[$i]}
+		i=$((i + 1))
+	done
+	DT_MENUIN=
+	cp_save
+}
+
+fn shortcuts_do(int w, k, int dir) {
+	local v
+
+	[ "$k" = DT_MOD ] || return 0
+	v := shortcuts_modlabel
+	v := cp_next "$v" "$dir" "${SC_MODLABELS[@]}"
+	cp_set_dtmod "" "$v"
+}
+
+fn shortcuts_drop(int w, int r, int c, k) {
+	[ "$k" = DT_MOD ] || return 0
+	dt_droplist "$w" "$r" "$c" cp_set_dtmod "${SC_MODLABELS[@]}"
+}
 
 # One row for an action: its label, marked if its key is shared.
 fn shortcuts_row(int w, int n, what) {
@@ -24,12 +68,16 @@ fn shortcuts_row(int w, int n, what) {
 	CP[$w][$n]["kind"]=key
 	CP[$w][$n]["text"]=$l
 	CP[$w][$n]["val"] := dt_keyof "$what"
+	CP[$w][$n]["val"] := dt_keyshow "${CP[$w][$n]["val"]}"
 	CP[$w][$n]["key"]=$what
 }
 
 fn shortcuts_rows(int w) {
 	local n=0 a names nl
 
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shortcut Key"
+	CP[$w][$n]["val"] := shortcuts_modlabel
+	CP[$w][$n]["key"]=DT_MOD; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Desktop"; n=$((n + 1))
 	for a in "${DT_KEYORDER[@]}"; do
 		shortcuts_row "$w" "$n" "$a"

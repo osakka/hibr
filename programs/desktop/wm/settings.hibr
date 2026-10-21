@@ -15,27 +15,34 @@ strict
 # everything. Each is set only if a session has not set it first, like
 # every other default here.
 declare -gA DT_KEYS
+# Which modifiers `mod` in a shortcut means (Gitea #326): `alt`, `super
+# alt` -- either one -- or `super`. The desktop's own chords are written
+# with it, so one choice in Control Panel > Shortcuts moves all of them,
+# and nothing has to know which terminal a key came from: a display whose
+# terminal can send super gets super, and every display still has alt.
+# dt_keynorm is the one place it is read.
+DT_MOD="${DT_MOD-alt}"
 [ -n "${DT_KEYS["menu"]+x}" ] || DT_KEYS["menu"]="f10"
 [ -n "${DT_KEYS["menu2"]+x}" ] || DT_KEYS["menu2"]="escape"
-[ -n "${DT_KEYS["copy"]+x}" ] || DT_KEYS["copy"]="alt-c"
-[ -n "${DT_KEYS["cut"]+x}" ] || DT_KEYS["cut"]="alt-x"
-[ -n "${DT_KEYS["paste"]+x}" ] || DT_KEYS["paste"]="alt-v"
+[ -n "${DT_KEYS["copy"]+x}" ] || DT_KEYS["copy"]="mod-c"
+[ -n "${DT_KEYS["cut"]+x}" ] || DT_KEYS["cut"]="mod-x"
+[ -n "${DT_KEYS["paste"]+x}" ] || DT_KEYS["paste"]="mod-v"
 [ -n "${DT_KEYS["selectall"]+x}" ] || DT_KEYS["selectall"]="ctrl-a"
 [ -n "${DT_KEYS["scrollup"]+x}" ] || DT_KEYS["scrollup"]="shift-pageup"
 [ -n "${DT_KEYS["scrolldown"]+x}" ] || DT_KEYS["scrolldown"]="shift-pagedown"
-[ -n "${DT_KEYS["snapleft"]+x}" ] || DT_KEYS["snapleft"]="alt-left"
-[ -n "${DT_KEYS["snapright"]+x}" ] || DT_KEYS["snapright"]="alt-right"
+[ -n "${DT_KEYS["snapleft"]+x}" ] || DT_KEYS["snapleft"]="mod-left"
+[ -n "${DT_KEYS["snapright"]+x}" ] || DT_KEYS["snapright"]="mod-right"
 [ -n "${DT_KEYS["snaptop"]+x}" ] || DT_KEYS["snaptop"]="ctrl-alt-up"
 [ -n "${DT_KEYS["snapbottom"]+x}" ] || DT_KEYS["snapbottom"]="ctrl-alt-down"
 # Zoom and Minimise on the vertical arrows since 0.99.265, the owner's
 # choice; Snap Top and Bottom moved to ctrl-alt, a settings file still
 # holding their old keys moved with them (DT_SETVER 12).
-[ -n "${DT_KEYS["zoom"]+x}" ] || DT_KEYS["zoom"]="alt-up"
-[ -n "${DT_KEYS["hide"]+x}" ] || DT_KEYS["hide"]="alt-down"
+[ -n "${DT_KEYS["zoom"]+x}" ] || DT_KEYS["zoom"]="mod-up"
+[ -n "${DT_KEYS["hide"]+x}" ] || DT_KEYS["hide"]="mod-down"
 [ -n "${DT_KEYS["snapcenter"]+x}" ] || DT_KEYS["snapcenter"]=
-[ -n "${DT_KEYS["ws1"]+x}" ] || DT_KEYS["ws1"]="alt-1"
-[ -n "${DT_KEYS["ws2"]+x}" ] || DT_KEYS["ws2"]="alt-2"
-[ -n "${DT_KEYS["ws3"]+x}" ] || DT_KEYS["ws3"]="alt-3"
+[ -n "${DT_KEYS["ws1"]+x}" ] || DT_KEYS["ws1"]="mod-1"
+[ -n "${DT_KEYS["ws2"]+x}" ] || DT_KEYS["ws2"]="mod-2"
+[ -n "${DT_KEYS["ws3"]+x}" ] || DT_KEYS["ws3"]="mod-3"
 for dt_k in 4 5 6 7 8 9; do
 	[ -n "${DT_KEYS["ws$dt_k"]+x}" ] || DT_KEYS["ws$dt_k"]=
 done
@@ -43,12 +50,12 @@ done
 [ -n "${DT_KEYS["wsprev"]+x}" ] || DT_KEYS["wsprev"]="ctrl-alt-left"
 [ -n "${DT_KEYS["tile"]+x}" ] || DT_KEYS["tile"]=
 [ -n "${DT_KEYS["tilemain"]+x}" ] || DT_KEYS["tilemain"]=
-[ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="alt-w"
-[ -n "${DT_KEYS["quitapp"]+x}" ] || DT_KEYS["quitapp"]="alt-q"
+[ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="mod-w"
+[ -n "${DT_KEYS["quitapp"]+x}" ] || DT_KEYS["quitapp"]="mod-q"
 [ -n "${DT_KEYS["detach"]+x}" ] || DT_KEYS["detach"]="ctrl-\\"
 [ -n "${DT_KEYS["quit"]+x}" ] || DT_KEYS["quit"]=
-[ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="alt-tab"
-[ -n "${DT_KEYS["strip"]+x}" ] || DT_KEYS["strip"]="alt-s"
+[ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="mod-tab"
+[ -n "${DT_KEYS["strip"]+x}" ] || DT_KEYS["strip"]="mod-s"
 [ -n "${DT_KEYS["shot"]+x}" ] || DT_KEYS["shot"]="ctrl-alt-g"
 # Draw the whole screen again. The desktop's own context menu has had
 # `Refresh Desktop` since it existed, and `View > Refresh` with it -- but
@@ -60,14 +67,14 @@ done
 # menu's own name rather than a second one for the same act.
 [ -n "${DT_KEYS["refresh"]+x}" ] || DT_KEYS["refresh"]="ctrl-alt-r"
 [ -n "${DT_KEYS["lock"]+x}" ] || DT_KEYS["lock"]="ctrl-alt-l"
-[ -n "${DT_KEYS["undo"]+x}" ] || DT_KEYS["undo"]="alt-z"
+[ -n "${DT_KEYS["undo"]+x}" ] || DT_KEYS["undo"]="mod-z"
 [ -n "${DT_KEYS["save"]+x}" ] || DT_KEYS["save"]="ctrl-s"
-[ -n "${DT_KEYS["redo"]+x}" ] || DT_KEYS["redo"]="alt-y"
+[ -n "${DT_KEYS["redo"]+x}" ] || DT_KEYS["redo"]="mod-y"
 # The sound (Gitea #306): the + and - keys themselves, = being + unshifted,
 # and 0 for nothing. A keyboard's own volume keys never reach a terminal.
-[ -n "${DT_KEYS["volup"]+x}" ] || DT_KEYS["volup"]="alt-="
-[ -n "${DT_KEYS["voldown"]+x}" ] || DT_KEYS["voldown"]="alt--"
-[ -n "${DT_KEYS["mute"]+x}" ] || DT_KEYS["mute"]="alt-0"
+[ -n "${DT_KEYS["volup"]+x}" ] || DT_KEYS["volup"]="mod-="
+[ -n "${DT_KEYS["voldown"]+x}" ] || DT_KEYS["voldown"]="mod--"
+[ -n "${DT_KEYS["mute"]+x}" ] || DT_KEYS["mute"]="mod-0"
 
 # The defaults above, kept, so dt_load can put one back.
 declare -gA DT_KEYDEF
@@ -349,7 +356,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_FRAME DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_TERMMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEWHERE DT_NOTECOUNT DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
-	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_NETKIND DT_NETBAR DT_BTKIND DT_BTBAR DT_SETVER)
+	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_NETKIND DT_NETBAR DT_BTKIND DT_BTBAR DT_MOD DT_SETVER)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -479,11 +486,31 @@ dt_load() {
 			[ "${DT_KEYS["snapbottom"]}" = alt-down ] &&
 				DT_KEYS["snapbottom"]="ctrl-alt-down"
 		fi
+		# 0.99.272 writes the desktop's alt chords with `mod`, which
+		# Shortcut Key decides (Gitea #326). A key still on its old
+		# alt default moves to the mod one; a key somebody chose stays
+		# exactly as they chose it.
+		if [ "${DT_SETVER:-0}" -lt 13 ]; then
+			dt_keymodmove
+		fi
 	fi
-	DT_SETVER=12
+	DT_SETVER=13
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"
+	return 0
+}
+
+# A shortcut still on the alt default it had before 0.99.272 moves to the
+# mod default that replaced it.
+dt_keymodmove() {
+	local k d
+
+	for k in "${!DT_KEYDEF[@]}"; do
+		d=${DT_KEYDEF["$k"]}
+		case $d in mod-*) ;; *) continue ;; esac
+		[ "${DT_KEYS["$k"]-}" = "alt-${d#mod-}" ] && DT_KEYS["$k"]=$d
+	done
 	return 0
 }
 

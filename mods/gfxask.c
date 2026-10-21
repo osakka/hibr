@@ -10,7 +10,7 @@
 
 /* gfxask -- what a terminal says it draws. See gfxask.h. */
 
-const char gx_ask[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\\033[c";
+const char gx_ask[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\\033[?u\033[c";
 
 /* An APC at the front of p, and whether it is kitty's own `OK`. */
 int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit)
@@ -37,15 +37,17 @@ int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit)
 }
 
 /* A private report at the front of p, and whether it is the device
-   attributes, and whether those say sixel. */
+   attributes, and whether those say sixel, or the keyboard protocol's own
+   answer. */
 int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
-	      int *sixel)
+	      int *sixel, int *kbd)
 {
 	size_t i;
 	int six = 0, v = -1;
 
 	*da = 0;
 	*sixel = 0;
+	*kbd = 0;
 	for (i = 3; i < n; i++) {
 		if (p[i] >= '0' && p[i] <= '9') {
 			v = (v < 0 ? 0 : v * 10) + (p[i] - '0');
@@ -70,6 +72,8 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
 		*da = 1;
 		*sixel = six || v == 4;
 	}
+	if (p[i] == 'u')
+		*kbd = 1;
 	return 2;
 }
 
@@ -86,16 +90,17 @@ long gx_now(void)
    whatever was not an answer. The wait is against a deadline rather than a
    count of reads: every read here can be interrupted, and restarting the
    wait per signal would make the bound meaningless. */
-int gx_probe(int in, int out, long ms, str *rest)
+int gx_probe(int in, int out, long ms, str *rest, int *kbd)
 {
 	const char *f = getenv("HIBR_GFX");
 	str b;
 	size_t i, used, off = 0;
 	long end, left;
-	int kit = 0, da = 0, six = 0, k, s, d, r;
+	int kit = 0, da = 0, six = 0, k, s, d, r, kb;
 	ssize_t w;
 	struct pollfd q;
 
+	*kbd = 0;
 	if (f && *f) {
 		if (!strcmp(f, "kitty"))
 			return GX_KITTY;
@@ -143,11 +148,14 @@ int gx_probe(int in, int out, long ms, str *rest)
 				if (r == 2 && k)
 					kit = 1;
 			} else if (b.p[off + 1] == '[' && b.p[off + 2] == '?') {
-				r = gx_report(b.p + off, b.n - off, 64, &used, &d, &s);
+				r = gx_report(b.p + off, b.n - off, 64, &used, &d, &s,
+					      &kb);
 				if (r == 2 && d) {
 					da = 1;
 					six = s;
 				}
+				if (r == 2 && kb)
+					*kbd = 1;
 			}
 			if (r == 0)
 				break;

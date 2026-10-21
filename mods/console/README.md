@@ -16,7 +16,7 @@ system monitor, and anything else full-screen. Building it once is the point.
 | `image.c` | pictures as regions of the grid the console owns -- placed, kept, dropped when their cells are drawn through, and for the kitty protocol deleted from the terminal when they are (ADR 0037) |
 | `term.c` | taking and giving back the terminal, and the signals that guarantee it |
 | `grid.c` | the front and back buffers, placement, and the diffing flush |
-| `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste; the wait, with the descriptors it watches and the guard that stops waking for a watched pipe nobody reads (Gitea #323) |
+| `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste, the kitty keyboard protocol's `CSI u` named as the old form of each key with `super-` in front (Gitea #326); the wait, with the descriptors it watches and the guard that stops waking for a watched pipe nobody reads (Gitea #323) |
 | `console.c` | panes, colour parsing, and the `console` builtin |
 | `shot.c` | `console shot`: the front grid written out as ANSI, HTML or plain text |
 

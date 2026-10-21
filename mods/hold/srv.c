@@ -858,6 +858,11 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					cn->imgen = 0;
 					hd_poke(m);
 				}
+			} else if (t == HD_KBD && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+
+				if (cn)
+					cn->kbd = 1;
 			} else if (t == HD_DETACH) {
 				hd_cdrop(&cls, fd);
 			}

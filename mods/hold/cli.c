@@ -24,6 +24,7 @@ volatile sig_atomic_t hd_winch;
 static const char hd_reset[] = "\033[?1049l\033[?25h\033[0m\033[?1000l"
 			       "\033[?1002l\033[?1003l\033[?1006l\033[?2004l"
 			       "\033[?1l\033>";
+static const char hd_kbdoff[] = "\033[=0;1u";
 
 void hd_onwinch(int n)
 {
@@ -81,7 +82,7 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	struct sigaction a, oa;
 	struct pollfd q[2];
 	const char *why = "detached";
-	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0, gx;
+	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0, gx, kbd = 0;
 	ssize_t k;
 	char *p;
 	str rb, in, pay, early;
@@ -121,7 +122,7 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	cfmakeraw(&raw);
 	tcsetattr(0, TCSANOW, &raw);
 	s_init(&early);
-	gx = gx_probe(0, 1, HD_GFXMS, &early);
+	gx = gx_probe(0, 1, HD_GFXMS, &early, &kbd);
 	tcsetattr(0, TCSANOW, &sv);
 	lg(HIBR_LDBG, "hold attach: this terminal draws %s", gx_name(gx));
 	hd_size(sz);
@@ -143,6 +144,11 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	   union and nudge the program: by then it knows what this display
 	   can be sent. */
 	hd_send(s, HD_GFX, (const char *)&gx, sizeof gx);
+	if (kbd) {
+		int one = 1;
+
+		hd_send(s, HD_KBD, (const char *)&one, sizeof one);
+	}
 	hd_sizepx(px);
 	hd_send(s, HD_SIZE, (const char *)px, 4 * sizeof(int));
 	if (early.n)
@@ -221,7 +227,14 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	close(s);
 	sigaction(SIGWINCH, &oa, 0);
 	if (!lost) {
+		/* The keyboard flags the session put on this terminal, taken
+		   off on both screens, since such a terminal keeps a set for
+		   each (Gitea #326). */
+		if (kbd)
+			hd_wall(1, hd_kbdoff, sizeof hd_kbdoff - 1);
 		hd_wall(1, hd_reset, sizeof hd_reset - 1);
+		if (kbd)
+			hd_wall(1, hd_kbdoff, sizeof hd_kbdoff - 1);
 		tcsetattr(0, TCSADRAIN, &sv);
 		if (ended)
 			fprintf(stderr, "[%s ended, status %d]\n", name, st);

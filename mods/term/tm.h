@@ -67,6 +67,10 @@ struct tm_img {
    as an empty area (Gitea #292). 64 MB is a full 3840x2160 screen sent raw,
    about 33 MB of base64, with room; the bound is still there so a program
    cannot make the emulator hold without limit. */
+#ifndef TM_KSTK
+#define TM_KSTK 32
+#endif
+
 #ifndef TM_IMGMAX
 #define TM_IMGMAX (64u << 20)
 #endif
@@ -131,6 +135,11 @@ struct tm_t {
 	   one thing that distinguishes `hold`, which drains every frame,
 	   from a window of the desktop, which never does. */
 	int relayed;
+	/* The kitty keyboard protocol's flags the program has asked for, and
+	   the stack its pushes saved, one byte an entry (Gitea #326). Kept
+	   whether or not anybody relays them; answered only for a relay. */
+	int kbd;
+	str kst;
 	int nobg;
 	int nofg;
 	unsigned rgbfg, rgbbg;

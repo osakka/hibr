@@ -1999,6 +1999,24 @@ went in the shell.
   the descriptor, so the next such mistake costs a log line rather than a
   core -- but a guard bounds the cost and does not fix the loop. A new wait
   loop runs the tickers.
+- **A new key encoding is decoded by rebuilding the old one, never by a
+  second table of names** (Gitea #326, 0.99.273). The kitty keyboard
+  protocol sends `CSI code ; mods u` for escape, alt and ctrl chords once a
+  program pushes its disambiguate flag, and every binding, every app's
+  `_key` and every program in a terminal window knows those keys only by
+  the names the old bytes gave them. `cn_csiu` rebuilds the bytes a legacy
+  terminal would have sent -- an ESC in front for alt, a control byte for
+  ctrl, the shifted character for shift -- and hands them to `cn_dec`, so a
+  name cannot drift; only `super-`, which has no legacy form, is added in
+  front. Two things in it are traps waiting: the modifier field carries
+  **caps lock (64) and num lock (128)**, which must be masked or nothing
+  matches the day caps lock is on; and a shifted punctuation key arrives as
+  its *unshifted* code (the shifted one needs flag 4, which Blit does not
+  offer), so `cn_ushift` guesses a US layout and says so. And the shortcut
+  side has one rule: **`mod` is expanded in `dt_keynorm` only**, which
+  every comparison already went through -- `dt_keyis`, `dt_keyassigned`
+  (the terminal's Desktop Shortcuts Win), `dt_keyowner`, `dt_appkeyed`.
+  Two expanders would be the one-rule-in-two-places trap again.
 - **A drain reads with a bound, because a program on the other end of a
   pipe may print half a line and stop** (0.99.272). The Bluetooth watcher
   ran an interactive `bluetoothctl`, which reprints its prompt after every

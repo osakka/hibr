@@ -111,7 +111,8 @@ and close it. A few keys are worth learning early:
 | | |
 |---|---|
 | **alt-tab** | the next window |
-| **alt-left**, **alt-right**, **alt-up**, **alt-down** | snap the window to that half of the screen |
+| **alt-left**, **alt-right** | snap the window to that half of the screen |
+| **alt-up**, **alt-down** | zoom the window, minimise it |
 | **alt-1**, **alt-2**, **alt-3** | change workspace -- the three numbers in the bar |
 | **alt-w** | close the window |
 | **alt-c**, **alt-x**, **alt-v** | copy, cut and paste, between any two windows |
@@ -119,7 +120,13 @@ and close it. A few keys are worth learning early:
 
 Every one of them can be changed in Control Panel > Shortcuts, and a
 terminal window passes ctrl keys through to its program, so ctrl-c still
-interrupts what is running in it. Everything an app can do is also in
+interrupts what is running in it. The alt in all of them is one setting,
+**Shortcut Key** at the top of that pane: Alt, Super or Alt, or Super. On
+Super or Alt, super-w closes a window as well as alt-w does, on a terminal
+that can send super; a terminal that cannot still has alt. Only a terminal
+that speaks the kitty keyboard protocol can send super at all -- kitty,
+foot, WezTerm, Ghostty, Blit -- and the operating system may keep the key
+for itself before any terminal sees it. Everything an app can do is also in
 its menus, which follow the window that has focus: File, Edit, the app's
 own, and Window.
 

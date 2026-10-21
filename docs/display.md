@@ -163,7 +163,15 @@ ctrl-a … ctrl-z  ctrl-space
 ```
 
 Modifiers prefix the name in a fixed order — `ctrl-`, then `alt-`, then
-`shift-` — so `ctrl-right`, `shift-down`, `ctrl-alt-f5`. A printable character
+`shift-` — so `ctrl-right`, `shift-down`, `ctrl-alt-f5`. `super-` goes in
+front of all of them, `super-c` or `super-ctrl-up`: only a terminal that
+speaks the kitty keyboard protocol can send it. The console asks
+(`CSI ? u`) when it opens, and a terminal that answers is asked to tell
+chords apart (`CSI > 1 u`) and given its own flags back at `console
+close`. Every key such a terminal sends is named exactly as the old form
+of the same key would be, so a program reading names sees no difference
+but `super-`; caps lock and num lock never change a name, and a key's
+release is not reported. A printable character
 comes back as itself, including multi-byte ones: `é` is one key, and the
 space bar is `" "`, not `space`.
 
@@ -178,7 +186,8 @@ A lone escape is reported as `escape`, but only after 50 ms with nothing
 following it — otherwise there would be no way to tell it from the start of an
 arrow key. Over a link slow enough to split a sequence across that gap, an
 arrow key can arrive as `escape` and then its letters; this is the same trade
-every terminal program makes.
+every terminal program makes. A terminal that speaks the keyboard protocol
+sends escape as a sequence of its own, and that one is reported at once.
 
 `console key 1000` waits up to a second and gives nothing back if the second
 passes. `console key` with no argument waits forever. Either way a terminal

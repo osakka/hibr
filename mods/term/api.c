@@ -231,12 +231,20 @@ int tm_api_load(int id, const char *path)
 	return t ? tm_loadfile(t, path) : 0;
 }
 
+/* The keyboard protocol flags the program asked for. */
+int tm_api_kbd(int id)
+{
+	tm_t *t = tm_find(id);
+
+	return t ? t->kbd : 0;
+}
+
 static const tm_api term_api = {
 	tm_api_new, tm_api_free, tm_api_resize, tm_api_rows, tm_api_cols,
 	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor, tm_api_modes,
 	tm_api_clip, tm_api_pass, tm_api_title, tm_api_linkat, tm_api_linkuri,
 	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image,
-	tm_api_save, tm_api_load
+	tm_api_save, tm_api_load, tm_api_kbd
 };
 
 const tm_api *tm_apiget(void)

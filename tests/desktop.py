@@ -60,6 +60,35 @@ ONE = 'dt_new "Hello" 8 30 6 10'
 # default silently did nothing whenever one had focus (0.99.90).
 sc, _ = run(ONE, [b"\x1bw"])
 check("alt-w closes the focused window", sc.find("Hello") is None, sc)
+# Shortcut Key (Gitea #326): the desktop's own chords are written with
+# `mod`, and DT_MOD says which modifiers that is. Super arrives only as the
+# kitty keyboard protocol's CSI u, which the console decodes whatever the
+# terminal said it speaks -- so a check can send it on any pty.
+SUPERW = b"\x1b[119;9u"
+sc, _ = run(ONE, [SUPERW])
+check("with Shortcut Key on Alt, super-w closes nothing", sc.find("Hello"), sc)
+sc, _ = run(ONE, [SUPERW], pre='DT_MOD="super alt"')
+check("on Super or Alt, super-w closes the focused window",
+      sc.find("Hello") is None, sc)
+sc, _ = run(ONE, [b"\x1bw"], pre='DT_MOD="super alt"')
+check("and alt-w still does", sc.find("Hello") is None, sc)
+sc, _ = run(ONE, [b"\x1bw"], pre='DT_MOD="super"')
+check("on Super alone, alt-w is no longer the desktop's",
+      sc.find("Hello") is not None, sc)
+# A settings file from 0.99.271 holds the old alt defaults as literal keys:
+# one still on its old default moves to mod, one chosen by hand stays.
+OLDMOD = tempfile.mkdtemp(prefix="hibr-oldmod-")
+os.makedirs(os.path.join(OLDMOD, "hibr"))
+open(os.path.join(OLDMOD, "hibr", "desktop.hibr"), "w").write(
+    'DT_SETVER=12\nDT_MOD=super\nDT_KEYS["close"]=alt-w\n'
+    'DT_KEYS["hide"]=alt-m\n')
+sc, _ = run(ONE, [SUPERW], env={"XDG_CONFIG_HOME": OLDMOD})
+check("a saved Close Window still on its old alt-w moves to mod-w",
+      sc.find("Hello") is None, sc)
+sc, _ = run(ONE, [b"\x1bm"], env={"XDG_CONFIG_HOME": OLDMOD})
+check("and a key chosen by hand, alt-m for Minimise, stays alt-m",
+      sc.g[6][10] == "·" and sc.g[10][20] == "·", sc)
+shutil.rmtree(OLDMOD, True)
 
 # alt-q is Quit Application: every window of the focused app, not only the one
 # in front, which is what Quit means where one app may have several. Each goes
@@ -3329,7 +3358,8 @@ check("and the next desktop starts with it", sc.find("construction") is not None
 shutil.rmtree(CONF, True)
 
 # ORDER.index("shortcuts") downs on the picker reaches Shortcuts; entering it
-# lands on its first row that is not a heading, Menu Bar. The rows follow
+# lands on its first row that is not a heading, Shortcut Key, and one down
+# from there, past the Desktop heading, is Menu Bar. The rows follow
 # DT_KEYORDER, read from wm/keys.hibr rather than counted here.
 KEYORDER = re.search(r"DT_KEYORDER=\(([^)]*)\)",
                      open(tree("programs/desktop/wm/keys.hibr")).read()
@@ -3337,7 +3367,7 @@ KEYORDER = re.search(r"DT_KEYORDER=\(([^)]*)\)",
 NKEYS = len(KEYORDER)
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
 sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
-              feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * KEYORDER.index("close")
+              feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (KEYORDER.index("close") + 1)
               + [b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
@@ -3356,12 +3386,12 @@ shutil.rmtree(CONF2, True)
 CALCSRC = '. %s/calc.hibr' % tree("programs/desktop/apps/Accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
 sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
-            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * NKEYS,
+            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1),
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a registered app is listed with no shortcut by default",
       sc.find("Calculator") is not None, sc)
 sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
-            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * NKEYS + [b"\r", b"g"],
+            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1) + [b"\r", b"g"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a shortcut can be assigned to any app, not only the two defaults",
       sc.find("Calculator") is not None and
@@ -6141,4 +6171,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(676)
+report(682)

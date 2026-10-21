@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.273
+
+**Shortcut Key: the desktop's own shortcuts on Alt, Super or Alt, or
+Super** (Gitea #326). Every shortcut the desktop used to put on alt (copy,
+cut, paste, close, the workspaces, snapping, cycling, the volume) is
+stored once as `mod-…`. One row at the top of Control Panel > Shortcuts
+says what that means. On Super or Alt, super-c copies as well as alt-c
+does, on a terminal that can send super, and alt still works on one that
+cannot. Nothing has to know which terminal a key came from, so a desktop
+attached from two machines works on each. Super also stands in for alt
+inside the ctrl-alt shortcuts. Ctrl+Alt is not offered as a choice: the
+desktop already has shortcuts there, and they would land on the same keys.
+Each row shows what to press ("super-c or alt-c"), and so does every menu.
+A saved shortcut still on its old alt default moves to mod once; one you
+chose by hand stays exactly as it is.
+
+**Super reaches the desktop through the kitty keyboard protocol.** A
+terminal sends nothing at all for super in the old encoding.
+- **The console** asks the protocol's question when it opens. A terminal
+  that answers is asked to tell chords apart and given its own flags back
+  at close. Every key such a terminal sends is named as before, with
+  `super-` in front where super was held. Caps lock and num lock never
+  change a name, a release is not reported, and escape arrives at once,
+  without the 50 ms wait for an alt chord.
+- **hold** passes the question to each display's terminal. A display whose
+  terminal answers when it joins is given the flags the program asked for;
+  one that does not answer is given none, and its keys come in the old
+  form, which the console still reads.
+- **Blit** has implemented its side as 0.1.585 (blit #116). Super pressed
+  on its own, to open the hibr menu, needs key releases and is a later
+  step.
+
 ## 0.99.272
 
 **A desktop with Bluetooth no longer freezes a few seconds after it starts.**

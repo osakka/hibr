@@ -198,6 +198,7 @@ fn dt_row(tick, int dim, lb, k, ...rest) {
 fn dt_rowaccel(text) {
 	local m n
 
+	text := dt_keyshow "$text" short
 	m=${MB_CUR:-$((MB_N - 1))}
 	n=$((${MB[$m]["n"]} - 1))
 	[ "$n" -ge 0 ] || return 0

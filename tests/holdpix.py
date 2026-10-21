@@ -772,5 +772,53 @@ t2.quit(None, 0.5)
 t1.quit(None, 0.5)
 kill(nm)
 
+# The kitty keyboard protocol through hold (Gitea #326). A held program's
+# console asks the question, which the emulator passes on to the client's
+# terminal; it pushes the disambiguate flag; hold puts that flag on each
+# client whose own terminal answered the question when it attached, and on
+# no other; a super chord typed at such a client reaches the program by
+# name; and a client leaving takes the flags off its terminal again.
+def kbdrun(caps):
+    nm = name()
+    open(LOG, "w").close()
+    p = os.path.join(D, "kbd%s.hibr" % nm)
+    open(p, "w").write(
+        load("console") + "console open\nconsole flush\n"
+        + "i=0\nwhile [ $i -lt %d ]; do\n" % (40 * SLOW)
+        + "  k := console key 250\n"
+        + '  [ -n "$k" ] && { echo "key $k" >> ' + LOG + "; break; }\n"
+        + "  i=$((i + 1))\ndone\nconsole close\n")
+    outer = os.path.join(D, "k%s.hibr" % nm)
+    open(outer, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n'
+                           % (nm, p) + "sleep 0.6\nhold attach %s\n" % nm)
+    t = Term(outer, rows=24, cols=60, settle=1.0, env={"TMPDIR": D},
+             caps=caps)
+    for _ in range(int(24 * SLOW)):
+        t.collect(0.25)
+        if b"\x1b[=1;1u" in t.raw:
+            break
+    t.collect(0.5)
+    os.write(t.fd, b"\x1b[99;9u")
+    for _ in range(int(16 * SLOW)):
+        t.collect(0.25)
+        if "key " in open(LOG).read():
+            break
+    t.collect(1.0)
+    t.quit(None, 0.5)
+    kill(nm)
+    return t.raw, open(LOG).read()
+
+
+raw, log = kbdrun(["kbd", "sixel"])
+check("a client whose terminal speaks the keyboard protocol is given the "
+      "flags the held program asked for", b"\x1b[=1;1u" in raw, raw[-300:])
+check("and a super chord typed there reaches the program by name",
+      "key super-c" in log, log)
+check("and leaving takes the flags off that terminal",
+      raw.count(b"\x1b[=0;1u") >= 2, raw[-200:])
+raw, log = kbdrun(["sixel"])
+check("a client whose terminal does not speak it is given no flags at all",
+      b"\x1b[=" not in raw and b"\x1b[>1u" not in raw, raw[-300:])
+
 shutil.rmtree(D, True)
-report(35)
+report(39)

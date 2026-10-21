@@ -584,6 +584,8 @@ void tm_reset(tm_t *t, int hard)
 		return;
 	t->lnm = t->focus = 0;
 	t->mmode = t->msgr = t->bpaste = 0;
+	t->kbd = 0;
+	t->kst.n = 0;
 	tm_setsync(t, 0);
 	tm_tabreset(t);
 	tm_altswap(t, 0);
@@ -838,6 +840,55 @@ void tm_csiq(tm_t *t, int f, const char *in)
 	}
 }
 
+/* The kitty keyboard protocol, final `u` behind any of its four prefixes:
+   `?` asks for the flags, `>` pushes new ones, `<` pops, `=` sets them
+   (Gitea #326). The flags are only a record here -- this emulator turns no
+   key into anything -- kept for whoever relays the screen onto a real
+   terminal, which puts the same flags on it. So the question is the real
+   terminal's to answer and is passed on, as the device attributes are; in
+   a window of the desktop it is not answered at all, and a program there
+   goes on reading keys the way it always has. The stack is bounded the
+   way kitty's is, dropping its oldest entry. */
+void tm_kbdcsi(tm_t *t, int pfx)
+{
+	long a = tm_par(t, 0, 0), n;
+
+	switch (pfx) {
+	case '?':
+		if (t->relayed)
+			tm_pass(t, "\033[?u", 4);
+		break;
+	case '>':
+		if (t->kst.n >= TM_KSTK) {
+			memmove(t->kst.p, t->kst.p + 1, t->kst.n - 1);
+			t->kst.n--;
+		}
+		s_ch(&t->kst, (char)t->kbd);
+		t->kbd = (int)(a & 31);
+		break;
+	case '<':
+		for (n = a > 0 ? a : 1; n > 0; n--) {
+			if (!t->kst.n) {
+				t->kbd = 0;
+				break;
+			}
+			t->kbd = (unsigned char)t->kst.p[--t->kst.n];
+		}
+		break;
+	case '=':
+		n = tm_par(t, 1, 1);
+		if (n == 1)
+			t->kbd = (int)(a & 31);
+		else if (n == 2)
+			t->kbd |= (int)(a & 31);
+		else if (n == 3)
+			t->kbd &= ~(int)(a & 31);
+		break;
+	}
+	lg(HIBR_LDBG, "terminal %d: keyboard CSI %cu, flags now %d", t->id, pfx,
+	   t->kbd);
+}
+
 /* One complete CSI sequence with the '>' prefix: the secondary device
    attributes and the version are answered; the keyboard and modifier
    settings, which this terminal does not have, are consumed -- and never
@@ -860,6 +911,10 @@ void tm_csi(tm_t *t, int f)
 	long a = tm_par(t, 0, 1), b = tm_par(t, 1, 1);
 	int n, i;
 
+	if (t->pfx && f == 'u' && !*in) {
+		tm_kbdcsi(t, t->pfx);
+		return;
+	}
 	if (t->pfx == '?') {
 		tm_csiq(t, f, in);
 		return;

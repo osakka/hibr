@@ -20,11 +20,11 @@ if len(sys.argv) > 1:
 MOD = tree("build/mods/console.so")
 
 
-def run(script, feed=(), after=None, wait=2.5, rows=24, cols=80):
+def run(script, feed=(), after=None, wait=2.5, rows=24, cols=80, caps=None):
     """Run a script under a pty, optionally feeding keys, and return its output."""
     path = "/tmp/hibr-console-%d.hibr" % os.getpid()
     open(path, "w").write("mod load %s\n%s" % (MOD, script))
-    t = Term(path, rows=rows, cols=cols, settle=0.4)
+    t = Term(path, rows=rows, cols=cols, settle=0.4, caps=caps)
     t.keys(feed, settle=0.12, collect=0)
     if after:
         after(t)
@@ -279,6 +279,47 @@ m = re.search(rb"W n=(\d+) w=\[([^]]*)\] f=(\d+)", o)
 check("a busy pipe that is read is never muted",
       m and m.group(2) == m.group(3) and int(m.group(1)) > 20, m and m.groups() or o[-300:])
 
+# The kitty keyboard protocol (Gitea #326). A terminal that answers its
+# query is asked to tell chords apart (flag 1), once, and given its old
+# flags back at close; one that does not answer is never sent the push.
+# Every key such a terminal sends is named exactly as the bytes a terminal
+# without the protocol would have sent are, and super -- which only this
+# protocol can carry -- goes in front: super-c, super on an arrow, and caps
+# lock never changing a name. A release and a lone modifier report nothing.
+KEYS = [b"\x1b[99;9u", b"\x1b[99;5u", b"\x1b[99;69u", b"\x1b[27u",
+        b"\x1b[99;3u", b"\x1b[97;4u", b"\x1b[1;9A", b"\x1b[99;9:3u",
+        b"\x1b[57441;9u", b"\x1b[9;2u", b"\x1b[13;3u", b"x"]
+KSCRIPT = ('console open\nconsole flush\no=\nfor i in 1 2 3 4 5 6 7 8 9 10; do '
+           'k := console key 3000; o+="[$k]"; done\nconsole close\necho "K $o"\n')
+def keyrun(caps):
+    o, _ = run(KSCRIPT, after=lambda t: [(t.collect(0.4), os.write(t.fd, k),
+                                          t.collect(0.08)) for k in KEYS],
+               wait=3.0, caps=caps)
+    m = re.search(rb"K (\S*)", o)
+    return o, (m.group(1).decode() if m else "")
+o, keys = keyrun(["kbd"])
+check("kitty keyboard keys are named as before, super in front, caps lock "
+      "and releases and a lone modifier left out",
+      keys == "[super-c][ctrl-c][ctrl-c][escape][alt-c][alt-A][super-up]"
+              "[shift-tab][alt-enter][x]", keys)
+check("a terminal that answers the keyboard query is asked to tell chords "
+      "apart, once, and given its flags back at close",
+      o.count(b"\x1b[>1u") == 1 and o.count(b"\x1b[<u") == 1
+      and o.index(b"\x1b[>1u") < o.index(b"\x1b[<u"), o[-200:])
+o, keys = keyrun([])
+check("one that does not answer is never sent the push, and still reads "
+      "such keys if they come", b"\x1b[>1u" not in o and b"\x1b[<u" not in o
+      and keys.startswith("[super-c][ctrl-c]"), (keys, o[-120:]))
+# An escape in the protocol's own form is an escape at once: the 50 ms the
+# decoder waits to tell a lone ESC from an alt chord is for the old form.
+o, _ = run('console open\nconsole flush\na=${EPOCHREALTIME/./}\n'
+           'k := console key 3000\nb=${EPOCHREALTIME/./}\nconsole close\n'
+           'echo "E [$k] $(( (b - a) / 1000 ))"\n',
+           after=lambda t: (t.collect(0.4), os.write(t.fd, b"\x1b[27u")), wait=2.0)
+m = re.search(rb"E \[(\S*)\] (\d+)", o)
+check("an escape sent as CSI 27 u is an escape without the alt wait",
+      m and m.group(1) == b"escape", m and m.groups())
+
 o, st = run('console open\nconsole flush\nconsole key 5000\n',
             after=lambda t: t.signal(signal.SIGINT), wait=1.5)
 check("an interrupt still leaves the alternate screen", b"\x1b[?1049l" in o)
@@ -412,4 +453,4 @@ sc = top('console put -p bar 0 0 BARBARBAR!\nconsole pane top bar off\n'
 check("and `pane top name off` gives its cells back",
       sc.row(0).startswith("xxxxxxxxxxxx"), sc.row(0))
 
-report(len(WANT) + len(MWANT) + 62)
+report(len(WANT) + len(MWANT) + 66)

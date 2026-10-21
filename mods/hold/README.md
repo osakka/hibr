@@ -169,6 +169,14 @@ console asks (kitty's `a=q` and the device attributes, from
 deadline, and sends the answer as `HD_GFX`. Asking on the client rather
 than reading the replies out of what each client types keeps a parser out
 of the relay, and means the answer is in hand before anything is drawn.
+The same probe asks the kitty keyboard protocol's own question, and a
+client whose terminal answers sends `HD_KBD` (Gitea #326): hold then puts
+the flags the program asked for on that terminal, as `CSI = flags ; 1 u`
+after the screen switch in each client's mode replay -- such a terminal
+keeps a set of flags per screen -- and the client sets them to none on
+both screens as it leaves. A client whose terminal did not answer is sent
+no flags, and its keys arrive in the old form, which the console still
+reads.
 The picture loop sends a kitty transmission only to a client that said
 kitty and a sixel only to one that said sixel; a client that never said --
 one older than this -- is sent none. `hold gfx` reports what each said,

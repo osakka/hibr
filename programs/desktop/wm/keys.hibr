@@ -96,14 +96,58 @@ DT_KEYNAME["lock"]="Lock Screen"
 # shortcut regardless of which encoding a real keypress happened to take
 # -- a user typing what looks like the natural chord should not have to
 # know or care which one their own terminal uses.
+#
+# It is also the one place `mod` is read (Gitea #326): a key carrying any
+# modifier Shortcut Key names (DT_MOD -- alt, super, or either) has that
+# modifier written as mod, so a shortcut stored as mod-c matches alt-c or
+# super-c as the setting says, and one stored with a literal modifier still
+# matches itself. Super is looked for before alt, so super-alt-c is
+# mod-alt-c under either-one; every caller compares two results of this, so
+# the order only has to be the same each time.
 fn dt_keynorm(k) {
-	local base=$k mods= out=
+	local base=$k mods= out= c=0 a=0 s=0 u=0 m=0
 
 	case $k in *-*) base=${k##*-}; mods=${k%-"$base"} ;; esac
-	case $mods in *ctrl*) out="${out}ctrl-" ;; esac
-	case $mods in *alt*) out="${out}alt-" ;; esac
-	case $mods in *shift*) out="${out}shift-" ;; esac
+	case $mods in *ctrl*) c=1 ;; esac
+	case $mods in *alt*) a=1 ;; esac
+	case $mods in *shift*) s=1 ;; esac
+	case $mods in *super*) u=1 ;; esac
+	case $mods in *mod*) m=1 ;; esac
+	if [ "$m" = 0 ]; then
+		case " $DT_MOD " in *" super "*) [ "$u" = 1 ] && u=0 m=1 ;; esac
+	fi
+	if [ "$m" = 0 ]; then
+		case " $DT_MOD " in *" alt "*) [ "$a" = 1 ] && a=0 m=1 ;; esac
+	fi
+	[ "$c" = 1 ] && out="${out}ctrl-"
+	[ "$a" = 1 ] && out="${out}alt-"
+	[ "$s" = 1 ] && out="${out}shift-"
+	[ "$u" = 1 ] && out="${out}super-"
+	[ "$m" = 1 ] && out="${out}mod-"
 	ret "$out$base"
+}
+
+# A shortcut as a person presses it: mod written out as what Shortcut Key
+# names, "super-c or alt-c" for either-one -- or, short, the first of them
+# alone, which is what a menu has room for. Anything else is shown as it is.
+fn dt_keyshow(k, short = "") {
+	local first= rest= su=0 al=0
+
+	case $k in *mod-*) ;; *) ret "$k"; return 0 ;; esac
+	case " $DT_MOD " in *" super "*) su=1 ;; esac
+	case " $DT_MOD " in *" alt "*) al=1 ;; esac
+	if [ "$su" = 1 ]; then
+		first=${k/mod-/super-}
+		[ "$al" = 1 ] && rest=${k/mod-/alt-}
+	else
+		first=${k/mod-/alt-}
+	fi
+	if [ -n "$short" ] || [ -z "$rest" ]; then
+		ret "$first"
+	else
+		DT_T := dt_tr "%s or %s" "$first" "$rest"
+		ret "$DT_T"
+	fi
 }
 
 # Whether a key is one of the desktop's own shortcuts -- an action's, or an
@@ -118,7 +162,7 @@ fn dt_keyassigned(key) {
 	local knorm an v
 
 	case $key in
-	ctrl-* | alt-* | shift-f[0-9]* | f[0-9]*) ;;
+	ctrl-* | alt-* | super-* | mod-* | shift-f[0-9]* | f[0-9]*) ;;
 	*) return 1 ;;
 	esac
 	if [ "$DT_TERMCTRL" = 1 ]; then
@@ -203,6 +247,7 @@ fn dt_keyof(what) {
 # it. An empty one is saved as empty, not left out, so a shortcut that ships
 # with a default stays cleared across a restart.
 fn dt_keyset(what, key) {
+	[ -n "$key" ] && key := dt_keynorm "$key"
 	case $what in
 	app:*) DT_APPKEY["${what#app:}"]=$key ;;
 	*) DT_KEYS["$what"]=$key ;;

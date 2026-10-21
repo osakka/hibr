@@ -697,6 +697,15 @@ check("the tiled main pane's share is clickable too, in its own units",
 # transient "Press a key…"/"X is now Y" notes, which by the time the
 # screen is captured may already have been overwritten by whatever the
 # trailing "qy" went on to do.
+# Shortcut Key, the pane's first row (Gitea #326): the desktop's own chords
+# are stored as mod-..., and every row shows what to press for the choice
+# made -- one step along from Alt is Super or Alt.
+sc = cprun(reach("shortcuts", "Shortcut Key") + [b"\x1b[C"])
+check("Shortcut Key is the Shortcuts pane's first row, and stepping it "
+      "chooses Super or Alt", "Super or Alt" in brow(sc, "Shortcut Key"), sc)
+check("and every desktop shortcut then shows both keys to press",
+      "super-c or alt-c" in brow(sc, "Copy"), sc)
+
 KB_CP = reach("shortcuts", "Control Panel")
 sc = cprun(KB_CP + [b"\r", b"z"])
 check("activating an app's Shortcuts row starts capture, and the very next "
@@ -789,7 +798,7 @@ out = subprocess.run(
 shutil.rmtree(SAVED, True)
 check("a saved shortcut on an arrow or enter goes back to its default, and "
       "one for an action that no longer exists is dropped",
-      out == "f10 alt-w [] []", out)
+      out == "f10 mod-w [] []", out)
 
 # A key another action holds is asked about, and yes moves it: a key never
 # has two owners. Detach's ctrl-\\ is the one taken here, not Quit's q,
@@ -1360,17 +1369,17 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "12 1 1 1 alt-w alt-tab []", out)
+      out == "13 1 1 1 mod-w mod-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "12 0 1 1 alt-w alt-tab []", out)
+      out == "13 0 1 1 mod-w mod-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("12 1 0 0 "), out)
+      out.startswith("13 1 0 0 "), out)
 
 
 # 0.99.80 holds an output-driven frame 70 ms from the last rather than 33
@@ -1434,21 +1443,21 @@ OLDWS = ('DT_SETVER=2\nDT_KEYS["snapleft"]=alt-left\nDT_KEYS["snapright"]=alt-ri
 # is why this reads as "unchanged" now.
 out = loadkeys(OLDWS)
 check("a file from before 0.99.26 goes through both swaps and ends where it was",
-      out == "alt-left ctrl-alt-left alt-right ctrl-alt-right", out)
+      out == "mod-left ctrl-alt-left mod-right ctrl-alt-right", out)
 out = loadkeys(OLDWS + 'DT_KEYS["wsprev"]=f7\n')
 check("a workspace key someone chose stays, and Snap still lands on alt",
-      out == "alt-left f7 alt-right ctrl-alt-right", out)
+      out == "mod-left f7 mod-right ctrl-alt-right", out)
 out = loadkeys('DT_SETVER=3\nDT_KEYS["snapleft"]=alt-left\nDT_KEYS["wsprev"]=ctrl-alt-left\n')
 check("a file written between the two is already where 9 wants it",
-      out == "alt-left ctrl-alt-left alt-right ctrl-alt-right", out)
+      out == "mod-left ctrl-alt-left mod-right ctrl-alt-right", out)
 NEWWS = ('DT_SETVER=8\nDT_KEYS["snapleft"]=ctrl-alt-left\nDT_KEYS["snapright"]=ctrl-alt-right\n'
          'DT_KEYS["wsprev"]=alt-left\nDT_KEYS["wsnext"]=alt-right\nDT_KEYS["close"]=ctrl-w\n')
 out = loadkeys(NEWWS)
 check("a file holding 0.99.89's own defaults moves to alt and ctrl-alt",
-      out == "alt-left ctrl-alt-left alt-right ctrl-alt-right", out)
+      out == "mod-left ctrl-alt-left mod-right ctrl-alt-right", out)
 out = loadkeys(NEWWS + 'DT_KEYS["close"]=ctrl-q\n')
 check("and a close key someone chose is not moved to alt-w",
-      loadclose(NEWWS) == "alt-w" and loadclose(NEWWS + 'DT_KEYS["close"]=ctrl-q\n')
+      loadclose(NEWWS) == "mod-w" and loadclose(NEWWS + 'DT_KEYS["close"]=ctrl-q\n')
       == "ctrl-q", loadclose(NEWWS + 'DT_KEYS["close"]=ctrl-q\n'))
 
 # Colour schemes are JSON files, read from the person's own folders first
@@ -1603,9 +1612,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 12", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 13", out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 12", out)
+check("and a file written since is read as it is", out == "[meadow] paper 13", out)
 
 
 # 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
@@ -1626,9 +1635,9 @@ def loadtube(conf):
 
 out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
 check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow 12", out)
+      out == "follow 13", out)
 out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii 12", out)
+check("and one it was given of its own is kept", out == "ascii 13", out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -5052,4 +5061,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(671)
+report(673)

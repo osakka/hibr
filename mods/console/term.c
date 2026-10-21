@@ -162,6 +162,29 @@ void cn_gotcap(int kind, int yes)
 	   cn_gfxname(kind));
 }
 
+/* The kitty keyboard protocol's disambiguate flag, pushed once the terminal
+   has answered its query, and the pop that undoes it (Gitea #326). Flag 1
+   alone: every key that types text still arrives as text, and what changes
+   is that escape, alt and ctrl chords arrive as `CSI ... u` -- which is the
+   only way a terminal can say super at all. Pushed at most once a display,
+   since the question is asked again on every resize. */
+static const char cn_kbdpush[] = "\033[>1u";
+static const char cn_kbdpop[] = "\033[<u";
+int cn_kbdon;
+
+/* The terminal answered the keyboard protocol's query: push the
+   disambiguate flag, once, and only from the process that holds the
+   screen. */
+void cn_gotkbd(void)
+{
+	if (cn_kbdon || !cn_on || cn_fd < 0 || getpid() != cn_pid)
+		return;
+	cn_wr(cn_fd, cn_kbdpush, sizeof cn_kbdpush - 1);
+	cn_kbdon = 1;
+	lg(HIBR_LDBG, "console: the terminal speaks the kitty keyboard "
+		      "protocol; asked it to tell chords apart");
+}
+
 /* Ask again when the terminal may not be the one that was asked: a resize
    is also how a session reattached from somewhere else arrives, and the
    first ask of all reaches nobody when a held program opens its display
@@ -333,6 +356,9 @@ void cn_onfatal(int n)
 {
 	if (cn_on && cn_fd >= 0 && getpid() == cn_pid) {
 		tcsetattr(cn_fd, TCSANOW, &cn_sv);
+		if (cn_kbdon)
+			cn_wr(cn_fd, cn_kbdpop, sizeof cn_kbdpop - 1);
+		cn_kbdon = 0;
 		cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 		cn_on = 0;
 	}
@@ -765,6 +791,7 @@ void cn_close(sh *s)
 		lg(HIBR_LDBG, "screen forgotten in a forked child, left to its owner");
 		if (cn_own)
 			close(cn_fd);
+		cn_kbdon = 0;
 		cn_own = 0;
 		cn_fd = -1;
 		cn_on = 0;
@@ -780,6 +807,9 @@ void cn_close(sh *s)
 		s_free(&o);
 	}
 	cn_wr(cn_fd, cn_moff, sizeof cn_moff - 1);
+	if (cn_kbdon)
+		cn_wr(cn_fd, cn_kbdpop, sizeof cn_kbdpop - 1);
+	cn_kbdon = 0;
 	cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 	tcsetattr(cn_fd, TCSADRAIN, &cn_sv);
 	cn_unhook();

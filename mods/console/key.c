@@ -308,11 +308,16 @@ int cn_rdfill(void)
 	return -1;
 }
 
-/* Name the modifier bits xterm packs into a CSI parameter. */
+/* Name the modifier bits xterm packs into a CSI parameter: shift 1, alt 2,
+   ctrl 4, and super 8, which only the kitty keyboard protocol ever sends
+   (Gitea #326). Hyper, meta, caps lock and num lock (16 to 128) are left
+   out, so a key reads the same with caps lock on as off. */
 void cn_mods(str *o, int m)
 {
 	int b = m > 0 ? m - 1 : 0;
 
+	if (b & 8)
+		s_cat(o, "super-");
 	if (b & 4)
 		s_cat(o, "ctrl-");
 	if (b & 2)
@@ -637,18 +642,127 @@ static int cn_apc(const char *p, size_t n, size_t *used)
    either capability query can give (Gitea #216). */
 static int cn_report(const char *p, size_t n, size_t *used)
 {
-	int da, sixel, r = gx_report(p, n, CN_OSCMAX, used, &da, &sixel);
+	int da, sixel, kbd, r = gx_report(p, n, CN_OSCMAX, used, &da, &sixel,
+					   &kbd);
 
 	if (r == 2 && da)
 		cn_gotcap(CN_GFX_SIXEL, sixel);
+	if (r == 2 && kbd)
+		cn_gotkbd();
 	return r;
+}
+
+int cn_dec(const char *p, size_t n, str *o, size_t *used, int last);
+
+/* A code point as UTF-8 into e, which has room for four bytes; how many. */
+size_t cn_u8put(char *e, unsigned c)
+{
+	if (c < 0x80) {
+		e[0] = (char)c;
+		return 1;
+	}
+	if (c < 0x800) {
+		e[0] = (char)(0xC0 | (c >> 6));
+		e[1] = (char)(0x80 | (c & 0x3F));
+		return 2;
+	}
+	if (c < 0x10000) {
+		e[0] = (char)(0xE0 | (c >> 12));
+		e[1] = (char)(0x80 | ((c >> 6) & 0x3F));
+		e[2] = (char)(0x80 | (c & 0x3F));
+		return 3;
+	}
+	e[0] = (char)(0xF0 | (c >> 18));
+	e[1] = (char)(0x80 | ((c >> 12) & 0x3F));
+	e[2] = (char)(0x80 | ((c >> 6) & 0x3F));
+	e[3] = (char)(0x80 | (c & 0x3F));
+	return 4;
+}
+
+/* What a US keyboard types with shift held: the kitty keyboard protocol
+   reports the unshifted key and the shift beside it, and the shifted
+   character only with a flag (4) not every terminal has -- so for
+   punctuation this is a guess at the layout, and says so. */
+unsigned cn_ushift(unsigned c)
+{
+	static const char from[] = "`1234567890-=[]\\;',./";
+	static const char to[] = "~!@#$%^&*()_+{}|:\"<>?";
+	const char *f;
+
+	if (c >= 'a' && c <= 'z')
+		return c - 32;
+	if (c < 128 && c && (f = strchr(from, (int)c)))
+		return (unsigned char)to[f - from];
+	return c;
+}
+
+/* A key in the kitty keyboard protocol's own form, `CSI code ; mods u`,
+   named exactly as the bytes a terminal without the protocol would have
+   sent for it are named -- so a binding, an app's key handler and a program
+   in a terminal window see what they saw before (Gitea #326). The legacy
+   bytes are rebuilt and decoded by cn_dec: escape, alt as an ESC in front,
+   ctrl folded into a control byte, shift into the character. What has no
+   legacy form is put in front: `super-`. A code past the Unicode
+   private-use start is a key with no character -- a lone modifier, a
+   media key -- and is taken with nothing to report. */
+int cn_csiu(unsigned code, int m, str *o)
+{
+	int b = m > 0 ? (m - 1) & 15 : 0;
+	char e[8];
+	size_t n = 0, used = 0;
+	unsigned c = code;
+
+	if ((code >= 57344 && code <= 63743) || code > 0x10FFFF) {
+		lg(HIBR_LDBG, "console: key %u has no name here, dropped", code);
+		return 2;
+	}
+	if (b & 8)
+		s_cat(o, "super-");
+	switch (code) {
+	case 9:
+		s_cat(o, b & 2 ? "alt-" : "");
+		s_cat(o, b & 1 ? "shift-tab" : "tab");
+		return 1;
+	case 13:
+	case 27:
+	case 127:
+	case 8:
+		s_cat(o, b & 2 ? "alt-" : "");
+		s_cat(o, code == 13 ? "enter" : code == 27 ? "escape" :
+			 "backspace");
+		return 1;
+	}
+	if (b & 1)
+		c = cn_ushift(c);
+	if (b & 4) {
+		if ((c >= '@' && c <= '_') || (c >= 'a' && c <= 'z'))
+			c &= 0x1f;
+		else if (c == ' ' || c == '2')
+			c = 0;
+		else if (c == '?' || c == '8')
+			c = 127;
+		else if (c >= '3' && c <= '7')
+			c = c - '3' + 27;
+		else if (c == '/')
+			c = 31;
+		else
+			s_cat(o, "ctrl-");
+	}
+	if (b & 2)
+		e[n++] = 27;
+	n += cn_u8put(e + n, c);
+	if (cn_dec(e, n, o, &used, 1) != 1) {
+		lg(HIBR_LDBG, "console: key %u could not be named", code);
+		return 2;
+	}
+	return 1;
 }
 
 /* Turn the front of the buffer into one key name; 0 means need more bytes. */
 int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 {
 	unsigned cp;
-	int l, np = 0, par[4], i;
+	int l, np = 0, par[4], i, sub = 0, ev = 0;
 	const char *nm;
 
 	if (!n)
@@ -692,7 +806,9 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 			i++;
 		while (i < (int)n) {
 			if (p[i] >= '0' && p[i] <= '9') {
-				if (np < 4)
+				if (sub && np == 1)
+					ev = ev * 10 + (p[i] - '0');
+				else if (!sub && np < 4)
 					par[np] = par[np] * 10 + (p[i] - '0');
 				i++;
 				continue;
@@ -700,6 +816,12 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 			if (p[i] == ';') {
 				if (++np > 3)
 					np = 3;
+				sub = 0;
+				i++;
+				continue;
+			}
+			if (p[i] == ':') {
+				sub = 1;
 				i++;
 				continue;
 			}
@@ -708,6 +830,16 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		if (i >= (int)n)
 			return 0;
 		np++;
+		/* A key's release, which only a terminal asked for event
+		   types sends (kitty flag 2), is nothing to report. */
+		if (ev == 3) {
+			*used = (size_t)i + 1;
+			return 2;
+		}
+		if (p[1] == '[' && p[i] == 'u') {
+			*used = (size_t)i + 1;
+			return cn_csiu((unsigned)par[0], np > 1 ? par[1] : 0, o);
+		}
 		if (p[i] == '~') {
 			nm = cn_tilde(par[0]);
 			if (!nm)
