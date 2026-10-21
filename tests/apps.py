@@ -49,7 +49,7 @@ def appdir(a):
 
 
 def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
-        env=None, until=None, tries=40, ready=None, rows=None):
+        env=None, until=None, tries=40, ready=None, rows=None, cell=(0, 0)):
     """Open one app in a window at a known place and drive it.
 
     `also` adds further windows after it, as (title, geometry, app) triples,
@@ -97,7 +97,7 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
         % (load(*mods), WM, src, pre, app.title(), win, app,
            more + ("dt_raise 1\n" if also else "")))
     t = Term(p, env=dict({"DT_TICK": "60"}, **(env or {})), settle=0.6,
-             rows=rows or sx.ROWS)
+             rows=rows or sx.ROWS, cellw=cell[0], cellh=cell[1])
     # The desktop says when its frame is drawn, but a terminal window's
     # program starts on its own time: a key sent the moment the window is
     # up can reach a shell that has not yet set its trap. Give it the time
@@ -4076,6 +4076,44 @@ check("a verb opens its own app with the bundle's path",
 sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 0.5], pre=BPRE, end=None)
 check("with nothing registered for its extension it is a plain folder",
       sc.find("inside.txt") is not None and sc.find("┤ Bundle App ├") is None, sc)
+# Covers (Gitea #336): in the icon view, where the terminal draws pixels, a
+# bundle shows its .cover.png or cover.png and a plain folder its .cover.png
+# only -- a stray cover.png is not taken for one -- and anything else, a
+# cover that does not decode among them, keeps its glyph.
+def tinypng(path, rgb):
+    import struct, zlib
+    raw = b"".join(b"\x00" + bytes(rgb) * 8 for _ in range(8))
+    def chunk(t, d):
+        return (struct.pack(">I", len(d)) + t + d +
+                struct.pack(">I", zlib.crc32(t + d) & 0xffffffff))
+    open(path, "wb").write(b"\x89PNG\r\n\x1a\n" +
+                           chunk(b"IHDR", struct.pack(">IIBBBBB", 8, 8, 8, 2, 0, 0, 0)) +
+                           chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+CVD = tempfile.mkdtemp(prefix="hibr-covers-")
+for d in ("Aa.game", "Bb", "Cc", "Dd.game", "Ee"):
+    os.makedirs(os.path.join(CVD, d))
+tinypng(os.path.join(CVD, "Aa.game", "cover.png"), (200, 40, 40))
+tinypng(os.path.join(CVD, "Bb", ".cover.png"), (40, 200, 40))
+tinypng(os.path.join(CVD, "Ee", "cover.png"), (40, 40, 200))
+open(os.path.join(CVD, "Dd.game", "cover.png"), "w").write("not a picture\n")
+CPRE = "FB_DIR=%s\nFB_DEFAULTVIEW=icons\n%s%s" % (CVD, BAPP, BREG)
+PIX = dict(cell=(8, 16), env={"HIBR_GFX": "kitty"})
+sc = run("files", "20 70 2 2", [0.5], pre=CPRE, end=None, **PIX)
+pl = [a for a in sc.apc if "a=T" in a]
+check("in icons, a bundle's cover and a folder's .cover.png are drawn as pictures",
+      len(pl) == 2, (len(pl), sc))
+check("the rest keep their glyphs, and tiles grow to fit the pictures",
+      sc.find("Cc") is not None and sc.find("Cc")[0] == 9 and
+      sc.find("Ee") is not None, sc)
+sc = run("files", "20 70 2 2", [0.5], pre=CPRE + "FB_COVER=small\n", end=None, **PIX)
+check("Cover Size small keeps the 3-row tile, the picture in the glyph's place",
+      len([a for a in sc.apc if "a=T" in a]) == 2 and
+      sc.find("Cc") is not None and sc.find("Cc")[0] == 5, sc)
+sc = run("files", "20 70 2 2", [0.5], pre=CPRE, end=None)
+check("on a terminal that draws no pixels, folders keep their glyphs",
+      not [a for a in sc.apc if "a=T" in a] and sc.find("Cc") is not None and
+      sc.find("Cc")[0] == 5, sc)
+shutil.rmtree(CVD, True)
 # Control Panel > File Types asks about a kind of folder as a folder: asked
 # as a file, x.game found the editor, which takes any file, and never the
 # app that claims the folder -- .boxer read "hvi" on the owner's desktop.
@@ -5123,4 +5161,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(682)
+report(687)

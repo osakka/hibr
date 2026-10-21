@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.281
+
+**A folder can show its own picture in Files** (Gitea #336). In the icon
+view, on a terminal that draws pixels, a bundle shows its `.cover.png`, or
+failing that its `cover.png`, as its icon. An ordinary folder shows its
+`.cover.png` only, so a stray `cover.png` is not taken for a cover. Boxer's
+games already carry one, so Files is now a shelf of them. A listing with
+any cover has tiles 7 rows high, the picture 5 rows by 10 columns in its own
+shape, or keeps the 3-row tile with the picture in the glyph's place:
+Control Panel > Files > **Cover Size**, Large (the default) or Small.
+Folders are checked once per listing, one file test each, and only in the
+icon view. A folder without a cover, a picture that does not decode, and a
+terminal without pixels keep the glyph. Files 1.6, Files pane 1.2.
+
 ## 0.99.280
 
 **Windows move and resize by their outline** (the owner: "moving windows is

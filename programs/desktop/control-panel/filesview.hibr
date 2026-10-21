@@ -1,7 +1,8 @@
 #!/usr/bin/env hibr
 #
 # filesview -- the Control Panel pane for Files: the view a folder opens in
-# until it is given one of its own, and forgetting every folder's; whether
+# until it is given one of its own, and forgetting every folder's; how big
+# a folder's own cover is in the icon view; whether
 # its right-click menu offers Open With and Open Terminal Here, and what
 # shell the second starts. Named
 # filesview, not files, because the app already owns the files_ prefix.
@@ -9,13 +10,15 @@
 strict
 
 
-app filesview "The Control Panel pane for Files" 1.1
+app filesview "The Control Panel pane for Files" 1.2
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
 fn cp_set_termhere(int? id = "", value = "") { DT_TERMHERE=$value; cp_save; }
+fn cp_set_cover(int? id = "", value = "") { FB_COVER=$value; cp_save; }
 
 FV_SHELLS=(shell hibr bash zsh sh)
+FV_COVERS=(large small)
 
 fn filesview_rows(int w) {
 	local n=0
@@ -23,6 +26,11 @@ fn filesview_rows(int w) {
 	[ "${#FILES_VIEWS[@]}" -gt 0 ] || { cp_absent "$w" Files; ret 1; }
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Default View"
 	CP[$w][$n]["val"]="${FB_DEFAULTVIEW:-list}"; CP[$w][$n]["key"]=fileview
+	n=$((n + 1))
+	# How big a folder's own picture is in the icon view (#336): large
+	# tiles of 7 rows, or the glyph's own place in the 3-row tile.
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cover Size"
+	CP[$w][$n]["val"]="${FB_COVER:-large}"; CP[$w][$n]["key"]=cover
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Reset All Views"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=resetviews
@@ -51,6 +59,8 @@ fn filesview_do(int w, k, int dir) {
 	DT_FBOPENWITH | DT_FBTERMHERE) cp_toggle "$k" ;;
 	termhere) v := cp_next "$DT_TERMHERE" "$dir" "${FV_SHELLS[@]}"
 		DT_TERMHERE=$v ;;
+	cover) v := cp_next "${FB_COVER:-large}" "$dir" "${FV_COVERS[@]}"
+		FB_COVER=$v ;;
 	esac
 	cp_save
 }
@@ -58,6 +68,7 @@ fn filesview_do(int w, k, int dir) {
 fn filesview_drop(int w, int r, int c, k) {
 	case $k in
 	fileview) dt_droplist "$w" "$r" "$c" cp_set_fileview "${FILES_VIEWS[@]}" ;;
+	cover) dt_droplist "$w" "$r" "$c" cp_set_cover "${FV_COVERS[@]}" ;;
 	termhere) dt_droplist "$w" "$r" "$c" cp_set_termhere "${FV_SHELLS[@]}" ;;
 	esac
 }

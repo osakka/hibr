@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 1.5
+app files "A file browser" 1.6
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -55,6 +55,14 @@ DT_FBTERMHERE="${DT_FBTERMHERE-1}"
 command -v dt_keep > /dev/null && dt_keep DT_FBOPENWITH DT_FBTERMHERE
 FILES_VIEWS=(list details icons)
 FILES_TILE=12
+# A folder that holds its own picture shows it as its icon (Gitea #336), in
+# the icon view and where the terminal draws pixels: a bundle its
+# .cover.png or cover.png, a plain folder its .cover.png only, so a stray
+# cover.png is not taken for one. Large tiles are 7 rows, the picture in 5
+# by 10 of them; small ones keep the 3-row tile and put it in the glyph's
+# place. Control Panel > Files > Cover Size.
+FB_COVER="${FB_COVER-large}"
+command -v dt_keep > /dev/null && dt_keep FB_COVER
 FB_PATHS=()
 
 # What a directory never shown before opens as -- the Files pane's own
@@ -143,6 +151,8 @@ fn fb_scan(int id) {
 		n=$((n + 1))
 	done
 	FB[$id]["n"]=$n
+	# A new listing looks for covers afresh (#336).
+	FB[$id]["cgen"]=$((${FB[$id]["cgen"]:-0} + 1))
 	FB[$id]["top"]=0
 	FB[$id]["sel"]=0
 	FB[$id]["last"]=-1
@@ -977,14 +987,99 @@ fn fb_detrow(int id, int i, nm, int nw, int cs, int ct, int cp) {
 }
 
 # A grid of tiles: a picture, and the name under it.
-fn fb_drawicons(int id, int h, int w) {
-	local i n top sel per rows r c x y g nm tw=$FILES_TILE
+# Which picture a folder keeps for itself, if any: its own .cover.png, or a
+# bundle's cover.png as well. Only a file test each, and only ever asked of
+# the icon view's folders.
+fn fb_coverfile(int id, int i) {
+	local k=${FL[$id][$i]["kind"]} p
 
+	case $k in dir | bundle) ;; *) return 1 ;; esac
+	[[ ${FB[$id]["dir"]} == dav://* ]] && return 1
+	p="${FB[$id]["dir"]%/}/${FL[$id][$i]["name"]}"
+	[ -f "$p/.cover.png" ] && { ret "$p/.cover.png"; return 0; }
+	[ "$k" = bundle ] && [ -f "$p/cover.png" ] && { ret "$p/cover.png"; return 0; }
+	return 1
+}
+
+# Whether any folder in this listing has a cover, which is what makes its
+# tiles large: worked out once a listing, a file test a folder.
+fn fb_hascovers(int id) {
+	local g=${FB[$id]["cgen"]:-0} i=0 n=${FB[$id]["n"]:-0} f
+
+	case ${FB[$id]["covers"]} in
+	"$g:1") return 0 ;;
+	"$g:0") return 1 ;;
+	esac
+	while [ "$i" -lt "$n" ]; do
+		if f := fb_coverfile "$id" "$i"; then
+			FB[$id]["covers"]="$g:1"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	FB[$id]["covers"]="$g:0"
+	return 1
+}
+
+# A folder's cover fitted to a box of bh rows by bw columns, keeping its
+# shape, as "rows cols path" -- or status 1 for none, or one that does not
+# decode, which keeps the folder's glyph. img size decodes the whole file,
+# so the answer is kept for the listing and the box.
+fn fb_cover(int id, int i, int bh, int bw) {
+	local key="${FB[$id]["cgen"]:-0}:$bh:$bw" f out sw sh fr fc cw ch g
+	local -a gx
+
+	if [ "${FL[$id][$i]["ckey"]}" = "$key" ]; then
+		[ -n "${FL[$id][$i]["cover"]}" ] || return 1
+		ret "${FL[$id][$i]["cover"]}"
+	fi
+	FL[$id][$i]["ckey"]=$key
+	FL[$id][$i]["cover"]=
+	f := fb_coverfile "$id" "$i" || return 1
+	need img 2> /dev/null || return 1
+	out := img size "$f" 2> /dev/null || return 1
+	sw=${out% *}
+	sh=${out#* }
+	[ "${sw:-0}" -gt 0 ] 2> /dev/null && [ "${sh:-0}" -gt 0 ] 2> /dev/null ||
+		return 1
+	# The cell's own shape where the terminal says it, a column by two of
+	# the picture's rows where it does not -- as fp_picfit reckons it.
+	g := dt_imggfx
+	read -ra gx <<< "$g"
+	cw=${gx[1]:-0}
+	ch=${gx[2]:-0}
+	[ "$cw" -gt 1 ] 2> /dev/null && [ "$ch" -gt 1 ] 2> /dev/null || { cw=1; ch=2; }
+	fc=$bw
+	fr=$((bw * cw * sh / (sw * ch)))
+	if [ "$fr" -gt "$bh" ]; then
+		fr=$bh
+		fc=$((bh * ch * sw / (sh * cw)))
+	fi
+	[ "$fr" -lt 1 ] && fr=1
+	[ "$fc" -lt 1 ] && fc=1
+	[ "$fc" -gt "$bw" ] && fc=$bw
+	FL[$id][$i]["cover"]="$fr $fc $f"
+	ret "$fr $fc $f"
+}
+
+fn fb_drawicons(int id, int h, int w) {
+	local i n top sel per rows r c x y g nm tw=$FILES_TILE th=3 pix= bh=1 bw=4
+	local gy ny cov fr fc f
+
+	# Covers only where pixels can be drawn: in half blocks a 5 by 10
+	# picture is a smear, and the folder's glyph says more.
+	dt_imgpix && pix=1
+	if [ -n "$pix" ] && [ "${FB_COVER:-large}" != small ] && fb_hascovers "$id"; then
+		th=7
+		bh=5
+		bw=10
+	fi
 	per=$(((w - 1) / tw))
 	[ "$per" -lt 1 ] && per=1
-	rows=$(((h - 1) / 3))
+	rows=$(((h - 1) / th))
 	[ "$rows" -lt 1 ] && rows=1
 	FB[$id]["y0"]=2
+	FB[$id]["th"]=$th
 	FB[$id]["per"]=$per
 	FB[$id]["vis"]=$((per * rows))
 	n=${FB[$id]["n"]}
@@ -994,16 +1089,32 @@ fn fb_drawicons(int id, int h, int w) {
 	while [ "$i" -lt "$n" ] && [ "$i" -lt $((top + per * rows)) ]; do
 		r=$(((i - top) / per))
 		c=$(((i - top) % per))
-		y=$((2 + r * 3))
+		y=$((2 + r * th))
 		x=$((1 + c * tw))
 		case $DT_MIRRORON in 1) x=$((w + 1 - (c + 1) * tw)) ;; esac
-		g := fb_glyph "${FL[$id][$i]["kind"]}"
-		fb_pen "${FL[$id][$i]["kind"]}"
-		console put -p "w$id" "$y" $((x + (tw - ${#g}) / 2)) "$g"
+		gy=$y
+		ny=$((y + 1))
+		[ "$th" = 7 ] && { gy=$((y + 2)); ny=$((y + 5)); }
+		if [ -n "$pix" ] && cov := fb_cover "$id" "$i" "$bh" "$bw"; then
+			fr=${cov%% *}
+			cov=${cov#* }
+			fc=${cov%% *}
+			f=${cov#* }
+			img draw "$f" $((y + (bh - fr) / 2)) \
+				$((x + (tw - bw) / 2 + (bw - fc) / 2)) "$fr" "$fc" \
+				-m pixels -p "w$id" 2> /dev/null || cov=
+		else
+			cov=
+		fi
+		if [ -z "$cov" ]; then
+			g := fb_glyph "${FL[$id][$i]["kind"]}"
+			fb_pen "${FL[$id][$i]["kind"]}"
+			console put -p "w$id" "$gy" $((x + (tw - ${#g}) / 2)) "$g"
+		fi
 		nm=${FL[$id][$i]["name"]}
 		[ "${#nm}" -gt $((tw - 2)) ] && nm="${nm:0:$((tw - 3))}${GL[ellipsis]}"
 		fb_rowpen "$id" "$i"
-		console put -p "w$id" $((y + 1)) $((x + (tw - ${#nm}) / 2)) "$nm"
+		console put -p "w$id" "$ny" $((x + (tw - ${#nm}) / 2)) "$nm"
 		i=$((i + 1))
 	done
 }
@@ -1797,7 +1908,7 @@ fn fb_at(int id, int r, int c) {
 		case $DT_MIRRORON in 1) c=$((${FB[$id]["w"]:-0} + 1 - c)) ;; esac
 		[ "$c" -lt 1 ] && return 1
 		[ $(((c - 1) / tw)) -ge "$per" ] && return 1
-		i=$((top + ((r - y0) / 3) * per + (c - 1) / tw))
+		i=$((top + ((r - y0) / ${FB[$id]["th"]:-3}) * per + (c - 1) / tw))
 	else
 		i=$((top + r - y0))
 	fi

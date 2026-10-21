@@ -495,6 +495,19 @@ dt_openerverb boxer "Get Info..." boxerinfo
 An extension nobody registered, or one whose app is not loaded, is an
 ordinary folder.
 
+A folder can carry its own picture (Gitea #336). In the icon view, on a
+terminal that draws pixels, a bundle shows its `.cover.png`, or failing
+that its `cover.png`, as its icon. An ordinary folder shows its
+`.cover.png`; only the dot-file counts there, so a stray `cover.png` in a
+folder is not taken for its cover. Boxer's games carry one already, and an
+album, a photo set or a project gets one by dropping a PNG in. A listing
+with any cover lays its tiles out 7 rows high, each picture 5 rows by 10
+columns in its own shape, or keeps the 3-row tile with the picture in the
+glyph's place: Control Panel > Files > **Cover Size**, Large or Small. A
+folder with no cover, one whose picture does not decode, a terminal that
+draws no pixels, and the list and details views all show the glyph as
+before. Each folder is checked with one file test, once per listing.
+
 ## Files between windows
 
 Drag a file out of a Files window and let go over another: over a Files

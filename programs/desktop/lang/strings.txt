@@ -307,6 +307,7 @@ Could not switch Wi-Fi: %s
 Could not write %s
 Count
 Count From
+Cover Size
 Cursor
 Cursor Blink
 Cut

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.13",
+ "version": "3.14",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -927,6 +927,7 @@
   "Show Contents": "إظهار المحتويات",
   "Menu Width": "عرض القائمة",
   "Drag Windows": "سحب النوافذ",
+  "Cover Size": "حجم الغلاف",
   "Shortcuts": "الاختصارات",
   "Shortcuts in Terminals": "الاختصارات في الطرفيات",
   "Show": "إظهار",
