@@ -52,7 +52,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["sright"]=">"; GL["sleft"]="<"; GL["sdown"]="v"; GL["sup"]="^"
 		GL["reload"]="@"; GL["plus"]="+"; GL["larr"]="<"; GL["rarr"]=">"
 		GL["arrowup"]="^"; GL["hook"]=">"
-		GL["file"]="-"; GL["folder"]="+"
+		GL["file"]="-"; GL["folder"]="+"; GL["bundle"]="#"
 		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"; GL["tick"]="v"
 		GL["sound"]="vol"; GL["soundoff"]="vol x"
 		GL["wifi"]="wifi"; GL["wired"]="lan"; GL["netoff"]="net x"
@@ -120,6 +120,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["hook"]=$'↪'      # RIGHTWARDS ARROW WITH HOOK
 		GL["file"]=$'▯'      # WHITE VERTICAL RECTANGLE
 		GL["folder"]=$'▤'    # SQUARE WITH HORIZONTAL FILL
+		GL["bundle"]=$'▣'    # WHITE SQUARE CONTAINING BLACK SMALL SQUARE, a folder that is one thing
 		GL["cross"]=$'✕'     # MULTIPLICATION X
 		GL["xmark"]=$'✗'     # BALLOT X
 		GL["check"]=$'✓'     # CHECK MARK
@@ -187,6 +188,7 @@ dt_glyphsnerd() {
 	GL["bt"]=$'\uf293'        # nf-fa-bluetooth
 	GL["btoff"]=$'\uf293 \uf00d' # nf-fa-bluetooth, nf-fa-times
 	GL["folder"]=$'\uf07b'    # nf-fa-folder
+	GL["bundle"]=$'\uf1b2'    # nf-fa-cube
 	GL["file"]=$'\uf15b'      # nf-fa-file
 	GL["home"]=$'\uf015'      # nf-fa-home
 	GL["disk"]=$'\uf0a0'      # nf-fa-hdd_o

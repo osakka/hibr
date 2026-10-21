@@ -110,7 +110,11 @@ fn dt_openfile(path) {
 	local ext
 
 	if [ -d "$path" ]; then
-		dt_launch files "$path"
+		if dt_isbundle "$path"; then
+			dt_openwith "${DT_OWLIST[0]}" "$path"
+		else
+			dt_launch files "$path"
+		fi
 		return 0
 	fi
 	ext := dt_ext "$path"
@@ -154,18 +158,87 @@ fn dt_openfile(path) {
 # A type is a space-separated list of extensions, "*" for any file, "x" for
 # one that may be run. How it opens: app, given the path (dt_launch); edit,
 # hvi in a terminal; run, the file itself in a terminal.
+#
+# An opener registered with `dir` after its app takes **folders** whose name
+# ends in one of its extensions -- a bundle (Gitea #318): a folder that is
+# really one thing, a game, a notebook, a photo library. Files shows such a
+# folder as one item, a double click hands its path to the app, Open With
+# lists the openers for it, and Show Contents still goes in, so a bundle is
+# never opaque: it is a folder, and every program that reads folders reads
+# it. An extension nobody registered, or one whose app is not loaded, is a
+# plain folder.
+#
+#     dt_opener boxerplay "Boxer" "boxer" app boxerplay dir
 declare -gA DT_OPENERS
 DT_OPENERORDER=()
 DT_OPENWITH="${DT_OPENWITH-}"
+# Every extension a bundle opener names, space-separated, so a folder scan
+# asks dt_isbundle only of a folder that could be one.
+DT_BUNDLEEXT=
 DT_OWLIST=()
 DT_OWCONF=
 
-fn dt_opener(name, title, types, how, app = "") {
+fn dt_opener(name, title, types, how, app = "", kind = "") {
 	[ -n "${DT_OPENERS[$name]["title"]}" ] || DT_OPENERORDER+=("$name")
 	DT_OPENERS[$name]["title"]=$title
 	DT_OPENERS[$name]["types"]=" $types "
 	DT_OPENERS[$name]["how"]=$how
 	DT_OPENERS[$name]["app"]=$app
+	DT_OPENERS[$name]["dir"]=0
+	if [ "$kind" = dir ]; then
+		DT_OPENERS[$name]["dir"]=1
+		DT_BUNDLEEXT+=" $types "
+	fi
+	return 0
+}
+
+# A bundle's own verbs, besides Open and Open With (Gitea #318): an app
+# adds entries to the right-click menu of a bundle of its extension, each
+# opening that app with the bundle's path -- Boxer's Get Info, its settings
+# for one game.
+#
+#     dt_openerverb boxer "Get Info..." boxerinfo
+declare -gA DT_OPENVERBS
+DT_OVN=0
+DT_OVLIST=()
+
+fn dt_openerverb(ext, label, app) {
+	DT_OPENVERBS[$DT_OVN]["ext"]=$ext
+	DT_OPENVERBS[$DT_OVN]["label"]=$label
+	DT_OPENVERBS[$DT_OVN]["app"]=$app
+	DT_OVN=$((DT_OVN + 1))
+}
+
+# The verbs a bundle offers, by number into DT_OVLIST, in the order they
+# were registered: those of its extension whose app is loaded.
+fn dt_openverbs(path) {
+	local ext i=0 ap
+
+	DT_OVLIST=()
+	ext := dt_ext "$path"
+	[ -n "$ext" ] || return 0
+	while [ "$i" -lt "$DT_OVN" ]; do
+		ap=${DT_OPENVERBS[$i]["app"]}
+		if [ "${DT_OPENVERBS[$i]["ext"]}" = "$ext" ] &&
+		   { dt_has "${ap}_open" || dt_has "${ap}_draw"; }; then
+			DT_OVLIST+=("$i")
+		fi
+		i=$((i + 1))
+	done
+	return 0
+}
+
+# Run a bundle's verb, by its number.
+fn dt_openverb(int n, path) {
+	dt_launch "${DT_OPENVERBS[$n]["app"]}" "$path"
+}
+
+# Whether a path is a bundle: a folder an opener whose app is loaded claims
+# by its extension. Leaves that opener first in DT_OWLIST.
+fn dt_isbundle(path) {
+	[ -d "$path" ] || return 1
+	dt_openers "$path"
+	[ "${#DT_OWLIST[@]}" -gt 0 ]
 }
 
 dt_opener imgview "Image Viewer" "png jpg jpeg ans" app imgview
@@ -178,6 +251,11 @@ fn dt_opencan(name, path, ext) {
 	local ty=${DT_OPENERS[$name]["types"]} ap=${DT_OPENERS[$name]["app"]}
 
 	[ -n "$ty" ] || return 1
+	if [ "${DT_OPENERS[$name]["dir"]}" = 1 ]; then
+		[ -d "$path" ] || return 1
+	else
+		[ -d "$path" ] && return 1
+	fi
 	if [ -n "$ap" ]; then
 		dt_has "${ap}_open" || dt_has "${ap}_draw" || return 1
 	fi
@@ -204,7 +282,8 @@ fn dt_openers(path) {
 		[ "${e%%:*}" = "$ext" ] || continue
 		IFS=, read -ra conf <<< "${e#*:}"
 	done
-	[ -n "$ext" ] && [ -n "${DT_HANDLERS[$ext]["n"]}" ] && all+=(handler)
+	[ -n "$ext" ] && [ -n "${DT_HANDLERS[$ext]["n"]}" ] && [ ! -d "$path" ] &&
+		all+=(handler)
 	# What names the extension comes before what takes any file.
 	for n in "${DT_OPENERORDER[@]}"; do
 		case ${DT_OPENERS[$n]["types"]} in *" * "* | *" x "*) continue ;; esac

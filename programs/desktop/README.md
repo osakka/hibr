@@ -460,9 +460,27 @@ An app that opens files says which, so it is offered:
 dt_opener imgview "Image Viewer" "png ans" app imgview
 ```
 
-`dt_opener <name> <title> <extensions> app|edit|run [app]` -- the
+`dt_opener <name> <title> <extensions> app|edit|run [app] [dir]` -- the
 extensions space-separated, `*` for any file and `x` for one that may be
 run.
+
+With `dir` after the app, the extensions are a **folder's**: a bundle, a
+folder that is really one thing -- a game, a notebook, a photo library
+(Gitea #318). Files shows `Prince of Persia.boxer` as one item with a
+glyph of its own, Enter and a double click hand its path to the app, and
+Open With lists every opener that takes it. Its right-click menu also has
+**Show Contents**, which goes in, because a bundle is still a folder and
+`ls`, `cp -r` and `tar` see one. An app can add verbs to that menu, each
+opening an app of its own with the bundle's path:
+
+<!-- not run: lines from a desktop file, read when the desktop loads it -->
+```sh
+dt_opener boxerplay "Boxer" "boxer" app boxerplay dir
+dt_openerverb boxer "Get Info..." boxerinfo
+```
+
+An extension nobody registered, or one whose app is not loaded, is an
+ordinary folder.
 
 ## Files between windows
 

@@ -890,6 +890,7 @@ Shortcuts
 Shortcuts in Terminals
 Show
 Show All Notes
+Show Contents
 Show On
 Show Pictures
 Show the password

@@ -111,6 +111,17 @@ fn fb_scan(int id) {
 		FL[$id][$n]["name"]="$base"
 		FL[$id][$n]["dir"]=1
 		FL[$id][$n]["kind"]=dir
+		# A folder an app claims by its extension is one item (#318).
+		case $base in
+		*.*)
+			case " ${DT_BUNDLEEXT-} " in
+			*" ${base##*.} "*)
+				dt_has dt_isbundle && dt_isbundle "$f" &&
+					FL[$id][$n]["kind"]=bundle
+				;;
+			esac
+			;;
+		esac
 		FL[$id][$n]["m"]=
 		n=$((n + 1))
 	done
@@ -722,6 +733,7 @@ fn files_resume(int id) {
 fn fb_pen(kind) {
 	case $kind in
 	up | dir) console pen "$DT_WARN" "$DT_FACE" ;;
+	bundle) console pen "$DT_INFO" "$DT_FACE" ;;
 	exe) console pen "$DT_GOOD" "$DT_FACE" ;;
 	link) console pen "$DT_INFO" "$DT_FACE" ;;
 	*) console pen "$DT_INK" "$DT_FACE" ;;
@@ -733,6 +745,7 @@ fn fb_glyph(kind) {
 	case $kind in
 	up) ret "${GL[up]}" ;;
 	dir) ret "${GL[folder]}${GL[folder]}" ;;
+	bundle) ret "${GL[bundle]}${GL[bundle]}" ;;
 	exe) ret "${GL[right]}" ;;
 	link) ret "${GL[hook]}" ;;
 	*) ret "${GL[file]}" ;;
@@ -1125,6 +1138,11 @@ fn fb_open(int id) {
 
 	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
+	if [ "${FL[$id][$sel]["kind"]}" = bundle ]; then
+		p := fb_path "$id" "$sel"
+		dt_openfile "$p"
+		return 0
+	fi
 	if [ "${FL[$id][$sel]["dir"]}" = 1 ]; then
 		fb_go "$id" "${FL[$id][$sel]["name"]}"
 		return 0
@@ -1542,7 +1560,8 @@ fn files_openwith(int id, name) {
 
 	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
-	[ "${FL[$id][$sel]["dir"]}" = 1 ] && return 0
+	[ "${FL[$id][$sel]["dir"]}" = 1 ] && [ "${FL[$id][$sel]["kind"]}" != bundle ] &&
+		return 0
 	p := fb_path "$id" "$sel"
 	if [[ $p == dav://* ]]; then
 		dt_has dt_davopen && dt_davopen "$p" "$name"
@@ -1907,6 +1926,14 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 	return 0
 }
 
+# One of a bundle's own verbs, on the selected entry.
+fn files_verb(int id, int v) {
+	local p
+
+	p := fb_path "$id" "${FB[$id]["sel"]}"
+	dt_openverb "$v" "$p"
+}
+
 # Right-click on an entry, or on empty space in the list: the same actions
 # as the File menu, without reaching for the menu bar first.  Open With
 # lists every handler a script of the user's own has registered with
@@ -1914,6 +1941,7 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 # With is for.
 fn files_context(int id) {
 	local sel=${FB[$id]["sel"]} n=${FB[$id]["n"]} none isdir ext p t first o
+	local bundle=0 v
 
 	none=0
 	[ "$n" = 0 ] || [ "${FL[$id][$sel]["kind"]}" = up ] && none=1
@@ -1922,9 +1950,20 @@ fn files_context(int id) {
 		dt_dim "Open"
 	else
 		isdir=${FL[$id][$sel]["dir"]}
+		[ "${FL[$id][$sel]["kind"]}" = bundle ] && bundle=1
 		dt_item "Open" o fb_open "$id"
-		if [ "$isdir" != 1 ] && [ "$DT_FBOPENWITH" = 1 ] &&
-		   dt_has dt_openers; then
+		# A bundle is still a folder (#318): Show Contents goes in, and the
+		# verbs its app registered for it follow.
+		if [ "$bundle" = 1 ]; then
+			dt_item "Show Contents" "" fb_go "$id" "${FL[$id][$sel]["name"]}"
+			p := fb_path "$id" "$sel"
+			dt_openverbs "$p"
+			for v in "${DT_OVLIST[@]}"; do
+				dt_item "${DT_OPENVERBS[$v]["label"]}" "" files_verb "$id" "$v"
+			done
+		fi
+		if { [ "$isdir" != 1 ] || [ "$bundle" = 1 ]; } &&
+		   [ "$DT_FBOPENWITH" = 1 ] && dt_has dt_openers; then
 			p := fb_path "$id" "$sel"
 			ext := dt_ext "$p"
 			dt_openers "$p"

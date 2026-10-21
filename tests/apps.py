@@ -4030,6 +4030,54 @@ check("a screenshot shows up at once in a Files window open on its folder",
       re.search(r"hibr-\d{4}-\d\d-\d\d-\d{6}\.ans", sc.text()) is not None, sc)
 shutil.rmtree(SHD2, True)
 
+# Bundles (Gitea #318): a folder whose extension an app registers with
+# `dir` is one item -- enter hands its path to that app instead of going in,
+# its right-click menu has Show Contents, which still goes in, and the verbs
+# the app registered -- and with nothing registered for it a folder of that
+# name is a folder like any other.
+BND = tempfile.mkdtemp(prefix="hibr-bundle-")
+os.makedirs(os.path.join(BND, "Prince.game"))
+open(os.path.join(BND, "Prince.game", "inside.txt"), "w").write("x\n")
+BMARK = os.path.join(BND, "opened")
+BAPP = ("fn bnd_open(int id, arg = \"\") { printf '%s %s\\n' \"${DT[$id][\"title\"]}\" \"$arg\" >> " + BMARK + "; }\n"
+        "fn bnd_draw(int id, int h, int w, int row, int col) { console put -p \"w$id\" 1 1 bundle; }\n"
+        "dt_app bnd \"Bundle App\" 6 30\n"
+        "dt_app bndinfo \"Bundle Info\" 6 30\n"
+        "fn bndinfo_open(int id, arg = \"\") { printf 'info %s\\n' \"$arg\" >> " + BMARK + "; }\n"
+        "fn bndinfo_draw(int id, int h, int w, int row, int col) { :; }\n")
+BREG = ('dt_opener bnd "Bundle App" "game" app bnd dir\n'
+        'dt_openerverb game "Get Info..." bndinfo\n')
+BPRE = "FB_DIR=%s\n%s" % (BND, BAPP)
+def bopened():
+    try:
+        return open(BMARK).read()
+    except OSError:
+        return ""
+sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 1.0], pre=BPRE + BREG, end=None)
+check("enter on a bundle hands its path to the app that registered it",
+      sc.find("┤ Bundle App ├") is not None and
+      os.path.join(BND, "Prince.game") in bopened(), (bopened(), sc))
+sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"\x1b[B",
+                                b"\x1b[B", b"\x1b[B", b"\x1b[C", 0.3],
+         pre=BPRE + BREG, end=None)
+check("its right-click menu has Show Contents, the app's own verbs, and Open "
+      "With naming the app as the default",
+      sc.find("Show Contents") is not None and sc.find("Get Info...") is not None
+      and sc.find("Bundle App (default)") is not None, sc)
+sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"\x1b[B",
+                                b"\r", 0.5], pre=BPRE + BREG, end=None)
+check("and Show Contents goes into it, since it is still a folder",
+      sc.find("inside.txt") is not None, sc)
+open(BMARK, "w").close()
+sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"\x1b[B",
+                                b"\x1b[B", b"\r", 1.0], pre=BPRE + BREG, end=None)
+check("a verb opens its own app with the bundle's path",
+      ("info " + os.path.join(BND, "Prince.game")) in bopened(), (bopened(), sc))
+sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 0.5], pre=BPRE, end=None)
+check("with nothing registered for its extension it is a plain folder",
+      sc.find("inside.txt") is not None and sc.find("┤ Bundle App ├") is None, sc)
+shutil.rmtree(BND, True)
+
 # Open With, Open Terminal Here: a right-click on a file offers every app
 # that can open it, the default first, and Other…; nothing chosen there
 # sticks. File Types sets each type's list and default.
@@ -5061,4 +5109,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(673)
+report(678)

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.274
+
+**A folder can be one thing: bundle extensions in Files** (Gitea #318). An
+app registers a kind of folder the way it registers a kind of file, with
+`dir` after its opener: `dt_opener boxerplay "Boxer" "boxer" app boxerplay
+dir`. Files then shows `Prince of Persia.boxer` as one item, with a glyph
+of its own. Enter and a double click hand its path to the app instead of
+going in, and Open With lists every opener that takes it. The right-click
+menu has **Show Contents**, which still goes in, since a bundle is a
+folder to every other program. Verbs an app adds with `dt_openerverb`
+(Boxer's Get Info, its settings for one game) follow it. An extension
+nobody registered, or one whose app is not loaded, is a plain folder, as
+before. Hibr-boxer is the first app to use it. The desktop's own icons are
+Home, Trash and the disks, none of them a folder that could be a bundle,
+so nothing there changes.
+
 ## 0.99.273
 
 **Shortcut Key: the desktop's own shortcuts on Alt, Super or Alt, or
