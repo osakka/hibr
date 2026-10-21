@@ -27,7 +27,8 @@ strict
 
 dt_mouse() {
 	local act=${1##*-} mr mc mods
-	local id b bi wr wc wh ww ap mo now dr dc wsn
+	local id b bi wr wc wh ww ap mo now dr dc wsn p
+	local -a gv
 
 	mods=${1%"$act"}
 	mods=${mods%-}
@@ -388,14 +389,42 @@ dt_mouse() {
 				DT_SIZENOTE=$DT_SIZE
 				return 0
 			fi
+			# By its outline, the window untouched until let go: a
+			# terminal resized at every step reflowed its program at
+			# every step too.
+			if dt_outlined; then
+				p := dt_cornerwhere "$DT_SIZE" "$DT_SIZECORNER" \
+					"$DT_SIZE_AR" "$DT_SIZE_AC" "$mr" "$mc"
+				read -ra gv <<< "$p"
+				dt_olshow "$DT_SIZE" "${gv[0]}" "${gv[1]}" "${gv[2]}" "${gv[3]}"
+				return 0
+			fi
 			dt_cornersize "$DT_SIZE" "$DT_SIZECORNER" "$DT_SIZE_AR" \
 				"$DT_SIZE_AC" "$mr" "$mc"
 			return 0
 		fi
 		[ -z "$DT_DRAG" ] && return 0
+		if dt_outlined; then
+			p := dt_movewhere "$DT_DRAG" $((mr - DT_DR)) $((mc - DT_DC))
+			dt_olshow "$DT_DRAG" "${p% *}" "${p#* }" \
+				"${DT[$DT_DRAG]["h"]}" "${DT[$DT_DRAG]["w"]}"
+			return 0
+		fi
 		dt_move "$DT_DRAG" $((mr - DT_DR)) $((mc - DT_DC))
 		;;
 	release)
+		# An outline drag ends here: the window goes where its outline is
+		# and draws once -- unless it was let go over a workspace's
+		# number or is tiled, which the branches below decide from where
+		# it was, and it has not moved.
+		if [ -n "$DT_OLON" ]; then
+			if [ -n "$DT_DRAG" ] && { dt_intile "$DT_DRAG" ||
+			   { dt_onbar "$mr" "$mc" && dt_wshit "$mc"; }; }; then
+				dt_oloff
+			else
+				dt_olapply
+			fi
+		fi
 		# Let go over a workspace's number on the bar: the window goes to
 		# that workspace, where it was before the drag began.
 		if [ -n "$DT_DRAG" ] && dt_onbar "$mr" "$mc" && wsn := dt_wshit "$mc"; then
@@ -558,6 +587,20 @@ fn dt_event(k) {
 			dt_note_clear
 		fi
 		CS_ATTN=0
+		# A press with an outline still up means its release never
+		# came -- a terminal that dropped it -- so the drag ends there,
+		# where the outline was, rather than leaving it on the screen.
+		[ -n "$DT_OLON" ] && { dt_olapply; DT_DRAG=; DT_SIZE=; DT_SIZECORNER=; }
+		;;
+	escape)
+		# Escape during an outline drag puts it down where it started.
+		if [ -n "$DT_OLON" ]; then
+			dt_oloff
+			DT_DRAG=
+			DT_SIZE=
+			DT_SIZECORNER=
+			return 0
+		fi
 		;;
 	esac
 	case $k in

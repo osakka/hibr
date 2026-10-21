@@ -491,7 +491,16 @@ dt_run() {
 		fi
 		dt_mousecheck
 		if [ "$rsz" = 0 ]; then
-			if [ "$DT_LASTMOVE" = 1 ] && console waiting; then
+			# An outline drag's step changed nothing but the outline,
+			# which the console composites at flush: no frame to
+			# draw, and Redraw Skip has nothing to save, so it is not
+			# asked. A program writing meanwhile still gets its frame
+			# on a pass of its own, and the outline survives that,
+			# since it lives in the flush and not in the frame.
+			if [ -n "$DT_OLONLY" ]; then
+				DT_OLONLY=
+				console waiting || console flush
+			elif [ "$DT_LASTMOVE" = 1 ] && console waiting; then
 				:
 			elif [ "$DT_LASTDRAG" = 1 ] &&
 			   [ "$skipn" -lt "$DT_DRAWSKIP" ]; then
@@ -533,11 +542,17 @@ dt_run() {
 				fi
 			fi
 		fi
-		dt_updcheck
-		dt_remotepoll
-		dt_snapcheck
-		dt_tickers
-		dt_saverwait
+		# While a window is dragged by its outline these wait for it to
+		# be let go: each is a check against the clock, and each pass of
+		# a drag is one mouse report -- run per report they were most of
+		# what a step cost once it drew no frame.
+		if [ -z "$DT_OLON" ]; then
+			dt_updcheck
+			dt_remotepoll
+			dt_snapcheck
+			dt_tickers
+			dt_saverwait
+		fi
 		if [ -n "$DT_TESTIDLE" ]; then
 			k := console consumed
 			k=$((k + DT_INBASE))
@@ -545,7 +560,13 @@ dt_run() {
 		fi
 		if [ "$rsz" = 1 ]; then
 			k := console key 80
-		elif [ -n "$DT_QWAIT" ]; then
+		elif [ -n "$DT_QWAIT" ] || [ -n "$DT_OLON" ]; then
+			# And the wait leaves the watched descriptors out while an
+			# outline is up, since the tickers that read them are not
+			# running: listening to one with bytes waiting would end
+			# every wait at once, a spin for as long as the button is
+			# held. The terminal's own descriptor stays in, so the next
+			# report, the release and a key all still end it.
 			k := console key -q "${DT_WANT:-$DT_IDLEMS}"
 		else
 			k := console key "${DT_WANT:-$DT_IDLEMS}"

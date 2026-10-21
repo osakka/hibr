@@ -52,6 +52,35 @@ void hd_sgr(str *b, unsigned fg, unsigned bg, unsigned at)
 	s_ch(b, 'm');
 }
 
+/* From the pen the client's terminal has to this one: only the colour that
+   changed when the attributes are the same -- what console's cn_sgrto does
+   too, and for the same reason: a cell over a translucent window or a
+   picture differs from the one before it in its background alone, and the
+   full reset form sent the foreground and the attributes again for each.
+   have says whether the client's pen is known at all. */
+void hd_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, int have,
+	      unsigned lfg, unsigned lbg, unsigned lat)
+{
+	size_t p;
+
+	if (!have || at != lat) {
+		hd_sgr(b, fg, bg, at);
+		return;
+	}
+	s_cat(b, "\033[");
+	p = b->n;
+	if (fg != lfg)
+		hd_sgrcol(b, fg, 0);
+	if (bg != lbg)
+		hd_sgrcol(b, bg, 1);
+	if (b->n > p && b->p[p] == ';') {
+		memmove(b->p + p, b->p + p + 1, b->n - p - 1);
+		b->n--;
+		b->p[b->n] = 0;
+	}
+	s_ch(b, 'm');
+}
+
 /* FNV-1a, to tell one picture's bytes from another's without keeping them. */
 unsigned hd_hash(const char *p, size_t n)
 {
@@ -258,7 +287,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			if (r != lr || c != lc)
 				hd_goto(out, r, c);
 			if (!have || fg != lfg || bg != lbg || at != lat) {
-				hd_sgr(out, fg, bg, at);
+				hd_sgrto(out, fg, bg, at, have, lfg, lbg, lat);
 				lfg = fg;
 				lbg = bg;
 				lat = at;

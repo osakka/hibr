@@ -56,7 +56,14 @@ it -- the `◢` at the bottom-right is the one this always had; the other
 three work the same way, whichever one is dragged staying opposite a
 corner that does not move. `_` minimises, `□` fills the screen, `x`
 closes, and holding alt while dragging anywhere in a window moves it
-(Control Panel > Mouse). `alt-tab` cycles windows, `alt-w` closes the
+(Control Panel > Mouse). A window being moved or resized follows the mouse
+as its **outline**, titled, and goes there and draws once when it is let go;
+escape while dragging puts it back. That costs one outline's edge per step
+and no frame at all: dragged whole, every step redrew the desktop and sent
+the window's whole area, which was about 18 ms and 7.8 kB a step on a
+232x71 screen with a picture wallpaper. Control Panel > Mouse > **Drag
+Windows** is Outline by default, or Solid to drag it whole as before.
+`alt-tab` cycles windows, `alt-w` closes the
 focused one, `escape` or `F10` opens the menu bar, and Quit on its hibr
 menu ends the desktop and gives the terminal back -- it has no key of its
 own by default, so no stray keystroke ends everything. Each of these keys

@@ -752,6 +752,41 @@ int m_console(sh *s, int ac, char **av)
 				     !strcmp(av[2], "1")));
 		return HIBR_OK;
 	}
+	/* A rectangle composited over the screen at every flush and never
+	   written into it: the outline a window is dragged by. Moving it
+	   costs its own edge, the cells it leaves paint themselves back,
+	   and nothing has to be drawn for it -- which is the whole point. */
+	if (!strcmp(sub, "outline")) {
+		if (!cn_need())
+			return HIBR_FAIL;
+		if (ac == 3 && !strcmp(av[2], "off")) {
+			cn_olay.on = 0;
+			return HIBR_OK;
+		}
+		if (ac < 13) {
+			lg(HIBR_LERR, "usage: console outline row col h w colour "
+			   "tl h tr v bl br [title] | off");
+			return HIBR_FAIL;
+		}
+		if (cn_colour(av[6], &fg) != HIBR_OK) {
+			lg(HIBR_LERR, "console outline: %s: not a colour", av[6]);
+			return HIBR_FAIL;
+		}
+		cn_olay.r = atoi(av[2]);
+		cn_olay.c = atoi(av[3]);
+		cn_olay.h = atoi(av[4]);
+		cn_olay.w = atoi(av[5]);
+		cn_olay.fg = fg;
+		cn_olay.tl = cn_olglyph(av[7]);
+		cn_olay.hz = cn_olglyph(av[8]);
+		cn_olay.tr = cn_olglyph(av[9]);
+		cn_olay.vt = cn_olglyph(av[10]);
+		cn_olay.bl = cn_olglyph(av[11]);
+		cn_olay.br = cn_olglyph(av[12]);
+		cn_oltitle(ac > 13 ? av[13] : "");
+		cn_olay.on = cn_olay.h >= 2 && cn_olay.w >= 2;
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "waiting"))
 		return cn_waiting() ? HIBR_OK : HIBR_FAIL;
 	/* See cn_drawn: writes made at absolute coordinates, not through a

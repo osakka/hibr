@@ -384,6 +384,54 @@ check("console bidi off leaves it as written; borders and accents untouched",
       sc.row(2).startswith("x سلام") and
       sc.row(8).startswith("┌─┐ été"), (sc.row(2), sc.row(8)))
 
+# A window is dragged by an outline the console composites over the screen
+# at every flush and never writes into it: the cells under it keep what is
+# really there, the cells it leaves differ from what is on the terminal and
+# paint themselves back, and nothing is redrawn for it to move.
+OL = 'console outline %s "#ffffff" ┌ ─ ┐ │ └ ┘\n'
+FILL = ('console open\nconsole pen "#c0c0c8" "#203048"\n'
+        'console fill 0 0 12 30 x\nconsole flush\n')
+
+
+def olrun(cmd):
+    o, _ = run(FILL + cmd + 'console close\n')
+    sc = Screen()
+    sc.feed(o.decode("utf-8", "replace"))
+    return sc
+
+
+sc = olrun(OL % "2 2 4 10" + 'console flush\n')
+check("an outline draws its corners and edges, the inside left as it was",
+      sc.row(2)[2:12] == "┌────────┐" and sc.row(3)[2] == "│" and
+      sc.row(3)[11] == "│" and sc.row(5)[2:12] == "└────────┘" and
+      sc.row(3)[3:11] == "xxxxxxxx", [sc.row(r)[:14] for r in range(1, 7)])
+check("in the outline's colour, on the terminal's own background",
+      "48;2" not in (sc.p[2][5] or "") and
+      "38;2;255;255;255" in (sc.p[2][5] or ""), sc.p[2][5])
+sc = olrun(OL % "2 2 4 10" + 'console flush\n' + OL % "6 6 4 10" +
+           'console flush\n')
+check("moved, the cells it left paint back what is under them",
+      sc.row(2)[2:12] == "xxxxxxxxxx" and sc.row(6)[6:16] == "┌────────┐",
+      [sc.row(r)[:18] for r in range(1, 10)])
+# A step one column over changes the four corners' worth of cells on each
+# edge, sixteen here: what it costs is those, against the forty cells of the
+# rectangle's whole edge, and nothing for the eighty inside it.
+o, _ = run(FILL + OL % "2 2 4 10" + 'a := console flush\n' + OL % "2 3 4 10" +
+           'b := console flush\nc := console flush\nconsole close\n'
+           'echo "R $a $b $c"\n')
+n = counts(o)
+check("and a step costs the edge it changed, not the rectangle",
+      len(n) == 3 and 0 < n[1] < 600 and n[2] == 0, n)
+sc = olrun(OL % "2 2 4 10" + 'console flush\nconsole outline off\n'
+           'console flush\n')
+check("off, everything it covered is back",
+      all(sc.row(r)[:30] == "x" * 30 for r in range(12)),
+      [sc.row(r)[:30] for r in range(1, 7)])
+sc = olrun('console fill 8 0 1 20 漢\nconsole flush\n' + OL % "7 3 3 6" +
+           'console flush\nconsole outline off\nconsole flush\n')
+check("an outline across a wide glyph leaves it whole once it goes",
+      sc.row(8)[:20] == "漢 " * 10, sc.row(8)[:22])
+
 # A shadow is cast on every frame, so it has to be idempotent: darkening is
 # multiplicative, and `console darken -s` leaves a cell it has already
 # shadowed alone. Three releases tried instead to work out which frame was
@@ -453,4 +501,4 @@ sc = top('console put -p bar 0 0 BARBARBAR!\nconsole pane top bar off\n'
 check("and `pane top name off` gives its cells back",
       sc.row(0).startswith("xxxxxxxxxxxx"), sc.row(0))
 
-report(len(WANT) + len(MWANT) + 66)
+report(len(WANT) + len(MWANT) + 72)

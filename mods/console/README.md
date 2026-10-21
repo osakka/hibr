@@ -46,6 +46,20 @@ U+0301 still shares one cell with its mark. A wide glyph occupies two cells,
 the second marked as a continuation, and writing over either half clears both:
 half a glyph is never left on screen.
 
+`console outline row col h w colour tl h tr v bl br [title] | off` puts a
+rectangle over the screen that is composited at every flush and never
+written into the back buffer: the corner glyphs, the edges, and an optional
+title along the top edge, in `colour` on the terminal's own background (so
+a picture under the text shows through it). Moving it costs only the cells
+of its edge that changed: the cells it leaves differ from what the
+terminal has and paint themselves back, so nothing erases it and nothing
+is redrawn for it. A flush that only moved it has drawn nothing, so it
+retires no picture. The desktop drags windows by it (Drag Windows: Outline).
+A pen change sends only the colour that changed when the attributes are the
+same (`cn_sgrto`), and hold's renderer does too (`hd_sgrto`). Since 0.99.280
+a cell over a translucent window or a picture, which differs from the one
+before it only in its background, is about half of what it cost.
+
 `console darken row col h w [pct]` scales a rectangle of the **back** buffer's
 existing colours toward black by `pct` percent (55 if not given) and sets the
 dim attribute, in place — a shadow cast on whatever is already drawn there,

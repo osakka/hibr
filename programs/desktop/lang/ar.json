@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.12",
+ "version": "3.13",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -926,6 +926,7 @@
   "%s or %s": "%s أو %s",
   "Show Contents": "إظهار المحتويات",
   "Menu Width": "عرض القائمة",
+  "Drag Windows": "سحب النوافذ",
   "Shortcuts": "الاختصارات",
   "Shortcuts in Terminals": "الاختصارات في الطرفيات",
   "Show": "إظهار",

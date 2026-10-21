@@ -90,6 +90,7 @@ class Screen:
         self.p = [[""] * self.cols for _ in range(self.rows)]
         self.r = self.c = 0
         self.pen = ""
+        self.pst = None
         # Pictures sent as DCS (sixel) or APC (the kitty graphics protocol):
         # where each landed and how many payload bytes it was.
         self.images = []
@@ -132,7 +133,7 @@ class Screen:
                 elif fin == "J" and seq in ("2", "3"):
                     self.clear()
                 elif fin == "m":
-                    self.pen = seq
+                    self.pen = self.sgr(seq)
                 i = j + 1
                 continue
             # A DCS payload -- a sixel image is one (ESC P ... ESC \\) -- is
@@ -198,14 +199,55 @@ class Screen:
             i += 1
         return self
 
+    def sgr(self, seq):
+        """The pen an SGR leaves, as a terminal resolves it -- not the text
+        of the escape. Since 0.99.280 the console and hold send only the
+        colour that changed when the attributes are the same, so the last
+        escape seen is no longer the whole pen: kept as text, a cell drawn
+        after `48;2;...` alone read as having no foreground. Written back in
+        the console's own full form, `0;attrs;fg;bg`, so a check comparing
+        against that form reads a pen however it was sent."""
+        if self.pst is None or not seq or seq.split(";")[0] in ("", "0"):
+            self.pst = {"at": [], "fg": None, "bg": None}
+        st = self.pst
+        a = seq.split(";") if seq else []
+        i = 0
+        while i < len(a):
+            x = a[i]
+            if x in ("", "0"):
+                st["at"], st["fg"], st["bg"] = [], None, None
+            elif x in ("1", "2", "3", "4", "5", "7", "9"):
+                if x not in st["at"]:
+                    st["at"].append(x)
+            elif x in ("22", "23", "24", "25", "27", "29"):
+                gone = {"22": ("1", "2"), "23": ("3",), "24": ("4",),
+                        "25": ("5",), "27": ("7",), "29": ("9",)}[x]
+                st["at"] = [y for y in st["at"] if y not in gone]
+            elif x in ("38", "48") and i + 1 < len(a):
+                n = 5 if a[i + 1] == "2" else 3
+                val = ";".join(a[i:i + n])
+                st["fg" if x == "38" else "bg"] = val
+                i += n - 1
+            elif x == "39":
+                st["fg"] = None
+            elif x == "49":
+                st["bg"] = None
+            else:
+                st["fg" if x[0] in "39" else "bg"] = x
+            i += 1
+        out = ["0"] + [y for y in ("1", "2", "3", "4", "5", "7", "9")
+                       if y in st["at"]]
+        out.append(st["fg"] or "39")
+        out.append(st["bg"] or "49")
+        return ";".join(out)
+
     def row(self, r):
         return "".join(self.g[r]).rstrip()
 
     def style(self, r, c):
         """The pen a cell was drawn with: fg and bg as #rrggbb (or None for
-        the terminal's own), and whether it was bold. The console sends the
-        whole pen on every change, starting from a reset, so the last one
-        seen is the whole truth."""
+        the terminal's own), and whether it was bold. The pen is already
+        resolved (sgr), however much of it the last escape changed."""
         a = self.p[r][c].split(";")
         out = {"fg": None, "bg": None, "bold": False}
         i = 0

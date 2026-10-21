@@ -362,6 +362,7 @@ Downloads
 Draft saved
 Drafts
 Drag Modifier
+Drag Windows
 Draw Pictures As
 Drawn Now
 Drop onto Home, a disk, or the trash

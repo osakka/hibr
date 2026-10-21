@@ -516,6 +516,73 @@ check("the window is drawn whole at its new place",
 check("and nothing of it is left behind",
       sc.g[6][10] == "·" and sc.g[8][39] == "·" and sc.g[13][12] == "·", sc)
 
+# Drag Windows: Outline, the default. While the button is held the window
+# stays where it was and its outline -- its title in the top edge -- follows
+# the mouse, composited by the console and never drawn into the screen; let
+# go, the window goes there and draws once. Read mid-drag, before release.
+def olmid(feed, pre=""):
+    path = "/tmp/hibr-desktop-ol-%d.hibr" % os.getpid()
+    open(path, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, pre, ONE))
+    t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+    t.keys([press(6, 20)])
+    n0 = len(t.raw)
+    t.keys(feed)
+    mid = t.screen()
+    step = len(t.raw) - n0
+    t.keys([release(9, 24), 0.3])
+    after = t.screen()
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return mid, after, step
+
+
+mid, after, step = olmid([drag(9, 24)])
+check("mid-drag the window stays put and its outline, titled, is where it goes",
+      mid.find("┤ Hello ├") == (6, 12) and mid.g[9][14] == "┌" and
+      "Hello" in mid.row(9)[14:44] and mid.g[16][43] == "┘", mid)
+check("let go, the window is there, drawn whole, and the outline gone",
+      after.find("┤ Hello ├") == (9, 16) and after.g[16][43] == "◢", after)
+check("and a step of the drag costs the outline's edge, not a frame",
+      0 < step < 1500, step)
+mid, after, _ = olmid([drag(9, 24), b"\x1b", 0.2])
+check("escape puts it down where it started, with no outline left",
+      after.find("┤ Hello ├") == (6, 12) and after.g[16][20] == "·" and
+      after.g[16][43] == "·" and after.g[12][43] == "·", after)
+mid, after, _ = olmid([drag(9, 24)], pre="DT_MOVEMODE=solid")
+check("Drag Windows: Solid moves it at every step, as before",
+      mid.find("┤ Hello ├") == (9, 16), mid)
+
+
+# Let go over a workspace's number on the bar and the window goes to that
+# workspace: decided from where it was, which an outline drag never moved.
+sc0, _ = run(ONE, [0.3])
+bar = sc0.row(0)
+ws2 = bar.find(" 2 ") + 1 if " 1 2 " in bar else -1
+sc, _ = run(ONE, [press(6, 20), drag(0, ws2), release(0, ws2), 0.3])
+check("dropped on a workspace's number, it goes to that workspace",
+      ws2 > 0 and sc.find("Hello") is None and sc.g[6][10] == "·", (ws2, sc))
+
+
+def rzmid(feed):
+    path = "/tmp/hibr-desktop-olrz-%d.hibr" % os.getpid()
+    open(path, "w").write("%s. %s\n\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, ONE))
+    t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+    t.keys([press(13, 39)] + feed)
+    mid = t.screen()
+    t.keys([release(17, 51), 0.3])
+    after = t.screen()
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return mid, after
+
+
+mid, after = rzmid([drag(17, 51)])
+check("a corner resize is an outline too, the size changed only when let go",
+      mid.g[13][39] == "◢" and mid.g[17][51] == "┘" and
+      after.g[17][51] == "◢", (mid, after))
+
 sc, _ = run(ONE, [press(6, 20), drag(0, 0), release(0, 0)])
 check("a window cannot be dragged up over the bar",
       sc.find("┤ Hello ├") == (1, 2), sc)
@@ -6312,4 +6379,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(697)
+report(704)

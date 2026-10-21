@@ -797,6 +797,7 @@ void cn_close(sh *s)
 		cn_on = 0;
 		return;
 	}
+	cn_olay.on = 0;
 	cn_imgclear();
 	if (cn_gfx(s) == CN_GFX_KITTY) {
 		str o;

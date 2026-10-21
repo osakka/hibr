@@ -224,6 +224,18 @@ extern int cn_mousemode;
 #endif
 extern int cn_imghalf;
 extern int cn_imgcomp;
+
+typedef struct cn_ol cn_ol;
+struct cn_ol {
+	int on, r, c, h, w;
+	unsigned fg, tl, hz, tr, vt, bl, br;
+	unsigned *tt;
+	int tn;
+};
+extern cn_ol cn_olay;
+unsigned cn_olat(int r, int c);
+unsigned cn_olglyph(const char *t);
+void cn_oltitle(const char *t);
 int cn_behind(int on);
 void cn_owninval(void);
 cn_pane *cn_pfind(const char *nm);

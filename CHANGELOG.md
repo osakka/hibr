@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.280
+
+**Windows move and resize by their outline** (the owner: "moving windows is
+a nightmare"). Dragging a window used to redraw the whole desktop and send
+the window's whole area at every step. On the owner's own settings (a
+232x71 screen, a 3840x2160 picture wallpaper in pixels, translucent
+terminals, Redraw Skip 3), that was about 18 ms of CPU and 7.8 kB a drawn
+frame, and only one step in four was drawn. Now the window stays where it is
+while the mouse is held, and its **outline** follows, with the window's title
+in its top edge. The console composites it at flush (`console outline`), so
+a step draws no frame: it moves only the outline's edge and pauses the
+desktop's periodic checks until release. Let go, the window goes there and
+draws once. Escape puts it back. A corner resize works the same way, so a
+terminal reflows its program once instead of at every step.
+
+On the owner's settings, a 30-step drag of a 38x144 terminal was 9 frames
+and 150 to 170 ms of CPU. It is now every step shown, 2 frames and 60 to
+70 ms. Control Panel > Mouse > **Drag Windows** is Outline by default, or
+Solid for the old way. Redraw Skip does not apply to an outline, which has no
+frame to skip.
+
+**A colour change sends only the colour that changed.** The console and
+hold's renderer each sent a full reset, the attributes and both colours for
+every pen change. A cell over a translucent window or a picture, which
+differs from the one before it only in its background, paid for all of it.
+They send only what changed now when the attributes are the same. A solid
+drag on the owner's settings went 70 kB to 52 kB, and every frame benefits.
+`tests/screen.py` resolves a pen as a terminal does, rather than keeping the
+escape's text.
+
 ## 0.99.279
 
 **File Types knows a kind of folder** (Gitea #318). Control Panel > File

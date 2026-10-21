@@ -570,6 +570,34 @@ void cn_sgr(str *b, unsigned fg, unsigned bg, unsigned at)
 	s_ch(b, 'm');
 }
 
+/* The escape that moves the terminal's pen from what it is to this one:
+   only the colour that changed when the attributes are the same, the full
+   reset form otherwise. A cell over a translucent window or a picture
+   differs from the one before it in its background alone, and sending the
+   reset, the attributes and the foreground again for each one was half of
+   what such a cell cost -- every frame, and every step of a drag. */
+void cn_sgrto(str *b, unsigned fg, unsigned bg, unsigned at)
+{
+	size_t p;
+
+	if (!cn_lset || at != cn_lat) {
+		cn_sgr(b, fg, bg, at);
+		return;
+	}
+	s_cat(b, "\033[");
+	p = b->n;
+	if (fg != cn_lfg)
+		cn_sgrcol(b, fg, 0);
+	if (bg != cn_lbg)
+		cn_sgrcol(b, bg, 1);
+	if (b->n > p && b->p[p] == ';') {
+		memmove(b->p + p, b->p + p + 1, b->n - p - 1);
+		b->n--;
+		b->p[b->n] = 0;
+	}
+	s_ch(b, 'm');
+}
+
 /* Append a cursor move, preferring the shorter form when on the same row. */
 void cn_goto(str *b, int row, int col, int cr, int cc)
 {
@@ -708,13 +736,80 @@ int cn_behind(int on)
 	return was;
 }
 
+/* A rectangle drawn over the screen at flush and never into it: the outline
+   a window is moved or resized by (`console outline`). Kept out of the back
+   grid, so the cells it covers keep what is really there, and the cells it
+   leaves differ from the front grid and paint themselves again -- nothing
+   has to erase it, and nothing has to be redrawn for it to move. */
+cn_ol cn_olay;
+
+/* The outline's title, one cell a character: a glyph wider than a cell is
+   drawn as a question mark rather than shifting the edge after it. */
+void cn_oltitle(const char *t)
+{
+	size_t n = strlen(t), i = 0;
+	unsigned cp;
+	int l;
+
+	free(cn_olay.tt);
+	cn_olay.tt = xm((n + 1) * sizeof(unsigned));
+	cn_olay.tn = 0;
+	while (i < n && (l = u8dec(t + i, n - i, &cp)) > 0) {
+		cn_olay.tt[cn_olay.tn++] = u8w(cp) == 1 ? cp : '?';
+		i += (size_t)l;
+	}
+}
+
+/* One glyph of the outline, from its UTF-8; a plus for one that is not. */
+unsigned cn_olglyph(const char *t)
+{
+	unsigned cp;
+
+	if (u8dec(t, strlen(t), &cp) < 1 || !cp)
+		return '+';
+	return cp;
+}
+
+/* The outline's glyph at a cell, or 0 where the outline is not. */
+unsigned cn_olat(int r, int c)
+{
+	int r1 = cn_olay.r + cn_olay.h - 1, c1 = cn_olay.c + cn_olay.w - 1;
+
+	if (r < cn_olay.r || r > r1 || c < cn_olay.c || c > c1)
+		return 0;
+	if (r == cn_olay.r) {
+		if (c == cn_olay.c)
+			return cn_olay.tl;
+		if (c == c1)
+			return cn_olay.tr;
+		/* The title, a space either side, where the window's own
+		   title bar has it -- so what is being moved still says
+		   which window it is. */
+		if (cn_olay.tn && c >= cn_olay.c + 1 && c < c1 - 1 &&
+		    c <= cn_olay.c + 2 + cn_olay.tn) {
+			int i = c - cn_olay.c - 2;
+			if (i < 0 || i == cn_olay.tn)
+				return ' ';
+			return cn_olay.tt[i];
+		}
+		return cn_olay.hz;
+	}
+	if (r == r1)
+		return c == cn_olay.c ? cn_olay.bl : c == c1 ? cn_olay.br :
+		       cn_olay.hz;
+	if (c == cn_olay.c || c == c1)
+		return cn_olay.vt;
+	return 0;
+}
+
 /* Send only the cells that changed, and return how many bytes that took. */
 long cn_flush(void)
 {
 	int r, c, cr = -9, cc = -9;
 	long n;
 	str b;
-	cn_cell *bk, *ft;
+	cn_cell *bk, *ft, *e, oc;
+	unsigned g;
 
 	if (!cn_on)
 		return 0;
@@ -753,46 +848,71 @@ long cn_flush(void)
 		for (c = 0; c < cn_back.cols; c++) {
 			bk = &cn_back.c[r * cn_back.cols + c];
 			ft = &cn_front.c[r * cn_front.cols + c];
-			if (bk->cont)
+			e = bk;
+			/* Under the outline: its glyph in its colour, on the
+			   terminal's own background -- so a picture under the
+			   text shows through it, and a run of outline cells is
+			   one pen and three bytes a cell, where each taking its
+			   cell's own background cost a colour change apiece. A
+			   wide glyph half under it gives up its other half as a
+			   blank. */
+			if (cn_olay.on) {
+				g = cn_olat(r, c);
+				if (g || (bk->w == 2 && cn_olat(r, c + 1))) {
+					oc = *bk;
+					oc.cp = g ? g : ' ';
+					oc.ext = 0;
+					oc.w = 1;
+					oc.cont = 0;
+					oc.link = 0;
+					if (g) {
+						oc.fg = cn_olay.fg;
+						oc.bg = DP_DEFAULT;
+						oc.attr = 0;
+					}
+					e = &oc;
+				}
+			}
+			if (e->cont)
 				continue;
 			/* Inside a picture: the cells belong to it, and the
 			   front grid is left not knowing them, so the text
 			   underneath paints the moment the picture goes. */
 			if (cn_imgn() && cn_imgat(r, c))
 				continue;
-			if (cn_same(bk, ft) &&
+			if (cn_same(e, ft) &&
 			    !(cr == r && cc == c && cn_near(r, c)))
 				continue;
 			cn_goto(&b, r, c, cr, cc);
-			if (!cn_lset || bk->fg != cn_lfg ||
-			    bk->bg != cn_lbg || bk->attr != cn_lat) {
-				cn_sgr(&b, bk->fg, bk->bg, bk->attr);
-				cn_lfg = bk->fg;
-				cn_lbg = bk->bg;
-				cn_lat = bk->attr;
+			if (!cn_lset || e->fg != cn_lfg ||
+			    e->bg != cn_lbg || e->attr != cn_lat) {
+				cn_sgrto(&b, e->fg, e->bg, e->attr);
+				cn_lfg = e->fg;
+				cn_lbg = e->bg;
+				cn_lat = e->attr;
 				cn_lset = 1;
 			}
-			if (bk->link != cn_llink) {
+			if (e->link != cn_llink) {
 				s_cat(&b, "\033]8;;");
-				if (bk->link && (int)bk->link <= cn_lkn)
-					s_cat(&b, cn_lk[bk->link - 1]);
+				if (e->link && (int)e->link <= cn_lkn)
+					s_cat(&b, cn_lk[e->link - 1]);
 				s_ch(&b, 7);
-				cn_llink = bk->link;
+				cn_llink = e->link;
 			}
-			cn_enc(&b, bk->cp ? bk->cp : ' ');
-			if (bk->ext)
-				s_cat(&b, bk->ext);
+			cn_enc(&b, e->cp ? e->cp : ' ');
+			if (e->ext)
+				s_cat(&b, e->ext);
 			cr = r;
-			cc = c + (bk->w ? bk->w : 1);
-			cn_cellset(ft, bk->cp, bk->ext,
-				   bk->ext ? strlen(bk->ext) : 0);
-			ft->fg = bk->fg;
-			ft->bg = bk->bg;
-			ft->attr = bk->attr;
-			ft->link = bk->link;
-			ft->w = bk->w;
-			ft->cont = bk->cont;
-			if (bk->w == 2 && c + 1 < cn_back.cols) {
+			cc = c + (e->w ? e->w : 1);
+			cn_cellset(ft, e->cp, e->ext,
+				   e->ext ? strlen(e->ext) : 0);
+			ft->fg = e->fg;
+			ft->bg = e->bg;
+			ft->attr = e->attr;
+			ft->link = e->link;
+			ft->w = e->w;
+			ft->cont = e->cont;
+			if (e->w == 2 && c + 1 < cn_back.cols) {
 				cn_cell *b2 = bk + 1, *f2 = ft + 1;
 				cn_cellset(f2, b2->cp, 0, 0);
 				f2->w = b2->w;

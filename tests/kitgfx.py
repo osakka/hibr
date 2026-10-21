@@ -312,6 +312,20 @@ sc = run(TEXT + UPIC + "console flush\n"
 check("and the frame that stops placing it is what takes it away",
       len(places(sc)) == 1 and any("a=d" in a and "d=I" in a
                                    for a in sc.apc), sc.apc)
+# A window dragged by its outline draws nothing until it is let go: each step
+# is `console outline` and a flush. Such a flush has drawn nothing, so it is
+# not a frame that stopped wanting the wallpaper, and the picture under the
+# text has to come through any number of them -- sent once, never deleted --
+# with the outline's cells keeping no background of their own over it, or
+# they would box the picture out along the edge.
+OLN = 'console outline %d 1 5 14 "#ffffff" + - + "|" + +\nconsole flush\n'
+sc = run(TEXT + UPIC + "console flush\n" +
+         "".join(OLN % r for r in (1, 2, 3, 2, 1)) + "console key 400\n")
+check("an outline dragged across a picture under the text never retires it",
+      len(places(sc)) == 1 and not [d for d in deletes(sc) if "d=I" in d],
+      (places(sc), deletes(sc)))
+check("and its cells over the picture let it show through",
+      sc.row(1)[1] == "+" and bg(sc, 1, 1) is None, (sc.row(1), sc.p[1][1]))
 # But a flush with nothing drawn since the last one is the same frame flushed
 # twice, not a frame that stopped wanting the picture -- and `wm/shot.hibr`
 # ends with `dt_draw; console flush`, where dt_draw has already flushed. Every
@@ -888,4 +902,4 @@ else:
           "or no libturbojpeg to hide here)", True)
 
 shutil.rmtree(D, True)
-report(83)
+report(85)

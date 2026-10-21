@@ -190,22 +190,30 @@ fn dt_raise(int id) {
 DT_MINW=16
 DT_MINH=4
 
-# Put a window at a size, clamped to what is sensible and what fits.
-fn dt_resize(int id, int h, int w) {
-	local r c
-
+# A size for a window at (r, c), clamped to what is sensible and what fits,
+# as "h w" -- or status 1 when even that is too small. Asked by an outline
+# drag on every step without changing anything, and by dt_resize.
+fn dt_fitsize(int r, int c, int h, int w) {
 	[ "$h" -lt "$DT_MINH" ] && h=$DT_MINH
 	[ "$w" -lt "$DT_MINW" ] && w=$DT_MINW
-	r=${DT[$id]["row"]}
-	c=${DT[$id]["col"]}
 	[ $((r + h)) -gt "$DT_ROWS" ] && h=$((DT_ROWS - r))
 	[ $((c + w)) -gt "$DT_COLS" ] && w=$((DT_COLS - c))
 	[ "$h" -lt "$DT_MINH" ] && return 1
 	[ "$w" -lt "$DT_MINW" ] && return 1
-	DT[$id]["h"]=$h
-	DT[$id]["w"]=$w
+	ret "$h $w"
+}
+
+# Put a window at a size, clamped to what is sensible and what fits.
+fn dt_resize(int id, int h, int w) {
+	local s
+
+	s := dt_fitsize "${DT[$id]["row"]}" "${DT[$id]["col"]}" "$h" "$w" ||
+		return 1
+	DT[$id]["h"]=${s% *}
+	DT[$id]["w"]=${s#* }
 	DT[$id]["oh"]=
-	console pane "w$id" "$r" "$c" "$h" "$w"
+	console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+		"${DT[$id]["h"]}" "${DT[$id]["w"]}"
 }
 
 # Resize by dragging any of the window's four corners, the opposite one
@@ -219,8 +227,8 @@ fn dt_resize(int id, int h, int w) {
 # two, clamped the same way, and hand the other edge (already free of any
 # row/col change) to dt_resize, which clamps it against the screen's own
 # far edge exactly as it always has.
-fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
-	local r c
+fn dt_cornerwhere(int id, corner, int ar, int ac, int mr, int mc) {
+	local r=${DT[$id]["row"]} c=${DT[$id]["col"]} h=${DT[$id]["h"]} w=${DT[$id]["w"]} s=
 
 	case $corner in
 	tl)
@@ -229,24 +237,19 @@ fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
 		r := dt_toprow "$r" "$c" $((ar - r + 1)) $((ac - c + 1))
 		[ "$r" -gt $((ar - DT_MINH + 1)) ] && r=$((ar - DT_MINH + 1))
 		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
-		DT[$id]["row"]=$r
-		DT[$id]["col"]=$c
-		DT[$id]["h"]=$((ar - r + 1))
-		DT[$id]["w"]=$((ac - c + 1))
-		DT[$id]["oh"]=
-		console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
+		h=$((ar - r + 1))
+		w=$((ac - c + 1))
 		;;
 	tr)
 		# r is already clamped so ar-r+1 cannot be under DT_MINH, and ar
 		# itself was always a valid row for a window that already fit the
-		# screen -- dt_resize's own early-return, for a height still too
+		# screen -- the size's own early return, for a height still too
 		# small once it clamps against the screen's far edge, can never
 		# actually fire here; only its far-edge clamp on the width does.
 		r=$mr
-		r := dt_toprow "$r" "${DT[$id]["col"]}" $((ar - r + 1)) $((mc - ${DT[$id]["col"]} + 1))
+		r := dt_toprow "$r" "$c" $((ar - r + 1)) $((mc - c + 1))
 		[ "$r" -gt $((ar - DT_MINH + 1)) ] && r=$((ar - DT_MINH + 1))
-		DT[$id]["row"]=$r
-		dt_resize "$id" $((ar - r + 1)) $((mc - ac + 1))
+		s := dt_fitsize "$r" "$c" $((ar - r + 1)) $((mc - ac + 1))
 		;;
 	bl)
 		# Same reasoning as tr, mirrored: c is already clamped so
@@ -254,8 +257,7 @@ fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
 		c=$mc
 		[ "$c" -lt 0 ] && c=0
 		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
-		DT[$id]["col"]=$c
-		dt_resize "$id" $((mr - ar + 1)) $((ac - c + 1))
+		s := dt_fitsize "$r" "$c" $((mr - ar + 1)) $((ac - c + 1))
 		;;
 	l)
 		# One dimension only: the left edge moves, height and the right
@@ -263,23 +265,47 @@ fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
 		c=$mc
 		[ "$c" -lt 0 ] && c=0
 		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
-		DT[$id]["col"]=$c
-		dt_resize "$id" "${DT[$id]["h"]}" $((ac - c + 1))
+		s := dt_fitsize "$r" "$c" "$h" $((ac - c + 1))
 		;;
 	r)
 		# The mirror of l: the right edge moves, the left one (ac) does
-		# not, so dt_resize's own clamp on the width is all this needs.
-		dt_resize "$id" "${DT[$id]["h"]}" $((mc - ac + 1))
+		# not, so the size's own clamp on the width is all this needs.
+		s := dt_fitsize "$r" "$c" "$h" $((mc - ac + 1))
 		;;
 	b)
 		# The mirror of r, the other axis: the bottom edge moves, the
 		# top one (ar) does not.
-		dt_resize "$id" $((mr - ar + 1)) "${DT[$id]["w"]}"
+		s := dt_fitsize "$r" "$c" $((mr - ar + 1)) "$w"
 		;;
 	*)
-		dt_resize "$id" $((mr - ar + 1)) $((mc - ac + 1))
+		s := dt_fitsize "$r" "$c" $((mr - ar + 1)) $((mc - ac + 1))
 		;;
 	esac
+	# A size too small to fit keeps the one it had, as dt_resize always
+	# did, the edge that moved having moved.
+	[ -n "$s" ] && { h=${s% *}; w=${s#* }; }
+	ret "$r $c $h $w"
+}
+
+# Resize to where dt_cornerwhere says the corner puts it.
+fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
+	local g
+	local -a v
+
+	g := dt_cornerwhere "$id" "$corner" "$ar" "$ac" "$mr" "$mc"
+	read -ra v <<< "$g"
+	dt_setgeom "$id" "${v[0]}" "${v[1]}" "${v[2]}" "${v[3]}"
+}
+
+# Put a window at a place and a size already worked out, which is what
+# the end of an outline drag does once.
+fn dt_setgeom(int id, int r, int c, int h, int w) {
+	DT[$id]["row"]=$r
+	DT[$id]["col"]=$c
+	DT[$id]["h"]=$h
+	DT[$id]["w"]=$w
+	DT[$id]["oh"]=
+	console pane "w$id" "$r" "$c" "$h" "$w"
 }
 
 # Move a window, clamped to the screen below the menu bar. The far edge
@@ -303,7 +329,7 @@ fn dt_toprow(int r, int c, int h, int w) {
 	ret "$r"
 }
 
-fn dt_move(int id, int r, int c) {
+fn dt_movewhere(int id, int r, int c) {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]}
 
 	if [ "$h" -le "$DT_ROWS" ]; then
@@ -318,9 +344,67 @@ fn dt_move(int id, int r, int c) {
 	fi
 	[ "$c" -lt 0 ] && c=0
 	r := dt_toprow "$r" "$c" "$h" "$w"
-	DT[$id]["row"]=$r
-	DT[$id]["col"]=$c
-	console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
+	ret "$r $c"
+}
+
+# Move a window to where dt_movewhere says it may stand.
+fn dt_move(int id, int r, int c) {
+	local p
+
+	p := dt_movewhere "$id" "$r" "$c"
+	DT[$id]["row"]=${p% *}
+	DT[$id]["col"]=${p#* }
+	console pane "w$id" "${p% *}" "${p#* }" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
+}
+
+# Dragging by an outline (Control Panel > Mouse > Drag Windows): while the
+# mouse is held the window stays where it was and only its outline follows,
+# composited by the console over the screen at flush and never drawn into
+# it. So a step costs the outline's own edge on the wire and no frame at
+# all -- a solid drag redraws the desktop and sends the window's whole area
+# at every step, which was 18 ms and 7.8 kB a step on the owner's desktop --
+# and on release the window goes there and draws once. DT_OLON is the
+# window, DT_OLG where it would go, and DT_OLONLY says this pass of the
+# loop changed nothing but the outline, so dt_run flushes and draws nothing.
+DT_OLON=
+DT_OLG=
+DT_OLONLY=
+
+fn dt_outlined() {
+	[ "$DT_MOVEMODE" != solid ]
+}
+
+# Show where a window would go, its title in the edge where its own is.
+fn dt_olshow(int id, int r, int c, int h, int w) {
+	DT_OLON=$id
+	DT_OLG="$r $c $h $w"
+	console outline "$r" "$c" "$h" "$w" "$DT_ACTIVE" "${GL[tl]}" \
+		"${GL[hline]}" "${GL[tr]}" "${GL[vline]}" "${GL[bl]}" \
+		"${GL[br]}" "${DT[$id]["title"]}"
+	DT_OLONLY=1
+	return 0
+}
+
+# Put the window where its outline is, once, and take the outline away.
+fn dt_olapply() {
+	local -a g
+
+	[ -n "$DT_OLON" ] || return 1
+	read -ra g <<< "$DT_OLG"
+	console outline off
+	[ "${#g[@]}" = 4 ] && dt_setgeom "$DT_OLON" "${g[0]}" "${g[1]}" "${g[2]}" "${g[3]}"
+	DT_OLON=
+	DT_OLG=
+	return 0
+}
+
+# Take the outline away and leave the window where it was: escape, or a
+# drag that ends some other way.
+dt_oloff() {
+	[ -n "$DT_OLON" ] && console outline off
+	DT_OLON=
+	DT_OLG=
+	return 0
 }
 
 # Put a window on a half of the primary display -- left, right, top or
