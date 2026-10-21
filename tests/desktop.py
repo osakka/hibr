@@ -113,6 +113,21 @@ sc, _ = run(ONE, env={"XDG_STATE_HOME": LOGST}, pre="DT_LOGMAX=100")
 check("and one under it is left alone", "small" in open(new).read(),
       open(new).read()[:80])
 shutil.rmtree(LOGST, True)
+# Every line in the log carries when it was written (Gitea #329): the
+# desktop's own, the start line among them, and the shell's errors, which
+# are most of it, through `shopt -s logtime`.
+LOGST = tempfile.mkdtemp(prefix="hibr-logtime-")
+expect("nosuch_329")
+sc, _ = run(ONE + "\nnosuch_329", env={"XDG_STATE_HOME": LOGST})
+STAMP = r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d "
+lg = open(os.path.join(LOGST, "hibr", "desktop.log")).read()
+check("the log's start line says when, and which build and process wrote it",
+      re.search(r"(?m)^" + STAMP + r"desktop: started: hibr \d+\.\d+\.\d+, "
+                r"pid \d+, session ", lg) is not None, lg[:400])
+check("and the shell's own errors carry the time too",
+      re.search(r"(?m)^" + STAMP + r"hibr: .*nosuch_329", lg) is not None,
+      lg[:400])
+shutil.rmtree(LOGST, True)
 # Shortcut Key (Gitea #326): the desktop's own chords are written with
 # `mod`, and DT_MOD says which modifiers that is. Super arrives only as the
 # kitty keyboard protocol's CSI u, which the console decodes whatever the
@@ -6297,4 +6312,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(695)
+report(697)

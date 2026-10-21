@@ -1334,7 +1334,14 @@ The terminal is put back if the desktop dies anyway, whether from `kill`, a
 hangup or a crash in a module. While it holds the screen its stderr goes to
 `~/.local/state/hibr/desktop.log` (`$XDG_STATE_HOME`, or `DT_LOG`), so an
 app's error message cannot scribble over the display and the reason for a
-failure is still there to read afterwards.
+failure is still there to read afterwards. Every line in it begins with
+the local time it was written (`2026-10-21T09:19:34+01:00`). That is true of
+the desktop's own lines and, through `shopt -s logtime`, of the shell's
+errors. Each start writes `desktop: started:` with the hibr version, pid
+and session, so a log read later says which build wrote which part. The
+exception is a program the desktop starts that writes to its standard error
+itself: its lines are not stamped, though they still fall between stamped
+ones. Past 8 MB (`DT_LOGMAX`), a start moves the log to `desktop.log.1`.
 
 ## Inside GNU screen or tmux
 

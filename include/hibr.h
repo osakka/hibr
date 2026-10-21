@@ -8,7 +8,7 @@
 #define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.277"
+#define HIBR_VER "0.99.278"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -141,6 +141,7 @@
 #define O_KEEPGOING 512u
 #define O_DASHC 1024u
 #define O_DASHS 2048u
+#define O_LOGTIME 4096u
 #define O_FIXON 1
 #define O_FIXOFF 2
 #endif

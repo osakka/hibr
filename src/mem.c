@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -117,6 +118,21 @@ void lg_json(int lv, const char *f, va_list ap)
 	free(m);
 }
 
+/* The local time a line is written, RFC 3339 and a space, for logtime. */
+void lg_when(FILE *o)
+{
+	time_t t = time(0);
+	struct tm tm;
+	long z;
+
+	localtime_r(&t, &tm);
+	z = tm.tm_gmtoff / 60;
+	fprintf(o, "%04d-%02d-%02dT%02d:%02d:%02d%c%02ld:%02ld ",
+		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
+		tm.tm_min, tm.tm_sec, z < 0 ? '-' : '+', (z < 0 ? -z : z) / 60,
+		(z < 0 ? -z : z) % 60);
+}
+
 /* Emit a diagnostic line when its level is enabled. */
 void lg(int lv, const char *f, ...)
 {
@@ -129,6 +145,8 @@ void lg(int lv, const char *f, ...)
 	if (lg_sh && (lg_sh->sopt & O_AGENT))
 		lg_json(lv, f, ap);
 	else {
+		if (lg_sh && (lg_sh->sopt & O_LOGTIME))
+			lg_when(stderr);
 		fputs("hibr: ", stderr);
 		vfprintf(stderr, f, ap);
 		fputc('\n', stderr);

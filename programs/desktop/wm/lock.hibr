@@ -69,7 +69,7 @@ dt_lock() {
 }
 
 # A line for the desktop's log.
-fn dt_locklog(t) { printf 'desktop: %s\n' "$t" >&2; }
+fn dt_locklog(t) { dt_log "$t"; }
 
 # Unlock: the saver ends and the desktop comes back.
 dt_unlock() {

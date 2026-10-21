@@ -68,10 +68,11 @@ fn dt_keydups() {
 		[ -n "${DT_KEYS["$an"]}" ] || continue
 		v := dt_keynorm "${DT_KEYS["$an"]}"
 		if [ -n "${dt_seen["$v"]+x}" ]; then
-			printf 'desktop: %s and %s are both on %s; %s wins\n' \
+			printf -v v '%s and %s are both on %s; %s wins' \
 				"${DT_KEYNAME["${dt_seen["$v"]}"]}" \
 				"${DT_KEYNAME["$an"]}" "${DT_KEYS["$an"]}" \
-				"${DT_KEYNAME["${dt_seen["$v"]}"]}" >&2
+				"${DT_KEYNAME["${dt_seen["$v"]}"]}"
+			dt_log "$v"
 		else
 			dt_seen["$v"]=$an
 		fi

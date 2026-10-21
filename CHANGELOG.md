@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.278
+
+**Every line in desktop.log says when it was written** (Gitea #329). The
+shell gains `set -o logtime` (also `shopt -s logtime`), which puts the local
+time in front of each of its own diagnostics, as RFC 3339:
+`2026-10-21T09:19:34+01:00 hibr: x: command not found`. Subshells and `$(…)`
+keep it, and agent mode's JSON lines are not stamped. The desktop turns it
+on where its standard error becomes the log. Its own `desktop:` lines go
+through one helper (`dt_log`) that writes the same stamp. Each start now
+writes `desktop: started: hibr <version>, pid <pid>, session <name>`, so a
+log read later says which build wrote which part. A program the desktop
+starts that writes to its standard error itself is still unstamped, but its
+lines fall between stamped ones.
+
 ## 0.99.277
 
 **`/` searches the hibr menu** (Gitea #325). With the hibr menu or one of

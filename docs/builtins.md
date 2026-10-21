@@ -196,6 +196,11 @@ is read, as in bash. `eval`, traps and `$(…)` always run as read -- see
 deep, fail only the command it happened in -- as it does inside `try` --
 where by default, as in bash, it ends a non-interactive script. A long-lived
 script that runs other people's code, such as the desktop, turns it on.
+**[hibr]** `set -o logtime` puts the local time in front of each of the
+shell's own diagnostics, as RFC 3339 (`2026-10-21T09:19:34+01:00 hibr: x:
+command not found`), for an error log read later. Subshells and `$(…)`
+keep it; agent mode's JSON is never stamped. The desktop turns it on for
+`desktop.log`.
 **[hibr]** `set -o agent`, or `hibr --agent`, is agent mode: errors as JSON
 lines, `nounset`, `strict` and `checkfirst` on, no terminal on standard input, and
 `HIBR_TIMEOUT` bounding each foreground process -- see

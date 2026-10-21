@@ -1,0 +1,13 @@
+0
+off: hibr: nosuch_217: command not found
+set -o: stamped, hibr: nosuch_217: command not found
+shopt: stamped
+subshell: stamped
+substitution: stamped
+off again: hibr: nosuch_217: command not found
+utc: +00:00
+half hour: +05:30
+west: negative
+agent: JSON, unstamped
+logtime         off
+logtime         off

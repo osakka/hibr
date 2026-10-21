@@ -183,7 +183,7 @@ fn dt_rswrite(f, int carry, why = "restart") {
 # A line in the desktop's log, the one place a restart can say what it did
 # once the screen has been handed over.
 fn dt_rslog(text) {
-	echo "desktop: $text" >&2
+	dt_log "$text"
 	[ -n "$DT_RSDEBUG" ] && echo "$text" >> "$DT_RSDEBUG"
 	return 0
 }

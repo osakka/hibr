@@ -265,7 +265,7 @@ dt_sysapps() {
 	# line in the log saying where it went -- once, not on every rescan.
 	d="${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desk-accessories"
 	if [ -z "$DT_RESCANS" ] && [ -d "$d" ]; then
-		printf '%s\n' "desktop: $d is no longer scanned -- move its files to ${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps/Accessories" >&2
+		dt_log "$d is no longer scanned -- move its files to ${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps/Accessories"
 	fi
 	return 0
 }

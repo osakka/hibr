@@ -57,6 +57,19 @@ dt_tdone() {
 # about a millisecond, there being no builtin that knows a file's size.
 DT_LOGMAX="${DT_LOGMAX-8388608}"
 
+# A line of the desktop's own on standard error -- its log once dt_open has
+# run -- stamped the way the shell stamps its own there under logtime: the
+# local time, RFC 3339, then `desktop:`. Every line in desktop.log carries
+# when it was written, which is what tells the last start's lines from a
+# week-old one's (Gitea #329). printf's %z has no colon, so one goes in.
+fn dt_log(text) {
+	local t
+
+	printf -v t '%(%Y-%m-%dT%H:%M:%S%z)T' -1
+	printf '%s desktop: %s\n' "${t:0:22}:${t:22}" "$text" >&2
+	return 0
+}
+
 dt_logturn() {
 	local n
 
@@ -137,6 +150,11 @@ dt_open() {
 	if [ -d "${DT_LOG%/*}" ] || mkdir -p "${DT_LOG%/*}" 2> /dev/null; then
 		dt_logturn
 		exec {DT_ERR}>&2 2>> "$DT_LOG"
+		# The shell's own errors are most of the log, so they carry
+		# the time as well; and each start says which build wrote what
+		# follows it.
+		shopt -s logtime
+		dt_log "started: hibr $HIBR_VERSION, pid $$, session ${sess:-desktop}"
 	fi
 	dt_langapply
 	dt_has cs_relist && cs_relist
@@ -194,8 +212,7 @@ fn dt_shiftorigin(shift) {
 	# never-set one is left alone, the same as cs_clamp leaves it: its
 	# default is computed from the primary and so follows already.
 	[ -n "${CS_Y-}" ] && CS_Y=$((CS_Y + dr))
-	printf 'desktop: displays moved by %s,%s; windows, icons and the strip with them\n' \
-		"$dr" "$dc" >&2
+	dt_log "displays moved by $dr,$dc; windows, icons and the strip with them"
 	return 0
 }
 
@@ -321,8 +338,7 @@ dt_tickers() {
 
 	for f in "${DT_TICKERS[@]}"; do
 		if ! dt_has "$f"; then
-			printf 'desktop: ticker %s is not defined; taken off the list\n' \
-				"$f" >&2
+			dt_log "ticker $f is not defined; taken off the list"
 			continue
 		fi
 		keep+=("$f")

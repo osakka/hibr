@@ -124,7 +124,7 @@ dt_svcarry() {
 # screen and so never sent its stderr there.
 fn dt_svlog(text) {
 	mkdir -p "${DT_LOG%/*}" 2> /dev/null
-	echo "desktop: $text" >> "$DT_LOG"
+	dt_log "$text" 2>> "$DT_LOG"
 	return 0
 }
 

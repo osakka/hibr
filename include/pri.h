@@ -124,6 +124,7 @@ int ex_deep(sh *s, const char *what, int fn);
 void u8cased(str *o, const char *v, int up, int first);
 unsigned u8case(unsigned c, int up);
 void lg_jline(str *o, const char *key, const char *m);
+void lg_when(FILE *o);
 extern int pl_fd;
 void pl_init(sh *s);
 void pl_fini(void);
