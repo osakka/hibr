@@ -14,7 +14,7 @@
 strict
 
 
-app shortcuts "The Control Panel pane for every shortcut in one list" 1.0
+app shortcuts "The Control Panel pane for every shortcut in one list" 1.1
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌘"
 
 # Shortcut Key's three choices, as the pane shows them and as DT_MOD
