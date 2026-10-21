@@ -71,7 +71,7 @@ wb_tab *wb_tabget(const char *id)
 		if (t && t->id == n)
 			return t;
 	}
-	lg(HIBR_LERR, "web: no tab %s", id ? id : "");
+	wb_err(HIBR_LERR, "web: no tab %s", id ? id : "");
 	return 0;
 }
 
@@ -190,7 +190,10 @@ int wb_go(wb_tab *t, const char *url)
 		return HIBR_FAIL;
 	err = jv_str(jv_path(r, "result.errorText"));
 	if (*err) {
-		lg(HIBR_LWRN, "web: %s: %s", url, err);
+		/* An aborted navigation is a download, or one replaced by the
+		   next: not a page that failed, and said only at debug. */
+		wb_err(strcmp(err, "net::ERR_ABORTED") ? HIBR_LWRN : HIBR_LDBG,
+		       "web: %s: %s", url, err);
 		t->url.n = 0;
 		s_cat(&t->url, url);
 	}
@@ -251,7 +254,7 @@ int wb_evalg(wb_tab *t, const char *js, str *out, int gesture)
 	x = jv_path(r, "result.exceptionDetails");
 	if (x) {
 		v = jv_path(x, "exception.description");
-		lg(HIBR_LERR, "web: %s", v ? jv_str(v) : jv_str(jv_get(x, "text")));
+		wb_err(HIBR_LERR, "web: %s", v ? jv_str(v) : jv_str(jv_get(x, "text")));
 		jv_free(r);
 		return HIBR_FAIL;
 	}
@@ -485,7 +488,7 @@ void wb_slow(wb_tab *t)
 	if (t->navwarn || now - t->navat < WB_SLOWMS)
 		return;
 	t->navwarn = 1;
-	lg(HIBR_LWRN, "web: %s is still loading after %ld s",
+	wb_err(HIBR_LWRN, "web: %s is still loading after %ld s",
 	   t->url.p ? t->url.p : "a page", (now - t->navat) / 1000);
 }
 
@@ -738,7 +741,7 @@ int wb_key(wb_tab *t, const char *key)
 		}
 	wb_utf8(k, &n);
 	if (k[n] || !*k) {
-		lg(HIBR_LERR, "web: no key %s", key);
+		wb_err(HIBR_LERR, "web: no key %s", key);
 		return HIBR_FAIL;
 	}
 	memcpy(one, k, (size_t)n);

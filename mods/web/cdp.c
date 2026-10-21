@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <ftw.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,6 +100,48 @@ void wb_mkdirs(const char *d)
 	free(p);
 }
 
+/* An error or warning of the module's, said once while it repeats: the
+   Browser calls render and draw every frame, so a browser that has gone
+   would otherwise put the same line in the desktop's log fourteen times a
+   second. A repeat is said again, with how many it stands for, once a
+   minute; a different message says how often the one before it came. */
+void wb_err(int lv, const char *f, ...)
+{
+	static char *last;
+	static int rep;
+	static time_t at;
+	va_list ap;
+	time_t now = time(0);
+	char *m;
+	int n;
+
+	if (lv > hibr_lv)
+		return;
+	va_start(ap, f);
+	n = vsnprintf(0, 0, f, ap);
+	va_end(ap);
+	m = xm((size_t)(n < 0 ? 0 : n) + 1);
+	va_start(ap, f);
+	vsnprintf(m, (size_t)(n < 0 ? 0 : n) + 1, f, ap);
+	va_end(ap);
+	if (last && !strcmp(last, m)) {
+		if (now - at < 60) {
+			rep++;
+			free(m);
+			return;
+		}
+		lg(lv, "%s (and %d times more in the last minute)", m, rep);
+	} else {
+		if (last && rep)
+			lg(lv, "web: the line before came %d times more", rep);
+		lg(lv, "%s", m);
+	}
+	free(last);
+	last = m;
+	rep = 0;
+	at = now;
+}
+
 /* Where the browser's own error output goes: a file in the state folder,
    emptied at each start, for wb_whyfail and for a person -- Chromium sent
    it to /dev/null until 0.99.275, so a browser that would not start, or
@@ -155,9 +198,9 @@ void wb_whyfail(void)
 	for (j = i; j < b.n; j++)
 		s_ch(&l, b.p[j]);
 	if (l.n)
-		lg(HIBR_LERR, "web: the browser did not start: %s", l.p);
+		wb_err(HIBR_LERR, "web: the browser did not start: %s", l.p);
 	else
-		lg(HIBR_LERR, "web: the browser did not start, and said nothing");
+		wb_err(HIBR_LERR, "web: the browser did not start, and said nothing");
 	s_free(&l);
 	s_free(&b);
 }
@@ -239,7 +282,7 @@ int wb_spawn(const char *bin, const char *prof)
 	pid_t pid, me = getpid();
 
 	if (pipe(toc) < 0 || pipe(fromc) < 0) {
-		lg(HIBR_LERR, "web: cannot make a pipe: %s", strerror(errno));
+		wb_err(HIBR_LERR, "web: cannot make a pipe: %s", strerror(errno));
 		return HIBR_FAIL;
 	}
 	s_init(&ud);
@@ -267,7 +310,7 @@ int wb_spawn(const char *bin, const char *prof)
 	fflush(0);
 	pid = fork();
 	if (pid < 0) {
-		lg(HIBR_LERR, "web: cannot fork: %s", strerror(errno));
+		wb_err(HIBR_LERR, "web: cannot fork: %s", strerror(errno));
 		if (elog >= 0)
 			close(elog);
 		goto fail;
@@ -342,13 +385,13 @@ int wb_start(void)
 	if (wb_alive())
 		return HIBR_OK;
 	if (wb.failat && wb_ms() - wb.failat < WB_RESTMS) {
-		lg(HIBR_LERR, "web: the browser stopped answering %ld s ago; "
+		wb_err(HIBR_LERR, "web: the browser stopped answering %ld s ago; "
 			      "not starting another yet", (wb_ms() - wb.failat) / 1000);
 		return HIBR_FAIL;
 	}
 	bin = wb_find();
 	if (!bin) {
-		lg(HIBR_LERR, "web: no Chromium or Chrome found -- install one, "
+		wb_err(HIBR_LERR, "web: no Chromium or Chrome found -- install one, "
 			      "or set HIBR_WEB_BROWSER");
 		return HIBR_FAIL;
 	}
@@ -637,7 +680,7 @@ int wb_req(const char *method, const char *params, const char *session)
 		if (w < 0 && errno == EINTR)
 			continue;
 		if (w <= 0) {
-			lg(HIBR_LERR, "web: cannot write to the browser: %s",
+			wb_err(HIBR_LERR, "web: cannot write to the browser: %s",
 			   strerror(errno));
 			s_free(&m);
 			return 0;
@@ -677,7 +720,7 @@ jv *wb_call(const char *method, const char *params, const char *session)
 			wb.stuck = 0;
 			e = jv_get(v, "error");
 			if (e) {
-				lg(HIBR_LERR, "web: %s: %s", method,
+				wb_err(HIBR_LERR, "web: %s: %s", method,
 				   jv_str(jv_get(e, "message")));
 				jv_free(v);
 				return 0;
@@ -685,9 +728,9 @@ jv *wb_call(const char *method, const char *params, const char *session)
 			return v;
 		}
 		if (wb_ms() > until || !wb_alive()) {
-			lg(HIBR_LERR, "web: %s: no answer from the browser", method);
+			wb_err(HIBR_LERR, "web: %s: no answer from the browser", method);
 			if (wb_alive() && (++wb.stuck >= 2 || !session)) {
-				lg(HIBR_LERR, "web: the browser is not answering; it is stopped");
+				wb_err(HIBR_LERR, "web: the browser is not answering; it is stopped");
 				wb.failat = wb_ms();
 				wb_stop();
 			}

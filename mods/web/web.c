@@ -126,13 +126,13 @@ int wb_drawcmd(sh *s, wb_tab *t, int ac, char **av)
 			v[n++] = atoi(av[i]);
 	}
 	if (n < 2) {
-		lg(HIBR_LERR, "usage: web draw tab row col [h w] [-p pane]");
+		wb_err(HIBR_LERR, "usage: web draw tab row col [h w] [-p pane]");
 		return 2;
 	}
 	if (!wb_dp)
 		wb_dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
 	if (!wb_dp || !wb_dp->isopen()) {
-		lg(HIBR_LERR, "web draw: no display open");
+		wb_err(HIBR_LERR, "web draw: no display open");
 		return HIBR_FAIL;
 	}
 	if (v[2] < 0)
@@ -141,7 +141,7 @@ int wb_drawcmd(sh *s, wb_tab *t, int ac, char **av)
 		v[3] = t->gcols;
 	if (pane) {
 		if (!wb_dp->prect || !wb_dp->prect(pane, &prow, &pcol, &ph, &pw)) {
-			lg(HIBR_LERR, "web draw: no such pane: %s", pane);
+			wb_err(HIBR_LERR, "web draw: no such pane: %s", pane);
 			return HIBR_FAIL;
 		}
 		v[0] += prow;
@@ -155,7 +155,7 @@ int wb_drawcmd(sh *s, wb_tab *t, int ac, char **av)
 /* The usage line. */
 void wb_usage(void)
 {
-	lg(HIBR_LERR, "usage: web open [url] | close|back|forward|reload|render|"
+	wb_err(HIBR_LERR, "usage: web open [url] | close|back|forward|reload|render|"
 		      "url|title|text|links|loading|dirty|focus T | go T url | "
 		      "wait T [ms] | size T rows cols | mode T cells|pixels|text | "
 		      "set T js|images|dark on|off | set T zoom pct | set T ua text | "
@@ -275,7 +275,7 @@ int m_web(sh *s, int ac, char **av)
 	if (!t)
 		return HIBR_FAIL;
 	if (!wb_alive()) {
-		lg(HIBR_LERR, "web: the browser is not running");
+		wb_err(HIBR_LERR, "web: the browser is not running");
 		return HIBR_FAIL;
 	}
 	if (!strcmp(sub, "close")) {
@@ -312,7 +312,7 @@ int m_web(sh *s, int ac, char **av)
 		int px = !strcmp(av[3], "pixels") || !strcmp(av[3], "sixel");
 
 		if (!px && strcmp(av[3], "cells") && strcmp(av[3], "text")) {
-			lg(HIBR_LERR, "web mode: cells or pixels, not %s", av[3]);
+			wb_err(HIBR_LERR, "web mode: cells or pixels, not %s", av[3]);
 			return 2;
 		}
 		if (t->textonly != !strcmp(av[3], "text")) {
@@ -433,7 +433,7 @@ int m_web(sh *s, int ac, char **av)
 		return t->dirty ? HIBR_OK : HIBR_FAIL;
 	if (!strcmp(sub, "focus"))
 		return t->focus ? HIBR_OK : HIBR_FAIL;
-	lg(HIBR_LERR, "web: no subcommand %s", sub);
+	wb_err(HIBR_LERR, "web: no subcommand %s", sub);
 	return 2;
 }
 

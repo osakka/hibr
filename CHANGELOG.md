@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.279
+
+**File Types knows a kind of folder** (Gitea #318). Control Panel > File
+Types said `.boxer` opened in hvi, because it asked what opens a *file*
+called x.boxer. Boxer opens that kind of folder and not a file, so it was
+left out, and the text editor, which takes any file, came first.
+`dt_openers` takes `dir` now, to ask about a kind of folder with none on
+disk. The pane asks that way for every extension an app claims as a
+bundle, writes the row as Files writes a folder (`.boxer/  Boxer`), and
+Open With offers the apps that open that kind of folder.
+
+**The Browser's errors reach the log** (Gitea #327). The Browser sent the
+web module's error output to /dev/null on every call that matters: opening
+Chromium, its settings, loading and reloading a page, rendering and drawing
+it. So the messages 0.99.275 added could never reach `desktop.log` from the
+Browser, which is why the owner's log said nothing. They go to the log
+now. A message the module repeats, such as `the browser is not running`
+from a render on every frame, is written once and then once a minute with
+a count (`wb_err`). A navigation Chromium aborts (a download, or one
+replaced by the next) is no longer a warning.
+
 ## 0.99.278
 
 **Every line in desktop.log says when it was written** (Gitea #329). The

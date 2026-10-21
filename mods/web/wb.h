@@ -147,6 +147,7 @@ int wb_start(void);
 void wb_stop(void);
 void wb_useragent(void);
 int wb_alive(void);
+void wb_err(int lv, const char *f, ...);
 jv *wb_call(const char *method, const char *params, const char *session);
 int wb_send(const char *method, const char *params, const char *session);
 int wb_pump(int ms);

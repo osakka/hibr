@@ -183,7 +183,14 @@ the browser refuses to load is logged with its reason
 (`net::ERR_NAME_NOT_RESOLVED`), and one still loading after `WB_SLOWMS`
 (20 s) is logged once. All three went to nobody before 0.99.275: the
 output to `/dev/null` and the refusal at debug level, so a Browser window
-that showed nothing left nothing to read (Gitea #327).
+that showed nothing left nothing to read (Gitea #327). And until 0.99.279
+the Browser itself threw the module's messages away, calling it with
+`2> /dev/null`. Every error and warning goes through `wb_err`, which writes
+a message once while it repeats: render and draw run every frame, so a
+browser that has gone would otherwise be fourteen identical lines a second.
+The repeat is written again once a minute, with its count. An aborted
+navigation (`net::ERR_ABORTED`: a download, or one replaced by the next)
+is logged at debug level, since nothing failed.
 
 Accepting a tab's capture of itself without asking would let any page
 take the pixels of whatever it frames, so every tab, from its opening and

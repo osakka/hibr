@@ -38,7 +38,7 @@
 
 strict
 
-app browser "The web, in a window" 1.8
+app browser "The web, in a window" 1.9
 # modules: web
 # part: control-panel/browserset.hibr
 
@@ -122,9 +122,9 @@ bw_watch() {
 # What Chromium is started with, for whichever window starts it -- the
 # YouTube player asks for this too, since the two share one browser.
 bw_cfg() {
-	web config browser "$BW_PROGRAM" 2> /dev/null
-	web config profile "$BW_PROFILE" 2> /dev/null
-	web config args "$BW_ARGS" 2> /dev/null
+	web config browser "$BW_PROGRAM"
+	web config profile "$BW_PROFILE"
+	web config args "$BW_ARGS"
 	return 0
 }
 
@@ -283,7 +283,7 @@ fn bw_reapply(again = "") {
 		bw_tabs "$id"
 		for t in "${BW_TABS[@]}"; do
 			bw_apply "$t"
-			[ -n "$again" ] && web reload "$t" 2> /dev/null
+			[ -n "$again" ] && web reload "$t"
 		done
 		BW[$id]["tdone"]=
 	done
@@ -300,14 +300,14 @@ fn bw_newtab(int id, url = "") {
 
 	[ -z "$url" ] && [ -n "$BW_HOME" ] && url := bw_addr "$BW_HOME"
 	bw_cfg
-	t := web open 2> /dev/null || {
+	t := web open || {
 		BW[$id]["err"]="No Chromium or Chrome to show pages with -- install one, or set HIBR_WEB_BROWSER"
 		return 1
 	}
 	bw_wide
 	bw_apply "$t"
 	bw_sndarm "$t"
-	[ -n "$url" ] && web go "$t" "$url" 2> /dev/null
+	[ -n "$url" ] && web go "$t" "$url"
 	bw_watch
 	BW[$id]["tabs"]="${BW[$id]["tabs"]:+${BW[$id]["tabs"]} }$t"
 	BW[$id]["cur"]=$t
@@ -480,7 +480,7 @@ fn bw_goaddr(int id) {
 		bw_newtab "$id" "$a"
 	else
 		bw_sndarm "$t"
-		web go "$t" "$a" 2> /dev/null
+		web go "$t" "$a"
 	fi
 }
 
@@ -625,17 +625,17 @@ fn bw_body(int id, t, int h, int w, int pt, int ph) {
 	# would otherwise be read and sent on every frame there is.
 	now := dt_ms
 	if [ "${BW[$id]["drawn"]}" != "$t" ]; then
-		web render "$t" 2> /dev/null && BW[$id]["drawn"]=$t
+		web render "$t" && BW[$id]["drawn"]=$t
 		BW[$id]["rat"]=$now
 	elif web dirty "$t" 2> /dev/null; then
 		if [ $((now - ${BW[$id]["rat"]:-0})) -ge "${DT_TERMMS:-70}" ]; then
-			web render "$t" 2> /dev/null
+			web render "$t"
 			BW[$id]["rat"]=$now
 		else
 			dt_want $((${BW[$id]["rat"]:-0} + ${DT_TERMMS:-70} - now))
 		fi
 	fi
-	web draw "$t" "$pt" 1 -p "w$id" 2> /dev/null
+	web draw "$t" "$pt" 1 -p "w$id"
 	# The page's own scroll bar, in the column kept for it (Gitea #292).
 	sc := web scroll "$t" 2> /dev/null
 	read -ra sv <<< "$sc"
@@ -744,7 +744,7 @@ fn bw_text(int id, t, int ph, int w, int pt = 3) {
 	local n top r=0 line rest pre num x vis=$((ph - 1)) tw=$((w - 2))
 
 	if web dirty "$t" 2> /dev/null || [ "${BW[$id]["tdone"]}" != "$t $tw" ]; then
-		web render "$t" 2> /dev/null
+		web render "$t"
 		bw_textread "$id" "$t" "$tw"
 		BW[$id]["ttop"]=0
 	fi
@@ -831,7 +831,7 @@ fn browser_key(int id, key) {
 	f6 | ctrl-l) bw_editaddr "$id"; return 0 ;;
 	alt-b) [ -n "$t" ] && web back "$t" 2> /dev/null; return 0 ;;
 	alt-f) [ -n "$t" ] && web forward "$t" 2> /dev/null; return 0 ;;
-	f5) [ -n "$t" ] && web reload "$t" 2> /dev/null; return 0 ;;
+	f5) [ -n "$t" ] && web reload "$t"; return 0 ;;
 	esac
 	bw_drawmode
 	if [ "$BW_DRAWN" = text ]; then
@@ -870,11 +870,11 @@ fn browser_click(int id, int r, int c, btn = "") {
 	newtab) bw_newtab "$id"; return 0 ;;
 	back) [ -n "$t" ] && web back "$t" 2> /dev/null; return 0 ;;
 	forward) [ -n "$t" ] && web forward "$t" 2> /dev/null; return 0 ;;
-	reload) [ -n "$t" ] && web reload "$t" 2> /dev/null; return 0 ;;
+	reload) [ -n "$t" ] && web reload "$t"; return 0 ;;
 	addr) bw_editaddr "$id"; return 0 ;;
 	link:*)
 		[ -n "$t" ] && [ -n "${BWX["$id:u${tag#link:}"]+x}" ] &&
-			web go "$t" "${BWX["$id:u${tag#link:}"]}" 2> /dev/null
+			web go "$t" "${BWX["$id:u${tag#link:}"]}"
 		return 0
 		;;
 	esac
@@ -1010,7 +1010,7 @@ fn bw_open(int id, url) {
 	[ -n "$url" ] && url := bw_addr "$url"
 	if [ -n "$t" ]; then
 		bw_sndarm "$t"
-		web go "$t" "$url" 2> /dev/null
+		web go "$t" "$url"
 	else
 		bw_newtab "$id" "$url"
 	fi
@@ -1018,7 +1018,7 @@ fn bw_open(int id, url) {
 
 fn bw_back(int id) { [ -n "${BW[$id]["cur"]}" ] && web back "${BW[$id]["cur"]}" 2> /dev/null; return 0; }
 fn bw_fwd(int id) { [ -n "${BW[$id]["cur"]}" ] && web forward "${BW[$id]["cur"]}" 2> /dev/null; return 0; }
-fn bw_reload(int id) { [ -n "${BW[$id]["cur"]}" ] && web reload "${BW[$id]["cur"]}" 2> /dev/null; return 0; }
+fn bw_reload(int id) { [ -n "${BW[$id]["cur"]}" ] && web reload "${BW[$id]["cur"]}"; return 0; }
 
 # File > Save as PDF: the page shown, printed the way the browser prints
 # it, to a file chosen in the desktop's own save dialog -- in the downloads

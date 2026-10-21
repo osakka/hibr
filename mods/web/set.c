@@ -317,7 +317,7 @@ int wb_set(wb_tab *t, const char *k, const char *v)
 		if (wb_setnotes(t, on) != HIBR_OK)
 			return HIBR_FAIL;
 	} else {
-		lg(HIBR_LERR, "web set: js, images, dark, zoom, ua, lang, dnt, "
+		wb_err(HIBR_LERR, "web set: js, images, dark, zoom, ua, lang, dnt, "
 			      "block, geo, notes or live, not %s", k);
 		return 2;
 	}
@@ -325,7 +325,7 @@ int wb_set(wb_tab *t, const char *k, const char *v)
 	t->dirty = 1;
 	return HIBR_OK;
 bad:
-	lg(HIBR_LERR, "web set: %s: not a value for %s", v, k);
+	wb_err(HIBR_LERR, "web set: %s: not a value for %s", v, k);
 	return 2;
 }
 
@@ -391,7 +391,7 @@ int wb_config(const char *k, const char *v)
 	else if (!strcmp(k, "args"))
 		slot = &wb.cfargs;
 	else {
-		lg(HIBR_LERR, "web config: browser, profile or args, not %s", k);
+		wb_err(HIBR_LERR, "web config: browser, profile or args, not %s", k);
 		return 2;
 	}
 	free(*slot);
@@ -461,7 +461,7 @@ int wb_clear(int ac, char **av)
 	wb_tab *t;
 
 	if (ac < 3) {
-		lg(HIBR_LERR, "usage: web clear cookies|cache|history [T...]");
+		wb_err(HIBR_LERR, "usage: web clear cookies|cache|history [T...]");
 		return 2;
 	}
 	if (!strcmp(av[2], "history")) {
@@ -486,7 +486,7 @@ int wb_clear(int ac, char **av)
 		return r;
 	}
 	if (strcmp(av[2], "cookies") && strcmp(av[2], "cache")) {
-		lg(HIBR_LERR, "web clear: cookies, cache or history, not %s", av[2]);
+		wb_err(HIBR_LERR, "web clear: cookies, cache or history, not %s", av[2]);
 		return 2;
 	}
 	if (wb_start() != HIBR_OK)
@@ -516,12 +516,12 @@ int wb_permit(const char *name, const char *how)
 		return wb_callq("Browser.resetPermissions", "{}", 0);
 	if (strcmp(name, "geolocation") && strcmp(name, "camera") &&
 	    strcmp(name, "microphone") && strcmp(name, "notifications")) {
-		lg(HIBR_LERR, "web permit: geolocation, camera, microphone, "
+		wb_err(HIBR_LERR, "web permit: geolocation, camera, microphone, "
 			      "notifications or reset, not %s", name);
 		return 2;
 	}
 	if (!how || (strcmp(how, "allow") && strcmp(how, "refuse"))) {
-		lg(HIBR_LERR, "web permit: allow or refuse, not %s",
+		wb_err(HIBR_LERR, "web permit: allow or refuse, not %s",
 		   how ? how : "");
 		return 2;
 	}
@@ -686,7 +686,7 @@ int wb_pdf(wb_tab *t, const char *path)
 
 	r = wb_call("Page.printToPDF", "{\"printBackground\":true}", t->session);
 	if (!r || !jv_path(r, "result.data")) {
-		lg(HIBR_LERR, "web pdf: the browser did not print the page");
+		wb_err(HIBR_LERR, "web pdf: the browser did not print the page");
 		jv_free(r);
 		return HIBR_FAIL;
 	}
@@ -695,7 +695,7 @@ int wb_pdf(wb_tab *t, const char *path)
 	jv_free(r);
 	f = fopen(path, "wb");
 	if (!f) {
-		lg(HIBR_LERR, "web pdf: %s: cannot be written", path);
+		wb_err(HIBR_LERR, "web pdf: %s: cannot be written", path);
 		s_free(&d);
 		return HIBR_FAIL;
 	}

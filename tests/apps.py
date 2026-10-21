@@ -4076,6 +4076,20 @@ check("a verb opens its own app with the bundle's path",
 sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 0.5], pre=BPRE, end=None)
 check("with nothing registered for its extension it is a plain folder",
       sc.find("inside.txt") is not None and sc.find("┤ Bundle App ├") is None, sc)
+# Control Panel > File Types asks about a kind of folder as a folder: asked
+# as a file, x.game found the editor, which takes any file, and never the
+# app that claims the folder -- .boxer read "hvi" on the owner's desktop.
+out = subprocess.run(
+    [sx.HIBR, "-c", CPLOAD + BAPP + BREG +
+     'n := filetypes_rows 1; i=0; while [ "$i" -lt "$n" ]; do '
+     'echo "row=${CP[1][$i]["text"]}"; i=$((i + 1)); done; '
+     'owt_ask game; echo "ow=${DT_OWLIST[*]}"'],
+    capture_output=True, text=True,
+    env=dict(os.environ, XDG_CONFIG_HOME=PANEHOME)).stdout.splitlines()
+check("File Types lists a kind of folder as a folder, with the app that opens it",
+      "row=.game/  Bundle App" in out, out)
+check("and its Open With offers that app, not the editor that takes any file",
+      "ow=bnd" in out, out)
 shutil.rmtree(BND, True)
 
 # Open With, Open Terminal Here: a right-click on a file offers every app
@@ -5109,4 +5123,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(679)
+report(681)

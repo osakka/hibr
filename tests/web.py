@@ -11,7 +11,7 @@ import sys, tempfile, threading, zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, press, release, load, tree
+from screen import Term, check, report, press, release, load, tree, expect
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -362,6 +362,9 @@ for d in sc.imgdata:
 check("and the page's own words are in the picture, not made transparent",
       len(sc.images) == 1 and dark > 500, (dark, len(sc.imgdata), sc.apc[:1]))
 
+# The module says why in the desktop's log, which the Browser no longer
+# throws away (Gitea #327): a provoked error, so not one to fail over.
+expect("no Chromium or Chrome found")
 sc = brun([], env={"HIBR_WEB_BROWSER": "/nonexistent/chromium"})
 check("without a browser to drive, the window says what is missing",
       sc.find("No Chromium or Chrome") is not None, sc)

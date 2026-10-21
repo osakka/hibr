@@ -158,7 +158,7 @@ int wb_sound(wb_tab *t, const char *mode)
 	else if (!strcmp(mode, "load"))
 		m = 2;
 	else {
-		lg(HIBR_LERR, "web sound: off, click or load, not %s", mode);
+		wb_err(HIBR_LERR, "web sound: off, click or load, not %s", mode);
 		return HIBR_FAIL;
 	}
 	if (wb_docjs(t, &t->sndjs, m ? "window.__hibrSndClick=1" : 0) != HIBR_OK)
@@ -206,7 +206,7 @@ int wb_tapseek(wb_tab *t)
 	s_init(&o);
 	r = wb_eval(t, "window.__hibrSeek ? __hibrSeek() : 'none'", &o);
 	if (r == HIBR_OK && strcmp(o.p ? o.p : "", "ok")) {
-		lg(HIBR_LERR, "web tapseek: the tab has no tap");
+		wb_err(HIBR_LERR, "web tapseek: the tab has no tap");
 		r = HIBR_FAIL;
 	}
 	s_free(&o);
@@ -316,7 +316,7 @@ int wb_take(sh *s, wb_tab *t, int vfd, int afd)
 	if (!s->bind)
 		printf("%s\n", sum.p);
 	if (rc != HIBR_OK)
-		lg(HIBR_LERR, "web take: could not write what was taken: %s",
+		wb_err(HIBR_LERR, "web take: could not write what was taken: %s",
 		   strerror(errno));
 	s_free(&sum);
 	s_free(&b);

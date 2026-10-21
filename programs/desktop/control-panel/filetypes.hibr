@@ -9,7 +9,7 @@
 strict
 
 
-app filetypes "Which program opens which kind of file" 1.2
+app filetypes "Which program opens which kind of file" 1.3
 command -v cp_pane > /dev/null && cp_pane filetypes "File Types" "◈"
 command -v dt_app > /dev/null && dt_app ft "File Type" 9 54 "" "" fixed hidden
 command -v dt_app > /dev/null && dt_app owt "Open With" 14 50 "" "" fixed hidden
@@ -33,7 +33,7 @@ fn ft_summary(ext) {
 }
 
 fn filetypes_rows(int w) {
-	local n=0 ext v el
+	local n=0 ext v el f
 	local -a all exts
 
 	all=("${!DT_HANDLERS[@]}")
@@ -59,8 +59,11 @@ fn filetypes_rows(int w) {
 	read -ra exts <<< "$el"
 	for ext in "${exts[@]}"; do
 		v := owt_summary "$ext"
+		# A kind of folder is written as Files writes a folder.
+		f=
+		case " ${DT_BUNDLEEXT-} " in *" $ext "*) f=/ ;; esac
 		CP[$w][$n]["kind"]=action
-		CP[$w][$n]["text"]=".$ext  $v"
+		CP[$w][$n]["text"]=".$ext$f  $v"
 		CP[$w][$n]["val"]=""
 		CP[$w][$n]["key"]="ow:$ext"
 		n=$((n + 1))
@@ -92,12 +95,23 @@ owt_exts() {
 	ret "${out# }"
 }
 
+# What opens a type, asked as a folder when an app claims the extension
+# for a kind of folder (a bundle, #318): asked as a file, x.boxer found
+# every opener that takes any file -- the editor -- and never Boxer.
+fn owt_ask(ext) {
+	case " ${DT_BUNDLEEXT-} " in
+	*" $ext "*) dt_openers "x.$ext" dir ;;
+	*) dt_openers "x.$ext" ;;
+	esac
+	return 0
+}
+
 # A type's Open With list as its row shows it: the default, and how many
 # others Open With offers.
 fn owt_summary(ext) {
 	local t k
 
-	dt_openers "x.$ext"
+	owt_ask "$ext"
 	[ "${#DT_OWLIST[@]}" -gt 0 ] || { ret "nothing"; return 0; }
 	t := dt_openertitle "${DT_OWLIST[0]}" "$ext"
 	k=$((${#DT_OWLIST[@]} - 1))
@@ -343,7 +357,7 @@ fn owt_dialog(ext) {
 	local h=14 w=50 r c rid n i=0 o
 	local -a cand
 
-	dt_openers "x.$ext"
+	owt_ask "$ext"
 	cand=("${DT_OWLIST[@]}")
 	dt_dlgat "$h" "$w"
 	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
@@ -358,7 +372,7 @@ fn owt_dialog(ext) {
 	done
 	DT_OPENWITH_SAVE=$DT_OPENWITH
 	owt_without "$ext"
-	dt_openers "x.$ext"
+	owt_ask "$ext"
 	DT_OPENWITH=$DT_OPENWITH_SAVE
 	for o in "${DT_OWLIST[@]}"; do
 		case " ${cand[*]} " in *" $o "*) continue ;; esac

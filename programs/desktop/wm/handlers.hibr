@@ -246,15 +246,17 @@ dt_opener dbase "dBASE" "db" app dbase
 dt_opener hvi "Text Editor (hvi)" "*" edit
 dt_opener run "Run in Terminal" "x" run
 
-# Whether an opener can open this path, and is there to do it.
-fn dt_opencan(name, path, ext) {
+# Whether an opener can open this path, and is there to do it. `dir` is 1
+# when the path is a folder, worked out once by the caller -- or asserted
+# by one asking about a kind of folder with none on disk.
+fn dt_opencan(name, path, ext, int dir) {
 	local ty=${DT_OPENERS[$name]["types"]} ap=${DT_OPENERS[$name]["app"]}
 
 	[ -n "$ty" ] || return 1
 	if [ "${DT_OPENERS[$name]["dir"]}" = 1 ]; then
-		[ -d "$path" ] || return 1
+		[ "$dir" = 1 ] || return 1
 	else
-		[ -d "$path" ] && return 1
+		[ "$dir" = 1 ] && return 1
 	fi
 	if [ -n "$ap" ]; then
 		dt_has "${ap}_open" || dt_has "${ap}_draw" || return 1
@@ -270,28 +272,32 @@ fn dt_opencan(name, path, ext) {
 # The openers for a path, in their order, into DT_OWLIST: the configured
 # list for its extension where there is one, then anything else that can
 # open it; "handler" stands for a File Types handler of the extension.
-fn dt_openers(path) {
-	local ext n e
+fn dt_openers(path, kind = "") {
+	local ext n e dir=0
 	local -a conf all ow
 
 	DT_OWLIST=()
 	DT_OWCONF=
 	ext := dt_ext "$path"
+	# A caller asking what opens a kind of folder -- the File Types pane,
+	# which has an extension and no folder to show it (#318) -- says so,
+	# since x.boxer is no folder on disk and would be asked about as a file.
+	{ [ "$kind" = dir ] || [ -d "$path" ]; } && dir=1
 	read -ra ow <<< "$DT_OPENWITH"
 	for e in "${ow[@]}"; do
 		[ "${e%%:*}" = "$ext" ] || continue
 		IFS=, read -ra conf <<< "${e#*:}"
 	done
-	[ -n "$ext" ] && [ -n "${DT_HANDLERS[$ext]["n"]}" ] && [ ! -d "$path" ] &&
+	[ -n "$ext" ] && [ -n "${DT_HANDLERS[$ext]["n"]}" ] && [ "$dir" = 0 ] &&
 		all+=(handler)
 	# What names the extension comes before what takes any file.
 	for n in "${DT_OPENERORDER[@]}"; do
 		case ${DT_OPENERS[$n]["types"]} in *" * "* | *" x "*) continue ;; esac
-		dt_opencan "$n" "$path" "$ext" && all+=("$n")
+		dt_opencan "$n" "$path" "$ext" "$dir" && all+=("$n")
 	done
 	for n in "${DT_OPENERORDER[@]}"; do
 		case ${DT_OPENERS[$n]["types"]} in *" * "* | *" x "*) ;; *) continue ;; esac
-		dt_opencan "$n" "$path" "$ext" && all+=("$n")
+		dt_opencan "$n" "$path" "$ext" "$dir" && all+=("$n")
 	done
 	if [ "${#conf[@]}" -gt 0 ]; then
 		DT_OWCONF=1
