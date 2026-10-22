@@ -368,9 +368,64 @@ int pr_esc(sh *s, str *o, const char *p)
 	case '[':
 	case ']':
 		return 1;
+	case 'r':
+		s_ch(o, '\r');
+		return 1;
+	case 'V':
+		s_cat(o, HIBR_VER);
+		return 1;
+	case '!':
+		s_num(o, (long)s->hist.n + 1);
+		return 1;
+	case '#':
+		s_num(o, hs_count + 1);
+		return 1;
+	case 'l':
+		c = isatty(0) ? ttyname(0) : 0;
+		if (c) {
+			char *b = strrchr(c, '/');
+
+			s_cat(o, b ? b + 1 : c);
+		} else {
+			s_cat(o, "tty");
+		}
+		return 1;
+	case '0': case '1': case '2': case '3':
+	case '4': case '5': case '6': case '7': {
+		/* bash's \NNN: the character of up to three octal digits --
+		   \033 is how most prompts found on the web say escape, and
+		   it printed as itself until 0.99.294 (Gitea #350). */
+		int v = 0, n = 0;
+
+		while (n < 3 && p[n] >= '0' && p[n] <= '7') {
+			v = v * 8 + (p[n] - '0');
+			n++;
+		}
+		s_ch(o, (char)(v & 255));
+		return n;
+	}
+	case 'D':
+		if (p[1] == '{') {
+			const char *e = strchr(p + 2, '}');
+			str f;
+
+			if (!e)
+				break;
+			s_init(&f);
+			s_add(&f, p + 2, (size_t)(e - p - 2));
+			now = time(0);
+			tm = localtime(&now);
+			s_grow(o, 256);
+			o->n += strftime(o->p + o->n, 256, f.n ? f.p : "%X", tm);
+			o->p[o->n] = 0;
+			s_free(&f);
+			return (int)(e - p) + 1;
+		}
+		break;
 	case 't':
 	case 'T':
 	case '@':
+	case 'A':
 	case 'd':
 		now = time(0);
 		tm = localtime(&now);
@@ -381,6 +436,8 @@ int pr_esc(sh *s, str *o, const char *p)
 			o->n += (size_t)strftime(o->p + o->n, 64, "%I:%M:%S", tm);
 		else if (*p == '@')
 			o->n += (size_t)strftime(o->p + o->n, 64, "%I:%M %p", tm);
+		else if (*p == 'A')
+			o->n += (size_t)strftime(o->p + o->n, 64, "%H:%M", tm);
 		else
 			o->n += (size_t)strftime(o->p + o->n, 64, "%a %b %d", tm);
 		o->p[o->n] = 0;

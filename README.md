@@ -66,9 +66,28 @@ sudo apt update && sudo apt install hibr
 
 `apt upgrade` keeps it current from then on.
 
-**Arch Linux** has no package yet (an AUR one is planned); build it from
-source, below, with `base-devel` and `git` installed, and `make CC=gcc`
-unless you have installed `tcc` as well.
+**Fedora 36, RHEL 10, openSUSE Leap 15.6 or newer** (x86_64), from the
+signed dnf repository at [osakka.github.io/hibr-rpm](https://osakka.github.io/hibr-rpm)
+(`zypper addrepo` takes the same file on openSUSE):
+
+```text
+sudo curl -fsSL -o /etc/yum.repos.d/hibr.repo https://osakka.github.io/hibr-rpm/hibr.repo
+sudo dnf install hibr
+```
+
+**Arch Linux** (x86_64), from the signed pacman repository at
+[osakka.github.io/hibr-arch](https://osakka.github.io/hibr-arch): trust its
+key once, add it to `/etc/pacman.conf`, and install.
+
+```text
+curl -fsSL https://osakka.github.io/hibr-arch/hibr.asc | sudo pacman-key --add -
+sudo pacman-key --lsign-key A1E3CA788A8FB02052DA22B413035BE1B1674431
+printf '[hibr]\nServer = https://osakka.github.io/hibr-arch/$arch\n' | sudo tee -a /etc/pacman.conf
+sudo pacman -Syu hibr
+```
+
+One key signs all three repositories, and the three packages hold the same
+files, byte for byte; `dnf upgrade` and `pacman -Syu` keep them current.
 
 **From source**, anywhere with a C compiler:
 

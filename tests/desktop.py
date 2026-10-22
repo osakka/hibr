@@ -95,6 +95,22 @@ check("a bar menu stays on the bar's own display, ending at its edge",
       col > 0 and it and all(sc.style(it[0], c)["bg"] == wbg
                              for c in range(40, 70)),
       [sc.row(r) for r in range(0, 8)])
+# And the window list at the bar's right end, which is drawn on its own and
+# was a fixed 18 columns that padded a title and never cut one: a long
+# title ran past the list and onto the display beside the bar's (Gitea
+# #352). It is cut, with an ellipsis, inside the primary's 40 columns.
+WLONG = "A window whose title goes on and on and on and on"
+WLIST = ("dt_new '%s' 6 30 8 4\n"
+         "tk_narrow() { DT_PRIMARY_W=40; }\ndt_ticker tk_narrow" % WLONG)
+# Opened from the keyboard, F10 and then left from the first menu, which is
+# the window list.
+sc, _ = run(WLIST, [0.3, b"\x1b[21~", b"\x1b[D"])
+it = [r for r in range(1, 6) if "A window whose" in sc.row(r)]
+wbg = sc.style(it[0], 30)["bg"] if it else None
+check("the window list cuts a long title and stays on the bar's display",
+      bool(it) and "…" in sc.row(it[0]) and WLONG not in sc.row(it[0]) and
+      all(sc.style(it[0], c)["bg"] != wbg for c in range(40, 60)),
+      [sc.row(r) for r in range(0, 8)])
 
 # The log turns over past DT_LOGMAX at a start, so it cannot grow for ever
 # (Gitea #328): the old one becomes desktop.log.1 and a new one begins.
@@ -624,8 +640,11 @@ def cpyrun(caps):
     n0 = len(t.raw)
     t.keys([drag(7, 22), 0.2, drag(8, 24), 0.2, drag(9, 26), 0.2])
     n = len(t.raw) - n0
-    t.keys([release(9, 26), 0.4])
-    sc = t.screen()
+    # The drop's frame, not a pause: a slow build draws the last step of a
+    # drag after the release has been read, and a screenshot taken 0.4 s
+    # on was one step short under the sanitizers.
+    t.keys([release(9, 26)])
+    sc = t.until(lambda sc: (sc.find("┤ Copy ├") or (0, 0))[0] == 9, 60)
     t.quit(b"qy", 1.0)
     os.unlink(path)
     return sc, n, t.raw
@@ -6585,4 +6604,4 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(723)
+report(724)

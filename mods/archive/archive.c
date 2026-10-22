@@ -622,6 +622,7 @@ int arc_scheme(sh *s, const char *rest)
 	char buf[65536];
 	int fd;
 
+	(void)s;
 	if (!slash) {
 		lg(HIBR_LERR, "/dev/archive/ wants a name and a path inside it");
 		return -1;

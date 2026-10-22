@@ -42,6 +42,7 @@ MB_AN=
 # Where the window list was drawn, so a click reads the same rectangle.
 MB_ADY=1
 MB_ADX=0
+MB_ADW=18
 
 # A menu that opened at the pointer rather than under its bar title: MB_CX
 # and MB_CY are where it goes instead, MB_CTXWHO is what to ask for its
@@ -1140,11 +1141,27 @@ fn dt_mfootdraw(int r, int x, int w) {
 # the primary's own columns: from row 1 and the whole screen's width it
 # opened on whatever display was stacked above the primary.
 dt_drop_apps() {
-	local ids id i=0 r x w=18 t mark n il pl=${DT_PRIMARY_COL:-0}
+	local ids id i=0 r x w=18 t mark n il pl=${DT_PRIMARY_COL:-0} tw
 	local pr=$((${DT_PRIMARY_COL:-0} + ${DT_PRIMARY_W:-$DT_COLS}))
+	local -a tl
 
 	ids := dt_ids
 	read -ra il <<< "$ids"
+	# As wide as its longest title, and no wider than Menu Width or the
+	# bar's display: at a fixed 18 a longer title was padded to nothing
+	# and drawn whole, onto the display beside the bar's (Gitea #352,
+	# which #324 fixed for every other menu and not this one).
+	for id in "${il[@]}"; do
+		t := dt_title "$id"
+		tl+=("$t")
+		tw := str width "$t"
+		[ $((tw + 3)) -gt "$w" ] && w=$((tw + 3))
+	done
+	[ "${DT_MENUMAX:-0}" -ge 14 ] && [ "$w" -gt "$DT_MENUMAX" ] &&
+		w=$DT_MENUMAX
+	[ "$w" -gt $((pr - pl)) ] && w=$((pr - pl))
+	[ "$w" -lt 14 ] && w=14
+	MB_ADW=$w
 	r := dt_ptop
 	x=$((MB_AX - 4))
 	[ $((x + w)) -gt "$pr" ] && x=$((pr - w))
@@ -1165,7 +1182,12 @@ dt_drop_apps() {
 		[ "$id" = "$DT_FOCUS" ] && mark="${GL[bullet]}"
 		dt_hidden "$id" && mark="${GL[dot]}"
 		dt_away "$id" && mark=${DT[$id]["ws"]}
-		t := dt_title "$id"
+		t=${tl[$i]}
+		tw := str width "$t"
+		if [ $((tw + 2)) -gt "$w" ]; then
+			t := dt_cut "$t" $((w - 3))
+			t="$t${GL[ellipsis]}"
+		fi
 		t := str pad "$mark ${t}" "$w"
 		console put "$r" "$x" "$t"
 		r=$((r + 1))
@@ -1462,7 +1484,7 @@ fn dt_mpick(int r, int c) {
 	n := dt_mrows
 	if [ "$MB_OPEN" = app ]; then
 		x=$MB_ADX
-		w=18
+		w=${MB_ADW:-18}
 		dy=$MB_ADY
 	else
 		x=${MB[$MB_OPEN]["dx"]:-${MB[$MB_OPEN]["x"]}}

@@ -104,6 +104,7 @@ int m_prhash(sh *s, int ac, char **av)
 	struct stat st;
 	int i, rc = HIBR_OK;
 
+	(void)s;
 	if (ac < 3) {
 		lg(HIBR_LERR, "usage: prompt hash <file>...");
 		return 2;

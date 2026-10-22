@@ -237,7 +237,7 @@ void tr_int(str *o, long v, int w)
 
 	s_init(&t);
 	s_num(&t, v);
-	for (i = t.n; (int)i < (size_t)w; i++)
+	for (i = t.n; i < (size_t)(w > 0 ? w : 0); i++)
 		s_ch(o, ' ');
 	s_cat(o, t.p ? t.p : "0");
 	s_free(&t);

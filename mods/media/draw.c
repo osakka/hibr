@@ -47,6 +47,7 @@ void mv_cellof(mv_pl *p, int mode, mv_vf *f, int x, int y, mv_cell *c)
 	int lum;
 	uint8_t *q;
 
+	(void)p;
 	if (mode == 0) {
 		a = mv_px(f, x, y * 2);
 		b = mv_px(f, x, y * 2 + 1);

@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <termios.h>
+#include <pwd.h>
 #include <unistd.h>
 
 extern const hibr_bi bitab[];
@@ -451,6 +452,10 @@ void ed_load(str *b, size_t *pos, const char *t)
 	*pos = b->n;
 }
 
+/* How many command lines this shell has been given, for a prompt's \#:
+   counted where one is entered, so loading the history file adds none. */
+long hs_count;
+
 /* Append a line to the history, skipping blanks and repeats. */
 void hs_add(sh *s, const char *line)
 {
@@ -724,21 +729,164 @@ int edcmp(const void *a, const void *b)
 	return strcmp(*(char *const *)a, *(char *const *)b);
 }
 
-/* Extend the word under the cursor from the filesystem and builtins. */
+/* Where the word under the cursor starts, reading the line from its start
+   as the shell would: a blank or one of ;|&<>() ends a word only when it is
+   neither quoted nor escaped, so `My\ Fo` and `"My Fo` are each one word.
+   *q is the quote the cursor is inside, or 0 (Gitea #350). */
+size_t ed_wstart(const char *b, size_t pos, int *q)
+{
+	size_t i, ws = 0;
+	int in = 0;
+
+	for (i = 0; i < pos; i++) {
+		char c = b[i];
+
+		if (in == '\'') {
+			if (c == '\'')
+				in = 0;
+			continue;
+		}
+		if (c == '\\' && i + 1 < pos) {
+			i++;
+			continue;
+		}
+		if (in == '"') {
+			if (c == '"')
+				in = 0;
+			continue;
+		}
+		if (c == '\'' || c == '"') {
+			in = c;
+			continue;
+		}
+		if (strchr(" \t;|&<>()", c))
+			ws = i + 1;
+	}
+	*q = in;
+	return ws;
+}
+
+/* What a typed word means: its quotes taken off and its backslashes undone,
+   the way the shell would read it. */
+void ed_dequote(const char *t, size_t n, str *o)
+{
+	size_t i;
+	int in = 0;
+
+	for (i = 0; i < n; i++) {
+		char c = t[i];
+
+		if (in == '\'') {
+			if (c == '\'')
+				in = 0;
+			else
+				s_ch(o, c);
+			continue;
+		}
+		if (in == '"') {
+			if (c == '"')
+				in = 0;
+			else if (c == '\\' && i + 1 < n && strchr("$`\"\\", t[i + 1]))
+				s_ch(o, t[++i]);
+			else
+				s_ch(o, c);
+			continue;
+		}
+		if (c == '\\' && i + 1 < n) {
+			s_ch(o, t[++i]);
+			continue;
+		}
+		if (c == '\'' || c == '"') {
+			in = c;
+			continue;
+		}
+		s_ch(o, c);
+	}
+}
+
+/* A leading ~ or ~user turned into its home, for looking the word up; the
+   line keeps what was typed. */
+void ed_tilde(str *w)
+{
+	size_t e;
+	const char *h = 0;
+	struct passwd *pw;
+	str o, u;
+
+	if (!w->n || w->p[0] != '~')
+		return;
+	for (e = 1; e < w->n && w->p[e] != '/'; e++)
+		;
+	if (e == 1) {
+		h = getenv("HOME");
+	} else {
+		s_init(&u);
+		s_add(&u, w->p + 1, e - 1);
+		pw = getpwnam(u.p);
+		s_free(&u);
+		h = pw ? pw->pw_dir : 0;
+	}
+	if (!h)
+		return;
+	s_init(&o);
+	s_cat(&o, h);
+	s_add(&o, w->p + e, w->n - e);
+	w->n = 0;
+	s_add(w, o.p, o.n);
+	s_free(&o);
+}
+
+/* A completed name, quoted for where it goes: inside '...' only a quote
+   matters, inside "..." $ ` " and \ do, and outside any quote every
+   character the shell gives a meaning is escaped -- a space above all,
+   which is what made `cd My<Tab>` give a cd two words. */
+void ed_quote(str *o, const char *t, size_t n, int q)
+{
+	size_t i;
+
+	for (i = 0; i < n; i++) {
+		char c = t[i];
+
+		if (q == '\'') {
+			if (c == '\'')
+				s_cat(o, "'\\''");
+			else
+				s_ch(o, c);
+		} else if (q == '"') {
+			if (strchr("$`\"\\", c))
+				s_ch(o, '\\');
+			s_ch(o, c);
+		} else {
+			if (strchr(" \t\n\\'\"`$&;|<>()*?[]{}!#", c) ||
+			    (c == '~' && i == 0 && !o->n))
+				s_ch(o, '\\');
+			s_ch(o, c);
+		}
+	}
+}
+
+/* Extend the word under the cursor from the filesystem and builtins. The
+   word is read as the shell reads it and what it gains is written as the
+   shell would need it, in the word's own quoting (Gitea #350). */
 void ed_tab(sh *s, est *e, str *b, size_t *pos)
 {
-	size_t st = *pos;
+	size_t st, i, k, keep = 0;
 	vec c = { 0, 0, 0 };
-	str dir, word, common;
-	size_t i, k;
+	str dir, word, common, raw;
+	int q, qq;
 
-	while (st && b->p[st - 1] != ' ' && b->p[st - 1] != '\t')
-		st--;
+	st = ed_wstart(b->p ? b->p : "", *pos, &q);
 	s_init(&word);
 	s_add(&word, b->p + st, *pos - st);
-	ed_cand(s, b, st, word.p ? word.p : "", &c, &dir);
+	s_init(&raw);
+	ed_dequote(word.p ? word.p : "", word.n, &raw);
+	if (!raw.p)
+		s_cat(&raw, "");
+	ed_tilde(&raw);
+	ed_cand(s, b, st, raw.p ? raw.p : "", &c, &dir);
 	if (!c.n) {
 		s_free(&word);
+		s_free(&raw);
 		s_free(&dir);
 		return;
 	}
@@ -766,19 +914,38 @@ void ed_tab(sh *s, est *e, str *b, size_t *pos)
 		s_free(&o);
 		ed_fresh(e);
 	}
+	/* What was typed up to the last /, kept as it was typed -- its own
+	   quotes and escapes, a ~ unexpanded -- and the completed name after
+	   it, quoted for where the cursor is. */
+	for (i = 0; i < word.n; i++)
+		if (word.p[i] == '/')
+			keep = i + 1;
 	{
 		str nb;
-		const char *sl = strrchr(word.p ? word.p : "", '/');
-		size_t keep = sl ? (size_t)(sl - word.p + 1) : 0;
+		int whole = c.n == 1 && common.n &&
+			    common.p[common.n - 1] != '/';
+
 		s_init(&nb);
 		s_add(&nb, b->p, st);
 		s_add(&nb, word.p ? word.p : "", keep);
-		s_add(&nb, common.p ? common.p : "", common.n);
-		k = nb.n;
-		if (c.n == 1 && common.n && common.p[common.n - 1] != '/') {
-			s_ch(&nb, ' ');
-			k = nb.n;
+		/* The quote open after what is kept decides how the name is
+		   written, and a single match that is not a folder closes it
+		   before its space, as bash does. What was typed of the name
+		   itself is replaced by the name, so a word half in one quoting
+		   and half in another comes out in one. */
+		qq = 0;
+		ed_wstart(word.p ? word.p : "", keep, &qq);
+		if (!qq && keep < word.n &&
+		    (word.p[keep] == '\'' || word.p[keep] == '"')) {
+			qq = word.p[keep];
+			s_ch(&nb, (char)qq);
 		}
+		ed_quote(&nb, common.p ? common.p : "", common.n, qq);
+		if (whole && qq)
+			s_ch(&nb, (char)qq);
+		if (whole)
+			s_ch(&nb, ' ');
+		k = nb.n;
 		s_add(&nb, b->p + *pos, b->n - *pos);
 		b->n = 0;
 		if (b->p)
@@ -792,6 +959,7 @@ void ed_tab(sh *s, est *e, str *b, size_t *pos)
 	v_free(&c);
 	s_free(&common);
 	s_free(&word);
+	s_free(&raw);
 	s_free(&dir);
 	ed_draw(e, b, *pos);
 }

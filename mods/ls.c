@@ -238,6 +238,7 @@ void ls_emit(sh *s, struct lsent **es, size_t n, struct lsopt *op, vec *names)
 	int wl = 1, wu = 1, wg = 1, ws = 1;
 	str t;
 
+	(void)s;
 	if (n > 1)
 		qsort(es, n, sizeof *es,
 		      op->bytime ? ls_bytime : op->bysize ? ls_bysize : ls_byname);

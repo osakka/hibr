@@ -370,6 +370,7 @@ int loop(sh *s)
 		if (n) {
 			struct timespec c0, c1;
 			str d;
+			hs_count++;
 			clock_gettime(CLOCK_MONOTONIC, &c0);
 			ex(s, n);
 			clock_gettime(CLOCK_MONOTONIC, &c1);

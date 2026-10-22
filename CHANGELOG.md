@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.99.294
+
+**A bash prompt works as written** (Gitea #350). `\033` and every other
+octal escape in `PS1` is the byte it names, so
+`PS1='\[\033[1;31m\]\u@\h\[\033[0m\]:\w# '` draws in colour with the
+cursor where it belongs, instead of printing `\033[1;31m`. The rest of bash's
+prompt escapes are there too: `\r`, `\A`, `\D{format}`, `\l`, `\!`, `\#`
+and `\V`. `\#` counts every command the shell has run; it had counted only
+the ones holding a `!`.
+
+**Tab completion quotes what it completes** (Gitea #350). A name with a
+space, a `$`, an `&`, a quote or any other character the shell would read
+is escaped (`cd My<Tab>` gives `cd My\ Folder/`). A word that opened a
+quote is finished inside it and the quote closed once the name is whole
+(`ls "My Fo<Tab>`). A word already escaped or quoted is understood before it
+is completed, where it used to complete nothing. And `~/` and `~user/`
+complete as the folder they name.
+
+**The window list stays on its own display** (Gitea #352). The list of
+windows at the right end of the bar was a fixed 18 columns and drew a
+longer title whole, past its own edge and onto the display beside the
+bar's. It is as wide as its longest title now, no wider than Control Panel
+> Appearance > Menu Width or the display. A longer title is cut with an
+ellipsis, as #324 already did for every other menu.
+
+**Packages for Fedora, RHEL, openSUSE and Arch.** hibr has a signed dnf
+repository ([osakka.github.io/hibr-rpm](https://osakka.github.io/hibr-rpm))
+and a signed pacman repository ([osakka.github.io/hibr-arch](https://osakka.github.io/hibr-arch))
+beside the apt one, each published with every release by
+`packaging/rpm/` and `packaging/arch/`. Both are built from the release's
+Debian package, so the three hold the same files byte for byte; only the
+PAM files differ, using the system's own `login` rules. One key signs all
+three. The README says how to add each.
+
+**The build is clean under gcc's warnings as well as tcc's.** `gcc -Wall
+-Wextra` found nine: three unused variables, five unused parameters and one
+signed comparison. None was a bug, and all nine are gone. What is still
+short of "no compromises" is #351: fixed-size buffers the coding rules
+forbid, and five tests that leak.
+
 ## 0.99.293
 
 **Desktop icons** (Gitea #349).

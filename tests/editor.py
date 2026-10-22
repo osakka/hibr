@@ -4,7 +4,7 @@
 The .t files cannot reach any of this: the editor only runs when stdin is a
 terminal.  Run it directly:  python3 tests/editor.py [path-to-hibr]
 """
-import os, sys
+import os, shutil, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -86,6 +86,76 @@ check("editing is in logical order: X lands two characters from the end",
 t, last = bidi(["echo " + AR], env={"HIBR_BIDI": "off"})
 check("HIBR_BIDI=off draws the line as typed", last.startswith("> echo " + AR), repr(last))
 
+# A prompt is bash's (Gitea #350): \[...\] marks what takes no room, \033
+# and the other octal escapes are bytes, and the rest of bash's escapes
+# answer as bash does. The owner's own PS1 first.
+import getpass, re, socket, time
+VER = re.search(r'HIBR_VER "([^"]+)"', open(sx.tree("include/hibr.h")).read()).group(1)
+def shell(rc, keys, cols=80, cwd=None):
+    """An interactive shell in cwd: the last redraw of the line, and the session."""
+    path = sx.scratch("editor-rc")
+    open(path, "w").write(("cd %s\n" % cwd if cwd else "") + rc)
+    t = Term(rows=24, cols=cols, env={"HIBR_RC": path, "TERM": "xterm"}, settle=0.35)
+    t.keys(keys, settle=0.3, collect=0.05)
+    last = t.out.decode("utf-8", "replace").split("\r\033[0K")[-1]
+    t.send(b"\x05\x15exit\n")
+    t.close()
+    os.unlink(path)
+    return last, t
+
+
+def plain(s):
+    """What a redraw shows: its escapes taken out, and where it leaves the cursor."""
+    m = re.search(r"\r\033\[(\d+)C$", s)
+    cur = int(m.group(1)) if m else None
+    s = re.sub(r"\r\033\[\d+C$", "", s)
+    return re.sub(r"\033\[[0-9;?]*[A-Za-z]", "", s), cur
+
+
+OWNER = r"PS1='\[\033[1;31m\]\u@\h\[\033[0m\]:\[\033[1;34m\]\w\[\033[0m\]# '" + "\n"
+D = os.path.realpath(tempfile.mkdtemp(prefix="hibr-editor-"))
+me, host = getpass.getuser(), socket.gethostname().split(".")[0]
+last, t = shell(OWNER, ["x", "\x1b[D"], cwd=D)
+vis = "%s@%s:%s# " % (me, host, D)
+txt, cur = plain(last)
+check("PS1's \\033 inside \\[ \\] is an escape, and the prompt reads as bash's",
+      txt == vis + "x" and "\033[1;31m%s@%s" % (me, host) in last, repr(last))
+check("and the cursor is placed by the visible prompt, not by its escapes",
+      cur == len(vis), (cur, len(vis)))
+last, t = shell(r"PS1='[\101\102] \V \D{%Y} \A> '" + "\n", ["x"])
+txt, _ = plain(last)
+check("octal escapes, \\V, \\D{format} and \\A in a prompt",
+      re.fullmatch(r"\[AB\] %s %s \d\d:\d\d> x" % (re.escape(VER), time.strftime("%Y")), txt)
+      is not None, repr(txt))
+last, t = shell(r"PS1='\#> '" + "\n", ["true\n", "true\n", "x"])
+check("\\# counts the commands this shell has run", plain(last)[0] == "3> x", repr(last))
+
+# Completion quotes what it completes (Gitea #350): a name with a space is
+# escaped, or finished inside the quote the word opened, and a word already
+# quoted or escaped is understood before it is completed.
+os.makedirs(os.path.join(D, "My Folder"))
+open(os.path.join(D, "My Folder", "note one.txt"), "w").close()
+for n in ("cost$5", "a&b", "it's"):
+    open(os.path.join(D, n), "w").close()
+CASES = [
+    ("cd My\t", "cd My\\ Folder/"),
+    ("ls My\\ Fo\t", "ls My\\ Folder/"),
+    ('ls "My Fo\t', 'ls "My Folder/'),
+    ("ls 'My Fo\t", "ls 'My Folder/"),
+    ('ls "My Fo\t\t', 'ls "My Folder/note one.txt" '),
+    ("ls cos\t", "ls cost\\$5 "),
+    ("ls a\t", "ls a\\&b "),
+    ("ls it\t", "ls it\\'s "),
+]
+for typed, want in CASES:
+    last, t = shell('PS1="> "\n', [typed], cwd=D)
+    check("completing %r gives %r" % (typed, want), plain(last)[0] == "> " + want,
+          repr(last))
+last, t = shell('PS1="> "\nHOME=%s\n' % D, ["ls ~/My\t"])
+check("a word beginning ~/ completes and keeps its tilde",
+      plain(last)[0] == "> ls ~/My\\ Folder/", repr(last))
+shutil.rmtree(D, True)
+
 print()
 # Agent mode is for a script a program runs, with nobody at the terminal, so
 # a terminal on standard input is swapped for /dev/null: a read gets the end
@@ -96,4 +166,4 @@ t.wait(3.0)
 check("in agent mode a read on a terminal ends at once instead of waiting",
       t.exited and "read [] status 1" in t.text, t.text)
 
-report(16)
+report(29)

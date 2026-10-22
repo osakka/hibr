@@ -103,7 +103,11 @@ All four take the same escapes, and are then expanded like any other word, so
 | `\s` | the shell's name | `\n` | a newline |
 | `\v` | its version | `\e` `\a` | escape and bell |
 | `\j` | how many jobs | `\[` `\]` | around bytes that take no width |
-| `\$` | `#` for root, `$` otherwise | | |
+| `\$` | `#` for root, `$` otherwise | `\r` | a carriage return |
+| `\NNN` | the byte with that octal value, `\033` an escape | `\A` | time, `HH:MM` |
+| `\D{fmt}` | the time as `strftime` writes `fmt`, `\D{}` the locale's time | `\l` | the terminal's name |
+| `\!` | this command's number in the history | `\#` | this command's number in the shell |
+| `\V` | the version, in full | | |
 
 <!-- not run: a prompt is drawn only by an interactive shell -->
 ```sh
@@ -115,7 +119,13 @@ PS1='[\u|\h|\w|\s|\v|\$]'
 ```
 
 Colour goes inside `\[ \]` so the editor does not count it as width, and the
-cursor lands where it should on a line that wraps.
+cursor lands where it should on a line that wraps. A prompt written for bash
+works unchanged:
+
+<!-- not run: a prompt is drawn only by an interactive shell -->
+```sh
+PS1='\[\033[1;31m\]\u@\h\[\033[0m\]:\[\033[1;34m\]\w\[\033[0m\]# '
+```
 
 ### The right-hand prompt
 
@@ -210,8 +220,22 @@ under `set -H`, and `set +H` turns it off. A script never sees it.
 > ls some/dir/uniq<Tab>    → ls some/dir/unique-name.txt
 ```
 
-A single candidate is completed and a space added; several are listed and the
-line left alone.
+A single candidate is completed and a space added (a folder gets its `/`
+instead); several are listed, and the word taken as far as they agree.
+
+What is put on the line is quoted, so it reads back as the name it is. A name
+with a space or any of `$ & ; | < > ( ) * ? [ ] { } ! # ' "` is escaped with
+backslashes; a word that opened a quote is finished inside it, and the quote
+closed once the name is whole; and a word already escaped or quoted, or one
+beginning `~/` or `~user/`, is understood before it is completed:
+
+```text
+> cd My<Tab>               → cd My\ Folder/
+> ls "My Fo<Tab>           → ls "My Folder/
+> ls "My Folder/no<Tab>    → ls "My Folder/note one.txt"
+> ls ~/My<Tab>             → ls ~/My\ Folder/
+> ls it<Tab>               → ls it\'s
+```
 
 **[hibr]** It is programmable. `COMPLETE[cmd]` names a function, which is
 called with the command and the partial word, and whatever it `ret`s becomes

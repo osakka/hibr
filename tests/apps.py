@@ -4493,7 +4493,11 @@ def wrrun(feed, name="doc.md", text=WRDOC, extra=(), env=None, until=None):
     listed and a window retitled all happen after the idle marker the key
     waited for, and a fixed pause instead is what failed under a gate
     running eighty pty sessions (Gitea #163)."""
-    d = tempfile.mkdtemp(prefix="hibr-write-")
+    # Inside the suite's own folder, so the dialog's `..` is that folder
+    # and not /tmp, whose size is whatever every other run left there:
+    # 43,760 entries made the preview of `..` slow enough under the
+    # sanitizers to fail five checks that had nothing wrong with them.
+    d = tempfile.mkdtemp(prefix="hibr-write-", dir=S)
     f = os.path.join(d, name)
     open(f, "w").write(text)
     p = os.path.join(S, "session.hibr")

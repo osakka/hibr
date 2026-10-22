@@ -177,7 +177,6 @@ int b_exp(sh *s, int ac, char **av)
 	int i, un = 0;
 	char *q, *e;
 	var *v;
-	size_t j;
 
 	for (i = 1; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		if (!strcmp(av[i], "--")) {
@@ -1732,7 +1731,6 @@ int b_decl(sh *s, int ac, char **av)
 	int i = 1, ro = 0, ex = 0, pr = 0, map = 0, glob = 0, n = 0, fn = 0;
 	char *q;
 	var *v;
-	size_t j;
 
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		char *f;
@@ -1843,7 +1841,6 @@ int b_ro(sh *s, int ac, char **av)
 	int i = 1, n = 0;
 	char *q;
 	var *v;
-	size_t j;
 
 	if (i < ac && !strcmp(av[i], "-p"))
 		i++;

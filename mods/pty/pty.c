@@ -76,6 +76,7 @@ tt_p *tt_spawn(sh *s, int rows, int cols, char **av)
 	char *nm;
 	long pid;
 
+	(void)s;
 	m = posix_openpt(O_RDWR | O_NOCTTY);
 	if (m < 0) {
 		lg(HIBR_LERR, "pty: %s", strerror(errno));
