@@ -70,6 +70,7 @@ SUITE_MODS = {
     "vault": ["vw", "dav"],
     "sixel": ["console", "img", "media"],
     "kitgfx": ["console", "img"],
+    "pdfapp": ["pdf", "img", "console"],
     "holdpix": ["console", "img", "hold", "term", "pty"],
     # inflate.c is not a module of its own: it is shared source, the prompt
     # module's own, which the archive module compiles in as well. Naming it

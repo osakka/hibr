@@ -194,6 +194,7 @@ Cannot keep a copy to read
 Cannot lock: no PAM to check a password with
 Cannot make %s
 Cannot make a folder for jobs
+Cannot open %s -- see the desktop's log
 Cannot open %s as a sheet
 Cannot open the folder %s
 Cannot read %s
@@ -254,6 +255,7 @@ Connection
 Contact
 Contacts
 Contacts is not here to add to
+Contents
 Control Panel
 Control Panel > PIM chooses one
 Control Strip
@@ -417,6 +419,9 @@ Find
 Find Next
 Find:
 Find…
+First Page
+Fit Page
+Fit Width
 Fixed Size
 Flowchart
 Folder
@@ -452,6 +457,7 @@ Glyphs
 Gmail wants an app password, made in your Google account
 Go
 Go Up
+Go to page: %s
 Group
 Group:
 Heading 1
@@ -528,6 +534,7 @@ Largest Screen
 Largest Width
 Last Action
 Last Join
+Last Page
 Last Synced
 Left
 Left %s
@@ -634,6 +641,7 @@ New Window
 New name:
 Next
 Next Month
+Next Page
 Next Picture
 Next Prayer in the Menu Bar
 Next Tab
@@ -643,6 +651,7 @@ No Chromium or Chrome to clear
 No Picture
 No Rule
 No calendar yet: choose a server in Control Panel > PIM, then sync
+No contents
 No devices yet
 No file is selected
 No file type registered for this -- open in hvi anyway?
@@ -663,6 +672,7 @@ Not a place: latitude -90 to 90, longitude -180 to 180
 Not a valid name
 Not changed
 Not connected
+Not found: %s
 Not held -- nothing to detach from
 Not started
 Not text
@@ -721,8 +731,11 @@ Output
 Owner
 Owner:
 Owner:  %s
+PDF Reader
+PDFs need Poppler: apt install libpoppler-glib8, or brew install poppler
 PID:    %s
 PIN
+Page %s of %s
 Page Zoom
 Pages
 Pages May Play Sound On Their Own
@@ -765,6 +778,7 @@ Press a key for %s…
 Preview
 Previous
 Previous Month
+Previous Page
 Previous Tab
 Privacy
 Process Details
@@ -954,6 +968,7 @@ Terminal Here Runs
 Terminal Here in Menu
 Terminals Keep Ctrl+A-Z
 Test
+Text
 Text Colour
 That event is not kept here any more; syncing
 The PIN is cleared
@@ -972,6 +987,7 @@ The download of %s did not finish
 The end is a time, HH:MM
 The mermaid module is not loaded
 The page could not be saved as a PDF
+The pdf module is not installed
 The record could not be added
 The remote file cache is empty
 The system asks for a password
@@ -997,7 +1013,9 @@ This Desktop
 This Session
 This Terminal
 This account has no address to answer from
+This links to %s
 This notification has been cleared.
+This page could not be drawn
 This window: desktop shortcuts work again
 This window: every key goes to the program
 Thu
@@ -1106,6 +1124,8 @@ YouTube stopped -- picking up again at %s
 Your answer is sent to %s
 Zoom
 Zoom Fills
+Zoom In
+Zoom Out
 [exited %s — close this window]
 a command; the file goes after it, in a terminal
 a new hibr is installed -- click to restart the desktop

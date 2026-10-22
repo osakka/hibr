@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.292
+
+**A PDF reader** (Gitea #348): the `pdf` module and the PDF Reader, an
+Office application in the catalogue.
+- **The module** reads a document through Poppler, every library loaded at
+  run time, so nothing is linked and a machine without it runs everything
+  else. It renders the part of the document a window shows as one picture,
+  pages laid one under the next, and the img module places it: pixels where
+  the terminal takes them, half blocks or characters where it does not. It
+  also answers a page's text, search matches, the text in a rectangle, the
+  link at a point and the contents. Every position is in points from a
+  page's top left or in pixels of the laid-out document.
+- **The reader:**
+  - the document is one continuous column of pages, moved by the wheel, the
+    arrows, page up and down and the scroll bar;
+  - Fit Width (where it opens), Fit Page, zoom in and out;
+  - `/` to search, `n` and `N` through the matches, each marked on its page;
+  - `o` for the contents beside the pages;
+  - a click follows a link: to its page, or an address to the Browser;
+  - a drag selects text, and Copy takes it, or the whole page when nothing
+    is selected;
+  - `g` goes to a page, and `t` shows the page as text, which is also what
+    a window without the img module gets.
+- **File Types:** `.pdf` files open with it.
+- **Without Poppler** it says what to install: `apt install
+  libpoppler-glib8`, or `brew install poppler`. The deb suggests the
+  library.
+
+Arabic 3.18.
+
 ## 0.99.291
 
 **A Files cover no longer stays behind when its window moves or reflows**

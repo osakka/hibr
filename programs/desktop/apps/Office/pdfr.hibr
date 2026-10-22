@@ -1,0 +1,727 @@
+#!/usr/bin/env hibr
+#
+# pdfr -- a PDF reader (Gitea #348). The pages are drawn by the pdf module,
+# which renders through Poppler loaded at run time, and placed by the img
+# module, so a page is pixels on a terminal that takes them, half blocks or
+# characters on one that does not, and -- under View > Text, or with no img
+# at all -- the page's own text, wrapped to the window.
+#
+# The document is one continuous column of pages: the wheel, the arrows,
+# page up and down and the scroll bar move through it, and a view that
+# spans the foot of one page and the head of the next is one picture. Fit
+# Width is where a document opens; Fit Page, and zoom in and out, are on
+# the View menu and on w, f, + and -. / searches the whole document, n and
+# N step through what it found, each marked on its page. o shows the
+# contents beside the pages; a link on a page is followed by clicking it --
+# to its page, or an address to the Browser. A drag selects text, and Copy
+# takes it (or the whole page when nothing is selected); g goes to a page.
+
+strict
+
+app pdfr "A PDF reader: pages as pictures where the terminal can, text where it cannot" 1.0
+# modules: pdf img
+
+command -v dt_app > /dev/null && dt_app pdfr "PDF Reader" 24 76 many "▤"
+command -v dt_opener > /dev/null &&
+	dt_opener pdfr "PDF Reader" "pdf" app pdfr
+
+# Per window, as every app keeps what it remembers.
+declare -gA PR
+command -v dt_keepstate > /dev/null && dt_keepstate pdfr PR
+
+# The search results of the window being worked on, a match a line:
+# page x1 y1 x2 y2, in points from a page's top left.
+declare -ga PR_HITS
+# What dt_textwrap answered, read straight after.
+declare -ga PR_LINES
+# Set once this process image has cleared its folder of views.
+PR_SWEPT=
+
+fn pdfr_open(int id, arg = "") {
+	PR[$id]["path"]=$arg
+	PR[$id]["zoom"]=fitw
+	PR[$id]["top"]=0
+	PR[$id]["left"]=0
+	PR[$id]["dirt"]=1
+	[ -n "$arg" ] && pr_load "$id"
+	return 0
+}
+
+# Open the window's file in the pdf module: its pages and its title.
+fn pr_load(int id) {
+	local path=${PR[$id]["path"]} d n t
+
+	PR[$id]["err"]=
+	PR[$id]["doc"]=
+	if ! need pdf 2> /dev/null; then
+		PR[$id]["err"]=nomod
+		return 1
+	fi
+	if ! pdf ready 2> /dev/null; then
+		PR[$id]["err"]=poppler
+		return 1
+	fi
+	if ! d := pdf open "$path" 2> /dev/null; then
+		PR[$id]["err"]=open
+		return 1
+	fi
+	n := pdf pages "$d"
+	t := pdf title "$d"
+	PR[$id]["doc"]=$d
+	PR[$id]["pages"]=$n
+	PR[$id]["key"]=
+	PR[$id]["outline"]=
+	PR[$id]["twrapk"]=
+	[ -n "$t" ] || t=${path##*/}
+	t := dt_wintitle "PDF Reader" "$t"
+	dt_retitle "$id" "$t"
+	return 0
+}
+
+# Where this desktop's views are written: a folder of its own, by process,
+# inside one only its user can enter. Each view is a full window of pixels,
+# so none may outlive what it was for. The first call of a process image
+# clears its own folder -- Restart Desktop keeps the pid and loses the
+# documents, so their last views would stay -- and takes away the folder of
+# any desktop that has gone; another desktop's own is left alone.
+fn pr_dir() {
+	local base=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-pdf-$UID f p
+	local d=$base/$$
+
+	if [ -z "$PR_SWEPT" ]; then
+		PR_SWEPT=1
+		for f in "$base"/*/; do
+			[ -d "$f" ] || continue
+			p=${f%/}
+			p=${p##*/}
+			if [ "$p" = "$$" ]; then
+				rm -f "$f"pdf-*.ppm
+			elif ! kill -0 "$p" 2> /dev/null; then
+				rm -rf "$f"
+			fi
+		done
+	fi
+	[ -d "$d" ] || (umask 077; mkdir -p "$d")
+	ret "$d"
+}
+
+fn pdfr_close(int? id = "") {
+	[ -n "${PR[$id]["doc"]}" ] && pdf close "${PR[$id]["doc"]}" 2> /dev/null
+	command -v dt_searchfree > /dev/null && dt_searchfree "$id"
+	unset "PR[$id]"
+}
+
+# The module's documents went with the process that Restart Desktop
+# replaced; the path is kept, and the file is opened again on the next
+# draw.
+fn pdfr_resume(int id) {
+	PR[$id]["doc"]=
+	PR[$id]["key"]=
+	PR[$id]["file"]=
+	PR[$id]["dirt"]=1
+}
+
+# What a cell of the window is, in pixels: the terminal's own when it can
+# take pixels, otherwise the 8 by 16 a page is rendered at for img to turn
+# into half blocks or characters.
+fn pr_cell() {
+	local g
+	local -a p
+
+	if command -v dt_imgpix > /dev/null && dt_imgpix; then
+		g := dt_imggfx
+		read -ra p <<< "$g"
+		ret "${p[1]} ${p[2]}"
+		return 0
+	fi
+	ret "8 16"
+}
+
+# Whether the window is drawn as text: asked for, or no img to draw with.
+fn pr_astext(int id) {
+	[ "${PR[$id]["text"]}" = 1 ] && return 0
+	command -v img > /dev/null || need img 2> /dev/null || return 0
+	return 1
+}
+
+# Drawn again only when something it shows has changed: a key, the mouse,
+# a new size, the focus.
+fn pdfr_dirty(int id) {
+	local foc=0
+
+	[ "$DT_FOCUS" = "$id" ] && foc=1
+	[ "${PR[$id]["dirt"]}" = 1 ] && return 0
+	[ "$foc" = "${PR[$id]["dfoc"]}" ] || return 0
+	[ "${PR[$id]["dh"]}" = "${DT[$id]["h"]}" ] || return 0
+	[ "${PR[$id]["dw"]}" = "${DT[$id]["w"]}" ] || return 0
+	return 1
+}
+
+fn pdfr_draw(int id, int h, int w, int row, int col) {
+	local d c0=1 sw=0 vr vc e
+
+	PR[$id]["dirt"]=
+	PR[$id]["dh"]=$((h + 2))
+	PR[$id]["dw"]=$((w + 2))
+	PR[$id]["dfoc"]=0
+	[ "$DT_FOCUS" = "$id" ] && PR[$id]["dfoc"]=1
+	console pen "$DT_INK" "$DT_FACE"
+	if [ -z "${PR[$id]["path"]}" ]; then
+		console pen "$DT_IDLE" "$DT_FACE"
+		dt_tput "$id" $((h / 2)) 2 "Drop a PDF here, or open one from Files"
+		return 0
+	fi
+	[ -n "${PR[$id]["doc"]}" ] || [ -n "${PR[$id]["err"]}" ] || pr_load "$id"
+	if [ -n "${PR[$id]["err"]}" ]; then
+		if [ "${PR[$id]["err"]}" = nomod ]; then
+			e := dt_tr "The pdf module is not installed"
+		elif [ "${PR[$id]["err"]}" = poppler ]; then
+			e := dt_tr "PDFs need Poppler: apt install libpoppler-glib8, or brew install poppler"
+		else
+			e := dt_tr "Cannot open %s -- see the desktop's log" "${PR[$id]["path"]##*/}"
+		fi
+		console pen "$DT_BAD" "$DT_FACE"
+		console put -p "w$id" $((h / 2)) 2 "$e"
+		return 0
+	fi
+	d=${PR[$id]["doc"]}
+	if [ "${PR[$id]["side"]}" = 1 ]; then
+		sw=$((w / 3))
+		[ "$sw" -gt 28 ] && sw=28
+		pr_side "$id" "$((h - 1))" "$sw"
+		c0=$((sw + 2))
+	fi
+	vr=$((h - 1))
+	vc=$((w - c0))
+	[ "$vr" -ge 1 ] && [ "$vc" -ge 4 ] || return 0
+	PR[$id]["vr"]=$vr
+	PR[$id]["vc"]=$vc
+	PR[$id]["c0"]=$c0
+	if pr_astext "$id"; then
+		pr_drawtext "$id" "$vr" "$vc" "$c0"
+	else
+		pr_drawpage "$id" "$vr" "$vc" "$c0"
+	fi
+	pr_status "$id" "$h" "$w"
+}
+
+# The pages, as one picture of the part of the document that shows.
+fn pr_drawpage(int id, int vr, int vc, int c0) {
+	local d=${PR[$id]["doc"]} cell cw ch pw ph zz z pct key r dir f
+	local top=${PR[$id]["top"]:-0} left=${PR[$id]["left"]:-0}
+	local -a marks v sel
+
+	cell := pr_cell
+	read -r cw ch <<< "$cell"
+	pw=$((vc * cw))
+	ph=$((vr * ch))
+	zz := pdf zoom "$d" "${PR[$id]["zoom"]:-fitw}" "$pw" "$ph"
+	read -r z pct <<< "$zz"
+	PR[$id]["z"]=$z
+	PR[$id]["pct"]=$pct
+	PR[$id]["ch"]=$ch
+	PR[$id]["cw"]=$cw
+	PR[$id]["pw"]=$pw
+	PR[$id]["ph"]=$ph
+	pr_marks "$id"
+	marks=("${PR_HITS[@]}")
+	sel=()
+	[ -n "${PR[$id]["sel"]}" ] && read -ra sel <<< "-s ${PR[$id]["sel"]}"
+	key="$pw $ph $z $top $left ${marks[*]} ${sel[*]}"
+	if [ "$key" != "${PR[$id]["key"]}" ]; then
+		dir := pr_dir
+		if ! r := pdf view "$d" "$dir" "$pw" "$ph" "$z" "$top" "$left" \
+			-b "${DT_FACE#\#}" "${marks[@]}" "${sel[@]}" 2> /dev/null; then
+			console pen "$DT_BAD" "$DT_FACE"
+			dt_tput "$id" 1 "$c0" "This page could not be drawn"
+			return 0
+		fi
+		read -ra v <<< "$r"
+		PR[$id]["file"]=${v[0]}
+		PR[$id]["page"]=${v[1]}
+		PR[$id]["total"]=${v[2]}
+		PR[$id]["vw"]=${v[3]}
+		PR[$id]["key"]=$key
+		# A view that runs past the end: brought back, and drawn again.
+		if [ "$top" -gt 0 ] && [ $((top + ph)) -gt "${v[2]}" ]; then
+			top=$((v[2] - ph))
+			[ "$top" -lt 0 ] && top=0
+			PR[$id]["top"]=$top
+			PR[$id]["dirt"]=1
+			dt_want 30
+		fi
+	fi
+	f=${PR[$id]["file"]}
+	dt_imgm
+	img draw "$f" 1 "$c0" "$vr" "$vc" "${DT_IMGARG[@]}" -p "w$id" 2> /dev/null
+	command -v dt_scrollbar > /dev/null &&
+		dt_scrollbar "$id" 1 $((c0 + vc)) "$vr" "${PR[$id]["total"]:-1}" "$ph" "$top" pdfr
+	return 0
+}
+
+# The search marks that fall on the pages in view, as view flags: every
+# match yellow, the current one orange.
+fn pr_marks(int id) {
+	local l n=0 cur=${PR[$id]["hit"]:-0} p1 p2
+	local -a hits m
+
+	PR_HITS=()
+	[ -n "${PR[$id]["hits"]}" ] || return 0
+	p1=${PR[$id]["page"]:-1}
+	p2=$((p1 + 3))
+	mapfile -t hits <<< "${PR[$id]["hits"]}"
+	for l in "${hits[@]}"; do
+		read -ra m <<< "$l"
+		if [ "${#m[@]}" = 5 ] && [ "${m[0]}" -ge $((p1 - 1)) ] && [ "${m[0]}" -le "$p2" ]; then
+			if [ "$n" = "$cur" ]; then
+				PR_HITS+=(-c "${m[@]}")
+			else
+				PR_HITS+=(-k "${m[@]}")
+			fi
+		fi
+		# Matches come in page order: none after this is in view, and a
+		# common word in a long document is thousands of them.
+		[ "${#m[@]}" = 5 ] && [ "${m[0]}" -gt "$p2" ] && break
+		n=$((n + 1))
+	done
+}
+
+# The page in view, as its own text wrapped to the window, for a terminal
+# where a picture would say nothing -- and for anyone who asks for it.
+fn pr_drawtext(int id, int vr, int vc, int c0) {
+	local d=${PR[$id]["doc"]} p=${PR[$id]["tpage"]:-1} t l i=0 r=1 top=${PR[$id]["ttop"]:-0}
+	local -a lines wrapped
+
+	# The page wrapped once for its width, not on every draw.
+	if [ "${PR[$id]["twrapk"]}" != "$p $vc" ]; then
+		t := pdf text "$d" "$p"
+		mapfile -t lines <<< "$t"
+		for l in "${lines[@]}"; do
+			dt_textwrap "$l" "$vc"
+			[ -n "$l" ] || DT_WRAPLINES=("")
+			wrapped+=("${DT_WRAPLINES[@]}")
+		done
+		local IFS=$'\n'
+		PR[$id]["twrap"]="${wrapped[*]}"
+		PR[$id]["twrapk"]="$p $vc"
+	fi
+	mapfile -t wrapped <<< "${PR[$id]["twrap"]}"
+	PR[$id]["page"]=$p
+	console pen "$DT_INK" "$DT_FACE"
+	for l in "${wrapped[@]}"; do
+		if [ "$i" -ge "$top" ] && [ "$r" -le "$vr" ]; then
+			console put -p "w$id" "$r" "$c0" "$l"
+			r=$((r + 1))
+		fi
+		i=$((i + 1))
+	done
+	PR[$id]["tlines"]=$i
+	command -v dt_scrollbar > /dev/null &&
+		dt_scrollbar "$id" 1 $((c0 + vc)) "$vr" "$i" "$vr" "$top" pdfrt
+}
+
+# The contents, beside the pages: the document's outline, indented by
+# depth, the entry for the page in view marked.
+fn pr_side(int id, int h, int sw) {
+	local d=${PR[$id]["doc"]} l i=0 r=1 dep pg tt ind top=${PR[$id]["otop"]:-0}
+	local -a lines
+
+	if [ -z "${PR[$id]["outline"]}" ]; then
+		l := pdf outline "$d"
+		PR[$id]["outline"]=${l:-none}
+	fi
+	console pen "$DT_INK" "$DT_FACE"
+	console fill -p "w$id" 1 1 "$h" "$sw" " "
+	console pen "$DT_IDLE" "$DT_FACE"
+	console fill -p "w$id" 1 $((sw + 1)) "$h" 1 "${GL[vline]}"
+	if [ "${PR[$id]["outline"]}" = none ]; then
+		dt_tput "$id" 1 2 "No contents"
+		return 0
+	fi
+	mapfile -t lines <<< "${PR[$id]["outline"]}"
+	for l in "${lines[@]}"; do
+		IFS=$'\t' read -r dep pg tt <<< "$l"
+		if [ "$i" -ge "$top" ] && [ "$r" -le "$h" ]; then
+			if [ "$pg" = "${PR[$id]["page"]}" ]; then
+				console pen "$DT_ACTIVE" "$DT_FACE" bold
+			else
+				console pen "$DT_INK" "$DT_FACE"
+			fi
+			ind := str repeat "  " "$dep"
+			tt := dt_cut "$ind$tt" $((sw - 1))
+			console put -p "w$id" "$r" 1 "$tt"
+			dt_wreg "$id" "$r" 1 "$sw" "out:$pg"
+			r=$((r + 1))
+		fi
+		i=$((i + 1))
+	done
+}
+
+# The bottom row: the search bar while it has the keyboard; after it,
+# where you are, with the search and how far through its matches.
+fn pr_status(int id, int h, int w) {
+	local s q
+
+	if dt_searchon "$id"; then
+		dt_searchdraw "$id" "$h" "$w"
+		return 0
+	fi
+	q := dt_searchq "$id"
+	console pen "$DT_DIM" "$DT_FACE"
+	if [ -n "${PR[$id]["goto"]+x}" ]; then
+		s := dt_tr "Go to page: %s" "${PR[$id]["goto"]}"
+	else
+		s := dt_tr "Page %s of %s" "${PR[$id]["page"]:-1}" "${PR[$id]["pages"]:-1}"
+		pr_astext "$id" || s="$s   ${PR[$id]["pct"]}%"
+		[ -n "$q" ] && s="$s   /$q"
+		[ -n "${PR[$id]["hits"]}" ] &&
+			s="$s $((${PR[$id]["hit"]:-0} + 1))/${PR[$id]["nhits"]}"
+	fi
+	console put -p "w$id" "$h" 1 "$s"
+}
+
+# Move by pixels, or to a place; held inside the document by the next draw.
+fn pr_scroll(int id, int by) {
+	local t=$((${PR[$id]["top"]:-0} + by))
+
+	[ "$t" -lt 0 ] && t=0
+	PR[$id]["top"]=$t
+	PR[$id]["dirt"]=1
+}
+
+# To a page, at a point down it.
+fn pr_goto(int id, int page, y = "0") {
+	local t
+
+	[ "$page" -ge 1 ] || page=1
+	[ "$page" -le "${PR[$id]["pages"]:-1}" ] || page=${PR[$id]["pages"]:-1}
+	PR[$id]["tpage"]=$page
+	PR[$id]["ttop"]=0
+	t := pdf where "${PR[$id]["doc"]}" "${PR[$id]["z"]:-1}" "$page" "$y" 2> /dev/null
+	PR[$id]["top"]=${t:-0}
+	PR[$id]["dirt"]=1
+}
+
+# A page on, or back, in either mode.
+fn pr_page(int id, int by) {
+	if pr_astext "$id"; then
+		pr_goto "$id" $((${PR[$id]["tpage"]:-1} + by))
+	else
+		pr_goto "$id" $((${PR[$id]["page"]:-1} + by))
+	fi
+}
+
+# Search the document for what the bar holds, and go to the first match.
+fn pr_search(int id) {
+	local q r
+
+	q := dt_searchq "$id"
+	PR[$id]["hits"]=
+	PR[$id]["nhits"]=0
+	PR[$id]["hit"]=0
+	PR[$id]["dirt"]=1
+	[ -n "$q" ] || return 0
+	r := pdf find "${PR[$id]["doc"]}" "$q" 2> /dev/null
+	if [ -z "$r" ]; then
+		dt_notep low "Not found: %s" "$q"
+		return 0
+	fi
+	PR[$id]["hits"]=$r
+	mapfile -t PR_LINES <<< "$r"
+	PR[$id]["nhits"]=${#PR_LINES[@]}
+	pr_hit "$id" 0
+}
+
+# Go to match n of the search, wrapping round.
+fn pr_hit(int id, int n) {
+	local nh=${PR[$id]["nhits"]:-0}
+	local -a m
+
+	[ "$nh" -gt 0 ] || return 0
+	n=$(((n % nh + nh) % nh))
+	PR[$id]["hit"]=$n
+	mapfile -t PR_LINES <<< "${PR[$id]["hits"]}"
+	read -ra m <<< "${PR_LINES[$n]}"
+	pr_goto "$id" "${m[0]}" "${m[2]%.*}"
+	pr_scroll "$id" $((-3 * ${PR[$id]["ch"]:-16}))
+}
+
+fn pdfr_key(int id, key) {
+	local q0 q1 on0 step=$((3 * ${PR[$id]["ch"]:-16}))
+	local pg=$((${PR[$id]["ph"]:-400} - ${PR[$id]["ch"]:-16}))
+
+	PR[$id]["dirt"]=1
+	if [ -n "${PR[$id]["goto"]+x}" ]; then
+		case $key in
+		[0-9]) PR[$id]["goto"]+=$key; return 0 ;;
+		backspace) PR[$id]["goto"]=${PR[$id]["goto"]%?}; return 0 ;;
+		enter)
+			[ -n "${PR[$id]["goto"]}" ] && pr_goto "$id" "${PR[$id]["goto"]}"
+			unset PR["$id"]["goto"]
+			return 0
+			;;
+		*) unset PR["$id"]["goto"]; return 0 ;;
+		esac
+	fi
+	q0 := dt_searchq "$id"
+	on0=0
+	dt_searchon "$id" && on0=1
+	if dt_searchkey "$id" "$key"; then
+		q1 := dt_searchq "$id"
+		if [ "$on0" = 1 ] && ! dt_searchon "$id" && [ -n "$q1" ]; then
+			pr_search "$id"
+		elif [ -z "$q1" ] && [ -n "$q0" ]; then
+			pr_search "$id"
+		fi
+		return 0
+	fi
+	if pr_astext "$id"; then
+		case $key in
+		down | j) PR[$id]["ttop"]=$((${PR[$id]["ttop"]:-0} + 1)); return 0 ;;
+		up | k)
+			PR[$id]["ttop"]=$((${PR[$id]["ttop"]:-0} - 1))
+			[ "${PR[$id]["ttop"]}" -lt 0 ] && PR[$id]["ttop"]=0
+			return 0
+			;;
+		esac
+	fi
+	case $key in
+	down | j) pr_scroll "$id" "$step" ;;
+	up | k) pr_scroll "$id" "-$step" ;;
+	pagedown | " ") pr_scroll "$id" "$pg" ;;
+	pageup) pr_scroll "$id" "-$pg" ;;
+	right | l) pr_page "$id" 1 ;;
+	left | h) pr_page "$id" -1 ;;
+	home) pr_goto "$id" 1 ;;
+	end) pr_goto "$id" "${PR[$id]["pages"]:-1}" ;;
+	+ | =) pdfr_zoomby "$id" 125 ;;
+	-) pdfr_zoomby "$id" 80 ;;
+	w) pdfr_zoom "$id" fitw ;;
+	f) pdfr_zoom "$id" fitp ;;
+	t) pdfr_textmode "$id" ;;
+	o) pdfr_contents "$id" ;;
+	g) PR[$id]["goto"]= ;;
+	n) pr_hit "$id" $((${PR[$id]["hit"]:-0} + 1)) ;;
+	N) pr_hit "$id" $((${PR[$id]["hit"]:-0} - 1)) ;;
+	*) PR[$id]["dirt"]=; return 1 ;;
+	esac
+	return 0
+}
+
+# A zoom, keeping the page in view.
+fn pdfr_zoom(int? id = "", mode = "") {
+	local p
+
+	[ -n "$id" ] || id=$DT_FOCUS
+	p=${PR[$id]["page"]:-1}
+	PR[$id]["zoom"]=$mode
+	PR[$id]["key"]=
+	PR[$id]["dirt"]=1
+	PR[$id]["z"]=
+	pr_rezoom "$id" "$p"
+}
+
+# By a factor of a hundred, from where it is now.
+fn pdfr_zoomby(int? id = "", int by = 100) {
+	local p
+
+	[ -n "$id" ] || id=$DT_FOCUS
+	p=$((${PR[$id]["pct"]:-100} * by / 100))
+	[ "$p" -lt 10 ] && p=10
+	[ "$p" -gt 800 ] && p=800
+	pdfr_zoom "$id" "$p"
+}
+
+# After a zoom the page in view is the page to stay on, so the place is
+# worked out again at the new zoom, which the next draw knows.
+fn pr_rezoom(int id, int page) {
+	local zz z
+
+	zz := pdf zoom "${PR[$id]["doc"]}" "${PR[$id]["zoom"]}" "${PR[$id]["pw"]:-600}" "${PR[$id]["ph"]:-400}" 2> /dev/null
+	z=${zz%% *}
+	PR[$id]["z"]=$z
+	pr_goto "$id" "$page"
+}
+
+fn pdfr_textmode(int? id = "") {
+	[ -n "$id" ] || id=$DT_FOCUS
+	if [ "${PR[$id]["text"]}" = 1 ]; then
+		PR[$id]["text"]=
+	else
+		PR[$id]["text"]=1
+		PR[$id]["tpage"]=${PR[$id]["page"]:-1}
+		PR[$id]["ttop"]=0
+	fi
+	PR[$id]["dirt"]=1
+}
+
+fn pdfr_contents(int? id = "") {
+	[ -n "$id" ] || id=$DT_FOCUS
+	if [ "${PR[$id]["side"]}" = 1 ]; then
+		PR[$id]["side"]=
+	else
+		PR[$id]["side"]=1
+	fi
+	PR[$id]["key"]=
+	PR[$id]["dirt"]=1
+}
+
+fn pdfr_wheel(int id, dir, int r, int c) {
+	local step=$((3 * ${PR[$id]["ch"]:-16}))
+
+	PR[$id]["dirt"]=1
+	if pr_astext "$id"; then
+		case $dir in
+		down) PR[$id]["ttop"]=$((${PR[$id]["ttop"]:-0} + 3)) ;;
+		up)
+			PR[$id]["ttop"]=$((${PR[$id]["ttop"]:-0} - 3))
+			[ "${PR[$id]["ttop"]}" -lt 0 ] && PR[$id]["ttop"]=0
+			;;
+		esac
+		return 0
+	fi
+	case $dir in
+	down) pr_scroll "$id" "$step" ;;
+	up) pr_scroll "$id" "-$step" ;;
+	esac
+}
+
+fn pdfr_scroll(int id, key, int top) {
+	if [ "$key" = pdfrt ]; then
+		PR[$id]["ttop"]=$top
+	else
+		PR[$id]["top"]=$top
+	fi
+	PR[$id]["dirt"]=1
+}
+
+# A cell of the view as a point of the document: the page, and where on
+# it in points from its top left.
+fn pr_point(int id, int r, int c) {
+	local cw=${PR[$id]["cw"]:-8} ch=${PR[$id]["ch"]:-16} x y p
+
+	x=$(((c - ${PR[$id]["c0"]:-1}) * cw + cw / 2 + ${PR[$id]["left"]:-0}))
+	y=$(((r - 1) * ch + ch / 2 + ${PR[$id]["top"]:-0}))
+	p := pdf at "${PR[$id]["doc"]}" "${PR[$id]["z"]:-1}" "${PR[$id]["pw"]:-600}" "$x" "$y" 2> /dev/null ||
+		return 1
+	ret "$p"
+}
+
+# A press on a page starts a selection; let go where it began, it is a
+# click, and a link under it is followed.
+fn pdfr_mouse(int id, act, btn, int r, int c, mods = "") {
+	local pt t tag x1 y1 x2 y2 v
+	local -a a b
+
+	PR[$id]["dirt"]=1
+	if [ "$act" = press ]; then
+		tag := dt_hit "$id" "$r" "$c"
+		case $tag in
+		out:*) pr_goto "$id" "${tag#out:}"; return 0 ;;
+		dtsearch) dt_searchopen "$id"; return 0 ;;
+		esac
+	fi
+	pr_astext "$id" && return 0
+	[ "$r" -ge 1 ] && [ "$r" -le "${PR[$id]["vr"]:-0}" ] || return 0
+	[ "$c" -ge "${PR[$id]["c0"]:-1}" ] || return 0
+	pt := pr_point "$id" "$r" "$c" || return 0
+	case $act in
+	press)
+		PR[$id]["drag"]=$pt
+		PR[$id]["moved"]=
+		;;
+	drag)
+		[ -n "${PR[$id]["drag"]}" ] || return 0
+		read -ra a <<< "${PR[$id]["drag"]}"
+		read -ra b <<< "$pt"
+		[ "${a[0]}" = "${b[0]}" ] || return 0
+		PR[$id]["moved"]=1
+		x1=${a[1]} y1=${a[2]} x2=${b[1]} y2=${b[2]}
+		[ "${x1%.*}" -gt "${x2%.*}" ] && { v=$x1; x1=$x2; x2=$v; }
+		[ "${y1%.*}" -gt "${y2%.*}" ] && { v=$y1; y1=$y2; y2=$v; }
+		PR[$id]["sel"]="${a[0]} $x1 $y1 $x2 $y2"
+		;;
+	release)
+		if [ -z "${PR[$id]["moved"]}" ]; then
+			PR[$id]["sel"]=
+			read -ra a <<< "$pt"
+			t := pdf link "${PR[$id]["doc"]}" "${a[0]}" "${a[1]}" "${a[2]}" 2> /dev/null && pr_follow "$id" "$t"
+		fi
+		PR[$id]["drag"]=
+		;;
+	esac
+	return 0
+}
+
+# Where a link goes: a page of this document, or an address, which the
+# Browser opens when it is installed.
+fn pr_follow(int id, target) {
+	local -a t
+
+	read -ra t <<< "$target"
+	case ${t[0]} in
+	page) pr_goto "$id" "${t[1]}" "${t[2]%.*}" ;;
+	uri)
+		if dt_has browser_open; then
+			dt_launch browser "${t[1]}"
+		else
+			dt_notep low "This links to %s" "${t[1]}"
+		fi
+		;;
+	esac
+}
+
+# Copy is the selected text, or the whole page when nothing is selected.
+fn pdfr_copy(int id) {
+	local s=${PR[$id]["sel"]} t
+	local -a a
+
+	[ -n "${PR[$id]["doc"]}" ] || return 1
+	if [ -n "$s" ]; then
+		read -ra a <<< "$s"
+		t := pdf select "${PR[$id]["doc"]}" "${a[@]}" 2> /dev/null
+	else
+		t := pdf text "${PR[$id]["doc"]}" "${PR[$id]["page"]:-1}" 2> /dev/null
+	fi
+	[ -n "$t" ] || return 1
+	ret "$t"
+}
+
+fn pdfr_find(int id) {
+	dt_searchopen "$id"
+	PR[$id]["dirt"]=1
+}
+
+# A PDF dropped on the window replaces the one shown.
+fn pdfr_drop(int id, int r, int c, op, ...paths) {
+	[ -n "${PR[$id]["doc"]}" ] && pdf close "${PR[$id]["doc"]}" 2> /dev/null
+	PR[$id]["path"]=${paths[0]}
+	PR[$id]["top"]=0
+	PR[$id]["hits"]=
+	PR[$id]["sel"]=
+	PR[$id]["dirt"]=1
+	pr_load "$id"
+}
+
+pdfr_menus() {
+	dt_menu "File"
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
+	dt_menu "View"
+	dt_item "Fit Width" w pdfr_zoom "$DT_FOCUS" fitw
+	dt_item "Fit Page" f pdfr_zoom "$DT_FOCUS" fitp
+	dt_item "Zoom In" i pdfr_zoomby "$DT_FOCUS" 125
+	dt_item "Zoom Out" o pdfr_zoomby "$DT_FOCUS" 80
+	dt_sep
+	dt_mark "Text" t "${PR[$DT_FOCUS]["text"]:-0}" pdfr_textmode "$DT_FOCUS"
+	dt_mark "Contents" c "${PR[$DT_FOCUS]["side"]:-0}" pdfr_contents "$DT_FOCUS"
+	dt_menu "Go"
+	dt_item "Next Page" n pr_page "$DT_FOCUS" 1
+	dt_item "Previous Page" p pr_page "$DT_FOCUS" -1
+	dt_item "First Page" f pr_goto "$DT_FOCUS" 1
+	dt_item "Last Page" l pr_goto "$DT_FOCUS" "${PR[$DT_FOCUS]["pages"]:-1}"
+}
+
+if [ -z "$DT_ROWS" ] && [ -n "$1" ]; then
+	need pdf && d := pdf open "$1" && pdf text "$d" 1
+fi

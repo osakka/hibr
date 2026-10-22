@@ -45,7 +45,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so $(B)/mods/pim.so $(B)/mods/html.so $(B)/mods/email.so $(B)/mods/math.so $(B)/mods/web.so \
        $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so $(B)/mods/hcal.so $(B)/mods/salat.so \
        $(B)/mods/vw.so $(B)/mods/archive.so $(B)/mods/mermaid.so \
-       $(B)/mods/xscr.so
+       $(B)/mods/xscr.so $(B)/mods/pdf.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
 # Darwin at all, so it is not in MODS above and never built, or even asked
@@ -246,6 +246,10 @@ MD_SRC = $(wildcard mods/md/*.c)
 
 $(B)/mods/md.so: $(MD_SRC) include/hibr.h mods/md/mk.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(MD_SRC)
+
+# PDF through Poppler, every library dlopen'd (Gitea #348).
+$(B)/mods/pdf.so: mods/pdf/pdf.c include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/pdf/pdf.c $(DLLIB)
 
 IMG_SRC = $(wildcard mods/img/*.c)
 
