@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.295
+
+**The Open dialog's preview counts a folder once** (Gitea #358). A
+highlighted folder's "Folder, N items" was counted again on every frame
+the dialog drew: on a folder of 43,793 entries, 324 ms a frame, and a
+Downloads folder of 5,000 files about 37 ms, fifty times what a frame may
+cost. It is counted when the folder is highlighted, as a file's first lines
+already were, and again when the folder is listed again.
+
+**The test suites leave nothing in /tmp** (Gitea #359). They had left
+43,766 entries there -- their own folders and scratch files, and the
+profiles of every Chromium the web suites started -- enough to make the
+Open dialog's preview of `/tmp` fail five checks under the sanitizers. A
+folder a suite makes is now removed when it exits, and so is every scratch
+file named after its process; a program under test makes its temporary
+files under a `TMPDIR` inside the suite's own scratch home, which goes with
+it. `tests/all.py` fails a run that leaves a new `hibr-` entry in `/tmp`,
+and names it.
+
 ## 0.99.294
 
 **A bash prompt works as written** (Gitea #350). `\033` and every other

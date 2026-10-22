@@ -129,6 +129,7 @@ fn fp_go(int id, d) {
 	FP[$id]["top"]=0
 	[ "${FP[$id]["mode"]}" = open ] && fp_takesel "$id"
 	FP[$id]["pv"]=
+	FP[$id]["pc"]=
 }
 
 # The selected entry's full path.
@@ -302,8 +303,8 @@ fn fp_picfit(int id, p, int h, int w) {
 # bytes the test looked for, so About Me's picker drew it as rows of
 # random characters (Gitea #302).
 fn fp_preview(int id, int r0, int c0, int h, int w) {
-	local i=${FP[$id]["sel"]} p k r=0 line n=0 f head
-	local -a lines fit
+	local i=${FP[$id]["sel"]} p k r=0 line n=0 head
+	local -a lines fit ents
 
 	k=${FP[$id]["k$i"]}
 	p := fp_path "$id" "$i"
@@ -315,7 +316,18 @@ fn fp_preview(int id, int r0, int c0, int h, int w) {
 	done
 	[ "$i" -lt "${FP[$id]["n"]:-0}" ] || return 0
 	if [ "$k" = dir ] || [ "$k" = up ]; then
-		for f in "$p"/*; do [ -e "$f" ] && n=$((n + 1)); done
+		# Counted once for the highlighted folder, as the text below is
+		# read once for a file: counted on every frame, 43,793 entries
+		# in /tmp cost 324 ms a frame (Gitea #358). A listing starts
+		# the count again, as it does the text.
+		if [ "${FP[$id]["pc"]}" != "$p" ]; then
+			ents=("$p"/*)
+			n=${#ents[@]}
+			[ "$n" = 1 ] && [ ! -e "${ents[0]}" ] && n=0
+			FP[$id]["pc"]=$p
+			FP[$id]["pcn"]=$n
+		fi
+		n=${FP[$id]["pcn"]}
 		console pen "$DT_DIM" "$DT_FACE"
 		dt_tput "$id" "$r0" "$c0" "Folder, %s items" "$n"
 		return 0

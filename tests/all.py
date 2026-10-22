@@ -59,11 +59,35 @@ def one(name):
     return name, p.returncode == 0, summary, bad, time.time() - t
 
 
+def leftovers():
+    """This user's hibr-* entries in /tmp, less the per-user socket folders
+    and the suites' own scratch homes, which go when their suite exits."""
+    keep = ("hibr-hold-", "hibr-ctl-", "hibr-screen-")
+    try:
+        names = os.listdir("/tmp")
+    except OSError:
+        return set()
+    out = set()
+    for n in names:
+        if not n.startswith("hibr-") or n.startswith(keep):
+            continue
+        try:
+            if os.lstat(os.path.join("/tmp", n)).st_uid == os.getuid():
+                out.add(n)
+        except OSError:
+            pass
+    return out
+
+
 def main():
     want = sys.argv[1:] or SUITES
     os.makedirs(LOGS, exist_ok=True)
     t = time.time()
     ok = True
+    # A run leaves nothing in /tmp (Gitea #359): every suite's temporary
+    # files live in its own scratch home, removed when it exits, and one
+    # that appears here anyway is a leak to name rather than to let pile up.
+    before = leftovers()
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
         for name, good, summary, bad, took in pool.map(one, want):
             ok = ok and good
@@ -71,6 +95,11 @@ def main():
                                              summary, took))
             for l in bad:
                 print("    " + l)
+    left = sorted(leftovers() - before)
+    if left:
+        ok = False
+        print("leftover   FAIL %d new in /tmp: %s" % (len(left), " ".join(left[:8])
+                                                   + (" ..." if len(left) > 8 else "")))
     print("all: %s in %.0fs; logs in %s" % ("ok" if ok else "FAILED",
                                             time.time() - t, LOGS))
     sys.exit(0 if ok else 1)

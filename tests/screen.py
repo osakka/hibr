@@ -33,8 +33,70 @@ ROWS, COLS = 24, 80
 # test that wants saved settings to carry over passes the same env itself.
 import atexit, shutil, tempfile, unicodedata
 HOME = tempfile.mkdtemp(prefix="hibr-screen-")
-atexit.register(shutil.rmtree, HOME, True)
+atexit.register(lambda d=HOME, p=os.getpid(): os.getpid() == p and shutil.rmtree(d, True))
 FAIL = []
+# And nothing a run makes outlives it (Gitea #359). Left in /tmp, the
+# suites' folders and Chromium's profiles were 43,766 entries by 0.99.294,
+# and the Open dialog's preview of /tmp was then slow enough to fail five
+# checks under the sanitizers. A program under test makes its temporary
+# files under TMPDIR, which is pointed into the scratch home and goes with
+# it -- a test that shares a TMPDIR on purpose still sets its own. A
+# folder the suite makes itself stays where it was, in /tmp, since a path
+# is something the checks read and a longer one is cut in a window's
+# title; it is removed when the suite exits instead.
+tempfile.tempdir = tempfile.gettempdir()
+TMP = os.path.join(HOME, "tmp")
+os.makedirs(TMP)
+os.environ["TMPDIR"] = TMP
+_mkdtemp = tempfile.mkdtemp
+
+
+def _gone(d, pid):
+    """Remove a folder at exit, in the process that made it only: a forked
+    child that fails to exec exits through atexit too, and must not take
+    its parent's folders with it."""
+    if os.getpid() == pid:
+        shutil.rmtree(d, True)
+
+
+def _mkdtemp_gone(*a, **k):
+    """tempfile.mkdtemp, removed when the suite exits."""
+    d = _mkdtemp(*a, **k)
+    atexit.register(_gone, d, os.getpid())
+    return d
+
+
+tempfile.mkdtemp = _mkdtemp_gone
+
+
+def _sweep(pid):
+    """At exit, this suite's own scratch files in /tmp: every name a suite
+    writes there carries its pid (scratch() below, and the paths written
+    out by hand in the suites follow it), so one that is still there is
+    this process's and nobody else's."""
+    if os.getpid() != pid:
+        return
+    tag = re.compile(r"^hibr-.*-%d(\.[A-Za-z0-9]+)?$" % pid)
+    try:
+        names = os.listdir("/tmp")
+    except OSError:
+        return
+    for n in names:
+        if not tag.match(n):
+            continue
+        p = os.path.join("/tmp", n)
+        try:
+            if os.lstat(p).st_uid != os.getuid():
+                continue
+            if os.path.isdir(p) and not os.path.islink(p):
+                shutil.rmtree(p, True)
+            else:
+                os.unlink(p)
+        except OSError:
+            pass
+
+
+atexit.register(_sweep, os.getpid())
 
 
 # Where the suites load modules from: this tree's build, or another build

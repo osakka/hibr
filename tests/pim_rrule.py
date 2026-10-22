@@ -12,7 +12,7 @@ independent of the code it checks.
     python3 tests/pim_rrule.py [path-to-hibr]
     PYTHONPATH=/path/to/dateutil python3 tests/pim_rrule.py --regen
 """
-import os, subprocess, sys, tempfile
+import os, subprocess, sys, tempfile, shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -137,6 +137,7 @@ def main():
             print("FAIL %s %s" % (dtstart, rule))
             if os.environ.get("V"):
                 print("  want %s\n  got  %s\n  %s" % (exp, got, r.stderr))
+    shutil.rmtree(d, True)
     print()
     print("%d passed, %d failed" % (ok, bad))
     sys.exit(1 if bad else 0)

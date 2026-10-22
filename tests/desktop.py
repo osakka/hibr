@@ -5128,6 +5128,32 @@ check("and draws a picture in its preview as a picture",
       sc.find("PNG") is None and sc.find("IHDR") is None, sc)
 shutil.rmtree(FPD, True)
 
+# The preview counts a highlighted folder once, not on every frame it draws
+# (Gitea #358): 43,793 entries in /tmp cost 324 ms a frame. The selection
+# starts on .., so one key down is many/. Once the key has been read, the
+# session's own ticker waits a few frames and puts one more file in the
+# folder, and asks for frames after: a count made per frame shows 2001.
+FPC = tempfile.mkdtemp(prefix="hibr-fpc-")
+os.mkdir(os.path.join(FPC, "many"))
+for _i in range(2000):
+    open(os.path.join(FPC, "many", "f%04d" % _i), "w").close()
+FPCT = ('tk_more() { local c; c := console consumed\n'
+        '  [ "$c" -ge 3 ] || return 0\n'
+        '  TKN=$((${TKN:-0} + 1))\n'
+        '  [ "$TKN" = 5 ] && : > "%s/many/one-more"\n'
+        '  [ "$TKN" -lt 40 ] && dt_want 30\n'
+        '  return 0; }\n'
+        'dt_ticker tk_more\n' % FPC)
+sc, _ = run(FPCT + 'dt_filepick open "Open" "All files:*" "%s" "" : 0' % FPC,
+            feed=[b"\x1b[B", 2.5])
+check("the file dialog's preview counts a highlighted folder's items",
+      sc.find("Folder, 2000 items") is not None or
+      sc.find("Folder, 2001 items") is not None, sc)
+check("and counts it once, not again on every frame it draws",
+      sc.find("Folder, 2000 items") is not None and
+      os.path.exists(os.path.join(FPC, "many", "one-more")), sc)
+shutil.rmtree(FPC, True)
+
 # A one-line field has a selection (Gitea #295): shift with an arrow draws
 # it out, Copy and Cut take it -- Copy with nothing selected copies
 # nothing, the owner's choice -- typing replaces it, and a drag across the
@@ -6604,4 +6630,4 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(724)
+report(726)
