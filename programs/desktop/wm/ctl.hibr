@@ -21,6 +21,8 @@
 #     {"op":"resize","id":7,"h":20,"w":60}
 #     {"op":"focus","id":7}            ("raise" is the same)
 #     {"op":"rescan"}                  (read the app folders again)
+#     {"op":"stats","reset":true}      (what the desktop has done: see
+#                                       dt_ctlstats; "stop":true ends timing)
 #
 # An answer is {"ok":true,...} or {"ok":false,"error":"...","detail":"..."},
 # the errors bad-request, unknown-op, no-window, no-display, detached,
@@ -216,6 +218,7 @@ fn dt_ctlserve(int c) {
 		focus | raise) out := dt_ctlfocus "${q["id"]}" ;;
 		rescan) out := dt_ctlrescan ;;
 		state) out := dt_ctlstate ;;
+		stats) out := dt_ctlstats "${q["reset"]}" "${q["stop"]}" ;;
 		"") out := dt_ctlerr bad-request "no op" ;;
 		*) out := dt_ctlerr unknown-op "$op" ;;
 		esac
@@ -267,6 +270,88 @@ dt_ctlstate() {
 	[ -n "$DT_SAVING" ] && s=true
 	[ -n "$DT_LOCKED" ] && l=true
 	ret "{\"ok\":true,\"pid\":$$,\"saving\":$s,\"locked\":$l,\"watchers\":[$out],\"console\":$w}"
+}
+
+# What the desktop has done since stats were last reset, or since it started
+# (Gitea #343), counted the same way on every platform, so two machines can
+# be compared by asking each -- where their load cannot be, since both run
+# everything else besides. The CPU is the desktop's own and that of the
+# programs it ran and has waited for, from `times`; the counts are wakes of
+# the loop, frames, events and each layer's re-reads of its server, kept
+# always; per ticker and per frame, runs and milliseconds, kept only from a
+# reset until a stop, since timing costs a clock read each. reset zeroes it
+# all and starts the timing. What it cannot see, it says: hold's server --
+# the emulator and the renderer a held desktop draws through -- and the
+# terminal or Blit are other processes.
+DT_STATT0=${EPOCHREALTIME/./}
+DT_STATC0="0 0"
+
+# The milliseconds in one of times' figures, 0m0.045s.
+fn dt_statms(t) {
+	local m r s f
+
+	m=${t%%m*}
+	r=${t#*m}
+	s=${r%%.*}
+	f=${r#*.}
+	f=${f%s}
+	ret $((10#$m * 60000 + 10#$s * 1000 + 10#$f))
+}
+
+# The desktop's CPU and its waited-for children's, in milliseconds, as
+# "self children".
+dt_statcpu() {
+	local x a b c d
+
+	x := times
+	read -r a b c d <<< "${x//$'\n'/ }"
+	a := dt_statms "$a"
+	b := dt_statms "$b"
+	c := dt_statms "$c"
+	d := dt_statms "$d"
+	ret "$((a + b)) $((c + d))"
+}
+
+fn dt_ctlstats(reset = "", stop = "") {
+	local now el c self kids s0 k0 pct k nm tk= rd= v
+
+	if [ "$reset" = true ]; then
+		for k in "${!DT_STAT[@]}"; do
+			unset DT_STAT["$k"]
+		done
+		DT_STATT0=${EPOCHREALTIME/./}
+		c := dt_statcpu
+		DT_STATC0=$c
+		DT_STATON=1
+	fi
+	[ "$stop" = true ] && DT_STATON=
+	now=${EPOCHREALTIME/./}
+	el=$(((now - DT_STATT0) / 1000))
+	[ "$el" -gt 0 ] || el=1
+	c := dt_statcpu
+	read -r self kids <<< "$c"
+	read -r s0 k0 <<< "$DT_STATC0"
+	self=$((self - s0))
+	kids=$((kids - k0))
+	pct=$(((self + kids) * 1000 / el))
+	for k in "${!DT_STAT[@]}"; do
+		v=${DT_STAT["$k"]}
+		case $k in
+		t:*)
+			nm=${k#t:}
+			[ "$nm" = draw ] && continue
+			nm := dt_jstr "$nm"
+			tk+="${tk:+,}$nm:{\"runs\":${DT_STAT["n:${k#t:}"]:-0},\"ms\":$((v / 1000)).$((v % 1000 / 100))}"
+			;;
+		r:*)
+			nm := dt_jstr "${k#r:}"
+			rd+="${rd:+,}$nm:$v"
+			;;
+		esac
+	done
+	v=false
+	[ -n "$DT_STATON" ] && v=true
+	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"tickers\":{$tk},\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
 }
 
 dt_ctlsession() {

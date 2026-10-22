@@ -103,11 +103,15 @@ dt_btagain() {
 # Read everything again: the adapter, then the devices -- paired ones,
 # which of them are connected, and any a scan has found -- and for a
 # connected one its battery, which `info` gives only while it is connected.
+# Counted for `desktop ctl stats` (Gitea #343); declared here as well as in
+# wm/session.hibr, so this file still loads on its own.
+declare -gA DT_STAT
 dt_btread() {
 	local l k v mac nm i
 	local -A con pai
 
 	DT_BTREAD=$EPOCHREALTIME
+	DT_STAT["r:bt"]=$((${DT_STAT["r:bt"]:-0} + 1))
 	[ "${DT_BT["kind"]}" = bluez ] || return 0
 	DT_BT["power"]=no; DT_BT["disc"]=no; DT_BT["scan"]=no
 	while IFS= read -r l; do

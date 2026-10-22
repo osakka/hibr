@@ -348,10 +348,14 @@ fn dt_sndactl(int card, ctl) {
 }
 
 # Read everything the kind of sound here can say.
+# Counted for `desktop ctl stats` (Gitea #343); declared here as well as in
+# wm/session.hibr, so this file still loads on its own.
+declare -gA DT_STAT
 dt_sndread() {
 	local l c r
 
 	DT_SNDREAD=$EPOCHREALTIME
+	DT_STAT["r:sound"]=$((${DT_STAT["r:sound"]:-0} + 1))
 	case ${DT_SND["kind"]} in
 	pulse)
 		while IFS= read -r l; do

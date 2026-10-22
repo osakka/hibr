@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.289
+
+**`desktop ctl stats`: what the desktop itself costs, measured the same way
+on every platform** (Gitea #343). Asked to compare a Linux desktop with a
+Mac one, machine-wide load says nothing, since both machines run everything
+else besides. `desktop ctl stats reset` starts a window, and `desktop ctl
+stats` reads it:
+- the desktop's own CPU and its programs', as a percentage of a core;
+- wakes, frames and events;
+- how often each of the sound, network and Bluetooth layers re-read its
+  server;
+- each ticker's runs and milliseconds, and the frames' time.
+
+It says what it cannot see: hold's server, and the terminal or Blit. Reset,
+leave the desktop idle a minute, read, on each machine, and the two answers
+compare directly.
+
+**`times`**, bash's builtin, which hibr lacked: the shell's own user and
+system time, then its children's, as bash prints them. Bound with `:=`, the
+same two lines fill the slot.
+
 ## 0.99.288
 
 **A page in the Browser no longer grows and goes jagged with the terminal's

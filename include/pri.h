@@ -369,6 +369,8 @@ void sh_optlist(sh *s, int style);
 void sh_opt1(sh *s, str *o, const char *nm, int style);
 int b_builtin(sh *s, int ac, char **av);
 int b_umask(sh *s, int ac, char **av);
+int b_times(sh *s, int ac, char **av);
+void bi_tvfmt(str *o, long sec, long usec);
 int b_time(sh *s, int ac, char **av);
 int b_getopts(sh *s, int ac, char **av);
 int b_disown(sh *s, int ac, char **av);

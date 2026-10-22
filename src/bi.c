@@ -2195,6 +2195,7 @@ const hibr_bi bitab[] = {
 	{ "strict", b_strict, "refuse, in this file, what is usually a mistake" },
 	{ "test", b_test, "evaluate a conditional expression" },
 	{ "time", b_time, "time a command" },
+	{ "times", b_times, "the shell's and its children's CPU time" },
 	{ "title", b_title, "rename the running process" },
 	{ "trap", b_trap, "run a command on a signal or on exit" },
 	{ "true", b_true, "succeed" },

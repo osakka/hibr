@@ -4330,6 +4330,12 @@ check("desktop ctl state names the desktop's pid, its watchers and what the "
       rc == 0 and isinstance(j.get("pid"), int) and j.get("saving") is False
       and isinstance(j.get("watchers"), list) and isinstance(j.get("console"), str)
       and os.path.exists("/proc/%d" % j["pid"]), j)
+# What the desktop itself has done (Gitea #343), the same on every
+# platform: a reset starts a window, and the moves below draw frames in it.
+rc, st0 = ctl("stats", "reset")
+check("desktop ctl stats reset starts a window, timing on, from nothing",
+      rc == 0 and st0.get("ok") and st0.get("timing") is True
+      and st0.get("frames") == 0 and "hold" in st0.get("unseen", ""), st0)
 fid = str(fw[0]["id"]) if fw else "0"
 rc, j = ctl("move", fid, primary)
 t1.collect(1.0)
@@ -4339,6 +4345,17 @@ rc, j = ctl("move", fid, joined)
 t2.collect(1.0)
 check("and to the joined display, which draws it, not the background",
       rc == 0 and j.get("ok") and t2.screen().find("┤ Files [~] ├") is not None, (j, str(t2.screen())))
+rc, st = ctl("stats")
+tks = st.get("tickers", {})
+check("and a read counts the frames and wakes since, the CPU, and each ticker's "
+      "runs and time",
+      rc == 0 and st.get("frames", 0) >= 1 and st.get("wakes", 0) >= st.get("frames", 0)
+      and isinstance(st.get("cpu", {}).get("pct"), (int, float))
+      and st["cpu"].get("self_ms", -1) >= 0 and st.get("secs", 0) > 0
+      and tks and all(v.get("runs", 0) >= 1 for v in tks.values()), st)
+rc, st = ctl("stats", "stop")
+check("and stop ends the timing, the counts kept",
+      rc == 0 and st.get("timing") is False and st.get("frames", 0) >= 1, st)
 rc, j = ctl("move", "999", joined)
 check("a window that is not there is refused, saying so", rc == 1 and j.get("error") == "no-window", j)
 rc, j = ctl("move", fid, "nosuch")
@@ -6523,4 +6540,4 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(715)
+report(718)

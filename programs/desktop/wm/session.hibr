@@ -321,6 +321,13 @@ dt_close() {
 # when there is nothing to do, and asks for the frame it next needs with
 # dt_want, so an idle desktop still sleeps.
 DT_TICKERS=()
+# What the desktop does, counted the same on every platform (Gitea #343):
+# wakes of the loop, frames, events, each layer's re-reads of its server --
+# always, since each is one addition -- and while DT_STATON is set, each
+# ticker's runs and time and the time frames take. `desktop ctl stats`
+# reads them (wm/ctl.hibr); its reset zeroes them and turns the timing on.
+declare -gA DT_STAT
+DT_STATON=
 fn dt_ticker(name) {
 	case " ${DT_TICKERS[*]} " in *" $name "*) return 0 ;; esac
 	DT_TICKERS+=("$name")
@@ -333,7 +340,7 @@ fn dt_ticker(name) {
 # into the owner's desktop.log (Gitea #262). The check costs one lookup
 # per ticker per frame, and there are a handful.
 dt_tickers() {
-	local f
+	local f t0
 	local -a keep=()
 
 	for f in "${DT_TICKERS[@]}"; do
@@ -342,7 +349,14 @@ dt_tickers() {
 			continue
 		fi
 		keep+=("$f")
-		"$f"
+		if [ -n "$DT_STATON" ]; then
+			t0=${EPOCHREALTIME/./}
+			"$f"
+			DT_STAT["t:$f"]=$((${DT_STAT["t:$f"]:-0} + ${EPOCHREALTIME/./} - t0))
+			DT_STAT["n:$f"]=$((${DT_STAT["n:$f"]:-0} + 1))
+		else
+			"$f"
+		fi
 	done
 	[ "${#keep[@]}" = "${#DT_TICKERS[@]}" ] || DT_TICKERS=("${keep[@]}")
 	return 0
@@ -455,7 +469,7 @@ fn dt_mousecheck() {
 }
 
 dt_run() {
-	local k rsz=0 last now pk= skipn=0 frames=0 lastdraw=0
+	local k rsz=0 last now pk= skipn=0 frames=0 lastdraw=0 t0
 
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
@@ -533,7 +547,14 @@ dt_run() {
 					# the wait at once.
 					DT_QWAIT=1
 				else
-					dt_draw
+					if [ -n "$DT_STATON" ]; then
+						t0=${EPOCHREALTIME/./}
+						dt_draw
+						DT_STAT["t:draw"]=$((${DT_STAT["t:draw"]:-0} + ${EPOCHREALTIME/./} - t0))
+					else
+						dt_draw
+					fi
+					DT_STAT["frames"]=$((${DT_STAT["frames"]:-0} + 1))
 					dt_autoclose
 					skipn=0
 					frames=$((frames + 1))
@@ -572,6 +593,8 @@ dt_run() {
 			k := console key "${DT_WANT:-$DT_IDLEMS}"
 		fi
 		DT_QWAIT=
+		DT_STAT["wakes"]=$((${DT_STAT["wakes"]:-0} + 1))
+		[ -n "$k" ] && DT_STAT["events"]=$((${DT_STAT["events"]:-0} + 1))
 		[ -n "$k" ] && pk=$k
 		if console resizing; then
 			rsz=1

@@ -568,6 +568,26 @@ sound, the network or Bluetooth (`fd`, the `pty` it runs on, `cmd`), and
 found ready with nothing reading it and is no longer woken for, which the
 log names too.
 
+`stats` is what the desktop has done since it was last reset (`desktop ctl
+stats reset`), counted the same way on every platform, so two machines can
+be compared by asking each, which their load cannot do, since both run
+everything else besides (Gitea #343). It answers:
+- `secs` since the reset;
+- `cpu`: the desktop's own milliseconds (`self_ms`), those of the programs it
+  ran and has waited for (`children_ms`), and the two as a percentage of a
+  core (`pct`), all from the `times` builtin;
+- `wakes` of the loop, `frames` drawn and `events` read;
+- `rereads`: how often each of the sound, network and Bluetooth layers asked
+  its server for everything again;
+- while `timing` is on, from a reset until `desktop ctl stats stop`: each
+  ticker's `runs` and `ms`, and `draw_ms`.
+
+A re-read's program runs are inside its ticker's time. What it cannot see
+it says, in `unseen`: hold's server, which is the emulator and renderer a
+held desktop draws through, and the terminal or Blit are other processes.
+The same procedure on each machine is: reset, leave the desktop idle a
+minute, read.
+
 The socket is `${TMPDIR:-/tmp}/hibr-ctl-<uid>/<session>.ctl`, beside hold's
 own and outlasting a logout the same way, in a folder only its owner can
 enter; a connection from another user is refused. One request per

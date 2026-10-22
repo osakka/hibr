@@ -1202,6 +1202,46 @@ int b_time(sh *s, int ac, char **av)
 	return s->st = st;
 }
 
+/* One time as times prints it: minutes, then seconds to the millisecond. */
+void bi_tvfmt(str *o, long sec, long usec)
+{
+	char b[64];
+	long ms = sec * 1000 + usec / 1000;
+
+	snprintf(b, sizeof b, "%ldm%ld.%03lds", ms / 60000, ms / 1000 % 60,
+		 ms % 1000);
+	s_cat(o, b);
+}
+
+/* The shell's own user and system time, then its children's, as bash's
+   times prints them. Bound with :=, the same two lines fill the slot and
+   nothing is printed -- which is how the desktop measures what it costs,
+   the programs it ran included, the same way on every platform (Gitea
+   #343). Children are those already waited for, as getrusage counts. */
+int b_times(sh *s, int ac, char **av)
+{
+	struct rusage me, ch;
+	str o;
+
+	(void)ac;
+	(void)av;
+	getrusage(RUSAGE_SELF, &me);
+	getrusage(RUSAGE_CHILDREN, &ch);
+	s_init(&o);
+	bi_tvfmt(&o, (long)me.ru_utime.tv_sec, (long)me.ru_utime.tv_usec);
+	s_ch(&o, ' ');
+	bi_tvfmt(&o, (long)me.ru_stime.tv_sec, (long)me.ru_stime.tv_usec);
+	s_ch(&o, '\n');
+	bi_tvfmt(&o, (long)ch.ru_utime.tv_sec, (long)ch.ru_utime.tv_usec);
+	s_ch(&o, ' ');
+	bi_tvfmt(&o, (long)ch.ru_stime.tv_sec, (long)ch.ru_stime.tv_usec);
+	hibr_ret(s, o.p);
+	if (!s->bind)
+		printf("%s\n", o.p);
+	s_free(&o);
+	return HIBR_OK;
+}
+
 /* Parse option letters out of the positional parameters. */
 int b_getopts(sh *s, int ac, char **av)
 {
