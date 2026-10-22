@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.291
+
+**A Files cover no longer stays behind when its window moves or reflows**
+(Gitea #346). A picture that owns its cells was retired only when the cells
+under it changed, and a window's blank face landing back where a cover had
+been looks unchanged. Moving a window by less than its width, a resize or a
+scroll did exactly that, and kitty kept the old cover on screen as debris.
+- **A pane's own pictures:** a picture placed through a pane now belongs to
+  that pane's drawing. On a frame the pane was drawn, a picture it did not
+  place again is deleted, and a pane that goes takes its pictures with it.
+- **No new cost:** a window that is not drawn keeps its pictures for
+  nothing, as before.
+- **Also fixed:** an under-text picture's per-cell colours were not freed
+  when it went.
+
 ## 0.99.290
 
 **On a Mac, the desktop's icons are drawn whole** (Gitea #345). In kitty

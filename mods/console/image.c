@@ -48,6 +48,8 @@ typedef struct cn_img {
 	unsigned id;		/* the kitty image's own id; 0 for a sixel */
 	str data;		/* the encoded picture */
 	unsigned *cell;		/* one averaged colour per cell, under-text only */
+	char *pane;		/* the pane it was placed through, or null */
+	int plive;		/* placed again since the last check */
 } cn_img;
 
 static cn_img *cn_imgs;
@@ -192,6 +194,7 @@ void cn_imgdrop(size_t i)
 	cn_imgforget(&cn_imgs[i]);
 	cn_imgowe(cn_imgs[i].id);
 	free(cn_imgs[i].cell);
+	free(cn_imgs[i].pane);
 	s_free(&cn_imgs[i].data);
 	cn_imgs[i] = cn_imgs[cn_nimg - 1];
 	cn_nimg--;
@@ -504,10 +507,12 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 			   text is simply still wanted, which is what keeps it
 			   (a caller that stops placing it is what makes it
 			   go). */
-			if (im->over)
+			if (im->over) {
 				im->live = 1;
-			else
+			} else {
 				im->under = cn_imgunder(im);
+				im->plive = 1;
+			}
 			return 1;
 		}
 		/* A different picture in the same rectangle takes a **new**
@@ -584,6 +589,10 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	im->sum = sum;
 	im->over = (flags & DP_IMG_UNDER) ? 1 : 0;
 	im->live = im->over;
+	if (pane && !im->over) {
+		im->pane = xs(pane);
+		im->plive = 1;
+	}
 	if (im->over)
 		cn_imgcells(im, rgb, iw, sx, sy, sw, sh);
 	im->id = k == CN_GFX_KITTY ? kt_id() : 0;
@@ -757,6 +766,8 @@ void cn_imgcheck(int again)
 		if (cn_imgs[i].over) {
 			if (!cn_imgs[i].live) {
 				cn_imgowe(cn_imgs[i].id);
+				free(cn_imgs[i].cell);
+				free(cn_imgs[i].pane);
 				s_free(&cn_imgs[i].data);
 				cn_imgs[i] = cn_imgs[cn_nimg - 1];
 				cn_nimg--;
@@ -774,8 +785,29 @@ void cn_imgcheck(int again)
 			cn_imgdrop(i);
 			continue;
 		}
+		/* One placed through a pane belongs to that pane's drawing: on
+		   a frame the pane was drawn, a picture of its that was not
+		   placed again has gone, and a pane that has gone takes its
+		   pictures with it (Gitea #346). The cell hash cannot say so
+		   when the window's own blank face lands back where the
+		   picture was -- a cover moved by a reflow, or by a move of
+		   less than the window's width -- since the cells look exactly
+		   as they did, and kitty keeps a picture until it is told. */
+		if (cn_imgs[i].pane) {
+			cn_pane *p = cn_pfind(cn_imgs[i].pane);
+
+			if (!p || (p->drawn && !cn_imgs[i].plive)) {
+				lg(HIBR_LDBG, "image: dropped, its pane %s drew "
+					      "without it", cn_imgs[i].pane);
+				cn_imgdrop(i);
+				continue;
+			}
+			cn_imgs[i].plive = 0;
+		}
 		i++;
 	}
+	for (i = 0; i < cn_panes.n; i++)
+		((cn_pane *)cn_panes.p[i])->drawn = 0;
 }
 
 /* The deletes owed for pictures that have gone: a kitty placement stays until

@@ -626,4 +626,45 @@ check("over a half block, only the half the shadow falls on changes",
 check("and text under it keeps its glyphs, dimmed whole, as a shadow always was",
       sc.row(4)[:2] == "ab" and "48;2;64;48;32" in sc.p[4][0], (sc.row(4), sc.p[4][0]))
 
-report(len(WANT) + len(MWANT) + 87)
+# A picture placed through a pane belongs to that pane's drawing (Gitea
+# #346): on a frame the pane was drawn, one of its pictures not placed
+# again has gone, and a dropped pane takes its pictures with it. The cell
+# hash could not say so when the window's own blank face landed back where
+# a cover had been -- a reflow, or a move of less than the window's width
+# -- and kitty keeps a picture until it is told: the owner's Files left
+# covers behind as debris.
+def panepic(second, third=""):
+    pic = tree("tests/img-wide.png")
+    path = "/tmp/hibr-console-pic-%d.hibr" % os.getpid()
+    open(path, "w").write(
+        "mod load %s\nmod load %s\nconsole open\n"
+        "console pen '#c0c0c0' '#203048'\nconsole fill 0 0 24 80 .\n"
+        "console pane w1 2 2 12 40\nconsole pen '#000000' '#e0e0e0'\n"
+        "console fill -p w1 0 0 12 40 ' '\n"
+        "img draw %s 2 2 4 8 -m pixels -p w1\nconsole flush\nconsole key 200\n"
+        "%s\nconsole flush\nconsole key 200\n%s\nconsole flush\n"
+        "console key 200\nconsole close\n"
+        % (MOD, tree("build/mods/img.so"), pic, second.replace("@P", pic),
+           third.replace("@P", pic)))
+    t = Term(path, rows=24, cols=80, settle=0.5, cellw=8, cellh=16,
+             env={"HIBR_GFX": "kitty"})
+    t.collect(1.5)
+    t.close()
+    os.unlink(path)
+    sc = Screen()
+    sc.feed(t.raw.decode("utf-8", "replace"))
+    return (len([a for a in sc.apc if "a=T" in a]),
+            len([a for a in sc.apc if "a=d,d=I" in a]))
+REDRAW = "console fill -p w1 0 0 12 40 ' '\nimg draw @P 2 %d 4 8 -m pixels -p w1"
+n = panepic(REDRAW % 20)
+check("a pane's picture drawn somewhere else in it is deleted where it was",
+      n == (2, 1), n)
+n = panepic("", "")
+check("a pane not drawn keeps its picture, sent once", n == (1, 0), n)
+n = panepic(REDRAW % 2, REDRAW % 2)
+check("a pane drawn with its picture in place keeps it, not sent again",
+      n == (1, 0), n)
+n = panepic("console pane drop w1\nconsole put 0 0 x")
+check("and a pane that has gone takes its picture with it", n == (1, 1), n)
+
+report(len(WANT) + len(MWANT) + 91)

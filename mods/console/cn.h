@@ -68,6 +68,10 @@ struct cn_pane {
 	   which `console copied` answers, so the desktop can leave a window
 	   the copy already drew undrawn. */
 	int copied;
+	/* Whether anything was written through it since the last flush, so
+	   a picture of its it did not place again is known to have gone
+	   (Gitea #346). */
+	int drawn;
 };
 
 /* A pane marked `top` is above everything, whatever the stack says: a cell

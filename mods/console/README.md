@@ -239,6 +239,18 @@ primary -- one placement is a rectangle, not an L. `console hit` asks the
 top panes first. The desktop's menu bar is the one user: a window dragged
 across it, its shadow, a menu or a picture goes under the bar.
 
+A picture placed through a pane (`img draw -p`, `dp->image` with a pane)
+belongs to that pane's drawing (Gitea #346). On a frame something was
+written through the pane, a picture of its that was not placed again has
+gone, and is dropped with the delete kitty needs. A pane that has gone takes
+its pictures with it, and a pane not drawn keeps its pictures at no cost.
+This exists because the cell hash a picture is otherwise kept by cannot tell
+"unchanged" from "changed to the same value". When a window moved by less
+than its own width, or a reflow put a cover elsewhere, its blank face landed
+back where the cover had been, and kitty kept the old cover on screen. So an
+app that draws a pane places, every time it draws, every picture it still
+shows. Files, the Image Viewer, Mail and both previews all do.
+
 ## Naming
 
 Everything is `cn_`, not `sc_`. `src/net.c` already uses `sc_` for schemes and

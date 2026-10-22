@@ -570,6 +570,7 @@ int m_console(sh *s, int ac, char **av)
 			}
 			if (raw)
 				cn_bidi = 0;
+			p->drawn = 1;
 			cn_pput(s, p, atoi(av[4]), atoi(av[5]), av[6]);
 			cn_bidi = ob;
 			return HIBR_OK;
@@ -656,6 +657,7 @@ int m_console(sh *s, int ac, char **av)
 					      " col h w [char]");
 				return 2;
 			}
+			p->drawn = 1;
 			cn_pfill(p, atoi(av[4]), atoi(av[5]), atoi(av[6]),
 				 atoi(av[7]), ac > 8 ? av[8] : " ");
 			return HIBR_OK;
