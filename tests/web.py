@@ -7,7 +7,7 @@ suite says so rather than failing. Pages are files in a folder of their
 own, so nothing here touches the network.
 """
 import base64, functools, http.server, os, shutil, struct, subprocess
-import sys, tempfile, threading, zlib
+import re, sys, tempfile, threading, zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -142,6 +142,13 @@ A = "file://" + os.path.join(D, "a.html")
 B = "file://" + os.path.join(D, "b.html")
 S = "file://" + os.path.join(D, "s.html")
 W = "file://" + os.path.join(D, "t.html")
+# A page that says, in its title, how wide it was laid out: what a cell of
+# the terminal stands for in CSS pixels (Gitea #342).
+open(os.path.join(D, "iw.html"), "w").write(
+    "<html><head><title>IW</title><script>function s(){document.title="
+    "'IW'+innerWidth}addEventListener('resize',s);s();</script></head>"
+    "<body>x</body></html>")
+IW = "file://" + os.path.join(D, "iw.html")
 ENV = dict(os.environ, HIBR_WEB_PROFILE=PROF,
            HIBR_MODPATH=tree("build/mods"))
 
@@ -361,6 +368,23 @@ for d in sc.imgdata:
             dark += 1
 check("and the page's own words are in the picture, not made transparent",
       len(sc.images) == 1 and dark > 500, (dark, len(sc.imgdata), sc.apc[:1]))
+
+# A page drawn as pixels is laid out at the terminal's own cell size, one
+# CSS pixel to a screen pixel (Gitea #342). It was laid out at 8 by 16 a
+# cell whatever the font: a larger font gave the same window fewer cells, a
+# narrower page laid out larger, and a screenshot the display then stretched
+# -- bigger and jagged. The same terminal with cells half as wide again must
+# lay the same window's page out half as wide again; as blocks it stays 8.
+def laidout(cell, mode="pixels"):
+    sc = brun([2.0], arg=IW, ready="IW", cell=cell, wait=3.0,
+              env={"HIBR_GFX": "kitty", "DT_IMGMODE": mode})
+    m = re.search(r"IW(\d{3,})", sc.text())
+    return int(m.group(1)) if m else 0
+w8, w12 = laidout((8, 16)), laidout((12, 24))
+check("as pixels, a page is laid out at the terminal's own cell, so a larger "
+      "font leaves it the same and sharp", w8 > 0 and w12 * 2 == w8 * 3, (w8, w12))
+check("and as blocks it is laid out at 8 a cell whatever the font",
+      laidout((12, 24), "half") == w8, w8)
 
 # The module says why in the desktop's log, which the Browser no longer
 # throws away (Gitea #327): a provoked error, so not one to fail over.
@@ -690,4 +714,4 @@ check("and a click on a page that plays nothing starts no recording",
 SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(54)
+report(56)

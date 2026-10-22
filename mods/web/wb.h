@@ -6,10 +6,12 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-/* The size of a cell, in the page's own CSS pixels: the viewport is a
-   window's columns times WB_CW wide and its rows times WB_CH tall, and a
-   screenshot taken at 1/WB_CW is exactly one pixel a column and two a row,
-   one for each half of a half-block cell. */
+/* The size of a cell, in the page's own CSS pixels, for a page drawn as
+   cells: the viewport is a window's columns times WB_CW wide and its rows
+   times WB_CH tall, and a screenshot taken at 1/WB_CW is exactly one pixel a
+   column and two a row, one for each half of a half-block cell. A page
+   drawn as pixels is laid out at the terminal's own cell size instead
+   (wb_cellsz), so it is never stretched (Gitea #342). */
 #ifndef WB_CW
 #define WB_CW 8
 #define WB_CH 16
@@ -72,6 +74,9 @@ struct wb_tab {
 	   its own background and would box out the bitmap behind every glyph
 	   (ADR 0037). pixels is set by `web mode ID pixels`. */
 	int pixels;
+	/* The CSS pixels a cell stands for, as the viewport was last set:
+	   WB_CW by WB_CH as cells, the terminal's own cell as pixels. */
+	int cw, ch;
 	unsigned char *shot;
 	int shotw, shoth;
 	/* Set by `web set` and `web mode`: the page's zoom in percent (0 is
@@ -157,7 +162,9 @@ wb_tab *wb_tabget(const char *id);
 wb_tab *wb_tabopen(const char *url);
 void wb_tabclose(wb_tab *t);
 int wb_go(wb_tab *t, const char *url);
+extern const dp_api *wb_dp;
 int wb_size(wb_tab *t, int rows, int cols);
+void wb_cellsz(wb_tab *t, int *cw, int *ch);
 void wb_slow(wb_tab *t);
 long wb_ms(void);
 int wb_render(wb_tab *t);

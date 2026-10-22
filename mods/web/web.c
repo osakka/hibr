@@ -135,6 +135,12 @@ int wb_drawcmd(sh *s, wb_tab *t, int ac, char **av)
 		wb_err(HIBR_LERR, "web draw: no display open");
 		return HIBR_FAIL;
 	}
+	/* What a cell measures can change under a page with nothing told:
+	   the first size came before the display was found, or a terminal
+	   with another font attached. Asked here, where the display is in
+	   hand; nothing changes, nothing is sent (Gitea #342). */
+	if (t->rows > 0 && t->cols > 0)
+		wb_size(t, t->rows, t->cols);
 	if (v[2] < 0)
 		v[2] = t->grows;
 	if (v[3] < 0)
@@ -325,6 +331,10 @@ int m_web(sh *s, int ac, char **av)
 			t->shot = 0;
 			t->shotw = t->shoth = 0;
 			t->dirty = 1;
+			/* What a cell stands for goes with the mode, so the
+			   page is laid out again at the same rows and cols. */
+			if (t->rows > 0 && t->cols > 0)
+				wb_size(t, t->rows, t->cols);
 		}
 		return HIBR_OK;
 	}

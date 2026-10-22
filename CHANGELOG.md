@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.288
+
+**A page in the Browser no longer grows and goes jagged with the terminal's
+font** (Gitea #342). Drawn as pixels, a page was laid out at 8 by 16 CSS
+pixels a cell whatever the terminal's cells measured. A larger font gave the
+same window fewer cells, so the page was laid out narrower, and therefore
+larger, and the display then stretched its screenshot to the real cells.
+- **Real pixels:** the page is laid out at the terminal's own cell, one CSS
+  pixel to a screen pixel, and photographed at exactly that size, so it is
+  never stretched.
+- **The font changes nothing:** Browser > Zoom is what makes a page bigger.
+  On a HiDPI terminal, raise Zoom.
+- **Blocks are unchanged:** drawn as half blocks a cell is a character, and
+  that stays at 8 by 16.
+
 ## 0.99.287
 
 **The menu bar keeps no hand-written lists** (Gitea #341). The owner asked

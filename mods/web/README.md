@@ -85,7 +85,17 @@ than through the cells; what is lost is reading the page as cells, so no
 copying text out of it and no link cells. The Browser app chooses from
 Control Panel > Pictures, and the window's own chrome stays text either way.
 
-The page is laid out at 8 by 16 CSS pixels a cell. `render` asks the page
+Drawn as blocks, the page is laid out at 8 by 16 CSS pixels a cell. Drawn
+as pixels, it is laid out at the terminal's own cell, one CSS pixel to a
+screen pixel (`dp->cellpx`, Gitea #342), and its screenshot is taken at
+exactly that size. Until 0.99.288 it was 8 by 16 either way. A larger font
+gave the same window fewer cells, so the page was laid out narrower, and
+therefore larger, and its screenshot was stretched to the real cells: bigger
+and jagged. Now the font changes nothing about a page, and Zoom is what
+sizes one. On a HiDPI terminal, whose cells are counted in device pixels,
+raise Zoom. `web draw` re-checks the layout each time, since the first `web
+size` comes before the display is found and a terminal with another font can
+attach under the same cell count. `render` asks the page
 for every visible character's place, colour, weight and link (a range per
 character, so a proportional font still lands in the right cells; text on
 one line is kept together, and a later piece on the same row goes on after

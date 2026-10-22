@@ -9,8 +9,8 @@
 /* What a page is asked for each frame: every visible character with where
    it sits, its colour and weight and link; the form fields with what is in
    them; the links; where it is scrolled to. The page is laid out at
-   WB_CW x WB_CH CSS pixels a cell, so a character's cell is its position
-   divided by those. */
+   the tab's own cell size in CSS pixels (wb_cellsz), so a character's cell
+   is its position divided by those. */
 static const char wb_extract[] =
 	"(function(CW,CH){"
 	"const W=innerWidth,H=innerHeight;"
@@ -203,24 +203,54 @@ int wb_go(wb_tab *t, const char *url)
 	return HIBR_OK;
 }
 
-/* Lay a tab's page out at rows by cols cells. */
+/* The CSS pixels a cell of this tab stands for. As cells it is WB_CW by
+   WB_CH, the half-block grid's own. As pixels it is what a cell of the
+   terminal really measures, one CSS pixel to a screen pixel: the page was
+   laid out at 8 by 16 a cell whatever the font, so a larger font meant
+   fewer cells, a narrower page laid out larger, and a screenshot the
+   display then stretched -- bigger and jagged (Gitea #342). Now the font
+   changes nothing about a page, and Zoom is what sizes one. */
+void wb_cellsz(wb_tab *t, int *cw, int *ch)
+{
+	int w = 0, h = 0;
+
+	*cw = WB_CW;
+	*ch = WB_CH;
+	if (!t->pixels || !wb_dp || !wb_dp->cellpx)
+		return;
+	wb_dp->cellpx(&w, &h);
+	if (w > 1 && h > 1) {
+		*cw = w;
+		*ch = h;
+	}
+}
+
+/* Lay a tab's page out at rows by cols cells -- again whenever what a cell
+   stands for has changed since, which a font change or a mode change does
+   with the same rows and cols. */
 int wb_size(wb_tab *t, int rows, int cols)
 {
 	char b[160];
 	jv *r;
+	int cw, ch;
 
 	if (rows < 1 || cols < 1)
 		return HIBR_FAIL;
-	if (rows == t->rows && cols == t->cols)
+	wb_cellsz(t, &cw, &ch);
+	if (rows == t->rows && cols == t->cols && cw == t->cw && ch == t->ch)
 		return HIBR_OK;
 	snprintf(b, sizeof b, "{\"width\":%d,\"height\":%d,\"deviceScaleFactor\":1,"
-		 "\"mobile\":false}", cols * WB_CW, rows * WB_CH);
+		 "\"mobile\":false}", cols * cw, rows * ch);
 	r = wb_call("Emulation.setDeviceMetricsOverride", b, t->session);
 	if (!r)
 		return HIBR_FAIL;
 	jv_free(r);
+	lg(HIBR_LDBG, "web: tab laid out at %dx%d cells of %dx%d", cols, rows,
+	   cw, ch);
 	t->rows = rows;
 	t->cols = cols;
+	t->cw = cw;
+	t->ch = ch;
 	t->dirty = 1;
 	return HIBR_OK;
 }
@@ -336,7 +366,7 @@ void wb_pixels(wb_tab *t)
 	   exactly what a half block shows. */
 	snprintf(b, sizeof b, "{\"format\":\"png\",\"clip\":{\"x\":%ld,\"y\":%ld,"
 		 "\"width\":%d,\"height\":%d,\"scale\":%.6f}}", t->sx, t->sy,
-		 t->cols * WB_CW, t->rows * WB_CH, t->pixels ? 1.0 : 1.0 / WB_CW);
+		 t->cols * t->cw, t->rows * t->ch, t->pixels ? 1.0 : 1.0 / t->cw);
 	/* Hidden only for the path that draws the text again. A page drawn
 	   as cells is this picture with its letters put back as real cells
 	   over it, so they must not be in it twice; a page drawn as pixels
@@ -516,7 +546,7 @@ int wb_render(wb_tab *t)
 		return HIBR_OK;
 	wb_zoomapply(t);
 	js = xm(sizeof wb_extract + 32);
-	snprintf(js, sizeof wb_extract + 32, wb_extract, WB_CW, WB_CH);
+	snprintf(js, sizeof wb_extract + 32, wb_extract, t->cw, t->ch);
 	s_init(&out);
 	k = wb_eval(t, js, &out);
 	free(js);
@@ -630,7 +660,7 @@ int wb_click(wb_tab *t, int row, int col)
 {
 	char b[200];
 	jv *r;
-	int x = col * WB_CW + WB_CW / 2, y = row * WB_CH + WB_CH / 2;
+	int x = col * t->cw + t->cw / 2, y = row * t->ch + t->ch / 2;
 
 	snprintf(b, sizeof b, "{\"type\":\"mousePressed\",\"x\":%d,\"y\":%d,"
 		 "\"button\":\"left\",\"clickCount\":1}", x, y);
@@ -651,8 +681,8 @@ int wb_wheel(wb_tab *t, int dy)
 	jv *r;
 
 	snprintf(b, sizeof b, "{\"type\":\"mouseWheel\",\"x\":%d,\"y\":%d,"
-		 "\"deltaX\":0,\"deltaY\":%d}", t->cols * WB_CW / 2,
-		 t->rows * WB_CH / 2, dy * WB_CH);
+		 "\"deltaX\":0,\"deltaY\":%d}", t->cols * t->cw / 2,
+		 t->rows * t->ch / 2, dy * t->ch);
 	r = wb_call("Input.dispatchMouseEvent", b, t->session);
 	jv_free(r);
 	t->dirty = 1;
