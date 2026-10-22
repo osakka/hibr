@@ -103,13 +103,19 @@ MANDIR ?= $(PREFIX)/share/man
 DESKDIR = $(SHAREDIR)/desktop
 SHCFLAGS = $(CFLAGS) -DHIBR_MODDIR=\"$(MODDIR)\" -DHIBR_SYSDIR=\"$(SYSDIR)\"
 
-all: $(BIN) $(MODS) $(B)/hibr.1
+all: $(BIN) $(MODS) $(B)/hibr.1 $(B)/desktop.1
 
 # The manual page, with the version and the module directory filled in from
 # the same places the binary takes them, so neither can go stale in it.
 $(B)/hibr.1: docs/hibr.1.in include/hibr.h $(B)/.moddir | $(B)/mods
 	sed -e "s|@VERSION@|$$(sed -n 's/^#define HIBR_VER "\(.*\)"/\1/p' include/hibr.h)|" \
 	    -e 's|@MODDIR@|$(MODDIR)|' docs/hibr.1.in > $@
+
+# And the desktop's, with the version and where the desktop is installed
+# (Gitea #344).
+$(B)/desktop.1: docs/desktop.1.in include/hibr.h | $(B)/mods
+	sed -e "s|@VERSION@|$$(sed -n 's/^#define HIBR_VER "\(.*\)"/\1/p' include/hibr.h)|" \
+	    -e 's|@DESKDIR@|$(DESKDIR)|' docs/desktop.1.in > $@
 
 $(B)/mods:
 	@mkdir -p $@
@@ -302,6 +308,7 @@ install: all
 	install -m 644 include/hibr.h $(DESTDIR)$(PREFIX)/include/hibr/hibr.h
 	install -d $(DESTDIR)$(MANDIR)/man1
 	install -m 644 $(B)/hibr.1 $(DESTDIR)$(MANDIR)/man1/hibr.1
+	install -m 644 $(B)/desktop.1 $(DESTDIR)$(MANDIR)/man1/desktop.1
 	install -d $(DESTDIR)$(SHAREDIR)/calendars
 	install -m 644 mods/hcal/calendars/*.json $(DESTDIR)$(SHAREDIR)/calendars
 	install -d $(DESTDIR)$(SHAREDIR)/salat
@@ -360,7 +367,8 @@ uninstall:
 		$(DESTDIR)$(PREFIX)/bin/catalogue \
 		$(DESTDIR)$(SHAREDIR)/catalogue.hibr \
 		$(DESTDIR)$(PREFIX)/bin/apps $(DESTDIR)$(SHAREDIR)/apps.hibr \
-		$(DESTDIR)$(MANDIR)/man1/hibr.1
+		$(DESTDIR)$(MANDIR)/man1/hibr.1 \
+		$(DESTDIR)$(MANDIR)/man1/desktop.1
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \
 		$(DESTDIR)$(DESKDIR)
 # Only if nothing was installed into it. What a catalogue put there is an

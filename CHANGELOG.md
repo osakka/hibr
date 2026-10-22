@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.290
+
+**On a Mac, the desktop's icons are drawn whole** (Gitea #345). In kitty
+and iTerm2 each icon lost its right side. Their fonts lack symbols such as
+`⌂` `▥` `▽`, so the terminal takes them from a fallback font where they are
+wider than a cell, and it lets a symbol run into the next cell only when
+that cell is blank. The wallpaper's pattern was there instead. Each icon's
+glyph now has a blank cell after it. A font that fits the symbol, as Blit's
+on Linux does, looks as before.
+
+**`man desktop`** (Gitea #344). The desktop has a man page beside
+`hibr(1)`, built and installed the same way, covering:
+- the options;
+- every `desktop ctl` request;
+- detaching and resuming;
+- the keys needed before the menus;
+- the settings, the log and the control socket.
+
+`tests/532-desktop-man.t` reads the options out of `session.hibr` and the
+requests out of `lib/ctl.hibr`, and fails when the page and the code
+disagree in either direction.
+
 ## 0.99.289
 
 **`desktop ctl stats`: what the desktop itself costs, measured the same way

@@ -1,0 +1,202 @@
+.TH DESKTOP 1 "" "hibr @VERSION@" "User Commands"
+.SH NAME
+desktop \- hibr's text-mode desktop, held so it can always be detached from
+.SH SYNOPSIS
+.B desktop
+.RB [ \-r | \-\-resume ]
+.RB [ \-s | \-\-session
+.IR name ]
+.RB [ \-j | \-\-join ]
+.RB [ \-w | \-\-standby ]
+.RB [ \-n | \-\-name
+.IR name ]
+.br
+.B desktop ctl
+.RB [ \-s | \-\-session
+.IR name ]
+.RB [ \-S | \-\-socket
+.IR path ]
+.I request
+.RI [ arg ...]
+.br
+.B desktop ctl
+.B \-j
+.I json
+.SH DESCRIPTION
+.B desktop
+starts hibr's desktop in the terminal it is run from: windows, a menu bar,
+desktop icons and a Control Panel, drawn in the terminal's own cells and,
+where the terminal can show them, in pixels. It is a hibr script
+.RI ( session.hibr
+in the desktop's folder), run by
+.BR hibr (1).
+.PP
+Every desktop is
+.IR held :
+it runs inside a session of hibr's
+.B hold
+module, so it outlives the terminal. Detach, from the hibr menu or with
+ctrl-\e, gives the terminal back and leaves the desktop and everything in
+its windows running.
+.B desktop \-r
+in any terminal comes back to it. Without
+.BR \-r ,
+a desktop already running under the same session name is left alone and
+the command says so.
+.PP
+Restart Desktop, on the hibr menu, starts the desktop again on whatever
+hibr is installed now and keeps the programs running in its terminal
+windows. Since 0.99.166 it also upgrades the session's own server when that
+is older than the hibr on disk.
+.SH OPTIONS
+.TP
+.BR \-r ", " \-\-resume
+Reattach to the desktop if it is already running, or start one if it is
+not.
+.TP
+.BR \-s ", " \-\-session " \fIname\fR"
+Which held session this is, for keeping more than one desktop side by side.
+The default is
+.BR desktop .
+.TP
+.BR \-j ", " \-\-join
+Attach beside an already running desktop as a further display, instead of
+starting or resuming one. The desktop then spans both terminals.
+.TP
+.BR \-w ", " \-\-standby
+Wait to be joined, now and again each time this display is let go.
+.TP
+.BR \-n ", " \-\-name " \fIname\fR"
+Name this display, as the Control Panel's Displays pane and
+.B desktop ctl displays
+show it. Without it a display is
+.BI client\- fd\fR.
+.SH KEYS
+These are the defaults. Each one can be changed in Control Panel >
+Keyboard > Shortcuts. Every other key goes to the focused window, so a
+program in a terminal window gets its own ctrl-c.
+.TP
+.BR F10 " or " escape
+Open the menu bar. Arrows and letters then work its menus.
+.TP
+.B alt-tab
+Go to the next window.
+.TP
+.B ctrl-w
+Close the focused window.
+.TP
+.B ctrl-\e
+Detach.
+.PP
+Quit, on the hibr menu, ends the desktop and its windows. A window is
+moved by its title bar, or by alt and a drag anywhere in it.
+.SH CONTROL
+.B desktop ctl
+asks a running desktop something through its control socket, or has it do
+something, and prints the line of JSON it answers. The desktop is the
+session given by
+.BR \-\-session ,
+else the held session the shell runs in, else
+.BR desktop .
+.B \-\-socket
+names the socket itself, and
+.B \-j
+sends a request written as JSON as it is. The requests:
+.TP
+.B displays
+The displays attached: each one's name, place and size, whether it is the
+primary, and what it draws.
+.TP
+.B windows
+The windows: id, title, place, size, workspace, and whether each has focus.
+.TP
+.B session
+The session's name, whether it is held, the focused window, the current
+workspace and how many there are, and the screen's size.
+.TP
+.B rescan
+Read the application folders again, as the catalogue asks after it installs
+or removes something.
+.TP
+.B state
+What the desktop waits on: its process id, whether the screen saver or the
+lock is up, each watcher, and the descriptors the console wakes for.
+.TP
+.BR "stats " [ reset | stop ]
+What the desktop has done since the last reset, counted the same way on
+every platform:
+.RS
+.IP \(bu 2
+its own CPU time and that of the programs it ran;
+.IP \(bu 2
+the wakes, frames and events since;
+.IP \(bu 2
+how often the sound, network and Bluetooth layers re-read their servers;
+.IP \(bu 2
+while timing is on, from a reset until a stop, each ticker's runs and
+milliseconds.
+.RE
+.IP
+It does not count hold's server or the terminal, which are other processes.
+.TP
+.BI "move " "id display"
+Move a window to a display, named as
+.B displays
+names it.
+.TP
+.BI "resize " "id height width"
+Resize a window, in cells.
+.TP
+.BI "focus " id
+Raise a window and give it focus.
+.B raise
+is the same.
+.SH EXIT STATUS
+.B desktop ctl
+exits 0 when the desktop answered
+.BR {"ok":true} ,
+1 for an error the desktop gave, and 2 when there is no desktop to ask or
+the request was not understood.
+.SH FILES
+.TP
+.I ~/.config/hibr/desktop.hibr
+The settings, written as the Control Panel changes them. It is a hibr
+script of its own, read at each start.
+.TP
+.I ~/.config/hibr/
+Also where applications, themes and the rest are found first, before the
+system's and the shipped copies.
+.TP
+.I ~/.local/state/hibr/desktop.log
+What went wrong, and what the desktop did that is worth knowing, one line
+each with the local time. It becomes
+.I desktop.log.1
+when it grows too large.
+.TP
+.IB ${TMPDIR:-/tmp} /hibr\-ctl\- uid / session .ctl
+The control socket, reachable only by its owner.
+.TP
+.I @DESKDIR@
+The desktop as installed:
+.IR session.hibr ,
+the window manager, and what ships with it.
+.SH ENVIRONMENT
+.TP
+.B HIBR_HOLD
+Set inside a held session to that session's name. A desktop started from a
+terminal window of another desktop compares it with its own session's name,
+and so is held on its own.
+.TP
+.BR XDG_CONFIG_HOME ", " XDG_STATE_HOME
+Where the settings and the log are kept, as above.
+.PP
+A session file may set any of the desktop's own
+.B DT_
+settings; they are listed in
+.IR programs/desktop/README.md .
+.SH SEE ALSO
+.BR hibr (1)
+.PP
+The desktop's own guide is
+.I docs/desktop.md
+in hibr's source.

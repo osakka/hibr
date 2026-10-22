@@ -123,6 +123,7 @@ install -d "$STAGE/usr/share/doc/hibr"
 install -m 644 LICENSE "$STAGE/usr/share/doc/hibr/copyright"
 gzip -9n < CHANGELOG.md > "$STAGE/usr/share/doc/hibr/changelog.gz"
 gzip -9nf "$STAGE/usr/share/man/man1/hibr.1"
+gzip -9nf "$STAGE/usr/share/man/man1/desktop.1"
 
 cat > "$STAGE/DEBIAN/control" <<EOF
 Package: hibr

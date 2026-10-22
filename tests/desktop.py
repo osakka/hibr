@@ -2193,6 +2193,15 @@ sc, raw = run("", env=env, pre=pre + "DT_DISKS=0\n")
 check("and disks off leaves just home and the trash, moved up to meet it",
       sc.find("Home") == (3, 71) and sc.find("Trash") == (6, 70) and
       sc.find("backup") is None, sc)
+# Each icon's glyph has a blank after it, not the wallpaper's dot: a font
+# without the symbol draws it from a fallback where it is wider than a
+# cell, and kitty and iTerm2 let it run on only into a blank cell -- so on
+# a Mac the dot cut the right side off every icon (Gitea #345).
+hr, hc = sc.find("Home") or (0, 0)
+gl = [(r, c) for r in (hr - 1, 5) for c in range(sc.cols)
+      if sc.at(r, c) not in (" ", "·") and c > 60]
+check("each icon's glyph is followed by a blank, not the wallpaper's pattern",
+      len(gl) == 2 and all(sc.at(r, c + 1) == " " for r, c in gl), (gl, sc))
 
 sc, raw = run("", feed=[press(3, 70), press(3, 70)], env=env, pre=pre)
 check("a double click on home opens it in Files", sc.find(home) is not None,
@@ -6540,4 +6549,4 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(718)
+report(719)

@@ -160,7 +160,7 @@ dt_iconlay() {
 }
 
 dt_icondraw() {
-	local i=0 r c g l k
+	local i=0 r c g l k gw gc
 
 	while [ "$i" -lt "$DI_N" ]; do
 		r=${DI[$i]["r"]}
@@ -174,7 +174,16 @@ dt_icondraw() {
 		trash) console pen "$DT_INK" "$DT_WALL" bold ;;
 		*) console pen "$DT_ACTIVE" "$DT_WALL" bold ;;
 		esac
-		console put "$r" $((c + (DT_ICONW - ${#g}) / 2)) "$g"
+		gc=$((c + (DT_ICONW - ${#g}) / 2))
+		console put "$r" "$gc" "$g"
+		# And a blank after it, in the same background with no wallpaper
+		# glyph: a terminal whose font is missing the symbol draws it from
+		# a fallback where it is wider than a cell, and kitty and iTerm2
+		# let it run into the next cell only when that cell is blank --
+		# so on a Mac the wallpaper's dot cut each icon's right side off
+		# (Gitea #345). A font that fits the glyph shows no difference.
+		gw := str width "$g"
+		console put "$r" $((gc + gw)) " "
 		if [ -n "${DI_MARK["$k"]}" ]; then
 			console pen "$DT_FACE" "$DT_ACTIVE" bold
 		elif [ "$k" = "$DI_CUR" ]; then
