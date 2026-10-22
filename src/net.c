@@ -162,19 +162,31 @@ int net_split(const char *p, str *host, str *port)
 }
 
 /* Open a client connection to a host and service. */
-/* How long a connect may take, in milliseconds, or 0 for as long as it takes.
-   Read from the environment the way HIBR_TLS_INSECURE is, so it reaches a
-   module and a child as well; opt-in, because a script that waits for a
-   connect today must go on waiting. */
-int net_timeo(void)
+/* HIBR_CONNTIMEO in milliseconds, one reading for the shell and every
+   module (Gitea #354): dflt when unset or not a whole number, 0 -- no bound
+   -- for 0 or less, and at most an hour, where a larger value used to turn
+   the bound off. Read from the environment the way HIBR_TLS_INSECURE is,
+   so it reaches a module and a child as well. */
+long hibr_conntimeo(long dflt)
 {
 	const char *p = getenv("HIBR_CONNTIMEO");
+	char *end;
 	long v;
 
 	if (!p || !*p)
+		return dflt;
+	v = strtol(p, &end, 10);
+	if (*end)
+		return dflt;
+	if (v <= 0)
 		return 0;
-	v = strtol(p, 0, 10);
-	return v > 0 && v <= 3600000 ? (int)v : 0;
+	return v > 3600000 ? 3600000 : v;
+}
+
+/* The connect bound for the shell's own sockets: none unless asked for. */
+int net_timeo(void)
+{
+	return (int)hibr_conntimeo(0);
 }
 
 /* Connect, giving up after HIBR_CONNTIMEO when it is set.

@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.3
+app term "A shell in a window" 1.4
 # part: control-panel/terminal.hibr
 # modules: pty term
 
@@ -580,11 +580,11 @@ fn term_wheel(int id, dir, int r, int c) {
 	term mouse "$t" "wheel$dir" $(($r - 1)) $(($c - 1)) && return 0
 	s := term screen "$t"
 	if [ "$s" = alt ]; then
-		for k in 1 2 3; do term key "$t" "$dir"; done
+		for ((k = 0; k < ${DT_SCROLLWHEEL:-3}; k++)); do term key "$t" "$dir"; done
 	elif [ "$dir" = up ]; then
-		term scroll "$t" 3
+		term scroll "$t" ${DT_SCROLLWHEEL:-3}
 	else
-		term scroll "$t" -3
+		term scroll "$t" -${DT_SCROLLWHEEL:-3}
 	fi
 }
 

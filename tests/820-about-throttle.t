@@ -17,18 +17,19 @@ NOWVAL=1000
 DT_ROWS=1
 dt_want() { :; }
 dt_ms() { ret "$NOWVAL"; }
+DT_HERE=programs/desktop
 . programs/desktop/system/about.hibr
 AB_OS=Linux
 
 echo "--- about_cpu"
 about_cpu 1 > /dev/null
-AB[1]["ptotal"]=999999999
+AB[1]["ccpu"]=12345
 NOWVAL=2500
 about_cpu 1 > /dev/null
-[ "${AB[1]["ptotal"]}" = 999999999 ] && echo "throttle holds within the window"
+[ "${AB[1]["ccpu"]}" = 12345 ] && echo "throttle holds within the window"
 NOWVAL=4500
 about_cpu 1 > /dev/null
-[ "${AB[1]["ptotal"]}" != 999999999 ] && echo "and re-reads once it elapses"
+[ "${AB[1]["ccpu"]}" != 12345 ] && echo "and re-reads once it elapses"
 
 echo "--- about_mem"
 NOWVAL=1000

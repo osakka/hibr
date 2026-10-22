@@ -18,7 +18,7 @@
 
 strict
 
-app pdfr "A PDF reader: pages as pictures where the terminal can, text where it cannot" 1.0
+app pdfr "A PDF reader: pages as pictures where the terminal can, text where it cannot" 1.1
 # modules: pdf img
 
 command -v dt_app > /dev/null && dt_app pdfr "PDF Reader" 24 76 many "▤"
@@ -567,14 +567,14 @@ fn pdfr_contents(int? id = "") {
 }
 
 fn pdfr_wheel(int id, dir, int r, int c) {
-	local step=$((3 * ${PR[$id]["ch"]:-16}))
+	local step=$((${DT_SCROLLWHEEL:-3} * ${PR[$id]["ch"]:-16}))
 
 	PR[$id]["dirt"]=1
 	if pr_astext "$id"; then
 		case $dir in
-		down) PR[$id]["ttop"]=$((${PR[$id]["ttop"]:-0} + 3)) ;;
+		down) PR[$id]["ttop"]=$((${PR[$id]["ttop"]:-0} + ${DT_SCROLLWHEEL:-3})) ;;
 		up)
-			PR[$id]["ttop"]=$((${PR[$id]["ttop"]:-0} - 3))
+			PR[$id]["ttop"]=$((${PR[$id]["ttop"]:-0} - ${DT_SCROLLWHEEL:-3}))
 			[ "${PR[$id]["ttop"]}" -lt 0 ] && PR[$id]["ttop"]=0
 			;;
 		esac

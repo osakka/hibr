@@ -1,6 +1,7 @@
 # Task Manager's End Task and its ps fallback, called directly on a child of
 # this test's own -- never through the window, where the selected row is
 # whatever the machine running the suite happens to be running.
+DT_HERE=programs/desktop
 . programs/desktop/system/tasks.hibr > /dev/null
 sleep 60 &
 p=$!

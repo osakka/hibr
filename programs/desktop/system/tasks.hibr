@@ -12,7 +12,10 @@
 
 strict
 
-app tasks "What is running, and a way to end one" 1.3
+# CPU and memory, worked out the same way in every window that shows them.
+[ -n "${SY_LIBDONE-}" ] || . "$DT_HERE/lib/sysstat.hibr"
+
+app tasks "What is running, and a way to end one" 1.4
 # part: control-panel/taskmgr.hibr
 
 # 64 columns rather than the 50 it opened at until 0.99.133: the names are
@@ -140,60 +143,17 @@ fn tasks_spark(int id, key, int w) {
 }
 
 # Overall CPU% and memory% used. ps -axo's own %CPU is per process, not a
-# system total, and there is no single ps column this could sum into one
-# honestly, so a system-wide reading needs its own source on every
-# platform.
-#
-# Linux: /proc/stat's own first line is every core already summed by the
-# kernel; delta of idle over delta of the whole line since the last scan
-# is exactly what top's own headline percentage is. Memory: MemAvailable
-# already accounts for reclaimable cache the way a plain MemFree does
-# not, which is the same number free(1) reports as "available".
-#
-# macOS: the darwin module's own host_statistics(3) calls, if it loaded --
-# the same two CPU counters diffed the same way, and a ready memory
-# percentage already computed on free+inactive, about.hibr's own
-# equivalent formula. Without it, the graphs stay flat at 0 rather than
-# reading something platform doesn't offer.
+# system total, so the system-wide reading comes from lib/sysstat: /proc on
+# Linux, the darwin module's host_statistics(3) on macOS. Without either,
+# the graphs stay flat at 0 rather than reading something the platform
+# does not offer.
 fn tasks_sysstat(int id) {
-	local line rest v total=0 idle du_total du_idle raw f
-	local k mtotal= mavail=
+	local v
 
-	if [ "$TK_OS" = Linux ]; then
-		read -r line 2> /dev/null < /proc/stat
-		rest=${line#cpu }
-		read -ra f <<< "$rest"
-		idle=${f[3]:-0}
-		for v in "${f[@]}"; do total=$((total + v)); done
-		if [ -n "${TK_PREV[$id]["cput"]}" ]; then
-			du_total=$((total - TK_PREV[$id]["cput"]))
-			du_idle=$((idle - TK_PREV[$id]["cpui"]))
-			[ "$du_total" -gt 0 ] &&
-				TK[$id]["syscpu"]=$(((du_total - du_idle) * 100 / du_total))
-		fi
-		TK_PREV[$id]["cput"]=$total
-		TK_PREV[$id]["cpui"]=$idle
-		while read -r k v _; do
-			case $k in
-			MemTotal:) mtotal=$v ;;
-			MemAvailable:) mavail=$v ;;
-			esac
-		done < /proc/meminfo
-		[ -n "$mtotal" ] && [ "$mtotal" -gt 0 ] &&
-			TK[$id]["sysmem"]=$(((mtotal - ${mavail:-0}) * 100 / mtotal))
-	elif need darwin; then
-		raw := darwin cpu
-		read -r total idle <<< "$raw"
-		if [ -n "${TK_PREV[$id]["cput"]}" ]; then
-			du_total=$((total - TK_PREV[$id]["cput"]))
-			du_idle=$((idle - TK_PREV[$id]["cpui"]))
-			[ "$du_total" -gt 0 ] &&
-				TK[$id]["syscpu"]=$(((du_total - du_idle) * 100 / du_total))
-		fi
-		TK_PREV[$id]["cput"]=$total
-		TK_PREV[$id]["cpui"]=$idle
-		TK[$id]["sysmem"] := darwin mem
-	fi
+	# lib/sysstat's formulas, About's too: the two windows used to count
+	# CPU two ways and disagree on the same machine (Gitea #354).
+	v := sy_cpupct "tasks$id" && TK[$id]["syscpu"]=$v
+	v := sy_mempct && TK[$id]["sysmem"]=$v
 	tasks_pushhist "$id" cpuh "${TK[$id]["syscpu"]:-0}"
 	tasks_pushhist "$id" memh "${TK[$id]["sysmem"]:-0}"
 }

@@ -128,8 +128,26 @@ $(B)/.moddir: FORCE | $(B)/mods
 		echo '$(MODDIR) $(SYSDIR)' > $@
 FORCE:
 
-$(BIN): $(SRC) include/hibr.h include/pri.h mods/lint.h $(B)/.moddir | $(B)/mods
+$(BIN): $(SRC) include/hibr.h include/pri.h include/re.h mods/lint.h $(B)/.moddir $(B)/.recheck | $(B)/mods
 	$(CC) $(SHCFLAGS) $(LDFLAGS) -o $@ $(SRC)
+
+# include/re.h declares the C library's regex types by hand, since tcc cannot
+# read glibc's <regex.h>, and a wrong width there overran every capture on a
+# Mac. src/recheck.c asserts the declarations against the real header, so it
+# is compiled by a compiler that can read it -- CC when that is not tcc, or
+# else cc, gcc or clang -- and a mismatch stops the build. It was written
+# and never compiled until 0.99.296 (Gitea #354).
+$(B)/.recheck: src/recheck.c include/re.h | $(B)/mods
+	@c=; for x in $(CC) cc gcc clang; do \
+		case $$x in *tcc*) continue ;; esac; \
+		command -v $$x > /dev/null 2>&1 && { c=$$x; break; }; \
+	done; \
+	if [ -n "$$c" ]; then \
+		$$c -Iinclude -fsyntax-only src/recheck.c || exit 1; \
+	else \
+		echo "recheck: no compiler here reads <regex.h>; include/re.h is not checked" >&2; \
+	fi; \
+	touch $@
 
 $(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h mods/inflate.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PROMPT_SRC)

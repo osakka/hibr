@@ -19,7 +19,7 @@
 
 strict
 
-app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.4
+app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.5
 # part: control-panel/pimset.hibr
 # modules: dav db email pim
 
@@ -744,10 +744,13 @@ fn calendar_click(int? id = "", int? r = "", int? c = "", btn = "") {
 fn calendar_wheel(int id, act, int r, int c) {
 	[ "${CVW[$id]["nopim"]}" = 1 ] && return 0
 	if [ "${CVW[$id]["view"]}" = agenda ]; then
-		case $act in
-		up) calendar_key "$id" up ;;
-		down) calendar_key "$id" down ;;
-		esac
+		local k
+		for ((k = 0; k < ${DT_SCROLLWHEEL:-3}; k++)); do
+			case $act in
+			up) calendar_key "$id" up ;;
+			down) calendar_key "$id" down ;;
+			esac
+		done
 		return 0
 	fi
 	case $act in

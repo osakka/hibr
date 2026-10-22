@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 1.5
+app mail "Email, offline, labels and conversations as Gmail has them" 1.6
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -1424,9 +1424,9 @@ fn mail_click(int? id = "", int? r = "", int? c = "", btn = "") {
 }
 
 fn mail_wheel(int id, dir, int r = 0, int c = 0) {
-	local d=3
+	local d=${DT_SCROLLWHEEL:-3}
 
-	[ "$dir" = up ] && d=-3
+	[ "$dir" = up ] && d=$((0 - d))
 	if [ -n "${MW[$id]["open"]}" ]; then
 		MW[$id]["rtop"]=$(( ${MW[$id]["rtop"]:-0} + d ))
 	else
@@ -1931,8 +1931,8 @@ fn mailc_mouse(int id, act, btn, int r, int c, mods = "") {
 
 fn mailc_wheel(int id, dir, int r = 0, int c = 0) {
 	case $dir in
-	up) tb_scroll "$id" -3 ;;
-	down) tb_scroll "$id" 3 ;;
+	up) tb_scroll "$id" -${DT_SCROLLWHEEL:-3} ;;
+	down) tb_scroll "$id" ${DT_SCROLLWHEEL:-3} ;;
 	esac
 	return 0
 }

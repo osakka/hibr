@@ -17,7 +17,7 @@
 
 strict
 
-app stickies "Notes stuck on the desktop, each its own colour" 1.0
+app stickies "Notes stuck on the desktop, each its own colour" 1.1
 # part: control-panel/notes.hibr
 
 command -v dt_app > /dev/null &&
@@ -273,8 +273,8 @@ fn stickies_mouse(int id, act, btn, int r, int c, mods = "") {
 fn stickies_wheel(int id, dir, int r = 0, int c = 0) {
 	st_bump "$id"
 	case $dir in
-	up) tb_scroll "$id" -3 ;;
-	down) tb_scroll "$id" 3 ;;
+	up) tb_scroll "$id" -${DT_SCROLLWHEEL:-3} ;;
+	down) tb_scroll "$id" ${DT_SCROLLWHEEL:-3} ;;
 	esac
 	return 0
 }

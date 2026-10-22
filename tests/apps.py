@@ -1090,6 +1090,27 @@ check("and keeps scrolling without overrunning the list",
 check("but not above the first entry",
       "u9=0" in out, out)
 
+# A notch of the wheel is DT_SCROLLWHEEL rows in every window, not a 3 each
+# app wrote for itself (Gitea #354): Mail's list and dbase's table, called
+# directly with the step set to 5. command_not_found stands in for the
+# window manager's registrations, which a lone app file makes at load.
+WHEEL5 = (
+    'command_not_found() { return 0; }\n'
+    'DT_HERE=%s\n'
+    '. %s/Internet/mail.hibr 2> /dev/null\n'
+    '. %s/Office/dbase.hibr 2> /dev/null\n'
+    'DT_SCROLLWHEEL=5\n'
+    'MW[1]["top"]=0; mail_wheel 1 down; echo "mail=${MW[1]["top"]}"\n'
+    'DBA[1]["scroll"]=0; dbase_wheel 1 up 3 3; echo "dbase=${DBA[1]["scroll"]}"\n'
+    % (tree("programs/desktop"), tree("programs/desktop/apps"),
+       tree("programs/desktop/apps"))
+)
+out = subprocess.run([sx.HIBR, "-c", WHEEL5], capture_output=True, text=True).stdout
+check("a notch of the wheel moves Mail's list by DT_SCROLLWHEEL rows",
+      "mail=5" in out, out)
+check("and dbase's table by the same",
+      "dbase=5" in out, out)
+
 # A click selects a row; a second click on the same, already-selected
 # one is what actually navigates or applies. Neither did anything at all
 # before this: the column check guarding the whole list gated on the
@@ -5169,4 +5190,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(691)
+report(693)

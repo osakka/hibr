@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.296
+
+Four faults the size review found (Gitea #354).
+
+**About and Task Manager agree on how busy the machine is.** They computed
+CPU two ways and showed different numbers at the same moment: Task
+Manager added up every field of `/proc/stat`, counting `guest` and
+`guest_nice` twice (the kernel already includes them in `user` and `nice`)
+and leaving `iowait` out of idle. Both now use `lib/sysstat.hibr`, which
+counts as top(1) does, and its memory reading too; `tests/215-sysstat.t`
+checks it against figures worked out by hand.
+
+**The regex layout check runs.** `src/recheck.c` checks `include/re.h`, the
+regex types hibr declares by hand because tcc cannot read glibc's
+`<regex.h>`, against the real header, and the documentation said a wrong
+width fails the build. It had never been compiled. `make` now compiles it
+with whatever compiler on the machine can read `<regex.h>` -- the
+configured one, or else `cc`, `gcc` or `clang` -- and stops on a mismatch,
+which is the macOS width that once hung `match`.
+
+**`HIBR_CONNTIMEO` is read one way.** The shell and `hold` read it
+differently, and a value over an hour turned the shell's bound off. Both
+use `hibr_conntimeo` now: a whole number of milliseconds, `0` or less for
+no bound, at most an hour, and anything else -- `5s` -- ignored as though
+unset, where the shell had read it as 5 ms.
+
+**A notch of the wheel is the same distance everywhere.** Terminal, the
+PDF Reader, dbase, Write, Mail, Mail's compose window, Stickies and the
+Calendar's agenda each scrolled by a 3 of their own; they follow the
+desktop's one wheel step (`DT_SCROLLWHEEL`) now. The Calendar's month view
+still turns a month a notch, and X Screen passes a notch to its program.
+
 ## 0.99.295
 
 **The Open dialog's preview counts a folder once** (Gitea #358). A

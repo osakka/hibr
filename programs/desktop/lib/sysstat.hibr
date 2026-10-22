@@ -1,0 +1,77 @@
+#!/usr/bin/env hibr
+#
+# lib/sysstat -- how busy the machine is, for every window that shows it:
+# About This Computer's meters and Task Manager's graphs. One formula each,
+# written once (Gitea #354): the two used to compute CPU in two ways and
+# showed different numbers on the same machine at the same moment.
+#
+# CPU is the share of time since the caller's last sample that was not
+# idle, the way top(1) counts it: user, nice, system, idle, iowait, irq,
+# softirq and steal from /proc/stat, with idle and iowait both idle. guest
+# and guest_nice are left out because the kernel counts them inside user
+# and nice already; summing every field counted them twice. On macOS the
+# darwin module's host_statistics(3) counters are diffed the same way.
+#
+# Memory is the share unavailable to a new allocation: MemTotal less
+# MemAvailable on Linux, which is what free(1) calls available, and the
+# darwin module's own answer on macOS.
+#
+# Each caller keeps its own previous sample under a key of its own (a
+# window id, say), so two windows sampling at different rates do not take
+# each other's deltas. Both answer through ret, and return 1 where neither
+# source exists, for the caller to fall back as it likes.
+
+strict
+
+SY_LIBDONE=1
+declare -gA SY_PREV
+SY_STAT=${SY_STAT:-/proc/stat}
+SY_MEMINFO=${SY_MEMINFO:-/proc/meminfo}
+case ${OSTYPE-} in
+darwin*) SY_OS=${SY_OS:-Darwin} ;;
+linux*) SY_OS=${SY_OS:-Linux} ;;
+*) SY_OS=${SY_OS:-other} ;;
+esac
+
+# Percent of CPU busy since this key's last sample; 0 for the first one.
+fn sy_cpupct(key) {
+	local label u n s i io irq soft steal total idle dt di pct=0 raw
+
+	if [ "$SY_OS" = Linux ] && [ -r "$SY_STAT" ]; then
+		read -r label u n s i io irq soft steal _ < "$SY_STAT"
+		total=$((u + n + s + i + io + irq + soft + steal))
+		idle=$((i + io))
+	elif need darwin 2> /dev/null; then
+		raw := darwin cpu
+		read -r total idle <<< "$raw"
+	else
+		return 1
+	fi
+	if [ -n "${SY_PREV["$key.t"]-}" ]; then
+		dt=$((total - SY_PREV["$key.t"]))
+		di=$((idle - SY_PREV["$key.i"]))
+		[ "$dt" -gt 0 ] && pct=$(((dt - di) * 100 / dt))
+	fi
+	SY_PREV["$key.t"]=$total
+	SY_PREV["$key.i"]=$idle
+	ret "$pct"
+}
+
+# Percent of memory in use: what a new allocation could not have.
+fn sy_mempct() {
+	local k v mtotal= mavail= pct
+
+	if [ "$SY_OS" = Linux ] && [ -r "$SY_MEMINFO" ]; then
+		while read -r k v _; do
+			case $k in
+			MemTotal:) mtotal=$v ;;
+			MemAvailable:) mavail=$v ;;
+			esac
+		done < "$SY_MEMINFO"
+		[ -n "$mtotal" ] && [ "$mtotal" -gt 0 ] || return 1
+		ret "$(((mtotal - ${mavail:-0}) * 100 / mtotal))"
+	fi
+	need darwin 2> /dev/null || return 1
+	pct := darwin mem
+	ret "$pct"
+}

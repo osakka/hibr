@@ -12,7 +12,10 @@
 
 strict
 
-app about "About this computer: the machine, and the desktop running on it" 1.2
+# CPU and memory, worked out the same way in every window that shows them.
+[ -n "${SY_LIBDONE-}" ] || . "$DT_HERE/lib/sysstat.hibr"
+
+app about "About this computer: the machine, and the desktop running on it" 1.3
 # part: control-panel/abouthibr.hibr
 
 # 20 by 52, the same as about_size, which is what dt_launch actually asks
@@ -381,8 +384,7 @@ fn about_bar(int pct, int w) {
 # fallback is the one path in this function that blocks the draw loop for
 # about a second; the darwin module exists specifically to avoid it.
 fn about_cpu(int id) {
-	local label u n s i io irq soft steal total idle dt di pct
-	local now line _w1 _w2 idlepct raw
+	local now line _w1 _w2 idlepct pct
 
 	now := dt_ms
 	if [ -n "${AB[$id]["ccpu"]}" ] &&
@@ -390,33 +392,10 @@ fn about_cpu(int id) {
 		ret "${AB[$id]["ccpu"]}"
 		return 0
 	fi
-	if [ "$AB_OS" = Linux ]; then
-		read -r label u n s i io irq soft steal _ < /proc/stat
-		total=$((u + n + s + i + io + irq + soft + steal))
-		idle=$((i + io))
-		if [ -z "${AB[$id]["ptotal"]}" ]; then
-			pct=0
-		else
-			dt=$((total - AB[$id]["ptotal"]))
-			di=$((idle - AB[$id]["pidle"]))
-			pct=0
-			[ "$dt" -gt 0 ] && pct=$(((dt - di) * 100 / dt))
-		fi
-		AB[$id]["ptotal"]=$total
-		AB[$id]["pidle"]=$idle
-	elif need darwin; then
-		raw := darwin cpu
-		read -r total idle <<< "$raw"
-		if [ -z "${AB[$id]["ptotal"]}" ]; then
-			pct=0
-		else
-			dt=$((total - AB[$id]["ptotal"]))
-			di=$((idle - AB[$id]["pidle"]))
-			pct=0
-			[ "$dt" -gt 0 ] && pct=$(((dt - di) * 100 / dt))
-		fi
-		AB[$id]["ptotal"]=$total
-		AB[$id]["pidle"]=$idle
+	# lib/sysstat's formula, Task Manager's too (Gitea #354); top below
+	# only where neither /proc nor the darwin module is there.
+	if pct := sy_cpupct "about$id"; then
+		:
 	else
 		line=$(command top -l 2 -n 0 2> /dev/null |
 			command grep "CPU usage")
@@ -452,20 +431,8 @@ fn about_mem(int id) {
 		ret "${AB[$id]["cmem"]}"
 		return 0
 	fi
-	if [ "$AB_OS" = Linux ]; then
-		while read -r k v _; do
-			case $k in
-			MemTotal:) total=$v ;;
-			MemAvailable:) avail=$v ;;
-			esac
-		done < /proc/meminfo
-		if [ -z "$total" ] || [ "$total" = 0 ]; then
-			v=0
-		else
-			v=$(((total - avail) * 100 / total))
-		fi
-	elif need darwin; then
-		v := darwin mem
+	if v := sy_mempct; then
+		:
 	else
 		total=$(command sysctl -n hw.memsize 2> /dev/null)
 		if [ -z "$total" ] || [ "$total" = 0 ]; then

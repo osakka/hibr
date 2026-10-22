@@ -94,9 +94,10 @@ for t in "$here"/*.t; do
 		failed="$failed $name"
 		printf 'FAIL %-18s (%s)\n' "$name" "$mode"
 		printf '  exit: got %s want %s\n' "$grc" "$wrc"
-		printf '%s\n' "$want" > "/tmp/hibr-want-$name"
-		printf '%s\n' "$got" > "/tmp/hibr-got-$name"
-		diff -u "/tmp/hibr-want-$name" "/tmp/hibr-got-$name" |
+		mkdir -p build/run-diff
+		printf '%s\n' "$want" > "build/run-diff/want-$name"
+		printf '%s\n' "$got" > "build/run-diff/got-$name"
+		diff -u "build/run-diff/want-$name" "build/run-diff/got-$name" |
 			sed -n '3,20p' | sed 's/^/  /'
 	fi
 done

@@ -57,8 +57,11 @@ makes it, which is what it has always done and what a script that waits on
 purpose needs; set, it gives up and says so. The case it is for is a socket
 that is **listening with a full accept queue and nobody accepting** -- a
 server wedged mid-request, where the connection is neither refused nor
-completed -- which `desktop ctl` hit and now sets this for itself. A refused
-connect still says refused:
+completed -- which `desktop ctl` hit and now sets this for itself. The
+value is a whole number of milliseconds: `0` or less means no bound, more
+than an hour is an hour, and anything else -- `5s`, say -- is ignored, as
+though it were unset. `hold` reads it the same way, with a bound of its own
+when it is unset. A refused connect still says refused:
 
 ```sh
 HIBR_CONNTIMEO=200 exec {fd}<>/dev/tcp/127.0.0.1/9; echo "status $?"

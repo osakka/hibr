@@ -221,14 +221,7 @@ int hd_recv(int fd, int *type, str *out)
    every one of these back into the call it used to be. */
 long hd_timeo(long dflt)
 {
-	const char *e = getenv("HIBR_CONNTIMEO");
-	char *end;
-	long v;
-
-	if (!e || !*e)
-		return dflt;
-	v = strtol(e, &end, 10);
-	return *end ? dflt : v;
+	return hibr_conntimeo(dflt);
 }
 
 /* Milliseconds on the monotonic clock, for a deadline no signal and no

@@ -24,7 +24,7 @@
 
 strict
 
-app dbase "A little dBASE III: dot prompt, BROWSE, APPEND" 1.1
+app dbase "A little dBASE III: dot prompt, BROWSE, APPEND" 1.2
 # modules: db
 
 command -v dt_app > /dev/null && dt_app dbase "dBASE" 20 72 many "▦"
@@ -907,13 +907,13 @@ fn dbase_bdraw(int id, int h, int w) {
 fn dbase_wheel(int id, dir, int r, int c) {
 	case ${DBA[$id]["mode"]} in
 	browse)
-		if [ "$dir" = up ]; then dbase_bback "$id" 3; else dbase_bfwd "$id" 3; fi
+		if [ "$dir" = up ]; then dbase_bback "$id" "${DT_SCROLLWHEEL:-3}"; else dbase_bfwd "$id" "${DT_SCROLLWHEEL:-3}"; fi
 		;;
 	*)
 		if [ "$dir" = up ]; then
-			DBA[$id]["scroll"]=$((DBA[$id]["scroll"] + 3))
+			DBA[$id]["scroll"]=$((DBA[$id]["scroll"] + ${DT_SCROLLWHEEL:-3}))
 		elif [ "${DBA[$id]["scroll"]}" -gt 0 ]; then
-			DBA[$id]["scroll"]=$((DBA[$id]["scroll"] - 3))
+			DBA[$id]["scroll"]=$((DBA[$id]["scroll"] - ${DT_SCROLLWHEEL:-3}))
 			[ "${DBA[$id]["scroll"]}" -lt 0 ] && DBA[$id]["scroll"]=0
 		fi
 		;;

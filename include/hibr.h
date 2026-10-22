@@ -8,7 +8,7 @@
 #define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.295"
+#define HIBR_VER "0.99.296"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -355,6 +355,7 @@ void hibr_ret(sh *s, const char *v);
 void hibr_retn(sh *s, char **vals, size_t n);
 void hibr_fail(sh *s, const char *msg);
 int hibr_dial(const char *host, const char *port, int udp);
+long hibr_conntimeo(long dflt);
 
 typedef int (*hibr_open_fn)(sh *s, const char *rest);
 int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn);
