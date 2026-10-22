@@ -27,6 +27,12 @@ strict
 
 DT_ICONS="${DT_ICONS-1}"
 DT_DISKS="${DT_DISKS-1}"
+# What is behind an icon over a picture wallpaper (Gitea #349): transparent,
+# the picture itself, the glyph and the name keeping their colours; or
+# solid, the wallpaper's colour, as icons were until 0.99.293. A picture
+# drawn in half blocks is cells of its own colours, which a cell with no
+# background cannot show, so there an icon is solid either way.
+DT_ICONBG="${DT_ICONBG-transparent}"
 DT_ICONW=12
 declare -gA DT_ICONPOS
 declare -gA DI
@@ -159,8 +165,23 @@ dt_iconlay() {
 	done
 }
 
+# Whether a cell is under a wallpaper of real pixels, where a cell with no
+# background shows the picture.
+fn dt_iconpix(int r, int c) {
+	local p
+	local -a q
+
+	for p in "${DT_WALLPIX[@]}"; do
+		read -ra q <<< "$p"
+		[ "$r" -ge "${q[0]}" ] && [ "$r" -lt $((q[0] + q[2])) ] &&
+			[ "$c" -ge "${q[1]}" ] && [ "$c" -lt $((q[1] + q[3])) ] &&
+			return 0
+	done
+	return 1
+}
+
 dt_icondraw() {
-	local i=0 r c g l k gw gc
+	local i=0 r c g l k gw gc bg
 
 	while [ "$i" -lt "$DI_N" ]; do
 		r=${DI[$i]["r"]}
@@ -169,27 +190,38 @@ dt_icondraw() {
 		l=${DI[$i]["label"]}
 		k=${DI[$i]["key"]}
 		[ "${#l}" -gt $((DT_ICONW - 2)) ] && l="${l:0:$((DT_ICONW - 3))}${GL[ellipsis]}"
+		bg=$DT_WALL
+		[ "$DT_ICONBG" != solid ] && dt_iconpix "$r" "$c" && bg=default
 		case ${DI[$i]["kind"]} in
-		dir) console pen "$DT_WARN" "$DT_WALL" bold ;;
-		trash) console pen "$DT_INK" "$DT_WALL" bold ;;
-		*) console pen "$DT_ACTIVE" "$DT_WALL" bold ;;
+		dir) console pen "$DT_WARN" "$bg" bold ;;
+		trash) console pen "$DT_INK" "$bg" bold ;;
+		*) console pen "$DT_ACTIVE" "$bg" bold ;;
 		esac
 		gc=$((c + (DT_ICONW - ${#g}) / 2))
 		console put "$r" "$gc" "$g"
-		# And a blank after it, in the same background with no wallpaper
-		# glyph: a terminal whose font is missing the symbol draws it from
-		# a fallback where it is wider than a cell, and kitty and iTerm2
-		# let it run into the next cell only when that cell is blank --
-		# so on a Mac the wallpaper's dot cut each icon's right side off
-		# (Gitea #345). A font that fits the glyph shows no difference.
-		gw := str width "$g"
-		console put "$r" $((gc + gw)) " "
+		# And a blank after it, with no wallpaper glyph: a terminal whose
+		# font is missing the symbol draws it from a fallback where it is
+		# wider than a cell, and kitty and iTerm2 let it run into the next
+		# cell only when that cell is blank -- so on a Mac the wallpaper's
+		# dot cut each icon's right side off (Gitea #345). Blit's own
+		# glyph set fits every symbol in its cell, so there the blank was
+		# only a gap in the pattern, and is left out (Gitea #349). Over a
+		# picture it is the picture's, as the wallpaper's own cells are.
+		if [ "$DT_GLYPHSET" != blit ]; then
+			gw := str width "$g"
+			if dt_iconpix "$r" $((gc + gw)); then
+				console pen default default
+			else
+				console pen "$DT_DOT" "$DT_WALL"
+			fi
+			console put "$r" $((gc + gw)) " "
+		fi
 		if [ -n "${DI_MARK["$k"]}" ]; then
 			console pen "$DT_FACE" "$DT_ACTIVE" bold
 		elif [ "$k" = "$DI_CUR" ]; then
 			console pen "$DT_INK" "$DT_IDLE"
 		else
-			console pen "$DT_INK" "$DT_WALL"
+			console pen "$DT_INK" "$bg"
 		fi
 		console put $((r + 1)) $((c + (DT_ICONW - ${#l}) / 2)) "$l"
 		i=$((i + 1))

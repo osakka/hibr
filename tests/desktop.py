@@ -2884,6 +2884,42 @@ sc, raw = run("", env=dict(WPIX, DT_WALLIMGMODE="follow"), pre=IMGMOD,
 check("and one that follows Pictures is drawn in pixels there",
       b"a=T" in raw, raw.count(b"a=T"))
 
+# Over a picture of real pixels an icon has no background of its own by
+# default, so the picture shows behind its glyph and name, their colours
+# kept; Solid puts the wallpaper's colour back (Gitea #349). A selected
+# icon keeps its highlight either way.
+def iconcells(sc):
+    h = sc.find("Home")
+    if not h:
+        return None, None
+    g = next((c for c in range(h[1] - 2, h[1] + 8)
+              if sc.at(h[0] - 1, c) not in (" ", "·")), None)
+    return (h[0] - 1, g), (h[0], h[1])
+sc, raw = run("", env=dict(WPIX, DT_WALLIMGMODE="follow"), pre=IMGMOD, cell=(8, 16))
+gl, lb = iconcells(sc)
+home = lb or (3, 72)
+check("over a picture an icon's glyph and name have no background of their own",
+      gl and gl[1] is not None and not sc.style(*gl)["bg"] and not sc.style(*lb)["bg"]
+      and sc.style(*lb)["fg"], (gl, lb, gl and sc.style(*gl), lb and sc.style(*lb)))
+sc, raw = run("", env=dict(WPIX, DT_WALLIMGMODE="follow", DT_ICONBG="solid"),
+              pre=IMGMOD, cell=(8, 16))
+gl, lb = iconcells(sc)
+check("and with Icon Background Solid, the wallpaper's colour behind them",
+      gl and gl[1] is not None and sc.style(*gl)["bg"] and sc.style(*lb)["bg"],
+      (gl, lb, gl and sc.style(*gl)))
+sc, raw = run("", env=dict(WPIX, DT_WALLIMGMODE="follow"), pre=IMGMOD, cell=(8, 16),
+              feed=[press(home[0], home[1] + 1), release(home[0], home[1] + 1)])
+gl, lb = iconcells(sc)
+check("a selected icon keeps its highlight over the picture",
+      lb and sc.style(*lb)["bg"], (lb, lb and sc.style(*lb), sc))
+# Blit's own glyphs fit their cells, so the blank after an icon's glyph --
+# for a Mac's fallback font (Gitea #345) -- is left out there, and the
+# wallpaper's pattern runs on beside it.
+sc, raw = run("", env={"DT_GLYPHSET": "blit", "DT_DISKS": "0"})
+gl, lb = iconcells(sc)
+check("with Blit's glyphs the wallpaper's pattern runs on beside an icon, no blank",
+      gl and gl[1] is not None and sc.at(gl[0], gl[1] + 1) != " ", (gl, sc))
+
 sc, raw = run("", env={"DT_WALLIMG": tree("tests/img-quad.jpg")}, pre=IMGMOD)
 check("and so can a JPEG",
       sc.style(4, 10)["bg"] and sc.style(4, 10)["bg"].startswith("#f") and
@@ -6549,4 +6585,4 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(719)
+report(723)

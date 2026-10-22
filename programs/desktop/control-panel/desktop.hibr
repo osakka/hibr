@@ -26,6 +26,9 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_DISKS" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_DISKS; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icon Background"
+	CP[$w][$n]["val"] := cp_iconbglabel
+	CP[$w][$n]["key"]=iconbg; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Workspaces ($DT_WSN)"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_WSN; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=9
@@ -80,6 +83,12 @@ fn desktop_do(int w, k, int dir) {
 		command -v dt_deskscan > /dev/null && dt_deskscan
 		;;
 	wsn) dt_wsset $((DT_WSN + dir)) ;;
+	iconbg)
+		v := cp_iconbglabel
+		v := cp_next "$v" "$dir" "${CP_ICONBGL[@]}"
+		cp_set_iconbg "" "$v"
+		return 0
+		;;
 	cycle) v := cp_next "$DT_CYCLE" "$dir" "${DK_CYCLES[@]}"
 		DT_CYCLE=$v ;;
 	shotfmt) v := cp_next "$DT_SHOTFMT" "$dir" "${SH_FMTS[@]}"
@@ -107,9 +116,31 @@ fn desktop_do(int w, k, int dir) {
 	cp_save
 }
 
+# Icon Background's choices, as the row shows them and as DT_ICONBG keeps
+# them (Gitea #349).
+CP_ICONBGV=(transparent solid)
+CP_ICONBGL=("Transparent" "Solid")
+
+fn cp_iconbglabel() {
+	[ "$DT_ICONBG" = solid ] && ret "Solid" && return 0
+	ret "Transparent"
+}
+
+fn cp_set_iconbg(int? id = "", value = "") {
+	local i=0
+
+	while [ "$i" -lt "${#CP_ICONBGL[@]}" ]; do
+		[ "${CP_ICONBGL[$i]}" = "$value" ] && DT_ICONBG=${CP_ICONBGV[$i]}
+		i=$((i + 1))
+	done
+	DT_FORCEONCE=1
+	cp_save
+}
+
 fn desktop_drop(int w, int r, int c, k) {
 	case $k in
 	cycle) dt_droplist "$w" "$r" "$c" cp_set_cycle "${DK_CYCLES[@]}" ;;
+	iconbg) dt_droplist "$w" "$r" "$c" cp_set_iconbg "${CP_ICONBGL[@]}" ;;
 	shotfmt) dt_has cp_set_shotfmt &&
 		dt_droplist "$w" "$r" "$c" cp_set_shotfmt "${SH_FMTS[@]}" ;;
 	shotlast) dt_has cp_set_shotlast &&

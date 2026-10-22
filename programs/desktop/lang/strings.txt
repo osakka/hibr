@@ -480,6 +480,7 @@ Home page, opened by a new window or tab:
 Hostname: %s
 How Formulas Work
 ITEM
+Icon Background
 Icons
 Identify
 Image

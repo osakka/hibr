@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.293
+
+**Desktop icons** (Gitea #349).
+- **Over a picture wallpaper, an icon has no background of its own by
+  default.** The picture shows behind its glyph and its name, which keep
+  their colours. A selected icon keeps its highlight. Control Panel >
+  Desktop > Icon Background chooses, Transparent or Solid. Over a pattern,
+  or a picture drawn in half blocks, an icon is solid either way.
+- **No empty cell beside an icon where Blit's glyphs fit.** The blank 0.99.290
+  put after each glyph, so a Mac's fallback font can draw it whole, is left
+  out with Blit's own glyph set; it showed there as a gap in the pattern.
+  Where it is drawn, it is drawn as the wallpaper's own cell, the picture
+  itself over a picture.
+
+Arabic 3.19.
+
 ## 0.99.292
 
 **A PDF reader** (Gitea #348): the `pdf` module and the PDF Reader, an
