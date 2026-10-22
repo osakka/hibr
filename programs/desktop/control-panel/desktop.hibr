@@ -8,7 +8,7 @@
 strict
 
 
-app desktop "The Control Panel pane for the bare desktop" 1.1
+app desktop "The Control Panel pane for the bare desktop" 1.2
 command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
 
 DK_CYCLES=(workspace all)
