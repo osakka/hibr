@@ -73,21 +73,30 @@ fn ms_testfile(acct) {
 	ret "$d/out-${acct//[!A-Za-z0-9._-]/_}"
 }
 
-# Start one, replacing whatever was shown before.
+# Start one, replacing whatever was shown before: a job (wm/jobs.hibr) of
+# kind mailtest tagged with the account, writing the ladder -- its errors
+# with it, in order, since a shell error there is often the answer (#207)
+# -- into the account's own file, which the window reads as it grows.
 fn ms_test(acct) {
 	local f
 
 	f := ms_testfile "$acct"
 	MS_TEST["acct"]=$acct
 	MS_TEST["file"]=$f
+	dt_jobrunning mailtest "$acct" > /dev/null && return 0
 	: > "$f"
-	rm -f "$f.st"
-	(
-		command -v dt_jobname > /dev/null && dt_jobname mailtest "$acct"
-		"$HIBR" "$MS_LIB/mailtest.hibr" "$acct" > "$f" 2>&1
-		printf '%s\n' "$?" > "$f.st"
-	) &
-	dt_want 200
+	dt_job mailtest "$acct" ms_tested ms_ladder "$f" "$acct" > /dev/null
+	return 0
+}
+
+# The job's own work: the ladder into its file.
+fn ms_ladder(f, ...args) {
+	"$HIBR" "$MS_LIB/mailtest.hibr" "${args[@]}" > "$f" 2>&1
+}
+
+# A test or a detection finished: the windows showing it draw it again.
+fn ms_tested(int n, int st) {
+	dt_want 50
 	return 0
 }
 
@@ -121,14 +130,8 @@ fn ms_detect(int id) {
 	t="$t${GL[ellipsis]}"
 	dt_notify "$t"
 	: > "${MS_DET["file"]}"
-	rm -f "${MS_DET["file"]}.st"
-	(
-		command -v dt_jobname > /dev/null && dt_jobname maildetect "$host"
-		"$HIBR" "$MS_LIB/mailtest.hibr" --detect "$host" "${MLAD[$id]["kind"]}" "$shost" \
-			> "${MS_DET["file"]}" 2>&1
-		printf '%s\n' "$?" > "${MS_DET["file"]}.st"
-	) &
-	dt_want 200
+	dt_job maildetect "$id" ms_tested ms_ladder "${MS_DET["file"]}" --detect "$host" \
+		"${MLAD[$id]["kind"]}" "$shost" > /dev/null
 	return 0
 }
 
@@ -140,7 +143,8 @@ fn ms_detread(int id) {
 	local -a part
 
 	[ "${MS_DET["win"]}" = "$id" ] || return 0
-	[ -n "$f" ] && [ -s "$f.st" ] || { [ -n "$f" ] && dt_want 300; return 0; }
+	[ -n "$f" ] || return 0
+	dt_jobrunning maildetect "$id" > /dev/null && return 0
 	MS_DET["win"]=
 	while IFS= read -r line; do
 		read -ra part <<< "$line"
@@ -345,11 +349,11 @@ fn mst_draw(int id, int h, int w, int row, int col) {
 		i=$((i + 1))
 	done
 	[ "$n" -gt "$vis" ] && dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" "$top" ladder
-	# Live while the job has not written its status file: asked of this
-	# window's own file, so one window finishing says nothing about
-	# another's. A finished ladder asks for no more frames, which is
-	# what dt_want's one-frame contract wants of anything calling it.
-	[ -n "$f" ] && [ ! -s "$f.st" ] && live=1
+	# Live while this window's account has a test running, so one window
+	# finishing says nothing about another's. A finished ladder asks for
+	# no more frames, which is what dt_want's one-frame contract wants of
+	# anything calling it.
+	[ -n "$f" ] && dt_jobrunning mailtest "${MST[$id]["acct"]}" > /dev/null && live=1
 	if [ -n "$live" ]; then
 		console pen "$DT_INFO" "$DT_FACE"
 		t := dt_tr "asking the servers"
@@ -498,7 +502,7 @@ fn ms_testrows(int w, int n) {
 	CP[$w][$n]["text"]="Test Connection${GL[ellipsis]}"
 	CP[$w][$n]["val"]=""
 	if [ -n "$a" ]; then
-		if [ -n "$f" ] && [ ! -s "$f.st" ]; then
+		if dt_jobrunning mailtest "$a" > /dev/null; then
 			v := dt_tr "asking"
 			dt_want 300
 		else

@@ -46,7 +46,6 @@ declare -gA MLN
 declare -gA MLV
 declare -gA MLT
 declare -gA MLR
-declare -gA MLJ
 declare -gA MLA
 declare -gA MLGMAIL
 declare -gA MLME
@@ -60,8 +59,6 @@ declare -gA MLMINE
 # Which compose window the From dropdown belongs to: the widget calls back
 # with the value alone, so the window has to be remembered beside it.
 MLC_FROMID=
-MLJ_N=0
-MLJ_LIVE=0
 ML_ACCTS=()
 ML_TOP=()
 
@@ -199,66 +196,22 @@ fn ml_refresh(acct) {
 
 # --- the jobs: sync and IDLE ----------------------------------------------
 
-# Start a job in the background; its output and status into files the
-# poll picks up, then the callback. The job's number is the result.
+# A job for an account, through the desktop's job runner (wm/jobs.hibr):
+# kind mail:WHAT, tagged with the account. The job's number is the result;
+# DTJ[n]["tag"] is the account, dt_joblast and dt_jobfile what it printed.
 fn ml_job(what, acct, then, ...rest) {
-	local n d
+	local n
 
-	d := ml_dir "$acct"
-	mkdir -p "$d/jobs" 2> /dev/null
-	MLJ_N=$((MLJ_N + 1))
-	n=$MLJ_N
-	MLJ[$n]["what"]=$what
-	MLJ[$n]["acct"]=$acct
-	MLJ[$n]["then"]=$then
-	MLJ[$n]["dir"]=$d/jobs
-	(
-		command -v dt_jobname > /dev/null && dt_jobname "mail:$what" "$acct"
-		"${rest[@]}" > "$d/jobs/$n.out" 2> "$d/jobs/$n.err"
-		printf '%s\n' "$?" > "$d/jobs/$n.st"
-	) &
-	MLJ[$n]["pid"]=$!
-	MLJ_LIVE=$((MLJ_LIVE + 1))
-	dt_want 300
+	n := dt_job "mail:$what" "$acct" "$then" "${rest[@]}" || return 1
 	ret "$n"
-}
-
-# A job's last line of output so far.
-fn ml_joblast(int n) {
-	local f=${MLJ[$n]["dir"]}/$n.out l= x
-
-	[ -s "$f" ] || { ret ""; return 0; }
-	while IFS= read -r x; do l=$x; done < "$f"
-	ret "$l"
-}
-
-# After every frame: hand each finished job to its callback.
-ml_poll() {
-	local n st d
-
-	[ "$MLJ_LIVE" -gt 0 ] || return 0
-	for n in "${!MLJ[@]}"; do
-		d=${MLJ[$n]["dir"]}
-		[ -s "$d/$n.st" ] || continue
-		read -r st < "$d/$n.st"
-		MLJ_LIVE=$((MLJ_LIVE - 1))
-		MLJ[$n]["done"]=1
-		"${MLJ[$n]["then"]}" "$n" "$st"
-		command rm -f "$d/$n.out" "$d/$n.err" "$d/$n.st"
-		unset MLJ["$n"]
-	done
-	[ "$MLJ_LIVE" -gt 0 ] && dt_want 500
-	return 0
 }
 
 # Whether a job of a kind is running for an account; its number.
 fn ml_running(what, acct) {
 	local n
 
-	for n in "${!MLJ[@]}"; do
-		[ -z "${MLJ[$n]["done"]}" ] && [ "${MLJ[$n]["what"]}" = "$what" ] && [ "${MLJ[$n]["acct"]}" = "$acct" ] && { ret "$n"; return 0; }
-	done
-	return 1
+	n := dt_jobrunning "mail:$what" "$acct" || return 1
+	ret "$n"
 }
 
 # Sync an account now -- or, when one is running, once more after it; a
@@ -279,9 +232,9 @@ fn ml_sync(acct, quick = "") {
 
 # A sync finished: the rows loaded again, what it said kept for the bar.
 fn ml_synced(int n, int st) {
-	local acct=${MLJ[$n]["acct"]} l
+	local acct=${DTJ[$n]["tag"]} l e
 
-	l := ml_joblast "$n"
+	l := dt_joblast "$n"
 	case $l in
 	"done 0") MW["status$acct"]="Up to date" ;;
 	done*) MW["status$acct"]="${l#done } new" ;;
@@ -290,7 +243,8 @@ fn ml_synced(int n, int st) {
 	*)
 		if [ "$st" != 0 ]; then
 			l=
-			[ -s "${MLJ[$n]["dir"]}/$n.err" ] && read -r l < "${MLJ[$n]["dir"]}/$n.err"
+			e := dt_jobfile "$n" err
+			[ -s "$e" ] && read -r l < "$e"
 			MW["status$acct"]="Could not sync${l:+: ${l#hibr: }}"
 		fi
 		;;
@@ -318,7 +272,7 @@ fn ml_watch(acct) {
 
 # The IDLE wait ended: a change syncs, an error waits a minute first.
 fn ml_woke(int n, int st) {
-	local acct=${MLJ[$n]["acct"]}
+	local acct=${DTJ[$n]["tag"]}
 
 	case $st in
 	0) ml_sync "$acct" quick ;;
@@ -327,12 +281,11 @@ fn ml_woke(int n, int st) {
 	esac
 }
 
-# Every few minutes, and after an IDLE error a minute on, sync again; and
-# hand finished jobs on. Asks for the frame that will be due.
+# Every few minutes, and after an IDLE error a minute on, sync again. Asks
+# for the frame that will be due.
 fn ml_tick(int id) {
 	local acct=${MW[$id]["acct"]} every=$((DT_MAILEVERY * 60))
 
-	ml_poll
 	[ -n "$acct" ] || return 0
 	if [ $((EPOCHSECONDS - ${MW["last$acct"]:-0})) -ge "$every" ]; then
 		ml_sync "$acct"
@@ -757,7 +710,7 @@ fn mail_draw(int id, int h, int w, int row, int col) {
 	if ml_running sync "$acct" > /dev/null; then
 		local n
 		n := ml_running sync "$acct"
-		st := ml_joblast "$n"
+		st := dt_joblast "$n"
 		case $st in
 		fetching*) st="Fetching ${st#fetching }" ;;
 		bodies*) st="Downloading messages (${st#bodies })" ;;
@@ -2112,8 +2065,8 @@ fn mlc_send(int id) {
 	MC[$id]["sending"]=1
 	MC[$id]["err"]=
 	n := ml_job send "$acct" mlc_sent "$HIBR" -c 'need email || exit 2; email send "$1" "$2" || exit 1; [ -n "$3" ] || exit 0; h := email open "$1" && email append "$h" "$3" "$2" "\Seen"; exit 0' send "$acct" "$out" "$sent"
-	MLJ[$n]["win"]=$id
-	MLJ[$n]["file"]=$out
+	DTJ[$n]["win"]=$id
+	DTJ[$n]["file"]=$out
 }
 
 # The folder drafts are filed in: the one whose role the server itself
@@ -2170,9 +2123,9 @@ fn mlc_savedraft(int id, quiet = "") {
 	# function creating a global, which it is not -- the words are a
 	# child's, not ours.
 	n := ml_job draft "$acct" mlc_drafted "$HIBR" -c 'need email || exit 2; h := email open "$1" || exit 1; email select "$h" "$2" > /dev/null 2>&1 || exit 1; u := email append "$h" "$2" "$3" "\Draft" "\Seen" || exit 1; [ -n "$4" ] && { email store "$h" "$4" "+\Deleted" > /dev/null 2>&1; email expunge "$h" > /dev/null 2>&1; }; printf "%s\n" "$u"; exit 0' draft "$acct" "$fold" "$out" "${MC[$id]["draftuid"]}"
-	MLJ[$n]["win"]=$id
-	MLJ[$n]["file"]=$out
-	MLJ[$n]["quiet"]=$quiet
+	DTJ[$n]["win"]=$id
+	DTJ[$n]["file"]=$out
+	DTJ[$n]["quiet"]=$quiet
 	return 0
 }
 
@@ -2181,19 +2134,19 @@ fn mlc_savedraft(int id, quiet = "") {
 # and then every save leaves one behind, which is the server's own limit
 # rather than something to paper over.
 fn mlc_drafted(int n, int st) {
-	local id=${MLJ[$n]["win"]} u
+	local id=${DTJ[$n]["win"]} u
 
-	command rm -f "${MLJ[$n]["file"]}"
+	command rm -f "${DTJ[$n]["file"]}"
 	[ -n "${MC[$id]["acct"]+x}" ] || return 0
 	MC[$id]["saving"]=
 	if [ "$st" != 0 ]; then
 		MC[$id]["dirty"]=1
-		[ -n "${MLJ[$n]["quiet"]}" ] || MC[$id]["err"]="The draft could not be saved."
+		[ -n "${DTJ[$n]["quiet"]}" ] || MC[$id]["err"]="The draft could not be saved."
 		return 0
 	fi
-	u := ml_joblast "$n"
+	u := dt_joblast "$n"
 	[ -n "$u" ] && MC[$id]["draftuid"]=$u
-	[ -n "${MLJ[$n]["quiet"]}" ] || dt_note "Draft saved"
+	[ -n "${DTJ[$n]["quiet"]}" ] || dt_note "Draft saved"
 	return 0
 }
 
@@ -2223,20 +2176,22 @@ fn ml_sentfold(acct) {
 
 # Sending finished: the window closed, or the reason shown in it.
 fn mlc_sent(int n, int st) {
-	local id=${MLJ[$n]["win"]} l=
+	local id=${DTJ[$n]["win"]} acct=${DTJ[$n]["tag"]} l= d e
 
 	if [ "$st" = 0 ]; then
-		if [ "${MLA["${MLJ[$n]["acct"]}"]}" = pop ]; then
-			printf 'sent\tSent\t0\t%s\n' "${MLJ[$n]["file"]}" >> "${MLJ[$n]["dir"]%/jobs}/queue"
+		if [ "${MLA["$acct"]}" = pop ]; then
+			d := ml_dir "$acct"
+			printf 'sent\tSent\t0\t%s\n' "${DTJ[$n]["file"]}" >> "$d/queue"
 		else
-			command rm -f "${MLJ[$n]["file"]}"
+			command rm -f "${DTJ[$n]["file"]}"
 		fi
 		dt_notep low "Message sent"
 		[ -n "${MC[$id]["focus"]+x}" ] && dt_wantclose "$id"
-		ml_sync "${MLJ[$n]["acct"]}"
+		ml_sync "$acct"
 		return 0
 	fi
-	[ -s "${MLJ[$n]["dir"]}/$n.err" ] && read -r l < "${MLJ[$n]["dir"]}/$n.err"
+	e := dt_jobfile "$n" err
+	[ -s "$e" ] && read -r l < "$e"
 	if [ -n "${MC[$id]["focus"]+x}" ]; then
 		MC[$id]["sending"]=
 		MC[$id]["err"]="Not sent: ${l#hibr: email: }"

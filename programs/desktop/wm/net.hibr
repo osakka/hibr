@@ -64,7 +64,6 @@ DT_NETAT=0
 DT_NETREAD=0
 DT_NETLATE=
 DT_NETJOB=
-DT_NETJF=
 DT_NETJSSID=
 DT_NETJKIND=
 DT_NETJPK=
@@ -480,7 +479,6 @@ dt_nettick() {
 		dt_netstart
 		return 0
 	fi
-	[ -n "$DT_NETJOB" ] && dt_netjobpoll
 	if [ "${DT_NET["kind"]}" = gone ]; then
 		[ $((EPOCHSECONDS - DT_NETAT)) -ge 30 ] || return 0
 		DT_NET["kind"]=
@@ -508,30 +506,20 @@ dt_nettick() {
 	return 0
 }
 
-# Where a join's files are kept while it runs: the runtime folder, the
-# owner's alone.
-dt_netrun() {
-	local d=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-net-$UID
-
-	(umask 077; mkdir -p "$d")
-	ret "$d"
-}
-
 # Start something that waits on NetworkManager as a job -- a join, a
 # leave, Wi-Fi's switch, a Forget -- with what it is about (a network's
 # name) for what is said afterwards. A second while one runs is refused.
 # When polkit answers any of it with auth, polkit's agent is held while it
-# runs, so a password asked for is asked in the desktop.
+# runs, so a password asked for is asked in the desktop. A job of the
+# desktop's runner (wm/jobs.hibr), its errors in its output, since nmcli's
+# Error: lines are the answer; DT_NETJOB holds its number.
 fn dt_netjob(kind, what, ...cmd) {
-	local d k
+	local k n
 
 	if [ -n "$DT_NETJOB" ]; then
 		dt_notep low "Already joining %s" "$DT_NETJSSID"
 		return 1
 	fi
-	d := dt_netrun
-	DT_NETJF="$d/job.$$"
-	rm -f "$DT_NETJF.st" "$DT_NETJF.out"
 	DT_NETJSSID=$what
 	DT_NETJKIND=$kind
 	DT_NETJPK=
@@ -543,42 +531,36 @@ fn dt_netjob(kind, what, ...cmd) {
 	done
 	[ "$kind" = join ] && DT_NET["busy"]=$what
 	DT_NET["err"]=
-	(
-		command -v dt_jobname > /dev/null && dt_jobname "net:$kind" "$what"
-		"${cmd[@]}" > "$DT_NETJF.out" 2>&1
-		echo "$?" > "$DT_NETJF.st"
-	) &
-	DT_NETJOB=$!
+	if ! n := dt_job "net:$kind" "$what" dt_netjobdone dt_jobmerge "${cmd[@]}"; then
+		DT_NET["busy"]=
+		[ "$DT_NETJPK" = 1 ] && dt_pkstop
+		return 1
+	fi
+	DT_NETJOB=$n
 	dt_netbar
-	dt_want 300
 }
 
-# See whether the running job has finished: say what happened, read again.
-# A refusal is said as one: no password was given, or this session may not
-# do it at all. A failure with no Error: line says nmcli's last line rather
-# than only its status, and the whole of what it said goes to the log.
-dt_netjobpoll() {
-	local st l why= last=
+# The job finished: say what happened, read again. A refusal is said as
+# one: no password was given, or this session may not do it at all. A
+# failure with no Error: line says nmcli's last line rather than only its
+# status, and the whole of what it said goes to the log.
+fn dt_netjobdone(int n, int st) {
+	local l why= last= f
 
-	if [ ! -s "$DT_NETJF.st" ]; then
-		dt_want 300
-		return 0
-	fi
-	read -r st < "$DT_NETJF.st"
+	f := dt_jobfile "$n"
 	while IFS= read -r l; do
 		case $l in
 		Error:*) why=${l#Error: } ;;
 		*[![:space:]]*) last=$l ;;
 		esac
-	done < "$DT_NETJF.out"
+	done < "$f"
 	if [ "$st" != 0 ]; then
 		dt_log "network $DT_NETJKIND $DT_NETJSSID: status $st"
 		while IFS= read -r l; do
 			dt_log "  $l"
-		done < "$DT_NETJF.out"
+		done < "$f"
 		[ -n "$why" ] || why=$last
 	fi
-	rm -f "$DT_NETJF.st" "$DT_NETJF.out"
 	DT_NETJOB=
 	DT_NET["busy"]=
 	[ "$DT_NETJPK" = 1 ] && dt_pkstop

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.299
+
+**One job runner for the whole desktop** (Gitea #357). Background work had
+eight runners written out by hand, each with its own files, its own poll,
+and its own pace (120, 200, 300 and 500 ms): Mail, the calendars and
+contacts, the Catalogue window, the mail test and server detection, the
+vault's sync, Bluetooth and the network. All of them now run through
+`dt_job` (`wm/jobs.hibr`), and the code that differed between them is gone.
+- **Nothing polls.** A job's child exiting raises SIGCHLD, which ends the
+  desktop's wait, and the next pass hands the job to its callback: measured
+  at 3.5 ms after the job ended. Before, every runner asked for a frame
+  every 120-500 ms while it had anything running -- and Mail's IMAP IDLE is
+  a job that runs for 25 minutes, so a desktop with Mail open drew twice a
+  second for as long as it was open. A safety net of one wake in five
+  seconds remains while a job is live. Measured with a long job running:
+  2 wakes in 10 s and 1 tick of CPU, against 20 wakes and 5 ticks at the
+  old 500 ms pace.
+- **`dt_jobmerge`** runs a command with its errors in its output, in order,
+  for the jobs whose errors are their answer (bluetoothctl, nmcli).
+- After a callback has run the desktop draws a frame, since what it changed
+  is usually on screen.
+- Mail, Calendar, Contacts and the Mail and Calendar panes need this release
+  from the catalogue; nothing was kept for older installs.
+
 ## 0.99.298
 
 **Joining a new Wi-Fi network works** (Gitea #363). Joining a secured

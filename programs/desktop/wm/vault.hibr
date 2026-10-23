@@ -267,35 +267,34 @@ fn dt_vwcopy(field, id) {
 	return 0
 }
 
-# Start a sync, unless one is running; by hand, it says how it went.
+# Start a sync, unless one is running, as a job (wm/jobs.hibr); by hand,
+# it says how it went.
 fn dt_vwsyncnow(int hand = 0) {
 	[ "$DT_VWJOB" = 1 ] && return 0
 	dt_vwdirs
-	rm -f "$DT_VWRUN/desk.sync" "$DT_VWRUN/desk.syncerr"
-	DT_VWJOB=1
 	DT_VWHAND=$hand
 	DT_VWSYNCED=$EPOCHSECONDS
-	(
-		dt_jobname vault sync
-		VW_STDIN=1 "$HIBR" "$DT_VWCMD" sync > /dev/null 2> "$DT_VWRUN/desk.syncerr" < /dev/null
-		printf '%s\n' "$?" > "$DT_VWRUN/desk.sync"
-	) &
-	dt_want 200
+	dt_job vault sync dt_vwsyncdone dt_vwsyncjob > /dev/null && DT_VWJOB=1
+}
+
+# The job's own work: a sync, with nothing to read on its input.
+dt_vwsyncjob() {
+	VW_STDIN=1 "$HIBR" "$DT_VWCMD" sync > /dev/null < /dev/null
 }
 
 # A finished sync: read the list again, or say why not when asked.
-dt_vwsyncdone() {
-	local st l=
+fn dt_vwsyncdone(int n, int st) {
+	local l= e
 
-	read -r st < "$DT_VWRUN/desk.sync"
 	DT_VWJOB=0
 	if [ "$st" = 0 ]; then
 		dt_vwlist
 		[ "$DT_VWHAND" = 1 ] && dt_notep low "The vault is synced"
 	else
+		e := dt_jobfile "$n" err
 		while IFS= read -r l; do
 			[ -n "$l" ] && DT_VWERR := dt_vwwhy "$l"
-		done 2> /dev/null < "$DT_VWRUN/desk.syncerr"
+		done 2> /dev/null < "$e"
 		if [ "$DT_VWHAND" = 1 ]; then
 			local why=$DT_VWERR
 			if [ -z "$why" ]; then
@@ -304,13 +303,12 @@ dt_vwsyncdone() {
 			dt_note "Sync failed: %s" "$why"
 		fi
 	fi
-	rm -f "$DT_VWRUN/desk.sync" "$DT_VWRUN/desk.syncerr"
 }
 
 # Once a frame: the clipboard cleared when a copied password's time is up,
-# a finished sync taken in, the next one started when due, and the
-# session dropped once the vault has locked itself. Costs a comparison
-# while nothing is copied and nothing is unlocked.
+# the next sync started when due, and the session dropped once the vault
+# has locked itself. Costs a comparison while nothing is copied and nothing
+# is unlocked.
 dt_vwtick() {
 	local now=$EPOCHSECONDS s e
 
@@ -324,13 +322,6 @@ dt_vwtick() {
 			console clip ""
 		else
 			dt_want $(((DT_CLIPSECRET - now) * 1000 + 50))
-		fi
-	fi
-	if [ "$DT_VWJOB" = 1 ]; then
-		if [ -s "$DT_VWRUN/desk.sync" ]; then
-			dt_vwsyncdone
-		else
-			dt_want 200
 		fi
 	fi
 	[ -n "$VW_SESSION" ] || return 0

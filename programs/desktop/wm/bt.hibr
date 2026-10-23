@@ -42,7 +42,6 @@ DT_BTAT=0
 DT_BTREAD=0
 DT_BTLATE=
 DT_BTJOB=
-DT_BTJF=
 DT_BTJKIND=
 DT_BTJWHO=
 DT_BTTOP=0
@@ -245,7 +244,6 @@ dt_bttick() {
 		dt_btstart
 		return 0
 	fi
-	[ -n "$DT_BTJOB" ] && dt_btjobpoll
 	[ -n "$DT_BTPAIR" ] && dt_btpairtick
 	if [ "${DT_BT["kind"]}" = gone ]; then
 		[ $((EPOCHSECONDS - DT_BTAT)) -ge 30 ] || return 0
@@ -280,42 +278,33 @@ dt_bttick() {
 
 # Run something that waits on BlueZ as a job -- connect, disconnect,
 # forget, power, visibility, a scan -- with whom it is about, for what is
-# said afterwards. A second while one runs is refused.
+# said afterwards. A second while one runs is refused. A job of the
+# desktop's runner (wm/jobs.hibr), its errors in its output, since what
+# bluetoothctl says is the answer; DT_BTJOB holds its number.
 fn dt_btjob(kind, who, ...cmd) {
-	local d=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-bt-$UID
+	local n
 
 	if [ -n "$DT_BTJOB" ]; then
 		dt_notep low "Bluetooth is busy with %s" "${DT_BTJWHO:-something}"
 		return 1
 	fi
-	(umask 077; mkdir -p "$d")
-	DT_BTJF="$d/job.$$"
-	rm -f "$DT_BTJF.st" "$DT_BTJF.out"
 	DT_BTJKIND=$kind
 	DT_BTJWHO=$who
 	DT_BT["err"]=
+	n := dt_job "bt:$kind" "$who" dt_btjobdone dt_jobmerge env LC_ALL=C "${cmd[@]}" ||
+		return 1
+	DT_BTJOB=$n
 	case $kind in connect | disconnect | forget) DT_BT["busy"]=$who ;; esac
-	(
-		command -v dt_jobname > /dev/null && dt_jobname "bt:$kind" "$who"
-		LC_ALL=C "${cmd[@]}" > "$DT_BTJF.out" 2>&1
-		echo "$?" > "$DT_BTJF.st"
-	) &
-	DT_BTJOB=$!
 	dt_btbar
-	dt_want 300
 }
 
 # A job finished: bluetoothctl's exit status is not to be trusted to say
 # whether it worked, so what it printed is: a line saying it failed, or an
 # error BlueZ named, is a failure, whatever the status.
-dt_btjobpoll() {
-	local st l why= ok=
+fn dt_btjobdone(int n, int st) {
+	local l why= ok= f
 
-	if [ ! -s "$DT_BTJF.st" ]; then
-		dt_want 300
-		return 0
-	fi
-	read -r st < "$DT_BTJF.st"
+	f := dt_jobfile "$n"
 	while IFS= read -r l; do
 		l=${l//$'\r'/}
 		case $l in
@@ -324,8 +313,7 @@ dt_btjobpoll() {
 			;;
 		*successful* | *Successful* | *succeeded* | *"has been removed"*) ok=1 ;;
 		esac
-	done < "$DT_BTJF.out"
-	rm -f "$DT_BTJF.st" "$DT_BTJF.out"
+	done < "$f"
 	DT_BTJOB=
 	DT_BT["busy"]=
 	[ -z "$why" ] && [ "$st" = 0 ] && ok=1

@@ -27,7 +27,6 @@ app catalogue "The application catalogue: browse, install, update and remove" 2.
 command -v dt_app > /dev/null && dt_app catalogue "Catalogue" 24 88 once "⌘"
 
 declare -gA CAT
-CAT_JOBS=
 # The detail pane's prose, wrapped into lines by catalogue_draw so it can
 # be scrolled -- a list the drawing passes to itself, declared here
 # because a strict file's globals are declared at file level.
@@ -38,85 +37,48 @@ CAT_DLINES=()
 # list of those beside CP_DIVCOL and DIA_SPLIT.
 CAT_SPLIT="${CAT_SPLIT-}"
 command -v dt_keep > /dev/null && dt_keep CAT_SPLIT
-CAT_N=0
-CAT_LIVE=0
-CAT_READY=
 
-# Somewhere for a job's output and status, once a session.
-fn cat_ready() {
-	[ -n "$CAT_READY" ] && return 0
-	CAT_JOBS="${XDG_CACHE_HOME:-$HOME/.cache}/hibr/catalogue-jobs"
-	command rm -rf -- "$CAT_JOBS" 2> /dev/null
-	command mkdir -p -- "$CAT_JOBS" 2> /dev/null || return 1
-	CAT_READY=1
-	return 0
-}
-
-# Start one: the command runs in the background with its output and its
-# errors in files of their own, and the next frame reads the status.
+# Start one through the desktop's job runner (wm/jobs.hibr), as kind
+# apps:WHAT tagged with the window; its callback is handed the window, the
+# status, the job's number and what it was.
 fn cat_job(int id, what, then, ...cmd) {
 	local n
 
-	cat_ready || { dt_note "Cannot make a folder for jobs"; return 1; }
-	CAT_N=$((CAT_N + 1))
-	n=$CAT_N
-	CAT[$id]["job"]["$n"]["what"]=$what
-	CAT[$id]["job"]["$n"]["then"]=$then
-	(
-		dt_jobname "apps:$what"
-		"${cmd[@]}" > "$CAT_JOBS/$n.out" 2> "$CAT_JOBS/$n.err"
-		printf '%s\n' "$?" > "$CAT_JOBS/$n.st"
-	) &
-	CAT_LIVE=$((CAT_LIVE + 1))
+	n := dt_job "apps:$what" "$id" cat_jobdone "${cmd[@]}" || {
+		dt_note "Cannot make a folder for jobs"
+		return 1
+	}
+	DTJ[$n]["catthen"]=$then
+	DTJ[$n]["what"]=$what
 	CAT[$id]["busy"]=$what
-	dt_want 120
 	return 0
 }
 
-# Hand every finished job to its callback. Costs one test while none is
-# running, which is the usual state.
-fn cat_poll(int id) {
-	local n st then what
-	local -a done
+# A job ended: its window's own callback, unless the window has gone.
+fn cat_jobdone(int n, int st) {
+	local id=${DTJ[$n]["tag"]}
 
-	[ "$CAT_LIVE" -gt 0 ] || return 0
-	# Ask for the frame that will look again. `cat_job` asks for one 120
-	# ms out, and a job that is not finished by then would never be
-	# collected: nothing else re-arms, so the window sits on "working"
-	# for ever while its answer waits in a file. This is the trap this
-	# desktop records about `dt_want` -- one frame is all it asks for --
-	# and the condition here is sound, because it stops the moment
-	# CAT_LIVE reaches zero rather than asking "am I the kind of thing
-	# that sometimes needs a frame".
-	dt_want 120
-	for n in "${!CAT[$id]["job"][@]}"; do
-		[ -s "$CAT_JOBS/$n.st" ] || continue
-		read -r st < "$CAT_JOBS/$n.st"
-		then=${CAT[$id]["job"]["$n"]["then"]}
-		what=${CAT[$id]["job"]["$n"]["what"]}
-		done+=("$n")
-		CAT_LIVE=$((CAT_LIVE - 1))
-		CAT[$id]["busy"]=
-		# Marked done before the callback runs, or a callback that
-		# starts the next job sees this one still live -- the trap
-		# Mail's own poll was written with.
-		unset CAT[$id]["job"]["$n"]
-		"$then" "$id" "$st" "$n" "$what"
-		dt_want 60
-	done
+	[ -n "${CAT[$id]["sel"]+x}" ] || return 0
+	CAT[$id]["busy"]=
+	"${DTJ[$n]["catthen"]}" "$id" "$st" "$n" "${DTJ[$n]["what"]}"
+	dt_want 60
 	return 0
 }
 
 # What a job printed, and what it complained about.
 fn cat_out(int n) {
-	[ -r "$CAT_JOBS/$n.out" ] || { ret ""; return 0; }
-	ret "$CAT_JOBS/$n.out"
+	local f
+
+	f := dt_jobfile "$n"
+	[ -r "$f" ] || { ret ""; return 0; }
+	ret "$f"
 }
 
 fn cat_why(int n) {
-	local l=
+	local l= f
 
-	[ -s "$CAT_JOBS/$n.err" ] && read -r l < "$CAT_JOBS/$n.err"
+	f := dt_jobfile "$n" err
+	[ -s "$f" ] && read -r l < "$f"
 	l=${l#apps: }
 	ret "${l:-it did not say why}"
 }
@@ -420,11 +382,6 @@ fn catalogue_close(int id) {
 	return 0
 }
 
-fn catalogue_idle(int id) {
-	cat_poll "$id"
-	return 0
-}
-
 # Two columns: what there is on the left, what the selected one says about
 # itself on the right. The prose is the app's own, out of the index, which
 # is why this reads better than a package synopsis -- somebody wrote it
@@ -435,7 +392,6 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 	local -a words
 
 	dt_wclear "$id"
-	cat_poll "$id"
 	# The divider is the person's, dragged where they want it
 	# (widgets/split.hibr) -- and it is the list's scrollbar as well,
 	# because a scrollbar's track is the same vertical line a divider

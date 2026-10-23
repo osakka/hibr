@@ -591,7 +591,7 @@ fn cv_status(int id, int h, int w) {
 
 	for s in "${PE_SRVS[@]}"; do
 		if n := pe_running "$s"; then
-			l := pe_joblast "$n"
+			l := dt_joblast "$n"
 			st="Syncing $s${l:+: $l}"
 			dt_want 700
 			break
@@ -1301,22 +1301,23 @@ fn cv_invite(srv, acct, ics, to, title, int st, method) {
 	fi
 	command rm -f "$b" "$ics"
 	n := pe_job mail "$srv" cv_sent "$HIBR" -c 'need email || exit 2; email send "$1" "$2" || exit 1; rm -f "$2"' send "$acct" "$m"
-	PEJ[$n]["to"]=$to
-	PEJ[$n]["method"]=$method
+	DTJ[$n]["to"]=$to
+	DTJ[$n]["method"]=$method
 	return 0
 }
 
 # A message sent, or not.
 fn cv_sent(int n, int st) {
-	local to=${PEJ[$n]["to"]} l=
+	local to=${DTJ[$n]["to"]} l= e
 
 	if [ "$st" = 0 ]; then
-		case ${PEJ[$n]["method"]} in
+		case ${DTJ[$n]["method"]} in
 		REQUEST) dt_notep low "Saved, and the invitation sent to %s" "$to" ;;
 		*) dt_notep low "Your answer is sent to %s" "$to" ;;
 		esac
 	else
-		[ -s "${PEJ[$n]["dir"]}/$n.err" ] && read -r l < "${PEJ[$n]["dir"]}/$n.err"
+		e := dt_jobfile "$n" err
+		[ -s "$e" ] && read -r l < "$e"
 		dt_notep high "Could not send to %s%s" "$to" "${l:+: ${l#hibr: }}"
 	fi
 }

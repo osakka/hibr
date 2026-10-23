@@ -148,6 +148,22 @@ check("dt_job hands its callback the output and the status, and the job is done"
 check("and its files are gone once the callback has run",
       len(got) == 3 and not os.path.exists(got[2]), got)
 shutil.rmtree(JOBD, True)
+# A job ending wakes the desktop by itself -- its child's SIGCHLD ends the
+# frame loop's wait -- so nothing polls for it, and a 25-minute mail IDLE no
+# longer holds the desktop at several frames a second. No ticker here asks
+# for frames: the callback must still come within moments of the job ending,
+# where the runner's own net is five seconds.
+JOBD = tempfile.mkdtemp(prefix="hibr-jobwake-")
+JOBW = ('fn wk_done(int n, int st) { printf "%%s\\n" "$EPOCHREALTIME" > "%s/got"; return 0; }\n'
+        'n := dt_job demo "" wk_done sh -c \'sleep 0.4; date +%%s.%%N > %s/ended\'\n'
+        % (JOBD, JOBD))
+sc, _ = run(JOBW, [2.0])
+wgot = [float(open(os.path.join(JOBD, f)).read()) for f in ("ended", "got")
+        if os.path.exists(os.path.join(JOBD, f))]
+check("a finished job reaches its callback at once, woken by the job ending "
+      "rather than found by polling",
+      len(wgot) == 2 and 0 <= wgot[1] - wgot[0] < 1.0, wgot)
+shutil.rmtree(JOBD, True)
 
 # The log turns over past DT_LOGMAX at a start, so it cannot grow for ever
 # (Gitea #328): the old one becomes desktop.log.1 and a new one begins.
@@ -6667,4 +6683,4 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(731)
+report(732)

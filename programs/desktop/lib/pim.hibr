@@ -23,10 +23,7 @@ DT_PIMSERVERS="${DT_PIMSERVERS-}"
 DT_PIMEVERY="${DT_PIMEVERY-15}"
 command -v dt_keep > /dev/null && dt_keep DT_PIMSERVERS DT_PIMEVERY
 
-declare -gA PEJ
 declare -gA PES
-PEJ_N=0
-PEJ_LIVE=0
 PE_GEN=0
 PE_SRVS=()
 PE_HOOKS=()
@@ -52,68 +49,22 @@ fn pe_onsync(name) {
 	PE_HOOKS+=("$name")
 }
 
-# Run something in the background for a server, its output kept for poll
-# to hand on, then the callback. The job's number is the result.
+# Run something in the background for a server through the desktop's job
+# runner (wm/jobs.hibr), as kind pim:WHAT tagged with the server. The job's
+# number is the result; what the job printed is dt_joblast and dt_jobfile.
 fn pe_job(what, srv, then, ...rest) {
-	local n d
+	local n
 
-	d := pe_dir "$srv"
-	mkdir -p "$d/jobs" 2> /dev/null
-	PEJ_N=$((PEJ_N + 1))
-	n=$PEJ_N
-	PEJ[$n]["what"]=$what
-	PEJ[$n]["srv"]=$srv
-	PEJ[$n]["then"]=$then
-	PEJ[$n]["dir"]=$d/jobs
-	(
-		command -v dt_jobname > /dev/null && dt_jobname "$what" "$srv"
-		"${rest[@]}" > "$d/jobs/$n.out" 2> "$d/jobs/$n.err"
-		printf '%s\n' "$?" > "$d/jobs/$n.st"
-	) &
-	PEJ[$n]["pid"]=$!
-	PEJ_LIVE=$((PEJ_LIVE + 1))
-	dt_want 300
+	n := dt_job "pim:$what" "$srv" "$then" "${rest[@]}" || return 1
 	ret "$n"
-}
-
-# A job's last line so far.
-fn pe_joblast(int n) {
-	local f=${PEJ[$n]["dir"]}/$n.out l= x
-
-	[ -s "$f" ] || { ret ""; return 0; }
-	while IFS= read -r x; do l=$x; done < "$f"
-	ret "$l"
-}
-
-# Hand each finished job to its callback, marked done first so the callback
-# can start the next.
-pe_poll() {
-	local n st d
-
-	[ "$PEJ_LIVE" -gt 0 ] || return 0
-	for n in "${!PEJ[@]}"; do
-		d=${PEJ[$n]["dir"]}
-		[ -s "$d/$n.st" ] || continue
-		read -r st < "$d/$n.st"
-		PEJ_LIVE=$((PEJ_LIVE - 1))
-		PEJ[$n]["done"]=1
-		"${PEJ[$n]["then"]}" "$n" "$st"
-		command rm -f "$d/$n.out" "$d/$n.err" "$d/$n.st"
-		unset PEJ["$n"]
-	done
-	[ "$PEJ_LIVE" -gt 0 ] && dt_want 500
-	return 0
 }
 
 # Whether a sync is running for a server -- a sync, not any other job.
 fn pe_running(srv) {
 	local n
 
-	for n in "${!PEJ[@]}"; do
-		[ -z "${PEJ[$n]["done"]}" ] && [ "${PEJ[$n]["what"]}" = sync ] && [ "${PEJ[$n]["srv"]}" = "$srv" ] &&
-			{ ret "$n"; return 0; }
-	done
-	return 1
+	n := dt_jobrunning pim:sync "$srv" || return 1
+	ret "$n"
 }
 
 # Sync a server, or every one chosen; one already running is asked again.
@@ -143,9 +94,9 @@ fn pe_sync(srv = "") {
 # A sync finished: what it said kept for the apps' status bars, the
 # generation moved on, whoever asked told.
 fn pe_synced(int n, int st) {
-	local s=${PEJ[$n]["srv"]} l f
+	local s=${DTJ[$n]["tag"]} l f e
 
-	l := pe_joblast "$n"
+	l := dt_joblast "$n"
 	case $l in
 	"done 0") PES["status$s"]="Up to date" ;;
 	done*) PES["status$s"]="${l#done } new" ;;
@@ -154,7 +105,8 @@ fn pe_synced(int n, int st) {
 	*)
 		if [ "$st" != 0 ]; then
 			l=
-			[ -s "${PEJ[$n]["dir"]}/$n.err" ] && read -r l < "${PEJ[$n]["dir"]}/$n.err"
+			e := dt_jobfile "$n" err
+			[ -s "$e" ] && read -r l < "$e"
 			PES["status$s"]="Could not sync${l:+: ${l#hibr: }}"
 		fi
 		;;
@@ -178,7 +130,6 @@ fn pe_status(srv) { ret "${PES["status$srv"]}"; }
 pe_tick() {
 	local s due next=0
 
-	pe_poll
 	pe_servers || return 0
 	for s in "${PE_SRVS[@]}"; do
 		due=$((${PES["last$s"]:-0} + DT_PIMEVERY * 60))

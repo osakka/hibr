@@ -21,10 +21,16 @@
 #   dt_jobfile n out|err      the path of what it printed or complained of
 #   dt_joblast n              the last line it has printed so far
 #   dt_jobrunning KIND [TAG]  the number of one not yet finished, or status 1
+#   dt_jobmerge command args...
+#       run as the job's command, so its errors land in its output
 #
 # A callback runs inside a frame, so a window it closes goes through
-# dt_wantclose, never dt_del. And a frame is asked for only while a job is
-# running: an idle desktop with no work in flight looks at nothing.
+# dt_wantclose, never dt_del. A job ending wakes the desktop by itself: its
+# child exiting raises SIGCHLD, which ends the frame loop's wait, and the
+# tickers run on every pass. So nothing polls for it; the 5 s asked for
+# while a job is live is only a net, for a wake that was somehow lost, and
+# costs a desktop running a 25-minute mail IDLE one wake in five seconds
+# rather than five a second.
 
 strict
 
@@ -65,6 +71,13 @@ fn dt_job(kind, tag, then, ...cmd) {
 	ret "$n"
 }
 
+# Run a command with its errors in its output, in order, for a job whose
+# errors are as much its answer as what it prints (bluetoothctl, nmcli, the
+# mail test's ladder): dt_job NAME TAG CALLBACK dt_jobmerge command args...
+fn dt_jobmerge(...cmd) {
+	"${cmd[@]}" 2>&1
+}
+
 # Where a job's output or errors are.
 fn dt_jobfile(int n, which = "out") {
 	ret "$DTJ_DIR/$n.$which"
@@ -97,7 +110,7 @@ fn dt_jobrunning(kind, tag = "") {
 # After every frame: hand each finished job to its callback, marked done
 # first, then forget it and its files. One comparison while none is live.
 dt_jobtick() {
-	local n st d=$DTJ_DIR
+	local n st d=$DTJ_DIR ran=
 	local -a ids
 
 	[ "$DTJ_LIVE" -gt 0 ] || return 0
@@ -111,8 +124,12 @@ dt_jobtick() {
 		"${DTJ[$n]["then"]}" "$n" "$st"
 		rm -f "$d/$n.out" "$d/$n.err" "$d/$n.st"
 		unset DTJ["$n"]
+		ran=1
 	done
-	[ "$DTJ_LIVE" -gt 0 ] && command -v dt_want > /dev/null && dt_want 200
+	# What a callback changed is drawn: a frame now, since nothing else
+	# may be about to ask for one.
+	[ -n "$ran" ] && command -v dt_want > /dev/null && dt_want 1
+	[ "$DTJ_LIVE" -gt 0 ] && command -v dt_want > /dev/null && dt_want 5000
 	return 0
 }
 
