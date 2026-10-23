@@ -773,6 +773,8 @@ char *pr_fldlk(pctx *c, void *ud, const char *nm)
 	const char *v;
 	char *r;
 
+	if (pr_plfg && !strcmp(nm, "style"))
+		return xs(pr_plfg);
 	if (x->g->val) {
 		r = x->g->val(c, x->g, nm);
 		if (r)
@@ -781,8 +783,10 @@ char *pr_fldlk(pctx *c, void *ud, const char *nm)
 	v = pr_cfg(c, x->g->nm, nm);
 	if (v)
 		return xs(v);
-	if (!strcmp(nm, "symbol"))
-		return xs(x->g->sym ? x->g->sym : "");
+	if (!strcmp(nm, "symbol")) {
+		v = pr_gsym(c, x->g->nm);
+		return xs(v ? v : x->g->sym ? x->g->sym : "");
+	}
 	if (!strcmp(nm, "style"))
 		return xs(x->g->style ? x->g->style : "");
 	return 0;
@@ -831,7 +835,10 @@ char *pr_render(pctx *c)
 	if (!f)
 		f = "$user$host$dir$git$duration$status$jobs$char";
 	p = f;
-	r = pr_fmt(c, &p, 0, 0, &any, pr_look, 0);
+	if (pr_top(c, "look") && !strcmp(pr_top(c, "look"), "powerline"))
+		r = pr_plrender(c, f);
+	else
+		r = pr_fmt(c, &p, 0, 0, &any, pr_look, 0);
 	if (pr_cfgi(c, 0, "newline", 0)) {
 		str o;
 		s_init(&o);

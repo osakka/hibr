@@ -28,10 +28,15 @@ declare -gA GL
 declare -gA DT_FRAMES
 DT_GLYPHSET="${DT_GLYPHSET-unicode}"
 DT_GLYPHSETS=(unicode ascii nerd blit)
+# The set in force, exported so the shells a terminal window starts draw
+# their prompt in it too: the prompt module's PROMPT[glyphs]=auto reads it
+# (Gitea #360), since a program cannot ask a terminal which font it has.
+export HIBR_GLYPHS="${HIBR_GLYPHS-}"
 
 # Fill GL, and the frame styles drawn from it, with one set: unicode or
 # ascii. Anything else is unicode.
 fn dt_glyphs(set = "unicode") {
+	HIBR_GLYPHS=$set
 	# Names only the blit set fills, emptied first so that a set chosen
 	# after it does not keep them: dt_netbars draws Blit's four Wi-Fi
 	# levels whenever wifi4 has a glyph.

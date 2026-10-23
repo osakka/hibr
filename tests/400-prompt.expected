@@ -61,3 +61,18 @@ tail]
   host      bold green
   dir       bold cyan
   git       bold purple
+== the powerline look
+[<E>[0;44m <E>[0;1;97;44mj1<E>[0;44m<E>[0;44m <E>[0;34;41m><E>[0;41m <E>[0;1;97;41ms1<E>[0;41m<E>[0;41m <E>[0;31m><E>[0m <E>[0;1;31m><E>[0m ]
+-- an empty segment is skipped, with no separator for it
+[<E>[0;44m <E>[0;1;97;44mj1<E>[0;44m<E>[0;44m <E>[0;34m><E>[0m > ]
+-- the same colour twice takes the thin separator
+[<E>[0;41m <E>[0;1;97;41mj1<E>[0;41m<E>[0;41m <E>[0;41;97m|<E>[0;41m <E>[0;1;97;41ms1<E>[0;41m<E>[0;41m <E>[0;31m><E>[0m <E>[0;1;31m><E>[0m ]
+-- nerd separators and a band of its own colour
+[<E>[0;48;2;255;215;0m <E>[0;1;30;48;2;255;215;0ms1<E>[0;48;2;255;215;0m<E>[0;48;2;255;215;0m <E>[0;38;2;255;215;0m<E>[0m <E>[0;1;31m><E>[0m ]
+-- flat draws no separator, round falls back to the arrow off nerd
+[<E>[0;41m <E>[0;1;97;41ms1<E>[0;41m<E>[0;41m <E>[0;31m<E>[0m <E>[0;1;31m><E>[0m ]
+[<E>[0;41m <E>[0;1;97;41ms1<E>[0;41m<E>[0;41m <E>[0;31m▶<E>[0m <E>[0;1;31m><E>[0m ]
+-- auto takes HIBR_GLYPHS, the desktop's own setting
+[<E>[0;41m <E>[0;1;97;41mx1<E>[0;41m<E>[0;41m <E>[0;31m><E>[0m <E>[0;1;31m><E>[0m ]
+-- and the plain look is as it was
+[<E>[0;1;31m✘1<E>[0m<E>[0;1;31m❯<E>[0m ]

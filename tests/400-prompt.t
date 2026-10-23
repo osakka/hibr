@@ -165,4 +165,61 @@ PROMPT[newline]=0
 echo "== segment list is sorted by use"
 prompt list | head -4
 
+echo "== the powerline look"
+# Each segment a band of its own colour, its text readable against it, a
+# separator in the left band's colour over the right one's, an end cap, and
+# the char segment after the run. Two segments are made to answer here
+# without a repository or a clock: one fixed, one empty.
+PROMPT[format]='$jobs$status$char'
+PROMPT[status][format]='[$symbol$int]($style)'
+PROMPT[status][style]='bold red'
+PROMPT[jobs][format]='[$symbol$number]($style)'
+PROMPT[jobs][style]='bold blue'
+PROMPT[jobs][symbol]='j'
+PROMPT[status][symbol]='s'
+PROMPT[char][symbol]='>'
+PROMPT[char][style]=none
+PROMPT[look]=powerline
+PROMPT[glyphs]=ascii
+sleep 2 & false
+show
+wait
+echo "-- an empty segment is skipped, with no separator for it"
+sleep 2 & true
+show
+wait
+echo "-- the same colour twice takes the thin separator"
+PROMPT[jobs][style]='bold red'
+sleep 2 & false
+show
+wait
+PROMPT[jobs][style]='bold blue'
+echo "-- nerd separators and a band of its own colour"
+PROMPT[glyphs]=nerd
+PROMPT[status][bg]='#ffd700'
+false
+show
+unset 'PROMPT[status][bg]'
+echo "-- flat draws no separator, round falls back to the arrow off nerd"
+PROMPT[sep]=flat
+false
+show
+PROMPT[sep]=round
+PROMPT[glyphs]=unicode
+false
+show
+PROMPT[sep]=
+echo "-- auto takes HIBR_GLYPHS, the desktop's own setting"
+PROMPT[glyphs]=auto
+unset 'PROMPT[status][symbol]' 'PROMPT[char][symbol]'
+HIBR_GLYPHS=ascii
+false
+show
+HIBR_GLYPHS=
+PROMPT[look]=plain
+PROMPT[glyphs]=
+echo "-- and the plain look is as it was"
+false
+show
+
 rm -rf "$d"

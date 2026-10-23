@@ -154,3 +154,51 @@ editor's, and take `PS1`'s escapes: see [Interactive use](interactive.md#prompts
 ---
 
 [← documentation index](README.md) · [← project README](../README.md)
+
+## The powerline look
+
+`PROMPT[look]=powerline` draws each segment as a band of its own colour, with
+a separator between two bands in the left one's colour over the right one's,
+and a cap at the end. The `char` segment, where typing starts, comes after the
+bands; a segment that renders nothing is left out before the separators are
+placed, so two never meet. It is off unless asked for: `plain`, the default,
+is the look above.
+
+<!-- not run: a prompt is drawn only by an interactive shell -->
+```sh
+mod load prompt
+PROMPT[format]='$dir$git$duration$status$char'
+PROMPT[look]=powerline
+PROMPT[sep]=arrow           # arrow, round, slant or flat
+PROMPT[git][bg]='#5f3fbf'   # a band's colour, if not its style's own
+```
+
+A band's colour is its segment's style's colour -- `bold cyan` is a cyan band
+-- unless `PROMPT[seg][bg]` names another, and its text is black or white,
+whichever reads against it, unless `PROMPT[seg][fg]` names one. A `bg:` in the
+style names the band too.
+
+What the separators and the segments' symbols are drawn with is
+`PROMPT[glyphs]`:
+
+| glyphs | separators | symbols |
+|---|---|---|
+| `nerd` | the powerline glyphs a Nerd Font has; round and slant need it | Nerd's branch and cross for git and status |
+| `blit`, `unicode` | `▶` | the segments' own |
+| `ascii` | `>`, and `|` between two bands of one colour | words: `git:`, `jobs:`, `x`, `>` |
+| `auto` | the default | |
+
+`auto` takes `HIBR_GLYPHS`, which the desktop sets to its own glyph setting
+(Control Panel > Appearance > Glyphs) for every terminal window it opens; then
+`blit` on a Blit display; then `ascii` on the Linux console or under a locale
+whose charset is not UTF-8; then `unicode`, which every font draws. A terminal
+cannot be asked which font it has, so a Nerd Font outside the desktop is
+`PROMPT[glyphs]=nerd`. A symbol set with `PROMPT[seg][symbol]` wins over the
+set's own.
+
+With `unicode`, the format above in a repository with a change looks like this
+(colours aside):
+
+```text
+ ~/hibr ▶ main !1 ▶ ❯
+```

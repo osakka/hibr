@@ -257,6 +257,13 @@ mod load prompt
 PROMPT[format]='$dir$git$duration$status$char'
 PROMPT[duration][min]=500
 
+# A powerline look: each segment a band of its own colour. PROMPT[glyphs]
+# picks the separators -- nerd for a Nerd Font, unicode, ascii, or auto,
+# which follows the desktop's own glyph setting in its terminal windows.
+#PROMPT[look]=powerline
+#PROMPT[sep]=arrow
+#PROMPT[glyphs]=auto
+
 alias ll='ls -lh'
 export EDITOR=vim
 

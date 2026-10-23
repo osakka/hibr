@@ -2717,6 +2717,12 @@ sc = run(*TERM, feed=[1.0, b"\x1b[<0;84;102M", b"\x1b[<0;84;102m"],
          pre=PCLICK, wait=1.2, end=None, cell=(8, 16), caps=["mpix"])
 check("and a program that asked for pixels is told the pointer's own pixel",
       sc.find("^[[<0;60;54M^[[<0;60;54m") is not None, sc)
+# The shells a terminal window starts are told the desktop's glyph set, which
+# the prompt module's PROMPT[glyphs]=auto follows (Gitea #360).
+GLYPHS = "TW_CMD=(/bin/sh -c 'echo \"glyphs=$HIBR_GLYPHS\"; sleep 5')\nDT_GLYPHSET=ascii"
+sc = run(*TERM, pre=GLYPHS, wait=1.0, end=None, until="glyphs=")
+check("a terminal window's program is told the desktop's glyph set",
+      sc.find("glyphs=ascii") is not None, sc)
 
 # --- glyphs ------------------------------------------------------------------
 #
@@ -5201,4 +5207,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(696)
+report(697)

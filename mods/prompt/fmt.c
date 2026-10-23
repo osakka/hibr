@@ -104,12 +104,21 @@ void pr_sgr(const char *style, str *o)
 			pr_col(&b, p, n, 0);
 		p = *q ? q + 1 : q;
 	}
-	if (b.n) {
+	if (b.n || pr_plbg.n) {
 		s_cat(o, "\033[0");
-		s_add(o, b.p, b.n);
+		s_add(o, b.p ? b.p : "", b.n);
+		s_add(o, pr_plbg.p ? pr_plbg.p : "", pr_plbg.n);
 		s_ch(o, 'm');
 	}
 	s_free(&b);
+}
+
+/* A reset, which inside a powerline band keeps the band's background. */
+void pr_reset(str *o)
+{
+	s_cat(o, "\033[0");
+	s_add(o, pr_plbg.p ? pr_plbg.p : "", pr_plbg.n);
+	s_ch(o, 'm');
 }
 
 /* Wrap text in a style, restoring it after any nested reset. */
@@ -128,14 +137,14 @@ char *pr_wrap(const char *style, const char *body)
 	s_add(&o, sg.p, sg.n);
 	while (*p) {
 		if (!strncmp(p, "\033[0m", 4)) {
-			s_cat(&o, "\033[0m");
+			pr_reset(&o);
 			s_add(&o, sg.p, sg.n);
 			p += 4;
 			continue;
 		}
 		s_ch(&o, *p++);
 	}
-	s_cat(&o, "\033[0m");
+	pr_reset(&o);
 	s_free(&sg);
 	return o.p;
 }

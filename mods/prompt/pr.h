@@ -139,6 +139,7 @@ const char *pr_cfg(pctx *c, const char *sg, const char *key);
 const char *pr_top(pctx *c, const char *key);
 int pr_cfgi(pctx *c, const char *sg, const char *key, int dflt);
 void pr_sgr(const char *style, str *o);
+void pr_reset(str *o);
 char *pr_wrap(const char *style, const char *body);
 char *pr_fmt(pctx *c, const char **pp, int stop, int depth, int *any,
 	     plook lk, void *ud);
@@ -158,6 +159,12 @@ extern const seg pr_segs[];
 const seg *pr_find(const char *nm);
 char *pr_seg(pctx *c, const char *nm);
 char *pr_render(pctx *c);
+
+extern str pr_plbg;
+extern const char *pr_plfg;
+const char *pr_glyphs(pctx *c);
+const char *pr_gsym(pctx *c, const char *seg);
+char *pr_plrender(pctx *c, const char *f);
 
 /* Deflate and its wrappers live in mods/inflate.c now, shared with the tar
    module: one implementation, two users. */

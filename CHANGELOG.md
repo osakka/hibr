@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.306
+
+**The powerline look for the prompt** (Gitea #360), off unless asked for:
+`PROMPT[look]=powerline` draws each segment as a band of its own colour --
+its style's, or `PROMPT[seg][bg]` -- with its text black or white, whichever
+reads against it, a separator between two bands in the left one's colour over
+the right one's, a thin one between two bands of one colour, and a cap at the
+end; the `char` segment comes after the bands. `PROMPT[sep]` is `arrow`,
+`round`, `slant` or `flat`. A segment that renders nothing is left out before
+the separators are placed, so two never meet. The plain look is byte for byte
+what it was.
+
+**And glyph sets**: `PROMPT[glyphs]` decides the separators and the segments'
+symbols together -- `nerd` (the powerline glyphs, and Nerd's branch and cross
+for git and status), `unicode` and `blit` (`▶`; Blit's fonts differ in which
+powerline glyphs they draw, so it promises none of them), `ascii` (`>` and
+words: `git:`, `jobs:`) -- or `auto`, the default, which takes `HIBR_GLYPHS`
+first: the desktop now sets that to its own glyph setting for every program it
+starts, so a terminal window's prompt follows Control Panel > Appearance >
+Glyphs. Then Blit, then `ascii` on the Linux console or a locale whose charset
+is not UTF-8, then `unicode`. `examples/hibrc` and the starter `.hibrc` carry a
+commented block to turn it on; `docs/prompt.md` has the rest.
+
+Not in this release, and still on the ticket: the right-hand prompt drawn as
+the mirror image, and stepping a truecolour band down to 256 or 16 colours on
+a terminal without truecolour, which waits on #353's detection.
+
 ## 0.99.305
 
 **A login on a Blit display is a local session** (Gitea #367, with Blit
