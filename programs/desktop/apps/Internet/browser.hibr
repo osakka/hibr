@@ -38,7 +38,7 @@
 
 strict
 
-app browser "The web, in a window" 1.9
+app browser "The web, in a window" 1.10
 # modules: web
 # part: control-panel/browserset.hibr
 
@@ -923,37 +923,15 @@ fn browser_wheel(int id, dir, int r = 0, int c = 0) {
 fn browser_copy(int id) {
 	local t=${BW[$id]["cur"]} s=
 
-	if [ "${BW[$id]["aed"]}" = 1 ]; then
-		s := dt_fieldsel || return 1
-		ret "$s"
-		return 0
-	fi
 	[ -n "$t" ] || return 1
 	s := web eval "$t" "String(getSelection())" 2> /dev/null
 	[ -n "$s" ] || s := web url "$t" 2> /dev/null
 	ret "$s"
 }
 
-# Cut: what is selected in the address while it is being typed. A page is
-# not the Browser's to cut from.
-fn browser_cut(int id) {
-	local s
-
-	[ "${BW[$id]["aed"]}" = 1 ] || return 1
-	s := dt_fieldsel || return 1
-	browser_key "$id" backspace
-	ret "$s"
-}
-
 fn browser_paste(int id, text, op = "") {
-	local t=${BW[$id]["cur"]} r
+	local t=${BW[$id]["cur"]}
 
-	if [ "${BW[$id]["aed"]}" = 1 ]; then
-		r := dt_textpaste "${BW[$id]["abuf"]}" "${BW[$id]["acur"]}" "$text"
-		BW[$id]["abuf"]=${r% *}
-		BW[$id]["acur"]=${r##* }
-		return 0
-	fi
 	[ -n "$t" ] && web type "$t" "$text" 2> /dev/null
 }
 

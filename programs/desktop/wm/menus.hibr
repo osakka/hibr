@@ -721,7 +721,7 @@ dt_editmenu() {
 	# A field focused in the window: the desktop's own Copy, Cut, Paste
 	# and Select All reach it whether or not its app has any, so they are
 	# not dimmed there (Gitea #295), as they were while the keys worked.
-	[ -n "$who" ] && [ "${DT_FIELD["id"]}" = "$who" ] && fld=1
+	dt_fieldlive && fld=1
 	[ "$MB_EDITED" = 1 ] && return 0
 	MB_EDITED=1
 	dt_menu "Edit"

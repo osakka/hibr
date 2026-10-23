@@ -809,39 +809,3 @@ dsv_remove() {
 fn dsv_close(int id) {
 	unset "DSV[$id]"
 }
-
-# Which text field has focus, for Copy, Cut and Paste; never the password
-# for Copy or Cut.
-fn dsv_field(int id) {
-	case ${DSV[$id]["focus"]} in
-	name | url | user | pass) ret "${DSV[$id]["focus"]}" ;;
-	*) return 1 ;;
-	esac
-}
-
-fn dsv_copy(int id) {
-	local k t
-
-	k := dsv_field "$id" || return 1
-	[ "$k" = pass ] && return 1
-	t := dt_fieldsel || return 1
-	ret "$t"
-}
-
-fn dsv_cut(int id) {
-	local k t
-
-	k := dsv_field "$id" || return 1
-	[ "$k" = pass ] && return 1
-	t := dt_fieldcut "$id" || return 1
-	ret "$t"
-}
-
-fn dsv_paste(int id, text, op = "") {
-	local k r
-
-	k := dsv_field "$id" || return 0
-	r := dt_textpaste "${DSV[$id]["$k"]}" "${DSV[$id]["${k}cur"]}" "$text"
-	DSV[$id]["$k"]=${r% *}
-	DSV[$id]["${k}cur"]=${r##* }
-}

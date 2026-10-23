@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.300
+
+**Copy, Cut and Paste in a text field are the desktop's own** (Gitea #357,
+part 3). Thirty-odd fields in apps and Control Panel dialogs each carried
+their own Copy, Cut and Paste, written out by hand. Now, when the window
+with the focus has a field with the focus, the desktop's own editing takes
+them first, the same way for every field: what is selected is copied or
+cut, and a paste is typed in, its lines joined. The callbacks that only did
+that are gone -- in Files' Rename, Get Info and Open With, the Browser,
+Date & Time, File Types, X Screen and Network Servers settings, Sheet and
+Write's own dialogs, the Open dialog, Mail's headers, the Browser's address
+bar, dbase's typed lines and a Sheet cell being edited -- 450 lines in all.
+
+**A paste no longer presses a button.** A window's field stayed the paste
+target after the focus had moved from it to a button in the same window,
+so a paste holding a space was typed at the button, and a dialog that
+presses its button on a space, as Contacts' edit dialog does, pressed it.
+A field now takes a paste only while the last drawing of its window drew
+it focused. The host terminal's own paste goes the same way as the Paste
+key, through one path rather than two.
+
 ## 0.99.299
 
 **One job runner for the whole desktop** (Gitea #357). Background work had

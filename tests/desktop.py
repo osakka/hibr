@@ -165,6 +165,45 @@ check("a finished job reaches its callback at once, woken by the job ending "
       len(wgot) == 2 and 0 <= wgot[1] - wgot[0] < 1.0, wgot)
 shutil.rmtree(JOBD, True)
 
+# Copy, Cut and Paste go to a field only while it has the focus (#357). A
+# window's field used to stay the paste target after focus moved from it
+# to a button in the same window, and a paste holding a space then pressed
+# that button: the window below presses its button on a space, as Contacts'
+# edit dialog does.
+PBD = tempfile.mkdtemp(prefix="hibr-pastebtn-")
+PBX = ('declare -gA PBX\n'
+       'fn pbx_draw(int id, int h, int w, int row, int col) {\n'
+       '  local on=0; [ "${PBX[$id]["f"]}" = text ] && on=1\n'
+       '  dt_textdraw "$id" 1 1 20 "${PBX[$id]["buf"]}" "${#PBX[$id]["buf"]}" "$on"\n'
+       '  console put -p "w$id" 3 1 "[${PBX[$id]["f"]}]"\n'
+       '}\n'
+       'fn pbx_key(int id, k) {\n'
+       '  local r\n'
+       '  if [ "$k" = tab ]; then\n'
+       '    if [ "${PBX[$id]["f"]}" = text ]; then PBX[$id]["f"]=btn; else PBX[$id]["f"]=text; fi\n'
+       '    return 0\n'
+       '  fi\n'
+       '  if [ "${PBX[$id]["f"]}" = btn ]; then\n'
+       '    [ "$k" = " " ] && : > "%s/pressed"\n'
+       '    return 0\n'
+       '  fi\n'
+       '  r := dt_textkey "${PBX[$id]["buf"]}" "${#PBX[$id]["buf"]}" "$k" || return 1\n'
+       '  PBX[$id]["buf"]=${r%% *}\n'
+       '  return 0\n'
+       '}\n'
+       'dt_app pbx "Paste Box" 8 30\n'
+       'id := dt_new "Paste Box" 8 30 4 6 pbx\n'
+       'PBX[$id]["f"]=text\nPBX[$id]["buf"]=abc\n' % PBD)
+sc, _ = run(PBX, [b"\x1b[200~a b\x1b[201~", 0.5])
+check("a paste lands in a field that has the focus",
+      sc.find("abca b") is not None, sc)
+sc, _ = run(PBX, [b"\t", 0.3, b"\x1b[200~a b\x1b[201~", 0.5])
+check("and once the focus has moved to a button it does not reach the field, "
+      "nor press the button with its space",
+      not os.path.exists(os.path.join(PBD, "pressed")) and
+      sc.find("[btn]") is not None and sc.find("abca") is None, sc)
+shutil.rmtree(PBD, True)
+
 # The log turns over past DT_LOGMAX at a start, so it cannot grow for ever
 # (Gitea #328): the old one becomes desktop.log.1 and a new one begins.
 LOGST = tempfile.mkdtemp(prefix="hibr-logturn-")
@@ -6683,4 +6722,4 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(732)
+report(734)

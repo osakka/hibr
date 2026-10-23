@@ -651,23 +651,9 @@ fn fpick_wheel(int id, dir, int r = 0, int c = 0) {
 # The list's scrollbar held and dragged (Gitea #298).
 fn fpick_scroll(int id, key, int top) { FP[$id]["top"]=$top; }
 
-fn fpick_paste(int id, text, op = "") {
-	local r
-
-	FP[$id]["focus"]=name
-	r := dt_textpaste "${FP[$id]["buf"]}" "${FP[$id]["cur"]}" "$text"
-	FP[$id]["buf"]=${r% *}
-	FP[$id]["cur"]=${r##* }
-}
-
 fn fpick_copy(int id) {
 	local p
 
-	if [ "${FP[$id]["focus"]}" = name ]; then
-		p := dt_fieldsel || return 1
-		ret "$p"
-		return 0
-	fi
 	p := fp_path "$id" "${FP[$id]["sel"]}"
 	ret "$p"
 }

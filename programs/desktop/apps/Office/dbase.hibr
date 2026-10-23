@@ -24,7 +24,7 @@
 
 strict
 
-app dbase "A little dBASE III: dot prompt, BROWSE, APPEND" 1.2
+app dbase "A little dBASE III: dot prompt, BROWSE, APPEND" 1.3
 # modules: db
 
 command -v dt_app > /dev/null && dt_app dbase "dBASE" 20 72 many "▦"
@@ -1045,31 +1045,6 @@ dbase_menus() {
 if [ -z "$DT_ROWS" ] && [ "${BASH_SOURCE[0]}" = "$0" ]; then
 	echo "dbase is a desktop app: open it from the hibr menu."
 fi
-
-# Copy and cut take the line being typed -- at the dot prompt, or the
-# APPEND field the cursor is in; BROWSE and LIST have nothing typed.
-# What is selected in the line being typed (Gitea #295).
-fn dbase_copy(int id) {
-	local t
-
-	case ${DBA[$id]["mode"]} in
-	append | dot | ask) ;;
-	*) return 1 ;;
-	esac
-	t := dt_fieldsel || return 1
-	ret "$t"
-}
-
-fn dbase_cut(int id) {
-	local t
-
-	case ${DBA[$id]["mode"]} in
-	append | dot | ask) ;;
-	*) return 1 ;;
-	esac
-	t := dt_fieldcut "$id" || return 1
-	ret "$t"
-}
 
 # New Database… and Open Database… choose the file with the desktop's
 # file dialog, starting in DBASE_DIR; what is chosen is typed at the

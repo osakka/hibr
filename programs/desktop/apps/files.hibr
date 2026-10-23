@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 1.8
+app files "A file browser" 1.9
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -2262,75 +2262,6 @@ if [ -z "$DT_ROWS" ]; then
 	done
 fi
 
-# Copy, cut and paste reach the Rename and Get Info fields: the focused
-# field's text and cursor keys, as "text cur", or a miss off a field.
-fn rn_field(int id) {
-	[ "${RN[$id]["focus"]}" = text ] || return 1
-	ret "text cur"
-}
-
-fn gi_field(int id) {
-	case ${GI[$id]["focus"]} in
-	name) ret "namebuf namecur" ;;
-	owner) ret "userbuf usercur" ;;
-	group) ret "groupbuf groupcur" ;;
-	*) return 1 ;;
-	esac
-}
-
-# What is selected in the field, as every field's Copy and Cut take since
-# Gitea #295; they took the whole field, there being no selection.
-fn rn_copy(int id) {
-	local t
-
-	rn_field "$id" > /dev/null || return 1
-	t := dt_fieldsel || return 1
-	ret "$t"
-}
-
-fn rn_cut(int id) {
-	local t
-
-	rn_field "$id" > /dev/null || return 1
-	t := dt_fieldcut "$id" || return 1
-	ret "$t"
-}
-
-fn rn_paste(int id, text, op = "") {
-	local k r
-
-	k := rn_field "$id" || return 0
-	r := dt_textpaste "${RN[$id]["${k% *}"]}" "${RN[$id]["${k#* }"]}" "$text"
-	RN[$id]["${k% *}"]=${r% *}
-	RN[$id]["${k#* }"]=${r##* }
-}
-
-# What is selected in the focused field (Gitea #295), as rn_copy.
-fn gi_copy(int id) {
-	local t
-
-	gi_field "$id" > /dev/null || return 1
-	t := dt_fieldsel || return 1
-	ret "$t"
-}
-
-fn gi_cut(int id) {
-	local t
-
-	gi_field "$id" > /dev/null || return 1
-	t := dt_fieldcut "$id" || return 1
-	ret "$t"
-}
-
-fn gi_paste(int id, text, op = "") {
-	local k r
-
-	k := gi_field "$id" || return 0
-	r := dt_textpaste "${GI[$id]["${k% *}"]}" "${GI[$id]["${k#* }"]}" "$text"
-	GI[$id]["${k% *}"]=${r% *}
-	GI[$id]["${k#* }"]=${r##* }
-}
-
 # Open With > Other…: one field, the command; enter runs it on the file.
 fn ow_draw(int id, int h, int w, int row, int col) {
 	local f=${OW[$id]["focus"]} on=0
@@ -2389,36 +2320,6 @@ fn ow_key(int id, key) {
 	OW[$id]["buf"]=${res% *}
 	OW[$id]["cur"]=${res##* }
 	return 0
-}
-
-fn ow_field(int id) {
-	[ "${OW[$id]["focus"]}" = text ] || return 1
-	ret "buf cur"
-}
-
-fn ow_copy(int id) {
-	local t
-
-	ow_field "$id" > /dev/null || return 1
-	t := dt_fieldsel || return 1
-	ret "$t"
-}
-
-fn ow_cut(int id) {
-	local t
-
-	ow_field "$id" > /dev/null || return 1
-	t := dt_fieldcut "$id" || return 1
-	ret "$t"
-}
-
-fn ow_paste(int id, text, op = "") {
-	local r
-
-	OW[$id]["focus"]=text
-	r := dt_textpaste "${OW[$id]["buf"]}" "${OW[$id]["cur"]}" "$text"
-	OW[$id]["buf"]=${r% *}
-	OW[$id]["cur"]=${r##* }
 }
 
 fn ow_close(int id) {

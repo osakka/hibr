@@ -38,12 +38,32 @@ DT_FIELD["cur"]=0
 DT_FIELD["anc"]=
 DT_FIELD["at"]=
 DT_FIELD["rect"]=
+# Whether the field was drawn focused the last time its window was drawn:
+# set here, cleared by dt_fieldstale before every draw of that window. A
+# window whose focus has moved from its field to a button draws the field
+# unfocused and so leaves this empty, and Copy, Cut and Paste then go to
+# the window rather than into a field that no longer has the focus -- a
+# paste holding a space would otherwise have pressed the button (#357).
+DT_FIELD["live"]=
 
 # The most characters a paste puts into a one-line field. DT_CLIP can hold
 # Files' own list of paths or a whole selection from Write, and a field
 # that holds thousands of characters is no use to anybody -- but a paste
 # that silently drops the rest is worse, so the cut is said out loud.
 DT_FIELDMAX=1024
+
+# A window is about to be drawn: its field is live again only if this draw
+# draws it focused. A window left undrawn keeps what it had.
+fn dt_fieldstale(int id) {
+	[ "${DT_FIELD["id"]}" = "$id" ] && DT_FIELD["live"]=
+	return 0
+}
+
+# Whether the focused window has a field that has the focus.
+dt_fieldlive() {
+	[ -n "$DT_FOCUS" ] && [ "${DT_FIELD["id"]}" = "$DT_FOCUS" ] &&
+		[ "${DT_FIELD["live"]}" = 1 ]
+}
 
 fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
 	local shown t ch lo hi
@@ -55,6 +75,7 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
 		DT_FIELD["id"]=$id
 		DT_FIELD["text"]=$text
 		DT_FIELD["cur"]=$cur
+		DT_FIELD["live"]=1
 		[ -n "${DT_FIELD["anc"]}" ] && [ "${DT_FIELD["anc"]}" -gt "${#text}" ] &&
 			DT_FIELD["anc"]=${#text}
 	fi

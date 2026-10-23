@@ -304,7 +304,7 @@ fn dt_fieldedit(op) {
 	local -a part
 
 	[ -n "$cb" ] || return 1
-	[ "${DT_FIELD["id"]}" = "$DT_FOCUS" ] || return 1
+	dt_fieldlive || return 1
 	case $op in
 	copy | cut)
 		if ! t := dt_fieldsel || [ -z "$t" ]; then
@@ -380,9 +380,12 @@ fn dt_edit(op) {
 		fi
 		return 0
 	fi
+	# A field with the focus takes Copy, Cut and Paste itself, whatever
+	# the window's own callbacks would do with the rest of it (#357): one
+	# rule for every field, so no app writes its own.
+	dt_fieldedit "$op" && return 0
 	cb=${DT[$DT_FOCUS]["$op"]}
 	if [ -z "$cb" ]; then
-		dt_fieldedit "$op" && return 0
 		dt_notep low "%s cannot %s" "${DT[$DT_FOCUS]["title"]}" "$op"
 		return 0
 	fi

@@ -98,6 +98,7 @@ fn dt_winbare(int id) {
 	console fill "$wr" "$wc" "$h" "$w" " "
 	DT_NOTEWIN=$id
 	dt_wclear "$id"
+	dt_fieldstale "$id"
 	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
 	DT_NOTEWIN=
 	console pen "$fg" "$bg"
@@ -241,6 +242,7 @@ fn dt_win(int id) {
 		console fill "$wr" "$wc" "$h" "$w" " "
 		DT_NOTEWIN=$id
 		dt_wclear "$id"
+		dt_fieldstale "$id"
 		[ -n "$dr" ] && $dr "$id" "$h" "$w" "$wr" "$wc"
 		DT_NOTEWIN=
 		return 0
@@ -259,6 +261,7 @@ fn dt_win(int id) {
 	console fill "$wr" "$wc" "$h" "$w" " "
 	DT_NOTEWIN=$id
 	dt_wclear "$id"
+	dt_fieldstale "$id"
 	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
 	DT_NOTEWIN=
 

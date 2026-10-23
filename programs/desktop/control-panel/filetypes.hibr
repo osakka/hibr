@@ -9,7 +9,7 @@
 strict
 
 
-app filetypes "Which program opens which kind of file" 1.3
+app filetypes "Which program opens which kind of file" 1.4
 command -v cp_pane > /dev/null && cp_pane filetypes "File Types" "◈"
 command -v dt_app > /dev/null && dt_app ft "File Type" 9 54 "" "" fixed hidden
 command -v dt_app > /dev/null && dt_app owt "Open With" 14 50 "" "" fixed hidden
@@ -311,40 +311,6 @@ fn ft_apply(int id) {
 
 fn ft_close(int id) {
 	unset "FT[$id]"
-}
-
-# Copy, cut and paste reach the File Type dialog's two fields.
-fn ft_field(int id) {
-	case ${FT[$id]["focus"]} in
-	ext) ret "extbuf extcur" ;;
-	cmd) ret "cmdbuf cmdcur" ;;
-	*) return 1 ;;
-	esac
-}
-
-fn ft_copy(int id) {
-	local t
-
-	ft_field "$id" > /dev/null || return 1
-	t := dt_fieldsel || return 1
-	ret "$t"
-}
-
-fn ft_cut(int id) {
-	local t
-
-	ft_field "$id" > /dev/null || return 1
-	t := dt_fieldcut "$id" || return 1
-	ret "$t"
-}
-
-fn ft_paste(int id, text, op = "") {
-	local k r
-
-	k := ft_field "$id" || return 0
-	r := dt_textpaste "${FT[$id]["${k% *}"]}" "${FT[$id]["${k#* }"]}" "$text"
-	FT[$id]["${k% *}"]=${r% *}
-	FT[$id]["${k#* }"]=${r##* }
 }
 
 # --- Open With, per type ---------------------------------------------------

@@ -669,25 +669,13 @@ fn dt_event(k) {
 	if dt_keyis paste "$k"; then dt_edit paste; return 0; fi
 	case $k in
 	"paste "*)
+		# The host terminal's own paste is the Paste key's, through the
+		# one path: a focused field first, then the window's _paste with
+		# the text and "copy" (Gitea #250, #295, #357).
 		dt_clipset "${k#paste }" copy text 0
-		if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["paste"]}" ]; then
-			DT_NOTEWIN=$DT_FOCUS
-			# Three arguments, as dt_edit's own Paste passes:
-			# the contract in wm/files.hibr says a _paste is
-			# given the text and, third, cut or copy, and the
-			# line above has just said this one is a copy. Two
-			# call sites that disagreed is what made a paste
-			# into a terminal window do nothing (Gitea #250).
-			${DT[$DT_FOCUS]["paste"]} "$DT_FOCUS" "${k#paste }" copy
-			return 0
-		fi
-		# A window with no _paste of its own but a field focused gets
-		# it typed in, as the Paste key gives it (Gitea #295): this
-		# path dropped it.
-		if [ -n "$DT_FOCUS" ] && dt_fieldedit paste; then
-			DT_NOTEWIN=$DT_FOCUS
-			return 0
-		fi
+		[ -n "$DT_FOCUS" ] && DT_NOTEWIN=$DT_FOCUS
+		dt_edit paste
+		return 0
 		;;
 	esac
 	# The Menu Bar key (f10 unless changed) is looked at before any window
