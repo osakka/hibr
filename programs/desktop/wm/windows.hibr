@@ -49,7 +49,7 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 fn dt_hooks(int id, ap = "") {
 	local f
 
-	for f in draw key click mouse wheel open close copy cut paste drop \
+	for f in draw key click mouse wheel hover open close copy cut paste drop \
 		refresh idle undo redo selall canclose savefile find; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"

@@ -81,6 +81,7 @@ these, and the window manager calls only the ones that exist:
 | `hello_drop` | `id row col move\|copy path...` | files dragged from elsewhere, let go over this one; there may be several |
 | `hello_refresh` | `id` | something on disk changed: a move, a copy, the trash |
 | `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
+| `hello_hover` | `id row col` | the pointer moving over this window with no button held, in the coordinates it draws in; `-1 -1` when it leaves. Only where hovering is on (Control Panel > Mouse > Hover), and a frame is drawn only when the cell changes |
 | `hello_scroll` | `id key top` | a scrollbar drawn with a key, held and dragged -- set the offset |
 | `hello_close` | `id` | once, when the window closes |
 

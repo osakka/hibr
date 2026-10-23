@@ -940,13 +940,14 @@ def pixheld(caps, report_bytes):
     open(LOG, "w").close()
     p = os.path.join(D, "px%s.hibr" % nm)
     open(p, "w").write(
-        load("console") + "console open\nconsole pixels on\n"
+        load("console", "hold") + "console open\nconsole pixels on\n"
         + "console mouse click\nconsole flush\n"
         + "i=0\nwhile [ $i -lt %d ]; do\n" % (40 * SLOW)
         + "  k := console key 250\n"
         + "  q := console pixels\n"
         + '  [ "$q" = on ] && [ ! -e %s.ready ] && : > %s.ready\n' % (LOG, LOG)
-        + '  case $k in mouse*) echo "key $k|$q" >> ' + LOG + "; break ;; esac\n"
+        + '  case $k in mouse*) echo "key $k|$q" >> ' + LOG + "\n"
+        + '    hp := hold pixels; echo "pixels ${hp##* }" >> ' + LOG + "; break ;; esac\n"
         + "  i=$((i + 1))\ndone\nconsole close\n")
     outer = os.path.join(D, "x%s.hibr" % nm)
     open(outer, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n'
@@ -979,11 +980,14 @@ check("a client whose terminal reports pixels is asked for them",
       b"\x1b[?1016h" in raw, raw[-300:])
 check("and its pixel reaches the held program as that pixel and its cell",
       "key mouse press left 2 4 36,40|on" in log, log)
+check("and hold pixels says that display reports pixels", "pixels yes" in log,
+      log)
 raw, log = pixheld(["sixel"], b"\x1b[<0;5;3M")
 check("a client whose terminal does not is never asked for pixels",
       b"\x1b[?1016h" not in raw, raw[-300:])
 check("and its cell reaches the program as the middle of that cell",
       "key mouse press left 2 4 36,40|on" in log, log)
+check("and hold pixels says that one does not", "pixels no" in log, log)
 
 shutil.rmtree(D, True)
-report(50)
+report(52)

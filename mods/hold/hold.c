@@ -278,6 +278,31 @@ int hd_gfxlist(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* What each display's own terminal said about reporting the mouse in
+   pixels, name and yes or no a line (Gitea #370). A server too old to
+   answer fails quietly, which a caller reads as no display that does. */
+int hd_pixlist(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok;
+
+	s_init(&path);
+	if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_ask(path.p, HD_PIXLIST, &r);
+	s_free(&path);
+	if (!ok) {
+		s_free(&r);
+		return HIBR_FAIL;
+	}
+	hd_ret(s, r.p ? r.p : "");
+	s_free(&r);
+	return HIBR_OK;
+}
+
 /* How far this session's origin has been normalised since the server
    started, as "row col".
 
@@ -450,6 +475,8 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_clients(s, ac, av);
 	if (!strcmp(sub, "gfx"))
 		return hd_gfxlist(s, ac, av);
+	if (!strcmp(sub, "pixels"))
+		return hd_pixlist(s, ac, av);
 	if (!strcmp(sub, "shift"))
 		return hd_shift(s, ac, av);
 	if (!strcmp(sub, "move"))
@@ -552,7 +579,7 @@ int m_hold(sh *s, int ac, char **av)
 	}
 	s_free(&path);
 	lg(HIBR_LERR,
-	   "usage: hold new|attach|detach|list|kill|clients|gfx|shift|move|slot|drop|primary|upgrade ...");
+	   "usage: hold new|attach|detach|list|kill|clients|gfx|pixels|shift|move|slot|drop|primary|upgrade ...");
 	return 2;
 }
 

@@ -121,7 +121,7 @@ awk '
   BEGIN {
     W["open"] = 2; W["close"] = 1; W["draw"] = 5; W["key"] = 2; W["click"] = 4
     W["mouse"] = 6; W["wheel"] = 4; W["drop"] = 5; W["context"] = 1
-    W["stash"] = 2; W["resume"] = 1; W["idle"] = 1
+    W["stash"] = 2; W["resume"] = 1; W["idle"] = 1; W["hover"] = 3
     # Copy, Cut and Paste, which had no entry here until Gitea #250: a
     # paste is the text and, third, cut or copy, and `term_paste` was
     # declared `op` rather than `op = ""` -- the one of twenty-three

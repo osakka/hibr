@@ -36,6 +36,11 @@ enum {
 	   primary. A server without it closes the request unanswered, at once,
 	   which the reader takes as unknown. */
 	HD_GFXLIST = 'l',
+	/* Whether each display's own terminal reports the mouse in pixels
+	   (1016), name and yes or no a line, as HD_MPIX said at attach --
+	   what the desktop asks to decide where hovering is on by default
+	   (Gitea #370). Its own request for the reason HD_GFXLIST is. */
+	HD_PIXLIST = 'P',
 	/* Reposition a named client: name row col, relative to where the
 	   primary display is -- which every normalisation moves with the
 	   rest, so the same request means the same place whenever it is

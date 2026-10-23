@@ -251,6 +251,10 @@ dt_size() {
 	DT_DISPNAMES=("")
 	if [ -n "$HIBR_HOLD" ] && need hold; then
 		lst := hold clients
+		DT_HOVERNAT=0
+		if gl := hold pixels 2> /dev/null; then
+			case $'\n'"$gl" in *" yes"*) DT_HOVERNAT=1 ;; esac
+		fi
 		if gl := hold gfx 2> /dev/null; then
 			while IFS=' ' read -r gnm gv _; do
 				[ -n "$gnm" ] && dgfx["$gnm"]=$gv
@@ -437,6 +441,27 @@ DT_TESTIDLE=${HIBR_TESTIDLE-}
 # test was suddenly true for ever.
 DT_MOUSEWANT=off
 DT_MOUSEHELD=0
+# Whether a display of this held session reports the pointer in pixels by
+# itself, from `hold pixels`, asked in dt_size with the rest of the displays.
+DT_HOVERNAT=0
+
+# Whether hovering is on: Control Panel > Mouse > Hover, where Auto is on
+# where a display reports pixels by itself -- one of the held session's,
+# or, unheld, the terminal the console asked.
+fn dt_hoveron() {
+	local p
+
+	case $DT_HOVER in
+	on) return 0 ;;
+	off) return 1 ;;
+	esac
+	if [ -n "$HIBR_HOLD" ]; then
+		[ "$DT_HOVERNAT" = 1 ]
+		return
+	fi
+	p := console pixels 2> /dev/null || return 1
+	[ "$p" = on ]
+}
 
 # Set the mode the desktop wants, which is what dt_mousecheck restores to.
 fn dt_mouseset(mode) {
@@ -459,18 +484,22 @@ fn dt_mouseset(mode) {
 # about 700, measured before this was written -- which is what makes the
 # backstop affordable, and a backstop is the only version that survives a
 # component which never reaches a restore line.
+#
+# Hovering is motion where the desktop's own mode is drag: the same reports
+# with every movement added, which dt_event turns into dt_hover.
 fn dt_mousecheck() {
-	local m
+	local m want=$DT_MOUSEWANT
 
 	[ "$DT_MOUSEHELD" = 0 ] || return 0
+	[ "$want" = drag ] && dt_hoveron && want=motion
 	m := console mouse 2> /dev/null || return 0
-	[ "$m" = "$DT_MOUSEWANT" ] && return 0
-	console mouse "$DT_MOUSEWANT"
+	[ "$m" = "$want" ] && return 0
+	console mouse "$want"
 	return 0
 }
 
 dt_run() {
-	local k rsz=0 last now pk= skipn=0 frames=0 lastdraw=0 t0
+	local k rsz=0 last now pk= skipn=0 frames=0 lastdraw=0 t0 hq lastper=0 nowu
 
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
@@ -504,7 +533,12 @@ dt_run() {
 			dt_saverinput "$k"
 			continue
 		fi
-		dt_mousecheck
+		# A pass that was only a hover changing nothing is one of sixty a
+		# second while the pointer moves, and the mode cannot have
+		# changed in it: a setting or a resize changes it, and each of
+		# those is a pass of its own.
+		hq=$DT_HOVERQUIET
+		[ -n "$hq" ] || dt_mousecheck
 		if [ "$rsz" = 0 ]; then
 			# An outline drag's step changed nothing but the outline,
 			# which the console composites at flush: no frame to
@@ -515,6 +549,12 @@ dt_run() {
 			if [ -n "$DT_OLONLY" ]; then
 				DT_OLONLY=
 				console waiting || console flush
+			elif [ -n "$DT_HOVERQUIET" ]; then
+				# A hover that changed nothing under the
+				# pointer has nothing to draw: a pointer
+				# crossing an empty desktop is sixty reports
+				# a second, and none of them is a frame.
+				DT_HOVERQUIET=
 			elif [ "$DT_LASTMOVE" = 1 ] && console waiting; then
 				:
 			elif [ "$DT_LASTDRAG" = 1 ] &&
@@ -568,7 +608,14 @@ dt_run() {
 		# be let go: each is a check against the clock, and each pass of
 		# a drag is one mouse report -- run per report they were most of
 		# what a step cost once it drew no frame.
-		if [ -z "$DT_OLON" ]; then
+		# And a pass that was only a quiet hover runs them at most every
+		# 100 ms: they are each a check against the clock, and run per
+		# report they were three quarters of what a moving pointer cost
+		# (0.70 ms a report against 0.23 without them, at 60 a second).
+		nowu=${EPOCHREALTIME/./}
+		if [ -z "$DT_OLON" ] &&
+		   { [ -z "$hq" ] || [ $((nowu - lastper)) -ge 100000 ]; }; then
+			lastper=$nowu
 			dt_updcheck
 			dt_remotepoll
 			dt_snapcheck

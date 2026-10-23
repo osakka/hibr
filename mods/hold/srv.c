@@ -562,6 +562,22 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		s_free(&o);
 		break;
 	}
+	case HD_PIXLIST: {
+		size_t ci;
+
+		s_init(&o);
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (o.n)
+				s_ch(&o, '\n');
+			s_cat(&o, cn2->name.p ? cn2->name.p : "");
+			s_cat(&o, cn2->mpix ? " yes" : " no");
+		}
+		hd_send(c, HD_PIXLIST, o.p, o.n);
+		s_free(&o);
+		break;
+	}
 	case HD_MOVE: {
 		struct hd_cli *cn2 = 0;
 		char *sp1, *sp2;

@@ -481,6 +481,7 @@ Home
 Home Page
 Home page, opened by a new window or tab:
 Hostname: %s
+Hover
 How Formulas Work
 ITEM
 Icon Background

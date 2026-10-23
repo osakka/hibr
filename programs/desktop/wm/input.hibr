@@ -512,6 +512,61 @@ dt_mouse() {
 	esac
 }
 
+# What the pointer was last over, as dt_hover names it, and the window whose
+# _hover was last told it was over it.
+DT_HOVERT=
+DT_HOVERWIN=
+DT_HOVERQUIET=
+
+# The pointer moved with no button held (Gitea #370). An open menu follows
+# it, and moving onto another title on the bar opens that menu instead, as
+# every menu bar does; a window whose app has a _hover is told where it is,
+# in the coordinates it draws in, and told -1 -1 when it leaves. Anything
+# else is only remembered. A hover that leaves what is under the pointer
+# unchanged draws no frame (DT_HOVERQUIET), which is what keeps a moving
+# pointer from costing a frame per report.
+fn dt_hover(int r, int c) {
+	local t= id= ap b wr wc
+
+	if [ "$MB_OPEN" != -1 ]; then
+		if dt_onbar "$r" "$c"; then
+			if [ -z "$MB_CX" ] && b := dt_mhit "$c" &&
+			   [ "$b" != "$MB_OPEN" ]; then
+				dt_mopen "$b"
+			fi
+		else
+			dt_mpick "$r" "$c" || :
+		fi
+		t="m:$MB_OPEN:$MB_SEL"
+	else
+		id := console hit "$r" "$c"
+		# A window's pane is w and its id; the bar's own pane is not one.
+		case $id in
+		w[0-9]*) id=${id#w} ;;
+		*) id= ;;
+		esac
+		t="w:$id"
+		if [ -n "$id" ] && [ -n "${DT[$id]["hover"]+x}" ] &&
+		   [ -n "${DT[$id]["hover"]}" ]; then
+			wr=${DT[$id]["row"]}
+			wc=${DT[$id]["col"]}
+			t="w:$id:$r:$c"
+		fi
+	fi
+	if [ -n "$DT_HOVERWIN" ] && [ "$DT_HOVERWIN" != "$id" ]; then
+		ap=${DT[$DT_HOVERWIN]["hover"]}
+		[ -n "$ap" ] && $ap "$DT_HOVERWIN" -1 -1
+		DT_HOVERWIN=
+	fi
+	if [ "${t#w:*:}" != "$t" ]; then
+		DT_HOVERWIN=$id
+		${DT[$id]["hover"]} "$id" $((r - wr)) $((c - wc))
+	fi
+	[ "$t" = "$DT_HOVERT" ] && DT_HOVERQUIET=1
+	DT_HOVERT=$t
+	return 0
+}
+
 # Where the pointer was in pixels of the screen at the last mouse report,
 # counted from zero, or empty when the terminal reports cells only (Gitea
 # #370). An app that draws pixels reads it beside the cell it is told; no
@@ -542,6 +597,18 @@ fn dt_event(k) {
 		DT_PX=${px%,*}
 		DT_PY=${px#*,}
 		k=${k% *}
+		;;
+	esac
+	# The pointer moving with no button held is a hover, never a drag:
+	# nothing a press started is in progress, and it is not input in the
+	# sense a key is, so it reaches no shortcut, capture or dialog.
+	case $k in
+	"mouse "*"drag none "*)
+		read -ra ev <<< "$k"
+		DT_LASTDRAG=0
+		DT_LASTMOVE=1
+		dt_hover "${ev[3]}" "${ev[4]}"
+		return 0
 		;;
 	esac
 	DT_NOTEWIN=

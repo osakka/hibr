@@ -6743,4 +6743,87 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(737)
+# Hovering (Gitea #370). The pointer moving with no button held is a
+# motion report with button 3, which the console names `drag none`.
+def hov(row, col):
+    return b"\x1b[<35;%d;%dM" % (col + 1, row + 1)
+
+
+# Auto is on where the display reports pixels by itself, and off where it
+# reports cells only; On turns it on anyway.
+_, raw = run(ONE, [1.5], cell=(8, 16), caps=["mpix"])
+check("hovering is on where the terminal reports pixels by itself",
+      b"\x1b[?1003h" in raw, raw[-200:])
+_, raw = run(ONE, [1.5], caps=[])
+check("and off where it reports cells only", b"\x1b[?1003h" not in raw,
+      raw[-200:])
+_, raw = run(ONE, [1.5], caps=[], env={"DT_HOVER": "on"})
+check("Control Panel > Mouse > Hover On turns it on there too",
+      b"\x1b[?1003h" in raw, raw[-200:])
+
+# An open menu follows the pointer, so enter takes the row hovered; moving
+# onto another title on the bar opens that menu instead.
+HVM = ('hvm_menus() { dt_menu "File"; dt_editmenu; dt_menu "Pick"; '
+       'dt_item "First" f hvm_set one; dt_item "Second" s hvm_set two; }\n'
+       'hvm_set() { HVM=$1; }\n'
+       'hvm_draw() { console put -p "w$1" 2 3 "got ${HVM:-none}"; }\n'
+       'dt_app hvm "Hover" 8 30\n'
+       'dt_new "Hover" 8 30 6 10 hvm')
+sc0, _ = run(HVM)
+pc = sc0.row(0).find("Pick")
+fc = sc0.row(0).find("File")
+sc0, _ = run(HVM, [press(0, pc), release(0, pc), 0.3])
+sr, scol = sc0.find("Second") or (3, pc + 2)
+sc, _ = run(HVM, [press(0, pc), release(0, pc), 0.3, hov(sr, scol), 0.3,
+                  b"\r"], env={"DT_HOVER": "on"})
+check("an open menu's highlight follows the pointer, and enter takes it",
+      sc.find("got two") is not None, sc)
+sc, _ = run(HVM, [press(0, pc), release(0, pc), 0.3, b"\r"],
+            env={"DT_HOVER": "on"})
+check("and without a hover enter takes the first row, as before",
+      sc.find("got one") is not None, sc)
+sc, _ = run(HVM, [press(0, fc), release(0, fc), 0.3, hov(0, pc), 0.4],
+            env={"DT_HOVER": "on"})
+check("moving onto another title with a menu open opens that one",
+      sc.find("Second") is not None, sc)
+
+# A window whose app has _hover is told where the pointer is, in the
+# coordinates it draws in, and -1 -1 when it leaves.
+HVH = ('hvh_hover() { HVH="$2 $3"; }\n'
+       'hvh_draw() { console put -p "w$1" 2 3 "at ${HVH:-none}"; }\n'
+       'dt_app hvh "Hovered" 8 30\n'
+       'dt_new "Hovered" 8 30 6 10 hvh')
+sc, _ = run(HVH, [0.5, hov(9, 16), 0.3], env={"DT_HOVER": "on"})
+check("an app with _hover is told the cell under the pointer",
+      sc.find("at 3 6") is not None, sc)
+sc, _ = run(HVH, [0.5, hov(9, 16), 0.3, hov(20, 60), 0.3],
+            env={"DT_HOVER": "on"})
+check("and told -1 -1 when the pointer leaves its window",
+      sc.find("at -1 -1") is not None, sc)
+
+
+# A hover that changes nothing under the pointer draws no frame: the
+# pointer crossing the empty desktop is many reports and no frames.
+def hvframes(feed):
+    path = scratch("hover-frames.hibr")
+    open(path, "w").write("%s. %s\n\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, ONE))
+    t = Term(path, env={"DT_TICK": "60", "DT_HOVER": "on"}, rows=ROWS,
+             cols=COLS, settle=0.8)
+    t.keys([0.5, hov(19, 40), 0.3])
+    f0 = t.frames()
+    t.keys(feed)
+    t.collect(0.5)
+    f1 = t.frames()
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return f1 - f0
+
+
+n = hvframes([hov(18, 50 + i) for i in range(12)])
+check("twelve hover reports across the empty desktop draw no frame", n == 0, n)
+n = hvframes([hov(18, 50), hov(7, 15), hov(18, 50)])
+check("while moving onto a window and off again draws a frame each time",
+      n == 2, n)
+
+report(747)

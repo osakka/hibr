@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.23",
+ "version": "3.24",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1279,6 +1279,7 @@
   "cancelled": "أُلغي",
   "it took too long": "استغرق وقتًا أطول من اللازم",
   "nmcli asked something the desktop cannot answer": "سأل nmcli عن شيء لا يستطيع سطح المكتب الإجابة عنه",
-  "the network's settings were not saved": "لم تُحفظ إعدادات الشبكة"
+  "the network's settings were not saved": "لم تُحفظ إعدادات الشبكة",
+  "Hover": "التحويم"
  }
 }

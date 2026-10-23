@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.304
+
+**Hovering** (Gitea #370). The desktop hears the pointer move with no button
+held, on displays where that is cheap and expected: Control Panel > Mouse >
+Hover is Auto by default, which is on where a display reports the pointer in
+pixels by itself -- Blit, kitty, foot -- and off where it reports cells only,
+since there plain motion is the terminal's own. On and Off override it. A held
+session learns that per display, from `hold pixels`, a new request: each
+client says whether its terminal answered the 1016 question when it attached.
+
+- An open menu follows the pointer, so enter takes the row hovered, and moving
+  onto another title on the bar opens that menu, as every menu bar does.
+- A window whose app has a `_hover` is told the cell under the pointer, in the
+  coordinates it draws in, and `-1 -1` when it leaves.
+- A hover that changes nothing under the pointer draws no frame, and runs the
+  loop's periodic checks at most every 100 ms. Measured with sixty reports a
+  second, which is what Blit sends while the pointer moves: 1.7% of a core and
+  no frames, where those checks run per report cost 3.9%. A still pointer
+  sends nothing and costs nothing.
+
 ## 0.99.303
 
 **The mouse in pixels, end to end** (Gitea #370, with Blit 0.2.6 for
