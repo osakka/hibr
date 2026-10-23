@@ -31,6 +31,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/* How much of an archive is read at a time: a chunk on the heap, or what a
+   growing string takes in one go, never a buffer on the stack. */
+#ifndef ARC_CH
+#define ARC_CH 65536
+#endif
+
 /* The most an archive may inflate to, so a crafted .tar.gz cannot ask for
    the machine's memory. Raise it with TAR_MAX. */
 #ifndef ARC_MAXGZ
@@ -143,13 +149,17 @@ arcf *arc_find(const char *nm)
 int arc_slurp(const char *path, str *o)
 {
 	int fd = open(path, O_RDONLY);
-	char buf[65536];
 	ssize_t k;
 
 	if (fd < 0)
 		return 0;
-	while ((k = read(fd, buf, sizeof buf)) > 0)
-		s_add(o, buf, (size_t)k);
+	for (;;) {
+		s_grow(o, ARC_CH);
+		k = read(fd, o->p + o->n, o->cap - o->n - 1);
+		if (k <= 0)
+			break;
+		o->n += (size_t)k;
+	}
 	close(fd);
 	return k == 0;
 }
@@ -179,6 +189,7 @@ void arc_tidy(str *o, const char *p)
    hundred bytes, and both are followed by the member they describe. */
 int arc_index(arcf *a)
 {
+	/* Sized by the format: a tar header is one 512-byte block. */
 	unsigned char h[512];
 	long long off = 0;
 	str pend;
@@ -563,7 +574,7 @@ int arc_cat(sh *s, arcf *a, const char *path)
 {
 	arcm *m = arc_member(a, path);
 	long long left;
-	char buf[65536];
+	char *buf;
 	str o;
 
 	if (!m) {
@@ -583,9 +594,10 @@ int arc_cat(sh *s, arcf *a, const char *path)
 		return HIBR_FAIL;
 	}
 	s_init(&o);
+	buf = xm(ARC_CH);
 	left = m->size;
 	while (left > 0) {
-		size_t want = left > (long long)sizeof buf ? sizeof buf : (size_t)left;
+		size_t want = left > (long long)ARC_CH ? ARC_CH : (size_t)left;
 		ssize_t k = pread(a->fd, buf, want, (off_t)(m->off + m->size - left));
 
 		if (k <= 0)
@@ -596,6 +608,7 @@ int arc_cat(sh *s, arcf *a, const char *path)
 			fwrite(buf, 1, (size_t)k, stdout);
 		left -= k;
 	}
+	free(buf);
 	if (s->bind) {
 		s_grow(&o, 1);
 		o.p[o.n] = 0;
@@ -619,7 +632,6 @@ int arc_scheme(sh *s, const char *rest)
 	arcf *a;
 	arcm *m;
 	long long left;
-	char buf[65536];
 	int fd;
 
 	(void)s;
@@ -644,12 +656,15 @@ int arc_scheme(sh *s, const char *rest)
 	s_init(&data);
 	left = m->size;
 	while (left > 0) {
-		size_t want = left > (long long)sizeof buf ? sizeof buf : (size_t)left;
-		ssize_t k = pread(a->fd, buf, want, (off_t)(m->off + m->size - left));
+		size_t want = left > (long long)ARC_CH ? ARC_CH : (size_t)left;
+		ssize_t k;
 
+		s_grow(&data, want);
+		k = pread(a->fd, data.p + data.n, want,
+			  (off_t)(m->off + m->size - left));
 		if (k <= 0)
 			break;
-		s_add(&data, buf, (size_t)k);
+		data.n += (size_t)k;
 		left -= k;
 	}
 	if (left) {

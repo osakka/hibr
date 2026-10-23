@@ -20,14 +20,18 @@ char *si_slurp(const char *path)
 {
 	int fd = open(path, O_RDONLY);
 	str b;
-	char t[8192];
 	ssize_t k;
 
 	if (fd < 0)
 		return 0;
 	s_init(&b);
-	while ((k = read(fd, t, sizeof t)) > 0)
-		s_add(&b, t, (size_t)k);
+	for (;;) {
+		s_grow(&b, HIBR_IOCH);
+		k = read(fd, b.p + b.n, b.cap - b.n - 1);
+		if (k <= 0)
+			break;
+		b.n += (size_t)k;
+	}
 	close(fd);
 	if (!b.p) {
 		b.p = xm(1);
@@ -679,15 +683,11 @@ int m_sysinfo(sh *s, int ac, char **av)
 		s_cat(&id, "darwin");
 
 	{
-		char hn[128];
 		const char *usr = hibr_get(s, "USER");
-		if (gethostname(hn, sizeof hn) != 0)
-			strcpy(hn, "?");
-		hn[sizeof hn - 1] = 0;
 		t.n = 0;
 		s_cat(&t, usr && *usr ? usr : "?");
 		s_ch(&t, '@');
-		s_cat(&t, hn);
+		s_cat(&t, uname(&un) == 0 ? un.nodename : "?");
 		si_row(&rows, 0, t.p);
 		n = t.n;
 		t.n = 0;

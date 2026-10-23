@@ -197,8 +197,9 @@ int wb_setblock(wb_tab *t, const char *v)
    "lat lon" in degrees, or empty for no position at all. */
 int wb_setgeo(wb_tab *t, const char *v)
 {
-	char b[160];
+	str b;
 	double la, lo;
+	int r;
 
 	if (!*v)
 		return wb_callq("Emulation.clearGeolocationOverride", "{}",
@@ -206,9 +207,12 @@ int wb_setgeo(wb_tab *t, const char *v)
 	if (sscanf(v, "%lf %lf", &la, &lo) != 2 || la < -90 || la > 90 ||
 	    lo < -180 || lo > 180)
 		return 2;
-	snprintf(b, sizeof b, "{\"latitude\":%.6f,\"longitude\":%.6f,"
-		 "\"accuracy\":100}", la, lo);
-	return wb_callq("Emulation.setGeolocationOverride", b, t->session);
+	s_init(&b);
+	s_fmt(&b, "{\"latitude\":%.6f,\"longitude\":%.6f,\"accuracy\":100}",
+	      la, lo);
+	r = wb_callq("Emulation.setGeolocationOverride", b.p, t->session);
+	s_free(&b);
+	return r;
 }
 
 /* A page's notifications, handed to `web notes` rather than lost: the

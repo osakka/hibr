@@ -33,7 +33,7 @@ int dw_cpu(sh *s, int ac, char **av)
 	host_cpu_load_info_data_t c;
 	mach_msg_type_number_t n = HOST_CPU_LOAD_INFO_COUNT;
 	unsigned long total, idle;
-	char buf[48];
+	str buf;
 
 	(void)ac;
 	(void)av;
@@ -50,10 +50,12 @@ int dw_cpu(sh *s, int ac, char **av)
 		(unsigned long)c.cpu_ticks[CPU_STATE_IDLE] +
 		(unsigned long)c.cpu_ticks[CPU_STATE_NICE];
 	idle = (unsigned long)c.cpu_ticks[CPU_STATE_IDLE];
-	snprintf(buf, sizeof buf, "%lu %lu", total, idle);
-	hibr_ret(s, buf);
+	s_init(&buf);
+	s_fmt(&buf, "%lu %lu", total, idle);
+	hibr_ret(s, buf.p);
 	if (!s->bind)
-		printf("%s\n", buf);
+		printf("%s\n", buf.p);
+	s_free(&buf);
 	return HIBR_OK;
 }
 
@@ -72,7 +74,7 @@ int dw_mem(sh *s, int ac, char **av)
 	size_t sz = sizeof total;
 	unsigned long long avail, pagesize;
 	int pct = 0;
-	char buf[16];
+	str buf;
 
 	(void)ac;
 	(void)av;
@@ -93,10 +95,12 @@ int dw_mem(sh *s, int ac, char **av)
 		 (unsigned long long)v.inactive_count) * pagesize;
 	pct = (int)(((unsigned long long)total - avail) * 100 /
 		    (unsigned long long)total);
-	snprintf(buf, sizeof buf, "%d", pct);
-	hibr_ret(s, buf);
+	s_init(&buf);
+	s_fmt(&buf, "%d", pct);
+	hibr_ret(s, buf.p);
 	if (!s->bind)
-		printf("%s\n", buf);
+		printf("%s\n", buf.p);
+	s_free(&buf);
 	return HIBR_OK;
 }
 

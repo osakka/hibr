@@ -8,6 +8,7 @@ typedef struct dv_md5 dv_md5;
 struct dv_md5 {
 	uint32_t h[4];
 	uint64_t len;
+	/* Sized by the format: MD5's block is 64 bytes. */
 	unsigned char blk[64];
 	size_t fill;
 };

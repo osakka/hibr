@@ -57,6 +57,7 @@ void v_del(sh *s, const char *k);
 void v_env(sh *s);
 int v_shadowed(vec *extra, const char *k);
 char **v_envp(sh *s, vec *extra);
+void envfree(char **e);
 const char *sh_ifs(sh *s);
 void v_names(sh *s, const char *pre, vec *out);
 unsigned v_tycode(const char *nm);

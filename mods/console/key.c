@@ -295,12 +295,13 @@ int cn_wait(int ms)
 /* Read whatever is waiting onto the pending buffer. */
 int cn_rdfill(void)
 {
-	char b[512];
 	ssize_t k;
 
-	k = read(cn_fd, b, sizeof b);
+	s_grow(&cn_pend, HIBR_IOCH);
+	k = read(cn_fd, cn_pend.p + cn_pend.n, cn_pend.cap - cn_pend.n - 1);
 	if (k > 0) {
-		s_add(&cn_pend, b, (size_t)k);
+		cn_pend.n += (size_t)k;
+		cn_pend.p[cn_pend.n] = 0;
 		return 1;
 	}
 	if (k < 0 && (errno == EINTR || errno == EAGAIN))

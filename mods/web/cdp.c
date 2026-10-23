@@ -569,11 +569,13 @@ void wb_event(jv *m)
 		   frame is acknowledged or no more are sent. One that a
 		   render's own changes caused is not a change of the page's:
 		   counting it would render again, for ever. */
-		char b[64];
+		str b;
 
-		snprintf(b, sizeof b, "{\"sessionId\":%ld}",
-			 (long)jv_num(jv_path(m, "params.sessionId")));
-		wb_send("Page.screencastFrameAck", b, t->session);
+		s_init(&b);
+		s_fmt(&b, "{\"sessionId\":%ld}",
+		      (long)jv_num(jv_path(m, "params.sessionId")));
+		wb_send("Page.screencastFrameAck", b.p, t->session);
+		s_free(&b);
 		if (!t->hush && wb_ms() >= t->hushto)
 			t->dirty = 1;
 	} else if (!strcmp(meth, "Page.javascriptDialogOpening")) {

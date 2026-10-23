@@ -32,6 +32,7 @@ void tr_drain(struct pollfd *p, struct timeval *t0, int n, int ms, tr_hop *h,
 	struct msghdr m;
 	struct iovec io;
 	struct cmsghdr *cm;
+	/* Sized by the format: cmsg control data, and the probe's own payload. */
 	char cb[512], b[128];
 	int i, left = ms;
 

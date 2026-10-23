@@ -107,19 +107,36 @@ def quick(since):
 
 
 def extra(env):
-    """self.hibr and the parser fuzzer, under the sanitizer shell."""
-    cmds = [[WRAP, os.path.join(HERE, "self.hibr")],
-            [sys.executable, os.path.join(HERE, "fuzz.py"), WRAP, str(FUZZ)]]
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    """self.hibr, the parser fuzzer and the leak pass, under the sanitizer
+    shell. The leak pass is tests/run.sh with leak detection on (Gitea
+    #351): every other run here turns it off, so a leak used to wait for
+    somebody to look by hand, and five tests leaked for months that way. A
+    leak ends the process with status 1, so a leaking test fails run.sh as
+    well as leaving a report, and the report is printed."""
+    leak = os.path.join(LOGS, "leak")
+    cmds = [([WRAP, os.path.join(HERE, "self.hibr")], env),
+            ([sys.executable, os.path.join(HERE, "fuzz.py"), WRAP, str(FUZZ)],
+             env),
+            ([os.path.join(HERE, "run.sh")],
+             dict(env, ASAN_OPTIONS="detect_leaks=1:log_path=" + leak))]
+    with ThreadPoolExecutor(max_workers=3) as pool:
         res = list(pool.map(lambda c: subprocess.run(
-            c, cwd=ROOT, env=dict(env, SEED="7"), capture_output=True,
+            c[0], cwd=ROOT, env=dict(c[1], SEED="7"), capture_output=True,
             text=True), cmds))
     ok = True
-    for name, r in zip(("self.hibr", "fuzz"), res):
+    for name, r in zip(("self.hibr", "fuzz", "leaks"), res):
         last = (r.stdout.strip() or r.stderr.strip()).splitlines()
-        print("%-10s %-4s %s" % (name, "ok" if r.returncode == 0 else "FAIL",
-                                 last[-1] if last else "no output"))
-        ok = ok and r.returncode == 0
+        found = sorted(glob.glob(leak + ".*")) if name == "leaks" else []
+        good = r.returncode == 0 and not found
+        tail = last[-1] if last else "no output"
+        if name == "leaks":
+            tail = "%s, %d leak report%s" % (tail, len(found),
+                                              "" if len(found) == 1 else "s")
+        print("%-10s %-4s %s" % (name, "ok" if good else "FAIL", tail))
+        for f in found:
+            print("\n== %s" % os.path.relpath(f, ROOT))
+            print("".join(open(f, errors="replace").readlines()[:30]).rstrip())
+        ok = ok and good
     return ok
 
 

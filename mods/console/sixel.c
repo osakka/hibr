@@ -233,6 +233,7 @@ void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o)
 		   is the whole reason a moving picture takes the fixed one. */
 		/* The level of each channel comes from a table rather than two
 		   divisions a pixel: the same answer, a quarter of the work. */
+		/* Sized by the format: one entry per 8-bit channel value. */
 		unsigned char lv[256];
 
 		for (i = 0; i < 256; i++)

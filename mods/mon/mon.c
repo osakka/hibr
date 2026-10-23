@@ -3,6 +3,7 @@
 #include "mn.h"
 #include "../display.h"
 #include <stdio.h>
+#include <sys/utsname.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -174,11 +175,9 @@ void mn_draw(mn_st *s, int rows, int cols, int bymem, int paused, double every)
 
 	s_cat(&t, " ");
 	{
-		char hn[64];
-		if (gethostname(hn, sizeof hn) != 0)
-			strcpy(hn, "?");
-		hn[sizeof hn - 1] = 0;
-		s_cat(&t, hn);
+		struct utsname un;
+
+		s_cat(&t, uname(&un) == 0 ? un.nodename : "?");
 	}
 	s_cat(&t, "   up ");
 	mn_uptime(&t, s->uptime);

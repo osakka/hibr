@@ -18,11 +18,25 @@ typedef struct tm_fld {
 	int u;
 } tm_fld;
 
-/* The fields a save keeps: where the cursor is, the pen, the modes a
-   program set and expects to find still set. */
-int tm_fields(tm_t *t, tm_fld *f)
+/* One more field on a list that grows as it is filled: the list has no
+   fixed size, so a field added later cannot run off its end (Gitea #351). */
+tm_fld *tm_fput(tm_fld *f, int *n, int *cap, tm_fld v)
 {
-	int n = 0, k;
+	if (*n == *cap) {
+		*cap = *cap ? *cap * 2 : 64;
+		f = xr(f, (size_t)*cap * sizeof *f);
+	}
+	f[(*n)++] = v;
+	return f;
+}
+
+/* The fields a save keeps: where the cursor is, the pen, the modes a
+   program set and expects to find still set. A list to free, and its
+   length in *np. */
+tm_fld *tm_fields(tm_t *t, int *np)
+{
+	tm_fld *f = 0;
+	int n = 0, cap = 0, k;
 	static const char *sv[2][9] = {
 		{ "s0set", "s0r", "s0c", "s0wrap", "s0om", "s0gl", "s0fg",
 		  "s0bg", "s0attr" },
@@ -30,55 +44,56 @@ int tm_fields(tm_t *t, tm_fld *f)
 		  "s1bg", "s1attr" }
 	};
 
-	f[n++] = (tm_fld){ "cr", &t->cr, 0 };
-	f[n++] = (tm_fld){ "cc", &t->cc, 0 };
-	f[n++] = (tm_fld){ "top", &t->top, 0 };
-	f[n++] = (tm_fld){ "bot", &t->bot, 0 };
-	f[n++] = (tm_fld){ "fg", &t->fg, 1 };
-	f[n++] = (tm_fld){ "bg", &t->bg, 1 };
-	f[n++] = (tm_fld){ "attr", &t->attr, 1 };
-	f[n++] = (tm_fld){ "dfg", &t->dfg, 1 };
-	f[n++] = (tm_fld){ "dbg", &t->dbg, 1 };
-	f[n++] = (tm_fld){ "dattr", &t->dattr, 1 };
-	f[n++] = (tm_fld){ "vis", &t->vis, 0 };
-	f[n++] = (tm_fld){ "wrapnext", &t->wrapnext, 0 };
-	f[n++] = (tm_fld){ "autowrap", &t->autowrap, 0 };
-	f[n++] = (tm_fld){ "gl", &t->gl, 0 };
-	f[n++] = (tm_fld){ "ckm", &t->ckm, 0 };
-	f[n++] = (tm_fld){ "kpam", &t->kpam, 0 };
-	f[n++] = (tm_fld){ "om", &t->om, 0 };
-	f[n++] = (tm_fld){ "irm", &t->irm, 0 };
-	f[n++] = (tm_fld){ "lnm", &t->lnm, 0 };
-	f[n++] = (tm_fld){ "focus", &t->focus, 0 };
-	f[n++] = (tm_fld){ "mmode", &t->mmode, 0 };
-	f[n++] = (tm_fld){ "msgr", &t->msgr, 0 };
-	f[n++] = (tm_fld){ "bpaste", &t->bpaste, 0 };
-	f[n++] = (tm_fld){ "cshape", &t->cshape, 0 };
-	f[n++] = (tm_fld){ "link", &t->link, 1 };
-	f[n++] = (tm_fld){ "hasrgb", &t->hasrgb, 0 };
-	f[n++] = (tm_fld){ "nobg", &t->nobg, 0 };
-	f[n++] = (tm_fld){ "rgbfg", &t->rgbfg, 1 };
-	f[n++] = (tm_fld){ "rgbbg", &t->rgbbg, 1 };
-	f[n++] = (tm_fld){ "sbmax", &t->sbmax, 0 };
+	f = tm_fput(f, &n, &cap, (tm_fld){ "cr", &t->cr, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "cc", &t->cc, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "top", &t->top, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "bot", &t->bot, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "fg", &t->fg, 1 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "bg", &t->bg, 1 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "attr", &t->attr, 1 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "dfg", &t->dfg, 1 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "dbg", &t->dbg, 1 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "dattr", &t->dattr, 1 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "vis", &t->vis, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "wrapnext", &t->wrapnext, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "autowrap", &t->autowrap, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "gl", &t->gl, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "ckm", &t->ckm, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "kpam", &t->kpam, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "om", &t->om, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "irm", &t->irm, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "lnm", &t->lnm, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "focus", &t->focus, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "mmode", &t->mmode, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "msgr", &t->msgr, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "bpaste", &t->bpaste, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "cshape", &t->cshape, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "link", &t->link, 1 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "hasrgb", &t->hasrgb, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "nobg", &t->nobg, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "rgbfg", &t->rgbfg, 1 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "rgbbg", &t->rgbbg, 1 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "sbmax", &t->sbmax, 0 });
 	/* Appended, never inserted: a field added at the end lets a new build
 	   read an old session's state and an old build read a new one, each
 	   skipping what it does not know (the rule Gitea #157 wrote down for
 	   the mail account file, and the reason this list is in this order). */
-	f[n++] = (tm_fld){ "nofg", &t->nofg, 0 };
+	f = tm_fput(f, &n, &cap, (tm_fld){ "nofg", &t->nofg, 0 });
 	for (k = 0; k < 2; k++) {
-		f[n++] = (tm_fld){ sv[k][0], &t->sv[k].set, 0 };
-		f[n++] = (tm_fld){ sv[k][1], &t->sv[k].r, 0 };
-		f[n++] = (tm_fld){ sv[k][2], &t->sv[k].c, 0 };
-		f[n++] = (tm_fld){ sv[k][3], &t->sv[k].wrap, 0 };
-		f[n++] = (tm_fld){ sv[k][4], &t->sv[k].om, 0 };
-		f[n++] = (tm_fld){ sv[k][5], &t->sv[k].gl, 0 };
-		f[n++] = (tm_fld){ sv[k][6], &t->sv[k].fg, 1 };
-		f[n++] = (tm_fld){ sv[k][7], &t->sv[k].bg, 1 };
-		f[n++] = (tm_fld){ sv[k][8], &t->sv[k].attr, 1 };
+		f = tm_fput(f, &n, &cap, (tm_fld){ sv[k][0], &t->sv[k].set, 0 });
+		f = tm_fput(f, &n, &cap, (tm_fld){ sv[k][1], &t->sv[k].r, 0 });
+		f = tm_fput(f, &n, &cap, (tm_fld){ sv[k][2], &t->sv[k].c, 0 });
+		f = tm_fput(f, &n, &cap, (tm_fld){ sv[k][3], &t->sv[k].wrap, 0 });
+		f = tm_fput(f, &n, &cap, (tm_fld){ sv[k][4], &t->sv[k].om, 0 });
+		f = tm_fput(f, &n, &cap, (tm_fld){ sv[k][5], &t->sv[k].gl, 0 });
+		f = tm_fput(f, &n, &cap, (tm_fld){ sv[k][6], &t->sv[k].fg, 1 });
+		f = tm_fput(f, &n, &cap, (tm_fld){ sv[k][7], &t->sv[k].bg, 1 });
+		f = tm_fput(f, &n, &cap, (tm_fld){ sv[k][8], &t->sv[k].attr, 1 });
 	}
-	f[n++] = (tm_fld){ "kbd", &t->kbd, 0 };
-	f[n++] = (tm_fld){ "mpix", &t->mpix, 0 };
-	return n;
+	f = tm_fput(f, &n, &cap, (tm_fld){ "kbd", &t->kbd, 0 });
+	f = tm_fput(f, &n, &cap, (tm_fld){ "mpix", &t->mpix, 0 });
+	*np = n;
+	return f;
 }
 
 /* Write n cells, each field on its own, so a cell that later grows a field
@@ -150,7 +165,7 @@ char *tm_rstr(FILE *f, unsigned long n)
 int tm_savefile(tm_t *t, const char *path)
 {
 	FILE *f = fopen(path, "wb");
-	tm_fld fl[64];
+	tm_fld *fl;
 	int n, i;
 
 	if (!f)
@@ -159,10 +174,11 @@ int tm_savefile(tm_t *t, const char *path)
 	fprintf(f, "size %d %d\n", t->rows, t->cols);
 	fprintf(f, "inalt %d\n", t->inalt);
 	fprintf(f, "gset %d %d\n", t->gset[0], t->gset[1]);
-	n = tm_fields(t, fl);
+	fl = tm_fields(t, &n);
 	for (i = 0; i < n; i++)
 		fprintf(f, "%s %ld\n", fl[i].nm, fl[i].u ?
 			(long)*(unsigned *)fl[i].p : (long)*(int *)fl[i].p);
+	free(fl);
 	fprintf(f, "s0g %d %d\n", t->sv[0].g[0], t->sv[0].g[1]);
 	fprintf(f, "s1g %d %d\n", t->sv[1].g[0], t->sv[1].g[1]);
 	tm_wstr(f, "title", t->title.p ? t->title.p : "", t->title.n);
@@ -212,49 +228,69 @@ void tm_sane(tm_t *t, tm_cell *c, long n)
 	}
 }
 
+/* The next word of a save -- what fscanf's %s reads -- into w, as long as
+   it is: 1 when there was one. */
+int tm_word(FILE *f, str *w)
+{
+	int c;
+
+	w->n = 0;
+	while ((c = fgetc(f)) != EOF && (c == ' ' || c == '\n' || c == '\t' ||
+					 c == '\r'))
+		;
+	while (c != EOF && c != ' ' && c != '\n' && c != '\t' && c != '\r') {
+		s_ch(w, c);
+		c = fgetc(f);
+	}
+	if (c != EOF)
+		ungetc(c, f);
+	return w->n > 0;
+}
+
 /* Load what tm_savefile wrote into t, a terminal of the saved size made
    for it. 0 if the file is not one, or ends early; t is then still a
    usable blank terminal. */
 int tm_loadfile(tm_t *t, const char *path)
 {
 	FILE *f = fopen(path, "rb");
-	tm_fld fl[64];
-	char nm[64];
+	tm_fld *fl;
+	str nm;
 	long v, cnt, i;
 	int n, k, a, b, ok = 0;
 	unsigned long len;
 
 	if (!f)
 		return 0;
-	n = tm_fields(t, fl);
 	if (fscanf(f, "hibr-term %d\n", &a) != 1 || a != TM_SAVEVER) {
 		lg(HIBR_LERR, "term: %s: not a terminal save this version reads",
 		   path);
 		fclose(f);
 		return 0;
 	}
-	while (fscanf(f, "%63s", nm) == 1) {
-		if (!strcmp(nm, "end")) {
+	fl = tm_fields(t, &n);
+	s_init(&nm);
+	while (tm_word(f, &nm)) {
+		if (!strcmp(nm.p, "end")) {
 			ok = 1;
 			break;
 		}
-		if (!strcmp(nm, "size")) {
+		if (!strcmp(nm.p, "size")) {
 			if (fscanf(f, "%d %d\n", &a, &b) != 2 || a != t->rows ||
 			    b != t->cols)
 				break;
-		} else if (!strcmp(nm, "inalt")) {
+		} else if (!strcmp(nm.p, "inalt")) {
 			if (fscanf(f, "%d\n", &a) != 1)
 				break;
 			t->inalt = !!a;
-		} else if (!strcmp(nm, "gset") || !strcmp(nm, "s0g") ||
-			   !strcmp(nm, "s1g")) {
-			unsigned char *g = nm[0] == 'g' ? t->gset :
-				nm[1] == '0' ? t->sv[0].g : t->sv[1].g;
+		} else if (!strcmp(nm.p, "gset") || !strcmp(nm.p, "s0g") ||
+			   !strcmp(nm.p, "s1g")) {
+			unsigned char *g = nm.p[0] == 'g' ? t->gset :
+				nm.p[1] == '0' ? t->sv[0].g : t->sv[1].g;
 			if (fscanf(f, "%d %d\n", &a, &b) != 2)
 				break;
 			g[0] = (unsigned char)a;
 			g[1] = (unsigned char)b;
-		} else if (!strcmp(nm, "title")) {
+		} else if (!strcmp(nm.p, "title")) {
 			char *p;
 			if (fscanf(f, "%lu", &len) != 1 || fgetc(f) != '\n')
 				break;
@@ -264,13 +300,13 @@ int tm_loadfile(tm_t *t, const char *path)
 			t->title.n = 0;
 			s_add(&t->title, p, len);
 			free(p);
-		} else if (!strcmp(nm, "xp") || !strcmp(nm, "lk")) {
-			int xp = nm[0] == 'x';
+		} else if (!strcmp(nm.p, "xp") || !strcmp(nm.p, "lk")) {
+			int xp = nm.p[0] == 'x';
 			if (fscanf(f, "%ld\n", &cnt) != 1 || cnt < 0)
 				break;
 			for (i = 0; i < cnt; i++) {
 				char *p;
-				if (fscanf(f, "%63s %lu", nm, &len) != 2 ||
+				if (!tm_word(f, &nm) || fscanf(f, "%lu", &len) != 1 ||
 				    fgetc(f) != '\n')
 					break;
 				p = tm_rstr(f, len);
@@ -290,7 +326,7 @@ int tm_loadfile(tm_t *t, const char *path)
 			}
 			if (i < cnt)
 				break;
-		} else if (!strcmp(nm, "tabs")) {
+		} else if (!strcmp(nm.p, "tabs")) {
 			char *p;
 			if (fscanf(f, "%lu", &len) != 1 || fgetc(f) != '\n')
 				break;
@@ -300,8 +336,8 @@ int tm_loadfile(tm_t *t, const char *path)
 			if (len == (unsigned long)t->cols)
 				memcpy(t->tabs, p, len);
 			free(p);
-		} else if (!strcmp(nm, "grid") || !strcmp(nm, "alt")) {
-			tm_cell **g = nm[0] == 'g' ? &t->g : &t->alt;
+		} else if (!strcmp(nm.p, "grid") || !strcmp(nm.p, "alt")) {
+			tm_cell **g = nm.p[0] == 'g' ? &t->g : &t->alt;
 			if (fscanf(f, "%ld", &cnt) != 1 || fgetc(f) != '\n' ||
 			    cnt != (long)t->rows * t->cols)
 				break;
@@ -310,7 +346,7 @@ int tm_loadfile(tm_t *t, const char *path)
 			if (!tm_rcells(f, *g, cnt))
 				break;
 			fgetc(f);
-		} else if (!strcmp(nm, "sb")) {
+		} else if (!strcmp(nm.p, "sb")) {
 			if (fscanf(f, "%ld\n", &cnt) != 1 || cnt < 0)
 				break;
 			for (i = 0; i < cnt; i++) {
@@ -333,7 +369,7 @@ int tm_loadfile(tm_t *t, const char *path)
 			if (fscanf(f, "%ld\n", &v) != 1)
 				break;
 			for (k = 0; k < n; k++)
-				if (!strcmp(fl[k].nm, nm)) {
+				if (!strcmp(fl[k].nm, nm.p)) {
 					if (fl[k].u)
 						*(unsigned *)fl[k].p = (unsigned)v;
 					else
@@ -342,10 +378,12 @@ int tm_loadfile(tm_t *t, const char *path)
 				}
 			if (k == n)
 				lg(HIBR_LDBG, "term: %s: skipped %s, not known here",
-				   path, nm);
+				   path, nm.p);
 		}
 	}
 	fclose(f);
+	free(fl);
+	s_free(&nm);
 	if (t->cr < 0 || t->cr >= t->rows)
 		t->cr = 0;
 	if (t->cc < 0 || t->cc >= t->cols)

@@ -335,6 +335,16 @@ void ms_draw(ms_win *w, int row, int cols, const char *find, int fold,
 	}
 }
 
+/* Every buffer opened, and the list of them. */
+void ms_dropall(vec *bufs)
+{
+	size_t i;
+
+	for (i = 0; i < bufs->n; i++)
+		ms_free((ms_buf *)bufs->p[i]);
+	v_free(bufs);
+}
+
 /* Page through files, or through whatever is being piped in. */
 int m_most(sh *s, int ac, char **av)
 {
@@ -360,6 +370,7 @@ int m_most(sh *s, int ac, char **av)
 	for (i = 1; i < ac; i++) {
 		if (av[i][0] == '-' && av[i][1]) {
 			lg(HIBR_LERR, "usage: most [file...]");
+			ms_dropall(&bufs);
 			return 2;
 		}
 		b = ms_open(av[i], -1);
@@ -377,8 +388,10 @@ int m_most(sh *s, int ac, char **av)
 	}
 	if (!bufs.n)
 		return HIBR_FAIL;
-	if (dp->open(s) != HIBR_OK)
+	if (dp->open(s) != HIBR_OK) {
+		ms_dropall(&bufs);
 		return HIBR_FAIL;
+	}
 	if (dp->mouse)
 		dp->mouse(1);
 	memset(win, 0, sizeof win);
@@ -659,9 +672,7 @@ int m_most(sh *s, int ac, char **av)
 		}
 	}
 	dp->close(s);
-	for (i = 0; i < (int)bufs.n; i++)
-		ms_free((ms_buf *)bufs.p[i]);
-	v_free(&bufs);
+	ms_dropall(&bufs);
 	s_free(&find);
 	s_free(&key);
 	s_free(&msg);

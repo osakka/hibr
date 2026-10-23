@@ -230,7 +230,7 @@ void wb_cellsz(wb_tab *t, int *cw, int *ch)
    with the same rows and cols. */
 int wb_size(wb_tab *t, int rows, int cols)
 {
-	char b[160];
+	str b;
 	jv *r;
 	int cw, ch;
 
@@ -239,9 +239,11 @@ int wb_size(wb_tab *t, int rows, int cols)
 	wb_cellsz(t, &cw, &ch);
 	if (rows == t->rows && cols == t->cols && cw == t->cw && ch == t->ch)
 		return HIBR_OK;
-	snprintf(b, sizeof b, "{\"width\":%d,\"height\":%d,\"deviceScaleFactor\":1,"
-		 "\"mobile\":false}", cols * cw, rows * ch);
-	r = wb_call("Emulation.setDeviceMetricsOverride", b, t->session);
+	s_init(&b);
+	s_fmt(&b, "{\"width\":%d,\"height\":%d,\"deviceScaleFactor\":1,"
+	      "\"mobile\":false}", cols * cw, rows * ch);
+	r = wb_call("Emulation.setDeviceMetricsOverride", b.p, t->session);
+	s_free(&b);
 	if (!r)
 		return HIBR_FAIL;
 	jv_free(r);
@@ -353,7 +355,7 @@ void wb_hidetext(wb_tab *t, int on)
    row, each cell a half block of its two. */
 void wb_pixels(wb_tab *t)
 {
-	char b[200];
+	str b;
 	jv *r;
 	str png, err;
 	image im;
@@ -364,9 +366,10 @@ void wb_pixels(wb_tab *t)
 	/* A page drawn as pixels wants the screenshot at its own size; one
 	   drawn as cells wants one pixel a column and two a row, which is
 	   exactly what a half block shows. */
-	snprintf(b, sizeof b, "{\"format\":\"png\",\"clip\":{\"x\":%ld,\"y\":%ld,"
-		 "\"width\":%d,\"height\":%d,\"scale\":%.6f}}", t->sx, t->sy,
-		 t->cols * t->cw, t->rows * t->ch, t->pixels ? 1.0 : 1.0 / t->cw);
+	s_init(&b);
+	s_fmt(&b, "{\"format\":\"png\",\"clip\":{\"x\":%ld,\"y\":%ld,"
+	      "\"width\":%d,\"height\":%d,\"scale\":%.6f}}", t->sx, t->sy,
+	      t->cols * t->cw, t->rows * t->ch, t->pixels ? 1.0 : 1.0 / t->cw);
 	/* Hidden only for the path that draws the text again. A page drawn
 	   as cells is this picture with its letters put back as real cells
 	   over it, so they must not be in it twice; a page drawn as pixels
@@ -375,7 +378,8 @@ void wb_pixels(wb_tab *t)
 	   anywhere in it, which is a browser that renders beautifully and
 	   says nothing (Gitea #210). */
 	wb_hidetext(t, !t->pixels);
-	r = wb_call("Page.captureScreenshot", b, t->session);
+	r = wb_call("Page.captureScreenshot", b.p, t->session);
+	s_free(&b);
 	if (!t->pixels)
 		wb_hidetext(t, 0);
 	if (!r)
@@ -658,18 +662,21 @@ int wb_render(wb_tab *t)
    middle of the cell. */
 int wb_click(wb_tab *t, int row, int col)
 {
-	char b[200];
+	str b;
 	jv *r;
 	int x = col * t->cw + t->cw / 2, y = row * t->ch + t->ch / 2;
 
-	snprintf(b, sizeof b, "{\"type\":\"mousePressed\",\"x\":%d,\"y\":%d,"
-		 "\"button\":\"left\",\"clickCount\":1}", x, y);
-	r = wb_call("Input.dispatchMouseEvent", b, t->session);
+	s_init(&b);
+	s_fmt(&b, "{\"type\":\"mousePressed\",\"x\":%d,\"y\":%d,"
+	      "\"button\":\"left\",\"clickCount\":1}", x, y);
+	r = wb_call("Input.dispatchMouseEvent", b.p, t->session);
 	jv_free(r);
-	snprintf(b, sizeof b, "{\"type\":\"mouseReleased\",\"x\":%d,\"y\":%d,"
-		 "\"button\":\"left\",\"clickCount\":1}", x, y);
-	r = wb_call("Input.dispatchMouseEvent", b, t->session);
+	b.n = 0;
+	s_fmt(&b, "{\"type\":\"mouseReleased\",\"x\":%d,\"y\":%d,"
+	      "\"button\":\"left\",\"clickCount\":1}", x, y);
+	r = wb_call("Input.dispatchMouseEvent", b.p, t->session);
 	jv_free(r);
+	s_free(&b);
 	t->dirty = 1;
 	return HIBR_OK;
 }
@@ -677,14 +684,16 @@ int wb_click(wb_tab *t, int row, int col)
 /* The wheel, dy rows down (up when negative), over the middle of the page. */
 int wb_wheel(wb_tab *t, int dy)
 {
-	char b[200];
+	str b;
 	jv *r;
 
-	snprintf(b, sizeof b, "{\"type\":\"mouseWheel\",\"x\":%d,\"y\":%d,"
-		 "\"deltaX\":0,\"deltaY\":%d}", t->cols * t->cw / 2,
-		 t->rows * t->ch / 2, dy * t->ch);
-	r = wb_call("Input.dispatchMouseEvent", b, t->session);
+	s_init(&b);
+	s_fmt(&b, "{\"type\":\"mouseWheel\",\"x\":%d,\"y\":%d,"
+	      "\"deltaX\":0,\"deltaY\":%d}", t->cols * t->cw / 2,
+	      t->rows * t->ch / 2, dy * t->ch);
+	r = wb_call("Input.dispatchMouseEvent", b.p, t->session);
 	jv_free(r);
+	s_free(&b);
 	t->dirty = 1;
 	return HIBR_OK;
 }
@@ -812,7 +821,7 @@ int wb_hist(wb_tab *t, int d)
 {
 	jv *r, *ents;
 	int cur, to;
-	char b[64];
+	str b;
 
 	if (!d) {
 		r = wb_call("Page.reload", "{}", t->session);
@@ -833,10 +842,11 @@ int wb_hist(wb_tab *t, int d)
 		jv_free(r);
 		return HIBR_FAIL;
 	}
-	snprintf(b, sizeof b, "{\"entryId\":%d}",
-		 (int)jv_num(jv_get(ents->v.p[to], "id")));
+	s_init(&b);
+	s_fmt(&b, "{\"entryId\":%d}", (int)jv_num(jv_get(ents->v.p[to], "id")));
 	jv_free(r);
-	r = wb_call("Page.navigateToHistoryEntry", b, t->session);
+	r = wb_call("Page.navigateToHistoryEntry", b.p, t->session);
+	s_free(&b);
 	if (!r)
 		return HIBR_FAIL;
 	jv_free(r);

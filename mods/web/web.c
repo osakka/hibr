@@ -188,7 +188,6 @@ int m_web(sh *s, int ac, char **av)
 	str o;
 	size_t i;
 	int r;
-	char b64[96];
 
 	if (ac < 2) {
 		wb_usage();
@@ -363,8 +362,10 @@ int m_web(sh *s, int ac, char **av)
 	/* Where the page is scrolled to, how tall it is and how much shows,
 	   in CSS pixels, from the last render: "top height shown". */
 	if (!strcmp(sub, "scroll")) {
-		snprintf(b64, sizeof b64, "%ld %ld %ld", t->sy, t->sh, t->vh);
-		wb_say(s, b64);
+		s_init(&o);
+		s_fmt(&o, "%ld %ld %ld", t->sy, t->sh, t->vh);
+		wb_say(s, o.p);
+		s_free(&o);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "draw"))

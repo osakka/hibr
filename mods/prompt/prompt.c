@@ -246,6 +246,7 @@ void m_prfin(sh *s)
 {
 	const char *v = hibr_get(s, "PROMPT_FN");
 
+	s_free(&pr_plbg);
 	if (v && !strcmp(v, "prompt")) {
 		hibr_set(s, "PROMPT_FN", "", 0);
 		lg(HIBR_LINF, "prompt module gone, PROMPT_FN cleared");

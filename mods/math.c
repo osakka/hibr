@@ -465,9 +465,11 @@ millionth and a thousand million million. With scale, exactly that many
 decimals. */
 void mt_text(double v, int scale, str *o)
 {
-	char b[64];
+	str b;
 	int k, d;
 	double r;
+
+	s_init(&b);
 
 	if (isnan(v)) {
 		s_cat(o, "nan");
@@ -483,28 +485,32 @@ void mt_text(double v, int scale, str *o)
 		r = pow(10, scale);
 		if (fabs(v * r) < 1e15)
 			v = round(v * r) / r;
-		snprintf(b, sizeof b, "%.*f", scale, v);
+		b.n = 0;
+		s_fmt(&b, "%.*f", scale, v);
 	} else if (v == trunc(v) && fabs(v) < 1e15) {
-		snprintf(b, sizeof b, "%.0f", v);
+		b.n = 0;
+		s_fmt(&b, "%.0f", v);
 	} else {
-		snprintf(b, sizeof b, "%.15g", v);
-		r = strtod(b, 0);
+		b.n = 0;
+		s_fmt(&b, "%.15g", v);
+		r = strtod(b.p, 0);
 		for (k = 1; k <= 15; k++) {
-			snprintf(b, sizeof b, "%.*g", k, v);
-			if (strtod(b, 0) == r)
+			b.n = 0;
+		s_fmt(&b, "%.*g", k, v);
+			if (strtod(b.p, 0) == r)
 				break;
 		}
-		if (strchr(b, 'e') && fabs(v) >= 1e-6 && fabs(v) < 1e15) {
+		if (strchr(b.p, 'e') && fabs(v) >= 1e-6 && fabs(v) < 1e15) {
 			for (d = 0; d <= 20; d++) {
-				snprintf(b, sizeof b, "%.*f", d, v);
-				if (strtod(b, 0) == r)
+				b.n = 0;
+		s_fmt(&b, "%.*f", d, v);
+				if (strtod(b.p, 0) == r)
 					break;
 			}
 		}
 	}
-	if (!strcmp(b, "-0"))
-		strcpy(b, "0");
-	s_cat(o, b);
+	s_cat(o, b.p && strcmp(b.p, "-0") ? b.p : "0");
+	s_free(&b);
 }
 
 /* math [-s n] expr...: evaluate in floating point; shell variables by name,

@@ -119,8 +119,11 @@ whenever a replacement writes one.
   behaviour; they are visible with `hibr -d 3`.
 - **No static buffer sizes.** Everything is dynamically allocated: `str` for
   strings, `vec` for lists, arenas for AST and expansion temporaries. A
-  fixed-size local array for data is a bug. (Constant chunk sizes used for
-  dynamic allocation, like `HIBR_IOCH`, are fine.)
+  fixed-size local array for data is a bug; a number or a request is
+  formatted into a `str` with `s_fmt`, never `snprintf` into a local.
+  (Constant chunk sizes used for dynamic allocation, like `HIBR_IOCH`, are
+  fine, and so is an array whose size a file format fixes -- a tar header,
+  an MD5 block -- which says so on the line above it.)
 - **No nested/local functions.** Top-level functions only; they are non-static
   so modules can reach them with `-rdynamic`.
 - **Short, memorable names** — `ex`, `xw`, `lx_next`, `v_setp`, `rd_do`.
@@ -4519,17 +4522,20 @@ went in the shell.
   instruction counts, not the clock: the wall time between two separately
   built binaries moves several percent on code layout alone, and said +5.5%
   for a change that cost 0.23% of the instructions.
-- **Leak checking is a pass of its own, and five tests do not pass it**
-  (Gitea #127). The full `tests/asan.py` runs with `detect_leaks=0`, so a
-  clean run of it says nothing about leaks; the check is by hand,
-  `ASAN_OPTIONS=detect_leaks=1` over `tests/run.sh` with the sanitizer
-  build. 63 test files were once all clean, and `run.sh` is 149 now:
-  `670-module-api` (306 B), `680-hvi` (4110 B), `690-autoload` (153 B) leak
-  a module's own allocations, and `986-mkdir-rm` (15936 B) and `987-mv`
-  (5312 B) leak `str`/`vec` growth in `src/fs.c`'s builtins, which came
-  after that claim was written. All five are pre-existing and the same size
-  at v0.99.86 as today. A forked child that `_exit`s still leaks whatever
-  it held. Measure a leak change against the previous commit rather than
+- **Leak checking is a pass of the gate, and every recorded test passes it**
+  (Gitea #127, #351, 0.99.309). `tests/asan.py` -- `--quick` too -- runs
+  `tests/run.sh` a third time with `detect_leaks=1` and a `log_path`, and
+  fails on any report, printing it; the other passes still run with leaks
+  off. The five that leaked for 220 releases were not where they looked:
+  `986-mkdir-rm` and `987-mv` were `cmd_ext` never freeing the environment
+  it built for a program -- every external command, the builtins merely
+  being where a test ran many -- and the three module ones were `most` and
+  `hvi` dropping their state on the way out. **A module frame in a leak
+  stack is `<unknown module>` once it is `dlclose`d**: read
+  `/proc/$$/maps` at the test's end and `addr2line` the sanitizer-built
+  `.so`, and set `fast_unwind_on_malloc=0` for a whole stack. A forked
+  child that `_exit`s still leaks whatever it held, and is not reported.
+  Measure a leak change against the previous commit rather than
   against zero -- and against the other tests: the command cache's 96 bytes
   were found by noticing that only one test file reported anything, and
   then that `hash` reported the same number, which is what said cache

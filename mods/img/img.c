@@ -111,7 +111,6 @@ static void im_render(str *out, const cell *g, int rows, int cols, int gray)
 	for (r = 0; r < rows; r++) {
 		for (c = 0; c < cols; c++) {
 			const cell *cp = &g[r * cols + c];
-			char buf[64];
 
 			if (gray) {
 				int lv = im_luma(cp) * IM_RAMPN / 255;
@@ -123,11 +122,8 @@ static void im_render(str *out, const cell *g, int rows, int cols, int gray)
 				s_ch(out, im_ramp[lv]);
 				continue;
 			}
-			snprintf(buf, sizeof buf,
-				 "\033[38;2;%u;%u;%u;48;2;%u;%u;%um",
-				 cp->tr, cp->tg, cp->tb, cp->br, cp->bg,
-				 cp->bb);
-			s_cat(out, buf);
+			s_fmt(out, "\033[38;2;%u;%u;%u;48;2;%u;%u;%um",
+			      cp->tr, cp->tg, cp->tb, cp->br, cp->bg, cp->bb);
 			s_cat(out, "\xe2\x96\x80"); /* U+2580 upper half block */
 		}
 		if (!gray)
@@ -1016,6 +1012,9 @@ void im_fini(sh *s)
 	free(im_lastu);
 	im_lastu = 0;
 	im_lastn = 0;
+	for (i = 0; i < im_said.n; i++)
+		free(im_said.p[i]);
+	v_free(&im_said);
 }
 
 HIBR_MODULE("img", "1.0", "decode an image and draw it as terminal cells",

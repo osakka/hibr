@@ -1394,7 +1394,6 @@ int m_xscr(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "";
 	xs_scr *x;
-	char b[64];
 	str o;
 	size_t i;
 	int bt;
@@ -1419,8 +1418,14 @@ int m_xscr(sh *s, int ac, char **av)
 			xs_srvdrop(x->srv, 0);
 			v_add(&xs_srvs, (void *)(intptr_t)x->srv);
 		}
-		snprintf(b, sizeof b, "%d", x->id);
-		xs_say(s, b);
+		{
+			str n;
+
+			s_init(&n);
+			s_fmt(&n, "%d", x->id);
+			xs_say(s, n.p);
+			s_free(&n);
+		}
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "start")) {
@@ -1436,8 +1441,14 @@ int m_xscr(sh *s, int ac, char **av)
 			lg(HIBR_LERR, "xscr start: Xvfb could not be started");
 			return HIBR_FAIL;
 		}
-		snprintf(b, sizeof b, "%d", (int)pid);
-		xs_say(s, b);
+		{
+			str n;
+
+			s_init(&n);
+			s_fmt(&n, "%d", (int)pid);
+			xs_say(s, n.p);
+			s_free(&n);
+		}
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "stop") && ac > 2) {
@@ -1470,8 +1481,14 @@ int m_xscr(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "fd")) {
-		snprintf(b, sizeof b, "%d", x->fd);
-		xs_say(s, b);
+		{
+			str n;
+
+			s_init(&n);
+			s_fmt(&n, "%d", x->fd);
+			xs_say(s, n.p);
+			s_free(&n);
+		}
 		return HIBR_OK;
 	}
 	/* What the server has sent, acted on: status 0 when the screen has
@@ -1507,8 +1524,14 @@ int m_xscr(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "windows")) {
-		snprintf(b, sizeof b, "%d", xs_windows(x));
-		xs_say(s, b);
+		{
+			str n;
+
+			s_init(&n);
+			s_fmt(&n, "%d", xs_windows(x));
+			xs_say(s, n.p);
+			s_free(&n);
+		}
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "seen")) {
@@ -1516,8 +1539,14 @@ int m_xscr(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "size")) {
-		snprintf(b, sizeof b, "%d %d", x->w, x->h);
-		xs_say(s, b);
+		{
+			str n;
+
+			s_init(&n);
+			s_fmt(&n, "%d %d", x->w, x->h);
+			xs_say(s, n.p);
+			s_free(&n);
+		}
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "draw"))

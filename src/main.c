@@ -447,6 +447,8 @@ void sh_fini(sh *s)
 		free(s->sf.p[i]);
 	v_free(&s->sf);
 	v_free(&s->scope);
+	for (i = 0; i < s->psub.n; i++)
+		free(s->psub.p[i]);
 	v_free(&s->psub);
 	hsh_clear(s, 0);
 	v_free(&s->cmds);

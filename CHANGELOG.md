@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.309
+
+**No leaks, and the gate now looks for them** (Gitea #351). Every recorded
+test runs clean under LeakSanitizer, and `tests/asan.py` runs the recorded
+tests a third time with leak detection on, so a new leak fails a gate instead
+of waiting for someone to look. Seven were found and fixed:
+
+- a program started with exported variables leaked its environment, once per
+  command (`mkdir`, `rm` and `mv` falling through to the program showed it);
+- `most` kept its buffers and `hvi` its editor state after quitting;
+- `img` kept its remembered failure reasons;
+- the prompt kept its powerline colour;
+- an unfinished process substitution kept its record at exit.
+
+**Fixed-size buffers out of the shell and the modules**. A number, a JSON
+request or a file read is built into a growing string now, never a local
+array (`s_fmt`, beside `s_cat`). The few arrays left are sized by a file
+format -- a tar header, an MD5 block, deflate's tables, a cmsg -- and say so.
+Two things this fixed that showed:
+
+- `math -s 2 1e200` printed 63 characters of a 203-character answer; it
+  prints the whole number now.
+- `hold upgrade` carried each display's picture protocol and lost what else
+  it knew about it -- the kitty keyboard, OSC 52 copy and pixel mouse. A
+  display kept across an upgrade keeps all three.
+
 ## 0.99.308
 
 **Hover highlights** (Gitea #370). Where hovering is on (Control Panel >

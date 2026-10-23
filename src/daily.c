@@ -1076,6 +1076,7 @@ int cmd_ext(sh *s, char **av, const char *who)
 		_exit(HIBR_NOEXEC);
 	}
 	free(path);
+	envfree(env);
 	jc_waitt(s, pid, pid, &w, 0);
 	return WIFEXITED(w) ? WEXITSTATUS(w) : HIBR_FAIL;
 }
@@ -1262,12 +1263,9 @@ int b_time(sh *s, int ac, char **av)
 /* One time as times prints it: minutes, then seconds to the millisecond. */
 void bi_tvfmt(str *o, long sec, long usec)
 {
-	char b[64];
 	long ms = sec * 1000 + usec / 1000;
 
-	snprintf(b, sizeof b, "%ldm%ld.%03lds", ms / 60000, ms / 1000 % 60,
-		 ms % 1000);
-	s_cat(o, b);
+	s_fmt(o, "%ldm%ld.%03lds", ms / 60000, ms / 1000 % 60, ms % 1000);
 }
 
 /* The shell's own user and system time, then its children's, as bash's

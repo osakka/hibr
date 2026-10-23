@@ -438,6 +438,26 @@ void vb_put(sh *s, vec *v)
 	v_add(&s->vbf, v);
 }
 
+/* Append printf-formatted text, sized to what it formats: the one way to
+   format into memory here, so no caller guesses a buffer's size (Gitea
+   #351). */
+void s_fmt(str *s, const char *f, ...)
+{
+	va_list ap, ap2;
+	int n;
+
+	va_start(ap, f);
+	va_copy(ap2, ap);
+	n = vsnprintf(0, 0, f, ap2);
+	va_end(ap2);
+	if (n > 0) {
+		s_grow(s, (size_t)n);
+		vsnprintf(s->p + s->n, (size_t)n + 1, f, ap);
+		s->n += (size_t)n;
+	}
+	va_end(ap);
+}
+
 /* Append a signed number in decimal. */
 void s_num(str *s, long v)
 {

@@ -8,7 +8,7 @@
 #define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.308"
+#define HIBR_VER "0.99.309"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -336,6 +336,7 @@ void s_cat(str *s, const char *p);
 void s_ch(str *s, int c);
 void s_free(str *s);
 void s_num(str *s, long v);
+void s_fmt(str *s, const char *f, ...);
 void v_add(vec *v, void *x);
 void v_free(vec *v);
 str *sb_get(sh *s);

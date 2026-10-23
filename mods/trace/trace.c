@@ -49,6 +49,7 @@ int tr_probe(struct sockaddr_in *d, int ttl, int wait, char *ip, double *ms,
 	struct msghdr m;
 	struct iovec io;
 	struct cmsghdr *cm;
+	/* Sized by the format: cmsg control data, and the probe's own payload. */
 	char cb[512], b[128];
 
 	s = socket(AF_INET, SOCK_DGRAM, 0);

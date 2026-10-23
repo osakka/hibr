@@ -81,6 +81,7 @@ struct df {
 	unsigned lfreq[286], dfreq[30];
 	/* code[i] and len[i] for the literal/length and distance alphabets,
 	   and for the code-length alphabet that describes them. */
+	/* Sized by the format: deflate's 286 literal, 30 distance, 19 code lengths. */
 	unsigned short lcode[286], dcode[30], ccode[19];
 	unsigned char llen[286], dlen[30], clen[19];
 	str *out;
@@ -362,6 +363,7 @@ size_t df_cost(struct df *z, int nlit, int ndist)
    symbols came from, which a stored block writes verbatim. */
 void df_block(struct df *z, const unsigned char *raw, size_t rawn, int last)
 {
+	/* Sized by the format: at most 286 + 30 run-length symbols. */
 	unsigned char csym[320], cxtra[320], cnx[320];
 	unsigned cfreq[19];
 	int nlit = 286, ndist = 30, ncl, nrun, i, k;

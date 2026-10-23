@@ -1018,12 +1018,13 @@ void hd_keepexec(int fd)
 int hd_selfmod(const char *name, str *out)
 {
 	FILE *f = fopen("/proc/self/maps", "r");
-	char line[1024];
+	char *line = 0;
+	size_t cap = 0;
 	int got = 0;
 
 	if (!f)
 		return 0;
-	while (!got && fgets(line, sizeof line, f)) {
+	while (!got && getline(&line, &cap, f) > 0) {
 		char *p = strstr(line, " /");
 		char *d;
 
@@ -1039,6 +1040,7 @@ int hd_selfmod(const char *name, str *out)
 		s_cat(out, p);
 		got = 1;
 	}
+	free(line);
 	fclose(f);
 	return got;
 }
@@ -1111,6 +1113,8 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 		   than this has no line and is GX_UNKNOWN until it attaches
 		   again, which draws half blocks rather than black. */
 		fprintf(f, "gfx %d %d\n", cn->fd, cn->gfx);
+		fprintf(f, "caps %d %d %d %d\n", cn->fd, cn->kbd, cn->copy,
+			cn->mpix);
 		hd_keepexec(cn->fd);
 	}
 	fclose(f);
@@ -1173,8 +1177,10 @@ out:
 int hd_resume(sh *s)
 {
 	const char *rp = hibr_get(s, "HIBR_HOLD_RESUME");
-	char line[512], name[128], stpath[256];
-	int l = -1, m = -1, rows = 0, cols = 0, id = 0, tid = 0;
+	char *line = 0;
+	size_t lcap = 0;
+	str name, stpath;
+	int l = -1, m = -1, rows = 0, cols = 0, id = 0, tid = 0, at;
 	long pid = 0;
 	struct sigaction sa;
 	vec cls;
@@ -1188,7 +1194,8 @@ int hd_resume(sh *s)
 		return HIBR_FAIL;
 	}
 	memset(&cls, 0, sizeof cls);
-	stpath[0] = 0;
+	s_init(&name);
+	s_init(&stpath);
 	signal(SIGHUP, SIG_IGN);
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, SIG_IGN);
@@ -1198,19 +1205,32 @@ int hd_resume(sh *s)
 	memset(&sa, 0, sizeof sa);
 	sa.sa_handler = hd_onterm;
 	sigaction(SIGTERM, &sa, 0);
-	while (fgets(line, sizeof line, f)) {
-		int fd, row, col, crows, ccols, prim, xp, yp, shr, shc;
+	while (getline(&line, &lcap, f) > 0) {
+		int fd, row, col, crows, ccols, prim, xp, yp, shr, shc, a, b, c;
 
 		if (sscanf(line, "listen %d", &l) == 1)
 			continue;
 		if (sscanf(line, "pty %d %ld %d %d", &m, &pid, &rows,
 			   &cols) == 4)
 			continue;
-		if (sscanf(line, "state %255s", stpath) == 1)
+		if (!strncmp(line, "state ", 6)) {
+			stpath.n = 0;
+			s_add(&stpath, line + 6, strcspn(line + 6, " \t\r\n"));
 			continue;
+		}
 		if (sscanf(line, "shift %d %d", &shr, &shc) == 2) {
 			hd_shiftr = shr;
 			hd_shiftc = shc;
+			continue;
+		}
+		if (sscanf(line, "caps %d %d %d %d", &fd, &a, &b, &c) == 4) {
+			struct hd_cli *ck = hd_cfind(&cls, fd);
+
+			if (ck) {
+				ck->kbd = !!a;
+				ck->copy = !!b;
+				ck->mpix = !!c;
+			}
 			continue;
 		}
 		if (sscanf(line, "gfx %d %d", &fd, &prim) == 2) {
@@ -1220,9 +1240,10 @@ int hd_resume(sh *s)
 				cg->gfx = prim;
 			continue;
 		}
-		if (sscanf(line, "client %d %d %d %d %d %d %d %d %127s", &fd,
+		at = 0;
+		if (sscanf(line, "client %d %d %d %d %d %d %d %d%n", &fd,
 			   &row, &col, &crows, &ccols, &prim, &xp, &yp,
-			   name) >= 8) {
+			   &at) == 8 && at > 0) {
 			struct hd_cli *cn = xm(sizeof *cn);
 
 			memset(cn, 0, sizeof *cn);
@@ -1241,29 +1262,38 @@ int hd_resume(sh *s)
 			   from a server older than the asking has none, and its
 			   clients go on being sent what they were (Gitea #274). */
 			cn->gfx = GX_UNASKED;
-			s_cat(&cn->name, name);
+			name.n = 0;
+			at += (int)strspn(line + at, " \t");
+			s_add(&name, line + at, strcspn(line + at, " \t\r\n"));
+			s_cat(&cn->name, name.p ? name.p : "");
 			v_add(&cls, cn);
 		}
 	}
+	free(line);
+	s_free(&name);
 	fclose(f);
 	unlink(rp);
 	unsetenv("HIBR_HOLD_RESUME");
 	if (l < 0 || m < 0 || rows <= 0 || cols <= 0) {
 		lg(HIBR_LERR, "hold resume: %s does not describe a session",
 		   rp);
+		s_free(&stpath);
 		return HIBR_FAIL;
 	}
 	hd_selftitle("hold", hibr_get(s, "HIBR_HOLD"));
 	id = hd_pty->adopt(m, pid, rows, cols);
 	if (!id) {
 		lg(HIBR_LERR, "hold resume: cannot take the terminal back");
+		s_free(&stpath);
 		return HIBR_FAIL;
 	}
 	tid = hd_tm->new(rows, cols);
 	hd_relay(tid);
-	if (stpath[0] && !hd_tm->load(tid, stpath))
+	if (stpath.n && !hd_tm->load(tid, stpath.p))
 		lg(HIBR_LINF, "hold resume: starting from a blank screen");
-	unlink(stpath);
+	if (stpath.n)
+		unlink(stpath.p);
+	s_free(&stpath);
 	/* The arrangement came back out of a file, so it is the first
 	   thing this process has that nothing has checked. Normalising
 	   runs from hd_union, and hd_union runs when a client attaches,

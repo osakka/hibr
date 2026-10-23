@@ -988,6 +988,21 @@ void vi_exkey(vi_ed *e, const char *k)
 		s_cat(&e->cmd, k);
 }
 
+/* Everything an edit holds, on whichever way it ends. */
+void vi_edfree(vi_ed *e, str *key)
+{
+	vi_ufree(e);
+	vi_bfree(&e->b);
+	free(e->path);
+	e->path = 0;
+	s_free(&e->find);
+	s_free(&e->cmd);
+	s_free(&e->msg);
+	s_free(&e->yank);
+	s_free(&e->pend);
+	s_free(key);
+}
+
 /* Edit a file. */
 int m_hvi(sh *s, int ac, char **av)
 {
@@ -1017,6 +1032,7 @@ int m_hvi(sh *s, int ac, char **av)
 		ed.path = xs(av[1]);
 		if (vi_load(&ed.b, ed.path) != HIBR_OK) {
 			lg(HIBR_LERR, "hvi: %s: cannot read", ed.path);
+			vi_edfree(&ed, &key);
 			return HIBR_FAIL;
 		}
 		vi_stamp(&ed);
@@ -1025,8 +1041,10 @@ int m_hvi(sh *s, int ac, char **av)
 	lang = hl && ed.path ? hl->lang(ed.path) : 0;
 	if (hl && !lang)
 		lg(HIBR_LDBG, "no colouring: nothing claims this file's kind");
-	if (dp->open(s) != HIBR_OK)
+	if (dp->open(s) != HIBR_OK) {
+		vi_edfree(&ed, &key);
 		return HIBR_FAIL;
+	}
 	while (!ed.quit) {
 		dp->size(&rows, &cols);
 		vh = rows - 1;
@@ -1061,15 +1079,7 @@ int m_hvi(sh *s, int ac, char **av)
 		}
 	}
 	dp->close(s);
-	vi_ufree(&ed);
-	vi_bfree(&ed.b);
-	free(ed.path);
-	s_free(&ed.find);
-	s_free(&ed.cmd);
-	s_free(&ed.msg);
-	s_free(&ed.yank);
-	s_free(&ed.pend);
-	s_free(&key);
+	vi_edfree(&ed, &key);
 	return HIBR_OK;
 }
 
