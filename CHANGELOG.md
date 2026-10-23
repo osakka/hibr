@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.308
+
+**Hover highlights** (Gitea #370). Where hovering is on (Control Panel >
+Mouse > Hover, Auto by default: on where a display reports the pointer in
+pixels by itself), what is under the pointer says so before it is pressed: a
+window's title-bar button -- close, minimise, zoom -- is drawn lighter in its
+own colour, a held one lighter still as before; a menu title and an item on
+the menu bar's right sit on the theme's well colour. Each goes back the moment
+the pointer leaves. A highlight that comes or goes asks for one full frame, so
+a window the desktop would otherwise leave alone still shows it; a pointer
+that moves without changing what it is over still draws nothing.
+
 ## 0.99.307
 
 **Power** (Gitea #365). A machine with a battery has it on the menu bar --

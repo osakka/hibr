@@ -311,7 +311,7 @@ fn dt_barilay(int from, int gap) {
 			fi
 			DT_BARI["$nm"]["c"]=$c
 			DT_BARI["$nm"]["w"]=$iw
-			dt_barput "$c" "$t"
+			dt_bariput "$nm" "$c" "$t"
 			c=$((c + iw))
 			;;
 		*)
@@ -322,11 +322,22 @@ fn dt_barilay(int from, int gap) {
 			fi
 			DT_BARI["$nm"]["c"]=$c
 			DT_BARI["$nm"]["w"]=$iw
-			dt_barput "$c" "$t"
+			dt_bariput "$nm" "$c" "$t"
 			;;
 		esac
 	done
 	ret "$c"
+}
+
+# One bar item, on the well colour while the pointer is over it.
+fn dt_bariput(nm, int c, t) {
+	if [ "$nm" = "$DT_HOVERBI" ]; then
+		console pen "$DT_INK" "$DT_WELL"
+		dt_barput "$c" "$t"
+		console pen "$DT_INK" "$DT_BAR"
+		return 0
+	fi
+	dt_barput "$c" "$t"
 }
 
 # Write into the bar's own pane, given an absolute column.
@@ -466,6 +477,8 @@ dt_bar() {
 		[ "${MB[$i]["x"]}" -lt "$DT_MENUSTART" ] && DT_MENUSTART=${MB[$i]["x"]}
 		if [ "$i" = "$MB_OPEN" ] || [ "$i" = "$MB_PAR" ]; then
 			console pen "$DT_BAR" "$DT_ACTIVE" bold
+		elif [ "$i" = "$DT_HOVERMT" ]; then
+			console pen "$DT_INK" "$DT_WELL" bold
 		elif [ "$i" = 0 ]; then
 			console pen "$DT_ACTIVE" "$DT_BAR" bold
 		elif [ "$DT_MENUBOLD" = 1 ]; then

@@ -6954,4 +6954,28 @@ sc, asked = pwasked([press(sr, scl + 1), release(sr, scl + 1), 0.5],
 check("a desktop that is not the computer's own does nothing for Sleep",
       asked == [], asked)
 
-report(761)
+# Hover highlights (Gitea #370): what is under the pointer says so before it
+# is pressed -- a window's title-bar button drawn lighter, a menu title and a
+# bar item on the well colour -- and stops saying so when the pointer goes.
+HVL = ('dt_new "Lit" 8 30 6 10\n'
+       'dt_baritem demo "DEMO"\n')
+sc0, _ = run(HVL, env={"DT_HOVER": "on"})
+cr, cc = sc0.find("x\u251c") or (6, 37)
+fr, fc = (0, sc0.row(0).find("File") + 1)
+dr, dc = (0, sc0.row(0).find("DEMO") + 1)
+sc1, _ = run(HVL, [0.5, hov(cr, cc), 0.3], env={"DT_HOVER": "on"})
+check("a window's button under the pointer is drawn lighter",
+      sc1.p[cr][cc] != sc0.p[cr][cc] and sc1.at(cr, cc) == sc0.at(cr, cc),
+      (sc0.p[cr][cc], sc1.p[cr][cc]))
+sc2, _ = run(HVL, [0.5, hov(cr, cc), 0.3, hov(15, 50), 0.3],
+             env={"DT_HOVER": "on"})
+check("and goes back when the pointer leaves it", sc2.p[cr][cc] == sc0.p[cr][cc],
+      (sc0.p[cr][cc], sc2.p[cr][cc]))
+sc3, _ = run(HVL, [0.5, hov(fr, fc), 0.3], env={"DT_HOVER": "on"})
+check("a menu title under the pointer is lit", sc3.p[fr][fc] != sc0.p[fr][fc],
+      (sc0.p[fr][fc], sc3.p[fr][fc]))
+sc4, _ = run(HVL, [0.5, hov(dr, dc), 0.3], env={"DT_HOVER": "on"})
+check("and so is a bar item", sc4.p[dr][dc] != sc0.p[dr][dc],
+      (sc0.p[dr][dc], sc4.p[dr][dc]))
+
+report(765)

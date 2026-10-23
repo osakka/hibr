@@ -398,6 +398,24 @@ fn dt_win(int id) {
 			fi
 			i=$((i + 1))
 		done
+	# Under the pointer and not held: the same, a little less (Gitea #370),
+	# so a button says it is one before it is pressed.
+	elif [ "${DT_HOVERBTN% *}" = "$id" ]; then
+		i=0
+		while [ "$i" -lt ${#BTN_K[@]} ]; do
+			if [ "${BTN_K[$i]}" = "${DT_HOVERBTN#* }" ]; then
+				if [ "${BTN_C[$i]}" = "$DT_INK" ]; then
+					pc=$DT_ACTIVE
+					[ "$DT_TITLEBAR" = solid ] && pc=$DT_FACE
+				else
+					pc := dt_lighten "${BTN_C[$i]}" 25
+				fi
+				console pen "$pc" "$tbg" bold
+				console put -p "w$id" 0 $((bc + ${off[$i]})) \
+					"${BTN_G[$i]}"
+			fi
+			i=$((i + 1))
+		done
 	fi
 }
 
