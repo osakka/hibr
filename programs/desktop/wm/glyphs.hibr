@@ -71,6 +71,8 @@ fn dt_glyphs(set = "unicode") {
 		GL["bar1"]="."; GL["bar2"]=":"; GL["bar3"]="i"; GL["bar4"]="I"; GL["baroff"]="_"
 		GL["secure"]="*"
 		GL["bt"]="bt"; GL["btoff"]="bt x"
+		GL["bat0"]="bat"; GL["bat1"]="bat"; GL["bat2"]="bat"
+		GL["bat3"]="bat"; GL["bat4"]="bat"; GL["batchg"]="+"
 		GL["star"]="*"; GL["flag"]="!"; GL["heart"]="*"; GL["warn"]="!"
 		GL["unlocked"]="!"
 		GL["task"]="[ ]"; GL["taskdone"]="[x]"; GL["pin"]="*"
@@ -147,6 +149,10 @@ fn dt_glyphs(set = "unicode") {
 		GL["secure"]=$'⚿'    # SQUARED KEY: a network that asks for a password
 		GL["bt"]=$'ᛒ'       # RUNIC LETTER BERKANAN BEORC BJARKAN B, Bluetooth's own
 		GL["btoff"]=$'ᛒ ✕' # the same, MULTIPLICATION X: switched off
+		# A battery's charge as a level: LOWER ONE EIGHTH BLOCK .. FULL BLOCK
+		GL["bat0"]=$'\u2581'; GL["bat1"]=$'\u2582'; GL["bat2"]=$'\u2584'
+		GL["bat3"]=$'\u2586'; GL["bat4"]=$'\u2588'
+		GL["batchg"]=$'\u21af'  # DOWNWARDS ZIGZAG ARROW: charging
 		GL["star"]=$'✱'      # HEAVY ASTERISK
 		GL["task"]=$'☐'      # BALLOT BOX
 		GL["taskdone"]=$'☑'  # BALLOT BOX WITH CHECK
@@ -203,6 +209,12 @@ dt_glyphsnerd() {
 	GL["secure"]=$'\uf023'    # nf-fa-lock
 	GL["bt"]=$'\uf293'        # nf-fa-bluetooth
 	GL["btoff"]=$'\uf293 \uf00d' # nf-fa-bluetooth, nf-fa-times
+	GL["bat0"]=$'\uf244'      # nf-fa-battery_empty
+	GL["bat1"]=$'\uf243'      # nf-fa-battery_quarter
+	GL["bat2"]=$'\uf242'      # nf-fa-battery_half
+	GL["bat3"]=$'\uf241'      # nf-fa-battery_three_quarters
+	GL["bat4"]=$'\uf240'      # nf-fa-battery_full
+	GL["batchg"]=$'\uf0e7'    # nf-fa-bolt: charging
 	GL["folder"]=$'\uf07b'    # nf-fa-folder
 	GL["bundle"]=$'\uf1b2'    # nf-fa-cube
 	GL["file"]=$'\uf15b'      # nf-fa-file

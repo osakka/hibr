@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.307
+
+**Power** (Gitea #365). A machine with a battery has it on the menu bar --
+its level and charge, `▄ 62%`, with `↯` in front while it charges (Nerd's
+battery and bolt in the nerd glyph set, words in ascii) -- read from the
+kernel's own files every half minute, one read a supply. A click opens its
+menu: the charge in words with the time left or to full, then Sleep,
+Hibernate where the machine can, Restart… and Shut Down…, and Power
+Settings…; the same three are at the foot of **Special**, as on System 7.
+
+They act through logind, which needs no root for the person at the machine,
+and only where the desktop is the machine's own -- a local session on a seat,
+which a Blit login is since 0.99.305. Over SSH, or nested in another
+desktop's terminal, they are dimmed: Shut Down there would turn off a computer
+nobody at it asked to turn off. Restart and Shut Down ask first.
+
+**Control Panel > Power** shows the charge, whether it is plugged in and the
+battery's health -- what it holds full against what it held new -- and has
+Battery on Menu Bar, Low Battery Note (5 to 25%, or off), Critical Battery
+(3 to 10%) and On Critical Battery: nothing, or sleep, hibernate or shut down
+after a note and a minute in which plugging in calls it off. A note raised as
+the desktop starts -- already low -- now shows at once: a ticker runs after
+the frame, so a note it raised waited for the next one and could expire
+unseen on an idle desktop.
+
+Not in this release: what closing the lid does, which needs logind's lid
+inhibitor, and the brightness keys and slider (#366). The checks drive a
+stand-in battery folder and a stand-in `loginctl`, never the real one.
+
 ## 0.99.306
 
 **The powerline look for the prompt** (Gitea #360), off unless asked for:

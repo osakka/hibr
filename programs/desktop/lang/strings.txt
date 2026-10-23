@@ -66,6 +66,10 @@
 %s would not unload
 %s x %s cells
 %s x %s cells, %s x %s pixels
+%s%% charged, %s
+%s%% of what it held new
+%s, %s left
+%s, %s to full
 %s, a cell is %s by %s
 %s, and %s more could not go
 (empty)
@@ -153,6 +157,14 @@ Back 30 Seconds
 Back 5 Seconds
 Backspace
 Bar Shadow
+Batteries
+Battery
+Battery critical: %s%% left
+Battery critical: the computer will hibernate in a minute
+Battery critical: the computer will shut down in a minute
+Battery critical: the computer will sleep in a minute
+Battery low: %s%% left
+Battery on Menu Bar
 Blank
 Block Addresses
 Bluetooth
@@ -245,6 +257,7 @@ Colours
 Columns
 Command:
 Compress Pictures
+Computer
 Connect to Server
 Connect to Server…
 Connected
@@ -313,6 +326,7 @@ Could not write %s
 Count
 Count From
 Cover Size
+Critical Battery
 Cursor
 Cursor Blink
 Cut
@@ -466,9 +480,11 @@ Group:
 Heading 1
 Heading 2
 Heading 3
+Health
 Held
 Held: %s
 Help
+Hibernate
 Hidden Files
 Hide
 High Latitudes
@@ -564,6 +580,7 @@ Look for Devices
 Looking for devices
 Looking for networks
 Louder
+Low Battery Note
 MODULE
 Made if it is not there. Used once downloads are on.
 Made if it is not there; ~ is your home.
@@ -712,6 +729,7 @@ On
 On 10 Seconds
 On 30 Seconds
 On 5 Seconds
+On Critical Battery
 On a server: no owner or permissions here.
 On the clipboard: %s characters
 One that begins with an expansion is that expansion:
@@ -778,6 +796,8 @@ Play Next Automatically
 Player
 Position
 Position Given
+Power
+Power Settings…
 Prayer
 Prayer Location
 Prayer Times
@@ -842,11 +862,14 @@ Reset
 Reset All Views
 Reset Permissions
 Resize
+Restart
 Restart Desktop
 Restart failed: %s would not run
+Restart the computer?
 Restarted, but the saved desktop could not be read -- see desktop.log
 Restarted, but the saved desktop is from another version
 Restarted: hibr %s
+Restart…
 Right
 Rows
 Rule
@@ -926,10 +949,15 @@ Show the password
 Shown As
 Shown on the login screen, with your picture.
 Shows:
+Shut Down
+Shut Down…
+Shut down the computer?
 Side
 Signature
 Signature, put under every message you write:
 Size: %s
+Sleep
+Sleep, Restart, Shut Down
 Smallest Height
 Smallest Width
 Snake
@@ -990,6 +1018,7 @@ The administrator's (root) password, to manage networks without one
 The administrator's (root) password, to remove the rule
 The catalogue command did not answer JSON. It may be older than this window.
 The colours are good, warn, bad, info and dim
+The computer did not do it: logind refused
 The date is YYYY-MM-DD
 The date is YYYY-MM-DD, the time HH:MM
 The desktop is drawn through %s
@@ -1027,6 +1056,7 @@ This Desktop
 This Session
 This Terminal
 This account has no address to answer from
+This desktop is not the computer's own
 This links to %s
 This notification has been cleared.
 This page could not be drawn
@@ -1160,6 +1190,7 @@ blocks only: it does not say what a cell measures
 by cable
 cancelled
 case does not matter
+charging
 clicks
 clicks and drags
 connected
@@ -1177,6 +1208,7 @@ file
 folder
 found %s for incoming and %s for outgoing
 from the Servers list.
+full
 hibr %s is installed -- click to restart the desktop
 hibr %s — a desktop written in the shell it runs on
 hibr desktop v%s
@@ -1198,6 +1230,7 @@ none
 none found
 none here
 not allowed from this session
+not charging
 not connected
 not reported
 note
@@ -1208,11 +1241,14 @@ nothing came back -- r tests again
 off -- locked here
 older than the hibr on disk
 on -- locked here
+on battery
+only on the computer's own screen
 order they need each other; one needing itself says #CYCLE.
 outgoing
 over a range, row by row
 pair
 phone
+plugged in
 range A1_B9 an array of its values, worked out in the
 reading the catalogue
 replaced on disk
@@ -1225,6 +1261,7 @@ shipped
 shipped with hibr
 system
 text
+the battery
 the machine has this, and its copy is read first
 the network's settings were not saved
 the password was not accepted

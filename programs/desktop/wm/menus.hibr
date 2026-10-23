@@ -468,6 +468,7 @@ dt_findermenus() {
 	else
 		dt_dim "Empty Trash${GL[ellipsis]}"
 	fi
+	dt_pwitems
 }
 
 # File > Open: every icon chosen, opened as a double click would.

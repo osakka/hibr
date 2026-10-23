@@ -3583,7 +3583,7 @@ PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
 # what 0.99.126's regrouping made necessary: About This Computer and Task
 # Manager became the desktop's, Vault and Prayer Times the apps', and PIM
 # became Calendar & Contacts, so it sorts first among them now.
-ORDER = ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "sound",
+ORDER = ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "power", "sound",
          "aboutme", "abouthibr", "appearance", "cliphist", "control_strip",
          "desktop", "filetypes", "language", "notify", "pictures",
          "screensaver", "network", "shortcuts", "taskmgr", "windows",
@@ -6853,4 +6853,105 @@ n = hvframes([hov(18, 50), hov(7, 15), hov(18, 50)])
 check("while moving onto a window and off again draws a frame each time",
       n == 2, n)
 
-report(752)
+# --- power (Gitea #365) ------------------------------------------------------
+#
+# A stand-in for the kernel's power supply folder, one uevent a supply, and
+# for logind's own command, which writes down what it was asked and never
+# acts: this box has passwordless sudo, and the real one would.
+PWD_ = tempfile.mkdtemp(prefix="hibr-power-")
+
+
+def pwsupply(pct, state, ac=0, design=54000000, power=8000000):
+    """Write a battery at pct% (of 50 Wh) and a mains supply."""
+    for d in ("BAT0", "AC"):
+        os.makedirs(os.path.join(PWD_, "sys", d), exist_ok=True)
+    open(os.path.join(PWD_, "sys", "BAT0", "uevent"), "w").write(
+        "POWER_SUPPLY_TYPE=Battery\nPOWER_SUPPLY_STATUS=%s\n"
+        "POWER_SUPPLY_CAPACITY=%d\nPOWER_SUPPLY_ENERGY_NOW=%d\n"
+        "POWER_SUPPLY_ENERGY_FULL=50000000\nPOWER_SUPPLY_ENERGY_FULL_DESIGN=%d\n"
+        "POWER_SUPPLY_POWER_NOW=%d\n" % (state, pct, pct * 500000, design, power))
+    open(os.path.join(PWD_, "sys", "AC", "uevent"), "w").write(
+        "POWER_SUPPLY_TYPE=Mains\nPOWER_SUPPLY_ONLINE=%d\n" % ac)
+
+
+PWCTL = os.path.join(PWD_, "loginctl")
+PWLOG = os.path.join(PWD_, "asked")
+open(PWCTL, "w").write(
+    '#!/bin/sh\ncase $1 in\nshow-session) printf "Remote=no\\nSeat=seat0\\n" ;;\n'
+    '*) echo "$1" >> %s ;;\nesac\n' % PWLOG)
+os.chmod(PWCTL, 0o755)
+PWBUS = os.path.join(PWD_, "busctl")
+open(PWBUS, "w").write('#!/bin/sh\necho \'s "no"\'\n')
+os.chmod(PWBUS, 0o755)
+PWENV = {"DT_POWERDIR": os.path.join(PWD_, "sys"), "DT_PWCTL": PWCTL,
+         "DT_PWBUSCTL": PWBUS}
+
+pwsupply(62, "Discharging")
+sc, _ = run("", env=PWENV)
+check("a battery is on the menu bar, its level and its charge",
+      "\u2584 62%" in sc.row(0), sc.row(0))
+pwsupply(62, "Charging", ac=1)
+sc, _ = run("", env=PWENV)
+check("and a mark while it charges", "\u21af\u2584 62%" in sc.row(0), sc.row(0))
+sc, _ = run("", env=dict(PWENV, DT_POWERDIR=os.path.join(PWD_, "none")))
+check("a machine with no battery has no battery on the bar",
+      "%" not in sc.row(0).replace("Desktop", ""), sc.row(0))
+
+
+def pwlive(feed, env, want):
+    """A desktop driven by feed, its screen read once want is on it."""
+    path = scratch("desktop-power.hibr")
+    open(path, "w").write("%s. %s\n\ndt_open\ndt_run\ndt_close\n" % (load(MOD), WM))
+    t = Term(path, env=dict({"DT_TICK": "60"}, **env), rows=ROWS, cols=COLS,
+             settle=0.5)
+    t.keys(feed)
+    sc = t.until(want, 30)
+    t.quit(b"\x1bq", 1.0)
+    os.unlink(path)
+    return sc
+
+
+pwsupply(9, "Discharging")
+sc = pwlive([0.3], PWENV, "Battery low")
+check("a low charge says so in a note, as the desktop starts",
+      sc.find("Battery low: 9% left") is not None, sc)
+
+# Special holds Sleep, Restart and Shut Down, through logind: acting on a
+# desktop that is the computer's own -- Shut Down asking first -- and on
+# nothing on one that is not, whose session logind does not know.
+PWLOC = dict(PWENV, XDG_SESSION_ID="7")
+sc0, _ = run("", env=PWLOC)
+spc = sc0.row(0).find("Special")
+sc, _ = run("", [press(0, spc), release(0, spc), 0.3], env=PWLOC)
+check("Special has Sleep, Restart and Shut Down",
+      sc.find("Sleep") is not None and sc.find("Shut Down") is not None, sc)
+sr, scl = sc.find("Sleep") or (0, 0)
+dr, dcl = sc.find("Shut Down") or (0, 0)
+
+
+def pwasked(feed, env):
+    if os.path.exists(PWLOG):
+        os.unlink(PWLOG)
+    sc, _ = run("", [press(0, spc), release(0, spc), 0.3] + feed, env=env)
+    return sc, open(PWLOG).read().split() if os.path.exists(PWLOG) else []
+
+
+sc, asked = pwasked([press(sr, scl + 1), release(sr, scl + 1), 0.5], PWLOC)
+check("on the computer's own desktop Sleep asks logind to suspend",
+      asked == ["suspend"], asked)
+if os.path.exists(PWLOG):
+    os.unlink(PWLOG)
+sc = pwlive([0.3, press(0, spc), release(0, spc), 0.3, press(dr, dcl + 1),
+             release(dr, dcl + 1)], PWLOC, "Shut down the computer?")
+asked = open(PWLOG).read().split() if os.path.exists(PWLOG) else []
+check("and Shut Down asks first, doing nothing until it is answered",
+      sc.find("Shut down the computer?") is not None and asked == [], (asked, sc))
+sc, asked = pwasked([press(dr, dcl + 1), release(dr, dcl + 1), 0.5, b"y", 0.5],
+                    PWLOC)
+check("answered yes, it asks logind to power off", asked == ["poweroff"], asked)
+sc, asked = pwasked([press(sr, scl + 1), release(sr, scl + 1), 0.5],
+                    dict(PWENV, XDG_SESSION_ID=None))
+check("a desktop that is not the computer's own does nothing for Sleep",
+      asked == [], asked)
+
+report(761)

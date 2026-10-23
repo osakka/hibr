@@ -1,0 +1,114 @@
+#!/usr/bin/env hibr
+#
+# power -- the Control Panel pane called Power (Gitea #365): each battery's
+# charge, whether it is charging, the time left and its health; the battery
+# on the menu bar, the note at a low charge and what happens at a critical
+# one; and Sleep, Hibernate, Restart and Shut Down. It acts through
+# wm/power.hibr, and its rows for a battery are there only where there is
+# one.
+
+strict
+
+app power "The Control Panel pane for the battery and the computer's power" 1.0
+command -v cp_pane > /dev/null && cp_pane power "Power" "↯" hardware
+
+PW_LOWS=(off 5 10 15 20 25)
+PW_CRITS=(3 5 8 10)
+PW_CRITDOS=(nothing suspend hibernate poweroff)
+DT_PWBAR="${DT_PWBAR-1}"
+DT_PWLOW="${DT_PWLOW-10}"
+DT_PWCRIT="${DT_PWCRIT-5}"
+DT_PWCRITDO="${DT_PWCRITDO-nothing}"
+
+fn cp_set_pwlow(int? id = "", value = "") { DT_PWLOW=$value; cp_save; }
+fn cp_set_pwcrit(int? id = "", value = "") { DT_PWCRIT=$value; cp_save; }
+fn cp_set_pwcritdo(int? id = "", value = "") { DT_PWCRITDO=$value; cp_save; }
+
+fn power_rows(int w) {
+	local n=0 v
+
+	dt_pwread
+	if [ "${DT_PW["n"]:-0}" -gt 0 ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Battery"
+		v := dt_pwsays
+		CP[$w][$n]["val"] := dt_tr "%s%% charged, %s" "${DT_PW["pct"]:-?}" "$v"
+		n=$((n + 1))
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Power"
+		if [ "${DT_PW["ac"]}" = 1 ]; then
+			CP[$w][$n]["val"] := dt_tr "plugged in"
+		else
+			CP[$w][$n]["val"] := dt_tr "the battery"
+		fi
+		n=$((n + 1))
+		if [ -n "${DT_PW["health"]}" ]; then
+			CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Health"
+			CP[$w][$n]["val"] := dt_tr "%s%% of what it held new" "${DT_PW["health"]}"
+			n=$((n + 1))
+		fi
+		[ "${DT_PW["n"]}" -gt 1 ] && {
+			CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Batteries"
+			CP[$w][$n]["val"]=${DT_PW["n"]}; n=$((n + 1))
+		}
+		CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Battery"; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Battery on Menu Bar"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "${DT_PWBAR:-1}" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=DT_PWBAR; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Low Battery Note"
+		v=${DT_PWLOW:-10}
+		[ "$v" != off ] && v="$v%"
+		CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=low; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Critical Battery"
+		CP[$w][$n]["val"]="${DT_PWCRIT:-5}%"; CP[$w][$n]["key"]=crit
+		n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="On Critical Battery"
+		CP[$w][$n]["val"]=${DT_PWCRITDO:-nothing}; CP[$w][$n]["key"]=critdo
+		n=$((n + 1))
+	else
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Battery"
+		CP[$w][$n]["val"] := dt_tr "none found"; n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Computer"; n=$((n + 1))
+	if dt_pwlocal; then
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Sleep"
+		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=suspend; n=$((n + 1))
+		if [ "${DT_PW["hib"]}" = 1 ]; then
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Hibernate"
+			CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=hibernate; n=$((n + 1))
+		fi
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Restart"
+		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=reboot; n=$((n + 1))
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Shut Down"
+		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=poweroff; n=$((n + 1))
+	else
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Sleep, Restart, Shut Down"
+		CP[$w][$n]["val"] := dt_tr "only on the computer's own screen"
+		n=$((n + 1))
+	fi
+	ret "$n"
+}
+
+fn power_do(int w, k, int dir) {
+	local v
+
+	case $k in
+	DT_PWBAR) cp_toggle "$k"; dt_pwbar ;;
+	low) v := cp_next "${DT_PWLOW:-10}" "$dir" "${PW_LOWS[@]}"; DT_PWLOW=$v ;;
+	crit) v := cp_next "${DT_PWCRIT:-5}" "$dir" "${PW_CRITS[@]}"; DT_PWCRIT=$v ;;
+	critdo) v := cp_next "${DT_PWCRITDO:-nothing}" "$dir" "${PW_CRITDOS[@]}"
+		DT_PWCRITDO=$v ;;
+	suspend | hibernate | reboot | poweroff)
+		dt_pwdo "$k"
+		return 0
+		;;
+	esac
+	cp_save
+}
+
+fn power_drop(int w, int r, int c, k) {
+	case $k in
+	low) dt_droplist "$w" "$r" "$c" cp_set_pwlow "${PW_LOWS[@]}" ;;
+	crit) dt_droplist "$w" "$r" "$c" cp_set_pwcrit "${PW_CRITS[@]}" ;;
+	critdo) dt_droplist "$w" "$r" "$c" cp_set_pwcritdo "${PW_CRITDOS[@]}" ;;
+	esac
+}

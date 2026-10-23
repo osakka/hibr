@@ -1,0 +1,329 @@
+# wm/power -- the battery and the machine's power (Gitea #365): each
+# battery's charge, whether it is charging, the time left and its health,
+# read from the kernel's own files; an item on the menu bar while there is
+# a battery; a note when the charge runs low, and a choice of what to do
+# when it runs out; and Sleep, Restart and Shut Down through logind, which
+# needs no root for the person at the machine.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+#
+# The power actions act on the machine, so they are offered only where the
+# desktop is the machine's own: a local session on a seat. A desktop reached
+# over SSH, or one inside another's terminal, dims them -- Shut Down there
+# would turn off a computer nobody at it asked to turn off.
+
+strict
+
+declare -gA DT_PW
+# Where the batteries are, and what is asked to act: the kernel's folder and
+# logind's own command, each a name a test can put a stand-in at.
+DT_POWERDIR="${DT_POWERDIR-/sys/class/power_supply}"
+DT_PWCTL="${DT_PWCTL-loginctl}"
+DT_PWBUSCTL="${DT_PWBUSCTL-busctl}"
+# When the batteries were last read, and the charge the notes have already
+# spoken for in this discharge, so each is said once.
+DT_PWAT=0
+DT_PWLOWSAID=
+DT_PWCRITSAID=
+DT_PWCRITDUE=0
+# What the confirm box is about to do.
+DT_PWDOING=
+
+# Read every power supply: the batteries summed, and whether any mains is
+# on. Each supply's uevent holds every value, so one read a supply.
+dt_pwread() {
+	local d k v t now full design pw cap st online n=0 sn=0 sf=0 sd=0 sp=0
+	local charging=0 discharging=0 fulls=0 ac=0 capsum=0 caps=0
+	local -a lines
+
+	for d in "$DT_POWERDIR"/*; do
+		[ -r "$d/uevent" ] || continue
+		mapfile -t lines < "$d/uevent" 2> /dev/null || continue
+		t= now= full= design= pw= cap= st= online=
+		for k in "${lines[@]}"; do
+			v=${k#*=}
+			case ${k%%=*} in
+			POWER_SUPPLY_TYPE) t=$v ;;
+			POWER_SUPPLY_ONLINE) online=$v ;;
+			POWER_SUPPLY_STATUS) st=$v ;;
+			POWER_SUPPLY_CAPACITY) cap=$v ;;
+			POWER_SUPPLY_ENERGY_NOW | POWER_SUPPLY_CHARGE_NOW) now=$v ;;
+			POWER_SUPPLY_ENERGY_FULL | POWER_SUPPLY_CHARGE_FULL) full=$v ;;
+			POWER_SUPPLY_ENERGY_FULL_DESIGN | POWER_SUPPLY_CHARGE_FULL_DESIGN) design=$v ;;
+			POWER_SUPPLY_POWER_NOW | POWER_SUPPLY_CURRENT_NOW) pw=$v ;;
+			esac
+		done
+		case $t in
+		Mains | USB | USB_C) [ "$online" = 1 ] && ac=1 ;;
+		Battery)
+			n=$((n + 1))
+			case $st in
+			Charging) charging=1 ;;
+			Discharging) discharging=1 ;;
+			Full) fulls=$((fulls + 1)) ;;
+			esac
+			[ -n "$cap" ] && { capsum=$((capsum + cap)); caps=$((caps + 1)); }
+			[ -n "$now" ] && sn=$((sn + now))
+			[ -n "$full" ] && sf=$((sf + full))
+			[ -n "$design" ] && sd=$((sd + design))
+			[ -n "$pw" ] && sp=$((sp + ${pw#-}))
+			;;
+		esac
+	done
+	DT_PW["n"]=$n
+	DT_PW["ac"]=$ac
+	DT_PWAT=$EPOCHSECONDS
+	[ "$n" -gt 0 ] || return 0
+	if [ "$sf" -gt 0 ]; then
+		DT_PW["pct"]=$(( (sn * 100 + sf / 2) / sf ))
+	elif [ "$caps" -gt 0 ]; then
+		DT_PW["pct"]=$((capsum / caps))
+	else
+		DT_PW["pct"]=
+	fi
+	[ "${DT_PW["pct"]:-0}" -gt 100 ] && DT_PW["pct"]=100
+	if [ "$charging" = 1 ]; then
+		DT_PW["state"]=charging
+	elif [ "$discharging" = 1 ]; then
+		DT_PW["state"]=discharging
+	elif [ "$fulls" = "$n" ]; then
+		DT_PW["state"]=full
+	else
+		DT_PW["state"]=idle
+	fi
+	[ "${DT_PW["state"]}" = charging ] && ac=1
+	DT_PW["ac"]=$ac
+	DT_PW["mins"]=
+	if [ "$sp" -gt 0 ]; then
+		case ${DT_PW["state"]} in
+		discharging) DT_PW["mins"]=$((sn * 60 / sp)) ;;
+		charging) [ "$sf" -gt "$sn" ] && DT_PW["mins"]=$(( (sf - sn) * 60 / sp )) ;;
+		esac
+	fi
+	DT_PW["health"]=
+	[ "$sd" -gt 0 ] && [ "$sf" -gt 0 ] && DT_PW["health"]=$((sf * 100 / sd))
+	return 0
+}
+
+# Minutes as h:mm.
+fn dt_pwhm(int m) {
+	local mm=$((m % 60))
+
+	[ "$mm" -lt 10 ] && mm=0$mm
+	ret "$((m / 60)):$mm"
+}
+
+# What the charge is doing, in words, with the time left where it is known.
+dt_pwsays() {
+	local t hm
+
+	case ${DT_PW["state"]} in
+	charging) t := dt_tr "charging" ;;
+	full) t := dt_tr "full" ;;
+	discharging) t := dt_tr "on battery" ;;
+	*) t := dt_tr "not charging" ;;
+	esac
+	if [ -n "${DT_PW["mins"]}" ]; then
+		hm := dt_pwhm "${DT_PW["mins"]}"
+		if [ "${DT_PW["state"]}" = charging ]; then
+			t := dt_tr "%s, %s to full" "$t" "$hm"
+		else
+			t := dt_tr "%s, %s left" "$t" "$hm"
+		fi
+	fi
+	ret "$t"
+}
+
+# The battery's own glyph for a charge: five levels, and a mark when
+# charging.
+fn dt_pwglyph(int? pct = "") {
+	local l=$(( (${pct:-0} + 12) / 25 ))
+
+	[ "$l" -gt 4 ] && l=4
+	ret "${GL["bat$l"]}"
+}
+
+# The item on the menu bar: the battery's level and its charge, while there
+# is a battery and Control Panel > Power > Battery on Menu Bar is on. A
+# click opens its menu.
+dt_pwbar() {
+	local t g
+
+	dt_barilabel pw "Battery"
+	if [ "${DT_PWBAR:-1}" != 1 ] || [ "${DT_PW["n"]:-0}" = 0 ]; then
+		dt_baritem pw ""
+		return 0
+	fi
+	g := dt_pwglyph "${DT_PW["pct"]}"
+	t="$g ${DT_PW["pct"]:-?}%"
+	[ "${DT_PW["state"]}" = charging ] && t="${GL[batchg]}$t"
+	dt_baritem pw "$t" dt_pwmenu
+	dt_bariright pw dt_pwmenu
+}
+
+dt_pwmenu() {
+	dt_barmenu pw pw
+}
+
+# Whether this desktop is the machine's own: a local logind session on a
+# seat. Asked once, as it does not change while the desktop runs.
+dt_pwlocal() {
+	local o
+
+	if [ -z "${DT_PW["local"]}" ]; then
+		DT_PW["local"]=0
+		if [ -n "${XDG_SESSION_ID-}" ] && command -v "$DT_PWCTL" > /dev/null; then
+			o=$("$DT_PWCTL" show-session "$XDG_SESSION_ID" -p Remote -p Seat 2> /dev/null)
+			case $o in
+			*Remote=no*Seat=?* | *Seat=?*Remote=no*) DT_PW["local"]=1 ;;
+			esac
+		fi
+		DT_PW["hib"]=0
+		if [ "${DT_PW["local"]}" = 1 ] && command -v "$DT_PWBUSCTL" > /dev/null; then
+			o=$("$DT_PWBUSCTL" --timeout=2 get-property org.freedesktop.login1 \
+				/org/freedesktop/login1 org.freedesktop.login1.Manager \
+				CanHibernate 2> /dev/null)
+			[ "$o" = 's "yes"' ] && DT_PW["hib"]=1
+		fi
+	fi
+	[ "${DT_PW["local"]}" = 1 ]
+}
+
+# Act: suspend, hibernate, reboot or poweroff, through logind. Suspend and
+# hibernate go at once; a restart or a shut down asks first.
+fn dt_pwdo(what) {
+	dt_pwlocal || { dt_note "This desktop is not the computer's own"; return 0; }
+	case $what in
+	reboot)
+		DT_PWDOING=reboot
+		dt_confirm "Restart the computer?" dt_pwgo
+		;;
+	poweroff)
+		DT_PWDOING=poweroff
+		dt_confirm "Shut down the computer?" dt_pwgo
+		;;
+	*)
+		DT_PWDOING=$what
+		dt_pwgo
+		;;
+	esac
+	return 0
+}
+
+dt_pwgo() {
+	local what=$DT_PWDOING
+
+	DT_PWDOING=
+	[ -n "$what" ] || return 0
+	dt_log "power: $what"
+	"$DT_PWCTL" "$what" 2> /dev/null ||
+		dt_note "The computer did not do it: logind refused"
+	return 0
+}
+
+# The low and critical notes, each once in a discharge -- each asking for
+# the frame that shows it, since a ticker runs after the frame is drawn and
+# an idle desktop would let the note expire unseen -- and what Control
+# Panel > Power > On Critical Battery asks for, after a minute in which
+# plugging in calls it off.
+dt_pwwatch() {
+	local p=${DT_PW["pct"]}
+
+	if [ "${DT_PW["state"]}" != discharging ] || [ -z "$p" ]; then
+		DT_PWLOWSAID=
+		DT_PWCRITSAID=
+		DT_PWCRITDUE=0
+		return 0
+	fi
+	if [ "${DT_PWLOW:-10}" != off ] && [ "$p" -le "${DT_PWLOW:-10}" ] &&
+	   [ -z "$DT_PWLOWSAID" ]; then
+		DT_PWLOWSAID=1
+		dt_notep high "Battery low: %s%% left" "$p"
+		dt_want 30
+	fi
+	if [ "$p" -le "${DT_PWCRIT:-5}" ] && [ -z "$DT_PWCRITSAID" ]; then
+		DT_PWCRITSAID=1
+		case ${DT_PWCRITDO:-nothing} in
+		nothing) dt_notep high "Battery critical: %s%% left" "$p"; dt_want 30 ;;
+		suspend)
+			DT_PWCRITDUE=$((EPOCHSECONDS + 60))
+			dt_notep high "Battery critical: the computer will sleep in a minute"
+			dt_want 30
+			;;
+		hibernate)
+			DT_PWCRITDUE=$((EPOCHSECONDS + 60))
+			dt_notep high "Battery critical: the computer will hibernate in a minute"
+			dt_want 30
+			;;
+		poweroff)
+			DT_PWCRITDUE=$((EPOCHSECONDS + 60))
+			dt_notep high "Battery critical: the computer will shut down in a minute"
+			dt_want 30
+			;;
+		esac
+	fi
+	if [ "$DT_PWCRITDUE" -gt 0 ] && [ "$EPOCHSECONDS" -ge "$DT_PWCRITDUE" ]; then
+		DT_PWCRITDUE=0
+		DT_PWDOING=${DT_PWCRITDO}
+		dt_pwlocal && dt_pwgo
+	fi
+	return 0
+}
+
+# Every frame: read the batteries the first time, then every half minute --
+# a charge moves slowly, and the bar's clock wakes the desktop each minute
+# anyway -- and at once after a critical warning, while its minute runs.
+dt_pwtick() {
+	if [ -z "${DT_PW["n"]}" ]; then
+		dt_pwread
+		dt_pwbar
+		dt_pwwatch
+		return 0
+	fi
+	[ "${DT_PW["n"]}" = 0 ] && [ $((EPOCHSECONDS - DT_PWAT)) -lt 300 ] && return 0
+	if [ $((EPOCHSECONDS - DT_PWAT)) -ge 30 ] || [ "$DT_PWCRITDUE" -gt 0 ]; then
+		dt_pwread
+		dt_pwbar
+		dt_pwwatch
+		[ "$DT_PWCRITDUE" -gt 0 ] && dt_want 1000
+	fi
+	return 0
+}
+
+# What the battery's menu holds: the charge in words, the power actions,
+# and the pane.
+fn pw_context(id = "") {
+	local lb s
+
+	dt_menu "Battery"
+	s := dt_pwsays
+	lb := dt_tr "%s%% charged, %s" "${DT_PW["pct"]:-?}" "$s"
+	dt_dim "$lb"
+	dt_pwitems
+	dt_sep
+	if dt_has panel_goto; then
+		dt_item "Power Settings${GL[ellipsis]}" p dt_panelpane power
+	else
+		dt_dim "Power Settings${GL[ellipsis]}"
+	fi
+}
+
+# Sleep, Restart and Shut Down, as rows of whatever menu is being built --
+# dimmed where this desktop is not the computer's own.
+dt_pwitems() {
+	if dt_pwlocal; then
+		dt_sep
+		dt_item "Sleep" l dt_pwdo suspend
+		[ "${DT_PW["hib"]}" = 1 ] && dt_item "Hibernate" h dt_pwdo hibernate
+		dt_item "Restart${GL[ellipsis]}" r dt_pwdo reboot
+		dt_item "Shut Down${GL[ellipsis]}" d dt_pwdo poweroff
+	else
+		dt_sep
+		dt_dim "Sleep"
+		dt_dim "Restart${GL[ellipsis]}"
+		dt_dim "Shut Down${GL[ellipsis]}"
+	fi
+}
+
+dt_ticker dt_pwtick

@@ -1011,6 +1011,29 @@ what it prints, so a device connected elsewhere reaches the bar with
 nothing pressed. macOS is not done yet. `HIBR_BT` overrides the setting --
 `bluez` or `none` -- and the test suites start every desktop with `none`.
 
+## Power
+
+A machine with a battery has it on the menu bar (Gitea #365): its level and
+its charge -- `▄ 62%` -- with `↯` in front while it charges, read from the
+kernel's own files every half minute. A click opens the battery's menu: the
+charge in words, with the time left or the time to full, then Sleep,
+Hibernate (where the machine can), Restart… and Shut Down…, and Power
+Settings…. The same three are at the foot of **Special** too.
+
+They act through logind, which needs no root for the person at the machine,
+and only where the desktop *is* the machine's own -- a local session on a
+seat. A desktop reached over SSH, or one inside another's terminal, dims
+them: Shut Down there would turn off a computer nobody at it asked to turn
+off. Restart and Shut Down ask first.
+
+**Control Panel > Power** shows the charge, whether it is plugged in, the
+battery's health -- what it holds full against what it held new -- and has
+Battery on Menu Bar, Low Battery Note (a note once a discharge, at 5 to 25%,
+or off), Critical Battery (3 to 10%), and On Critical Battery: nothing, or
+sleep, hibernate or shut down after a note and a minute in which plugging in
+calls it off. With no battery the pane says so and keeps only the computer's
+own actions.
+
 ## Screen savers
 
 After ten minutes with no key and no click the screen is given to a

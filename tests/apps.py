@@ -317,7 +317,7 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + 'for p in "${CP_PANE_LIST[@]}"; '
 ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
-      ORDER == ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "sound",
+      ORDER == ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "power", "sound",
                 "aboutme", "abouthibr", "appearance", "cliphist",
                 "control_strip", "desktop", "filetypes", "language",
                 "notify", "pictures", "screensaver", "network", "shortcuts",
@@ -326,7 +326,7 @@ check("panes register and sort by title within their group, not load order",
                 "notes", "terminal", "vaultset", "xscreenset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 7 + ["system"] * 17 + ["app"] * 10, out)
+      ["hardware"] * 8 + ["system"] * 17 + ["app"] * 10, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -361,7 +361,7 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types", "language": "Language",
-         "network": "Servers", "networks": "Network", "bluetooth": "Bluetooth", "prayerset": "Prayer Times", "vaultset": "Vault",
+         "network": "Servers", "networks": "Network", "power": "Power", "bluetooth": "Bluetooth", "prayerset": "Prayer Times", "vaultset": "Vault",
          "pictures": "Pictures",
          "screensaver": "Screen Saver",
          "keyboard": "Keyboard", "mouse": "Mouse", "sound": "Sound",

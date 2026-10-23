@@ -202,6 +202,14 @@ DT_NETBAR="${DT_NETBAR-1}"
 # Control Panel > Network > No Network Password: 1 once the
 # desktop has installed its polkit rule for this person (Gitea #369).
 DT_NETRULE="${DT_NETRULE-}"
+# Control Panel > Power (Gitea #365): the battery on the menu bar, the
+# charge a note warns at (or off), the charge that is critical, and what
+# the desktop does then -- nothing, suspend, hibernate or poweroff, after a
+# minute in which plugging in calls it off.
+DT_PWBAR="${DT_PWBAR-1}"
+DT_PWLOW="${DT_PWLOW-10}"
+DT_PWCRIT="${DT_PWCRIT-5}"
+DT_PWCRITDO="${DT_PWCRITDO-nothing}"
 # Control Panel > Mouse > Hover: whether the desktop hears the pointer move
 # with no button held (Gitea #370) -- on, off, or Auto, which is on where a
 # display reports the pointer in pixels by itself (Blit, kitty, foot) and off
@@ -384,7 +392,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_FRAME DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_MOVEMODE DT_DRAWSKIP DT_TERMMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEWHERE DT_NOTECOUNT DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BARORDER DT_BTNSHADOW DT_SHADOWSHAPE DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
-	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_MENUMAX DT_SCROLLWHEEL DT_NETKIND DT_NETBAR DT_NETRULE DT_HOVER DT_BTKIND DT_BTBAR DT_MOD DT_SETVER)
+	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_MENUMAX DT_SCROLLWHEEL DT_NETKIND DT_NETBAR DT_NETRULE DT_PWBAR DT_PWLOW DT_PWCRIT DT_PWCRITDO DT_HOVER DT_BTKIND DT_BTBAR DT_MOD DT_SETVER)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
