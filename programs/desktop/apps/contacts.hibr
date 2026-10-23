@@ -16,7 +16,7 @@
 
 strict
 
-app contacts "The people in your address books, kept offline from CardDAV" 1.5
+app contacts "The people in your address books, kept offline from CardDAV" 1.6
 # part: control-panel/pimset.hibr
 # modules: dav db pim
 
