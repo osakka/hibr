@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.297
+
+**How far the wheel scrolls is a setting.** Control Panel > Mouse >
+**Wheel Scrolls**: 1, 2, 3, 5 or 8 rows a notch, in every window that
+scrolls, which since 0.99.296 is all of them. 3 by default, as it always
+was.
+
+**Two helpers every app can build on, the first of #357's.** The size
+review found the same background-job runner written seven times and the
+same one-line dialog eight.
+- `dt_job` runs work in the background, keeps what it prints, and calls
+  back after a frame once it has ended -- marked done first, so a callback
+  can start the next, and its files gone after. The desktop's WebDAV
+  transfers run on it now.
+- `dt_ask` asks a question with one line of text for an answer: a label,
+  the field (stars for a secret), a line of help, OK and Cancel, and Copy,
+  Cut and Paste from the desktop. The Screenshot Folder dialog is it now.
+
 ## 0.99.296
 
 Four faults the size review found (Gitea #354).

@@ -1,0 +1,124 @@
+#!/usr/bin/env hibr
+#
+# wm/ask -- a question with one line of text for an answer: a small window
+# with a label, a field, an optional line of help, OK and Cancel (Gitea
+# #357). The size review found eight copies of this dialog written out by
+# hand, each its own keys, focus ring and click-to-cursor.
+#
+#   dt_ask TITLE LABEL VALUE CALLBACK [HINT] [MASKED] [WIDTH]
+#
+# CALLBACK is called with what was typed and the dialog's window id when
+# OK or enter is chosen. Status 0 closes the dialog; anything else keeps it
+# open with what was typed, for a callback that says why it cannot take the
+# answer (a folder that cannot be made). Escape and Cancel close it and call
+# nothing. MASKED (1) draws the field as stars, for a password or a token --
+# and since the desktop's own Copy reads the field as it is drawn, a masked
+# one copies stars, never the secret. Copy, Cut and Paste come from the
+# desktop, as for any focused field.
+
+strict
+
+declare -gA DTA
+
+command -v dt_app > /dev/null && dt_app dtask "Question" 8 54 "" "" fixed hidden
+
+# Open one; its window id is the result.
+fn dt_ask(title, label, value, then, hint = "", masked = "", int width = 54) {
+	local h=8 w=$width r c id
+
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
+	id := dt_new "$title" "$h" "$w" "$r" "$c" dtask
+	DTA[$id]["label"]=$label
+	DTA[$id]["buf"]=$value
+	DTA[$id]["cur"]=${#value}
+	DTA[$id]["then"]=$then
+	DTA[$id]["hint"]=$hint
+	DTA[$id]["masked"]=$masked
+	DTA[$id]["focus"]=text
+	ret "$id"
+}
+
+# Where the field begins: after the label, translated, and a space.
+fn dt_askx(int id) {
+	local t=${DTA[$id]["label"]} n
+
+	case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
+	n := str width "$t"
+	ret "$((2 + n + 1))"
+}
+
+fn dtask_draw(int id, int h, int w, int row, int col) {
+	local f=${DTA[$id]["focus"]} on=0 x t v
+
+	dt_wclear "$id"
+	[ "$f" = text ] && on=1
+	console pen "$DT_INK" "$DT_FACE"
+	t=${DTA[$id]["label"]}
+	case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
+	console put -p "w$id" 1 2 "$t"
+	x := dt_askx "$id"
+	v=${DTA[$id]["buf"]}
+	[ "${DTA[$id]["masked"]}" = 1 ] && v := str repeat '*' "${#v}"
+	dt_textdraw "$id" 1 "$x" $((w - x - 2)) "$v" "${DTA[$id]["cur"]}" "$on"
+	dt_wreg "$id" 1 "$x" $((w - x - 2)) text
+	if [ -n "${DTA[$id]["hint"]}" ]; then
+		t=${DTA[$id]["hint"]}
+		case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 3 2 "$t"
+	fi
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok OK cancel Cancel
+}
+
+# OK: hand the answer over, and close unless the callback refused it.
+fn dt_askok(int id) {
+	"${DTA[$id]["then"]}" "${DTA[$id]["buf"]}" "$id" || return 0
+	dt_del "$id"
+}
+
+fn dtask_click(int id, int r, int c, btn = "") {
+	local tag x
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	text)
+		DTA[$id]["focus"]=text
+		x := dt_askx "$id"
+		x=$((c - x))
+		[ "$x" -ge 0 ] || x=0
+		[ "$x" -le "${#DTA[$id]["buf"]}" ] || x=${#DTA[$id]["buf"]}
+		DTA[$id]["cur"]=$x
+		;;
+	ok) dt_askok "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn dtask_key(int id, key) {
+	local res f=${DTA[$id]["focus"]} d onb=1
+
+	[ "$f" = text ] && onb=0
+	if d := dt_focuskey "$key" "$onb"; then
+		DTA[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		if [ "$f" = cancel ]; then dt_del "$id"; else dt_askok "$id"; fi
+		return 0
+		;;
+	esac
+	[ "$f" = text ] || return 0
+	res := dt_textkey "${DTA[$id]["buf"]}" "${DTA[$id]["cur"]}" "$key" ||
+		return 1
+	DTA[$id]["buf"]=${res% *}
+	DTA[$id]["cur"]=${res##* }
+	return 0
+}
+
+fn dtask_close(int id) {
+	unset "DTA[$id]"
+}

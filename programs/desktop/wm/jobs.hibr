@@ -1,0 +1,119 @@
+#!/usr/bin/env hibr
+#
+# wm/jobs -- work that must not wait in the loop: a command run in the
+# background, its output and its errors kept in files of its own, and its
+# callback run back in the desktop once it has finished (Gitea #357). One
+# runner for everything, where the size review found seven, each its own
+# copy, already drifting apart in how often they looked and in the order
+# they did things.
+#
+#   n := dt_job KIND TAG CALLBACK command args...
+#       start one; its number is the result. KIND names what it is (sync,
+#       fetch, an app's own word), TAG whom it is for (an account, a server,
+#       a window -- or "" for nobody in particular), and both are what
+#       dt_jobrunning asks about. Anything else a caller wants to remember
+#       about the job goes in DTJ[n][...] beside them.
+#   CALLBACK n status
+#       run after a frame once the command has ended. The job is marked
+#       done before it is called, so a callback can start the next job of
+#       the same kind and dt_jobrunning will not answer with this one.
+#       Its files are there while it runs and gone after.
+#   dt_jobfile n out|err      the path of what it printed or complained of
+#   dt_joblast n              the last line it has printed so far
+#   dt_jobrunning KIND [TAG]  the number of one not yet finished, or status 1
+#
+# A callback runs inside a frame, so a window it closes goes through
+# dt_wantclose, never dt_del. And a frame is asked for only while a job is
+# running: an idle desktop with no work in flight looks at nothing.
+
+strict
+
+declare -gA DTJ
+DTJ_N=0
+DTJ_LIVE=0
+DTJ_DIR=
+
+# The folder jobs keep their files in: one per desktop, in the runtime
+# folder, made when the first job starts.
+fn dt_jobdir() {
+	[ -n "$DTJ_DIR" ] && [ -d "$DTJ_DIR" ] && return 0
+	DTJ_DIR=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-jobs-$UID/$$
+	( umask 077; mkdir -p "$DTJ_DIR" ) 2> /dev/null || return 1
+	return 0
+}
+
+# Start a job; its number is the result.
+fn dt_job(kind, tag, then, ...cmd) {
+	local n d
+
+	dt_jobdir || return 1
+	d=$DTJ_DIR
+	DTJ_N=$((DTJ_N + 1))
+	n=$DTJ_N
+	DTJ[$n]["kind"]=$kind
+	DTJ[$n]["tag"]=$tag
+	DTJ[$n]["then"]=$then
+	DTJ[$n]["done"]=
+	(
+		command -v dt_jobname > /dev/null && dt_jobname "$kind" "$tag"
+		"${cmd[@]}" > "$d/$n.out" 2> "$d/$n.err"
+		printf '%s\n' "$?" > "$d/$n.st"
+	) &
+	DTJ[$n]["pid"]=$!
+	DTJ_LIVE=$((DTJ_LIVE + 1))
+	command -v dt_want > /dev/null && dt_want 100
+	ret "$n"
+}
+
+# Where a job's output or errors are.
+fn dt_jobfile(int n, which = "out") {
+	ret "$DTJ_DIR/$n.$which"
+}
+
+# A job's last line of output so far.
+fn dt_joblast(int n) {
+	local f=$DTJ_DIR/$n.out l= x
+
+	[ -s "$f" ] || { ret ""; return 0; }
+	while IFS= read -r x; do l=$x; done < "$f"
+	ret "$l"
+}
+
+# The number of a job of a kind, and for a tag if one is named, that has
+# not finished.
+fn dt_jobrunning(kind, tag = "") {
+	local n
+
+	for n in "${!DTJ[@]}"; do
+		[ -z "${DTJ[$n]["done"]}" ] || continue
+		[ "${DTJ[$n]["kind"]}" = "$kind" ] || continue
+		[ $# -lt 2 ] || [ "${DTJ[$n]["tag"]}" = "$tag" ] || continue
+		ret "$n"
+		return 0
+	done
+	return 1
+}
+
+# After every frame: hand each finished job to its callback, marked done
+# first, then forget it and its files. One comparison while none is live.
+dt_jobtick() {
+	local n st d=$DTJ_DIR
+	local -a ids
+
+	[ "$DTJ_LIVE" -gt 0 ] || return 0
+	ids=("${!DTJ[@]}")
+	for n in "${ids[@]}"; do
+		[ -z "${DTJ[$n]["done"]}" ] || continue
+		[ -s "$d/$n.st" ] || continue
+		read -r st < "$d/$n.st"
+		DTJ_LIVE=$((DTJ_LIVE - 1))
+		DTJ[$n]["done"]=1
+		"${DTJ[$n]["then"]}" "$n" "$st"
+		rm -f "$d/$n.out" "$d/$n.err" "$d/$n.st"
+		unset DTJ["$n"]
+	done
+	[ "$DTJ_LIVE" -gt 0 ] && command -v dt_want > /dev/null && dt_want 200
+	return 0
+}
+
+command -v dt_ticker > /dev/null && dt_ticker dt_jobtick

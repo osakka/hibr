@@ -7,121 +7,31 @@
 
 strict
 
-command -v dt_app > /dev/null &&
-	dt_app shotdir "Screenshot Folder" 8 54 "" "" fixed hidden
-
 SH_FMTS=(ansi html text)
 SH_STARTS=(screen window area)
-declare -gA SHD
 
 fn cp_set_shotfmt(int? id = "", value = "") { DT_SHOTFMT=$value; cp_save; }
 fn cp_set_shotlast(int? id = "", value = "") { DT_SHOTLAST=$value; cp_save; }
 
-# The folder, typed: a small window with a text field, Save and Cancel.
+# The folder, typed: the desktop's one-line question (wm/ask.hibr).
 shd_dialog() {
-	local h=8 w=54 r c rid
-
-	dt_dlgat "$h" "$w"
-	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
-	rid := dt_new "Screenshot Folder" "$h" "$w" "$r" "$c" shotdir
-	SHD[$rid]["buf"]=$DT_SHOTDIR
-	SHD[$rid]["cur"]=${#DT_SHOTDIR}
-	SHD[$rid]["focus"]=text
+	dt_ask "Screenshot Folder" "Folder:" "$DT_SHOTDIR" shd_set \
+		"Made if it is not there; ~ is your home."
 }
 
-fn shotdir_draw(int id, int h, int w, int row, int col) {
-	local f=${SHD[$id]["focus"]} on=0
-
-	dt_wclear "$id"
-	[ "$f" = text ] && on=1
-	console pen "$DT_INK" "$DT_FACE"
-	dt_tput "$id" 1 2 "Folder:"
-	dt_textdraw "$id" 1 11 $((w - 13)) "${SHD[$id]["buf"]}" \
-		"${SHD[$id]["cur"]}" "$on"
-	dt_wreg "$id" 1 11 $((w - 13)) text
-	console pen "$DT_DIM" "$DT_FACE"
-	dt_tput "$id" 3 2 "Made if it is not there; ~ is your home."
-	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
-}
-
-# Keep the folder if it is one, or can be made.
-fn shotdir_ok(int id) {
-	local d=${SHD[$id]["buf"]}
-
+# Keep the folder if it is one, or can be made; refused, the question stays
+# open with what was typed.
+fn shd_set(d, int id) {
 	case $d in "~") d=$HOME ;; "~/"*) d="$HOME/${d#"~/"}" ;; esac
 	if [ -z "$d" ]; then
 		dt_notep low "A folder is needed"
-		return 0
+		return 1
 	fi
 	if [ ! -d "$d" ] && ! mkdir -p "$d" 2> /dev/null; then
 		dt_notep high "%s cannot be made" "$d"
-		return 0
+		return 1
 	fi
 	DT_SHOTDIR=$d
 	cp_save
-	dt_del "$id"
-}
-
-fn shotdir_click(int id, int r, int c, btn = "") {
-	local tag
-
-	tag := dt_hit "$id" "$r" "$c"
-	case $tag in
-	text) SHD[$id]["focus"]=text ;;
-	ok) shotdir_ok "$id" ;;
-	cancel) dt_del "$id" ;;
-	esac
 	return 0
-}
-
-fn shotdir_key(int id, key) {
-	local res f=${SHD[$id]["focus"]} d onb=1
-
-	[ "$f" = text ] && onb=0
-	if d := dt_focuskey "$key" "$onb"; then
-		SHD[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
-		return 0
-	fi
-	case $key in
-	escape) dt_del "$id"; return 0 ;;
-	enter)
-		if [ "$f" = cancel ]; then dt_del "$id"; else shotdir_ok "$id"; fi
-		return 0
-		;;
-	esac
-	[ "$f" = text ] || return 0
-	res := dt_textkey "${SHD[$id]["buf"]}" "${SHD[$id]["cur"]}" "$key" ||
-		return 1
-	SHD[$id]["buf"]=${res% *}
-	SHD[$id]["cur"]=${res##* }
-	return 0
-}
-
-fn shotdir_close(int id) {
-	unset "SHD[$id]"
-}
-
-fn shotdir_copy(int id) {
-	local t
-
-	[ "${SHD[$id]["focus"]}" = text ] || return 1
-	t := dt_fieldsel || return 1
-	ret "$t"
-}
-
-fn shotdir_cut(int id) {
-	local t
-
-	[ "${SHD[$id]["focus"]}" = text ] || return 1
-	t := dt_fieldcut "$id" || return 1
-	ret "$t"
-}
-
-fn shotdir_paste(int id, text, op = "") {
-	local r
-
-	SHD[$id]["focus"]=text
-	r := dt_textpaste "${SHD[$id]["buf"]}" "${SHD[$id]["cur"]}" "$text"
-	SHD[$id]["buf"]=${r% *}
-	SHD[$id]["cur"]=${r##* }
 }

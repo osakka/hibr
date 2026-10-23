@@ -112,6 +112,43 @@ check("the window list cuts a long title and stays on the bar's display",
       all(sc.style(it[0], c)["bg"] != wbg for c in range(40, 60)),
       [sc.row(r) for r in range(0, 8)])
 
+# dt_ask, the desktop's one-line question (wm/ask.hibr, Gitea #357): what
+# is typed reaches the callback and the dialog closes; a callback that
+# refuses keeps it open with what was typed; a masked one draws stars.
+ASKD = tempfile.mkdtemp(prefix="hibr-ask-")
+ASKS = ('fn ask_got(v, int id) { printf "%%s" "$v" > "%s/got"; [ "$v" != no ]; }\n'
+        'dt_ask "Your Name" "Name:" "Ada" ask_got "Who you are" %s\n')
+sc, _ = run(ASKS % (ASKD, ""), [b" L", b"\r"])
+got = open(os.path.join(ASKD, "got")).read() if os.path.exists(os.path.join(ASKD, "got")) else ""
+check("dt_ask hands what was typed to its callback and closes",
+      got == "Ada L" and sc.find("Your Name") is None, (got, sc))
+os.path.exists(os.path.join(ASKD, "got")) and os.unlink(os.path.join(ASKD, "got"))
+sc, _ = run(ASKS % (ASKD, ""), [b"\x15no", b"\r"])
+check("and a callback that refuses the answer keeps the question open",
+      sc.find("Your Name") is not None and sc.find("no") is not None, sc)
+sc, _ = run(ASKS % (ASKD, '1'), [b"x"])
+check("a masked question draws its answer as stars",
+      sc.find("****") is not None and sc.find("Adax") is None, sc)
+shutil.rmtree(ASKD, True)
+
+# dt_job, the desktop's one runner for background work (wm/jobs.hibr): the
+# callback is handed the job's number and status after a frame, its output
+# is there to read, and its files are gone afterwards.
+JOBD = tempfile.mkdtemp(prefix="hibr-job-")
+JOBS = ('fn job_done(int n, int st) { local l f; l := dt_joblast "$n"; '
+        'f := dt_jobfile "$n"; printf "%%s %%s %%s\\n" "$l" "$st" "$f" > "%s/got"; '
+        'dt_jobrunning demo > /dev/null && echo still >> "%s/got"; return 0; }\n'
+        'n := dt_job demo "" job_done printf "one\\ntwo\\n"\n'
+        'tk_jobwake() { [ -e "%s/got" ] || dt_want 50; }\ndt_ticker tk_jobwake\n'
+        % (JOBD, JOBD, JOBD))
+sc, _ = run(JOBS, [1.0])
+got = open(os.path.join(JOBD, "got")).read().split() if os.path.exists(os.path.join(JOBD, "got")) else []
+check("dt_job hands its callback the output and the status, and the job is done",
+      got[:2] == ["two", "0"] and "still" not in got, got)
+check("and its files are gone once the callback has run",
+      len(got) == 3 and not os.path.exists(got[2]), got)
+shutil.rmtree(JOBD, True)
+
 # The log turns over past DT_LOGMAX at a start, so it cannot grow for ever
 # (Gitea #328): the old one becomes desktop.log.1 and a new one begins.
 LOGST = tempfile.mkdtemp(prefix="hibr-logturn-")
@@ -6630,4 +6667,4 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(726)
+report(731)

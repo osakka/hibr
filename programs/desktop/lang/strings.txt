@@ -791,6 +791,7 @@ Programs Set Clipboard
 Puzzle
 Quality Fetched
 Query
+Question
 Quieter
 Quit
 Quit Application
@@ -1093,6 +1094,7 @@ Wednesday
 Week
 What a Page May Have
 What it prints is the cell's value:
+Wheel Scrolls
 When Chromium Next Starts
 When It Ends:
 Where are you? Control Panel > Prayer Times

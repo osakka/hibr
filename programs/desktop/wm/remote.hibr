@@ -21,10 +21,8 @@
 
 strict
 
-declare -gA DR
 declare -gA DRW
 declare -gA DSV
-DR_N=0
 DR_LIVE=0
 DR_WATCHT=0
 DR_STAMPN=0
@@ -86,52 +84,43 @@ fn dt_davwhy(f = "") {
 	DT_WHY=${l:-the server did not say why}
 }
 
-# Start a job: the command runs in the background with its output and
-# errors in files of their own, and then, back in the desktop, gets the
-# job's number and status. The job's number is the result.
+# Start a transfer: a job of wm/jobs.hibr's, whose callback is told
+# why it failed (DT_WHY) before the one asked for is called with the job's
+# number and status. The job's number is the result, and DTJ[n] is where a
+# caller keeps anything else about it.
 fn dt_davjob(what, then, ...cmd) {
 	local n
 
 	dt_davok || return 1
 	shift 2
-	DR_N=$((DR_N + 1))
-	n=$DR_N
-	DR[$n]["what"]=$what
-	DR[$n]["then"]=$then
-	(
-		dt_jobname "dav:$what"
-		"$@" > "$DR_JOBS/$n.out" 2> "$DR_JOBS/$n.err"
-		printf '%s\n' "$?" > "$DR_JOBS/$n.st"
-	) &
+	n := dt_job "dav:$what" "" dt_davdone "$@" || return 1
+	DTJ[$n]["dthen"]=$then
 	DR_LIVE=$((DR_LIVE + 1))
-	dt_want 100
 	ret "$n"
+}
+
+# A transfer has finished: why it failed, if it did, then its callback.
+fn dt_davdone(int n, int st) {
+	local e
+
+	e := dt_jobfile "$n" err
+	dt_davwhy "$e"
+	DR_LIVE=$((DR_LIVE - 1))
+	"${DTJ[$n]["dthen"]}" "$n" "$st"
 }
 
 # A finished job's output, the first line or all of it.
 fn dt_davout(int n) {
-	local l=
+	local l= f
 
-	[ -s "$DR_JOBS/$n.out" ] && read -r l < "$DR_JOBS/$n.out"
+	f := dt_jobfile "$n"
+	[ -s "$f" ] && read -r l < "$f"
 	ret "$l"
 }
 
-# Run after every frame: hand each finished job to its callback, and look
-# at the copies of open remote files. Costs nothing while neither exists.
+# Run after every frame: look at the copies of open remote files (finished
+# transfers are wm/jobs.hibr's to hand on). Costs nothing while none is open.
 dt_remotepoll() {
-	local n st
-
-	if [ "$DR_LIVE" -gt 0 ]; then
-		for n in "${!DR[@]}"; do
-			[ -s "$DR_JOBS/$n.st" ] || continue
-			read -r st < "$DR_JOBS/$n.st"
-			dt_davwhy "$DR_JOBS/$n.err"
-			DR_LIVE=$((DR_LIVE - 1))
-			"${DR[$n]["then"]}" "$n" "$st"
-			unset DR["$n"]
-		done
-		[ "$DR_LIVE" -gt 0 ] && dt_want 200
-	fi
 	[ "${#DRW[@]}" -gt 0 ] && [ "$DT_DAVSAVE" = 1 ] && dt_davwatch
 	return 0
 }
@@ -255,8 +244,8 @@ fn dt_davop(op, dst, ...rest) {
 		dt_notep high "$DT_WHY"
 		return 1
 	fi
-	DR[$n]["op"]=$op
-	DR[$n]["dst"]=$dst
+	DTJ[$n]["op"]=$op
+	DTJ[$n]["dst"]=$dst
 	src=${1%/}
 	if [ "$#" = 1 ]; then
 		dt_notep low "%s %s${GL[ellipsis]}" "$what" "${src##*/}"
@@ -269,13 +258,15 @@ fn dt_davop(op, dst, ...rest) {
 # A move or copy has finished: say how it went, once, and show it.
 fn dt_davopdone(int n, int st) {
 	local -a l
+	local o
 	local done=0 bad=1 last= why what=Moved dst
 
-	dst=${DR[$n]["dst"]}
-	[ "${DR[$n]["op"]}" = copy ] && what=Copied
+	dst=${DTJ[$n]["dst"]}
+	[ "${DTJ[$n]["op"]}" = copy ] && what=Copied
 	why=$DT_WHY
-	if [ -s "$DR_JOBS/$n.out" ]; then
-		mapfile -t l < "$DR_JOBS/$n.out"
+	o := dt_jobfile "$n"
+	if [ -s "$o" ]; then
+		mapfile -t l < "$o"
 		done=${l[0]:-0}
 		bad=${l[1]:-0}
 		last=${l[2]}
@@ -320,9 +311,11 @@ fn dt_davdelete(...rest) {
 # Removing has finished.
 fn dt_davdeldone(int n, int st) {
 	local -a l
+	local o
 	local why=$DT_WHY
 
-	mapfile -t l < "$DR_JOBS/$n.out"
+	o := dt_jobfile "$n"
+	mapfile -t l < "$o"
 	[ -n "${l[3]}" ] && why=${l[3]}
 	dt_tally "${l[0]:-0}" "${l[1]:-1}" "Deleted" "${l[2]}" "$why" \
 		"from the server"
@@ -362,9 +355,9 @@ fn dt_davopen(loc, app = "") {
 		dt_notep high "$DT_WHY"
 		return 1
 	fi
-	DR[$n]["loc"]=$loc
-	DR[$n]["file"]=$f
-	DR[$n]["app"]=$app
+	DTJ[$n]["loc"]=$loc
+	DTJ[$n]["file"]=$f
+	DTJ[$n]["app"]=$app
 	dt_notep low "Fetching %s${GL[ellipsis]}" "${loc##*/}"
 }
 
@@ -379,7 +372,7 @@ fn dt_davshow(f, app = "") {
 
 # A fetch has finished: watch the copy for edits, and open it.
 fn dt_davopened(int n, int st) {
-	local f=${DR[$n]["file"]} loc=${DR[$n]["loc"]} e
+	local f=${DTJ[$n]["file"]} loc=${DTJ[$n]["loc"]} e
 
 	if [ "$st" != 0 ]; then
 		dt_notep high "Could not open %s: %s" "${loc##*/}" "$DT_WHY"
@@ -387,7 +380,7 @@ fn dt_davopened(int n, int st) {
 	fi
 	e := dt_davout "$n"
 	dt_davwatchset "$f" "$loc" "$e"
-	dt_davshow "$f" "${DR[$n]["app"]}"
+	dt_davshow "$f" "${DTJ[$n]["app"]}"
 }
 
 # Watch a copy: where it came from, the ETag it had, and a stamp file with
@@ -462,13 +455,13 @@ fn dt_davsave(f) {
 		DRW["$f"]["busy"]=
 		return 1
 	fi
-	DR[$n]["file"]=$f
+	DTJ[$n]["file"]=$f
 }
 
 # An upload has finished. A conflict -- the server's copy changed since it
 # was fetched -- puts this edit beside it instead of over it.
 fn dt_davsaved(int n, int st) {
-	local f=${DR[$n]["file"]} r loc m nm
+	local f=${DTJ[$n]["file"]} r loc m nm
 
 	loc=${DRW["$f"]["loc"]}
 	r := dt_davout "$n"
@@ -481,7 +474,7 @@ fn dt_davsaved(int n, int st) {
 	fi
 	if [ "$r" = "fail 412" ]; then
 		if m := dt_davjob Saving dt_davconflicted dt_davputc "$f" "$loc"; then
-			DR[$m]["file"]=$f
+			DTJ[$m]["file"]=$f
 			return 0
 		fi
 	fi
@@ -493,8 +486,9 @@ fn dt_davsaved(int n, int st) {
 # The edit has gone up under a conflict name: from now on the copy is
 # that file's.
 fn dt_davconflicted(int n, int st) {
-	local f=${DR[$n]["file"]} loc
+	local f=${DTJ[$n]["file"]} loc
 	local -a l
+	local o
 
 	loc=${DRW["$f"]["loc"]}
 	if [ "$st" != 0 ]; then
@@ -503,7 +497,8 @@ fn dt_davconflicted(int n, int st) {
 		dt_notep high "%s changed on the server, and your edit could not be saved beside it: %s" "${loc##*/}" "$DT_WHY"
 		return 0
 	fi
-	mapfile -t l < "$DR_JOBS/$n.out"
+	o := dt_jobfile "$n"
+	mapfile -t l < "$o"
 	dt_davwatchset "$f" "${l[0]}" "${l[1]}"
 	dt_notep high "%s changed on the server while you edited it; yours is saved as %s" "${loc##*/}" "${l[0]##*/}"
 	dt_changed
@@ -774,18 +769,18 @@ fn dsv_test(int id) {
 		n := dt_davjob Testing dsv_tested dav test "${DSV[$id]["orig"]}" ||
 			return 0
 	else
-		conf="$DR_JOBS/probe.$DR_N.conf"
+		conf="$DR_JOBS/probe.$((DTJ_N + 1)).conf"
 		DSV[$id]["status"]="Testing${GL[ellipsis]}"
 		n := dt_davjob Testing dsv_tested dsv_try "$conf" \
 			"${DSV[$id]["url"]}" "${DSV_ARGS[@]}" || return 0
 	fi
 	DSV[$id]["sgood"]=1
-	DR[$n]["win"]=$id
+	DTJ[$n]["win"]=$id
 }
 
 # A test has finished: say how it went in the dialog, if it is still open.
 fn dsv_tested(int n, int st) {
-	local id=${DR[$n]["win"]}
+	local id=${DTJ[$n]["win"]}
 
 	[ -n "${DSV[$id]["focus"]}" ] || return 0
 	if [ "$st" = 0 ]; then

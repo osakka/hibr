@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.19",
+ "version": "3.20",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -808,6 +808,7 @@
   "Puzzle": "اللغز",
   "Quality Fetched": "الجودة المجلوبة",
   "Query": "استعلام",
+  "Question": "سؤال",
   "Quieter": "أخفض صوتًا",
   "Quit": "إنهاء",
   "Quit Application": "إنهاء التطبيق",
@@ -948,6 +949,7 @@
   "The pdf module is not installed": "وحدة pdf غير مثبتة",
   "This links to %s": "هذا رابط إلى %s",
   "This page could not be drawn": "تعذر رسم هذه الصفحة",
+  "Wheel Scrolls": "التمرير بالعجلة",
   "Zoom In": "تكبير",
   "Zoom Out": "تصغير",
   "Volume": "مستوى الصوت",

@@ -31,6 +31,8 @@ can be read on its own, and the order is only for reading.
 | `standby.hibr` | displays that wait to be joined (`--standby`) and wait again when let go, and displays blanked: joined but dark and out of use |
 | `notify.hibr` | `dt_note`, `dt_notify`: stacked notifications and their history |
 | `confirm.hibr` | `dt_confirm`: a question with a yes and a no |
+| `ask.hibr` | `dt_ask`: a question with one line of text for an answer -- a label, a field (masked for a secret), a line of help, OK and Cancel; the callback is given the answer and keeps the dialog open by refusing it |
+| `jobs.hibr` | `dt_job`, `dt_jobrunning`, `dt_joblast`, `dt_jobfile`: work run in the background with its output kept, and its callback run after a frame once it ends -- marked done first, its files gone after; `wm/remote.hibr`'s transfers run on it |
 | `strip.hibr` | the Control Strip |
 
 The split was made by moving text, not by rewriting it: every function's

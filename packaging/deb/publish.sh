@@ -29,15 +29,21 @@ gpg --list-secret-keys "$KEY" > /dev/null 2>&1 ||
 	{ echo "publish: no secret key $KEY in $GNUPGHOME" >&2; exit 1; }
 
 git -C "$REPO" pull -q --ff-only 2> /dev/null || true
-mkdir -p "$REPO/pool/main/h/hibr"
+# Each package in its own pool folder, by Debian's usual layout:
+# pool/main/h/hibr for hibr, pool/main/b/blit for Blit, which this
+# repository has carried as well since 0.99.297.
 for deb in "$@"; do
 	dpkg-deb -I "$deb" > /dev/null
-	cp "$deb" "$REPO/pool/main/h/hibr/"
+	pkg=$(dpkg-deb -f "$deb" Package)
+	[ -n "$pkg" ] || { echo "publish: $deb names no package" >&2; exit 1; }
+	pool=$REPO/pool/main/$(printf '%.1s' "$pkg")/$pkg
+	mkdir -p "$pool"
+	cp "$deb" "$pool/"
 	echo "== added $(basename "$deb")"
 done
 
 cd "$REPO"
-archs=$(ls pool/main/h/hibr/*.deb | sed 's/.*_\([^_]*\)\.deb$/\1/' | sort -u)
+archs=$(find pool -name '*.deb' | sed 's/.*_\([^_]*\)\.deb$/\1/' | sort -u)
 for a in $archs; do
 	d=dists/$SUITE/main/binary-$a
 	mkdir -p "$d"

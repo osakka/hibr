@@ -43,6 +43,9 @@ SINKS = {
     # already has from its dt_app line; its second is a detail with no words
     # of ours in it (Gitea #202).
     "dt_wintitle": [1],
+    # dt_ask's title, label and hint: the question asked, what is typed
+    # beside, and the line of help under it (wm/ask.hibr, Gitea #357).
+    "dt_ask": [1, 2, 5],
     "console": "put", "dt_tr": [1], "dt_trn": [2, 3], "dt_tally": [3], "dt_tput": [4],
 }
 # Templates that carry no words of ours, each with the reason it is one: a

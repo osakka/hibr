@@ -3,23 +3,50 @@
 # mouse -- the Control Panel pane for what the mouse does to a window: whether
 # a plain side resizes it as well as a corner, whether a modifier click
 # anywhere in its body moves it and which modifier, and what a double click
-# on its title bar does, and whether a dragged window follows by its outline
-# or whole. Every value is read by wm/input.hibr; this pane only
+# on its title bar does, whether a dragged window follows by its outline
+# or whole, and how far one notch of the wheel scrolls. wm/input.hibr reads
+# the window settings and every scrolling window the wheel's; this pane only
 # changes the DT_* settings.
 
 strict
 
 
-app mouse "The Control Panel pane for what the mouse does to a window" 1.1
+app mouse "The Control Panel pane for what the mouse does to a window" 1.2
 command -v cp_pane > /dev/null && cp_pane mouse "Mouse" "◎" hardware
 
 MS_DRAGKEYS=(alt ctrl shift)
 MS_MOVEMODES=(outline solid)
 MS_DBLACTIONS=(zoom min close none)
+# Wheel Scrolls' choices, as DT_SCROLLWHEEL keeps them and as the row shows
+# them: one notch of the wheel, in rows, in every window that scrolls.
+MS_WHEELV=(1 2 3 5 8)
+MS_WHEELL=("1 row" "2 rows" "3 rows" "5 rows" "8 rows")
+DT_SCROLLWHEEL="${DT_SCROLLWHEEL-3}"
 
 fn cp_set_dragkey(int? id = "", value = "") { DT_DRAGKEY=$value; cp_save; }
 fn cp_set_movemode(int? id = "", value = "") { DT_MOVEMODE=$value; cp_save; }
 fn cp_set_dblaction(int? id = "", value = "") { DT_DBLACTION=$value; cp_save; }
+
+# Wheel Scrolls as the row shows it.
+fn ms_wheellabel() {
+	local i=0
+
+	while [ "$i" -lt "${#MS_WHEELV[@]}" ]; do
+		[ "${MS_WHEELV[$i]}" = "${DT_SCROLLWHEEL:-3}" ] && ret "${MS_WHEELL[$i]}" && return 0
+		i=$((i + 1))
+	done
+	ret "${DT_SCROLLWHEEL:-3} rows"
+}
+
+fn cp_set_wheel(int? id = "", value = "") {
+	local i=0
+
+	while [ "$i" -lt "${#MS_WHEELL[@]}" ]; do
+		[ "${MS_WHEELL[$i]}" = "$value" ] && DT_SCROLLWHEEL=${MS_WHEELV[$i]}
+		i=$((i + 1))
+	done
+	cp_save
+}
 
 fn mouse_rows(int w) {
 	local n=0
@@ -43,6 +70,9 @@ fn mouse_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Titlebar Click"
 	CP[$w][$n]["val"]="$DT_DBLACTION"; CP[$w][$n]["key"]=dblaction
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wheel Scrolls"
+	CP[$w][$n]["val"] := ms_wheellabel
+	CP[$w][$n]["key"]=wheel; n=$((n + 1))
 	ret "$n"
 }
 
@@ -57,6 +87,12 @@ fn mouse_do(int w, k, int dir) {
 		DT_DBLACTION=$v ;;
 	movemode) v := cp_next "${DT_MOVEMODE:-outline}" "$dir" "${MS_MOVEMODES[@]}"
 		DT_MOVEMODE=$v ;;
+	wheel)
+		v := ms_wheellabel
+		v := cp_next "$v" "$dir" "${MS_WHEELL[@]}"
+		cp_set_wheel "" "$v"
+		return 0
+		;;
 	esac
 	cp_save
 }
@@ -68,5 +104,6 @@ fn mouse_drop(int w, int r, int c, k) {
 		"${MS_DBLACTIONS[@]}" ;;
 	movemode) dt_droplist "$w" "$r" "$c" cp_set_movemode \
 		"${MS_MOVEMODES[@]}" ;;
+	wheel) dt_droplist "$w" "$r" "$c" cp_set_wheel "${MS_WHEELL[@]}" ;;
 	esac
 }

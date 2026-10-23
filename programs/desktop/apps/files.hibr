@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 1.7
+app files "A file browser" 1.8
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -2189,7 +2189,7 @@ fn fb_pastetext(int id, text) {
 			f="Pasted text $i.txt"
 			i=$((i + 1))
 		done
-		tmp="$DT_DAVCACHE/.jobs/paste.$DR_N"
+		tmp="$DT_DAVCACHE/.jobs/paste.$DTJ_N"
 		command mkdir -p -- "$tmp" 2> /dev/null
 		if printf '%s\n' "$text" 2> /dev/null > "$tmp/$f"; then
 			dt_davop copy "$dir" "$tmp/$f"
