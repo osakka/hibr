@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.22",
+ "version": "3.23",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1278,6 +1278,7 @@
   "a password is needed and none could be asked for": "يلزم إدخال كلمة مرور ولم يكن طلبها ممكنًا",
   "cancelled": "أُلغي",
   "it took too long": "استغرق وقتًا أطول من اللازم",
-  "nmcli asked something the desktop cannot answer": "سأل nmcli عن شيء لا يستطيع سطح المكتب الإجابة عنه"
+  "nmcli asked something the desktop cannot answer": "سأل nmcli عن شيء لا يستطيع سطح المكتب الإجابة عنه",
+  "the network's settings were not saved": "لم تُحفظ إعدادات الشبكة"
  }
 }

@@ -338,8 +338,17 @@ def main(a):
                 except StopIteration:
                     return False
                 return dflt if a == "" else a in ("yes", "y")
-            for l in lines:
-                l = l.rstrip("\n")
+            while True:
+                # On a terminal (--ask) the editor prompts for each command,
+                # as the real one does; piped, it reads them as they come.
+                if ASK:
+                    sys.stdout.write("nmcli> ")
+                    sys.stdout.flush()
+                try:
+                    l = next(lines)
+                except StopIteration:
+                    break
+                l = l.rstrip("\r\n")
                 if l == "nmcli save-confirmation no":
                     confirm = False
                 elif l == "nmcli save-confirmation yes":

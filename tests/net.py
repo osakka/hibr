@@ -320,6 +320,21 @@ try:
     check("a wrong one says so, and changes nothing",
           sc.find("Could not join gibnet: the password was not") is not None and
           n.inuse() == [".gibnet/5ghz"], sc)
+    # A network never joined, where polkit wants a password (the owner's
+    # "cix", Gitea #369): its key is asked for, then nmcli's connection
+    # editor on a pty is typed its commands and asks for the administrator's
+    # password, which the desktop asks for in turn; then it is brought up.
+    n = Net(OWNER, "s3cret pw")
+    sc = srun(n, [press(0, col), release(0, col), 0.4, press(nb, lc), release(nb, lc), 0.6,
+                  b"letmein123", b"\r", 1.5, b"s3cret pw", b"\r", 1.5, b"s3cret pw", b"\r"],
+              until=lambda sc: n.inuse() == ["Neighbour 5G"])
+    check("a network never joined, where polkit wants a password, joins with its key and the "
+          "administrator's password",
+          n.inuse() == ["Neighbour 5G"] and "Neighbour 5G" in n.cons() and
+          any(c.get("psk") == "letmein123" for c in n.state()["cons"]), (n.inuse(), n.cons(), sc))
+    check("and its key reached no command line",
+          "letmein123" not in n.argv() and '"--ask"' in n.argv(), n.argv()[-300:])
+
     # No Network Password (Gitea #369): a polkit rule for this
     # person alone, installed with the administrator's password through
     # pkexec on a pty, and removed the same way. The rules folder is the
@@ -391,4 +406,4 @@ try:
 finally:
     shutil.rmtree(D, True)
 
-report(32)
+report(34)

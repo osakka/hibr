@@ -1225,6 +1225,7 @@ shipped with hibr
 system
 text
 the machine has this, and its copy is read first
+the network's settings were not saved
 the password was not accepted
 there is no account to test yet
 this session still runs the older hibr: 'hold upgrade %s' takes it onto the new one without losing your windows or your terminals' programs. Restart Desktop cannot, since it re-execs the desktop inside this session

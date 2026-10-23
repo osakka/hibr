@@ -70,6 +70,9 @@ DT_NETJPK=
 DT_NETJKNOWN=
 # Where the polkit rule goes; only a test sets another.
 DT_NETRULEDIR="${DT_NETRULEDIR:-/etc/polkit-1/rules.d}"
+# A connection just made for a join, taken away again if the join fails.
+DT_NETNEWU=
+DT_NETNEWS=
 DT_NETTOP=0
 DT_NETSEL=0
 DT_NETSEEN=
@@ -641,7 +644,10 @@ fn dt_netjob(kind, what, ...cmd) {
 	done
 	[ "$kind" = join ] && DT_NET["busy"]=$what
 	DT_NET["err"]=
-	if [ "${cmd[0]}" = nmcli ] && [ -n "$auth" ]; then
+	if [ -n "$auth" ] && { [ "${cmd[0]}" = dt_netjoinnew ] || [ "${cmd[0]}" = dt_netjoinpw ]; }; then
+		dt_neteditjob "$what" "${cmd[@]}"
+		return 0
+	elif [ "${cmd[0]}" = nmcli ] && [ -n "$auth" ]; then
 		n := dt_ptyjob "net:$kind" "$what" dt_netjobdone dt_netprompt \
 			env LC_ALL=C nmcli --ask "${cmd[@]:1}"
 	elif [ "${cmd[0]}" = nmcli ]; then
@@ -657,6 +663,142 @@ fn dt_netjob(kind, what, ...cmd) {
 	fi
 	DT_NETJOB=$n
 	dt_netbar
+}
+
+# A secured network's settings saved through nmcli's connection editor,
+# where polkit wants a password (Gitea #369): the editor runs with --ask on
+# a pty and is typed its commands one at each "nmcli> " prompt, so the
+# network's key is on no command line and the administrator's password is
+# asked for by nmcli's own agent, which dt_netprompt answers. Then the
+# connection is brought up as a job of its own, and a new one that will not
+# come up is taken away again -- one profile a network, not one an attempt.
+fn dt_neteditjob(what, fn, ...a) {
+	local n i=0
+	local -a q
+
+	q=("nmcli save-confirmation no")
+	if [ "$fn" = dt_netjoinnew ]; then
+		q+=("set connection.id ${a[0]}")
+		[ -n "${a[3]}" ] && q+=("set connection.permissions user:${a[3]}")
+		q+=("set 802-11-wireless.ssid ${a[0]}" "set 802-11-wireless-security.key-mgmt ${a[1]}"
+			"set 802-11-wireless-security.psk ${a[2]}")
+		n := dt_ptyjob net:join "$what" dt_neteditdone dt_neteditprompt \
+			env LC_ALL=C nmcli --ask connection edit type wifi
+	else
+		q+=("set 802-11-wireless-security.psk ${a[1]}")
+		n := dt_ptyjob net:join "$what" dt_neteditdone dt_neteditprompt \
+			env LC_ALL=C nmcli --ask connection edit uuid "${a[0]}"
+	fi
+	if [ -z "$n" ]; then
+		DT_NET["busy"]=
+		return 1
+	fi
+	q+=(save)
+	while [ "$i" -lt "${#q[@]}" ]; do
+		DTJ[$n]["q$i"]=${q[$i]}
+		i=$((i + 1))
+	done
+	DTJ[$n]["qn"]=${#q[@]}
+	DTJ[$n]["qi"]=0
+	DTJ[$n]["new"]=
+	[ "$fn" = dt_netjoinnew ] && DTJ[$n]["new"]=1
+	DTJ[$n]["uuid"]=
+	[ "$fn" = dt_netjoinpw ] && DTJ[$n]["uuid"]=${a[0]}
+	DT_NETJOB=$n
+	dt_netbar
+}
+
+# The editor's own prompts: its "nmcli> " is given the next command, then
+# quit; its polkit prompt is dt_netprompt's; a quit it questions because a
+# save failed is answered yes. Anything else is not answered.
+fn dt_neteditprompt(int n, text) {
+	local i
+
+	case $text in
+	*"password ("*"): ") dt_netprompt "$n" "$text"; return $? ;;
+	*"Do you really want to quit? (yes/no) [no] ")
+		pty write "${DTJ[$n]["pty"]}" "yes"$'\r'
+		return 0
+		;;
+	*"nmcli> " | *"nmcli "*"> ")
+		i=${DTJ[$n]["qi"]}
+		if [ "$i" -lt "${DTJ[$n]["qn"]}" ]; then
+			pty write "${DTJ[$n]["pty"]}" "${DTJ[$n]["q$i"]}"$'\r'
+			DTJ[$n]["qi"]=$((i + 1))
+		else
+			pty write "${DTJ[$n]["pty"]}" "quit"$'\r'
+		fi
+		return 0
+		;;
+	esac
+	return 1
+}
+
+# The editor ended: saved, and the connection is brought up; or not, and
+# what it said -- with any line holding the key left out, since the pty
+# echoed what was typed -- is the note and the log.
+fn dt_neteditdone(int n, int st) {
+	local f l u= why= ssid=$DT_NETJSSID
+
+	f := dt_jobfile "$n"
+	while IFS= read -r l; do
+		case $l in
+		*psk*) continue ;;
+		*"successfully saved"*)
+			match "$l" '\(([0-9a-f-]{36})\) successfully saved' > /dev/null && u=${M[1]}
+			;;
+		*"Error: "*) why=${l#*Error: } ;;
+		esac
+	done < "$f"
+	[ -n "$u" ] || u=${DTJ[$n]["uuid"]}
+	DT_NETJOB=
+	if [ "$st" = 0 ] && [ -n "$u" ] && [ -z "${DTJ[$n]["cancelled"]}" ] && [ -z "${DTJ[$n]["why"]}" ]; then
+		[ -n "${DTJ[$n]["new"]}" ] && DT_NETNEWU=$u && DT_NETNEWS=$ssid
+		dt_netjob join "$ssid" nmcli -w 45 connection up uuid "$u"
+		return 0
+	fi
+	DT_NET["busy"]=
+	dt_log "network join $ssid: the editor ended with $st"
+	while IFS= read -r l; do
+		case $l in *psk*) ;; *) dt_log "  $l" ;; esac
+	done < "$f"
+	case $why in
+	*"Insufficient privileges"* | *"Not authorized"* | *"not authorized"*)
+		if [ -n "${DTJ[$n]["asked"]}" ]; then
+			why := dt_tr "the password was not accepted"
+		else
+			why := dt_tr "a password is needed and none could be asked for"
+		fi
+		;;
+	esac
+	if [ -n "${DTJ[$n]["cancelled"]}" ]; then
+		why := dt_tr "cancelled"
+	elif [ -n "${DTJ[$n]["why"]}" ]; then
+		dt_log "network join $ssid: ended: ${DTJ[$n]["why"]}"
+		case ${DTJ[$n]["why"]} in
+		"asked: "*) why := dt_tr "nmcli asked something the desktop cannot answer" ;;
+		*) why := dt_tr "it took too long" ;;
+		esac
+	fi
+	[ -n "$why" ] || why := dt_tr "the network's settings were not saved"
+	DT_NET["err"]=$why
+	dt_notep high "Could not join %s: %s" "$ssid" "$why"
+	DT_NETJSSID=
+	DT_NETJKIND=
+	dt_netread
+	dt_netbar
+}
+
+# A join of a connection made for it has ended: kept if it came up, taken
+# away if it did not, quietly -- the note about the join has been said.
+fn dt_netnewdone(st) {
+	local u=$DT_NETNEWU
+
+	[ -n "$u" ] || return 0
+	DT_NETNEWU=
+	DT_NETNEWS=
+	[ "$st" = 0 ] && return 0
+	dt_netjob tidy "" nmcli connection delete uuid "$u"
 }
 
 # nmcli on the job's pty has asked something. Its own polkit prompt --
@@ -765,7 +907,7 @@ fn dt_netjobdone(int n, int st) {
 		leave) dt_notep low "Left %s" "$DT_NETJSSID" ;;
 		forget) dt_notep low "Forgot %s" "$DT_NETJSSID" ;;
 		esac
-	else
+	elif [ "$DT_NETJKIND" != tidy ]; then
 		DT_NET["err"]=${why:-$st}
 		case $DT_NETJKIND in
 		join) dt_notep high "Could not join %s: %s" "$DT_NETJSSID" "${why:-nmcli $st}" ;;
@@ -779,6 +921,7 @@ fn dt_netjobdone(int n, int st) {
 	DT_NETJKIND=
 	dt_netread
 	dt_netbar
+	dt_netnewdone "$st"
 }
 
 # A new secured network, run in the job: a connection made through

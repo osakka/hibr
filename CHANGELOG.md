@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.302
+
+**Joining a network never joined before asks for the password it needs
+too** (Gitea #369). 0.99.301 asked for it when joining a known or an open
+network, and a secured network never joined still said *a password is
+needed and none could be asked for*: its settings are saved through nmcli's
+connection editor, which was still run the old way. The editor now runs
+with `--ask` on a pty of its own and is typed its commands at each
+`nmcli>` prompt -- so the network's key is on no command line, and is left
+out of anything logged, since a pty echoes what is typed -- and the
+administrator's password nmcli asks for is asked for in the desktop's own
+window. Then the connection is brought up; a new one that will not come up
+is taken away again, so a mistyped key leaves no profile behind. A saved
+network whose key has changed goes the same way.
+
 ## 0.99.301
 
 **hibr is LGPL-3.0-or-later** -- the GNU Lesser General Public License,
