@@ -86,6 +86,7 @@ struct au_api {
 	int (*opens)(void *, int);
 	int (*closes)(void *, int);
 	char **(*envlist)(void *);
+	int (*putenv)(void *, const char *);
 };
 
 /* The one login session a module holds open between `auth open` and
@@ -137,6 +138,7 @@ int au_load(void)
 	au.opens = dlsym(au_lib, "pam_open_session");
 	au.closes = dlsym(au_lib, "pam_close_session");
 	au.envlist = dlsym(au_lib, "pam_getenvlist");
+	au.putenv = dlsym(au_lib, "pam_putenv");
 	if (!au.start || !au.authn || !au.acct || !au.end || !au.err) {
 		lg(HIBR_LERR, "auth: the PAM library lacks a call this needs");
 		dlclose(au_lib);
@@ -353,21 +355,34 @@ void au_sfree(void)
 	memset(&au_s, 0, sizeof au_s);
 }
 
-/* auth open [-s service] [-c confdir] [-q] user password: a login -- the
-   password checked, the account allowed, credentials set and a session
-   opened on this terminal -- kept open for `auth run` and `auth close`.
-   Root is refused: a login screen is for people. Status as for check. */
+/* auth open [-s service] [-c confdir] [-e NAME=VALUE]... [-q] user
+   password: a login -- the password checked, the account allowed,
+   credentials set and a session opened on this terminal -- kept open for
+   `auth run` and `auth close`. Root is refused: a login screen is for
+   people. Status as for check.
+
+   -e puts a variable in PAM's own environment before anything runs, which
+   is how a login tells pam_systemd what it is: XDG_SEAT and XDG_VTNR for a
+   display on the machine's own seat that is not a VT of its own -- Blit's,
+   where the screen runs on a pty, and without them logind registered every
+   such login as a remote session with no seat, and nothing that is only
+   for the person at the machine would serve it (Gitea #367). */
 int au_open(sh *s, int ac, char **av)
 {
 	const char *svc = 0, *dir = 0;
 	char *pass, *tty;
 	int i = 2, quiet = 0, r;
+	size_t ei;
 	struct passwd *pw;
 	au_conv conv;
 	size_t pn;
+	vec envs;
 
+	memset(&envs, 0, sizeof envs);
 	while (i < ac && av[i][0] == '-' && av[i][1]) {
-		if (!strcmp(av[i], "-s") && i + 1 < ac)
+		if (!strcmp(av[i], "-e") && i + 1 < ac && strchr(av[i + 1], '='))
+			v_add(&envs, av[++i]);
+		else if (!strcmp(av[i], "-s") && i + 1 < ac)
 			svc = av[++i];
 		else if (!strcmp(av[i], "-c") && i + 1 < ac)
 			dir = av[++i];
@@ -378,8 +393,9 @@ int au_open(sh *s, int ac, char **av)
 		i++;
 	}
 	if (i + 2 != ac) {
-		lg(HIBR_LERR, "usage: auth open [-s service] [-c confdir] [-q] user "
-			      "password");
+		lg(HIBR_LERR, "usage: auth open [-s service] [-c confdir] "
+			      "[-e NAME=VALUE]... [-q] user password");
+		v_free(&envs);
 		return 2;
 	}
 	pn = strlen(av[i + 1]);
@@ -390,6 +406,7 @@ int au_open(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "auth: a session is already open; auth close first");
 		au_wipe(pass, pn);
 		free(pass);
+		v_free(&envs);
 		return 2;
 	}
 	if (au_load() != HIBR_OK || !au.setitem || !au.setcred || !au.opens ||
@@ -398,6 +415,7 @@ int au_open(sh *s, int ac, char **av)
 			lg(HIBR_LERR, "auth: this PAM cannot open a session here");
 		au_wipe(pass, pn);
 		free(pass);
+		v_free(&envs);
 		return 2;
 	}
 	pw = getpwnam(av[i]);
@@ -408,6 +426,7 @@ int au_open(sh *s, int ac, char **av)
 			   pw ? "root cannot log in here" : "no such user");
 		au_wipe(pass, pn);
 		free(pass);
+		v_free(&envs);
 		return HIBR_FAIL;
 	}
 	memset(&au_s, 0, sizeof au_s);
@@ -430,6 +449,15 @@ int au_open(sh *s, int ac, char **av)
 	tty = isatty(0) ? ttyname(0) : 0;
 	if (r == AU_SUCCESS && tty)
 		r = au.setitem(au_s.h, AU_TTY, tty);
+	for (ei = 0; r == AU_SUCCESS && ei < envs.n; ei++) {
+		if (!au.putenv) {
+			lg(HIBR_LDBG, "auth: this PAM cannot be given %s",
+			   (char *)envs.p[ei]);
+			break;
+		}
+		r = au.putenv(au_s.h, envs.p[ei]);
+	}
+	v_free(&envs);
 	if (r == AU_SUCCESS)
 		r = au.authn(au_s.h, 0);
 	if (r == AU_SUCCESS)

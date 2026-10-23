@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.305
+
+**A login on a Blit display is a local session** (Gitea #367, with Blit
+0.2.7). The login screen runs on a pty there, which says no seat and no VT,
+so logind registered every such login as a remote session with no seat --
+and everything that is only for the person sitting at the machine refused
+it: WirePlumber drove no Bluetooth audio, so a connected headset never
+became a sound output; NetworkManager's "allowed for an active session"
+did not apply, which is why joining Wi-Fi wanted root's password; logind's
+own brightness and power need it too (#365, #366). `auth open` takes
+`-e NAME=VALUE` for PAM's environment, the login screen passes `XDG_SEAT` and
+`XDG_VTNR` when it is told them (`LG_SEAT`, `LG_VTNR`), and Blit's login
+wrapper tells it `seat0` and the VT Blit owns. On a real VT nothing changes:
+PAM works the seat out from the terminal itself.
+
+**The login screen, easier to use:**
+
+- **Shell no longer looks stuck.** The session inherited the login screen's
+  standard error, which goes to its log, so a shell's every prompt went
+  there and the screen never seemed to answer. The session's standard error
+  is the terminal now.
+- **A wrong name is easy to back out of.** Backspace with nothing typed goes
+  back to the name, kept to be put right, as Escape always did -- and a
+  refusal now says so, where it used to replace the hint that did.
+- **Desktop and Shell can be clicked.**
+
 ## 0.99.304
 
 **Hovering** (Gitea #370). The desktop hears the pointer move with no button

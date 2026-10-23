@@ -40,6 +40,12 @@ auth run sh -c 'echo "as self: $([ "$(id -un)" = "$LOGNAME" ] && echo yes) home:
 auth run no-such-program-here 2> /dev/null; echo "missing: $?"
 auth close; echo "close: $?"
 auth close; echo "close twice: $?"
+# -e puts a variable in PAM's environment before the session opens, which is
+# where pam_systemd reads XDG_SEAT and XDG_VTNR from (Gitea #367).
+auth open -q -c "$d" -s lg -e XDG_SEAT=seat0 -e XDG_VTNR=7 "$u" 'right horse'; echo "open with -e: $?"
+auth run sh -c 'echo "seat: $XDG_SEAT vt: $XDG_VTNR"'
+auth close
+auth open -q -c "$d" -s lg -e nonsense "$u" x 2> /dev/null; echo "-e without =: $?"
 auth open -q -c "$d" -s lg root anything; echo "root: $? [$RET]"
 auth open -q -c "$d" -s lg no-such-user-here x; echo "nobody: $? [$RET]"
 rm -rf "$d"

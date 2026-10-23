@@ -5841,7 +5841,9 @@ open(os.path.join(LGDIR, "lg"), "w").write(
 LGSTUB = os.path.join(LGDIR, "stub.sh")
 LGRAN = os.path.join(LGDIR, "ran")
 open(LGSTUB, "w").write('#!/bin/sh\necho "$1 $(id -un) $LG_SUITE" > %s\n'
-                        % LGRAN)
+                        'echo "${XDG_SEAT:-none} ${XDG_VTNR:-none}" > %s.seat\n'
+                        'echo "said-on-stderr" >&2\n'
+                        % (LGRAN, LGRAN))
 os.chmod(LGSTUB, 0o755)
 LGCFG = os.path.join(LGDIR, "cfg")
 os.makedirs(os.path.join(LGCFG, "hibr"))
@@ -5906,6 +5908,31 @@ check("root is refused at the box", s[3].find("root cannot log in here")
       is not None and ran is None, s[3])
 check("escape goes back to the user name, and again to the saver",
       s[5].find("User name") is not None and s[6].find("testbox") is None, s[6])
+
+# Getting out of the password box (0.99.305): a refusal says how, and
+# backspace with nothing typed goes back to the name, kept to be put right;
+# a click chooses the session, and the session's own errors reach the
+# terminal rather than this screen's log, which is where a shell's prompt
+# went, so Shell looked like a screen that never answered.
+s, ran = loginrun([0.3, b"n", b"obody-here\r", b"x\r", 2.5, b"\x7f"])
+check("a refusal says how to go back to the name",
+      s[3].find("Esc: name") is not None, s[3])
+check("and backspace with nothing typed goes back to it, the name kept",
+      s[5].find("User name") is not None and s[5].find("nobody-here") is not None,
+      s[5])
+s0, _ = loginrun([0.3, ME.encode() + b"\r"],
+                 {"XDG_CONFIG_HOME": os.path.join(LGDIR, "none")})
+sr, scol = s0[1].find(" Shell ") or (0, 0)
+s, ran = loginrun([0.3, ME.encode() + b"\r", press(sr, scol + 2),
+                   release(sr, scol + 2), b"right horse\r", 1.0],
+                  {"XDG_CONFIG_HOME": os.path.join(LGDIR, "none"),
+                   "LG_SEAT": "seat0", "LG_VTNR": "7"})
+check("a click on Shell chooses it", ran == "shell %s from-pam" % ME, ran)
+check("and what the session says on standard error reaches the terminal",
+      any(x.find("said-on-stderr") is not None for x in s), s[-1])
+seat = open(LGRAN + ".seat").read().strip() if os.path.exists(LGRAN + ".seat") else None
+check("LG_SEAT and LG_VTNR reach the session through PAM, as pam_systemd "
+      "reads them", seat == "seat0 7", seat)
 
 s, ran = loginrun([0.3, b"n", b"obody-here\r", b"x\r"])
 check("a name with no account gets a password box like any other, and a "
@@ -6826,4 +6853,4 @@ n = hvframes([hov(18, 50), hov(7, 15), hov(18, 50)])
 check("while moving onto a window and off again draws a frame each time",
       n == 2, n)
 
-report(747)
+report(752)

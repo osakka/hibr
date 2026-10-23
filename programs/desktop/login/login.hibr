@@ -39,10 +39,21 @@ LG_HERE=${BASH_SOURCE%/*}
 LG_CONFFILE="${LG_CONFFILE-/etc/hibr/login.json}"
 LG_SERVICE="${LG_SERVICE-}"
 LG_PAMDIR="${LG_PAMDIR-}"
+# The seat and VT the screen is shown on, when it is not a VT of its own --
+# a display server runs it on a pty, which says neither, and logind then
+# took every login for a remote one with no seat: no sound over Bluetooth,
+# no network or brightness for the person at the machine (Gitea #367). Blit
+# sets them; on a VT (hibr-login@ttyN) PAM works them out itself.
+LG_SEAT="${LG_SEAT-}"
+LG_VTNR="${LG_VTNR-}"
 LG_SAVER="${LG_SAVER-random}"
 LG_TITLE="${LG_TITLE-}"
 LG_MESSAGE="${LG_MESSAGE-}"
 LG_ONCE="${LG_ONCE-}"
+# Where the password box last drew its rows, for a click: the box's top
+# row, and the column the name, password and session start at.
+LG_BOXR=
+LG_BOXX=
 LG_SESSIONCMD="${LG_SESSIONCMD-}"
 
 if [ -z "${DT_GLYPHSET+x}" ]; then
@@ -258,6 +269,8 @@ lg_box() {
 		console pen "$DT_DIM" "$DT_FACE"
 	fi
 	console put $((r + 9)) $((px + 19)) " Shell "
+	LG_BOXR=$r
+	LG_BOXX=$px
 	lg_msg $((r + h - 3)) "$px" "$fw"
 	console cursor $((r + 7)) $((px + n))
 }
@@ -274,7 +287,7 @@ fn lg_msg(int r, int c, int w) {
 			if [ "$LG_STATE" = name ]; then
 				t="Enter to go on"
 			else
-				t="Tab: session  Enter: log in  Esc: back"
+				t="Tab: session  Enter: log in  Esc: name"
 			fi
 		fi
 	fi
@@ -301,6 +314,8 @@ lg_login() {
 
 	[ -n "$LG_SERVICE" ] && opt+=(-s "$LG_SERVICE")
 	[ -n "$LG_PAMDIR" ] && opt+=(-c "$LG_PAMDIR")
+	[ -n "$LG_SEAT" ] && opt+=(-e "XDG_SEAT=$LG_SEAT")
+	[ -n "$LG_VTNR" ] && opt+=(-e "XDG_VTNR=$LG_VTNR")
 	LG_MSG="Checking${GL[ellipsis]}"
 	LG_BAD=
 	lg_box
@@ -312,7 +327,10 @@ lg_login() {
 		LG_BAD=1
 		if [ "$st" = 1 ]; then
 			[ "$why" = "Authentication failure" ] && why=
-			LG_MSG=${why:-Not the password}
+			# A refusal keeps the way back on the line, since the name
+			# may be what was wrong: the box asks every name for a
+			# password, so as not to say which names are accounts.
+			LG_MSG=${why:-"Not the password. Esc: name"}
 		else
 			LG_MSG="Cannot log in${why:+: $why}"
 		fi
@@ -331,7 +349,11 @@ lg_login() {
 	fi
 	console mouse off
 	console close
-	auth run "${cmd[@]}"
+	# The session's standard error is the terminal, which is where this
+	# screen draws: this screen's own goes to its log (or, under systemd,
+	# the journal), and a session that inherited it wrote a shell's every
+	# prompt there, so choosing Shell showed a screen that never answered.
+	auth run "${cmd[@]}" 2>&1
 	st=$?
 	auth close
 	printf 'login: %s logged out (status %s)\n' "$LG_USER" "$st" >&2
@@ -350,6 +372,37 @@ lg_ms() {
 	local t=${EPOCHREALTIME/./}
 
 	ret $((t / 1000))
+}
+
+# Back from the password to the name, the name kept to be put right.
+lg_back() {
+	LG_STATE=name
+	LG_PASS=
+	LG_MSG=
+	LG_BAD=
+	LG_PIC=
+}
+
+# A click on the password box: on Desktop or Shell chooses it, on the
+# person's name goes back to the name, anywhere else does nothing.
+fn lg_click(k) {
+	local -a ev
+	local r c
+
+	read -ra ev <<< "$k"
+	r=${ev[3]}
+	c=${ev[4]}
+	[ -n "$LG_BOXR" ] || return 0
+	if [ "$r" = $((LG_BOXR + 9)) ]; then
+		if [ "$c" -ge $((LG_BOXX + 9)) ] && [ "$c" -lt $((LG_BOXX + 18)) ]; then
+			LG_SESS=desktop
+		elif [ "$c" -ge $((LG_BOXX + 19)) ] && [ "$c" -lt $((LG_BOXX + 26)) ]; then
+			LG_SESS=shell
+		fi
+	elif [ "$r" -ge $((LG_BOXR + 3)) ] && [ "$r" -le $((LG_BOXR + 4)) ]; then
+		lg_back
+	fi
+	return 0
 }
 
 # A key or a click.
@@ -382,18 +435,21 @@ fn lg_key(k) {
 		return 0
 	fi
 	case $k in
-	escape)
-		LG_STATE=name
-		LG_PASS=
-		LG_MSG=
-		LG_BAD=
-		LG_PIC=
-		;;
+	escape) lg_back ;;
 	enter) [ -n "$LG_PASS" ] && lg_login ;;
 	tab|left|right)
 		if [ "$LG_SESS" = desktop ]; then LG_SESS=shell; else LG_SESS=desktop; fi
 		;;
-	backspace) LG_PASS=${LG_PASS%?} ;;
+	# Backspace with nothing typed goes back to the name, which is the way
+	# back anybody tries first when the name was the mistake.
+	backspace)
+		if [ -z "$LG_PASS" ]; then
+			lg_back
+		else
+			LG_PASS=${LG_PASS%?}
+		fi
+		;;
+	"mouse press "*) lg_click "$k" ;;
 	ctrl-u) LG_PASS= ;;
 	*)
 		if [ "${#k}" = 1 ]; then
