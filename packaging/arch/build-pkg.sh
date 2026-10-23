@@ -71,7 +71,7 @@ pkgrel=$REL
 pkgdesc='Small, fast shell that runs the bash you already write'
 arch=('$CARCH')
 url='https://github.com/osakka/hibr'
-license=('MIT')
+license=('LGPL-3.0-or-later')
 depends=('glibc')
 optdepends=('libpng: PNG pictures'
             'libjpeg-turbo: JPEG pictures'

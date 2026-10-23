@@ -23,9 +23,26 @@ ST = os.path.join(D, "state.json")
 LOG = os.path.join(D, "argv.log")
 
 
+# The five actions the desktop's own polkit rule (Manage Networks Without
+# a Password, Gitea #369) lets its person do with no password -- which
+# polkit says at once, rules being read again whenever they change.
+RULED = ["network-control", "settings.modify.own", "settings.modify.system",
+         "wifi.scan", "enable-disable-wifi"]
+
+
 def load():
     with open(ST) as f:
         return json.load(f)
+
+
+def perm(s, p):
+    """What polkit answers for one action: the rule's yes where the rule is
+    there, else the state's own answer -- read, never written back."""
+    rd = os.environ.get("DT_NETRULEDIR", "")
+    who = os.environ.get("USER", "")
+    if p in RULED and rd and os.path.exists(os.path.join(rd, "50-hibr-networks-%s.rules" % who)):
+        return "yes"
+    return s.get("perms", {}).get(p, "yes")
 
 
 def save(s):
@@ -56,14 +73,42 @@ PERMS = ["checkpoint-rollback", "enable-disable-connectivity-check", "enable-dis
          "sleep-wake", "wifi.scan", "wifi.share.open", "wifi.share.protected"]
 
 
+# How this run was asked: with --ask, and whether it is the editor.
+ASK = False
+EDIT = False
+
+
+# What polkit says each action is for, as nmcli's own agent prints it.
+POLKIT_MSG = {"network-control": "System policy prevents control of network connections",
+              "settings.modify.system": "System policy prevents modification of network settings for all users",
+              "settings.modify.own": "System policy prevents modification of personal network settings",
+              "enable-disable-wifi": "System policy prevents enabling or disabling Wi-Fi devices",
+              "wifi.scan": "System policy prevents Wi-Fi scans"}
+
+
 def allowed(s, perm, msg="Insufficient privileges"):
     """What polkit says to one of NetworkManager's actions: yes goes on, no is
-    refused, and auth asks the agent -- tests/net/pkttyagent -- and waits for
-    its verdict, as NetworkManager waits for polkit's."""
-    v = s.get("perms", {}).get(perm, "yes")
+    refused, and auth depends on how nmcli was asked (Gitea #369, measured
+    on the owner's machine). Without --ask nmcli tells NetworkManager the
+    request is not interactive, and polkit refuses it without consulting
+    any agent. With --ask nmcli registers an agent of its own and prompts on
+    its terminal -- "password (root): ", the account polkit wants, after the
+    reason and the action id -- and reads the answer there. The editor
+    (connection edit) still asks the desktop's pkttyagent here, as before:
+    what the real editor does is not yet captured."""
+    v = globals()["perm"](s, perm)
     if v == "yes":
         return
-    if v == "auth":
+    if v == "auth" and ASK:
+        sys.stdout.write("%s\n(action_id: org.freedesktop.NetworkManager.%s)\npassword (root): "
+                         % (POLKIT_MSG.get(perm, "System policy prevents this"), perm))
+        sys.stdout.flush()
+        given = sys.stdin.readline().rstrip("\r\n")
+        sys.stdout.write("\n")
+        if given == s.get("agentpw"):
+            return
+        die(msg, 4)
+    if v == "auth" and EDIT:
         req, res = os.path.join(D, "auth.req"), os.path.join(D, "auth.res")
         try:
             os.unlink(res)
@@ -164,6 +209,9 @@ def main(a):
             pass
         elif o in ("-w", "--wait"):
             a.pop(0)
+        elif o in ("-a", "--ask"):
+            global ASK
+            ASK = True
         elif o == "--version":
             print("nmcli tool, version 1.52.1")
             return
@@ -175,7 +223,7 @@ def main(a):
     if obj in ("g", "general") and verb == "permissions":
         print("%-66s%s" % ("PERMISSION", "VALUE"))
         for p in PERMS:
-            print("%-66s%s" % ("org.freedesktop.NetworkManager." + p, s.get("perms", {}).get(p, "yes")))
+            print("%-66s%s" % ("org.freedesktop.NetworkManager." + p, perm(s, p)))
     elif obj in ("g", "general"):
         out([{"RUNNING": "running", "STATE": "connected", "WIFI": s["wifi"]}], fields or ["RUNNING"])
     elif obj in ("r", "radio"):
@@ -265,6 +313,8 @@ def main(a):
         elif verb in ("", "show"):
             out(s["cons"], fields or ["NAME", "UUID", "TYPE", "DEVICE"])
         elif verb == "edit":
+            global EDIT
+            EDIT = True
             how = a.pop(0) if a and a[0] in ("uuid", "id", "type") else ""
             key = a.pop(0) if a else ""
             c = None if how == "type" else findcon(s, how, key)

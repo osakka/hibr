@@ -8,7 +8,7 @@ class Hibr < Formula
   url "https://github.com/osakka/hibr/archive/refs/tags/v0.99.227.tar.gz"
   version "0.99.227"
   sha256 "be0b185369dca953717c87e0b63ef9c5cce2dc0e27be69d4393ff7aced37ba74"
-  license "MIT"
+  license "LGPL-3.0-or-later"
   head "https://github.com/osakka/hibr.git", branch: "main"
 
   # TLS, PNG and JPEG support are dlopen'd at first use, never linked at build

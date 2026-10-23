@@ -203,6 +203,7 @@ Cannot restart: no hibr at %s, or no %s
 Cannot restart: the state could not be written
 Cannot show the wallpaper picture %s
 Cannot write %s
+Cannot write a rule for the account %s
 Cannot write in %s
 Catalogue
 Center
@@ -278,6 +279,7 @@ Copy Username
 Copy on Select
 Copy something anywhere, or paste here,
 Copying
+Could not change it: pkexec %s
 Could not change owner or group
 Could not change permissions
 Could not connect %s: %s
@@ -305,6 +307,7 @@ Could not save %s
 Could not save %s: %s -- it will be tried again on the next save
 Could not save About Me in %s
 Could not send to %s%s
+Could not start pkexec
 Could not switch Wi-Fi: %s
 Could not write %s
 Count
@@ -627,6 +630,8 @@ Network Settings…
 Network System
 Network on Menu Bar
 NetworkManager does not allow joining networks from this session
+Networks are managed without a password now
+Networks ask for a password again
 New
 New Contact
 New Database…
@@ -649,6 +654,7 @@ Next Tab
 Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER
 No Chromium or Chrome to clear
+No Network Password
 No Picture
 No Rule
 No calendar yet: choose a server in Control Panel > PIM, then sync
@@ -978,6 +984,9 @@ The PIN is set
 The Trash is empty: %d items deleted
 The Trash is empty: 1 item deleted
 The YouTube history is empty
+The administrator's (root) password, for %s
+The administrator's (root) password, to manage networks without one
+The administrator's (root) password, to remove the rule
 The catalogue command did not answer JSON. It may be older than this window.
 The colours are good, warn, bad, info and dim
 The date is YYYY-MM-DD
@@ -989,6 +998,8 @@ The download of %s did not finish
 The end is a time, HH:MM
 The mermaid module is not loaded
 The page could not be saved as a PDF
+The password of %s, for %s
+The password was not accepted
 The pdf module is not installed
 The record could not be added
 The remote file cache is empty
@@ -1133,6 +1144,7 @@ Zoom Out
 a command; the file goes after it, in a terminal
 a new hibr is installed -- click to restart the desktop
 a number, worked out
+a password is needed and none could be asked for
 and it is kept to come back to.
 any command you can run
 arithmetic
@@ -1145,6 +1157,7 @@ blocks only, no pixels
 blocks only: it does not draw pixels
 blocks only: it does not say what a cell measures
 by cable
+cancelled
 case does not matter
 clicks
 clicks and drags
@@ -1173,9 +1186,11 @@ installed %s, %s available
 installed on this machine for everyone
 integers only
 it did not answer -- is it on and near?
+it took too long
 lifts that for one sheet, here only.
 looking%s
 moving — arrows, then enter
+nmcli asked something the desktop cannot answer
 no
 no reason given
 none

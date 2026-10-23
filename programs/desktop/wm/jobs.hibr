@@ -23,6 +23,16 @@
 #   dt_jobrunning KIND [TAG]  the number of one not yet finished, or status 1
 #   dt_jobmerge command args...
 #       run as the job's command, so its errors land in its output
+#   n := dt_ptyjob KIND TAG CALLBACK PROMPT command args...
+#       the same, run on a pty for a program that may ask something:
+#       PROMPT n TEXT is called with what it has printed since its last
+#       newline and answers 0 (handled -- it has answered on the pty, or
+#       asked the person to) or 1 (not one it knows). Text it does not know
+#       that looks like a question -- ending ": ", "? " or "] " -- and stays
+#       unanswered for 2 s interrupts the job, which says what was asked,
+#       so a program is never left waiting on something nobody will
+#       answer. The pty's id is DTJ[n]["pty"]; DTJ[n]["why"] says why one
+#       was ended early.
 #
 # A callback runs inside a frame, so a window it closes goes through
 # dt_wantclose, never dt_del. A job ending wakes the desktop by itself: its
@@ -38,6 +48,8 @@ declare -gA DTJ
 DTJ_N=0
 DTJ_LIVE=0
 DTJ_DIR=
+# How long a job on a pty may run, in seconds, before it is ended.
+DTJ_PTYMAX=180
 
 # The folder jobs keep their files in: one per desktop, in the runtime
 # folder, made when the first job starts.
@@ -76,6 +88,89 @@ fn dt_job(kind, tag, then, ...cmd) {
 # mail test's ladder): dt_job NAME TAG CALLBACK dt_jobmerge command args...
 fn dt_jobmerge(...cmd) {
 	"${cmd[@]}" 2>&1
+}
+
+# Start a job on a pty, for a program that may ask a question on its
+# terminal -- nmcli's own polkit agent, pkexec -- which a file cannot
+# answer. What it prints goes to its output file as it arrives, so
+# dt_joblast and dt_jobfile read it as any job's; its prompts go to PROMPT.
+# Bounded: one still running after DTJ_PTYMAX seconds is ended.
+fn dt_ptyjob(kind, tag, then, prompt, ...cmd) {
+	local n id fd
+
+	dt_jobdir || return 1
+	need pty 2> /dev/null || return 1
+	id := pty spawn -x -r 24 -c 200 "${cmd[@]}" || return 1
+	DTJ_N=$((DTJ_N + 1))
+	n=$DTJ_N
+	: > "$DTJ_DIR/$n.out"
+	DTJ[$n]["kind"]=$kind
+	DTJ[$n]["tag"]=$tag
+	DTJ[$n]["then"]=$then
+	DTJ[$n]["done"]=
+	DTJ[$n]["pty"]=$id
+	DTJ[$n]["prompt"]=$prompt
+	DTJ[$n]["tail"]=
+	DTJ[$n]["why"]=
+	DTJ[$n]["until"]=$((EPOCHSECONDS + DTJ_PTYMAX))
+	if command -v console > /dev/null; then
+		fd := pty fd "$id"
+		DTJ[$n]["fd"]=$fd
+		console watch "$fd" 2> /dev/null
+	fi
+	DTJ_LIVE=$((DTJ_LIVE + 1))
+	command -v dt_want > /dev/null && dt_want 100
+	ret "$n"
+}
+
+# A pty job's turn: take what it printed, hand an open question to its
+# prompt, and when the program has gone write its status, as a job's
+# subshell would have.
+fn dt_ptyjobtick(int n) {
+	local id=${DTJ[$n]["pty"]} out t r st
+
+	out := pty read "$id" 0 2> /dev/null
+	if [ -n "$out" ]; then
+		out=${out//$'\r'/}
+		printf '%s' "$out" >> "$DTJ_DIR/$n.out"
+		t=${DTJ[$n]["tail"]}$out
+		DTJ[$n]["tail"]=${t##*$'\n'}
+		DTJ[$n]["tailt"]=$EPOCHSECONDS
+	fi
+	t=${DTJ[$n]["tail"]}
+	if [ -n "$t" ]; then
+		r=1
+		[ -n "${DTJ[$n]["prompt"]}" ] && { "${DTJ[$n]["prompt"]}" "$n" "$t" && r=0; }
+		if [ "$r" = 0 ]; then
+			DTJ[$n]["tail"]=
+		else
+			case $t in
+			*": " | *"? " | *"] ")
+				if [ $((EPOCHSECONDS - ${DTJ[$n]["tailt"]:-0})) -ge 2 ]; then
+					DTJ[$n]["why"]="asked: $t"
+					DTJ[$n]["tail"]=
+					pty write "$id" $'\003' 2> /dev/null
+				else
+					command -v dt_want > /dev/null && dt_want 1000
+				fi
+				;;
+			esac
+		fi
+	fi
+	if pty alive "$id" > /dev/null 2>&1; then
+		[ "$EPOCHSECONDS" -lt "${DTJ[$n]["until"]}" ] && return 0
+		DTJ[$n]["why"]="it took too long"
+		st=124
+	else
+		out := pty drain "$id" 0 2> /dev/null
+		[ -n "$out" ] && printf '%s' "${out//$'\r'/}" >> "$DTJ_DIR/$n.out"
+		st=1
+		pty wait "$id" 1000 > /dev/null 2>&1 && st=$RET
+	fi
+	[ -n "${DTJ[$n]["fd"]}" ] && console unwatch "${DTJ[$n]["fd"]}" 2> /dev/null
+	pty close "$id" 2> /dev/null
+	printf '%s\n' "$st" > "$DTJ_DIR/$n.st"
+	return 0
 }
 
 # Where a job's output or errors are.
@@ -117,6 +212,7 @@ dt_jobtick() {
 	ids=("${!DTJ[@]}")
 	for n in "${ids[@]}"; do
 		[ -z "${DTJ[$n]["done"]}" ] || continue
+		[ -n "${DTJ[$n]["pty"]}" ] && [ ! -s "$d/$n.st" ] && dt_ptyjobtick "$n"
 		[ -s "$d/$n.st" ] || continue
 		read -r st < "$d/$n.st"
 		DTJ_LIVE=$((DTJ_LIVE - 1))

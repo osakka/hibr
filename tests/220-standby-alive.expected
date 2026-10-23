@@ -1,0 +1,7 @@
+0
+this boot and this start are known
+the process that wrote it: waiting
+written in another boot: stale
+the same id, another process: stale
+a record from before either was kept: stale
+a process that has gone: stale

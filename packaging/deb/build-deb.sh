@@ -121,6 +121,8 @@ chmod 644 "$STAGE/usr/lib/systemd/system/hibr-login@.service"
 
 install -d "$STAGE/usr/share/doc/hibr"
 install -m 644 LICENSE "$STAGE/usr/share/doc/hibr/copyright"
+install -m 644 COPYING "$STAGE/usr/share/doc/hibr/COPYING"
+install -m 644 TRADEMARKS "$STAGE/usr/share/doc/hibr/TRADEMARKS"
 gzip -9n < CHANGELOG.md > "$STAGE/usr/share/doc/hibr/changelog.gz"
 gzip -9nf "$STAGE/usr/share/man/man1/hibr.1"
 gzip -9nf "$STAGE/usr/share/man/man1/desktop.1"

@@ -68,6 +68,8 @@ DT_NETJSSID=
 DT_NETJKIND=
 DT_NETJPK=
 DT_NETJKNOWN=
+# Where the polkit rule goes; only a test sets another.
+DT_NETRULEDIR="${DT_NETRULEDIR:-/etc/polkit-1/rules.d}"
 DT_NETTOP=0
 DT_NETSEL=0
 DT_NETSEEN=
@@ -172,6 +174,111 @@ dt_netperms() {
 		*.wifi.scan) DT_NETPERM["scan"]=$v ;;
 		esac
 	done <<< "$(dt_netq general permissions)"
+}
+
+# Whether every action the desktop asks of NetworkManager is allowed with no
+# password: what No Network Password reads, since polkit's
+# rules folder is the administrator's to read, not this person's.
+dt_netfree() {
+	local k
+
+	for k in control system own wifi scan; do
+		[ "${DT_NETPERM["$k"]:-yes}" = yes ] || return 1
+	done
+	return 0
+}
+
+# No Network Password (Gitea #369): a polkit rule, installed
+# once with the administrator's password through pkexec on a pty, letting
+# this person -- by name, so no group to join and no logging in again --
+# join, leave, forget and scan, and turn Wi-Fi on and off, with none. The
+# five actions are the ones the desktop uses and nothing else; removing it
+# is the same row. A JavaScript rule, so polkit 0.106 or later.
+fn dt_netrule(to) {
+	local u=${USER:-$(id -un)} f text
+
+	[ "${DT_NET["kind"]}" = nm ] || return 0
+	match "$u" '^[a-z_][a-z0-9_.-]*$' > /dev/null || {
+		dt_notep high "Cannot write a rule for the account %s" "$u"
+		return 0
+	}
+	if [ -n "$DT_NETJOB" ]; then
+		dt_notep low "Already joining %s" "$DT_NETJSSID"
+		return 0
+	fi
+	f="$DT_NETRULEDIR/50-hibr-networks-$u.rules"
+	DT_NETJKIND=rule
+	DT_NETJSSID=$to
+	if [ "$to" = on ]; then
+		text="// Written by the hibr desktop: Control Panel > Network > No Network
+// Password. It lets $u join, leave, forget and scan for Wi-Fi
+// networks, and turn Wi-Fi on and off, without a password. Turning that row
+// off removes this file.
+polkit.addRule(function(action, subject) {
+	if (subject.user != \"$u\")
+		return polkit.Result.NOT_HANDLED;
+	switch (action.id) {
+	case \"org.freedesktop.NetworkManager.network-control\":
+	case \"org.freedesktop.NetworkManager.settings.modify.own\":
+	case \"org.freedesktop.NetworkManager.settings.modify.system\":
+	case \"org.freedesktop.NetworkManager.wifi.scan\":
+	case \"org.freedesktop.NetworkManager.enable-disable-wifi\":
+		return polkit.Result.YES;
+	}
+	return polkit.Result.NOT_HANDLED;
+});"
+		DT_NETJOB := dt_ptyjob net:rule on dt_netruledone dt_netpkprompt \
+			pkexec /bin/sh -c 'umask 022; printf "%s\n" "$1" > "$2"' sh "$text" "$f"
+	else
+		DT_NETJOB := dt_ptyjob net:rule off dt_netruledone dt_netpkprompt \
+			pkexec /bin/rm -f -- "$f"
+	fi
+	[ -n "$DT_NETJOB" ] || { dt_notep high "Could not start pkexec"; return 0; }
+	return 0
+}
+
+# pkexec's own text agent -- polkit's, the format tests/net/polkit-*.txt
+# records -- asks "Password: " after its "Authenticating as" line, and only
+# that prompt is answered.
+fn dt_netpkprompt(int n, text) {
+	local hint
+
+	case $text in *"assword: ") ;; *) return 1 ;; esac
+	[ -n "${DTJ[$n]["asking"]}" ] && return 0
+	DTJ[$n]["asking"]=1
+	if [ "${DTJ[$n]["tag"]}" = on ]; then
+		hint := dt_tr "The administrator's (root) password, to manage networks without one"
+	else
+		hint := dt_tr "The administrator's (root) password, to remove the rule"
+	fi
+	dt_ask "Authentication" "Password:" "" dt_netpwgive "$hint" 1 76 dt_netpwcancel > /dev/null
+	return 0
+}
+
+# The rule's job ended: polkit reads its rules again by itself, so what it
+# now says is what the row shows.
+fn dt_netruledone(int n, int st) {
+	DT_NETJOB=
+	DT_NETJKIND=
+	DT_NETJSSID=
+	if [ "$st" = 0 ]; then
+		if [ "${DTJ[$n]["tag"]}" = on ]; then
+			DT_NETRULE=1
+			dt_notep low "Networks are managed without a password now"
+		else
+			DT_NETRULE=
+			dt_notep low "Networks ask for a password again"
+		fi
+		command -v cp_save > /dev/null && cp_save
+	elif [ -n "${DTJ[$n]["cancelled"]}" ]; then
+		dt_notep low "Cancelled"
+	elif [ -n "${DTJ[$n]["asked"]}" ]; then
+		dt_notep high "The password was not accepted"
+	else
+		dt_notep high "Could not change it: pkexec %s" "$st"
+	fi
+	dt_netperms
+	dt_netbar
 }
 
 # Whether this session may do one of those, with or without a password.
@@ -509,12 +616,18 @@ dt_nettick() {
 # Start something that waits on NetworkManager as a job -- a join, a
 # leave, Wi-Fi's switch, a Forget -- with what it is about (a network's
 # name) for what is said afterwards. A second while one runs is refused.
-# When polkit answers any of it with auth, polkit's agent is held while it
-# runs, so a password asked for is asked in the desktop. A job of the
-# desktop's runner (wm/jobs.hibr), its errors in its output, since nmcli's
-# Error: lines are the answer; DT_NETJOB holds its number.
+# A job of the desktop's runner (wm/jobs.hibr), its errors in its output,
+# since nmcli's Error: lines are the answer; DT_NETJOB holds its number.
+#
+# Where polkit answers any of it with auth, an nmcli command runs with
+# --ask on a pty (Gitea #369): without --ask nmcli tells NetworkManager the
+# request is not interactive, and polkit then refuses without asking any
+# agent -- the desktop's included -- which is what "not allowed from this
+# session" was. With it, nmcli asks for the password itself, on its
+# terminal, and dt_netprompt answers that from a dialog. Only an action a
+# person asked for comes here; a background scan never asks for a password.
 fn dt_netjob(kind, what, ...cmd) {
-	local k n
+	local k n auth=
 
 	if [ -n "$DT_NETJOB" ]; then
 		dt_notep low "Already joining %s" "$DT_NETJSSID"
@@ -524,20 +637,82 @@ fn dt_netjob(kind, what, ...cmd) {
 	DT_NETJKIND=$kind
 	DT_NETJPK=
 	for k in control system own wifi scan; do
-		if [ "${DT_NETPERM["$k"]}" = auth ]; then
-			dt_pkstart && DT_NETJPK=1
-			break
-		fi
+		[ "${DT_NETPERM["$k"]}" = auth ] && auth=1
 	done
 	[ "$kind" = join ] && DT_NET["busy"]=$what
 	DT_NET["err"]=
-	if ! n := dt_job "net:$kind" "$what" dt_netjobdone dt_jobmerge "${cmd[@]}"; then
+	if [ "${cmd[0]}" = nmcli ] && [ -n "$auth" ]; then
+		n := dt_ptyjob "net:$kind" "$what" dt_netjobdone dt_netprompt \
+			env LC_ALL=C nmcli --ask "${cmd[@]:1}"
+	elif [ "${cmd[0]}" = nmcli ]; then
+		n := dt_job "net:$kind" "$what" dt_netjobdone dt_jobmerge env LC_ALL=C "${cmd[@]}"
+	else
+		[ -n "$auth" ] && dt_pkstart && DT_NETJPK=1
+		n := dt_job "net:$kind" "$what" dt_netjobdone dt_jobmerge "${cmd[@]}"
+	fi
+	if [ -z "$n" ]; then
 		DT_NET["busy"]=
 		[ "$DT_NETJPK" = 1 ] && dt_pkstop
 		return 1
 	fi
 	DT_NETJOB=$n
 	dt_netbar
+}
+
+# nmcli on the job's pty has asked something. Its own polkit prompt --
+# "password (NAME): ", NAME the account polkit wants, root for an
+# administrator's action -- is answered from a dialog; nothing else is,
+# so a prompt for a network's own key can never be handed this password.
+fn dt_netprompt(int n, text) {
+	local u hint reason= l f
+
+	case $text in
+	*"password ("*"): ") ;;
+	*) return 1 ;;
+	esac
+	u=${text##*password (}
+	u=${u%"): "}
+	match "$u" '^[a-z_][a-z0-9_.-]*$' > /dev/null || return 1
+	[ -n "${DTJ[$n]["asking"]}" ] && return 0
+	DTJ[$n]["asking"]=1
+	# What it is for is nmcli's own line before the prompt, "System policy
+	# prevents control of network connections" and the like, shown from
+	# its "control of ..." on so the whole of it fits.
+	f := dt_jobfile "$n"
+	while IFS= read -r l; do
+		case $l in "System policy prevents "*) reason=${l#System policy prevents } ;; esac
+	done < "$f"
+	# Whose password first: a long reason is cut at the end, never that.
+	if [ "$u" = root ]; then
+		hint := dt_tr "The administrator's (root) password, for %s" "${reason:-NetworkManager}"
+	else
+		hint := dt_tr "The password of %s, for %s" "$u" "${reason:-NetworkManager}"
+	fi
+	dt_ask "Authentication" "Password:" "" dt_netpwgive "$hint" 1 76 dt_netpwcancel > /dev/null
+	return 0
+}
+
+# The dialog answered: the password typed onto the job's pty, by a builtin,
+# so it is on no command line.
+fn dt_netpwgive(v, int id) {
+	local n=$DT_NETJOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	pty write "${DTJ[$n]["pty"]}" "$v"$'\r'
+	DTJ[$n]["asked"]=1
+	DTJ[$n]["asking"]=
+	return 0
+}
+
+# Cancelled: nmcli is interrupted rather than left waiting.
+fn dt_netpwcancel(int id) {
+	local n=$DT_NETJOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	DTJ[$n]["cancelled"]=1
+	DTJ[$n]["asking"]=
+	pty write "${DTJ[$n]["pty"]}" $'\003' 2> /dev/null
+	return 0
 }
 
 # The job finished: say what happened, read again. A refusal is said as
@@ -566,14 +741,24 @@ fn dt_netjobdone(int n, int st) {
 	[ "$DT_NETJPK" = 1 ] && dt_pkstop
 	why=${why#Connection activation failed: }
 	case $why in
-	*"Insufficient privileges"* | *"Not authorized"*)
-		if [ "$DT_PKRES" = fail ]; then
+	*"Insufficient privileges"* | *"Not authorized"* | *"not authorized"*)
+		if [ -n "${DTJ[$n]["asked"]}" ] || [ "$DT_PKRES" = fail ]; then
 			why := dt_tr "the password was not accepted"
 		else
-			why := dt_tr "not allowed from this session"
+			why := dt_tr "a password is needed and none could be asked for"
 		fi
 		;;
 	esac
+	# Ended by the desktop rather than by nmcli: say which.
+	if [ -n "${DTJ[$n]["cancelled"]}" ]; then
+		why := dt_tr "cancelled"
+	elif [ -n "${DTJ[$n]["why"]}" ]; then
+		dt_log "network $DT_NETJKIND $DT_NETJSSID: ended: ${DTJ[$n]["why"]}"
+		case ${DTJ[$n]["why"]} in
+		"asked: "*) why := dt_tr "nmcli asked something the desktop cannot answer" ;;
+		*) why := dt_tr "it took too long" ;;
+		esac
+	fi
 	if [ "$st" = 0 ]; then
 		case $DT_NETJKIND in
 		join) dt_notep low "Joined %s" "$DT_NETJSSID" ;;
@@ -594,16 +779,6 @@ fn dt_netjobdone(int n, int st) {
 	DT_NETJKIND=
 	dt_netread
 	dt_netbar
-}
-
-# A join, run in the job: up a saved connection, or for an open network
-# have NetworkManager make one; -w bounds how long it may take.
-fn dt_netjoinup(u) {
-	LC_ALL=C nmcli -w 45 connection up uuid "$u"
-}
-
-fn dt_netjoinopen(ssid) {
-	LC_ALL=C nmcli -w 45 device wifi connect "$ssid"
 }
 
 # A new secured network, run in the job: a connection made through
@@ -703,11 +878,11 @@ fn dt_netjoin(int i) {
 		return 0
 	fi
 	if u := dt_netconfor "$ssid"; then
-		dt_netjob join "$ssid" dt_netjoinup "$u"
+		dt_netjob join "$ssid" nmcli -w 45 connection up uuid "$u"
 		return 0
 	fi
 	if [ -z "$sec" ]; then
-		dt_netjob join "$ssid" dt_netjoinopen "$ssid"
+		dt_netjob join "$ssid" nmcli -w 45 device wifi connect "$ssid"
 		return 0
 	fi
 	dt_netkm "$sec"
@@ -722,11 +897,7 @@ fn dt_netjoin(int i) {
 # Leave the network in use.
 dt_netleave() {
 	[ "${DT_NET["kind"]}" = nm ] && [ -n "${DT_NET["wdev"]}" ] || return 0
-	dt_netjob leave "${DT_NET["ssid"]}" dt_netdisc "${DT_NET["wdev"]}"
-}
-
-fn dt_netdisc(dev) {
-	LC_ALL=C nmcli device disconnect "$dev"
+	dt_netjob leave "${DT_NET["ssid"]}" nmcli device disconnect "${DT_NET["wdev"]}"
 }
 
 # Wi-Fi on or off -- or, where polkit says this session may not, a note
@@ -741,16 +912,12 @@ dt_netradio() {
 	fi
 	[ "${DT_NET["radio"]}" = enabled ] && to=off
 	if [ "${DT_NETPERM["wifi"]}" = auth ]; then
-		dt_netjob radio Wi-Fi dt_netradioset "$to"
+		dt_netjob radio Wi-Fi nmcli radio wifi "$to"
 		return 0
 	fi
 	dt_netq radio wifi "$to" > /dev/null
 	dt_netread
 	dt_netbar
-}
-
-fn dt_netradioset(to) {
-	LC_ALL=C nmcli radio wifi "$to"
 }
 
 # Forget a saved connection, by uuid.
@@ -763,11 +930,7 @@ fn dt_netforget(u) {
 		i=$((i + 1))
 	done
 	unset DT_NETSSID["$u"]
-	dt_netjob forget "$nm" dt_netdel "$u"
-}
-
-fn dt_netdel(u) {
-	LC_ALL=C nmcli connection delete uuid "$u"
+	dt_netjob forget "$nm" nmcli connection delete uuid "$u"
 }
 
 # Ask NetworkManager to look for networks again; what it finds arrives
@@ -779,13 +942,9 @@ fn dt_netrescan(asked = "") {
 	[ "${DT_NET["kind"]}" = nm ] || return 0
 	case ${DT_NETPERM["scan"]:-yes} in
 	yes) (dt_netq device wifi rescan > /dev/null &) ;;
-	auth) [ -n "$asked" ] && dt_netjob scan "" dt_netscan ;;
+	auth) [ -n "$asked" ] && dt_netjob scan "" nmcli device wifi rescan ;;
 	esac
 	return 0
-}
-
-fn dt_netscan() {
-	LC_ALL=C nmcli device wifi rescan
 }
 
 # The list beneath the bar item, opened by a left click: Wi-Fi on or off,

@@ -209,7 +209,7 @@ def suites_for(path, req, prov, where):
     if path.startswith(("docs/", "examples/", "programs/")):
         return {"run.sh"}, "documentation, an example or a program (530/540)"
     if path.startswith(("packaging/", "tools/", ".git")) or path in (
-            "LICENSE", ".gitignore"):
+            "LICENSE", "COPYING", "TRADEMARKS", ".gitignore"):
         return set(), "outside what the suites run"
     return set(SUITES), "a path this does not recognise"
 

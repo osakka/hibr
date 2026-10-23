@@ -5,13 +5,15 @@
 # #357). The size review found eight copies of this dialog written out by
 # hand, each its own keys, focus ring and click-to-cursor.
 #
-#   dt_ask TITLE LABEL VALUE CALLBACK [HINT] [MASKED] [WIDTH]
+#   dt_ask TITLE LABEL VALUE CALLBACK [HINT] [MASKED] [WIDTH] [CANCELLED]
 #
 # CALLBACK is called with what was typed and the dialog's window id when
 # OK or enter is chosen. Status 0 closes the dialog; anything else keeps it
 # open with what was typed, for a callback that says why it cannot take the
-# answer (a folder that cannot be made). Escape and Cancel close it and call
-# nothing. MASKED (1) draws the field as stars, for a password or a token --
+# answer (a folder that cannot be made). Escape, Cancel and closing the
+# window call nothing, or CANCELLED with the window id when one is given --
+# for a caller that has something waiting on the answer, such as a program
+# blocked on a password prompt. MASKED (1) draws the field as stars, for a password or a token --
 # and since the desktop's own Copy reads the field as it is drawn, a masked
 # one copies stars, never the secret. Copy, Cut and Paste come from the
 # desktop, as for any focused field.
@@ -23,7 +25,7 @@ declare -gA DTA
 command -v dt_app > /dev/null && dt_app dtask "Question" 8 54 "" "" fixed hidden
 
 # Open one; its window id is the result.
-fn dt_ask(title, label, value, then, hint = "", masked = "", int width = 54) {
+fn dt_ask(title, label, value, then, hint = "", masked = "", int width = 54, cancelled = "") {
 	local h=8 w=$width r c id
 
 	dt_dlgat "$h" "$w"
@@ -35,6 +37,8 @@ fn dt_ask(title, label, value, then, hint = "", masked = "", int width = 54) {
 	DTA[$id]["then"]=$then
 	DTA[$id]["hint"]=$hint
 	DTA[$id]["masked"]=$masked
+	DTA[$id]["cancelled"]=$cancelled
+	DTA[$id]["answered"]=
 	DTA[$id]["focus"]=text
 	ret "$id"
 }
@@ -74,6 +78,7 @@ fn dtask_draw(int id, int h, int w, int row, int col) {
 # OK: hand the answer over, and close unless the callback refused it.
 fn dt_askok(int id) {
 	"${DTA[$id]["then"]}" "${DTA[$id]["buf"]}" "$id" || return 0
+	DTA[$id]["answered"]=1
 	dt_del "$id"
 }
 
@@ -120,5 +125,8 @@ fn dtask_key(int id, key) {
 }
 
 fn dtask_close(int id) {
+	local c=${DTA[$id]["cancelled"]}
+
+	[ -z "${DTA[$id]["answered"]}" ] && [ -n "$c" ] && "$c" "$id"
 	unset "DTA[$id]"
 }

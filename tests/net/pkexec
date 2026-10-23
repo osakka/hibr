@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""A stand-in for pkexec, for tests/net.py (Gitea #369).
+
+With no agent of its own session to ask, pkexec runs polkit's text agent on
+its terminal, and what that prints is tests/net/polkit-prompt.txt, captured
+from pkexec on this machine: the red banner for org.freedesktop.policykit.exec,
+its reason, "Authenticating as: root", then "Password: ". A wrong password
+is tests/net/polkit-failed.txt and status 127, as pkexec's own; the right one
+is state.json's agentpw, after which the command runs as given. The suite
+points DT_NETRULEDIR at its own folder, so nothing here writes /etc."""
+import json
+import os
+import sys
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+D = os.environ.get("HIBR_NMSTATE", "")
+
+
+def main(a):
+    with open(os.path.join(D, "pkexec.log"), "a") as f:
+        f.write(json.dumps(a) + "\n")
+    st = json.load(open(os.path.join(D, "state.json")))
+    sys.stdout.write(open(os.path.join(HERE, "polkit-prompt.txt")).read())
+    sys.stdout.flush()
+    given = sys.stdin.readline().rstrip("\r\n")
+    if given != st.get("agentpw"):
+        sys.stdout.write(open(os.path.join(HERE, "polkit-failed.txt")).read())
+        sys.stdout.flush()
+        sys.exit(127)
+    sys.stdout.write("\r\n\033[1;32m==== AUTHENTICATION COMPLETE ====\r\n\033[0m")
+    sys.stdout.flush()
+    os.execvp(a[0], a)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

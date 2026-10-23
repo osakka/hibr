@@ -13,7 +13,7 @@
 
 strict
 
-app networks "The Control Panel pane for the machine's network and Wi-Fi" 1.0
+app networks "The Control Panel pane for the machine's network and Wi-Fi" 1.1
 command -v cp_pane > /dev/null && cp_pane networks "Network" "⇌" hardware
 
 NT_KINDS=(Auto NetworkManager None)
@@ -101,6 +101,14 @@ fn networks_rows(int w) {
 			CP[$w][$n]["val"] := dt_tr "asked when needed"
 			n=$((n + 1))
 		fi
+		# Offered where polkit wants a password for any of it, and kept
+		# where the desktop installed the rule, so it can be taken away.
+		if [ "$DT_NETRULE" = 1 ] || ! dt_netfree; then
+			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="No Network Password"
+			CP[$w][$n]["wtype"]=bool
+			CP[$w][$n]["val"]=off; dt_netfree && CP[$w][$n]["val"]=on
+			CP[$w][$n]["key"]=netrule; n=$((n + 1))
+		fi
 		if [ "${DT_NET["state"]}" = wifi ]; then
 			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Disconnect"
 			CP[$w][$n]["val"]=${DT_NET["ssid"]}; CP[$w][$n]["key"]=leave
@@ -171,6 +179,10 @@ fn networks_do(int w, k, int dir) {
 		return 0
 		;;
 	DT_NETBAR) cp_toggle "$k"; dt_netbar ;;
+	netrule)
+		if dt_netfree; then dt_netrule off; else dt_netrule on; fi
+		return 0
+		;;
 	esac
 	cp_save
 }

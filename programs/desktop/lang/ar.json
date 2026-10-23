@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.21",
+ "version": "3.22",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1263,6 +1263,21 @@
   "version %s": "الإصدار %s",
   "working: %s": "جارٍ: %s",
   "yes, %s displays attached": "نعم، %s شاشات متصلة",
-  "yes, 1 display attached": "نعم، شاشة واحدة متصلة"
+  "yes, 1 display attached": "نعم، شاشة واحدة متصلة",
+  "Cannot write a rule for the account %s": "تعذّرت كتابة قاعدة للحساب %s",
+  "Could not change it: pkexec %s": "تعذّر التغيير: pkexec %s",
+  "Could not start pkexec": "تعذّر تشغيل pkexec",
+  "Networks are managed without a password now": "تُدار الشبكات الآن بلا كلمة مرور",
+  "Networks ask for a password again": "تطلب الشبكات كلمة مرور من جديد",
+  "No Network Password": "الشبكات بلا كلمة مرور",
+  "The administrator's (root) password, for %s": "كلمة مرور المدير (root)، من أجل %s",
+  "The administrator's (root) password, to manage networks without one": "كلمة مرور المدير (root)، لإدارة الشبكات بلا كلمة مرور",
+  "The administrator's (root) password, to remove the rule": "كلمة مرور المدير (root)، لإزالة القاعدة",
+  "The password of %s, for %s": "كلمة مرور %s، من أجل %s",
+  "The password was not accepted": "لم تُقبل كلمة المرور",
+  "a password is needed and none could be asked for": "يلزم إدخال كلمة مرور ولم يكن طلبها ممكنًا",
+  "cancelled": "أُلغي",
+  "it took too long": "استغرق وقتًا أطول من اللازم",
+  "nmcli asked something the desktop cannot answer": "سأل nmcli عن شيء لا يستطيع سطح المكتب الإجابة عنه"
  }
 }

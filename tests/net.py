@@ -31,6 +31,7 @@ BIN = os.path.join(D, "bin")
 os.makedirs(BIN)
 os.symlink(os.path.join(CAP, "nmcli"), os.path.join(BIN, "nmcli"))
 os.symlink(os.path.join(CAP, "pkttyagent"), os.path.join(BIN, "pkttyagent"))
+os.symlink(os.path.join(CAP, "pkexec"), os.path.join(BIN, "pkexec"))
 CPD = tree("programs/desktop/control-panel")
 SYS = tree("programs/desktop/system")
 BARS = "▂▄▆█"
@@ -292,15 +293,19 @@ try:
     check("Network on Menu Bar off takes the item off the bar", BARS not in bar(sc), bar(sc))
 
     # A session polkit answers as it answered the owner's: every action
-    # wants a password, and Wi-Fi's switch is refused. The desktop runs
-    # polkit's agent and asks in a window of its own.
+    # wants a password, and Wi-Fi's switch is refused. nmcli runs with --ask
+    # on a pty, because without it polkit asks nobody (Gitea #369), and the
+    # desktop answers nmcli's own prompt from a window.
     n = Net(OWNER, "s3cret pw")
     sc = srun(n, [press(0, col), release(0, col), 0.4, press(gb, lc), release(gb, lc), 1.5],
-              until="The system asks for a password")
-    check("joining from a session polkit wants a password for asks for it in a window",
-          sc.find("The system asks for a password") is not None and
-          sc.find("network-control") is not None and
-          sc.find("Authenticating as") is not None, sc)
+              until="Authentication")
+    check("joining from a session polkit wants a password for asks for it in a window, "
+          "saying what for and whose",
+          sc.find("Authentication") is not None and
+          sc.find("control of network connections") is not None and
+          sc.find("(root)") is not None, sc)
+    check("and nmcli was asked to ask, which without --ask it never does",
+          '"--ask"' in n.argv(), n.argv()[-300:])
     sc = srun(n, [press(0, col), release(0, col), 0.4, press(gb, lc), release(gb, lc), 1.5,
                   b"s3cret pw", b"\r"],
               until=lambda sc: n.inuse() == ["gibnet"])
@@ -315,6 +320,42 @@ try:
     check("a wrong one says so, and changes nothing",
           sc.find("Could not join gibnet: the password was not") is not None and
           n.inuse() == [".gibnet/5ghz"], sc)
+    # No Network Password (Gitea #369): a polkit rule for this
+    # person alone, installed with the administrator's password through
+    # pkexec on a pty, and removed the same way. The rules folder is the
+    # suite's own; the stand-in nmcli reads it as polkit would.
+    RD = tempfile.mkdtemp(prefix="rules-", dir=D)
+    RF = os.path.join(RD, "50-hibr-networks-%s.rules" % os.environ.get("USER", ""))
+    RL = "No Network Password"
+    n = Net(OWNER, "s3cret pw")
+    sc = srun(n, [], panel=True, env={"DT_NETRULEDIR": RD}, until=RL)
+    k = row(sc, RL)
+    check("where polkit wants a password the Network pane offers to manage networks without one",
+          k is not None and "[ ]" in sc.row(k), sc)
+    if k is not None:
+        f = sc.find_from("[ ]", k)
+        sc = srun(n, [press(f[0], f[1]), release(f[0], f[1]), 0.3,
+                      press(f[0], f[1]), release(f[0], f[1]), 1.0, b"s3cret pw", b"\r"],
+                  panel=True, env={"DT_NETRULEDIR": RD},
+                  until=lambda sc: os.path.exists(RF))
+        rule = open(RF).read() if os.path.exists(RF) else ""
+        check("turning it on asks for the administrator's password and writes a rule for this "
+              "person and the desktop's five actions alone",
+              'subject.user != "%s"' % os.environ.get("USER", "") in rule and
+              rule.count("org.freedesktop.NetworkManager.") == 5 and
+              "s3cret" not in open(os.path.join(n.d, "pkexec.log")).read(), rule[:200])
+        sc = srun(n, [], panel=True, env={"DT_NETRULEDIR": RD, "DT_NETRULE": "1"}, until=RL)
+        k = row(sc, RL)
+        check("and with the rule in place the pane reads it on, and asks for no password",
+              k is not None and "[x]" in sc.row(k) and sc.find("asked when needed") is None, sc)
+        if k is not None:
+            f = sc.find_from("[x]", k)
+            sc = srun(n, [press(f[0], f[1]), release(f[0], f[1]), 0.3,
+                          press(f[0], f[1]), release(f[0], f[1]), 1.0, b"s3cret pw", b"\r"],
+                      panel=True, env={"DT_NETRULEDIR": RD, "DT_NETRULE": "1"},
+                      until=lambda sc: not os.path.exists(RF))
+            check("turning it off removes the rule the same way",
+                  not os.path.exists(RF), sc)
     sc = srun(Net(OWNER), [], panel=True, until="Known Networks")
     check("where polkit refuses Wi-Fi's switch the pane says so rather than offering one",
           sc.find("on -- locked here") is not None, sc)
@@ -350,4 +391,4 @@ try:
 finally:
     shutil.rmtree(D, True)
 
-report(27)
+report(32)

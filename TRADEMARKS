@@ -1,0 +1,31 @@
+hibr trademark policy
+
+"hibr" is a trademark of Omar Sakka. The code is free
+software under the GNU Lesser General Public License (see LICENSE); this
+policy is about the name, which that licence does not grant.
+
+What the name means
+  "hibr" names the shell, the desktop and the modules released by Omar Sakka
+  from the official sources: the git repository at
+  https://github.com/osakka/hibr and the signed package repositories it
+  publishes (apt, dnf, pacman and the application catalogue). A copy built
+  from those sources, unchanged, is hibr.
+
+What you may do without asking
+  - Use the name to refer to hibr truthfully: write about it, review it,
+    teach it, say that your software runs on it or works with it.
+  - Redistribute official, unmodified releases under the name.
+  - Package an official release for an operating system, with only the
+    changes needed to build and install it there, under the name, saying
+    whose package it is.
+
+What needs permission
+  - Calling a modified version, or a fork, "hibr", or anything likely to be
+    confused with it ("hibr-plus", "HibrOS" and the like).
+  - Using the name for a product, service, company or domain, or in
+    a way that suggests Omar Sakka made or endorses something he did not.
+
+Forks are welcome under the licence: give yours a name of its own, and say
+that it is derived from hibr if you like. That much is all this asks.
+
+Questions and requests: https://github.com/osakka/hibr/issues

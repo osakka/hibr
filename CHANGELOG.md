@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.99.301
+
+**hibr is LGPL-3.0-or-later** -- the GNU Lesser General Public License,
+version 3 or any later version -- where it was MIT. `LICENSE` holds the
+notice and the LGPL's text, `COPYING` the GNU General Public License it adds
+its permissions to; the deb, rpm, Arch, AUR and Homebrew packages say so,
+and so does every entry in the catalogue. Releases before this one stay MIT
+for anyone who has them; that cannot be taken back, and nothing here
+claims otherwise. The name "hibr" is a trademark of Omar Sakka, and
+`TRADEMARKS` says what that means: refer to hibr and package an official
+release freely, and give a fork a name of its own.
+
+**Joining a network asks for the password it needs** (Gitea #369). Where
+NetworkManager wants a password -- polkit's `auth`, as on most machines
+for a person who is not an administrator -- joining said *not allowed from
+this session* and no password was ever asked for. Measured on the owner's
+machine: nmcli without `--ask` tells NetworkManager the request is not
+interactive, and polkit then refuses it without asking any agent, the
+desktop's included. Now an action a person asks for -- joining a known or
+an open network, leaving, Wi-Fi on and off, Forget, Look Again -- runs
+`nmcli --ask` on a pty of its own, and the password nmcli asks for appears
+in a window of the desktop's, saying whose it is (often root's) and what
+it is for. Only nmcli's own password prompt is answered; anything else it
+asks ends the job and says so, so a Wi-Fi key's prompt could never be
+given that password. A background scan still never asks.
+
+**No Network Password**, a row in Control Panel > Network where a
+password is wanted. Turned on, it installs a polkit rule -- once, with the
+administrator's password, through pkexec -- letting this person join,
+leave, forget and scan for networks and turn Wi-Fi on and off with none,
+as laptop distributions do. The rule names this person and those five
+actions alone, and turning the row off removes it.
+
+The runner under it: `dt_ptyjob` runs a job on a pty for a program that may
+ask something on its terminal, with its output kept as any job's, a
+handler for its questions, and a bound; `dt_ask` takes a callback for when
+it is cancelled.
+
+The suite's stand-in for nmcli now refuses a request without `--ask` as the
+real one does; 0.99.300's network code fails four checks against it, as it
+failed on the owner's machine.
+
+Still to come: joining a secured network never joined before, which goes
+through nmcli's connection editor, waits on a capture of what nmcli asks
+there.
+
+**A display waiting to join is not refused after a reboot.** A terminal
+started with `desktop --standby` -- as Blit starts one on each pane -- keeps
+a record of itself in `~/.local/state/hibr/standby`, and refused to start
+when a record of its name pointed at a live process: "a display called
+blit-DP-1-p1 is already waiting", and it never joined. That folder outlives
+a reboot, and a process id from before one is very often some other
+process by then, so the check took a stranger for the display and refused
+for ever, and the desktop listed it as a display waiting to join. A record
+now says which boot and which start of its process wrote it, and one that
+does not match -- or an old one that says neither -- is cleared.
+
 ## 0.99.300
 
 **Copy, Cut and Paste in a text field are the desktop's own** (Gitea #357,

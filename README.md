@@ -228,4 +228,10 @@ already found — are in [CLAUDE.md](CLAUDE.md). History is in
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+LGPL-3.0-or-later: the GNU Lesser General Public License, version 3 or any
+later version. See [LICENSE](LICENSE), and [COPYING](COPYING) for the GNU
+General Public License it adds its permissions to.
+
+The name "hibr" is a trademark of Omar Sakka. The licence covers the code,
+not the name: a modified version or a fork is welcome under the LGPL with a
+name of its own. See [TRADEMARKS](TRADEMARKS).

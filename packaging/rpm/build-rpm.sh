@@ -65,7 +65,7 @@ Name:           hibr
 Version:        $VER
 Release:        $REL
 Summary:        Small, fast shell that runs the bash you already write
-License:        MIT
+License:        LGPL-3.0-or-later
 URL:            https://github.com/osakka/hibr
 BuildArch:      $ARCH
 Recommends:     libpng16.so.16()(64bit)

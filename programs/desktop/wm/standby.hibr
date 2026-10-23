@@ -38,9 +38,53 @@ DT_SBLIST=()
 # --- the waiting terminal -------------------------------------------------------
 
 # Say in the registry what this terminal is doing now.
+# The record says which boot and which start of the process it is, beside
+# its id: the folder outlives a reboot, and a process id from before it is
+# by then very often some other process -- which a bare `kill -0` takes for
+# the waiting display, so the display really starting refused with "is
+# already waiting" for ever, and the desktop counted one that was not there.
 dt_sbwrite() {
-	printf '%s %s %s\n' "$$" "$DT_SBSTATE" "$DT_SBBASE" > \
+	local boot= start=
+
+	boot := dt_sbboot
+	start := dt_procstarted "$$"
+	printf '%s %s %s %s %s\n' "$$" "$DT_SBSTATE" "$DT_SBBASE" "${boot:--}" "${start:--}" > \
 		"$DT_STANDBYDIR/$DT_SBNAME" 2> /dev/null
+}
+
+# This boot's id, where the kernel says one; empty elsewhere.
+dt_sbboot() {
+	local b=
+
+	[ -r /proc/sys/kernel/random/boot_id ] && read -r b < /proc/sys/kernel/random/boot_id
+	ret "$b"
+}
+
+# When a process started, in clock ticks since boot -- /proc/PID/stat's
+# 22nd field, counted from after the command name, which may hold spaces
+# and brackets and so is skipped to its last ")".
+fn dt_procstarted(pid) {
+	local l
+	local -a f
+
+	[ -r "/proc/$pid/stat" ] || { ret ""; return 0; }
+	read -r l < "/proc/$pid/stat" 2> /dev/null || { ret ""; return 0; }
+	l=${l##*") "}
+	read -ra f <<< "$l"
+	ret "${f[19]}"
+}
+
+# Whether a record's process is the waiting display that wrote it: alive,
+# and on a machine that can say so, from this boot and the same start. One
+# without the two -- written before they were kept -- is not trusted.
+fn dt_sbalive(pid, boot = "-", start = "-") {
+	local b s
+
+	kill -0 "$pid" 2> /dev/null || return 1
+	[ -r /proc/sys/kernel/random/boot_id ] || return 0
+	b := dt_sbboot
+	s := dt_procstarted "$pid"
+	[ "$boot" = "$b" ] && [ "$start" = "$s" ]
 }
 
 # Leave the registry, on the way out.
@@ -107,6 +151,7 @@ fn dt_sbjoin(base) {
 # returns.
 fn dt_standby(base, dname = "") {
 	local k line
+	local -a rec
 
 	need console || { echo "$0: --standby needs the console module" >&2; exit 1; }
 	DT_SBNAME=${dname:-standby-$$}
@@ -116,8 +161,8 @@ fn dt_standby(base, dname = "") {
 	DT_SBSTATE=waiting
 	mkdir -p "$DT_STANDBYDIR" 2> /dev/null
 	if [ -e "$DT_STANDBYDIR/$DT_SBNAME" ]; then
-		read -r line < "$DT_STANDBYDIR/$DT_SBNAME" 2> /dev/null
-		if [ -n "$line" ] && kill -0 "${line%% *}" 2> /dev/null; then
+		read -ra rec < "$DT_STANDBYDIR/$DT_SBNAME" 2> /dev/null
+		if [ "${#rec[@]}" -gt 0 ] && dt_sbalive "${rec[0]}" "${rec[3]:--}" "${rec[4]:--}"; then
 			echo "$0: a display called $DT_SBNAME is already waiting" >&2
 			exit 1
 		fi
@@ -147,7 +192,7 @@ fn dt_standby(base, dname = "") {
 # Every terminal waiting for this desktop, as "name state" into DT_SBLIST;
 # one whose process is gone is cleared away.
 dt_sbscan() {
-	local f nm line pid st base sess
+	local f nm line pid st base sess boot start
 
 	DT_SBLIST=()
 	[ -d "$DT_STANDBYDIR" ] || return 0
@@ -156,8 +201,9 @@ dt_sbscan() {
 		[ -f "$f" ] || continue
 		nm=${f##*/}
 		[[ $nm == *.join ]] && continue
-		read -r pid st base < "$f" 2> /dev/null || continue
-		if ! kill -0 "$pid" 2> /dev/null; then
+		boot=- start=-
+		read -r pid st base boot start < "$f" 2> /dev/null || continue
+		if ! dt_sbalive "$pid" "${boot:--}" "${start:--}"; then
 			rm -f "$f" "$f.join"
 			continue
 		fi
