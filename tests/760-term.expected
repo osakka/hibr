@@ -96,6 +96,9 @@ not sent
 after it asks: drag
 0|ready
 1|^[[<0;5;3M^[[<32;6;4M^[[<0;6;4m^[[<64;1;1M
+--- in pixels for a program that turned on 1016
+0|^[[?1016;2$y
+1|^[[<0;38;42M^[[<0;37;41m^[[<35;13;25M
 --- in the old encoding, and only what was asked for
 no drag in click mode
 0|^[[M !!^[[M#!!

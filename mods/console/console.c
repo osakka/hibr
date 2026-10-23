@@ -469,6 +469,26 @@ int m_console(sh *s, int ac, char **av)
 		}
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "pixels")) {
+		const char *m = ac > 2 ? av[2] : "";
+
+		if (!*m) {
+			const char *now = cn_pixon ? "on" :
+					  cn_pixwant ? "cells" : "off";
+
+			hibr_ret(s, now);
+			if (!s->bind)
+				printf("%s\n", now);
+			return HIBR_OK;
+		}
+		if (strcmp(m, "on") && strcmp(m, "off")) {
+			lg(HIBR_LERR, "usage: console pixels [on|off]");
+			return 2;
+		}
+		cn_pixwant = !strcmp(m, "on");
+		cn_pixapply();
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "link")) {
 		cn_link(ac > 2 && strcmp(av[2], "-") ? av[2] : 0);
 		return HIBR_OK;

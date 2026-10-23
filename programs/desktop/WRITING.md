@@ -94,6 +94,14 @@ is clicked at row 4. There is no separate body coordinate system to convert
 between; the window manager deals with row 0 itself, so an app never sees a
 click on its own title bar.
 
+**Where the pointer is in pixels** is there too, for an app that draws
+pixels -- a picture, a page, a film: `DT_PX` and `DT_PY` say where the last
+mouse report was, in pixels of the screen counted from zero, and are empty
+when the terminal reports cells only (Gitea #370). No callback is handed
+them, since each declares what it takes; the cell it is told is the one that
+pixel is in. A window's own pixel is `DT_PX` less its column times the cell
+width, which `console gfx` answers (`kitty 8 16`).
+
 **An app reaches only what every scope has** ([ADR 0046](../../docs/adr/0046-an-installable-reaches-only-what-every-scope-has.md)).
 The catalogue installs an app into `~/.local/share/hibr/apps/`, which is read
 before the shipped copy, so an app has to work wherever it lands -- not only

@@ -451,7 +451,8 @@ def expect(pattern):
 # pass over what has not been read yet.
 QUERY = re.compile(rb"\x1b(?:\](?P<osc>[^\x07\x1b]*)(?:\x07|\x1b\\)"
                    rb"|_(?P<apc>[^\x1b]*)\x1b\\"
-                   rb"|(?P<da>\[c)|(?P<kbd>\[\?u)|(?P<xtv>\[>0?q))")
+                   rb"|(?P<da>\[c)|(?P<kbd>\[\?u)|(?P<xtv>\[>0?q)"
+                   rb"|(?P<mpix>\[\?1016\$p))")
 
 
 class Term:
@@ -565,7 +566,10 @@ class Term:
         the kitty keyboard protocol's query, `CSI ? u`, with no flags set
         (Gitea #326); every other Term answers it nothing, as a terminal
         without the protocol does. "deccra" adds feature 28, the rectangle
-        copy, to the device attributes (Gitea #337).
+        copy, to the device attributes (Gitea #337). "mpix" answers the
+        mode request for 1016, SGR-Pixels, as a terminal that knows it does
+        (Gitea #370); every other Term says nothing, so the device
+        attributes after it make it a no.
 
         A real terminal answers all of these; nothing in the model did, so
         a display could ask and never hear, which is indistinguishable
@@ -595,6 +599,10 @@ class Term:
                     os.write(self.fd, b"\x1bP>|hibr-term 0.25 deccra\x1b\\")
                 elif self.caps is not None and "hterm" in self.caps:
                     os.write(self.fd, b"\x1bP>|hibr-term 0.24\x1b\\")
+                continue
+            if m.group("mpix") is not None:
+                if self.caps is not None and "mpix" in self.caps:
+                    os.write(self.fd, b"\x1b[?1016;2$y")
                 continue
             if m.group("kbd") is not None:
                 if self.caps is not None and "kbd" in self.caps:

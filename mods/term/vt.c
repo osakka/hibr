@@ -132,6 +132,8 @@ void tm_reply(tm_t *t, const char *s)
 {
 	if (tm_pty && t->pty)
 		tm_pty->write(t->pty, s, strlen(s));
+	else if (t->rq.n < 4096)
+		s_cat(&t->rq, s);
 }
 
 /* A reply of the shape lead a;b tail, or lead a tail when b is negative. */
@@ -491,6 +493,7 @@ int tm_decget(tm_t *t, long v)
 	case 1003: on = t->mmode == (int)v; break;
 	case 1004: on = t->focus; break;
 	case 1006: on = t->msgr; break;
+	case 1016: on = t->mpix; break;
 	case 2004: on = t->bpaste; break;
 	case 2026: on = t->sync; break;
 	default: return 0;
@@ -554,6 +557,7 @@ void tm_decmode(tm_t *t, int on)
 			break;
 		case 1004: t->focus = on; break;
 		case 1006: t->msgr = on; break;
+		case 1016: t->mpix = on; break;
 		case 2004: t->bpaste = on; break;
 		case 2026: tm_setsync(t, on); break;
 		default:
@@ -600,7 +604,7 @@ void tm_reset(tm_t *t, int hard)
 	if (!hard)
 		return;
 	t->lnm = t->focus = 0;
-	t->mmode = t->msgr = t->bpaste = 0;
+	t->mmode = t->msgr = t->bpaste = t->mpix = 0;
 	t->kbd = 0;
 	t->kst.n = 0;
 	tm_setsync(t, 0);

@@ -310,6 +310,18 @@ a position without arithmetic. Modifiers prefix the action in the same order
 keys use. The SGR form (`1006`) is always requested alongside, because the
 older encoding cannot report a column past 223.
 
+    console pixels on       # and where the pointer is in pixels
+
+SGR-Pixels (`1016`, Gitea #370) is asked for only by a program that says so,
+since it adds a field: `mouse press left 3 12 101,53`, or `... -` where the
+terminal cannot report pixels. Whether it can is asked, never guessed from
+`$TERM`: the mode request goes out with the picture questions and before the
+device attributes, so an answer to those with none before it is a no. A
+re-ask -- every resize, since that is how a reattach from another terminal
+arrives -- turns 1016 off until the answer comes, so a terminal that cannot
+is never read as if it could. 1016 is set after 1006, since a terminal that
+keeps one encoding takes the last one set, and turned off with 1006 set again.
+
 ## Giving the terminal back
 
 The one thing a full-screen program must never do is leave a terminal in raw

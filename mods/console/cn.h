@@ -199,6 +199,14 @@ void cn_watchadd(int fd);
 void cn_watchdel(int fd);
 size_t cn_wlist(int **fds);
 void cn_gotkbd(void);
+/* SGR-Pixels, 1016 (Gitea #370): whether a program asked for the pointer
+   in pixels, whether the terminal said it can report them (-1 not said, 0
+   no, 1 yes), and whether it has been asked to. A report decoded while
+   pixels are in force carries `x,y` after its cell, and `-` when they were
+   asked for and are not. */
+extern int cn_pixwant, cn_pixok, cn_pixon;
+void cn_gotmpix(int yes);
+void cn_pixapply(void);
 extern int cn_kbdon;
 int cn_wmuted(int fd);
 int cn_colour(const char *t, unsigned *out);

@@ -684,11 +684,14 @@ int m_term(sh *s, int ac, char **av)
 			btn = ac > at ? av[at++] : "";
 		if (ac < at + 2) {
 			lg(HIBR_LERR, "usage: term mouse id [press|release|"
-				      "drag button|wheelup|wheeldown] row col");
+				      "drag button|wheelup|wheeldown] row col "
+				      "[x y]");
 			return 2;
 		}
 		s_init(&o);
-		r = tm_mouse(m, av[3], btn, atoi(av[at]), atoi(av[at + 1]), &o);
+		r = tm_mouse(m, av[3], btn, atoi(av[at]), atoi(av[at + 1]),
+			     ac > at + 3 ? atoi(av[at + 2]) : -1,
+			     ac > at + 3 ? atoi(av[at + 3]) : -1, &o);
 		if (r && o.n && tm_pty) {
 			tm_pty->write(m->pty, o.p, o.n);
 			m->view = 0;

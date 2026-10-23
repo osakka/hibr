@@ -30,7 +30,7 @@ WM = tree("programs/desktop/desktop.hibr")
 ROWS, COLS = 24, 80
 
 
-def run(session, feed=(), wait=1.2, env=None, pre="", cell=(0, 0)):
+def run(session, feed=(), wait=1.2, env=None, pre="", cell=(0, 0), caps=None):
     """Run a session on top of the window manager and return the last screen.
 
     cell is the pixel size of a cell, as a terminal fills in ws_xpixel and
@@ -42,7 +42,7 @@ def run(session, feed=(), wait=1.2, env=None, pre="", cell=(0, 0)):
     open(path, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
                           % (load(MOD), WM, pre, session))
     t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
-             cols=COLS, settle=0.5, cellw=cell[0], cellh=cell[1])
+             cols=COLS, settle=0.5, cellw=cell[0], cellh=cell[1], caps=caps)
     t.keys(feed)
     t.quit(b"qy", wait)
     os.unlink(path)
@@ -1522,6 +1522,27 @@ check("a key the app refuses does not reach it", sc.find("count 0"), sc)
 sc, _ = run(APP, [press(9, 16)])
 check("a click reaches the app in the coordinates it draws in",
       sc.find("count 306") == (8, 13), sc)
+
+# The mouse in pixels (Gitea #370). The desktop asks for pixels, and a
+# terminal that said it reports them is asked for them: a click then
+# arrives as a pixel, reaches the app at the cell that pixel is in, exactly
+# as a cell report would, and the pixel is there beside it in DT_PX/DT_PY.
+# A terminal that does not report them is never asked and gets no pixel.
+PXA = ('pxa_open()  { PXA=start; }\n'
+       'pxa_draw()  { console put -p "w$1" 2 3 "at $PXA"; }\n'
+       'pxa_click() { PXA="$2 $3 ${DT_PX:-none},${DT_PY:-none}"; }\n'
+       'dt_new "Px" 8 30 6 10 pxa\n')
+sc, raw = run(PXA, [1.5, b"\x1b[<0;132;150M", b"\x1b[<0;132;150m"],
+              cell=(8, 16), caps=["mpix"])
+check("a desktop asks a terminal that reports pixels for them",
+      b"\x1b[?1016h" in raw, raw[-300:])
+check("and a click in pixels reaches the app at its cell, the pixel beside it",
+      sc.find("at 3 6 131,149") == (8, 13), sc)
+sc, raw = run(PXA, [1.5, press(9, 16), release(9, 16)], cell=(8, 16),
+              caps=[])
+check("one that does not is never asked, and its click has no pixel",
+      b"\x1b[?1016h" not in raw and sc.find("at 3 6 none,none") == (8, 13),
+      sc)
 
 try:
     os.unlink(CLOSED)
@@ -6722,4 +6743,4 @@ check("and Item Order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
 
-report(734)
+report(737)

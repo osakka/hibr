@@ -84,7 +84,13 @@ enum {
 	   rather than every cell of the destination again. A server that does
 	   not know it ignores it, and a client that never sends it is diffed,
 	   as every client was. */
-	HD_COPY = 'y'
+	HD_COPY = 'y',
+	/* From a client: its own terminal answered the mode request for
+	   1016, SGR-Pixels, asked with the rest before it joined (Gitea
+	   #370). One int, 1. Such a client is asked for pixels when the
+	   program wants them; any other is turned into pixels at the middle
+	   of a cell. A server that does not know it ignores it. */
+	HD_MPIX = 'z'
 };
 
 /* How long an attaching client waits for its terminal to say what it
@@ -118,6 +124,11 @@ extern const tm_api *hd_tm;
 
 /* The running total of what hd_unorm has moved every client by. */
 extern int hd_shiftr, hd_shiftc;
+
+/* What a cell of the session measures, as the program was last told:
+   the space a pointer in pixels is given in, whichever display it came
+   from (Gitea #370). 0 when no display has said. */
+extern int hd_scw, hd_sch;
 
 /* One cell as this client was last sent it -- hold's own copy, not term's:
    hold must not include tm.h just to name tm_cell, and the two have no
@@ -190,6 +201,11 @@ struct hd_cli {
 	   the program's copies it has been sent or no longer needs. */
 	int copy;
 	unsigned cseq;
+	/* Whether this client's terminal reports the mouse in pixels (1016),
+	   whether it has been asked to, and whether the program wants pixels
+	   -- read again before each of the client's reads is passed on, so a
+	   report is turned into what the program asked for at that moment. */
+	int mpix, pixon, wantpix;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;
@@ -224,6 +240,7 @@ void hd_cclear(vec *cls, const char *why, size_t n);
 void hd_rensend1(vec *cls, struct hd_cli *cn, int tid);
 void hd_passsend(vec *cls, int tid);
 void hd_rensend(vec *cls, int tid);
+int hd_mpixel(struct hd_cli *cn, long *x, long *y);
 void hd_mtrans(struct hd_cli *cn, const char *p, size_t n, str *out);
 
 int hd_dir(str *out);

@@ -56,6 +56,8 @@ b got its mode escapes immediately, unprompted: 1
 b's local column 5 reaches the program as column 45: 1
 --- re-encoded to legacy for a program that never asked for SGR
 re-encoded to legacy, still at column 45: 1
+--- a held program's question to its terminal is answered
+the cursor's position came back:  033 [ 3 ; 5 R
 --- an unnamed client gets client-<fd>; a named one keeps its own name
 default name looks like client-N: 1
 named client keeps its own name: 1

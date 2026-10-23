@@ -10,7 +10,8 @@
 
 /* gfxask -- what a terminal says it draws. See gfxask.h. */
 
-const char gx_ask[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\\033[?u\033[c";
+const char gx_ask[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\\033[?u"
+		       "\033[?1016$p\033[c";
 
 /* An APC at the front of p, and whether it is kitty's own `OK`. */
 int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit)
@@ -40,21 +41,24 @@ int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit)
    attributes, and whether those say sixel and the rectangle copy (feature
    28, DECCRA: Gitea #337), or the keyboard protocol's own answer. */
 int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
-	      int *sixel, int *kbd, int *copy)
+	      int *sixel, int *kbd, int *copy, int *mpix)
 {
 	size_t i;
-	int six = 0, cp = 0, v = -1;
+	int six = 0, cp = 0, v = -1, first = -1, dollar = 0;
 
 	*da = 0;
 	*sixel = 0;
 	*kbd = 0;
 	*copy = 0;
+	*mpix = -1;
 	for (i = 3; i < n; i++) {
 		if (p[i] >= '0' && p[i] <= '9') {
 			v = (v < 0 ? 0 : v * 10) + (p[i] - '0');
 			continue;
 		}
 		if (p[i] == ';') {
+			if (first < 0)
+				first = v;
 			if (v == 4)
 				six = 1;
 			if (v == 28)
@@ -62,6 +66,8 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
 			v = -1;
 			continue;
 		}
+		if (p[i] == '$')
+			dollar = 1;
 		if (p[i] >= '@' && p[i] <= '~')
 			break;
 		if (p[i] == ':' || p[i] == '$' || p[i] == ' ')
@@ -78,6 +84,10 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
 	}
 	if (p[i] == 'u')
 		*kbd = 1;
+	/* DECRPM, CSI ? mode ; state $ y: 1 set, 2 reset, 3 and 4 the same
+	   permanently, 0 a mode the terminal does not know. */
+	if (p[i] == 'y' && dollar && first == 1016)
+		*mpix = v >= 1 && v <= 4;
 	return 2;
 }
 
@@ -94,18 +104,20 @@ long gx_now(void)
    whatever was not an answer. The wait is against a deadline rather than a
    count of reads: every read here can be interrupted, and restarting the
    wait per signal would make the bound meaningless. */
-int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy)
+int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
+	     int *mpix)
 {
 	const char *f = getenv("HIBR_GFX");
 	str b;
 	size_t i, used, off = 0;
 	long end, left;
-	int kit = 0, da = 0, six = 0, k, s, d, r, kb, cy;
+	int kit = 0, da = 0, six = 0, k, s, d, r, kb, cy, mp;
 	ssize_t w;
 	struct pollfd q;
 
 	*kbd = 0;
 	*copy = 0;
+	*mpix = 0;
 	if (f && *f) {
 		if (!strcmp(f, "kitty"))
 			return GX_KITTY;
@@ -154,7 +166,9 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy)
 					kit = 1;
 			} else if (b.p[off + 1] == '[' && b.p[off + 2] == '?') {
 				r = gx_report(b.p + off, b.n - off, 64, &used, &d, &s,
-					      &kb, &cy);
+					      &kb, &cy, &mp);
+				if (r == 2 && mp > 0)
+					*mpix = 1;
 				if (r == 2 && d) {
 					da = 1;
 					six = s;

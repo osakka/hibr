@@ -490,11 +490,35 @@ int cn_mouse(const char *p, size_t n, str *o, size_t *used)
 			s_cat(o, "none");
 		}
 	}
-	/* Row then column, both counted from zero like everything else here. */
-	s_ch(o, ' ');
-	s_num(o, (long)y - 1);
-	s_ch(o, ' ');
-	s_num(o, (long)x - 1);
+	/* Row then column, both counted from zero like everything else here.
+	   In pixels (1016) the report's own position is the pixel, and the
+	   cell is worked out from it; the pixel then follows as x,y, also from
+	   zero, for a program that asked for it -- and `-` when it asked and
+	   the terminal cannot, so what it reads has one shape either way. */
+	if (cn_pixon) {
+		int cw, ch;
+
+		cn_cellpx(&cw, &ch);
+		if (cw < 2 || ch < 2) {
+			cw = 8;
+			ch = 16;
+		}
+		s_ch(o, ' ');
+		s_num(o, (long)(y - 1) / ch);
+		s_ch(o, ' ');
+		s_num(o, (long)(x - 1) / cw);
+		s_ch(o, ' ');
+		s_num(o, (long)x - 1);
+		s_ch(o, ',');
+		s_num(o, (long)y - 1);
+	} else {
+		s_ch(o, ' ');
+		s_num(o, (long)y - 1);
+		s_ch(o, ' ');
+		s_num(o, (long)x - 1);
+		if (cn_pixwant)
+			s_cat(o, " -");
+	}
 	*used = (size_t)i + 1;
 	return 1;
 }
@@ -642,12 +666,17 @@ static int cn_apc(const char *p, size_t n, size_t *used)
    either capability query can give (Gitea #216). */
 static int cn_report(const char *p, size_t n, size_t *used)
 {
-	int da, sixel, kbd, copy, r = gx_report(p, n, CN_OSCMAX, used, &da,
-						 &sixel, &kbd, &copy);
+	int da, sixel, kbd, copy, mpix, r = gx_report(p, n, CN_OSCMAX, used,
+						       &da, &sixel, &kbd, &copy,
+						       &mpix);
 
+	if (r == 2 && mpix >= 0)
+		cn_gotmpix(mpix);
 	if (r == 2 && da) {
 		cn_gotcap(CN_GFX_SIXEL, sixel);
 		cn_da28 = copy;
+		if (cn_pixok < 0)
+			cn_gotmpix(0);
 	}
 	if (r == 2 && kbd)
 		cn_gotkbd();

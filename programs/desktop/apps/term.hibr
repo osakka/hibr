@@ -475,8 +475,29 @@ fn term_key(int id, key) {
 # release, and alt-c or Edit > Copy takes it -- or the release itself, with
 # Copy on Select (DT_TERMSELCOPY).  Holding shift selects even
 # when the program has the mouse, which is xterm's way out of the same bind.
+#
+# A program that asked for pixels (1016) is given the pointer's own pixel in
+# its grid when the desktop has one, and the middle of the cell otherwise,
+# which the emulator works out (Gitea #370).
+TERM_PX=
+
+# The pointer's pixel inside a terminal window's grid, as `x y` in TERM_PX,
+# or nothing when the desktop has no pixel or no cell size.
+fn term_mousepx(int id) {
+	local g gk cw ch
+
+	TERM_PX=
+	[ -n "$DT_PX" ] || return 0
+	g := console gfx 2> /dev/null || return 0
+	read -r gk cw ch <<< "$g"
+	[ "${cw:-0}" -gt 1 ] && [ "${ch:-0}" -gt 1 ] || return 0
+	TERM_PX="$((DT_PX - (${DT[$id]["col"]} + 1) * cw)) $((DT_PY - (${DT[$id]["row"]} + 1) * ch))"
+	return 0
+}
+
 fn term_mouse(int id, act, btn, int r, int c, mods) {
 	local t=${TW[$id]["t"]} mode
+	local -a px
 
 	[ -n "$t" ] || return 0
 	mode := term mouse "$t"
@@ -484,7 +505,10 @@ fn term_mouse(int id, act, btn, int r, int c, mods) {
 		case $mods in
 		*shift*) ;;
 		*)
-			term mouse "$t" "$act" "$btn" $(($r - 1)) $(($c - 1))
+			term_mousepx "$id"
+			read -ra px <<< "$TERM_PX"
+			term mouse "$t" "$act" "$btn" $(($r - 1)) $(($c - 1)) \
+				"${px[@]}"
 			return 0
 			;;
 		esac

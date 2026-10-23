@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.99.303
+
+**The mouse in pixels, end to end** (Gitea #370, with Blit 0.2.6 for
+blit#137). A terminal that can report the pointer in pixels -- SGR-Pixels,
+mode 1016, which Blit now does -- is asked to, and a program anywhere in the
+stack can have the pointer more finely than a cell:
+
+- **The console** asks for pixels when a program says `console pixels on`,
+  and only once the terminal has said it reports them (a mode request, fenced
+  by the device attributes, never `$TERM`) and a cell's size is known. A
+  report then carries the pixel after its cell, `mouse press left 3 12
+  101,53`, and `-` where pixels were asked for and cannot be had. Without
+  `console pixels on` nothing changes, so no script reading four or five
+  fields gets a sixth.
+- **hold** gives a held program pixels whatever its displays can do: a client
+  whose terminal reports them is asked to and scaled from its own cell size to
+  the session's, and one that cannot has its cell turned into the middle of
+  that cell.
+- **The terminal emulator** tracks 1016 and answers for it, so a program in a
+  terminal window or inside hold that asks for pixels gets them, the real
+  pixel when the desktop has one.
+- **The desktop** asks for pixels and keeps where the pointer was in
+  `DT_PX`/`DT_PY` for an app that draws pixels. No callback changed.
+
+Two bugs found on the way, both older than this work:
+
+- A held program's questions to its terminal were never answered. hold's
+  emulator answers a cursor position request, a status request and a mode
+  request itself, and having no pty of its own it dropped every answer, so a
+  held program asking where its cursor was waited for ever. They are written
+  back to the program now.
+- A hover in a terminal window reached its program as a left-button drag (a
+  button of 0 where "none" is 3).
+
 ## 0.99.302
 
 **Joining a network never joined before asks for the password it needs

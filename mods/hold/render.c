@@ -250,7 +250,7 @@ void hd_utf8(str *b, unsigned cp)
    instead, burning over whatever scrollback was there before it attached. */
 int hd_modes(int tid, struct hd_cli *cn, str *out)
 {
-	int alt = 0, bpaste = 0, cshape = 0, mmode, sgr = 0, clear, kf;
+	int alt = 0, bpaste = 0, cshape = 0, mmode, sgr = 0, clear, kf, mch, pw;
 	str tt;
 
 	hd_tm->modes(tid, &alt, &bpaste, &cshape);
@@ -267,7 +267,8 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 		cn->kset = kf;
 		lg(HIBR_LDBG, "hold: keyboard flags %d put on a display", kf);
 	}
-	if (!cn->primed || mmode != cn->mmode) {
+	mch = !cn->primed || mmode != cn->mmode;
+	if (mch) {
 		s_cat(out, "\033[?1003l\033[?1002l\033[?1000l\033[?1006l");
 		if (mmode == 1000)
 			s_cat(out, "\033[?1000h");
@@ -283,6 +284,23 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 		   for before it reaches the pty. */
 		if (mmode)
 			s_cat(out, "\033[?1006h");
+	}
+	/* Pixels only where the program wants them, the terminal said it can,
+	   and its cell size is known -- without that a report cannot be put
+	   in the session's own pixels. After 1006, since a terminal that keeps
+	   one encoding takes the last one set, and turning it off puts SGR
+	   back rather than leave the old form (Gitea #370). */
+	pw = mmode && cn->mpix && hd_tm->mpix(tid) && cn->cols &&
+	     cn->rows && cn->xpix / cn->cols > 1 && cn->ypix / cn->rows > 1;
+	if (pw != cn->pixon || (mch && pw)) {
+		if (pw)
+			s_cat(out, "\033[?1016h");
+		else if (cn->pixon)
+			s_cat(out, mmode ? "\033[?1016l\033[?1006h" :
+					   "\033[?1016l");
+		cn->pixon = pw;
+		lg(HIBR_LDBG, "hold: a display reports the mouse in %s",
+		   pw ? "pixels" : "cells");
 	}
 	s_init(&tt);
 	hd_tm->title(tid, &tt);

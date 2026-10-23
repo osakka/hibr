@@ -29,6 +29,38 @@ void hd_mlegacy(str *out, long b, long x, long y)
 	s_ch(out, (int)y + 32);
 }
 
+/* Put a report's position, as this client sent it, where the program
+   wants it (Gitea #370): 1 with x and y in pixels of the whole session,
+   one-based, when the program turned on 1016; 0 with them in its cells
+   otherwise. A client reporting pixels is scaled from its own cell size
+   to the session's -- two displays may draw cells of different sizes --
+   and one reporting cells is given the middle of the cell. */
+int hd_mpixel(struct hd_cli *cn, long *x, long *y)
+{
+	long cw = cn->cols ? cn->xpix / cn->cols : 0;
+	long ch = cn->rows ? cn->ypix / cn->rows : 0;
+	long sw = hd_scw > 1 ? hd_scw : (cw > 1 ? cw : 8);
+	long sh = hd_sch > 1 ? hd_sch : (ch > 1 ? ch : 16);
+
+	if (cn->pixon && cw > 1 && ch > 1) {
+		if (!cn->wantpix) {
+			*x = (*x - 1) / cw + 1 + cn->col;
+			*y = (*y - 1) / ch + 1 + cn->row;
+			return 0;
+		}
+		*x = (*x - 1) * sw / cw + 1 + cn->col * sw;
+		*y = (*y - 1) * sh / ch + 1 + cn->row * sh;
+		return 1;
+	}
+	*x += cn->col;
+	*y += cn->row;
+	if (!cn->wantpix)
+		return 0;
+	*x = (*x - 1) * sw + sw / 2 + 1;
+	*y = (*y - 1) * sh + sh / 2 + 1;
+	return 1;
+}
+
 /* Rewrite one complete SGR mouse report -- \e[<Pb;Px;PyM or m, buffered
    whole in cn->mbuf including its own terminator -- by this client's own
    offset, and append the result. Pb (the button/modifier code) passes
@@ -53,8 +85,16 @@ void hd_mrewrite(struct hd_cli *cn, str *out)
 	if (*p == ';')
 		p++;
 	y = strtol(p, (char **)&p, 10);
-	x += cn->col;
-	y += cn->row;
+	if (hd_mpixel(cn, &x, &y)) {
+		s_cat(out, "\033[<");
+		s_num(out, b);
+		s_ch(out, ';');
+		s_num(out, x);
+		s_ch(out, ';');
+		s_num(out, y);
+		s_ch(out, term);
+		return;
+	}
 	if (!cn->msgr) {
 		hd_mlegacy(out, term == 'm' ? 3 : b, x, y);
 		return;

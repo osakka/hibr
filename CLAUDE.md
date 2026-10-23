@@ -3794,6 +3794,18 @@ went in the shell.
   shared state -- a terminal, a socket, a file a parent owns -- wants the
   same question.
 
+- **An emulator with no pty of its own answered into nothing** (Gitea #370,
+  0.99.303). `tm_reply` wrote to `t->pty`, and hold's emulator has none --
+  hold owns the program's pty itself -- so every question hold's emulator
+  answers locally (a cursor position, a status, a mode request) was dropped,
+  for the whole life of hold: a held program's `CSI 6 n` waited for ever.
+  Nothing showed it because the questions about the *real* terminal (device
+  attributes, the kitty queries) are passed on to a client and answered from
+  there. Found only because the console's new 1016 question is answered by
+  the emulator itself. It keeps the answers now (`t->rq`, `tm_api` 9's
+  `reply`) and the server writes them after each read. Anything new the
+  emulator answers reaches a held program through that, and nothing else.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

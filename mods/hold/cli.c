@@ -82,7 +82,8 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	struct sigaction a, oa;
 	struct pollfd q[2];
 	const char *why = "detached";
-	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0, gx, kbd = 0, copy = 0;
+	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0, gx, kbd = 0, copy = 0,
+	    mpix = 0;
 	ssize_t k;
 	char *p;
 	str rb, in, pay, early;
@@ -122,7 +123,7 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	cfmakeraw(&raw);
 	tcsetattr(0, TCSANOW, &raw);
 	s_init(&early);
-	gx = gx_probe(0, 1, HD_GFXMS, &early, &kbd, &copy);
+	gx = gx_probe(0, 1, HD_GFXMS, &early, &kbd, &copy, &mpix);
 	tcsetattr(0, TCSANOW, &sv);
 	lg(HIBR_LDBG, "hold attach: this terminal draws %s", gx_name(gx));
 	hd_size(sz);
@@ -153,6 +154,11 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 		int one = 1;
 
 		hd_send(s, HD_COPY, (const char *)&one, sizeof one);
+	}
+	if (mpix) {
+		int one = 1;
+
+		hd_send(s, HD_MPIX, (const char *)&one, sizeof one);
 	}
 	hd_sizepx(px);
 	hd_send(s, HD_SIZE, (const char *)px, 4 * sizeof(int));

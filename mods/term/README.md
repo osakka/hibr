@@ -61,7 +61,7 @@ same underlying grid, not the interface itself.
     term focus t 1|0             # tell a program that asked (mode 1004) it gained or lost focus
     term colors t #fg|- #bg|-|off # paint the default colours in these, and answer OSC 10/11 with them
     term scroll t [n|top|bottom] # move the view back n lines, or ask where it is
-    term mouse t [act [button] row col]  # send a mouse event, or ask the mode
+    term mouse t [act [button] row col [x y]]  # send a mouse event, or ask the mode
     term screen t                # main or alt
     term select t start|to r c   # begin a selection at a shown cell, or carry it on
     term select t none
@@ -231,6 +231,19 @@ It fails if not, so the caller can use the event for something else: the
 terminal app scrolls back with the wheel then. Without 1006 the old encoding
 is used, which cannot name a column past 223, and a report it cannot encode
 is dropped rather than sent wrong.
+
+A program that turns on 1016, SGR-Pixels, is told the pointer in pixels of
+the grid, one-based on the wire: the `x y` given, counted from zero, or the
+middle of the cell when none is -- at the cell size the real terminal said
+(`cellpx`), or 8 by 16 when nothing has. The mode is always answered as
+known, since the emulator can always give pixels. A hover, `drag none`, goes
+out as button 3 with the motion bit, 35; it was sent as 0 until 0.99.303,
+which a program read as a drag with the left button held.
+
+An answer the emulator gives the program -- a mode request, a cursor
+position, its status -- goes to the program's pty, and when there is no pty
+(hold, which owns the program's pty itself) it is kept, and `tm_api`
+version 9's `reply` hands it over for the caller to write.
 
 Bracketed paste (2004) wraps a `paste` key in `ESC [200~` and `ESC [201~`
 when the program asks.

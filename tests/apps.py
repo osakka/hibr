@@ -49,7 +49,8 @@ def appdir(a):
 
 
 def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
-        env=None, until=None, tries=40, ready=None, rows=None, cell=(0, 0)):
+        env=None, until=None, tries=40, ready=None, rows=None, cell=(0, 0),
+        caps=None):
     """Open one app in a window at a known place and drive it.
 
     `also` adds further windows after it, as (title, geometry, app) triples,
@@ -97,7 +98,7 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
         % (load(*mods), WM, src, pre, app.title(), win, app,
            more + ("dt_raise 1\n" if also else "")))
     t = Term(p, env=dict({"DT_TICK": "60"}, **(env or {})), settle=0.6,
-             rows=rows or sx.ROWS, cellw=cell[0], cellh=cell[1])
+             rows=rows or sx.ROWS, cellw=cell[0], cellh=cell[1], caps=caps)
     # The desktop says when its frame is drawn, but a terminal window's
     # program starts on its own time: a key sent the moment the window is
     # up can reach a shell that has not yet set its trap. Give it the time
@@ -2706,6 +2707,16 @@ CLICK = ("TW_CMD=(/bin/sh -c 'stty raw -echo; "
 sc = run(*TERM, feed=[press(6, 10), release(6, 10)], pre=CLICK, wait=1.2, end=None)
 check("a click reaches a program that asked for the mouse, where it landed",
       sc.find("^[[<0;8;4M^[[<0;8;4m") is not None, sc)
+# A program that asked for pixels (1016) is told the pointer's own pixel in
+# its grid when the desktop has one (Gitea #370): screen pixel 83,101 is
+# 59,53 inside a grid whose first cell is the screen's row 3, column 3.
+PCLICK = ("TW_CMD=(/bin/sh -c 'stty raw -echo; "
+          "printf \"\\033[?1000h\\033[?1006h\\033[?1016h\"; "
+          "head -c 22 | cat -v; sleep 5')")
+sc = run(*TERM, feed=[1.0, b"\x1b[<0;84;102M", b"\x1b[<0;84;102m"],
+         pre=PCLICK, wait=1.2, end=None, cell=(8, 16), caps=["mpix"])
+check("and a program that asked for pixels is told the pointer's own pixel",
+      sc.find("^[[<0;60;54M^[[<0;60;54m") is not None, sc)
 
 # --- glyphs ------------------------------------------------------------------
 #
@@ -5190,4 +5201,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(694)
+report(695)

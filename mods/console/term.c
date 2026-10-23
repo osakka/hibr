@@ -118,6 +118,11 @@ void cn_askcolours(void)
 		return;
 	cn_askgen = (int)cn_wgen;
 	cn_saidkit = 0;
+	/* The terminal answering may not be the one that said it reports
+	   pixels: back to cells until it says so again, so one that does not
+	   is never read as if it did. */
+	cn_pixok = -1;
+	cn_pixapply();
 	cn_saidsix = 0;
 	s_init(&q);
 	s_cat(&q, cn_askbg);
@@ -267,13 +272,16 @@ unsigned cn_rgbof(unsigned v)
 	return (n << 16) | (n << 8) | n;
 }
 
-static const char cn_leave[] = "\033[?25h\033[0m\033[?1002l\033[?1006l"
+static const char cn_leave[] = "\033[?25h\033[0m\033[?1016l\033[?1002l\033[?1006l"
 			       "\033[?2004l\033[?1049l";
 static const char cn_enter[] = "\033[?1049h\033[?25l\033[?2004h\033[2J";
 
 /* Named, so their lengths come from the compiler rather than from counting.
    Counting by hand is what truncated the clear in cn_enter once already. */
-static const char cn_moff[] = "\033[?1003l\033[?1002l\033[?1000l\033[?1006l";
+static const char cn_moff[] = "\033[?1016l\033[?1003l\033[?1002l\033[?1000l"
+			      "\033[?1006l";
+static const char cn_pxon[] = "\033[?1016h";
+static const char cn_pxoff[] = "\033[?1016l\033[?1006h";
 static const char cn_mclick[] = "\033[?1000h\033[?1006h";
 static const char cn_mdrag[] = "\033[?1002h\033[?1006h";
 static const char cn_mmotion[] = "\033[?1003h\033[?1006h";
@@ -283,6 +291,7 @@ static const char cn_mmotion[] = "\033[?1003h\033[?1006h";
    to every full-screen program. 1006 is the SGR form, the only one that can
    report a column past 223. */
 int cn_mousemode;
+int cn_pixwant, cn_pixok = -1, cn_pixon;
 
 /* Whether a picture under the text -- the wallpaper -- is sent at half the
    pixels in each direction for the terminal to scale back up. On by default:
@@ -320,6 +329,7 @@ void cn_mouseon(int mode)
 	if (cn_mousemode)
 		cn_wr(cn_fd, cn_moff, sizeof cn_moff - 1);
 	cn_mousemode = mode;
+	cn_pixon = 0;
 	if (mode == 1)
 		cn_wr(cn_fd, cn_mclick, sizeof cn_mclick - 1);
 	else if (mode == 2)
@@ -327,6 +337,46 @@ void cn_mouseon(int mode)
 	else if (mode == 3)
 		cn_wr(cn_fd, cn_mmotion, sizeof cn_mmotion - 1);
 	lg(HIBR_LDBG, "mouse reporting mode %d", mode);
+	cn_pixapply();
+}
+
+/* Pixels only once the terminal has said it reports them, a program wants
+   them, the mouse is on and a cell's size is known -- without the last, a
+   pixel cannot be put in a cell. 1016 is set after 1006 because a terminal
+   that keeps one encoding takes the last one set, and turned off with 1006
+   set again so the reports stay SGR. Reports and modes cross on the wire,
+   so a report already sent may arrive in the form before; that is one
+   report, once. */
+void cn_pixapply(void)
+{
+	int cw, ch, on;
+
+	if (!cn_on || cn_fd < 0)
+		return;
+	cn_cellpx(&cw, &ch);
+	on = cn_pixwant && cn_mousemode && cn_pixok == 1 && cw > 1 && ch > 1;
+	if (on == cn_pixon)
+		return;
+	if (on)
+		cn_wr(cn_fd, cn_pxon, sizeof cn_pxon - 1);
+	else
+		cn_wr(cn_fd, cn_pxoff, sizeof cn_pxoff - 1);
+	cn_pixon = on;
+	lg(HIBR_LDBG, "console: the mouse is reported in %s",
+	   on ? "pixels" : "cells");
+}
+
+/* The terminal answered the mode request for 1016: yes or no. An answer
+   to the device attributes with none before it is a no as well, which
+   cn_report says. */
+void cn_gotmpix(int yes)
+{
+	if (cn_pixok == yes)
+		return;
+	cn_pixok = yes;
+	lg(HIBR_LDBG, "console: the terminal %s the mouse in pixels",
+	   yes ? "reports" : "does not report");
+	cn_pixapply();
 }
 
 /* Write a whole buffer, retrying a short or interrupted write. */

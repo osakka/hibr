@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 8u
+#define TM_API_VER 9u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -117,6 +117,18 @@ struct tm_api {
 	   when none is open, and 0 once its one-second guard has passed --
 	   so a relay presents a frame whole, never half of one (Gitea #338). */
 	long (*syncleft)(int id);
+	/* Version 9: whether the program turned on 1016, SGR-Pixels, and so
+	   wants the pointer in pixels of the whole grid -- for a relay to ask
+	   a real terminal that can for pixels, and to turn whatever each one
+	   sends into the grid's own (Gitea #370). 0 for no such id. */
+	int (*mpix)(int id);
+	/* Also version 9: what the terminal answered the program -- a mode
+	   request, a cursor position, its status -- while it had no pty of
+	   its own to answer on, handed over once for the caller to write to
+	   the program. Inside hold every answer was dropped until this, so a
+	   held program asking where its cursor was waited for ever. 1 with
+	   it appended to out, 0 when nothing is waiting. */
+	int (*reply)(int id, str *out);
 };
 
 #endif

@@ -77,6 +77,7 @@ int tm_fields(tm_t *t, tm_fld *f)
 		f[n++] = (tm_fld){ sv[k][8], &t->sv[k].attr, 1 };
 	}
 	f[n++] = (tm_fld){ "kbd", &t->kbd, 0 };
+	f[n++] = (tm_fld){ "mpix", &t->mpix, 0 };
 	return n;
 }
 

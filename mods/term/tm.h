@@ -154,6 +154,10 @@ struct tm_t {
 	   whether or not anybody relays them; answered only for a relay. */
 	int kbd;
 	str kst;
+	/* What this terminal answered while it had no pty to answer on --
+	   inside hold, which owns the program's pty itself -- kept for the
+	   relay to hand back (Gitea #370). */
+	str rq;
 	/* The copies DECCRA made, a ring of TM_COPMAX: copseq counts every
 	   one ever made, copbase is the first still meaningful -- a resize
 	   moves it, since the coordinates no longer describe this grid. */
@@ -165,6 +169,11 @@ struct tm_t {
 	tm_line **sb;
 	int sbcap, sbn, sbh, sbmax, view;
 	int mmode, msgr, bpaste;
+	/* DEC 1016, SGR-Pixels: the program wants the pointer's position in
+	   pixels of this grid, which it is given whether or not whoever feeds
+	   the mouse knows them -- a cell's centre when it does not -- so the
+	   mode is always answered as known (Gitea #370). */
+	int mpix;
 	tm_cell nil;
 	long tot, sa, sz;
 	int sel, sca, scz;
@@ -231,7 +240,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 	     int curon);
 int tm_keybytes(tm_t *t, const char *name, str *out);
 int tm_mouse(tm_t *t, const char *act, const char *btn, int r, int c,
-	     str *out);
+	     int px, int py, str *out);
 const char *tm_mname(tm_t *t);
 
 /* The table offered under "terminal" -- defined in api.c, alongside the

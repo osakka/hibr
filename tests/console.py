@@ -120,8 +120,11 @@ d2 = drawn(o2)
 check("and a fill wider and taller than the pane is clipped to it",
       b"oooooo" in d2 and b"ooooooo" not in d2
       and b"\x1b[6;11H" in d2 and b"\x1b[9;" not in d2 and b"\x1b[5;" not in d2)
+# The text "16" is looked for in what was drawn, not in the escapes around
+# it: the display's own mode request for 1016 carries those digits too.
 check("nothing a paned fill does reaches the top left of the screen",
-      b"\x1b[1;1H" not in d and b"16" not in d)
+      b"\x1b[1;1H" not in d and
+      b"16" not in re.sub(rb"\x1b\[[?>=]?[0-9;$]*[a-zA-Z]", b"", d))
 check("a fill naming a pane that is not there says so and fails",
       b"ST[1]" in o)
 
@@ -667,4 +670,66 @@ check("a pane drawn with its picture in place keeps it, not sent again",
 n = panepic("console pane drop w1\nconsole put 0 0 x")
 check("and a pane that has gone takes its picture with it", n == (1, 1), n)
 
-report(len(WANT) + len(MWANT) + 91)
+
+
+# SGR-Pixels, 1016 (Gitea #370). A program asks with `console pixels on`;
+# the console asks the terminal whether it reports pixels and turns them on
+# only when it says yes and a cell's size is known. A report then carries its
+# cell, worked out from the pixel, and the pixel after it; where pixels were
+# asked for and cannot be had, `-` stands in its place, so what a program
+# reads has one shape either way.
+PIX = """console open
+console pixels on
+console mouse click
+i=0
+while [ $i -lt 60 ]; do
+	k := console key 100
+	case $k in
+	mouse*)
+		p := console pixels
+		printf '%s|%s\\n' "$k" "$p" > @OUT@
+		break
+		;;
+	esac
+	i=$((i + 1))
+done
+console close
+"""
+
+
+def pixrun(report_bytes, cellw, cellh, caps):
+    """One pass: the mouse report the terminal sends, and what was read."""
+    out = "/tmp/hibr-console-pix-%d.out" % os.getpid()
+    path = "/tmp/hibr-console-pix-%d.hibr" % os.getpid()
+    if os.path.exists(out):
+        os.unlink(out)
+    open(path, "w").write("mod load %s\n%s" % (MOD, PIX.replace("@OUT@", out)))
+    t = Term(path, cellw=cellw, cellh=cellh, caps=caps, settle=0.4)
+    t.collect(1.0)
+    os.write(t.fd, report_bytes)
+    t.collect(1.5)
+    t.close()
+    os.unlink(path)
+    got = open(out).read().strip() if os.path.exists(out) else ""
+    if os.path.exists(out):
+        os.unlink(out)
+    return got, t.raw
+
+
+got, raw = pixrun(b"\x1b[<0;37;41M", 8, 16, ["mpix"])
+check("a terminal that reports pixels is asked to (1016 after 1006)",
+      b"\x1b[?1016h" in raw and
+      raw.rfind(b"\x1b[?1006h") < raw.rfind(b"\x1b[?1016h"))
+check("a pixel report reads as its cell and then the pixel: " + got,
+      got == "mouse press left 2 4 36,40|on")
+got, raw = pixrun(b"\x1b[<0;5;3M", 8, 16, [])
+check("a terminal that does not say so is never asked for pixels",
+      b"\x1b[?1016h" not in raw)
+check("and its report reads as a cell with - for the pixel: " + got,
+      got == "mouse press left 2 4 -|cells")
+got, raw = pixrun(b"\x1b[<0;5;3M", 0, 0, ["mpix"])
+check("with no cell size pixels are not asked for either: " + got,
+      b"\x1b[?1016h" not in raw and got == "mouse press left 2 4 -|cells")
+check("the mode request's answer is never read as a key", "1016" not in got)
+
+report(len(WANT) + len(MWANT) + 97)

@@ -442,6 +442,7 @@ DT_MOUSEHELD=0
 fn dt_mouseset(mode) {
 	DT_MOUSEWANT=$mode
 	console mouse "$mode"
+	console pixels on
 	return 0
 }
 

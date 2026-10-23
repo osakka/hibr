@@ -290,6 +290,21 @@ i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
 show $t 2
 term close $t
 
+echo "--- in pixels for a program that turned on 1016"
+# The mode is answered as known (2, not set) before the program sets it, so
+# a program asking first finds it. A pixel given is reported as given, one
+# based; a cell with no pixel is reported at its middle, at the size the real
+# terminal said a cell is -- 8 by 16 here, as nothing has said. A hover is a
+# motion with no button, 35, where it used to go out as a left drag, 32.
+t := term open -r 4 -c 70 /bin/sh -c 'stty raw -echo; printf "\033[?1016\$p"; head -c 11 | cat -v; printf "\r\n\033[?1003h\033[?1016h"; head -c 34 | cat -v'
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+term mouse $t press left 2 4 37 41
+term mouse $t release left 2 4
+term mouse $t drag none 1 1
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+show $t 2
+term close $t
+
 echo "--- in the old encoding, and only what was asked for"
 t := term open -r 4 -c 40 /bin/sh -c 'stty raw -echo; printf "\033[?1000h"; head -c 12 | cat -v'
 i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done

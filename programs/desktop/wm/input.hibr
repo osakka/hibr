@@ -512,14 +512,38 @@ dt_mouse() {
 	esac
 }
 
+# Where the pointer was in pixels of the screen at the last mouse report,
+# counted from zero, or empty when the terminal reports cells only (Gitea
+# #370). An app that draws pixels reads it beside the cell it is told; no
+# callback is handed it, since every one declares what it takes.
+DT_PX=
+DT_PY=
+
 # Handle one decoded key or mouse line.
 #
 # The wheel goes to the window under the pointer rather than to the focused
 # one, which is what every other desktop does and what anyone expects when
 # they scroll a list they have not clicked on yet.
+#
+# A mouse line carries the pixel last, `x,y` or `-`, since the desktop asks
+# for pixels; it is taken off here, so everything after reads the four or
+# five fields it always has.
 fn dt_event(k) {
-	local an knorm qn cn cln qan dn sn ev
+	local an knorm qn cn cln qan dn sn ev px
 
+	case $k in
+	"mouse "*" -")
+		DT_PX=
+		DT_PY=
+		k=${k% -}
+		;;
+	"mouse "*,*)
+		px=${k##* }
+		DT_PX=${px%,*}
+		DT_PY=${px#*,}
+		k=${k% *}
+		;;
+	esac
 	DT_NOTEWIN=
 	case $k in
 	"mouse drag "*) DT_LASTDRAG=1; DT_LASTMOVE=1 ;;

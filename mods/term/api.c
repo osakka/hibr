@@ -273,13 +273,31 @@ long tm_api_syncleft(int id)
 	return t ? tm_syncleft(t) : 0;
 }
 
+int tm_api_mpix(int id)
+{
+	tm_t *t = tm_find(id);
+
+	return t ? t->mpix : 0;
+}
+
+int tm_api_reply(int id, str *out)
+{
+	tm_t *t = tm_find(id);
+
+	if (!t || !t->rq.n)
+		return 0;
+	s_add(out, t->rq.p, t->rq.n);
+	t->rq.n = 0;
+	return 1;
+}
+
 static const tm_api term_api = {
 	tm_api_new, tm_api_free, tm_api_resize, tm_api_rows, tm_api_cols,
 	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor, tm_api_modes,
 	tm_api_clip, tm_api_pass, tm_api_title, tm_api_linkat, tm_api_linkuri,
 	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image,
 	tm_api_save, tm_api_load, tm_api_kbd, tm_api_copyseq, tm_api_copyop,
-	tm_api_syncleft
+	tm_api_syncleft, tm_api_mpix, tm_api_reply
 };
 
 const tm_api *tm_apiget(void)

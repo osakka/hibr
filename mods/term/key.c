@@ -116,11 +116,18 @@ const char *tm_mname(tm_t *t)
    limit on the position and says which button was released; the old form
    otherwise, which cannot name a column past 223 and so drops the event
    rather than send a wrong one.  Returns 0 for an event the program did not
-   ask for, so the caller can use it for something else. */
+   ask for, so the caller can use it for something else.
+
+   px and py are the pointer in pixels of this grid, counted from zero, or
+   -1 when whoever is feeding the mouse does not know them: a program that
+   turned on 1016 is then told the middle of the cell, at the cell size the
+   real terminal reported, or 8 by 16 when nobody has. A hover is a motion
+   with no button, which is 3 on the wire -- sent as 0 it read as a drag
+   with the left button held. */
 int tm_mouse(tm_t *t, const char *act, const char *btn, int r, int c,
-	     str *out)
+	     int px, int py, str *out)
 {
-	int b, rel = 0;
+	int b, rel = 0, cw, ch;
 
 	if (!t->mmode)
 		return 0;
@@ -128,6 +135,8 @@ int tm_mouse(tm_t *t, const char *act, const char *btn, int r, int c,
 		b = 1;
 	else if (!strcmp(btn, "right"))
 		b = 2;
+	else if (!strcmp(btn, "none"))
+		b = 3;
 	else
 		b = 0;
 	if (!strcmp(act, "wheelup") || !strcmp(act, "wheeldown")) {
@@ -153,6 +162,26 @@ int tm_mouse(tm_t *t, const char *act, const char *btn, int r, int c,
 		r = t->rows - 1;
 	if (c >= t->cols)
 		c = t->cols - 1;
+	if (t->mpix) {
+		cw = t->cellw > 1 ? t->cellw : 8;
+		ch = t->cellh > 1 ? t->cellh : 16;
+		if (px < 0 || py < 0) {
+			px = c * cw + cw / 2;
+			py = r * ch + ch / 2;
+		}
+		if (px >= t->cols * cw)
+			px = t->cols * cw - 1;
+		if (py >= t->rows * ch)
+			py = t->rows * ch - 1;
+		s_cat(out, "\033[<");
+		s_num(out, (long)b);
+		s_ch(out, ';');
+		s_num(out, (long)px + 1);
+		s_ch(out, ';');
+		s_num(out, (long)py + 1);
+		s_ch(out, rel ? 'm' : 'M');
+		return 1;
+	}
 	if (t->msgr) {
 		s_cat(out, "\033[<");
 		s_num(out, (long)b);

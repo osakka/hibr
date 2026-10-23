@@ -46,7 +46,10 @@
    string to write. Between them is the kitty keyboard protocol's own query,
    `CSI ? u`, answered `CSI ? flags u` by a terminal that speaks it (Gitea
    #326): asked before the device attributes for the same reason kitty's
-   picture query is, so an answer to those with none before it is a no. */
+   picture query is, so an answer to those with none before it is a no.
+   The mode request for 1016, SGR-Pixels (Gitea #370), goes the same way:
+   a terminal that reports the mouse in pixels says so, and one that says
+   nothing before its device attributes does not. */
 extern const char gx_ask[];
 
 /* An APC at the front of p: 0 when more bytes are needed, -1 when it is not
@@ -58,18 +61,22 @@ int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit);
    report, never a key: the same three answers as gx_apc, with *da 1 when it
    was the device attributes (final `c`) and *sixel 1 when 4 was among its
    parameters, and *kbd 1 when it was the keyboard protocol's answer (final
-   `u`). */
+   `u`). *mpix is 1 when it was the answer to the mode request for 1016 and
+   said the terminal knows the mode, 0 when it said it does not, and -1
+   for any other report. */
 int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
-	      int *sixel, int *kbd, int *copy);
+	      int *sixel, int *kbd, int *copy, int *mpix);
 
 /* Ask the terminal on in/out, wait up to ms for its answers, and say what it
    draws: GX_KITTY, GX_SIXEL, GX_NONE, or GX_UNKNOWN when nothing answered.
    HIBR_GFX, when set, is the answer without asking, as it is for the
    console. Anything else read meanwhile -- a key pressed while it waited --
    is appended to rest, for the caller to pass on. *kbd is 1 when the
-   terminal answered the keyboard protocol's query. HIBR_GFX skips the
-   asking, and with it the keyboard question, which then answers 0. */
-int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy);
+   terminal answered the keyboard protocol's query, and *mpix when it said
+   it reports the mouse in pixels. HIBR_GFX skips the asking, and with it
+   those questions, which then answer 0. */
+int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
+	     int *mpix);
 
 /* Milliseconds on a clock that only goes forward. */
 long gx_now(void);

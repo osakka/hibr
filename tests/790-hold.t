@@ -316,6 +316,19 @@ hold kill t11
 pty close $a
 pty close $b
 
+echo "--- a held program's question to its terminal is answered"
+# hold's emulator answers a cursor position request, a status request and a
+# mode request itself, and until 0.99.303 every answer was dropped, since
+# the emulator has no pty of its own -- a held program asking where its
+# cursor was waited for ever.
+hold new -d t12 /bin/sh -c "stty raw -echo; printf '\\033[3;5H\\033[6n'; dd bs=1 count=6 2>/dev/null > $TMPDIR/dsr; sleep 30"
+a := pty spawn -r 5 -c 60 $H -c "$L; hold attach t12; echo \"back rc=\$?\""
+attached t12
+i=0; while [ $i -lt 30 ] && [ "$(wc -c < $TMPDIR/dsr 2>/dev/null)" != 6 ]; do sleep 0.1; i=$((i+1)); done
+echo "the cursor's position came back: $(od -An -c $TMPDIR/dsr | tr -s ' ')"
+hold kill t12
+pty close $a
+
 echo "--- an unnamed client gets client-<fd>; a named one keeps its own name"
 hold new -d t13 /bin/sh -c 'sleep 120'
 a := pty spawn -r 24 -c 80 $H -c "$L; hold attach t13; echo \"back rc=\$?\""

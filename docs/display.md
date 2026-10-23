@@ -92,6 +92,8 @@ and the flush cost shown live. Run it and press things.
 | `console reassert` | send the terminal's modes again and repaint everything on the next flush |
 | `console mouse click\|drag\|motion\|off` | which mouse reports to ask for |
 | `console mouse` | with no mode, which of them is in force -- what the console was asked for, since a terminal never says whether it obeyed |
+| `console pixels on\|off` | whether a mouse report also says where the pointer is in pixels, on a terminal that can say (mode 1016) |
+| `console pixels` | `on` while reports carry pixels, `cells` while they were asked for and the terminal cannot give them, `off` when nobody asked |
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
 | `console darken row col h w [pct]` | shade what is already in the back buffer, a shadow |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
@@ -260,7 +262,22 @@ mouse ctrl-press left 6 6    modifiers prefix the action
 ```
 
 Row and column count from zero, the same as `put`, so a click can be used as a
-position directly:
+position directly. A program that wants the pointer more finely than a cell
+asks with `console pixels on`; then every report carries one more field, the
+pixel it was at, counted from zero, or `-` where the terminal cannot report
+pixels -- so what a program reads has one shape either way:
+
+```text
+mouse press left 3 12 101,53     cell 3,12, pixel 101,53
+mouse press left 3 12 -          the terminal reports cells only
+```
+
+The console asks the terminal whether it reports pixels (a DECRQM mode
+request for 1016, fenced by the device attributes) and turns them on only
+when it says so and a cell's size is known; the cell is then worked out
+from the pixel, so it is the same cell a cell report would have named.
+Inside `hold` pixels are always available, since hold turns a cell report
+into the middle of its cell.
 
 <!-- not run: needs a terminal: it waits for a click -->
 ```sh

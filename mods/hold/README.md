@@ -242,6 +242,27 @@ server older than 0.99.283 is never told, and never copies, even when the
 real terminal's feature 28 is relayed to it, since that old server's
 emulator would ignore the copy.
 
+## The mouse in pixels
+
+A program that asks for pixels (1016, Gitea #370) gets them whatever its
+displays can do. Each client asks its own terminal before it joins and says
+so with `HD_MPIX`; the server puts 1016 on a client only while the program
+wants pixels, that terminal said it reports them and its cell size is known.
+A pixel report is scaled from that display's cell size to the session's, as
+two displays may draw cells of different sizes, and moved by its offset; a
+cell report from a display that cannot is given the middle of the cell.
+Either way the program reads pixels of the whole session.
+
+## Questions a program asks its terminal
+
+A held program's questions that the emulator answers itself -- where its
+cursor is (`CSI 6 n`), its status, a mode request -- were never answered
+until 0.99.303: the emulator has no pty of its own, and it dropped what it
+had no pty to write to, so a program asking where its cursor was waited for
+ever. It keeps them now, and the server writes them to the program after
+each read of its output. The questions that are about the real terminal --
+the device attributes, the kitty queries -- are still passed on to it.
+
 ## Synchronized output
 
 Every frame a client is sent is one synchronized update (mode 2026, Gitea
@@ -367,7 +388,7 @@ connection on its queue every time anything retried.
 | `wire.c` | the socket directory, names, and framing: a type byte, a length, the bytes |
 | `srv.c` | the server: the program's pty, the listening socket, any number of attached clients, their union size |
 | `render.c` | one client's own rectangle of the emulator's grid, diffed against a per-client front to send only what changed |
-| `mouse.c` | a client's own SGR mouse report, rewritten by its own offset and re-encoded to legacy if that is what the program asked for |
+| `mouse.c` | a client's own SGR mouse report, rewritten by its own offset, put in the session's pixels when the program asked for them (`hd_mpixel`), and re-encoded to legacy if that is what the program asked for |
 | `cli.c` | the client: raw mode, the relay, ctrl-\\, and giving the terminal back |
 | `hold.c` | the builtin, and starting a server |
 

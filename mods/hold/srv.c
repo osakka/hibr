@@ -347,6 +347,8 @@ int hd_unorm(vec *cls)
    every picture as blocks -- which is what every held desktop did until
    0.99.77 (Gitea #103). Left alone with nobody attached -- there is
    nothing to size it from. */
+int hd_scw, hd_sch;
+
 int hd_union(vec *cls, int id, int tid)
 {
 	int rows, cols, cw = 0, ch = 0, moved;
@@ -363,6 +365,8 @@ int hd_union(vec *cls, int id, int tid)
 	hd_tm->resize(tid, rows, cols);
 	if (hd_tm->cellpx)
 		hd_tm->cellpx(tid, cw, ch);
+	hd_scw = cw;
+	hd_sch = ch;
 	lg(HIBR_LDBG, "hold: union %dx%d cells, a cell %dx%d pixels", rows,
 	   cols, cw, ch);
 	return moved;
@@ -759,10 +763,11 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 	long left;
 	size_t i, j, nc;
 	ssize_t k;
-	str rb, in, mo;
+	str rb, in, mo, rq;
 
 	cls = *clsp;
 	s_init(&rb);
+	s_init(&rq);
 	s_init(&in);
 	s_init(&mo);
 	s_grow(&rb, HIBR_IOCH);
@@ -793,6 +798,9 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 			k = read(m, rb.p, rb.cap - 1);
 			if (k > 0) {
 				hd_tm->feed(tid, rb.p, (size_t)k);
+				rq.n = 0;
+				if (hd_tm->reply(tid, &rq))
+					hd_wall(m, rq.p, rq.n);
 				hd_passsend(&cls, tid);
 				fed = 1;
 			} else if (!(k < 0 && (errno == EAGAIN ||
@@ -813,6 +821,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 
 				if (cn) {
 					mo.n = 0;
+					cn->wantpix = hd_tm->mpix(tid);
 					hd_mtrans(cn, in.p, in.n, &mo);
 					hd_wall(m, mo.p, mo.n);
 				}
@@ -881,6 +890,11 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 
 				if (cn)
 					cn->copy = 1;
+			} else if (t == HD_MPIX && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+
+				if (cn)
+					cn->mpix = 1;
 			} else if (t == HD_DETACH) {
 				hd_cdrop(&cls, fd);
 			}
@@ -956,6 +970,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 	hd_pty->drop(id);
 	hd_tm->free(tid);
 	s_free(&rb);
+	s_free(&rq);
 	s_free(&in);
 	s_free(&mo);
 	_exit(0);
