@@ -345,7 +345,8 @@ void wb_hidetext(wb_tab *t, int on)
 		"s.textContent='*,*::before,*::after,input,textarea{color:transparent!important;"
 		"-webkit-text-fill-color:transparent!important;text-shadow:none!important;"
 		"caret-color:transparent!important}';}"
-		"(document.head||document.documentElement).appendChild(s);return 1})()" :
+		"const p=document.head||document.documentElement;"
+		"if(!p)return 0;p.appendChild(s);return 1})()" :
 		"(()=>{const s=document.getElementById('__hibr_hide');"
 		"if(s)s.remove();return 1})()", &o);
 	s_free(&o);

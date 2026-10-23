@@ -69,12 +69,14 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
 
 /* Ask the terminal on in/out, wait up to ms for its answers, and say what it
    draws: GX_KITTY, GX_SIXEL, GX_NONE, or GX_UNKNOWN when nothing answered.
-   HIBR_GFX, when set, is the answer without asking, as it is for the
+   HIBR_GFX, when set, is the answer about pictures, as it is for the
    console. Anything else read meanwhile -- a key pressed while it waited --
    is appended to rest, for the caller to pass on. *kbd is 1 when the
    terminal answered the keyboard protocol's query, and *mpix when it said
-   it reports the mouse in pixels. HIBR_GFX skips the asking, and with it
-   those questions, which then answer 0. */
+   it reports the mouse in pixels. Those are asked whatever HIBR_GFX says:
+   it names a picture protocol and nothing else, and Blit sets it for every
+   session, so a forced answer that skipped the asking left every Blit
+   display with no pixel mouse, no kitty keyboard and no copy. */
 int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 	     int *mpix);
 

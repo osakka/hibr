@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.310
+
+**Hover on Auto works on Blit.** Blit starts every session with
+`HIBR_GFX=kitty`, which says which picture protocol to use, and a display
+attaching to a held desktop took that as the whole answer and asked its
+terminal nothing more. So whether it reports the mouse in pixels, whether it
+speaks the kitty keyboard protocol and whether it copies a rectangle of cells
+were never asked, and each came back no. A Blit display therefore read as one
+that does not report pixels, and Control Panel > Mouse > Hover on Auto left
+hovering off. `HIBR_GFX` now decides the picture protocol and nothing else;
+the other three are asked whatever it says.
+
+A display records its answers when it attaches, so a Blit display already
+attached needs `desktop -r` once after updating.
+
+**A page caught between documents no longer throws.** Before rendering a
+page as cells the Browser hides its text with a style, and a zoom is a style
+too; both were appended to the page's head or its root element, and a page
+mid-navigation has neither yet, so the module printed a script error. Found by
+the release gate, which reaches that moment once in a while under load.
+
 ## 0.99.309
 
 **No leaks, and the gate now looks for them** (Gitea #351). Every recorded

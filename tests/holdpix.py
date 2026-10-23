@@ -935,7 +935,7 @@ check("a frame the program never closes is shown after the guard's second",
 # for them and its pixels reach the program in the session's own; one that
 # did not is never asked, and its cell report reaches the program as the
 # middle of that cell. Either way the program reads the same event.
-def pixheld(caps, report_bytes):
+def pixheld(caps, report_bytes, env=None):
     nm = name()
     open(LOG, "w").close()
     p = os.path.join(D, "px%s.hibr" % nm)
@@ -954,8 +954,10 @@ def pixheld(caps, report_bytes):
                            % (nm, p) + "sleep 0.6\nhold attach %s\n" % nm)
     if os.path.exists(LOG + ".ready"):
         os.unlink(LOG + ".ready")
+    e = {"TMPDIR": D}
+    e.update(env or {})
     t = Term(outer, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
-             env={"TMPDIR": D}, caps=caps)
+             env=e, caps=caps)
     for _ in range(int(24 * SLOW)):
         t.collect(0.25)
         if os.path.exists(LOG + ".ready") and \
@@ -988,6 +990,14 @@ check("a client whose terminal does not is never asked for pixels",
 check("and its cell reaches the program as the middle of that cell",
       "key mouse press left 2 4 36,40|on" in log, log)
 check("and hold pixels says that one does not", "pixels no" in log, log)
+# HIBR_GFX names a picture protocol and nothing else. Blit sets it for every
+# session, and the attach used to take it as the whole answer and ask the
+# terminal nothing -- so a Blit display, which reports pixels, was a display
+# that did not, and Auto never turned hovering on.
+raw, log = pixheld(["mpix", "sixel"], b"\x1b[<0;37;41M", {"HIBR_GFX": "kitty"})
+check("with HIBR_GFX set, a terminal that reports pixels is still asked",
+      b"\x1b[?1016h" in raw, raw[-300:])
+check("and hold pixels says it reports them", "pixels yes" in log, log)
 
 shutil.rmtree(D, True)
-report(52)
+report(54)

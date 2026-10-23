@@ -711,7 +711,19 @@ out, err = hb("t := web open %s; web wait $t 10000; web size $t 22 74;"
 check("and a click on a page that plays nothing starts no recording",
       "snd -" in out, out + err)
 
+# A page between documents has no head and no root element yet, and the
+# styles the module adds -- the text hidden for a render, a zoom -- were
+# appended to whichever of the two existed: a TypeError on stderr, which a
+# gate's twelve quick navigations met once under load. Removing the root
+# makes that moment certain.
+out, err = hb("t := web open %s; web wait $t 10000;"
+              " web eval $t 'document.documentElement.remove(); 1' > /dev/null;"
+              " web size $t 24 80; web render $t > /dev/null;"
+              " web set $t zoom 150; echo rendered" % A)
+check("a page with no root element renders and zooms without a script error",
+      "rendered" in out and "TypeError" not in err, out + err)
+
 SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(56)
+report(57)

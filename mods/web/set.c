@@ -372,8 +372,9 @@ void wb_zoomapply(wb_tab *t)
 			   "if(!s){s=document.createElement('style');"
 			   "s.id='__hibr_zoom';}s.textContent='html{zoom:");
 		s_num(&js, z);
-		s_cat(&js, "%!important}';(document.head||document.documentElement)"
-			   ".appendChild(s);return 1})()");
+		s_cat(&js, "%!important}';const p=document.head||"
+			   "document.documentElement;if(!p)return 0;"
+			   "p.appendChild(s);return 1})()");
 	}
 	wb_eval(t, js.p, &o);
 	t->zoomed = z != 100;

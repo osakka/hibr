@@ -3809,6 +3809,17 @@ went in the shell.
   `reply`) and the server writes them after each read. Anything new the
   emulator answers reaches a held program through that, and nothing else.
 
+- **A setting that forces one answer must not skip the other questions
+  asked beside it** (0.99.310). `gx_probe` returned at once when
+  `HIBR_GFX` was set, since that is the picture protocol said outright --
+  and the same round trip is where a display says it reports the mouse in
+  pixels, speaks the kitty keyboard protocol and copies rectangles. Blit
+  sets `HIBR_GFX=kitty` for every session, so every Blit display attached
+  to a held desktop read as having none of the three, and Hover on Auto
+  never came on there. The variable decides pictures; the asking happens
+  regardless. `tests/holdpix.py` drives a pixel-reporting terminal with it
+  set.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

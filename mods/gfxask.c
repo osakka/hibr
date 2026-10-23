@@ -111,26 +111,22 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 	str b;
 	size_t i, used, off = 0;
 	long end, left;
-	int kit = 0, da = 0, six = 0, k, s, d, r, kb, cy, mp;
+	int kit = 0, da = 0, six = 0, k, s, d, r, kb, cy, mp, force = -1;
 	ssize_t w;
 	struct pollfd q;
 
 	*kbd = 0;
 	*copy = 0;
 	*mpix = 0;
-	if (f && *f) {
-		if (!strcmp(f, "kitty"))
-			return GX_KITTY;
-		if (!strcmp(f, "sixel"))
-			return GX_SIXEL;
-		return GX_NONE;
-	}
+	if (f && *f)
+		force = !strcmp(f, "kitty") ? GX_KITTY
+			: !strcmp(f, "sixel") ? GX_SIXEL : GX_NONE;
 	for (i = 0; i < sizeof gx_ask - 1;) {
 		w = write(out, gx_ask + i, sizeof gx_ask - 1 - i);
 		if (w < 0 && errno == EINTR)
 			continue;
 		if (w <= 0)
-			return GX_UNKNOWN;
+			return force >= 0 ? force : GX_UNKNOWN;
 		i += (size_t)w;
 	}
 	s_init(&b);
@@ -189,6 +185,11 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 	if (off < b.n)
 		s_add(rest, b.p + off, b.n - off);
 	s_free(&b);
+	if (force >= 0) {
+		lg(HIBR_LDBG, "gfx: %s, as HIBR_GFX asks; asked the rest anyway",
+		   gx_name(force));
+		return force;
+	}
 	if (kit)
 		return GX_KITTY;
 	if (da)
