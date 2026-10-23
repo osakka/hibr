@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.99.298
+
+**Joining a new Wi-Fi network works** (Gitea #363). Joining a secured
+network for the first time said *Could not join ...: nmcli 1*. The desktop
+saves a new network through nmcli's connection editor, sending it commands
+on standard input so the password is never on a command line. On `save`,
+the editor asks whether to save a connection that connects automatically
+-- every new one does -- and reads the answer from that same input. It
+took the next command for a no, saved nothing, and ended with status 1 and
+no error. Both editor scripts now turn the question off first
+(`nmcli save-confirmation no`). And a network action that fails without an
+`Error:` line now says nmcli's last line rather than only its status, with
+everything nmcli printed in the desktop's log. The suite's stand-in for
+nmcli asks that question too now; it never did, which is why the suite
+passed.
+
+**An escaped brace in a `${...}` default parses** (Gitea #361).
+`"${x:-{\}}"` was refused with *unexpected end of input*, and so was
+`"${x:-a{b}"`: hibr counted every `{` inside `${...}` as opening a level.
+In bash and dash only another `${` does; a bare `{` is a character, and
+`$(...)` and backquotes are passed over whole. Inside double quotes, a
+`:-`, `:=`, `:?` or `:+` word now keeps a backslash before a character the
+string does not treat as special, as bash keeps it: `"${x:-a\zb}"` is
+`a\zb`. `tests/196-brace-escape.t` compares the family with bash.
+
 ## 0.99.297
 
 **How far the wheel scrolls is a setting.** Control Panel > Mouse >

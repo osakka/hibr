@@ -273,15 +273,39 @@ def main(a):
             new = c is None
             if new:
                 c = {"NAME": "", "UUID": str(uuid.uuid4()), "TYPE": "802-11-wireless", "DEVICE": ""}
-            for l in sys.stdin:
+            # As the real editor does: save asks whether to save a connection
+            # that autoconnects (every new one) unless told not to with its own
+            # `nmcli save-confirmation no`, and reads the answer from the same
+            # input as the commands -- so a script that does not turn it off
+            # has its next command taken for a no (Gitea #363). Quitting with
+            # changes unsaved asks again, and end of input is not a yes.
+            confirm, dirty = True, False
+            lines = iter(sys.stdin)
+            def answer(prompt, dflt):
+                print(prompt, end="")
+                try:
+                    a = next(lines).strip().lower()
+                except StopIteration:
+                    return False
+                return dflt if a == "" else a in ("yes", "y")
+            for l in lines:
                 l = l.rstrip("\n")
-                if l.startswith("set "):
+                if l == "nmcli save-confirmation no":
+                    confirm = False
+                elif l == "nmcli save-confirmation yes":
+                    confirm = True
+                elif l.startswith("set "):
+                    dirty = True
                     k, _, v = l[4:].partition(" ")
                     k = {"connection.id": "NAME", "802-11-wireless.ssid": "ssid", "wifi.ssid": "ssid",
                          "802-11-wireless-security.key-mgmt": "km", "wifi-sec.key-mgmt": "km",
                          "802-11-wireless-security.psk": "psk", "wifi-sec.psk": "psk"}.get(k, k)
                     c[k] = v
                 elif l == "save":
+                    if confirm and not answer("Saving the connection with 'autoconnect=yes'. That might "
+                                              "result in an immediate activation of the connection.\n"
+                                              "Do you still want to save? (yes/no) [yes] ", True):
+                        continue
                     try:
                         allowed(s, "settings.modify.own" if c.get("connection.permissions")
                                 else "settings.modify.system",
@@ -301,9 +325,13 @@ def main(a):
                     else:
                         s["cons"] = [c if x["UUID"] == c["UUID"] else x for x in s["cons"]]
                     save(s)
+                    dirty = False
                     print("Connection '%s' (%s) successfully saved." % (c["NAME"], c["UUID"]))
                 elif l == "quit":
                     break
+            if dirty and not answer("The connection is not saved. Do you really want to quit? "
+                                    "(yes/no) [no] ", False):
+                sys.exit(1)
         elif verb in ("up", "down", "delete"):
             how = a.pop(0) if a and a[0] in ("uuid", "id") else ""
             key = a.pop(0)

@@ -555,9 +555,10 @@ fn dt_netjob(kind, what, ...cmd) {
 
 # See whether the running job has finished: say what happened, read again.
 # A refusal is said as one: no password was given, or this session may not
-# do it at all.
+# do it at all. A failure with no Error: line says nmcli's last line rather
+# than only its status, and the whole of what it said goes to the log.
 dt_netjobpoll() {
-	local st l why=
+	local st l why= last=
 
 	if [ ! -s "$DT_NETJF.st" ]; then
 		dt_want 300
@@ -567,8 +568,16 @@ dt_netjobpoll() {
 	while IFS= read -r l; do
 		case $l in
 		Error:*) why=${l#Error: } ;;
+		*[![:space:]]*) last=$l ;;
 		esac
 	done < "$DT_NETJF.out"
+	if [ "$st" != 0 ]; then
+		dt_log "network $DT_NETJKIND $DT_NETJSSID: status $st"
+		while IFS= read -r l; do
+			dt_log "  $l"
+		done < "$DT_NETJF.out"
+		[ -n "$why" ] || why=$last
+	fi
 	rm -f "$DT_NETJF.st" "$DT_NETJF.out"
 	DT_NETJOB=
 	DT_NET["busy"]=
@@ -621,12 +630,17 @@ fn dt_netjoinopen(ssid) {
 # brought up, and taken away again if it would not come up, so a wrong
 # password leaves no connection behind (the owner's machine had three for
 # one network). printf is a builtin: the password reaches the pipe with no
-# process of its own to show it in.
+# process of its own to show it in. The editor's own save confirmation is
+# turned off first: it asks whether to save a connection that autoconnects
+# -- every new one -- and reads the answer from this same input, so the
+# next command was taken for a no, nothing was saved, and the editor ended
+# with 1 and no error to say why (Gitea #363).
 fn dt_netjoinnew(ssid, km, pw, own = "") {
 	local u= l before
 
 	before=" ${DT_NETJKNOWN} "
 	{
+		printf 'nmcli save-confirmation no\n'
 		printf 'set connection.id %s\n' "$ssid"
 		[ -n "$own" ] && printf 'set connection.permissions user:%s\n' "$own"
 		printf 'set 802-11-wireless.ssid %s\n' "$ssid"
@@ -649,17 +663,21 @@ fn dt_netjoinnew(ssid, km, pw, own = "") {
 
 # nmcli's connection editor, its commands on standard input: what it says
 # is a transcript of a prompt, and only its Error: lines are passed on, for
-# the job's note; its status is the editor's.
+# the job's note; its status is the editor's. One that fails saying no
+# error passes on its last line instead, which is the question it ended on.
 fn dt_netedit(...a) {
-	local out l st
+	local out l st err= last=
 
 	out=$(LC_ALL=C nmcli connection edit "${a[@]}" 2>&1)
 	st=$?
 	while IFS= read -r l; do
 		case $l in
-		*"Error: "*) echo "Error: ${l#*Error: }" ;;
+		*"Error: "*) echo "Error: ${l#*Error: }"; err=1 ;;
+		*[![:space:]]*) last=$l ;;
 		esac
 	done <<< "$out"
+	[ "$st" = 0 ] || [ -n "$err" ] || [ -z "$last" ] ||
+		echo "Error: the editor stopped at: ${last#nmcli> }"
 	return "$st"
 }
 
@@ -667,6 +685,7 @@ fn dt_netedit(...a) {
 # through the editor, then brought up.
 fn dt_netjoinpw(u, pw) {
 	{
+		printf 'nmcli save-confirmation no\n'
 		printf 'set 802-11-wireless-security.psk %s\n' "$pw"
 		printf 'save\nquit\n'
 	} | dt_netedit uuid "$u" || return 1

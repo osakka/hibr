@@ -106,6 +106,8 @@ void lx_init(lex *l, sh *s, const char *src);
 int lx_next(lex *l);
 word *lx_word(lex *l, int dq);
 char *lx_span(lex *l);
+const char *sk_bal(lex *l, const char *p, char o, char c, int dq);
+const char *sk_brace(lex *l, const char *p, int *d);
 char *lx_arrow(lex *l);
 word *lx_sub(lex *l, const char *b, const char *e, int dq);
 void lx_brace1(lex *l, part *p, const char *b, const char *e, int dq);

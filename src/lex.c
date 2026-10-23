@@ -79,6 +79,34 @@ void lx_ch(lex *l, str *b, part ***t, int *cq, int q, int c)
 	s_ch(b, c);
 }
 
+/* Inside ${...} only another ${ nests: a bare { is a character, as in bash
+   and dash, and a $(...) or `...` is passed over whole, braces and all.
+   Answers where to go on from, or 0 at the end of the text. */
+const char *sk_brace(lex *l, const char *p, int *d)
+{
+	if (*p == '{')
+		return p + 1;
+	if (*p == '`') {
+		for (p++; p < l->e && *p != '`'; p++)
+			if (*p == '\\')
+				p++;
+		if (p >= l->e) {
+			l->more = 1;
+			return 0;
+		}
+		return p + 1;
+	}
+	if (p + 1 < l->e && p[1] == '{') {
+		++*d;
+		return p + 2;
+	}
+	if (p + 1 < l->e && p[1] == '(') {
+		p = sk_bal(l, p + 2, '(', ')', 0);
+		return p ? p + 1 : 0;
+	}
+	return p + 1;
+}
+
 /* Find the matching close delimiter, honouring quotes and nesting. dq is
    nonzero when this scan is itself already inside a double-quoted
    string: a single quote has no special meaning there at all, in bash
@@ -110,6 +138,12 @@ const char *sk_bal(lex *l, const char *p, char o, char c, int dq)
 			if (p >= l->e)
 				break;
 			p++;
+			continue;
+		}
+		if (o == '{' && (*p == '$' || *p == '`' || *p == '{')) {
+			p = sk_brace(l, p, &d);
+			if (!p)
+				return 0;
 			continue;
 		}
 		if (*p == o)
@@ -368,7 +402,8 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 		l->err = 1;
 		return;
 	}
-	p->arg = lx_sub(l, q, e, lit);
+	p->arg = lx_sub(l, q, e,
+			lit && p->op >= V_DEF && p->op <= V_ALT ? 2 : lit);
 }
 
 /* Parse a dollar or backquote expansion into a part. */
@@ -520,7 +555,10 @@ void lx_uni(lex *l, str *b, part ***t, int *cq, int max)
    still starts at 0 and every character is still appended unquoted
    unless something in here quotes it, so a glob character in a pattern
    still means a glob, not literal text. Every ordinary top-level word
-   passes lit as 0, exactly as this behaved before the parameter existed. */
+   passes lit as 0, exactly as this behaved before the parameter existed.
+   lit 2 is the word of :- := :? :+ inside double quotes, where a backslash
+   is kept before anything the string does not treat as special, as bash
+   keeps it: "${x:-a\zb}" is a\zb, and only \} is a brace. */
 word *lx_word(lex *l, int lit)
 {
 	str b;
@@ -596,7 +634,8 @@ word *lx_word(lex *l, int lit)
 			c = *l->p++;
 			if (c == '\n')
 				continue;
-			if (q && !strchr("\"\\$`", c))
+			if ((q && !strchr("\"\\$`", c)) ||
+			    (!q && lit == 2 && !strchr("\"\\$`}", c)))
 				lx_ch(l, &b, &t, &cq, 1, '\\');
 			lx_ch(l, &b, &t, &cq, 1, c);
 			seen = 1;
