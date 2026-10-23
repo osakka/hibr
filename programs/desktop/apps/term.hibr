@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.4
+app term "A shell in a window" 1.5
 # part: control-panel/terminal.hibr
 # modules: pty term
 
