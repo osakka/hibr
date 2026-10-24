@@ -85,6 +85,24 @@ dt_keep DT_IMGDETAIL
 # drawing. A default the window manager owns cannot be absent.
 DT_IMGCOMP="${DT_IMGCOMP-zlib}"
 dt_keep DT_IMGCOMP
+# How many colours every display is sent (Gitea #353): auto for what each
+# display's own terminal said, or 24, 256 or 16 for all of them.
+DT_COLOURS="${DT_COLOURS-auto}"
+dt_keep DT_COLOURS
+
+# Send that to the display, or through hold to every display of a held
+# session.
+fn dt_colours() {
+	local v=$DT_COLOURS
+
+	[ "$v" = auto ] && v=0
+	if [ -n "$HIBR_HOLD" ] && need hold 2> /dev/null; then
+		hold colours "${v/#0/auto}" 2> /dev/null || :
+	else
+		console colours "${v/#0/auto}" 2> /dev/null || :
+	fi
+	return 0
+}
 
 # The -m argument for the mode chosen, as an array since it is two words or
 # none, and a strict file cannot split a string into them. mode is the

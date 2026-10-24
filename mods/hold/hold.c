@@ -328,6 +328,31 @@ int hd_ptrlist(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* Send every display of a session this many colours whatever it said, or
+   auto (0) for what each said: hold colours [name] N (Gitea #353). */
+int hd_colours(sh *s, int ac, char **av)
+{
+	str path, r;
+	const char *m = ac > 3 ? av[3] : ac > 2 ? av[2] : "";
+	int v, ok;
+
+	v = !strcmp(m, "auto") ? 0 : atoi(m);
+	if (!*m || (v != 0 && v != 24 && v != 256 && v != 16 && v != 8)) {
+		lg(HIBR_LERR, "usage: hold colours [session] auto|24|256|16|8");
+		return 2;
+	}
+	s_init(&path);
+	if (!hd_which(ac > 3 ? av[2] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_askp(path.p, HD_COLOURS, (const char *)&v, sizeof v, &r);
+	s_free(&path);
+	s_free(&r);
+	return ok ? HIBR_OK : HIBR_FAIL;
+}
+
 /* What each display has been sent since it attached, name, bytes and
    frames a line (Gitea #353). A server too old to answer fails quietly. */
 int hd_statlist(sh *s, int ac, char **av)
@@ -530,6 +555,8 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_ptrlist(s, ac, av);
 	if (!strcmp(sub, "stats"))
 		return hd_statlist(s, ac, av);
+	if (!strcmp(sub, "colours"))
+		return hd_colours(s, ac, av);
 	if (!strcmp(sub, "shift"))
 		return hd_shift(s, ac, av);
 	if (!strcmp(sub, "move"))
@@ -632,7 +659,7 @@ int m_hold(sh *s, int ac, char **av)
 	}
 	s_free(&path);
 	lg(HIBR_LERR,
-	   "usage: hold new|attach|detach|list|kill|clients|gfx|pixels|pointers|stats|shift|move|slot|drop|primary|upgrade ...");
+	   "usage: hold new|attach|detach|list|kill|clients|gfx|pixels|pointers|stats|colours|shift|move|slot|drop|primary|upgrade ...");
 	return 2;
 }
 

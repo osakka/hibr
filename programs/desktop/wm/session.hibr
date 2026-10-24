@@ -129,6 +129,7 @@ dt_open() {
 	console darkdefault "$DT_INK" "$DT_FACE"
 	console imgdetail "$DT_IMGDETAIL"
 	console imgcomp "$DT_IMGCOMP"
+	[ "${DT_COLOURS:-auto}" = auto ] || dt_colours
 	console signals off
 	# Click and drag only, not motion: reporting every movement with no
 	# button held (XTerm mode 1003) was tried for the strip's own hover
@@ -198,6 +199,21 @@ fn dt_shiftorigin(shift) {
 		c=${DT["$id"]["col"]}
 		[ -n "$r" ] && DT["$id"]["row"]=$((r + dr))
 		[ -n "$c" ] && DT["$id"]["col"]=$((c + dc))
+		# Where a zoomed window goes back to is the union's too.
+		[ -n "${DT["$id"]["oh"]-}" ] && [ -n "${DT["$id"]["or"]-}" ] &&
+			DT["$id"]["or"]=$((DT["$id"]["or"] + dr)) &&
+			DT["$id"]["oc"]=$((DT["$id"]["oc"] + dc))
+		# And its pane moves with it. Only the record moved before, so
+		# a window was drawn where it had been while its title bar's
+		# buttons and drags were tested where it now was -- a window
+		# nothing but an alt-drag on its content could move, which is
+		# what a display rejoining on the left after a restart left on
+		# every window that display held.
+		[ -n "$r" ] && [ -n "$c" ] && [ -n "${DT["$id"]["h"]-}" ] &&
+			! dt_away "$id" && ! dt_hidden "$id" &&
+			console pane "w$id" "${DT["$id"]["row"]}" \
+				"${DT["$id"]["col"]}" "${DT["$id"]["h"]}" \
+				"${DT["$id"]["w"]}"
 	done
 	# An icon's own saved place is the union's too, and dt_iconlay
 	# clamps rather than moves -- so without this every icon would be
@@ -212,6 +228,10 @@ fn dt_shiftorigin(shift) {
 	# never-set one is left alone, the same as cs_clamp leaves it: its
 	# default is computed from the primary and so follows already.
 	[ -n "${CS_Y-}" ] && CS_Y=$((CS_Y + dr))
+	# Every pane moved under the frame's own bookkeeping, so the next
+	# frame is a full one: a window left alone because nothing in it
+	# changed would otherwise stay undrawn at its new place.
+	DT_FORCEONCE=1
 	dt_log "displays moved by $dr,$dc; windows, icons and the strip with them"
 	return 0
 }
@@ -300,6 +320,9 @@ dt_size() {
 		sft := hold shift
 		dt_shiftorigin "${sft:-0 0}"
 	fi
+	# The bar's pane first, before any frame draws a window under where
+	# it used to be (bar.hibr's dt_barpane says why).
+	dt_has dt_barpane && dt_barpane
 	dt_has dt_blankregions && dt_blankregions
 	dt_iconlay
 	cs_clamp

@@ -57,9 +57,28 @@
    colour go out as one erase rather than a space each. */
 extern const char gx_ask[];
 
-/* A DCS at the front of p, taken whole; XTGETTCAP's answer about bce sets
-   *bce to 1 or 0. Returns as gx_apc does. */
-int gx_dcs(const char *p, size_t n, size_t max, size_t *used, int *bce);
+/* What a terminal said by XTGETTCAP (Gitea #353): whether its erase paints
+   the pen's background, whether it repeats a character (REP), whether it
+   takes 24-bit colour (RGB or Tc), and how many colours it has -- each -1
+   while it has not said. */
+typedef struct gx_tcap { int bce, rep, rgb; long colors; } gx_tcap;
+
+/* A DCS at the front of p, taken whole; an XTGETTCAP answer fills the
+   field it is about. Returns as gx_apc does. */
+int gx_dcs(const char *p, size_t n, size_t max, size_t *used, gx_tcap *tc);
+
+/* How many colours to send a terminal: 24 for 24-bit, else 256, 16 or 8.
+   HIBR_COLOURS says outright; then what the terminal answered; then
+   COLORTERM; then its name; and a terminal that said nothing anybody can
+   read is sent 24-bit, as every terminal was before. */
+int gx_depth(const gx_tcap *tc);
+
+/* One colour as an SGR parameter list, `;38;2;r;g;b` and the like, for a
+   terminal that takes depth colours (gx_depth's answer): 24-bit as it is,
+   256 the nearest of the cube and the greys, 16 and 8 the nearest of the
+   standard palette as the classic 30-37/90-97 codes (Gitea #353). v is a
+   DP_ colour: DP_DEFAULT, DP_RGB | rgb, or an index. */
+void gx_sgrcol(str *b, unsigned v, int bgp, int depth);
 
 /* An OSC at the front of p, taken whole, and when it is OSC 22's answer to
    `?none`, *ptr set to 1 or 0. Returns as gx_apc does. */
@@ -91,10 +110,10 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
    session, so a forced answer that skipped the asking left every Blit
    display with no pixel mouse, no kitty keyboard and no copy. *ptr is 1
    when it can hide its pointer, 0 when it knows pointer shapes and cannot,
-   -1 when it said nothing about them. *bce is 1 when it said an erase
-   paints the pen's background. */
+   -1 when it said nothing about them. *tc is what it answered by
+   XTGETTCAP. */
 int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
-	     int *mpix, int *ptr, int *bce);
+	     int *mpix, int *ptr, gx_tcap *tc);
 
 /* Milliseconds on a clock that only goes forward. */
 long gx_now(void);

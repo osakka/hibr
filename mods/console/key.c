@@ -704,6 +704,7 @@ static int cn_dcs(const char *p, size_t n, size_t *used)
 			if (memmem(p, i, "hibr-term", 9)) {
 				cn_hterm = 1;
 				cn_bce = 1;
+				cn_rep = 1;
 				cn_vouch = memmem(p, i, "deccra", 6) != 0;
 				lg(HIBR_LDBG, "console: hibr's emulator %s rectangles",
 				   cn_vouch ? "copies" : "does not copy");
@@ -817,6 +818,19 @@ int cn_csiu(unsigned code, int m, str *o)
 	return 1;
 }
 
+/* Whether a sequence taken with nothing to report was the terminal's
+   answer to a question rather than something typed -- an OSC, an APC, a
+   DCS or a private report. consumed counts what was typed, so a harness
+   comparing it with what it sent is not put ahead by the answers. */
+int cn_isans(const char *p, size_t n)
+{
+	if (n < 3 || p[0] != 27)
+		return 0;
+	if (p[1] == ']' || p[1] == '_' || p[1] == 'P')
+		return 1;
+	return p[1] == '[' && p[2] == '?';
+}
+
 /* Turn the front of the buffer into one key name; 0 means need more bytes. */
 int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 {
@@ -859,13 +873,13 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		return cn_dcs(p, n, used);
 	if (p[1] == 'P' && n >= 4 && (p[2] == '0' || p[2] == '1') &&
 	    p[3] == '+') {
-		int b = -1, r = gx_dcs(p, n, CN_OSCMAX, used, &b);
+		gx_tcap tc;
+		int r;
 
-		if (r == 2 && b >= 0) {
-			cn_bce = b;
-			lg(HIBR_LDBG, "console: an erase %s the pen's background",
-			   b ? "paints" : "does not paint");
-		}
+		tc.bce = tc.rep = tc.rgb = tc.colors = -1;
+		r = gx_dcs(p, n, CN_OSCMAX, used, &tc);
+		if (r == 2)
+			cn_gottcap(&tc);
 		return r;
 	}
 	if (p[1] == 'P' && n == 3 && (p[2] == '0' || p[2] == '1'))
@@ -978,6 +992,8 @@ int cn_key(int ms, str *out)
 				return 1;
 			}
 			if (r == 2) {
+				if (cn_isans(cn_pend.p + cn_pendo, used))
+					cn_eaten -= used;
 				cn_eat(used);
 				out->n = 0;
 				if (out->p)

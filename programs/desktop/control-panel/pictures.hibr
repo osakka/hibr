@@ -28,6 +28,8 @@ CP_IMGMODES=("Automatic" "Half Blocks" "Grey Blocks" "Characters" "Pixels")
 # a link that cannot carry full frames (Gitea #228).
 CP_IMGDETAILS=("Automatic" "Full" "Half")
 CP_IMGCOMPS=("Zlib" "PNG" "Off")
+# Colours: how many every display is sent (Gitea #353).
+CP_DEPTHS=("Automatic" "24-bit" "256" "16")
 
 # Repeated here because a pane is loaded without its own app under the panel
 # tests, and a strict file may not create a global it has not declared.
@@ -35,6 +37,8 @@ DT_IMGDETAIL="${DT_IMGDETAIL-auto}"
 command -v dt_keep > /dev/null && dt_keep DT_IMGDETAIL
 DT_IMGCOMP="${DT_IMGCOMP-zlib}"
 command -v dt_keep > /dev/null && dt_keep DT_IMGCOMP
+DT_COLOURS="${DT_COLOURS-auto}"
+command -v dt_keep > /dev/null && dt_keep DT_COLOURS
 
 fn cp_set_imgdetail(int? id = "", value = "") {
 	case $value in
@@ -83,6 +87,26 @@ fn cp_set_imgcomp(int? id = "", value = "") {
 	esac
 	command -v console > /dev/null && console imgcomp "$DT_IMGCOMP"
 	cp_save
+}
+
+fn cp_set_depth(int? id = "", value = "") {
+	case $value in
+	24-bit) DT_COLOURS=24 ;;
+	256) DT_COLOURS=256 ;;
+	16) DT_COLOURS=16 ;;
+	*) DT_COLOURS=auto ;;
+	esac
+	dt_has dt_colours && dt_colours
+	cp_save
+}
+
+# The name a colour depth has in the list.
+fn cp_depthname(m) {
+	case $m in
+	24) ret "24-bit" ;;
+	256 | 16) ret "$m" ;;
+	*) ret "Automatic" ;;
+	esac
 }
 
 # The name that setting has in the list.
@@ -141,6 +165,9 @@ fn pictures_rows(int w) {
 	v := cp_compname "$DT_IMGCOMP"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Compress Pictures"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgcomp; n=$((n + 1))
+	v := cp_depthname "${DT_COLOURS:-auto}"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=depth; n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="This Terminal"
 	CP[$w][$n]["val"]=$term; n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Automatic Means"
@@ -173,6 +200,11 @@ fn pictures_do(int? w = "", k = "", int? dir = "") {
 		v := cp_next "$nm" "$dir" "${CP_IMGCOMPS[@]}"
 		cp_set_imgcomp "" "$v"
 		;;
+	depth)
+		nm := cp_depthname "${DT_COLOURS:-auto}"
+		v := cp_next "$nm" "$dir" "${CP_DEPTHS[@]}"
+		cp_set_depth "" "$v"
+		;;
 	esac
 	return 0
 }
@@ -184,5 +216,7 @@ fn pictures_drop(int? w = "", int? r = "", int? c = "", k = "") {
 		"${CP_IMGDETAILS[@]}" ;;
 	imgcomp) dt_droplist "$w" "$r" "$c" cp_set_imgcomp \
 		"${CP_IMGCOMPS[@]}" ;;
+	depth) dt_droplist "$w" "$r" "$c" cp_set_depth \
+		"${CP_DEPTHS[@]}" ;;
 	esac
 }

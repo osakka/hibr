@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.99.314
+
+**Windows on another display keep their title bar after a restart.** Quit
+or stop a desktop with windows on a display to the left of (or above) the
+primary, start it again, and each came back drawn where it was with its
+title bar, buttons and drags answering somewhere on the primary instead --
+so nothing but an alt-drag on its content moved it. Two faults together:
+the snapshot kept every window's place in hold's union frame without saying
+which frame it was, and hold moves that frame as displays rejoin; and when
+it moved, the desktop moved each window's record and not its pane, so what
+was drawn and what was clicked parted company. The snapshot keeps the frame
+now and a restore carries its windows across, a display not back yet keeps
+its windows waiting off the screen where it will be, and a move of the frame
+moves the panes with the records -- and the menu bar before any window is
+drawn under where it used to be. Not yet covered: desktop icons and the
+Control Strip are kept in the settings rather than the snapshot, so a plain
+start with the displays in a different arrangement can still put those off.
+
+**Colours a terminal can show** (Gitea #353, the second step). Everything
+was sent in 24-bit colour, which a terminal without it draws wrongly or not
+at all -- the Linux console, GNU screen, Terminal.app before macOS 26. Each
+display is now asked what it takes (XTGETTCAP `RGB` and `colors`, at attach,
+beside the other questions), with `COLORTERM` and the terminal's name as the
+fallbacks, and is sent the nearest colour it can show: the 256-colour cube or
+greys, or the standard sixteen as the classic codes. A held session does this
+per display, so a laptop's own console and a kitty window attached to the same
+desktop each get what they draw. `HIBR_COLOURS=256` (or 16, 8, 24) says it
+outright for one display; Control Panel > Pictures > Colours sets it for every
+display at once.
+
+**A run of one glyph is sent as a count** on a terminal that repeats a
+character (REP, asked the same way): a window's border, a rule, a fill.
+
+A held program that drew before hold's emulator had said what it is used to
+keep the colours of that first guess for the life of the screen; a change of
+depth now repaints.
+
+`console consumed` counts what was typed and no longer the terminal's answers
+to the display's own questions, which put a test's wait for a key's frame
+ahead by every answer -- five more of them in this release, enough to make a
+dragged window's steps read as drawn before they were.
+
 ## 0.99.313
 
 **Less sent to every display** (Gitea #353, the first step). A held desktop

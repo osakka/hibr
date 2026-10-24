@@ -117,7 +117,20 @@ enum {
 	   joined (Gitea #353). One int, 1. Such a client is sent a run of
 	   blank cells in a colour as one erase; any other only a run with no
 	   colour of its own. A server that does not know it ignores it. */
-	HD_BCE = 'e'
+	HD_BCE = 'e',
+	/* From a client: its terminal said it repeats a character (REP), so a
+	   run of one glyph in one pen can go as the glyph and a count. One int,
+	   1 (Gitea #353). */
+	HD_REP = 'r',
+	/* From a client: how many colours its terminal takes -- 24 for 24-bit,
+	   256, 16 or 8 -- as gx_depth worked out, where the person's own
+	   HIBR_COLOURS, COLORTERM and TERM are (Gitea #353). One int. A client
+	   that never sends it is sent 24-bit, as every client was. */
+	HD_DEPTH = 'D',
+	/* A request: send every display this many colours whatever it said,
+	   or 0 to go back to what each said -- Control Panel's Colours row. One
+	   int, answered with nothing. */
+	HD_COLOURS = 'C'
 };
 
 /* How long an attaching client waits for its terminal to say what it
@@ -151,6 +164,9 @@ extern const tm_api *hd_tm;
 
 /* The running total of what hd_unorm has moved every client by. */
 extern int hd_shiftr, hd_shiftc;
+/* The colours every display is sent whatever it said, 0 for none (Gitea
+   #353): what Control Panel's Colours row asks for. */
+extern int hd_fdepth;
 
 /* What a cell of the session measures, as the program was last told:
    the space a pointer in pixels is given in, whichever display it came
@@ -254,8 +270,10 @@ struct hd_cli {
 	   display, since each is drawn on its own (Gitea #353). */
 	long long sent;
 	long frames;
-	/* Whether its terminal said an erase paints the pen's background. */
-	int bce;
+	/* Whether its terminal said an erase paints the pen's background,
+	   whether it repeats a character, and how many colours it takes (0 for
+	   not said: 24-bit). */
+	int bce, rep, depth;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;

@@ -149,6 +149,7 @@ class Screen:
         # to hide it, "" for the terminal's own (Gitea #373). A query is
         # not a shape, so it is left out; a screen clear keeps the list.
         self.ptr = []
+        self.last = ""
         self.clear()
 
     def clear(self):
@@ -215,6 +216,15 @@ class Screen:
                         self.c = max(0, self.c - k)
                 elif fin == "G" and (seq.isdigit() or not seq):
                     self.c = (int(seq) if seq else 1) - 1
+                # REP: the last character drawn, again, n times, in the pen
+                # in force (Gitea #353).
+                elif fin == "b" and (seq.isdigit() or not seq):
+                    for _ in range(int(seq) if seq else 1):
+                        if self.last and 0 <= self.r < self.rows and \
+                                0 <= self.c < self.cols:
+                            self.g[self.r][self.c] = self.last
+                            self.p[self.r][self.c] = self.pen
+                        self.c += 1
                 elif fin in "KX" and (seq.isdigit() or not seq):
                     if fin == "K" and seq not in ("", "0"):
                         i = j + 1
@@ -292,6 +302,7 @@ class Screen:
             if ch == "\n":
                 i += 1
                 continue
+            self.last = ch
             wide = unicodedata.east_asian_width(ch) in ("W", "F")
             if 0 <= self.r < self.rows and 0 <= self.c < self.cols:
                 self.g[self.r][self.c] = ch
@@ -491,7 +502,7 @@ def expect(pattern):
 QUERY = re.compile(rb"\x1b(?:\](?P<osc>[^\x07\x1b]*)(?:\x07|\x1b\\)"
                    rb"|_(?P<apc>[^\x1b]*)\x1b\\"
                    rb"|(?P<da>\[c)|(?P<kbd>\[\?u)|(?P<xtv>\[>0?q)"
-                   rb"|(?P<mpix>\[\?1016\$p)|(?P<tcap>P\+q626365\x1b\\))")
+                   rb"|(?P<mpix>\[\?1016\$p)|P\+q(?P<tcap>[0-9a-fA-F]+)\x1b\\)")
 
 
 class Term:
@@ -654,13 +665,24 @@ class Term:
                         b";22" + (b";28" if "deccra" in self.caps else b"")
                     os.write(self.fd, b"\x1b[?" + f + b"c")
                 continue
-            # XTGETTCAP for bce (Gitea #353): "bce" is a terminal whose erase
-            # paints the pen's background, and says so.
+            # XTGETTCAP (Gitea #353): "bce" a terminal whose erase paints the
+            # pen's background, "rep" one that repeats a character, "rgb" one
+            # that takes 24-bit colour, "colors=N" how many it has. A Term
+            # with caps answers the rest no; one without says nothing.
             if m.group("tcap") is not None:
-                if self.caps is not None and "bce" in self.caps:
-                    os.write(self.fd, b"\x1bP1+r626365\x1b\\")
-                elif self.caps is not None:
-                    os.write(self.fd, b"\x1bP0+r626365\x1b\\")
+                if self.caps is None:
+                    continue
+                nm = bytes.fromhex(m.group("tcap").decode()).decode()
+                want = {"bce": "bce", "rep": "rep", "RGB": "rgb", "Tc": "rgb"}
+                if nm in want and want[nm] in self.caps:
+                    os.write(self.fd, b"\x1bP1+r" + m.group("tcap") + b"\x1b\\")
+                elif nm == "colors" and any(c.startswith("colors=")
+                                            for c in self.caps):
+                    v = [c[7:] for c in self.caps if c.startswith("colors=")][0]
+                    os.write(self.fd, b"\x1bP1+r" + m.group("tcap") + b"="
+                             + v.encode().hex().encode() + b"\x1b\\")
+                else:
+                    os.write(self.fd, b"\x1bP0+r" + m.group("tcap") + b"\x1b\\")
                 continue
             # OSC 22's query (Gitea #373): "ptr" is a terminal that can
             # hide its pointer and answers `?none` with 1, "ptrno" one that

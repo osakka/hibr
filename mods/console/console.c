@@ -422,7 +422,7 @@ int m_console(sh *s, int ac, char **av)
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: console open|close|size|clear|pen|put|"
 			      "fill|cursor|flush|shot|key|watch|unwatch|watching|pane|hit|mouse|"
-			      "pixels|pointer|sent");
+			      "pixels|pointer|sent|colours");
 		return 2;
 	}
 	if (!strcmp(sub, "open"))
@@ -488,6 +488,29 @@ int m_console(sh *s, int ac, char **av)
 		}
 		cn_pixwant = !strcmp(m, "on");
 		cn_pixapply();
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "colours")) {
+		const char *m = ac > 2 ? av[2] : "";
+		int v;
+
+		if (!*m) {
+			str o;
+
+			s_init(&o);
+			s_num(&o, (long)cn_depth());
+			hibr_ret(s, o.p);
+			if (!s->bind)
+				printf("%s\n", o.p);
+			s_free(&o);
+			return HIBR_OK;
+		}
+		v = !strcmp(m, "auto") ? 0 : atoi(m);
+		if (v != 0 && v != 24 && v != 256 && v != 16 && v != 8) {
+			lg(HIBR_LERR, "usage: console colours [auto|24|256|16|8]");
+			return 2;
+		}
+		cn_forcedep(v);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "sent")) {

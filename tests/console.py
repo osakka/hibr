@@ -785,4 +785,41 @@ check("one that cannot says no: " + got, "can no" in got)
 got, ptr, txt = ptrrun([])
 check("one that does not know OSC 22 is unknown: " + got, "can unknown" in got)
 
-report(len(WANT) + len(MWANT) + 102)
+# Colours stepped down, and a run repeated (Gitea #353). A terminal that
+# says it has 256 colours and no 24-bit is sent the nearest of the 256, one
+# that has 16 the nearest of the standard sixteen as the classic codes, and
+# one that repeats a character is sent a run of one glyph as a count -- each
+# drawn exactly where it was, the run as long as it was.
+DEP = ("console open\nconsole flush\n"
+       "i=0\nwhile [ $i -lt 6 ]; do console key 100 > /dev/null; i=$((i + 1)); done\n"
+       "console pen '#ff0000' '#102030'\nconsole put 3 2 'HUE'\n"
+       "console pen '#d0d0d0' default\nconsole put 5 2 '────────────────'\n"
+       "console flush\nconsole key 300 > /dev/null\nconsole close\n")
+
+
+def deprun(caps):
+    path = sx.scratch("console-dep.hibr")
+    open(path, "w").write("mod load %s\n%s" % (MOD, DEP))
+    t = Term(path, caps=caps, settle=0.4, env={"COLORTERM": None,
+                                                "TERM": "xterm"})
+    t.collect(2.0)
+    t.close()
+    os.unlink(path)
+    return t.raw, t.screen()
+
+
+raw, sc = deprun(["colors=256"])
+check("a terminal with 256 colours and no 24-bit is sent the nearest of them",
+      b"38;5;196" in raw and b"48;5;" in raw and b"38;2;255;0;0" not in raw,
+      raw[-300:])
+raw, sc = deprun(["colors=16"])
+check("one with 16 is sent the classic codes",
+      re.search(rb"\x1b\[(?:[0-9;]*;)?91[;m]", raw) is not None and
+      b"38;5;" not in raw and b"38;2;" not in raw, raw[-300:])
+raw, sc = deprun(["rgb", "rep"])
+check("one that repeats a character is sent a run as a count",
+      re.search(rb"\x1b\[1[0-5]b", raw) is not None, raw[-300:])
+check("and the run is drawn whole, where it was",
+      sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
+
+report(len(WANT) + len(MWANT) + 106)

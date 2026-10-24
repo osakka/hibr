@@ -157,6 +157,11 @@ fn dt_rswrite(f, int carry, why = "restart") {
 	json parse DT_RS["win"] "{}"
 	json parse DT_RS["app"] "{}"
 	json set DT_RS .fresh $((1 - carry))
+	# Every window's place is in the union's own frame, which hold moves
+	# as displays come and go (Gitea #257): which frame it was is part of
+	# the place, or a window on a display that rejoins after this one
+	# comes back counted from somewhere else.
+	json set DT_RS .shift "${DT_SHIFTWAS:-}" -s
 	json set DT_RS .why "$why" -s
 	for id in "${!DT[@]}"; do
 		ap=${DT[$id]["app"]}
@@ -252,6 +257,17 @@ dt_restore() {
 			console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
 				"${DT[$id]["h"]}" "${DT[$id]["w"]}"
 	done
+	# The windows were saved in the union's frame as it stood then, and
+	# hold has already said where it stands now: carry them across, the
+	# way a display moving carries them. A display not back yet holds
+	# its windows off the screen where it will be, and its rejoining
+	# brings them back to where they were rather than onto the primary.
+	m=${DT_RS["shift"]-}
+	if [ -n "$m" ] && [ -n "$DT_SHIFTWAS" ] && [ "$m" != "$DT_SHIFTWAS" ]; then
+		j=$DT_SHIFTWAS
+		DT_SHIFTWAS=$m
+		dt_shiftorigin "$j"
+	fi
 	read -ra ps <<< "${DT_RS["stack"]}"
 	for p in "${ps[@]}"; do
 		[ -n "${DT[${p#w}]["title"]}" ] || continue

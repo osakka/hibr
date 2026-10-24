@@ -308,6 +308,7 @@ void hd_cellpx(vec *cls, int *w, int *h)
    at all, it is a corner the union has no room for. */
 int hd_shiftr;
 int hd_shiftc;
+int hd_fdepth;
 
 int hd_unorm(vec *cls)
 {
@@ -562,6 +563,24 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		}
 		hd_send(c, HD_GFXLIST, o.p, o.n);
 		s_free(&o);
+		break;
+	}
+	case HD_COLOURS: {
+		int v = 0;
+		size_t ci;
+
+		if (in.n == sizeof v)
+			memcpy(&v, in.p, sizeof v);
+		if (v == 0 || v == 24 || v == 256 || v == 16 || v == 8) {
+			hd_fdepth = v;
+			for (ci = 0; ci < cls->n; ci++) {
+				struct hd_cli *cn2 = cls->p[ci];
+
+				free(cn2->front);
+				cn2->front = 0;
+			}
+		}
+		hd_send(c, HD_COLOURS, "", 0);
 		break;
 	}
 	case HD_STATS: {
@@ -953,6 +972,29 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 
 				if (cn)
 					cn->bce = 1;
+			} else if (t == HD_REP && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+
+				if (cn)
+					cn->rep = 1;
+			} else if (t == HD_DEPTH && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+				int v;
+
+				memcpy(&v, in.p, sizeof v);
+				if (cn && (v == 24 || v == 256 || v == 16 || v == 8) &&
+				    cn->depth != v) {
+					/* The frame an attach sends at once went
+					   out at 24-bit, before this arrived:
+					   repaint it now at the right depth,
+					   rather than when the program next
+					   writes, which for a quiet one is never. */
+					cn->depth = v;
+					free(cn->front);
+					cn->front = 0;
+					lg(HIBR_LDBG, "hold: a display takes %d colours", v);
+					hd_rensend1(&cls, cn, tid);
+				}
 			} else if (t == HD_PTR && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
 				int v;
@@ -1148,6 +1190,7 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 	   by it, so a new server can still resume an old file and the
 	   other way about. */
 	fprintf(f, "shift %d %d\n", hd_shiftr, hd_shiftc);
+	fprintf(f, "colours %d\n", hd_fdepth);
 	for (i = 0; i < cls->n; i++) {
 		struct hd_cli *cn = cls->p[i];
 
@@ -1163,8 +1206,9 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 		   than this has no line and is GX_UNKNOWN until it attaches
 		   again, which draws half blocks rather than black. */
 		fprintf(f, "gfx %d %d\n", cn->fd, cn->gfx);
-		fprintf(f, "caps %d %d %d %d %d %d\n", cn->fd, cn->kbd, cn->copy,
-			cn->mpix, cn->ptrask, cn->bce);
+		fprintf(f, "caps %d %d %d %d %d %d %d %d\n", cn->fd, cn->kbd,
+			cn->copy, cn->mpix, cn->ptrask, cn->bce, cn->rep,
+			cn->depth);
 		hd_keepexec(cn->fd);
 	}
 	fclose(f);
@@ -1257,7 +1301,7 @@ int hd_resume(sh *s)
 	sigaction(SIGTERM, &sa, 0);
 	while (getline(&line, &lcap, f) > 0) {
 		int fd, row, col, crows, ccols, prim, xp, yp, shr, shc, a, b, c, pa,
-		    pb;
+		    pb, pr, pd;
 
 		if (sscanf(line, "listen %d", &l) == 1)
 			continue;
@@ -1276,8 +1320,10 @@ int hd_resume(sh *s)
 		}
 		pa = 0;
 		pb = 0;
-		if (sscanf(line, "caps %d %d %d %d %d %d", &fd, &a, &b, &c,
-			   &pa, &pb) >= 4) {
+		pr = 0;
+		pd = 0;
+		if (sscanf(line, "caps %d %d %d %d %d %d %d %d", &fd, &a, &b, &c,
+			   &pa, &pb, &pr, &pd) >= 4) {
 			struct hd_cli *ck = hd_cfind(&cls, fd);
 
 			if (ck) {
@@ -1286,7 +1332,15 @@ int hd_resume(sh *s)
 				ck->mpix = !!c;
 				ck->ptrask = pa >= 0 && pa <= 2 ? pa : 0;
 				ck->bce = !!pb;
+				ck->rep = !!pr;
+				ck->depth = pd == 24 || pd == 256 || pd == 16 ||
+						    pd == 8 ? pd : 0;
 			}
+			continue;
+		}
+		if (sscanf(line, "colours %d", &pa) == 1) {
+			hd_fdepth = pa == 24 || pa == 256 || pa == 16 || pa == 8 ?
+					    pa : 0;
 			continue;
 		}
 		if (sscanf(line, "gfx %d %d", &fd, &prim) == 2) {

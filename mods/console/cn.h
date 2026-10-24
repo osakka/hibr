@@ -227,6 +227,14 @@ extern long long cn_sent;
 /* Whether an erase paints the pen's background (bce), as the terminal
    answered XTGETTCAP or as hibr's own emulator does (Gitea #353). */
 extern int cn_bce;
+/* Whether the terminal repeats a character (REP), and how many colours it
+   takes, from what it answered (Gitea #353): cn_rep -1 not said; cn_tc the
+   answers so far, which cn_depth reads through gx_depth. */
+extern int cn_rep;
+extern gx_tcap cn_tc;
+int cn_depth(void);
+void cn_forcedep(int v);
+void cn_gottcap(const gx_tcap *tc);
 #ifndef CN_ECHMIN
 #define CN_ECHMIN 8
 #endif

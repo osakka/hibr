@@ -733,24 +733,11 @@ void cn_cursor(int row, int col, int vis)
 	cn_cvis = vis;
 }
 
-/* Append the escape sequence for one colour. */
+/* Append the escape sequence for one colour, as many colours as the
+   terminal takes. */
 void cn_sgrcol(str *b, unsigned v, int bgp)
 {
-	if (v == DP_DEFAULT) {
-		s_cat(b, bgp ? ";49" : ";39");
-		return;
-	}
-	if (v & DP_RGB) {
-		s_cat(b, bgp ? ";48;2;" : ";38;2;");
-		s_num(b, (long)((v >> 16) & 0xFF));
-		s_ch(b, ';');
-		s_num(b, (long)((v >> 8) & 0xFF));
-		s_ch(b, ';');
-		s_num(b, (long)(v & 0xFF));
-		return;
-	}
-	s_cat(b, bgp ? ";48;5;" : ";38;5;");
-	s_num(b, (long)(v & 0xFF));
+	gx_sgrcol(b, v, bgp, cn_depth());
 }
 
 /* Append the escape sequence that moves from one pen to another. */
@@ -927,6 +914,52 @@ int cn_near(int r, int c)
    #353): what a leaner encoder is judged by. */
 long long cn_sent;
 int cn_bce;
+int cn_rep = -1;
+gx_tcap cn_tc = { -1, -1, -1, -1 };
+static int cn_dep;
+
+/* What the terminal answered by XTGETTCAP, kept, and the colour depth
+   worked out again from it. */
+void cn_gottcap(const gx_tcap *tc)
+{
+	if (tc->bce >= 0)
+		cn_bce = tc->bce;
+	if (tc->rep >= 0)
+		cn_rep = tc->rep;
+	if (tc->rgb >= 0)
+		cn_tc.rgb = tc->rgb;
+	if (tc->colors >= 0)
+		cn_tc.colors = tc->colors;
+	cn_dep = 0;
+	lg(HIBR_LDBG, "console: the terminal says bce %d rep %d rgb %d colors %ld",
+	   cn_bce, cn_rep, cn_tc.rgb, cn_tc.colors);
+}
+
+/* How many colours to send (Gitea #353). hibr's own emulator takes 24-bit,
+   whatever TERM says in a held session -- which is the session's own,
+   frozen when it began -- since hold steps each display down itself. */
+static int cn_fdep;
+
+/* Send this many colours whatever the terminal said, 0 to go back to what
+   it said: Control Panel's Colours row. Every cell is sent again, since a
+   colour already on the screen was sent at the old depth. */
+void cn_forcedep(int v)
+{
+	cn_fdep = v;
+	cn_dep = 0;
+	cn_inval();
+}
+
+int cn_depth(void)
+{
+	if (cn_fdep)
+		return cn_fdep;
+	if (cn_hterm)
+		return 24;
+	if (!cn_dep)
+		cn_dep = gx_depth(&cn_tc);
+	return cn_dep;
+}
 
 /* A pane moved, was made or dropped: the map is stale. */
 void cn_owninval(void)
@@ -1093,6 +1126,18 @@ long cn_flush(void)
 	if (cn_fit() != HIBR_OK)
 		return 0;
 	cn_askmaybe();
+	/* Colours already on the screen were sent at the depth in force then,
+	   and an answer arriving later can change it -- a held program guesses
+	   from the session's own TERM until hibr's emulator has said what it
+	   is -- so a change of depth sends every cell again (Gitea #353). */
+	{
+		static int lastdep;
+		int d = cn_depth();
+
+		if (lastdep && d != lastdep)
+			cn_inval();
+		lastdep = d;
+	}
 	/* Translucency lasts for the drawing, not for ever: a frame ends
 	   here, so an app that sets it and never says otherwise cannot leak
 	   it into whatever is drawn next. Each caller still turns it off
@@ -1281,6 +1326,47 @@ long cn_flush(void)
 				f2->bg = b2->bg;
 				f2->attr = b2->attr;
 				f2->link = b2->link;
+			}
+			/* The same glyph in the same pen right after it, on a
+			   terminal that repeats one (REP, Gitea #353): the count
+			   instead of the glyphs, when that is shorter. */
+			if (cn_rep == 1 && e == bk && !cn_olay.on && !e->ext &&
+			    e->w <= 1) {
+				int k = 0, i2, gl = !e->cp || e->cp < 0x80 ? 1 :
+						    e->cp < 0x800 ? 2 :
+						    e->cp < 0x10000 ? 3 : 4;
+				str rp;
+
+				while (c + 1 + k < cn_back.cols) {
+					cn_cell *n2 = bk + 1 + k;
+
+					if (n2->cp != e->cp || n2->ext || n2->w > 1 ||
+					    n2->cont || n2->fg != e->fg ||
+					    n2->bg != e->bg || n2->link != e->link ||
+					    (n2->attr & ~CN_FILLED) !=
+						    (e->attr & ~CN_FILLED) ||
+					    (cn_imgn() && cn_imgat(r, c + 1 + k)))
+						break;
+					k++;
+				}
+				s_init(&rp);
+				if (k > 0)
+					cn_csin(&rp, k, 'b');
+				if (k > 0 && rp.n < (size_t)(k * gl)) {
+					s_add(&b, rp.p, rp.n);
+					for (i2 = 1; i2 <= k; i2++) {
+						cn_cellset(ft + i2, e->cp, 0, 0);
+						ft[i2].fg = bk[i2].fg;
+						ft[i2].bg = bk[i2].bg;
+						ft[i2].attr = bk[i2].attr;
+						ft[i2].link = bk[i2].link;
+						ft[i2].w = bk[i2].w;
+						ft[i2].cont = 0;
+					}
+					cc = c + 1 + k;
+					c += k;
+				}
+				s_free(&rp);
 			}
 		}
 	}

@@ -4,28 +4,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Append the escape sequence for one colour -- the same default/256/24-bit
-   encoding console's own cn_sgrcol (mods/console/grid.c) emits, duplicated
-   rather than shared: hold must not depend on the display module, and this
-   is a small, stable, self-contained piece of string building with nothing
-   else of console's to entangle it. */
+/* How many colours the client being rendered takes: what Control Panel
+   forces for every display, else what this one said, else 24-bit (Gitea
+   #353). Set by hd_render for the frame it builds. */
+static int hd_cdep = 24;
+
+/* Append the escape sequence for one colour, stepped down to what the
+   client takes. The encoding is gfxask's, shared with the console: hold
+   must not depend on the display module, and gfxask is neither. */
 void hd_sgrcol(str *b, unsigned v, int bgp)
 {
-	if (v == DP_DEFAULT) {
-		s_cat(b, bgp ? ";49" : ";39");
-		return;
-	}
-	if (v & DP_RGB) {
-		s_cat(b, bgp ? ";48;2;" : ";38;2;");
-		s_num(b, (long)((v >> 16) & 0xFF));
-		s_ch(b, ';');
-		s_num(b, (long)((v >> 8) & 0xFF));
-		s_ch(b, ';');
-		s_num(b, (long)(v & 0xFF));
-		return;
-	}
-	s_cat(b, bgp ? ";48;5;" : ";38;5;");
-	s_num(b, (long)(v & 0xFF));
+	gx_sgrcol(b, v, bgp, hd_cdep);
 }
 
 /* Append the escape sequence that moves from one pen to another -- console's
@@ -457,6 +446,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	size_t n, i;
 
 	out->n = 0;
+	hd_cdep = hd_fdepth ? hd_fdepth : cn->depth ? cn->depth : 24;
 	/* The whole frame, the modes, the copies, the cells, the pictures
 	   and the cursor, as one synchronized update: a terminal that knows
 	   mode 2026 presents it at once and never half of it, however the
@@ -624,6 +614,36 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			}
 			lr = r;
 			lc = c + (int)w;
+			/* The same glyph in the same pen right after it, on a
+			   terminal that repeats one (REP, Gitea #353): the count
+			   instead of the glyphs, when that is shorter -- a box's
+			   rule, a wallpaper's fill. */
+			if (cn->rep && w == 1) {
+				int k = 0, gl = cp < 0x80 ? 1 : cp < 0x800 ? 2 :
+						cp < 0x10000 ? 3 : 4, i2;
+				unsigned c2, f2, b2, a2, w2;
+				str rp;
+
+				while (c + 1 + k < cn->cols &&
+				       hd_tm->at(tid, cn->row + r, cn->col + c + 1 + k,
+						 &c2, &f2, &b2, &a2, &w2) &&
+				       c2 == cp && w2 == 1 && f2 == fg && b2 == bg &&
+				       a2 == at &&
+				       hd_tm->linkat(tid, cn->row + r,
+						     cn->col + c + 1 + k) == lk)
+					k++;
+				s_init(&rp);
+				if (k > 0)
+					hd_csin(&rp, k, 'b');
+				if (k > 0 && rp.n < (size_t)(k * gl)) {
+					s_add(out, rp.p, rp.n);
+					for (i2 = 1; i2 <= k; i2++)
+						f[i2] = *f;
+					lc = c + 1 + k;
+					c += k;
+				}
+				s_free(&rp);
+			}
 		}
 	}
 	if (llk)

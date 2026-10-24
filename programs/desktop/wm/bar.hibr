@@ -389,6 +389,28 @@ dt_barwant() {
 	esac
 }
 
+# Put the bar's own pane on the primary's top row, when that has moved.
+# Called by dt_bar, and by dt_size the moment the displays change (Gitea
+# #353's sibling, the restart report): a frame draws the windows before the
+# bar, and a bar pane still where the primary used to be -- the whole top
+# row, before a display joined on the left -- is above everything, so the
+# title row of a window now under its old place was blocked, then left
+# blank once the bar moved, and stayed blank until something redrew it.
+dt_barpane() {
+	local w=${DT_PRIMARY_W:-$DT_COLS}
+
+	if [ "$DT_BARPANE" != "$DT_PRIMARY_ROW $DT_PRIMARY_COL $w" ]; then
+		console pane bar "$DT_PRIMARY_ROW" "$DT_PRIMARY_COL" 1 "$w"
+		# Above everything: a window dragged over the bar, its shadow,
+		# a menu or a picture goes under it, since the console writes
+		# a top pane's cells only through the pane itself.
+		console pane top bar
+		DT_BARPANE="$DT_PRIMARY_ROW $DT_PRIMARY_COL $w"
+		DT_BARWAS=
+	fi
+	return 0
+}
+
 # Draw the bar itself.
 dt_bar() {
 	local i=0 t line now gap bell key iend w=${DT_PRIMARY_W:-$DT_COLS}
@@ -402,15 +424,7 @@ dt_bar() {
 	# piece of its geometry that is not a variable. It is one now
 	# (Gitea #240): a primary below a join starts partway down the union,
 	# and a bar at row 0 there is a bar drawn on somebody else's display.
-	if [ "$DT_BARPANE" != "$DT_PRIMARY_ROW $DT_PRIMARY_COL $w" ]; then
-		console pane bar "$DT_PRIMARY_ROW" "$DT_PRIMARY_COL" 1 "$w"
-		# Above everything: a window dragged over the bar, its shadow,
-		# a menu or a picture goes under it, since the console writes
-		# a top pane's cells only through the pane itself.
-		console pane top bar
-		DT_BARPANE="$DT_PRIMARY_ROW $DT_PRIMARY_COL $w"
-		DT_BARWAS=
-	fi
+	dt_barpane
 	# The shadow is cast before the gate, on every frame, because it falls
 	# on the row *below* the bar -- outside the bar's own pane, so those
 	# cells are not the bar's to keep. A window redrawing near them clears

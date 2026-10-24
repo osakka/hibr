@@ -1118,7 +1118,8 @@ def scrolled(caps):
     outer = os.path.join(D, "sw%s.hibr" % nm)
     open(outer, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n'
                            % (nm, p) + "sleep 0.6\nhold attach %s\n" % nm)
-    t = Term(outer, rows=20, cols=60, settle=1.0, env={"TMPDIR": D}, caps=caps)
+    t = Term(outer, rows=20, cols=60, settle=1.0,
+             env={"TMPDIR": D, "COLORTERM": None}, caps=caps)
     want = [(" " + SCRL[r + 14])[:60].rstrip() for r in range(20)]
     for _ in range(int(30 * SLOW)):
         t.collect(0.25)
@@ -1131,19 +1132,31 @@ def scrolled(caps):
     return sc, t.raw, want
 
 
-sc, raw, want = scrolled(["bce"])
+sc, raw, want = scrolled(["bce", "rgb"])
 check("scrolled text held is drawn exactly, glyphs and pens",
       [sc.row(r) for r in range(20)] == want and
-      sc.style(5, 40)["bg"] == "#102030", [sc.row(r) for r in range(3)])
+      sc.style(5, 40)["bg"] == "#102030",
+      ([sc.row(r) for r in range(3)], sc.p[5][40], sc.p[5][2]))
 check("in fewer bytes than one absolute move per gap took: %d" % len(raw),
       len(raw) < 13500, len(raw))
 check("a terminal whose erase paints the pen's background is sent erases",
       b"\x1b[K" in raw, raw[-200:])
-sc, raw, want = scrolled([])
+sc, raw, want = scrolled(["rgb"])
 check("one that did not say so is never sent an erase of a coloured blank, "
       "and is drawn exactly too",
       b"\x1b[K" not in raw and not re.search(rb"\x1b\[\d*X", raw)
       and [sc.row(r) for r in range(20)] == want, [sc.row(r) for r in range(3)])
 
+# Each display at its own colour depth (Gitea #353): one whose terminal says
+# it has 16 colours and no 24-bit is sent the standard sixteen, and still
+# shows every glyph where it was. From the repaint that depth's arrival
+# makes: the frame an attach sends at once goes before it, at 24-bit, so a
+# quiet program is not left blank, and the repaint clears it.
+sc, raw, want = scrolled(["colors=16"])
+tail = raw[raw.rfind(b"\x1b[2J"):]
+check("a 16-colour display of a held session is sent no 24-bit colour",
+      b"\x1b[2J" in raw and b"38;2;" not in tail and b"48;2;" not in tail and
+      [sc.row(r) for r in range(20)] == want, raw[-200:])
+
 shutil.rmtree(D, True)
-report(65)
+report(66)

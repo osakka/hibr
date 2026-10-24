@@ -17,6 +17,7 @@ nothing has to be saved and restored.
 | `hold detach [name]` | detach whoever is attached; with no name, the session this shell is running in |
 | `hold list` | each session, attached or detached, the program's pid, and the union's own size (rows x cols) |
 | `hold clients [name]` | one line per attached client of a session (with no name, the one this shell runs in): `name row col rows cols primary` -- what a control panel draws its rectangles from |
+| `hold colours [name] auto\|24\|256\|16\|8` | send every display of the session this many colours whatever its terminal said, or `auto` for what each said (Control Panel > Pictures > Colours). Each display otherwise gets what its own terminal answered at attach, where its own `HIBR_COLOURS`, `COLORTERM` and `TERM` are |
 | `hold stats [name]` | one line per attached client: `name`, the bytes hold has sent it since it attached, and in how many frames (Gitea #353). Fails, quietly, against a server older than 0.99.313 |
 | `hold pointers [name]` | one line per attached client: `name` and `yes` or `no`, whether its own terminal can hide its pointer, as it answered OSC 22's `?none` when it attached. A program's pointer shape (OSC 22) reaches every client whose terminal knows shapes, and `none` only one that said yes. Fails, quietly, against a server older than 0.99.311 |
 | `hold pixels [name]` | one line per attached client: `name` and `yes` or `no`, whether its own terminal reports the mouse in pixels (1016), as it said when it attached. Fails, quietly, against a server older than 0.99.304 |

@@ -7003,4 +7003,99 @@ sc, _ = run(PTA, [1.5, hov(9, 20), 0.4], caps=["ptr"],
 check("and with hovering off nothing would say it left, so nothing hides it",
       "none" not in sc.ptr, sc.ptr)
 
-report(770)
+# A window on another display, after the desktop is stopped and started
+# again (the owner's report: placed right, and its title bar on the primary,
+# so nothing but an alt-drag on its content would move it). The snapshot
+# keeps places in hold's union frame, which hold moves as displays rejoin:
+# a display to the left of the primary rejoins after it and moves the
+# origin, and the window has to come back where it was, drawn where its
+# record says, with a title bar that takes a drag.
+import signal
+SD = tempfile.mkdtemp(prefix="hibr-snapdisp-")
+SDE = {"HOME": SD, "TMPDIR": SD, "XDG_CONFIG_HOME": SD + "/config",
+       "XDG_STATE_HOME": SD + "/state", "XDG_DATA_HOME": SD + "/data",
+       "HIBR_MODPATH": tree("build/mods")}
+SDS = os.path.join(SD, "sess.hibr")
+_ss = open(SESSION).read()
+open(SDS, "w").write(
+    _ss.split('d=${0%/*}')[0] + "d=%s\n" % tree("programs/desktop")
+    + _ss[_ss.index('. "$d/desktop.hibr"'):_ss.index("dt_open || exit 1")]
+    + 'dt_open || exit 1\n[ "${DT_RESTORED:-0}" = 1 ] || '
+      'dt_new "Probe" 8 30 4 6\ndt_run\ndt_close\n')
+
+
+def sdenv(p):
+    return dict(SDE, TERM_PROGRAM=p, SSH_CONNECTION=None)
+
+
+def sdrun(*a):
+    e = {k: v for k, v in os.environ.items() if k != "SSH_CONNECTION"}
+    return subprocess.run(list(a), env=dict(e, **SDE), capture_output=True,
+                          text=True, timeout=20).stdout
+
+
+def sdctl(*a):
+    try:
+        return json.loads(sdrun(screen.HIBR, tree("programs/desktop/lib/ctl.hibr"),
+                                "--session", "desktop", *a))
+    except ValueError:
+        return {}
+
+
+def sdleft():
+    """The display named left, to the left of the primary."""
+    sdrun(screen.HIBR, "-c", HOLDC + "hold move desktop left 0 -60")
+
+
+def sdtitle(t):
+    sc = t.screen()
+    for r in range(sc.rows):
+        c = sc.row(r).find("┤ Probe")
+        if c >= 0:
+            return r, c
+    return None
+
+
+try:
+    p1 = Term(SDS, env=sdenv("pa"), cols=80, settle=2.5)
+    p2 = Term(SDS, "--join", "--name", "left", env=sdenv("pb"), cols=60,
+              settle=2.0)
+    sdleft()
+    time.sleep(2.0)
+    sw = sdctl("windows").get("windows", [])
+    if sw:
+        sdctl("move", str(sw[0]["id"]), "left")
+    time.sleep(1.5)
+    p1.collect(0.5)
+    p2.collect(0.5)
+    spid = sdctl("state").get("pid")
+    if spid:
+        os.kill(int(spid), signal.SIGTERM)
+    time.sleep(2.0)
+    p1.close()
+    p2.close()
+    p1 = Term(SDS, env=sdenv("pa"), cols=80, settle=3.0)
+    p2 = Term(SDS, "--join", "--name", "left", env=sdenv("pb"), cols=60,
+              settle=2.0)
+    sdleft()
+    time.sleep(2.5)
+    p1.collect(1.0)
+    p2.collect(1.0)
+    sw = sdctl("windows").get("windows", [])
+    st = sdtitle(p2)
+    check("a window on a display left of the primary comes back there after a "
+          "stop and a start, drawn where its record says",
+          sw and st is not None and sw[0]["col"] == st[1] - 2 and
+          sw[0]["row"] == st[0], (sw, st))
+    p2.keys([press(0, 10), drag(0, 15), drag(0, 20), release(0, 20)])
+    time.sleep(1.0)
+    sw = sdctl("windows").get("windows", [])
+    check("and its title bar takes a drag there",
+          sw and sw[0]["col"] == 10, sw)
+    p1.close()
+    p2.close()
+finally:
+    sdrun(screen.HIBR, "-c", HOLDC + "hold kill desktop")
+    shutil.rmtree(SD, True)
+
+report(772)
