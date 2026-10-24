@@ -273,6 +273,20 @@ long tm_api_syncleft(int id)
 	return t ? tm_syncleft(t) : 0;
 }
 
+/* The pointer shape in force, appended to out; 0 for the terminal's own. */
+int tm_api_pointer(int id, str *out)
+{
+	tm_t *t = tm_find(id);
+	size_t k;
+
+	if (!t || !t->ptrs.n)
+		return 0;
+	for (k = t->ptrs.n; k && t->ptrs.p[k - 1] != '\n'; k--)
+		;
+	s_add(out, t->ptrs.p + k, t->ptrs.n - k);
+	return 1;
+}
+
 int tm_api_mpix(int id)
 {
 	tm_t *t = tm_find(id);
@@ -297,7 +311,7 @@ static const tm_api term_api = {
 	tm_api_clip, tm_api_pass, tm_api_title, tm_api_linkat, tm_api_linkuri,
 	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image,
 	tm_api_save, tm_api_load, tm_api_kbd, tm_api_copyseq, tm_api_copyop,
-	tm_api_syncleft, tm_api_mpix, tm_api_reply
+	tm_api_syncleft, tm_api_mpix, tm_api_reply, tm_api_pointer
 };
 
 const tm_api *tm_apiget(void)

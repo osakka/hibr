@@ -145,6 +145,10 @@ class Screen:
 
     def __init__(self, rows=ROWS, cols=COLS):
         self.rows, self.cols = rows, cols
+        # Every pointer shape a display set with OSC 22, in order: "none"
+        # to hide it, "" for the terminal's own (Gitea #373). A query is
+        # not a shape, so it is left out; a screen clear keeps the list.
+        self.ptr = []
         self.clear()
 
     def clear(self):
@@ -245,6 +249,9 @@ class Screen:
                 j = i + 2
                 while j < n and t[j] != "\x07" and t[j:j + 2] != "\x1b\\":
                     j += 1
+                body = t[i + 2:j]
+                if body.startswith("22;") and not body.startswith("22;?"):
+                    self.ptr.append(body[3:])
                 i = j + (2 if t[j:j + 2] == "\x1b\\" else 1)
                 continue
             if ch == "\x1b":
@@ -614,6 +621,16 @@ class Term:
                     f = b"62" + (b";4" if "sixel" in self.caps else b"") + \
                         b";22" + (b";28" if "deccra" in self.caps else b"")
                     os.write(self.fd, b"\x1b[?" + f + b"c")
+                continue
+            # OSC 22's query (Gitea #373): "ptr" is a terminal that can
+            # hide its pointer and answers `?none` with 1, "ptrno" one that
+            # knows pointer shapes and cannot; any other says nothing, as a
+            # terminal without OSC 22 does.
+            if m.group("osc").startswith(b"22;?"):
+                if self.caps is not None and "ptr" in self.caps:
+                    os.write(self.fd, b"\x1b]22;1\x1b\\")
+                elif self.caps is not None and "ptrno" in self.caps:
+                    os.write(self.fd, b"\x1b]22;0\x1b\\")
                 continue
             if self.bg is None:
                 continue

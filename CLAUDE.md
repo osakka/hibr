@@ -3820,6 +3820,13 @@ went in the shell.
   regardless. `tests/holdpix.py` drives a pixel-reporting terminal with it
   set.
 
+- **An OSC ends at BEL or at `ESC \`, and a pattern that knows only one
+  eats the stream up to the next** (0.99.311). Two bell checks removed every
+  OSC with `\x1b\][^\x07]*\x07` before looking for a bell; the day the
+  display began asking OSC 22 `?none` -- which ends `ESC \` -- that pattern
+  ran from the question to the bell and removed the bell with it, and the
+  check read as hold dropping it. Strip `\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

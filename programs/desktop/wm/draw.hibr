@@ -330,6 +330,12 @@ dt_draw() {
 	local -a ls
 
 	DT_WANT=
+	# A hidden pointer that no longer belongs hidden comes back, though
+	# nothing moved: a key took focus, or a menu opened (Gitea #373).
+	if [ -n "$DT_PTRNOW" ]; then
+		l := dt_ptrfor "$DT_PTRR" "$DT_PTRC"
+		dt_ptrput "$l"
+	fi
 	# Whichever one-line field draws itself focused this frame fills this
 	# again (widgets/text.hibr), so the desktop's own Copy acts on a
 	# field that is on the screen now rather than on one some earlier

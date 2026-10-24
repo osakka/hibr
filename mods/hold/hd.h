@@ -95,7 +95,19 @@ enum {
 	   #370). One int, 1. Such a client is asked for pixels when the
 	   program wants them; any other is turned into pixels at the middle
 	   of a cell. A server that does not know it ignores it. */
-	HD_MPIX = 'z'
+	HD_MPIX = 'z',
+	/* From a client: its own terminal answered the pointer-shape query,
+	   OSC 22 `?none`, asked with the rest before it joined (Gitea #373).
+	   One int, 1 when it can hide its pointer and 0 when it cannot; never
+	   sent by a client whose terminal did not answer. Such a client is
+	   sent the shape the program asks for, and `none` only when it said
+	   1. A server that does not know it ignores it. */
+	HD_PTR = 'h',
+	/* Whether each display's own terminal can hide its pointer, name and
+	   yes or no a line, as HD_PTR said -- what the desktop asks before
+	   offering a window a hidden pointer. Its own request for the reason
+	   HD_GFXLIST is. */
+	HD_PTRLIST = 'H'
 };
 
 /* How long an attaching client waits for its terminal to say what it
@@ -211,6 +223,11 @@ struct hd_cli {
 	   -- read again before each of the client's reads is passed on, so a
 	   report is turned into what the program asked for at that moment. */
 	int mpix, pixon, wantpix;
+	/* What this client's terminal said about pointer shapes (Gitea #373):
+	   0 nothing, 1 it knows them and cannot hide, 2 it can hide -- and the
+	   shape last sent to it, so a change is sent once. */
+	int ptrask;
+	str ptrsh;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;

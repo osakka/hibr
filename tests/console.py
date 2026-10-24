@@ -732,4 +732,51 @@ check("with no cell size pixels are not asked for either: " + got,
       b"\x1b[?1016h" not in raw and got == "mouse press left 2 4 -|cells")
 check("the mode request's answer is never read as a key", "1016" not in got)
 
-report(len(WANT) + len(MWANT) + 97)
+# The pointer (Gitea #373). The display asks OSC 22 `?none` with the rest;
+# a terminal that can hide its pointer says 1, one that knows shapes and
+# cannot says 0, one that does not know OSC 22 says nothing. `console
+# pointer hide` asks for `none`, and closing gives the pointer back -- only
+# when a shape was set, so a session that never asks changes nothing.
+PTR = """console open
+console flush
+i=0
+while [ $i -lt 8 ]; do console key 100 > /dev/null; i=$((i + 1)); done
+c := console pointer can
+echo "can $c" > @OUT@
+console pointer hide
+h := console pointer
+echo "now $h" >> @OUT@
+console key 200 > /dev/null
+console close
+"""
+
+
+def ptrrun(caps):
+    """One pass: what the display learned, what it set, and the bytes sent."""
+    out = sx.scratch("console-ptr.out")
+    path = sx.scratch("console-ptr.hibr")
+    if os.path.exists(out):
+        os.unlink(out)
+    open(path, "w").write("mod load %s\n%s" % (MOD, PTR.replace("@OUT@", out)))
+    t = Term(path, caps=caps, settle=0.4)
+    t.collect(2.5)
+    t.close()
+    os.unlink(path)
+    got = open(out).read() if os.path.exists(out) else ""
+    if os.path.exists(out):
+        os.unlink(out)
+    return got, t.screen().ptr, t.screen().text()
+
+
+got, ptr, txt = ptrrun(["ptr"])
+check("a terminal that can hide its pointer says so: " + got,
+      "can yes" in got and "now none" in got)
+check("hide sends none, and closing gives the pointer back: %r" % ptr,
+      ptr == ["none", ""])
+check("the query's answer is never typed in as text", "22;" not in txt)
+got, ptr, txt = ptrrun(["ptrno"])
+check("one that cannot says no: " + got, "can no" in got)
+got, ptr, txt = ptrrun([])
+check("one that does not know OSC 22 is unknown: " + got, "can unknown" in got)
+
+report(len(WANT) + len(MWANT) + 102)

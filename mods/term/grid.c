@@ -172,6 +172,7 @@ tm_t *tm_new(int rows, int cols)
 	s_init(&t->in);
 	s_init(&t->os);
 	s_init(&t->title);
+	s_init(&t->ptrs);
 	s_init(&t->clip);
 	s_init(&t->out);
 	s_init(&t->nq);
@@ -214,6 +215,7 @@ void tm_free(tm_t *t)
 	s_free(&t->in);
 	s_free(&t->os);
 	s_free(&t->title);
+	s_free(&t->ptrs);
 	s_free(&t->clip);
 	s_free(&t->out);
 	s_free(&t->nq);

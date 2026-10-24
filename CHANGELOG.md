@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.311
+
+**A window can hide the pointer over itself** (Gitea #373). A game that
+draws its own cursor -- Boxer's DOS games -- showed two arrows, the game's and
+the terminal's. An app asks for the terminal's to be hidden with
+`dt_pointer "$id" none`, and the desktop hides it while the pointer is over
+that window's content, the window has focus, no menu is open and hovering is
+on; on the frame, the bar, a menu or anywhere else it comes back, and it is
+always given back when the desktop closes or crashes.
+
+This needs a terminal that can hide its pointer, and almost none can: the
+standard way to set a pointer shape, OSC 22, has no hidden shape in kitty,
+foot or Ghostty. hibr asks each display's terminal at attach (OSC 22
+`?none`), and hold sends `none` only to one that said it can, so every other
+display keeps its pointer. Blit can, since it draws its own; it needs the
+change filed as blit#138 before Boxer shows one arrow there.
+
+New underneath: `console pointer hide|show|<shape>` and `console pointer
+can`, `hold pointers`, and the terminal emulator keeps the shape a program
+asks for (interface version 10). Shapes other than `none` -- a text cursor,
+a crosshair -- pass through the same way to terminals that know them.
+
 ## 0.99.310
 
 **Hover on Auto works on Blit.** Blit starts every session with

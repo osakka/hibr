@@ -999,5 +999,46 @@ check("with HIBR_GFX set, a terminal that reports pixels is still asked",
       b"\x1b[?1016h" in raw, raw[-300:])
 check("and hold pixels says it reports them", "pixels yes" in log, log)
 
+# The pointer through hold (Gitea #373). The held program asks for its
+# pointer hidden; hold's emulator keeps the shape, and each display is sent
+# it by what its own terminal said at attach: `none` to one that can hide,
+# its own pointer to one that cannot. A display that can is given its
+# pointer back as it leaves.
+def ptrheld(caps):
+    nm = name()
+    open(LOG, "w").close()
+    p = os.path.join(D, "pt%s.hibr" % nm)
+    open(p, "w").write(
+        load("console", "hold") + "console open\nconsole flush\n"
+        + "sleep %s\nconsole pointer hide\nconsole flush\n" % (1.5 * SLOW)
+        + 'hp := hold pointers; echo "pointers ${hp##* }" >> ' + LOG + "\n"
+        + "i=0\nwhile [ $i -lt %d ]; do console key 250; i=$((i + 1)); done\n"
+        % (12 * SLOW) + "console close\n")
+    outer = os.path.join(D, "y%s.hibr" % nm)
+    open(outer, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n'
+                           % (nm, p) + "sleep 0.6\nhold attach %s\n" % nm)
+    t = Term(outer, rows=24, cols=60, settle=1.0, env={"TMPDIR": D},
+             caps=caps)
+    for _ in range(int(24 * SLOW)):
+        t.collect(0.25)
+        if "pointers" in open(LOG).read():
+            break
+    t.collect(0.5)
+    os.write(t.fd, b"\x1c")
+    t.collect(1.0)
+    t.close()
+    kill(nm)
+    return t.screen().ptr, open(LOG).read()
+
+
+ptr, log = ptrheld(["ptr"])
+check("a display that can hide its pointer is sent none: %r" % ptr,
+      "none" in ptr)
+check("and given its pointer back as it leaves", ptr[-1:] == [""], ptr)
+check("and hold pointers says it can", "pointers yes" in log, log)
+ptr, log = ptrheld(["ptrno"])
+check("one that cannot is never sent none: %r" % ptr, "none" not in ptr)
+check("and hold pointers says it cannot", "pointers no" in log, log)
+
 shutil.rmtree(D, True)
-report(54)
+report(59)

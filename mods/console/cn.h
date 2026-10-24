@@ -205,6 +205,12 @@ void cn_gotkbd(void);
    pixels are in force carries `x,y` after its cell, and `-` when they were
    asked for and are not. */
 extern int cn_pixwant, cn_pixok, cn_pixon;
+/* The pointer's shape (Gitea #373): what the terminal said about hiding it
+   (-1 nothing, 0 cannot, 1 can) and the shape asked for. */
+extern int cn_ptrok, cn_ptrset;
+extern str cn_ptrnm;
+void cn_gotptr(int yes);
+void cn_pointer(const char *nm);
 void cn_gotmpix(int yes);
 void cn_pixapply(void);
 extern int cn_kbdon;

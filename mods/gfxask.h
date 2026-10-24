@@ -49,8 +49,15 @@
    picture query is, so an answer to those with none before it is a no.
    The mode request for 1016, SGR-Pixels (Gitea #370), goes the same way:
    a terminal that reports the mouse in pixels says so, and one that says
-   nothing before its device attributes does not. */
+   nothing before its device attributes does not. So does the pointer-shape
+   query, OSC 22 `?none` (Gitea #373): `1` where the terminal can hide its
+   pointer, `0` where it knows OSC 22 and cannot, nothing where it does not
+   know OSC 22 at all. */
 extern const char gx_ask[];
+
+/* An OSC at the front of p, taken whole, and when it is OSC 22's answer to
+   `?none`, *ptr set to 1 or 0. Returns as gx_apc does. */
+int gx_osc(const char *p, size_t n, size_t max, size_t *used, int *ptr);
 
 /* An APC at the front of p: 0 when more bytes are needed, -1 when it is not
    one (or is longer than max), 2 when it was taken, with *used its length
@@ -76,9 +83,11 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
    it reports the mouse in pixels. Those are asked whatever HIBR_GFX says:
    it names a picture protocol and nothing else, and Blit sets it for every
    session, so a forced answer that skipped the asking left every Blit
-   display with no pixel mouse, no kitty keyboard and no copy. */
+   display with no pixel mouse, no kitty keyboard and no copy. *ptr is 1
+   when it can hide its pointer, 0 when it knows pointer shapes and cannot,
+   -1 when it said nothing about them. */
 int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
-	     int *mpix);
+	     int *mpix, int *ptr);
 
 /* Milliseconds on a clock that only goes forward. */
 long gx_now(void);

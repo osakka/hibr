@@ -607,6 +607,7 @@ void tm_reset(tm_t *t, int hard)
 	t->mmode = t->msgr = t->bpaste = t->mpix = 0;
 	t->kbd = 0;
 	t->kst.n = 0;
+	t->ptrs.n = 0;
 	tm_setsync(t, 0);
 	tm_tabreset(t);
 	tm_altswap(t, 0);
@@ -716,6 +717,10 @@ void tm_oscend(tm_t *t)
 			t->title.p[0] = 0;
 		s_cat(&t->title, p);
 		lg(HIBR_LDBG, "terminal %d is called '%s'", t->id, p);
+		return;
+	}
+	if (which == 22) {
+		tm_ptrosc(t, p);
 		return;
 	}
 	if (which == 8) {
@@ -1149,6 +1154,55 @@ void tm_bell(tm_t *t)
 	t->bells++;
 	tm_pass(t, "\a", 1);
 	lg(HIBR_LDBG, "terminal %d rang the bell", t->id);
+}
+
+/* OSC 22, the pointer shape, as kitty documents it: `name` or `=name` sets
+   the one in force, `>a,b` pushes, `<` pops, an empty name puts the
+   terminal's own back, and a `?` query is left unanswered -- this terminal
+   has no pointer of its own, and whether the one it is drawn on can take a
+   shape is for whoever draws it to ask. */
+void tm_ptrosc(tm_t *t, const char *p)
+{
+	size_t k;
+	const char *q;
+
+	if (*p == '?')
+		return;
+	if (*p == '<') {
+		while (t->ptrs.n && t->ptrs.p[t->ptrs.n - 1] != '\n')
+			t->ptrs.n--;
+		if (t->ptrs.n)
+			t->ptrs.n--;
+		if (t->ptrs.p)
+			t->ptrs.p[t->ptrs.n] = 0;
+		return;
+	}
+	if (*p == '>') {
+		for (q = p + 1; *q;) {
+			k = strcspn(q, ",");
+			if (k) {
+				if (t->ptrs.n)
+					s_ch(&t->ptrs, '\n');
+				s_add(&t->ptrs, q, k);
+			}
+			q += k;
+			if (*q == ',')
+				q++;
+		}
+		return;
+	}
+	if (*p == '=')
+		p++;
+	if (!*p) {
+		t->ptrs.n = 0;
+		if (t->ptrs.p)
+			t->ptrs.p[0] = 0;
+		return;
+	}
+	while (t->ptrs.n && t->ptrs.p[t->ptrs.n - 1] != '\n')
+		t->ptrs.n--;
+	s_add(&t->ptrs, p, strcspn(p, ","));
+	lg(HIBR_LDBG, "terminal %d: pointer %s", t->id, p);
 }
 
 /* A notification, title then a tab then its text, one to a line, for the

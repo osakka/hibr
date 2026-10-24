@@ -94,6 +94,9 @@ and the flush cost shown live. Run it and press things.
 | `console mouse` | with no mode, which of them is in force -- what the console was asked for, since a terminal never says whether it obeyed |
 | `console pixels on\|off` | whether a mouse report also says where the pointer is in pixels, on a terminal that can say (mode 1016) |
 | `console pixels` | `on` while reports carry pixels, `cells` while they were asked for and the terminal cannot give them, `off` when nobody asked |
+| `console pointer hide\|show\|shape` | the terminal's pointer: hidden, its own again, or a shape named as kitty names them (`text`, `crosshair`, `wait`...), all as OSC 22; given back when the display closes. Nothing is sent for the shape already in force |
+| `console pointer can` | whether the terminal can hide its pointer, as it answered OSC 22's `?none`: `yes`, `no` (it knows shapes and cannot), or `unknown` (it does not know OSC 22, or has not answered) |
+| `console pointer` | the shape asked for, `default` for none |
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
 | `console darken row col h w [pct]` | shade what is already in the back buffer, a shadow |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
@@ -278,6 +281,15 @@ when it says so and a cell's size is known; the cell is then worked out
 from the pixel, so it is the same cell a cell report would have named.
 Inside `hold` pixels are always available, since hold turns a cell report
 into the middle of its cell.
+
+A program that draws a pointer of its own -- a game -- can hide the
+terminal's with `console pointer hide`, and should first ask
+`console pointer can`: no common terminal hides its pointer by an escape
+(kitty, foot and Ghostty take OSC 22 shapes, none of them `none`), so the
+answer is `no` or `unknown` almost everywhere, and hiding there does
+nothing. Inside `hold` each display is sent what its own terminal can take:
+`none` only where that terminal said it can hide, its own pointer elsewhere,
+and `hold pointers` says which is which.
 
 <!-- not run: needs a terminal: it waits for a click -->
 ```sh

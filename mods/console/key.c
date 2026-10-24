@@ -615,6 +615,10 @@ static int cn_osc(const char *p, size_t n, size_t *used)
 	if (i >= end || p[i] != ';')
 		return 2;
 	i++;
+	if (which == 22) {
+		cn_gotptr(i < end && p[i] == '1');
+		return 2;
+	}
 	if (which == 4) {
 		idx = 0;
 		while (i < end && p[i] >= '0' && p[i] <= '9')

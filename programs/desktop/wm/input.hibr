@@ -524,6 +524,73 @@ DT_HOVERBTN=
 DT_HOVERMT=
 DT_HOVERBI=
 
+# The pointer shape in force (Gitea #373): empty for the terminal's own, or
+# what the window under the pointer asked for with dt_pointer.
+DT_PTRNOW=
+
+# Ask for a pointer shape over a window's content: `none` hides the
+# terminal's pointer there -- a game drawing a cursor of its own -- and empty
+# gives it back. The terminal is asked only where hovering is on, since
+# without movement reports nothing would say the pointer had left; and a
+# display that cannot hide is given its own pointer by hold, so asking is
+# harmless anywhere. dt_ptrcan says whether any display can.
+fn dt_pointer(int id, shape = "") {
+	DT[$id]["ptr"]=$shape
+	return 0
+}
+
+# Whether a display of this desktop can hide its pointer: one of the held
+# session's said so at attach, or, unheld, the terminal the console asked.
+fn dt_ptrcan() {
+	local p
+
+	if [ -n "$HIBR_HOLD" ]; then
+		[ "$DT_PTRNAT" = 1 ]
+		return
+	fi
+	p := console pointer can 2> /dev/null || return 1
+	[ "$p" = yes ]
+}
+
+# Put a shape in force, once.
+fn dt_ptrput(shape = "") {
+	[ "$shape" = "$DT_PTRNOW" ] && return 0
+	DT_PTRNOW=$shape
+	console pointer "${shape:-show}" 2> /dev/null || :
+	return 0
+}
+
+# The shape the pointer at r,c wants: a window's own, over its content, while
+# it has focus, no menu is open and hovering is on. Anything else, the
+# terminal's own -- so a menu opening, focus moving or the pointer reaching a
+# window's frame gives it back.
+fn dt_ptrfor(r = "", c = "") {
+	local id= rr cc
+
+	if [ -n "$r" ] && [ "$MB_OPEN" = -1 ] && dt_hoveron; then
+		id := console hit "$r" "$c"
+		id=${id#w}
+	fi
+	case $id in
+	"" | *[!0-9]*) ret "" ;;
+	esac
+	if [ "$id" != "$DT_FOCUS" ] || [ -z "${DT[$id]["ptr"]-}" ]; then
+		ret ""
+	fi
+	rr=$((r - DT[$id]["row"]))
+	cc=$((c - DT[$id]["col"]))
+	if [ "$rr" -lt 1 ] || [ "$rr" -gt $((DT[$id]["h"] - 2)) ] ||
+	   [ "$cc" -lt 1 ] || [ "$cc" -gt $((DT[$id]["w"] - 2)) ]; then
+		ret ""
+	fi
+	ret "${DT[$id]["ptr"]}"
+}
+
+# Where the pointer last was, so a frame can ask again whether its shape
+# still holds when nothing has moved -- focus taken by a key, a menu opened.
+DT_PTRR=
+DT_PTRC=
+
 # The pointer moved with no button held (Gitea #370). An open menu follows
 # it, and moving onto another title on the bar opens that menu instead, as
 # every menu bar does; a window whose app has a _hover is told where it is,
@@ -582,6 +649,10 @@ fn dt_hover(int r, int c) {
 		DT_HOVERWIN=$id
 		${DT[$id]["hover"]} "$id" $((r - wr)) $((c - wc))
 	fi
+	DT_PTRR=$r
+	DT_PTRC=$c
+	b := dt_ptrfor "$r" "$c"
+	dt_ptrput "$b"
 	[ "$t" = "$was" ] && DT_HOVERQUIET=1
 	DT_HOVERT=$t
 	# A highlight that came or went is chrome a window left alone would not

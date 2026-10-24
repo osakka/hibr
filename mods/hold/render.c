@@ -313,6 +313,28 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 		s_add(&cn->title, tt.p ? tt.p : "", tt.n);
 	}
 	s_free(&tt);
+	/* The pointer shape the program asked for (Gitea #373), to a client
+	   whose terminal knows shapes at all, and `none` only to one that
+	   said it can hide: any other is sent its default, so a display that
+	   cannot hide keeps its pointer rather than losing it to a name it
+	   does not know. */
+	if (cn->ptrask) {
+		s_init(&tt);
+		if (hd_tm->pointer)
+			hd_tm->pointer(tid, &tt);
+		if (cn->ptrask < 2 && tt.n == 4 && !memcmp(tt.p, "none", 4))
+			tt.n = 0;
+		if (tt.n != cn->ptrsh.n ||
+		    (tt.n && memcmp(tt.p, cn->ptrsh.p, tt.n))) {
+			s_cat(out, "\033]22;");
+			if (tt.n)
+				s_add(out, tt.p, tt.n);
+			s_cat(out, "\033\\");
+			cn->ptrsh.n = 0;
+			s_add(&cn->ptrsh, tt.p ? tt.p : "", tt.n);
+		}
+		s_free(&tt);
+	}
 	if (!cn->primed || bpaste != cn->bpaste)
 		s_cat(out, bpaste ? "\033[?2004h" : "\033[?2004l");
 	if (!cn->primed || cshape != cn->cshape) {

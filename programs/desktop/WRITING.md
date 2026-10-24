@@ -103,6 +103,16 @@ them, since each declares what it takes; the cell it is told is the one that
 pixel is in. A window's own pixel is `DT_PX` less its column times the cell
 width, which `console gfx` answers (`kitty 8 16`).
 
+**A window that draws its own pointer** -- a game -- asks for the terminal's
+to be hidden over it with `dt_pointer "$id" none` (Gitea #373), and gives it
+back with `dt_pointer "$id"`. The desktop hides it only while the pointer is
+over that window's content, the window has focus, no menu is open and
+hovering is on, and gives it back anywhere else, on a frame, a menu or the
+bar. `dt_ptrcan` says whether any display of this desktop can hide its
+pointer at all; most terminals cannot, and a display that cannot simply
+keeps its pointer. Call both behind `dt_has`, since a desktop older than
+0.99.311 has neither.
+
 **An app reaches only what every scope has** ([ADR 0046](../../docs/adr/0046-an-installable-reaches-only-what-every-scope-has.md)).
 The catalogue installs an app into `~/.local/share/hibr/apps/`, which is read
 before the shipped copy, so an app has to work wherever it lands -- not only

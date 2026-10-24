@@ -113,6 +113,10 @@ struct tm_t {
 	int pn, pcap, pcur, pdig;
 	int pfx;
 	str in, os, title, clip;
+	/* The pointer shapes the program asked for (OSC 22, Gitea #373), one to
+	   a line, the last the one in force: a set replaces it, a push adds,
+	   a pop takes one off, an empty set clears them. */
+	str ptrs;
 	unsigned link;
 	char **lk;
 	int lkn, lkcap;
@@ -265,6 +269,8 @@ void tm_unb64(const char *p, str *out);
 int tm_api_clip(int id, str *out);
 int tm_api_pass(int id, str *out);
 int tm_api_title(int id, str *out);
+int tm_api_pointer(int id, str *out);
+void tm_ptrosc(tm_t *t, const char *p);
 unsigned tm_api_linkat(int id, int r, int c);
 const char *tm_api_linkuri(int id, unsigned link);
 const tm_api *tm_apiget(void);

@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 9u
+#define TM_API_VER 10u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -129,6 +129,11 @@ struct tm_api {
 	   held program asking where its cursor was waited for ever. 1 with
 	   it appended to out, 0 when nothing is waiting. */
 	int (*reply)(int id, str *out);
+	/* Version 10: the pointer shape the program asked for with OSC 22
+	   (Gitea #373) -- `none` to hide it -- appended to out; 0 for the
+	   terminal's own. For a relay to pass on to a real terminal that can
+	   take it. */
+	int (*pointer)(int id, str *out);
 };
 
 #endif

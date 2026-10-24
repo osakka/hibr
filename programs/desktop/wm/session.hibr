@@ -255,6 +255,10 @@ dt_size() {
 		if gl := hold pixels 2> /dev/null; then
 			case $'\n'"$gl" in *" yes"*) DT_HOVERNAT=1 ;; esac
 		fi
+		DT_PTRNAT=0
+		if gl := hold pointers 2> /dev/null; then
+			case $'\n'"$gl" in *" yes"*) DT_PTRNAT=1 ;; esac
+		fi
 		if gl := hold gfx 2> /dev/null; then
 			while IFS=' ' read -r gnm gv _; do
 				[ -n "$gnm" ] && dgfx["$gnm"]=$gv
@@ -444,6 +448,9 @@ DT_MOUSEHELD=0
 # Whether a display of this held session reports the pointer in pixels by
 # itself, from `hold pixels`, asked in dt_size with the rest of the displays.
 DT_HOVERNAT=0
+# Whether one of a held session's displays can hide its pointer, from
+# `hold pointers`, asked beside it (Gitea #373).
+DT_PTRNAT=0
 
 # Whether hovering is on: Control Panel > Mouse > Hover, where Auto is on
 # where a display reports pixels by itself -- one of the held session's,

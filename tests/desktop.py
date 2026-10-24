@@ -4188,7 +4188,8 @@ t = Term("-c", HOLDC + "hold new signals %s" % EMIT, env=HENV, settle=2.0)
 t.collect(0.5)
 check("a bell in a held session reaches the terminal attached to it",
       b"BEFORE" in t.out and
-      b"\x07" in re.sub(rb"\x1b\][^\x07]*\x07", b"", t.out), t.out)
+      b"\x07" in re.sub(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)", b"", t.out),
+      t.out)
 check("and so do its notifications, as it sent them",
       b"\x1b]9;built\x07" in t.out and
       b"\x1b]777;notify;make;all green\x07" in t.out, t.out)
@@ -6978,4 +6979,28 @@ sc4, _ = run(HVL, [0.5, hov(dr, dc), 0.3], env={"DT_HOVER": "on"})
 check("and so is a bar item", sc4.p[dr][dc] != sc0.p[dr][dc],
       (sc0.p[dr][dc], sc4.p[dr][dc]))
 
-report(765)
+# The pointer hidden over a window that asks (Gitea #373). A game drawing a
+# cursor of its own asks for none with dt_pointer; the desktop hides the
+# terminal's pointer while it is over that window's content, the window has
+# focus and hovering is on, and gives it back on the frame, on the bar and
+# anywhere else.
+PTA = ('pta_open() { dt_pointer "$1" none; }\n'
+       'pta_draw() { console put -p "w$1" 2 3 "game"; }\n'
+       'dt_new "Game" 8 30 6 10 pta\n')
+sc, _ = run(PTA, [1.5, hov(9, 20), 0.4, hov(0, 5), 0.4], caps=["ptr"],
+            env={"DT_HOVER": "on"})
+check("the pointer is hidden over the content of a window that asks: %r"
+      % sc.ptr, sc.ptr[:1] == ["none"])
+check("and given back when it leaves for the bar", sc.ptr[1:2] == [""],
+      sc.ptr)
+sc, _ = run(PTA, [1.5, hov(6, 20), 0.4], caps=["ptr"], env={"DT_HOVER": "on"})
+check("but not over the window's frame", "none" not in sc.ptr, sc.ptr)
+sc, _ = run(APP, [1.5, hov(9, 20), 0.4], caps=["ptr"], env={"DT_HOVER": "on"})
+check("a window that asked nothing keeps the pointer", "none" not in sc.ptr,
+      sc.ptr)
+sc, _ = run(PTA, [1.5, hov(9, 20), 0.4], caps=["ptr"],
+            env={"DT_HOVER": "off"})
+check("and with hovering off nothing would say it left, so nothing hides it",
+      "none" not in sc.ptr, sc.ptr)
+
+report(770)

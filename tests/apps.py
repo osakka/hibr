@@ -2831,7 +2831,8 @@ BELL = "TW_CMD=(/bin/sh -c 'sleep 0.5; printf \"\\007\"; sleep 5')"
 sc = run("clock", "8 24 14 50", pre=BELL, wait=1.5, end=None,
          also=[("Term", TW, "term")])
 check("a bell from a window without focus rings the real terminal",
-      b"\x07" in re.sub(rb"\x1b\][^\x07]*\x07", b"", sc.out), sc)
+      b"\x07" in re.sub(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)", b"", sc.out),
+      sc)
 check("and marks that window's title", sc.find("• Term") is not None, sc)
 sc = run("clock", "8 24 14 50", pre=BELL, wait=1.5, end=None,
          also=[("Term", TW, "term")],

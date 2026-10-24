@@ -421,7 +421,8 @@ int m_console(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: console open|close|size|clear|pen|put|"
-			      "fill|cursor|flush|shot|key|watch|unwatch|watching|pane|hit|mouse");
+			      "fill|cursor|flush|shot|key|watch|unwatch|watching|pane|hit|mouse|"
+			      "pixels|pointer");
 		return 2;
 	}
 	if (!strcmp(sub, "open"))
@@ -487,6 +488,30 @@ int m_console(sh *s, int ac, char **av)
 		}
 		cn_pixwant = !strcmp(m, "on");
 		cn_pixapply();
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "pointer")) {
+		const char *m = ac > 2 ? av[2] : "";
+
+		if (!*m || !strcmp(m, "can")) {
+			const char *a = *m ? (cn_ptrok == 1 ? "yes" :
+					      cn_ptrok == 0 ? "no" : "unknown") :
+				   cn_ptrnm.n ? cn_ptrnm.p : "default";
+
+			hibr_ret(s, a);
+			if (!s->bind)
+				printf("%s\n", a);
+			return HIBR_OK;
+		}
+		if (!strcmp(m, "hide"))
+			m = "none";
+		else if (!strcmp(m, "show") || !strcmp(m, "default"))
+			m = "";
+		if (strspn(m, "abcdefghijklmnopqrstuvwxyz-") != strlen(m)) {
+			lg(HIBR_LERR, "usage: console pointer [hide|show|can|shape]");
+			return 2;
+		}
+		cn_pointer(m);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "link")) {

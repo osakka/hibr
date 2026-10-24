@@ -405,6 +405,43 @@ void cn_onwinch(int n)
 	cn_wgen++;
 }
 
+/* The pointer (Gitea #373): what the terminal said about hiding it -- -1
+   nothing, 0 it knows shapes and cannot hide, 1 it can -- the shape last
+   asked for, and whether one is in force, which is what decides whether
+   leaving has a pointer to give back. A shape is OSC 22 as kitty documents
+   it; `none` hides it on a terminal that says it can. */
+int cn_ptrok = -1, cn_ptrset;
+str cn_ptrnm;
+static const char cn_ptroff[] = "\033]22;\033\\";
+
+/* The terminal answered OSC 22's `?none`. */
+void cn_gotptr(int yes)
+{
+	if (cn_ptrok != yes)
+		lg(HIBR_LDBG, "console: the terminal %s hide its pointer",
+		   yes ? "can" : "cannot");
+	cn_ptrok = yes;
+}
+
+/* Ask for a pointer shape, `none` to hide it, empty for the terminal's own;
+   nothing is sent for the shape already in force. */
+void cn_pointer(const char *nm)
+{
+	str o;
+
+	if ((cn_ptrnm.p ? !strcmp(cn_ptrnm.p, nm) : !*nm) || cn_fd < 0)
+		return;
+	cn_ptrnm.n = 0;
+	s_cat(&cn_ptrnm, nm);
+	s_init(&o);
+	s_cat(&o, "\033]22;");
+	s_cat(&o, nm);
+	s_cat(&o, "\033\\");
+	cn_wr(cn_fd, o.p, o.n);
+	s_free(&o);
+	cn_ptrset = *nm != 0;
+}
+
 /* Put the terminal back before a fatal signal is allowed to finish us -- in
    the process that took it, and nowhere else. */
 void cn_onfatal(int n)
@@ -414,6 +451,9 @@ void cn_onfatal(int n)
 		if (cn_kbdon)
 			cn_wr(cn_fd, cn_kbdpop, sizeof cn_kbdpop - 1);
 		cn_kbdon = 0;
+		if (cn_ptrset)
+			cn_wr(cn_fd, cn_ptroff, sizeof cn_ptroff - 1);
+		cn_ptrset = 0;
 		cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 		cn_on = 0;
 	}
@@ -866,6 +906,12 @@ void cn_close(sh *s)
 	if (cn_kbdon)
 		cn_wr(cn_fd, cn_kbdpop, sizeof cn_kbdpop - 1);
 	cn_kbdon = 0;
+	if (cn_ptrset)
+		cn_wr(cn_fd, cn_ptroff, sizeof cn_ptroff - 1);
+	cn_ptrset = 0;
+	cn_ptrnm.n = 0;
+	if (cn_ptrnm.p)
+		cn_ptrnm.p[0] = 0;
 	cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 	tcsetattr(cn_fd, TCSADRAIN, &cn_sv);
 	cn_unhook();
