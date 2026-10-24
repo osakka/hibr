@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.320
+
+**A display that joins no longer takes the primary from the one you started
+on.** When the primary display goes, hold hands the role to another until it
+comes back -- and when that stand-in went too, it was remembered as "was
+primary" the same as the real one, with a session-wide flag saying the
+primary now was only standing in that nothing ever cleared. So at the end of
+a day the displays went one by one, the primary first; the next morning the
+real one attached and was primary, and the display that had stood in joined
+and took the role, moving the menu bar with it. Hold now knows which display
+is standing in, per display, and remembers as primary only the real one; the
+real one still takes the role back from a stand-in when it returns.
+Reproduced first in a held session of three displays, and `790-hold` now
+holds the sequence: against the old hold it reads `main 0 side 1`.
+
 ## 0.99.319
 
 **Two variables 0.99.317 left global in the Browser and YouTube apps.** `o` in

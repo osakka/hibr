@@ -490,6 +490,27 @@ hold slot t15 up > /dev/null; echo "up's place, now other's: $?"
 hold kill t15
 pty close $a
 pty close $c
+echo "--- a display that stood in for the primary does not take it from the real one later"
+hold new -d t16 /bin/sh -c 'sleep 120'
+a := pty spawn -r 24 -c 80 $H -c "$L; export HIBR_GFX=none; hold attach -n main t16; echo \"back rc=\$?\""
+attached t16
+b := pty spawn -r 10 -c 80 $H -c "$L; export HIBR_GFX=none; hold attach -m -n side t16 0 80; echo \"back rc=\$?\""
+attached t16 2
+pty close $a
+fewer t16 1
+echo "side stands in: $(hold clients t16 | awk '{printf "%s %s ", $1, $NF}')"
+pty close $b
+fewer t16 0
+a := pty spawn -r 24 -c 80 $H -c "$L; export HIBR_GFX=none; hold attach -n main t16; echo \"back rc=\$?\""
+attached t16
+s := hold slot t16 side
+read -r sr sc _ <<< "$s"
+b := pty spawn -r 10 -c 80 $H -c "$L; export HIBR_GFX=none; hold attach -m -n side t16 $sr $sc; echo \"back rc=\$?\""
+attached t16 2
+echo "main keeps it: $(hold clients t16 | sort | awk '{printf "%s %s ", $1, $NF}')"
+hold kill t16
+pty close $a
+pty close $b
 
 echo "--- upgrade takes the session onto the hibr on disk now"
 hold new -d t6 /bin/sh -c 'echo UPGRADE-MARKER; sleep 120'

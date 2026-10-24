@@ -171,11 +171,11 @@ struct hd_cli *hd_cprimary(vec *cls)
 /* Every display that has gone, by name: a display that joins again under
    the same name asks where it was (HD_SLOT) and lands there, rather than
    beside everything, where the windows it had are on no screen at all
-   (Gitea #297). hd_autoprim says the primary now is only primary because
-   the one that was went; that one takes it back when it returns, unless a
-   person chose another in between. */
+   (Gitea #297). A display remembered as primary takes the role back when it
+   returns from whichever display is only standing in for it (autop), unless
+   a person chose another in between; a stand-in is never remembered as
+   primary itself. */
 vec hd_slots;
-int hd_autoprim;
 
 /* The remembered place of the display a name belongs to: the part of it
    before any #, since a second display from one machine is n#2. */
@@ -219,7 +219,21 @@ void hd_slotkeep(struct hd_cli *cn)
 	sl->col = cn->col - hd_shiftc;
 	sl->rows = cn->rows;
 	sl->cols = cn->cols;
-	sl->primary = cn->primary;
+	sl->primary = cn->primary && !cn->autop;
+}
+
+/* Whether a display other than the one called nm is remembered as the real
+   primary, so one that takes the role now is only standing in for it. */
+int hd_slotprim(const char *nm, size_t n)
+{
+	struct hd_slot *mine = hd_slotfind(nm, n);
+	size_t i;
+
+	for (i = 0; i < hd_slots.n; i++)
+		if (hd_slots.p[i] != mine &&
+		    ((struct hd_slot *)hd_slots.p[i])->primary)
+			return 1;
+	return 0;
 }
 
 /* The furthest row and column any attached client's viewport reaches --
@@ -462,12 +476,13 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 
 			/* The primary that went, coming back to a primary
 			   that is only primary because it went. */
-			if (sl && sl->primary && pc && hd_autoprim) {
+			if (sl && sl->primary && pc && pc->autop) {
 				pc->primary = 0;
+				pc->autop = 0;
 				cn->primary = 1;
-				hd_autoprim = 0;
 			} else if (!pc) {
 				cn->primary = 1;
+				cn->autop = hd_slotprim(cn->name.p, cn->name.n);
 			}
 		}
 		v_add(cls, cn);
@@ -728,7 +743,7 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			hd_union(cls, id, tid);
 			if (wasp && cls->n) {
 				((struct hd_cli *)cls->p[0])->primary = 1;
-				hd_autoprim = 1;
+				((struct hd_cli *)cls->p[0])->autop = 1;
 			}
 			/* The union shrank, or the primary changed, or both. */
 			hd_poke(m);
@@ -743,10 +758,13 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		size_t pi;
 
 		if (cn2) {
-			for (pi = 0; pi < cls->n; pi++)
+			for (pi = 0; pi < cls->n; pi++) {
 				((struct hd_cli *)cls->p[pi])->primary = 0;
+				((struct hd_cli *)cls->p[pi])->autop = 0;
+			}
+			for (pi = 0; pi < hd_slots.n; pi++)
+				((struct hd_slot *)hd_slots.p[pi])->primary = 0;
 			cn2->primary = 1;
-			hd_autoprim = 0;
 			/* Nudge the program to re-read who is primary now. */
 			hd_poke(m);
 		}
@@ -1012,7 +1030,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 			hd_gone = 0;
 			if (cls.n && !hd_anyprimary(&cls)) {
 				((struct hd_cli *)cls.p[0])->primary = 1;
-				hd_autoprim = 1;
+				((struct hd_cli *)cls.p[0])->autop = 1;
 			}
 			if (cls.n && hd_union(&cls, id, tid))
 				hd_rensend(&cls, tid);

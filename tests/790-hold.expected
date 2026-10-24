@@ -98,6 +98,9 @@ the other is primary meanwhile: up 1
 and low is again: low 10,0 1 up 0,0 0 
 --- a remembered place another display has taken is not offered
 up's place, now other's: 1
+--- a display that stood in for the primary does not take it from the real one later
+side stands in: side 1 
+main keeps it: main 1 side 0 
 --- upgrade takes the session onto the hibr on disk now
 upgrade: 0
 still listed: 1

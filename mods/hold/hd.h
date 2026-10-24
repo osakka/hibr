@@ -239,6 +239,11 @@ struct hd_cli {
 	   the first client to attach, until the panel picks another. */
 	str name;
 	int primary;
+	/* Primary only because the real one went: a stand-in, which gives the
+	   role back when that one returns, and which is not remembered as
+	   primary when it leaves itself -- or the display that stood in at the
+	   end of one day takes the primary from the real one the next. */
+	int autop;
 	/* What this client's own terminal said it draws, which decides
 	   whether a picture is sent to it at all: a bitmap sent to a terminal
 	   that cannot draw one is a black rectangle nothing repaints, and once
@@ -295,6 +300,7 @@ struct hd_slot {
 void hd_cdrop(vec *cls, int fd);
 void hd_slotkeep(struct hd_cli *cn);
 struct hd_slot *hd_slotfind(const char *nm, size_t n);
+int hd_slotprim(const char *nm, size_t n);
 struct hd_cli *hd_cprimary(vec *cls);
 struct hd_cli *hd_cfind(vec *cls, int fd);
 struct hd_cli *hd_cfindname(vec *cls, const char *name);
