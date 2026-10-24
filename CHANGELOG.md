@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.99.319
+
+**Two variables 0.99.317 left global in the Browser and YouTube apps.** `o` in
+`bw_heard` (the window events a page raised) and `l` in `yt_drawplay` (the
+quality label in the player's bar) were assigned without a `local`, which
+`strict vars` refuses at run time, so those lines did nothing there.
+`tests/strictvars.py` found both (2319 of 2319 now); `tests/web.py` 57 and
+`tests/youtube.py` 39 pass.
+
 ## 0.99.318
 
 **The bar frame's title bar is square at its ends.** 0.99.316 drew them as

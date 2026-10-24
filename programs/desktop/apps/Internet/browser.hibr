@@ -348,7 +348,7 @@ fn bw_dlstop() {
 # What the browser has to say since it was last asked: a download that
 # ended, and a page's notification, each a note of the desktop's own.
 bw_heard() {
-	local l k x why tn dn du dir
+	local l k o x why tn dn du dir
 
 	if x := web downloaded 2> /dev/null; then
 		while IFS=$'\t' read -r k l why; do

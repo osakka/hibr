@@ -1130,7 +1130,7 @@ fn yt_drawcc(int id, int h, int w) {
 }
 
 fn yt_drawplay(int id, int h, int w) {
-	local p=${YT[$id]["p"]} ph=$((h - 2)) pos dur lab fill st a b mk="" md pm
+	local p=${YT[$id]["p"]} ph=$((h - 2)) pos dur lab fill st a b mk="" md pm l
 
 	# a step first, so the title and the clock drawn are this moment's
 	[ -n "$p" ] && yt_tick "$id"
