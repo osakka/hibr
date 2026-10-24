@@ -4,14 +4,16 @@
 # picture drawn as cells and the sound through the machine's own device,
 # with a history that takes a video up where it was left, and favourites.
 #
-# Nothing here is a YouTube client of its own. YouTube's own page runs in
-# the web module's headless Chromium -- its player fetching the video, at
-# the lowest quality (YT_QUALITY), muted -- and the web module's tap copies
-# every chunk the player hands the browser's media source. Those chunks go
-# down two pipes into a media player, which decodes them with FFmpeg's
-# libraries and plays them here: the page does the fetching, hibr does the
-# watching. A search, a playlist or a channel is read from the page's own
-# data the same way.
+# Nothing here is a YouTube client of its own. YouTube's own page runs in the
+# web module's engine, and what the engine can do is its `web caps`. With
+# WebKit (hibr-browser) the engine fetches, decodes and plays the video itself,
+# picture and sound, as it does any page's; the page is drawn here as cells or
+# pixels with YouTube's own controls set aside. With Chromium the page's player
+# fetches the video at the lowest quality, muted, and the web module's tap
+# copies every chunk it hands the browser's media source down two pipes into a
+# media player, which decodes them with FFmpeg's libraries and plays them here.
+# Either way this app drives YouTube's player: play and pause, a time, the
+# volume. A search, a playlist or a channel is read from the page's own data.
 #
 # A list: type to search -- or paste a playlist's, a channel's or a
 # video's address -- and enter; up and down choose, enter plays a video or
@@ -20,18 +22,21 @@
 # the Go menu too.
 # The player: space pauses, left and right are five seconds, shift with
 # them thirty, up and down the volume, n and p the next video and the one
-# before, f a favourite, m the picture (half blocks, ASCII, plain), escape
+# before, f a favourite, m the picture (half blocks, ASCII, plain), c the
+# captions (drawn here as text, in the window, not in the picture), q the
+# quality (144p, 240p, 360p, 480p, and round again), h the history and v the
+# favourites (both end the video, noting where it was), escape
 # back to the list. A click on the bar goes there. At the end of a video
 # the next in the list plays, unless Play > Play Next Automatically is off.
 #
 # The history and the favourites are files of their own, a line to an
 # entry (~/.local/share/hibr/youtube/). YouTube's ads are played as
-# YouTube's player plays them, through the same media source: they come
-# down the same pipes.
+# YouTube's player plays them (with Chromium, through the same media source:
+# they come down the same pipes).
 
 strict
 
-app youtube "YouTube, in a window" 2.1
+app youtube "YouTube, in a window" 3.5
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -49,9 +54,13 @@ YT_BASE="${YT_BASE-https://www.youtube.com}"
 # old default, and cp_setver7 brings that one -- and only that one -- here.
 YT_MODE="${YT_MODE-follow}"
 YT_QUALITY="${YT_QUALITY-tiny}"
+YT_AUTONEXT="${YT_AUTONEXT-1}"
+# Captions, when the video has them: off until asked for, c or Play > Captions.
+YT_CAPTIONS="${YT_CAPTIONS-0}"
+# With an engine whose video is played here (tap): frames a second and how
+# finely the picture is coloured, which decide how much a terminal is sent.
 YT_FPS="${YT_FPS-24}"
 YT_DETAIL="${YT_DETAIL-2}"
-YT_AUTONEXT="${YT_AUTONEXT-1}"
 # Whether a playing video keeps the screen saver, and the lock with it,
 # away: on unless chosen otherwise, the owner's choice (Gitea #277).
 YT_SAVERHOLD="${YT_SAVERHOLD-1}"
@@ -61,7 +70,7 @@ YT_SAVERHOLD="${YT_SAVERHOLD-1}"
 YT_MINISHADOW="${YT_MINISHADOW-1}"
 YT_MINISTICKY="${YT_MINISTICKY-1}"
 YT_MINIGEO="${YT_MINIGEO-}"
-command -v dt_keep > /dev/null && dt_keep YT_MODE YT_QUALITY YT_FPS YT_DETAIL YT_AUTONEXT YT_SAVERHOLD YT_MINISHADOW YT_MINISTICKY YT_MINIGEO
+command -v dt_keep > /dev/null && dt_keep YT_MODE YT_QUALITY YT_FPS YT_DETAIL YT_CAPTIONS YT_AUTONEXT YT_SAVERHOLD YT_MINISHADOW YT_MINISTICKY YT_MINIGEO
 YT_MODES=(follow half ascii mono pixels)
 YT_DATA="${YT_DATA-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/youtube}"
 YT_HIST="$YT_DATA/history.tsv"
@@ -82,39 +91,79 @@ YT_RJS='(function(){var d=window.ytInitialData;if(!d)return "";function t(x){ret
 
 # Where YouTube's player is: its state, the time, the length, the title,
 # and whether it is showing its own error.
-YT_PJS='(function(){var p=document.getElementById("movie_player"),v=document.querySelector("video");if(!p||!p.getPlayerState)return "";var d=p.getVideoData?p.getVideoData():{};return JSON.stringify({st:p.getPlayerState(),t:v?v.currentTime:0,d:p.getDuration?p.getDuration():0,title:d.title||"",author:d.author||"",e:document.querySelector(".ytp-error")?1:0})})()'
+YT_PJS='(function(){var p=document.getElementById("movie_player"),v=document.querySelector("video");if(!p||!p.getPlayerState)return "";var d=p.getVideoData?p.getVideoData():{};return JSON.stringify({st:p.getPlayerState(),t:v?v.currentTime:0,d:p.getDuration?p.getDuration():0,title:d.title||"",author:d.author||"",e:document.querySelector(".ytp-error")?1:0,pa:v&&v.paused?1:0,en:v&&v.ended?1:0,rs:v?v.readyState:0,u:location.href,cc:(function(){var l=[].slice.call(document.querySelectorAll(".ytp-caption-segment")).map(function(e){return e.textContent});return l.some(function(t){return /Click\s+for settings/.test(t)})?"":l.join(" ")})(),vol:v?Math.round(v.volume*100):100,fr:v&&v.getVideoPlaybackQuality?v.getVideoPlaybackQuality().totalVideoFrames:0})})()'
 
-# Start YouTube's player once it is there: the quality asked for, muted --
-# the sound is ours -- and playing.
-fn yt_startjs(q) {
-	ret "(function(){var p=document.getElementById(\"movie_player\");if(!p||!p.playVideo)return \"\";try{p.setPlaybackQualityRange(\"$q\",\"$q\")}catch(e){}if(p.mute)p.mute();p.playVideo();return \"ok\"})()"
+# Start YouTube's player once it is there: the quality asked for, the
+# volume, captions off, and the page cut down to the video. That is done by
+# structure, not by YouTube's names for things: every element that does not
+# hold the video is hidden (the masthead, the recommendations, the comments,
+# the player's own controls and overlays), and every one that does -- the
+# video's ancestors -- fills the window. A redesign of the page changes none
+# of it, since it names nothing; and covering the extras instead does not
+# work, as they sit outside the player's stacking context.
+YT_CSS='html,body{overflow:hidden!important;background:#000!important;margin:0!important}body *:not(:has(video)):not(video){display:none!important}body *:has(video){display:block!important;position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;transform:none!important;overflow:hidden!important;background:#000!important}video{display:block!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;border-radius:0!important;background:#000!important}'
+fn yt_startjs(q, v, vid, cc) {
+	ret "(function(){var p=document.getElementById(\"movie_player\");if(!p||!p.playVideo||location.href.indexOf(\"v=$vid\")<0)return \"\";if(!document.getElementById(\"hibr-yt\")){var c=document.createElement(\"style\");c.id=\"hibr-yt\";c.textContent='$YT_CSS';document.head.appendChild(c)}try{p.setPlaybackQualityRange(\"$q\",\"$q\")}catch(e){}try{p.${cc}Module(\"captions\")}catch(e){}if(p.unMute)p.unMute();if(p.setVolume)p.setVolume($v);p.playVideo();return \"ok\"})()"
 }
 
-# Whether the modules are here; the reason in the window when not.
+# The same for an engine with a tap: muted, since the sound is ours, and the
+# page left as it is, since its picture is not what is drawn.
+fn yt_startjs_tap(q, cc) {
+	ret "(function(){var p=document.getElementById(\"movie_player\");if(!p||!p.playVideo)return \"\";try{p.setPlaybackQualityRange(\"$q\",\"$q\")}catch(e){}try{p.${cc}Module(\"captions\")}catch(e){}if(p.mute)p.mute();p.playVideo();return \"ok\"})()"
+}
+
+# What to tell YouTube's player about captions, as the name of the call.
+fn yt_ccword() {
+	[ "$YT_CAPTIONS" = 1 ] && ret load || ret unload
+}
+
+# What the engine does, as `web caps` says it, asked the first time: Chromium's
+# page is tapped and its media played here (tap), WebKit plays the page itself
+# (sound). Both are one app; only the carrying of the video differs.
+YT_CAPS=
+fn yt_has(c) {
+	[ -n "$YT_CAPS" ] || YT_CAPS := web caps 2> /dev/null
+	case " $YT_CAPS " in *" $c "*) return 0 ;; esac
+	return 1
+}
+fn yt_tap() {
+	yt_has tap
+}
+
+# Whether the engine is here; the reason in the window when not.
 fn yt_need(int id) {
 	if ! need web 2> /dev/null; then
 		YT[$id]["err"]="The web module is not installed"
 		return 1
 	fi
-	if ! need media 2> /dev/null; then
-		YT[$id]["err"]="The media module is not installed"
-		return 1
+	if yt_tap; then
+		if ! need media 2> /dev/null; then
+			YT[$id]["err"]="The media module is not installed"
+			return 1
+		fi
+		return 0
 	fi
-	return 0
+	yt_has sound && return 0
+	YT[$id]["err"]="YouTube needs an engine that plays sound: apt install hibr-browser, or Chromium"
+	return 1
 }
 
-# A tab of the window's own: st for lists, pt for playing. The player's
-# has the tap, so every chunk its page plays can be taken.
+# A tab of the window's own: st for lists, pt for playing. The player's has
+# the tap where the engine has one, so every chunk its page plays can be taken;
+# else it is let play sound without a press, since the page is one that was
+# opened to be watched.
 fn yt_tab(int id, which) {
 	local t=${YT[$id]["$which"]}
 
 	if [ -z "$t" ]; then
 		dt_has bw_cfg && bw_cfg
 		t := web open 2> /dev/null || {
-			YT[$id]["err"]="No Chromium or Chrome to reach YouTube with -- install one, or set HIBR_WEB_BROWSER"
+			YT[$id]["err"]="No browser engine to reach YouTube with -- install hibr-browser or Chromium, or set HIBR_WPE or HIBR_WEB_BROWSER"
 			return 1
 		}
-		[ "$which" = pt ] && web tap "$t" 2> /dev/null
+		if [ "$which" = pt ]; then
+			if yt_tap; then web tap "$t" 2> /dev/null; else web sound "$t" load 2> /dev/null; fi
+		fi
 		YT[$id]["$which"]=$t
 	fi
 	ret "$t"
@@ -153,6 +202,9 @@ fn yt_load(int id, kind, arg, head = "", push = 1) {
 	local t u
 
 	yt_need "$id" || return 0
+	# Going to a list from the player ends the video: where it was is noted in
+	# the history, and nothing goes on playing, unheard of, behind the list.
+	[ -n "${YT[$id]["p"]}" ] && yt_stop "$id"
 	if [ "$push" = 1 ] && [ -n "${YT[$id]["kind"]}" ]; then
 		YT[$id]["stack"]+="${YT[$id]["kind"]}"$'\t'"${YT[$id]["arg"]}"$'\t'"${YT[$id]["head"]}"$'\n'
 	fi
@@ -340,8 +392,8 @@ fn yt_histput(int id, pos = "") {
 	[ -n "$vid" ] || return 0
 	p=$pos
 	if [ -z "$p" ] && [ -n "${YT[$id]["p"]}" ]; then
-		i := media info "${YT[$id]["p"]}" 2> /dev/null
-		p=${i["pos"]}
+		yt_info "$id"
+		p=${YTI["pos"]}
 	fi
 	p=${p%.*}
 	d=${d%.*}
@@ -417,25 +469,30 @@ fn yt_choose(int id, int i) {
 	esac
 }
 
-# Play a list's video: a fed media player with a pipe for the picture and
-# one for the sound, and YouTube's watch page in the player tab, tapped.
-# A video left part way is taken up where it was.
+# Play a list's video: YouTube's watch page in the player tab, which the
+# engine plays itself, or whose chunks go to a media player here (tap). A
+# video left part way is taken up where it was.
 fn yt_play(int id, int i) {
-	local vid=${YR[$id][$i]["id"]} p t v a
+	local vid=${YR[$id][$i]["id"]} t p v a
 
 	[ -n "$vid" ] || return 0
 	yt_need "$id" || return 0
 	yt_stop "$id"
 	t := yt_tab "$id" pt || return 0
-	p := media feed 2> /dev/null || { YT[$id]["err"]="The media module cannot play"; return 0; }
-	v := media pipe "$p" video
-	a := media pipe "$p" audio
-	media fps "$p" "$YT_FPS"
-	media detail "$p" "$YT_DETAIL"
-	media volume "$p" "${YT[$id]["vol"]:-100}" > /dev/null
+	p=$t
+	if yt_tap; then
+		# A fed media player, a pipe for the picture and one for the sound.
+		p := media feed 2> /dev/null || { YT[$id]["err"]="The media module cannot play"; return 0; }
+		v := media pipe "$p" video
+		a := media pipe "$p" audio
+		media fps "$p" "$YT_FPS"
+		media detail "$p" "$YT_DETAIL"
+		media volume "$p" "${YT[$id]["vol"]:-100}" > /dev/null
+		YT[$id]["vfd"]=$v
+		YT[$id]["afd"]=$a
+	fi
 	YT[$id]["p"]=$p
-	YT[$id]["vfd"]=$v
-	YT[$id]["afd"]=$a
+	YT[$id]["fed"]=
 	YT[$id]["cur"]=$i
 	YT[$id]["vid"]=$vid
 	YT[$id]["title"]=${YR[$id][$i]["title"]}
@@ -447,24 +504,26 @@ fn yt_play(int id, int i) {
 	YT[$id]["view"]=play
 	YT[$id]["err"]=
 	YT[$id]["dur"]=0
+	YT[$id]["lpos"]=0
 	YT[$id]["tries"]=0
 	YT[$id]["bad"]=0
 	YT[$id]["chk"]=$EPOCHSECONDS
 	YT[$id]["resume"]=
-	YT[$id]["fed"]=
+	YT[$id]["upause"]=
+	YT[$id]["efr"]=
+	YT[$id]["pat"]=
 	if yt_histget "$vid" && [ "${YTH[5]:-0}" -gt "$YT_RESUME" ]; then
 		YT[$id]["resume"]=${YTH[5]}
 	fi
 	web go "$t" "$YT_BASE/watch?v=$vid" 2> /dev/null
 }
 
-# Stop playing, noting where it was left: the media player closed, the
-# page left.
+# Stop playing, noting where it was left: the page left.
 fn yt_stop(int id) {
 	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]}
 
 	[ -n "$p" ] && [ "${YT[$id]["state"]}" = playing ] && yt_histput "$id"
-	[ -n "$p" ] && media close "$p" 2> /dev/null
+	[ -n "$p" ] && yt_tap && media close "$p" 2> /dev/null
 	[ -n "$t" ] && web go "$t" about:blank 2> /dev/null
 	YT[$id]["p"]=
 	YT[$id]["state"]=
@@ -491,29 +550,83 @@ fn yt_next(int id, int dir) {
 	yt_play "$id" "$i"
 }
 
-# Ask YouTube's player where it is, into YTP.
+# Ask YouTube's player where it is, into YTP; at most five times a second,
+# since a window is drawn more often than the clock moves.
 declare -gA YTP
+YTPID=
 fn yt_page(int id) {
-	local js
+	local js now
 
-	YTP=()
+	now=${EPOCHREALTIME/./}
+	now=${now:0:-3}
+	if [ "$YTPID" = "$id" ] && [ -n "${YT[$id]["pat"]}" ] && [ $((now - YT[$id]["pat"])) -lt 200 ] && [ -n "${YTP["st"]}" ]; then
+		return 0
+	fi
 	js := web eval "${YT[$id]["pt"]}" "$YT_PJS" 2> /dev/null || return 1
 	[ -n "$js" ] || return 1
+	YTP=()
 	json parse YTP <<< "$js" 2> /dev/null || return 1
+	# The page asked is the video's own: right after a go the one before is
+	# still there, and what it says is about another video.
+	case ${YTP["u"]} in
+	*"v=${YT[$id]["vid"]}"*) ;;
+	*) YTP=(); return 1 ;;
+	esac
+	YT[$id]["pat"]=$now
+	YTPID=$id
+	YT[$id]["lpos"]=${YTP["t"]}
 	return 0
 }
 
-# One step of playing: start the page's player once it is there, carry
-# what it has fetched down the pipes, keep up with a new media source -- a
-# reset, at the start and at an ad -- by starting again from where the page
-# is, take up a video where it was left, and at the end go on to the next.
+# What the player reports, into YTI: the position and length, paused or
+# ended, the volume, and a count of the frames it has shown. What was last
+# known stands where the page cannot answer, as at the very start.
+declare -gA YTI
+fn yt_info(int id) {
+	local i
+
+	YTI["pos"]=${YT[$id]["lpos"]:-0}
+	YTI["dur"]=${YT[$id]["dur"]:-0}
+	YTI["paused"]=0
+	YTI["ended"]=0
+	YTI["volume"]=${YT[$id]["vol"]:-100}
+	YTI["shown"]=${YT[$id]["lshown"]:-0}
+	YTI["drawn"]=${YT[$id]["md"]:-cells}
+	if yt_tap && [ -n "${YT[$id]["p"]}" ]; then
+		# The media player is the clock here, not the page.
+		i := media info "${YT[$id]["p"]}" 2> /dev/null || return 0
+		YTI["pos"]=${i["pos"]}
+		YTI["dur"]=${i["dur"]}
+		YTI["paused"]=${i["paused"]}
+		YTI["ended"]=${i["ended"]}
+		YTI["volume"]=${i["volume"]}
+		YTI["shown"]=${i["shown"]}
+		YTI["drawn"]=${i["drawn"]}
+		return 0
+	fi
+	[ -n "${YT[$id]["pt"]}" ] || return 0
+	yt_page "$id" || return 0
+	YTI["pos"]=${YTP["t"]}
+	YTI["paused"]=${YTP["pa"]:-0}
+	YTI["ended"]=${YTP["en"]:-0}
+	YTI["shown"]=${YTP["fr"]:-0}
+	YT[$id]["lshown"]=${YTP["fr"]:-0}
+	return 0
+}
+
+# One step of playing: start the page's player once it is there, take up a
+# video where it was left, and at the end go on to the next.
 fn yt_tick(int id) {
-	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js ms tm i m
+	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js m i e ms tm
 	local -a w
 
 	[ -n "$p" ] || return 0
 	if [ "${YT[$id]["state"]}" = loading ]; then
-		js := yt_startjs "$YT_QUALITY"
+		if yt_tap; then
+			js := yt_startjs_tap "$YT_QUALITY" "$(yt_ccword)"
+		else
+			js := yt_startjs "$YT_QUALITY" "${YT[$id]["vol"]:-100}" "${YT[$id]["vid"]}" "$(yt_ccword)"
+		fi
 		s := web eval "$t" "$js" 2> /dev/null
 		[ "$s" = ok ] && YT[$id]["state"]=playing
 		if [ "${YT[$id]["state"]}" = loading ] &&
@@ -528,19 +641,22 @@ fn yt_tick(int id) {
 		fi
 		dt_want 300
 	fi
-	s := web take "$t" "${YT[$id]["vfd"]}" "${YT[$id]["afd"]}" 2> /dev/null
-	read -ra w <<< "$s"
-	if [ "${w[5]}" = 1 ]; then
-		# The tap stops at a new media source, so ours starts again
-		# here, before any of the new stream has arrived. None of
-		# that stream's own init segments has been taken yet, which
-		# is what a seek needs, so "fed" goes back to empty with it.
-		YT[$id]["fed"]=
-		tm=0
-		yt_page "$id" && tm=${YTP["t"]}
-		media seek "$p" "$tm"
-	elif [ "${w[1]:-0}" -gt 0 ] || [ "${w[3]:-0}" -gt 0 ]; then
-		YT[$id]["fed"]=1
+	if yt_tap; then
+		# Carry what the page has fetched down the pipes. A new media source
+		# -- a reset, at the start and at an ad -- is kept up with by starting
+		# ours again from where the page is; none of that stream's own init
+		# segments has been taken yet, which a seek needs, so "fed" goes back
+		# to empty with it.
+		s := web take "$t" "${YT[$id]["vfd"]}" "${YT[$id]["afd"]}" 2> /dev/null
+		read -ra w <<< "$s"
+		if [ "${w[5]}" = 1 ]; then
+			YT[$id]["fed"]=
+			tm=0
+			yt_page "$id" && tm=${YTP["t"]}
+			media seek "$p" "$tm"
+		elif [ "${w[1]:-0}" -gt 0 ] || [ "${w[3]:-0}" -gt 0 ]; then
+			YT[$id]["fed"]=1
+		fi
 	fi
 	if [ "${YT[$id]["dur"]%.*}" = 0 ] && yt_page "$id"; then
 		YT[$id]["dur"]=${YTP["d"]}
@@ -550,20 +666,11 @@ fn yt_tick(int id) {
 			YT[$id]["len"] := yt_mmss "${YT[$id]["dur"]}"
 		fi
 	fi
-	# Taking a video up where it was left waits for the first of its own
-	# bytes to have been taken, not merely for the page's player to be
-	# there: a seek drops ours and asks the tap to queue each stream's
-	# init segment again, and the tap can only queue back an init it has
-	# already seen. Asked before the new page has appended anything, it
-	# empties the queue instead, the page's own player is sent to a time
-	# in buffers it has not filled, and what comes back is one stream
-	# with no init and the other not at all -- so nothing ever decodes:
-	# the picture stays on the last frame it had and the clock never
-	# moves again. Measured at half the runs of the suite's own check for
-	# the page giving up part way, and the same race was there for a
-	# video taken up from the history (Gitea #135).
+	# Taking a video up where it was left waits for the player to know its
+	# length and to hold some of the video: before that there is nothing to
+	# go to (yt_held).
 	if [ -n "${YT[$id]["resume"]}" ] && [ "${YT[$id]["state"]}" = playing ] &&
-	   [ -n "${YT[$id]["fed"]}" ] && [ "${YT[$id]["dur"]%.*}" -gt 0 ]; then
+	   yt_held "$id"; then
 		m := yt_mmss "${YT[$id]["resume"]}"
 		yt_seek "$id" "${YT[$id]["resume"]}"
 		YT[$id]["resume"]=
@@ -576,10 +683,24 @@ fn yt_tick(int id) {
 		[ "${YT[$id]["state"]}" = playing ] || return 0
 	fi
 	if [ "${YT[$id]["state"]}" = playing ]; then
-		i := media info "$p" 2> /dev/null
+		yt_info "$id"
 		m=${YT[$id]["dur"]%.*}
-		if [ "${i["ended"]}" = 1 ] ||
-		   { [ "${m:-0}" -gt 0 ] && [ "${i["pos"]%.*}" -ge "$m" ]; }; then
+		# Ended: the page says so, or the clock is within a second of the
+		# length and no frame has come for two.
+		e=0
+		[ "${YTI["ended"]}" = 1 ] && e=1
+		if yt_tap; then
+			# The media player's own clock: at the length is the end.
+			[ "${m:-0}" -gt 0 ] && [ "${YTI["pos"]%.*}" -ge "$m" ] && e=1
+		elif [ "$e" = 0 ] && [ "${m:-0}" -gt 0 ] && [ "${YTI["pos"]%.*}" -ge $((m - 1)) ]; then
+			if [ "${YTI["shown"]}" != "${YT[$id]["efr"]}" ]; then
+				YT[$id]["efr"]=${YTI["shown"]}
+				YT[$id]["eat"]=$EPOCHSECONDS
+			elif [ $((EPOCHSECONDS - ${YT[$id]["eat"]:-$EPOCHSECONDS})) -ge 2 ]; then
+				e=1
+			fi
+		fi
+		if [ "$e" = 1 ]; then
 			yt_histput "$id" "${YT[$id]["dur"]}"
 			YT[$id]["state"]=ended
 			if [ "$YT_AUTONEXT" = 1 ] && i := yt_step "$id" 1; then
@@ -589,27 +710,48 @@ fn yt_tick(int id) {
 			fi
 		fi
 	fi
-	ms := media next "$p" 2> /dev/null
-	[ -n "$ms" ] && [ "$ms" -ge 0 ] && dt_want "$ms"
-	dt_want 250
+	if yt_tap; then
+		# When the media player next wants something from us.
+		ms := media next "$p" 2> /dev/null
+		[ -n "$ms" ] && [ "$ms" -ge 0 ] && dt_want "$ms"
+	else
+		dt_want 250
+	fi
+}
+
+# Whether the player holds enough of the video to be taken to a time: it
+# knows its length and, with a tap, the start of each stream has been taken
+# (a seek asks the tap to queue each init segment again, and it can only queue
+# back one it has seen -- asked before, nothing ever decodes); with the engine
+# playing it, some of the video is buffered. (Gitea #135.)
+fn yt_held(int id) {
+	if yt_tap; then
+		[ -n "${YT[$id]["fed"]}" ] && [ "${YT[$id]["dur"]%.*}" -gt 0 ]
+	else
+		[ "${YT[$id]["dur"]%.*}" -gt 0 ] && yt_page "$id" && [ "${YTP["rs"]:-0}" -ge 3 ]
+	fi
 }
 
 # Every few seconds while playing: whether YouTube's own player is still
 # going. It can stop -- its "Something went wrong", or back to unstarted --
-# and then nothing more is fetched, so ours would play out what it has and
-# freeze. Unstarted twice running, or its error once, and the video is
-# loaded again and taken up where it was.
+# and then nothing more plays. Unstarted twice running, or its error once,
+# and the video is loaded again and taken up where it was.
 fn yt_watch(int id) {
-	local i
-
-	i := media info "${YT[$id]["p"]}" 2> /dev/null
-	[ "${i["paused"]}" = 1 ] && return 0
+	# Paused by the viewer is not stopped: the page pausing itself, as it
+	# does when it gives up, is.
+	[ -n "${YT[$id]["upause"]}" ] && return 0
+	yt_info "$id"
 	yt_page "$id" || return 0
 	if [ "${YTP["e"]}" = 1 ]; then
-		yt_recover "$id" "${i["pos"]%.*}"
-	elif [ "${YTP["st"]}" = -1 ] && [ "${i["pos"]%.*}" -gt 3 ]; then
+		yt_recover "$id" "${YTI["pos"]%.*}"
+	elif [ "${YTP["pa"]}" = 1 ] && [ "${YTP["en"]}" != 1 ] && [ "${YTI["pos"]%.*}" -le 3 ]; then
+		# Paused at the very start, and nobody here paused it: a play() the
+		# page turned down before it had anything to play. Asked again.
+		web eval "${YT[$id]["pt"]}" 'document.getElementById("movie_player").playVideo()' > /dev/null 2>&1
+		YT[$id]["pat"]=
+	elif [ "${YTP["st"]}" = -1 ] && [ "${YTI["pos"]%.*}" -gt 3 ]; then
 		YT[$id]["bad"]=$(( ${YT[$id]["bad"]:-0} + 1 ))
-		[ "${YT[$id]["bad"]}" -ge 2 ] && yt_recover "$id" "${i["pos"]%.*}"
+		[ "${YT[$id]["bad"]}" -ge 2 ] && yt_recover "$id" "${YTI["pos"]%.*}"
 	else
 		YT[$id]["bad"]=0
 	fi
@@ -640,42 +782,52 @@ fn yt_recover(int id, int pos) {
 	fi
 	YT[$id]["state"]=loading
 	YT[$id]["since"]=$EPOCHSECONDS
-	YT[$id]["fed"]=
+	YT[$id]["pat"]=
 	web go "${YT[$id]["pt"]}" "$YT_BASE/watch?v=${YT[$id]["vid"]}" 2> /dev/null
 }
 
-# Pause or play both: ours, and the page's, so it fetches only as we go.
+# Pause or play, in YouTube's player -- and in ours, where the video is played
+# here, so the page fetches only as we go.
 fn yt_toggle(int id) {
-	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]} i
+	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]}
 
 	[ -n "$p" ] || return 0
-	i := media info "$p"
-	if [ "${i["paused"]}" = 1 ]; then
-		media play "$p"
+	YT[$id]["pat"]=
+	yt_info "$id"
+	if [ "${YTI["paused"]}" = 1 ]; then
+		YT[$id]["upause"]=
+		yt_tap && media play "$p"
 		web eval "$t" 'document.getElementById("movie_player").playVideo()' > /dev/null 2>&1
 	else
-		media pause "$p"
+		YT[$id]["upause"]=1
+		yt_tap && media pause "$p"
 		web eval "$t" 'document.getElementById("movie_player").pauseVideo()' > /dev/null 2>&1
 		yt_histput "$id"
 	fi
+	YT[$id]["pat"]=
 }
 
-# Go to a time: ours dropped and started again, the tap given the start of
-# each stream again, the page's player sent there.
+# Go to a time: YouTube's player sent there.
 fn yt_seek(int id, to) {
-	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]} i d
+	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]} d
 
 	[ -n "$p" ] || return 0
-	i := media info "$p"
+	YT[$id]["pat"]=
+	yt_info "$id"
 	case $to in
-	+* | -*) to=$(( ${i["pos"]%.*} + to )) ;;
+	+* | -*) to=$(( ${YTI["pos"]%.*} + to )) ;;
 	esac
 	d=${YT[$id]["dur"]%.*}
 	[ "$to" -lt 0 ] && to=0
 	[ "$d" -gt 0 ] && [ "$to" -gt "$d" ] && to=$d
-	media seek "$p" "$to"
-	web tapseek "$t" > /dev/null 2>&1
+	if yt_tap; then
+		# Ours dropped and started again, the tap given the start of each
+		# stream again.
+		media seek "$p" "$to"
+		web tapseek "$t" > /dev/null 2>&1
+	fi
 	web eval "$t" "document.getElementById(\"movie_player\").seekTo($to,true)" > /dev/null 2>&1
+	YT[$id]["pat"]=
 }
 
 # --- the window -----------------------------------------------------------
@@ -780,7 +932,7 @@ fn youtube_resume(int id) {
 # reset -- so the saver came over a video being watched (Gitea #299).
 # Whether the clock moved is the one thing that cannot be mistaken.
 fn youtube_awake(int id) {
-	local i was
+	local was
 
 	[ "${YT_SAVERHOLD:-1}" = 1 ] || return 1
 	dt_hidden "$id" && return 1
@@ -788,11 +940,11 @@ fn youtube_awake(int id) {
 	# list, or the page's player being brought back after it gave up.
 	[ "${YT[$id]["state"]}" = loading ] && return 0
 	[ -n "${YT[$id]["p"]}" ] || return 1
-	i := media info "${YT[$id]["p"]}" 2> /dev/null
-	[ "${i["paused"]}" = 1 ] && return 1
+	yt_info "$id"
+	[ "${YTI["paused"]}" = 1 ] && return 1
 	was=${YT[$id]["awshown"]}
-	YT[$id]["awshown"]=${i["shown"]}
-	[ "${i["shown"]}" != "$was" ]
+	YT[$id]["awshown"]=${YTI["shown"]}
+	[ "${YTI["shown"]}" != "$was" ]
 }
 
 fn youtube_idle(int id) {
@@ -902,10 +1054,87 @@ fn yt_mmss(t) {
 	ret "$out"
 }
 
-# The player: the title, the picture, the bar, the keys.
-fn yt_drawplay(int id, int h, int w) {
-	local p=${YT[$id]["p"]} ph=$((h - 2)) i pos dur lab fill st a b mk="" md pm
+# The page in the player's tab, drawn into the window from a row and column: laid out
+# at the window's size and drawn as pixels where the display takes them,
+# else as cells, or as characters for ascii and mono. A display that
+# declines the pixels is found out by the draw failing while the video
+# plays; the picture then goes on as cells, and says so (YT[md]). Fails
+# until the page has made a frame.
+fn yt_picture(int id, w, h, row, col, md) {
+	local t=${YT[$id]["pt"]} m=cells p=${YT[$id]["p"]}
 
+	[ -n "$t" ] || return 1
+	if yt_tap; then
+		# The media player draws it: sized, a frame taken, drawn.
+		[ -n "$p" ] || return 1
+		if [ "${YT[$id]["sized"]}" != "$w $h $md" ]; then
+			media size "$p" "$w" "$h" "$md"
+			YT[$id]["sized"]="$w $h $md"
+		fi
+		media frame "$p"
+		media draw "$p" "$row" "$col" -p "w$id" 2> /dev/null
+		return
+	fi
+	case $md in
+	pixels | ascii | mono) m=$md ;;
+	esac
+	[ "$m" = pixels ] && [ "${YT[$id]["decl"]}" = "$w $h" ] && m=cells
+	if [ "${YT[$id]["sized"]}" != "$w $h $m" ]; then
+		web size "$t" "$h" "$w" 2> /dev/null
+		web mode "$t" "$m" 2> /dev/null
+		YT[$id]["sized"]="$w $h $m"
+		YT[$id]["md"]=$m
+		YT[$id]["pfail"]=0
+	fi
+	web render "$t" 2> /dev/null || return 1
+	if web draw "$t" "$row" "$col" -p "w$id" 2> /dev/null; then
+		YT[$id]["pfail"]=0
+		return 0
+	fi
+	if [ "$m" = pixels ] && [ "${YT[$id]["state"]}" = playing ]; then
+		YT[$id]["pfail"]=$(( ${YT[$id]["pfail"]:-0} + 1 ))
+		if [ "${YT[$id]["pfail"]}" -ge 3 ]; then
+			YT[$id]["decl"]="$w $h"
+			YT[$id]["sized"]=
+		fi
+	fi
+	return 1
+}
+
+# The player: the title, the picture, the bar, the keys.
+# The captions as text over the picture's bottom rows, at most two lines of
+# what the player is showing now, wrapped to the window and centred.
+fn yt_drawcc(int id, int h, int w) {
+	local t=${YTP["cc"]} n=$((w - 6)) r=$((h - 1)) l1 l2=""
+
+	[ "$YTPID" = "$id" ] || return 0
+	[ -n "$t" ] || return 0
+	[ "$n" -ge 10 ] || return 0
+	if [ "${#t}" -le "$n" ]; then
+		l1=$t
+	elif [ "${#t}" -le $((n * 2)) ]; then
+		l1=${t:0:$n}
+		l2=${t:$n}
+	else
+		# more than two lines: the end is what is being said now
+		l1=${t: -$((n * 2)):$n}
+		l2=${t: -$n}
+	fi
+	console pen "$DT_INK" "$DT_WELL" bold
+	if [ -n "$l2" ]; then
+		console put -p "w$id" $((r - 1)) $(( (w - ${#l1}) / 2 )) " $l1 "
+		console put -p "w$id" "$r" $(( (w - ${#l2}) / 2 )) " $l2 "
+	else
+		console put -p "w$id" "$r" $(( (w - ${#l1}) / 2 )) " $l1 "
+	fi
+}
+
+fn yt_drawplay(int id, int h, int w) {
+	local p=${YT[$id]["p"]} ph=$((h - 2)) pos dur lab fill st a b mk="" md pm
+
+	# a step first, so the title and the clock drawn are this moment's
+	[ -n "$p" ] && yt_tick "$id"
+	p=${YT[$id]["p"]}
 	if command -v dt_retitle > /dev/null; then
 		local wt
 		wt := dt_wintitle YouTube "${YT[$id]["title"]:0:40}"
@@ -922,28 +1151,23 @@ fn yt_drawplay(int id, int h, int w) {
 		console put -p "w$id" 3 2 "${YT[$id]["err"]:-Stopped.}"
 		return 0
 	fi
-	yt_tick "$id"
-	p=${YT[$id]["p"]}
 	[ -n "$p" ] || return 0
 	md := yt_drawmode
-	if [ "${YT[$id]["sized"]}" != "$w $ph $md" ]; then
-		media size "$p" "$w" "$ph" "$md"
-		YT[$id]["sized"]="$w $ph $md"
-	fi
-	media frame "$p"
-	if ! media draw "$p" 2 1 -p "w$id" 2> /dev/null; then
+	if ! yt_picture "$id" "$w" "$ph" 2 1 "$md"; then
 		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" 3 2 "Loading${GL[ellipsis]}"
 	fi
-	i := media info "$p"
-	pos=${i["pos"]}
+	yt_info "$id"
+	[ "$YT_CAPTIONS" = 1 ] && yt_drawcc "$id" "$h" "$w"
+	pos=${YTI["pos"]}
 	dur=${YT[$id]["dur"]}
-	[ "${dur%.*}" -gt 0 ] 2> /dev/null || dur=${i["dur"]}
+	[ "${YT[$id]["state"]}" = ended ] && pos=$dur
+	[ "${dur%.*}" -gt 0 ] 2> /dev/null || dur=${YTI["dur"]}
 	a := yt_mmss "$pos"
 	b := yt_mmss "$dur"
 	st="playing"
-	[ "${i["paused"]}" = 1 ] && st="paused"
-	[ "${i["ended"]}" = 1 ] || [ "${YT[$id]["state"]}" = ended ] && st="ended"
+	[ "${YTI["paused"]}" = 1 ] && st="paused"
+	[ "${YTI["ended"]}" = 1 ] || [ "${YT[$id]["state"]}" = ended ] && st="ended"
 	[ "${YT[$id]["state"]}" = loading ] && st="starting"
 	# What is drawn, and -- when it is following Control Panel > Pictures
 	# -- that it is following rather than set: a bar that said only "half"
@@ -968,9 +1192,10 @@ fn yt_drawplay(int id, int h, int w) {
 	# as a fact, and it is why this has been unresolvable from outside:
 	# the one reading anybody could take could not tell the four layers
 	# apart. `media info`'s own `drawn` says what happened (#199).
-	[ "$md" = pixels ] && [ "${i["drawn"]}" = cells ] &&
+	[ "$md" = pixels ] && [ "${YTI["drawn"]}" = cells ] &&
 		pm="$pm (drawn as blocks: the display declined)"
-	lab=" $a / $b  $st  vol ${i["volume"]}  ${pm}"
+	l := yt_qlab "$YT_QUALITY"
+	lab=" $a / $b  $st  vol ${YTI["volume"]}  $l  ${pm}"
 	fill=0
 	[ "${dur%.*}" -gt 0 ] 2> /dev/null && fill=$(( ${pos%.*} * w / ${dur%.*} ))
 	[ "$fill" -gt "$w" ] && fill=$w
@@ -996,16 +1221,28 @@ fn youtube_key(int id, key) {
 		shift-right) yt_seek "$id" +30; return 0 ;;
 		up | down)
 			[ -n "$p" ] || return 0
-			v := media volume "$p"
+			yt_info "$id"
+			v=${YTI["volume"]}
 			[ "$key" = up ] && v=$((v + 10)) || v=$((v - 10))
-			v := media volume "$p" "$v"
+			[ "$v" -gt 100 ] && v=100
+			[ "$v" -lt 0 ] && v=0
+			if yt_tap; then
+				media volume "${YT[$id]["p"]}" "$v" > /dev/null
+			else
+				web eval "${YT[$id]["pt"]}" "(function(){var p=document.getElementById(\"movie_player\");if(p&&p.setVolume)p.setVolume($v);var e=document.querySelector(\"video\");if(e)e.volume=$v/100})()" > /dev/null 2>&1
+			fi
 			YT[$id]["vol"]=$v
+			YT[$id]["pat"]=
 			return 0
 			;;
 		n) yt_next "$id" 1; return 0 ;;
 		p) yt_next "$id" -1; return 0 ;;
 		f) yt_fav "$id"; return 0 ;;
 		m) yt_mode; return 0 ;;
+		c) yt_captions "$id"; return 0 ;;
+		q) yt_quality "$id"; return 0 ;;
+		h) yt_load "$id" history ""; return 0 ;;
+		v) yt_load "$id" favourites ""; return 0 ;;
 		escape | backspace)
 			if [ "${YT[$id]["mini"]}" = 1 ]; then
 				yt_mini "$id"
@@ -1163,7 +1400,7 @@ fn youtube_paste(int id, text, op = "") {
 }
 
 youtube_menus() {
-	local id=$DT_FOCUS v on
+	local id=$DT_FOCUS v on q l x
 
 	# Every key the window takes is here, beside its item: the line of
 	# hints under the list and the player went, and their rows with it.
@@ -1233,6 +1470,17 @@ youtube_menus() {
 	on=0
 	[ "$YT_AUTONEXT" = 1 ] && on=1
 	dt_mark "Play Next Automatically" a "$on" yt_autonext
+	on=0
+	[ "$YT_CAPTIONS" = 1 ] && on=1
+	dt_mark "Captions" c "$on" yt_captions "$id"
+	dt_sep
+	for q in "${YT_QUALITIES[@]}"; do
+		on=0
+		[ "$YT_QUALITY" = "$q" ] && on=1
+		l := yt_qlab "$q"
+		x := dt_tr "Quality %s" "$l"
+		dt_mark "$x" "${l:0:1}" "$on" yt_setquality "$q"
+	done
 	dt_menu "Picture"
 	for v in "${YT_MODES[@]}"; do
 		on=0
@@ -1311,12 +1559,7 @@ fn yt_drawmini(int id, int h, int w) {
 	p=${YT[$id]["p"]}
 	if [ -n "$p" ]; then
 		md := yt_drawmode
-		if [ "${YT[$id]["sized"]}" != "$w $h $md" ]; then
-			media size "$p" "$w" "$h" "$md"
-			YT[$id]["sized"]="$w $h $md"
-		fi
-		media frame "$p"
-		media draw "$p" 0 0 -p "w$id" 2> /dev/null && return 0
+		yt_picture "$id" "$w" "$h" 0 0 "$md" && return 0
 	fi
 	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" $((h / 2)) 1 "${YT[$id]["title"]:0:$((w - 2))}"
@@ -1384,6 +1627,57 @@ fn yt_minishadow(int id) {
 fn yt_setmode(v) {
 	YT_MODE=$v
 	command -v dt_save > /dev/null && dt_save
+}
+
+# The quality's levels, in the order q steps through them, and what each is.
+YT_QUALITIES=(tiny small medium large)
+fn yt_qlab(q) {
+	case $q in
+	tiny) ret 144p ;;
+	small) ret 240p ;;
+	medium) ret 360p ;;
+	large) ret 480p ;;
+	*) ret "$q" ;;
+	esac
+}
+
+# Set the quality and tell every player playing now: it takes it at once, not
+# at the next video. Kept for next time as well.
+fn yt_setquality(q) {
+	local id
+
+	YT_QUALITY=$q
+	command -v dt_save > /dev/null && dt_save
+	for id in "${!YT[@]}"; do
+		[ -n "${YT[$id]["p"]}" ] && [ -n "${YT[$id]["pt"]}" ] || continue
+		web eval "${YT[$id]["pt"]}" "(function(){var p=document.getElementById(\"movie_player\");try{p.setPlaybackQualityRange(\"$q\",\"$q\")}catch(e){}})()" > /dev/null 2>&1
+	done
+	dt_want 10
+}
+
+# The next level up, and round to the lowest after the highest.
+fn yt_quality(int id = 0) {
+	local i q l
+
+	for i in "${!YT_QUALITIES[@]}"; do
+		[ "${YT_QUALITIES[$i]}" = "$YT_QUALITY" ] && break
+	done
+	q=${YT_QUALITIES[$(( (i + 1) % ${#YT_QUALITIES[@]} ))]}
+	yt_setquality "$q"
+	l := yt_qlab "$q"
+	dt_notep low "Quality %s" "$l"
+}
+
+# Captions on or off: kept for next time, and told to the player playing now.
+fn yt_captions(int id = 0) {
+	if [ "$YT_CAPTIONS" = 1 ]; then YT_CAPTIONS=0; else YT_CAPTIONS=1; fi
+	command -v dt_save > /dev/null && dt_save
+	local w
+	w := yt_ccword
+	[ -n "${YT[$id]["pt"]}" ] && [ -n "${YT[$id]["p"]}" ] &&
+		web eval "${YT[$id]["pt"]}" "(function(){var p=document.getElementById(\"movie_player\");try{p.${w}Module(\"captions\")}catch(e){}})()" > /dev/null 2>&1
+	YT[$id]["pat"]=
+	dt_want 10
 }
 
 yt_autonext() {

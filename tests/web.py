@@ -391,7 +391,7 @@ check("and as blocks it is laid out at 8 a cell whatever the font",
 expect("no Chromium or Chrome found")
 sc = brun([], env={"HIBR_WEB_BROWSER": "/nonexistent/chromium"})
 check("without a browser to drive, the window says what is missing",
-      sc.find("No Chromium or Chrome") is not None, sc)
+      sc.find("No browser engine") is not None, sc)
 
 # A browser that will not start says why in the log, and a page the browser
 # refuses to load says so too (Gitea #327): Chromium's own output went to

@@ -2,7 +2,7 @@
 #
 # browserset -- the Control Panel pane for the Browser (Gitea #276): the
 # home page and the search, how a page is drawn, what each tab is told --
-# JavaScript, images, dark pages, zoom, the user agent -- what Chromium is
+# JavaScript, images, dark pages, zoom, the user agent -- what the engine is
 # started with, and forgetting cookies, the cache and the back and forward
 # lists. Named browserset, not browser, because the app owns the browser_
 # prefix. The words are typed in a small window of their own, bwfield.
@@ -11,8 +11,10 @@
 # addresses never fetched; what a page may be given -- location, camera,
 # microphone, notifications -- refused or allowed, since a headless browser
 # can ask nobody, with Allow saying what it can do here; and downloads into
-# a folder. Permissions and downloads are the whole browser's, so the
-# YouTube player's tabs share them.
+# a folder -- or, with that off and an engine that can ask, the desktop's Save
+# dialog asking where each file goes. What the engine can do is its `web caps`:
+# a row is there only when it lists it. Permissions and downloads are the
+# whole browser's, so the YouTube player's tabs share them.
 #
 # Gitea #305: Pages May Play Sound On Their Own, off -- a page's sound
 # starts with the first press or key on it, the browser's own rule, or as
@@ -20,7 +22,7 @@
 
 strict
 
-app browserset "The Control Panel pane for the Browser" 1.5
+app browserset "The Control Panel pane for the Browser" 1.7
 command -v cp_pane > /dev/null && cp_pane browserset "Browser" "◎" app
 command -v dt_app > /dev/null &&
 	dt_app bwfield "Browser Setting" 8 64 "" "" fixed hidden
@@ -87,6 +89,17 @@ fn bs_row(int w, int n, var) {
 	CP[$w][$n]["key"]="field:$var"
 }
 
+# What the engine can do, asked the first time it is needed; an engine that is not
+# there lists nothing, and the pane offers only what every engine does.
+BS_CAPS=
+fn bs_has(c) {
+	if [ -z "$BS_CAPS" ] && need web 2> /dev/null; then
+		BS_CAPS := web caps 2> /dev/null
+	fi
+	case " $BS_CAPS " in *" $c "*) return 0 ;; esac
+	return 1
+}
+
 fn browserset_rows(int w) {
 	local n=0 md
 
@@ -124,10 +137,12 @@ fn browserset_rows(int w) {
 	CP[$w][$n]["text"]="User Agent"; bs_row "$w" "$n" BW_UA; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Privacy"; n=$((n + 1))
 	CP[$w][$n]["text"]="Languages"; bs_row "$w" "$n" BW_LANG; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Do Not Track"
-	CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=off; [ "$BW_DNT" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=BW_DNT; n=$((n + 1))
+	if bs_has dnt; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Do Not Track"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "$BW_DNT" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=BW_DNT; n=$((n + 1))
+	fi
 	CP[$w][$n]["text"]="Block Addresses"; bs_row "$w" "$n" BW_BLOCK
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="What a Page May Have"
@@ -162,15 +177,20 @@ fn browserset_rows(int w) {
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=preset; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Downloads"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Allow Downloads"
+	bs_has dlasks && CP[$w][$n]["text"]="Save Downloads Without Asking"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$BW_DL" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=BW_DL; n=$((n + 1))
 	CP[$w][$n]["text"]="Folder"; bs_row "$w" "$n" BW_DLDIR; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="When Chromium Next Starts"
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="When the Engine Next Starts"
 	n=$((n + 1))
-	CP[$w][$n]["text"]="Program"; bs_row "$w" "$n" BW_PROGRAM; n=$((n + 1))
+	if bs_has config; then
+		CP[$w][$n]["text"]="Program"; bs_row "$w" "$n" BW_PROGRAM; n=$((n + 1))
+	fi
 	CP[$w][$n]["text"]="Profile Folder"; bs_row "$w" "$n" BW_PROFILE; n=$((n + 1))
-	CP[$w][$n]["text"]="Extra Flags"; bs_row "$w" "$n" BW_ARGS; n=$((n + 1))
+	if bs_has config; then
+		CP[$w][$n]["text"]="Extra Flags"; bs_row "$w" "$n" BW_ARGS; n=$((n + 1))
+	fi
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Forget"; n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear Cookies"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=cookies; n=$((n + 1))
@@ -192,7 +212,7 @@ fn bs_clear(what) {
 		history) dt_note "History cleared" ;;
 		esac
 	else
-		dt_notep high "No Chromium or Chrome to clear"
+		dt_notep high "No browser engine to clear"
 	fi
 }
 
@@ -272,12 +292,18 @@ fn bwfield_draw(int id, int h, int w, int row, int col) {
 	BW_HOME) dt_tput "$id" 1 2 "Home page, opened by a new window or tab:" ;;
 	BW_SEARCH) dt_tput "$id" 1 2 "Search address; what is searched for goes at the end:" ;;
 	BW_UA) dt_tput "$id" 1 2 "User agent the pages are told:" ;;
-	BW_PROGRAM) dt_tput "$id" 1 2 "Program to run as the browser:" ;;
 	BW_PROFILE) dt_tput "$id" 1 2 "Folder for cookies, the cache and history:" ;;
-	BW_ARGS) dt_tput "$id" 1 2 "Extra flags for the browser:" ;;
 	BW_LANG) dt_tput "$id" 1 2 "Languages pages are asked for, first wanted most:" ;;
 	BW_BLOCK) dt_tput "$id" 1 2 "Addresses never fetched, * for anything:" ;;
-	BW_DLDIR) dt_tput "$id" 1 2 "Folder downloads are saved in:" ;;
+	BW_PROGRAM) dt_tput "$id" 1 2 "Program to run as the browser:" ;;
+	BW_ARGS) dt_tput "$id" 1 2 "Extra flags for the browser:" ;;
+	BW_DLDIR)
+		if bs_has dlasks; then
+			dt_tput "$id" 1 2 "Folder downloads go to, and the Save dialog starts in:"
+		else
+			dt_tput "$id" 1 2 "Folder downloads are saved in:"
+		fi
+		;;
 	esac
 	dt_textdraw "$id" 2 2 $((w - 4)) "${BSF[$id]["buf"]}" \
 		"${BSF[$id]["cur"]}" "$on"
@@ -287,12 +313,18 @@ fn bwfield_draw(int id, int h, int w, int row, int col) {
 	BW_HOME) dt_tput "$id" 4 2 "Empty opens a blank page, ready to type in." ;;
 	BW_SEARCH) dt_tput "$id" 4 2 "Empty makes words typed in the address an address." ;;
 	BW_UA) dt_tput "$id" 4 2 "Empty is what the browser says it is." ;;
-	BW_PROGRAM) dt_tput "$id" 4 2 "Empty finds Chromium or Chrome. Used at the next start." ;;
 	BW_PROFILE) dt_tput "$id" 4 2 "Empty is hibr's own. Used at the next start." ;;
-	BW_ARGS) dt_tput "$id" 4 2 "Separated by spaces. Used at the next start." ;;
 	BW_LANG) dt_tput "$id" 4 2 "Such as fr-FR, fr, en. Empty is the browser's own." ;;
 	BW_BLOCK) dt_tput "$id" 4 2 "Separated by spaces, such as *doubleclick.net*" ;;
-	BW_DLDIR) dt_tput "$id" 4 2 "Made if it is not there. Used once downloads are on." ;;
+	BW_PROGRAM) dt_tput "$id" 4 2 "Empty finds Chromium or Chrome. Used at the next start." ;;
+	BW_ARGS) dt_tput "$id" 4 2 "Separated by spaces. Used at the next start." ;;
+	BW_DLDIR)
+		if bs_has dlasks; then
+			dt_tput "$id" 4 2 "Made if it is not there. Off, the Save dialog asks every time."
+		else
+			dt_tput "$id" 4 2 "Made if it is not there. Used once downloads are on."
+		fi
+		;;
 	esac
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 }

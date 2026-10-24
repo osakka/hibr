@@ -177,7 +177,7 @@ void wb_usage(void)
 		      "[-p pane] | click T row col | wheel T rows | key T name | "
 		      "type T text | eval T js | tap|tapseek T | "
 		      "sound T off|click|load | take T "
-		      "[vfd|- [afd|-]] | tabs | fd | poll | quit");
+		      "[vfd|- [afd|-]] | caps | tabs | fd | poll | quit");
 }
 
 /* web: a browser, headless Chromium driven over its own pipe. */
@@ -212,6 +212,15 @@ int m_web(sh *s, int ac, char **av)
 		}
 		wb_say(s, o.p ? o.p : "");
 		s_free(&o);
+		return HIBR_OK;
+	}
+	/* What this engine can do, for an app to ask before it asks for it: the
+	 * WebKit module (hibr-browser) answers the same verb with its own list.
+	 * config is a program and flags to start it with, tap a sound the app
+	 * records and plays itself. */
+	if (!strcmp(sub, "caps")) {
+		wb_say(s, "js images zoom ua dark lang dnt block geo notes permit "
+			  "downloads pdf live config tap");
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "fd")) {

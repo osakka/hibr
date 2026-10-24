@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.317
+
+**One Browser and one YouTube app for both engines** (Gitea #376). The WPE
+WebKit module of the `hibr-browser` package offers the same `web` verbs as the
+Chromium one, and had its own copies of both apps and both panes. They are
+this tree's again, and ask the engine what it does instead of knowing which it
+is: `web caps` lists one word for each thing (`dnt`, `pdf`, `config`, `tap`;
+WebKit adds `popups`, `windows`, `dlasks`, `sound`...), and `mods/web` answers
+it too -- Chromium's is `js images zoom ua dark lang dnt block geo notes
+permit downloads pdf live config tap`. Do Not Track, Save as PDF, the program
+and flags, and the frame rate and colour detail of YouTube's picture are
+offered only where the engine lists them; with `tap` (Chromium) YouTube's
+video goes down the tap to the media player as before, without it (WebKit) the
+engine plays the page itself.
+
+From the WebKit side the Browser (2.3) gains: a window a page opens by a click
+is a tab beside it and `window.close()` closes it; one a page opens on its own
+is refused and noted; a download is named on the address row with how far it
+is, File > Cancel Download stops it, and with no download folder set the
+desktop's own Save dialog asks where it goes; a finished one is a note that
+opens the folder. YouTube (3.5) gains captions, the quality key and menu, the
+history and favourites keys and a mini player in pixel mode.
+
+An app that asks `web caps` needs this release: the catalogue entries carry it
+as their minimum hibr.
+
 ## 0.99.316
 
 **Charcoal, and the three things it needed.** A theme in the catalogue, not

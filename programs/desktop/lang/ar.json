@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.26",
+ "version": "3.27",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -671,7 +671,6 @@
   "Next Tab": "اللسان التالي",
   "Next Wallpaper": "الخلفية التالية",
   "Nextcloud: https://HOST/remote.php/dav/files/USER": "Nextcloud: https://HOST/remote.php/dav/files/USER",
-  "No Chromium or Chrome to clear": "لا يوجد Chromium أو Chrome لمسحه",
   "No Picture": "بلا صورة",
   "No Rule": "بلا قاعدة",
   "No calendar yet: choose a server in Control Panel > PIM, then sync": "لا تقويم بعد: اختر خادمًا من لوحة التحكم > PIM ثم زامن",
@@ -1038,7 +1037,6 @@
   "The desktop is drawn through %s": "يُرسم سطح المكتب عبر %s",
   "The desktop stopped soon after putting its windows back, twice -- started without them": "توقف سطح المكتب بعد وقت قصير من إعادة نوافذه، مرتين -- بدأ من دونها",
   "The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)": "توقف سطح المكتب على نحو غير متوقع وأُعيد تشغيله؛ عادت نوافذه (انظر desktop.log)",
-  "The download of %s did not finish": "لم يكتمل تنزيل %s",
   "The end is a time, HH:MM": "النهاية وقت بصيغة HH:MM",
   "The mermaid module is not loaded": "وحدة mermaid غير محمَّلة",
   "The page could not be saved as a PDF": "تعذّر حفظ الصفحة بصيغة PDF",
@@ -1142,7 +1140,6 @@
   "Week": "الأسبوع",
   "What a Page May Have": "ما يُسمح للصفحة به",
   "What it prints is the cell's value:": "ما تطبعه هو قيمة الخلية:",
-  "When Chromium Next Starts": "عند تشغيل Chromium التالي",
   "When It Ends:": "عند انتهائه:",
   "Where are you? Control Panel > Prayer Times": "أين أنت؟ لوحة التحكم > مواقيت الصلاة",
   "Where:": "المكان:",
@@ -1329,6 +1326,18 @@
   "Remove This Note": "إزالة هذا الإشعار",
   "Settings%s": "الإعدادات%s",
   "Show All%s": "عرض الكل%s",
-  "Show Notifications": "عرض الإشعارات"
+  "Show Notifications": "عرض الإشعارات",
+  "A page tried to open a window of its own, and was refused: %s": "حاولت صفحة فتح نافذة خاصة بها، فتم رفضها: %s",
+  "Cancel Download": "إلغاء التنزيل",
+  "Captions": "الترجمة النصية",
+  "Download of %s stopped": "توقف تنزيل %s",
+  "Folder downloads go to, and the Save dialog starts in:": "المجلد الذي تُحفظ فيه التنزيلات، ومنه يبدأ مربع الحفظ:",
+  "Made if it is not there. Off, the Save dialog asks every time.": "يُنشأ إن لم يكن موجودًا. عند الإيقاف، يسأل مربع الحفظ في كل مرة.",
+  "No browser engine to clear": "لا يوجد محرك متصفح لمسحه",
+  "Quality %s": "الجودة %s",
+  "Save Downloads Without Asking": "حفظ التنزيلات دون سؤال",
+  "Show Captions": "إظهار الترجمة النصية",
+  "The download of %s did not finish: %s": "لم يكتمل تنزيل %s: %s",
+  "When the Engine Next Starts": "عند بدء المحرك في المرة القادمة"
  }
 }

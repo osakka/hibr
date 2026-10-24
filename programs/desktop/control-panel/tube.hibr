@@ -1,16 +1,17 @@
 #!/usr/bin/env hibr
 #
 # tube -- the Control Panel pane for the YouTube app: how the picture is
-# drawn, the quality YouTube's player is asked to fetch, and how many
-# frames a second the window draws and how finely, both of which decide
-# how much a terminal is sent; whether the next video plays by itself, and
-# forgetting what was watched. Named tube, not youtube, because the app
-# owns the youtube_ prefix.
+# drawn, the quality YouTube's player is asked to fetch, whether the next
+# video plays by itself, and forgetting what was watched. Named tube, not
+# youtube, because the app owns the youtube_ prefix. Frames a second and
+# colour detail are there only with an engine whose video is played here
+# (`web caps` lists tap): WebKit plays the page at its own rate, and the
+# window draws what it has.
 
 strict
 
 
-app tube "The Control Panel pane for the YouTube app" 1.3
+app tube "The Control Panel pane for the YouTube app" 2.2
 command -v cp_pane > /dev/null && cp_pane tube "YouTube" "▶" app
 
 # follow is Control Panel > Pictures, which is the one setting meant to
@@ -19,6 +20,16 @@ TB_MODES=(follow half ascii mono pixels)
 TB_QUALITY=(tiny small medium large)
 TB_FPS=(10 15 24 30)
 TB_DETAIL=(0 1 2 3)
+
+# Whether the engine's video is played here: `web caps` lists tap.
+fn tb_tap() {
+	local c
+
+	need web 2> /dev/null || return 1
+	c := web caps 2> /dev/null
+	case " $c " in *" tap "*) return 0 ;; esac
+	return 1
+}
 
 fn cp_set_ytmode(int? id = "", value = "") { YT_MODE=$value; cp_save; }
 
@@ -49,12 +60,18 @@ fn tube_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Quality Fetched"
 	CP[$w][$n]["val"]="$YT_QUALITY"; CP[$w][$n]["key"]=quality
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frames a Second"
-	CP[$w][$n]["val"]="$YT_FPS"; CP[$w][$n]["key"]=fps
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colour Detail"
-	CP[$w][$n]["val"]="$YT_DETAIL"; CP[$w][$n]["key"]=detail
-	n=$((n + 1))
+	if tb_tap; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frames a Second"
+		CP[$w][$n]["val"]="$YT_FPS"; CP[$w][$n]["key"]=fps
+		n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colour Detail"
+		CP[$w][$n]["val"]="$YT_DETAIL"; CP[$w][$n]["key"]=detail
+		n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Captions"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${YT_CAPTIONS:-0}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=YT_CAPTIONS; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Play Next Automatically"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$YT_AUTONEXT" = 1 ] && CP[$w][$n]["val"]=on
@@ -86,7 +103,7 @@ fn tube_do(int? w = "", k = "", int? dir = "") {
 	quality) v := cp_next "$YT_QUALITY" "$dir" "${TB_QUALITY[@]}"; YT_QUALITY=$v ;;
 	fps) v := cp_next "$YT_FPS" "$dir" "${TB_FPS[@]}"; YT_FPS=$v ;;
 	detail) v := cp_next "$YT_DETAIL" "$dir" "${TB_DETAIL[@]}"; YT_DETAIL=$v ;;
-	YT_AUTONEXT | YT_SAVERHOLD) cp_toggle "$k" ;;
+	YT_AUTONEXT | YT_SAVERHOLD | YT_CAPTIONS) cp_toggle "$k" ;;
 	YT_MINISHADOW | YT_MINISTICKY)
 		cp_toggle "$k"
 		dt_needs youtube yt_miniapply && yt_miniapply

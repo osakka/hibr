@@ -89,6 +89,7 @@ A contact needs a name or an email
 A folder is needed
 A formula is = and then hibr.
 A message was not sent: %s
+A page tried to open a window of its own, and was refused: %s
 A program needs a name and a command
 A rule is an operator, a number and a colour: < 0 bad
 A screen of Fixed Size, scaled into the window.
@@ -201,6 +202,7 @@ Calendar & Contacts
 Calendar needs the pim and db modules, which are not installed.
 Camera
 Cancel
+Cancel Download
 Cancelled
 Cannot hold the pasted text to send it
 Cannot keep a copy to read
@@ -218,6 +220,7 @@ Cannot show the wallpaper picture %s
 Cannot write %s
 Cannot write a rule for the account %s
 Cannot write in %s
+Captions
 Catalogue
 Center
 Change Wallpaper…
@@ -380,6 +383,7 @@ Displays
 Do Not Track
 Does it show this number?
 Download Whole Messages
+Download of %s stopped
 Downloaded %s
 Downloads
 Draft saved
@@ -445,6 +449,7 @@ Fixed Size
 Flowchart
 Folder
 Folder downloads are saved in:
+Folder downloads go to, and the Save dialog starts in:
 Folder for cookies, the cache and history:
 Folder, %s items
 Folder:
@@ -587,6 +592,7 @@ Looking for networks
 Louder
 Low Battery Note
 MODULE
+Made if it is not there. Off, the Save dialog asks every time.
 Made if it is not there. Used once downloads are on.
 Made if it is not there; ~ is your home.
 Maghrib
@@ -676,10 +682,10 @@ Next Prayer in the Menu Bar
 Next Tab
 Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER
-No Chromium or Chrome to clear
 No Network Password
 No Picture
 No Rule
+No browser engine to clear
 No calendar yet: choose a server in Control Panel > PIM, then sync
 No contents
 No devices yet
@@ -824,6 +830,7 @@ Program to run as the browser:
 Programs
 Programs Set Clipboard
 Puzzle
+Quality %s
 Quality Fetched
 Query
 Question
@@ -891,6 +898,7 @@ Sat
 Saturday
 Save
 Save As…
+Save Downloads Without Asking
 Save Drafts Every (seconds)
 Save as Draft
 Save as PDF…
@@ -953,6 +961,7 @@ Shortcuts in Terminals
 Show
 Show All Notes
 Show All%s
+Show Captions
 Show Contents
 Show Notifications
 Show On
@@ -1036,7 +1045,7 @@ The date is YYYY-MM-DD, the time HH:MM
 The desktop is drawn through %s
 The desktop stopped soon after putting its windows back, twice -- started without them
 The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)
-The download of %s did not finish
+The download of %s did not finish: %s
 The end is a time, HH:MM
 The mermaid module is not loaded
 The page could not be saved as a PDF
@@ -1149,8 +1158,8 @@ Week
 What a Page May Have
 What it prints is the cell's value:
 Wheel Scrolls
-When Chromium Next Starts
 When It Ends:
+When the Engine Next Starts
 Where are you? Control Panel > Prayer Times
 Where:
 Wi-Fi
