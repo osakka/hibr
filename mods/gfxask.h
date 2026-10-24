@@ -52,8 +52,14 @@
    nothing before its device attributes does not. So does the pointer-shape
    query, OSC 22 `?none` (Gitea #373): `1` where the terminal can hide its
    pointer, `0` where it knows OSC 22 and cannot, nothing where it does not
-   know OSC 22 at all. */
+   know OSC 22 at all. And XTGETTCAP for `bce` (Gitea #353): whether an erase
+   paints the pen's background, which is what lets a run of blank cells in a
+   colour go out as one erase rather than a space each. */
 extern const char gx_ask[];
+
+/* A DCS at the front of p, taken whole; XTGETTCAP's answer about bce sets
+   *bce to 1 or 0. Returns as gx_apc does. */
+int gx_dcs(const char *p, size_t n, size_t max, size_t *used, int *bce);
 
 /* An OSC at the front of p, taken whole, and when it is OSC 22's answer to
    `?none`, *ptr set to 1 or 0. Returns as gx_apc does. */
@@ -85,9 +91,10 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
    session, so a forced answer that skipped the asking left every Blit
    display with no pixel mouse, no kitty keyboard and no copy. *ptr is 1
    when it can hide its pointer, 0 when it knows pointer shapes and cannot,
-   -1 when it said nothing about them. */
+   -1 when it said nothing about them. *bce is 1 when it said an erase
+   paints the pen's background. */
 int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
-	     int *mpix, int *ptr);
+	     int *mpix, int *ptr, int *bce);
 
 /* Milliseconds on a clock that only goes forward. */
 long gx_now(void);

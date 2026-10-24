@@ -422,7 +422,7 @@ int m_console(sh *s, int ac, char **av)
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: console open|close|size|clear|pen|put|"
 			      "fill|cursor|flush|shot|key|watch|unwatch|watching|pane|hit|mouse|"
-			      "pixels|pointer");
+			      "pixels|pointer|sent");
 		return 2;
 	}
 	if (!strcmp(sub, "open"))
@@ -488,6 +488,17 @@ int m_console(sh *s, int ac, char **av)
 		}
 		cn_pixwant = !strcmp(m, "on");
 		cn_pixapply();
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "sent")) {
+		str o;
+
+		s_init(&o);
+		s_num(&o, (long)cn_sent);
+		hibr_ret(s, o.p);
+		if (!s->bind)
+			printf("%s\n", o.p);
+		s_free(&o);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "pointer")) {

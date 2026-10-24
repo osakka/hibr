@@ -371,11 +371,20 @@ void tm_erase(tm_t *t, int r0, int c0, int r1, int c1)
 {
 	int r, c, a, b;
 
-	/* Anything a picture covered has been cleared out from under it, and
-	   working out which of them were touched is not worth the walk:
-	   whoever placed one places it again (img.c). */
-	if (t->imgn)
-		tm_imgclear(t);
+	/* The whole screen cleared forgets every picture. Part of it is cells
+	   erased, which is what a write is too: a picture that owns its cells
+	   goes when one inside it is erased, and one drawn under the text does
+	   not, since erasing a line over a wallpaper or a window's picture is
+	   the display drawing its own cells (Gitea #353) -- every line a lean
+	   renderer ends with an erase would otherwise take the pictures with
+	   it. */
+	if (t->imgn) {
+		if (r0 <= 0 && c0 <= 0 && r1 >= t->rows - 1 && c1 >= t->cols - 1)
+			tm_imgclear(t);
+		else
+			tm_imgarea(t, r0, r0 == r1 ? c0 : 0, r1,
+				   r0 == r1 ? c1 : t->cols - 1);
+	}
 	tm_unwide(t, r0, c0);
 	tm_unwide(t, r1, c1);
 	for (r = r0; r <= r1; r++) {

@@ -11,7 +11,7 @@
 /* gfxask -- what a terminal says it draws. See gfxask.h. */
 
 const char gx_ask[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\\033[?u"
-		       "\033[?1016$p\033]22;?none\033\\\033[c";
+		       "\033[?1016$p\033]22;?none\033\\\033P+q626365\033\\\033[c";
 
 /* An APC at the front of p, and whether it is kitty's own `OK`. */
 int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit)
@@ -122,6 +122,24 @@ int gx_osc(const char *p, size_t n, size_t max, size_t *used, int *ptr)
 	return 2;
 }
 
+/* A DCS at the front of p, and when it is XTGETTCAP's answer about bce --
+   `1+r626365` yes, `0+r626365` no -- that answer in *bce. Every other DCS is
+   taken and ignored. */
+int gx_dcs(const char *p, size_t n, size_t max, size_t *used, int *bce)
+{
+	size_t i;
+
+	for (i = 2; i + 1 < n; i++)
+		if ((unsigned char)p[i] == 27 && p[i + 1] == '\\') {
+			*used = i + 2;
+			if (i >= 10 && (p[2] == '0' || p[2] == '1') &&
+			    !memcmp(p + 3, "+r626365", 8))
+				*bce = p[2] == '1';
+			return 2;
+		}
+	return n < max ? 0 : -1;
+}
+
 /* Milliseconds on a clock no one sets. */
 long gx_now(void)
 {
@@ -136,7 +154,7 @@ long gx_now(void)
    count of reads: every read here can be interrupted, and restarting the
    wait per signal would make the bound meaningless. */
 int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
-	     int *mpix, int *ptr)
+	     int *mpix, int *ptr, int *bce)
 {
 	const char *f = getenv("HIBR_GFX");
 	str b;
@@ -150,6 +168,7 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 	*copy = 0;
 	*mpix = 0;
 	*ptr = -1;
+	*bce = 0;
 	if (f && *f)
 		force = !strcmp(f, "kitty") ? GX_KITTY
 			: !strcmp(f, "sixel") ? GX_SIXEL : GX_NONE;
@@ -194,6 +213,8 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 					kit = 1;
 			} else if (b.p[off + 1] == ']') {
 				r = gx_osc(b.p + off, b.n - off, 64, &used, ptr);
+			} else if (b.p[off + 1] == 'P') {
+				r = gx_dcs(b.p + off, b.n - off, 64, &used, bce);
 			} else if (b.p[off + 1] == '[' && b.p[off + 2] == '?') {
 				r = gx_report(b.p + off, b.n - off, 64, &used, &d, &s,
 					      &kb, &cy, &mp);

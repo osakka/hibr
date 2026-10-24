@@ -30,11 +30,14 @@ L="mod load $M/pty.so; mod load $M/term.so; mod load $M/hold.so"
 # uniq at the end because a settled frame can still repeat unchanged
 # content the diff already sent once, across more than one poll; what
 # matters here is that it showed up, not how many times.
+# Since Gitea #353 a row is also reached by a move down and a carriage
+# return, and a column by CHA, so those break and space the same way.
 seen() {
   local o
   o := pty drain "$1" "${2:-1500}"
-  printf '%s' "$o" | tr -d '\r' |
+  printf '%s' "$o" | tr '\r' '\n' |
     sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9]*;[0-9]*H/ /g;
+         s/\x1b\[[0-9]*B/\n/g; s/\x1b\[[0-9]*G/ /g;
          s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
     sed 's/[[:space:]]*$//' |
     grep -x 'v=[0-9]*\|.*\[[a-z0-9]*[: ][^]]*\]\|back rc=[0-9]*' |
@@ -51,8 +54,9 @@ state() {
 wsz() {
   local o
   o := pty drain "$1" "${2:-1500}"
-  printf '%s' "$o" | tr -d '\r' |
+  printf '%s' "$o" | tr '\r' '\n' |
     sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9]*;[0-9]*H/ /g;
+         s/\x1b\[[0-9]*B/\n/g; s/\x1b\[[0-9]*G/ /g;
          s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
     sed 's/[[:space:]]*$//' |
     grep -x '[0-9]* [0-9]*' | uniq
@@ -228,7 +232,11 @@ hold new -d t12 $H
 a := pty spawn -r 24 -c 80 $H -c "$L; hold attach t12; echo \"back rc=\$?\""
 attached t12
 o1 := pty drain $a 1500
-echo "first frame, a full repaint: $(( ${#o1} > 500 ? 1 : 0 ))"
+# A full repaint clears the screen first, and a diff never does. It was told
+# by its size, hundreds of bytes; since Gitea #353 a nearly blank screen's
+# full repaint is an erase a row, a few dozen, so the clear is the mark.
+full() { case $1 in *$'\e[2J'*) echo 1 ;; *) echo 0 ;; esac; }
+echo "first frame, a full repaint: $(full "$o1")"
 pty write $a 'x'
 sleep 0.4
 o2 := pty drain $a 1500
@@ -243,7 +251,7 @@ pty drain $a 1500 > /dev/null
 pty write $a 'y'
 sleep 0.4
 o3 := pty drain $a 1500
-echo "a resize invalidates it, full repaint again: $(( ${#o3} > 500 ? 1 : 0 ))"
+echo "a resize invalidates it, full repaint again: $(full "$o3")"
 hold kill t12
 pty close $a
 

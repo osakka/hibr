@@ -564,6 +564,25 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		s_free(&o);
 		break;
 	}
+	case HD_STATS: {
+		size_t ci;
+
+		s_init(&o);
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (o.n)
+				s_ch(&o, '\n');
+			s_cat(&o, cn2->name.p ? cn2->name.p : "");
+			s_ch(&o, ' ');
+			s_num(&o, (long)cn2->sent);
+			s_ch(&o, ' ');
+			s_num(&o, cn2->frames);
+		}
+		hd_send(c, HD_STATS, o.p, o.n);
+		s_free(&o);
+		break;
+	}
 	case HD_PTRLIST: {
 		size_t ci;
 
@@ -929,6 +948,11 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 
 				if (cn)
 					cn->mpix = 1;
+			} else if (t == HD_BCE && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+
+				if (cn)
+					cn->bce = 1;
 			} else if (t == HD_PTR && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
 				int v;
@@ -1139,8 +1163,8 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 		   than this has no line and is GX_UNKNOWN until it attaches
 		   again, which draws half blocks rather than black. */
 		fprintf(f, "gfx %d %d\n", cn->fd, cn->gfx);
-		fprintf(f, "caps %d %d %d %d %d\n", cn->fd, cn->kbd, cn->copy,
-			cn->mpix, cn->ptrask);
+		fprintf(f, "caps %d %d %d %d %d %d\n", cn->fd, cn->kbd, cn->copy,
+			cn->mpix, cn->ptrask, cn->bce);
 		hd_keepexec(cn->fd);
 	}
 	fclose(f);
@@ -1232,7 +1256,8 @@ int hd_resume(sh *s)
 	sa.sa_handler = hd_onterm;
 	sigaction(SIGTERM, &sa, 0);
 	while (getline(&line, &lcap, f) > 0) {
-		int fd, row, col, crows, ccols, prim, xp, yp, shr, shc, a, b, c, pa;
+		int fd, row, col, crows, ccols, prim, xp, yp, shr, shc, a, b, c, pa,
+		    pb;
 
 		if (sscanf(line, "listen %d", &l) == 1)
 			continue;
@@ -1250,8 +1275,9 @@ int hd_resume(sh *s)
 			continue;
 		}
 		pa = 0;
-		if (sscanf(line, "caps %d %d %d %d %d", &fd, &a, &b, &c,
-			   &pa) >= 4) {
+		pb = 0;
+		if (sscanf(line, "caps %d %d %d %d %d %d", &fd, &a, &b, &c,
+			   &pa, &pb) >= 4) {
 			struct hd_cli *ck = hd_cfind(&cls, fd);
 
 			if (ck) {
@@ -1259,6 +1285,7 @@ int hd_resume(sh *s)
 				ck->copy = !!b;
 				ck->mpix = !!c;
 				ck->ptrask = pa >= 0 && pa <= 2 ? pa : 0;
+				ck->bce = !!pb;
 			}
 			continue;
 		}

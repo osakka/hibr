@@ -215,6 +215,88 @@ void hd_goto(str *b, int row, int col)
 	s_ch(b, 'H');
 }
 
+/* One control sequence with a count, the count left out when it is 1:
+   `CSI n f`. */
+void hd_csin(str *b, long n, char f)
+{
+	s_cat(b, "\033[");
+	if (n != 1)
+		s_num(b, n);
+	s_ch(b, f);
+}
+
+/* The cheapest way from where the client's cursor is (lr, lc; lr < 0 or lc
+   past the last column when it is not known) to row, col (Gitea #353): an
+   absolute move, or a vertical one and a horizontal one -- a carriage
+   return, a column, or a count forward or back. A scrolled screen of text
+   has its changed cells scattered over every row, and one absolute move
+   before each was 37% of what a scrolling terminal window cost. A cursor
+   past the last column is in the pending-wrap state, from which a relative
+   move is not the same on every terminal, so only an absolute one goes. */
+void hd_mvto(str *b, int lr, int lc, int row, int col, int cols)
+{
+	str v, h;
+	size_t best;
+
+	if (lr == row && lc == col)
+		return;
+	if (lr < 0 || lc < 0 || lc >= cols) {
+		hd_goto(b, row, col);
+		return;
+	}
+	s_init(&v);
+	s_init(&h);
+	if (row > lr)
+		hd_csin(&v, row - lr, 'B');
+	else if (row < lr)
+		hd_csin(&v, lr - row, 'A');
+	if (col == 0 && lc != 0)
+		s_ch(&h, '\r');
+	else if (col > lc)
+		hd_csin(&h, col - lc, 'C');
+	else if (col < lc)
+		hd_csin(&h, lc - col, 'D');
+	best = v.n + h.n;
+	if (col != lc && col != 0) {
+		str a;
+
+		s_init(&a);
+		hd_csin(&a, col + 1, 'G');
+		if (a.n < h.n) {
+			h.n = 0;
+			s_add(&h, a.p, a.n);
+			best = v.n + h.n;
+		}
+		s_free(&a);
+	}
+	{
+		str a;
+
+		s_init(&a);
+		hd_goto(&a, row, col);
+		if (a.n <= best) {
+			s_add(b, a.p, a.n);
+		} else {
+			if (v.n)
+				s_add(b, v.p, v.n);
+			if (h.n)
+				s_add(b, h.p, h.n);
+		}
+		s_free(&a);
+	}
+	s_free(&v);
+	s_free(&h);
+}
+
+/* Whether a cell is a blank an erase can stand for: a space, alone in its
+   cell, no link, and no attribute a blank shows -- reverse, underline and
+   strike are all visible on a space. */
+int hd_blankok(unsigned cp, unsigned at, unsigned w, unsigned lk)
+{
+	return (cp == ' ' || cp == 0) && w == 1 && !lk &&
+	       !(at & (DP_REV | DP_UNDER | DP_STRIKE));
+}
+
 /* Append a code point as UTF-8 -- term's own tm_utf8 (mods/term/draw.c),
    duplicated for the same reason as hd_sgr above. */
 void hd_utf8(str *b, unsigned cp)
@@ -420,8 +502,94 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			if (f->cp == cp && f->fg == fg && f->bg == bg &&
 			    f->attr == at && f->link == lk)
 				continue;
-			if (r != lr || c != lc)
-				hd_goto(out, r, c);
+			/* A run of blank cells in one pen as one erase (Gitea
+			   #353): to the end of the row, or eight or more inside
+			   it -- only where the erase gives the same colour, which
+			   is a blank with none of its own on any terminal, and
+			   any blank on one that said its erase paints the pen's
+			   background. The cursor stays where the erase began. */
+			if (hd_blankok(cp, at, w, lk) &&
+			    (bg == DP_DEFAULT || cn->bce)) {
+				int k = 1, end;
+				unsigned c2, f2, b2, a2, w2;
+
+				while (c + k < cn->cols &&
+				       hd_tm->at(tid, cn->row + r, cn->col + c + k,
+						 &c2, &f2, &b2, &a2, &w2) &&
+				       w2 == 1 && (c2 == ' ' || c2 == 0) &&
+				       f2 == fg && b2 == bg && a2 == at &&
+				       !hd_tm->linkat(tid, cn->row + r,
+						      cn->col + c + k))
+					k++;
+				end = c + k == cn->cols;
+				if ((end && k >= 2) || k >= HD_ECHMIN) {
+					int i2;
+
+					hd_mvto(out, lr, lc, r, c, cn->cols);
+					if (!have || fg != lfg || bg != lbg ||
+					    at != lat) {
+						hd_sgrto(out, fg, bg, at, have, lfg,
+							 lbg, lat);
+						lfg = fg;
+						lbg = bg;
+						lat = at;
+						have = 1;
+					}
+					if (llk) {
+						s_cat(out, "\033]8;;\a");
+						llk = 0;
+					}
+					if (end)
+						s_cat(out, "\033[K");
+					else
+						hd_csin(out, k, 'X');
+					for (i2 = 0; i2 < k; i2++) {
+						struct hd_cell *g2 = f + i2;
+
+						g2->cp = ' ';
+						g2->fg = fg;
+						g2->bg = bg;
+						g2->attr = at;
+						g2->link = 0;
+						g2->w = 1;
+					}
+					lr = r;
+					lc = c;
+					c += k - 1;
+					continue;
+				}
+			}
+			/* A short gap of unchanged cells in the pen already in
+			   force is drawn over when that is shorter than moving
+			   past it, as the console's cn_near does. */
+			if (r != lr || c != lc) {
+				str mv;
+				int g = c - lc, ok = have && r == lr && lc >= 0 &&
+						     g > 0 && g <= HD_GAPMAX;
+				int i2;
+				unsigned c2, f2, b2, a2, w2;
+
+				s_init(&mv);
+				hd_mvto(&mv, lr, lc, r, c, cn->cols);
+				for (i2 = lc; ok && i2 < c; i2++)
+					ok = hd_tm->at(tid, cn->row + r, cn->col + i2,
+						       &c2, &f2, &b2, &a2, &w2) &&
+					     w2 == 1 && (c2 == 0 || (c2 >= 32 && c2 < 127)) &&
+					     f2 == lfg && b2 == lbg && a2 == lat &&
+					     hd_tm->linkat(tid, cn->row + r,
+							   cn->col + i2) == llk;
+				if (ok && (size_t)g <= mv.n) {
+					for (i2 = lc; i2 < c; i2++) {
+						hd_tm->at(tid, cn->row + r,
+							  cn->col + i2, &c2, &f2, &b2,
+							  &a2, &w2);
+						s_ch(out, c2 ? (int)c2 : ' ');
+					}
+				} else {
+					s_add(out, mv.p, mv.n);
+				}
+				s_free(&mv);
+			}
 			if (!have || fg != lfg || bg != lbg || at != lat) {
 				hd_sgrto(out, fg, bg, at, have, lfg, lbg, lat);
 				lfg = fg;
@@ -580,6 +748,8 @@ void hd_rensend1(vec *cls, struct hd_cli *cn, int tid)
 
 	s_init(&out);
 	hd_render(tid, cn, &out);
+	cn->sent += (long long)out.n;
+	cn->frames++;
 	if (!hd_send(cn->fd, HD_DATA, out.p, out.n))
 		hd_cdrop(cls, cn->fd);
 	s_free(&out);

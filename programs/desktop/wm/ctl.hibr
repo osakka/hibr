@@ -313,7 +313,7 @@ dt_statcpu() {
 }
 
 fn dt_ctlstats(reset = "", stop = "") {
-	local now el c self kids s0 k0 pct k nm tk= rd= v
+	local now el c self kids s0 k0 pct k nm tk= rd= v cs= ds= dl dnm db df
 
 	if [ "$reset" = true ]; then
 		for k in "${!DT_STAT[@]}"; do
@@ -349,9 +349,21 @@ fn dt_ctlstats(reset = "", stop = "") {
 			;;
 		esac
 	done
+	# What reached each display (Gitea #353): the console's own flushes,
+	# and hold's frames to each attached terminal, which is what crosses
+	# the wire for a held desktop.
+	cs := console sent 2> /dev/null || cs=0
+	if [ -n "$HIBR_HOLD" ] && need hold 2> /dev/null &&
+	   dl := hold stats 2> /dev/null; then
+		while read -r dnm db df; do
+			[ -n "$dnm" ] || continue
+			dnm := dt_jstr "$dnm"
+			ds+="${ds:+,}{\"name\":$dnm,\"bytes\":${db:-0},\"frames\":${df:-0}}"
+		done <<< "$dl"
+	fi
 	v=false
 	[ -n "$DT_STATON" ] && v=true
-	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"tickers\":{$tk},\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
+	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"tickers\":{$tk},\"console_bytes\":${cs:-0},\"displays\":[$ds],\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
 }
 
 dt_ctlsession() {

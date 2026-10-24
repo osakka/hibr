@@ -1093,5 +1093,57 @@ check("held, a window's picture under another window is sent and then kept",
 check("below the cells, and the window over it is on top",
       lp and "z=-1073741825" in lp[0] and "TOP" in sc.text(), (lp, sc.text()))
 
+# Leaner frames (Gitea #353): a screen of varied text in a colour scrolled a
+# row each frame, held. Each move is the cheapest one, short gaps are drawn
+# over and a blank run in a colour is one erase on a terminal that says its
+# erase paints the pen's background -- and none of that may change a single
+# cell of what the display shows. 0.99.312 drew this in about 17,000 bytes.
+SCRW = "the quick brown fox jumps over a lazy dog while seven wizards hex".split()
+SCRL = [" ".join(SCRW[(i * 7 + j * 3) % len(SCRW)] for j in range(2 + i % 8))
+        for i in range(40)]
+
+
+def scrolled(caps):
+    nm = name()
+    lf = os.path.join(D, "lines%s.txt" % nm)
+    open(lf, "w").write("\n".join(SCRL) + "\n")
+    p = os.path.join(D, "sc%s.hibr" % nm)
+    open(p, "w").write(
+        load("console") + "console open\nconsole flush\n"
+        "mapfile -t L < %s\nk=0\nwhile [ $k -lt 15 ]; do\n" % lf
+        + "  console pen '#d0d0d0' '#102030'; console fill 0 0 20 60 ' '\n"
+        "  r=0; while [ $r -lt 20 ]; do console put $r 1 \"${L[$((r + k))]}\"; "
+        "r=$((r + 1)); done\n  console flush; console key 120\n"
+        "  k=$((k + 1))\ndone\nconsole key 6000\nconsole close\n")
+    outer = os.path.join(D, "sw%s.hibr" % nm)
+    open(outer, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n'
+                           % (nm, p) + "sleep 0.6\nhold attach %s\n" % nm)
+    t = Term(outer, rows=20, cols=60, settle=1.0, env={"TMPDIR": D}, caps=caps)
+    want = [(" " + SCRL[r + 14])[:60].rstrip() for r in range(20)]
+    for _ in range(int(30 * SLOW)):
+        t.collect(0.25)
+        if [t.screen().row(r) for r in range(20)] == want:
+            break
+    t.collect(0.3)
+    sc = t.screen()
+    t.close()
+    kill(nm)
+    return sc, t.raw, want
+
+
+sc, raw, want = scrolled(["bce"])
+check("scrolled text held is drawn exactly, glyphs and pens",
+      [sc.row(r) for r in range(20)] == want and
+      sc.style(5, 40)["bg"] == "#102030", [sc.row(r) for r in range(3)])
+check("in fewer bytes than one absolute move per gap took: %d" % len(raw),
+      len(raw) < 13500, len(raw))
+check("a terminal whose erase paints the pen's background is sent erases",
+      b"\x1b[K" in raw, raw[-200:])
+sc, raw, want = scrolled([])
+check("one that did not say so is never sent an erase of a coloured blank, "
+      "and is drawn exactly too",
+      b"\x1b[K" not in raw and not re.search(rb"\x1b\[\d*X", raw)
+      and [sc.row(r) for r in range(20)] == want, [sc.row(r) for r in range(3)])
+
 shutil.rmtree(D, True)
-report(61)
+report(65)

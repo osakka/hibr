@@ -703,6 +703,7 @@ static int cn_dcs(const char *p, size_t n, size_t *used)
 			*used = i + 2;
 			if (memmem(p, i, "hibr-term", 9)) {
 				cn_hterm = 1;
+				cn_bce = 1;
 				cn_vouch = memmem(p, i, "deccra", 6) != 0;
 				lg(HIBR_LDBG, "console: hibr's emulator %s rectangles",
 				   cn_vouch ? "copies" : "does not copy");
@@ -856,6 +857,19 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		return cn_apc(p, n, used);
 	if (p[1] == 'P' && n >= 4 && p[2] == '>' && p[3] == '|')
 		return cn_dcs(p, n, used);
+	if (p[1] == 'P' && n >= 4 && (p[2] == '0' || p[2] == '1') &&
+	    p[3] == '+') {
+		int b = -1, r = gx_dcs(p, n, CN_OSCMAX, used, &b);
+
+		if (r == 2 && b >= 0) {
+			cn_bce = b;
+			lg(HIBR_LDBG, "console: an erase %s the pen's background",
+			   b ? "paints" : "does not paint");
+		}
+		return r;
+	}
+	if (p[1] == 'P' && n == 3 && (p[2] == '0' || p[2] == '1'))
+		return 0;
 	if (p[1] == 'P' && n == 3 && p[2] == '>')
 		return 0;
 	if (p[1] == '[' && n >= 3 && p[2] == '?')

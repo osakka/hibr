@@ -107,7 +107,17 @@ enum {
 	   yes or no a line, as HD_PTR said -- what the desktop asks before
 	   offering a window a hidden pointer. Its own request for the reason
 	   HD_GFXLIST is. */
-	HD_PTRLIST = 'H'
+	HD_PTRLIST = 'H',
+	/* What each display has been sent since it attached, name, bytes and
+	   frames a line (Gitea #353). Its own request for the reason
+	   HD_GFXLIST is. */
+	HD_STATS = 's',
+	/* From a client: its own terminal said, by XTGETTCAP, that an erase
+	   paints the pen's background (bce), asked with the rest before it
+	   joined (Gitea #353). One int, 1. Such a client is sent a run of
+	   blank cells in a colour as one erase; any other only a run with no
+	   colour of its own. A server that does not know it ignores it. */
+	HD_BCE = 'e'
 };
 
 /* How long an attaching client waits for its terminal to say what it
@@ -157,6 +167,17 @@ extern int hd_scw, hd_sch;
    half of a wide glyph, which is what lets a replayed rectangle copy send
    again only the cells it cut a wide glyph at (Gitea #337). */
 struct hd_cell { unsigned cp, fg, bg, attr, link; unsigned char w; };
+
+/* A run of blank cells inside a row this long or longer goes out as one
+   erase of characters (ECH) rather than a space each; and a gap of
+   unchanged cells this short or shorter is drawn over rather than moved
+   past, when that is the cheaper (Gitea #353). */
+#ifndef HD_ECHMIN
+#define HD_ECHMIN 8
+#endif
+#ifndef HD_GAPMAX
+#define HD_GAPMAX 6
+#endif
 
 /* One attached terminal: its connection, where it sits in the session's own
    virtual space -- row,col its top-left corner, rows,cols its own size --
@@ -228,6 +249,13 @@ struct hd_cli {
 	   shape last sent to it, so a change is sent once. */
 	int ptrask;
 	str ptrsh;
+	/* What this client has been sent since it attached: bytes and frames,
+	   for `hold stats` -- the number a leaner renderer is judged by, per
+	   display, since each is drawn on its own (Gitea #353). */
+	long long sent;
+	long frames;
+	/* Whether its terminal said an erase paints the pen's background. */
+	int bce;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;

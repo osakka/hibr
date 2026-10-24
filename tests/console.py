@@ -41,9 +41,12 @@ def counts(out):
 
 
 def drawn(out):
-    """Everything emitted after the opening full paint."""
-    i = out.rfind(b"\x1b[24;1H")
-    return out[i:] if i >= 0 else out
+    """Everything emitted after the opening full paint: what follows the
+    first frame's closing synchronized-update escape. It was found by the
+    paint's absolute move to the last row, which since Gitea #353 is reached
+    by a relative move and need not appear at all."""
+    i = out.find(b"\x1b[?2026l")
+    return out[i + len(b"\x1b[?2026l"):] if i >= 0 else out
 
 
 o, _ = run('console open\nconsole flush\n'
@@ -63,7 +66,10 @@ n = counts(o)
 # Every frame is bracketed in synchronized output's pair (Gitea #338), so
 # what the diff itself cost is the count less the pair.
 SYNC = len(b"\x1b[?2026h\x1b[?2026l")
-check("the first flush paints the whole screen", n and n[0] > 1900)
+# Since Gitea #353 a blank screen is painted a row at a time with an erase
+# to the end of the line, where it was every cell, about 1960 bytes.
+check("the first flush paints the whole screen, an erase a row: %r" % n[:1],
+      n and 24 * 3 <= n[0] < 400 and o.count(b"\x1b[K") >= 24)
 check("only the changed run is sent afterwards",
       len(n) > 1 and n[1] - SYNC < 20)
 check("one changed cell costs about one escape",

@@ -541,9 +541,14 @@ went in the shell.
   be put back. This is the `m_drop` trap below, found a second time, which is
   why the check belongs in the build habit and not in memory.
 - **A full-screen redraw must cost what changed, not what is on screen.** The
-  console module keeps a front and a back grid and emits the difference: 2095
-  bytes for the first paint, 8 for one changed character, and **zero** for a
-  flush with nothing new. Two things that look like optimisations are not —
+  console module keeps a front and a back grid and emits the difference: a
+  blank first paint an erase a row since 0.99.313 (it was 2095 bytes, every
+  cell), 8 for one changed character, and **zero** for a flush with nothing
+  new. Each move is the cheapest of an absolute one and a relative one, in
+  the console and in hold's renderer alike, and a blank run is an erase
+  where the terminal gives it the same colour (Gitea #353): one absolute
+  move per gap was 37% of what a scrolling terminal window cost a held
+  display. Two things that look like optimisations are not —
   re-sending the pen every flush, and moving the cursor over a one-cell gap.
   A cursor move is three bytes and the character it skips is one, so `cn_near`
   redraws gaps of up to two cells rather than jumping them.

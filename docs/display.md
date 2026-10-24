@@ -97,6 +97,7 @@ and the flush cost shown live. Run it and press things.
 | `console pointer hide\|show\|shape` | the terminal's pointer: hidden, its own again, or a shape named as kitty names them (`text`, `crosshair`, `wait`...), all as OSC 22; given back when the display closes. Nothing is sent for the shape already in force |
 | `console pointer can` | whether the terminal can hide its pointer, as it answered OSC 22's `?none`: `yes`, `no` (it knows shapes and cannot), or `unknown` (it does not know OSC 22, or has not answered) |
 | `console pointer` | the shape asked for, `default` for none |
+| `console sent` | how many bytes the display's flushes have written to the terminal since it opened |
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
 | `console darken row col h w [pct]` | shade what is already in the back buffer, a shadow |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |

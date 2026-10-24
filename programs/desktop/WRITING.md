@@ -599,7 +599,12 @@ everything else besides (Gitea #343). It answers:
 - `rereads`: how often each of the sound, network and Bluetooth layers asked
   its server for everything again;
 - while `timing` is on, from a reset until `desktop ctl stats stop`: each
-  ticker's `runs` and `ms`, and `draw_ms`.
+  ticker's `runs` and `ms`, and `draw_ms`;
+- `console_bytes`: what the display's flushes have written since it opened,
+  and `displays`: for a held desktop, each attached terminal's `name`, the
+  `bytes` hold has sent it since it attached and in how many `frames` --
+  what crosses the wire, and what a leaner encoding is judged by (Gitea
+  #353). Neither is reset by `reset`.
 
 A re-read's program runs are inside its ticker's time. What it cannot see
 it says, in `unseen`: hold's server, which is the emulator and renderer a

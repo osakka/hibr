@@ -76,6 +76,27 @@ void tm_imghit(tm_t *t, int r, int c)
 	}
 }
 
+/* Drop whatever owns a cell of rows r0..r1, columns c0..c1, because they
+   have been erased; a picture under the text stays, as tm_imghit leaves
+   it for a write. */
+void tm_imgarea(tm_t *t, int r0, int c0, int r1, int c1)
+{
+	int i = 0;
+
+	while (i < t->imgn) {
+		tm_img *m = &t->img[i];
+
+		if (!m->under && m->r <= r1 && r0 < m->r + m->rows &&
+		    m->c <= c1 && c0 < m->c + m->cols) {
+			lg(HIBR_LDBG, "terminal %d: picture at %d,%d erased",
+			   t->id, m->r, m->c);
+			tm_imgdrop(t, i);
+			continue;
+		}
+		i++;
+	}
+}
+
 /* Keep a picture: rows by cols cells at r,c, the bytes as they came. id is
    the kitty protocol's own image id, or 0 for a sixel, which has none. One
    with the same id, or in the same place, replaces what was there. */

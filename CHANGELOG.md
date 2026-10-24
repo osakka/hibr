@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.313
+
+**Less sent to every display** (Gitea #353, the first step). A held desktop
+is drawn to each attached terminal by hold, and a window scrolling text cost
+one absolute cursor move before almost every changed cell -- 37% of the bytes.
+Each move is now the cheapest of an absolute one and a relative one (a count
+down, forward or back, a column, a carriage return), a short gap of cells
+already right is drawn over when that is shorter, and a run of blank cells is
+one erase -- to the end of the line, or a count of characters -- wherever the
+terminal gives the erased cells the same colour: blanks with no colour of
+their own anywhere, and any blank on a terminal that says its erase paints the
+pen's background (asked at attach, with XTGETTCAP `bce`). Measured on a
+200x60 held desktop with one terminal window scrolling real text for ten
+seconds: 434 kB to 274 kB, 37% less, for the same frames. The console's own
+output, unheld, went 285 kB to 252 kB, and a blank screen's first paint is an
+erase a row rather than every cell.
+
+**What each display is sent is counted**: `desktop ctl stats` has
+`console_bytes` and, held, `displays` -- each attached terminal's bytes and
+frames, from the new `hold stats` -- and `console sent` answers the console's
+own count.
+
+The terminal emulator no longer forgets every picture on any erase: a
+partial erase drops only a picture that owns the erased cells, the same rule
+a write follows, so a line ended with an erase does not take the wallpaper
+with it.
+
 ## 0.99.312
 
 **A window in pixels no longer goes blank while another window overlaps it**

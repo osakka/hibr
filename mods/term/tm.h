@@ -270,6 +270,7 @@ int tm_api_clip(int id, str *out);
 int tm_api_pass(int id, str *out);
 int tm_api_title(int id, str *out);
 int tm_api_pointer(int id, str *out);
+void tm_imgarea(tm_t *t, int r0, int c0, int r1, int c1);
 void tm_ptrosc(tm_t *t, const char *p);
 unsigned tm_api_linkat(int id, int r, int c);
 const char *tm_api_linkuri(int id, unsigned link);

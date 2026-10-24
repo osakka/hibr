@@ -223,6 +223,15 @@ extern int cn_pixwant, cn_pixok, cn_pixon;
 /* The pointer's shape (Gitea #373): what the terminal said about hiding it
    (-1 nothing, 0 cannot, 1 can) and the shape asked for. */
 extern int cn_ptrok, cn_ptrset;
+extern long long cn_sent;
+/* Whether an erase paints the pen's background (bce), as the terminal
+   answered XTGETTCAP or as hibr's own emulator does (Gitea #353). */
+extern int cn_bce;
+#ifndef CN_ECHMIN
+#define CN_ECHMIN 8
+#endif
+void cn_csin(str *b, long n, char f);
+int cn_blankok(const cn_cell *k);
 extern str cn_ptrnm;
 void cn_gotptr(int yes);
 void cn_pointer(const char *nm);

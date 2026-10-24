@@ -804,20 +804,77 @@ void cn_sgrto(str *b, unsigned fg, unsigned bg, unsigned at)
 	s_ch(b, 'm');
 }
 
-/* Append a cursor move, preferring the shorter form when on the same row. */
+/* One control sequence with a count, left out when it is 1. */
+void cn_csin(str *b, long n, char f)
+{
+	s_cat(b, "\033[");
+	if (n != 1)
+		s_num(b, n);
+	s_ch(b, f);
+}
+
+/* Append the cheapest cursor move from cr,cc to row,col (Gitea #353): an
+   absolute one, or a vertical and a horizontal one -- a carriage return, a
+   column, or a count forward or back -- whichever is shorter. A cursor not
+   known (cr < 0) or past the last column, where it waits to wrap and a
+   relative move differs between terminals, gets the absolute one. */
 void cn_goto(str *b, int row, int col, int cr, int cc)
 {
+	str v, h, a;
+
 	if (row == cr && col == cc)
 		return;
-	if (row == cr && col == cc + 1) {
-		s_cat(b, "\033[C");
+	s_init(&a);
+	s_cat(&a, "\033[");
+	s_num(&a, (long)(row + 1));
+	s_ch(&a, ';');
+	s_num(&a, (long)(col + 1));
+	s_ch(&a, 'H');
+	if (cr < 0 || cc < 0 || cc >= cn_back.cols) {
+		s_add(b, a.p, a.n);
+		s_free(&a);
 		return;
 	}
-	s_cat(b, "\033[");
-	s_num(b, (long)(row + 1));
-	s_ch(b, ';');
-	s_num(b, (long)(col + 1));
-	s_ch(b, 'H');
+	s_init(&v);
+	s_init(&h);
+	if (row > cr)
+		cn_csin(&v, row - cr, 'B');
+	else if (row < cr)
+		cn_csin(&v, cr - row, 'A');
+	if (col == 0 && cc != 0) {
+		s_ch(&h, '\r');
+	} else if (col != cc) {
+		str g;
+
+		cn_csin(&h, col > cc ? col - cc : cc - col, col > cc ? 'C' : 'D');
+		s_init(&g);
+		cn_csin(&g, col + 1, 'G');
+		if (g.n < h.n) {
+			h.n = 0;
+			s_add(&h, g.p, g.n);
+		}
+		s_free(&g);
+	}
+	if (a.n <= v.n + h.n) {
+		s_add(b, a.p, a.n);
+	} else {
+		if (v.n)
+			s_add(b, v.p, v.n);
+		if (h.n)
+			s_add(b, h.p, h.n);
+	}
+	s_free(&a);
+	s_free(&v);
+	s_free(&h);
+}
+
+/* Whether a cell is a blank an erase can stand for: a space alone in its
+   cell, no link, and no attribute a blank shows. */
+int cn_blankok(const cn_cell *k)
+{
+	return (k->cp == ' ' || k->cp == 0) && !k->ext && k->w <= 1 &&
+	       !k->cont && !k->link &&
+	       !(k->attr & (DP_REV | DP_UNDER | DP_STRIKE));
 }
 
 /* True when two cells would draw identically. */
@@ -865,6 +922,11 @@ int cn_near(int r, int c)
 			return 1;
 	return 0;
 }
+
+/* Every byte the flushes have sent the terminal, for `console sent` (Gitea
+   #353): what a leaner encoder is judged by. */
+long long cn_sent;
+int cn_bce;
 
 /* A pane moved, was made or dropped: the map is stale. */
 void cn_owninval(void)
@@ -1127,6 +1189,59 @@ long cn_flush(void)
 			if (cn_same(e, ft) &&
 			    !(cr == r && cc == c && cn_near(r, c)))
 				continue;
+			/* A run of blank cells in one pen as one erase (Gitea
+			   #353): to the end of the row, or CN_ECHMIN or more
+			   inside it, only where the erase gives the same colour
+			   -- a blank with none of its own anywhere, any blank on
+			   a terminal that paints the pen's background. The
+			   cursor stays where the erase began. */
+			if (e == bk && !cn_olay.on && cn_blankok(bk) &&
+			    (bk->bg == DP_DEFAULT || cn_bce)) {
+				int k = 1, end, i2;
+
+				while (c + k < cn_back.cols &&
+				       cn_blankok(bk + k) &&
+				       bk[k].fg == bk->fg && bk[k].bg == bk->bg &&
+				       (bk[k].attr & ~CN_FILLED) ==
+					       (bk->attr & ~CN_FILLED) &&
+				       !(cn_imgn() && cn_imgat(r, c + k)))
+					k++;
+				end = c + k == cn_back.cols;
+				if ((end && k >= 2) || k >= CN_ECHMIN) {
+					cn_goto(&b, r, c, cr, cc);
+					if (!cn_lset || bk->fg != cn_lfg ||
+					    bk->bg != cn_lbg ||
+					    (bk->attr & ~CN_FILLED) != cn_lat) {
+						cn_sgrto(&b, bk->fg, bk->bg,
+							 bk->attr & ~CN_FILLED);
+						cn_lfg = bk->fg;
+						cn_lbg = bk->bg;
+						cn_lat = bk->attr & ~CN_FILLED;
+						cn_lset = 1;
+					}
+					if (cn_llink) {
+						s_cat(&b, "\033]8;;\a");
+						cn_llink = 0;
+					}
+					if (end)
+						s_cat(&b, "\033[K");
+					else
+						cn_csin(&b, k, 'X');
+					for (i2 = 0; i2 < k; i2++) {
+						cn_cellset(ft + i2, ' ', 0, 0);
+						ft[i2].fg = bk[i2].fg;
+						ft[i2].bg = bk[i2].bg;
+						ft[i2].attr = bk[i2].attr;
+						ft[i2].link = 0;
+						ft[i2].w = 1;
+						ft[i2].cont = 0;
+					}
+					cr = r;
+					cc = c;
+					c += k - 1;
+					continue;
+				}
+			}
 			cn_goto(&b, r, c, cr, cc);
 			if (!cn_lset || e->fg != cn_lfg ||
 			    e->bg != cn_lbg ||
@@ -1210,6 +1325,7 @@ long cn_flush(void)
 	else
 		s_cat(&b, CN_SYNCL);
 	n = (long)b.n;
+	cn_sent += (long long)b.n;
 	if (b.n)
 		cn_wr(cn_fd, b.p, b.n);
 	s_free(&b);

@@ -201,6 +201,30 @@ class Screen:
                               if len(a) > 1 and a[1].isdigit() else 0)
                 elif fin == "C":
                     self.c += int(seq) if seq.isdigit() else 1
+                # The moves and erases a lean renderer sends (Gitea #353):
+                # down, up, back and to a column, and erasing to the end of
+                # the line or a count of cells -- in the pen in force,
+                # cursor left where it was, as hibr's own emulator does it.
+                elif fin in "ABD" and (seq.isdigit() or not seq):
+                    k = int(seq) if seq else 1
+                    if fin == "A":
+                        self.r = max(0, self.r - k)
+                    elif fin == "B":
+                        self.r = min(self.rows - 1, self.r + k)
+                    else:
+                        self.c = max(0, self.c - k)
+                elif fin == "G" and (seq.isdigit() or not seq):
+                    self.c = (int(seq) if seq else 1) - 1
+                elif fin in "KX" and (seq.isdigit() or not seq):
+                    if fin == "K" and seq not in ("", "0"):
+                        i = j + 1
+                        continue
+                    k = self.cols - self.c if fin == "K" else \
+                        (int(seq) if seq else 1)
+                    if 0 <= self.r < self.rows:
+                        for x in range(self.c, min(self.cols, self.c + k)):
+                            self.g[self.r][x] = " "
+                            self.p[self.r][x] = self.pen
                 elif fin == "J" and seq in ("2", "3"):
                     self.clear()
                 elif fin == "m":
@@ -217,7 +241,11 @@ class Screen:
                 j = i + 2
                 while j < n and t[j:j + 2] != "\x1b\\" and t[j] != "\x9c":
                     j += 1
-                self.images.append((self.r, self.c, j - (i + 2)))
+                # Only a sixel is a picture -- parameters, then `q`. A
+                # query the display asks, XTGETTCAP's `+q...` (Gitea #353),
+                # is a DCS too and is no picture.
+                if re.match(r"[\d;]*q", t[i + 2:j]):
+                    self.images.append((self.r, self.c, j - (i + 2)))
                 i = j + (2 if t[j:j + 2] == "\x1b\\" else 1)
                 continue
             # An APC string is not text either: the kitty graphics protocol
@@ -257,7 +285,11 @@ class Screen:
             if ch == "\x1b":
                 i += 2
                 continue
-            if ch in "\r\n":
+            if ch == "\r":
+                self.c = 0
+                i += 1
+                continue
+            if ch == "\n":
                 i += 1
                 continue
             wide = unicodedata.east_asian_width(ch) in ("W", "F")
@@ -459,7 +491,7 @@ def expect(pattern):
 QUERY = re.compile(rb"\x1b(?:\](?P<osc>[^\x07\x1b]*)(?:\x07|\x1b\\)"
                    rb"|_(?P<apc>[^\x1b]*)\x1b\\"
                    rb"|(?P<da>\[c)|(?P<kbd>\[\?u)|(?P<xtv>\[>0?q)"
-                   rb"|(?P<mpix>\[\?1016\$p))")
+                   rb"|(?P<mpix>\[\?1016\$p)|(?P<tcap>P\+q626365\x1b\\))")
 
 
 class Term:
@@ -621,6 +653,14 @@ class Term:
                     f = b"62" + (b";4" if "sixel" in self.caps else b"") + \
                         b";22" + (b";28" if "deccra" in self.caps else b"")
                     os.write(self.fd, b"\x1b[?" + f + b"c")
+                continue
+            # XTGETTCAP for bce (Gitea #353): "bce" is a terminal whose erase
+            # paints the pen's background, and says so.
+            if m.group("tcap") is not None:
+                if self.caps is not None and "bce" in self.caps:
+                    os.write(self.fd, b"\x1bP1+r626365\x1b\\")
+                elif self.caps is not None:
+                    os.write(self.fd, b"\x1bP0+r626365\x1b\\")
                 continue
             # OSC 22's query (Gitea #373): "ptr" is a terminal that can
             # hide its pointer and answers `?none` with 1, "ptrno" one that
