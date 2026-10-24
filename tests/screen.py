@@ -179,6 +179,11 @@ class Screen:
         # Every APC control string, in order, whole: "a=T,f=24,...,m=0" or
         # "a=d,d=I,q=2,i=1234". What a test asks about a kitty picture.
         self.apc = []
+        # Where each kitty placement landed, with its control string, in
+        # the order imgdata keeps their payloads -- what a renderer of the
+        # screen needs to put a picture back where the terminal would
+        # (tools/screenshot.py).
+        self.kplace = []
 
     def feed(self, t):
         i, n = 0, len(t)
@@ -271,6 +276,7 @@ class Screen:
                 ctrl, _, data = t[i + 2:j].partition(";")
                 self.apc.append(ctrl)
                 if "a=T" in ctrl or "a=p" in ctrl:
+                    self.kplace.append((self.r, self.c, ctrl))
                     self.images.append((self.r, self.c, len(data)))
                     self.imgdata.append(data if self.imgkept < self.IMGKEEP
                                         else "")

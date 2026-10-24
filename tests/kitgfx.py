@@ -674,6 +674,29 @@ sc = run(FB)
 check("with no picture a translucent write takes the fallback colour",
       bg(sc, 5, 5) == (16, 24, 32), bg(sc, 5, 5))
 
+# A window's face is a real colour, so translucency reaches it only when
+# told that colour counts as none (0.99.317): the face shows the picture
+# through, and a cell in any other colour -- a selection, a field -- stays
+# itself. And the match ends with the translucency, so a later write in
+# that colour is the colour again.
+MATCH = ("img draw %s 2 2 10 20 -m pixels -u\n"
+         "console translucent 75 \"#202024\" \"#202024\"\n"
+         "console pen \"#d0d0d0\" \"#202024\"\n"
+         "console put 5 5 \"hi\"\n"
+         "console pen \"#101010\" \"#f0f0f0\"\n"
+         "console put 5 8 \"sel\"\n"
+         "console translucent off\n"
+         "console pen \"#d0d0d0\" \"#202024\"\n"
+         "console put 6 5 \"no\"\n"
+         "console flush\n" % FLAT)
+sc = run(MATCH)
+check("a write in the colour translucency was told to match shows the picture",
+      bg(sc, 5, 5) == (8, 150, 8), bg(sc, 5, 5))
+check("one in another colour stays itself",
+      bg(sc, 5, 8) == (240, 240, 240), bg(sc, 5, 8))
+check("and once translucency is off the colour is the colour again",
+      bg(sc, 6, 5) == (32, 32, 36), bg(sc, 6, 5))
+
 # What the terminal says its own background is, and the one cell that has to
 # be painted a shade off it (Gitea #215). kitty decides whether a cell has a
 # background of its own by comparing the cell's *resolved* value with the
@@ -956,4 +979,4 @@ check("the wallpaper went further down to make room: %s" % z,
       z is not None and int(z) <= -1610612736, places(sc))
 
 shutil.rmtree(D, True)
-report(93)
+report(96)

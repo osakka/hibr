@@ -73,6 +73,11 @@ struct cn_grid {
 struct cn_pane {
 	char *nm;
 	int row, col, h, w;
+	/* Where the pane's own coordinates start, inside its rectangle: a
+	   window drawn with no border keeps the row and column its content
+	   has always begun at, and they land on its edge. The rectangle is
+	   still the window's, for ownership, hits and copies. */
+	int orow, ocol;
 	int top;
 	/* Whether its last move was sent as a rectangle copy (Gitea #337),
 	   which `console copied` answers, so the desktop can leave a window
@@ -166,6 +171,8 @@ int cn_imgcellat(int row, int col, unsigned *out);
 int cn_imgunderat(int row, int col);
 unsigned cn_bgtrans(int row, int col);
 int cn_translucent(int pct, unsigned fb);
+void cn_transmatch(unsigned bg);
+int cn_transon(unsigned bg);
 size_t cn_imgn(void);
 /* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE, CN_GFX_SIXEL
    or CN_GFX_KITTY. From HIBR_GFX, then from what the terminal itself

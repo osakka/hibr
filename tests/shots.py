@@ -41,7 +41,7 @@ spec.loader.exec_module(shot)
 def grid(stream, rows=4, cols=40):
     cs = shot.ColourScreen(rows, cols)
     cs.feed(stream)
-    return cs, ["".join(c.ch for c in cs.g[r]).rstrip() for r in range(rows)]
+    return cs, [cs.row(r) for r in range(rows)]
 
 
 # The harness's own idle marker is an OSC, and the desktop sends one per
@@ -120,7 +120,7 @@ im = Image.open(out).convert("RGB")
 px = im.getpixel((2 * 9 + 4, 15 * 18 + 9))
 check("and the picture is what the screenshot shows where no window covers it",
       im.size == (540, 360) and abs(px[0] - 200) < 60 and px[0] > px[2], (im.size, px))
-rows = ["".join(c.ch for c in cs.g[r]).rstrip() for r in range(20)]
+rows = [cs.row(r) for r in range(20)]
 check("with none of its payload anywhere in the text",
       not any("a=T" in r or "7777" in r for r in rows), rows[:3])
 

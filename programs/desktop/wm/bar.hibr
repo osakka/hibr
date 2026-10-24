@@ -478,6 +478,10 @@ dt_bar() {
 	fi
 	DT_BARWAS=$key
 
+	# The bar's own colour shows the wallpaper through; an open title or
+	# the one under the pointer, drawn in another, stays itself.
+	[ "${DT_BARTRANS:-0}" != 0 ] &&
+		console translucent "$DT_BARTRANS" "$DT_BAR" "$DT_BAR"
 	console pen "$DT_INK" "$DT_BAR"
 	line := dt_rep "$w" " "
 	dt_barput "$DT_PRIMARY_COL" "$line"
@@ -584,6 +588,8 @@ dt_bar() {
 	# over the clock. dt_cut measures (ADR 0021).
 	t := dt_cut "$t" 11
 	dt_barput "$MB_AX" " $t ${GL[sdown]}"
+	[ "${DT_BARTRANS:-0}" != 0 ] && console translucent off
+	return 0
 }
 
 # The glyph a notification icon name stands for -- its Nerd Font icon in

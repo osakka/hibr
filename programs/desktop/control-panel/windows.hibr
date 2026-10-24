@@ -11,7 +11,7 @@
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.1
+app windows "The Control Panel pane for how a window looks and where it opens" 1.2
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
@@ -21,6 +21,14 @@ fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
 fn cp_set_btnstyle(int? id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
 fn cp_set_place(int? id = "", value = "") { DT_PLACE=$value; cp_save; }
 fn cp_set_zoomfill(int? id = "", value = "") { DT_ZOOMFILL=$value; cp_save; }
+# How much of a picture wallpaper shows through a window, in tens.
+fn cp_wintrans(int v) {
+	[ "$v" -lt 0 ] && v=0
+	[ "$v" -gt 100 ] && v=100
+	DT_WINTRANS=$(((v + 5) / 10 * 10))
+	cp_save
+	return 0
+}
 
 fn windows_rows(int w) {
 	local n=0
@@ -29,6 +37,12 @@ fn windows_rows(int w) {
 	CP[$w][$n]["val"]="$DT_FRAME"; CP[$w][$n]["key"]=frame; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Bar"
 	CP[$w][$n]["val"]="$DT_TITLEBAR"; CP[$w][$n]["key"]=titlebar; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Shows Through"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]="${DT_WINTRANS:-0}"
+	CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
+	CP[$w][$n]["after"]="(${DT_WINTRANS:-0}%)"
+	CP[$w][$n]["key"]=wintrans; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Buttons"
 	CP[$w][$n]["val"]="$DT_BTNSIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"
@@ -70,6 +84,8 @@ fn windows_do(int w, k, int dir) {
 	       DT_PLACE=$v ;;
 	zoomfill) v := cp_next "$DT_ZOOMFILL" "$dir" "${DT_ZOOMFILLS[@]}"
 	          DT_ZOOMFILL=$v ;;
+	wintrans) cp_wintrans $(((${DT_WINTRANS:-0} + 5) / 10 * 10 + dir * 10))
+		return 0 ;;
 	tilemain)
 		v=$((DT_TILEMAIN + dir * 10))
 		[ "$v" -lt 30 ] && v=30
@@ -86,6 +102,7 @@ fn windows_do(int w, k, int dir) {
 # positions and this setting has five.
 fn windows_slide(int w, k, int value) {
 	case $k in
+	wintrans) cp_wintrans "$value" ;;
 	tilemain)
 		DT_TILEMAIN=$((value * 10))
 		[ "$DT_TILEMAIN" -lt 30 ] && DT_TILEMAIN=30

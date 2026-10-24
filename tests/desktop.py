@@ -3523,9 +3523,9 @@ check("Close from it closes the window",
 # The strip's Theme and Wallpaper modules each open a list of choices and
 # apply the one taken, saved like any other setting. Theme needs the
 # Appearance pane loaded, since the themes are its.
-def stripdrop(col):
+def stripdrop(col, downs=1):
     d = tempfile.mkdtemp(prefix="hibr-strip-")
-    sc, _ = run("", feed=[press(STRIPROW, col), b"\x1b[B", b"\r"],
+    sc, _ = run("", feed=[press(STRIPROW, col)] + [b"\x1b[B"] * downs + [b"\r"],
                 env={"XDG_CONFIG_HOME": d},
                 pre=CSSRC + "\n. %s\n" % tree(
                     "programs/desktop/control-panel/appearance.hibr"))
@@ -3535,7 +3535,8 @@ def stripdrop(col):
     return sc, text
 
 
-sc, saved = stripdrop(17)
+# Two down: Charcoal sorts before Classic, so Under Construction is two away.
+sc, saved = stripdrop(17, 2)
 check("the strip's Theme module applies the theme chosen from its list",
       "CP_THEME=construction" in saved, sc)
 sc, saved = stripdrop(25)
@@ -7159,4 +7160,60 @@ finally:
     sdrun(screen.HIBR, "-c", HOLDC + "hold kill desktop")
     shutil.rmtree(SD, True)
 
-report(779)
+# The bar frame (0.99.317): the title bar is the window's only row of frame,
+# with rounded ends, and its content runs to the edge -- the app is told one
+# row less than the window and its whole width, and its column 1 is the
+# window's first. The sides and the bottom are the app's own cells, so a
+# press there reaches it rather than starting a resize; the title bar's two
+# ends are the grips.
+BARAPP = ('dt_app bx "Barred" 8 30\n'
+          'BX=none\n'
+          'fn bx_draw(int id, int h, int w, int row, int col) {\n'
+          '\tconsole put -p "w$id" 1 1 "h=$h w=$w"\n'
+          '\tconsole put -p "w$id" 2 1 "$BX"\n'
+          '\tconsole put -p "w$id" "$h" "$w" "E"\n}\n'
+          'fn bx_click(int id, int r, int c, btn = "") { BX="click $r $c"; }\n'
+          'DT_FRAME=bar\n'
+          'dt_new "Barred" 8 30 6 10 bx\n')
+sc, _ = run(BARAPP)
+check("the bar frame rounds the title bar's two ends and draws no other frame",
+      sc.g[6][10] == "\u25d6" and sc.g[6][39] == "\u25d7" and
+      sc.g[7][10] != "\u2502" and sc.g[13][10] != "\u2514", sc)
+check("its app is told one row less and the whole width, its column 1 the edge",
+      sc.row(7)[10:18] == "h=7 w=30" and sc.g[13][39] == "E", sc)
+sc, _ = run(BARAPP, [press(8, 10), release(8, 10)])
+check("a press on the window's first column reaches the app at its column 1",
+      sc.find("click 2 1") is not None, sc)
+sc, _ = run(BARAPP, [press(10, 39), release(10, 39)])
+check("and one on its last column too, rather than starting a resize",
+      sc.find("click 4 30") is not None and sc.g[6][39] == "\u25d7", sc)
+sc, _ = run(BARAPP, [press(6, 39), drag(6, 42), drag(6, 45), release(6, 45)])
+check("a drag on the title bar's right end resizes the window",
+      sc.g[6][45] == "\u25d7", sc)
+sc, _ = run(BARAPP, pre='DT_TITLE="#123456"\nDT_TITLEINK="#fedcba"\n')
+check("the focused title bar is the scheme's own title colour where it gives one",
+      "48;2;18;52;86" in (sc.p[6][20] or "") and
+      "38;2;254;220;186" in (sc.p[6][24] or ""), (sc.p[6][20], sc.p[6][24], sc))
+
+
+def pbg(sc, r, c):
+    """A cell's background as (r, g, b), or None for the terminal's own."""
+    m = re.search(r"48;2;(\d+);(\d+);(\d+)", sc.p[r][c] or "")
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+# A window's face and the menu bar show a picture wallpaper through, each at
+# its own percentage: their own colour counts as none while they draw, so
+# what lands there is the picture's, scaled -- and at 0 it is the colour.
+TRP = dict(WPIX, DT_WALLIMGMODE="follow")
+sc, _ = run(BARAPP, env=dict(TRP, DT_WINTRANS="50", DT_BARTRANS="50"),
+            pre=IMGMOD, cell=(8, 16))
+clear, _ = run(BARAPP, env=TRP, pre=IMGMOD, cell=(8, 16))
+check("over a picture a window's face shows it through, and at 0 it does not",
+      pbg(clear, 11, 20) == (16, 24, 32) and pbg(sc, 11, 20) not in
+      (None, (16, 24, 32)), (pbg(clear, 11, 20), pbg(sc, 11, 20)))
+check("and so does the menu bar, at its own percentage",
+      pbg(clear, 0, 34) == (27, 58, 92) and pbg(sc, 0, 34) not in
+      (None, (27, 58, 92)), (pbg(clear, 0, 34), pbg(sc, 0, 34), clear.row(0)))
+
+report(787)

@@ -202,12 +202,13 @@ fn dt_sbto(int id, key, int r, int c) {
 
 # A drag or a release while a bar is held, at screen row mr, column mc.
 fn dt_sbdrag(act, int mr, int mc) {
-	local id key
+	local id key wa
 
 	read -r id key <<< "$DT_SBDRAG"
 	[ "$act" = release ] && DT_SBDRAG=
 	[ -n "${DT[$id]["row"]+x}" ] || { DT_SBDRAG=; return 0; }
-	dt_sbto "$id" "$key" $((mr - DT[$id]["row"])) $((mc - DT[$id]["col"]))
+	wa := dt_wapp "$id"
+	dt_sbto "$id" "$key" $((mr - DT[$id]["row"])) $((mc - wa))
 }
 
 # Where a list with a selection starts this frame: brought to the selection

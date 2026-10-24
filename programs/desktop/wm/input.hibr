@@ -27,7 +27,7 @@ strict
 
 dt_mouse() {
 	local act=${1##*-} mr mc mods
-	local id b bi wr wc wh ww ap mo now dr dc wsn p
+	local id b bi wr wc wa wh ww ap mo now dr dc wsn p
 	local -a gv
 
 	mods=${1%"$act"}
@@ -139,6 +139,10 @@ dt_mouse() {
 		DT_FOCUS=$id
 		wr=${DT[$id]["row"]}
 		wc=${DT[$id]["col"]}
+		# The column the app's own coordinates count from: one left of
+		# the window when it has no border, so its column 1 is the edge.
+		wa=$wc
+		dt_capped "$id" && wa=$((wc - 1))
 		ww=${DT[$id]["w"]}
 		wh=${DT[$id]["h"]}
 		ap=${DT[$id]["click"]}
@@ -147,7 +151,11 @@ dt_mouse() {
 			# Any of the four corners starts a resize, the opposite one
 			# anchored: captured once, here, since the window's own row
 			# and col start changing the moment a top or left edge does.
-			if [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = $((wc + ww - 1)) ]
+			# Under the bar frame the bottom corners and the sides are the
+			# app's own cells, its scrollbar among them: only the title
+			# bar's two rounded ends are grips.
+			if [ "$wa" = "$wc" ] &&
+			   [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = $((wc + ww - 1)) ]
 			then
 				DT_SIZE=$id; DT_SIZECORNER=br
 				DT_SIZE_AR=$wr; DT_SIZE_AC=$wc
@@ -163,7 +171,8 @@ dt_mouse() {
 				DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$wc
 				return 0
 			fi
-			if [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = "$wc" ]; then
+			if [ "$wa" = "$wc" ] &&
+			   [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = "$wc" ]; then
 				DT_SIZE=$id; DT_SIZECORNER=bl
 				DT_SIZE_AR=$wr; DT_SIZE_AC=$((wc + ww - 1))
 				return 0
@@ -172,7 +181,7 @@ dt_mouse() {
 			# opposite edge anchored. There is no top edge of its own:
 			# row wr is the title bar over its whole width, so the two
 			# top corners are the only way to resize from above it.
-			if [ "$DT_EDGERESIZE" = 1 ]; then
+			if [ "$DT_EDGERESIZE" = 1 ] && [ "$wa" = "$wc" ]; then
 				if [ "$mc" = "$wc" ] && [ "$mr" -gt "$wr" ] &&
 				   [ "$mr" -lt $((wr + wh - 1)) ]; then
 					DT_SIZE=$id; DT_SIZECORNER=l
@@ -203,7 +212,7 @@ dt_mouse() {
 				return 0
 			fi
 			if dt_isdbl "$id"; then
-				[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc)) double
+				[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wa)) double
 				return 0
 			fi
 			DT_DRAG=$id
@@ -225,17 +234,17 @@ dt_mouse() {
 				esac
 			fi
 			if [ "$1" = left ] &&
-			   dt_sbpress "$id" $((mr - wr)) $((mc - wc)); then
+			   dt_sbpress "$id" $((mr - wr)) $((mc - wa)); then
 				return 0
 			fi
 			if [ "$1" = left ] &&
-			   dt_fdpress "$id" $((mr - wr)) $((mc - wc)) "$mods"; then
+			   dt_fdpress "$id" $((mr - wr)) $((mc - wa)) "$mods"; then
 				return 0
 			fi
 			mo=${DT[$id]["mouse"]}
 			if [ -n "$mo" ]; then
 				DT_MOUSE=$id
-				$mo "$id" press "$1" $((mr - wr)) $((mc - wc)) \
+				$mo "$id" press "$1" $((mr - wr)) $((mc - wa)) \
 					"$mods"
 				return 0
 			fi
@@ -245,7 +254,7 @@ dt_mouse() {
 					"$mr" "$mc"
 				return 0
 			fi
-			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc)) "$1"
+			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wa)) "$1"
 			return 0
 		fi
 		b := dt_btnat "$id" $((mc - wc))
@@ -357,10 +366,11 @@ dt_mouse() {
 			DT_NOTEWIN=$id
 			mo=${DT[$id]["mouse"]}
 			wr=${DT[$id]["row"]}
-			wc=${DT[$id]["col"]}
+			wa=${DT[$id]["col"]}
+			dt_capped "$id" && wa=$((wa - 1))
 			[ "$act" = release ] && DT_MOUSE=
 			[ -n "$mo" ] &&
-				$mo "$id" "$act" "$1" $((mr - wr)) $((mc - wc)) \
+				$mo "$id" "$act" "$1" $((mr - wr)) $((mc - wa)) \
 					"$mods"
 			DT_DNDR=$mr
 			DT_DNDC=$mc
@@ -516,8 +526,9 @@ dt_mouse() {
 		[ -z "$ap" ] && return 0
 		DT_NOTEWIN=$id
 		wr=${DT[$id]["row"]}
-		wc=${DT[$id]["col"]}
-		$ap "$id" "${act#wheel}" $((mr - wr)) $((mc - wc))
+		wa=${DT[$id]["col"]}
+		dt_capped "$id" && wa=$((wa - 1))
+		$ap "$id" "${act#wheel}" $((mr - wr)) $((mc - wa))
 		;;
 	esac
 }
@@ -609,7 +620,7 @@ DT_PTRC=
 # unchanged draws no frame (DT_HOVERQUIET), which is what keeps a moving
 # pointer from costing a frame per report.
 fn dt_hover(int r, int c) {
-	local t= id= ap b wr wc was=$DT_HOVERT
+	local t= id= ap b wr wc wa was=$DT_HOVERT
 
 	DT_HOVERBTN=
 	DT_HOVERMT=
@@ -646,7 +657,8 @@ fn dt_hover(int r, int c) {
 		if [ "${t#btn:}" = "$t" ] && [ -n "$id" ] &&
 		   [ -n "${DT[$id]["hover"]+x}" ] && [ -n "${DT[$id]["hover"]}" ]; then
 			wr=${DT[$id]["row"]}
-			wc=${DT[$id]["col"]}
+			wa=${DT[$id]["col"]}
+			dt_capped "$id" && wa=$((wa - 1))
 			t="w:$id:$r:$c"
 		fi
 	fi
@@ -657,7 +669,7 @@ fn dt_hover(int r, int c) {
 	fi
 	if [ "${t#w:*:}" != "$t" ]; then
 		DT_HOVERWIN=$id
-		${DT[$id]["hover"]} "$id" $((r - wr)) $((c - wc))
+		${DT[$id]["hover"]} "$id" $((r - wr)) $((c - wa))
 	fi
 	DT_PTRR=$r
 	DT_PTRC=$c

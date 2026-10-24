@@ -11,7 +11,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.1
+app appearance "The Control Panel pane for how the desktop looks" 2.2
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -82,6 +82,13 @@ fn cp_colourread(n, f) {
 		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
 			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
 	done
+	for k in titlebar titleink; do
+		[ -n "${j["$k"]+x}" ] || continue
+		v=${j["$k"]}
+		v=${v#\#}
+		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
+			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
+	done
 	case ${j["checks"]-box} in box | knob | block | tick) ;; *) return 1 ;; esac
 	v=${j["shadow"]-55}
 	case $v in '' | *[!0-9]*) return 1 ;; esac
@@ -94,6 +101,8 @@ fn cp_colourread(n, f) {
 	done
 	CP_CO["$n"]["shadow"]=$v
 	CP_CO["$n"]["checks"]=${j["checks"]-}
+	CP_CO["$n"]["titlebar"]=${j["titlebar"]-}
+	CP_CO["$n"]["titleink"]=${j["titleink"]-}
 }
 
 # Every colour scheme in CP_COLOURDIRS, the first of each name winning,
@@ -139,6 +148,8 @@ fn cp_colours(t) {
 	DT_INFO=${CP_CO["$t"]["info"]}
 	DT_WELL=${CP_CO["$t"]["well"]}
 	DT_THEMECHECKS=${CP_CO["$t"]["checks"]}
+	DT_TITLE=${CP_CO["$t"]["titlebar"]}
+	DT_TITLEINK=${CP_CO["$t"]["titleink"]}
 	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
 }
 
@@ -179,6 +190,7 @@ CP_THDEF["side"]=right; CP_THDEF["align"]=left; CP_THDEF["checks"]=theme
 CP_THDEF["dialog"]=filled; CP_THDEF["glyphs"]=unicode
 CP_THDEF["windowshadow"]=1; CP_THDEF["menushadow"]=1
 CP_THDEF["barshadow"]=1; CP_THDEF["buttonshadow"]=1
+CP_THDEF["wintrans"]=0; CP_THDEF["bartrans"]=0
 
 # Whether a value is one of a list.
 fn cp_oneof(v, ...vals) {
@@ -211,6 +223,10 @@ fn cp_themeread(n, f) {
 		checks) cp_oneof "$v" "${CP_CHECKS[@]}" || return 1 ;;
 		dialog) cp_oneof "$v" "${DT_DLGBTNS[@]}" || return 1 ;;
 		glyphs) cp_oneof "$v" "${DT_GLYPHSETS[@]}" || return 1 ;;
+		wintrans | bartrans)
+			case $v in '' | *[!0-9]*) return 1 ;; esac
+			[ ${#v} -le 3 ] && [ "$v" -le 100 ] || return 1
+			;;
 		treelines | *shadow)
 			case $v in
 			true | 1) v=1 ;;
@@ -280,6 +296,9 @@ fn cp_theme(t) {
 	DT_MSHADOW=${CP_TH["$t"]["menushadow"]}
 	DT_BARSHADOW=${CP_TH["$t"]["barshadow"]}
 	DT_BTNSHADOW=${CP_TH["$t"]["buttonshadow"]}
+	DT_WINTRANS=${CP_TH["$t"]["wintrans"]}
+	DT_BARTRANS=${CP_TH["$t"]["bartrans"]}
+	DT_BARWAS=
 	if [ "$DT_GLYPHSET" != "${CP_TH["$t"]["glyphs"]}" ]; then
 		DT_GLYPHSET=${CP_TH["$t"]["glyphs"]}
 		dt_glyphs "$DT_GLYPHSET"
@@ -321,6 +340,8 @@ fn cp_themewrite(path) {
 		printf '  "checks": "%s",\n' "$DT_CHECKS"
 		printf '  "dialog": "%s",\n' "$DT_DLGBTN"
 		printf '  "glyphs": "%s",\n' "$DT_GLYPHSET"
+		printf '  "wintrans": %s,\n' "${DT_WINTRANS:-0}"
+		printf '  "bartrans": %s,\n' "${DT_BARTRANS:-0}"
 		for b in windowshadow:DT_SHADOW menushadow:DT_MSHADOW barshadow:DT_BARSHADOW; do
 			vn=${b#*:}
 			if [ "${!vn}" = 1 ]; then printf '  "%s": true,\n' "${b%%:*}"; else printf '  "%s": false,\n' "${b%%:*}"; fi
@@ -383,7 +404,9 @@ fn cp_lookis(t) {
 	[ "$DT_SHADOW" = "${CP_TH["$t"]["windowshadow"]}" ] &&
 	[ "$DT_MSHADOW" = "${CP_TH["$t"]["menushadow"]}" ] &&
 	[ "$DT_BARSHADOW" = "${CP_TH["$t"]["barshadow"]}" ] &&
-	[ "$DT_BTNSHADOW" = "${CP_TH["$t"]["buttonshadow"]}" ]
+	[ "$DT_BTNSHADOW" = "${CP_TH["$t"]["buttonshadow"]}" ] &&
+	[ "${DT_WINTRANS:-0}" = "${CP_TH["$t"]["wintrans"]}" ] &&
+	[ "${DT_BARTRANS:-0}" = "${CP_TH["$t"]["bartrans"]}" ]
 }
 
 # Whether a theme is one of the person's own, which can be renamed and
@@ -488,6 +511,12 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=${DT_BARGAP:-2}; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=4
 	CP[$w][$n]["key"]=bargap; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Shows Through"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]="${DT_BARTRANS:-0}"
+	CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
+	CP[$w][$n]["after"]="(${DT_BARTRANS:-0}%)"
+	CP[$w][$n]["key"]=bartrans; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Notification Icon"
 	g := dt_bellglyph "$DT_BELLICON"
 	CP[$w][$n]["val"]="$g $DT_BELLICON"; CP[$w][$n]["key"]=bellicon
@@ -568,6 +597,8 @@ fn appearance_do(int w, k, int dir) {
 		v := cp_next "$DT_BELLICON" "$dir" "${DT_BELLICONS[@]}"
 		DT_BELLICON=$v
 		;;
+	bartrans) cp_bartrans $(((${DT_BARTRANS:-0} + 5) / 10 * 10 + dir * 10))
+		return 0 ;;
 	bargap)
 		v=$((${DT_BARGAP:-2} + dir))
 		[ "$v" -lt 1 ] && v=1
@@ -594,6 +625,30 @@ fn appearance_do(int w, k, int dir) {
 		;;
 	esac
 	cp_save
+}
+
+# How much of a picture wallpaper shows through the menu bar, in tens.
+fn cp_bartrans(int v) {
+	[ "$v" -lt 0 ] && v=0
+	[ "$v" -gt 100 ] && v=100
+	DT_BARTRANS=$(((v + 5) / 10 * 10))
+	DT_BARWAS=
+	cp_save
+	return 0
+}
+
+# A slider set where its track is clicked.
+fn appearance_slide(int w, k, int value) {
+	case $k in
+	bartrans) cp_bartrans "$value" ;;
+	bargap)
+		[ "$value" -lt 1 ] && value=1
+		[ "$value" -gt 4 ] && value=4
+		DT_BARGAP=$value
+		cp_save
+		;;
+	esac
+	return 0
 }
 
 fn appearance_drop(int w, int r, int c, k) {

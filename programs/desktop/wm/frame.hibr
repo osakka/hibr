@@ -201,10 +201,30 @@ fn dt_castshadow(int r, int c, int h, int w, int? lim = "") {
 	return 0
 }
 
+# Whether a window is drawn with the bar frame: its title bar the only row
+# of frame, with rounded ends, and no border anywhere else -- so its
+# content runs to its edge, and the app's own column 1 is the window's
+# first. A bare window and one with no chrome draw every cell themselves
+# already.
+fn dt_capped(int id) {
+	[ "$DT_FRAME" = bar ] || return 1
+	[ "${DT[$id]["chrome"]}" != none ] || return 1
+	[ "${DT_APPS[${DT[$id]["app"]}]["bare"]}" != 1 ]
+}
+
+# The screen column a window's app counts its own columns from: the
+# window's own, or one left of it under the bar frame.
+fn dt_wapp(int id) {
+	local c=${DT[$id]["col"]}
+
+	dt_capped "$id" && c=$((c - 1))
+	ret "$c"
+}
+
 fn dt_win(int id) {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} on=$DT_IDLE
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
-	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} pc
+	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} pc cap=0
 
 	# Nothing about it has changed and nothing else touches it: its cells
 	# are still on the screen from last frame, and the wallpaper painted
@@ -256,13 +276,28 @@ fn dt_win(int id) {
 	# L. The result is the same cells: the row under the window, and the
 	# two columns beside it. Cast above, before the shapes that return
 	# early.
-	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
+	# The focused frame and title bar are the scheme's own title colour
+	# where it gives one, the accent where it does not.
+	[ "$DT_FOCUS" = "$id" ] && on=${DT_TITLE:-$DT_ACTIVE}
+	# The face and whatever the app draws on it in the face's own colour
+	# show the wallpaper through; a selection or a field drawn in another
+	# colour stays itself, and the frame drawn after is opaque.
+	[ "${DT_WINTRANS:-0}" != 0 ] &&
+		console translucent "$DT_WINTRANS" "$DT_FACE" "$DT_FACE"
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "
 	DT_NOTEWIN=$id
 	dt_wclear "$id"
 	dt_fieldstale "$id"
-	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+	if dt_capped "$id"; then
+		cap=1
+		console pane origin "w$id" 0 1
+		[ -n "$dr" ] && $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
+		console pane origin "w$id" 0 0
+	else
+		[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+	fi
+	[ "${DT_WINTRANS:-0}" != 0 ] && console translucent off
 	DT_NOTEWIN=
 
 	# None is a blank frame, not no frame: the ring of border glyphs is
@@ -270,7 +305,7 @@ fn dt_win(int id) {
 	# and its buttons are still there, still clickable, exactly as under
 	# single or double. Nothing about a window's controls ever depends on
 	# whether its edge is drawn.
-	if [ "$DT_FRAME" != none ]; then
+	if [ "$DT_FRAME" != none ] && [ "$cap" = 0 ]; then
 		console pen "$on" "$DT_FACE"
 		local tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
 		local bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
@@ -299,18 +334,26 @@ fn dt_win(int id) {
 	fi
 
 	local bs bc off i tbg=$DT_FACE tfg=$on bink=$DT_INK
+	local tink=${DT_TITLEINK:-$DT_SELINK}
 	# A solid title bar is the frame's own colour, and everything on it --
-	# the title, a button drawn in ink -- is drawn in DT_SELINK, the text
-	# that reads on the accent.
-	if [ "$DT_TITLEBAR" = solid ]; then
+	# the title, a button drawn in ink -- is drawn in the title's ink,
+	# DT_SELINK unless the scheme gives one. The bar frame is always solid,
+	# with its two ends rounded off in the bar's colour over whatever is
+	# behind the window.
+	if [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; then
 		tbg=$on
-		tfg=$DT_SELINK
-		bink=$DT_SELINK
-		if [ "$DT_FRAME" = none ]; then
+		tfg=$tink
+		bink=$tink
+		if [ "$DT_FRAME" = none ] || [ "$cap" = 1 ]; then
 			local sb
 			sb := dt_rep "$w" " "
-			console pen "$DT_SELINK" "$on"
+			console pen "$tink" "$on"
 			console put -p "w$id" 0 0 "$sb"
+		fi
+		if [ "$cap" = 1 ]; then
+			console pen "$on" default
+			console put -p "w$id" 0 0 "${GL[capl]}"
+			console put -p "w$id" 0 $((w - 1)) "${GL[capr]}"
 		fi
 	fi
 	local side=$DT_BTNSIDE align=$DT_TITLEALIGN
@@ -325,7 +368,8 @@ fn dt_win(int id) {
 	# A blank frame is blank throughout: the tick marks a style wraps its
 	# cluster in are box-drawing glyphs too, and stay undrawn along with
 	# the ring itself, even though the buttons they wrap keep working.
-	{ [ "$DT_FRAME" = none ] || [ "$DT_TITLEBAR" = solid ]; } && { BTN_DL=" "; BTN_DR=" "; }
+	{ [ "$DT_FRAME" = none ] || [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; } &&
+		{ BTN_DL=" "; BTN_DR=" "; }
 	bs := dt_btnstr
 	if [ "$side" = left ]; then bc=1; else bc=$((w - 1 - ${#bs})); fi
 	console pen "$bink" "$tbg"
@@ -373,7 +417,8 @@ fn dt_win(int id) {
 	*)      tc=$tc0 ;;
 	esac
 	local tdl="${GL[teel]}" tdr="${GL[teer]}"
-	{ [ "$DT_FRAME" = none ] || [ "$DT_TITLEBAR" = solid ]; } && { tdl=" "; tdr=" "; }
+	{ [ "$DT_FRAME" = none ] || [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; } &&
+		{ tdl=" "; tdr=" "; }
 	console pen "$tfg" "$tbg" bold
 	console put -p "w$id" 0 "$tc" "$tdl $t $tdr"
 
@@ -388,7 +433,8 @@ fn dt_win(int id) {
 			if [ "${BTN_K[$i]}" = "$DT_BTNKIND" ]; then
 				if [ "${BTN_C[$i]}" = "$DT_INK" ]; then
 					pc=$DT_ACTIVE
-					[ "$DT_TITLEBAR" = solid ] && pc=$DT_FACE
+					{ [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; } &&
+						pc=$DT_FACE
 				else
 					pc := dt_lighten "${BTN_C[$i]}" 45
 				fi
@@ -406,7 +452,8 @@ fn dt_win(int id) {
 			if [ "${BTN_K[$i]}" = "${DT_HOVERBTN#* }" ]; then
 				if [ "${BTN_C[$i]}" = "$DT_INK" ]; then
 					pc=$DT_ACTIVE
-					[ "$DT_TITLEBAR" = solid ] && pc=$DT_FACE
+					{ [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; } &&
+						pc=$DT_FACE
 				else
 					pc := dt_lighten "${BTN_C[$i]}" 25
 				fi

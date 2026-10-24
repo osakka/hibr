@@ -47,6 +47,11 @@ static int cn_transpct;
    picture is really there before deciding what to send, and be wrong
    whenever the answer changed between the asking and the drawing. */
 static unsigned cn_transfb;
+/* A colour that counts as no background while translucency is on: a
+   window's own face, so a window drawn in a real colour shows the picture
+   through where it is plain, and stays itself under a selection or a
+   field. DP_DEFAULT is none, which is what the terminal's own cells need. */
+static unsigned cn_transmat = DP_DEFAULT;
 int cn_crow, cn_ccol, cn_cvis;
 unsigned cn_lfg, cn_lbg, cn_lat;
 int cn_lset, cn_lvis = -1, cn_lcr = -1, cn_lcc = -1;
@@ -442,8 +447,23 @@ int cn_translucent(int pct, unsigned fb)
 	if (pct >= 0) {
 		cn_transpct = pct > 100 ? 100 : pct;
 		cn_transfb = fb;
+		cn_transmat = DP_DEFAULT;
 	}
 	return was;
+}
+
+/* The colour a translucent write treats as no background, until the next
+   cn_translucent. */
+void cn_transmatch(unsigned bg)
+{
+	cn_transmat = bg;
+}
+
+/* Whether a write with this background takes the picture's colour. */
+int cn_transon(unsigned bg)
+{
+	return cn_transpct && (bg == DP_DEFAULT ||
+			       (cn_transmat != DP_DEFAULT && bg == cn_transmat));
 }
 
 /* Darken a rectangle of the back buffer in place, in front of whatever is
@@ -648,7 +668,7 @@ int cn_put(int row, int col, const char *t)
 		c->cont = 0;
 		c->fg = cn_fg;
 		c->bg = cn_opaque(row, col,
-				  cn_transpct && cn_bg == DP_DEFAULT ?
+				  cn_transon(cn_bg) ?
 					  cn_bgtrans(row, col) : cn_bg);
 		c->attr = cn_penat;
 		c->link = cn_plink;
@@ -708,8 +728,7 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 				p->cont = 0;
 				p->fg = cn_fg;
 				p->bg = cn_opaque(r, c,
-						  cn_transpct &&
-						  cn_bg == DP_DEFAULT ?
+						  cn_transon(cn_bg) ?
 							  cn_bgtrans(r, c) :
 							  cn_bg);
 				p->attr = cn_penat | CN_FILLED;

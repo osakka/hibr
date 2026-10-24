@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.99.316
+
+**Charcoal, and the three things it needed.** A theme in the catalogue, not
+shipped: a charcoal title bar that is the window's only frame, its two ends
+rounded, coloured buttons on the left and the title centred, soft white text
+with a bright white accent, and windows and the menu bar the wallpaper shows
+through, over a picture of its own. Install it with `catalogue install
+themes/charcoal` (its colours are `colours/charcoal`).
+
+**A frame that is only a title bar.** Control Panel > Windows > Frame has
+`bar`: the title bar is the window's one row of frame, its ends rounded --
+◖ ◗, or Powerline's half circles in the nerd and Blit glyph sets -- and the
+content runs to the window's edge. No app had to change for it: the console's
+panes can now start their own coordinates inside their rectangle (`console
+pane origin name row col`), so an app's row 1, column 1 is still where its
+content begins and lands on the window's edge, and its clicks are counted
+from there. The sides and the bottom are the app's own cells under this
+frame -- a press there reaches the app, a scrollbar on the last column
+included -- so the title bar's two ends are the resize grips.
+
+**A title colour of its own.** A colour scheme may set `titlebar` and
+`titleink`, the focused window's frame or title bar and the text on it. Left
+out they are the accent and `selink`, which is what every scheme had before;
+a dark bar and a bright accent need them apart.
+
+**Windows and the menu bar the wallpaper shows through.** Control Panel >
+Windows and Appearance > Menu Bar each have a Wallpaper Shows Through
+slider (`DT_WINTRANS`, `DT_BARTRANS`, and `wintrans`/`bartrans` in a theme):
+a window's face, and the bar's own colour, take the picture's colour scaled
+to that percentage; a selection, a field or an open menu title drawn in
+another colour stays itself, and a title bar stays opaque. It needs a
+picture wallpaper drawn in pixels; anywhere else nothing changes. `console
+translucent` takes a third argument for this, the colour that counts as none
+while it is on. A frame measured the same with it off and at 55%, 3.9 to 4.3
+ms either way at 120x40, inside the run-to-run spread. A terminal's own
+setting still decides inside a terminal when it is above 0.
+
+**Screenshots draw what the terminal drew again.** `tools/screenshot.py` had
+an escape parser of its own that knew four sequences, and from 0.99.313 the
+console sends the cheapest moves, erases and repeats -- so every picture it
+made lost windows and text. It reads the cells from `tests/screen.py`'s
+model now, the one every suite asserts against, and waits for `--until` on
+the screen rather than in the byte stream. No picture in the tree had been
+made with it since.
+
 ## 0.99.315
 
 **The notification icon opens a panel, not a window.** A click on the icon in

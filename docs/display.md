@@ -102,7 +102,7 @@ and the flush cost shown live. Run it and press things.
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
 | `console darken row col h w [pct]` | shade what is already in the back buffer, a shadow |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
-| `console translucent pct [colour]` | how much of a picture drawn under the text shows through the writes that follow: a cell written with no background of its own takes the picture's own colour there, scaled to `pct`, or `colour` where there is no picture. `off` ends it, and so does the next flush |
+| `console translucent pct [colour [match]]` | how much of a picture drawn under the text shows through the writes that follow: a cell written with no background of its own -- or in `match`, a window's own face -- takes the picture's own colour there, scaled to `pct`, or `colour` where there is no picture. `off` ends it, and so does the next flush |
 | `console termbg` | what the terminal says its own background is, and whether it said it: `#101418 answered`, or `#000000 assumed` by a terminal that answers nothing |
 | `console shade colour [pct]` | the colour `darken` would make of a `#rrggbb` |
 | `console clip text` | put text on the terminal's clipboard (OSC 52) |
@@ -115,6 +115,7 @@ and the flush cost shown live. Run it and press things.
 | `console pane name row col h w` | define a region, or move one |
 | `console pane name` | its row, column, height and width |
 | `console pane raise\|lower\|drop name` | restack a pane, or forget it |
+| `console pane origin name row col` | where the pane's own coordinates start inside it, kept until changed: `origin w 0 1` makes column 1 the pane's first, so a window with no border has its content on its edge |
 | `console pane top name [on\|off]` | put a pane above everything: its cells are written only through it |
 | `console pane list` | every pane, bottom to top |
 | `console pane clear` | forget every pane |

@@ -60,7 +60,7 @@ import zlib
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                  "..", "tests"))
-from screen import Term, load, tree, press, release, wheel  # noqa: E402
+from screen import Term, Screen, load, tree, press, release, wheel  # noqa: E402
 
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
@@ -111,130 +111,63 @@ class Cell:
         self.dim = False
 
 
-class ColourScreen:
-    """Like tests/screen.py's Screen, but keeps colour and weight too -- and
-    the pictures, which are not text and must never reach the grid."""
+def colour(a, i):
+    """The colour an SGR list names at a[i], and how many items it took:
+    38/48;2;r;g;b, 38/48;5;n, or the classic 30-37, 90-97, 40-47, 100-107."""
+    x = a[i]
+    if x in ("38", "48") and i + 1 < len(a):
+        if a[i + 1] == "2" and i + 4 < len(a):
+            return tuple(int(v) for v in a[i + 2:i + 5]), 5
+        if a[i + 1] == "5" and i + 2 < len(a):
+            return xterm256(int(a[i + 2])), 3
+    if x.isdigit():
+        n = int(x)
+        if 30 <= n <= 37 or 40 <= n <= 47:
+            return XTERM16[n % 10], 1
+        if 90 <= n <= 97 or 100 <= n <= 107:
+            return XTERM16[8 + n % 10], 1
+    return None, 1
 
-    def __init__(self, rows, cols):
-        self.rows, self.cols = rows, cols
-        self.imgs = []
-        self.clear()
+
+class ColourScreen(Screen):
+    """tests/screen.py's own model of the terminal -- the one every suite
+    asserts against -- read for colour and weight as well as glyphs, and
+    for the kitty pictures it keeps. This tool had a parser of its own until
+    0.99.317, which knew four escapes; when the console began sending the
+    cheapest moves, erases and repeats (Gitea #353) every picture this made
+    lost windows and text, and nothing said so. One model, kept by the
+    suites, is the only kind that stays right."""
+
+    IMGKEEP = 1 << 40
 
     def clear(self):
-        self.g = [[Cell() for _ in range(self.cols)] for _ in range(self.rows)]
-        self.r = self.c = 0
-        self.fg = self.bg = None
-        self.bold = self.dim = False
+        keep = (getattr(self, "kplace", None), getattr(self, "imgdata", None))
+        super().clear()
+        if keep[0] is not None:
+            self.kplace, self.imgdata = keep
 
-    def _sgr(self, params):
+    def cell(self, r, c):
+        out = Cell()
+        out.ch = self.g[r][c]
+        a = (self.p[r][c] or "").split(";")
         i = 0
-        n = len(params)
-        while i < n:
-            p = params[i]
-            if p in ("", "0"):
-                self.fg = self.bg = None
-                self.bold = self.dim = False
-            elif p == "1":
-                self.bold = True
-            elif p == "2":
-                self.dim = True
-            elif p in ("22",):
-                self.bold = self.dim = False
-            elif p == "39":
-                self.fg = None
-            elif p == "49":
-                self.bg = None
-            elif p in ("38", "48"):
-                bgp = p == "48"
-                if i + 1 < n and params[i + 1] == "2" and i + 4 < n:
-                    r, g, b = (int(params[i + 2]), int(params[i + 3]),
-                               int(params[i + 4]))
-                    if bgp:
-                        self.bg = (r, g, b)
-                    else:
-                        self.fg = (r, g, b)
-                    i += 4
-                elif i + 1 < n and params[i + 1] == "5" and i + 2 < n:
-                    col = xterm256(int(params[i + 2]))
-                    if bgp:
-                        self.bg = col
-                    else:
-                        self.fg = col
-                    i += 2
-            i += 1
-
-    def feed(self, t):
-        i, n = 0, len(t)
-        while i < n:
-            ch = t[i]
-            if ch == "\x1b" and i + 1 < n and t[i + 1] == "[":
-                j = i + 2
-                while j < n and not ("@" <= t[j] <= "~"):
-                    j += 1
-                if j >= n:
-                    break
-                seq, fin = t[i + 2:j], t[j]
-                if fin == "H":
-                    a = seq.split(";")
-                    self.r = int(a[0]) - 1 if a and a[0].isdigit() else 0
-                    self.c = (int(a[1]) - 1
-                              if len(a) > 1 and a[1].isdigit() else 0)
-                elif fin == "C":
-                    self.c += int(seq) if seq.isdigit() else 1
-                elif fin == "m":
-                    self._sgr(seq.split(";") if seq else [""])
-                elif fin == "J" and seq in ("2", "3"):
-                    self.clear()
-                i = j + 1
-                continue
-            # Everything below is an escape that is *not* text, and each
-            # runs to its own terminator. Skipping two bytes instead -- what
-            # this did until 0.99.148 -- leaves the rest of the string in
-            # the grid: an APC's base64 scribbled across the screen, and the
-            # harness's own `7777;idle;N;M` written over a window.
-            if ch == "\x1b" and i + 1 < n and t[i + 1] == "_":
-                j = i + 2
-                while j < n and t[j:j + 2] != "\x1b\\":
-                    j += 1
-                ctrl, _, data = t[i + 2:j].partition(";")
-                if ctrl.startswith("Ga=T") or ctrl.startswith("Ga=p"):
-                    self.imgs.append([self.r, self.c, ctrl, data])
-                elif data and self.imgs:
-                    # A picture larger than 4096 bytes arrives in chunks,
-                    # and only the first carries the control.
-                    self.imgs[-1][3] += data
-                i = j + 2
-                continue
-            if ch == "\x1b" and i + 1 < n and t[i + 1] == "]":
-                j = i + 2
-                while j < n and t[j] != "\x07" and t[j:j + 2] != "\x1b\\":
-                    j += 1
-                i = j + (1 if j < n and t[j] == "\x07" else 2)
-                continue
-            if ch == "\x1b" and i + 1 < n and t[i + 1] == "P":
-                # A sixel. Its own bytes are not kept: sixel is paint, with
-                # no placement to read a rectangle from, so there is nothing
-                # faithful to draw. A screenshot of one shows the cells it
-                # was painted over, and says so here rather than silently.
-                j = i + 2
-                while j < n and t[j:j + 2] != "\x1b\\":
-                    j += 1
-                i = j + 2
-                continue
-            if ch == "\x1b":
-                i += 2
-                continue
-            if ch in "\r\n":
+        while i < len(a):
+            if a[i] == "1":
+                out.bold = True
                 i += 1
                 continue
-            if 0 <= self.r < self.rows and 0 <= self.c < self.cols:
-                cell = self.g[self.r][self.c]
-                cell.ch = ch
-                cell.fg, cell.bg = self.fg, self.bg
-                cell.bold, cell.dim = self.bold, self.dim
-            self.c += 2 if ord(ch) > 0x2E80 else 1
-            i += 1
-        return self
+            if a[i] == "2":
+                out.dim = True
+                i += 1
+                continue
+            v, k = colour(a, i)
+            if v is not None:
+                if a[i].startswith("4") or a[i].startswith("10"):
+                    out.bg = v
+                else:
+                    out.fg = v
+            i += k
+        return out
 
     def pictures(self):
         """Each kept transmission as (row, col, image, z, cells): decoded,
@@ -243,7 +176,7 @@ class ColourScreen:
         since the wallpaper is sent at DT_WALLDETAIL and the terminal scales
         it, so a faithful render has to scale it the same way."""
         out = []
-        for r, c, ctrl, data in self.imgs:
+        for (r, c, ctrl), data in zip(self.kplace, self.imgdata):
             k = dict(p.split("=", 1) for p in ctrl[1:].split(",") if "=" in p)
             try:
                 raw = base64.b64decode(data)
@@ -297,7 +230,7 @@ def render(cs, path):
     draw = ImageDraw.Draw(img)
     for r in range(cs.rows):
         for c in range(cs.cols):
-            cell = cs.g[r][c]
+            cell = cs.cell(r, c)
             bg = cell.bg or DEFAULT_BG
             x0, y0 = c * CELL_W, r * CELL_H
             if cell.bg is not None:
@@ -444,7 +377,11 @@ def main():
         end = time.time() + args.untilmax
         while time.time() < end:
             t.collect(0.2)
-            if args.until in t.text:
+            # On the screen, not in the stream: a renderer that sends only
+            # what changed, by the cheapest moves, need never send a string
+            # whole.
+            if args.until in ColourScreen(args.rows, args.cols).feed(
+                    t.raw.decode("utf-8", errors="replace")).text():
                 break
         else:
             print("screenshot.py: %r never appeared in %gs"

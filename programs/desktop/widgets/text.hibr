@@ -329,11 +329,12 @@ fn dt_fdpress(id, int r, int c, mods = "") {
 # A drag or a release while a field's selection is being drawn out, at
 # screen row mr, column mc.
 fn dt_fddrag(act, int mr, int mc) {
-	local id=$DT_FDRAG
+	local id=$DT_FDRAG wa
 
 	[ "$act" = release ] && DT_FDRAG=
 	[ -n "${DT[$id]["col"]+x}" ] || { DT_FDRAG=; return 0; }
-	dt_fdmove "$id" $((mc - DT[$id]["col"])) 1
+	wa := dt_wapp "$id"
+	dt_fdmove "$id" $((mc - wa)) 1
 }
 
 # An app's own Cut on its focused field: the selected text, taken out of

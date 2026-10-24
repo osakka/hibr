@@ -183,7 +183,16 @@ frame or two of half blocks at startup costs nothing. `console gfx` itself
 is unchanged: it is asked what a terminal most likely draws, and a name is
 a fair answer to that question.
 
-`console translucent pct [colour]` is the same substitution for a *write*
+A pane's own coordinates can start inside it: `console pane origin name row
+col` (0.99.317) shifts every write through the pane and every rectangle
+`cn_prect` hands another module, while the pane's rectangle -- what owns the
+cells, what is hit, what a copy moves -- stays the window's. That is how a
+window with no border keeps its content's column 1 and lands it on its edge
+without any app changing. A write starting left of column 0 is refused, as it
+always was; one that starts inside and runs left of the origin keeps what
+falls inside.
+
+`console translucent pct [colour [match]]` is the same substitution for a *write*
 rather than a darken: while it is set, a cell written with no background of
 its own takes the picture's colour at that cell scaled to `pct`, or `colour`
 where no picture is under it. That is how a window the wallpaper shows

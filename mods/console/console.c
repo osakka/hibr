@@ -112,10 +112,10 @@ int cn_prect(const char *nm, int *row, int *col, int *h, int *w)
 
 	if (!p)
 		return 0;
-	*row = p->row;
-	*col = p->col;
-	*h = p->h;
-	*w = p->w;
+	*row = p->row - p->orow;
+	*col = p->col - p->ocol;
+	*h = p->h + p->orow;
+	*w = p->w + p->ocol;
 	return 1;
 }
 
@@ -266,13 +266,22 @@ int cn_pput(sh *s, const cn_pane *p, int row, int col, const char *t)
 	int w, l, room, adv;
 	unsigned cp;
 
-	if (!p || row < 0 || row >= p->h || !t)
+	if (!p || !t || col < 0)
 		return 0;
+	row -= p->orow;
+	col -= p->ocol;
+	if (row < 0 || row >= p->h)
+		return 0;
+	n = strlen(t);
+	while (col < 0 && i < n) {
+		l = u8dec(t + i, n - i, &cp);
+		col += u8w(cp);
+		i += (size_t)l;
+	}
 	room = p->w - col;
 	if (col < 0 || room <= 0)
 		return 0;
 	s_init(&clip);
-	n = strlen(t);
 	w = 0;
 	while (i < n) {
 		l = u8dec(t + i, n - i, &cp);
@@ -307,7 +316,11 @@ int cn_pfill(const cn_pane *p, int row, int col, int h, int w, const char *t)
 {
 	int was;
 
-	if (!p || h <= 0 || w <= 0 || row >= p->h || col >= p->w)
+	if (!p)
+		return 0;
+	row -= p->orow;
+	col -= p->ocol;
+	if (h <= 0 || w <= 0 || row >= p->h || col >= p->w)
 		return 0;
 	if (row < 0) {
 		h += row;
@@ -1007,6 +1020,16 @@ int m_console(sh *s, int ac, char **av)
 			return HIBR_FAIL;
 		}
 		cn_translucent(!strcmp(m, "off") ? 0 : atoi(m), fg);
+		if (ac > 4) {
+			unsigned mt;
+
+			if (cn_colour(av[4], &mt) != HIBR_OK) {
+				lg(HIBR_LERR, "console translucent: %s: not a "
+					      "colour", av[4]);
+				return HIBR_FAIL;
+			}
+			cn_transmatch(mt);
+		}
 		return HIBR_OK;
 	}
 	/* What the terminal said its own background is, and whether it said
@@ -1150,6 +1173,20 @@ int m_console(sh *s, int ac, char **av)
 		}
 		/* `pane top name [on|off]`: above everything, its cells
 		   written only through it. */
+		/* Where the pane's own coordinates start inside it, kept until
+		   it is changed: a window with no border has its content's
+		   first row and column on its edge. */
+		if (ac == 6 && !strcmp(verb, "origin")) {
+			p = cn_pfind(av[3]);
+			if (!p) {
+				lg(HIBR_LERR, "console pane origin: %s: no "
+					      "such pane", av[3]);
+				return HIBR_FAIL;
+			}
+			p->orow = atoi(av[4]);
+			p->ocol = atoi(av[5]);
+			return HIBR_OK;
+		}
 		if ((ac == 4 || ac == 5) && !strcmp(verb, "top")) {
 			p = cn_pfind(av[3]);
 			if (!p) {
@@ -1199,6 +1236,7 @@ int m_console(sh *s, int ac, char **av)
 		}
 		if (ac < 7) {
 			lg(HIBR_LERR, "usage: console pane name row col h w, "
+				      "or pane origin name row col, "
 				      "or pane raise|lower|drop name, "
 				      "or pane top name [on|off], "
 				      "or pane list|clear");

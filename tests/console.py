@@ -446,6 +446,38 @@ sc = olrun('console fill 8 0 1 20 漢\nconsole flush\n' + OL % "7 3 3 6" +
 check("an outline across a wide glyph leaves it whole once it goes",
       sc.row(8)[:20] == "漢 " * 10, sc.row(8)[:22])
 
+# A pane's own coordinates can start inside it (0.99.317): a window drawn
+# with no border keeps the row and column its content has always begun at,
+# and they land on its edge. Column 1 is the pane's first, a write at 0 loses
+# only what falls left of it, the right edge still clips -- and a pane with
+# no origin is exactly what it was, a write starting left of it refused.
+PO = ('console open\nconsole pane w 2 5 4 10\n@O@'
+      'console put -p w 1 1 "abc"\nconsole put -p w 2 0 "XYZ"\n'
+      'console put -p w 3 9 "0123"\nconsole fill -p w 0 1 1 3 "#"\n'
+      'console put -p w 1 -1 "neg"\nconsole flush\nconsole key 300\n'
+      'console close\n')
+
+
+def porun(o):
+    out, _ = run(PO.replace("@O@", o), rows=10, cols=30)
+    sc = Screen()
+    sc.feed(out.decode("utf-8", "replace"))
+    return sc
+
+
+sc = porun("console pane origin w 0 1\n")
+check("a pane's origin puts its column 1 on its first column",
+      sc.row(3)[5:8] == "abc" and sc.row(2)[5:8] == "###",
+      [sc.row(r)[:16] for r in range(2, 6)])
+check("a write at column 0 keeps what falls inside, and the right edge clips",
+      sc.row(4)[5:7] == "YZ" and sc.row(4)[4] == " " and
+      sc.row(5)[13:15] == "01" and "2" not in sc.row(5),
+      [sc.row(r)[:16] for r in range(2, 6)])
+sc = porun("")
+check("with no origin a pane draws as it always has, a write left of it refused",
+      sc.row(3)[6:9] == "abc" and sc.row(4)[5:8] == "XYZ" and
+      "neg" not in sc.text(), [sc.row(r)[:16] for r in range(2, 6)])
+
 # A pane moved whole is sent as a rectangle copy, DECCRA, where the terminal
 # applies one (Gitea #337): the cells it held are copied on the terminal and
 # in both of the console's grids, so the frame that draws it again at its
@@ -822,4 +854,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 106)
+report(len(WANT) + len(MWANT) + 109)

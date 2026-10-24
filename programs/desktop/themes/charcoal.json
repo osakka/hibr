@@ -1,0 +1,19 @@
+{
+  "title": "Charcoal",
+  "about": "Modern and quiet: a charcoal title bar with rounded ends and no other frame, content to the edge, coloured buttons on the left, and windows and the menu bar the wallpaper shows through.",
+  "version": "1.0",
+  "colours": "charcoal",
+  "image": "charcoal.png",
+  "mode": "zoom",
+  "frame": "bar",
+  "titlebar": "solid",
+  "buttons": "circles",
+  "side": "left",
+  "align": "center",
+  "windowshadow": true,
+  "menushadow": true,
+  "barshadow": false,
+  "buttonshadow": false,
+  "wintrans": 55,
+  "bartrans": 60
+}

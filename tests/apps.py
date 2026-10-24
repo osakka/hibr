@@ -848,8 +848,8 @@ sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[C"], geom=PWTALL)
 check("right enters the pane, and a second right cycles its first row",
       "construction" in brow(sc, "Theme") and sc.find("classic") is None, sc)
 sc = cprun(DOWN_APP + [b"\t"] + [b"\x1b[D"])
-check("tab enters it too, and left cycles the other way, round to the last",
-      "retro_car" in brow(sc, "Theme"), sc)
+check("tab enters it too, and left cycles the other way",
+      "charcoal" in brow(sc, "Theme"), sc)
 sc = cprun(DOWN_APP + [b"\t", b"\t", b"\x1b[C"])
 check("a second tab leaves the pane, back to moving the picker",
       sc.find("construction") is None and
@@ -858,7 +858,7 @@ check("a second tab leaves the pane, back to moving the picker",
 sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL)])
 check("clicking the dropdown's own cell opens a real popup of choices",
       sc.find("construction") is not None and sc.find("meadow") is not None, sc)
-sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 3, VALCOL + 3)],
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 4, VALCOL + 3)],
            geom=PWTALL)
 check("choosing one there applies it, the same as cycling would",
       "construction" in brow(sc, "Theme") and "hazard" in brow(sc, "Colours"), sc)
@@ -866,10 +866,10 @@ sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL)])
 check("the colour popup offers black, neon, phosphor and amber",
       all(sc.find(t) is not None for t in ("black", "neon", "phosphor",
                                             "amber")), sc)
-sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 5, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 6, VALCOL + 3)])
 check("and choosing dracula applies it",
       "dracula" in brow(sc, "Colours") and sc.find("midnight") is None, sc)
-sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 13, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 14, VALCOL + 3)])
 check("and phosphor, further down the list",
       "phosphor" in brow(sc, "Colours"), sc)
 
@@ -898,7 +898,7 @@ out = subprocess.run(
      'cp_themerenamed "" "%s/hibr/themes/ours"\necho "$CP_THEME ${CP_THEMES[*]}"' % TD],
     env=dict(os.environ, XDG_CONFIG_HOME=TD), capture_output=True, text=True).stdout.strip()
 check("Rename moves the file and keeps it chosen",
-      out == "ours classic construction meadow ours retro_car" and
+      out == "ours charcoal classic construction meadow ours retro_car" and
       os.path.exists(os.path.join(TD, "hibr", "themes", "ours.json")), out)
 shutil.rmtree(TD, True)
 
@@ -1508,7 +1508,7 @@ out = subprocess.run(
 shutil.rmtree(TD, True)
 check("every bundled colour scheme is listed, sorted, with a new one of the "
       "person's own among them",
-      out[0] == "amber black dracula ember forest hazard meadow midnight neon paper "
+      out[0] == "amber black charcoal dracula ember forest hazard meadow midnight neon paper "
       "phosphor slate zinc", out)
 check("a scheme of the person's own replaces the bundled one of that name",
       out[1] == "#010203 70", out)
@@ -1563,7 +1563,7 @@ out = subprocess.run(
     capture_output=True, text=True).stdout.split("\n")
 check("the bundled themes and the person's own are listed; a colour file, and "
       "a theme with a value its setting cannot take or no colours, are not",
-      out[0] == "classic construction dusk meadow retro_car", out)
+      out[0] == "charcoal classic construction dusk meadow retro_car", out)
 check("a theme sets its colours and the look with them -- Under Construction "
       "is yellow, double framed, solid barred, with its own picture",
       out[1] == "construction hazard double solid squares block #ffd400 construction.png", out)
