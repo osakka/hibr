@@ -145,13 +145,21 @@ CAT_URL=
 # Gitea #221). It is native code, so three things that are advisory for a
 # script are refusals for it -- the signature, the ABI and the machine --
 # and it is the only kind whose files may end in `.so`.
+#
+# The tenth is `cli`, and it is not a scan root of anything either: it is
+# where a **command** goes, a script run from a prompt or a service with no
+# window, which an application is not. It lands in `$XDG_DATA_HOME/hibr/cli`
+# (or the machine's scope), a folder the desktop never reads, so a command
+# is never offered on a menu. It is an ordinary script otherwise -- readable
+# with `catalogue show`, its `sha256` and the index's signature checked --
+# and whatever runs it (a launcher a package ships, a service) looks there.
 CAT_KINDS=(apps system control-panel control-strip savers themes colours lang
-	  mods)
+	  mods cli)
 declare -gA CAT_KEXT=(
 	[apps]=.hibr [system]=.hibr [control-panel]=.hibr
 	[control-strip]=.hibr [savers]=.hibr
 	[themes]=.json [colours]=.json [lang]=.json
-	[mods]=.so
+	[mods]=.so [cli]=.hibr
 )
 # What signs the catalogue. The apt repository's own key: one key for the
 # two things this project publishes, rather than a second to lose. The
@@ -610,7 +618,7 @@ fn cat_nameok(name) {
 	return 0
 }
 
-# Is this one of the eight kinds a bundle may install into?
+# Is this one of the kinds a bundle may install into?
 fn cat_kindok(kind) {
 	local k
 

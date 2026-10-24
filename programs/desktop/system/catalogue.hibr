@@ -225,6 +225,7 @@ fn cat_kindname(k) {
 	colours) ret "Colour schemes" ;;
 	lang) ret "Languages" ;;
 	mods) ret "Modules" ;;
+	cli) ret "Commands" ;;
 	*) ret "$k" ;;
 	esac
 }

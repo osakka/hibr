@@ -18,9 +18,9 @@ catalogue install apps/
 
 A kind with a trailing slash is every entry of that kind, so
 `catalogue install themes/` is every theme and `catalogue install apps/` is a
-desktop. The nine kinds are the scan roots the desktop reads: `apps`,
+desktop. The ten kinds are the scan roots the desktop reads, and two that are not: `apps`,
 `system`, `control-panel`, `control-strip`, `savers`, `themes`,
-`colours`, `lang` and `mods`.
+`colours`, `lang`, then `mods` and `cli`.
 
 The whole of it rests on one fact, which is why there is so little machinery
 here: **an app is a folder of plain files, and installing one is placing a
@@ -115,7 +115,7 @@ two read as different programs.
 
 ## Where a file lands, and why yours wins
 
-Eight of the nine kinds are places the **desktop** scans, and each begins
+Eight of the ten kinds are places the **desktop** scans, and each begins
 with a folder of **yours** followed by a data folder the manager writes to:
 
 | what it is | your folder | a file is |
@@ -145,11 +145,20 @@ fetched. A module installed there is never loaded by a *mistyped command*,
 which is deliberate and is the subject of
 [ADR 0044](adr/0044-a-module-can-be-installed.md).
 
-An entry's `kind` decides which of the nine it goes to, and **the kind
+The tenth is `cli`, and it is a **command**: a script you run from a prompt or a
+service, with no window, which an application is not. It lands in
+`$XDG_DATA_HOME/hibr/cli` (`$HIBR_SYSDIR/cli` with `--system`), a folder the desktop
+never reads, so it is never on a menu. Otherwise it is an ordinary script:
+`catalogue show cli/NAME` prints it before anything runs, and its `sha256` and
+the index's signature are checked as for any other. Whatever runs it -- a
+launcher a package ships, a service -- looks in that folder. `longwire`, a VPN,
+publishes its node and its switchboard this way.
+
+An entry's `kind` decides which of the ten it goes to, and **the kind
 decides the extension**: a theme is JSON, not a script
 ([ADR 0028](adr/0028-a-theme-is-data.md)), a translation catalogue is too
 ([ADR 0032](adr/0032-the-desktop-is-translated-at-its-widgets.md)), and a
-module is a `.so`. A kind that is not one of the nine is refused rather
+module is a `.so`. A kind that is not one of the ten is refused rather
 than guessed at, and a bundle whose own extension is not its kind's is not
 placed as itself — it would be a file nothing ever reads.
 
@@ -205,7 +214,7 @@ Each refused outright rather than half-done, and each names what it found:
 - **a member whose path is absolute or climbs out of its own folder** —
   `../escaped.hibr` and `/etc/x` are both refused, naming the path;
 - **a symbolic link**, which a bundle has no business carrying;
-- **a part whose kind is not one of the nine, or whose name is anything
+- **a part whose kind is not one of the ten, or whose name is anything
   but a plain filename** — a part decides a destination;
 - **an entry whose own name is not a plain filename** — the name decides
   where the file lands, so `../../../climbed` is refused, and that one

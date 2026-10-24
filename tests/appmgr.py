@@ -19,7 +19,7 @@ What is refused, each with a bundle made to do it:
   - a `sha256` that does not match what arrived;
   - a member whose path is absolute, or climbs out with `..`;
   - a bundle carrying a `.so`, refused with that word;
-  - an index entry naming a kind that is not one of the desktop's five.
+  - an index entry naming a kind that is not one of the ten.
 
 And what must keep working: a single `.hibr` file is its own bundle, which
 is most apps; a multi-file bundle puts the app at `<kind>/NAME.hibr` and its
@@ -202,6 +202,10 @@ INDEX = {"apps": {
     "plain": {"title": "Plain Theme", "version": "1.0", "kind": "themes",
               "about": "a theme, which is JSON and not a script",
               "bundle": "bundles/plain.json", "sha256": h_theme},
+    # A command: a script with no window, filed where the desktop does not look.
+    "mycmd": {"title": "A Command", "version": "1.0", "kind": "cli",
+              "about": "run from a prompt or a service, never from a menu",
+              "bundle": "bundles/demo.hibr", "sha256": h_one},
     "scheme": {"title": "A Scheme", "version": "1.0", "kind": "colours",
                "bundle": "bundles/scheme.json", "sha256": h_scheme},
     "picture": {"title": "With A Picture", "version": "1.0", "kind": "themes",
@@ -847,6 +851,7 @@ try:
              "colours/scheme": dict(INDEX["apps"]["scheme"], name="scheme"),
              "themes/picture": dict(INDEX["apps"]["picture"], name="picture"),
              "apps/crossed": dict(INDEX["apps"]["crossed"], name="crossed"),
+             "cli/mycmd": dict(INDEX["apps"]["mycmd"], name="mycmd"),
          }}
     put("index2.json", json.dumps(E, indent=1))
     E2 = {"HIBR_APPS_URL": "http://127.0.0.1:%d/index2.json" % PORT,
@@ -906,6 +911,19 @@ try:
           rc == 0 and os.path.exists(os.path.join(HOME, "d3", "hibr",
                                                   "colours", "scheme.json")),
           (rc, out, err))
+    # A command (the tenth kind) is a script that is not an application: it
+    # lands in a folder the desktop never scans, so it is never on a menu.
+    rc, out, err = apps("install", "cli/mycmd", env=E2)
+    cmd = os.path.join(HOME, "d3", "hibr", "cli", "mycmd.hibr")
+    check("a command lands in the cli folder, as a script",
+          rc == 0 and os.path.exists(cmd), (rc, out, err))
+    check("and not in any folder the desktop scans",
+          not any(os.path.exists(os.path.join(HOME, "d3", "hibr", k, "mycmd.hibr"))
+                  for k in ("apps", "system", "control-panel", "control-strip", "savers")),
+          sorted(os.listdir(os.path.join(HOME, "d3", "hibr"))))
+    rc, out, err = apps("remove", "cli/mycmd", env=E2)
+    check("and removing it takes it away",
+          rc == 0 and not os.path.exists(cmd), (rc, out, err))
     # A theme with a picture is two files beside each other, which is what a
     # part naming a filename buys: `name` would have appended .hibr to it.
     rc, out, err = apps("install", "themes/picture", env=E2)
@@ -1648,4 +1666,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(139)
+report(142)
