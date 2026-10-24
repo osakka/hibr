@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.318
+
+**The bar frame's title bar is square at its ends.** 0.99.316 drew them as
+half circles (◖ ◗, or Powerline's), which round a one-row bar's bottom corners
+as well as its top and made every window's title a pill. What was asked for is
+a cell with only its outer top corner rounded, the bar meeting the window
+square underneath -- and no font has that glyph. So the ends are the bar's own
+colour to the edge until Blit draws one (blit#140), when its glyph set will
+use it.
+
+The sanitizer gate's leak pass no longer runs `541-ships` beside all.py's own
+run of it: both did `make install` into the same tree, and one could catch the
+other mid-write (Gitea #380, #381). `tests/run.sh` takes `RUNSKIP`, a list of
+test names to leave out, for exactly that kind of second run.
+
 ## 0.99.317
 
 **One Browser and one YouTube app for both engines** (Gitea #376). The WPE

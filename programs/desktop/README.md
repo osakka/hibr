@@ -232,8 +232,8 @@ A theme is a JSON file too:
 rest, each optional: `wallpaper` (a glyph from Control Panel > Wallpaper's list), `image`
 and `mode` (a picture, its path relative to the theme's own folder so a
 theme can carry it, and how it is fitted), `frame` (`single`, `double`,
-`rounded`, `none`, or `bar` -- the title bar alone, with rounded ends, and
-the content to the window's edge), `titlebar` (`line`, or `solid` -- the top
+`rounded`, `none`, or `bar` -- the title bar alone, and the content to the
+window's edge), `titlebar` (`line`, or `solid` -- the top
 row a bar of the frame's colour), `wintrans` and `bartrans` (how much of a
 picture wallpaper shows through a window's face and through the menu bar,
 0 to 100 -- Control Panel > Windows and Appearance > Menu Bar each have a
@@ -1480,9 +1480,9 @@ Windows' first four rows -- Frame, Buttons, Title and Button Style --
 are read by `dt_win` and `dt_btn` in `wm/frame.hibr`, not by the pane:
 `DT_FRAME` picks the border glyphs from the `DT_FRAMES` table (`single`,
 `double`, `rounded` with arcs at its corners, `bar` -- the title bar the
-window's only frame, its two ends rounded (◖ ◗, or Powerline's half circles in
-the nerd and Blit glyph sets), its content running to the edge, and the bar's
-two ends the only resize grips, since the sides and bottom are the app's own
+window's only frame, square to its ends for now (a cell with only its outer
+top corner rounded is a glyph no font has, so it waits for Blit's own), its
+content running to the edge, and the bar's two ends the only resize grips, since the sides and bottom are the app's own
 cells -- or `none` for no ring at all -- move, resize, zoom, hide and
 close stay reachable through the Window menu even then, since that row is
 still there to drag or double-click, just undrawn); `DT_BTNSIDE` docks the

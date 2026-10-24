@@ -67,6 +67,16 @@ for t in "$here"/*.t; do
 		*) continue ;;
 		esac
 	fi
+	# RUNSKIP names tests to leave out, for a second run beside the first
+	# that must not repeat what writes into the tree (asan.py's leak pass
+	# and 541-ships' make install, Gitea #380/#381).
+	case " ${RUNSKIP:-} " in
+	*" $name "*)
+		skip=$((skip + 1))
+		printf 'SKIP %s (RUNSKIP)\n' "$name"
+		continue
+		;;
+	esac
 	exp="$here/$name.expected"
 	if [ -f "$exp" ]; then
 		got=$(SH="$SH_ABS" "$HIBR" "$t" 2>&1)

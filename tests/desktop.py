@@ -7160,8 +7160,9 @@ finally:
     sdrun(screen.HIBR, "-c", HOLDC + "hold kill desktop")
     shutil.rmtree(SD, True)
 
-# The bar frame (0.99.317): the title bar is the window's only row of frame,
-# with rounded ends, and its content runs to the edge -- the app is told one
+# The bar frame (0.99.316): the title bar is the window's only row of frame,
+# square to its ends until Blit has a glyph with only its outer top corner
+# rounded (blit#140), and its content runs to the edge -- the app is told one
 # row less than the window and its whole width, and its column 1 is the
 # window's first. The sides and the bottom are the app's own cells, so a
 # press there reaches it rather than starting a resize; the title bar's two
@@ -7175,9 +7176,19 @@ BARAPP = ('dt_app bx "Barred" 8 30\n'
           'fn bx_click(int id, int r, int c, btn = "") { BX="click $r $c"; }\n'
           'DT_FRAME=bar\n'
           'dt_new "Barred" 8 30 6 10 bx\n')
+BARBG = "48;2;99;179;237"
+
+
+def barend(sc, r, c):
+    """Whether a cell is the focused bar's own colour, edge to edge."""
+    return BARBG in (sc.p[r][c] or "")
+
+
 sc, _ = run(BARAPP)
-check("the bar frame rounds the title bar's two ends and draws no other frame",
-      sc.g[6][10] == "\u25d6" and sc.g[6][39] == "\u25d7" and
+check("the bar frame's title bar is square, its colour to both ends, and "
+      "no other frame is drawn",
+      barend(sc, 6, 10) and barend(sc, 6, 39) and not barend(sc, 6, 40) and
+      sc.g[6][10] == " " and sc.g[6][39] == " " and
       sc.g[7][10] != "\u2502" and sc.g[13][10] != "\u2514", sc)
 check("its app is told one row less and the whole width, its column 1 the edge",
       sc.row(7)[10:18] == "h=7 w=30" and sc.g[13][39] == "E", sc)
@@ -7186,10 +7197,11 @@ check("a press on the window's first column reaches the app at its column 1",
       sc.find("click 2 1") is not None, sc)
 sc, _ = run(BARAPP, [press(10, 39), release(10, 39)])
 check("and one on its last column too, rather than starting a resize",
-      sc.find("click 4 30") is not None and sc.g[6][39] == "\u25d7", sc)
+      sc.find("click 4 30") is not None and barend(sc, 6, 39) and
+      not barend(sc, 6, 40), sc)
 sc, _ = run(BARAPP, [press(6, 39), drag(6, 42), drag(6, 45), release(6, 45)])
 check("a drag on the title bar's right end resizes the window",
-      sc.g[6][45] == "\u25d7", sc)
+      barend(sc, 6, 45) and not barend(sc, 6, 46), sc)
 sc, _ = run(BARAPP, pre='DT_TITLE="#123456"\nDT_TITLEINK="#fedcba"\n')
 check("the focused title bar is the scheme's own title colour where it gives one",
       "48;2;18;52;86" in (sc.p[6][20] or "") and

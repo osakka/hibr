@@ -117,8 +117,14 @@ def extra(env):
     cmds = [([WRAP, os.path.join(HERE, "self.hibr")], env),
             ([sys.executable, os.path.join(HERE, "fuzz.py"), WRAP, str(FUZZ)],
              env),
+            # Not 541-ships: it runs `make install` into this tree, and
+            # all.py's own run.sh runs it at the same moment -- two installs
+            # into one build/ can catch each other mid-write (Gitea #380,
+            # #381). It allocates nothing a leak check is for, and the run
+            # beside this one still checks it.
             ([os.path.join(HERE, "run.sh")],
-             dict(env, ASAN_OPTIONS="detect_leaks=1:log_path=" + leak))]
+             dict(env, ASAN_OPTIONS="detect_leaks=1:log_path=" + leak,
+                  RUNSKIP="541-ships"))]
     with ThreadPoolExecutor(max_workers=3) as pool:
         res = list(pool.map(lambda c: subprocess.run(
             c[0], cwd=ROOT, env=dict(c[1], SEED="7"), capture_output=True,

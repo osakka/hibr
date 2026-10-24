@@ -350,7 +350,11 @@ fn dt_win(int id) {
 			console pen "$tink" "$on"
 			console put -p "w$id" 0 0 "$sb"
 		fi
-		if [ "$cap" = 1 ]; then
+		# A bar frame's ends are square -- the bar's own colour to its
+		# edge -- until a glyph set has a cell with only its outer top
+		# corner rounded: no font does (a half circle rounds the bottom
+		# too), so it waits for Blit's own (blit#140).
+		if [ "$cap" = 1 ] && [ "${GL[capl]}" != " " ]; then
 			console pen "$on" default
 			console put -p "w$id" 0 0 "${GL[capl]}"
 			console put -p "w$id" 0 $((w - 1)) "${GL[capr]}"

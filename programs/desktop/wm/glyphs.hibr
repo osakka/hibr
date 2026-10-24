@@ -97,8 +97,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["rtr"]=$'╮'       # BOX DRAWINGS LIGHT ARC DOWN AND LEFT
 		GL["rbl"]=$'╰'       # BOX DRAWINGS LIGHT ARC UP AND RIGHT
 		GL["rbr"]=$'╯'       # BOX DRAWINGS LIGHT ARC UP AND LEFT
-		GL["capl"]=$'\u25d6'  # LEFT HALF BLACK CIRCLE: a bar frame's end
-		GL["capr"]=$'\u25d7'  # RIGHT HALF BLACK CIRCLE
+		GL["capl"]=" "; GL["capr"]=" "
 		GL["diamond"]=$'◆'   # BLACK DIAMOND
 		GL["minus"]=$'━'     # BOX DRAWINGS HEAVY HORIZONTAL
 		GL["dtr"]=$'╗'       # BOX DRAWINGS DOUBLE DOWN AND LEFT
@@ -204,8 +203,6 @@ fn dt_glyphs(set = "unicode") {
 # terminal can be asked, so it is chosen, never detected; a "Mono" variant
 # keeps every icon one cell wide.
 dt_glyphsnerd() {
-	GL["capl"]=$'\ue0b6'     # powerline extra: left half circle thick
-	GL["capr"]=$'\ue0b4'     # powerline extra: right half circle thick
 	GL["sound"]=$'\uf028'     # nf-fa-volume_up
 	GL["soundoff"]=$'\uf026'  # nf-fa-volume_off
 	GL["wifi"]=$'\uf1eb'      # nf-fa-wifi
