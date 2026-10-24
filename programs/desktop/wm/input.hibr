@@ -56,6 +56,8 @@ dt_mouse() {
 				if [ "$1" = left ]; then
 					DT_POPHELD=1
 					dt_popmouse press "$mr" "$mc"
+				elif [ "$1" = right ]; then
+					dt_popmouse rpress "$mr" "$mc"
 				fi
 				return 0
 			fi
@@ -64,6 +66,9 @@ dt_mouse() {
 			dt_onbar "$mr" "$mc" || return 0
 			[ "$1" != right ] && bi := dt_barihit "$mc" &&
 				[ "$bi" = "$b" ] && return 0
+			[ "$1" != right ] && [ "$b" = bell ] &&
+				[ "$mc" -ge "$DT_BELLC" ] &&
+				[ "$mc" -lt $((DT_BELLC + DT_BELLW)) ] && return 0
 		fi
 		if dt_onbar "$mr" "$mc"; then
 			if [ "$1" != right ] && wsn := dt_wshit "$mc"; then
@@ -73,8 +78,13 @@ dt_mouse() {
 			fi
 			if [ "$mc" -ge "$DT_BELLC" ] &&
 			   [ "$mc" -lt $((DT_BELLC + DT_BELLW)) ]; then
-				dt_mclose
-				dt_has notifications_draw && dt_launch notifications
+				# The notes are a panel under the icon, and a
+				# right click is the icon's own menu.
+				if [ "$1" = right ]; then
+					dt_context_open nhbell "" "$mr" "$mc"
+				else
+					dt_bellpop
+				fi
 				return 0
 			fi
 			if [ "$mc" -ge "$DT_CLOCKC" ] &&

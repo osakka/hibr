@@ -16,7 +16,7 @@
 strict
 
 
-app notify "The Control Panel pane for the corner-stacked notes" 1.1
+app notify "The Control Panel pane for the corner-stacked notes" 1.2
 command -v cp_pane > /dev/null && cp_pane notify "Notifications" "◉"
 
 CP_NOTEPOS=(top-right top-left bottom-right bottom-left)
@@ -33,6 +33,60 @@ fn cp_set_notepos(int? id = "", value = "") { DT_NOTEPOS=$value; cp_save; }
 fn cp_set_notewhere(int? id = "", value = "") { DT_NOTEWHERE=$value; cp_save; }
 fn cp_set_notems(int? id = "", int? value = "") { DT_NOTEMS=$value; cp_save; }
 fn cp_set_notecount(int? id = "", value = "") { DT_NOTECOUNT=$value; cp_save; }
+fn cp_set_notelist(int? id = "", value = "") { DT_NOTELIST=$value; cp_save; }
+
+# What one sender's notes do, as the five choices a row offers: as their
+# priority says (the three rules above), everything, kept quiet -- listed
+# and counted, never popped up -- popped up only, or nothing at all. The
+# panel under the bell sets the three one at a time; a pattern of them no
+# choice names reads as "custom" here and is left alone until one is picked.
+CP_NOTEAPPS=(auto all quiet popup off)
+declare -ga CP_NOTEFROM
+fn cp_noteapp(from) {
+	case ${DT_NOTEAPP["$from"]:-- - -} in
+	"- - -") ret auto ;;
+	"1 1 1") ret all ;;
+	"0 1 1") ret quiet ;;
+	"1 0 0") ret popup ;;
+	"0 0 0") ret off ;;
+	*) ret custom ;;
+	esac
+}
+fn cp_set_noteapp(from, v) {
+	case $v in
+	auto) unset DT_NOTEAPP["$from"] ;;
+	all) DT_NOTEAPP["$from"]="1 1 1" ;;
+	quiet) DT_NOTEAPP["$from"]="0 1 1" ;;
+	popup) DT_NOTEAPP["$from"]="1 0 0" ;;
+	off) DT_NOTEAPP["$from"]="0 0 0" ;;
+	esac
+	cp_save
+}
+# A dropdown's callback is handed the id and the value, so the sender it
+# was opened for waits here.
+CP_NOTEPICK=
+fn cp_set_noteapp1(int? id = "", value = "") {
+	[ -n "$CP_NOTEPICK" ] && cp_set_noteapp "$CP_NOTEPICK" "$value"
+}
+# The senders a row is shown for: every one with a choice of its own, and
+# every one in the history, the desktop's own first.
+cp_notefrom() {
+	local hid f
+	local -A seen
+
+	CP_NOTEFROM=()
+	for f in Desktop "${!DT_NOTEAPP[@]}"; do
+		[ -n "${seen["$f"]-}" ] && continue
+		seen["$f"]=1
+		CP_NOTEFROM+=("$f")
+	done
+	for hid in "${DT_NOTEHIST_ORDER[@]}"; do
+		f=${DT_NOTEHIST[$hid]["from"]:-Desktop}
+		[ -n "${seen["$f"]-}" ] && continue
+		seen["$f"]=1
+		CP_NOTEFROM+=("$f")
+	done
+}
 
 # A size, with the smallest and the largest of a pair kept in order: moving
 # one past the other moves the other with it, so the two can never describe
@@ -65,7 +119,7 @@ cp_clearhist() {
 }
 
 fn notify_rows(int w) {
-	local n=0
+	local n=0 i
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Position"
 	CP[$w][$n]["val"]="$DT_NOTEPOS"; CP[$w][$n]["key"]=notepos
@@ -78,6 +132,9 @@ fn notify_rows(int w) {
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Count From"
 	CP[$w][$n]["val"]="$DT_NOTECOUNT"; CP[$w][$n]["key"]=notecount
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="List From"
+	CP[$w][$n]["val"]="$DT_NOTELIST"; CP[$w][$n]["key"]=notelist
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Smallest Width"
 	CP[$w][$n]["val"] := dt_tr "%s columns" "$DT_NOTEWMIN"
@@ -101,11 +158,19 @@ fn notify_rows(int w) {
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear History"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=clearhist
 	n=$((n + 1))
+	cp_notefrom
+	for i in "${!CP_NOTEFROM[@]}"; do
+		CP[$w][$n]["kind"]=set
+		CP[$w][$n]["text"] := dt_tr "From %s" "${CP_NOTEFROM[$i]}"
+		CP[$w][$n]["val"] := cp_noteapp "${CP_NOTEFROM[$i]}"
+		CP[$w][$n]["key"]=app$i
+		n=$((n + 1))
+	done
 	ret "$n"
 }
 
 fn notify_do(int? w = "", k = "", int? dir = "") {
-	local v
+	local v f
 
 	case $k in
 	notepos) v := cp_next "$DT_NOTEPOS" "$dir" "${CP_NOTEPOS[@]}"
@@ -116,6 +181,15 @@ fn notify_do(int? w = "", k = "", int? dir = "") {
 	        DT_NOTEMS=$v ;;
 	notecount) v := cp_next "$DT_NOTECOUNT" "$dir" "${DT_NOTELEVELS[@]}"
 	        DT_NOTECOUNT=$v ;;
+	notelist) v := cp_next "$DT_NOTELIST" "$dir" "${DT_NOTELEVELS[@]}"
+	        DT_NOTELIST=$v ;;
+	app[0-9]*)
+		f=${CP_NOTEFROM[${k#app}]-}
+		[ -n "$f" ] || return 0
+		v := cp_noteapp "$f"
+		v := cp_next "$v" "$dir" "${CP_NOTEAPPS[@]}"
+		cp_set_noteapp "$f" "$v"
+		;;
 	notewmin) v := cp_next "$DT_NOTEWMIN" "$dir" "${CP_NOTEWIDTHS[@]}"
 	        cp_set_notesize notewmin "$v" ;;
 	notewmax) v := cp_next "$DT_NOTEWMAX" "$dir" "${CP_NOTEWIDTHS[@]}"
@@ -137,6 +211,13 @@ fn notify_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	notems) dt_droplist "$w" "$r" "$c" cp_set_notems "${CP_NOTETICKS[@]}" ;;
 	notecount) dt_droplist "$w" "$r" "$c" cp_set_notecount \
 		"${DT_NOTELEVELS[@]}" ;;
+	notelist) dt_droplist "$w" "$r" "$c" cp_set_notelist \
+		"${DT_NOTELEVELS[@]}" ;;
+	app[0-9]*)
+		[ -n "${CP_NOTEFROM[${k#app}]-}" ] || return 0
+		dt_droplist "$w" "$r" "$c" cp_set_noteapp1 "${CP_NOTEAPPS[@]}"
+		CP_NOTEPICK=${CP_NOTEFROM[${k#app}]}
+		;;
 	notewmin) dt_droplist "$w" "$r" "$c" cp_set_notewmin "${CP_NOTEWIDTHS[@]}" ;;
 	notewmax) dt_droplist "$w" "$r" "$c" cp_set_notewmax "${CP_NOTEWIDTHS[@]}" ;;
 	notehmin) dt_droplist "$w" "$r" "$c" cp_set_notehmin "${CP_NOTEHEIGHTS[@]}" ;;

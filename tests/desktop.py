@@ -1256,10 +1256,18 @@ open(p, "w").write(
 t = Term(p, env={"DT_TICK": "300"}, rows=ROWS, cols=COLS, settle=0.5)
 t.keys([press(0, COLS - 23)])
 sc = t.screen()
-check("the menu bar's own bell opens the notification history",
-      sc.find("┤ Notifications ├") is not None, sc)
-check("and it lists a note already shown, timestamped",
-      re.search(r"\d\d:\d\d  normal  Desktop\s+Remembered", sc.text()) is not None, sc)
+# Since 0.99.315 it is a panel under the icon rather than a window.
+check("the menu bar's own bell opens the notifications as a panel, not a window",
+      sc.find("┤ Notifications ├") is None and sc.find("Notifications") is not None
+      and sc.find("Show All…") is not None, sc)
+check("and it lists a note already shown, timestamped, with who sent it",
+      re.search(r"\d\d:\d\d Desktop\s+Remembered", sc.text()) is not None, sc)
+r = sc.find("Show All…")
+t.keys([press(r[0], r[1] + 1)] if r else [], settle=0.6)
+sc = t.screen()
+check("and Show All on it opens the whole history as a window",
+      sc.find("┤ Notifications ├") is not None
+      and re.search(r"\d\d:\d\d  normal  Desktop\s+Remembered", sc.text()) is not None, sc)
 t.quit(None, 1.0)
 shutil.rmtree(BELL, True)
 
@@ -3626,8 +3634,8 @@ check("a note puts its count beside the bell",
       re.search(r"⚑1  \d\d:\d\d", sc.row(0)) is not None, sc)
 t.keys([press(0, COLS - 24)], settle=0.6)
 sc = t.screen()
-check("and opening the history clears the count again",
-      sc.find("┤ Notifications ├") is not None and
+check("and opening the panel clears the count again",
+      sc.find("Show All…") is not None and
       re.search(r"⚑  \d\d:\d\d", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
@@ -3645,7 +3653,8 @@ check("counting from low counts them",
       re.search(r"⚑1  \d\d:\d\d", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 t, d = dotrun('dt_notep high "Disk full"\ndt_notep low "Workspace 2"\n'
-              'dt_note "Build done"', keys=[press(0, COLS - 24)])
+              'dt_note "Build done"\ndt_launch notifications',
+              pre="DT_NOTELIST=low\n")
 sc = t.screen()
 hist = sc.text()
 check("the history shows each note's priority beside it, and who sent it",
@@ -3669,8 +3678,8 @@ r = sc.find("Made by the app")
 check("a note made in an app's key handler is from that app, on its border",
       r is not None and "Noter" in sc.row(r[0] - 1), sc)
 t.keys([press(0, COLS - 24)], settle=0.6)
-check("and the history says so too",
-      re.search(r"normal  Noter\s+Made by the app", t.screen().text()),
+check("and the panel says so too",
+      re.search(r"\d\d:\d\d Noter\s+Made by the app", t.screen().text()),
       t.screen())
 t.quit(None, 0.5); shutil.rmtree(d, True)
 t, d = dotrun('dt_note "On its own"')
@@ -3680,14 +3689,66 @@ check("one the desktop makes on its own is from the Desktop",
       r is not None and "Desktop" in sc.row(r[0] - 1), sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 t, d = dotrun('dt_notep high "Disk full"\ndt_notep low "Workspace 2"\n'
-              'dt_notep low "Copied"\ndt_note "Build done"',
-              keys=[press(0, COLS - 24), b"\x1b[21~", b"\x1b[C", b"\x1b[C",
-                    b"\x1b[C", b"l"])
+              'dt_notep low "Copied"\ndt_note "Build done"\n'
+              'dt_launch notifications', pre="DT_NOTELIST=low\n",
+              keys=[b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"l"])
 sc = t.screen()
 hist = "\n".join(sc.row(r)[:54] for r in range(2, 8))
 check("History > Clear Low clears every low note and nothing else",
       "Workspace 2" not in hist and "Copied" not in hist and
       "Build done" in hist and "Disk full" in hist, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
+# What a note does is three questions -- does it pop up, is it kept in the
+# list, is it counted on the bar -- answered by its priority unless its
+# sender has a choice of its own (0.99.315). The desktop's own chatter, a
+# volume step or a workspace switch, is low: it pops up and is not listed.
+t, d = dotrun('dt_notep low "Workspace 9"\ndt_note "Kept"')
+popped = t.screen().find("Workspace 9") is not None
+t.keys([press(0, COLS - 24)], settle=0.6)
+sc = t.screen()
+check("a low note pops up and is left out of the list; a normal one is in it",
+      popped and
+      re.search(r"\d\d:\d\d Desktop\s+Kept", sc.text()) is not None and
+      re.search(r"\d\d:\d\d Desktop\s+Workspace 9", sc.text()) is None, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+t, d = dotrun(NOTER, pre='DT_NOTEAPP["Noter"]="0 1 1"\n', keys=[b"x"])
+sc = t.screen()
+check("a sender kept quiet is counted and listed and never pops up",
+      sc.find("Made by the app") is None and
+      re.search(r"⚑1  \d\d:\d\d", sc.row(0)) is not None, sc)
+t.keys([press(0, COLS - 24)], settle=0.6)
+check("and it is there in the panel",
+      re.search(r"Noter\s+Made by the app", t.screen().text()), t.screen())
+t.quit(None, 0.5); shutil.rmtree(d, True)
+t, d = dotrun('dt_note "Unread"')
+t.until(lambda sc: "\u2691" + "1" in sc.row(0), 100)
+t.keys([press(0, t.screen().row(0).find("\u2691"), 2)], settle=0.6)
+sc = t.until("Show Notifications", 100)
+check("a right click on the bell is its own menu: show, clear, settings",
+      sc.find("Show Notifications") is not None and
+      sc.find("Clear All") is not None and
+      sc.find("Notification Settings…") is not None and
+      sc.find("Show All…") is None, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+t, d = dotrun(NOTER, keys=[b"x", press(0, COLS - 24)])
+sc = t.screen()
+r = sc.find("Made by the app")
+t.keys([press(r[0], r[1], 2)] if r else [], settle=0.6)
+sc = t.screen()
+pr = sc.find("Pop Up")
+check("a right click on a note in the panel is its sender's menu, Pop Up ticked",
+      pr is not None and "✓" in sc.row(pr[0]) and
+      sc.find("Keep in the List") is not None and
+      sc.find("Count on the Bar") is not None, sc)
+t.keys([press(pr[0], pr[1])] if pr else [], settle=0.6)
+t.keys([b"\x1b", b"x"], settle=0.6)
+sc = t.screen()
+conf = os.path.join(d, "config", "hibr", "desktop.hibr")
+saved = open(conf).read() if os.path.exists(conf) else ""
+check("and unticking it stops that sender's notes popping up, and is kept",
+      sc.find("Made by the app") is None and
+      'DT_NOTEAPP["Noter"]=' in saved, (sc, saved[-400:]))
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 # The bell is a choice, not the default: it is an emoji, two cells wide,
@@ -3702,8 +3763,8 @@ check("DT_BELLICON=bell puts the bell there, two cells wide, count beside it",
       re.search(r"🔔 1  \d\d:\d\d", sc.row(0)) is not None, sc)
 t.keys([press(0, bell[1] + 1 if bell else 0)], settle=0.6)
 sc = t.screen()
-check("and a click on either of its cells opens the history",
-      sc.find("┤ Notifications ├") is not None, sc)
+check("and a click on either of its cells opens the panel",
+      sc.find("Show All…") is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 # A row in the history is thirty columns of a message that may be any length,
@@ -3737,8 +3798,8 @@ check("a format with seconds and a weekday is what the bar shows", m, sc)
 dot = sc.row(0).find("⚑")
 t.keys([press(0, dot)], settle=0.6)
 sc = t.screen()
-check("and the bell, moved left to make room, still opens the history",
-      sc.find("┤ Notifications ├") is not None, sc)
+check("and the bell, moved left to make room, still opens the panel",
+      sc.find("Show All…") is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 # Date & Time in Control Panel: the clock format is a dropdown of examples
@@ -7098,4 +7159,4 @@ finally:
     sdrun(screen.HIBR, "-c", HOLDC + "hold kill desktop")
     shutil.rmtree(SD, True)
 
-report(772)
+report(779)

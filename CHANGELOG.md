@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.315
+
+**The notification icon opens a panel, not a window.** A click on the icon in
+the menu bar shows the latest notes in a panel beneath it, as the speaker's
+slider is: each with its time and who sent it, newest first. A click on one
+runs what it was for, or opens it to read in full; Clear All empties the list,
+Show All opens the whole history as a window, and Settings opens Control Panel
+> Notifications. Opening it puts the notes on screen away; they stay in the
+list. A right click on the icon is the same choices as a menu.
+
+**Each sender's notes can be told what to do.** A note says pop up, be kept in
+the list and be counted on the bar according to its priority, as before -- and
+a right click on a note in the panel is its sender's own menu, with a tick for
+each of the three, turning that one on or off for everything that sender sends,
+and As Its Priority Says to give them back. Control Panel > Notifications has a
+From row for each sender it has seen, with the same choices as five: auto, all,
+quiet (listed and counted, never popped up), popup, off. The choices are kept
+with the settings.
+
+**The desktop's own chatter is kept out of the list.** A new List From row
+(normal unless set) decides which priorities are kept in the list, beside Count
+From: a volume step, a workspace switch or "Copied" -- all low -- still pop up
+and are no longer listed.
+
+0.99.314 added a Colours row to Control Panel > Pictures, and the suite that
+makes one check per pane row was not told: its planned count was one short.
+
 ## 0.99.314
 
 **Windows on another display keep their title bar after a restart.** Quit

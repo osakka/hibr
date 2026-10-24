@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.25",
+ "version": "3.26",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1317,6 +1317,18 @@
   "on battery": "على البطارية",
   "only on the computer's own screen": "على شاشة الحاسوب نفسه فقط",
   "plugged in": "موصول بالكهرباء",
-  "the battery": "البطارية"
+  "the battery": "البطارية",
+  "As Its Priority Says": "حسب أولويتها",
+  "Count on the Bar": "العدّ على الشريط",
+  "From %s": "من %s",
+  "Keep in the List": "الإبقاء في القائمة",
+  "List From": "الإدراج ابتداءً من",
+  "No notifications": "لا إشعارات",
+  "Notification Settings…": "إعدادات الإشعارات…",
+  "Pop Up": "الظهور",
+  "Remove This Note": "إزالة هذا الإشعار",
+  "Settings%s": "الإعدادات%s",
+  "Show All%s": "عرض الكل%s",
+  "Show Notifications": "عرض الإشعارات"
  }
 }

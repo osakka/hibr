@@ -187,7 +187,16 @@ DT_POPH=0
 DT_POPW=0
 DT_POPHELD=
 fn dt_baripop(name, who, int h, int w) {
-	local r c pl pr pbot
+	dt_popat "$name" "$who" "${DT_BARI["$name"]["c"]:-${DT_PRIMARY_COL:-0}}" \
+		"$h" "$w"
+}
+
+# Open who's panel h by w beneath the bar at column c, kept on the primary,
+# for the bar thing called name -- an item, or the notification icon, which
+# is the desktop's own and no item (Gitea #373's sibling: the bell's panel).
+# A second call for the same owner closes it.
+fn dt_popat(name, who, int c, int h, int w) {
+	local r pl pr pbot
 
 	if [ "$DT_POP" = "$who" ]; then
 		dt_popclose
@@ -196,7 +205,6 @@ fn dt_baripop(name, who, int h, int w) {
 	dt_mclose
 	r := dt_ptop
 	pbot := dt_pbot
-	c=${DT_BARI["$name"]["c"]:-${DT_PRIMARY_COL:-0}}
 	pl=${DT_PRIMARY_COL:-0}
 	pr=$((pl + ${DT_PRIMARY_W:-$DT_COLS}))
 	[ $((c + w)) -gt "$pr" ] && c=$((pr - w))

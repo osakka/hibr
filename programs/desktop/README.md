@@ -1694,17 +1694,34 @@ Across the top, System 7's: the **hibr menu** on the left where the apple
 went, then the menus of whatever window has focus, then the notification
 icon (⚑ unless Appearance's Notification Icon picks another -- the bell 🔔
 among them, which needs an emoji font -- with a count beside it of notes you
-have not seen yet, opening their history when clicked), the clock (in whatever format Date & Time sets) and the
+have not seen yet, opening the latest of them in a panel beneath it when
+clicked), the clock (in whatever format Date & Time sets) and the
 **application menu** on the right. Windows cannot be dragged over it.
 
 **Notifications have a priority**: low for the desktop telling you what it
-did -- "Workspace 2", "Copied 12 characters" -- normal for a program's or
-an app's own, high and urgent for failures. Every one pops up, high in the
-warning colour and urgent in the error colour, and every one goes to the
-history; only those at Control Panel > Notifications > Count From (normal
-unless set) or above raise the count, so the count stays worth reading. The
-history lists each with its time and priority; up and down select one,
-delete clears it, and its History menu clears the low ones or all.
+did -- "Workspace 2", "Volume 40%", "Copied 12 characters" -- normal for a
+program's or an app's own, high and urgent for failures. Every one pops up,
+high in the warning colour and urgent in the error colour; only those at
+Control Panel > Notifications > List From (normal unless set) or above are
+kept in the list, and only those at Count From (normal too) or above raise
+the count, so the list and the count both stay worth reading.
+
+**Each sender can be told otherwise.** A note is from the app whose window
+the desktop was handling when it was made, or from the Desktop. Right-click
+a note in the panel and its sender's menu has three ticks -- Pop Up, Keep in
+the List, Count on the Bar -- each turning that one thing on or off for
+everything from that sender, and As Its Priority Says to give them back;
+Control Panel > Notifications has a From row for each sender it has seen,
+with the same choices as five (auto, all, quiet -- listed and counted but
+never popped up -- popup, off).
+
+**The panel under the icon** lists the latest notes, newest first, each with
+its time and its sender: a click runs what a note was for, or opens it to
+read in full; Clear All empties the list; Show All opens the whole history
+as a window, Settings the Control Panel pane. Right-click the icon itself for
+the same as a menu. The history window lists each with its time and
+priority; up and down select one, delete clears it, and its History menu
+clears the low ones or all.
 
 **Notes appear on the primary display**, in the corner Control Panel >
 Notifications > Position names, where the bar and the icons are; Show On

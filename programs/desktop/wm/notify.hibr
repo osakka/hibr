@@ -93,6 +93,60 @@ dt_notefrom() {
 	ret Desktop
 }
 DT_NOTECOUNT="${DT_NOTECOUNT-normal}"
+# Which notes go to the history: those at DT_NOTELIST or above. Feedback on
+# what you just did -- "Workspace 2", "Volume 40%" -- is low and still pops
+# up where you are looking, and is not kept: a list of every volume step is
+# a list nobody can find anything in. normal by default; low lists them all.
+DT_NOTELIST="${DT_NOTELIST-normal}"
+# What each sender's notes do, overriding the priorities: "pop list count",
+# each 1 for always, 0 for never and - for as its priority says. Keyed by
+# the name a note is from (dt_notefrom), which is an app's own title or
+# Desktop; set from Control Panel > Notifications and from a note's own
+# menu in the panel under the bell.
+declare -gA DT_NOTEAPP
+
+# Whether a note from a sender at a priority does one of three things: pop
+# (shows in the corner), list (goes to the history) or count (raises the
+# bar's number, which only a listed note can).
+fn dt_noteok(what, from, prio) {
+	local v=${DT_NOTEAPP["$from"]-} f lv m
+
+	case $what in
+	pop) f=${v%% *} ;;
+	list) f=${v#* }; f=${f%% *} ;;
+	*) f=${v##* } ;;
+	esac
+	[ "$f" = 1 ] && return 0
+	[ "$f" = 0 ] && return 1
+	case $what in
+	pop) return 0 ;;
+	list) m=$DT_NOTELIST ;;
+	*) m=$DT_NOTECOUNT ;;
+	esac
+	lv := dt_notelevel "$prio"
+	m := dt_notelevel "$m"
+	[ "$lv" -ge "$m" ]
+}
+
+# Set one of a sender's three: pop, list or count, to 1, 0 or - (its
+# priority decides), and save. A sender whose three are all - is forgotten.
+fn dt_noteset(from, what, v) {
+	local cur=${DT_NOTEAPP["$from"]:-- - -} p l c
+
+	read -r p l c <<< "$cur"
+	case $what in
+	pop) p=$v ;;
+	list) l=$v ;;
+	*) c=$v ;;
+	esac
+	if [ "$p $l $c" = "- - -" ]; then
+		unset DT_NOTEAPP["$from"]
+	else
+		DT_NOTEAPP["$from"]="$p $l $c"
+	fi
+	dt_has dt_save && dt_save
+	return 0
+}
 
 # A priority's place, 1 for low to 4 for urgent; anything else is normal.
 fn dt_notelevel(p) {
@@ -123,8 +177,16 @@ dt_noteq() {
 		n=$((n + 1))
 	done
 	DT_NOTEQ[$id]["argvn"]=$n
-	DT_NOTEQ_ORDER+=("$id")
-	dt_notehist_add "$id"
+	if dt_noteok list "${DT_NOTEQ[$id]["from"]}" "${DT_NOTEQ[$id]["prio"]}"; then
+		dt_notehist_add "$id"
+	fi
+	dt_noteok count "${DT_NOTEQ[$id]["from"]}" "${DT_NOTEQ[$id]["prio"]}" &&
+		DT_NOTEUNSEEN=$((DT_NOTEUNSEEN + 1))
+	if dt_noteok pop "${DT_NOTEQ[$id]["from"]}" "${DT_NOTEQ[$id]["prio"]}"; then
+		DT_NOTEQ_ORDER+=("$id")
+	else
+		unset DT_NOTEQ["$id"]
+	fi
 }
 
 # A note, stacked with whatever others are already showing, gone on its
@@ -188,9 +250,6 @@ fn dt_notehist_add(int id) {
 	DT_NOTEQ[$id]["hid"]=$hid
 	dt_notehist_act "$hid" "$id"
 	DT_NOTEHIST_ORDER+=("$hid")
-	lv := dt_notelevel "${DT_NOTEHIST[$hid]["prio"]}"
-	min := dt_notelevel "$DT_NOTECOUNT"
-	[ "$lv" -ge "$min" ] && DT_NOTEUNSEEN=$((DT_NOTEUNSEEN + 1))
 	if [ "${#DT_NOTEHIST_ORDER[@]}" -gt "$DT_NOTEHISTMAX" ]; then
 		unset "DT_NOTEHIST[${DT_NOTEHIST_ORDER[0]}]"
 		DT_NOTEHIST_ORDER=("${DT_NOTEHIST_ORDER[@]:1}")
@@ -524,4 +583,188 @@ fn dt_notehist_clear(prio) {
 	DT_NOTEHIST_ORDER=("${keep[@]}")
 	[ "${#keep[@]}" = 0 ] && DT_NOTEUNSEEN=0
 	return 0
+}
+
+# --- the panel under the bell ------------------------------------------------
+#
+# A click on the notification icon opens the latest notes in a panel under
+# the bar, as the speaker's slider is, rather than a window to move out of
+# the way: each row the note's time, who it is from and what it said, newest
+# first; a click on one runs what it was for, or opens it to read in full;
+# a right click is that sender's own menu -- whether its notes pop up, are
+# listed and are counted. The row above them clears the list, the row below
+# opens the whole history or Control Panel > Notifications. A right click on
+# the icon itself is the same choices as a menu.
+
+# The history ids the panel's rows show, top first, and how far it is
+# scrolled.
+declare -gA NHP_ROW
+NHP_TOP=0
+
+# Open the panel, or close it when it is open.
+dt_bellpop() {
+	local n=${#DT_NOTEHIST_ORDER[@]} h w=56 c
+
+	h=$n
+	[ "$h" -gt 10 ] && h=10
+	[ "$h" -lt 1 ] && h=1
+	h=$((h + 5))
+	c=$((${DT_BELLC:-0} + ${DT_BELLW:-1} - w))
+	NHP_TOP=0
+	DT_NOTEUNSEEN=0
+	[ "$DT_POP" = nhpop ] || dt_note_clear
+	dt_popat bell nhpop "$c" "$h" "$w"
+}
+
+fn nhpop_popdraw(int r, int c, int h, int w) {
+	local n=${#DT_NOTEHIST_ORDER[@]} vis i hid t f line at
+
+	# The last row is the blank margin dt_popdraw has already filled.
+	h=$((h - 1))
+	vis=$((h - 4))
+	for i in "${!NHP_ROW[@]}"; do unset NHP_ROW["$i"]; done
+	console pen "$DT_INK" "$DT_FACE" bold
+	t := dt_tr "Notifications"
+	console put "$r" $((c + 1)) "$t"
+	if [ "$n" -gt 0 ]; then
+		console pen "$DT_INK" "$DT_FACE"
+		t := dt_tr "Clear All"
+		console put "$r" $((c + w - 1 - ${#t})) "$t"
+	fi
+	console pen "$DT_IDLE" "$DT_FACE"
+	t := dt_rep "$w" "${GL[hline]}"
+	console put $((r + 1)) "$c" "$t"
+	console put $((r + h - 2)) "$c" "$t"
+	if [ "$n" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		t := dt_tr "No notifications"
+		console put $((r + 2)) $((c + 2)) "$t"
+	fi
+	[ "$NHP_TOP" -gt $((n - vis)) ] && NHP_TOP=$((n - vis))
+	[ "$NHP_TOP" -lt 0 ] && NHP_TOP=0
+	i=0
+	while [ "$i" -lt "$vis" ]; do
+		hid := dt_nhat $((NHP_TOP + i)) || break
+		NHP_ROW[$i]=$hid
+		at=${DT_NOTEHIST[$hid]["at"]:-0}
+		printf -v t "%(%H:%M)T" $((at / 1000))
+		f=${DT_NOTEHIST[$hid]["from"]:-Desktop}
+		f := dt_cut "$f" 12
+		line="$t $f  ${DT_NOTEHIST[$hid]["text"]}"
+		line=${line//$'\n'/ }
+		line := dt_cut "$line" $((w - 2))
+		case ${DT_NOTEHIST[$hid]["prio"]} in
+		low) console pen "$DT_DIM" "$DT_FACE" ;;
+		high | urgent) console pen "$DT_WARN" "$DT_FACE" ;;
+		*) console pen "$DT_INK" "$DT_FACE" ;;
+		esac
+		console put $((r + 2 + i)) $((c + 1)) "$line"
+		i=$((i + 1))
+	done
+	console pen "$DT_INK" "$DT_FACE"
+	t := dt_tr "Show All%s" "${GL[ellipsis]}"
+	console put $((r + h - 1)) $((c + 1)) "$t"
+	t := dt_tr "Settings%s" "${GL[ellipsis]}"
+	console put $((r + h - 1)) $((c + w - 1 - ${#t})) "$t"
+}
+
+# The history id at list position i, newest first -- the Notifications
+# app's own nh_at, for a desktop that does not have that app.
+fn dt_nhat(int i) {
+	local n=${#DT_NOTEHIST_ORDER[@]}
+
+	[ "$i" -ge 0 ] && [ "$i" -lt "$n" ] || return 1
+	ret "${DT_NOTEHIST_ORDER[$((n - 1 - i))]}"
+}
+
+fn nhpop_popmouse(act, int r, int c) {
+	local hid=${NHP_ROW[$((r - 2))]-} n=${#DT_NOTEHIST_ORDER[@]}
+
+	case $act in
+	up) [ "$NHP_TOP" -gt 0 ] && NHP_TOP=$((NHP_TOP - 1)); return 0 ;;
+	down) NHP_TOP=$((NHP_TOP + 1)); return 0 ;;
+	rpress)
+		[ -n "$hid" ] || return 0
+		dt_popclose
+		dt_context_open nhrow "$hid" $((DT_POPR + r)) $((DT_POPC + c))
+		return 0
+		;;
+	press) ;;
+	*) return 0 ;;
+	esac
+	if [ "$r" = 0 ]; then
+		[ "$c" -ge $((DT_POPW / 2)) ] && [ "$n" -gt 0 ] &&
+			dt_notehist_clear urgent
+		return 0
+	fi
+	if [ "$r" = $((DT_POPH - 2)) ]; then
+		dt_popclose
+		if [ "$c" -lt $((DT_POPW / 2)) ]; then
+			dt_has notifications_draw && dt_launch notifications
+		else
+			dt_panelpane notify
+		fi
+		return 0
+	fi
+	[ -n "$hid" ] || return 0
+	dt_popclose
+	if [ "${DT_NOTEHIST[$hid]["argvn"]:-0}" -gt 0 ]; then
+		dt_notehist_run "$hid"
+	elif dt_has notedetail_draw; then
+		dt_launch notedetail "$hid"
+	fi
+	return 0
+}
+
+fn nhpop_popkey(key) {
+	case $key in
+	escape) dt_popclose ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+# One sender's three choices as ticked rows: each turns its own on or off
+# outright, and Reset gives them back to the priorities.
+fn dt_notemenu(from, prio = "normal") {
+	local v=${DT_NOTEAPP["$from"]:-- - -} p l c on
+
+	read -r p l c <<< "$v"
+	on=0
+	if [ "$p" = 1 ] || { [ "$p" = - ] && dt_noteok pop "$from" "$prio"; }; then on=1; fi
+	dt_mark "Pop Up" p "$on" dt_noteset "$from" pop $((1 - on))
+	on=0
+	if [ "$l" = 1 ] || { [ "$l" = - ] && dt_noteok list "$from" "$prio"; }; then on=1; fi
+	dt_mark "Keep in the List" k "$on" dt_noteset "$from" list $((1 - on))
+	on=0
+	if [ "$c" = 1 ] || { [ "$c" = - ] && dt_noteok count "$from" "$prio"; }; then on=1; fi
+	dt_mark "Count on the Bar" c "$on" dt_noteset "$from" count $((1 - on))
+	if [ "$v" != "- - -" ]; then
+		dt_item "As Its Priority Says" r dt_notereset "$from"
+	fi
+}
+
+fn dt_notereset(from) {
+	unset DT_NOTEAPP["$from"]
+	dt_has dt_save && dt_save
+	return 0
+}
+
+# The menu on a note's row in the panel: what its sender's notes do.
+fn nhrow_context(int hid) {
+	local f=${DT_NOTEHIST[$hid]["from"]:-Desktop}
+
+	dt_menu "$f"
+	dt_notemenu "$f" "${DT_NOTEHIST[$hid]["prio"]:-normal}"
+	dt_sep
+	dt_item "Remove This Note" d dt_notehist_del "$hid"
+}
+
+# The menu on the notification icon.
+fn nhbell_context(id = "") {
+	dt_menu "Notifications"
+	dt_item "Show Notifications" s dt_bellpop
+	dt_item "Clear All" c dt_notehist_clear urgent
+	dt_sep
+	dt_item "Notification Settings${GL[ellipsis]}" n dt_panelpane notify
 }

@@ -136,6 +136,7 @@ April
 Archive
 Arrange Icons
 As It Is
+As Its Priority Says
 As the program places itself: for a window manager.
 Ask Before Closing
 Ask Sites for Dark Pages
@@ -325,6 +326,7 @@ Could not switch Wi-Fi: %s
 Could not write %s
 Count
 Count From
+Count on the Bar
 Cover Size
 Critical Battery
 Cursor
@@ -464,6 +466,7 @@ Freeze First Column
 Freeze Top Row
 Fri
 Friday
+From %s
 From:
 Full Command Line
 Full Player
@@ -539,6 +542,7 @@ Jun
 June
 Keep History on Disk
 Keep Messages
+Keep in the List
 Keep it after the vault locks
 Keep the Screen Saver Away While Playing
 Kept as a favourite: %s
@@ -563,6 +567,7 @@ Level on Menu Bar
 Line Under It
 Link
 List
+List From
 Load
 Loaded %s
 Loading…
@@ -684,6 +689,7 @@ No folders to move to
 No labels to choose from
 No more in this list
 No networks in reach
+No notifications
 No one matches "%s"
 No picture open to set as wallpaper
 No records.
@@ -714,6 +720,7 @@ Nothing to %s
 Nothing yet
 Notification
 Notification Icon
+Notification Settings…
 Notifications
 Nov
 November
@@ -794,6 +801,7 @@ Plain text
 Play
 Play Next Automatically
 Player
+Pop Up
 Position
 Position Given
 Power
@@ -845,6 +853,7 @@ Remove %s from your address book?
 Remove %s, every time it repeats?
 Remove %s?
 Remove Bookmark
+Remove This Note
 Remove the account %s? Its offline mail is kept.
 Remove the server %s?
 Removed from your calendar
@@ -928,6 +937,7 @@ Set Location…
 Set PIN
 Set as Wallpaper
 Set up a mail account first, in Control Panel > Mail
+Settings%s
 Several emails or phones: separate them with commas.
 Sha'ban
 Shadow
@@ -942,7 +952,9 @@ Shortcuts
 Shortcuts in Terminals
 Show
 Show All Notes
+Show All%s
 Show Contents
+Show Notifications
 Show On
 Show Pictures
 Show the password
