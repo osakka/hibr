@@ -1,4 +1,7 @@
 mod load ./build/mods/prompt.so
+# Colours step down to what the terminal draws (#360); the recording is
+# made at full depth, whatever terminal the harness runs under.
+export HIBR_COLOURS=24
 root=$(pwd)
 
 fn show() {
@@ -221,5 +224,43 @@ PROMPT[glyphs]=
 echo "-- and the plain look is as it was"
 false
 show
+
+echo "== the right-hand prompt, only when asked for"
+PROMPT[format]='$jobs$status$char'
+PROMPT[glyphs]=unicode
+unset 'PROMPT[right]' RET_RIGHT
+wait
+false
+show
+echo "RET_RIGHT is ${RET_RIGHT-unset}"
+PROMPT[right]='$status$jobs'
+sleep 30 & false
+show
+str replace "$RET_RIGHT" $'\e' "<E>" o
+echo "RET_RIGHT [$o]"
+false
+p := prompt render right
+str replace "$p" $'\e' "<E>" o
+echo "right alone [$o]"
+echo "-- and in the powerline look, pointing the other way"
+PROMPT[look]=powerline
+PROMPT[glyphs]=ascii
+for sep in arrow flat; do
+	PROMPT[sep]=$sep
+	false
+	p := prompt render right
+	str replace "$p" $'\e' "<E>" o
+	echo "[$o]"
+done
+kill $!
+wait $! 2> /dev/null
+PROMPT[look]=plain
+PROMPT[glyphs]=
+unset 'PROMPT[right]' 'PROMPT[sep]'
+prompt render left 2> /dev/null || echo "an unknown side is refused: $?"
+
+echo "== a colour steps down to what the terminal draws"
+PROMPT[format]='[hex](#5f87d7) [n](117) [bg](bg:#ffd700) [red](red)'
+for HIBR_COLOURS in 24 256 16; do show; done
 
 rm -rf "$d"

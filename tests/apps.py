@@ -3402,10 +3402,17 @@ check("Modules lists what the module path offers: each one's version, "
       sc.find("STATE") is not None and "available" in modrow(sc, "csv") and
       "loaded" in modrow(sc, "console") and
       "display: console" in modrow(sc, "console"), sc)
+def modpath(sc):
+    """The path drawn under the description, as far as the window shows it:
+    the gate's tree can be anywhere, so it is cut where the window ends."""
+    hit = sc.find("tar and tar.gz read as folders")
+    return sc.row(hit[0] + 1).strip(" │·") if hit else ""
+
+
 check("and the selected module's description and path below it, which is "
       "what a list has no room for",
-      sc.find("tar and tar.gz read as folders") is not None and
-      sc.find("/archive.so") is not None, sc)
+      len(modpath(sc)) > 10 and
+      sx.tree("build/mods/archive.so").startswith(modpath(sc)), sc)
 
 sc = run(*MODMAN, feed=moddown("csv") + [b"\r", 0.6])
 check("enter loads the selected module, and the row says so",

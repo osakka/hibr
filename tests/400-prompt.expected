@@ -70,9 +70,23 @@ tail]
 -- nerd separators and a band of its own colour
 [<E>[0;48;2;255;215;0m <E>[0;1;30;48;2;255;215;0ms1<E>[0;48;2;255;215;0m<E>[0;48;2;255;215;0m <E>[0;38;2;255;215;0m<E>[0m <E>[0;1;31m><E>[0m ]
 -- flat draws no separator, round falls back to the arrow off nerd
-[<E>[0;41m <E>[0;1;97;41ms1<E>[0;41m<E>[0;41m <E>[0;31m<E>[0m <E>[0;1;31m><E>[0m ]
+[<E>[0;41m <E>[0;1;97;41ms1<E>[0;41m<E>[0;41m <E>[0m <E>[0;1;31m><E>[0m ]
 [<E>[0;41m <E>[0;1;97;41ms1<E>[0;41m<E>[0;41m <E>[0;31m▶<E>[0m <E>[0;1;31m><E>[0m ]
 -- auto takes HIBR_GLYPHS, the desktop's own setting
 [<E>[0;41m <E>[0;1;97;41mx1<E>[0;41m<E>[0;41m <E>[0;31m><E>[0m <E>[0;1;31m><E>[0m ]
 -- and the plain look is as it was
 [<E>[0;1;31m✘1<E>[0m<E>[0;1;31m❯<E>[0m ]
+== the right-hand prompt, only when asked for
+[<E>[0;1;31m✘1<E>[0m<E>[0;1;31m❯<E>[0m ]
+RET_RIGHT is unset
+[<E>[0;1;34mj1<E>[0m<E>[0;1;31m✘1<E>[0m<E>[0;1;31m❯<E>[0m ]
+RET_RIGHT [<E>[0;1;31m✘1<E>[0m<E>[0;1;34mj1<E>[0m]
+right alone [<E>[0;1;31m✘1<E>[0m<E>[0;1;34mj1<E>[0m]
+-- and in the powerline look, pointing the other way
+[<E>[0;31m<<E>[0;41m <E>[0;1;97;41mx1<E>[0;41m<E>[0;41m <E>[0;34;41m<<E>[0;44m <E>[0;1;97;44mj1<E>[0;44m<E>[0;44m <E>[0m]
+[<E>[0;41m <E>[0;1;97;41mx1<E>[0;41m<E>[0;41m <E>[0;34;41m<E>[0;44m <E>[0;1;97;44mj1<E>[0;44m<E>[0;44m <E>[0m]
+an unknown side is refused: 2
+== a colour steps down to what the terminal draws
+[<E>[0;38;2;95;135;215mhex<E>[0m <E>[0;38;5;117mn<E>[0m <E>[0;48;2;255;215;0mbg<E>[0m <E>[0;31mred<E>[0m]
+[<E>[0;38;5;68mhex<E>[0m <E>[0;38;5;117mn<E>[0m <E>[0;48;5;220mbg<E>[0m <E>[0;31mred<E>[0m]
+[<E>[0;94mhex<E>[0m <E>[0;37mn<E>[0m <E>[0;103mbg<E>[0m <E>[0;31mred<E>[0m]

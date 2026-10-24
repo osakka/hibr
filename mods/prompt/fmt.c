@@ -1,4 +1,6 @@
 #include "pr.h"
+#include "../gfxask.h"
+#include "../display.h"
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,20 +42,16 @@ int pr_col(str *o, const char *v, size_t n, int bg)
 		int b = pr_hex(v[5]) * 16 + pr_hex(v[6]);
 		if (r < 0 || g < 0 || b < 0)
 			return 0;
-		s_cat(o, bg ? ";48;2;" : ";38;2;");
-		s_num(o, r);
-		s_ch(o, ';');
-		s_num(o, g);
-		s_ch(o, ';');
-		s_num(o, b);
+		gx_sgrcol(o, DP_RGB | (unsigned)(r << 16 | g << 8 | b), bg,
+			  gx_depth(0));
 		return 1;
 	}
 	for (i = 0; i < n; i++)
 		if (!isdigit((unsigned char)v[i]))
 			all = 0;
 	if (all && n) {
-		s_cat(o, bg ? ";48;5;" : ";38;5;");
-		s_num(o, atol(v));
+		gx_sgrcol(o, DP_PAL | ((unsigned)atol(v) & 0xFF), bg,
+			  gx_depth(0));
 		return 1;
 	}
 	for (i = 0; i < sizeof pr_cols / sizeof pr_cols[0]; i++)

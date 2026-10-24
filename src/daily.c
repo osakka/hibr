@@ -506,6 +506,7 @@ char *pr_hook(sh *s)
 	hibr_set(s, "STATUS", n.p, 0);
 	s_free(&n);
 	hibr_set(s, "RET", "", 0);
+	hibr_set(s, "RET_RIGHT", "", 0);
 	s->bind = f ? 0 : 1;
 	s->intry = 1;
 	s->brk = 0;
@@ -517,6 +518,9 @@ char *pr_hook(sh *s)
 	else
 		b->fn(s, 1, av);
 	r = xs(hibr_get(s, "RET") ? hibr_get(s, "RET") : "");
+	free(ed_rtext);
+	ed_rtext = hibr_get(s, "RET_RIGHT") && *hibr_get(s, "RET_RIGHT") ?
+		   xs(hibr_get(s, "RET_RIGHT")) : 0;
 	s->bind = ob;
 	s->intry = oin;
 	s->stop = ostop;

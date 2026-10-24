@@ -156,8 +156,8 @@ int v_dyn(sh *s, const char *k, const char *v)
    author ever having written an assignment. */
 int v_shellvar(const char *k)
 {
-	static const char *nm[] = { "RET", "M", "REPLY", "OPTARG", "OPTIND",
-				    "ERR", "ERRMSG", "ERRSTATUS", "CMD",
+	static const char *nm[] = { "RET", "RET_RIGHT", "M", "REPLY", "OPTARG",
+				    "OPTIND", "ERR", "ERRMSG", "ERRSTATUS", "CMD",
 				    "REMOTE", "PIPESTATUS", "MAPFILE",
 				    "BASH_REMATCH", "PWD", "OLDPWD", "_", 0 };
 	int i;

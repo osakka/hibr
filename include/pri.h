@@ -480,6 +480,7 @@ char *rdline(FILE *f);
 int ed_init(sh *s);
 int ed_cols(void);
 char *ed_line(sh *s, const char *ps);
+extern char *ed_rtext;
 void ed_fini(sh *s);
 void hs_add(sh *s, const char *line);
 

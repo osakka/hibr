@@ -54,7 +54,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
 ifeq ($(UNAME),Darwin)
 MODS += $(B)/mods/darwin.so
 endif
-PROMPT_SRC = $(wildcard mods/prompt/*.c) mods/inflate.c mods/inftab.c
+PROMPT_SRC = $(wildcard mods/prompt/*.c) mods/inflate.c mods/inftab.c mods/gfxask.c
 # The console compresses a still picture before sending it (Gitea #129), so
 # it carries the deflate encoder -- and inftab.c, the tables both directions
 # read, rather than the whole of inflate.c: it never expands anything, and
@@ -149,7 +149,7 @@ $(B)/.recheck: src/recheck.c include/re.h | $(B)/mods
 	fi; \
 	touch $@
 
-$(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h mods/inflate.h | $(B)/mods
+$(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h mods/inflate.h mods/gfxask.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PROMPT_SRC)
 
 $(B)/mods/pty.so: $(PTY_SRC) include/hibr.h mods/pty/tt.h | $(B)/mods

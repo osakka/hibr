@@ -47,6 +47,20 @@ check("both together: gone from the transient line",
 t = session('PS1="> "\n', RUN)
 check("neither set changes nothing", "\033[59G" not in t and "0K$ " not in t)
 
+# A prompt hook hands the right side over in RET_RIGHT, as final text the
+# way RET is (#360): nothing in it is expanded again.
+HOOK = 'fn pf() { RET_RIGHT=%s; ret %s; }\nPROMPT_FN=pf\nPS2="... "\n'
+t = session(HOOK % ("'[$x]'", "'> '"), RUN)
+check("a hook's right side is drawn as it was given", "\033[56G[$x]" in t)
+t = session(HOOK % ("'[r]'", "$'top\\n> '"), RUN)
+check("and on the row where typing starts, under a two-line prompt",
+      "\033[57G[r]" in t)
+t = session(HOOK % ("'[r]'", "'> '"), ["if true\n", "then echo hi\n", "fi\n", "exit\n"])
+check("a continuation line does not carry it",
+      "[r]" not in t.split("... ")[1] if "... " in t else False)
+t = session("need prompt\nPROMPT[format]='> '\nPROMPT[right]='right'\n", RUN)
+check("the prompt module draws PROMPT[right] there", "\033[55Gright" in t)
+
 t = session('PS1="> "\nRPS1="[\\t]"\n', ["x"])
 check("the right prompt takes prompt escapes",
       any(c.isdigit() for c in t.split("G[")[-1][:8]) if "G[" in t else False)
@@ -166,4 +180,4 @@ t.wait(3.0)
 check("in agent mode a read on a terminal ends at once instead of waiting",
       t.exited and "read [] status 1" in t.text, t.text)
 
-report(29)
+report(33)

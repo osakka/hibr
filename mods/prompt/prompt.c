@@ -199,11 +199,15 @@ int m_prstatus(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Render the prompt into the result slot, printing when unbound. */
+/* Render the prompt into the result slot, printing when unbound; the right
+   side, when PROMPT[right] asks for one, goes to RET_RIGHT, which the shell
+   hands the line editor as final text, or alone into the slot with
+   `prompt render right`. */
 int m_prompt(sh *s, int ac, char **av)
 {
 	pctx c;
-	char *r;
+	char *r, *rr;
+	int rt = ac > 2 && !strcmp(av[2], "right");
 
 	if (ac > 1 && !strcmp(av[1], "list"))
 		return m_prlist(s);
@@ -215,12 +219,20 @@ int m_prompt(sh *s, int ac, char **av)
 		return m_prindex(s, ac, av);
 	if (ac > 1 && !strcmp(av[1], "status"))
 		return m_prstatus(s, ac, av);
-	if (ac > 1 && strcmp(av[1], "render")) {
-		lg(HIBR_LERR, "usage: prompt [render|list|object]");
+	if ((ac > 1 && strcmp(av[1], "render")) || (ac > 2 && !rt) || ac > 3) {
+		lg(HIBR_LERR, "usage: prompt [render [right]|list|object]");
 		return 2;
 	}
 	pr_ctx(s, &c);
-	r = pr_render(&c);
+	rr = pr_renderr(&c);
+	if (rt) {
+		r = rr ? rr : xs("");
+	} else {
+		r = pr_render(&c);
+		if (rr)
+			hibr_set(s, "RET_RIGHT", rr, 0);
+		free(rr);
+	}
 	pr_ctxfree(&c);
 	hibr_ret(s, r);
 	if (!s->bind)

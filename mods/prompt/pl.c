@@ -25,20 +25,28 @@ str pr_plbg;
 const char *pr_plfg;
 
 /* The separators of one set: between two bands, between two bands of one
-   colour, the cap at the end, and the cap before the first. */
-struct plsep { const char *set, *sep, *same, *end, *start; };
+   colour, the cap at the end, and the cap before the first -- and the same
+   four for the right-hand prompt, which points the other way. */
+struct plsep {
+	const char *set, *sep, *same, *end, *start;
+	const char *rsep, *rsame, *rend, *rstart;
+};
 
 static const struct plsep pl_seps[] = {
-	{ "nerd/arrow", "\356\202\260", "\356\202\261", "\356\202\260", "" },
+	{ "nerd/arrow", "\356\202\260", "\356\202\261", "\356\202\260", "",
+	  "\356\202\262", "\356\202\263", "", "\356\202\262" },
 	{ "nerd/round", "\356\202\264", "\356\202\265", "\356\202\264",
+	  "\356\202\266", "\356\202\266", "\356\202\267", "\356\202\264",
 	  "\356\202\266" },
-	{ "nerd/slant", "\356\202\274", "\356\202\275", "\356\202\274", "" },
-	{ "nerd/flat", "", "", "", "" },
-	{ "unicode/arrow", "\342\226\266", "\342\224\202", "\342\226\266", "" },
-	{ "unicode/flat", "", "", "", "" },
-	{ "ascii/arrow", ">", "|", ">", "" },
-	{ "ascii/flat", "", "", "", "" },
-	{ 0, 0, 0, 0, 0 }
+	{ "nerd/slant", "\356\202\274", "\356\202\275", "\356\202\274", "",
+	  "\356\202\272", "\356\202\273", "", "\356\202\272" },
+	{ "nerd/flat", "", "", "", "", "", "", "", "" },
+	{ "unicode/arrow", "\342\226\266", "\342\224\202", "\342\226\266", "",
+	  "\342\227\200", "\342\224\202", "", "\342\227\200" },
+	{ "unicode/flat", "", "", "", "", "", "", "", "" },
+	{ "ascii/arrow", ">", "|", ">", "", "<", "|", "", "<" },
+	{ "ascii/flat", "", "", "", "", "", "", "", "" },
+	{ 0, 0, 0, 0, 0, 0, 0, 0, 0 }
 };
 
 /* A set's own symbol for a segment, where the segment's is not set. */
@@ -271,19 +279,23 @@ char *pl_trim(char *t)
 	return r;
 }
 
-/* The state of the run of bands being drawn. */
-struct plrun { str *o; const struct plsep *sp; str last; int open; };
+/* The state of the run of bands being drawn, and which side it is for. */
+struct plrun { str *o; const struct plsep *sp; str last; int open, rt; };
 
-/* Close a run of bands with its end cap. */
+/* Close a run of bands with its end cap; the right side ends at the edge. */
 void pl_close(struct plrun *u)
 {
+	const char *cap = u->rt ? u->sp->rend : u->sp->end;
+
 	if (!u->open)
 		return;
-	s_cat(u->o, "\033[0");
-	pl_colp(u->o, u->last.p, 0);
-	s_ch(u->o, 'm');
-	s_cat(u->o, u->sp->end);
-	s_cat(u->o, "\033[0m ");
+	if (*cap) {
+		s_cat(u->o, "\033[0");
+		pl_colp(u->o, u->last.p, 0);
+		s_ch(u->o, 'm');
+		s_cat(u->o, cap);
+	}
+	s_cat(u->o, u->rt ? "\033[0m" : "\033[0m ");
 	u->open = 0;
 }
 
@@ -327,18 +339,24 @@ void pl_band(pctx *c, struct plrun *u, const char *nm)
 	if (t) {
 		t = pl_trim(t);
 		if (!u->open) {
-			if (*u->sp->start) {
+			if (*(u->rt ? u->sp->rstart : u->sp->start)) {
 				s_cat(u->o, "\033[0");
 				pl_colp(u->o, col.p, 0);
 				s_ch(u->o, 'm');
-				s_cat(u->o, u->sp->start);
+				s_cat(u->o, u->rt ? u->sp->rstart : u->sp->start);
 			}
 		} else if (!strcmp(u->last.p, col.p)) {
 			s_cat(u->o, "\033[0");
 			s_add(u->o, pr_plbg.p, pr_plbg.n);
 			pl_colp(u->o, pl_light(col.p) ? "black" : "bright-white", 0);
 			s_ch(u->o, 'm');
-			s_cat(u->o, u->sp->same);
+			s_cat(u->o, u->rt ? u->sp->rsame : u->sp->same);
+		} else if (u->rt) {
+			s_cat(u->o, "\033[0");
+			pl_colp(u->o, col.p, 0);
+			pl_colp(u->o, u->last.p, 1);
+			s_ch(u->o, 'm');
+			s_cat(u->o, u->sp->rsep);
 		} else {
 			s_cat(u->o, "\033[0");
 			pl_colp(u->o, u->last.p, 0);
@@ -369,8 +387,9 @@ void pl_band(pctx *c, struct plrun *u, const char *nm)
 
 /* The powerline look: the top level format read segment by segment, each
    a band, and anything else in it -- text, and the char segment, which is
-   where typing starts -- after the run, outside it. */
-char *pr_plrender(pctx *c, const char *f)
+   where typing starts -- after the run, outside it. The right side is the
+   same run pointing the other way. */
+char *pr_plrender(pctx *c, const char *f, int rt)
 {
 	str o;
 	struct plrun u;
@@ -382,6 +401,7 @@ char *pr_plrender(pctx *c, const char *f)
 	o.p[0] = 0;
 	memset(&u, 0, sizeof u);
 	u.o = &o;
+	u.rt = rt;
 	u.sp = pl_sepfor(pr_glyphs(c), pr_top(c, "sep"));
 	s_init(&u.last);
 	while (*p) {

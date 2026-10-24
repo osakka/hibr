@@ -251,6 +251,10 @@ int ed_width(const char *p)
 	return col;
 }
 
+/* The right prompt the prompt hook handed over for the next line, as final
+   text in place of RPS1; ed_line takes it, so it lasts one line. */
+char *ed_rtext;
+
 /* Expand one of the optional prompts, or give null when it is not set. */
 char *ed_prompt(sh *s, const char *nm)
 {
@@ -383,7 +387,7 @@ void ed_draw(est *e, str *b, size_t pos)
 {
 	int cols = ed_cols();
 	str o;
-	int rows, crow, ccol, ecol, i;
+	int rows, crow, ccol, ecol, i, prows = 0;
 	const uni_api *u = ed_uni(b);
 
 	if (u) {
@@ -391,6 +395,12 @@ void ed_draw(est *e, str *b, size_t pos)
 		return;
 	}
 	ed_pos(e->ps, b, pos, cols, &rows, &crow, &ccol, &ecol);
+	if (e->rps) {
+		str z;
+		int zr, zc;
+		s_init(&z);
+		ed_pos(e->ps, &z, 0, cols, &prows, &zr, &zc, &zc);
+	}
 	s_init(&o);
 	if (e->orows - 1 - e->orow > 0) {
 		s_cat(&o, "\033[");
@@ -402,7 +412,7 @@ void ed_draw(est *e, str *b, size_t pos)
 	s_cat(&o, "\r\033[0K");
 	s_cat(&o, e->ps);
 	s_add(&o, b->p ? b->p : "", b->n);
-	if (e->rps && rows == 1) {
+	if (e->rps && rows == prows) {
 		int rw = ed_width(e->rps);
 		if (rw && ecol + rw + 1 < cols) {
 			s_cat(&o, "\033[");
@@ -1088,14 +1098,12 @@ char *ed_line(sh *s, const char *ps)
 	est e;
 	char c;
 	int esc = 0;
-	char *r;
+	char *r, *rt = ed_rtext;
 
 	ed_sh = s;
-	if (!s->it || !isatty(0)) {
-		ed_put(ps, strlen(ps));
-		return rdline(stdin);
-	}
-	if (ed_on() != HIBR_OK) {
+	ed_rtext = 0;
+	if (!s->it || !isatty(0) || ed_on() != HIBR_OK) {
+		free(rt);
 		ed_put(ps, strlen(ps));
 		return rdline(stdin);
 	}
@@ -1103,7 +1111,7 @@ char *ed_line(sh *s, const char *ps)
 	s_init(&save);
 	hi = s->hist.n;
 	e.ps = ps;
-	e.rps = ed_prompt(s, "RPS1");
+	e.rps = rt ? rt : ed_prompt(s, "RPS1");
 	ed_fresh(&e);
 	ed_draw(&e, &b, pos);
 	for (;;) {

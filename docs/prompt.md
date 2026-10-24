@@ -150,10 +150,8 @@ as `*`; leading `**/` and trailing `/**` work as documented.
 
 A right-hand prompt (`RPS1`) and a transient prompt (`TPS1`) are the line
 editor's, and take `PS1`'s escapes: see [Interactive use](interactive.md#prompts).
-
----
-
-[← documentation index](README.md) · [← project README](../README.md)
+The module draws a right-hand side of its own, from segments: see
+[The right-hand side](#the-right-hand-side).
 
 ## The powerline look
 
@@ -202,3 +200,52 @@ With `unicode`, the format above in a repository with a change looks like this
 ```text
  ~/hibr ▶ main !1 ▶ ❯
 ```
+
+## The right-hand side
+
+Nothing is drawn on the right unless `PROMPT[right]` asks for it. It is a
+format like `PROMPT[format]`, of the same segments, drawn at the right edge of
+the row where typing starts -- the last row of a prompt of several -- and it
+gives way when what is typed would reach it. In the powerline look its bands
+point the other way, so the run opens towards the text and ends at the edge.
+
+<!-- not run: a prompt is drawn only by an interactive shell -->
+```sh
+mod load prompt
+PROMPT[format]='$dir$git$char'
+PROMPT[right]='$duration$status$jobs'
+PROMPT[look]=powerline
+```
+
+```text
+ ~/hibr ▶ main !1 ▶ ❯                              ◀ 2s ◀ ✘1
+```
+
+`prompt render right` gives the right side alone. A prompt hook of your own
+(`PROMPT_FN`) hands a right side to the line editor the way it hands the left:
+set `RET_RIGHT` before `ret`. Like `RET`, it is final text -- nothing in it is
+expanded again -- and it stands in for `RPS1` on the line it was made for.
+
+<!-- not run: a prompt is drawn only by an interactive shell -->
+```sh
+fn myprompt() {
+	RET_RIGHT="[$(date +%H:%M)]"
+	ret "$PWD> "
+}
+PROMPT_FN=myprompt
+```
+
+## Colours and the terminal
+
+A colour given as `#rrggbb` or as a number from 0 to 255 is drawn as near as
+the terminal can show it: in full where `COLORTERM` says `truecolor` or
+`24bit`, as the nearest of 256 where `TERM` ends in `256color`, and as the
+nearest of the sixteen on the Linux console, `screen` and the old `vt`
+terminals. `HIBR_COLOURS=24`, `256` or `16` says which outright. A terminal
+window of the desktop says `truecolor` for its programs, and the desktop then
+sends each display what it can show (Control Panel > Pictures > Colours). A
+named colour -- `red`, `bright-blue` -- is one of the sixteen everywhere.
+
+---
+
+[← documentation index](README.md) · [← project README](../README.md)

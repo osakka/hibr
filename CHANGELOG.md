@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.99.321
+
+**A right-hand prompt from the prompt module, for those who want one.**
+`PROMPT[right]` is a format like `PROMPT[format]`, of the same segments, drawn
+at the right edge of the row where typing starts; nothing is drawn there
+unless it is set (Gitea #360). In the powerline look its bands point the other
+way -- `◀`, or Nerd's left arrow, round or slant -- so the run opens towards
+the text and ends at the edge. `prompt render right` gives it alone. The
+starter `.hibrc` carries a commented example.
+
+**A prompt hook hands the right side over as it hands the left.** A
+`PROMPT_FN` sets `RET_RIGHT` beside `RET`, and it reaches the line editor as
+final text in place of `RPS1` for that line -- nothing in it is expanded
+again, the rule `RET` already keeps. `strict vars` lets a function set it, as
+it does `RET`.
+
+**A right-hand prompt is drawn under a prompt of several rows.** The editor
+drew one only when the whole line was one row, so a two-line prompt -- the
+`newline` option, common with the powerline look -- never showed `RPS1`. It is
+drawn on the prompt's last row now, the one typing starts on, and still gives
+way when what is typed would reach it.
+
+**The prompt's colours step down to what the terminal draws.** A `#rrggbb` or
+a number from 0 to 255 was sent as written, so a 256-colour or sixteen-colour
+terminal got a colour it could not show. It goes through the same step-down
+the display uses since 0.99.314 (`HIBR_COLOURS`, then `COLORTERM`, then
+`TERM`); a desktop terminal window says `truecolor` for its programs, and the
+desktop steps it down per display as before. `400-prompt` records at full
+depth, so it no longer depends on the terminal it runs under, and records the
+256 and 16 forms beside it.
+
+`docs/prompt.md`'s powerline section had landed after the page's footer; it
+is in the page now, with the right-hand side and colours beside it.
+
+A Modules window check looked for the whole of `…/archive.so` under the
+description, and a tree at a long path -- the sanitizer build's
+`build/asan/mods`, in a gate's worktree -- is cut at the window's edge before
+the name ends. It asks that what is drawn is the start of the real path now.
+
 ## 0.99.320
 
 **A display that joins no longer takes the primary from the one you started

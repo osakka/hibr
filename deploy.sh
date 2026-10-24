@@ -263,6 +263,9 @@ PROMPT[duration][min]=500
 #PROMPT[look]=powerline
 #PROMPT[sep]=arrow
 #PROMPT[glyphs]=auto
+# A right-hand side, of the same segments, drawn at the right edge of the
+# row where typing starts. Nothing is drawn there unless this is set.
+#PROMPT[right]='$jobs'
 
 alias ll='ls -lh'
 export EDITOR=vim

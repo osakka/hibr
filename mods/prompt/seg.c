@@ -828,17 +828,11 @@ char *pr_look(pctx *c, void *ud, const char *nm)
 char *pr_render(pctx *c)
 {
 	const char *f = pr_top(c, "format");
-	const char *p;
 	char *r;
-	int any = 0;
 
 	if (!f)
 		f = "$user$host$dir$git$duration$status$jobs$char";
-	p = f;
-	if (pr_top(c, "look") && !strcmp(pr_top(c, "look"), "powerline"))
-		r = pr_plrender(c, f);
-	else
-		r = pr_fmt(c, &p, 0, 0, &any, pr_look, 0);
+	r = pr_renderf(c, f, 0);
 	if (pr_cfgi(c, 0, "newline", 0)) {
 		str o;
 		s_init(&o);
@@ -848,5 +842,29 @@ char *pr_render(pctx *c)
 		r = o.p;
 	}
 	lg(HIBR_LDBG, "prompt rendered %lu bytes", (unsigned long)strlen(r));
+	return r;
+}
+
+/* Render one format in the configured look, mirrored for the right side. */
+char *pr_renderf(pctx *c, const char *f, int rt)
+{
+	const char *p = f;
+	int any = 0;
+
+	if (pr_top(c, "look") && !strcmp(pr_top(c, "look"), "powerline"))
+		return pr_plrender(c, f, rt);
+	return pr_fmt(c, &p, 0, 0, &any, pr_look, 0);
+}
+
+/* The right-hand prompt, or null when PROMPT[right] does not ask for one. */
+char *pr_renderr(pctx *c)
+{
+	const char *f = pr_top(c, "right");
+	char *r;
+
+	if (!f || !*f)
+		return 0;
+	r = pr_renderf(c, f, 1);
+	lg(HIBR_LDBG, "right prompt rendered %lu bytes", (unsigned long)strlen(r));
 	return r;
 }
