@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.99.322
+
+**Control Panel > Browser > Allow Calls and Meetings.** The WebKit engine of
+the `hibr-browser` package can let a page's process keep the machine's network,
+which web calls (WebRTC) need and its sandbox otherwise takes away. The switch
+is off by default, shows only where the engine lists `webrtc` in `web caps`
+(never with Chromium), and is used when the engine next starts: the Browser
+sends `web config webrtc on` or `off` with the rest of its settings. Its label
+says it shares the network; Arabic added, `ar.json` 3.28. Browser 2.4, pane 1.8.
+
 ## 0.99.321
 
 **A right-hand prompt from the prompt module, for those who want one.**

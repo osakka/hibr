@@ -120,6 +120,7 @@ Agenda
 Align
 All Displays
 All Mail
+Allow Calls and Meetings (Shares the Network)
 Allow Downloads
 Already joining %s
 Already on %s

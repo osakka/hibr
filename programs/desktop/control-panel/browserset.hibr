@@ -22,7 +22,7 @@
 
 strict
 
-app browserset "The Control Panel pane for the Browser" 1.7
+app browserset "The Control Panel pane for the Browser" 1.8
 command -v cp_pane > /dev/null && cp_pane browserset "Browser" "◎" app
 command -v dt_app > /dev/null &&
 	dt_app bwfield "Browser Setting" 8 64 "" "" fixed hidden
@@ -40,6 +40,7 @@ BW_PROFILE="${BW_PROFILE-}"
 BW_ARGS="${BW_ARGS-}"
 BW_LANG="${BW_LANG-}"
 BW_DNT="${BW_DNT-0}"
+BW_RTC="${BW_RTC-0}"
 BW_BLOCK="${BW_BLOCK-}"
 BW_PGEO="${BW_PGEO-refuse}"
 BW_PCAM="${BW_PCAM-refuse}"
@@ -50,7 +51,7 @@ BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
 BW_AUTOPLAY="${BW_AUTOPLAY-0}"
 command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
 	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
-	BW_LANG BW_DNT BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
+	BW_LANG BW_DNT BW_RTC BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
 	BW_AUTOPLAY
 BS_PERMS=(refuse allow)
 
@@ -184,6 +185,12 @@ fn browserset_rows(int w) {
 	CP[$w][$n]["text"]="Folder"; bs_row "$w" "$n" BW_DLDIR; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="When the Engine Next Starts"
 	n=$((n + 1))
+	if bs_has webrtc; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Allow Calls and Meetings (Shares the Network)"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "$BW_RTC" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=BW_RTC; n=$((n + 1))
+	fi
 	if bs_has config; then
 		CP[$w][$n]["text"]="Program"; bs_row "$w" "$n" BW_PROGRAM; n=$((n + 1))
 	fi
@@ -226,7 +233,7 @@ fn browserset_do(int? w = "", k = "", int? dir = "") {
 		BW_ZOOM=$v
 		bs_tell
 		;;
-	BW_DARK | BW_DL | BW_AUTOPLAY) cp_toggle "$k"; bs_tell ;;
+	BW_DARK | BW_DL | BW_AUTOPLAY | BW_RTC) cp_toggle "$k"; bs_tell ;;
 	BW_DNT) cp_toggle "$k"; bs_tell again ;;
 	pgeo) v := cp_next "$BW_PGEO" "$dir" "${BS_PERMS[@]}"; BW_PGEO=$v; bs_tell ;;
 	pcam) v := cp_next "$BW_PCAM" "$dir" "${BS_PERMS[@]}"; BW_PCAM=$v; bs_tell ;;

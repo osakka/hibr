@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.27",
+ "version": "3.28",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1338,6 +1338,7 @@
   "Save Downloads Without Asking": "حفظ التنزيلات دون سؤال",
   "Show Captions": "إظهار الترجمة النصية",
   "The download of %s did not finish: %s": "لم يكتمل تنزيل %s: %s",
-  "When the Engine Next Starts": "عند بدء المحرك في المرة القادمة"
+  "When the Engine Next Starts": "عند بدء المحرك في المرة القادمة",
+  "Allow Calls and Meetings (Shares the Network)": "السماح بالمكالمات والاجتماعات (يشارك الشبكة)"
  }
 }

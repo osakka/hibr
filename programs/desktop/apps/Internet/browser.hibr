@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.3
+app browser "The web, in a window" 2.4
 # modules: web
 # part: control-panel/browserset.hibr
 
@@ -72,6 +72,7 @@ BW_PROFILE="${BW_PROFILE-}"
 BW_ARGS="${BW_ARGS-}"
 BW_LANG="${BW_LANG-}"
 BW_DNT="${BW_DNT-0}"
+BW_RTC="${BW_RTC-0}"
 BW_BLOCK="${BW_BLOCK-}"
 BW_PGEO="${BW_PGEO-refuse}"
 BW_PCAM="${BW_PCAM-refuse}"
@@ -82,7 +83,7 @@ BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
 BW_AUTOPLAY="${BW_AUTOPLAY-0}"
 command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
 	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
-	BW_LANG BW_DNT BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
+	BW_LANG BW_DNT BW_RTC BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
 	BW_AUTOPLAY
 declare -gA BWX
 # A tab's sound: its player, the pipe into it, and when it was last
@@ -135,9 +136,17 @@ bw_watch() {
 # YouTube player asks for this too, since the two share one engine.  Chromium
 # is told its program and flags; WebKit has none.
 bw_cfg() {
+	local x
 	if bw_has config; then
 		web config browser "$BW_PROGRAM"
 		web config args "$BW_ARGS"
+	fi
+	# Calls and meetings need the page's process to have the machine's network,
+	# which this engine's sandbox takes away unless asked; off by default, and
+	# used when the engine next starts.
+	if bw_has webrtc; then
+		x=off; [ "$BW_RTC" = 1 ] && x=on
+		web config webrtc "$x"
 	fi
 	web config profile "$BW_PROFILE"
 	return 0
