@@ -114,4 +114,23 @@ struct dp_api {
 	int (*imgkeep)(sh *s, int row, int col, int h, int w);
 };
 
+/* A second, smaller interface beside "display", under the name "scroll",
+   so a display can offer it without "display" changing version -- every
+   tool outside this tree that asks for "display" by its exact version would
+   otherwise stop finding it (Gitea #353). What a terminal window offers its
+   display before drawing: "the band of cells at this rectangle has moved up
+   n rows since I last drew it" (down when n is negative). A display that
+   can move cells on its terminal does so, and then the drawing that follows
+   costs only the rows that are new; one that cannot says 0 and the drawing
+   costs what it always did. A hint that is wrong costs bytes, never a
+   wrong screen: the display moves what it believes the terminal shows, and
+   what it is drawn next is compared against that. */
+#ifndef DPS_API_VER
+#define DPS_API_VER 1u
+#endif
+
+typedef struct dps_api {
+	int (*scroll)(int row, int col, int h, int w, int n);
+} dps_api;
+
 #endif

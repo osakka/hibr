@@ -186,8 +186,12 @@ void cn_gridcopy(cn_grid *g, int r, int c, int h, int w, int dr, int dc)
    which is not cells. The destination's edge columns and the one each side
    are made unknown in the front buffer, since how a terminal splits a wide
    glyph at an edge is its own: the diff after settles them, so a copy can
-   only ever save bytes, never leave a wrong screen. */
-int cn_copyrect(int r, int c, int h, int w, int dr, int dc)
+   only ever save bytes, never leave a wrong screen. `back` says whether
+   the back buffer is copied too: a pane that moved may be left alone next
+   frame, so it is; a scroll is drawn again at once, so it is not, which
+   also keeps a window that overlaps it and is left alone from being moved
+   in the back buffer with it -- in the front alone the diff puts it back. */
+int cn_copyrect(int r, int c, int h, int w, int dr, int dc, int back)
 {
 	int lo, hi, i, j, k;
 
@@ -221,7 +225,8 @@ int cn_copyrect(int r, int c, int h, int w, int dr, int dc)
 			for (j = 0; j < w; j++)
 				if (cn_imgat(r + i, c + j) || cn_imgat(dr + i, dc + j))
 					return 0;
-	cn_gridcopy(&cn_back, r, c, h, w, dr, dc);
+	if (back)
+		cn_gridcopy(&cn_back, r, c, h, w, dr, dc);
 	cn_gridcopy(&cn_front, r, c, h, w, dr, dc);
 	/* Where a wide glyph is cut by an edge, the terminal blanks it, as
 	   hibr's emulator does: those cells, and only those, are made unknown
@@ -252,6 +257,21 @@ int cn_copyrect(int r, int c, int h, int w, int dr, int dc)
 	lg(HIBR_LDBG, "console: copy %dx%d from %d,%d to %d,%d", h, w, r, c,
 	   dr, dc);
 	return 1;
+}
+
+/* A terminal window's band that scrolled n rows since it was last drawn
+   (the "scroll" interface, Gitea #353): moved on the terminal by one copy
+   where the terminal copies, so the drawing that follows sends only the
+   rows that are new. */
+int cn_vscroll(int row, int col, int h, int w, int n)
+{
+	int k = n < 0 ? -n : n;
+
+	if (!n || k >= h || w < 1 || !cn_copyok())
+		return 0;
+	if (n > 0)
+		return cn_copyrect(row + n, col, h - n, w, row, col, 0);
+	return cn_copyrect(row, col, h - k, w, row + k, col, 0);
 }
 
 /* Make the front buffer describe nothing, so the next flush paints it all. */

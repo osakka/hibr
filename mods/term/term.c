@@ -15,6 +15,11 @@ extern vec tm_list;
 
 const py_api *tm_pty;
 const dp_api *tm_dp;
+/* The display's scroll hint (Gitea #353), asked once after "display" was
+   found: tm_dpsask says it has been, so a display without one costs a
+   single search of the module path rather than one a frame. */
+const dps_api *tm_dps;
+int tm_dpsask;
 
 /* Look a terminal up by id, complaining if there is none. */
 tm_t *tm_arg(const char *sub, const char *t)
@@ -433,6 +438,11 @@ int m_term(sh *s, int ac, char **av)
 			lg(HIBR_LERR, "term draw: no display");
 			return HIBR_FAIL;
 		}
+		if (!tm_dpsask) {
+			tm_dpsask = 1;
+			tm_dps = (const dps_api *)hibr_require(s, "scroll",
+							       DPS_API_VER);
+		}
 		if (ac < 5) {
 			lg(HIBR_LERR,
 			   "usage: term draw id row col [h] [w] [curon] [-p pane]");
@@ -472,6 +482,7 @@ int m_term(sh *s, int ac, char **av)
 			row += prow;
 			col += pcol;
 		}
+		tm_hint(m, tm_dps, row, col, h, w);
 		tm_draw(m, tm_dp, row, col, h, w, curon);
 		return HIBR_OK;
 	}

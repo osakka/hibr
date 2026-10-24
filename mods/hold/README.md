@@ -239,6 +239,11 @@ copy changes the terminal's, and the ordinary diff then runs, so a copy can
 only ever save bytes. A client whose terminal does not copy is diffed as
 always. So a session can have both kinds of display attached at once.
 
+A desktop's terminal window that scrolls is sent as one of these copies too
+(Gitea #353), so a display whose terminal copies is sent only the new rows.
+The same 400-line scroll went from 119 kB to 36 kB on such a display, and
+stayed at 119 kB on one that does not copy.
+
 The program has to be told the server does this, and nothing inside hold
 answers its questions: the emulator has no pty to answer on. So the server
 puts `HIBR_HOLDCOPY=1` in its program's environment. A program under a

@@ -131,7 +131,7 @@ cn_pane *cn_pset(const char *nm, int row, int col, int h, int w)
 		v_add(&cn_panes, p);
 	} else if (p->h == h && p->w == w && (p->row != row || p->col != col)) {
 		p->copied = cn_copyok() &&
-			    cn_copyrect(p->row, p->col, h, w, row, col);
+			    cn_copyrect(p->row, p->col, h, w, row, col, 1);
 	} else {
 		p->copied = 0;
 	}
@@ -1274,10 +1274,19 @@ static const dp_api console_api = {
 	cn_imgkeep
 };
 
-/* Offer the drawing table to whatever else wants to draw. */
+static const dps_api console_scroll = { cn_vscroll };
+
+/* Offer the drawing table to whatever else wants to draw, and beside it the
+   scroll hint a terminal window gives -- which nothing autoloads by name,
+   since a descriptor names one interface: it is asked for only after
+   "display", by which time this module has offered both. */
 int cn_ini(sh *s)
 {
-	return hibr_provide(s, "display", DP_API_VER, (void *)&console_api);
+	int r = hibr_provide(s, "display", DP_API_VER, (void *)&console_api);
+
+	if (r == HIBR_OK)
+		hibr_provide(s, "scroll", DPS_API_VER, (void *)&console_scroll);
+	return r;
 }
 
 /* Put the terminal back and release everything the screen held. */
@@ -1292,6 +1301,7 @@ void cn_fini(sh *s)
 	}
 	s_free(&cn_pend);
 	cn_pendo = 0;
+	hibr_unprovide(s, "scroll");
 	hibr_unprovide(s, "display");
 }
 

@@ -410,6 +410,18 @@ void tm_scroll(tm_t *t, int n)
 		return;
 	if (n > h || -n > h)
 		n = n > 0 ? h : -h;
+	if (!t->slbad) {
+		if (!t->sln) {
+			t->sltop = t->top;
+			t->slbot = t->bot;
+			t->sln = n;
+		} else if (t->sltop == t->top && t->slbot == t->bot &&
+			   (t->sln > 0) == (n > 0)) {
+			t->sln += n;
+		} else {
+			t->slbad = 1;
+		}
+	}
 	if (n > 0) {
 		if (t->top == 0 && !t->inalt)
 			for (r = 0; r < n; r++)

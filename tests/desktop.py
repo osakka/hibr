@@ -755,6 +755,85 @@ check("and puts the same screen there, for fewer bytes",
       (cn, pn, csc.find("┤ Copy ├"), psc.find("┤ Copy ├")))
 
 
+# A terminal window that scrolls, on a terminal that copies (Gitea #353): the
+# window tells the display how its rows moved since it was last drawn, and the
+# display moves them with one copy, so a step costs the rows that are new. The
+# program prints a chunk per key -- on the screen, then with the view scrolled
+# back into the history and forward again, then in a scroll region of the
+# alternate screen -- and every step is compared, glyph and pen, with the same
+# step on a terminal that does not copy: a final screen alone cannot see a
+# step that was drawn wrong on the way.
+SCRPROG = r"""stty -echo
+i=0; k=0
+while read -r x; do
+	k=$((k + 1))
+	case $x in
+	n) j=0
+	   while [ $j -lt 6 ]; do
+		i=$((i + 1)); j=$((j + 1))
+		printf 'line %03d %d %d %d\n' $i $((i * 7919)) $((i * 104729)) $((i * 1299709))
+	   done
+	   printf 'end-%d\n' $k ;;
+	a) printf '\033[?1049h\033[2J\033[1;1Htitle\033[2;9r\033[9;1H' ;;
+	r) j=0
+	   while [ $j -lt 4 ]; do
+		i=$((i + 1)); j=$((j + 1))
+		printf '\nalt %03d %d %d' $i $((i * 7919)) $((i * 104729))
+	   done
+	   printf '\0337\033[11;1Hend-%d\0338' $k ;;
+	esac
+done
+"""
+
+
+def scrrun(caps):
+    prog = scratch("hibr-desktop-scr.sh")
+    open(prog, "w").write(SCRPROG)
+    path = scratch("hibr-desktop-scr.hibr")
+    open(path, "w").write("%s. %s\n. %s/term.hibr\nDT_ICONS=0\nTW_CMD=(/bin/sh %s)\n"
+                          'dt_open\ndt_new "Terminal" 14 60 2 5 term\ndt_run\ndt_close\n'
+                          % (load(MOD, "build/mods/pty.so", "build/mods/term.so"),
+                             WM, tree("programs/desktop/apps"), prog))
+    t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.8,
+             caps=caps)
+    t.collect(0.8)
+    steps, k = [], 0
+    for key in [b"n\r", b"n\r", b"n\r", wheel(8, 30), wheel(8, 30, up=False),
+                b"n\r", b"a\r", b"r\r", b"r\r"]:
+        if key.endswith(b"\r"):
+            k += 1
+            if key != b"a\r":
+                t.send(key)
+                sc = t.until("end-%d" % k, 60)
+            else:
+                t.send(key)
+                sc = t.until("title", 60)
+        else:
+            t.keys([key])
+            sc = t.until(lambda s, f=t.frames(): t.frames() > f, 20)
+        t.collect(0.3)
+        sc = t.screen()
+        steps.append([(sc.g[r][2:66], sc.p[r][2:66]) for r in range(2, 17)])
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    os.unlink(prog)
+    return steps, t.raw
+
+
+sst, sraw = scrrun(["deccra"])
+pst, praw = scrrun([])
+sdiff = [i for i, (a, b) in enumerate(zip(sst, pst)) if a != b]
+check("a terminal window that scrolls is moved on a terminal that copies",
+      sraw.count(b"$v") >= 4 and praw.count(b"$v") == 0,
+      (sraw.count(b"$v"), praw.count(b"$v")))
+check("and every step -- the program's scroll, the view moved back and "
+      "forth, a region of the alternate screen -- shows the same cells, "
+      "for fewer bytes", not sdiff and len(sst) == 9 and
+      len(sraw) < len(praw) and
+      any("end-3" in "".join(g) for g, _ in sst[2]),
+      (sdiff, len(sraw), len(praw)))
+
+
 def rzmid(feed):
     path = "/tmp/hibr-desktop-olrz-%d.hibr" % os.getpid()
     open(path, "w").write("%s. %s\n\ndt_open\n%s\ndt_run\ndt_close\n"
@@ -7228,4 +7307,4 @@ check("and so does the menu bar, at its own percentage",
       pbg(clear, 0, 34) == (27, 58, 92) and pbg(sc, 0, 34) not in
       (None, (27, 58, 92)), (pbg(clear, 0, 34), pbg(sc, 0, 34), clear.row(0)))
 
-report(787)
+report(789)

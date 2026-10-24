@@ -97,6 +97,51 @@ unsigned tm_cellattr(tm_t *t, const tm_cell *k, int curon, long ar, int r,
 	return at;
 }
 
+/* Before a draw, tell the display how the rows moved since the last one
+   (Gitea #353), so it can move them on its terminal and the draw costs
+   only what is new. Only against the same picture of the same rectangle:
+   the same place and size, the same screen, and the view at the bottom
+   both times while the program scrolled one region one way -- or the
+   program not scrolling at all while the view moved. A new line pins a
+   view that is not at the bottom, so the program's scrolls say nothing
+   about what is shown then. The log starts again whatever is decided. */
+void tm_hint(tm_t *t, const dps_api *ds, int row, int col, int h, int w)
+{
+	int n = 0, top = 0, bot = t->rows - 1;
+
+	if (h <= 0 || h > t->rows)
+		h = t->rows;
+	if (w <= 0 || w > t->cols)
+		w = t->cols;
+	if (t->drok && t->drrow == row && t->drcol == col && t->drh == h &&
+	    t->drw == w && t->drrows == t->rows && t->drcols == t->cols &&
+	    t->dralt == t->inalt && !t->slbad) {
+		if (t->sln && !t->drview && !t->view) {
+			n = t->sln;
+			top = t->sltop;
+			bot = t->slbot;
+		} else if (!t->sln && t->view != t->drview) {
+			n = t->drview - t->view;
+		}
+	}
+	if (bot > h - 1)
+		bot = h - 1;
+	if (n && ds && top <= bot &&
+	    ds->scroll(row + top, col, bot - top + 1, w, n))
+		lg(HIBR_LTRC, "term %d: rows %d-%d moved %d, copied", t->id, top,
+		   bot, n);
+	t->sln = t->slbad = 0;
+	t->drok = 1;
+	t->drrow = row;
+	t->drcol = col;
+	t->drh = h;
+	t->drw = w;
+	t->drrows = t->rows;
+	t->drcols = t->cols;
+	t->dralt = t->inalt;
+	t->drview = t->view;
+}
+
 /* Put the terminal's screen on the display, at a position and within a size.
 
    Cells are written in runs that share a pen, because a run costs one pen

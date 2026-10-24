@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.323
+
+**A terminal window that scrolls is moved on the terminal rather than drawn
+again.** Each step of a scrolling window used to go out as every one of its
+rows, since every row had changed. A window now tells the display how its
+rows moved since it was last drawn, and on a terminal that copies rectangles
+(DECCRA, which Blit does) the display moves them with one copy and sends only
+the rows that are new (Gitea #353, step 3). That covers a program's own
+scroll, a scroll region on the alternate screen (a pager, an editor) and the
+view moved back into the history. A 30x100 window scrolling 400 lines of text
+went from 124 kB to 37 kB; held, from 119 kB to 36 kB on a display that
+copies. That is about the text itself, which is the floor. A display that
+does not copy, kitty for one, is sent what it was before.
+
+The hint travels through a small interface of its own, `"scroll"`, beside
+`"display"`, so `"display"` keeps its version and the separately packaged
+browser module, which asks for it by exact version, keeps loading. A wrong
+hint costs bytes, never a wrong screen. The display moves only its own
+picture of the terminal, and compares what is drawn next against it. The
+check proves it: `tests/desktop.py` steps a window through each kind of
+scroll and compares every step, glyph and pen, against a terminal that does
+not copy. With the console's picture of the copy broken on purpose, the check
+fails.
+
 ## 0.99.322
 
 **Control Panel > Browser > Allow Calls and Meetings.** The WebKit engine of

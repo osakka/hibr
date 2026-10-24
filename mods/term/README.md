@@ -171,6 +171,21 @@ What it implements, by group:
   reverse, conceal, strike and their resets; 16, 256 and 24-bit colour in
   both spellings.
 
+## Scroll hints
+
+Since 0.99.323 (Gitea #353), each `term draw` first tells the display how
+the rows moved since the last draw, through the display's `"scroll"`
+interface. The emulator keeps a log of its scrolls: one region and the rows
+it moved, or "inconsistent" once two regions or two directions have. A draw
+compares that with what the last draw was: the same rectangle, the same
+size, the same screen (main or alternate) and the same view. The hint is
+the program's scroll while the view was at the bottom both times, or, with
+no scroll, how far the view moved. New output pins a view that is scrolled
+back, so the program's scrolls say nothing then. The log starts again at
+every draw, whatever was decided. A wrong hint costs bytes and cannot make
+a wrong screen, because the display compares what it draws next against the
+moved rows.
+
 ## Rectangle copies
 
 `CSI Pts;Pls;Pbs;Prs;Pps;Ptd;Pld;Ppd $ v` (DECCRA, Gitea #337) copies the

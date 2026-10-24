@@ -321,7 +321,8 @@ extern cn_ol cn_olay;
    feature 28 in its device attributes (cn_da28) -- see cn_copyok. */
 extern int cn_copym, cn_da28, cn_vouch, cn_hterm;
 int cn_copyok(void);
-int cn_copyrect(int r, int c, int h, int w, int dr, int dc);
+int cn_copyrect(int r, int c, int h, int w, int dr, int dc, int back);
+int cn_vscroll(int row, int col, int h, int w, int n);
 void cn_copyclear(void);
 unsigned cn_olat(int r, int c);
 unsigned cn_olglyph(const char *t);

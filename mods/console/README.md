@@ -87,6 +87,18 @@ An emulator that names itself without `deccra` is believed over its relayed
 whether that pane's last move was copied, which is how the desktop knows it may
 leave the window undrawn.
 
+A terminal window that scrolled is moved the same way (Gitea #353). The
+console offers a second, small interface beside `"display"`, named
+`"scroll"` (`dps_api` in `mods/display.h`, version 1, so `"display"` keeps
+its version for anything outside the tree that asks for it). The term module
+calls it before it draws, saying the band at a rectangle has moved up or
+down by so many rows since the last draw. Under the same `auto` rule the
+console copies the band on the terminal and in the **front** buffer only:
+the window is drawn again at once, so its back buffer is written anyway, and
+a window over it that is left alone keeps its own cells there. The diff then
+sends the rows that are new. A 30x100 window scrolling 400 lines of text went
+from 124 kB to 37 kB, with every cell the same.
+
 `console darken row col h w [pct]` scales a rectangle of the **back** buffer's
 existing colours toward black by `pct` percent (55 if not given) and sets the
 dim attribute, in place — a shadow cast on whatever is already drawn there,

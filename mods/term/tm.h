@@ -193,6 +193,14 @@ struct tm_t {
 	str imgb;
 	int imgr, imgc, imgrows, imgcols, imgon, imgunder;
 	unsigned imgid;
+	/* The scrolls since this terminal was last drawn, for the hint its
+	   draw gives the display (Gitea #353): one region and the rows it
+	   moved, or bad once two different regions or directions have, and
+	   what the last draw was -- where, at what size, on which screen and
+	   how far back the view was -- since a hint is only true against the
+	   same picture of the same rectangle. */
+	int sltop, slbot, sln, slbad;
+	int drok, drrow, drcol, drh, drw, drrows, drcols, dralt, drview;
 };
 
 tm_t *tm_find(int id);
@@ -242,6 +250,7 @@ long tm_syncleft(tm_t *t);
 void tm_utf8(str *b, unsigned cp);
 void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 	     int curon);
+void tm_hint(tm_t *t, const dps_api *ds, int row, int col, int h, int w);
 int tm_keybytes(tm_t *t, const char *name, str *out);
 int tm_mouse(tm_t *t, const char *act, const char *btn, int r, int c,
 	     int px, int py, str *out);
