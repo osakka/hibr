@@ -3820,6 +3820,24 @@ went in the shell.
   regardless. `tests/holdpix.py` drives a pixel-reporting terminal with it
   set.
 
+- **A picture that owns its cells cannot share the screen with a window
+  above it, so a window's picture goes below the cells** (Gitea #374,
+  0.99.312, ADR 0037). Any cell drawn inside an owning picture reads as it
+  being drawn through, so a window overlapping one made it a new region
+  every frame, deleted before it was sent -- a blank window while anything
+  overlapped, which is what the Browser, YouTube and Boxer showed. Cutting
+  around the panes above was refused because a shadow, a menu or a note is
+  not a pane. On kitty a pane's picture is placed at `CN_ZUNDER` with its
+  cells blanked (`cn_imgblank`), kept by the pane rule alone; the wallpaper
+  is at `CN_ZWALL` beneath it, because the layer's threshold is strict and
+  there is no z between the old wallpaper and it. The check that names it
+  is `tests/kitgfx.py`'s six, which fail against 0.99.311.
+- **A day added to an aware datetime in Python keeps the wall clock.**
+  `tests/calapp.py` set a reminder due "a day and twelve seconds from now"
+  as London's `now + timedelta(days=1)`, which across the October change is
+  25 hours, so the reminder a day before the start fell an hour out and the
+  check failed every run on that eve, in both halves of a gate (0.99.312).
+  The Calendar was right; a test computing a moment does it in UTC.
 - **An OSC ends at BEL or at `ESC \`, and a pattern that knows only one
   eats the stream up to the next** (0.99.311). Two bell checks removed every
   OSC with `\x1b\][^\x07]*\x07` before looking for a bell; the day the

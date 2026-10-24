@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.312
+
+**A window in pixels no longer goes blank while another window overlaps it**
+(Gitea #374). The Browser, the YouTube player, Boxer and anything else that
+draws its window as a picture went blank the moment another window was moved
+over part of it, and stayed blank until that window was moved right off.
+A picture drawn over the text owns its cells, so a window above it drawing
+inside it meant the picture was gone; with the overlap that was every frame,
+and the picture was deleted before it was ever sent.
+
+On a terminal that keeps pictures as objects -- kitty, and Blit -- a window's
+picture now goes below the cells instead, the way the wallpaper does, and
+whatever is over it covers just that part: another window, its shadow, a menu,
+a note. Dragging a window across it sends no picture again, only the window.
+The wallpaper moved further down to make room. A terminal drawing sixel has no
+layers, so a sixel window behaves as before; and a shadow falling on such a
+picture is drawn in the shadow's own colour rather than as a darkened picture.
+
 ## 0.99.311
 
 **A window can hide the pointer over itself** (Gitea #373). A game that

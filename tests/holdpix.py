@@ -1040,5 +1040,58 @@ ptr, log = ptrheld(["ptrno"])
 check("one that cannot is never sent none: %r" % ptr, "none" not in ptr)
 check("and hold pointers says it cannot", "pointers no" in log, log)
 
+# A window's picture with another window over it, held (Gitea #374): the
+# held program places it through its pane below the cells, the emulator keeps
+# it as a picture under the text, and the attached display is sent it once,
+# however many frames the window above it is drawn -- where over the text it
+# was a new picture deleted before it was sent, every frame.
+def lowheld():
+    nm = name()
+    p = os.path.join(D, "lo%s.hibr" % nm)
+    s = (load("console", "img") + "console open\nconsole flush\n"
+         # A display has to have said what a cell measures before a picture
+         # can be pixels, and under the sanitizers the frames below would
+         # all be drawn before one has attached.
+         "j=0\nwhile [ $j -lt %d ]; do\n  g := console gfx\n" % (80 * SLOW)
+         + "  case $g in none*) console key 100 ;; *) break ;; esac\n"
+         "  j=$((j + 1))\ndone\n"
+         "console pane w1 2 2 10 30\nconsole pane w2 6 20 6 16\n"
+         "console pane raise w2\ni=0\nwhile [ $i -lt %d ]; do\n" % (30 * SLOW)
+         +
+         "  console pen default '#203040'; console fill -p w1 0 0 10 30 ' '\n"
+         "  img draw %s 1 1 8 28 -m pixels -p w1\n" % GRAD
+         + "  console pen default '#405060'; console fill -p w2 0 0 6 16 ' '\n"
+         "  console put -p w2 1 1 TOP\n  console flush\n  console key 150\n"
+         "  i=$((i + 1))\ndone\nconsole key 3000\nconsole close\n")
+    open(p, "w").write(s)
+    outer = os.path.join(D, "lw%s.hibr" % nm)
+    open(outer, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n'
+                           % (nm, p) + "sleep 0.6\nhold attach %s\n" % nm)
+    t = Term(outer, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
+             env={"TMPDIR": D, "HIBR_GFX": "kitty"}, caps=["kitty"])
+    for _ in range(int(40 * SLOW)):
+        t.collect(0.25)
+        if "TOP" in t.screen().text() and \
+                any("a=T" in a for a in t.screen().apc):
+            break
+    # From the moment it is up: whatever an attach and its resize did
+    # before that is the attach's, and what is checked is that the frames
+    # after it -- the window over it drawn every one -- send nothing more.
+    seen = len(t.screen().apc)
+    t.collect(1.5 * SLOW)
+    sc = t.screen()
+    t.close()
+    kill(nm)
+    return sc, sc.apc[:seen], sc.apc[seen:]
+
+
+sc, first, after = lowheld()
+lp = [a for a in first if "a=T" in a]
+more = [a for a in after if "a=T" in a or ("a=d" in a and "d=I" in a)]
+check("held, a window's picture under another window is sent and then kept",
+      lp and not more, (lp, more))
+check("below the cells, and the window over it is on top",
+      lp and "z=-1073741825" in lp[0] and "TOP" in sc.text(), (lp, sc.text()))
+
 shutil.rmtree(D, True)
-report(59)
+report(61)

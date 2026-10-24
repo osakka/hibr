@@ -43,6 +43,7 @@ typedef struct cn_img {
 	unsigned under;		/* of the cells it covers, as they were when it was placed */
 	int sent;		/* 0 until its bytes have gone out */
 	int over;		/* text is drawn over this one, so it owns no cells */
+	int lo;			/* a window's picture below the cells (Gitea #374) */
 	int live;		/* placed again this frame (an `over` one only) */
 	unsigned above;		/* of the cells over it, as they were when sent */
 	unsigned id;		/* the kitty image's own id; 0 for a sixel */
@@ -269,13 +270,40 @@ int cn_imgunderat(int row, int col)
 	for (i = 0; i < cn_nimg; i++) {
 		cn_img *im = &cn_imgs[i];
 
-		if (!im->over)
+		if (!im->over && !im->lo)
 			continue;
 		if (row >= im->row && row < im->row + im->h &&
 		    col >= im->col && col < im->col + im->w)
 			return 1;
 	}
 	return 0;
+}
+
+/* The cells a window's picture shows through, made the terminal's own: a
+   picture below the cells shows only where a cell has no background of its
+   own, and every window fills its face in a colour before placing one. What
+   the window draws after it, and every window above it, covers it as cells
+   do, which is the point (Gitea #374). */
+void cn_imgblank(int row, int col, int h, int w)
+{
+	int r, c;
+	cn_cell *k;
+
+	for (r = row; r < row + h && r < cn_back.rows; r++) {
+		cn_split(r, col);
+		if (col + w < cn_back.cols)
+			cn_split(r, col + w);
+		for (c = col; c < col + w && c < cn_back.cols; c++) {
+			k = &cn_back.c[(size_t)r * cn_back.cols + c];
+			cn_cellset(k, ' ', 0, 0);
+			k->fg = DP_DEFAULT;
+			k->bg = DP_DEFAULT;
+			k->attr = 0;
+			k->link = 0;
+			k->w = 1;
+			k->cont = 0;
+		}
+	}
 }
 
 /* The picture's own colour at a cell, for anything that has to paint over
@@ -308,7 +336,7 @@ int cn_imgat(int row, int col)
 	size_t i;
 
 	for (i = 0; i < cn_nimg; i++)
-		if (!cn_imgs[i].over &&
+		if (!cn_imgs[i].over && !cn_imgs[i].lo &&
 		    row >= cn_imgs[i].row && row < cn_imgs[i].row + cn_imgs[i].h &&
 		    col >= cn_imgs[i].col && col < cn_imgs[i].col + cn_imgs[i].w)
 			return 1;
@@ -378,7 +406,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags)
 {
 	int prow = 0, pcol = 0, ph = 0, pw = 0, cw = 0, chh = 0, tw, th, k;
-	int wrow, wcol, wh, ww, vr0, vc0, vr1, vc1, sx, sy, sw, sh, comp;
+	int wrow, wcol, wh, ww, vr0, vc0, vr1, vc1, sx, sy, sw, sh, comp, lo;
 	unsigned char *px = 0;
 	unsigned sum, reuse = 0;
 	size_t i;
@@ -398,6 +426,13 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   two until the terminal has answered, which costs nothing. */
 	if (!cn_gfxsure(s))
 		return 0;
+	/* A window's picture on a terminal that keeps pictures as objects goes
+	   below the cells (Gitea #374), where a window over part of it covers
+	   that part. Over the text, as before, it had to be dropped whole the
+	   moment anything was drawn inside it -- every frame, while anything
+	   overlapped it -- which is a blank window. A sixel is paint and has no
+	   layers, so it stays over the text. */
+	lo = pane && k == CN_GFX_KITTY && !(flags & DP_IMG_UNDER);
 	cn_cellpx(&cw, &chh);
 	if (cw < 2 || chh < 2)
 		return 0;
@@ -416,7 +451,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   its own rows of the bitmap, which a row of RGB already is at an
 	   offset into the buffer. A picture under the text is left whole,
 	   since the pane's own cells cover it by construction. */
-	if (!(flags & DP_IMG_UNDER)) {
+	if (!(flags & DP_IMG_UNDER) && !lo) {
 		cn_pane *tp = cn_ptopin(row, col, h, w);
 
 		if (tp) {
@@ -493,6 +528,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	col = vc0;
 	h = vr1 - vr0;
 	w = vc1 - vc0;
+	if (lo)
+		cn_imgblank(row, col, h, w);
 	sum = cn_hash(rgb, (size_t)iw * ih * 3, 2166136261u);
 	sum = cn_hash(&flags, sizeof flags, sum);
 	for (i = 0; i < cn_nimg; i++) {
@@ -588,6 +625,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	im->ww = ww;
 	im->sum = sum;
 	im->over = (flags & DP_IMG_UNDER) ? 1 : 0;
+	im->lo = lo;
 	im->live = im->over;
 	if (pane && !im->over) {
 		im->pane = xs(pane);
@@ -693,7 +731,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   "a picture that will not change" from "a picture with a palette". */
 	comp = im->over ? cn_imgcomp : CN_COMP_NONE;
 	if (im->id)
-		kt_encode(px ? px : rgb, tw, th, w, h, im->id, im->over, comp,
+		kt_encode(px ? px : rgb, tw, th, w, h, im->id,
+			  im->over ? KT_WALL : im->lo ? KT_LOW : 0, comp,
 			  &im->data);
 	else
 		six_encode(px ? px : rgb, tw, th,
@@ -780,7 +819,8 @@ void cn_imgcheck(int again)
 			i++;
 			continue;
 		}
-		if (cn_imgunder(&cn_imgs[i]) != cn_imgs[i].under) {
+		if (!cn_imgs[i].lo &&
+		    cn_imgunder(&cn_imgs[i]) != cn_imgs[i].under) {
 			lg(HIBR_LDBG, "image: dropped, its cells were drawn through");
 			cn_imgdrop(i);
 			continue;

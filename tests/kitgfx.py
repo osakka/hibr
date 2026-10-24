@@ -901,5 +901,59 @@ else:
     check("a picture with no decoder is said once (skipped: no user namespaces "
           "or no libturbojpeg to hide here)", True)
 
+# A window's picture under another window (Gitea #374). Placed over the
+# text, it had to go the moment anything was drawn inside it, so a window
+# overlapping it made it a new region every frame, deleted before it was
+# ever sent: a blank window for as long as the overlap lasted. Through a
+# pane on a terminal that keeps pictures it goes below the cells instead,
+# above the wallpaper, and the window over it covers it as cells do.
+def frames(n, top, body=""):
+    """n frames of a window w1 placing its picture and a window w2 drawn
+    over it, w2 at top(i)'s corner on frame i."""
+    s = ("console flush\nconsole pane w1 2 2 10 30\n"
+         "console pane w2 %d %d 6 16\nconsole pane raise w2\n" % top(0))
+    for i in range(n):
+        s += ("console pane w2 %d %d 6 16\n" % top(i)
+              + "console pen default '#203040'\n"
+              + "console fill -p w1 0 0 10 30 ' '\n"
+              + "img draw %s 1 1 8 28 -m pixels -p w1\n" % GRAD
+              + "console pen default '#405060'\n"
+              + "console fill -p w2 0 0 6 16 ' '\n"
+              + "console put -p w2 1 1 TOP\n" + body
+              + "console flush\nconsole key 60\n")
+    return s
+
+
+def mine(sc):
+    """Deletes of single pictures; the display's d=A at close is not one."""
+    return [a for a in deletes(sc) if "d=I" in a]
+
+
+sc = run(frames(6, lambda i: (6, 20)))
+p = places(sc)
+check("a window's picture with a window over it is sent once and kept",
+      len(p) == 1 and not mine(sc), (p, mine(sc)))
+check("below the cells and above the wallpaper",
+      p and key(p[0], "z") is not None
+      and -1610612736 < int(key(p[0], "z")) < -1073741824, p)
+check("and the window over it is drawn on top of it", "TOP" in sc.row(7),
+      sc.row(7))
+check("the cells it shows through have no background of their own",
+      bg(sc, 4, 4) is None, sc.p[4][4])
+sc = run(frames(10, lambda i: (6, 4 + 2 * i)))
+check("a window dragged across it costs placements, not one more picture",
+      len(places(sc)) == 1 and not mine(sc), (places(sc), mine(sc)))
+sc = run(frames(6, lambda i: (14, 40), "console darken 5 5 2 4 50\n"))
+check("a shadow falling on it keeps it, as a cell drawn over it does",
+      len(places(sc)) == 1 and not mine(sc), (places(sc), mine(sc)))
+sc = run(frames(1, lambda i: (14, 40))
+         + "console fill -p w1 0 0 10 30 ' '\nconsole flush\nconsole key 200\n")
+check("and its window drawing without it is still what takes it away",
+      len(places(sc)) == 1 and len(mine(sc)) == 1, sc.apc)
+sc = run(PIC % "-m pixels -u" + "console flush\n")
+z = key(places(sc)[0], "z") if places(sc) else None
+check("the wallpaper went further down to make room: %s" % z,
+      z is not None and int(z) <= -1610612736, places(sc))
+
 shutil.rmtree(D, True)
-report(85)
+report(93)

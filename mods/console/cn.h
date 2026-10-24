@@ -36,6 +36,16 @@
 #ifndef CN_ZUNDER
 #define CN_ZUNDER (-1073741825)
 #endif
+/* And the wallpaper further down still, since a window's own picture is in
+   that layer too (Gitea #374): placed below the cells, a window over part of
+   it covers that part with its own cells and its shadow, as the terminal
+   composites them, where a picture over the text had to be dropped whole.
+   The threshold is strict -- kitty and Blit both test z < -2^30 -- so a
+   window picture cannot sit above the wallpaper at the wallpaper's own z +
+   1; the wallpaper moves instead. */
+#ifndef CN_ZWALL
+#define CN_ZWALL (-1610612736)
+#endif
 
 #ifndef CN_GFX_NONE
 #define CN_GFX_NONE 0
@@ -120,6 +130,11 @@ void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o);
 unsigned kt_id(void);
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 	       unsigned id, int under, int comp, str *o);
+/* under's two layers below the cells: the wallpaper's and a window's. */
+#ifndef KT_WALL
+#define KT_WALL 1
+#define KT_LOW 2
+#endif
 void kt_del(str *o, unsigned id);
 void kt_delall(str *o);
 /* How many times anything has written to the grid or placed a picture. A

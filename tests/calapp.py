@@ -55,7 +55,11 @@ event("review.ics", "review", ["SUMMARY:Design review", "LOCATION:Room 4",
                                "DTEND;TZID=%s:%s" % (TZ, stamp(today, 15, 0))])
 # Due a day and a few seconds from now, with a reminder a day before: it
 # goes off a few seconds into the run, which the ticker has to ask for.
-soon = (now + datetime.timedelta(days=1, seconds=12 * SLOW)).astimezone(datetime.timezone.utc)
+# In UTC: a day added to an aware datetime in a zone keeps the wall clock, so
+# across a change of the clocks it is 23 or 25 hours, and the reminder a day
+# before the start is then an hour from now rather than twelve seconds -- the
+# check failed every run on the eve of the October change.
+soon = now.astimezone(datetime.timezone.utc) + datetime.timedelta(days=1, seconds=12 * SLOW)
 event("coffee.ics", "coffee", ["SUMMARY:Coffee break", "DTSTART:%sZ" % soon.strftime("%Y%m%dT%H%M%S"),
                                "DTEND:%sZ" % (soon + datetime.timedelta(minutes=15)).strftime("%Y%m%dT%H%M%S"),
                                "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Coffee", "TRIGGER:-P1D",

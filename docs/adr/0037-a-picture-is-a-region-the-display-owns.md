@@ -198,6 +198,26 @@ as pixels or half blocks by what that display said.
   and nothing above it can disturb it. A sixel is paint: a cell written
   over it has destroyed that much of it, so the bitmap goes again whenever
   anything above it moves. Both work; only one of them is free.
+- **A window's picture goes below the cells too, on a terminal that keeps
+  pictures** (Gitea #374, 0.99.312). Placed over the text, a picture owns
+  its cells, and any cell drawn inside it -- a window stacked above it, that
+  window's shadow, a menu, a note -- means it has been drawn through, so it
+  is dropped. With a window overlapping it that happened every frame, and
+  the region was deleted before it was ever sent: a blank window for as
+  long as the overlap lasted. Cutting the picture around the panes above it
+  was weighed and refused, because a shadow, a menu or a dialog over the
+  picture is not a pane and would still drop it. So a picture placed
+  through a pane on a kitty terminal is placed at `CN_ZUNDER`, below cell
+  backgrounds, with the cells it shows through blanked to the terminal's
+  own; whatever is drawn over it with a background of its own covers it as
+  the terminal composites them, and a drag across it is placements, not
+  transmissions. It is retired only by its pane's own rule (#346), never by
+  a cell drawn inside it. The wallpaper moved further down, to `CN_ZWALL`,
+  since the threshold is strict and there is no room above it in the same
+  layer. A sixel has no layers, so a sixel window behaves as before, and a
+  shadow over such a picture is the shadow's own colour, not a darkened
+  picture, since the per-cell colours a translucent window reads are taken
+  only from the wallpaper.
 - **A redirection on a `console` command used to reach the display**, which
   is how the film numbers above were first measured as 0.05 ms a frame:
   the console drew on, and selected on, whatever descriptor number stdout
