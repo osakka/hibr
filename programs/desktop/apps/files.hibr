@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 1.9
+app files "A file browser" 2.0
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -1350,6 +1350,7 @@ fn rn_commit(int id) {
 		return 0
 	fi
 	if command mv -- "$old" "$new" 2>> "$DT_LOG"; then
+		dt_has dt_fopsave && dt_fopsave rename "$old" "$new"
 		dt_del "$id"
 		dt_changed
 	else
@@ -1602,6 +1603,7 @@ fn gi_apply(int? id = "") {
 				dt_notep low "%s already has a %s" "${dir##*/}" "$name"
 				ok=0
 			elif command mv -- "$old" "$new" 2>> "$DT_LOG"; then
+				dt_has dt_fopsave && dt_fopsave rename "$old" "$new"
 				old=$new
 				GI[$id]["path"]=$new
 				dt_changed
@@ -1775,6 +1777,13 @@ fn files_trash(int id) {
 	command -v dt_trash > /dev/null && dt_trash "${FB_PATHS[@]}"
 	return 0
 }
+
+# Undo takes back the last move, copy, rename or trip to the trash made
+# anywhere on the desktop, and Redo does it again (#372): the log is the
+# desktop's, since a file moved by a drop on an icon is as much a thing
+# to take back as one moved here.
+fn files_undo(int id) { dt_has dt_fopundo && dt_fopundo undo; }
+fn files_redo(int id) { dt_has dt_fopundo && dt_fopundo redo; }
 
 # Delete what files_trash asked about, once the answer is yes.
 FB_DELPATHS=()

@@ -7,7 +7,7 @@ screen. Nothing here reaches the network or the owner's own accounts: the
 account file and the store are in a folder of the run's own.
 Run it directly:  python3 tests/mailapp.py [path-to-hibr]
 """
-import os, sys, subprocess, tempfile, time
+import base64, os, re, sys, subprocess, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -149,6 +149,13 @@ sc = waitfor(t, "Big sale")
 check("an HTML message is laid out: its heading and its text, the markup gone",
       sc.find("Big sale") and sc.find("Everything is 50% off until Sunday. Shop now")
       and not sc.find("<b>"), sc)
+# Copy takes the open conversation as it reads (#372).
+t.keys([b"\x1bc"])
+m = re.findall(rb"\x1b\]52;c;([A-Za-z0-9+/=]*)\x07", t.out)
+c = base64.b64decode(m[-1]).decode("utf8", "replace") if m else ""
+check("Copy in the reader takes the conversation: its subject, sender and text",
+      c.startswith("50% off everything") and "Big sale" in c
+      and "Everything is 50% off until Sunday" in c and "<b>" not in c, c)
 
 t.keys([b"u", b"g", b"i", b"l"])
 sc = look(t)
@@ -558,4 +565,4 @@ check("the Detect answers with a notification, not a line over the buttons",
       note is not None and bool(btn) and note[0] < btn[0], sc)
 t.quit(b"qy", 1.5)
 
-report(69)
+report(70)

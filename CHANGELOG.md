@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.330
+
+**Undo in Files takes back what was done to files** (Gitea #372). Undo
+puts back the last move, copy, rename or trip to the trash, and Redo does
+it again. A batch is one step: Undo after "Moved 3 items" brings back all
+three.
+
+- **One list for the desktop:** a file dropped on a desktop icon, pasted,
+  or renamed in Get Info is undone from any Files window.
+- **Each kind:** a move or a rename goes back where it was. A copy goes to
+  the trash. A file taken out of the trash loses the trash's note of it.
+- **Never over anything:** a file whose old place is taken stays where it
+  is, and the note says why, as it does for a move.
+- **The last twenty:** that is how many batches are kept. Nothing done on
+  a server is kept, since nothing there can be put back.
+
+**Copy reaches Calendar, Contacts and the Mail reader** (Gitea #372).
+
+- **Calendar:** Copy takes the chosen event, with its day, times and place,
+  from the list or the agenda. With the month in focus, it takes every
+  event on the chosen day.
+- **Contacts:** Copy takes the chosen card: the name, the organisation, and
+  each email, phone and note on a line of its own, labelled as on the card.
+- **Mail:** in the reader, Copy takes the open conversation as it reads:
+  subject, then each sender, date, recipients and text. In the list, it
+  takes the chosen conversation's subject.
+
+Calendar and Contacts are 1.7, Mail and Files 2.0.
+
 ## 0.99.329
 
 **Redo no longer replaces the text with a number.** The text widget behind

@@ -19,7 +19,7 @@
 
 strict
 
-app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.6
+app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.7
 # part: control-panel/pimset.hibr
 # modules: dav db email pim
 
@@ -707,6 +707,44 @@ fn calendar_key(int id, key) {
 	*) return 1 ;;
 	esac
 	return 0
+}
+
+# One occurrence as a line of text: its day, its times, what it is and
+# where -- what Copy takes.
+fn cv_copyline(int id, int i) {
+	local st=${CVI[$id][$i]["start"]} a w
+
+	if [ "${CVI[$id][$i]["allday"]}" = 1 ]; then
+		printf -v w '%(%A %d %B %Y)T, all day' "$st"
+	else
+		a := cv_hm "${CVI[$id][$i]["end"]}"
+		printf -v w '%(%A %d %B %Y, %H:%M)T-%s' "$st" "$a"
+	fi
+	w+="  ${CVI[$id][$i]["summary"]}"
+	[ -n "${CVI[$id][$i]["location"]}" ] && w+=" -- ${CVI[$id][$i]["location"]}"
+	ret "$w"
+}
+
+# Copy takes the chosen event in the list, or every event on the chosen
+# day while the grid has the focus; it fails on a day with none (#372).
+fn calendar_copy(int id) {
+	local i t out=
+	local -a l
+
+	[ "${CVW[$id]["nopim"]}" = 1 ] && return 1
+	if [ "${CVW[$id]["focus"]}" = list ] || [ "${CVW[$id]["view"]}" = agenda ]; then
+		i := cv_chosen "$id" || return 1
+		t := cv_copyline "$id" "$i"
+		ret "$t"
+		return 0
+	fi
+	read -ra l <<< "${CVW[$id]["dayev"]}"
+	[ "${#l[@]}" -gt 0 ] || return 1
+	for i in "${l[@]}"; do
+		t := cv_copyline "$id" "$i"
+		out+="$t"$'\n'
+	done
+	ret "${out%$'\n'}"
 }
 
 fn calendar_click(int? id = "", int? r = "", int? c = "", btn = "") {

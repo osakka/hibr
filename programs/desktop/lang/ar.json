@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.30",
+ "version": "3.31",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -368,6 +368,7 @@
   "Dhuhr": "الظهر",
   "Diagram": "مخطط",
   "Dialog Buttons": "أزرار الحوار",
+  "Did again": "أُعيد تنفيذه",
   "Digits": "الأرقام",
   "Directory": "الدليل",
   "Discard": "تجاهل",
@@ -804,6 +805,7 @@
   "Program to run as the browser:": "البرنامج الذي يعمل متصفحًا:",
   "Programs": "البرامج",
   "Programs Set Clipboard": "البرامج تضبط الحافظة",
+  "Put back": "أُعيد",
   "Puzzle": "اللغز",
   "Quality Fetched": "الجودة المجلوبة",
   "Query": "استعلام",

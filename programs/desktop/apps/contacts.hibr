@@ -16,7 +16,7 @@
 
 strict
 
-app contacts "The people in your address books, kept offline from CardDAV" 1.6
+app contacts "The people in your address books, kept offline from CardDAV" 1.7
 # part: control-panel/pimset.hibr
 # modules: dav db pim
 
@@ -562,6 +562,35 @@ fn contacts_click(int? id = "", int? r = "", int? c = "", btn = "") {
 # The wheel moves the list, DT_SCROLLWHEEL rows a notch. It matched
 # wheelup and wheeldown, where the window manager says up and down, so
 # it had never moved anything (Gitea #298).
+# Copy takes the chosen person's card as text: the name, the organisation,
+# and then each address, number and note on a line of its own, labelled
+# as the card labels them (#372).
+fn contacts_copy(int id) {
+	local i v k lab out
+	local -a l
+
+	i := pe_at "$id" "${PCW[$id]["sel"]:-0}" || return 1
+	out := pe_f "$i" fn
+	v := pe_f "$i" org
+	[ -n "$v" ] && out+=$'\n'"$v"
+	v := pe_f "$i" emails
+	IFS=$'\t' read -ra l <<< "$v"
+	lab := dt_tr "email"
+	for k in "${l[@]}"; do
+		[ -n "$k" ] && out+=$'\n'"$lab $k"
+	done
+	v := pe_f "$i" tels
+	IFS=$'\t' read -ra l <<< "$v"
+	lab := dt_tr "phone"
+	for k in "${l[@]}"; do
+		[ -n "$k" ] && out+=$'\n'"$lab $k"
+	done
+	v := pe_f "$i" note
+	lab := dt_tr "note"
+	[ -n "$v" ] && out+=$'\n'"$lab $v"
+	ret "$out"
+}
+
 fn contacts_wheel(int id, act, int r, int c) {
 	local top
 

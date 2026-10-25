@@ -3070,6 +3070,23 @@ check("a file dragged to another window's folder is moved there", moved, sc)
 if moved:
     os.rename(os.path.join(D, "alpha", "file00.txt"),
               os.path.join(D, "file00.txt"))
+# Undo in Files takes back the last thing done to files anywhere on the
+# desktop (Gitea #372): this drag, then a copy, which goes to the trash.
+UNDO, REDO = b"\x1bz", b"\x1by"
+sc = run("files", FW, INTO + DRAG + [release(9, 50), UNDO], pre=PRE, also=TWO)
+back = os.path.exists(os.path.join(D, "file00.txt")) and \
+       not os.path.exists(os.path.join(D, "alpha", "file00.txt"))
+check("Undo puts a file dragged to another folder back where it was", back, sc)
+if not back and os.path.exists(os.path.join(D, "alpha", "file00.txt")):
+    os.rename(os.path.join(D, "alpha", "file00.txt"),
+              os.path.join(D, "file00.txt"))
+sc = run("files", FW, INTO + DRAG + [release(9, 50, 16), UNDO], pre=PRE,
+         also=TWO)
+check("and takes a copy back by putting the copy in the trash",
+      os.path.exists(os.path.join(D, "file00.txt")) and
+      not os.path.exists(os.path.join(D, "alpha", "file00.txt")), sc)
+if os.path.exists(os.path.join(D, "alpha", "file00.txt")):
+    os.unlink(os.path.join(D, "alpha", "file00.txt"))
 sc = run("files", FW, INTO + DRAG + [release(9, 50, 16)], pre=PRE, also=TWO)
 copied = os.path.exists(os.path.join(D, "alpha", "file00.txt")) and \
          os.path.exists(os.path.join(D, "file00.txt"))
@@ -3089,6 +3106,18 @@ check("delete moves a file to the trash, with the note of where it was",
       os.path.exists(os.path.join(TRASH, "files", "file00.txt")) and
       os.path.exists(info) and
       ("Path=%s/file00.txt" % D) in open(info).read(), sc)
+if os.path.exists(os.path.join(TRASH, "files", "file00.txt")):
+    os.rename(os.path.join(TRASH, "files", "file00.txt"),
+              os.path.join(D, "file00.txt"))
+shutil.rmtree(TRASH, True)
+TRASH = tempfile.mkdtemp(prefix="hibr-trash-")
+sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\x1b[3~", UNDO],
+         pre=PRE + "\nDT_TRASH=%s" % TRASH)
+check("Undo takes a file back out of the trash, and the trash's note with it",
+      os.path.exists(os.path.join(D, "file00.txt")) and
+      not os.path.exists(os.path.join(TRASH, "files", "file00.txt")) and
+      not os.path.exists(os.path.join(TRASH, "info", "file00.txt.trashinfo")),
+      sc)
 if os.path.exists(os.path.join(TRASH, "files", "file00.txt")):
     os.rename(os.path.join(TRASH, "files", "file00.txt"),
               os.path.join(D, "file00.txt"))
@@ -3205,6 +3234,18 @@ check("enter renames it and closes the window",
       sc.find("new.txt") is not None and
       sc.find("┤ Rename ├") is None, sc)
 check("and it is the real file on disk that moved",
+      os.path.exists(os.path.join(RD, "new.txt")) and
+      not os.path.exists(os.path.join(RD, "old.txt")), sc)
+for f in os.listdir(RD):
+    os.unlink(os.path.join(RD, f))
+open(os.path.join(RD, "old.txt"), "w").write("hi\n")
+RENAME = [b"\x1b[B", b"n"] + [b"\x7f"] * 7 + [b"new.txt", b"\r"]
+sc = run("files", FW, RENAME + [UNDO], pre=RPRE)
+check("Undo in Files takes a rename back",
+      os.path.exists(os.path.join(RD, "old.txt")) and
+      not os.path.exists(os.path.join(RD, "new.txt")), sc)
+sc = run("files", FW, RENAME + [UNDO, REDO], pre=RPRE)
+check("and Redo does it again",
       os.path.exists(os.path.join(RD, "new.txt")) and
       not os.path.exists(os.path.join(RD, "old.txt")), sc)
 for f in os.listdir(RD):
@@ -5262,4 +5303,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(703)
+report(708)

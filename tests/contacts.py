@@ -7,7 +7,7 @@ screen. Mail is loaded beside it, for writing to a contact and for finishing
 an address as it is typed.
 Run it directly:  python3 tests/contacts.py [path-to-hibr]
 """
-import json, os, subprocess, sys, tempfile, time
+import base64, json, os, re, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -91,6 +91,12 @@ try:
     sc = look(t)
     check("j moves down; the person's phone is shown with their email",
           sc.find("bo@example.com") and sc.find("+46 70 123 45 67"), sc)
+    # Copy takes the chosen card as text (#372).
+    t.keys([b"\x1bc"])
+    m = re.findall(rb"\x1b\]52;c;([A-Za-z0-9+/=]*)\x07", t.out)
+    c = base64.b64decode(m[-1]).decode("utf8", "replace") if m else ""
+    check("Copy takes the chosen card: the name, then each email and phone, labelled",
+          c.split("\n")[0] == "Bo Berg" and "email bo@example.com" in c and "phone +46 70 123 45 67" in c, c)
     t.keys([b"/", b"zo"])
     sc = look(t)
     check("/ searches: only who matches stays in the list", sc.find("Zoë Ünal") and not sc.find("Bo Berg")
@@ -193,4 +199,4 @@ finally:
     srv.terminate()
     srv.wait()
 
-report(21)
+report(22)

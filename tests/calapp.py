@@ -9,7 +9,7 @@ answer. The zone is Europe/London throughout, so the times written are
 known.
 Run it directly:  python3 tests/calapp.py [path-to-hibr]
 """
-import base64, datetime, json, os, subprocess, sys, tempfile, time, urllib.request
+import base64, datetime, json, os, re, subprocess, sys, tempfile, time, urllib.request
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -130,6 +130,12 @@ def having(text):
     return [n for n in items() if text in item(n)]
 
 
+def clip(t):
+    """What the desktop last copied, from the OSC 52 it sent the terminal."""
+    m = re.findall(rb"\x1b\]52;c;([A-Za-z0-9+/=]*)\x07", t.out)
+    return base64.b64decode(m[-1]).decode("utf8", "replace") if m else ""
+
+
 def session(tag, app, title, extra=None):
     sess = os.path.join(D, tag + ".hibr")
     open(sess, "w").write(
@@ -157,8 +163,19 @@ try:
     sc = waitfor(t, "Coffee break at", 25)
     check("a reminder goes off on its own time, said with the event's start", sc.find("Coffee break at"), sc)
 
+    # Copy takes the chosen day's events from the month, and the chosen
+    # one from the list (#372).
+    t.keys([b"\x1bc"])
+    c = until(lambda: clip(t), 3) and clip(t)
+    check("Copy from the month takes every event on the chosen day, with its times",
+          "10:00-10:15  Standup" in c and "14:00-15:00  Design review -- Room 4" in c, c)
+    t.keys([b"\t", b"j", b"\x1bc"])
+    c = until(lambda: "Standup" not in clip(t), 3) and clip(t)
+    check("and from the list the chosen event alone",
+          "14:00-15:00  Design review -- Room 4" in c and "Standup" not in c, c)
+
     # An edit goes up conditional on the copy it was read from.
-    t.keys([b"\t", b"j", b"\r"])
+    t.keys([b"\r"])
     sc = waitfor(t, "Edit Event")
     check("tab, j and enter edit the chosen event, its fields filled",
           sc.find("Design review") and sc.find("Room 4") and sc.find("14:00"), sc)
@@ -291,4 +308,4 @@ finally:
     srv.terminate()
     srv.wait()
 
-report(24)
+report(26)

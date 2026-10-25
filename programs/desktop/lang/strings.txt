@@ -374,6 +374,7 @@ Dhu al-Qa'dah
 Dhuhr
 Diagram
 Dialog Buttons
+Did again
 Digits
 Directory
 Discard
@@ -841,6 +842,7 @@ Program
 Program to run as the browser:
 Programs
 Programs Set Clipboard
+Put back
 Puzzle
 Quality %s
 Quality Fetched

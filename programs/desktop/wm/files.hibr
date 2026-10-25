@@ -131,6 +131,7 @@ fn dt_tally(int done, int bad, what, last, why, detail = "") {
 # Move or copy paths into a folder, and say once how it went.
 fn dt_fileop(op, dst, ...rest) {
 	local src n=0 bad=0 why= last= what
+	local -a okp
 
 	shift 2
 	if dt_has dt_davop; then
@@ -144,10 +145,11 @@ fn dt_fileop(op, dst, ...rest) {
 	for src in "$@"; do
 		dt_fileop1 "$op" "$src" "$dst"
 		case $? in
-		0) n=$((n + 1)); last=${src##*/} ;;
+		0) n=$((n + 1)); last=${src##*/}; okp+=("$src" "$dst/${src##*/}") ;;
 		1) bad=$((bad + 1)); [ -z "$why" ] && why=$DT_WHY ;;
 		esac
 	done
+	[ "${#okp[@]}" -gt 0 ] && dt_fopsave "$op" "${okp[@]}"
 	what := dt_tr "Moved"
 	[ "$op" = copy ] && what := dt_tr "Copied"
 	if [ "$n" = 1 ]; then
@@ -157,6 +159,147 @@ fn dt_fileop(op, dst, ...rest) {
 	fi
 	[ "$n" -gt 0 ] && dt_changed
 	[ "$bad" = 0 ]
+}
+
+# What was moved, copied, renamed or thrown away, so Undo in a Files window
+# can put it back and Redo do it again (Gitea #372). One log for the whole
+# desktop, as there is one clipboard: a move made by a drop on an icon, a
+# paste or Get Info is undone from whichever Files window has the focus.
+# One entry a batch -- "Moved 3 items" is one Undo -- holding its kind and,
+# for each item, where it was (aN) and where it went (bN), under "uK" for
+# the undo list and "rK" for the redo list. Nothing on a server is logged:
+# nothing done there can be put back.
+declare -gA DT_FOP
+DT_FOPN=0
+DT_FOPLO=0
+DT_FOPRN=0
+DT_FOPMAX=${DT_FOPMAX:-20}
+DT_FOPB=
+DT_TRASHED=
+
+# Add a batch to one list: kind, then where each item was and where it went.
+fn dt_foppush(st, kind, ...rest) {
+	local k i n=$((${#rest[@]} / 2))
+
+	if [ "$st" = u ]; then
+		k=$DT_FOPN
+		DT_FOPN=$((k + 1))
+	else
+		k=$DT_FOPRN
+		DT_FOPRN=$((k + 1))
+	fi
+	DT_FOP["$st$k"]["kind"]=$kind
+	DT_FOP["$st$k"]["n"]=$n
+	for ((i = 0; i < n; i++)); do
+		DT_FOP["$st$k"]["a$i"]=${rest[$((2 * i))]}
+		DT_FOP["$st$k"]["b$i"]=${rest[$((2 * i + 1))]}
+	done
+	if [ "$st" = u ] && [ $((DT_FOPN - DT_FOPLO)) -gt "$DT_FOPMAX" ]; then
+		unset DT_FOP["u$DT_FOPLO"]
+		DT_FOPLO=$((DT_FOPLO + 1))
+	fi
+	return 0
+}
+
+# Log a batch just done, which is something new: what was undone can no
+# longer be done again.
+fn dt_fopsave(kind, ...rest) {
+	local i
+
+	for ((i = 0; i < DT_FOPRN; i++)); do unset DT_FOP["r$i"]; done
+	DT_FOPRN=0
+	dt_foppush u "$kind" "${rest[@]}"
+}
+
+# Whether there is a batch to undo or to do again.
+fn dt_fopcan(op) {
+	if [ "$op" = redo ]; then
+		[ "$DT_FOPRN" -gt 0 ]
+	else
+		[ "$DT_FOPN" -gt "$DT_FOPLO" ]
+	fi
+}
+
+# Undo or redo one item of a batch: 0 done, with where it is now in
+# DT_FOPB; 1 refused with the reason in DT_WHY. Nothing is ever put over
+# something already there.
+fn dt_fopone(op, kind, a, b) {
+	local from=$a to=$b
+
+	DT_FOPB=$b
+	if [ "$op" = undo ]; then
+		from=$b
+		to=$a
+		if [ "$kind" = copy ]; then
+			dt_trash1 "$b"
+			return
+		fi
+	elif [ "$kind" = trash ]; then
+		dt_trash1 "$a" || return 1
+		DT_FOPB=$DT_TRASHED
+		return 0
+	fi
+	if ! [ -e "$from" ] && ! [ -L "$from" ]; then
+		DT_WHY="${from##*/} is not there any more"
+		return 1
+	fi
+	if [ -e "$to" ] || [ -L "$to" ]; then
+		DT_WHY="${to%/*}"
+		DT_WHY="${DT_WHY##*/} already has a ${to##*/}"
+		return 1
+	fi
+	if [ "$kind" = copy ]; then
+		command cp -R -- "$from" "$to" 2>> "$DT_LOG"
+	else
+		command mv -- "$from" "$to" 2>> "$DT_LOG"
+	fi
+	if [ $? != 0 ]; then
+		DT_WHY="Could not put ${from##*/} back"
+		return 1
+	fi
+	[ "$op" = undo ] && [ "$kind" = trash ] && rm -f -- "$DT_TRASH/info/${b##*/}.trashinfo"
+	return 0
+}
+
+# Undo the last batch, or do again the last one undone, and say how it went;
+# status 1 when there is none.
+fn dt_fopundo(op) {
+	local st=u to=r k kind n i a b c=0 bad=0 why= last=
+	local -a moved
+
+	dt_fopcan "$op" || return 1
+	if [ "$op" = redo ]; then
+		st=r
+		to=u
+		k=$((DT_FOPRN - 1))
+		DT_FOPRN=$k
+	else
+		k=$((DT_FOPN - 1))
+		DT_FOPN=$k
+	fi
+	kind=${DT_FOP["$st$k"]["kind"]}
+	n=${DT_FOP["$st$k"]["n"]:-0}
+	for ((i = n - 1; i >= 0; i--)); do
+		a=${DT_FOP["$st$k"]["a$i"]}
+		b=${DT_FOP["$st$k"]["b$i"]}
+		if dt_fopone "$op" "$kind" "$a" "$b"; then
+			c=$((c + 1))
+			last=${a##*/}
+			moved+=("$a" "$DT_FOPB")
+		else
+			bad=$((bad + 1))
+			[ -z "$why" ] && why=$DT_WHY
+		fi
+	done
+	unset DT_FOP["$st$k"]
+	[ "${#moved[@]}" -gt 0 ] && dt_foppush "$to" "$kind" "${moved[@]}"
+	if [ "$op" = redo ]; then
+		dt_tally "$c" "$bad" "Did again" "$last" "$why"
+	else
+		dt_tally "$c" "$bad" "Put back" "$last" "$why"
+	fi
+	[ "$c" -gt 0 ] && dt_changed
+	return 0
 }
 
 # Tell every window that shows files that something on disk has changed.
@@ -234,6 +377,7 @@ fn dt_trash1(p) {
 		DT_WHY="Could not move $base to the trash"
 		return 1
 	fi
+	DT_TRASHED="$DT_TRASH/files/$n"
 	return 0
 }
 
@@ -243,11 +387,13 @@ fn dt_trash1(p) {
 # not something dt_fileop's own move/copy shares.
 dt_trash() {
 	local p n=0 bad=0 why= last=
+	local -a okp
 
 	for p in "$@"; do
 		if dt_trash1 "$p"; then
 			n=$((n + 1))
 			last=${p##*/}
+			okp+=("$p" "$DT_TRASHED")
 		else
 			bad=$((bad + 1))
 			[ -z "$why" ] && why=$DT_WHY
@@ -268,6 +414,7 @@ dt_trash() {
 	else
 		dt_tally "$n" "$bad" "Moved" "$last to the trash" "$why"
 	fi
+	[ "${#okp[@]}" -gt 0 ] && dt_fopsave trash "${okp[@]}"
 	[ "$n" -gt 0 ] && dt_changed
 	[ "$bad" = 0 ]
 }

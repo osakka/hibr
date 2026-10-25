@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 1.9
+app mail "Email, offline, labels and conversations as Gmail has them" 2.0
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -1374,6 +1374,32 @@ fn mail_click(int? id = "", int? r = "", int? c = "", btn = "") {
 		;;
 	url:*) dt_launch browser "${tag#url:}" ;;
 	esac
+}
+
+# Copy takes the open conversation as it reads -- the subject, and each
+# message's sender, date, recipients and text -- or, with none open, the
+# chosen conversation's subject (#372).
+fn mail_copy(int id) {
+	local n=0 nr=${MW[$id]["nr"]:-0} out= t
+
+	if [ -z "${MW[$id]["open"]}" ]; then
+		t := ml_at "$id" "${MW[$id]["sel"]:-0}" || return 1
+		ret "${MLT[$id][$t]["subj"]:-(no subject)}"
+		return 0
+	fi
+	while [ "$n" -lt "$nr" ]; do
+		case ${MLR[$id][$n]["k"]} in
+		from)
+			t=${MLR[$id][$n]["t"]}
+			[ -n "${MLR[$id][$n]["addr"]}" ] && t+=" <${MLR[$id][$n]["addr"]}>"
+			out+=$'\n'"$t  ${MLR[$id][$n]["date"]}"$'\n'
+			;;
+		subject | dim | body | gap | invite | invdim | attach) out+="${MLR[$id][$n]["t"]}"$'\n' ;;
+		esac
+		n=$((n + 1))
+	done
+	[ -n "$out" ] || return 1
+	ret "${out%$'\n'}"
 }
 
 fn mail_wheel(int id, dir, int r = 0, int c = 0) {
