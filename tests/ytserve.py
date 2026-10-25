@@ -30,15 +30,31 @@ DUR = int(sys.argv[2]) if len(sys.argv) > 2 else 12
 LEN = "%d:%02d" % (DUR // 60, DUR % 60)
 FAILS = {}
 SLOWS = {}
+LATES = {}
 LOADS = {}
 EARLY = {}
 VIDEOS = [("vid1", "A test pattern", "Pattern Channel", LEN),
           ("vid2", "Another clip", "Second Channel", LEN),
           ("vid3", "Third result", "Pattern Channel", LEN)]
 
+# The video YouTube's autoplay would go to after each, and whether it does so whatever the switch says.
+NEXT = dict((VIDEOS[i][0], VIDEOS[(i + 1) % len(VIDEOS)][0]) for i in range(len(VIDEOS)))
+FORCE = [False]
+
 WATCH = """<!doctype html><html><head><title>%(title)s - YouTube</title></head>
-<body><div id="movie_player"></div><video id="v" muted></video><script>
+<body><header id="masthead">SITEMASTHEAD the real page</header>
+<div id="movie_player"><button class="ytp-autonav-toggle-button" aria-checked="true"
+ onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked') === 'true' ? 'false' : 'true')"></button></div><video id="v" muted></video><script>
 var V = document.getElementById("v"), P = document.getElementById("movie_player");
+/* YouTube's autoplay: at the end the page goes to the next video unless its switch is off (force: whatever it says). */
+function autoplay() {
+  if (window.__gone) return;
+  var on = document.querySelector(".ytp-autonav-toggle-button").getAttribute("aria-checked") === "true";
+  if (on || %(force)s) { window.__gone = 1; location.href = "/watch?v=%(next)s"; }
+}
+V.addEventListener("ended", autoplay);
+/* The clip's media source is never ended, so the video's own `ended` does not come: the clock at its length is the end. */
+setInterval(function () { if (V.currentTime > 0 && V.currentTime >= %(dur)s - 0.4) autoplay(); }, 200);
 var ms = new MediaSource(), sbs = {}, segs = {}, segdur = 2, failAt = %(fail)s;
 var slowInit = %(slow)s, fed = 0;
 V.src = URL.createObjectURL(ms);
@@ -80,6 +96,9 @@ P.playVideo = function () {
     e.textContent = "Something went wrong."; document.body.appendChild(e);
   }, failAt * 1000);
 };
+/* The real player is there some seconds after the page is: until then the page is the site and nothing else. */
+var late = %(late)s, realPlay = P.playVideo;
+if (late) { P.playVideo = null; setTimeout(function () { P.playVideo = realPlay; }, late); }
 P.pauseVideo = function () { state = 2; V.pause(); window.__paused = 1; };
 P.seekTo = function (t) {
   window.__seeked = t; V.currentTime = t;
@@ -159,6 +178,10 @@ class H(BaseHTTPRequestHandler):
             FAILS[vid] = int(at or 0)
             vid, _, ms = q.get("slow", [":"])[0].partition(":")
             SLOWS[vid] = int(ms or 0)
+            vid, _, ms = q.get("late", [":"])[0].partition(":")
+            LATES[vid] = int(ms or 0)
+            if "force" in q:
+                FORCE[0] = q["force"][0] == "1"
             return self.send(200, "ok", "text/plain")
         if u.path == "/loads":
             return self.send(200, json.dumps(LOADS), "application/json")
@@ -175,7 +198,10 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, WATCH % {"title": t[0], "author": t[1],
                                            "vid": vid, "dur": DUR,
                                            "fail": FAILS.pop(vid, 0),
-                                           "slow": SLOWS.get(vid, 0)})
+                                           "slow": SLOWS.get(vid, 0),
+                                           "late": LATES.get(vid, 0),
+                                           "next": NEXT.get(vid, vid),
+                                           "force": "true" if FORCE[0] else "false"})
         if u.path == "/media/list":
             fs = sorted(os.listdir(ROOT))
             def seq(p):

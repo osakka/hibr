@@ -336,6 +336,39 @@ try:
           at(s[-1]) >= 9 and nowl - wasl >= 2 and nowe == wase,
           (nowl - wasl, nowe - wase, s[-1]))
 
+    # YouTube's own autoplay is the app's to do. Left on, the page goes to the next
+    # video by itself at the end, whatever Play Next Automatically says, and the
+    # app went on showing the first one's clock and title. And the page was never
+    # to be drawn before the start had cut it down to the video: the real site,
+    # masthead and all, filled the window for a moment.
+    def vloads(v):
+        return json.loads(urllib.request.urlopen(BASE + "/loads").read()).get(v, 0)
+    site = []
+
+    def starting(sc):
+        site.append(sc.find("SITEMASTHEAD") is not None)
+        return playing(sc)
+    was = vloads("vid2")
+    urllib.request.urlopen(BASE + "/control?late=vid1:3000").read()
+    s = yrun([([], "A test pattern"), ([b"\r"], starting),
+              ([], lambda sc: sc.find("ended") is not None, 45), ([], None, 4)])
+    urllib.request.urlopen(BASE + "/control?late=vid1:0").read()
+    check("the real page is never drawn while a video starts, though the player is slow to come",
+          not any(site) and len(site) > 3, site)
+    check("YouTube's own autoplay is switched off, so a video that ends stays "
+          "the one shown, with its title", s[-1].find(" A test pattern -- Pattern Channel") is not None
+          and s[-1].find("ended") is not None, s[-1])
+    check("and the page is not sent on to another video", vloads("vid2") == was, (was, vloads("vid2")))
+    # Whatever the page's switch says, if it does move on by itself, the app follows.
+    urllib.request.urlopen(BASE + "/control?force=1").read()
+    s = yrun([([], "A test pattern"), ([b"\r"], playing),
+              ([], lambda sc: sc.find(" Another clip -- Second Channel") is not None, 60),
+              ([], lambda sc: playing(sc) and sc.find("starting") is None, 20)])
+    urllib.request.urlopen(BASE + "/control?force=0").read()
+    check("a page that moves on by itself is followed: the title is the new video's",
+          s[2].find(" Another clip -- Second Channel") is not None, s[2])
+    check("and its clock starts again with it", 0 <= at(s[3]) <= 8 and s[3].find(" Another clip") is not None, s[3])
+
     s = yrun([([], "A test pattern"), ([b"/"] + [b"\x15"] + [c.encode() for c in "zebra"] +
                                         [b"\r"], "A test pattern (zebra)")])
     check("/ goes back to the search field, and a new search lists afresh",
@@ -461,4 +494,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(39)
+report(44)

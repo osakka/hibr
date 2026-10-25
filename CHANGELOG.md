@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.328
+
+**YouTube: the site no longer shows while a video starts, and the app follows the page if it moves on.**
+The player drew YouTube's real page -- masthead, sidebar and all, filling the window -- from the moment
+it opened until its start had cut the page down to the video; on WebKit that was a second or more of the
+site. It says Loading until the video is showing, and a half second after, while the engine paints what the
+cut left. And YouTube's own autoplay moved the page on to *its* choice of next video at the end, whatever
+Play Next Automatically said: the page was then on another video than the one the app had, which the app
+by design ignores, so the clock, the length and the title stayed on the old one for as long as the window
+was open (with the setting on, the app and the page both stepped). The app now turns the page's autoplay
+off once the player's controls are there, so the setting is the only thing that picks the next video, and
+a page that moves on anyway for three seconds is followed: its title, length and clock are asked of the
+page again and the player is started the way it is for any video. YouTube 3.6.
+
+tests/ytserve.py's watch page now has the site's masthead, a player that comes late, and YouTube's autoplay
+switch with a way to ignore it; tests/youtube.py checks the page is never drawn while a video starts, that
+a video that ends stays the one shown and the page is not sent on, and that a page that moves on by itself
+is followed with its clock started again. Against the old app three of them fail.
+
 ## 0.99.327
 
 **Frame and Title Bar say one thing each.** 0.99.324 put curved, a shape of

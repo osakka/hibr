@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.5
+app youtube "YouTube, in a window" 3.6
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -512,6 +512,10 @@ fn yt_play(int id, int i) {
 	YT[$id]["upause"]=
 	YT[$id]["efr"]=
 	YT[$id]["pat"]=
+	YT[$id]["sat"]=
+	YT[$id]["ofid"]=
+	YT[$id]["noauto"]=
+	YT[$id]["nan"]=0
 	if yt_histget "$vid" && [ "${YTH[5]:-0}" -gt "$YT_RESUME" ]; then
 		YT[$id]["resume"]=${YTH[5]}
 	fi
@@ -555,7 +559,7 @@ fn yt_next(int id, int dir) {
 declare -gA YTP
 YTPID=
 fn yt_page(int id) {
-	local js now
+	local js now nv
 
 	now=${EPOCHREALTIME/./}
 	now=${now:0:-3}
@@ -569,8 +573,18 @@ fn yt_page(int id) {
 	# The page asked is the video's own: right after a go the one before is
 	# still there, and what it says is about another video.
 	case ${YTP["u"]} in
-	*"v=${YT[$id]["vid"]}"*) ;;
-	*) YTP=(); return 1 ;;
+	*"v=${YT[$id]["vid"]}"*) YT[$id]["ofid"]= ;;
+	*)
+		# A page that stays on another video is YouTube moving on by itself, which
+		# yt_tick follows rather than showing the old video's clock for ever.
+		nv=${YTP["u"]#*v=}
+		nv=${nv%%[&#]*}
+		if [ "$nv" != "${YTP["u"]}" ] && [ -n "$nv" ] && [ "$nv" != "${YT[$id]["ofid"]}" ]; then
+			YT[$id]["ofid"]=$nv
+			YT[$id]["ofat"]=$EPOCHSECONDS
+		fi
+		YTP=()
+		return 1 ;;
 	esac
 	YT[$id]["pat"]=$now
 	YTPID=$id
@@ -614,6 +628,55 @@ fn yt_info(int id) {
 	return 0
 }
 
+# YouTube's own autoplay is the app's to do (Play Next Automatically): left on, the
+# page goes to its choice of next video by itself, whatever the setting says, and
+# with the setting on as well the two would both move. Its switch is turned off
+# once the player's controls are there, asked each second until they are.
+#
+# This one names YouTube's own class for the switch: there is no way to find it
+# by structure, as the rest of the page is cut. If the name changes the switch
+# is never found, so the asking stops after thirty tries, and yt_adopt follows
+# the page when it moves on anyway.
+fn yt_noauto(int id) {
+	local s
+
+	[ -n "${YT[$id]["noauto"]}" ] && return 0
+	[ "${YT[$id]["nat"]:-0}" = "$EPOCHSECONDS" ] && return 0
+	YT[$id]["nat"]=$EPOCHSECONDS
+	YT[$id]["nan"]=$(( ${YT[$id]["nan"]:-0} + 1 ))
+	[ "${YT[$id]["nan"]}" -gt 30 ] && { YT[$id]["noauto"]=1; return 0; }
+	s := web eval "${YT[$id]["pt"]}" '(function(){var a=document.querySelector(".ytp-autonav-toggle-button");if(!a)return "none";if(a.getAttribute("aria-checked")==="true"){a.click();return "clicked"}return "off"})()' 2> /dev/null
+	[ "$s" = off ] && YT[$id]["noauto"]=1
+	return 0
+}
+
+# Follow the page to a video it went to by itself: the title, the length and the
+# clock are asked of it again, and the player is started the way it is for any.
+fn yt_adopt(int id, vid) {
+	printf 'youtube: the page moved on by itself to %s; following it\n' "$vid" >&2
+	YT[$id]["vid"]=$vid
+	YT[$id]["title"]=
+	YT[$id]["author"]=
+	YT[$id]["len"]=
+	YT[$id]["dur"]=0
+	YT[$id]["lpos"]=0
+	YT[$id]["tries"]=0
+	YT[$id]["bad"]=0
+	YT[$id]["resume"]=
+	YT[$id]["upause"]=
+	YT[$id]["efr"]=
+	YT[$id]["pat"]=
+	YT[$id]["sat"]=
+	YT[$id]["ofid"]=
+	YT[$id]["noauto"]=
+	YT[$id]["nan"]=0
+	YT[$id]["fed"]=
+	YT[$id]["sized"]=
+	YT[$id]["err"]=
+	YT[$id]["state"]=loading
+	YT[$id]["since"]=$EPOCHSECONDS
+}
+
 # One step of playing: start the page's player once it is there, take up a
 # video where it was left, and at the end go on to the next.
 fn yt_tick(int id) {
@@ -621,6 +684,20 @@ fn yt_tick(int id) {
 	local -a w
 
 	[ -n "$p" ] || return 0
+	# An ended video is not asked about, so the page leaving it would go unseen: its
+	# address is looked at every few seconds.
+	if [ "${YT[$id]["state"]}" = ended ] && [ $((EPOCHSECONDS - ${YT[$id]["chk"]:-0})) -ge 3 ]; then
+		YT[$id]["chk"]=$EPOCHSECONDS
+		yt_page "$id" > /dev/null
+	fi
+	# The page went on to another video by itself, and stayed: this is that video
+	# now, the clock and the title with it.
+	if [ -n "${YT[$id]["ofid"]}" ] && [ $((EPOCHSECONDS - YT[$id]["ofat"])) -ge 3 ] &&
+	   [ $((EPOCHSECONDS - YT[$id]["since"])) -ge 8 ]; then
+		yt_adopt "$id" "${YT[$id]["ofid"]}"
+		return 0
+	fi
+	[ "${YT[$id]["state"]}" = playing ] && yt_noauto "$id"
 	if [ "${YT[$id]["state"]}" = loading ]; then
 		if yt_tap; then
 			js := yt_startjs_tap "$YT_QUALITY" "$(yt_ccword)"
@@ -628,7 +705,11 @@ fn yt_tick(int id) {
 			js := yt_startjs "$YT_QUALITY" "${YT[$id]["vol"]:-100}" "${YT[$id]["vid"]}" "$(yt_ccword)"
 		fi
 		s := web eval "$t" "$js" 2> /dev/null
-		[ "$s" = ok ] && YT[$id]["state"]=playing
+		if [ "$s" = ok ]; then
+			YT[$id]["state"]=playing
+			YT[$id]["sat"]=${EPOCHREALTIME/./}
+			YT[$id]["sat"]=${YT[$id]["sat"]:0:-3}
+		fi
 		if [ "${YT[$id]["state"]}" = loading ] &&
 		   [ $((EPOCHSECONDS - YT[$id]["since"])) -gt 25 ]; then
 			if [ "${YT[$id]["tries"]:-0}" -ge 3 ]; then
@@ -783,6 +864,9 @@ fn yt_recover(int id, int pos) {
 	YT[$id]["state"]=loading
 	YT[$id]["since"]=$EPOCHSECONDS
 	YT[$id]["pat"]=
+	YT[$id]["noauto"]=
+	YT[$id]["nan"]=0
+	YT[$id]["ofid"]=
 	web go "${YT[$id]["pt"]}" "$YT_BASE/watch?v=${YT[$id]["vid"]}" 2> /dev/null
 }
 
@@ -1060,6 +1144,17 @@ fn yt_mmss(t) {
 # declines the pixels is found out by the draw failing while the video
 # plays; the picture then goes on as cells, and says so (YT[md]). Fails
 # until the page has made a frame.
+# Whether the page must not be shown yet: loading, or just now started.
+fn yt_veiled(int id) {
+	local now
+
+	[ "${YT[$id]["state"]}" = loading ] && return 0
+	[ -n "${YT[$id]["sat"]}" ] || return 1
+	now=${EPOCHREALTIME/./}
+	now=${now:0:-3}
+	[ $((now - YT[$id]["sat"])) -lt 500 ]
+}
+
 fn yt_picture(int id, w, h, row, col, md) {
 	local t=${YT[$id]["pt"]} m=cells p=${YT[$id]["p"]}
 
@@ -1075,6 +1170,10 @@ fn yt_picture(int id, w, h, row, col, md) {
 		media draw "$p" "$row" "$col" -p "w$id" 2> /dev/null
 		return
 	fi
+	# Not the page itself: until the start has cut it down to the video it is
+	# the real site, masthead and all, filling the window -- and for a moment
+	# after, while the engine paints what the cut left. Said Loading instead.
+	yt_veiled "$id" && return 1
 	case $md in
 	pixels | ascii | mono) m=$md ;;
 	esac
