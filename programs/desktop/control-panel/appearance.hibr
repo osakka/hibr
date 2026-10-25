@@ -11,7 +11,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.2
+app appearance "The Control Panel pane for how the desktop looks" 2.3
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -214,7 +214,11 @@ fn cp_themeread(n, f) {
 		case $k in
 		wallpaper) cp_oneof "$v" "${WP_GLYPHS[@]}" || return 1 ;;
 		mode) cp_oneof "$v" "${WP_MODES[@]}" || return 1 ;;
-		frame) cp_oneof "$v" "${WS_FRAMES[@]}" || return 1 ;;
+		# bar is what none was called until 0.99.324, and a theme
+		# installed before then still says it: a file refused whole
+		# would drop out of the list on every desktop that has it.
+		frame) [ "$v" = bar ] && v=none
+		       cp_oneof "$v" "${WS_FRAMES[@]}" || return 1 ;;
 		titlebar) cp_oneof "$v" "${DT_TITLEBARS[@]}" || return 1 ;;
 		buttons) cp_oneof "$v" "${WS_STYLES[@]}" || return 1 ;;
 		tree) cp_oneof "$v" "${DT_TREESTYLES[@]}" || return 1 ;;
@@ -511,7 +515,7 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=${DT_BARGAP:-2}; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=4
 	CP[$w][$n]["key"]=bargap; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Shows Through"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="See Through, Menus Too"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]="${DT_BARTRANS:-0}"
 	CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100

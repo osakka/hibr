@@ -981,13 +981,14 @@ check("DT_FRAME=rounded draws arcs at the corners, single lines between",
       sc.g[9][10] == "│" and sc.g[13][39] == "◢", sc)
 
 sc, raw = run(ONE, env={"DT_FRAME": "none"})
-check("DT_FRAME=none is a blank frame -- no border ring at all",
+check("DT_FRAME=none draws no border -- the title bar is the only row of frame",
       sc.find("┌") is None and sc.find("└") is None and
-      sc.g[6][10] == " " and sc.g[13][39] == " ", sc)
+      sc.g[13][10] != "│" and sc.g[13][39] != "◢", sc)
 check("and no tick marks either -- those are box-drawing glyphs too",
       sc.find("┤") is None and sc.find("├") is None, sc)
 check("but the title and its buttons are still there, same as ever",
-      sc.find("Hello") == (6, 14) and sc.g[6][37] == "x", sc)
+      sc.find("Hello") is not None and sc.find("Hello")[0] == 6 and
+      "x" in sc.row(6), sc)
 sc, _ = run(ONE, [press(6, 20), drag(9, 24), release(9, 24)],
             env={"DT_FRAME": "none"})
 check("and the (undrawn) title bar can still be dragged",
@@ -7239,9 +7240,10 @@ finally:
     sdrun(screen.HIBR, "-c", HOLDC + "hold kill desktop")
     shutil.rmtree(SD, True)
 
-# The bar frame (0.99.316): the title bar is the window's only row of frame,
-# square to its ends until Blit has a glyph with only its outer top corner
-# rounded (blit#140), and its content runs to the edge -- the app is told one
+# The none frame (0.99.316's bar, 0.99.324's none): the title bar is the
+# window's only row of frame, square to its ends -- curved rounds its top
+# corners with Blit's own cells (blit#140) -- and its content runs to the
+# edge -- the app is told one
 # row less than the window and its whole width, and its column 1 is the
 # window's first. The sides and the bottom are the app's own cells, so a
 # press there reaches it rather than starting a resize; the title bar's two
@@ -7253,7 +7255,7 @@ BARAPP = ('dt_app bx "Barred" 8 30\n'
           '\tconsole put -p "w$id" 2 1 "$BX"\n'
           '\tconsole put -p "w$id" "$h" "$w" "E"\n}\n'
           'fn bx_click(int id, int r, int c, btn = "") { BX="click $r $c"; }\n'
-          'DT_FRAME=bar\n'
+          'DT_FRAME=none\n'
           'dt_new "Barred" 8 30 6 10 bx\n')
 BARBG = "48;2;99;179;237"
 
@@ -7264,7 +7266,7 @@ def barend(sc, r, c):
 
 
 sc, _ = run(BARAPP)
-check("the bar frame's title bar is square, its colour to both ends, and "
+check("none's title bar is square, its colour to both ends, and "
       "no other frame is drawn",
       barend(sc, 6, 10) and barend(sc, 6, 39) and not barend(sc, 6, 40) and
       sc.g[6][10] == " " and sc.g[6][39] == " " and
@@ -7307,4 +7309,57 @@ check("and so does the menu bar, at its own percentage",
       pbg(clear, 0, 34) == (27, 58, 92) and pbg(sc, 0, 34) not in
       (None, (27, 58, 92)), (pbg(clear, 0, 34), pbg(sc, 0, 34), clear.row(0)))
 
-report(789)
+# Curved is none with the title bar's top corners rounded, by Blit's own two
+# cells (blit#140); a glyph set without them draws none's square ends.
+sc, _ = run(BARAPP.replace("DT_FRAME=none", "DT_FRAME=curved"),
+            env={"DT_GLYPHSET": "blit"})
+check("curved rounds the title bar's top corners with Blit's own cells",
+      sc.g[6][10] == "\U00100007" and sc.g[6][39] == "\U00100008", sc)
+sc, _ = run(BARAPP.replace("DT_FRAME=none", "DT_FRAME=curved"))
+check("and where the glyph set has no such cell its ends are square, as none's",
+      sc.g[6][10] == " " and sc.g[6][39] == " " and barend(sc, 6, 10) and
+      barend(sc, 6, 39), sc)
+
+
+# See-through shows what is beneath (0.99.324), not only the wallpaper: a
+# window over another shows that window's face dimmed, and over the
+# wallpaper -- a glyph one here, with no picture to show -- its own face; a
+# menu does the same with the menu bar's own setting. A cell has no alpha,
+# so the colour is computed from what was drawn beneath it this frame, and
+# the computing must not compound: a menu left open is the same colour on
+# every frame, not darker on each.
+def dimmed(rgb, pct):
+    return tuple((v * pct + 50) // 100 for v in rgb)
+
+
+sc, _ = run(TWO_DEF, env={"DT_WINTRANS": "50"})
+over, open_, under = pbg(sc, 11, 30), pbg(sc, 15, 45), pbg(sc, 8, 15)
+check("a see-through window over another shows that window, dimmed, and over "
+      "the wallpaper its own face", over is not None and open_ is not None and
+      over == dimmed(under, 50) and over != open_, (over, open_, under))
+F10 = b"\x1b[21~"
+sc1, _ = run(ONE, [F10, 0.3], env={"DT_BARTRANS": "50"})
+sc3, _ = run(ONE, [F10, 0.3, b"\x1b[B", 0.2, b"\x1b[A", 0.2, b"\x1b[B", 0.2,
+                   b"\x1b[A", 0.2], env={"DT_BARTRANS": "50"})
+
+
+def menucells(sc):
+    """A menu face cell over the window, the window's face where the menu
+    does not reach (12, 30), and a menu face cell over the wallpaper."""
+    return (pbg(sc, 8, 25), pbg(sc, 12, 30), pbg(sc, 4, 5))
+
+
+m1 = menucells(sc1)
+m3 = menucells(sc3)
+# A glyph wallpaper has no picture to show through, and it never paints
+# under a window, so over it a menu keeps its own face, as a window does.
+check("an open menu is as see-through as the menu bar: over a window it shows "
+      "the window dimmed, and over a glyph wallpaper its own face",
+      None not in m1 and m1[0] == dimmed(m1[1], 50) and m1[2] == m1[1],
+      (m1, sc1))
+check("and it is the same colour after more frames, not darker on each",
+      m1 == m3 and
+      [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
+      [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
+
+report(794)

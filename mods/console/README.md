@@ -216,6 +216,19 @@ The averaged colour per cell is kept with the picture's own region, worked
 out in the pass that already walks those pixels to hash them, and it costs
 about 49 kB for a full screen.
 
+Since 0.99.324 a translucent write shows what is *beneath* it, not only the
+picture: another window, the bar, a menu's parent. A cell drawn this frame by
+an earlier layer gives its own colour, scaled to `pct`. A cell nothing drew
+this frame gives the picture's colour as above. A pane's cell left at the
+terminal's own default gives `colour`. The wallpaper's own writes, made
+while painting behind the panes, are not counted, since it never paints
+under a window. `console layer` begins a layer -- the desktop calls it for
+each window, the bar and each menu -- and a write never blends with its own
+layer's earlier cells, so a window's terminal is translucent over what is
+under the window, not over the window's own face. Each cell remembers the
+frame and layer it was last written in and what was beneath, 12 bytes a
+cell, kept only from the first translucent write on.
+
 `console consumed` answers how many bytes of input have been turned into keys
 since the console was loaded -- what the desktop's idle marker reports, under
 `HIBR_TESTIDLE`, so a test harness knows its keys have been read.

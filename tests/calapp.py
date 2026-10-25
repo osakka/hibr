@@ -202,7 +202,12 @@ try:
     # The agenda, and moving about.
     t.keys([b"\x1b", b"a"])
     sc = waitfor(t, "Agenda from")
-    head = "%s %d %s %d" % (tomorrow.strftime("%a"), tomorrow.day, tomorrow.strftime("%B"), tomorrow.year)
+    # The day the coffee break falls on, which is tomorrow except on a day
+    # the clocks go back: that day is 25 hours long, and a day from just
+    # after midnight is still the same date (the check failed at 00:31 on
+    # 25 October 2026).
+    cday = soon.astimezone(Z).date()
+    head = "%s %d %s %d" % (cday.strftime("%a"), cday.day, cday.strftime("%B"), cday.year)
     check("a lists what is coming under a heading for each day",
           sc.find("Design review v2") and sc.find(head) and sc.find("Coffee break")
           and sc.find(head)[0] < sc.find("Coffee break")[0], sc)

@@ -262,20 +262,22 @@ DT_DBLMS=400
 DT_DBLID=
 DT_DBLT=0
 
-# A window's own frame: single or double lined, rounded, or none at all. None is a
-# blank frame, not no frame: the border ring -- corners, sides, grow box --
-# goes undrawn, but the title and its buttons are still there, still
-# clickable, exactly as under single or double. A style is a table entry:
-# DT_FRAMES[name] carries its own six glyphs, filled from the glyph set by
-# dt_glyphs (wm/glyphs.hibr), so a fifth frame is six lines there, not a
-# change to dt_win.
+# A window's own frame: single or double lined, rounded, or none -- no
+# border at all, the title bar the only row of frame and the content to the
+# window's edge -- or curved, which is none with the title bar's top corners
+# rounded, where the glyph set has a cell for it (Blit's, U+100007 and
+# U+100008, blit#140; anywhere else it is drawn as none and the Control
+# Panel shows it dimmed). A bordered style is a table entry: DT_FRAMES[name]
+# carries its own six glyphs, filled from the glyph set by dt_glyphs
+# (wm/glyphs.hibr), so another is six lines there, not a change to dt_win.
+# Until 0.99.324, none was a border left blank and bar was what none is now.
 DT_FRAME="${DT_FRAME-single}"
 # How much of a picture wallpaper shows through a window's own face and
 # through the menu bar, as a percentage of the picture's brightness: 0 is
 # opaque, as everything was. A terminal has its own, which wins inside it.
 DT_WINTRANS="${DT_WINTRANS-0}"
 DT_BARTRANS="${DT_BARTRANS-0}"
-WS_FRAMES=(single double rounded none bar)
+WS_FRAMES=(single double rounded none curved)
 
 # The title bar: a line, the title sitting in the frame's top edge as it
 # always has, or solid -- the whole top row a bar of the frame's colour
@@ -539,8 +541,13 @@ dt_load() {
 		if [ "${DT_SETVER:-0}" -lt 13 ]; then
 			dt_keymodmove
 		fi
+		# 0.99.324: the frame that is only a title bar is called none,
+		# and the border left blank that none was is gone with it.
+		if [ "${DT_SETVER:-0}" -lt 14 ]; then
+			[ "$DT_FRAME" = bar ] && DT_FRAME=none
+		fi
 	fi
-	DT_SETVER=13
+	DT_SETVER=14
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"

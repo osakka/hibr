@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.99.324
+
+**See-through shows what is beneath, everywhere.** A see-through window used
+to show only the wallpaper's picture, so one over another window showed the
+wallpaper behind both. It now shows what is beneath it, dimmed: another
+window, the bar, or the picture where nothing else is. Menus, drop-down lists
+and the bar's pop-ups were never see-through. They now follow the menu bar's
+setting the same way, and that row is called See Through, Menus Too. The
+windows' and the terminal's rows are called See Through, since it is no
+longer only the wallpaper. Over a glyph wallpaper, which has no picture, each
+keeps its own face, as before.
+
+The console computes it: a cell has no alpha, so each cell remembers the
+frame and the layer it was last written in, and what was beneath that layer.
+A layer is one window, the bar, or one menu, begun by the new `console
+layer`. So a terminal's see-through never blends with its own window's face,
+and a menu left open is the same colour on every frame instead of darker on
+each. The record is kept only once see-through has been used. It costs no
+redrawing that was not already done, since windows that overlap are redrawn
+every frame, except while a see-through menu or pop-up is open, when every
+frame is a full one.
+
+**Frames: none is what bar was, and curved rounds its top corners.** Frame
+is now single, double, rounded, none or curved:
+
+- **none** is the title bar alone, filled, with the content to the window's
+  edge -- what 0.99.316 called bar. The blank border none used to be is gone.
+- **curved** is none with the title bar's top corners rounded, by the two
+  cells Blit drew for it (U+100007 and U+100008, blit#140, Blit 0.2.14).
+- **Without those cells**, with any glyph set but Blit's, curved is shown
+  dimmed in the Frame list, the arrow keys step past it, and a saved curved
+  draws none's square ends.
+- **Saved settings and themes move over.** A saved bar becomes none, once
+  (`DT_SETVER` 14). A theme that still says bar, as Charcoal did in the
+  catalogue, is read as none rather than refused.
+- **Charcoal** now uses curved. The catalogue's Retro Car theme used the old
+  blank none, so it now has the plain title row.
+
+A drop-down list can show a choice dimmed: a caller names it in
+`DT_POPDIMNEXT` before `dt_droplist`.
+
+**The day the clocks change.** Date & Time's clock list labels each format
+with how it shows today at 14:05:09. That moment was computed as midnight
+plus 50,709 seconds, which is an hour out on a day that is 23 or 25 hours
+long, so the list read 1:05 PM on 25 October. It now corrects the hour. The
+Calendar's own suite assumed a day from just after midnight is tomorrow,
+which on that day it is not.
+
 ## 0.99.323
 
 **A terminal window that scrolls is moved on the terminal rather than drawn

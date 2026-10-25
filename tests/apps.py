@@ -660,14 +660,14 @@ sc = cprun([b"\x1b[B"] * downs("terminal") +
 # followed by two spaces and so cannot see a row whose own number is part
 # of what is drawn.
 check("a click on its track sets the value that column stands for",
-      sc.find("Wallpaper Shows Through (70%)") is not None, sc)
+      sc.find("See Through (70%)") is not None, sc)
 # The other half of clicking one: a value chosen by eye is chosen by
 # moving, not by pressing the same cell eleven times.
 sc = cprun([b"\x1b[B"] * downs("terminal") +
            [press(R0 + tti, VALCOL + 7), drag(R0 + tti, VALCOL + 2)],
            extra=("term",))
 check("and a drag across it goes on setting it",
-      sc.find("Wallpaper Shows Through (20%)") is not None, sc)
+      sc.find("See Through (20%)") is not None, sc)
 # The other slider, whose own value is in tens of a 30-70 range rather than
 # a plain percentage -- and which runs dt_tile on the way, so this drives
 # the one _slide that does something besides store a number.
@@ -1391,17 +1391,43 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "13 1 1 1 mod-w mod-tab []", out)
+      out == "14 1 1 1 mod-w mod-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "13 0 1 1 mod-w mod-tab []", out)
+      out == "14 0 1 1 mod-w mod-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("13 1 0 0 "), out)
+      out.startswith("14 1 0 0 "), out)
+
+
+# 0.99.324 calls the frame that is only a title bar none, and the border left
+# blank that none used to be is gone: a saved bar is none from then on, and a
+# theme that still says bar -- Charcoal as the catalogue published it -- is
+# read as none rather than refused, which would drop it from the list.
+def framefrom(conf, theme):
+    d = tempfile.mkdtemp(prefix="hibr-mig-")
+    os.makedirs(os.path.join(d, "hibr"))
+    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
+    th = os.path.join(d, "old.json")
+    open(th, "w").write(theme)
+    out = subprocess.run(
+        [sx.HIBR, "-c", ". %s\n. %s\ndt_load\necho -n \"$DT_FRAME \"\n"
+         "cp_themeread old %s && echo \"${CP_TH[old][frame]}\" || echo refused"
+         % (WM, tree("programs/desktop/control-panel/appearance.hibr"), th)],
+        env=dict(os.environ, XDG_CONFIG_HOME=d),
+        capture_output=True, text=True).stdout.strip()
+    shutil.rmtree(d, True)
+    return out
+
+
+out = framefrom("DT_SETVER=13\nDT_FRAME=bar\n",
+                '{"title": "Old", "colours": "midnight", "frame": "bar"}')
+check("a saved bar frame is none after 0.99.324, and a theme saying bar is "
+      "read as none", out == "none none", out)
 
 
 # 0.99.80 holds an output-driven frame 70 ms from the last rather than 33
@@ -1634,9 +1660,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 13", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 14", out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 13", out)
+check("and a file written since is read as it is", out == "[meadow] paper 14", out)
 
 
 # 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
@@ -1657,9 +1683,9 @@ def loadtube(conf):
 
 out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
 check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow 13", out)
+      out == "follow 14", out)
 out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii 13", out)
+check("and one it was given of its own is kept", out == "ascii 14", out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -1985,6 +2011,13 @@ sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C"])
 check("and again reaches none",
       sc.find("Frame") is not None and "none" in sc.row(sc.find("Frame")[0]),
       sc)
+# Curved needs a glyph set with a rounded corner cell, which only Blit's has
+# (blit#140), so with the default set the arrows step past it.
+sc = cprun(DOWN_WS + [b"\x1b[C"] * 5)
+check("and once more wraps to single, past curved, which this glyph set "
+      "cannot draw",
+      sc.find("Frame") is not None and "single" in sc.row(sc.find("Frame")[0])
+      and "curved" not in sc.row(sc.find("Frame")[0]), sc)
 sc = cprun(reach("windows", "Button Style") + [b"\x1b[C"])
 check("Button Style cycles from brackets to circles",
       sc.find("Button Style") is not None and
@@ -5215,4 +5248,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(699)
+report(701)

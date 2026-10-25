@@ -15,7 +15,7 @@
 strict
 
 
-app datetime "The Control Panel pane for the time, the date and the time zone" 1.4
+app datetime "The Control Panel pane for the time, the date and the time zone" 1.5
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷" hardware
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"
@@ -232,7 +232,7 @@ DTP_REF=0
 # every time the list opens: a label is how a choice is mapped back to
 # its format, so it must not change between the list opening and a pick.
 dtp_ref() {
-	local h m s
+	local h m s t
 
 	printf -v h '%(%H)T' -1
 	printf -v m '%(%M)T' -1
@@ -240,7 +240,13 @@ dtp_ref() {
 	h=${h#0}
 	m=${m#0}
 	s=${s#0}
-	ret $((EPOCHSECONDS - h * 3600 - m * 60 - s + 50709))
+	t=$((EPOCHSECONDS - h * 3600 - m * 60 - s + 50709))
+	# Midnight plus the seconds to 14:05:09 is an hour out on a day the
+	# clocks change, since that day is not 24 hours long: put the hour
+	# right by the hour it came out at.
+	printf -v h '%(%H)T' "$t"
+	h=${h#0}
+	ret $((t + (14 - ${h:-0}) * 3600))
 }
 
 # What the dropdown shows for the format in use.

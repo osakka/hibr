@@ -11,10 +11,24 @@
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.2
+app windows "The Control Panel pane for how a window looks and where it opens" 1.3
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
+# The frames that can be drawn with the glyph set in use: curved needs a
+# cell for a rounded top corner, which only Blit's own set has (blit#140).
+# Elsewhere it is drawn as none, so the list shows it dimmed and arrows
+# step past it.
+fn ws_frames() {
+	local f
+	local -a out=()
+
+	for f in "${WS_FRAMES[@]}"; do
+		[ "$f" = curved ] && [ "${GL[capl]}" = " " ] && continue
+		out+=("$f")
+	done
+	ret "${out[*]}"
+}
 fn cp_set_titlebar(int? id = "", value = "") { DT_TITLEBAR=$value; cp_save; }
 fn cp_set_side(int? id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
 fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
@@ -37,7 +51,7 @@ fn windows_rows(int w) {
 	CP[$w][$n]["val"]="$DT_FRAME"; CP[$w][$n]["key"]=frame; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Bar"
 	CP[$w][$n]["val"]="$DT_TITLEBAR"; CP[$w][$n]["key"]=titlebar; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Shows Through"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="See Through"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]="${DT_WINTRANS:-0}"
 	CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
@@ -67,10 +81,13 @@ fn windows_rows(int w) {
 }
 
 fn windows_do(int w, k, int dir) {
-	local v
+	local v fl
+	local -a fa
 
 	case $k in
-	frame) v := cp_next "$DT_FRAME" "$dir" "${WS_FRAMES[@]}"
+	frame) fl := ws_frames
+	       read -ra fa <<< "$fl"
+	       v := cp_next "$DT_FRAME" "$dir" "${fa[@]}"
 	       DT_FRAME=$v ;;
 	titlebar) v := cp_next "$DT_TITLEBAR" "$dir" "${DT_TITLEBARS[@]}"
 	          DT_TITLEBAR=$v ;;
@@ -116,7 +133,8 @@ fn windows_slide(int w, k, int value) {
 
 fn windows_drop(int w, int r, int c, k) {
 	case $k in
-	frame) dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
+	frame) [ "${GL[capl]}" = " " ] && DT_POPDIMNEXT=(curved)
+	       dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
 	titlebar) dt_droplist "$w" "$r" "$c" cp_set_titlebar "${DT_TITLEBARS[@]}" ;;
 	place) dt_droplist "$w" "$r" "$c" cp_set_place "${DT_PLACES[@]}" ;;
 	zoomfill) dt_droplist "$w" "$r" "$c" cp_set_zoomfill "${DT_ZOOMFILLS[@]}" ;;

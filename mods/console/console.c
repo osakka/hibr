@@ -993,6 +993,14 @@ int m_console(sh *s, int ac, char **av)
 			q[k] = atoi(av[i + 1 + k]);
 		return cn_shot(av[i], fm, q[0], q[1], q[2], q[3]);
 	}
+	/* What is drawn next is a layer over what was drawn before it: a
+	   window, the bar, a menu. A translucent write shows what an earlier
+	   layer drew under it this frame, and never its own layer's cells --
+	   a window's terminal is not translucent over the window's own face. */
+	if (!strcmp(sub, "layer")) {
+		cn_layer();
+		return HIBR_OK;
+	}
 	/* How translucent the writes that follow are, over a picture drawn
 	   under the text: a cell written with no background colour of its own
 	   takes the picture's colour scaled to this percentage, which is what

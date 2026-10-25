@@ -33,12 +33,19 @@ fn dt_wdrop(int id, int r, int c, int w, value, tag) {
 DT_POPID=
 DT_POPCB=
 DT_POPVALS=()
+# Choices shown dimmed, which cannot be chosen: a caller sets
+# DT_POPDIMNEXT just before dt_droplist, which takes it for the list it
+# opens and leaves the next list with none.
+DT_POPDIM=()
+DT_POPDIMNEXT=()
 
 fn dt_droplist(int id, int r, int c, cb, ...rest) {
 	shift 4
 	DT_POPID=$id
 	DT_POPCB=$cb
 	DT_POPVALS=("$@")
+	DT_POPDIM=("${DT_POPDIMNEXT[@]}")
+	DT_POPDIMNEXT=()
 	# r and c come in pane-relative, the same coordinates an app draws and
 	# is clicked in everywhere else, but dt_context_open positions on the
 	# real screen -- add the window's own row and column to convert.
@@ -52,6 +59,9 @@ dt_dropcontext() {
 
 	dt_menu ""
 	for v in "${DT_POPVALS[@]}"; do
-		dt_item "$v" "" "$DT_POPCB" "$DT_POPID" "$v"
+		case " ${DT_POPDIM[*]} " in
+		*" $v "*) dt_dim "$v" ;;
+		*) dt_item "$v" "" "$DT_POPCB" "$DT_POPID" "$v" ;;
+		esac
 	done
 }

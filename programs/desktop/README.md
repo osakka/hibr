@@ -232,13 +232,17 @@ A theme is a JSON file too:
 rest, each optional: `wallpaper` (a glyph from Control Panel > Wallpaper's list), `image`
 and `mode` (a picture, its path relative to the theme's own folder so a
 theme can carry it, and how it is fitted), `frame` (`single`, `double`,
-`rounded`, `none`, or `bar` -- the title bar alone, and the content to the
-window's edge), `titlebar` (`line`, or `solid` -- the top
-row a bar of the frame's colour), `wintrans` and `bartrans` (how much of a
-picture wallpaper shows through a window's face and through the menu bar,
-0 to 100 -- Control Panel > Windows and Appearance > Menu Bar each have a
-Wallpaper Shows Through slider for them, and a terminal's own setting still
-decides inside a terminal when it is above 0), `buttons` (`brackets`, `circles`, `squares`,
+`rounded`, `none` -- the title bar alone, and the content to the window's
+edge -- or `curved`, which is none with the title bar's top corners
+rounded where the glyph set has the cell for it, Blit's; `bar`, what none
+was called until 0.99.324, is still read as none), `titlebar` (`line`, or
+`solid` -- the top row a bar of the frame's colour), `wintrans` and
+`bartrans` (how much of what is beneath shows through a window's face, and
+through the menu bar, its menus, drop-down lists and pop-ups, 0 to 100:
+another window, or the wallpaper's picture where nothing else is --
+Control Panel > Windows and Appearance > Menu Bar each have a See Through
+slider for them, and a terminal's own setting still decides inside a
+terminal when it is above 0), `buttons` (`brackets`, `circles`, `squares`,
 `diamonds`, `dashes`), `tree` (`plus`, `arrows`, `triangles`, `dots` --
 the marks a collapsible tree wears, so a theme that draws its windows one
 way does not leave every tree looking like the one before it) and

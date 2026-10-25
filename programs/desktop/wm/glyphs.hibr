@@ -255,5 +255,10 @@ dt_glyphsblit() {
 	GL["wifi4"]=$'\U00100005'  # Blit wifi-4
 	GL["bt"]=$'\U00100006'     # Blit bluetooth, in its own colours
 	GL["btoff"]=$'\U00100006 \uf00d' # the same, nf-fa-times
+	# Blit bar-corner-left and -right (blit#140): a cell filled but for
+	# its top-left or top-right corner, rounded -- a curved frame's title
+	# bar meeting the window's content square below.
+	GL["capl"]=$'\U00100007'
+	GL["capr"]=$'\U00100008'
 }
 dt_glyphs "$DT_GLYPHSET"

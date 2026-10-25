@@ -169,7 +169,10 @@ int cn_imgcellat(int row, int col, unsigned *out);
    without wanting its colour there -- what decides whether a cell's
    background has to be kept distinguishable from the terminal's own. */
 int cn_imgunderat(int row, int col);
-unsigned cn_bgtrans(int row, int col);
+unsigned cn_bgtrans(int row, int col, unsigned b);
+unsigned cn_tbelow(int row, int col, unsigned now);
+unsigned cn_bgfor(int row, int col, unsigned old);
+void cn_layer(void);
 int cn_translucent(int pct, unsigned fb);
 void cn_transmatch(unsigned bg);
 int cn_transon(unsigned bg);

@@ -389,6 +389,11 @@ dt_draw() {
 	l := dt_wpanes
 	read -ra ls <<< "$l"
 	dt_alone "${ls[@]}"
+	# A see-through menu or pop-up shows what is under it, and what is
+	# under it can be seen only if it was drawn this frame: while one is
+	# open, every window is drawn.
+	[ "${DT_BARTRANS:-0}" != 0 ] &&
+		{ [ "$MB_OPEN" != -1 ] || [ -n "$DT_POP" ]; } && DT_FORCEONCE=1
 	dt_wall
 	for id in "${ls[@]}"; do dt_win "${id#w}"; done
 	DT_FORCEONCE=
@@ -423,8 +428,14 @@ dt_draw() {
 	# Anything new that draws on top belongs between these two counts.
 	n0 := console drawn
 	[ -n "$DT_DND" ] && dt_dnddraw
+	# Menus, drop-down lists and the bar's pop-ups are as see-through as
+	# the menu bar: their face shows what is under it.
+	[ "${DT_BARTRANS:-0}" != 0 ] &&
+		console translucent "$DT_BARTRANS" "$DT_FACE" "$DT_FACE"
 	dt_drop
+	console layer
 	dt_popdraw
+	[ "${DT_BARTRANS:-0}" != 0 ] && console translucent off
 	dt_note_draw
 	dt_identify_draw
 	dt_blankdraw

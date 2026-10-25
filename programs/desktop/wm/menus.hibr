@@ -930,6 +930,8 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	local i=0 r x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
 	local ac aw ptop pbot dl=0 dr=$DT_COLS at= room lw
 
+	# Each menu a layer: a submenu over its parent shows the parent.
+	console layer
 	# A bar menu drops from the row under the bar, which is the
 	# primary's own first content row rather than a literal 1 once the
 	# primary is a stacked pane (Gitea #240). A context menu overrides

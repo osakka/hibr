@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.28",
+ "version": "3.29",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1133,7 +1133,8 @@
   "WHERE": "أين",
   "Wait for the transfers running to finish first": "انتظر انتهاء عمليات النقل الجارية أولًا",
   "Wallpaper": "الخلفية",
-  "Wallpaper Shows Through": "ظهور الخلفية خلف النافذة",
+  "See Through": "الشفافية",
+  "See Through, Menus Too": "الشفافية، والقوائم أيضًا",
   "Wallpaper set": "عُيّنت الخلفية",
   "Wed": "أربعاء",
   "Wednesday": "الأربعاء",

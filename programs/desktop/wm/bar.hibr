@@ -478,8 +478,9 @@ dt_bar() {
 	fi
 	DT_BARWAS=$key
 
-	# The bar's own colour shows the wallpaper through; an open title or
-	# the one under the pointer, drawn in another, stays itself.
+	# The bar's own colour shows what is under it through; an open title
+	# or the one under the pointer, drawn in another, stays itself.
+	console layer
 	[ "${DT_BARTRANS:-0}" != 0 ] &&
 		console translucent "$DT_BARTRANS" "$DT_BAR" "$DT_BAR"
 	console pen "$DT_INK" "$DT_BAR"

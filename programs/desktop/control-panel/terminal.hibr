@@ -9,7 +9,7 @@
 strict
 
 
-app terminal "The Control Panel pane for how a terminal window behaves" 1.1
+app terminal "The Control Panel pane for how a terminal window behaves" 1.2
 command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "▸" app
 
 CP_CURSORS=(block underline bar)
@@ -106,7 +106,7 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
 	CP[$w][$n]["val"]="$DT_TERMCOLOURS"
 	CP[$w][$n]["key"]=termcolours; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Shows Through"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="See Through"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]="${DT_TERMTRANS:-0}"
 	CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100

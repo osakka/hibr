@@ -52,6 +52,12 @@ static unsigned cn_transfb;
    through where it is plain, and stays itself under a selection or a
    field. DP_DEFAULT is none, which is what the terminal's own cells need. */
 static unsigned cn_transmat = DP_DEFAULT;
+/* What is beneath each cell for a translucent write: see cn_tbelow. */
+typedef struct { unsigned fr, ly, un; } cn_tcell;
+static cn_tcell *cn_tl;
+static int cn_tlr, cn_tlc;
+static unsigned cn_tfr = 1, cn_tly = 1, cn_tlseq = 1;
+#define CN_TNONE 0xFFFFFFFFu
 int cn_crow, cn_ccol, cn_cvis;
 unsigned cn_lfg, cn_lbg, cn_lat;
 int cn_lset, cn_lvis = -1, cn_lcr = -1, cn_lcc = -1;
@@ -375,6 +381,9 @@ void cn_clear(void)
 	cn_wrote++;
 	n = cn_back.rows * cn_back.cols;
 	for (i = 0; i < n; i++) {
+		if (cn_tl)
+			cn_tbelow(i / cn_back.cols, i % cn_back.cols,
+				  cn_back.c[i].bg);
 		cn_cellset(&cn_back.c[i], ' ', 0, 0);
 		cn_back.c[i].w = 1;
 		cn_back.c[i].cont = 0;
@@ -414,18 +423,86 @@ unsigned cn_dim1(unsigned v, int pct, unsigned deflt)
 	return DP_RGB | (r << 16) | (g << 8) | b;
 }
 
-/* The background a translucent write lands on: the picture's own colour at
-   that cell, scaled. With no picture under it there is nothing to be
-   translucent over, and the cell keeps the default it was written with --
-   so the same app draws correctly over a glyph wallpaper, on a terminal
-   that cannot place pixels, and in half blocks, with no branch of its own. */
-unsigned cn_bgtrans(int row, int col)
+/* What is beneath each cell, so a translucent write shows whatever was
+   drawn under it -- another window, the bar, a picture -- and not only the
+   wallpaper's picture: for every cell, the frame and the layer it was last
+   written in and what was beneath that layer then. A layer is one window,
+   the bar or one menu, begun by `console layer`, so a window's own face is
+   never what its own terminal is translucent over. Kept from the first
+   translucent write on, against its own size, since a resize lands
+   between two statements. */
+/* Begin a layer: what is drawn next is over what was drawn before it. */
+void cn_layer(void)
+{
+	cn_tly = ++cn_tlseq;
+}
+
+/* What a write to this cell lands on, noted for the next one: what the
+   same layer found there if it wrote first this frame, what an earlier
+   layer drew this frame, or nothing drawn this frame -- CN_TNONE, under
+   which only the picture is. */
+unsigned cn_tbelow(int row, int col, unsigned now)
+{
+	cn_tcell *t;
+	unsigned b;
+
+	/* The wallpaper paints behind the panes, and what it paints is not
+	   anything to see through to: a glyph wallpaper has no picture, and
+	   it never paints under a window at all -- so a menu over it must not
+	   find it there either, or a window and a menu would show different
+	   things over the same wallpaper. */
+	if (!cn_tl || cn_behindon)
+		return CN_TNONE;
+	if (cn_tlr != cn_back.rows || cn_tlc != cn_back.cols) {
+		free(cn_tl);
+		cn_tlr = cn_back.rows;
+		cn_tlc = cn_back.cols;
+		cn_tl = xm(sizeof *cn_tl * (size_t)cn_tlr * (size_t)cn_tlc);
+		memset(cn_tl, 0, sizeof *cn_tl * (size_t)cn_tlr * (size_t)cn_tlc);
+	}
+	if (row < 0 || row >= cn_tlr || col < 0 || col >= cn_tlc)
+		return CN_TNONE;
+	t = &cn_tl[row * cn_tlc + col];
+	if (t->fr == cn_tfr && t->ly == cn_tly)
+		b = t->un;
+	else if (t->fr == cn_tfr)
+		b = now;
+	else
+		b = CN_TNONE;
+	t->fr = cn_tfr;
+	t->ly = cn_tly;
+	t->un = b;
+	return b;
+}
+
+/* The background a translucent write takes, given what is beneath it:
+   that colour, scaled, where a layer below drew one this frame; the
+   picture's own colour at the cell, scaled, where nothing did or only the
+   wallpaper's blank cells are there; and the fallback where there is no
+   picture to be translucent over, or a pane's cell is the terminal's own
+   default -- so the same app draws correctly over a glyph wallpaper, on a
+   terminal that cannot place pixels, and in half blocks, with no branch
+   of its own. A palette colour is a program's own and is left as it is. */
+unsigned cn_bgtrans(int row, int col, unsigned b)
 {
 	unsigned pic;
 
+	if (b != CN_TNONE && b != DP_DEFAULT)
+		return cn_dim1(b, cn_transpct, 0);
+	if (b == DP_DEFAULT && cn_inpane(row, col))
+		return cn_transfb;
 	if (!cn_imgcellat(row, col, &pic))
 		return cn_transfb;
 	return cn_dim1(pic, cn_transpct, 0);
+}
+
+/* The background a write gives a cell that had `old`, noting what it lands
+   on whether or not the write is translucent. */
+unsigned cn_bgfor(int row, int col, unsigned old)
+{
+	unsigned b = cn_tbelow(row, col, old);
+
+	return cn_transon(cn_bg) ? cn_bgtrans(row, col, b) : cn_bg;
 }
 
 /* The background a cell is written with, which is its own except in the
@@ -464,6 +541,10 @@ int cn_translucent(int pct, unsigned fb)
 {
 	int was = cn_transpct;
 
+	if (pct > 0 && !cn_tl) {
+		cn_tl = xm(sizeof *cn_tl);
+		cn_tlr = cn_tlc = 0;
+	}
 	if (pct >= 0) {
 		cn_transpct = pct > 100 ? 100 : pct;
 		cn_transfb = fb;
@@ -687,12 +768,11 @@ int cn_put(int row, int col, const char *t)
 		c->w = (unsigned char)w;
 		c->cont = 0;
 		c->fg = cn_fg;
-		c->bg = cn_opaque(row, col,
-				  cn_transon(cn_bg) ?
-					  cn_bgtrans(row, col) : cn_bg);
+		c->bg = cn_opaque(row, col, cn_bgfor(row, col, c->bg));
 		c->attr = cn_penat;
 		c->link = cn_plink;
 		if (w == 2) {
+			cn_tbelow(row, col + 1, (c + 1)->bg);
 			cn_cellset(c + 1, 0, 0, 0);
 			(c + 1)->w = 0;
 			(c + 1)->cont = 1;
@@ -747,10 +827,7 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 				p->w = 1;
 				p->cont = 0;
 				p->fg = cn_fg;
-				p->bg = cn_opaque(r, c,
-						  cn_transon(cn_bg) ?
-							  cn_bgtrans(r, c) :
-							  cn_bg);
+				p->bg = cn_opaque(r, c, cn_bgfor(r, c, p->bg));
 				p->attr = cn_penat | CN_FILLED;
 				p->link = cn_plink;
 			}
@@ -1184,6 +1261,7 @@ long cn_flush(void)
 	   impossible rather than merely unlikely, which is the difference
 	   between a rule and a list nobody maintains. */
 	cn_translucent(0, DP_DEFAULT);
+	cn_tfr++;
 	/* A picture whose cells have been drawn through since it was placed is
 	   gone: dropping it here, before the diff, is what makes those cells
 	   paint again. */

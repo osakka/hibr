@@ -925,6 +925,8 @@ Scrollbar
 Search With
 Search address; what is searched for goes at the end:
 Search…
+See Through
+See Through, Menus Too
 Select All
 Send
 Send End Of File
@@ -1151,7 +1153,6 @@ Volume on Menu Bar
 WHERE
 Wait for the transfers running to finish first
 Wallpaper
-Wallpaper Shows Through
 Wallpaper set
 Wed
 Wednesday
