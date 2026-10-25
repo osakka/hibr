@@ -2071,6 +2071,15 @@ sc = cprun(reach("mouse", "Drag Modifier") + [b"\x1b[C"])
 check("and cycles to the other modifiers",
       "ctrl" in sc.row(sc.find("Drag Modifier")[0]), sc)
 
+sc = cprun(reach("mouse", "Tooltip Delay"))
+check("Tooltip Delay defaults to 600 ms",
+      sc.find("Tooltip Delay") is not None and
+      "600 ms" in sc.row(sc.find("Tooltip Delay")[0]), sc)
+sc = cprun(reach("mouse", "Tooltip Delay") + [b"\x1b[C"])
+check("and steps to a second",
+      sc.find("Tooltip Delay") is not None and
+      "1 second" in sc.row(sc.find("Tooltip Delay")[0]), sc)
+
 sc = cprun([press(prow(ORDER[0]), LISTCOL), press(prow(ORDER[0]), LISTCOL)])
 check("clicking the same pane twice in the picker is harmless",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
@@ -5381,4 +5390,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(717)
+report(720)

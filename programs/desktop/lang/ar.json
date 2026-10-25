@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.35",
+ "version": "3.36",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -955,6 +955,7 @@
   "The pdf module is not installed": "وحدة pdf غير مثبتة",
   "This links to %s": "هذا رابط إلى %s",
   "This page could not be drawn": "تعذر رسم هذه الصفحة",
+  "Tooltip Delay": "مهلة تلميحات الأدوات",
   "Tooltips": "تلميحات الأدوات",
   "Wheel Scrolls": "التمرير بالعجلة",
   "Zoom In": "تكبير",

@@ -7405,6 +7405,9 @@ check("but not before the pointer has rested", "Go somewhere" not in sc.text(),
       sc)
 sc = tipscreen(TIP, [1.0, hov(8, 14), 1.0], {"DT_TIPS": "0"})
 check("and with Tooltips off, never", "Go somewhere" not in sc.text(), sc)
+sc = tipscreen(TIP, [1.0, hov(8, 14), 1.0], {"DT_TIPMS": "2500"})
+check("and a longer Tooltip Delay holds it back past a second",
+      "Go somewhere" not in sc.text(), sc)
 
 # A window on another display, after the desktop is stopped and started
 # again (the owner's report: placed right, and its title bar on the primary,
@@ -7665,4 +7668,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(831)
+report(832)

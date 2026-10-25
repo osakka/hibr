@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.99.343
+
+**Tooltip Delay is a setting.** Control Panel > Mouse has a Tooltip Delay
+row under Tooltips: how long the pointer rests on a glyph before its tooltip
+shows, from 300 ms to 2.5 seconds, 600 ms by default. It was fixed at 600 ms
+with no row and was not saved with the other settings (Gitea #370). Mouse
+pane 1.6.
+
 ## 0.99.342
 
 **Hovering a button shows, and lights the button rather than a block**

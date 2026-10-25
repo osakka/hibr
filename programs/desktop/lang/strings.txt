@@ -1125,6 +1125,7 @@ Title Bar
 Titlebar Click
 Today
 Today  Month  Agenda
+Tooltip Delay
 Tooltips
 Top
 Tour
