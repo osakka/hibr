@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.99.339
+
+**The Image Viewer zooms and pans** (Gitea #370).
+
+- **The wheel** zooms in and out around the pointer. Where the terminal
+  reports the pointer in pixels, the picture's pixel under the pointer stays
+  under it.
+- **A drag** pans the picture.
+- **Keys:** + and - step the zoom, 0 fits the whole picture, 1 shows it at
+  actual size, and the arrows pan. The same four are on the Image menu.
+
+A picture is now drawn at its own shape, fitted to the window and centred;
+it used to be stretched to the window's shape. Image Viewer is 1.2.
+
+**`img draw -c x y w h`** draws only that rectangle of a picture, in the
+picture's own pixels.
+- **Caching:** both of img's caches know a cropped draw by its path and its
+  rectangle.
+- **Panning:** the decoded picture is kept while crops of it are drawn, so
+  a pan does not decode the file again on every step (268 ms for a
+  3840x2160 photograph).
+- **Memory:** that costs three bytes a pixel of the picture, 24 MB for that
+  photograph, and only while something is zoomed in. It is let go the next
+  time the same file is drawn whole, or another file is cropped.
+
 ## 0.99.338
 
 **Tooltips** (Gitea #370). When the pointer rests on a glyph that has no

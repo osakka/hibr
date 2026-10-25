@@ -105,6 +105,7 @@ About This Computer…
 Account
 Account %s saved
 Accounts
+Actual Size
 Adapter
 Add 10 Rows
 Add 5 Columns
@@ -448,6 +449,7 @@ Find Next
 Find:
 Find…
 First Page
+Fit
 Fit Page
 Fit Width
 Fixed Size

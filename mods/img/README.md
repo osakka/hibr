@@ -102,7 +102,7 @@ all -- terminal size comes from `TIOCGWINSZ` directly when neither `-w` nor
 `-h` is given and stdout is a terminal, `80x24` otherwise. This is the
 testable path: deterministic ANSI bytes, no pty required.
 
-`img draw file row col h w [-g] [-p pane]` requires `"display"`
+`img draw file row col h w [-g] [-p pane] [-c x y w h]` requires `"display"`
 (`hibr_require`) only inside this one subcommand, so printing an image in a
 plain pipe never loads the console module. There is no bulk cell-write
 primitive in `dp_api` -- drawing means one `pen`+`put` pair per cell, the
@@ -123,6 +123,18 @@ entries, evicted round-robin, rather than one: once a pane preview and
 `dt_wall()` can both call `img draw` with different files in the same
 frame, a single slot would thrash between them, paying for a full decode
 and resample of each on every frame instead of caching either.
+
+With `-c x y w h` only that rectangle of the picture is drawn, in the
+picture's own pixels and clamped to it -- what the Image Viewer's zoom and
+pan draw (Gitea #370). Both caches know a cropped draw by its path and its
+rectangle, so a zoomed view and the whole picture are two entries and
+neither is mistaken for the other. A viewer panning asks for a new
+rectangle on every step, so the decoded picture a crop was taken from is
+kept (`im_src`) and cropped again rather than decoded again: 268 ms for a
+3840x2160 photograph otherwise. It costs three bytes a pixel of the source,
+24 MB for that photograph, and only while something is zoomed in -- it is
+let go the next time the same file is drawn whole, or another file is
+cropped.
 
 ## Testing
 

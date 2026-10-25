@@ -2318,7 +2318,7 @@ IVW = "13 46 2 2"
 BUILT_MODS = tree("build/mods")
 
 
-def run_img(path, moddir, pre=""):
+def run_img(path, moddir, pre="", feed=()):
     """Like run(), but opens imgview already showing path -- dt_new's own
     7th argument, which run() has no way to pass through."""
     p = os.path.join(S, "session.hibr")
@@ -2329,6 +2329,12 @@ def run_img(path, moddir, pre=""):
                                 "/imgview.hibr", pre, IVW, path)
     )
     t = Term(p, env={"DT_TICK": "60", "HIBR_MODPATH": moddir}, settle=0.8)
+    if feed:
+        t.keys(list(feed))
+        t.collect(0.4)
+        sc = t.screen()
+        t.quit(b"qy", 1.0)
+        return sc
     t.quit(b"qy", 1.0)
     return t.screen()
 
@@ -2351,6 +2357,34 @@ sc = run_img(os.path.abspath("tests/img-quad.jpg"), BUILT_MODS)
 cols = {sc.style(r, c)["bg"] for r in range(3, 12) for c in range(4, 40, 3)} - {None}
 check("and a JPEG the same, in its own colours",
       sc.find("Cannot show") is None and len(cols) >= 4, (cols, sc.dump()))
+# Zoom and pan (Gitea #370). The 32 by 32 picture is drawn at its own shape:
+# in half blocks the window's 11 by 44 cells are 44 by 22 of the screen's
+# pixels, so it fits as 22 cells wide and 11 rows, centred at columns 14 to
+# 35. The wheel zooms around the pointer: eight notches over the top left
+# quadrant fill the view with that quadrant, and 0 fits it again.
+QUAD = os.path.abspath("tests/img-quad.jpg")
+sc0 = run_img(QUAD, BUILT_MODS, feed=[1.0])
+tl = sc0.style(4, 16).get("bg")
+check("a picture is drawn at its own shape, centred, not stretched to the window",
+      sc0.style(8, 8).get("bg") == sc0.style(8, 44).get("bg") and
+      sc0.style(8, 8).get("bg") != tl and sc0.style(8, 20).get("bg") is not None, sc0)
+WUP = b"\x1b[<64;17;5M"
+sc = run_img(QUAD, BUILT_MODS, feed=[1.0] + [WUP, 0.15] * 8 + [0.5])
+zc = {sc.style(r, c).get("bg") for r in range(4, 13) for c in range(6, 44, 2)}
+# A JPEG's quadrant is near one colour, not exactly one: every cell within
+# 80 of it in each channel is that quadrant and none of the other three.
+
+
+def near(a, b):
+    return a and b and all(abs(int(a[i:i + 2], 16) - int(b[i:i + 2], 16)) < 80
+                           for i in (1, 3, 5))
+
+
+check("the wheel zooms in around the pointer, here into the top left quadrant",
+      tl is not None and zc and all(near(c, tl) for c in zc), (tl, zc))
+sc = run_img(QUAD, BUILT_MODS, feed=[1.0] + [WUP, 0.15] * 8 + [b"0", 0.5])
+fc = {sc.style(r, c).get("bg") for r in range(3, 13) for c in range(14, 36)}
+check("and 0 fits the whole picture again", len(fc) >= 4, fc)
 
 # HIBR_MODPATH alone cannot force "the module is missing": hibr_require
 # falls back to the compiled-in HIBR_MODDIR (the real install) after an
@@ -5337,4 +5371,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(712)
+report(715)

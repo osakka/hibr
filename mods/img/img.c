@@ -371,7 +371,8 @@ static struct {
 } im_cache[IM_CACHEN];
 static unsigned im_cacheu;
 
-static int im_cached(const char *path, int rows, int cols, cell **out)
+static int im_cached(const char *key, const char *path, int rows, int cols,
+		     cell **out)
 {
 	struct stat st;
 	int i;
@@ -379,7 +380,7 @@ static int im_cached(const char *path, int rows, int cols, cell **out)
 	if (stat(path, &st) != 0)
 		return 0;
 	for (i = 0; i < IM_CACHEN; i++) {
-		if (!im_cache[i].path || strcmp(im_cache[i].path, path) ||
+		if (!im_cache[i].path || strcmp(im_cache[i].path, key) ||
 		    im_cache[i].rows != rows || im_cache[i].cols != cols)
 			continue;
 		if (im_cache[i].mtime != st.st_mtime)
@@ -405,14 +406,15 @@ static int im_cacheold(void)
 	return old;
 }
 
-static void im_cache_store(const char *path, int rows, int cols, cell *grid)
+static void im_cache_store(const char *key, const char *path, int rows,
+			   int cols, cell *grid)
 {
 	struct stat st;
 	int i = im_cacheold();
 
 	free(im_cache[i].path);
 	free(im_cache[i].grid);
-	im_cache[i].path = strdup(path);
+	im_cache[i].path = strdup(key);
 	im_cache[i].rows = rows;
 	im_cache[i].cols = cols;
 	im_cache[i].grid = grid;
@@ -544,8 +546,11 @@ static void im_placed(const char *path, int iw, int ih, int row, int col,
 	u->cols = cols;
 }
 
-/* The scaled pixels for this picture at this size, or nothing. */
-static unsigned char *im_pixget(const char *path, int w, int h)
+/* The scaled pixels for this picture at this size, or nothing. key is what
+   the slot is known by -- the path, or the path and the rectangle cropped
+   from it -- and path the file whose time says whether it is still good. */
+static unsigned char *im_pixget(const char *key, const char *path, int w,
+				int h)
 {
 	struct stat st;
 	size_t i;
@@ -562,7 +567,7 @@ static unsigned char *im_pixget(const char *path, int w, int h)
 		}
 	for (i = 0; i < im_pixn; i++) {
 		if (!im_pix[i].px || !im_pix[i].path ||
-		    strcmp(im_pix[i].path, path) ||
+		    strcmp(im_pix[i].path, key) ||
 		    im_pix[i].w != w || im_pix[i].h != h)
 			continue;
 		if (stat(path, &st) != 0 || im_pix[i].mtime != st.st_mtime)
@@ -575,7 +580,8 @@ static unsigned char *im_pixget(const char *path, int w, int h)
 
 /* Keep these scaled pixels, freeing whatever was kept before; the buffer
    belongs to the cache from here on, so no caller frees it. */
-static void im_pixput(const char *path, int w, int h, unsigned char *px)
+static void im_pixput(const char *key, const char *path, int w, int h,
+		      unsigned char *px)
 {
 	struct stat st;
 	struct im_pixslot *ns;
@@ -586,7 +592,7 @@ static void im_pixput(const char *path, int w, int h, unsigned char *px)
 	   single entry used to do and is the thrash this release is for. */
 	for (i = 0; i < im_pixn; i++) {
 		if (im_pix[i].px && im_pix[i].path &&
-		    !strcmp(im_pix[i].path, path) &&
+		    !strcmp(im_pix[i].path, key) &&
 		    im_pix[i].w == w && im_pix[i].h == h) {
 			slot = i;
 			break;
@@ -604,12 +610,80 @@ static void im_pixput(const char *path, int w, int h, unsigned char *px)
 	}
 	free(im_pix[slot].path);
 	free(im_pix[slot].px);
-	im_pix[slot].path = strdup(path);
+	im_pix[slot].path = strdup(key);
 	im_pix[slot].w = w;
 	im_pix[slot].h = h;
 	im_pix[slot].px = px;
 	im_pix[slot].idle = 0;
 	im_pix[slot].mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
+}
+
+/* The whole decoded picture a crop was last taken from (Gitea #370). A
+   viewer zoomed in redraws a different rectangle on every pan, and each one
+   would otherwise decode the file again -- 268 ms for a 3840x2160
+   photograph. So the decoded picture is kept while crops of it are being
+   drawn, and let go the moment the same file is drawn whole again (a viewer
+   going back to fit) or another file is cropped: what it costs, three bytes
+   a pixel of the source, is spent only while something is zoomed in. */
+static char *im_srcpath;
+static time_t im_srcmt;
+static image im_src;
+
+static void im_srcdrop(void)
+{
+	free(im_srcpath);
+	im_srcpath = 0;
+	im_free(&im_src);
+	memset(&im_src, 0, sizeof im_src);
+}
+
+/* The rectangle x,y w by h of the file at path, clamped to the picture, into
+   out: from the kept decode when it is still the file's, else decoded and
+   kept. */
+static int im_cropload(const char *path, int x, int y, int w, int h,
+		       image *out, str *err)
+{
+	struct stat st;
+	int r;
+
+	if (stat(path, &st) != 0)
+		st.st_mtime = 0;
+	if (!im_srcpath || strcmp(im_srcpath, path) || im_srcmt != st.st_mtime) {
+		im_srcdrop();
+		if (im_load(path, &im_src, err) != HIBR_OK)
+			return HIBR_FAIL;
+		im_srcpath = xs(path);
+		im_srcmt = st.st_mtime;
+	}
+	if (x < 0)
+		x = 0;
+	if (y < 0)
+		y = 0;
+	if (x >= im_src.w)
+		x = im_src.w - 1;
+	if (y >= im_src.h)
+		y = im_src.h - 1;
+	if (w < 1 || x + w > im_src.w)
+		w = im_src.w - x;
+	if (h < 1 || y + h > im_src.h)
+		h = im_src.h - y;
+	out->w = w;
+	out->h = h;
+	out->px = xm((size_t)w * h * 3);
+	for (r = 0; r < h; r++)
+		memcpy(out->px + (size_t)r * w * 3,
+		       im_src.px + ((size_t)(y + r) * im_src.w + x) * 3,
+		       (size_t)w * 3);
+	return HIBR_OK;
+}
+
+/* The picture to draw: the whole file, or the rectangle -c named. */
+static int im_get(const char *path, const int *crop, image *out, str *err)
+{
+	if (crop)
+		return im_cropload(path, crop[0], crop[1], crop[2], crop[3],
+				   out, err);
+	return im_load(path, out, err);
 }
 
 /* img draw file row col h w [-g] [-p pane] -- blit directly into the open
@@ -621,20 +695,25 @@ static void im_pixput(const char *path, int w, int h, unsigned char *px)
    silently clipped rather than drawn -- the same discipline console put
    -p already gives text, so a window's own preview can use this without
    knowing where the window itself sits or surviving it moving. */
+static int im_draw2(sh *s, const dp_api *dp, const char *path, const char *key,
+		    const int *crop, int row, int col, int rows, int cols,
+		    int gray, int mode, int under, const char *pane, int prow,
+		    int pcol, int ph, int pw);
+
 static int im_draw(sh *s, int ac, char **av)
 {
 	const dp_api *dp;
 	const char *path, *pane = 0;
 	int row, col, rows, cols, gray = 0, mode = IM_AUTO, under = 0;
 	int prow = 0, pcol = 0, ph = 0, pw = 0;
-	image im;
-	str err;
-	cell *grid;
-	int r, c, i;
+	int cropv[4], *crop = 0;
+	str keys;
+	const char *key;
+	int i, ret;
 
 	if (ac < 7) {
 		lg(HIBR_LERR, "usage: img draw file row col h w [-g] [-m mode] "
-			      "[-p pane] [-u]");
+			      "[-p pane] [-u] [-c x y w h]");
 		return 2;
 	}
 	path = av[2];
@@ -651,6 +730,13 @@ static int im_draw(sh *s, int ac, char **av)
 			pane = av[++i];
 		else if (!strcmp(av[i], "-u"))
 			under = 1;
+		else if (!strcmp(av[i], "-c") && i + 4 < ac) {
+			cropv[0] = atoi(av[++i]);
+			cropv[1] = atoi(av[++i]);
+			cropv[2] = atoi(av[++i]);
+			cropv[3] = atoi(av[++i]);
+			crop = cropv;
+		}
 	}
 	if (gray)
 		mode = IM_ASCII;
@@ -663,6 +749,37 @@ static int im_draw(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "img draw: no display is open");
 		return HIBR_FAIL;
 	}
+	/* What the caches know this picture by: its path, or with -c its
+	   path and the rectangle, so a zoomed view and the whole picture are
+	   two entries and neither is mistaken for the other. Drawing a file
+	   whole lets go of a decode kept for cropping it. */
+	s_init(&keys);
+	if (crop)
+		s_fmt(&keys, "%s\x1f%d,%d,%d,%d", path, crop[0], crop[1],
+		      crop[2], crop[3]);
+	else {
+		s_cat(&keys, path);
+		if (im_srcpath && !strcmp(im_srcpath, path))
+			im_srcdrop();
+	}
+	key = keys.p;
+	ret = im_draw2(s, dp, path, key, crop, row, col, rows, cols, gray, mode,
+		       under, pane, prow, pcol, ph, pw);
+	s_free(&keys);
+	return ret;
+}
+
+/* The rest of img draw, once the picture has a key. */
+static int im_draw2(sh *s, const dp_api *dp, const char *path, const char *key,
+		    const int *crop, int row, int col, int rows, int cols,
+		    int gray, int mode, int under, const char *pane, int prow,
+		    int pcol, int ph, int pw)
+{
+	image im;
+	str err;
+	cell *grid;
+	int r, c;
+
 	/* row/col become pane-relative once -p names one: this is the
 	   only place that ever has to know that, since every dp->put
 	   below still takes a plain absolute position either way. */
@@ -694,7 +811,7 @@ static int im_draw(sh *s, int ac, char **av)
 				   pixel -- and without the scaled copy, which
 				   another picture may have taken the one cache
 				   slot for. */
-				if (under && !pane && dp->imgkeep &&
+				if (under && !pane && !crop && dp->imgkeep &&
 				    im_same(path, iw, ih, row, col, rows, cols) &&
 				    dp->imgkeep(s, row, col, rows, cols)) {
 					lg(HIBR_LDBG, "img draw: kept the "
@@ -702,10 +819,10 @@ static int im_draw(sh *s, int ac, char **av)
 					   row, col);
 					return HIBR_OK;
 				}
-				px = im_pixget(path, iw, ih);
+				px = im_pixget(key, path, iw, ih);
 				if (!px) {
 					s_init(&err);
-					if (im_load(path, &im, &err) != HIBR_OK) {
+					if (im_get(path, crop, &im, &err) != HIBR_OK) {
 						if (mode == IM_SIXEL) {
 							im_fail(&err);
 							s_free(&err);
@@ -718,7 +835,7 @@ static int im_draw(sh *s, int ac, char **av)
 					px = xm((size_t)iw * ih * 3);
 					im_scale(&im, px, iw, ih);
 					im_free(&im);
-					im_pixput(path, iw, ih, px);
+					im_pixput(key, path, iw, ih, px);
 					lg(HIBR_LDBG, "img draw: scaled %s to %dx%d pixels",
 					   path, iw, ih);
 				}
@@ -727,7 +844,7 @@ static int im_draw(sh *s, int ac, char **av)
 						 DP_IMG_CHOSEN |
 						 (under ? DP_IMG_UNDER : 0));
 				if (done) {
-					if (under && !pane)
+					if (under && !pane && !crop)
 						im_placed(path, iw, ih, row,
 							  col, rows, cols);
 					return HIBR_OK;
@@ -744,7 +861,7 @@ cells:
 		mode = IM_HALF;
 	if (mode == IM_ASCII)
 		gray = 1;
-	if (!im_cached(path, rows, cols, &grid)) {
+	if (!im_cached(key, path, rows, cols, &grid)) {
 		/* Said outright, because a picture redrawn every frame that
 		   misses is the difference between a tenth of a millisecond
 		   and a full decode -- 268 ms for a 3840x2160 photograph --
@@ -755,7 +872,7 @@ cells:
 		lg(HIBR_LDBG, "img draw: %s at %dx%d is not cached, decoding",
 		   path, rows, cols);
 		s_init(&err);
-		if (im_load(path, &im, &err) != HIBR_OK) {
+		if (im_get(path, crop, &im, &err) != HIBR_OK) {
 			im_fail(&err);
 			s_free(&err);
 			return HIBR_FAIL;
@@ -764,7 +881,7 @@ cells:
 		grid = xm((size_t)rows * (size_t)cols * sizeof(cell));
 		im_resample(&im, grid, rows, cols);
 		im_free(&im);
-		im_cache_store(path, rows, cols, grid);
+		im_cache_store(key, path, rows, cols, grid);
 	}
 	for (r = 0; r < rows; r++) {
 		int ar = row + r;
@@ -994,6 +1111,7 @@ void im_fini(sh *s)
 	size_t i;
 
 	(void)s;
+	im_srcdrop();
 	for (i = 0; i < IM_CACHEN; i++) {
 		free(im_cache[i].path);
 		free(im_cache[i].grid);

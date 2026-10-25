@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.33",
+ "version": "3.34",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -122,6 +122,7 @@
   "Account": "الحساب",
   "Account %s saved": "حُفظ الحساب %s",
   "Accounts": "الحسابات",
+  "Actual Size": "الحجم الفعلي",
   "Adapter": "المحوّل",
   "Add 10 Rows": "إضافة 10 صفوف",
   "Add 5 Columns": "إضافة 5 أعمدة",
@@ -446,6 +447,7 @@
   "Find Next": "بحث عن التالي",
   "Find:": "بحث:",
   "Find…": "بحث…",
+  "Fit": "ملاءمة",
   "Fixed Size": "الحجم الثابت",
   "Flowchart": "مخطط انسيابي",
   "Focus Follows Mouse": "التركيز يتبع الفأرة",

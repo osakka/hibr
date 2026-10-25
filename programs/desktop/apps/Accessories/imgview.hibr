@@ -8,7 +8,7 @@
 
 strict
 
-app imgview "A picture in a window" 1.1
+app imgview "A picture in a window" 1.2
 # modules: img term
 
 command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"
@@ -104,9 +104,221 @@ fn imgview_draw(int id, int h, int w, int row, int col) {
 		return 0
 	fi
 	dt_imgm
-	img draw "$path" 1 1 "$h" "$w" "${DT_IMGARG[@]}" -p "w$id" && return 0
+	iv_drawpic "$id" "$h" "$w" && return 0
 	console pen "$DT_BAD" "$DT_FACE"
 	console put -p "w$id" $((h / 2)) 2 "Cannot show ${path##*/}"
+}
+
+# --- zoom and pan (Gitea #370) ---------------------------------------------
+#
+# The picture is drawn at its own shape, fitted to the window, and from there
+# zoomed and panned: IV[id]["z"] is the zoom in thousandths of the fit (1000
+# fits it), and ["x"]/["y"] the picture's own pixel at the view's top left.
+# Everything is worked out in the screen's pixels -- the terminal's cell size
+# where it draws pixels, a cell as 1 by 2 where it draws half blocks -- so a
+# zoom around the pointer keeps the picture's pixel under it where it was.
+
+# What a cell measures, as the picture is drawn in it: "cw ch".
+fn iv_cell() {
+	local g
+	local -a p
+
+	if dt_imgpix; then
+		g := dt_imggfx
+		read -ra p <<< "$g"
+		[ "${p[1]:-0}" -gt 1 ] && [ "${p[2]:-0}" -gt 1 ] && ret "${p[1]} ${p[2]}"
+	fi
+	ret "1 2"
+}
+
+# The picture's own size, asked once per file.
+fn iv_size(int id) {
+	local z
+
+	[ "${IV[$id]["szof"]-}" = "${IV[$id]["path"]}" ] && return 0
+	z := img size "${IV[$id]["path"]}" 2> /dev/null || return 1
+	IV[$id]["iw"]=${z% *}
+	IV[$id]["ih"]=${z#* }
+	IV[$id]["szof"]=${IV[$id]["path"]}
+	[ "${IV[$id]["iw"]:-0}" -gt 0 ] && [ "${IV[$id]["ih"]:-0}" -gt 0 ]
+}
+
+# Lay the view out for a window of h by w cells, into IV[id]: the scale in
+# thousandths of a screen pixel per picture pixel (["s"]), the part of the
+# picture shown (["x"] ["y"] ["vw"] ["vh"]), and the cells it is drawn in
+# (["r0"] ["c0"] ["dr"] ["dc"]), centred where the picture is smaller.
+fn iv_layout(int id, int h, int w) {
+	local cell cw ch iw ih vwp vhp s0 s z x y vw vh dc dr
+
+	iv_size "$id" || return 1
+	cell := iv_cell
+	read -r cw ch <<< "$cell"
+	iw=${IV[$id]["iw"]}
+	ih=${IV[$id]["ih"]}
+	vwp=$((w * cw))
+	vhp=$((h * ch))
+	s0=$((vwp * 1000 / iw))
+	[ $((vhp * 1000 / ih)) -lt "$s0" ] && s0=$((vhp * 1000 / ih))
+	[ "$s0" -lt 1 ] && s0=1
+	z=${IV[$id]["z"]:-1000}
+	s=$((s0 * z / 1000))
+	[ "$s" -lt 1 ] && s=1
+	vw=$((vwp * 1000 / s))
+	vh=$((vhp * 1000 / s))
+	[ "$vw" -gt "$iw" ] && vw=$iw
+	[ "$vh" -gt "$ih" ] && vh=$ih
+	[ "$vw" -lt 1 ] && vw=1
+	[ "$vh" -lt 1 ] && vh=1
+	x=${IV[$id]["x"]:-0}
+	y=${IV[$id]["y"]:-0}
+	[ "$x" -gt $((iw - vw)) ] && x=$((iw - vw))
+	[ "$y" -gt $((ih - vh)) ] && y=$((ih - vh))
+	[ "$x" -lt 0 ] && x=0
+	[ "$y" -lt 0 ] && y=0
+	dc=$(((vw * s / 1000 + cw / 2) / cw))
+	dr=$(((vh * s / 1000 + ch / 2) / ch))
+	[ "$dc" -lt 1 ] && dc=1
+	[ "$dr" -lt 1 ] && dr=1
+	[ "$dc" -gt "$w" ] && dc=$w
+	[ "$dr" -gt "$h" ] && dr=$h
+	IV[$id]["s0"]=$s0
+	IV[$id]["s"]=$s
+	IV[$id]["x"]=$x
+	IV[$id]["y"]=$y
+	IV[$id]["vw"]=$vw
+	IV[$id]["vh"]=$vh
+	IV[$id]["dr"]=$dr
+	IV[$id]["dc"]=$dc
+	IV[$id]["r0"]=$((1 + (h - dr) / 2))
+	IV[$id]["c0"]=$((1 + (w - dc) / 2))
+	IV[$id]["cw"]=$cw
+	IV[$id]["ch"]=$ch
+	IV[$id]["h"]=$h
+	IV[$id]["w"]=$w
+}
+
+# The picture, at its own shape: the whole of it while it fits, the part
+# the view shows once zoomed in.
+fn iv_drawpic(int id, int h, int w) {
+	local path=${IV[$id]["path"]}
+
+	iv_layout "$id" "$h" "$w" || return 1
+	if [ "${IV[$id]["vw"]}" -ge "${IV[$id]["iw"]}" ] &&
+	   [ "${IV[$id]["vh"]}" -ge "${IV[$id]["ih"]}" ]; then
+		img draw "$path" "${IV[$id]["r0"]}" "${IV[$id]["c0"]}" \
+			"${IV[$id]["dr"]}" "${IV[$id]["dc"]}" "${DT_IMGARG[@]}" -p "w$id"
+		return
+	fi
+	img draw "$path" "${IV[$id]["r0"]}" "${IV[$id]["c0"]}" \
+		"${IV[$id]["dr"]}" "${IV[$id]["dc"]}" "${DT_IMGARG[@]}" -p "w$id" \
+		-c "${IV[$id]["x"]}" "${IV[$id]["y"]}" "${IV[$id]["vw"]}" "${IV[$id]["vh"]}"
+}
+
+# Where in the view a window cell is, in screen pixels from the view's own
+# top left: "qx qy", the pixel inside the cell from the terminal where it
+# reports one.
+fn iv_at(int id, int r, int c) {
+	local cw=${IV[$id]["cw"]:-1} ch=${IV[$id]["ch"]:-2} o ox oy
+
+	ox=$((cw / 2))
+	oy=$((ch / 2))
+	if dt_has dt_cellpx; then
+		o := dt_cellpx "$id" "$r" "$c" "$cw" "$ch"
+		read -r ox oy <<< "$o"
+	fi
+	ret "$(((c - ${IV[$id]["c0"]:-1}) * cw + ox)) $(((r - ${IV[$id]["r0"]:-1}) * ch + oy))"
+}
+
+# Zoom to z thousandths of the fit, keeping the picture's pixel at view
+# point qx,qy where it is; the centre of the view when no point is given.
+fn iv_zoom(int id, int z, qx = "", qy = "") {
+	local s=${IV[$id]["s"]:-1000} s0=${IV[$id]["s0"]:-1000} ix iy ns
+
+	[ -n "${IV[$id]["path"]}" ] || return 1
+	[ "$z" -lt 1000 ] && z=1000
+	[ "$z" -gt 64000 ] && z=64000
+	if [ -z "$qx" ]; then
+		qx=$((${IV[$id]["dc"]:-1} * ${IV[$id]["cw"]:-1} / 2))
+		qy=$((${IV[$id]["dr"]:-1} * ${IV[$id]["ch"]:-2} / 2))
+	fi
+	ix=$((${IV[$id]["x"]:-0} + qx * 1000 / s))
+	iy=$((${IV[$id]["y"]:-0} + qy * 1000 / s))
+	ns=$((s0 * z / 1000))
+	[ "$ns" -lt 1 ] && ns=1
+	IV[$id]["z"]=$z
+	IV[$id]["x"]=$((ix - qx * 1000 / ns))
+	IV[$id]["y"]=$((iy - qy * 1000 / ns))
+	return 0
+}
+
+# One picture pixel to one screen pixel.
+fn iv_actual(int id) {
+	local s0=${IV[$id]["s0"]:-1000}
+
+	iv_zoom "$id" $((1000 * 1000 / s0))
+}
+
+# Move the view by dx,dy screen pixels.
+fn iv_pan(int id, int dx, int dy) {
+	local s=${IV[$id]["s"]:-1000}
+
+	IV[$id]["x"]=$((${IV[$id]["x"]:-0} + dx * 1000 / s))
+	IV[$id]["y"]=$((${IV[$id]["y"]:-0} + dy * 1000 / s))
+}
+
+fn imgview_key(int id, key) {
+	local z=${IV[$id]["z"]:-1000} pw ph
+
+	[ -n "${IV[$id]["path"]}" ] || return 1
+	case ${IV[$id]["path"]} in *.ans) return 1 ;; esac
+	pw=$((${IV[$id]["dc"]:-8} * ${IV[$id]["cw"]:-1} / 8))
+	ph=$((${IV[$id]["dr"]:-8} * ${IV[$id]["ch"]:-2} / 8))
+	case $key in
+	+ | =) iv_zoom "$id" $((z * 5 / 4)) ;;
+	-) iv_zoom "$id" $((z * 4 / 5)) ;;
+	0) IV[$id]["z"]=1000 ;;
+	1) iv_actual "$id" ;;
+	left) iv_pan "$id" $((-pw)) 0 ;;
+	right) iv_pan "$id" "$pw" 0 ;;
+	up) iv_pan "$id" 0 $((-ph)) ;;
+	down) iv_pan "$id" 0 "$ph" ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+# The wheel zooms around the pointer, to the pixel where the terminal says.
+fn imgview_wheel(int id, dir, int r, int c) {
+	local z=${IV[$id]["z"]:-1000} q
+
+	[ -n "${IV[$id]["path"]}" ] || return 0
+	q := iv_at "$id" "$r" "$c"
+	case $dir in
+	up) iv_zoom "$id" $((z * 5 / 4)) ${q% *} ${q#* } ;;
+	down) iv_zoom "$id" $((z * 4 / 5)) ${q% *} ${q#* } ;;
+	esac
+	return 0
+}
+
+# A drag pans the picture along with the pointer.
+fn imgview_mouse(int id, act, btn, int r, int c, mods = "") {
+	local q qx qy
+
+	[ -n "${IV[$id]["path"]}" ] || return 0
+	q := iv_at "$id" "$r" "$c"
+	qx=${q% *}
+	qy=${q#* }
+	case $act in
+	press) IV[$id]["px"]=$qx; IV[$id]["py"]=$qy ;;
+	drag)
+		[ -n "${IV[$id]["px"]-}" ] || return 0
+		iv_pan "$id" $((IV[$id]["px"] - qx)) $((IV[$id]["py"] - qy))
+		IV[$id]["px"]=$qx
+		IV[$id]["py"]=$qy
+		;;
+	release) IV[$id]["px"]= ;;
+	esac
+	return 0
 }
 
 # A file dragged in from a file browser replaces whatever was shown: the
@@ -123,6 +335,7 @@ fn imgview_drop(int id, int r, int c, op, ...paths) {
 	[ -n "${IV[$id]["tm"]}" ] && term close "${IV[$id]["tm"]}" 2> /dev/null
 	IV[$id]["tm"]=
 	IV[$id]["path"]=${paths[0]}
+	IV[$id]["z"]=1000
 	iv_fitans "$id"
 }
 
@@ -131,6 +344,15 @@ imgview_menus() {
 	dt_item "Close" w dt_close_focused
 	dt_editmenu
 	dt_menu "Image"
+	dt_item "Zoom In" i imgview_key "$DT_FOCUS" +
+	dt_rowaccel "+"
+	dt_item "Zoom Out" o imgview_key "$DT_FOCUS" -
+	dt_rowaccel "-"
+	dt_item "Fit" f imgview_key "$DT_FOCUS" 0
+	dt_rowaccel "0"
+	dt_item "Actual Size" a imgview_key "$DT_FOCUS" 1
+	dt_rowaccel "1"
+	dt_sep
 	dt_item "Set as Wallpaper" w imgview_setwall "$DT_FOCUS"
 }
 
