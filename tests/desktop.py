@@ -7110,9 +7110,11 @@ check("while moving onto a window and off again draws a frame each time",
 # What a click would land on lights under the pointer (Gitea #370): any
 # region an app registers with dt_wreg, through dt_hotpen in its own row
 # loop, and every button, check, dropdown and slider by itself. A row is
-# the well colour, a button filled with the hot colour -- the one a focused
-# button has, so hover and focus say the same thing (Gitea #384). The
-# window here says it is clean, so only the lighting can be what redraws it.
+# the well colour, a button filled with the hot colour -- Midnight's accent
+# made brighter -- whether or not it has the focus, while a focused one away
+# from the pointer keeps the accent, so the pointer always shows (Gitea
+# #384). The window here says it is clean, so only the lighting can be what
+# redraws it.
 WELL = "#2d3748"
 HVR = ('hvr_draw() { local i; dt_wclear "$1"\n'
        '  for i in 1 2 3; do dt_hotpen "$1" "row$i" "$DT_INK" "$DT_FACE"\n'
@@ -7136,12 +7138,16 @@ bt = sc0.find(" OK ")
 sc3, _ = run(HVR, [0.5, hov(bt[0], bt[1] + 1), 0.4], env={"DT_HOVER": "on"}) \
     if bt else (sc0, None)
 yb = sc0.find(" Yes ")
-check("a button under the pointer is filled with the hot colour, the one a "
-      "focused button has, and not the plain accent",
+HOT = "#99cdf3"
+check("a button under the pointer is filled with the hot colour, and a "
+      "focused one away from it keeps the accent",
       bt is not None and yb is not None and
-      sc3.style(bt[0], bt[1] + 1).get("bg") == sc0.style(yb[0], yb[1] + 1).get("bg")
-      and sc3.style(bt[0], bt[1] + 1).get("bg") not in
-      (None, sc0.style(bt[0], bt[1] + 1).get("bg"), "#63b3ed"), sc3)
+      sc3.style(bt[0], bt[1] + 1).get("bg") == HOT and
+      sc0.style(yb[0], yb[1] + 1).get("bg") == "#63b3ed", sc3)
+sc4, _ = run(HVR, [0.5, hov(yb[0], yb[1] + 1), 0.4], env={"DT_HOVER": "on"}) \
+    if yb else (sc0, None)
+check("and the pointer over the focused one shows too",
+      yb is not None and sc4.style(yb[0], yb[1] + 1).get("bg") == HOT, sc4)
 sc3, _ = run(HVR, [0.5, hov(bt[0], bt[1] + 1), 0.4],
              env={"DT_HOVER": "on", "DT_HOT": "#ff00ff"}) if bt else (sc0, None)
 check("and a scheme that names its own hot colour gets it",
@@ -7295,9 +7301,13 @@ cr, cc = sc0.find("x\u251c") or (6, 37)
 fr, fc = (0, sc0.row(0).find("File") + 1)
 dr, dc = (0, sc0.row(0).find("DEMO") + 1)
 sc1, _ = run(HVL, [0.5, hov(cr, cc), 0.3], env={"DT_HOVER": "on"})
-check("a window's button under the pointer is drawn lighter",
-      sc1.p[cr][cc] != sc0.p[cr][cc] and sc1.at(cr, cc) == sc0.at(cr, cc),
-      (sc0.p[cr][cc], sc1.p[cr][cc]))
+# Its glyph is lit, in the hot colour, and its cell's background is left
+# as it was: a filled cell read as a block (Gitea #384).
+check("a window's button under the pointer has its glyph lit, not its cell",
+      sc1.p[cr][cc] != sc0.p[cr][cc] and sc1.at(cr, cc) == sc0.at(cr, cc) and
+      sc1.style(cr, cc).get("bg") == sc0.style(cr, cc).get("bg") and
+      sc1.style(cr, cc).get("fg") == "#99cdf3",
+      (sc0.style(cr, cc), sc1.style(cr, cc)))
 sc2, _ = run(HVL, [0.5, hov(cr, cc), 0.3, hov(15, 50), 0.3],
              env={"DT_HOVER": "on"})
 check("and goes back when the pointer leaves it", sc2.p[cr][cc] == sc0.p[cr][cc],
@@ -7655,4 +7665,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(830)
+report(831)

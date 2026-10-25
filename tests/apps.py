@@ -3369,10 +3369,8 @@ check("and Cancel as a plain button", st.get("fg") == INK and
       not st.get("bold"), sc)
 sc2 = run("files", FW, [b"\x1b[B", b"n", b"\t"], pre=RPRE, end=None)
 st = sc2.style(rn[0], rn[1] + 1) if rn else {}
-# The focused button is filled with the hot colour since Gitea #384:
-# Midnight's accent made brighter, 35% of the way to white.
-check("tab puts focus on Rename, filled with the hot colour",
-      st.get("bg") == "#99cdf3" and st.get("fg") == FACE, sc2)
+check("tab puts focus on Rename, filled with the accent",
+      st.get("bg") == ACCENT and st.get("fg") == FACE, sc2)
 sc2 = run("files", FW, [b"\x1b[B", b"n"], pre=RPRE + "\nDT_DLGBTN=brackets",
           end=None)
 bp = sc2.find("[Rename]")

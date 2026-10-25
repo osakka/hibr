@@ -34,8 +34,8 @@ dt_btnshade() {
 	ret "$DT_BTNSHADE"
 }
 
-# The colour a button is filled with while a press or enter would do it --
-# under the pointer, or with the focus -- one colour for both (Gitea #384).
+# The colour a button is filled with while the pointer is over it, and a
+# title bar's button's glyph is drawn in (Gitea #384).
 # A scheme's own "hot" when it gives one; otherwise its accent made
 # brighter: lighter on a dark face, deeper on a light one, so it stands out
 # from the plain accent either way and keeps the face's colour readable on
@@ -84,17 +84,21 @@ fn dt_button(id, int r, int c, label, int on, tag) {
 		t="[$label]"
 		bg=$DT_FACE
 	fi
-	# With the focus or under the pointer it is filled with the hot
-	# colour, the one thing a press or enter would do (Gitea #370, #384).
-	if [ "$on" = 1 ] || dt_hot "$id" "$tag"; then
-		on=1
+	# Under the pointer it is filled with the hot colour, the one thing a
+	# press would do, whether or not it has the focus -- so the pointer
+	# always shows, even on a dialog that opens with its button focused.
+	# With the focus and no pointer it is filled with the accent, as it
+	# always was (Gitea #370, #384).
+	if dt_hot "$id" "$tag"; then
 		hot := dt_hotcolour
+		console pen "$DT_FACE" "$hot" bold
+	else
+		case $on in
+		1) console pen "$DT_FACE" "$DT_ACTIVE" bold ;;
+		2) console pen "$DT_ACTIVE" "$bg" bold ;;
+		*) console pen "$DT_INK" "$bg" ;;
+		esac
 	fi
-	case $on in
-	1) console pen "$DT_FACE" "$hot" bold ;;
-	2) console pen "$DT_ACTIVE" "$bg" bold ;;
-	*) console pen "$DT_INK" "$bg" ;;
-	esac
 	dt_bput "$id" "$r" "$c" "$t"
 	if [ "$DT_BTNSHADOW" = 1 ]; then
 		sh := dt_btnshade

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.342
+
+**Hovering a button shows, and lights the button rather than a block**
+(Gitea #384, after using 0.99.340).
+
+- **A title bar's button:** under the pointer, its glyph itself is lit in
+  the hot colour, bold, and nothing behind it changes. 0.99.340 filled the
+  whole cell, which read as a block rather than as the button lighting up.
+  On a filled title bar the glyph goes most of the way to white instead, so
+  it still stands out against the accent.
+- **A focused button:** filled with the accent again, as before 0.99.340.
+  The pointer over any button, focused or not, fills it with the hot
+  colour. With the two the same colour, a dialog that opens with its button
+  focused -- About Terminal -- showed no change under the pointer.
+
 ## 0.99.341
 
 **The rubber band has a look of its own, and Files has one too** (Gitea

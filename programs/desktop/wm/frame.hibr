@@ -463,15 +463,22 @@ fn dt_win(int id) {
 			fi
 			i=$((i + 1))
 		done
-	# Under the pointer and not held: filled with the hot colour, as every
-	# button a press would act on is (Gitea #370, #384), so it says it is
-	# one before it is pressed.
+	# Under the pointer and not held: the glyph itself in the hot colour,
+	# bold, and nothing behind it -- a filled cell read as a block, not as
+	# the button lighting up (Gitea #370, #384).
 	elif [ "${DT_HOVERBTN% *}" = "$id" ]; then
 		i=0
 		while [ "$i" -lt ${#BTN_K[@]} ]; do
 			if [ "${BTN_K[$i]}" = "${DT_HOVERBTN#* }" ]; then
-				pc := dt_hotcolour
-				console pen "$DT_FACE" "$pc" bold
+				# On a filled title bar the bar is the accent, and the
+				# hot colour is the accent made brighter: there the
+				# glyph goes most of the way to white, so it still shows.
+				if [ "$ts" = 1 ]; then
+					pc := dt_lighten "$tbg" 70
+				else
+					pc := dt_hotcolour
+				fi
+				console pen "$pc" "$tbg" bold
 				console put -p "w$id" 0 $((bc + ${off[$i]})) \
 					"${BTN_G[$i]}"
 			fi
