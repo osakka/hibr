@@ -611,6 +611,12 @@ int m_console(sh *s, int ac, char **av)
 	if (!strcmp(sub, "clear")) {
 		if (!cn_need())
 			return HIBR_FAIL;
+		/* The whole screen, pictures and all: a wallpaper or a window's
+		   picture below the cells shows through every cell left at the
+		   terminal's own background, which is every cell a screen
+		   saver's rain does not fall on. Whatever still wants a picture
+		   places it again, as after any full repaint. */
+		cn_imgclear();
 		cn_clear();
 		cn_drawn++;
 		return HIBR_OK;

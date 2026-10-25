@@ -1010,10 +1010,20 @@ check("raising the one behind puts its picture above the other's",
       len(p) == 4 and zs[0] < zs[1] and zs[2] > zs[3] and
       len(mine(sc)) == 2, (zs, mine(sc)))
 
+# A cleared screen takes its pictures with it: the screen saver clears and
+# draws its rain, and a wallpaper or a window's picture below the cells
+# showed through every cell the rain left at the default background -- the
+# whole of the wallpaper, and a YouTube window, through the saver.
+sc = run(PIC % "-m pixels -u" + "console flush\n" + TWINUP + twin(1)
+         + "console pen white black\nconsole clear\nconsole put 0 0 RAIN\n"
+           "console flush\nconsole key 200\n")
+check("clearing the screen deletes the wallpaper and the windows' pictures",
+      len(places(sc)) == 3 and len(mine(sc)) == 3, (places(sc), mine(sc)))
+
 sc = run(PIC % "-m pixels -u" + "console flush\n")
 z = key(places(sc)[0], "z") if places(sc) else None
 check("the wallpaper went further down to make room: %s" % z,
       z is not None and int(z) <= -1610612736, places(sc))
 
 shutil.rmtree(D, True)
-report(99)
+report(100)

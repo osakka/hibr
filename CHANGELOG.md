@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.346
+
+**The screen saver is drawn on black again, with nothing showing through
+it** (reported on Blit). `console clear` emptied the cells and left every
+picture placed, and since 0.99.312 a wallpaper and a window's picture sit
+below the cells, so both showed through every cell the saver's rain left at
+the terminal's own background -- the whole wallpaper, and a YouTube window,
+through the Matrix. A cleared screen now takes its pictures with it, each
+deleted on the terminal in the same frame. Everything that clears does so
+for the whole screen and places what it wants again: the saver's start and
+stop, the pipes saver, and the film player on a change of layout. The cost
+is that the wallpaper and the windows' pictures are sent once more when the
+saver ends.
+
 ## 0.99.345
 
 **A window showing a picture stays visible behind another window that
