@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.340
+
+**A button shows that a press would act on it, in a colour of its own**
+(Gitea #384). It is filled with the new **hot** colour, its label in the
+window's face colour, in two cases:
+- while the pointer is over it, where hovering is on;
+- while it has the keyboard's focus.
+
+This covers dialog buttons, every button drawn with `dt_button`, and a
+title bar's buttons under the pointer.
+
+"Hot" is a new colour-scheme role. A scheme that leaves it out gets its
+accent made brighter: lighter on a dark face, deeper on a light one such as
+Paper, so it stands apart from the plain accent and the label stays
+readable.
+
+**The title bar's buttons put close at the window's outer edge**: max, min,
+close on the right, and close, min, max on the left. It was min, max, close.
+
 ## 0.99.339
 
 **The Image Viewer zooms and pans** (Gitea #370).

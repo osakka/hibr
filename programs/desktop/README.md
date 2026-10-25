@@ -299,7 +299,11 @@ keeps working. Two more, `titlebar` and `titleink`, are the focused window's
 frame or title bar and the text on it: left out, they are the accent and
 `selink`, which is what every scheme had before them, and Charcoal sets them
 so its title bar can be charcoal while its accent is a bright white; paper, phosphor and amber set their own, so a light scheme is
-not drawn with dark-scheme greys and the monochrome ones stay one hue. Every colour must
+not drawn with dark-scheme greys and the monochrome ones stay one hue. One
+more, `hot`, is what a button is filled with while a press or enter would
+act on it -- under the pointer, or with the focus: left out, it is the
+accent made brighter, lighter on a dark face and deeper on a light one.
+Every colour must
 be `#rrggbb` and the shadow a whole number in range, or the file is left
 out of the list; a scheme added while the desktop runs appears at its next
 start. Why JSON and not a script is

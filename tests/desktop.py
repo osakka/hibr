@@ -1069,7 +1069,7 @@ FIXED = ('dt_app fx "Fixed" 6 20 once "◆" fixed\n'
          'DT_PLACE=cascade\ndt_launch fx\n')
 sc, _ = run(FIXED)
 check("a fixed app has no maximise button",
-      sc.find("┤_ x├") is not None and sc.find("┤_ □ x├") is None, sc)
+      sc.find("┤_ x├") is not None and sc.find("┤□ _ x├") is None, sc)
 check("and no grow box is drawn at its corner", sc.g[9][27] == "┘", sc)
 sc, _ = run(FIXED, [press(4, 21)])
 check("clicking where it would be does not zoom",
@@ -1420,17 +1420,17 @@ CHATTY = ("TW_CMD=(sh -c 'while :; do echo tick; sleep 0.2; done')\n"
 # core where it measures 0.5% alone and under a spinner per core.
 def gone(t):
     for _ in range(40):
-        if t.screen().find("_ □ x") is None:
+        if t.screen().find("□ _ x") is None:
             return
         t.collect(0.25)
 
 
 def minimise(t):
     sc = t.screen()
-    b = sc.find("_ □ x")
+    b = sc.find("□ _ x")
     if b:
-        t.send(press(b[0], b[1]))
-        t.send(release(b[0], b[1]))
+        t.send(press(b[0], b[1] + 2))
+        t.send(release(b[0], b[1] + 2))
     gone(t)
 
 
@@ -7094,13 +7094,14 @@ check("while moving onto a window and off again draws a frame each time",
 # What a click would land on lights under the pointer (Gitea #370): any
 # region an app registers with dt_wreg, through dt_hotpen in its own row
 # loop, and every button, check, dropdown and slider by itself. A row is
-# the well colour, a button lighter in its own. The window here says it is
-# clean, so only the lighting can be what redraws it.
+# the well colour, a button filled with the hot colour -- the one a focused
+# button has, so hover and focus say the same thing (Gitea #384). The
+# window here says it is clean, so only the lighting can be what redraws it.
 WELL = "#2d3748"
 HVR = ('hvr_draw() { local i; dt_wclear "$1"\n'
        '  for i in 1 2 3; do dt_hotpen "$1" "row$i" "$DT_INK" "$DT_FACE"\n'
        '    console put -p "w$1" "$i" 2 "row $i      "; dt_wreg "$1" "$i" 2 10 "row$i"; done\n'
-       '  dt_button "$1" 5 2 OK 0 ok; }\n'
+       '  dt_button "$1" 5 2 OK 0 ok; dt_button "$1" 5 12 Yes 1 yes; }\n'
        'hvr_dirty() { return 1; }\n'
        'dt_app hvr "Rows" 9 30\n'
        'dt_new "Rows" 9 30 6 10 hvr')
@@ -7118,9 +7119,24 @@ check("and goes back when the pointer leaves",
 bt = sc0.find(" OK ")
 sc3, _ = run(HVR, [0.5, hov(bt[0], bt[1] + 1), 0.4], env={"DT_HOVER": "on"}) \
     if bt else (sc0, None)
-check("a button lights under the pointer, lighter in its own colour",
-      bt is not None and sc3.style(bt[0], bt[1] + 1).get("bg") not in
-      (None, sc0.style(bt[0], bt[1] + 1).get("bg"), WELL), sc3)
+yb = sc0.find(" Yes ")
+check("a button under the pointer is filled with the hot colour, the one a "
+      "focused button has, and not the plain accent",
+      bt is not None and yb is not None and
+      sc3.style(bt[0], bt[1] + 1).get("bg") == sc0.style(yb[0], yb[1] + 1).get("bg")
+      and sc3.style(bt[0], bt[1] + 1).get("bg") not in
+      (None, sc0.style(bt[0], bt[1] + 1).get("bg"), "#63b3ed"), sc3)
+sc3, _ = run(HVR, [0.5, hov(bt[0], bt[1] + 1), 0.4],
+             env={"DT_HOVER": "on", "DT_HOT": "#ff00ff"}) if bt else (sc0, None)
+check("and a scheme that names its own hot colour gets it",
+      bt is not None and sc3.style(bt[0], bt[1] + 1).get("bg") == "#ff00ff", sc3)
+# The title bar's buttons put close at the window's outer edge (Gitea #384):
+# max, min, close on the right, and turned round on the left.
+sc, _ = run(ONE)
+check("the title bar's buttons read max, min, close on the right",
+      "\u2524\u25a1 _ x\u251c" in sc.row(6) or "□ _ x" in sc.row(6), sc.row(6))
+sc, _ = run(ONE, env={"DT_BTNSIDE": "left"})
+check("and close, min, max on the left", "x _ □" in sc.row(6), sc.row(6))
 
 
 def hvrframes(feed):
@@ -7623,4 +7639,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(825)
+report(828)

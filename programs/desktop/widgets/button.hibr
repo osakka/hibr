@@ -34,6 +34,38 @@ dt_btnshade() {
 	ret "$DT_BTNSHADE"
 }
 
+# The colour a button is filled with while a press or enter would do it --
+# under the pointer, or with the focus -- one colour for both (Gitea #384).
+# A scheme's own "hot" when it gives one; otherwise its accent made
+# brighter: lighter on a dark face, deeper on a light one, so it stands out
+# from the plain accent either way and keeps the face's colour readable on
+# it. Worked out once per scheme.
+DT_HOTC=
+DT_HOTC_FOR=
+
+dt_hotcolour() {
+	local k="$DT_HOT $DT_ACTIVE $DT_FACE" r g b
+
+	if [ "$DT_HOTC_FOR" != "$k" ]; then
+		if [ -n "$DT_HOT" ]; then
+			DT_HOTC=$DT_HOT
+		elif match "$DT_FACE" '^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$'; then
+			r=$((16#${M[1]}))
+			g=$((16#${M[2]}))
+			b=$((16#${M[3]}))
+			if [ $(((r * 299 + g * 587 + b * 114) / 1000)) -lt 128 ]; then
+				DT_HOTC := dt_lighten "$DT_ACTIVE" 35
+			else
+				DT_HOTC := console shade "$DT_ACTIVE" 70 || DT_HOTC=$DT_ACTIVE
+			fi
+		else
+			DT_HOTC=$DT_ACTIVE
+		fi
+		DT_HOTC_FOR=$k
+	fi
+	ret "$DT_HOTC"
+}
+
 # Draw one button, " label " filled: the accent colour when it has focus,
 # muted when it has not, with Turbo Vision's shadow -- a ▄ beside it and a
 # row of ▀ under it. With DT_DLGBTN=brackets it is [label] on the window's
@@ -42,7 +74,7 @@ dt_btnshade() {
 # in a field or a list -- whose label is the accent colour, so it is always
 # plain what enter will do. tag is what dt_hit answers for a click on it.
 fn dt_button(id, int r, int c, label, int on, tag) {
-	local t n sh bg=$DT_IDLE
+	local t n sh bg=$DT_IDLE hot
 
 	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
 	t=" $label "
@@ -52,17 +84,14 @@ fn dt_button(id, int r, int c, label, int on, tag) {
 		t="[$label]"
 		bg=$DT_FACE
 	fi
-	# Lit while the pointer is over it, as a title bar's buttons are:
-	# lighter in its own colour (Gitea #370).
-	if dt_hot "$id" "$tag"; then
-		if [ "$bg" = "$DT_FACE" ]; then
-			bg=$DT_WELL
-		else
-			bg := dt_lighten "$bg" 25
-		fi
+	# With the focus or under the pointer it is filled with the hot
+	# colour, the one thing a press or enter would do (Gitea #370, #384).
+	if [ "$on" = 1 ] || dt_hot "$id" "$tag"; then
+		on=1
+		hot := dt_hotcolour
 	fi
 	case $on in
-	1) console pen "$DT_FACE" "$DT_ACTIVE" bold ;;
+	1) console pen "$DT_FACE" "$hot" bold ;;
 	2) console pen "$DT_ACTIVE" "$bg" bold ;;
 	*) console pen "$DT_INK" "$bg" ;;
 	esac

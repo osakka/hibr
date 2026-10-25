@@ -6,13 +6,15 @@
 
 strict
 
-# The three button-icon styles: which glyph and colour each of min, max
+# The three button-icon styles: which glyph and colour each of max, min
 # and close gets, and what wraps the movable (3-button) or fixed
-# (2-button) cluster. Fills BTN_K/BTN_G/BTN_C/BTN_DL/BTN_DR in the same
+# (2-button) cluster. Read left to right on the right of a title bar it is
+# max, min, close, so close is at the window's outer edge; dt_btnorder
+# turns it round on the left, close, min, max (Gitea #384). Fills BTN_K/BTN_G/BTN_C/BTN_DL/BTN_DR in the same
 # left-to-right order dt_btn's own fixed offsets (1, 3, 5 or 1, 3) expect,
 # so a fourth style is a branch here, never a change to dt_win or dt_btn.
 fn dt_btnspec(style, int? fixed) {
-	if [ "$fixed" = 1 ]; then BTN_K=(min close); else BTN_K=(min max close); fi
+	if [ "$fixed" = 1 ]; then BTN_K=(min close); else BTN_K=(max min close); fi
 	case $style in
 	circles)
 		BTN_DL=" "; BTN_DR=" "
@@ -20,7 +22,7 @@ fn dt_btnspec(style, int? fixed) {
 			BTN_G=("${GL[circle]}" "${GL[circle]}"); BTN_C=("$DT_WARN" "$DT_BAD")
 		else
 			BTN_G=("${GL[circle]}" "${GL[circle]}" "${GL[circle]}")
-			BTN_C=("$DT_WARN" "$DT_GOOD" "$DT_BAD")
+			BTN_C=("$DT_GOOD" "$DT_WARN" "$DT_BAD")
 		fi
 		;;
 	squares | diamonds | dashes)
@@ -33,7 +35,7 @@ fn dt_btnspec(style, int? fixed) {
 			BTN_G=("$g" "$g"); BTN_C=("$DT_WARN" "$DT_BAD")
 		else
 			BTN_G=("$g" "$g" "$g")
-			BTN_C=("$DT_WARN" "$DT_GOOD" "$DT_BAD")
+			BTN_C=("$DT_GOOD" "$DT_WARN" "$DT_BAD")
 		fi
 		;;
 	*)
@@ -41,7 +43,7 @@ fn dt_btnspec(style, int? fixed) {
 		if [ "$fixed" = 1 ]; then
 			BTN_G=("_" "x"); BTN_C=("$DT_INK" "$DT_BAD")
 		else
-			BTN_G=("_" "${GL[box]}" "x")
+			BTN_G=("${GL[box]}" "_" "x")
 			BTN_C=("$DT_INK" "$DT_INK" "$DT_BAD")
 		fi
 		;;
@@ -49,8 +51,8 @@ fn dt_btnspec(style, int? fixed) {
 }
 
 # dt_btnspec's own arrays, reordered left to right for the side the
-# cluster actually docks to. min/max/close reads left to right on the
-# right; mirrored on the left it reads close/max/min, so close is always
+# cluster actually docks to. max/min/close reads left to right on the
+# right; mirrored on the left it reads close/min/max, so close is always
 # the button nearest the window's own outer corner, whichever side that
 # is -- the same relationship a real title bar keeps moved to either side.
 fn dt_btnorder(style, int? fixed, side) {
@@ -461,19 +463,15 @@ fn dt_win(int id) {
 			fi
 			i=$((i + 1))
 		done
-	# Under the pointer and not held: the same, a little less (Gitea #370),
-	# so a button says it is one before it is pressed.
+	# Under the pointer and not held: filled with the hot colour, as every
+	# button a press would act on is (Gitea #370, #384), so it says it is
+	# one before it is pressed.
 	elif [ "${DT_HOVERBTN% *}" = "$id" ]; then
 		i=0
 		while [ "$i" -lt ${#BTN_K[@]} ]; do
 			if [ "${BTN_K[$i]}" = "${DT_HOVERBTN#* }" ]; then
-				if [ "${BTN_C[$i]}" = "$DT_INK" ]; then
-					pc=$DT_ACTIVE
-					[ "$ts" = 1 ] && pc=$DT_FACE
-				else
-					pc := dt_lighten "${BTN_C[$i]}" 25
-				fi
-				console pen "$pc" "$tbg" bold
+				pc := dt_hotcolour
+				console pen "$DT_FACE" "$pc" bold
 				console put -p "w$id" 0 $((bc + ${off[$i]})) \
 					"${BTN_G[$i]}"
 			fi

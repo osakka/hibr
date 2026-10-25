@@ -11,7 +11,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.4
+app appearance "The Control Panel pane for how the desktop looks" 2.5
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -82,7 +82,7 @@ fn cp_colourread(n, f) {
 		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
 			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
 	done
-	for k in titlebar titleink; do
+	for k in titlebar titleink hot; do
 		[ -n "${j["$k"]+x}" ] || continue
 		v=${j["$k"]}
 		v=${v#\#}
@@ -103,6 +103,7 @@ fn cp_colourread(n, f) {
 	CP_CO["$n"]["checks"]=${j["checks"]-}
 	CP_CO["$n"]["titlebar"]=${j["titlebar"]-}
 	CP_CO["$n"]["titleink"]=${j["titleink"]-}
+	CP_CO["$n"]["hot"]=${j["hot"]-}
 }
 
 # Every colour scheme in CP_COLOURDIRS, the first of each name winning,
@@ -150,6 +151,7 @@ fn cp_colours(t) {
 	DT_THEMECHECKS=${CP_CO["$t"]["checks"]}
 	DT_TITLE=${CP_CO["$t"]["titlebar"]}
 	DT_TITLEINK=${CP_CO["$t"]["titleink"]}
+	DT_HOT=${CP_CO["$t"]["hot"]}
 	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
 }
 

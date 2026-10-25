@@ -124,6 +124,10 @@ DT_WARN="${DT_WARN-#f6ad55}"
 DT_BAD="${DT_BAD-#f56565}"
 DT_INFO="${DT_INFO-#4fd1c5}"
 DT_WELL="${DT_WELL-#2d3748}"
+# The colour a button is filled with while it is what a press or enter will
+# do -- under the pointer, or with the focus (Gitea #384). Empty, the
+# default, is the accent made brighter: see dt_hotcolour.
+DT_HOT="${DT_HOT-}"
 DT_GLYPH="${DT_GLYPH-·}"
 
 # A real image as the wallpaper instead of the repeated glyph, drawn by the
@@ -407,7 +411,7 @@ DT_CYCLE="${DT_CYCLE-workspace}"
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_DIM DT_SELINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL DT_TITLE DT_TITLEINK
+	DT_DIM DT_SELINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL DT_HOT DT_TITLE DT_TITLEINK
 	DT_WALLIMG DT_WALLMODE
 	DT_ICONS DT_DISKS DT_ICONBG DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
