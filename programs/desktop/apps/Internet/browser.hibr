@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.5
+app browser "The web, in a window" 2.6
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -344,6 +344,12 @@ fn bw_dlpicked(id = "", path = "", type = "") {
 	return 0
 }
 
+# The dialog ended with nothing chosen: the download is given up at once.
+fn bw_dlnone(id = "") {
+	[ -n "$id" ] && web dlcancel "$id"
+	return 0
+}
+
 # Stop every download under way.
 fn bw_dlstop() {
 	local x id nm rc tt
@@ -376,14 +382,14 @@ bw_heard() {
 		done <<< "$x"
 	fi
 	# A file a page offered with no folder set: the desktop's own Save dialog
-	# asks where it goes, and the engine is told the answer.  (The dialog
-	# calls back only when a file is chosen; a download nobody answers is
-	# given up by the engine after five minutes.)
+	# asks where it goes, and the engine is told the answer.  Closing the
+	# dialog without a choice cancels the download (an engine nobody answers
+	# gives up after five minutes in any case).
 	if x := web dlasks 2> /dev/null; then
 		while IFS=$'\t' read -r k dn du; do
 			dir=$BW_DLDIR
 			[ -d "$dir" ] || dir=$HOME
-			dt_filepick save "Save File" "All files:*" "$dir" "$dn" bw_dlpicked "$k"
+			dt_filepick save "Save File" "All files:*" "$dir" "$dn" bw_dlpicked "$k" bw_dlnone
 		done <<< "$x"
 	fi
 	# Windows a page opened by a click (a link to a new window, a sign-in

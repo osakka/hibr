@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.99.335
+
+**The Browser gives a download up when its Save dialog is closed with no
+choice.** It used to leave the engine waiting five minutes for an answer
+that was never coming; now it uses the file dialog's `oncancel` (0.99.332)
+and cancels the download at once. The Browser is 2.6 and needs 0.99.332.
+
 ## 0.99.334
 
 **What a click would land on lights under the pointer** (Gitea #370).
