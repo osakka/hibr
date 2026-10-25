@@ -14,6 +14,12 @@
 # knows which format to write. Open, Save As and Export in every app are
 # this one dialog.
 #
+# oncancel, when given, is run once as `oncancel for` when the dialog ends
+# without a choice -- Cancel, escape, its window closed, or the caller
+# closing it -- so an app holding something open for the answer (a
+# download, a half-written file) can let it go (Gitea #375). The dialog's
+# window id is handed back with ret, so a caller can close it with dt_del.
+#
 # Arrows move, enter opens a folder or chooses a file, backspace goes up a
 # folder, ~ goes home; tab moves between the list, the name, the type and
 # the buttons. A name typed with a / in it is a path, from here or from /.
@@ -31,7 +37,7 @@ declare -gA FP
 declare -gA DT_FPLAST
 DT_FPPEND=
 
-fn dt_filepick(mode, title, types, dir, name, callback, for) {
+fn dt_filepick(mode, title, types, dir, name, callback, for, oncancel = "") {
 	local h=20 w=76 r c rid
 
 	dt_dlgat "$h" "$w"
@@ -45,11 +51,13 @@ fn dt_filepick(mode, title, types, dir, name, callback, for) {
 	FP[$rid]["ti"]=0
 	FP[$rid]["cb"]=$callback
 	FP[$rid]["for"]=$for
+	FP[$rid]["oncancel"]=$oncancel
 	FP[$rid]["buf"]=$name
 	FP[$rid]["cur"]=${#name}
 	FP[$rid]["focus"]=list
 	[ "$mode" = save ] && FP[$rid]["focus"]=name
 	fp_go "$rid" "$dir"
+	ret "$rid"
 }
 
 # The extensions of the type chosen now, space-separated, or *.
@@ -460,6 +468,7 @@ fn fp_done(int id, p) {
 	IFS='|' read -ra labs <<< "$lab"
 	lab=${labs[${FP[$id]["ti"]}]}
 	DT_FPLAST["$cb"]=${p%/*}
+	FP[$id]["oncancel"]=
 	dt_del "$id"
 	"$cb" "$for" "$p" "$lab"
 }
@@ -659,5 +668,9 @@ fn fpick_copy(int id) {
 }
 
 fn fpick_close(int id) {
-	unset "FP[$id]"
+	local oc=${FP[$id]["oncancel"]} for=${FP[$id]["for"]}
+
+	unset FP["$id"]
+	[ -n "$oc" ] && "$oc" "$for"
+	return 0
 }

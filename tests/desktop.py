@@ -5384,6 +5384,32 @@ check("and draws a picture in its preview as a picture",
       sc.find("PNG") is None and sc.find("IHDR") is None, sc)
 shutil.rmtree(FPD, True)
 
+# A dialog that ends without a choice says so, once, to an oncancel the
+# caller gave, and hands back its own id (Gitea #375): an app holding a
+# download open for the answer was otherwise never told. The selection
+# starts on .., so one key down is a.txt.
+FPX = tempfile.mkdtemp(prefix="hibr-fpx-")
+open(os.path.join(FPX, "a.txt"), "w").close()
+FPXL = os.path.join(FPX, "log")
+FPXS = ('fpx_ok() { echo "ok $1 ${2##*/}" >> "%s"; }\n'
+        'fpx_no() { echo "no $1 ${#FP[@]}" >> "%s"; }\n'
+        'dt_filepick open "Open" "All files:*" "%s" "" fpx_ok tag fpx_no\n'
+        'echo "id $RET" >> "%s"\n' % (FPXL, FPXL, FPX, FPXL))
+sc, _ = run(FPXS, feed=[b"\x1b"])
+log = open(FPXL).read().split("\n") if os.path.exists(FPXL) else []
+check("escape in the file dialog tells the caller's oncancel, once, with "
+      "nothing of the dialog left",
+      log.count("no tag 0") == 1 and not any(l.startswith("ok") for l in log),
+      log)
+check("and dt_filepick hands back the dialog's window id",
+      any(re.fullmatch(r"id \d+", l) for l in log), log)
+os.unlink(FPXL) if os.path.exists(FPXL) else None
+sc, _ = run(FPXS, feed=[b"\x1b[B", b"\r"])
+log = open(FPXL).read().split("\n") if os.path.exists(FPXL) else []
+check("and a choice runs the callback and not oncancel",
+      "ok tag a.txt" in log and not any(l.startswith("no") for l in log), log)
+shutil.rmtree(FPX, True)
+
 # The preview counts a highlighted folder once, not on every frame it draws
 # (Gitea #358): 43,793 entries in /tmp cost 324 ms a frame. The selection
 # starts on .., so one key down is many/. Once the key has been read, the
@@ -7441,4 +7467,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(802)
+report(805)

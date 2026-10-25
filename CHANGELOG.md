@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.332
+
+**The file dialog tells the app when nothing was chosen** (Gitea #375). An
+app asking where to save a download had no way to tell "not yet" from
+"never": Cancel, escape and closing the window all ended the dialog
+without a word to it. So the WPE Browser's download waited five minutes
+for an answer that was never coming.
+
+- **`oncancel`:** `dt_filepick` takes an optional eighth argument, a
+  function run once as `oncancel for` when the dialog ends without a
+  choice.
+- **The dialog's id:** `dt_filepick` now hands back the dialog's window id
+  in `$RET`, so an app can close its own dialog with `dt_del` when the
+  thing it asked about is cancelled elsewhere. That also runs `oncancel`.
+
+Every existing caller is unchanged.
+
 ## 0.99.331
 
 **Select All reaches Files' window**, as ctrl-a does: every entry but `..`.
