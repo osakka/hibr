@@ -9,7 +9,7 @@
 
 strict
 
-app clipboard "The clipboard's history: copy something back, pin it, keep it" 1.1
+app clipboard "The clipboard's history: copy something back, pin it, keep it" 1.2
 # part: control-panel/cliphist.hibr
 
 command -v dt_app > /dev/null && dt_app clipboard "Clipboard" 16 52 once "⎘"
@@ -83,11 +83,12 @@ fn clipboard_draw(int id, int h, int w, int row, int col) {
 		if [ "$i" = "${CB[$id]["sel"]}" ] && [ "$DT_FOCUS" = "$id" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 		elif [ "${DT_CH[$hid]["pin"]}" = 1 ]; then
-			console pen "$DT_WARN" "$DT_FACE"
+			dt_hotpen "$id" "row:$i" "$DT_WARN" "$DT_FACE"
 		else
-			console pen "$DT_INK" "$DT_FACE"
+			dt_hotpen "$id" "row:$i" "$DT_INK" "$DT_FACE"
 		fi
 		console put -p "w$id" "$r" $((1 + ${DT_MIRRORON:-0})) "$line"
+		dt_hotreg "$id" "$r" $((1 + ${DT_MIRRORON:-0})) $((w - 2)) "row:$i"
 		r=$((r + 1))
 		i=$((i + 1))
 	done

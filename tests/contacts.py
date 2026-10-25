@@ -79,7 +79,7 @@ open(sess, "w").write(
     % (load("console", "email", "db", "html", "pim", "dav"), tree("programs/desktop/desktop.hibr"),
        tree("programs/desktop/apps/contacts.hibr"), tree("programs/desktop/apps/Internet/mail.hibr"), PORT))
 t = Term(sess, rows=30, cols=104, settle=1.5,
-         env={"HIBR_MAIL_CONF": CONF, "XDG_DATA_HOME": os.path.join(D, "data")})
+         env={"HIBR_MAIL_CONF": CONF, "XDG_DATA_HOME": os.path.join(D, "data"), "DT_HOVER": "on"})
 try:
     sc = waitfor(t, "Zoë Ünal")
     listed = [sc.row(r)[3:13].strip() for r in range(3, 8)]
@@ -91,6 +91,14 @@ try:
     sc = look(t)
     check("j moves down; the person's phone is shown with their email",
           sc.find("bo@example.com") and sc.find("+46 70 123 45 67"), sc)
+    # A name in the list lights under the pointer where hovering is on
+    # (#370); Bo is chosen, so Zoë's row is the one to try.
+    zr = sc.find("Zoë Ünal")
+    if zr:
+        t.keys([b"\x1b[<35;%d;%dM" % (zr[1] + 2, zr[0] + 1), 0.4])
+        sc = look(t)
+    check("a name in the list lights under the pointer",
+          zr is not None and sc.style(zr[0], zr[1]).get("bg") == "#2d3748", sc)
     # Copy takes the chosen card as text (#372).
     t.keys([b"\x1bc"])
     m = re.findall(rb"\x1b\]52;c;([A-Za-z0-9+/=]*)\x07", t.out)
@@ -199,4 +207,4 @@ finally:
     srv.terminate()
     srv.wait()
 
-report(22)
+report(23)

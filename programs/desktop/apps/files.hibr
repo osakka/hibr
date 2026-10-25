@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 2.1
+app files "A file browser" 2.2
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -374,11 +374,14 @@ fn fb_paths(int id, sel) {
 
 # The pen for an entry's row: the cursor brightest, marked entries lit,
 # the rest by what they are.
+# The entry under the pointer is on the well colour (#370).
 fn fb_rowpen(int id, int i) {
 	if [ "$i" = "${FB[$id]["sel"]}" ]; then
 		console pen "$DT_SELINK" "$DT_ACTIVE" bold
 	elif [ -n "${FL[$id][$i]["m"]}" ]; then
 		console pen "$DT_INK" "$DT_IDLE" bold
+	elif dt_hot "$id" "row:$i"; then
+		fb_pen "${FL[$id][$i]["kind"]}" "$DT_WELL"
 	else
 		fb_pen "${FL[$id][$i]["kind"]}"
 	fi
@@ -743,13 +746,15 @@ fn files_resume(int id) {
 }
 
 # The colour an entry is drawn in, by what it is.
-fn fb_pen(kind) {
+fn fb_pen(kind, bg = "") {
+	local b=${bg:-$DT_FACE}
+
 	case $kind in
-	up | dir) console pen "$DT_WARN" "$DT_FACE" ;;
-	bundle) console pen "$DT_INFO" "$DT_FACE" ;;
-	exe) console pen "$DT_GOOD" "$DT_FACE" ;;
-	link) console pen "$DT_INFO" "$DT_FACE" ;;
-	*) console pen "$DT_INK" "$DT_FACE" ;;
+	up | dir) console pen "$DT_WARN" "$b" ;;
+	bundle) console pen "$DT_INFO" "$b" ;;
+	exe) console pen "$DT_GOOD" "$b" ;;
+	link) console pen "$DT_INFO" "$b" ;;
+	*) console pen "$DT_INK" "$b" ;;
 	esac
 }
 
@@ -842,6 +847,7 @@ fn fb_drawlist(int id, int h, int w) {
 		esac
 		fb_rowpen "$id" "$i"
 		console put -p "w$id" "$r" "${FB[$id]["x0"]}" "$t"
+		dt_has dt_hotreg && dt_hotreg "$id" "$r" "${FB[$id]["x0"]}" $((w - 1)) "row:$i"
 		r=$((r + 1))
 		i=$((i + 1))
 	done
@@ -911,6 +917,7 @@ fn fb_drawdet(int id, int h, int w) {
 			line := fb_detrow "$id" "$i" "$nm" "$nw" "$cs" "$ct" "$cp"
 			fb_rowpen "$id" "$i"
 			console put -p "w$id" "$r" 2 "$line"
+			dt_has dt_hotreg && dt_hotreg "$id" "$r" 1 $((w - 1)) "row:$i"
 			r=$((r + 1))
 			i=$((i + 1))
 			continue
@@ -933,6 +940,7 @@ fn fb_drawdet(int id, int h, int w) {
 		line := str pad "$line" $((w - 1))
 		fb_rowpen "$id" "$i"
 		console put -p "w$id" "$r" 1 "$line"
+		dt_has dt_hotreg && dt_hotreg "$id" "$r" 1 $((w - 1)) "row:$i"
 		r=$((r + 1))
 		i=$((i + 1))
 	done
@@ -1067,7 +1075,7 @@ fn fb_cover(int id, int i, int bh, int bw) {
 
 fn fb_drawicons(int id, int h, int w) {
 	local i n top sel per rows r c x y g nm tw=$FILES_TILE th=3 pix= bh=1 bw=4
-	local gy ny cov fr fc f
+	local gy ny cov fr fc f hy
 
 	# Covers only where pixels can be drawn: in half blocks a 5 by 10
 	# picture is a smear, and the folder's glyph says more.
@@ -1098,6 +1106,12 @@ fn fb_drawicons(int id, int h, int w) {
 		gy=$y
 		ny=$((y + 1))
 		[ "$th" = 7 ] && { gy=$((y + 2)); ny=$((y + 5)); }
+		# The tile under the pointer is lit whole, around its picture
+		# and its name as well as under them (#370).
+		if [ "$i" != "$sel" ] && dt_hot "$id" "row:$i"; then
+			console pen "$DT_INK" "$DT_WELL"
+			console fill -p "w$id" "$y" "$x" "$th" "$tw" " "
+		fi
 		if [ -n "$pix" ] && cov := fb_cover "$id" "$i" "$bh" "$bw"; then
 			fr=${cov%% *}
 			cov=${cov#* }
@@ -1112,12 +1126,20 @@ fn fb_drawicons(int id, int h, int w) {
 		if [ -z "$cov" ]; then
 			g := fb_glyph "${FL[$id][$i]["kind"]}"
 			fb_pen "${FL[$id][$i]["kind"]}"
+			dt_hot "$id" "row:$i" && [ "$i" != "$sel" ] &&
+				fb_pen "${FL[$id][$i]["kind"]}" "$DT_WELL"
 			console put -p "w$id" "$gy" $((x + (tw - ${#g}) / 2)) "$g"
 		fi
 		nm=${FL[$id][$i]["name"]}
 		[ "${#nm}" -gt $((tw - 2)) ] && nm="${nm:0:$((tw - 3))}${GL[ellipsis]}"
 		fb_rowpen "$id" "$i"
 		console put -p "w$id" "$ny" $((x + (tw - ${#nm}) / 2)) "$nm"
+		# The whole tile lights under the pointer, its picture and its name.
+		if dt_has dt_hotreg; then
+			for ((hy = y; hy < y + th; hy++)); do
+				dt_hotreg "$id" "$hy" "$x" "$tw" "row:$i"
+			done
+		fi
 		i=$((i + 1))
 	done
 }

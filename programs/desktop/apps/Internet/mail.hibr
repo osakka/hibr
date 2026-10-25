@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 2.0
+app mail "Email, offline, labels and conversations as Gmail has them" 2.1
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -785,7 +785,7 @@ fn ml_drawside(int id, int h, int sw, int sx = 0) {
 # bold, the chosen one lit.
 fn ml_drawlist(int id, int h, int w, int x0) {
 	local nt=${MW[$id]["nt"]:-0} sel=${MW[$id]["sel"]:-0} top=${MW[$id]["top"]:-0} vis=$((h - 3))
-	local r=2 pos t who subj snip d ww sw dw rest line star bold
+	local r=2 pos t who subj snip d ww sw dw rest line star bold rb
 
 	MW[$id]["vis"]=$vis
 	if [ "$nt" = 0 ]; then
@@ -825,17 +825,19 @@ fn ml_drawlist(int id, int h, int w, int x0) {
 			console pen "$DT_SELINK" "$DT_ACTIVE" $bold
 			console put -p "w$id" "$r" "$x0" " $star $who $rest $d"
 		else
-			console pen "$DT_WARN" "$DT_FACE"
+			rb=$DT_FACE
+			dt_hot "$id" "row:$pos" && rb=$DT_WELL
+			console pen "$DT_WARN" "$rb"
 			console put -p "w$id" "$r" "$x0" " $star "
-			console pen "$DT_INK" "$DT_FACE" $bold
+			console pen "$DT_INK" "$rb" $bold
 			console put -p "w$id" "$r" $((x0 + 3)) "$who "
 			line=${subj:0:$sw}
 			console put -p "w$id" "$r" $((x0 + 4 + ww)) "$line"
 			if [ "${#line}" -lt "$sw" ] && [ -n "$snip" ]; then
-				console pen "$DT_DIM" "$DT_FACE"
+				console pen "$DT_DIM" "$rb"
 				console put -p "w$id" "$r" $((x0 + 4 + ww + ${#line})) "${rest:${#line}}"
 			fi
-			console pen "$DT_INK" "$DT_FACE" $bold
+			console pen "$DT_INK" "$rb" $bold
 			console put -p "w$id" "$r" $((x0 + w - dw - 1)) "$d"
 		fi
 		dt_wreg "$id" "$r" "$x0" "$w" "row:$pos"
@@ -847,7 +849,7 @@ fn ml_drawlist(int id, int h, int w, int x0) {
 # A list row mirrored: the date at the left, then the subject and the
 # snippet, the senders and the star at the right, each right-aligned.
 fn ml_drawrowm(int id, int r, int x0, int w, int pos, t, int ww, int sw, int dw, star, bold, d) {
-	local who subj snip rest line pad
+	local who subj snip rest line pad rb
 	local -i rw
 
 	who=${MLT[$id][$t]["who"]}
@@ -865,17 +867,19 @@ fn ml_drawrowm(int id, int r, int x0, int w, int pos, t, int ww, int sw, int dw,
 		console put -p "w$id" "$r" "$x0" " $d $pad$rest $who $star"
 		return 0
 	fi
-	console pen "$DT_INK" "$DT_FACE" $bold
+	rb=$DT_FACE
+	dt_hot "$id" "row:$pos" && rb=$DT_WELL
+	console pen "$DT_INK" "$rb" $bold
 	console put -p "w$id" "$r" "$x0" " $d $pad"
 	line=${subj:0:$sw}
 	console put -p "w$id" "$r" $((x0 + 2 + dw + ${#pad})) "$line"
 	if [ "${#line}" -lt "${#rest}" ]; then
-		console pen "$DT_DIM" "$DT_FACE"
+		console pen "$DT_DIM" "$rb"
 		console put -p "w$id" "$r" $((x0 + 2 + dw + ${#pad} + ${#line})) "${rest:${#line}}"
 	fi
-	console pen "$DT_INK" "$DT_FACE" $bold
+	console pen "$DT_INK" "$rb" $bold
 	console put -p "w$id" "$r" $((x0 + 2 + dw + sw)) " $who "
-	console pen "$DT_WARN" "$DT_FACE"
+	console pen "$DT_WARN" "$rb"
 	console put -p "w$id" "$r" $((x0 + 4 + dw + sw + ww)) "$star"
 }
 

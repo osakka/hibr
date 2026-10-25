@@ -680,7 +680,8 @@ fn dt_hover(int r, int c) {
 			dt_capped "$id" && wa=$((wa - 1))
 			if [ -n "${DT[$id]["hover"]+x}" ] && [ -n "${DT[$id]["hover"]}" ]; then
 				t="w:$id:$r:$c"
-			elif b := dt_hit "$id" $((r - wr)) $((c - wa)); then
+			elif b := dt_hit "$id" $((r - wr)) $((c - wa)) ||
+			     b := dt_hothit "$id" $((r - wr)) $((c - wa)); then
 				DT_HOTWIN=$id
 				DT_HOTTAG=$b
 				t="hot:$id:$b"

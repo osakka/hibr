@@ -464,6 +464,16 @@ sc = cprun()
 check("the picker lists every pane it has room for, sorted by title",
       all(TITLE[n] in sc.row(prow(n)) for n in ORDER if prow(n) < R0 + 19),
       sc)
+# A pane's name in the picker lights under the pointer where hovering is on
+# (Gitea #370): the second row, since the first is the pane already shown.
+_hn = ORDER[1]
+_hr = prow(_hn)
+_hc = sc.row(_hr).find(TITLE[_hn])
+sc = cprun([0.5, b"\x1b[<35;%d;%dM" % (_hc + 2, _hr + 1), 0.4],
+           env={"DT_HOVER": "on"})
+check("a pane's name in the picker lights under the pointer",
+      _hc >= 0 and sc.style(_hr, _hc + 1).get("bg") == "#2d3748" and
+      sc.style(prow(ORDER[2]), _hc + 1).get("bg") != "#2d3748", sc)
 # The list's scrollbar is beside the rows it scrolls and never on the
 # window's bottom border: it started a row low, from when the search sat
 # above the list, so scrolled to the end its thumb was on the border row,
@@ -3163,6 +3173,26 @@ check("space marks an entry and steps on", sc.find("2 selected") is not None,
 sc = run("files", FW, [b"\x01"], pre=PRE)
 check("ctrl-a selects everything but ..",
       sc.find("%d selected" % (ENTRIES - 1)) is not None, sc)
+# The entry under the pointer lights in the well colour, where hovering is
+# on (Gitea #370), and the cursor's row keeps its own.
+WELL = "#2d3748"
+
+
+def hovr(row, col):
+    return b"\x1b[<35;%d;%dM" % (col + 1, row + 1)
+
+
+sc = run("files", FW, [0.5, hovr(6, 8), 0.4], pre=PRE, env={"DT_HOVER": "on"})
+check("the entry under the pointer lights in the well colour",
+      sc.style(6, 8).get("bg") == WELL and sc.style(7, 8).get("bg") != WELL and
+      sc.style(4, 8).get("bg") != WELL, sc)
+sc0 = run("files", FW, [0.5], pre=PRE + "\nFB_DEFAULTVIEW=icons")
+al = sc0.find("alpha")
+sc = run("files", FW, [0.5, hovr(al[0], al[1]), 0.4] if al else [0.5],
+         pre=PRE + "\nFB_DEFAULTVIEW=icons", env={"DT_HOVER": "on"})
+check("and in the icon view the whole tile does, picture and name",
+      al is not None and sc.style(al[0], al[1]).get("bg") == WELL and
+      sc.style(al[0] - 1, al[1]).get("bg") == WELL, sc)
 sc = run("files", FW, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"a"], pre=PRE)
 check("and so does Edit > Select All (#372)",
       sc.find("%d selected" % (ENTRIES - 1)) is not None, sc)
@@ -5306,4 +5336,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(709)
+report(712)

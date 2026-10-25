@@ -15,7 +15,7 @@ strict
 # CPU and memory, worked out the same way in every window that shows them.
 [ -n "${SY_LIBDONE-}" ] || . "$DT_HERE/lib/sysstat.hibr"
 
-app tasks "What is running, and a way to end one" 1.4
+app tasks "What is running, and a way to end one" 1.5
 # part: control-panel/taskmgr.hibr
 
 # 64 columns rather than the 50 it opened at until 0.99.133: the names are
@@ -773,9 +773,10 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		else
-			console pen "$DT_INK" "$DT_FACE"
+			dt_hotpen "$id" "row:$i" "$DT_INK" "$DT_FACE"
 		fi
 		console put -p "w$id" "$r" $((1 + ${DT_MIRRORON:-0})) "$line"
+		[ "$i" -lt "$n" ] && dt_hotreg "$id" "$r" $((1 + ${DT_MIRRORON:-0})) "${#line}" "row:$i"
 		i=$((i + 1))
 		r=$((r + 1))
 	done

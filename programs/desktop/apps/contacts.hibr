@@ -16,7 +16,7 @@
 
 strict
 
-app contacts "The people in your address books, kept offline from CardDAV" 1.7
+app contacts "The people in your address books, kept offline from CardDAV" 1.8
 # part: control-panel/pimset.hibr
 # modules: dav db pim
 
@@ -333,7 +333,7 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 		if [ "$k" = "$sel" ] && ! dt_searchon "$id"; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 		else
-			console pen "$DT_INK" "$DT_FACE"
+			dt_hotpen "$id" "row:$k" "$DT_INK" "$DT_FACE"
 		fi
 		console put -p "w$id" "$r" $((lx + m)) "$nm"
 		dt_wreg "$id" "$r" "$lx" "$lw" "row:$k"

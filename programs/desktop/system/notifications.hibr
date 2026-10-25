@@ -20,7 +20,7 @@
 
 strict
 
-app notifications "A read-only look back at recent notifications" 1.3
+app notifications "A read-only look back at recent notifications" 1.4
 # part: control-panel/notifications.hibr
 
 command -v dt_app > /dev/null && dt_app notifications "Notifications" 16 66 \
@@ -59,7 +59,7 @@ fn nh_at(int i) {
 # Newest first, each row its time, its priority, who it is from and its
 # text.
 fn notifications_draw(int id, int h, int w, int row, int col) {
-	local n i r vis top hid at t line p sel f
+	local n i r vis top hid at t line p sel f rb
 
 	DT_NOTEUNSEEN=0
 	n=${#DT_NOTEHIST_ORDER[@]}
@@ -91,22 +91,25 @@ fn notifications_draw(int id, int h, int w, int row, int col) {
 				line := str pad "$line" $((w - 2))
 				console put -p "w$id" "$r" 1 "$line"
 			else
-				console pen "$DT_DIM" "$DT_FACE"
+				rb=$DT_FACE
+				dt_hot "$id" "row:$((top + i))" && rb=$DT_WELL
+				console pen "$DT_DIM" "$rb"
 				console put -p "w$id" "$r" 1 "$t  "
 				case $p in
-				urgent) console pen "$DT_BAD" "$DT_FACE" bold ;;
-				high) console pen "$DT_WARN" "$DT_FACE" bold ;;
-				low) console pen "$DT_DIM" "$DT_FACE" ;;
-				*) console pen "$DT_INK" "$DT_FACE" ;;
+				urgent) console pen "$DT_BAD" "$rb" bold ;;
+				high) console pen "$DT_WARN" "$rb" bold ;;
+				low) console pen "$DT_DIM" "$rb" ;;
+				*) console pen "$DT_INK" "$rb" ;;
 				esac
 				printf -v p '%-7s ' "$p"
 				console put -p "w$id" "$r" 8 "$p"
-				console pen "$DT_DIM" "$DT_FACE" bold
+				console pen "$DT_DIM" "$rb" bold
 				console put -p "w$id" "$r" 16 "$f"
-				console pen "$DT_INK" "$DT_FACE"
+				console pen "$DT_INK" "$rb"
 				line := str pad "$line" $((w - 30))
 				console put -p "w$id" "$r" 29 "$line"
 			fi
+			dt_hotreg "$id" "$r" 1 $((w - 2)) "row:$((top + i))"
 		fi
 		i=$((i + 1))
 		r=$((r + 1))

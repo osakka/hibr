@@ -109,7 +109,10 @@ with -- so every button, checkbox, dropdown and slider lights by itself. A
 list lights its rows by registering each one and drawing it with
 `dt_hotpen id tag fg bg [attr...]`, which picks the well colour while the
 pointer is over that row and `bg` otherwise; `dt_hot id tag` asks the same
-question. A selected row keeps its own pen, so do not ask for it. A window
+question. A list whose clicks are worked out by its own arithmetic registers
+its rows with `dt_hotreg id r c w tag` rather than `dt_wreg`, so they light
+without `dt_hit` ever answering a click with one. A selected row keeps its
+own pen, so do not ask for it. A window
 whose `_dirty` says it is clean is drawn again when what is lit in it
 changes, and a pointer moving within one region draws nothing.
 

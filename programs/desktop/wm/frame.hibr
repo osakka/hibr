@@ -240,6 +240,9 @@ fn dt_win(int id) {
 		return 0
 	fi
 	dt_hotmark "$id"
+	# A list's lit rows are registered again as it draws them, whether or
+	# not its app clears its own regions.
+	unset WH["$id"]
 
 	# Before any of the shapes below, because two of them return without
 	# reaching the one further down -- and the clean path above casts it,

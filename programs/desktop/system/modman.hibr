@@ -25,7 +25,7 @@
 
 strict
 
-app modman "What this shell can load, what it has loaded, and a way to change either" 1.1
+app modman "What this shell can load, what it has loaded, and a way to change either" 1.2
 
 declare -gA MM
 MM_FLOOR="console pty term hold"
@@ -160,9 +160,10 @@ fn modman_draw(int id, int h, int w, int row, int col) {
 		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		else
-			console pen "$DT_INK" "$DT_FACE"
+			dt_hotpen "$id" "row:$i" "$DT_INK" "$DT_FACE"
 		fi
 		console put -p "w$id" "$r" 2 "$line"
+		[ "$i" -lt "$n" ] && dt_hotreg "$id" "$r" 2 $((w - 3)) "row:$i"
 		i=$((i + 1))
 		r=$((r + 1))
 	done

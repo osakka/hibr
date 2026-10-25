@@ -17,7 +17,43 @@ declare -gA WG
 # drawing any dt_check or dt_wdrop -- a scrolled list moves them, so last
 # frame's regions must not answer this frame's click.
 fn dt_wclear(id) {
-	unset "WG[$id]"
+	unset "WG[$id]" "WH[$id]"
+}
+
+# The rows a list lights under the pointer (Gitea #370), kept apart from
+# the widgets' regions so a list that turns a click into a row by its own
+# arithmetic goes on doing so: dt_hit never answers one of these, only
+# dt_hover reads them. Cleared with the rest by dt_wclear.
+declare -gA WH
+
+# Register a list row as something that lights under the pointer; it is
+# drawn with dt_hotpen under the same tag.
+fn dt_hotreg(id, int r, int c, int w, tag) {
+	local n
+
+	n=${WH[$id]["n"]:-0}
+	WH[$id][$n]["r"]=$r
+	WH[$id][$n]["c"]=$c
+	WH[$id][$n]["w"]=$w
+	WH[$id][$n]["tag"]=$tag
+	WH[$id]["n"]=$((n + 1))
+}
+
+# Which registered row, if any, is at a pane-relative row and column.
+fn dt_hothit(id, int r, int c) {
+	local n i=0 wc
+
+	n=${WH[$id]["n"]:-0}
+	while [ "$i" -lt "$n" ]; do
+		wc=${WH[$id][$i]["c"]}
+		if [ "$r" = "${WH[$id][$i]["r"]}" ] && [ "$c" -ge "$wc" ] &&
+		   [ "$c" -lt $((wc + ${WH[$id][$i]["w"]})) ]; then
+			ret "${WH[$id][$i]["tag"]}"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	return 1
 }
 
 # Record a widget's hit region.  The draw helpers below call this; an app

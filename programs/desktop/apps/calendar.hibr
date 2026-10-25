@@ -19,7 +19,7 @@
 
 strict
 
-app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.7
+app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.8
 # part: control-panel/pimset.hibr
 # modules: dav db email pim
 
@@ -508,7 +508,7 @@ fn cv_drawday(int id, int r0, int vis, int w) {
 		if [ "${CVW[$id]["focus"]}" = list ] && [ "$k" = "${CVW[$id]["li"]:-0}" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 		else
-			console pen "$DT_INK" "$DT_FACE"
+			dt_hotpen "$id" "ev:$k" "$DT_INK" "$DT_FACE"
 		fi
 		if [ "$DT_MIRRORON" = 1 ]; then
 			line := dt_rpad "${line:0:$((w - 4))} " $((w - 2))
@@ -570,7 +570,7 @@ fn cv_drawagenda(int id, int h, int w) {
 		if [ "$i" = "${CVW[$id]["li"]:-0}" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 		else
-			console pen "$DT_INK" "$DT_FACE"
+			dt_hotpen "$id" "ev:$i" "$DT_INK" "$DT_FACE"
 		fi
 		c=3
 		if [ "$DT_MIRRORON" = 1 ]; then

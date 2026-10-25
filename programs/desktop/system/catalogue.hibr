@@ -19,7 +19,7 @@
 
 strict
 
-app catalogue "The application catalogue: browse, install, update and remove" 2.5
+app catalogue "The application catalogue: browse, install, update and remove" 2.6
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
@@ -518,7 +518,7 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 				elif [ "$i" = "$sel" ]; then
 					console pen "$DT_INK" "$DT_WELL" bold
 				else
-					console pen "$DT_ACTIVE" "$DT_FACE" bold
+					dt_hotpen "$id" "row:$i" "$DT_ACTIVE" "$DT_FACE" bold
 				fi
 			else
 				local lead
@@ -573,11 +573,12 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 				elif [ "$i" = "$sel" ]; then
 					console pen "$DT_INK" "$DT_WELL"
 				else
-					console pen "$DT_INK" "$DT_FACE"
+					dt_hotpen "$id" "row:$i" "$DT_INK" "$DT_FACE"
 				fi
 			fi
 			t := str pad "$line" "$listw"
 			console put -p "w$id" "$r" 1 "$t"
+			dt_hotreg "$id" "$r" 1 "$listw" "row:$i"
 		else
 			# Past the end of the list, and still written: a
 			# window's cells are not cleared between frames, so a

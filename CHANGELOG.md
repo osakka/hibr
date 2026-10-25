@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.336
+
+**The lists light the row under the pointer** (Gitea #370), wherever
+hovering is on. This is the second half of 0.99.334.
+
+- **Files:** the entry under the pointer, in the list and details views,
+  and the whole tile, picture and name, in the icon view.
+- **Control Panel:** a pane's name in the picker, and a setting's whole row
+  in a pane. The row's checkbox, dropdown or slider still lights by itself.
+- **Contacts, Mail and Calendar:** a person, a conversation and an event.
+  Calendar does this in both the day's list and the agenda.
+- **The Catalogue, Task Manager, Notifications, Clipboard and Modules:** the
+  row under the pointer.
+
+A selected row keeps its own colour. A row lights on the well colour, as
+the bar's titles do.
+
+Rows are registered for hovering in a table of their own (`dt_hotreg`),
+apart from the regions `dt_hit` answers clicks with. A list that turns a
+click into a row by its own arithmetic therefore clicks exactly as it did.
+The window manager clears a window's lit rows before drawing it, so an app
+need not.
+
+Files 2.2, Contacts 1.8, Mail 2.1, Calendar 1.8, Control Panel 1.4,
+Catalogue 2.6, Task Manager 1.5, Notifications 1.4, Clipboard 1.2 and
+Modules 1.2.
+
 ## 0.99.335
 
 **The Browser gives a download up when its Save dialog is closed with no
