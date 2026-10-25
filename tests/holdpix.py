@@ -1091,7 +1091,8 @@ more = [a for a in after if "a=T" in a or ("a=d" in a and "d=I" in a)]
 check("held, a window's picture under another window is sent and then kept",
       lp and not more, (lp, more))
 check("below the cells, and the window over it is on top",
-      lp and "z=-1073741825" in lp[0] and "TOP" in sc.text(), (lp, sc.text()))
+      lp and -1610612736 < int(re.search(r"z=(-?\d+)", lp[0]).group(1))
+      < -1073741824 and "TOP" in sc.text(), (lp, sc.text()))
 
 # Leaner frames (Gitea #353): a screen of varied text in a colour scrolled a
 # row each frame, held. Each move is the cheapest one, short gaps are drawn

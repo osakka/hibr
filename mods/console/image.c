@@ -44,6 +44,7 @@ typedef struct cn_img {
 	int sent;		/* 0 until its bytes have gone out */
 	int over;		/* text is drawn over this one, so it owns no cells */
 	int lo;			/* a window's picture below the cells (Gitea #374) */
+	long z;			/* its kitty layer, 0 over the text */
 	int live;		/* placed again this frame (an `over` one only) */
 	unsigned above;		/* of the cells over it, as they were when sent */
 	unsigned id;		/* the kitty image's own id; 0 for a sixel */
@@ -397,6 +398,30 @@ void cn_imgscale(const unsigned char *in, int iw, int ih,
 	cn_imgscalesrc(in, iw, ih, 0, 0, iw, ih, out, w, h);
 }
 
+/* The kitty layer a picture goes in: the wallpaper's at the bottom, a
+   window's picture above it by where its pane is in the stack, counted from
+   the bottom so that opening a window moves nobody else's, and 0 -- over the
+   text -- for anything else. Two windows' pictures that overlap are then
+   drawn in the windows' order: at one z the terminal orders them by image
+   id, and a playing film takes a new id every frame, so it would be drawn
+   over whatever window was in front of it (Gitea #382). The topmost of a
+   long stack stops at CN_ZUNDER, the band's top. */
+long cn_imgz(const char *pane, int lo, unsigned flags)
+{
+	size_t i;
+
+	if (flags & DP_IMG_UNDER)
+		return CN_ZWALL;
+	if (!lo)
+		return 0;
+	for (i = 0; i < cn_panes.n; i++)
+		if (!strcmp(((cn_pane *)cn_panes.p[i])->nm, pane))
+			break;
+	if ((long)CN_ZWALL + 1 + (long)i > (long)CN_ZUNDER)
+		return CN_ZUNDER;
+	return (long)CN_ZWALL + 1 + (long)i;
+}
+
 /* Place a picture: w by h cells at row, col, from iw by ih pixels of RGB.
    With a pane, row and col are the pane's own, and anything past its edge is
    refused rather than drawn outside it -- the same discipline cn_pput gives
@@ -407,6 +432,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 {
 	int prow = 0, pcol = 0, ph = 0, pw = 0, cw = 0, chh = 0, tw, th, k;
 	int wrow, wcol, wh, ww, vr0, vc0, vr1, vc1, sx, sy, sw, sh, comp, lo;
+	long z;
 	unsigned char *px = 0;
 	unsigned sum, reuse = 0;
 	size_t i;
@@ -530,6 +556,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	w = vc1 - vc0;
 	if (lo)
 		cn_imgblank(row, col, h, w);
+	z = cn_imgz(pane, lo, flags);
 	sum = cn_hash(rgb, (size_t)iw * ih * 3, 2166136261u);
 	sum = cn_hash(&flags, sizeof flags, sum);
 	for (i = 0; i < cn_nimg; i++) {
@@ -537,7 +564,9 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		if (im->wrow != wrow || im->wcol != wcol || im->wh != wh ||
 		    im->ww != ww)
 			continue;
-		if (im->sum == sum) {
+		/* Its window moved in the stack: the same picture at another
+		   layer, which the terminal takes as a new placement. */
+		if (im->sum == sum && im->z == z) {
 			/* The same picture in the same place: it is already on
 			   screen. One that owns its cells takes whatever this
 			   frame has drawn as its own again; one drawn under
@@ -578,6 +607,12 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	 * looks untouched for ever. Two live placements were the result -- one
 	 * wide preview and one tall, both on screen.
 	 *
+	 * Not between two windows' pictures below the cells, either, which
+	 * own no cells and are told apart by their layers: a window in pixels
+	 * over part of another dropped the one underneath whole, every frame
+	 * (Gitea #382), where the terminal would have drawn each below its own
+	 * window's cells and the one in front over the one behind.
+	 *
 	 * Only between two that own their cells. A picture drawn under the
 	 * text is *below* these by construction (z=-1), so a window's picture
 	 * placed over part of the wallpaper must leave the wallpaper alone, or
@@ -592,7 +627,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		while (j < cn_nimg) {
 			cn_img *o = &cn_imgs[j];
 
-			if (!o->over && o->row < row + h && row < o->row + o->h &&
+			if (!o->over && !(lo && o->lo) &&
+			    o->row < row + h && row < o->row + o->h &&
 			    o->col < col + w && col < o->col + o->w) {
 				lg(HIBR_LDBG, "image: dropped, a picture was "
 					      "placed over it");
@@ -626,6 +662,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	im->sum = sum;
 	im->over = (flags & DP_IMG_UNDER) ? 1 : 0;
 	im->lo = lo;
+	im->z = z;
 	im->live = im->over;
 	if (pane && !im->over) {
 		im->pane = xs(pane);
@@ -731,8 +768,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   "a picture that will not change" from "a picture with a palette". */
 	comp = im->over ? cn_imgcomp : CN_COMP_NONE;
 	if (im->id)
-		kt_encode(px ? px : rgb, tw, th, w, h, im->id,
-			  im->over ? KT_WALL : im->lo ? KT_LOW : 0, comp,
+		kt_encode(px ? px : rgb, tw, th, w, h, im->id, im->z, comp,
 			  &im->data);
 	else
 		six_encode(px ? px : rgb, tw, th,

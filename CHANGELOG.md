@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.345
+
+**A window showing a picture stays visible behind another window that
+shows one** (Gitea #382, the owner's WhatsApp over YouTube on Blit). The
+console's rule that a picture placed over another supersedes it (#172) was
+meant for pictures that own their cells, and it reached window pictures,
+which sit below the cells and own none: the window behind was dropped whole
+every frame, and the one in front sent again each frame. Between two window
+pictures it no longer applies; each gets a layer of its own in the windows'
+stacking order, so the one in front is drawn over the one behind (at one
+layer a terminal goes by image id, and a playing film takes a new id every
+frame, so it would have been drawn in front of the window covering it).
+Measured: two windows in pixels overlapping went from both pictures dropped
+and sent again every frame to each sent once and kept.
+
+The cost: raising a window re-sends the picture of every window whose place
+in the stack moved -- the raised one and those that were above it -- about
+1.6 MB raw for a 1045x528 page; opening a window moves nobody else's. The
+fix is in the console module: Restart Desktop picks it up.
+
 ## 0.99.344
 
 **A window showing a picture no longer goes blank while another window

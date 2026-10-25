@@ -134,12 +134,7 @@ void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o);
    object with an id rather than paint, so every one placed is deleted later. */
 unsigned kt_id(void);
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
-	       unsigned id, int under, int comp, str *o);
-/* under's two layers below the cells: the wallpaper's and a window's. */
-#ifndef KT_WALL
-#define KT_WALL 1
-#define KT_LOW 2
-#endif
+	       unsigned id, long z, int comp, str *o);
 void kt_del(str *o, unsigned id);
 void kt_delall(str *o);
 /* How many times anything has written to the grid or placed a picture. A

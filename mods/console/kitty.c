@@ -76,13 +76,14 @@ unsigned kt_id(void)
 }
 
 /* A picture: iw by ih pixels of RGB, to be shown in cols by rows cells at
-   wherever the cursor is when this arrives. under puts it below the cells:
-   KT_WALL the wallpaper's layer, KT_LOW a window's, just above it.
+   wherever the cursor is when this arrives, at layer z: 0 over the text, or
+   one of the z values image.c works out below the cells -- CN_ZWALL for the
+   wallpaper, and a window's above it in the windows' own order.
    comp is CN_COMP_NONE, CN_COMP_ZLIB or CN_COMP_PNG -- what image.c decided
    from what kind of picture this is, since compressing a film's frame costs
    more than its bytes save. */
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
-	       unsigned id, int under, int comp, str *o)
+	       unsigned id, long z, int comp, str *o)
 {
 	str b, c;
 	size_t i, n, k;
@@ -127,10 +128,9 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 			s_num(o, cols);
 			s_cat(o, ",r=");
 			s_num(o, rows);
-			if (under) {
+			if (z) {
 				s_cat(o, ",z=");
-				s_num(o, under == KT_LOW ? (long)CN_ZUNDER
-							 : (long)CN_ZWALL);
+				s_num(o, z);
 			}
 		} else {
 			s_cat(o, "q=2");

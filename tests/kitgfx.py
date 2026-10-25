@@ -973,10 +973,47 @@ sc = run(frames(1, lambda i: (14, 40))
          + "console fill -p w1 0 0 10 30 ' '\nconsole flush\nconsole key 200\n")
 check("and its window drawing without it is still what takes it away",
       len(places(sc)) == 1 and len(mine(sc)) == 1, sc.apc)
+# Two windows in pixels, one over part of the other (Gitea #382): the one
+# behind was dropped whole every frame -- "a picture was placed over it" --
+# so a YouTube window behind a WhatsApp one was blank and WhatsApp's was
+# sent again each frame. Each now has its own layer, in the windows' order,
+# since at one z the terminal orders by id and a film's new id every frame
+# would put it in front of the window covering it.
+TWINUP = ("console flush\nconsole pane w1 2 2 10 30\n"
+          "console pane w2 6 16 10 30\nconsole pane raise w2\n")
+
+
+def twin(n):
+    """n frames of windows w1 and w2 each placing its picture, w2 over
+    part of w1."""
+    return ("console pen default '#203040'\n"
+            "console fill -p w1 0 0 10 30 ' '\n"
+            "img draw %s 1 1 8 28 -m pixels -p w1\n" % GRAD
+            + "console pen default '#405060'\n"
+            "console fill -p w2 0 0 10 30 ' '\n"
+            "img draw %s 1 1 8 28 -m pixels -p w2\n" % GRAD
+            + "console flush\nconsole key 60\n") * n
+
+
+sc = run(TWINUP + twin(6))
+p = places(sc)
+zs = [int(key(a, "z")) for a in p if key(a, "z") is not None]
+check("two windows' pictures overlapping are each sent once and kept",
+      len(p) == 2 and not mine(sc), (p, mine(sc)))
+check("each below the cells, the one in front at the higher layer",
+      len(zs) == 2 and all(-1610612736 < z < -1073741824 for z in zs)
+      and zs[1] > zs[0], zs)
+sc = run(TWINUP + twin(2) + "console pane raise w1\n" + twin(2))
+p = places(sc)
+zs = [int(key(a, "z")) for a in p if key(a, "z") is not None]
+check("raising the one behind puts its picture above the other's",
+      len(p) == 4 and zs[0] < zs[1] and zs[2] > zs[3] and
+      len(mine(sc)) == 2, (zs, mine(sc)))
+
 sc = run(PIC % "-m pixels -u" + "console flush\n")
 z = key(places(sc)[0], "z") if places(sc) else None
 check("the wallpaper went further down to make room: %s" % z,
       z is not None and int(z) <= -1610612736, places(sc))
 
 shutil.rmtree(D, True)
-report(96)
+report(99)

@@ -218,6 +218,23 @@ as pixels or half blocks by what that display said.
   shadow over such a picture is the shadow's own colour, not a darkened
   picture, since the per-cell colours a translucent window reads are taken
   only from the wallpaper.
+- **Two windows' pictures that overlap each keep their own, in the windows'
+  order** (Gitea #382, 0.99.345). The rule above that a picture placed over
+  another supersedes it (#172) was written for pictures that own their
+  cells, and it reached window pictures too: a window in pixels over part
+  of another dropped the one behind whole, every frame, and the one in
+  front was sent again each frame for having dropped it. Window pictures
+  own no cells, so it does not apply between two of them. Each gets a layer
+  instead, `CN_ZWALL + 1` plus its pane's place in the stack counted from
+  the bottom, so the one in front is drawn over the one behind; at one z a
+  terminal orders by image id, and a film takes a new id every frame, so
+  equal layers would have put a video over the window covering it. A
+  changed layer is a changed placement, which costs something worth naming:
+  raising a window re-sends the picture of every window whose place in the
+  stack moved -- the raised one and each that was above it, about 1.6 MB
+  raw for a 1045x528 page. Counting from the bottom means opening a window
+  moves nobody else's. A raise stamp per pane, so that only the raised
+  window moves, is the cheaper design if that cost ever shows.
 - **A redirection on a `console` command used to reach the display**, which
   is how the film numbers above were first measured as 0.05 ms a frame:
   the console drew on, and selected on, whatever descriptor number stdout
