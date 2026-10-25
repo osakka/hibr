@@ -211,6 +211,9 @@ unsigned cn_rgbof(unsigned v);
 unsigned cn_opaque(int row, int col, unsigned bg);
 void cn_darken(int row, int col, int h, int w, int pct);
 void cn_darken1(int row, int col, int h, int w, int pct, int once, int half);
+unsigned cn_mix(unsigned a, unsigned b, int pct);
+void cn_tint(int row, int col, int h, int w, unsigned colour, int pct, int r0,
+	     int c0, int r1, int c1);
 unsigned cn_halfof(const cn_cell *k, int top, int *isbg);
 void cn_darkhalf(cn_cell *k, int r, int c, int pct, int half);
 void cn_split(int row, int col);

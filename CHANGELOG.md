@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.341
+
+**The rubber band has a look of its own, and Files has one too** (Gitea
+#383).
+
+- **Looks:** Control Panel > Desktop > Rubber Band chooses how the band
+  looks: a single frame (the default), dashed (as it was until now), solid,
+  or translucent. Band Intensity, beside it, sets how strongly translucent
+  tints what it covers (30% by default). A theme can carry both (`band`,
+  `bandpct`).
+- **Files:** a drag from empty space in a Files window draws the same band
+  and selects every entry it crosses, in the list, details and icon views.
+  Ctrl keeps what was already selected.
+- **One helper:** the desktop and Files draw it with `dt_band`
+  (`widgets/band.hibr`), so the two cannot differ.
+
+**`console tint [-p pane] row col h w colour pct`** blends a colour into
+what is already drawn. Text keeps its own colour and stays readable, while
+backgrounds and block glyphs take the tint. The band's solid and
+translucent looks are drawn with it.
+
+Desktop pane 1.3, Files 2.3, Appearance 2.6.
+
+**0.99.340 was released with eight of its own desktop checks failing**:
+the title-button checks still expected the old min, max, close order. The
+buttons themselves were right. The checks are corrected here.
+
 ## 0.99.340
 
 **A button shows that a press would act on it, in a colour of its own**

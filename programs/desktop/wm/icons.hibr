@@ -229,23 +229,13 @@ dt_icondraw() {
 	[ -n "$DI_BANDR" ] && dt_banddraw
 }
 
-# The rubber band, drawn dashed so it reads as a selection, not a window.
+# The rubber band, in the look Control Panel > Desktop chose; the same
+# helper draws Files' own (widgets/band.hibr, Gitea #383).
 dt_banddraw() {
-	local r0 c0 r1 c1 r t
+	local r0 c0 r1 c1
 
 	read -r r0 c0 r1 c1 <<< "$DI_BANDR"
-	console pen "$DT_ACTIVE" "$DT_WALL"
-	if [ "$c1" -gt "$c0" ]; then
-		t := str repeat "${GL[dashh]}" $((c1 - c0 + 1))
-		console put "$r0" "$c0" "$t"
-		console put "$r1" "$c0" "$t"
-	fi
-	r=$r0
-	while [ "$r" -le "$r1" ]; do
-		console put "$r" "$c0" "${GL[dashv]}"
-		console put "$r" "$c1" "${GL[dashv]}"
-		r=$((r + 1))
-	done
+	dt_band "" "$r0" "$c0" "$r1" "$c1" "$DT_WALL"
 }
 
 # Which icon is at a cell, if any; the last drawn is on top.

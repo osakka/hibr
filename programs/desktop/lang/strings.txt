@@ -162,6 +162,7 @@ Back 10 Seconds
 Back 30 Seconds
 Back 5 Seconds
 Backspace
+Band Intensity
 Bar Shadow
 Batteries
 Battery
@@ -906,6 +907,7 @@ Restarted: hibr %s
 Restart…
 Right
 Rows
+Rubber Band
 Rule
 Rule…
 Run in a terminal

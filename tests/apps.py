@@ -3208,6 +3208,16 @@ check("space marks an entry and steps on", sc.find("2 selected") is not None,
 sc = run("files", FW, [b"\x01"], pre=PRE)
 check("ctrl-a selects everything but ..",
       sc.find("%d selected" % (ENTRIES - 1)) is not None, sc)
+# A drag from empty space is a rubber band (Gitea #383): from below the two
+# entries of a folder of two up over both, they are selected.
+BD = tempfile.mkdtemp(prefix="hibr-band-")
+for _f in ("one.txt", "two.txt"):
+    open(os.path.join(BD, _f), "w").close()
+sc = run("files", FW, [press(10, 8), drag(8, 9), drag(5, 9), release(5, 9)],
+         pre="FB_DIR=%s" % BD)
+check("a drag from empty space in Files is a rubber band, selecting what it crosses",
+      sc.find("2 selected") is not None, sc)
+shutil.rmtree(BD, True)
 # The entry under the pointer lights in the well colour, where hovering is
 # on (Gitea #370), and the cursor's row keeps its own.
 WELL = "#2d3748"
@@ -5373,4 +5383,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(715)
+report(717)

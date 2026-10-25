@@ -8,7 +8,7 @@
 strict
 
 
-app desktop "The Control Panel pane for the bare desktop" 1.2
+app desktop "The Control Panel pane for the bare desktop" 1.3
 command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
 
 DK_CYCLES=(workspace all)
@@ -29,6 +29,15 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icon Background"
 	CP[$w][$n]["val"] := cp_iconbglabel
 	CP[$w][$n]["key"]=iconbg; n=$((n + 1))
+	# The rubber band a drag across empty space draws (Gitea #383).
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Rubber Band"
+	CP[$w][$n]["val"] := cp_bandlabel
+	CP[$w][$n]["key"]=band; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Band Intensity"
+	CP[$w][$n]["after"]="(${DT_BANDPCT:-30}%)"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]=${DT_BANDPCT:-30}; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
+	CP[$w][$n]["key"]=bandpct; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Workspaces ($DT_WSN)"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_WSN; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=9
@@ -91,6 +100,13 @@ fn desktop_do(int w, k, int dir) {
 		;;
 	cycle) v := cp_next "$DT_CYCLE" "$dir" "${DK_CYCLES[@]}"
 		DT_CYCLE=$v ;;
+	band)
+		v := cp_bandlabel
+		v := cp_next "$v" "$dir" "${CP_BANDL[@]}"
+		cp_set_band "" "$v"
+		return 0
+		;;
+	bandpct) cp_bandpct $((${DT_BANDPCT:-30} + dir * 10)) ;;
 	shotfmt) v := cp_next "$DT_SHOTFMT" "$dir" "${SH_FMTS[@]}"
 		DT_SHOTFMT=$v ;;
 	shotlast) v := cp_next "$DT_SHOTLAST" "$dir" "${SH_STARTS[@]}"
@@ -114,6 +130,46 @@ fn desktop_do(int w, k, int dir) {
 		;;
 	esac
 	cp_save
+}
+
+# Rubber Band's choices, as the row shows them and as DT_BAND keeps them.
+CP_BANDV=(frame dashed solid translucent)
+CP_BANDL=("Single Frame" "Dashed" "Solid" "Translucent")
+
+fn cp_bandlabel() {
+	local i=0
+
+	while [ "$i" -lt "${#CP_BANDV[@]}" ]; do
+		[ "${CP_BANDV[$i]}" = "${DT_BAND:-frame}" ] && ret "${CP_BANDL[$i]}" && return 0
+		i=$((i + 1))
+	done
+	ret "${CP_BANDL[0]}"
+}
+
+fn cp_set_band(int? id = "", value = "") {
+	local i=0
+
+	while [ "$i" -lt "${#CP_BANDL[@]}" ]; do
+		[ "${CP_BANDL[$i]}" = "$value" ] && DT_BAND=${CP_BANDV[$i]}
+		i=$((i + 1))
+	done
+	cp_save
+}
+
+fn cp_bandpct(int v) {
+	[ "$v" -lt 0 ] && v=0
+	[ "$v" -gt 100 ] && v=100
+	DT_BANDPCT=$v
+	cp_save
+	return 0
+}
+
+# A slider set where its track is clicked.
+fn desktop_slide(int w, k, int value) {
+	case $k in
+	bandpct) cp_bandpct "$value" ;;
+	esac
+	return 0
 }
 
 # Icon Background's choices, as the row shows them and as DT_ICONBG keeps
@@ -141,6 +197,7 @@ fn desktop_drop(int w, int r, int c, k) {
 	case $k in
 	cycle) dt_droplist "$w" "$r" "$c" cp_set_cycle "${DK_CYCLES[@]}" ;;
 	iconbg) dt_droplist "$w" "$r" "$c" cp_set_iconbg "${CP_ICONBGL[@]}" ;;
+	band) dt_droplist "$w" "$r" "$c" cp_set_band "${CP_BANDL[@]}" ;;
 	shotfmt) dt_has cp_set_shotfmt &&
 		dt_droplist "$w" "$r" "$c" cp_set_shotfmt "${SH_FMTS[@]}" ;;
 	shotlast) dt_has cp_set_shotlast &&

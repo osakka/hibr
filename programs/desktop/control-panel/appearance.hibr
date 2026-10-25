@@ -11,7 +11,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.5
+app appearance "The Control Panel pane for how the desktop looks" 2.6
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -193,6 +193,7 @@ CP_THDEF["dialog"]=filled; CP_THDEF["glyphs"]=unicode
 CP_THDEF["windowshadow"]=1; CP_THDEF["menushadow"]=1
 CP_THDEF["barshadow"]=1; CP_THDEF["buttonshadow"]=1
 CP_THDEF["wintrans"]=0; CP_THDEF["bartrans"]=0
+CP_THDEF["band"]=frame; CP_THDEF["bandpct"]=30
 
 # Whether a value is one of a list.
 fn cp_oneof(v, ...vals) {
@@ -231,7 +232,8 @@ fn cp_themeread(n, f) {
 		checks) cp_oneof "$v" "${CP_CHECKS[@]}" || return 1 ;;
 		dialog) cp_oneof "$v" "${DT_DLGBTNS[@]}" || return 1 ;;
 		glyphs) cp_oneof "$v" "${DT_GLYPHSETS[@]}" || return 1 ;;
-		wintrans | bartrans)
+		band) cp_oneof "$v" "${DT_BANDS[@]}" || return 1 ;;
+		wintrans | bartrans | bandpct)
 			case $v in '' | *[!0-9]*) return 1 ;; esac
 			[ ${#v} -le 3 ] && [ "$v" -le 100 ] || return 1
 			;;
@@ -308,6 +310,8 @@ fn cp_theme(t) {
 	DT_MSHADOW=${CP_TH["$t"]["menushadow"]}
 	DT_BARSHADOW=${CP_TH["$t"]["barshadow"]}
 	DT_BTNSHADOW=${CP_TH["$t"]["buttonshadow"]}
+	DT_BAND=${CP_TH["$t"]["band"]}
+	DT_BANDPCT=${CP_TH["$t"]["bandpct"]}
 	DT_WINTRANS=${CP_TH["$t"]["wintrans"]}
 	DT_BARTRANS=${CP_TH["$t"]["bartrans"]}
 	DT_BARWAS=
@@ -354,6 +358,8 @@ fn cp_themewrite(path) {
 		printf '  "glyphs": "%s",\n' "$DT_GLYPHSET"
 		printf '  "wintrans": %s,\n' "${DT_WINTRANS:-0}"
 		printf '  "bartrans": %s,\n' "${DT_BARTRANS:-0}"
+		printf '  "band": "%s",\n' "${DT_BAND:-frame}"
+		printf '  "bandpct": %s,\n' "${DT_BANDPCT:-30}"
 		for b in windowshadow:DT_SHADOW menushadow:DT_MSHADOW barshadow:DT_BARSHADOW; do
 			vn=${b#*:}
 			if [ "${!vn}" = 1 ]; then printf '  "%s": true,\n' "${b%%:*}"; else printf '  "%s": false,\n' "${b%%:*}"; fi

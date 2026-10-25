@@ -102,6 +102,7 @@ and the flush cost shown live. Run it and press things.
 | `console sent` | how many bytes the display's flushes have written to the terminal since it opened |
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
 | `console darken row col h w [pct]` | shade what is already in the back buffer, a shadow |
+| `console tint [-p pane] row col h w colour pct` | blend a colour into what is already there at pct percent, its text still in its own colour and readable -- the rubber band's solid and translucent looks |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
 | `console translucent pct [colour [match]]` | how much of a picture drawn under the text shows through the writes that follow: a cell written with no background of its own -- or in `match`, a window's own face -- takes the picture's own colour there, scaled to `pct`, or `colour` where there is no picture. `off` ends it, and so does the next flush |
 | `console termbg` | what the terminal says its own background is, and whether it said it: `#101418 answered`, or `#000000 assumed` by a terminal that answers nothing |

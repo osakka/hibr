@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.34",
+ "version": "3.35",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -177,6 +177,7 @@
   "Back 30 Seconds": "رجوع 30 ثانية",
   "Back 5 Seconds": "رجوع 5 ثوانٍ",
   "Backspace": "مسح للخلف",
+  "Band Intensity": "شدة الإطار المطاطي",
   "Bar Shadow": "ظل الشريط",
   "Blank": "إطفاء الشاشة",
   "Block Addresses": "حظر العناوين",
@@ -863,6 +864,7 @@
   "Restarted: hibr %s": "أُعيد التشغيل: hibr %s",
   "Right": "يمين",
   "Rows": "الصفوف",
+  "Rubber Band": "الإطار المطاطي",
   "Rule": "القاعدة",
   "Rule…": "قاعدة…",
   "Run in a terminal": "التشغيل في طرفية",

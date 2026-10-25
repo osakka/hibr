@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 2.2
+app files "A file browser" 2.3
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -823,7 +823,55 @@ fn files_draw(int id, int h, int w, int row, int col) {
 		console put -p "w$id" $((h - srows)) $((w - ${#t})) "$t"
 		;;
 	esac
+	# A rubber band being dragged across the entries (Gitea #383).
+	if [ -n "${FB[$id]["bandr"]-}" ] && dt_has dt_band; then
+		local -a bb
+		read -ra bb <<< "${FB[$id]["bandr"]}"
+		dt_band "w$id" "${bb[0]}" "${bb[1]}" "${bb[2]}" "${bb[3]}" "$DT_FACE"
+	fi
 	dt_searchdraw "$id" "$h" "$w"
+}
+
+# Stretch Files' rubber band to r,c, in the window's own cells, and mark
+# every entry it touches -- the rows it crosses in the list and details
+# views, the tiles it overlaps in the icon view -- keeping what was marked
+# before a ctrl-press began it (Gitea #383).
+fn fb_band(int id, int r, int c) {
+	local r0 c0 r1 c1 t y0 per top i n th tw=$FILES_TILE x y w=${FB[$id]["w"]:-40}
+	local -a kept
+
+	read -r r0 c0 <<< "${FB[$id]["band"]}"
+	r1=$r
+	c1=$c
+	[ "$r0" -gt "$r1" ] && { t=$r0; r0=$r1; r1=$t; }
+	[ "$c0" -gt "$c1" ] && { t=$c0; c0=$c1; c1=$t; }
+	y0=${FB[$id]["y0"]:-2}
+	[ "$r0" -lt "$y0" ] && r0=$y0
+	[ "$c0" -lt 1 ] && c0=1
+	FB[$id]["bandr"]="$r0 $c0 $r1 $c1"
+	per=${FB[$id]["per"]:-1}
+	top=${FB[$id]["top"]:-0}
+	n=${FB[$id]["n"]:-0}
+	th=${FB[$id]["th"]:-3}
+	read -ra kept <<< "${FB[$id]["bandkeep"]-}"
+	for ((i = top; i < n; i++)); do
+		if [ "${FB[$id]["view"]}" = icons ]; then
+			y=$((y0 + ((i - top) / per) * th))
+			x=$((1 + ((i - top) % per) * tw))
+			[ "$DT_MIRRORON" = 1 ] && x=$((w + 1 - ((i - top) % per + 1) * tw))
+			[ "$y" -le "$r1" ] && [ $((y + th - 1)) -ge "$r0" ] &&
+				[ "$x" -le "$c1" ] && [ $((x + tw - 1)) -ge "$c0" ]
+		else
+			y=$((y0 + i - top))
+			[ "$y" -ge "$r0" ] && [ "$y" -le "$r1" ]
+		fi
+		if [ $? = 0 ]; then
+			fb_mark "$id" "$i" 1
+		elif [[ " ${kept[*]} " != *" $i "* ]]; then
+			fb_mark "$id" "$i" 0
+		fi
+	done
+	return 0
 }
 
 # A list of names, one to a row.
@@ -2008,6 +2056,17 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 		FB[$id]["defer"]=
 		if ! i := fb_at "$id" "$r" "$c"; then
 			case $mods in *ctrl* | *shift*) ;; *) fb_clear "$id" ;; esac
+			# Empty space: a drag from here is a rubber band (#383),
+			# keeping what ctrl leaves marked.
+			FB[$id]["band"]="$r $c"
+			FB[$id]["bandr"]=
+			FB[$id]["bandkeep"]=
+			case $mods in *ctrl*)
+				for ((i = 0; i < ${FB[$id]["n"]:-0}; i++)); do
+					[ -n "${FL[$id][$i]["m"]}" ] && FB[$id]["bandkeep"]+=" $i"
+				done
+				;;
+			esac
 			return 0
 		fi
 		case $mods in
@@ -2046,6 +2105,10 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 		FB[$id]["press"]="$r $c"
 		;;
 	drag)
+		if [ -n "${FB[$id]["band"]-}" ]; then
+			fb_band "$id" "$r" "$c"
+			return 0
+		fi
 		pr=${FB[$id]["press"]}
 		[ -n "$pr" ] || return 0
 		pc=${pr#* }
@@ -2064,6 +2127,9 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 		command -v dt_dnd > /dev/null && dt_dnd "$lb" "$g" "${FB_PATHS[@]}"
 		;;
 	release)
+		FB[$id]["band"]=
+		FB[$id]["bandr"]=
+		FB[$id]["bandkeep"]=
 		if [ -n "${FB[$id]["defer"]}" ]; then
 			fb_clear "$id"
 			FB[$id]["defer"]=

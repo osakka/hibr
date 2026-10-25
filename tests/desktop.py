@@ -287,9 +287,10 @@ check("a window has a top-left corner where it was put",
 check("and a grow box at its far corner", sc.g[13][39] == "◢", sc)
 check("its title is in the title bar", sc.find("┤ Hello ├") == (6, 12), sc)
 check("the close button is at the right of the bar", sc.g[6][37] == "x", sc)
-check("the minimise and zoom buttons sit beside it",
-      sc.g[6][32] == "┤" and sc.g[6][33] == "_" and
-      sc.g[6][35] == "□" and sc.g[6][38] == "├", sc)
+# Max, min, close since Gitea #384, close at the window's outer edge.
+check("the zoom and minimise buttons sit beside it",
+      sc.g[6][32] == "┤" and sc.g[6][33] == "□" and
+      sc.g[6][35] == "_" and sc.g[6][38] == "├", sc)
 check("the wallpaper is drawn behind it", sc.g[12][2] == "·", sc)
 check("the menu bar shows the hibr menu, the time and the active application",
       sc.find("✎") == (0, 2) and re.search(r"\d\d:\d\d", sc.row(0)) and
@@ -909,21 +910,21 @@ sc, _ = run(ONE, [press(6, 37), drag(15, 15), release(15, 15)])
 check("dragging off the close button before releasing cancels it",
       sc.find("Hello") is not None, sc)
 
-sc, _ = run(ONE, [press(6, 33), release(6, 33)])
+sc, _ = run(ONE, [press(6, 35), release(6, 35)])
 check("minimising takes the window off the screen",
       sc.g[6][10] == "·" and sc.g[10][20] == "·", sc)
-sc, _ = run(ONE, [press(6, 33), release(6, 33), press(0, 70)])
+sc, _ = run(ONE, [press(6, 35), release(6, 35), press(0, 70)])
 check("and it is still listed, marked hidden, in the application menu",
       sc.find("· Hello") is not None, sc)
 
-sc, _ = run(ONE, [press(6, 33), release(6, 33), press(0, 70), b"\r"])
+sc, _ = run(ONE, [press(6, 35), release(6, 35), press(0, 70), b"\r"])
 check("choosing it there brings it back",
       sc.g[6][10] == "┌" and sc.find("┤ Hello ├") == (6, 12), sc)
 
-sc, _ = run(ONE, [press(6, 35), release(6, 35)])
+sc, _ = run(ONE, [press(6, 33), release(6, 33)])
 check("zooming fills the screen below the bar",
       sc.g[1][0] == "┌" and sc.g[23][79] == "◢", sc)
-sc, _ = run(ONE, [press(6, 35), release(6, 35), press(1, 75), release(1, 75)])
+sc, _ = run(ONE, [press(6, 33), release(6, 33), press(1, 73), release(1, 73)])
 check("and zooming again puts it back where it was",
       sc.g[6][10] == "┌" and sc.g[13][39] == "◢", sc)
 
@@ -998,16 +999,16 @@ check("and its close button still closes it",
       sc.find("Hello") is None, sc)
 
 sc, _ = run(ONE, env={"DT_BTNSIDE": "left"})
-check("DT_BTNSIDE=left docks the cluster left, mirrored -- close, max, "
-      "min -- so close stays nearest the window's own corner either way",
-      sc.g[6][12] == "x" and sc.g[6][14] == "□" and sc.g[6][16] == "_" and
+check("DT_BTNSIDE=left docks the cluster left, mirrored -- close, min, "
+      "max -- so close stays nearest the window's own corner either way",
+      sc.g[6][12] == "x" and sc.g[6][14] == "_" and sc.g[6][16] == "□" and
       sc.find("┤ Hello ├") == (6, 18), sc)
 sc, _ = run(ONE, [press(6, 12), release(6, 12)], env={"DT_BTNSIDE": "left"})
 check("and the close button, now leftmost, still closes it",
       sc.find("Hello") is None, sc)
-sc, _ = run(ONE, [press(6, 16), release(6, 16), press(0, 70)],
+sc, _ = run(ONE, [press(6, 14), release(6, 14), press(0, 70)],
             env={"DT_BTNSIDE": "left"})
-check("while the rightmost button there is min, not close",
+check("while the one beside it is min, not close",
       sc.find("· Hello") is not None, sc)
 
 sc, _ = run(ONE, env={"DT_TITLEALIGN": "center"})
@@ -2510,6 +2511,21 @@ sc, raw = run("", feed=BAND + [press(6, 70), drag(6, 74), drag(15, 20),
                                release(15, 20)], env=env, pre=pre)
 check("a selection dragged somewhere empty keeps its arrangement",
       sc.find("backup") == (15, 20) and sc.find("usb") == (18, 21), sc)
+shutil.rmtree(d, True)
+
+# The band's look (Gitea #383): a single frame by default, its corners where
+# the drag began and where it is; translucent blends the accent into what it
+# covers, the wallpaper's glyphs still drawn.
+d, env, pre, home, backup, usb, src = desk()
+HOLD = [press(4, 60), drag(7, 65), drag(10, 79), 0.4]
+sc, raw = run("", feed=HOLD, env=env, pre=pre)
+check("the rubber band is a single frame by default",
+      sc.at(4, 60) == "\u250c" and sc.at(10, 79) == "\u2518", (sc.at(4, 60), sc.at(10, 79)))
+sc0, raw = run("", env=env, pre=pre)
+sc, raw = run("", feed=HOLD, env=dict(env, DT_BAND="translucent"), pre=pre)
+check("translucent tints what it covers and leaves it readable",
+      sc.style(5, 62).get("bg") != sc0.style(5, 62).get("bg") and
+      sc.at(5, 62) == sc0.at(5, 62), (sc0.style(5, 62), sc.style(5, 62)))
 shutil.rmtree(d, True)
 
 # A saved position is a preference, not a promise: dt_iconlay clamps it to
@@ -7639,4 +7655,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(828)
+report(830)

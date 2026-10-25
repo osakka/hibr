@@ -1,0 +1,62 @@
+# widgets/band -- the rubber band: the rectangle a drag across empty space
+# draws while it selects what it covers.
+#
+# Part of the widget library apps draw with -- see widgets/README.md.
+
+strict
+
+# The rubber band from r0,c0 to r1,c1, corners included, on the screen when
+# pane is empty or inside that pane in its own coordinates, in the look
+# Control Panel > Desktop > Rubber Band chose (Gitea #383): `frame`, a
+# single line, the default; `dashed`; `solid`, filled with the accent; and
+# `translucent`, the accent blended into what it covers at
+# DT_BANDPCT percent, everything under it still readable. The desktop and
+# Files draw it through this one function, so the two cannot differ. bg is
+# what a line's cells sit on: the wallpaper's colour on the screen, a
+# window's face in a pane.
+fn dt_band(pane, int r0, int c0, int r1, int c1, bg = "") {
+	local t r h w hl vl tl tr bl br
+	local -a p=()
+
+	h=$((r1 - r0 + 1))
+	w=$((c1 - c0 + 1))
+	[ "$h" -ge 1 ] && [ "$w" -ge 1 ] || return 0
+	[ -n "$pane" ] && p=(-p "$pane")
+	case ${DT_BAND:-frame} in
+	solid)
+		console tint "${p[@]}" "$r0" "$c0" "$h" "$w" "$DT_ACTIVE" 100
+		return 0
+		;;
+	translucent)
+		console tint "${p[@]}" "$r0" "$c0" "$h" "$w" "$DT_ACTIVE" "${DT_BANDPCT:-30}"
+		return 0
+		;;
+	dashed)
+		hl=${GL[dashh]} vl=${GL[dashv]}
+		tl=$hl tr=$hl bl=$hl br=$hl
+		;;
+	*)
+		hl=${GL[hline]} vl=${GL[vline]}
+		tl=${GL[tl]} tr=${GL[tr]} bl=${GL[bl]} br=${GL[br]}
+		;;
+	esac
+	console pen "$DT_ACTIVE" "${bg:-$DT_WALL}"
+	if [ "$h" = 1 ]; then
+		t := str repeat "$hl" "$w"
+		console put "${p[@]}" "$r0" "$c0" "$t"
+		return 0
+	fi
+	if [ "$w" = 1 ]; then
+		for ((r = r0; r <= r1; r++)); do console put "${p[@]}" "$r" "$c0" "$vl"; done
+		return 0
+	fi
+	t=
+	[ "$w" -gt 2 ] && t := str repeat "$hl" $((w - 2))
+	console put "${p[@]}" "$r0" "$c0" "$tl$t$tr"
+	console put "${p[@]}" "$r1" "$c0" "$bl$t$br"
+	for ((r = r0 + 1; r < r1; r++)); do
+		console put "${p[@]}" "$r" "$c0" "$vl"
+		console put "${p[@]}" "$r" "$c1" "$vl"
+	done
+	return 0
+}

@@ -806,6 +806,48 @@ int m_console(sh *s, int ac, char **av)
 		cn_drawn++;
 		return HIBR_OK;
 	}
+	/* console tint [-p pane] row col h w colour pct: blend colour into a
+	   rectangle at pct percent, what is drawn there still readable
+	   (Gitea #383). With -p, row and col are the pane's own and the
+	   tint stops at its edge. */
+	if (!strcmp(sub, "tint")) {
+		unsigned v;
+		int r0 = 0, c0 = 0, r1 = 1 << 30, c1 = 1 << 30, orow = 0, ocol = 0;
+		int a = 2;
+
+		if (!cn_need())
+			return HIBR_FAIL;
+		if (ac > 3 && !strcmp(av[2], "-p")) {
+			cn_pane *p = cn_pfind(av[3]);
+
+			if (!p) {
+				lg(HIBR_LERR, "console tint: %s: no such pane",
+				   av[3]);
+				return HIBR_FAIL;
+			}
+			orow = p->row - p->orow;
+			ocol = p->col - p->ocol;
+			r0 = p->row;
+			c0 = p->col;
+			r1 = p->row + p->h - 1;
+			c1 = p->col + p->w - 1;
+			a = 4;
+		}
+		if (ac < a + 6) {
+			lg(HIBR_LERR, "usage: console tint [-p pane] row col h w"
+				      " colour pct");
+			return 2;
+		}
+		if (cn_colour(av[a + 4], &v) != HIBR_OK) {
+			lg(HIBR_LERR, "console tint: %s: not a colour", av[a + 4]);
+			return HIBR_FAIL;
+		}
+		cn_tint(orow + atoi(av[a]), ocol + atoi(av[a + 1]), atoi(av[a + 2]),
+			atoi(av[a + 3]), v, atoi(av[a + 5]), r0, c0, r1, c1);
+		if (a == 2)
+			cn_drawn++;
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "imgdetail")) {
 		const char *m = ac > 2 ? av[2] : "";
 

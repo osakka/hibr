@@ -699,6 +699,65 @@ void cn_darken1(int row, int col, int h, int w, int pct, int once, int half)
 	}
 }
 
+/* b laid over a at pct percent: a colour mixed toward another, not only
+   darkened. Two RGB colours mix exactly; a palette colour cannot be, so
+   whichever of the two is more than half of it stands. */
+unsigned cn_mix(unsigned a, unsigned b, int pct)
+{
+	unsigned r, g, bl;
+
+	if (pct <= 0)
+		return a;
+	if (pct >= 100)
+		return b;
+	if (!(a & DP_RGB) || !(b & DP_RGB))
+		return pct >= 50 ? b : a;
+	r = (((a >> 16) & 0xFF) * (100 - pct) + ((b >> 16) & 0xFF) * pct + 50) / 100;
+	g = (((a >> 8) & 0xFF) * (100 - pct) + ((b >> 8) & 0xFF) * pct + 50) / 100;
+	bl = ((a & 0xFF) * (100 - pct) + (b & 0xFF) * pct + 50) / 100;
+	return DP_RGB | (r << 16) | (g << 8) | bl;
+}
+
+/* Tint a rectangle of the back buffer toward colour by pct percent, in
+   place, over whatever is drawn there (Gitea #383): what is beneath stays
+   readable, its text keeping its own colour, while its backgrounds -- and a
+   block glyph's own colour, which is the cell's other half -- take the
+   tint. The rubber band is this. Cells outside r0..r1, c0..c1 (a pane's
+   visible rectangle, or the screen) are left alone. */
+void cn_tint(int row, int col, int h, int w, unsigned colour, int pct, int r0,
+	     int c0, int r1, int c1)
+{
+	int r, c, g;
+	unsigned pic;
+	cn_cell *k;
+
+	if (cn_fitq() != HIBR_OK)
+		return;
+	cn_wrote++;
+	for (r = row; r < row + h; r++) {
+		if (r < 0 || r >= cn_back.rows || r < r0 || r > r1)
+			continue;
+		g = cn_gband(r);
+		for (c = col; c < col + w; c++) {
+			if (c < 0 || c >= cn_back.cols || c < c0 || c > c1)
+				continue;
+			if (g && cn_ptopat(r, c))
+				continue;
+			k = &cn_back.c[r * cn_back.cols + c];
+			if (k->bg == DP_DEFAULT && cn_imgcellat(r, c, &pic))
+				k->bg = cn_mix(pic, colour, pct);
+			else
+				k->bg = cn_mix(k->bg == DP_DEFAULT ? cn_defbg :
+					       k->bg, colour, pct);
+			if (k->cp == 0x2580 || k->cp == 0x2584 ||
+			    k->cp == 0x2588)
+				k->fg = cn_mix(k->fg == DP_DEFAULT ? cn_deffg :
+					       k->fg, colour, pct);
+			k->attr &= ~DP_DIM;
+		}
+	}
+}
+
 /* Overwrite a cell that is half of a wide glyph, and its other half. */
 void cn_split(int row, int col)
 {
