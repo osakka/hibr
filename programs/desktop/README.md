@@ -495,7 +495,8 @@ dt_filepick save "Export" "HTML:html htm|Plain text:txt" "$dir" "notes" my_expor
 
 and is called back as `my_export id path type`. An eighth word, the name of
 a function, is called as `my_cancel id` once if the dialog ends without a
-choice -- Cancel, escape, or its window closed -- which is what an app
+choice -- Cancel, escape, its window closed, or the desktop quitting with it
+still open -- which is what an app
 holding a download or a half-written file open for the answer needs. The
 dialog's window id comes back in `$RET`, so the app can close it with
 `dt_del` when the thing it asked about goes away first.

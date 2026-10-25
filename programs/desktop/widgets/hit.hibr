@@ -67,6 +67,43 @@ fn dt_hit(id, int r, int c) {
 	return 1
 }
 
+# Whether the region tagged tag in window id is under the pointer (Gitea
+# #370), for a widget or a list row that lights while it is. The desktop
+# works it out from the regions dt_wreg registered; nothing else asks.
+fn dt_hot(id, tag) {
+	[ -n "$tag" ] && [ "$DT_HOTWIN" = "$id" ] && [ "$DT_HOTTAG" = "$tag" ]
+}
+
+# The pen for a list row or anything else registered as tag: fg on bg, or
+# on the well colour while the pointer is over it -- the colour the bar's
+# titles light with, so there is one look for "a click here does
+# something". A selected row keeps its own pen; its caller does not ask.
+fn dt_hotpen(id, tag, fg, bg, ...attrs) {
+	if dt_hot "$id" "$tag"; then
+		console pen "$fg" "$DT_WELL" "${attrs[@]}"
+	else
+		console pen "$fg" "$bg" "${attrs[@]}"
+	fi
+}
+
+# What the pointer was over in a window when it was last drawn, so a window
+# left alone because nothing in it changed is drawn again when what is lit
+# in it has (a _dirty answering "clean" knows nothing of the pointer).
+fn dt_hotmark(int id) {
+	if [ "$DT_HOTWIN" = "$id" ]; then
+		DT[$id]["hotdrawn"]=$DT_HOTTAG
+	else
+		DT[$id]["hotdrawn"]=
+	fi
+}
+
+fn dt_hotmoved(int id) {
+	local now=
+
+	[ "$DT_HOTWIN" = "$id" ] && now=$DT_HOTTAG
+	[ "${DT[$id]["hotdrawn"]-}" != "$now" ]
+}
+
 # The column a registered widget's own region starts at, for opening
 # something (a dropdown's popup) aligned to the widget itself rather than
 # to wherever inside it happened to be clicked -- id and row the same as

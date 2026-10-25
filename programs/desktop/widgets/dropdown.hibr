@@ -19,7 +19,14 @@ fn dt_wdrop(int id, int r, int c, int w, value, tag) {
 		lb="$lb${GL[ellipsis]}"
 	fi
 	lb := str pad "$lb" $((w - 2))
-	console put -p "w$id" "$r" "$c" "$lb ${GL[sdown]}"
+	if dt_hot "$id" "$tag"; then
+		console pen -s
+		console pen "$DT_INK" "$DT_WELL"
+		console put -p "w$id" "$r" "$c" "$lb ${GL[sdown]}"
+		console pen -r
+	else
+		console put -p "w$id" "$r" "$c" "$lb ${GL[sdown]}"
+	fi
 	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }
 

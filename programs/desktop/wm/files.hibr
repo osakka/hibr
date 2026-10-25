@@ -257,7 +257,7 @@ fn dt_fopone(op, kind, a, b) {
 		DT_WHY="Could not put ${from##*/} back"
 		return 1
 	fi
-	[ "$op" = undo ] && [ "$kind" = trash ] && rm -f -- "$DT_TRASH/info/${b##*/}.trashinfo"
+	[ "$op" = undo ] && [ "$kind" = trash ] && rm -f -- "${DT_TRASH:?}/info/${b##*/}.trashinfo"
 	return 0
 }
 
@@ -373,7 +373,7 @@ fn dt_trash1(p) {
 		return 1
 	fi
 	if ! command mv -- "$p" "$DT_TRASH/files/$n" 2>> "$DT_LOG"; then
-		rm -f "$DT_TRASH/info/$n.trashinfo"
+		rm -f "${DT_TRASH:?}/info/$n.trashinfo"
 		DT_WHY="Could not move $base to the trash"
 		return 1
 	fi

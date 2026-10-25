@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.99.334
+
+**What a click would land on lights under the pointer** (Gitea #370).
+Wherever hovering is on (Control Panel > Mouse > Hover, on by itself
+under Blit):
+
+- **Every button, checkbox, dropdown and slider** in every window lights
+  while the pointer is over it. A button gets lighter in its own colour, as
+  a title bar's buttons already do; the others take the well colour, as the
+  bar's titles do.
+- **The Control Strip** lights the brackets of the module under the
+  pointer.
+- **A list lights its rows** once it registers them: `dt_hotpen` in its row
+  loop picks the well colour for the row under the pointer. The lists come
+  next, app by app.
+
+What is lit comes from the regions apps already register for clicks, so it
+lights exactly what a click would land on. A pointer moving within one
+region draws no frame, and moving onto another draws one. A window that
+says it is clean is still drawn again when what is lit in it changes.
+
+The well colour was checked on Paper as well as Midnight: about 21 levels
+darker than Paper's face, about 29 lighter than Midnight's.
+
+**`console pen -s` and `console pen -r`** keep the pen and put it back, so a
+widget can draw itself lit without changing the pen its caller was using.
+
+**Smaller:** undoing a trip to the trash now guards the trash's path before
+removing its note. The file dialog's `oncancel` is documented as running
+when the desktop quits with the dialog still open.
+
 ## 0.99.333
 
 **A click in the PDF Reader and X Screen lands on the pixel under the

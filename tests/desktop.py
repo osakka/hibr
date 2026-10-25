@@ -7075,6 +7075,67 @@ n = hvframes([hov(18, 50), hov(7, 15), hov(18, 50)])
 check("while moving onto a window and off again draws a frame each time",
       n == 2, n)
 
+# What a click would land on lights under the pointer (Gitea #370): any
+# region an app registers with dt_wreg, through dt_hotpen in its own row
+# loop, and every button, check, dropdown and slider by itself. A row is
+# the well colour, a button lighter in its own. The window here says it is
+# clean, so only the lighting can be what redraws it.
+WELL = "#2d3748"
+HVR = ('hvr_draw() { local i; dt_wclear "$1"\n'
+       '  for i in 1 2 3; do dt_hotpen "$1" "row$i" "$DT_INK" "$DT_FACE"\n'
+       '    console put -p "w$1" "$i" 2 "row $i      "; dt_wreg "$1" "$i" 2 10 "row$i"; done\n'
+       '  dt_button "$1" 5 2 OK 0 ok; }\n'
+       'hvr_dirty() { return 1; }\n'
+       'dt_app hvr "Rows" 9 30\n'
+       'dt_new "Rows" 9 30 6 10 hvr')
+sc0, _ = run(HVR, [0.5], env={"DT_HOVER": "on"})
+sc, _ = run(HVR, [0.5, hov(8, 14), 0.4], env={"DT_HOVER": "on"})
+check("a row an app registers lights in the well colour under the pointer",
+      sc.style(8, 14).get("bg") == WELL and sc.style(7, 14).get("bg") != WELL
+      and sc0.style(8, 14).get("bg") != WELL, sc)
+check("and a window that says it is clean is drawn again for it",
+      sc.find("row 2") is not None and sc.style(8, 13).get("bg") == WELL, sc)
+sc2, _ = run(HVR, [0.5, hov(8, 14), 0.4, hov(20, 60), 0.4],
+             env={"DT_HOVER": "on"})
+check("and goes back when the pointer leaves",
+      sc2.style(8, 14).get("bg") != WELL, sc2)
+bt = sc0.find(" OK ")
+sc3, _ = run(HVR, [0.5, hov(bt[0], bt[1] + 1), 0.4], env={"DT_HOVER": "on"}) \
+    if bt else (sc0, None)
+check("a button lights under the pointer, lighter in its own colour",
+      bt is not None and sc3.style(bt[0], bt[1] + 1).get("bg") not in
+      (None, sc0.style(bt[0], bt[1] + 1).get("bg"), WELL), sc3)
+
+
+def hvrframes(feed):
+    path = scratch("hover-rows.hibr")
+    open(path, "w").write("%s. %s\n\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, HVR))
+    t = Term(path, env={"DT_TICK": "60", "DT_HOVER": "on"}, rows=ROWS,
+             cols=COLS, settle=0.8)
+    t.keys([0.5, hov(7, 14), 0.3])
+    f0 = t.frames()
+    t.keys(feed)
+    t.collect(0.5)
+    f1 = t.frames()
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return f1 - f0
+
+
+n = hvrframes([hov(7, 15 + i) for i in range(6)])
+check("moving along one row draws no frame", n == 0, n)
+n = hvrframes([hov(8, 14), hov(9, 14)])
+check("and moving onto the next row draws one each", n == 2, n)
+
+# The Control Strip's module under the pointer has its brackets lit.
+sc, _ = run("", [0.5, hov(STRIPROW, SHADOW_COL + 1), 0.4],
+            env={"DT_HOVER": "on", "XDG_CONFIG_HOME": tempfile.mkdtemp(
+                prefix="hibr-strip-")}, pre=CSSRC)
+check("the Control Strip lights the brackets of the module under the pointer",
+      sc.style(STRIPROW, SHADOW_COL - 1).get("bg") == WELL and
+      sc.style(STRIPROW, CURSOR_COL - 1).get("bg") != WELL, sc)
+
 # --- power (Gitea #365) ------------------------------------------------------
 #
 # A stand-in for the kernel's power supply folder, one uevent a supply, and
@@ -7483,4 +7544,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(807)
+report(814)

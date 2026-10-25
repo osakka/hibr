@@ -194,6 +194,16 @@ o, _ = run('console open\nconsole flush\nconsole pen "#ff8800"\n'
 check("a hex colour becomes a true-colour SGR",
       b"38;2;255;136;0" in drawn(o))
 
+# -s keeps the pen and -r puts it back, so a widget can draw itself lit and
+# leave its caller's pen alone (Gitea #370).
+o, _ = run('console open\nconsole flush\nconsole pen red blue bold\n'
+           'console pen -s\nconsole pen "#ff8800"\nconsole put 1 1 "lit"\n'
+           'console pen -r\nconsole put 1 5 "back"\nconsole flush\nconsole close\n')
+check("console pen -r puts back the pen -s kept",
+      b"38;2;255;136;0mlit" in drawn(o) and
+      b"\x1b[0;1;38;5;1;48;5;4m" in drawn(o) and drawn(o).rstrip().find(b"back") >
+      drawn(o).find(b"\x1b[0;1;38;5;1;48;5;4m"), drawn(o)[-200:])
+
 SEQ = [b"\x1b[A", b"\x1b[1;5C", b"\x1b[1;2B", b"\x01", b"\x1b[15~", b"\x1b[H",
        b"\x1b[5~", b"\x1b[Z", b"\x1b[<0;13;4M", b"\x1bx", b"\xc3\xa9", b"\r",
        b"\x1b[200~pasted\x1b[201~", b"\x1b"]
@@ -854,4 +864,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 109)
+report(len(WANT) + len(MWANT) + 110)

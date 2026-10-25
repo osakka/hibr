@@ -538,6 +538,18 @@ dt_mouse() {
 DT_HOVERT=
 DT_HOVERWIN=
 DT_HOVERQUIET=
+
+# The window and the region -- what dt_wreg registered and dt_hit answers
+# for a click there -- the pointer is over, for a widget or a list row that
+# lights while it is (Gitea #370). Empty with nothing registered under the
+# pointer, with hovering off, and for a window whose app has a _hover of its
+# own, which is told the cell instead. It is last frame's regions that are
+# asked, exactly as a click asks them.
+DT_HOTWIN=
+DT_HOTTAG=
+# The Control Strip module the pointer is over, by its place in the strip,
+# whose brackets light while it is; empty when it is over none.
+DT_HOTSTRIP=
 # What is lit because the pointer is over it: a window's title-bar button
 # ("id kind"), a menu title's index, a bar item's name -- each drawn in a
 # lighter or a well colour by frame.hibr and bar.hibr.
@@ -625,6 +637,9 @@ fn dt_hover(int r, int c) {
 	DT_HOVERBTN=
 	DT_HOVERMT=
 	DT_HOVERBI=
+	DT_HOTWIN=
+	DT_HOTTAG=
+	DT_HOTSTRIP=
 	if [ "$MB_OPEN" != -1 ]; then
 		if dt_onbar "$r" "$c"; then
 			if [ -z "$MB_CX" ] && b := dt_mhit "$c" &&
@@ -642,6 +657,11 @@ fn dt_hover(int r, int c) {
 			DT_HOVERBI=$b
 		fi
 		t="bar:$DT_HOVERMT:$DT_HOVERBI"
+	elif [ "$CS_COLLAPSED" != 1 ] && dt_has cs_hit && cs_hit "$r" "$c" &&
+	     b := cs_at "$c"; then
+		# The strip is drawn over the windows, so it is asked first.
+		DT_HOTSTRIP=$b
+		t="cs:$b"
 	else
 		id := console hit "$r" "$c"
 		# A window's pane is w and its id; the bar's own pane is not one.
@@ -654,12 +674,17 @@ fn dt_hover(int r, int c) {
 		   b := dt_btnat "$id" $((c - ${DT[$id]["col"]})); then
 			[ -n "$b" ] && DT_HOVERBTN="$id $b" && t="btn:$id:$b"
 		fi
-		if [ "${t#btn:}" = "$t" ] && [ -n "$id" ] &&
-		   [ -n "${DT[$id]["hover"]+x}" ] && [ -n "${DT[$id]["hover"]}" ]; then
+		if [ "${t#btn:}" = "$t" ] && [ -n "$id" ]; then
 			wr=${DT[$id]["row"]}
 			wa=${DT[$id]["col"]}
 			dt_capped "$id" && wa=$((wa - 1))
-			t="w:$id:$r:$c"
+			if [ -n "${DT[$id]["hover"]+x}" ] && [ -n "${DT[$id]["hover"]}" ]; then
+				t="w:$id:$r:$c"
+			elif b := dt_hit "$id" $((r - wr)) $((c - wa)); then
+				DT_HOTWIN=$id
+				DT_HOTTAG=$b
+				t="hot:$id:$b"
+			fi
 		fi
 	fi
 	if [ -n "$DT_HOVERWIN" ] && [ "$DT_HOVERWIN" != "$id" ]; then

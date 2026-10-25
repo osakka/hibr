@@ -39,10 +39,18 @@ fn dt_check(int id, int r, int c, int on, label, tag) {
 	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
 	st := dt_checkstyle
 	m := dt_checkmark "$on"
+	# Lit while the pointer is over it (Gitea #370), and the caller's pen
+	# put back after, since the label is drawn in it.
+	if dt_hot "$id" "$tag"; then
+		console pen -s
+		console pen "$DT_INK" "$DT_WELL"
+	fi
 	if [ "$st" = box ]; then
 		console put -p "w$id" "$r" "$c" "$m $label"
+		dt_hot "$id" "$tag" && console pen -r
 	else
 		[ -n "$label" ] && console put -p "w$id" "$r" $((c + ${#m} + 1)) "$label"
+		dt_hot "$id" "$tag" && console pen -r
 		if [ "$on" = 1 ]; then
 			console pen "$DT_ACTIVE" "$DT_WELL"
 		else

@@ -239,6 +239,11 @@ cn_pane *cn_phit(int row, int col)
 }
 
 int cn_bidi = -1;
+
+/* The pen `console pen -s` keeps for `console pen -r`: one slot, so a widget
+   can draw itself lit and leave the caller's pen as it found it (Gitea #370).
+   Nothing reads it but those two. */
+unsigned cn_svfg = DP_DEFAULT, cn_svbg = DP_DEFAULT, cn_svat;
 int u8rtlq(const char *t, size_t n);
 
 /* The text a script asked for, in display order when it holds right-to-left and bidi is on. */
@@ -612,6 +617,13 @@ int m_console(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "pen")) {
 		int i;
+		if (ac == 3 && (!strcmp(av[2], "-s") || !strcmp(av[2], "-r"))) {
+			if (av[2][1] == 's')
+				cn_getpen(&cn_svfg, &cn_svbg, &cn_svat);
+			else
+				cn_pen(cn_svfg, cn_svbg, cn_svat);
+			return HIBR_OK;
+		}
 		if (ac < 3) {
 			cn_pen(DP_DEFAULT, DP_DEFAULT, 0);
 			return HIBR_OK;

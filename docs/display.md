@@ -80,6 +80,7 @@ and the flush cost shown live. Run it and press things.
 | `console resized` | true once after the terminal changed size |
 | `console clear` | blank the back buffer with the current pen |
 | `console pen [fg [bg [attr…]]]` | the colours and attributes later writes use |
+| `console pen -s`, `console pen -r` | keep the pen as it is, and put it back -- one slot, for drawing something lit without losing the caller's pen |
 | `console put row col text` | write into the back buffer |
 | `console put -p pane row col text` | the same, inside a pane and clipped to it |
 | `console fill row col h w [char]` | repeat a character over a rectangle |

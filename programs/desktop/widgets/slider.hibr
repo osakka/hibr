@@ -25,7 +25,14 @@ fn dt_slider(int id, int r, int c, int w, int value, int min, int max, tag) {
 		[ "$i" = "$pos" ] && t="$t${GL[circle]}" || t="$t${GL[hline]}"
 		i=$((i + 1))
 	done
-	console put -p "w$id" "$r" "$c" "$t"
+	if dt_hot "$id" "$tag"; then
+		console pen -s
+		console pen "$DT_ACTIVE" "$DT_WELL"
+		console put -p "w$id" "$r" "$c" "$t"
+		console pen -r
+	else
+		console put -p "w$id" "$r" "$c" "$t"
+	fi
 	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }
 

@@ -404,7 +404,13 @@ dt_stripdraw() {
 	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
 		m=${CS_MOD_LIST[$i]}
 		mw=${CS_MODS[$m]["w"]:-1}
-		console pen "$DT_IDLE" "$DT_FACE"
+		# The module under the pointer has its brackets lit (#370); what
+		# is inside them is the module's own to draw.
+		if [ "$i" = "$DT_HOTSTRIP" ]; then
+			console pen "$DT_ACTIVE" "$DT_WELL" bold
+		else
+			console pen "$DT_IDLE" "$DT_FACE"
+		fi
 		console put "$row" "$c" "["
 		console put "$row" $((c + mw + 1)) "]"
 		dt_has "${m}_draw" && "${m}_draw" "$row" $((c + 1))

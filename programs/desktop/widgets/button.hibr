@@ -52,6 +52,15 @@ fn dt_button(id, int r, int c, label, int on, tag) {
 		t="[$label]"
 		bg=$DT_FACE
 	fi
+	# Lit while the pointer is over it, as a title bar's buttons are:
+	# lighter in its own colour (Gitea #370).
+	if dt_hot "$id" "$tag"; then
+		if [ "$bg" = "$DT_FACE" ]; then
+			bg=$DT_WELL
+		else
+			bg := dt_lighten "$bg" 25
+		fi
+	fi
 	case $on in
 	1) console pen "$DT_FACE" "$DT_ACTIVE" bold ;;
 	2) console pen "$DT_ACTIVE" "$bg" bold ;;

@@ -140,6 +140,7 @@ fn dt_clean(int id) {
 	[ "$DT_FORCEDRAW" = 1 ] && return 1
 	[ -n "$DT_FORCEONCE" ] && return 1
 	[ -n "$ap" ] || return 1
+	dt_hotmoved "$id" && return 1
 	case " $DT_ALONE " in *" $id "*) ;; *) return 1 ;; esac
 	dt_has "${ap}_dirty" || return 1
 	"${ap}_dirty" "$id" && return 1
@@ -238,6 +239,7 @@ fn dt_win(int id) {
 		dt_shadow "$id"
 		return 0
 	fi
+	dt_hotmark "$id"
 
 	# Before any of the shapes below, because two of them return without
 	# reaching the one further down -- and the clean path above casts it,
