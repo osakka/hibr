@@ -18,7 +18,7 @@
 
 strict
 
-app pdfr "A PDF reader: pages as pictures where the terminal can, text where it cannot" 1.1
+app pdfr "A PDF reader: pages as pictures where the terminal can, text where it cannot" 1.2
 # modules: pdf img
 
 command -v dt_app > /dev/null && dt_app pdfr "PDF Reader" 24 76 many "▤"
@@ -598,10 +598,16 @@ fn pdfr_scroll(int id, key, int top) {
 # A cell of the view as a point of the document: the page, and where on
 # it in points from its top left.
 fn pr_point(int id, int r, int c) {
-	local cw=${PR[$id]["cw"]:-8} ch=${PR[$id]["ch"]:-16} x y p
+	local cw=${PR[$id]["cw"]:-8} ch=${PR[$id]["ch"]:-16} x y p o ox=$((cw / 2)) oy=$((ch / 2))
 
-	x=$(((c - ${PR[$id]["c0"]:-1}) * cw + cw / 2 + ${PR[$id]["left"]:-0}))
-	y=$(((r - 1) * ch + ch / 2 + ${PR[$id]["top"]:-0}))
+	# The pixel inside the cell where the terminal reports one, so a
+	# selection starts and a link is hit where the pointer is (#370).
+	if dt_has dt_cellpx; then
+		o := dt_cellpx "$id" "$r" "$c" "$cw" "$ch"
+		read -r ox oy <<< "$o"
+	fi
+	x=$(((c - ${PR[$id]["c0"]:-1}) * cw + ox + ${PR[$id]["left"]:-0}))
+	y=$(((r - 1) * ch + oy + ${PR[$id]["top"]:-0}))
 	p := pdf at "${PR[$id]["doc"]}" "${PR[$id]["z"]:-1}" "${PR[$id]["pw"]:-600}" "$x" "$y" 2> /dev/null ||
 		return 1
 	ret "$p"

@@ -697,6 +697,27 @@ fn dt_hover(int r, int c) {
 DT_PX=
 DT_PY=
 
+# Where in cell r c of a window the pointer was at the last mouse report,
+# as `x y` in a cell of cw by ch -- the caller's own measure, so an app that
+# counts 8 by 16 cells while the terminal's are 10 by 20 still gets a place
+# inside its cell. The middle of the cell when the terminal reports cells
+# only, or the pixel is not in that cell. For an app that turns a click into
+# a point on what it draws: a page, an X screen (Gitea #370).
+fn dt_cellpx(int id, int r, int c, int cw, int ch) {
+	local x=$((cw / 2)) y=$((ch / 2)) g gk tw th ox oy
+
+	if [ -n "$DT_PX" ] && [ -n "${DT[$id]["col"]}" ] && g := console gfx 2> /dev/null; then
+		read -r gk tw th <<< "$g"
+		if [ "${tw:-0}" -gt 1 ] && [ "${th:-0}" -gt 1 ]; then
+			ox=$((DT_PX - (${DT[$id]["col"]} + c) * tw))
+			oy=$((DT_PY - (${DT[$id]["row"]} + r) * th))
+			[ "$ox" -ge 0 ] && [ "$ox" -lt "$tw" ] && x=$((ox * cw / tw))
+			[ "$oy" -ge 0 ] && [ "$oy" -lt "$th" ] && y=$((oy * ch / th))
+		fi
+	fi
+	ret "$x $y"
+}
+
 # Handle one decoded key or mouse line.
 #
 # The wheel goes to the window under the pointer rather than to the focused

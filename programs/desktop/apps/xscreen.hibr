@@ -32,7 +32,7 @@
 strict
 
 
-app xscreen "X11 programs in windows of their own" 1.6
+app xscreen "X11 programs in windows of their own" 1.7
 # modules: xscr
 # part: control-panel/xscreenset.hibr
 command -v dt_app > /dev/null &&
@@ -424,13 +424,20 @@ fn xscreen_idle(int id) {
 XS_PX=0
 XS_PY=0
 fn xs_at(int id, int r, int c) {
-	local r0=${XS[$id]["r0"]} c0=${XS[$id]["c0"]} rh=${XS[$id]["rh"]} rw=${XS[$id]["rw"]}
+	local r0=${XS[$id]["r0"]} c0=${XS[$id]["c0"]} rh=${XS[$id]["rh"]} rw=${XS[$id]["rw"]} o fx=500 fy=500
 
 	[ -n "$r0" ] || return 1
 	[ "$r" -ge "$r0" ] && [ "$r" -lt $((r0 + rh)) ] &&
 		[ "$c" -ge "$c0" ] && [ "$c" -lt $((c0 + rw)) ] || return 1
-	XS_PX=$(((2 * (c - c0) + 1) * ${XS[$id]["sw"]} / (2 * rw)))
-	XS_PY=$(((2 * (r - r0) + 1) * ${XS[$id]["sh"]} / (2 * rh)))
+	# Where in the cell, in thousandths, from the terminal's pixel when it
+	# reports one and the middle otherwise (#370): an X program wants a
+	# pixel, and a cell of the window is several of the screen's.
+	if dt_has dt_cellpx; then
+		o := dt_cellpx "$id" "$r" "$c" 1000 1000
+		read -r fx fy <<< "$o"
+	fi
+	XS_PX=$((((c - c0) * 1000 + fx) * ${XS[$id]["sw"]} / (1000 * rw)))
+	XS_PY=$((((r - r0) * 1000 + fy) * ${XS[$id]["sh"]} / (1000 * rh)))
 	return 0
 }
 

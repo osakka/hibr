@@ -101,7 +101,11 @@ mouse report was, in pixels of the screen counted from zero, and are empty
 when the terminal reports cells only (Gitea #370). No callback is handed
 them, since each declares what it takes; the cell it is told is the one that
 pixel is in. A window's own pixel is `DT_PX` less its column times the cell
-width, which `console gfx` answers (`kitty 8 16`).
+width, which `console gfx` answers (`kitty 8 16`). `dt_cellpx id r c cw ch`
+does that sum for a click: where in the cell `r c` the pointer was, as `x y`
+in a cell of `cw` by `ch` -- the app's own measure, which need not be the
+terminal's -- and the middle of the cell when there is no pixel. The PDF
+Reader starts a selection there, and X Screen hands it to the X program.
 
 **A window that draws its own pointer** -- a game -- asks for the terminal's
 to be hidden over it with `dt_pointer "$id" none` (Gitea #373), and gives it

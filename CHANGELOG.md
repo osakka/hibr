@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.333
+
+**A click in the PDF Reader and X Screen lands on the pixel under the
+pointer** (Gitea #370). It used to land in the middle of the cell, which is
+half a cell out at worst, and an X program's pointer moved a cell at a
+time. Under Blit and other terminals that report the mouse in pixels, the
+PDF Reader now starts a selection and hits a link where the pointer is.
+X Screen hands the X program the screen pixel under the pointer. Where the
+terminal reports cells only, nothing changes. `dt_cellpx` is the helper
+both use, and any app that turns a click into a point can use it.
+PDF Reader is 1.2 and X Screen 1.7.
+
 ## 0.99.332
 
 **The file dialog tells the app when nothing was chosen** (Gitea #375). An

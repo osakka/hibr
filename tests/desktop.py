@@ -1631,6 +1631,22 @@ sc, raw = run(PXA, [1.5, press(9, 16), release(9, 16)], cell=(8, 16),
 check("one that does not is never asked, and its click has no pixel",
       b"\x1b[?1016h" not in raw and sc.find("at 3 6 none,none") == (8, 13),
       sc)
+# dt_cellpx says where in the clicked cell the pointer was, in the caller's
+# own cell size: pixel 131,149 is 3 across and 5 down in the cell at 3 6
+# of a window at 6 10, with 8 by 16 cells -- and 375 and 312 thousandths.
+# With no pixel it is the middle, as a click was before (Gitea #370).
+PXB = ('pxb_open()  { PXB=start; }\n'
+       'pxb_draw()  { console put -p "w$1" 2 3 "in $PXB"; }\n'
+       'pxb_click() { local a b; a := dt_cellpx "$1" "$2" "$3" 8 16\n'
+       '  b := dt_cellpx "$1" "$2" "$3" 1000 1000; PXB="$a / $b"; }\n'
+       'dt_new "Px" 8 30 6 10 pxb\n')
+sc, _ = run(PXB, [1.5, b"\x1b[<0;132;150M", b"\x1b[<0;132;150m"],
+            cell=(8, 16), caps=["mpix"])
+check("dt_cellpx places a pixel click inside its cell, in the caller's measure",
+      sc.find("in 3 5 / 375 312") == (8, 13), sc)
+sc, _ = run(PXB, [1.5, press(9, 16), release(9, 16)], cell=(8, 16), caps=[])
+check("and gives the middle of the cell when there is no pixel",
+      sc.find("in 4 8 / 500 500") == (8, 13), sc)
 
 try:
     os.unlink(CLOSED)
@@ -7467,4 +7483,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(805)
+report(807)
