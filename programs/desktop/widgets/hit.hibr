@@ -17,7 +17,17 @@ declare -gA WG
 # drawing any dt_check or dt_wdrop -- a scrolled list moves them, so last
 # frame's regions must not answer this frame's click.
 fn dt_wclear(id) {
-	unset "WG[$id]" "WH[$id]"
+	unset "WG[$id]" "WH[$id]" "WT[$id]"
+}
+
+# Tooltips an app gives its own regions (Gitea #370): what the region tagged
+# tag says when the pointer rests on it. Set where it is drawn, as the
+# region is, and cleared with it by dt_wclear. The desktop's own glyphs --
+# a title bar's buttons, the Control Strip's modules, the bar's items --
+# say what they are without being told.
+declare -gA WT
+fn dt_tip(id, tag, text) {
+	WT[$id]["$tag"]=$text
 }
 
 # The rows a list lights under the pointer (Gitea #370), kept apart from

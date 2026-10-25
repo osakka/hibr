@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.338
+
+**Tooltips** (Gitea #370). When the pointer rests on a glyph that has no
+word beside it, a line under the pointer says what it does. Turn them off
+in Control Panel > Mouse > Tooltips; they are on by default.
+
+- **The desktop's own glyphs speak for themselves:** a title bar's buttons
+  (Close, Hide, Zoom), the Control Strip's modules, and the bar's items.
+- **An app can give any of its regions one** with `dt_tip`.
+- **When it shows:** after the pointer rests 0.6 s. It goes when the pointer
+  moves on, or at any key or click.
+- **Where hovering is on:** under Blit by itself, or with Control Panel >
+  Mouse > Hover.
+
+Mouse pane 1.5.
+
 ## 0.99.337
 
 **A window's frame says what a press there does** (Gitea #370). Wherever

@@ -437,6 +437,7 @@ dt_draw() {
 	dt_popdraw
 	[ "${DT_BARTRANS:-0}" != 0 ] && console translucent off
 	dt_note_draw
+	dt_tip_draw
 	dt_identify_draw
 	dt_blankdraw
 	dt_sbtick

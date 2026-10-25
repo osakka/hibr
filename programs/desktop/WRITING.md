@@ -101,7 +101,8 @@ mouse report was, in pixels of the screen counted from zero, and are empty
 when the terminal reports cells only (Gitea #370). No callback is handed
 them, since each declares what it takes; the cell it is told is the one that
 pixel is in. A window's own pixel is `DT_PX` less its column times the cell
-width, which `console gfx` answers (`kitty 8 16`). `dt_cellpx id r c cw ch`
+width, which `console gfx` answers (`kitty 8 16`).
+
 **What a click would land on lights under the pointer**, wherever hovering
 is on (Gitea #370). The desktop works out which region the pointer is over
 from what `dt_wreg` registered -- the same regions `dt_hit` answers a click
@@ -116,8 +117,16 @@ own pen, so do not ask for it. A window
 whose `_dirty` says it is clean is drawn again when what is lit in it
 changes, and a pointer moving within one region draws nothing.
 
-`dt_cellpx id r c cw ch`
-does that sum for a click: where in the cell `r c` the pointer was, as `x y`
+**A tooltip** says what something does once the pointer has rested on it
+(Control Panel > Mouse > Tooltips, on by default). The desktop's own
+glyphs speak for themselves: a title bar's buttons, the Control Strip's
+modules, the bar's items. An app gives one of its own regions a tooltip with
+`dt_tip id tag text`, beside the `dt_wreg` or `dt_hotreg` that registers it.
+Give one to a glyph with no word beside it, not to a labelled button or a
+menu row, which already say what they do.
+
+`dt_cellpx id r c cw ch` works out a window's own pixel for a click: where
+in the cell `r c` the pointer was, as `x y`
 in a cell of `cw` by `ch` -- the app's own measure, which need not be the
 terminal's -- and the middle of the cell when there is no pixel. The PDF
 Reader starts a selection there, and X Screen hands it to the X program.

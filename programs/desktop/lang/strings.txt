@@ -1121,6 +1121,7 @@ Title Bar
 Titlebar Click
 Today
 Today  Month  Agenda
+Tooltips
 Top
 Tour
 Trash

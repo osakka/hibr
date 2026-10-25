@@ -11,7 +11,7 @@
 strict
 
 
-app mouse "The Control Panel pane for what the mouse does to a window" 1.4
+app mouse "The Control Panel pane for what the mouse does to a window" 1.5
 command -v cp_pane > /dev/null && cp_pane mouse "Mouse" "◎" hardware
 
 MS_DRAGKEYS=(alt ctrl shift)
@@ -86,6 +86,11 @@ fn mouse_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_FOCUSHOVER" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_FOCUSHOVER; n=$((n + 1))
+	# What a glyph does, said when the pointer rests on it.
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tooltips"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TIPS" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TIPS; n=$((n + 1))
 	ret "$n"
 }
 
@@ -93,7 +98,7 @@ fn mouse_do(int w, k, int dir) {
 	local v
 
 	case $k in
-	DT_EDGERESIZE | DT_DRAGMOD | DT_FOCUSHOVER) cp_toggle "$k" ;;
+	DT_EDGERESIZE | DT_DRAGMOD | DT_FOCUSHOVER | DT_TIPS) cp_toggle "$k" ;;
 	dragkey) v := cp_next "$DT_DRAGKEY" "$dir" "${MS_DRAGKEYS[@]}"
 	         DT_DRAGKEY=$v ;;
 	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${MS_DBLACTIONS[@]}"

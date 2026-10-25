@@ -514,6 +514,12 @@ DT_HOTTAG=
 # The Control Strip module the pointer is over, by its place in the strip,
 # whose brackets light while it is; empty when it is over none.
 DT_HOTSTRIP=
+# The tooltip for what the pointer is over, when it started resting there,
+# and where, so a frame DT_TIPMS later can draw it (Gitea #370).
+DT_TIPTXT=
+DT_TIPAT=0
+DT_TIPR=0
+DT_TIPC=0
 # What is lit because the pointer is over it: a window's title-bar button
 # ("id kind"), a menu title's index, a bar item's name -- each drawn in a
 # lighter or a well colour by frame.hibr and bar.hibr.
@@ -547,6 +553,73 @@ fn dt_ptrcan() {
 	fi
 	p := console pointer can 2> /dev/null || return 1
 	[ "$p" = yes ]
+}
+
+# What the thing the pointer has just moved onto would say as a tooltip
+# (Gitea #370), kept with where and when the pointer got there, and a frame
+# asked for once it has rested DT_TIPMS. Only what shows a glyph with no
+# word beside it speaks for itself -- a title bar's buttons, the Control
+# Strip's modules, the bar's items -- and a region an app gave a tip to with
+# dt_tip; a menu row or a labelled button already says what it does.
+fn dt_tipfor(t, int r, int c) {
+	local x= id b m
+
+	DT_TIPTXT=
+	[ "$DT_TIPS" = 1 ] || return 0
+	case $t in
+	btn:*)
+		case ${t##*:} in
+		close) x=Close ;;
+		min) x=Hide ;;
+		max) x=Zoom ;;
+		esac
+		;;
+	cs:*)
+		m=${CS_MOD_LIST[${t#cs:}]-}
+		[ -n "$m" ] && x=${CS_MODS[$m]["title"]-}
+		;;
+	bar:*)
+		[ -n "$DT_HOVERBI" ] && x=${DT_BARI["$DT_HOVERBI"]["label"]-}
+		;;
+	hot:*)
+		id=${t#hot:}
+		b=${id#*:}
+		id=${id%%:*}
+		x=${WT[$id]["$b"]-}
+		;;
+	esac
+	[ -n "$x" ] || return 0
+	DT_TIPTXT := dt_tr "$x"
+	DT_TIPAT=$((${EPOCHREALTIME/./} / 1000))
+	DT_TIPR=$r
+	DT_TIPC=$c
+	dt_want "$DT_TIPMS"
+}
+
+# Draw the tooltip, once the pointer has rested long enough: on the row
+# below the pointer, or above it at the screen's foot, kept on the screen.
+# Drawn over the finished frame, so the frame after it is gone repaints
+# what it covered by itself.
+dt_tip_draw() {
+	local left r c t
+	local -i w
+
+	[ -n "$DT_TIPTXT" ] && [ "$DT_TIPS" = 1 ] || return 0
+	left=$((DT_TIPAT + DT_TIPMS - ${EPOCHREALTIME/./} / 1000))
+	if [ "$left" -gt 0 ]; then
+		dt_want "$left"
+		return 0
+	fi
+	t=" $DT_TIPTXT "
+	w := str width "$t"
+	r=$((DT_TIPR + 1))
+	[ "$r" -ge "$DT_ROWS" ] && r=$((DT_TIPR - 1))
+	c=$DT_TIPC
+	[ $((c + w)) -gt "$DT_COLS" ] && c=$((DT_COLS - w))
+	[ "$c" -lt 0 ] && c=0
+	console pen "$DT_INK" "$DT_WELL"
+	console put "$r" "$c" "$t"
+	return 0
 }
 
 # Which grip of window id is at r,c on the screen, if any: a corner --
@@ -718,6 +791,7 @@ fn dt_hover(int r, int c) {
 		DT_HOVERWIN=$id
 		${DT[$id]["hover"]} "$id" $((r - wr)) $((c - wa))
 	fi
+	[ "$t" != "$was" ] && dt_tipfor "$t" "$r" "$c"
 	DT_PTRR=$r
 	DT_PTRC=$c
 	b := dt_ptrfor "$r" "$c"
@@ -806,6 +880,8 @@ fn dt_event(k) {
 		return 0
 		;;
 	esac
+	# Anything else done puts a tooltip away until the pointer moves on.
+	DT_TIPTXT=
 	DT_NOTEWIN=
 	case $k in
 	"mouse drag "*) DT_LASTDRAG=1; DT_LASTMOVE=1 ;;

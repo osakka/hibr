@@ -7330,6 +7330,40 @@ sc, _ = run(FFM, [1.5, hov(8, 10), 0.3, b"x", 0.3], env={"DT_HOVER": "on"})
 check("off, the default, the keys stay where they were",
       sc.find("keys x") is not None and sc.find("keys x")[1] > 30, sc)
 
+# Tooltips (Gitea #370): a title bar's button says what it does once the
+# pointer has rested on it, and an app's region says what dt_tip gave it.
+# Neither shows before the rest is up, and Tooltips off shows none. Read
+# before the quitting key, since any key puts a tooltip away.
+def tipscreen(session, feed, env):
+    path = scratch("tips.hibr")
+    open(path, "w").write("%s. %s\n\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, session))
+    t = Term(path, env=dict({"DT_TICK": "60", "DT_HOVER": "on"}, **env),
+             rows=ROWS, cols=COLS, settle=0.8)
+    t.keys(feed)
+    t.collect(0.3)
+    sc = t.screen()
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return sc
+
+
+sc0, _ = run(APP, [1.0])
+_tb = sc0.row(6).find("x\u2502") if "x\u2502" in sc0.row(6) else sc0.row(6).find("x├")
+sc = tipscreen(APP, [1.0, hov(6, _tb), 1.0], {})
+check("a title bar's close button says Close when the pointer rests on it",
+      _tb > 0 and "Close" in sc.row(7), (_tb, sc))
+TIP = ('tip_draw() { dt_wclear "$1"; console put -p "w$1" 2 3 "[go]"\n'
+       '  dt_wreg "$1" 2 3 4 go; dt_tip "$1" go "Go somewhere"; }\n'
+       'dt_new "Tip" 8 30 6 10 tip\n')
+sc = tipscreen(TIP, [1.0, hov(8, 14), 1.0], {})
+check("and a region an app gave a tip says it", "Go somewhere" in sc.row(9), sc)
+sc = tipscreen(TIP, [1.0, hov(8, 14), 0.1], {})
+check("but not before the pointer has rested", "Go somewhere" not in sc.text(),
+      sc)
+sc = tipscreen(TIP, [1.0, hov(8, 14), 1.0], {"DT_TIPS": "0"})
+check("and with Tooltips off, never", "Go somewhere" not in sc.text(), sc)
+
 # A window on another display, after the desktop is stopped and started
 # again (the owner's report: placed right, and its title bar on the primary,
 # so nothing but an alt-drag on its content would move it). The snapshot
@@ -7589,4 +7623,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(821)
+report(825)
