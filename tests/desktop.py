@@ -7304,7 +7304,7 @@ BARAPP = ('dt_app bx "Barred" 8 30\n'
           '\tconsole put -p "w$id" 2 1 "$BX"\n'
           '\tconsole put -p "w$id" "$h" "$w" "E"\n}\n'
           'fn bx_click(int id, int r, int c, btn = "") { BX="click $r $c"; }\n'
-          'DT_FRAME=none\n'
+          'DT_FRAME=none\nDT_TITLEBAR=solid\n'
           'dt_new "Barred" 8 30 6 10 bx\n')
 BARBG = "48;2;99;179;237"
 
@@ -7358,16 +7358,33 @@ check("and so does the menu bar, at its own percentage",
       pbg(clear, 0, 34) == (27, 58, 92) and pbg(sc, 0, 34) not in
       (None, (27, 58, 92)), (pbg(clear, 0, 34), pbg(sc, 0, 34), clear.row(0)))
 
-# Curved is none with the title bar's top corners rounded, by Blit's own two
-# cells (blit#140); a glyph set without them draws none's square ends.
-sc, _ = run(BARAPP.replace("DT_FRAME=none", "DT_FRAME=curved"),
-            env={"DT_GLYPHSET": "blit"})
-check("curved rounds the title bar's top corners with Blit's own cells",
+# A curved title bar is a solid one with its top corners rounded, by Blit's
+# own two cells (blit#140); a glyph set without them draws square ends.
+CURVED = BARAPP.replace("DT_TITLEBAR=solid", "DT_TITLEBAR=curved")
+sc, _ = run(CURVED, env={"DT_GLYPHSET": "blit"})
+check("a curved title bar rounds its top corners with Blit's own cells",
       sc.g[6][10] == "\U00100007" and sc.g[6][39] == "\U00100008", sc)
-sc, _ = run(BARAPP.replace("DT_FRAME=none", "DT_FRAME=curved"))
-check("and where the glyph set has no such cell its ends are square, as none's",
-      sc.g[6][10] == " " and sc.g[6][39] == " " and barend(sc, 6, 10) and
-      barend(sc, 6, 39), sc)
+sc, _ = run(CURVED)
+check("and where the glyph set has no such cell its ends are square, as a "
+      "solid bar's are", sc.g[6][10] == " " and sc.g[6][39] == " " and
+      barend(sc, 6, 10) and barend(sc, 6, 39), sc)
+sc, _ = run(CURVED.replace("DT_FRAME=none", "DT_FRAME=single"),
+            env={"DT_GLYPHSET": "blit"})
+check("and over a bordered frame too: the corners are curved, the sides lined",
+      sc.g[6][10] == "\U00100007" and sc.g[6][39] == "\U00100008" and
+      sc.g[9][10] != " " and sc.g[13][10] != " ", sc)
+# With no border and a line title, the title sits on the window's face: there
+# is no line for it to be in, and nothing filled.
+sc, _ = run(BARAPP.replace("DT_TITLEBAR=solid", "DT_TITLEBAR=line"))
+check("none with a line title bar draws the title on the face, not a filled "
+      "bar", "Barred" in sc.row(6) and not barend(sc, 6, 20), sc)
+# A solid frame is a ring of whole cells in the frame's colour, its title on
+# the top one.
+sc, _ = run(BARAPP.replace("DT_FRAME=none\nDT_TITLEBAR=solid", "DT_FRAME=solid"))
+check("a solid frame is a ring of whole cells in its colour, the title on top",
+      barend(sc, 6, 20) and barend(sc, 9, 10) and barend(sc, 9, 39) and
+      barend(sc, 13, 20) and not barend(sc, 9, 20) and "Barred" in sc.row(6),
+      sc)
 
 
 # See-through shows what is beneath (0.99.324), not only the wallpaper: a
@@ -7411,4 +7428,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(796)
+report(799)

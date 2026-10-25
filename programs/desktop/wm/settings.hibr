@@ -262,29 +262,32 @@ DT_DBLMS=400
 DT_DBLID=
 DT_DBLT=0
 
-# A window's own frame: single or double lined, rounded, or none -- no
-# border at all, the title bar the only row of frame and the content to the
-# window's edge -- or curved, which is none with the title bar's top corners
-# rounded, where the glyph set has a cell for it (Blit's, U+100007 and
-# U+100008, blit#140; anywhere else it is drawn as none and the Control
-# Panel shows it dimmed). A bordered style is a table entry: DT_FRAMES[name]
-# carries its own six glyphs, filled from the glyph set by dt_glyphs
-# (wm/glyphs.hibr), so another is six lines there, not a change to dt_win.
-# Until 0.99.324, none was a border left blank and bar was what none is now.
+# A window's own border: single or double lined, rounded, solid -- a ring
+# of whole cells in the frame's colour -- or none, no border at all, the
+# title bar the only row of frame and the content to the window's edge. A
+# lined style is a table entry: DT_FRAMES[name] carries its own six glyphs,
+# filled from the glyph set by dt_glyphs (wm/glyphs.hibr), so another is
+# six lines there, not a change to dt_win. Until 0.99.324 none was a border
+# left blank and bar was what none is now; 0.99.324's curved is a title bar
+# since 0.99.327, below.
 DT_FRAME="${DT_FRAME-single}"
 # How much of a picture wallpaper shows through a window's own face and
 # through the menu bar, as a percentage of the picture's brightness: 0 is
 # opaque, as everything was. A terminal has its own, which wins inside it.
 DT_WINTRANS="${DT_WINTRANS-0}"
 DT_BARTRANS="${DT_BARTRANS-0}"
-WS_FRAMES=(single double rounded none curved)
+WS_FRAMES=(single double rounded solid none)
 
-# The title bar: a line, the title sitting in the frame's top edge as it
-# always has, or solid -- the whole top row a bar of the frame's colour
-# (the accent when focused, idle otherwise) with the title and buttons
-# drawn on it in DT_SELINK, as on the desktops of around 2001.
+# The title bar: a line, the title sitting in the frame's own top line as
+# it always has (with no border, on the window's face); solid -- the whole
+# top row a bar of the frame's colour (the accent when focused, idle
+# otherwise) with the title and buttons drawn on it in DT_SELINK, as on the
+# desktops of around 2001; or curved, that bar with its top corners
+# rounded, where the glyph set has a cell for it (Blit's, U+100007 and
+# U+100008, blit#140) -- anywhere else it is drawn as solid and the Control
+# Panel shows it dimmed.
 DT_TITLEBAR="${DT_TITLEBAR-line}"
-DT_TITLEBARS=(line solid)
+DT_TITLEBARS=(line solid curved)
 
 # Which side the min/max/close cluster docks to, where the title sits in
 # whatever room that leaves, and which glyphs the cluster is drawn with:
@@ -546,8 +549,19 @@ dt_load() {
 		if [ "${DT_SETVER:-0}" -lt 14 ]; then
 			[ "$DT_FRAME" = bar ] && DT_FRAME=none
 		fi
+		# 0.99.327: curved is a title bar, and none's title row is no
+		# longer always filled -- it follows Title Bar, as every other
+		# frame's does. A saved one keeps the look it had.
+		if [ "${DT_SETVER:-0}" -lt 15 ]; then
+			if [ "$DT_FRAME" = curved ]; then
+				DT_FRAME=none
+				DT_TITLEBAR=curved
+			elif [ "$DT_FRAME" = none ] && [ "$DT_TITLEBAR" = line ]; then
+				DT_TITLEBAR=solid
+			fi
+		fi
 	fi
-	DT_SETVER=14
+	DT_SETVER=15
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"

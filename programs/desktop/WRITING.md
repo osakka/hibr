@@ -72,7 +72,7 @@ these, and the window manager calls only the ones that exist:
 | function | called with | when |
 |---|---|---|
 | `hello_open` | `id` | once, when the window is made |
-| `hello_draw` | `id inner_h inner_w row col` | every frame; `row col` is where the window is on screen, for `console fill`, which takes screen coordinates. Under the `none` and `curved` frames (no border) the window is one row less and its whole width, and the app's row 1, column 1 is still where its content starts -- the pane's origin is moved, not the app |
+| `hello_draw` | `id inner_h inner_w row col` | every frame; `row col` is where the window is on screen, for `console fill`, which takes screen coordinates. Under the `none` frame (no border) the window is one row less and its whole width, and the app's row 1, column 1 is still where its content starts -- the pane's origin is moved, not the app |
 | `hello_key` | `id key` | a key, while this window has focus |
 | `hello_click` | `id row col button` | a click, in the same coordinates the app draws in; `button` is `left`, `middle` or `right` |
 | `hello_mouse` | `id press\|drag\|release button row col mods` | instead of `_click`, for an app that wants the whole of a press: after the press, its drags and its release come here wherever the pointer goes. `mods` is what was held, such as `shift` or `ctrl` |

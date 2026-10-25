@@ -11,7 +11,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.3
+app appearance "The Control Panel pane for how the desktop looks" 2.4
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -214,10 +214,12 @@ fn cp_themeread(n, f) {
 		case $k in
 		wallpaper) cp_oneof "$v" "${WP_GLYPHS[@]}" || return 1 ;;
 		mode) cp_oneof "$v" "${WP_MODES[@]}" || return 1 ;;
-		# bar is what none was called until 0.99.324, and a theme
-		# installed before then still says it: a file refused whole
-		# would drop out of the list on every desktop that has it.
-		frame) [ "$v" = bar ] && v=none
+		# bar is what none was called until 0.99.324, and curved was a
+		# frame in 0.99.324 only: a theme installed then still says
+		# them, and a file refused whole would drop out of the list on
+		# every desktop that has it. Both are no border; the title bar
+		# they drew is put back below, once every field is read.
+		frame) case $v in bar | curved) v=none ;; esac
 		       cp_oneof "$v" "${WS_FRAMES[@]}" || return 1 ;;
 		titlebar) cp_oneof "$v" "${DT_TITLEBARS[@]}" || return 1 ;;
 		buttons) cp_oneof "$v" "${WS_STYLES[@]}" || return 1 ;;
@@ -249,6 +251,10 @@ fn cp_themeread(n, f) {
 		esac
 		got["$k"]=$v
 	done
+	case ${j["frame"]-} in
+	curved) got["titlebar"]=curved ;;
+	bar) [ -n "${j["titlebar"]-}" ] || got["titlebar"]=solid ;;
+	esac
 	for k in "${!got[@]}"; do
 		CP_TH["$n"]["$k"]=${got["$k"]}
 	done

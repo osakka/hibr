@@ -1392,17 +1392,17 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "14 1 1 1 mod-w mod-tab []", out)
+      out == "15 1 1 1 mod-w mod-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "14 0 1 1 mod-w mod-tab []", out)
+      out == "15 0 1 1 mod-w mod-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("14 1 0 0 "), out)
+      out.startswith("15 1 0 0 "), out)
 
 
 # 0.99.324 calls the frame that is only a title bar none, and the border left
@@ -1416,8 +1416,8 @@ def framefrom(conf, theme):
     th = os.path.join(d, "old.json")
     open(th, "w").write(theme)
     out = subprocess.run(
-        [sx.HIBR, "-c", ". %s\n. %s\ndt_load\necho -n \"$DT_FRAME \"\n"
-         "cp_themeread old %s && echo \"${CP_TH[old][frame]}\" || echo refused"
+        [sx.HIBR, "-c", ". %s\n. %s\ndt_load\necho -n \"$DT_FRAME $DT_TITLEBAR \"\n"
+         "cp_themeread old %s && echo \"${CP_TH[old][frame]} ${CP_TH[old][titlebar]}\" || echo refused"
          % (WM, tree("programs/desktop/control-panel/appearance.hibr"), th)],
         env=dict(os.environ, XDG_CONFIG_HOME=d),
         capture_output=True, text=True).stdout.strip()
@@ -1427,8 +1427,15 @@ def framefrom(conf, theme):
 
 out = framefrom("DT_SETVER=13\nDT_FRAME=bar\n",
                 '{"title": "Old", "colours": "midnight", "frame": "bar"}')
-check("a saved bar frame is none after 0.99.324, and a theme saying bar is "
-      "read as none", out == "none none", out)
+check("a saved bar frame is none after 0.99.324, its title bar still solid, "
+      "and a theme saying bar is read the same way",
+      out == "none solid none solid", out)
+# 0.99.327 makes curved a title bar; 0.99.324 saved it, and published
+# Charcoal with it, as a frame.
+out = framefrom("DT_SETVER=14\nDT_FRAME=curved\n",
+                '{"title": "Old", "colours": "midnight", "frame": "curved"}')
+check("a saved curved frame is no border with a curved title bar, and so is "
+      "a theme that says it", out == "none curved none curved", out)
 
 
 # 0.99.80 holds an output-driven frame 70 ms from the last rather than 33
@@ -1661,9 +1668,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 14", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 15", out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 14", out)
+check("and a file written since is read as it is", out == "[meadow] paper 15", out)
 
 
 # 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
@@ -1684,9 +1691,9 @@ def loadtube(conf):
 
 out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
 check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow 14", out)
+      out == "follow 15", out)
 out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii 14", out)
+check("and one it was given of its own is kept", out == "ascii 15", out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -2009,16 +2016,22 @@ check("and again reaches rounded",
       sc.find("Frame") is not None and "rounded" in sc.row(sc.find("Frame")[0]),
       sc)
 sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C"])
-check("and again reaches none",
+check("and again reaches solid, a border of whole cells",
+      sc.find("Frame") is not None and "solid" in sc.row(sc.find("Frame")[0]),
+      sc)
+sc = cprun(DOWN_WS + [b"\x1b[C"] * 5)
+check("and again reaches none, no border at all",
       sc.find("Frame") is not None and "none" in sc.row(sc.find("Frame")[0]),
       sc)
-# Curved needs a glyph set with a rounded corner cell, which only Blit's has
-# (blit#140), so with the default set the arrows step past it.
-sc = cprun(DOWN_WS + [b"\x1b[C"] * 5)
-check("and once more wraps to single, past curved, which this glyph set "
-      "cannot draw",
-      sc.find("Frame") is not None and "single" in sc.row(sc.find("Frame")[0])
-      and "curved" not in sc.row(sc.find("Frame")[0]), sc)
+# Curved is a title bar: it needs a glyph set with a rounded corner cell,
+# which only Blit's has (blit#140), so with the default set the arrows step
+# past it on the Title Bar row.
+sc = cprun(reach("windows", "Title Bar") + [b"\x1b[C"] * 2)
+check("Title Bar steps line, solid, and back to line, past curved, which "
+      "this glyph set cannot draw",
+      sc.find("Title Bar") is not None and
+      "line" in sc.row(sc.find("Title Bar")[0]) and
+      "curved" not in sc.row(sc.find("Title Bar")[0]), sc)
 sc = cprun(reach("windows", "Button Style") + [b"\x1b[C"])
 check("Button Style cycles from brackets to circles",
       sc.find("Button Style") is not None and
@@ -5249,4 +5262,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(701)
+report(703)

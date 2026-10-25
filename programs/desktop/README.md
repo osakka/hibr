@@ -232,11 +232,13 @@ A theme is a JSON file too:
 rest, each optional: `wallpaper` (a glyph from Control Panel > Wallpaper's list), `image`
 and `mode` (a picture, its path relative to the theme's own folder so a
 theme can carry it, and how it is fitted), `frame` (`single`, `double`,
-`rounded`, `none` -- the title bar alone, and the content to the window's
-edge -- or `curved`, which is none with the title bar's top corners
-rounded where the glyph set has the cell for it, Blit's; `bar`, what none
-was called until 0.99.324, is still read as none), `titlebar` (`line`, or
-`solid` -- the top row a bar of the frame's colour), `wintrans` and
+`rounded`, `solid` -- a ring of whole cells in the frame's colour -- or
+`none`, no border at all, the title bar alone and the content to the
+window's edge; `bar` and 0.99.324's `curved` are still read, as none with
+a solid and a curved title bar), `titlebar` (`line` -- in the frame's own
+top line, or on the window's face with no border -- `solid`, the top row a
+bar of the frame's colour, or `curved`, that bar with its top corners
+rounded where the glyph set has the cell for it, Blit's), `wintrans` and
 `bartrans` (how much of what is beneath shows through a window's face, and
 through the menu bar, its menus, drop-down lists and pop-ups, 0 to 100:
 another window, or the wallpaper's picture where nothing else is --

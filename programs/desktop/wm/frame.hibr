@@ -201,12 +201,12 @@ fn dt_castshadow(int r, int c, int h, int w, int? lim = "") {
 	return 0
 }
 
-# Whether a window is drawn with no border, none or curved: its title bar
-# the only row of frame, and no border anywhere else -- so its content runs
-# to its edge, and the app's own column 1 is the window's first. A bare
-# window and one with no chrome draw every cell themselves already.
+# Whether a window is drawn with no border, Frame none: its title bar the
+# only row of frame, and no border anywhere else -- so its content runs to
+# its edge, and the app's own column 1 is the window's first. A bare window
+# and one with no chrome draw every cell themselves already.
 fn dt_capped(int id) {
-	[ "$DT_FRAME" = none ] || [ "$DT_FRAME" = curved ] || return 1
+	[ "$DT_FRAME" = none ] || return 1
 	[ "${DT[$id]["chrome"]}" != none ] || return 1
 	[ "${DT_APPS[${DT[$id]["app"]}]["bare"]}" != 1 ]
 }
@@ -302,59 +302,68 @@ fn dt_win(int id) {
 	[ "${DT_WINTRANS:-0}" != 0 ] && console translucent off
 	DT_NOTEWIN=
 
-	# The ring of border glyphs, for a frame that has one: none and
-	# curved draw only the title bar, below.
+	# The title row is a filled bar of the frame's own colour under a
+	# solid or curved title bar, and under a solid frame, whose top edge
+	# is that bar; a line title sits in the frame's own top line, or,
+	# with no border, on the window's face.
+	local ts=0
+	{ [ "$DT_TITLEBAR" != line ] || [ "$DT_FRAME" = solid ]; } && ts=1
+	# The border, for a frame that has one: a ring of glyphs, or under
+	# solid a ring of whole cells in the frame's colour. None has no
+	# border at all.
 	if [ "$cap" = 0 ]; then
-		console pen "$on" "$DT_FACE"
-		local tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
-		local bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
-		local fh=${DT_FRAMES[$DT_FRAME]["h"]} fv=${DT_FRAMES[$DT_FRAME]["v"]}
-		local bar
-		bar := dt_rep $((w - 2)) "$fh"
-		console put -p "w$id" 0 0 "$tl$bar$tr"
-		console put -p "w$id" $((h - 1)) 0 "$bl$bar$br"
-		if [ "$DT_TITLEBAR" = solid ]; then
-			bar := dt_rep "$w" " "
+		local bar r=1
+		if [ "$DT_FRAME" = solid ]; then
 			console pen "$DT_SELINK" "$on"
+			bar := dt_rep "$w" " "
 			console put -p "w$id" 0 0 "$bar"
+			console put -p "w$id" $((h - 1)) 0 "$bar"
+			while [ "$r" -lt $((h - 1)) ]; do
+				console put -p "w$id" "$r" 0 " "
+				console put -p "w$id" "$r" $((w - 1)) " "
+				r=$((r + 1))
+			done
+		else
+			console pen "$on" "$DT_FACE"
+			local tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
+			local bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
+			local fh=${DT_FRAMES[$DT_FRAME]["h"]} fv=${DT_FRAMES[$DT_FRAME]["v"]}
+			bar := dt_rep $((w - 2)) "$fh"
+			console put -p "w$id" 0 0 "$tl$bar$tr"
+			console put -p "w$id" $((h - 1)) 0 "$bl$bar$br"
+			while [ "$r" -lt $((h - 1)) ]; do
+				console put -p "w$id" "$r" 0 "$fv"
+				console put -p "w$id" "$r" $((w - 1)) "$fv"
+				r=$((r + 1))
+			done
+			console pen "$DT_INK" "$DT_FACE"
 		fi
-		console pen "$DT_INK" "$DT_FACE"
 		# A fixed window keeps the plain corner the border just drew
 		# instead of the grow box: no drag can resize it, so nothing
 		# should invite one.
 		[ "$fixed" != 1 ] &&
 			console put -p "w$id" $((h - 1)) $((w - 1)) "${GL[grow]}"
-		local r=1
-		while [ "$r" -lt $((h - 1)) ]; do
-			console put -p "w$id" "$r" 0 "$fv"
-			console put -p "w$id" "$r" $((w - 1)) "$fv"
-			r=$((r + 1))
-		done
 	fi
 
 	local bs bc off i tbg=$DT_FACE tfg=$on bink=$DT_INK
 	local tink=${DT_TITLEINK:-$DT_SELINK}
-	# A solid title bar is the frame's own colour, and everything on it --
+	# A filled title bar is the frame's own colour, and everything on it --
 	# the title, a button drawn in ink -- is drawn in the title's ink,
-	# DT_SELINK unless the scheme gives one. With no border the title bar
-	# is always solid, and under curved its top corners are rounded off in
-	# the bar's colour over whatever is behind the window.
-	if [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; then
+	# DT_SELINK unless the scheme gives one. A curved one has its outer
+	# top corners rounded off, in the bar's colour over whatever is behind
+	# the window, with a cell that has only that corner cut -- which no
+	# ordinary font has (a half circle rounds the bottom too): Blit's own
+	# (blit#140). A glyph set without one leaves capl blank, and the ends
+	# are square, as a solid bar's are.
+	if [ "$ts" = 1 ]; then
 		tbg=$on
 		tfg=$tink
 		bink=$tink
-		if [ "$cap" = 1 ]; then
-			local sb
-			sb := dt_rep "$w" " "
-			console pen "$tink" "$on"
-			console put -p "w$id" 0 0 "$sb"
-		fi
-		# Curved rounds the outer top corners with a cell that has only
-		# that corner cut, which no ordinary font has (a half circle
-		# rounds the bottom too): Blit's own (blit#140). A set without
-		# one leaves capl blank, and the ends are square, as none's are.
-		if [ "$cap" = 1 ] && [ "$DT_FRAME" = curved ] &&
-		   [ "${GL[capl]}" != " " ]; then
+		local sb
+		sb := dt_rep "$w" " "
+		console pen "$tink" "$on"
+		console put -p "w$id" 0 0 "$sb"
+		if [ "$DT_TITLEBAR" = curved ] && [ "${GL[capl]}" != " " ]; then
 			console pen "$on" default
 			console put -p "w$id" 0 0 "${GL[capl]}"
 			console put -p "w$id" 0 $((w - 1)) "${GL[capr]}"
@@ -372,7 +381,7 @@ fn dt_win(int id) {
 	# On a solid bar, or with no border, the tick marks a style wraps its
 	# cluster in are box-drawing glyphs with no line to sit on, and stay
 	# undrawn, though the buttons they wrap keep working.
-	{ [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; } &&
+	{ [ "$ts" = 1 ] || [ "$cap" = 1 ]; } &&
 		{ BTN_DL=" "; BTN_DR=" "; }
 	bs := dt_btnstr
 	if [ "$side" = left ]; then bc=1; else bc=$((w - 1 - ${#bs})); fi
@@ -421,7 +430,7 @@ fn dt_win(int id) {
 	*)      tc=$tc0 ;;
 	esac
 	local tdl="${GL[teel]}" tdr="${GL[teer]}"
-	{ [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; } &&
+	{ [ "$ts" = 1 ] || [ "$cap" = 1 ]; } &&
 		{ tdl=" "; tdr=" "; }
 	console pen "$tfg" "$tbg" bold
 	console put -p "w$id" 0 "$tc" "$tdl $t $tdr"
@@ -437,8 +446,7 @@ fn dt_win(int id) {
 			if [ "${BTN_K[$i]}" = "$DT_BTNKIND" ]; then
 				if [ "${BTN_C[$i]}" = "$DT_INK" ]; then
 					pc=$DT_ACTIVE
-					{ [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; } &&
-						pc=$DT_FACE
+					[ "$ts" = 1 ] && pc=$DT_FACE
 				else
 					pc := dt_lighten "${BTN_C[$i]}" 45
 				fi
@@ -456,8 +464,7 @@ fn dt_win(int id) {
 			if [ "${BTN_K[$i]}" = "${DT_HOVERBTN#* }" ]; then
 				if [ "${BTN_C[$i]}" = "$DT_INK" ]; then
 					pc=$DT_ACTIVE
-					{ [ "$DT_TITLEBAR" = solid ] || [ "$cap" = 1 ]; } &&
-						pc=$DT_FACE
+					[ "$ts" = 1 ] && pc=$DT_FACE
 				else
 					pc := dt_lighten "${BTN_C[$i]}" 25
 				fi

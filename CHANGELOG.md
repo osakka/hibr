@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.327
+
+**Frame and Title Bar say one thing each.** 0.99.324 put curved, a shape of
+the title bar, in the Frame list. Now Frame is the border alone and Title
+Bar the top row alone, and any of the one goes with any of the other:
+
+- **Frame:** single, double, rounded, **solid** (a ring of whole cells in
+  the frame's colour, new) or **none** (no border at all, the content to
+  the window's edge).
+- **Title Bar:** **line** (the title in the frame's own top line, or on the
+  window's face where there is no border), **solid** (a filled bar) or
+  **curved** (that bar with its top corners rounded by Blit's own two
+  cells, now on any frame).
+- **Curved needs Blit's glyph set.** With any other set it is dimmed in the
+  Title Bar list, the arrows step past it, and a saved curved draws as
+  solid.
+- **Saved settings keep their look** (`DT_SETVER` 15): 0.99.324's curved
+  frame becomes no border with a curved title bar, and its none, whose
+  title row was always filled, becomes none with a solid title bar.
+- **Themes keep theirs too.** One saying `bar` or `curved` reads the same
+  way, and Charcoal now says `none` and `curved` (1.2).
+
 ## 0.99.326
 
 **Signing in at the login screen no longer asks for your password twice.**
