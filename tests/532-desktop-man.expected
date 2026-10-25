@@ -1,4 +1,4 @@
 0
-requests the client sends: displays windows session rescan state stats move resize focus raise
+requests the client sends: displays windows session rescan state signedin stats move resize focus raise
 every option and request is in the page, and nothing more
 groff renders it with no warning

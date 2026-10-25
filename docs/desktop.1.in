@@ -122,6 +122,11 @@ or removes something.
 What the desktop waits on: its process id, whether the screen saver or the
 lock is up, each watcher, and the descriptors the console wakes for.
 .TP
+.B signedin
+The person has just signed in at the login screen, which resumes this
+desktop: the lock goes, the screen saver stops and the idle clock starts
+again. The login sends it itself, so the password is not asked twice.
+.TP
 .BR "stats " [ reset | stop ]
 What the desktop has done since the last reset, counted the same way on
 every platform:

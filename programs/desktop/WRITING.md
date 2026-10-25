@@ -629,3 +629,14 @@ is the only state. A held desktop always has a control socket; an unheld
 one only with `DT_CTL=1` (and `DT_CTLPATH` to put it somewhere). Windows
 are numbered by the desktop; displays are named as `desktop --join --name`
 named them.
+
+`{"op":"signedin"}` (`desktop ctl signedin`) says the person has just
+signed in at the login screen. The login screen resumes the desktop already
+held, and the password given there is the one its lock would ask for, so
+the lock goes, the saver stops and the idle clock starts again. The answer
+says what it found: `"was":"locked"`, `"saving"` or `"idle"`. The login
+sends it itself (`login/start.hibr` sets `HIBR_SIGNEDIN`, which
+`dt_autohold` turns into this request before it attaches). Anything running
+as the desktop's own user can send it, which is the same reach as every
+other request here; the lock is for someone at a display who has not
+signed in.

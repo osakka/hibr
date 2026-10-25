@@ -42,6 +42,9 @@ fn st_main(sess = "desktop") {
 	if [ "$sess" = shell ]; then
 		exec -a "-${sh##*/}" "$sh"
 	fi
+	# The password was just given, so a desktop resumed here is not to ask
+	# for it again (wm/hold.hibr, dt_autohold).
+	export HIBR_SIGNEDIN=1
 	exec "$HIBR" "$ST_HERE/../session.hibr" --resume
 }
 

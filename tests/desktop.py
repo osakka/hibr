@@ -5806,6 +5806,30 @@ check("escape puts the box away, and the next key brings it back",
 check("and the password is still what opens it", s[6].find("Hello")
       is not None and ex, s[6])
 
+# Signing in at the login screen resumes the desktop already held, and its
+# lock would ask for the same password again: the login says so through the
+# control socket (signedin, from login/start.hibr through dt_autohold), and
+# the lock goes, the saver with it.
+SID = tempfile.mkdtemp(prefix="hibr-signed-")
+SIS = os.path.join(SID, "d.ctl")
+sp = os.path.join(SID, "s.hibr")
+open(sp, "w").write("%s. %s\nDT_CTL=1\nDT_CTLPATH=%s\ndt_open\n%s\ndt_run\n"
+                    "dt_close\n" % (load(MOD), WM, SIS, ONE))
+ts = Term(sp, env=dict(LOCKENV), rows=ROWS, cols=COLS, settle=1.0)
+ts.keys([b"\x1b\x0c", 0.5])
+locked = ts.screen()
+r = subprocess.run([screen.HIBR, tree("programs/desktop/lib/ctl.hibr"),
+                    "--socket", SIS, "signedin"], capture_output=True,
+                   text=True, timeout=10)
+ts.collect(1.0)
+back = ts.screen()
+ts.quit(b"qy", 1.2)
+check("a sign-in at the login screen unlocks the desktop it resumes, with no "
+      "second password", locked.find("Hello") is None and
+      '"was":"locked"' in r.stdout and back.find("Hello") is not None and
+      back.find("Enter your password") is None, (r.stdout, r.stderr, back))
+shutil.rmtree(SID, True)
+
 s, ex = saverrun([3.5, b"x", b"\x15right horse\r"],
                  dict(LOCKENV, DT_SAVERSECS="2", DT_LOCKSECS="1"))
 check("Lock After locks a saver that has run that long: a key asks for the "
@@ -7234,6 +7258,31 @@ try:
     sw = sdctl("windows").get("windows", [])
     check("and its title bar takes a drag there",
           sw and sw[0]["col"] == 10, sw)
+    # Both displays go and come back, the primary first -- what a sign-in
+    # does: --resume lands where the display was, as --join does, or the
+    # primary came back at hold's own corner, the other display beside it
+    # rather than where it had been, and every window a display's width
+    # from where it was left.
+    def sdlist():
+        return sorted(l for l in sdrun(screen.HIBR, "-c", HOLDC +
+                                       "hold clients desktop").split("\n") if l)
+    was, wwas = sdlist(), sdctl("windows").get("windows", [])
+    p2.send(b"\x1c")
+    p2.collect(0.5)
+    p2.close()
+    p1.send(b"\x1c")
+    p1.collect(0.5)
+    p1.close()
+    time.sleep(1.0)
+    p1 = Term(SDS, "--resume", env=sdenv("pa"), cols=80, settle=2.5)
+    p2 = Term(SDS, "--join", "--name", "left", env=sdenv("pb"), cols=60,
+              settle=2.0)
+    time.sleep(2.0)
+    now, wnow = sdlist(), sdctl("windows").get("windows", [])
+    check("displays that go and come back, the primary first, are where they "
+          "were, and so is every window", was == now and len(was) == 2 and
+          [(w["row"], w["col"]) for w in wwas] ==
+          [(w["row"], w["col"]) for w in wnow], (was, now, wwas, wnow))
     p1.close()
     p2.close()
 finally:
@@ -7362,4 +7411,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(794)
+report(796)

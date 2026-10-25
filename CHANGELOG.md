@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.99.326
+
+**Signing in at the login screen no longer asks for your password twice.**
+The login screen resumes the desktop you left, and that desktop had sat
+idle the whole time, so its screen saver and lock were up when you came
+back: the password just given to the login screen never reached it, and
+it asked again. The login now tells it (`login/start.hibr` sets
+`HIBR_SIGNEDIN`, and `--resume` sends the control socket's new
+`signedin` request before attaching), and the desktop stops the saver,
+drops the lock and starts its idle clock again. `desktop ctl signedin`
+sends it by hand. Only processes running as you can reach the control
+socket, and those can already do anything the desktop can; the lock is
+still there for anyone at a display who has not signed in.
+
+**A display that comes back is where it was, and so are its windows.**
+`--resume` attached at hold's own corner, where `--join` asks where the
+display had been. So after every sign-in or reattach, the first display
+came back at 0,0 whatever its place had been, the next one landed beside
+it instead of where it was, and every window was a display's width from
+where it was left. `--resume` now asks the same as `--join`. `desktop.py`
+checks two displays going and coming back, the primary first.
+
+Two more were measured on hibr's side and found to be Blit's:
+
+- **A Browser, YouTube or Boxer window blank while another window
+  covers it.** Held and unheld, with a real drag over a picture window,
+  the display is sent the picture once and never told to drop it. That
+  matches blit#88, where Blit's KMS compositor gets kitty's layers wrong,
+  and the measurements are on that ticket.
+- **A black band across the top of the primary after Restart Desktop.**
+  What hibr sends after a restart repaints every cell and the whole
+  wallpaper; the evidence is in blit#142.
+
 ## 0.99.325
 
 **Web Apps** (Gitea #377). A site can be an app of its own, as on a Chromebook: in the Browser,

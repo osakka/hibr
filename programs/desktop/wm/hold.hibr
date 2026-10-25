@@ -142,10 +142,22 @@ fn dt_autojoin(base, dname) {
 
 # Attach to this session, named for the control panel if asked to be --
 # shared by a fresh `hold new`, --resume and --join, so all three ways of
-# ending up attached leave the same name behind.
+# ending up attached leave the same name behind. A display the session
+# remembers comes back where it was, as one that joins does (dt_joinat):
+# resuming at hold's own corner instead put the first display back at
+# 0,0 whatever it had been, the next one beside it rather than where it
+# had been, and every window drawn a display's width from where it was
+# left -- after every sign-in and every reattach.
 fn dt_holdattach(base, dname) {
+	local s r c
+
 	if [ -n "$dname" ]; then
-		hold attach -n "$dname" "$base"
+		if s := hold slot "$base" "$dname" 2> /dev/null && [ -n "$s" ]; then
+			read -r r c _ <<< "$s"
+			hold attach -n "$dname" "$base" "$r" "$c"
+		else
+			hold attach -n "$dname" "$base"
+		fi
 	else
 		hold attach "$base"
 	fi
@@ -175,10 +187,21 @@ fn dt_autohold(base, int resume, int join, dname, int standby = 0) {
 	[ "$standby" = 1 ] && dt_standby "$base" "$dname"
 	[ -n "$dname" ] || dname := dt_dispname
 	[ "$join" = 1 ] && dt_autojoin "$base" "$dname"
+	# A sign-in at the login screen (login/start.hibr) is the password the
+	# resumed desktop's lock would ask for: it is told, before the attach,
+	# so the person is not asked twice. Taken out of the environment
+	# either way, or every program the desktop starts would carry it.
+	local signed=${HIBR_SIGNEDIN-}
+	unset HIBR_SIGNEDIN
 	have := dt_holdnames
 	case " $have " in
 	*" $base "*)
-		[ "$resume" = 1 ] && dt_holdattach "$base" "$dname"
+		if [ "$resume" = 1 ]; then
+			[ "$signed" = 1 ] &&
+				"${HIBR:-hibr}" "$DT_HERE/lib/ctl.hibr" -s "$base" \
+					signedin > /dev/null 2>&1
+			dt_holdattach "$base" "$dname"
+		fi
 		echo "$0: $base is already running -- add --resume to reattach," \
 			"or run 'hold attach $base' directly" >&2
 		exit 1

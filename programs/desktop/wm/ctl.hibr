@@ -23,6 +23,8 @@
 #     {"op":"rescan"}                  (read the app folders again)
 #     {"op":"stats","reset":true}      (what the desktop has done: see
 #                                       dt_ctlstats; "stop":true ends timing)
+#     {"op":"signedin"}                (the person has just signed in at the
+#                                       login screen: see dt_ctlsignedin)
 #
 # An answer is {"ok":true,...} or {"ok":false,"error":"...","detail":"..."},
 # the errors bad-request, unknown-op, no-window, no-display, detached,
@@ -219,6 +221,7 @@ fn dt_ctlserve(int c) {
 		rescan) out := dt_ctlrescan ;;
 		state) out := dt_ctlstate ;;
 		stats) out := dt_ctlstats "${q["reset"]}" "${q["stop"]}" ;;
+		signedin) out := dt_ctlsignedin ;;
 		"") out := dt_ctlerr bad-request "no op" ;;
 		*) out := dt_ctlerr unknown-op "$op" ;;
 		esac
@@ -250,6 +253,29 @@ dt_ctlrescan() {
 	dt_rescan
 	read -r a g c <<< "$RET"
 	ret "{\"ok\":true,\"added\":${a:-0},\"removed\":${g:-0},\"changed\":${c:-0}}"
+}
+
+# The person has just signed in at the login screen, which resumes this
+# desktop: the password they gave there is the one the lock would ask for,
+# so the lock goes, the saver stops and the idle clock starts again --
+# without it, every sign-in after an idle desktop was a second sign-in.
+# Only the desktop's own user reaches this, as for every request here, and
+# a process running as them can already do anything the desktop can; the
+# lock is for whoever sits at a display, who has not signed in.
+dt_ctlsignedin() {
+	local was=idle
+
+	if [ -n "$DT_LOCKED" ]; then
+		was=locked
+		dt_unlock
+	elif [ -n "$DT_SAVING" ]; then
+		was=saving
+		dt_saverstop
+	fi
+	DT_IDLEFROM=$EPOCHSECONDS
+	dt_want 10
+	dt_log "signed in at the login screen: was $was"
+	ret "{\"ok\":true,\"was\":\"$was\"}"
 }
 
 # What the desktop is waiting on, read-only (Gitea #323): its pid, whether
