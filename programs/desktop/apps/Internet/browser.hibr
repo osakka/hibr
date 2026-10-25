@@ -50,9 +50,10 @@
 
 strict
 
-app browser "The web, in a window" 2.4
+app browser "The web, in a window" 2.5
 # modules: web
 # part: control-panel/browserset.hibr
+# part: control-panel/webapps.hibr
 
 command -v dt_app > /dev/null && dt_app browser "Browser" 26 96 many "◎"
 
@@ -294,6 +295,7 @@ fn bw_winev(k, a, b = "") {
 		for x in "${BW_TABS[@]}"; do
 			if [ "$k" = open ] && [ "$x" = "$a" ]; then
 				bw_apply "$b"
+				[ -n "${BW[$id]["app"]-}" ] && bw_wapply "$b" "${BW[$id]["app"]}"
 				bw_sndarm "$b"
 				BW[$id]["tabs"]="${BW[$id]["tabs"]} $b"
 				BW[$id]["cur"]=$b
@@ -392,6 +394,13 @@ bw_heard() {
 			bw_winev "$k" "$l" "$o"
 		done <<< "$x"
 	fi
+	if bw_has profiles; then
+		if x := web leaves 2> /dev/null; then
+			while IFS=$'\t' read -r k l; do
+				[ -n "$l" ] && dt_launch browser "$l"
+			done <<< "$x"
+		fi
+	fi
 	if x := web popups 2> /dev/null; then
 		while IFS= read -r l; do
 			dt_notep low "A page tried to open a window of its own, and was refused: %s" "${l:0:60}"
@@ -404,6 +413,32 @@ bw_heard() {
 			dt_notify "$x"
 		done <<< "$x"
 	fi
+	# A web app's, which the engine tells with its tab: named by the app, and a
+	# click raises its window.
+	if bw_has profiles; then
+		if x := web appnotes 2> /dev/null; then
+			while IFS=$'\t' read -r k l why; do
+				bw_appnote "$k" "$l" "$why"
+			done <<< "$x"
+		fi
+	fi
+	return 0
+}
+
+fn bw_appnote(tab, ti, bo = "") {
+	local id x t nm
+
+	for id in "${!BW[@]}"; do
+		[ -n "${BW[$id]["tabs"]+x}" ] || continue
+		bw_tabs "$id"
+		for t in "${BW_TABS[@]}"; do
+			[ "$t" = "$tab" ] || continue
+			nm := bw_appname "$id"
+			x="$nm: ${ti:-?}${bo:+ -- $bo}"
+			dt_notify "$x" dt_raise "$id"
+			return 0
+		done
+	done
 	return 0
 }
 
@@ -418,6 +453,7 @@ fn bw_reapply(again = "") {
 		bw_tabs "$id"
 		for t in "${BW_TABS[@]}"; do
 			bw_apply "$t"
+			[ -n "${BW[$id]["app"]-}" ] && bw_wapply "$t" "${BW[$id]["app"]}"
 			[ -n "$again" ] && web reload "$t"
 		done
 		BW[$id]["tdone"]=
@@ -428,19 +464,196 @@ fn bw_reapply(again = "") {
 	return 0
 }
 
+# Web apps (Gitea #377): a site installed as an app is a small file of its own,
+# `name=`, `url=`, `scope=host|domain`, `geo=`, `cam=`, `mic=`, `note=allow|refuse`,
+# `zoom=`, `ua=`, one a line, in WA_DIR/ID.conf; its sign-in is the profile folder
+# WA_DIR/ID/profile. Each is an entry on the hibr menu under Applications > Web Apps
+# that opens a Browser window in app mode (dt_appvia, as X Screen's programs are):
+# the page and no address row, kept to its site, with permissions of its own.
+WA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hibr/webapps"
+declare -gA WA
+WA_IDS=()
+
+wa_load() {
+	local f id k v
+
+	WA=()
+	WA_IDS=()
+	for f in "$WA_DIR"/*.conf; do
+		[ -r "$f" ] || continue
+		id=${f##*/}
+		id=${id%.conf}
+		WA_IDS+=("$id")
+		while IFS== read -r k v; do
+			[ -n "$k" ] && WA["$id:$k"]=$v
+		done < "$f"
+	done
+	return 0
+}
+
+# Put every web app on the menu, taking off whatever was there: when the Browser
+# loads and whenever the list changes.
+wa_register() {
+	local id
+
+	dt_has dt_appvia || return 0
+	dt_appunvia browser
+	for id in "${WA_IDS[@]}"; do
+		dt_appvia "browser:$id" "${WA["$id:name"]:-$id}" browser "webapp:$id" "Applications/Web Apps"
+	done
+	return 0
+}
+
+# One web app's file, written from what WA holds.
+fn wa_write(id) {
+	local k
+
+	mkdir -p "$WA_DIR" || return 1
+	{
+		for k in name url scope geo cam mic note zoom ua; do
+			[ -n "${WA["$id:$k"]-}" ] && printf '%s=%s\n' "$k" "${WA["$id:$k"]}"
+		done
+		:
+	} > "$WA_DIR/$id.conf.new" && command mv -f -- "$WA_DIR/$id.conf.new" "$WA_DIR/$id.conf"
+}
+
+# A change made to a web app: written, put on the menu again, and told to the
+# windows that show it.
+fn wa_commit(id) {
+	local w t
+
+	wa_write "$id" || return 1
+	wa_load
+	wa_register
+	for w in "${!BW[@]}"; do
+		[ -n "${BW[$w]["tabs"]+x}" ] && [ "${BW[$w]["app"]-}" = "$id" ] || continue
+		bw_tabs "$w"
+		for t in "${BW_TABS[@]}"; do
+			bw_wapply "$t" "$id"
+		done
+	done
+	return 0
+}
+
+# Take a web app away, its sign-in with it: its file, its profile folder, its
+# place on the menu. A window still showing it keeps the page it has.
+fn wa_remove(id) {
+	[ -n "$id" ] || return 1
+	command rm -f -- "$WA_DIR/$id.conf"
+	command rm -rf -- "$WA_DIR/$id"
+	wa_load
+	wa_register
+	return 0
+}
+
+# What a web app's tab is told over the Browser's own settings: the site it stays
+# in, what it may be given, and its zoom and user agent when it has them.
+fn bw_wapply(t, app) {
+	local u=${WA["$app:url"]-} h
+
+	h=${u#*://}
+	h=${h%%/*}
+	h=${h##*@}
+	h=${h%%:*}
+	web scope "$t" "${WA["$app:scope"]:-domain}" "$h" 2> /dev/null
+	web permit geolocation "${WA["$app:geo"]:-refuse}" "$t" 2> /dev/null
+	web permit camera "${WA["$app:cam"]:-refuse}" "$t" 2> /dev/null
+	web permit microphone "${WA["$app:mic"]:-refuse}" "$t" 2> /dev/null
+	web permit notifications "${WA["$app:note"]:-refuse}" "$t" 2> /dev/null
+	if [ "${WA["$app:note"]:-refuse}" = allow ]; then
+		web set "$t" notes on 2> /dev/null
+	else
+		web set "$t" notes off 2> /dev/null
+	fi
+	[ -n "${WA["$app:zoom"]-}" ] && web set "$t" zoom "${WA["$app:zoom"]}" 2> /dev/null
+	[ -n "${WA["$app:ua"]-}" ] && web set "$t" ua "${WA["$app:ua"]}" 2> /dev/null
+	return 0
+}
+
+# A window's name: the Browser, or the web app it is.
+fn bw_appname(int id) {
+	local app=${BW[$id]["app"]-}
+
+	if [ -n "$app" ]; then
+		ret "${WA["$app:name"]:-$app}"
+	else
+		ret Browser
+	fi
+}
+
+# Open a web app's window: its own profile, its start page.
+fn wa_open(int id, app) {
+	wa_load
+	if [ -z "${WA["$app:url"]-}" ]; then
+		BW[$id]["err"]="No such web app"
+		return 0
+	fi
+	need web 2> /dev/null || {
+		BW[$id]["err"]="The web module is not installed"
+		return 0
+	}
+	if ! bw_has profiles; then
+		BW[$id]["err"]="This browser engine cannot keep web apps apart -- update hibr-browser"
+		return 0
+	fi
+	BW[$id]["app"]=$app
+	bw_newtab "$id" "${WA["$app:url"]}"
+}
+
+# Make the page in a window an app: named for its title, kept to its site, with
+# nothing it may be given until Control Panel > Web Apps says so.
+fn bw_install(int id) {
+	local t=${BW[$id]["cur"]} u nm app n=2
+
+	[ -n "$t" ] || return 0
+	u := web url "$t" 2> /dev/null
+	case $u in
+	http://* | https://*) ;;
+	*)
+		dt_notep high "Only a web page can be made an app"
+		return 0 ;;
+	esac
+	nm := web title "$t" 2> /dev/null
+	[ -n "$nm" ] || { nm=${u#*://}; nm=${nm%%/*}; }
+	nm=${nm:0:40}
+	app=${nm,,}
+	app=${app//[^a-z0-9]/-}
+	while [[ $app == *--* ]]; do app=${app//--/-}; done
+	app=${app#-}
+	app=${app%-}
+	[ -n "$app" ] || app=app
+	app=${app:0:30}
+	wa_load
+	while [ -n "${WA["$app:url"]-}" ]; do
+		app="${app:0:27}-$n"
+		n=$((n + 1))
+	done
+	mkdir -p "$WA_DIR" || return 0
+	printf 'name=%s\nurl=%s\nscope=domain\n' "$nm" "$u" > "$WA_DIR/$app.conf"
+	wa_load
+	wa_register
+	dt_notep normal "Installed %s. It is in Applications > Web Apps." "$nm"
+	return 0
+}
+
+wa_load
+wa_register
+
 # Open a tab in a window, at an address or the home page, and make it the
 # one shown; with no home page it is blank and the keyboard in the address.
 fn bw_newtab(int id, url = "") {
-	local t
+	local t app=${BW[$id]["app"]-} prof=
 
 	[ -z "$url" ] && [ -n "$BW_HOME" ] && url := bw_addr "$BW_HOME"
+	[ -n "$app" ] && prof="$WA_DIR/$app/profile"
 	bw_cfg
-	t := web open || {
+	t := web open "" "$prof" || {
 		BW[$id]["err"]="No browser engine to show pages with -- install hibr-browser (WebKit) or Chromium, or set HIBR_WPE or HIBR_WEB_BROWSER"
 		return 1
 	}
 	bw_wide
 	bw_apply "$t"
+	[ -n "$app" ] && bw_wapply "$t" "$app"
 	bw_sndarm "$t"
 	[ -n "$url" ] && web go "$t" "$url"
 	bw_watch
@@ -448,7 +661,7 @@ fn bw_newtab(int id, url = "") {
 	BW[$id]["cur"]=$t
 	BW[$id]["err"]=
 	BW[$id]["sized"]=
-	[ -z "$url" ] && bw_editaddr "$id"
+	[ -z "$url" ] && [ -z "$app" ] && bw_editaddr "$id"
 	return 0
 }
 
@@ -485,6 +698,12 @@ fn browser_open(int id, arg = "") {
 	BW[$id]["acur"]=0
 	BW[$id]["sized"]=
 	BW[$id]["err"]=
+	BW[$id]["app"]=
+	case $arg in
+	webapp:*)
+		wa_open "$id" "${arg#webapp:}"
+		return 0 ;;
+	esac
 	need web 2> /dev/null || {
 		BW[$id]["err"]="The web module is not installed"
 		return 0
@@ -537,6 +756,7 @@ fn browser_stash(int id, dir) {
 			urls="${urls:+$urls }$u"
 	done
 	BW[$id]["urls"]=$urls
+	BW[$id]["wapp"]=${BW[$id]["app"]-}
 }
 
 fn browser_resume(int id) {
@@ -547,6 +767,8 @@ fn browser_resume(int id) {
 	BW[$id]["tabs"]=
 	BW[$id]["cur"]=
 	BW[$id]["sized"]=
+	BW[$id]["app"]=${BW[$id]["wapp"]-}
+	[ -n "${BW[$id]["app"]}" ] && wa_load
 	BW_FD=
 	need web 2> /dev/null || return 0
 	for u in "${us[@]}"; do
@@ -597,6 +819,8 @@ fn bw_steptab(int id, int d) {
 fn bw_editaddr(int id) {
 	local t=${BW[$id]["cur"]} u=
 
+	[ -n "${BW[$id]["app"]-}" ] && return 0
+
 	[ -n "$t" ] && u := web url "$t" 2> /dev/null
 	[ "$u" = about:blank ] && u=
 	BW[$id]["aed"]=1
@@ -629,13 +853,23 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	# row, pt the page's first, and the page ends above the status line.
 	ar=1
 	[ "${#BW_TABS[@]}" -gt 1 ] && ar=2
+	# A web app has no address row: the page starts at the top, under a strip
+	# only when a window the page opened is a second tab.
+	if [ -n "${BW[$id]["app"]-}" ]; then
+		ar=0
+		[ "${#BW_TABS[@]}" -gt 1 ] && ar=1
+	fi
 	pt=$((ar + 1))
 	ph=$((h - pt + 1))
 	BW[$id]["pt"]=$pt
 	BW[$id]["ph"]=$ph
 	BW[$id]["w"]=$w
-	[ "$ar" = 2 ] && bw_strip "$id" "$t" "$w"
-	bw_bar "$id" "$t" "$w" "$ar"
+	if [ -n "${BW[$id]["app"]-}" ]; then
+		[ "$ar" = 1 ] && bw_strip "$id" "$t" "$w"
+	else
+		[ "$ar" = 2 ] && bw_strip "$id" "$t" "$w"
+		bw_bar "$id" "$t" "$w" "$ar"
+	fi
 	bw_body "$id" "$t" "$h" "$w" "$pt" "$ph"
 	bw_sound "$id"
 }
@@ -719,7 +953,7 @@ fn bw_bar(int id, t, int w, int ar) {
 # the line of key hints under it went to the menus, beside each item --
 # with a scroll bar in its last column.
 fn bw_body(int id, t, int h, int w, int pt, int ph) {
-	local st bwm tt now sc pw=$((w - 1))
+	local st bwm tt an now sc pw=$((w - 1))
 	local -a sv
 
 	if [ -n "${BW[$id]["err"]}" ] || [ -z "$t" ]; then
@@ -760,7 +994,8 @@ fn bw_body(int id, t, int h, int w, int pt, int ph) {
 		[ "$st" = loading ] && dt_want 400
 		command -v dt_retitle > /dev/null && {
 			tt := web title "$t" 2> /dev/null
-			tt := dt_wintitle Browser "$tt"
+			an := bw_appname "$id"
+			tt := dt_wintitle "$an" "$tt"
 			dt_retitle "$id" "$tt"
 		}
 		return 0
@@ -805,7 +1040,8 @@ fn bw_body(int id, t, int h, int w, int pt, int ph) {
 	fi
 	command -v dt_retitle > /dev/null && {
 		tt := web title "$t" 2> /dev/null
-		tt := dt_wintitle Browser "$tt"
+		an := bw_appname "$id"
+		tt := dt_wintitle "$an" "$tt"
 		dt_retitle "$id" "$tt"
 	}
 }
@@ -1171,6 +1407,30 @@ fn bw_pdfsaved(id = "", path = "", type = "") {
 browser_menus() {
 	local id=$DT_FOCUS i=0 u= on=0
 
+	# A web app's window is the page: no addresses, bookmarks or other windows.
+	if [ -n "${BW[$id]["app"]-}" ]; then
+		dt_menu "File"
+		if [ -n "${BW[$id]["cur"]}" ]; then
+			dt_item "Close Tab" c bw_closetab "$id" "${BW[$id]["cur"]}"
+		else
+			dt_dim "Close Tab"
+		fi
+		dt_rowaccel ctrl-w
+		dt_item "Close Window" w dt_close_focused
+		dt_editmenu
+		dt_menu "Go"
+		dt_item "Back" b bw_back "$id"
+		dt_rowaccel alt-b
+		dt_item "Forward" f bw_fwd "$id"
+		dt_rowaccel alt-f
+		dt_item "Reload" r bw_reload "$id"
+		dt_rowaccel f5
+		dt_item "Next Tab" n bw_steptab "$id" 1
+		dt_rowaccel ctrl-pagedown
+		dt_item "Previous Tab" p bw_steptab "$id" -1
+		dt_rowaccel ctrl-pageup
+		return 0
+	fi
 	dt_menu "File"
 	dt_item "New Window" n dt_launch browser
 	dt_item "New Tab" t bw_newtab "$id"
@@ -1181,6 +1441,11 @@ browser_menus() {
 		dt_item "Save as PDF${GL[ellipsis]}" p bw_pdfask "$id"
 	else
 		dt_dim "Save as PDF${GL[ellipsis]}"
+	fi
+	if bw_has profiles && [ -n "${BW[$id]["cur"]}" ]; then
+		dt_item "Install as App${GL[ellipsis]}" i bw_install "$id"
+	else
+		dt_dim "Install as App${GL[ellipsis]}"
 	fi
 	if bw_has dlstate && web dlstate > /dev/null 2>&1; then
 		dt_item "Cancel Download" d bw_dlstop

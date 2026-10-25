@@ -95,6 +95,8 @@ A rule is an operator, a number and a colour: < 0 bad
 A screen of Fixed Size, scaled into the window.
 A terminal cannot start in a folder on a server
 A theme's name is letters, digits, spaces, dots and dashes
+A web app needs a name
+A web app's start page is a web address
 About %s
 About %s…
 About Me
@@ -202,6 +204,7 @@ Calendar
 Calendar & Contacts
 Calendar needs the pim and db modules, which are not installed.
 Camera
+Camera:
 Cancel
 Cancel Download
 Cancelled
@@ -528,6 +531,8 @@ Insert Column Right
 Insert Row Above
 Insert Row Below
 Install
+Install as App…
+Installed %s. It is in Applications > Web Apps.
 Inviting people needs a mail account to send from
 Isha
 It asks for a password (%s).
@@ -578,6 +583,7 @@ Load
 Loaded %s
 Loading…
 Location
+Location:
 Lock
 Lock After (minutes)
 Lock After Unused
@@ -616,6 +622,7 @@ Message
 Message sent
 Method
 Microphone
+Microphone:
 Midnight
 Mine
 Mines
@@ -706,6 +713,7 @@ No vault yet. Log in to a Bitwarden or Vaultwarden
 No zone matches
 None
 None yet -- add one in Servers
+None yet -- in the Browser, File > Install as App
 Not a place: latitude -90 to 90, longitude -180 to 180
 Not a valid name
 Not changed
@@ -729,6 +737,7 @@ Notification
 Notification Icon
 Notification Settings…
 Notifications
+Notifications:
 Nov
 November
 Number
@@ -747,7 +756,9 @@ On Critical Battery
 On a server: no owner or permissions here.
 On the clipboard: %s characters
 One that begins with an expansion is that expansion:
+Only a web page can be made an app
 Only files can be dropped on a window
+Only this host. A link to any other site opens in the Browser.
 Open
 Open %s with:
 Open Clipboard
@@ -857,6 +868,7 @@ Refreshed
 Reload
 Remote folders need the desktop
 Remove
+Remove %s and its sign-in?
 Remove %s from your address book?
 Remove %s, every time it repeats?
 Remove %s?
@@ -1001,7 +1013,9 @@ Standby displays join on their own
 Star
 Starred
 Start After (minutes)
+Start Page:
 Starting the X screen…
+Stay On:
 Stickies
 Sticky
 Still working
@@ -1084,6 +1098,7 @@ This desktop is not the computer's own
 This links to %s
 This notification has been cleared.
 This page could not be drawn
+This site and its sister hosts. Any other site opens in the Browser.
 This window: desktop shortcuts work again
 This window: every key goes to the program
 Thu
@@ -1154,6 +1169,8 @@ WHERE
 Wait for the transfers running to finish first
 Wallpaper
 Wallpaper set
+Web App
+Web Apps
 Wed
 Wednesday
 Week
@@ -1194,6 +1211,7 @@ Zoom
 Zoom Fills
 Zoom In
 Zoom Out
+Zoom:
 [exited %s — close this window]
 a command; the file goes after it, in a terminal
 a new hibr is installed -- click to restart the desktop

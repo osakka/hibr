@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.29",
+ "version": "3.30",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1340,6 +1340,24 @@
   "Show Captions": "إظهار الترجمة النصية",
   "The download of %s did not finish: %s": "لم يكتمل تنزيل %s: %s",
   "When the Engine Next Starts": "عند بدء المحرك في المرة القادمة",
-  "Allow Calls and Meetings (Shares the Network)": "السماح بالمكالمات والاجتماعات (يشارك الشبكة)"
+  "Allow Calls and Meetings (Shares the Network)": "السماح بالمكالمات والاجتماعات (يشارك الشبكة)",
+  "A web app needs a name": "يحتاج تطبيق الويب إلى اسم",
+  "A web app's start page is a web address": "صفحة بدء تطبيق الويب هي عنوان ويب",
+  "Camera:": "الكاميرا:",
+  "Install as App…": "تثبيت كتطبيق…",
+  "Installed %s. It is in Applications > Web Apps.": "تم تثبيت %s. تجده في التطبيقات > تطبيقات الويب.",
+  "Location:": "الموقع:",
+  "Microphone:": "الميكروفون:",
+  "None yet -- in the Browser, File > Install as App": "لا شيء بعد — في المتصفح: ملف > تثبيت كتطبيق",
+  "Notifications:": "الإشعارات:",
+  "Only a web page can be made an app": "يمكن تحويل صفحة ويب فقط إلى تطبيق",
+  "Only this host. A link to any other site opens in the Browser.": "هذا المضيف فقط. أي رابط إلى موقع آخر يُفتح في المتصفح.",
+  "Remove %s and its sign-in?": "إزالة %s وتسجيل الدخول الخاص به؟",
+  "Start Page:": "صفحة البدء:",
+  "Stay On:": "البقاء على:",
+  "This site and its sister hosts. Any other site opens in the Browser.": "هذا الموقع ومضيفاته الشقيقة. أي موقع آخر يُفتح في المتصفح.",
+  "Web App": "تطبيق ويب",
+  "Web Apps": "تطبيقات الويب",
+  "Zoom:": "تكبير:"
  }
 }

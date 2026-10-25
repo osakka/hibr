@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.325
+
+**Web Apps** (Gitea #377). A site can be an app of its own, as on a Chromebook: in the Browser,
+File > Install as App makes the open page one, named for its title, kept to its site and given
+nothing it may not have. It is on the hibr menu under Applications > Web Apps, and its window is the
+page and no address row, with a sign-in of its own -- cookies and storage apart from the Browser's and
+from every other app's. A link out of its site opens in the Browser; a window the page opens, and a
+sign-in on another site that redirects back, stay in the app. The page's notifications are named
+by the app, and a click raises its window.
+
+An app is a small file under `~/.local/share/hibr/webapps/` and an entry the Browser registers with
+the desktop's own `dt_appvia`, as X Screen's programs are -- no second kind of app. **Control Panel >
+Web Apps** lists them: a row opens one to change its name, start page, whether it stays on the host or
+the whole domain, its zoom and what a page may be given (location, camera, microphone,
+notifications), or to remove it, its sign-in with it. Browser 2.5, pane 1.0.
+
+It needs an engine that lists `profiles` in `web caps`: hibr-browser's WebKit (0.3.0); the Chromium
+module has one profile, and the menu item is dimmed there.
+
 ## 0.99.324
 
 **See-through shows what is beneath, everywhere.** A see-through window used

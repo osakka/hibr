@@ -1,0 +1,288 @@
+#!/usr/bin/env hibr
+#
+# webapps -- the Control Panel pane for web apps (Gitea #377): the sites made apps
+# with the Browser's File > Install as App, each an entry under Applications > Web
+# Apps with its own window and its own sign-in. A row opens one to change or remove,
+# and what it holds is its name, its start page, the site it stays on -- the host
+# alone or the whole domain -- what a page of it may be given, and its zoom. Named
+# webapps, not webapp, because the Browser owns the app's own prefixes; the dialog
+# is wafield.
+#
+# The apps themselves are the Browser's (wa_load, wa_commit, wa_remove in
+# apps/Internet/browser.hibr), and every change here puts them on the menu again and
+# tells the windows that show them. Removing one takes its sign-in with it.
+
+strict
+
+app webapps "The Control Panel pane for web apps" 1.0
+command -v cp_pane > /dev/null && cp_pane webapps "Web Apps" "◎" app
+command -v dt_app > /dev/null &&
+	dt_app wafield "Web App" 15 70 "" "" fixed hidden
+
+WAP_STAYS=(domain host)
+WAP_PERMS=(refuse allow)
+WAP_ZOOMS=(default 50 67 75 80 90 100 110 125 150 175 200)
+declare -gA WAF
+# The Browser's list of apps, declared here and never emptied: the Browser has
+# read it before any pane loads.
+declare -gA WA
+declare -ga WA_IDS
+WAF_RM=
+WAF_DEL=
+
+fn webapps_rows(int w) {
+	local n=0 id
+
+	dt_has browser_draw || { cp_absent "$w" "Web Apps"; ret 1; }
+	dt_needs browser wa_load && wa_load
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Apps"; n=$((n + 1))
+	for id in "${WA_IDS[@]}"; do
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="${WA["$id:name"]:-$id}"
+		CP[$w][$n]["val"]="${WA["$id:url"]-}"; CP[$w][$n]["key"]="app:$id"
+		CP[$w][$n]["btns"]="rm_$id:Remove"
+		n=$((n + 1))
+	done
+	if [ "${#WA_IDS[@]}" = 0 ]; then
+		CP[$w][$n]["kind"]=info
+		CP[$w][$n]["text"]="None yet -- in the Browser, File > Install as App"
+		CP[$w][$n]["val"]=""
+		n=$((n + 1))
+	fi
+	ret "$n"
+}
+
+fn webapps_do(int? w = "", k = "", int? dir = "") {
+	case $k in
+	app:*) waf_dialog "${k#app:}" ;;
+	rm_*) waf_askremove "${k#rm_}" ;;
+	esac
+}
+
+# Take one off, after asking: its sign-in goes with it.
+fn waf_askremove(id) {
+	local t
+
+	[ -n "${WA["$id:url"]-}" ] || return 0
+	WAF_RM=$id
+	t := dt_tr "Remove %s and its sign-in?" "${WA["$id:name"]:-$id}"
+	dt_confirm "$t" waf_removeok
+}
+waf_removeok() {
+	[ -n "$WAF_RM" ] || return 0
+	dt_needs browser wa_remove && wa_remove "$WAF_RM"
+	WAF_RM=
+	# Asked from an app's dialog, which has nothing left to show.
+	if [ -n "$WAF_DEL" ]; then
+		dt_del "$WAF_DEL"
+		WAF_DEL=
+	fi
+}
+
+# --- the app dialog -----------------------------------------------------------
+
+fn waf_dialog(id) {
+	local h=15 w=70 r c rid
+
+	[ -n "${WA["$id:url"]-}" ] || return 0
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
+	rid := dt_new "Web App" "$h" "$w" "$r" "$c" wafield
+	WAF[$rid]["id"]=$id
+	WAF[$rid]["name"]=${WA["$id:name"]-}
+	WAF[$rid]["url"]=${WA["$id:url"]-}
+	WAF[$rid]["scope"]=${WA["$id:scope"]:-domain}
+	WAF[$rid]["geo"]=${WA["$id:geo"]:-refuse}
+	WAF[$rid]["cam"]=${WA["$id:cam"]:-refuse}
+	WAF[$rid]["mic"]=${WA["$id:mic"]:-refuse}
+	WAF[$rid]["note"]=${WA["$id:note"]:-refuse}
+	WAF[$rid]["zoom"]=${WA["$id:zoom"]:-default}
+	WAF[$rid]["cur"]=${#WAF[$rid]["name"]}
+	WAF[$rid]["focus"]=name
+}
+
+fn wafield_draw(int id, int h, int w, int row, int col) {
+	local f=${WAF[$id]["focus"]} on cur
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 1 2 "Name:"
+	on=0; cur=0
+	[ "$f" = name ] && { on=1; cur=${WAF[$id]["cur"]}; }
+	dt_textdraw "$id" 1 15 $((w - 17)) "${WAF[$id]["name"]}" "$cur" "$on"
+	dt_wreg "$id" 1 15 $((w - 17)) name
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 3 2 "Start Page:"
+	on=0; cur=0
+	[ "$f" = url ] && { on=1; cur=${WAF[$id]["cur"]}; }
+	dt_textdraw "$id" 3 15 $((w - 17)) "${WAF[$id]["url"]}" "$cur" "$on"
+	dt_wreg "$id" 3 15 $((w - 17)) url
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 5 2 "Stay On:"
+	[ "$f" = scope ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 5 15 10 "${WAF[$id]["scope"]}" scope
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 5 34 "Zoom:"
+	[ "$f" = zoom ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 5 41 10 "${WAF[$id]["zoom"]}" zoom
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 7 2 "Location:"
+	[ "$f" = geo ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 7 15 10 "${WAF[$id]["geo"]}" geo
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 7 34 "Camera:"
+	[ "$f" = cam ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 7 43 10 "${WAF[$id]["cam"]}" cam
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 9 2 "Microphone:"
+	[ "$f" = mic ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 9 15 10 "${WAF[$id]["mic"]}" mic
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 9 34 "Notifications:"
+	[ "$f" = note ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 9 49 10 "${WAF[$id]["note"]}" note
+	console pen "$DT_DIM" "$DT_FACE"
+	case ${WAF[$id]["scope"]} in
+	host) dt_tput "$id" 11 2 "Only this host. A link to any other site opens in the Browser." ;;
+	*) dt_tput "$id" 11 2 "This site and its sister hosts. Any other site opens in the Browser." ;;
+	esac
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Remove cancel Cancel
+}
+
+# The choices of each drop-down, by field.
+fn waf_choices(field) {
+	case $field in
+	scope) ret "${WAP_STAYS[*]}" ;;
+	zoom) ret "${WAP_ZOOMS[*]}" ;;
+	geo | cam | mic | note) ret "${WAP_PERMS[*]}" ;;
+	*) ret "" ;;
+	esac
+}
+
+# Step one of the choices on, or back.
+fn waf_cycle(int id, field, int dir) {
+	local v ch
+	local -a c
+
+	ch := waf_choices "$field"
+	[ -n "$ch" ] || return 0
+	read -ra c <<< "$ch"
+	v := cp_next "${WAF[$id]["$field"]}" "$dir" "${c[@]}"
+	WAF[$id]["$field"]=$v
+}
+
+# The drop-downs' callbacks: the dialog's id comes back as the first word.
+fn waf_setscope(int id, value = "") { WAF[$id]["scope"]=$value; }
+fn waf_setzoom(int id, value = "") { WAF[$id]["zoom"]=$value; }
+fn waf_setgeo(int id, value = "") { WAF[$id]["geo"]=$value; }
+fn waf_setcam(int id, value = "") { WAF[$id]["cam"]=$value; }
+fn waf_setmic(int id, value = "") { WAF[$id]["mic"]=$value; }
+fn waf_setnote(int id, value = "") { WAF[$id]["note"]=$value; }
+
+# Keep the app: a name, and a start page that is a web address. A tab or a new
+# line would break the file's lines, so they become spaces.
+fn wafield_ok(int id) {
+	local a=${WAF[$id]["id"]} nm=${WAF[$id]["name"]} u=${WAF[$id]["url"]} z
+
+	nm=${nm//[$'\t\n']/ }
+	u=${u//[$'\t\n ']/}
+	if [ -z "${nm// /}" ]; then
+		dt_notep high "A web app needs a name"
+		return 0
+	fi
+	case $u in
+	http://?* | https://?*) ;;
+	*)
+		dt_notep high "A web app's start page is a web address"
+		return 0 ;;
+	esac
+	z=${WAF[$id]["zoom"]}
+	[ "$z" = default ] && z=
+	WA["$a:name"]=$nm
+	WA["$a:url"]=$u
+	WA["$a:scope"]=${WAF[$id]["scope"]}
+	WA["$a:geo"]=${WAF[$id]["geo"]}
+	WA["$a:cam"]=${WAF[$id]["cam"]}
+	WA["$a:mic"]=${WAF[$id]["mic"]}
+	WA["$a:note"]=${WAF[$id]["note"]}
+	WA["$a:zoom"]=$z
+	dt_needs browser wa_commit && wa_commit "$a"
+	dt_del "$id"
+}
+
+# Remove the app, after asking.
+fn wafield_del(int id) {
+	WAF_DEL=$id
+	waf_askremove "${WAF[$id]["id"]}"
+}
+
+fn wafield_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	name | url)
+		WAF[$id]["focus"]=$tag
+		WAF[$id]["cur"]=${#WAF[$id]["$tag"]}
+		;;
+	scope) WAF[$id]["focus"]=scope
+		dt_droplist "$id" "$r" "$c" waf_setscope "${WAP_STAYS[@]}" ;;
+	zoom) WAF[$id]["focus"]=zoom
+		dt_droplist "$id" "$r" "$c" waf_setzoom "${WAP_ZOOMS[@]}" ;;
+	geo) WAF[$id]["focus"]=geo
+		dt_droplist "$id" "$r" "$c" waf_setgeo "${WAP_PERMS[@]}" ;;
+	cam) WAF[$id]["focus"]=cam
+		dt_droplist "$id" "$r" "$c" waf_setcam "${WAP_PERMS[@]}" ;;
+	mic) WAF[$id]["focus"]=mic
+		dt_droplist "$id" "$r" "$c" waf_setmic "${WAP_PERMS[@]}" ;;
+	note) WAF[$id]["focus"]=note
+		dt_droplist "$id" "$r" "$c" waf_setnote "${WAP_PERMS[@]}" ;;
+	ok) wafield_ok "$id" ;;
+	del) wafield_del "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn wafield_key(int id, key) {
+	local res f=${WAF[$id]["focus"]} d onb=1
+
+	case $f in name | url) onb=0 ;; esac
+	if d := dt_focuskey "$key" "$onb"; then
+		WAF[$id]["focus"] := dt_focus "$f" "$d" name url scope zoom geo cam mic note ok del cancel
+		f=${WAF[$id]["focus"]}
+		case $f in name | url) WAF[$id]["cur"]=${#WAF[$id]["$f"]} ;; esac
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		case $f in
+		cancel) dt_del "$id" ;;
+		del) wafield_del "$id" ;;
+		scope | zoom | geo | cam | mic | note) waf_cycle "$id" "$f" 1 ;;
+		*) wafield_ok "$id" ;;
+		esac
+		return 0
+		;;
+	esac
+	case $f in
+	scope | zoom | geo | cam | mic | note)
+		case $key in
+		left) waf_cycle "$id" "$f" -1 ;;
+		right | " ") waf_cycle "$id" "$f" 1 ;;
+		esac
+		return 0
+		;;
+	name | url) ;;
+	*) return 0 ;;
+	esac
+	res := dt_textkey "${WAF[$id]["$f"]}" "${WAF[$id]["cur"]}" "$key" ||
+		return 1
+	WAF[$id]["$f"]=${res% *}
+	WAF[$id]["cur"]=${res##* }
+	return 0
+}
+
+fn wafield_close(int id) {
+	unset "WAF[$id]"
+}
