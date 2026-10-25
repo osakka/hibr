@@ -3163,6 +3163,9 @@ check("space marks an entry and steps on", sc.find("2 selected") is not None,
 sc = run("files", FW, [b"\x01"], pre=PRE)
 check("ctrl-a selects everything but ..",
       sc.find("%d selected" % (ENTRIES - 1)) is not None, sc)
+sc = run("files", FW, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"a"], pre=PRE)
+check("and so does Edit > Select All (#372)",
+      sc.find("%d selected" % (ENTRIES - 1)) is not None, sc)
 
 PICK = [press(7, 5), press(8, 5, 16), press(8, 5), drag(8, 9), drag(9, 50),
         release(9, 50)]
@@ -5303,4 +5306,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(708)
+report(709)

@@ -190,6 +190,57 @@ awk '
   }' $desk $desk
 echo "every app's bar begins File, then Edit"
 
+# Every row of the Edit menu works in every app or is dimmed there, since
+# the desktop draws the menu from the callbacks an app has (Gitea #372).
+# So the only way one is missing by accident is an app that never wrote
+# it. This table is the apps that leave a row out on purpose, and each
+# group says why; an app missing a row not named here fails, and so does
+# a row named here that the app has since grown. An app is a file with an
+# `app` line and a _draw.
+awk '
+  BEGIN {
+    # Nothing in the window is text to take or put back: games, and the
+    # windows that are only switches and lists of things to run or install.
+    split("bricks mines puzzle snake panel catalogue prayer", a, " ")
+    for (i in a) NOT[a[i]] = "copy cut paste selall undo redo"
+    # The Vault copies a secret with its own buttons, kept off the history.
+    NOT["vault"] = "copy cut paste selall undo redo"
+    # Shows things and copies what is chosen, and edits nothing in place:
+    # an edit is a dialog of its own, with fields that undo for themselves.
+    split("about calendar clock contacts imgview mail modman pdfr tasks", a, " ")
+    for (i in a) NOT[a[i]] = "cut paste selall undo redo"
+    NOT["notifications"] = "paste selall undo redo"
+    NOT["clipboard"] = "selall undo redo"
+    # Hand what is pasted to a program or a page, which keeps its own
+    # history; the window has none to undo.
+    split("term browser youtube calc", a, " ")
+    for (i in a) NOT[a[i]] = "cut selall undo redo"
+    NOT["xscreen"] = "copy cut selall undo redo"
+    NOT["dbase"] = "copy cut selall undo redo"
+  }
+  FNR == 1 { pre = ""; drew = 0 }
+  /^app [a-z]+ "/ && pre == "" { pre = $2 }
+  /^(fn )?[a-z_]+\(/ {
+    nm = $0; sub(/^fn /, "", nm); sub(/\(.*/, "", nm)
+    have[FILENAME, nm] = 1
+  }
+  { file[FILENAME] = pre }
+  END {
+    split("copy cut paste selall undo redo", ops, " ")
+    for (f in file) {
+      pre = file[f]
+      if (pre == "" || !((f, pre "_draw") in have)) continue
+      for (k = 1; k <= 6; k++) {
+        op = ops[k]
+        on = ((f, pre "_" op) in have)
+        meant = (" " NOT[pre] " ") ~ (" " op " ")
+        if (!on && !meant) print f ": " pre " has no _" op " and the table does not say why"
+        if (on && meant) print f ": " pre "_" op " exists, so the table is out of date"
+      }
+    }
+  }' $(find programs/desktop/apps programs/desktop/system -name '*.hibr' | sort)
+echo "every Edit row an app leaves out is one it means to"
+
 # Every setting kept across restarts -- the desktop's own DT_KEEP, and every
 # app's dt_keep -- is one the Control Panel shows, so nothing an app lets you
 # choose is only reachable by editing the settings file. A pane is a file

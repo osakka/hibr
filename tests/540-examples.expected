@@ -6,6 +6,7 @@ no local reads a name assigned earlier in the same statement
 every callback names what it is called with
 no window's _open opens another of itself
 every app's bar begins File, then Edit
+every Edit row an app leaves out is one it means to
 every kept preference is in the Control Panel
 every dropdown row has its popup
 the desktop is strict

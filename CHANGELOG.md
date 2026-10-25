@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.331
+
+**Select All reaches Files' window**, as ctrl-a does: every entry but `..`.
+Files is 2.1.
+
+**A missing Edit row is now a decision** (Gitea #372). The desktop draws
+Edit from the callbacks an app has, so a row is only ever missing because
+an app never wrote it. `tests/540-examples.t` now holds a table of the
+apps that leave a row out on purpose, a reason for each group:
+
+- games and the windows of switches;
+- the Vault, whose copies are secrets;
+- the viewers, which copy and do not edit in place;
+- the windows that hand a paste to a program or a page.
+
+An app missing a row the table does not name fails the test. So does a
+row named there that the app has since grown. This closes #372.
+
 ## 0.99.330
 
 **Undo in Files takes back what was done to files** (Gitea #372). Undo

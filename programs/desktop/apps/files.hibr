@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 2.0
+app files "A file browser" 2.1
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -1784,6 +1784,9 @@ fn files_trash(int id) {
 # to take back as one moved here.
 fn files_undo(int id) { dt_has dt_fopundo && dt_fopundo undo; }
 fn files_redo(int id) { dt_has dt_fopundo && dt_fopundo redo; }
+
+# Select All marks every entry but .., as ctrl-a does.
+fn files_selall(int id) { files_key "$id" ctrl-a; }
 
 # Delete what files_trash asked about, once the answer is yes.
 FB_DELPATHS=()
