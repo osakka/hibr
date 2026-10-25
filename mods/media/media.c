@@ -180,7 +180,7 @@ int mv_drawcmd(sh *s, mv_pl *p, int ac, char **av)
 	} else {
 		mv_dp->size(&ph, &pw);
 	}
-	return mv_draw(s, mv_dp, p, v[0], v[1], prow, pcol, ph, pw);
+	return mv_draw(s, mv_dp, p, pane, v[0], v[1], prow, pcol, ph, pw);
 }
 
 /* The usage line. */

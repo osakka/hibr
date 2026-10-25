@@ -81,10 +81,12 @@ void mv_cellof(mv_pl *p, int mode, mv_vf *f, int x, int y, mv_cell *c)
 
 /* Draw the frame shown into the grid it was made for, at row, col of the
    screen, clipped to the rectangle prow, pcol, ph, pw: the picture in the
-   middle, black around it. Cells of one pen go out as one run. Fails when
-   there is no frame yet. */
-int mv_draw(sh *s, const dp_api *dp, mv_pl *p, int row, int col, int prow, int pcol,
-	    int ph, int pw)
+   middle, black around it. Cells of one pen go out as one run. A picture
+   is placed through pane when there is one, so it goes below the cells and
+   a window over it covers only its part (Gitea #382). Fails when there is
+   no frame yet. */
+int mv_draw(sh *s, const dp_api *dp, mv_pl *p, const char *pane, int row,
+	    int col, int prow, int pcol, int ph, int pw)
 {
 	mv_vf *f = &p->cur;
 	int cols = p->tcols > 0 ? p->tcols : 80, rows = p->trows > 0 ? p->trows : 24;
@@ -123,8 +125,9 @@ int mv_draw(sh *s, const dp_api *dp, mv_pl *p, int row, int col, int prow, int p
 			      "rect %d,%d %dx%d clip %d,%d %dx%d fits %d",
 		   cols, rows, mv_tw, mv_th, row, col, ir, ic, ih, iwc,
 		   prow, pcol, ph, pw, fits);
-		if (fits && dp->image(s, 0, ir, ic, ih, iwc, f->rgb, f->w,
-				      f->h, 0)) {
+		if (fits && dp->image(s, pane, pane ? ir - prow : ir,
+				      pane ? ic - pcol : ic, ih, iwc, f->rgb,
+				      f->w, f->h, 0)) {
 			p->drew = 1;
 			return HIBR_OK;
 		}

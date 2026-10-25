@@ -178,8 +178,8 @@ int wb_wheel(wb_tab *t, int dy);
 int wb_key(wb_tab *t, const char *key);
 int wb_type(wb_tab *t, const char *text);
 int wb_hist(wb_tab *t, int d);
-int wb_draw(sh *s, const dp_api *dp, wb_tab *t, int row, int col, int h, int w,
-	    int prow, int pcol, int ph, int pw);
+int wb_draw(sh *s, const dp_api *dp, wb_tab *t, const char *pane, int row,
+	    int col, int h, int w, int prow, int pcol, int ph, int pw);
 void wb_gridfree(wb_tab *t);
 int wb_b64(const char *in, size_t n, str *out);
 int wb_tap(wb_tab *t);

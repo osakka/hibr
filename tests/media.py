@@ -178,10 +178,40 @@ p = [a for a in s[0].apc if "a=T" in a]
 check("a film's frame goes out as a picture, uncompressed, where a still "
       "would be deflated", p and "f=24" in p[0] and "o=z" not in p[0], p)
 
+# A film's picture in a window with another window over half of it (Gitea
+# #382): placed without its pane it owned its cells, the window over it drew
+# through them, and the console deleted it -- a YouTube window went blank
+# whenever anything covered it. Through its pane it goes below the cells,
+# where the window over it covers only its part. Paused, so a frame is one
+# picture: a playing film is a new one each frame, deleted late by design.
+COVER = ("console open\nconsole pane w1 2 2 12 30\nconsole pane w2 8 16 6 20\n"
+         "console pane raise w2\np := media open t.mp4 -p\n"
+         "media size $p 28 10 sixel\nsleep 0.4\nmedia frame $p\n"
+         + "console pen default '#203040'\nconsole fill -p w1 0 0 12 30 ' '\n"
+           "media draw $p 1 1 -p w1\nconsole pen default '#405060'\n"
+           "console fill -p w2 0 0 6 20 ' '\nconsole put -p w2 1 1 TOP\n"
+           "console flush\nconsole key 80\n" * 6
+         + "media close $p\nconsole close\n")
+open(os.path.join(D, "cover.hibr"), "w").write(
+    "mod load %s\nneed console\n%s" % (tree("build/mods/media.so"), COVER))
+t = Term(os.path.join(D, "cover.hibr"), rows=24, cols=60, settle=1.2,
+         cellw=8, cellh=16, env={"HIBR_GFX": "kitty", "HIBR_MEDIA_AUDIO": "none",
+                                 "HIBR_MODPATH": tree("build/mods")})
+t.collect(1.5)
+s = t.screen()
+t.quit(None, 0.5)
+p = [a for a in s.apc if "a=T" in a]
+z = [f[2:] for a in p for f in a.lstrip("G").split(",") if f.startswith("z=")]
+gone = [a for a in s.apc if "a=d" in a and "d=I" in a]
+check("a paused film covered by a window is sent once and kept, below the cells",
+      len(p) == 1 and not gone and z and -1610612736 < int(z[0]) < -1073741824,
+      (p, gone, z))
+check("and the window over it is drawn on top of it", "TOP" in s.text(), s)
+
 out, err = subprocess.run([sx.HIBR, tree("examples/play.hibr"), "--help"],
                           capture_output=True, text=True).stdout, ""
 check("play.hibr's --help comes from its declarations",
       "--mode" in out and "--start" in out and "--paused" in out, out)
 
 shutil.rmtree(D, True)
-report(18)
+report(20)

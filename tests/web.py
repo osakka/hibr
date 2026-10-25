@@ -368,6 +368,13 @@ for d in sc.imgdata:
             dark += 1
 check("and the page's own words are in the picture, not made transparent",
       len(sc.images) == 1 and dark > 500, (dark, len(sc.imgdata), sc.apc[:1]))
+# Placed through its window's pane, so below the cells (Gitea #382): placed
+# without it the page owned its cells, and any window over the Browser drew
+# through them and had the console delete it -- a blank page while covered.
+z = [f[2:] for a in sc.apc if "a=T" in a for f in a.lstrip("G").split(",")
+     if f.startswith("z=")]
+check("and it goes below the cells, where a window over it covers only its part",
+      z and -1610612736 < int(z[0]) < -1073741824, (z, sc.apc[:1]))
 
 # A page drawn as pixels is laid out at the terminal's own cell size, one
 # CSS pixel to a screen pixel (Gitea #342). It was laid out at 8 by 16 a
@@ -726,4 +733,4 @@ check("a page with no root element renders and zooms without a script error",
 SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(57)
+report(58)

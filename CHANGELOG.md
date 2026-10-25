@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.344
+
+**A window showing a picture no longer goes blank while another window
+covers it** (Gitea #382, found from Blit's live trace on blit#88). The
+Browser's page and the YouTube player's video were placed with no pane, so
+the console treated each as a picture owning its cells, not one below them
+(#374): the first cell a covering window drew there "drew through" it, the
+console deleted it, and hold passed the delete on to the display. `web draw`
+and `media draw` now place their picture through the window's pane, so it
+goes below the cells and the window on top hides only its part. Measured: a
+paused film with a window over half of it was **0 pictures sent and 6
+deleted** over six frames; it is now **1 sent, none deleted**. Boxer's
+`retro draw` needs the same one-line change, in hibr-boxer.
+
 ## 0.99.343
 
 **Tooltip Delay is a setting.** Control Panel > Mouse has a Tooltip Delay

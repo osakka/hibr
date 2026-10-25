@@ -155,7 +155,8 @@ int wb_drawcmd(sh *s, wb_tab *t, int ac, char **av)
 	} else {
 		wb_dp->size(&ph, &pw);
 	}
-	return wb_draw(s, wb_dp, t, v[0], v[1], v[2], v[3], prow, pcol, ph, pw);
+	return wb_draw(s, wb_dp, t, pane, v[0], v[1], v[2], v[3], prow, pcol, ph,
+		       pw);
 }
 
 /* The usage line. */

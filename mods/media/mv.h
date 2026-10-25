@@ -223,7 +223,7 @@ long mv_next(mv_pl *p);
 void mv_fit(mv_pl *p, int mode, int *w, int *h);
 void mv_fitpx(mv_pl *p, int *w, int *h);
 
-int mv_draw(sh *s, const dp_api *dp, mv_pl *p, int row, int col, int prow, int pcol,
-	    int ph, int pw);
+int mv_draw(sh *s, const dp_api *dp, mv_pl *p, const char *pane, int row,
+	    int col, int prow, int pcol, int ph, int pw);
 
 #endif
