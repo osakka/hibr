@@ -22,7 +22,7 @@
 
 strict
 
-app diagram "A Mermaid diagram editor: the text, and the diagram" 1.3
+app diagram "A Mermaid diagram editor: the text, and the diagram" 1.4
 # modules: mermaid
 
 command -v dt_app > /dev/null && dt_app diagram "Diagram" 24 86 many "◈"
@@ -371,6 +371,15 @@ fn diagram_paste(int id, text, op = "") {
 
 fn diagram_selall(int id) {
 	tb_selall "$id"
+}
+
+# Undo and Redo, the text widget's own history (Gitea #372).
+fn diagram_undo(int id) {
+	tb_undo "$id"
+}
+
+fn diagram_redo(int id) {
+	tb_redo "$id"
 }
 
 fn diagram_key(int id, k) {

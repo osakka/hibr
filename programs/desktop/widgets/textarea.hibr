@@ -647,8 +647,12 @@ fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "
 		console pen "$face" "$ink"
 		console put -r -p "w$id" $((r0 + k - top)) $((c0 + col)) "${e:- }"
 	fi
-	TB[$id]["r0"]=$r0
-	TB[$id]["c0"]=$c0
+	# Where it was drawn, for a click to be found in. Not r0 and c0, which
+	# are the first redo and the cursor of nothing: r$k is the redo history,
+	# and the draw origin stored as r0 overwrote the first redo every frame,
+	# so a Redo after an Undo put a row number where the text had been.
+	TB[$id]["orow"]=$r0
+	TB[$id]["ocol"]=$c0
 }
 
 # The selection over a right-to-left row laid out by bd_row: each drawn character
@@ -671,7 +675,7 @@ fn tb_bdsel(int id, int r, int c0, int ln, int a, selink, act) {
 
 # Where a point in the drawn text is, as "line col".
 fn tb_at(int id, int mr, int mc) {
-	local k=$((${TB[$id]["top"]:-0} + mr - ${TB[$id]["r0"]:-1})) c
+	local k=$((${TB[$id]["top"]:-0} + mr - ${TB[$id]["orow"]:-1})) c
 	local -a v
 
 	tb_layout "$id" "${TB[$id]["lw"]:-80}"
@@ -679,11 +683,11 @@ fn tb_at(int id, int mr, int mc) {
 	[ "$k" -ge "${TB[$id]["vn"]:-1}" ] && k=$((${TB[$id]["vn"]:-1} - 1))
 	read -ra v <<< "${TB[$id]["v$k"]}"
 	if bd_row "${TB[$id][${v[0]}]}" "${v[1]}" "${v[2]}"; then
-		c := bd_at $((mc - ${TB[$id]["c0"]:-1}))
+		c := bd_at $((mc - ${TB[$id]["ocol"]:-1}))
 		ret "${v[0]} $((v[1] + c))"
 		return 0
 	fi
-	c=$((v[1] + mc - ${TB[$id]["c0"]:-1}))
+	c=$((v[1] + mc - ${TB[$id]["ocol"]:-1}))
 	[ "$c" -lt "${v[1]}" ] && c=${v[1]}
 	[ "$c" -gt "${v[2]}" ] && c=${v[2]}
 	[ "$c" = "${v[2]}" ] && [ "${v[2]}" != "${#TB[$id][${v[0]}]}" ] && c=$((c - 1))

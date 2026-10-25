@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.329
+
+**Redo no longer replaces the text with a number.** The text widget behind
+Write, Stickies, Diagram and Mail's compose window kept its first redo in
+`TB[id]["r0"]` -- and on every frame it also stored where it was drawn on
+the screen as `r0`. So the first Redo after an Undo put the window's row
+number where the text had been: undo a change in Write, redo it, and the
+document read `1`. The draw origin is `orow` and `ocol` now. Found while
+giving Diagram its own Undo, whose check put the text back as `1`.
+
+**Every text field undoes and redoes its own typing** (Gitea #372). The
+desktop gives each one-line field a history while it has the focus, the
+way 0.99.300 gave it Copy, Cut and Paste:
+
+- **Steps:** changes less than a second apart are one step, so a word
+  typed in one go is undone in one go.
+- **Putting it back:** what the field held is typed back in, since the
+  value is its app's own.
+- **The Edit menu:** Undo and Redo act on the field while it has the
+  focus, and are dimmed when it has nothing to take back or put again.
+
+Select All already reached every field (Gitea #295).
+
+**Diagram and Mail's compose window have Undo and Redo.** Both draw with
+the text widget, which has always kept a history; neither asked for it. In
+compose, the body undoes through the widget and a header field through the
+desktop. Diagram is 1.4 and Mail 1.9.
+
 ## 0.99.328
 
 **YouTube: the site no longer shows while a video starts, and the app follows the page if it moves on.**

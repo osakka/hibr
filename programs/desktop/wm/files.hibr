@@ -352,6 +352,57 @@ fn dt_fieldedit(op) {
 	return 1
 }
 
+# Undo or redo in the focused field (Gitea #372). The field's value is its
+# app's, so what it held is put back the way a paste puts text in: by
+# typing -- everything selected, the old text typed over it, or deleted
+# when it was empty, and the cursor walked back to where it was. The
+# history marks the replay as its own, so it is not recorded as an edit.
+fn dt_fieldundo(op) {
+	local cb=${DT[$DT_FOCUS]["key"]} e t i n
+
+	[ -n "$cb" ] || return 1
+	dt_fieldlive || return 1
+	if ! dt_fieldcan "$op"; then
+		dt_notep low "Nothing to %s" "$op"
+		return 0
+	fi
+	if [ "$op" = undo ]; then
+		n=$((${#DT_FUNDO[@]} - 1))
+		e=${DT_FUNDO[$n]}
+		unset DT_FUNDO["$n"]
+		DT_FUNDO=("${DT_FUNDO[@]}")
+		DT_FREDO+=("$DT_FLASTC"$'\t'"$DT_FLAST")
+	else
+		n=$((${#DT_FREDO[@]} - 1))
+		e=${DT_FREDO[$n]}
+		unset DT_FREDO["$n"]
+		DT_FREDO=("${DT_FREDO[@]}")
+		DT_FUNDO+=("$DT_FLASTC"$'\t'"$DT_FLAST")
+	fi
+	t=${e#*$'\t'}
+	n=${e%%$'\t'*}
+	DT_FWANT=1
+	$cb "$DT_FOCUS" end || true
+	[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
+	if [ -z "$t" ]; then
+		$cb "$DT_FOCUS" backspace || true
+	else
+		i=0
+		while [ "$i" -lt "${#t}" ]; do
+			$cb "$DT_FOCUS" "${t:$i:1}" || true
+			i=$((i + 1))
+		done
+	fi
+	$cb "$DT_FOCUS" home || true
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		$cb "$DT_FOCUS" right || true
+		i=$((i + 1))
+	done
+	dt_want 10
+	return 0
+}
+
 # Copy or cut from the focused window, or paste into it.
 #
 # An app offers <app>_copy and, if it can move rather than only duplicate

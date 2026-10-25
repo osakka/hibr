@@ -46,6 +46,69 @@ DT_FIELD["rect"]=
 # paste holding a space would otherwise have pressed the button (#357).
 DT_FIELD["live"]=
 
+# The focused field's undo history (Gitea #372), kept while it has the
+# focus and dropped when another field takes it: each entry is what the
+# field held, "cursor<tab>text", before a change. Changes less than a
+# second apart are one step, so a word typed in one go is undone in one
+# go. DT_FHAS names the field the history is for, DT_FLAST and DT_FLASTC
+# what it held when last drawn, and DT_FWANT is set while the desktop is
+# typing an undo or a redo into it, so that is not taken for an edit.
+declare -ga DT_FUNDO=() DT_FREDO=()
+DT_FHAS=
+DT_FLAST=
+DT_FLASTC=0
+DT_FLASTMS=0
+DT_FWANT=
+DT_FUNDOMAX=100
+
+# A focused field as it is drawn: note a change since the last draw.
+fn dt_fieldnote(at, text, int cur) {
+	local now
+
+	if [ "$DT_FHAS" != "$at" ]; then
+		DT_FHAS=$at
+		DT_FUNDO=()
+		DT_FREDO=()
+		DT_FLAST=$text
+		DT_FLASTC=$cur
+		DT_FLASTMS=0
+		return 0
+	fi
+	if [ "$text" = "$DT_FLAST" ]; then
+		DT_FLASTC=$cur
+		return 0
+	fi
+	if [ -n "$DT_FWANT" ]; then
+		DT_FWANT=
+		DT_FLAST=$text
+		DT_FLASTC=$cur
+		return 0
+	fi
+	now=${EPOCHREALTIME/./}
+	now=$((now / 1000))
+	if [ $((now - DT_FLASTMS)) -ge 1000 ] || [ "${#DT_FUNDO[@]}" = 0 ]; then
+		DT_FUNDO+=("$DT_FLASTC"$'\t'"$DT_FLAST")
+		[ "${#DT_FUNDO[@]}" -gt "$DT_FUNDOMAX" ] &&
+			DT_FUNDO=("${DT_FUNDO[@]:1}")
+	fi
+	DT_FREDO=()
+	DT_FLASTMS=$now
+	DT_FLAST=$text
+	DT_FLASTC=$cur
+	return 0
+}
+
+# Whether the focused field has something to undo, or to redo.
+fn dt_fieldcan(op) {
+	dt_fieldlive || return 1
+	[ "$DT_FHAS" = "${DT_FIELD["at"]}" ] || return 1
+	if [ "$op" = undo ]; then
+		[ "${#DT_FUNDO[@]}" -gt 0 ]
+	else
+		[ "${#DT_FREDO[@]}" -gt 0 ]
+	fi
+}
+
 # The most characters a paste puts into a one-line field. DT_CLIP can hold
 # Files' own list of paths or a whole selection from Write, and a field
 # that holds thousands of characters is no use to anybody -- but a paste
@@ -78,6 +141,7 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
 		DT_FIELD["live"]=1
 		[ -n "${DT_FIELD["anc"]}" ] && [ "${DT_FIELD["anc"]}" -gt "${#text}" ] &&
 			DT_FIELD["anc"]=${#text}
+		dt_fieldnote "$id $r $c" "$text" "$cur"
 	fi
 	shown="$text"
 	[ ${#shown} -gt "$w" ] && shown="${shown:0:$w}"

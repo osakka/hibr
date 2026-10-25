@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 1.8
+app mail "Email, offline, labels and conversations as Gmail has them" 1.9
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -1907,6 +1907,20 @@ fn mailc_cut(int id) {
 	t := tb_cut "$id" || return 1
 	MC[$id]["dirty"]=1
 	ret "$t"
+}
+
+# Undo and Redo in the body, the text widget's own history (Gitea #372); a
+# header field undoes its own typing from the desktop before this is asked.
+fn mailc_undo(int id) {
+	[ "${MC[$id]["focus"]}" = body ] || return 1
+	tb_undo "$id" || return 1
+	MC[$id]["dirty"]=1
+}
+
+fn mailc_redo(int id) {
+	[ "${MC[$id]["focus"]}" = body ] || return 1
+	tb_redo "$id" || return 1
+	MC[$id]["dirty"]=1
 }
 
 fn mailc_selall(int id) {

@@ -5454,6 +5454,19 @@ sc, _ = run(FX, feed=[press(4, 12), drag(4, 14), drag(4, 17), release(4, 17),
                       b"\x1bx"])
 check("a drag across a field's text selects it, for Cut to take",
       sc.row(4)[6:13] == "hello  " and "world" not in sc.row(4), sc.row(4))
+# And a field undoes and redoes its own typing (Gitea #372), from the
+# desktop as Copy and Paste are: changes less than a second apart are one
+# step, and the old text is typed back in, since the value is the app's.
+UNDO, REDO = b"\x1bz", b"\x1by"
+TYPED = [END, b"abc", 1.3, b"X", 0.3]
+sc, _ = run(FX, feed=TYPED + [UNDO])
+check("Undo in a field takes back the last change, a pause apart",
+      "hello worldabc " in sc.row(4) and "X" not in sc.row(4), sc.row(4))
+sc, _ = run(FX, feed=TYPED + [UNDO, 0.2, UNDO])
+check("and again the one before it, the word typed in one go as one step",
+      "hello world " in sc.row(4) and "abc" not in sc.row(4), sc.row(4))
+sc, _ = run(FX, feed=TYPED + [UNDO, 0.2, UNDO, 0.2, REDO])
+check("and Redo puts it back", "hello worldabc " in sc.row(4), sc.row(4))
 
 # A scrollbar drawn with a key can be held and dragged (Gitea #298): a
 # press on its track puts the view where it lands, and a drag carries it
@@ -7428,4 +7441,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(799)
+report(802)

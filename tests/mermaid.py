@@ -268,6 +268,16 @@ sc, t = session('id := dt_launch diagram\n'
 check("text it does not understand says so where the diagram would be",
       sc.find("understood yet") is not None, sc)
 
+# Undo and Redo are the text widget's own history (Gitea #372), which the
+# editor never asked for: typed text is taken back, and put back again.
+sc, t = session('dt_launch diagram', [b"QZQ"])
+typed = sc.find("QZQ") is not None
+sc, t = session('dt_launch diagram', [b"QZQ", b"\x1bz"])
+undone = sc.find("QZQ") is None and sc.find("flowchart TD") is not None
+sc, t = session('dt_launch diagram', [b"QZQ", b"\x1bz", b"\x1by"])
+check("Undo in the editor takes back what was typed, and Redo puts it back",
+      typed and undone and sc.find("QZQ") is not None, (typed, undone, sc))
+
 # Each kind from the Diagram menu, so the language can be found by trying
 # it rather than by reading about it somewhere else.
 sc, t = session('id := dt_launch diagram\n'

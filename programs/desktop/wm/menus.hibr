@@ -726,13 +726,17 @@ dt_editmenu() {
 	[ "$MB_EDITED" = 1 ] && return 0
 	MB_EDITED=1
 	dt_menu "Edit"
-	if [ -n "$who" ] && [ -n "${DT[$who]["undo"]}" ]; then
+	# Undo and Redo are the field's while one has the focus: offered when
+	# it has a change to take back or put again, dimmed when it has none.
+	if { [ -n "$fld" ] && dt_fieldcan undo; } ||
+	   { [ -z "$fld" ] && [ -n "$who" ] && [ -n "${DT[$who]["undo"]}" ]; }; then
 		dt_item "Undo" u dt_editdo undo
 	else
 		dt_dim "Undo"
 	fi
 	dt_rowaccel "${DT_KEYS["undo"]}"
-	if [ -n "$who" ] && [ -n "${DT[$who]["redo"]}" ]; then
+	if { [ -n "$fld" ] && dt_fieldcan redo; } ||
+	   { [ -z "$fld" ] && [ -n "$who" ] && [ -n "${DT[$who]["redo"]}" ]; }; then
 		dt_item "Redo" r dt_editdo redo
 	else
 		dt_dim "Redo"
@@ -784,6 +788,11 @@ fn dt_editdo(op) {
 	local cb
 
 	[ -n "$DT_FOCUS" ] || return 0
+	# A field with the focus undoes its own typing, whatever the window
+	# behind it would undo (Gitea #372), as it takes Copy and Paste.
+	case $op in
+	undo | redo) dt_fieldundo "$op" && return 0 ;;
+	esac
 	cb=${DT[$DT_FOCUS]["$op"]}
 	if [ -z "$cb" ]; then
 		[ "$op" = selall ] && dt_fieldedit selall && return 0
