@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.31",
+ "version": "3.32",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -448,6 +448,7 @@
   "Find…": "بحث…",
   "Fixed Size": "الحجم الثابت",
   "Flowchart": "مخطط انسيابي",
+  "Focus Follows Mouse": "التركيز يتبع الفأرة",
   "Folder": "المجلد",
   "Folder downloads are saved in:": "المجلد الذي تُحفظ فيه التنزيلات:",
   "Folder for cookies, the cache and history:": "مجلد ملفات تعريف الارتباط والذاكرة المؤقتة والسجل:",

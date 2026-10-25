@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.337
+
+**A window's frame says what a press there does** (Gitea #370). Wherever
+hovering is on and the terminal draws pointer shapes (OSC 22), the pointer
+shows:
+- a **resize arrow** on a window's corners, and on its sides with Edge
+  Resize on;
+- a **move** shape on its title bar;
+- a **hand** on its title bar's buttons;
+- the terminal's own pointer back over the content.
+
+The press and the pointer ask the same function, `dt_grip`, about what a
+corner or a side does, so the two cannot disagree.
+
+**Focus Follows Mouse** (Control Panel > Mouse, off by default). With it
+on, the window under the pointer takes the keyboard without being raised;
+the desktop under the pointer leaves the last window focused.
+
+**A slider can be set between two cells' values** where the terminal
+reports the pointer in pixels. `dt_slidepos` takes where in the cell the
+pointer was, from `dt_cellpx`, and the Control Panel passes it on. Every
+Control Panel slider today snaps to its own steps, so the finer value
+shows only where a slider does not snap.
+
+**`dt_cellpx` in a window drawn with no frame** counted its columns one
+cell out, so it gave the middle of the cell rather than the pixel. It now
+counts them as a click does.
+
+Mouse pane 1.4.
+
 ## 0.99.336
 
 **The lists light the row under the pointer** (Gitea #370), wherever

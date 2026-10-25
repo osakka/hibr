@@ -452,6 +452,7 @@ Fit Page
 Fit Width
 Fixed Size
 Flowchart
+Focus Follows Mouse
 Folder
 Folder downloads are saved in:
 Folder downloads go to, and the Save dialog starts in:

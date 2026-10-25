@@ -41,11 +41,13 @@ fn dt_slider(int id, int r, int c, int w, int value, int min, int max, tag) {
 # this file beside it so the two cannot drift. A caller clamps and snaps to
 # its own step, because the step is the setting's business and not the
 # track's -- a track eleven columns wide has eleven positions whatever the
-# range is.
-fn dt_slidepos(int c, int c0, int w, int min, int max) {
+# range is. frac is where in the cell the pointer was, in thousandths, from
+# dt_cellpx where the terminal reports pixels, so a step finer than a cell
+# can be chosen (Gitea #370); 500, the middle, is exactly the column.
+fn dt_slidepos(int c, int c0, int w, int min, int max, int frac = 500) {
 	local v=$min
 
-	[ "$w" -gt 1 ] && v=$((min + (c - c0) * (max - min) / (w - 1)))
+	[ "$w" -gt 1 ] && v=$((min + ((c - c0) * 1000 + frac - 500) * (max - min) / ((w - 1) * 1000)))
 	[ "$v" -lt "$min" ] && v=$min
 	[ "$v" -gt "$max" ] && v=$max
 	ret "$v"

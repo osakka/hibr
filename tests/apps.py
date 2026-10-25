@@ -428,7 +428,7 @@ def brow(sc, label):
 
 
 def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy",
-          post="", geom=None):
+          post="", geom=None, cell=(0, 0), caps=None):
     """Run Control Panel from a config directory of its own.
 
     tests/screen.py gives the whole suite one shared $HOME, so without this
@@ -455,7 +455,8 @@ def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy",
     sc = run("panel", geom or PW, feed=feed,
              pre="%sexport XDG_CONFIG_HOME=%s\n%s%s\n%s\n%s"
              % (pre, d, tzline, TICK, CPANES, post), also=also, extra=extra,
-             env=env, end=end, rows=TALLROWS if geom == PWTALL else None)
+             env=env, end=end, rows=TALLROWS if geom == PWTALL else None,
+             cell=cell, caps=caps)
     shutil.rmtree(d, True)
     return sc
 

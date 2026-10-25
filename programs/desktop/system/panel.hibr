@@ -18,7 +18,7 @@
 
 strict
 
-app panel "Control Panel, a picker of panes, and the window list" 1.4
+app panel "Control Panel, a picker of panes, and the window list" 1.5
 
 command -v dt_app > /dev/null && dt_app panel "Control Panel" 26 70 once "≡"
 
@@ -892,7 +892,7 @@ fn panel_click(int w, int r, int c, btn = "") {
 		PW[$w]["sel"]=$i
 		PW[$w]["last"]=$i
 		CP_MSLIDE[$w]="$i $wc"
-		cp_slide "$w" "$c"
+		cp_slide "$w" "$c" "$r"
 		return 0
 	fi
 	case $tag in
@@ -953,8 +953,8 @@ declare -gA CP_MDRAG
 declare -gA CP_MSLIDE
 
 # Set the slider CP_MSLIDE names to whatever column c is over.
-fn cp_slide(int w, int c) {
-	local pane i wc v
+fn cp_slide(int w, int c, int r = 0) {
+	local pane i wc v o fx=500
 	local -a at
 
 	read -ra at <<< "${CP_MSLIDE[$w]}"
@@ -963,8 +963,11 @@ fn cp_slide(int w, int c) {
 	wc=${at[1]}
 	pane := panel_pane "$w"
 	[ -n "$pane" ] && dt_has "${pane}_slide" || return 0
+	# Finer than a cell where the terminal reports the pixel (#370).
+	o := dt_cellpx "$w" "$r" "$c" 1000 1000
+	fx=${o%% *}
 	v := dt_slidepos "$c" "$wc" "$CP_SLIDEW" "${CP[$w][$i]["min"]:-0}" \
-		"${CP[$w][$i]["max"]:-10}"
+		"${CP[$w][$i]["max"]:-10}" "$fx"
 	"${pane}_slide" "$w" "${CP[$w][$i]["key"]}" "$v"
 	return 0
 }
@@ -1002,7 +1005,7 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 	# half of clicking one: a value a person is choosing by eye is chosen
 	# by moving, not by pressing eleven times.
 	if [ -n "${CP_MSLIDE[$id]}" ]; then
-		cp_slide "$id" "$c"
+		cp_slide "$id" "$c" "$r"
 		[ "$act" = release ] && CP_MSLIDE[$id]=
 		return 0
 	fi

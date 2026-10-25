@@ -27,7 +27,7 @@ strict
 
 dt_mouse() {
 	local act=${1##*-} mr mc mods
-	local id b bi wr wc wa wh ww ap mo now dr dc wsn p
+	local id b bi wr wc wa wh ww ap mo now dr dc wsn p g
 	local -a gv
 
 	mods=${1%"$act"}
@@ -147,60 +147,24 @@ dt_mouse() {
 		wh=${DT[$id]["h"]}
 		ap=${DT[$id]["click"]}
 		DT_NOTEWIN=$id
-		if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" != 1 ]; then
-			# Any of the four corners starts a resize, the opposite one
-			# anchored: captured once, here, since the window's own row
-			# and col start changing the moment a top or left edge does.
-			# Under the bar frame the bottom corners and the sides are the
-			# app's own cells, its scrollbar among them: only the title
-			# bar's two rounded ends are grips.
-			if [ "$wa" = "$wc" ] &&
-			   [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = $((wc + ww - 1)) ]
-			then
-				DT_SIZE=$id; DT_SIZECORNER=br
-				DT_SIZE_AR=$wr; DT_SIZE_AC=$wc
-				return 0
-			fi
-			if [ "$mr" = "$wr" ] && [ "$mc" = "$wc" ]; then
-				DT_SIZE=$id; DT_SIZECORNER=tl
-				DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$((wc + ww - 1))
-				return 0
-			fi
-			if [ "$mr" = "$wr" ] && [ "$mc" = $((wc + ww - 1)) ]; then
-				DT_SIZE=$id; DT_SIZECORNER=tr
-				DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$wc
-				return 0
-			fi
-			if [ "$wa" = "$wc" ] &&
-			   [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = "$wc" ]; then
-				DT_SIZE=$id; DT_SIZECORNER=bl
-				DT_SIZE_AR=$wr; DT_SIZE_AC=$((wc + ww - 1))
-				return 0
-			fi
-			# A side, not just a corner -- one dimension only, the
-			# opposite edge anchored. There is no top edge of its own:
-			# row wr is the title bar over its whole width, so the two
-			# top corners are the only way to resize from above it.
-			if [ "$DT_EDGERESIZE" = 1 ] && [ "$wa" = "$wc" ]; then
-				if [ "$mc" = "$wc" ] && [ "$mr" -gt "$wr" ] &&
-				   [ "$mr" -lt $((wr + wh - 1)) ]; then
-					DT_SIZE=$id; DT_SIZECORNER=l
-					DT_SIZE_AC=$((wc + ww - 1))
-					return 0
-				fi
-				if [ "$mc" = $((wc + ww - 1)) ] && [ "$mr" -gt "$wr" ] &&
-				   [ "$mr" -lt $((wr + wh - 1)) ]; then
-					DT_SIZE=$id; DT_SIZECORNER=r
-					DT_SIZE_AC=$wc
-					return 0
-				fi
-				if [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" -gt "$wc" ] &&
-				   [ "$mc" -lt $((wc + ww - 1)) ]; then
-					DT_SIZE=$id; DT_SIZECORNER=b
-					DT_SIZE_AR=$wr
-					return 0
-				fi
-			fi
+		# A grip -- a corner, or a side with Edge Resize on -- starts a
+		# resize, the opposite edge anchored: captured once, here, since
+		# the window's own row and col start changing the moment a top or
+		# left edge does. dt_grip is what decides, and the pointer's shape
+		# over a window asks it too, so the two cannot disagree.
+		if g := dt_grip "$id" "$mr" "$mc"; then
+			DT_SIZE=$id
+			DT_SIZECORNER=$g
+			case $g in
+			br) DT_SIZE_AR=$wr; DT_SIZE_AC=$wc ;;
+			tl) DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$((wc + ww - 1)) ;;
+			tr) DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$wc ;;
+			bl) DT_SIZE_AR=$wr; DT_SIZE_AC=$((wc + ww - 1)) ;;
+			l) DT_SIZE_AC=$((wc + ww - 1)) ;;
+			r) DT_SIZE_AC=$wc ;;
+			b) DT_SIZE_AR=$wr ;;
+			esac
+			return 0
 		fi
 		# No chrome: a right press is the app's context menu, a second
 		# press soon after the first is told to the app as a double click,
@@ -585,6 +549,38 @@ fn dt_ptrcan() {
 	[ "$p" = yes ]
 }
 
+# Which grip of window id is at r,c on the screen, if any: a corner --
+# tl tr bl br -- or, with Edge Resize on, a side -- l r b. There is no top
+# side: row 0 is the title bar over its whole width, so the top corners are
+# the only way to resize from above. Under the bar frame the bottom
+# corners and the sides are the app's own cells, its scrollbar among them,
+# so only the title bar's two ends are grips there. A fixed-size window
+# has none.
+fn dt_grip(int id, int r, int c) {
+	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} ww=${DT[$id]["w"]} wh=${DT[$id]["h"]} wa
+
+	[ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" != 1 ] || return 1
+	wa=$wc
+	dt_capped "$id" && wa=$((wc - 1))
+	if [ "$wa" = "$wc" ] && [ "$r" = $((wr + wh - 1)) ] && [ "$c" = $((wc + ww - 1)) ]; then
+		ret br
+	fi
+	[ "$r" = "$wr" ] && [ "$c" = "$wc" ] && ret tl
+	[ "$r" = "$wr" ] && [ "$c" = $((wc + ww - 1)) ] && ret tr
+	if [ "$wa" = "$wc" ] && [ "$r" = $((wr + wh - 1)) ] && [ "$c" = "$wc" ]; then
+		ret bl
+	fi
+	[ "$DT_EDGERESIZE" = 1 ] && [ "$wa" = "$wc" ] || return 1
+	if [ "$r" -gt "$wr" ] && [ "$r" -lt $((wr + wh - 1)) ]; then
+		[ "$c" = "$wc" ] && ret l
+		[ "$c" = $((wc + ww - 1)) ] && ret r
+	fi
+	if [ "$r" = $((wr + wh - 1)) ] && [ "$c" -gt "$wc" ] && [ "$c" -lt $((wc + ww - 1)) ]; then
+		ret b
+	fi
+	return 1
+}
+
 # Put a shape in force, once.
 fn dt_ptrput(shape = "") {
 	[ "$shape" = "$DT_PTRNOW" ] && return 0
@@ -593,12 +589,15 @@ fn dt_ptrput(shape = "") {
 	return 0
 }
 
-# The shape the pointer at r,c wants: a window's own, over its content, while
-# it has focus, no menu is open and hovering is on. Anything else, the
-# terminal's own -- so a menu opening, focus moving or the pointer reaching a
-# window's frame gives it back.
+# The shape the pointer at r,c wants, while no menu is open and hovering is
+# on. Over any window's frame it says what a press there does (Gitea #370):
+# a resize arrow on a grip, the one dt_grip finds, a hand on a title bar's
+# button, and a move on the rest of the title bar. Over a window's content
+# it is the window's own while it has focus. Anything else, the terminal's
+# own -- so a menu opening, focus moving or the pointer leaving gives it
+# back. A terminal that draws no pointer shapes ignores all of it.
 fn dt_ptrfor(r = "", c = "") {
-	local id= rr cc
+	local id= rr cc g
 
 	if [ -n "$r" ] && [ "$MB_OPEN" = -1 ] && dt_hoveron; then
 		id := console hit "$r" "$c"
@@ -607,6 +606,20 @@ fn dt_ptrfor(r = "", c = "") {
 	case $id in
 	"" | *[!0-9]*) ret "" ;;
 	esac
+	if g := dt_grip "$id" "$r" "$c"; then
+		case $g in
+		tl | br) ret nwse-resize ;;
+		tr | bl) ret nesw-resize ;;
+		l | r) ret ew-resize ;;
+		b) ret ns-resize ;;
+		esac
+	fi
+	if [ "$r" = "${DT[$id]["row"]}" ] && [ "${DT[$id]["chrome"]}" != none ]; then
+		if g := dt_btnat "$id" $((c - ${DT[$id]["col"]})) && [ -n "$g" ]; then
+			ret pointer
+		fi
+		ret move
+	fi
 	if [ "$id" != "$DT_FOCUS" ] || [ -z "${DT[$id]["ptr"]-}" ]; then
 		ret ""
 	fi
@@ -670,6 +683,14 @@ fn dt_hover(int r, int c) {
 		*) id= ;;
 		esac
 		t="w:$id"
+		# Focus Follows Mouse: the window under the pointer takes the
+		# keyboard and is not raised; the desktop under it changes
+		# nothing, so the last window keeps the focus (Gitea #370).
+		if [ "$DT_FOCUSHOVER" = 1 ] && [ -n "$id" ] && [ "$id" != "$DT_FOCUS" ]; then
+			DT_FOCUS=$id
+			DT_MENUIN=
+			DT_FORCEONCE=1
+		fi
 		if [ -n "$id" ] && [ "$r" = "${DT[$id]["row"]}" ] &&
 		   b := dt_btnat "$id" $((c - ${DT[$id]["col"]})); then
 			[ -n "$b" ] && DT_HOVERBTN="$id $b" && t="btn:$id:$b"
@@ -730,12 +751,16 @@ DT_PY=
 # only, or the pixel is not in that cell. For an app that turns a click into
 # a point on what it draws: a page, an X screen (Gitea #370).
 fn dt_cellpx(int id, int r, int c, int cw, int ch) {
-	local x=$((cw / 2)) y=$((ch / 2)) g gk tw th ox oy
+	local x=$((cw / 2)) y=$((ch / 2)) g gk tw th ox oy wa
 
 	if [ -n "$DT_PX" ] && [ -n "${DT[$id]["col"]}" ] && g := console gfx 2> /dev/null; then
 		read -r gk tw th <<< "$g"
+		# A window with no frame counts its columns from one left of
+		# itself, as a click on it does.
+		wa=${DT[$id]["col"]}
+		dt_capped "$id" && wa=$((wa - 1))
 		if [ "${tw:-0}" -gt 1 ] && [ "${th:-0}" -gt 1 ]; then
-			ox=$((DT_PX - (${DT[$id]["col"]} + c) * tw))
+			ox=$((DT_PX - (wa + c) * tw))
 			oy=$((DT_PY - (${DT[$id]["row"]} + r) * th))
 			[ "$ox" -ge 0 ] && [ "$ox" -lt "$tw" ] && x=$((ox * cw / tw))
 			[ "$oy" -ge 0 ] && [ "$oy" -lt "$th" ] && y=$((oy * ch / th))

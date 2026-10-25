@@ -1647,6 +1647,22 @@ check("dt_cellpx places a pixel click inside its cell, in the caller's measure",
 sc, _ = run(PXB, [1.5, press(9, 16), release(9, 16)], cell=(8, 16), caps=[])
 check("and gives the middle of the cell when there is no pixel",
       sc.find("in 4 8 / 500 500") == (8, 13), sc)
+# A slider set by a pixel can land between two cells' values (Gitea #370):
+# an 11-column track for 0 to 100 at pane column 3, clicked an eighth of
+# the way into its eighth cell (screen column 20, pixels 160 to 167), is 66.
+# In cells it is 70, as it always was.
+PXS = ('pxs_draw() { dt_wclear "$1"; dt_slider "$1" 2 3 11 "${PXS:-0}" 0 100 s\n'
+       '  console put -p "w$1" 4 3 "set ${PXS:-none}"; }\n'
+       'pxs_click() { local o; o := dt_cellpx "$1" "$2" "$3" 1000 1000\n'
+       '  PXS := dt_slidepos "$3" 3 11 0 100 "${o%% *}"; }\n'
+       'dt_new "Px" 8 30 6 10 pxs\n')
+sc, _ = run(PXS, [1.5, b"\x1b[<0;162;137M", b"\x1b[<0;162;137m"],
+            cell=(8, 16), caps=["mpix"])
+check("a slider set by a pixel lands between two cells' values",
+      sc.find("set 66") is not None, sc)
+sc, _ = run(PXS, [1.5, press(8, 20), release(8, 20)], cell=(8, 16), caps=[])
+check("and set by a cell lands on that cell's", sc.find("set 70") is not None,
+      sc)
 
 try:
     os.unlink(CLOSED)
@@ -7284,6 +7300,35 @@ sc, _ = run(PTA, [1.5, hov(9, 20), 0.4], caps=["ptr"],
             env={"DT_HOVER": "off"})
 check("and with hovering off nothing would say it left, so nothing hides it",
       "none" not in sc.ptr, sc.ptr)
+# A window's frame says what a press there does (Gitea #370): a move on the
+# title bar, a resize arrow on a corner, and the terminal's own pointer back
+# over the content. The window is 8 by 30 at row 6, column 10, so its
+# bottom right corner is row 13, column 39.
+sc, _ = run(APP, [1.5, hov(6, 20), 0.3, hov(13, 39), 0.3, hov(9, 20), 0.3],
+            caps=["ptr"], env={"DT_HOVER": "on"})
+check("the pointer is a move over a title bar, a resize arrow on a corner, "
+      "and the terminal's own over the content",
+      sc.ptr[-3:] == ["move", "nwse-resize", ""], sc.ptr)
+sc, _ = run(APP, [1.5, hov(6, 20), 0.3], caps=["ptr"], env={"DT_HOVER": "off"})
+check("and with hovering off the frame sets no shape", sc.ptr == [], sc.ptr)
+
+# Focus Follows Mouse (Gitea #370): with it on, resting over a window gives
+# it the keyboard and leaves it where it is in the stack; off, the default,
+# the pointer moves nothing. A is under B where they overlap, so a raise
+# would show A's text over B's title.
+FFM = ('declare -gA FFM\n'
+       'ffm_draw() { console put -p "w$1" 2 3 "keys ${FFM[$1]:-}"; }\n'
+       'ffm_key() { FFM[$1]+=$2; return 0; }\n'
+       'dt_new "AAA" 8 40 4 4 ffm\n'
+       'dt_new "BBB" 8 30 6 30 ffm\n')
+sc, _ = run(FFM, [1.5, hov(8, 10), 0.3, b"x", 0.3],
+            env={"DT_HOVER": "on", "DT_FOCUSHOVER": "1"})
+check("with Focus Follows Mouse on, the window under the pointer takes the keys",
+      sc.find("keys x") is not None and sc.find("keys x")[1] < 30, sc)
+check("and is not raised", "BBB" in sc.row(6), sc)
+sc, _ = run(FFM, [1.5, hov(8, 10), 0.3, b"x", 0.3], env={"DT_HOVER": "on"})
+check("off, the default, the keys stay where they were",
+      sc.find("keys x") is not None and sc.find("keys x")[1] > 30, sc)
 
 # A window on another display, after the desktop is stopped and started
 # again (the owner's report: placed right, and its title bar on the primary,
@@ -7544,4 +7589,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(814)
+report(821)
