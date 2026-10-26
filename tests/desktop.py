@@ -7222,23 +7222,29 @@ open(PWBUS, "w").write('#!/bin/sh\necho \'s "no"\'\n')
 os.chmod(PWBUS, 0o755)
 PWENV = {"DT_POWERDIR": os.path.join(PWD_, "sys"), "DT_PWCTL": PWCTL,
          "DT_PWBUSCTL": PWBUS}
+# The battery is the Power entry's, from the catalogue (Gitea #388), so a
+# session that wants it loads its watcher; Sleep, Restart and Shut Down are
+# the platform's, and the checks of them below run without it.
+PWPRE = ". %s\n" % tree("programs/desktop/control-panel/power-watch.hibr")
 
 pwsupply(62, "Discharging")
-sc, _ = run("", env=PWENV)
+sc, _ = run("", env=PWENV, pre=PWPRE)
 check("a battery is on the menu bar, its level and its charge",
       "\u2584 62%" in sc.row(0), sc.row(0))
 pwsupply(62, "Charging", ac=1)
-sc, _ = run("", env=PWENV)
+sc, _ = run("", env=PWENV, pre=PWPRE)
 check("and a mark while it charges", "\u21af\u2584 62%" in sc.row(0), sc.row(0))
-sc, _ = run("", env=dict(PWENV, DT_POWERDIR=os.path.join(PWD_, "none")))
+sc, _ = run("", env=dict(PWENV, DT_POWERDIR=os.path.join(PWD_, "none")),
+            pre=PWPRE)
 check("a machine with no battery has no battery on the bar",
       "%" not in sc.row(0).replace("Desktop", ""), sc.row(0))
 
 
-def pwlive(feed, env, want):
+def pwlive(feed, env, want, pre=""):
     """A desktop driven by feed, its screen read once want is on it."""
     path = scratch("desktop-power.hibr")
-    open(path, "w").write("%s. %s\n\ndt_open\ndt_run\ndt_close\n" % (load(MOD), WM))
+    open(path, "w").write("%s. %s\n%s\ndt_open\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, pre))
     t = Term(path, env=dict({"DT_TICK": "60"}, **env), rows=ROWS, cols=COLS,
              settle=0.5)
     t.keys(feed)
@@ -7249,11 +7255,35 @@ def pwlive(feed, env, want):
 
 
 pwsupply(9, "Discharging")
-sc = pwlive([0.3], PWENV, "Battery low")
+sc = pwlive([0.3], PWENV, "Battery low", PWPRE)
 check("a low charge says so in a note, as the desktop starts",
       sc.find("Battery low: 9% left") is not None, sc)
 
-# Special holds Sleep, Restart and Shut Down, through logind: acting on a
+# After the upgrade that took Network, Sound, Bluetooth and Power out of
+# the package (Gitea #388): a desktop whose saved settings show one was in
+# use and which does not have it now is told where it went, once.
+HWST = tempfile.mkdtemp(prefix="hibr-hw-")
+os.makedirs(os.path.join(HWST, "conf", "hibr"))
+open(os.path.join(HWST, "conf", "hibr", "desktop.hibr"), "w").write(
+    "DT_SNDBAR=1\nDT_SETVER=15\n")
+HWENV = {"XDG_STATE_HOME": os.path.join(HWST, "st"),
+         "XDG_CONFIG_HOME": os.path.join(HWST, "conf")}
+# Read before the quitting key, which puts the notes away.
+sc = pwlive([0.3], HWENV, "Sound is now in")
+check("a desktop whose settings predate the move is told Sound is in the Catalogue",
+      sc.find("Sound is now in") is not None, sc)
+sc, _ = run("", env=HWENV)
+check("and told it once, not on every start",
+      sc.find("is now in the Catalogue") is None, sc)
+open(os.path.join(HWST, "conf", "hibr", "desktop.hibr"), "w").write(
+    "DT_SNDBAR=1\nDT_SETVER=16\n")
+sc, _ = run("", env=dict(HWENV, XDG_STATE_HOME=os.path.join(HWST, "st2")))
+check("and settings saved since then, whatever they hold, are told nothing",
+      sc.find("is now in the Catalogue") is None, sc)
+shutil.rmtree(HWST, True)
+
+# Special holds Sleep, Restart and Shut Down, through logind -- the
+# platform's, so with no Power entry installed at all: acting on a
 # desktop that is the computer's own -- Shut Down asking first -- and on
 # nothing on one that is not, whose session logind does not know.
 PWLOC = dict(PWENV, XDG_SESSION_ID="7")
@@ -7668,4 +7698,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(832)
+report(835)

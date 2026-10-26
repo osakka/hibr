@@ -379,6 +379,9 @@ DT_TERMBAR="${DT_TERMBAR-1}"
 # date once, so a default changed here reaches someone whose first save
 # froze the old one -- the trap a frozen DT_TICK=200 once was.
 DT_SETVER="${DT_SETVER-}"
+# Whether these settings predate 0.99.349, so that the entries that left the
+# package are offered (dt_hwoffer); set by dt_load, never saved.
+DT_HWOFFER=
 
 # How many consecutive drag reports dt_run lets go by before it actually
 # redraws -- 0 skips none (today's behaviour, and the default): a drag
@@ -577,8 +580,15 @@ dt_load() {
 				DT_TITLEBAR=solid
 			fi
 		fi
+		# 0.99.349: Network, Sound, Bluetooth and Power left the
+		# package for the catalogue (Gitea #388). A desktop whose
+		# settings predate that had them, and dt_hwoffer tells it where
+		# they went; a new desktop never had them and is told nothing.
+		if [ "${DT_SETVER:-0}" -lt 16 ]; then
+			DT_HWOFFER=1
+		fi
 	fi
-	DT_SETVER=15
+	DT_SETVER=16
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"

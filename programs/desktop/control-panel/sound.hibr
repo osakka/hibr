@@ -4,12 +4,14 @@
 # output and the input used, each one's level and mute, how far a key or
 # a wheel notch moves the volume, and whether the speaker is on the menu
 # bar. The keys themselves are rows in Shortcuts. Everything here acts
-# through wm/sound.hibr, which says what kind of sound this machine has:
+# through control-panel/sound-watch.hibr, which says what kind of sound this machine has:
 # a server PipeWire or PulseAudio answers for, or ALSA's mixer.
+#
+# part: control-panel/sound-watch.hibr
 
 strict
 
-app sound "The Control Panel pane for the machine's sound" 1.1
+app sound "The Control Panel pane for the machine's sound" 2.0
 command -v cp_pane > /dev/null && cp_pane sound "Sound" "♪" hardware
 
 SN_KINDS=(Auto PulseAudio PipeWire ALSA None)

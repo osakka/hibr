@@ -179,6 +179,7 @@ Bluetooth Settings%s
 Bluetooth Settings…
 Bluetooth System
 Bluetooth is busy with %s
+Bluetooth is now in the Catalogue -- click to install it
 Bluetooth is off
 Bluetooth on Menu Bar
 Bluetooth said: %s
@@ -308,6 +309,7 @@ Could not change permissions
 Could not connect %s: %s
 Could not disconnect %s: %s
 Could not forget %s: %s
+Could not install it -- open the Catalogue to try again
 Could not join %s: %s
 Could not keep the event
 Could not leave %s: %s
@@ -538,6 +540,7 @@ Insert Row Below
 Install
 Install as App…
 Installed %s. It is in Applications > Web Apps.
+Installed from the Catalogue
 Inviting people needs a mail account to send from
 Isha
 It asks for a password (%s).
@@ -670,6 +673,7 @@ Network
 Network Settings%s
 Network Settings…
 Network System
+Network is now in the Catalogue -- click to install it
 Network on Menu Bar
 NetworkManager does not allow joining networks from this session
 Networks are managed without a password now
@@ -829,6 +833,7 @@ Position
 Position Given
 Power
 Power Settings…
+Power is now in the Catalogue -- click to install it
 Prayer
 Prayer Location
 Prayer Times
@@ -1014,6 +1019,7 @@ Sound
 Sound Server
 Sound Settings…
 Sound System
+Sound is now in the Catalogue -- click to install it
 Sound muted
 Special
 Standby displays join on their own

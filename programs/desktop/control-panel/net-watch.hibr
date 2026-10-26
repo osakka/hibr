@@ -1,4 +1,4 @@
-# wm/net -- the machine's network: whether it is on Wi-Fi, a cable or
+# control-panel/net-watch -- the machine's network: whether it is on Wi-Fi, a cable or
 # neither, the Wi-Fi networks in reach and the ones it knows, joining and
 # leaving them, and the item on the menu bar that says which (Gitea #311).
 # Control Panel > Network is the pane over it.
@@ -30,6 +30,15 @@
 #
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
+#
+# Part of the networks pane's catalogue entry, not of the package (Gitea #388):
+# installed with it, loaded with the Control Panel's panes by cp_panes, and
+# absent -- no bar item, no watcher running -- on a desktop without it. The
+# window manager reaches it only through dt_has.
+#
+# overlay: its bar item and its pop-ups are the desktop's own, drawn over the
+# finished frame at screen coordinates the way the bar's are -- not a
+# window's content, so it has no pane of its own to target.
 
 strict
 

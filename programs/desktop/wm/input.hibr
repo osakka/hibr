@@ -1112,12 +1112,14 @@ fn dt_event(k) {
 		dt_snap_focused bottom
 	elif dt_keyis snapcenter "$k"; then
 		dt_snap_focused center
+	# The sound keys reach the Sound entry only where it is installed
+	# (Gitea #388): without it there is no volume to change.
 	elif dt_keyis volup "$k"; then
-		dt_sndstep 1
+		dt_has dt_sndstep && dt_sndstep 1
 	elif dt_keyis voldown "$k"; then
-		dt_sndstep -1
+		dt_has dt_sndstep && dt_sndstep -1
 	elif dt_keyis mute "$k"; then
-		dt_sndmutekey
+		dt_has dt_sndmutekey && dt_sndmutekey
 	elif [ "$knorm" = "$sn" ]; then
 		if [ "$CS_ATTN" = 1 ]; then
 			CS_ATTN=0

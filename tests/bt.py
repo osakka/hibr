@@ -233,8 +233,9 @@ try:
     b = Bt()
     s9 = tempfile.mkdtemp(prefix="s-", dir=D)
     p9 = os.path.join(s9, "session.hibr")
-    open(p9, "w").write("%s. %s\ndt_open\ndt_run\ndt_close\n"
-                        % (load("console"), tree("programs/desktop/desktop.hibr")))
+    open(p9, "w").write("%s. %s\n. %s\ndt_open\ndt_run\ndt_close\n"
+                        % (load("console"), tree("programs/desktop/desktop.hibr"),
+                           tree("programs/desktop/control-panel/bt-watch.hibr")))
     t9 = Term(p9, env={"HIBR_BT": "auto", "HIBR_BTSTATE": b.d,
                        "PATH": BIN + ":" + os.environ["PATH"]}, rows=30, cols=100, settle=2.0)
     t9.until(lambda sc: BT in sc.row(0), 80)

@@ -22,8 +22,8 @@ any shell error any of them prints -- naming which installable it was:
     install -- the files `tools/ships.hibr` names, copied out of the tree
     the way `make install` copies them, so this cannot drift from the
     package (Gitea #271).
-  * **each installable alone**, in an otherwise empty data folder over the
-    platform: loaded, and then used -- an application launched, a pane
+  * **each installable alone**, with the parts it brings and nothing else,
+    in an otherwise empty data folder over the platform: loaded, and then used -- an application launched, a pane
     opened in the Control Panel, a saver started -- because a missing
     dependency bites in a callback, not while a file is being read. This
     is what catches one installable that only works because another
@@ -86,6 +86,25 @@ def installables():
 ITEMS = installables()
 PLAT = [(k, r, p) for k, r, p in ITEMS if platform(p)]
 INST = [(k, r, p) for k, r, p in ITEMS if not platform(p)]
+
+
+def parts(p):
+    """What an entry brings with it: its `# part:` lines, as (kind, rel,
+    path). A part goes where its owner goes (ADR 0047), and the catalogue
+    installs it with it -- so an entry "alone" is the entry and its parts."""
+    out = []
+    for l in open(p, errors="replace"):
+        m = re.match(r"#\s*part:\s*(\S+)", l)
+        if m:
+            k, _, r = m.group(1).partition("/")
+            q = os.path.join(DESK, k, r)
+            if os.path.exists(q):
+                out.append((k, r, q))
+    return out
+
+
+PARTOF = {q for _, _, p in INST for _, _, q in parts(p)}
+ENTRIES = [(k, r, p) for k, r, p in INST if p not in PARTOF]
 
 # The platform on its own, at the places the scans look: a folder per kind
 # holding only the files that say `# platform:` of themselves.
@@ -185,10 +204,12 @@ check("a desktop as the package ships it starts and prints no error",
       bar and not errs, (errs[:3], sc))
 
 broken = []
-for k, r, p in INST:
+for k, r, p in ENTRIES:
     data = os.path.join(D, "alone", k, r.replace("/", "_"))
     os.makedirs(data, exist_ok=True)
     place(data, k, r, p)
+    for pk, pr, pp in parts(p):
+        place(data, pk, pr, pp)
     errs, bar, sc = start("alone-%s-%s" % (k, r.replace("/", "_")),
                           session(PLATDIRS, use(p, k)), data)
     # A saver that is running owns the whole screen, so there is no bar
@@ -342,4 +363,4 @@ print("%d installable files in %s, %d of them platform%s"
       % (len(ITEMS), " ".join(KINDS), len(PLAT),
          "; broken alone: " + " ".join(broken) if broken else ""))
 shutil.rmtree(D, True)
-report(len(INST) + 10)
+report(len(ENTRIES) + 10)

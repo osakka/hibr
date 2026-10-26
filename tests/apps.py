@@ -1403,17 +1403,17 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "15 1 1 1 mod-w mod-tab []", out)
+      out == "16 1 1 1 mod-w mod-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "15 0 1 1 mod-w mod-tab []", out)
+      out == "16 0 1 1 mod-w mod-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("15 1 0 0 "), out)
+      out.startswith("16 1 0 0 "), out)
 
 
 # 0.99.324 calls the frame that is only a title bar none, and the border left
@@ -1679,9 +1679,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 15", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 16", out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 15", out)
+check("and a file written since is read as it is", out == "[meadow] paper 16", out)
 
 
 # 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
@@ -1702,9 +1702,9 @@ def loadtube(conf):
 
 out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
 check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow 15", out)
+      out == "follow 16", out)
 out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii 15", out)
+check("and one it was given of its own is kept", out == "ascii 16", out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.

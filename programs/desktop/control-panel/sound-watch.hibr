@@ -1,4 +1,4 @@
-# wm/sound -- the machine's sound: which output and input are used, their
+# control-panel/sound-watch -- the machine's sound: which output and input are used, their
 # volume and mute, the speaker on the menu bar and the keys that change it
 # (Gitea #306). Control Panel > Sound is the pane over it.
 #
@@ -27,6 +27,15 @@
 #
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
+#
+# Part of the sound pane's catalogue entry, not of the package (Gitea #388):
+# installed with it, loaded with the Control Panel's panes by cp_panes, and
+# absent -- no bar item, no watcher running -- on a desktop without it. The
+# window manager reaches it only through dt_has.
+#
+# overlay: its bar item and its pop-ups are the desktop's own, drawn over the
+# finished frame at screen coordinates the way the bar's are -- not a
+# window's content, so it has no pane of its own to target.
 
 strict
 

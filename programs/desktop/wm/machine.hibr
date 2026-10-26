@@ -1,0 +1,95 @@
+# wm/machine -- the computer's own actions: Sleep, Hibernate where logind
+# can, Restart and Shut Down, through logind, which needs no root for the
+# person at the machine. On the Special menu whatever is installed, and on
+# the battery's menu where the Power entry is (Gitea #388, which moved the
+# battery to the catalogue and kept these in the package).
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+#
+# They act on the machine, so they are offered only where the desktop is
+# the machine's own: a local session on a seat. A desktop reached over SSH,
+# or one inside another's terminal, dims them -- Shut Down there would turn
+# off a computer nobody at it asked to turn off.
+
+strict
+
+declare -gA DT_PW
+# logind's own commands, each a name a test can put a stand-in at.
+DT_PWCTL="${DT_PWCTL-loginctl}"
+DT_PWBUSCTL="${DT_PWBUSCTL-busctl}"
+# What the confirm box is about to do.
+DT_PWDOING=
+
+# Whether this desktop is the machine's own: a local logind session on a
+# seat. Asked once, as it does not change while the desktop runs.
+dt_pwlocal() {
+	local o
+
+	if [ -z "${DT_PW["local"]}" ]; then
+		DT_PW["local"]=0
+		if [ -n "${XDG_SESSION_ID-}" ] && command -v "$DT_PWCTL" > /dev/null; then
+			o=$("$DT_PWCTL" show-session "$XDG_SESSION_ID" -p Remote -p Seat 2> /dev/null)
+			case $o in
+			*Remote=no*Seat=?* | *Seat=?*Remote=no*) DT_PW["local"]=1 ;;
+			esac
+		fi
+		DT_PW["hib"]=0
+		if [ "${DT_PW["local"]}" = 1 ] && command -v "$DT_PWBUSCTL" > /dev/null; then
+			o=$("$DT_PWBUSCTL" --timeout=2 get-property org.freedesktop.login1 \
+				/org/freedesktop/login1 org.freedesktop.login1.Manager \
+				CanHibernate 2> /dev/null)
+			[ "$o" = 's "yes"' ] && DT_PW["hib"]=1
+		fi
+	fi
+	[ "${DT_PW["local"]}" = 1 ]
+}
+
+# Act: suspend, hibernate, reboot or poweroff, through logind. Suspend and
+# hibernate go at once; a restart or a shut down asks first.
+fn dt_pwdo(what) {
+	dt_pwlocal || { dt_note "This desktop is not the computer's own"; return 0; }
+	case $what in
+	reboot)
+		DT_PWDOING=reboot
+		dt_confirm "Restart the computer?" dt_pwgo
+		;;
+	poweroff)
+		DT_PWDOING=poweroff
+		dt_confirm "Shut down the computer?" dt_pwgo
+		;;
+	*)
+		DT_PWDOING=$what
+		dt_pwgo
+		;;
+	esac
+	return 0
+}
+
+dt_pwgo() {
+	local what=$DT_PWDOING
+
+	DT_PWDOING=
+	[ -n "$what" ] || return 0
+	dt_log "power: $what"
+	"$DT_PWCTL" "$what" 2> /dev/null ||
+		dt_note "The computer did not do it: logind refused"
+	return 0
+}
+
+# Sleep, Restart and Shut Down, as rows of whatever menu is being built --
+# dimmed where this desktop is not the computer's own.
+dt_pwitems() {
+	if dt_pwlocal; then
+		dt_sep
+		dt_item "Sleep" l dt_pwdo suspend
+		[ "${DT_PW["hib"]}" = 1 ] && dt_item "Hibernate" h dt_pwdo hibernate
+		dt_item "Restart${GL[ellipsis]}" r dt_pwdo reboot
+		dt_item "Shut Down${GL[ellipsis]}" d dt_pwdo poweroff
+	else
+		dt_sep
+		dt_dim "Sleep"
+		dt_dim "Restart${GL[ellipsis]}"
+		dt_dim "Shut Down${GL[ellipsis]}"
+	fi
+}

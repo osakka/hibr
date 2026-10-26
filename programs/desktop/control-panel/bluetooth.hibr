@@ -4,11 +4,13 @@
 # adapter on or off and visible to others or not, the devices it knows --
 # each connected or not, with its battery, a click to connect or
 # disconnect -- forgetting one, looking for new ones and pairing them, and
-# the item on the menu bar. It acts through wm/bt.hibr.
+# the item on the menu bar. It acts through control-panel/bt-watch.hibr.
+#
+# part: control-panel/bt-watch.hibr
 
 strict
 
-app bluetooth "The Control Panel pane for Bluetooth" 1.0
+app bluetooth "The Control Panel pane for Bluetooth" 2.0
 command -v cp_pane > /dev/null && cp_pane bluetooth "Bluetooth" "ᛒ" hardware
 
 BT_KINDS=(Auto BlueZ None)

@@ -1,34 +1,32 @@
-# wm/power -- the battery and the machine's power (Gitea #365): each
+# control-panel/power-watch -- the battery and the machine's power (Gitea #365): each
 # battery's charge, whether it is charging, the time left and its health,
 # read from the kernel's own files; an item on the menu bar while there is
 # a battery; a note when the charge runs low, and a choice of what to do
-# when it runs out; and Sleep, Restart and Shut Down through logind, which
-# needs no root for the person at the machine.
+# when it runs out. Sleep, Restart and Shut Down are the platform's, in
+# wm/machine.hibr, and are on the hibr menu whether this is installed or not;
+# the battery's menu offers them too.
 #
-# Part of the window manager; desktop.hibr sources it. It only defines
-# functions and sets state, so it can be read on its own and is never run.
+# Part of the power pane's catalogue entry, not of the package (Gitea #388):
+# installed with it, loaded with the Control Panel's panes by cp_panes, and
+# absent -- no bar item, no watcher running -- on a desktop without it. The
+# window manager reaches it only through dt_has.
 #
-# The power actions act on the machine, so they are offered only where the
-# desktop is the machine's own: a local session on a seat. A desktop reached
-# over SSH, or one inside another's terminal, dims them -- Shut Down there
-# would turn off a computer nobody at it asked to turn off.
+# overlay: its bar item and its pop-ups are the desktop's own, drawn over the
+# finished frame at screen coordinates the way the bar's are -- not a
+# window's content, so it has no pane of its own to target.
 
 strict
 
 declare -gA DT_PW
-# Where the batteries are, and what is asked to act: the kernel's folder and
-# logind's own command, each a name a test can put a stand-in at.
+# Where the batteries are: the kernel's folder, a name a test can put a
+# stand-in at.
 DT_POWERDIR="${DT_POWERDIR-/sys/class/power_supply}"
-DT_PWCTL="${DT_PWCTL-loginctl}"
-DT_PWBUSCTL="${DT_PWBUSCTL-busctl}"
 # When the batteries were last read, and the charge the notes have already
 # spoken for in this discharge, so each is said once.
 DT_PWAT=0
 DT_PWLOWSAID=
 DT_PWCRITSAID=
 DT_PWCRITDUE=0
-# What the confirm box is about to do.
-DT_PWDOING=
 
 # Read every power supply: the batteries summed, and whether any mains is
 # on. Each supply's uevent holds every value, so one read a supply.
@@ -166,62 +164,6 @@ dt_pwmenu() {
 	dt_barmenu pw pw
 }
 
-# Whether this desktop is the machine's own: a local logind session on a
-# seat. Asked once, as it does not change while the desktop runs.
-dt_pwlocal() {
-	local o
-
-	if [ -z "${DT_PW["local"]}" ]; then
-		DT_PW["local"]=0
-		if [ -n "${XDG_SESSION_ID-}" ] && command -v "$DT_PWCTL" > /dev/null; then
-			o=$("$DT_PWCTL" show-session "$XDG_SESSION_ID" -p Remote -p Seat 2> /dev/null)
-			case $o in
-			*Remote=no*Seat=?* | *Seat=?*Remote=no*) DT_PW["local"]=1 ;;
-			esac
-		fi
-		DT_PW["hib"]=0
-		if [ "${DT_PW["local"]}" = 1 ] && command -v "$DT_PWBUSCTL" > /dev/null; then
-			o=$("$DT_PWBUSCTL" --timeout=2 get-property org.freedesktop.login1 \
-				/org/freedesktop/login1 org.freedesktop.login1.Manager \
-				CanHibernate 2> /dev/null)
-			[ "$o" = 's "yes"' ] && DT_PW["hib"]=1
-		fi
-	fi
-	[ "${DT_PW["local"]}" = 1 ]
-}
-
-# Act: suspend, hibernate, reboot or poweroff, through logind. Suspend and
-# hibernate go at once; a restart or a shut down asks first.
-fn dt_pwdo(what) {
-	dt_pwlocal || { dt_note "This desktop is not the computer's own"; return 0; }
-	case $what in
-	reboot)
-		DT_PWDOING=reboot
-		dt_confirm "Restart the computer?" dt_pwgo
-		;;
-	poweroff)
-		DT_PWDOING=poweroff
-		dt_confirm "Shut down the computer?" dt_pwgo
-		;;
-	*)
-		DT_PWDOING=$what
-		dt_pwgo
-		;;
-	esac
-	return 0
-}
-
-dt_pwgo() {
-	local what=$DT_PWDOING
-
-	DT_PWDOING=
-	[ -n "$what" ] || return 0
-	dt_log "power: $what"
-	"$DT_PWCTL" "$what" 2> /dev/null ||
-		dt_note "The computer did not do it: logind refused"
-	return 0
-}
-
 # The low and critical notes, each once in a discharge -- each asking for
 # the frame that shows it, since a ticker runs after the frame is drawn and
 # an idle desktop would let the note expire unseen -- and what Control
@@ -306,23 +248,6 @@ fn pw_context(id = "") {
 		dt_item "Power Settings${GL[ellipsis]}" p dt_panelpane power
 	else
 		dt_dim "Power Settings${GL[ellipsis]}"
-	fi
-}
-
-# Sleep, Restart and Shut Down, as rows of whatever menu is being built --
-# dimmed where this desktop is not the computer's own.
-dt_pwitems() {
-	if dt_pwlocal; then
-		dt_sep
-		dt_item "Sleep" l dt_pwdo suspend
-		[ "${DT_PW["hib"]}" = 1 ] && dt_item "Hibernate" h dt_pwdo hibernate
-		dt_item "Restart${GL[ellipsis]}" r dt_pwdo reboot
-		dt_item "Shut Down${GL[ellipsis]}" d dt_pwdo poweroff
-	else
-		dt_sep
-		dt_dim "Sleep"
-		dt_dim "Restart${GL[ellipsis]}"
-		dt_dim "Shut Down${GL[ellipsis]}"
 	fi
 }
 

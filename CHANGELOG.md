@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.99.349
+
+**Network, Sound, Bluetooth and Power come from the Catalogue, not the
+package** (Gitea #388, the owner's choice). Not every machine has Wi-Fi,
+a sound server, Bluetooth or a battery, and each of these ran a program in
+the background on every desktop that had it shipped. Each is now one
+catalogue entry: its Control Panel pane, its item on the menu bar and the
+watcher behind it, which moved from `wm/` into `control-panel/` as the
+pane's part (`net-watch`, `sound-watch`, `bt-watch`, `power-watch`). Not
+installed, there is no item, nothing running, and the volume keys do
+nothing.
+
+- **Sleep, Restart and Shut Down stay in the package**, on the Special
+  menu of every desktop: they act on the computer, not the battery, and
+  moved into a platform file of their own (`wm/machine.hibr`). The
+  battery's menu still offers them where Power is installed.
+- **A desktop that used one is told once**, on its first start after the
+  upgrade: "Sound is now in the Catalogue -- click to install it". Nothing
+  is installed without asking; the click runs `catalogue install`.
+- The Servers pane (`network.hibr`, WebDAV) is not the machine's network
+  and still ships.
+- `tests/deps.py` treats an entry and its parts as one unit, and
+  `tests/scopes.py` installs each entry with its parts, as the catalogue
+  does.
+
 ## 0.99.348
 
 **A display's desktop no longer turns the window colour after the screen

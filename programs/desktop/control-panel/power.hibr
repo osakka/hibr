@@ -4,12 +4,14 @@
 # charge, whether it is charging, the time left and its health; the battery
 # on the menu bar, the note at a low charge and what happens at a critical
 # one; and Sleep, Hibernate, Restart and Shut Down. It acts through
-# wm/power.hibr, and its rows for a battery are there only where there is
+# control-panel/power-watch.hibr, and its rows for a battery are there only where there is
 # one.
+#
+# part: control-panel/power-watch.hibr
 
 strict
 
-app power "The Control Panel pane for the battery and the computer's power" 1.0
+app power "The Control Panel pane for the battery and the computer's power" 2.0
 command -v cp_pane > /dev/null && cp_pane power "Power" "↯" hardware
 
 PW_LOWS=(off 5 10 15 20 25)

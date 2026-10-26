@@ -331,6 +331,10 @@ echo "the desktop is strict"
 for e in programs/desktop/apps/*.hibr programs/desktop/apps/*/*.hibr \
          programs/desktop/control-panel/*.hibr \
          programs/desktop/system/*.hibr; do
+  # A file in those folders that is the desktop's own overlay says so in
+  # its header -- the bar items of Network, Sound, Bluetooth and Power,
+  # catalogue entries since Gitea #388 -- and is held to the overlay's rule.
+  grep -q '^# overlay:' "$e" && continue
   sed -e :a -e '/\\$/N; s/\\\n[[:space:]]*/ /; ta' "$e" | awk -v f="$e" '
     /^[[:space:]]*#/ { next }
     # -p may come after other flags: `console put -r -p "w$id"` is paned,

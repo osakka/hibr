@@ -165,6 +165,7 @@ dt_open() {
 	dt_snaptake
 	dt_restore
 	dt_ctlopen
+	dt_hwoffer
 	dt_tstamp "open"
 }
 
@@ -330,12 +331,70 @@ dt_size() {
 	return 0
 }
 
+# The machine's sound, network and Bluetooth are catalogue entries (Gitea
+# #388), so each is stopped only where it is installed.
+dt_hwstop() {
+	dt_has dt_sndstop && dt_sndstop
+	dt_has dt_netstop && dt_netstop
+	dt_has dt_btstop && dt_btstop
+	return 0
+}
+
+# Once, after the upgrade that took Network, Sound, Bluetooth and Power out
+# of the package (Gitea #388): a desktop whose settings predate it (dt_load's
+# migration 16 says so in DT_HWOFFER) had all four, and is told for each one
+# it does not have now where it went, and a click installs it. Nothing is
+# installed without asking. Each is offered once, remembered in the state
+# folder, in case nothing saves the settings before the next start.
+dt_hwoffer() {
+	local f=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/hwoffered seen= was e
+
+	[ "$DT_HWOFFER" = 1 ] || return 0
+	[ -r "$f" ] && read -r seen < "$f"
+	was=$seen
+	for e in networks sound bluetooth power; do
+		case " $seen " in *" $e "*) continue ;; esac
+		case $e in
+		networks) dt_has dt_nettick && continue
+			dt_notify "Network is now in the Catalogue -- click to install it" \
+				dt_hwinstall "$e" ;;
+		sound) dt_has dt_sndtick && continue
+			dt_notify "Sound is now in the Catalogue -- click to install it" \
+				dt_hwinstall "$e" ;;
+		bluetooth) dt_has dt_bttick && continue
+			dt_notify "Bluetooth is now in the Catalogue -- click to install it" \
+				dt_hwinstall "$e" ;;
+		power) dt_has dt_pwtick && continue
+			dt_notify "Power is now in the Catalogue -- click to install it" \
+				dt_hwinstall "$e" ;;
+		esac
+		seen="$seen $e"
+	done
+	[ "$seen" = "$was" ] && return 0
+	mkdir -p "${f%/*}" 2> /dev/null && printf '%s\n' "${seen# }" > "$f"
+	return 0
+}
+
+# Install one of them from the catalogue, in the background; the
+# catalogue tells this desktop to rescan once it has, which loads it.
+fn dt_hwinstall(e) {
+	dt_job hw "$e" dt_hwdone catalogue install "control-panel/$e" > /dev/null ||
+		dt_note "Cannot make a folder for jobs"
+}
+
+# What the install said.
+fn dt_hwdone(int n, int st) {
+	if [ "$st" = 0 ]; then
+		dt_note "Installed from the Catalogue"
+	else
+		dt_note "Could not install it -- open the Catalogue to try again"
+	fi
+}
+
 # Give the terminal back.
 dt_close() {
 	dt_ctlclose
-	dt_sndstop
-	dt_netstop
-	dt_btstop
+	dt_hwstop
 	dt_snapdrop
 	if [ -n "$DT_ERR" ]; then
 		exec 2>&$DT_ERR {DT_ERR}>&-

@@ -27,7 +27,8 @@ something that is there in every scope. Three rules, each a check here:
 3. **Another installable only behind a guard in the same function** --
    `dt_has`, `dt_needs` or `command -v` -- unless the callee is part of the
    platform, which a file says of itself with a `# platform:` line in its
-   header (the Control Panel, every pane's framework; the saver
+   header, or of the same entry -- an owner and its `# part:`s, which are
+   installed together (the Control Panel, every pane's framework; the saver
    framework). That is what keeps a link between two apps an optional
    integration rather than a dependency nothing resolves: a person can
    install or remove either, and the other does less rather than breaking.
@@ -105,6 +106,20 @@ def main():
             continue
         for d in defs(f) - given:
             owner.setdefault(d, set()).add(f)
+    # An entry and its parts are one unit: a part goes where its owner goes
+    # (ADR 0047), so a call between them can never be left with nothing to
+    # call -- the Sound pane calling its own watcher needs no guard (Gitea
+    # #388). Read from each owner's `# part:` lines.
+    unit = {f: {f} for f in inst}
+    for f in inst:
+        for l in open(f, errors="replace"):
+            m = re.match(r"#\s*part:\s*(\S+)", l)
+            if m:
+                q = os.path.join(DESK, m.group(1))
+                if q in unit:
+                    u = unit[f] | unit[q]
+                    for x in u:
+                        unit[x] = u
     libs = {os.path.basename(f)[:-5] for f in glob.glob(os.path.join(DESK, "lib", "*.hibr"))
             if any(MARK.match(l.rstrip("\n")) for l in open(f, errors="replace"))}
     rel = lambda p: os.path.relpath(p, DESK)
@@ -135,7 +150,7 @@ def main():
             inline = ("command -v" in s or "dt_has" in s or "dt_needs" in s)
             for tok in sorted(set(TOK.findall(s))):
                 fs = owner.get(tok)
-                if not fs or g in fs or inline or fs & covered:
+                if not fs or fs & unit[g] or inline or fs & covered:
                     continue
                 fails.append("%s:%d: calls %s, from %s, with no guard in this "
                              "function -- dt_has, dt_needs or command -v"

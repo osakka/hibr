@@ -3,17 +3,19 @@
 # networks -- the Control Panel pane called Network (Gitea #311): what the
 # machine is on and its address, Wi-Fi on or off, the networks in reach to
 # join, the ones it knows to forget, and the item on the menu bar. It acts
-# through wm/net.hibr, which says how this machine is networked:
+# through control-panel/net-watch.hibr, which says how this machine is networked:
 # NetworkManager, or iproute2's view alone.
 #
 # The pane is called networks, not network, on purpose: network is the
 # WebDAV servers' pane (titled Servers), shipped and in the catalogue, and a
 # copy of it installed in a person's own scope would win over a shipped file
 # of the same name -- so a new pane there would be shadowed by an old one.
+#
+# part: control-panel/net-watch.hibr
 
 strict
 
-app networks "The Control Panel pane for the machine's network and Wi-Fi" 1.1
+app networks "The Control Panel pane for the machine's network and Wi-Fi" 2.0
 command -v cp_pane > /dev/null && cp_pane networks "Network" "⇌" hardware
 
 NT_KINDS=(Auto NetworkManager None)
