@@ -83,6 +83,12 @@ dt_apps
 DT_SYSDIRS+=("$d/system")
 dt_sysapps
 
+# The menu bar's items that are not the window manager's own -- the network,
+# the speaker, Bluetooth and the battery, where they are installed (Gitea
+# #392). Read before the panes, which act through them.
+DT_BARDIRS+=("$d/menubar")
+dt_menubar
+
 # Control Panel panes are the same idea, one level down: each is a plain
 # hibr file too, found the same way, loaded once Control Panel itself
 # (which defines cp_pane) is on the hibr menu above.

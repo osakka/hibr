@@ -1,0 +1,8 @@
+{
+ "title": "Power",
+ "about": "The battery on the menu bar, and Control Panel > Power: each battery's charge, time left and health, the note at a low charge and what happens at a critical one.",
+ "members": [
+  "menubar/power",
+  "control-panel/power"
+ ]
+}

@@ -1661,9 +1661,154 @@ try:
     ls.close()
     os.unlink(cpath)
 
+
+    # Bundles and `# needs:` (Gitea #392). A bundle is an entry with no file
+    # of its own -- a list of members installed together -- and an entry's
+    # `needs` are installed before it. The shapes are the real ones: a menu
+    # bar item, the pane that acts through it, and the bundle of the two.
+    MBAR = (b"#!/usr/bin/env hibr\n# spk -- a bar item, for the suite.\n"
+            b"app spk \"A bar item\" 1.0\n")
+    SPANE = (b"#!/usr/bin/env hibr\n# spkpane -- its pane.\n#\n"
+             b"# needs: menubar/spk\n"
+             b"app spkpane \"Its pane\" 3.0\n")
+    OLDPANE = SPANE.replace(b"# needs: menubar/spk\n",
+                            b"# part: control-panel/spk-watch.hibr\n").replace(
+                                b"3.0", b"2.0")
+    SSTRIP = b"#!/usr/bin/env hibr\n# spkstrip -- a strip module.\n"
+    h_mbar = put("bundles/spk.hibr", MBAR)
+    h_spane = put("bundles/spkpane.hibr", SPANE)
+    h_opane = put("bundles/spkpane-2.hibr", OLDPANE)
+    h_watch = put("bundles/spk-watch.hibr", MBAR)
+    h_strip = put("bundles/spkstrip.hibr", SSTRIP)
+    E7 = {"entries": {
+        "menubar/spk": {"title": "Speaker", "version": "1.0", "kind": "menubar",
+                        "name": "spk", "about": "a bar item",
+                        "bundle": "bundles/spk.hibr", "sha256": h_mbar},
+        "control-panel/spkpane": {"title": "Sound", "version": "3.0",
+                                  "kind": "control-panel", "name": "spkpane",
+                                  "about": "its pane", "needs": "menubar/spk",
+                                  "bundle": "bundles/spkpane.hibr",
+                                  "sha256": h_spane},
+        "control-strip/spkstrip": {"title": "Strip", "version": "1.0",
+                                   "kind": "control-strip", "name": "spkstrip",
+                                   "about": "a strip module",
+                                   "bundle": "bundles/spkstrip.hibr",
+                                   "sha256": h_strip},
+        "bundles/spk": {"title": "Sound", "kind": "bundles", "name": "spk",
+                        "about": "the speaker and its pane",
+                        "members": "menubar/spk control-panel/spkpane"},
+        "bundles/nested": {"title": "Nested", "kind": "bundles",
+                           "name": "nested", "about": "a bundle of a bundle",
+                           "members": "bundles/spk"},
+    }}
+    E7B = json.loads(json.dumps(E7))
+    E7B["entries"]["bundles/spk"]["members"] += " control-strip/spkstrip"
+    E7OLD = {"entries": {"control-panel/spkpane": {
+        "title": "Sound", "version": "2.0", "kind": "control-panel",
+        "name": "spkpane", "about": "its pane, with its watcher a part",
+        "bundle": "bundles/spkpane-2.hibr", "sha256": h_opane,
+        "parts": [{"kind": "control-panel", "as": "spk-watch.hibr",
+                   "path": "bundles/spk-watch.hibr", "sha256": h_watch}]}}}
+    put("index7.json", json.dumps(E7, indent=1))
+    put("index7b.json", json.dumps(E7B, indent=1))
+    put("index7old.json", json.dumps(E7OLD, indent=1))
+
+    def e7(tag, ix="index7.json"):
+        return {"HIBR_APPS_URL": "http://127.0.0.1:%d/%s" % (PORT, ix),
+                "XDG_CACHE_HOME": os.path.join(HOME, "c7" + tag),
+                "XDG_DATA_HOME": os.path.join(HOME, "d7" + tag)}
+
+    def d7(tag, *p):
+        return os.path.join(HOME, "d7" + tag, "hibr", *p)
+
+    def st7(tag):
+        f = d7(tag, "apps.json")
+        if not os.path.exists(f):
+            f = os.path.join(HOME, "d7" + tag, "hibr", "catalogue.json")
+        try:
+            return json.load(open(f)).get("installed", {})
+        except (OSError, ValueError):
+            return {}
+
+    rc, out, err = apps("install", "spk", env=e7("a"))
+    check("installing a bundle by its bare name installs each of its members "
+          "as itself, the bar item before the pane that needs it",
+          rc == 0 and os.path.exists(d7("a", "menubar", "spk.hibr"))
+          and os.path.exists(d7("a", "control-panel", "spkpane.hibr")),
+          (rc, out, err))
+    rc, out, err = apps("list", "-j", env=e7("a"))
+    try:
+        ent = json.loads(out)["entries"]["bundles/spk"]
+    except (ValueError, KeyError):
+        ent = {}
+    check("and list says the bundle is there, from its members, with the "
+          "members named for the window",
+          ent.get("where") == "installed"
+          and ent.get("members") == "menubar/spk control-panel/spkpane",
+          (out[:400], err))
+
+    rc, out, err = apps("install", "control-panel/spkpane", env=e7("b"))
+    check("an entry installed on its own brings what it needs first",
+          rc == 0 and os.path.exists(d7("b", "menubar", "spk.hibr"))
+          and os.path.exists(d7("b", "control-panel", "spkpane.hibr")),
+          (rc, out, err))
+
+    rc, out, err = apps("remove", "spk", env=e7("a"))
+    check("removing a bundle with no terminal to ask on refuses, names what "
+          "it would take, and takes nothing",
+          rc != 0 and "-y" in err and "menubar/spk" in err
+          and os.path.exists(d7("a", "menubar", "spk.hibr")), (rc, out, err))
+    rc, out, err = apps("remove", "-y", "spk", env=e7("a"))
+    check("and with -y it takes its members with it",
+          rc == 0 and not os.path.exists(d7("a", "menubar", "spk.hibr"))
+          and not os.path.exists(d7("a", "control-panel", "spkpane.hibr"))
+          and "bundles/spk" not in st7("a"), (rc, out, err, st7("a")))
+
+    apps("install", "bundles/spk", env=e7("c"))
+    rc, out, err = apps("remove", "-k", "spk", env=e7("c"))
+    check("with -k the bundle goes and its members stay",
+          rc == 0 and os.path.exists(d7("c", "menubar", "spk.hibr"))
+          and "bundles/spk" not in st7("c"), (rc, out, err))
+
+    apps("install", "bundles/spk", env=e7("d"))
+    rc, out, err = apps("update", env=e7("d", "index7b.json"))
+    check("update installs a member the catalogue has added to a bundle "
+          "since it was installed",
+          rc == 0 and os.path.exists(d7("d", "control-strip", "spkstrip.hibr")),
+          (rc, out, err))
+    apps("install", "bundles/spk", env=e7("e"))
+    apps("remove", "control-panel/spkpane", env=e7("e"))
+    rc, out, err = apps("update", env=e7("e"))
+    check("and does not put back a member somebody took away by hand",
+          rc == 0 and not os.path.exists(d7("e", "control-panel", "spkpane.hibr")),
+          (rc, out, err))
+
+    # The upgrade from 0.99.349, where each hardware pane carried its
+    # watcher as a part: update must bring the bar item the pane now needs
+    # and take the old part away, so the desktop has one speaker, not two.
+    rc0, out0, err0 = apps("install", "control-panel/spkpane",
+                           env=e7("f", "index7old.json"))
+    had = os.path.exists(d7("f", "control-panel", "spk-watch.hibr"))
+    rc, out, err = apps("update", env=e7("f"))
+    rcl, outl, errl = apps("list", "-j", env=e7("f"))
+    try:
+        wf = json.loads(outl)["entries"]["bundles/spk"].get("where")
+    except (ValueError, KeyError):
+        wf = None
+    check("a pane installed with its watcher as a part updates to the bar "
+          "item it needs, the old part taken away, and reads as the bundle",
+          rc0 == 0 and had and rc == 0
+          and os.path.exists(d7("f", "menubar", "spk.hibr"))
+          and not os.path.exists(d7("f", "control-panel", "spk-watch.hibr"))
+          and wf == "installed", (rc0, err0, rc, out, err, wf))
+
+    rc, out, err = apps("install", "bundles/nested", env=e7("g"))
+    check("a bundle that lists another bundle is refused",
+          rc != 0 and "not other bundles" in err, (rc, out, err))
+
 finally:
     srv.terminate()
     srv.wait()
     shutil.rmtree(D, True)
 
-report(142)
+report(152)

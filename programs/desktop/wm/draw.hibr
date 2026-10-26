@@ -418,10 +418,6 @@ dt_draw() {
 		DT_MENUFOC=$DT_FOCUS
 	fi
 	dt_bar
-	# Outside dt_bar, which may have drawn nothing: a gated drawing takes
-	# with it whatever asks for the next frame from inside it, and the
-	# bar's clock is the thing that wakes an idle desktop once a minute.
-	dt_barwant
 	dt_stripdraw
 	# Everything from here on is drawn over the finished frame and may stop
 	# being drawn at any moment, which is what DT_OVERDREW is counted for.

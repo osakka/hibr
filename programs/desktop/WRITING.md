@@ -563,6 +563,25 @@ same shelf opened to apps.
 
 So: a button is a strip module. A number or a light is a bar item.
 
+An item can live in a file of its own in `menubar/` -- `~/.config/hibr/menubar`
+for one of yours -- read the way an app is, and installed from the catalogue
+as a kind of its own (Gitea #392). Register it while the file is read, so a
+rescan that finds the file gone knows whose it was and takes it off:
+
+<!-- not run: defines a bar item for a desktop to load -->
+```sh
+app battery "The battery on the menu bar" 1.0
+dt_baritem battery ""
+dt_barilabel battery "Battery"
+dt_baristop battery battery_stop
+dt_ticker battery_tick
+```
+
+The desktop's own clock, notification icon, workspace numbers and
+application menu are written exactly so, in `menubar/`, which makes them
+the place to read how `dt_baripin`, `dt_baridraw`, `dt_baripress` and
+`dt_barhook` are used.
+
 Its text is a value the app **sets when it changes**, never a callback the
 bar asks for per frame -- that is what keeps a bar of ten items free on a
 frame where none of them moved, and it is why there is no `name_draw` here

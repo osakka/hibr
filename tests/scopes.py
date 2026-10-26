@@ -84,6 +84,11 @@ def installables():
 
 
 ITEMS = installables()
+# What some entry needs is still an entry of its own -- the speaker can be
+# installed without its pane -- so it is run alone as well.
+NEEDED = {os.path.join(DESK, m.group(1) + ".hibr")
+          for _, _, p in ITEMS for l in open(p, errors="replace")
+          for m in [re.match(r"#\s*needs:\s*(\S+)", l)] if m}
 PLAT = [(k, r, p) for k, r, p in ITEMS if platform(p)]
 INST = [(k, r, p) for k, r, p in ITEMS if not platform(p)]
 
@@ -91,10 +96,19 @@ INST = [(k, r, p) for k, r, p in ITEMS if not platform(p)]
 def parts(p):
     """What an entry brings with it: its `# part:` lines, as (kind, rel,
     path). A part goes where its owner goes (ADR 0047), and the catalogue
-    installs it with it -- so an entry "alone" is the entry and its parts."""
+    installs it with it -- so an entry "alone" is the entry and its parts.
+    And what it `# needs:` (Gitea #392), which the catalogue installs
+    before it, so "alone" includes that too."""
     out = []
     for l in open(p, errors="replace"):
         m = re.match(r"#\s*part:\s*(\S+)", l)
+        n = re.match(r"#\s*needs:\s*(\S+)", l)
+        if n:
+            k, _, r = n.group(1).partition("/")
+            q = os.path.join(DESK, k, r + ".hibr")
+            if os.path.exists(q):
+                out.append((k, r + ".hibr", q))
+            continue
         if m:
             k, _, r = m.group(1).partition("/")
             q = os.path.join(DESK, k, r)
@@ -103,7 +117,8 @@ def parts(p):
     return out
 
 
-PARTOF = {q for _, _, p in INST for _, _, q in parts(p)}
+PARTOF = {q for _, _, p in INST for _, _, q in parts(p)
+          if q not in NEEDED}
 ENTRIES = [(k, r, p) for k, r, p in INST if p not in PARTOF]
 
 # The platform on its own, at the places the scans look: a folder per kind
@@ -121,6 +136,7 @@ def session(dirs, after=""):
     s = [load(MOD), ". %s" % os.path.join(DESK, "desktop.hibr")]
     for k, var, scan in (("apps", "DT_APPDIRS", "dt_apps"),
                          ("system", "DT_SYSDIRS", "dt_sysapps"),
+                         ("menubar", "DT_BARDIRS", "dt_menubar"),
                          ("control-panel", "CP_PANEDIRS",
                           "command -v cp_panes > /dev/null && cp_panes"),
                          ("control-strip", "CS_MODDIRS", "cs_modules")):
@@ -349,6 +365,28 @@ out = lrescan()
 check("a Control Panel pane and a strip module placed while it runs are read "
       "too", '"added":2' in out, out)
 
+# A menu bar item (Gitea #392), which the bar reads again: on the bar once
+# told, and off it again, with whatever it ran stopped, when its file goes.
+os.makedirs(os.path.join(live, "hibr", "menubar"), exist_ok=True)
+mbp = os.path.join(live, "hibr", "menubar", "mbprobe.hibr")
+open(mbp, "w").write(
+    'dt_baritem mbprobe "MBPROBE"\n'
+    'MBPT=0\n'
+    'mbprobe_tick() { MBPT=$((MBPT + 1)); }\n'
+    'dt_ticker mbprobe_tick\n')
+out = lrescan()
+lt.collect(0.3)
+sc = lt.screen()
+on = "MBPROBE" in sc.row(0)
+os.unlink(mbp)
+out2 = lrescan()
+lt.collect(0.3)
+sc2 = lt.screen()
+check("a menu bar item placed while it runs is on the bar once it is told, "
+      "and off it again once its file is gone",
+      '"added":1' in out and on and '"removed":1' in out2
+      and "MBPROBE" not in sc2.row(0), (out, out2, sc.row(0), sc2.row(0)))
+
 # Refresh Desktop, for a file put there by hand: the same scan, from a key.
 place(live, "apps", "Accessories/snake.hibr", SNAKE)
 lt.keys([b"\x1b\x12"])
@@ -363,4 +401,4 @@ print("%d installable files in %s, %d of them platform%s"
       % (len(ITEMS), " ".join(KINDS), len(PLAT),
          "; broken alone: " + " ".join(broken) if broken else ""))
 shutil.rmtree(D, True)
-report(len(ENTRIES) + 10)
+report(len(ENTRIES) + 11)

@@ -66,40 +66,22 @@ dt_mouse() {
 			dt_onbar "$mr" "$mc" || return 0
 			[ "$1" != right ] && bi := dt_barihit "$mc" &&
 				[ "$bi" = "$b" ] && return 0
-			[ "$1" != right ] && [ "$b" = bell ] &&
-				[ "$mc" -ge "$DT_BELLC" ] &&
-				[ "$mc" -lt $((DT_BELLC + DT_BELLW)) ] && return 0
 		fi
 		if dt_onbar "$mr" "$mc"; then
-			if [ "$1" != right ] && wsn := dt_wshit "$mc"; then
-				dt_mclose
-				dt_wsgo "$wsn"
-				return 0
-			fi
-			if [ "$mc" -ge "$DT_BELLC" ] &&
-			   [ "$mc" -lt $((DT_BELLC + DT_BELLW)) ]; then
-				# The notes are a panel under the icon, and a
-				# right click is the icon's own menu.
-				if [ "$1" = right ]; then
-					dt_context_open nhbell "" "$mr" "$mc"
-				else
-					dt_bellpop
-				fi
-				return 0
-			fi
-			if [ "$mc" -ge "$DT_CLOCKC" ] &&
-			   [ "$mc" -lt $((DT_CLOCKC + DT_CLOCKW)) ]; then
-				dt_mclose
-				dt_has clock_draw && dt_launch clock
-				return 0
-			fi
-			# An item an app put on the bar (Gitea #160). After
-			# the icon and the clock, which are the desktop's own
-			# and keep their places.
+			# An item on the bar (Gitea #160) -- the clock, the
+			# notification icon, the workspace numbers and the
+			# application menu among them since #392. One that
+			# takes the press itself may decline it, and it goes
+			# on to the bar's own menu.
 			if bi := dt_barihit "$mc"; then
-				dt_mclose
-				dt_barido "$bi" "$1"
-				return 0
+				b=${DT_BARI["$bi"]["press"]-}
+				if [ -n "$b" ]; then
+					"$b" "$1" "$mr" "$mc" && return 0
+				else
+					dt_mclose
+					dt_barido "$bi" "$1"
+					return 0
+				fi
 			fi
 			if [ "$1" = right ]; then
 				dt_context_open bar "" "$mr" "$mc"

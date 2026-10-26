@@ -3769,7 +3769,7 @@ shutil.rmtree(d, True)
 # tests/apps.py verifies this order directly against cp_panes; ORDER here
 # just names it, so a real change to it breaks an assertion instead of a
 # silent miscount.
-PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
+PANEL = ('. %s/panel.hibr\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("programs/desktop/system"), tree("programs/desktop/control-panel")))
 # Hardware, then the desktop's own, then the apps', each group sorted by its
 # own title -- read out of cp_panes itself rather than hand-sorted, which is
@@ -3792,7 +3792,7 @@ def dotrun(session, env=None, pre="", keys=(), cols=COLS):
     p = os.path.join(d, "session.hibr")
     apps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("programs/desktop/apps")
             + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("programs/desktop/system"))
-    cp = 'CP_PANEDIRS+=("%s")\ncp_panes\n' % tree("programs/desktop/control-panel")
+    cp = 'DT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANEDIRS+=("%s")\ncp_panes\n' % tree("programs/desktop/control-panel")
     open(p, "w").write("%s. %s\n%s%s%sdt_open\n%s\ndt_run\ndt_close\n"
                        % (load(MOD), WM, apps, cp, pre, session))
     e = {"XDG_CONFIG_HOME": os.path.join(d, "config")}
@@ -5387,7 +5387,7 @@ one, two = sc.find("One"), sc.find("Two")
 check("a tiled workspace's main window is on the right, the stack on the left",
       one is not None and two is not None and one[0] == 1 and
       one[1] > COLS // 2 and two[1] < COLS // 2, sc)
-CPAN = (APPS + 'CP_PANEDIRS+=("%s")\ncp_panes\n'
+CPAN = (APPS + 'DT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANEDIRS+=("%s")\ncp_panes\n'
         % tree("programs/desktop/control-panel"))
 XYPANEL = 'dt_new Panel 22 70 1 4 panel'
 sc, _ = run(XYPANEL, env=XY, pre=CPAN)
@@ -6589,6 +6589,31 @@ check("a frame that changes nothing on the bar does not draw it, and one "
       len(got) == 4 and int(got[0]) > 0 and got[1] == got[0]
       and int(got[2]) > int(got[1]) and got[3] == got[2], got)
 
+# The bar's own items are files of menubar/ (Gitea #392): one of yours of the
+# same name, in ~/.config/hibr/menubar, replaces the shipped one and takes its
+# place on the bar; and Item Order is offered the ordinary items only, never
+# the four that pin their places.
+mbconf = tempfile.mkdtemp(prefix="hibr-mbconf-")
+os.makedirs(os.path.join(mbconf, "hibr", "menubar"))
+open(os.path.join(mbconf, "hibr", "menubar", "clock.hibr"), "w").write(
+    'dt_baritem clock "TICKTOCK"\ndt_baripin clock 2\n')
+seqf = scratch("bar-seq.txt")
+sc, _ = run('dt_baritem zz "ZZ" true\ndt_barseq\n'
+            'printf "%s\\n" "${DT_BARSEQ[*]}" > ' + seqf + '\n',
+            env={"XDG_CONFIG_HOME": mbconf, "DT_BARTIME": "12:34"})
+seq = open(seqf).read().split() if os.path.exists(seqf) else None
+if os.path.exists(seqf):
+    os.unlink(seqf)
+shutil.rmtree(mbconf, True)
+bar = sc.row(0)
+check("a menubar/clock.hibr of your own replaces the clock, in the clock's "
+      "own place between the icon and the application menu",
+      "TICKTOCK" in bar and "12:34" not in bar
+      and bar.find("TICKTOCK") < bar.find("Desktop") and bar.find("⚑") < bar.find("TICKTOCK"),
+      bar)
+check("and Item Order is offered the ordinary items, not the four that pin "
+      "their places", seq == ["zz"], seq)
+
 # An app can put an item on the bar (Gitea #160): a state that changes,
 # beside the clock, which is what a Control Strip module is not -- the strip
 # is a glyph and a click the person positions themselves.
@@ -7281,7 +7306,7 @@ PWENV = {"DT_POWERDIR": os.path.join(PWD_, "sys"), "DT_PWCTL": PWCTL,
 # The battery is the Power entry's, from the catalogue (Gitea #388), so a
 # session that wants it loads its watcher; Sleep, Restart and Shut Down are
 # the platform's, and the checks of them below run without it.
-PWPRE = ". %s\n" % tree("programs/desktop/control-panel/power-watch.hibr")
+PWPRE = ". %s\n" % tree("programs/desktop/menubar/power.hibr")
 
 pwsupply(62, "Discharging")
 sc, _ = run("", env=PWENV, pre=PWPRE)
@@ -7754,4 +7779,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(841)
+report(843)

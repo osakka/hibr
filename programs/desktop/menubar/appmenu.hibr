@@ -1,0 +1,62 @@
+# menubar/appmenu -- the application menu, at the bar's outer corner: the
+# focused app's name, and under it the Window menu wm/menus.hibr builds.
+#
+# A bar item like any other since Gitea #392, pinned to the corner it has
+# always had. What opens under it is still the menus' own (MB_OPEN=app);
+# this only draws the title and says where it landed, in MB_AX, which is
+# what dt_mhit and the drop-down read.
+#
+# platform: the bar the window manager draws, loaded by it whatever else
+# is installed, so a desktop with no session still has it.
+
+strict
+
+app appmenu "The application menu at the menu bar's corner" 1.0
+
+# The title it last set, so the hook calls dt_baritem only on a change.
+DT_APPMWAS=
+
+dt_baritem app ""
+dt_baripin app 1
+# Fourteen cells whatever the name: a leading space, eleven columns of name,
+# a space and the arrow -- and that leading space is one of the gap's.
+dt_bariwide app 14 1
+dt_baridraw app dt_appmdraw
+dt_baripress app dt_appmpress
+dt_barhook dt_appmhook
+
+dt_appmhook() {
+	local t
+
+	t := dt_appname
+	# Eleven columns, not eleven characters: a name with a glyph wider than
+	# a cell drew over the clock when this was `${t:0:11}` (ADR 0021).
+	t := dt_cut "$t" 11
+	t=" $t ${GL[sdown]}"
+	[ "$t" = "$DT_APPMWAS" ] && return 0
+	DT_APPMWAS=$t
+	dt_baritem app "$t"
+}
+
+fn dt_appmdraw(int c, int hover) {
+	MB_AX=$c
+	if [ "$MB_OPEN" = app ]; then
+		console pen "$DT_BAR" "$DT_ACTIVE" bold
+	else
+		console pen "$DT_INK" "$DT_BAR"
+	fi
+	dt_barput "$c" "$DT_APPMWAS"
+	console pen "$DT_INK" "$DT_BAR"
+}
+
+# A left press opens the menu, or shuts it when it is the one open; a right
+# one is the bar's own menu, as it always was here.
+fn dt_appmpress(btn, int r, int c) {
+	[ "$btn" = right ] && return 1
+	if [ "$MB_OPEN" = app ]; then
+		dt_mclose
+	else
+		dt_mopen app
+	fi
+	return 0
+}

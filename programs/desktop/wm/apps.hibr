@@ -471,6 +471,9 @@ dt_rescan() {
 		read -r d f w <<< "$RET"
 		added=$((added + d)); gone=$((gone + f)); changed=$((changed + w))
 	fi
+	dt_barrescan
+	read -r d f w <<< "$RET"
+	added=$((added + d)); gone=$((gone + f)); changed=$((changed + w))
 	# Savers are read when one is first wanted, so the next one wanted
 	# reads them again; themes and colour schemes are lists Appearance
 	# keeps, and languages are read each time the list is shown.

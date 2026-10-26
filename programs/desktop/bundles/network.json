@@ -1,0 +1,8 @@
+{
+ "title": "Network",
+ "about": "The network on the menu bar, and Control Panel > Network: what the machine is on and its address, Wi-Fi on or off, the networks in reach to join and the ones it knows to forget.",
+ "members": [
+  "menubar/network",
+  "control-panel/networks"
+ ]
+}

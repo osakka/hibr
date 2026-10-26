@@ -37,7 +37,7 @@ MB_EDITED=0
 MB_STACK=
 MB_PAR=
 MB_IN=0
-MB_AX=0
+MB_AX=100000
 MB_AN=
 # Where the window list was drawn, so a click reads the same rectangle.
 MB_ADY=1
@@ -883,7 +883,6 @@ dt_layout() {
 		c=$((c + tw))
 		i=$((i + 1))
 	done
-	MB_AX=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 14))
 }
 
 # The bar mirrored: the first menu at the right edge and each after it to
@@ -906,7 +905,6 @@ dt_layoutm() {
 		MB[$i]["tw"]=$tw
 		i=$((i + 1))
 	done
-	MB_AX=$DT_PRIMARY_COL
 }
 
 # Draw the open menu over everything else.

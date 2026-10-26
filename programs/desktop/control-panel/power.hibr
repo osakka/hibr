@@ -4,14 +4,14 @@
 # charge, whether it is charging, the time left and its health; the battery
 # on the menu bar, the note at a low charge and what happens at a critical
 # one; and Sleep, Hibernate, Restart and Shut Down. It acts through
-# control-panel/power-watch.hibr, and its rows for a battery are there only where there is
+# menubar/power.hibr, and its rows for a battery are there only where there is
 # one.
 #
-# part: control-panel/power-watch.hibr
+# needs: menubar/power
 
 strict
 
-app power "The Control Panel pane for the battery and the computer's power" 2.0
+app power "The Control Panel pane for the battery and the computer's power" 3.0
 command -v cp_pane > /dev/null && cp_pane power "Power" "↯" hardware
 
 PW_LOWS=(off 5 10 15 20 25)
@@ -27,6 +27,13 @@ fn cp_set_pwcrit(int? id = "", value = "") { DT_PWCRIT=$value; cp_save; }
 fn cp_set_pwcritdo(int? id = "", value = "") { DT_PWCRITDO=$value; cp_save; }
 
 fn power_rows(int w) {
+	# Nothing to show without the menu bar item this acts through,
+	# which a person may have taken away on its own (Gitea #392).
+	if ! dt_has dt_pwtick; then
+		CP[$w][0]["kind"]=info; CP[$w][0]["text"]="Menu Bar Item"
+		CP[$w][0]["val"]="not installed"
+		ret 1
+	fi
 	local n=0 v
 
 	dt_pwread
@@ -91,6 +98,7 @@ fn power_rows(int w) {
 }
 
 fn power_do(int w, k, int dir) {
+	dt_has dt_pwtick || return 0
 	local v
 
 	case $k in

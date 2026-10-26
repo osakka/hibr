@@ -26,7 +26,7 @@
 # HIBR_MODDIR=/usr/lib/hibr and left it that way for every test after it.
 d=${TMPDIR:-/tmp}/hibr-ships-$$
 rm -rf "$d"
-kinds="apps system control-panel control-strip savers themes colours lang"
+kinds="apps system control-panel control-strip menubar savers themes colours lang bundles"
 
 "$HIBR" tools/ships.hibr -c > /dev/null && echo "the list and the parts check out"
 

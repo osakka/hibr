@@ -62,4 +62,10 @@ for dt_part in "$DT_HERE"/widgets/*.hibr; do
 	. "$dt_part"
 done
 unset dt_part
+# The bar's own items: whatever has been installed in a person's scopes,
+# then the four that are the window manager's -- the application menu, the
+# clock, the notification icon and the workspace numbers (Gitea #392). The
+# session adds the rest of what hibr ships, as it does for apps.
+dt_menubar
+dt_menuplat
 dt_tstamp "window manager"

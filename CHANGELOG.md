@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.99.351
+
+**Menu bar items are a kind of their own, and a bundle installs several
+entries at once** (Gitea #392, the owner's choices, ADR 0048). Every item
+on the menu bar is a file of `menubar/` now, the desktop's own four as
+well: the application menu, the clock, the notification icon and the
+workspace numbers. They are loaded by the window manager and drawn exactly
+where they were, cell for cell, through one layout instead of a function
+that knew each of them by name. The network, the speaker, Bluetooth and
+the battery left `control-panel/` for `menubar/`, and each of the four
+panes says `# needs:` its item rather than carrying it as a part. Sound,
+Network, Bluetooth and Power are **bundles** in the catalogue: the item
+and its pane, one install. `catalogue install sound` means the bundle.
+
+- **`menubar` and `bundles` are catalogue kinds.** A bundle has no file
+  and no version: it is there when its members are and current when they
+  are, and `update` installs a member added to it since, but not one you
+  took away by hand. Removing one asks on a terminal and, with none,
+  refuses and names `-y` (its members too) and `-k` (keep them). An entry's
+  `# needs:` is installed before it, from the same index.
+- **The Catalogue window (2.7)** shows bundles in a section of their own
+  at the top, says what each brings, and asks before removing one.
+- **An install from 0.99.349 moves over by itself:** `catalogue update`
+  brings each pane to 3.0, installs the bar item it needs, and takes the
+  old watcher part away.
+- **A bar item's file found gone by a rescan** takes the item off the bar
+  and stops what it ran -- its hooks, its tickers, and the stop it named
+  with `dt_baristop`.
+- **The upgrade note** (0.99.349's offer of the four) installs the bundle
+  now, so a click brings the item and the pane together.
+
 ## 0.99.350
 
 **Alt-tab is a window switcher** (Gitea #391, the owner's request). Cycle

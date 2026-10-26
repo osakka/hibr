@@ -378,7 +378,7 @@ dt_hwoffer() {
 # Install one of them from the catalogue, in the background; the
 # catalogue tells this desktop to rescan once it has, which loads it.
 fn dt_hwinstall(e) {
-	dt_job hw "$e" dt_hwdone catalogue install "control-panel/$e" > /dev/null ||
+	dt_job hw "$e" dt_hwdone catalogue install "bundles/$e" > /dev/null ||
 		dt_note "Cannot make a folder for jobs"
 }
 
@@ -418,9 +418,39 @@ DT_TICKERS=()
 # reads them (wm/ctl.hibr); its reset zeroes them and turns the timing on.
 declare -gA DT_STAT
 DT_STATON=
+declare -gA DT_TICKSRC
+declare -gA DT_TICKGONE
 fn dt_ticker(name) {
 	case " ${DT_TICKERS[*]} " in *" $name "*) return 0 ;; esac
 	DT_TICKERS+=("$name")
+	[ -n "${DT_LOADING-}" ] && DT_TICKSRC["$name"]=$DT_LOADING
+	return 0
+}
+
+# Take off, and put back, the tickers a file registered -- for a file a
+# rescan finds gone, and finds back (dt_barrescan).
+fn dt_tickoff(f) {
+	local t
+	local -a keep=()
+
+	for t in "${DT_TICKERS[@]}"; do
+		if [ "${DT_TICKSRC["$t"]-}" = "$f" ]; then
+			DT_TICKGONE["$t"]=$f
+		else
+			keep+=("$t")
+		fi
+	done
+	DT_TICKERS=("${keep[@]}")
+}
+
+fn dt_tickon(f) {
+	local t
+
+	for t in "${!DT_TICKGONE[@]}"; do
+		[ "${DT_TICKGONE["$t"]}" = "$f" ] || continue
+		unset DT_TICKGONE["$t"]
+		dt_ticker "$t"
+	done
 }
 # Every frame. A ticker whose function is not there -- registered by a
 # file whose library failed to load, or by an app since removed -- is

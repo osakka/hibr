@@ -4,13 +4,13 @@
 # adapter on or off and visible to others or not, the devices it knows --
 # each connected or not, with its battery, a click to connect or
 # disconnect -- forgetting one, looking for new ones and pairing them, and
-# the item on the menu bar. It acts through control-panel/bt-watch.hibr.
+# the item on the menu bar. It acts through menubar/bluetooth.hibr.
 #
-# part: control-panel/bt-watch.hibr
+# needs: menubar/bluetooth
 
 strict
 
-app bluetooth "The Control Panel pane for Bluetooth" 2.0
+app bluetooth "The Control Panel pane for Bluetooth" 3.0
 command -v cp_pane > /dev/null && cp_pane bluetooth "Bluetooth" "ᛒ" hardware
 
 BT_KINDS=(Auto BlueZ None)
@@ -18,6 +18,7 @@ BT_KINDS=(Auto BlueZ None)
 BT_FORGET=
 
 fn cp_set_btkind(int? id = "", value = "") {
+	dt_has dt_bttick || return 0
 	DT_BTKIND=$value
 	cp_save
 	dt_btagain
@@ -38,11 +39,19 @@ fn cp_set_btforget(int? id = "", value = "") {
 }
 
 bluetooth_forget() {
+	dt_has dt_bttick || return 0
 	[ -n "$BT_FORGET" ] && dt_btforget "$BT_FORGET"
 	BT_FORGET=
 }
 
 fn bluetooth_rows(int w) {
+	# Nothing to show without the menu bar item this acts through,
+	# which a person may have taken away on its own (Gitea #392).
+	if ! dt_has dt_bttick; then
+		CP[$w][0]["kind"]=info; CP[$w][0]["text"]="Menu Bar Item"
+		CP[$w][0]["val"]="not installed"
+		ret 1
+	fi
 	local n=0 i v others=0
 
 	[ -n "${DT_BT["kind"]}" ] || dt_btstart
@@ -127,6 +136,7 @@ fn bluetooth_rows(int w) {
 }
 
 fn bluetooth_do(int w, k, int dir) {
+	dt_has dt_bttick || return 0
 	local v
 
 	case $k in

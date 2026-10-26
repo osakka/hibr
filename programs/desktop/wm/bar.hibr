@@ -1,15 +1,15 @@
-# wm/bar -- the menu bar's own contents on the right: the notification icon,
-# the clock and the application menu.
+# wm/bar -- the menu bar's own contents on the right: its items, which since
+# Gitea #392 are the application menu, the clock, the notification icon and
+# the workspace numbers too, each a file in menubar/.
 #
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
 strict
 
-# The bar clock's own strftime format, chosen in Date & Time. dt_bar
-# measures what it renders and leaves where the clock and the icon landed
-# in DT_CLOCKC/DT_CLOCKW/DT_BELLC/DT_BELLW, so a wider format moves both
-# left and the clicks follow them, rather than overrunning the application
+# The bar clock's own strftime format, chosen in Date & Time. The clock is
+# an item (menubar/clock.hibr), so a wider format moves everything beyond
+# it along and the clicks follow, rather than overrunning the application
 # menu.
 DT_BARTIME="${DT_BARTIME-%H:%M}"
 
@@ -24,18 +24,14 @@ DT_BARGAP="${DT_BARGAP-2}"
 # an empty box, or counts it one cell wide and pushes the clock along.
 DT_BELLICON="${DT_BELLICON-flag}"
 DT_BELLICONS=(flag bell note mail dot diamond star)
-DT_CLOCKC=-1
-DT_CLOCKW=0
-DT_BELLC=-1
-DT_BELLW=0
 # The rectangle the bar's own pane was last made for, so it is made once and
 # then only when the screen changes shape. A pane is a name and a rectangle
 # with no cells of its own; what it buys here is that the bar's cells become
 # the bar's -- the wallpaper paints behind it rather than over it, so a frame
 # that changes nothing on the bar need not draw it (Gitea #161).
 #
-# The columns everything stores -- MB[i]["x"], MB_AX, DT_CLOCKC, DT_BELLC,
-# DT_WSC -- stay ABSOLUTE, because that is what a mouse report carries and
+# The columns everything stores -- MB[i]["x"], MB_AX, every item's
+# DT_BARI[name]["c"] -- stay ABSOLUTE, because that is what a mouse report carries and
 # what every hit test already compares against. The pane's origin is
 # subtracted at the `put`, in one place (dt_barput), and nowhere else.
 DT_BARPANE=
@@ -43,6 +39,135 @@ DT_BARPANE=
 # decide whether this frame need draw it at all -- the shape dt_alone uses
 # for the windows' geometry and dt_clocktext for the clock, one level up.
 DT_BARWAS=
+
+# Where the bar's items are found (Gitea #392), read in the same order as
+# every other scan list (ADR 0045): a file of your own in ~/.config first,
+# then the machine's scope, then what the catalogue placed for you, and
+# what hibr ships last -- desktop.hibr appends that one itself, so a
+# desktop that loads no session still has its clock and its menus.
+dt_barsys=
+command -v dt_sysdir > /dev/null && dt_barsys := dt_sysdir menubar
+DT_BARDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/menubar"
+	${dt_barsys:+"$dt_barsys"}
+	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/menubar")
+unset dt_barsys
+# Which file each item file's name was taken from, the first scope to have
+# it winning, as an app's is.
+declare -gA DT_BARSRC
+
+dt_menubar() {
+	local d f b
+
+	for d in "${DT_BARDIRS[@]}"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			[ -n "${DT_BARSRC["$b"]}" ] && continue
+			DT_BARSRC["$b"]=$f
+			DT_LOADING=$f
+			. "$f"
+			DT_LOADING=
+		done
+	done
+}
+
+# A file of menubar/ that went while the desktop ran: what it registered,
+# kept for the day it comes back, as cs_rescan keeps a strip module's.
+declare -gA DT_BARGONEB
+declare -gA DT_BARGONEH
+
+# Read the item folders again, for dt_rescan (Gitea #267, #392), with the
+# same three answers as the other loaders: "added removed changed". An item
+# whose file went is taken off the bar and what it ran is stopped -- its
+# hooks, its tickers and its own stop -- and one that changed is marked,
+# never sourced a second time.
+dt_barrescan() {
+	local d f b w nm h before gone=0 changed=0 t
+	local -A win
+	local -a keep
+
+	# The shipped folder last, which holds the window manager's own items
+	# whether or not a session listed it.
+	for d in "${DT_BARDIRS[@]}" "$DT_HERE/menubar"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			[ -n "${win["$b"]}" ] || win["$b"]=$f
+		done
+	done
+	for b in "${!DT_BARSRC[@]}"; do
+		f=${DT_BARSRC["$b"]}
+		w=${win["$b"]}
+		if [ -z "$w" ]; then
+			for nm in "${DT_BARIN[@]}"; do
+				[ "${DT_BARI["$nm"]["src"]-}" = "$f" ] || continue
+				h=${DT_BARI["$nm"]["stop"]-}
+				[ -n "$h" ] && dt_has "$h" && "$h"
+				dt_baritem "$nm" ""
+			done
+			keep=()
+			t=
+			for h in "${DT_BARHOOKS[@]}"; do
+				if [ "${DT_BARHOOKSRC["$h"]-}" = "$f" ]; then
+					t="$t${t:+ }$h"
+				else
+					keep+=("$h")
+				fi
+			done
+			DT_BARHOOKS=("${keep[@]}")
+			DT_BARGONEH["$b"]=$t
+			dt_has dt_tickoff && dt_tickoff "$f"
+			DT_BARGONEB["$b"]=$f
+			unset DT_BARSRC["$b"]
+			gone=$((gone + 1))
+		elif [ "$w" != "$f" ] || dt_scanold "$f"; then
+			[ -n "${DT_STALE["$f"]+x}" ] && continue
+			dt_stale "$f" "${b%.hibr}"
+			changed=$((changed + 1))
+		fi
+	done
+	# One that went and is back runs again, and is marked: what it
+	# stopped when it went is only started anew by a restart.
+	for b in "${!win[@]}"; do
+		[ -z "${DT_BARSRC["$b"]}" ] && [ -n "${DT_BARGONEB["$b"]}" ] || continue
+		f=${DT_BARGONEB["$b"]}
+		unset DT_BARGONEB["$b"]
+		DT_BARSRC["$b"]=$f
+		read -ra keep <<< "${DT_BARGONEH["$b"]-}"
+		for h in "${keep[@]}"; do dt_barhook "$h"; done
+		unset DT_BARGONEH["$b"]
+		dt_has dt_tickon && dt_tickon "$f"
+		dt_stale "$f" "${b%.hibr}"
+		changed=$((changed + 1))
+	done
+	before=${#DT_BARSRC[@]}
+	dt_menubar
+	DT_BARWAS=
+	ret "$((${#DT_BARSRC[@]} - before)) $gone $changed"
+}
+
+# The bar items that are the window manager's own -- a file of menubar/
+# whose header says `# platform:` -- from the shipped folder, after any of
+# the same name a person's scope already gave.
+dt_menuplat() {
+	local f b l pl
+
+	for f in "$DT_HERE"/menubar/*.hibr; do
+		[ -r "$f" ] || continue
+		b=${f##*/}
+		[ -n "${DT_BARSRC["$b"]}" ] && continue
+		pl=
+		while IFS= read -r l; do
+			case $l in "# platform:"*) pl=1; break ;; "#"*) ;; *) break ;; esac
+		done < "$f"
+		[ -n "$pl" ] || continue
+		DT_BARSRC["$b"]=$f
+		DT_LOADING=$f
+		. "$f"
+		DT_LOADING=
+	done
+	return 0
+}
 
 # Items an app has put on the bar, left of the notification icon.
 #
@@ -90,7 +215,12 @@ fn dt_baritem(name, text = "", ...cmd) {
 		[ "${DT_BARIN[$i]}" = "$name" ] && break
 		i=$((i + 1))
 	done
-	[ "$i" = "$n" ] && DT_BARIN+=("$name")
+	if [ "$i" = "$n" ]; then
+		DT_BARIN+=("$name")
+		# Which file put it there, so a rescan that finds the file gone
+		# can take it off again (dt_barrescan).
+		DT_BARI["$name"]["src"]=${DT_LOADING-}
+	fi
 	DT_BARI["$name"]["text"]=$text
 	DT_BARI["$name"]["argc"]=${#cmd[@]}
 	i=0
@@ -123,12 +253,14 @@ dt_barseq() {
 	read -ra want <<< "${DT_BARORDER-}"
 	for nm in "${want[@]}"; do
 		case " ${DT_BARIN[*]} " in *" $nm "*) ;; *) continue ;; esac
+		[ -n "${DT_BARI["$nm"]["pin"]-}" ] && continue
 		case " ${rd[*]-} " in *" $nm "*) continue ;; esac
 		rd+=("$nm")
 	done
 	i=$((${#DT_BARIN[@]} - 1))
 	while [ "$i" -ge 0 ]; do
 		nm=${DT_BARIN[$i]}
+		[ -n "${DT_BARI["$nm"]["pin"]-}" ] && { i=$((i - 1)); continue; }
 		case " ${want[*]-} " in *" $nm "*) ;; *) rd+=("$nm") ;; esac
 		i=$((i - 1))
 	done
@@ -291,50 +423,139 @@ fn dt_barido(name, btn = "") {
 	"${a[@]}"
 }
 
-# Lay the items out from the notification icon away from the clock, and draw
-# them. Answers the column the row of them ends at, which is where the
-# workspace numbers then start from -- so an item pushes them along rather
-# than being drawn over by them.
-#
-# An item gives way to a long row of app menus exactly as the clock and the
-# icon already do: no width, which also means it cannot be clicked, rather
-# than drawing over a menu's title. The app menu's own end (MB_AX) is never
-# reached, since the items start from the icon which is already left of it.
-fn dt_barilay(int from, int gap) {
-	local nm t iw c=$from
+# The places on the bar an item may pin itself to, rather than take its turn
+# in DT_BARORDER (Gitea #392): the four that were the bar's own until then --
+# the application menu, the clock, the notification icon and the workspace
+# numbers -- are items now, in files of menubar/ like anybody's, and pin is
+# what keeps each where it has always been. A positive pin is counted from
+# the outer end of the bar, 1 the application menu's own corner; a negative
+# one sits beyond every ordinary item, -1 nearest them. An ordinary item is
+# never pinned and is the only kind Item Order offers to move.
+fn dt_baripin(name, int n) {
+	DT_BARI["$name"]["pin"]=$n
+}
 
-	console pen "$DT_INK" "$DT_BAR"
+# A width the item keeps whatever its text measures, and how many of those
+# cells already count as the gap on the side facing the next item: the
+# application menu keeps fourteen for a name of up to eleven columns, and
+# its own leading space is one of the gap's.
+fn dt_bariwide(name, int w, int adj = 0) {
+	DT_BARI["$name"]["rw"]=$w
+	DT_BARI["$name"]["gadj"]=$adj
+}
+
+# An item that draws itself rather than being its text under one pen: fn is
+# given the column it landed at and whether the pointer is over it. The text
+# is still what is measured, and what says whether there is anything to draw.
+fn dt_baridraw(name, fn) {
+	DT_BARI["$name"]["draw"]=$fn
+}
+
+# What a press on an item runs, given the button, the row and the absolute
+# column -- for an item whose parts mean different things (the workspace
+# numbers), or that opens something at the pointer. A status of 1 says it
+# did not want this press, which then goes on to the bar's own menu.
+fn dt_baripress(name, fn) {
+	DT_BARI["$name"]["press"]=$fn
+}
+
+# What runs at the top of every frame's bar, before its gate: an item whose
+# text follows the desktop's own state -- the clock's minute, the count of
+# notes, the focused app's name -- keeps it here, and calls dt_baritem only
+# when it changed, which is what clears the gate. These are the desktop's
+# own, each reading a value already cached, which is what makes a per-frame
+# call fair where the comment on DT_BARI refuses one for an app's text.
+declare -ga DT_BARHOOKS
+declare -gA DT_BARHOOKSRC
+fn dt_barhook(fn) {
+	case " ${DT_BARHOOKS[*]-} " in *" $fn "*) return 0 ;; esac
+	DT_BARHOOKS+=("$fn")
+	DT_BARHOOKSRC["$fn"]=${DT_LOADING-}
+}
+
+# What stops whatever an item keeps running -- a watcher on a program --
+# when its file is taken away while the desktop runs.
+fn dt_baristop(name, fn) {
+	DT_BARI["$name"]["stop"]=$fn
+}
+
+# The bar's items in the order they are laid out from the outer end inwards:
+# the pinned ones by their place, every ordinary one in DT_BARSEQ's order,
+# then those pinned beyond them.
+declare -ga DT_BARLAY
+dt_barlist() {
+	local nm p i top=0
+
+	for nm in "${DT_BARIN[@]}"; do
+		p=${DT_BARI["$nm"]["pin"]-}
+		[ -n "$p" ] || continue
+		[ "${p#-}" -gt "$top" ] && top=${p#-}
+	done
+	DT_BARLAY=()
+	for ((i = 1; i <= top; i++)); do
+		for nm in "${DT_BARIN[@]}"; do
+			[ "${DT_BARI["$nm"]["pin"]-}" = "$i" ] && DT_BARLAY+=("$nm")
+		done
+	done
 	dt_barseq
 	for nm in "${DT_BARSEQ[@]}"; do
+		[ -n "${DT_BARI["$nm"]["pin"]-}" ] && continue
+		DT_BARLAY+=("$nm")
+	done
+	for ((i = 1; i <= top; i++)); do
+		for nm in "${DT_BARIN[@]}"; do
+			[ "${DT_BARI["$nm"]["pin"]-}" = "-$i" ] && DT_BARLAY+=("$nm")
+		done
+	done
+}
+
+# Lay every item out from the bar's outer end -- the right, or the left when
+# mirrored -- and draw it, gap cells between each. The first is always
+# placed; one after it that would reach the app menus' titles gives way, no
+# width and so no click, exactly as the clock and the icon always did, and
+# the next is tried against the same place.
+fn dt_barilay(int gap) {
+	local nm t iw c n=0 pc pw=0 pg=0 hv d
+
+	pc=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS}))
+	case $DT_MIRRORON in 1) pc=$DT_PRIMARY_COL ;; esac
+	MB_AX=-100000
+	case $DT_MIRRORON in 1) ;; *) MB_AX=100000 ;; esac
+	dt_barlist
+	for nm in "${DT_BARLAY[@]}"; do
 		t=${DT_BARI["$nm"]["text"]}
 		DT_BARI["$nm"]["w"]=0
 		[ -n "$t" ] || continue
-		iw := str width "$t"
+		iw=${DT_BARI["$nm"]["rw"]-}
+		[ -n "$iw" ] || iw := str width "$t"
 		case $DT_MIRRORON in
 		1)
-			c=$((c + gap))
-			if [ $((c + iw)) -gt "$DT_MENUSTART" ]; then
-				c=$((c - gap))
-				continue
-			fi
-			DT_BARI["$nm"]["c"]=$c
-			DT_BARI["$nm"]["w"]=$iw
-			dt_bariput "$nm" "$c" "$t"
-			c=$((c + iw))
+			c=$pc
+			[ "$n" -gt 0 ] && c=$((pc + pw + gap - pg))
+			[ "$n" -gt 0 ] && [ $((c + iw)) -gt "$DT_MENUSTART" ] && continue
 			;;
 		*)
-			c=$((c - gap - iw))
-			if [ "$c" -le "$DT_MENUEND" ]; then
-				c=$((c + gap + iw))
-				continue
-			fi
-			DT_BARI["$nm"]["c"]=$c
-			DT_BARI["$nm"]["w"]=$iw
-			dt_bariput "$nm" "$c" "$t"
+			c=$((pc - iw))
+			[ "$n" -gt 0 ] && c=$((pc - gap + pg - iw))
+			[ "$n" -gt 0 ] && [ "$c" -le "$DT_MENUEND" ] && continue
 			;;
 		esac
+		DT_BARI["$nm"]["c"]=$c
+		DT_BARI["$nm"]["w"]=$iw
+		pc=$c
+		pw=$iw
+		pg=${DT_BARI["$nm"]["gadj"]:-0}
+		n=$((n + 1))
+		hv=0
+		[ "$nm" = "$DT_HOVERBI" ] && hv=1
+		d=${DT_BARI["$nm"]["draw"]-}
+		if [ -n "$d" ]; then
+			"$d" "$c" "$hv"
+		else
+			dt_bariput "$nm" "$c" "$t"
+		fi
 	done
-	ret "$c"
+	return 0
 }
 
 # One bar item, on the well colour while the pointer is over it.
@@ -368,7 +589,9 @@ fn dt_barput(int col, t) {
 dt_barkey() {
 	local k
 
-	k="$MB_OPEN|$MB_PAR|$MB_APP|$MB_N|$MB_AX|$DT_NOTEUNSEEN|$DT_UPNEW|$DT_UPAPPS|$DT_UPSESSION"
+	# Not MB_AX: the application menu's own item sets it as it is drawn,
+	# so it is an answer of this drawing rather than something it reads.
+	k="$MB_OPEN|$MB_PAR|$MB_APP|$MB_N|$DT_NOTEUNSEEN|$DT_UPNEW|$DT_UPAPPS|$DT_UPSESSION"
 	k="$k|$DT_CLOCKWAS|$DT_WS|$DT_WSN|$DT_MIRRORON|$DT_PRIMARY_W"
 	k="$k|$DT_PRIMARY_COL|$DT_PRIMARY_ROW|$DT_PRIMARY_H"
 	k="$k|$DT_BARGAP|$DT_BELLICON|$DT_PBAR|$DT_MENUBOLD"
@@ -377,24 +600,6 @@ dt_barkey() {
 	# The items are not in here: dt_baritem clears the gate itself, which
 	# is one place rather than a join of every app's text on every frame.
 	ret "$k"
-}
-
-# Ask for the frame the clock's next tick needs.
-#
-# Outside dt_bar on purpose. Gating a drawing takes with it whatever asks
-# for the next frame from inside it, and this project has now found that
-# three times -- Cursor Blink inside term_draw, the icons' rescan inside
-# dt_wall, and About's own readings inside about_draw. A bar left alone for
-# a frame must still be the thing that wakes the desktop a minute later.
-dt_barwant() {
-	local t
-
-	t := dt_ms
-	case $DT_BARTIME in
-	*%S* | *%T* | *%r* | *%s* | *%X* | *%c*)
-		dt_want $((1000 - t % 1000 + 10)) ;;
-	*) dt_want $((60000 - t % 60000 + 20)) ;;
-	esac
 }
 
 # Put the bar's own pane on the primary's top row, when that has moved.
@@ -421,7 +626,7 @@ dt_barpane() {
 
 # Draw the bar itself.
 dt_bar() {
-	local i=0 t line now gap bell key iend w=${DT_PRIMARY_W:-$DT_COLS}
+	local i=0 t line gap key hk w=${DT_PRIMARY_W:-$DT_COLS}
 
 	# Its own pane, made once and then only when the screen changes shape.
 	# cn_pset throws the pane-ownership map away on every call, so this is
@@ -457,9 +662,13 @@ dt_bar() {
 				1 "$w" "$DT_SHADOW_PCT"
 		fi
 	fi
-	# The clock next, because its rendered text is part of the key: it is
-	# cached against everything it depends on and costs nothing to ask.
-	now := dt_clocktext "$DT_BARTIME" -1
+	# The items whose text follows the desktop's own state bring it up to
+	# date first -- the clock's minute is part of the key through
+	# DT_CLOCKWAS, and every other change clears the gate itself through
+	# dt_baritem. Before the gate, never inside it: gating a drawing takes
+	# with it whatever asks for the next frame from inside it, and the
+	# clock's hook is the thing that wakes an idle desktop once a minute.
+	for hk in "${DT_BARHOOKS[@]}"; do "$hk"; done
 	key := dt_barkey
 	# Two things can make the cells underneath wrong without anything in
 	# that key moving -- a screen saver's own `console clear` outside the
@@ -517,78 +726,12 @@ dt_bar() {
 		i=$((i + 1))
 	done
 
-	case $DT_PBAR in on) gap := dt_pbar && now="$gap  ${GL[dot]}  $now" ;; esac
 	# DT_BARGAP cells between each item on the right -- the application
 	# menu's own leading space is one of them.
 	gap=${DT_BARGAP:-2}
 	[ "$gap" -lt 1 ] && gap=1
 	[ "$gap" -gt 4 ] && gap=4
-	DT_CLOCKW := str width "$now"
-	DT_CLOCKC=$((MB_AX - (gap - 1) - DT_CLOCKW))
-	case $DT_MIRRORON in 1) DT_CLOCKC=$((MB_AX + 14 + gap - 1)) ;; esac
-	# The icon, and beside it how many notes have come since the history
-	# was last opened -- nothing beside it when that is none. Its width is
-	# measured like the clock's rather than assumed: the bell is two cells.
-	bell := dt_bellglyph "$DT_BELLICON"
-	if [ "$DT_NOTEUNSEEN" -gt 9 ]; then
-		bell="${bell}9+"
-	elif [ "$DT_NOTEUNSEEN" -gt 0 ]; then
-		bell="${bell}$DT_NOTEUNSEEN"
-	fi
-	# A newer hibr is on disk than the one running. Here rather than in a
-	# notification alone, because a note times out and this stays true
-	# until the desktop is restarted: a desktop running an old image has
-	# to say so for as long as it is, or the bugs it is reported for are
-	# reported against code that no longer exists (dt_updcheck).
-	# An app, pane or strip module that changed on disk asks for the same
-	# thing -- a restart, which clears this by construction -- so it wears
-	# the same mark rather than a second one (dt_rescan, Gitea #267).
-	[ -n "$DT_UPNEW$DT_UPAPPS" ] && bell="${GL[reload]} $bell"
-	# A different mark, because it asks for a different thing: the reload
-	# above is cleared by a restart and this one is not -- only a new
-	# session reloads what hold renders from (Gitea #174).
-	[ -n "$DT_UPSESSION" ] && bell="${GL[warn]} $bell"
-	DT_BELLW := str width "$bell"
-	DT_BELLC=$((DT_CLOCKC - gap - DT_BELLW))
-	# Long app menus win here too: what would draw over a menu's title
-	# gives way, and with no width it cannot be clicked either. Mirrored,
-	# the clock, the bell and the numbers run rightwards from the
-	# application menu at the left end, and give way to the menus' start.
-	case $DT_MIRRORON in
-	1)
-		DT_BELLC=$((DT_CLOCKC + DT_CLOCKW + gap))
-		[ $((DT_CLOCKC + DT_CLOCKW)) -gt "$DT_MENUSTART" ] && DT_CLOCKW=0
-		[ $((DT_BELLC + DT_BELLW)) -gt "$DT_MENUSTART" ] && DT_BELLW=0
-		iend := dt_barilay $((DT_BELLC + DT_BELLW)) "$gap"
-		dt_wsdraw 0 $((iend + gap))
-		;;
-	*)
-		[ "$DT_CLOCKC" -le "$DT_MENUEND" ] && DT_CLOCKW=0
-		[ "$DT_BELLC" -le "$DT_MENUEND" ] && DT_BELLW=0
-		iend := dt_barilay "$DT_BELLC" "$gap"
-		dt_wsdraw $((iend - gap))
-		;;
-	esac
-	if [ "$DT_NOTEUNSEEN" -gt 0 ]; then
-		console pen "$DT_ACTIVE" "$DT_BAR" bold
-	else
-		console pen "$DT_INK" "$DT_BAR"
-	fi
-	[ "$DT_BELLW" -gt 0 ] && dt_barput "$DT_BELLC" "$bell"
-	console pen "$DT_INK" "$DT_BAR"
-	[ "$DT_CLOCKW" -gt 0 ] && dt_barput "$DT_CLOCKC" "$now"
-	if [ "$MB_OPEN" = app ]; then
-		console pen "$DT_BAR" "$DT_ACTIVE" bold
-	else
-		console pen "$DT_INK" "$DT_BAR"
-	fi
-	t := dt_appname
-	# Eleven columns, not eleven characters: MB_AX leaves fourteen for a
-	# leading space, the name, a space and the arrow, and `${t:0:11}`
-	# counted characters -- so a name with a glyph wider than a cell drew
-	# over the clock. dt_cut measures (ADR 0021).
-	t := dt_cut "$t" 11
-	dt_barput "$MB_AX" " $t ${GL[sdown]}"
+	dt_barilay "$gap"
 	[ "${DT_BARTRANS:-0}" != 0 ] && console translucent off
 	return 0
 }

@@ -1,4 +1,4 @@
-# control-panel/sound-watch -- the machine's sound: which output and input are used, their
+# menubar/sound -- the machine's sound: which output and input are used, their
 # volume and mute, the speaker on the menu bar and the keys that change it
 # (Gitea #306). Control Panel > Sound is the pane over it.
 #
@@ -38,6 +38,8 @@
 # window's content, so it has no pane of its own to target.
 
 strict
+
+app sound "The speaker on the menu bar and the sound it watches" 1.0
 
 # The state: kind (pulse, pw, alsa, none, or gone for a server that went;
 # empty until the first frame looks), server (what the server calls
@@ -853,4 +855,8 @@ fn snd_context(id = "") {
 	fi
 }
 
+# Its place on the bar is taken while the file is read, so that a rescan
+# finding the file gone knows whose item this is (dt_barrescan).
+dt_baritem sound ""
+dt_baristop sound dt_sndstop
 dt_ticker dt_sndtick

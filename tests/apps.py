@@ -309,7 +309,7 @@ check("with no panes loaded, it says so rather than pretending",
       rc == 0 and out == "no panes registered", out)
 
 CP = tree("programs/desktop/control-panel")
-CPLOAD = ('. %s\n. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes\n'
+CPLOAD = ('. %s\n. %s/panel.hibr\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANEDIRS+=("%s")\ncp_panes\n'
           % (WM, SYS, CP))
 out = subprocess.run([sx.HIBR, "-c", CPLOAD + 'for p in "${CP_PANE_LIST[@]}"; '
                       'do echo "$p ${CP_PANES[$p]["group"]}"; done'],
@@ -343,7 +343,7 @@ PWTALL = "30 70 2 2"
 TALLROWS = 34
 PANEL = ("panel", PW)
 TICK = "DT_TICK=200"
-CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
+CPANES = 'DT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANEDIRS+=("%s")\ncp_panes' % CP
 
 # Absolute screen coordinates for PW's geometry (row 2, col 2): a pane's
 # own first content row is at 3, its dropdown/checkbox column at 58 --

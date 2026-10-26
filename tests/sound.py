@@ -176,7 +176,7 @@ def srun(feed, until=None, panel=False, env=None, rows=30, cols=100, settle=2.0,
     s = tempfile.mkdtemp(prefix="hibr-snd-s-", dir=D)
     p = os.path.join(s, "session.hibr")
     open(p, "w").write(
-        "%s. %s\n. %s/panel.hibr\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n%s%s"
+        "%s. %s\n. %s/panel.hibr\nDT_BARDIRS+=(\"$DT_HERE/menubar\")\ndt_menubar\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n%s%s"
         "dt_run\ndt_close\n"
         % (load("console"), tree("programs/desktop/desktop.hibr"), SYS, CPD, pre,
            "dt_panelpane sound\n" if panel else ""))
@@ -231,7 +231,7 @@ try:
     p0 = os.path.join(s0, "session.hibr")
     open(p0, "w").write("%s. %s\n. %s\ndt_open\ndt_run\ndt_close\n"
                         % (load("console"), tree("programs/desktop/desktop.hibr"),
-                           tree("programs/desktop/control-panel/sound-watch.hibr")))
+                           tree("programs/desktop/menubar/sound.hibr")))
     t0 = Term(p0, env={"XDG_RUNTIME_DIR": RT, "DT_BARTIME": "12:00"},
               rows=30, cols=100, settle=2.0)
     t0.keys([b"\x1b="], settle=0.5)
@@ -262,7 +262,7 @@ try:
     p1 = os.path.join(s1, "session.hibr")
     open(p1, "w").write("%s. %s\n. %s\ndt_open\ndt_run\ndt_close\n"
                         % (load("console"), tree("programs/desktop/desktop.hibr"),
-                           tree("programs/desktop/control-panel/sound-watch.hibr")))
+                           tree("programs/desktop/menubar/sound.hibr")))
     t1 = Term(p1, env={"HIBR_SOUND": "auto", "PULSE_SERVER": None,
                        "XDG_RUNTIME_DIR": RT, "DT_BARTIME": "12:00"},
               rows=30, cols=100, settle=2.0)
@@ -533,7 +533,7 @@ try:
         p2 = os.path.join(s2, "session.hibr")
         open(p2, "w").write("%s. %s\n. %s\ndt_open\ndt_run\ndt_close\n"
                             % (load("console"), tree("programs/desktop/desktop.hibr"),
-                               tree("programs/desktop/control-panel/sound-watch.hibr")))
+                               tree("programs/desktop/menubar/sound.hibr")))
         t2 = Term(p2, env=e2, rows=30, cols=100, settle=2.0)
         t2.until(lambda sc: "%" in sc.row(0), 80)
         time.sleep(1.2)
@@ -565,7 +565,7 @@ try:
         ". %s\nDT_SND[\"kind\"]=alsa\nDT_SND[\"in\"]=2\nDT_SND[\"out\"]=1\n"
         "dt_sndrcwrite 1 2\nr := dt_sndacard; echo \"first $r\"\n"
         "DT_SND[\"in\"]=2\ndt_sndrcwrite 3 \"${DT_SND[\"in\"]}\"\n"
-        "r := dt_sndacard; echo \"then $r\"\n" % tree("programs/desktop/control-panel/sound-watch.hibr")],
+        "r := dt_sndacard; echo \"then $r\"\n" % tree("programs/desktop/menubar/sound.hibr")],
         env=dict(os.environ, DT_SNDRC=rc), capture_output=True, text=True, timeout=30)
     body = open(rc).read() if os.path.exists(rc) else ""
     check("with ALSA alone, choosing an output writes it apart from the input",

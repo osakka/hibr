@@ -8,7 +8,7 @@ printf 'xx\n' > "$tmp/one"; printf 'yyy\n' > "$tmp/two"
 
 for e in examples/*.hibr programs/*.hibr programs/desktop/*.hibr programs/desktop/apps/*.hibr \
          programs/desktop/apps/*/*.hibr programs/desktop/control-panel/*.hibr \
-         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr \
+         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr programs/desktop/menubar/*.hibr \
          programs/desktop/wm/*.hibr programs/desktop/widgets/*.hibr \
          programs/desktop/savers/*.hibr programs/desktop/login/*.hibr \
          programs/desktop/lib/*.hibr; do
@@ -24,7 +24,7 @@ echo "every example parses"
 defs='s/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p; s/^fn \([A-Za-z_][A-Za-z0-9_]*\)(.*/\1/p'
 for e in examples/*.hibr programs/*.hibr programs/desktop/*.hibr programs/desktop/apps/*.hibr \
          programs/desktop/apps/*/*.hibr programs/desktop/control-panel/*.hibr \
-         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr; do
+         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr programs/desktop/menubar/*.hibr; do
   sed -n "$defs" "$e" | sort | uniq -d |
     while read -r f; do echo "defined twice in $e: $f"; done
 done
@@ -60,7 +60,7 @@ echo "the catalogue uses one prefix"
 # own trap entry for the pattern in full.
 for e in examples/*.hibr programs/*.hibr programs/desktop/*.hibr programs/desktop/apps/*.hibr \
          programs/desktop/apps/*/*.hibr programs/desktop/control-panel/*.hibr \
-         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr \
+         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr programs/desktop/menubar/*.hibr \
          programs/desktop/wm/*.hibr programs/desktop/widgets/*.hibr; do
   awk '
   /^[[:space:]]*local[[:space:]]/ {
@@ -312,7 +312,7 @@ for f in programs/desktop/desktop.hibr \
          programs/desktop/apps/*.hibr programs/desktop/apps/*/*.hibr \
          programs/desktop/system/*.hibr \
          programs/desktop/control-panel/*.hibr \
-         programs/desktop/control-strip/*.hibr \
+         programs/desktop/control-strip/*.hibr programs/desktop/menubar/*.hibr \
          programs/desktop/savers/*.hibr programs/desktop/login/*.hibr \
          programs/desktop/lib/*.hibr; do
   grep -qx 'strict' "$f" || echo "not under every strict check: $f"
@@ -361,7 +361,7 @@ echo "no window content draws at absolute screen coordinates"
 for e in programs/desktop/wm/*.hibr programs/desktop/widgets/*.hibr \
          programs/desktop/apps/*.hibr programs/desktop/apps/*/*.hibr \
          programs/desktop/control-panel/*.hibr programs/desktop/system/*.hibr \
-         programs/desktop/control-strip/*.hibr; do
+         programs/desktop/control-strip/*.hibr programs/desktop/menubar/*.hibr; do
   awk -v f="$e" '
     /^[[:space:]]*#/ { next }
     /dt_context_open[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[0-9]+([[:space:]]|$)/ {

@@ -1,0 +1,8 @@
+{
+ "title": "Bluetooth",
+ "about": "Bluetooth on the menu bar, and Control Panel > Bluetooth: the adapter on or off, the devices it knows to connect, disconnect or forget, and new ones to pair.",
+ "members": [
+  "menubar/bluetooth",
+  "control-panel/bluetooth"
+ ]
+}

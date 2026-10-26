@@ -623,6 +623,7 @@ Mark as Read
 Mark as Unread
 May
 Menu Bar
+Menu Bar Item
 Menu Width
 Menu bar
 Menus
@@ -886,6 +887,7 @@ Remove %s, every time it repeats?
 Remove %s?
 Remove Bookmark
 Remove This Note
+Remove it, with the parts nothing else needs?
 Remove the account %s? Its offline mail is kept.
 Remove the server %s?
 Removed from your calendar
@@ -1246,6 +1248,7 @@ blocks only, no cell size given
 blocks only, no pixels
 blocks only: it does not draw pixels
 blocks only: it does not say what a cell measures
+brings %s
 by cable
 cancelled
 case does not matter
@@ -1276,6 +1279,7 @@ incoming
 installed %s
 installed %s, %s available
 installed on this machine for everyone
+installed, with %s
 integers only
 it did not answer -- is it on and near?
 it took too long

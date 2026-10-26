@@ -1,0 +1,72 @@
+# menubar/notifications -- the notification icon: the glyph Appearance chose
+# (DT_BELLICON), how many notes have come since the history was last opened,
+# and the marks that say a restart or a new session is owed.
+#
+# A bar item since Gitea #392, pinned beside the clock. A left press opens
+# the notes' panel under it (dt_bellpop, wm/notify.hibr), a right one its
+# own menu.
+#
+# platform: the bar the window manager draws, loaded by it whatever else
+# is installed, so a desktop with no session still has it.
+
+strict
+
+app notifications "The notification icon on the menu bar" 1.0
+
+# Everything the text is made from, so it is made only when that changes.
+DT_BELLIKEY=
+
+dt_baritem bell ""
+dt_baripin bell 3
+dt_barilabel bell "Notifications"
+dt_baridraw bell dt_belldraw
+dt_baripress bell dt_bellpress
+dt_barhook dt_bellhook
+
+dt_bellhook() {
+	local b k
+
+	k="$DT_BELLICON|$DT_GLYPHSET|$DT_NOTEUNSEEN|$DT_UPNEW$DT_UPAPPS|$DT_UPSESSION"
+	[ "$k" = "$DT_BELLIKEY" ] && return 0
+	DT_BELLIKEY=$k
+	b := dt_bellglyph "$DT_BELLICON"
+	if [ "$DT_NOTEUNSEEN" -gt 9 ]; then
+		b="${b}9+"
+	elif [ "$DT_NOTEUNSEEN" -gt 0 ]; then
+		b="${b}$DT_NOTEUNSEEN"
+	fi
+	# A newer hibr is on disk than the one running. Here rather than in a
+	# notification alone, because a note times out and this stays true
+	# until the desktop is restarted: a desktop running an old image has
+	# to say so for as long as it is (dt_updcheck). An app, pane or strip
+	# module that changed on disk asks for the same thing -- a restart --
+	# so it wears the same mark (dt_rescan, Gitea #267).
+	[ -n "$DT_UPNEW$DT_UPAPPS" ] && b="${GL[reload]} $b"
+	# A different mark, because it asks for a different thing: only a new
+	# session reloads what hold renders from (Gitea #174).
+	[ -n "$DT_UPSESSION" ] && b="${GL[warn]} $b"
+	dt_baritem bell "$b"
+}
+
+# In the accent while there are notes nobody has looked at.
+fn dt_belldraw(int c, int hover) {
+	local bg=$DT_BAR
+
+	[ "$hover" = 1 ] && bg=$DT_WELL
+	if [ "$DT_NOTEUNSEEN" -gt 0 ]; then
+		console pen "$DT_ACTIVE" "$bg" bold
+	else
+		console pen "$DT_INK" "$bg"
+	fi
+	dt_barput "$c" "${DT_BARI["bell"]["text"]}"
+	console pen "$DT_INK" "$DT_BAR"
+}
+
+fn dt_bellpress(btn, int r, int c) {
+	if [ "$btn" = right ]; then
+		dt_context_open nhbell "" "$r" "$c"
+	else
+		dt_bellpop
+	fi
+	return 0
+}

@@ -19,7 +19,7 @@
 
 strict
 
-app catalogue "The application catalogue: browse, install, update and remove" 2.6
+app catalogue "The application catalogue: browse, install, update and remove" 2.7
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
@@ -132,7 +132,12 @@ fn cat_loaded(int id, int st, int n, what = "") {
 	# Deriving it is what makes an old `apps` show a list rather than
 	# an empty window with no error in it.
 	CAT_KINDS=()
+	# Bundles first, a section of their own above the rest (owner, Gitea
+	# #392): one is a whole thing -- Sound -- where every other kind is a
+	# piece, and its members are still shown in their own kinds below.
+	[ -n "${j["kinds"]["bundles"]+x}" ] && CAT_KINDS+=(bundles)
 	for k in "${!j["kinds"][@]}"; do
+		[ "$k" = bundles ] && continue
 		CAT_KINDS+=("$k")
 	done
 	for k in "${!j["entries"][@]}"; do
@@ -141,6 +146,13 @@ fn cat_loaded(int id, int st, int n, what = "") {
 		CAT[$id]["e"][$i]["title"]=${j["entries"]["$k"]["title"]}
 		CAT[$id]["e"][$i]["version"]=${j["entries"]["$k"]["version"]}
 		CAT[$id]["e"][$i]["installed"]=${j["entries"]["$k"]["installed"]}
+		# A bundle has no version, and is installed when its members
+		# are: the catalogue says so in `where`, and every question
+		# this window asks of `installed` has to get that answer.
+		CAT[$id]["e"][$i]["members"]=${j["entries"]["$k"]["members"]-}
+		[ "${j["entries"]["$k"]["kind"]}" = bundles ] &&
+			[ "${j["entries"]["$k"]["where"]}" = installed ] &&
+			CAT[$id]["e"][$i]["installed"]=1
 		# Where it is, which is not the same question as whether the
 		# catalogue placed it: the shipped package is nobody's
 		# install, so this window drew an unticked row for four
@@ -220,6 +232,8 @@ fn cat_kindname(k) {
 	system) ret "Desktop" ;;
 	control-panel) ret "Control Panel" ;;
 	control-strip) ret "Control Strip" ;;
+	menubar) ret "Menu Bar" ;;
+	bundles) ret "Bundles" ;;
 	savers) ret "Screen savers" ;;
 	themes) ret "Themes" ;;
 	colours) ret "Colour schemes" ;;
@@ -617,7 +631,14 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 		st=${CAT[$id]["e"][$e]["id"]}
 		t := dt_cut "$st" "$dw"
 		console put -p "w$id" 2 $((listw + 3)) "$t"
-		if [ "${CAT[$id]["e"][$e]["update"]}" = 1 ]; then
+		if [ "${CAT[$id]["e"][$e]["kind"]}" = bundles ]; then
+			st=${CAT[$id]["e"][$e]["members"]}
+			if [ -n "${CAT[$id]["e"][$e]["installed"]}" ]; then
+				t := dt_tr "installed, with %s" "${st// /, }"
+			else
+				t := dt_tr "brings %s" "${st// /, }"
+			fi
+		elif [ "${CAT[$id]["e"][$e]["update"]}" = 1 ]; then
 			t := dt_tr "installed %s, %s available" \
 				"${CAT[$id]["e"][$e]["installed"]}" \
 				"${CAT[$id]["e"][$e]["version"]}"
@@ -798,9 +819,29 @@ fn cat_act(int id, what, ...rest) {
 	case $what in
 	install) cat_job "$id" "install $wid" cat_acted catalogue install "$wid" ;;
 	update) cat_job "$id" "update $wid" cat_acted catalogue update "$wid" ;;
-	remove) cat_job "$id" "remove $wid" cat_acted catalogue remove "$wid" ;;
+	remove)
+		# A bundle takes its members with it, so it asks first; the
+		# command itself would refuse to guess, having no terminal.
+		if [ "${CAT[$id]["e"][$e]["kind"]}" = bundles ]; then
+			CAT_RMWIN=$id
+			CAT_RMWHAT=$wid
+			dt_confirm "Remove it, with the parts nothing else needs?" cat_rmbundle
+			return 0
+		fi
+		cat_job "$id" "remove $wid" cat_acted catalogue remove "$wid" ;;
 	esac
 	return 0
+}
+
+# Which bundle the confirm above is about, for its Yes.
+CAT_RMWIN=
+CAT_RMWHAT=
+cat_rmbundle() {
+	[ -n "$CAT_RMWIN" ] && [ -n "$CAT_RMWHAT" ] || return 0
+	cat_job "$CAT_RMWIN" "remove $CAT_RMWHAT" cat_acted \
+		catalogue remove -y "$CAT_RMWHAT"
+	CAT_RMWIN=
+	CAT_RMWHAT=
 }
 
 fn cat_acted(int id, int st, int n, what = "") {

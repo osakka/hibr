@@ -1,0 +1,52 @@
+# menubar/clock -- the time, in the format Date & Time chose (DT_BARTIME),
+# with the next prayer before it when the prayer bar is on.
+#
+# A bar item since Gitea #392, pinned beside the application menu. A press
+# opens the Clock, when there is one.
+#
+# platform: the bar the window manager draws, loaded by it whatever else
+# is installed, so a desktop with no session still has it.
+
+strict
+
+app clock "The clock on the menu bar" 1.0
+
+# What the text was last made from, so it is made again only when that
+# changes: the clock's own text is cached by dt_clocktext, the prayer's is
+# not, and asking for it on every frame would be a cost the bar never paid
+# before it was an item.
+DT_CLOCKIKEY=
+
+dt_baritem clock ""
+dt_baripin clock 2
+dt_barilabel clock "Clock"
+dt_baripress clock dt_clockpress
+dt_barhook dt_clockhook
+
+dt_clockhook() {
+	local now g t k
+
+	now := dt_clocktext "$DT_BARTIME" -1
+	k="$now|$DT_PBAR|$DT_GLYPHSET"
+	if [ "$k" != "$DT_CLOCKIKEY" ]; then
+		DT_CLOCKIKEY=$k
+		t=$now
+		case $DT_PBAR in on) g := dt_pbar && t="$g  ${GL[dot]}  $now" ;; esac
+		dt_baritem clock "$t"
+	fi
+	# The frame its next tick needs. Here, before the bar's gate, and so on
+	# every frame: a bar left alone for a frame must still be the thing
+	# that wakes the desktop a minute later.
+	g := dt_ms
+	case $DT_BARTIME in
+	*%S* | *%T* | *%r* | *%s* | *%X* | *%c*)
+		dt_want $((1000 - g % 1000 + 10)) ;;
+	*) dt_want $((60000 - g % 60000 + 20)) ;;
+	esac
+}
+
+fn dt_clockpress(btn, int r, int c) {
+	dt_mclose
+	dt_has clock_draw && dt_launch clock
+	return 0
+}

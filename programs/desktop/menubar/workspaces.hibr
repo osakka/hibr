@@ -1,0 +1,64 @@
+# menubar/workspaces -- the workspace numbers, the current one lit, when
+# there is more than one workspace.
+#
+# A bar item since Gitea #392, pinned beyond every other item. A press on a
+# number goes to that workspace; a window let go over one is moved there,
+# which wm/input.hibr asks of dt_wshit (wm/workspaces.hibr).
+#
+# platform: the bar the window manager draws, loaded by it whatever else
+# is installed, so a desktop with no session still has it.
+
+strict
+
+app workspaces "The workspace numbers on the menu bar" 1.0
+
+DT_WSIKEY=
+
+dt_baritem ws ""
+dt_baripin ws -1
+dt_baridraw ws dt_wsdraw
+dt_baripress ws dt_wspress
+dt_barhook dt_wshook
+
+dt_wshook() {
+	local i=2 t=1
+
+	[ "$DT_WS|$DT_WSN" = "$DT_WSIKEY" ] && return 0
+	DT_WSIKEY="$DT_WS|$DT_WSN"
+	if [ "$DT_WSN" -le 1 ]; then
+		dt_baritem ws ""
+		return 0
+	fi
+	while [ "$i" -le "$DT_WSN" ]; do
+		t+=" $i"
+		i=$((i + 1))
+	done
+	# Two cells a number, whatever its digits: dt_wshit counts them so.
+	dt_bariwide ws $((DT_WSN * 2 - 1))
+	dt_baritem ws "$t"
+}
+
+fn dt_wsdraw(int c, int hover) {
+	local i=1
+
+	while [ "$i" -le "$DT_WSN" ]; do
+		if [ "$i" = "$DT_WS" ]; then
+			console pen "$DT_BAR" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_IDLE" "$DT_BAR"
+		fi
+		dt_barput $((c + (i - 1) * 2)) "$i"
+		i=$((i + 1))
+	done
+	console pen "$DT_INK" "$DT_BAR"
+}
+
+fn dt_wspress(btn, int r, int c) {
+	local n
+
+	[ "$btn" = right ] && return 1
+	n := dt_wshit "$c" || return 1
+	dt_mclose
+	dt_wsgo "$n"
+	return 0
+}

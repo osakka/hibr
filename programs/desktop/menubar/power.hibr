@@ -1,4 +1,4 @@
-# control-panel/power-watch -- the battery and the machine's power (Gitea #365): each
+# menubar/power -- the battery and the machine's power (Gitea #365): each
 # battery's charge, whether it is charging, the time left and its health,
 # read from the kernel's own files; an item on the menu bar while there is
 # a battery; a note when the charge runs low, and a choice of what to do
@@ -16,6 +16,8 @@
 # window's content, so it has no pane of its own to target.
 
 strict
+
+app power "The battery on the menu bar and the charge it watches" 1.0
 
 declare -gA DT_PW
 # Where the batteries are: the kernel's folder, a name a test can put a
@@ -251,4 +253,7 @@ fn pw_context(id = "") {
 	fi
 }
 
+# Its place on the bar is taken while the file is read, so that a rescan
+# finding the file gone knows whose item this is (dt_barrescan).
+dt_baritem pw ""
 dt_ticker dt_pwtick

@@ -57,6 +57,7 @@ downside is usually a decision nobody had to make.
 | [0045](0045-a-thing-has-a-scope.md) | A thing has a scope, and the scope says where it lives | accepted |
 | [0046](0046-an-installable-reaches-only-what-every-scope-has.md) | An installable reaches only what every scope has | accepted |
 | [0047](0047-what-the-package-ships.md) | What the package ships is one list, and a part goes where its owner goes | accepted |
+| [0048](0048-a-menu-bar-item-is-a-file-and-a-bundle-is-a-list.md) | A menu bar item is a file, and a bundle is a list of entries | accepted |
 
 ---
 

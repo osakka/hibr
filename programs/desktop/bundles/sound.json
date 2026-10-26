@@ -1,0 +1,8 @@
+{
+ "title": "Sound",
+ "about": "The speaker on the menu bar, and Control Panel > Sound: the output and the input in use, each one's level and mute, and how far a key or a wheel notch moves the volume.",
+ "members": [
+  "menubar/sound",
+  "control-panel/sound"
+ ]
+}

@@ -4,30 +4,33 @@
 # output and the input used, each one's level and mute, how far a key or
 # a wheel notch moves the volume, and whether the speaker is on the menu
 # bar. The keys themselves are rows in Shortcuts. Everything here acts
-# through control-panel/sound-watch.hibr, which says what kind of sound this machine has:
+# through menubar/sound.hibr, which says what kind of sound this machine has:
 # a server PipeWire or PulseAudio answers for, or ALSA's mixer.
 #
-# part: control-panel/sound-watch.hibr
+# needs: menubar/sound
 
 strict
 
-app sound "The Control Panel pane for the machine's sound" 2.0
+app sound "The Control Panel pane for the machine's sound" 3.0
 command -v cp_pane > /dev/null && cp_pane sound "Sound" "♪" hardware
 
 SN_KINDS=(Auto PulseAudio PipeWire ALSA None)
 
 fn cp_set_sndkind(int? id = "", value = "") {
+	dt_has dt_sndtick || return 0
 	DT_SNDKIND=$value
 	cp_save
 	dt_sndagain
 }
 fn cp_set_sndout(int? id = "", value = "") {
+	dt_has dt_sndtick || return 0
 	local nm
 
 	nm := dt_sndname out "$value"
 	dt_sndout "$nm"
 }
 fn cp_set_sndin(int? id = "", value = "") {
+	dt_has dt_sndtick || return 0
 	local nm
 
 	nm := dt_sndname in "$value"
@@ -37,6 +40,13 @@ fn cp_set_sndin(int? id = "", value = "") {
 # Where the sound server's name is said: what it calls itself, or that
 # there is none.
 fn sound_rows(int w) {
+	# Nothing to show without the menu bar item this acts through,
+	# which a person may have taken away on its own (Gitea #392).
+	if ! dt_has dt_sndtick; then
+		CP[$w][0]["kind"]=info; CP[$w][0]["text"]="Menu Bar Item"
+		CP[$w][0]["val"]="not installed"
+		ret 1
+	fi
 	local n=0 d v
 
 	[ -n "${DT_SND["kind"]}" ] || dt_sndstart
@@ -103,6 +113,7 @@ fn sound_rows(int w) {
 }
 
 fn sound_do(int w, k, int dir) {
+	dt_has dt_sndtick || return 0
 	local v i=0 cur
 
 	case $k in
@@ -137,6 +148,7 @@ fn sound_do(int w, k, int dir) {
 }
 
 fn sound_slide(int w, k, int value) {
+	dt_has dt_sndtick || return 0
 	case $k in
 	vol) dt_sndvol "$value" ;;
 	ivol) dt_sndivol "$value" ;;

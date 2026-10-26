@@ -22,7 +22,7 @@
 ROOT=${SHIPS_ROOT:-.}
 DESK=$ROOT/programs/desktop
 LIST=$ROOT/packaging/ships
-KINDS=(apps system control-panel control-strip savers themes colours lang)
+KINDS=(apps system control-panel control-strip menubar savers themes colours lang bundles)
 
 declare -A SHIP
 declare -A PARTOF
@@ -33,7 +33,7 @@ ERRS=0
 # What a kind calls its installables.
 fn ext(kind) {
 	case $kind in
-	themes | colours | lang) ret ".json" ;;
+	themes | colours | lang | bundles) ret ".json" ;;
 	*) ret ".hibr" ;;
 	esac
 }
@@ -62,7 +62,7 @@ fn partsof(rel, kind) {
 		fi
 		ret "$out"
 		return 0 ;;
-	colours | lang)
+	colours | lang | bundles)
 		ret ""
 		return 0 ;;
 	esac

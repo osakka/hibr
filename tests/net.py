@@ -133,7 +133,7 @@ def srun(net, feed, until=None, panel=False, env=None, rows=30, cols=100, during
     s = tempfile.mkdtemp(prefix="s-", dir=D)
     p = os.path.join(s, "session.hibr")
     open(p, "w").write(
-        "%s. %s\n. %s/panel.hibr\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n%s"
+        "%s. %s\n. %s/panel.hibr\nDT_BARDIRS+=(\"$DT_HERE/menubar\")\ndt_menubar\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n%s"
         "dt_run\ndt_close\n"
         % (load("console"), tree("programs/desktop/desktop.hibr"), SYS, CPD,
            "dt_panelpane networks\n" if panel else ""))

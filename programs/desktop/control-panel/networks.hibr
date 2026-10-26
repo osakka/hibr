@@ -3,7 +3,7 @@
 # networks -- the Control Panel pane called Network (Gitea #311): what the
 # machine is on and its address, Wi-Fi on or off, the networks in reach to
 # join, the ones it knows to forget, and the item on the menu bar. It acts
-# through control-panel/net-watch.hibr, which says how this machine is networked:
+# through menubar/network.hibr, which says how this machine is networked:
 # NetworkManager, or iproute2's view alone.
 #
 # The pane is called networks, not network, on purpose: network is the
@@ -11,11 +11,11 @@
 # copy of it installed in a person's own scope would win over a shipped file
 # of the same name -- so a new pane there would be shadowed by an old one.
 #
-# part: control-panel/net-watch.hibr
+# needs: menubar/network
 
 strict
 
-app networks "The Control Panel pane for the machine's network and Wi-Fi" 2.0
+app networks "The Control Panel pane for the machine's network and Wi-Fi" 3.0
 command -v cp_pane > /dev/null && cp_pane networks "Network" "⇌" hardware
 
 NT_KINDS=(Auto NetworkManager None)
@@ -23,12 +23,20 @@ NT_KINDS=(Auto NetworkManager None)
 NT_FORGET=
 
 fn cp_set_netkind(int? id = "", value = "") {
+	dt_has dt_nettick || return 0
 	DT_NETKIND=$value
 	cp_save
 	dt_netagain
 }
 
 fn networks_rows(int w) {
+	# Nothing to show without the menu bar item this acts through,
+	# which a person may have taken away on its own (Gitea #392).
+	if ! dt_has dt_nettick; then
+		CP[$w][0]["kind"]=info; CP[$w][0]["text"]="Menu Bar Item"
+		CP[$w][0]["val"]="not installed"
+		ret 1
+	fi
 	local n=0 i b t lk s
 
 	[ -n "${DT_NET["kind"]}" ] || dt_netstart
@@ -156,6 +164,7 @@ fn networks_rows(int w) {
 }
 
 fn networks_do(int w, k, int dir) {
+	dt_has dt_nettick || return 0
 	local v i nm
 
 	case $k in
@@ -191,6 +200,7 @@ fn networks_do(int w, k, int dir) {
 
 # Yes on the confirm: the saved connection goes, password and all.
 networks_forget() {
+	dt_has dt_nettick || return 0
 	[ -n "$NT_FORGET" ] && dt_netforget "$NT_FORGET"
 	NT_FORGET=
 }

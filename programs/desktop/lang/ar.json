@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.38",
+ "version": "3.39",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1376,6 +1376,10 @@
   "This site and its sister hosts. Any other site opens in the Browser.": "هذا الموقع ومضيفاته الشقيقة. أي موقع آخر يُفتح في المتصفح.",
   "Web App": "تطبيق ويب",
   "Web Apps": "تطبيقات الويب",
-  "Zoom:": "تكبير:"
+  "Zoom:": "تكبير:",
+  "Remove it, with the parts nothing else needs?": "أأزيله مع الأجزاء التي لا يحتاجها شيء آخر؟",
+  "brings %s": "يجلب %s",
+  "installed, with %s": "مثبّت، مع %s",
+  "Menu Bar Item": "عنصر شريط القوائم"
  }
 }

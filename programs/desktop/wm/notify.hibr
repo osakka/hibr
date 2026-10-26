@@ -609,7 +609,7 @@ dt_bellpop() {
 	[ "$h" -gt 10 ] && h=10
 	[ "$h" -lt 1 ] && h=1
 	h=$((h + 5))
-	c=$((${DT_BELLC:-0} + ${DT_BELLW:-1} - w))
+	c=$((${DT_BARI["bell"]["c"]:-0} + ${DT_BARI["bell"]["w"]:-1} - w))
 	NHP_TOP=0
 	DT_NOTEUNSEEN=0
 	[ "$DT_POP" = nhpop ] || dt_note_clear

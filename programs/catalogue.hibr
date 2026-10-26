@@ -153,13 +153,21 @@ CAT_URL=
 # is never offered on a menu. It is an ordinary script otherwise -- readable
 # with `catalogue show`, its `sha256` and the index's signature checked --
 # and whatever runs it (a launcher a package ships, a service) looks there.
-CAT_KINDS=(apps system control-panel control-strip savers themes colours lang
-	  mods cli)
+#
+# `menubar` is an item on the menu bar -- the clock, the speaker -- with
+# whatever watcher it shows, found in its own folder as every other kind
+# is (Gitea #392). `bundles` has no file of its own at all: it is a list of
+# other entries, installed together, like a metapackage. It carries no
+# version, being current when its members are, and its ledger entry
+# remembers the members it was installed with, so that an update can tell
+# a member the catalogue has added since from one somebody took away.
+CAT_KINDS=(apps system control-panel control-strip menubar savers themes
+	  colours lang mods cli bundles)
 declare -gA CAT_KEXT=(
 	[apps]=.hibr [system]=.hibr [control-panel]=.hibr
-	[control-strip]=.hibr [savers]=.hibr
+	[control-strip]=.hibr [menubar]=.hibr [savers]=.hibr
 	[themes]=.json [colours]=.json [lang]=.json
-	[mods]=.so [cli]=.hibr
+	[mods]=.so [cli]=.hibr [bundles]=.json
 )
 # What signs the catalogue. The apt repository's own key: one key for the
 # two things this project publishes, rather than a second to lose. The
@@ -414,6 +422,13 @@ fn cat_resolve(want) {
 		all="$all${all:+, }$id"
 		n=$((n + 1))
 	done
+	# A bare name a bundle shares with its own members means the bundle:
+	# `catalogue install sound` is asking for Sound, which is the speaker
+	# and its pane together, not for one half of it (Gitea #392).
+	if [ "$n" -gt 1 ] && [ "${#CAT_IX["$CAT_SECT"]["bundles/$want"][@]}" -gt 0 ]; then
+		ret "bundles/$want"
+		return 0
+	fi
 	if [ "$n" -gt 1 ]; then
 		cat_die "$want: the catalogue has more than one -- $all
 Name the one you mean."
@@ -572,7 +587,7 @@ fn cat_entry(id) {
 	# string and let a darwin-arm64 module install on linux-x86_64 --
 	# measured, not reasoned about. Anything added to the index that a
 	# verb reads goes here too.
-	for k in title version about author licence hibr abi arch bundle sha256 kind modules name dir; do
+	for k in title version about author licence hibr abi arch bundle sha256 kind modules name dir needs members; do
 		CAT_ENT["$k"]=${CAT_IX["$CAT_SECT"]["$key"]["$k"]}
 	done
 	# The *name* is what a file is called where it lands; the **id** is
@@ -857,6 +872,9 @@ fn cat_list(want = "", int j = 0) {
 			out["entries"]["${CAT_ENT["id"]}"]["title"]=${CAT_ENT["title"]}
 			out["entries"]["${CAT_ENT["id"]}"]["version"]=${CAT_ENT["version"]}
 			out["entries"]["${CAT_ENT["id"]}"]["about"]=${CAT_ENT["about"]}
+			# What a bundle installs, for the window's own section
+			# (Gitea #392); empty for anything else.
+			out["entries"]["${CAT_ENT["id"]}"]["members"]=${CAT_ENT["members"]//,/ }
 			out["entries"]["${CAT_ENT["id"]}"]["installed"]=$v
 			out["entries"]["${CAT_ENT["id"]}"]["update"]=0
 			[ -n "$v" ] && [ "$v" != "${CAT_ENT["version"]}" ] &&
@@ -925,6 +943,9 @@ fn cat_list(want = "", int j = 0) {
 				"${CAT_ENT["name"]}" || w=
 			case $w in
 			system | shipped) scp=$w ;;
+			# A bundle, which has no version in the ledger and is
+			# here when its members are (Gitea #392).
+			installed) scp=$CAT_SCOPE ;;
 			esac
 			v=${CAT_ENT["version"]}
 		fi
@@ -1136,6 +1157,14 @@ fn cat_where(id, kind, name) {
 	# the second is what let the window offer Install on something the
 	# package already provides at the same version.
 	CAT_HAVE=
+	# A bundle is wherever its members are, all of them: it has no file
+	# and no version, and "do I have Sound" is "do I have its speaker and
+	# its pane" (Gitea #392). Installed when the ledger holds any of them,
+	# since that is what removing it would act on.
+	if [ "$kind" = bundles ]; then
+		cat_bundlewhere "$id"
+		return
+	fi
 	if [ -n "${CAT_ST["installed"]["$id"]["version"]}" ]; then
 		CAT_HAVE=${CAT_ST["installed"]["$id"]["version"]}
 		ret installed
@@ -1145,6 +1174,40 @@ fn cat_where(id, kind, name) {
 	CAT_HAVE=
 	cat_shipped "$kind" "$name" && ret shipped
 	return 1
+}
+
+# Where a bundle is, from its members: every one present somewhere, or it
+# is not there. The members come from the index, or -- for one the index has
+# dropped -- from what the ledger recorded at install.
+fn cat_bundlewhere(id) {
+	local m w out=shipped ms
+	local -a mem
+
+	ms := cat_members "$id"
+	read -ra mem <<< "$ms"
+	[ "${#mem[@]}" -gt 0 ] || return 1
+	for m in "${mem[@]}"; do
+		w := cat_where "$m" "${m%%/*}" "${m#*/}" || w=
+		[ -n "$w" ] || { out=; break; }
+		case $w in
+		installed) out=installed ;;
+		system) [ "$out" = shipped ] && out=system ;;
+		esac
+	done
+	CAT_HAVE=
+	[ -n "$out" ] || return 1
+	ret "$out"
+}
+
+# A bundle's members, space-separated: the index's list, or what the ledger
+# recorded when it was installed, for one the index no longer offers.
+fn cat_members(id) {
+	local k=$id ms
+
+	[ "${#CAT_IX["$CAT_SECT"]["$k"][@]}" -gt 0 ] || k=${id##*/}
+	ms=${CAT_IX["$CAT_SECT"]["$k"]["members"]-}
+	[ -n "$ms" ] || ms=${CAT_ST["installed"]["$id"]["members"]-}
+	ret "${ms//,/ }"
 }
 
 # Is there a copy in the machine's scope at all, for the defunct column.
@@ -1385,6 +1448,8 @@ fn cat_show(want) {
 	cat_load
 	name := cat_resolve "$want" || cat_die "$want: no such app in the index"
 	cat_entry "$name" || cat_die "$name: no such app in the index"
+	[ "${CAT_ENT["kind"]}" = bundles ] &&
+		cat_die "${CAT_ENT["id"]}: a bundle has no file of its own -- it is ${CAT_ENT["members"]//,/ }, each of which \`catalogue show\` reads"
 	ext := cat_kext "${CAT_ENT["kind"]}"
 	case ${CAT_ENT["bundle"]} in
 	*"$ext") ;;
@@ -1750,7 +1815,12 @@ fn cat_info(want, int j = 0) {
 	fi
 	printf '%s\n' "${CAT_ENT["name"]} -- ${CAT_ENT["title"]}"
 	[ -n "${CAT_ENT["about"]}" ] && printf '\n%s\n' "${CAT_ENT["about"]}"
-	printf '\nversion   %s\n' "${CAT_ENT["version"]}"
+	# A bundle has no version, file or hash of its own (Gitea #392).
+	if [ "${CAT_ENT["kind"]}" = bundles ]; then
+		printf '\n'
+	else
+		printf '\nversion   %s\n' "${CAT_ENT["version"]}"
+	fi
 	printf 'author    %s\n' "${CAT_ENT["author"]:-not said}"
 	printf 'licence   %s\n' "${CAT_ENT["licence"]:-not said}"
 	printf 'needs     hibr %s, module ABI %s%s%s\n' \
@@ -1758,6 +1828,10 @@ fn cat_info(want, int j = 0) {
 		"${CAT_ENT["modules"]:+, modules: ${CAT_ENT["modules"]}}" \
 		"${CAT_ENT["arch"]:+, machine: ${CAT_ENT["arch"]}}"
 	printf 'kind      %s\n' "${CAT_ENT["kind"]}"
+	[ -n "${CAT_ENT["members"]}" ] &&
+		printf 'members   %s\n' "${CAT_ENT["members"]//,/ }"
+	[ -n "${CAT_ENT["needs"]}" ] &&
+		printf 'needs     %s\n' "${CAT_ENT["needs"]//,/ }"
 	# What it places besides itself (Gitea #237). Two places know, and
 	# which one does depends on how the bundle is served: a catalogue of
 	# plain files -- what `addapp` makes -- names every part in the
@@ -1790,8 +1864,10 @@ fn cat_info(want, int j = 0) {
 			pn=$((pn + 1))
 		done
 	fi
-	printf 'bundle    %s\n' "${CAT_ENT["bundle"]}"
-	printf 'sha256    %s\n' "${CAT_ENT["sha256"]:-none given}"
+	if [ "${CAT_ENT["kind"]}" != bundles ]; then
+		printf 'bundle    %s\n' "${CAT_ENT["bundle"]}"
+		printf 'sha256    %s\n' "${CAT_ENT["sha256"]:-none given}"
+	fi
 	printf 'index     %s\n' "$u"
 	cat_verify
 	if [ "$CAT_SIGOK" = 1 ]; then
@@ -2454,8 +2530,10 @@ fn cat_install(...names) {
 
 	[ "${#names[@]}" -gt 0 ] || cat_die "usage: catalogue install NAME..."
 	# The index again, always: installing against a stale one is how a
-	# sha256 mismatch gets blamed on the mirror.
-	cat_load 1
+	# sha256 mismatch gets blamed on the mirror -- except for an install
+	# this one makes itself, of a bundle's member or of what an entry
+	# needs, which is against the index just fetched.
+	[ -n "$CAT_NEST" ] || cat_load 1
 	cat_state
 	# `KIND/` expanded first, so what follows is one loop over ids and
 	# every refusal reads the same whichever way the name was given.
@@ -2476,6 +2554,12 @@ fn cat_install(...names) {
 		kind=${CAT_ENT["kind"]}
 		cat_kindok "$kind" ||
 			cat_die "$name: the index says kind $kind, which is not one an app installs into"
+		# A bundle places nothing of its own: its members are each
+		# installed as themselves (Gitea #392).
+		if [ "$kind" = bundles ]; then
+			cat_bundlein "${CAT_ENT["id"]}"
+			continue
+		fi
 		# Where the two kinds part. A script says what it is on the
 		# screen; its reader is the backstop, so an unverified
 		# catalogue is a sentence and the install goes on. A module
@@ -2530,6 +2614,13 @@ and which no update overwrites."
 			# every line below reads it for *this* entry.
 			cat_entry "$name" || cat_die "$name: no such app in the index"
 		fi
+		# And the entries it needs, placed first for the same reason: a
+		# pane that acts through a menu bar item's watcher is never on
+		# disk without it (Gitea #392's `# needs:`).
+		if [ -n "${CAT_ENT["needs"]}" ]; then
+			cat_needin "$name"
+			cat_entry "$name" || cat_die "$name: no such app in the index"
+		fi
 		tmp := cat_getbundle "${CAT_ENT["name"]}" "${CAT_ENT["bundle"]}" \
 				    "${CAT_ENT["sha256"]}"
 		# A bundle that is the file itself, or a tarball: decided by
@@ -2579,6 +2670,175 @@ and which no update overwrites."
 		cat_statesave
 	done
 	return 0
+}
+
+# An install this program makes of its own accord -- a bundle's member, or
+# what an entry needs -- is against the index already fetched, and is at
+# most a few deep: a chain longer than CAT_NESTMAX is a loop in the index.
+CAT_NEST=
+CAT_DEPTH=0
+CAT_NESTMAX=4
+
+# Install the entries this one names on its `# needs:` lines that are not
+# here yet, in any scope. Each is remembered as wanted by this one, which
+# is what lets removing a bundle keep a member something else still needs.
+fn cat_needin(name) {
+	local m w was=$CAT_NEST
+	local -a need
+
+	IFS=', ' read -ra need <<< "${CAT_ENT["needs"]}"
+	for m in "${need[@]}"; do
+		[ -n "$m" ] || continue
+		w := cat_where "$m" "${m%%/*}" "${m#*/}" && continue
+		cat_entry "$m" > /dev/null 2>&1 ||
+			cat_die "$name: needs $m, which is not in this catalogue. Nothing was installed."
+		[ "$CAT_DEPTH" -lt "$CAT_NESTMAX" ] ||
+			cat_die "$name: what it needs goes more than $CAT_NESTMAX deep, which is a loop in the index. Nothing more was installed."
+		CAT_DEPTH=$((CAT_DEPTH + 1))
+		CAT_NEST=1
+		cat_say "$m, which $name needs:"
+		cat_install "$m"
+		CAT_NEST=$was
+		CAT_DEPTH=$((CAT_DEPTH - 1))
+		CAT_ST["installed"]["$m"]["auto"]=$name
+		cat_statesave
+	done
+	return 0
+}
+
+# Install a bundle: each member that is not here already, as itself, and a
+# ledger entry saying which members it was installed with -- no version,
+# since a bundle is current when its members are (owner, Gitea #392).
+fn cat_bundlein(id) {
+	local m w ms was=$CAT_NEST n=0
+	local -a mem
+
+	ms := cat_members "$id"
+	read -ra mem <<< "$ms"
+	[ "${#mem[@]}" -gt 0 ] || cat_die "$id: the index lists no members for it"
+	for m in "${mem[@]}"; do
+		case ${m%%/*} in
+		bundles) cat_die "$id: lists $m, and a bundle holds entries, not other bundles" ;;
+		esac
+		cat_kindok "${m%%/*}" || cat_die "$id: lists $m, which is not an entry"
+	done
+	for m in "${mem[@]}"; do
+		if w := cat_where "$m" "${m%%/*}" "${m#*/}"; then
+			cat_say "$m is here already ($w)"
+			continue
+		fi
+		CAT_NEST=1
+		cat_install "$m"
+		CAT_NEST=$was
+		n=$((n + 1))
+	done
+	CAT_ST["installed"]["$id"]["kind"]=bundles
+	CAT_ST["installed"]["$id"]["version"]=
+	CAT_ST["installed"]["$id"]["members"]=$ms
+	cat_statesave
+	cat_say "$id: ${mem[*]}"
+	return 0
+}
+
+# A bundle's members the catalogue has added since it was installed,
+# installed now, for update: one the person removed by hand is not put back,
+# since the ledger remembers what the bundle came with. Status 1 when there
+# was nothing new.
+fn cat_bundlefill(id) {
+	local m w ms had was=$CAT_NEST n=0
+	local -a mem
+
+	ms := cat_members "$id"
+	had=" ${CAT_ST["installed"]["$id"]["members"]-} "
+	read -ra mem <<< "$ms"
+	for m in "${mem[@]}"; do
+		case $had in *" $m "*) continue ;; esac
+		w := cat_where "$m" "${m%%/*}" "${m#*/}" && continue
+		cat_say "$id: $m is new in it"
+		CAT_NEST=1
+		cat_install "$m"
+		CAT_NEST=$was
+		n=$((n + 1))
+	done
+	if [ "$ms" != "${CAT_ST["installed"]["$id"]["members"]-}" ]; then
+		CAT_ST["installed"]["$id"]["members"]=$ms
+		cat_statesave
+	fi
+	[ "$n" -gt 0 ]
+}
+
+# Does anything installed here, besides the bundle being removed and its
+# own members, still want this member: another bundle that lists it, or an
+# entry whose `needs` name it.
+fn cat_memberwanted(m, except, also) {
+	local o ms
+
+	for o in "${!CAT_ST["installed"][@]}"; do
+		[ "$o" = "$except" ] && continue
+		[ "$o" = "$m" ] && continue
+		case " $also " in *" $o "*) continue ;; esac
+		if [ "${CAT_ST["installed"]["$o"]["kind"]}" = bundles ]; then
+			ms := cat_members "$o"
+			case " $ms " in *" $m "*) return 0 ;; esac
+			continue
+		fi
+		cat_entry "$o" > /dev/null 2>&1 || continue
+		case " ${CAT_ENT["needs"]//,/ } " in *" $m "*) return 0 ;; esac
+	done
+	return 1
+}
+
+# Remove a bundle: its ledger entry, and the members this scope installed
+# that nothing else wants -- asked first on a terminal, refused without one
+# unless -y says yes or -k says keep them, as purge is.
+fn cat_bundleout(id, int yes, int keep, int force) {
+	local m ms ans
+	local -a mem gone
+
+	ms := cat_members "$id"
+	read -ra mem <<< "$ms"
+	for m in "${mem[@]}"; do
+		[ -n "${CAT_ST["installed"]["$m"]["kind"]}" ] || continue
+		if cat_memberwanted "$m" "$id" "$ms"; then
+			cat_say "keeps $m: something else installed wants it"
+			continue
+		fi
+		gone+=("$m")
+	done
+	if [ "${#gone[@]}" -gt 0 ] && [ "$keep" = 0 ] && [ "$yes" = 0 ]; then
+		[ -t 0 ] || cat_die "$id: nothing was removed: there is no terminal to ask on.
+Removing it would take away ${gone[*]}.
+Run it with -y to remove those too, or -k to keep them."
+		printf 'remove %s with it? [Y/n] ' "${gone[*]}"
+		read -r ans
+		case $ans in n | N | no) keep=1 ;; esac
+	fi
+	if [ "${#gone[@]}" -gt 0 ] && [ "$keep" = 0 ]; then
+		if [ "$force" = 1 ]; then
+			cat_remove -f "${gone[@]}"
+		else
+			cat_remove "${gone[@]}"
+		fi
+	fi
+	cat_state
+	if [ -n "${CAT_ST["installed"]["$id"]["kind"]}" ]; then
+		unset CAT_ST["installed"]["$id"]
+		cat_statesave
+	fi
+	cat_say "removed $id"
+	return 0
+}
+
+# Which bundle a name given to remove means, if it means one: an id, or a
+# bare name the ledger or the index has a bundle of.
+fn cat_bundleid(w) {
+	local id=$w
+
+	case $w in */*) ;; *) id=bundles/$w ;; esac
+	[ "${id%%/*}" = bundles ] || return 1
+	[ -n "${CAT_ST["installed"]["$id"]["kind"]}" ] && { ret "$id"; return 0; }
+	[ "${#CAT_IX["$CAT_SECT"]["$id"][@]}" -gt 0 ] && { ret "$id"; return 0; }
+	return 1
 }
 
 # Whether any *other* installed app brings this same path. One Control Panel
@@ -2693,18 +2953,39 @@ list them and stop."
 }
 
 fn cat_remove(...names) {
-	local name w base kind dest dir n force=0 i p np
+	local name w base kind dest dir n force=0 i p np yes=0 keep=0 bid
 	local -a want
 
 	for name in "${names[@]}"; do
 		case $name in
 		-f | --force) force=1 ;;
+		-y | --yes) yes=1 ;;
+		-k | --keep) keep=1 ;;
 		*) want+=("$name") ;;
 		esac
 	done
-	[ "${#want[@]}" -gt 0 ] || cat_die "usage: catalogue remove [-f] NAME..."
+	[ "${#want[@]}" -gt 0 ] || cat_die "usage: catalogue remove [-f] [-y|-k] NAME..."
 	cat_state
 	for w in "${want[@]}"; do
+		# A bundle first: its own name is its members' names too, and
+		# `remove sound` means Sound (Gitea #392). The index is read
+		# only when a bare name is several things here -- the ledger
+		# alone answers everything else, so removing works offline as
+		# it always did.
+		case $w in
+		*/*) ;;
+		*)
+			n=0
+			for i in "${!CAT_ST["installed"][@]}"; do
+				[ "${i##*/}" = "$w" ] && n=$((n + 1))
+			done
+			[ "$n" -gt 1 ] && [ "${#CAT_IX[@]}" = 0 ] && cat_load
+			;;
+		esac
+		if bid := cat_bundleid "$w"; then
+			cat_bundleout "$bid" "$yes" "$keep" "$force"
+			continue
+		fi
 		name := cat_insresolve "$w" || cat_die "$w: not installed here"
 		kind=${CAT_ST["installed"]["$name"]["kind"]}
 		[ -n "$kind" ] || cat_die "$w: not installed here"
@@ -2815,6 +3096,13 @@ fn cat_update(...names) {
 		name=${CAT_ENT["id"]}
 		kind=${CAT_ST["installed"]["$name"]["kind"]}
 		[ -n "$kind" ] || cat_die "$w: not installed here"
+		# A bundle has no version to compare: what an update owes it is
+		# any member the catalogue has added since (Gitea #392). Its
+		# members update as the entries they are.
+		if [ "$kind" = bundles ]; then
+			cat_bundlefill "$name" && n=$((n + 1))
+			continue
+		fi
 		# Up to date is not only "the same version". An entry can
 		# move without changing version -- `dir` arrived in 0.99.195
 		# and put every application in a folder, which is a new

@@ -181,6 +181,25 @@ text is a value the app sets when it changes, never a callback the bar asks
 per frame; setting it is what clears the bar's gate. An empty text takes the
 item off.
 
+Every item is a file of `menubar/` since 0.99.351 (Gitea #392), the
+desktop's own four too: the application menu (`appmenu.hibr`), the clock,
+the notification icon and the workspace numbers. Those four say
+`# platform:` and are loaded by `desktop.hibr` itself, so a desktop with no
+session still has its bar; the rest -- the network, the speaker, Bluetooth
+and the battery -- are catalogue entries, each in a bundle with the pane
+that acts through it, and the session reads them as it reads apps. One
+layout places all of them from the bar's outer end inwards. `dt_baripin
+name n` keeps an item in a place of its own -- 1 is the corner, a negative
+place is beyond every ordinary item -- and only an unpinned item is
+offered by Item Order. `dt_bariwide name w adj` keeps a width whatever the
+text measures, `dt_baridraw name fn` draws an item with pens of its own,
+`dt_baripress name fn` takes a press with its button and column, and
+`dt_barhook fn` runs before the bar's gate on every frame, for an item
+whose text follows the desktop's own state -- the clock's minute, the count
+of notes -- and calls `dt_baritem` only when it changed. `dt_baristop name
+fn` is what stops a watcher when a rescan finds its file gone; the item, its
+hooks and its tickers are taken off with it.
+
 `dt_barilabel name label` says what the item is called. Control Panel >
 Appearance > Item Order lists items by that label, so the panel keeps no list
 of who puts what on the bar (Gitea #341). `DT_BARORDER` is the names in the

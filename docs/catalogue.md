@@ -18,9 +18,9 @@ catalogue install apps/
 
 A kind with a trailing slash is every entry of that kind, so
 `catalogue install themes/` is every theme and `catalogue install apps/` is a
-desktop. The ten kinds are the scan roots the desktop reads, and two that are not: `apps`,
-`system`, `control-panel`, `control-strip`, `savers`, `themes`,
-`colours`, `lang`, then `mods` and `cli`.
+desktop. The twelve kinds are the scan roots the desktop reads, and three that are not: `apps`,
+`system`, `control-panel`, `control-strip`, `menubar`, `savers`, `themes`,
+`colours`, `lang`, then `mods`, `cli` and `bundles`.
 
 The whole of it rests on one fact, which is why there is so little machinery
 here: **an app is a folder of plain files, and installing one is placing a
@@ -63,7 +63,7 @@ answered; anything that is not an address is refused.
 | `catalogue install mods/NAME` | a module, into `$XDG_DATA_HOME/hibr/mods` |
 | `catalogue install NAME...` | fetch, verify and place |
 | `catalogue install KIND/` | every one of a kind -- `catalogue install apps/` is a whole desktop |
-| `catalogue remove [-f] NAME...` | take one away; `-f` even if a window is open |
+| `catalogue remove [-f] [-y\|-k] NAME...` | take one away; `-f` even if a window is open; for a bundle, `-y` takes its members too and `-k` keeps them |
 | `catalogue purge [-y]` | take away modules nothing needs any more; `--dry-run` lists them |
 | `catalogue update [NAME...]` | everything with a newer version, or just these |
 | `catalogue index [URL]` | the index this fetches from, or set it |
@@ -115,7 +115,7 @@ two read as different programs.
 
 ## Where a file lands, and why yours wins
 
-Eight of the ten kinds are places the **desktop** scans, and each begins
+Nine of the twelve kinds are places the **desktop** scans, and each begins
 with a folder of **yours** followed by a data folder the manager writes to:
 
 | what it is | your folder | a file is |
@@ -124,6 +124,7 @@ with a folder of **yours** followed by a data folder the manager writes to:
 | the desktop's own apps | `~/.config/hibr/system` | `.hibr` |
 | Control Panel panes | `~/.config/hibr/control-panel` | `.hibr` |
 | Control Strip modules | `~/.config/hibr/control-strip` | `.hibr` |
+| menu bar items | `~/.config/hibr/menubar` | `.hibr` |
 | screen savers | `~/.config/hibr/savers` | `.hibr` |
 | themes | `~/.config/hibr/themes` | `.json` |
 | colour schemes | `~/.config/hibr/colours` | `.json` |
@@ -154,7 +155,11 @@ the index's signature are checked as for any other. Whatever runs it -- a
 launcher a package ships, a service -- looks in that folder. `longwire`, a VPN,
 publishes its node and its switchboard this way.
 
-An entry's `kind` decides which of the ten it goes to, and **the kind
+The twelfth is `bundles`, and it is not a place at all: a bundle has no
+file of its own, only a list of other entries installed together. See
+[A bundle](#a-bundle).
+
+An entry's `kind` decides which of the twelve it goes to, and **the kind
 decides the extension**: a theme is JSON, not a script
 ([ADR 0028](adr/0028-a-theme-is-data.md)), a translation catalogue is too
 ([ADR 0032](adr/0032-the-desktop-is-translated-at-its-widgets.md)), and a
@@ -441,6 +446,49 @@ install` resolves it three ways, in order:
 
 The state records which app a module was fetched for, so nothing has to
 guess later whether anybody asked for it by name.
+
+An entry can need another **entry** as well, with `# needs:` -- a Control
+Panel pane that acts through a menu bar item's watcher says so, and the
+item is installed first, from the same index:
+
+```text
+app sound "The Control Panel pane for the machine's sound" 3.0
+# needs: menubar/sound
+```
+
+Unlike a part, what an entry needs is an entry of its own: the speaker on
+the menu bar is useful without its pane, and installing it alone is
+allowed. The state remembers which entry pulled it in.
+
+### A bundle
+
+A bundle is a list of entries that make one thing between them, installed
+and removed together -- Sound is the speaker on the menu bar and the
+Control Panel pane, and so are Network, Bluetooth and Power (Gitea #392).
+Its file in the catalogue is a JSON list and nothing more:
+
+```text
+{
+ "title": "Sound",
+ "about": "The speaker on the menu bar, and Control Panel > Sound: ...",
+ "members": ["menubar/sound", "control-panel/sound"]
+}
+```
+
+A bare name a bundle shares with its own members means the bundle, so
+`catalogue install sound` installs both. A bundle carries **no version of
+its own**: it is current when its members are, and each member updates as
+the entry it is. The ledger remembers which members a bundle came with,
+so `catalogue update` installs a member the catalogue has added since,
+and does not put back one you took away by hand.
+
+`catalogue list` says a bundle is there when every member is, wherever each
+one is. Removing one takes away the members this scope installed that
+nothing else installed wants; from a terminal it asks first, and from
+anywhere else it refuses and names the flags -- `-y` to take the members
+too, `-k` to keep them -- as `purge` does. The Catalogue window shows
+bundles in a section of their own, above the rest, and asks before it
+removes one.
 
 ### Taking a module away again
 

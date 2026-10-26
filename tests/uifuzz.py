@@ -87,7 +87,7 @@ def session(name, rel, geom, pdir, where):
     """Write the session file for one target: its desktop, its one window."""
     src = ". %s/%s\n" % (DESK, rel)
     if name == "panel":
-        src += 'CP_PANEDIRS+=("%s")\ncp_panes\n' % pdir
+        src += 'DT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANEDIRS+=("%s")\ncp_panes\n' % pdir
     p = os.path.join(where, name + ".hibr")
     open(p, "w").write(
         "%s. %s\n%s"
