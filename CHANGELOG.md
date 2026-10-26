@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.350
+
+**Alt-tab is a window switcher** (Gitea #391, the owner's request). Cycle
+opens the bar's window list with the next window highlighted, rather than
+going straight there; Cycle again, or **Cycle Windows Back** -- a new
+shortcut, `mod-shift-tab` by default -- steps it forward or back, and a
+pause, or any other key, goes to the window it stands on. Escape goes
+nowhere. A terminal reports a key and not its release, so the pause stands
+in for letting go of alt. It passes over hidden windows, windows on other
+workspaces unless Cycle Windows On is `all`, and the apps in a list of its
+own. Control Panel > Desktop (1.4) has the rows: **Window Switcher** (on;
+off is Cycle as it was), **Switcher Pause** (400 ms to 1.5 seconds, 700 ms
+by default) and **Not in the Switcher** (every app, Stickies on it by
+default, choosing one puts it on or takes it off).
+
+- **xterm's alt-shift-tab**, `CSI 1 ; 4 Z`, was read as plain shift-tab:
+  the console dropped the modifiers of a back-tab. It keeps them now, so
+  Cycle Windows Back can be pressed on such a terminal as well as on one
+  speaking the kitty keyboard protocol, where it already arrived whole.
+- **Two clears no longer depend on the pen the last frame left** (Gitea
+  #387, hardening, not its fix): the console's opening clear and hold's
+  own reset the pen first, and a clear in hold's renderer sends every cell
+  again rather than only those that changed. A terminal that erases in the
+  pen's background would otherwise have been left showing the last colour
+  drawn wherever nothing changed. Whether this is what #387 sees is not
+  shown yet.
+
 ## 0.99.349
 
 **Network, Sound, Bluetooth and Power come from the Catalogue, not the

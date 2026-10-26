@@ -982,6 +982,24 @@ fn dt_event(k) {
 		DT_MOUSE=
 		[ "$k" = escape ] && return 0
 	fi
+	# The window switcher (Gitea #391) takes Cycle, Cycle Back and
+	# escape; any other key chooses where it stands, and then goes where
+	# it would have.
+	if [ -n "$DT_SW" ]; then
+		if dt_keyis cycle "$k"; then
+			dt_swstep 1
+			return 0
+		fi
+		if dt_keyis cycleback "$k"; then
+			dt_swstep -1
+			return 0
+		fi
+		if [ "$k" = escape ]; then
+			dt_swend
+			return 0
+		fi
+		dt_swcommit
+	fi
 	if [ "$MB_OPEN" != -1 ]; then
 		dt_mkey "$k" && return 0
 		return 0
@@ -1077,7 +1095,9 @@ fn dt_event(k) {
 	if [ "$knorm" = "$qn" ]; then
 		dt_quitconfirm
 	elif [ "$knorm" = "$cn" ]; then
-		dt_cycle
+		dt_swstart 1
+	elif dt_keyis cycleback "$k"; then
+		dt_swstart -1
 	elif [ "$knorm" = "$cln" ]; then
 		dt_close_focused
 	elif [ -n "$qan" ] && [ "$knorm" = "$qan" ]; then

@@ -143,8 +143,14 @@ class Screen:
     # How many payload bytes of pictures to keep, in total, per screen.
     IMGKEEP = 4 << 20
 
-    def __init__(self, rows=ROWS, cols=COLS):
+    def __init__(self, rows=ROWS, cols=COLS, bce=False):
         self.rows, self.cols = rows, cols
+        # A terminal whose erase paints the pen's background (bce): a
+        # screen clear fills with it too and keeps the pen, as a real one
+        # does -- a clear reached in the middle of a pen is what left a
+        # display's whole desktop one window's face (Gitea #387). Off, a
+        # clear blanks to no colour, as this model always has.
+        self.bce = bce
         # Every pointer shape a display set with OSC 22, in order: "none"
         # to hide it, "" for the terminal's own (Gitea #373). A query is
         # not a shape, so it is left out; a screen clear keeps the list.
@@ -241,7 +247,13 @@ class Screen:
                             self.g[self.r][x] = " "
                             self.p[self.r][x] = self.pen
                 elif fin == "J" and seq in ("2", "3"):
+                    pen = self.pen
                     self.clear()
+                    if self.bce:
+                        self.pen = pen
+                        m = re.search(r"48;2;\d+;\d+;\d+|48;5;\d+|4[0-7]|10[0-7]", pen)
+                        self.p = [[m.group(0) if m else ""] * self.cols
+                                  for _ in range(self.rows)]
                 elif fin == "m":
                     self.pen = self.sgr(seq)
                 i = j + 1
@@ -902,7 +914,8 @@ class Term:
         return self.out.decode("utf8", "replace")
 
     def screen(self, rows=None, cols=None):
-        return Screen(rows or self.rows, cols or self.cols).feed(self.text)
+        return Screen(rows or self.rows, cols or self.cols,
+                      bce=bool(self.caps and "bce" in self.caps)).feed(self.text)
 
 
 def load(*mods):

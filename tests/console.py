@@ -206,10 +206,10 @@ check("console pen -r puts back the pen -s kept",
 
 SEQ = [b"\x1b[A", b"\x1b[1;5C", b"\x1b[1;2B", b"\x01", b"\x1b[15~", b"\x1b[H",
        b"\x1b[5~", b"\x1b[Z", b"\x1b[<0;13;4M", b"\x1bx", b"\xc3\xa9", b"\r",
-       b"\x1b[200~pasted\x1b[201~", b"\x1b"]
+       b"\x1b[200~pasted\x1b[201~", b"\x1b[1;4Z", b"\x1b"]
 WANT = ["up", "ctrl-right", "shift-down", "ctrl-a", "f5", "home", "pageup",
         "shift-tab", "mouse press left 3 12", "alt-x", "é", "enter",
-        "paste pasted", "escape"]
+        "paste pasted", "alt-shift-tab", "escape"]
 o, _ = run('console open\ni=0\nwhile [ $i -lt %d ]; do\n'
            '  k := console key 2000\n  if [ -z "$k" ]; then break; fi\n'
            '  echo "KEY[$k]"\n  i=$((i+1))\ndone\nconsole close\n' % len(SEQ),

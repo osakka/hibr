@@ -729,6 +729,7 @@ Not changed
 Not connected
 Not found: %s
 Not held -- nothing to detach from
+Not in the Switcher
 Not started
 Not text
 Note
@@ -1039,6 +1040,7 @@ Sum
 Sun
 Sunday
 Sunrise
+Switcher Pause
 Sync Every
 Sync Now
 Sync failed: %s
@@ -1202,6 +1204,7 @@ Wi-Fi is off
 Wi-Fi, %s
 Wider Column
 Window
+Window Switcher
 Window:
 Windows
 Windows: %s open

@@ -2273,18 +2273,74 @@ check("and the bar shows no numbers, and the wheel stays put",
 # Cycle Windows On: this workspace by default, every one when asked.
 # "Under" stays on 1, "Over" goes to 3; focus is on Under.
 CYC = WS2 + "dt_wsmove 2 3\ndt_raise 1\n"
-sc, _ = run(CYC, [b"\x1b\t"])
+sc, _ = run(CYC, [b"\x1b\t"], pre="DT_SWITCHER=0")
 check("by default alt-tab stays on this workspace",
       sc.find("┤ Under ├") == (6, 12) and sc.find("Over") is None, sc)
-sc, _ = run(CYC, [b"\x1b\t"], pre="DT_CYCLE=all")
+sc, _ = run(CYC, [b"\x1b\t"], pre="DT_CYCLE=all\nDT_SWITCHER=0")
 check("set to all, it goes to the next window on another workspace",
       sc.find("┤ Over ├") == (9, 27) and sc.find("Under") is None, sc)
-sc, _ = run(CYC, [b"\x1b\t", b"\x1b\t"], pre="DT_CYCLE=all")
+sc, _ = run(CYC, [b"\x1b\t", b"\x1b\t"], pre="DT_CYCLE=all\nDT_SWITCHER=0")
 check("and round again to where it started",
       sc.find("┤ Under ├") == (6, 12) and sc.find("Over") is None, sc)
-sc, _ = run(CYC + "dt_min 1\n", [b"\x1b\t"], pre="DT_CYCLE=all")
+sc, _ = run(CYC + "dt_min 1\n", [b"\x1b\t"], pre="DT_CYCLE=all\nDT_SWITCHER=0")
 check("a minimised window is passed over, as on one workspace",
       sc.find("┤ Over ├") == (9, 27) and sc.find("Under") is None, sc)
+
+# The window switcher (Gitea #391): alt-tab opens the bar's window list
+# with the next window highlighted, each alt-tab or shift-alt-tab steps
+# it, and a pause -- or any other key -- goes there; escape goes nowhere.
+# The cycle checks above have it off, which is Cycle as it always was.
+SWS = ('dt_new "Alpha" 8 30 3 4\ndt_new "Bravo" 8 30 6 14\n'
+       'dt_new "Charlie" 8 30 9 24\n')
+
+
+def swopen(feed, pre="", session=SWS):
+    """The screen while the switcher is still open: read before quitting."""
+    path = scratch("desktop-sw.hibr")
+    open(path, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, "DT_SWMS=4000\n" + pre, session))
+    t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+    t.keys(feed)
+    t.collect(0.3)
+    sc = t.screen()
+    t.quit(b"\x1bqy", 1.0)
+    os.unlink(path)
+    return sc
+
+
+def swlit(sc, title):
+    """Whether the window list's row for title is the highlighted one."""
+    at = None
+    for r in range(1, 8):
+        c = sc.row(r).find(title)
+        if c >= 2 and sc.row(r)[c - 2:c].strip() in ("", "\u2022", "\u00b7"):
+            at = (r, c)
+            break
+    return at is not None and sc.style(*at)["bg"] == "#63b3ed"
+
+
+sc = swopen([b"\x1b\t"])
+check("alt-tab opens the window list with the next window highlighted",
+      swlit(sc, "Alpha") and not swlit(sc, "Charlie"), sc)
+sc = swopen([b"\x1b\t", b"\x1b\t"])
+check("and a second alt-tab moves it on", swlit(sc, "Bravo"), sc)
+# xterm's own alt-shift-tab, CSI 1 ; 4 Z: the decoder read it as plain
+# shift-tab until this needed it.
+sc = swopen([b"\x1b[1;4Z"])
+check("shift-alt-tab goes the other way", swlit(sc, "Bravo"), sc)
+sc, _ = run(SWS, [b"\x1b\t", 1.5], pre="DT_SWMS=400")
+check("a pause goes to the highlighted window, and the list goes",
+      sc.find("\u2524 Alpha \u251c") is not None and
+      sc.find("\u2524 Charlie \u251c") is None and not swlit(sc, "Alpha"), sc)
+sc, _ = run(SWS, [b"\x1b\t", b"\x1b", 1.0], pre="DT_SWMS=4000")
+check("escape puts it away and goes nowhere",
+      sc.find("\u2524 Charlie \u251c") is not None and not swlit(sc, "Alpha"), sc)
+SWSK = SWS.replace('dt_new "Bravo" 8 30 6 14\n', 'dt_new "Bravo" 8 30 6 14 skapp\n')
+sc = swopen([b"\x1b\t", b"\x1b\t"],
+            pre="skapp_draw() { :; }\ndt_app skapp Bravo 8 30\nDT_SWSKIP=skapp\n",
+            session=SWSK)
+check("an app on the list it skips is passed over",
+      swlit(sc, "Charlie") and not swlit(sc, "Bravo"), sc)
 
 # Screenshots: ctrl-alt-g asks Screen, Window or Area, the last one taken
 # already chosen; what is written is the screen's cells, ANSI by default.
@@ -7698,4 +7754,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(835)
+report(841)

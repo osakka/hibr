@@ -8,12 +8,85 @@
 strict
 
 
-app desktop "The Control Panel pane for the bare desktop" 1.3
+app desktop "The Control Panel pane for the bare desktop" 1.4
 command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
 
 DK_CYCLES=(workspace all)
 
 fn cp_set_cycle(int? id = "", value = "") { DT_CYCLE=$value; cp_save; }
+
+# The window switcher's pause (Gitea #391), as DT_SWMS keeps it and as the
+# row shows it.
+DK_SWV=(400 700 1000 1500)
+DK_SWL=("400 ms" "700 ms" "1 second" "1.5 seconds")
+
+# Switcher Pause as the row shows it.
+fn dk_swlabel() {
+	local i=0
+
+	while [ "$i" -lt "${#DK_SWV[@]}" ]; do
+		[ "${DK_SWV[$i]}" = "${DT_SWMS:-700}" ] && ret "${DK_SWL[$i]}" && return 0
+		i=$((i + 1))
+	done
+	ret "${DT_SWMS:-700} ms"
+}
+
+fn cp_set_swms(int? id = "", value = "") {
+	local i=0
+
+	while [ "$i" -lt "${#DK_SWL[@]}" ]; do
+		[ "${DK_SWL[$i]}" = "$value" ] && DT_SWMS=${DK_SWV[$i]}
+		i=$((i + 1))
+	done
+	cp_save
+}
+
+# Not in the Switcher as the row shows it: the apps' own names, or none.
+fn dk_skiplabel() {
+	local a out=
+	local -a l
+
+	read -ra l <<< "$DT_SWSKIP"
+	for a in "${l[@]}"; do
+		out="${out:+$out, }${DT_APPS[$a]["title"]:-$a}"
+	done
+	ret "${out:-none}"
+}
+
+# Every app, a bullet beside the ones the switcher passes over; choosing
+# one puts it on the list or takes it off.
+fn dk_skipdrop(int w, int r, int c) {
+	local a m
+	local -a v
+
+	DK_SKIPOF=()
+	for a in "${!DT_APPS[@]}"; do
+		[ -n "${DT_APPS[$a]["title"]}" ] || continue
+		m=" "
+		case " $DT_SWSKIP " in *" $a "*) m=${GL[bullet]} ;; esac
+		v+=("$m ${DT_APPS[$a]["title"]}")
+		DK_SKIPOF+=("$a")
+	done
+	dt_droplist "$w" "$r" "$c" cp_set_skip "${v[@]}"
+}
+declare -ga DK_SKIPOF
+
+fn cp_set_skip(int? id = "", value = "") {
+	local a t=${value:2} out= x
+	local -a l
+
+	for a in "${DK_SKIPOF[@]}"; do
+		[ "${DT_APPS[$a]["title"]}" = "$t" ] || continue
+		read -ra l <<< "$DT_SWSKIP"
+		case " $DT_SWSKIP " in
+		*" $a "*) for x in "${l[@]}"; do [ "$x" = "$a" ] || out="$out $x"; done ;;
+		*) out="$DT_SWSKIP $a" ;;
+		esac
+		DT_SWSKIP=${out# }
+		break
+	done
+	cp_save
+}
 
 fn desktop_rows(int w) {
 	local n=0 d=$DT_SHOTDIR sk
@@ -45,6 +118,17 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cycle Windows On"
 	CP[$w][$n]["val"]="$DT_CYCLE"; CP[$w][$n]["key"]=cycle
 	n=$((n + 1))
+	# Cycle opens the window list and steps through it (Gitea #391).
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Switcher"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_SWITCHER:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_SWITCHER; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Switcher Pause"
+	CP[$w][$n]["val"] := dk_swlabel
+	CP[$w][$n]["key"]=swms; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Not in the Switcher"
+	CP[$w][$n]["val"] := dk_skiplabel
+	CP[$w][$n]["key"]=swskip; n=$((n + 1))
 	# The number with what it counts, the same as Frames For Output's own
 	# `(70ms)` on the next row. `Redraw Skip (1)` cannot be read: 1 could
 	# be a count of frames skipped or a mode, and that is not a small
@@ -87,7 +171,7 @@ fn desktop_do(int w, k, int dir) {
 	local v
 
 	case $k in
-	DT_ICONS | DT_DISKS)
+	DT_ICONS | DT_DISKS | DT_SWITCHER)
 		cp_toggle "$k"
 		command -v dt_deskscan > /dev/null && dt_deskscan
 		;;
@@ -100,6 +184,13 @@ fn desktop_do(int w, k, int dir) {
 		;;
 	cycle) v := cp_next "$DT_CYCLE" "$dir" "${DK_CYCLES[@]}"
 		DT_CYCLE=$v ;;
+	swms)
+		v := dk_swlabel
+		v := cp_next "$v" "$dir" "${DK_SWL[@]}"
+		cp_set_swms "" "$v"
+		return 0
+		;;
+	swskip) return 0 ;;
 	band)
 		v := cp_bandlabel
 		v := cp_next "$v" "$dir" "${CP_BANDL[@]}"
@@ -196,6 +287,8 @@ fn cp_set_iconbg(int? id = "", value = "") {
 fn desktop_drop(int w, int r, int c, k) {
 	case $k in
 	cycle) dt_droplist "$w" "$r" "$c" cp_set_cycle "${DK_CYCLES[@]}" ;;
+	swms) dt_droplist "$w" "$r" "$c" cp_set_swms "${DK_SWL[@]}" ;;
+	swskip) dk_skipdrop "$w" "$r" "$c" ;;
 	iconbg) dt_droplist "$w" "$r" "$c" cp_set_iconbg "${CP_ICONBGL[@]}" ;;
 	band) dt_droplist "$w" "$r" "$c" cp_set_band "${CP_BANDL[@]}" ;;
 	shotfmt) dt_has cp_set_shotfmt &&

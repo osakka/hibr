@@ -699,6 +699,104 @@ dt_cycle() {
 	dt_raise "${ids[$(((f + 1) % n))]}"
 }
 
+# The window switcher (Gitea #391): the bar's window list, opened by Cycle
+# and stepped by Cycle and Cycle Back, choosing where it stands once the
+# keys pause. A terminal tells the desktop a key was pressed and not that
+# alt was let go, so the pause stands in for the release; any other key
+# chooses too, and then goes where it would have, and escape puts it away
+# with nothing chosen. DT_SW is set while it is open.
+DT_SW=
+DT_SWAT=0
+
+# Whether the switcher stops on a window: not one hidden, not one on
+# another workspace unless Cycle goes through every workspace, and not an
+# app on the list it passes over.
+fn dt_swok(int id) {
+	dt_hidden "$id" && return 1
+	[ "$DT_CYCLE" = all ] || ! dt_away "$id" || return 1
+	case " $DT_SWSKIP " in *" ${DT[$id]["app"]} "*) return 1 ;; esac
+	return 0
+}
+
+# Cycle (d 1) or Cycle Back (d -1): open the switcher on the window that
+# has the focus, and step from it.
+fn dt_swstart(int d) {
+	local ids id i=0
+	local -a il
+
+	if [ "${DT_SWITCHER:-1}" != 1 ]; then
+		dt_cycle
+		return 0
+	fi
+	ids := dt_ids
+	read -ra il <<< "$ids"
+	[ "${#il[@]}" -gt 0 ] || return 0
+	dt_mopen app
+	MB_SEL=0
+	for id in "${il[@]}"; do
+		[ "$id" = "$DT_FOCUS" ] && MB_SEL=$i
+		i=$((i + 1))
+	done
+	DT_SW=1
+	dt_swstep "$d"
+}
+
+# Step the switcher to the next window it stops on, d rows on, round the
+# list; the pause starts again.
+fn dt_swstep(int d) {
+	local ids n k=0 i=$MB_SEL
+	local -a il
+
+	ids := dt_ids
+	read -ra il <<< "$ids"
+	n=${#il[@]}
+	[ "$n" -gt 0 ] || { dt_swend; return 0; }
+	while [ "$k" -lt "$n" ]; do
+		i=$(((i + d + n) % n))
+		dt_swok "${il[$i]}" && break
+		k=$((k + 1))
+	done
+	MB_SEL=$i
+	DT_SWAT := dt_ms
+	dt_want "${DT_SWMS:-700}"
+}
+
+# Go to the window the switcher stands on.
+dt_swcommit() {
+	DT_SW=
+	[ "$MB_OPEN" = app ] && dt_mdo
+	return 0
+}
+
+# Put the switcher away with nothing chosen.
+dt_swend() {
+	DT_SW=
+	[ "$MB_OPEN" = app ] && dt_mclose
+	return 0
+}
+
+# After each frame: once the keys have paused long enough, choose; and a
+# switcher whose list was closed some other way -- a click on a row, a
+# click outside it -- is over.
+dt_swtick() {
+	local now left
+
+	[ -n "$DT_SW" ] || return 0
+	if [ "$MB_OPEN" != app ]; then
+		DT_SW=
+		return 0
+	fi
+	now := dt_ms
+	left=$((DT_SWAT + ${DT_SWMS:-700} - now))
+	if [ "$left" -le 0 ]; then
+		dt_swcommit
+		dt_want 1
+	else
+		dt_want "$left"
+	fi
+}
+dt_ticker dt_swtick
+
 # Move a window onto a specific display's own rectangle -- the titlebar
 # menu's "Move to" submenu. Placed at that display's own top-left corner,
 # clamped to still fit within it, the same shape dt_move already clamps a

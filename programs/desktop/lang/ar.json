@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.37",
+ "version": "3.38",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -961,6 +961,9 @@
   "Network is now in the Catalogue -- click to install it": "الشبكة الآن في الكتالوج -- انقر لتثبيتها",
   "Power is now in the Catalogue -- click to install it": "الطاقة الآن في الكتالوج -- انقر لتثبيتها",
   "Sound is now in the Catalogue -- click to install it": "الصوت الآن في الكتالوج -- انقر لتثبيته",
+  "Not in the Switcher": "ليست في المبدّل",
+  "Switcher Pause": "مهلة المبدّل",
+  "Window Switcher": "مبدّل النوافذ",
   "Tooltip Delay": "مهلة تلميحات الأدوات",
   "Tooltips": "تلميحات الأدوات",
   "Wheel Scrolls": "التمرير بالعجلة",

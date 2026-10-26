@@ -610,7 +610,10 @@ for pane in ORDER:
     # Wallpaper's Display offers the displays attached and saved, and
     # this session has neither, so it has one value and nothing to step
     # to; its own checks give it a display to choose.
-    keys = dropkeys(pane) - {"wdisp"}
+    # Desktop's Not in the Switcher is a list, not a value: choosing adds
+    # an app or takes one off, so the old value stays in the new one, and
+    # its own check below reads that instead.
+    keys = dropkeys(pane) - {"wdisp", "swskip"}
     extra = PANE_APPS.get(pane, ())
     for i, (kind, text, key, val) in enumerate(panefull(pane, extra)):
         # Prayer Times' six minute rows are one widget six times: the
@@ -632,6 +635,13 @@ for pane, extra, i, text, val in DROPS:
             break
     check("%s's %s dropdown chooses a new value" % (TITLE[pane], text),
           now != "" and val not in now, sc)
+for i, (kind, text, key, val) in enumerate(panefull("desktop")):
+    if key == "swskip":
+        sc = cprun([b"\x1b[B"] * downs("desktop") +
+                   [press(R0 + i, VALCOL), b"\x1b[B", b"\r"], geom=PWTALL)
+        now = brow(sc, text)
+        check("Desktop's Not in the Switcher adds an app to its list",
+              now != "" and now != val and "," in now, (val, now, sc))
 
 
 def panerow(pane, key, extra=()):
@@ -5390,4 +5400,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(720)
+report(722)

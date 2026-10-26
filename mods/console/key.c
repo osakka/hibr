@@ -939,7 +939,13 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 			*used = (size_t)i + 1;
 			return 1;
 		}
+		/* Back-tab carries its modifiers like any other key, xterm's
+		   CSI 1 ; m Z: shift is in the name already, so only the
+		   others are added -- alt-shift-tab, which Cycle Windows Back
+		   is by default, read as plain shift-tab (Gitea #391). */
 		if (p[i] == 'Z') {
+			if (np > 1 && par[1] > 1)
+				cn_mods(o, ((par[1] - 1) & ~1) + 1);
 			s_cat(o, "shift-tab");
 			*used = (size_t)i + 1;
 			return 1;

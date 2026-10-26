@@ -274,7 +274,11 @@ unsigned cn_rgbof(unsigned v)
 
 static const char cn_leave[] = "\033[?25h\033[0m\033[?1016l\033[?1002l\033[?1006l"
 			       "\033[?2004l\033[?1049l";
-static const char cn_enter[] = "\033[?1049h\033[?25l\033[?2004h\033[2J";
+/* The pen goes back to the terminal's own before the clear: a terminal that
+   erases in the pen's background (bce) would otherwise clear the screen in
+   whatever colour the last program there left, and this console's front grid
+   would believe every cell blank (Gitea #387). */
+static const char cn_enter[] = "\033[?1049h\033[?25l\033[?2004h\033[0m\033[2J";
 
 /* Named, so their lengths come from the compiler rather than from counting.
    Counting by hand is what truncated the clear in cn_enter once already. */

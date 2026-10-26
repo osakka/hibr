@@ -128,6 +128,13 @@ bar shows no numbers and none of this appears. Cycle (alt-tab, or
 Window > Cycle) goes through this workspace's windows; Control Panel >
 Desktop > Cycle Windows On set to `all` goes through every workspace's,
 from this one on and round, going to whichever one holds the next window.
+With Desktop > Window Switcher on, the default, alt-tab opens the bar's
+window list with the next window highlighted instead of going straight
+there: alt-tab again, or alt-shift-tab (Cycle Windows Back), steps it,
+and a pause of Switcher Pause, or any other key, goes to the window it
+stands on; escape goes nowhere. A terminal reports keys and not their
+release, so the pause stands in for letting go of alt. It passes over
+hidden windows and the apps in Not in the Switcher, Stickies by default.
 The application menu lists every window, marked with its
 workspace's number when it is on another; choosing it goes there, and so
 does opening an app that is already open on another.

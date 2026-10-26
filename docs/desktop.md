@@ -112,7 +112,7 @@ and close it. A few keys are worth learning early:
 
 | | |
 |---|---|
-| **alt-tab** | the next window |
+| **alt-tab**, **alt-shift-tab** | the window switcher: the window list, stepped forward or back; a pause goes there, escape goes nowhere |
 | **alt-left**, **alt-right** | snap the window to that half of the screen |
 | **alt-up**, **alt-down** | zoom the window, minimise it |
 | **alt-1**, **alt-2**, **alt-3** | change workspace -- the three numbers in the bar |

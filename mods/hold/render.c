@@ -457,14 +457,25 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	if (!cn->front) {
 		n = (size_t)cn->rows * (size_t)cn->cols;
 		cn->front = xm(sizeof *cn->front * n);
+		clear = 1;
+	}
+	/* A clear is a whole new screen, so nothing this client was sent is
+	   on it any more and every cell goes again -- and it is erased in no
+	   colour of its own. The terminal's pen is whatever the last frame
+	   ended on, and an erase paints the pen's background on a terminal
+	   that does that (bce): an alternate screen left and entered again,
+	   which is what Restart Desktop does, cleared a display to the last
+	   window's face and kept only the cells that had changed, so its
+	   whole desktop stayed that colour until something drew over it
+	   (Gitea #387). */
+	if (clear) {
+		n = (size_t)cn->rows * (size_t)cn->cols;
 		for (i = 0; i < n; i++) {
 			cn->front[i].cp = ~0u;
 			cn->front[i].w = 1;
 		}
-		clear = 1;
+		s_cat(out, "\033[0m\033[H\033[2J");
 	}
-	if (clear)
-		s_cat(out, "\033[H\033[2J");
 	/* The program's copies since this client was last sent one, for a
 	   terminal that copies: replayed before the diff, which then sends
 	   what they did not put right. A full repaint needs none of them. */
