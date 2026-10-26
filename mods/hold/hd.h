@@ -229,6 +229,12 @@ struct hd_cli {
 	   paint and is simply painted again. */
 	unsigned *pid, *phash;
 	size_t pn;
+	/* Whether this client's terminal has been told to drop every picture
+	   it held before the list above began. The list starts empty for a
+	   new attach and for a client carried across `hold upgrade`, while
+	   the terminal may still hold what an earlier server or desktop put
+	   there -- nothing would ever take those away (Gitea #382). */
+	int kwiped;
 	int primed, alt, mmode, msgr, bpaste, cshape;
 	struct hd_cell *front;
 	str mbuf;

@@ -1093,6 +1093,16 @@ check("held, a window's picture under another window is sent and then kept",
 check("below the cells, and the window over it is on top",
       lp and -1610612736 < int(re.search(r"z=(-?\d+)", lp[0]).group(1))
       < -1073741824 and "TOP" in sc.text(), (lp, sc.text()))
+# A display hold has no list for -- a new attach, or one carried across
+# `hold upgrade`, whose list does not survive it -- is told to drop every
+# picture first (Gitea #382): the list is what hold deletes against, and
+# the terminal may still hold what an earlier server put there, which
+# nothing would ever take away. Three wallpapers a display, after a day's
+# upgrades, and a closed window's page drawn over the desktop.
+wa = [k for k, a in enumerate(first) if "a=d" in a and "d=A" in a]
+tt = [k for k, a in enumerate(first) if "a=T" in a]
+check("a display joining is told to drop what it held before its first picture",
+      wa and tt and wa[0] < tt[0], first[:4])
 
 # Leaner frames (Gitea #353): a screen of varied text in a colour scrolled a
 # row each frame, held. Each move is the cheapest one, short gaps are drawn
@@ -1160,4 +1170,4 @@ check("a 16-colour display of a held session is sent no 24-bit colour",
       [sc.row(r) for r in range(20)] == want, raw[-200:])
 
 shutil.rmtree(D, True)
-report(66)
+report(67)

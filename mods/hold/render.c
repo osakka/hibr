@@ -439,7 +439,7 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
    against stale or wrongly-sized content. */
 void hd_render(int tid, struct hd_cli *cn, str *out)
 {
-	int r, c, lr, lc, have, cr, cc, cvis, clear;
+	int r, c, lr, lc, have, cr, cc, cvis, clear, wipe = 0;
 	unsigned cp, fg, bg, at, w, lfg = 0, lbg = 0, lat = 0, lk, llk = 0;
 	const char *uri;
 	struct hd_cell *f;
@@ -663,7 +663,16 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	   picture moving re-sent an 860 kB wallpaper with it, which is what
 	   made pixels unusable over a slow link. A sixel carries no id and is
 	   paint: it is simply sent again. */
-	if (hd_tm->images && (clear || cn->imgen != hd_tm->imgen(tid))) {
+	if (!cn->kwiped && (cn->gfx == GX_KITTY || cn->gfx == GX_UNASKED)) {
+		s_cat(out, "\033_Ga=d,d=A,q=2\033\\");
+		cn->pn = 0;
+		cn->kwiped = 1;
+		wipe = 1;
+		lg(HIBR_LDBG, "hold: a display's earlier pictures cleared");
+	} else if (!cn->kwiped && (cn->gfx != GX_UNKNOWN || !cn->gfxwait)) {
+		cn->kwiped = 1;
+	}
+	if (hd_tm->images && (clear || wipe || cn->imgen != hd_tm->imgen(tid))) {
 		int ir, ic, irows, icols, k, n = hd_tm->images(tid), sent = 0;
 		unsigned *nid, *nhash;
 		size_t nn = 0, j;

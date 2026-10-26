@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.347
+
+**Pictures from before a Restart Desktop no longer stay on the screen**
+(Gitea #382, found on Blit). hold deletes what a display holds and the
+session no longer has by keeping a list of what it sent that display, and
+the list starts empty for a new attach and for a display carried across
+`hold upgrade` -- which Restart Desktop runs whenever hibr has been
+upgraded. The terminal kept what the earlier server had put there and
+nothing ever took it away: after a day's upgrades each display held three
+wallpapers, and a YouTube frame and a closed Browser's page were drawn over
+the desktop until it was quit. The first time hold sends pictures to a
+display it has no list for, it tells it to drop everything (`a=d,d=A`) and
+then sends what the session has -- only to a display that takes kitty
+pictures, or that was never asked. On a terminal shared with other
+programs that also drops pictures they had put up, which a multiplexer
+taking the screen does as well.
+
 ## 0.99.346
 
 **The screen saver is drawn on black again, with nothing showing through
