@@ -669,7 +669,12 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		cn->kwiped = 1;
 		wipe = 1;
 		lg(HIBR_LDBG, "hold: a display's earlier pictures cleared");
-	} else if (!cn->kwiped && (cn->gfx != GX_UNKNOWN || !cn->gfxwait)) {
+	} else if (!cn->kwiped && (cn->gfx == GX_SIXEL || cn->gfx == GX_NONE)) {
+		/* Only a display that has said it draws something else is
+		   done without one: one that has not said yet is sent no
+		   picture, and may yet turn out to be kitty -- deciding on
+		   its first render, before its answer could have arrived,
+		   sent the first picture with no wipe before it. */
 		cn->kwiped = 1;
 	}
 	if (hd_tm->images && (clear || wipe || cn->imgen != hd_tm->imgen(tid))) {

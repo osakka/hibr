@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.348
+
+**A display's desktop no longer turns the window colour after the screen
+saver** (Gitea #387, found on Blit). The wallpaper blanks the cells its
+picture shows through to "no colour", and that fill could be made while
+translucency was on, which turns "no colour" into a blend of the window's
+face with the picture under the cell. Right after a screen saver has
+cleared the pictures there is no picture yet, so the blend was the face
+itself: a non-primary display's whole desktop came back in Charcoal's face,
+everything except its windows, until a window passing over repainted it.
+The wallpaper is never translucent now -- a write made while it paints
+behind the panes keeps its own colour -- which is what the console already
+assumed of it when working out what a translucent window shows.
+
+**And 0.99.347's wipe is no longer skipped on a display's first frame.**
+hold decided a display took no kitty pictures while its answer was still
+due, so a slow attach -- the sanitizer gate's -- marked it done without the
+`a=d,d=A` and sent its first picture with nothing cleared before it. Only a
+display that has said sixel or none now goes without one.
+
 ## 0.99.347
 
 **Pictures from before a Restart Desktop no longer stay on the screen**

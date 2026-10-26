@@ -1020,10 +1020,24 @@ sc = run(PIC % "-m pixels -u" + "console flush\n" + TWINUP + twin(1)
 check("clearing the screen deletes the wallpaper and the windows' pictures",
       len(places(sc)) == 3 and len(mine(sc)) == 3, (places(sc), mine(sc)))
 
+# The wallpaper is never itself see-through (Gitea #387). Its "no colour"
+# fill, made while translucency was on and before any picture was known --
+# right after a screen saver's clear -- came out as the window face, and a
+# non-primary display's whole desktop was Charcoal's face until a window
+# passed over it.
+sc = run("console pane w1 2 40 4 10\n"
+         "console translucent 20 '#1e1e21' '#1e1e21'\nconsole behind on\n"
+         "console pen default default\nconsole fill 0 0 10 30 ' '\n"
+         "console behind off\nconsole translucent off\nconsole flush\n"
+         "console key 200\n")
+check("the wallpaper's fill stays without a colour while translucency is on",
+      all(bg(sc, r, c) is None for r in range(10) for c in range(30)),
+      [bg(sc, 3, 5), sc.p[3][5]])
+
 sc = run(PIC % "-m pixels -u" + "console flush\n")
 z = key(places(sc)[0], "z") if places(sc) else None
 check("the wallpaper went further down to make room: %s" % z,
       z is not None and int(z) <= -1610612736, places(sc))
 
 shutil.rmtree(D, True)
-report(100)
+report(101)

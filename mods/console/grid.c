@@ -497,11 +497,18 @@ unsigned cn_bgtrans(int row, int col, unsigned b)
 }
 
 /* The background a write gives a cell that had `old`, noting what it lands
-   on whether or not the write is translucent. */
+   on whether or not the write is translucent. Never translucent while the
+   wallpaper paints behind the panes: it is the thing a translucent window
+   shows, not one itself, and its "no colour" fill made translucent comes
+   out as the window's own face wherever no picture is known yet -- which
+   right after a screen saver has cleared the pictures is everywhere, and
+   was a display's whole desktop in Charcoal's face (Gitea #387). */
 unsigned cn_bgfor(int row, int col, unsigned old)
 {
 	unsigned b = cn_tbelow(row, col, old);
 
+	if (cn_behindon)
+		return cn_bg;
 	return cn_transon(cn_bg) ? cn_bgtrans(row, col, b) : cn_bg;
 }
 
