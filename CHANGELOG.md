@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.360
+
+**The blit glyph set is the one switch for Blit's icons** (the owner).
+0.99.357 and 0.99.359 also asked `BLIT_VERSION`, which only reaches a
+desktop through a fresh login, so a long-lived held session on a current
+Blit showed neither the one-picture battery and speaker nor Menu Bar >
+Menu Mark, with nothing to say why. Choosing Appearance > Glyphs > blit is
+what says a Blit font is in use, and it is the only condition now: with it,
+the battery, the speaker and the hui mark are Blit's; with any other set,
+none of them. It wants a Blit as new as the hibr beside it, which is how
+they ship.
+
 ## 0.99.359
 
 **The hui mark** (the owner's, drawn by Blit 0.2.40). On Blit 0.2.40 and

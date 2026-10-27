@@ -285,7 +285,7 @@ dt_menus() {
 	# Named, so a glyph set can give the menu its own mark: Blit's colour
 	# pen in the blit set (Gitea #330), U+270E everywhere else -- or the
 	# hui badge, two cells, where Menu Bar > Menu Mark asks for it and the
-	# glyph set has it (the owner, on Blit 0.2.40).
+	# glyph set has it -- the blit set's (the owner, on Blit 0.2.40).
 	if [ "${DT_MENUMARK:-pen}" = hui ] && [ -n "${GL[huil]}" ]; then
 		dt_menu "${GL[huil]}${GL[huir]}"
 	else

@@ -56,8 +56,8 @@ fn cp_set_menumax(int? id = "", value = "") {
 }
 
 # Menu Mark's choices, as the row shows them and as DT_MENUMARK keeps them.
-# hui is offered only where the glyph set draws it -- Blit 0.2.40 and later
-# with the blit set -- since anywhere else it would be two empty cells.
+# hui is offered with the blit glyph set, the one that draws it: chosen in
+# Appearance > Glyphs, which is what says a Blit font is in use.
 CP_MARKV=(pen hui)
 CP_MARKL=("Pen" "hui")
 DT_MENUMARK="${DT_MENUMARK-pen}"

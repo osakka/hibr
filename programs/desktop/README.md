@@ -1070,7 +1070,7 @@ own actions.
 
 On the bar the battery's glyph shows its level, with the bolt beside it while
 it charges and a plug while it is on mains and not charging (Gitea #395). On
-Blit 0.2.38 and later, with the blit glyph set, each state is one picture:
+Blit, with the blit glyph set, each state is one picture:
 the charge, the bolt or the plug inside the battery.
 
 The same power is a **Control Strip module** from the Catalogue, one glyph

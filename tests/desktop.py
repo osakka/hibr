@@ -7381,29 +7381,25 @@ check("a battery is on the menu bar, its level and its charge",
 pwsupply(62, "Charging", ac=1)
 sc, _ = run("", env=PWENV, pre=PWPRE)
 check("and a mark while it charges", "\u21af\u2584 62%" in sc.row(0), sc.row(0))
-# On a Blit that draws the charge inside the battery (0.2.38, which says so
-# in BLIT_VERSION from 0.2.39), the blit set's battery is one picture a
-# state rather than a bolt beside a battery; an older Blit, or none named,
-# keeps the bolt, since those code points draw nothing there.
-sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="blit", BLIT_VERSION="0.2.39"),
+# With the blit glyph set -- the one switch for "a Blit font is in use" --
+# the battery is one picture a state rather than a bolt beside a battery,
+# and Menu Bar > Menu Mark hui is the hibr menu's mark; with any other set
+# neither, whatever Blit says about itself (0.99.360).
+sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="blit", BLIT_VERSION=None),
             pre=PWPRE)
-check("on a Blit that has them, a charging battery is one picture",
+check("with the blit glyph set a charging battery is one picture",
       "\U00100010 62%" in sc.row(0) and "\uf0e7" not in sc.row(0), sc.row(0))
-sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="blit", BLIT_VERSION="0.2.37"),
+sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="nerd", BLIT_VERSION="0.2.40"),
             pre=PWPRE)
-check("and on an older Blit it is the bolt and the battery, as before",
+check("and with nerd it is the bolt and the battery, whatever Blit says",
       "\uf0e7\uf242 62%" in sc.row(0), sc.row(0))
-# The hui mark (Blit 0.2.40): Menu Bar > Menu Mark draws it in the hibr
-# menu's corner as its two halves side by side; an older Blit keeps the pen,
-# since the two code points draw nothing there.
-sc, _ = run("", env={"DT_GLYPHSET": "blit", "BLIT_VERSION": "0.2.40",
+sc, _ = run("", env={"DT_GLYPHSET": "blit", "BLIT_VERSION": None,
                      "DT_MENUMARK": "hui"})
-check("on a Blit that has it, Menu Mark hui is the hibr menu's mark",
+check("with the blit glyph set Menu Mark hui is the hibr menu's mark",
       sc.row(0).lstrip().startswith("\U00100018\U00100019"), sc.row(0))
-sc, _ = run("", env={"DT_GLYPHSET": "blit", "BLIT_VERSION": "0.2.39",
-                     "DT_MENUMARK": "hui"})
-check("and on an older Blit the pen stays",
-      sc.row(0).lstrip().startswith("\U00100001"), sc.row(0))
+sc, _ = run("", env={"DT_GLYPHSET": "unicode", "DT_MENUMARK": "hui"})
+check("and with another set the mark stays its own",
+      sc.row(0).lstrip().startswith("\u270e"), sc.row(0))
 # On mains it says so whether or not it charges (Gitea #395), and Level on
 # Menu Bar off leaves the glyph without the number, as the speaker's does.
 pwsupply(100, "Full", ac=1)

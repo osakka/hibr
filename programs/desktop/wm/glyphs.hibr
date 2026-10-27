@@ -267,20 +267,11 @@ dt_glyphsnerd() {
 # points that mean nothing in any other font (Blit's
 # assets/fonts/icons/catalogue.json, docs/font-reference.md). Chosen, never
 # detected, like nerd: a person on Blit's Retro or Modern profile picks it,
-# and anywhere else the other three are what to pick.
-# Whether the Blit this desktop runs on is at least version a.b.c, by
-# BLIT_VERSION, which Blit sets from 0.2.39 and the login screen passes on;
-# unset is older.
-fn dt_blitat(int a, int b, int c) {
-	local v=${BLIT_VERSION-} x y z
-
-	case $v in [0-9]*.[0-9]*.[0-9]*) ;; *) return 1 ;; esac
-	IFS=. read -r x y z <<< "$v"
-	z=${z%%[!0-9]*}
-	case $x$y$z in *[!0-9]*) return 1 ;; esac
-	[ $(( x * 1000000 + y * 1000 + z )) -ge $(( a * 1000000 + b * 1000 + c )) ]
-}
-
+# and anywhere else the other three are what to pick. Choosing it is the one
+# switch: everything Blit draws for hibr follows it -- the icons below and
+# the Menu Bar pane's Menu Mark -- with no second condition of its own
+# (the owner, 0.99.360). It wants a Blit as new as the hibr it runs; they
+# ship together, and an older one draws its newest icons as blank cells.
 dt_glyphsblit() {
 	GL["hibr"]=$'\U00100001'   # Blit hibr-pen, the colour hibr menu mark
 	GL["wifi1"]=$'\U00100002'  # Blit wifi-1, signal level 1 of 4
@@ -295,10 +286,7 @@ dt_glyphsblit() {
 	GL["capl"]=$'\U00100007'
 	GL["capr"]=$'\U00100008'
 	# The battery and the speaker, one picture a state, the charge or the
-	# level inside it (Blit 0.2.38, ADR 0196 there): a Blit before that
-	# draws nothing at these, so they are taken only where it says it is
-	# new enough, and the bars the nerd set gave are kept otherwise.
-	dt_blitat 0 2 38 || return 0
+	# level inside it (Blit 0.2.38, ADR 0196 there).
 	GL["bat0"]=$'\U00100009'   # Blit battery-0
 	GL["bat1"]=$'\U0010000A'   # Blit battery-1
 	GL["bat2"]=$'\U0010000B'   # Blit battery-2
@@ -317,7 +305,6 @@ dt_glyphsblit() {
 	# The hui mark (Blit 0.2.40, ADR 0197 there): one badge two cells
 	# square, drawn as its left and its right half, written side by side
 	# -- the hibr menu's mark where Menu Bar > Menu Mark asks for it.
-	dt_blitat 0 2 40 || return 0
 	GL["huil"]=$'\U00100018'   # Blit hui-left
 	GL["huir"]=$'\U00100019'   # Blit hui-right
 }
