@@ -316,6 +316,11 @@ lg_login() {
 	[ -n "$LG_PAMDIR" ] && opt+=(-c "$LG_PAMDIR")
 	[ -n "$LG_SEAT" ] && opt+=(-e "XDG_SEAT=$LG_SEAT")
 	[ -n "$LG_VTNR" ] && opt+=(-e "XDG_VTNR=$LG_VTNR")
+	# What Blit is, for the desktop's glyphs: a session starts from an
+	# empty environment, so this is the way through. Nothing else of
+	# Blit's is passed: its tokens and the login screen's own surface are
+	# this screen's, not the session's (the Blit maintainer, 0.99.357).
+	[ -n "${BLIT_VERSION-}" ] && opt+=(-e "BLIT_VERSION=$BLIT_VERSION")
 	LG_MSG="Checking${GL[ellipsis]}"
 	LG_BAD=
 	lg_box

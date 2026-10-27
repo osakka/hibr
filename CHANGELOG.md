@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.357
+
+**Restart, Shut Down and Sleep work on systemd machines** (reported by the
+Blit maintainer from the owner's mini PC). They ran `loginctl reboot`,
+`poweroff` and `suspend`, which are elogind's alone: systemd's loginctl
+has no such verbs, so on Debian every one said "logind refused". They go
+to logind's own D-Bus methods now (`busctl call ... Reboot b false`), which
+both answer, and a real refusal is logged with logind's reason. The test
+stand-in had accepted any verb, which is how this passed; it refuses what
+systemd's loginctl refuses now.
+
+- **One icon a state on Blit:** with the blit glyph set, on Blit 0.2.38 or
+  later, the battery is one picture with its charge inside -- level,
+  charging, on mains -- and the speaker one with its level, where there
+  were two glyphs side by side. Blit says what it is in `BLIT_VERSION`
+  (from 0.2.39); an older Blit, or none, keeps the glyphs as they were,
+  since the new code points draw nothing there.
+- **The login screen passes `BLIT_VERSION` into the session**, and nothing
+  else of Blit's: its tokens and the login screen's own surface are the
+  screen's, not the session's.
+- **Files' icon view on the nerd and blit sets** drew a folder and a
+  bundle twice side by side. An icon font's glyph is a whole picture, so
+  it is drawn once; the unicode and ascii sets keep their two-cell shapes.
+
 ## 0.99.356
 
 **The menu bar has a Control Panel pane of its own** (Gitea #396, the

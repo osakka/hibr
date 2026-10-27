@@ -17,7 +17,7 @@
 
 strict
 
-app power "The battery on the menu bar and the charge it watches" 1.2
+app power "The battery on the menu bar and the charge it watches" 1.3
 
 declare -gA DT_PW
 # Where the batteries are: the kernel's folder, a name a test can put a
@@ -155,16 +155,23 @@ dt_pwbar() {
 		return 0
 	fi
 	g := dt_pwglyph "${DT_PW["pct"]}"
-	t=$g
-	[ "${DT_PWLEVEL:-1}" = 1 ] && t="$g ${DT_PW["pct"]:-?}%"
+	# A glyph set that draws the state inside the battery (Blit's) gives
+	# batchg0-4 and batfull, and the battery is then that one picture
+	# rather than a mark beside it.
+	local l mark=
+
+	l=$(( (${DT_PW["pct"]:-0} + 12) / 25 ))
+	[ "$l" -gt 4 ] && l=4
 	# On mains it says so, charging or not (Gitea #395): the bolt while
 	# it charges, the plug once it is full or holding -- a full battery on
 	# mains looked like one draining.
 	if [ "${DT_PW["state"]}" = charging ]; then
-		t="${GL[batchg]}$t"
+		if [ -n "${GL["batchg$l"]}" ]; then g=${GL["batchg$l"]}; else mark=${GL[batchg]}; fi
 	elif [ "${DT_PW["ac"]:-0}" = 1 ]; then
-		t="${GL[batac]}$t"
+		if [ -n "${GL[batfull]}" ]; then g=${GL[batfull]}; else mark=${GL[batac]}; fi
 	fi
+	t=$mark$g
+	[ "${DT_PWLEVEL:-1}" = 1 ] && t="$mark$g ${DT_PW["pct"]:-?}%"
 	dt_baritem pw "$t" dt_pwmenu
 	dt_bariright pw dt_pwmenu
 }

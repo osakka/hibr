@@ -41,6 +41,11 @@ fn dt_glyphs(set = "unicode") {
 	# after it does not keep them: dt_netbars draws Blit's four Wi-Fi
 	# levels whenever wifi4 has a glyph.
 	GL["wifi1"]=; GL["wifi2"]=; GL["wifi3"]=; GL["wifi4"]=
+	# And the battery and the speaker drawn as one picture a state, which
+	# dt_pwbar and dt_sndbar use only when they are set.
+	GL["batchg0"]=; GL["batchg1"]=; GL["batchg2"]=; GL["batchg3"]=
+	GL["batchg4"]=; GL["batfull"]=
+	GL["vol0"]=; GL["vol1"]=; GL["vol2"]=; GL["vol3"]=
 	# The hibr menu's own mark, U+270E in every set but blit's.
 	GL["hibr"]=$'\u270e'      # LOWER RIGHT PENCIL
 	if [ "$set" = ascii ]; then
@@ -66,6 +71,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["reload"]="@"; GL["plus"]="+"; GL["larr"]="<"; GL["rarr"]=">"
 		GL["arrowup"]="^"; GL["hook"]=">"
 		GL["file"]="-"; GL["folder"]="+"; GL["bundle"]="#"
+		GL["folderbig"]="++"; GL["bundlebig"]="##"
 		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"; GL["tick"]="v"
 		GL["sound"]="vol"; GL["soundoff"]="vol x"
 		GL["wifi"]="wifi"; GL["wired"]="lan"; GL["netoff"]="net x"
@@ -139,6 +145,10 @@ fn dt_glyphs(set = "unicode") {
 		GL["file"]=$'▯'      # WHITE VERTICAL RECTANGLE
 		GL["folder"]=$'▤'    # SQUARE WITH HORIZONTAL FILL
 		GL["bundle"]=$'▣'    # WHITE SQUARE CONTAINING BLACK SMALL SQUARE, a folder that is one thing
+		# Files' icon view: two of a shape that is one cell, where an
+		# icon font's one glyph is a whole picture (dt_glyphsnerd).
+		GL["folderbig"]=$'▤▤'
+		GL["bundlebig"]=$'▣▣'
 		GL["cross"]=$'✕'     # MULTIPLICATION X
 		GL["xmark"]=$'✗'     # BALLOT X
 		GL["check"]=$'✓'     # CHECK MARK
@@ -223,6 +233,9 @@ dt_glyphsnerd() {
 	GL["batac"]=$'\uf1e6'     # nf-fa-plug: on mains, not charging
 	GL["folder"]=$'\uf07b'    # nf-fa-folder
 	GL["bundle"]=$'\uf1b2'    # nf-fa-cube
+	# One picture, not two of it side by side (the owner, on Blit).
+	GL["folderbig"]=$'\uf07b'
+	GL["bundlebig"]=$'\uf1b2'
 	GL["file"]=$'\uf15b'      # nf-fa-file
 	GL["home"]=$'\uf015'      # nf-fa-home
 	GL["disk"]=$'\uf0a0'      # nf-fa-hdd_o
@@ -251,6 +264,19 @@ dt_glyphsnerd() {
 # assets/fonts/icons/catalogue.json, docs/font-reference.md). Chosen, never
 # detected, like nerd: a person on Blit's Retro or Modern profile picks it,
 # and anywhere else the other three are what to pick.
+# Whether the Blit this desktop runs on is at least version a.b.c, by
+# BLIT_VERSION, which Blit sets from 0.2.39 and the login screen passes on;
+# unset is older.
+fn dt_blitat(int a, int b, int c) {
+	local v=${BLIT_VERSION-} x y z
+
+	case $v in [0-9]*.[0-9]*.[0-9]*) ;; *) return 1 ;; esac
+	IFS=. read -r x y z <<< "$v"
+	z=${z%%[!0-9]*}
+	case $x$y$z in *[!0-9]*) return 1 ;; esac
+	[ $(( x * 1000000 + y * 1000 + z )) -ge $(( a * 1000000 + b * 1000 + c )) ]
+}
+
 dt_glyphsblit() {
 	GL["hibr"]=$'\U00100001'   # Blit hibr-pen, the colour hibr menu mark
 	GL["wifi1"]=$'\U00100002'  # Blit wifi-1, signal level 1 of 4
@@ -264,5 +290,25 @@ dt_glyphsblit() {
 	# bar meeting the window's content square below.
 	GL["capl"]=$'\U00100007'
 	GL["capr"]=$'\U00100008'
+	# The battery and the speaker, one picture a state, the charge or the
+	# level inside it (Blit 0.2.38, ADR 0196 there): a Blit before that
+	# draws nothing at these, so they are taken only where it says it is
+	# new enough, and the bars the nerd set gave are kept otherwise.
+	dt_blitat 0 2 38 || return 0
+	GL["bat0"]=$'\U00100009'   # Blit battery-0
+	GL["bat1"]=$'\U0010000A'   # Blit battery-1
+	GL["bat2"]=$'\U0010000B'   # Blit battery-2
+	GL["bat3"]=$'\U0010000C'   # Blit battery-3
+	GL["bat4"]=$'\U0010000D'   # Blit battery-4
+	GL["batchg0"]=$'\U0010000E' # Blit battery-0-charging
+	GL["batchg1"]=$'\U0010000F' # Blit battery-1-charging
+	GL["batchg2"]=$'\U00100010' # Blit battery-2-charging
+	GL["batchg3"]=$'\U00100011' # Blit battery-3-charging
+	GL["batchg4"]=$'\U00100012' # Blit battery-4-charging
+	GL["batfull"]=$'\U00100013' # Blit battery-ac: on mains, not charging
+	GL["vol0"]=$'\U00100014'   # Blit volume-0, muted
+	GL["vol1"]=$'\U00100015'   # Blit volume-1
+	GL["vol2"]=$'\U00100016'   # Blit volume-2
+	GL["vol3"]=$'\U00100017'   # Blit volume-3
 }
 dt_glyphs "$DT_GLYPHSET"

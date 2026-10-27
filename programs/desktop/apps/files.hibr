@@ -762,8 +762,8 @@ fn fb_pen(kind, bg = "") {
 fn fb_glyph(kind) {
 	case $kind in
 	up) ret "${GL[up]}" ;;
-	dir) ret "${GL[folder]}${GL[folder]}" ;;
-	bundle) ret "${GL[bundle]}${GL[bundle]}" ;;
+	dir) ret "${GL[folderbig]}" ;;
+	bundle) ret "${GL[bundlebig]}" ;;
 	exe) ret "${GL[right]}" ;;
 	link) ret "${GL[hook]}" ;;
 	*) ret "${GL[file]}" ;;

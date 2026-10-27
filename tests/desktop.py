@@ -7354,12 +7354,18 @@ def pwsupply(pct, state, ac=0, design=54000000, power=8000000):
 
 PWCTL = os.path.join(PWD_, "loginctl")
 PWLOG = os.path.join(PWD_, "asked")
+# Each stand-in does what the real one does on systemd's Debian: loginctl
+# knows show-session and refuses reboot, poweroff and suspend, which are
+# elogind's alone -- a stand-in that took them hid exactly that, and every
+# Restart on the owner's machine said "logind refused". busctl answers a
+# property and records the logind method it is called with.
 open(PWCTL, "w").write(
     '#!/bin/sh\ncase $1 in\nshow-session) printf "Remote=no\\nSeat=seat0\\n" ;;\n'
-    '*) echo "$1" >> %s ;;\nesac\n' % PWLOG)
+    '*) echo "Unknown command verb \'$1\'." >&2; exit 1 ;;\nesac\n')
 os.chmod(PWCTL, 0o755)
 PWBUS = os.path.join(PWD_, "busctl")
-open(PWBUS, "w").write('#!/bin/sh\necho \'s "no"\'\n')
+open(PWBUS, "w").write('#!/bin/sh\ncase $1 in\ncall) echo "$5 $6 $7" >> %s ;;\n'
+                       '*) echo \'s "no"\' ;;\nesac\n' % PWLOG)
 os.chmod(PWBUS, 0o755)
 PWENV = {"DT_POWERDIR": os.path.join(PWD_, "sys"), "DT_PWCTL": PWCTL,
          "DT_PWBUSCTL": PWBUS}
@@ -7375,6 +7381,18 @@ check("a battery is on the menu bar, its level and its charge",
 pwsupply(62, "Charging", ac=1)
 sc, _ = run("", env=PWENV, pre=PWPRE)
 check("and a mark while it charges", "\u21af\u2584 62%" in sc.row(0), sc.row(0))
+# On a Blit that draws the charge inside the battery (0.2.38, which says so
+# in BLIT_VERSION from 0.2.39), the blit set's battery is one picture a
+# state rather than a bolt beside a battery; an older Blit, or none named,
+# keeps the bolt, since those code points draw nothing there.
+sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="blit", BLIT_VERSION="0.2.39"),
+            pre=PWPRE)
+check("on a Blit that has them, a charging battery is one picture",
+      "\U00100010 62%" in sc.row(0) and "\uf0e7" not in sc.row(0), sc.row(0))
+sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="blit", BLIT_VERSION="0.2.37"),
+            pre=PWPRE)
+check("and on an older Blit it is the bolt and the battery, as before",
+      "\uf0e7\uf242 62%" in sc.row(0), sc.row(0))
 # On mains it says so whether or not it charges (Gitea #395), and Level on
 # Menu Bar off leaves the glyph without the number, as the speaker's does.
 pwsupply(100, "Full", ac=1)
@@ -7456,7 +7474,7 @@ def pwasked(feed, env):
 
 sc, asked = pwasked([press(sr, scl + 1), release(sr, scl + 1), 0.5], PWLOC)
 check("on the computer's own desktop Sleep asks logind to suspend",
-      asked == ["suspend"], asked)
+      asked == ["Suspend", "b", "false"], asked)
 if os.path.exists(PWLOG):
     os.unlink(PWLOG)
 sc = pwlive([0.3, press(0, spc), release(0, spc), 0.3, press(dr, dcl + 1),
@@ -7466,7 +7484,8 @@ check("and Shut Down asks first, doing nothing until it is answered",
       sc.find("Shut down the computer?") is not None and asked == [], (asked, sc))
 sc, asked = pwasked([press(dr, dcl + 1), release(dr, dcl + 1), 0.5, b"y", 0.5],
                     PWLOC)
-check("answered yes, it asks logind to power off", asked == ["poweroff"], asked)
+check("answered yes, it asks logind to power off",
+      asked == ["PowerOff", "b", "false"], asked)
 sc, asked = pwasked([press(sr, scl + 1), release(sr, scl + 1), 0.5],
                     dict(PWENV, XDG_SESSION_ID=None))
 check("a desktop that is not the computer's own does nothing for Sleep",
@@ -7952,4 +7971,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(860)
+report(862)

@@ -39,7 +39,7 @@
 
 strict
 
-app sound "The speaker on the menu bar and the sound it watches" 1.1
+app sound "The speaker on the menu bar and the sound it watches" 1.2
 
 # The state: kind (pulse, pw, alsa, none, or gone for a server that went;
 # empty until the first frame looks), server (what the server calls
@@ -415,12 +415,23 @@ dt_sndbar() {
 		dt_baritem sound ""
 		return 0
 	fi
+	local g=${GL[sound]} v=${DT_SND["vol"]:-0}
+	# A glyph set that draws the level inside the speaker (Blit's) gives
+	# vol0-3, one picture a level, muted the first.
+	if [ -n "${GL[vol0]}" ]; then
+		if [ "${DT_SND["mute"]}" = 1 ]; then g=${GL[vol0]}
+		elif [ "$v" -le 33 ]; then g=${GL[vol1]}
+		elif [ "$v" -le 66 ]; then g=${GL[vol2]}
+		else g=${GL[vol3]}
+		fi
+	fi
 	if [ "${DT_SND["mute"]}" = 1 ]; then
 		t=${GL[soundoff]}
+		[ -n "${GL[vol0]}" ] && t=$g
 	elif [ "${DT_SNDLEVEL:-1}" = 1 ]; then
-		t="${GL[sound]} ${DT_SND["vol"]:-0}%"
+		t="$g $v%"
 	else
-		t=${GL[sound]}
+		t=$g
 	fi
 	dt_baritem sound "$t" dt_sndslider
 	dt_bariright sound dt_sndmenu

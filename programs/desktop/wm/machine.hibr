@@ -16,6 +16,10 @@ strict
 
 declare -gA DT_PW
 # logind's own commands, each a name a test can put a stand-in at.
+# loginctl only asks whether this session is local: its reboot, poweroff
+# and suspend are elogind's alone, and systemd's loginctl has no such
+# verbs, so on Debian every Restart said "logind refused". The actions go
+# to logind's own methods over D-Bus instead, which both answer.
 DT_PWCTL="${DT_PWCTL-loginctl}"
 DT_PWBUSCTL="${DT_PWBUSCTL-busctl}"
 # What the confirm box is about to do.
@@ -66,14 +70,27 @@ fn dt_pwdo(what) {
 	return 0
 }
 
+# Not interactive (the b false): a password logind wanted would be asked by
+# the desktop's own polkit agent, which cannot draw while this waits for
+# the answer, so a refusal is said instead of hanging the desktop.
 dt_pwgo() {
-	local what=$DT_PWDOING
+	local what=$DT_PWDOING m err
 
 	DT_PWDOING=
-	[ -n "$what" ] || return 0
+	case $what in
+	suspend) m=Suspend ;;
+	hibernate) m=Hibernate ;;
+	reboot) m=Reboot ;;
+	poweroff) m=PowerOff ;;
+	*) return 0 ;;
+	esac
 	dt_log "power: $what"
-	"$DT_PWCTL" "$what" 2> /dev/null ||
+	if ! err=$("$DT_PWBUSCTL" call org.freedesktop.login1 \
+		/org/freedesktop/login1 org.freedesktop.login1.Manager "$m" b false \
+		2>&1 > /dev/null); then
+		dt_log "power: $what refused: $err"
 		dt_note "The computer did not do it: logind refused"
+	fi
 	return 0
 }
 
