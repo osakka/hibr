@@ -221,6 +221,11 @@ fn dt_baritem(name, text = "", ...cmd) {
 		# can take it off again (dt_barrescan).
 		DT_BARI["$name"]["src"]=${DT_LOADING-}
 	fi
+	# A change asks for the frame that shows it: an item set from a ticker
+	# -- the battery's first reading -- runs after the frame is drawn, and
+	# an idle desktop would leave it unseen, and a press aimed at it would
+	# land on the bar as it was before (0.99.358).
+	[ "${DT_BARI["$name"]["text"]-}" != "$text" ] && dt_want 10
 	DT_BARI["$name"]["text"]=$text
 	DT_BARI["$name"]["argc"]=${#cmd[@]}
 	i=0

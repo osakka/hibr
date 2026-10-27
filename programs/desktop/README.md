@@ -1046,8 +1046,10 @@ nothing pressed. macOS is not done yet. `HIBR_BT` overrides the setting --
 
 A machine with a battery has it on the menu bar (Gitea #365): its level and
 its charge -- `▄ 62%` -- with `↯` in front while it charges, read from the
-kernel's own files every half minute. A click opens the battery's menu: the
-charge in words, with the time left or the time to full, then Sleep,
+kernel's own files every half minute. One with no battery has the power
+symbol `⏻` there instead, on the computer's own desktop (power is not only
+a battery). A click opens the Power menu: the
+charge in words where there is a battery, with the time left or the time to full, then Sleep,
 Hibernate (where the machine can), Restart… and Shut Down…, and Power
 Settings…. The same three are at the foot of **Special** too.
 
@@ -1059,7 +1061,7 @@ off. Restart and Shut Down ask first.
 
 **Control Panel > Power** shows the charge, whether it is plugged in, the
 battery's health -- what it holds full against what it held new -- and has
-Battery on Menu Bar, Level on Menu Bar (the percentage beside the battery's
+Power on Menu Bar, Level on Menu Bar (the percentage beside the battery's
 glyph, on by default like Sound's), Low Battery Note (a note once a discharge, at 5 to 25%,
 or off), Critical Battery (3 to 10%), and On Critical Battery: nothing, or
 sleep, hibernate or shut down after a note and a minute in which plugging in
@@ -1067,7 +1069,15 @@ calls it off. With no battery the pane says so and keeps only the computer's
 own actions.
 
 On the bar the battery's glyph shows its level, with the bolt beside it while
-it charges and a plug while it is on mains and not charging (Gitea #395).
+it charges and a plug while it is on mains and not charging (Gitea #395). On
+Blit 0.2.38 and later, with the blit glyph set, each state is one picture:
+the charge, the bolt or the plug inside the battery.
+
+The same power is a **Control Strip module** from the Catalogue, one glyph
+and the same menu. The bar item, the pane and the strip module are each
+installed on their own, and each switched off where it is listed: the bar's
+in Control Panel > Menu Bar > Menu Bar Items (or the pane's Power on Menu
+Bar), the strip's under Control Strip > Modules.
 
 ## Screen savers
 

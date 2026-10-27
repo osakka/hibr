@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.42",
+ "version": "3.43",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1306,7 +1306,6 @@
   "Battery critical: the computer will shut down in a minute": "البطارية حرجة: سيُطفأ الحاسوب خلال دقيقة",
   "Battery critical: the computer will sleep in a minute": "البطارية حرجة: سينام الحاسوب خلال دقيقة",
   "Battery low: %s%% left": "البطارية منخفضة: يتبقى %s%%",
-  "Battery on Menu Bar": "البطارية في شريط القوائم",
   "Computer": "الحاسوب",
   "Critical Battery": "البطارية الحرجة",
   "Health": "الحالة",
@@ -1397,6 +1396,7 @@
   "one of the desktop's own apps": "أحد تطبيقات سطح المكتب",
   "Menu Bar Items": "عناصر شريط القوائم",
   "Drag, or Shift and an arrow": "اسحب، أو Shift مع سهم",
-  "Workspaces": "مساحات العمل"
+  "Workspaces": "مساحات العمل",
+  "Power on Menu Bar": "الطاقة في شريط القوائم"
  }
 }

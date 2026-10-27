@@ -1,0 +1,48 @@
+#!/usr/bin/env hibr
+#
+# power -- a Control Strip module for the computer's power (the owner,
+# 2026-10-27): the battery where there is one and the power symbol where
+# there is not, and a click for Sleep, Restart and Shut Down -- with the
+# battery's charge when the menu bar's Power item, which reads the
+# batteries, is installed too. The strip and the bar can each show it, or
+# both, or neither.
+#
+# Called pwr: power is the Control Panel pane's prefix, and a pane with a
+# power_draw would be taken for one that draws itself.
+
+strict
+
+
+app pwr "A Control Strip module for the computer's power" 1.0
+command -v cs_module > /dev/null && cs_module pwr Power 1
+
+# On the computer's own desktop, or wherever there is a battery to show.
+pwr_shown() {
+	[ "${DT_PW["n"]:-0}" -gt 0 ] && return 0
+	dt_has dt_pwlocal && dt_pwlocal
+}
+
+fn pwr_draw(int row, int col) {
+	local g=${GL[power]}
+
+	dt_has dt_pwicon && g := dt_pwicon
+	console pen "$DT_INK" "$DT_FACE"
+	console put "$row" "$col" "$g"
+}
+
+fn pwr_click(int row, int col) {
+	dt_context_open pwr "" "$row" "$col"
+	return 0
+}
+
+# The bar item's own menu where it is installed; the computer's own rows
+# where it is not.
+fn pwr_context(id = "") {
+	if dt_has pw_context; then
+		pw_context "$id"
+		return 0
+	fi
+	dt_menu "Power"
+	dt_has dt_pwitems && dt_pwitems
+	return 0
+}

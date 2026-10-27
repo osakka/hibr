@@ -72,6 +72,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["arrowup"]="^"; GL["hook"]=">"
 		GL["file"]="-"; GL["folder"]="+"; GL["bundle"]="#"
 		GL["folderbig"]="++"; GL["bundlebig"]="##"
+		GL["power"]="pwr"
 		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"; GL["tick"]="v"
 		GL["sound"]="vol"; GL["soundoff"]="vol x"
 		GL["wifi"]="wifi"; GL["wired"]="lan"; GL["netoff"]="net x"
@@ -149,6 +150,7 @@ fn dt_glyphs(set = "unicode") {
 		# icon font's one glyph is a whole picture (dt_glyphsnerd).
 		GL["folderbig"]=$'▤▤'
 		GL["bundlebig"]=$'▣▣'
+		GL["power"]=$'⏻'    # POWER SYMBOL: the computer, no battery
 		GL["cross"]=$'✕'     # MULTIPLICATION X
 		GL["xmark"]=$'✗'     # BALLOT X
 		GL["check"]=$'✓'     # CHECK MARK
@@ -236,6 +238,7 @@ dt_glyphsnerd() {
 	# One picture, not two of it side by side (the owner, on Blit).
 	GL["folderbig"]=$'\uf07b'
 	GL["bundlebig"]=$'\uf1b2'
+	GL["power"]=$'\uf011'      # nf-fa-power_off
 	GL["file"]=$'\uf15b'      # nf-fa-file
 	GL["home"]=$'\uf015'      # nf-fa-home
 	GL["disk"]=$'\uf0a0'      # nf-fa-hdd_o

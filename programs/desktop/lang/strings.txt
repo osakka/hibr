@@ -171,7 +171,6 @@ Battery critical: the computer will hibernate in a minute
 Battery critical: the computer will shut down in a minute
 Battery critical: the computer will sleep in a minute
 Battery low: %s%% left
-Battery on Menu Bar
 Blank
 Block Addresses
 Bluetooth
@@ -838,6 +837,7 @@ Position Given
 Power
 Power Settings…
 Power is now in the Catalogue -- click to install it
+Power on Menu Bar
 Prayer
 Prayer Location
 Prayer Times

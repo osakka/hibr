@@ -7403,10 +7403,39 @@ pwsupply(62, "Discharging")
 sc, _ = run("", env=dict(PWENV, DT_PWLEVEL="0"), pre=PWPRE)
 check("and with Level on Menu Bar off the glyph is there without its number",
       "\u2584" in sc.row(0) and "62%" not in sc.row(0), sc.row(0))
-sc, _ = run("", env=dict(PWENV, DT_POWERDIR=os.path.join(PWD_, "none")),
-            pre=PWPRE)
-check("a machine with no battery has no battery on the bar",
-      "%" not in sc.row(0).replace("Desktop", ""), sc.row(0))
+# Power is not only a battery (the owner, 2026-10-27): with none, the
+# computer's own desktop has the power symbol on the bar, for Sleep,
+# Restart and Shut Down; a desktop that is not the computer's has nothing
+# there it could do, so nothing.
+PWNONE = dict(PWENV, DT_POWERDIR=os.path.join(PWD_, "none"), XDG_SESSION_ID=None)
+sc, _ = run("", env=PWNONE, pre=PWPRE)
+check("a remote desktop with no battery has no power item on the bar",
+      "%" not in sc.row(0).replace("Desktop", "") and "\u23fb" not in sc.row(0),
+      sc.row(0))
+sc, _ = run("", env=dict(PWNONE, XDG_SESSION_ID="7"), pre=PWPRE)
+check("the computer's own desktop with no battery has the power symbol",
+      "\u23fb" in sc.row(0) and "%" not in sc.row(0).replace("Desktop", ""),
+      sc.row(0))
+_pc = sc.row(0).find("\u23fb")
+# The item is put up by the first read of the batteries, a frame or two
+# after the desktop starts, so the press waits for it.
+sc, _ = run("", [1.0, press(0, _pc), release(0, _pc), 0.4],
+            env=dict(PWNONE, XDG_SESSION_ID="7"), pre=PWPRE)
+check("and its menu is Power: Sleep, Restart and Shut Down, no battery line",
+      sc.find("Shut Down") is not None and sc.find("Sleep") is not None and
+      sc.find("charged") is None, sc)
+# The same power as a Control Strip module, from the catalogue: one glyph,
+# and a click opens the same menu.
+PWSTRIP = PWPRE + 'CS_MODDIRS+=("%s")\ncs_modules\n' % os.path.dirname(
+    tree("programs/desktop/control-strip/power.hibr"))
+sc, _ = run("", env=dict(PWNONE, XDG_SESSION_ID="7"), pre=PWSTRIP)
+_ps = sc.find("[\u23fb]")
+check("a Power strip module shows the power symbol", _ps is not None, sc)
+_ps = _ps or (0, 0)
+sc, _ = run("", [press(_ps[0], _ps[1] + 1), release(_ps[0], _ps[1] + 1), 0.4],
+            env=dict(PWNONE, XDG_SESSION_ID="7"), pre=PWSTRIP)
+check("and a click on it opens the Power menu",
+      sc.find("Shut Down") is not None and sc.find("Restart") is not None, sc)
 
 
 def pwlive(feed, env, want, pre=""):
@@ -7971,4 +8000,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(862)
+report(866)

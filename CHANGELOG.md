@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.358
+
+**Power is on the menu bar with or without a battery** (the owner's
+choice). On the computer's own desktop, a machine with no battery has the
+power symbol on the bar, and its menu -- now called Power -- has Sleep,
+Restart and Shut Down; a machine with a battery shows it as before. A
+desktop that is not the computer's own shows the battery where there is
+one and nothing where there is not. Control Panel > Power (3.2) calls the
+row **Power on Menu Bar**, and keeps Sleep, Restart and Shut Down even
+without the bar item installed.
+
+- **A Power module for the Control Strip** (catalogue): one glyph -- the
+  battery, or the power symbol -- and the same menu. The bar item, the
+  pane and the strip module are each installed on their own and each
+  switched off where it is listed.
+- **A bar item shows the moment it changes.** One set from a ticker -- the
+  battery's first reading -- ran after the frame was drawn and nothing
+  asked for the next, so on an idle desktop it appeared only when
+  something else redrew, and a click aimed at it landed on the bar as it
+  had been. `dt_baritem` asks for a frame when an item's text changes.
+
 ## 0.99.357
 
 **Restart, Shut Down and Sleep work on systemd machines** (reported by the

@@ -1,10 +1,12 @@
 # menubar/power -- the battery and the machine's power (Gitea #365): each
 # battery's charge, whether it is charging, the time left and its health,
-# read from the kernel's own files; an item on the menu bar while there is
-# a battery; a note when the charge runs low, and a choice of what to do
+# read from the kernel's own files; an item on the menu bar -- the battery
+# where there is one, and the power symbol on the computer's own desktop
+# where there is not, since power is not only a battery (the owner,
+# 2026-10-27); a note when the charge runs low, and a choice of what to do
 # when it runs out. Sleep, Restart and Shut Down are the platform's, in
 # wm/machine.hibr, and are on the hibr menu whether this is installed or not;
-# the battery's menu offers them too.
+# this item's menu offers them too.
 #
 # Part of the power pane's catalogue entry, not of the package (Gitea #388):
 # installed with it, loaded with the Control Panel's panes by cp_panes, and
@@ -17,7 +19,7 @@
 
 strict
 
-app power "The battery on the menu bar and the charge it watches" 1.3
+app power "The computer's power on the menu bar, and the battery it watches" 1.4
 
 declare -gA DT_PW
 # Where the batteries are: the kernel's folder, a name a test can put a
@@ -144,14 +146,47 @@ fn dt_pwglyph(int? pct = "") {
 	ret "${GL["bat$l"]}"
 }
 
-# The item on the menu bar: the battery's level and its charge, while there
-# is a battery and Control Panel > Power > Battery on Menu Bar is on. A
-# click opens its menu.
+# One glyph for the power as it is now, for a place with room for one
+# (the Control Strip's module): the battery's level, its charge inside it
+# where the glyph set draws that (Blit's), and the power symbol where there
+# is no battery.
+dt_pwicon() {
+	local l g
+
+	if [ "${DT_PW["n"]:-0}" = 0 ]; then
+		ret "${GL[power]}"
+		return 0
+	fi
+	g := dt_pwglyph "${DT_PW["pct"]}"
+	l=$(( (${DT_PW["pct"]:-0} + 12) / 25 ))
+	[ "$l" -gt 4 ] && l=4
+	if [ "${DT_PW["state"]}" = charging ] && [ -n "${GL["batchg$l"]}" ]; then
+		g=${GL["batchg$l"]}
+	elif [ "${DT_PW["state"]}" != charging ] && [ "${DT_PW["ac"]:-0}" = 1 ] &&
+	     [ -n "${GL[batfull]}" ]; then
+		g=${GL[batfull]}
+	fi
+	ret "$g"
+}
+
+# The item on the menu bar while Control Panel > Power > Power on Menu Bar
+# is on: the battery's level and its charge where there is a battery, and
+# where there is none the power symbol, on the computer's own desktop only
+# -- elsewhere there is nothing it could do. A click opens its menu.
 dt_pwbar() {
 	local t g
 
-	if [ "${DT_PWBAR:-1}" != 1 ] || [ "${DT_PW["n"]:-0}" = 0 ]; then
+	if [ "${DT_PWBAR:-1}" != 1 ]; then
 		dt_baritem pw ""
+		return 0
+	fi
+	if [ "${DT_PW["n"]:-0}" = 0 ]; then
+		if dt_pwlocal; then
+			dt_baritem pw "${GL[power]}" dt_pwmenu
+			dt_bariright pw dt_pwmenu
+		else
+			dt_baritem pw ""
+		fi
 		return 0
 	fi
 	g := dt_pwglyph "${DT_PW["pct"]}"
@@ -254,10 +289,12 @@ dt_pwtick() {
 fn pw_context(id = "") {
 	local lb s
 
-	dt_menu "Battery"
-	s := dt_pwsays
-	lb := dt_tr "%s%% charged, %s" "${DT_PW["pct"]:-?}" "$s"
-	dt_dim "$lb"
+	dt_menu "Power"
+	if [ "${DT_PW["n"]:-0}" -gt 0 ]; then
+		s := dt_pwsays
+		lb := dt_tr "%s%% charged, %s" "${DT_PW["pct"]:-?}" "$s"
+		dt_dim "$lb"
+	fi
 	dt_pwitems
 	dt_sep
 	if dt_has panel_goto; then
@@ -271,5 +308,5 @@ fn pw_context(id = "") {
 # finding the file gone knows whose item this is (dt_barrescan).
 dt_baritem pw ""
 dt_bariswitch pw DT_PWBAR dt_pwbar
-dt_barilabel pw "Battery"
+dt_barilabel pw "Power"
 dt_ticker dt_pwtick
