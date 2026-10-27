@@ -50,6 +50,7 @@ fn dt_glyphs(set = "unicode") {
 	# And longwire's telephone (its menu bar item and strip module), which
 	# it draws with its own characters when these are empty.
 	GL["phoneoff"]=; GL["phonewait"]=; GL["phoneon"]=; GL["phonering"]=
+	GL["phoneoffc"]=; GL["phonewaitc"]=; GL["phoneonc"]=; GL["phoneringc"]=
 	# The hibr menu's own mark, U+270E in every set but blit's.
 	GL["hibr"]=$'\u270e'      # LOWER RIGHT PENCIL
 	if [ "$set" = ascii ]; then
@@ -318,5 +319,11 @@ dt_glyphsblit() {
 	GL["phonewait"]=$'\U0010001C' # Blit phone-wait, dashed
 	GL["phoneon"]=$'\U0010001D'   # Blit phone-on, filled
 	GL["phonering"]=$'\U0010001E' # Blit phone-ring, with waves
+	# And the classic rotary desk telephone (0.2.45), for longwire's Phone
+	# Style: Classic.
+	GL["phoneoffc"]=$'\U0010001F'  # Blit classic-off, an outline
+	GL["phonewaitc"]=$'\U00100020' # Blit classic-wait, dashed
+	GL["phoneonc"]=$'\U00100021'   # Blit classic-on, filled
+	GL["phoneringc"]=$'\U00100022' # Blit classic-ring, with waves
 }
 dt_glyphs "$DT_GLYPHSET"

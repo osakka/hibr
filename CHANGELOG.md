@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.99.366
+
+**Blit's classic telephone** (Blit 0.2.45) in the blit glyph set, for
+longwire's Phone Style: `GL[phoneoffc]`, `GL[phonewaitc]`, `GL[phoneonc]` and
+`GL[phoneringc]`, a rotary desk phone in the same four states as the modern
+handset, one column each, and empty in every other set, where longwire falls
+back to the modern four and then to characters of its own.
+
 ## 0.99.365
 
 **A window can hold the pointer** (Gitea #379). A game that turns with the
