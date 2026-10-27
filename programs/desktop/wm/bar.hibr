@@ -233,7 +233,7 @@ fn dt_baritem(name, text = "", ...cmd) {
 }
 
 # What an item is called where a person chooses its place on the bar
-# (Control Panel > Appearance > Menu Bar Items): set by its owner beside its
+# (Control Panel > Menu Bar > Menu Bar Items): set by its owner beside its
 # dt_baritem, so nothing else keeps a list of who puts what on the bar
 # (Gitea #341).
 fn dt_barilabel(name, label) {

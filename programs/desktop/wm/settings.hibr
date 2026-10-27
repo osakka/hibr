@@ -183,7 +183,7 @@ DT_SHADOWSHAPE="${DT_SHADOWSHAPE-half}"
 
 # The order of the items on the menu bar's right -- the speaker, the
 # network, Bluetooth, an app's own -- as names in the order they read
-# across it (Control Panel > Appearance > Menu Bar Items, Gitea #341,
+# across it (Control Panel > Menu Bar > Menu Bar Items, Gitea #341,
 # #396). Empty is the order they registered in, as the bar always was;
 # dt_barseq reads it.
 DT_BARORDER="${DT_BARORDER-}"
@@ -236,12 +236,12 @@ DT_HOVER="${DT_HOVER-auto}"
 # it has an adapter -- and the item on the menu bar.
 DT_BTKIND="${DT_BTKIND-Auto}"
 DT_BTBAR="${DT_BTBAR-1}"
-# Control Panel > Appearance > Bold Menu Titles: an app's own menu titles
+# Control Panel > Menu Bar > Bold Menu Titles: an app's own menu titles
 # on the bar -- File, Edit and the rest -- in bold. The hibr menu and the
 # open menu are bold either way; nothing else on the bar changes.
 DT_MENUBOLD="${DT_MENUBOLD-0}"
 # The widest a menu may be, in columns, or 0 for as wide as its longest
-# row (Gitea #324): Control Panel > Appearance > Menu Width.
+# row (Gitea #324): Control Panel > Menu Bar > Menu Width.
 DT_MENUMAX="${DT_MENUMAX-40}"
 
 # A shadow under a dialog's buttons -- widgets/button.hibr draws it, and

@@ -137,7 +137,7 @@ own, and Window.
 
 Open the **Control Panel** from the hibr menu and choose **Appearance**.
 
-![The Control Panel with Appearance chosen: Theme, Colours, Glyphs and Tree Style at the top, then the wallpaper's pattern, picture and mode, the menu bar, shadows and controls](../programs/desktop/img/tour-5-appearance.png)
+![The Control Panel with Appearance chosen: Theme, Colours, Glyphs and Tree Style at the top, then the shadows and controls](../programs/desktop/img/tour-5-appearance.png)
 
 A **theme** sets how the desktop is drawn, and a **colour scheme** what
 colours it is drawn in, and the two are chosen apart. The desktop comes
@@ -150,8 +150,10 @@ second screen joined from a terminal that cannot show pixels gets half
 blocks while the first keeps its picture. Every change applies at once
 and is kept for next time.
 
-**Menu Bar Items**, further down the same pane, lists what is on the bar's
-right -- the workspace numbers, the speaker, the network, the notification
+The menu bar has a pane of its own, **Menu Bar**: the gap between its
+items, how much of a picture shows through it, the notification icon, its
+shadow and how wide a menu may grow. Its **Menu Bar Items** list shows what
+is on the bar's right -- the workspace numbers, the speaker, the network, the notification
 icon, the clock, anything an app has put there -- in the order they read
 across it. Untick one to take it off the bar. Drag a row by its grip to
 move it, or select it and press **shift** with an arrow. The application

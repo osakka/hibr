@@ -249,7 +249,7 @@ rounded where the glyph set has the cell for it, Blit's), `wintrans` and
 `bartrans` (how much of what is beneath shows through a window's face, and
 through the menu bar, its menus, drop-down lists and pop-ups, 0 to 100:
 another window, or the wallpaper's picture where nothing else is --
-Control Panel > Windows and Appearance > Menu Bar each have a See Through
+Control Panel > Windows and Menu Bar each have a See Through
 slider for them, and a terminal's own setting still decides inside a
 terminal when it is above 0), `buttons` (`brackets`, `circles`, `squares`,
 `diamonds`, `dashes`), `tree` (`plus`, `arrows`, `triangles`, `dots` --
@@ -373,7 +373,7 @@ style chosen, rather than a text symbol. Blit's icons are private to its
 fonts, so the set is a choice, like nerd; anywhere else, pick one of the
 other three.
 
-A menu is no wider than **Menu Width** (Appearance > Menu Bar): 40 columns
+A menu is no wider than **Menu Width** (Control Panel > Menu Bar): 40 columns
 by default, or 30 to 80, or No Limit. A row longer than that -- a window's
 title, a device's name -- is cut with an ellipsis. A menu dropped from the
 bar stays on the display the bar is on, shadow and all, rather than opening
@@ -1733,7 +1733,7 @@ instead, is in [WRITING.md](WRITING.md#control-strip-modules).
 
 Across the top, System 7's: the **hibr menu** on the left where the apple
 went, then the menus of whatever window has focus, then the notification
-icon (⚑ unless Appearance's Notification Icon picks another -- the bell 🔔
+icon (⚑ unless the Menu Bar pane's Notification Icon picks another -- the bell 🔔
 among them, which needs an emoji font -- with a count beside it of notes you
 have not seen yet, opening the latest of them in a panel beneath it when
 clicked), the clock (in whatever format Date & Time sets) and the

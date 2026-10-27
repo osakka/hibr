@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.356
+
+**The menu bar has a Control Panel pane of its own** (Gitea #396, the
+owner's choice). Control Panel > **Menu Bar** (1.0, in the Desktop group)
+holds what Appearance's Menu Bar section did -- Spacing, See Through,
+Notification Icon, Bar Shadow, Bold Menu Titles and Menu Width -- with
+**Menu Bar Items** directly under them, where 0.99.355 had put the list
+last in Appearance. The settings are the same ones, so nothing saved moves.
+Appearance (2.8) keeps the look: the theme, colours, glyphs, trees,
+shadows and controls.
+
 ## 0.99.355
 
 **Choose what is on the menu bar, and in what order, by dragging** (Gitea

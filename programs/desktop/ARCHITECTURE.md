@@ -202,7 +202,7 @@ fn` is what stops a watcher when a rescan finds its file gone; the item, its
 hooks and its tickers are taken off with it.
 
 `dt_barilabel name label` says what the item is called. Control Panel >
-Appearance > Menu Bar Items lists items by that label, so the panel keeps no
+Menu Bar > Menu Bar Items lists items by that label, so the panel keeps no
 list of who puts what on the bar (Gitea #341, #396). `DT_BARORDER` is the
 names in the order they read across the bar. An item it does not name goes
 after the last ordinary item it does name, and a name with no item is
@@ -257,7 +257,7 @@ its own, but as a host for panes, each an ordinary file under
 `programs/desktop/control-panel`, System 7's Control Panels folder rather than one
 long scrolling list:
 
-![Control Panel: its panes in groups down the left, Appearance open on its Look, Wallpaper, Menu Bar, Shadows and Controls rows](img/desktop-controlpanel.png)
+![Control Panel: its panes in groups down the left, Appearance open on its Look, Shadows and Controls rows](img/desktop-controlpanel.png)
 
 A pane down the left, its own rows on the right — arrows move the picker,
 tab or right or enter steps into the selected pane, and the same keys then

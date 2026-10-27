@@ -950,7 +950,7 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	w=${MB[$m]["w"]}
 	n=${MB[$m]["n"]}
 	[ "$w" -lt 14 ] && w=14
-	# No wider than Menu Width (DT_MENUMAX, Control Panel > Appearance):
+	# No wider than Menu Width (DT_MENUMAX, Control Panel > Menu Bar):
 	# a menu holds window titles, file names, device names, and the
 	# longest of them made the Window menu as wide as itself, onto the
 	# display beside the bar's (Gitea #324). A row longer than its room

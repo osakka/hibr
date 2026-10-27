@@ -1,0 +1,188 @@
+#!/usr/bin/env hibr
+#
+# menubar -- the Control Panel pane for the menu bar: how it looks -- the
+# gap between its items, how much of a picture shows through it, the
+# notification icon, its shadow, bold titles and how wide a menu may grow
+# -- and what is on it, Menu Bar Items, every item on its right ticked on
+# or off and dragged into the order it reads in (Gitea #396). These were
+# Appearance's own Menu Bar rows until 0.99.356; the settings are the same
+# ones, so nothing saved moves.
+#
+# The pane is called barset, not menubar: dt_menubar is the window
+# manager's own loader, and a pane's name is the prefix its callbacks are
+# looked up by.
+
+strict
+
+
+app barset "The Control Panel pane for the menu bar" 1.0
+command -v cp_pane > /dev/null && cp_pane barset "Menu Bar" "☰"
+
+# How much of a picture wallpaper shows through the menu bar, in tens.
+fn cp_bartrans(int v) {
+	[ "$v" -lt 0 ] && v=0
+	[ "$v" -gt 100 ] && v=100
+	DT_BARTRANS=$(((v + 5) / 10 * 10))
+	DT_BARWAS=
+	cp_save
+	return 0
+}
+
+# Menu Width's choices, as the row shows them and as DT_MENUMAX keeps them:
+# a number of columns, or 0 for as wide as the longest row.
+CP_MENUMAXV=(30 40 50 60 80 0)
+CP_MENUMAXL=("30 columns" "40 columns" "50 columns" "60 columns" "80 columns" "No Limit")
+
+# Menu Width as the row shows it.
+fn cp_menumaxlabel() {
+	local i=0
+
+	while [ "$i" -lt "${#CP_MENUMAXV[@]}" ]; do
+		[ "${CP_MENUMAXV[$i]}" = "${DT_MENUMAX:-40}" ] && ret "${CP_MENUMAXL[$i]}" && return 0
+		i=$((i + 1))
+	done
+	ret "${DT_MENUMAX:-40} columns"
+}
+
+fn cp_set_menumax(int? id = "", value = "") {
+	local i=0
+
+	while [ "$i" -lt "${#CP_MENUMAXL[@]}" ]; do
+		[ "${CP_MENUMAXL[$i]}" = "$value" ] && DT_MENUMAX=${CP_MENUMAXV[$i]}
+		i=$((i + 1))
+	done
+	DT_MENUIN=
+	cp_save
+}
+
+# A choice from the icon list, shown as "glyph name": the name is kept.
+fn cp_set_bellicon(int? id = "", value = "") { DT_BELLICON=${value##* }; cp_save; }
+
+# Menu Bar Items (Gitea #396, after #341's Item Order): every item on the
+# bar's right but the application menu, which keeps its corner, as they
+# read across it, each with its checkbox, dragged into another order.
+# Each owner names its own item (dt_barilabel), so nothing here lists who
+# puts what on the bar; one that never said is shown by its name. A
+# checkbox is the item's own switch where it has one (dt_bariswitch), and
+# DT_BARHIDE otherwise.
+fn cp_baritems(int w, int n) {
+	local nm on
+
+	command -v dt_barreading > /dev/null || { ret "$n"; return 0; }
+	dt_barreading
+	[ "${#DT_BARREAD[@]}" -gt 0 ] || { ret "$n"; return 0; }
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Menu Bar Items"
+	n=$((n + 1))
+	for nm in "${DT_BARREAD[@]}"; do
+		on=off
+		dt_barishown "$nm" && on=on
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["text"]=${DT_BARI["$nm"]["label"]:-$nm}
+		CP[$w][$n]["val"]=$on; CP[$w][$n]["key"]="bari:$nm"
+		CP[$w][$n]["ord"]=bar; CP[$w][$n]["oname"]=$nm
+		n=$((n + 1))
+	done
+	CP[$w][$n]["kind"]=info
+	CP[$w][$n]["text"]="Drag, or Shift and an arrow"
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn barset_rows(int w) {
+	local n=0 g
+
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Look"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set
+	CP[$w][$n]["text"]="Spacing (${DT_BARGAP:-2})"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]=${DT_BARGAP:-2}; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=4
+	CP[$w][$n]["key"]=bargap; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="See Through, Menus Too"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]="${DT_BARTRANS:-0}"
+	CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
+	CP[$w][$n]["after"]="(${DT_BARTRANS:-0}%)"
+	CP[$w][$n]["key"]=bartrans; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Notification Icon"
+	g := dt_bellglyph "$DT_BELLICON"
+	CP[$w][$n]["val"]="$g $DT_BELLICON"; CP[$w][$n]["key"]=bellicon
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bar Shadow"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_BARSHADOW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_BARSHADOW; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bold Menu Titles"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_MENUBOLD" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_MENUBOLD; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Menu Width"
+	CP[$w][$n]["val"] := cp_menumaxlabel
+	CP[$w][$n]["key"]=menumax; n=$((n + 1))
+	n := cp_baritems "$w" "$n"
+	ret "$n"
+}
+
+fn barset_do(int w, k, int dir) {
+	local v
+
+	case $k in
+	bellicon)
+		v := cp_next "$DT_BELLICON" "$dir" "${DT_BELLICONS[@]}"
+		DT_BELLICON=$v
+		;;
+	bartrans) cp_bartrans $(((${DT_BARTRANS:-0} + 5) / 10 * 10 + dir * 10))
+		return 0 ;;
+	bargap)
+		v=$((${DT_BARGAP:-2} + dir))
+		[ "$v" -lt 1 ] && v=1
+		[ "$v" -gt 4 ] && v=4
+		DT_BARGAP=$v
+		;;
+	DT_BARSHADOW | DT_MENUBOLD) cp_toggle "$k" ;;
+	menumax)
+		v := cp_menumaxlabel
+		v := cp_next "$v" "$dir" "${CP_MENUMAXL[@]}"
+		cp_set_menumax "" "$v"
+		return 0
+		;;
+	bari:*) dt_baritoggle "${k#bari:}" ;;
+	esac
+	cp_save
+}
+
+# A slider set where its track is clicked.
+fn barset_slide(int w, k, int value) {
+	case $k in
+	bartrans) cp_bartrans "$value" ;;
+	bargap)
+		[ "$value" -lt 1 ] && value=1
+		[ "$value" -gt 4 ] && value=4
+		DT_BARGAP=$value
+		cp_save
+		;;
+	esac
+	return 0
+}
+
+fn barset_drop(int w, int r, int c, k) {
+	case $k in
+	menumax) dt_droplist "$w" "$r" "$c" cp_set_menumax "${CP_MENUMAXL[@]}" ;;
+	bellicon)
+		local -a vals
+		local nm g
+		for nm in "${DT_BELLICONS[@]}"; do
+			g := dt_bellglyph "$nm"
+			vals+=("$g $nm")
+		done
+		dt_droplist "$w" "$r" "$c" cp_set_bellicon "${vals[@]}"
+		;;
+	esac
+}
+
+# The bar's items in the order the list was left in, as they read across.
+fn barset_order(int w, group, ...names) {
+	[ "$group" = bar ] || return 0
+	DT_BARORDER="${names[*]}"
+	DT_BARWAS=
+	cp_save
+}

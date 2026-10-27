@@ -320,13 +320,13 @@ check("panes register and sort by title within their group, not load order",
       ORDER == ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "power", "sound",
                 "aboutme", "abouthibr", "appearance", "cliphist",
                 "control_strip", "desktop", "filetypes", "language",
-                "notify", "pictures", "screensaver", "network", "shortcuts",
+                "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
                 "taskmgr", "versions", "wallset", "windows",
                 "browserset", "pimset", "filesview", "mailset", "prayerset",
                 "notes", "terminal", "vaultset", "webapps", "xscreenset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 8 + ["system"] * 17 + ["app"] * 11, out)
+      ["hardware"] * 8 + ["system"] * 18 + ["app"] * 11, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -360,7 +360,7 @@ BODYCOL = 22
 TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Control Strip",
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
-         "displays": "Displays", "filetypes": "File Types", "language": "Language",
+         "displays": "Displays", "filetypes": "File Types", "language": "Language", "barset": "Menu Bar",
          "network": "Servers", "networks": "Network", "power": "Power", "bluetooth": "Bluetooth", "prayerset": "Prayer Times", "vaultset": "Vault",
          "pictures": "Pictures",
          "screensaver": "Screen Saver",
@@ -1318,10 +1318,10 @@ check("the icons can be switched off, and the panel shows an unchecked box",
 # The shadows, each its own setting, under a heading in Appearance; the
 # button shadow is with the rest of the dialog buttons' settings.
 sc = cprun(DOWN_APP, geom=PWTALL)
-check("Appearance lists three shadows under Shadows and the buttons' under "
+check("Appearance lists two shadows under Shadows and the buttons' under "
       "Dialog Buttons, all on",
       sc.find("Shadows") is not None and sc.find("Dialog Buttons") is not None
-      and all("[x]" in brow(sc, t) for t in ("Windows", "Menus", "Bar Shadow",
+      and all("[x]" in brow(sc, t) for t in ("Windows", "Menus",
                                              "Button Shadow")), sc)
 check("dialog buttons start filled",
       "filled" in brow(sc, "Dialog Buttons") and brow(sc, "Confirm Starts On") == "",
@@ -1329,12 +1329,12 @@ check("dialog buttons start filled",
 sc = cprun(reach("appearance", "Menus") + [b"\r"])
 check("menu shadow is its own setting, separate from window shadow",
       "[ ]" in brow(sc, "Menus") and "[x]" in brow(sc, "Windows"), sc)
-sc = cprun(reach("appearance", "Bar Shadow") + [b"\r"])
-check("bar shadow is a third, separate setting again",
-      "[ ]" in brow(sc, "Bar Shadow") and "[x]" in brow(sc, "Menus"), sc)
+sc = cprun(reach("barset", "Bar Shadow") + [b"\r"])
+check("bar shadow is a third, separate setting again, in the Menu Bar pane",
+      "[ ]" in brow(sc, "Bar Shadow") and "[ ]" in brow(sc, "Bold Menu Titles"), sc)
 sc = cprun(reach("appearance", "Button Shadow") + [b"\r"])
 check("button shadow is its own setting, on until switched off here",
-      "[ ]" in brow(sc, "Button Shadow") and "[x]" in brow(sc, "Bar Shadow"), sc)
+      "[ ]" in brow(sc, "Button Shadow") and "[x]" in brow(sc, "Menus"), sc)
 sc = cprun(reach("appearance", "Dialog Buttons") + [b"\x1b[C"])
 check("the dialog button style steps to brackets",
       "brackets" in brow(sc, "Dialog Buttons"), sc)
@@ -1812,20 +1812,22 @@ sc = cprun(reach("terminal", "Cursor", ("term",)) + [b"\x1b[C"],
 check("and the cursor cycles to underline",
       "underline" in brow(sc, "Cursor"), sc)
 
-# Appearance's last row: the gap between the items on the bar's right.
-sc = cprun(DOWN_APP)
-check("Appearance has a Menu Bar Spacing slider, at 2 by default",
+# The Menu Bar pane (Appearance's Menu Bar rows until 0.99.356): the gap
+# between the items on the bar's right.
+DOWN_BAR = [b"\x1b[B"] * downs("barset")
+sc = cprun(DOWN_BAR)
+check("the Menu Bar pane has a Spacing slider, at 2 by default",
       sc.find("Spacing (2)") is not None and
       "●" in sc.row(sc.find("Spacing (2)")[0]), sc)
-sc = cprun(reach("appearance", "Spacing") + [b"\x1b[C"])
+sc = cprun(reach("barset", "Spacing") + [b"\x1b[C"])
 check("and moving it widens the gap",
       sc.find("Spacing (3)") is not None and
       re.search(r"⚑\S*   \d\d:\d\d   ", sc.row(0)) is not None, sc)
-sc = cprun(DOWN_APP)
+sc = cprun(DOWN_BAR)
 check("and a Notification Icon choice, the flag by default -- no emoji font "
       "needed", sc.find("Notification Icon") is not None and
       "⚑ flag" in sc.row(sc.find("Notification Icon")[0]), sc)
-sc = cprun(reach("appearance", "Notification Icon") + [b"\x1b[C"])
+sc = cprun(reach("barset", "Notification Icon") + [b"\x1b[C"])
 check("which can be the bell instead",
       "bell" in sc.row(sc.find("Notification Icon")[0]) and
       sc.find("🔔") is not None, sc)
@@ -1833,13 +1835,12 @@ check("which can be the bell instead",
 # Menu Bar Items (Gitea #396): every item on the bar but the application
 # menu, as they read across it, each with a grip and its checkbox; a drag
 # moves one, shift and an arrow does too, and a click is still a click.
-# The list is the pane's last section, so it is scrolled to first.
-MBDOWN = DOWN_APP + [0.3] + [wheel(R0 + 5, BODYCOL + 10, up=False)] * 6
+MBDOWN = DOWN_BAR + [0.3]
 sc = mbsc = cprun(MBDOWN, geom=PWTALL)
 mbi = sc.find("Menu Bar Items")
 mbclock = sc.find("\u2261 Clock")
 mbbell = sc.find("\u2261 Notifications")
-check("Appearance lists the bar's items under Menu Bar Items, each with a "
+check("the Menu Bar pane lists the bar's items under Menu Bar Items, each with a "
       "grip and a checkbox",
       mbi is not None and mbclock is not None and mbbell is not None and
       mbclock[0] > mbbell[0] > mbi[0] and
