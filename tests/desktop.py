@@ -7711,12 +7711,23 @@ check("a note wears the windows' frame unless told otherwise",
 sc = notelive({"DT_FRAME": "rounded", "DT_NOTEFRAME": "double"})
 check("and one of its own when one is chosen", sc.find("\u2554") is not None
       and sc.find("\u256d") is None, sc)
-sc = notelive({"DT_NOTEFRAME": "solid"})
+sc = notelive({"DT_NOTEFRAME": "solidrev"})
 nr = sc.find("framed")
-check("and solid is a ring of cells in the note's colour, with no line glyph",
+check("and solid reversed is a ring of cells in the note's colour round its face",
       nr is not None and sc.style(nr[0] - 1, nr[1]).get("bg") is not None
       and sc.style(nr[0] - 1, nr[1]).get("bg") != sc.style(nr[0], nr[1]).get("bg")
       and sc.find("\u250c") is None, sc)
+sc = notelive({"DT_NOTEFRAME": "solid"})
+nr = sc.find("framed")
+check("and solid is the whole note in that colour, the text on it too",
+      nr is not None and sc.style(nr[0] - 1, nr[1]).get("bg") is not None
+      and sc.style(nr[0] - 1, nr[1]).get("bg") == sc.style(nr[0], nr[1]).get("bg")
+      and sc.find("\u250c") is None, sc)
+sc = notelive({"DT_FRAME": "solid"})
+nr = sc.find("framed")
+check("and a solid window frame gives notes the ring the windows wear",
+      nr is not None and sc.style(nr[0] - 1, nr[1]).get("bg") is not None
+      and sc.style(nr[0] - 1, nr[1]).get("bg") != sc.style(nr[0], nr[1]).get("bg"), sc)
 
 # Focus Follows Mouse (Gitea #370): with it on, resting over a window gives
 # it the keyboard and leaves it where it is in the stack; off, the default,
@@ -8032,4 +8043,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(870)
+report(872)

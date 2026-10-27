@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.364
+
+**A solid notification is one colour now, and the ring it used to be is
+Solid Reversed** (the owner). A note's Solid frame drew a ring of cells in
+its priority's colour round the note's ordinary face, which reads as the
+colours reversed. Solid is now the whole note in that colour, the text on
+it too, and the ring is a sixth choice, Solid Reversed, in Control Panel >
+Notifications > Frame. Same as Windows under a solid window frame gives
+the ring, since that is what a solid window wears. The Notifications pane
+is 1.4.
+
+- **Blit's telephone** (Blit 0.2.44) in the blit glyph set, for longwire's
+  menu bar item and strip module: `GL[phoneoff]`, `GL[phonewait]`,
+  `GL[phoneon]` and `GL[phonering]`, one column each, and empty in every
+  other set, where longwire draws its own.
+- `/dev/http`'s `HTTP_STATUS` is set by a redirection on a builtin --
+  `read`, `mapfile`, `exec {fd}<` -- and not by one on a program, which
+  opens it in its own child; `docs/modules.md` says so.
+
 ## 0.99.363
 
 **dav and `/dev/http` go through fetch** (Gitea #399). The shell had two HTTP

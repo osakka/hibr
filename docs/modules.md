@@ -165,7 +165,9 @@ Reference modules in `mods/`:
   [full-screen programs](display.md).
 - **`http`** registers `/dev/http/host/port/path`: the request is made on open,
   through the `fetch` module, and the descriptor reads the body from its
-  start; `HTTP_STATUS` is the reply's status.
+  start; `HTTP_STATUS` is the reply's status. A redirection on a program is
+  opened in the program's own child, so read the status after one on a
+  builtin -- `read`, `mapfile`, `exec {fd}<`.
   `while read l; do …; done </dev/http/127.0.0.1/8080/status`
 - **`prompt`** builds the prompt out of segments; see
   [The prompt](prompt.md).

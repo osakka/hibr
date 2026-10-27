@@ -16,7 +16,7 @@
 strict
 
 
-app notify "The Control Panel pane for the corner-stacked notes" 1.3
+app notify "The Control Panel pane for the corner-stacked notes" 1.4
 command -v cp_pane > /dev/null && cp_pane notify "Notifications" "◉"
 
 CP_NOTEPOS=(top-right top-left bottom-right bottom-left)
@@ -33,8 +33,8 @@ fn cp_set_notepos(int? id = "", value = "") { DT_NOTEPOS=$value; cp_save; }
 
 # A note's frame (Gitea #398), as the row shows it and as DT_NOTEFRAME
 # keeps it: Same as Windows by default.
-CP_NOTEFRAMEV=(windows single double rounded solid)
-CP_NOTEFRAMEL=("Same as Windows" "Single" "Double" "Curved" "Solid")
+CP_NOTEFRAMEV=(windows single double rounded solid solidrev)
+CP_NOTEFRAMEL=("Same as Windows" "Single" "Double" "Curved" "Solid" "Solid Reversed")
 fn cp_noteframelabel() {
 	local i=0
 

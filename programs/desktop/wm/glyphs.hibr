@@ -47,6 +47,9 @@ fn dt_glyphs(set = "unicode") {
 	GL["batchg4"]=; GL["batfull"]=
 	GL["vol0"]=; GL["vol1"]=; GL["vol2"]=; GL["vol3"]=
 	GL["huil"]=; GL["huir"]=
+	# And longwire's telephone (its menu bar item and strip module), which
+	# it draws with its own characters when these are empty.
+	GL["phoneoff"]=; GL["phonewait"]=; GL["phoneon"]=; GL["phonering"]=
 	# The hibr menu's own mark, U+270E in every set but blit's.
 	GL["hibr"]=$'\u270e'      # LOWER RIGHT PENCIL
 	if [ "$set" = ascii ]; then
@@ -310,5 +313,10 @@ dt_glyphsblit() {
 	# The power symbol, in Blit's colours (0.2.41): the Power item on a
 	# machine with no battery.
 	GL["power"]=$'\U0010001A'  # Blit power
+	# A telephone in four states (0.2.44), one column each, for longwire.
+	GL["phoneoff"]=$'\U0010001B'  # Blit phone-off, an outline
+	GL["phonewait"]=$'\U0010001C' # Blit phone-wait, dashed
+	GL["phoneon"]=$'\U0010001D'   # Blit phone-on, filled
+	GL["phonering"]=$'\U0010001E' # Blit phone-ring, with waves
 }
 dt_glyphs "$DT_GLYPHSET"
