@@ -45,7 +45,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so $(B)/mods/pim.so $(B)/mods/html.so $(B)/mods/email.so $(B)/mods/math.so $(B)/mods/web.so \
        $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so $(B)/mods/hcal.so $(B)/mods/salat.so \
        $(B)/mods/vw.so $(B)/mods/archive.so $(B)/mods/mermaid.so \
-       $(B)/mods/xscr.so $(B)/mods/pdf.so
+       $(B)/mods/xscr.so $(B)/mods/pdf.so $(B)/mods/fetch.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
 # Darwin at all, so it is not in MODS above and never built, or even asked
@@ -230,6 +230,13 @@ MEDIA_SRC = $(wildcard mods/media/*.c)
 $(B)/mods/media.so: $(MEDIA_SRC) include/hibr.h mods/media/mv.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(MEDIA_SRC) $(DLLIB) -lpthread
 
+# fetch: the HTTP client every module that speaks to a web server asks for
+# (Gitea #399), with the shared inflate for gzip and deflate bodies.
+FETCH_SRC = $(wildcard mods/fetch/*.c) mods/inflate.c mods/inftab.c
+
+$(B)/mods/fetch.so: $(FETCH_SRC) include/hibr.h mods/fetch.h mods/fetch/ft.h mods/inflate.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(FETCH_SRC) $(DLLIB)
+
 DAV_SRC = $(wildcard mods/dav/*.c)
 
 $(B)/mods/dav.so: $(DAV_SRC) include/hibr.h mods/dav/dv.h | $(B)/mods
@@ -328,6 +335,7 @@ install: all
 	install -m 755 $(BIN) $(DESTDIR)$(PREFIX)/bin/hibr
 	install -m 644 $(MODS) $(DESTDIR)$(MODDIR)
 	install -m 644 include/hibr.h $(DESTDIR)$(PREFIX)/include/hibr/hibr.h
+	install -m 644 mods/fetch.h $(DESTDIR)$(PREFIX)/include/hibr/fetch.h
 	install -d $(DESTDIR)$(MANDIR)/man1
 	install -m 644 $(B)/hibr.1 $(DESTDIR)$(MANDIR)/man1/hibr.1
 	install -m 644 $(B)/desktop.1 $(DESTDIR)$(MANDIR)/man1/desktop.1

@@ -52,6 +52,7 @@ SUITE_MODS = {
     "mailapp": ["email", "html", "db"],
     "md_spec": ["md"],
     "dav": ["dav"],
+    "fetch": ["fetch", "inflate"],
     "web": ["web"],
     "media": ["media"],
     "youtube": ["web", "media"],

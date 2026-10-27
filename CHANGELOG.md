@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.99.362
+
+**fetch: one HTTP client, for scripts and for modules** (Gitea #399). The
+browser needs downloads, and the shell had two HTTP clients -- dav's and
+the http scheme's -- neither of which another module could reach. `fetch` is a module
+with two faces: a builtin -- `fetch [METHOD] URL`, the body printed, written
+with `-o`, or with `:=` the reply as a map of status, headers by name and
+body -- and an interface, `"fetch"` version 1 (`mods/fetch.h`), which a
+module asks for with `hibr_require` and drives with a streamed body, a
+callback for the headers and a cancel flag. It is dav's HTTP/1.1 grown up:
+
+- **kept connections** per process, opened again when the server closed one;
+  chunked bodies and ones ended by closing;
+- **gzip and deflate** offered and decoded, with the shell's own inflate;
+  `-i` asks for the body as it is, which is how a large download streams;
+- **redirects** resolved as RFC 3986 says, 303 (and 301/302 after a POST)
+  as GET, 307/308 sending the body again, a file's from where it began --
+  and on a redirect to another origin the caller's `Authorization`,
+  `Cookie` and `Proxy-Authorization` go no further, nor does the login;
+- **Basic and Digest** logins, sent only once a server asks;
+- **proxies** from `http_proxy`, `https_proxy` and `no_proxy`, with
+  `CONNECT` for https;
+- **cookies** by RFC 6265 in named jars, one JSON file each under
+  `~/.local/share/hibr/cookies/` (0600), merged on save so processes
+  sharing a jar keep each other's; `fetch jar clear NAME` forgets one.
+  There is no public suffix list, said in the module's README;
+- **a timeout** on progress rather than on the whole request (30 s,
+  `-t` or `HIBR_FETCH_TIMEOUT`), and ctrl-c at an interactive prompt stops
+  a waiting request.
+
+The header is installed as `include/hibr/fetch.h`, beside `hibr.h`, so a
+module built outside this tree -- the browser's -- needs only the package.
+dav and `/dev/http` move onto it in a release of their own.
+`tests/fetch.py` runs both faces against `tests/fetchserve.py`, a stand-in
+that refuses what a careless client sends; its cross-origin check was run
+against a copy with the stripping turned off, and failed there.
+
 ## 0.99.361
 
 **One switch for each thing on the bar and the strip** (the owner: "one
