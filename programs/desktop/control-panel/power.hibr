@@ -11,7 +11,7 @@
 
 strict
 
-app power "The Control Panel pane for the battery and the computer's power" 3.0
+app power "The Control Panel pane for the battery and the computer's power" 3.1
 command -v cp_pane > /dev/null && cp_pane power "Power" "↯" hardware
 
 PW_LOWS=(off 5 10 15 20 25)
@@ -63,6 +63,10 @@ fn power_rows(int w) {
 		CP[$w][$n]["wtype"]=bool
 		CP[$w][$n]["val"]=off; [ "${DT_PWBAR:-1}" = 1 ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=DT_PWBAR; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Level on Menu Bar"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "${DT_PWLEVEL:-1}" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=DT_PWLEVEL; n=$((n + 1))
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Low Battery Note"
 		v=${DT_PWLOW:-10}
 		[ "$v" != off ] && v="$v%"
@@ -102,7 +106,7 @@ fn power_do(int w, k, int dir) {
 	local v
 
 	case $k in
-	DT_PWBAR) cp_toggle "$k"; dt_pwbar ;;
+	DT_PWBAR | DT_PWLEVEL) cp_toggle "$k"; dt_pwbar ;;
 	low) v := cp_next "${DT_PWLOW:-10}" "$dir" "${PW_LOWS[@]}"; DT_PWLOW=$v ;;
 	crit) v := cp_next "${DT_PWCRIT:-5}" "$dir" "${PW_CRITS[@]}"; DT_PWCRIT=$v ;;
 	critdo) v := cp_next "${DT_PWCRITDO:-nothing}" "$dir" "${PW_CRITDOS[@]}"

@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.5
+app term "A shell in a window" 1.6
 # part: control-panel/terminal.hibr
 # modules: pty term
 
@@ -637,6 +637,8 @@ fn term_isshell(int id) {
 fn term_open(int id, arg) {
 	local n i
 
+	# Its content is text, so the pointer over it is an I-beam (Gitea #394).
+	dt_has dt_pointer && dt_pointer "$id" text
 	TW[$id]["file"]=$arg
 	if [ "${#DT_OPENCMD[@]}" -gt 0 ]; then
 		n=${#DT_OPENCMD[@]}

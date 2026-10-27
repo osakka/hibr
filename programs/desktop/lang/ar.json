@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.39",
+ "version": "3.40",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1380,6 +1380,7 @@
   "Remove it, with the parts nothing else needs?": "أأزيله مع الأجزاء التي لا يحتاجها شيء آخر؟",
   "brings %s": "يجلب %s",
   "installed, with %s": "مثبّت، مع %s",
-  "Menu Bar Item": "عنصر شريط القوائم"
+  "Menu Bar Item": "عنصر شريط القوائم",
+  "Frames For Video (as output)": "إطارات الفيديو (كالمخرجات)"
  }
 }

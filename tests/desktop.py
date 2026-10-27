@@ -7315,6 +7315,16 @@ check("a battery is on the menu bar, its level and its charge",
 pwsupply(62, "Charging", ac=1)
 sc, _ = run("", env=PWENV, pre=PWPRE)
 check("and a mark while it charges", "\u21af\u2584 62%" in sc.row(0), sc.row(0))
+# On mains it says so whether or not it charges (Gitea #395), and Level on
+# Menu Bar off leaves the glyph without the number, as the speaker's does.
+pwsupply(100, "Full", ac=1)
+sc, _ = run("", env=PWENV, pre=PWPRE)
+check("a full battery on mains wears the plug", "\u2301\u2588 100%" in sc.row(0),
+      sc.row(0))
+pwsupply(62, "Discharging")
+sc, _ = run("", env=dict(PWENV, DT_PWLEVEL="0"), pre=PWPRE)
+check("and with Level on Menu Bar off the glyph is there without its number",
+      "\u2584" in sc.row(0) and "62%" not in sc.row(0), sc.row(0))
 sc, _ = run("", env=dict(PWENV, DT_POWERDIR=os.path.join(PWD_, "none")),
             pre=PWPRE)
 check("a machine with no battery has no battery on the bar",
@@ -7464,6 +7474,39 @@ check("the pointer is a move over a title bar, a resize arrow on a corner, "
       sc.ptr[-3:] == ["move", "nwse-resize", ""], sc.ptr)
 sc, _ = run(APP, [1.5, hov(6, 20), 0.3], caps=["ptr"], env={"DT_HOVER": "off"})
 check("and with hovering off the frame sets no shape", sc.ptr == [], sc.ptr)
+
+# An I-beam over text (Gitea #394), whether or not its window has focus (the
+# owner's choice): over a field a window drew with dt_textdraw, and over the
+# whole content of a window that asked for text -- a terminal does. The rest
+# of a window with a field keeps the terminal's own pointer.
+PTX = ('ptt_open() { dt_pointer "$1" text; }\n'
+       'ptt_draw() { :; }\n'
+       'ptf_draw() { dt_textdraw "$1" 2 3 10 "hello" 0 0; }\n'
+       'dt_new "Term" 6 20 16 50 ptt\n'
+       'dt_new "Field" 8 30 6 10 ptf\n')
+sc, _ = run(PTX, [1.5, hov(8, 14), 0.3, hov(10, 30), 0.3, hov(18, 55), 0.3],
+            caps=["ptr"], env={"DT_HOVER": "on"})
+check("the pointer is an I-beam over a field, the window's own beside it, "
+      "and an I-beam over a terminal that does not have focus",
+      sc.ptr[:3] == ["text", "", "text"], sc.ptr)
+
+# A window playing video lifts the hold on frames woken by output to
+# Frames For Video while it is on show (Gitea #397), and only then: hidden,
+# or with the setting at 0, frames are held DT_TERMMS apart as before.
+livef = scratch("live-hold.txt")
+run('dt_new "Vid" 8 30 6 10\n'
+    'h := dt_holdms; a=$h\n'
+    'dt_live 1 on\nh := dt_holdms; b=$h\n'
+    'DT[1]["hidden"]=1\nh := dt_holdms; c=$h\nDT[1]["hidden"]=\n'
+    'DT_LIVEMS=0\nh := dt_holdms; d=$h\nDT_LIVEMS=33\n'
+    'dt_live 1\nh := dt_holdms; e=$h\n'
+    'printf "%s %s %s %s %s\\n" "$a" "$b" "$c" "$d" "$e" > ' + livef + '\n')
+got = open(livef).read().split() if os.path.exists(livef) else None
+if os.path.exists(livef):
+    os.unlink(livef)
+check("a playing window on show holds output frames 33 ms apart, and hidden, "
+      "set to 0 or stopped it is 70 again", got == ["70", "33", "70", "70", "70"],
+      got)
 
 # Focus Follows Mouse (Gitea #370): with it on, resting over a window gives
 # it the keyboard and leaves it where it is in the stack; off, the default,
@@ -7779,4 +7822,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(843)
+report(847)

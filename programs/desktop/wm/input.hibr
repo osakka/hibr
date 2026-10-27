@@ -675,13 +675,22 @@ fn dt_ptrfor(r = "", c = "") {
 		fi
 		ret move
 	fi
-	if [ "$id" != "$DT_FOCUS" ] || [ -z "${DT[$id]["ptr"]-}" ]; then
-		ret ""
-	fi
 	rr=$((r - DT[$id]["row"]))
 	cc=$((c - DT[$id]["col"]))
 	if [ "$rr" -lt 1 ] || [ "$rr" -gt $((DT[$id]["h"] - 2)) ] ||
 	   [ "$cc" -lt 1 ] || [ "$cc" -gt $((DT[$id]["w"] - 2)) ]; then
+		ret ""
+	fi
+	# Text takes the I-beam whether or not its window has focus (the
+	# owner, Gitea #394): a field the window drew, or a window that is
+	# text throughout -- a terminal. Every other shape a window asks for
+	# is its own only while it has focus, since a press on a window that
+	# has not focuses it rather than acting on it.
+	if dt_has dt_textat && dt_textat "$id" "$rr" "$cc"; then
+		ret text
+	fi
+	[ "${DT[$id]["ptr"]-}" = text ] && ret text
+	if [ "$id" != "$DT_FOCUS" ] || [ -z "${DT[$id]["ptr"]-}" ]; then
 		ret ""
 	fi
 	ret "${DT[$id]["ptr"]}"

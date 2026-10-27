@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.353
+
+**YouTube plays at its own rate, not every second or third frame** (Gitea
+#397). With hold and Blit out of the way (0.99.352, Blit 0.2.33) it still
+ran at about ten frames a second on the owner's desktop machine. The
+browser session traced the engine: it paints 30 times a second and a page
+capture takes 1 ms. The rest was the desktop's own hold: a frame woken by
+a program's output is drawn at most **Frames For Output** (70 ms) after the
+last, which is right for a terminal writing in bursts and caught one paint
+in two or three of a video. A window playing video says so (`dt_live`), and
+while one is on show, on this workspace and not hidden, such frames are
+held **Frames For Video** apart instead: a new row in Control Panel >
+Desktop (1.5), 33 ms by default, with 0 holding video like any other
+output. YouTube (3.7) says so while it plays.
+
+- **An I-beam over text** (Gitea #394, the owner's request through Blit):
+  the pointer is `text` over a terminal window's content and over any field
+  a window draws, whether or not that window has focus (the owner's
+  choice). Every other shape a window asks for keeps the focus rule.
+  Terminals already passed OSC 22 shapes since #373; neither had ever asked
+  for this one.
+- **Power** (Gitea #395, the pane 3.1, the bar item 1.1): **Level on Menu
+  Bar**, named and on by default like Sound's, shows the percentage beside
+  the battery's glyph, and off leaves the glyph alone. On mains the item
+  says so whether or not it charges: the bolt while it charges, a plug once
+  it is full. A full battery on mains used to look like one draining.
+
 ## 0.99.352
 
 **A held video is no longer held to eight frames a second by `hold`

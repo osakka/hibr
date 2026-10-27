@@ -497,6 +497,42 @@ fn dt_want(int ms) {
 	fi
 }
 
+# Windows playing something that moves. A frame woken by a program's
+# output is held DT_TERMMS apart, which is right for a terminal and halves a
+# video: YouTube's page paints every 33 ms, and held to 70 it showed every
+# second or third paint, ten frames a second (measured from Blit, Gitea
+# #397). A window says so while it plays and stops saying so when it stops.
+declare -gA DT_LIVE
+fn dt_live(int id, on = "") {
+	if [ -z "$on" ]; then
+		unset DT_LIVE["$id"]
+	else
+		DT_LIVE["$id"]=1
+	fi
+	return 0
+}
+
+# How far apart frames woken by output are held now: DT_TERMMS, or
+# DT_LIVEMS -- Control Panel > Desktop > Frames For Video -- while a live
+# window is on show, on this workspace and not hidden, since a video nobody
+# can see needs no frames. DT_LIVEMS 0 holds a video like any other output.
+dt_holdms() {
+	local id m=$DT_TERMMS
+
+	[ "${DT_LIVEMS:-0}" -gt 0 ] || { ret "$m"; return 0; }
+	for id in "${!DT_LIVE[@]}"; do
+		if [ -z "${DT[$id]["row"]+x}" ]; then
+			unset DT_LIVE["$id"]
+			continue
+		fi
+		[ "${DT[$id]["hidden"]}" = 1 ] && continue
+		dt_away "$id" && continue
+		[ "$DT_LIVEMS" -lt "$m" ] && m=$DT_LIVEMS
+		break
+	done
+	ret "$m"
+}
+
 # A live redraw on every SIGWINCH of a drag makes the screen scramble once
 # per pixel the terminal moves through, which is what dragging a real GUI
 # window's edge does not do -- it freezes the content and snaps it once at
@@ -618,7 +654,7 @@ fn dt_mousecheck() {
 }
 
 dt_run() {
-	local k rsz=0 last now pk= skipn=0 frames=0 lastdraw=0 t0 hq lastper=0 nowu
+	local k rsz=0 last now pk= skipn=0 frames=0 lastdraw=0 t0 hq lastper=0 nowu hold
 
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
@@ -690,11 +726,13 @@ dt_run() {
 				# per burst. A key or a mouse report always
 				# draws at once, so nothing a person does
 				# waits for this.
+				hold=$DT_TERMMS
+				[ "${#DT_LIVE[@]}" -gt 0 ] && hold := dt_holdms
 				if [ -z "$k" ] && [ "$frames" -gt 0 ] &&
-				   [ "$DT_TERMMS" -gt 0 ] &&
-				   [ $((now - lastdraw)) -lt "$DT_TERMMS" ]; then
+				   [ "$hold" -gt 0 ] &&
+				   [ $((now - lastdraw)) -lt "$hold" ]; then
 					dt_drain
-					dt_want $((DT_TERMMS - now + lastdraw))
+					dt_want $((hold - now + lastdraw))
 					# Drained, so wait out the rest of the
 					# window without listening to them: a
 					# program writing a hundred times a

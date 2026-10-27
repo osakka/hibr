@@ -74,6 +74,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["bt"]="bt"; GL["btoff"]="bt x"
 		GL["bat0"]="bat"; GL["bat1"]="bat"; GL["bat2"]="bat"
 		GL["bat3"]="bat"; GL["bat4"]="bat"; GL["batchg"]="+"
+		GL["batac"]="~"
 		GL["star"]="*"; GL["flag"]="!"; GL["heart"]="*"; GL["warn"]="!"
 		GL["unlocked"]="!"
 		GL["task"]="[ ]"; GL["taskdone"]="[x]"; GL["pin"]="*"
@@ -155,6 +156,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["bat0"]=$'\u2581'; GL["bat1"]=$'\u2582'; GL["bat2"]=$'\u2584'
 		GL["bat3"]=$'\u2586'; GL["bat4"]=$'\u2588'
 		GL["batchg"]=$'\u21af'  # DOWNWARDS ZIGZAG ARROW: charging
+		GL["batac"]=$'\u2301'   # ELECTRIC ARROW: on mains, not charging
 		GL["star"]=$'✱'      # HEAVY ASTERISK
 		GL["task"]=$'☐'      # BALLOT BOX
 		GL["taskdone"]=$'☑'  # BALLOT BOX WITH CHECK
@@ -217,6 +219,7 @@ dt_glyphsnerd() {
 	GL["bat3"]=$'\uf241'      # nf-fa-battery_three_quarters
 	GL["bat4"]=$'\uf240'      # nf-fa-battery_full
 	GL["batchg"]=$'\uf0e7'    # nf-fa-bolt: charging
+	GL["batac"]=$'\uf1e6'     # nf-fa-plug: on mains, not charging
 	GL["folder"]=$'\uf07b'    # nf-fa-folder
 	GL["bundle"]=$'\uf1b2'    # nf-fa-cube
 	GL["file"]=$'\uf15b'      # nf-fa-file

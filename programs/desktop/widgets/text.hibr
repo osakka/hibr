@@ -119,7 +119,30 @@ DT_FIELDMAX=1024
 # draws it focused. A window left undrawn keeps what it had.
 fn dt_fieldstale(int id) {
 	[ "${DT_FIELD["id"]}" = "$id" ] && DT_FIELD["live"]=
+	DT_TEXTAT["$id"]=
 	return 0
+}
+
+# Every field a window drew on its last draw, focused or not, as "row col
+# width|" in its own coordinates: where the pointer is an I-beam (Gitea
+# #394). Cleared before each draw of the window, so a window left undrawn
+# keeps the fields it showed.
+declare -gA DT_TEXTAT
+
+# Whether row r, column c of window id is inside one of its fields.
+fn dt_textat(int id, int r, int c) {
+	local f fr fc fw
+	local -a all
+
+	[ -n "${DT_TEXTAT["$id"]-}" ] || return 1
+	IFS='|' read -ra all <<< "${DT_TEXTAT["$id"]}"
+	for f in "${all[@]}"; do
+		read -r fr fc fw <<< "$f"
+		[ -n "$fw" ] || continue
+		[ "$r" = "$fr" ] && [ "$c" -ge "$fc" ] && [ "$c" -lt $((fc + fw)) ] &&
+			return 0
+	done
+	return 1
 }
 
 # Whether the focused window has a field that has the focus.
@@ -131,6 +154,7 @@ dt_fieldlive() {
 fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
 	local shown t ch lo hi
 
+	DT_TEXTAT["$id"]+="$r $c $w|"
 	if [ "$focused" = 1 ]; then
 		[ "${DT_FIELD["at"]}" = "$id $r $c" ] || DT_FIELD["anc"]=
 		DT_FIELD["at"]="$id $r $c"

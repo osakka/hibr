@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.6
+app youtube "YouTube, in a window" 3.7
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -683,6 +683,15 @@ fn yt_tick(int id) {
 	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js m i e ms tm
 	local -a w
 
+	# Playing, its frames come as fast as the video's: the desktop holds
+	# frames woken by output 70 ms apart otherwise, which halved it.
+	if dt_has dt_live; then
+		if [ "${YT[$id]["state"]}" = playing ]; then
+			dt_live "$id" on
+		else
+			dt_live "$id"
+		fi
+	fi
 	[ -n "$p" ] || return 0
 	# An ended video is not asked about, so the page leaving it would go unseen: its
 	# address is looked at every few seconds.

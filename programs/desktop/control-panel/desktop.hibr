@@ -8,7 +8,7 @@
 strict
 
 
-app desktop "The Control Panel pane for the bare desktop" 1.4
+app desktop "The Control Panel pane for the bare desktop" 1.5
 command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
 
 DK_CYCLES=(workspace all)
@@ -151,6 +151,15 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_TERMMS; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=200
 	CP[$w][$n]["key"]=termms; n=$((n + 1))
+	CP[$w][$n]["kind"]=set
+	if [ "${DT_LIVEMS:-0}" -gt 0 ]; then
+		CP[$w][$n]["text"]="Frames For Video (${DT_LIVEMS}ms)"
+	else
+		CP[$w][$n]["text"]="Frames For Video (as output)"
+	fi
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]=${DT_LIVEMS:-0}; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
+	CP[$w][$n]["key"]=livems; n=$((n + 1))
 	[ "${d#"$HOME"/}" != "$d" ] && d="~/${d#"$HOME"/}"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screenshot Format"
 	CP[$w][$n]["val"]="$DT_SHOTFMT"; CP[$w][$n]["key"]=shotfmt
@@ -219,6 +228,12 @@ fn desktop_do(int w, k, int dir) {
 		[ "$v" -gt 200 ] && v=200
 		DT_TERMMS=$v
 		;;
+	livems)
+		v=$((${DT_LIVEMS:-0} + dir * 5))
+		[ "$v" -lt 0 ] && v=0
+		[ "$v" -gt 100 ] && v=100
+		DT_LIVEMS=$v
+		;;
 	esac
 	cp_save
 }
@@ -259,6 +274,8 @@ fn cp_bandpct(int v) {
 fn desktop_slide(int w, k, int value) {
 	case $k in
 	bandpct) cp_bandpct "$value" ;;
+	termms) DT_TERMMS=$value; cp_save ;;
+	livems) DT_LIVEMS=$value; cp_save ;;
 	esac
 	return 0
 }

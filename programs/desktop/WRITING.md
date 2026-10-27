@@ -141,6 +141,18 @@ pointer at all; most terminals cannot, and a display that cannot simply
 keeps its pointer. Call both behind `dt_has`, since a desktop older than
 0.99.311 has neither.
 
+**A window that is text throughout** -- a terminal -- asks for the I-beam with
+`dt_pointer "$id" text`, and a field drawn with `dt_textdraw` gets it with no
+call at all (Gitea #394). Text is the one shape shown whether or not the
+window has focus.
+
+**A window playing video** says so with `dt_live "$id" on` while it plays,
+and `dt_live "$id"` when it stops (Gitea #397). Frames woken by output are
+held Control Panel > Desktop > Frames For Output apart (70 ms), which is
+right for a terminal and halves a video; while a live window is on show they
+are held Frames For Video apart instead, 33 ms by default. Behind `dt_has`:
+a desktop older than 0.99.353 has no `dt_live`.
+
 **An app reaches only what every scope has** ([ADR 0046](../../docs/adr/0046-an-installable-reaches-only-what-every-scope-has.md)).
 The catalogue installs an app into `~/.local/share/hibr/apps/`, which is read
 before the shipped copy, so an app has to work wherever it lands -- not only

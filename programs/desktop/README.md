@@ -1059,11 +1059,15 @@ off. Restart and Shut Down ask first.
 
 **Control Panel > Power** shows the charge, whether it is plugged in, the
 battery's health -- what it holds full against what it held new -- and has
-Battery on Menu Bar, Low Battery Note (a note once a discharge, at 5 to 25%,
+Battery on Menu Bar, Level on Menu Bar (the percentage beside the battery's
+glyph, on by default like Sound's), Low Battery Note (a note once a discharge, at 5 to 25%,
 or off), Critical Battery (3 to 10%), and On Critical Battery: nothing, or
 sleep, hibernate or shut down after a note and a minute in which plugging in
 calls it off. With no battery the pane says so and keeps only the computer's
 own actions.
+
+On the bar the battery's glyph shows its level, with the bolt beside it while
+it charges and a plug while it is on mains and not charging (Gitea #395).
 
 ## Screen savers
 

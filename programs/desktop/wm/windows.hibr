@@ -68,6 +68,7 @@ fn dt_del(int id) {
 	# `_close` at all -- Files has none -- would otherwise leak its
 	# query for the life of the desktop.
 	command -v dt_searchfree > /dev/null && dt_searchfree "$id"
+	unset DT_LIVE["$id"]
 
 	DT_NOTEWIN=$id
 	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"
