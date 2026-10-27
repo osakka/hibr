@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.355
+
+**Choose what is on the menu bar, and in what order, by dragging** (Gitea
+#396, the owner's choices). Control Panel > Appearance (2.7) replaces Item
+Order with **Menu Bar Items**: every item on the bar's right, the
+workspace numbers, the notification icon and the clock among them, as they
+read across it, each with a checkbox. A row drags by its grip into another
+place, or moves with **shift** and an arrow, and the bar follows at once.
+The application menu keeps its corner. The speaker, the network, Bluetooth
+and the battery keep the switch their own panes already had, so the two
+checkboxes are one setting (`dt_bariswitch`). An item installed after an
+order was chosen goes after the last ordinary item, as it would have
+before. An order saved before keeps meaning what it meant.
+
+- **The Control Strip's modules, the same way:** Control Panel > Control
+  Strip (1.2) lists them under **Modules**, to tick off or drag into
+  another order (`CS_HIDE`, `CS_ORDER`).
+- **A row any pane can use:** `["ord"]` and `["oname"]` on a Control
+  Panel row draw a grip and make it movable; the pane is told the new
+  order with `<pane>_order`. A press on such a row waits to see whether
+  it is a drag, and one let go where it was is the ordinary click.
+
 ## 0.99.354
 
 **The Control Strip is off unless chosen, and its modules come from the

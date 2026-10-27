@@ -539,6 +539,14 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			fi
 		fi
 		console put -p "w$id" "$r" "$bx" "$t"
+		# A row that can be dragged into another place says so with a
+		# grip in its margin (Gitea #396).
+		if [ "$i" -lt "$n" ] && [ -n "${CP[$id][$i]["ord"]-}" ]; then
+			case $DT_MIRRORON in
+			1) console put -p "w$id" "$r" $((bx + w - 1)) "${GL[grip]}" ;;
+			*) console put -p "w$id" "$r" "$bx" "${GL[grip]}" ;;
+			esac
+		fi
 		# A row lights under the pointer, its widgets for themselves (#370).
 		[ "$i" -lt "$n" ] && [ "$kind" != head ] &&
 			dt_hotreg "$id" "$r" "$bx" "$w" "row:$i"
@@ -817,6 +825,8 @@ fn panel_key(int w, key) {
 	case $key in
 	up) panel_move "$w" -1 ;;
 	down) panel_move "$w" 1 ;;
+	shift-up) cp_ordkey "$w" -1 || return 1 ;;
+	shift-down) cp_ordkey "$w" 1 || return 1 ;;
 	right | enter | " ") cp_do "$w" 1 ;;
 	left) cp_do "$w" -1 ;;
 	delete | backspace)
@@ -951,6 +961,93 @@ declare -gA CP_MDRAG
 # other per-window pane state here is -- two Control Panels are two
 # sliders.
 declare -gA CP_MSLIDE
+# A press on a row that can be moved, as "row screen-row column moved".
+declare -gA CP_MORD
+
+# Rows a pane marks with ["ord"]=group and ["oname"]=name can be put in
+# another order, by a drag or by shift and an arrow; the pane is told the
+# whole group's new order by <pane>_order w group name..., keeps it, and
+# draws the rows in it from then on (Gitea #396). Move the group row at
+# index from to the place of the one at index to.
+fn cp_ordmove(int w, int from, int to) {
+	local g=${CP[$w][$from]["ord"]-} n=${PW[$w]["n"]:-0} i=0 pf=-1 pt=-1 pane m
+	local -a rows nm new
+
+	[ -n "$g" ] || return 1
+	while [ "$i" -lt "$n" ]; do
+		if [ "${CP[$w][$i]["ord"]-}" = "$g" ]; then
+			[ "$i" = "$from" ] && pf=${#rows[@]}
+			[ "$i" = "$to" ] && pt=${#rows[@]}
+			rows+=("$i")
+			nm+=("${CP[$w][$i]["oname"]}")
+		fi
+		i=$((i + 1))
+	done
+	[ "$pf" -ge 0 ] && [ "$pt" -ge 0 ] && [ "$pf" != "$pt" ] || return 1
+	pane := panel_pane "$w"
+	[ -n "$pane" ] && dt_has "${pane}_order" || return 1
+	m=${nm[$pf]}
+	i=0
+	while [ "$i" -lt "${#nm[@]}" ]; do
+		[ "$i" = "$pt" ] && [ "$pt" -lt "$pf" ] && new+=("$m")
+		[ "$i" = "$pf" ] || new+=("${nm[$i]}")
+		[ "$i" = "$pt" ] && [ "$pt" -gt "$pf" ] && new+=("$m")
+		i=$((i + 1))
+	done
+	"${pane}_order" "$w" "$g" "${new[@]}"
+	# The rows again at once, so a second move before the next frame
+	# starts from this one's order rather than the last frame's.
+	unset "CP[$w]"
+	n := "${pane}_rows" "$w"
+	PW[$w]["n"]=$n
+	PW[$w]["sel"]=${rows[$pt]}
+	PW[$w]["last"]=${rows[$pt]}
+	PW[$w]["side"]=pane
+	return 0
+}
+
+# A drag or a release after a press on a row that can be moved.
+fn cp_orddrag(int w, act, int r) {
+	local -a at
+	local i t g n lo=-1 hi=-1 j=0
+
+	read -ra at <<< "${CP_MORD[$w]}"
+	i=${at[0]}
+	if [ "$act" = release ]; then
+		CP_MORD[$w]=
+		[ "${at[3]}" = 1 ] || panel_click "$w" "${at[1]}" "${at[2]}"
+		return 0
+	fi
+	g=${CP[$w][$i]["ord"]-}
+	[ -n "$g" ] || return 0
+	n=${PW[$w]["n"]:-0}
+	while [ "$j" -lt "$n" ]; do
+		if [ "${CP[$w][$j]["ord"]-}" = "$g" ]; then
+			[ "$lo" = -1 ] && lo=$j
+			hi=$j
+		fi
+		j=$((j + 1))
+	done
+	t=$((${PW[$w]["top"]:-0} + r - 1))
+	[ "$t" -lt "$lo" ] && t=$lo
+	[ "$t" -gt "$hi" ] && t=$hi
+	[ "$t" = "$i" ] && return 0
+	cp_ordmove "$w" "$i" "$t" || return 0
+	CP_MORD[$w]="$t ${at[1]} ${at[2]} 1"
+	dt_want 10
+}
+
+# Shift and up or down move the selected row, when it is one that moves.
+fn cp_ordkey(int w, int d) {
+	local i=${PW[$w]["sel"]:-0} t g
+
+	g=${CP[$w][$i]["ord"]-}
+	[ -n "$g" ] || return 1
+	t=$((i + d))
+	[ "${CP[$w][$t]["ord"]-}" = "$g" ] || return 0
+	cp_ordmove "$w" "$i" "$t"
+	return 0
+}
 
 # Set the slider CP_MSLIDE names to whatever column c is over.
 fn cp_slide(int w, int c, int r = 0) {
@@ -987,9 +1084,22 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 	if [ "$act" = press ]; then
 		CP_MDRAG[$id]=
 		CP_MSLIDE[$id]=
+		CP_MORD[$id]=
 		if [ "$c" = "${PW[$id]["dv"]:-${PW[$id]["lw"]}}" ] && [ "$r" -ge 1 ]; then
 			PW[$id]["split"]=1
 			return 0
+		fi
+		# A press on a row that can be moved is held until it is known
+		# whether it is a drag: one that moves takes the row with it, and
+		# one let go where it was is the ordinary click it would have been,
+		# checkbox and all (Gitea #396).
+		if ! panel_inlist "$id" "$c" && [ "$r" -ge 1 ]; then
+			local oi=$((${PW[$id]["top"]:-0} + r - 1))
+			if [ "$oi" -lt "${PW[$id]["n"]:-0}" ] &&
+			   [ -n "${CP[$id][$oi]["ord"]-}" ]; then
+				CP_MORD[$id]="$oi $r $c 0"
+				return 0
+			fi
 		fi
 		pane := panel_pane "$id"
 		if ! panel_inlist "$id" "$c" && [ -n "$pane" ] &&
@@ -1007,6 +1117,10 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 	if [ -n "${CP_MSLIDE[$id]}" ]; then
 		cp_slide "$id" "$c" "$r"
 		[ "$act" = release ] && CP_MSLIDE[$id]=
+		return 0
+	fi
+	if [ -n "${CP_MORD[$id]-}" ]; then
+		cp_orddrag "$id" "$act" "$r"
 		return 0
 	fi
 	pane=${CP_MDRAG[$id]}

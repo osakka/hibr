@@ -190,8 +190,9 @@ and the battery -- are catalogue entries, each in a bundle with the pane
 that acts through it, and the session reads them as it reads apps. One
 layout places all of them from the bar's outer end inwards. `dt_baripin
 name n` keeps an item in a place of its own -- 1 is the corner, a negative
-place is beyond every ordinary item -- and only an unpinned item is
-offered by Item Order. `dt_bariwide name w adj` keeps a width whatever the
+place is beyond every ordinary item -- until `DT_BARORDER` names it, which
+moves it to the place the order gives (Gitea #396); only the corner, pin 1,
+is never moved. `dt_bariwide name w adj` keeps a width whatever the
 text measures, `dt_baridraw name fn` draws an item with pens of its own,
 `dt_baripress name fn` takes a press with its button and column, and
 `dt_barhook fn` runs before the bar's gate on every frame, for an item
@@ -201,11 +202,22 @@ fn` is what stops a watcher when a rescan finds its file gone; the item, its
 hooks and its tickers are taken off with it.
 
 `dt_barilabel name label` says what the item is called. Control Panel >
-Appearance > Item Order lists items by that label, so the panel keeps no list
-of who puts what on the bar (Gitea #341). `DT_BARORDER` is the names in the
-order they read across the bar. An item it does not name follows in the
-order it registered, and a name with no item is passed over, so unset the
-bar is as it always was.
+Appearance > Menu Bar Items lists items by that label, so the panel keeps no
+list of who puts what on the bar (Gitea #341, #396). `DT_BARORDER` is the
+names in the order they read across the bar. An item it does not name goes
+after the last ordinary item it does name, and a name with no item is
+passed over, so unset the bar is as it always was. `DT_BARHIDE` names the
+items taken off; an item that already has a setting of its own for that --
+the speaker's `DT_SNDBAR` -- says so with `dt_bariswitch name VAR fn`, and
+the list's checkbox is then that setting, with `fn` run after it changes.
+
+The list is a Control Panel row of a kind any pane can use: a row with
+`["ord"]=group` and `["oname"]=name` draws a grip, moves with a drag or
+with shift and an arrow, and the pane is told the group's new order with
+`<pane>_order w group name...`. A press on such a row is held until it is
+known to be a drag, and one let go where it was is passed on as the click
+it would have been. The Control Strip pane uses the same rows for its
+modules, kept in `CS_ORDER` and `CS_HIDE`.
 
 The hibr menu gives the applications every letter its own items have not
 taken. Those letters are read from the items themselves: the About above

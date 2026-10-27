@@ -17,7 +17,7 @@
 
 strict
 
-app power "The battery on the menu bar and the charge it watches" 1.1
+app power "The battery on the menu bar and the charge it watches" 1.2
 
 declare -gA DT_PW
 # Where the batteries are: the kernel's folder, a name a test can put a
@@ -150,7 +150,6 @@ fn dt_pwglyph(int? pct = "") {
 dt_pwbar() {
 	local t g
 
-	dt_barilabel pw "Battery"
 	if [ "${DT_PWBAR:-1}" != 1 ] || [ "${DT_PW["n"]:-0}" = 0 ]; then
 		dt_baritem pw ""
 		return 0
@@ -264,4 +263,6 @@ fn pw_context(id = "") {
 # Its place on the bar is taken while the file is read, so that a rescan
 # finding the file gone knows whose item this is (dt_barrescan).
 dt_baritem pw ""
+dt_bariswitch pw DT_PWBAR dt_pwbar
+dt_barilabel pw "Battery"
 dt_ticker dt_pwtick

@@ -42,7 +42,7 @@
 
 strict
 
-app network "The network on the menu bar and the connection it watches" 1.0
+app network "The network on the menu bar and the connection it watches" 1.1
 
 # The state: kind (nm, ip, none, or gone for a NetworkManager that went;
 # empty until the first frame looks), why (the system asked for that did
@@ -543,7 +543,6 @@ fn dt_netbars(int sig) {
 dt_netbar() {
 	local t b
 
-	dt_barilabel net "Network"
 	if [ "${DT_NETBAR:-1}" != 1 ] || [ "${DT_NET["kind"]:-none}" = none ] ||
 	   [ "${DT_NET["kind"]}" = gone ]; then
 		dt_baritem net ""
@@ -1409,5 +1408,7 @@ command -v dt_app > /dev/null && dt_app netpw "Wi-Fi" 11 52 "" "" fixed hidden
 # Its place on the bar is taken while the file is read, so that a rescan
 # finding the file gone knows whose item this is (dt_barrescan).
 dt_baritem net ""
+dt_bariswitch net DT_NETBAR dt_netbar
+dt_barilabel net "Network"
 dt_baristop net dt_netstop
 dt_ticker dt_nettick

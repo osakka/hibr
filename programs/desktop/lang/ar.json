@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.41",
+ "version": "3.42",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -934,8 +934,6 @@
   "Show Contents": "إظهار المحتويات",
   "Menu Width": "عرض القائمة",
   "Shadow Shape": "شكل الظل",
-  "Default": "الافتراضي",
-  "Item Order": "ترتيب العناصر",
   "Icon Background": "خلفية الأيقونات",
   "Cannot open %s -- see the desktop's log": "تعذر فتح %s -- راجع سجل سطح المكتب",
   "Contents": "المحتويات",
@@ -1396,6 +1394,9 @@
   "a screen saver": "شاشة توقف",
   "a theme": "سمة",
   "an application": "تطبيق",
-  "one of the desktop's own apps": "أحد تطبيقات سطح المكتب"
+  "one of the desktop's own apps": "أحد تطبيقات سطح المكتب",
+  "Menu Bar Items": "عناصر شريط القوائم",
+  "Drag, or Shift and an arrow": "اسحب، أو Shift مع سهم",
+  "Workspaces": "مساحات العمل"
  }
 }

@@ -27,8 +27,10 @@ every other kind (ADR 0045) and placed by one layout. That includes the
 desktop's own four, which say `# platform:` and are loaded by
 `desktop.hibr`, so a desktop with no session still has its bar. Each pins
 itself to the place it has always had (`dt_baripin`), which is why the bar
-is the same cell for cell as before. Only an unpinned item is offered by
-Control Panel > Appearance > Item Order. An item whose text follows the
+is the same cell for cell as before. Only an unpinned item was offered by
+Control Panel > Appearance > Item Order; since Gitea #396 its Menu Bar
+Items list offers every item but the corner's, and an item the order
+names leaves its pin for the place it is given. An item whose text follows the
 desktop's state keeps it in a hook run before the bar's gate
 (`dt_barhook`), calling `dt_baritem` only when it changed. That is a
 per-frame call, which the bar refuses to an app's text, and it is

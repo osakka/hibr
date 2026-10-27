@@ -150,12 +150,21 @@ second screen joined from a terminal that cannot show pixels gets half
 blocks while the first keeps its picture. Every change applies at once
 and is kept for next time.
 
+**Menu Bar Items**, further down the same pane, lists what is on the bar's
+right -- the workspace numbers, the speaker, the network, the notification
+icon, the clock, anything an app has put there -- in the order they read
+across it. Untick one to take it off the bar. Drag a row by its grip to
+move it, or select it and press **shift** with an arrow. The application
+menu stays in its corner.
+
 The **Control Strip** along the bottom holds small controls of its own:
 the cursor's shape, shadows, the theme, the wallpaper, the workspace
 numbers -- and an app can bring one, as Prayer Times brings the next
 prayer's time. It is off on a new desktop and its modules come from the
 Catalogue (Gitea #393): Control Panel > Control Strip > **Show Control
-Strip** turns it on. Click one, or press **alt-s** and use the arrows. The arrow at
+Strip** turns it on, and the pane lists the modules installed, to tick
+off or drag into another order the same way as the menu bar's items.
+Click one, or press **alt-s** and use the arrows. The arrow at
 its end is a handle: drag it up or down to move the strip, sideways to
 shorten it, past the middle of the screen to dock it on the other side,
 and click it to fold the strip away to the arrow alone.

@@ -233,36 +233,120 @@ fn dt_baritem(name, text = "", ...cmd) {
 }
 
 # What an item is called where a person chooses its place on the bar
-# (Control Panel > Appearance > Item Order): set by its owner beside its
+# (Control Panel > Appearance > Menu Bar Items): set by its owner beside its
 # dt_baritem, so nothing else keeps a list of who puts what on the bar
 # (Gitea #341).
 fn dt_barilabel(name, label) {
 	DT_BARI["$name"]["label"]=$label
 }
 
+# An item that already has a setting of its own for whether it is on the
+# bar -- the speaker's DT_SNDBAR, in its own pane since before the list --
+# names it here, with what to run once it has changed, so the list's
+# checkbox and the pane's are one setting rather than two that disagree
+# (Gitea #396). An item that names none is hidden by DT_BARHIDE.
+fn dt_bariswitch(name, var, fn = "") {
+	DT_BARI["$name"]["svar"]=$var
+	DT_BARI["$name"]["sfn"]=$fn
+}
+
+# Whether an item is switched on.
+fn dt_barishown(name) {
+	local v=${DT_BARI["$name"]["svar"]-}
+
+	if [ -n "$v" ]; then
+		[ "${!v:-1}" = 1 ]
+		return $?
+	fi
+	case " ${DT_BARHIDE-} " in *" $name "*) return 1 ;; esac
+	return 0
+}
+
+# Switch an item on or off.
+fn dt_baritoggle(name) {
+	local v=${DT_BARI["$name"]["svar"]-} f=${DT_BARI["$name"]["sfn"]-} o= x
+
+	if [ -n "$v" ]; then
+		if [ "${!v:-1}" = 1 ]; then printf -v "$v" 0; else printf -v "$v" 1; fi
+		[ -n "$f" ] && dt_has "$f" && "$f"
+	elif dt_barishown "$name"; then
+		DT_BARHIDE="${DT_BARHIDE:+$DT_BARHIDE }$name"
+	else
+		for x in ${DT_BARHIDE-}; do
+			[ "$x" = "$name" ] || o+="${o:+ }$x"
+		done
+		DT_BARHIDE=$o
+	fi
+	DT_BARWAS=
+	return 0
+}
+
+# The items as they read across the bar, into DT_BARREAD, for the list a
+# person orders them in: every one but the application menu, which keeps
+# its corner (Gitea #396), the hidden ones where they would be.
+declare -ga DT_BARREAD
+dt_barreading() {
+	local i nm
+
+	dt_barlist
+	DT_BARREAD=()
+	i=$((${#DT_BARLAY[@]} - 1))
+	while [ "$i" -ge 0 ]; do
+		nm=${DT_BARLAY[$i]}
+		i=$((i - 1))
+		[ "${DT_BARI["$nm"]["pin"]-}" = 1 ] && continue
+		DT_BARREAD+=("$nm")
+	done
+}
+
 # The items in the order dt_barilay places them -- nearest the notification
 # icon first -- into DT_BARSEQ. DT_BARORDER names items in the order they
-# read across the bar; one it does not name follows in the order it
-# registered, and a name no item has is passed over, so with it empty the
-# bar is exactly as it was before there was a setting (Gitea #341).
+# read across the bar, and a name no item has is passed over, so with it
+# empty the bar is exactly as it was before there was a setting (Gitea
+# #341). Since #396 it may name the clock, the notification icon and the
+# workspace numbers too, and a pinned item it names leaves its pin for the
+# place the order gives it; DT_BARNAMED says which those are. One it does
+# not name -- an item installed after the order was chosen -- goes after
+# the last ordinary item it names, which is where it would have gone with
+# the clock and the icon still pinned.
 declare -ga DT_BARSEQ
+DT_BARNAMED=
 dt_barseq() {
-	local nm i
-	local -a want rd
+	local nm i p ins=-1 fp=-1
+	local -a want ok un rd
 
 	read -ra want <<< "${DT_BARORDER-}"
 	for nm in "${want[@]}"; do
 		case " ${DT_BARIN[*]} " in *" $nm "*) ;; *) continue ;; esac
-		[ -n "${DT_BARI["$nm"]["pin"]-}" ] && continue
-		case " ${rd[*]-} " in *" $nm "*) continue ;; esac
-		rd+=("$nm")
+		p=${DT_BARI["$nm"]["pin"]-}
+		[ "$p" = 1 ] && continue
+		case " ${ok[*]-} " in *" $nm "*) continue ;; esac
+		if [ -z "$p" ]; then
+			ins=$((${#ok[@]} + 1))
+		elif [ "$fp" = -1 ] && [ "${p#-}" = "$p" ]; then
+			fp=${#ok[@]}
+		fi
+		ok+=("$nm")
 	done
+	[ "$ins" = -1 ] && ins=$fp
+	[ "$ins" = -1 ] && ins=${#ok[@]}
+	DT_BARNAMED=" ${ok[*]-} "
 	i=$((${#DT_BARIN[@]} - 1))
 	while [ "$i" -ge 0 ]; do
 		nm=${DT_BARIN[$i]}
-		[ -n "${DT_BARI["$nm"]["pin"]-}" ] && { i=$((i - 1)); continue; }
-		case " ${want[*]-} " in *" $nm "*) ;; *) rd+=("$nm") ;; esac
 		i=$((i - 1))
+		[ -n "${DT_BARI["$nm"]["pin"]-}" ] && continue
+		case $DT_BARNAMED in *" $nm "*) ;; *) un+=("$nm") ;; esac
+	done
+	i=0
+	while [ "$i" -lt "$ins" ]; do
+		rd+=("${ok[$i]}")
+		i=$((i + 1))
+	done
+	rd+=("${un[@]}")
+	while [ "$i" -lt "${#ok[@]}" ]; do
+		rd+=("${ok[$i]}")
+		i=$((i + 1))
 	done
 	DT_BARSEQ=()
 	i=$((${#rd[@]} - 1))
@@ -492,19 +576,20 @@ dt_barlist() {
 		[ "${p#-}" -gt "$top" ] && top=${p#-}
 	done
 	DT_BARLAY=()
+	dt_barseq
 	for ((i = 1; i <= top; i++)); do
 		for nm in "${DT_BARIN[@]}"; do
-			[ "${DT_BARI["$nm"]["pin"]-}" = "$i" ] && DT_BARLAY+=("$nm")
+			[ "${DT_BARI["$nm"]["pin"]-}" = "$i" ] || continue
+			case $DT_BARNAMED in *" $nm "*) continue ;; esac
+			DT_BARLAY+=("$nm")
 		done
 	done
-	dt_barseq
-	for nm in "${DT_BARSEQ[@]}"; do
-		[ -n "${DT_BARI["$nm"]["pin"]-}" ] && continue
-		DT_BARLAY+=("$nm")
-	done
+	DT_BARLAY+=("${DT_BARSEQ[@]}")
 	for ((i = 1; i <= top; i++)); do
 		for nm in "${DT_BARIN[@]}"; do
-			[ "${DT_BARI["$nm"]["pin"]-}" = "-$i" ] && DT_BARLAY+=("$nm")
+			[ "${DT_BARI["$nm"]["pin"]-}" = "-$i" ] || continue
+			case $DT_BARNAMED in *" $nm "*) continue ;; esac
+			DT_BARLAY+=("$nm")
 		done
 	done
 }
@@ -526,6 +611,7 @@ fn dt_barilay(int gap) {
 		t=${DT_BARI["$nm"]["text"]}
 		DT_BARI["$nm"]["w"]=0
 		[ -n "$t" ] || continue
+		case " ${DT_BARHIDE-} " in *" $nm "*) continue ;; esac
 		iw=${DT_BARI["$nm"]["rw"]-}
 		[ -n "$iw" ] || iw := str width "$t"
 		case $DT_MIRRORON in
@@ -597,6 +683,7 @@ dt_barkey() {
 	k="$k|$DT_BARGAP|$DT_BELLICON|$DT_PBAR|$DT_MENUBOLD"
 	k="$k|$DT_BARTIME|$DT_BARSHADOW|$DT_INK|$DT_BAR|$DT_ACTIVE|$DT_IDLE"
 	k="$k|$DT_GLYPHSET|$DT_LANG|$DT_DIGITS|$DT_SHADOW_PCT|$DT_MENUIN"
+	k="$k|${DT_BARORDER-}|${DT_BARHIDE-}"
 	# The items are not in here: dt_baritem clears the gate itself, which
 	# is one place rather than a join of every app's text on every frame.
 	ret "$k"

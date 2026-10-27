@@ -10,12 +10,13 @@
 
 strict
 
-app workspaces "The workspace numbers on the menu bar" 1.0
+app workspaces "The workspace numbers on the menu bar" 1.1
 
 DT_WSIKEY=
 
 dt_baritem ws ""
 dt_baripin ws -1
+dt_barilabel ws "Workspaces"
 dt_baridraw ws dt_wsdraw
 dt_baripress ws dt_wspress
 dt_barhook dt_wshook

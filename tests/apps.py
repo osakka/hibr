@@ -1830,6 +1830,78 @@ check("which can be the bell instead",
       "bell" in sc.row(sc.find("Notification Icon")[0]) and
       sc.find("🔔") is not None, sc)
 
+# Menu Bar Items (Gitea #396): every item on the bar but the application
+# menu, as they read across it, each with a grip and its checkbox; a drag
+# moves one, shift and an arrow does too, and a click is still a click.
+# The list is the pane's last section, so it is scrolled to first.
+MBDOWN = DOWN_APP + [0.3] + [wheel(R0 + 5, BODYCOL + 10, up=False)] * 6
+sc = mbsc = cprun(MBDOWN, geom=PWTALL)
+mbi = sc.find("Menu Bar Items")
+mbclock = sc.find("\u2261 Clock")
+mbbell = sc.find("\u2261 Notifications")
+check("Appearance lists the bar's items under Menu Bar Items, each with a "
+      "grip and a checkbox",
+      mbi is not None and mbclock is not None and mbbell is not None and
+      mbclock[0] > mbbell[0] > mbi[0] and
+      "[x]" in sc.row(mbclock[0]) and sc.find("\u2261 Desktop") is None, sc)
+mbclock = mbclock or (0, 0)
+mbbell = mbbell or (0, 0)
+sc = cprun(MBDOWN + [0.3, press(mbbell[0], mbbell[1] + 4),
+                     drag(mbbell[0] + 1, mbbell[1] + 4),
+                     drag(mbclock[0], mbbell[1] + 4),
+                     release(mbclock[0], mbbell[1] + 4), 0.4],
+           geom=PWTALL)
+check("dragging the notification icon's row below the clock's puts it "
+      "after the clock on the bar",
+      re.search(r"\d\d:\d\d +\u2691", sc.row(0)) is not None and
+      sc.find("\u2261 Notifications") is not None and
+      sc.find("\u2261 Notifications")[0] == mbclock[0], sc)
+sc = cprun(MBDOWN + [0.3, press(mbclock[0], mbclock[1] + 4),
+                     release(mbclock[0], mbclock[1] + 4), 0.3,
+                     press(mbclock[0], mbclock[1] + 4),
+                     release(mbclock[0], mbclock[1] + 4), 0.4],
+           geom=PWTALL)
+check("and a click that does not move is a click: the second takes the "
+      "clock off the bar",
+      re.search(r"\d\d:\d\d", sc.row(0)) is None and
+      "[ ]" in sc.row(mbclock[0]), sc)
+sc = cprun(MBDOWN + [0.3, press(mbbell[0], mbbell[1] + 4),
+                     release(mbbell[0], mbbell[1] + 4), 0.3,
+                     b"\x1b[1;2B", 0.4], geom=PWTALL)
+check("and shift and down moves the selected item one place",
+      re.search(r"\d\d:\d\d +\u2691", sc.row(0)) is not None, sc)
+# The speaker has a switch of its own in the Sound pane, DT_SNDBAR, and the
+# list's checkbox is that switch rather than a second one (dt_bariswitch).
+mbvol = mbsc.find("\u2261 Volume") or (0, 0)
+sc = cprun(MBDOWN + [0.3, press(mbvol[0], mbvol[1] + 4),
+                     release(mbvol[0], mbvol[1] + 4), 0.3,
+                     press(mbvol[0], mbvol[1] + 4),
+                     release(mbvol[0], mbvol[1] + 4), 0.4],
+           geom=PWTALL)
+check("and the speaker's checkbox is the Sound pane's own On Menu Bar",
+      "[ ]" in sc.row(mbvol[0]) and
+      sc.find("\u2261 Volume") is not None, sc)
+
+# The Control Strip pane has the same list for its modules.
+CSALL = ('CS_SHOW=1\nCS_MODDIRS+=("%s")\ncs_modules\ncs_relist\n'
+         % tree("programs/desktop/control-strip"))
+DOWN_CS = [b"\x1b[B"] * downs("control_strip")
+sc = cprun(DOWN_CS, geom=PWTALL, post=CSALL)
+csfirst = sc.find("\u2261 Cursor")
+cswall = sc.find("\u2261 Wallpaper")
+check("the Control Strip pane lists the modules, each with a grip and a "
+      "checkbox", sc.find("Modules") is not None and csfirst is not None
+      and cswall is not None and "[x]" in sc.row(cswall[0]), sc)
+csfirst = csfirst or (0, 0)
+cswall = cswall or (0, 0)
+sc = cprun(DOWN_CS + [0.3, press(cswall[0], cswall[1] + 4),
+                      drag(cswall[0] - 1, cswall[1] + 4),
+                      drag(csfirst[0], cswall[1] + 4),
+                      release(csfirst[0], cswall[1] + 4), 0.4],
+           geom=PWTALL, post=CSALL)
+check("and dragging one to the top puts it first on the strip",
+      sc.find("[Wallpaper][Cursor]") is not None, sc)
+
 # File Types: dt_handler's own table, listed and editable through the UI
 # now instead of only through a line in a script of the user's own --
 # which is still exactly how it is read back at the next start (dt_save
@@ -5429,4 +5501,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(724)
+report(730)

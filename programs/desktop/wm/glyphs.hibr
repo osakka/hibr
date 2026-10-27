@@ -59,7 +59,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["grow"]="/"
 		GL["block"]="#"; GL["light"]="."; GL["medium"]=":"
 		GL["upper"]="="; GL["lower"]="_"
-		GL["dot"]="."; GL["bullet"]="*"; GL["circle"]="o"
+		GL["dot"]="."; GL["bullet"]="*"; GL["circle"]="o"; GL["grip"]="="
 		GL["square"]="#"; GL["box"]="o"; GL["ring"]="@"
 		GL["up"]="^"; GL["down"]="v"; GL["right"]=">"
 		GL["sright"]=">"; GL["sleft"]="<"; GL["sdown"]="v"; GL["sup"]="^"
@@ -118,6 +118,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["lower"]=$'▄'     # LOWER HALF BLOCK
 		GL["dot"]=$'·'       # MIDDLE DOT
 		GL["bullet"]=$'•'    # BULLET
+		GL["grip"]=$'≡'      # IDENTICAL TO
 		GL["circle"]=$'●'    # BLACK CIRCLE
 		GL["square"]=$'■'    # BLACK SQUARE
 		GL["box"]=$'□'       # WHITE SQUARE

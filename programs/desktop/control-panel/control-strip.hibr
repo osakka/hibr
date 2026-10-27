@@ -10,10 +10,14 @@
 strict
 
 
-app control_strip "The Control Panel pane for the strip itself" 1.1
+app control_strip "The Control Panel pane for the strip itself" 1.2
 command -v cp_pane > /dev/null && cp_pane control_strip "Control Strip" "▤"
 
 CP_CS_SIDES=(left right)
+# Repeated here because a pane is loaded without the strip under the panel
+# tests, and a strict file may not create a global it has not declared.
+CS_HIDE="${CS_HIDE-}"
+CS_ORDER="${CS_ORDER-}"
 
 fn cp_set_csside(int? id = "", value = "") { CS_SIDE=$value; cp_save; }
 
@@ -42,7 +46,56 @@ fn control_strip_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$CS_SHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=shadow; n=$((n + 1))
+	# The modules installed, each with its checkbox, in the order the strip
+	# shows them, dragged into another (Gitea #396) -- the same list
+	# Appearance has for the menu bar's items.
+	if command -v cs_ordered > /dev/null; then
+		cs_ordered
+		local m on
+		if [ "${#CS_MOD_ORD[@]}" -gt 0 ]; then
+			CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Modules"
+			n=$((n + 1))
+			for m in "${CS_MOD_ORD[@]}"; do
+				on=on
+				case " ${CS_HIDE-} " in *" $m "*) on=off ;; esac
+				CP[$w][$n]["kind"]=set; CP[$w][$n]["wtype"]=bool
+				CP[$w][$n]["text"]=${CS_MODS[$m]["title"]:-$m}
+				CP[$w][$n]["val"]=$on; CP[$w][$n]["key"]="csm:$m"
+				CP[$w][$n]["ord"]=strip; CP[$w][$n]["oname"]=$m
+				n=$((n + 1))
+			done
+			CP[$w][$n]["kind"]=info
+			CP[$w][$n]["text"]="Drag, or Shift and an arrow"
+			n=$((n + 1))
+		fi
+	fi
 	ret "$n"
+}
+
+# The modules in the order the list was left in.
+fn control_strip_order(int w, group, ...names) {
+	[ "$group" = strip ] || return 0
+	CS_ORDER="${names[*]}"
+	dt_has cs_relist && cs_relist
+	DT_FORCEONCE=1
+	cp_save
+}
+
+# Take a module off the strip, or put it back.
+fn cp_csmodule(m) {
+	local o= x
+
+	case " ${CS_HIDE-} " in
+	*" $m "*)
+		for x in ${CS_HIDE-}; do
+			[ "$x" = "$m" ] || o+="${o:+ }$x"
+		done
+		CS_HIDE=$o
+		;;
+	*) CS_HIDE="${CS_HIDE:+$CS_HIDE }$m" ;;
+	esac
+	dt_has cs_relist && cs_relist
+	DT_FORCEONCE=1
 }
 
 fn control_strip_do(int? w = "", k = "", int? dir = "") {
@@ -52,6 +105,7 @@ fn control_strip_do(int? w = "", k = "", int? dir = "") {
 	side) v := cp_next "$CS_SIDE" "$dir" "${CP_CS_SIDES[@]}"
 	      CS_SIDE=$v ;;
 	shadow) cp_csshadow ;;
+	csm:*) cp_csmodule "${k#csm:}" ;;
 	show)
 		if [ "${CS_SHOW:-0}" = 1 ]; then CS_SHOW=0; else CS_SHOW=1; fi
 		dt_has cs_relist && cs_relist

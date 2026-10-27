@@ -352,7 +352,6 @@ Date/time
 Date:
 Dec
 December
-Default
 Default View
 Degrees, north and east positive. Empty: the time zone's.
 Delete
@@ -399,6 +398,7 @@ Draft saved
 Drafts
 Drag Modifier
 Drag Windows
+Drag, or Shift and an arrow
 Draw Pictures As
 Drawn Now
 Drop onto Home, a disk, or the trash
@@ -547,7 +547,6 @@ Isha
 It asks for a password (%s).
 Italic
 Item
-Item Order
 Its passkey or PIN:
 Jan
 January
@@ -625,6 +624,7 @@ Mark as Unread
 May
 Menu Bar
 Menu Bar Item
+Menu Bar Items
 Menu Width
 Menu bar
 Menus
@@ -1223,6 +1223,7 @@ Workspace %s
 Workspace %s: tiled
 Workspace %s: windows float
 Workspace: %s of %s
+Workspaces
 Write
 Write an Email
 X Screen

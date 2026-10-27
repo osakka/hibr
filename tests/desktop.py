@@ -3051,6 +3051,13 @@ SHADOW_COL = sc.find("Shadow")[1]
 CURSOR_COL = sc.find("Cursor")[1]
 ARROW_COL = arrow[1]
 shutil.rmtree(sc.conf, True)
+# The order and the modules taken off, as the Control Strip pane's list
+# leaves them (Gitea #396): named first, the rest in file order after.
+sc2, _ = run("", env={"CS_ORDER": "wallpaper nosuch cursor",
+                      "CS_HIDE": "theme"}, pre=CSSRC)
+check("CS_ORDER puts the modules it names first and CS_HIDE takes one off",
+      sc2.row(row).startswith("[Wallpaper][Cursor][Shadow]▸"),
+      sc2.row(row))
 
 sc = csrun([press(row, SHADOW_COL), release(row, SHADOW_COL)])
 # Shadow is a plain toggle, drawn bold in the active colour when on and
@@ -6600,7 +6607,8 @@ check("a frame that changes nothing on the bar does not draw it, and one "
 
 # The bar's own items are files of menubar/ (Gitea #392): one of yours of the
 # same name, in ~/.config/hibr/menubar, replaces the shipped one and takes its
-# place on the bar; and Item Order is offered the ordinary items only, never
+# place on the bar; and with no order chosen the order holds the ordinary
+# items only, never
 # the four that pin their places.
 mbconf = tempfile.mkdtemp(prefix="hibr-mbconf-")
 os.makedirs(os.path.join(mbconf, "hibr", "menubar"))
@@ -6620,7 +6628,7 @@ check("a menubar/clock.hibr of your own replaces the clock, in the clock's "
       "TICKTOCK" in bar and "12:34" not in bar
       and bar.find("TICKTOCK") < bar.find("Desktop") and bar.find("⚑") < bar.find("TICKTOCK"),
       bar)
-check("and Item Order is offered the ordinary items, not the four that pin "
+check("and with no order chosen it holds the ordinary items, not the four that pin "
       "their places", seq == ["zz"], seq)
 
 # An app can put an item on the bar (Gitea #160): a state that changes,
@@ -7091,7 +7099,8 @@ check("and an app whose name begins with one of them is given another",
                     "Pinball")),
       rows)
 
-# Item Order (Gitea #341): the items on the bar's right, read across it, by
+# The bar's order (Gitea #341, Menu Bar Items since #396): the items on the
+# bar's right, read across it, by
 # the names their owners gave them. Empty is the order they registered in;
 # a set order puts the named first and the rest after, and a name with no
 # item changes nothing.
@@ -7110,9 +7119,51 @@ def bar_order(order):
                                  if r.find(n) >= 0)]
 check("the bar's items keep the order they registered in, unset",
       bar_order("") == ["CCC", "BBB", "AAA"], bar_order(""))
-check("and Item Order puts the named first, the rest after, skipping a name "
+check("and the order puts the named first, the rest after, skipping a name "
       "that is not there",
       bar_order("cc nosuch aa") == ["CCC", "AAA", "BBB"], bar_order("cc nosuch aa"))
+
+
+# Menu Bar Items (Gitea #396): the order may name the clock, the
+# notification icon and the workspace numbers too, which then leave their
+# pinned places for the ones it gives them; the application menu keeps its
+# corner whatever it says; an item it does not name goes after the last
+# ordinary one it does; and DT_BARHIDE takes an item off.
+def bar_items(order, hide=""):
+    path = scratch("desktop-baritems.hibr")
+    open(path, "w").write(
+        "%s. %s\ndt_open\nDT_WSN=3\ndt_baritem aa AAA :\ndt_baritem bb BBB :\n"
+        "dt_baritem cc CCC :\nDT_BARORDER='%s'\nDT_BARHIDE='%s'\n"
+        "dt_run\ndt_close\n" % (load(MOD), WM, order, hide))
+    # Wider than the suite's own screen: seven items and the menus' titles
+    # do not all fit in 80 columns, and one that would reach the titles
+    # gives way, which is the bar working rather than the order.
+    t = Term(path, rows=ROWS, cols=110, settle=1.0,
+             env={"DT_BARTIME": "12:34"})
+    sc = t.screen()
+    t.quit(b"qy", 0.6)
+    os.unlink(path)
+    r = sc.row(0)
+    found = [(r.find(n), n) for n in ("AAA", "BBB", "CCC", "12:34",
+                                      "⚑", "1 2 3", "Desktop")]
+    return [n for c, n in sorted(found) if c >= 0]
+
+
+bi = bar_items("")
+check("with no order the clock and the icon keep their pins, the "
+      "workspaces beyond every item",
+      bi == ["1 2 3", "CCC", "BBB", "AAA", "⚑", "12:34", "Desktop"], bi)
+bi = bar_items("12 clock aa bb ws bell app cc")
+check("an order naming the clock, the workspaces and the icon puts them "
+      "where it says, and the application menu keeps its corner",
+      bi == ["12:34", "AAA", "BBB", "1 2 3", "⚑", "CCC", "Desktop"], bi)
+bi = bar_items("clock aa ws bell")
+check("an item the order does not name goes after the last ordinary one "
+      "it does",
+      bi == ["12:34", "AAA", "CCC", "BBB", "1 2 3", "⚑", "Desktop"], bi)
+bi = bar_items("", "bb bell")
+check("and DT_BARHIDE takes an item off the bar, the icon as well",
+      bi == ["1 2 3", "CCC", "AAA", "12:34", "Desktop"], bi)
 
 # Hovering (Gitea #370). The pointer moving with no button held is a
 # motion report with button 3, which the console names `drag none`.
@@ -7901,4 +7952,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(855)
+report(860)

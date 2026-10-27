@@ -32,7 +32,7 @@
 
 strict
 
-app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.0
+app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.1
 
 # The state: kind (bluez, none, or gone for a bluetoothd that went; empty
 # until the first frame looks), why (asked for and not answering), addr and
@@ -205,7 +205,6 @@ dt_btconnected() {
 dt_btbar() {
 	local t n
 
-	dt_barilabel bt "Bluetooth"
 	if [ "${DT_BTBAR:-1}" != 1 ] || [ "${DT_BT["kind"]:-none}" != bluez ]; then
 		dt_baritem bt ""
 		return 0
@@ -814,5 +813,7 @@ command -v dt_app > /dev/null && dt_app btpair "Bluetooth" 11 52 "" "" fixed hid
 # Its place on the bar is taken while the file is read, so that a rescan
 # finding the file gone knows whose item this is (dt_barrescan).
 dt_baritem bt ""
+dt_bariswitch bt DT_BTBAR dt_btbar
+dt_barilabel bt "Bluetooth"
 dt_baristop bt dt_btstop
 dt_ticker dt_bttick
