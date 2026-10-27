@@ -697,6 +697,7 @@ Next
 Next Month
 Next Page
 Next Picture
+Next Prayer
 Next Prayer in the Menu Bar
 Next Tab
 Next Wallpaper
@@ -1290,8 +1291,9 @@ from the Servers list.
 full
 hibr %s is installed -- click to restart the desktop
 hibr %s — a desktop written in the shell it runs on
-hibr desktop v%s
+hibr user interface, hybrid user interface
 hibr v%s, module ABI %s
+hui v%s
 incoming
 installed %s
 installed %s, %s available

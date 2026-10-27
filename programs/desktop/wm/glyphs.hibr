@@ -307,5 +307,8 @@ dt_glyphsblit() {
 	# -- the hibr menu's mark where Menu Bar > Menu Mark asks for it.
 	GL["huil"]=$'\U00100018'   # Blit hui-left
 	GL["huir"]=$'\U00100019'   # Blit hui-right
+	# The power symbol, in Blit's colours (0.2.41): the Power item on a
+	# machine with no battery.
+	GL["power"]=$'\U0010001A'  # Blit power
 }
 dt_glyphs "$DT_GLYPHSET"

@@ -10,7 +10,7 @@
 strict
 
 
-app control_strip "The Control Panel pane for the strip itself" 1.3
+app control_strip "The Control Panel pane for the strip itself" 1.4
 command -v cp_pane > /dev/null && cp_pane control_strip "Control Strip" "▤"
 
 CP_CS_SIDES=(left right)
@@ -57,7 +57,11 @@ fn control_strip_rows(int w) {
 			n=$((n + 1))
 			for m in "${CS_MOD_ORD[@]}"; do
 				on=on
-				case " ${CS_HIDE-} " in *" $m "*) on=off ;; esac
+				if [ -n "${CS_MODS[$m]["svar"]-}" ]; then
+					dt_swon "${CS_MODS[$m]["svar"]}" || on=off
+				else
+					case " ${CS_HIDE-} " in *" $m "*) on=off ;; esac
+				fi
 				CP[$w][$n]["kind"]=set; CP[$w][$n]["wtype"]=bool
 				CP[$w][$n]["text"]=${CS_MODS[$m]["title"]:-$m}
 				CP[$w][$n]["val"]=$on; CP[$w][$n]["key"]="csm:$m"
@@ -81,10 +85,18 @@ fn control_strip_order(int w, group, ...names) {
 	cp_save
 }
 
-# Take a module off the strip, or put it back.
+# Take a module off the strip, or put it back: through its own switch where
+# it has one, CS_HIDE where it has not.
 fn cp_csmodule(m) {
-	local o= x
+	local o= x v=${CS_MODS[$m]["svar"]-} f=${CS_MODS[$m]["sfn"]-}
 
+	if [ -n "$v" ]; then
+		dt_swflip "$v"
+		[ -n "$f" ] && dt_has "$f" && "$f"
+		dt_has cs_relist && cs_relist
+		DT_FORCEONCE=1
+		return 0
+	fi
 	case " ${CS_HIDE-} " in
 	*" $m "*)
 		for x in ${CS_HIDE-}; do

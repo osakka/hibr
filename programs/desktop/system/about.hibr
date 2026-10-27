@@ -15,7 +15,7 @@ strict
 # CPU and memory, worked out the same way in every window that shows them.
 [ -n "${SY_LIBDONE-}" ] || . "$DT_HERE/lib/sysstat.hibr"
 
-app about "About this computer: the machine, and the desktop running on it" 1.3
+app about "About this computer: the machine, and the desktop running on it" 1.4
 # part: control-panel/abouthibr.hibr
 
 # 20 by 52, the same as about_size, which is what dt_launch actually asks
@@ -612,13 +612,14 @@ about_size() {
 
 # The rows the scrolled region occupies. Above it are the three facts this
 # machine answers for itself, pinned so that scrolling cannot take them
-# away; below it its own horizontal bar, the tagline, two rows of versions
-# -- "can we move the hibr desktop version till the end, under the
-# scrollable box" -- and the two meters. Nine rows of window that are not
-# the box, and returned rather than computed four times, since the draw,
-# both bars, the wheel and the keys all need the same number.
+# away; below it its own horizontal bar, hui's version and what its name
+# stands for, hibr's -- "can we move the hibr desktop version till the
+# end, under the scrollable box" -- and the two meters. Ten rows of window
+# that are not the box, and returned rather than computed four times,
+# since the draw, both bars, the wheel and the keys all need the same
+# number.
 fn about_vis(int h) {
-	local v=$((h - 9))
+	local v=$((h - 10))
 
 	[ "$v" -lt 1 ] && v=1
 	ret "$v"
@@ -705,14 +706,20 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	# with spaces in it shifts the text along and tools/strings.py stops
 	# seeing the string at all -- which silently dropped three of them
 	# from the catalogue.
-	console pen "$DT_DIM" "$DT_FACE"
-	r=$((h - 4))
-	dt_tput "$id" "$r" 2 "Highly Intuitive Bash-like Runtime"
+	# The desktop is hui -- the hibr user interface, and a hybrid one --
+	# and the shell under it is hibr, each with its version and the words
+	# its name stands for (the owner, 0.99.361).
 	console pen "$DT_INK" "$DT_FACE" bold
 	if [ -n "$DT_VER" ]; then
-		r=$((h - 3))
-		dt_tput "$id" "$r" 2 "hibr desktop v%s" "$DT_VER"
+		r=$((h - 5))
+		dt_tput "$id" "$r" 2 "hui v%s" "$DT_VER"
 	fi
+	console pen "$DT_DIM" "$DT_FACE"
+	r=$((h - 4))
+	dt_tput "$id" "$r" 2 "hibr user interface, hybrid user interface"
+	r=$((h - 3))
+	dt_tput "$id" "$r" 2 "Highly Intuitive Bash-like Runtime"
+	console pen "$DT_INK" "$DT_FACE" bold
 	r=$((h - 2))
 	dt_tput "$id" "$r" 2 "hibr v%s, module ABI %s" "$HIBR_VERSION" \
 		"${HIBR_ABI:-?}"

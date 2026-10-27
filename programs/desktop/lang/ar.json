@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.44",
+ "version": "3.45",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1224,7 +1224,6 @@
   "from the Servers list.": "من قائمة الخوادم.",
   "hibr %s is installed -- click to restart the desktop": "تم تثبيت hibr %s — انقر لإعادة تشغيل سطح المكتب",
   "hibr %s — a desktop written in the shell it runs on": "hibr %s — سطح مكتب مكتوب بالصدفة التي يعمل عليها",
-  "hibr desktop v%s": "سطح مكتب hibr الإصدار %s",
   "hibr v%s, module ABI %s": "hibr الإصدار %s، واجهة الوحدات %s",
   "incoming": "الوارد",
   "installed %s": "مثبّت %s",
@@ -1398,6 +1397,9 @@
   "Drag, or Shift and an arrow": "اسحب، أو Shift مع سهم",
   "Workspaces": "مساحات العمل",
   "Power on Menu Bar": "الطاقة في شريط القوائم",
-  "Menu Mark": "علامة القائمة"
+  "Menu Mark": "علامة القائمة",
+  "hui v%s": "hui الإصدار %s",
+  "hibr user interface, hybrid user interface": "واجهة مستخدم hibr، واجهة مستخدم هجينة",
+  "Next Prayer": "الصلاة التالية"
  }
 }

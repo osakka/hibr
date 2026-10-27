@@ -1,0 +1,47 @@
+# menubar/prayer -- the next prayer and its time on the menu bar, "Asr
+# 14:48" (Gitea #70), an item of its own since 0.99.361: it rode in the
+# clock's text until then, so Menu Bar Items could neither move it nor show
+# its switch, and unticking the clock took it away as well.
+#
+# Part of Prayer Times. Its one switch is the pane's Next Prayer in the Menu
+# Bar (DT_PBAR), which Menu Bar Items shows and turns too (dt_bariswitch). A
+# press opens Prayer Times.
+
+strict
+
+app prayerbar "The next prayer on the menu bar" 1.0
+
+# What the text was last made from, so it is made again only when that
+# changes -- the minute, or a setting the times are worked out by.
+DT_PRAYERIKEY=
+
+dt_baritem prayer ""
+dt_barilabel prayer "Next Prayer"
+dt_bariswitch prayer DT_PBAR dt_prayerbar
+dt_baripress prayer dt_prayerpress
+dt_barhook dt_prayerhook
+
+dt_prayerhook() {
+	local k t=
+
+	k="${DT_PBAR-}|$((EPOCHSECONDS / 60))|${DT_PMETHOD-}|${DT_PASR-}|${DT_PRULE-}"
+	k="$k|${DT_PADJ-}|${DT_PLAT-}|${DT_PLON-}|$DT_GLYPHSET|${DT_LANG-}"
+	[ "$k" = "$DT_PRAYERIKEY" ] && return 0
+	DT_PRAYERIKEY=$k
+	[ "${DT_PBAR-}" = on ] && dt_has dt_pbar && t := dt_pbar
+	dt_baritem prayer "$t"
+	return 0
+}
+
+# After the switch is turned, from the list or the pane: at once, not at
+# the next minute.
+dt_prayerbar() {
+	DT_PRAYERIKEY=
+	dt_prayerhook
+}
+
+fn dt_prayerpress(btn, int r, int c) {
+	dt_mclose
+	dt_has prayer_draw && dt_launch prayer
+	return 0
+}

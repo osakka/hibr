@@ -1,8 +1,9 @@
 #!/usr/bin/env hibr
 #
 # wm/prayer -- prayer times on the desktop (Gitea #70, ADR 0035): today's
-# times by the method chosen, for where the person is; the next one beside
-# the bar's clock, a note at each and the athan played, each a switch.
+# times by the method chosen, for where the person is; the next one on
+# the bar (menubar/prayer.hibr), a note at each and the athan played,
+# each a switch.
 #
 # The times come from the salat module, which is loaded only when one of
 # these is on or the Prayer Times window is open; a desktop that never asks

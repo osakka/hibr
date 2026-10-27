@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.361
+
+**One switch for each thing on the bar and the strip** (the owner: "one
+source of truth, no parallels"). A sweep of every on/off for a bar item or
+a strip module found two parallels, both Prayer Times', and one was made
+in 0.99.355. The Control Strip's Modules list kept its own `CS_HIDE` for a
+module that already had a switch, so the Prayer pane's In the Control
+Strip and the list's checkbox could disagree. A module now names its own
+setting (`cs_moduleswitch`), the way a bar item does (`dt_bariswitch`), and
+the list shows and turns that setting. And Next Prayer in the Menu Bar rode
+inside the clock's text, so Menu Bar Items could neither show nor move it
+and unticking the clock hid it too. It is **an item of its own** now, part
+of Prayer Times, its checkbox the pane's own: no longer glued to the clock
+with a dot, left of the notification icon by default, and dragged wherever
+it is wanted. A switch is read the same way whichever spelling it keeps,
+on/off or 1/0 (`dt_swon`, `dt_swflip`).
+
+- **About says hui:** hui's own version, "hibr user interface, hybrid user
+  interface" under it, then hibr's: what it stands for and its version.
+  The box above it is a row shorter, and scrolls as before: the window
+  stays 20 rows, the most an 80 by 24 screen holds clear of its edges.
+- **Blit's colour power symbol** (Blit 0.2.41) for the Power item on a
+  machine with no battery, with the blit glyph set.
+
 ## 0.99.360
 
 **The blit glyph set is the one switch for Blit's icons** (the owner).

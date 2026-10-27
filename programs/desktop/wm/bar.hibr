@@ -255,12 +255,30 @@ fn dt_bariswitch(name, var, fn = "") {
 	DT_BARI["$name"]["sfn"]=$fn
 }
 
+# Whether a setting that switches something on or off is on, whichever of
+# the two spellings it keeps -- 1 and 0, or on and off (the prayer's) --
+# unset counting as on; and the setting turned the other way, in its own
+# spelling. One reading for every switch, so a list showing a switch that
+# a pane owns shows exactly what the pane does (0.99.361).
+fn dt_swon(var) {
+	case ${!var:-1} in 1 | on) return 0 ;; esac
+	return 1
+}
+fn dt_swflip(var) {
+	case ${!var:-1} in
+	on) printf -v "$var" off ;;
+	off) printf -v "$var" on ;;
+	1) printf -v "$var" 0 ;;
+	*) printf -v "$var" 1 ;;
+	esac
+}
+
 # Whether an item is switched on.
 fn dt_barishown(name) {
 	local v=${DT_BARI["$name"]["svar"]-}
 
 	if [ -n "$v" ]; then
-		[ "${!v:-1}" = 1 ]
+		dt_swon "$v"
 		return $?
 	fi
 	case " ${DT_BARHIDE-} " in *" $name "*) return 1 ;; esac
@@ -272,7 +290,7 @@ fn dt_baritoggle(name) {
 	local v=${DT_BARI["$name"]["svar"]-} f=${DT_BARI["$name"]["sfn"]-} o= x
 
 	if [ -n "$v" ]; then
-		if [ "${!v:-1}" = 1 ]; then printf -v "$v" 0; else printf -v "$v" 1; fi
+		dt_swflip "$v"
 		[ -n "$f" ] && dt_has "$f" && "$f"
 	elif dt_barishown "$name"; then
 		DT_BARHIDE="${DT_BARHIDE:+$DT_BARHIDE }$name"

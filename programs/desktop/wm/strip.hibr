@@ -87,11 +87,25 @@ cs_relist() {
 	[ "${CS_SHOW:-0}" = 1 ] || return 0
 	cs_ordered
 	for m in "${CS_MOD_ORD[@]}"; do
-		case " ${CS_HIDE-} " in *" $m "*) continue ;; esac
+		# A module with a switch of its own is that switch, through its
+		# _shown; CS_HIDE is for the rest, so the two never disagree.
+		if [ -z "${CS_MODS[$m]["svar"]-}" ]; then
+			case " ${CS_HIDE-} " in *" $m "*) continue ;; esac
+		fi
 		dt_has "${m}_shown" && ! "${m}_shown" && continue
 		CS_MOD_LIST+=("$m")
 	done
 	return 0
+}
+
+# A module that already has a setting of its own for whether it shows --
+# the next prayer's DT_PSTRIP, in Prayer Times' pane -- names it here, and
+# Control Panel > Control Strip > Modules then shows and turns that setting
+# rather than a second one (0.99.361), the way dt_bariswitch does for the
+# menu bar's items. Its _shown should read the same setting.
+fn cs_moduleswitch(name, var, fn = "") {
+	CS_MODS[$name]["svar"]=$var
+	CS_MODS[$name]["sfn"]=$fn
 }
 
 # Every module loaded, in CS_ORDER's order, into CS_MOD_ORD: the ones it

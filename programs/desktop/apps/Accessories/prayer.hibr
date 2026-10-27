@@ -7,9 +7,10 @@
 
 strict
 
-app prayer "Today's prayer times for where you are, the next one lit" 1.1
+app prayer "Today's prayer times for where you are, the next one lit" 1.2
 # part: control-panel/prayerset.hibr
 # part: control-strip/nextprayer.hibr
+# part: menubar/prayer.hibr
 # modules: salat
 
 command -v dt_app > /dev/null && dt_app prayer "Prayer Times" 15 40 once "☾"

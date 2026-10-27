@@ -3353,10 +3353,16 @@ check("and it has no maximise button, being a fixed size",
 # Three rows, not one: one line of all of it is 48 characters and a
 # 50-column About window has 47 to draw in, so "module ABI 16" was the part
 # the pane clipped.
-dpos = sc.find("hibr desktop v")
-check("and shows the desktop's own version above hibr's, not just hibr's",
-      dpos is not None and "hibr v" in sc.row(dpos[0] + 1) and
-      "module ABI" in sc.row(dpos[0] + 1), sc)
+# The desktop is hui since 0.99.361 -- the hibr user interface, and a
+# hybrid one -- named with both meanings, then hibr's own two lines.
+dpos = sc.find("hui v")
+check("and shows hui's own version and what its name stands for, above "
+      "hibr's",
+      dpos is not None and
+      "hibr user interface, hybrid user interface" in sc.row(dpos[0] + 1) and
+      "Highly Intuitive Bash-like Runtime" in sc.row(dpos[0] + 2) and
+      "hibr v" in sc.row(dpos[0] + 3) and
+      "module ABI" in sc.row(dpos[0] + 3), sc)
 check("and says so under the box rather than over it, where what the "
       "machine is now reads first",
       dpos is not None and dpos[0] > sc.find("OS: ")[0], sc)
@@ -3422,13 +3428,16 @@ check("and a This Terminal section: size, pictures, colour, mouse and hold",
       sc.find("Held: no") is not None, sc)
 # And This Desktop between the two, holding what only the desktop knows:
 # how many windows are open, which workspace this is, how many apps it
-# offers. A page in, which is where it falls in a 20-row window.
+# offers. A page and two rows in, which is where it falls in a 20-row
+# window since 0.99.361 gave hui's name a row of its own under the box.
+mid2, _ = run("", feed=[press(0, 2), b"a", b"\x1b[6~", b"\x1b[B", b"\x1b[B"],
+              pre=APPS)
 check("and a This Desktop section a page in: its windows, its workspace "
       "and its apps",
-      mid.find("This Desktop") is not None and
-      mid.find("Windows: 1 open") is not None and
-      mid.find("Workspace: 1 of 3") is not None and
-      re.search(r"Apps: \d+ available", mid.text()) is not None, mid)
+      mid2.find("This Desktop") is not None and
+      mid2.find("Windows: 1 open") is not None and
+      mid2.find("Workspace: 1 of 3") is not None and
+      re.search(r"Apps: \d+ available", mid2.text()) is not None, mid2)
 check("and invents no pixels when the terminal has not said what a cell is",
       "0 x 0" not in sc.text() and "0 by 0" not in sc.text(), sc)
 check("and a page further on, the processor, the disk and the load",
@@ -5734,9 +5743,25 @@ order = [next((i for i, l in enumerate(rows) if re.search(r"\b%s\b +\d\d:\d\d" %
 check("Prayer Times lists the day's six times in order, the next with how long until it",
       -1 not in order and order == sorted(order) and
       re.search(r"(Fajr|Dhuhr|Asr|Maghrib|Isha) in \d", sc.text()) is not None, sc)
-sc, _ = run(ONE, env=dict(LDN, DT_PBAR="on"))
-check("Next Prayer in the Menu Bar puts the next one beside the clock",
+# An item of its own since 0.99.361 (it rode in the clock's text before), a
+# part of Prayer Times; its one switch is the pane's, DT_PBAR.
+PBAR = ". %s\n" % tree("programs/desktop/menubar/prayer.hibr")
+sc, _ = run(ONE, env=dict(LDN, DT_PBAR="on"), pre=PBAR)
+check("Next Prayer in the Menu Bar puts the next one on the bar",
       re.search(r"(Fajr|Dhuhr|Asr|Maghrib|Isha) \d\d:\d\d .*\d\d:\d\d", sc.row(0)) is not None, sc.row(0))
+sc, _ = run(ONE, env=dict(LDN, DT_PBAR="on", DT_BARHIDE="clock"), pre=PBAR)
+check("and it is its own item: taking the clock off leaves it there",
+      re.search(r"(Fajr|Dhuhr|Asr|Maghrib|Isha) \d\d:\d\d", sc.row(0)) is not None
+      and len(re.findall(r"\d\d:\d\d", sc.row(0))) == 1, sc.row(0))
+# And the strip's Prayer module has one switch, the pane's DT_PSTRIP, which
+# Control Strip > Modules turns too: CS_HIDE, the list's own for modules
+# with none, does not reach it (0.99.361).
+sc, _ = run(ONE, env=dict(LDN, DT_PSTRIP="on", CS_HIDE="nextprayer cursor"),
+            pre='CS_MODDIRS+=("%s")\ncs_modules\n' % os.path.dirname(
+                tree("programs/desktop/control-strip/nextprayer.hibr")))
+check("the strip's Prayer module follows its own switch, not the list's",
+      re.search(r"\[(Fajr|Dhuhr|Asr|Maghrib|Isha|Sunrise)", sc.text()) is not None
+      and "[Cursor]" not in sc.text(), sc)
 # The notes are the ticker's own doing, so the times are given rather than
 # computed: with the real ones this passed between Fajr and Isha and failed
 # through the night, since no prayer of today's has happened yet at 00:18.
@@ -8007,4 +8032,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(868)
+report(870)
