@@ -339,6 +339,17 @@ term feed $t $'\e]8;;https://example.com\aLINK\e]8;;\a after'
 r := term row $t 0; echo "row [$r]"
 term close $t
 
+echo "--- a string sequence read in runs, split anywhere"
+t := term new -r 4 -c 40
+term feed $t $'\e]2;Hello Wo' $'rld, and \xc3\xbcml' $'aut\a'
+c := term title $t; echo "title [$c]"
+term feed $t $'\e]2;Busy\a' $'\e]2;lost\x18kept'
+c := term title $t; echo "a CAN abandons it [$c]"
+r := term row $t 0; echo "and what follows is text [$r]"
+term feed $t $'\e]2;tab\there\a'
+c := term title $t; echo "a control inside is dropped [$c]"
+term close $t
+
 echo "--- errors"
 term open 2>/dev/null; echo "no command: $?"
 term poll 999 2>/dev/null; echo "no such terminal: $?"

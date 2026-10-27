@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.352
+
+**A held video is no longer held to eight frames a second by `hold`
+itself** (measured from Blit on the owner's desktop machine: kitty frames of 1771x902,
+6.4 MB of base64 each, arriving at 8 a second with `hold` at 64% of a
+core). Three costs, each found with callgrind on a held program sending
+film-sized frames through `hold` to a client, here, never the owner's
+session:
+
+- **The emulator kept a picture one byte at a time:** four calls a byte
+  through its parser for every byte of an APC. A run of printable bytes
+  inside a string sequence is now kept in one go, its end found eight bytes
+  at a time. Five such frames through the emulator alone took 754 ms; they
+  take 68.
+- **`hold` hashed every picture a byte at a time** on every render that
+  followed a change, 38% of its whole cost. It hashes eight bytes a step
+  now, as the console does.
+- **`hold` read the program's pty once per pass of its loop,** about 4 kB
+  a read, with a poll and every client looked at in between. It now reads
+  what is queued, 64 kB at a time, up to 1 MB before it serves the clients
+  again.
+
+Altogether the server does half the instructions it did for the same five
+frames, 785 M against 1,588 M. What is left is the cell diff every render
+makes, whether or not a cell changed, and the base64 itself. The next step,
+if one is needed, changes the interface between `hold` and its emulator.
+Blit read its pty the same way and is fixed in Blit 0.2.33.
+
 ## 0.99.351
 
 **Menu bar items are a kind of their own, and a bundle installs several

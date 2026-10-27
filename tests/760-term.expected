@@ -114,6 +114,11 @@ progress is not a note: 1
 clip [hello]
 title [Busy]
 row [abLINK after]
+--- a string sequence read in runs, split anywhere
+title [Hello World, and ümlaut]
+a CAN abandons it [Busy]
+and what follows is text [kept]
+a control inside is dropped [tabhere]
 --- errors
 no command: 2
 no such terminal: 1

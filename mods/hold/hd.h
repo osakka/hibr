@@ -133,6 +133,17 @@ enum {
 	HD_COLOURS = 'C'
 };
 
+/* What one pass reads of the program's output: a pty hands over about 4 kB
+   a read, so a pass that took one read spent a loop -- a poll, every client
+   asked -- on each 4 kB of a film's 6.4 MB frame. It reads what is queued,
+   HD_RDCH at a time, up to HD_DRAIN before the clients are seen to again. */
+#ifndef HD_RDCH
+#define HD_RDCH 65536
+#endif
+#ifndef HD_DRAIN
+#define HD_DRAIN (1 << 20)
+#endif
+
 /* How long an attaching client waits for its terminal to say what it
    draws. Nearly every terminal answers the device attributes at once; one
    that answers nothing costs this, once, at attach. */

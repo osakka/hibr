@@ -21,6 +21,13 @@ void tm_dcsend(tm_t *t);
 #ifndef TM_SMAX
 #define TM_SMAX (1 << 20)
 #endif
+/* Eight bytes at a time: a 1 in every byte, and in every byte's top bit. */
+#ifndef TM_ONES
+#define TM_ONES 0x0101010101010101ull
+#endif
+#ifndef TM_TOPS
+#define TM_TOPS 0x8080808080808080ull
+#endif
 
 /* Milliseconds on a clock that never jumps, for synchronized output's own
    timeout. */
@@ -1296,6 +1303,39 @@ void tm_sput(tm_t *t, unsigned c)
 		tm_utf8(&t->os, c);
 }
 
+/* How far from p, of n bytes, the printable ASCII goes: eight bytes at a
+   time while none of them is a control, DEL or above 0x7F, which a word
+   tells without looking at each -- the classic "has a byte less than"
+   and "has a zero byte" tests, exact for the question asked. */
+size_t tm_srlen(const char *p, size_t n)
+{
+	size_t j = 0;
+	unsigned long long x, d;
+
+	while (j + 8 <= n) {
+		memcpy(&x, p + j, 8);
+		d = x ^ (TM_ONES * 0x7F);
+		if ((x & TM_TOPS) || ((x - TM_ONES * 0x20) & ~x & TM_TOPS) ||
+		    ((d - TM_ONES) & ~d & TM_TOPS))
+			break;
+		j += 8;
+	}
+	while (j < n && (unsigned char)p[j] >= 0x20 && (unsigned char)p[j] < 0x7F)
+		j++;
+	return j;
+}
+
+/* A run of printable ASCII added to a string sequence at once -- what
+   tm_sput would have made of it a byte at a time, up to the same cap. */
+void tm_srun(tm_t *t, const char *p, size_t n)
+{
+	if (t->os.n >= TM_SMAX)
+		return;
+	if (n > TM_SMAX - t->os.n)
+		n = TM_SMAX - t->os.n;
+	s_add(&t->os, p, n);
+}
+
 /* One character through the parser: Paul Williams' DEC state machine,
    which is what every serious emulator implements. CAN and SUB abandon any
    sequence; ESC begins a new one from anywhere, finishing an OSC or DCS
@@ -1494,11 +1534,22 @@ void tm_step(tm_t *t, unsigned c)
    an ESC arriving in the middle of a character still starts a sequence. */
 void tm_feed(tm_t *t, const char *b, size_t n)
 {
-	size_t i;
+	size_t i, j;
 	unsigned c, cp;
 
 	for (i = 0; i < n; i++) {
 		c = (unsigned char)b[i];
+		/* Inside a string sequence a printable character is only kept,
+		   so a run of them is kept in one go: a film's frame is
+		   megabytes of base64 in an APC, and four calls a byte for it
+		   held a held video to eight frames a second. */
+		if (!t->uneed && c >= 0x20 && c < 0x7F &&
+		    (t->st == T_APC || t->st == T_OSC || t->st == T_DCSS)) {
+			j = i + 1 + tm_srlen(b + i + 1, n - i - 1);
+			tm_srun(t, b + i, j - i);
+			i = j - 1;
+			continue;
+		}
 		if (t->uneed) {
 			if ((c & 0xC0) == 0x80) {
 				t->uacc = (t->uacc << 6) | (c & 0x3F);

@@ -860,7 +860,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 	s_init(&rq);
 	s_init(&in);
 	s_init(&mo);
-	s_grow(&rb, HIBR_IOCH);
+	s_grow(&rb, HD_RDCH);
 	while (!quit && !hd_term) {
 		fed = 0;
 		nc = cls.n;
@@ -885,9 +885,15 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 			break;
 		}
 		if (q[1].revents) {
-			k = read(m, rb.p, rb.cap - 1);
-			if (k > 0) {
+			size_t got = 0;
+
+			while ((k = read(m, rb.p, rb.cap - 1)) > 0) {
 				hd_tm->feed(tid, rb.p, (size_t)k);
+				got += (size_t)k;
+				if (got >= HD_DRAIN)
+					break;
+			}
+			if (got) {
 				rq.n = 0;
 				if (hd_tm->reply(tid, &rq))
 					hd_wall(m, rq.p, rq.n);

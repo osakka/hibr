@@ -147,13 +147,24 @@ void hd_copyto(struct hd_cli *cn, str *out, int r, int c, int h, int w,
 /* FNV-1a, to tell one picture's bytes from another's without keeping them. */
 unsigned hd_hash(const char *p, size_t n)
 {
-	unsigned h = 2166136261u;
+	unsigned long long g = 2166136261u, x;
 
-	while (n--) {
-		h ^= (unsigned char)*p++;
-		h *= 16777619u;
+	/* Eight bytes a step, the way the console hashes a picture: every
+	   picture is hashed on every render that follows a change, and a
+	   film's frame is 6.4 MB -- byte at a time it was 38% of a held
+	   video's whole cost. */
+	while (n >= 8) {
+		memcpy(&x, p, 8);
+		g ^= x;
+		g *= 1099511628211ull;
+		p += 8;
+		n -= 8;
 	}
-	return h;
+	while (n--) {
+		g ^= (unsigned char)*p++;
+		g *= 1099511628211ull;
+	}
+	return (unsigned)(g ^ (g >> 32));
 }
 
 /* Whether a client's own terminal draws this picture: a kitty transmission
