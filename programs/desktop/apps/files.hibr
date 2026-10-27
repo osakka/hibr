@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 2.3
+app files "A file browser" 2.4
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
