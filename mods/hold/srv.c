@@ -365,6 +365,12 @@ int hd_unorm(vec *cls)
    nothing to size it from. */
 int hd_scw, hd_sch;
 
+/* The pointer lock (Gitea #379): a count of input reads, and the display
+   that can hold the pointer and sent the latest -- the one somebody is
+   using, which is the one asked to hold it. -1 for none yet. */
+unsigned long hd_inseq;
+int hd_lockfd = -1;
+
 int hd_union(vec *cls, int id, int tid)
 {
 	int rows, cols, cw = 0, ch = 0, moved;
@@ -630,6 +636,22 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			s_cat(&o, cn2->ptrask == 2 ? " yes" : " no");
 		}
 		hd_send(c, HD_PTRLIST, o.p, o.n);
+		s_free(&o);
+		break;
+	}
+	case HD_LOCKLIST: {
+		size_t ci;
+
+		s_init(&o);
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (o.n)
+				s_ch(&o, '\n');
+			s_cat(&o, cn2->name.p ? cn2->name.p : "");
+			s_cat(&o, cn2->lockok ? " yes" : " no");
+		}
+		hd_send(c, HD_LOCKLIST, o.p, o.n);
 		s_free(&o);
 		break;
 	}
@@ -916,10 +938,25 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				struct hd_cli *cn = hd_cfind(&cls, fd);
 
 				if (cn) {
-					mo.n = 0;
-					cn->wantpix = hd_tm->mpix(tid);
-					hd_mtrans(cn, in.p, in.n, &mo);
-					hd_wall(m, mo.p, mo.n);
+					cn->inseq = ++hd_inseq;
+					if (cn->lockok)
+						hd_lockfd = fd;
+					if (cn->plock) {
+						/* A held pointer's reports are
+						   movement, not a place: this
+						   display's offset must not be
+						   added to them (Gitea #379). */
+						if (memmem(in.p, in.n, "\033[?7701;2$y", 11)) {
+							cn->plock = 0;
+							lg(HIBR_LDBG, "hold: a display gave the pointer back");
+						}
+						hd_wall(m, in.p, in.n);
+					} else {
+						mo.n = 0;
+						cn->wantpix = hd_tm->mpix(tid);
+						hd_mtrans(cn, in.p, in.n, &mo);
+						hd_wall(m, mo.p, mo.n);
+					}
 				}
 			} else if (t == HD_SIZE &&
 				   (in.n == 2 * sizeof(int) ||
@@ -1019,6 +1056,17 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					lg(HIBR_LDBG, "hold: a display takes %d colours", v);
 					hd_rensend1(&cls, cn, tid);
 				}
+			} else if (t == HD_LOCK && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+				int v;
+
+				memcpy(&v, in.p, sizeof v);
+				if (cn)
+					cn->lockok = v != 0;
+				/* A display that has just joined is the one in use
+				   until another says otherwise. */
+				if (cn && v)
+					hd_lockfd = fd;
 			} else if (t == HD_PTR && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
 				int v;

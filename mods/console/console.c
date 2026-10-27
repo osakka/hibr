@@ -545,6 +545,33 @@ int m_console(sh *s, int ac, char **av)
 	if (!strcmp(sub, "pointer")) {
 		const char *m = ac > 2 ? av[2] : "";
 
+		/* The lock (Gitea #379) before anything else, or `lock` would
+		   be taken for a pointer shape of that name. */
+		if (!strcmp(m, "can") && ac > 3 && !strcmp(av[3], "lock")) {
+			const char *a = cn_lockok == 1 ? "yes" :
+					cn_lockok == 0 ? "no" : "unknown";
+
+			hibr_ret(s, a);
+			if (!s->bind)
+				printf("%s\n", a);
+			return HIBR_OK;
+		}
+		if (!strcmp(m, "lock")) {
+			const char *w = ac > 3 ? av[3] : "";
+
+			if (!*w) {
+				hibr_ret(s, cn_locked ? "on" : "off");
+				if (!s->bind)
+					printf("%s\n", cn_locked ? "on" : "off");
+				return HIBR_OK;
+			}
+			if (strcmp(w, "on") && strcmp(w, "off")) {
+				lg(HIBR_LERR, "usage: console pointer lock [on|off]");
+				return 2;
+			}
+			cn_lock(!strcmp(w, "on"));
+			return HIBR_OK;
+		}
 		if (!*m || !strcmp(m, "can")) {
 			const char *a = *m ? (cn_ptrok == 1 ? "yes" :
 					      cn_ptrok == 0 ? "no" : "unknown") :
@@ -560,7 +587,7 @@ int m_console(sh *s, int ac, char **av)
 		else if (!strcmp(m, "show") || !strcmp(m, "default"))
 			m = "";
 		if (strspn(m, "abcdefghijklmnopqrstuvwxyz-") != strlen(m)) {
-			lg(HIBR_LERR, "usage: console pointer [hide|show|can|shape]");
+			lg(HIBR_LERR, "usage: console pointer [hide|show|can [lock]|lock [on|off]|shape]");
 			return 2;
 		}
 		cn_pointer(m);

@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 10u
+#define TM_API_VER 11u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -134,6 +134,11 @@ struct tm_api {
 	   terminal's own. For a relay to pass on to a real terminal that can
 	   take it. */
 	int (*pointer)(int id, str *out);
+	/* Version 11: whether the program asked to hold the pointer with DEC
+	   7701 (Gitea #379, Blit's pointer lock) -- 0 not, else a number that
+	   is new for each time it asked -- for a relay to pass on to the one
+	   display that should hold it. */
+	int (*plock)(int id);
 };
 
 #endif

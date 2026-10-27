@@ -98,6 +98,9 @@ and the flush cost shown live. Run it and press things.
 | `console pointer hide\|show\|shape` | the terminal's pointer: hidden, its own again, or a shape named as kitty names them (`text`, `crosshair`, `wait`...), all as OSC 22; given back when the display closes. Nothing is sent for the shape already in force |
 | `console pointer can` | whether the terminal can hide its pointer, as it answered OSC 22's `?none`: `yes`, `no` (it knows shapes and cannot), or `unknown` (it does not know OSC 22, or has not answered) |
 | `console pointer` | the shape asked for, `default` for none |
+| `console pointer can lock` | whether the terminal can hold the pointer (Blit 0.2.42's `?7701`, Gitea #379), as it answered the mode request: `yes`, `no` or `unknown` |
+| `console pointer lock on\|off` | hold the pointer, or give it back: `CSI ? 7701 h` or `l`. While it is held every mouse report is movement, `mouse rel ACT BTN DX DY` with the deltas signed in the terminal's raw counts -- `move none` for motion, `drag` with a button held, and a press, release or wheel with whatever movement came with it -- and the terminal giving it back, refused or on its own, arrives as the event `pointer unlocked`. Given back when the display closes, and on a fatal signal |
+| `console pointer lock` | `on` or `off` |
 | `console colours [auto\|24\|256\|16\|8]` | how many colours to send: as the terminal answered (XTGETTCAP `RGB` and `colors`, then `COLORTERM`, then its name -- `HIBR_COLOURS` says outright), or forced; with no argument, the depth in force. A colour is sent as the nearest the terminal takes |
 | `console sent` | how many bytes the display's flushes have written to the terminal since it opened |
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
@@ -295,6 +298,17 @@ answer is `no` or `unknown` almost everywhere, and hiding there does
 nothing. Inside `hold` each display is sent what its own terminal can take:
 `none` only where that terminal said it can hide, its own pointer elsewhere,
 and `hold pointers` says which is which.
+
+A game that turns with the mouse wants the pointer **held**: kept where it
+is and reported as movement, so turning has no edge. `console pointer lock
+on` asks, `console pointer can lock` says whether the terminal can -- only
+Blit, from 0.2.42 -- and the reports that follow are `mouse rel ...` until
+`console pointer lock off` or the event `pointer unlocked`, which is the
+terminal ending it: it refuses one while the session does not have its
+focus, and takes the pointer back when the session stops reading its input
+for two seconds. Inside `hold` the lock goes to the one display that can
+hold a pointer and was used last, `hold locks` says which displays can, and
+a held display's movement reaches the program with no offset added.
 
 <!-- not run: needs a terminal: it waits for a click -->
 ```sh

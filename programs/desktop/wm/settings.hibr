@@ -52,6 +52,10 @@ done
 [ -n "${DT_KEYS["tilemain"]+x}" ] || DT_KEYS["tilemain"]=
 [ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="mod-w"
 [ -n "${DT_KEYS["quitapp"]+x}" ] || DT_KEYS["quitapp"]="mod-q"
+# The one way a held pointer is given back from the keyboard (Gitea #379),
+# whatever app holds it, and the one an app that hangs holding it cannot
+# take: DOSBox's own chord, which Blit passes through like any other key.
+[ -n "${DT_KEYS["ptrrelease"]+x}" ] || DT_KEYS["ptrrelease"]="ctrl-f10"
 [ -n "${DT_KEYS["detach"]+x}" ] || DT_KEYS["detach"]="ctrl-\\"
 [ -n "${DT_KEYS["quit"]+x}" ] || DT_KEYS["quit"]=
 [ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="mod-tab"

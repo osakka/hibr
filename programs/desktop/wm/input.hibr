@@ -537,6 +537,92 @@ fn dt_ptrcan() {
 	[ "$p" = yes ]
 }
 
+# The pointer lock (Gitea #379): the window holding the pointer, or empty.
+# While it holds it every report is movement, `mouse rel ACT BTN DX DY`
+# from the console, and goes to that window's _mouse whatever is under the
+# pointer: `rel` with the button held (none for plain motion), or the press,
+# release or wheel it was, each with its own deltas -- DY where a row goes
+# and DX where a column does, and `rel` where the modifiers would be.
+DT_PTRLOCK=
+
+# Whether a display of this desktop can hold the pointer: one of the held
+# session's said so at attach, or, unheld, the terminal the console asked.
+# Only Blit can, from 0.2.42; elsewhere a game keeps letting go at the edge.
+fn dt_ptrlockcan() {
+	local p
+
+	if [ -n "$HIBR_HOLD" ]; then
+		[ "$DT_LOCKNAT" = 1 ]
+		return
+	fi
+	p := console pointer can lock 2> /dev/null || return 1
+	[ "$p" = yes ]
+}
+
+# Ask to hold the pointer for window id, or give it back. On fails when no
+# display can, or id does not have focus; it says only that the asking was
+# done, since the display may still refuse -- the window hears `unlock`
+# then, as it does whenever the lock ends.
+fn dt_pointerlock(int id, on) {
+	case $on in
+	on)
+		dt_ptrlockcan || return 1
+		[ "$DT_FOCUS" = "$id" ] || return 1
+		[ "$DT_PTRLOCK" = "$id" ] && return 0
+		[ -n "$DT_PTRLOCK" ] && dt_ptrunlock
+		console pointer lock on 2> /dev/null || return 1
+		DT_PTRLOCK=$id
+		;;
+	off) [ "$DT_PTRLOCK" = "$id" ] && dt_ptrunlock ;;
+	*) return 2 ;;
+	esac
+	return 0
+}
+
+# Give the pointer back, and tell the window that held it, which may have
+# gone. The shape is asked for again, since a window that hid its pointer
+# (Gitea #373) may still be under it.
+dt_ptrunlock() {
+	local id=$DT_PTRLOCK mo
+
+	[ -n "$id" ] || return 0
+	DT_PTRLOCK=
+	console pointer lock off 2> /dev/null || :
+	DT_PTRNOW=-
+	[ -n "${DT[$id]["mouse"]+x}" ] || return 0
+	mo=${DT[$id]["mouse"]}
+	[ -n "$mo" ] && $mo "$id" unlock none 0 0 ""
+	return 0
+}
+
+# Give the pointer back when its window can no longer be said to have it:
+# focus moved, a menu or a bar item's panel opened, the saver or the lock
+# came up, or the window went. Asked once a pass, outside any drawing.
+dt_ptrlockcheck() {
+	local id=$DT_PTRLOCK
+
+	[ -n "$id" ] || return 0
+	if [ "$DT_FOCUS" != "$id" ] || [ "$MB_OPEN" != -1 ] ||
+	   [ -n "$DT_POP$DT_SAVING$DT_LOCKED" ] ||
+	   [ -z "${DT[$id]["app"]+x}" ]; then
+		dt_ptrunlock
+	fi
+	return 0
+}
+
+# One report while the pointer is held, handed to the window that holds
+# it; one that arrives after the lock has gone is dropped.
+fn dt_ptrrel(act, btn, int dx, int dy) {
+	local id=$DT_PTRLOCK mo
+
+	[ -n "$id" ] && [ -n "${DT[$id]["mouse"]+x}" ] || return 0
+	mo=${DT[$id]["mouse"]}
+	act=${act##*-}
+	[ "$act" = move ] || [ "$act" = drag ] && act=rel
+	[ -n "$mo" ] && $mo "$id" "$act" "$btn" "$dy" "$dx" rel
+	return 0
+}
+
 # What the thing the pointer has just moved onto would say as a tooltip
 # (Gitea #370), kept with where and when the pointer got there, and a frame
 # asked for once it has rested DT_TIPMS. Only what shows a glyph with no
@@ -846,6 +932,24 @@ fn dt_cellpx(int id, int r, int c, int cw, int ch) {
 fn dt_event(k) {
 	local an knorm qn cn cln qan dn sn ev px
 
+	# The pointer lock (Gitea #379) first: a held pointer's reports are
+	# its window's alone, the display giving the pointer back is the end
+	# of it, and Release Pointer gives it back before any app is asked.
+	case $k in
+	"mouse rel "*)
+		read -ra ev <<< "$k"
+		dt_ptrrel "${ev[2]}" "${ev[3]}" "${ev[4]}" "${ev[5]}"
+		return 0
+		;;
+	"pointer unlocked")
+		dt_ptrunlock
+		return 0
+		;;
+	esac
+	if [ -n "$DT_PTRLOCK" ] && dt_keyis ptrrelease "$k"; then
+		dt_ptrunlock
+		return 0
+	fi
 	case $k in
 	"mouse "*" -")
 		DT_PX=

@@ -417,6 +417,25 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 		}
 		s_free(&tt);
 	}
+	/* The pointer lock the program asked for (Gitea #379), to the one
+	   display that can hold it and was used last, once per ask: a display
+	   that gave it back is not asked again until the program asks again,
+	   and a lock the program gives up goes from whichever display has it. */
+	{
+		int g = hd_tm->plock ? hd_tm->plock(tid) : 0;
+
+		if (g && g != cn->lockgen && cn->lockok && cn->fd == hd_lockfd) {
+			s_cat(out, "\033[?7701h");
+			cn->lockgen = g;
+			cn->plock = 1;
+			lg(HIBR_LDBG, "hold: a display asked to hold the pointer");
+		} else if (!g && cn->plock) {
+			s_cat(out, "\033[?7701l");
+			cn->plock = 0;
+		}
+		if (!g)
+			cn->lockgen = 0;
+	}
 	if (!cn->primed || bpaste != cn->bpaste)
 		s_cat(out, bpaste ? "\033[?2004h" : "\033[?2004l");
 	if (!cn->primed || cshape != cn->cshape) {

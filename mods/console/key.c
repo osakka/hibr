@@ -423,6 +423,87 @@ void cn_ctrl(str *o, unsigned char c)
 	}
 }
 
+/* A signed number at p[*i], or 0 when there is none -- the deltas a held
+   pointer reports. *ok is 0 when what is there is not one. */
+long cn_signed(const char *p, int n, int *i, int *ok)
+{
+	long v = 0;
+	int neg = 0, any = 0;
+
+	if (*i < n && p[*i] == '-') {
+		neg = 1;
+		(*i)++;
+	}
+	for (; *i < n && p[*i] >= '0' && p[*i] <= '9'; (*i)++) {
+		v = v * 10 + (p[*i] - '0');
+		any = 1;
+	}
+	*ok = any;
+	return neg ? -v : v;
+}
+
+/* One report while the pointer is held (Gitea #379, Blit's ?7701): the
+   same SGR form with the position replaced by the movement since the last
+   report, signed, in the terminal's raw counts. Every one of them reads
+   `mouse rel ACT BTN DX DY` -- motion is `move none`, motion with a
+   button held `drag`, and a press, a release and the wheel carry whatever
+   movement came with them -- so a program reading a held pointer has one
+   shape to take apart. */
+int cn_mrel(const char *p, size_t n, str *o, size_t *used)
+{
+	int b = 0, i = 3, ok, done;
+	long dx, dy;
+
+	for (; i < (int)n && p[i] >= '0' && p[i] <= '9'; i++)
+		b = b * 10 + (p[i] - '0');
+	if (i >= (int)n)
+		return 0;
+	if (p[i] != ';')
+		return -1;
+	i++;
+	dx = cn_signed(p, (int)n, &i, &ok);
+	if (i >= (int)n)
+		return 0;
+	if (!ok || p[i] != ';')
+		return -1;
+	i++;
+	dy = cn_signed(p, (int)n, &i, &ok);
+	if (i >= (int)n)
+		return 0;
+	if (!ok || (p[i] != 'M' && p[i] != 'm'))
+		return -1;
+	done = p[i] == 'm';
+	s_cat(o, "mouse rel ");
+	if (b & 16)
+		s_cat(o, "ctrl-");
+	if (b & 8)
+		s_cat(o, "alt-");
+	if (b & 4)
+		s_cat(o, "shift-");
+	if (b & 64) {
+		static const char *wh[] = { "wheelup", "wheeldown", "wheelleft",
+					    "wheelright" };
+
+		s_cat(o, wh[b & 3]);
+		s_cat(o, " none");
+	} else {
+		if (done)
+			s_cat(o, "release");
+		else if (b & 32)
+			s_cat(o, (b & 3) == 3 ? "move" : "drag");
+		else
+			s_cat(o, "press");
+		s_cat(o, (b & 3) == 0 ? " left" : (b & 3) == 1 ? " middle" :
+			  (b & 3) == 2 ? " right" : " none");
+	}
+	s_ch(o, ' ');
+	s_num(o, dx);
+	s_ch(o, ' ');
+	s_num(o, dy);
+	*used = (size_t)i + 1;
+	return 1;
+}
+
 /* Decode one mouse report in SGR form: \e[<b;col;rowM for a press or a drag,
    the same with a trailing m for a release. The button number carries the
    modifiers and whether it is a drag or the wheel. */
@@ -430,6 +511,8 @@ int cn_mouse(const char *p, size_t n, str *o, size_t *used)
 {
 	int b = 0, x = 0, y = 0, i = 3, rel;
 
+	if (cn_locked)
+		return cn_mrel(p, n, o, used);
 	if (n < 9)
 		return 0;
 	for (; i < (int)n && p[i] >= '0' && p[i] <= '9'; i++)
@@ -669,14 +752,21 @@ static int cn_apc(const char *p, size_t n, size_t *used)
    reply carrying 4 among its parameters says the terminal draws sixels,
    and one without it says it does not, which is the only negative answer
    either capability query can give (Gitea #216). */
-static int cn_report(const char *p, size_t n, size_t *used)
+static int cn_report(const char *p, size_t n, str *o, size_t *used)
 {
-	int da, sixel, kbd, copy, mpix, r = gx_report(p, n, CN_OSCMAX, used,
-						       &da, &sixel, &kbd, &copy,
-						       &mpix);
+	int da, sixel, kbd, copy, mpix, lock, r = gx_report(p, n, CN_OSCMAX, used,
+							     &da, &sixel, &kbd,
+							     &copy, &mpix, &lock);
 
 	if (r == 2 && mpix >= 0)
 		cn_gotmpix(mpix);
+	/* The pointer lock's state (Gitea #379): a `2` while one is held --
+	   refused, or taken back by the terminal -- is the one report that is
+	   news to the program, so it is handed over as an event of its own. */
+	if (r == 2 && lock >= 0 && cn_gotlock(lock)) {
+		s_cat(o, "pointer unlocked");
+		return 1;
+	}
 	if (r == 2 && da) {
 		cn_gotcap(CN_GFX_SIXEL, sixel);
 		cn_da28 = copy;
@@ -887,7 +977,7 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 	if (p[1] == 'P' && n == 3 && p[2] == '>')
 		return 0;
 	if (p[1] == '[' && n >= 3 && p[2] == '?')
-		return cn_report(p, n, used);
+		return cn_report(p, n, o, used);
 	if (p[1] == 'O' || p[1] == '[') {
 		for (i = 0; i < 4; i++)
 			par[i] = 0;

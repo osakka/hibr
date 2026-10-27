@@ -128,7 +128,7 @@ drawing in the wrong place. The calls:
 | `_draw` | `id h w row col` -- the body's size, and the window's place on screen |
 | `_key` | `id key` |
 | `_click` | `id r c btn` |
-| `_mouse` | `id act btn r c mods` |
+| `_mouse` | `id act btn r c mods` -- and while the window holds the pointer (`dt_pointerlock`), `id rel btn dy dx rel` for movement, a press, release or wheel with its own deltas and `rel` as mods, and `id unlock none 0 0 ""` when the lock ends |
 | `_wheel` | `id dir r c` -- dir is up, down, left or right, never wheelup |
 | `_scroll` | `id key top` -- a scrollbar drawn with that key, held and dragged |
 | `_drop` | `id r c op paths...` |

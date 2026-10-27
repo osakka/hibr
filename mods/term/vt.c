@@ -567,6 +567,13 @@ void tm_decmode(tm_t *t, int on)
 		case 1016: t->mpix = on; break;
 		case 2004: t->bpaste = on; break;
 		case 2026: tm_setsync(t, on); break;
+		case 7701:
+			/* Blit's pointer lock (Gitea #379): kept for a relay
+			   to put on the display it chooses, a new number each
+			   time it is asked for, so a display that gave it back
+			   is not handed it again until the program asks again. */
+			t->plock = on ? ++t->plockn : 0;
+			break;
 		default:
 			lg(HIBR_LTRC, "terminal %d ignored private mode %ld",
 			   t->id, v);
@@ -612,6 +619,7 @@ void tm_reset(tm_t *t, int hard)
 		return;
 	t->lnm = t->focus = 0;
 	t->mmode = t->msgr = t->bpaste = t->mpix = 0;
+	t->plock = 0;
 	t->kbd = 0;
 	t->kst.n = 0;
 	t->ptrs.n = 0;

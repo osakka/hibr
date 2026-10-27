@@ -520,7 +520,8 @@ def expect(pattern):
 QUERY = re.compile(rb"\x1b(?:\](?P<osc>[^\x07\x1b]*)(?:\x07|\x1b\\)"
                    rb"|_(?P<apc>[^\x1b]*)\x1b\\"
                    rb"|(?P<da>\[c)|(?P<kbd>\[\?u)|(?P<xtv>\[>0?q)"
-                   rb"|(?P<mpix>\[\?1016\$p)|P\+q(?P<tcap>[0-9a-fA-F]+)\x1b\\)")
+                   rb"|(?P<mpix>\[\?1016\$p)|(?P<lock>\[\?7701\$p)"
+                   rb"|P\+q(?P<tcap>[0-9a-fA-F]+)\x1b\\)")
 
 
 class Term:
@@ -637,7 +638,8 @@ class Term:
         copy, to the device attributes (Gitea #337). "mpix" answers the
         mode request for 1016, SGR-Pixels, as a terminal that knows it does
         (Gitea #370); every other Term says nothing, so the device
-        attributes after it make it a no.
+        attributes after it make it a no. "lock" answers the one for 7701,
+        Blit's pointer lock, the same way (Gitea #379).
 
         A real terminal answers all of these; nothing in the model did, so
         a display could ask and never hear, which is indistinguishable
@@ -671,6 +673,13 @@ class Term:
             if m.group("mpix") is not None:
                 if self.caps is not None and "mpix" in self.caps:
                     os.write(self.fd, b"\x1b[?1016;2$y")
+                continue
+            # Blit's pointer lock (Gitea #379): "lock" answers the mode
+            # request for 7701 as Blit does with nothing held; every other
+            # Term says nothing, as a terminal without it does.
+            if m.group("lock") is not None:
+                if self.caps is not None and "lock" in self.caps:
+                    os.write(self.fd, b"\x1b[?7701;2$y")
                 continue
             if m.group("kbd") is not None:
                 if self.caps is not None and "kbd" in self.caps:

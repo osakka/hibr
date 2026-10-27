@@ -446,6 +446,43 @@ void cn_pointer(const char *nm)
 	cn_ptrset = *nm != 0;
 }
 
+/* The pointer lock (Gitea #379, Blit's ?7701): what the terminal said it
+   can do -- -1 nothing, 0 no, 1 yes -- and whether a lock has been asked
+   for and not given back. Blit answers a refused engage, and a lock it
+   took back on its own, with the mode's state `2`, which is only news
+   while one is held. */
+int cn_lockok = -1, cn_locked;
+static const char cn_lockon[] = "\033[?7701h";
+static const char cn_lockoff[] = "\033[?7701l";
+
+/* The terminal answered the mode request for 7701, asked or not: whether
+   it can lock at all, and 1 when that answer ends a lock held here. */
+int cn_gotlock(int state)
+{
+	if (cn_lockok < 0 || state == 0)
+		cn_lockok = state != 0;
+	if (state == 2 && cn_locked) {
+		cn_locked = 0;
+		lg(HIBR_LDBG, "console: the terminal gave the pointer back");
+		return 1;
+	}
+	return 0;
+}
+
+/* Hold the pointer, or give it back. Sent whatever the terminal said, since
+   inside hold it is the display that answers and the desktop asks hold. */
+void cn_lock(int on)
+{
+	if (cn_fd < 0 || on == cn_locked)
+		return;
+	cn_locked = on;
+	if (on)
+		cn_wr(cn_fd, cn_lockon, sizeof cn_lockon - 1);
+	else
+		cn_wr(cn_fd, cn_lockoff, sizeof cn_lockoff - 1);
+	lg(HIBR_LDBG, "console: pointer lock %s", on ? "asked for" : "given back");
+}
+
 /* Put the terminal back before a fatal signal is allowed to finish us -- in
    the process that took it, and nowhere else. */
 void cn_onfatal(int n)
@@ -458,6 +495,9 @@ void cn_onfatal(int n)
 		if (cn_ptrset)
 			cn_wr(cn_fd, cn_ptroff, sizeof cn_ptroff - 1);
 		cn_ptrset = 0;
+		if (cn_locked)
+			cn_wr(cn_fd, cn_lockoff, sizeof cn_lockoff - 1);
+		cn_locked = 0;
 		cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 		cn_on = 0;
 	}
@@ -913,6 +953,9 @@ void cn_close(sh *s)
 	if (cn_ptrset)
 		cn_wr(cn_fd, cn_ptroff, sizeof cn_ptroff - 1);
 	cn_ptrset = 0;
+	if (cn_locked)
+		cn_wr(cn_fd, cn_lockoff, sizeof cn_lockoff - 1);
+	cn_locked = 0;
 	cn_ptrnm.n = 0;
 	if (cn_ptrnm.p)
 		cn_ptrnm.p[0] = 0;

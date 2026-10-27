@@ -231,6 +231,10 @@ extern int cn_pixwant, cn_pixok, cn_pixon;
 /* The pointer's shape (Gitea #373): what the terminal said about hiding it
    (-1 nothing, 0 cannot, 1 can) and the shape asked for. */
 extern int cn_ptrok, cn_ptrset;
+/* The pointer lock (Gitea #379): what the terminal said it can do (-1, 0,
+   1) and whether one is held. A report decoded while it is reads as
+   `mouse rel ACT BTN DX DY`, the deltas signed. */
+extern int cn_lockok, cn_locked;
 extern long long cn_sent;
 /* Whether an erase paints the pen's background (bce), as the terminal
    answered XTGETTCAP or as hibr's own emulator does (Gitea #353). */
@@ -251,6 +255,8 @@ int cn_blankok(const cn_cell *k);
 extern str cn_ptrnm;
 void cn_gotptr(int yes);
 void cn_pointer(const char *nm);
+int cn_gotlock(int state);
+void cn_lock(int on);
 void cn_gotmpix(int yes);
 void cn_pixapply(void);
 extern int cn_kbdon;

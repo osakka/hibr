@@ -108,6 +108,17 @@ enum {
 	   offering a window a hidden pointer. Its own request for the reason
 	   HD_GFXLIST is. */
 	HD_PTRLIST = 'H',
+	/* Whether this client's terminal can hold the pointer (Gitea #379,
+	   Blit's ?7701), asked with the rest before it joined: one int, 1,
+	   sent only when it can. A server that does not know it ignores it,
+	   and the display is then never asked to hold one. */
+	HD_LOCK = 'j',
+	/* Whether each display's terminal can hold the pointer, name and yes
+	   or no a line, as HD_LOCK said -- its own request rather than a field
+	   on HD_PTRLIST's lines, which the desktop's parsers read as they are.
+	   A server too old to answer fails quietly, which a caller reads as no
+	   display that can. */
+	HD_LOCKLIST = 'L',
 	/* What each display has been sent since it attached, name, bytes and
 	   frames a line (Gitea #353). Its own request for the reason
 	   HD_GFXLIST is. */
@@ -183,6 +194,8 @@ extern int hd_fdepth;
    the space a pointer in pixels is given in, whichever display it came
    from (Gitea #370). 0 when no display has said. */
 extern int hd_scw, hd_sch;
+extern unsigned long hd_inseq;
+extern int hd_lockfd;
 
 /* One cell as this client was last sent it -- hold's own copy, not term's:
    hold must not include tm.h just to name tm_cell, and the two have no
@@ -287,6 +300,13 @@ struct hd_cli {
 	   shape last sent to it, so a change is sent once. */
 	int ptrask;
 	str ptrsh;
+	/* The pointer lock (Gitea #379): whether this display's terminal said
+	   it can hold the pointer, whether it holds it now, and the number of
+	   the program's ask it was given -- so one it gave back is not given
+	   again until the program asks again. inseq says how recently it sent
+	   input: the lock goes to the display somebody is using. */
+	int lockok, plock, lockgen;
+	unsigned long inseq;
 	/* What this client has been sent since it attached: bytes and frames,
 	   for `hold stats` -- the number a leaner renderer is judged by, per
 	   display, since each is drawn on its own (Gitea #353). */

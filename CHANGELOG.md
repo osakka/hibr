@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.99.365
+
+**A window can hold the pointer** (Gitea #379). A game that turns with the
+mouse -- Doom, a Quake-like, anything on DOSBox's relative mouse -- stopped at
+the window's edge, because the terminal's pointer is the machine's. On Blit
+0.2.42 and later a window now asks to hold it, `dt_pointerlock "$id" on`:
+Blit keeps the pointer where it was, hidden, and reports how far it moved,
+and every report goes to that window's `_mouse` as `rel` with signed deltas
+in Blit's raw counts, whatever is under the pointer. Boxer is the first to
+use it (hibr-boxer#1).
+
+- **One way out, the desktop's**: Release Pointer, in Control Panel >
+  Keyboard > Shortcuts, ctrl-f10 by default (the owner's choice: one key,
+  no second one in Blit or Boxer). It is taken before any app sees a key, so
+  an app that hangs holding the pointer cannot keep it.
+- **Given back on its own** when focus moves, a menu or a bar item's panel
+  opens, the saver or the lock comes up, the window closes, or the desktop
+  ends or dies -- and by Blit when the session loses its focus or stops
+  reading its input. The window hears `unlock` every time, so it never has
+  to guess.
+- **The console**: `console pointer lock on|off`, `console pointer can
+  lock`, `mouse rel ACT BTN DX DY` while held, and the event `pointer
+  unlocked` when the terminal ends it. `?7701` is asked with the other
+  capabilities.
+- **hold**: each display says at attach whether its terminal can hold the
+  pointer, `hold locks` lists it, and a program's lock goes only to the
+  display that can and was used last. That display's reports are movement,
+  so its offset in the session is not added to them -- the ordinary rewrite
+  would have turned 5,3 into 15,6 for a display at row 3, column 10, and
+  `tests/holdpix.py` checks it, failing with the bypass taken out.
+- The terminal emulator keeps the program's `?7701` (`tm_api` version 11).
+  A held session started before this release keeps its old server, so it
+  says no display can hold the pointer until it is upgraded -- the bar's
+  session mark says so, and Restart Desktop does it -- and a display
+  attached before the upgrade says so once it attaches again.
+
 ## 0.99.364
 
 **A solid notification is one colour now, and the ring it used to be is

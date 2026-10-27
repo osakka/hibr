@@ -141,6 +141,23 @@ pointer at all; most terminals cannot, and a display that cannot simply
 keeps its pointer. Call both behind `dt_has`, since a desktop older than
 0.99.311 has neither.
 
+**A window that turns with the mouse** -- a game on a relative mouse --
+asks to **hold** the pointer with `dt_pointerlock "$id" on` (Gitea #379) and
+gives it back with `dt_pointerlock "$id" off`. `dt_ptrlockcan` says whether
+any display can (Blit, from 0.2.42; nothing else). On answers whether the
+asking was done -- it fails without focus or a display that can -- not
+whether the display agreed. While it is held every mouse report goes to the
+window's `_mouse`, whatever is under the pointer, with `rel` where the
+modifiers go: `rel BTN DY DX` for movement, `none` when no button is held,
+and the press, release or wheel it was with its own deltas, signed, in the
+display's raw counts. The window hears `unlock none 0 0` when the lock ends
+for any reason -- the Release Pointer shortcut (ctrl-f10 by default,
+Control Panel > Keyboard > Shortcuts), focus moving, a menu or a bar item's
+panel opening, the saver, the window closing, the desktop ending, or the
+display refusing or taking it back -- so treat `unlock` as the truth, even
+straight after an on. Call both behind `dt_has`, since a desktop older than
+0.99.365 has neither.
+
 **A window that is text throughout** -- a terminal -- asks for the I-beam with
 `dt_pointer "$id" text`, and a field drawn with `dt_textdraw` gets it with no
 call at all (Gitea #394). Text is the one shape shown whether or not the

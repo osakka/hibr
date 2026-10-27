@@ -13,7 +13,7 @@
 /* gfxask -- what a terminal says it draws. See gfxask.h. */
 
 const char gx_ask[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\\033[?u"
-		       "\033[?1016$p\033]22;?none\033\\\033P+q626365\033\\"
+		       "\033[?1016$p\033[?7701$p\033]22;?none\033\\\033P+q626365\033\\"
 		       "\033P+q726570\033\\\033P+q524742\033\\"
 		       "\033P+q636f6c6f7273\033\\\033[c";
 
@@ -45,7 +45,7 @@ int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit)
    attributes, and whether those say sixel and the rectangle copy (feature
    28, DECCRA: Gitea #337), or the keyboard protocol's own answer. */
 int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
-	      int *sixel, int *kbd, int *copy, int *mpix)
+	      int *sixel, int *kbd, int *copy, int *mpix, int *lock)
 {
 	size_t i;
 	int six = 0, cp = 0, v = -1, first = -1, dollar = 0;
@@ -55,6 +55,7 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
 	*kbd = 0;
 	*copy = 0;
 	*mpix = -1;
+	*lock = -1;
 	for (i = 3; i < n; i++) {
 		if (p[i] >= '0' && p[i] <= '9') {
 			v = (v < 0 ? 0 : v * 10) + (p[i] - '0');
@@ -92,6 +93,11 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
 	   permanently, 0 a mode the terminal does not know. */
 	if (p[i] == 'y' && dollar && first == 1016)
 		*mpix = v >= 1 && v <= 4;
+	/* And for 7701, Blit's pointer lock (hibr Gitea #379): the state
+	   itself, since an unasked `2` while a lock is held is Blit saying it
+	   has taken the pointer back. */
+	if (p[i] == 'y' && dollar && first == 7701 && v >= 0)
+		*lock = v;
 	return 2;
 }
 
@@ -328,13 +334,13 @@ long gx_now(void)
    count of reads: every read here can be interrupted, and restarting the
    wait per signal would make the bound meaningless. */
 int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
-	     int *mpix, int *ptr, gx_tcap *tc)
+	     int *mpix, int *ptr, int *lock, gx_tcap *tc)
 {
 	const char *f = getenv("HIBR_GFX");
 	str b;
 	size_t i, used, off = 0;
 	long end, left;
-	int kit = 0, da = 0, six = 0, k, s, d, r, kb, cy, mp, force = -1;
+	int kit = 0, da = 0, six = 0, k, s, d, r, kb, cy, mp, lk, force = -1;
 	ssize_t w;
 	struct pollfd q;
 
@@ -342,6 +348,7 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 	*copy = 0;
 	*mpix = 0;
 	*ptr = -1;
+	*lock = 0;
 	tc->bce = tc->rep = tc->rgb = tc->colors = -1;
 	if (f && *f)
 		force = !strcmp(f, "kitty") ? GX_KITTY
@@ -391,9 +398,11 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 				r = gx_dcs(b.p + off, b.n - off, 64, &used, tc);
 			} else if (b.p[off + 1] == '[' && b.p[off + 2] == '?') {
 				r = gx_report(b.p + off, b.n - off, 64, &used, &d, &s,
-					      &kb, &cy, &mp);
+					      &kb, &cy, &mp, &lk);
 				if (r == 2 && mp > 0)
 					*mpix = 1;
+				if (r == 2 && lk >= 1 && lk <= 4)
+					*lock = 1;
 				if (r == 2 && d) {
 					da = 1;
 					six = s;

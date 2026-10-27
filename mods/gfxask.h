@@ -95,9 +95,11 @@ int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit);
    parameters, and *kbd 1 when it was the keyboard protocol's answer (final
    `u`). *mpix is 1 when it was the answer to the mode request for 1016 and
    said the terminal knows the mode, 0 when it said it does not, and -1
-   for any other report. */
+   for any other report. *lock is the state the answer for 7701, Blit's
+   pointer lock (hibr Gitea #379), gave -- 0 unknown, 1 held, 2 not held --
+   and -1 for any other report. */
 int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
-	      int *sixel, int *kbd, int *copy, int *mpix);
+	      int *sixel, int *kbd, int *copy, int *mpix, int *lock);
 
 /* Ask the terminal on in/out, wait up to ms for its answers, and say what it
    draws: GX_KITTY, GX_SIXEL, GX_NONE, or GX_UNKNOWN when nothing answered.
@@ -111,9 +113,10 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
    display with no pixel mouse, no kitty keyboard and no copy. *ptr is 1
    when it can hide its pointer, 0 when it knows pointer shapes and cannot,
    -1 when it said nothing about them. *tc is what it answered by
-   XTGETTCAP. */
+   XTGETTCAP. *lock is 1 when it can hold the pointer (Blit's ?7701, hibr
+   Gitea #379), 0 otherwise. */
 int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
-	     int *mpix, int *ptr, gx_tcap *tc);
+	     int *mpix, int *ptr, int *lock, gx_tcap *tc);
 
 /* Milliseconds on a clock that only goes forward. */
 long gx_now(void);

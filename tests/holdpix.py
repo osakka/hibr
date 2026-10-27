@@ -1040,6 +1040,58 @@ ptr, log = ptrheld(["ptrno"])
 check("one that cannot is never sent none: %r" % ptr, "none" not in ptr)
 check("and hold pointers says it cannot", "pointers no" in log, log)
 
+# The pointer lock through hold (Gitea #379). The held program asks to hold
+# the pointer; hold's emulator keeps the ask, and only a display whose own
+# terminal said it can hold one is asked to. Its reports are then movement,
+# so this display's offset in the session must not be added to them -- the
+# client here sits at row 3, column 10, where the ordinary rewrite turns
+# 5;3 into 15;6, which is what a press after the lock gets -- and its giving
+# the pointer back reaches the program.
+def lockheld(caps, feed):
+    nm = name()
+    open(LOG, "w").close()
+    p = os.path.join(D, "lk%s.hibr" % nm)
+    open(p, "w").write(
+        load("console", "hold") + "console open\nconsole mouse click\nconsole flush\n"
+        + "sleep %s\n" % (1.5 * SLOW)
+        + 'hl := hold locks; echo "locks ${hl##* }" >> ' + LOG + "\n"
+        + "console pointer lock on\nconsole flush\n"
+        + "i=0\nwhile [ $i -lt %d ]; do k := console key 250; " % (16 * SLOW)
+        + '[ -n "$k" ] && echo "key $k" >> ' + LOG + "; i=$((i + 1)); done\n"
+        + "console close\n")
+    outer = os.path.join(D, "k%s.hibr" % nm)
+    open(outer, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n'
+                           % (nm, p) + "sleep 0.6\nhold attach -m -n one %s 3 10\n" % nm)
+    t = Term(outer, rows=24, cols=60, settle=1.0, env={"TMPDIR": D},
+             caps=caps)
+    for _ in range(int(24 * SLOW)):
+        t.collect(0.25)
+        if "locks" in open(LOG).read():
+            break
+    t.collect(0.6)
+    for b in feed:
+        os.write(t.fd, b)
+        t.collect(0.5)
+    t.collect(0.5)
+    os.write(t.fd, b"\x1c")
+    t.collect(1.0)
+    t.close()
+    kill(nm)
+    return t.raw, open(LOG).read()
+
+
+raw, log = lockheld(["lock"], [b"\x1b[<35;5;3M", b"\x1b[?7701;2$y", b"\x1b[<0;5;3M"])
+check("a display that can hold the pointer is asked to, and hold locks says so",
+      b"\x1b[?7701h" in raw and "locks yes" in log, log)
+check("its movement reaches the program as it was sent, with no offset added",
+      "key mouse rel move none 5 3" in log, log)
+check("and its giving the pointer back ends the lock in the program, after "
+      "which a report is a place again",
+      "key pointer unlocked" in log and "key mouse press left 5 14" in log, log)
+raw, log = lockheld([], [b"\x1b[<0;5;3M"])
+check("a display that cannot is never asked, and hold locks says no",
+      b"\x1b[?7701h" not in raw and "locks no" in log, log)
+
 # A window's picture with another window over it, held (Gitea #374): the
 # held program places it through its pane below the cells, the emulator keeps
 # it as a picture under the text, and the attached display is sent it once,
@@ -1170,4 +1222,4 @@ check("a 16-colour display of a held session is sent no 24-bit colour",
       [sc.row(r) for r in range(20)] == want, raw[-200:])
 
 shutil.rmtree(D, True)
-report(67)
+report(71)

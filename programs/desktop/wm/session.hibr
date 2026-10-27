@@ -280,6 +280,10 @@ dt_size() {
 		if gl := hold pointers 2> /dev/null; then
 			case $'\n'"$gl" in *" yes"*) DT_PTRNAT=1 ;; esac
 		fi
+		DT_LOCKNAT=0
+		if gl := hold locks 2> /dev/null; then
+			case $'\n'"$gl" in *" yes"*) DT_LOCKNAT=1 ;; esac
+		fi
 		if gl := hold gfx 2> /dev/null; then
 			while IFS=' ' read -r gnm gv _; do
 				[ -n "$gnm" ] && dgfx["$gnm"]=$gv
@@ -612,6 +616,8 @@ DT_HOVERNAT=0
 # Whether one of a held session's displays can hide its pointer, from
 # `hold pointers`, asked beside it (Gitea #373).
 DT_PTRNAT=0
+# Whether one of them can hold the pointer, from `hold locks` (Gitea #379).
+DT_LOCKNAT=0
 
 # Whether hovering is on: Control Panel > Mouse > Hover, where Auto is on
 # where a display reports pixels by itself -- one of the held session's,
@@ -671,6 +677,7 @@ dt_run() {
 
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
+		[ -n "$DT_PTRLOCK" ] && dt_ptrlockcheck
 		if [ -n "$DT_SAVING" ] || [ -n "$DT_LOCKED" ]; then
 			# A resize while the saver or the lock is up is still a
 			# resize. This branch continued before the check at the
@@ -832,6 +839,7 @@ dt_run() {
 		fi
 		pk=
 		[ -n "$k" ] && dt_saverseen && dt_event "$k"
+		[ -n "$DT_PTRLOCK" ] && dt_ptrlockcheck
 	done
 }
 

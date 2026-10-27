@@ -7729,6 +7729,39 @@ check("and a solid window frame gives notes the ring the windows wear",
       nr is not None and sc.style(nr[0] - 1, nr[1]).get("bg") is not None
       and sc.style(nr[0] - 1, nr[1]).get("bg") != sc.style(nr[0], nr[1]).get("bg"), sc)
 
+# The pointer lock (Gitea #379): a window asks with dt_pointerlock, and while
+# the display holds the pointer every report is movement, handed to that
+# window's _mouse with `rel` where the modifiers go; Release Pointer, a menu
+# and the display giving it back each end it, and the window hears `unlock`.
+LOCKAPP = ('declare -gA LK\n'
+           'lk_draw() { console put -p "w$1" 2 1 "[${LK[$1]:-}]"; }\n'
+           'lk_key() { [ "$2" = L ] || return 1; dt_pointerlock "$1" on; '
+           'LK[$1]="lock $?"; return 0; }\n'
+           'lk_mouse() { LK[$1]="$2 $3 $4 $5 $6"; return 0; }\n'
+           'dt_new "Lock" 8 40 6 10 lk\n')
+sc, raw = run(LOCKAPP, [1.0, b"L", 0.4, b"\x1b[<35;5;-3M", 0.4], caps=["lock"])
+check("a window that asks holds the pointer, and hears motion as signed deltas",
+      b"\x1b[?7701h" in raw and sc.find("[rel none -3 5 rel]") is not None, sc)
+sc, raw = run(LOCKAPP, [1.0, b"L", 0.4, b"\x1b[<0;0;0M", 0.3, b"\x1b[<32;-12;7M",
+                        0.4], caps=["lock"])
+check("a press while held reaches it as a press, and motion with a button as rel",
+      sc.find("[rel left 7 -12 rel]") is not None, sc)
+sc, raw = run(LOCKAPP, [1.0, b"L", 0.4, b"\x1b[21;5~", 0.4], caps=["lock"])
+check("Release Pointer gives it back and tells the window",
+      b"\x1b[?7701l" in raw and sc.find("[unlock none 0 0 ]") is not None, sc)
+sc, raw = run(LOCKAPP, [1.0, b"L", 0.4, b"\x1b[?7701;2$y", 0.4,
+                        b"\x1b[<35;5;-3M", 0.4], caps=["lock"])
+check("the display giving it back is the end of it: the window hears unlock "
+      "and the next report is a position again",
+      sc.find("[unlock none 0 0 ]") is not None, sc)
+sc, raw = run(LOCKAPP, [1.0, b"L", 0.4, b"\x1b[21~", 0.4, b"\x1b", 0.3],
+              caps=["lock"])
+check("opening a menu gives it back", b"\x1b[?7701l" in raw and
+      sc.find("[unlock none 0 0 ]") is not None, sc)
+sc, raw = run(LOCKAPP, [1.0, b"L", 0.4], caps=[])
+check("a display that cannot hold it is never asked, and the window is told no",
+      b"\x1b[?7701h" not in raw and sc.find("[lock 1]") is not None, sc)
+
 # Focus Follows Mouse (Gitea #370): with it on, resting over a window gives
 # it the keyboard and leaves it where it is in the stack; off, the default,
 # the pointer moves nothing. A is under B where they overlap, so a raise
@@ -8043,4 +8076,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(872)
+report(878)

@@ -178,6 +178,11 @@ struct tm_t {
 	   the mouse knows them -- a cell's centre when it does not -- so the
 	   mode is always answered as known (Gitea #370). */
 	int mpix;
+	/* DEC 7701, Blit's pointer lock (Gitea #379): 0, or the number of the
+	   ask now in force -- plockn counts them -- so a relay can tell a new
+	   ask from the one a display already gave back. Never answered as a
+	   mode here: whether a lock can be held is the display's to say. */
+	int plock, plockn;
 	tm_cell nil;
 	long tot, sa, sz;
 	int sel, sca, scz;
@@ -279,6 +284,7 @@ int tm_api_clip(int id, str *out);
 int tm_api_pass(int id, str *out);
 int tm_api_title(int id, str *out);
 int tm_api_pointer(int id, str *out);
+int tm_api_plock(int id);
 void tm_imgarea(tm_t *t, int r0, int c0, int r1, int c1);
 void tm_ptrosc(tm_t *t, const char *p);
 unsigned tm_api_linkat(int id, int r, int c);
