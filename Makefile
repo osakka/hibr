@@ -239,7 +239,7 @@ $(B)/mods/fetch.so: $(FETCH_SRC) include/hibr.h mods/fetch.h mods/fetch/ft.h mod
 
 DAV_SRC = $(wildcard mods/dav/*.c)
 
-$(B)/mods/dav.so: $(DAV_SRC) include/hibr.h mods/dav/dv.h | $(B)/mods
+$(B)/mods/dav.so: $(DAV_SRC) include/hibr.h mods/dav/dv.h mods/fetch.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(DAV_SRC) $(DLLIB)
 
 WEB_SRC = $(wildcard mods/web/*.c) mods/img/png.c
@@ -280,6 +280,8 @@ IMG_SRC = $(wildcard mods/img/*.c)
 
 $(B)/mods/img.so: $(IMG_SRC) include/hibr.h mods/img/im.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(IMG_SRC) $(DLLIB)
+
+$(B)/mods/http.so: mods/fetch.h
 
 $(B)/mods/%.so: mods/%.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $<

@@ -39,8 +39,8 @@ def serve(*args):
 def hb(script, env=None):
     e = dict(os.environ, HIBR_DAV_CONF=CONF, HIBR_DAV_TIMEOUT="5")
     e.update(env or {})
-    r = subprocess.run([sx.HIBR, "-c", "mod load %s\n%s" %
-                        (tree("build/mods/dav.so"), script)],
+    r = subprocess.run([sx.HIBR, "-c", "mod load %s\nmod load %s\n%s" %
+                        (tree("build/mods/fetch.so"), tree("build/mods/dav.so"), script)],
                        env=e, capture_output=True, text=True, timeout=120, cwd=WORK)
     return r.stdout, r.stderr
 

@@ -2,10 +2,12 @@
 
 `dav` lists, fetches and changes files on a WebDAV server: Nextcloud,
 ownCloud, a NAS, Apache's or nginx's DAV, rclone, Fastmail -- anything that
-speaks RFC 4918. It is its own HTTP/1.1 client, with no curl and no
-libraries: connections are kept per server and reused, TLS goes through the
-shell's own relay (libssl `dlopen`ed on first use), and a login is Basic or
-Digest (MD5, MD5-sess), whichever the server asks for.
+speaks RFC 4918. Its HTTP is the [fetch module](../fetch/README.md)'s since
+0.99.363, loaded on first use, with no curl and no libraries: connections
+are kept and reused, TLS goes through the shell's own relay (libssl
+`dlopen`ed on first use), and a login is Basic or Digest (MD5, MD5-sess),
+whichever the server asks for. What dav keeps of its own is WebDAV: the
+servers, the locations, the listings and the conditional uploads.
 
 ```text
 mod load dav                        # or need dav
@@ -44,7 +46,7 @@ address it begins with.
 | `dav servers` | every server: name, address, user, whether its certificate is checked; with `:=` a map by name, with `haspass` -- never the password |
 | `dav server set NAME URL [-u USER] [-p PASS] [-k\|-K]` | add a server or change one; what is not given stays as it was; `-k` stops checking its certificate (a NAS with its own), `-K` starts again |
 | `dav server rm NAME`, `dav server rename OLD NEW` | |
-| `dav close` | close every connection and forget every login learned |
+| `dav close` | close every kept connection -- they are fetch's, so this closes the shell's other fetch connections too |
 | `dav request [-H 'Name: value']... [-d BODY] [-k] METHOD URL` | any HTTP request to any address, with no server's login -- for an API that is not WebDAV (the `vw` command's Bitwarden requests); the reply's body is said, or bound under `:=`, and `$DAV_CODE` is its status, whatever it is, since an API's error has a body too; `-k` does not check the certificate |
 
 `$DAV_CODE` holds the last HTTP status (0 when nothing answered), so a
@@ -104,8 +106,9 @@ only pretend -- so a file anyone else can read is refused outright.
   server closed it while idle; a server that closes every connection works
   as well, just slower.
 - **Redirects are followed**, five at most -- a folder named without its
-  slash is the usual one. A redirect to another place goes there without
-  the login.
+  slash is the usual one, and the method and body go with it: only a POST
+  becomes a GET on a 301 or 302. A redirect to another origin goes there
+  without the login.
 - **A name in a listing that could step outside its folder is never
   listed or written**: empty, `.`, `..`, or one holding a slash once
   decoded. That is what keeps a hostile server from making `get -r` write
@@ -116,8 +119,9 @@ only pretend -- so a file anyone else can read is refused outright.
 - **A download goes to `NAME.part` and is renamed** only once it is whole.
 - A forked child -- a background job, a pipeline -- never uses a
   connection its parent holds; it dials its own.
-- Timeouts are 30 seconds for connecting and for each read, or
-  `HIBR_DAV_TIMEOUT` seconds.
+- Timeouts are 30 seconds without progress, or `HIBR_DAV_TIMEOUT`
+  seconds. A body is asked for uncompressed, so a download streams to its
+  file, and no cookie is sent or kept.
 
 ## What it does not do
 

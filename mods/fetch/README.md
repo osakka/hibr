@@ -7,6 +7,8 @@ relay (libssl `dlopen`ed on first use, certificates verified). It is one
 module with two faces -- a **builtin** for scripts, and an **interface**,
 `"fetch"` version 1 (`mods/fetch.h`), for another module to make requests
 through rather than carry an HTTP client of its own (Gitea #399).
+The dav module and the `/dev/http` scheme are built on it, and so are the
+browser's downloads.
 
 The name is FreeBSD's `fetch(1)` as well. Loading the module makes the
 builtin shadow a program of that name, if there is one.

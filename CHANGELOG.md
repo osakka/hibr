@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.363
+
+**dav and `/dev/http` go through fetch** (Gitea #399). The shell had two HTTP
+clients before 0.99.362 and now has one: dav's own connections, logins, TLS
+relay and redirects -- 1,130 lines net, its copy of MD5 among them -- are gone, and every
+`dav` request is a call into the `fetch` interface, asked for each time so a
+dropped fetch module is never reached through a table it unmapped. dav keeps
+what is WebDAV: the servers, the locations, the listings and the conditional
+uploads. Its downloads still stream to their file, since dav asks for bodies
+uncompressed, and it neither sends nor keeps cookies.
+
+- **`/dev/http/host/port/path`** asks fetch too, so it speaks HTTP/1.1 with
+  a chunked or compressed reply decoded, follows redirects, and sets
+  `HTTP_STATUS`. The body is kept in an unlinked file and the descriptor
+  reads it from the start.
+- **A 301 or 302 now keeps the method and body of anything but a POST**, as
+  RFC 9110 and every browser do, and as fetch's own README already said.
+  0.99.362 turned every method into a GET there, which nothing noticed until
+  a PROPFIND on a folder named without its slash came back 501. `tests/fetch.py`
+  checks both halves, and the check fails against 0.99.362.
+- Two small changes a server could see: dav's requests now say
+  `User-Agent: hibr-fetch/...` and `Accept: */*`, and a redirect to another
+  origin always goes without the login, where dav used to keep it when the
+  new address was one of your servers.
+- `dav close` closes fetch's kept connections, which are now the shell's
+  only ones.
+
 ## 0.99.362
 
 **fetch: one HTTP client, for scripts and for modules** (Gitea #399). The
@@ -32,7 +59,7 @@ callback for the headers and a cancel flag. It is dav's HTTP/1.1 grown up:
 
 The header is installed as `include/hibr/fetch.h`, beside `hibr.h`, so a
 module built outside this tree -- the browser's -- needs only the package.
-dav and `/dev/http` move onto it in a release of their own.
+dav and `/dev/http` moved onto it in 0.99.363.
 `tests/fetch.py` runs both faces against `tests/fetchserve.py`, a stand-in
 that refuses what a careless client sends; its cross-origin check was run
 against a copy with the stripping turned off, and failed there.

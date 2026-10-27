@@ -41,32 +41,6 @@ struct dv_url {
 	str host, port, path;
 };
 
-/* An open connection, kept for the next request to the same place. */
-typedef struct dv_conn dv_conn;
-struct dv_conn {
-	char *key, *host;
-	int fd, tls, noverify;
-	pid_t relay, owner;
-	str rb;
-	size_t rp;
-	int reused;
-	/* Set when a read gave up on the receive timeout rather than on the
-	   peer going away: the two were reported as one ("did not answer"),
-	   which sent an hour of hunting at the server for a reply that was
-	   on its way (Gitea #223). */
-	int timedout;
-};
-
-/* What a server asked to be told about who we are, per place and user. */
-typedef struct dv_auth dv_auth;
-struct dv_auth {
-	char *key;
-	int kind;
-	char *realm, *nonce, *opaque, *algo;
-	int qop, sess;
-	unsigned long nc;
-};
-
 /* A request: the method, where, who, extra headers, and a body from
    memory or from a descriptor. A reply's body goes to out when it is 0 or
    more and the reply is a success, else into the reply. */
@@ -110,8 +84,6 @@ struct dv_ent {
 	long mtime;
 };
 
-int dv_md5hex(const char *p, size_t n, str *out);
-
 int dv_conf(sh *s);
 dv_srv *dv_srvfind(const char *name);
 dv_srv *dv_srvurl(const char *url);
@@ -137,7 +109,7 @@ void dv_hdr(dv_req *r, const char *name, const char *val);
 void dv_resinit(dv_res *r);
 void dv_resfree(dv_res *r);
 int dv_do(sh *s, dv_req *rq, dv_res *rs);
-void dv_closeall(void);
+void dv_closeall(sh *s);
 int dv_timeout(sh *s);
 
 dv_x *dv_xparse(const char *p, size_t n);

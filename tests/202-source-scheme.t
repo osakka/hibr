@@ -14,7 +14,7 @@ h=$HIBR
 case $h in /*) ;; *) h=$PWD/$h ;; esac
 d=$(mktemp -d)
 mod load ./build/mods/archive.so
-mod load ./build/mods/http.so
+mod load ./build/mods/fetch.so; mod load ./build/mods/http.so
 printf 'greet() { echo "sourced out of a bundle"; }\n' > "$d/app.hibr"
 printf 'echo "inside: BASH_SOURCE=$BASH_SOURCE"\n' >> "$d/app.hibr"
 printf 'a resource\n' > "$d/pic.txt"

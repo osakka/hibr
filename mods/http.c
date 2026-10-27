@@ -1,71 +1,106 @@
+#define _GNU_SOURCE
+
 #include "hibr.h"
+#include "fetch.h"
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-/* Open /dev/http/host/port/path as a descriptor positioned at the body. */
+/* Where a reply's body goes while it arrives: a file nobody else can name. */
+int http_tofd(void *ctx, const char *p, size_t n)
+{
+	int *fd = ctx;
+
+	return hibr_wrall(*fd, p, n) == (ssize_t)n ? 0 : 1;
+}
+
+/* A file to hold a body, already unlinked, so it goes when it is closed. */
+int http_tmp(void)
+{
+	const char *t = getenv("TMPDIR");
+	str nm;
+	int fd;
+
+	s_init(&nm);
+	s_cat(&nm, t && *t ? t : "/tmp");
+	s_cat(&nm, "/hibr-http-XXXXXX");
+	fd = mkstemp(nm.p);
+	if (fd >= 0) {
+		unlink(nm.p);
+		fcntl(fd, F_SETFD, FD_CLOEXEC);
+	}
+	s_free(&nm);
+	return fd;
+}
+
+/* Open /dev/http/host/port/path: the request is made through the fetch
+   module, and the descriptor handed back reads the body from its start.
+   HTTP_STATUS is the reply's status, 0 when none came. */
 int http_open(sh *s, const char *rest)
 {
-	str host, port, path, req;
+	ft_api *api;
+	ft_req rq;
+	ft_res rs;
+	str url, num;
 	const char *a = strchr(rest, '/');
 	const char *b = a ? strchr(a + 1, '/') : 0;
-	int fd, state = 0;
-	char c;
+	int fd, rc;
 
 	if (!a) {
 		lg(HIBR_LERR, "/dev/http/ wants host/port/path");
 		return -1;
 	}
-	s_init(&host);
-	s_init(&port);
-	s_init(&path);
-	s_add(&host, rest, (size_t)(a - rest));
-	if (b) {
-		s_add(&port, a + 1, (size_t)(b - a - 1));
-		s_cat(&path, b);
-	} else {
-		s_cat(&port, a + 1);
-		s_ch(&path, '/');
-	}
-	fd = hibr_dial(host.p, port.p, 0);
-	if (fd < 0) {
-		s_free(&host);
-		s_free(&port);
-		s_free(&path);
+	api = hibr_require(s, "fetch", FT_API_VER);
+	if (!api) {
+		lg(HIBR_LERR, "http: the fetch module is not available");
 		return -1;
 	}
-	s_init(&req);
-	s_cat(&req, "GET ");
-	s_cat(&req, path.p);
-	s_cat(&req, " HTTP/1.0\r\nHost: ");
-	s_cat(&req, host.p);
-	s_cat(&req, "\r\nConnection: close\r\n\r\n");
-	/* hibr_wrall: a server that closed the connection must come back as
-	   the failure below, not as a SIGPIPE that ends the script that
-	   opened /dev/http/... (Gitea #229). */
-	if (hibr_wrall(fd, req.p, req.n) != (ssize_t)req.n) {
-		lg(HIBR_LERR, "http: request write failed");
+	s_init(&url);
+	s_init(&num);
+	s_cat(&url, "http://");
+	s_add(&url, rest, (size_t)(a - rest));
+	s_ch(&url, ':');
+	if (b) {
+		s_add(&url, a + 1, (size_t)(b - a - 1));
+		s_cat(&url, b);
+	} else {
+		s_cat(&url, a + 1);
+		s_ch(&url, '/');
+	}
+	fd = http_tmp();
+	if (fd < 0) {
+		lg(HIBR_LERR, "http: no file to hold the reply: %s", strerror(errno));
+		s_free(&url);
+		s_free(&num);
+		return -1;
+	}
+	api->reqinit(&rq);
+	rq.url = url.p;
+	rq.flags = FT_NOCOOKIE;
+	rq.ondata = http_tofd;
+	rq.ctx = &fd;
+	rc = api->fetch(s, &rq, &rs);
+	s_fmt(&num, "%d", rs.code);
+	hibr_set(s, "HTTP_STATUS", num.p, 0);
+	num.n = 0;
+	s_add(&num, rest, (size_t)(a - rest));
+	hibr_set(s, "HTTP_HOST", num.p, 0);
+	if (rc != 0) {
+		lg(HIBR_LERR, "http: %s: %s", url.p, rs.err ? rs.err : "failed");
 		close(fd);
 		fd = -1;
+	} else if (lseek(fd, 0, SEEK_SET) < 0) {
+		close(fd);
+		fd = -1;
+	} else {
+		lg(HIBR_LDBG, "http: %s %d ready on fd %d", url.p, rs.code, fd);
 	}
-	while (fd >= 0 && read(fd, &c, 1) == 1) {
-		if (c == '\r')
-			continue;
-		if (c == '\n') {
-			if (state == 1)
-				break;
-			state = 1;
-			continue;
-		}
-		state = 0;
-	}
-	lg(HIBR_LDBG, "http: %s:%s%s ready on fd %d", host.p, port.p, path.p, fd);
-	s_free(&req);
-	s_free(&host);
-	s_free(&port);
-	s_free(&path);
-	hibr_set(s, "HTTP_HOST", host.p ? host.p : "", 0);
+	api->resfree(&rs);
+	s_free(&url);
+	s_free(&num);
 	return fd;
 }
 
@@ -118,5 +153,5 @@ void http_fin(sh *s)
 	hibr_unscheme(s, "http");
 }
 
-HIBR_MODULE("http", "1.0", "/dev/http/ scheme, msum, oops", http_bi,
+HIBR_MODULE("http", "1.1", "/dev/http/ scheme, msum, oops", http_bi,
 	   http_ini, http_fin);

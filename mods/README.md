@@ -21,7 +21,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | module | what it is |
 |---|---|
 | `sys.c` | A minimal example — `drop`, `epoch`, `sleepms`, `state`, `upper` |
-| `http.c` | A **scheme**: registers `/dev/http/host/port/path`, so an HTTP body can be read by anything that reads a file |
+| `http.c` | A **scheme**: registers `/dev/http/host/port/path`, so an HTTP body can be read by anything that reads a file; the request is the fetch module's, the body kept in an unlinked file |
 | `ls.c` | An in-process `ls` with columns, `-l -a -A -h -t -S -r -d -1 -F` and colour, whose listing also lands in `$RET` |
 | `math.c` | `math`: floating point where `$(( ))` has only integers -- `+ - * / % ^`, comparisons, `? :`, `round sqrt abs pow ...`, shell variables by name, and `sum avg min max count` over arrays; shown as a spreadsheet shows numbers. One of the two modules a `--plan` may load |
 | `csv.c` | `csv`: CSV as RFC 4180 says -- quoted fields, doubled quotes, line breaks inside quotes, CRLF or LF, a byte-order mark skipped, any separator (`-s ';'`, `-s tab`). `csv read FILE` (or `-t TEXT`) binds every record as `r[i][j]`, or with `-H` as `r[i][name]` from the first; built in one pass, so 50,000 rows bind in a quarter of a second. `csv open`/`row`/`close` stream a record at a time; `csv line FIELD...` writes one, quoting only what needs it; `csv split TEXT` one record's fields. Sheet imports and exports through it |
@@ -51,7 +51,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `hold/` | Sessions that outlive their terminal: detach, log off, attach again; offers `"hold"` — [README](hold/README.md) |
 | `img/` | Decode an image and draw it as cells, libpng opened on first use — [README](img/README.md) |
 | `db/` | A small column store: typed columns, appended rows changed and deleted in place, filters and aggregates, zone maps — [README](db/README.md) |
-| `dav/` | A WebDAV client: its own HTTP/1.1 with kept connections, Basic and Digest logins, TLS through the shell's relay, RFC 4918 listings; servers in a private list -- [README](dav/README.md) |
+| `dav/` | A WebDAV client: RFC 4918 listings, transfers and conditional uploads over the fetch module's HTTP; servers in a private list -- [README](dav/README.md) |
 | `fetch/` | An HTTP client for scripts and modules: kept connections, codings, redirects, logins, proxies and JSON cookie jars; the `fetch` builtin, and offers `"fetch"` (`mods/fetch.h`) -- [README](fetch/README.md) |
 | `media/` | Video and sound: FFmpeg's libraries loaded at run time, a decoding thread and a sound thread, ALSA or AudioQueue, the picture as half blocks or ASCII following the sound's clock -- [README](media/README.md) |
 | `web/` | A web browser: headless Chromium driven over its own pipe, each page drawn as cells -- text where it was laid out, over a half-block picture; tabs, links, forms, scripting -- [README](web/README.md) |

@@ -84,6 +84,12 @@ try:
     e = json.loads(out) if out.startswith("{") else {}
     check("a 307 sends the POST and its body again",
           e.get("method") == "POST" and e.get("body") == "data", out + err)
+    out, err, _ = hb('r := fetch put "%s/redir?code=301&to=/echo" -d keep; echo "${r["body"]}"; '
+                     'r := fetch post "%s/redir?code=301&to=/echo" -d gone; echo "${r["body"]}"' % (a, a))
+    e = [json.loads(x) for x in out.split("\n") if x.startswith("{")]
+    check("a 301 keeps any method but POST, and its body; a POST becomes a GET",
+          len(e) == 2 and (e[0].get("method"), e[0].get("body")) == ("PUT", "keep") and
+          (e[1].get("method"), e[1].get("body")) == ("GET", ""), out + err)
     out, err, _ = hb('r := fetch -n "%s/redir?code=302&to=/text"; '
                      'echo "${r["status"]}|${r["headers"]["location"]}"' % a)
     check("-n hands a redirect back rather than following it", out == "302|/text\n", out + err)
@@ -241,4 +247,4 @@ finally:
         p.wait()
     shutil.rmtree(D, True)
 
-report(27)
+report(28)

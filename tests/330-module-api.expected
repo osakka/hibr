@@ -1,8 +1,8 @@
 0
-body for GET /hello HTTP/1.0
+body for GET /hello HTTP/1.1
 second line
 --- as lines:
-[body for GET /second HTTP/1.0]
+[body for GET /second HTTP/1.1]
 [second line]
 after drop: 0
 --- map API:

@@ -1091,16 +1091,16 @@ int ft_do(const ft_req *rq, ft_res *rs)
 				crossed = 1;
 			if (rs->code == 303 ||
 			    ((rs->code == 301 || rs->code == 302) &&
-			     strcmp(j.method, "GET") && strcmp(j.method, "HEAD"))) {
+			     !strcmp(j.method, "POST"))) {
 				j.method = rs->code == 303 &&
 						   !strcmp(j.method, "HEAD") ?
 					   "HEAD" :
 					   "GET";
 				j.sendbody = 0;
 			} else if (j.sendbody && rq->bfd >= 0 && j.bstart < 0) {
-				ft_fail(&j, "a %s redirect needs the body sent "
+				ft_fail(&j, "a %d redirect needs the body sent "
 					    "again, and it came from a pipe",
-					rs->code == 307 ? "307" : "308");
+					rs->code);
 				ft_urlfree(&u);
 				break;
 			}

@@ -163,8 +163,9 @@ Reference modules in `mods/`:
   keys. It offers the **display** interface in `mods/display.h`, so a
   framebuffer or SDL backend could replace it without the tools changing. See
   [full-screen programs](display.md).
-- **`http`** registers `/dev/http/host/port/path`: the request is made on open
-  and the descriptor is positioned at the body.
+- **`http`** registers `/dev/http/host/port/path`: the request is made on open,
+  through the `fetch` module, and the descriptor reads the body from its
+  start; `HTTP_STATUS` is the reply's status.
   `while read l; do …; done </dev/http/127.0.0.1/8080/status`
 - **`prompt`** builds the prompt out of segments; see
   [The prompt](prompt.md).

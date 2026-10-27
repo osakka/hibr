@@ -12,7 +12,6 @@
 #include <unistd.h>
 
 void v_del(sh *s, const char *k);
-void dv_authfree(void);
 
 static const char dv_propfind[] =
 	"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
@@ -1085,8 +1084,7 @@ int m_dav(sh *s, int ac, char **av)
 	if (!strcmp(sub, "server"))
 		return dv_server(s, ac, av);
 	if (!strcmp(sub, "close")) {
-		dv_closeall();
-		dv_authfree();
+		dv_closeall(s);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "get"))
@@ -1197,12 +1195,11 @@ int dv_ini(sh *s)
 	return HIBR_OK;
 }
 
-/* Close every connection and forget every login when the module goes. */
+/* Forget the servers when the module goes; the connections and logins
+   are the fetch module's, and go with it. */
 void dv_fini(sh *s)
 {
 	(void)s;
-	dv_closeall();
-	dv_authfree();
 	dv_conffree();
 }
 
