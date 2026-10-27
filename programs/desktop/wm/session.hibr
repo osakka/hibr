@@ -349,13 +349,13 @@ dt_hwstop() {
 dt_hwoffer() {
 	local f=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/hwoffered seen= was e
 
-	[ "$DT_HWOFFER" = 1 ] || return 0
+	[ "$DT_HWOFFER" = 1 ] || [ "$DT_CSOFFER" = 1 ] || return 0
 	[ -r "$f" ] && read -r seen < "$f"
 	was=$seen
-	for e in networks sound bluetooth power; do
+	for e in network sound bluetooth power strip; do
 		case " $seen " in *" $e "*) continue ;; esac
 		case $e in
-		networks) dt_has dt_nettick && continue
+		network) dt_has dt_nettick && continue
 			dt_notify "Network is now in the Catalogue -- click to install it" \
 				dt_hwinstall "$e" ;;
 		sound) dt_has dt_sndtick && continue
@@ -366,6 +366,15 @@ dt_hwoffer() {
 				dt_hwinstall "$e" ;;
 		power) dt_has dt_pwtick && continue
 			dt_notify "Power is now in the Catalogue -- click to install it" \
+				dt_hwinstall "$e" ;;
+		strip)
+			# The four modules the strip used to ship with (Gitea
+			# #393), offered only to a desktop that had them --
+			# and, having any of them already, it needs no note.
+			[ "$DT_CSOFFER" = 1 ] || continue
+			dt_has cursor_draw || dt_has shadow_draw || dt_has theme_draw ||
+				dt_has wallpaper_draw && continue
+			dt_notify "The Control Strip's modules are now in the Catalogue -- click to install them" \
 				dt_hwinstall "$e" ;;
 		esac
 		seen="$seen $e"
@@ -378,7 +387,11 @@ dt_hwoffer() {
 # Install one of them from the catalogue, in the background; the
 # catalogue tells this desktop to rescan once it has, which loads it.
 fn dt_hwinstall(e) {
-	dt_job hw "$e" dt_hwdone catalogue install "bundles/$e" > /dev/null ||
+	local -a ids=("bundles/$e")
+
+	[ "$e" = strip ] && ids=(control-strip/cursor control-strip/shadow \
+		control-strip/theme control-strip/wallpaper)
+	dt_job hw "$e" dt_hwdone catalogue install "${ids[@]}" > /dev/null ||
 		dt_note "Cannot make a folder for jobs"
 }
 

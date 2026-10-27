@@ -36,6 +36,10 @@ DT_NOTEHISTMAX=50
 # setting replaces them, the same as DT_TICK and the rest of DT_KEEP.
 DT_NOTEMS="${DT_NOTEMS-2500}"
 DT_NOTEPOS="${DT_NOTEPOS-top-right}"
+# A note's frame (Gitea #398): the windows' own (DT_FRAME), or single,
+# double, rounded or solid of its own -- Control Panel > Notifications >
+# Frame, Same as Windows unless chosen.
+DT_NOTEFRAME="${DT_NOTEFRAME-windows}"
 # Which display the stack is on: the primary, where the bar and the icons
 # are, or every display, each with the same stack in its own corner
 # (Gitea #280). Notes were placed against the whole of every display put
@@ -276,6 +280,13 @@ fn dt_notehist_add(int id) {
 dt_note_draw() {
 	local id now age w h r c t n=0 top bar f used i k ar ac arows acols gx
 	local wmin wmax hmin hmax hopen
+	local col vl fr
+
+	# The frame every note is drawn in this frame: the windows' own unless
+	# one was chosen, and with the windows frameless a note still has one.
+	fr=$DT_NOTEFRAME
+	[ "$fr" = windows ] && fr=$DT_FRAME
+	[ -n "${DT_FRAMES[$fr]["tl"]+x}" ] || [ "$fr" = solid ] || fr=single
 	local -a keep areas
 
 	now := dt_ms
@@ -357,26 +368,54 @@ dt_note_draw() {
 			DT_NOTERECT[$id]["h$k"]=$h
 			DT_NOTERECT[$id]["n"]=$((k + 1))
 			case ${DT_NOTEQ[$id]["prio"]} in
-			urgent) console pen "$DT_BAD" "$DT_FACE" bold ;;
-			high) console pen "$DT_WARN" "$DT_FACE" bold ;;
-			low) console pen "$DT_DIM" "$DT_FACE" ;;
-			*) console pen "$DT_ACTIVE" "$DT_FACE" bold ;;
+			urgent) col=$DT_BAD ;;
+			high) col=$DT_WARN ;;
+			low) col=$DT_DIM ;;
+			*) col=$DT_ACTIVE ;;
 			esac
-			i := dt_rep $((w - 2)) "${GL[hline]}"
-			console put "$r" "$c" "${GL[tl]}$i${GL[tr]}"
-			console put $((r + h - 1)) "$c" "${GL[bl]}$i${GL[br]}"
+			# Its frame, the windows' own unless chosen (Gitea #398):
+			# a ring of glyphs, or under solid a ring of cells in
+			# the priority's colour.
+			if [ "$fr" = solid ]; then
+				console pen "$DT_SELINK" "$col"
+				i := dt_rep "$w" " "
+				console put "$r" "$c" "$i"
+				console put $((r + h - 1)) "$c" "$i"
+				vl=" "
+			else
+				if [ "${DT_NOTEQ[$id]["prio"]}" = low ]; then
+					console pen "$col" "$DT_FACE"
+				else
+					console pen "$col" "$DT_FACE" bold
+				fi
+				i := dt_rep $((w - 2)) "${DT_FRAMES[$fr]["h"]}"
+				console put "$r" "$c" "${DT_FRAMES[$fr]["tl"]}$i${DT_FRAMES[$fr]["tr"]}"
+				console put $((r + h - 1)) "$c" "${DT_FRAMES[$fr]["bl"]}$i${DT_FRAMES[$fr]["br"]}"
+				vl=${DT_FRAMES[$fr]["v"]}
+			fi
 			if [ -n "${DT_NOTEQ[$id]["cut"]}" ]; then
 				dt_fitmark $((r + h - 1)) "$c" "$w"
 			elif [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
 				dt_fitmark $((r + h - 1)) "$c" "$w" open
 			fi
-			console pen "$DT_INK" "$DT_FACE" bold
+			if [ "$fr" = solid ]; then
+				console pen "$DT_SELINK" "$col" bold
+			else
+				console pen "$DT_INK" "$DT_FACE" bold
+			fi
 			[ -n "$f" ] && console put "$r" $((c + 2)) " $f "
-			console pen "$DT_INK" "$DT_FACE" bold
 			i=0
 			while [ "$i" -lt "$DT_FITH" ]; do
 				t := str pad "${DT_FITLINES[$i]-}" $((w - 4))
-				console put $((r + 1 + i)) "$c" "${GL[vline]} $t ${GL[vline]}"
+				console pen "$DT_INK" "$DT_FACE" bold
+				if [ "$fr" = solid ]; then
+					console put $((r + 1 + i)) $((c + 1)) " $t "
+					console pen "$DT_SELINK" "$col"
+					console put $((r + 1 + i)) "$c" " "
+					console put $((r + 1 + i)) $((c + w - 1)) " "
+				else
+					console put $((r + 1 + i)) "$c" "$vl $t $vl"
+				fi
 				i=$((i + 1))
 			done
 			n=$((n + 1))

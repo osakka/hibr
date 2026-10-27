@@ -1747,6 +1747,11 @@ try:
           and ent.get("members") == "menubar/spk control-panel/spkpane",
           (out[:400], err))
 
+    rc, out, err = apps("info", "bundles/spk", env=e7("a"))
+    check("info names a bundle's members by title and what each is, with its id",
+          rc == 0 and "Speaker, a menu bar item (menubar/spk)" in out
+          and "Sound, a Control Panel pane (control-panel/spkpane)" in out,
+          (rc, out, err))
     rc, out, err = apps("install", "control-panel/spkpane", env=e7("b"))
     check("an entry installed on its own brings what it needs first",
           rc == 0 and os.path.exists(d7("b", "menubar", "spk.hibr"))
@@ -1811,4 +1816,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(152)
+report(153)

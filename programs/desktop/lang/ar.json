@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.40",
+ "version": "3.41",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1381,6 +1381,21 @@
   "brings %s": "يجلب %s",
   "installed, with %s": "مثبّت، مع %s",
   "Menu Bar Item": "عنصر شريط القوائم",
-  "Frames For Video (as output)": "إطارات الفيديو (كالمخرجات)"
+  "Frames For Video (as output)": "إطارات الفيديو (كالمخرجات)",
+  "No Control Strip modules are installed -- the Catalogue has them": "لا توجد وحدات لشريط التحكم مثبّتة -- تجدها في الكتالوج",
+  "Show Control Strip": "إظهار شريط التحكم",
+  "The Control Strip is off -- Control Panel > Control Strip shows it": "شريط التحكم مخفي -- يظهره لوحة التحكم > شريط التحكم",
+  "The Control Strip's modules are now in the Catalogue -- click to install them": "وحدات شريط التحكم أصبحت في الكتالوج -- انقر لتثبيتها",
+  "a Control Panel pane": "جزء من لوحة التحكم",
+  "a Control Strip module": "وحدة لشريط التحكم",
+  "a colour scheme": "نظام ألوان",
+  "a command": "أمر",
+  "a language": "لغة",
+  "a menu bar item": "عنصر في شريط القوائم",
+  "a module": "وحدة",
+  "a screen saver": "شاشة توقف",
+  "a theme": "سمة",
+  "an application": "تطبيق",
+  "one of the desktop's own apps": "أحد تطبيقات سطح المكتب"
  }
 }

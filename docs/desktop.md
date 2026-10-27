@@ -19,9 +19,10 @@ desktop
 
 ![The desktop as it starts: a menu bar along the top, a dotted wallpaper, three icons on the right, and the Control Strip near the bottom](../programs/desktop/img/tour-1-start.png)
 
-That is the whole of it: a menu bar, the wallpaper, three icons (your home
-folder, the root of the disk, and the trash), and the Control Strip near
-the bottom. The mouse works in any terminal that reports it -- click,
+That is the whole of it: a menu bar, the wallpaper and three icons (your
+home folder, the root of the disk, and the trash). The picture also shows
+the Control Strip near the bottom, which is off on a new desktop -- see
+below. The mouse works in any terminal that reports it -- click,
 drag, right-click, the wheel. The keyboard works everywhere: **F10** or
 **escape** opens the menu bar, and the arrows and the underlined letters
 move through it. With the hibr menu open, **`/`** searches everything on
@@ -150,8 +151,11 @@ blocks while the first keeps its picture. Every change applies at once
 and is kept for next time.
 
 The **Control Strip** along the bottom holds small controls of its own:
-the cursor's shape, shadows, the theme, the wallpaper -- and an app can
-bring one, as Prayer Times brings the next prayer's time. Click one, or press **alt-s** and use the arrows. The arrow at
+the cursor's shape, shadows, the theme, the wallpaper, the workspace
+numbers -- and an app can bring one, as Prayer Times brings the next
+prayer's time. It is off on a new desktop and its modules come from the
+Catalogue (Gitea #393): Control Panel > Control Strip > **Show Control
+Strip** turns it on. Click one, or press **alt-s** and use the arrows. The arrow at
 its end is a handle: drag it up or down to move the strip, sideways to
 shorten it, past the middle of the screen to dock it on the other side,
 and click it to fold the strip away to the arrow alone.

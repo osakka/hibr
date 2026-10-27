@@ -53,11 +53,8 @@ control-panel/wallpaper.hibr
 control-panel/wallset.hibr
 control-panel/windows.hibr
 
-# The Control Strip's modules that belong to no app.
-control-strip/cursor.hibr
-control-strip/shadow.hibr
-control-strip/theme.hibr
-control-strip/wallpaper.hibr
+# The Control Strip ships with no modules: they are in the catalogue, and
+# the strip is off until Control Panel > Control Strip shows it (Gitea #393).
 
 # One screen saver, the owner's choice of 2026-10-17; the rest are in the
 # catalogue. A saved choice that is not installed falls back to a random

@@ -1210,6 +1210,24 @@ fn cat_members(id) {
 	ret "${ms//,/ }"
 }
 
+# What one entry of a kind is, after its title: "Volume, a menu bar item".
+fn cat_kindone(k) {
+	case $k in
+	apps) ret "an application" ;;
+	system) ret "one of the desktop's own apps" ;;
+	control-panel) ret "a Control Panel pane" ;;
+	control-strip) ret "a Control Strip module" ;;
+	menubar) ret "a menu bar item" ;;
+	savers) ret "a screen saver" ;;
+	themes) ret "a theme" ;;
+	colours) ret "a colour scheme" ;;
+	lang) ret "a language" ;;
+	mods) ret "a module" ;;
+	cli) ret "a command" ;;
+	*) ret "$k" ;;
+	esac
+}
+
 # Is there a copy in the machine's scope at all, for the defunct column.
 #
 # Asked of the **paths this install recorded**, not of a path rebuilt
@@ -1828,8 +1846,25 @@ fn cat_info(want, int j = 0) {
 		"${CAT_ENT["modules"]:+, modules: ${CAT_ENT["modules"]}}" \
 		"${CAT_ENT["arch"]:+, machine: ${CAT_ENT["arch"]}}"
 	printf 'kind      %s\n' "${CAT_ENT["kind"]}"
-	[ -n "${CAT_ENT["members"]}" ] &&
-		printf 'members   %s\n' "${CAT_ENT["members"]//,/ }"
+	# A bundle's members by what they are called and what they are, as
+	# the window says them (Gitea #393), each with its id to install by.
+	if [ -n "${CAT_ENT["members"]}" ]; then
+		local -a mem
+		local mi mt mk lead="members  "
+		local -A sav
+
+		for mi in "${!CAT_ENT[@]}"; do sav["$mi"]=${CAT_ENT["$mi"]}; done
+		read -ra mem <<< "${CAT_ENT["members"]//,/ }"
+		for mi in "${mem[@]}"; do
+			mt=${mi#*/}
+			cat_entry "$mi" > /dev/null 2>&1 && mt=${CAT_ENT["title"]:-$mt}
+			mk := cat_kindone "${mi%%/*}"
+			printf '%s %s, %s (%s)\n' "$lead" "$mt" "$mk" "$mi"
+			lead="         "
+		done
+		CAT_ENT=()
+		for mi in "${!sav[@]}"; do CAT_ENT["$mi"]=${sav["$mi"]}; done
+	fi
 	[ -n "${CAT_ENT["needs"]}" ] &&
 		printf 'needs     %s\n' "${CAT_ENT["needs"]//,/ }"
 	# What it places besides itself (Gitea #237). Two places know, and

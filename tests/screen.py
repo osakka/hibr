@@ -924,7 +924,10 @@ def load(*mods):
     since 0.73, so Term.quit can end a desktop session the way it always
     has. It is set before the window manager is sourced, which keeps any
     key a session has already set."""
-    out = ['declare -gA DT_KEYS; DT_KEYS["quit"]=q']
+    # And the Control Strip shown, which a desktop is not by default since
+    # Gitea #393: the suites were written against a strip that showed, and
+    # the checks of the default unset this themselves.
+    out = ['declare -gA DT_KEYS; DT_KEYS["quit"]=q; CS_SHOW="${CS_SHOW-1}"']
     for m in mods:
         out.append("mod load %s"
                    % tree(m if "/" in m else "build/mods/%s.so" % m))

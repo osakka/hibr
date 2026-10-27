@@ -10,7 +10,7 @@
 strict
 
 
-app control_strip "The Control Panel pane for the strip itself" 1.0
+app control_strip "The Control Panel pane for the strip itself" 1.1
 command -v cp_pane > /dev/null && cp_pane control_strip "Control Strip" "▤"
 
 CP_CS_SIDES=(left right)
@@ -29,6 +29,13 @@ cp_csshadow() {
 fn control_strip_rows(int w) {
 	local n=0
 
+	# Whether there is a strip at all (Gitea #393), off unless chosen:
+	# its modules come from the Catalogue, and with none installed there
+	# is nothing to show.
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Control Strip"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${CS_SHOW:-0}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=show; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Side"
 	CP[$w][$n]["val"]="$CS_SIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shadow"
@@ -45,6 +52,13 @@ fn control_strip_do(int? w = "", k = "", int? dir = "") {
 	side) v := cp_next "$CS_SIDE" "$dir" "${CP_CS_SIDES[@]}"
 	      CS_SIDE=$v ;;
 	shadow) cp_csshadow ;;
+	show)
+		if [ "${CS_SHOW:-0}" = 1 ]; then CS_SHOW=0; else CS_SHOW=1; fi
+		dt_has cs_relist && cs_relist
+		[ "$CS_SHOW" = 1 ] && [ "${#CS_MOD_ALL[@]}" = 0 ] &&
+			dt_note "No Control Strip modules are installed -- the Catalogue has them"
+		DT_FORCEONCE=1
+		;;
 	esac
 	cp_save
 }

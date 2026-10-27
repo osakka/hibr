@@ -37,7 +37,7 @@ arguments straight through, it does nothing else.
 An install -- and the package -- holds what `packaging/ships`
 names, and what each of those brings (ADR 0047, Gitea #271): the window
 manager, the desktop's own `system/` apps, its own Control Panel panes,
-the Control Strip modules, the Mystify screen saver, **Files, Terminal,
+the Mystify screen saver, **Files, Terminal,
 Stickies, Calculator, Clock, Puzzle and Image Viewer**, and the Classic
 theme with the Midnight and Paper colours, in English. An app's pane comes
 with its app and goes when it goes. Everything else comes from the
@@ -1545,8 +1545,10 @@ skipped none and it was the label that was wrong), and what later made a
 saved 1 impossible to tell from a chosen one without reading the history
 of the default.
 
-Control Strip's own pane carries only `CS_SIDE` and `CS_SHADOW` -- which
-side it docks to, and whether it casts its own shadow. Its position,
+Control Strip's own pane carries `CS_SHOW` -- whether there is a strip at
+all, off unless chosen since Gitea #393, its modules being catalogue
+entries -- and `CS_SIDE` and `CS_SHADOW`: which side it docks to, and
+whether it casts its own shadow. Its position,
 whether it is collapsed, and how many modules are shown are dragged on the
 strip itself, the same way a window is moved and resized on itself rather
 than from a settings row elsewhere.

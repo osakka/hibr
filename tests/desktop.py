@@ -2997,7 +2997,16 @@ shutil.rmtree(SQCONF, True)
 # DT[] window -- docked to a side and dragged up and down, hibr's own take
 # rather than the bottom-only strip the real one was.
 
-CSSRC = 'CS_MODDIRS+=("%s")\ncs_modules\n' % tree("programs/desktop/control-strip")
+# The four modules the strip shipped with until Gitea #393, in a folder of
+# their own: the strip's checks measure its geometry against exactly these,
+# and the tree's own folder has gained the workspace switcher since.
+CSDIR = tempfile.mkdtemp(prefix="hibr-csmods-")
+for _m in ("cursor", "shadow", "theme", "wallpaper"):
+    shutil.copy(tree("programs/desktop/control-strip/%s.hibr" % _m), CSDIR)
+CSSRC = 'CS_MODDIRS+=("%s")\ncs_modules\n' % CSDIR
+# And the switcher with them, for its own checks.
+CSWS = ('CS_MODDIRS+=("%s" "%s")\ncs_modules\n'
+        % (CSDIR, tree("programs/desktop/control-strip")))
 
 
 def csrun(feed=()):
@@ -7508,6 +7517,76 @@ check("a playing window on show holds output frames 33 ms apart, and hidden, "
       "set to 0 or stopped it is 70 again", got == ["70", "33", "70", "70", "70"],
       got)
 
+# The Control Strip is off unless chosen (Gitea #393): with its modules
+# there and Show Control Strip off, there is no strip; a desktop whose
+# settings predate the change had one and keeps it, and is told where the
+# modules went; and the workspace switcher module goes where it is clicked.
+d = tempfile.mkdtemp(prefix="hibr-csoff-")
+sc, _ = run("", env={"XDG_CONFIG_HOME": d, "CS_SHOW": ""}, pre=CSSRC)
+check("the Control Strip is off by default, its modules loaded or not",
+      sc.find("\u25b8") is None and sc.find("Cursor") is None, sc)
+os.makedirs(os.path.join(d, "hibr"), exist_ok=True)
+open(os.path.join(d, "hibr", "desktop.hibr"), "w").write("DT_SETVER=16\n")
+sc, _ = run("", env={"XDG_CONFIG_HOME": d, "CS_SHOW": "",
+                     "XDG_STATE_HOME": os.path.join(d, "st")}, pre=CSSRC)
+check("a desktop from before keeps its strip",
+      sc.find("\u25b8") is not None or sc.find("\u25c2") is not None, sc)
+sc = pwlive([0.3], {"XDG_CONFIG_HOME": d, "CS_SHOW": "",
+                    "XDG_STATE_HOME": os.path.join(d, "st2")},
+            "Control Strip's modules")
+check("and one with none of the strip's modules is told they are in the Catalogue",
+      sc.find("Control Strip's modules are now in") is not None, sc)
+shutil.rmtree(d, True)
+def wsonstrip(sc):
+    """Where the strip's own workspace numbers are: below the bar, which
+    shows them too."""
+    for r in range(1, sc.rows):
+        c = sc.row(r).find("1 2 3 4")
+        if c >= 0:
+            return r, c
+    return None
+
+
+sc, _ = run("DT_WSN=4\n", pre=CSWS)
+w = wsonstrip(sc)
+check("the workspace switcher on the strip shows the numbers", w is not None, sc)
+lit = None
+if w:
+    sc, _ = run("DT_WSN=4\n", [press(w[0], w[1] + 4), release(w[0], w[1] + 4), 0.3],
+                pre=CSWS)
+    lit = sc.style(w[0], w[1] + 4).get("bold")
+check("and a click on one goes to that workspace, which it lights", lit is True,
+      (w, sc.row(w[0]) if w else sc))
+
+# A note's frame (Gitea #398): the windows' own by default, so a curved
+# window frame gives curved notes, or one of its own; solid is a ring of
+# cells in the note's colour. Read once the note is up, before the quitting
+# key puts it away.
+def notelive(env):
+    path = scratch("desktop-noteframe.hibr")
+    open(path, "w").write("%s. %s\ndt_open\ndt_note \"framed\"\ndt_run\ndt_close\n"
+                          % (load(MOD), WM))
+    t = Term(path, env=dict({"DT_TICK": "60", "DT_NOTEMS": "20000"}, **env),
+             rows=ROWS, cols=COLS, settle=0.5)
+    sc = t.until("framed", 20)
+    t.quit(b"\x1bq", 1.0)
+    os.unlink(path)
+    return sc
+
+
+sc = notelive({"DT_FRAME": "rounded"})
+check("a note wears the windows' frame unless told otherwise",
+      sc.find("\u256d") is not None, sc)
+sc = notelive({"DT_FRAME": "rounded", "DT_NOTEFRAME": "double"})
+check("and one of its own when one is chosen", sc.find("\u2554") is not None
+      and sc.find("\u256d") is None, sc)
+sc = notelive({"DT_NOTEFRAME": "solid"})
+nr = sc.find("framed")
+check("and solid is a ring of cells in the note's colour, with no line glyph",
+      nr is not None and sc.style(nr[0] - 1, nr[1]).get("bg") is not None
+      and sc.style(nr[0] - 1, nr[1]).get("bg") != sc.style(nr[0], nr[1]).get("bg")
+      and sc.find("\u250c") is None, sc)
+
 # Focus Follows Mouse (Gitea #370): with it on, resting over a window gives
 # it the keyboard and leaves it where it is in the stack; off, the default,
 # the pointer moves nothing. A is under B where they overlap, so a raise
@@ -7822,4 +7901,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(847)
+report(855)

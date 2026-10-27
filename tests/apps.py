@@ -1413,17 +1413,17 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "16 1 1 1 mod-w mod-tab []", out)
+      out == "17 1 1 1 mod-w mod-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "16 0 1 1 mod-w mod-tab []", out)
+      out == "17 0 1 1 mod-w mod-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("16 1 0 0 "), out)
+      out.startswith("17 1 0 0 "), out)
 
 
 # 0.99.324 calls the frame that is only a title bar none, and the border left
@@ -1689,9 +1689,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 16", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 17", out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 16", out)
+check("and a file written since is read as it is", out == "[meadow] paper 17", out)
 
 
 # 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
@@ -1712,9 +1712,9 @@ def loadtube(conf):
 
 out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
 check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow 16", out)
+      out == "follow 17", out)
 out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii 16", out)
+check("and one it was given of its own is kept", out == "ascii 17", out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -5125,6 +5125,35 @@ check("the kinds and their order come from `apps`, and a module is one of "
       ("rows=%r" % (kr,), sc))
 asstub()
 
+# A bundle (Gitea #393): the Bundles section first, above every kind, and a
+# bundle opened shows what it brings, each member by its title and what it
+# is rather than by an id.
+asstub(json.dumps({
+    "entries": {
+        "bundles/sound": {"id": "bundles/sound", "name": "sound", "kind": "bundles",
+                          "title": "Sound", "version": "", "installed": "",
+                          "update": "0", "about": "The speaker and its pane",
+                          "members": "menubar/sound control-panel/sound"},
+        "menubar/sound": {"id": "menubar/sound", "name": "sound", "kind": "menubar",
+                          "title": "Volume", "version": "1.0", "installed": "",
+                          "update": "0", "about": "The speaker"},
+        "control-panel/sound": {"id": "control-panel/sound", "name": "sound",
+                                "kind": "control-panel", "title": "Sound",
+                                "version": "3.0", "installed": "", "update": "0",
+                                "about": "Its pane"}},
+    "kinds": {"control-panel": 1, "menubar": 1, "bundles": 1}}))
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("Bundles") is not None,
+         feed=[b"\x1b[C", 0.2, b"\x1b[B", 0.2, b"\x1b[C"],
+         until=lambda s: s.find("Volume, a menu bar item") is not None)
+bh = sc.find("Bundles")
+check("bundles have a section of their own above every kind, and one opened "
+      "lists its members by title and what each is",
+      bh is not None and bh[0] < (sc.find("Control Panel") or (99, 0))[0]
+      and sc.find("Volume, a menu bar item") is not None
+      and sc.find("Sound, a Control Panel pane") is not None, sc)
+asstub()
+
 # Typing in the search narrows the list; the window does the filtering,
 # since asking the command again per keystroke would be a fetch per
 # keystroke.
@@ -5400,4 +5429,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(722)
+report(724)

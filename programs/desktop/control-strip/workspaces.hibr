@@ -1,0 +1,42 @@
+#!/usr/bin/env hibr
+#
+# workspaces -- a Control Strip module for the workspace numbers, the same
+# ones the menu bar can show (menubar/workspaces.hibr): the current one lit,
+# a click on another goes there. The strip and the bar can each show them,
+# or both, or neither (Gitea #393).
+
+strict
+
+
+app workspaces "A Control Strip module for the workspace numbers" 1.0
+command -v cs_module > /dev/null && cs_module workspaces Workspaces $((DT_WSN * 2 - 1))
+
+fn workspaces_draw(int row, int col) {
+	local i=1 w=$((DT_WSN * 2 - 1))
+
+	# Two cells a number, so a change in how many there are is a change
+	# in how wide the module is: the strip lays itself out again.
+	if [ "${CS_MODS["workspaces"]["w"]}" != "$w" ]; then
+		CS_MODS["workspaces"]["w"]=$w
+		dt_want 10
+	fi
+	while [ "$i" -le "$DT_WSN" ]; do
+		if [ "$i" = "$DT_WS" ]; then
+			console pen "$DT_FACE" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put "$row" $((col + (i - 1) * 2)) "$i"
+		i=$((i + 1))
+	done
+}
+
+# col is where the module starts; CS_CLICKC is where the press landed.
+fn workspaces_click(int row, int col) {
+	local k=$((${CS_CLICKC:-$col} - col))
+
+	[ "$k" -ge 0 ] && [ $((k % 2)) = 0 ] || return 0
+	k=$((k / 2 + 1))
+	[ "$k" -le "$DT_WSN" ] && dt_has dt_wsgo && dt_wsgo "$k"
+	return 0
+}

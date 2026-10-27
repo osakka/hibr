@@ -32,6 +32,10 @@ CS_MOD_LIST=()
 CS_MOD_ALL=()
 declare -gA CS_SRC
 
+# Whether the strip is shown at all: Control Panel > Control Strip > Show
+# Control Strip, off unless chosen (the owner, Gitea #393). A desktop from
+# before then had it showing, and keeps it (dt_load's migration 17).
+CS_SHOW="${CS_SHOW-0}"
 CS_SIDE="${CS_SIDE-left}"
 CS_Y="${CS_Y-}"
 CS_COLLAPSED="${CS_COLLAPSED-0}"
@@ -48,6 +52,7 @@ CS_DRAG=
 CS_DRAGKIND=
 CS_PRESSR=0
 CS_PRESSC=0
+CS_CLICKC=0
 
 # Register a strip module: name, the title it draws in its own brackets
 # (also what a tooltip would say, once there is one), and how many columns
@@ -71,6 +76,10 @@ cs_relist() {
 	local m
 
 	CS_MOD_LIST=()
+	# Off, nothing is shown, and everything that asks the list -- the
+	# drawing, a click, the keys, where a new window goes -- sees no strip
+	# without a second question of its own (Gitea #393).
+	[ "${CS_SHOW:-0}" = 1 ] || return 0
 	for m in "${CS_MOD_ALL[@]}"; do
 		dt_has "${m}_shown" && ! "${m}_shown" && continue
 		CS_MOD_LIST+=("$m")
@@ -168,6 +177,9 @@ cs_rescan() {
 	cs_modules
 	added=$((${#CS_SRC[@]} - before))
 	cs_relist
+	# Installed while the strip is off, it would seem to do nothing.
+	[ "$added" -gt 0 ] && [ "${CS_SHOW:-0}" != 1 ] &&
+		dt_note "The Control Strip is off -- Control Panel > Control Strip shows it"
 	ret "$added $gone $changed"
 }
 
@@ -454,6 +466,11 @@ fn cs_press(int prow, int pcol) {
 	i := cs_at "$pcol" || return 0
 	m=${CS_MOD_LIST[$i]}
 	mc := cs_modcol "$i"
+	# Where in the module the press landed, for one with more than one
+	# thing to press -- the workspace numbers (Gitea #393). A global
+	# rather than a third argument, which every module would then have to
+	# declare.
+	CS_CLICKC=$pcol
 	dt_has "${m}_click" && "${m}_click" "$row" "$mc"
 	return 0
 }

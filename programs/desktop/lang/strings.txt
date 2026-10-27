@@ -701,6 +701,7 @@ Next Prayer in the Menu Bar
 Next Tab
 Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER
+No Control Strip modules are installed -- the Catalogue has them
 No Network Password
 No Picture
 No Rule
@@ -994,6 +995,7 @@ Show All Notes
 Show All%s
 Show Captions
 Show Contents
+Show Control Strip
 Show Notifications
 Show On
 Show Pictures
@@ -1064,6 +1066,8 @@ Test
 Text
 Text Colour
 That event is not kept here any more; syncing
+The Control Strip is off -- Control Panel > Control Strip shows it
+The Control Strip's modules are now in the Catalogue -- click to install them
 The PIN is cleared
 The PIN is set
 The Trash is empty: %d items deleted
@@ -1234,10 +1238,20 @@ Zoom In
 Zoom Out
 Zoom:
 [exited %s — close this window]
+a Control Panel pane
+a Control Strip module
+a colour scheme
+a command
 a command; the file goes after it, in a terminal
+a language
+a menu bar item
+a module
 a new hibr is installed -- click to restart the desktop
 a number, worked out
 a password is needed and none could be asked for
+a screen saver
+a theme
+an application
 and it is kept to come back to.
 any command you can run
 arithmetic
@@ -1306,6 +1320,7 @@ off -- locked here
 older than the hibr on disk
 on -- locked here
 on battery
+one of the desktop's own apps
 only on the computer's own screen
 order they need each other; one needing itself says #CYCLE.
 outgoing

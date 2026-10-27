@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.99.354
+
+**The Control Strip is off unless chosen, and its modules come from the
+Catalogue** (Gitea #393, the owner's choices). Control Panel > Control Strip
+(1.1) has **Show Control Strip**, off by default. Cursor, Shadow, Theme and
+Wallpaper no longer ship, and each is a catalogue entry of its own. A
+desktop from before keeps its strip (migration 17), and one that has none
+of the four is told, once, where they went, with a click to install them.
+A module installed while the strip is off says how to show it.
+
+- **A workspace switcher for the strip:** the numbers, the current one
+  lit, a click on one going there, from the Catalogue. With the menu
+  bar's own, either, both or neither can be on. A strip module learns
+  where a press landed in `CS_CLICKC`, for a module with more than one
+  thing to press.
+- **A bundle says what it installs:** the Catalogue window (2.8) and
+  `catalogue info` name each member by its title and what it is --
+  "Volume, a menu bar item; Sound, a Control Panel pane". In the window a
+  bundle opens like a folder, each member a row of its own.
+- **A note's frame** (Gitea #398): Control Panel > Notifications (1.3) >
+  **Frame**, Same as Windows by default, or Single, Double, Curved or
+  Solid of its own. Solid is a ring of cells in the note's colour.
+- **The upgrade note for Network installed nothing** since 0.99.351: it
+  asked for `bundles/networks`, and the bundle is `bundles/network`.
+
 ## 0.99.353
 
 **YouTube plays at its own rate, not every second or third frame** (Gitea

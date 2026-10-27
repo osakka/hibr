@@ -19,7 +19,7 @@
 
 strict
 
-app catalogue "The application catalogue: browse, install, update and remove" 2.7
+app catalogue "The application catalogue: browse, install, update and remove" 2.8
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
@@ -303,6 +303,13 @@ fn cat_filter(int id) {
 					CAT[$id]["r"][$m]["last"]=0
 					lastrow=$m
 					m=$((m + 1))
+					# A bundle opened shows what it brings, each
+					# member a row of its own under it (Gitea #393).
+					if [ "$k" = bundles ] &&
+					   [ "${CAT[$id]["bopen"]["${CAT[$id]["e"][$i]["id"]}"]}" = 1 ]; then
+						cat_memrows "$id" "$i" "$m"
+						m=$RET
+					fi
 				fi
 			fi
 			i=$((i + 1))
@@ -316,6 +323,76 @@ fn cat_filter(int id) {
 	CAT[$id]["m"]=$m
 	[ "${CAT[$id]["sel"]:-0}" -ge "$m" ] && CAT[$id]["sel"]=$((m > 0 ? m - 1 : 0))
 	return 0
+}
+
+# The rows of a bundle's members, from row m on, each the index of its own
+# entry where the catalogue offers it; the row after the last in RET.
+fn cat_memrows(int id, int b, int m) {
+	local mid j n=${CAT[$id]["n"]:-0} first=$m
+	local -a mem
+
+	read -ra mem <<< "${CAT[$id]["e"][$b]["members"]}"
+	for mid in "${mem[@]}"; do
+		j=0
+		while [ "$j" -lt "$n" ]; do
+			[ "${CAT[$id]["e"][$j]["id"]}" = "$mid" ] && break
+			j=$((j + 1))
+		done
+		[ "$j" -lt "$n" ] || continue
+		CAT[$id]["r"][$m]["t"]=member
+		CAT[$id]["r"][$m]["e"]=$j
+		CAT[$id]["r"][$m]["b"]=$b
+		CAT[$id]["r"][$m]["last"]=0
+		m=$((m + 1))
+	done
+	[ "$m" -gt "$first" ] && CAT[$id]["r"][$((m - 1))]["last"]=1
+	ret "$m"
+}
+
+# What a kind's one entry is called, after its title in a bundle's list of
+# members: "Volume, a menu bar item".
+fn cat_kindone(k) {
+	local t
+
+	case $k in
+	apps) t := dt_tr "an application" ;;
+	system) t := dt_tr "one of the desktop's own apps" ;;
+	control-panel) t := dt_tr "a Control Panel pane" ;;
+	control-strip) t := dt_tr "a Control Strip module" ;;
+	menubar) t := dt_tr "a menu bar item" ;;
+	savers) t := dt_tr "a screen saver" ;;
+	themes) t := dt_tr "a theme" ;;
+	colours) t := dt_tr "a colour scheme" ;;
+	lang) t := dt_tr "a language" ;;
+	mods) t := dt_tr "a module" ;;
+	cli) t := dt_tr "a command" ;;
+	*) t=$k ;;
+	esac
+	ret "$t"
+}
+
+# A bundle's members as a person reads them: each by its title and what it
+# is, rather than by an id -- "Volume, a menu bar item; Sound, a Control
+# Panel pane".
+fn cat_memsay(int id, int b) {
+	local mid j n=${CAT[$id]["n"]:-0} out= t k
+	local -a mem
+
+	read -ra mem <<< "${CAT[$id]["e"][$b]["members"]}"
+	for mid in "${mem[@]}"; do
+		t=${mid#*/}
+		j=0
+		while [ "$j" -lt "$n" ]; do
+			if [ "${CAT[$id]["e"][$j]["id"]}" = "$mid" ]; then
+				t=${CAT[$id]["e"][$j]["title"]:-$t}
+				break
+			fi
+			j=$((j + 1))
+		done
+		k := cat_kindone "${mid%%/*}"
+		out="$out${out:+; }$t, $k"
+	done
+	ret "$out"
 }
 
 # The entry the selection is on, or nothing when it is on a heading --
@@ -333,7 +410,10 @@ fn cat_at(int id) {
 	[ "$m" -gt 0 ] || return 1
 	sel=${CAT[$id]["sel"]:-0}
 	[ "$sel" -lt "$m" ] || return 1
-	[ "${CAT[$id]["r"][$sel]["t"]}" = entry ] || return 1
+	case ${CAT[$id]["r"][$sel]["t"]} in
+	entry | member) ;;
+	*) return 1 ;;
+	esac
 	ret "${CAT[$id]["r"][$sel]["e"]}"
 	return 0
 }
@@ -346,6 +426,41 @@ fn cat_fold(int id, how) {
 
 	sel=${CAT[$id]["sel"]:-0}
 	[ "${CAT[$id]["m"]:-0}" -gt 0 ] || return 1
+	# A bundle opens to its members and shuts again, and left from a
+	# member goes to its bundle, as a tree one level deeper does.
+	if [ "${CAT[$id]["r"][$sel]["t"]}" = member ]; then
+		if [ "$how" = shut ]; then
+			while [ "$sel" -gt 0 ]; do
+				sel=$((sel - 1))
+				[ "${CAT[$id]["r"][$sel]["t"]}" = entry ] && break
+			done
+			CAT[$id]["sel"]=$sel
+			return 0
+		fi
+		return 1
+	fi
+	e=${CAT[$id]["r"][$sel]["e"]-}
+	if [ "${CAT[$id]["r"][$sel]["t"]}" = entry ] &&
+	   [ "${CAT[$id]["e"][$e]["kind"]}" = bundles ]; then
+		local b=${CAT[$id]["e"][$e]["id"]} was=${CAT[$id]["bopen"]["${CAT[$id]["e"][$e]["id"]}"]}
+		case $how in
+		open) [ "$was" = 1 ] && return 0; CAT[$id]["bopen"]["$b"]=1 ;;
+		toggle) [ "$was" = 1 ] && CAT[$id]["bopen"]["$b"]=0 || CAT[$id]["bopen"]["$b"]=1 ;;
+		shut)
+			if [ "$was" = 1 ]; then
+				CAT[$id]["bopen"]["$b"]=0
+			else
+				while [ "$sel" -gt 0 ]; do
+					sel=$((sel - 1))
+					[ "${CAT[$id]["r"][$sel]["t"]}" = kind ] && break
+				done
+				CAT[$id]["sel"]=$sel
+				return 0
+			fi ;;
+		esac
+		cat_filter "$id"
+		return 0
+	fi
 	if [ "${CAT[$id]["r"][$sel]["t"]}" = kind ]; then
 		k=${CAT[$id]["r"][$sel]["k"]}
 	else
@@ -559,10 +674,37 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 				# last of them. By its own name rather than
 				# its id: the kind is the line above it, so
 				# repeating it in every row is noise.
-				lead := dt_treelead 1 \
-					"${CAT[$id]["r"][$i]["last"]:-0}" "0"
-				t := dt_cut "${CAT[$id]["e"][$e]["name"]}" $((idw - 9))
-				t := str pad "$lead$mark $t" $((listw - 17))
+				if [ "${CAT[$id]["r"][$i]["t"]}" = member ]; then
+					# Under its bundle, by title and what
+					# it is (Gitea #393): a carried rule
+					# where the bundle has more after it.
+					local mb=${CAT[$id]["r"][$i]["b"]} mbar=1 mj=$((i + 1))
+					while [ "$mj" -lt "$m" ] && [ "${CAT[$id]["r"][$mj]["t"]}" = member ]; do
+						mj=$((mj + 1))
+					done
+					[ "$mj" -lt "$m" ] && [ "${CAT[$id]["r"][$mj]["t"]}" = entry ] || mbar=0
+					lead := dt_treelead 2 "${CAT[$id]["r"][$i]["last"]:-0}" "$mbar"
+					t := cat_kindone "${CAT[$id]["e"][$e]["kind"]}"
+					# The whole width: a member's version and
+					# place are its own entry's, a select away,
+					# and its name is what the row is for.
+					t := dt_cut "${CAT[$id]["e"][$e]["title"]}, $t" $((listw - ${#lead} - 3))
+				else
+					lead := dt_treelead 1 \
+						"${CAT[$id]["r"][$i]["last"]:-0}" "0"
+					t := dt_cut "${CAT[$id]["e"][$e]["name"]}" $((idw - 9))
+					if [ "${CAT[$id]["e"][$e]["kind"]}" = bundles ]; then
+						local bo=0
+						[ "${CAT[$id]["bopen"]["${CAT[$id]["e"][$e]["id"]}"]}" = 1 ] && bo=1
+						mark := dt_treepre 0 1 "$bo" 0 ""
+						mark=${mark% }
+					fi
+				fi
+				if [ "${CAT[$id]["r"][$i]["t"]}" = member ]; then
+					t="$lead$mark $t"
+				else
+					t := str pad "$lead$mark $t" $((listw - 17))
+				fi
 				# The version **and** the scope, on every row.
 				# The first version of this put the scope in
 				# the version's cell for anything that was
@@ -582,6 +724,7 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 				esac
 				vcol := str pad "$vcol" 9
 				line="$t$vcol$scol"
+				[ "${CAT[$id]["r"][$i]["t"]}" = member ] && line=$t
 				if [ "$i" = "$sel" ] && ! dt_searchon "$id"; then
 					console pen "$DT_SELINK" "$DT_ACTIVE"
 				elif [ "$i" = "$sel" ]; then
@@ -632,11 +775,11 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 		t := dt_cut "$st" "$dw"
 		console put -p "w$id" 2 $((listw + 3)) "$t"
 		if [ "${CAT[$id]["e"][$e]["kind"]}" = bundles ]; then
-			st=${CAT[$id]["e"][$e]["members"]}
+			st := cat_memsay "$id" "$e"
 			if [ -n "${CAT[$id]["e"][$e]["installed"]}" ]; then
-				t := dt_tr "installed, with %s" "${st// /, }"
+				t := dt_tr "installed, with %s" "$st"
 			else
-				t := dt_tr "brings %s" "${st// /, }"
+				t := dt_tr "brings %s" "$st"
 			fi
 		elif [ "${CAT[$id]["e"][$e]["update"]}" = 1 ]; then
 			t := dt_tr "installed %s, %s available" \
@@ -1016,8 +1159,15 @@ fn catalogue_click(int id, int r, int? c = "", btn = "") {
 			# click on a heading does everywhere; a click on one
 			# already selected folds it too, rather than doing
 			# nothing twice.
+			local ce=${CAT[$id]["r"][$i]["e"]-}
 			if [ "${CAT[$id]["r"][$i]["t"]}" = kind ]; then
 				CAT[$id]["sel"]=$i
+				cat_fold "$id" toggle
+			elif [ "${CAT[$id]["r"][$i]["t"]}" = entry ] &&
+			     [ "${CAT[$id]["e"][$ce]["kind"]}" = bundles ] &&
+			     [ "${CAT[$id]["sel"]}" = "$i" ]; then
+				# A bundle selected already opens or shuts on a
+				# click, as a heading does on its first.
 				cat_fold "$id" toggle
 			else
 				CAT[$id]["sel"]=$i
