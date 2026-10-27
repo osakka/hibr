@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.99.359
+
+**The hui mark** (the owner's, drawn by Blit 0.2.40). On Blit 0.2.40 and
+later, with the blit glyph set, Control Panel > Menu Bar (1.1) has **Menu
+Mark**: Pen, the glyph set's own, or hui, a badge two cells square drawn as
+its left and right halves side by side in the hibr menu's corner.
+Anywhere else the row is not offered and the pen stays, since the two code
+points draw nothing there.
+
 ## 0.99.358
 
 **Power is on the menu bar with or without a battery** (the owner's

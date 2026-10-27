@@ -15,7 +15,7 @@
 strict
 
 
-app barset "The Control Panel pane for the menu bar" 1.0
+app barset "The Control Panel pane for the menu bar" 1.1
 command -v cp_pane > /dev/null && cp_pane barset "Menu Bar" "☰"
 
 # How much of a picture wallpaper shows through the menu bar, in tens.
@@ -52,6 +52,25 @@ fn cp_set_menumax(int? id = "", value = "") {
 		i=$((i + 1))
 	done
 	DT_MENUIN=
+	cp_save
+}
+
+# Menu Mark's choices, as the row shows them and as DT_MENUMARK keeps them.
+# hui is offered only where the glyph set draws it -- Blit 0.2.40 and later
+# with the blit set -- since anywhere else it would be two empty cells.
+CP_MARKV=(pen hui)
+CP_MARKL=("Pen" "hui")
+DT_MENUMARK="${DT_MENUMARK-pen}"
+
+fn cp_marklabel() {
+	[ "${DT_MENUMARK:-pen}" = hui ] && [ -n "${GL[huil]-}" ] && ret "hui" && return 0
+	ret "Pen"
+}
+
+fn cp_set_menumark(int? id = "", value = "") {
+	case $value in hui) DT_MENUMARK=hui ;; *) DT_MENUMARK=pen ;; esac
+	DT_MENUIN=
+	DT_BARWAS=
 	cp_save
 }
 
@@ -118,6 +137,11 @@ fn barset_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Menu Width"
 	CP[$w][$n]["val"] := cp_menumaxlabel
 	CP[$w][$n]["key"]=menumax; n=$((n + 1))
+	if [ -n "${GL[huil]-}" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Menu Mark"
+		CP[$w][$n]["val"] := cp_marklabel
+		CP[$w][$n]["key"]=menumark; n=$((n + 1))
+	fi
 	n := cp_baritems "$w" "$n"
 	ret "$n"
 }
@@ -146,6 +170,12 @@ fn barset_do(int w, k, int dir) {
 		return 0
 		;;
 	bari:*) dt_baritoggle "${k#bari:}" ;;
+	menumark)
+		v := cp_marklabel
+		v := cp_next "$v" "$dir" "${CP_MARKL[@]}"
+		cp_set_menumark "" "$v"
+		return 0
+		;;
 	esac
 	cp_save
 }
@@ -167,6 +197,7 @@ fn barset_slide(int w, k, int value) {
 fn barset_drop(int w, int r, int c, k) {
 	case $k in
 	menumax) dt_droplist "$w" "$r" "$c" cp_set_menumax "${CP_MENUMAXL[@]}" ;;
+	menumark) dt_droplist "$w" "$r" "$c" cp_set_menumark "${CP_MARKL[@]}" ;;
 	bellicon)
 		local -a vals
 		local nm g

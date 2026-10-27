@@ -688,7 +688,7 @@ dt_barkey() {
 	k="$k|$DT_BARGAP|$DT_BELLICON|$DT_PBAR|$DT_MENUBOLD"
 	k="$k|$DT_BARTIME|$DT_BARSHADOW|$DT_INK|$DT_BAR|$DT_ACTIVE|$DT_IDLE"
 	k="$k|$DT_GLYPHSET|$DT_LANG|$DT_DIGITS|$DT_SHADOW_PCT|$DT_MENUIN"
-	k="$k|${DT_BARORDER-}|${DT_BARHIDE-}"
+	k="$k|${DT_BARORDER-}|${DT_BARHIDE-}|${DT_MENUMARK-}"
 	# The items are not in here: dt_baritem clears the gate itself, which
 	# is one place rather than a join of every app's text on every frame.
 	ret "$k"

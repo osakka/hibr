@@ -7393,6 +7393,17 @@ sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="blit", BLIT_VERSION="0.2.37"),
             pre=PWPRE)
 check("and on an older Blit it is the bolt and the battery, as before",
       "\uf0e7\uf242 62%" in sc.row(0), sc.row(0))
+# The hui mark (Blit 0.2.40): Menu Bar > Menu Mark draws it in the hibr
+# menu's corner as its two halves side by side; an older Blit keeps the pen,
+# since the two code points draw nothing there.
+sc, _ = run("", env={"DT_GLYPHSET": "blit", "BLIT_VERSION": "0.2.40",
+                     "DT_MENUMARK": "hui"})
+check("on a Blit that has it, Menu Mark hui is the hibr menu's mark",
+      sc.row(0).lstrip().startswith("\U00100018\U00100019"), sc.row(0))
+sc, _ = run("", env={"DT_GLYPHSET": "blit", "BLIT_VERSION": "0.2.39",
+                     "DT_MENUMARK": "hui"})
+check("and on an older Blit the pen stays",
+      sc.row(0).lstrip().startswith("\U00100001"), sc.row(0))
 # On mains it says so whether or not it charges (Gitea #395), and Level on
 # Menu Bar off leaves the glyph without the number, as the speaker's does.
 pwsupply(100, "Full", ac=1)
@@ -8000,4 +8011,4 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(866)
+report(868)

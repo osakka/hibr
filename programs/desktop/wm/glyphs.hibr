@@ -46,6 +46,7 @@ fn dt_glyphs(set = "unicode") {
 	GL["batchg0"]=; GL["batchg1"]=; GL["batchg2"]=; GL["batchg3"]=
 	GL["batchg4"]=; GL["batfull"]=
 	GL["vol0"]=; GL["vol1"]=; GL["vol2"]=; GL["vol3"]=
+	GL["huil"]=; GL["huir"]=
 	# The hibr menu's own mark, U+270E in every set but blit's.
 	GL["hibr"]=$'\u270e'      # LOWER RIGHT PENCIL
 	if [ "$set" = ascii ]; then
@@ -313,5 +314,11 @@ dt_glyphsblit() {
 	GL["vol1"]=$'\U00100015'   # Blit volume-1
 	GL["vol2"]=$'\U00100016'   # Blit volume-2
 	GL["vol3"]=$'\U00100017'   # Blit volume-3
+	# The hui mark (Blit 0.2.40, ADR 0197 there): one badge two cells
+	# square, drawn as its left and its right half, written side by side
+	# -- the hibr menu's mark where Menu Bar > Menu Mark asks for it.
+	dt_blitat 0 2 40 || return 0
+	GL["huil"]=$'\U00100018'   # Blit hui-left
+	GL["huir"]=$'\U00100019'   # Blit hui-right
 }
 dt_glyphs "$DT_GLYPHSET"

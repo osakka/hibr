@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.43",
+ "version": "3.44",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1397,6 +1397,7 @@
   "Menu Bar Items": "عناصر شريط القوائم",
   "Drag, or Shift and an arrow": "اسحب، أو Shift مع سهم",
   "Workspaces": "مساحات العمل",
-  "Power on Menu Bar": "الطاقة في شريط القوائم"
+  "Power on Menu Bar": "الطاقة في شريط القوائم",
+  "Menu Mark": "علامة القائمة"
  }
 }

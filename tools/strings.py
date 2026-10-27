@@ -63,6 +63,7 @@ VALUEONLY = {
     '${f^^}',  # a column's own name
     '${d#dav://}: $DT_WHY',  # a server's address and the server's own words
     '${GL[bullet]} ${DT[$id][title]}',  # a glyph and a title already made
+    '${GL[huil]}${GL[huir]}',  # the hui mark, two glyphs, no words
     '${DT[$id][title]#${GL[bullet]} }',  # the same title with the glyph taken off
     '${n:0:24}',  # the program's own name, cut to fit
     '${t%% [*}',  # a window title with its bracket part cut

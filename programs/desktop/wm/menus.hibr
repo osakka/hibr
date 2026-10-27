@@ -283,8 +283,14 @@ dt_menus() {
 	MB_N=0
 
 	# Named, so a glyph set can give the menu its own mark: Blit's colour
-	# pen in the blit set (Gitea #330), U+270E everywhere else.
-	dt_menu "${GL[hibr]}"
+	# pen in the blit set (Gitea #330), U+270E everywhere else -- or the
+	# hui badge, two cells, where Menu Bar > Menu Mark asks for it and the
+	# glyph set has it (the owner, on Blit 0.2.40).
+	if [ "${DT_MENUMARK:-pen}" = hui ] && [ -n "${GL[huil]}" ]; then
+		dt_menu "${GL[huil]}${GL[huir]}"
+	else
+		dt_menu "${GL[hibr]}"
+	fi
 	# One About, and it belongs to whatever is in front: the focused app's
 	# own, or the computer's when the desktop itself is. Both at once is
 	# what this used to show, and it is not how the menu works anywhere
