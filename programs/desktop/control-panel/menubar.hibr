@@ -15,7 +15,7 @@
 strict
 
 
-app barset "The Control Panel pane for the menu bar" 1.1
+app barset "The Control Panel pane for the menu bar" 1.2
 command -v cp_pane > /dev/null && cp_pane barset "Menu Bar" "☰"
 
 # How much of a picture wallpaper shows through the menu bar, in tens.
