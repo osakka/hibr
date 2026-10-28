@@ -53,9 +53,9 @@ python3 tests/desktop_basics.py  ... and the same checks in four parts:
                             desktop_basics, desktop_windows, desktop_pictures,
                             desktop_session
 python3 tests/apps.py       the apps, desk accessories and control panel
-python3 tests/apps_core.py  ... and the same checks in five parts, side by side:
-                            apps_panel, apps_reach, apps_office, apps_core,
-                            apps_more
+python3 tests/apps_core.py  ... and the same checks in six parts, side by side:
+                            apps_panel, apps_reach, apps_office, apps_write,
+                            apps_core, apps_more
 python3 tests/term_diff.py  the terminal emulator, cell by cell against tmux
 python3 tests/uifuzz.py     random input into each app, seeded, and the
                             forced-redraw oracle: uifuzz.py oracle

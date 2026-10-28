@@ -215,7 +215,7 @@ def main():
             types(args[args.index("--log") + 1])
             return
         log = os.path.join(ROOT, "build", "census.log")
-        st = take(args or ["desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session", "apps_panel", "apps_reach", "apps_office", "apps_core", "apps_more", "uifuzz", "run.sh"], log)
+        st = take(args or ["desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session", "apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more", "uifuzz", "run.sh"], log)
         types(log)
         sys.exit(st)
     exp = None
@@ -228,7 +228,7 @@ def main():
         expansion(log, exp) if exp is not None else report(log)
         return
     log = os.path.join(ROOT, "build", "census.log")
-    st = take(args or ["desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session", "apps_panel", "apps_reach", "apps_office", "apps_core", "apps_more", "uifuzz", "run.sh"], log)
+    st = take(args or ["desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session", "apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more", "uifuzz", "run.sh"], log)
     report(log)
     if exp is not None:
         print()

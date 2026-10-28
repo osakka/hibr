@@ -39,12 +39,13 @@ SUITES = {
         "parts": {
             "panel": ["the control panel"],
             "reach": ["what nothing reached before 0.56"],
-            "office": ["Sheet, Write and the file dialog"],
+            "office": ["Sheet"],
+            "write": ["Write and the file dialog"],
             "core": ["the calculator", "the file browser", "the desk accessories",
                      "the terminal window", "glyphs", "what a frame redraws"],
             "more": None,
         },
-        "plan": {"panel": 316, "reach": 75, "office": 68, "core": 119, "more": 157},
+        "plan": {"panel": 316, "reach": 75, "office": 30, "write": 39, "core": 119, "more": 157},
         "tail": "shutil.rmtree(D, True)\nshutil.rmtree(S, True)\n",
     },
     "desktop": {

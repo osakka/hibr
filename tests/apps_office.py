@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tests/apps.py's sections on Sheet, Write and the file dialog, run on their own.
+"""tests/apps.py's sections on Sheet, run on their own.
 
     python3 tests/apps_office.py [path-to-hibr]
 

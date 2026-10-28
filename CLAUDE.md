@@ -39,7 +39,7 @@ releases).
     ./build/hibr tests/self.hibr                 # suite in hibr, 92 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
-    python3 tests/apps_{panel,reach,office,core,more}.py
+    python3 tests/apps_{panel,reach,office,write,core,more}.py
     python3 tests/desktop_{basics,windows,pictures,session}.py
                                  # apps.py's and desktop.py's checks in parts, as all.py runs them
     python3 tests/term_diff.py   # mods/term against tmux, cell by cell
@@ -3905,7 +3905,7 @@ went in the shell.
   new behaviour is correct.
 - **`tests/apps.py` and `tests/desktop.py` run as parts, and a check is
   counted twice.** all.py runs `apps_panel`, `apps_reach`, `apps_office`,
-  `apps_core`, `apps_more` and `desktop_basics`, `desktop_windows`,
+  `apps_write`, `apps_core`, `apps_more` and `desktop_basics`, `desktop_windows`,
   `desktop_pictures`, `desktop_session`, each cut from its suite at run
   time by `tests/appslice.py` (its sections, plus the definitions they take
   from others) -- the suite is still the only place a check is written, and

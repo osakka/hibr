@@ -4556,7 +4556,7 @@ check("past its size the oldest go, but never a pinned one",
       sc.find("second one") is None and sc.find("first one") is not None, sc)
 shutil.rmtree(CLD, True)
 
-# --- Sheet, Write and the file dialog ------------------------------------------
+# --- Sheet ---------------------------------------------------------------------
 
 # Sheet: a spreadsheet whose formulas are hibr, run under --plan unless the
 # sheet is trusted, kept in a db file one row per cell.
@@ -4784,6 +4784,8 @@ check("and the example it ships has a cell the sandbox refuses, so the "
       "refusal can be seen rather than only described",
       "=touch " in tourcsv and "#REFUSED" in tourcsv, tourcsv[:80])
 shutil.rmtree(SHD, True)
+
+# --- Write and the file dialog ------------------------------------------------
 
 # Write: markdown shown as it reads, the cursor's line raw; the toolbar
 # and Format menu put the marks in; files open, save, and ask before an

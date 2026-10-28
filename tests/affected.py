@@ -48,6 +48,7 @@ SUITE_MODS = {
     "apps_panel": [],
     "apps_reach": [],
     "apps_office": [],
+    "apps_write": [],
     "apps_core": [],
     "apps_more": [],
     "uifuzz": [],
@@ -84,7 +85,7 @@ SUITE_MODS = {
     "archive": ["archive", "inflate"],
     "appmgr": ["dav", "archive", "inflate"],
 }
-APPS = ("apps_panel", "apps_reach", "apps_office", "apps_core", "apps_more")
+APPS = ("apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more")
 DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session")
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
                                          "sound", "net", "bt")
