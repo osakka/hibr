@@ -534,6 +534,24 @@ char *bi_oval(int ac, char **av, int *i, size_t len)
    short the timeout, which froze a desktop draining such a program (Gitea
    #327's sibling, 0.99.272). On the deadline *tout is set and what was
    taken is kept. A file never blocks, so only the byte path waits. */
+/* Add what read took to b, less any NUL byte, which bash drops too --
+   unless NUL is the delimiter, when there is none left to drop. */
+void bi_rdadd(str *b, const char *p, size_t n, int delim)
+{
+	const char *z;
+
+	if (!delim) {
+		s_add(b, p, n);
+		return;
+	}
+	while (n && (z = memchr(p, 0, n))) {
+		s_add(b, p, (size_t)(z - p));
+		n -= (size_t)(z - p) + 1;
+		p = z + 1;
+	}
+	s_add(b, p, n);
+}
+
 long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 		int *tout)
 {
@@ -562,7 +580,8 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 				break;
 			if (!exact && (unsigned char)c == (unsigned char)delim)
 				break;
-			s_ch(b, c);
+			if (c || !delim)
+				s_ch(b, c);
 			if (want && (int)b->n >= want)
 				break;
 		}
@@ -570,6 +589,12 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 	}
 	buf = xm(HIBR_IOCH);
 	for (;;) {
+		if (dl && bi_ms() >= dl) {
+			if (tout)
+				*tout = 1;
+			n = -1;
+			break;
+		}
 		cap = HIBR_IOCH;
 		if (want && (size_t)(want - (int)b->n) < cap)
 			cap = (size_t)(want - (int)b->n);
@@ -578,12 +603,12 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 			break;
 		d = exact ? 0 : memchr(buf, delim, (size_t)n);
 		if (d) {
-			s_add(b, buf, (size_t)(d - buf));
+			bi_rdadd(b, buf, (size_t)(d - buf), delim);
 			lseek(fd, (off_t)((d - buf) + 1 - n), SEEK_CUR);
 			n = 1;
 			break;
 		}
-		s_add(b, buf, (size_t)n);
+		bi_rdadd(b, buf, (size_t)n, delim);
 		if (want && (int)b->n >= want)
 			break;
 	}

@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.8
+app browser "The web, in a window" 2.9
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -1316,9 +1316,14 @@ fn browser_wheel(int id, dir, int r = 0, int c = 0) {
 		BW[$id]["ttop"]=$top
 		return 0
 	fi
+	# Over the cell the pointer is on, so a scrolling box on the page takes the
+	# wheel when it is over the box (an engine older than 0.5.3 takes no cell,
+	# ignores the two numbers, and scrolls what is in the middle of the page).
+	local pt=${BW[$id]["pt"]:-3} at=
+	[ "$r" -ge "$pt" ] && at="$((r - pt)) $((c - 1))"
 	case $dir in
-	up) web wheel "$t" -3 2> /dev/null ;;
-	down) web wheel "$t" 3 2> /dev/null ;;
+	up) web wheel "$t" -3 $at 2> /dev/null ;;
+	down) web wheel "$t" 3 $at 2> /dev/null ;;
 	esac
 	return 0
 }

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.372
+
+**`read -t` keeps its deadline on a descriptor that never ends, and `read`
+drops a NUL byte as bash does.** A read from a seekable descriptor goes a
+block at a time, and that path never looked at the clock, so `read -t 1 x <
+/dev/zero` waited for ever -- holding everything it read, about a gigabyte
+a second -- where bash gives up after a second with status 142. And a line
+holding a NUL was cut at it (`a<NUL>b` read as `a`); bash drops the byte and
+keeps the rest (`ab`), from a pipe and from a file alike. NUL as the
+delimiter (`read -d ''`) is unchanged. `tests/194-read-nul.t` compares both
+with bash, and hangs against the release before.
+
+**Synced from the catalogue:** Browser 2.9, from the browser session (the
+wheel goes over the cell the pointer is on).
+
 ## 0.99.371
 
 **Files copies in a window of its own** (Gitea #402), as System 7 did with
