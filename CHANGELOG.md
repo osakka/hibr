@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.99.368
+
+**`:=` is going to take only what a function says it returns** (the owner,
+from hibr's own rule: one channel for each kind of command). `x := f` takes
+a program's output, a builtin's result and a function's `ret`; but a function
+that never called `ret` gave `x` whatever its last command happened to leave
+in the slot -- a second channel nobody declared, and one that also printed.
+This release is the warning; 0.99.369 makes such a function bind empty, as a
+program that prints nothing does.
+
+- **`ret -k`** returns what the slot holds now, as the function's own: what
+  the last command left, a map or a list and its types included -- which is
+  how a wrapper passes on a builtin's or another function's result, and
+  what `ret VALUE` could never carry. It is held to a declared return type.
+- **A warning, once per function**, on standard error, when `x := f` binds
+  something f's last command left and f called no `ret` -- only for a call
+  that succeeded, so a miss that returns non-zero says nothing. It names
+  the function and the fix. Put a script through this release before
+  0.99.369 and every place that would change is named.
+- **`hibr --explain`** has a rule for it, `bind-no-ret`: `x := f` where f is
+  defined in the file and never calls `ret`.
+- **The pointer lock goes to the display that was clicked** (Gitea #379).
+  Inside hold it went to the display that last sent any input -- and Blit
+  sends a mouse report to the session under the pointer, not the focused
+  one, so moving over a second display after clicking into a game sent the
+  lock there, where Blit refuses it to a session without its focus. The
+  owner's three displays never got one. A button press, or a focus-in
+  report, is what moves it now; `tests/holdpix.py` drives two displays that
+  can both lock, and the check fails against 0.99.365.
+- **What the gate found the warning saying**: `dt_launch` handed back the
+  new window's id, and `dt_btnat` the title-bar button, by not calling
+  `ret` after the call that had -- both say `ret -k` now.
+- **Fixed on the way, by the census of the tree**: Mail's drafts folder was
+  answered with `printf`, so its name was written to the terminal under the
+  desktop on every draft saved (Mail 2.2); the Displays pane and the confirm
+  box passed a callee's result on by not calling `ret`, and now say so
+  (Displays 1.2).
+
 ## 0.99.367
 
 **A documentation sweep** (the owner). Every guide and README was read

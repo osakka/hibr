@@ -757,6 +757,13 @@ void ce_exp(sh *s, const char *kind, const char *t, size_t n)
 #endif
 
 int ex_loops, ex_srcs;
+/* Whether `ret` ran in the function being run now, and in the one that has
+   just returned -- not `return`, which shares s->ret with it. A bound call
+   to a function that never said what it returns is about to bind empty
+   (0.99.369), and this is how the shell can tell, and say so, first. */
+int ex_retd, ex_lastret;
+/* The functions already named for that, so each is named once. */
+vec ex_retwarned;
 char *ex_stk0;
 size_t ex_stkmax;
 int ex_fnok;
@@ -815,7 +822,7 @@ deep:
 int fn_call(sh *s, node *f, int ac, char **av)
 {
 	char **oav = s->av;
-	int oac = s->ac, oavo = s->avo, st, bnd, oloops = ex_loops;
+	int oac = s->ac, oavo = s->avo, st, bnd, oloops = ex_loops, ord;
 	vec *fr;
 	const char *osrc = s->src;
 
@@ -843,10 +850,14 @@ int fn_call(sh *s, node *f, int ac, char **av)
 #ifdef HIBR_CENSUS
 	ce_log(s, ac, av, bnd);
 #endif
+	ord = ex_retd;
+	ex_retd = 0;
 	if (bnd != HIBR_OK)
 		st = 2;
 	else
 		st = ex(s, f->r);
+	ex_lastret = ex_retd;
+	ex_retd = ord;
 	if (s->ret) {
 		s->ret = 0;
 		st = s->st;
@@ -1397,6 +1408,29 @@ void ex_bind(sh *s, node *n)
 	vb_put(s, ks);
 }
 
+/* Say, once per function, that `x := f` bound what f's last command left
+   rather than a result f gave with `ret`: from 0.99.369 that binds empty,
+   as a program that prints nothing does, and `ret -k` is how a function
+   passes on what it has. Only a call that succeeded and left something is
+   named, since that is the one whose answer changes. */
+void ex_retwarn(sh *s, const char *fn)
+{
+	const char *v = hibr_get(s, "RET");
+	var *r = v_find(s, "RET");
+	size_t i;
+
+	if ((!v || !*v) && !(r && (r->map || r->am)))
+		return;
+	for (i = 0; i < ex_retwarned.n; i++)
+		if (!strcmp(ex_retwarned.p[i], fn))
+			return;
+	v_add(&ex_retwarned, xs(fn));
+	lg(HIBR_LERR, "%s: bound with := and returned nothing with ret; what it "
+		      "bound is what its last command left, which from 0.99.369 "
+		      "binds empty -- end %s with `ret -k` to keep it, or `ret "
+		      "VALUE`", fn, fn);
+}
+
 /* Execute a simple command, builtin, function or external program; exec in place only if the fork was made for this command. */
 int ex_cmd(sh *s, node *n)
 {
@@ -1537,6 +1571,8 @@ int ex_cmd(sh *s, node *n)
 		if (rd_do(s, n->rd, &sv) == HIBR_OK) {
 			if (f) {
 				st = fn_call(s, f, ac, av);
+				if (n->f == 2 && !ex_lastret && st == 0)
+					ex_retwarn(s, av[0]);
 			} else {
 				char **oam = s->amask;
 				s->amask = am;

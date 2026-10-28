@@ -13,7 +13,7 @@ const hibr_bi *bi_find(const char *nm);
 
 typedef struct li {
 	sh *s;
-	vec fns, asg, assoc, arr, num, txt, out;
+	vec fns, asg, assoc, arr, num, txt, out, noret;
 	int seterr, found;
 } li;
 
@@ -186,6 +186,19 @@ int li_numval(word *w, size_t k)
 	return !*v && p->nx->k == P_ARI && !p->nx->nx;
 }
 
+/* Whether a function body calls `ret` anywhere: one that never does gives
+   `:=` nothing to bind from 0.99.369. */
+int li_hasret(node *n)
+{
+	const char *cmd;
+
+	if (!n)
+		return 0;
+	if (n->k == N_CMD && (cmd = li_cmd(n)) && !strcmp(cmd, "ret"))
+		return 1;
+	return li_hasret(n->l) || li_hasret(n->r) || li_hasret(n->x);
+}
+
 /* First pass: functions defined, names assigned and how, arrays made with and without -A, and set -e. */
 void li_scan(li *c, node *n)
 {
@@ -201,6 +214,8 @@ void li_scan(li *c, node *n)
 		return;
 	if (n->k == N_FUNC && n->s) {
 		v_add(&c->fns, n->s);
+		if (!li_hasret(n->r))
+			v_add(&c->noret, n->s);
 		for (pm = n->x; pm; pm = pm->x)
 			if (pm->s) {
 				v_add(&c->asg, xs(pm->s));
@@ -523,6 +538,12 @@ void li_walk(li *c, node *n, int cond)
 	switch (n->k) {
 	case N_CMD:
 		cmd = li_cmd(n);
+		if (cmd && n->f == 2 && li_has(&c->noret, cmd))
+			li_say(c, n, "bind-no-ret", "%s is bound with := and never "
+				    "calls ret: from 0.99.369 that binds empty, as "
+				    "a program that prints nothing does -- end it "
+				    "with `ret VALUE`, or `ret -k` to pass on what "
+				    "its last command left", cmd);
 		if (cmd) {
 			li_path(c, n, cmd);
 			li_test(c, n, cmd);
@@ -633,6 +654,7 @@ int li_explain(sh *s, node *n)
 		free(c.txt.p[i]);
 	v_free(&c.num);
 	v_free(&c.txt);
+	v_free(&c.noret);
 	for (i = 0; i < c.assoc.n; i++)
 		free(c.assoc.p[i]);
 	for (i = 0; i < c.arr.n; i++)

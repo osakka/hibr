@@ -371,6 +371,35 @@ int hd_scw, hd_sch;
 unsigned long hd_inseq;
 int hd_lockfd = -1;
 
+/* Whether a client's read says its terminal has the person's focus: a
+   button pressed in it, or a focus-in report (1004). Not any input: Blit
+   sends a mouse report to the session under the pointer, so motion over
+   another display is not where the person is, and a lock asked of it is
+   refused (Gitea #379). */
+int hd_focusin(const char *p, size_t n)
+{
+	size_t i, j;
+	long b;
+
+	for (i = 0; i + 2 < n; i++) {
+		if (p[i] != 27 || p[i + 1] != '[')
+			continue;
+		if (p[i + 2] == 'I')
+			return 1;
+		if (p[i + 2] != '<')
+			continue;
+		for (b = 0, j = i + 3; j < n && p[j] >= '0' && p[j] <= '9'; j++)
+			b = b * 10 + (p[j] - '0');
+		if (j == i + 3 || j >= n || p[j] != ';')
+			continue;
+		while (j < n && p[j] != 'M' && p[j] != 'm')
+			j++;
+		if (j < n && p[j] == 'M' && !(b & 96) && (b & 3) != 3)
+			return 1;
+	}
+	return 0;
+}
+
 int hd_union(vec *cls, int id, int tid)
 {
 	int rows, cols, cw = 0, ch = 0, moved;
@@ -939,7 +968,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 
 				if (cn) {
 					cn->inseq = ++hd_inseq;
-					if (cn->lockok)
+					if (cn->lockok && hd_focusin(in.p, in.n))
 						hd_lockfd = fd;
 					if (cn->plock) {
 						/* A held pointer's reports are

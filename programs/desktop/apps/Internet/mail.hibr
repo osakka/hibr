@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 2.1
+app mail "Email, offline, labels and conversations as Gmail has them" 2.2
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -2102,9 +2102,9 @@ fn ml_draftfold(acct) {
 	local k
 
 	for k in "${!MW[@]}"; do
-		[[ $k == "role$acct:"* ]] && [ "${MW["$k"]}" = drafts ] && { printf '%s' "${k#role$acct:}"; return 0; }
+		[[ $k == "role$acct:"* ]] && [ "${MW["$k"]}" = drafts ] && ret "${k#role$acct:}"
 	done
-	printf '%s' Drafts
+	ret Drafts
 }
 
 # Save what is being written to the account's Drafts folder, and take the

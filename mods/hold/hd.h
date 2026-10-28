@@ -196,6 +196,7 @@ extern int hd_fdepth;
 extern int hd_scw, hd_sch;
 extern unsigned long hd_inseq;
 extern int hd_lockfd;
+int hd_focusin(const char *p, size_t n);
 
 /* One cell as this client was last sent it -- hold's own copy, not term's:
    hold must not include tm.h just to name tm_cell, and the two have no

@@ -1092,6 +1092,60 @@ raw, log = lockheld([], [b"\x1b[<0;5;3M"])
 check("a display that cannot is never asked, and hold locks says no",
       b"\x1b[?7701h" not in raw and "locks no" in log, log)
 
+# Which display is asked to hold the pointer, with two that can (Gitea
+# #379): the one that was clicked. Blit sends a mouse report to the session
+# under the pointer, not to the focused one, so motion over a second display
+# after the click must not move the lock there -- Blit refuses it to a
+# session without its focus, which is what the owner's three displays did.
+def lockpair():
+    nm = name()
+    open(LOG, "w").close()
+    p = os.path.join(D, "lp%s.hibr" % nm)
+    open(p, "w").write(
+        load("console") + "console open\nconsole mouse click\nconsole flush\n"
+        + "i=0\nwhile [ $i -lt %d ]; do k := console key 250; " % (40 * SLOW)
+        + 'case $k in "mouse press"*) break ;; esac; i=$((i + 1)); done\n'
+        + "sleep %s\nconsole pointer lock on\nconsole flush\n" % (1.5 * SLOW)
+        + 'echo "locked" >> ' + LOG + "\n"
+        + "i=0\nwhile [ $i -lt %d ]; do console key 250; i=$((i + 1)); done\n" % (8 * SLOW)
+        + "console close\n")
+    one = os.path.join(D, "lp1%s.hibr" % nm)
+    two = os.path.join(D, "lp2%s.hibr" % nm)
+    open(one, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, p)
+                         + "sleep 0.8\nhold attach -m -n one %s 0 0\n" % nm)
+    open(two, "w").write(load("hold") + "hold attach -m -n two %s 0 80\n" % nm)
+    t1 = Term(one, rows=24, cols=60, settle=1.0, env={"TMPDIR": D}, caps=["lock"])
+    for _ in range(int(8 * SLOW)):
+        t1.collect(0.25)
+    t2 = Term(two, rows=24, cols=60, settle=1.0, env={"TMPDIR": D}, caps=["lock"])
+    for _ in range(int(8 * SLOW)):
+        t2.collect(0.25)
+        t1.collect(0.05)
+    os.write(t1.fd, b"\x1b[<0;5;3M")
+    t1.collect(0.3)
+    for _ in range(4):
+        os.write(t2.fd, b"\x1b[<35;9;9M")
+        t2.collect(0.2)
+    for _ in range(int(16 * SLOW)):
+        t1.collect(0.25)
+        t2.collect(0.05)
+        if "locked" in open(LOG).read():
+            break
+    t1.collect(1.0)
+    t2.collect(0.5)
+    r1, r2 = t1.raw, t2.raw
+    t2.quit(None, 0.5)
+    t1.quit(None, 0.5)
+    kill(nm)
+    return r1, r2, open(LOG).read()
+
+
+r1, r2, log = lockpair()
+check("with two displays that can hold the pointer, the clicked one is asked, "
+      "though the other attached later and sent motion since",
+      "locked" in log and b"\x1b[?7701h" in r1 and b"\x1b[?7701h" not in r2,
+      (log, b"\x1b[?7701h" in r1, b"\x1b[?7701h" in r2))
+
 # A window's picture with another window over it, held (Gitea #374): the
 # held program places it through its pane below the cells, the emulator keeps
 # it as a picture under the text, and the attached display is sent it once,
@@ -1222,4 +1276,4 @@ check("a 16-colour display of a held session is sent no 24-bit colour",
       [sc.row(r) for r in range(20)] == want, raw[-200:])
 
 shutil.rmtree(D, True)
-report(71)
+report(72)

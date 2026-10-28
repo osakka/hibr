@@ -735,10 +735,19 @@ went in the shell.
   all — bash has both and hibr had neither. Do not add a second splitter.
 - **`:=` binds for a builtin, not for a function.** A helper that ends in
   `str repeat "$2" "$1"` and is called as `x := helper ...` prints to the
-  screen instead of filling the slot, because the bind was set for `helper`,
-  which is a function. Route the value through a variable and `ret`. In a
-  full-screen program the symptom is a blank line where the drawing should
-  be, not an error.
+  screen, because the bind was set for `helper`, which is a function, and
+  not for the builtin inside it -- and the builtin's result, left in the
+  slot, is then bound anyway: so `x` gets the value **and** the screen
+  gets it too. That second channel nobody declared is going: 0.99.368 names
+  every function bound this way, once, on standard error, and 0.99.369
+  binds empty for one that never calls `ret`, as a program that prints
+  nothing does. End such a function with `ret VALUE`, or `ret -k` to pass
+  on what its last command left -- a map included, which `ret VALUE` cannot
+  carry. `ex_retd` is set by `ret` alone, never by `return`, which shares
+  `s->ret` with it, and is saved and restored around each call so a
+  callee's `ret` does not count for its caller. Mail's `ml_draftfold`
+  answered with `printf` and so drew its folder name under the desktop on
+  every draft saved; the census found it.
 - **`pkill -f` matches the command running it.** The testing rules say this
   about the harness; it is just as true of a shell command. `pkill -9 -f
   "desktop.py"` inside a command whose own line contains `desktop.py` kills

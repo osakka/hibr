@@ -664,8 +664,8 @@ fn dt_launch(n, arg = "") {
 		pl := dt_place "$h" "$w"
 		read -r r c h w <<< "$pl"
 		dt_new "${DT_APPS[$n]["title"]}" "$h" "$w" "$r" "$c" \
-			"${DT_APPS[$n]["via"]}" "${arg:-${DT_APPS[$n]["arg"]}}"
-		return
+			"${DT_APPS[$n]["via"]}" "${arg:-${DT_APPS[$n]["arg"]}}" || return
+		ret -k
 	fi
 	# An app that does something rather than showing a window -- the
 	# Screenshot desk accessory -- gives <app>_launch, and that is all.
@@ -686,7 +686,8 @@ fn dt_launch(n, arg = "") {
 	fi
 	pl := dt_place "$h" "$w"
 	read -r r c h w <<< "$pl"
-	dt_new "${DT_APPS[$n]["title"]}" "$h" "$w" "$r" "$c" "$n" "$arg"
+	dt_new "${DT_APPS[$n]["title"]}" "$h" "$w" "$r" "$c" "$n" "$arg" || return
+	ret -k
 }
 
 # The about app shows the machine's own numbers, live; without it (a session

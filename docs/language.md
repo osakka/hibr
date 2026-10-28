@@ -833,6 +833,7 @@ with `--agent` each finding is a line of JSON keyed `warning`. The rules:
 | `local-self-ref` | `local a=$1 b=${m[$a]}`, where `b` reads `a` before it is assigned |
 | `local-masks-status` | `$?` read right after `local x=$(cmd)`, which is `local`'s status |
 | `dead-return` | a failing `return` straight after `ret`, which has already ended the function |
+| `bind-no-ret` | `x := f`, where `f` is defined in the file and never calls `ret`: from 0.99.369 that binds nothing, as a program that prints nothing does; end `f` with `ret VALUE`, or `ret -k` to pass on what its last command left |
 | `bare-key` | `${m[row]}` with `row` never assigned, on an array this file makes without `-A` |
 
 The rules live in a module, `lint`, loaded only by `--explain`, so running a

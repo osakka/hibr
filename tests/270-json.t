@@ -25,6 +25,6 @@ json emit esc
 json parse bad '{oops' 2>/dev/null
 echo "bad status=$?"
 # A typed map keeps its types when := copies it out of the result slot.
-mk() { json parse RET '{"n":5,"s":"x","a":[1,true,null]}'; }
+mk() { json parse RET '{"n":5,"s":"x","a":[1,true,null]}'; ret -k; }
 q := mk
 json emit q

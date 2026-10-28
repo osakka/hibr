@@ -42,7 +42,7 @@ dt_confirm_geom() {
 # y, n, or nothing for a point on neither button.
 fn dt_confirm_hit(int mr, int mc) {
 	[ -z "$DT_CONFIRM" ] && return 1
-	dt_hit root "$mr" "$mc"
+	dt_hit root "$mr" "$mc" && ret -k
 }
 
 dt_confirm_draw() {

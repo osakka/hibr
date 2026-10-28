@@ -22,7 +22,7 @@
 strict
 
 
-app displays "Control Panel's own picture of a multi-monitor arrangement" 1.1
+app displays "Control Panel's own picture of a multi-monitor arrangement" 1.2
 command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦" hardware
 
 declare -gA DPY
@@ -30,7 +30,10 @@ declare -gA DPY
 # This session's own name, or empty when there is none to show a picture
 # of -- not held, or held but the hold module is not to be had.
 displays_sess() {
-	[ -n "$HIBR_HOLD" ] && need hold && dt_holdsess
+	local v
+
+	[ -n "$HIBR_HOLD" ] && need hold || return 1
+	v := dt_holdsess && ret "$v"
 }
 
 # One scale, in percent, applied to both axes: since a real display and

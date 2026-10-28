@@ -256,12 +256,17 @@ Every operation of each, with examples, is in
 | `break [n]` | leave `n` enclosing loops of this function; outside a loop, an error with status 0 and nothing left |
 | `continue [n]` | restart the `n`th enclosing loop; outside a loop, the same as `break` |
 | `return [n]` | return from a function or sourced file with status `n`; anywhere else, an error with status 2 |
-| `ret [value…]` | **[hibr]** produce a value and return; outside a function or sourced file, an error with status 2 |
+| `ret [value…]`, `ret -k` | **[hibr]** produce a value and return; `ret -k` returns what the slot holds now -- what the last command left, a map or list and its types included -- as this function's own, which is how a wrapper passes on a builtin's or another function's result; outside a function or sourced file, an error with status 2 |
 | `try cmd args…` | **[hibr]** run `cmd`, catching failure instead of propagating it |
 | `fail msg…` | **[hibr]** report a failure with a message |
 
 **[hibr]** `ret` does not print. It fills the result slot, which `:=` binds --
-and for a program, which has no slot, `:=` takes its standard output instead:
+and for a program, which has no slot, `:=` takes its standard output instead.
+A function that never calls `ret` gives `:=` whatever its last command left
+in the slot, and is named once on standard error as it does: from 0.99.369
+it binds nothing, as a program that prints nothing does, so end such a
+function with `ret VALUE`, or with `ret -k` to keep what it has. `hibr
+--explain` names it too (`bind-no-ret`).
 
 ```sh
 fn add(int a, int b) -> int { ret $((a + b)); }

@@ -127,7 +127,7 @@ fn dt_btnat(int id, int c) {
 		[ "$c" = 1 ] && ret close
 		return 0
 	fi
-	dt_btn "${DT[$id]["w"]}" "$c" "${DT_APPS[${DT[$id]["app"]}]["fixed"]}"
+	dt_btn "${DT[$id]["w"]}" "$c" "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" && ret -k
 }
 
 # Whether this window can be left exactly as it is this frame: its app has

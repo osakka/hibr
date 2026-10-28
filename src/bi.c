@@ -355,6 +355,22 @@ int b_ret(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "ret: can only `ret' from a function or sourced script");
 		return s->st = 2;
 	}
+	/* `ret -k`: the result is what the slot holds now -- what the last
+	   command left, a map and its types included -- passed on as this
+	   function's own. */
+	if (ac == 2 && !strcmp(av[1], "-k")) {
+		const char *k = hibr_get(s, "RET");
+
+		if (s->rty && *s->rty && !ty_ok(s->rty, k ? k : "")) {
+			lg(HIBR_LERR, "ret: declared %s, got '%s'", s->rty,
+			   k ? k : "");
+			s->ret = 1;
+			return s->st = 2;
+		}
+		s->ret = 1;
+		ex_retd = 1;
+		return s->st = HIBR_OK;
+	}
 	if (s->rty && *s->rty && !ty_ok(s->rty, v)) {
 		lg(HIBR_LERR, "ret: declared %s, got '%s'", s->rty, v);
 		s->ret = 1;
@@ -371,6 +387,7 @@ int b_ret(sh *s, int ac, char **av)
 	}
 	lg(HIBR_LTRC, "ret slot holds %d value(s)", ac - 1);
 	s->ret = 1;
+	ex_retd = 1;
 	return s->st = HIBR_OK;
 }
 
