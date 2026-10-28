@@ -3878,16 +3878,22 @@ went in the shell.
   pattern that can match the harness's own command line.
 - Re-record an `.expected` file only after reading the diff and agreeing the
   new behaviour is correct.
-- **`tests/apps.py` runs as four parts, and a check is counted twice.**
-  all.py runs `apps_panel`, `apps_reach`, `apps_core` and `apps_more`,
-  each cut from apps.py at run time by `tests/appslice.py` (its sections,
-  plus the definitions they take from others) -- apps.py is still the
-  only place a check is written, and still runs whole. Adding a check
-  means bumping apps.py's `report(N)` *and* its part's number in
-  `appslice.PLAN`; every part refuses to start when the two disagree. A
-  new section belongs to `more` unless `PARTS` names it. A helper's value
-  that comes from a session (a `run` or a `check`) is never copied to
-  another part, so a section must make what it reads, as before.
+- **`tests/apps.py` and `tests/desktop.py` run as parts, and a check is
+  counted twice.** all.py runs `apps_panel`, `apps_reach`, `apps_office`,
+  `apps_core`, `apps_more` and `desktop_basics`, `desktop_windows`,
+  `desktop_pictures`, `desktop_session`, each cut from its suite at run
+  time by `tests/appslice.py` (its sections, plus the definitions they take
+  from others) -- the suite is still the only place a check is written, and
+  still runs whole. Adding a check means bumping the suite's `report(N)`
+  *and* its part's number in `appslice.SUITES`; every part refuses to start
+  when the sum disagrees, and reports its own count against its own plan. A
+  new section belongs to the part whose `parts` entry is `None` unless one
+  names it. A value that comes from a session (a `run` or a `check`) is
+  never copied to another part, so a section must make what it reads; a
+  shared fixture that needs setting up (a folder of modules, a fake `sudo`)
+  is a function both call (`csmods()`, `fakebin()`), and appslice refuses
+  to run when a taken assignment's setup cannot be copied with it rather
+  than handing a part an empty folder.
 - **A suite's scratch file is named after this process, not after the
   suite**, by `screen.scratch`. `tests/all.py` and `tests/asan.py` run side
   by side in the release gate, so two copies of the same suite are live at

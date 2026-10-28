@@ -36,7 +36,7 @@ ENV.setdefault("V", "1")
 for _v in ("HIBR_MODPATH", "HIBR_MODULES", "HIBR_HOLD", "HIBR_HOLDCOPY",
            "HIBR_SYSDIR"):
     ENV.pop(_v, None)
-SUITES = ["run.sh", "desktop", "apps_panel", "apps_reach", "apps_core", "apps_more", "most", "hvi", "console", "cat",
+SUITES = ["run.sh", "desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session", "apps_panel", "apps_reach", "apps_office", "apps_core", "apps_more", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars", "deps", "scopes",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "fetch", "media", "youtube", "sound", "net", "bt",
           "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "archive", "mermaid", "pdfapp",
@@ -47,8 +47,12 @@ def one(name):
     """Run one suite; its name, whether it passed, its summary, and time."""
     cmd = ([os.path.join(HERE, "run.sh")] if name == "run.sh"
            else [sys.executable, "-u", os.path.join(HERE, name + ".py")])
+    env = ENV
+    if ENV.get("HIBR_CENSUSDIR"):
+        env = dict(ENV, HIBR_CENSUS=os.path.join(ENV["HIBR_CENSUSDIR"],
+                                                 name + ".log"))
     t = time.time()
-    p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=ENV)
+    p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=env)
     out = p.stdout + p.stderr
     open(os.path.join(LOGS, name + ".log"), "w").write(out)
     lines = out.splitlines()

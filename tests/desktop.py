@@ -56,6 +56,10 @@ TWO_DEF = ('dt_new "Under" 8 30 6 10\n'
            'dt_new "Over" 8 30 9 20\n')
 ONE = 'dt_new "Hello" 8 30 6 10'
 
+# --- the window manager's basics -------------------------------------------
+# Everything above is the helpers every section shares; tests/appslice.py
+# runs it in each part of this suite, so no check may sit above this line.
+
 # alt-w, not ctrl-w: a terminal never yields ctrl with a letter, so the old
 # default silently did nothing whenever one had focus (0.99.90).
 sc, _ = run(ONE, [b"\x1bw"])
@@ -3000,9 +3004,16 @@ shutil.rmtree(SQCONF, True)
 # The four modules the strip shipped with until Gitea #393, in a folder of
 # their own: the strip's checks measure its geometry against exactly these,
 # and the tree's own folder has gained the workspace switcher since.
-CSDIR = tempfile.mkdtemp(prefix="hibr-csmods-")
-for _m in ("cursor", "shadow", "theme", "wallpaper"):
-    shutil.copy(tree("programs/desktop/control-strip/%s.hibr" % _m), CSDIR)
+def csmods():
+    """The four modules in a folder of their own, made in one call so that a
+    part of this suite run on its own (tests/appslice.py) makes it whole."""
+    d = tempfile.mkdtemp(prefix="hibr-csmods-")
+    for m in ("cursor", "shadow", "theme", "wallpaper"):
+        shutil.copy(tree("programs/desktop/control-strip/%s.hibr" % m), d)
+    return d
+
+
+CSDIR = csmods()
 CSSRC = 'CS_MODDIRS+=("%s")\ncs_modules\n' % CSDIR
 # And the switcher with them, for its own checks.
 CSWS = ('CS_MODDIRS+=("%s" "%s")\ncs_modules\n'
@@ -3031,6 +3042,25 @@ check("the strip docks left by default, roughly 80% down the screen",
       arrow is not None and arrow[0] > ROWS * 3 // 4, sc)
 row = arrow[0]
 STRIPROW = row
+STRIPAT = []
+
+
+def stripsc():
+    """The strip drawn once, for a section that is not this one, which
+    tests/appslice.py may run in a part of its own."""
+    if not STRIPAT:
+        STRIPAT.append(csrun())
+    return STRIPAT[0]
+
+
+def striprow():
+    """The strip's row."""
+    return stripsc().find("\u25b8")[0]
+
+
+def stripcol(label):
+    """The column a module's label starts at."""
+    return stripsc().find(label)[1]
 
 # A saved CS_Y is a preference, not a promise, the same as an icon's own
 # saved spot -- dt_size clamps it on open (and on every resize) rather
@@ -3734,7 +3764,7 @@ check("Close from it closes the window",
 # Appearance pane loaded, since the themes are its.
 def stripdrop(col, downs=1):
     d = tempfile.mkdtemp(prefix="hibr-strip-")
-    sc, _ = run("", feed=[press(STRIPROW, col)] + [b"\x1b[B"] * downs + [b"\r"],
+    sc, _ = run("", feed=[press(striprow(), col)] + [b"\x1b[B"] * downs + [b"\r"],
                 env={"XDG_CONFIG_HOME": d},
                 pre=CSSRC + "\n. %s\n" % tree(
                     "programs/desktop/control-panel/appearance.hibr"))
@@ -7349,12 +7379,12 @@ n = hvrframes([hov(8, 14), hov(9, 14)])
 check("and moving onto the next row draws one each", n == 2, n)
 
 # The Control Strip's module under the pointer has its brackets lit.
-sc, _ = run("", [0.5, hov(STRIPROW, SHADOW_COL + 1), 0.4],
+sc, _ = run("", [0.5, hov(striprow(), stripcol("Shadow") + 1), 0.4],
             env={"DT_HOVER": "on", "XDG_CONFIG_HOME": tempfile.mkdtemp(
                 prefix="hibr-strip-")}, pre=CSSRC)
 check("the Control Strip lights the brackets of the module under the pointer",
-      sc.style(STRIPROW, SHADOW_COL - 1).get("bg") == WELL and
-      sc.style(STRIPROW, CURSOR_COL - 1).get("bg") != WELL, sc)
+      sc.style(striprow(), stripcol("Shadow") - 1).get("bg") == WELL and
+      sc.style(striprow(), stripcol("Cursor") - 1).get("bg") != WELL, sc)
 
 # --- power (Gitea #365) ------------------------------------------------------
 #

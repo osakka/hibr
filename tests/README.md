@@ -49,9 +49,13 @@ python3 tests/mon.py        the system monitor
 python3 tests/mtr.py        the live traceroute
 python3 tests/editor.py     the line editor
 python3 tests/desktop.py    the window manager
+python3 tests/desktop_basics.py  ... and the same checks in four parts:
+                            desktop_basics, desktop_windows, desktop_pictures,
+                            desktop_session
 python3 tests/apps.py       the apps, desk accessories and control panel
-python3 tests/apps_core.py  ... and the same checks in four parts, side by side:
-                            apps_panel, apps_reach, apps_core, apps_more
+python3 tests/apps_core.py  ... and the same checks in five parts, side by side:
+                            apps_panel, apps_reach, apps_office, apps_core,
+                            apps_more
 python3 tests/term_diff.py  the terminal emulator, cell by cell against tmux
 python3 tests/uifuzz.py     random input into each app, seeded, and the
                             forced-redraw oracle: uifuzz.py oracle
@@ -99,8 +103,9 @@ python3 tests/appmgr.py       the catalogue, against a stand-in index
 
 The stand-ins (`mailserve.py`, `davserve.py`, `fetchserve.py`,
 `bwserve.py`, `ytserve.py`) are servers, not suites; `pdfmake.py` writes
-the PDF Reader's documents, and `appslice.py` cuts `apps.py` into its four
-parts. All of these suites are in `tests/all.py`'s `SUITES`.
+the PDF Reader's documents, and `appslice.py` cuts `apps.py` and
+`desktop.py` into their parts (`SUITES` in it says which sections each
+part runs and how many checks it makes). All of these suites are in `tests/all.py`'s `SUITES`.
 
 `term_diff.py`, in the first list, drives no pty of its own. It feeds the
 same bytes to `mods/term` (`term new` and `term feed`) and to a private tmux

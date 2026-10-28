@@ -30,6 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 from all import SUITES  # noqa: E402
+import covmap  # noqa: E402
 
 SUITE_MODS = {
     "console": ["console"],
@@ -40,9 +41,13 @@ SUITE_MODS = {
     "mtr": ["console", "trace"],
     "editor": [],
     "term_diff": ["term"],
-    "desktop": [],
+    "desktop_basics": [],
+    "desktop_windows": [],
+    "desktop_pictures": [],
+    "desktop_session": [],
     "apps_panel": [],
     "apps_reach": [],
+    "apps_office": [],
     "apps_core": [],
     "apps_more": [],
     "uifuzz": [],
@@ -79,8 +84,9 @@ SUITE_MODS = {
     "archive": ["archive", "inflate"],
     "appmgr": ["dav", "archive", "inflate"],
 }
-APPS = ("apps_panel", "apps_reach", "apps_core", "apps_more")
-DESKTOP = ("desktop", "vault") + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
+APPS = ("apps_panel", "apps_reach", "apps_office", "apps_core", "apps_more")
+DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session")
+DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
                                          "sound", "net", "bt")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
@@ -176,7 +182,7 @@ def header_mods(path, req, prov):
     return hit
 
 
-def suites_for(path, req, prov, where):
+def suites_for(path, req, prov, where, desk=None):
     """The suites one changed path reaches, and a word on why."""
     if path.startswith(EVERYTHING) or path == "include":
         return set(SUITES), "the shell or the harness"
@@ -190,18 +196,29 @@ def suites_for(path, req, prov, where):
         hit = {s for s, r in where.items() if r & mods}
         return hit | {"run.sh"}, "module " + ", ".join(sorted(mods))
     if path.startswith("programs/desktop/"):
-        return set(DESKTOP) | {"run.sh"}, "the desktop"
+        if desk:
+            hit, because = covmap.reach(path, desk, SUITES)
+            if hit is not None:
+                return hit, because
+            return set(DESKTOP) | set(covmap.READERS), "the desktop: " + because
+        return set(DESKTOP) | set(covmap.READERS), "the desktop"
     if path.startswith("tests/"):
         n = os.path.basename(path)
         s = n[:-3] if n.endswith(".py") else None
         if s in SUITES:
             return {s}, "the suite itself"
-        if n in ("apps.py", "appslice.py"):
+        if n == "apps.py":
             return set(APPS), "the apps suite, run as its parts"
+        if n == "desktop.py":
+            return set(DESK), "the desktop suite, run as its parts"
+        if n == "appslice.py":
+            return set(APPS) | set(DESK), "the cutter both suites run their parts through"
         if n.endswith((".t", ".expected", ".hibr")) or n == "run.sh":
             return {"run.sh"}, "the C-side harness"
+        if n == "coverage.tsv":
+            return set(), "the coverage map, which only narrows"
         if n in ("affected.py", "census.py", "asan.py", "diff.py",
-                 "corpus.py", "fuzz.py"):
+                 "corpus.py", "fuzz.py", "covmap.py"):
             return set(), "a tool, not a suite"
     if path == "programs/vw.hibr":
         return {"vw", "vault", "run.sh"}, "the vw command"
@@ -226,6 +243,32 @@ def changed(since):
     return sorted(set(out))
 
 
+def ancestor(a, b):
+    """Whether commit a is b or one of b's ancestors."""
+    return subprocess.run(["git", "merge-base", "--is-ancestor", a, b],
+                          cwd=ROOT, capture_output=True).returncode == 0
+
+
+def deskbase(since):
+    """What a desktop change is measured from, and the paths that adds.
+
+    The coverage map knows the calls as they were when it was taken, so a
+    desktop file or a suite changed since then is part of the change even
+    when it is older than the ref asked about: from the map's commit, never
+    from anything later. A map not taken in this history is none."""
+    commit, _ = covmap.load()
+    if not commit or not ancestor(commit, "HEAD"):
+        return None, []
+    base = since or "HEAD"
+    if ancestor(base, commit):
+        return base, []
+    more = subprocess.run(["git", "diff", "--name-only", commit, base, "--",
+                           "programs/desktop", "tests"], cwd=ROOT,
+                          capture_output=True, text=True,
+                          check=True).stdout.split()
+    return commit, more
+
+
 def main():
     args = sys.argv[1:]
     run = "--run" in args
@@ -235,12 +278,16 @@ def main():
         i = args.index("--since")
         since = args[i + 1]
         del args[i:i + 2]
-    paths = [a for a in args if not a.startswith("--")] or changed(since)
+    given = [a for a in args if not a.startswith("--")]
+    paths = given or changed(since)
+    desk, wider = deskbase(since)
+    if not given:
+        paths = sorted(set(paths) | set(wider))
     req, prov = graph()
     where = reach(req, prov)
     pick = set()
     for p in paths:
-        hit, because = suites_for(os.path.normpath(p), req, prov, where)
+        hit, because = suites_for(os.path.normpath(p), req, prov, where, desk)
         pick |= hit
         if why:
             print("%-50s %-28s %s" % (p, because, " ".join(

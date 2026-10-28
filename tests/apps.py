@@ -2077,10 +2077,18 @@ check("and a mark for it on the reused world map",
 # $id, inside the single quotes, so the clock was set to nothing. Run the
 # real script against a timedatectl that only says what it was asked, with
 # sudo taken off the front: nothing on this machine changes.
-FAKE = tempfile.mkdtemp(prefix="hibr-fakebin-")
-open(os.path.join(FAKE, "timedatectl"), "w").write(
-    '#!/bin/sh\necho "timedatectl $*"\n')
-os.chmod(os.path.join(FAKE, "timedatectl"), 0o755)
+def fakebin():
+    """A timedatectl that only says what it was asked, in a folder of its
+    own, made in one call so a part of this suite (tests/appslice.py) that
+    takes it gets the program as well as the folder."""
+    d = tempfile.mkdtemp(prefix="hibr-fakebin-")
+    open(os.path.join(d, "timedatectl"), "w").write(
+        '#!/bin/sh\necho "timedatectl $*"\n')
+    os.chmod(os.path.join(d, "timedatectl"), 0o755)
+    return d
+
+
+FAKE = fakebin()
 TSET = (
     '. %s/datetime.hibr\n'
     'fn dtp_run(...cmd) { "${cmd[@]:1}"; }\n'
@@ -4547,6 +4555,8 @@ check("past its size the oldest go, but never a pinned one",
       sc.find("fourth") is not None and sc.find("third") is None and
       sc.find("second one") is None and sc.find("first one") is not None, sc)
 shutil.rmtree(CLD, True)
+
+# --- Sheet, Write and the file dialog ------------------------------------------
 
 # Sheet: a spreadsheet whose formulas are hibr, run under --plan unless the
 # sheet is trusted, kept in a db file one row per cell.
