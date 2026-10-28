@@ -1,0 +1,40 @@
+0
+total 8 5
+ok src/a	dst/a
+ok src/d	dst/d
+err src/missing	missing is not there any more
+done 8 5
+status 1
+640 1577934245
+../a
+xyz
+a
+d
+total 5 1
+err src/a	a is already there
+done 0 0
+again: 1
+total 3 4
+err src/d	d cannot go inside itself
+done 0 0
+into itself: 1
+total 0 0
+stopped 0 0
+stopped: 1
+total 3 4
+ok mv1/d	dst3/d
+done 3 4
+moved: 0
+dst3:
+d
+
+mv1:
+a
+renamed, 0 left:  / a d 
+across, left for the copy: b
+total 0 0
+err nothere	nothere is not there any more
+done 0 0
+a missing source: 1
+hibr: copy run: nofolder is not a folder
+no folder: 1

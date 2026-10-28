@@ -1,0 +1,516 @@
+#!/usr/bin/env hibr
+#
+# wm/copying -- copying and moving files, as System 7 did it with Copy
+# Doubler beside it (Gitea #402): never in the frame loop, one window to an
+# operation so several run at once, the total counted before a byte moves,
+# a name already there asked about once (Replace, Skip, Stop, and for all
+# the rest), and Stop leaving no half-written file.
+#
+# The copying is the copy module's (`copy run`), in a job: it writes each
+# item under a hidden name and renames it when whole, and says how far it
+# is in a status file the window reads once a frame. A move within one
+# filesystem is a rename (`copy rename`), done at once and with no window;
+# only what has to cross a filesystem is copied and then removed. An item
+# replaced goes to the trash first, so it can be put back.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+declare -gA DCP
+
+command -v dt_app > /dev/null && dt_app dtcopy "Copy" 11 60 "" "" fixed hidden
+
+# How often a copy's window reads how far it has got, in milliseconds.
+DT_COPYMS=${DT_COPYMS:-200}
+
+# A size as people read one: 4.8 KB, 19 MB.
+fn dt_bytes(int n) {
+	local i=0 t
+	local units=(bytes KB MB GB TB)
+
+	while [ "$n" -ge 10240 ] && [ "$i" -lt 4 ]; do
+		n=$((n / 1024))
+		i=$((i + 1))
+	done
+	if [ "$n" -ge 1024 ] && [ "$i" -lt 4 ]; then
+		t=$((n * 10 / 1024))
+		i=$((i + 1))
+		ret "$((t / 10)).$((t % 10)) ${units[$i]}"
+		return
+	fi
+	ret "$n ${units[$i]}"
+}
+
+# Whether a path may be moved or copied into dst at all: 0 yes, 1 refused
+# with the reason in DT_WHY, 2 nothing to do (a move into its own folder).
+fn dt_fopok(op, src, dst) {
+	local base dir
+
+	base=${src##*/}
+	if ! [ -e "$src" ] && ! [ -L "$src" ]; then
+		DT_WHY="$base is not there any more"
+		return 1
+	fi
+	if ! [ -d "$dst" ]; then
+		DT_WHY="${dst##*/} is not a folder"
+		return 1
+	fi
+	dir=${src%/*}
+	[ -z "$dir" ] && dir=/
+	[ "$op" = move ] && [ "$dir" = "$dst" ] && return 2
+	case "$dst/" in
+	"$src/"*)
+		DT_WHY="$base cannot go inside itself"
+		return 1
+		;;
+	esac
+	return 0
+}
+
+# Whether a path is one of the rest, compared whole: a name may hold a space.
+fn dt_copyleft(src, ...rest) {
+	local x
+
+	for x in "${rest[@]}"; do
+		[ "$x" = "$src" ] && return 0
+	done
+	return 1
+}
+
+# Move or copy paths into a folder. What is already there is asked about,
+# what has to be copied is copied in a window of its own, and how it went is
+# said once, when it is over.
+fn dt_fileop(op, dst, ...rest) {
+	local src bad=0 why= id i r what
+	local -a go clash rest done
+
+	shift 2
+	if dt_has dt_davop; then
+		for src in "$dst" "$@"; do
+			if dt_isremote "$src"; then
+				dt_davop "$op" "$dst" "$@"
+				return
+			fi
+		done
+	fi
+	for src in "$@"; do
+		dt_fopok "$op" "$src" "$dst"
+		case $? in
+		0)
+			if [ -e "$dst/${src##*/}" ] || [ -L "$dst/${src##*/}" ]; then
+				clash+=("$src")
+			else
+				go+=("$src")
+			fi
+			;;
+		1) bad=$((bad + 1)); [ -z "$why" ] && why=$DT_WHY ;;
+		esac
+	done
+	if [ "${#go[@]}" = 0 ] && [ "${#clash[@]}" = 0 ]; then
+		[ "$bad" -gt 0 ] && dt_tally 0 "$bad" "" "" "$why"
+		[ "$bad" = 0 ]
+		return
+	fi
+	if ! need copy 2> /dev/null; then
+		dt_notep high "Files cannot be copied: the copy module is not installed"
+		return 1
+	fi
+	# A move within one filesystem is a rename, done now and with no
+	# window; what is left has to be copied across.
+	if [ "$op" = move ] && [ "${#clash[@]}" = 0 ]; then
+		r := copy rename "$dst" "${go[@]}"
+		rest=("${r[@]}")
+		for src in "${go[@]}"; do
+			dt_copyleft "$src" "${rest[@]}" ||
+				done+=("$src" "$dst/${src##*/}")
+		done
+		if [ "${#rest[@]}" = 0 ]; then
+			dt_fopsave move "${done[@]}"
+			dt_changed
+			what := dt_tr "Moved"
+			if [ "${#go[@]}" = 1 ]; then
+				dt_tally 1 "$bad" "$what" "${go[0]##*/} to ${dst##*/}" "$why"
+			else
+				dt_tally "${#go[@]}" "$bad" "$what" "" "$why" "to ${dst##*/}"
+			fi
+			return 0
+		fi
+		go=("${rest[@]}")
+	fi
+	dt_dlgat 11 60
+	id := dt_new "" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" dtcopy
+	DCP[$id]["op"]=$op
+	DCP[$id]["dst"]=$dst
+	DCP[$id]["bad"]=$bad
+	DCP[$id]["why"]=$why
+	DCP[$id]["np"]=0
+	DCP[$id]["ng"]=0
+	DCP[$id]["nc"]=0
+	DCP[$id]["ne"]=0
+	DCP[$id]["ci"]=0
+	DCP[$id]["all"]=
+	DCP[$id]["job"]=
+	DCP[$id]["phase"]=ask
+	DCP[$id]["focus"]=replace
+	DCP[$id]["renamed"]=
+	for ((i = 0; i < ${#done[@]}; i += 2)); do
+		dt_copyadd "$id" p "${done[$i]}" "${done[$((i + 1))]}"
+		DCP[$id]["renamed"]=1
+	done
+	[ "$op" = move ] && [ "${#clash[@]}" = 0 ] && DCP[$id]["renamed"]=1
+	for src in "${go[@]}"; do dt_copyadd "$id" g "$src"; done
+	for src in "${clash[@]}"; do dt_copyadd "$id" c "$src"; done
+	dt_copytitle "$id"
+	if [ "${#clash[@]}" = 0 ]; then
+		dt_copygo "$id"
+	fi
+	return 0
+}
+
+# Add a path to one of a copy's lists: g, to go; c, already there; p,
+# what was done, as from and to for Undo.
+fn dt_copyadd(int id, list, a, b = "") {
+	local k=${DCP[$id]["n$list"]}
+
+	DCP[$id]["$list$k"]=$a
+	[ "$list" = p ] && DCP[$id]["q$k"]=$b
+	DCP[$id]["n$list"]=$((k + 1))
+	return 0
+}
+
+# The window's title: what it is doing, and to where.
+fn dt_copytitle(int id) {
+	local t
+
+	if [ "${DCP[$id]["op"]}" = move ]; then
+		t := dt_tr "Moving"
+	else
+		t := dt_tr "Copying"
+	fi
+	dt_retitle "$id" "$t"
+}
+
+# The answer to the question about what is already there: replace it (it
+# goes to the trash), skip it, or stop before anything is done.
+fn dt_copyanswer(int id, what) {
+	local i=${DCP[$id]["ci"]} n=${DCP[$id]["nc"]} src dst
+
+	dst=${DCP[$id]["dst"]}
+	if [ "$what" = stop ]; then
+		DCP[$id]["phase"]=done
+		dt_wantclose "$id"
+		return 0
+	fi
+	[ "${DCP[$id]["allon"]}" = 1 ] && DCP[$id]["all"]=$what
+	while [ "$i" -lt "$n" ]; do
+		src=${DCP[$id]["c$i"]}
+		i=$((i + 1))
+		if [ "$what" = replace ]; then
+			if dt_trash1 "$dst/${src##*/}"; then
+				dt_copyadd "$id" g "$src"
+			else
+				DCP[$id]["bad"]=$((DCP[$id]["bad"] + 1))
+				[ -n "${DCP[$id]["why"]}" ] || DCP[$id]["why"]=$DT_WHY
+			fi
+		fi
+		[ -n "${DCP[$id]["all"]}" ] || break
+	done
+	DCP[$id]["ci"]=$i
+	DCP[$id]["allon"]=
+	[ "$i" -lt "$n" ] && return 0
+	dt_copygo "$id"
+}
+
+# Everything asked: rename what can be renamed, then copy the rest in a job.
+fn dt_copygo(int id) {
+	local op=${DCP[$id]["op"]} dst=${DCP[$id]["dst"]} i n src j st r
+	local -a go rest
+
+	n=${DCP[$id]["ng"]}
+	for ((i = 0; i < n; i++)); do go+=("${DCP[$id]["g$i"]}"); done
+	if [ "${#go[@]}" = 0 ]; then
+		dt_copyend "$id"
+		return 0
+	fi
+	if [ "$op" = move ] && [ -z "${DCP[$id]["renamed"]}" ]; then
+		r := copy rename "$dst" "${go[@]}"
+		rest=("${r[@]}")
+		for src in "${go[@]}"; do
+			dt_copyleft "$src" "${rest[@]}" ||
+				dt_copyadd "$id" p "$src" "$dst/${src##*/}"
+		done
+		if [ "${#rest[@]}" = 0 ]; then
+			dt_copyend "$id"
+			return 0
+		fi
+		go=("${rest[@]}")
+	fi
+	dt_jobdir || return 1
+	st=$DTJ_DIR/copy-$id.st
+	DCP[$id]["st"]=$st
+	DCP[$id]["phase"]=run
+	DCP[$id]["focus"]=stop
+	DCP[$id]["t0"]=$EPOCHREALTIME
+	if [ "$op" = move ]; then
+		j := dt_job copy "$id" dt_copydone copy run -m -s "$st" -k "$st.stop" -i "$DT_COPYMS" -- "$dst" "${go[@]}"
+	else
+		j := dt_job copy "$id" dt_copydone copy run -s "$st" -k "$st.stop" -i "$DT_COPYMS" -- "$dst" "${go[@]}"
+	fi
+	DCP[$id]["job"]=$j
+	dt_want 30
+	return 0
+}
+
+# A copy's job has ended: what it did goes in the Undo log, and the window
+# says what it could not do, or goes.
+fn dt_copydone(int n, int st) {
+	local id=${DTJ[$n]["tag"]} l a b stopped= kind f
+
+	f := dt_jobfile "$n" out
+	while IFS= read -r l; do
+		kind=${l%% *}
+		l=${l#* }
+		case $kind in
+		ok) dt_copyadd "$id" p "${l%%$'\t'*}" "${l#*$'\t'}" ;;
+		err)
+			DCP[$id]["bad"]=$((${DCP[$id]["bad"]:-0} + 1))
+			[ -n "${DCP[$id]["why"]}" ] || DCP[$id]["why"]=${l#*$'\t'}
+			dt_copyadd "$id" e "${l#*$'\t'}"
+			;;
+		stopped) stopped=1 ;;
+		esac
+	done < "$f"
+	[ -n "${DCP[$id]["st"]}" ] && rm -f -- "${DCP[$id]["st"]}" "${DCP[$id]["st"]}.stop"
+	DCP[$id]["stopped"]=$stopped
+	dt_copyend "$id"
+}
+
+# Over: log what was done for Undo, say how it went, and close the window
+# unless there is something it could not do to show.
+fn dt_copyend(int id) {
+	local op=${DCP[$id]["op"]} dst=${DCP[$id]["dst"]} i n what last= t
+	local -a okp
+
+	n=${DCP[$id]["np"]:-0}
+	for ((i = 0; i < n; i++)); do
+		okp+=("${DCP[$id]["p$i"]}" "${DCP[$id]["q$i"]}")
+		last=${DCP[$id]["p$i"]##*/}
+	done
+	[ "${#okp[@]}" -gt 0 ] && dt_fopsave "$op" "${okp[@]}"
+	[ "$n" -gt 0 ] && dt_changed
+	if [ "${DCP[$id]["stopped"]}" = 1 ]; then
+		if [ "$n" = 0 ]; then
+			dt_notep low "Stopped; nothing was done"
+		else
+			t := dt_trn "$n" "Stopped after %s item" "Stopped after %s items" "$n"
+			dt_notep low "$t"
+		fi
+	else
+		what := dt_tr "Moved"
+		[ "$op" = copy ] && what := dt_tr "Copied"
+		if [ "$n" = 1 ]; then
+			dt_tally 1 "${DCP[$id]["bad"]:-0}" "$what" "$last to ${dst##*/}" "${DCP[$id]["why"]}"
+		else
+			dt_tally "$n" "${DCP[$id]["bad"]:-0}" "$what" "" "${DCP[$id]["why"]}" "to ${dst##*/}"
+		fi
+	fi
+	DCP[$id]["phase"]=done
+	if [ "${DCP[$id]["ne"]:-0}" -gt 0 ] && [ -z "${DCP[$id]["closing"]}" ]; then
+		DCP[$id]["phase"]=errors
+		DCP[$id]["focus"]=ok
+		dt_want 30
+		return 0
+	fi
+	[ -n "${DT[$id]["app"]+x}" ] && [ -z "${DCP[$id]["closing"]}" ] && dt_wantclose "$id"
+	[ -n "${DCP[$id]["closing"]}" ] && unset "DCP[$id]"
+	return 0
+}
+
+# How long is left, as people say it, from what has been done so far.
+fn dt_copyeta(int id, int done, int total) {
+	local t0=${DCP[$id]["t0"]} el left
+
+	el=$(( ${EPOCHREALTIME/./} / 1000 - ${t0/./} / 1000 ))
+	if [ "$done" -le 0 ] || [ "$el" -lt 1000 ]; then
+		ret ""
+		return 0
+	fi
+	left=$(( (total - done) * el / done / 1000 ))
+	if [ "$left" -lt 1 ]; then
+		left := dt_tr "Almost done"
+	elif [ "$left" -lt 60 ]; then
+		left := dt_trn "$left" "About %s second remaining" "About %s seconds remaining" "$left"
+	else
+		el=$(( (left + 59) / 60 ))
+		left := dt_trn "$el" "About %s minute remaining" "About %s minutes remaining" "$el"
+	fi
+	ret "$left"
+}
+
+fn dtcopy_draw(int id, int h, int w, int row, int col) {
+	local ph=${DCP[$id]["phase"]} f=${DCP[$id]["focus"]} l kind done total idone items now
+	local t src dst bar fill i n
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE"
+	dst=${DCP[$id]["dst"]}
+	case $ph in
+	ask)
+		i=${DCP[$id]["ci"]}
+		src=${DCP[$id]["c$i"]}
+		t := dt_tr "An item named %s already exists in %s." "${src##*/}" "${dst##*/}"
+		t := dt_cut "$t" $((w - 4))
+		console put -p "w$id" 1 2 "$t"
+		if [ "${DCP[$id]["op"]}" = move ]; then
+			t := dt_tr "Replace it with the one you are moving?"
+		else
+			t := dt_tr "Replace it with the one you are copying?"
+		fi
+		console put -p "w$id" 2 2 "$t"
+		console pen "$DT_DIM" "$DT_FACE"
+		t := dt_tr "The one there now goes to the trash."
+		console put -p "w$id" 3 2 "$t"
+		n=$((${DCP[$id]["nc"]} - i - 1))
+		if [ "$n" -gt 0 ]; then
+			t := dt_trn "$n" "Do the same for the %s other" "Do the same for the %s others" "$n"
+			dt_check "$id" 5 2 "${DCP[$id]["allon"]:-0}" "$t" all
+		fi
+		dt_dlgbtns "$id" "$h" "$w" "$f" replace Replace skip Skip stop Stop
+		;;
+	run | stopping)
+		l=
+		[ -r "${DCP[$id]["st"]}" ] && read -r kind done total idone items now < "${DCP[$id]["st"]}"
+		if [ "${DCP[$id]["op"]}" = move ]; then
+			t := dt_tr "Moving to %s" "${dst##*/}"
+		else
+			t := dt_tr "Copying to %s" "${dst##*/}"
+		fi
+		t := dt_cut "$t" $((w - 4))
+		console put -p "w$id" 1 2 "$t"
+		if [ "${kind:-scan}" = scan ]; then
+			t := dt_trn "${items:-0}" "Preparing to copy %s item" "Preparing to copy %s items" "${items:-0}"
+			console put -p "w$id" 3 2 "$t"
+		else
+			n=$(( ${items:-0} - ${idone:-0} ))
+			t := dt_trn "$n" "%s item remaining" "%s items remaining" "$n"
+			console put -p "w$id" 3 2 "$t"
+			l := dt_bytes "${done:-0}"
+			t := dt_bytes "${total:-0}"
+			t := dt_tr "%s of %s" "$l" "$t"
+			console put -p "w$id" 3 $((w - 2 - ${#t})) "$t"
+			fill=$((w - 4))
+			i=0
+			[ "${total:-0}" -gt 0 ] && i=$(( ${done:-0} * fill / total ))
+			[ "${total:-0}" = 0 ] && i=$fill
+			bar := dt_rep "$i" "${GL[block]}"
+			console pen "$DT_ACTIVE" "$DT_WELL"
+			console put -p "w$id" 5 2 "$bar"
+			bar := dt_rep $((fill - i)) " "
+			console put -p "w$id" 5 $((2 + i)) "$bar"
+			console pen "$DT_DIM" "$DT_FACE"
+			if [ -n "$now" ]; then
+				t := dt_cut "$now" $((w - 4))
+				console put -p "w$id" 6 2 "$t"
+			fi
+			t := dt_copyeta "$id" "${done:-0}" "${total:-0}"
+			[ -n "$t" ] && console put -p "w$id" 7 2 "$t"
+		fi
+		if [ "$ph" = stopping ]; then
+			t := dt_tr "Stopping${GL[ellipsis]}"
+			console pen "$DT_DIM" "$DT_FACE"
+			console put -p "w$id" $((h - 1)) 2 "$t"
+		else
+			dt_dlgbtns "$id" "$h" "$w" stop stop Stop
+		fi
+		dt_want "$DT_COPYMS"
+		;;
+	errors)
+		n=${DCP[$id]["np"]:-0}
+		t := dt_trn "$n" "%s item was done; these could not be:" "%s items were done; these could not be:" "$n"
+		console put -p "w$id" 1 2 "$t"
+		console pen "$DT_BAD" "$DT_FACE"
+		n=${DCP[$id]["ne"]}
+		for ((i = 0; i < n && i < h - 4; i++)); do
+			t := dt_cut "${DCP[$id]["e$i"]}" $((w - 4))
+			console put -p "w$id" $((i + 2)) 2 "$t"
+		done
+		dt_dlgbtns "$id" "$h" "$w" ok ok OK
+		;;
+	esac
+	return 0
+}
+
+# Turn "do the same for the others" on or off.
+fn dt_copyall(int id) {
+	if [ "${DCP[$id]["allon"]}" = 1 ]; then
+		DCP[$id]["allon"]=
+	else
+		DCP[$id]["allon"]=1
+	fi
+	return 0
+}
+
+# Stop a copy that is running: the module sees the stop file at its next
+# look and removes what it was writing. A signal would reach only the job's
+# own shell, not the copy beneath it.
+fn dt_copystop(int id) {
+	local j=${DCP[$id]["job"]}
+
+	[ -n "$j" ] && [ -z "${DTJ[$j]["done"]}" ] || return 1
+	DCP[$id]["phase"]=stopping
+	: > "${DCP[$id]["st"]}.stop"
+	return 0
+}
+
+fn dtcopy_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	replace | skip | stop)
+		if [ "${DCP[$id]["phase"]}" = ask ]; then
+			dt_copyanswer "$id" "$tag"
+		else
+			dt_copystop "$id"
+		fi
+		;;
+	all) dt_copyall "$id" ;;
+	ok) dt_wantclose "$id" ;;
+	esac
+	return 0
+}
+
+fn dtcopy_key(int id, key) {
+	local ph=${DCP[$id]["phase"]} f=${DCP[$id]["focus"]} d
+
+	case $ph in
+	ask)
+		if d := dt_focuskey "$key" 1; then
+			DCP[$id]["focus"] := dt_focus "$f" "$d" replace skip stop
+			return 0
+		fi
+		case $key in
+		enter) dt_copyanswer "$id" "$f" ;;
+		escape) dt_copyanswer "$id" stop ;;
+		" ") dt_copyall "$id" ;;
+		esac
+		;;
+	run) case $key in enter | escape) dt_copystop "$id" ;; esac ;;
+	errors) case $key in enter | escape) dt_wantclose "$id" ;; esac ;;
+	esac
+	return 0
+}
+
+# Closing the window stops a copy still running, and what was done before
+# the stop is still logged for Undo when the job ends.
+fn dtcopy_close(int id) {
+	if [ "${DCP[$id]["phase"]}" = run ] || [ "${DCP[$id]["phase"]}" = stopping ]; then
+		DCP[$id]["closing"]=1
+		dt_copystop "$id"
+		return 0
+	fi
+	unset "DCP[$id]"
+	return 0
+}

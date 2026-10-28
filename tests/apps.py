@@ -3225,7 +3225,8 @@ check("Undo puts a file dragged to another folder back where it was", back, sc)
 if not back and os.path.exists(os.path.join(D, "alpha", "file00.txt")):
     os.rename(os.path.join(D, "alpha", "file00.txt"),
               os.path.join(D, "file00.txt"))
-sc = run("files", FW, INTO + DRAG + [release(9, 50, 16), UNDO], pre=PRE,
+# A copy is a job since 0.99.371 (Gitea #402): Undo comes once it is done.
+sc = run("files", FW, INTO + DRAG + [release(9, 50, 16), 2.0, UNDO], pre=PRE,
          also=TWO)
 check("and takes a copy back by putting the copy in the trash",
       os.path.exists(os.path.join(D, "file00.txt")) and
@@ -3237,9 +3238,9 @@ copied = os.path.exists(os.path.join(D, "alpha", "file00.txt")) and \
          os.path.exists(os.path.join(D, "file00.txt"))
 check("and with ctrl held it is copied instead", copied, sc)
 sc = run("files", FW, INTO + DRAG + [release(9, 50, 16)], pre=PRE, also=TWO,
-         end=None)
-check("nothing is ever put over a file already there",
-      sc.find("already has a file00.txt") is not None, sc)
+         end=None, until="already exists")
+check("nothing is ever put over a file already there: it is asked about first",
+      sc.find("An item named file00.txt already exists in alpha.") is not None, sc)
 if copied:
     os.unlink(os.path.join(D, "alpha", "file00.txt"))
 
@@ -3617,6 +3618,144 @@ check("and it runs with its own path only, not appended a second time "
       "as an argument",
       os.path.exists(EXOUT) and open(EXOUT).read().strip() == "args:0", sc)
 shutil.rmtree(EX, True)
+
+# --- files: copying with progress, hidden files, new windows ---------------
+
+# A copy is a job with a window of its own (Gitea #402): the desktop goes on
+# drawing while it runs, Stop leaves nothing half-written, a name already
+# there is asked about before anything is done, and a move within one
+# filesystem is a rename with no window at all. HIBR_COPYSLOW slows the copy
+# module down, so the window is open long enough to look at for certain.
+CPD = sx.scratch("copying")
+shutil.rmtree(CPD, True)
+os.makedirs(os.path.join(CPD, "src"))
+open(os.path.join(CPD, "src", "big.bin"), "wb").write(os.urandom(3 << 20))
+open(os.path.join(CPD, "src", "small"), "w").write("x")
+
+
+def cpsess(dst, op="copy", srcs=("big.bin", "small"), slow="40"):
+    """A desktop that starts copying srcs from CPD/src into a fresh dst."""
+    d = os.path.join(CPD, dst)
+    shutil.rmtree(d, True)
+    os.makedirs(d)
+    f = sx.scratch("copying-%s.hibr" % dst)
+    open(f, "w").write("%s. %s\ndt_open\ndt_fileop %s %s %s\ndt_run\ndt_close\n" % (
+        load("console"), WM, op, d,
+        " ".join(os.path.join(CPD, "src", x) for x in srcs)))
+    return Term(f, env={"DT_TICK": "60", "HIBR_COPYSLOW": slow}, settle=0.6), d
+
+
+t, cpdst = cpsess("d1")
+sc = t.until("Copying to d1", tries=60)
+f0 = t.frames()
+sc = t.until(lambda x: t.frames() > f0 + 2, tries=60)
+check("a copy opens its own window and says what it is doing",
+      sc.find("Copying to d1") is not None and sc.find("of 3.0 MB") is not None, sc)
+check("and the desktop goes on drawing while it runs", t.frames() > f0 + 2,
+      (f0, t.frames()))
+sc = t.until("Copied 2 items to d1", tries=150)
+check("it ends with the note and both items in place",
+      sc.find("Copied 2 items to d1") is not None and
+      sorted(os.listdir(cpdst)) == ["big.bin", "small"] and
+      os.path.getsize(os.path.join(cpdst, "big.bin")) == 3 << 20, sc)
+t.quit(b"q", 1.0)
+
+t, cpdst = cpsess("d2", slow="150")
+t.until("Copying to d2", tries=60)
+t.keys([0.5, b"\r"])
+sc = t.until("Stopped", tries=80)
+check("Stop ends it and leaves nothing half-written",
+      sc.find("Stopped") is not None and
+      not any(n.endswith(".hibr-part") for n in os.listdir(cpdst)), (sc, os.listdir(cpdst)))
+t.quit(b"q", 1.0)
+
+d3 = os.path.join(CPD, "d3")
+shutil.rmtree(d3, True)
+os.makedirs(d3)
+open(os.path.join(d3, "small"), "w").write("mine")
+f = sx.scratch("copying-ask.hibr")
+open(f, "w").write("%s. %s\ndt_open\ndt_fileop copy %s %s\ndt_run\ndt_close\n" % (
+    load("console"), WM, d3, os.path.join(CPD, "src", "small")))
+t = Term(f, env={"DT_TICK": "60"}, settle=0.6)
+sc = t.until("already exists", tries=60)
+check("a name already there is asked about before anything is copied",
+      sc.find("An item named small already exists in d3.") is not None and
+      sc.find("Replace") is not None and sc.find("Skip") is not None, sc)
+t.keys([b"\t", b"\r", 0.4])
+check("and Skip leaves the one there alone",
+      open(os.path.join(d3, "small")).read() == "mine", open(os.path.join(d3, "small")).read())
+t.quit(b"q", 1.0)
+
+src4 = os.path.join(CPD, "mvsrc")
+shutil.rmtree(src4, True)
+os.makedirs(src4)
+open(os.path.join(src4, "m y"), "w").write("m")
+d4 = os.path.join(CPD, "d4")
+shutil.rmtree(d4, True)
+os.makedirs(d4)
+f = sx.scratch("copying-mv.hibr")
+open(f, "w").write("%s. %s\ndt_open\ndt_fileop move %s %s\ndt_run\ndt_close\n" % (
+    load("console"), WM, d4, "'%s'" % os.path.join(src4, "m y")))
+t = Term(f, env={"DT_TICK": "60"}, settle=0.6)
+sc = t.until("Moved m y to d4", tries=60)
+check("a move within one filesystem is a rename, with no window",
+      sc.find("Moved m y to d4") is not None and sc.find("Moving") is None and
+      os.listdir(d4) == ["m y"] and os.listdir(src4) == [], sc)
+t.quit(b"q", 1.0)
+
+# What a copy could not do is named in its window when it ends: a file this
+# user cannot read, beside one it can.
+src5 = os.path.join(CPD, "errsrc")
+shutil.rmtree(src5, True)
+os.makedirs(src5)
+open(os.path.join(src5, "locked"), "w").write("x")
+os.chmod(os.path.join(src5, "locked"), 0)
+open(os.path.join(src5, "open"), "w").write("x")
+d5 = os.path.join(CPD, "d5")
+shutil.rmtree(d5, True)
+os.makedirs(d5)
+f = sx.scratch("copying-err.hibr")
+open(f, "w").write("%s. %s\ndt_open\ndt_fileop copy %s %s %s\ndt_run\ndt_close\n" % (
+    load("console"), WM, d5, os.path.join(src5, "locked"), os.path.join(src5, "open")))
+t = Term(f, env={"DT_TICK": "60"}, settle=0.6)
+sc = t.until("could not be", tries=80)
+check("a copy that could not do everything says what, and why",
+      sc.find("1 item was done; these could not be:") is not None and
+      sc.find("cannot read") is not None and sc.find("locked") is not None and
+      os.listdir(d5) == ["open"], sc)
+t.quit(b"q", 1.0)
+os.chmod(os.path.join(src5, "locked"), 0o600)
+
+# Hidden files on a key of Files' own, alt-. by default and listed in
+# Shortcuts; a folder opened in a new window with alt, on enter or a double
+# click -- the drag key, which only moves a window when the mouse moves.
+HDD = os.path.join(CPD, "hid")
+os.makedirs(os.path.join(HDD, "sub"), exist_ok=True)
+open(os.path.join(HDD, ".secret"), "w").write("")
+open(os.path.join(HDD, "plain"), "w").write("")
+HPRE = "FB_DIR=%s" % HDD
+sc = run("files", "12 40 2 2", pre=HPRE)
+check("hidden files start hidden", sc.find(".secret") is None, sc)
+sc = run("files", "12 40 2 2", [b"\x1b.", 0.3], pre=HPRE)
+check("alt-. shows them", sc.find(".secret") is not None, sc)
+sc = run("files", "12 40 2 2", pre=HPRE + "\nFB_HIDDENDEF=1")
+check("and Control Panel > Files can have new windows show them",
+      sc.find(".secret") is not None, sc)
+sc = run("files", "12 40 2 2", [b"\x1b[B", 0.2, b"\x1b\r", 0.8], pre=HPRE)
+check("alt-enter opens a folder in a new window",
+      sc.find("/hid/sub") is not None and sc.find("plain") is not None, sc)
+sc = run("files", "12 40 2 2", [press(5, 6, 8), release(5, 6, 8), 0.2,
+                                press(5, 6, 8), release(5, 6, 8), 0.8], pre=HPRE)
+check("and so does a double click with alt",
+      sc.find("/hid/sub") is not None and sc.find("plain") is not None, sc)
+sc = run("files", "12 40 2 2", [press(5, 6, 8), drag(6, 8, 8), drag(8, 12, 8),
+                                release(8, 12, 8), 0.5], pre=HPRE)
+check("while alt and a drag still moves the window",
+      sc.find("Files [") is not None and sc.find("Files [")[1] > 6, sc)
+sc = run("files", "12 40 2 2", [b"\x1b[B", 0.2, b"\r", 0.8], pre=HPRE + "\nFB_OPENNEW=1")
+check("and with Open Folders in New Windows on, enter does it",
+      sc.find("/hid/sub") is not None and sc.find("plain") is not None, sc)
+shutil.rmtree(CPD, True)
 
 # --- the task manager -------------------------------------------------------
 #
@@ -5514,4 +5653,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(731)
+report(746)

@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.7
+app browser "The web, in a window" 2.8
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -843,6 +843,9 @@ fn bw_editaddr(int id) {
 	BW[$id]["aed"]=1
 	BW[$id]["abuf"]=$u
 	BW[$id]["acur"]=${#u}
+	# All of it selected, so what is typed replaces it: the field's selection
+	# is set once it has been drawn, which is when it is the focused field.
+	BW[$id]["asel"]=1
 }
 
 # Go where the address bar says.
@@ -928,13 +931,19 @@ fn bw_bar(int id, t, int w, int ar) {
 	local lab u on=0 ld= lw=0 dl=
 
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" "$ar" 1 " ${GL[larr]} ${GL[rarr]} ${GL[reload]} "
-	dt_wreg "$id" "$ar" 2 1 back
-	dt_wreg "$id" "$ar" 4 1 forward
-	dt_wreg "$id" "$ar" 6 1 reload
+	console put -p "w$id" "$ar" 1 " ${GL[larr]}  ${GL[rarr]}  ${GL[reload]}  "
+	# Each button is its glyph and the blank on each side of it, three cells, not
+	# the one of the glyph: a pointer in a terminal is not that exact.
+	dt_wreg "$id" "$ar" 1 3 back
+	dt_wreg "$id" "$ar" 4 3 forward
+	dt_wreg "$id" "$ar" 7 3 reload
 	[ "${BW[$id]["aed"]}" = 1 ] && on=1
 	if [ "$on" = 1 ]; then
-		dt_textdraw "$id" "$ar" 9 $((w - 9)) "${BW[$id]["abuf"]}" "${BW[$id]["acur"]}" 1
+		dt_textdraw "$id" "$ar" 11 $((w - 11)) "${BW[$id]["abuf"]}" "${BW[$id]["acur"]}" 1
+		if [ "${BW[$id]["asel"]-}" = 1 ]; then
+			[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
+			BW[$id]["asel"]=
+		fi
 	else
 		u=
 		[ -n "$t" ] && u := web url "$t" 2> /dev/null
@@ -956,14 +965,14 @@ fn bw_bar(int id, t, int w, int ar) {
 			fi
 		fi
 		console pen "$DT_INK" "$DT_WELL"
-		lab := str pad "${u:0:$((w - 9 - lw))}" $((w - 9 - lw))
-		console put -p "w$id" "$ar" 9 "$lab"
+		lab := str pad "${u:0:$((w - 11 - lw))}" $((w - 11 - lw))
+		console put -p "w$id" "$ar" 11 "$lab"
 		if [ -n "$ld" ]; then
 			console pen "$DT_DIM" "$DT_WELL"
 			console put -p "w$id" "$ar" $((w - lw)) " $ld "
 		fi
 	fi
-	dt_wreg "$id" "$ar" 9 $((w - 9)) addr
+	dt_wreg "$id" "$ar" 11 $((w - 11)) addr
 }
 
 # The page, from row pt for ph rows -- to the window's bottom row, since

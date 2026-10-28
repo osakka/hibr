@@ -37,6 +37,10 @@ fn dt_sysdir(kind) {
 DT_NEXT=1
 DT_FOCUS=
 DT_DRAG=
+# A press with the drag key, until the mouse moves: then it is a drag,
+# and let go where it was it is a click (wm/input.hibr).
+DT_ALTPRESS=
+DT_ALTMODS=
 DT_DR=0
 DT_DC=0
 DT_QUIT=0

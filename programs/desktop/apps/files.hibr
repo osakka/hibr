@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 2.4
+app files "A file browser" 2.5
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -72,6 +72,18 @@ FB_PATHS=()
 # setting (control-panel/filesview.hibr), kept the plain way a scalar is.
 FB_DEFAULTVIEW="${FB_DEFAULTVIEW-list}"
 command -v dt_keep > /dev/null && dt_keep FB_DEFAULTVIEW
+
+# Whether a new window shows hidden files, and whether a folder opened from
+# a window opens in a window of its own, as System 7's did (Gitea #402);
+# Control Panel > Files. Show Hidden Files and Open in New Window are on
+# keys the Shortcuts pane lists under Files, acted on only here.
+FB_HIDDENDEF="${FB_HIDDENDEF-0}"
+FB_OPENNEW="${FB_OPENNEW-0}"
+command -v dt_keep > /dev/null && dt_keep FB_HIDDENDEF FB_OPENNEW
+if command -v dt_appaction > /dev/null; then
+	dt_appaction files hidden "Show Hidden Files" "alt-."
+	dt_appaction files newwin "Open in New Window" "alt-enter"
+fi
 
 # Which view a directory was last shown in, kept across windows and across
 # restarts -- its own small file, not the desktop's DT_CONF, since it is
@@ -725,6 +737,7 @@ fn files_open(int id, d) {
 	[ -d "$d" ] || d=$PWD
 	FB[$id]["dir"]=$d
 	FB[$id]["hidden"]=
+	[ "$FB_HIDDENDEF" = 1 ] && FB[$id]["hidden"]=1
 	FB[$id]["view"] := fb_dirview "$d"
 	FB[$id]["vis"]=1
 	FB[$id]["per"]=1
@@ -1233,6 +1246,10 @@ fn files_key(int id, k) {
 	if fb_searchkey "$id" "$k"; then
 		return 0
 	fi
+	if command -v dt_akeyis > /dev/null; then
+		dt_akeyis files hidden "$k" && { files_hidden "$id"; return 0; }
+		dt_akeyis files newwin "$k" && { fb_open "$id" new; return 0; }
+	fi
 	case $k in shift-*) ext=1; k=${k#shift-} ;; esac
 	case $k in
 	up) to=$((sel - per)) ;;
@@ -1317,7 +1334,9 @@ fn fb_searchkey(int id, k) {
 
 # Open the selected entry: go into a folder, and hand a file to the desktop,
 # which opens it in a terminal with hvi.
-fn fb_open(int id) {
+# Open what is selected; a folder in this window, or in a new one when
+# asked (how is new) or when Control Panel > Files says folders always do.
+fn fb_open(int id, how = "") {
 	local sel p
 
 	sel=${FB[$id]["sel"]}
@@ -1328,6 +1347,12 @@ fn fb_open(int id) {
 		return 0
 	fi
 	if [ "${FL[$id][$sel]["dir"]}" = 1 ]; then
+		if { [ "$how" = new ] || [ "$FB_OPENNEW" = 1 ]; } &&
+		   [ "${FL[$id][$sel]["kind"]}" != up ] && ! fb_remote "$id"; then
+			p := fb_path "$id" "$sel"
+			dt_launch files "$p"
+			return 0
+		fi
 		fb_go "$id" "${FL[$id][$sel]["name"]}"
 		return 0
 	fi
@@ -1954,6 +1979,11 @@ files_menus() {
 
 	dt_menu "File"
 	dt_item "Open" o fb_open "$id"
+	dt_item "Open in New Window" i fb_open "$id" new
+	if command -v dt_akeyof > /dev/null; then
+		v := dt_akeyof files newwin
+		[ -n "$v" ] && dt_rowaccel "$v"
+	fi
 	dt_item "Go Up" u fb_go "$id" ..
 	dt_item "Home" h fb_home "$id"
 	dt_item "New Folder" n files_newfolder "$id"
@@ -1976,6 +2006,10 @@ files_menus() {
 	on=0
 	[ -n "${FB[$id]["hidden"]}" ] && on=1
 	dt_mark "Hidden Files" f "$on" files_hidden "$id"
+	if command -v dt_akeyof > /dev/null; then
+		v := dt_akeyof files hidden
+		[ -n "$v" ] && dt_rowaccel "$v"
+	fi
 	dt_item "Search${GL[ellipsis]}" s files_search "$id"
 	dt_item "Refresh" r fb_scan "$id"
 	files_srvmenu "$id"
@@ -2089,7 +2123,10 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 			if [ "$i" = "${FB[$id]["sel"]}" ] &&
 			   [ "$i" = "${FB[$id]["last"]}" ] &&
 			   [ "${FB[$id]["marks"]}" = 0 ]; then
-				fb_open "$id"
+				case $mods in
+				*alt*) fb_open "$id" new ;;
+				*) fb_open "$id" ;;
+				esac
 				return 0
 			fi
 			if [ -n "${FL[$id][$i]["m"]}" ]; then
@@ -2166,6 +2203,9 @@ fn files_context(int id) {
 		isdir=${FL[$id][$sel]["dir"]}
 		[ "${FL[$id][$sel]["kind"]}" = bundle ] && bundle=1
 		dt_item "Open" o fb_open "$id"
+		if [ "$isdir" = 1 ] && [ "$bundle" = 0 ] && ! fb_remote "$id"; then
+			dt_item "Open in New Window" "" fb_open "$id" new
+		fi
 		# A bundle is still a folder (#318): Show Contents goes in, and the
 		# verbs its app registered for it follow.
 		if [ "$bundle" = 1 ]; then

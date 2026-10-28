@@ -46,7 +46,11 @@
 %s is there already. Replace it?
 %s is trusted
 %s is your own; the card is not changed
+%s item remaining
+%s item was done; these could not be:
 %s items
+%s items remaining
+%s items were done; these could not be:
 %s items, unlocked until %s
 %s keeps files, not calendars or contacts
 %s keeps its size; it can only be centred
@@ -98,6 +102,10 @@ A theme's name is letters, digits, spaces, dots and dashes
 A web app needs a name
 A web app's start page is a web address
 About %s
+About %s minute remaining
+About %s minutes remaining
+About %s second remaining
+About %s seconds remaining
 About %s…
 About Me
 About This Computer
@@ -125,10 +133,12 @@ All Displays
 All Mail
 Allow Calls and Meetings (Shares the Network)
 Allow Downloads
+Almost done
 Already joining %s
 Already on %s
 Already pairing %s
 An event stays in its calendar; make a new one in the other
+An item named %s already exists in %s.
 And Minutes Before
 App
 Appearance
@@ -302,6 +312,7 @@ Copy Username
 Copy on Select
 Copy something anywhere, or paste here,
 Copying
+Copying to %s
 Could not change it: pkexec %s
 Could not change owner or group
 Could not change permissions
@@ -388,6 +399,8 @@ Display
 Display Structure
 Displays
 Do Not Track
+Do the same for the %s other
+Do the same for the %s others
 Does it show this number?
 Download Whole Messages
 Download of %s stopped
@@ -444,6 +457,7 @@ File
 File Type
 File Types
 Files
+Files cannot be copied: the copy module is not installed
 Files on Servers
 Fill
 Fills the window, 1:1, and follows it when it is resized.
@@ -661,6 +675,8 @@ Moved
 Moved %s item to the trash
 Moved %s items to the trash
 Moved %s to the trash
+Moving
+Moving to %s
 Muharram
 Mute
 Muted
@@ -778,6 +794,7 @@ Open
 Open %s with:
 Open Clipboard
 Open Database…
+Open Folders in New Windows
 Open Location…
 Open Notes at Start
 Open Screenshots
@@ -785,6 +802,7 @@ Open Terminal Here
 Open With
 Open With in Menu
 Open With: .%s
+Open in New Window
 Open the Tour
 Open…
 Order
@@ -845,6 +863,8 @@ Prayer
 Prayer Location
 Prayer Times
 Prayer Times needs the salat module, which is not installed.
+Preparing to copy %s item
+Preparing to copy %s items
 Press a key for %s…
 Preview
 Previous
@@ -902,6 +922,9 @@ Remove…
 Rename
 Renamed the theme to %s
 Reopened the windows from when the desktop was stopped
+Replace
+Replace it with the one you are copying?
+Replace it with the one you are moving?
 Reply
 Reply All
 Report Spam
@@ -999,6 +1022,7 @@ Show All%s
 Show Captions
 Show Contents
 Show Control Strip
+Show Hidden Files
 Show Notifications
 Show On
 Show Pictures
@@ -1013,6 +1037,7 @@ Side
 Signature
 Signature, put under every message you write:
 Size: %s
+Skip
 Sleep
 Sleep, Restart, Shut Down
 Smallest Height
@@ -1042,6 +1067,10 @@ Stickies
 Sticky
 Still working
 Stop
+Stopped after %s item
+Stopped after %s items
+Stopped; nothing was done
+Stopping…
 Strikethrough
 Such as fr-FR, fr, en. Empty is the browser's own.
 Sum
@@ -1090,6 +1119,7 @@ The desktop stopped unexpectedly and was started again; its windows are back (se
 The download of %s did not finish: %s
 The end is a time, HH:MM
 The mermaid module is not loaded
+The one there now goes to the trash.
 The page could not be saved as a PDF
 The password of %s, for %s
 The password was not accepted

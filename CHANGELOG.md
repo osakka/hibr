@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.99.371
+
+**Files copies in a window of its own** (Gitea #402), as System 7 did with
+Copy Doubler beside it. A copy, and a move that has to cross from one disk
+to another, used to run `cp -R` inside the frame loop, which froze every
+window until it was done. It now runs as a job, and its window shows:
+
+- what it is copying, and to where;
+- how many items are left, and how much of how much;
+- a bar, and the file in hand;
+- once there is a rate to go by, about how long is left.
+
+**Stop**, escape or closing the window ends it. Each item is written under a
+hidden `.NAME.hibr-part` and only named when it is whole, so a stop leaves
+nothing half-written. Several copies can run at once, each in its own window.
+A name already there is asked about before anything moves: **Replace** (the
+one there goes to the trash, so it can be put back), **Skip** or **Stop**,
+with "do the same for the others" when there are more. A move within one disk
+is a rename, done at once, with no window. Undo puts back what was done,
+including what a stopped copy had finished.
+
+The copying is a new module, `copy`. `copy run` copies or moves trees,
+keeping modes, times, owners where it may, and symbolic links, never
+following one. It writes its progress to a one-line status file the window
+reads once a frame, and stops when a stop file appears. `copy rename` does
+the renames alone. A stop is a file, not a signal, because a job's own shell
+is not the process that copies.
+
+**Hidden files on a key, and folders in new windows.** In a Files window,
+**alt-.** shows and hides hidden files. **alt-enter**, or a double click with
+alt held, opens a folder in a new window; File > Open in New Window and the
+right-click menu do the same. Both keys belong to Files: Control Panel >
+Shortcuts lists them under Files and changes them like any other. They act
+only while a Files window has the focus, so a terminal window keeps alt-.
+for its shell. Any app can declare such keys now, with `dt_appaction`.
+Control Panel > Files has **Show Hidden Files**, for new windows to start
+with them shown, and **Open Folders in New Windows**, for every folder to
+open in one of its own. Alt with a moved mouse still drags a window; a click
+with alt that does not move now goes to the app.
+
+Not changed: Undo and Redo of a copy, and a move to the trash across disks,
+still copy inside the frame loop, as before. A copy running when the desktop
+restarts finishes without a window.
+
+Files 2.5, the Files pane 1.4, Shortcuts 1.2, Arabic 3.47. Browser 2.8 is
+synced from the catalogue, from the browser session.
+
 ## 0.99.370
 
 **`x := f` binds empty when `f` never calls `ret`**, the change 0.99.368

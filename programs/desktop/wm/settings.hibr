@@ -663,6 +663,10 @@ dt_keyfix() {
 		[ -n "${DT_APPKEY["$k"]}" ] && dt_keynav "${DT_APPKEY["$k"]}" &&
 			DT_APPKEY["$k"]=
 	done
+	for k in "${!DT_AKEY[@]}"; do
+		[ -n "${DT_AKEY["$k"]}" ] && dt_keynav "${DT_AKEY["$k"]}" &&
+			DT_AKEY["$k"]=
+	done
 	return 0
 }
 
@@ -692,6 +696,9 @@ dt_save() {
 		done
 		for v in "${!DT_APPKEY[@]}"; do
 			printf 'DT_APPKEY["%s"]=%q\n' "$v" "${DT_APPKEY["$v"]}"
+		done
+		for v in "${!DT_AKEY[@]}"; do
+			printf 'DT_AKEY["%s"]=%q\n' "$v" "${DT_AKEY["$v"]}"
 		done
 		# What each sender's notes do (wm/notify.hibr's DT_NOTEAPP).
 		for v in "${!DT_NOTEAPP[@]}"; do

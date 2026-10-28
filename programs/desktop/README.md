@@ -647,9 +647,20 @@ before. Each folder is checked with one file test, once per listing.
 Drag a file out of a Files window and let go over another: over a Files
 window it goes into the folder shown, or into the folder it was let go on;
 over a terminal window its path is typed in, quoted for a shell. A drop
-**moves**, and **copies with ctrl held**. Nothing is ever put over something
-already there, and a folder cannot go inside itself -- the desktop says so
-instead. Escape while dragging cancels.
+**moves**, and **copies with ctrl held**. A folder cannot go inside itself
+-- the desktop says so instead. Escape while dragging cancels.
+
+A copy, and a move that has to cross from one disk to another, runs in a
+window of its own while everything else goes on drawing: what it is
+copying, how many items are left, how much of how much, a bar, the file in
+hand and, once there is a rate to go by, about how long is left. **Stop**,
+escape or closing the window ends it, and nothing half-written is left
+behind -- each item is written under a hidden name and only named when it
+is whole. Several can run at once, each in its own window. A name already
+there is asked about before anything moves: **Replace** (the one there goes
+to the trash, so it can be put back), **Skip** or **Stop**, with "do the
+same for the others" when there are more. A move within one disk is a
+rename, at once, and opens no window. The copying is the `copy` module's.
 
 A selection drags whole: every file in it moves or copies, and one note
 says how that went -- "Moved 3 items to project", or the first thing
@@ -687,6 +698,18 @@ a **list** of names; **details**, with size, time and permissions from one
 and **icons**, a grid the arrows move across and down. Delete moves the
 selection to the trash; alt-c copies its path, and alt-v in a Files window
 copies the file whose path was pasted into the folder shown.
+
+**alt-.** shows and hides hidden files in a Files window (View > Hidden
+Files, and `h`), and **alt-enter**, or a double click with **alt** held,
+opens a folder in a new window rather than this one; File > Open in New
+Window and the right-click menu do the same. Both keys are Files' own:
+Control Panel > Shortcuts lists them under Files and changes them like any
+other, and they act only while a Files window has the focus, so a terminal
+window keeps alt-. for its shell. Control Panel > Files has **Show Hidden
+Files**, for new windows to start with them shown, and **Open Folders in
+New Windows**, for every folder to open in one of its own, as System 7's
+did. Alt held and the mouse moved still drags the window: only a click that
+does not move goes to the app.
 
 ## Copy and paste
 

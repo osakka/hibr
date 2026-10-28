@@ -128,39 +128,6 @@ fn dt_tally(int done, int bad, what, last, why, detail = "") {
 	fi
 }
 
-# Move or copy paths into a folder, and say once how it went.
-fn dt_fileop(op, dst, ...rest) {
-	local src n=0 bad=0 why= last= what
-	local -a okp
-
-	shift 2
-	if dt_has dt_davop; then
-		for src in "$dst" "$@"; do
-			if dt_isremote "$src"; then
-				dt_davop "$op" "$dst" "$@"
-				return
-			fi
-		done
-	fi
-	for src in "$@"; do
-		dt_fileop1 "$op" "$src" "$dst"
-		case $? in
-		0) n=$((n + 1)); last=${src##*/}; okp+=("$src" "$dst/${src##*/}") ;;
-		1) bad=$((bad + 1)); [ -z "$why" ] && why=$DT_WHY ;;
-		esac
-	done
-	[ "${#okp[@]}" -gt 0 ] && dt_fopsave "$op" "${okp[@]}"
-	what := dt_tr "Moved"
-	[ "$op" = copy ] && what := dt_tr "Copied"
-	if [ "$n" = 1 ]; then
-		dt_tally 1 "$bad" "$what" "$last to ${dst##*/}" "$why"
-	else
-		dt_tally "$n" "$bad" "$what" "" "$why" "to ${dst##*/}"
-	fi
-	[ "$n" -gt 0 ] && dt_changed
-	[ "$bad" = 0 ]
-}
-
 # What was moved, copied, renamed or thrown away, so Undo in a Files window
 # can put it back and Redo do it again (Gitea #372). One log for the whole
 # desktop, as there is one clipboard: a move made by a drop on an icon, a

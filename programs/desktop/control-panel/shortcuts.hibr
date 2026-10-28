@@ -14,7 +14,7 @@
 strict
 
 
-app shortcuts "The Control Panel pane for every shortcut in one list" 1.1
+app shortcuts "The Control Panel pane for every shortcut in one list" 1.2
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌘"
 
 # Shortcut Key's three choices, as the pane shows them and as DT_MOD
@@ -73,7 +73,7 @@ fn shortcuts_row(int w, int n, what) {
 }
 
 fn shortcuts_rows(int w) {
-	local n=0 a names nl
+	local n=0 a names nl last
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shortcut Key"
 	CP[$w][$n]["val"] := shortcuts_modlabel
@@ -84,11 +84,27 @@ fn shortcuts_rows(int w) {
 		n=$((n + 1))
 	done
 	names := dt_appnames
-	[ -n "$names" ] || ret "$n"
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Apps"; n=$((n + 1))
-	read -ra nl <<< "$names"
-	for a in "${nl[@]}"; do
-		shortcuts_row "$w" "$n" "app:$a"
+	if [ -n "$names" ]; then
+		CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Apps"; n=$((n + 1))
+		read -ra nl <<< "$names"
+		for a in "${nl[@]}"; do
+			shortcuts_row "$w" "$n" "app:$a"
+			n=$((n + 1))
+		done
+	fi
+	# Each app's own actions, under the app's name: they act only while
+	# its window has the focus.
+	last=
+	# A desktop older than 0.99.371 has no app actions to list.
+	command -v dt_appaction > /dev/null || ret "$n"
+	for a in "${DT_AKEYORDER[@]}"; do
+		if [ "${a%%:*}" != "$last" ]; then
+			last=${a%%:*}
+			CP[$w][$n]["kind"]=head
+			CP[$w][$n]["text"]="${DT_APPS["$last"]["title"]:-$last}"
+			n=$((n + 1))
+		fi
+		shortcuts_row "$w" "$n" "act:$a"
 		n=$((n + 1))
 	done
 	ret "$n"

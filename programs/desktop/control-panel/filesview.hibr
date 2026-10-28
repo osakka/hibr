@@ -2,6 +2,8 @@
 #
 # filesview -- the Control Panel pane for Files: the view a folder opens in
 # until it is given one of its own, and forgetting every folder's; whether
+# a new window shows hidden files, and whether a folder opens in a window
+# of its own; whether
 # a folder's own cover is its icon, and how big; whether
 # its right-click menu offers Open With and Open Terminal Here, and what
 # shell the second starts. Named
@@ -10,12 +12,17 @@
 strict
 
 
-app filesview "The Control Panel pane for Files" 1.3
+app filesview "The Control Panel pane for Files" 1.4
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
 fn cp_set_termhere(int? id = "", value = "") { DT_TERMHERE=$value; cp_save; }
 fn cp_set_cover(int? id = "", value = "") { FB_COVER=$value; cp_save; }
+
+# Files' own, repeated so the pane can set them with the app not loaded.
+FB_HIDDENDEF="${FB_HIDDENDEF-0}"
+FB_OPENNEW="${FB_OPENNEW-0}"
+command -v dt_keep > /dev/null && dt_keep FB_HIDDENDEF FB_OPENNEW
 
 FV_SHELLS=(shell hibr bash zsh sh)
 FV_COVERS=(large small)
@@ -37,6 +44,16 @@ fn filesview_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cover Size"
 	CP[$w][$n]["val"]="${FB_COVER:-large}"; CP[$w][$n]["key"]=cover
 	n=$((n + 1))
+	# A new window with hidden files showing, and a folder opened in a
+	# window of its own as System 7's were (Gitea #402).
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Hidden Files"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$FB_HIDDENDEF" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=FB_HIDDENDEF; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Open Folders in New Windows"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$FB_OPENNEW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=FB_OPENNEW; n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Reset All Views"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=resetviews
 	n=$((n + 1))
@@ -61,7 +78,7 @@ fn filesview_do(int w, k, int dir) {
 	fileview) v := cp_next "${FB_DEFAULTVIEW:-list}" "$dir" "${FILES_VIEWS[@]}"
 		FB_DEFAULTVIEW=$v ;;
 	resetviews) dt_needs files fb_reset_views && fb_reset_views ;;
-	DT_FBOPENWITH | DT_FBTERMHERE | FB_USECOVER) cp_toggle "$k" ;;
+	DT_FBOPENWITH | DT_FBTERMHERE | FB_USECOVER | FB_HIDDENDEF | FB_OPENNEW) cp_toggle "$k" ;;
 	termhere) v := cp_next "$DT_TERMHERE" "$dir" "${FV_SHELLS[@]}"
 		DT_TERMHERE=$v ;;
 	cover) v := cp_next "${FB_COVER:-large}" "$dir" "${FV_COVERS[@]}"

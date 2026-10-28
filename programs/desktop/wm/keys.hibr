@@ -185,6 +185,44 @@ fn dt_keyassigned(key) {
 	return 1
 }
 
+# An app's own actions on keys (Gitea #402): what Files' Show Hidden Files
+# is on, listed in the Shortcuts pane under the app and changed there like
+# any other, and acted on only while the app's window has the focus. They
+# are never in dt_keyassigned, so a terminal window keeps every one of them
+# -- alt-. is a shell's last argument there, and Files' hidden files here.
+# Keyed "app:action"; DT_AKEY is saved with the rest.
+declare -gA DT_AKEY DT_AKEYNAME
+DT_AKEYORDER=()
+
+# Declare one: the app, the action, what the pane calls it, and the key it
+# has until somebody changes it.
+fn dt_appaction(app, act, name, key = "") {
+	local k="$app:$act"
+
+	case " ${DT_AKEYORDER[*]} " in
+	*" $k "*) ;;
+	*) DT_AKEYORDER+=("$k") ;;
+	esac
+	DT_AKEYNAME["$k"]=$name
+	[ -n "${DT_AKEY["$k"]+x}" ] || DT_AKEY["$k"]=$key
+	return 0
+}
+
+# Whether key is what an app's action is on.
+fn dt_akeyis(app, act, key) {
+	local a b k="$app:$act"
+
+	[ -n "${DT_AKEY["$k"]}" ] || return 1
+	a := dt_keynorm "${DT_AKEY["$k"]}"
+	b := dt_keynorm "$key"
+	[ "$a" = "$b" ]
+}
+
+# The key an app's action is on, empty for none; dt_rowaccel shows it.
+fn dt_akeyof(app, act) {
+	ret "${DT_AKEY["$app:$act"]}"
+}
+
 # Launch whichever app, if any, has key as its own shortcut -- the general
 # form the desktop's fixed actions are not: any number of apps, not a few
 # of them by name in a case statement.
@@ -207,6 +245,7 @@ fn dt_appkeyed(key) {
 fn dt_keylabel(what) {
 	case $what in
 	app:*) ret "${DT_APPS["${what#app:}"]["title"]:-${what#app:}}" ;;
+	act:*) ret "${DT_AKEYNAME["${what#act:}"]:-${what#act:}}" ;;
 	*) ret "${DT_KEYNAME["$what"]:-$what}" ;;
 	esac
 }
@@ -242,6 +281,7 @@ fn dt_keyis(what, key) {
 fn dt_keyof(what) {
 	case $what in
 	app:*) ret "${DT_APPKEY["${what#app:}"]}" ;;
+	act:*) ret "${DT_AKEY["${what#act:}"]}" ;;
 	*) ret "${DT_KEYS["$what"]}" ;;
 	esac
 }
@@ -253,6 +293,7 @@ fn dt_keyset(what, key) {
 	[ -n "$key" ] && key := dt_keynorm "$key"
 	case $what in
 	app:*) DT_APPKEY["${what#app:}"]=$key ;;
+	act:*) DT_AKEY["${what#act:}"]=$key ;;
 	*) DT_KEYS["$what"]=$key ;;
 	esac
 	dt_save
@@ -260,7 +301,7 @@ fn dt_keyset(what, key) {
 
 # Which other action already holds key, if any.
 fn dt_keyowner(key, except = "") {
-	local knorm a k
+	local knorm a k e
 
 	[ -n "$key" ] || return 1
 	knorm := dt_keynorm "$key"
@@ -273,6 +314,14 @@ fn dt_keyowner(key, except = "") {
 		[ "app:$a" = "$except" ] || [ -z "${DT_APPKEY["$a"]}" ] && continue
 		k := dt_keynorm "${DT_APPKEY["$a"]}"
 		[ "$k" = "$knorm" ] && ret "app:$a"
+	done
+	# Two apps' own actions may share a key, since only the focused app's
+	# acts; one app's two may not.
+	for a in "${DT_AKEYORDER[@]}"; do
+		[ "act:$a" = "$except" ] || [ -z "${DT_AKEY["$a"]}" ] && continue
+		case $except in act:*) e=${except#act:}; [ "${e%%:*}" = "${a%%:*}" ] || continue ;; esac
+		k := dt_keynorm "${DT_AKEY["$a"]}"
+		[ "$k" = "$knorm" ] && ret "act:$a"
 	done
 	return 1
 }

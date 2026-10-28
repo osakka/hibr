@@ -25,9 +25,29 @@ strict
 # it is quoted, and arithmetic never sees the quotes, so DT[$id][col] inside
 # $(( )) would mean DT[$id][5] here.
 
+# A click with the drag key that did not move the window, handed to the
+# window's app as a press and a release where it was made, with its
+# modifiers, as any other click would have been.
+fn dt_altclick(int id, btn, int mr, int mc, mods = "") {
+	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} wa mo ap
+
+	[ -n "${DT[$id]["app"]+x}" ] || return 0
+	wa=$wc
+	dt_capped "$id" && wa=$((wc - 1))
+	mo=${DT[$id]["mouse"]}
+	if [ -n "$mo" ]; then
+		$mo "$id" press "$btn" $((mr - wr)) $((mc - wa)) "$mods"
+		$mo "$id" release "$btn" $((mr - wr)) $((mc - wa)) "$mods"
+		return 0
+	fi
+	ap=${DT[$id]["click"]}
+	[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wa)) "$btn"
+	return 0
+}
+
 dt_mouse() {
 	local act=${1##*-} mr mc mods
-	local id b bi wr wc wa wh ww ap mo now dr dc wsn p g
+	local id b bi wr wc wa wh ww ap mo now dr dc wsn p g ai ab ar ac
 	local -a gv
 
 	mods=${1%"$act"}
@@ -175,6 +195,8 @@ dt_mouse() {
 					DT_DRAG=$id
 					DT_DR=$((mr - wr))
 					DT_DC=$((mc - wc))
+					DT_ALTPRESS="$id $1 $mr $mc"
+					DT_ALTMODS=$mods
 					return 0
 					;;
 				esac
@@ -327,6 +349,8 @@ dt_mouse() {
 
 	case $act in
 	drag)
+		[ -n "$DT_ALTPRESS" ] && [ "${DT_ALTPRESS#* * }" != "$mr $mc" ] &&
+			DT_ALTPRESS=
 		if [ -n "$CS_DRAG" ]; then
 			if [ -z "$CS_DRAGKIND" ]; then
 				dr=$((mr - CS_PRESSR)); [ "$dr" -lt 0 ] && dr=$((0 - dr))
@@ -379,6 +403,18 @@ dt_mouse() {
 		dt_move "$DT_DRAG" $((mr - DT_DR)) $((mc - DT_DC))
 		;;
 	release)
+		# A press with the drag key that never moved was not a drag: it
+		# is the app's, as an alt-click -- Files opens a folder in a new
+		# window that way (Gitea #402). The window only moves with the mouse.
+		if [ -n "$DT_ALTPRESS" ]; then
+			read -r ai ab ar ac <<< "$DT_ALTPRESS"
+			DT_ALTPRESS=
+			if [ "$ar $ac" = "$mr $mc" ] && [ -z "$DT_OLON" ]; then
+				DT_DRAG=
+				dt_altclick "$ai" "$ab" "$ar" "$ac" "$DT_ALTMODS"
+				return 0
+			fi
+		fi
 		# An outline drag ends here: the window goes where its outline is
 		# and draws once -- unless it was let go over a workspace's
 		# number or is tiled, which the branches below decide from where

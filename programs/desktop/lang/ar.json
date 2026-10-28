@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.46",
+ "version": "3.47",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1401,6 +1401,85 @@
   "Menu Mark": "علامة القائمة",
   "hui v%s": "hui الإصدار %s",
   "hibr user interface, hybrid user interface": "واجهة مستخدم hibr، واجهة مستخدم هجينة",
-  "Next Prayer": "الصلاة التالية"
+  "Next Prayer": "الصلاة التالية",
+  "%s item remaining": {
+   "zero": "لم يبق شيء",
+   "one": "بقي عنصر واحد",
+   "two": "بقي عنصران",
+   "few": "بقيت %s عناصر",
+   "many": "بقي %s عنصرًا",
+   "other": "بقي %s عنصر"
+  },
+  "%s items remaining": "بقي %s عنصر",
+  "%s item was done; these could not be:": {
+   "zero": "لم يُنجز شيء، وتعذّر هذا:",
+   "one": "أُنجز عنصر واحد، وتعذّر هذا:",
+   "two": "أُنجز عنصران، وتعذّر هذا:",
+   "few": "أُنجزت %s عناصر، وتعذّر هذا:",
+   "many": "أُنجز %s عنصرًا، وتعذّر هذا:",
+   "other": "أُنجز %s عنصر، وتعذّر هذا:"
+  },
+  "%s items were done; these could not be:": "أُنجز %s عنصر، وتعذّر هذا:",
+  "About %s minute remaining": {
+   "zero": "أقل من دقيقة",
+   "one": "بقيت دقيقة تقريبًا",
+   "two": "بقيت دقيقتان تقريبًا",
+   "few": "بقيت %s دقائق تقريبًا",
+   "many": "بقيت %s دقيقة تقريبًا",
+   "other": "بقيت %s دقيقة تقريبًا"
+  },
+  "About %s minutes remaining": "بقيت %s دقيقة تقريبًا",
+  "About %s second remaining": {
+   "zero": "أقل من ثانية",
+   "one": "بقيت ثانية تقريبًا",
+   "two": "بقيت ثانيتان تقريبًا",
+   "few": "بقيت %s ثوانٍ تقريبًا",
+   "many": "بقيت %s ثانية تقريبًا",
+   "other": "بقيت %s ثانية تقريبًا"
+  },
+  "About %s seconds remaining": "بقيت %s ثانية تقريبًا",
+  "Almost done": "أوشك على الانتهاء",
+  "An item named %s already exists in %s.": "يوجد عنصر باسم %s في %s.",
+  "Copying to %s": "جارٍ النسخ إلى %s",
+  "Do the same for the %s other": {
+   "zero": "افعل الشيء نفسه للبقية",
+   "one": "افعل الشيء نفسه للعنصر الآخر",
+   "two": "افعل الشيء نفسه للعنصرين الآخرين",
+   "few": "افعل الشيء نفسه للعناصر %s الأخرى",
+   "many": "افعل الشيء نفسه لـ %s عنصرًا آخر",
+   "other": "افعل الشيء نفسه لـ %s عنصر آخر"
+  },
+  "Do the same for the %s others": "افعل الشيء نفسه لـ %s عنصر آخر",
+  "Files cannot be copied: the copy module is not installed": "تعذّر نسخ الملفات: وحدة النسخ غير مثبتة",
+  "Moving": "النقل",
+  "Moving to %s": "جارٍ النقل إلى %s",
+  "Open Folders in New Windows": "فتح المجلدات في نوافذ جديدة",
+  "Open in New Window": "فتح في نافذة جديدة",
+  "Preparing to copy %s item": {
+   "zero": "جارٍ التحضير للنسخ",
+   "one": "جارٍ التحضير لنسخ عنصر واحد",
+   "two": "جارٍ التحضير لنسخ عنصرين",
+   "few": "جارٍ التحضير لنسخ %s عناصر",
+   "many": "جارٍ التحضير لنسخ %s عنصرًا",
+   "other": "جارٍ التحضير لنسخ %s عنصر"
+  },
+  "Preparing to copy %s items": "جارٍ التحضير لنسخ %s عنصر",
+  "Replace": "استبدال",
+  "Replace it with the one you are copying?": "أتستبدله بالذي تنسخه؟",
+  "Replace it with the one you are moving?": "أتستبدله بالذي تنقله؟",
+  "Show Hidden Files": "إظهار الملفات المخفية",
+  "Skip": "تخطٍّ",
+  "Stopped after %s item": {
+   "zero": "توقّف قبل أي عنصر",
+   "one": "توقّف بعد عنصر واحد",
+   "two": "توقّف بعد عنصرين",
+   "few": "توقّف بعد %s عناصر",
+   "many": "توقّف بعد %s عنصرًا",
+   "other": "توقّف بعد %s عنصر"
+  },
+  "Stopped after %s items": "توقّف بعد %s عنصر",
+  "Stopped; nothing was done": "توقّف؛ لم يُنجز شيء",
+  "Stopping…": "جارٍ الإيقاف…",
+  "The one there now goes to the trash.": "ويذهب الموجود الآن إلى المهملات."
  }
 }
