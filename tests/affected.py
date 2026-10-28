@@ -200,8 +200,9 @@ def suites_for(path, req, prov, where, desk=None):
             hit, because = covmap.reach(path, desk, SUITES)
             if hit is not None:
                 return hit, because
-            return set(DESKTOP) | set(covmap.READERS), "the desktop: " + because
-        return set(DESKTOP) | set(covmap.READERS), "the desktop"
+            return (set(DESKTOP) | covmap.callers() | set(covmap.READERS),
+                    "the desktop: " + because)
+        return set(DESKTOP) | covmap.callers() | set(covmap.READERS), "the desktop"
     if path.startswith("tests/"):
         n = os.path.basename(path)
         s = n[:-3] if n.endswith(".py") else None

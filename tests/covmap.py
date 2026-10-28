@@ -115,6 +115,16 @@ def load():
     return commit, out
 
 
+def callers():
+    """Every suite the map saw call a desktop function: what a change the
+    map cannot narrow has to run."""
+    _, m = load()
+    out = set()
+    for v in m.values():
+        out |= v
+    return out
+
+
 def take():
     """Run every suite under the census build; write the map."""
     sys.path.insert(0, HERE)

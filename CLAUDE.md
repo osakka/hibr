@@ -29,7 +29,7 @@ releases).
     make TLS=0           # compile TLS out entirely
     make CC=gcc OPT=-O2  # optimised: ~20% smaller text, ~45% faster, not the default
     make check           # = tests/run.sh
-    make check-all       # = tests/all.py: every suite, side by side, ~2.5 min
+    make check-all       # = tests/all.py: every suite, side by side, ~19 min on 4 cores
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr,
                          # the desktop to $(PREFIX)/share/hibr/desktop and
                          # a `desktop` launcher to $(PREFIX)/bin
@@ -39,12 +39,14 @@ releases).
     ./build/hibr tests/self.hibr                 # suite in hibr, 92 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
-    python3 tests/apps_{panel,reach,core,more}.py
-                                 # apps.py's checks in four parts, as all.py runs them
+    python3 tests/apps_{panel,reach,office,core,more}.py
+    python3 tests/desktop_{basics,windows,pictures,session}.py
+                                 # apps.py's and desktop.py's checks in parts, as all.py runs them
     python3 tests/term_diff.py   # mods/term against tmux, cell by cell
     python3 tests/uifuzz.py      # random input into each app, seeded; SEED=random
     python3 tests/uifuzz.py oracle   # every frame against a full redraw (ON=100)
-    python3 tests/affected.py --run      # only the suites a change reaches
+    python3 tests/affected.py --run      # only the suites a change reaches (the release gate)
+    python3 tests/covmap.py --take       # the map it narrows the desktop with (daily)
     python3 tests/census.py      # desktop functions no suite calls, and the count
     python3 tests/asan.py        # every suite, pty ones too, under ASan and UBSan
     python3 tests/asan.py --quick    # the release gate: core, C modules, what changed
@@ -56,6 +58,29 @@ releases).
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
+
+The release gate is targeted, the daily run is not. A release runs
+`python3 tests/affected.py --since <last tag> --run` and then, when C
+changed, `tests/asan.py --quick`, one after the other. A change to `src/`,
+`include/`, the Makefile or `tests/screen.py` still reaches every suite. A
+change under `programs/desktop` reaches the suites that **called the
+changed function**, as measured by `tests/coverage.tsv`. Once a day, and
+after a core change, run the full `tests/all.py`, then
+`python3 tests/covmap.py --take` in a clean worktree at a commit, and
+commit the map it writes. The map refuses three questions, and each of
+them runs every desktop suite instead:
+
+- a changed line outside a function body;
+- a function no suite was seen calling;
+- a map not taken in this history.
+
+Its one blind spot is a call path made *after* it was taken, so
+`affected.py` diffs from the map's own commit whenever that is older than
+the tag. That blind spot is as wide as what changed since the map, and
+the daily run keeps it to a day. The map also widened the old rule: it
+found eight suites (web, youtube, holdpix, mermaid, pdfapp, xscreen,
+shots, dav) that draw through the desktop, which the hand-written
+`DESKTOP` list had never named.
 
 Sanitizers come in two tiers. `tests/asan.py --quick` is the gate a release
 that changes C waits for (minutes): run.sh, self.hibr, the parser fuzzer,
