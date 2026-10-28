@@ -73,20 +73,28 @@ show it. Without it a display is
 .BI client\- fd\fR.
 .SH KEYS
 These are the defaults. Each one can be changed in Control Panel >
-Keyboard > Shortcuts. Every other key goes to the focused window, so a
+Shortcuts. Every other key goes to the focused window, so a
 program in a terminal window gets its own ctrl-c.
 .TP
 .BR F10 " or " escape
 Open the menu bar. Arrows and letters then work its menus.
 .TP
-.B alt-tab
-Go to the next window.
+.BR alt-tab ", " alt-shift-tab
+The window switcher: the window list with the next window highlighted,
+stepped forward or back; a pause, or any other key, goes to the window it
+stands on, and escape goes nowhere.
 .TP
-.B ctrl-w
+.B alt-w
 Close the focused window.
+.TP
+.B ctrl-f10
+Release Pointer: take the pointer back from a window holding it.
 .TP
 .B ctrl-\e
 Detach.
+.PP
+The alt in these is Control Panel > Shortcuts > Shortcut Key, which can
+be Alt, Super or Alt, or Super.
 .PP
 Quit, on the hibr menu, ends the desktop and its windows. A window is
 moved by its title bar, or by alt and a drag anywhere in it.

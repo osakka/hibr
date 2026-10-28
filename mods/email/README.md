@@ -150,6 +150,10 @@ sent, drafts, trash, spam, archive, all); `SELECT` or `EXAMINE` (`-r`);
 (with `COPY` and `EXPUNGE` where MOVE is missing), `UID SEARCH`, `APPEND`;
 and `IDLE`, falling back to a check every half minute where the server does
 not have it. Folder names are modified UTF-7 on the wire and UTF-8 here.
+The verbs beside those in the summary above: `email uids h` (every UID in
+the folder, an array), `email flags h set` (only the flags, the shape
+`headers` gives), `email copy h uids folder` (`move` without the removal)
+and `email expunge h`.
 
 On Gmail (`email gmail h` says 1) headers carry `labels`, `thrid` and
 `gmid` from `X-GM-LABELS`, `X-GM-THRID` and `X-GM-MSGID`, and

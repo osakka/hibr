@@ -28,7 +28,8 @@ date is the local calendar day, today when left out.
 ## Methods are files
 
 A method is a JSON file in a folder: `$HIBR_SALAT` (colon-separated)
-first, then `~/.config/hibr/salat`, then the installed `$(SHAREDIR)/salat`,
+first, then `$XDG_CONFIG_HOME/hibr/salat` (`~/.config/hibr/salat` when that
+is unset), then the installed `$(SHAREDIR)/salat`,
 the first of a name winning. `mwl` is also built in.
 
 ```json

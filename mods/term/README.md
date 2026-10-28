@@ -48,6 +48,7 @@ same underlying grid, not the interface itself.
     term clip t                  # text it last put on the clipboard (OSC 52), once
     term bell t                  # status 0 if it rang the bell since last asked
     term note t                  # its next notification (OSC 9, 777): title, tab, text
+    term gen   t                 # a count that moves whenever the emulator is fed: unchanged means nothing to draw
     term fd    t                 # the pty descriptor, for console watch
     term pid   t                 # the program's process id
     term save  t file            # screen, scrollback, cursor, modes, title -- for a restart
@@ -260,6 +261,13 @@ position, its status -- goes to the program's pty, and when there is no pty
 (hold, which owns the program's pty itself) it is kept, and `tm_api`
 version 9's `reply` hands it over for the caller to write.
 
+What a program asks of the *pointer* is not drawn here and is kept for a
+relay to pass on: the shape it named with OSC 22 (`none` to hide it), which
+`tm_api` version 10's `pointer` hands over (Gitea #373), and DEC private
+mode 7701, Blit's pointer lock, which version 11's `plock` answers with a
+number that is new each time the program asks (Gitea #379). `hold` sends
+the lock to the one display that can hold the pointer and was used last.
+
 Bracketed paste (2004) wraps a `paste` key in `ESC [200~` and `ESC [201~`
 when the program asks.
 
@@ -311,9 +319,12 @@ picture nobody ever saw (ADR 0037, Gitea #103). A terminal window therefore
 shows a space where a program drew a picture, as it always did, and loses
 nothing on the way through hold.
 
-Motion with no button held is not reported, even under 1003, because the
-desktop turns on only click and drag reporting: all motion is a report per
-cell crossed. Modifiers on a mouse event are not passed on. Nothing reflows
+Motion with no button held is not reported to a program in a desktop
+window, even under 1003. The emulator can send one (`term mouse t drag none
+r c`, above), and where Control Panel > Mouse > Hover is on the desktop
+hears the pointer move (Gitea #370), but it hands a hover to a window's own
+hover callback, never to `_mouse`, and the terminal window has none.
+Modifiers on a mouse event are not passed on. Nothing reflows
 on a resize. Left and right margins (DECLRMM) and the kitty keyboard
 protocol are not implemented -- the parser consumes their sequences so
 nothing leaks onto the screen, and a program asking about them hears nothing

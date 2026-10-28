@@ -4,6 +4,7 @@ Mermaid diagrams, drawn into cells.
 
     mermaid render diagram.mmd        # the drawing, as text
     mermaid render -a diagram.mmd     # drawn out of ascii alone
+    mermaid render -w 60 pie.mmd      # a pie's bars this many columns wide (40)
     mermaid parse diagram.mmd         # the graph, a line an item
     d := mermaid render -t "$src"     # the drawing, with a style per character
 

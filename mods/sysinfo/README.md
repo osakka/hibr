@@ -45,7 +45,8 @@ wide, so the two agree; one that was not would want the column count.
 
 `/etc/os-release` for the name and the picture, `uname` for the kernel and the
 architecture, `/proc/uptime`, `/proc/cpuinfo`, `/proc/meminfo`, `statvfs` on
-`/`, and `/proc/loadavg`. Nothing is shelled out to, so it costs no forks.
+`/`, and `/proc/loadavg`; on macOS, which has no `/proc`, the uptime comes
+from `sysctl`'s boot time. Nothing is shelled out to, so it costs no forks.
 
 The test checks the kernel release and the architecture against `uname` itself
 rather than against a recorded string, because those are the two that would
@@ -53,8 +54,10 @@ quietly go stale.
 
 ## Pictures
 
-Fourteen: Arch, Ubuntu, Fedora, Mint, openSUSE, Gentoo, NixOS, Void, RHEL and
-CentOS, FreeBSD, Debian and Raspbian, Alpine, CIX, and hibr's own.
+Fifteen: Arch, Ubuntu, Fedora, Mint, openSUSE, Gentoo, NixOS, Void, RHEL and
+CentOS, FreeBSD, Debian and Raspbian, Alpine, CIX, macOS, and hibr's own.
+macOS has no `/etc/os-release`, so a Darwin kernel picks its picture from
+`uname`.
 
 **A host shows its own.** The picture follows `ID` in `/etc/os-release`, and
 when that is a name with no picture, each word of `ID_LIKE` in turn — which is
@@ -63,7 +66,7 @@ get RHEL's, and Raspbian gets Debian's, without any of them needing one of
 their own. hibr's own picture is the fallback for a system that says nothing
 either way.
 
-`-l name` forces one, which exists so the other thirteen can be tested on a
+`-l name` forces one, which exists so the other fourteen can be tested on a
 machine that is only ever one distribution. It is not a normal way to run it:
 a CIX picture beside `OS: Debian GNU/Linux` is not a thing that should happen.
 The desktop's About window did exactly that until 0.99.116 -- `-l hibr`, so

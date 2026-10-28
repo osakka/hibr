@@ -66,11 +66,13 @@ Choose **Catalogue** from the hibr menu.
 ![The Catalogue window: a list of applications with their versions on the left, and the selected one described on the right, with Install, Read It and Refresh buttons along the bottom](../programs/desktop/img/tour-3-catalogue.png)
 
 The Catalogue lists what there is to install -- applications, Control
-Panel panes, strip modules, screen savers, themes, colour schemes,
-languages -- each with a description and the version it is at. Pick one
-and press **Install**. Each of them is a hibr script or a JSON file, so
-nothing is compiled and nothing needs root: it is put in a folder of
-yours that the desktop already reads.
+Panel panes, menu bar items, strip modules, screen savers, themes, colour
+schemes, languages, modules, and bundles that bring several of them at
+once, such as Sound: the speaker on the bar and its pane -- each with a
+description and the version it is at. Pick one
+and press **Install**. Each of them but a module is a hibr script or a
+JSON file, so nothing is compiled and nothing needs root: it is put in a
+folder of yours that the desktop already reads.
 
 The same catalogue is a command, for a shell with no desktop in it:
 
@@ -153,8 +155,9 @@ and is kept for next time.
 The menu bar has a pane of its own, **Menu Bar**: the gap between its
 items, how much of a picture shows through it, the notification icon, its
 shadow and how wide a menu may grow. Its **Menu Bar Items** list shows what
-is on the bar's right -- the workspace numbers, the speaker, the network, the notification
-icon, the clock, anything an app has put there -- in the order they read
+is on the bar's right -- the workspace numbers, the notification icon, the
+clock, and anything installed from the Catalogue, such as the speaker or
+the network -- in the order they read
 across it. Untick one to take it off the bar. Drag a row by its grip to
 move it, or select it and press **shift** with an arrow. The application
 menu stays in its corner.

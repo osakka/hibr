@@ -15,7 +15,7 @@ db import $h rows.tsv           # one row a line, tab-separated
 db query $h where load gt 2.5 and host eq web1 limit 10
 db count $h where host eq web1
 db avg $h load where ts ge 1727800000
-r := db query $h where host eq web2     # a map: ${r[0][load]}, types kept
+r := db query $h where host eq web2     # a map: ${r[0]["load"]}, types kept
 db set $h 2 load 1.5                    # record 2, by the number -n shows
 db update $h where host eq web1 set load 0
 db delete $h where load gt 100          # or db delete $h 3 7, by number

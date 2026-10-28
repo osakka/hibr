@@ -111,3 +111,8 @@ the first version did with a 40-byte text file.
 - zip, which is a different container with its own index at the end.
 - Members larger than memory: `cat` streams, but the scheme and the gzip
   expansion both hold the whole thing.
+- A member for a module that opens its own path. "Anywhere a filename goes"
+  means a redirection or `source`; `img`, `media` and `web` call `fopen`
+  themselves, so `img size /dev/archive/b/x.png` says it cannot open it.
+  This is why the catalogue unpacks a bundle rather than mounting it (ADR
+  0041).

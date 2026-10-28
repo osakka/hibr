@@ -105,8 +105,11 @@ fruit: 3 -> apple pear fig
 
 `ret` ends the function, like `return`, and puts a value in the slot;
 `x := cmd` runs a builtin or function and binds that value, with no
-subshell and no fork. It binds what a builtin or function hands back -- a
-program on the PATH prints as usual, so capture one with `$(…)`.
+subshell and no fork. For a program on the PATH it binds the program's
+standard output, trailing newlines removed, as `$(…)` does (since 0.99.89,
+[ADR 0038](adr/0038-the-slot-takes-a-programs-output-too.md)). A function is not
+captured: what it prints still goes to the screen, and it hands a value
+back with `ret`.
 
 ```sh
 fn half(int n) { ret $((n / 2)); }
@@ -116,12 +119,15 @@ up := str upper "shout"
 echo "$up"
 m[k] := half 10
 echo "${m[k]}"
+p := expr 6 \* 7
+echo "$p"
 ```
 
 ```output
 21
 SHOUT
 5
+42
 ```
 
 ## Maps, nested
@@ -193,11 +199,11 @@ a+b+c
 apple fig pear
 ```
 
-`str`: `len upper lower trim slice index replace split join pad starts ends
-contains repeat`. `arr`: `len push pop sort uniq reverse contains map
+`str`: `len width upper lower trim slice index replace split join pad
+starts ends contains repeat`. `arr`: `len push pop sort uniq reverse contains map
 filter`. `arr sort` compares as text unless given `-n` (numbers) and
-reverses with `-r`: `arr sort a -n`. `str pad` counts display columns;
-lengths and slices count characters.
+reverses with `-r`: `arr sort a -n`. `str pad` and `str width` count
+display columns; lengths and slices count characters.
 
 ## Regular expressions
 
@@ -446,11 +452,14 @@ what it would do.
 `need name` loads a module that provides a name, or says it cannot;
 `mod load path.so` loads one by path; `mod list` shows what is loaded.
 Modules add builtins and protocols, and a script that uses none pays
-nothing for them.
+nothing for them. For HTTP, `need fetch` gives `fetch [METHOD] URL`:
+the body printed, or with `r := fetch URL` a map of `status`, `type`,
+`headers` and `body` (see [Networking](networking.md)).
 
 ## Mistakes to avoid
 
-- `x := program` binds nothing for a program on the PATH; use `x=$(program)`.
+- `x := f` for a function does not capture what `f` prints -- that still
+  goes to the screen; hand the value back with `ret`.
 - `ret "$v"; return 1` never reaches the `return`: `ret` has already ended
   the function with status 0.
 - An unquoted literal key is looked up as a variable first: write

@@ -117,10 +117,11 @@ Everything is clean under ASan and UBSan.
 Measured on an 813 KB generated page of 6000 sections (gcc build of the
 shell, tcc build of the module): `html parse` 159 ms, a selector query
 over the whole tree 7 ms, `html lines` at 100 columns 0.25 s printed. Bound
-with `:=`, the same 30,000 lines took 45 s, all of it in the shell's maps,
-which are lists: a result that large is quadratic to store. An email is a
-few hundred lines and costs milliseconds; a whole book bound into `$RET`
-does not.
+with `:=`, the same 30,000 lines took 45 s then, all of it in the shell's
+maps, which were lists and quadratic to fill. They are indexed since
+0.99.74 (Gitea #73): on 0.99.366, default tcc build of both, a 1.3 MB page
+of 6000 sections laid out at 100 columns took 0.13 s printed and 0.19 s
+bound, 48,000 lines.
 
 ## Files
 

@@ -21,12 +21,12 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | module | what it is |
 |---|---|
 | `sys.c` | A minimal example — `drop`, `epoch`, `sleepms`, `state`, `upper` |
-| `http.c` | A **scheme**: registers `/dev/http/host/port/path`, so an HTTP body can be read by anything that reads a file; the request is the fetch module's, the body kept in an unlinked file |
+| `http.c` | A **scheme**: registers `/dev/http/host/port/path`, so an HTTP body can be read by anything that reads a file; the request is the fetch module's, the body kept in an unlinked file. Also `msum` (the sum of a map's values) and `oops` (fail with a message from a module) |
 | `ls.c` | An in-process `ls` with columns, `-l -a -A -h -t -S -r -d -1 -F` and colour, whose listing also lands in `$RET` |
 | `math.c` | `math`: floating point where `$(( ))` has only integers -- `+ - * / % ^`, comparisons, `? :`, `round sqrt abs pow ...`, shell variables by name, and `sum avg min max count` over arrays; shown as a spreadsheet shows numbers. One of the two modules a `--plan` may load |
 | `csv.c` | `csv`: CSV as RFC 4180 says -- quoted fields, doubled quotes, line breaks inside quotes, CRLF or LF, a byte-order mark skipped, any separator (`-s ';'`, `-s tab`). `csv read FILE` (or `-t TEXT`) binds every record as `r[i][j]`, or with `-H` as `r[i][name]` from the first; built in one pass, so 50,000 rows bind in a quarter of a second. `csv open`/`row`/`close` stream a record at a time; `csv line FIELD...` writes one, quoting only what needs it; `csv split TEXT` one record's fields. Sheet imports and exports through it |
 | `lines.c` | `lines`: files by line, exactly, for whoever edits this tree from a shell (Gitea #67). `lines show [-n] FILE FROM [TO|$]` prints a range byte for byte; `lines grep [-F] [-i] [-l] [-A n] [-B n] [-C n] [-g glob] PATTERN [PATH...]` searches a tree in name order, hidden folders and binary files skipped, printing grep's `file:line:text` and `--` between context groups, as fast as GNU grep on a plain pattern; `lines count FILE TEXT` counts a literal; `lines edit [-n] FILE` reads `<<<<` old `====` new `>>>>` blocks from standard input and applies them in order, each old text found exactly once or nothing written, through a new file renamed over the old with its mode kept. Output is printed, never bound into `$RET` |
-| `uni/` | `uni`: text for a cell grid, every table from one Unicode version (`tools/unigen.py`, 15.1.0). `uni vis [-d ltr|rtl|auto] TEXT` is the display order -- UAX #9, every case of Unicode's BidiTest and BidiCharacterTest passing (`tests/uni_bidi.py`) -- with Arabic shaped to presentation forms, lam-alef as one cell, marks after their base and mirrored brackets, checked against FriBidi (`tests/uni_shape.py`); `uni shape` shapes in logical order; `uni width`, `uni class`, `uni version`; `uni levels [-c]` reads `dir;input` lines for the conformance tests. ADR 0030 |
+| `uni/` | `uni`: text for a cell grid, offering `"uni"` (`mods/uni.h`) to other modules, every table from one Unicode version (`tools/unigen.py`, 15.1.0). `uni vis [-d ltr|rtl|auto] TEXT` is the display order -- UAX #9, every case of Unicode's BidiTest and BidiCharacterTest passing (`tests/uni_bidi.py`) -- with Arabic shaped to presentation forms, lam-alef as one cell, marks after their base and mirrored brackets, checked against FriBidi (`tests/uni_shape.py`); `uni shape` shapes in logical order; `uni width`, `uni class`, `uni version`; `uni levels [-c]` reads `dir;input` lines for the conformance tests. ADR 0030 |
 | `salat/` | `salat`: prayer times for a place and a day -- the sun's position as Meeus gives it, the method (angles, intervals, offsets) read from a JSON file, Asr school, high-latitude rule and a person's own minutes on top -- see [salat/README.md](salat/README.md), ADR 0035 |
 | `hcal/` | `hcal`: calendar systems as data -- the Hijri date of a day in Umm al-Qura, the tabular calendars or one added as a JSON file, and back, adjusted by whole days for sighting -- see [hcal/README.md](hcal/README.md), ADR 0034 |
 | `archive/` | `archive`: a tarball as a folder -- `.tar` and `.tar.gz` indexed at open, `archive ls|stat|cat`, and `/dev/archive/NAME/path` anywhere a filename goes, through the scheme mechanism rather than a kernel mount; folders that the archive never declared are implied from the member names; the inflate is `mods/inflate.c`, shared with the prompt module -- see [archive/README.md](archive/README.md), Gitea #102 |
@@ -49,11 +49,11 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `pty/` | Pseudo terminals: run a program on one and drive it; offers `"pty"` (`mods/pty.h`) — [README](pty/README.md) |
 | `term/` | A terminal emulator, a program's screen as cells; offers `"terminal"` (`mods/term.h`) — [README](term/README.md) |
 | `hold/` | Sessions that outlive their terminal: detach, log off, attach again; offers `"hold"` — [README](hold/README.md) |
-| `img/` | Decode an image and draw it as cells, libpng opened on first use — [README](img/README.md) |
+| `img/` | Decode an image and draw it as cells, libpng and libturbojpeg opened on first use — [README](img/README.md) |
 | `db/` | A small column store: typed columns, appended rows changed and deleted in place, filters and aggregates, zone maps — [README](db/README.md) |
 | `dav/` | A WebDAV client: RFC 4918 listings, transfers and conditional uploads over the fetch module's HTTP; servers in a private list -- [README](dav/README.md) |
 | `fetch/` | An HTTP client for scripts and modules: kept connections, codings, redirects, logins, proxies and JSON cookie jars; the `fetch` builtin, and offers `"fetch"` (`mods/fetch.h`) -- [README](fetch/README.md) |
-| `media/` | Video and sound: FFmpeg's libraries loaded at run time, a decoding thread and a sound thread, ALSA or AudioQueue, the picture as half blocks or ASCII following the sound's clock -- [README](media/README.md) |
+| `media/` | Video and sound: FFmpeg's libraries loaded at run time, a decoding thread and a sound thread, a sound server through libpulse-simple or else ALSA or AudioQueue, the picture as half blocks or ASCII following the sound's clock -- [README](media/README.md) |
 | `web/` | A web browser: headless Chromium driven over its own pipe, each page drawn as cells -- text where it was laid out, over a half-block picture; tabs, links, forms, scripting -- [README](web/README.md) |
 | `md/` | Markdown as CommonMark and GitHub write it: HTML, or a style per character for a program that draws it; every spec example passes — [README](md/README.md) |
 | `html/` | HTML as the WHATWG standard parses it, every html5lib tree-construction case passing; CSS selector queries, and pages laid out as lines with a style per character, links and picture boxes — [README](html/README.md) |
@@ -74,7 +74,8 @@ The rule: **`1.0` once a module does what its own README says, `0.x` while
 it does not**, and it moves when the module's behaviour changes in a way a
 caller could notice -- never on a release that did not touch it. So `dav`,
 `db`, `media`, `mermaid`, `pdf`, `web` and `xscr` are below 1.0 today, each with a list of
-what it cannot do yet in its README, and everything else is at 1.0.
+what it cannot do yet in its README, `http` is at 1.1, and everything else
+is at 1.0.
 
 Nothing compares it, which is what makes it free to mean that. A module
 whose **`abi`** does not match the shell's is refused at load, and an
@@ -127,7 +128,8 @@ See [0016](../docs/adr/0016-privileges-are-dropped-never-gained.md).
 ## prompt/
 
 The largest module, built by its own Makefile rule from every file in the
-directory, because it contains a working subset of git.
+directory (with `../inflate.c`, `../inftab.c` and `../gfxask.c`), because it
+contains a working subset of git.
 
 | file | role |
 |---|---|
@@ -135,7 +137,9 @@ directory, because it contains a working subset of git.
 | `fmt.c` | The `$var` / `[text](style)` / `(conditional)` format language, and styles to ANSI |
 | `seg.c` | The segment table and every segment that is not git |
 | `git.c` | Repository discovery, HEAD, refs, repository state, configuration |
-| `inflate.c` | DEFLATE — RFC 1951, and the RFC 1950 zlib wrapper. Expanding only; `../deflate.c` is the other direction and `../inftab.c` the tables both read |
+| `pl.c` | The powerline look (`PROMPT[look]`, `PROMPT[sep]`) and the glyph sets (`PROMPT[glyphs]`: nerd, blit, unicode, ascii or auto), Gitea #360 |
+| `pr.h` | The module's internal declarations |
+| `../inflate.c` | DEFLATE — RFC 1951, and the RFC 1950 zlib wrapper, shared with the archive module. Expanding only; `../deflate.c` is the other direction and `../inftab.c` the tables both read |
 | `obj.c` | Loose objects, pack indexes v1 and v2, `OFS_DELTA` and `REF_DELTA` chains, alternates |
 | `sha1.c` | SHA-1, and git's blob hashing rules including symlinks |
 | `idx.c` | `.git/index` versions 2, 3 and 4, and the cached-tree extension |

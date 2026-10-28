@@ -14,6 +14,7 @@ system monitor, and anything else full-screen. Building it once is the point.
 | `kitty.c` | the same picture as the kitty graphics protocol's own escape, which kitty, ghostty, WezTerm and konsole speak and kitty alone accepts (it has never drawn a sixel). A picture is an object with an id rather than paint: cheaper to encode, an order of magnitude more bytes, and every one placed is deleted later. A **still** picture's payload is compressed first (`console imgcomp`, Gitea #129): `o=z`, a zlib stream of the same pixels, by default, or `f=100`, a PNG, which is smaller again and is not the default because a terminal that takes `f=24` and not `f=100` draws nothing and `q=2` means it cannot say so. The owner's own wallpaper at 232x71 is 2.11 MB of base64 raw, 0.65 MB as `o=z` and 0.47 MB as a PNG, which is what a reattach over a link costs. A film's frame is never compressed: a different picture every frame, so the cost would be the encoding rather than the bytes |
 | `../deflate.c`, `../png.c` | the encoder behind that, and the PNG it writes with it -- deflate as RFC 1951 defines it (hash-chain LZ77, dynamic Huffman per block, a stored block when a compressed one would be no smaller) and a PNG of filtered scanlines around it, with nothing linked. `../inftab.c` holds the tables this and `../inflate.c` both read |
 | `image.c` | pictures as regions of the grid the console owns -- placed, kept, dropped when their cells are drawn through, and for the kitty protocol deleted from the terminal when they are (ADR 0037) |
+| `../gfxask.c` | asking the terminal which pictures it draws (the kitty query, then primary device attributes) and reading the answers out of the key stream; shared with hold's client (Gitea #258) |
 | `term.c` | taking and giving back the terminal, and the signals that guarantee it |
 | `grid.c` | the front and back buffers, placement, and the diffing flush |
 | `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste, the kitty keyboard protocol's `CSI u` named as the old form of each key with `super-` in front (Gitea #326); the wait, with the descriptors it watches and the guard that stops waking for a watched pipe nobody reads (Gitea #323) |
@@ -284,6 +285,18 @@ than its own width, or a reflow put a cover elsewhere, its blank face landed
 back where the cover had been, and kitty kept the old cover on screen. So an
 app that draws a pane places, every time it draws, every picture it still
 shows. Files, the Image Viewer, Mail and both previews all do.
+
+On kitty such a picture goes **below** the cells (Gitea #374, ADR 0037),
+at `CN_ZUNDER` with the cells it covers blanked, so a window over part of
+it hides only that part; the wallpaper is at `CN_ZWALL` beneath it. The
+rule that a picture placed over another supersedes it (#172) holds between
+pictures that own their cells and not between two window pictures (0.99.345):
+each of those takes a layer of its own in the windows' stacking order, so
+the one in front is drawn over the one behind. Raising a window re-sends
+the picture of every window whose place in that order moved. And `console
+clear` takes every picture with it, each deleted on the terminal in the
+same frame (0.99.346): a picture below the cells would otherwise show
+through every cell the clear left at the terminal's own background.
 
 ## Naming
 

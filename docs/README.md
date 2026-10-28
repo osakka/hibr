@@ -1,6 +1,6 @@
 # hibr documentation
 
-A shell that runs a useful subset of bash in about 17,500 lines of C, and adds
+A shell that runs a useful subset of bash in about 22,400 lines of C, and adds
 nested maps, JSON, regex capture, native sockets and TLS, typed functions,
 results without forking, declared command-line arguments, and modules that can
 add whole protocols.
@@ -17,7 +17,7 @@ exists. These pages are the detail.
 | [The language](language.md) | Syntax, expansion, arithmetic, conditionals, maps and arrays, typed functions, declared arguments, errors, strict expansion |
 | [Text, regex and JSON](data.md) | `str`, `arr`, `match`, `rsub`, and JSON over the map model — every operation, with examples |
 | [Cookbook](cookbook.md) | Whole tasks solved: logs, INI files, JSON, coprocesses, daemons, CLI programs |
-| [Networking](networking.md) | Sockets, TLS, `/dev/tcp` and friends, `listen`, coprocesses |
+| [Networking](networking.md) | Sockets, TLS, `/dev/tcp` and friends, `listen`, coprocesses, and HTTP with `fetch` |
 | [Interactive use](interactive.md) | Prompts including right-hand and transient, line editing, history, completion, jobs |
 | [The prompt](prompt.md) | The prompt hook, the segment module, and its git support |
 | [Full-screen programs](display.md) | The console display: cells, panes, colour, decoded keys |
@@ -34,6 +34,7 @@ exists. These pages are the detail.
 | [The grammar](grammar.md) | Lexical structure, EBNF, operator precedence, expansion order, patterns |
 | [Builtins](builtins.md) | All 73, what each takes and what it gives back |
 | `man hibr` | Every flag (`--agent`, `--explain`, `--plan`, `--checkfirst`), environment variable, file and exit status |
+| `man desktop` | The `desktop` command: its options, keys, and `desktop ctl`, the control socket |
 | [Modules](modules.md) | The module ABI, and writing one |
 | [Sheet](sheet.md) | The spreadsheet whose formula language is hibr: formulas, cells as variables, ranges as arrays, and the sandbox they run in |
 
@@ -41,7 +42,7 @@ exists. These pages are the detail.
 
 | | |
 |---|---|
-| [Deployment](deployment.md) | `deploy.sh`: install, verify, update, roll back |
+| [Deployment](deployment.md) | `deploy.sh`: install, verify, update, roll back; and the apt, dnf, pacman and Homebrew packages |
 | [Testing](testing.md) | The harness, the recording discipline, sanitizers and fuzzing |
 | [Decisions](adr/README.md) | Why hibr behaves the way it does, one record per decision |
 | [Backlog](backlog.md) | What should exist next, and what each piece actually needs |

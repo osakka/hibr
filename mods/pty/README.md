@@ -50,10 +50,17 @@ driven through a terminal of its own.
 
 Two things, and the second is why it exists at all.
 
-**A terminal in a window.** `mods/term/` will read a program's output through
-one of these and turn the escape sequences into cells, which is how a hibr
+**A terminal in a window.** `mods/term/` reads a program's output through
+one of these and turns the escape sequences into cells, which is how a hibr
 runs inside a hibr window — the last step of
 [decision 0020](../../docs/adr/0020-windows-are-drawn-not-composited.md).
+`mods/hold/` keeps its sessions' programs on them too.
+
+Neither goes through the builtin: the module offers `"pty"` (`mods/pty.h`,
+`PY_API_VER` 4) and both ask for it with `hibr_require`. Version 2 added the
+master's descriptor, 3 the size in pixels (`resizepx`), 4 `adopt` and
+`release`, for hold's server taking its own session back across an `exec`
+(Gitea #198).
 
 **Testing what only happens on a terminal.** The line editor, the console,
 the pager, the window manager: all of them behave differently when their

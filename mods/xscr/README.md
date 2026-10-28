@@ -66,9 +66,11 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
 
 ## What it cannot do yet
 
-- **Hover**: the pointer moves only with a button held, since the desktop
-  does not ask the terminal for every movement (CLAUDE.md, the Control
-  Strip's hover).
+- **Hover**: the pointer moves only with a button held. The module has the
+  verb (`xscr move`), and the desktop hears movement with no button where
+  Control Panel > Mouse > Hover is on (Gitea #370), but it hands a hover to
+  a window's own hover callback, never to `_mouse`, and the X Screen app
+  has none.
 - **Keys outside the server's map**, which is Xvfb's US layout: a character
   no key has is passed over and said in the log. Changing the map for one
   is the way to type them, and is not written yet.

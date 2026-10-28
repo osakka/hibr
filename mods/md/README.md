@@ -4,7 +4,9 @@
 extensions on top (tables, strikethrough, task lists, extended autolinks and
 the tag filter), and gives it back either as HTML or as one style string per
 source line, for a program that draws markdown itself. Write, the desktop's
-word processor, is built on the second.
+word processor, is built on the second. It only computes, so it is one of the
+two modules a `--plan` may load (`pl_pure` in `src/plan.c`; `math` is the
+other).
 
 ```text
 mod load md                     # or need md

@@ -43,10 +43,11 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
    |---|---|
    | `bin/hibr` | the shell |
    | `bin/desktop` | a launcher for the desktop |
+   | `bin/catalogue`, `bin/vw` | the catalogue and the vault client, each a hibr script under `share/hibr/` |
    | `lib/hibr/*.so` | the modules, and the manifest |
    | `share/hibr/desktop/` | the window manager, its apps and accessories |
-   | `share/man/man1/hibr.1` | `man hibr`, with the version and module directory filled in |
-   | `include/hibr/hibr.h` | the module ABI, for building a module of your own |
+   | `share/man/man1/hibr.1`, `desktop.1` | `man hibr` and `man desktop`, with the version and module directory filled in |
+   | `include/hibr/hibr.h`, `fetch.h` | the module ABI, and the fetch module's interface, for building a module of your own |
 5. Runs the installed copy — not the one in the build tree — to check that it
    starts and that **every** module in the installed directory loads, one at a
    time, so an ABI bump that leaves a stale module behind is caught here rather
@@ -93,10 +94,6 @@ whatever the last install put there.
 It is one version deep, which is the version you care about when an update has
 just gone wrong.
 
----
-
-[← documentation index](README.md) · [← project README](../README.md)
-
 ## Packages
 
 For a machine that should simply have hibr, a package manager is the shorter
@@ -105,18 +102,26 @@ way, and keeps it current with everything else:
 | | |
 |---|---|
 | Debian 12, Ubuntu 22.04 or newer, amd64 | the signed apt repository at [osakka.github.io/hibr-apt](https://osakka.github.io/hibr-apt), whose page has the four commands |
+| Fedora 36, RHEL 10, openSUSE Leap 15.6 or newer, x86_64 | the signed dnf repository at [osakka.github.io/hibr-rpm](https://osakka.github.io/hibr-rpm) |
+| Arch Linux, x86_64 | the signed pacman repository at [osakka.github.io/hibr-arch](https://osakka.github.io/hibr-arch) |
 | macOS, or Linux with Homebrew | `brew tap osakka/hibr && brew install hibr` |
 
+The [project README](../README.md#install) has the commands for each. One
+key signs the apt, dnf and pacman repositories.
+
 A package installs under `/usr`: the shell in `/usr/bin`, its modules in
-`/usr/lib/hibr`, the manual page and the desktop beside them, and the
-`desktop` launcher.
+`/usr/lib/hibr`, the manual pages and the desktop beside them, and the
+`desktop`, `catalogue` and `vw` commands.
 
 The desktop in it is what `packaging/ships` lists and what those bring
 ([ADR 0047](adr/0047-what-the-package-ships.md)): the window manager, the
-desktop's own `system/` apps, its own Control Panel panes, the Control
-Strip modules, the Mystify screen saver, Files, Terminal and five
-accessories, and the Classic theme with the Midnight and Paper colours, in
-English.
+desktop's own `system/` apps, its own Control Panel panes, the Mystify
+screen saver, Files, Terminal and five accessories, and the Classic theme
+with the Midnight and Paper colours, in English. The Control Strip ships
+with no modules and is off until Control Panel > Control Strip shows it
+(0.99.354), and Network, Sound, Bluetooth and Power are catalogue bundles
+-- a menu bar item and its pane -- rather than part of the package
+(0.99.349, 0.99.351).
 There is one package and one route for the rest -- `catalogue install
 apps/` places every application in the catalogue, `catalogue install
 themes/` every theme. A
@@ -131,5 +136,14 @@ modules actually use. `packaging/deb/publish.sh` adds the package to the
 repository (`itdlabs/hibr-apt`, mirrored to GitHub, served by Pages),
 regenerates its index with `apt-ftparchive`, signs it with the repository's
 own key, and pushes; it fails loudly if the push does. Every version ever
-published stays in the pool. The Homebrew formula is refreshed by
+published stays in the pool. `packaging/rpm/build-rpm.sh` and
+`packaging/arch/build-pkg.sh` repack that same Debian package for dnf and
+pacman, so the three hold the same files byte for byte -- only the PAM
+files differ, using each system's own `login` rules -- and each has a
+`publish.sh` beside it for its repository (`itdlabs/hibr-rpm`,
+`itdlabs/hibr-arch`). The Homebrew formula is refreshed by
 `release.sh --formula` and `tools/homebrew-sync.sh`.
+
+---
+
+[← documentation index](README.md) · [← project README](../README.md)

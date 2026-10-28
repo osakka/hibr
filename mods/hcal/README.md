@@ -35,7 +35,8 @@ two stay inverses.
 ## Calendars are files
 
 A calendar is a JSON file in a folder: `$HIBR_CALENDARS` (colon-separated)
-first, then `~/.config/hibr/calendars`, then the installed
+first, then `$XDG_CONFIG_HOME/hibr/calendars` (`~/.config/hibr/calendars`
+when that is unset), then the installed
 `$(SHAREDIR)/calendars`. The first file to give a name wins, so a person's
 own `umalqura.json` replaces the bundled one. A file that does not parse,
 or lacks what its kind needs, is left out and said in the log (`hibr -d`).

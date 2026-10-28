@@ -13,6 +13,7 @@ needs root.
 | an application | `~/.config/hibr/apps/` | [Writing an app](#writing-an-app) |
 | a Control Panel pane | `~/.config/hibr/control-panel/` | [Control Panel panes](#control-panel-panes) |
 | a Control Strip module | `~/.config/hibr/control-strip/` | [Control Strip modules](#control-strip-modules) |
+| a menu bar item | `~/.config/hibr/menubar/` | [A strip module or a bar item?](#a-strip-module-or-a-bar-item) |
 | a screen saver | `~/.config/hibr/savers/` | [Screen savers](README.md#screen-savers) |
 | a theme or a colour scheme | `~/.config/hibr/themes/`, `~/.config/hibr/colours/` | [Themes and colours](README.md#themes-and-colours) |
 | the whole session | anywhere; run it with `hibr` | [Writing a session](#writing-a-session) |
@@ -71,13 +72,13 @@ these, and the window manager calls only the ones that exist:
 
 | function | called with | when |
 |---|---|---|
-| `hello_open` | `id` | once, when the window is made |
+| `hello_open` | `id arg` | once, when the window is made; `arg` is what `dt_new` or `dt_launch` was given, often empty |
 | `hello_draw` | `id inner_h inner_w row col` | every frame; `row col` is where the window is on screen, for `console fill`, which takes screen coordinates. Under the `none` frame (no border) the window is one row less and its whole width, and the app's row 1, column 1 is still where its content starts -- the pane's origin is moved, not the app |
 | `hello_key` | `id key` | a key, while this window has focus |
 | `hello_click` | `id row col button` | a click, in the same coordinates the app draws in; `button` is `left`, `middle` or `right` |
 | `hello_mouse` | `id press\|drag\|release button row col mods` | instead of `_click`, for an app that wants the whole of a press: after the press, its drags and its release come here wherever the pointer goes. `mods` is what was held, such as `shift` or `ctrl` |
 | `hello_copy` | `id` | Edit > Copy or alt-c: hand back the selection with `ret`, or fail when nothing is selected |
-| `hello_paste` | `id text` | Edit > Paste or alt-v, and a paste from the terminal the desktop runs on |
+| `hello_paste` | `id text op` | Edit > Paste or alt-v, with `op` `cut` or `copy`, and a paste from the terminal the desktop runs on, as a copy |
 | `hello_drop` | `id row col move\|copy path...` | files dragged from elsewhere, let go over this one; there may be several |
 | `hello_refresh` | `id` | something on disk changed: a move, a copy, the trash |
 | `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
@@ -152,7 +153,7 @@ modifiers go: `rel BTN DY DX` for movement, `none` when no button is held,
 and the press, release or wheel it was with its own deltas, signed, in the
 display's raw counts. The window hears `unlock none 0 0` when the lock ends
 for any reason -- the Release Pointer shortcut (ctrl-f10 by default,
-Control Panel > Keyboard > Shortcuts), focus moving, a menu or a bar item's
+Control Panel > Shortcuts), focus moving, a menu or a bar item's
 panel opening, the saver, the window closing, the desktop ending, or the
 display refusing or taking it back -- so treat `unlock` as the truth, even
 straight after an on. Call both behind `dt_has`, since a desktop older than
@@ -274,7 +275,7 @@ a track of `│` over `h` rows starting at `row0`, one cell shown as the
 thumb `█` at a position proportional to how far through `total` the view
 already is. `shown` is how many of `total` are visible at once; nothing is
 drawn when everything already is. The file browser's own list view and a
-terminal's scrollback (`DT_TERMBAR` in the Terminal pane, off by default) both use
+terminal's scrollback (`DT_TERMBAR` in the Terminal pane, on by default) both use
 this one widget rather than each drawing their own.
 
 Give it a key as an eighth argument -- `dt_scrollbar ... pos list` -- and
@@ -372,10 +373,9 @@ notes_menus() {
 ```
 
 A submenu opens with `→` and closes with `←`, and its parent stays on screen
-beside it. One level is all there is, because nothing has wanted two. The
-control panel uses all of this: its Theme, Wallpaper and Refresh are
-submenus with a tick against whichever is current, which is a better thing
-than the "Next Theme" it had before.
+beside it -- every menu of the chain, outermost first, since a submenu may
+hold another: the hibr menu's Applications holds Office, Internet and the
+rest the same way.
 
 `dt_dim` exists so a menu can say a thing is unavailable rather than
 disappearing it — a menu that changes shape between one moment and the next
@@ -536,9 +536,9 @@ own trap about that map is not to adjust one by eye, and the same holds for
 drawing a second one from scratch.
 
 The bundled panes -- Date & Time, Displays, Keyboard and Mouse under
-Hardware; Appearance, Control Strip, Desktop, File Types, Notifications,
-Shortcuts and Windows under Desktop; and About This Computer, Files, Task Manager and
-Terminal under Apps -- are ordinary files under
+Hardware; Appearance, Control Strip, Desktop, File Types, Menu Bar,
+Notifications, Shortcuts, Wallpaper, Windows and the rest under Desktop;
+and Files, Terminal and Stickies under Apps -- are ordinary files under
 `programs/desktop/control-panel` themselves, not special-cased in
 `panel.hibr`: a file of your own with the same pane name replaces one, the
 same rule `DT_APPDIRS` already has for apps. `cp_pane name "Title" icon`
@@ -550,8 +550,7 @@ gives it the one row that does -- rather than show nothing.
 ## Control Strip modules
 
 A module calls `cs_module name title [width]` to register -- `title` is
-what is drawn in its own brackets, and (once there is one) what a tooltip
-would say; `width` defaults to the title's own length, since the title is
+what is drawn in its own brackets, and what its tooltip says; `width` defaults to the title's own length, since the title is
 what is drawn unless a module wants something narrower. It then defines
 `name_draw row col` and `name_click row col`, in the same absolute screen
 coordinates -- `col` is where its own content starts, one column inside
@@ -560,6 +559,18 @@ neither takes a window id, since there is never more than one instance of
 a strip module. `CS_MODDIRS` (default `~/.config/hibr/control-strip`) and
 `cs_modules` find and load them, the same shape `DT_APPDIRS`/`dt_apps`,
 `CP_PANEDIRS`/`cp_panes` and `DT_SYSDIRS`/`dt_sysapps` already are.
+
+The strip is off until Control Panel > Control Strip > Show Control Strip
+turns it on, and that pane's Modules list shows every module loaded, to
+tick off or drag into another order (`CS_HIDE`, `CS_ORDER`). A module that
+already has a setting of its own for whether it shows -- Prayer Times' In
+the Control Strip -- names it with `cs_moduleswitch name VAR [fn]`, and the
+list's checkbox is then that setting, with `fn` run after it changes; its
+`name_shown`, which leaves it out when it says no, reads the same variable,
+so there is one switch and not two. A module with more than one thing to
+press -- the workspace numbers -- finds the column the press landed on in
+`CS_CLICKC`, a global rather than a third argument every module would have
+to declare.
 
 ### A strip module or a bar item?
 
@@ -610,6 +621,15 @@ The desktop's own clock, notification icon, workspace numbers and
 application menu are written exactly so, in `menubar/`, which makes them
 the place to read how `dt_baripin`, `dt_baridraw`, `dt_baripress` and
 `dt_barhook` are used.
+
+Control Panel > Menu Bar > Menu Bar Items lists every item by its
+`dt_barilabel`, to untick or drag into another place (`DT_BARHIDE`,
+`DT_BARORDER`). An item that already has a switch of its own in its pane
+names it with `dt_bariswitch name VAR [fn]` -- the speaker's `DT_SNDBAR`,
+the next prayer's `DT_PBAR` -- and the list's checkbox is then that
+setting, with `fn` run after it changes: one switch for one thing, never a
+second beside it. A switch reads the same kept as on/off or 1/0
+(`dt_swon`, `dt_swflip`).
 
 Its text is a value the app **sets when it changes**, never a callback the
 bar asks for per frame -- that is what keeps a bar of ten items free on a

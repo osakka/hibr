@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.367
+
+**A documentation sweep** (the owner). Every guide and README was read
+against the code and the changelog since it was last touched, corrected in
+place, and every example that runs was run again and its output pasted --
+51 pages, 826 lines in and 284 out, nothing in the code changed.
+
+- **Numbers measured again**: about 22,400 lines of C and a 487 KB binary
+  (398 KB and 17,500 on 0.68); resident memory at startup 1920 kB against
+  dash's 1660 and bash's 3000; 198 recorded tests and 92 `self.hibr`
+  assertions. The loop and startup timings were not re-run.
+- **The guides**: `docs/builtins.md` lists every module builtin, about
+  twenty of which were missing; the language and grammar pages say what
+  0.99.257 to 0.99.321 changed (a non-blank IFS keeps empty fields, `?` and
+  a bracket match a whole character, parsing inside `${...}`, `$!` for a
+  process substitution); fetch, dav on fetch, the dnf and pacman packages
+  and pointer lock are where a reader looks for them; the LLM guide no
+  longer says `:=` cannot take a program's output, which it has since
+  0.99.89.
+- **The desktop**: its guide gains a section on the pointer -- hover,
+  shapes, tooltips, Focus Follows Mouse, pointer lock -- and says what the
+  package ships today; ARCHITECTURE's callback table has the eleven
+  callbacks it was missing; pane names, the bar's items, the strip's
+  switches and the man page are as the code has them.
+- **The modules**: every README matches its directory and its interface
+  versions, and `tests/README.md` names every suite the gate runs.
+- **A correction**: Release Pointer is in Control Panel > **Shortcuts**, its
+  own pane, as 0.99.365's entry now says; it said Keyboard > Shortcuts.
+
+Found on the way and filed rather than fixed: bash's `[[ -o opt ]]`,
+`[[ -R name ]]` and `${x@A}` (#401).
+
 ## 0.99.366
 
 **Blit's classic telephone** (Blit 0.2.45) in the blit glyph set, for
@@ -20,7 +52,7 @@ in Blit's raw counts, whatever is under the pointer. Boxer is the first to
 use it (hibr-boxer#1).
 
 - **One way out, the desktop's**: Release Pointer, in Control Panel >
-  Keyboard > Shortcuts, ctrl-f10 by default (the owner's choice: one key,
+  Shortcuts, ctrl-f10 by default (the owner's choice: one key,
   no second one in Blit or Boxer). It is taken before any app sees a key, so
   an app that hangs holding the pointer cannot keep it.
 - **Given back on its own** when focus moves, a menu or a bar item's panel

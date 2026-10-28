@@ -1,8 +1,8 @@
 # tests
 
 ```text
-tests/run.sh [-v] [prefix]                  # 109 test scripts
-./build/hibr tests/self.hibr                # 91 assertions, written in hibr
+tests/run.sh [-v] [prefix]                  # 198 test scripts
+./build/hibr tests/self.hibr                # 92 assertions, written in hibr
 HIBR=./build/hibr REF=dash tests/run.sh     # compare against another shell
 ```
 
@@ -55,9 +55,54 @@ python3 tests/apps_core.py  ... and the same checks in four parts, side by side:
 python3 tests/term_diff.py  the terminal emulator, cell by cell against tmux
 python3 tests/uifuzz.py     random input into each app, seeded, and the
                             forced-redraw oracle: uifuzz.py oracle
+python3 tests/mailapp.py    Mail, against tests/mailserve.py
+python3 tests/contacts.py   Contacts, against tests/davserve.py --pim
+python3 tests/calapp.py     Calendar, against the same
+python3 tests/vault.py      the Vault accessory and the desktop's vault
+python3 tests/web.py        the web module and the Browser, on local pages
+python3 tests/youtube.py    the YouTube app, against tests/ytserve.py
+python3 tests/media.py      the media module, its sound to a WAV file
+python3 tests/sound.py      the desktop's sound, on a private PipeWire
+python3 tests/bt.py         the desktop's Bluetooth, against a stand-in
+python3 tests/net.py        the desktop's network, against a stand-in
+python3 tests/xscreen.py    X Screen and the xscr module, on Xvfb
+python3 tests/pdfapp.py     the pdf module and the PDF Reader
+python3 tests/sixel.py      pictures as sixel, the console's image regions
+python3 tests/kitgfx.py     pictures in the kitty graphics protocol
+python3 tests/holdpix.py    pictures, pixels and pointers through hold
+python3 tests/shots.py      tools/screenshot.py's grid and pictures
 ```
 
-`term_diff.py` is the odd one out: it drives no pty of its own. It feeds the
+Beside them are suites that drive a module or a command, mostly with no
+terminal (`dav.py` and `mermaid.py` end with a desktop window each), each
+against an independent answer -- a published conformance suite, a
+second implementation, or a stand-in server of the suite's own:
+
+```text
+python3 tests/md_spec.py      md, every CommonMark and GFM spec example
+python3 tests/html_tree.py    html, html5lib's tree-construction cases
+python3 tests/uni_bidi.py     uni, Unicode's own bidi conformance suites
+python3 tests/uni_shape.py    uni's Arabic shaping, against GNU FriBidi
+python3 tests/hcal_icu.py     hcal, against ICU, day by day
+python3 tests/salat_adhan.py  salat, against adhan-js
+python3 tests/pim_rrule.py    pim's recurrence, against RFC 5545's examples
+python3 tests/pim.py          pim, and dav's CalDAV and CardDAV side
+python3 tests/mail.py         email, against tests/mailserve.py
+python3 tests/dav.py          dav, against tests/davserve.py
+python3 tests/fetch.py        fetch, against tests/fetchserve.py
+python3 tests/vw_crypto.py    the vw module's crypto, against Bitwarden's formats
+python3 tests/vw.py           the vw command, against tests/bwserve.py
+python3 tests/archive.py      archive, against real tarballs
+python3 tests/mermaid.py      mermaid, the properties every drawing must have
+python3 tests/appmgr.py       the catalogue, against a stand-in index
+```
+
+The stand-ins (`mailserve.py`, `davserve.py`, `fetchserve.py`,
+`bwserve.py`, `ytserve.py`) are servers, not suites; `pdfmake.py` writes
+the PDF Reader's documents, and `appslice.py` cuts `apps.py` into its four
+parts. All of these suites are in `tests/all.py`'s `SUITES`.
+
+`term_diff.py`, in the first list, drives no pty of its own. It feeds the
 same bytes to `mods/term` (`term new` and `term feed`) and to a private tmux
 server, and compares the two screens -- short sequences each aimed at one
 behaviour, and real programs' output recorded into `term/` from a generated
@@ -102,15 +147,15 @@ what it says, so an unexpected one in the same session still counts.
 **It counts its checks.** `report(N)` fails a suite whose checks made are not
 N, so one that stopped being reached cannot read as a pass.
 
-**`tests/all.py` runs everything at once** -- `tests/run.sh` and every pty
-suite, one per core -- with one line each and full logs under
+**`tests/all.py` runs everything at once** -- `tests/run.sh` and every
+suite in its `SUITES`, one per core -- with one line each and full logs under
 `build/test-logs/`; `make check-all` is the same. They are independent: each
 pty run has its own terminal, XDG directories and hold sockets. It runs them
 with `V=1` unless the environment says otherwise, so a failing check leaves
 the screen it failed on in its own log; a pass prints no dump, so this costs
 nothing.
 
-Four more tools sit around it:
+More tools sit around it:
 
 - **`tests/affected.py`** -- the suites a change reaches, from `git diff` or
   from paths given; `--run` runs just those, `--why` says which path chose
@@ -236,7 +281,10 @@ this tree is built with one, so `710-sysinfo-id.t` compiles
 `tests/sysinfo-id.c` to check logo selection in C, and
 `999-mod-initfail.t` compiles `tests/modfail.c` into a module whose init
 loads another module and then fails. Both say what they skipped when there
-is no compiler. The module one is a fixture rather than two real modules on
+is no compiler. `tests/fetch.py` does the same with `tests/fetchapi.c`, a
+module that drives the `"fetch"` interface from C the way the web module
+does -- a streamed body and a cancel -- which the `fetch` builtin cannot
+reach. The module one is a fixture rather than two real modules on
 purpose: a check assembled from `hold.so` and `pty.so` without a `term.so`
 reproduces the crash here and passes vacuously on any machine whose
 `HIBR_MODDIR` holds a `term.so`, which is the way 0.59's lint check came to
@@ -265,14 +313,22 @@ forked child is still found. Any report fails the run.
 
 `python3 tests/asan.py --quick [--since REF]` is the gate before a release
 that changes C, a few minutes instead of twenty: run.sh, self.hibr and 300
-rounds of the parser fuzzer, every suite of a C module outside the desktop
-(cat, console, term_diff, md_spec, html_tree, mail, pim, pim_rrule, dav),
-and whichever suites `tests/affected.py` says a module changed since REF --
-the last tag unless given -- reaches. A change to the shell alone adds no
-pty suite: those exercise the desktop's scripts, which reach C only through
-the core run.sh covers. The full run follows every release; a memory
-bug only a pty suite reaches, in C the release did not change, is found
-just after the release rather than before it.
+rounds of the parser fuzzer, run.sh again with leak detection on (Gitea
+#351, so a leak fails the gate rather than waiting to be looked for), every
+suite of a C module outside the desktop (`QUICK` in `tests/asan.py`: cat,
+console, term_diff, md_spec, html_tree, mail, pim, pim_rrule, dav, fetch,
+uni_bidi, uni_shape, hcal_icu, salat_adhan, vw_crypto, vw, sixel, kitgfx,
+holdpix, archive, mermaid, pdfapp), and whichever suites
+`tests/affected.py` says a module changed since REF -- the last tag unless
+given -- reaches; the desktop's own pty suites only when that module is
+one they draw through (console, term, pty, hold). A change to the shell
+alone adds no pty suite: those exercise the desktop's scripts, which reach
+C only through the core run.sh covers. Past `QUICKMANY` (12) suites it
+prints that the run should be alone, not beside `all.py`; `QUICK` itself
+is longer than that now, so every quick run says so. The
+full run is not per release: once a day, at the end of a long session, or
+after a risky C change, so a memory bug only a pty suite reaches, in C the
+release did not change, is found after the release rather than before it.
 
 On a kernel with high ASLR entropy the sanitizer build loops printing
 `AddressSanitizer:DEADLYSIGNAL` instead of running. Wrap it in `setarch -R` and

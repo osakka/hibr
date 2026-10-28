@@ -2,7 +2,8 @@
 
 `media` plays video and sound from a file or an address -- anything
 FFmpeg's libraries read: MP4, WebM, MKV, MP3, HLS, http and https -- and
-draws the picture into the display as coloured half blocks or as ASCII.
+draws the picture into the display as coloured half blocks, as ASCII, or
+as pixels where the terminal can place them.
 The decoding is libavformat and libavcodec, loaded at run time the way
 hibr loads libssl and libpng: nothing is linked, no FFmpeg headers are
 needed to build, and no ffmpeg or mpv process is started. Sound goes to
@@ -21,7 +22,7 @@ i := media info $p                   # ${i["pos"]} ["dur"] ["paused"] ["ended"] 
 media close $p
 ```
 
-`examples/play.hibr` is a whole terminal player in sixty lines:
+`examples/play.hibr` is a whole terminal player in under a hundred lines:
 `hibr examples/play.hibr movie.mp4`.
 
 ## Commands
@@ -37,7 +38,7 @@ media close $p
 | `media detail ID 0-3` | how finely colours are kept: lower changes fewer cells from frame to frame, which is less to send to the terminal (default 2) |
 | `media fps ID N` | the most frames drawn a second (default 24; 0 for every one) |
 | `media frame ID` | bring the shown frame up to the clock: status 0 when it changed |
-| `media draw ID ROW COL [-p PANE]` | draw the shown frame, into a pane when named |
+| `media draw ID ROW COL [-p PANE]` | draw the shown frame, into a pane when named; in pixels a paned picture is placed below the cells, so a window over part of it hides only that part (Gitea #382) |
 | `media next ID` | milliseconds until the next frame is due, -1 when nothing will change by itself -- for a caller that sleeps between frames |
 | `media info ID` | `pos`, `dur`, `shown` (the time of the frame shown), `paused`, `ended`, `width`, `height`, `volume`, `video`, `audio` (codecs), `output` (where the sound goes), `mode`, `error`; a map with `:=` |
 | `media feed [-p]` | a player with no source of its own: its picture and sound arrive on pipes |

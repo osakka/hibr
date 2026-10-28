@@ -129,9 +129,13 @@ PS1='\[\033[1;31m\]\u@\h\[\033[0m\]:\[\033[1;34m\]\w\[\033[0m\]# '
 
 ### The right-hand prompt
 
-`RPS1` is drawn against the right edge of the first row. It appears only when
-the line leaves room for it, so a long command simply takes the space back, and
-it never moves the cursor.
+`RPS1` is drawn against the right edge of the row typing starts on -- the
+prompt's last row, when the prompt has several. It appears only when the line
+leaves room for it, so a long command simply takes the space back, and it
+never moves the cursor. A `PROMPT_FN` hook that sets `RET_RIGHT` beside `RET`
+replaces it for that line, as final text, and the prompt module's
+`PROMPT[right]` draws one from segments -- see
+[the right-hand side](prompt.md#the-right-hand-side).
 
 <!-- not run: a prompt is drawn only by an interactive shell -->
 ```sh

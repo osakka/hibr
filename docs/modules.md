@@ -146,7 +146,8 @@ and a provider withdraws its offer in its finaliser so that dropping it makes
 its users refuse rather than call into an unloaded object. `most` uses the
 `console` module this way, asking for "display" rather than for a backend.
 
-Reference modules in `mods/`:
+Reference modules in `mods/`, a selection -- [`mods/README.md`](../mods/README.md)
+lists every one, file by file:
 - **`most`** pages files or a pipe, built on the display interface.
 - **`hvi`** hibr's vi, on the same interface: gap buffer, linear undo, and
   the cat's colourer asked for through the registry.
@@ -169,6 +170,17 @@ Reference modules in `mods/`:
   opened in the program's own child, so read the status after one on a
   builtin -- `read`, `mapfile`, `exec {fd}<`.
   `while read l; do …; done </dev/http/127.0.0.1/8080/status`
+- **`fetch`** is the shell's HTTP/1.1 client (0.99.362): the `fetch`
+  builtin for scripts, and the **fetch** interface in `mods/fetch.h` --
+  installed beside `hibr.h` as `include/hibr/fetch.h` -- for a module to
+  make requests through rather than carry a client of its own: a streamed
+  body, a callback for the headers, a cancel flag. Kept connections,
+  gzip and deflate, redirects, Basic and Digest, proxies and cookie jars.
+  `http` and `dav` are built on it (0.99.363). Call it from a child, never
+  a thread, since TLS forks the relay. See
+  [`mods/fetch/README.md`](../mods/fetch/README.md).
+- **`dav`** is a WebDAV client over `fetch`: servers, listings and
+  conditional uploads. See [`mods/dav/README.md`](../mods/dav/README.md).
 - **`prompt`** builds the prompt out of segments; see
   [The prompt](prompt.md).
 - **`ls`** is an in-process `ls` with columns, `-l -a -A -h -t -S -r -d -1 -F`
@@ -180,8 +192,9 @@ Reference modules in `mods/`:
   is built on.
 - **`hold`** keeps a session alive when its terminal goes: detach, log off,
   attach again, from more than one terminal at once.
-- **`img`** decodes an image and draws it as terminal cells; libpng is opened
-  on first use.
+- **`img`** decodes an image and draws it as terminal cells, or as pixels
+  where the terminal takes them; libpng and libturbojpeg are opened on
+  first use.
 - **`db`** is a small column store: typed columns in one file, rows
   appended, filters and count/sum/min/max/avg over them, with zone maps
   that let a filter skip whole groups of rows; results print or come back

@@ -4,8 +4,8 @@ A client for a Bitwarden-compatible server -- Vaultwarden, self-hosted,
 first -- in two halves (Gitea #71, ADR 0036): the `vw` module keeps the
 vault's keys and does its crypto, and `vw`, a hibr script
 (`programs/vw.hibr`, installed as the `vw` command), logs in, syncs and
-reads the vault, with the requests going through the dav module's HTTP
-client (`dav request`).
+reads the vault, with the requests going through `dav request`, which
+since 0.99.363 is the fetch module's HTTP client underneath.
 
 ```text
 vw server URL [-k]          the server: https://vault.example.com (-k: its

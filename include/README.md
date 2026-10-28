@@ -13,7 +13,10 @@ rather than risked. Read the number there, or from `$HIBR_ABI` in a running
 shell; a number written down here goes stale.
 
 Changing any public type, the meaning of any public function, or the name of
-any exported symbol means bumping it. Newest first: `ln` joined `node` and
+any exported symbol means bumping it; adding a function does not
+(`hibr_schemef`, 0.99.140, left it alone). Newest first: `tl` and `ix`
+joined `ent`, the tail and the index of a map's chain, when maps were
+indexed (0.99.74, Gitea #73); `ln` joined `node` and
 the per-file strict state joined `sh`, for `$LINENO` and `strict`; `bw`
 joined `node`, so `:=` can bind into a subscripted target; `prov` joined the
 module descriptor, so a module can be found by the interface it offers
@@ -37,7 +40,7 @@ before it loads a module rather than after:
 
 <!-- not run: mine is a module of your own -->
 ```sh
-[ "${HIBR_ABI:-0}" = 15 ] || { echo "this module wants ABI 15" >&2; exit 1; }
+[ "${HIBR_ABI:-0}" = 16 ] || { echo "this module wants ABI 16" >&2; exit 1; }
 mod load mine
 ```
 

@@ -291,6 +291,13 @@ Parked on 2026-10-01: the package is built and checked, and nothing is
 left but publishing it, which needs an AUR account the owner does not have
 -- and AUR registration was temporarily stopped when this was written.
 
+**Arch itself is served since 0.99.294**, by a signed pacman repository
+([osakka.github.io/hibr-arch](https://osakka.github.io/hibr-arch), built
+by `packaging/arch/` from the release's Debian package), and the README's
+Arch line already says how to add it -- so step 4 below is done another
+way, and the AUR package is a second route rather than the only one. It
+is still kept current (`update.sh` each release) and still unpublished.
+
 What exists, in `packaging/aur/`:
 
 - `PKGBUILD` -- builds with gcc (`make CC=gcc OPT=-O2 PREFIX=/usr`), since
@@ -705,6 +712,11 @@ gets built anyway, and the half of it that opens the pty — `pty spawn`,
 When it lands, `tests/screen.py` can be `tests/screen.hibr`, and the shell
 will test its own terminal programs.
 
+`mods/term/` has since landed -- it is the desktop's terminal window, and
+`hold` renders from it -- so the module side is built. The harness has
+not moved: `tests/screen.py` is still the one pty harness, and every
+full-screen suite is still Python.
+
 Two things should stay independent of hibr even then, and this is a reason
 rather than an excuse: `tests/diff.py` and `tests/fuzz.py` exist to *find*
 hibr bugs by generating input and comparing against bash. A generator written
@@ -830,7 +842,9 @@ tool schemas, and a decision about how long a session lives.
 ### Be where models look
 
 Packages in apt, nix and the other package managers beside the existing
-Homebrew tap; many small, real, runnable examples in public repositories
+Homebrew tap -- **apt built in 0.72, dnf and pacman in 0.99.294**, each a
+signed repository published with every release; nix and the AUR are not
+yet; many small, real, runnable examples in public repositories
 and in the places answers are written; the reference above published at a
 stable URL. The slowest of these and the only one that changes what a
 model has seen, so it is worth starting early and doing steadily rather

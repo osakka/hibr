@@ -2,12 +2,12 @@
 
 **hibr** is a shell that finally behaves the way you already expect a shell
 to behave. Familiar bash syntax, its sharpest edges resolved instead of
-carried forward, in about 17,500 lines of C and a 398 KB binary — under
+carried forward, in about 22,400 lines of C and a 487 KB binary — under
 two-thirds of bash's memory, and about two and a half times its speed on a
 tight loop. Built with `tcc`, depending on nothing but libc and libdl.
 
 The name says what it is. **Highly**: two-thirds of bash's memory, tight
-loops two and a half times faster, in a 398 KB binary — the numbers below. **Intuitive**:
+loops two and a half times faster, in a 487 KB binary — the numbers below. **Intuitive**:
 the things that make bash surprising the first time you hit them —
 `test`'s word-splitting traps, `$BASH_REMATCH`'s awkward capture, a dozen more
 in [the decision records](docs/adr/README.md) — fixed, so the shell does what
@@ -41,9 +41,11 @@ man hibr                    # every flag, variable and exit status
 
 ## Install
 
-Every route installs the same things: `hibr`, its modules, `man hibr`, and
-the text desktop with a `desktop` launcher. hibr needs only libc and libdl;
-libssl and libpng are used if they are there, for TLS and images, and
+Every route installs the same things: `hibr`, its modules, `man hibr`, the
+text desktop with a `desktop` launcher and `man desktop`, and the
+`catalogue` and `vw` commands. hibr needs only libc and libdl;
+libssl, libpng and libturbojpeg are used if they are there, for TLS and
+images, and
 nothing fails without them until it is asked for.
 
 **macOS** (or Linux), with Homebrew:
@@ -110,15 +112,17 @@ entirely. [`deploy.sh`](docs/deployment.md) does the same install but also
 runs every suite first, keeps the previous version to roll back to, and can
 update itself from the tree on a timer.
 
-To take it out again: `brew uninstall hibr`, `sudo apt remove hibr`, or
-`sudo make uninstall` with the same `PREFIX` it went in with.
+To take it out again: `brew uninstall hibr`, `sudo apt remove hibr`,
+`sudo dnf remove hibr`, `sudo pacman -R hibr`, or `sudo make uninstall`
+with the same `PREFIX` it went in with.
 
 New to it? [From bash to hibr, in ten minutes](docs/tutorial.md) is the
 place to start.
 
 ## Measurements
 
-Measured on 0.68, on one host; the loop is
+Measured on 0.68, on one host -- the size and startup memory again on
+0.99.366, below the table; the loop is
 `while [ $i -lt 50000 ]; do i=$((i+1)); done`. Times are the best of eleven
 runs. Memory is the shell's own `VmHWM`, read without forking, as the median
 of twenty-five runs — a single reading is worthless here, because run-to-run
@@ -143,6 +147,13 @@ was 1.7x before a round of profiling.
 Where the memory goes is worth knowing: the heap at startup is 36 kB of the
 1852, so memory here means the binary, and the binary means how
 much language there is. There is no allocator trick left that would move it.
+
+Two of those rows were measured again on 0.99.366, the same way, on the
+same host: the stripped binary is 487 KB (tcc, the default build), and
+resident memory at startup is a median of 1920 kB against dash's 1660 and
+bash's 3000 -- still under two-thirds of bash, and now about 260 kB more
+than dash, the language and the binary having grown together. The times
+were not run again.
 
 The row that is not a near-miss is the fifth. Returning a value through `$( )`
 costs a fork per call in every shell; `:=` costs none, which is where the 60x
@@ -177,7 +188,7 @@ args "$@"
 | [The language](docs/language.md) | The whole language, and every place it differs from bash |
 | [Builtins](docs/builtins.md) | All 73, what each takes and what it gives back |
 | [hibr, for a language model](docs/llm.md) | The whole language on one page, for a model to read; `llms.txt` points to it |
-| [The desktop](docs/desktop.md) | Windows, menus and applications in a terminal, all of it hibr: a first hour, in five pictures |
+| [The desktop](docs/desktop.md) | hui, the hibr user interface: windows, menus and applications in a terminal, all of it hibr -- a first hour, in five pictures |
 | [Everything else](docs/README.md) | Data, networking, the prompt, interactive use, full-screen programs, the desktop, modules, deployment, testing |
 | `man hibr` | Every flag, environment variable, file and exit status |
 

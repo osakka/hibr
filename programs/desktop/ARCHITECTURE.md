@@ -71,9 +71,11 @@ saved 200 — `dt_save` writes every kept setting, so a default frozen into
 it outlives the code that set it — and the shipped `session.hibr` set 200
 itself. A live session measured 19% of a core doing nothing. With the tick
 gone an idle desktop with a terminal window open measures about 0.2 wakes
-a second and 0.2% CPU; a blinking cursor costs about 1.5%, because each
-blink still runs every window's `_draw` — redrawing only the windows that
-changed is the next step, not yet taken. `tests/desktop.py` counts the
+a second and 0.2% CPU; a blinking cursor cost about 1.5% when that was
+measured, because each blink ran every window's `_draw`. Since 0.99.83 a
+window whose app offers `_dirty` and answers clean, and which overlaps
+nothing, is left undrawn, the screen keeping its cells; `uifuzz.py oracle`
+compares such frames against forced full ones. `tests/desktop.py` counts the
 process's own wakes with nothing happening, so a tick cannot come back
 unnoticed.
 
@@ -92,16 +94,17 @@ into the back grid; `console flush` compares it against the front and sends
 only the cells that differ, then makes the two match. A full first paint of
 an 80x24 screen costs a few kilobytes; a completely unchanged frame costs
 zero bytes, not a redraw with nothing in it — the comparison itself is real
-CPU work, but nothing crosses the pty. This is what makes the periodic poll
-above affordable at all: the tick costs a wake-up and a grid diff, not a
-full terminal repaint five times a second.
+CPU work, but nothing crosses the pty. This is what makes a frame woken by
+a clock or a cursor blink cheap: it costs a wake-up and a grid diff, not a
+full terminal repaint.
 
 ## An app is a prefix, not a class
 
 There is no window object, no base class, no registration beyond a name. An
 app called `calc` is whichever of these functions it happens to define —
 `calc_draw`, `calc_key`, `calc_click` or `calc_mouse`, `calc_open`,
-`calc_close`, `calc_menus` — checked for with `command -v` once, when the
+`calc_close`, `calc_menus` and the rest of the table below — checked for
+with `command -v` once, when the
 window is made, and only the ones that exist are ever called. Everything an
 app remembers is keyed by the window id it was handed, never a bare global,
 since two windows of the same app must not share one:
@@ -130,7 +133,16 @@ drawing in the wrong place. The calls:
 | `_click` | `id r c btn` |
 | `_mouse` | `id act btn r c mods` -- and while the window holds the pointer (`dt_pointerlock`), `id rel btn dy dx rel` for movement, a press, release or wheel with its own deltas and `rel` as mods, and `id unlock none 0 0 ""` when the lock ends |
 | `_wheel` | `id dir r c` -- dir is up, down, left or right, never wheelup |
+| `_hover` | `id r c` -- the pointer over the window with no button held, where hovering is on; `-1 -1` when it leaves |
 | `_scroll` | `id key top` -- a scrollbar drawn with that key, held and dragged |
+| `_copy`, `_cut` | `id` -- hand back the selection with `ret`, or fail with nothing selected |
+| `_paste` | `id text op` -- `op` is `cut` or `copy`; a paste from the host terminal comes the same way, as a copy |
+| `_undo`, `_redo`, `_selall`, `_find` | `id` -- the Edit menu's rows, dimmed for an app without them; fail to say there was nothing to do |
+| `_savefile` | `id` -- the Save key |
+| `_canclose` | `id` -- asked before a close someone asked for; fail to keep the window, and close it yourself later |
+| `_refresh` | `id` -- something on disk changed |
+| `_dirty` | `id` -- asked before a window is left undrawn; succeed when it has changed (an app without one is drawn every frame) |
+| `_about` | nothing -- the hibr menu's About for the front app, in place of the desktop's card |
 | `_drop` | `id r c op paths...` |
 | `_menus` | nothing -- the menus are built for whichever window has focus, `$DT_FOCUS` |
 | `_context` | `id` |
@@ -263,18 +275,22 @@ A pane down the left, its own rows on the right — arrows move the picker,
 tab or right or enter steps into the selected pane, and the same keys then
 move its row cursor instead. The picker has three groups under headings:
 **Hardware** — Date & Time (the machine's clock and time zone), Displays,
-Keyboard, Mouse — then **Desktop** — Appearance, Control Strip, Desktop,
-File Types, Notifications, Shortcuts, Windows — and **Apps**, one pane per app that has something to choose:
+Keyboard, Mouse, and Network, Sound, Bluetooth and Power once installed
+from the catalogue — then **Desktop** — Appearance, Control Strip, Desktop,
+File Types, Menu Bar, Notifications, Shortcuts, Wallpaper, Windows and the
+rest, sorted by name — and **Apps**, one pane per app that has something to choose:
 Files, Terminal and Stickies as shipped, and Mail, Calendar & Contacts,
 Vault, YouTube and Prayer Times once installed. An app's pane is one of the
 files the app brings, so it is there exactly when the app is (ADR 0047);
 it says so when its app is installed and not loaded in this session.
 Everything an app keeps across restarts has a row in
-some pane; `tests/540-examples.t` fails otherwise. Appearance holds the theme,
-the wallpaper — a glyph, or an image chosen in a picker window of its own —
-the menu bar's spacing and icon, and the four shadows; Windows holds a
-window's chrome — frame, button side, title alignment, button glyphs, read by
-`dt_win` and `dt_btn` themselves, not by the pane; Mouse holds how a
+some pane; `tests/540-examples.t` fails otherwise. Appearance holds the
+theme, the colours, the glyphs, the trees, the shadows and the controls;
+Wallpaper holds the wallpaper — a glyph, or an image chosen in a picker
+window of its own, for all displays or one; Menu Bar holds the bar's look
+and its Menu Bar Items; Windows holds a window's chrome — frame, title bar,
+see-through, button side, title alignment, button glyphs, read by `dt_win`
+and `dt_btn` themselves, not by the pane; Mouse holds how a
 window is moved, resized and double-clicked; Keyboard holds how keys reach
 a terminal window -- whether the desktop's shortcuts work while one has
 focus, and whether ctrl with a letter always goes to its program; Shortcuts
@@ -298,8 +314,10 @@ actual processes at the moment the screenshot was taken:
 
 ## What this is not
 
-It is not a compositor: nothing is transparent, nothing overlaps with
-blending, and a window's shadow is a darkened copy of the cells under it,
+It is not a compositor: a cell has no alpha, so a window's See Through is
+an opaque colour worked out per cell from the picture beneath it, nothing
+overlaps with blending, and a window's shadow is a darkened copy of the
+cells under it,
 computed once per frame, not a rendering effect. It is not accelerated:
 every cell is a real character cell, drawn with real SGR escape sequences,
 at whatever rate the terminal it runs in can keep up with. And it does not

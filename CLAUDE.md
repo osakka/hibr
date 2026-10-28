@@ -6,9 +6,9 @@ decisions and the traps already found, so they don't get rediscovered.
 
 ## What hibr is
 
-A shell that runs a useful subset of bash syntax in ~17,500 lines and a 398 KB
-binary, with resident memory under two-thirds of bash's (and about 160 kB more
-than dash's — see the README's own Measurements table for the honest comparison),
+A shell that runs a useful subset of bash syntax in ~22,400 lines and a 487 KB
+binary (both measured on 0.99.366), with resident memory under two-thirds of bash's (and about 260 kB more
+than dash's, measured on 0.99.366 — see the README's own Measurements table for the honest comparison),
 and faster than bash on tight loops. It is *not* a drop-in bash replacement
 and must not be described as one: some divergences are deliberate (see Design
 decisions).
@@ -36,7 +36,7 @@ releases).
     ./build/hibr -n script      # parse only
 
     tests/run.sh [-v] [prefix]           # C-side harness, every tests/*.t
-    ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
+    ./build/hibr tests/self.hibr                 # suite in hibr, 92 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
     python3 tests/apps_{panel,reach,core,more}.py
@@ -157,11 +157,15 @@ whenever a replacement writes one.
 | `src/args.c` | `opt`/`args` declared CLI parsing, `title` |
 | `src/fs.c` | `mkdir`, `rm` and `mv` as builtins, GNU-compatible, anything else to the program (ADR 0029) |
 | `src/mod.c` | module loading |
+| `src/plan.c` | `--plan`, the dry run: what acts on the world is refused and recorded (ADR 0027) |
+| `src/wtab.c` | the display width of every codepoint, for `str width` and the line editor |
+| `src/recheck.c` | asserts `include/re.h` against the real `<regex.h>` wherever the compiler can read it, so a wrong width fails the build |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `math` (floating point; one of the two modules `--plan` may load, see `pl_pure`), `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
 | `programs/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/`, every **application**, listed under one Applications submenu with a folder inside it becoming a submenu of its own (file browser, terminal, Vault, Calendar, Contacts; `Accessories/` for the calculator, clock, image viewer, note pad, sliding puzzle, and `Office/`, `Internet/` and `Games/`), `system/`, the desktop's **own** apps, listed on the hibr menu itself because they manage or report on the desktop rather than opening anything of yours (About This Computer, Control Panel, Task Manager, Modules, Notifications, Clipboard, Screenshot, Catalogue), `control-panel/` panes, `control-strip/` modules — see `programs/desktop/README.md` for how to use it and `programs/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
+| `mods/gfxask.c`, `mods/gfxask.h` | what a terminal says it can do, asked once and shared by the console and hold's client: the picture protocols, the kitty keyboard, pixel mouse (1016), pointer shapes (OSC 22), pointer lock (7701), XTGETTCAP |
 | `mods/display.h` | the interface a display backend offers; `console` is the only one so far |
 | `mods/cat/` | `cat` that is byte-identical in a pipe and useful on a terminal — see `mods/cat/README.md` |
 | `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR`, one-shot and live — see `mods/trace/README.md` |
@@ -4661,8 +4665,8 @@ went in the shell.
   frame with `DT_FORCEDRAW` on, glyphs and pens. It was owed from 0.99.83,
   when the skipping shipped without it, and in between every fault in that
   work was found by the owner looking at their own screen.
-- The core binary is 398 KB stripped, 17,566 lines across `src/*.c`
-  (measured on 0.68) -- the README and this file's opening line had drifted
+- The core binary is 487 KB stripped, 22,409 lines across `src/*.c`
+  (measured on 0.99.366; it was 398 KB and 17,566 lines on 0.68) -- the README and this file's opening line had drifted
   stale twice (313 KB, then 358 KB) before being re-measured and corrected.
   The per-file sizes below are from the 358 KB measurement. Per-file
   text size, compiled separately with `tcc -c`: `expand.c` 52.6K, `exec.c`

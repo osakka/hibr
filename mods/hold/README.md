@@ -433,6 +433,14 @@ refuses the name rather than binding over it, and a socket with no listener
 at all is still removed as stale. It fails against 0.99.170 three times
 over, each one a `status 124`.
 
+`tests/holdpix.py` drives held programs through ptys as terminals of
+different kinds: a client's cell size reaching the program's pty, pictures
+reaching each display whole at its own corner and only the displays whose
+terminal draws them, the per-client questions (`gfx`, `pixels`,
+`pointers`, `locks`, the kitty keyboard flags), the mouse in pixels and a
+held pointer's movement passed on without the display's offset.
+`tests/936-hold-upgrade.t` is `hold upgrade`.
+
 ## What it does not do
 
 No copy of the screen is kept across a full detach with nobody attached,

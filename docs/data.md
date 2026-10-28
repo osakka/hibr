@@ -33,7 +33,7 @@ their **exit status** instead, so they read naturally in `if` and `&&`.
 
 | form | gives |
 |---|---|
-| `str len text [var]` | the length in characters |
+| `str len text [var]` | the length in characters, as `${#x}` and `${#m["k"]}` count it |
 | `str width text [var]` | the width in terminal columns |
 | `str upper text [var]` | upper case |
 | `str lower text [var]` | lower case |

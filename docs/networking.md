@@ -19,7 +19,7 @@ anything that opens a file.
 | `/dev/udp/host/port` | a UDP socket |
 | `/dev/tls/host/port` | a TLS session, certificate verified |
 | `/dev/unix/path` | a Unix domain socket |
-| `/dev/<name>/…` | whatever a module registered — the `http` module adds `/dev/http/` |
+| `/dev/<name>/…` | whatever a module registered — the `http` module adds `/dev/http/host/port/path`, an HTTP/1.1 request made through the `fetch` module (below) |
 
 A scheme that cannot open says why and fails, like any other redirection:
 
@@ -219,6 +219,51 @@ the machine itself (`update-ca-certificates` and its equivalents), which is
 root's decision and every program's business; this is neither, and it is not
 `HIBR_TLS_INSECURE`, which trusts nothing at all.
 
+### HTTP, with the fetch module
+
+Speaking HTTP by hand, as above, is for when the protocol is the point.
+For a request, the `fetch` module (0.99.362) is HTTP/1.1 written here:
+kept connections, chunked and compressed bodies decoded, redirects,
+Basic and Digest logins, proxies, cookie jars and TLS through the same
+relay. `fetch [METHOD] URL` prints the body, `-o FILE` writes it, and with
+`:=` the reply is a map of `status`, `type`, `headers` by lowercased name
+and `body`. The `/dev/http` scheme and the `dav` module make their
+requests through it (0.99.363), so a file read from `/dev/http/...` has
+had its redirects followed and its body decoded, and `HTTP_STATUS` says
+what the server answered. Other modules reach it as the `"fetch"`
+interface, `mods/fetch.h`; [its README](../mods/fetch/README.md) has every
+option.
+
+```sh
+need fetch
+port=$(( 20000 + $$ % 20000 ))
+listen -b $port LFD
+srv() {
+  local n
+  for n in 1 2; do
+    accept $LFD C
+    while recv $C h && [ -n "${h%$'\r'}" ]; do :; done
+    send -r $C "HTTP/1.1 200 OK"; send -r $C "Content-Type: text/plain"
+    send -r $C "Content-Length: 6"; send -r $C "Connection: close"; send -r $C ""
+    send $C "hello"
+    exec {C}<&-
+  done
+}
+srv &
+sleep 0.4
+r := fetch http://127.0.0.1:$port/
+echo "${r["status"]} ${r["type"]} ${r["body"]%$'\n'}"
+need http
+read -r line < /dev/http/127.0.0.1/$port/
+echo "$HTTP_STATUS $line"
+wait
+```
+
+```output
+200 text/plain hello
+200 hello
+```
+
 ## What this replaces
 
 A shell that can open a socket, speak TLS, parse the reply as JSON and serve a
@@ -226,7 +271,7 @@ port needs no `curl`, no `nc`, no `jq` and no `socat` for most of what those get
 used for. [`examples/httpd.hibr`](../examples/httpd.hibr) is a static web server
 in a little over a hundred lines that forks for nothing, and
 [`examples/fetch.hibr`](../examples/fetch.hibr) is an HTTP client with declared
-options. More end-to-end recipes are in the [cookbook](cookbook.md).
+options, written over the bare verbs rather than the `fetch` module. More end-to-end recipes are in the [cookbook](cookbook.md).
 
 ---
 

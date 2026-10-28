@@ -203,16 +203,75 @@ cut) is a small absolute change and reads as soft against a dark theme, but
 the same cut off paper's near-white face lands on a flat medium grey -- a
 hard block, not a shadow -- so paper alone gets a much gentler one.
 
+## The pointer
+
+**Hover** (Control Panel > Mouse) is whether the desktop acts on the
+pointer moving with no button held: **Auto**, the default, is on where a
+display reports the pointer in pixels by itself, which is Blit; **On** is
+on everywhere; **Off** never. The desktop asks a terminal only for clicks
+and drags -- reporting every movement was tried and cost too much (see the
+Control Strip, below) -- so a terminal that does not report movement of its
+own accord has nothing to hover with, whatever the setting. Wherever it is
+on:
+
+- **What a click would land on lights under the pointer**: every button,
+  checkbox, dropdown and slider in every window; a title bar's buttons,
+  their glyph itself lit in the **hot** colour; the module under the
+  pointer in the Control Strip; and a list's row -- in Files, the Control
+  Panel, Contacts, Mail, Calendar, the Catalogue, Task Manager,
+  Notifications, the Clipboard and Modules -- on the well colour. What is
+  lit is exactly what a click there would land on, since it comes from the
+  same regions.
+- **The pointer says what a press does**, on a terminal that draws pointer
+  shapes (OSC 22): a resize arrow on a window's corners, and on its sides
+  with Edge Resize on; a move shape on its title bar; a hand on its
+  buttons; and an **I-beam** over a terminal window's content and over any
+  text field, whether or not that window has focus. Anywhere else it is the
+  terminal's own.
+- **Tooltips** (Mouse > Tooltips, on by default): when the pointer rests on
+  a glyph with no word beside it -- a title bar's buttons, the bar's items,
+  the strip's modules, or anything an app gives one -- a line under it says
+  what it does, after **Tooltip Delay** (300 ms to 2.5 seconds, 600 ms by
+  default), and goes at the next movement, key or click.
+- **Focus Follows Mouse** (Mouse, off by default) gives the keyboard to the
+  window under the pointer without raising it; the bare desktop leaves the
+  last window focused.
+
+Where the terminal reports the mouse in pixels, a click in the PDF Reader
+or X Screen lands on the pixel under the pointer rather than the middle of
+the cell, the Image Viewer's wheel zooms around the pixel under it, and a
+slider can be set between two cells' values.
+
+A drag across empty space draws a **rubber band** -- on the desktop, and in
+a Files window, where it selects every entry it crosses (ctrl keeps what
+was selected). Control Panel > Desktop > **Rubber Band** is how it looks:
+Single Frame (the default), Dashed, Solid or Translucent, with **Band
+Intensity** (30% by default) for how strongly the last two tint what they
+cover. A theme can carry both (`band`, `bandpct`).
+
+**A window can hold the pointer** (Gitea #379), on Blit 0.2.42 and later: a
+game that turns with the mouse -- Boxer's DOS games on a relative mouse --
+asks for it, Blit keeps the pointer where it was, hidden, and every
+movement goes to that window whatever is under it. **Release Pointer**
+(ctrl-f10, in Control Panel > Shortcuts) gives it back, and is taken before
+any app sees a key, so an app that hangs holding the pointer cannot keep
+it. It also goes back on its own when focus moves, a menu or a bar item's
+panel opens, the saver or the lock comes up, the window closes, or the
+desktop ends; and Blit gives it back when the session loses its focus.
+
 ## Themes and colours
 
 A **theme** is the whole look at once: a colour scheme, and the wallpaper,
 window frame, title bar, buttons, checkboxes, shadows and glyph set to go
 with it. Appearance > Theme chooses one, and every setting it carries can
-still be changed on its own afterwards. Three come with the desktop --
-classic (midnight, as the desktop has always looked), construction
-(black-and-yellow hazard stripes, yellow windows, double frames, solid
-black title bars) and meadow (a sky over a green hill, beige windows with
-rounded frames and blue title bars, after the desktops of around 2001).
+still be changed on its own afterwards. The package ships one, classic
+(midnight, as the desktop has always looked); the catalogue has the rest --
+construction (black-and-yellow hazard stripes, yellow windows, double
+frames, solid black title bars), meadow (a sky over a green hill, beige
+windows with rounded frames and blue title bars, after the desktops of
+around 2001), charcoal (a charcoal title bar with curved top corners, no
+other frame, and windows and the menu bar the wallpaper shows through) and
+retro car (neon on violet, no window frames, centred titles).
 Appearance > Save Current Look as Theme… writes the look as it stands to
 `~/.config/hibr/themes/` under a name you give it, and it joins the list.
 
@@ -258,16 +317,19 @@ way does not leave every tree looking like the one before it) and
 `treelines` (`true` or `false`, the rules joining a child to its branch),
 `side` (`right`, `left`), `align` (`left`,
 `center`, `right`), `checks` (`theme`, `box`, `knob`, `block`), `dialog`
-(`filled`, `brackets`), `glyphs` (`unicode`, `ascii`), and `windowshadow`,
+(`filled`, `brackets`), `glyphs` (`unicode`, `ascii`), `band` (`frame`,
+`dashed`, `solid`, `translucent`, the rubber band's look) and `bandpct` (0
+to 100, how strongly it tints), and `windowshadow`,
 `menushadow`, `barshadow` and `buttonshadow` (`true` or `false`). What a
 theme leaves out is the desktop's default, so it looks the same whatever
 came before it; a value the setting cannot take leaves the file out of the
 list whole.
 
 A colour scheme is a JSON file of seven colours and a shadow strength, one
-file to a scheme and named for it. The twelve that come with the desktop
-are in `programs/desktop/colours/` (installed under
-`share/hibr/desktop/colours`); your own go in `~/.config/hibr/colours/`,
+file to a scheme and named for it. The thirteen in this tree are in
+`programs/desktop/colours/`; the package installs Midnight and Paper under
+`share/hibr/desktop/colours` and the catalogue has the others. Your own go
+in `~/.config/hibr/colours/`,
 which is read first, so a file there named `paper.json` replaces the
 bundled paper and any other name adds a scheme. A colour file in
 `~/.config/hibr/themes/`, where they all lived before 0.99.33, is still
@@ -366,12 +428,21 @@ ordinary font its icons draw as empty boxes. The icon each app and pane
 chooses for itself stays as its own `dt_app` or `cp_pane` line writes it.
 **blit** is for Blit's own Retro and Modern fonts (Gitea #330). Those carry
 the whole Nerd catalogue, so it is the nerd set, plus the colour icons Blit
-drew for hibr, one cell each: the hibr menu's pen, Bluetooth, and Wi-Fi as
-four signal levels that stand for the icon and its bars together. With the
+drew for hibr, one cell each: the hibr menu's pen, Bluetooth, Wi-Fi as
+four signal levels that stand for the icon and its bars together, the
+battery and the speaker as one picture a state with the charge or the level
+inside it, the power symbol for the Power item on a machine with no
+battery, the rounded corners of a curved title bar, and a telephone (a
+modern handset and a rotary desk phone, four states each) for an app that
+asks for one. With it, Control Panel > Menu Bar also offers **Menu Mark**:
+the pen, or the **hui** badge, two cells square, in the hibr menu's corner.
+With the
 nerd and blit sets, the notification icon is the Nerd Font's own for the
 style chosen, rather than a text symbol. Blit's icons are private to its
-fonts, so the set is a choice, like nerd; anywhere else, pick one of the
-other three.
+fonts, so the set is a choice, like nerd, and it is the one switch for all
+of them: nothing else is asked, so it wants a Blit as new as the hibr
+beside it, and an older one draws its newest icons as blank cells.
+Anywhere else, pick one of the other three.
 
 A menu is no wider than **Menu Width** (Control Panel > Menu Bar): 40 columns
 by default, or 30 to 80, or No Limit. A row longer than that -- a window's
@@ -386,17 +457,17 @@ a block, or a tick `[✓]`, or what the theme suggests.
 
 `dt_wall` fills the whole screen before anything else draws: `DT_GLYPH`
 repeated (`·` by default, Control Panel > Wallpaper's Pattern row and the
-strip's `wallpaper` module both cycle it), or a real picture in `DT_WALLIMG` instead
+strip's `wallpaper` module, from the catalogue, both cycle it), or a real picture in `DT_WALLIMG` instead
 when one is set. A picture is decoded and drawn by the `img` module
 (`mods/img`, `need img` on first use so a desktop that never sets one never
 loads it) -- `img draw` blits it straight into the display, resampled to
 fill the screen exactly, cached by the module itself so a redraw every
 frame does not mean a decode every frame. The two are mutually exclusive in
 the UI: picking a glyph clears `DT_WALLIMG`, and a picture wins over the
-glyph when both happen to be set. Setting one at all means opening a
-picture in the desk accessory `imgview` (drop a file onto it, since there
-is no file-open dialog anywhere in this desktop) and choosing "Set as
-Wallpaper" from its own **Image** menu. If the file cannot be decoded --
+glyph when both happen to be set. Control Panel > Wallpaper's **Image…**
+row opens a picker -- the desktop's own Open dialog's folder list beside a
+preview of the picture fitted to its own shape; or open a picture in the
+Image Viewer and choose "Set as Wallpaper" from its own **Image** menu. If the file cannot be decoded --
 moved, deleted, not actually a PNG -- `dt_wall` falls back to the glyph
 rather than leaving the screen blank.
 
@@ -620,7 +691,12 @@ copies the file whose path was pasted into the folder shown.
 ## Copy and paste
 
 **alt-z** undoes and **alt-y** redoes in anything that edits text, and
-Select All is on the Edit menu beside them.
+Select All is on the Edit menu beside them. Every one-line text field keeps
+a history of its own while it has the focus, changes less than a second
+apart being one step. In Files, Undo puts back the last move, copy, rename
+or trip to the trash -- a batch is one step, the last twenty are kept, and
+nothing done on a server is -- from any Files window, and Redo does it
+again.
 
 **alt-c** copies, **alt-x** cuts, and **alt-v** pastes, in every window --
 each a key you can change in Control Panel > Shortcuts, and the change
@@ -672,6 +748,9 @@ What each app copies and takes:
 | Process Details, About | what they show | -- |
 | Notifications | the selected note (cut also clears it) | -- |
 | Clock | the time and date | -- |
+| Calendar | the chosen event, with its day, times and place; with the month in focus, every event on the chosen day | -- |
+| Contacts | the chosen card: name, organisation, and each email, phone and note on a line of its own | -- |
+| Mail | in the reader, the open conversation as it reads; in the list, its subject | -- |
 
 **Everything copied is kept.** The **Clipboard** desk accessory lists it,
 newest first: when it was copied, ★ on what is pinned, • on what is on the
@@ -864,9 +943,9 @@ asking, `R` syncs now; the File and Contact menus have the same.
 
 A server is one of the Servers (Control Panel > Servers:
 its address and an app password), switched on for this in Control Panel >
-PIM, which also says how often to sync. One list of servers serves Files as
+Calendar & Contacts, which also says how often to sync. One list of servers serves Files as
 well, since a Nextcloud or Fastmail account is one address and one login for
-files, calendars and contacts; PIM asks each server once what it keeps and
+files, calendars and contacts; that pane asks each server once what it keeps and
 lists a plain file server as files only, so only servers with calendars or
 contacts can be switched on. Add Server… there opens Servers. A background job
 (`programs/desktop/lib/pimsync.hibr`) finds the address books from the
@@ -911,6 +990,15 @@ offers to record it in your copy, and a cancellation to remove it.
 
 ## Sound
 
+Sound, Network, Bluetooth and Power below are **bundles in the
+catalogue**, not the package (Gitea #388, #392): each is its menu bar item
+(`menubar/`) and its Control Panel pane, one install --
+`catalogue install sound` -- since not every machine has a sound server,
+Wi-Fi, Bluetooth or a battery, and each runs a watcher in the background.
+Not installed, there is no item and nothing running, and the volume keys do
+nothing. Sleep, Restart and Shut Down stay in the package, on the Special
+menu.
+
 The machine's sound is the desktop's (Gitea #306): a speaker on the menu
 bar shows the volume of the output in use -- `♪ 50%`, or `♪ ✕` muted --
 and a click opens the volume beneath it as a slider: the level, a track to
@@ -929,7 +1017,10 @@ PipeWire, ALSA or None -- the server it found (or that the one chosen is
 not answering), the output Device, its Volume and Mute, the input Device,
 its Level and Mute, Volume on Menu Bar, Level on Menu Bar (off shows the
 speaker without the percentage), and Volume Step (how far a key or a notch
-moves it, 5% unless set). Choosing an output makes it the default and
+moves it, 5% unless set). Volume on Menu Bar and the speaker's checkbox in
+Control Panel > Menu Bar > Menu Bar Items are one setting. On Blit, with
+the blit glyph set, the speaker is one picture with its level inside it.
+Choosing an output makes it the default and
 leaves the input where it was, and what is already playing moves to it --
 hibr's own sound included, which plays to the server's default output.
 
@@ -996,7 +1087,8 @@ or None -- and what manages the network now; what the machine is on, its
 device, address, gateway and name servers; Wi-Fi on or off, Disconnect,
 the networks in reach to join and Look Again; the networks it knows, each
 by the name NetworkManager gave it and the network it joins, with Forget,
-which asks first; and Network on Menu Bar. The WebDAV servers that used to
+which asks first; and Network on Menu Bar, the same setting as the item's
+checkbox in Menu Bar Items. The WebDAV servers that used to
 be called Network Servers are **Servers** now.
 
 Auto takes NetworkManager when it answers, and otherwise iproute2's view
@@ -1036,7 +1128,8 @@ not answer.
 None), the adapter's name and address, Bluetooth and Visible to Others; My
 Devices, each connected (with its battery) or not, a click to connect or
 disconnect it, and Forget a Device, which asks first; Other Devices, found
-by Look for Devices, each a click to pair; and Bluetooth on Menu Bar. The
+by Look for Devices, each a click to pair; and Bluetooth on Menu Bar, the
+same setting as the item's checkbox in Menu Bar Items. The
 desktop keeps a `bluetoothctl` running with nothing to read and watches
 what it prints, so a device connected elsewhere reaches the bar with
 nothing pressed. macOS is not done yet. `HIBR_BT` overrides the setting --
@@ -1095,7 +1188,9 @@ Panel > YouTube > Keep the Screen Saver Away While Playing turns that off.
 There are six: **Matrix** rain, **Flying Toasters**, a **Classic Mac**
 drifting about with its little screen going from the happy face to a
 desktop to a window, **Pipes**, **Mystify** and a big **Clock** that
-moves every minute. Each is a file in `savers/` that names itself with
+moves every minute. The package ships Mystify, and the other five are in
+the catalogue; a saved choice that is not installed falls back to one of
+those that are. Each is a file in `savers/` that names itself with
 `sv_saver` and gives a `_start` and a `_frame`; a new one is one more
 file. A saver of your own goes in `~/.config/hibr/savers/` -- listed in
 Control Panel beside the bundled ones, and one with a bundled saver's
@@ -1224,7 +1319,7 @@ Right-click opens the terminal's own menu (Copy, Paste, Send Interrupt);
 shift-right-click opens it even when the program has the mouse.
 
 **A terminal gives the desktop its shortcuts back.** With Control Panel >
-Keyboard > Desktop Shortcuts Win on, as it is by default, a shortcut the
+Keyboard > Shortcuts in Terminals on, as it is by default, a shortcut the
 desktop or an app launcher has been given goes to the desktop even while a
 terminal has focus, so alt-tab cycles windows from inside one -- if it is a
 chord (ctrl or alt with a key) or a function key. A plain key -- `q`, `tab`,
@@ -1240,8 +1335,8 @@ that terminal.
 
 ## Screenshots
 
-**ctrl-alt-g** (Screenshot, in Shortcuts) or **Screenshot…** in Desk
-Accessories asks what to take: **Screen**, the focused **Window**, or an **Area**
+**ctrl-alt-g** (Screenshot, in Shortcuts) or **Screenshot…** on the hibr
+menu asks what to take: **Screen**, the focused **Window**, or an **Area**
 -- drag it out with the mouse, or move a corner with the arrows, press
 enter, stretch the band and press enter again. Whichever was taken last is
 chosen already, so the shortcut and enter repeat it; escape cancels.
@@ -1272,7 +1367,11 @@ play comes back paused. Nothing needs screen or tmux around the terminals.
 
 When a newer hibr is installed under a running desktop -- `apt upgrade`
 and the like -- a note says so; click it to restart into it. Nothing
-happens until you do. Noticing it needs `/proc`, so it is Linux only;
+happens until you do, and until then the bar shows ↻ beside the
+notification icon. A held session's own server, which draws every display
+and so carries the terminal emulator, can be older than the desktop inside
+it; the bar marks that with ⚠, and Restart Desktop upgrades that server
+too. Noticing it needs `/proc`, so it is Linux only;
 Restart Desktop itself works anywhere. The check rides the bar clock's
 own once-a-minute wake, so an idle desktop draws no extra frames for it.
 
@@ -1291,9 +1390,10 @@ with neither reopens fresh, in the same place.
 What it does not do: a terminal whose program had already ended comes
 back with a new shell rather than the exit message; a window whose app is
 no longer installed stays closed, and its program, if it had one, is ended
-as closing the window would. The `hold` process that a session is attached through
-keeps running the hibr it was started with until the session is ended; and
-between installing and restarting, a module the running desktop has not
+as closing the window would. The `hold` process that a session is attached
+through is upgraded by Restart Desktop only when the session is this
+desktop's own, not one it was started inside; and between installing and
+restarting, a module the running desktop has not
 loaded yet would be the new one, which the old shell refuses. Restart soon
 after an upgrade.
 
@@ -1513,17 +1613,21 @@ is written is in [WRITING.md](WRITING.md#control-panel-panes).
 
 ![The Date & Time pane, its clock and date above a small world map marking Europe/London](img/desktop-datetime.png)
 
-Windows' first four rows -- Frame, Buttons, Title and Button Style --
-are read by `dt_win` and `dt_btn` in `wm/frame.hibr`, not by the pane:
-`DT_FRAME` picks the border glyphs from the `DT_FRAMES` table (`single`,
-`double`, `rounded` with arcs at its corners, `bar` -- the title bar the
-window's only frame, square to its ends for now (a cell with only its outer
-top corner rounded is a glyph no font has, so it waits for Blit's own), its
-content running to the edge, and the bar's two ends the only resize grips, since the sides and bottom are the app's own
-cells -- or `none` for no ring at all -- move, resize, zoom, hide and
-close stay reachable through the Window menu even then, since that row is
-still there to drag or double-click, just undrawn); `DT_BTNSIDE` docks the
-min/max/close cluster left or right; `DT_TITLEALIGN` places the title in
+Windows' rows -- Frame, Title Bar, See Through, Buttons, Title and Button
+Style -- are read by `dt_win` and `dt_btn` in `wm/frame.hibr`, not by the
+pane: `DT_FRAME` is the border alone, its glyphs from the `DT_FRAMES`
+table (`single`, `double`, `rounded` with arcs at its corners, `solid` --
+a ring of whole cells in the frame's colour -- or `none`, no border at
+all and the content running to the window's edge; move, resize, zoom,
+hide and close stay reachable through the Window menu even then, since
+the title row is still there to drag or double-click); `DT_TITLEBAR` is
+the top row alone, any of it going with any frame: `line` (the title in
+the frame's own top line, or on the window's face where there is no
+border), `solid` (a filled bar) or `curved` (that bar with its top corners
+rounded, where the glyph set has the cells for it -- Blit's);
+`DT_BTNSIDE` docks the button cluster left or right, close always at the
+window's outer edge (max, min, close on the right; close, min, max on the
+left); `DT_TITLEALIGN` places the title in
 whatever room that leaves; `DT_BTNSTYLE` picks its glyphs and colours from
 `dt_btnspec` -- the Windows-style brackets this shipped with, or coloured
 circles, squares, diamonds or dashes. Every style's cluster is 5 (fixed) or 7
@@ -1540,7 +1644,9 @@ the same width either way, so no dialog's layout moves; `DT_BTNSHADOW` is
 their shadow. While focus is in a dialog's field or list, its first button
 -- always the action: Apply, Rename, Save, Yes -- is drawn as the default,
 its label in the accent colour, because that is what enter does from
-there; a button that has focus is filled with the accent instead.
+there; a button that has focus is filled with the accent instead, and any
+button under the pointer, where hovering is on, with the scheme's hot
+colour.
 
 The Desktop pane's **Redraw Skip** (0-9, `DT_DRAWSKIP`) leaves out that many
 frames of a window drag between each one drawn. A drag is already drawn only
@@ -1555,6 +1661,13 @@ skipped none and it was the label that was wrong), and what later made a
 saved 1 impossible to tell from a chosen one without reading the history
 of the default.
 
+Below it, **Frames For Output** (`DT_TERMMS`, 70 ms) is the least time
+between two frames woken by a program's output, which holds a terminal
+writing in bursts to about fifteen frames a second; keys and mouse reports
+are never held. **Frames For Video** (`DT_LIVEMS`, 33 ms) takes its place
+while a window playing video is on show -- one that says so with `dt_live`,
+as YouTube does while it plays -- and 0 holds video like any other output.
+
 Control Strip's own pane carries `CS_SHOW` -- whether there is a strip at
 all, off unless chosen since Gitea #393, its modules being catalogue
 entries -- and `CS_SIDE` and `CS_SHADOW`: which side it docks to, and
@@ -1565,9 +1678,12 @@ than from a settings row elsewhere.
 
 ## The apps
 
-In `programs/desktop/apps/`, each one also a file you can read in a sitting.
-None of them ships with the package: each is one `catalogue install` away,
-or one click in the Catalogue window.
+In `programs/desktop/apps/` -- and, for `panel`, `about`, `tasks`, `modman`
+and `catalogue`, the desktop's own `system/` -- each one also a file you can
+read in a sitting. The `system/` ones ship with the package, and so do
+`files` and `term` (and the accessories under **System apps and
+Applications** below); every other app here is one `catalogue install`
+away, or one click in the Catalogue window.
 
 
 | app | what it is |
@@ -1578,9 +1694,9 @@ or one click in the Catalogue window.
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
 | `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |
-| `about` | the version, the machine's hostname and kernel, `sysinfo`'s own block, and a CPU and a memory bar read live from `/proc` -- no forking, the same way `mods/sysinfo` reads them in C. It is a box rather than a wall: the versions stay pinned at the top and the meters at the foot, and the middle scrolls both ways -- a bar down the side for the lines, one along the foot for the ones wider than the box (the logo rows are), arrows, page keys, home, end and the wheel. Below that, **This Terminal**: what the desktop is drawing on, which is the other half of what decides what it can do -- `$TERM` and `$TERM_PROGRAM`, the screen in cells and in pixels where the terminal has said what a cell measures, which picture protocol is in force, that colour goes out as 24-bit with `$COLORTERM`'s own claim beside it, which mouse reports are asked for, and whether this is a held session and how many displays are attached. Each line is something the desktop can ask rather than guess: where there is no answer it says so instead of printing one. Synchronized output and the kitty keyboard protocol are not listed, because both need a query and a reply (Gitea #92, #93) and a capabilities list with one invented row in it is worse than a short one |
-| `diagram` | a Mermaid diagram editor: the text on one side and the drawing on the other, each following the other as it is changed. The editor is `widgets/textarea.hibr` as it comes -- undo, selection, the clipboard -- and the drawing is `mods/mermaid`, which answers rows and the style of every character in them, drawn run by run with a pen a letter so the diagram is in the window's own theme colours. The divider drags and is remembered; the diagram scrolls both ways when it is bigger than its half and says so rather than cutting it off. f6 moves between the two halves, since the editor wants every arrow and letter. The Diagram menu has one of each kind it understands -- flowchart, sequence, pie -- which is how the language is found by trying it. Text it cannot read says why, with the line number, where the diagram would be. It lives in `apps/Office/`, so it is on the hibr menu's Office submenu |
-| `dbase` | a little dBASE III on the `db` module. The dot prompt takes `CREATE`, `USE`, `APPEND` (a form), `BROWSE`, `LIST`/`DISPLAY [FOR ...]`, `DISPLAY STRUCTURE`, `COUNT`, `SUM`, `AVERAGE`, `?`, `DIR`, `HELP` and `QUIT`, cut to four letters as dBASE allowed; up and down step through what was typed. A `FOR` is conditions joined with `.AND.` (`load > 2.5 .AND. host = 'web1'`); `.OR.` is refused, since a db query is one set of conditions that all hold. Its menus -- File, Edit, Records, Query, Help, System 7's order -- type the same commands at the prompt. It lives in `apps/Office/`, so it is on the hibr menu's Office submenu. Records are only appended: dBASE has no `EDIT`, `DELETE` or `PACK` yet, though `db` can update and delete since 0.99.6. Databases live in `DBASE_DIR`, `~/.local/share/hibr/dbase` unless set |
+| `about` | the desktop's own name and version -- hui, the "hibr user interface, hybrid user interface" -- then hibr's, the machine's hostname and kernel, `sysinfo`'s own block, and a CPU and a memory bar read live from `/proc` -- no forking, the same way `mods/sysinfo` reads them in C. It is a box rather than a wall: the versions stay pinned at the top and the meters at the foot, and the middle scrolls both ways -- a bar down the side for the lines, one along the foot for the ones wider than the box (the logo rows are), arrows, page keys, home, end and the wheel. Below that, **This Terminal**: what the desktop is drawing on, which is the other half of what decides what it can do -- `$TERM` and `$TERM_PROGRAM`, the screen in cells and in pixels where the terminal has said what a cell measures, which picture protocol is in force, that colour goes out as 24-bit with `$COLORTERM`'s own claim beside it, which mouse reports are asked for, and whether this is a held session and how many displays are attached. Each line is something the desktop can ask rather than guess: where there is no answer it says so instead of printing one. Synchronized output and the kitty keyboard protocol are not listed, because both need a query and a reply (Gitea #92, #93) and a capabilities list with one invented row in it is worse than a short one |
+| `diagram` | a Mermaid diagram editor: the text on one side and the drawing on the other, each following the other as it is changed. The editor is `widgets/textarea.hibr` as it comes -- undo, selection, the clipboard -- and the drawing is `mods/mermaid`, which answers rows and the style of every character in them, drawn run by run with a pen a letter so the diagram is in the window's own theme colours. The divider drags and is remembered; the diagram scrolls both ways when it is bigger than its half and says so rather than cutting it off. f6 moves between the two halves, since the editor wants every arrow and letter. The Diagram menu has one of each kind it understands -- flowchart, sequence, pie -- which is how the language is found by trying it. Text it cannot read says why, with the line number, where the diagram would be. It lives in `apps/Office/`, so it is under Applications > Office on the hibr menu |
+| `dbase` | a little dBASE III on the `db` module. The dot prompt takes `CREATE`, `USE`, `APPEND` (a form), `BROWSE`, `LIST`/`DISPLAY [FOR ...]`, `DISPLAY STRUCTURE`, `COUNT`, `SUM`, `AVERAGE`, `?`, `DIR`, `HELP` and `QUIT`, cut to four letters as dBASE allowed; up and down step through what was typed. A `FOR` is conditions joined with `.AND.` (`load > 2.5 .AND. host = 'web1'`); `.OR.` is refused, since a db query is one set of conditions that all hold. Its menus -- File, Edit, Records, Query, Help, System 7's order -- type the same commands at the prompt. It lives in `apps/Office/`, so it is under Applications > Office on the hibr menu. Records are only appended: dBASE has no `EDIT`, `DELETE` or `PACK` yet, though `db` can update and delete since 0.99.6. Databases live in `DBASE_DIR`, `~/.local/share/hibr/dbase` unless set |
 | `write` | a word processor for markdown, in Office: what you write is shown as it reads -- headings large, **bold** bold, *italic* italic, lists with their bullets, tasks with boxes you click to tick, quotes with their bar, `code` shaded, links underlined, rules drawn -- and only the line the cursor is on shows its markdown, the marks dimmed, so it is always edited exactly. A toolbar and the Format menu put the marks in -- bold, italic, strikethrough, code, link, three headings, bulleted, numbered and task lists, quote, rule -- on the selection, or on the line. File > Open…, Save (ctrl-s, settable as Save) and Save As…; Find… and Find Next; the Edit menu's undo, redo, cut, copy, paste and select all. A `.txt` is edited as plain text. A window with unsaved changes asks before it closes and keeps them across Restart Desktop. Files opens `.md` and `.txt` in it. A ```` ```mermaid ```` block in a document is drawn as the diagram where it sits, through the same module and the same widget the Diagram editor uses, and shows its source again the moment the cursor is anywhere inside it -- there is no editing a diagram you cannot see the text of |
 | `sheet` | a spreadsheet whose formulas are hibr, in Office. A cell holds text, a number, or `=` and hibr: what a formula prints is its value (`=math "A1 * 1.2"`, `=sum "${B1_B9[@]}"`), and one that is an expansion is that (`=$((A1 * 2))`). Every cell a formula names is a variable holding its value, a range `A1_B9` an array; formulas are worked out in the order they need each other, and one that needs itself says `#CYCLE`. They run in a hibr of their own under `--plan`, with two seconds of CPU and ten of the clock: they compute and read, and what would write, connect or start a program says `#REFUSED` with what it would have done -- Sheet > Trust This Sheet lets one sheet's run for real, remembered on this machine, never in the file. A sheet is a `db` file (`.hsheet`), one row per cell, written as it changes; Save As copies it. Typing replaces a cell, enter or f2 edits it, delete clears the selection, a column's header edge drags its width, and the Sheet menu inserts and deletes rows and columns, the formulas following the cells they name. CSV in and out from File. The Format menu works on the selection: bold, italic, a text colour and a fill from the theme's roles, alignment, decimals, thousands, percent and currency (`SS_CURRENCY`, `$` unless set), a bottom or right border, a rule that colours a number by its value (Negatives Bad, Positives Good, or Rule... for `> 100 good`), and frozen top rows and left columns. Sheets live in `SS_DIR`, `~/.local/share/hibr/sheets` unless set |
 | `xscreen` | **X Screen**, X11 programs in windows (Gitea #290, #291): Control Panel > X Screen keeps a list of programs, each a name, a command, a Window choice, a Picture choice and When It Ends -- default, close or keep: close takes the window with the program once every process it started has gone and none of its windows is left on the screen, so a launcher that forks keeps the window while the program's is up, and default follows Close When It Ends, a switch for every program -- with Add Program and a row to change or delete each; every one is an entry under **Applications > X Screen**, and the app itself is hidden. Each window starts an Xvfb of its own. **Fit the window** (the default) makes the xscr module the screen's window manager: the program's window is kept the hibr window's size in pixels, 1:1, and follows a resize, dialogs keep their own size centred, and focus follows a click; the screen is the Largest Screen size (1920x1080 by default, 8.3 MB of memory-backed storage per window), and a window larger than that is the screen, scaled. **Fixed size** is a screen of Fixed Size scaled in; **Program's own** leaves the window to the program, for a window manager. The window is titled with the program's name and its own title. Drawn as pixels where the terminal can place them and half blocks where it cannot, only when the server says the screen changed, and at most every `DT_TERMMS`; nothing at all while hidden. Keys, clicks, drags, the wheel and paste go to it. No hover without a button held, a US keyboard map, no shared clipboard yet; OpenGL is Mesa's, in software without a GPU. Needs Xvfb (`xvfb`) |
@@ -1588,7 +1704,7 @@ or one click in the Catalogue window.
 | `mail` | mail, laid out like Gmail and kept offline: IMAP with push and labels, POP3, SMTP -- see Mail above |
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); Task > Show, or `w`, lists everyone's, only yours or only this desktop's -- the desktop and what it has started, which is its terminals' shells and their programs; `x` ends the selected one, `shift-x` forces it |
 | `modman` | **Modules**: every module the module path can offer, loaded or not -- its version, whether it is loaded, the interface it offers and the builtins it adds, with the selected one's description and path below, which is what a list has no room for. Enter loads or unloads, `l` and `u` do one each, `r` scans again. Two things it refuses, and says why on that same line before anything is pressed: the console, pty, term and hold, because the desktop is drawn and held through them; and any loaded module that offers an interface, because another module may be holding its table and `mod drop` would leave it pointing into an unloaded object. It reads `mod avail`'s own answer, which names and describes a module without ever running its init |
-| `catalogue` | **Catalogue**: the catalogue in a window, `apps` with a window around it the way the Vault accessory is a window around `vw`. A tree, one branch per kind, each saying how many it holds; a tick marks what you already have and the reload glyph what has a newer version waiting. `tab` or `/` searches, `i`, `u` and `x` install, update and remove, `r` reads an entry's own page, `f5` fetches the index again. Every fetch is a job, so the desktop goes on drawing while the network takes its time. It reads `catalogue list -j`, never the columns `apps` prints for a person: one answer, rather than one of them parsing the other's layout. Not called *Applications*, which is already the submenu of every app you can open |
+| `catalogue` | **Catalogue**: the catalogue in a window, the `catalogue` command with a window around it the way the Vault accessory is a window around `vw`. A tree, one branch per kind, each saying how many it holds, with the bundles in a section of their own at the top -- one opens like a folder, a row for each member, and removing one asks first; a tick marks what you already have and the reload glyph what has a newer version waiting. `tab` or `/` searches, `i`, `u` and `x` install, update and remove, `r` reads an entry's own page, `f5` fetches the index again. Every fetch is a job, so the desktop goes on drawing while the network takes its time. It reads `catalogue list -j`, never the columns `catalogue` prints for a person: one answer, rather than one of them parsing the other's layout. Not called *Applications*, which is already the submenu of every app you can open |
 
 ## System apps and Applications
 
@@ -1600,7 +1716,10 @@ or edits something of yours, and would make sense on any desktop.**
 
 So the hibr menu reads: About This Computer, then **Applications** and
 the desktop's own apps in one sorted list -- Catalogue, Clipboard, Control Panel, Modules, Screenshot, Task Manager -- then
-Screen Saver, Lock, Restart, Detach, Quit.
+Screen Saver, Lock Screen, Restart Desktop, Detach, Quit. With the blit
+glyph set the menu's mark in the corner can be the hui badge rather than
+the pen (Control Panel > Menu Bar > Menu Mark); either way it is called the
+hibr menu here.
 
 Both kinds are the same kind of file: `dt_app` and nothing else. What
 decides where one is listed is the folder it says it is in, and that is
@@ -1621,13 +1740,17 @@ already let any number of apps run at once, so "accessory" was only ever a
 *name* for the small ones. It still is: **Applications > Accessories** is a
 folder like Office, Internet and Games, not a kind of thing.
 
-The bundled accessories live in `programs/desktop/apps/Accessories/`:
+The accessories live in `programs/desktop/apps/Accessories/` -- of them
+the package ships Calculator, Clock, Image Viewer, Stickies and Puzzle, and
+Prayer Times is in the catalogue -- and the small apps listed beside them
+here live elsewhere: Clipboard and Screenshot in `system/`, and Calendar,
+Contacts and Vault in `apps/` itself, from the catalogue:
 
 | app | what it is |
 |---|---|
 | `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
 | `clock` | the time, large, and the date under it |
-| `imgview` | a picture in a window, decoded and drawn by the `img` module -- drop one on it to open it, there is no file-open dialog -- or an `.ans` screenshot, as the cells it was |
+| `imgview` | a picture in a window, decoded and drawn by the `img` module -- drop one on it, or open it from Files, since it has no Open… of its own -- or an `.ans` screenshot, as the cells it was. A picture is fitted to the window at its own shape and centred; the wheel zooms around the pointer, a drag pans, and `+`, `-`, `0` (fit), `1` (actual size) and the arrows do the same, all four also on the Image menu |
 | `stickies` | notes stuck on the desktop, as many as you like, each one of six colours -- yellow, blue, green, pink, purple, grey -- and saved as you type. Launching Stickies opens every note; File makes a new one and the Note menu changes its colour or deletes it (closing only puts it away). Text wraps at the note's width; undo and redo (alt-z, alt-y), cut, copy, paste and select all are on the Edit menu. Control Panel > Stickies sets the colour new notes get, whether every note opens with the desktop, and whether notes are on every workspace. Note Pad's note became the first sticky |
 | `clipboard` | the clipboard's history: see Copy and paste |
 | `screenshot` | takes one: see Screenshots |
@@ -1647,7 +1770,7 @@ clipboard history. Nothing decrypted is kept: every read runs `vw` as a
 child, and the keys stay in its own module.
 
 The vault is unlocked once for the whole desktop, with the master password
-or a PIN, and **Control Panel > Passwords** holds the rest: the server and
+or a PIN, and **Control Panel > Vault** holds the rest: the server and
 account, Log In, Lock, how long it stays unlocked, the PIN, how often it
 syncs, and how long a copied password stays on the clipboard. Unlocking
 exports `VW_SESSION`, so a Terminal window opened afterwards can use `vw`
@@ -1660,7 +1783,7 @@ which code it wants -- an authenticator app, an emailed code or a YubiKey
 read differently. A code that does not work clears the code and nothing
 else, so a mistyped digit does not cost the password too, and the device is
 remembered afterwards, so the next login asks nothing. Duo and WebAuthn
-need a browser and are refused by name rather than half-tried. from them -- see Contacts above |
+need a browser and are refused by name rather than half-tried.
 
 ## Control Strip
 
@@ -1672,6 +1795,19 @@ has. Not authentic to any one System version on purpose: the real Control
 Strip sat at the bottom of the screen and only ever slid left and right
 along it; this one docks to either side instead and slides up and down, a
 deliberate choice over period accuracy.
+
+It is **off on a new desktop**, and its modules come from the catalogue
+(Gitea #393): Control Panel > Control Strip > **Show Control Strip** turns
+it on, and the same pane's **Modules** list shows every module installed,
+to tick off or drag by its grip into another order (or select one and press
+shift with an arrow). A module that already has a switch of its own --
+Prayer Times' In the Control Strip -- names it (`cs_moduleswitch`), and the
+list's checkbox is that same setting; any other is hidden through
+`CS_HIDE`, and the order is `CS_ORDER`. The catalogue's are Cursor, Shadow,
+Theme and Wallpaper (each once shipped with the desktop), Workspaces (the
+numbers, the current one lit, a click going there), Power (the battery or
+the power symbol, with the Power menu), and Prayer, which comes with
+Prayer Times as one of its parts. A desktop that had the strip before 0.99.354 keeps it.
 
 ![The Control Strip along the bottom: Cursor, Prayer, Shadow, Theme and Wallpaper in brackets, ending in its own arrow, with the strip's shadow under it](img/desktop-strip.png)
 
@@ -1692,8 +1828,8 @@ scroll position either.
 Shortened below its full width, the modules that no longer fit are still
 there to scroll to: the wheel, while the pointer sits on the strip, from
 wherever the wheel event itself lands; or, with no mouse in reach at all
-(or simply preferred), `alt-s` (rebindable like the desktop's other four
-shortcuts) gives the strip explicit attention until escape or `alt-s`
+(or simply preferred), `alt-s` (Control Strip, in Shortcuts like every
+other) gives the strip explicit attention until escape or `alt-s`
 again releases it, and the left and right arrow keys scroll it regardless
 of where the pointer happens to be. An earlier version also scrolled it by
 hovering the pointer over it with no click at all, which needed `console
@@ -1706,7 +1842,7 @@ convenience.
 
 Earlier versions drew a single letter or glyph per module -- clever, but
 nothing anyone could read without already knowing what it meant. Every
-bundled module now draws its own name instead: `[Cursor][Shadow][Theme]
+module in this tree now draws its own name instead: `[Cursor][Shadow][Theme]
 [Wallpaper]`, in `programs/desktop/control-strip/`, each a few lines reusing a
 setting Control Panel already has. `shadow` toggles `DT_SHADOW` on click,
 bold in the active colour when on and dimmed when off; `cursor`, `theme`
@@ -1749,6 +1885,24 @@ have not seen yet, opening the latest of them in a panel beneath it when
 clicked), the clock (in whatever format Date & Time sets) and the
 **application menu** on the right. Windows cannot be dragged over it.
 
+Everything on the bar's right is an **item**, each a file of `menubar/`
+(ADR 0048): the desktop's own four -- the application menu, the clock, the
+notification icon and the workspace numbers -- and whatever the catalogue
+has added, such as the speaker, the network, Bluetooth, the battery or
+Prayer Times' next prayer. Control Panel > **Menu Bar** lists them under
+**Menu Bar Items** as they read across the bar, each with a checkbox:
+untick one to take it off, and drag a row by its grip -- or select it and
+press shift with an arrow -- to move it, the bar following at once. The
+application menu keeps its corner. An item that already has a switch of its
+own in its pane -- Sound's Volume on Menu Bar, Network's, Bluetooth's,
+Power's, Prayer Times' Next Prayer in the Menu Bar -- shows that switch
+there, so the two checkboxes are one setting (`dt_bariswitch`); the rest
+are hidden through `DT_BARHIDE`, and the order is `DT_BARORDER`. Under the
+list, the pane's **Look** rows are the gap between items (Spacing), how
+much of a picture shows through the bar and its menus (See Through, Menus
+Too), the Notification Icon, the Bar Shadow, Bold Menu Titles, Menu Width,
+and, with the blit glyph set, Menu Mark (see Glyphs).
+
 **Notifications have a priority**: low for the desktop telling you what it
 did -- "Workspace 2", "Volume 40%", "Copied 12 characters" -- normal for a
 program's or an app's own, high and urgent for failures. Every one pops up,
@@ -1778,6 +1932,12 @@ clears the low ones or all.
 Notifications > Position names, where the bar and the icons are; Show On
 set to every puts the same stack in that corner of every attached display,
 and a click on any copy acts on the note.
+
+**A note's frame** is Control Panel > Notifications > **Frame**: Same as
+Windows by default, or Single, Double or Curved of its own, or **Solid** --
+the whole note in its priority's colour, the text on it too -- or **Solid
+Reversed**, a ring of cells in that colour round the note's ordinary face.
+Same as Windows under a solid window frame gives the ring.
 
 **A note has a smallest and a largest size**, set in Control Panel >
 Notifications as four rows -- Smallest Width and Largest Width in columns,
@@ -1832,11 +1992,14 @@ arranged with a mouse is a desktop half its users cannot arrange.
 ## What it does not do
 
 It is cooperative: one process, one loop, apps called in turn, so an app that
-takes a long time in `_draw` stalls the desktop. Windows snap to cells and
-cannot be transparent. Menus nest one level deep. There is no widget library — each app draws its own
-buttons, and if the same button code turns up in three apps, *then* it becomes
-one. A program in a terminal window hears about the mouse only while a
-button is down, never plain motion.
+takes a long time in `_draw` stalls the desktop. Windows snap to cells, and
+a window's See Through is a colour worked out per cell from the picture
+beneath, not real transparency: a cell has no alpha. The widgets in
+`widgets/` are the ones three apps turned out to need -- buttons,
+checkboxes, sliders, fields, dropdowns, scrollbars, trees, the search bar,
+the text area -- and anything else an app
+draws for itself until it turns up in three. A program in a terminal window
+hears about the mouse only while a button is down, never plain motion.
 
 ---
 

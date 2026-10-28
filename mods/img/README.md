@@ -136,6 +136,16 @@ kept (`im_src`) and cropped again rather than decoded again: 268 ms for a
 let go the next time the same file is drawn whole, or another file is
 cropped.
 
+Two more verbs, each for one caller. `img size file` answers the picture's
+own `width height` in pixels -- from the header where it can, EXIF rotation
+counted -- since `img draw` always stretches to exactly the rectangle it is
+given, and a caller that wants a picture's shape kept has to work the
+rectangle out first. `img keep file row col h w [-m mode]` is the
+wallpaper's: status 0 when the picture this module last placed under the
+text at that rectangle, unchanged on disk, is still wanted and the display
+kept it (`dp_api` version 6's `imgkeep`), 1 when it was not, and nothing is
+drawn either way, so a frame that meant to paint nothing paints nothing.
+
 ## Testing
 
 `tests/830-img.t` is recorded, not compared against bash -- there is no

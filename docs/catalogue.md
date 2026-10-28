@@ -32,9 +32,11 @@ which is this program's specification.
 
 ## The catalogue
 
-`apps` fetches a catalogue — an **index** — over HTTPS, and defaults to the
-one at <https://osakka.github.io/hibr-apps>: twenty-one applications, each a
-hibr script, each with the description its own `app` line declares. It is a
+`catalogue` fetches a catalogue — an **index** — over HTTPS, and defaults to the
+one at <https://osakka.github.io/hibr-apps>: some two dozen applications,
+each a hibr script, each with the description its own `app` line declares,
+beside Control Panel panes, menu bar items, strip modules, savers, themes,
+colour schemes, a language and the bundles that group them. It is a
 git repository ([osakka/hibr-apps](https://github.com/osakka/hibr-apps))
 served as a page, so it can be read in a browser before anything is fetched,
 and a bundle's address in it is relative — which means any copy of that one
@@ -135,7 +137,7 @@ of the same name, and `catalogue update` cannot overwrite your copy. That is the
 whole protection: there is no lock and no database, only the order of two
 directories.
 
-The ninth is `mods`, and it belongs to the **shell** rather than the
+The tenth is `mods`, and it belongs to the **shell** rather than the
 desktop: a module lands in `$XDG_DATA_HOME/hibr/mods`, which a non-root
 shell searches when something asks for a module by name — `need NAME`,
 `mod load NAME`, `mod avail`. It is the one kind that is native code, so
@@ -146,7 +148,7 @@ fetched. A module installed there is never loaded by a *mistyped command*,
 which is deliberate and is the subject of
 [ADR 0044](adr/0044-a-module-can-be-installed.md).
 
-The tenth is `cli`, and it is a **command**: a script you run from a prompt or a
+The eleventh is `cli`, and it is a **command**: a script you run from a prompt or a
 service, with no window, which an application is not. It lands in
 `$XDG_DATA_HOME/hibr/cli` (`$HIBR_SYSDIR/cli` with `--system`), a folder the desktop
 never reads, so it is never on a menu. Otherwise it is an ordinary script:
@@ -163,7 +165,7 @@ An entry's `kind` decides which of the twelve it goes to, and **the kind
 decides the extension**: a theme is JSON, not a script
 ([ADR 0028](adr/0028-a-theme-is-data.md)), a translation catalogue is too
 ([ADR 0032](adr/0032-the-desktop-is-translated-at-its-widgets.md)), and a
-module is a `.so`. A kind that is not one of the ten is refused rather
+module is a `.so`. A kind that is not one of the twelve is refused rather
 than guessed at, and a bundle whose own extension is not its kind's is not
 placed as itself — it would be a file nothing ever reads.
 
@@ -200,7 +202,7 @@ nothing to read and the object runs as you. A machine with no `gpg` on it
 is the same case — scripts unaffected, modules refused.
 
 `HIBR_APPS_KEYFP` pins a different fingerprint, for somebody serving a
-catalogue of their own; the keyring `apps` reads is
+catalogue of their own; the keyring `catalogue` reads is
 `$PREFIX/share/hibr/keyring.gpg`, installed beside the shell, and
 `HIBR_APPS_KEYRING` points elsewhere.
 
@@ -435,7 +437,7 @@ a pane two apps both bring survives the removal of one. A module is
 owned by nobody: `pim` serves Calendar, Contacts and anybody's script,
 and one that came with hibr is not an app's to delete.
 
-`mkindex` reads that line into the index's `modules` field, and `apps
+`mkindex` reads that line into the index's `modules` field, and `catalogue
 install` resolves it three ways, in order:
 
 | | |
@@ -482,6 +484,9 @@ the entry it is. The ledger remembers which members a bundle came with,
 so `catalogue update` installs a member the catalogue has added since,
 and does not put back one you took away by hand.
 
+`catalogue info` names each member by its title and what it is -- "Volume,
+a menu bar item; Sound, a Control Panel pane" -- and in the Catalogue
+window a bundle opens like a folder, each member a row of its own.
 `catalogue list` says a bundle is there when every member is, wherever each
 one is. Removing one takes away the members this scope installed that
 nothing else installed wants; from a terminal it asks first, and from
@@ -517,8 +522,9 @@ hanging on a read that can never return.
 
 `hibr`, `abi` and `modules` say what an entry needs, and are **checked
 before anything is fetched**: an exact module ABI, a minimum hibr version,
-and a module that must already be there. A module never comes from here —
-see [What it refuses](#what-it-refuses).
+and a module that must already be there or come as a `mods` entry. A
+module never comes inside another kind's bundle — see [What it
+refuses](#what-it-refuses).
 
 A bundle is a **plain file** — the app's own `.hibr`, a theme's `.json` —
 at a path the index names. `version` is the entry's own, declared by the
@@ -527,8 +533,8 @@ thing itself and not the hibr release it last changed in.
 ### An app that is more than one file
 
 A Control Panel pane and a Control Strip module are files in **other** scan
-roots, so they cannot travel as resources under the app's own: eight of the
-applications hibr ships have a pane, and installing one without it leaves
+roots, so they cannot travel as resources under the app's own: many of the
+applications in the catalogue have a pane, and installing one without it leaves
 the app with nowhere to keep its settings. The index names those parts, each
 with the path to fetch it from and its own `sha256`:
 
@@ -853,10 +859,10 @@ because a window nobody is looking at still has a job running in it. The
 status line says what is happening while one runs, and what the command
 said when it failed.
 
-What the window reads is `catalogue list -j`, never the columns `apps` prints
+What the window reads is `catalogue list -j`, never the columns `catalogue` prints
 for a person. The command answers JSON for exactly this, so the two read
 one answer instead of one parsing the other's layout — which is how a
-window comes to disagree with its own command. An `apps` too old to know
+window comes to disagree with its own command. A `catalogue` too old to know
 `-j` is named as the likely cause rather than drawn as an empty list with
 no reason.
 

@@ -2,7 +2,7 @@
 
 Whole tasks, solved. Almost none of them start a process. Every example that
 shows its output is run again on every build by `tests/531-doc-examples.t`,
-and the build fails if what it prints stops matching the page; the two that
+and the build fails if what it prints stops matching the page; the three that
 need root or the network are shown without output, and are not.
 
 - [Text without the toolchain](#text-without-the-toolchain)
@@ -247,6 +247,20 @@ json parse api "$body"
 
 No `curl`, no `jq`, no pipe. Certificates are verified by default —
 [0010](adr/0010-tls-verifies-and-is-dlopened.md).
+
+That is the request spelled out by hand. The `fetch` module makes the same
+one with redirects, gzip, chunked bodies and kept connections, and under
+`:=` hands back the reply as a map:
+
+<!-- not run: needs the public network -->
+```sh
+need fetch
+r := fetch https://api.example.com/v1/items
+echo "HTTP ${r["status"]} ${r["type"]}"
+json parse api "${r["body"]}"
+```
+
+See [mods/fetch](../mods/fetch/README.md).
 
 ## Command-line programs
 

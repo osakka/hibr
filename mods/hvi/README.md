@@ -117,7 +117,7 @@ the order it was typed. A tab in such a line is drawn as one cell.
 ## Testing
 
 `tests/hvi.py` drives it through a pseudo terminal and mostly checks the file
-that comes out, which is what an editor is for. 30 checks.
+that comes out, which is what an editor is for. 35 checks.
 `tests/680-hvi.t` covers what `run.sh` can reach, which is the argument handling
 and the refusal to start without a display. The gap buffer has its own C test, `tests/hvi-buf.c`, which is where the
 measurements above come from:

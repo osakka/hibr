@@ -17,6 +17,23 @@ echo "deb [signed-by=/usr/share/keyrings/hibr.gpg] https://osakka.github.io/hibr
 sudo apt update && sudo apt install hibr
 ```
 
+On Fedora 36, RHEL 10, openSUSE Leap 15.6 or newer (x86_64), from the dnf
+repository (`zypper addrepo` takes the same file):
+
+```text
+sudo curl -fsSL -o /etc/yum.repos.d/hibr.repo https://osakka.github.io/hibr-rpm/hibr.repo
+sudo dnf install hibr
+```
+
+On Arch Linux (x86_64), from the pacman repository, trusting its key once:
+
+```text
+curl -fsSL https://osakka.github.io/hibr-arch/hibr.asc | sudo pacman-key --add -
+sudo pacman-key --lsign-key A1E3CA788A8FB02052DA22B413035BE1B1674431
+printf '[hibr]\nServer = https://osakka.github.io/hibr-arch/$arch\n' | sudo tee -a /etc/pacman.conf
+sudo pacman -Syu hibr
+```
+
 On macOS or Linux with Homebrew:
 
 ```text

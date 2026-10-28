@@ -1,8 +1,8 @@
 # Tests
 
 ```text
-make check                                    # tests/run.sh: 109 test scripts
-./build/hibr tests/self.hibr                  # 91 assertions written in hibr
+make check                                    # tests/run.sh: 198 test scripts
+./build/hibr tests/self.hibr                  # 92 assertions written in hibr
 HIBR=./build/hibr REF=dash tests/run.sh       # compare with another shell
 python3 tests/fuzz.py ./build/hibr.asan 500   # mutation fuzzing of the parser
 make check-all                                # tests/all.py: every suite at once
@@ -30,6 +30,10 @@ ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
 python3 tests/asan.py        # the same for every suite, the pty ones too
 python3 tests/asan.py --quick    # core, C modules and what changed: the release gate
 ```
+
+Both forms of `tests/asan.py` run the recorded tests a third time with
+`detect_leaks=1`, and fail on any leak report (since 0.99.309, when every
+recorded test was made to pass it); the other passes run with leaks off.
 
 `tests/fuzz.py` mutates the test scripts — byte flips, deletions, inserted
 shell tokens — and runs `hibr -n` on each result, reporting crashes, sanitizer

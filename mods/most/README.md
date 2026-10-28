@@ -47,7 +47,7 @@ framebuffer backend offering the same table would work unchanged. Both halves ar
 | `N` | the next line that matches |
 | `i` | fold case or not |
 | `F` | follow the file as it grows |
-| `s` | split into two windows, `tab` to switch |
+| `s` or `2` | split into two windows, `tab` to switch |
 | `n` | the next file in this window |
 | `?` | the key list |
 | `q` | leave |
@@ -66,5 +66,5 @@ scrolling back needs it; what has not is not waited for.
 `tests/most.py`, through a pseudo terminal. It reassembles the screen from the
 escape stream rather than grepping it — the display sends only the cells
 that changed, so a search of the raw bytes finds `78-200/200` where the display
-reads `178-200/200`. Twenty checks; the one worth keeping is that `seq | most`
+reads `178-200/200`. Twenty-three checks; the one worth keeping is that `seq | most`
 pages correctly, because that is the shape real use takes.

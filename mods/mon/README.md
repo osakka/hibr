@@ -8,7 +8,8 @@ What the machine is doing, while it does it.
 
 Processors with a bar each, memory and swap, network and disk rates, and every
 process with how much of a processor it has used since the last reading —
-sorted heaviest first, or by size with `m`. `p` pauses, `q` leaves.
+sorted heaviest first, or by size with `m` (`c` goes back to processor).
+`p` or space pauses, `q` leaves.
 
 | file | role |
 |---|---|

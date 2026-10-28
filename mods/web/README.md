@@ -39,7 +39,7 @@ web close $t; web quit
 | `web eval T js` | run JavaScript in the page; a string as it is, anything else as JSON; a thrown error is said, status 1 |
 | `web size T rows cols` | lay the page out for that many cells |
 | `web render T` | take a frame: the text, the fields and the picture |
-| `web draw T row col [h w] [-p pane]` | draw the last frame on the display, into a pane if named |
+| `web draw T row col [h w] [-p pane]` | draw the last frame on the display, into a pane if named; in pixels a paned page is placed below the cells, so a window over part of it hides only that part (Gitea #382) |
 | `web mode T cells\|pixels\|text` | how a page is drawn: text over the colours behind it, the page itself as pixels where the terminal can paint them, or nothing at all -- `text` makes a render read nothing, for a caller drawing the page's words itself |
 | `web set T js\|images\|dark on\|off` | what this tab's pages may do: run their scripts, fetch their pictures (refused by resource type, so an image with no extension is caught too), and be asked for their dark scheme (`prefers-color-scheme`). Per tab, so another program's tabs in the same browser keep theirs; scripts and pictures already loaded stay until the page loads again |
 | `web set T zoom PCT` | lay the page out PCT percent larger or smaller, 25 to 500; the extraction, the picture and the text all follow |

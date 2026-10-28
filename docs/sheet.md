@@ -151,7 +151,7 @@ items — `b;i;fg=bad;al=r;nf=2`.
 A sheet is a file of the `db` module (`.hsheet`): one row per cell, written
 as it is changed, so **there is nothing to save**. Save As writes a copy
 under another name; Edit > Undo undoes this session's changes. CSV comes in
-and goes out through File > Import and File > Export — and a CSV field that
+and goes out through File > Import CSV… and File > Export CSV… — and a CSV field that
 begins with `=` arrives as a formula, which is how the Tour is shipped as
 text rather than as a binary.
 
@@ -159,7 +159,10 @@ Sheets live in `SS_DIR`, `~/.local/share/hibr/sheets` unless you set it.
 
 ## Where this is written down
 
-The app is `programs/desktop/apps/Office/sheet.hibr`, the example is
+Sheet does not ship with the package: it is in the catalogue
+(`catalogue install sheet`, or the Catalogue window), and once installed
+it is under Applications > Office. The app is
+`programs/desktop/apps/Office/sheet.hibr`, the example is
 `programs/desktop/examples/tour.csv`, and the checks are in
 `tests/apps.py`. Until 0.99.120 every word of this page lived in that
 file's own header comment, where no one using the app would ever find it

@@ -203,6 +203,16 @@ Unlike `[`, no expansion splitting happens inside, so quoting is rarely needed.
 | `-s f` | it exists and is not empty |
 | `-L f` `-h f` | it is a symbolic link |
 | `-v n` | the variable is set; `-v a[1]` and `-v h["k"]` test one element |
+| `-a f` | the path exists, the same as `-e` |
+| `-b f` `-c f` `-p f` `-S f` | it is a block device, a character device, a named pipe, a socket |
+| `-u f` `-g f` `-k f` | its set-user-id, set-group-id, sticky bit is set |
+| `-O f` `-G f` | it is owned by the effective user, the effective group |
+| `-N f` | it was modified since it was last read |
+| `-t n` | descriptor `n` is a terminal |
+
+bash's `-o name`, true when a shell option is on, and `-R name`, for a
+nameref, are not there: `[[ -o errexit ]]` is an unknown test, status 2.
+`shopt -q name` asks the first question.
 
 | binary | true when |
 |---|---|
@@ -230,7 +240,9 @@ quoted byte is never split, globbed, or read as an operator.
 3. **Parameter, command, arithmetic and process substitution**, left to right in
    one pass: `$name`, `${…}`, `$(…)`, `` `…` ``, `$((…))`, `<(…)`, `>(…)`.
    bash's old spelling of arithmetic, `$[…]`, is the same as `$((…))`.
-4. **Word splitting** on `IFS`, over unquoted bytes only.
+4. **Word splitting** on `IFS`, over unquoted bytes only. A run of `IFS`
+   whitespace is one separator; any other `IFS` character ends a field on
+   its own, so two in a row make an empty field between them, as in bash.
 5. **Pathname expansion**, over unquoted bytes only.
 6. **Quote removal**.
 
@@ -262,6 +274,16 @@ expansion produced; text written in the word still splits and globs
 
 Dropping the `:` in the first row tests only whether the name is set, not
 whether it is also non-empty.
+
+Inside `${…}` only another `${` opens a level that must be closed: a bare
+`{` is a character, and a `$(…)` or a backquoted command is passed over
+whole, so `"${x:-a{b}"` and `"${x:-{\}}"` parse, as in bash and dash. Inside
+double quotes the word of `:-`, `:=`, `:?` and `:+` keeps a backslash before
+a character the string does not treat as special -- `"${x:-a\zb}"` is
+`a\zb`, as bash keeps it. **[hibr]** Inside `"…"` an apostrophe in that
+word is a character, not the start of a quote, so
+`"${x:-the machine's zone}"` gives `the machine's zone` where bash fails to
+parse it; outside double quotes `${x:-'a b'}` is quoted as usual.
 
 **[hibr]** A **quoted subscript is a literal key**: `h["content-type"]` is the
 key `content-type`, while `h[content-type]` is still arithmetic and lands on

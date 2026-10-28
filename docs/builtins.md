@@ -1,8 +1,9 @@
 # Builtins
 
-Every builtin the shell carries, seventy-three of them, and the `cat` a module
-adds. `help` lists the same set at runtime, and `type name` says what a name
-resolves to.
+Every builtin the shell carries, seventy-seven of them, and the ones its
+modules add, listed under [Modules](#modules). `help` lists the shell's own
+set at runtime, `mod avail` names each module's, and `type name` says what a
+name resolves to.
 
 Builtins marked **[hibr]** have no bash equivalent, or differ from it on
 purpose. Everything else behaves as bash does unless the entry says otherwise.
@@ -112,7 +113,7 @@ hibr: source: /dev/tcp/example.com/80: No such file or directory
 | `shopt [-s\|-u\|-q\|-p] [name…]` | read or set shell options; `-p` prints the `shopt -s`/`-u` lines that put them back |
 | `strict [off] [functions\|vars\|expansion…]` / `strict -p` | **[hibr]** refuse, in the file that runs it, what is usually a mistake: a function defined twice in it, a function creating a global without `local`, an expansion that splits -- see [0023](adr/0023-strict-is-per-file.md) |
 | `shift [n]` | drop the first `n` positional parameters |
-| `read [-rs] [-p s] [-n k] [-N k] [-d c] [-t s] [-u fd] [-a arr] [name…]` | read one line; `-n` stops at `k` characters *or* the delimiter, whichever comes first, and `-N` takes exactly `k` and splits nothing; `-t` waits that many seconds, fractions too, for input to begin -- 142 when none came -- and `-t 0` reads nothing at all, only saying whether input is waiting, as in bash; a name may be subscripted, as in `read h[k]` |
+| `read [-rs] [-p s] [-n k] [-N k] [-d c] [-t s] [-u fd] [-a arr] [name…]` | read one line; `-n` stops at `k` characters *or* the delimiter, whichever comes first, and `-N` takes exactly `k` and splits nothing; `-t` bounds the whole read at that many seconds, fractions too, as bash's does -- 142 when it runs out, with whatever had arrived kept in the variable -- and `-t 0` reads nothing at all, only saying whether input is waiting, as in bash; a name may be subscripted, as in `read h[k]` |
 | `mapfile` / `readarray [-t] [-n k] [-s k] [-O k] [-d c] [-u fd] [arr]` | read lines into an array |
 | `getopts optstring name [args…]` | parse option letters, one call at a time |
 
@@ -217,7 +218,7 @@ All four work in the shell's own process. No pipeline, no fork.
 
 | builtin | synopsis |
 |---|---|
-| `str op args…` | **[hibr]** `len upper lower trim slice index replace split join pad starts ends contains repeat` |
+| `str op args…` | **[hibr]** `len width upper lower trim slice index replace split join pad starts ends contains repeat` |
 | `arr op var args…` | **[hibr]** `len push pop sort uniq reverse contains map filter` |
 | `json op var args…` | **[hibr]** `parse get set emit keys len type` |
 | `match [-i] [-a] subject pattern [var]` | **[hibr]** match a regex, groups land in `M` |
@@ -438,7 +439,7 @@ inside a function or a `try` it returns 2 —
 |---|---|
 | `mod load path\|name` | load a module |
 | `mod drop name` | unload one |
-| `mod list` | list what is loaded, with its ABI and builtins |
+| `mod list` | list what is loaded, with its ABI and builtins; under `:=` both listings fill the slot in their plain form and print nothing |
 | `mod avail`, `mod list -a` | list every module that could be loaded, and its state: columns on a terminal, and in a pipe one line of eight tab-separated fields per module -- name, version, ABI, state, path, the interface it offers, its builtins, its description -- with no header, so a script reads it with no line to skip |
 | `mod find builtin` | load whichever module on the module path registers this builtin |
 | `need name…` | make an interface or module available, or fail saying which |
@@ -458,6 +459,28 @@ inside a function or a `try` it returns 2 —
 | `archive open\|close\|list\|ls\|stat\|cat ...` | **[module]** a tarball as a folder: `.tar` and `.tar.gz` read (never written), the index taken at open, and `/dev/archive/NAME/path` a filename anywhere one goes -- see [mods/archive](../mods/archive/README.md) |
 | `vwk hash\|open\|dec\|enc\|session\|pin\|totp\|form\|lock\|state\|idle ...` | **[module]** a Bitwarden vault's keys and crypto, in memory only, never printed: the master password's KDF, the account key, EncStrings, session and PIN wrapping, TOTP; libcrypto loaded at run time. The `vw` command is built on it -- see [mods/vw](../mods/vw/README.md) |
 | `email account set\|mv\|rm ...`, `email accounts\|open\|close\|folders\|select\|headers\|fetch\|store\|label\|move\|idle\|list\|delete\|send\|parse\|part\|build ...` | **[module]** mail: IMAP with IDLE and Gmail's labels, POP3, SMTP, accounts in a private file, and MIME decoding and building — see [mods/email](../mods/email/README.md) |
+| `ls [-laAhtSrd1FGq] [path…]` | **[module]** `ls` in this process, with columns, `-l`, sorting and colour; the names also land in `$RET` |
+| `most [file…]` | **[module]** a pager on the display interface, for files or a pipe, with colour and search — see [mods/most](../mods/most/README.md) |
+| `hvi file` | **[module]** hibr's vi: a modal editor on the display interface — see [mods/hvi](../mods/hvi/README.md) |
+| `mon [-d seconds] [-m]` | **[module]** a system monitor: processors, memory, disks, processes — see [mods/mon](../mods/mon/README.md) |
+| `sysinfo [-p] [-l picture]` | **[module]** what this machine is, with a picture — see [mods/sysinfo](../mods/sysinfo/README.md) |
+| `trace [-l] [-m hops] [-w ms] [-v var] [-q] [-n] host` | **[module]** an unprivileged traceroute over UDP, its hops in a map (`TRACE` unless `-v` names another); `-l` keeps going, as mtr does — see [mods/trace](../mods/trace/README.md) |
+| `prompt [render [right]\|list\|object]` | **[module]** the segment-based prompt — see [Prompt](prompt.md) |
+| `console open\|close\|size\|clear\|pen\|put\|fill\|cursor\|flush\|shot\|key\|watch\|pane\|hit\|mouse\|…` | **[module]** the text display: the alternate screen, a cell grid redrawn by damage, panes and decoded keys — see [mods/console](../mods/console/README.md) and [Display](display.md) |
+| `img file`, `img draw file row col h w [-m mode] [-p pane]` | **[module]** decode a PNG or JPEG and print it as ANSI, or draw it into the open display as half blocks, characters or pixels — see [mods/img](../mods/img/README.md) |
+| `pty spawn\|read\|drain\|write\|resize\|size\|alive\|wait\|signal\|fd\|pid\|close\|adopt\|release\|list ...` | **[module]** run a program on a pseudo terminal of its own and drive it — see [mods/pty](../mods/pty/README.md) |
+| `term open\|new\|poll\|draw\|key\|write\|feed\|size\|...` | **[module]** a terminal emulator: a program's screen kept as cells and drawn into a window — see [mods/term](../mods/term/README.md) |
+| `hold new\|attach\|detach\|list\|kill\|clients\|...` | **[module]** sessions that outlive their terminal: detach, log off, attach again — see [mods/hold](../mods/hold/README.md) |
+| `xscr start\|stop\|open\|draw\|key\|type\|...` | **[module]** an X screen in a window, drawn from Xvfb's own framebuffer — see [mods/xscr](../mods/xscr/README.md) |
+| `mermaid parse\|render [-a] [-w n] [-t text \| file]` | **[module]** Mermaid diagrams as cells: flowcharts, sequences, pies — see [mods/mermaid](../mods/mermaid/README.md) |
+| `pdf open\|close\|pages\|size\|title\|view\|zoom\|text\|find\|link\|outline ...` | **[module]** PDF documents through Poppler, loaded at run time: pages as a picture, their text, links and outline — see [mods/pdf](../mods/pdf/README.md) |
+| `csv read\|split\|line\|open\|row\|close ...` | **[module]** CSV as RFC 4180 says, read whole into a map or a row at a time |
+| `db create\|open\|insert\|import\|query\|count\|sum\|min\|max\|avg\|set\|update\|delete\|compact ...` | **[module]** a small column store: typed columns in one file, filters and aggregates over zone maps — see [mods/db](../mods/db/README.md) |
+| `lines show\|grep\|count\|edit ...` | **[module]** files by line: slices, tree search and exact multi-line edits |
+| `lang load\|get\|plural\|has\|info\|keys\|off ...` | **[module]** translation catalogues, with CLDR plural rules |
+| `uni vis\|shape\|width\|class\|levels\|version ...` | **[module]** Unicode for a cell grid: bidirectional text, Arabic shaping and widths, from one UCD version |
+| `drop user[:group]`, `epoch`, `sleepms ms`, `state`, `upper word…` | **[module]** the `sys` module: give up root for good, seconds since the epoch, a sleep in milliseconds, the shell's own state, and the reference module's example builtin |
+| `msum mapvar`, `oops [message]` | **[module]** the `http` module's examples beside its `/dev/http/` scheme: sum a map's values, fail with a message |
 
 A module adds builtins, and it can add a *protocol*: register a scheme and
 `/dev/<name>/…` works anywhere a filename does. When the effective uid is 0 the

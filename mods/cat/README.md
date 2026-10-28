@@ -50,16 +50,18 @@ the bytes.
 ## What it deliberately does not do
 
 **No paging.** A `cat` that pages is half a `most`, and building a pager twice
-is exactly what the screen layer exists to prevent. When the `most` module
-exists, this can hand off to it.
+is exactly what the screen layer exists to prevent. The `most` module is
+that pager; `cat` does not hand off to it, so `cat file | most` is the way.
 
 **No git gutter**, although the backlog promised one. hibr does read git's
 object store natively — but that code is inside `prompt.so`, and modules are
 opened `RTLD_LOCAL`, so `cat.so` cannot see it. Getting there means one of:
 moving several thousand lines of git into the shell, opening modules
 `RTLD_GLOBAL` and accepting collisions between every pair of modules, or adding
-a module-to-module export mechanism to the ABI. The third is the right answer
-and it is a design decision, not something to improvise inside a `cat`. See
+a module-to-module export mechanism to the ABI. The third was chosen and is
+built (`hibr_provide`/`hibr_require`, which the colourer below uses); what is
+left is that `prompt.so`'s git reader is a set of functions rather than a
+table it offers, so giving it one is work on that module. See
 `docs/backlog.md`.
 
 ## The colourer is offered to other modules

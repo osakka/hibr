@@ -106,6 +106,12 @@ and the flush cost shown live. Run it and press things.
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
 | `console darken row col h w [pct]` | shade what is already in the back buffer, a shadow |
 | `console tint [-p pane] row col h w colour pct` | blend a colour into what is already there at pct percent, its text still in its own colour and readable -- the rubber band's solid and translucent looks |
+| `console outline row col h w colour tl h tr v bl br [title]` / `console outline off` | a rectangle composited over the screen at every flush and never written into the back buffer, so moving it costs only the edge cells that changed -- how the desktop drags a window by its outline |
+| `console copy [auto\|on\|off]` | whether a pane moved whole is sent as a rectangle copy (DECCRA) where the terminal says it can; with no argument, `on` or `off`. `console copied pane` says whether that pane's last move was copied |
+| `console behind on\|off` | while on, a write at absolute coordinates skips every cell a pane covers, so a wallpaper paints around the windows rather than over them |
+| `console layer` | begin a layer of a frame, for `translucent` (below): a write never blends with its own layer's earlier cells |
+| `console drawn` | how many writes have been made at absolute coordinates rather than through a pane; compared with itself a moment later, it says whether anything drew over the finished screen |
+| `console bidi [on\|off]` | whether right-to-left text a script puts is drawn in display order; with no argument, status 0 when on. Follows `HIBR_BIDI` until a script says |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
 | `console translucent pct [colour [match]]` | how much of a picture drawn under the text shows through the writes that follow: a cell written with no background of its own -- or in `match`, a window's own face -- takes the picture's own colour there, scaled to `pct`, or `colour` where there is no picture. `off` ends it, and so does the next flush |
 | `console termbg` | what the terminal says its own background is, and whether it said it: `#101418 answered`, or `#000000 assumed` by a terminal that answers nothing |

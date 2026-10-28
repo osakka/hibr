@@ -25,8 +25,12 @@ it, so `${!ref:-d}` works), the names starting with a prefix `${!pre*}` and
 `${!pre@}`, and negative subscripts `${a[-1]}`, counted back from the highest
 key so a sparse array answers the same as bash. Command substitution `$( )` and
 backquotes, arithmetic `$(( ))` (and bash's older `$[ ]`), tilde,
-field splitting on `IFS`, globbing with `*`, `?`, `[…]` and `**` across
-directories, and brace expansion — `{a,b}`, `{1..9}`, `{01..12}`, `{a..e}`,
+field splitting on `IFS` (whitespace collapses, but any other `IFS`
+character ends a field on its own, so `a::b` split on `:` is three fields,
+the middle one empty, as in bash), globbing with `*`, `?`, `[…]` and `**` across
+directories -- in a file name, `case`, `[[ == ]]` and every trim and
+substitution alike, `?` and a bracket take one whole UTF-8 character, never
+one byte of it -- and brace expansion — `{a,b}`, `{1..9}`, `{01..12}`, `{a..e}`,
 `{1..9..2}`, nested and multiplied.
 
 **Declarations.** `declare` / `typeset` take bash's flags — `-i -r -x -a -A -n
@@ -73,7 +77,7 @@ does.
 are `${name[in]}` and `${name[out]}` — and `${name[0]}`/`${name[1]}` for bash —
 spoken to with the same `send` and `recv` as a socket. `mapfile` / `readarray`,
 `wait -n [-p var]`, `trap … DEBUG` (the command is in `$CMD`), `hash`, `ulimit`,
-`|&` and `printf '%(fmt)T'` are all there too.
+`times`, `|&`, `printf '%(fmt)T'` and `printf '%*s'` are all there too.
 
 **Recursion is bounded.** A function that calls itself for ever, a file
 that sources itself, an `eval` that evals itself: each is stopped before the
@@ -160,7 +164,8 @@ because `[ -n "$BASH" ]` is how scripts ask whether they are in bash.
 **Redirection.** `<  >  >>  <>  n>&m  n<&m  &>  &>>  >|` (with `set -C`
 noclobber), here-documents `<<` and `<<-`, here-strings `<<<`, named
 descriptors `{fd}>file` and `{fd}>&-`, and process substitution `<( )` and
-`>( )`. Redirections work on commands, groups, conditionals and loops alike.
+`>( )`, whose child `$!` names afterwards, as in bash, so a script can end
+the one it started. Redirections work on commands, groups, conditionals and loops alike.
 
 ## Control flow
 
@@ -671,7 +676,13 @@ The first definition stays, the undeclared assignment is not made, and each
 refused command fails -- status 2 for the definition, 1 for the assignment --
 so `set -e` stops there. A function may still assign anything that already
 exists, a `local` of its own or of a function that called it, and anything it
-creates with `local`, `declare` or `declare -g`. Name the checks to take only
+creates with `local`, `declare` or `declare -g`; and a name the shell sets
+on the script's behalf is never taken for a new global -- `REPLY`, `M`,
+`BASH_REMATCH`, `PIPESTATUS`, `MAPFILE`, `OPTARG`, `OPTIND`, `RET`,
+`RET_RIGHT`, `ERR`, `ERRMSG`, `ERRSTATUS`, `CMD`, `REMOTE`, the `PWD` and
+`OLDPWD` that `cd` keeps, and `_`, so a `cd`, and the `_` that
+`read -r k v _` throws a field into, are never refused whatever the
+environment held. Name the checks to take only
 some -- `strict functions vars` -- and `strict off vars` to put one back;
 `strict expansion` is `set -S` for this file alone, and `strict -p` lists what
 is on. "This file" is `$BASH_SOURCE`, so a function is checked by the file it
