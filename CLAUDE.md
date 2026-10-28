@@ -763,10 +763,11 @@ went in the shell.
   screen, because the bind was set for `helper`, which is a function, and
   not for the builtin inside it -- and the builtin's result, left in the
   slot, is then bound anyway: so `x` gets the value **and** the screen
-  gets it too. That second channel nobody declared is going: 0.99.368 names
-  every function bound this way, once, on standard error, and 0.99.370
-  binds empty for one that never calls `ret`, as a program that prints
-  nothing does. End such a function with `ret VALUE`, or `ret -k` to pass
+  gets it too. That second channel nobody declared is gone: since 0.99.370
+  a function that never calls `ret` binds empty, as a program that prints
+  nothing does, and one whose last command had left something is named
+  once on standard error, since that is a script written for the old rule
+  (0.99.368 named them and still bound the leftover). End such a function with `ret VALUE`, or `ret -k` to pass
   on what its last command left -- a map included, which `ret VALUE` cannot
   carry. `ex_retd` is set by `ret` alone, never by `return`, which shares
   `s->ret` with it, and is saved and restored around each call so a

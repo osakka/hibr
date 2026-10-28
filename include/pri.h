@@ -121,7 +121,7 @@ node *p_line(lex *l);
 int sh_check(sh *s, const char *src);
 extern int ex_loops, ex_srcs, v_refused;
 extern int ex_retd, ex_lastret;
-void ex_retwarn(sh *s, const char *fn);
+void ex_retnone(sh *s, const char *fn, int st);
 void ex_stkinit(void *base);
 extern int ex_fnok;
 void v_named(sh *s, const char *k);

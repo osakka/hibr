@@ -487,7 +487,7 @@ try:
     check("Control Panel > YouTube holds the picture, the quality, the frames "
           "and the detail", sc.find("Quality Fetched") is not None and
           sc.find("Frames a Second") is not None and sc.find("Colour Detail") is not None
-          and sc.find("tiny") is not None, sc)
+          and sc.find("auto") is not None, sc)
 finally:
     srv.kill()
     lsrv.kill()

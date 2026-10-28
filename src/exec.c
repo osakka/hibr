@@ -759,8 +759,8 @@ void ce_exp(sh *s, const char *kind, const char *t, size_t n)
 int ex_loops, ex_srcs;
 /* Whether `ret` ran in the function being run now, and in the one that has
    just returned -- not `return`, which shares s->ret with it. A bound call
-   to a function that never said what it returns is about to bind empty
-   (0.99.370), and this is how the shell can tell, and say so, first. */
+   to a function that never said what it returns binds empty, and this is
+   how the shell can tell. */
 int ex_retd, ex_lastret;
 /* The functions already named for that, so each is named once. */
 vec ex_retwarned;
@@ -1408,27 +1408,31 @@ void ex_bind(sh *s, node *n)
 	vb_put(s, ks);
 }
 
-/* Say, once per function, that `x := f` bound what f's last command left
-   rather than a result f gave with `ret`: from 0.99.370 that binds empty,
-   as a program that prints nothing does, and `ret -k` is how a function
-   passes on what it has. Only a call that succeeded and left something is
-   named, since that is the one whose answer changes. */
-void ex_retwarn(sh *s, const char *fn)
+/* Empty the slot after `x := f` when f never called `ret`, as a program
+   that prints nothing binds empty; what f's last command left there is
+   not f's answer. A call that succeeded and had left something is named
+   once, since that is a script written for the old rule, and `ret -k` is
+   how a function passes on what its last command left. */
+void ex_retnone(sh *s, const char *fn, int st)
 {
 	const char *v = hibr_get(s, "RET");
 	var *r = v_find(s, "RET");
+	int left = (v && *v) || (r && (r->map || r->am));
 	size_t i;
 
-	if ((!v || !*v) && !(r && (r->map || r->am)))
+	if (!left)
+		return;
+	v_del(s, "RET");
+	hibr_set(s, "RET", "", 0);
+	if (st)
 		return;
 	for (i = 0; i < ex_retwarned.n; i++)
 		if (!strcmp(ex_retwarned.p[i], fn))
 			return;
 	v_add(&ex_retwarned, xs(fn));
-	lg(HIBR_LERR, "%s: bound with := and returned nothing with ret; what it "
-		      "bound is what its last command left, which from 0.99.370 "
-		      "binds empty -- end %s with `ret -k` to keep it, or `ret "
-		      "VALUE`", fn, fn);
+	lg(HIBR_LERR, "%s: bound with := and gave nothing with ret, so it bound "
+		      "empty; its last command left a value -- end %s with "
+		      "`ret -k` to pass that on, or `ret VALUE`", fn, fn);
 }
 
 /* Execute a simple command, builtin, function or external program; exec in place only if the fork was made for this command. */
@@ -1571,8 +1575,8 @@ int ex_cmd(sh *s, node *n)
 		if (rd_do(s, n->rd, &sv) == HIBR_OK) {
 			if (f) {
 				st = fn_call(s, f, ac, av);
-				if (n->f == 2 && !ex_lastret && st == 0)
-					ex_retwarn(s, av[0]);
+				if (n->f == 2 && !ex_lastret)
+					ex_retnone(s, av[0], st);
 			} else {
 				char **oam = s->amask;
 				s->amask = am;

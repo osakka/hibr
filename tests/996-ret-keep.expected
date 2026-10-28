@@ -1,12 +1,14 @@
 0
-hibr: f: bound with := and returned nothing with ret; what it bound is what its last command left, which from 0.99.370 binds empty -- end f with `ret -k` to keep it, or `ret VALUE`
-f binds [HI]
+hibr: f: bound with := and gave nothing with ret, so it bound empty; its last command left a value -- end f with `ret -k` to pass that on, or `ret VALUE`
+f binds []
+hibr: l: bound with := and gave nothing with ret, so it bound empty; its last command left a value -- end l with `ret -k` to pass that on, or `ret VALUE`
+and a list left behind is not bound either: 1 []
 and is named once
 ret -k passes it on: [HI]
 a list too: 3 [a b c] b
 ret VALUE: [done]
-a miss is not named
-hibr: outer: bound with := and returned nothing with ret; what it bound is what its last command left, which from 0.99.370 binds empty -- end outer with `ret -k` to keep it, or `ret VALUE`
-a caller that does not ret is named, though its callee did: [done]
+a miss is not named, and binds []
+hibr: outer: bound with := and gave nothing with ret, so it bound empty; its last command left a value -- end outer with `ret -k` to pass that on, or `ret VALUE`
+a caller that does not ret is named, though its callee did: []
 hibr: ret: declared int, got 'HI'
 ret -k is held to the declared type: 2

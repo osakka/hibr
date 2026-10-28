@@ -11,13 +11,13 @@
 strict
 
 
-app tube "The Control Panel pane for the YouTube app" 2.2
+app tube "The Control Panel pane for the YouTube app" 2.3
 command -v cp_pane > /dev/null && cp_pane tube "YouTube" "▶" app
 
 # follow is Control Panel > Pictures, which is the one setting meant to
 # reach every picture the desktop draws; the rest say outright.
 TB_MODES=(follow half ascii mono pixels)
-TB_QUALITY=(tiny small medium large)
+TB_QUALITY=(auto tiny small medium large hd720)
 TB_FPS=(10 15 24 30)
 TB_DETAIL=(0 1 2 3)
 
@@ -41,7 +41,12 @@ fn cp_setver7() {
 	[ "$YT_MODE" = half ] && YT_MODE=follow
 	return 0
 }
-fn cp_set_ytquality(int? id = "", value = "") { YT_QUALITY=$value; cp_save; }
+fn cp_set_ytquality(int? id = "", value = "") {
+	YT_QUALITY=$value
+	cp_save
+	dt_needs youtube yt_qapply && yt_qapply
+	return 0
+}
 fn cp_set_ytfps(int? id = "", int? value = "") { YT_FPS=$value; cp_save; }
 fn cp_set_ytdetail(int? id = "", int? value = "") { YT_DETAIL=$value; cp_save; }
 

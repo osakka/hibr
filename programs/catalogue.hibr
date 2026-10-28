@@ -1162,8 +1162,8 @@ fn cat_where(id, kind, name) {
 	# its pane" (Gitea #392). Installed when the ledger holds any of them,
 	# since that is what removing it would act on.
 	if [ "$kind" = bundles ]; then
-		cat_bundlewhere "$id"
-		return
+		cat_bundlewhere "$id" || return
+		ret -k
 	fi
 	if [ -n "${CAT_ST["installed"]["$id"]["version"]}" ]; then
 		CAT_HAVE=${CAT_ST["installed"]["$id"]["version"]}

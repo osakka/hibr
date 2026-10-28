@@ -24,7 +24,7 @@
 # them thirty, up and down the volume, n and p the next video and the one
 # before, f a favourite, m the picture (half blocks, ASCII, plain), c the
 # captions (drawn here as text, in the window, not in the picture), q the
-# quality (144p, 240p, 360p, 480p, and round again), h the history and v the
+# quality (auto, 144p, 240p, 360p, 480p, 720p, and round again), h the history and v the
 # favourites (both end the video, noting where it was), escape
 # back to the list. A click on the bar goes there. At the end of a video
 # the next in the list plays, unless Play > Play Next Automatically is off.
@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.9
+app youtube "YouTube, in a window" 3.10
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -53,7 +53,12 @@ YT_BASE="${YT_BASE-https://www.youtube.com}"
 # the Image Viewer. A settings file from before 0.99.77 holds `half`, the
 # old default, and cp_setver7 brings that one -- and only that one -- here.
 YT_MODE="${YT_MODE-follow}"
-YT_QUALITY="${YT_QUALITY-tiny}"
+# auto asks for what the picture can show: 144p drawn as blocks or ASCII (a
+# window is about 120 by 80 picture pixels, which 256 by 144 already covers),
+# 480p drawn as pixels (a view up to 960 wide, where 144p is a stretched blur).
+# 720p is a fixed ask only: it arrives at 60 frames a second and costs about
+# twice the CPU of 480p, which is 30. The others are a fixed ask.
+YT_QUALITY="${YT_QUALITY-auto}"
 YT_AUTONEXT="${YT_AUTONEXT-1}"
 # Captions, when the video has them: off until asked for, c or Play > Captions.
 YT_CAPTIONS="${YT_CAPTIONS-0}"
@@ -685,7 +690,7 @@ fn yt_adopt(int id, vid) {
 # One step of playing: start the page's player once it is there, take up a
 # video where it was left, and at the end go on to the next.
 fn yt_tick(int id) {
-	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js m i e ms tm
+	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js m i e ms tm q
 	local -a w
 
 	# Playing, its frames come as fast as the video's: the desktop holds
@@ -714,9 +719,11 @@ fn yt_tick(int id) {
 	[ "${YT[$id]["state"]}" = playing ] && yt_noauto "$id"
 	if [ "${YT[$id]["state"]}" = loading ]; then
 		if yt_tap; then
-			js := yt_startjs_tap "$YT_QUALITY" "$(yt_ccword)"
+			q := yt_qeff
+			js := yt_startjs_tap "$q" "$(yt_ccword)"
 		else
-			js := yt_startjs "$YT_QUALITY" "${YT[$id]["vol"]:-100}" "${YT[$id]["vid"]}" "$(yt_ccword)"
+			q := yt_qeff
+			js := yt_startjs "$q" "${YT[$id]["vol"]:-100}" "${YT[$id]["vid"]}" "$(yt_ccword)"
 		fi
 		s := web eval "$t" "$js" 2> /dev/null
 		if [ "$s" = ok ]; then
@@ -1412,6 +1419,8 @@ yt_mode() {
 	done
 	[ "$i" -lt "$n" ] || YT_MODE=${YT_MODES[0]}
 	command -v dt_save > /dev/null && dt_save
+	[ "$YT_QUALITY" = auto ] && yt_qapply
+	return 0
 }
 
 # What media is actually given. YT_MODE says outright unless it is `follow`,
@@ -1743,9 +1752,11 @@ fn yt_setmode(v) {
 }
 
 # The quality's levels, in the order q steps through them, and what each is.
-YT_QUALITIES=(tiny small medium large)
+YT_QUALITIES=(auto tiny small medium large hd720)
 fn yt_qlab(q) {
 	case $q in
+	auto) ret auto ;;
+	hd720) ret 720p ;;
 	tiny) ret 144p ;;
 	small) ret 240p ;;
 	medium) ret 360p ;;
@@ -1754,17 +1765,35 @@ fn yt_qlab(q) {
 	esac
 }
 
-# Set the quality and tell every player playing now: it takes it at once, not
-# at the next video. Kept for next time as well.
-fn yt_setquality(q) {
-	local id
+# What the player is asked for: the setting, or for auto what the picture can
+# show. An engine with a tap (Chromium) is not measured here, so auto is the
+# lowest for it, as it always was.
+fn yt_qeff() {
+	local m
 
-	YT_QUALITY=$q
-	command -v dt_save > /dev/null && dt_save
+	[ "$YT_QUALITY" = auto ] || { ret "$YT_QUALITY"; return 0; }
+	yt_tap && { ret tiny; return 0; }
+	m := yt_drawmode
+	[ "$m" = pixels ] && ret large || ret tiny
+}
+
+# Tell every player playing now what it is asked for: it takes it at once, not
+# at the next video.
+fn yt_qapply() {
+	local id q
+
+	q := yt_qeff
 	for id in "${!YT[@]}"; do
 		[ -n "${YT[$id]["p"]}" ] && [ -n "${YT[$id]["pt"]}" ] || continue
 		web eval "${YT[$id]["pt"]}" "(function(){var p=document.getElementById(\"movie_player\");try{p.setPlaybackQualityRange(\"$q\",\"$q\")}catch(e){}})()" > /dev/null 2>&1
 	done
+}
+
+# Set the quality and tell every player playing now. Kept for next time as well.
+fn yt_setquality(q) {
+	YT_QUALITY=$q
+	command -v dt_save > /dev/null && dt_save
+	yt_qapply
 	dt_want 10
 }
 

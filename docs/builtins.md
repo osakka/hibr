@@ -262,11 +262,12 @@ Every operation of each, with examples, is in
 
 **[hibr]** `ret` does not print. It fills the result slot, which `:=` binds --
 and for a program, which has no slot, `:=` takes its standard output instead.
-A function that never calls `ret` gives `:=` whatever its last command left
-in the slot, and is named once on standard error as it does: from 0.99.370
-it binds nothing, as a program that prints nothing does, so end such a
-function with `ret VALUE`, or with `ret -k` to keep what it has. `hibr
---explain` names it too (`bind-no-ret`).
+A function that never calls `ret` binds nothing, as a program that prints
+nothing does (since 0.99.370; before, it bound whatever its last command
+left in the slot). When that last command did leave something, the function
+is named once on standard error, since a script written for the old rule
+reads empty now: end it with `ret VALUE`, or with `ret -k` to pass on what
+it has. `hibr --explain` names it too (`bind-no-ret`).
 
 ```sh
 fn add(int a, int b) -> int { ret $((a + b)); }

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.370
+
+**`x := f` binds empty when `f` never calls `ret`**, the change 0.99.368
+announced. A program that prints nothing binds empty, and now a function
+that gives nothing does too. Before, `x` got whatever `f`'s last command
+happened to leave in the result slot: a string, or a whole map, that `f`
+never meant as its answer. When that last command did leave something,
+`f` is named once on standard error, so a script written for the old rule
+says where it reads empty. To pass on what the last command left, end `f`
+with `ret -k`; to give a value, end it with `ret VALUE`. `hibr --explain`'s
+`bind-no-ret` rule says the same about a file. The gate found the one
+place this tree depended on the old rule: `catalogue`'s `cat_where` passed
+a bundle's answer on without `ret`, so `catalogue list` would have said a
+bundle you have is not installed. It ends in `ret -k` now.
+
+**Faster release gates.** `tests/desktop.py` runs as four parts and
+`tests/apps.py` as six, and every check still runs exactly once.
+`tests/coverage.tsv` is a measured map of which suites call each desktop
+function, taken under the census build. `tests/affected.py --run` uses it,
+so a change inside a desktop function runs only the suites that reach it.
+The map also showed eight suites that draw through the desktop and that
+the old list of desktop suites had never named.
+
+**Synced from the catalogue:** YouTube 3.10 and its Control Panel pane 2.3,
+from the browser session.
+
 ## 0.99.369
 
 **What bash had and hibr refused** (Gitea #401), found by the documentation

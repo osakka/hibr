@@ -6924,7 +6924,7 @@ UPSTUB = (
     "need() { return 0; }\n"
     "hold() {\n"
     "\tcase $1 in\n"
-    "\tlist) printf '%%s detached %%s 0x0\\n' t \"$DT_HOLDPROG\" ;;\n"
+    "\tlist) ret \"t detached $DT_HOLDPROG 0x0\" ;;\n"
     "\tupgrade) echo \"UPGRADE $2\" ;;\n"
     "\tesac\n"
     "\treturn 0\n"
