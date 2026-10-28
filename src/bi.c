@@ -920,6 +920,16 @@ int t_one(const char *op, const char *a)
 		return stat(a, &st) == 0 && st.st_mtime > st.st_atime;
 	case 't':
 		return isatty((int)strtol(a, 0, 10));
+	case 'o': {
+		int on = lg_sh ? sh_optget(lg_sh, a) : -1;
+
+		return on > 0;
+	}
+	case 'R': {
+		var *v = lg_sh ? v_find(lg_sh, a) : 0;
+
+		return v && (v->at & A_REF) != 0;
+	}
 	}
 	return -1;
 }
@@ -928,7 +938,7 @@ int t_one(const char *op, const char *a)
 int t_isun(const char *w)
 {
 	return w[0] == '-' && w[1] && !w[2] &&
-	       strchr("znefdrwxsLhabcpSgukOGNt", w[1]) != 0;
+	       strchr("znefdrwxsLhabcpSgukOGNtoR", w[1]) != 0;
 }
 
 /* Say whether a word is a binary test operator. */
@@ -1599,6 +1609,26 @@ void b_mleaf(sh *s, str *o, str *path, ent *m, int set)
 	}
 }
 
+/* A variable's attributes as bash names them, in bash's order -- a A i n r
+   x l u -- for declare -p and ${x@a} alike. */
+void b_flags(var *v, str *f)
+{
+	if (v->am)
+		s_ch(f, v->at & A_ASSOC ? 'A' : 'a');
+	if (v->at & A_INT)
+		s_ch(f, 'i');
+	if (v->at & A_REF)
+		s_ch(f, 'n');
+	if (v->ro)
+		s_ch(f, 'r');
+	if (v->ex)
+		s_ch(f, 'x');
+	if (v->at & A_LOW)
+		s_ch(f, 'l');
+	if (v->at & A_UPP)
+		s_ch(f, 'u');
+}
+
 /* One variable the way declare -p states it, attributes and all, or with
    set the way set lists it, name=value and nothing else. */
 void b_decl1(sh *s, var *v, str *o, int set)
@@ -1609,20 +1639,7 @@ void b_decl1(sh *s, var *v, str *o, int set)
 	int nest = 0;
 
 	s_init(&f);
-	if (v->at & A_REF)
-		s_ch(&f, 'n');
-	if (v->at & A_INT)
-		s_ch(&f, 'i');
-	if (v->at & A_LOW)
-		s_ch(&f, 'l');
-	if (v->at & A_UPP)
-		s_ch(&f, 'u');
-	if (v->ro)
-		s_ch(&f, 'r');
-	if (v->ex)
-		s_ch(&f, 'x');
-	if (v->am)
-		s_ch(&f, v->at & A_ASSOC ? 'A' : 'a');
+	b_flags(v, &f);
 	if (!set && *ty) {
 		s_cat(o, "declare ");
 		if (f.n) {

@@ -288,7 +288,9 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 			p->op = V_KEYS;
 			return;
 		}
-		if (q < e && (*q == '*' || *q == '@')) {
+		/* ${!p@} and ${!p*} name the variables starting p; ${!v@A}
+		   is an operator on what v names, as in bash. */
+		if (q < e && (*q == '*' || *q == '@') && q + 1 >= e) {
 			p->op = V_NAMES;
 			return;
 		}
@@ -326,6 +328,21 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 			return;
 		case 'u':
 			p->op = V_UP;
+			return;
+		case 'A':
+			p->op = V_XA;
+			return;
+		case 'a':
+			p->op = V_XAT;
+			return;
+		case 'P':
+			p->op = V_XP;
+			return;
+		case 'K':
+			p->op = V_XK;
+			return;
+		case 'k':
+			p->op = V_XKW;
 			return;
 		}
 	}

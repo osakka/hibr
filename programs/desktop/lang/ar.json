@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.45",
+ "version": "3.46",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -420,6 +420,7 @@
   },
   "End Task": "إنهاء المهمة",
   "End Task (force)": "إنهاء المهمة (قسرًا)",
+  "Engine For New Tabs": "المحرك للألسنة الجديدة",
   "Evaluate": "تقييم",
   "Event": "حدث",
   "Every (minutes)": "كل (دقائق)",

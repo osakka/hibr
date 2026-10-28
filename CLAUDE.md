@@ -739,7 +739,7 @@ went in the shell.
   not for the builtin inside it -- and the builtin's result, left in the
   slot, is then bound anyway: so `x` gets the value **and** the screen
   gets it too. That second channel nobody declared is going: 0.99.368 names
-  every function bound this way, once, on standard error, and 0.99.369
+  every function bound this way, once, on standard error, and 0.99.370
   binds empty for one that never calls `ret`, as a program that prints
   nothing does. End such a function with `ret VALUE`, or `ret -k` to pass
   on what its last command left -- a map included, which `ret VALUE` cannot

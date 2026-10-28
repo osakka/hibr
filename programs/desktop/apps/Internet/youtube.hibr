@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.7
+app youtube "YouTube, in a window" 3.9
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -122,7 +122,12 @@ fn yt_ccword() {
 # (sound). Both are one app; only the carrying of the video differs.
 YT_CAPS=
 fn yt_has(c) {
-	[ -n "$YT_CAPS" ] || YT_CAPS := web caps 2> /dev/null
+	# WebKit is named first: the Browser's choice of engine (Control Panel >
+	# Browser) may have left the light engine the default, which plays no video.
+	if [ -z "$YT_CAPS" ]; then
+		dt_has bw_cfg && bw_cfg webkit
+		YT_CAPS := web caps 2> /dev/null
+	fi
 	case " $YT_CAPS " in *" $c "*) return 0 ;; esac
 	return 1
 }
@@ -156,7 +161,7 @@ fn yt_tab(int id, which) {
 	local t=${YT[$id]["$which"]}
 
 	if [ -z "$t" ]; then
-		dt_has bw_cfg && bw_cfg
+		dt_has bw_cfg && bw_cfg webkit
 		t := web open 2> /dev/null || {
 			YT[$id]["err"]="No browser engine to reach YouTube with -- install hibr-browser or Chromium, or set HIBR_WPE or HIBR_WEB_BROWSER"
 			return 1

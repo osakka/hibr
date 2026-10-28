@@ -107,7 +107,7 @@ hibr: source: /dev/tcp/example.com/80: No such file or directory
 | `export [-p] [-n] [name[=v]…]` | mark variables for export; `-p` lists them; `-n` takes them out of the environment and keeps their values |
 | `unset [-f] name…` | remove variables, array elements or functions |
 | | `unset a[1]`, `a[-1]` and `h["a-b"]` all reach what they name |
-| `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters; letters bundle (`set -ex`) and `hibr` takes the same ones on its command line |
+| `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters; letters bundle (`set -ex`) and `hibr` takes the same ones on its command line: `-e` errexit, `-f` noglob (a word with pattern characters stays the word), `-u` nounset, `-x` xtrace, `-C` noclobber, `-H` histexpand, `-S` strict, `-n` noexec |
 | `set` | list every variable, then every function, in a form that reads back in |
 | `set -o` / `set +o` | every option as a table, or as the `set -o`/`set +o` lines that put it back |
 | `shopt [-s\|-u\|-q\|-p] [name…]` | read or set shell options; `-p` prints the `shopt -s`/`-u` lines that put them back |
@@ -263,7 +263,7 @@ Every operation of each, with examples, is in
 **[hibr]** `ret` does not print. It fills the result slot, which `:=` binds --
 and for a program, which has no slot, `:=` takes its standard output instead.
 A function that never calls `ret` gives `:=` whatever its last command left
-in the slot, and is named once on standard error as it does: from 0.99.369
+in the slot, and is named once on standard error as it does: from 0.99.370
 it binds nothing, as a program that prints nothing does, so end such a
 function with `ret VALUE`, or with `ret -k` to keep what it has. `hibr
 --explain` names it too (`bind-no-ret`).

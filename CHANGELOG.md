@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.99.369
+
+**What bash had and hibr refused** (Gitea #401), found by the documentation
+sweep and measured against bash 5 case by case.
+
+- **`[[ -o opt ]]` and `[ -o opt ]`**: whether a shell option is on. They were
+  an unknown test, status 2 -- and a bare `[[ -o errexit ]]` under `set -e`
+  ended the script with no message. `[ a -o b ]` is still the binary or.
+- **`[[ -R name ]]`**: whether `name` is a nameref.
+- **`${x@A} ${x@a} ${x@P} ${x@K} ${a[@]@k}`**: the assignment that would make
+  a variable again (`declare -ix x='5'`, and `${a[@]@A}` as `declare -p`
+  writes the array), its attributes in bash's order, prompt expansion, and
+  the keys and values as quoted pairs or as separate words. `${!v@A}` is the
+  operator on what `v` names, where it had been read as `${!v@}`.
+- **An operator over `${a[@]}` acts on each element**, as in bash:
+  `"${a[@]@Q}"` was one quoted word, `'p q r'`, and is `'p' 'q r'`; the case
+  changes the same. `${nope@Q}` of an unset variable is nothing, not `''`.
+- **`set -f` and `set -o noglob`**: a word with pattern characters stays the
+  word. hibr had no way to turn globbing off at all; `hibr -f` takes it too,
+  and `$-` shows `f`.
+- **`declare -iu x=5` gave `55`**: the case change left its text in the
+  scratch string the number was then appended to. Any `-i` beside `-u` or
+  `-l` did it.
+- **`declare -p` writes the attribute letters in bash's order**, `a A i n r x
+  l u`, which only mattered with more than one.
+
+`tests/221-at-ops.t` runs all of it against bash. A map's keys stay in the
+order they went in, where bash's follow its hash -- deliberate, and the one
+difference a comparison of a two-key assoc array would show.
+
+- **The `:=` switch moves to 0.99.370**, where 0.99.368's warning, its lint
+  rule and the docs now say it binds empty.
+- **The tree's Browser 2.7, YouTube 3.9 and Browser pane 1.9 are the
+  catalogue's**, byte for byte; Arabic 3.46 has the one new string, Engine For
+  New Tabs.
+
 ## 0.99.368
 
 **`:=` is going to take only what a function says it returns** (the owner,

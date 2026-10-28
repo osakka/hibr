@@ -8,7 +8,7 @@
 #define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.368"
+#define HIBR_VER "0.99.369"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -115,6 +115,11 @@
 #define V_NAMES 21
 #define V_XQ 22
 #define V_XE 23
+#define V_XA 24
+#define V_XAT 25
+#define V_XP 26
+#define V_XK 27
+#define V_XKW 28
 #define V_INDF 0x100
 #endif
 
@@ -142,6 +147,7 @@
 #define O_DASHC 1024u
 #define O_DASHS 2048u
 #define O_LOGTIME 4096u
+#define O_NOGLOB 8192u
 #define O_FIXON 1
 #define O_FIXOFF 2
 #endif

@@ -111,7 +111,13 @@ const char *v_coerce(sh *s, var *e, const char *v, str *tmp)
 		v = tmp->p ? tmp->p : "";
 	}
 	if (e->at & A_INT) {
-		s_num(tmp, ax_run(s, v));
+		/* Evaluated before tmp is emptied: a case change above left
+		   the text in tmp, and appending the number to it turned
+		   `declare -iu x=5` into 55. */
+		long n = ax_run(s, v);
+
+		tmp->n = 0;
+		s_num(tmp, n);
 		lg(HIBR_LTRC, "%s takes %s as %s", e->k, v, tmp->p);
 		return tmp->p;
 	}

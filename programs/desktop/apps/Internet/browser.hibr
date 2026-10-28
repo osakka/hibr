@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.6
+app browser "The web, in a window" 2.7
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -63,6 +63,7 @@ command -v dt_keepstate > /dev/null && dt_keepstate browser BW
 BW_SEARCH="${BW_SEARCH-https://lite.duckduckgo.com/lite/?q=}"
 BW_HOME="${BW_HOME-https://lite.duckduckgo.com/lite/}"
 BW_MODE="${BW_MODE-follow}"
+BW_ENGINE="${BW_ENGINE-auto}"
 BW_JS="${BW_JS-1}"
 BW_IMAGES="${BW_IMAGES-1}"
 BW_DARK="${BW_DARK-0}"
@@ -83,7 +84,7 @@ BW_DL="${BW_DL-0}"
 BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
 BW_AUTOPLAY="${BW_AUTOPLAY-0}"
 command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
-	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
+	BW_ENGINE BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
 	BW_LANG BW_DNT BW_RTC BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
 	BW_AUTOPLAY
 declare -gA BWX
@@ -135,13 +136,23 @@ bw_watch() {
 
 # What the engine is started with, for whichever window starts it -- the
 # YouTube player asks for this too, since the two share one engine.  Chromium
-# is told its program and flags; WebKit has none.
+# is told its program and flags; WebKit has none. An engine can be named
+# (the Browser's own choice otherwise).
 bw_cfg() {
 	local x
 	if bw_has config; then
 		web config browser "$BW_PROGRAM"
 		web config args "$BW_ARGS"
 	fi
+	# Which engine a new tab opens in (Control Panel > Browser); an engine
+	# that is not there is an error when the tab opens, not a fall-through.
+	# An older module takes the empty word as nothing to change, a newer one as
+	# back to the default; the YouTube player names webkit, which plays video.
+	case ${1-$BW_ENGINE} in
+	webkit) web config engine wpe 2> /dev/null ;;
+	light) web config engine lx 2> /dev/null ;;
+	*) web config engine "" 2> /dev/null ;;
+	esac
 	# Calls and meetings need the page's process to have the machine's network,
 	# which this engine's sandbox takes away unless asked; off by default, and
 	# used when the engine next starts.
@@ -654,7 +665,7 @@ fn bw_newtab(int id, url = "") {
 	[ -n "$app" ] && prof="$WA_DIR/$app/profile"
 	bw_cfg
 	t := web open "" "$prof" || {
-		BW[$id]["err"]="No browser engine to show pages with -- install hibr-browser (WebKit) or Chromium, or set HIBR_WPE or HIBR_WEB_BROWSER"
+		BW[$id]["err"]="No browser engine to show pages with (or the one chosen in Control Panel > Browser is not installed) -- install hibr-browser (WebKit, light) or Chromium, or set HIBR_WPE or HIBR_WEB_BROWSER"
 		return 1
 	}
 	bw_wide

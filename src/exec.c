@@ -760,7 +760,7 @@ int ex_loops, ex_srcs;
 /* Whether `ret` ran in the function being run now, and in the one that has
    just returned -- not `return`, which shares s->ret with it. A bound call
    to a function that never said what it returns is about to bind empty
-   (0.99.369), and this is how the shell can tell, and say so, first. */
+   (0.99.370), and this is how the shell can tell, and say so, first. */
 int ex_retd, ex_lastret;
 /* The functions already named for that, so each is named once. */
 vec ex_retwarned;
@@ -1409,7 +1409,7 @@ void ex_bind(sh *s, node *n)
 }
 
 /* Say, once per function, that `x := f` bound what f's last command left
-   rather than a result f gave with `ret`: from 0.99.369 that binds empty,
+   rather than a result f gave with `ret`: from 0.99.370 that binds empty,
    as a program that prints nothing does, and `ret -k` is how a function
    passes on what it has. Only a call that succeeded and left something is
    named, since that is the one whose answer changes. */
@@ -1426,7 +1426,7 @@ void ex_retwarn(sh *s, const char *fn)
 			return;
 	v_add(&ex_retwarned, xs(fn));
 	lg(HIBR_LERR, "%s: bound with := and returned nothing with ret; what it "
-		      "bound is what its last command left, which from 0.99.369 "
+		      "bound is what its last command left, which from 0.99.370 "
 		      "binds empty -- end %s with `ret -k` to keep it, or `ret "
 		      "VALUE`", fn, fn);
 }

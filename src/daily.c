@@ -784,6 +784,8 @@ unsigned sh_optbit(const char *nm)
 		return O_KEEPGOING;
 	if (!strcmp(nm, "logtime"))
 		return O_LOGTIME;
+	if (!strcmp(nm, "noglob"))
+		return O_NOGLOB;
 	return 0;
 }
 
@@ -829,7 +831,8 @@ const char *sh_optnames[] = { "errexit", "nounset", "xtrace", "noclobber",
 			      "nocaseglob", "dotglob", "failglob",
 			      "nocasematch", "extglob", "globstar",
 			      "expand_aliases", "pipefail", "inherit_errexit",
-			      "agent", "checkfirst", "keepgoing", "logtime", 0 };
+			      "agent", "checkfirst", "keepgoing", "logtime",
+			      "noglob", 0 };
 
 /* Read one option by name, or -1 when there is no such option. */
 int sh_optget(sh *s, const char *nm)
@@ -916,6 +919,8 @@ const char *sh_optltr(int c)
 		return "strict";
 	case 'n':
 		return "noexec";
+	case 'f':
+		return "noglob";
 	}
 	return 0;
 }
@@ -933,7 +938,7 @@ int sh_optch(sh *s, int c, int on)
 /* The letters $- shows: every short option that is on, then how this shell was started. */
 char *sh_dash(sh *s)
 {
-	const char *ord = "euxCHSn";
+	const char *ord = "efuxCHSn";
 	str b;
 	char *r;
 	int i;

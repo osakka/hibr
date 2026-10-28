@@ -19,10 +19,15 @@
 # Gitea #305: Pages May Play Sound On Their Own, off -- a page's sound
 # starts with the first press or key on it, the browser's own rule, or as
 # it loads.
+#
+# Engine: which engine a new tab opens in -- WebKit, the light engine
+# (hibr-lx), or whichever is installed, WebKit first. Tabs already open stay
+# in theirs. The module refuses a named engine that is not installed; the desktop
+# then opens the tab in Chromium, if there is one.
 
 strict
 
-app browserset "The Control Panel pane for the Browser" 1.8
+app browserset "The Control Panel pane for the Browser" 1.9
 command -v cp_pane > /dev/null && cp_pane browserset "Browser" "◎" app
 command -v dt_app > /dev/null &&
 	dt_app bwfield "Browser Setting" 8 64 "" "" fixed hidden
@@ -30,6 +35,7 @@ command -v dt_app > /dev/null &&
 BW_SEARCH="${BW_SEARCH-https://lite.duckduckgo.com/lite/?q=}"
 BW_HOME="${BW_HOME-https://lite.duckduckgo.com/lite/}"
 BW_MODE="${BW_MODE-follow}"
+BW_ENGINE="${BW_ENGINE-auto}"
 BW_JS="${BW_JS-1}"
 BW_IMAGES="${BW_IMAGES-1}"
 BW_DARK="${BW_DARK-0}"
@@ -49,7 +55,7 @@ BW_PNOTE="${BW_PNOTE-refuse}"
 BW_DL="${BW_DL-0}"
 BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
 BW_AUTOPLAY="${BW_AUTOPLAY-0}"
-command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
+command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_ENGINE BW_JS \
 	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
 	BW_LANG BW_DNT BW_RTC BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
 	BW_AUTOPLAY
@@ -57,6 +63,7 @@ BS_PERMS=(refuse allow)
 
 # follow is Control Panel > Pictures; text draws the page's words alone.
 BS_MODES=(follow half pixels text)
+BS_ENGINES=(auto webkit light)
 BS_ZOOMS=(50 67 75 80 90 100 110 125 150 175 200)
 declare -gA BSF
 
@@ -67,6 +74,7 @@ fn bs_tell(again = "") {
 }
 
 fn cp_set_bwmode(int? id = "", value = "") { BW_MODE=$value; cp_save; }
+fn cp_set_bwengine(int? id = "", value = "") { BW_ENGINE=$value; cp_save; }
 fn cp_set_bwpgeo(int? id = "", value = "") { BW_PGEO=$value; cp_save; bs_tell; }
 fn cp_set_bwpcam(int? id = "", value = "") { BW_PCAM=$value; cp_save; bs_tell; }
 fn cp_set_bwpmic(int? id = "", value = "") { BW_PMIC=$value; cp_save; bs_tell; }
@@ -108,6 +116,9 @@ fn browserset_rows(int w) {
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Pages"; n=$((n + 1))
 	CP[$w][$n]["text"]="Home Page"; bs_row "$w" "$n" BW_HOME; n=$((n + 1))
 	CP[$w][$n]["text"]="Search With"; bs_row "$w" "$n" BW_SEARCH; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Engine For New Tabs"
+	CP[$w][$n]["val"]="$BW_ENGINE"; CP[$w][$n]["key"]=engine
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
 	CP[$w][$n]["val"]="$BW_MODE"; CP[$w][$n]["key"]=mode
 	n=$((n + 1))
@@ -228,6 +239,7 @@ fn browserset_do(int? w = "", k = "", int? dir = "") {
 
 	case $k in
 	mode) v := cp_next "$BW_MODE" "$dir" "${BS_MODES[@]}"; BW_MODE=$v ;;
+	engine) v := cp_next "$BW_ENGINE" "$dir" "${BS_ENGINES[@]}"; BW_ENGINE=$v ;;
 	zoom)
 		v := cp_next "$BW_ZOOM" "$dir" "${BS_ZOOMS[@]}"
 		BW_ZOOM=$v
@@ -251,6 +263,7 @@ fn browserset_do(int? w = "", k = "", int? dir = "") {
 fn browserset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	mode) dt_droplist "$w" "$r" "$c" cp_set_bwmode "${BS_MODES[@]}" ;;
+	engine) dt_droplist "$w" "$r" "$c" cp_set_bwengine "${BS_ENGINES[@]}" ;;
 	zoom) dt_droplist "$w" "$r" "$c" cp_set_bwzoom "${BS_ZOOMS[@]}" ;;
 	pgeo) dt_droplist "$w" "$r" "$c" cp_set_bwpgeo "${BS_PERMS[@]}" ;;
 	pcam) dt_droplist "$w" "$r" "$c" cp_set_bwpcam "${BS_PERMS[@]}" ;;

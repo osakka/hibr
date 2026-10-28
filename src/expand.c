@@ -701,6 +701,95 @@ char *xajoin(sh *s, const char *k, char **ks, int nk, const char *sep, int keys)
 	return r;
 }
 
+/* A variable by name, through any nameref it is, or null: what bash's
+   ${x@A} and ${x@a} report on. */
+var *xvref(sh *s, const char *k)
+{
+	var *v = v_find(s, k);
+	int hop = 0;
+
+	while (v && (v->at & A_REF) && v->v && *v->v && hop++ < 16)
+		v = v_find(s, v->v);
+	return v;
+}
+
+/* Whether an operator acts on each element of ${a[@]} on its own, as bash's
+   case changes, quoting and prompt expansion do. */
+int xper(int op)
+{
+	return op == V_XQ || op == V_XE || op == V_XP || op == V_XAT ||
+	       op == V_UP || op == V_UPALL || op == V_LOW || op == V_LOWALL;
+}
+
+/* One value through an operator, as text: an element of ${a[@]}. */
+char *xop1(sh *s, part *p, const char *v)
+{
+	str b2, m2;
+	part q = *p;
+	char *r;
+
+	s_init(&b2);
+	s_init(&m2);
+	q.arr = 0;
+	xvar2(s, &q, &b2, &m2, v);
+	r = ar_dup(s->xa, b2.p ? b2.p : "", b2.n);
+	s_free(&b2);
+	s_free(&m2);
+	return r;
+}
+
+/* ${a[@]@A}, ${a[@]@K} and ${a[@]@k}, and ${a[@]} through an operator that
+   acts on each element, as one text: what bash's declare -p would say, the
+   keys and values quoted as pairs, the keys and values joined, or each
+   element changed and joined by sep. */
+void xarrop(sh *s, part *p, const char *k, char **ks, int nk, str *o,
+	    const char *sep)
+{
+	var *vr = xvref(s, k);
+	vec *kl, *vl;
+	size_t i;
+	int assoc;
+
+	if (!vr)
+		return;
+	if (p->op == V_XA) {
+		b_decl1(s, vr, o, 0);
+		while (o->n && o->p[o->n - 1] == '\n')
+			o->p[--o->n] = 0;
+		return;
+	}
+	kl = vb_get(s);
+	vl = vb_get(s);
+	v_list(s, k, ks, nk, kl, 1);
+	v_list(s, k, ks, nk, vl, 0);
+	assoc = (vr->at & A_ASSOC) != 0;
+	for (i = 0; i < vl->n; i++) {
+		const char *kk = i < kl->n ? (char *)kl->p[i] : "";
+
+		if (p->op == V_XK) {
+			if (i && !assoc)
+				s_ch(o, ' ');
+			b_qkey(s, o, kk, assoc);
+			s_ch(o, ' ');
+			b_qval(s, o, (char *)vl->p[i], 0);
+			if (assoc)
+				s_ch(o, ' ');
+		} else if (p->op == V_XKW) {
+			if (i)
+				s_cat(o, sep);
+			s_cat(o, kk);
+			s_cat(o, sep);
+			s_cat(o, (char *)vl->p[i]);
+		} else {
+			if (i)
+				s_cat(o, sep);
+			s_cat(o, xop1(s, p, (char *)vl->p[i]));
+		}
+	}
+	vb_put(s, kl);
+	vb_put(s, vl);
+}
+
 /* Expand one variable part into the output buffer. */
 void xvar(sh *s, part *p, str *b, str *m)
 {
@@ -744,6 +833,17 @@ void xvar(sh *s, part *p, str *b, str *m)
 			s_free(&j);
 			return;
 		}
+		if (all && (p->op == V_XA || p->op == V_XK ||
+			    p->op == V_XKW || xper(p->op))) {
+			str j;
+
+			s_init(&j);
+			xarrop(s, p, p->t, ks, nk, &j, xstar(ks, nk) ?
+			       xsep(s, p->q || s->strict) : " ");
+			XV(s, p, b, m, j.p ? j.p : "", j.n);
+			s_free(&j);
+			return;
+		}
 		if (all)
 			v = v_find(s, p->t) ?
 				xajoin(s, p->t, ks, nk, xstar(ks, nk) ?
@@ -783,6 +883,9 @@ void xvar(sh *s, part *p, str *b, str *m)
 		const char *r = xval(s, p->t);
 		part q2 = *p;
 		q2.op = p->op & ~V_INDF;
+		/* @A and @a describe the variable named, not the one naming it. */
+		if ((q2.op == V_XA || q2.op == V_XAT) && r && *r)
+			q2.t = (char *)r;
 		lg(HIBR_LTRC, "indirect with modifier via %s", p->t);
 		xvar2(s, &q2, b, m, r && *r ? xbyname(s, r) : 0);
 		return;
@@ -938,9 +1041,67 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 
 	switch (p->op) {
 	case V_XQ:
-		a = xquote(s, v ? v : "", 0);
+	case V_XK:
+	case V_XKW:
+		/* Unset quotes to nothing at all, as in bash: '' would be a
+		   value the variable never had. */
+		if (!set)
+			return;
+		a = xquote(s, v, 0);
 		xput(b, m, a, strlen(a), 1);
 		return;
+	case V_XAT: {
+		var *vr = set ? xvref(s, p->t) : 0;
+		str f;
+
+		if (!vr)
+			return;
+		s_init(&f);
+		b_flags(vr, &f);
+		XV(s, p, b, m, f.p ? f.p : "", f.n);
+		s_free(&f);
+		return;
+	}
+	case V_XA: {
+		var *vr = xvref(s, p->t);
+		const char *ev = v;
+		str f, o;
+
+		if (!vr || (!set && !vr->am))
+			return;
+		if (vr->am) {
+			char *zero[] = { "0", 0 };
+
+			ev = v_getp(s, vr->k, zero, 1);
+		}
+		s_init(&f);
+		s_init(&o);
+		b_flags(vr, &f);
+		if (f.n) {
+			s_cat(&o, "declare -");
+			s_cat(&o, f.p);
+			s_ch(&o, ' ');
+		}
+		s_cat(&o, vr->k);
+		if (ev) {
+			s_ch(&o, '=');
+			s_cat(&o, xquote(s, ev, 0));
+		}
+		XV(s, p, b, m, o.p, o.n);
+		s_free(&f);
+		s_free(&o);
+		return;
+	}
+	case V_XP: {
+		char *t;
+
+		if (!set)
+			return;
+		t = pr_make(s, v);
+		XV(s, p, b, m, t ? t : "", t ? strlen(t) : 0);
+		free(t);
+		return;
+	}
 	case V_XE: {
 		str t;
 		s_init(&t);
@@ -1599,7 +1760,8 @@ void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out,
 			s_ch(&pat, '\\');
 		s_ch(&pat, t[i]);
 	}
-	if (!meta) {
+	/* set -f: a word with pattern characters is the word, as in bash. */
+	if (!meta || (s->sopt & O_NOGLOB)) {
 		xout(s, out, outm, t, mk, n);
 		s_free(&pat);
 		return;
@@ -1882,6 +2044,36 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 				xoutq(s, out, outm, (char *)lst->p[k2],
 				      strlen((char *)lst->p[k2]));
 			vb_put(s, lst);
+			return;
+		}
+		if (p0->arr && (xper(p0->op) || p0->op == V_XKW)) {
+			char **ks;
+			int all, nk = xkeys(s, p0, &ks, &all);
+			vec *lst, *kl;
+			size_t k;
+			word *lw = p0->idx;
+			while (lw && lw->nx)
+				lw = lw->nx;
+			if (!all || strcmp(xone(s, lw), "@"))
+				goto normal;
+			lst = vb_get(s);
+			kl = vb_get(s);
+			v_list(s, p0->t, ks, nk, lst, 0);
+			v_list(s, p0->t, ks, nk, kl, 1);
+			for (k = 0; k < lst->n; k++) {
+				const char *t;
+
+				if (p0->op == V_XKW) {
+					t = k < kl->n ? (char *)kl->p[k] : "";
+					xoutq(s, out, outm, t, strlen(t));
+					t = (char *)lst->p[k];
+				} else {
+					t = xop1(s, p0, (char *)lst->p[k]);
+				}
+				xoutq(s, out, outm, t, strlen(t));
+			}
+			vb_put(s, lst);
+			vb_put(s, kl);
 			return;
 		}
 		if (p0->arr && (p0->op == V_NONE || p0->op == V_KEYS)) {

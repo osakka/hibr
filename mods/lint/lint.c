@@ -187,7 +187,7 @@ int li_numval(word *w, size_t k)
 }
 
 /* Whether a function body calls `ret` anywhere: one that never does gives
-   `:=` nothing to bind from 0.99.369. */
+   `:=` nothing to bind from 0.99.370. */
 int li_hasret(node *n)
 {
 	const char *cmd;
@@ -540,7 +540,7 @@ void li_walk(li *c, node *n, int cond)
 		cmd = li_cmd(n);
 		if (cmd && n->f == 2 && li_has(&c->noret, cmd))
 			li_say(c, n, "bind-no-ret", "%s is bound with := and never "
-				    "calls ret: from 0.99.369 that binds empty, as "
+				    "calls ret: from 0.99.370 that binds empty, as "
 				    "a program that prints nothing does -- end it "
 				    "with `ret VALUE`, or `ret -k` to pass on what "
 				    "its last command left", cmd);

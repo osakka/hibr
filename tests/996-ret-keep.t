@@ -1,5 +1,5 @@
 # What `x := f` binds when f never calls ret (0.99.368): today what f's last
-# command left, with a warning naming f once, since from 0.99.369 it binds
+# command left, with a warning naming f once, since from 0.99.370 it binds
 # empty, as a program that prints nothing does. `ret -k` is how a function
 # passes on what it has -- a list included -- and stays quiet; a function
 # that ret's a value, and a miss that returns non-zero, say nothing.

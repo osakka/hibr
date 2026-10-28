@@ -20,7 +20,8 @@ syntax error is status 2.
 negative offsets and negative lengths, over a scalar's characters or a list's
 elements — `${*:2}`, `${@:2:1}` and `${a[*]:1}` all select, they do not slice
 the joined text, `${x^^} ${x,,} ${x^} ${x,}`, the transforms `${x@Q} ${x@E}
-${x@U} ${x@L} ${x@u}`, indirection `${!ref}` (which keeps any modifier after
+${x@U} ${x@L} ${x@u} ${x@A} ${x@a} ${x@P} ${x@K} ${a[@]@k}`, each of them
+over each element of `${a[@]}`, indirection `${!ref}` (which keeps any modifier after
 it, so `${!ref:-d}` works), the names starting with a prefix `${!pre*}` and
 `${!pre@}`, and negative subscripts `${a[-1]}`, counted back from the highest
 key so a sparse array answers the same as bash. Command substitution `$( )` and
@@ -833,7 +834,7 @@ with `--agent` each finding is a line of JSON keyed `warning`. The rules:
 | `local-self-ref` | `local a=$1 b=${m[$a]}`, where `b` reads `a` before it is assigned |
 | `local-masks-status` | `$?` read right after `local x=$(cmd)`, which is `local`'s status |
 | `dead-return` | a failing `return` straight after `ret`, which has already ended the function |
-| `bind-no-ret` | `x := f`, where `f` is defined in the file and never calls `ret`: from 0.99.369 that binds nothing, as a program that prints nothing does; end `f` with `ret VALUE`, or `ret -k` to pass on what its last command left |
+| `bind-no-ret` | `x := f`, where `f` is defined in the file and never calls `ret`: from 0.99.370 that binds nothing, as a program that prints nothing does; end `f` with `ret VALUE`, or `ret -k` to pass on what its last command left |
 | `bare-key` | `${m[row]}` with `row` never assigned, on an array this file makes without `-A` |
 
 The rules live in a module, `lint`, loaded only by `--explain`, so running a

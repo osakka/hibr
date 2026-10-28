@@ -209,10 +209,11 @@ Unlike `[`, no expansion splitting happens inside, so quoting is rarely needed.
 | `-O f` `-G f` | it is owned by the effective user, the effective group |
 | `-N f` | it was modified since it was last read |
 | `-t n` | descriptor `n` is a terminal |
+| `-o name` | the shell option `name` is on (false for one there is no such option) |
+| `-R name` | `name` is a nameref (`declare -n`) |
 
-bash's `-o name`, true when a shell option is on, and `-R name`, for a
-nameref, are not there: `[[ -o errexit ]]` is an unknown test, status 2.
-`shopt -q name` asks the first question.
+`-o` is a unary test only where a unary test can stand, so `[ a -o b ]` is
+still the binary or.
 
 | binary | true when |
 |---|---|
@@ -266,6 +267,15 @@ expansion produced; text written in the word still splits and globs
 | `${x@Q}` | quoted so reading it back gives the same string |
 | `${x@E}` | with backslash escapes expanded |
 | `${x@U} ${x@L} ${x@u}` | upper, lower, first letter upper, over the same letters |
+| `${x@A}` | the assignment that would make `x` again: `x='v'`, or `declare -ix x='v'` with its attributes; `${a[@]@A}` the whole array, as `declare -p` writes it |
+| `${x@a}` | its attributes, as bash names them and in bash's order: `a A i n r x l u` |
+| `${x@P}` | expanded as a prompt is: `\u`, `\w` and the rest |
+| `${x@K}` | quoted, as `@Q`; `${a[@]@K}` the keys and values as quoted pairs, `0 "p" 1 "q r"` |
+| `${a[@]@k}` | the keys and values as separate words |
+
+Every one of these, and the case changes, acts on each element of `${a[@]}`
+on its own -- `"${a[@]@Q}"` is one quoted word per element -- and an unset
+variable gives nothing, not `''`.
 | `${!ref}` | the value of the variable *named* by `x`, subscripts and all, keeping any modifier |
 | `${!pre*}` `${!pre@}` | the names that begin with `pre`, sorted |
 | `${a[k]}` | one element; `${a[@]}` all, `${a[*]}` joined |
