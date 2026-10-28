@@ -3,6 +3,7 @@
 
     python3 tests/covmap.py --take        # run every suite under the census
                                           # build and write tests/coverage.tsv
+    python3 tests/covmap.py --write       # write it again from that run's logs
     python3 tests/covmap.py FUNCTION...   # the suites the map says call each
 
 tests/affected.py asks this for a change under programs/desktop: a change
@@ -125,27 +126,50 @@ def callers():
     return out
 
 
-def take():
-    """Run every suite under the census build; write the map."""
+def take(again=True):
+    """Run every suite under the census build; write the map. With again
+    false, write it from the logs the last run left, which says which
+    commit it ran at."""
     sys.path.insert(0, HERE)
     from all import SUITES
-    if git("status", "--porcelain", "--", "programs", "tests", "src",
-           "mods").strip():
-        raise SystemExit("covmap: the tree has changes; a map is taken at a "
-                         "commit, so commit them or take it in a worktree")
-    commit = git("rev-parse", "HEAD").strip()
-    subprocess.run(["make", "-s", "census"], cwd=ROOT, check=True)
-    os.makedirs(LOGS, exist_ok=True)
-    for f in os.listdir(LOGS):
-        os.unlink(os.path.join(LOGS, f))
-    env = dict(os.environ, HIBR=BIN, HIBR_CENSUSDIR=LOGS,
-               HIBR_TESTLOGS=os.path.join(ROOT, "build", "census-testlogs"))
-    rc = subprocess.run([sys.executable, os.path.join(HERE, "all.py")],
-                        cwd=ROOT, env=env).returncode
-    if rc:
-        raise SystemExit("covmap: a suite failed under the census build; a "
-                         "map from a run that did not finish would say too "
-                         "little, so none was written")
+    tlogs = os.path.join(ROOT, "build", "census-testlogs")
+    stamp = os.path.join(LOGS, "commit")
+    if again:
+        if git("status", "--porcelain", "--", "programs", "tests", "src",
+               "mods").strip():
+            raise SystemExit("covmap: the tree has changes; a map is taken "
+                             "at a commit, so commit them or take it in a "
+                             "worktree")
+        commit = git("rev-parse", "HEAD").strip()
+        subprocess.run(["make", "-s", "census"], cwd=ROOT, check=True)
+        os.makedirs(LOGS, exist_ok=True)
+        for f in os.listdir(LOGS):
+            os.unlink(os.path.join(LOGS, f))
+        open(stamp, "w").write(commit + "\n")
+        env = dict(os.environ, HIBR=BIN, HIBR_CENSUSDIR=LOGS,
+                   HIBR_TESTLOGS=tlogs)
+        subprocess.run([sys.executable, os.path.join(HERE, "all.py")],
+                       cwd=ROOT, env=env)
+    try:
+        commit = open(stamp).read().strip()
+    except OSError:
+        raise SystemExit("covmap: no census run to write a map from")
+    # A suite whose check failed still made every call it makes, so its
+    # log is whole; one that stopped short is not, and a map missing its
+    # calls would narrow a change past a suite that reaches it.
+    short = []
+    for s in SUITES:
+        try:
+            out = open(os.path.join(tlogs, s + ".log"), errors="replace").read()
+        except OSError:
+            short.append(s)
+            continue
+        if not re.search(r"^\d+ passed, \d+ failed", out, re.M) or \
+                re.search(r"^planned \d+ checks, made \d+", out, re.M):
+            short.append(s)
+    if short:
+        raise SystemExit("covmap: %s did not run to the end, so no map was "
+                         "written" % " ".join(short))
     names = defined()
     calls = {n: set() for n in names}
     for s in SUITES:
@@ -227,6 +251,9 @@ def main():
     a = sys.argv[1:]
     if a == ["--take"]:
         take()
+        return
+    if a == ["--write"]:
+        take(False)
         return
     commit, m = load()
     if not commit:
