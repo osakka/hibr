@@ -403,7 +403,7 @@ int hd_focusin(const char *p, size_t n)
 
 int hd_union(vec *cls, int id, int tid)
 {
-	int rows, cols, cw = 0, ch = 0, moved;
+	int rows, cols, cw = 0, ch = 0, moved, r0 = hd_shiftr, c0 = hd_shiftc;
 
 	if (!cls->n)
 		return 0;
@@ -415,6 +415,15 @@ int hd_union(vec *cls, int id, int tid)
 	else
 		hd_pty->resize(id, rows, cols);
 	hd_tm->resize(tid, rows, cols);
+	/* Every display moved by the same amount to make room above or to the
+	   left of them, so what the program last drew moves with them: each
+	   display goes on showing its own part of it, where it was, until the
+	   program has drawn for the new union. Without this every display
+	   looked at the part above or beside its own until then -- an empty
+	   screen with the windows on the other display, at every login with
+	   displays stacked (the owner's, `displays moved by 49,0`). */
+	if (moved)
+		hd_tm->shift(tid, hd_shiftr - r0, hd_shiftc - c0);
 	if (hd_tm->cellpx)
 		hd_tm->cellpx(tid, cw, ch);
 	hd_scw = cw;

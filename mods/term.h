@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 11u
+#define TM_API_VER 12u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -139,6 +139,15 @@ struct tm_api {
 	   is new for each time it asked -- for a relay to pass on to the one
 	   display that should hold it. */
 	int (*plock)(int id);
+	/* Version 12: move what the screen shows down by dr rows and right by
+	   dc columns, the cursor and the kept pictures with it, what moves off
+	   the edge gone and what is uncovered blank. For a relay whose union
+	   of displays has just grown above or to the left: every display moves
+	   by that much in the union, and what the program last drew has to
+	   move with them, or each display shows the wrong part of it until
+	   the program draws again -- an empty screen with the windows on the
+	   display above, at every login with displays stacked. 1 when done. */
+	int (*shift)(int id, int dr, int dc);
 };
 
 #endif

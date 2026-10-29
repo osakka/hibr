@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.384
+
+**No black screen and no jump when a display joins above.** At every login
+with stacked displays -- the primary attaches alone, then the one above it
+joins -- the primary went black, its windows jumped to the display above,
+and everything came back a moment later. Two things did it:
+- hold moves every display down in the union to make room above them, and
+  left what the desktop had drawn where it was, so each display was shown
+  the part above its own until the desktop drew again. hold now moves its
+  copy of the screen with its displays in the same instant (the emulator's
+  interface, version 12, `shift`).
+- A resize's clear-screen went out on its own, ahead of the frame that
+  repaints it, and the desktop asks hold about every display in between:
+  hold showed the cleared screen. The console sends it inside the next
+  frame now, with everything painted again behind it.
+
+Measured on a held desktop with a display joining above: the display
+already there was sent a frame erasing all 24 of its rows before; now it
+is sent none, and keeps its windows where they were. A session running
+already keeps the old hold until its server is upgraded: Restart Desktop
+does it, and the bar marks a session that wants it.
+
 ## 0.99.383
 
 **The Control Strip stays where it was put.** Its row was a row of the

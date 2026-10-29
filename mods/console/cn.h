@@ -161,6 +161,8 @@ size_t cn_imgdlate(str *b);
 void cn_imgowelate(unsigned id);
 void cn_imgclear(void);
 void cn_imgunedit(void);
+extern int cn_reenter;
+void cn_enterseq(str *b);
 int cn_imgat(int row, int col);
 int cn_imgcellat(int row, int col, unsigned *out);
 /* Whether a picture drawn under the text covers this cell at all, asked

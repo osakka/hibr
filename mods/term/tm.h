@@ -219,6 +219,7 @@ tm_cell *tm_regrid(tm_t *t, tm_cell *old, int orows, int ocols, int rows,
 
 tm_cell *tm_at(tm_t *t, int r, int c);
 void tm_blank(tm_t *t, tm_cell *c);
+int tm_shift(tm_t *t, int dr, int dc);
 void tm_unwide(tm_t *t, int r, int c);
 void tm_erase(tm_t *t, int r0, int c0, int r1, int c1);
 void tm_scroll(tm_t *t, int n);

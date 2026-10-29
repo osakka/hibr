@@ -261,6 +261,54 @@ tm_cell *tm_regrid(tm_t *t, tm_cell *old, int orows, int ocols, int rows,
    than losing the line being typed on, and one that grows pulls them back.
    Both screens are resized, so a program on the alternate screen stays
    there and simply redraws. */
+/* Move the active screen's cells down by dr and right by dc, the cursor
+   and the kept pictures with them: what goes past the edge is gone, what
+   is uncovered is blank. Only ever down and right, which is the way a
+   relay's union grows when a display joins above or to its left. */
+int tm_shift(tm_t *t, int dr, int dc)
+{
+	tm_cell *g, *n;
+	size_t i, cells = (size_t)t->rows * t->cols;
+	int r, c, j;
+
+	if (dr < 0 || dc < 0)
+		return 0;
+	if (!dr && !dc)
+		return 1;
+	g = t->inalt ? t->alt : t->g;
+	n = xm(cells * sizeof *n);
+	for (i = 0; i < cells; i++)
+		tm_blank(t, n + i);
+	for (r = 0; r + dr < t->rows; r++)
+		for (c = 0; c + dc < t->cols; c++)
+			n[(size_t)(r + dr) * t->cols + c + dc] = g[(size_t)r * t->cols + c];
+	/* A wide glyph whose right half went over the edge is half a glyph. */
+	for (r = 0; r < t->rows; r++)
+		if (n[(size_t)r * t->cols + t->cols - 1].w == 2)
+			tm_blank(t, n + (size_t)r * t->cols + t->cols - 1);
+	free(g);
+	if (t->inalt)
+		t->alt = n;
+	else
+		t->g = n;
+	free(t->frz);
+	t->frz = 0;
+	t->copbase = t->copseq;
+	t->cr += dr;
+	t->cc += dc;
+	if (t->cr >= t->rows)
+		t->cr = t->rows - 1;
+	if (t->cc >= t->cols)
+		t->cc = t->cols - 1;
+	for (j = 0; j < t->imgn; j++) {
+		t->img[j].r += dr;
+		t->img[j].c += dc;
+	}
+	t->gen++;
+	lg(HIBR_LDBG, "term: content moved %d,%d", dr, dc);
+	return 1;
+}
+
 int tm_size(tm_t *t, int rows, int cols)
 {
 	tm_cell *mg, *n;

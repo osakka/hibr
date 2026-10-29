@@ -1315,5 +1315,45 @@ check("a held program's picture edited in place reaches a display that can "
 check("and a display that cannot is sent the whole picture again",
       len(kplaced(sc2)) == 2 and not kedited(sc2), (kplaced(sc2), kedited(sc2)))
 
+# A display joining above (Gitea #257's negative row, how the Control Panel
+# and Blit stack displays) moves every display down in the union. hold
+# moved them and not what the program had drawn, so until the desktop drew
+# again each display was shown the part above its own -- and the clear a
+# resize asks for went out on its own ahead of the frame: the primary was
+# sent a blank screen, every row of it erased, at every login with stacked
+# displays. Now what was drawn moves with the displays and the clear goes
+# inside the frame, so a display that was there is never blanked.
+def joinabove():
+    nm = name()
+    sess = os.path.join(D, "above%s.hibr" % nm)
+    open(sess, "w").write(load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
+        + "dt_open || exit 1\ndt_new Note 8 30 4 6\ndt_run\ndt_close\n")
+    one = os.path.join(D, "aone%s.hibr" % nm)
+    two = os.path.join(D, "atwo%s.hibr" % nm)
+    open(one, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, sess)
+                         + "sleep 0.8\nhold attach -m -n one %s 0 0\n" % nm)
+    open(two, "w").write(load("hold") + "hold attach -m -n two %s -24 0\n" % nm)
+    t1 = Term(one, rows=24, cols=80, settle=1.0, env={"TMPDIR": D})
+    for _ in range(int(24 * SLOW)):
+        t1.collect(0.25)
+    m1 = len(t1.raw)
+    t2 = Term(two, rows=24, cols=80, settle=1.0, env={"TMPDIR": D})
+    for _ in range(int(40 * SLOW)):
+        t1.collect(0.05)
+        t2.collect(0.01)
+    raw = t1.raw[m1:]
+    sc = t1.screen()
+    t2.quit(None, 0.5)
+    t1.quit(None, 0.5)
+    kill(nm)
+    worst = max([f.count(b"\x1b[K") for f in raw.split(b"\x1b[?2026h")] or [0])
+    return worst, sc
+
+
+worst, sc = joinabove()
+check("a display joining above is never a blank screen on the display already "
+      "there, which keeps its windows where they were",
+      worst < 12 and sc.find("┤ Note ├") == (4, 8), (worst, sc))
+
 shutil.rmtree(D, True)
-report(75)
+report(76)

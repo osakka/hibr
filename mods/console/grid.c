@@ -1345,6 +1345,12 @@ long cn_flush(void)
 	   nothing follows it, so an empty flush still costs nothing (Gitea
 	   #338). */
 	s_cat(&b, CN_SYNCH);
+	/* What a resize owes: the screen set up again, cleared, inside this
+	   frame rather than on its own ahead of it. */
+	if (cn_reenter) {
+		cn_enterseq(&b);
+		cn_reenter = 0;
+	}
 	/* Then the deletes those drops owe the terminal, for a protocol that
 	   keeps a picture rather than painting it: they go before the diff, so
 	   the text that was underneath is painted in the same frame. */

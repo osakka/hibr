@@ -313,6 +313,14 @@ int tm_api_reply(int id, str *out)
 	return 1;
 }
 
+/* Move the screen's content down and right; see tm_api in term.h. */
+int tm_api_shift(int id, int dr, int dc)
+{
+	tm_t *t = tm_find(id);
+
+	return t ? tm_shift(t, dr, dc) : 0;
+}
+
 static const tm_api term_api = {
 	tm_api_new, tm_api_free, tm_api_resize, tm_api_rows, tm_api_cols,
 	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor, tm_api_modes,
@@ -320,7 +328,7 @@ static const tm_api term_api = {
 	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image,
 	tm_api_save, tm_api_load, tm_api_kbd, tm_api_copyseq, tm_api_copyop,
 	tm_api_syncleft, tm_api_mpix, tm_api_reply, tm_api_pointer,
-	tm_api_plock
+	tm_api_plock, tm_api_shift
 };
 
 const tm_api *tm_apiget(void)

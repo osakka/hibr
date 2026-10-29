@@ -268,6 +268,13 @@ mode 7701, Blit's pointer lock, which version 11's `plock` answers with a
 number that is new each time the program asks (Gitea #379). `hold` sends
 the lock to the one display that can hold the pointer and was used last.
 
+Version 12's `shift` moves what the screen shows down and right, the cursor
+and the kept pictures with it. A relay calls it when its union of displays
+grows above or to the left: every display moves down or right in the
+union, and what the program drew must move with them, or each display is
+shown the part above its own until the program draws again -- which was
+the black screen and the jumped windows at a login with displays stacked.
+
 Bracketed paste (2004) wraps a `paste` key in `ESC [200~` and `ESC [201~`
 when the program asks.
 

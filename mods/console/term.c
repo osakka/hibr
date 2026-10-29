@@ -550,11 +550,26 @@ int cn_pending(void)
    the hidden cursor or the mouse mode.  So every resize asserts them
    again and repaints everything, which costs one full frame on an event
    that is rare anyway. */
+/* Owed by cn_reassert, sent by cn_flush at the head of its frame. */
+int cn_reenter;
+
+/* The sequence that sets the screen up, cleared, for cn_flush to put inside
+   the frame that repaints it. */
+void cn_enterseq(str *b)
+{
+	s_add(b, cn_enter, sizeof cn_enter - 1);
+}
+
 void cn_reassert(void)
 {
 	if (!cn_on)
 		return;
-	cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
+	/* Not written here: the clear in it would stand alone on the screen
+	   until the next frame -- and between a resize and that frame the
+	   desktop asks hold about every display, which is long enough to
+	   show. The next flush sends it first, inside its own synchronized
+	   frame, with everything painted again behind it. */
+	cn_reenter = 1;
 	if (cn_mousemode)
 		cn_mouseon(cn_mousemode);
 	cn_askcolours();
