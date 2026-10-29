@@ -171,6 +171,7 @@ Back
 Back 10 Seconds
 Back 30 Seconds
 Back 5 Seconds
+Background
 Backspace
 Band Intensity
 Bar Shadow
@@ -363,6 +364,7 @@ Date:
 Dec
 December
 Default View
+Defaults
 Degrees, north and east positive. Empty: the time zone's.
 Delete
 Delete %s from X Screen's programs?
@@ -402,6 +404,7 @@ Do Not Track
 Do the same for the %s other
 Do the same for the %s others
 Does it show this number?
+Dots per Inch
 Download Whole Messages
 Download of %s stopped
 Downloaded %s
@@ -445,8 +448,11 @@ Exported %s
 Exporting CSV needs the csv module
 Export…
 Extension:
+Extensions:
 Extra Flags
+Extra Xvfb Options
 Extra flags for the browser:
+Extra:
 Fajr
 Favourite
 Favourites
@@ -597,6 +603,7 @@ Last Synced
 Left
 Left %s
 Level on Menu Bar
+Lightest
 Line Under It
 Link
 List
@@ -805,6 +812,7 @@ Open With: .%s
 Open in New Window
 Open the Tour
 Open…
+Options:
 Order
 Order Right-to-Left Text
 Other
@@ -829,6 +837,7 @@ Paired with %s; it did not connect
 Pairing cancelled
 Pairing with %s
 Pass Every Key
+Passed to Xvfb as typed, after the rest
 Password
 Password Box On
 Password:
@@ -1002,6 +1011,7 @@ Set Date & Time
 Set Location…
 Set PIN
 Set as Wallpaper
+Set for:
 Set up a mail account first, in Control Panel > Mail
 Settings%s
 Several emails or phones: separate them with commas.
@@ -1042,6 +1052,7 @@ Sleep
 Sleep, Restart, Shut Down
 Smallest Height
 Smallest Width
+Smoothest
 Snake
 Snap
 Something is still running here. Close it?
@@ -1126,6 +1137,7 @@ The password was not accepted
 The pdf module is not installed
 The record could not be added
 The remote file cache is empty
+The screen -- Default is Control Panel > X Screen > Defaults:
 The system asks for a password
 The time is HH:MM or HH:MM:SS
 The timeout could not be set

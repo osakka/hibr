@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.47",
+ "version": "3.48",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1480,6 +1480,18 @@
   "Stopped after %s items": "توقّف بعد %s عنصر",
   "Stopped; nothing was done": "توقّف؛ لم يُنجز شيء",
   "Stopping…": "جارٍ الإيقاف…",
-  "The one there now goes to the trash.": "ويذهب الموجود الآن إلى المهملات."
+  "The one there now goes to the trash.": "ويذهب الموجود الآن إلى المهملات.",
+  "Background": "الخلفية",
+  "Defaults": "الافتراضيات",
+  "Dots per Inch": "النقاط في البوصة",
+  "Extensions:": "الامتدادات:",
+  "Extra Xvfb Options": "خيارات Xvfb إضافية",
+  "Extra:": "إضافي:",
+  "Lightest": "الأخف",
+  "Options:": "الخيارات:",
+  "Passed to Xvfb as typed, after the rest": "تُمرَّر إلى Xvfb كما كُتبت، بعد البقية",
+  "Set for:": "اضبط لـ:",
+  "Smoothest": "الأنعم",
+  "The screen -- Default is Control Panel > X Screen > Defaults:": "الشاشة — «افتراضي» يعني لوحة التحكم > شاشة X > الافتراضيات:"
  }
 }

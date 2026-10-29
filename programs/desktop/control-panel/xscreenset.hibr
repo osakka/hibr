@@ -17,19 +17,35 @@
 
 strict
 
-app xscreenset "The Control Panel pane for X Screen" 1.6
+app xscreenset "The Control Panel pane for X Screen" 1.7
 command -v cp_pane > /dev/null && cp_pane xscreenset "X Screen" "▣" app
 command -v dt_app > /dev/null &&
-	dt_app xsfield "X Screen Program" 13 66 "" "" fixed hidden
+	dt_app xsfield "X Screen Program" 24 70 "" "" fixed hidden
 
 XS_SIZE="${XS_SIZE-1280x800}"
 XS_MAX="${XS_MAX-1920x1080}"
 XS_CLOSEEND="${XS_CLOSEEND-0}"
 command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MAX XS_CLOSEEND
+# The app's screen defaults (Gitea #404), repeated so the pane can set them
+# with the app not loaded.
+XS_FPS="${XS_FPS-follow}"
+XS_BG="${XS_BG-default}"
+XS_CURSOR="${XS_CURSOR-1}"
+XS_DPI="${XS_DPI-default}"
+XS_NORESET="${XS_NORESET-0}"
+XS_XINERAMA="${XS_XINERAMA-1}"
+XS_RENDER="${XS_RENDER-1}"
+XS_COMPOSITE="${XS_COMPOSITE-1}"
+XS_DBE="${XS_DBE-1}"
+XS_XVIDEO="${XS_XVIDEO-1}"
+XS_GLX="${XS_GLX-1}"
+XS_EXTRA="${XS_EXTRA-}"
+command -v dt_keep > /dev/null && dt_keep XS_FPS XS_BG XS_CURSOR XS_DPI \
+	XS_NORESET XS_XINERAMA XS_RENDER XS_COMPOSITE XS_DBE XS_XVIDEO XS_GLX XS_EXTRA
 # Declared, never emptied: the app has read the list into them before any
 # pane loads, and emptying them here showed no programs after every new
 # session -- and the next one added saved over the rest (Gitea #300).
-declare -ga XSP_NAME XSP_CMD XSP_WIN XSP_PIC XSP_END
+declare -ga XSP_NAME XSP_CMD XSP_WIN XSP_PIC XSP_END XSP_OPT XSP_EXTRA
 
 XSS_SIZES=(1024x768 1280x800 1366x768 1600x900 1920x1080)
 XSS_MAXES=(1280x800 1600x900 1920x1080 2560x1440)
@@ -37,13 +53,34 @@ XSS_WINS=(fit fixed own)
 # follow is Control Panel > Pictures, as YouTube's and the wallpaper's are.
 XSS_PICS=(follow half pixels)
 XSS_ENDS=(default close keep)
+XSS_FPSS=(follow 5 10 14 20 30 60)
+XSS_BGS=(default black white grey desktop)
+XSS_DPIS=(default 72 96 120 144 192)
+# A program's own choice for an option: default, or one of the pane's.
+XSS_TRI=(default on off)
+# The six extensions, with what the pane calls each and its setting.
+XSS_EXTKEYS=(xinerama render composite dbe xvideo glx)
+declare -gA XSS_EXTLABEL XSS_EXTVAR
+XSS_EXTLABEL=([xinerama]=XINERAMA [render]=RENDER [composite]=Composite
+	[dbe]=DOUBLE-BUFFER [xvideo]=XVideo [glx]=GLX)
+XSS_EXTVAR=([xinerama]=XS_XINERAMA [render]=XS_RENDER [composite]=XS_COMPOSITE
+	[dbe]=XS_DBE [xvideo]=XS_XVIDEO [glx]=XS_GLX)
+# The keys a program's dialog sets, in the order its rows are drawn.
+XSS_OKEYS=(fps size bg dpi cursor noreset xinerama render composite dbe xvideo glx)
 declare -gA XSF
 
 fn cp_set_xssize(int? id = "", value = "") { XS_SIZE=$value; cp_save; }
 fn cp_set_xsmax(int? id = "", value = "") { XS_MAX=$value; cp_save; }
+fn cp_set_xsfps(int? id = "", value = "") { XS_FPS=$value; cp_save; }
+fn cp_set_xsbg(int? id = "", value = "") { XS_BG=$value; cp_save; }
+fn cp_set_xsdpi(int? id = "", value = "") { XS_DPI=$value; cp_save; }
+fn cp_set_xsextra(value, int? id = "") {
+	XS_EXTRA=${value//[$'\t\n']/ }
+	cp_save
+}
 
 fn xscreenset_rows(int w) {
-	local n=0 i
+	local n=0 i k
 
 	dt_has xscreen_draw || { cp_absent "$w" "X Screen"; ret 1; }
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Programs"; n=$((n + 1))
@@ -68,7 +105,36 @@ fn xscreenset_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Fixed Size"
 	CP[$w][$n]["val"]="$XS_SIZE"; CP[$w][$n]["key"]=size
 	n=$((n + 1))
+	# What every program's screen gets unless its own dialog says otherwise.
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Defaults"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frames a Second"
+	CP[$w][$n]["val"]="$XS_FPS"; CP[$w][$n]["key"]=fps
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Background"
+	CP[$w][$n]["val"]="$XS_BG"; CP[$w][$n]["key"]=bg
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Dots per Inch"
+	CP[$w][$n]["val"]="$XS_DPI"; CP[$w][$n]["key"]=dpi
+	n=$((n + 1))
+	xss_bool "$w" "$n" "Pointer" XS_CURSOR; n=$((n + 1))
+	xss_bool "$w" "$n" "Keep the Server Up" XS_NORESET; n=$((n + 1))
+	for k in "${XSS_EXTKEYS[@]}"; do
+		xss_bool "$w" "$n" "${XSS_EXTLABEL["$k"]}" "${XSS_EXTVAR["$k"]}"
+		n=$((n + 1))
+	done
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Extra Xvfb Options${GL[ellipsis]}"
+	CP[$w][$n]["val"]="$XS_EXTRA"; CP[$w][$n]["key"]=extra
+	n=$((n + 1))
 	ret "$n"
+}
+
+# A switch row for one of the defaults.
+fn xss_bool(int w, int n, label, var) {
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]=$label
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${!var}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=$var
+	return 0
 }
 
 fn xscreenset_do(int? w = "", k = "", int? dir = "") {
@@ -77,7 +143,16 @@ fn xscreenset_do(int? w = "", k = "", int? dir = "") {
 	case $k in
 	max) v := cp_next "$XS_MAX" "$dir" "${XSS_MAXES[@]}"; XS_MAX=$v ;;
 	size) v := cp_next "$XS_SIZE" "$dir" "${XSS_SIZES[@]}"; XS_SIZE=$v ;;
-	XS_CLOSEEND) cp_toggle "$k" ;;
+	XS_CLOSEEND | XS_CURSOR | XS_NORESET | XS_XINERAMA | XS_RENDER | \
+	XS_COMPOSITE | XS_DBE | XS_XVIDEO | XS_GLX) cp_toggle "$k" ;;
+	fps) v := cp_next "$XS_FPS" "$dir" "${XSS_FPSS[@]}"; XS_FPS=$v ;;
+	bg) v := cp_next "$XS_BG" "$dir" "${XSS_BGS[@]}"; XS_BG=$v ;;
+	dpi) v := cp_next "$XS_DPI" "$dir" "${XSS_DPIS[@]}"; XS_DPI=$v ;;
+	extra)
+		dt_ask "Extra Xvfb Options" "Options:" "$XS_EXTRA" cp_set_xsextra \
+			"Passed to Xvfb as typed, after the rest" "" 60
+		return 0
+		;;
 	add) xss_dialog -1; return 0 ;;
 	prog:*) xss_dialog "${k#prog:}"; return 0 ;;
 	del[0-9]*) xss_delask "${k#del}"; return 0 ;;
@@ -89,6 +164,9 @@ fn xscreenset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	max) dt_droplist "$w" "$r" "$c" cp_set_xsmax "${XSS_MAXES[@]}" ;;
 	size) dt_droplist "$w" "$r" "$c" cp_set_xssize "${XSS_SIZES[@]}" ;;
+	fps) dt_droplist "$w" "$r" "$c" cp_set_xsfps "${XSS_FPSS[@]}" ;;
+	bg) dt_droplist "$w" "$r" "$c" cp_set_xsbg "${XSS_BGS[@]}" ;;
+	dpi) dt_droplist "$w" "$r" "$c" cp_set_xsdpi "${XSS_DPIS[@]}" ;;
 	esac
 }
 
@@ -97,7 +175,7 @@ fn xscreenset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 # A program to add (k is -1) or to change: its name and command typed, its
 # window and picture chosen with left and right or a click.
 fn xss_dialog(int k) {
-	local h=13 w=66 r c rid
+	local h=24 w=70 r c rid o
 
 	dt_dlgat "$h" "$w"
 	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
@@ -115,6 +193,11 @@ fn xss_dialog(int k) {
 		XSF[$rid]["pic"]=${XSP_PIC[$k]}
 		XSF[$rid]["end"]=${XSP_END[$k]:-default}
 	fi
+	for o in "${XSS_OKEYS[@]}"; do
+		XSF[$rid]["o_$o"] := xsf_popt "$k" "$o"
+	done
+	XSF[$rid]["extra"]=
+	[ "$k" -ge 0 ] && XSF[$rid]["extra"]=${XSP_EXTRA[$k]}
 	XSF[$rid]["cur"]=${#XSF[$rid]["name"]}
 	XSF[$rid]["focus"]=name
 }
@@ -122,10 +205,12 @@ fn xss_dialog(int k) {
 # The places tab moves through, in order: Delete only for a program that
 # is there to delete.
 fn xsf_order(int id) {
+	local o="name cmd win pic end o_fps o_size o_bg o_dpi o_cursor o_noreset"
+	o="$o o_xinerama o_render o_composite o_dbe o_xvideo o_glx extra smooth light"
 	if [ "${XSF[$id]["k"]}" -ge 0 ]; then
-		ret "name cmd win pic end ok del cancel"
+		ret "$o ok del cancel"
 	else
-		ret "name cmd win pic end ok cancel"
+		ret "$o ok cancel"
 	fi
 }
 
@@ -159,10 +244,33 @@ fn xsfield_draw(int id, int h, int w, int row, int col) {
 	dt_wdrop "$id" 7 16 12 "${XSF[$id]["end"]}" end
 	console pen "$DT_DIM" "$DT_FACE"
 	case ${XSF[$id]["win"]} in
-	fit) dt_tput "$id" 9 2 "Fills the window, 1:1, and follows it when it is resized." ;;
-	fixed) dt_tput "$id" 9 2 "A screen of Fixed Size, scaled into the window." ;;
-	*) dt_tput "$id" 9 2 "As the program places itself: for a window manager." ;;
+	fit) dt_tput "$id" 8 2 "Fills the window, 1:1, and follows it when it is resized." ;;
+	fixed) dt_tput "$id" 8 2 "A screen of Fixed Size, scaled into the window." ;;
+	*) dt_tput "$id" 8 2 "As the program places itself: for a window manager." ;;
 	esac
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 10 2 "The screen -- Default is Control Panel > X Screen > Defaults:"
+	xsf_drop "$id" 11 2 "Frames:" 12 o_fps "$f"
+	xsf_drop "$id" 11 34 "Screen:" 12 o_size "$f"
+	xsf_drop "$id" 12 2 "Background:" 12 o_bg "$f"
+	xsf_drop "$id" 12 34 "DPI:" 12 o_dpi "$f"
+	xsf_drop "$id" 13 2 "Pointer:" 12 o_cursor "$f"
+	xsf_drop "$id" 13 34 "Keep Up:" 12 o_noreset "$f"
+	dt_tput "$id" 15 2 "Extensions:"
+	xsf_drop "$id" 16 2 "XINERAMA" 9 o_xinerama "$f"
+	xsf_drop "$id" 16 24 "RENDER" 9 o_render "$f"
+	xsf_drop "$id" 16 46 "Composite" 9 o_composite "$f"
+	xsf_drop "$id" 17 2 "DOUBLE-BUFFER" 9 o_dbe "$f"
+	xsf_drop "$id" 17 24 "XVideo" 9 o_xvideo "$f"
+	xsf_drop "$id" 17 46 "GLX" 9 o_glx "$f"
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 19 2 "Extra:"
+	on=0; cur=0
+	[ "$f" = extra ] && { on=1; cur=${XSF[$id]["cur"]}; }
+	dt_textdraw "$id" 19 12 $((w - 14)) "${XSF[$id]["extra"]}" "$cur" "$on"
+	dt_wreg "$id" 19 12 $((w - 14)) extra
+	dt_tput "$id" 21 2 "Set for:"
+	dt_buttons "$id" 21 12 "$f" smooth Smoothest light Lightest
 	if [ "${XSF[$id]["k"]}" -ge 0 ]; then
 		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Delete cancel Cancel
 	else
@@ -170,23 +278,91 @@ fn xsfield_draw(int id, int h, int w, int row, int col) {
 	fi
 }
 
+# One labelled choice of the screen's: its label, then its value as a drop.
+fn xsf_drop(int id, int r, int c, label, int w, tag, f) {
+	local t n
+
+	console pen "$DT_INK" "$DT_FACE"
+	t := dt_tr "$label"
+	n := str width "$t"
+	console put -p "w$id" "$r" "$c" "$t"
+	[ "$f" = "$tag" ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" "$r" $((c + n + 1)) "$w" "${XSF[$id]["$tag"]}" "$tag"
+	console pen "$DT_INK" "$DT_FACE"
+	return 0
+}
+
+# A program's own value for an option, from its kept "key=value;..." --
+# default when it has none, and for a new program.
+fn xsf_popt(int k, key) {
+	local o v
+
+	[ "$k" -ge 0 ] || { ret default; return 0; }
+	o=";${XSP_OPT[$k]};"
+	case $o in
+	*";$key="*) v=${o#*";$key="}; v=${v%%;*} ;;
+	*) ret default; return 0 ;;
+	esac
+	case $key in
+	cursor | noreset | xinerama | render | composite | dbe | xvideo | glx)
+		[ "$v" = 1 ] && v=on
+		[ "$v" = 0 ] && v=off
+		;;
+	esac
+	ret "$v"
+}
+
+# What one of the dialog's choices may be.
+fn xsf_choices(field) {
+	case $field in
+	win) XSF_LIST=("${XSS_WINS[@]}") ;;
+	pic) XSF_LIST=("${XSS_PICS[@]}") ;;
+	end) XSF_LIST=("${XSS_ENDS[@]}") ;;
+	o_fps) XSF_LIST=(default "${XSS_FPSS[@]}") ;;
+	o_size) XSF_LIST=(default "${XSS_SIZES[@]}") ;;
+	o_bg) XSF_LIST=("${XSS_BGS[@]}") ;;
+	o_dpi) XSF_LIST=("${XSS_DPIS[@]}") ;;
+	o_*) XSF_LIST=("${XSS_TRI[@]}") ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+declare -ga XSF_LIST
+
 # Step one of the choices on, or back.
 fn xsf_cycle(int id, field, int dir) {
 	local v
 
-	case $field in
-	win) v := cp_next "${XSF[$id]["win"]}" "$dir" "${XSS_WINS[@]}" ;;
-	pic) v := cp_next "${XSF[$id]["pic"]}" "$dir" "${XSS_PICS[@]}" ;;
-	end) v := cp_next "${XSF[$id]["end"]}" "$dir" "${XSS_ENDS[@]}" ;;
-	*) return 0 ;;
-	esac
+	xsf_choices "$field" || return 0
+	v := cp_next "${XSF[$id]["$field"]}" "$dir" "${XSF_LIST[@]}"
 	XSF[$id]["$field"]=$v
+}
+
+# The two presets, measured on Gitea #404: Smoothest plays at thirty frames
+# a second; Lightest keeps today's fourteen in half blocks, the fewest bytes
+# and the least CPU. Each writes the dialog's own rows once, which stay
+# what is kept.
+fn xsf_preset(int id, which) {
+	if [ "$which" = smooth ]; then
+		XSF[$id]["o_fps"]=30
+	else
+		XSF[$id]["o_fps"]=14
+		XSF[$id]["pic"]=half
+	fi
+	return 0
 }
 
 # The dropdowns' callbacks: the dialog's id comes back as the first word.
 fn xsf_setwin(int id, value = "") { XSF[$id]["win"]=$value; }
 fn xsf_setpic(int id, value = "") { XSF[$id]["pic"]=$value; }
 fn xsf_setend(int id, value = "") { XSF[$id]["end"]=$value; }
+# The choice a screen row's list was opened for, set to what was chosen.
+fn xsf_setdrop(int id, value = "") {
+	local f=${XSF[$id]["drop"]}
+
+	[ -n "$f" ] && XSF[$id]["$f"]=$value
+	return 0
+}
 
 # Keep the program: a name no other program has, and a command. A tab or
 # a new line in either would break the file's lines, so they become spaces.
@@ -214,8 +390,25 @@ fn xsfield_ok(int id) {
 	XSP_WIN[$k]=${XSF[$id]["win"]}
 	XSP_PIC[$k]=${XSF[$id]["pic"]}
 	XSP_END[$k]=${XSF[$id]["end"]}
+	XSP_OPT[$k] := xsf_opts "$id"
+	cm=${XSF[$id]["extra"]}
+	XSP_EXTRA[$k]=${cm//[$'\t\n']/ }
 	xsf_store
 	dt_del "$id"
+}
+
+# The dialog's choices as the list keeps them: only what is not default.
+fn xsf_opts(int id) {
+	local o v out=
+
+	for o in "${XSS_OKEYS[@]}"; do
+		v=${XSF[$id]["o_$o"]}
+		[ "$v" = default ] && continue
+		[ "$v" = on ] && v=1
+		[ "$v" = off ] && v=0
+		out="$out;$o=$v"
+	done
+	ret "${out#;}"
 }
 
 # Delete the program, after asking.
@@ -256,7 +449,7 @@ xss_delok() {
 # Take program k off the list, then save it and put the menu right.
 fn xss_remove(int k) {
 	local i
-	local -a n c w p e
+	local -a n c w p e o x
 
 	for i in "${!XSP_NAME[@]}"; do
 		[ "$i" = "$k" ] && continue
@@ -265,12 +458,16 @@ fn xss_remove(int k) {
 		w+=("${XSP_WIN[$i]}")
 		p+=("${XSP_PIC[$i]}")
 		e+=("${XSP_END[$i]:-default}")
+		o+=("${XSP_OPT[$i]}")
+		x+=("${XSP_EXTRA[$i]}")
 	done
 	XSP_NAME=("${n[@]}")
 	XSP_CMD=("${c[@]}")
 	XSP_WIN=("${w[@]}")
 	XSP_PIC=("${p[@]}")
 	XSP_END=("${e[@]}")
+	XSP_OPT=("${o[@]}")
+	XSP_EXTRA=("${x[@]}")
 	xsf_store
 }
 
@@ -286,10 +483,17 @@ fn xsfield_click(int id, int r, int c, btn = "") {
 
 	tag := dt_hit "$id" "$r" "$c"
 	case $tag in
-	name | cmd)
+	name | cmd | extra)
 		XSF[$id]["focus"]=$tag
 		XSF[$id]["cur"]=${#XSF[$id]["$tag"]}
 		;;
+	o_*)
+		XSF[$id]["focus"]=$tag
+		xsf_choices "$tag"
+		XSF[$id]["drop"]=$tag
+		dt_droplist "$id" "$r" "$c" xsf_setdrop "${XSF_LIST[@]}"
+		;;
+	smooth | light) xsf_preset "$id" "$tag" ;;
 	win) XSF[$id]["focus"]=win
 		dt_droplist "$id" "$r" "$c" xsf_setwin "${XSS_WINS[@]}" ;;
 	pic) XSF[$id]["focus"]=pic
@@ -307,13 +511,13 @@ fn xsfield_key(int id, key) {
 	local res f=${XSF[$id]["focus"]} d onb=1 ord
 	local -a o
 
-	case $f in name | cmd) onb=0 ;; esac
+	case $f in name | cmd | extra) onb=0 ;; esac
 	ord := xsf_order "$id"
 	read -ra o <<< "$ord"
 	if d := dt_focuskey "$key" "$onb"; then
 		XSF[$id]["focus"] := dt_focus "$f" "$d" "${o[@]}"
 		f=${XSF[$id]["focus"]}
-		case $f in name | cmd) XSF[$id]["cur"]=${#XSF[$id]["$f"]} ;; esac
+		case $f in name | cmd | extra) XSF[$id]["cur"]=${#XSF[$id]["$f"]} ;; esac
 		return 0
 	fi
 	case $key in
@@ -322,21 +526,22 @@ fn xsfield_key(int id, key) {
 		case $f in
 		cancel) dt_del "$id" ;;
 		del) xsfield_del "$id" ;;
-		win | pic | end) xsf_cycle "$id" "$f" 1 ;;
+		win | pic | end | o_*) xsf_cycle "$id" "$f" 1 ;;
+		smooth | light) xsf_preset "$id" "$f" ;;
 		*) xsfield_ok "$id" ;;
 		esac
 		return 0
 		;;
 	esac
 	case $f in
-	win | pic | end)
+	win | pic | end | o_*)
 		case $key in
 		left) xsf_cycle "$id" "$f" -1 ;;
 		right | " ") xsf_cycle "$id" "$f" 1 ;;
 		esac
 		return 0
 		;;
-	name | cmd) ;;
+	name | cmd | extra) ;;
 	*) return 0 ;;
 	esac
 	res := dt_textkey "${XSF[$id]["$f"]}" "${XSF[$id]["cur"]}" "$key" ||

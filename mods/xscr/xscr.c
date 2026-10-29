@@ -108,13 +108,34 @@ void xs_srvdrop(pid_t pid, int kill_it)
    them. Elsewhere it is ended by xs_fini as the shell exits. The signals
    the desktop ignores or handles go back to their defaults, since an
    ignored one survives exec. */
-pid_t xs_start(int n, const char *size, const char *dir)
+pid_t xs_start(int n, const char *size, const char *dir, char **extra,
+		 int nextra)
 {
-	int fd, sig;
+	int fd, sig, i;
 	pid_t pid, me = getpid();
 	sigset_t none;
-	char dn[32], scr[64];
+	str dn, scr, err;
+	vec av;
 
+	s_init(&dn);
+	s_init(&scr);
+	s_init(&err);
+	memset(&av, 0, sizeof av);
+	s_fmt(&dn, ":%d", n);
+	s_fmt(&scr, "%sx24", size);
+	s_fmt(&err, "%s/xvfb.err", dir);
+	v_add(&av, "Xvfb");
+	v_add(&av, dn.p);
+	v_add(&av, "-screen");
+	v_add(&av, "0");
+	v_add(&av, scr.p);
+	v_add(&av, "-fbdir");
+	v_add(&av, (char *)dir);
+	v_add(&av, "-nolisten");
+	v_add(&av, "tcp");
+	for (i = 0; i < nextra; i++)
+		v_add(&av, extra[i]);
+	v_add(&av, 0);
 	fflush(0);
 	pid = fork();
 	if (pid < 0)
@@ -135,15 +156,18 @@ pid_t xs_start(int n, const char *size, const char *dir)
 		if (fd >= 0) {
 			dup2(fd, 0);
 			dup2(fd, 1);
-			dup2(fd, 2);
 		}
-		snprintf(dn, sizeof dn, ":%d", n);
-		snprintf(scr, sizeof scr, "%sx24", size);
-		execlp("Xvfb", "Xvfb", dn, "-screen", "0", scr, "-fbdir", dir,
-		       "-nolisten", "tcp", (char *)0);
+		fd = open(err.p, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+		if (fd >= 0)
+			dup2(fd, 2);
+		execvp("Xvfb", (char **)av.p);
 		_exit(127);
 	}
 	(void)me;
+	free(av.p);
+	s_free(&dn);
+	s_free(&scr);
+	s_free(&err);
 	v_add(&xs_srvs, (void *)(intptr_t)pid);
 	lg(HIBR_LDBG, "xscr: Xvfb :%d started, pid %d", n, (int)pid);
 	return pid;
@@ -805,6 +829,26 @@ void xs_sync(xs_scr *x)
 	s_free(&r);
 }
 
+/* Paint the root window one colour, rgb as 0xRRGGBB: its background
+   pixel, in the screen's own masks, and the whole of it cleared to that. */
+void xs_rootbg(xs_scr *x, unsigned rgb)
+{
+	unsigned v[3], px;
+
+	px = ((((rgb >> 16) & 0xff) << x->rsh) & x->rmask) |
+	     ((((rgb >> 8) & 0xff) << x->gsh) & x->gmask) |
+	     (((rgb & 0xff) << x->bsh) & x->bmask);
+	v[0] = x->root;
+	v[1] = 1u << 1;
+	v[2] = px;
+	xs_simple(x, 2, 0, v, 3);
+	v[1] = 0;
+	v[2] = 0;
+	xs_simple(x, 61, 0, v, 3);
+	xs_sync(x);
+	lg(HIBR_LDBG, "xscr: root painted #%06x", rgb);
+}
+
 /* Become the screen's window manager: the root's SubstructureRedirect,
    which only one client may hold. Another one already holding it -- a
    window manager the person started on this screen -- answers BadAccess,
@@ -1381,7 +1425,7 @@ void xs_say(sh *s, const char *t)
 
 void xs_usage(void)
 {
-	lg(HIBR_LERR, "usage: xscr start N WxH DIR | stop PID | open N FILE [PID] | "
+	lg(HIBR_LERR, "usage: xscr start N WxH DIR [ARG...] | root ID #rrggbb | stop PID | open N FILE [PID] | "
 		      "fd|poll|dirty|seen|size|manage|title|windows|close ID | fit ID W H | "
 		      "draw ID row col h w [-p pane] [-m pixels|half] [-c] | "
 		      "key ID name | type ID text | move ID x y | "
@@ -1436,7 +1480,7 @@ int m_xscr(sh *s, int ac, char **av)
 			return 2;
 		}
 		pid = xs_start(atoi(av[2][0] == ':' ? av[2] + 1 : av[2]), av[3],
-			       av[4]);
+			       av[4], av + 5, ac - 5);
 		if (pid <= 0) {
 			lg(HIBR_LERR, "xscr start: Xvfb could not be started");
 			return HIBR_FAIL;
@@ -1507,6 +1551,23 @@ int m_xscr(sh *s, int ac, char **av)
 	}
 	/* Become the screen's window manager: 0 when this is, 1 when a window
 	   manager of the person's own already is (Gitea #291). */
+	if (!strcmp(sub, "root")) {
+		unsigned rgb;
+		const char *c;
+
+		if (ac < 4 || !(x = xs_get(av[2]))) {
+			xs_usage();
+			return 2;
+		}
+		c = av[3][0] == '#' ? av[3] + 1 : av[3];
+		if (strlen(c) != 6 || strspn(c, "0123456789abcdefABCDEF") != 6) {
+			lg(HIBR_LERR, "xscr root: %s: not a colour, #rrggbb", av[3]);
+			return 2;
+		}
+		rgb = (unsigned)strtoul(c, 0, 16);
+		xs_rootbg(x, rgb);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "manage")) {
 		if (xs_manage(x) != HIBR_OK)
 			return HIBR_FAIL;

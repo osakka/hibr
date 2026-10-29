@@ -386,5 +386,82 @@ s, m, l = ending("sh -c '%s &'" % py, "close", "0", "own")
 check("and the same for a program left to place itself, asked of the X server",
       s and m and not l, (s, m, l))
 
+# A program's screen options (Gitea #404): defaults in the pane, its own
+# in the list's sixth field ("key=value;..." with only what differs) and
+# its extra flags in the seventh -- read back, turned into Xvfb's flags,
+# and set by the two presets.
+progs(("Opt", "true", "fixed", "half", "default",
+       "fps=30;dpi=120;cursor=0;xvideo=0", "-ac"), ("Old", "true", "fit", "follow"))
+out, err = hb(
+    "XS_LIST=%s\n. %s\n. %s\n. %s\n. %s\n"
+    "xs_args 0; echo \"args0=${XS_ARGS[*]}\"\n"
+    "xs_args 1; echo \"args1=[${XS_ARGS[*]}]\"\n"
+    "XS_GLX=0; XS_EXTRA='-dpi 72'; xs_args 1; echo \"glx=${XS_ARGS[*]}\"\n"
+    "v := xs_optval 0 fps; w := xs_optval 1 fps; echo \"fps=$v/$w\"\n"
+    "xs_setopt 0 dpi default; xs_setopt 0 bg '#336699'; echo \"opt=${XSP_OPT[0]}\"\n"
+    "xs_save; echo \"line=$(sed -n 2p %s)\"\n"
+    "declare -gA XSF; XSF[9][pic]=follow; xsf_preset 9 smooth; a=${XSF[9][o_fps]}\n"
+    "xsf_preset 9 light; echo \"presets=$a/${XSF[9][o_fps]}/${XSF[9][pic]}\"\n"
+    "declare -gA CP; n := xscreenset_rows 41; for ((i = 0; i < n; i++)); do t+=\"${CP[41][$i][text]}|\"; done\n"
+    "echo \"rows=$t\"\n"
+    % (LIST, tree("programs/desktop/desktop.hibr"),
+       tree("programs/desktop/apps/xscreen.hibr"),
+       tree("programs/desktop/system/panel.hibr"),
+       tree("programs/desktop/control-panel/xscreenset.hibr"), LIST))
+check("a program's own options become Xvfb's flags, and the extra ones go last",
+      "args0=-nocursor -dpi 120 -extension XVideo -ac" in out and "args1=[]" in out
+      and "glx=-extension GLX -dpi 72" in out, out + err)
+check("what a program does not set follows the pane's default",
+      "fps=30/follow" in out, out + err)
+check("the list keeps a program's options and extra flags, and an old line still reads",
+      "opt=fps=30;cursor=0;xvideo=0;bg=#336699" in out and
+      "line=Old\ttrue\tfit\tfollow\tdefault\t-\t-" in out, out + err)
+check("Smoothest sets thirty frames a second, Lightest fourteen in half blocks, "
+      "and the pane has the defaults for every option",
+      "presets=30/14/half" in out and "|Defaults|Frames a Second|Background|" in out
+      and "|GLX|Extra Xvfb Options" in out, out + err)
+
+# And the same in a running desktop: the flags on the server's own command
+# line, the frame rate the window paces itself at, the background read back
+# from the screen's own framebuffer, and a flag Xvfb refuses named.
+SEEN = os.path.join(D, "opts-state.txt")
+
+
+def optdesk(opts, extra):
+    progs(("Opt", "sleep 30", "fixed", "half", "default", opts, extra))
+    t = desk("dt_optprobe() { echo \"ms=${XS[$XSID][ms]} x=${XS[$XSID][x]} "
+             "dir=${XS[$XSID][dir]} err=${XS[$XSID][err]}\" > %s; }\n"
+             "DT_TICKERS+=(dt_optprobe)" % SEEN)
+    st = {}
+    for _ in range(60):
+        t.collect(0.1)
+        if os.path.exists(SEEN):
+            st = dict(f.split("=", 1) for f in open(SEEN).read().split(" ") if "=" in f)
+            if st.get("x") or st.get("err", "").strip():
+                break
+    return t, st
+
+
+t, st = optdesk("fps=30;bg=#336699;dpi=120;cursor=0;xvideo=0", "-")
+cmd = next((l for l in xvfbs() if "-dpi" in l), "")
+pix = ""
+fb = os.path.join(st.get("dir", "").strip(), "Xvfb_screen0")
+time.sleep(0.5)
+if os.path.exists(fb):
+    import struct
+    d = open(fb, "rb").read()
+    off = struct.unpack(">I", d[0:4])[0] + struct.unpack(">I", d[76:80])[0] * 12
+    pix = d[off + 4 * (10 * 640 + 10):off + 4 * (10 * 640 + 10) + 3].hex()
+t.quit(None, 0.5)
+check("the program's options reach its server", "-nocursor -dpi 120 -extension XVideo" in cmd, cmd)
+check("and its window paces itself at the program's thirty frames a second",
+      st.get("ms") == "33", st)
+check("and its root is painted the colour it asked for", pix == "996633", (pix, st))
+t, st = optdesk("-", "-nosuchflag")
+sc = t.until("Unrecognized option", tries=60)
+t.quit(None, 0.5)
+check("a flag Xvfb refuses is named in the window, in Xvfb's own words",
+      sc.find("Xvfb did not start: Unrecognized option: -nosuchflag") is not None, sc)
+
 shutil.rmtree(D, True)
-report(25)
+report(33)

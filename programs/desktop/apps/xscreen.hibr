@@ -32,7 +32,7 @@
 strict
 
 
-app xscreen "X11 programs in windows of their own" 1.7
+app xscreen "X11 programs in windows of their own" 1.8
 # modules: xscr
 # part: control-panel/xscreenset.hibr
 command -v dt_app > /dev/null &&
@@ -44,6 +44,38 @@ XS_SIZE="${XS_SIZE-1280x800}"
 XS_MAX="${XS_MAX-1920x1080}"
 XS_CLOSEEND="${XS_CLOSEEND-0}"
 command -v dt_keep > /dev/null && dt_keep XS_SIZE XS_MAX XS_CLOSEEND
+
+# What every program's screen gets unless the program says otherwise
+# (Gitea #404): frames a second (follow is Frames For Output), the
+# background colour painted on the root (default leaves Xvfb's own), the
+# pointer Xvfb draws, its dots per inch, whether it stays up after its last
+# client goes, which of six extensions it offers, and anything else for
+# Xvfb as typed. A program keeps its own in XSP_OPT, "key=value;..." with
+# only what differs from these, and its extra flags in XSP_EXTRA.
+XS_FPS="${XS_FPS-follow}"
+XS_BG="${XS_BG-default}"
+XS_CURSOR="${XS_CURSOR-1}"
+XS_DPI="${XS_DPI-default}"
+XS_NORESET="${XS_NORESET-0}"
+XS_XINERAMA="${XS_XINERAMA-1}"
+XS_RENDER="${XS_RENDER-1}"
+XS_COMPOSITE="${XS_COMPOSITE-1}"
+XS_DBE="${XS_DBE-1}"
+XS_XVIDEO="${XS_XVIDEO-1}"
+XS_GLX="${XS_GLX-1}"
+XS_EXTRA="${XS_EXTRA-}"
+command -v dt_keep > /dev/null && dt_keep XS_FPS XS_BG XS_CURSOR XS_DPI \
+	XS_NORESET XS_XINERAMA XS_RENDER XS_COMPOSITE XS_DBE XS_XVIDEO XS_GLX XS_EXTRA
+# The option keys a program may set, each with the variable holding its
+# default; the extensions with the name Xvfb knows each by.
+declare -gA XS_OPTVAR XS_EXTNAME
+XS_OPTVAR=([fps]=XS_FPS [size]=XS_SIZE [bg]=XS_BG [cursor]=XS_CURSOR
+	[dpi]=XS_DPI [noreset]=XS_NORESET [xinerama]=XS_XINERAMA
+	[render]=XS_RENDER [composite]=XS_COMPOSITE [dbe]=XS_DBE
+	[xvideo]=XS_XVIDEO [glx]=XS_GLX)
+XS_EXTNAME=([xinerama]=XINERAMA [render]=RENDER [composite]=Composite
+	[dbe]=DOUBLE-BUFFER [xvideo]=XVideo [glx]=GLX)
+XS_EXTS=(xinerama render composite dbe xvideo glx)
 
 # The programs, as the file holds them: a name, a command, a window, a
 # picture and what happens when it ends (Gitea #308: default, close or
@@ -57,20 +89,24 @@ XSP_CMD=()
 XSP_WIN=()
 XSP_PIC=()
 XSP_END=()
+XSP_OPT=()
+XSP_EXTRA=()
 
 # Read the list. A line with a field missing is passed over; no field is
 # ever written empty, since a tab is IFS whitespace and an empty middle
 # field would shift the rest.
 xs_load() {
-	local n c w p e
+	local n c w p e o x
 
 	XSP_NAME=()
 	XSP_CMD=()
 	XSP_WIN=()
 	XSP_PIC=()
 	XSP_END=()
+	XSP_OPT=()
+	XSP_EXTRA=()
 	[ -r "$XS_LIST" ] || return 0
-	while IFS=$'\t' read -r n c w p e; do
+	while IFS=$'\t' read -r n c w p e o x; do
 		[ -n "$n" ] && [ -n "$c" ] || continue
 		case $w in fit | fixed | own) ;; *) w=fit ;; esac
 		case $p in follow | half | pixels) ;; *) p=follow ;; esac
@@ -80,6 +116,10 @@ xs_load() {
 		XSP_WIN+=("$w")
 		XSP_PIC+=("$p")
 		XSP_END+=("$e")
+		[ "$o" = - ] && o=
+		[ "$x" = - ] && x=
+		XSP_OPT+=("$o")
+		XSP_EXTRA+=("$x")
 	done < "$XS_LIST"
 	return 0
 }
@@ -91,8 +131,9 @@ xs_save() {
 	mkdir -p "${XS_LIST%/*}" 2> /dev/null
 	{
 		for i in "${!XSP_NAME[@]}"; do
-			printf '%s\t%s\t%s\t%s\t%s\n' "${XSP_NAME[$i]}" "${XSP_CMD[$i]}" \
-				"${XSP_WIN[$i]}" "${XSP_PIC[$i]}" "${XSP_END[$i]:-default}"
+			printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${XSP_NAME[$i]}" "${XSP_CMD[$i]}" \
+				"${XSP_WIN[$i]}" "${XSP_PIC[$i]}" "${XSP_END[$i]:-default}" \
+				"${XSP_OPT[$i]:--}" "${XSP_EXTRA[$i]:--}"
 		done
 	} > "$tmp" && command mv -f -- "$tmp" "$XS_LIST"
 }
@@ -109,6 +150,63 @@ xs_register() {
 		dt_appvia "xscreen:$i" "${XSP_NAME[$i]}" xscreen \
 			"${XSP_NAME[$i]}" "Applications/X Screen"
 	done
+	return 0
+}
+
+# A program's own value for an option key, or default when it has none.
+fn xs_popt(int k, key) {
+	local o=";${XSP_OPT[$k]};" v
+
+	case $o in
+	*";$key="*) v=${o#*";$key="}; ret "${v%%;*}" ;;
+	*) ret default ;;
+	esac
+}
+
+# What an option comes to for program k: its own, or the pane's default.
+fn xs_optval(int k, key) {
+	local v vn=${XS_OPTVAR["$key"]}
+
+	v := xs_popt "$k" "$key"
+	[ "$v" = default ] && v=${!vn}
+	ret "$v"
+}
+
+# Set or clear (default) program k's own value for a key.
+fn xs_setopt(int k, key, val) {
+	local out= f
+	local -a parts
+
+	IFS=';' read -ra parts <<< "${XSP_OPT[$k]}"
+	for f in "${parts[@]}"; do
+		[ -n "$f" ] || continue
+		[ "${f%%=*}" = "$key" ] && continue
+		out="$out;$f"
+	done
+	[ "$val" = default ] || out="$out;$key=$val"
+	XSP_OPT[$k]=${out#;}
+	return 0
+}
+
+# The Xvfb flags program k's screen starts with, into XS_ARGS.
+declare -ga XS_ARGS
+fn xs_args(int k) {
+	local v e
+	local -a x
+
+	XS_ARGS=()
+	v := xs_optval "$k" cursor
+	[ "$v" = 0 ] && XS_ARGS+=(-nocursor)
+	v := xs_optval "$k" dpi
+	[ "$v" = default ] || XS_ARGS+=(-dpi "$v")
+	v := xs_optval "$k" noreset
+	[ "$v" = 1 ] && XS_ARGS+=(-noreset)
+	for e in "${XS_EXTS[@]}"; do
+		v := xs_optval "$k" "$e"
+		[ "$v" = 0 ] && XS_ARGS+=(-extension "${XS_EXTNAME["$e"]}")
+	done
+	read -ra x <<< "$XS_EXTRA ${XSP_EXTRA[$k]}"
+	XS_ARGS+=("${x[@]}")
 	return 0
 }
 
@@ -170,7 +268,7 @@ fn xs_run(int id, cmd) {
 # desktop takes the screen and the programs on it with it, where a job
 # would run on after the desktop had gone.
 fn xscreen_open(int id, arg = "") {
-	local n dir srv= i k=-1 sz
+	local n dir srv= i k=-1 sz v
 
 	for i in "${!XSP_NAME[@]}"; do
 		[ "${XSP_NAME[$i]}" = "$arg" ] && { k=$i; break; }
@@ -192,13 +290,18 @@ fn xscreen_open(int id, arg = "") {
 		XS[$id]["err"]="The xscr module is not installed"
 		return 0
 	}
-	sz=$XS_SIZE
+	sz := xs_optval "$k" size
 	[ "${XS[$id]["win"]}" = fit ] && sz=$XS_MAX
+	v := xs_optval "$k" fps
+	XS[$id]["ms"]=
+	[ "$v" = follow ] || XS[$id]["ms"]=$((1000 / v))
+	XS[$id]["bg"] := xs_optval "$k" bg
+	xs_args "$k"
 	xs_sweep
 	n := xs_free
 	dir="${XDG_RUNTIME_DIR:-/tmp}/hibr-xscreen-$$-$id"
 	mkdir -p "$dir" 2> /dev/null
-	srv := xscr start "$n" "$sz" "$dir" 2> /dev/null
+	srv := xscr start "$n" "$sz" "$dir" "${XS_ARGS[@]}" 2> /dev/null
 	XS[$id]["n"]=$n
 	XS[$id]["dir"]=$dir
 	XS[$id]["srv"]=$srv
@@ -228,9 +331,44 @@ fn xs_connect(int id) {
 	if [ "${XS[$id]["win"]}" = fit ] && ! xscr manage "$x" 2> /dev/null; then
 		XS[$id]["win"]=own
 	fi
+	xs_paint "$id"
 	[ -n "${XS[$id]["run"]}" ] && xs_run "$id" "${XS[$id]["run"]}"
 	XS[$id]["run"]=
 	return 0
+}
+
+# The background a program asked for, painted on its screen's root: a
+# name or #rrggbb, or the desktop's own face colour; default leaves Xvfb's.
+fn xs_paint(int id) {
+	local c=${XS[$id]["bg"]} x=${XS[$id]["x"]}
+
+	case $c in
+	default | "") return 0 ;;
+	black) c="#000000" ;;
+	white) c="#ffffff" ;;
+	grey) c="#808080" ;;
+	desktop) c=${DT_FACE:-#000000} ;;
+	esac
+	xscr root "$x" "$c" 2> /dev/null
+	return 0
+}
+
+# Whether a server has ended: no process, or one exited and not yet reaped.
+fn xs_srvgone(int p) {
+	local a b st
+
+	[ -r "/proc/$p/stat" ] || return 0
+	read -r a b st _ < "/proc/$p/stat" 2> /dev/null || return 0
+	[ "$st" = Z ]
+}
+
+# Why the server is not there: Xvfb's own first complaint, as it wrote it.
+fn xs_why(int id) {
+	local f="${XS[$id]["dir"]}/xvfb.err" l
+
+	[ -s "$f" ] || { ret "Xvfb did not start"; return 0; }
+	read -r l < "$f"
+	ret "Xvfb did not start: $l"
 }
 
 # What a cell measures in the screen's pixels: the terminal's own when
@@ -283,8 +421,11 @@ fn xscreen_draw(int id, int h, int w, int row, int col) {
 		return 0
 	fi
 	if ! xs_connect "$id"; then
-		if [ $((EPOCHSECONDS - ${XS[$id]["t0"]:-0})) -gt 10 ]; then
-			XS[$id]["err"]="Xvfb did not start"
+		if [ $((EPOCHSECONDS - ${XS[$id]["t0"]:-0})) -gt 10 ] ||
+		   { [ -n "${XS[$id]["srv"]}" ] && [ $((EPOCHSECONDS - ${XS[$id]["t0"]:-0})) -ge 1 ] &&
+		     [ -s "${XS[$id]["dir"]}/xvfb.err" ] && ! [ -S "/tmp/.X11-unix/X${XS[$id]["n"]}" ] &&
+		     xs_srvgone "${XS[$id]["srv"]}"; }; then
+			XS[$id]["err"] := xs_why "$id"
 		else
 			t := dt_tr "Starting the X screen…"
 			console put -p "w$id" 2 2 "$t"
@@ -399,7 +540,7 @@ fn xscreen_dirty(int id) {
 	[ "$st" = 2 ] && { XS[$id]["err"]="The X screen has ended"; return 0; }
 	if [ "$st" = 0 ]; then
 		now := dt_ms
-		left=$((${XS[$id]["at"]:-0} + ${DT_TERMMS:-70} - now))
+		left=$((${XS[$id]["at"]:-0} + ${XS[$id]["ms"]:-${DT_TERMMS:-70}} - now))
 		if [ "$left" -gt 0 ]; then
 			dt_want "$left"
 			return 1

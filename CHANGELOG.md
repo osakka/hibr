@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.99.373
+
+**X Screen's options, per program and with defaults** (Gitea #404).
+Control Panel > X Screen has a Defaults section, and each program's dialog
+has the same rows, each starting at Default:
+
+- frames a second;
+- the screen's size;
+- a background colour, painted on the root by the xscr module, since Xvfb
+  itself has only black and white;
+- dots per inch;
+- the pointer Xvfb draws;
+- keeping the server up after its last client;
+- six extension switches: XINERAMA, RENDER, Composite, DOUBLE-BUFFER,
+  XVideo, GLX;
+- extra Xvfb flags, passed as typed.
+
+A flag Xvfb refuses is named in the window in its own words (*Xvfb did
+not start: Unrecognized option: ...*). The program list keeps a program's
+options in two new fields at the end of its line, so an old line still
+reads.
+
+**Smoothest and Lightest**, two buttons in a program's dialog. They write
+its rows once and keep nothing of their own. Both come from measurements,
+recorded on #404:
+
+- Smoothest is 30 frames a second. That plays a video at its own rate and
+  costs the desktop about 4 points more of a core than the old 14.
+- Lightest is 14 a second in half blocks, the fewest bytes and the least
+  CPU.
+
+The same measurements found that Xvfb's own flags change nothing about
+speed: the server stays at 1-2% of a core whichever are set. So they are
+there for control, not speed. And software GL already uses every core by
+default, so there is no row for its threads.
+
+The X Screen app and its pane need this release, since an older xscr
+module drops the extra flags without saying so. In pixels, sending only the
+rectangles that changed waits on Blit 0.3.1.
+
 ## 0.99.372
 
 **`read -t` keeps its deadline on a descriptor that never ends, and `read`
