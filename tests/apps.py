@@ -343,7 +343,7 @@ def folderlook():
         'dt_glyphs blit; FB[7][isz]=double; FB[7][icol]=classic\n'
         'for ((i = 0; i < ${FB[7][n]}; i++)); do [ "${FL[7][$i][name]}" = b.png ] && k=$i; done\n'
         'g := fb_glyph 7 $k; printf "big=%%s\\n" "$g" | od -An -c | tr -d " \\n"; echo\n'
-        'FB[7][icol]=blue; g := fb_glyph 7 $k; [ "$g" = "${GL[fimage]}" ] && echo blue-ok\n'
+        'FB[7][icol]=blue; g := fb_glyph 7 $k; [ "$g" = "${GL[fpng]}" ] && echo blue-ok\n'
         'g := fb_glyph 7 0; [ "$g" = "${GL[ffolder_blue]}" ] && echo folder-blue\n'
         'g := fb_glyph 7 $k small; [ "$g" = "${GL[file]}" ] && echo small-ok\n'
         'dt_retitle() { echo "title $2"; }; dt_wintitle() { ret "$1 [$2]"; }\n'
@@ -354,17 +354,17 @@ def folderlook():
         capture_output=True, text=True, env=dict(os.environ, XDG_STATE_HOME=fd))
     out = first.stdout + first.stderr + "\n--\n" + again.stdout + again.stderr
     check("Sort By Kind puts folders first and then files by their kind",
-          "kind: sub b.png c.pdf a.txt" in out and "name: sub a.txt b.png c.pdf" in out, out)
+          "kind: sub c.pdf b.png a.txt" in out and "name: sub a.txt b.png c.pdf" in out, out)
     check("and the folder keeps it, where a folder never sorted keeps the default",
           "sort=kind" in out and "sub=[] bg=Follow Theme" in out, out)
     check("a background's text is dark on a light colour and light on a dark one",
           "white=#ffffff #000000" in out and "dark=#2b2b33 #f0f0f0" in out
           and "theme=[]" in out, out)
-    # U+10003B and U+10003C, Blit's classic image icon, as UTF-8.
-    check("in the blit set an image is Blit's large image icon, one look whatever "
+    # U+10022D and U+10022E, Blit's PNG icon, as UTF-8.
+    check("in the blit set a PNG is Blit's large PNG icon, one look whatever "
           "the colourway, a folder in the colourway chosen, and a drag's label keeps "
           "the small glyph",
-          "big=364200200273364200200274" in out.replace(" ", "")
+          "big=364200210255364200210256" in out.replace(" ", "")
           and "blue-ok" in out and "folder-blue" in out and "small-ok" in out, out)
     check("a window's title is its folder's name by default, and the path when asked",
           "title Files [sub]" in out and "title Files [%s/sub]" % fd in out, out)

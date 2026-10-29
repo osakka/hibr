@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 3.4
+app files "A file browser" 3.5
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -117,7 +117,7 @@ FB_EXTKIND=([txt]=text [md]=md [markdown]=md [json]=json [log]=log
 	[htm]=web [html]=web [url]=web [webloc]=web [sh]=term [command]=term
 	[conf]=settings [ini]=settings [cfg]=settings [toml]=settings [yaml]=settings [yml]=settings
 	[pdf]=pdf [svg]=vector
-	[png]=image [jpg]=image [jpeg]=image [gif]=image [webp]=image [bmp]=image [ppm]=image
+	[png]=png [jpg]=jpg [jpeg]=jpg [gif]=gif [webp]=image [bmp]=image [ppm]=image
 	[mp3]=audio [ogg]=audio [flac]=audio [wav]=audio [m4a]=audio [opus]=audio
 	[mp4]=video [mkv]=video [webm]=video [mov]=video [avi]=video
 	[tar]=archive [gz]=archive [tgz]=archive [zip]=archive [xz]=archive [bz2]=archive [zst]=archive [7z]=archive

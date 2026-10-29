@@ -71,6 +71,7 @@ fn dt_glyphs(set = "unicode") {
 	GL["fsettings"]=
 	GL["fbundle"]=
 	GL["flink"]=
+	GL["fjpg"]=; GL["fpng"]=; GL["fgif"]=
 	GL["fgit"]=; GL["fgit_blue"]=; GL["fgit_green"]=; GL["fgit_amber"]=
 	GL["fconfig"]=; GL["fconfig_blue"]=; GL["fconfig_green"]=; GL["fconfig_amber"]=
 	GL["flocal"]=; GL["flocal_blue"]=; GL["flocal_green"]=; GL["flocal_amber"]=
@@ -493,5 +494,9 @@ dt_glyphsblit() {
 	GL["fshare_blue"]=$'\U00100225\U00100226' # Blit file-share-blue
 	GL["fshare_green"]=$'\U00100227\U00100228' # Blit file-share-green
 	GL["fshare_amber"]=$'\U00100229\U0010022A' # Blit file-share-amber
+	# Pictures by their format, each one look with a label (0.3.8).
+	GL["fjpg"]=$'\U0010022B\U0010022C' # Blit file-jpg
+	GL["fpng"]=$'\U0010022D\U0010022E' # Blit file-png
+	GL["fgif"]=$'\U0010022F\U00100230' # Blit file-gif
 }
 dt_glyphs "$DT_GLYPHSET"

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.99.387
+
+**JPG, PNG and GIF pictures have icons of their own** (Blit 0.3.8), each
+with its format on it, where they shared the one picture icon; WebP, BMP
+and PPM keep it. Files 3.5.
+
 ## 0.99.386
 
 **please** (Gitea #406, phase 2): sudo's job, through polkit. `please
