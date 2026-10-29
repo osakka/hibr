@@ -721,11 +721,12 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	if (hd_tm->images && (clear || wipe || cn->imgen != hd_tm->imgen(tid))) {
 		int ir, ic, irows, icols, k, n = hd_tm->images(tid), sent = 0;
 		unsigned *nid, *nhash;
-		size_t nn = 0, j;
+		size_t *nlen, nn = 0, j, from;
 		str pic;
 
 		nid = n > 0 ? xm((size_t)n * sizeof *nid) : 0;
 		nhash = n > 0 ? xm((size_t)n * sizeof *nhash) : 0;
+		nlen = n > 0 ? xm((size_t)n * sizeof *nlen) : 0;
 		s_init(&pic);
 		for (k = 0; k < n; k++) {
 			unsigned id, h;
@@ -750,22 +751,35 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				continue;
 			id = hd_imgid(pic.p, pic.n);
 			h = hd_hash(pic.p, pic.n);
+			from = 0;
 			if (id && !clear)
-				for (j = 0; j < cn->pn; j++)
-					if (cn->pid[j] == id &&
-					    cn->phash[j] == h) {
+				for (j = 0; j < cn->pn; j++) {
+					if (cn->pid[j] != id)
+						continue;
+					if (cn->phash[j] == h) {
 						had = 1;
 						break;
 					}
+					/* Edited since: what it has, then more. */
+					if (cn->plen && cn->plen[j] < pic.n &&
+					    hd_hash(pic.p, cn->plen[j]) == cn->phash[j])
+						from = cn->plen[j];
+					break;
+				}
 			if (id) {
 				nid[nn] = id;
 				nhash[nn] = h;
+				nlen[nn] = pic.n;
 				nn++;
 			}
 			if (had)
 				continue;
-			hd_goto(out, ir - cn->row, ic - cn->col);
-			s_add(out, pic.p, pic.n);
+			if (from) {
+				s_add(out, pic.p + from, pic.n - from);
+			} else {
+				hd_goto(out, ir - cn->row, ic - cn->col);
+				s_add(out, pic.p, pic.n);
+			}
 			sent++;
 		}
 		s_free(&pic);
@@ -790,8 +804,10 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		}
 		free(cn->pid);
 		free(cn->phash);
+		free(cn->plen);
 		cn->pid = nid;
 		cn->phash = nhash;
+		cn->plen = nlen;
 		cn->pn = nn;
 		cn->imgen = hd_tm->imgen(tid);
 		if (sent)

@@ -656,9 +656,19 @@ class Term:
                 return
             self.asked = m.end()
             if m.group("apc") is not None:
-                if self.caps is not None and "kitty" in self.caps and \
-                        "a=q" in m.group("apc").decode("latin1"):
-                    os.write(self.fd, b"\x1b_Gi=4201;OK\x1b\\")
+                a = m.group("apc").decode("latin1")
+                if self.caps is not None and "kitty" in self.caps:
+                    if "a=q" in a:
+                        os.write(self.fd, b"\x1b_Gi=4201;OK\x1b\\")
+                    # The edit probe (Gitea #404): a one-pixel picture sent,
+                    # then edited in place -- "kedit" among the caps is a
+                    # terminal that takes a=f,r=1, as Blit 0.3.1 does; any
+                    # other kitty refuses the edit, as an older Blit did.
+                    elif "a=t" in a and "i=4202" in a:
+                        os.write(self.fd, b"\x1b_Gi=4202;OK\x1b\\")
+                    elif "a=f" in a and "i=4202" in a:
+                        os.write(self.fd, b"\x1b_Gi=4202;OK\x1b\\" if "kedit" in self.caps
+                                 else b"\x1b_Gi=4202;EINVAL:unsupported\x1b\\")
                 continue
             if m.group("xtv") is not None:
                 # XTVERSION, as one of hibr's own emulators answers it:

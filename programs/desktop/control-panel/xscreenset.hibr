@@ -17,7 +17,7 @@
 
 strict
 
-app xscreenset "The Control Panel pane for X Screen" 1.8
+app xscreenset "The Control Panel pane for X Screen" 1.9
 command -v cp_pane > /dev/null && cp_pane xscreenset "X Screen" "▣" app
 command -v dt_app > /dev/null &&
 	dt_app xsfield "X Screen Program" 26 70 "" "" fixed hidden
@@ -42,9 +42,10 @@ XS_GLX="${XS_GLX-1}"
 XS_EXTRA="${XS_EXTRA-}"
 XS_KEYS="${XS_KEYS-0}"
 XS_REL="${XS_REL-0}"
+XS_OWNPTR="${XS_OWNPTR-1}"
 command -v dt_keep > /dev/null && dt_keep XS_FPS XS_BG XS_CURSOR XS_DPI \
 	XS_NORESET XS_XINERAMA XS_RENDER XS_COMPOSITE XS_DBE XS_XVIDEO XS_GLX XS_EXTRA \
-	XS_KEYS XS_REL
+	XS_KEYS XS_REL XS_OWNPTR
 # Declared, never emptied: the app has read the list into them before any
 # pane loads, and emptying them here showed no programs after every new
 # session -- and the next one added saved over the rest (Gitea #300).
@@ -69,7 +70,7 @@ XSS_EXTLABEL=([xinerama]=XINERAMA [render]=RENDER [composite]=Composite
 XSS_EXTVAR=([xinerama]=XS_XINERAMA [render]=XS_RENDER [composite]=XS_COMPOSITE
 	[dbe]=XS_DBE [xvideo]=XS_XVIDEO [glx]=XS_GLX)
 # The keys a program's dialog sets, in the order its rows are drawn.
-XSS_OKEYS=(fps size bg dpi cursor noreset keys rel xinerama render composite dbe xvideo glx)
+XSS_OKEYS=(fps size bg dpi cursor noreset keys rel ownptr xinerama render composite dbe xvideo glx)
 declare -gA XSF
 
 fn cp_set_xssize(int? id = "", value = "") { XS_SIZE=$value; cp_save; }
@@ -123,6 +124,7 @@ fn xscreenset_rows(int w) {
 	xss_bool "$w" "$n" "Keep the Server Up" XS_NORESET; n=$((n + 1))
 	xss_bool "$w" "$n" "Every Key to the Program" XS_KEYS; n=$((n + 1))
 	xss_bool "$w" "$n" "Relative Mouse" XS_REL; n=$((n + 1))
+	xss_bool "$w" "$n" "The Program's Own Pointer" XS_OWNPTR; n=$((n + 1))
 	for k in "${XSS_EXTKEYS[@]}"; do
 		xss_bool "$w" "$n" "${XSS_EXTLABEL["$k"]}" "${XSS_EXTVAR["$k"]}"
 		n=$((n + 1))
@@ -148,7 +150,7 @@ fn xscreenset_do(int? w = "", k = "", int? dir = "") {
 	case $k in
 	max) v := cp_next "$XS_MAX" "$dir" "${XSS_MAXES[@]}"; XS_MAX=$v ;;
 	size) v := cp_next "$XS_SIZE" "$dir" "${XSS_SIZES[@]}"; XS_SIZE=$v ;;
-	XS_CLOSEEND | XS_CURSOR | XS_NORESET | XS_KEYS | XS_REL | XS_XINERAMA | XS_RENDER | \
+	XS_CLOSEEND | XS_CURSOR | XS_NORESET | XS_KEYS | XS_REL | XS_OWNPTR | XS_XINERAMA | XS_RENDER | \
 	XS_COMPOSITE | XS_DBE | XS_XVIDEO | XS_GLX) cp_toggle "$k" ;;
 	fps) v := cp_next "$XS_FPS" "$dir" "${XSS_FPSS[@]}"; XS_FPS=$v ;;
 	bg) v := cp_next "$XS_BG" "$dir" "${XSS_BGS[@]}"; XS_BG=$v ;;
@@ -211,7 +213,7 @@ fn xss_dialog(int k) {
 # is there to delete.
 fn xsf_order(int id) {
 	local o="name cmd win pic end o_fps o_size o_bg o_dpi o_cursor o_noreset"
-	o="$o o_keys o_rel o_xinerama o_render o_composite o_dbe o_xvideo o_glx extra smooth light"
+	o="$o o_keys o_rel o_ownptr o_xinerama o_render o_composite o_dbe o_xvideo o_glx extra smooth light"
 	if [ "${XSF[$id]["k"]}" -ge 0 ]; then
 		ret "$o ok del cancel"
 	else
@@ -263,6 +265,7 @@ fn xsfield_draw(int id, int h, int w, int row, int col) {
 	xsf_drop "$id" 13 34 "Keep Up:" 12 o_noreset "$f"
 	xsf_drop "$id" 14 2 "Every Key:" 12 o_keys "$f"
 	xsf_drop "$id" 14 34 "Relative Mouse:" 9 o_rel "$f"
+	xsf_drop "$id" 15 2 "Own Pointer:" 12 o_ownptr "$f"
 	dt_tput "$id" 16 2 "Extensions:"
 	xsf_drop "$id" 17 2 "XINERAMA" 9 o_xinerama "$f"
 	xsf_drop "$id" 17 26 "RENDER" 9 o_render "$f"
@@ -311,7 +314,7 @@ fn xsf_popt(int k, key) {
 	*) ret default; return 0 ;;
 	esac
 	case $key in
-	cursor | noreset | keys | rel | xinerama | render | composite | dbe | xvideo | glx)
+	cursor | noreset | keys | rel | ownptr | xinerama | render | composite | dbe | xvideo | glx)
 		[ "$v" = 1 ] && v=on
 		[ "$v" = 0 ] && v=off
 		;;

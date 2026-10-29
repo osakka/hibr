@@ -430,7 +430,7 @@ SEEN = os.path.join(D, "opts-state.txt")
 def optdesk(opts, extra):
     progs(("Opt", "sleep 30", "fixed", "half", "default", opts, extra))
     t = desk("dt_optprobe() { echo \"ms=${XS[$XSID][ms]} x=${XS[$XSID][x]} "
-             "dir=${XS[$XSID][dir]} err=${XS[$XSID][err]}\" > %s; }\n"
+             "dir=${XS[$XSID][dir]} ptr=${DT[$XSID][ptr]} err=${XS[$XSID][err]}\" > %s; }\n"
              "DT_TICKERS+=(dt_optprobe)" % SEEN)
     st = {}
     for _ in range(60):
@@ -453,6 +453,7 @@ if os.path.exists(fb):
     off = struct.unpack(">I", d[0:4])[0] + struct.unpack(">I", d[76:80])[0] * 12
     pix = d[off + 4 * (10 * 640 + 10):off + 4 * (10 * 640 + 10) + 3].hex()
 t.quit(None, 0.5)
+ptr0 = st.get("ptr")
 check("the program's options reach its server", "-nocursor -dpi 120 -extension XVideo" in cmd, cmd)
 check("and its window paces itself at the program's thirty frames a second",
       st.get("ms") == "33", st)
@@ -460,6 +461,12 @@ check("and its root is painted the colour it asked for", pix == "996633", (pix, 
 t, st = optdesk("-", "-nosuchflag")
 sc = t.until("Unrecognized option", tries=60)
 t.quit(None, 0.5)
+ptr1 = st.get("ptr")
+t, st = optdesk("ownptr=0", "-")
+t.quit(None, 0.5)
+check("over its window the program's own pointer is the only one, by default, "
+      "and not where the program draws none or is set to show the desktop's",
+      ptr1 == "none" and ptr0 == "" and st.get("ptr") == "", (ptr0, ptr1, st))
 check("a flag Xvfb refuses is named in the window, in Xvfb's own words",
       sc.find("Xvfb did not start: Unrecognized option: -nosuchflag") is not None, sc)
 
@@ -498,4 +505,4 @@ check("Relative Mouse holds the pointer from a click in, and then moves and "
       and "held=[]" in out, out + err)
 
 shutil.rmtree(D, True)
-report(36)
+report(37)

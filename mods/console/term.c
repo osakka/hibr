@@ -52,6 +52,13 @@ static int cn_askgen = -1;
    questions with the same spelling and both have to stay askable. */
 static int cn_gfxk = -1;
 static int cn_capkit = -1;
+/* How many OKs the edit probe's picture has had since the last asking: two
+   -- sent, then edited in place -- is a terminal that takes kitty's a=f,r=1
+   (Gitea #404). And what a caller said of it: -1 auto, which is that answer;
+   1 on and 0 off, which a desktop inside hold sets from `hold edits`, since
+   there the terminal answering is hold's own emulator. */
+int cn_editoks;
+int cn_imgedit = -1;
 static int cn_capsix = -1;
 /* And whether each has been answered since the last ask, which is what
    makes a *negative* possible for a protocol that can only ever answer
@@ -124,6 +131,7 @@ void cn_askcolours(void)
 	cn_pixok = -1;
 	cn_pixapply();
 	cn_saidsix = 0;
+	cn_editoks = 0;
 	s_init(&q);
 	s_cat(&q, cn_askbg);
 	for (i = 0; i < 16; i++) {
@@ -170,6 +178,13 @@ void cn_gotcap(int kind, int yes)
 	cn_gfxk = -1;
 	lg(HIBR_LDBG, "console: the terminal %s %s", yes ? "draws" : "does not draw",
 	   cn_gfxname(kind));
+}
+
+/* Whether a picture already on screen may be edited in place rather than
+   sent again whole. */
+int cn_canedit(void)
+{
+	return cn_imgedit < 0 ? cn_editoks >= 2 : cn_imgedit;
 }
 
 /* The kitty keyboard protocol's disambiguate flag, pushed once the terminal

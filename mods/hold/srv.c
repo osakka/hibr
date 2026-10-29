@@ -106,6 +106,7 @@ void hd_cdrop(vec *cls, int fd)
 			free(cn->front);
 			free(cn->pid);
 			free(cn->phash);
+			free(cn->plen);
 			s_free(&cn->mbuf);
 			s_free(&cn->name);
 			s_free(&cn->title);
@@ -436,6 +437,7 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		free(cn->front);
 		free(cn->pid);
 		free(cn->phash);
+		free(cn->plen);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
 		s_free(&cn->title);
@@ -681,6 +683,22 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			s_cat(&o, cn2->lockok ? " yes" : " no");
 		}
 		hd_send(c, HD_LOCKLIST, o.p, o.n);
+		s_free(&o);
+		break;
+	}
+	case HD_EDITLIST: {
+		size_t ci;
+
+		s_init(&o);
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (o.n)
+				s_ch(&o, '\n');
+			s_cat(&o, cn2->name.p ? cn2->name.p : "");
+			s_cat(&o, cn2->editok ? " yes" : " no");
+		}
+		hd_send(c, HD_EDITLIST, o.p, o.n);
 		s_free(&o);
 		break;
 	}
@@ -1085,6 +1103,13 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					lg(HIBR_LDBG, "hold: a display takes %d colours", v);
 					hd_rensend1(&cls, cn, tid);
 				}
+			} else if (t == HD_EDIT && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+				int v;
+
+				memcpy(&v, in.p, sizeof v);
+				if (cn)
+					cn->editok = v != 0;
 			} else if (t == HD_LOCK && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
 				int v;
@@ -1169,6 +1194,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 		free(cn->front);
 		free(cn->pid);
 		free(cn->phash);
+		free(cn->plen);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
 		s_free(&cn->title);

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.49",
+ "version": "3.50",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1510,6 +1510,8 @@
   "GLX": "GLX",
   "RENDER": "RENDER",
   "XINERAMA": "XINERAMA",
-  "XVideo": "XVideo"
+  "XVideo": "XVideo",
+  "The Program's Own Pointer": "مؤشر البرنامج نفسه",
+  "Own Pointer:": "مؤشره الخاص:"
  }
 }

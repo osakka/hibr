@@ -119,6 +119,16 @@ enum {
 	   A server too old to answer fails quietly, which a caller reads as no
 	   display that can. */
 	HD_LOCKLIST = 'L',
+	/* Whether this client's terminal edits a picture in place, kitty's
+	   a=f,r=1 (Gitea #404, Blit 0.3.1), asked with the rest before it
+	   joined: one int, 1, sent only when it can. A server that does not
+	   know it ignores it, and the session then never sends edits. */
+	HD_EDIT = 'f',
+	/* Whether each display's terminal edits pictures in place, name and
+	   yes or no a line, as HD_EDIT said -- what the desktop asks before
+	   letting the console send only what changed in a picture. Its own
+	   request for the reason HD_LOCKLIST is. */
+	HD_EDITLIST = 'F',
 	/* What each display has been sent since it attached, name, bytes and
 	   frames a line (Gitea #353). Its own request for the reason
 	   HD_GFXLIST is. */
@@ -253,6 +263,10 @@ struct hd_cli {
 	   since a kitty picture stays until it is told to go. A sixel is
 	   paint and is simply painted again. */
 	unsigned *pid, *phash;
+	/* And how many of its bytes this display has: a picture edited in
+	   place (Gitea #404) is the bytes it had and its edits after them, so
+	   one whose bytes begin with exactly those is sent only the rest. */
+	size_t *plen;
 	size_t pn;
 	/* Whether this client's terminal has been told to drop every picture
 	   it held before the list above began. The list starts empty for a
@@ -307,6 +321,8 @@ struct hd_cli {
 	   again until the program asks again. inseq says how recently it sent
 	   input: the lock goes to the display somebody is using. */
 	int lockok, plock, lockgen;
+	/* Whether this display's terminal edits a picture in place (HD_EDIT). */
+	int editok;
 	unsigned long inseq;
 	/* What this client has been sent since it attached: bytes and frames,
 	   for `hold stats` -- the number a leaner renderer is judged by, per

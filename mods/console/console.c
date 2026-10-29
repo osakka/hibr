@@ -931,6 +931,40 @@ int m_console(sh *s, int ac, char **av)
 		}
 		return HIBR_OK;
 	}
+	/* Whether a window's picture may go out as the part that changed,
+	   edited in place (Gitea #404): auto is what the terminal answered,
+	   which inside hold is hold's own emulator, so a held desktop says on
+	   or off from `hold edits`. With no argument, what it is now: on or
+	   off, and auto in brackets when that is where it came from. */
+	if (!strcmp(sub, "imgedit")) {
+		const char *m = ac > 2 ? av[2] : "";
+		int was;
+
+		if (!*m) {
+			const char *now = cn_imgedit < 0
+				? (cn_canedit() ? "on (auto)" : "off (auto)")
+				: cn_imgedit ? "on" : "off";
+
+			hibr_ret(s, now);
+			if (!s->bind)
+				printf("%s\n", now);
+			return HIBR_OK;
+		}
+		was = cn_canedit();
+		if (!strcmp(m, "on"))
+			cn_imgedit = 1;
+		else if (!strcmp(m, "off"))
+			cn_imgedit = 0;
+		else if (!strcmp(m, "auto"))
+			cn_imgedit = -1;
+		else {
+			lg(HIBR_LERR, "usage: console imgedit on|off|auto");
+			return 2;
+		}
+		if (was && !cn_canedit())
+			cn_imgunedit();
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "behind")) {
 		/* While this is on, a write at absolute coordinates skips any
 		   cell a pane covers -- so the wallpaper paints around the

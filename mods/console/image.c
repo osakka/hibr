@@ -52,6 +52,14 @@ typedef struct cn_img {
 	unsigned *cell;		/* one averaged colour per cell, under-text only */
 	char *pane;		/* the pane it was placed through, or null */
 	int plive;		/* placed again since the last check */
+	/* A window's kitty picture keeps the pixels it was last sent as, at
+	   the size they went out, so the next frame in the same rectangle can
+	   be sent as the part that changed (Gitea #404). */
+	unsigned char *prev;
+	int piw, pih, psx, psy, psw, psh, ptw, pth;
+	unsigned pgen;		/* the resize generation it was kept at */
+	str edit;		/* edits not yet sent */
+	size_t editb;		/* bytes of edits sent since the whole picture */
 } cn_img;
 
 static cn_img *cn_imgs;
@@ -197,9 +205,25 @@ void cn_imgdrop(size_t i)
 	cn_imgowe(cn_imgs[i].id);
 	free(cn_imgs[i].cell);
 	free(cn_imgs[i].pane);
+	free(cn_imgs[i].prev);
+	s_free(&cn_imgs[i].edit);
 	s_free(&cn_imgs[i].data);
 	cn_imgs[i] = cn_imgs[cn_nimg - 1];
 	cn_nimg--;
+}
+
+/* Drop every region that has had an edit sent since it last went out
+   whole: edits stopping (a display that cannot apply one has joined, Gitea
+   #404) leaves hold keeping those pictures as a whole picture and the
+   edits after it, which such a display would show as the picture before
+   them. Dropped, the next placement is a whole picture again. */
+void cn_imgunedit(void)
+{
+	size_t i = cn_nimg;
+
+	while (i--)
+		if (cn_imgs[i].editb)
+			cn_imgdrop(i);
 }
 
 /* Drop every region: the screen is being left, or cleared outright. */
@@ -422,6 +446,96 @@ long cn_imgz(const char *pane, int lo, unsigned flags)
 	return (long)CN_ZWALL + 1 + (long)i;
 }
 
+/* The pixels a kitty picture goes out as: the sx, sy, sw by sh of the iw by
+   ih source, at tw by th -- a copy per row where that is the size it is
+   wanted at, a box filter otherwise. Always a buffer of its own. */
+unsigned char *cn_imgbuild(const unsigned char *rgb, int iw, int ih, int sx,
+			   int sy, int sw, int sh, int tw, int th)
+{
+	unsigned char *px = xm((size_t)tw * th * 3);
+	int y;
+
+	if (tw == sw && th == sh)
+		for (y = 0; y < th; y++)
+			memcpy(px + (size_t)y * tw * 3,
+			       rgb + ((size_t)(sy + y) * iw + sx) * 3,
+			       (size_t)tw * 3);
+	else
+		cn_imgscalesrc(rgb, iw, ih, sx, sy, sw, sh, px, tw, th);
+	return px;
+}
+
+/* Send a window's changed picture as the part that changed (Gitea #404):
+   the rectangle bounding every pixel that differs from what was last sent,
+   edited into the image already on the terminal with kitty's a=f,r=1. 1
+   when that was done -- or nothing had changed -- and 0 when the picture
+   has to go out whole: a terminal that cannot edit, a size that moved, a
+   change over most of it, or edits adding up to more than one whole
+   picture since the last, which keeps what hold has to carry bounded. */
+int cn_imgtry(cn_img *im, const unsigned char *rgb, int iw, int ih,
+	      unsigned sum)
+{
+	unsigned char *nb, *sub;
+	const unsigned char *a, *b;
+	int x0, y0, x1 = -1, y1 = -1, x, y, bw, bh;
+	size_t full, n, row;
+
+	if (!cn_canedit() || !im->id || im->over || !im->prev || !im->sent ||
+	    im->piw != iw || im->pih != ih || im->pgen != (unsigned)cn_wgen)
+		return 0;
+	nb = cn_imgbuild(rgb, iw, ih, im->psx, im->psy, im->psw, im->psh,
+			 im->ptw, im->pth);
+	row = (size_t)im->ptw * 3;
+	x0 = im->ptw;
+	y0 = im->pth;
+	for (y = 0; y < im->pth; y++) {
+		a = im->prev + (size_t)y * row;
+		b = nb + (size_t)y * row;
+		if (!memcmp(a, b, row))
+			continue;
+		if (y < y0)
+			y0 = y;
+		y1 = y;
+		for (x = 0; x < x0; x++)
+			if (memcmp(a + x * 3, b + x * 3, 3)) {
+				x0 = x;
+				break;
+			}
+		for (x = im->ptw - 1; x > x1; x--)
+			if (memcmp(a + x * 3, b + x * 3, 3)) {
+				x1 = x;
+				break;
+			}
+	}
+	if (y1 >= 0) {
+		bw = x1 - x0 + 1;
+		bh = y1 - y0 + 1;
+		full = (size_t)im->ptw * im->pth * 4;
+		if ((long long)bw * bh * 10 > (long long)im->ptw * im->pth * 6 ||
+		    im->editb + (size_t)bw * bh * 4 > full) {
+			free(nb);
+			return 0;
+		}
+		sub = xm((size_t)bw * bh * 3);
+		for (y = 0; y < bh; y++)
+			memcpy(sub + (size_t)y * bw * 3,
+			       nb + ((size_t)(y0 + y) * im->ptw + x0) * 3,
+			       (size_t)bw * 3);
+		n = im->edit.n;
+		kt_edit(sub, bw, bh, x0, y0, im->id, &im->edit);
+		im->editb += im->edit.n - n;
+		free(sub);
+		lg(HIBR_LDBG, "image: %d,%d edited, %dx%d of %dx%d pixels, %zu bytes",
+		   im->row, im->col, bw, bh, im->ptw, im->pth, im->edit.n - n);
+	}
+	free(im->prev);
+	im->prev = nb;
+	im->sum = sum;
+	im->under = cn_imgunder(im);
+	im->plive = 1;
+	return 1;
+}
+
 /* Place a picture: w by h cells at row, col, from iw by ih pixels of RGB.
    With a pane, row and col are the pane's own, and anything past its edge is
    refused rather than drawn outside it -- the same discipline cn_pput gives
@@ -589,6 +703,10 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		   image and all its placements before the new data is even
 		   complete -- a blank frame every frame, at a video's rate.
 		   Placing first and deleting behind leaves no such gap. */
+		/* Or the part of it that changed, where the terminal can
+		   edit a picture in place (Gitea #404). */
+		if (im->z == z && cn_imgtry(im, rgb, iw, ih, sum))
+			return 1;
 		reuse = im->id;
 		im->id = 0;
 		cn_imgdrop(i);
@@ -773,6 +891,22 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	else
 		six_encode(px ? px : rgb, tw, th,
 			   (flags & DP_IMG_CHOSEN) ? 1 : 0, &im->data);
+	/* Kept for the next frame's edit, where one can be made. */
+	if (im->id && !im->over && cn_canedit()) {
+		im->prev = px ? px : cn_imgbuild(rgb, iw, ih, sx, sy, sw, sh,
+						 tw, th);
+		px = 0;
+		im->piw = iw;
+		im->pih = ih;
+		im->psx = sx;
+		im->psy = sy;
+		im->psw = sw;
+		im->psh = sh;
+		im->ptw = tw;
+		im->pth = th;
+		im->pgen = (unsigned)cn_wgen;
+		im->editb = 0;
+	}
 	free(px);
 	im->under = cn_imgunder(im);
 	im->sent = 0;
@@ -912,6 +1046,13 @@ size_t cn_imgsend(str *b, int over)
 	size_t i, n = 0;
 
 	for (i = 0; i < cn_nimg; i++) {
+		/* An edit goes out with the pictures that own their cells: it
+		   moves nothing and needs no cursor. */
+		if (!over && cn_imgs[i].sent && cn_imgs[i].edit.n) {
+			s_add(b, cn_imgs[i].edit.p, cn_imgs[i].edit.n);
+			n += cn_imgs[i].edit.n;
+			cn_imgs[i].edit.n = 0;
+		}
 		if (cn_imgs[i].sent || !cn_imgs[i].data.n)
 			continue;
 		if (!cn_imgs[i].over != !over)

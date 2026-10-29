@@ -142,6 +142,44 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 	s_free(&b);
 }
 
+/* Edit a rectangle of an image already on the terminal, in place: kitty's
+   a=f,r=1 on its root frame, x and y where the rectangle starts in the
+   image's own pixels and rgb its iw by ih pixels (Gitea #404). Nothing is
+   placed again; the terminal shows the change where the image already is. */
+void kt_edit(const unsigned char *rgb, int iw, int ih, int x, int y,
+	     unsigned id, str *o)
+{
+	str b;
+	size_t i, n, k;
+
+	s_init(&b);
+	cn_b64(&b, rgb, (size_t)iw * ih * 3);
+	n = b.n;
+	for (i = 0; i < n; i += k) {
+		k = n - i > KT_CHUNK ? (size_t)KT_CHUNK : n - i;
+		s_cat(o, "\033_G");
+		if (!i) {
+			s_cat(o, "a=f,r=1,f=24,q=2,i=");
+			s_num(o, id);
+			s_cat(o, ",x=");
+			s_num(o, x);
+			s_cat(o, ",y=");
+			s_num(o, y);
+			s_cat(o, ",s=");
+			s_num(o, iw);
+			s_cat(o, ",v=");
+			s_num(o, ih);
+			s_ch(o, ',');
+		} else {
+			s_cat(o, "q=2,");
+		}
+		s_cat(o, i + k < n ? "m=1;" : "m=0;");
+		s_add(o, b.p + i, k);
+		s_cat(o, "\033\\");
+	}
+	s_free(&b);
+}
+
 /* Delete one image: its placements and the data behind them. */
 void kt_del(str *o, unsigned id)
 {

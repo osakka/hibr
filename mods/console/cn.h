@@ -136,6 +136,8 @@ unsigned kt_id(void);
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 	       unsigned id, long z, int comp, str *o);
 void kt_del(str *o, unsigned id);
+void kt_edit(const unsigned char *rgb, int iw, int ih, int x, int y,
+	     unsigned id, str *o);
 void kt_delall(str *o);
 /* How many times anything has written to the grid or placed a picture. A
    flush compares it with its own last reading to tell a new frame from the
@@ -158,6 +160,7 @@ size_t cn_imgdels(str *b);
 size_t cn_imgdlate(str *b);
 void cn_imgowelate(unsigned id);
 void cn_imgclear(void);
+void cn_imgunedit(void);
 int cn_imgat(int row, int col);
 int cn_imgcellat(int row, int col, unsigned *out);
 /* Whether a picture drawn under the text covers this cell at all, asked
@@ -196,6 +199,8 @@ void cn_askmaybe(void);
 /* What the terminal answered about drawing pictures: kind is CN_GFX_KITTY
    or CN_GFX_SIXEL, yes 1 or 0. */
 void cn_gotcap(int kind, int yes);
+extern int cn_editoks, cn_imgedit;
+int cn_canedit(void);
 void cn_gotcolour(int which, int idx, unsigned rgb);
 unsigned cn_termbg(void);
 int cn_termbgok(void);

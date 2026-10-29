@@ -741,8 +741,10 @@ static int cn_apc(const char *p, size_t n, size_t *used)
 {
 	int kit, r = gx_apc(p, n, CN_OSCMAX, used, &kit);
 
-	if (r == 2 && kit)
+	if (r == 2 && kit == 1)
 		cn_gotcap(CN_GFX_KITTY, 1);
+	if (r == 2 && kit == 2)
+		cn_editoks++;
 	return r;
 }
 

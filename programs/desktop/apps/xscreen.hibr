@@ -35,7 +35,7 @@
 strict
 
 
-app xscreen "X11 programs in windows of their own" 1.9
+app xscreen "X11 programs in windows of their own" 2.0
 # modules: xscr
 # part: control-panel/xscreenset.hibr
 command -v dt_app > /dev/null &&
@@ -69,19 +69,23 @@ XS_GLX="${XS_GLX-1}"
 XS_EXTRA="${XS_EXTRA-}"
 # And how the program is reached: every key while its window has the focus,
 # the desktop's shortcuts with them, Release Pointer still leaving; and the
-# pointer held for relative motion, as a game wants, from a click in.
+# pointer held for relative motion, as a game wants, from a click in; and
+# the program's own pointer, drawn by its server, shown alone over the
+# window where hovering is on, with the desktop's own hidden there.
 XS_KEYS="${XS_KEYS-0}"
 XS_REL="${XS_REL-0}"
+XS_OWNPTR="${XS_OWNPTR-1}"
 command -v dt_keep > /dev/null && dt_keep XS_FPS XS_BG XS_CURSOR XS_DPI \
 	XS_NORESET XS_XINERAMA XS_RENDER XS_COMPOSITE XS_DBE XS_XVIDEO XS_GLX XS_EXTRA \
-	XS_KEYS XS_REL
+	XS_KEYS XS_REL XS_OWNPTR
 # The option keys a program may set, each with the variable holding its
 # default; the extensions with the name Xvfb knows each by.
 declare -gA XS_OPTVAR XS_EXTNAME
 XS_OPTVAR=([fps]=XS_FPS [size]=XS_SIZE [bg]=XS_BG [cursor]=XS_CURSOR
 	[dpi]=XS_DPI [noreset]=XS_NORESET [xinerama]=XS_XINERAMA
 	[render]=XS_RENDER [composite]=XS_COMPOSITE [dbe]=XS_DBE
-	[xvideo]=XS_XVIDEO [glx]=XS_GLX [keys]=XS_KEYS [rel]=XS_REL)
+	[xvideo]=XS_XVIDEO [glx]=XS_GLX [keys]=XS_KEYS [rel]=XS_REL
+	[ownptr]=XS_OWNPTR)
 XS_EXTNAME=([xinerama]=XINERAMA [render]=RENDER [composite]=Composite
 	[dbe]=DOUBLE-BUFFER [xvideo]=XVideo [glx]=GLX)
 XS_EXTS=(xinerama render composite dbe xvideo glx)
@@ -277,7 +281,7 @@ fn xs_run(int id, cmd) {
 # desktop takes the screen and the programs on it with it, where a job
 # would run on after the desktop had gone.
 fn xscreen_open(int id, arg = "") {
-	local n dir srv= i k=-1 sz v
+	local n dir srv= i k=-1 sz v cur
 
 	for i in "${!XSP_NAME[@]}"; do
 		[ "${XSP_NAME[$i]}" = "$arg" ] && { k=$i; break; }
@@ -307,6 +311,9 @@ fn xscreen_open(int id, arg = "") {
 	XS[$id]["bg"] := xs_optval "$k" bg
 	XS[$id]["keys"] := xs_optval "$k" keys
 	XS[$id]["rel"] := xs_optval "$k" rel
+	v := xs_optval "$k" ownptr
+	cur := xs_optval "$k" cursor
+	[ "$v" = 1 ] && [ "$cur" != 0 ] && dt_pointer "$id" none
 	xs_args "$k"
 	xs_sweep
 	n := xs_free

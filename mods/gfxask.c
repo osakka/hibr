@@ -12,12 +12,17 @@
 
 /* gfxask -- what a terminal says it draws. See gfxask.h. */
 
-const char gx_ask[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\\033[?u"
+const char gx_ask[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\"
+		       "\033_Gi=4202,s=1,v=1,a=t,t=d,f=24;AAAA\033\\"
+		       "\033_Ga=f,r=1,i=4202,x=0,y=0,s=1,v=1,f=24;AAAA\033\\\033[?u"
 		       "\033[?1016$p\033[?7701$p\033]22;?none\033\\\033P+q626365\033\\"
 		       "\033P+q726570\033\\\033P+q524742\033\\"
 		       "\033P+q636f6c6f7273\033\\\033[c";
 
-/* An APC at the front of p, and whether it is kitty's own `OK`. */
+/* An APC at the front of p, and what kitty's own `OK` in it answers: 1 for
+   the picture query (i=4201), 2 for the edit probe's picture (i=4202, which
+   answers OK once for being sent and once more for being edited in place,
+   a=f -- Gitea #404), 0 for anything else. */
 int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit)
 {
 	size_t i, end = 0;
@@ -37,7 +42,7 @@ int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit)
 		return n < max ? 0 : -1;
 	*used = end + 2;
 	if (end > 2 && p[2] == 'G' && memmem(p + 2, end - 2, ";OK", 3))
-		*kit = 1;
+		*kit = memmem(p + 2, end - 2, "i=4202", 6) ? 2 : 1;
 	return 2;
 }
 
@@ -334,13 +339,14 @@ long gx_now(void)
    count of reads: every read here can be interrupted, and restarting the
    wait per signal would make the bound meaningless. */
 int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
-	     int *mpix, int *ptr, int *lock, gx_tcap *tc)
+	     int *mpix, int *ptr, int *lock, int *edit, gx_tcap *tc)
 {
 	const char *f = getenv("HIBR_GFX");
 	str b;
 	size_t i, used, off = 0;
 	long end, left;
 	int kit = 0, da = 0, six = 0, k, s, d, r, kb, cy, mp, lk, force = -1;
+	int eok = 0;
 	ssize_t w;
 	struct pollfd q;
 
@@ -349,6 +355,7 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 	*mpix = 0;
 	*ptr = -1;
 	*lock = 0;
+	*edit = 0;
 	tc->bce = tc->rep = tc->rgb = tc->colors = -1;
 	if (f && *f)
 		force = !strcmp(f, "kitty") ? GX_KITTY
@@ -390,8 +397,10 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 			r = -1;
 			if (b.p[off + 1] == '_') {
 				r = gx_apc(b.p + off, b.n - off, 64, &used, &k);
-				if (r == 2 && k)
+				if (r == 2 && k == 1)
 					kit = 1;
+				if (r == 2 && k == 2)
+					eok++;
 			} else if (b.p[off + 1] == ']') {
 				r = gx_osc(b.p + off, b.n - off, 64, &used, ptr);
 			} else if (b.p[off + 1] == 'P') {
@@ -423,6 +432,7 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 	if (off < b.n)
 		s_add(rest, b.p + off, b.n - off);
 	s_free(&b);
+	*edit = eok >= 2;
 	if (force >= 0) {
 		lg(HIBR_LDBG, "gfx: %s, as HIBR_GFX asks; asked the rest anyway",
 		   gx_name(force));

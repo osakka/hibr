@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.376
+
+**A picture that changed only in part is sent as that part** (Gitea #404).
+A window's picture -- X Screen's above all, where each frame was a whole
+uncompressed picture -- is edited into the one already on the terminal
+with kitty's `a=f,r=1` where the terminal can (Blit from 0.3.1).
+- One cell's worth changing in a 640x400 picture costs **2.2 kB** a frame,
+  against 999 kB as a whole picture.
+- The display asks the terminal with a probe of its own and edits only
+  where it answered; `console imgedit on|off|auto` overrides it.
+- A change over most of the picture, a new size, or edits adding up to more
+  than one whole picture go out whole.
+- Through `hold`, each display says at attach whether it can (`hold
+  edits`). hold's emulator keeps an edit with its picture and sends a
+  display that has the picture only what came after; the desktop edits
+  only while every display can, and when one that cannot joins, everything
+  edited goes out whole again.
+
+**Over an X Screen window, the program's pointer is the only one**: with
+Hover on, the desktop's own pointer is hidden there and the program's
+own, with its own shapes, shows. A per-program option, The Program's Own
+Pointer (Control Panel > X Screen), on by default; a program whose X
+pointer is off keeps the desktop's. X Screen 2.0, Arabic 3.50.
+
 ## 0.99.375
 
 **A window can take the whole display** (Gitea #405), for Boxer's games

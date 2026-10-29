@@ -1039,5 +1039,37 @@ z = key(places(sc)[0], "z") if places(sc) else None
 check("the wallpaper went further down to make room: %s" % z,
       z is not None and int(z) <= -1610612736, places(sc))
 
+# A window's picture that changed only in part goes out as that part,
+# edited into the one already on the terminal (Gitea #404), where the
+# terminal says it can: kitty's a=f,r=1, which Blit takes from 0.3.1. On a
+# terminal that cannot, the same frame is a whole picture again.
+GRAD2 = png("grad2.png", 48, 48, lambda x, y: (255, 255, 255) if 20 <= x < 26 and 20 <= y < 26
+            else (x * 5 % 256, y * 5 % 256, 90))
+EDITS = ("console key 400\nconsole pane w1 2 2 10 30\n"
+         "img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\nconsole key 60\n"
+         "img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\nconsole key 60\n"
+         % (GRAD, GRAD2))
+sc, out = run(EDITS, caps=["kitty", "kedit"], raw=True)
+ed = [a for a in sc.apc if "a=f" in a and "i=4202" not in a]
+whole = len(out.split(b"a=T,f=24")[1]) if b"a=T,f=24" in out else 0
+check("a picture that changed only in part is sent as that part, edited in place",
+      len(places(sc)) == 1 and len(ed) == 1 and key(ed[0], "r") == "1"
+      and int(key(ed[0], "s")) * 4 < int(key(places(sc)[0], "s"))
+      and int(key(ed[0], "v")) * 4 < int(key(places(sc)[0], "v")), (places(sc), ed))
+sc2 = run(EDITS, caps=["kitty"])
+check("and on a terminal that cannot edit one, it is a whole picture again",
+      len(places(sc2)) == 2 and not [a for a in sc2.apc if "a=f" in a and "i=4202" not in a],
+      (places(sc2), sc2.apc))
+
+# Edits stopping -- a display that cannot apply one has joined -- drops
+# what was edited, so the same picture placed again goes out whole.
+UNEDIT = EDITS + ("console imgedit off\nconsole flush\n"
+                  "img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\nconsole key 60\n"
+                  % GRAD2)
+sc3 = run(UNEDIT, caps=["kitty", "kedit"])
+check("once edits stop, a picture that was edited is sent whole again",
+      len(places(sc3)) == 2 and len([a for a in sc3.apc if "a=f" in a and "i=4202" not in a]) == 1,
+      (places(sc3), sc3.apc))
+
 shutil.rmtree(D, True)
-report(101)
+report(104)

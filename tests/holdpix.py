@@ -1275,5 +1275,45 @@ check("a 16-colour display of a held session is sent no 24-bit colour",
       b"\x1b[2J" in raw and b"38;2;" not in tail and b"48;2;" not in tail and
       [sc.row(r) for r in range(20)] == want, raw[-200:])
 
+# A window's picture that changed only in part (Gitea #404): the held
+# program edits it in place, hold's emulator keeps the edit with the
+# picture, and a display whose own terminal said it can edit one is sent
+# the edit alone, where one that cannot is sent the whole picture again.
+GRAD2 = png("grad2.png", 48, 48, lambda x, y: (255, 255, 255) if 20 <= x < 26 and 20 <= y < 26
+            else (x * 5 % 256, y * 5 % 256, 90))
+EDBODY = (load("hold") + "console imgedit on\nconsole pane w1 2 2 10 30\n"
+          "console put 0 0 'HELD edits'\n"
+          "img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\n"
+          "console key 1500 > /dev/null\n"
+          "e := hold edits\necho \"edits $e\" >> %s\n"
+          "case $e in *' no'*) console imgedit off ;; esac\n"
+          "img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\n" % (GRAD, LOG, GRAD2))
+
+
+def edits(caps):
+    sc, log = run(EDBODY, gfx=None, caps=caps, settle=3000, until="HELD edits",
+                  wait=60, pics=lambda s: any("a=f" in a and "i=4202" not in a for a in s.apc)
+                  or len([a for a in s.apc if "a=T" in a]) >= 2)
+    return sc, log
+
+
+def kplaced(sc):
+    return [a for a in sc.apc if "a=T" in a]
+
+
+def kedited(sc):
+    return [a for a in sc.apc if "a=f" in a and "i=4202" not in a]
+
+
+sc1, log1 = edits(["kitty", "kedit"])
+sc2, log2 = edits(["kitty"])
+check("hold edits says whether each display can edit a picture in place",
+      re.search(r"edits \S+ yes", log1) and re.search(r"edits \S+ no", log2), (log1, log2))
+check("a held program's picture edited in place reaches a display that can "
+      "edit as the edit alone",
+      len(kplaced(sc1)) == 1 and len(kedited(sc1)) == 1, (kplaced(sc1), kedited(sc1)))
+check("and a display that cannot is sent the whole picture again",
+      len(kplaced(sc2)) == 2 and not kedited(sc2), (kplaced(sc2), kedited(sc2)))
+
 shutil.rmtree(D, True)
-report(72)
+report(75)

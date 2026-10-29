@@ -87,7 +87,7 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	struct pollfd q[2];
 	const char *why = "detached";
 	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0, gx, kbd = 0, copy = 0,
-	    mpix = 0, ptr = -1, lock = 0, one = 1, depth;
+	    mpix = 0, ptr = -1, lock = 0, edit = 0, one = 1, depth;
 	gx_tcap tc;
 	ssize_t k;
 	char *p;
@@ -128,7 +128,7 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	cfmakeraw(&raw);
 	tcsetattr(0, TCSANOW, &raw);
 	s_init(&early);
-	gx = gx_probe(0, 1, HD_GFXMS, &early, &kbd, &copy, &mpix, &ptr, &lock, &tc);
+	gx = gx_probe(0, 1, HD_GFXMS, &early, &kbd, &copy, &mpix, &ptr, &lock, &edit, &tc);
 	depth = gx_depth(&tc);
 	tcsetattr(0, TCSANOW, &sv);
 	lg(HIBR_LDBG, "hold attach: this terminal draws %s", gx_name(gx));
@@ -170,6 +170,8 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 		hd_send(s, HD_PTR, (const char *)&ptr, sizeof ptr);
 	if (lock)
 		hd_send(s, HD_LOCK, (const char *)&lock, sizeof lock);
+	if (edit)
+		hd_send(s, HD_EDIT, (const char *)&edit, sizeof edit);
 	if (tc.bce == 1)
 		hd_send(s, HD_BCE, (const char *)&one, sizeof one);
 	if (tc.rep == 1)

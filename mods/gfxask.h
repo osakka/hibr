@@ -116,7 +116,7 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
    XTGETTCAP. *lock is 1 when it can hold the pointer (Blit's ?7701, hibr
    Gitea #379), 0 otherwise. */
 int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
-	     int *mpix, int *ptr, int *lock, gx_tcap *tc);
+	     int *mpix, int *ptr, int *lock, int *edit, gx_tcap *tc);
 
 /* Milliseconds on a clock that only goes forward. */
 long gx_now(void);

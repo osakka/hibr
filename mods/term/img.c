@@ -187,8 +187,12 @@ void tm_apcraw(tm_t *t, str *o)
 /* An APC string is complete. The kitty graphics protocol is the only one
    that matters here, and it opens with G: a transmission that displays
    (a=T) becomes a region at the cursor, chunk by chunk if it is chunked
-   (m=1), and a delete (a=d) takes one or all of them away. Any other APC,
-   and a transmission that does not display, is dropped as it always was. */
+   (m=1), and a delete (a=d) takes one or all of them away. An edit of one
+   already kept (a=f, Gitea #404) is added to the end of its escapes, so
+   whatever re-serialises this grid can send a display that already has the
+   picture only what it has not had, and one that joins all of it. Any
+   other APC, and a transmission that does not display, is dropped as it
+   always was. */
 void tm_apcend(tm_t *t)
 {
 	const char *s = t->os.p ? t->os.p : "";
@@ -235,12 +239,27 @@ void tm_apcend(tm_t *t)
 			t->imgb.p[0] = 0;
 		t->imgon = 1;
 		tm_apcraw(t, &t->imgb);
+	} else if (act == 'f') {
+		long id = tm_imgkey(s, 'i');
+
+		t->imgon = 0;
+		for (i = 0; i < t->imgn; i++)
+			if (id > 0 && t->img[i].id == (unsigned)id)
+				break;
+		if (i == t->imgn)
+			return;
+		t->imgid = (unsigned)id;
+		t->imgb.n = 0;
+		if (t->imgb.p)
+			t->imgb.p[0] = 0;
+		t->imgon = 3;
+		tm_apcraw(t, &t->imgb);
 	} else if (t->imgon && !act) {
 		/* A chunk after the first carries no action of its own. One
 		   whose picture has already gone past TM_IMGMAX is let go
 		   rather than kept: the picture is not shown either way, and
 		   each later chunk read as a picture of its own would be. */
-		if (t->imgon == 1)
+		if (t->imgon == 1 || t->imgon == 3)
 			tm_apcraw(t, &t->imgb);
 	} else if (act == 'q' && t->relayed) {
 		/* A query about the protocol itself, which only the real
@@ -270,6 +289,17 @@ void tm_apcend(tm_t *t)
 		return;
 	}
 	if (t->imgon == 2) {
+		t->imgon = 0;
+		return;
+	}
+	if (t->imgon == 3) {
+		for (i = 0; i < t->imgn; i++)
+			if (t->img[i].id == t->imgid) {
+				s_add(&t->img[i].data, t->imgb.p, t->imgb.n);
+				t->imgen++;
+				break;
+			}
+		t->imgb.n = 0;
 		t->imgon = 0;
 		return;
 	}

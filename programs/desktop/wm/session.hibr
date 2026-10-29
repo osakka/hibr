@@ -237,6 +237,10 @@ fn dt_shiftorigin(shift) {
 	return 0
 }
 
+# Whether the console edits pictures in place, as last told: on, off, or
+# empty before the first time (Gitea #404).
+DT_IMGEDIT=
+
 # Re-read the screen size after a resize, and this desktop's own primary
 # viewport from hold's own per-client data. Not held, or hold not loaded,
 # or nobody has attached yet (the moment right after `hold new -d` starts
@@ -283,6 +287,23 @@ dt_size() {
 		DT_LOCKNAT=0
 		if gl := hold locks 2> /dev/null; then
 			case $'\n'"$gl" in *" yes"*) DT_LOCKNAT=1 ;; esac
+		fi
+		# A window's picture goes out as the part that changed only
+		# where every display can edit one in place (Gitea #404): the
+		# console's own answer inside hold is hold's emulator's, so it
+		# is told. A server too old to answer is no display that can.
+		# Turned off, the console drops what it had edited, so every
+		# window draws again and each such picture goes out whole.
+		if gl := hold edits 2> /dev/null && [ -n "$gl" ] &&
+		   ! [[ $'\n'"$gl" == *" no"* ]]; then
+			gv=on
+		else
+			gv=off
+		fi
+		if [ "$gv" != "$DT_IMGEDIT" ]; then
+			console imgedit "$gv" 2> /dev/null
+			[ "$gv" = off ] && [ -n "$DT_IMGEDIT" ] && DT_FORCEONCE=1
+			DT_IMGEDIT=$gv
 		fi
 		if gl := hold gfx 2> /dev/null; then
 			while IFS=' ' read -r gnm gv _; do
