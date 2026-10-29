@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 3.1
+app files "A file browser" 3.2
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -108,21 +108,45 @@ FB_SORTS=(name kind time size)
 FB_BGS=("Follow Theme|-" "White|#ffffff" "Grey|#c8c8c8" "Blue|#a9c8e8" "Green|#b9dfa8"
 	"Yellow|#f6e9a6" "Rose|#efc1cb" "Lavender|#cfc2e9" "Charcoal|#2b2b33")
 # The kind of a file by its ending, for its icon and for sorting by kind.
-declare -gA FB_EXTKIND
-FB_EXTKIND=([txt]=text [log]=text [json]=text [md]=md [markdown]=md
+declare -gA FB_EXTKIND FB_NAMEKIND FB_DIRKIND
+FB_EXTKIND=([txt]=text [md]=md [markdown]=md [json]=json [log]=log
 	[csv]=sheet [tsv]=sheet [ods]=sheet [xls]=sheet [xlsx]=sheet
 	[mmd]=diagram [mermaid]=diagram [dot]=diagram
 	[odp]=slides [ppt]=slides [pptx]=slides [key]=slides
 	[ttf]=font [otf]=font [woff]=font [woff2]=font [pcf]=font [bdf]=font
-	[htm]=web [url]=web [webloc]=web [sh]=term [command]=term
+	[htm]=web [html]=web [url]=web [webloc]=web [sh]=term [command]=term
 	[conf]=settings [ini]=settings [cfg]=settings [toml]=settings [yaml]=settings [yml]=settings
-	[pdf]=pdf
-	[png]=image [jpg]=image [jpeg]=image [gif]=image [webp]=image [bmp]=image [svg]=image [ppm]=image
+	[pdf]=pdf [svg]=vector
+	[png]=image [jpg]=image [jpeg]=image [gif]=image [webp]=image [bmp]=image [ppm]=image
 	[mp3]=audio [ogg]=audio [flac]=audio [wav]=audio [m4a]=audio [opus]=audio
 	[mp4]=video [mkv]=video [webm]=video [mov]=video [avi]=video
-	[tar]=archive [gz]=archive [tgz]=archive [zip]=archive [xz]=archive [bz2]=archive [zst]=archive [7z]=archive [deb]=archive [rpm]=archive
-	[c]=code [h]=code [py]=code [hibr]=code [js]=code [rs]=code [go]=code [css]=code [html]=web
+	[tar]=archive [gz]=archive [tgz]=archive [zip]=archive [xz]=archive [bz2]=archive [zst]=archive [7z]=archive
+	[deb]=package [rpm]=package [apk]=package
+	[c]=c [h]=c [s]=asm [asm]=asm [mk]=make [patch]=patch [diff]=patch
+	[py]=code [hibr]=code [js]=code [rs]=code [go]=code [css]=code [cpp]=code [hpp]=code
+	[so]=library [dll]=library [dylib]=library [a]=library
+	[exe]=exe [com]=exe [bat]=exe [iso]=disc [img]=disc
+	[nes]=rom [sfc]=rom [smc]=rom [gb]=rom [gbc]=rom [gba]=rom [n64]=rom [z64]=rom [rom]=rom
+	[epub]=ebook [mobi]=ebook [azw3]=ebook
+	[gpg]=lock [age]=lock [kdbx]=lock [db]=database [sqlite]=database [sqlite3]=database [sql]=database
+	[pem]=key [crt]=key [pub]=key [service]=service [timer]=service [socket]=service [target]=service
+	[efi]=boot [ko]=kernel
 	[doc]=doc [docx]=doc [odt]=doc [rtf]=doc)
+# Names that say more than their ending, matched whole and in lower case,
+# ahead of it: a README is a readme whatever it ends in.
+FB_NAMEKIND=([.bashrc]=rc [.zshrc]=rc [.hibrc]=rc [.profile]=rc [.bash_profile]=rc
+	[.vimrc]=rc [.inputrc]=rc [.bash_history]=history [.zsh_history]=history
+	[.hibr_history]=history [.python_history]=history [hosts]=network
+	[interfaces]=network [resolv.conf]=network [crontab]=cron [readme]=readme
+	[readme.md]=readme [readme.txt]=readme [motd]=readme [news]=readme
+	[license]=license [licence]=license [copying]=license [license.md]=license
+	[license.txt]=license [makefile]=make [gnumakefile]=make
+	[cmakelists.txt]=make [grub.cfg]=boot [id_rsa]=key [id_ed25519]=key)
+# Folders that are something, by their own name; system folders by where.
+FB_DIRKIND=([.git]=git [.config]=config [.local]=local [desktop]=desktop
+	[downloads]=downloads [documents]=documents [music]=music
+	[pictures]=pictures [videos]=videos [applications]=apps [apps]=apps
+	[games]=games)
 if command -v dt_appaction > /dev/null; then
 	dt_appaction files hidden "Show Hidden Files" "alt-."
 	dt_appaction files newwin "Open in New Window" "alt-enter"
@@ -878,15 +902,21 @@ fn fb_bgpair(name) {
 # What an entry is, finer than its kind: a file by its ending, a folder
 # that is the Trash as the trash. One of the names the file icons have.
 fn fb_fkind(int id, int i) {
-	local k=${FL[$id][$i]["kind"]} nm=${FL[$id][$i]["name"]} x
+	local k=${FL[$id][$i]["kind"]} nm=${FL[$id][$i]["name"]} x p
 
 	case $k in
 	up | dir)
-		[ -n "${DT_TRASH-}" ] && [ "${FB[$id]["dir"]}/$nm" = "$DT_TRASH/files" ] &&
+		p=${FB[$id]["dir"]%/}/$nm
+		[ -n "${DT_TRASH-}" ] && [ "$p" = "$DT_TRASH/files" ] &&
 			{ ret trash; return 0; }
-		[ "${FB[$id]["dir"]}/$nm" = "$HOME" ] && { ret home; return 0; }
+		[ "$p" = "$HOME" ] && { ret home; return 0; }
 		[[ $nm == *.boxer ]] && { ret boxer; return 0; }
-		ret folder
+		case $p in
+		/bin | /sbin | /lib | /lib32 | /lib64 | /usr | /etc | /var | /opt | /srv | /proc | /sys | /dev | /run | /boot)
+			ret system; return 0 ;;
+		esac
+		x := str lower "$nm"
+		ret "${FB_DIRKIND["$x"]:-folder}"
 		;;
 	bundle)
 		case $nm in *.boxer) ret boxer ;; *) ret bundle ;; esac
@@ -894,8 +924,12 @@ fn fb_fkind(int id, int i) {
 	exe) ret app ;;
 	link) ret link ;;
 	*)
-		x=${nm##*.}
-		[ "$x" != "$nm" ] && x := str lower "$x" || x=
+		x := str lower "$nm"
+		[ -n "${FB_NAMEKIND["$x"]-}" ] && { ret "${FB_NAMEKIND["$x"]}"; return 0; }
+		case $x in vmlinuz* | initrd* ) ret kernel; return 0 ;; esac
+		x=${x##*.}
+		[ "$x" != "$nm" ] || x=
+		[[ $nm == *.* ]] || x=
 		ret "${FB_EXTKIND["$x"]:-doc}"
 		;;
 	esac

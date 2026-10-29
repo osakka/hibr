@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.382
+
+**More of Blit's file icons** (Blit 0.3.7), in the four colourways:
+- **Special folders**, by their own name: `.git`, `.config`, `.local`,
+  Desktop, Downloads, Documents, Music, Pictures, Videos, Applications or
+  apps, and Games; and the system's own folders (`/etc`, `/usr`, `/var` and
+  their kind) by where they are.
+- **Files by their whole name** ahead of their ending, so a `README.md` is
+  a readme: rc files, shell histories, `hosts` and `resolv.conf`,
+  `crontab`, README/NEWS/motd, LICENSE/COPYING, Makefile/CMakeLists.txt,
+  `grub.cfg`, SSH keys and kernels.
+- **More endings**: C, assembly, patches, JSON, SVG, ROMs, ebooks, Windows
+  programs, disc images, packages, libraries, encrypted files, databases,
+  certificates, systemd units, EFI binaries, kernel modules and logs.
+- **USB drives** on the desktop: a drive mounted under `/media` or
+  `/run/media` wears the USB icon.
+
+Elsewhere the glyph set's own, as before. Files 3.2.
+
 ## 0.99.381
 
 **Files follows the theme until told otherwise.** A folder's background

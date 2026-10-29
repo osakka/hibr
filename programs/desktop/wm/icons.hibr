@@ -130,7 +130,7 @@ dt_diskscan() {
 			mnt=$v
 			[ "$v" -ef / ] && mnt=/
 			g := dt_iconbig disk "${GL[disk]}"
-		dt_iconadd place "$mnt" "$lbl" "$g" "disk:$mnt"
+			dt_iconadd place "$mnt" "$lbl" "$g" "disk:$mnt"
 		done
 		return 0
 	fi
@@ -143,7 +143,11 @@ dt_diskscan() {
 		else
 			lbl=${mnt##*/}
 		fi
-		g := dt_iconbig disk "${GL[disk]}"
+		# A drive mounted where removable ones go wears the USB icon.
+		case $mnt in
+		/media/* | /run/media/*) g := dt_iconbig usb "${GL[disk]}" ;;
+		*) g := dt_iconbig disk "${GL[disk]}" ;;
+		esac
 		dt_iconadd place "$mnt" "$lbl" "$g" "disk:$mnt"
 	done < "$DT_MOUNTS"
 }

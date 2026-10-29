@@ -362,6 +362,25 @@ def folderlook():
           and "blue-ok" in out and "small-ok" in out, out)
     check("a window's title is its folder's name by default, and the path when asked",
           "title Files [sub]" in out and "title Files [%s/sub]" % fd in out, out)
+    kd = tempfile.mkdtemp(prefix="hibr-kinds-")
+    want = {"README.md": "readme", "Makefile": "make", ".bashrc": "rc", "x.c": "c",
+            "x.json": "json", "x.svg": "vector", "x.iso": "disc", "x.deb": "package",
+            "notes.md": "md", "x.md5sum": "doc", "LICENSE": "license", "x.log": "log"}
+    for nm in want:
+        open(os.path.join(kd, nm), "w").write("x\n")
+    for nm in (".git", "Downloads", "Projects"):
+        os.mkdir(os.path.join(kd, nm))
+    want.update({".git/": "git", "Downloads/": "downloads", "Projects/": "folder"})
+    ko = subprocess.run([sx.HIBR, "-c", '. %s\n. %s\nFB[7][dir]=%s; FB[7][hidden]=1; FB[7][view]=list\n'
+        'fb_scan 7; for ((i = 0; i < ${FB[7][n]}; i++)); do k := fb_fkind 7 $i; '
+        'n=${FL[7][$i][name]}; [ "${FL[7][$i][dir]}" = 1 ] && n="$n/"; echo "$n=$k"; done\n'
+        % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/files.hibr"), kd)],
+        capture_output=True, text=True, env=dict(os.environ, XDG_STATE_HOME=kd))
+    got = dict(l.split("=", 1) for l in ko.stdout.split("\n") if "=" in l)
+    check("a file's kind comes from its whole name first, then its ending, and a "
+          "folder's from its own name", all(got.get(k) == v for k, v in want.items()),
+          (got, ko.stderr))
+    shutil.rmtree(kd, True)
     ic = subprocess.run([sx.HIBR, "-c", '. %s\n'
         'dt_glyphs blit; g := dt_iconbig home PLAIN; [ "$g" = "${GL[fhome]}" ] && echo blit-big\n'
         'FB_ICONCOLOUR=amber; g := dt_iconbig trash PLAIN; [ "$g" = "${GL[ftrash_amber]}" ] && echo amber\n'
@@ -5825,4 +5844,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(768)
+report(769)
