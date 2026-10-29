@@ -16,7 +16,7 @@
 
 strict
 
-app adminaccess "The Control Panel pane for administrative access" 1.0
+app adminaccess "The Control Panel pane for administrative access" 1.1
 command -v cp_pane > /dev/null && cp_pane adminaccess "Administrative Access" "⊛"
 
 # The choices, as the list shows them, and the setting each is.
@@ -232,21 +232,16 @@ aa_apply() {
 	aa_run apply "${lines[@]}"
 }
 
-# Run the helper as a job: apply with its settings, or reset.
-# pkexec is told not to start a prompt of its own: with no agent it would
-# ask on the desktop's own terminal, underneath the drawing.
+# Run the helper as a job: apply with its settings, or reset. pkexec runs
+# on a pty of its own and asks there with polkit's own text prompt, which
+# the desktop answers with a dialog of its own: started together, the
+# desktop's agent was not yet registered when pkexec looked for one, and
+# pkexec gave up at once with no dialog at all.
 fn aa_run(what, ...lines) {
-	local n pk=
+	local n
 
-	if ! dt_has dt_pkstart || ! dt_pkstart; then
-		dt_notep low "Not changed: polkit's agent, pkttyagent, is not installed"
-		return 1
-	fi
-	pk=1
-	n := dt_job access "$what" aa_done dt_jobmerge pkexec --disable-internal-agent \
-		"$AA_HELPER" "$what" "${lines[@]}"
+	n := dt_ptyjob access "$what" aa_done aa_prompt pkexec "$AA_HELPER" "$what" "${lines[@]}"
 	if [ -z "$n" ]; then
-		[ -n "$pk" ] && dt_pkstop
 		dt_notep low "Could not start pkexec"
 		return 1
 	fi
@@ -254,23 +249,92 @@ fn aa_run(what, ...lines) {
 	return 0
 }
 
-# The helper has finished: say how it went, and read everything again.
-fn aa_done(int n, int st) {
-	local why
+# What pkexec asks on its pty: whose password, through the desktop's own
+# dialog, and which identity when several may answer -- the person's own
+# where it is one of them.
+fn aa_prompt(int n, text) {
+	local l f who= hint pick= me
 
-	dt_has dt_pkstop && dt_pkstop
+	text=${text//$'\e[1;31m'/}
+	text=${text//$'\e[0m'/}
+	f := dt_jobfile "$n"
+	case $text in
+	*"assword: ")
+		[ -n "${DTJ[$n]["asking"]}" ] && return 0
+		DTJ[$n]["asking"]=1
+		while IFS= read -r l; do
+			case $l in *"Authenticating as: "*) who=${l##*Authenticating as: } ;; esac
+		done < "$f"
+		if [ -n "$who" ]; then
+			hint := dt_tr "The password of %s, to change who may act as an administrator" "$who"
+		else
+			hint := dt_tr "An administrator's password, to change who may act as an administrator"
+		fi
+		dt_ask "Authentication" "Password:" "" aa_pwgive "$hint" 1 76 aa_pwcancel > /dev/null
+		return 0
+		;;
+	"Choose identity to authenticate as"*": ")
+		me=${USER:-$LOGNAME}
+		while IFS= read -r l; do
+			[[ $l =~ ^\ *([0-9]+)\. ]] || continue
+			[ -n "$pick" ] || pick=${BASH_REMATCH[1]}
+			case $l in *"($me)"* | *" $me") pick=${BASH_REMATCH[1]} ;; esac
+		done < "$f"
+		pty write "${DTJ[$n]["pty"]}" "${pick:-1}"$'\r'
+		return 0
+		;;
+	esac
+	return 1
+}
+
+# The dialog answered: typed onto pkexec's pty by a builtin, so the
+# password is on no command line.
+fn aa_pwgive(v, int? id = "") {
+	local n=$AA_JOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	pty write "${DTJ[$n]["pty"]}" "$v"$'\r'
+	DTJ[$n]["asking"]=
+	return 0
+}
+
+# Cancelled: pkexec is told so, and gives up.
+fn aa_pwcancel(int? id = "") {
+	local n=$AA_JOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	pty write "${DTJ[$n]["pty"]}" $'\003'
+	return 0
+}
+
+# The helper has finished: say how it went, in pkexec's or the helper's
+# own words, and read everything again.
+fn aa_done(int n, int st) {
+	local l f why= failed=
+
 	AA_JOB=
+	f := dt_jobfile "$n"
+	while IFS= read -r l; do
+		l=${l//$'\e[1;31m'/}
+		l=${l//$'\e[0m'/}
+		case $l in
+		"hibr-access: "*) why=${l#hibr-access: } ;;
+		*"AUTHENTICATION FAILED"*) failed=1 ;;
+		"Error executing command"* | *"Not authorized"* | *"No authentication agent"*)
+			[ -n "$why" ] || why=$l ;;
+		esac
+	done < "$f"
 	if [ "$st" = 0 ]; then
 		AA_PEND=()
 		dt_note "Administrative access changed"
+	elif [ -n "$failed" ]; then
+		dt_notep low "Not changed: the password was not accepted"
+	elif [ "$st" = 126 ]; then
+		dt_notep low "Not changed: the password was cancelled"
+	elif [ -n "$why" ]; then
+		dt_notep low "Not changed: %s" "$why"
 	else
-		why := dt_joblast "$n"
-		why=${why#hibr-access: }
-		case $st in
-		126) dt_notep low "Not changed: the password was refused or cancelled" ;;
-		127) dt_notep low "Not changed: pkexec could not run hibr-access" ;;
-		*) dt_notep low "Not changed: %s" "$why" ;;
-		esac
+		dt_notep low "Not changed: pkexec ended with status %s" "$st"
 	fi
 	aa_load
 	return 0

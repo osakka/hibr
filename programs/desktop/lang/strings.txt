@@ -139,6 +139,7 @@ Almost done
 Already joining %s
 Already on %s
 Already pairing %s
+An administrator's password, to change who may act as an administrator
 An event stays in its calendar; make a new one in the other
 An item named %s already exists in %s.
 And Minutes Before
@@ -772,9 +773,9 @@ Not a place: latitude -90 to 90, longitude -180 to 180
 Not a valid name
 Not changed
 Not changed: %s
-Not changed: pkexec could not run hibr-access
-Not changed: polkit's agent, pkttyagent, is not installed
-Not changed: the password was refused or cancelled
+Not changed: pkexec ended with status %s
+Not changed: the password was cancelled
+Not changed: the password was not accepted
 Not connected
 Not found: %s
 Not held -- nothing to detach from
@@ -1163,6 +1164,7 @@ The mermaid module is not loaded
 The one there now goes to the trash.
 The page could not be saved as a PDF
 The password of %s, for %s
+The password of %s, to change who may act as an administrator
 The password was not accepted
 The pdf module is not installed
 The record could not be added

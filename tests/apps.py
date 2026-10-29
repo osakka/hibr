@@ -2136,13 +2136,16 @@ def adminaccess_checks():
              "  vendor:            hibr\n  implicit active:   auth_admin\n"
              "  annotation:        org.freedesktop.policykit.exec.path -> /h/hibr-access\nE\n"),
             ("pkcheck", "exit 2\n"),
-            ("pkexec", 'for a in "$@"; do printf "[%%s]" "$a"; done >> %s; echo >> %s\n' % (PKREC, PKREC))):
+            ("pkexec", "printf '\\033[1;31m==== AUTHENTICATING FOR org.hibr.access.apply ====\\r\\n"
+             "\\033[0mAuthenticating as: tester\\r\\nPassword: '\nread -r pw\n"
+             'echo "pw=$pw" >> %s\n'
+             'for a in "$@"; do printf "[%%s]" "$a"; done >> %s; echo >> %s\n' % (PKREC, PKREC, PKREC))):
         open(os.path.join(FAKEPK, pkprog), "w").write("#!/bin/sh\n" + pkbody)
         os.chmod(os.path.join(FAKEPK, pkprog), 0o755)
     open(os.path.join(FAKEPK, "set"), "w").write("org.test.one never - -\n")
     AASCRIPT = (
         '. %s\n. %s\n. %s/adminaccess.hibr\n'
-        'dt_pkstart() { echo agent-on; }; dt_pkstop() { echo agent-off; }\n'
+        'dt_ask() { echo "ask: $5" >&2; aa_pwgive secret; }\n'
         'dt_note() { echo "note: $*"; }; dt_notep() { echo "note: $*"; }\n'
         'AA_SETTINGS=%s\n'
         'rows() { declare -gA CP; n := adminaccess_rows 41; for ((i = 0; i < n; i++)); do '
@@ -2168,10 +2171,11 @@ def adminaccess_checks():
     check("a choice waits, marked, until Apply Changes",
           "set|Do one thing|* Your Own Password, Remembered, asks you" in chose
           and "action|Apply Changes" in chose and "action|Check Again|\n" in chose, out)
-    check("Apply Changes runs hibr's helper once under pkexec, with the desktop's own "
-          "agent, every setting an argument of its own",
-          asked == "[--disable-internal-agent][/h/hibr-access][apply][org.test.one self - keep]\n"
-          and "agent-on" in after and "agent-off" in after and "pend=0" in after, (asked, out))
+    check("Apply Changes runs hibr's helper once under pkexec, its password asked in the "
+          "desktop's own dialog and typed onto pkexec's own terminal, every setting an "
+          "argument of its own",
+          asked.replace("\r", "") == "pw=secret\n[/h/hibr-access][apply][org.test.one self - keep]\n"
+          and "ask: The password of tester" in after and "pend=0" in after, (asked, out))
     check("a group nobody has is refused before anything is kept",
           "note: low There is no group called %s no_such_group_zz" in after, out)
     shutil.rmtree(FAKEPK, True)

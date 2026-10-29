@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.52",
+ "version": "3.53",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1522,10 +1522,12 @@
   "Members of this group are let through without a password": "يُسمح لأعضاء هذه المجموعة دون كلمة مرور",
   "No Password for a Group": "دون كلمة مرور لمجموعة",
   "Not changed: %s": "لم يتغيّر: %s",
-  "Not changed: pkexec could not run hibr-access": "لم يتغيّر: تعذّر على pkexec تشغيل hibr-access",
-  "Not changed: the password was refused or cancelled": "لم يتغيّر: رُفضت كلمة المرور أو أُلغيت",
   "There is no group called %s": "لا توجد مجموعة باسم %s",
   "polkit": "polkit",
-  "Not changed: polkit's agent, pkttyagent, is not installed": "لم يتغيّر: وكيل polkit، أي pkttyagent، غير مثبّت"
+  "The password of %s, to change who may act as an administrator": "كلمة مرور %s، لتغيير من يمكنه التصرف كمسؤول",
+  "An administrator's password, to change who may act as an administrator": "كلمة مرور مسؤول، لتغيير من يمكنه التصرف كمسؤول",
+  "Not changed: the password was not accepted": "لم يتغيّر: لم تُقبل كلمة المرور",
+  "Not changed: the password was cancelled": "لم يتغيّر: أُلغيت كلمة المرور",
+  "Not changed: pkexec ended with status %s": "لم يتغيّر: انتهى pkexec بالحالة %s"
  }
 }

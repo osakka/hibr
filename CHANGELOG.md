@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.379
+
+**Administrative Access asks for the password.** Apply Changes started
+the desktop's polkit agent and pkexec together, and pkexec looked for an
+agent before the new one had registered: it gave up at once, with no
+dialog, and the note blamed pkexec for not finding hibr-access. pkexec now
+runs on a pty of its own and asks there with polkit's own text prompt,
+which the desktop answers in its own dialog -- the password typed onto
+that terminal by a builtin, on no command line -- picking the person's
+own identity where polkit offers several. A failure says what pkexec or
+hibr-access said. Arabic 3.53.
+
 ## 0.99.378
 
 **Administrative Access** (Control Panel, Gitea #406): who may do what as
