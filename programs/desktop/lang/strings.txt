@@ -437,6 +437,7 @@ Edit as Markdown
 Edit as Plain Text
 Edit…
 Email
+Empty
 Empty Trash…
 Empty finds Chromium or Chrome. Used at the next start.
 Empty is hibr's own. Used at the next start.
@@ -555,6 +556,8 @@ Hover
 How Formulas Work
 ITEM
 Icon Background
+Icon Colours
+Icon Size
 Icons
 Identify
 Image
@@ -609,6 +612,7 @@ Label…
 Language
 Languages
 Languages pages are asked for, first wanted most:
+Large
 Largest Height
 Largest Screen
 Largest Width
@@ -979,6 +983,7 @@ Restarted, but the saved desktop could not be read -- see desktop.log
 Restarted, but the saved desktop is from another version
 Restarted: hibr %s
 Restart…
+Reversed
 Right
 Rows
 Rubber Band
@@ -1080,6 +1085,7 @@ Size: %s
 Skip
 Sleep
 Sleep, Restart, Shut Down
+Small
 Smallest Height
 Smallest Width
 Smoothest
@@ -1088,6 +1094,7 @@ Snap
 Something is still running here. Close it?
 Something may be using what %s offers
 Sort By
+Sort Folders By
 Sort by CPU
 Sort by Memory
 Sound
@@ -1215,6 +1222,7 @@ Timeout
 Timeout (seconds)
 Title
 Title Bar
+Title Menu Modifier
 Titlebar Click
 Today
 Today  Month  Agenda
@@ -1290,6 +1298,7 @@ Wi-Fi, %s
 Wider Column
 Window
 Window Switcher
+Window Title
 Window:
 Windows
 Windows: %s open

@@ -2516,15 +2516,24 @@ gl = [(r, c) for r in (hr - 1, 5) for c in range(sc.cols)
 check("each icon's glyph is followed by a blank, not the wallpaper's pattern",
       len(gl) == 2 and all(sc.at(r, c + 1) == " " for r, c in gl), (gl, sc))
 
+# The folder a window shows is in its title since 0.99.380, which has no
+# path line: home as ~, anything else by its own name (Control Panel >
+# Files > Window Title, Folder Name by default).
+def intitle(sc, path):
+    t = sc.text()
+    if path == env.get("HOME"):
+        return "Files [~]" in t
+    return "Files [%s]" % os.path.basename(path) in t
+
+
 sc, raw = run("", feed=[press(3, 70), press(3, 70)], env=env, pre=pre)
-check("a double click on home opens it in Files", sc.find(home) is not None,
-      sc)
+check("a double click on home opens it in Files", intitle(sc, home), sc)
 sc, raw = run("", feed=[press(6, 70), press(6, 70)], env=env, pre=pre)
-check("and on a disk opens it there", sc.find(backup) is not None, sc)
+check("and on a disk opens it there", intitle(sc, backup), sc)
 
 sc, raw = run('dt_new "Files" 10 34 2 2 files', env=env,
               pre=pre + "FB_DIR=%s\n" % src,
-              feed=[press(5, 5), drag(5, 9), drag(12, 70), release(12, 70)])
+              feed=[press(3, 5), drag(3, 9), drag(12, 70), release(12, 70)])
 check("a file dragged from a window onto the trash icon is thrown away",
       os.path.exists(os.path.join(d, "trash", "files", "moveme.txt")), sc)
 shutil.rmtree(d, True)
@@ -2697,7 +2706,7 @@ check("and it opens a card of the app's name, icon, description and the shell's 
 d, env, pre, home, backup, usb, src = desk()
 sc, raw = run("", feed=[b"\x1b[B", b"\x1b[B", b"\r"], env=env, pre=pre)
 check("with no window focused the arrows go from icon to icon, enter opens",
-      sc.find(backup) is not None, sc)
+      intitle(sc, backup), sc)
 
 # Home and a disk are both place icons, so neither is ever a file delete can
 # lose; shift extends the selection across them regardless, provable by
@@ -5494,7 +5503,7 @@ a = sc.find("alpha.txt")
 sc, _ = run(FBM + "icons", env=XY, pre=APPS,
             feed=[press(a[0] - 1, a[1]), release(a[0] - 1, a[1])])
 check("and a click on an icon selects the one drawn there",
-      sc.find("3 of 5") is not None, sc)
+      sc.find("2 of 4") is not None, sc)
 sc, _ = run(FBM + "details", env=XY, pre=APPS)
 z = sc.find("Size")
 sc, _ = run(FBM + "details", env=XY, pre=APPS,
@@ -8151,5 +8160,15 @@ a, b, told = fsrun("dt_notep high 'Game saved'; dt_note 'just so'", [0.3])
 check("a high note is one line along the bottom edge, and an ordinary one is "
       "not drawn over the window", "Game saved" in a.row(19) and
       a.find("just so") is None and a.row(0) == "#" * 50, a)
+# A module draws its half-block picture at absolute coordinates -- retro,
+# xscr, media and web all do, since the display's put has no pane -- so a
+# full-screen window must not be a top pane, which takes cells only through
+# itself: it was, and those windows drew nothing at all (hibr-boxer's
+# report on 0.99.379).
+a, b, told = fsrun("fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
+                   "console fill -p \"w$1\" 0 0 \"$2\" \"$3\" ' '; "
+                   "console put 4 2 WORLD; }", [0.3])
+check("and what a module draws at absolute coordinates over it shows",
+      a.find("WORLD") == (4, 2), a)
 
-report(882)
+report(883)

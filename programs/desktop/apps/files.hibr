@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 2.5
+app files "A file browser" 3.0
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -80,6 +80,48 @@ command -v dt_keep > /dev/null && dt_keep FB_DEFAULTVIEW
 FB_HIDDENDEF="${FB_HIDDENDEF-0}"
 FB_OPENNEW="${FB_OPENNEW-0}"
 command -v dt_keep > /dev/null && dt_keep FB_HIDDENDEF FB_OPENNEW
+
+# How a folder looks until it is told otherwise, each kept for the folder
+# itself once it is (Gitea #406's companion, the owner's System 7 list):
+# the icons two columns wide where the glyph set has them (Blit's), and
+# their colourway; the order its entries are in; and its background, a
+# name from FB_BGS -- White unless the person chose another, in Control
+# Panel > Files for every folder and in a folder's View menu for that one,
+# which wins. Theme is the window's own face, as before.
+FB_ICONSIZE="${FB_ICONSIZE-double}"
+FB_ICONCOLOUR="${FB_ICONCOLOUR-classic}"
+FB_SORTDEF="${FB_SORTDEF-name}"
+FB_BGDEF="${FB_BGDEF-White}"
+# A ".." row first in every folder but the root: off, as System 7 had
+# none -- File > Go Up, its key and the title's path list go up instead.
+FB_SHOWUP="${FB_SHOWUP-0}"
+# What a window's title says of where it is: name, the folder's own; pathend,
+# the whole path, its start dropped to fit; path, the whole path.
+FB_TITLE="${FB_TITLE-name}"
+command -v dt_keep > /dev/null && dt_keep FB_ICONSIZE FB_ICONCOLOUR FB_SORTDEF FB_BGDEF FB_SHOWUP FB_TITLE
+FB_ICONCOLOURS=(classic blue green amber)
+FB_SORTS=(name kind time size)
+# The backgrounds a folder may have, a name and its colour: the person's
+# choice, not the theme's, so the text on it is worked out from it -- dark
+# on a light colour, light on a dark one -- rather than chosen as well.
+FB_BGS=("White #ffffff" "Grey #c8c8c8" "Blue #a9c8e8" "Green #b9dfa8"
+	"Yellow #f6e9a6" "Rose #efc1cb" "Lavender #cfc2e9" "Charcoal #2b2b33" "Theme -")
+# The kind of a file by its ending, for its icon and for sorting by kind.
+declare -gA FB_EXTKIND
+FB_EXTKIND=([txt]=text [log]=text [json]=text [md]=md [markdown]=md
+	[csv]=sheet [tsv]=sheet [ods]=sheet [xls]=sheet [xlsx]=sheet
+	[mmd]=diagram [mermaid]=diagram [dot]=diagram
+	[odp]=slides [ppt]=slides [pptx]=slides [key]=slides
+	[ttf]=font [otf]=font [woff]=font [woff2]=font [pcf]=font [bdf]=font
+	[htm]=web [url]=web [webloc]=web [sh]=term [command]=term
+	[conf]=settings [ini]=settings [cfg]=settings [toml]=settings [yaml]=settings [yml]=settings
+	[pdf]=pdf
+	[png]=image [jpg]=image [jpeg]=image [gif]=image [webp]=image [bmp]=image [svg]=image [ppm]=image
+	[mp3]=audio [ogg]=audio [flac]=audio [wav]=audio [m4a]=audio [opus]=audio
+	[mp4]=video [mkv]=video [webm]=video [mov]=video [avi]=video
+	[tar]=archive [gz]=archive [tgz]=archive [zip]=archive [xz]=archive [bz2]=archive [zst]=archive [7z]=archive [deb]=archive [rpm]=archive
+	[c]=code [h]=code [py]=code [hibr]=code [js]=code [rs]=code [go]=code [css]=code [html]=web
+	[doc]=doc [docx]=doc [odt]=doc [rtf]=doc)
 if command -v dt_appaction > /dev/null; then
 	dt_appaction files hidden "Show Hidden Files" "alt-."
 	dt_appaction files newwin "Open in New Window" "alt-enter"
@@ -91,7 +133,7 @@ fi
 # line, sourced back exactly the way dt_load reads DT_CONF, so no parser
 # of its own is needed.
 FB_VIEWFILE="${FB_VIEWFILE-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/files-views}"
-declare -gA FB_VIEWS
+declare -gA FB_VIEWS FB_DIRSET
 [ -r "$FB_VIEWFILE" ] && . "$FB_VIEWFILE"
 
 # The in-process ls, so the details view does not exec a program; the one on
@@ -112,7 +154,7 @@ fn fb_scan(int id) {
 		fb_rscan "$id" "$d"
 		return
 	fi
-	if [ "$d" != / ]; then
+	if [ "$d" != / ] && [ "$FB_SHOWUP" = 1 ]; then
 		FL[$id][$n]["name"]=".."
 		FL[$id][$n]["dir"]=1
 		FL[$id][$n]["kind"]=up
@@ -203,7 +245,7 @@ fn fb_rscan(int id, d) {
 		return 1
 	fi
 	FB[$id]["dir"]=$d
-	if [[ ${d#dav://} == */* ]]; then
+	if [[ ${d#dav://} == */* ]] && [ "$FB_SHOWUP" = 1 ]; then
 		FL[$id][$n]["name"]=".."
 		FL[$id][$n]["dir"]=1
 		FL[$id][$n]["kind"]=up
@@ -466,6 +508,7 @@ fn fb_sort(int id) {
 			printf -v key '%015d' "$k"
 			;;
 		mode) key=${FL[$id][$i]["perm"]} ;;
+		kind) key := fb_fkind "$id" "$i" ;;
 		*) key=$nm ;;
 		esac
 		key="$key	$nm	$i"
@@ -549,6 +592,8 @@ fn fb_headsort(int id, col) {
 		*) FB[$id]["sdir"]=asc ;;
 		esac
 	fi
+	fb_dset "${FB[$id]["dir"]}" sort "${FB[$id]["sort"]}"
+	fb_dset "${FB[$id]["dir"]}" sdir "${FB[$id]["sdir"]}"
 	nm=${FL[$id][${FB[$id]["sel"]:-0}]["name"]}
 	fb_sort "$id"
 	n=${FB[$id]["n"]}
@@ -603,11 +648,30 @@ fn fb_path(int id, int i) {
 # that opened it does, the same reasoning term_open's own dt_retitle uses.
 # $HOME collapses to ~ the same way a prompt's \w already would.
 fn fb_retitle(int id, t) {
+	local room
 	case $t in
 	dav://*/*) t=${t#dav://}; t="${t%%/*}:/${t#*/}" ;;
 	dav://*) t="${t#dav://}:/" ;;
 	"$HOME") t="~" ;;
 	"$HOME"/*) t="~${t#$HOME}" ;;
+	esac
+	# What the title says of where the window is (Control Panel > Files >
+	# Window Title): the folder's own name, as System 7's did; the whole
+	# path with its start dropped to fit, so where it is always shows; or
+	# the whole path, cut at its end by the frame.
+	case ${FB_TITLE:-name} in
+	name)
+		case $t in
+		/ | "~" | *:/) ;;
+		*) t=${t##*/} ;;
+		esac
+		;;
+	pathend)
+		room=$((${DT[$id]["w"]:-40} - 20))
+		[ "$room" -lt 8 ] && room=8
+		[ "${#t}" -gt "$room" ] && t="${GL[ellipsis]}${t: -$((room - 1))}"
+		FB[$id]["titlew"]=${DT[$id]["w"]-}
+		;;
 	esac
 	if command -v dt_retitle > /dev/null; then
 		local wt
@@ -634,6 +698,7 @@ fn fb_go(int id, d) {
 		FB[$id]["q"]=
 		dt_searchclear "$id"
 		FB[$id]["view"] := fb_dirview "$d"
+		fb_dirapply "$id" "$d"
 		fb_retitle "$id" "$d"
 		return 0
 	fi
@@ -651,10 +716,12 @@ fn fb_go(int id, d) {
 	esac
 	[ "$d" != / ] && d=${d%/}
 	[ -d "$d" ] || return 1
+	[ "$d" != "${FB[$id]["dir"]}" ] && fb_geomsave "$id"
 	FB[$id]["q"]=
 	dt_searchclear "$id"
 	FB[$id]["dir"]=$d
 	FB[$id]["view"] := fb_dirview "$d"
+	fb_dirapply "$id" "$d"
 	fb_retitle "$id" "$d"
 	fb_scan "$id"
 }
@@ -707,16 +774,127 @@ fn fb_dirview(dir) {
 # and DT_APPKEY already accept for a controlled vocabulary of names; a
 # filesystem path is not controlled.
 fn fb_view_save(dir, view) {
+	FB_VIEWS["$dir"]=$view
+	fb_viewwrite
+}
+
+# Write every folder's view and its own settings back to the file.
+fb_viewwrite() {
 	local d tmp=$FB_VIEWFILE.$$
 
-	FB_VIEWS["$dir"]=$view
 	mkdir -p "${FB_VIEWFILE%/*}" 2> /dev/null || return 1
 	{
 		for d in "${!FB_VIEWS[@]}"; do
 			case $d in *'"'*) continue ;; esac
 			printf 'FB_VIEWS["%s"]=%q\n' "$d" "${FB_VIEWS["$d"]}"
 		done
+		for d in "${!FB_DIRSET[@]}"; do
+			case $d in *'"'*) continue ;; esac
+			printf 'FB_DIRSET["%s"]=%q\n' "$d" "${FB_DIRSET["$d"]}"
+		done
 	} > "$tmp" && mv -f "$tmp" "$FB_VIEWFILE"
+}
+
+# One of a folder's own settings, from its record ";key=value;...", or
+# status 1 when it has none of its own.
+fn fb_dget(dir, key) {
+	local r=";${FB_DIRSET["$dir"]-};"
+
+	case $r in *";$key="*) ;; *) return 1 ;; esac
+	r=${r#*";$key="}
+	ret "${r%%;*}"
+}
+
+# Keep one of a folder's own settings, or forget it with an empty value.
+fn fb_dset(dir, key, value = "") {
+	local r=";${FB_DIRSET["$dir"]-};" out= f
+	local -a fs
+
+	IFS=';' read -ra fs <<< "${r//;;/;}"
+	for f in "${fs[@]}"; do
+		[ -n "$f" ] && [ "${f%%=*}" != "$key" ] && out+="$f;"
+	done
+	[ -n "$value" ] && out+="$key=$value;"
+	out=${out%;}
+	if [ -n "$out" ]; then
+		FB_DIRSET["$dir"]=$out
+	else
+		unset FB_DIRSET["$dir"]
+	fi
+	fb_viewwrite
+}
+
+# Show a folder the way it was left: its order, its icons and background
+# from its own record where it has one, else from Control Panel > Files.
+fn fb_dirapply(int id, dir) {
+	local v
+
+	v := fb_dget "$dir" sort || v=$FB_SORTDEF
+	[ "$v" = name ] && v=
+	FB[$id]["sort"]=$v
+	v := fb_dget "$dir" sdir || v=asc
+	FB[$id]["sdir"]=$v
+	v := fb_dget "$dir" isz || v=$FB_ICONSIZE
+	FB[$id]["isz"]=$v
+	v := fb_dget "$dir" icol || v=$FB_ICONCOLOUR
+	FB[$id]["icol"]=$v
+	v := fb_dget "$dir" bg || v=$FB_BGDEF
+	FB[$id]["bg"]=$v
+	return 0
+}
+
+# A background's colour and the ink worked out for it, "#face #ink", or
+# empty for the theme's own.
+fn fb_bgpair(name) {
+	local e c r g b
+
+	for e in "${FB_BGS[@]}"; do
+		[ "${e%% *}" = "$name" ] || continue
+		c=${e#* }
+		[ "$c" = - ] && { ret ""; return 0; }
+		r=$((16#${c:1:2}))
+		g=$((16#${c:3:2}))
+		b=$((16#${c:5:2}))
+		if [ $((r * 299 + g * 587 + b * 114)) -ge 140000 ]; then
+			ret "$c #000000"
+		else
+			ret "$c #f0f0f0"
+		fi
+		return 0
+	done
+	ret ""
+}
+
+# What an entry is, finer than its kind: a file by its ending, a folder
+# that is the Trash as the trash. One of the names the file icons have.
+fn fb_fkind(int id, int i) {
+	local k=${FL[$id][$i]["kind"]} nm=${FL[$id][$i]["name"]} x
+
+	case $k in
+	up | dir)
+		[ -n "${DT_TRASH-}" ] && [ "${FB[$id]["dir"]}/$nm" = "$DT_TRASH/files" ] &&
+			{ ret trash; return 0; }
+		[ "${FB[$id]["dir"]}/$nm" = "$HOME" ] && { ret home; return 0; }
+		[[ $nm == *.boxer ]] && { ret boxer; return 0; }
+		ret folder
+		;;
+	bundle)
+		case $nm in *.boxer) ret boxer ;; *) ret bundle ;; esac
+		;;
+	exe) ret app ;;
+	link) ret link ;;
+	*)
+		x=${nm##*.}
+		[ "$x" != "$nm" ] && x := str lower "$x" || x=
+		ret "${FB_EXTKIND["$x"]:-doc}"
+		;;
+	esac
+}
+
+# Whether this window draws its icons two columns wide: where it is asked
+# to and the glyph set has them.
+fn fb_bigicons(int id) {
+	[ "${FB[$id]["isz"]:-$FB_ICONSIZE}" = double ] && [ -n "${GL[ffolder]-}" ]
 }
 
 # Forget every directory's own remembered view -- Control Panel's own
@@ -725,8 +903,8 @@ fn fb_view_save(dir, view) {
 # open keeps showing whatever it is currently showing, the same as
 # changing the default itself already leaves an open window alone.
 fb_reset_views() {
-	unset FB_VIEWS
-	declare -gA FB_VIEWS
+	unset FB_VIEWS FB_DIRSET
+	declare -gA FB_VIEWS FB_DIRSET
 	rm -f "$FB_VIEWFILE"
 }
 
@@ -739,11 +917,42 @@ fn files_open(int id, d) {
 	FB[$id]["hidden"]=
 	[ "$FB_HIDDENDEF" = 1 ] && FB[$id]["hidden"]=1
 	FB[$id]["view"] := fb_dirview "$d"
+	fb_dirapply "$id" "$d"
+	fb_geomuse "$id" "$d"
 	FB[$id]["vis"]=1
 	FB[$id]["per"]=1
 	fb_retitle "$id" "$d"
 	fb_scan "$id"
 	[ -n "$want" ] && fb_go "$id" "$want"
+	return 0
+}
+
+# A folder's window where it was left, when it was left somewhere that is
+# still on the screen whole.
+fn fb_geomuse(int id, dir) {
+	local g r c h w
+
+	g := fb_dget "$dir" geom || return 0
+	read -r r c h w <<< "$g"
+	[[ "$r$c$h$w" =~ ^[0-9]+$ ]] || return 0
+	[ "$h" -ge 6 ] && [ "$w" -ge 20 ] || return 0
+	[ "$r" -ge 1 ] && [ $((r + h)) -le "${DT_ROWS:-24}" ] &&
+		[ $((c + w)) -le "${DT_COLS:-80}" ] || return 0
+	dt_has dt_setgeom && dt_setgeom "$id" "$r" "$c" "$h" "$w"
+	return 0
+}
+
+# Keep where a folder's window is, for the next one opened on it.
+fn fb_geomsave(int id) {
+	local d=${FB[$id]["dir"]-}
+
+	[ -n "$d" ] && [ -n "${DT[$id]["row"]-}" ] || return 0
+	fb_remote "$id" && return 0
+	fb_dset "$d" geom "${DT[$id]["row"]} ${DT[$id]["col"]} ${DT[$id]["h"]} ${DT[$id]["w"]}"
+}
+
+fn files_close(int id) {
+	fb_geomsave "$id"
 	return 0
 }
 
@@ -758,10 +967,18 @@ fn files_resume(int id) {
 	fb_scan "$id"
 }
 
+# The background and ink of the window being drawn, set by files_draw.
+FB_FACENOW=
+FB_INKNOW=
+
 # The colour an entry is drawn in, by what it is.
 fn fb_pen(kind, bg = "") {
-	local b=${bg:-$DT_FACE}
+	local b=${bg:-${FB_FACENOW:-$DT_FACE}}
 
+	if [ -n "$FB_INKNOW" ] && [ -z "$bg" ]; then
+		console pen "$FB_INKNOW" "$b"
+		return 0
+	fi
 	case $kind in
 	up | dir) console pen "$DT_WARN" "$b" ;;
 	bundle) console pen "$DT_INFO" "$b" ;;
@@ -771,8 +988,18 @@ fn fb_pen(kind, bg = "") {
 	esac
 }
 
-# The picture an entry has in the icon view.
-fn fb_glyph(kind) {
+# The picture an entry has in the icon view: one of the file icons, two
+# columns wide in the window's colourway, where there are any; else one
+# glyph by what it is -- always, for small, as a drag's label wants.
+fn fb_glyph(int id, int i, size = "") {
+	local kind=${FL[$id][$i]["kind"]} f c
+
+	if [ "$kind" != up ] && [ "$size" != small ] && fb_bigicons "$id"; then
+		f := fb_fkind "$id" "$i"
+		c=${FB[$id]["icol"]:-$FB_ICONCOLOUR}
+		[ "$c" = classic ] && c= || c=_$c
+		[ -n "${GL["f$f$c"]-}" ] && { ret "${GL["f$f$c"]}"; return 0; }
+	fi
 	case $kind in
 	up) ret "${GL[up]}" ;;
 	dir) ret "${GL[folderbig]}" ;;
@@ -784,9 +1011,24 @@ fn fb_glyph(kind) {
 }
 
 fn files_draw(int id, int h, int w, int row, int col) {
-	local t n sel pw=$w bw=0 q=${FB[$id]["q"]} on sx px srows
+	local t n sel pw=$w bw=0 q=${FB[$id]["q"]} on sx px srows bp
 
 	dt_wclear "$id"
+	# A title that fits the path to the window is fitted again when the
+	# window is a different width.
+	[ "${FB_TITLE:-name}" = pathend ] && [ "${FB[$id]["titlew"]-}" != "${DT[$id]["w"]-}" ] &&
+		fb_retitle "$id" "${FB[$id]["dir"]}"
+	# The folder's background, under everything below the path, its text
+	# in the ink worked out for it; empty for the theme's face.
+	FB_FACENOW=
+	FB_INKNOW=
+	bp := fb_bgpair "${FB[$id]["bg"]-$FB_BGDEF}"
+	if [ -n "$bp" ]; then
+		FB_FACENOW=${bp% *}
+		FB_INKNOW=${bp#* }
+		console pen "$FB_INKNOW" "$FB_FACENOW"
+		console fill -p "w$id" 1 1 "$h" "$w" " "
+	fi
 	# The path gets the whole row now: the sixteen columns reserved
 	# here were the search box's, and the search has moved to the
 	# window's bottom row and draws nothing until `/` asks for it.
@@ -797,14 +1039,8 @@ fn files_draw(int id, int h, int w, int row, int col) {
 	px=1
 	case $DT_MIRRORON in 1) FB[$id]["x0"]=2; sx=1; px=$((w - pw + 1)) ;; esac
 	FB[$id]["px"]=$px
-	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	t="${FB[$id]["dir"]}"
-	[ ${#t} -gt "$pw" ] && t="${GL[ellipsis]}${t: -$((pw - 1))}"
-	case $DT_MIRRORON in
-	1) t := dt_rpad "$t" "$pw" ;;
-	*) t := str pad "$t" "$pw" ;;
-	esac
-	console put -p "w$id" 1 "$px" "$t"
+	# No path line: the window's title says where it is, and the list of
+	# the folders above drops from the title on a modified click.
 	# No box on the path row: the search is the desktop's one search
 	# (widgets/search.hibr), drawn on this window's bottom row and
 	# only once `/` has asked for it. This one used to be right-
@@ -821,6 +1057,8 @@ fn files_draw(int id, int h, int w, int row, int col) {
 	console pen "$DT_DIM" "$DT_FACE"
 	if [ "${FB[$id]["marks"]}" -gt 0 ]; then
 		t := dt_tr "%s selected" "${FB[$id]["marks"]}"
+	elif [ "${n:-0}" = 0 ]; then
+		t := dt_tr "Empty"
 	else
 		t="$((sel + 1)) of $n"
 	fi
@@ -891,14 +1129,14 @@ fn fb_band(int id, int r, int c) {
 fn fb_drawlist(int id, int h, int w) {
 	local i r nm t n top sel
 
-	FB[$id]["y0"]=2
-	FB[$id]["vis"]=$((h - 2))
+	FB[$id]["y0"]=1
+	FB[$id]["vis"]=$((h - 1))
 	FB[$id]["per"]=1
 	n=${FB[$id]["n"]}
 	top=${FB[$id]["top"]}
 	sel=${FB[$id]["sel"]}
 	i=$top
-	r=2
+	r=1
 	while [ "$r" -lt "$h" ] && [ "$i" -lt "$n" ]; do
 		nm=${FL[$id][$i]["name"]}
 		[ "${FL[$id][$i]["dir"]}" = 1 ] && nm="$nm/"
@@ -921,8 +1159,8 @@ fn fb_drawdet(int id, int h, int w) {
 	local cs=0 ct=0 cp=0
 
 	[ -n "${FB[$id]["meta"]}" ] || fb_meta "$id"
-	FB[$id]["y0"]=3
-	FB[$id]["vis"]=$((h - 3))
+	FB[$id]["y0"]=2
+	FB[$id]["vis"]=$((h - 2))
 	FB[$id]["per"]=1
 	nw=$((w - 1))
 	[ "$nw" -ge 24 ] && cs=1 && nw=$((nw - 7))
@@ -963,7 +1201,7 @@ fn fb_drawdet(int id, int h, int w) {
 		hx="$hx mode $x $((x + 11))"
 	fi
 	FB[$id]["hx"]=$hx
-	console put -p "w$id" 2 1 "$line"
+	console put -p "w$id" 1 1 "$line"
 	fi
 	n=${FB[$id]["n"]}
 	top=${FB[$id]["top"]}
@@ -1033,7 +1271,7 @@ fn fb_dethead(int id, int nw, int cs, int ct, int cp, mk, ms, mt, mm) {
 	line+=$t
 	hx="$hx name $x $((x + nw))"
 	FB[$id]["hx"]=${hx# }
-	console put -p "w$id" 2 2 "$line"
+	console put -p "w$id" 1 2 "$line"
 }
 
 # One row of the details mirrored, its columns in the header's order.
@@ -1150,7 +1388,7 @@ fn fb_drawicons(int id, int h, int w) {
 	[ "$per" -lt 1 ] && per=1
 	rows=$(((h - 1) / th))
 	[ "$rows" -lt 1 ] && rows=1
-	FB[$id]["y0"]=2
+	FB[$id]["y0"]=1
 	FB[$id]["th"]=$th
 	FB[$id]["per"]=$per
 	FB[$id]["vis"]=$((per * rows))
@@ -1161,7 +1399,7 @@ fn fb_drawicons(int id, int h, int w) {
 	while [ "$i" -lt "$n" ] && [ "$i" -lt $((top + per * rows)) ]; do
 		r=$(((i - top) / per))
 		c=$(((i - top) % per))
-		y=$((2 + r * th))
+		y=$((1 + r * th))
 		x=$((1 + c * tw))
 		case $DT_MIRRORON in 1) x=$((w + 1 - (c + 1) * tw)) ;; esac
 		gy=$y
@@ -1185,7 +1423,7 @@ fn fb_drawicons(int id, int h, int w) {
 			cov=
 		fi
 		if [ -z "$cov" ]; then
-			g := fb_glyph "${FL[$id][$i]["kind"]}"
+			g := fb_glyph "$id" "$i"
 			fb_pen "${FL[$id][$i]["kind"]}"
 			dt_hot "$id" "row:$i" && [ "$i" != "$sel" ] &&
 				fb_pen "${FL[$id][$i]["kind"]}" "$DT_WELL"
@@ -1975,7 +2213,7 @@ fn files_srvmenu(int id) {
 }
 
 files_menus() {
-	local id=$DT_FOCUS on v
+	local id=$DT_FOCUS on v t
 
 	dt_menu "File"
 	dt_item "Open" o fb_open "$id"
@@ -2010,9 +2248,115 @@ files_menus() {
 		v := dt_akeyof files hidden
 		[ -n "$v" ] && dt_rowaccel "$v"
 	fi
+	dt_sep
+	dt_sub "Sort By"
+	for v in "${FB_SORTS[@]}"; do
+		on=0
+		[ "${FB[$id]["sort"]:-name}" = "$v" ] && on=1
+		t := fb_sortname "$v"
+		dt_mark "$t" "" "$on" files_sortby "$id" "$v"
+	done
+	dt_sep
+	on=0
+	[ "${FB[$id]["sdir"]:-asc}" = desc ] && on=1
+	dt_mark "Reversed" "" "$on" files_sortrev "$id"
+	dt_end
+	if [ -n "${GL[ffolder]-}" ]; then
+		dt_sub "Icons"
+		on=0
+		fb_bigicons "$id" || on=1
+		dt_mark "Small" "" "$on" files_isz "$id" single
+		on=0
+		fb_bigicons "$id" && on=1
+		dt_mark "Large" "" "$on" files_isz "$id" double
+		dt_sep
+		for v in "${FB_ICONCOLOURS[@]}"; do
+			on=0
+			[ "${FB[$id]["icol"]:-$FB_ICONCOLOUR}" = "$v" ] && on=1
+			dt_mark "${v^}" "" "$on" files_icol "$id" "$v"
+		done
+		dt_end
+	fi
+	dt_sub "Background"
+	for v in "${FB_BGS[@]}"; do
+		v=${v%% *}
+		on=0
+		[ "${FB[$id]["bg"]-$FB_BGDEF}" = "$v" ] && on=1
+		dt_mark "$v" "" "$on" files_bg "$id" "$v"
+	done
+	dt_end
+	dt_sep
 	dt_item "Search${GL[ellipsis]}" s files_search "$id"
 	dt_item "Refresh" r fb_scan "$id"
 	files_srvmenu "$id"
+	dt_menu "Special"
+	if dt_has dt_trashask && dt_trashcount && [ "$DT_TRASHN" -gt 0 ]; then
+		dt_item "Empty Trash${GL[ellipsis]}" t dt_trashask
+	else
+		dt_dim "Empty Trash${GL[ellipsis]}"
+	fi
+}
+
+# The title's own menu, on a modified click (Control Panel > Mouse > Title
+# Menu Modifier): the folders above this one, nearest first, the way the
+# path line used to offer them.
+fn files_titlemenu(int id, int r, int c) {
+	dt_searchshut "$id"
+	fb_crumbs "${FB[$id]["dir"]}"
+	dt_droplist "$id" "$r" "$c" fb_go "${FB_CRUMBS[@]}"
+	return 0
+}
+
+# What the Sort By menu calls each order.
+fn fb_sortname(by) {
+	case $by in
+	kind) ret "Kind" ;;
+	time) ret "Date" ;;
+	size) ret "Size" ;;
+	*) ret "Name" ;;
+	esac
+}
+
+# View > Sort By: this folder's order, kept for it. Names and kinds read A
+# first, dates and sizes newest and largest, as a heading click does.
+fn files_sortby(int id, by) {
+	local d=${FB[$id]["dir"]}
+
+	FB[$id]["sort"]=$by
+	[ "$by" = name ] && FB[$id]["sort"]=
+	case $by in time | size) FB[$id]["sdir"]=desc ;; *) FB[$id]["sdir"]=asc ;; esac
+	fb_dset "$d" sort "$by"
+	fb_dset "$d" sdir "${FB[$id]["sdir"]}"
+	fb_scan "$id"
+}
+
+# View > Sort By > Reversed.
+fn files_sortrev(int id) {
+	if [ "${FB[$id]["sdir"]:-asc}" = asc ]; then
+		FB[$id]["sdir"]=desc
+	else
+		FB[$id]["sdir"]=asc
+	fi
+	[ -n "${FB[$id]["sort"]}" ] || FB[$id]["sort"]=name
+	fb_dset "${FB[$id]["dir"]}" sort "${FB[$id]["sort"]}"
+	fb_dset "${FB[$id]["dir"]}" sdir "${FB[$id]["sdir"]}"
+	fb_scan "$id"
+}
+
+# View > Icons: this folder's icon size and colourway, kept for it.
+fn files_isz(int id, size) {
+	FB[$id]["isz"]=$size
+	fb_dset "${FB[$id]["dir"]}" isz "$size"
+}
+fn files_icol(int id, colour) {
+	FB[$id]["icol"]=$colour
+	fb_dset "${FB[$id]["dir"]}" icol "$colour"
+}
+
+# View > Background: this folder's own, kept for it.
+fn files_bg(int id, name) {
+	FB[$id]["bg"]=$name
+	fb_dset "${FB[$id]["dir"]}" bg "$name"
 }
 
 # Which entry is under a point in the window, if any.
@@ -2045,16 +2389,6 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 	local i pr pc sel g lb
 	local -a hx
 
-	if [ "$btn" = left ] && [ "$act" = press ] && [ "$r" = 1 ]; then
-		if g := dt_hit "$id" "$r" "$c" && [ "$g" = dtsearch ]; then
-			dt_searchopen "$id"
-			return 0
-		fi
-		dt_searchshut "$id"
-		fb_crumbs "${FB[$id]["dir"]}"
-		dt_droplist "$id" 1 "${FB[$id]["px"]:-1}" fb_go "${FB_CRUMBS[@]}"
-		return 0
-	fi
 	if [ "$btn" = right ]; then
 		[ "$act" = press ] || return 0
 		if i := fb_at "$id" "$r" "$c"; then
@@ -2070,7 +2404,7 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 		return 0
 	fi
 	[ "$btn" = left ] || return 0
-	if [ "$act" = press ] && [ "$r" = 2 ] &&
+	if [ "$act" = press ] && [ "$r" = 1 ] &&
 	   [ "${FB[$id]["view"]}" = details ]; then
 		read -r -a hx <<< "${FB[$id]["hx"]}"
 		i=0
@@ -2158,7 +2492,7 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 		sel := fb_selected "$id" || return 0
 		fb_paths "$id" "$sel"
 		i=${FB[$id]["sel"]}
-		g := fb_glyph "${FL[$id][$i]["kind"]}"
+		g := fb_glyph "$id" "$i" small
 		lb=${FL[$id][$i]["name"]}
 		[ "${#FB_PATHS[@]}" -gt 1 ] && lb="${#FB_PATHS[@]} items"
 		command -v dt_dnd > /dev/null && dt_dnd "$lb" "$g" "${FB_PATHS[@]}"
@@ -2263,6 +2597,16 @@ fn files_context(int id) {
 	else
 		dt_item "Info" i files_info "$id"
 		dt_item "Move to Trash" x files_trash "$id"
+	fi
+	# The Trash's own window empties it, as its icon's menu does.
+	if [ -n "${DT_TRASH-}" ] && [ "${FB[$id]["dir"]}" = "$DT_TRASH/files" ] &&
+	   dt_has dt_trashask; then
+		dt_sep
+		if dt_trashcount && [ "$DT_TRASHN" -gt 0 ]; then
+			dt_item "Empty Trash${GL[ellipsis]}" e dt_trashask
+		else
+			dt_dim "Empty Trash${GL[ellipsis]}"
+		fi
 	fi
 }
 

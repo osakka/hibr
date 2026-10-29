@@ -96,10 +96,12 @@ fn dt_fullfit(int id) {
 	console pane "w$id" "$DTW_R" "$DTW_C" "$DTW_H" "$DTW_W"
 	console pane raise "w$id"
 	# The bar's pane is the one above everything, and the console writes
-	# a top pane's cells only through it: while a window has the whole
-	# display, the window is the one on top instead.
+	# a top pane's cells only through it, so it steps down while a window
+	# has the whole display. The window is raised, never made top: a top
+	# pane takes cells only through itself, and a module that draws its
+	# half-block picture at absolute coordinates -- retro, xscr, media, web
+	# -- then drew nothing at all (hibr-boxer's report).
 	console pane top bar off 2> /dev/null
-	console pane top "w$id"
 	return 0
 }
 
@@ -112,7 +114,6 @@ dt_fullend() {
 	DT_FORCEONCE=1
 	DT_MENUIN=
 	DT_BARWAS=
-	console pane top "w$id" off 2> /dev/null
 	console pane top bar 2> /dev/null
 	[ -n "${DT[$id]["app"]+x}" ] || return 0
 	DT[$id]["row"]=${DT[$id]["fsr"]}
@@ -172,8 +173,7 @@ dt_fullnote() {
 	done
 	DT_NOTEQ_ORDER=("${keep[@]}")
 	[ -n "$keep_id" ] || return 0
-	# Through the window's own pane: it is the one on top, and the console
-	# writes a top pane's cells only through it.
+	# Through the window's own pane, above everything it covers.
 	t := dt_cut " ${DT_NOTEQ[$keep_id]["text"]} " "${DT[$DT_FULL]["w"]}"
 	console pen "$DT_SELINK" "$DT_ACTIVE"
 	console fill -p "w$DT_FULL" $((${DT[$DT_FULL]["h"]} - 1)) 0 1 "${DT[$DT_FULL]["w"]}" " "

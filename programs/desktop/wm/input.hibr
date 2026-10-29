@@ -226,6 +226,15 @@ dt_mouse() {
 			return 0
 		fi
 		b := dt_btnat "$id" $((mc - wc))
+		if [ "$1" = left ] && [ -z "$b" ] &&
+		   dt_has "${DT[$id]["app"]}_titlemenu"; then
+			case "-$mods-" in
+			*"-$DT_TITLEKEY-"*)
+				"${DT[$id]["app"]}_titlemenu" "$id" 0 $((mc - wc))
+				return 0
+				;;
+			esac
+		fi
 		if [ "$1" = right ] && [ -z "$b" ]; then
 			dt_context_open titlebar "$id" "$mr" "$mc"
 			return 0

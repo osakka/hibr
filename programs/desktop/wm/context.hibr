@@ -78,6 +78,11 @@ dt_deskcontext() {
 	fi
 	dt_item "Next Wallpaper" n dt_wallnext
 	dt_sep
+	if dt_trashcount && [ "$DT_TRASHN" -gt 0 ]; then
+		dt_item "Empty Trash${GL[ellipsis]}" t dt_trashask
+	else
+		dt_dim "Empty Trash${GL[ellipsis]}"
+	fi
 	dt_item "Refresh Desktop" r dt_refresh
 }
 

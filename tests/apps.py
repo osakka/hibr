@@ -30,9 +30,11 @@ os.mkdir(os.path.join(D, "beta"))
 os.mkdir(os.path.join(D, "alpha"))
 for i in range(12):
     open(os.path.join(D, "file%02d.txt" % i), "w").write("x\n")
-# alpha/ and beta/ come first, then .. above them, so the list is:
-#   0 ..   1 alpha/   2 beta/   3 file00.txt ... 14 file11.txt
-ENTRIES = 15
+# alpha/ and beta/ come first, with no .. above them since 0.99.380
+# (Control Panel > Files > Show ".." in Folders brings it back), so the
+# list is:
+#   0 alpha/   1 beta/   2 file00.txt ... 13 file11.txt
+ENTRIES = 14
 
 
 def appdir(a):
@@ -208,9 +210,9 @@ check("an incomplete expression says so rather than answering",
 rc, out, err = cli("files", D)
 names = out.split("\n")
 check("it lists from the command line", rc == 0 and len(names) == ENTRIES)
-check("directories come first, with .. above them",
-      names[:3] == ["../", "alpha/", "beta/"], out)
-check("files follow, in order", names[3] == "file00.txt" and
+check("directories come first, and no .. above them",
+      names[:2] == ["alpha/", "beta/"], out)
+check("files follow, in order", names[2] == "file00.txt" and
       names[-1] == "file11.txt", out)
 rc, out, err = cli("files", "/")
 check("root has no entry above it", not out.startswith("../"), out)
@@ -220,24 +222,25 @@ check("a path that is not a directory fails", rc == 1, err)
 FW = "12 34 2 2"
 PRE = 'FB_DIR=%s' % D
 
+# No path line since 0.99.380: the title says where the window is, and the
+# list begins on the pane's first row (absolute row 3 here).
 sc = run("files", FW, pre=PRE)
-check("the window shows the path it is in", sc.find(D) == (3, 3), sc)
-check("and the window's own title names it too, truncated the same as any "
-      "other long title", sc.find("Files [") is not None, sc)
-check("the first entries are drawn", sc.find(" ../") == (4, 3) and
-      sc.find(" alpha/") == (5, 3), sc)
+check("the window's title names the folder, and there is no path line",
+      sc.find("Files [") is not None and sc.find(D) is None, sc)
+check("the first entries are drawn from the window's first row",
+      sc.find(" alpha/") == (3, 3) and sc.find(" beta/") == (4, 3), sc)
 check("the selection starts on the first row",
       sc.find("1 of %d" % ENTRIES) is not None, sc)
 check("a list longer than the window gets a scrollbar",
-      sc.at(4, 34) == "█" and sc.at(11, 34) == "│", sc)
+      sc.at(3, 34) == "█" and sc.at(11, 34) == "│", sc)
 
 sc = run("files", FW, [b"\x1b[B"] * 3, pre=PRE)
 check("down moves the selection", sc.find("4 of %d" % ENTRIES) is not None, sc)
-check("and the view has not moved yet", sc.find(" ../") == (4, 3), sc)
+check("and the view has not moved yet", sc.find(" alpha/") == (3, 3), sc)
 
 sc = run("files", FW, [b"\x1b[B"] * 9, pre=PRE)
 check("going past the bottom scrolls the view",
-      sc.find(" ../") is None and
+      sc.find(" alpha/") is None and
       sc.find("10 of %d" % ENTRIES) is not None, sc)
 
 sc = run("files", FW, [b"\x1b[F"], pre=PRE)
@@ -248,51 +251,107 @@ check("and the scrollbar thumb is at the bottom", sc.at(11, 34) == "█", sc)
 
 sc = run("files", FW, [b"\x1b[F", b"\x1b[H"], pre=PRE)
 check("home comes back", sc.find("1 of %d" % ENTRIES) is not None and
-      sc.find(" ../") == (4, 3), sc)
+      sc.find(" alpha/") == (3, 3), sc)
 
 sc = run("files", FW, [wheel(6, 10, up=False)], pre=PRE)
-check("the wheel scrolls the view", sc.find(" ../") is None and
-      sc.find(" file00.txt") == (4, 3), sc)
+check("the wheel scrolls the view", sc.find(" alpha/") is None and
+      sc.find(" file01.txt") == (3, 3), sc)
 check("without moving the selection",
       sc.find("1 of %d" % ENTRIES) is not None, sc)
 
 sc = run("files", FW, [wheel(6, 10, up=False), wheel(6, 10, up=True)], pre=PRE)
-check("and scrolls back", sc.find(" ../") == (4, 3), sc)
+check("and scrolls back", sc.find(" alpha/") == (3, 3), sc)
 
 sc = run("files", FW, [wheel(6, 10, up=True)], pre=PRE)
 check("the wheel cannot scroll above the first entry",
-      sc.find(" ../") == (4, 3), sc)
+      sc.find(" alpha/") == (3, 3), sc)
 
 sc = run("files", FW, [press(6, 10)], pre=PRE)
 check("a click selects the row it landed on",
-      sc.find("3 of %d" % ENTRIES) is not None, sc)
+      sc.find("4 of %d" % ENTRIES) is not None, sc)
 
-sc = run("files", FW, [press(5, 10), press(5, 10)], pre=PRE)
-check("a second click on the same row enters the directory",
-      sc.find(os.path.join(D, "alpha")) is not None and
-      sc.find("1 of 1") is not None, sc)
+sc = run("files", FW, [press(3, 10), press(3, 10)], pre=PRE)
+check("a second click on the same row enters the directory, which says it is empty",
+      sc.find("Empty") is not None and sc.find(" alpha/") is None, sc)
 
-sc = run("files", FW, [press(5, 10), press(5, 10), b"\x7f"], pre=PRE)
-check("backspace goes back up", sc.find(D) == (3, 3) and
+sc = run("files", FW, [press(3, 10), press(3, 10), b"\x7f"], pre=PRE)
+check("backspace goes back up", sc.find(" alpha/") == (3, 3) and
       sc.find("1 of %d" % ENTRIES) is not None, sc)
 
-# The path row (row 1 of the pane, absolute row 3 here) is a breadcrumb: a
-# click opens a dropdown of every ancestor, root first, D itself among them
-# since the window is opened one level below it (in alpha/, already empty
-# and already used above) -- and choosing one navigates straight there. The
-# row D lands on in the popup depends on how many segments its own path
-# has (root, then one row per segment), which varies by machine and by
-# $TMPDIR, so it is computed rather than guessed.
-DROW = 4 + len([s for s in D.strip("/").split("/") if s])
-sc = run("files", FW, [press(3, 5), press(DROW, 6)],
+# The path is a list dropped from the title on an alt-click (Control Panel
+# > Mouse > Title Menu Modifier): every folder above, root first, D among
+# them since the window opens one level below it -- and choosing one goes
+# there. The row D lands on depends on how many segments its path has, so
+# it is computed rather than guessed; the list opens at the column clicked.
+# 8 in a mouse report's button is alt.
+DROW = 3 + len([s for s in D.strip("/").split("/") if s])
+sc = run("files", FW, [press(2, 8, 8), press(DROW, 12)],
          pre="FB_DIR=%s" % os.path.join(D, "alpha"))
-check("clicking the path opens a breadcrumb of every ancestor, and "
-      "choosing one navigates there",
-      sc.find(D) == (3, 3) and sc.find("1 of %d" % ENTRIES) is not None, sc)
+check("an alt-click on the title drops the folders above, and choosing one "
+      "goes there",
+      sc.find(" alpha/") == (3, 3) and sc.find("1 of %d" % ENTRIES) is not None, sc)
 
 sc = run("files", FW, [wheel(6, 10, up=False), press(4, 10)], pre=PRE)
 check("a click after scrolling lands on the row that is there",
-      sc.find("4 of %d" % ENTRIES) is not None, sc)
+      sc.find("5 of %d" % ENTRIES) is not None, sc)
+
+sc = run("files", FW, pre=PRE + "\nFB_SHOWUP=1")
+check("Show \"..\" in Folders puts the row back above the folders",
+      sc.find(" ../") == (3, 3) and sc.find(" alpha/") == (4, 3)
+      and sc.find("1 of %d" % (ENTRIES + 1)) is not None, sc)
+
+
+# Each folder keeps its own look (the owner's list, 0.99.380): an order
+# chosen in one is that folder's next time, and the defaults stand for the
+# rest; the background's text colour is worked out from it; Blit's file
+# icons by kind and colourway; and the title by the folder's own name.
+def folderlook():
+    fd = tempfile.mkdtemp(prefix="hibr-look-")
+    os.mkdir(os.path.join(fd, "sub"))
+    for nm in ("a.txt", "b.png", "c.pdf"):
+        open(os.path.join(fd, nm), "w").write("x\n")
+    vf = fd + "-views"
+    body = ('. %s\n. %s\nFB_VIEWFILE=%s\ndeclare -gA FB_VIEWS FB_DIRSET\n'
+            '[ -r "$FB_VIEWFILE" ] && . "$FB_VIEWFILE"\n'
+            'names() { local i o=; for ((i = 0; i < ${FB[7][n]}; i++)); do o+="${FL[7][$i][name]} "; done; echo "$1: $o"; }\n'
+            'FB[7][dir]=%s; FB[7][hidden]=; FB[7][view]=list\nfb_dirapply 7 "${FB[7][dir]}"\n'
+            % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/files.hibr"), vf, fd))
+    first = subprocess.run([sx.HIBR, "-c", body +
+        'fb_scan 7; names name\nfiles_sortby 7 kind; names kind\n'
+        'p := fb_bgpair White; echo "white=$p"; p := fb_bgpair Charcoal; echo "dark=$p"\n'
+        'p := fb_bgpair Theme; echo "theme=[$p]"\n'
+        'dt_glyphs blit; FB[7][isz]=double; FB[7][icol]=classic\n'
+        'for ((i = 0; i < ${FB[7][n]}; i++)); do [ "${FL[7][$i][name]}" = b.png ] && k=$i; done\n'
+        'g := fb_glyph 7 $k; printf "big=%%s\\n" "$g" | od -An -c | tr -d " \\n"; echo\n'
+        'FB[7][icol]=blue; g := fb_glyph 7 $k; [ "$g" = "${GL[fimage_blue]}" ] && echo blue-ok\n'
+        'g := fb_glyph 7 $k small; [ "$g" = "${GL[file]}" ] && echo small-ok\n'
+        'dt_retitle() { echo "title $2"; }; dt_wintitle() { ret "$1 [$2]"; }\n'
+        'fb_retitle 7 %s/sub; FB_TITLE=path; fb_retitle 7 %s/sub\n' % (fd, fd)],
+        capture_output=True, text=True, env=dict(os.environ, XDG_STATE_HOME=fd))
+    again = subprocess.run([sx.HIBR, "-c", body + 'echo "sort=${FB[7][sort]}"\n'
+        'FB[7][dir]=%s/sub; fb_dirapply 7 %s/sub; echo "sub=[${FB[7][sort]}] bg=${FB[7][bg]}"\n' % (fd, fd)],
+        capture_output=True, text=True, env=dict(os.environ, XDG_STATE_HOME=fd))
+    out = first.stdout + first.stderr + "\n--\n" + again.stdout + again.stderr
+    check("Sort By Kind puts folders first and then files by their kind",
+          "kind: sub b.png c.pdf a.txt" in out and "name: sub a.txt b.png c.pdf" in out, out)
+    check("and the folder keeps it, where a folder never sorted keeps the default",
+          "sort=kind" in out and "sub=[] bg=White" in out, out)
+    check("a background's text is dark on a light colour and light on a dark one",
+          "white=#ffffff #000000" in out and "dark=#2b2b33 #f0f0f0" in out
+          and "theme=[]" in out, out)
+    # U+10003B and U+10003C, Blit's classic image icon, as UTF-8.
+    check("in the blit set an image is Blit's large image icon, in the colourway "
+          "chosen, and a drag's label keeps the small glyph",
+          "big=364200200273364200200274" in out.replace(" ", "")
+          and "blue-ok" in out and "small-ok" in out, out)
+    check("a window's title is its folder's name by default, and the path when asked",
+          "title Files [sub]" in out and "title Files [%s/sub]" % fd in out, out)
+    shutil.rmtree(fd, True)
+    if os.path.exists(vf):
+        os.unlink(vf)
+
+
+folderlook()
 
 # --- the control panel ----------------------------------------------------
 #
@@ -3226,15 +3285,15 @@ name = (hr, sc.row(hr).index("Name")) if hr is not None else (0, 0)
 sc = run("files", HSW, [press(*size)], pre=HSPRE)
 check("clicking Size in the details view sorts largest first, and says so",
       "Size▼" in sc.row(hr) and hsorder(sc) ==
-      ["../", "Adir/", "zdir/", "big.bin", "mid.dat", "Small.txt"], sc)
+      ["Adir/", "zdir/", "big.bin", "mid.dat", "Small.txt"], sc)
 sc = run("files", HSW, [press(*size), press(*size)], pre=HSPRE)
 check("a second click turns it round, folders still first and still A to Z",
       "Size▲" in sc.row(hr) and hsorder(sc) ==
-      ["../", "Adir/", "zdir/", "Small.txt", "mid.dat", "big.bin"], sc)
+      ["Adir/", "zdir/", "Small.txt", "mid.dat", "big.bin"], sc)
 sc = run("files", HSW, [press(*name), press(*name)], pre=HSPRE)
 check("Name sorts without regard to case, and reverses too",
       "Name▼" in sc.row(hr) and hsorder(sc) ==
-      ["../", "zdir/", "Adir/", "Small.txt", "mid.dat", "big.bin"], sc)
+      ["zdir/", "Adir/", "Small.txt", "mid.dat", "big.bin"], sc)
 shutil.rmtree(HS, True)
 
 
@@ -3287,8 +3346,8 @@ shutil.rmtree(VC, True)
 TWO = [("Files", "12 34 2 40", "files")]
 # The right-hand window goes into alpha/ with two presses, then file00.txt
 # is dragged across from the left-hand one and let go over it.
-INTO = [press(5, 44), press(5, 44)]
-DRAG = [press(7, 5), drag(7, 9), drag(9, 50)]
+INTO = [press(3, 44), press(3, 44)]
+DRAG = [press(5, 5), drag(5, 9), drag(9, 50)]
 sc = run("files", FW, INTO + DRAG + [release(9, 50)], pre=PRE, also=TWO)
 moved = os.path.exists(os.path.join(D, "alpha", "file00.txt")) and \
         not os.path.exists(os.path.join(D, "file00.txt"))
@@ -3326,7 +3385,7 @@ if copied:
     os.unlink(os.path.join(D, "alpha", "file00.txt"))
 
 TRASH = tempfile.mkdtemp(prefix="hibr-trash-")
-sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\x1b[3~"],
+sc = run("files", FW, [b"\x1b[B"] * 2 + [b"\x1b[3~"],
          pre=PRE + "\nDT_TRASH=%s" % TRASH)
 info = os.path.join(TRASH, "info", "file00.txt.trashinfo")
 check("delete moves a file to the trash, with the note of where it was",
@@ -3338,7 +3397,7 @@ if os.path.exists(os.path.join(TRASH, "files", "file00.txt")):
               os.path.join(D, "file00.txt"))
 shutil.rmtree(TRASH, True)
 TRASH = tempfile.mkdtemp(prefix="hibr-trash-")
-sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\x1b[3~", UNDO],
+sc = run("files", FW, [b"\x1b[B"] * 2 + [b"\x1b[3~", UNDO],
          pre=PRE + "\nDT_TRASH=%s" % TRASH)
 check("Undo takes a file back out of the trash, and the trash's note with it",
       os.path.exists(os.path.join(D, "file00.txt")) and
@@ -3357,45 +3416,45 @@ check("a file dropped on a terminal is typed in as its path",
       sc.find("sh> " + D[:28]) is not None, sc)
 
 EDIT = "TW_EDIT=(/bin/sh -c 'echo \"editing $1\"; sleep 5' x)"
-sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\r"], pre=PRE + "\n" + EDIT,
+sc = run("files", FW, [b"\x1b[B"] * 2 + [b"\r"], pre=PRE + "\n" + EDIT,
          extra=["term"], end=None, wait=1.2)
 check("opening a file with no registered handler asks first",
       sc.find("Unregistered extension .txt") is not None, sc)
 
-sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\r", b"y"], pre=PRE + "\n" + EDIT,
+sc = run("files", FW, [b"\x1b[B"] * 2 + [b"\r", b"y"], pre=PRE + "\n" + EDIT,
          extra=["term"], end=None, wait=1.2)
 check("opening a file opens a terminal window called by its name",
       sc.find("┤ Terminal [file00.txt] ├") is not None and
       sc.find("editing") is not None, sc)
 
-sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\r", b"n"], pre=PRE + "\n" + EDIT,
+sc = run("files", FW, [b"\x1b[B"] * 2 + [b"\r", b"n"], pre=PRE + "\n" + EDIT,
          extra=["term"], end=None, wait=1.2)
 check("and declining leaves it closed",
       sc.find("┤ Terminal [file00.txt] ├") is None, sc)
 
 # --- files: choosing more than one ---------------------------------------
 #
-# Rows in the left window: ../ 4, alpha/ 5, beta/ 6, file00.txt 7,
-# file01.txt 8.  Button 16 is the left button with ctrl held.
+# Rows in the left window: alpha/ 3, beta/ 4, file00.txt 5, file01.txt 6,
+# with no .. since 0.99.380.  Button 16 is the left button with ctrl held.
 
-sc = run("files", FW, [press(7, 5), press(8, 5, 16)], pre=PRE)
+sc = run("files", FW, [press(5, 5), press(6, 5, 16)], pre=PRE)
 check("ctrl and a click add to what is selected",
       sc.find("2 selected") is not None, sc)
-sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\x1b[1;2B"] * 2, pre=PRE)
+sc = run("files", FW, [b"\x1b[B"] * 2 + [b"\x1b[1;2B"] * 2, pre=PRE)
 check("shift with the arrows carries the selection along",
       sc.find("3 selected") is not None, sc)
-sc = run("files", FW, [b"\x1b[B"] * 3 + [b" ", b" "], pre=PRE)
+sc = run("files", FW, [b"\x1b[B"] * 2 + [b" ", b" "], pre=PRE)
 check("space marks an entry and steps on", sc.find("2 selected") is not None,
       sc)
 sc = run("files", FW, [b"\x01"], pre=PRE)
-check("ctrl-a selects everything but ..",
-      sc.find("%d selected" % (ENTRIES - 1)) is not None, sc)
+check("ctrl-a selects everything",
+      sc.find("%d selected" % ENTRIES) is not None, sc)
 # A drag from empty space is a rubber band (Gitea #383): from below the two
-# entries of a folder of two up over both, they are selected.
+# entries of a folder of two (rows 3 and 4) up over both, they are selected.
 BD = tempfile.mkdtemp(prefix="hibr-band-")
 for _f in ("one.txt", "two.txt"):
     open(os.path.join(BD, _f), "w").close()
-sc = run("files", FW, [press(10, 8), drag(8, 9), drag(5, 9), release(5, 9)],
+sc = run("files", FW, [press(10, 8), drag(8, 9), drag(3, 9), release(3, 9)],
          pre="FB_DIR=%s" % BD)
 check("a drag from empty space in Files is a rubber band, selecting what it crosses",
       sc.find("2 selected") is not None, sc)
@@ -3414,7 +3473,9 @@ check("the entry under the pointer lights in the well colour",
       sc.style(6, 8).get("bg") == WELL and sc.style(7, 8).get("bg") != WELL and
       sc.style(4, 8).get("bg") != WELL, sc)
 sc0 = run("files", FW, [0.5], pre=PRE + "\nFB_DEFAULTVIEW=icons")
-al = sc0.find("alpha")
+# beta, not alpha: alpha is first, so it is the selection, which keeps its
+# own colour under the pointer.
+al = sc0.find("beta")
 sc = run("files", FW, [0.5, hovr(al[0], al[1]), 0.4] if al else [0.5],
          pre=PRE + "\nFB_DEFAULTVIEW=icons", env={"DT_HOVER": "on"})
 check("and in the icon view the whole tile does, picture and name",
@@ -3422,9 +3483,9 @@ check("and in the icon view the whole tile does, picture and name",
       sc.style(al[0] - 1, al[1]).get("bg") == WELL, sc)
 sc = run("files", FW, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"a"], pre=PRE)
 check("and so does Edit > Select All (#372)",
-      sc.find("%d selected" % (ENTRIES - 1)) is not None, sc)
+      sc.find("%d selected" % ENTRIES) is not None, sc)
 
-PICK = [press(7, 5), press(8, 5, 16), press(8, 5), drag(8, 9), drag(9, 50),
+PICK = [press(5, 5), press(6, 5, 16), press(6, 5), drag(6, 9), drag(9, 50),
         release(9, 50)]
 sc = run("files", FW, INTO + PICK, pre=PRE, also=TWO)
 both = [os.path.exists(os.path.join(D, "alpha", f))
@@ -3435,39 +3496,42 @@ for f in ("file00.txt", "file01.txt"):
         os.rename(os.path.join(D, "alpha", f), os.path.join(D, f))
 
 TRASH = tempfile.mkdtemp(prefix="hibr-trash-")
-sc = run("files", FW, [press(7, 5), press(8, 5, 16), b"\x1b[3~"],
-         pre=PRE + "\nDT_TRASH=%s" % TRASH)
+DELD = tempfile.mkdtemp(prefix="hibr-del-")
+for f in ("file00.txt", "file01.txt", "file02.txt"):
+    open(os.path.join(DELD, f), "w").write("x\n")
+sc = run("files", FW, [press(3, 5), press(4, 5, 16), b"\x1b[3~"],
+         pre="FB_DIR=%s\nDT_TRASH=%s" % (DELD, TRASH))
 gone = [os.path.exists(os.path.join(TRASH, "files", f))
         for f in ("file00.txt", "file01.txt")]
-check("and delete throws all of it away", all(gone), sc)
-for f in ("file00.txt", "file01.txt"):
-    if os.path.exists(os.path.join(TRASH, "files", f)):
-        os.rename(os.path.join(TRASH, "files", f), os.path.join(D, f))
+check("and delete throws all of it away, and nothing else", all(gone) and
+      os.path.exists(os.path.join(DELD, "file02.txt")), sc)
 shutil.rmtree(TRASH, True)
+shutil.rmtree(DELD, True)
 
 # --- context menu: cut, copy, paste, info, and open with -------------------
 #
 # HD is its own directory, just two files, so the rows are easy to name:
-# ../ is 4, note.txt is 5, pic.jpg is 6.
+# note.txt is 3, pic.jpg is 4 -- and .. above them is 3 where Show ".." in
+# Folders puts it back.
 
 HD = tempfile.mkdtemp(prefix="hibr-hfiles-")
 open(os.path.join(HD, "note.txt"), "w").write("hello\n")
 open(os.path.join(HD, "pic.jpg"), "w").write("")
 HPRE = "FB_DIR=%s\nDT_FBOPENWITH=0" % HD
 
-sc = run("files", FW, [press(5, 10, 2)], pre=HPRE)
+sc = run("files", FW, [press(3, 10, 2)], pre=HPRE)
 check("a right-click opens a File menu at the pointer, on the entry there",
-      sc.find("Open") == (5, 12) and sc.find("Rename") is not None and
+      sc.find("Open") == (3, 12) and sc.find("Rename") is not None and
       sc.find("Cut") is not None and
       sc.find("Copy") is not None and sc.find("Paste") is not None and
       sc.find("Info") is not None and sc.find("Move to Trash") is not None,
       sc)
 check("and selects it, as a plain click would",
-      sc.find("2 of 3") is not None, sc)
+      sc.find("1 of 2") is not None, sc)
 
-sc = run("files", FW, [press(4, 10, 2)], pre=HPRE)
+sc = run("files", FW, [press(3, 10, 2)], pre=HPRE + "\nFB_SHOWUP=1")
 check("right-clicking .. dims what does not apply to it",
-      sc.find("Open") is not None and sc.at(4, 29) != "o", sc)
+      sc.find("Open") is not None and sc.at(3, 29) != "o", sc)
 
 # Rename and Get Info are real windows of their own, not a one-line note --
 # opened on the entry the context menu (or the keyboard: n and i, straight
@@ -3591,7 +3655,7 @@ check("a space in the new name does not scramble what is typed after it",
       os.path.exists(os.path.join(RD2, "new file.txt")), sc)
 shutil.rmtree(RD2, True)
 
-sc = run("files", FW, [press(5, 10, 2), press(12, 12)], pre=HPRE, end=None)
+sc = run("files", FW, [press(3, 10, 2), press(10, 12)], pre=HPRE, end=None)
 check("Info opens a real Get Info window with the entry's own details",
       sc.find("┤ Get Info ├") is not None and
       sc.find("Name: note.txt") is not None and
@@ -3611,18 +3675,18 @@ check("and the nine permission bits read as checkboxes, matching -rw-r--r--",
 
 NP = os.path.join(HD, "note.txt")
 os.chmod(NP, 0o644)
-sc = run("files", FW, [press(5, 10, 2), press(12, 12),
+sc = run("files", FW, [press(3, 10, 2), press(10, 12),
                        press(gir + 1, gic + 6)],
          pre=HPRE, end=None)
 check("clicking a permission box chmods the real file at once",
       oct(os.stat(NP).st_mode & 0o777) == "0o664", sc)
 os.chmod(NP, 0o644)
 
-sc = run("files", FW, [press(5, 10, 2), press(12, 12), b"\x1b"], pre=HPRE)
+sc = run("files", FW, [press(3, 10, 2), press(10, 12), b"\x1b"], pre=HPRE)
 check("escape closes Get Info without applying a pending name edit",
       os.path.exists(NP) and sc.find("┤ Get Info ├") is None, sc)
 
-sc = run("files", FW, [press(5, 10, 2), press(8, 12)], pre=HPRE)
+sc = run("files", FW, [press(3, 10, 2), press(6, 12)], pre=HPRE)
 check("Cut puts its paths on the clipboard, the same as Copy does",
       b"\x1b]52;c;" in sc.out, sc)
 
@@ -3634,10 +3698,10 @@ os.mkdir(os.path.join(HD2, "sub"))
 open(os.path.join(HD2, "note.txt"), "w").write("hello\n")
 H2PRE = "FB_DIR=%s\nDT_FBOPENWITH=0" % HD2
 H2TWO = [("Files", "12 34 2 40", "files")]
-H2INTO = [press(5, 44), press(5, 44)]
+H2INTO = [press(3, 44), press(3, 44)]
 
 sc = run("files", FW,
-         H2INTO + [press(6, 10, 2), press(9, 12), press(4, 44, 2),
+         H2INTO + [press(4, 10, 2), press(7, 12), press(4, 44, 2),
                    press(9, 46)],
          pre=H2PRE, also=H2TWO)
 check("Cut, then Paste elsewhere, moves the file rather than copying it",
@@ -3651,11 +3715,11 @@ open(os.path.join(HW, "note.txt"), "w").write("hello\n")
 MARK = os.path.join(HW, "opened")
 HWPRE = "FB_DIR=%s\ndt_handler txt touch %s\n" % (HW, MARK)
 
-sc = run("files", FW, [press(5, 10, 2)], pre=HWPRE)
+sc = run("files", FW, [press(3, 10, 2)], pre=HWPRE)
 check("a registered handler adds Open With to the menu",
-      sc.find("Open With") == (6, 12), sc)
+      sc.find("Open With") == (4, 12), sc)
 
-sc = run("files", FW, [press(5, 10, 2), press(6, 12)], pre=HWPRE)
+sc = run("files", FW, [press(3, 10, 2), press(4, 12)], pre=HWPRE)
 check("and lists it by its own program name, the default for its type",
       sc.find("touch (default)") is not None, sc)
 
@@ -3663,13 +3727,13 @@ check("and lists it by its own program name, the default for its type",
 # eye -- a hardcoded one is exactly what let the submenu-position bug
 # below go unnoticed: it happened to match the (buggy) implementation.
 pos = sc.find("touch (default)")
-sc = run("files", FW, [press(5, 10, 2), press(6, 12), press(*pos)],
+sc = run("files", FW, [press(3, 10, 2), press(4, 12), press(*pos)],
          pre=HWPRE)
 check("choosing it runs that handler on the entry", os.path.exists(MARK), sc)
 if os.path.exists(MARK):
     os.unlink(MARK)
 
-sc = run("files", FW, [press(5, 10), press(5, 10)], pre=HWPRE)
+sc = run("files", FW, [press(3, 10), press(3, 10)], pre=HWPRE)
 check("a plain double-click still opens it through its own registered "
       "handler", os.path.exists(MARK), sc)
 shutil.rmtree(HW, True)
@@ -3689,7 +3753,7 @@ open(EXSCRIPT, "w").write('#!/bin/sh\necho "args:$#" > %s\n' % EXOUT)
 os.chmod(EXSCRIPT, os.stat(EXSCRIPT).st_mode | 0o111)
 EXPRE = "FB_DIR=%s\n" % EX
 
-sc = run("files", FW, [press(5, 10), press(5, 10)], pre=EXPRE,
+sc = run("files", FW, [press(3, 10), press(3, 10)], pre=EXPRE,
          extra=("term",), wait=1.5)
 check("an executable, double-clicked, runs in a terminal instead of "
       "opening in hvi", sc.find("┤ Terminal [run.sh] ├") is not None, sc)
@@ -3822,20 +3886,20 @@ check("alt-. shows them", sc.find(".secret") is not None, sc)
 sc = run("files", "12 40 2 2", pre=HPRE + "\nFB_HIDDENDEF=1")
 check("and Control Panel > Files can have new windows show them",
       sc.find(".secret") is not None, sc)
-sc = run("files", "12 40 2 2", [b"\x1b[B", 0.2, b"\x1b\r", 0.8], pre=HPRE)
+sc = run("files", "12 40 2 2", [b"\x1b\r", 0.8], pre=HPRE)
 check("alt-enter opens a folder in a new window",
-      sc.find("/hid/sub") is not None and sc.find("plain") is not None, sc)
-sc = run("files", "12 40 2 2", [press(5, 6, 8), release(5, 6, 8), 0.2,
-                                press(5, 6, 8), release(5, 6, 8), 0.8], pre=HPRE)
+      sc.find("Files [sub]") is not None and sc.find("plain") is not None, sc)
+sc = run("files", "12 40 2 2", [press(3, 6, 8), release(3, 6, 8), 0.2,
+                                press(3, 6, 8), release(3, 6, 8), 0.8], pre=HPRE)
 check("and so does a double click with alt",
-      sc.find("/hid/sub") is not None and sc.find("plain") is not None, sc)
+      sc.find("Files [sub]") is not None and sc.find("plain") is not None, sc)
 sc = run("files", "12 40 2 2", [press(5, 6, 8), drag(6, 8, 8), drag(8, 12, 8),
                                 release(8, 12, 8), 0.5], pre=HPRE)
 check("while alt and a drag still moves the window",
       sc.find("Files [") is not None and sc.find("Files [")[1] > 6, sc)
-sc = run("files", "12 40 2 2", [b"\x1b[B", 0.2, b"\r", 0.8], pre=HPRE + "\nFB_OPENNEW=1")
+sc = run("files", "12 40 2 2", [b"\r", 0.8], pre=HPRE + "\nFB_OPENNEW=1")
 check("and with Open Folders in New Windows on, enter does it",
-      sc.find("/hid/sub") is not None and sc.find("plain") is not None, sc)
+      sc.find("Files [sub]") is not None and sc.find("plain") is not None, sc)
 shutil.rmtree(CPD, True)
 
 # --- the task manager -------------------------------------------------------
@@ -4360,7 +4424,7 @@ check("a right-click in a terminal whose program has not asked for the "
 PICD = tempfile.mkdtemp(prefix="hibr-pic-")
 shutil.copy(os.path.abspath("tests/img-2x2.png"),
             os.path.join(PICD, "pic.png"))
-sc = run("files", FW, [press(5, 10), drag(8, 50), drag(9, 60),
+sc = run("files", FW, [press(3, 10), drag(8, 50), drag(9, 60),
                        release(9, 60)],
          pre="FB_DIR=%s" % PICD, extra=("imgview",),
          also=[("Image Viewer", "13 36 2 40", "imgview")])
@@ -4587,27 +4651,27 @@ def bopened():
         return open(BMARK).read()
     except OSError:
         return ""
-sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 1.0], pre=BPRE + BREG, end=None)
+sc = run("files", "16 50 2 2", [b"\r", 1.0], pre=BPRE + BREG, end=None)
 check("enter on a bundle hands its path to the app that registered it",
       sc.find("┤ Bundle App ├") is not None and
       os.path.join(BND, "Prince.game") in bopened(), (bopened(), sc))
-sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"\x1b[B",
+sc = run("files", "16 50 2 2", [press(3, 6, 2), 0.3, b"\x1b[B",
                                 b"\x1b[B", b"\x1b[B", b"\x1b[C", 0.3],
          pre=BPRE + BREG, end=None)
 check("its right-click menu has Show Contents, the app's own verbs, and Open "
       "With naming the app as the default",
       sc.find("Show Contents") is not None and sc.find("Get Info...") is not None
       and sc.find("Bundle App (default)") is not None, sc)
-sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"\x1b[B",
+sc = run("files", "16 50 2 2", [press(3, 6, 2), 0.3, b"\x1b[B",
                                 b"\r", 0.5], pre=BPRE + BREG, end=None)
 check("and Show Contents goes into it, since it is still a folder",
       sc.find("inside.txt") is not None, sc)
 open(BMARK, "w").close()
-sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"\x1b[B",
+sc = run("files", "16 50 2 2", [press(3, 6, 2), 0.3, b"\x1b[B",
                                 b"\x1b[B", b"\r", 1.0], pre=BPRE + BREG, end=None)
 check("a verb opens its own app with the bundle's path",
       ("info " + os.path.join(BND, "Prince.game")) in bopened(), (bopened(), sc))
-sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 0.5], pre=BPRE, end=None)
+sc = run("files", "16 50 2 2", [b"\r", 0.5], pre=BPRE, end=None)
 check("with nothing registered for its extension it is a plain folder",
       sc.find("inside.txt") is not None and sc.find("┤ Bundle App ├") is None, sc)
 # Covers (Gitea #336): in the icon view, where the terminal draws pixels, a
@@ -4637,20 +4701,20 @@ pl = [a for a in sc.apc if "a=T" in a]
 check("in icons, a bundle's cover and a folder's .cover.png are drawn as pictures",
       len(pl) == 2, (len(pl), sc))
 check("the rest keep their glyphs, and tiles grow to fit the pictures",
-      sc.find("Cc") is not None and sc.find("Cc")[0] == 9 and
+      sc.find("Cc") is not None and sc.find("Cc")[0] == 8 and
       sc.find("Ee") is not None, sc)
 sc = run("files", "20 70 2 2", [0.5], pre=CPRE + "FB_COVER=small\n", end=None, **PIX)
 check("Cover Size small keeps the 3-row tile, the picture in the glyph's place",
       len([a for a in sc.apc if "a=T" in a]) == 2 and
-      sc.find("Cc") is not None and sc.find("Cc")[0] == 5, sc)
+      sc.find("Cc") is not None and sc.find("Cc")[0] == 4, sc)
 sc = run("files", "20 70 2 2", [0.5], pre=CPRE + "FB_USECOVER=0\n", end=None, **PIX)
 check("Use Covers off keeps every glyph and the 3-row tile, pixels or not",
       not [a for a in sc.apc if "a=T" in a] and sc.find("Cc") is not None and
-      sc.find("Cc")[0] == 5, sc)
+      sc.find("Cc")[0] == 4, sc)
 sc = run("files", "20 70 2 2", [0.5], pre=CPRE, end=None)
 check("on a terminal that draws no pixels, folders keep their glyphs",
       not [a for a in sc.apc if "a=T" in a] and sc.find("Cc") is not None and
-      sc.find("Cc")[0] == 5, sc)
+      sc.find("Cc")[0] == 4, sc)
 shutil.rmtree(CVD, True)
 # Control Panel > File Types asks about a kind of folder as a folder: asked
 # as a file, x.game found the editor, which takes any file, and never the
@@ -5736,4 +5800,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(755)
+report(764)

@@ -12,7 +12,7 @@
 strict
 
 
-app filesview "The Control Panel pane for Files" 1.4
+app filesview "The Control Panel pane for Files" 1.5
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
@@ -27,13 +27,76 @@ command -v dt_keep > /dev/null && dt_keep FB_HIDDENDEF FB_OPENNEW
 FV_SHELLS=(shell hibr bash zsh sh)
 FV_COVERS=(large small)
 
+# How a folder looks until it is given its own look from its View menu,
+# repeated from the app so the pane can set them with it not loaded.
+FB_ICONSIZE="${FB_ICONSIZE-double}"
+FB_ICONCOLOUR="${FB_ICONCOLOUR-classic}"
+FB_SORTDEF="${FB_SORTDEF-name}"
+FB_BGDEF="${FB_BGDEF-White}"
+FB_SHOWUP="${FB_SHOWUP-0}"
+FB_TITLE="${FB_TITLE-name}"
+command -v dt_keep > /dev/null && dt_keep FB_ICONSIZE FB_ICONCOLOUR FB_SORTDEF FB_BGDEF FB_SHOWUP FB_TITLE
+FV_TITLES=("Folder Name" "Path, End Showing" "Path")
+FV_SORTS=(Name Kind Date Size)
+FV_SIZES=(Small Large)
+FV_COLOURS=(Classic Blue Green Amber)
+FV_BGS=(White Grey Blue Green Yellow Rose Lavender Charcoal Theme)
+
+fn fv_sortname(v) {
+	case $v in kind) ret Kind ;; time) ret Date ;; size) ret Size ;; *) ret Name ;; esac
+}
+fn cp_set_fvsort(int? id = "", value = "") {
+	case $value in Kind) FB_SORTDEF=kind ;; Date) FB_SORTDEF=time ;; Size) FB_SORTDEF=size ;; *) FB_SORTDEF=name ;; esac
+	cp_save
+}
+fn cp_set_fvsize(int? id = "", value = "") {
+	FB_ICONSIZE=double
+	[ "$value" = Small ] && FB_ICONSIZE=single
+	cp_save
+}
+fn cp_set_fvcolour(int? id = "", value = "") {
+	FB_ICONCOLOUR := str lower "$value"
+	cp_save
+}
+fn fv_titlename(v) {
+	case $v in pathend) ret "Path, End Showing" ;; path) ret "Path" ;; *) ret "Folder Name" ;; esac
+}
+fn cp_set_fvtitle(int? id = "", value = "") {
+	case $value in "Path, End Showing") FB_TITLE=pathend ;; Path) FB_TITLE=path ;; *) FB_TITLE=name ;; esac
+	cp_save
+}
+fn cp_set_fvbg(int? id = "", value = "") {
+	FB_BGDEF=$value
+	cp_save
+}
+
 fn filesview_rows(int w) {
-	local n=0
+	local n=0 v
 
 	[ "${#FILES_VIEWS[@]}" -gt 0 ] || { cp_absent "$w" Files; ret 1; }
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Default View"
 	CP[$w][$n]["val"]="${FB_DEFAULTVIEW:-list}"; CP[$w][$n]["key"]=fileview
 	n=$((n + 1))
+	# What every folder starts as; a folder's own View menu changes it
+	# for that folder, and that is kept for it.
+	v := fv_sortname "$FB_SORTDEF"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sort Folders By"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=fvsort; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Background"
+	CP[$w][$n]["val"]="${FB_BGDEF:-White}"; CP[$w][$n]["key"]=fvbg; n=$((n + 1))
+	v := fv_titlename "$FB_TITLE"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Title"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=fvtitle; n=$((n + 1))
+	# Two columns wide and in four colourways where the glyph set has
+	# them -- Blit's -- and not offered where it does not.
+	if [ -n "${GL[ffolder]-}" ]; then
+		v=Large
+		[ "$FB_ICONSIZE" = single ] && v=Small
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icon Size"
+		CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=fvsize; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icon Colours"
+		CP[$w][$n]["val"]="${FB_ICONCOLOUR^}"; CP[$w][$n]["key"]=fvcolour; n=$((n + 1))
+	fi
 	# Whether a folder's own picture is its icon in the icon view (#336),
 	# and how big: large tiles of 7 rows, or the glyph's own place in the
 	# 3-row tile.
@@ -50,6 +113,10 @@ fn filesview_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$FB_HIDDENDEF" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=FB_HIDDENDEF; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show \"..\" in Folders"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$FB_SHOWUP" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=FB_SHOWUP; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Open Folders in New Windows"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$FB_OPENNEW" = 1 ] && CP[$w][$n]["val"]=on
@@ -78,11 +145,21 @@ fn filesview_do(int w, k, int dir) {
 	fileview) v := cp_next "${FB_DEFAULTVIEW:-list}" "$dir" "${FILES_VIEWS[@]}"
 		FB_DEFAULTVIEW=$v ;;
 	resetviews) dt_needs files fb_reset_views && fb_reset_views ;;
-	DT_FBOPENWITH | DT_FBTERMHERE | FB_USECOVER | FB_HIDDENDEF | FB_OPENNEW) cp_toggle "$k" ;;
+	DT_FBOPENWITH | DT_FBTERMHERE | FB_USECOVER | FB_HIDDENDEF | FB_OPENNEW | FB_SHOWUP) cp_toggle "$k" ;;
 	termhere) v := cp_next "$DT_TERMHERE" "$dir" "${FV_SHELLS[@]}"
 		DT_TERMHERE=$v ;;
 	cover) v := cp_next "${FB_COVER:-large}" "$dir" "${FV_COVERS[@]}"
 		FB_COVER=$v ;;
+	fvsort) v := fv_sortname "$FB_SORTDEF"; v := cp_next "$v" "$dir" "${FV_SORTS[@]}"
+		cp_set_fvsort "" "$v"; return 0 ;;
+	fvbg) v := cp_next "${FB_BGDEF:-White}" "$dir" "${FV_BGS[@]}"
+		cp_set_fvbg "" "$v"; return 0 ;;
+	fvtitle) v := fv_titlename "$FB_TITLE"; v := cp_next "$v" "$dir" "${FV_TITLES[@]}"
+		cp_set_fvtitle "" "$v"; return 0 ;;
+	fvsize) v=Large; [ "$FB_ICONSIZE" = single ] && v=Small
+		v := cp_next "$v" "$dir" "${FV_SIZES[@]}"; cp_set_fvsize "" "$v"; return 0 ;;
+	fvcolour) v := cp_next "${FB_ICONCOLOUR^}" "$dir" "${FV_COLOURS[@]}"
+		cp_set_fvcolour "" "$v"; return 0 ;;
 	esac
 	cp_save
 }
@@ -92,5 +169,10 @@ fn filesview_drop(int w, int r, int c, k) {
 	fileview) dt_droplist "$w" "$r" "$c" cp_set_fileview "${FILES_VIEWS[@]}" ;;
 	cover) dt_droplist "$w" "$r" "$c" cp_set_cover "${FV_COVERS[@]}" ;;
 	termhere) dt_droplist "$w" "$r" "$c" cp_set_termhere "${FV_SHELLS[@]}" ;;
+	fvsort) dt_droplist "$w" "$r" "$c" cp_set_fvsort "${FV_SORTS[@]}" ;;
+	fvbg) dt_droplist "$w" "$r" "$c" cp_set_fvbg "${FV_BGS[@]}" ;;
+	fvtitle) dt_droplist "$w" "$r" "$c" cp_set_fvtitle "${FV_TITLES[@]}" ;;
+	fvsize) dt_droplist "$w" "$r" "$c" cp_set_fvsize "${FV_SIZES[@]}" ;;
+	fvcolour) dt_droplist "$w" "$r" "$c" cp_set_fvcolour "${FV_COLOURS[@]}" ;;
 	esac
 }

@@ -12,7 +12,7 @@
 strict
 
 
-app mouse "The Control Panel pane for what the mouse does to a window" 1.6
+app mouse "The Control Panel pane for what the mouse does to a window" 1.7
 command -v cp_pane > /dev/null && cp_pane mouse "Mouse" "◎" hardware
 
 MS_DRAGKEYS=(alt ctrl shift)
@@ -34,6 +34,7 @@ MS_TIPL=("300 ms" "600 ms" "1 second" "1.5 seconds" "2.5 seconds")
 DT_TIPMS="${DT_TIPMS-600}"
 
 fn cp_set_dragkey(int? id = "", value = "") { DT_DRAGKEY=$value; cp_save; }
+fn cp_set_titlekey(int? id = "", value = "") { DT_TITLEKEY=$value; cp_save; }
 fn cp_set_movemode(int? id = "", value = "") { DT_MOVEMODE=$value; cp_save; }
 fn cp_set_dblaction(int? id = "", value = "") { DT_DBLACTION=$value; cp_save; }
 fn cp_set_hover(int? id = "", value = "") { DT_HOVER=$value; cp_save; }
@@ -94,6 +95,10 @@ fn mouse_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Drag Modifier"
 	CP[$w][$n]["val"]="$DT_DRAGKEY"; CP[$w][$n]["key"]=dragkey
 	n=$((n + 1))
+	# Held with a click on a window's title, its own menu -- Files' path.
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Menu Modifier"
+	CP[$w][$n]["val"]="$DT_TITLEKEY"; CP[$w][$n]["key"]=titlekey
+	n=$((n + 1))
 	# How a window follows the mouse when it is moved or resized: by its
 	# outline until it is let go, or whole at every step.
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Drag Windows"
@@ -132,6 +137,8 @@ fn mouse_do(int w, k, int dir) {
 	DT_EDGERESIZE | DT_DRAGMOD | DT_FOCUSHOVER | DT_TIPS) cp_toggle "$k" ;;
 	dragkey) v := cp_next "$DT_DRAGKEY" "$dir" "${MS_DRAGKEYS[@]}"
 	         DT_DRAGKEY=$v ;;
+	titlekey) v := cp_next "$DT_TITLEKEY" "$dir" "${MS_DRAGKEYS[@]}"
+	         DT_TITLEKEY=$v ;;
 	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${MS_DBLACTIONS[@]}"
 		DT_DBLACTION=$v ;;
 	movemode) v := cp_next "${DT_MOVEMODE:-outline}" "$dir" "${MS_MOVEMODES[@]}"
@@ -157,6 +164,7 @@ fn mouse_do(int w, k, int dir) {
 fn mouse_drop(int w, int r, int c, k) {
 	case $k in
 	dragkey) dt_droplist "$w" "$r" "$c" cp_set_dragkey "${MS_DRAGKEYS[@]}" ;;
+	titlekey) dt_droplist "$w" "$r" "$c" cp_set_titlekey "${MS_DRAGKEYS[@]}" ;;
 	dblaction) dt_droplist "$w" "$r" "$c" cp_set_dblaction \
 		"${MS_DBLACTIONS[@]}" ;;
 	movemode) dt_droplist "$w" "$r" "$c" cp_set_movemode \

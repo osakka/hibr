@@ -225,9 +225,10 @@ try:
           sc.find("Files [t:/]") is not None and sc.find("../") is None, sc)
     sc = drun('dt_new "Files" 20 60 2 2 files "dav://t"',
               [([], "a.txt"), ([b"\r"], "b c.txt")])[-1]
-    check("enter goes into a folder on the server, with .. to come back",
-          sc.find("b c.txt") is not None and sc.find("../") is not None and
-          sc.find("Files [t:/sub]") is not None, sc)
+    # No .. since 0.99.380, and the title is the folder's own name.
+    check("enter goes into a folder on the server, its name in the title",
+          sc.find("b c.txt") is not None and sc.find("../") is None and
+          sc.find("Files [sub]") is not None, sc)
 
     def server(path):
         f = os.path.join(ROOT, path)

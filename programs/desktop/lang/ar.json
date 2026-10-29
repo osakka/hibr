@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.53",
+ "version": "3.54",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1528,6 +1528,15 @@
   "An administrator's password, to change who may act as an administrator": "كلمة مرور مسؤول، لتغيير من يمكنه التصرف كمسؤول",
   "Not changed: the password was not accepted": "لم يتغيّر: لم تُقبل كلمة المرور",
   "Not changed: the password was cancelled": "لم يتغيّر: أُلغيت كلمة المرور",
-  "Not changed: pkexec ended with status %s": "لم يتغيّر: انتهى pkexec بالحالة %s"
+  "Not changed: pkexec ended with status %s": "لم يتغيّر: انتهى pkexec بالحالة %s",
+  "Icon Colours": "ألوان الأيقونات",
+  "Icon Size": "حجم الأيقونات",
+  "Large": "كبيرة",
+  "Reversed": "معكوس",
+  "Small": "صغيرة",
+  "Sort Folders By": "ترتيب المجلدات حسب",
+  "Title Menu Modifier": "مفتاح قائمة العنوان",
+  "Window Title": "عنوان النافذة",
+  "Empty": "فارغ"
  }
 }

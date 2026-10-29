@@ -707,6 +707,21 @@ and **icons**, a grid the arrows move across and down. Delete moves the
 selection to the trash; alt-c copies its path, and alt-v in a Files window
 copies the file whose path was pasted into the folder shown.
 
+Each folder remembers how it was left, as System 7's did: its view, its
+**Sort By** order (Name, Kind, Date or Size, and Reversed), its icon size
+and colours, its **Background** (White unless chosen otherwise, the text on
+it dark or light to suit), and where its window was and how big. A folder
+never given its own takes Control Panel > Files' defaults. On Blit the icon
+view's **Large** icons are Blit's two-column file icons, a picture per kind
+of file in Classic, Blue, Green or Amber. There is no ".." row (Control
+Panel > Files > Show ".." in Folders) and no path line: the window's title
+says where it is -- the folder's name by default, or the path, its end or
+its start showing (Window Title) -- and an **alt-click on the title** drops
+the folders above to go to (Control Panel > Mouse > Title Menu Modifier).
+Go up with File > Go Up, left or backspace. **Empty Trash** is on the
+desktop's right-click menu, Files' Special menu and the Trash window's own
+right-click menu.
+
 **alt-.** shows and hides hidden files in a Files window (View > Hidden
 Files, and `h`), and **alt-enter**, or a double click with **alt** held,
 opens a folder in a new window rather than this one; File > Open in New

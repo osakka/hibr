@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.380
+
+**Files looks and works more like System 7's Finder.** Files 3.0.
+- **Every folder remembers how it looks**: its view, its order, its icon
+  size and colours, its background, and where its window was and how big.
+  What a folder has never been given comes from Control Panel > Files.
+- **View > Sort By**: Name, Kind, Date or Size, and Reversed. Kind sorts
+  files by what they are, after the folders.
+- **View > Background**: White by default, or Grey, Blue, Green, Yellow,
+  Rose, Lavender, Charcoal or the theme's own. Only the background is
+  chosen; the text on it is dark or light to suit it.
+- **Blit's file icons** (Blit 0.3.4 and 0.3.6): on Blit, View > Icons is
+  Small or Large, and Large draws two-column icons in Classic, Blue, Green
+  or Amber, for folders, home, the Trash, documents, text, PDFs, pictures,
+  sound, video, archives, code, programs, disks, spreadsheets, markdown,
+  diagrams, presentations, fonts, web pages, terminal scripts, settings,
+  bundles, links and Boxer games.
+- **No ".." row and no path line.** Go up with File > Go Up, left or
+  backspace; the folders above drop down from the window's title on an
+  alt-click (Control Panel > Mouse > Title Menu Modifier). Control Panel >
+  Files > Show ".." in Folders brings the row back, and Window Title shows
+  the folder's name (the default), the path with its end showing, or the
+  whole path. An empty folder says Empty.
+- **Empty Trash** is on the desktop's right-click menu, on Files' new
+  Special menu, and on the Trash's own window's right-click menu.
+
+**Full screen draws what modules draw.** A full-screen window was made the
+top pane, which takes cells only through itself, so a module drawing its
+picture at absolute coordinates -- Boxer, X Screen, the media player, the
+browser -- showed nothing at all. The window is raised now, and the bar
+steps down. Arabic 3.54.
+
 ## 0.99.379
 
 **Administrative Access asks for the password.** Apply Changes started

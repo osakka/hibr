@@ -128,6 +128,7 @@ awk '
     # that could not take the short call wm/input.hibr was making, so a
     # paste from the host terminal into a terminal window did nothing.
     W["paste"] = 3; W["copy"] = 1; W["cut"] = 1; W["awake"] = 1; W["fullscreen"] = 2
+    W["titlemenu"] = 3
     # The new top of a scrollbar being held, from the window manager
     # (Gitea #298).
     W["scroll"] = 3
