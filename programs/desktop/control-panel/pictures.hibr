@@ -17,7 +17,7 @@
 strict
 
 
-app pictures "The Control Panel pane for how a picture is drawn" 1.1
+app pictures "The Control Panel pane for how a picture is drawn" 1.2
 command -v cp_pane > /dev/null && cp_pane pictures "Pictures" "▦"
 
 CP_IMGMODES=("Automatic" "Half Blocks" "Grey Blocks" "Characters" "Pixels")
@@ -28,6 +28,7 @@ CP_IMGMODES=("Automatic" "Half Blocks" "Grey Blocks" "Characters" "Pixels")
 # a link that cannot carry full frames (Gitea #228).
 CP_IMGDETAILS=("Automatic" "Full" "Half")
 CP_IMGCOMPS=("Zlib" "PNG" "Off")
+CP_IMGEDITS=("Automatic" "Off")
 # Colours: how many every display is sent (Gitea #353).
 CP_DEPTHS=("Automatic" "24-bit" "256" "16")
 
@@ -37,6 +38,8 @@ DT_IMGDETAIL="${DT_IMGDETAIL-auto}"
 command -v dt_keep > /dev/null && dt_keep DT_IMGDETAIL
 DT_IMGCOMP="${DT_IMGCOMP-zlib}"
 command -v dt_keep > /dev/null && dt_keep DT_IMGCOMP
+DT_IMGEDITS="${DT_IMGEDITS-auto}"
+command -v dt_keep > /dev/null && dt_keep DT_IMGEDITS
 DT_COLOURS="${DT_COLOURS-auto}"
 command -v dt_keep > /dev/null && dt_keep DT_COLOURS
 
@@ -86,6 +89,30 @@ fn cp_set_imgcomp(int? id = "", value = "") {
 	*) DT_IMGCOMP=zlib ;;
 	esac
 	command -v console > /dev/null && console imgcomp "$DT_IMGCOMP"
+	cp_save
+}
+
+# Whether a picture that changed only in part goes out as that part,
+# edited into the one on the terminal (Gitea #404): Automatic where every
+# display says it can, Off for a whole picture every time it changes.
+fn cp_set_imgedits(int? id = "", value = "") {
+	case $value in
+	Off) DT_IMGEDITS=off ;;
+	*) DT_IMGEDITS=auto ;;
+	esac
+	if command -v console > /dev/null; then
+		if [ "$DT_IMGEDITS" = off ]; then
+			console imgedit off
+			DT_IMGEDIT=off
+			DT_FORCEONCE=1
+		elif [ -n "${HIBR_HOLD-}" ] && dt_has dt_size; then
+			DT_IMGEDIT=
+			dt_size
+		else
+			console imgedit auto
+			DT_IMGEDIT=
+		fi
+	fi
 	cp_save
 }
 
@@ -165,6 +192,10 @@ fn pictures_rows(int w) {
 	v := cp_compname "$DT_IMGCOMP"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Compress Pictures"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgcomp; n=$((n + 1))
+	v=Automatic
+	[ "$DT_IMGEDITS" = off ] && v=Off
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Partial Updates"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgedits; n=$((n + 1))
 	v := cp_depthname "${DT_COLOURS:-auto}"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=depth; n=$((n + 1))
@@ -200,6 +231,12 @@ fn pictures_do(int? w = "", k = "", int? dir = "") {
 		v := cp_next "$nm" "$dir" "${CP_IMGCOMPS[@]}"
 		cp_set_imgcomp "" "$v"
 		;;
+	imgedits)
+		nm=Automatic
+		[ "$DT_IMGEDITS" = off ] && nm=Off
+		v := cp_next "$nm" "$dir" "${CP_IMGEDITS[@]}"
+		cp_set_imgedits "" "$v"
+		;;
 	depth)
 		nm := cp_depthname "${DT_COLOURS:-auto}"
 		v := cp_next "$nm" "$dir" "${CP_DEPTHS[@]}"
@@ -216,6 +253,8 @@ fn pictures_drop(int? w = "", int? r = "", int? c = "", k = "") {
 		"${CP_IMGDETAILS[@]}" ;;
 	imgcomp) dt_droplist "$w" "$r" "$c" cp_set_imgcomp \
 		"${CP_IMGCOMPS[@]}" ;;
+	imgedits) dt_droplist "$w" "$r" "$c" cp_set_imgedits \
+		"${CP_IMGEDITS[@]}" ;;
 	depth) dt_droplist "$w" "$r" "$c" cp_set_depth \
 		"${CP_DEPTHS[@]}" ;;
 	esac

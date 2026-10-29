@@ -129,6 +129,7 @@ dt_open() {
 	console darkdefault "$DT_INK" "$DT_FACE"
 	console imgdetail "$DT_IMGDETAIL"
 	console imgcomp "$DT_IMGCOMP"
+	[ "$DT_IMGEDITS" = off ] && console imgedit off
 	[ "${DT_COLOURS:-auto}" = auto ] || dt_colours
 	console signals off
 	# Click and drag only, not motion: reporting every movement with no
@@ -294,7 +295,7 @@ dt_size() {
 		# is told. A server too old to answer is no display that can.
 		# Turned off, the console drops what it had edited, so every
 		# window draws again and each such picture goes out whole.
-		if gl := hold edits 2> /dev/null && [ -n "$gl" ] &&
+		if [ "$DT_IMGEDITS" != off ] && gl := hold edits 2> /dev/null && [ -n "$gl" ] &&
 		   ! [[ $'\n'"$gl" == *" no"* ]]; then
 			gv=on
 		else

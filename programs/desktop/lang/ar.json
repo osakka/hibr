@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.50",
+ "version": "3.51",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1512,6 +1512,7 @@
   "XINERAMA": "XINERAMA",
   "XVideo": "XVideo",
   "The Program's Own Pointer": "مؤشر البرنامج نفسه",
-  "Own Pointer:": "مؤشره الخاص:"
+  "Own Pointer:": "مؤشره الخاص:",
+  "Partial Updates": "تحديث جزئي"
  }
 }

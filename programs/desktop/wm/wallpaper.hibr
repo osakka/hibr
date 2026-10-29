@@ -85,6 +85,10 @@ dt_keep DT_IMGDETAIL
 # drawing. A default the window manager owns cannot be absent.
 DT_IMGCOMP="${DT_IMGCOMP-zlib}"
 dt_keep DT_IMGCOMP
+# Whether a picture that changed only in part is sent as that part (Gitea
+# #404): auto, where every display says it can, or off for whole pictures.
+DT_IMGEDITS="${DT_IMGEDITS-auto}"
+dt_keep DT_IMGEDITS
 # How many colours every display is sent (Gitea #353): auto for what each
 # display's own terminal said, or 24, 256 or 16 for all of them.
 DT_COLOURS="${DT_COLOURS-auto}"

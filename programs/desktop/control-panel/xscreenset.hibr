@@ -17,7 +17,7 @@
 
 strict
 
-app xscreenset "The Control Panel pane for X Screen" 1.9
+app xscreenset "The Control Panel pane for X Screen" 2.0
 command -v cp_pane > /dev/null && cp_pane xscreenset "X Screen" "▣" app
 command -v dt_app > /dev/null &&
 	dt_app xsfield "X Screen Program" 26 70 "" "" fixed hidden
@@ -349,12 +349,14 @@ fn xsf_cycle(int id, field, int dir) {
 }
 
 # The two presets, measured on Gitea #404: Smoothest plays at thirty frames
-# a second; Lightest keeps today's fourteen in half blocks, the fewest bytes
-# and the least CPU. Each writes the dialog's own rows once, which stay
-# what is kept.
+# a second, drawn as the desktop draws pictures; Lightest keeps today's
+# fourteen in half blocks, the fewest bytes and the least CPU. Each sets
+# both rows, so pressing one after the other leaves nothing of the first.
+# Each writes the dialog's own rows once, which stay what is kept.
 fn xsf_preset(int id, which) {
 	if [ "$which" = smooth ]; then
 		XSF[$id]["o_fps"]=30
+		XSF[$id]["pic"]=follow
 	else
 		XSF[$id]["o_fps"]=14
 		XSF[$id]["pic"]=half

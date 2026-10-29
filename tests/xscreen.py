@@ -402,6 +402,7 @@ out, err = hb(
     "xs_save; echo \"line=$(sed -n 2p %s)\"\n"
     "declare -gA XSF; XSF[9][pic]=follow; xsf_preset 9 smooth; a=${XSF[9][o_fps]}\n"
     "xsf_preset 9 light; echo \"presets=$a/${XSF[9][o_fps]}/${XSF[9][pic]}\"\n"
+    "xsf_preset 9 smooth; echo \"back=${XSF[9][o_fps]}/${XSF[9][pic]}\"\n"
     "declare -gA CP; n := xscreenset_rows 41; for ((i = 0; i < n; i++)); do t+=\"${CP[41][$i][text]}|\"; done\n"
     "echo \"rows=$t\"\n"
     % (LIST, tree("programs/desktop/desktop.hibr"),
@@ -417,8 +418,9 @@ check("the list keeps a program's options and extra flags, and an old line still
       "opt=fps=30;cursor=0;xvideo=0;bg=#336699" in out and
       "line=Old\ttrue\tfit\tfollow\tdefault\t-\t-" in out, out + err)
 check("Smoothest sets thirty frames a second, Lightest fourteen in half blocks, "
+      "Smoothest after Lightest puts the pictures back, "
       "and the pane has the defaults for every option",
-      "presets=30/14/half" in out and "|Defaults|Frames a Second|Background|" in out
+      "presets=30/14/half" in out and "back=30/follow" in out and "|Defaults|Frames a Second|Background|" in out
       and "|GLX|Extra Xvfb Options" in out, out + err)
 
 # And the same in a running desktop: the flags on the server's own command

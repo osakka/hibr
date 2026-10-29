@@ -847,6 +847,7 @@ Paired with %s
 Paired with %s; it did not connect
 Pairing cancelled
 Pairing with %s
+Partial Updates
 Pass Every Key
 Passed to Xvfb as typed, after the rest
 Password

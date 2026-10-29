@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.377
+
+**X Screen's Smoothest preset puts pictures back.** Lightest sets a
+program to fourteen frames a second in half blocks; Smoothest set only
+the frame rate, so pressing Lightest and then Smoothest left a program at
+thirty frames a second still in half blocks -- which read as pixels having
+stopped working. Smoothest now sets the picture back to follow the desktop,
+so each preset sets both rows whatever was pressed before. X Screen 2.1.
+
+**Partial Updates** (Control Panel > Pictures): Automatic, where
+every display says it can take a picture edited in place (0.99.376, Gitea
+#404), or Off for a whole picture every time one changes. Arabic 3.51.
+
 ## 0.99.376
 
 **A picture that changed only in part is sent as that part** (Gitea #404).
