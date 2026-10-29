@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 3.3
+app files "A file browser" 3.4
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -150,6 +150,8 @@ FB_DIRKIND=([.git]=git [.config]=config [.local]=local [desktop]=desktop
 if command -v dt_appaction > /dev/null; then
 	dt_appaction files hidden "Show Hidden Files" "alt-."
 	dt_appaction files newwin "Open in New Window" "alt-enter"
+	dt_appaction files info "Get Info" "mod-i"
+	dt_appaction files newfolder "New Folder" "mod-n"
 fi
 
 # Which view a directory was last shown in, kept across windows and across
@@ -1043,7 +1045,10 @@ fn fb_glyph(int id, int i, size = "") {
 		f := fb_fkind "$id" "$i"
 		c=${FB[$id]["icol"]:-$FB_ICONCOLOUR}
 		[ "$c" = classic ] && c= || c=_$c
+		# Folders come in the colourway chosen; every other kind has one
+		# look of its own, in its own colours (Blit 0.3.8).
 		[ -n "${GL["f$f$c"]-}" ] && { ret "${GL["f$f$c"]}"; return 0; }
+		[ -n "${GL["f$f"]-}" ] && { ret "${GL["f$f"]}"; return 0; }
 	fi
 	case $kind in
 	up) ret "${GL[up]}" ;;
@@ -1536,7 +1541,9 @@ fn files_key(int id, k) {
 	fi
 	if command -v dt_akeyis > /dev/null; then
 		dt_akeyis files hidden "$k" && { files_hidden "$id"; return 0; }
-		dt_akeyis files newwin "$k" && { fb_open "$id" new; return 0; }
+		dt_akeyis files newwin "$k" && { fb_open "$id" alt; return 0; }
+		dt_akeyis files info "$k" && { files_info "$id"; return 0; }
+		dt_akeyis files newfolder "$k" && { files_newfolder "$id"; return 0; }
 	fi
 	case $k in shift-*) ext=1; k=${k#shift-} ;; esac
 	case $k in
@@ -1624,6 +1631,9 @@ fn fb_searchkey(int id, k) {
 # which opens it in a terminal with hvi.
 # Open what is selected; a folder in this window, or in a new one when
 # asked (how is new) or when Control Panel > Files says folders always do.
+# How alt asks is the other of the two: a new window where folders open in
+# this one, and where they open in windows of their own, the folder's
+# window with this one closed behind it -- System 7's option-double-click.
 fn fb_open(int id, how = "") {
 	local sel p
 
@@ -1635,6 +1645,14 @@ fn fb_open(int id, how = "") {
 		return 0
 	fi
 	if [ "${FL[$id][$sel]["dir"]}" = 1 ]; then
+		if [ "$how" = alt ] && [ "$FB_OPENNEW" = 1 ] &&
+		   [ "${FL[$id][$sel]["kind"]}" != up ] && ! fb_remote "$id"; then
+			p := fb_path "$id" "$sel"
+			dt_launch files "$p"
+			dt_wantclose "$id"
+			return 0
+		fi
+		[ "$how" = alt ] && how=new
 		if { [ "$how" = new ] || [ "$FB_OPENNEW" = 1 ]; } &&
 		   [ "${FL[$id][$sel]["kind"]}" != up ] && ! fb_remote "$id"; then
 			p := fb_path "$id" "$sel"
@@ -2508,7 +2526,7 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 			   [ "$i" = "${FB[$id]["last"]}" ] &&
 			   [ "${FB[$id]["marks"]}" = 0 ]; then
 				case $mods in
-				*alt*) fb_open "$id" new ;;
+				*alt*) fb_open "$id" alt ;;
 				*) fb_open "$id" ;;
 				esac
 				return 0

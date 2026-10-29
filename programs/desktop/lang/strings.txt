@@ -46,9 +46,11 @@
 %s is there already. Replace it?
 %s is trusted
 %s is your own; the card is not changed
+%s item done
 %s item remaining
 %s item was done; these could not be:
 %s items
+%s items done
 %s items remaining
 %s items were done; these could not be:
 %s items, unlocked until %s
@@ -286,6 +288,7 @@ Command:
 Composite
 Compress Pictures
 Computer
+Confirm
 Connect to Server
 Connect to Server…
 Connected
@@ -312,6 +315,7 @@ Cookies cleared
 Copied
 Copied %s characters
 Copied the paths of what is selected
+Copied to %s
 Copied; the clipboard clears in %s seconds
 Copy
 Copy Code
@@ -703,6 +707,7 @@ Moved
 Moved %s item to the trash
 Moved %s items to the trash
 Moved %s to the trash
+Moved to %s
 Moving
 Moving to %s
 Muharram

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.385
+
+**The copy window is always seen.** It closed the moment a copy was done,
+so a small copy never showed it and only the note was left. It stays up
+now at least a second (`DT_COPYSHOW`), showing what was done with the bar
+full, and closes; enter or escape closes it sooner. A move within one disk
+is still an instant rename, with no window, as System 7's was.
+
+**Alt opens a folder the other way**, as System 7's option-double-click
+did. With Control Panel > Files > Open Folders in New Windows on, alt with
+a double click or with enter opens the folder in its own window and closes
+this one; with it off, alt opens a new window, as before.
+
+**mod-i is Get Info and mod-n is New Folder** in Files, its own actions,
+rebindable in Control Panel > Shortcuts. Files 3.4.
+
+**A confirm box wears the windows' own frame** -- Restart, Quit, Empty
+Trash -- its glyphs, or under a solid frame a ring of the accent, where it
+drew a single line whatever the theme.
+
+**Only folders come in colourways** (Blit's new icon design): every other
+kind of file has one look, in its own colours, whatever Icon Colours says.
+Arabic 3.56.
+
 ## 0.99.384
 
 **No black screen and no jump when a display joins above.** At every login

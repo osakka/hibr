@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.55",
+ "version": "3.56",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1538,6 +1538,18 @@
   "Title Menu Modifier": "مفتاح قائمة العنوان",
   "Window Title": "عنوان النافذة",
   "Empty": "فارغ",
-  "Not changed: pkexec is not installed (on Debian, the pkexec package)": "لم يتغيّر: pkexec غير مثبّت (في Debian، الحزمة pkexec)"
+  "Not changed: pkexec is not installed (on Debian, the pkexec package)": "لم يتغيّر: pkexec غير مثبّت (في Debian، الحزمة pkexec)",
+  "%s item done": {
+   "zero": "لم يُنجز شيء",
+   "one": "أُنجز عنصر واحد",
+   "two": "أُنجز عنصران",
+   "few": "أُنجزت %s عناصر",
+   "many": "أُنجز %s عنصرًا",
+   "other": "أُنجز %s عنصر"
+  },
+  "%s items done": "أُنجز %s عنصر",
+  "Copied to %s": "نُسخ إلى %s",
+  "Moved to %s": "نُقل إلى %s",
+  "Confirm": "تأكيد"
  }
 }

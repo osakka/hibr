@@ -343,7 +343,8 @@ def folderlook():
         'dt_glyphs blit; FB[7][isz]=double; FB[7][icol]=classic\n'
         'for ((i = 0; i < ${FB[7][n]}; i++)); do [ "${FL[7][$i][name]}" = b.png ] && k=$i; done\n'
         'g := fb_glyph 7 $k; printf "big=%%s\\n" "$g" | od -An -c | tr -d " \\n"; echo\n'
-        'FB[7][icol]=blue; g := fb_glyph 7 $k; [ "$g" = "${GL[fimage_blue]}" ] && echo blue-ok\n'
+        'FB[7][icol]=blue; g := fb_glyph 7 $k; [ "$g" = "${GL[fimage]}" ] && echo blue-ok\n'
+        'g := fb_glyph 7 0; [ "$g" = "${GL[ffolder_blue]}" ] && echo folder-blue\n'
         'g := fb_glyph 7 $k small; [ "$g" = "${GL[file]}" ] && echo small-ok\n'
         'dt_retitle() { echo "title $2"; }; dt_wintitle() { ret "$1 [$2]"; }\n'
         'fb_retitle 7 %s/sub; FB_TITLE=path; fb_retitle 7 %s/sub\n' % (fd, fd)],
@@ -360,10 +361,11 @@ def folderlook():
           "white=#ffffff #000000" in out and "dark=#2b2b33 #f0f0f0" in out
           and "theme=[]" in out, out)
     # U+10003B and U+10003C, Blit's classic image icon, as UTF-8.
-    check("in the blit set an image is Blit's large image icon, in the colourway "
-          "chosen, and a drag's label keeps the small glyph",
+    check("in the blit set an image is Blit's large image icon, one look whatever "
+          "the colourway, a folder in the colourway chosen, and a drag's label keeps "
+          "the small glyph",
           "big=364200200273364200200274" in out.replace(" ", "")
-          and "blue-ok" in out and "small-ok" in out, out)
+          and "blue-ok" in out and "folder-blue" in out and "small-ok" in out, out)
     check("a window's title is its folder's name by default, and the path when asked",
           "title Files [sub]" in out and "title Files [%s/sub]" % fd in out, out)
     kd = tempfile.mkdtemp(prefix="hibr-kinds-")
@@ -396,7 +398,7 @@ def folderlook():
           "down, and the strip at its own place", "bg=[Follow Theme] rel=[] y=[] ver=18" in mo, mo)
     ic = subprocess.run([sx.HIBR, "-c", '. %s\n'
         'dt_glyphs blit; g := dt_iconbig home PLAIN; [ "$g" = "${GL[fhome]}" ] && echo blit-big\n'
-        'FB_ICONCOLOUR=amber; g := dt_iconbig trash PLAIN; [ "$g" = "${GL[ftrash_amber]}" ] && echo amber\n'
+        'FB_ICONCOLOUR=amber; g := dt_iconbig trash PLAIN; [ "$g" = "${GL[ftrash]}" ] && echo amber\n'
         'FB_ICONSIZE=single; g := dt_iconbig home PLAIN; echo "small=$g"\n'
         'FB_ICONSIZE=double; dt_glyphs unicode; g := dt_iconbig home PLAIN; echo "unicode=$g"\n'
         % tree("programs/desktop/desktop.hibr")], capture_output=True, text=True).stdout

@@ -24,6 +24,10 @@ command -v dt_app > /dev/null && dt_app dtcopy "Copy" 11 60 "" "" fixed hidden
 
 # How often a copy's window reads how far it has got, in milliseconds.
 DT_COPYMS=${DT_COPYMS:-200}
+# How long the window stays up at the least, in milliseconds, so a copy
+# that finishes at once is still seen to have happened (the owner's ask,
+# 0.99.385): it shows what was done until then, and closes.
+DT_COPYSHOW=${DT_COPYSHOW:-1000}
 
 # A size as people read one: 4.8 KB, 19 MB.
 fn dt_bytes(int n) {
@@ -83,7 +87,7 @@ fn dt_copyleft(src, ...rest) {
 # what has to be copied is copied in a window of its own, and how it went is
 # said once, when it is over.
 fn dt_fileop(op, dst, ...rest) {
-	local src bad=0 why= id i r what
+	local src bad=0 why= id i r what now
 	local -a go clash rest done
 
 	shift 2
@@ -142,6 +146,8 @@ fn dt_fileop(op, dst, ...rest) {
 	dt_dlgat 11 60
 	id := dt_new "" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" dtcopy
 	DCP[$id]["op"]=$op
+	now := dt_ms
+	DCP[$id]["opened"]=$now
 	DCP[$id]["dst"]=$dst
 	DCP[$id]["bad"]=$bad
 	DCP[$id]["why"]=$why
@@ -290,7 +296,7 @@ fn dt_copydone(int n, int st) {
 # Over: log what was done for Undo, say how it went, and close the window
 # unless there is something it could not do to show.
 fn dt_copyend(int id) {
-	local op=${DCP[$id]["op"]} dst=${DCP[$id]["dst"]} i n what last= t
+	local op=${DCP[$id]["op"]} dst=${DCP[$id]["dst"]} i n what last= t now left
 	local -a okp
 
 	n=${DCP[$id]["np"]:-0}
@@ -323,7 +329,17 @@ fn dt_copyend(int id) {
 		dt_want 30
 		return 0
 	fi
-	[ -n "${DT[$id]["app"]+x}" ] && [ -z "${DCP[$id]["closing"]}" ] && dt_wantclose "$id"
+	if [ -z "${DCP[$id]["closing"]}" ] && [ -n "${DT[$id]["app"]+x}" ]; then
+		now := dt_ms
+		left=$((${DCP[$id]["opened"]:-0} + DT_COPYSHOW - now))
+		if [ "$left" -gt 0 ]; then
+			DCP[$id]["phase"]=shown
+			DCP[$id]["closeat"]=$((now + left))
+			dt_want "$left"
+			return 0
+		fi
+		dt_wantclose "$id"
+	fi
 	[ -n "${DCP[$id]["closing"]}" ] && unset "DCP[$id]"
 	return 0
 }
@@ -426,6 +442,29 @@ fn dtcopy_draw(int id, int h, int w, int row, int col) {
 		fi
 		dt_want "$DT_COPYMS"
 		;;
+	shown)
+		# Done, and up a moment longer so it is seen: what was done, the
+		# bar full, then gone.
+		if [ "${DCP[$id]["op"]}" = move ]; then
+			t := dt_tr "Moved to %s" "${dst##*/}"
+		else
+			t := dt_tr "Copied to %s" "${dst##*/}"
+		fi
+		t := dt_cut "$t" $((w - 4))
+		console put -p "w$id" 1 2 "$t"
+		n=${DCP[$id]["np"]:-0}
+		t := dt_trn "$n" "%s item done" "%s items done" "$n"
+		console put -p "w$id" 3 2 "$t"
+		bar := dt_rep $((w - 4)) "${GL[block]}"
+		console pen "$DT_ACTIVE" "$DT_WELL"
+		console put -p "w$id" 5 2 "$bar"
+		now := dt_ms
+		if [ "$now" -ge "${DCP[$id]["closeat"]:-0}" ]; then
+			dt_wantclose "$id"
+		else
+			dt_want $((${DCP[$id]["closeat"]} - now))
+		fi
+		;;
 	errors)
 		n=${DCP[$id]["np"]:-0}
 		t := dt_trn "$n" "%s item was done; these could not be:" "%s items were done; these could not be:" "$n"
@@ -498,7 +537,7 @@ fn dtcopy_key(int id, key) {
 		esac
 		;;
 	run) case $key in enter | escape) dt_copystop "$id" ;; esac ;;
-	errors) case $key in enter | escape) dt_wantclose "$id" ;; esac ;;
+	errors | shown) case $key in enter | escape) dt_wantclose "$id" ;; esac ;;
 	esac
 	return 0
 }

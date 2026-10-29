@@ -56,27 +56,21 @@ fn dt_glyphs(set = "unicode") {
 	GL["ffolder"]=; GL["fdoc"]=; GL["ftext"]=; GL["fpdf"]=;
 	GL["fimage"]=; GL["faudio"]=; GL["fvideo"]=; GL["farchive"]=;
 	GL["fcode"]=; GL["fapp"]=; GL["fdisk"]=; GL["ftrash"]=;
-	GL["ffolder_blue"]=; GL["fdoc_blue"]=; GL["ftext_blue"]=; GL["fpdf_blue"]=;
-	GL["fimage_blue"]=; GL["faudio_blue"]=; GL["fvideo_blue"]=; GL["farchive_blue"]=;
-	GL["fcode_blue"]=; GL["fapp_blue"]=; GL["fdisk_blue"]=; GL["ftrash_blue"]=;
-	GL["ffolder_green"]=; GL["fdoc_green"]=; GL["ftext_green"]=; GL["fpdf_green"]=;
-	GL["fimage_green"]=; GL["faudio_green"]=; GL["fvideo_green"]=; GL["farchive_green"]=;
-	GL["fcode_green"]=; GL["fapp_green"]=; GL["fdisk_green"]=; GL["ftrash_green"]=;
-	GL["ffolder_amber"]=; GL["fdoc_amber"]=; GL["ftext_amber"]=; GL["fpdf_amber"]=;
-	GL["fimage_amber"]=; GL["faudio_amber"]=; GL["fvideo_amber"]=; GL["farchive_amber"]=;
-	GL["fcode_amber"]=; GL["fapp_amber"]=; GL["fdisk_amber"]=; GL["ftrash_amber"]=;
-	GL["fhome"]=; GL["fhome_blue"]=; GL["fhome_green"]=; GL["fhome_amber"]=
-	GL["fboxer"]=; GL["fboxer_blue"]=; GL["fboxer_green"]=; GL["fboxer_amber"]=
-	GL["fmd"]=; GL["fmd_blue"]=; GL["fmd_green"]=; GL["fmd_amber"]=
-	GL["fsheet"]=; GL["fsheet_blue"]=; GL["fsheet_green"]=; GL["fsheet_amber"]=
-	GL["fdiagram"]=; GL["fdiagram_blue"]=; GL["fdiagram_green"]=; GL["fdiagram_amber"]=
-	GL["fslides"]=; GL["fslides_blue"]=; GL["fslides_green"]=; GL["fslides_amber"]=
-	GL["ffont"]=; GL["ffont_blue"]=; GL["ffont_green"]=; GL["ffont_amber"]=
-	GL["fweb"]=; GL["fweb_blue"]=; GL["fweb_green"]=; GL["fweb_amber"]=
-	GL["fterm"]=; GL["fterm_blue"]=; GL["fterm_green"]=; GL["fterm_amber"]=
-	GL["fsettings"]=; GL["fsettings_blue"]=; GL["fsettings_green"]=; GL["fsettings_amber"]=
-	GL["fbundle"]=; GL["fbundle_blue"]=; GL["fbundle_green"]=; GL["fbundle_amber"]=
-	GL["flink"]=; GL["flink_blue"]=; GL["flink_green"]=; GL["flink_amber"]=
+	GL["ffolder_blue"]=
+	GL["ffolder_green"]=
+	GL["ffolder_amber"]=
+	GL["fhome"]=
+	GL["fboxer"]=
+	GL["fmd"]=
+	GL["fsheet"]=
+	GL["fdiagram"]=
+	GL["fslides"]=
+	GL["ffont"]=
+	GL["fweb"]=
+	GL["fterm"]=
+	GL["fsettings"]=
+	GL["fbundle"]=
+	GL["flink"]=
 	GL["fgit"]=; GL["fgit_blue"]=; GL["fgit_green"]=; GL["fgit_amber"]=
 	GL["fconfig"]=; GL["fconfig_blue"]=; GL["fconfig_green"]=; GL["fconfig_amber"]=
 	GL["flocal"]=; GL["flocal_blue"]=; GL["flocal_green"]=; GL["flocal_amber"]=
@@ -89,32 +83,32 @@ fn dt_glyphs(set = "unicode") {
 	GL["fvideos"]=; GL["fvideos_blue"]=; GL["fvideos_green"]=; GL["fvideos_amber"]=
 	GL["fapps"]=; GL["fapps_blue"]=; GL["fapps_green"]=; GL["fapps_amber"]=
 	GL["fgames"]=; GL["fgames_blue"]=; GL["fgames_green"]=; GL["fgames_amber"]=
-	GL["frc"]=; GL["frc_blue"]=; GL["frc_green"]=; GL["frc_amber"]=
-	GL["fhistory"]=; GL["fhistory_blue"]=; GL["fhistory_green"]=; GL["fhistory_amber"]=
-	GL["fservice"]=; GL["fservice_blue"]=; GL["fservice_green"]=; GL["fservice_amber"]=
-	GL["fkey"]=; GL["fkey_blue"]=; GL["fkey_green"]=; GL["fkey_amber"]=
-	GL["fnetwork"]=; GL["fnetwork_blue"]=; GL["fnetwork_green"]=; GL["fnetwork_amber"]=
-	GL["fcron"]=; GL["fcron_blue"]=; GL["fcron_green"]=; GL["fcron_amber"]=
-	GL["freadme"]=; GL["freadme_blue"]=; GL["freadme_green"]=; GL["freadme_amber"]=
-	GL["flicense"]=; GL["flicense_blue"]=; GL["flicense_green"]=; GL["flicense_amber"]=
-	GL["flog"]=; GL["flog_blue"]=; GL["flog_green"]=; GL["flog_amber"]=
-	GL["fkernel"]=; GL["fkernel_blue"]=; GL["fkernel_green"]=; GL["fkernel_amber"]=
-	GL["fboot"]=; GL["fboot_blue"]=; GL["fboot_green"]=; GL["fboot_amber"]=
-	GL["fc"]=; GL["fc_blue"]=; GL["fc_green"]=; GL["fc_amber"]=
-	GL["fasm"]=; GL["fasm_blue"]=; GL["fasm_green"]=; GL["fasm_amber"]=
-	GL["fmake"]=; GL["fmake_blue"]=; GL["fmake_green"]=; GL["fmake_amber"]=
-	GL["fpatch"]=; GL["fpatch_blue"]=; GL["fpatch_green"]=; GL["fpatch_amber"]=
-	GL["fjson"]=; GL["fjson_blue"]=; GL["fjson_green"]=; GL["fjson_amber"]=
-	GL["fvector"]=; GL["fvector_blue"]=; GL["fvector_green"]=; GL["fvector_amber"]=
-	GL["from"]=; GL["from_blue"]=; GL["from_green"]=; GL["from_amber"]=
-	GL["febook"]=; GL["febook_blue"]=; GL["febook_green"]=; GL["febook_amber"]=
-	GL["fexe"]=; GL["fexe_blue"]=; GL["fexe_green"]=; GL["fexe_amber"]=
-	GL["fdisc"]=; GL["fdisc_blue"]=; GL["fdisc_green"]=; GL["fdisc_amber"]=
-	GL["fpackage"]=; GL["fpackage_blue"]=; GL["fpackage_green"]=; GL["fpackage_amber"]=
-	GL["flibrary"]=; GL["flibrary_blue"]=; GL["flibrary_green"]=; GL["flibrary_amber"]=
-	GL["flock"]=; GL["flock_blue"]=; GL["flock_green"]=; GL["flock_amber"]=
-	GL["fdatabase"]=; GL["fdatabase_blue"]=; GL["fdatabase_green"]=; GL["fdatabase_amber"]=
-	GL["fusb"]=; GL["fusb_blue"]=; GL["fusb_green"]=; GL["fusb_amber"]=
+	GL["frc"]=
+	GL["fhistory"]=
+	GL["fservice"]=
+	GL["fkey"]=
+	GL["fnetwork"]=
+	GL["fcron"]=
+	GL["freadme"]=
+	GL["flicense"]=
+	GL["flog"]=
+	GL["fkernel"]=
+	GL["fboot"]=
+	GL["fc"]=
+	GL["fasm"]=
+	GL["fmake"]=
+	GL["fpatch"]=
+	GL["fjson"]=
+	GL["fvector"]=
+	GL["from"]=
+	GL["febook"]=
+	GL["fexe"]=
+	GL["fdisc"]=
+	GL["fpackage"]=
+	GL["flibrary"]=
+	GL["flock"]=
+	GL["fdatabase"]=
+	GL["fusb"]=
 	GL["fshare"]=; GL["fshare_blue"]=; GL["fshare_green"]=; GL["fshare_amber"]=
 	# The hibr menu's own mark, U+270E in every set but blit's.
 	GL["hibr"]=$'\u270e'      # LOWER RIGHT PENCIL
@@ -405,90 +399,21 @@ dt_glyphsblit() {
 	GL["fdisk"]=$'\U00100047\U00100048' # Blit file-disk-classic
 	GL["ftrash"]=$'\U00100049\U0010004A' # Blit file-trash-classic
 	GL["ffolder_blue"]=$'\U0010004B\U0010004C' # Blit file-folder-blue
-	GL["fdoc_blue"]=$'\U0010004D\U0010004E' # Blit file-document-blue
-	GL["ftext_blue"]=$'\U0010004F\U00100050' # Blit file-text-blue
-	GL["fpdf_blue"]=$'\U00100051\U00100052' # Blit file-pdf-blue
-	GL["fimage_blue"]=$'\U00100053\U00100054' # Blit file-image-blue
-	GL["faudio_blue"]=$'\U00100055\U00100056' # Blit file-audio-blue
-	GL["fvideo_blue"]=$'\U00100057\U00100058' # Blit file-video-blue
-	GL["farchive_blue"]=$'\U00100059\U0010005A' # Blit file-archive-blue
-	GL["fcode_blue"]=$'\U0010005B\U0010005C' # Blit file-code-blue
-	GL["fapp_blue"]=$'\U0010005D\U0010005E' # Blit file-application-blue
-	GL["fdisk_blue"]=$'\U0010005F\U00100060' # Blit file-disk-blue
-	GL["ftrash_blue"]=$'\U00100061\U00100062' # Blit file-trash-blue
 	GL["ffolder_green"]=$'\U00100063\U00100064' # Blit file-folder-green
-	GL["fdoc_green"]=$'\U00100065\U00100066' # Blit file-document-green
-	GL["ftext_green"]=$'\U00100067\U00100068' # Blit file-text-green
-	GL["fpdf_green"]=$'\U00100069\U0010006A' # Blit file-pdf-green
-	GL["fimage_green"]=$'\U0010006B\U0010006C' # Blit file-image-green
-	GL["faudio_green"]=$'\U0010006D\U0010006E' # Blit file-audio-green
-	GL["fvideo_green"]=$'\U0010006F\U00100070' # Blit file-video-green
-	GL["farchive_green"]=$'\U00100071\U00100072' # Blit file-archive-green
-	GL["fcode_green"]=$'\U00100073\U00100074' # Blit file-code-green
-	GL["fapp_green"]=$'\U00100075\U00100076' # Blit file-application-green
-	GL["fdisk_green"]=$'\U00100077\U00100078' # Blit file-disk-green
-	GL["ftrash_green"]=$'\U00100079\U0010007A' # Blit file-trash-green
 	GL["ffolder_amber"]=$'\U0010007B\U0010007C' # Blit file-folder-amber
-	GL["fdoc_amber"]=$'\U0010007D\U0010007E' # Blit file-document-amber
-	GL["ftext_amber"]=$'\U0010007F\U00100080' # Blit file-text-amber
-	GL["fpdf_amber"]=$'\U00100081\U00100082' # Blit file-pdf-amber
-	GL["fimage_amber"]=$'\U00100083\U00100084' # Blit file-image-amber
-	GL["faudio_amber"]=$'\U00100085\U00100086' # Blit file-audio-amber
-	GL["fvideo_amber"]=$'\U00100087\U00100088' # Blit file-video-amber
-	GL["farchive_amber"]=$'\U00100089\U0010008A' # Blit file-archive-amber
-	GL["fcode_amber"]=$'\U0010008B\U0010008C' # Blit file-code-amber
-	GL["fapp_amber"]=$'\U0010008D\U0010008E' # Blit file-application-amber
-	GL["fdisk_amber"]=$'\U0010008F\U00100090' # Blit file-disk-amber
-	GL["ftrash_amber"]=$'\U00100091\U00100092' # Blit file-trash-amber
 	# Kinds added later go one at a time, four colourways each (0.3.6).
 	GL["fhome"]=$'\U00100093\U00100094' # Blit file-home-classic
-	GL["fhome_blue"]=$'\U00100095\U00100096' # Blit file-home-blue
-	GL["fhome_green"]=$'\U00100097\U00100098' # Blit file-home-green
-	GL["fhome_amber"]=$'\U00100099\U0010009A' # Blit file-home-amber
 	GL["fboxer"]=$'\U0010009B\U0010009C' # Blit file-boxer-classic
-	GL["fboxer_blue"]=$'\U0010009D\U0010009E' # Blit file-boxer-blue
-	GL["fboxer_green"]=$'\U0010009F\U001000A0' # Blit file-boxer-green
-	GL["fboxer_amber"]=$'\U001000A1\U001000A2' # Blit file-boxer-amber
 	GL["fmd"]=$'\U001000A3\U001000A4' # Blit file-markdown-classic
-	GL["fmd_blue"]=$'\U001000A5\U001000A6' # Blit file-markdown-blue
-	GL["fmd_green"]=$'\U001000A7\U001000A8' # Blit file-markdown-green
-	GL["fmd_amber"]=$'\U001000A9\U001000AA' # Blit file-markdown-amber
 	GL["fsheet"]=$'\U001000AB\U001000AC' # Blit file-spreadsheet-classic
-	GL["fsheet_blue"]=$'\U001000AD\U001000AE' # Blit file-spreadsheet-blue
-	GL["fsheet_green"]=$'\U001000AF\U001000B0' # Blit file-spreadsheet-green
-	GL["fsheet_amber"]=$'\U001000B1\U001000B2' # Blit file-spreadsheet-amber
 	GL["fdiagram"]=$'\U001000B3\U001000B4' # Blit file-diagram-classic
-	GL["fdiagram_blue"]=$'\U001000B5\U001000B6' # Blit file-diagram-blue
-	GL["fdiagram_green"]=$'\U001000B7\U001000B8' # Blit file-diagram-green
-	GL["fdiagram_amber"]=$'\U001000B9\U001000BA' # Blit file-diagram-amber
 	GL["fslides"]=$'\U001000BB\U001000BC' # Blit file-presentation-classic
-	GL["fslides_blue"]=$'\U001000BD\U001000BE' # Blit file-presentation-blue
-	GL["fslides_green"]=$'\U001000BF\U001000C0' # Blit file-presentation-green
-	GL["fslides_amber"]=$'\U001000C1\U001000C2' # Blit file-presentation-amber
 	GL["ffont"]=$'\U001000C3\U001000C4' # Blit file-font-classic
-	GL["ffont_blue"]=$'\U001000C5\U001000C6' # Blit file-font-blue
-	GL["ffont_green"]=$'\U001000C7\U001000C8' # Blit file-font-green
-	GL["ffont_amber"]=$'\U001000C9\U001000CA' # Blit file-font-amber
 	GL["fweb"]=$'\U001000CB\U001000CC' # Blit file-web-classic
-	GL["fweb_blue"]=$'\U001000CD\U001000CE' # Blit file-web-blue
-	GL["fweb_green"]=$'\U001000CF\U001000D0' # Blit file-web-green
-	GL["fweb_amber"]=$'\U001000D1\U001000D2' # Blit file-web-amber
 	GL["fterm"]=$'\U001000D3\U001000D4' # Blit file-terminal-classic
-	GL["fterm_blue"]=$'\U001000D5\U001000D6' # Blit file-terminal-blue
-	GL["fterm_green"]=$'\U001000D7\U001000D8' # Blit file-terminal-green
-	GL["fterm_amber"]=$'\U001000D9\U001000DA' # Blit file-terminal-amber
 	GL["fsettings"]=$'\U001000DB\U001000DC' # Blit file-settings-classic
-	GL["fsettings_blue"]=$'\U001000DD\U001000DE' # Blit file-settings-blue
-	GL["fsettings_green"]=$'\U001000DF\U001000E0' # Blit file-settings-green
-	GL["fsettings_amber"]=$'\U001000E1\U001000E2' # Blit file-settings-amber
 	GL["fbundle"]=$'\U001000E3\U001000E4' # Blit file-bundle-classic
-	GL["fbundle_blue"]=$'\U001000E5\U001000E6' # Blit file-bundle-blue
-	GL["fbundle_green"]=$'\U001000E7\U001000E8' # Blit file-bundle-green
-	GL["fbundle_amber"]=$'\U001000E9\U001000EA' # Blit file-bundle-amber
 	GL["flink"]=$'\U001000EB\U001000EC' # Blit file-link-classic
-	GL["flink_blue"]=$'\U001000ED\U001000EE' # Blit file-link-blue
-	GL["flink_green"]=$'\U001000EF\U001000F0' # Blit file-link-green
-	GL["flink_amber"]=$'\U001000F1\U001000F2' # Blit file-link-amber
 	# Special folders and more kinds (0.3.7), the same way.
 	GL["fgit"]=$'\U001000F3\U001000F4' # Blit file-git-classic
 	GL["fgit_blue"]=$'\U001000F5\U001000F6' # Blit file-git-blue
@@ -539,109 +464,31 @@ dt_glyphsblit() {
 	GL["fgames_green"]=$'\U0010014F\U00100150' # Blit file-games-green
 	GL["fgames_amber"]=$'\U00100151\U00100152' # Blit file-games-amber
 	GL["frc"]=$'\U00100153\U00100154' # Blit file-rc-classic
-	GL["frc_blue"]=$'\U00100155\U00100156' # Blit file-rc-blue
-	GL["frc_green"]=$'\U00100157\U00100158' # Blit file-rc-green
-	GL["frc_amber"]=$'\U00100159\U0010015A' # Blit file-rc-amber
 	GL["fhistory"]=$'\U0010015B\U0010015C' # Blit file-history-classic
-	GL["fhistory_blue"]=$'\U0010015D\U0010015E' # Blit file-history-blue
-	GL["fhistory_green"]=$'\U0010015F\U00100160' # Blit file-history-green
-	GL["fhistory_amber"]=$'\U00100161\U00100162' # Blit file-history-amber
 	GL["fservice"]=$'\U00100163\U00100164' # Blit file-service-classic
-	GL["fservice_blue"]=$'\U00100165\U00100166' # Blit file-service-blue
-	GL["fservice_green"]=$'\U00100167\U00100168' # Blit file-service-green
-	GL["fservice_amber"]=$'\U00100169\U0010016A' # Blit file-service-amber
 	GL["fkey"]=$'\U0010016B\U0010016C' # Blit file-key-classic
-	GL["fkey_blue"]=$'\U0010016D\U0010016E' # Blit file-key-blue
-	GL["fkey_green"]=$'\U0010016F\U00100170' # Blit file-key-green
-	GL["fkey_amber"]=$'\U00100171\U00100172' # Blit file-key-amber
 	GL["fnetwork"]=$'\U00100173\U00100174' # Blit file-network-classic
-	GL["fnetwork_blue"]=$'\U00100175\U00100176' # Blit file-network-blue
-	GL["fnetwork_green"]=$'\U00100177\U00100178' # Blit file-network-green
-	GL["fnetwork_amber"]=$'\U00100179\U0010017A' # Blit file-network-amber
 	GL["fcron"]=$'\U0010017B\U0010017C' # Blit file-cron-classic
-	GL["fcron_blue"]=$'\U0010017D\U0010017E' # Blit file-cron-blue
-	GL["fcron_green"]=$'\U0010017F\U00100180' # Blit file-cron-green
-	GL["fcron_amber"]=$'\U00100181\U00100182' # Blit file-cron-amber
 	GL["freadme"]=$'\U00100183\U00100184' # Blit file-readme-classic
-	GL["freadme_blue"]=$'\U00100185\U00100186' # Blit file-readme-blue
-	GL["freadme_green"]=$'\U00100187\U00100188' # Blit file-readme-green
-	GL["freadme_amber"]=$'\U00100189\U0010018A' # Blit file-readme-amber
 	GL["flicense"]=$'\U0010018B\U0010018C' # Blit file-license-classic
-	GL["flicense_blue"]=$'\U0010018D\U0010018E' # Blit file-license-blue
-	GL["flicense_green"]=$'\U0010018F\U00100190' # Blit file-license-green
-	GL["flicense_amber"]=$'\U00100191\U00100192' # Blit file-license-amber
 	GL["flog"]=$'\U00100193\U00100194' # Blit file-log-classic
-	GL["flog_blue"]=$'\U00100195\U00100196' # Blit file-log-blue
-	GL["flog_green"]=$'\U00100197\U00100198' # Blit file-log-green
-	GL["flog_amber"]=$'\U00100199\U0010019A' # Blit file-log-amber
 	GL["fkernel"]=$'\U0010019B\U0010019C' # Blit file-kernel-classic
-	GL["fkernel_blue"]=$'\U0010019D\U0010019E' # Blit file-kernel-blue
-	GL["fkernel_green"]=$'\U0010019F\U001001A0' # Blit file-kernel-green
-	GL["fkernel_amber"]=$'\U001001A1\U001001A2' # Blit file-kernel-amber
 	GL["fboot"]=$'\U001001A3\U001001A4' # Blit file-boot-classic
-	GL["fboot_blue"]=$'\U001001A5\U001001A6' # Blit file-boot-blue
-	GL["fboot_green"]=$'\U001001A7\U001001A8' # Blit file-boot-green
-	GL["fboot_amber"]=$'\U001001A9\U001001AA' # Blit file-boot-amber
 	GL["fc"]=$'\U001001AB\U001001AC' # Blit file-c-classic
-	GL["fc_blue"]=$'\U001001AD\U001001AE' # Blit file-c-blue
-	GL["fc_green"]=$'\U001001AF\U001001B0' # Blit file-c-green
-	GL["fc_amber"]=$'\U001001B1\U001001B2' # Blit file-c-amber
 	GL["fasm"]=$'\U001001B3\U001001B4' # Blit file-asm-classic
-	GL["fasm_blue"]=$'\U001001B5\U001001B6' # Blit file-asm-blue
-	GL["fasm_green"]=$'\U001001B7\U001001B8' # Blit file-asm-green
-	GL["fasm_amber"]=$'\U001001B9\U001001BA' # Blit file-asm-amber
 	GL["fmake"]=$'\U001001BB\U001001BC' # Blit file-makefile-classic
-	GL["fmake_blue"]=$'\U001001BD\U001001BE' # Blit file-makefile-blue
-	GL["fmake_green"]=$'\U001001BF\U001001C0' # Blit file-makefile-green
-	GL["fmake_amber"]=$'\U001001C1\U001001C2' # Blit file-makefile-amber
 	GL["fpatch"]=$'\U001001C3\U001001C4' # Blit file-patch-classic
-	GL["fpatch_blue"]=$'\U001001C5\U001001C6' # Blit file-patch-blue
-	GL["fpatch_green"]=$'\U001001C7\U001001C8' # Blit file-patch-green
-	GL["fpatch_amber"]=$'\U001001C9\U001001CA' # Blit file-patch-amber
 	GL["fjson"]=$'\U001001CB\U001001CC' # Blit file-json-classic
-	GL["fjson_blue"]=$'\U001001CD\U001001CE' # Blit file-json-blue
-	GL["fjson_green"]=$'\U001001CF\U001001D0' # Blit file-json-green
-	GL["fjson_amber"]=$'\U001001D1\U001001D2' # Blit file-json-amber
 	GL["fvector"]=$'\U001001D3\U001001D4' # Blit file-vector-classic
-	GL["fvector_blue"]=$'\U001001D5\U001001D6' # Blit file-vector-blue
-	GL["fvector_green"]=$'\U001001D7\U001001D8' # Blit file-vector-green
-	GL["fvector_amber"]=$'\U001001D9\U001001DA' # Blit file-vector-amber
 	GL["from"]=$'\U001001DB\U001001DC' # Blit file-rom-classic
-	GL["from_blue"]=$'\U001001DD\U001001DE' # Blit file-rom-blue
-	GL["from_green"]=$'\U001001DF\U001001E0' # Blit file-rom-green
-	GL["from_amber"]=$'\U001001E1\U001001E2' # Blit file-rom-amber
 	GL["febook"]=$'\U001001E3\U001001E4' # Blit file-ebook-classic
-	GL["febook_blue"]=$'\U001001E5\U001001E6' # Blit file-ebook-blue
-	GL["febook_green"]=$'\U001001E7\U001001E8' # Blit file-ebook-green
-	GL["febook_amber"]=$'\U001001E9\U001001EA' # Blit file-ebook-amber
 	GL["fexe"]=$'\U001001EB\U001001EC' # Blit file-exe-classic
-	GL["fexe_blue"]=$'\U001001ED\U001001EE' # Blit file-exe-blue
-	GL["fexe_green"]=$'\U001001EF\U001001F0' # Blit file-exe-green
-	GL["fexe_amber"]=$'\U001001F1\U001001F2' # Blit file-exe-amber
 	GL["fdisc"]=$'\U001001F3\U001001F4' # Blit file-disc-classic
-	GL["fdisc_blue"]=$'\U001001F5\U001001F6' # Blit file-disc-blue
-	GL["fdisc_green"]=$'\U001001F7\U001001F8' # Blit file-disc-green
-	GL["fdisc_amber"]=$'\U001001F9\U001001FA' # Blit file-disc-amber
 	GL["fpackage"]=$'\U001001FB\U001001FC' # Blit file-package-classic
-	GL["fpackage_blue"]=$'\U001001FD\U001001FE' # Blit file-package-blue
-	GL["fpackage_green"]=$'\U001001FF\U00100200' # Blit file-package-green
-	GL["fpackage_amber"]=$'\U00100201\U00100202' # Blit file-package-amber
 	GL["flibrary"]=$'\U00100203\U00100204' # Blit file-library-classic
-	GL["flibrary_blue"]=$'\U00100205\U00100206' # Blit file-library-blue
-	GL["flibrary_green"]=$'\U00100207\U00100208' # Blit file-library-green
-	GL["flibrary_amber"]=$'\U00100209\U0010020A' # Blit file-library-amber
 	GL["flock"]=$'\U0010020B\U0010020C' # Blit file-lock-classic
-	GL["flock_blue"]=$'\U0010020D\U0010020E' # Blit file-lock-blue
-	GL["flock_green"]=$'\U0010020F\U00100210' # Blit file-lock-green
-	GL["flock_amber"]=$'\U00100211\U00100212' # Blit file-lock-amber
 	GL["fdatabase"]=$'\U00100213\U00100214' # Blit file-database-classic
-	GL["fdatabase_blue"]=$'\U00100215\U00100216' # Blit file-database-blue
-	GL["fdatabase_green"]=$'\U00100217\U00100218' # Blit file-database-green
-	GL["fdatabase_amber"]=$'\U00100219\U0010021A' # Blit file-database-amber
 	GL["fusb"]=$'\U0010021B\U0010021C' # Blit file-usb-classic
-	GL["fusb_blue"]=$'\U0010021D\U0010021E' # Blit file-usb-blue
-	GL["fusb_green"]=$'\U0010021F\U00100220' # Blit file-usb-green
-	GL["fusb_amber"]=$'\U00100221\U00100222' # Blit file-usb-amber
 	GL["fshare"]=$'\U00100223\U00100224' # Blit file-share-classic
 	GL["fshare_blue"]=$'\U00100225\U00100226' # Blit file-share-blue
 	GL["fshare_green"]=$'\U00100227\U00100228' # Blit file-share-green

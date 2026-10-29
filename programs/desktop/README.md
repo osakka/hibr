@@ -714,7 +714,11 @@ the theme's own colours; a chosen colour gets text dark or light to suit),
 and where its window was and how big. A folder
 never given its own takes Control Panel > Files' defaults. On Blit the icon
 view's **Large** icons are Blit's two-column file icons, a picture per kind
-of file in Classic, Blue, Green or Amber. There is no ".." row (Control
+of file, folders in Classic, Blue, Green or Amber. Alt with a double click
+or enter opens a folder the other way: a new window where folders open in
+this one, and with Open Folders in New Windows on, the folder's own window
+with this one closed behind it, as System 7's option-double-click did.
+mod-i is Get Info and mod-n New Folder. There is no ".." row (Control
 Panel > Files > Show ".." in Folders) and no path line: the window's title
 says where it is -- the folder's name by default, or the path, its end or
 its start showing (Window Title) -- and an **alt-click on the title** drops

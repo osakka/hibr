@@ -78,6 +78,8 @@ fn dt_iconbig(kind, plain) {
 	if [ "${FB_ICONSIZE:-double}" = double ] && [ -n "${GL["f$kind"]-}" ]; then
 		[ "$c" = classic ] && c= || c=_$c
 		[ -n "${GL["f$kind$c"]-}" ] && { ret "${GL["f$kind$c"]}"; return 0; }
+		ret "${GL["f$kind"]}"
+		return 0
 	fi
 	ret "$plain"
 }
