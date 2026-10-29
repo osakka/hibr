@@ -373,9 +373,11 @@ dt_mouse() {
 			case $CS_DRAGKIND in
 			resize) cs_resize "$mc" ;;
 			move)
-				CS_Y=$mr
-				[ "$CS_Y" -lt 1 ] && CS_Y=1
-				[ "$CS_Y" -ge "$DT_ROWS" ] && CS_Y=$((DT_ROWS - 1))
+				# Where the strip was put, within the primary.
+				CS_YREL=$((mr - DT_PRIMARY_ROW))
+				[ "$CS_YREL" -lt 1 ] && CS_YREL=1
+				[ "$CS_YREL" -ge "${DT_PRIMARY_H:-$DT_ROWS}" ] &&
+					CS_YREL=$((${DT_PRIMARY_H:-$DT_ROWS} - 1))
 				;;
 			esac
 			return 0

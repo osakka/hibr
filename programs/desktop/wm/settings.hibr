@@ -455,7 +455,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_DIM DT_SELINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL DT_HOT DT_TITLE DT_TITLEINK
 	DT_WALLIMG DT_WALLMODE
 	DT_ICONS DT_DISKS DT_ICONBG DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
-	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
+	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_YREL
 	CS_COLLAPSED CS_LEN CS_SHADOW CS_SHOW CS_HIDE CS_ORDER
 	DT_FRAME DT_WINTRANS DT_BARTRANS DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_TITLEKEY DT_MOVEMODE DT_DRAWSKIP DT_TERMMS DT_LIVEMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEFRAME DT_NOTEWHERE DT_NOTECOUNT DT_NOTELIST DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
@@ -628,8 +628,22 @@ dt_load() {
 			CS_SHOW=1
 			DT_CSOFFER=1
 		fi
+		# 0.99.383: the strip's row is the primary's own, CS_YREL. The
+		# old CS_Y was a row of the whole union, which a display joining
+		# above moved, and what was saved cannot be told apart from where
+		# it was pushed: the strip starts once at its own default place.
+		if [ "${DT_SETVER:-0}" -lt 18 ]; then
+			CS_YREL=
+			# And Files' background default was White for one release
+			# (0.99.380) and is Follow Theme since: every desktop that
+			# saved anything then wrote White down as if chosen. A colour
+			# a folder was given in its own View menu is its own, and
+			# stays.
+			[ "${FB_BGDEF-}" = White ] && FB_BGDEF="Follow Theme"
+		fi
 	fi
-	DT_SETVER=17
+	CS_Y=
+	DT_SETVER=18
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"

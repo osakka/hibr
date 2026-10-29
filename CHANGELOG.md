@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.383
+
+**The Control Strip stays where it was put.** Its row was a row of the
+whole union of displays, and a display joining above the primary at login
+moves the union's origin: each login shifted it, and a restart whose first
+union was smaller clamped it to just under the bar and saved that. It is
+the primary's own row now (`CS_YREL`), clamped only as it is read. The
+old saved row cannot be told apart from where it was pushed, so the strip
+starts once at its own default place, 80% down the primary.
+
+**A saved White becomes Follow Theme.** 0.99.380 started Files' backgrounds
+on White, and every desktop that saved anything then wrote it down as if
+chosen; it is Follow Theme once. A colour a folder was given in its own
+View menu stays.
+
+**The details view's heading is one bar** to the window's edge, where it
+ended after its last word.
+
+**A hovered entry is the theme's well with the theme's own ink**, as every
+other list's hover is: a folder's or a program's own colour on the well
+could barely be read, more so over a folder's own background. Files 3.3.
+
 ## 0.99.382
 
 **More of Blit's file icons** (Blit 0.3.7), in the four colourways:

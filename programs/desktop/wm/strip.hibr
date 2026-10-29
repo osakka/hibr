@@ -42,7 +42,15 @@ CS_SHOW="${CS_SHOW-0}"
 CS_HIDE="${CS_HIDE-}"
 CS_ORDER="${CS_ORDER-}"
 CS_SIDE="${CS_SIDE-left}"
-CS_Y="${CS_Y-}"
+# The strip's row within the primary display, the bar's own (0 the bar's
+# row), or empty for 80% of the way down it. Kept relative to the primary,
+# never as a row of the whole union: a display joining above it moves the
+# union's origin, and a row of the union then pointed somewhere else -- a
+# restart's first, smaller union shifted and clamped it to just under the
+# bar, and that was saved. CS_Y, the old absolute row, is still read from
+# an old settings file and dropped by DT_SETVER 18.
+CS_YREL="${CS_YREL-}"
+CS_Y=
 CS_COLLAPSED="${CS_COLLAPSED-0}"
 CS_LEN="${CS_LEN-}"
 CS_SCROLL="${CS_SCROLL-0}"
@@ -232,27 +240,21 @@ cs_rescan() {
 # display the bar is on, and 80% of a stacked union is somebody else's
 # pane (Gitea #240).
 cs_y() {
-	[ -z "$CS_Y" ] &&
-		CS_Y=$((DT_PRIMARY_ROW + ${DT_PRIMARY_H:-$DT_ROWS} * 8 / 10))
-	ret "$CS_Y"
+	local r h=${DT_PRIMARY_H:-$DT_ROWS}
+
+	if [ -z "$CS_YREL" ]; then
+		r=$((h * 8 / 10))
+	else
+		r=$CS_YREL
+	fi
+	# Onto the primary as it is now, every time it is read and never
+	# written back: a screen made shorter for a moment cannot lose where
+	# the strip was put.
+	[ "$r" -lt 1 ] && r=1
+	[ "$r" -ge "$h" ] && r=$((h - 1))
+	ret "$((DT_PRIMARY_ROW + r))"
 }
 
-# Pulled onto the screen the same way an icon's own saved spot is: a
-# preference, not a promise, clamped every time dt_size runs (on open and
-# on every resize) rather than baked into the saved value -- so a strip
-# dragged near the bottom of a tall screen is still reachable after a
-# resize to a shorter one, and lands back where it was if the screen grows
-# again. A never-set CS_Y is left alone; cs_y's own default already
-# accounts for whatever DT_ROWS turns out to be.
-cs_clamp() {
-	local top bot
-
-	[ -z "$CS_Y" ] && return 0
-	top := dt_ptop
-	bot := dt_pbot
-	[ "$CS_Y" -lt "$top" ] && CS_Y=$top
-	[ "$CS_Y" -ge "$bot" ] && CS_Y=$((bot - 1))
-}
 
 # How many modules are actually shown -- every one of them, unless the
 # strip has been dragged shorter than that, or scrolling has moved some

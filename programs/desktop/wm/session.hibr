@@ -225,11 +225,7 @@ fn dt_shiftorigin(shift) {
 		c=${DT_ICONPOS["$k"]##* }
 		DT_ICONPOS["$k"]="$((r + dr)) $((c + dc))"
 	done
-	# The Control Strip keeps one absolute row. Left alone it would be
-	# clamped to the primary's new top, which is not where it was. A
-	# never-set one is left alone, the same as cs_clamp leaves it: its
-	# default is computed from the primary and so follows already.
-	[ -n "${CS_Y-}" ] && CS_Y=$((CS_Y + dr))
+	# The Control Strip needs nothing: its row is the primary's own.
 	# Every pane moved under the frame's own bookkeeping, so the next
 	# frame is a full one: a window left alone because nothing in it
 	# changed would otherwise stay undrawn at its new place.
@@ -352,7 +348,6 @@ dt_size() {
 	dt_has dt_barpane && dt_barpane
 	dt_has dt_blankregions && dt_blankregions
 	dt_iconlay
-	cs_clamp
 	dt_has dt_tile && dt_tile
 	return 0
 }

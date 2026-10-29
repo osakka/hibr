@@ -301,6 +301,10 @@ sc = run("files", FW, pre=PRE)
 check("a folder never given a background follows the theme, and opens as a list",
       sc.style(5, 10).get("bg") == sc.style(12, 10).get("bg") != "#ffffff"
       and "list" in sc.row(12), sc)
+sc = run("files", "12 60 2 2", [b"v"], pre=PRE)
+hd = [sc.style(3, c).get("bg") for c in range(3, 60)]
+check("the details view's heading is one bar to the window's edge",
+      "Mode" in sc.row(3) and len(set(hd)) == 1, (hd, sc))
 sc = run("files", FW, pre=PRE + "\nFB_BGDEF=Blue")
 st = [sc.style(12, c).get("bg") for c in range(3, 34)]
 check("the status row is one bar in the theme's colour, whatever the folder's background",
@@ -381,6 +385,15 @@ def folderlook():
           "folder's from its own name", all(got.get(k) == v for k, v in want.items()),
           (got, ko.stderr))
     shutil.rmtree(kd, True)
+    mig = os.path.join(fd if os.path.isdir(fd) else tempfile.gettempdir(), "old-desktop.hibr")
+    open(mig, "w").write("DT_SETVER=17\nFB_BGDEF=White\nCS_Y=95\n")
+    mo = subprocess.run([sx.HIBR, "-c", '. %s\n. %s\nDT_CONF=%s\ndt_load\n'
+        'echo "bg=[$FB_BGDEF] rel=[$CS_YREL] y=[$CS_Y] ver=$DT_SETVER"\n'
+        % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/files.hibr"), mig)],
+        capture_output=True, text=True).stdout
+    os.unlink(mig)
+    check("a desktop saved by 0.99.380 loads with Follow Theme where it wrote White "
+          "down, and the strip at its own place", "bg=[Follow Theme] rel=[] y=[] ver=18" in mo, mo)
     ic = subprocess.run([sx.HIBR, "-c", '. %s\n'
         'dt_glyphs blit; g := dt_iconbig home PLAIN; [ "$g" = "${GL[fhome]}" ] && echo blit-big\n'
         'FB_ICONCOLOUR=amber; g := dt_iconbig trash PLAIN; [ "$g" = "${GL[ftrash_amber]}" ] && echo amber\n'
@@ -1512,21 +1525,25 @@ def loadconf(conf):
     return out
 
 
+# The settings version dt_load writes now, read from it rather than written
+# down here -- each new migration raised it and broke every check below.
+SETVER = re.search(r"\n\tDT_SETVER=(\d+)\n",
+                   open(tree("programs/desktop/wm/settings.hibr")).read()).group(1)
 OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "17 1 1 1 mod-w mod-tab []", out)
+      out == SETVER + " 1 1 1 mod-w mod-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "17 0 1 1 mod-w mod-tab []", out)
+      out == SETVER + " 0 1 1 mod-w mod-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("17 1 0 0 "), out)
+      out.startswith(SETVER + " 1 0 0 "), out)
 
 
 # 0.99.324 calls the frame that is only a title bar none, and the border left
@@ -1792,9 +1809,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 17", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate " + SETVER, out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 17", out)
+check("and a file written since is read as it is", out == "[meadow] paper " + SETVER, out)
 
 
 # 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
@@ -1815,9 +1832,9 @@ def loadtube(conf):
 
 out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
 check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow 17", out)
+      out == "follow " + SETVER, out)
 out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii 17", out)
+check("and one it was given of its own is kept", out == "ascii " + SETVER, out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -3516,6 +3533,13 @@ sc = run("files", FW, [0.5, hovr(6, 8), 0.4], pre=PRE, env={"DT_HOVER": "on"})
 check("the entry under the pointer lights in the well colour",
       sc.style(6, 8).get("bg") == WELL and sc.style(7, 8).get("bg") != WELL and
       sc.style(4, 8).get("bg") != WELL, sc)
+# A folder under the pointer is the theme's own ink on the well, as every
+# other list's hover is -- its kind's colour on the well could barely be
+# read -- so it reads like a file there, and unlike a folder elsewhere.
+sc = run("files", FW, [0.5, hovr(4, 8), 0.4], pre=PRE, env={"DT_HOVER": "on"})
+check("and in the theme's own ink, a folder as plainly as a file",
+      sc.style(4, 8).get("bg") == WELL and
+      sc.style(4, 8).get("fg") == sc.style(7, 8).get("fg") != sc.style(3, 8).get("fg"), sc)
 sc0 = run("files", FW, [0.5], pre=PRE + "\nFB_DEFAULTVIEW=icons")
 # beta, not alpha: alpha is first, so it is the selection, which keeps its
 # own colour under the pointer.
@@ -5844,4 +5868,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(769)
+report(772)

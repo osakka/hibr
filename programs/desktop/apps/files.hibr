@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 3.2
+app files "A file browser" 3.3
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -457,15 +457,16 @@ fn fb_paths(int id, sel) {
 }
 
 # The pen for an entry's row: the cursor brightest, marked entries lit,
-# the rest by what they are.
-# The entry under the pointer is on the well colour (#370).
+# the rest by what they are. The entry under the pointer is the theme's
+# well with the theme's own ink (#370) -- not its kind's colour, which on
+# the well, and over a folder's own background, could barely be read.
 fn fb_rowpen(int id, int i) {
 	if [ "$i" = "${FB[$id]["sel"]}" ]; then
 		console pen "$DT_SELINK" "$DT_ACTIVE" bold
 	elif [ -n "${FL[$id][$i]["m"]}" ]; then
 		console pen "$DT_INK" "$DT_IDLE" bold
 	elif dt_hot "$id" "row:$i"; then
-		fb_pen "${FL[$id][$i]["kind"]}" "$DT_WELL"
+		console pen "$DT_INK" "$DT_WELL"
 	else
 		fb_pen "${FL[$id][$i]["kind"]}"
 	fi
@@ -1246,6 +1247,9 @@ fn fb_drawdet(int id, int h, int w) {
 		hx="$hx mode $x $((x + 11))"
 	fi
 	FB[$id]["hx"]=$hx
+	# The heading is one bar the window's width, its pen's colours to
+	# the edge rather than ending with its last word.
+	console fill -p "w$id" 1 1 1 "$w" " "
 	console put -p "w$id" 1 1 "$line"
 	fi
 	n=${FB[$id]["n"]}
@@ -1316,6 +1320,7 @@ fn fb_dethead(int id, int nw, int cs, int ct, int cp, mk, ms, mt, mm) {
 	line+=$t
 	hx="$hx name $x $((x + nw))"
 	FB[$id]["hx"]=${hx# }
+	console fill -p "w$id" 1 1 1 "${FB[$id]["w"]}" " "
 	console put -p "w$id" 1 2 "$line"
 }
 
@@ -1471,7 +1476,7 @@ fn fb_drawicons(int id, int h, int w) {
 			g := fb_glyph "$id" "$i"
 			fb_pen "${FL[$id][$i]["kind"]}"
 			dt_hot "$id" "row:$i" && [ "$i" != "$sel" ] &&
-				fb_pen "${FL[$id][$i]["kind"]}" "$DT_WELL"
+				console pen "$DT_INK" "$DT_WELL"
 			console put -p "w$id" "$gy" $((x + (tw - ${#g}) / 2)) "$g"
 		fi
 		nm=${FL[$id][$i]["name"]}

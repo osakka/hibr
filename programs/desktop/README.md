@@ -1891,7 +1891,7 @@ accumulated one drag event at a time; press and release it with no
 movement at all and it collapses the strip down to the arrow alone, a
 second press bringing it back. Dragging past the screen's own horizontal
 middle re-docks it to that side instead of just moving it. Everything is
-saved the moment it settles, `CS_SIDE`/`CS_Y`/`CS_COLLAPSED`/`CS_LEN`
+saved the moment it settles, `CS_SIDE`/`CS_YREL` (its row within the primary)/`CS_COLLAPSED`/`CS_LEN`
 alongside the desktop's own settings -- except how far it is scrolled,
 which is not, the same as a file browser does not remember its own
 scroll position either.

@@ -3071,14 +3071,24 @@ def stripcol(label):
     """The column a module's label starts at."""
     return stripsc().find(label)[1]
 
-# A saved CS_Y is a preference, not a promise, the same as an icon's own
-# saved spot -- dt_size clamps it on open (and on every resize) rather
-# than baking the clamp into the saved value, so it is pulled back onto
-# the screen here without losing what was actually saved.
-sc2, _ = run("", env={"CS_Y": "500"}, pre=CSSRC)
+# A saved row is a preference, not a promise, the same as an icon's own
+# saved spot -- pulled onto the primary every time it is read, never
+# written back, so nothing is lost by a screen that is shorter for now.
+sc2, _ = run("", env={"CS_YREL": "500"}, pre=CSSRC)
 arrow2 = sc2.find("▸")
 check("a saved position past the edge of the screen is pulled back onto it",
       arrow2 is not None and arrow2[0] == ROWS - 1, sc2)
+# And it is the primary's own row, not the union's: at login the primary
+# is alone at row 0 for a moment, then a display joins above it and it is
+# at row 49 -- the strip kept as a row of the union was shifted and
+# clamped through that, and a restart left it under the bar.
+out = subprocess.run([screen.HIBR, "-c", '. %s\nCS_YREL=46\n'
+    'DT_PRIMARY_ROW=49; DT_PRIMARY_H=49; a := cs_y\n'
+    'DT_PRIMARY_ROW=0; DT_PRIMARY_H=20; b := cs_y\n'
+    'DT_PRIMARY_ROW=49; DT_PRIMARY_H=49; c := cs_y\n'
+    'echo "$a $b $c $CS_YREL"\n' % WM], capture_output=True, text=True).stdout
+check("the strip keeps its place on the primary through a display joining above "
+      "and a moment of a smaller screen", out.strip() == "95 19 95 46", out)
 # cursor, shadow, theme, wallpaper: alphabetical file order, its own full
 # name in each bracket rather than a single glyph nobody could read
 # without already knowing what it meant -- verified as one exact string
@@ -3139,7 +3149,7 @@ check("dragging the arrow across the screen re-docks it to the other side",
 saved = os.path.join(sc.conf, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("the new side and position are saved",
-      "CS_SIDE=right" in text and "CS_Y=15" in text, text)
+      "CS_SIDE=right" in text and "CS_YREL=15" in text, text)
 shutil.rmtree(sc.conf, True)
 
 # Dragging the arrow sideways instead of up/down resizes it -- how many
@@ -8171,4 +8181,4 @@ a, b, told = fsrun("fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
 check("and what a module draws at absolute coordinates over it shows",
       a.find("WORLD") == (4, 2), a)
 
-report(883)
+report(884)
