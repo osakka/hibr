@@ -1,0 +1,45 @@
+#!@HIBR@
+#
+# hibr-run -- what `please` runs through pkexec, under hibr's own action
+# org.hibr.run (Gitea #406): a command, or a shell, as the user pkexec has
+# made us, in the folder the person was in and with their terminal's TERM
+# and their LANG -- which pkexec clears, along with everything else.
+#
+#   hibr-run DIR TERM LANG -- [COMMAND ARGS...]
+#
+# Who may do it, and with whose password, is polkit's to say: Control Panel
+# > Administrative Access lists org.hibr.run like any other action. Each
+# value is checked before it is used, and PATH is the system's own.
+
+strict
+
+fn hr_die(msg) {
+	echo "hibr-run: $msg" >&2
+	exit 127
+}
+
+[ $# -ge 4 ] && [ "$4" = -- ] || hr_die "usage: hibr-run DIR TERM LANG -- [COMMAND ARGS...]"
+hr_dir=$1
+hr_term=$2
+hr_lang=$3
+shift 4
+[[ $hr_term =~ ^[A-Za-z0-9._+-]*$ ]] || hr_die "not a terminal name: $hr_term"
+[[ $hr_lang =~ ^[A-Za-z0-9._@-]*$ ]] || hr_die "not a locale: $hr_lang"
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+[ -n "$hr_term" ] && export TERM=$hr_term
+[ -n "$hr_lang" ] && export LANG=$hr_lang
+# The folder the person was in, where it can be entered; the user's home,
+# and then /, where it cannot -- as sudo does.
+case $hr_dir in
+/*) cd -- "$hr_dir" 2> /dev/null || cd -- "${HOME:-/}" 2> /dev/null || cd / ;;
+*) cd -- "${HOME:-/}" 2> /dev/null || cd / ;;
+esac
+if [ $# -eq 0 ]; then
+	hr_sh=
+	while IFS=: read -r hr_n _ hr_uid _ _ _ hr_s; do
+		[ "$hr_uid" = "$(id -u)" ] && { hr_sh=$hr_s; break; }
+	done < <(getent passwd "$(id -un)")
+	[ -x "${hr_sh:-/nonexistent}" ] || hr_sh=/bin/sh
+	exec "$hr_sh" -l
+fi
+exec "$@"

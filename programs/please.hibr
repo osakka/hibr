@@ -1,0 +1,61 @@
+#!@HIBR@
+#
+# please -- run a command as root, or as another user, through polkit
+# (Gitea #406): sudo's job, done by pkexec under hibr's own action
+# org.hibr.run, so who may and with whose password is Control Panel >
+# Administrative Access's to say rather than a sudoers file. hibr itself is
+# never setuid (ADR 0016); pkexec is the one that is.
+#
+#   please COMMAND [ARGS...]     as root
+#   please -u NAME COMMAND ...   as NAME
+#   please -s                    a shell, root's or NAME's with -u
+#
+# The command runs in the folder you are in, with your TERM and LANG; the
+# rest of the environment is pkexec's clean one. Its status is the
+# command's, 126 when the password was refused or cancelled, and 127 when
+# it could not be run at all.
+
+strict
+
+PL_HELPER="@HELPDIR@/hibr-run"
+
+fn pl_usage() {
+	echo "usage: please [-u USER] COMMAND [ARGS...] | please [-u USER] -s" >&2
+	exit 2
+}
+
+pl_user=
+pl_shell=0
+while [ $# -gt 0 ]; do
+	case $1 in
+	-u)
+		[ $# -ge 2 ] || pl_usage
+		pl_user=$2
+		shift 2
+		;;
+	-s) pl_shell=1; shift ;;
+	-h | --help) pl_usage ;;
+	--) shift; break ;;
+	-*) echo "please: no such option: $1" >&2; pl_usage ;;
+	*) break ;;
+	esac
+done
+[ "$pl_shell" = 1 ] && [ $# -gt 0 ] && pl_usage
+[ "$pl_shell" = 0 ] && [ $# -eq 0 ] && pl_usage
+pl_name='^[A-Za-z_][A-Za-z0-9_.-]*[$]?$'
+if [ -n "$pl_user" ] && ! [[ $pl_user =~ $pl_name ]]; then
+	echo "please: not a user name: $pl_user" >&2
+	exit 2
+fi
+if ! command -v pkexec > /dev/null; then
+	echo "please: pkexec is not installed (on Debian, the pkexec package)" >&2
+	exit 127
+fi
+if ! [ -x "$PL_HELPER" ]; then
+	echo "please: $PL_HELPER is not installed; hibr's polkit policy comes with the package" >&2
+	exit 127
+fi
+declare -a pl_as
+pl_as=()
+[ -n "$pl_user" ] && pl_as=(--user "$pl_user")
+exec pkexec "${pl_as[@]}" "$PL_HELPER" "$PWD" "${TERM-}" "${LANG-}" -- "$@"

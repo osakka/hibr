@@ -104,6 +104,7 @@ fi
 /usr/bin/desktop
 /usr/bin/catalogue
 /usr/bin/vw
+/usr/bin/please
 /usr/lib/hibr
 /usr/share/hibr
 /usr/include/hibr

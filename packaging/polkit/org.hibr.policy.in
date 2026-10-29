@@ -34,4 +34,15 @@
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">@HELPDIR@/hibr-settime</annotate>
   </action>
+
+  <action id="org.hibr.run">
+    <description>Run a command as another user</description>
+    <message>Authentication is required to run a command as another user.</message>
+    <defaults>
+      <allow_any>auth_admin_keep</allow_any>
+      <allow_inactive>auth_admin_keep</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPDIR@/hibr-run</annotate>
+  </action>
 </policyconfig>

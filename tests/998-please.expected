@@ -1,0 +1,29 @@
+0
+-- the helper: the folder, TERM and LANG it was given, the system's PATH
+here xterm-kitty C.UTF-8 /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+-- a folder it cannot enter is the home folder instead
+home
+-- the command's status is its own
+status 7
+-- refused, and nothing run
+hibr-run: not a terminal name: xterm;rm
+status 127
+hibr-run: not a locale: C$(x)
+status 127
+hibr-run: usage: hibr-run DIR TERM LANG -- [COMMAND ARGS...]
+status 127
+-- please: what it asks pkexec to run
+[D/help/hibr-run][D/here][dumb][C][--][apt-get][install][two words]
+[--user][bob][D/help/hibr-run][D/here][dumb][C][--][ls][-l]
+[D/help/hibr-run][D/here][dumb][C][--]
+-- and what it refuses
+usage: please [-u USER] COMMAND [ARGS...] | please [-u USER] -s
+status 2
+usage: please [-u USER] COMMAND [ARGS...] | please [-u USER] -s
+status 2
+please: not a user name: bad name
+status 2
+status 2
+-- with no pkexec it says so
+please: pkexec is not installed (on Debian, the pkexec package)
+status 127

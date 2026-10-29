@@ -26,6 +26,7 @@ exists. These pages are the detail.
 | [Writing for the desktop](../programs/desktop/WRITING.md) | Applications, Control Panel panes, strip modules and sessions, each a hibr script |
 | [The desktop's architecture](../programs/desktop/ARCHITECTURE.md) | The three layers, the event loop, damage-based redraw, and the app contract, with real screenshots |
 | [Installing desktop applications](catalogue.md) | `catalogue`: an index over HTTPS, what it trusts, what it refuses, and how to publish one |
+| [Running a command as root](please.md) | `please`: sudo's job through polkit, governed by Control Panel > Administrative Access |
 
 ## Look it up
 

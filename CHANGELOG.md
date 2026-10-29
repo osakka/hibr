@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.386
+
+**please** (Gitea #406, phase 2): sudo's job, through polkit. `please
+COMMAND` runs a command as root, `please -u NAME COMMAND` as NAME, and
+`please -s` opens a shell. `pkexec` runs hibr's own helper, `hibr-run`,
+under hibr's action `org.hibr.run`. By default that asks for an
+administrator's password and remembers it a few minutes, as sudo does.
+Control Panel > Administrative Access governs it like any other action:
+no password for a group (sudo's `NOPASSWD`), your own password, or never.
+The command runs in your folder with your `TERM` and `LANG`, in pkexec's
+clean environment with the system's `PATH`; its status is its own. It
+needs `pkexec`, which the packages recommend. See docs/please.md.
+
 ## 0.99.385
 
 **The copy window is always seen.** It closed the moment a copy was done,

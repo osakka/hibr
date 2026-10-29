@@ -406,7 +406,11 @@ ifneq ($(POLKITDIR),)
 	install -d $(DESTDIR)$(HELPDIR) $(DESTDIR)$(POLKITDIR)
 	sed '1s|@HIBR@|$(PREFIX)/bin/hibr|' programs/access.hibr > $(DESTDIR)$(HELPDIR)/hibr-access
 	sed '1s|@HIBR@|$(PREFIX)/bin/hibr|' programs/settime.hibr > $(DESTDIR)$(HELPDIR)/hibr-settime
-	chmod 755 $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime
+	sed '1s|@HIBR@|$(PREFIX)/bin/hibr|' programs/run.hibr > $(DESTDIR)$(HELPDIR)/hibr-run
+	sed -e '1s|@HIBR@|$(PREFIX)/bin/hibr|' -e 's|@HELPDIR@|$(HELPDIR)|' \
+		programs/please.hibr > $(DESTDIR)$(PREFIX)/bin/please
+	chmod 755 $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime \
+		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(PREFIX)/bin/please
 	sed 's|@HELPDIR@|$(HELPDIR)|' packaging/polkit/org.hibr.policy.in \
 		> $(DESTDIR)$(POLKITDIR)/org.hibr.policy
 	chmod 644 $(DESTDIR)$(POLKITDIR)/org.hibr.policy
@@ -422,6 +426,7 @@ uninstall:
 		$(DESTDIR)$(MANDIR)/man1/desktop.1
 ifneq ($(POLKITDIR),)
 	rm -f $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime \
+		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(PREFIX)/bin/please \
 		$(DESTDIR)$(POLKITDIR)/org.hibr.policy
 endif
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \
