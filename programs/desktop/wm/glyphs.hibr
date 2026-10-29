@@ -51,6 +51,9 @@ fn dt_glyphs(set = "unicode") {
 	# it draws with its own characters when these are empty.
 	GL["phoneoff"]=; GL["phonewait"]=; GL["phoneon"]=; GL["phonering"]=
 	GL["phoneoffc"]=; GL["phonewaitc"]=; GL["phoneonc"]=; GL["phoneringc"]=
+	# The same telephones two columns wide, each a pair of codepoints.
+	GL["phoneoff2"]=; GL["phonewait2"]=; GL["phoneon2"]=; GL["phonering2"]=
+	GL["phoneoffc2"]=; GL["phonewaitc2"]=; GL["phoneonc2"]=; GL["phoneringc2"]=
 	# The hibr menu's own mark, U+270E in every set but blit's.
 	GL["hibr"]=$'\u270e'      # LOWER RIGHT PENCIL
 	if [ "$set" = ascii ]; then
@@ -325,5 +328,15 @@ dt_glyphsblit() {
 	GL["phonewaitc"]=$'\U00100020' # Blit classic-wait, dashed
 	GL["phoneonc"]=$'\U00100021'   # Blit classic-on, filled
 	GL["phoneringc"]=$'\U00100022' # Blit classic-ring, with waves
+	# Both telephones again two columns wide (0.2.48), each a pair, left
+	# then right, for longwire's large phone.
+	GL["phoneoff2"]=$'\U00100023\U00100024' # Blit phone-off, two columns
+	GL["phonewait2"]=$'\U00100025\U00100026' # Blit phone-wait, two columns
+	GL["phoneon2"]=$'\U00100027\U00100028' # Blit phone-on, two columns
+	GL["phonering2"]=$'\U00100029\U0010002A' # Blit phone-ring, two columns
+	GL["phoneoffc2"]=$'\U0010002B\U0010002C' # Blit classic-off, two columns
+	GL["phonewaitc2"]=$'\U0010002D\U0010002E' # Blit classic-wait, two columns
+	GL["phoneonc2"]=$'\U0010002F\U00100030' # Blit classic-on, two columns
+	GL["phoneringc2"]=$'\U00100031\U00100032' # Blit classic-ring, two columns
 }
 dt_glyphs "$DT_GLYPHSET"

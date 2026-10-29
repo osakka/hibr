@@ -183,8 +183,23 @@ def header_mods(path, req, prov):
     return hit
 
 
-def suites_for(path, req, prov, where, desk=None):
+def veronly(path, base):
+    """Whether a change to include/hibr.h is the release's own version line
+    and nothing else: every release makes it, and it changes no behaviour."""
+    if path != "include/hibr.h":
+        return False
+    d = subprocess.run(["git", "diff", "-U0", base or "HEAD", "--", path],
+                       cwd=ROOT, capture_output=True, text=True).stdout
+    lines = [l for l in d.splitlines() if l[:1] in "+-"
+             and not l.startswith(("+++", "---"))]
+    return bool(lines) and all(re.match(r'^[+-]#define HIBR_VER "[0-9.]+"$', l)
+                               for l in lines)
+
+
+def suites_for(path, req, prov, where, desk=None, since=None):
     """The suites one changed path reaches, and a word on why."""
+    if veronly(path, since):
+        return set(), "the release's version line"
     if path.startswith(EVERYTHING) or path == "include":
         return set(SUITES), "the shell or the harness"
     if path.endswith(".md"):
@@ -289,7 +304,8 @@ def main():
     where = reach(req, prov)
     pick = set()
     for p in paths:
-        hit, because = suites_for(os.path.normpath(p), req, prov, where, desk)
+        hit, because = suites_for(os.path.normpath(p), req, prov, where, desk,
+                                  since)
         pick |= hit
         if why:
             print("%-50s %-28s %s" % (p, because, " ".join(

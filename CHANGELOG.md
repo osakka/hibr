@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.374
+
+**longwire's large telephones**, now that Blit 0.3.0 draws them. The blit
+glyph set gains `GL[phoneoff2]`, `GL[phonewait2]`, `GL[phoneon2]`,
+`GL[phonering2]` and the classic `GL[phoneoffc2]` … `GL[phoneringc2]`, each
+two codepoints in one string (U+100023 to U+100032, left then right). They
+are empty in every other set, which is what keeps longwire 0.5.14's Phone
+Icon Size row hidden off Blit.
+
+**A release's version line is no longer the whole gate.** `tests/affected.py`
+reads a change to `include/hibr.h` that is only `HIBR_VER` as reaching no
+suite, where every release's bump used to send it to the full run.
+
 ## 0.99.373
 
 **X Screen's options, per program and with defaults** (Gitea #404).
