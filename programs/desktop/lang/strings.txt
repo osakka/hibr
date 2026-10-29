@@ -1047,7 +1047,6 @@ Server
 Server Image
 Servers
 Session at Login
-Set (sudo)
 Set Date & Time
 Set Location…
 Set PIN
@@ -1055,6 +1054,7 @@ Set as Wallpaper
 Set for:
 Set up a mail account first, in Control Panel > Mail
 Settings%s
+Set…
 Several emails or phones: separate them with commas.
 Sha'ban
 Shadow
@@ -1208,6 +1208,7 @@ This Desktop
 This Session
 This Terminal
 This account has no address to answer from
+This computer has no timedatectl, and hibr's polkit policy is not installed
 This desktop is not the computer's own
 This links to %s
 This notification has been cleared.

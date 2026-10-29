@@ -662,7 +662,7 @@ check("the first pane's own rows show on the right without entering it",
 # Each choice runs a pane's _drop or cp_set_* callback, and most of those were
 # reached by nothing else -- the census listed them. Which rows are
 # dropdowns is read from each pane's own _drop, and where each row sits from
-# its own _rows. Date & Time is left out: its dialogs run sudo.
+# its own _rows. Date & Time is left out: its dialogs ask for a password.
 PANE_APPS = {"abouthibr": ("about",), "filesview": ("files",),
              "taskmgr": ("tasks",), "terminal": ("term",),
              "browserset": ("browser",), "webapps": ("browser",),
@@ -2239,6 +2239,20 @@ def notd_checks():
           "hibr's helper under pkexec",
           "ran: pkexec /h/hibr-settime time 2026-01-02 03:04:05" in out
           and "ran: pkexec /h/hibr-settime zone Europe/Paris" in out, out)
+    # And with no helper either, nothing runs at all: it says what is
+    # missing rather than reaching for sudo (Gitea #407).
+    out = subprocess.run([sx.HIBR, "-c",
+        '. %s/datetime.hibr\n'
+        'fn dtp_run(...cmd) { echo "ran: ${cmd[*]}"; }\n'
+        'dtp_helper() { return 1; }\n'
+        'dt_del() { :; }; dt_note() { echo "note: $1"; }\n'
+        'declare -gA DTS; DTS[7]["dbuf"]=2026-01-02; DTS[7]["tbuf"]=03:04:05\n'
+        'dts_apply 7; dtp_zoneset Europe/Paris\n' % CP],
+        capture_output=True, text=True, env=dict(os.environ, PATH=NOTD)).stdout
+    check("with neither timedatectl nor hibr's helper, Date & Time says so "
+          "and runs nothing, sudo included",
+          "ran:" not in out and out.count("note: This computer has no timedatectl") == 2,
+          out)
     shutil.rmtree(NOTD, True)
 
 
@@ -5896,4 +5910,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(777)
+report(778)

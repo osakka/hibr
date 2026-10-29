@@ -25,6 +25,18 @@ system's own `PATH`. A folder the user cannot enter is replaced by their home
 folder, then by `/`. Its status is the command's own, 126 when the password
 was refused or cancelled, and 127 when it could not be run at all.
 
+**On macOS**, which has no polkit, `please` is `sudo` underneath: `please
+COMMAND` is `sudo -- COMMAND`, `-u NAME` is sudo's own, and `please -s` is
+`sudo -i`. sudoers decides who may there, and the folder, the environment
+and the status are sudo's. The same word works on every platform, which is
+why hibr's own messages and pages say `please` and never `sudo`.
+
+`please` is the general way. Where hibr has a narrower job to do as root it
+has an action of its own, so a group can be let do that one thing without
+being given root: Date & Time has `org.hibr.settime`, and an install for
+every user (`catalogue --system`, see [catalogue.md](catalogue.md)) has
+`org.hibr.catalogue`, which the catalogue asks for by itself.
+
 ## Who may, and with whose password
 
 By default `org.hibr.run` asks for an **administrator's password and

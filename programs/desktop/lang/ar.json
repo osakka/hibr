@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.57",
+ "version": "3.58",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -916,7 +916,6 @@
   "Server Image": "صورة الخادم",
   "Servers": "الخوادم",
   "Session at Login": "الجلسة عند الدخول",
-  "Set (sudo)": "ضبط (sudo)",
   "Set Date & Time": "ضبط التاريخ والوقت",
   "Set Location…": "تعيين الموقع…",
   "Set PIN": "تعيين الرمز السري",
@@ -1551,6 +1550,8 @@
   "Copied to %s": "نُسخ إلى %s",
   "Moved to %s": "نُقل إلى %s",
   "Confirm": "تأكيد",
-  "Small Icons": "أيقونات صغيرة"
+  "Small Icons": "أيقونات صغيرة",
+  "Set…": "ضبط…",
+  "This computer has no timedatectl, and hibr's polkit policy is not installed": "لا يوجد في هذا الحاسوب timedatectl، وسياسة polkit الخاصة بـ hibr غير مثبتة"
  }
 }

@@ -27,3 +27,10 @@ status 2
 -- with no pkexec it says so
 please: pkexec is not installed (on Debian, the pkexec package)
 status 127
+-- on macOS, which has no polkit, it is sudo underneath (Gitea #407)
+sudo [--] [apt-get] [install] [two words]
+sudo [-u] [bob] [--] [ls] [-l]
+sudo [-i]
+sudo [-i] [-u] [bob]
+please: sudo is not installed
+status 127

@@ -542,9 +542,9 @@ body shape `name_wheel`. `datetime.hibr` is the one bundled example of this
 shape. It holds the menu bar clock's format (a dropdown of examples, or
 Custom… for any strftime format up to 24 columns wide), a time zone finder,
 and Set Date & Time where the machine owns its clock -- in a container it
-says "set by the host" instead. Changing the zone or the clock runs sudo in
-a terminal window of its own, so the password prompt and the result stay on
-screen. The small world map under
+says "set by the host" instead. Changing the zone or the clock runs in a
+terminal window of its own -- through polkit, or `please` on macOS -- so
+the password prompt and the result stay on screen. The small world map under
 them, and the zone1970.tab lookup that places a mark on it, are copied
 verbatim from `examples/traceroute.hibr` rather than redone -- CLAUDE.md's
 own trap about that map is not to adjust one by eye, and the same holds for

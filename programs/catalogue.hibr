@@ -99,9 +99,15 @@ A system install needs hibr 0.99.197 or newer."
 # So the answer is the command they meant to type.
 #
 # Reading is never gated -- `--system list` and `--system installed` are
-# what somebody checks *before* reaching for sudo -- so this is called from
-# the verbs that write and nowhere else.
-fn cat_needwrite(verb) {
+# what somebody checks *before* asking for an administrator -- so this is
+# called from the verbs that write and nowhere else.
+#
+# Where polkit names hibr's helper for this (org.hibr.catalogue, Gitea
+# #407), the same command goes on as root through pkexec: it asks for the
+# password and carries on, rather than asking the person to type it again
+# under sudo. Control Panel > Administrative Access decides whose password.
+fn cat_needwrite(verb, ...rest) {
+	local h
 	local d
 
 	# The root may not exist yet, which is the ordinary case at user
@@ -113,15 +119,33 @@ fn cat_needwrite(verb) {
 	done
 	[ -n "$d" ] || d=/
 	[ -w "$d" ] && return 0
+	if [ "$CAT_SCOPE" = system ] && [ "$EUID" != 0 ] && h := cat_helper; then
+		[ "$CAT_J" = 1 ] && rest=(--json "${rest[@]}")
+		exec pkexec "$h" "$verb" "${rest[@]}"
+	fi
 	[ "$CAT_SCOPE" = system ] &&
 		cat_die "catalogue $verb --system writes $CAT_DATA, which is root's.
 That is deliberate: it is root-owned so every user of this machine reads the
 same copy and nobody else can change what they all run (ADR 0045). Run it as
 root instead:
 
-  sudo catalogue $verb --system ..."
+  please catalogue $verb --system ..."
 	cat_die "catalogue $verb writes $CAT_DATA, which this account cannot write to."
 }
+# hibr's root helper for a system install, where polkit names it: the
+# program org.hibr.catalogue runs, as pkaction says, with pkexec there to
+# run it -- or status 1, and the person is told the command to use.
+fn cat_helper() {
+	local l p=
+
+	command -v pkexec > /dev/null && command -v pkaction > /dev/null || return 1
+	while IFS= read -r l; do
+		case $l in *"exec.path -> "*) p=${l##*-> } ;; esac
+	done < <(pkaction --action-id org.hibr.catalogue --verbose 2> /dev/null)
+	[ -n "$p" ] && [ -x "$p" ] || return 1
+	ret "$p"
+}
+
 # Where the index is fetched from. A static URL on purpose: the catalogue is
 # a git repository with a JSON index in it, so it can be browsed, mirrored
 # by anyone and served by any static host -- github.com/osakka/hibr-apps is
@@ -1593,7 +1617,7 @@ fn cat_check(...args) {
 		esac
 	done
 	if [ "$repair" = 1 ]; then
-		cat_needwrite check
+		cat_needwrite check --repair
 		cat_lock
 	fi
 	cat_state
@@ -3330,14 +3354,15 @@ set -- "${cat_args[@]}"
 
 # A verb that writes asks first, so a scope this account cannot write to is
 # a sentence rather than a half-done install (Gitea #238). Reading is never
-# gated: `--system list` is what somebody runs before reaching for sudo.
+# gated: `--system list` is what somebody runs before asking for an
+# administrator.
 # A verb that writes takes the lock **before** it reads, since a lock
 # taken after the read serialises the writes and loses the update all the
 # same (Gitea #242). Reading verbs take none and need none: the state is
 # renamed into place, so a reader sees one whole file or the other.
 case ${1-} in
 install | remove | uninstall | update | upgrade | purge)
-	cat_needwrite "$1"
+	cat_needwrite "$@"
 	cat_lock
 	;;
 esac

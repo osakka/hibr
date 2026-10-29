@@ -1,0 +1,46 @@
+#!@HIBR@
+#
+# hibr-catalogue -- the catalogue, as root, at system scope only (Gitea
+# #407). `catalogue VERB --system ...` run by an ordinary account runs this
+# through pkexec, under hibr's action org.hibr.catalogue, which Control
+# Panel > Administrative Access governs like any other -- in place of
+# telling the person to type the command again under sudo.
+#
+#   hibr-catalogue VERB [--json] [NAME...]
+#
+# It is what `sudo catalogue VERB --system` was, and no more: root fetches,
+# verifies and places, exactly as there. What it adds is the boundary. Only
+# the verbs that write the system scope are taken -- never `index`, so the
+# catalogue root installs from is root's own, never the caller's -- and
+# only the options each of those verbs takes itself, named here so one the
+# catalogue adds later is refused until it is named, never let through.
+# pkexec has already cleared the environment, so HIBR_APPS_URL, a keyring
+# and a key fingerprint are root's defaults too. The system scope refuses
+# an unverified catalogue on its own (cat_sigsay).
+
+strict
+
+CR_CATALOGUE="@BINDIR@/catalogue"
+
+fn cr_die(msg) {
+	echo "hibr-catalogue: $msg" >&2
+	exit 2
+}
+
+case ${1-} in
+install | update | upgrade | remove | uninstall | purge | check) ;;
+"") cr_die "usage: hibr-catalogue install|update|remove|purge|check [--json] [NAME...]" ;;
+*) cr_die "not a verb that writes the system scope: $1" ;;
+esac
+for cr_a in "${@:2}"; do
+	case $1:$cr_a in
+	*:--json | *:-j) ;;
+	check:--repair | check:-r) ;;
+	remove:-f | remove:--force | remove:-y | remove:--yes | remove:-k | remove:--keep) ;;
+	uninstall:-f | uninstall:--force | uninstall:-y | uninstall:--yes) ;;
+	uninstall:-k | uninstall:--keep) ;;
+	purge:-y | purge:--yes | purge:-n | purge:--dry-run) ;;
+	*:-*) cr_die "no such option for $1: $cr_a" ;;
+	esac
+done
+exec "$CR_CATALOGUE" --system "$@"

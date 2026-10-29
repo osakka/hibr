@@ -15,7 +15,7 @@
 strict
 
 
-app datetime "The Control Panel pane for the time, the date and the time zone" 1.6
+app datetime "The Control Panel pane for the time, the date and the time zone" 1.7
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷" hardware
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"
@@ -154,7 +154,7 @@ fn dtp_geo(tz) {
 
 # Found once, when this file loads, and again whenever the machine's own
 # zone changes under the pane (dtp_follow) -- a zone set from here lands
-# a moment later, once sudo in its terminal window has been answered.
+# a moment later, once the password in its terminal window has been given.
 DTP_TZUSER=0
 [ -n "$TZ" ] && DTP_TZUSER=1
 DTP_TZ := dtp_tz
@@ -395,7 +395,8 @@ fn dtf_close(int id) {
 #
 # Setting the zone or the clock is root's business, and hibr never gains
 # privilege on its own, so the command runs in a terminal window of its
-# own where sudo can ask for a password and the result stays on screen.
+# own where polkit, or sudo on macOS, can ask for a password and the result
+# stays on screen.
 dtp_run() {
 	DT_OPENCMD=("$@")
 	DT_OPENSELF=1
@@ -501,10 +502,11 @@ fn dtz_draw(int id, int h, int w, ...rest) {
 		dt_wreg "$id" $((r + 2)) 2 $((w - 4)) "row$i"
 		r=$((r + 1))
 	done
-	dt_dlgbtns "$id" "$h" "$w" "$f" ok "Set (sudo)" cancel Cancel
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok "Set${GL[ellipsis]}" cancel Cancel
 }
 
-# Set the highlighted zone. It runs sudo, so no test ever takes this path.
+# Set the highlighted zone. It asks for a password, so no test ever takes
+# this path.
 fn dtz_set(int id) {
 	local z
 
@@ -575,21 +577,28 @@ dtp_helper() {
 # Set the zone with whatever this system has for it. timedatectl asks
 # polkit itself, so it runs as the person and polkit asks for the
 # password -- Control Panel > Administrative Access decides whose; without
-# it, hibr's own helper runs under pkexec, and sudo only where polkit is
-# not (macOS's systemsetup).
+# it, hibr's own helper runs under pkexec, and `please` where polkit is
+# not (macOS's systemsetup, Gitea #407). A system with none of the three
+# has no clean way to ask, and says so.
 fn dtp_zoneset(zone = "") {
 	local h
 
 	if command -v timedatectl > /dev/null; then
 		dtp_run timedatectl set-timezone "$zone"
 	elif [ -x /usr/sbin/systemsetup ]; then
-		dtp_run sudo /usr/sbin/systemsetup -settimezone "$zone"
+		dtp_run please /usr/sbin/systemsetup -settimezone "$zone"
 	elif h := dtp_helper; then
 		dtp_run pkexec "$h" zone "$zone"
 	else
-		dtp_run sudo ln -sf "/usr/share/zoneinfo/$zone" /etc/localtime
+		dtp_cannot
 	fi
 	DTP_TZT=0
+}
+
+# Neither timedatectl, macOS's systemsetup nor hibr's helper: nothing here
+# can ask for an administrator, so the note says what is missing.
+dtp_cannot() {
+	dt_note "This computer has no timedatectl, and hibr's polkit policy is not installed"
 }
 
 # --- the date and time -----------------------------------------------------
@@ -639,7 +648,7 @@ fn dts_draw(int? id = "", int? h = "", int? w = "", int? row = "", int? col = ""
 		dt_tput "$id" 6 2 "Turns off automatic time (NTP) first"
 	fi
 	dt_dlgbtns "$id" "$h" "$w" "${DTS[$id]["focus"]}" \
-		ok "Set (sudo)" cancel Cancel
+		ok "Set${GL[ellipsis]}" cancel Cancel
 }
 
 fn dts_click(int? id = "", int? r = "", int? c = "", btn = "") {
@@ -677,7 +686,7 @@ fn dts_key(int? id = "", key = "") {
 	return 0
 }
 
-# Checked here so a typo is a note, not a failed sudo in a new window.
+# Checked here so a typo is a note, not a failed command in a new window.
 fn dts_apply(int? id = "") {
 	local d t y mo dy hh mi ss h
 
@@ -694,12 +703,12 @@ fn dts_apply(int? id = "") {
 		dtp_run sh -c 'timedatectl set-ntp false 2> /dev/null;
 			timedatectl set-time "$1"' sh "$y-$mo-$dy $hh:$mi:$ss"
 	elif [ -x /usr/sbin/systemsetup ]; then
-		dtp_run sudo sh -c '/usr/sbin/systemsetup -setusingnetworktime off \
+		dtp_run please sh -c '/usr/sbin/systemsetup -setusingnetworktime off \
 			> /dev/null; date "$1"' sh "$mo$dy$hh$mi$y.$ss"
 	elif h := dtp_helper; then
 		dtp_run pkexec "$h" time "$y-$mo-$dy $hh:$mi:$ss"
 	else
-		dtp_run sudo date -s "$y-$mo-$dy $hh:$mi:$ss"
+		dtp_cannot
 	fi
 }
 

@@ -1306,10 +1306,10 @@ in here. It is Linux only.
 The Debian package ships it **switched off**. To put it on tty2:
 
 ```text
-sudo systemctl enable --now hibr-login@tty2
+please systemctl enable --now hibr-login@tty2
 ```
 
-and `sudo systemctl disable --now hibr-login@tty2` gives tty2 its getty
+and `please systemctl disable --now hibr-login@tty2` gives tty2 its getty
 back. Leave at least one getty: a login screen that breaks should never be
 the only way in. It checks the password and opens the session through PAM
 (`/etc/pam.d/hibr-login`, the same rules as a console login), records the
@@ -1664,8 +1664,10 @@ owns its clock -- in a container it says "set by the host" instead.
 Changing the zone or the clock runs in a terminal window of its own,
 so the password prompt and the result stay on screen: `timedatectl` as
 you where systemd is, which asks polkit itself; hibr's own helper,
-`hibr-settime`, under `pkexec` where it is not; and sudo only on macOS,
-which has no polkit. Who may do it is Administrative Access's to say.
+`hibr-settime`, under `pkexec` where it is not; and `please` on macOS,
+which has no polkit, so `please` is sudo there. With none of the three it
+says what is missing rather than run anything. Who may do it is
+Administrative Access's to say.
 How a pane is written is in [WRITING.md](WRITING.md#control-panel-panes).
 
 **Administrative Access** (Gitea #406) lists every action an installed

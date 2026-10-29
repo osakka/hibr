@@ -14,6 +14,9 @@
 # rest of the environment is pkexec's clean one. Its status is the
 # command's, 126 when the password was refused or cancelled, and 127 when
 # it could not be run at all.
+#
+# macOS has no polkit, so there please is sudo underneath (Gitea #407):
+# the same words on every platform, with sudoers deciding who may.
 
 strict
 
@@ -47,6 +50,16 @@ if [ -n "$pl_user" ] && ! [[ $pl_user =~ $pl_name ]]; then
 	echo "please: not a user name: $pl_user" >&2
 	exit 2
 fi
+declare -a pl_as
+pl_as=()
+case $OSTYPE in
+darwin*)
+	command -v sudo > /dev/null || { echo "please: sudo is not installed" >&2; exit 127; }
+	[ -n "$pl_user" ] && pl_as=(-u "$pl_user")
+	[ "$pl_shell" = 1 ] && exec sudo -i "${pl_as[@]}"
+	exec sudo "${pl_as[@]}" -- "$@"
+	;;
+esac
 if ! command -v pkexec > /dev/null; then
 	echo "please: pkexec is not installed (on Debian, the pkexec package)" >&2
 	exit 127
@@ -55,7 +68,5 @@ if ! [ -x "$PL_HELPER" ]; then
 	echo "please: $PL_HELPER is not installed; hibr's polkit policy comes with the package" >&2
 	exit 127
 fi
-declare -a pl_as
-pl_as=()
 [ -n "$pl_user" ] && pl_as=(--user "$pl_user")
 exec pkexec "${pl_as[@]}" "$PL_HELPER" "$PWD" "${TERM-}" "${LANG-}" -- "$@"

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.390
+
+**No more sudo in what hibr ships** (Gitea #407): elevation is polkit,
+governed by Control Panel > Administrative Access, with an action for
+each job and `please` for the rest.
+
+- **`catalogue --system`** asks for a password and carries on, where it
+  used to stop and say "run sudo catalogue …". It runs under a new action,
+  *Install applications for every user of this computer*
+  (`org.hibr.catalogue`), so a group can be let install system-wide
+  without being given root. Its helper, `hibr-catalogue`, takes only the
+  verbs that write the system scope and never `index`, so root installs
+  from root's own catalogue.
+- **`please` on macOS** is `sudo` underneath, since macOS has no polkit,
+  and `make install` puts it there too. hibr's messages and pages say
+  `please` on every platform.
+- **Date & Time** goes through `please` on macOS. With neither
+  `timedatectl` nor hibr's helper it says what is missing instead of
+  falling back to sudo, and its buttons read "Set…" instead of
+  "Set (sudo)".
+
 ## 0.99.389
 
 **The packages declare a conflict with `pleaser`**, an unrelated sudo

@@ -260,6 +260,25 @@ def apps(*args, env=None):
     return r.returncode, r.stdout, r.stderr
 
 
+def pkfake(home, name, helper):
+    """A folder holding a pkaction that names `helper` as org.hibr.catalogue's
+    program (or nothing), a pkexec that only prints what it was asked to run,
+    and the helper itself as an empty executable."""
+    d = os.path.join(home, name)
+    os.makedirs(d, exist_ok=True)
+    say = ""
+    if helper:
+        say = "echo '  annotation:   org.freedesktop.policykit.exec.path -> %s'" % helper
+        open(helper, "w").write("#!/bin/sh\nexit 1\n")
+        os.chmod(helper, 0o755)
+    for prog, body in (("pkaction", say or "exit 1"),
+                       ("pkexec", 'echo "pkexec $*"')):
+        f = os.path.join(d, prog)
+        open(f, "w").write("#!/bin/sh\n%s\n" % body)
+        os.chmod(f, 0o755)
+    return d
+
+
 def lsrows(out, id):
     """Every row of a `list` or `installed` listing that is this id.
 
@@ -1445,16 +1464,32 @@ try:
         RO = os.path.join(HOME, "roroot")
         os.makedirs(RO, exist_ok=True)
         os.chmod(RO, 0o555)
-        ERO = dict(EW, HIBR_SYSDIR=RO)
+        # A polkit of stand-ins, first on PATH: pkaction names the helper
+        # or nothing, pkexec only says what it was asked to run. The real
+        # one is on this machine, and with hibr's policy installed it would
+        # otherwise be asked for real (Gitea #407).
+        PKNO = pkfake(HOME, "pkno", None)
+        PKYES = pkfake(HOME, "pkyes", os.path.join(HOME, "pkyes", "hibr-catalogue"))
+        ERO = dict(EW, HIBR_SYSDIR=RO, PATH=PKNO + ":" + os.environ["PATH"])
         try:
             rc, out, err = apps("--system", "install", "apps/demo", env=ERO)
-            check("a --system install this account cannot write refuses "
-                  "with the command to use, not mkdir's own complaint",
-                  rc != 0 and "sudo catalogue install --system" in err
+            check("a --system install this account cannot write, with no "
+                  "helper polkit names, refuses with the command to use",
+                  rc != 0 and "please catalogue install --system" in err
+                  and "sudo" not in err
                   and "Permission denied" not in err
                   and not os.path.exists(os.path.join(RO, "apps")),
                   (rc, out, err))
-            # Reading is what somebody does before reaching for sudo, and
+            rc, out, err = apps("--system", "install", "-j", "apps/demo",
+                                env=dict(ERO, PATH=PKYES + ":" + os.environ["PATH"]))
+            check("and where polkit names hibr's helper, the same command "
+                  "goes on as root through pkexec",
+                  rc == 0 and "pkexec %s install --json apps/demo"
+                  % os.path.join(PKYES, "hibr-catalogue") in out
+                  and not os.path.exists(os.path.join(RO, "apps")),
+                  (rc, out, err))
+            # Reading is what somebody does before asking for an
+            # administrator, and
             # the directory is world-readable by design, so gating it in
             # cat_scope rather than on the write verbs would have been
             # wrong in the direction nobody would have noticed.
@@ -1816,4 +1851,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(153)
+report(154)

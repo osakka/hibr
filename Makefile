@@ -407,13 +407,21 @@ ifneq ($(POLKITDIR),)
 	sed '1s|@HIBR@|$(PREFIX)/bin/hibr|' programs/access.hibr > $(DESTDIR)$(HELPDIR)/hibr-access
 	sed '1s|@HIBR@|$(PREFIX)/bin/hibr|' programs/settime.hibr > $(DESTDIR)$(HELPDIR)/hibr-settime
 	sed '1s|@HIBR@|$(PREFIX)/bin/hibr|' programs/run.hibr > $(DESTDIR)$(HELPDIR)/hibr-run
-	sed -e '1s|@HIBR@|$(PREFIX)/bin/hibr|' -e 's|@HELPDIR@|$(HELPDIR)|' \
-		programs/please.hibr > $(DESTDIR)$(PREFIX)/bin/please
+	sed -e '1s|@HIBR@|$(PREFIX)/bin/hibr|' -e 's|@BINDIR@|$(PREFIX)/bin|' \
+		programs/catpriv.hibr > $(DESTDIR)$(HELPDIR)/hibr-catalogue
 	chmod 755 $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime \
-		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(PREFIX)/bin/please
+		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(HELPDIR)/hibr-catalogue
 	sed 's|@HELPDIR@|$(HELPDIR)|' packaging/polkit/org.hibr.policy.in \
 		> $(DESTDIR)$(POLKITDIR)/org.hibr.policy
 	chmod 644 $(DESTDIR)$(POLKITDIR)/org.hibr.policy
+endif
+# please: on Linux it asks polkit, through pkexec and the helper above, so
+# only where that policy is installed; on macOS, which has no polkit, it
+# is sudo underneath, so always (Gitea #407).
+ifneq ($(POLKITDIR)$(filter Darwin,$(UNAME)),)
+	sed -e '1s|@HIBR@|$(PREFIX)/bin/hibr|' -e 's|@HELPDIR@|$(HELPDIR)|' \
+		programs/please.hibr > $(DESTDIR)$(PREFIX)/bin/please
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/please
 endif
 
 uninstall:
@@ -426,9 +434,10 @@ uninstall:
 		$(DESTDIR)$(MANDIR)/man1/desktop.1
 ifneq ($(POLKITDIR),)
 	rm -f $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime \
-		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(PREFIX)/bin/please \
+		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(HELPDIR)/hibr-catalogue \
 		$(DESTDIR)$(POLKITDIR)/org.hibr.policy
 endif
+	rm -f $(DESTDIR)$(PREFIX)/bin/please
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \
 		$(DESTDIR)$(DESKDIR)
 # Only if nothing was installed into it. What a catalogue put there is an

@@ -338,12 +338,23 @@ the same count `catalogue remove` asks.
 copy every user of the machine reads, which is what an image build or a
 shared workstation wants:
 
-<!-- not run: writes outside the home directory and needs root -->
+<!-- not run: writes outside the home directory and asks for a password -->
 ```sh
-sudo catalogue --system install apps/term apps/files system/panel
+catalogue --system install apps/term apps/files system/panel
 ```
 
-The `sudo` is not optional and the refusal says so before anything is
+Writing that scope is root's, so an ordinary account is asked for a
+password and the same command carries on as root (Gitea #407). It goes
+through polkit: hibr's action `org.hibr.catalogue` runs the catalogue's
+own helper, `hibr-catalogue`, which takes only the verbs that write the
+system scope (`install`, `update`, `remove`, `purge` and `check
+--repair`) and never `index`, so what root installs from is root's own
+catalogue. Whose password, or whether a group may do it with none, is
+Control Panel > Administrative Access's to say, under *Install
+applications for every user of this computer*.
+
+Where polkit does not name that helper -- macOS, an install that is not
+the packages', or no `pkexec` -- the refusal says so before anything is
 fetched, rather than letting `mkdir` complain from the middle of the work:
 
 ```text
@@ -352,8 +363,10 @@ That is deliberate: it is root-owned so every user of this machine reads the
 same copy and nobody else can change what they all run (ADR 0045). Run it as
 root instead:
 
-  sudo catalogue install --system ...
+  please catalogue install --system ...
 ```
+
+[`please`](please.md) is hibr's own way to run a command as root.
 
 **Reading that scope needs nothing.** `catalogue --system list` and
 `catalogue --system installed` answer for any account, which is what you
@@ -777,7 +790,7 @@ before you press it rather than afterwards.
 
 The window acts in **your own scope only**. An install for the whole
 machine needs root, which the window does not have and should not ask
-for; that is `sudo catalogue --system install` at a terminal, and it is
+for; that is `catalogue --system install` at a terminal, and it is
 what an image build does anyway.
 
 **What is installed is on the menus at once** (Gitea #267). After any

@@ -1,0 +1,36 @@
+0
+-- the verbs that write the system scope, always at system scope
+[--system][install][apps/demo][themes/paper]
+status 0
+[--system][update]
+status 0
+[--system][remove][--json][apps/demo]
+status 0
+[--system][purge][apps/demo]
+status 0
+[--system][check][--repair]
+status 0
+-- and each verb's own options
+[--system][remove][-y][--keep][-f][apps/demo]
+status 0
+[--system][uninstall][--yes][apps/demo]
+status 0
+[--system][purge][-n][--yes][apps/demo]
+status 0
+-- refused, and the catalogue never run
+hibr-catalogue: usage: hibr-catalogue install|update|remove|purge|check [--json] [NAME...]
+status 2
+hibr-catalogue: not a verb that writes the system scope: index
+status 2
+hibr-catalogue: not a verb that writes the system scope: list
+status 2
+hibr-catalogue: no such option for install: --system
+status 2
+hibr-catalogue: no such option for install: --index=x
+status 2
+hibr-catalogue: no such option for remove: --repair
+status 2
+hibr-catalogue: no such option for install: -y
+status 2
+hibr-catalogue: no such option for purge: --force
+status 2
