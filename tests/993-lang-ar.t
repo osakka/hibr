@@ -19,7 +19,7 @@ import json
 LATIN = {"YouTube", "JavaScript", "dBASE", "ETag: %s", "PID:    %s", "%s %s…",
          "Highly Intuitive Bash-like Runtime",
          "Nextcloud: https://HOST/remote.php/dav/files/USER",
-         "Composite", "DOUBLE-BUFFER", "GLX", "RENDER", "XINERAMA", "XVideo"}
+         "Composite", "DOUBLE-BUFFER", "GLX", "RENDER", "XINERAMA", "XVideo", "polkit"}
 d = json.load(open("programs/desktop/lang/ar.json"))
 s = d["strings"]
 want = [l.rstrip("\n") for l in open("programs/desktop/lang/strings.txt") if l.strip()]

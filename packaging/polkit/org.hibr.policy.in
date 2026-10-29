@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+        "https://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  hibr's own actions (Gitea #406). @HELPDIR@ is filled in at install time.
+
+  org.hibr.access.apply is how Control Panel > Administrative Access writes
+  its rules. It always asks for an administrator's password and never
+  remembers it, and the rules that pane writes are refused any say over it,
+  so nobody can take it away from themselves by accident.
+-->
+<policyconfig>
+  <vendor>hibr</vendor>
+  <vendor_url>https://github.com/osakka/hibr</vendor_url>
+
+  <action id="org.hibr.access.apply">
+    <description>Change who may act as an administrator</description>
+    <message>Authentication is required to change who may act as an administrator.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPDIR@/hibr-access</annotate>
+  </action>
+
+  <action id="org.hibr.settime">
+    <description>Set the system's clock or time zone</description>
+    <message>Authentication is required to set the system's clock or time zone.</message>
+    <defaults>
+      <allow_any>auth_admin_keep</allow_any>
+      <allow_inactive>auth_admin_keep</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPDIR@/hibr-settime</annotate>
+  </action>
+</policyconfig>

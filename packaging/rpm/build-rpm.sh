@@ -110,6 +110,7 @@ fi
 /usr/share/man/man1/desktop.1.gz
 /usr/share/doc/hibr
 /usr/lib/systemd/system/hibr-login@.service
+/usr/share/polkit-1/actions/org.hibr.policy
 %dir /var/lib/hibr
 %config(noreplace) /etc/pam.d/hibr
 %config(noreplace) /etc/pam.d/hibr-login

@@ -99,6 +99,16 @@ MODDIR ?= $(PREFIX)/lib/hibr
 # Apple Silicon and leave Intel broken in the same way.
 SYSDIR ?= $(if $(filter /usr,$(PREFIX)),/var/lib/hibr,$(PREFIX)/var/lib/hibr)
 SHAREDIR ?= $(PREFIX)/share/hibr
+# The root helpers Control Panel > Administrative Access and Date & Time run
+# through pkexec, and the polkit policy naming them (Gitea #406). polkit
+# reads policies from /usr/share/polkit-1/actions alone, so only an install
+# to /usr on Linux -- the packages' -- puts one there; any other leaves
+# POLKITDIR empty and installs neither, since a helper no policy names is
+# one pkexec will not run.
+HELPDIR ?= $(MODDIR)
+ifeq ($(UNAME),Linux)
+POLKITDIR ?= $(if $(filter /usr,$(PREFIX)),/usr/share/polkit-1/actions,)
+endif
 MANDIR ?= $(PREFIX)/share/man
 DESKDIR = $(SHAREDIR)/desktop
 SHCFLAGS = $(CFLAGS) -DHIBR_MODDIR=\"$(MODDIR)\" -DHIBR_SYSDIR=\"$(SYSDIR)\"
@@ -392,6 +402,15 @@ endif
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/catalogue-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/catalogue
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/catalogue
+ifneq ($(POLKITDIR),)
+	install -d $(DESTDIR)$(HELPDIR) $(DESTDIR)$(POLKITDIR)
+	sed '1s|@HIBR@|$(PREFIX)/bin/hibr|' programs/access.hibr > $(DESTDIR)$(HELPDIR)/hibr-access
+	sed '1s|@HIBR@|$(PREFIX)/bin/hibr|' programs/settime.hibr > $(DESTDIR)$(HELPDIR)/hibr-settime
+	chmod 755 $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime
+	sed 's|@HELPDIR@|$(HELPDIR)|' packaging/polkit/org.hibr.policy.in \
+		> $(DESTDIR)$(POLKITDIR)/org.hibr.policy
+	chmod 644 $(DESTDIR)$(POLKITDIR)/org.hibr.policy
+endif
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/hibr $(DESTDIR)$(PREFIX)/bin/desktop \
@@ -401,6 +420,10 @@ uninstall:
 		$(DESTDIR)$(PREFIX)/bin/apps $(DESTDIR)$(SHAREDIR)/apps.hibr \
 		$(DESTDIR)$(MANDIR)/man1/hibr.1 \
 		$(DESTDIR)$(MANDIR)/man1/desktop.1
+ifneq ($(POLKITDIR),)
+	rm -f $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime \
+		$(DESTDIR)$(POLKITDIR)/org.hibr.policy
+endif
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \
 		$(DESTDIR)$(DESKDIR)
 # Only if nothing was installed into it. What a catalogue put there is an

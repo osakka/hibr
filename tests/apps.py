@@ -318,7 +318,7 @@ ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "power", "sound",
-                "aboutme", "abouthibr", "appearance", "cliphist",
+                "aboutme", "abouthibr", "adminaccess", "appearance", "cliphist",
                 "control_strip", "desktop", "filetypes", "language",
                 "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
                 "taskmgr", "versions", "wallset", "windows",
@@ -326,7 +326,7 @@ check("panes register and sort by title within their group, not load order",
                 "notes", "terminal", "vaultset", "webapps", "xscreenset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 8 + ["system"] * 18 + ["app"] * 11, out)
+      ["hardware"] * 8 + ["system"] * 19 + ["app"] * 11, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -357,7 +357,7 @@ CPANES = 'DT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANEDIRS+=("%s")\ncp_
 R0, VALCOL = 3, 58
 LISTCOL = 5
 BODYCOL = 22
-TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Control Strip",
+TITLE = {"aboutme": "About Me", "adminaccess": "Administrativ", "appearance": "Appearance", "control_strip": "Control Strip",
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types", "language": "Language", "barset": "Menu Bar",
@@ -1288,7 +1288,7 @@ sc = run(*PANEL, feed=[press(10, 21), drag(10, 25), drag(10, 29),
                        release(10, 29), 0.3], pre=CPANES)
 check("the Control Panel's divider drags: the list wider, the pane narrower",
       sc.at(10, 29) == "│" and sc.at(10, 21) != "│" and
-      sc.find("Notifications") is not None, sc)
+      sc.find("Menu Bar") is not None, sc)
 
 # Once it has browsed somewhere else, that becomes the new starting
 # point -- a directory distinct from both $HOME and the wallpaper's own,
@@ -2091,7 +2091,7 @@ def fakebin():
 FAKE = fakebin()
 TSET = (
     '. %s/datetime.hibr\n'
-    'fn dtp_run(...cmd) { "${cmd[@]:1}"; }\n'
+    'fn dtp_run(...cmd) { "${cmd[@]}"; }\n'
     'dt_del() { :; }; dt_note() { echo "note: $1"; }\n'
     'declare -gA DTS; DTS[7]["dbuf"]=2026-01-02; DTS[7]["tbuf"]=03:04:05\n'
     'dts_apply 7\n' % CP
@@ -2101,6 +2101,83 @@ out = subprocess.run([sx.HIBR, "-c", TSET], capture_output=True, text=True,
                      ).stdout
 check("Set Date & Time hands the date it was given to the command that sets it",
       "timedatectl set-time 2026-01-02 03:04:05" in out, out)
+# With no timedatectl, the clock goes through hibr's own helper under
+# pkexec, which polkit names (Gitea #406) -- never sudo where polkit is.
+def notd_checks():
+    NOTD = tempfile.mkdtemp(prefix="hibr-notd-")
+    out = subprocess.run([sx.HIBR, "-c",
+        '. %s/datetime.hibr\n'
+        'fn dtp_run(...cmd) { echo "ran: ${cmd[*]}"; }\n'
+        'dtp_helper() { ret /h/hibr-settime; }\n'
+        'dt_del() { :; }; dt_note() { echo "note: $1"; }\n'
+        'declare -gA DTS; DTS[7]["dbuf"]=2026-01-02; DTS[7]["tbuf"]=03:04:05\n'
+        'dts_apply 7; dtp_zoneset Europe/Paris\n' % CP],
+        capture_output=True, text=True, env=dict(os.environ, PATH=NOTD)).stdout
+    check("without timedatectl, Date & Time sets the clock and the zone through "
+          "hibr's helper under pkexec",
+          "ran: pkexec /h/hibr-settime time 2026-01-02 03:04:05" in out
+          and "ran: pkexec /h/hibr-settime zone Europe/Paris" in out, out)
+    shutil.rmtree(NOTD, True)
+
+
+notd_checks()
+
+# Control Panel > Administrative Access (Gitea #406), on a polkit that is
+# three fake programs: pkaction lists two actions, pkcheck says the first
+# would ask, and pkexec only records what it was asked to run. Nothing here
+# reaches the machine's polkit or the helper itself.
+def adminaccess_checks():
+    FAKEPK = tempfile.mkdtemp(prefix="hibr-fakepk-")
+    PKREC = os.path.join(FAKEPK, "asked")
+    for pkprog, pkbody in (
+            ("pkaction", "cat <<'E'\norg.test.one:\n  description:       Do one thing\n"
+             "  vendor:            Test Vendor\n  implicit active:   auth_admin_keep\n\n"
+             "org.hibr.access.apply:\n  description:       Change who may act as an administrator\n"
+             "  vendor:            hibr\n  implicit active:   auth_admin\n"
+             "  annotation:        org.freedesktop.policykit.exec.path -> /h/hibr-access\nE\n"),
+            ("pkcheck", "exit 2\n"),
+            ("pkexec", 'for a in "$@"; do printf "[%%s]" "$a"; done >> %s; echo >> %s\n' % (PKREC, PKREC))):
+        open(os.path.join(FAKEPK, pkprog), "w").write("#!/bin/sh\n" + pkbody)
+        os.chmod(os.path.join(FAKEPK, pkprog), 0o755)
+    open(os.path.join(FAKEPK, "set"), "w").write("org.test.one never - -\n")
+    AASCRIPT = (
+        '. %s\n. %s\n. %s/adminaccess.hibr\n'
+        'dt_pkstart() { echo agent-on; }; dt_pkstop() { echo agent-off; }\n'
+        'dt_note() { echo "note: $*"; }; dt_notep() { echo "note: $*"; }\n'
+        'AA_SETTINGS=%s\n'
+        'rows() { declare -gA CP; n := adminaccess_rows 41; for ((i = 0; i < n; i++)); do '
+        'echo "${CP[41][$i][kind]}|${CP[41][$i][text]}|${CP[41][$i][val]}"; done; }\n'
+        'tick() { for i in 1 2 3 4 5 6 7 8 9 10; do dt_jobtick; [ -z "$AA_CHECK$AA_JOB" ] && break; sleep 0.2; done; }\n'
+        'aa_load; tick; rows; echo ==\n'
+        'AA_DROP=org.test.one; aa_choose 0 "Your Own, Remembered"; rows; echo ==\n'
+        'aa_group no_such_group_zz; adminaccess_do 41 apply; tick; echo "pend=${#AA_PEND[@]}"\n'
+        % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/system/panel.hibr"),
+           CP, os.path.join(FAKEPK, "set")))
+    r = subprocess.run([sx.HIBR, "-c", AASCRIPT], capture_output=True, text=True,
+                       env=dict(os.environ, PATH=FAKEPK + ":" + os.environ["PATH"],
+                                XDG_RUNTIME_DIR=FAKEPK, XDG_CONFIG_HOME=FAKEPK,
+                                XDG_STATE_HOME=FAKEPK))
+    out = r.stdout + r.stderr
+    before, chose, after = (out.split("==") + ["", "", ""])[:3]
+    asked = open(PKREC).read() if os.path.exists(PKREC) else ""
+    check("Administrative Access lists each action under its package, with the "
+          "setting in force and what it does for you",
+          "head|Test Vendor|" in before and "set|Do one thing|Never, asks you" in before
+          and "info|Change who may act as an administrator|Administrator's Password, always"
+          in before, out)
+    check("a choice waits, marked, until Apply Changes",
+          "set|Do one thing|* Your Own Password, Remembered, asks you" in chose
+          and "action|Apply Changes" in chose and "action|Check Again|\n" in chose, out)
+    check("Apply Changes runs hibr's helper once under pkexec, with the desktop's own "
+          "agent, every setting an argument of its own",
+          asked == "[--disable-internal-agent][/h/hibr-access][apply][org.test.one self - keep]\n"
+          and "agent-on" in after and "agent-off" in after and "pend=0" in after, (asked, out))
+    check("a group nobody has is refused before anything is kept",
+          "note: low There is no group called %s no_such_group_zz" in after, out)
+    shutil.rmtree(FAKEPK, True)
+
+
+adminaccess_checks()
 shutil.rmtree(FAKE, True)
 
 # Windows' own rows start with the chrome: Frame, Buttons, Title, Button Style.
@@ -4332,14 +4409,16 @@ check("right on the About pane's Refresh steps it",
       "3000 ms" not in brow(sc, "Refresh"), sc)
 
 # Date & Time's dialogs, all the way to their OK, with nothing on this
-# machine able to change: dtp_run -- the one place a pane runs sudo -- only
-# records what it was asked, and a sudo first on PATH does the same, in case
-# the stub were ever not the one in effect.
+# machine able to change: dtp_run -- the one place a pane runs a command as
+# an administrator -- only records what it was asked, and a sudo, pkexec and
+# timedatectl first on PATH do the same, in case the stub were ever not the
+# one in effect.
 FAKESU = tempfile.mkdtemp(prefix="hibr-fakesudo-")
 REC = os.path.join(FAKESU, "asked")
-open(os.path.join(FAKESU, "sudo"), "w").write(
-    '#!/bin/sh\necho "real-sudo-path: $*" >> %s\n' % REC)
-os.chmod(os.path.join(FAKESU, "sudo"), 0o755)
+for fakeprog in ("sudo", "pkexec", "timedatectl"):
+    open(os.path.join(FAKESU, fakeprog), "w").write(
+        '#!/bin/sh\necho "real-sudo-path: %s $*" >> %s\n' % (fakeprog, REC))
+    os.chmod(os.path.join(FAKESU, fakeprog), 0o755)
 DTSTUB = ('fn dtp_run(...cmd) { printf "stub: %%s\\n" "${cmd[*]}" >> %s; }\n'
           'DTP_HOST=' % REC)
 DTENV = {"PATH": FAKESU + ":" + os.environ["PATH"]}
@@ -4354,9 +4433,9 @@ sc = cprun(DOWN_DT + [press(chg[0], chg[1] + 1), b"P", b"a", b"r", b"i", b"s"]
            tz="Europe/London", post=DTSTUB, env=DTENV)
 asked = open(REC).read() if os.path.exists(REC) else ""
 check("choosing a zone in the Time Zone dialog asks to set that zone",
-      zp is not None and "stub: sudo timedatectl set-timezone Europe/Paris"
+      zp is not None and "stub: timedatectl set-timezone Europe/Paris"
       in asked, asked)
-check("and only ever through the stub: nothing reached a sudo",
+check("and only ever through the stub: nothing reached a sudo, pkexec or timedatectl",
       "real-sudo-path" not in asked, asked)
 sc = cprun(DOWN_DT + [press(st[0], st[1] + 1)], tz="Europe/London",
            post=DTSTUB, env=DTENV, end=None)
@@ -5653,4 +5732,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(750)
+report(755)

@@ -1638,9 +1638,33 @@ map needs room for that a shared list of rows never could.
 It opens on **Date & Time**: the menu bar clock's format, a time zone
 finder with a small world map, and Set Date & Time where the machine
 owns its clock -- in a container it says "set by the host" instead.
-Changing the zone or the clock runs sudo in a terminal window of its
-own, so the password prompt and the result stay on screen. How a pane
-is written is in [WRITING.md](WRITING.md#control-panel-panes).
+Changing the zone or the clock runs in a terminal window of its own,
+so the password prompt and the result stay on screen: `timedatectl` as
+you where systemd is, which asks polkit itself; hibr's own helper,
+`hibr-settime`, under `pkexec` where it is not; and sudo only on macOS,
+which has no polkit. Who may do it is Administrative Access's to say.
+How a pane is written is in [WRITING.md](WRITING.md#control-panel-panes).
+
+**Administrative Access** (Gitea #406) lists every action an installed
+package asks polkit about, grouped by package, each with its package's
+default and what it does for you right now -- asked of `pkcheck`, so a
+rule somebody else wrote shows too. For each, a choice: the package's
+default, an administrator's password, your own, either remembered for
+polkit's few minutes, no password for the members of a group, or never.
+Choices wait, marked with `*`, until **Apply Changes**, which writes them
+all as one rules file (`/etc/polkit-1/rules.d/60-hibr-access.rules`)
+through `hibr-access` under `pkexec`, asking an administrator's password
+once in the desktop's own dialog; **Reset to Package Defaults** takes the
+file away. The helper takes settings, never a file, checks each against
+the installed policies and `getent`, keeps the file before each change as
+`.bak`, and refuses any rule on hibr's own action, so the pane can never
+take its own password away. polkit's folder is not readable, so what is in
+force is read back from `/var/lib/hibr/access` -- which is readable by
+everyone on the machine, so which actions are opened, and to which
+groups, can be seen by any user there, where polkit's own folder hides
+it; that is the price of a pane that shows it without a password. The helpers and their
+policy (`org.hibr.policy`) are installed by a `PREFIX=/usr` build on
+Linux -- the packages -- and the pane is read only without them.
 
 ![The Date & Time pane, its clock and date above a small world map marking Europe/London](img/desktop-datetime.png)
 

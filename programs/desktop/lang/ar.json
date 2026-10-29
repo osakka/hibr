@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.51",
+ "version": "3.52",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1513,6 +1513,19 @@
   "XVideo": "XVideo",
   "The Program's Own Pointer": "مؤشر البرنامج نفسه",
   "Own Pointer:": "مؤشره الخاص:",
-  "Partial Updates": "تحديث جزئي"
+  "Partial Updates": "تحديث جزئي",
+  "Administrative Access": "صلاحيات المسؤول",
+  "Administrative access changed": "تغيّرت صلاحيات المسؤول",
+  "Changes": "التغييرات",
+  "Check Again": "تحقّق مجددًا",
+  "Forget Changes": "تجاهل التغييرات",
+  "Members of this group are let through without a password": "يُسمح لأعضاء هذه المجموعة دون كلمة مرور",
+  "No Password for a Group": "دون كلمة مرور لمجموعة",
+  "Not changed: %s": "لم يتغيّر: %s",
+  "Not changed: pkexec could not run hibr-access": "لم يتغيّر: تعذّر على pkexec تشغيل hibr-access",
+  "Not changed: the password was refused or cancelled": "لم يتغيّر: رُفضت كلمة المرور أو أُلغيت",
+  "There is no group called %s": "لا توجد مجموعة باسم %s",
+  "polkit": "polkit",
+  "Not changed: polkit's agent, pkttyagent, is not installed": "لم يتغيّر: وكيل polkit، أي pkttyagent، غير مثبّت"
  }
 }

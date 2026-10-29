@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.378
+
+**Administrative Access** (Control Panel, Gitea #406): who may do what as
+an administrator, for every action an installed package asks polkit
+about.
+- Each action is listed under its package, with the package's default and
+  what it does for you now, as `pkcheck` answers.
+- A choice per action: the package's default, an administrator's password,
+  your own, either remembered, no password for a group, or never.
+- **Apply Changes** writes them all at once through `hibr-access` under
+  `pkexec`, asking an administrator's password once in the desktop's own
+  dialog; **Reset to Package Defaults** takes them away.
+- `hibr-access` takes settings, never a file. It checks each against the
+  installed policies and `getent`, keeps the file before as `.bak`, and
+  refuses any rule on its own action, so nobody can lock themselves out.
+- The helpers and hibr's polkit policy ship in the packages.
+
+**Date & Time asks polkit, not sudo**: `timedatectl` runs as you where
+systemd is, and hibr's own `hibr-settime` runs under `pkexec` where it is
+not, so Administrative Access governs both; sudo stays only for macOS.
+
+**hibr builds on macOS again**: the copy module (0.99.371) read a file's
+times by Linux's field names, so Homebrew could not build anything after
+0.99.369. It uses macOS's own names there now.
+
+**The large telephone glyphs are gone** from the blit set, since longwire
+no longer uses them (U+100023-100032, retired by Blit). Arabic 3.52.
+
 ## 0.99.377
 
 **X Screen's Smoothest preset puts pictures back.** Lightest sets a

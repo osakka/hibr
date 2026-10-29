@@ -1,0 +1,347 @@
+# control-panel/adminaccess -- who may do what as an administrator (Gitea
+# #406): every action an installed package asks polkit about, what its
+# package answers by default, and a choice of your own for each -- an
+# administrator's password, your own, either remembered for a few minutes,
+# no password for the members of a group, or never.
+#
+# Choices are kept until Apply Changes, which writes them all at once
+# through hibr-access under pkexec, asking an administrator's password
+# once: polkit's folder is not readable, so what is in force is read back
+# from the settings hibr-access keeps beside it, and what each action does
+# for you from pkcheck, which also shows a rule somebody else wrote. hibr's
+# own action for this pane is listed and never changed here.
+#
+# The desktop sources every file here; this one only defines functions and
+# registers its pane.
+
+strict
+
+app adminaccess "The Control Panel pane for administrative access" 1.0
+command -v cp_pane > /dev/null && cp_pane adminaccess "Administrative Access" "⊛"
+
+# The choices, as the list shows them, and the setting each is.
+AA_LABELS=("Package Default" "Administrator's Password" "Administrator's, Remembered"
+	"Your Own Password" "Your Own, Remembered" "No Password for a Group${GL[ellipsis]}" "Never")
+AA_CHOICES=("" "admin" "admin keep" "self" "self keep" "group" "never")
+AA_SETTINGS=/var/lib/hibr/access
+
+declare -ga AA_IDS
+declare -gA AA AA_SET AA_PEND
+AA_IDS=()
+AA_LOADED=
+AA_HELPER=
+AA_JOB=
+AA_CHECK=
+AA_DROP=
+
+# Read every installed action from pkaction, the settings in force, the
+# helper polkit names for this pane, and what each action does for you now.
+aa_load() {
+	local l id= k v
+
+	AA_IDS=()
+	AA=()
+	AA_SET=()
+	AA_HELPER=
+	AA_LOADED=1
+	command -v pkaction > /dev/null || return 0
+	while IFS= read -r l; do
+		case $l in
+		"") id= ;;
+		[!\ ]*:)
+			id=${l%:}
+			AA_IDS+=("$id")
+			AA["$id"]["desc"]=$id
+			AA["$id"]["vendor"]=
+			AA["$id"]["def"]=
+			;;
+		*)
+			[ -n "$id" ] || continue
+			k=${l%%:*}
+			k=${k#"${k%%[! ]*}"}
+			v=${l#*:}
+			v=${v#"${v%%[! ]*}"}
+			case $k in
+			description) AA["$id"]["desc"]=$v ;;
+			vendor) AA["$id"]["vendor"]=$v ;;
+			"implicit active") AA["$id"]["def"]=$v ;;
+			annotation)
+				[ "$id" = org.hibr.access.apply ] &&
+					[[ $v == *"exec.path -> "* ]] && AA_HELPER=${v##*-> }
+				;;
+			esac
+			;;
+		esac
+	done < <(pkaction --verbose 2> /dev/null)
+	if [ -r "$AA_SETTINGS" ]; then
+		while IFS= read -r l; do
+			[ -n "$l" ] && AA_SET["${l%% *}"]=${l#* }
+		done < "$AA_SETTINGS"
+	fi
+	for id in "${AA_IDS[@]}"; do
+		AA["$id"]["mine"]=
+	done
+	# pkcheck is a process an action, most of a second for a machine's
+	# worth, so it is asked as a job and the rows say so meanwhile.
+	if command -v pkcheck > /dev/null && [ -z "$AA_CHECK" ] && dt_has dt_job; then
+		AA_CHECK := dt_job access check aa_checked aa_checkall $$ "${AA_IDS[@]}"
+	fi
+	return 0
+}
+
+# What each action does for the desktop's own process, a line each: the
+# action and pkcheck's status -- 0 allowed, 1 refused, 2 would ask.
+fn aa_checkall(int pid, ...ids) {
+	local id
+
+	for id in "${ids[@]}"; do
+		pkcheck --action-id "$id" --process "$pid" > /dev/null 2>&1
+		echo "$id $?"
+	done
+}
+
+# The answers are in.
+fn aa_checked(int n, int st) {
+	local f id rc
+
+	AA_CHECK=
+	f := dt_jobfile "$n"
+	while read -r id rc; do
+		[ -n "${AA["$id"]["desc"]+x}" ] || continue
+		case $rc in
+		0) AA["$id"]["mine"]=yes ;;
+		1) AA["$id"]["mine"]=no ;;
+		*) AA["$id"]["mine"]=ask ;;
+		esac
+	done < "$f"
+	return 0
+}
+
+# A setting, "admin - keep" or "group wheel -", as the list says it.
+fn aa_label(set) {
+	local ch grp keep
+
+	read -r ch grp keep <<< "$set"
+	case $ch$keep in
+	adminkeep) ret "Administrator's, Remembered" ;;
+	admin*) ret "Administrator's Password" ;;
+	selfkeep) ret "Your Own Password, Remembered" ;;
+	self*) ret "Your Own Password" ;;
+	group*) ret "No Password for $grp" ;;
+	never*) ret "Never" ;;
+	*) ret "Package Default" ;;
+	esac
+}
+
+# A package's own default, in the list's words.
+fn aa_defname(d) {
+	case $d in
+	yes) ret "Allowed" ;;
+	no) ret "Never" ;;
+	auth_admin_keep) ret "Administrator's, Remembered" ;;
+	auth_admin) ret "Administrator's Password" ;;
+	auth_self_keep) ret "Your Own, Remembered" ;;
+	auth_self) ret "Your Own Password" ;;
+	*) ret "$d" ;;
+	esac
+}
+
+# The setting an action will have: what is waiting to be applied, else what
+# is in force, else empty for its package's default.
+fn aa_now(id) {
+	if [ -n "${AA_PEND["$id"]+x}" ]; then
+		ret "${AA_PEND["$id"]}"
+	else
+		ret "${AA_SET["$id"]-}"
+	fi
+}
+
+fn adminaccess_rows(int w) {
+	local n=0 i=0 id set v vend= mine t
+
+	[ -n "$AA_LOADED" ] || aa_load
+	if [ "${#AA_IDS[@]}" = 0 ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="polkit"
+		CP[$w][$n]["val"]="is not installed, so nothing asks it"; n=$((n + 1))
+		ret "$n"
+	fi
+	if [ -z "$AA_HELPER" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Changes"
+		CP[$w][$n]["val"]="hibr's policy is not installed: read only"; n=$((n + 1))
+	elif [ -n "$AA_JOB" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Changes"
+		CP[$w][$n]["val"]="being applied${GL[ellipsis]}"; n=$((n + 1))
+	else
+		if [ "${#AA_PEND[@]}" -gt 0 ]; then
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Apply Changes${GL[ellipsis]}"
+			CP[$w][$n]["val"]="${#AA_PEND[@]} waiting"; CP[$w][$n]["key"]=apply; n=$((n + 1))
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Forget Changes"
+			CP[$w][$n]["val"]=; CP[$w][$n]["key"]=forget; n=$((n + 1))
+		fi
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Reset to Package Defaults${GL[ellipsis]}"
+		CP[$w][$n]["val"]=; CP[$w][$n]["key"]=reset; n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Check Again"
+	CP[$w][$n]["val"]=; CP[$w][$n]["key"]=reload; n=$((n + 1))
+	for id in "${AA_IDS[@]}"; do
+		v=${AA["$id"]["vendor"]:-Other}
+		if [ "$v" != "$vend" ]; then
+			vend=$v
+			CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=$v
+			CP[$w][$n]["val"]=; n=$((n + 1))
+		fi
+		t=${AA["$id"]["desc"]}
+		case ${AA["$id"]["mine"]} in
+		yes) mine="allowed for you" ;;
+		no) mine="refused for you" ;;
+		ask) mine="asks you" ;;
+		*) mine="checking${GL[ellipsis]}" ;;
+		esac
+		if [ "${id%.*}" = org.hibr.access ]; then
+			CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]=$t
+			CP[$w][$n]["val"]="Administrator's Password, always"; n=$((n + 1))
+			i=$((i + 1))
+			continue
+		fi
+		set := aa_now "$id"
+		if [ -n "$set" ]; then
+			v := aa_label "$set"
+		else
+			v := aa_defname "${AA["$id"]["def"]}"
+			v="Default: $v"
+		fi
+		[ -n "${AA_PEND["$id"]+x}" ] && v="* $v"
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]=$t
+		CP[$w][$n]["val"]="$v, $mine"; CP[$w][$n]["key"]="a$i"; n=$((n + 1))
+		i=$((i + 1))
+	done
+	ret "$n"
+}
+
+# Write everything at once, under pkexec, with the desktop's own agent to
+# ask for the password.
+aa_apply() {
+	local id set n
+	local -a lines
+
+	[ -n "$AA_HELPER" ] && [ -z "$AA_JOB" ] || return 0
+	for id in "${AA_IDS[@]}"; do
+		set := aa_now "$id"
+		[ -n "$set" ] && lines+=("$id $set")
+	done
+	aa_run apply "${lines[@]}"
+}
+
+# Run the helper as a job: apply with its settings, or reset.
+# pkexec is told not to start a prompt of its own: with no agent it would
+# ask on the desktop's own terminal, underneath the drawing.
+fn aa_run(what, ...lines) {
+	local n pk=
+
+	if ! dt_has dt_pkstart || ! dt_pkstart; then
+		dt_notep low "Not changed: polkit's agent, pkttyagent, is not installed"
+		return 1
+	fi
+	pk=1
+	n := dt_job access "$what" aa_done dt_jobmerge pkexec --disable-internal-agent \
+		"$AA_HELPER" "$what" "${lines[@]}"
+	if [ -z "$n" ]; then
+		[ -n "$pk" ] && dt_pkstop
+		dt_notep low "Could not start pkexec"
+		return 1
+	fi
+	AA_JOB=$n
+	return 0
+}
+
+# The helper has finished: say how it went, and read everything again.
+fn aa_done(int n, int st) {
+	local why
+
+	dt_has dt_pkstop && dt_pkstop
+	AA_JOB=
+	if [ "$st" = 0 ]; then
+		AA_PEND=()
+		dt_note "Administrative access changed"
+	else
+		why := dt_joblast "$n"
+		why=${why#hibr-access: }
+		case $st in
+		126) dt_notep low "Not changed: the password was refused or cancelled" ;;
+		127) dt_notep low "Not changed: pkexec could not run hibr-access" ;;
+		*) dt_notep low "Not changed: %s" "$why" ;;
+		esac
+	fi
+	aa_load
+	return 0
+}
+
+# A choice from an action's list.
+fn aa_choose(int? id = "", value = "") {
+	local act=$AA_DROP i
+
+	[ -n "$act" ] || return 0
+	for i in "${!AA_LABELS[@]}"; do
+		[ "${AA_LABELS[$i]}" = "$value" ] || continue
+		case ${AA_CHOICES[$i]} in
+		group)
+			dt_ask "No Password for a Group" "Group:" "" aa_group \
+				"Members of this group are let through without a password"
+			return 0
+			;;
+		"") aa_pend "$act" "" ;;
+		*" keep") aa_pend "$act" "${AA_CHOICES[$i]% keep} - keep" ;;
+		*) aa_pend "$act" "${AA_CHOICES[$i]} - -" ;;
+		esac
+	done
+	return 0
+}
+
+# The group typed in for No Password for a Group.
+fn aa_group(value, int? id = "") {
+	[ -n "$AA_DROP" ] || return 0
+	if ! [[ $value =~ ^[A-Za-z_][A-Za-z0-9_.-]*$ ]] ||
+	   ! getent group "$value" > /dev/null 2>&1; then
+		dt_notep low "There is no group called %s" "$value"
+		return 1
+	fi
+	aa_pend "$AA_DROP" "group $value -"
+	return 0
+}
+
+# Keep a choice until Apply Changes, or drop it when it is what is in force.
+fn aa_pend(act, set) {
+	if [ "$set" = "${AA_SET["$act"]-}" ]; then
+		unset AA_PEND["$act"]
+	else
+		AA_PEND["$act"]=$set
+	fi
+	return 0
+}
+
+fn adminaccess_do(int? w = "", k = "", int? dir = "") {
+	case $k in
+	apply) aa_apply ;;
+	forget) AA_PEND=() ;;
+	reset)
+		[ -n "$AA_HELPER" ] && [ -z "$AA_JOB" ] && AA_PEND=() && aa_run reset
+		;;
+	reload) aa_load ;;
+	esac
+	return 0
+}
+
+fn adminaccess_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	local i
+
+	case $k in
+	a*)
+		[ -n "$AA_HELPER" ] || return 0
+		i=${k#a}
+		[ -n "${AA_IDS[$i]+x}" ] || return 0
+		AA_DROP=${AA_IDS[$i]}
+		dt_droplist "$w" "$r" "$c" aa_choose "${AA_LABELS[@]}"
+		;;
+	esac
+	return 0
+}

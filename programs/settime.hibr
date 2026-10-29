@@ -1,0 +1,44 @@
+#!@HIBR@
+#
+# hibr-settime -- set the clock or the time zone on a system without
+# timedatectl (Gitea #406). Control Panel > Date & Time runs it through
+# pkexec, under hibr's action org.hibr.settime, which Administrative Access
+# governs like any other; with systemd, timedatectl asks polkit itself and
+# this is not used.
+#
+#   hibr-settime zone AREA/PLACE           /etc/localtime to that zone
+#   hibr-settime time "YYYY-MM-DD HH:MM:SS"
+#
+# Each argument is checked before anything is changed: a zone is a file
+# tzdata has under /usr/share/zoneinfo and nothing outside it, a time is
+# exactly that shape.
+
+strict
+
+ST_ZONES=/usr/share/zoneinfo
+
+fn st_die(msg) {
+	echo "hibr-settime: $msg" >&2
+	exit 1
+}
+
+case ${1-} in
+zone)
+	z=${2-}
+	[[ $z =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*$ ]] || st_die "not a zone: $z"
+	[ -f "$ST_ZONES/$z" ] || st_die "no such zone: $z"
+	ln -sf "$ST_ZONES/$z" /etc/localtime || st_die "cannot set /etc/localtime"
+	[ -w /etc/timezone ] && echo "$z" > /etc/timezone
+	;;
+time)
+	t=${2-}
+	[[ $t =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}$ ]] ||
+		st_die "not YYYY-MM-DD HH:MM:SS: $t"
+	date -s "$t" > /dev/null || st_die "date refused $t"
+	;;
+*)
+	echo "usage: hibr-settime zone AREA/PLACE | time 'YYYY-MM-DD HH:MM:SS'" >&2
+	exit 2
+	;;
+esac
+exit 0

@@ -34,6 +34,7 @@ apps/Accessories/imgview.hibr
 # The desktop's own Control Panel panes, and the two dialogs that two of
 # them open.
 control-panel/aboutme.hibr
+control-panel/adminaccess.hibr
 control-panel/appearance.hibr
 control-panel/menubar.hibr
 control-panel/control-strip.hibr

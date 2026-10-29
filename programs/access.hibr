@@ -1,0 +1,175 @@
+#!@HIBR@
+#
+# hibr-access -- who may do what as an administrator, written as one polkit
+# rules file (Gitea #406). The Control Panel's Administrative Access pane
+# runs it through pkexec, under hibr's own action org.hibr.access.apply,
+# which always asks for an administrator's password.
+#
+#   hibr-access apply [SETTING...]
+#                         each SETTING, or each line of standard input
+#                         with none: ACTION admin|self|group|never [GROUP]
+#                         [keep]
+#   hibr-access reset     back to every package's own defaults
+#   hibr-access show      the settings in force, as apply takes them
+#
+# It takes settings, never a file: every line is checked -- the action is
+# one an installed policy declares, a group is one getent knows -- and the
+# rules are written from them here. A line naming hibr's own actions is
+# refused, so the file it writes can never take its own password away. The
+# rules go to RULES, the settings to SETTINGS (readable by everyone, since
+# polkit's own folder is not), the file before each change to .bak beside
+# them, each written whole and renamed.
+#
+# -r DIR, -s FILE and -a DIR put the rules, the settings and the installed
+# actions somewhere else, for the suites. Root never takes them: under
+# pkexec they would only point a privileged write at a path of the caller's.
+
+strict
+
+ACC_RULES=/etc/polkit-1/rules.d/60-hibr-access.rules
+ACC_SET=/var/lib/hibr/access
+ACC_ACTS=/usr/share/polkit-1/actions
+
+declare -ga ACC_LINES
+ACC_LINES=()
+
+# Say what is wrong and stop.
+fn acc_die(msg) {
+	echo "hibr-access: $msg" >&2
+	exit 1
+}
+
+# Whether an installed policy declares this action.
+fn acc_known(act) {
+	local f l
+
+	for f in "$ACC_ACTS"/*.policy; do
+		[ -r "$f" ] || continue
+		while IFS= read -r l; do
+			case $l in *"id=\"$act\""*) return 0 ;; esac
+		done < "$f"
+	done
+	return 1
+}
+
+# Check one settings line and keep it, as words: ACTION CHOICE GROUP KEEP,
+# with - for no group and keep or - for remembering.
+fn acc_take(line) {
+	local -a w
+	local act ch grp=- keep=- i
+
+	read -ra w <<< "$line"
+	[ "${#w[@]}" -gt 0 ] || return 0
+	act=${w[0]}
+	ch=${w[1]-}
+	[[ $act =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || acc_die "not an action: $act"
+	case $act in org.hibr.access.*) acc_die "$act is this tool's own, and is not changed" ;; esac
+	acc_known "$act" || acc_die "no installed policy declares $act"
+	for i in "${ACC_LINES[@]}"; do
+		[ "${i%% *}" = "$act" ] && acc_die "$act is named twice"
+	done
+	case $ch in admin | self | group | never) ;; *) acc_die "$act: not a choice: $ch" ;; esac
+	for ((i = 2; i < ${#w[@]}; i++)); do
+		if [ "${w[$i]}" = - ]; then
+			continue
+		elif [ "${w[$i]}" = keep ]; then
+			keep=keep
+		elif [ "$ch" = group ] && [ "$grp" = - ]; then
+			grp=${w[$i]}
+		else
+			acc_die "$act: did not expect ${w[$i]}"
+		fi
+	done
+	if [ "$ch" = group ]; then
+		[ "$grp" != - ] || acc_die "$act: which group?"
+		[[ $grp =~ ^[A-Za-z_][A-Za-z0-9_.-]*$ ]] || acc_die "not a group: $grp"
+		getent group "$grp" > /dev/null 2>&1 || acc_die "no such group: $grp"
+	fi
+	case $ch in admin | self) ;; *) [ "$keep" = - ] || acc_die "$act: only a password is remembered" ;; esac
+	ACC_LINES+=("$act $ch $grp $keep")
+	return 0
+}
+
+# The rules, from the kept lines, on standard output.
+fn acc_rules() {
+	local l act ch grp keep r
+
+	echo "// Written by hibr-access for Control Panel > Administrative Access."
+	echo "// Changed only through it: each change writes this file whole."
+	echo "polkit.addRule(function(action, subject) {"
+	for l in "${ACC_LINES[@]}"; do
+		read -r act ch grp keep <<< "$l"
+		case $ch in
+		admin) r=AUTH_ADMIN ;;
+		self) r=AUTH_SELF ;;
+		group) r=YES ;;
+		never) r=NO ;;
+		esac
+		[ "$keep" = keep ] && r=${r}_KEEP
+		if [ "$ch" = group ]; then
+			echo "	if (action.id == \"$act\" && subject.isInGroup(\"$grp\"))"
+		else
+			echo "	if (action.id == \"$act\")"
+		fi
+		echo "		return polkit.Result.$r;"
+	done
+	echo "	return polkit.Result.NOT_HANDLED;"
+	echo "});"
+}
+
+# Write a file whole, from standard input, keeping the one before it.
+fn acc_put(path, mode) {
+	local tmp="$path.new"
+
+	mkdir -p "${path%/*}" || acc_die "cannot make ${path%/*}"
+	cat > "$tmp" || acc_die "cannot write $tmp"
+	chmod "$mode" "$tmp" || acc_die "cannot set the mode of $tmp"
+	[ -e "$path" ] && cp -p "$path" "$path.bak"
+	mv -f "$tmp" "$path" || acc_die "cannot put $path in place"
+	return 0
+}
+
+while [ $# -gt 0 ]; do
+	case $1 in
+	-r | -s | -a)
+		[ "$(id -u)" != 0 ] || acc_die "$1 is for the suites, and root does not take it"
+		[ $# -ge 2 ] || acc_die "$1 needs a path"
+		case $1 in
+		-r) ACC_RULES=$2 ;;
+		-s) ACC_SET=$2 ;;
+		-a) ACC_ACTS=$2 ;;
+		esac
+		shift 2
+		;;
+	*) break ;;
+	esac
+done
+
+case ${1-} in
+apply)
+	shift
+	if [ $# -gt 0 ]; then
+		for ln in "$@"; do
+			acc_take "$ln"
+		done
+	else
+		while IFS= read -r ln || [ -n "$ln" ]; do
+			acc_take "$ln"
+		done
+	fi
+	acc_rules | acc_put "$ACC_RULES" 644 || exit 1
+	for ln in "${ACC_LINES[@]}"; do echo "$ln"; done | acc_put "$ACC_SET" 644 || exit 1
+	;;
+reset)
+	[ -e "$ACC_RULES" ] && { cp -p "$ACC_RULES" "$ACC_RULES.bak"; rm -f "$ACC_RULES"; }
+	[ -e "$ACC_SET" ] && { cp -p "$ACC_SET" "$ACC_SET.bak"; rm -f "$ACC_SET"; }
+	;;
+show)
+	[ -r "$ACC_SET" ] && cat "$ACC_SET"
+	;;
+*)
+	echo "usage: hibr-access [-r RULES] [-s SETTINGS] [-a ACTIONS] apply|reset|show" >&2
+	exit 2
+	;;
+esac
+exit 0

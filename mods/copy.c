@@ -13,6 +13,11 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef __APPLE__
+#define st_atim st_atimespec
+#define st_mtim st_mtimespec
+#endif
+
 #ifndef CY_CHUNK
 #define CY_CHUNK (1 << 20)
 #endif

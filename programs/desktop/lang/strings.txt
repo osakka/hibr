@@ -127,6 +127,8 @@ Added to your calendar
 Address
 Addresses never fetched, * for anything:
 Adjust
+Administrative Access
+Administrative access changed
 Agenda
 Align
 All Displays
@@ -242,6 +244,8 @@ Captions
 Catalogue
 Center
 Change Wallpaper…
+Changes
+Check Again
 Check Every (minutes)
 Check for Mail
 Check the server's certificate
@@ -495,6 +499,7 @@ For Fajr
 Forget
 Forget %s, and its password?
 Forget %s? It will have to be paired again.
+Forget Changes
 Forget a Device
 Forgot %s
 Format
@@ -653,6 +658,7 @@ March
 Mark as Read
 Mark as Unread
 May
+Members of this group are let through without a password
 Menu Bar
 Menu Bar Item
 Menu Bar Items
@@ -738,6 +744,7 @@ Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER
 No Control Strip modules are installed -- the Catalogue has them
 No Network Password
+No Password for a Group
 No Picture
 No Rule
 No browser engine to clear
@@ -764,6 +771,10 @@ None yet -- in the Browser, File > Install as App
 Not a place: latitude -90 to 90, longitude -180 to 180
 Not a valid name
 Not changed
+Not changed: %s
+Not changed: pkexec could not run hibr-access
+Not changed: polkit's agent, pkttyagent, is not installed
+Not changed: the password was refused or cancelled
 Not connected
 Not found: %s
 Not held -- nothing to detach from
@@ -1174,6 +1185,7 @@ There is a theme called %s already
 There is already a program called %s
 There is no file %s
 There is no folder %s
+There is no group called %s
 There was nothing to read
 This Computer
 This Desktop
@@ -1396,6 +1408,7 @@ over a range, row by row
 pair
 phone
 plugged in
+polkit
 range A1_B9 an array of its values, worked out in the
 reading the catalogue
 replaced on disk

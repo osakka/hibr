@@ -1,0 +1,50 @@
+0
+-- apply, as arguments
+status 0
+// Written by hibr-access for Control Panel > Administrative Access.
+// Changed only through it: each change writes this file whole.
+polkit.addRule(function(action, subject) {
+	if (action.id == "org.test.one")
+		return polkit.Result.AUTH_SELF_KEEP;
+	if (action.id == "org.test.two" && subject.isInGroup("GROUP"))
+		return polkit.Result.YES;
+	return polkit.Result.NOT_HANDLED;
+});
+-- the settings, as apply takes them
+org.test.one self - keep
+org.test.two group GROUP -
+-- read back unchanged, from standard input
+org.test.one self - keep
+org.test.two group GROUP -
+the rules before it kept
+-- refused, and nothing written
+hibr-access: org.hibr.access.apply is this tool's own, and is not changed
+status 1
+hibr-access: no installed policy declares org.test.nope
+status 1
+hibr-access: org.test.one: only a password is remembered
+status 1
+hibr-access: org.test.one: which group?
+status 1
+hibr-access: no such group: no_such_group_zz
+status 1
+hibr-access: org.test.one: did not expect more
+status 1
+hibr-access: not an action: org.test.one");
+status 1
+hibr-access: org.test.one: not a choice: sometimes
+status 1
+hibr-access: org.test.one is named twice
+status 1
+rules unchanged
+-- root never takes a path of the caller's
+hibr-access: -r is for the suites, and root does not take it
+status 1
+nothing written there
+-- reset
+rules gone
+settings gone
+kept as .bak
+show status 0
+usage: hibr-access [-r RULES] [-s SETTINGS] [-a ACTIONS] apply|reset|show
+status 2
