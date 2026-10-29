@@ -678,6 +678,7 @@ dt_run() {
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
 		[ -n "$DT_PTRLOCK" ] && dt_ptrlockcheck
+		[ -n "$DT_FULL" ] && dt_fullcheck
 		if [ -n "$DT_SAVING" ] || [ -n "$DT_LOCKED" ]; then
 			# A resize while the saver or the lock is up is still a
 			# resize. This branch continued before the check at the
@@ -840,6 +841,7 @@ dt_run() {
 		pk=
 		[ -n "$k" ] && dt_saverseen && dt_event "$k"
 		[ -n "$DT_PTRLOCK" ] && dt_ptrlockcheck
+		[ -n "$DT_FULL" ] && dt_fullcheck
 	done
 }
 

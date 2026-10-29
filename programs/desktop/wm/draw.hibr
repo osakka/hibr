@@ -417,8 +417,11 @@ dt_draw() {
 		DT_MENUIN=1
 		DT_MENUFOC=$DT_FOCUS
 	fi
-	dt_bar
-	dt_stripdraw
+	# A window with the whole display has no bar or strip over it.
+	if [ -z "$DT_FULL" ]; then
+		dt_bar
+		dt_stripdraw
+	fi
 	# Everything from here on is drawn over the finished frame and may stop
 	# being drawn at any moment, which is what DT_OVERDREW is counted for.
 	# Anything new that draws on top belongs between these two counts.
@@ -432,7 +435,7 @@ dt_draw() {
 	console layer
 	dt_popdraw
 	[ "${DT_BARTRANS:-0}" != 0 ] && console translucent off
-	dt_note_draw
+	if [ -n "$DT_FULL" ]; then dt_fullnote; else dt_note_draw; fi
 	dt_tip_draw
 	dt_identify_draw
 	dt_blankdraw

@@ -1121,6 +1121,35 @@ int xs_fake(xs_scr *x, int type, int detail, int px, int py)
 	return r;
 }
 
+/* Move the pointer by dx, dy from where it is: XTEST's relative motion,
+   for a window holding the pointer (Gitea #404), the offsets signed. */
+int xs_relmove(xs_scr *x, int dx, int dy)
+{
+	str o;
+	int r;
+
+	if (!x->xtop)
+		return HIBR_FAIL;
+	s_init(&o);
+	s_ch(&o, x->xtop);
+	s_ch(&o, 2);
+	xs_p16(&o, 9);
+	s_ch(&o, 6);
+	s_ch(&o, 1);
+	xs_p16(&o, 0);
+	xs_p32(&o, 0);
+	xs_p32(&o, 0);
+	xs_p32(&o, 0);
+	xs_p32(&o, 0);
+	xs_p16(&o, (unsigned)(dx & 0xffff));
+	xs_p16(&o, (unsigned)(dy & 0xffff));
+	xs_p32(&o, 0);
+	xs_p32(&o, 0);
+	r = xs_send(x, &o);
+	s_free(&o);
+	return r;
+}
+
 /* The keycode a keysym is on in the server's map, and whether shift is
    needed to reach it; 0 when no key has it. */
 int xs_kc(xs_scr *x, unsigned ks, int *shift)
@@ -1428,7 +1457,8 @@ void xs_usage(void)
 	lg(HIBR_LERR, "usage: xscr start N WxH DIR [ARG...] | root ID #rrggbb | stop PID | open N FILE [PID] | "
 		      "fd|poll|dirty|seen|size|manage|title|windows|close ID | fit ID W H | "
 		      "draw ID row col h w [-p pane] [-m pixels|half] [-c] | "
-		      "key ID name | type ID text | move ID x y | "
+		      "key ID name | type ID text | move ID x y | rel ID dx dy | "
+		      "press ID press|release N | "
 		      "button ID press|release N x y | click ID N x y | "
 		      "wheel ID up|down x y | list");
 }
@@ -1616,6 +1646,14 @@ int m_xscr(sh *s, int ac, char **av)
 		return xs_key(x, av[3]);
 	if (!strcmp(sub, "type") && ac > 3)
 		return xs_type(x, av[3]);
+	if (!strcmp(sub, "rel") && ac > 4)
+		return xs_relmove(x, atoi(av[3]), atoi(av[4]));
+	if (!strcmp(sub, "press") && ac > 4) {
+		bt = atoi(av[4]);
+		if (bt < 1 || bt > 7)
+			return 2;
+		return xs_fake(x, strcmp(av[3], "release") ? 4 : 5, bt, 0, 0);
+	}
 	if (!strcmp(sub, "move") && ac > 4) {
 		x->px = atoi(av[3]);
 		x->py = atoi(av[4]);

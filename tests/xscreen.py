@@ -463,5 +463,39 @@ t.quit(None, 0.5)
 check("a flag Xvfb refuses is named in the window, in Xvfb's own words",
       sc.find("Xvfb did not start: Unrecognized option: -nosuchflag") is not None, sc)
 
+# How the program is reached (Gitea #404): the X pointer follows the mouse
+# with no button held, a program may take every key, and may hold the
+# pointer for relative motion. A function stands in for the module, so what
+# would reach the server is what is checked.
+out, err = hb(
+    ". %s\n. %s\n"
+    "xscr() { echo \"xscr $*\"; }\n"
+    "XS[7][x]=s1; XS[7][r0]=1; XS[7][c0]=1; XS[7][rh]=10; XS[7][rw]=20; XS[7][sw]=200; XS[7][sh]=100\n"
+    "xscreen_hover 7 3 5; xscreen_hover 7 3 5; xscreen_hover 7 -1 -1; echo hovered\n"
+    "DT_TERMKEEP=1; DT_KEYS[close]=alt-w\n"
+    "xscreen_key 7 alt-w; echo \"plain=$?\"\n"
+    "XS[7][keys]=1; xscreen_key 7 alt-w; echo \"every=$?\"\n"
+    "xscreen_key 7 \"${DT_KEYS[ptrrelease]}\"; echo \"release=$?\"\n"
+    "dt_pointerlock() { echo lock $*; return 0; }\n"
+    "XS[7][rel]=1; xscreen_mouse 7 press left 3 5; echo \"held=${XS[7][held]}\"; echo locked-click\n"
+    "xscreen_mouse 7 rel none -4 9; xscreen_mouse 7 press left 0 0; xscreen_mouse 7 release left 0 0\n"
+    "xscreen_hover 7 4 6; echo after-hover\n"
+    "xscreen_mouse 7 unlock none 0 0; echo \"held=[${XS[7][held]}]\"\n"
+    % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/xscreen.hibr")))
+check("the X pointer follows the mouse with no button held, once per position",
+      out.split("hovered")[0].count("xscr move s1 ") == 1 and
+      "xscr move s1 45 25" in out.split("hovered")[0], out + err)
+check("a program set to take every key gets the desktop's shortcuts, "
+      "and Release Pointer still leaves",
+      "plain=1" in out and "every=0" in out and "release=1" in out
+      and "xscr key s1 alt-w" in out, out + err)
+check("Relative Mouse holds the pointer from a click in, and then moves and "
+      "presses by offsets where the X pointer is",
+      "lock 7 on" in out and "held=1" in out and "xscr rel s1 9 -4" in out
+      and "xscr press s1 press 1\nheld=1" in out
+      and "xscr press s1 press 1" in out and "xscr press s1 release 1" in out
+      and out.index("after-hover") > 0 and "xscr move s1 55" not in out
+      and "held=[]" in out, out + err)
+
 shutil.rmtree(D, True)
-report(33)
+report(36)

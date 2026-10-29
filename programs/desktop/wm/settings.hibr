@@ -56,6 +56,7 @@ done
 # whatever app holds it, and the one an app that hangs holding it cannot
 # take: DOSBox's own chord, which Blit passes through like any other key.
 [ -n "${DT_KEYS["ptrrelease"]+x}" ] || DT_KEYS["ptrrelease"]="ctrl-f10"
+[ -n "${DT_KEYS["fsleave"]+x}" ] || DT_KEYS["fsleave"]="ctrl-f11"
 [ -n "${DT_KEYS["detach"]+x}" ] || DT_KEYS["detach"]="ctrl-\\"
 [ -n "${DT_KEYS["quit"]+x}" ] || DT_KEYS["quit"]=
 [ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="mod-tab"

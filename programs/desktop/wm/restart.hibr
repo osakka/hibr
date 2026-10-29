@@ -98,6 +98,9 @@ dt_restart() {
 		dt_notep high "Cannot restart: %s cannot be made" "$DT_RSDIR"
 		return 1
 	}
+	# A full-screen window goes back to its own place first, so the state
+	# keeps where it was and not the whole display.
+	[ -n "$DT_FULL" ] && dt_fullend
 	if ! dt_rswrite "$f" 1; then
 		dt_notep high "Cannot restart: the state could not be written"
 		return 1

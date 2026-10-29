@@ -43,6 +43,8 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
 | verb | what it does |
 |---|---|
 | `xscr start N WxH DIR [ARG...]` | start `Xvfb :N` with one screen of W by H at 24 bits, kept in DIR, and any further arguments passed to Xvfb after its own (X Screen's options, Gitea #404); its standard error goes to `DIR/xvfb.err`, so a flag it refuses is there to show; says the server's pid |
+| `xscr rel ID DX DY` | move the pointer by DX, DY from where it is (XTEST's relative motion), for a window holding the pointer |
+| `xscr press ID press\|release N` | press or release button N where the pointer already is, with no move |
 | `xscr root ID #rrggbb` | paint the screen's root window one colour -- its background pixel in the screen's own masks, and the whole root cleared to it -- where Xvfb itself offers only black or white |
 | `xscr stop PID` | end a server `start` began that was never opened |
 | `xscr open N FILE [PID]` | open display N, whose screen is FILE (`DIR/Xvfb_screen0`); says a screen number. With PID, closing the screen ends that server -- the one `start` gave, or after a restart the pid the app kept |

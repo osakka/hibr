@@ -1,0 +1,182 @@
+# wm/fullscreen -- a window taking every cell of its display (Gitea #405):
+# no bar, no frame, no shadow, no Control Strip, for a game or a film. Zoom
+# fills the display below the bar and keeps the window's frame; this is the
+# rest of the way.
+#
+#   dt_fullscreen ID on|off|toggle
+#
+# The window's app is told whenever it changes, by the desktop as well as
+# by itself, through an optional <app>_fullscreen ID on|off. One window at
+# a time is full screen. It ends when the window loses the focus or goes,
+# when a menu, the saver or the lock comes up, and on the desktop's own
+# Leave Full Screen key (Control Panel > Shortcuts), which no window can
+# take -- as Release Pointer is for the pointer lock. While a window is full
+# screen, a note of high or urgent priority is one line along the
+# display's bottom edge, and the rest are not drawn over it.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# The window that is full screen, or empty.
+DT_FULL=
+
+# The whole of the display a window is on, bar row included, into DTW_R,
+# DTW_C, DTW_H and DTW_W.
+fn dt_fullrect(int id) {
+	local cr cc dsp dr dc drows dcols dgx
+
+	cr=$((${DT[$id]["row"]} + ${DT[$id]["h"]} / 2))
+	cc=$((${DT[$id]["col"]} + ${DT[$id]["w"]} / 2))
+	DTW_R=${DT_PRIMARY_ROW:-0}
+	DTW_C=${DT_PRIMARY_COL:-0}
+	DTW_H=${DT_PRIMARY_H:-$DT_ROWS}
+	DTW_W=${DT_PRIMARY_W:-$DT_COLS}
+	for dsp in "${DT_DISPLAYS[@]}"; do
+		IFS=' ' read -r dr dc drows dcols dgx <<< "$dsp"
+		if [ "$cr" -ge "$dr" ] && [ "$cr" -lt $((dr + drows)) ] &&
+		   [ "$cc" -ge "$dc" ] && [ "$cc" -lt $((dc + dcols)) ]; then
+			DTW_R=$dr
+			DTW_C=$dc
+			DTW_H=$drows
+			DTW_W=$dcols
+			break
+		fi
+	done
+	return 0
+}
+
+# Tell the window's app, when it asks to be told.
+fn dt_fulltell(int id, how) {
+	local ap=${DT[$id]["app"]}
+
+	[ -n "$ap" ] && dt_has "${ap}_fullscreen" && "${ap}_fullscreen" "$id" "$how"
+	return 0
+}
+
+# Put a window full screen, or back as it was, or the other one.
+fn dt_fullscreen(int id, how) {
+	[ -n "${DT[$id]["app"]+x}" ] || return 1
+	case $how in
+	toggle) if [ "$DT_FULL" = "$id" ]; then how=off; else how=on; fi ;;
+	on | off) ;;
+	*) return 2 ;;
+	esac
+	if [ "$how" = off ]; then
+		[ "$DT_FULL" = "$id" ] && dt_fullend
+		return 0
+	fi
+	[ "$DT_FULL" = "$id" ] && return 0
+	[ -n "$DT_FULL" ] && dt_fullend
+	DT[$id]["fsr"]=${DT[$id]["row"]}
+	DT[$id]["fsc"]=${DT[$id]["col"]}
+	DT[$id]["fsh"]=${DT[$id]["h"]}
+	DT[$id]["fsw"]=${DT[$id]["w"]}
+	DT[$id]["fschrome"]=${DT[$id]["chrome"]}
+	DT[$id]["fsshadow"]=${DT[$id]["noshadow"]}
+	DT_FULL=$id
+	DT[$id]["chrome"]=none
+	DT[$id]["noshadow"]=1
+	dt_fullfit "$id"
+	DT_FOCUS=$id
+	DT_MENUIN=
+	DT_FORCEONCE=1
+	dt_fulltell "$id" on
+	return 0
+}
+
+# Size the full-screen window to its display again, as the display is now.
+fn dt_fullfit(int id) {
+	dt_fullrect "$id"
+	DT[$id]["row"]=$DTW_R
+	DT[$id]["col"]=$DTW_C
+	DT[$id]["h"]=$DTW_H
+	DT[$id]["w"]=$DTW_W
+	console pane "w$id" "$DTW_R" "$DTW_C" "$DTW_H" "$DTW_W"
+	console pane raise "w$id"
+	# The bar's pane is the one above everything, and the console writes
+	# a top pane's cells only through it: while a window has the whole
+	# display, the window is the one on top instead.
+	console pane top bar off 2> /dev/null
+	console pane top "w$id"
+	return 0
+}
+
+# Put the full-screen window back where it was, with its frame, and say so.
+dt_fullend() {
+	local id=$DT_FULL
+
+	[ -n "$id" ] || return 0
+	DT_FULL=
+	DT_FORCEONCE=1
+	DT_MENUIN=
+	DT_BARWAS=
+	console pane top "w$id" off 2> /dev/null
+	console pane top bar 2> /dev/null
+	[ -n "${DT[$id]["app"]+x}" ] || return 0
+	DT[$id]["row"]=${DT[$id]["fsr"]}
+	DT[$id]["col"]=${DT[$id]["fsc"]}
+	DT[$id]["h"]=${DT[$id]["fsh"]}
+	DT[$id]["w"]=${DT[$id]["fsw"]}
+	DT[$id]["chrome"]=${DT[$id]["fschrome"]}
+	DT[$id]["noshadow"]=${DT[$id]["fsshadow"]}
+	console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+		"${DT[$id]["h"]}" "${DT[$id]["w"]}" 2> /dev/null
+	dt_fulltell "$id" off
+	return 0
+}
+
+# End full screen when its window can no longer be said to have the
+# screen -- the same moments the pointer lock ends -- and follow the
+# display when it changes size. Asked once a pass, outside any drawing.
+dt_fullcheck() {
+	local id=$DT_FULL
+
+	[ -n "$id" ] || return 0
+	if [ -z "${DT[$id]["app"]+x}" ]; then
+		DT_FULL=
+		DT_FORCEONCE=1
+		DT_BARWAS=
+		console pane top bar 2> /dev/null
+		return 0
+	fi
+	if [ "$DT_FOCUS" != "$id" ] || [ "$MB_OPEN" != -1 ] ||
+	   [ -n "$DT_POP$DT_SAVING$DT_LOCKED" ]; then
+		dt_fullend
+		return 0
+	fi
+	dt_fullrect "$id"
+	[ "$DTW_R $DTW_C $DTW_H $DTW_W" = "${DT[$id]["row"]} ${DT[$id]["col"]} ${DT[$id]["h"]} ${DT[$id]["w"]}" ] ||
+		dt_fullfit "$id"
+	return 0
+}
+
+# Notes while a window is full screen: the newest of high or urgent
+# priority as one line along the display's bottom edge, and the rest left
+# to expire undrawn, the queue kept as dt_note_draw keeps it.
+dt_fullnote() {
+	local id now age t= keep_id=
+	local -a keep
+
+	now := dt_ms
+	for id in "${DT_NOTEQ_ORDER[@]}"; do
+		age=$((now - ${DT_NOTEQ[$id]["created"]}))
+		if [ "$age" -ge "$DT_NOTEMS" ]; then
+			unset "DT_NOTEQ[$id]"
+			continue
+		fi
+		keep+=("$id")
+		dt_want $((DT_NOTEMS - age))
+		case ${DT_NOTEQ[$id]["prio"]} in high | urgent) keep_id=$id ;; esac
+	done
+	DT_NOTEQ_ORDER=("${keep[@]}")
+	[ -n "$keep_id" ] || return 0
+	# Through the window's own pane: it is the one on top, and the console
+	# writes a top pane's cells only through it.
+	t := dt_cut " ${DT_NOTEQ[$keep_id]["text"]} " "${DT[$DT_FULL]["w"]}"
+	console pen "$DT_SELINK" "$DT_ACTIVE"
+	console fill -p "w$DT_FULL" $((${DT[$DT_FULL]["h"]} - 1)) 0 1 "${DT[$DT_FULL]["w"]}" " "
+	console put -p "w$DT_FULL" $((${DT[$DT_FULL]["h"]} - 1)) 0 "$t"
+	return 0
+}

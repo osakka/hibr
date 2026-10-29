@@ -986,6 +986,10 @@ fn dt_event(k) {
 		dt_ptrunlock
 		return 0
 	fi
+	if [ -n "$DT_FULL" ] && dt_keyis fsleave "$k"; then
+		dt_fullend
+		return 0
+	fi
 	case $k in
 	"mouse "*" -")
 		DT_PX=

@@ -25,14 +25,17 @@
 #   own    the same, with no window manager of the module's, for a program
 #          that is one -- two cannot share a screen.
 #
-# What it cannot do yet: hover with no button pressed (the desktop does not
-# ask the terminal for every movement), keys outside the server's US
-# keyboard map, and the clipboard between the X screen and the desktop.
+# The pointer follows the mouse with no button held whenever Control Panel
+# > Mouse > Hover is on (Gitea #404); a program may take every key, and may
+# hold the pointer for relative motion, each in its own dialog.
+#
+# What it cannot do yet: keys outside the server's US keyboard map, and the
+# clipboard between the X screen and the desktop.
 
 strict
 
 
-app xscreen "X11 programs in windows of their own" 1.8
+app xscreen "X11 programs in windows of their own" 1.9
 # modules: xscr
 # part: control-panel/xscreenset.hibr
 command -v dt_app > /dev/null &&
@@ -64,15 +67,21 @@ XS_DBE="${XS_DBE-1}"
 XS_XVIDEO="${XS_XVIDEO-1}"
 XS_GLX="${XS_GLX-1}"
 XS_EXTRA="${XS_EXTRA-}"
+# And how the program is reached: every key while its window has the focus,
+# the desktop's shortcuts with them, Release Pointer still leaving; and the
+# pointer held for relative motion, as a game wants, from a click in.
+XS_KEYS="${XS_KEYS-0}"
+XS_REL="${XS_REL-0}"
 command -v dt_keep > /dev/null && dt_keep XS_FPS XS_BG XS_CURSOR XS_DPI \
-	XS_NORESET XS_XINERAMA XS_RENDER XS_COMPOSITE XS_DBE XS_XVIDEO XS_GLX XS_EXTRA
+	XS_NORESET XS_XINERAMA XS_RENDER XS_COMPOSITE XS_DBE XS_XVIDEO XS_GLX XS_EXTRA \
+	XS_KEYS XS_REL
 # The option keys a program may set, each with the variable holding its
 # default; the extensions with the name Xvfb knows each by.
 declare -gA XS_OPTVAR XS_EXTNAME
 XS_OPTVAR=([fps]=XS_FPS [size]=XS_SIZE [bg]=XS_BG [cursor]=XS_CURSOR
 	[dpi]=XS_DPI [noreset]=XS_NORESET [xinerama]=XS_XINERAMA
 	[render]=XS_RENDER [composite]=XS_COMPOSITE [dbe]=XS_DBE
-	[xvideo]=XS_XVIDEO [glx]=XS_GLX)
+	[xvideo]=XS_XVIDEO [glx]=XS_GLX [keys]=XS_KEYS [rel]=XS_REL)
 XS_EXTNAME=([xinerama]=XINERAMA [render]=RENDER [composite]=Composite
 	[dbe]=DOUBLE-BUFFER [xvideo]=XVideo [glx]=GLX)
 XS_EXTS=(xinerama render composite dbe xvideo glx)
@@ -296,6 +305,8 @@ fn xscreen_open(int id, arg = "") {
 	XS[$id]["ms"]=
 	[ "$v" = follow ] || XS[$id]["ms"]=$((1000 / v))
 	XS[$id]["bg"] := xs_optval "$k" bg
+	XS[$id]["keys"] := xs_optval "$k" keys
+	XS[$id]["rel"] := xs_optval "$k" rel
 	xs_args "$k"
 	xs_sweep
 	n := xs_free
@@ -586,8 +597,12 @@ fn xscreen_key(int id, key) {
 	local x=${XS[$id]["x"]}
 
 	[ -n "$x" ] || return 1
-	if [ "$DT_TERMKEEP" = 1 ] && dt_has dt_keyassigned &&
-	   dt_keyassigned "$key"; then
+	# Release Pointer always leaves, so a window can never keep the
+	# keyboard or the pointer from the desktop.
+	dt_has dt_keyis && dt_keyis ptrrelease "$key" && return 1
+	dt_has dt_keyis && dt_keyis fsleave "$key" && return 1
+	if [ "${XS[$id]["keys"]}" != 1 ] && [ "$DT_TERMKEEP" = 1 ] &&
+	   dt_has dt_keyassigned && dt_keyassigned "$key"; then
 		return 1
 	fi
 	xscr key "$x" "$key" 2> /dev/null
@@ -600,13 +615,48 @@ fn xscreen_mouse(int id, act, btn, int r, int c, mods = "") {
 	local x=${XS[$id]["x"]} b=1
 
 	[ -n "$x" ] || return 0
-	xs_at "$id" "$r" "$c" || return 0
 	case $btn in middle) b=2 ;; right) b=3 ;; esac
+	# Held for relative motion: the pointer's moves come as offsets (r is
+	# dy, c is dx), and its buttons press where the X pointer already is.
+	case ${act##*-} in
+	unlock) XS[$id]["held"]=; return 0 ;;
+	rel) xscr rel "$x" "$c" "$r" 2> /dev/null; return 0 ;;
+	esac
+	if [ "${XS[$id]["held"]}" = 1 ]; then
+		case ${act##*-} in
+		press) xscr press "$x" press "$b" ;;
+		release) xscr press "$x" release "$b" ;;
+		esac
+		return 0
+	fi
+	xs_at "$id" "$r" "$c" || return 0
+	if [ "${XS[$id]["rel"]}" = 1 ] && [ "${act##*-}" = press ] &&
+	   dt_has dt_pointerlock && dt_pointerlock "$id" on; then
+		XS[$id]["held"]=1
+		xscr move "$x" "$XS_PX" "$XS_PY"
+		xscr press "$x" press "$b"
+		return 0
+	fi
 	case ${act##*-} in
 	press) xscr button "$x" press "$b" "$XS_PX" "$XS_PY" ;;
 	release) xscr button "$x" release "$b" "$XS_PX" "$XS_PY" ;;
 	drag) xscr move "$x" "$XS_PX" "$XS_PY" ;;
 	esac
+	return 0
+}
+
+# The pointer moved over the window with no button held (Hover on): the
+# X pointer follows it, so a program's own hover, menus and tooltips work.
+# The same position twice sends nothing.
+fn xscreen_hover(int id, int r, int c) {
+	local x=${XS[$id]["x"]}
+
+	[ -n "$x" ] && [ "$r" -ge 0 ] || return 0
+	[ "${XS[$id]["held"]}" = 1 ] && return 0
+	xs_at "$id" "$r" "$c" || return 0
+	[ "${XS[$id]["at:p"]}" = "$XS_PX $XS_PY" ] && return 0
+	XS[$id]["at:p"]="$XS_PX $XS_PY"
+	xscr move "$x" "$XS_PX" "$XS_PY"
 	return 0
 }
 

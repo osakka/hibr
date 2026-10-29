@@ -21,7 +21,7 @@ DT_KEYORDER=(menu menu2 save undo redo copy cut paste selectall scrollup scrolld
 	zoom hide snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
 	ws7 ws8 ws9 wsnext wsprev tile tilemain close quitapp cycle cycleback strip shot
 	refresh lock volup voldown mute
-	ptrrelease detach quit)
+	ptrrelease fsleave detach quit)
 declare -gA DT_KEYNAME
 DT_KEYNAME["menu"]="Menu Bar"
 DT_KEYNAME["menu2"]="Menu Bar, Also"
@@ -80,6 +80,7 @@ fn dt_keydups() {
 	return 0
 }
 DT_KEYNAME["ptrrelease"]="Release Pointer"
+DT_KEYNAME["fsleave"]="Leave Full Screen"
 DT_KEYNAME["detach"]="Detach"
 DT_KEYNAME["quit"]="Quit"
 DT_KEYNAME["cycle"]="Cycle Windows"

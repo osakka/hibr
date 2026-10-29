@@ -17,10 +17,10 @@
 
 strict
 
-app xscreenset "The Control Panel pane for X Screen" 1.7
+app xscreenset "The Control Panel pane for X Screen" 1.8
 command -v cp_pane > /dev/null && cp_pane xscreenset "X Screen" "▣" app
 command -v dt_app > /dev/null &&
-	dt_app xsfield "X Screen Program" 24 70 "" "" fixed hidden
+	dt_app xsfield "X Screen Program" 26 70 "" "" fixed hidden
 
 XS_SIZE="${XS_SIZE-1280x800}"
 XS_MAX="${XS_MAX-1920x1080}"
@@ -40,8 +40,11 @@ XS_DBE="${XS_DBE-1}"
 XS_XVIDEO="${XS_XVIDEO-1}"
 XS_GLX="${XS_GLX-1}"
 XS_EXTRA="${XS_EXTRA-}"
+XS_KEYS="${XS_KEYS-0}"
+XS_REL="${XS_REL-0}"
 command -v dt_keep > /dev/null && dt_keep XS_FPS XS_BG XS_CURSOR XS_DPI \
-	XS_NORESET XS_XINERAMA XS_RENDER XS_COMPOSITE XS_DBE XS_XVIDEO XS_GLX XS_EXTRA
+	XS_NORESET XS_XINERAMA XS_RENDER XS_COMPOSITE XS_DBE XS_XVIDEO XS_GLX XS_EXTRA \
+	XS_KEYS XS_REL
 # Declared, never emptied: the app has read the list into them before any
 # pane loads, and emptying them here showed no programs after every new
 # session -- and the next one added saved over the rest (Gitea #300).
@@ -66,7 +69,7 @@ XSS_EXTLABEL=([xinerama]=XINERAMA [render]=RENDER [composite]=Composite
 XSS_EXTVAR=([xinerama]=XS_XINERAMA [render]=XS_RENDER [composite]=XS_COMPOSITE
 	[dbe]=XS_DBE [xvideo]=XS_XVIDEO [glx]=XS_GLX)
 # The keys a program's dialog sets, in the order its rows are drawn.
-XSS_OKEYS=(fps size bg dpi cursor noreset xinerama render composite dbe xvideo glx)
+XSS_OKEYS=(fps size bg dpi cursor noreset keys rel xinerama render composite dbe xvideo glx)
 declare -gA XSF
 
 fn cp_set_xssize(int? id = "", value = "") { XS_SIZE=$value; cp_save; }
@@ -118,6 +121,8 @@ fn xscreenset_rows(int w) {
 	n=$((n + 1))
 	xss_bool "$w" "$n" "Pointer" XS_CURSOR; n=$((n + 1))
 	xss_bool "$w" "$n" "Keep the Server Up" XS_NORESET; n=$((n + 1))
+	xss_bool "$w" "$n" "Every Key to the Program" XS_KEYS; n=$((n + 1))
+	xss_bool "$w" "$n" "Relative Mouse" XS_REL; n=$((n + 1))
 	for k in "${XSS_EXTKEYS[@]}"; do
 		xss_bool "$w" "$n" "${XSS_EXTLABEL["$k"]}" "${XSS_EXTVAR["$k"]}"
 		n=$((n + 1))
@@ -143,7 +148,7 @@ fn xscreenset_do(int? w = "", k = "", int? dir = "") {
 	case $k in
 	max) v := cp_next "$XS_MAX" "$dir" "${XSS_MAXES[@]}"; XS_MAX=$v ;;
 	size) v := cp_next "$XS_SIZE" "$dir" "${XSS_SIZES[@]}"; XS_SIZE=$v ;;
-	XS_CLOSEEND | XS_CURSOR | XS_NORESET | XS_XINERAMA | XS_RENDER | \
+	XS_CLOSEEND | XS_CURSOR | XS_NORESET | XS_KEYS | XS_REL | XS_XINERAMA | XS_RENDER | \
 	XS_COMPOSITE | XS_DBE | XS_XVIDEO | XS_GLX) cp_toggle "$k" ;;
 	fps) v := cp_next "$XS_FPS" "$dir" "${XSS_FPSS[@]}"; XS_FPS=$v ;;
 	bg) v := cp_next "$XS_BG" "$dir" "${XSS_BGS[@]}"; XS_BG=$v ;;
@@ -175,7 +180,7 @@ fn xscreenset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 # A program to add (k is -1) or to change: its name and command typed, its
 # window and picture chosen with left and right or a click.
 fn xss_dialog(int k) {
-	local h=24 w=70 r c rid o
+	local h=26 w=70 r c rid o
 
 	dt_dlgat "$h" "$w"
 	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
@@ -206,7 +211,7 @@ fn xss_dialog(int k) {
 # is there to delete.
 fn xsf_order(int id) {
 	local o="name cmd win pic end o_fps o_size o_bg o_dpi o_cursor o_noreset"
-	o="$o o_xinerama o_render o_composite o_dbe o_xvideo o_glx extra smooth light"
+	o="$o o_keys o_rel o_xinerama o_render o_composite o_dbe o_xvideo o_glx extra smooth light"
 	if [ "${XSF[$id]["k"]}" -ge 0 ]; then
 		ret "$o ok del cancel"
 	else
@@ -256,19 +261,21 @@ fn xsfield_draw(int id, int h, int w, int row, int col) {
 	xsf_drop "$id" 12 34 "DPI:" 12 o_dpi "$f"
 	xsf_drop "$id" 13 2 "Pointer:" 12 o_cursor "$f"
 	xsf_drop "$id" 13 34 "Keep Up:" 12 o_noreset "$f"
-	dt_tput "$id" 15 2 "Extensions:"
-	xsf_drop "$id" 16 2 "XINERAMA" 9 o_xinerama "$f"
-	xsf_drop "$id" 16 24 "RENDER" 9 o_render "$f"
-	xsf_drop "$id" 16 46 "Composite" 9 o_composite "$f"
-	xsf_drop "$id" 17 2 "DOUBLE-BUFFER" 9 o_dbe "$f"
-	xsf_drop "$id" 17 24 "XVideo" 9 o_xvideo "$f"
-	xsf_drop "$id" 17 46 "GLX" 9 o_glx "$f"
+	xsf_drop "$id" 14 2 "Every Key:" 12 o_keys "$f"
+	xsf_drop "$id" 14 34 "Relative Mouse:" 9 o_rel "$f"
+	dt_tput "$id" 16 2 "Extensions:"
+	xsf_drop "$id" 17 2 "XINERAMA" 9 o_xinerama "$f"
+	xsf_drop "$id" 17 26 "RENDER" 9 o_render "$f"
+	xsf_drop "$id" 17 47 "Composite" 9 o_composite "$f"
+	xsf_drop "$id" 18 2 "DOUBLE-BUFFER" 9 o_dbe "$f"
+	xsf_drop "$id" 18 26 "XVideo" 9 o_xvideo "$f"
+	xsf_drop "$id" 18 47 "GLX" 9 o_glx "$f"
 	console pen "$DT_INK" "$DT_FACE"
-	dt_tput "$id" 19 2 "Extra:"
+	dt_tput "$id" 20 2 "Extra:"
 	on=0; cur=0
 	[ "$f" = extra ] && { on=1; cur=${XSF[$id]["cur"]}; }
-	dt_textdraw "$id" 19 12 $((w - 14)) "${XSF[$id]["extra"]}" "$cur" "$on"
-	dt_wreg "$id" 19 12 $((w - 14)) extra
+	dt_textdraw "$id" 20 12 $((w - 14)) "${XSF[$id]["extra"]}" "$cur" "$on"
+	dt_wreg "$id" 20 12 $((w - 14)) extra
 	dt_tput "$id" 21 2 "Set for:"
 	dt_buttons "$id" 21 12 "$f" smooth Smoothest light Lightest
 	if [ "${XSF[$id]["k"]}" -ge 0 ]; then
@@ -304,7 +311,7 @@ fn xsf_popt(int k, key) {
 	*) ret default; return 0 ;;
 	esac
 	case $key in
-	cursor | noreset | xinerama | render | composite | dbe | xvideo | glx)
+	cursor | noreset | keys | rel | xinerama | render | composite | dbe | xvideo | glx)
 		[ "$v" = 1 ] && v=on
 		[ "$v" = 0 ] && v=off
 		;;

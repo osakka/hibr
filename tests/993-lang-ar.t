@@ -18,7 +18,8 @@ import json
 # placeholders. Anything else identical to its English is untranslated.
 LATIN = {"YouTube", "JavaScript", "dBASE", "ETag: %s", "PID:    %s", "%s %s…",
          "Highly Intuitive Bash-like Runtime",
-         "Nextcloud: https://HOST/remote.php/dav/files/USER"}
+         "Nextcloud: https://HOST/remote.php/dav/files/USER",
+         "Composite", "DOUBLE-BUFFER", "GLX", "RENDER", "XINERAMA", "XVideo"}
 d = json.load(open("programs/desktop/lang/ar.json"))
 s = d["strings"]
 want = [l.rstrip("\n") for l in open("programs/desktop/lang/strings.txt") if l.strip()]

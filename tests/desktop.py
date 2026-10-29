@@ -8106,4 +8106,50 @@ check("and it is the same colour after more frames, not darker on each",
       [sc1.p[r][c] for r in range(1, 14) for c in range(0, 40)] ==
       [sc3.p[r][c] for r in range(1, 14) for c in range(0, 40)], (m1, m3))
 
-report(878)
+# --- full screen ------------------------------------------------------------
+
+# A window taking every cell of its display (Gitea #405): no bar, no frame,
+# no shadow; its app told whenever it changes; Leave Full Screen, the
+# desktop's own key, puts it back where it was; and so does the focus
+# moving away. While it is full screen a note of high priority is one line
+# along the bottom edge, and an ordinary one is not drawn over it.
+FSTOLD = scratch("fs-told.txt")
+
+
+def fsrun(body, feed, rows=20, cols=50):
+    if os.path.exists(FSTOLD):
+        os.unlink(FSTOLD)
+    f = scratch("fs.hibr")
+    open(f, "w").write(
+        "%s. %s\n"
+        "fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
+        "console fill -p \"w$1\" 0 0 \"$2\" \"$3\" '#'; }\n"
+        "fsw_fullscreen() { echo \"told $2\" >> %s; }\n"
+        "dt_app fsw \"Game\" 8 20\ndt_open\nFSID := dt_new Game 8 20 5 10 fsw\n"
+        "dt_fullscreen \"$FSID\" on\n%s\ndt_run\ndt_close\n"
+        % (load(MOD), WM, FSTOLD, body))
+    t = Term(f, rows=rows, cols=cols, settle=1.0)
+    t.collect(0.8)
+    a = t.screen()
+    t.keys(feed)
+    b = t.screen()
+    t.quit(b"q", 0.5)
+    told = open(FSTOLD).read().split("\n") if os.path.exists(FSTOLD) else []
+    return a, b, told
+
+
+LEAVE = b"\x1b[23;5~"
+a, b, told = fsrun("", [LEAVE, 0.5])
+check("a window full screen covers every cell of its display, the bar's row "
+      "and the edges included", a.row(0) == "#" * 50 and a.row(19) == "#" * 50, a)
+check("and Leave Full Screen puts it back with its frame where it was, its "
+      "app told both times", b.find("┤ Game ├") is not None and
+      b.find("┤ Game ├")[0] == 5 and told[:2] == ["told on", "told off"], (b, told))
+a, b, told = fsrun("dt_new Other 6 20 2 30", [0.5])
+check("the focus moving to another window ends it", told[:2] == ["told on", "told off"], told)
+a, b, told = fsrun("dt_notep high 'Game saved'; dt_note 'just so'", [0.3])
+check("a high note is one line along the bottom edge, and an ordinary one is "
+      "not drawn over the window", "Game saved" in a.row(19) and
+      a.find("just so") is None and a.row(0) == "#" * 50, a)
+
+report(882)

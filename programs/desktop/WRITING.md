@@ -159,6 +159,21 @@ display refusing or taking it back -- so treat `unlock` as the truth, even
 straight after an on. Call both behind `dt_has`, since a desktop older than
 0.99.365 has neither.
 
+**A window that wants the whole display** -- a game, a film -- calls
+`dt_fullscreen "$id" on|off|toggle` (Gitea #405): every cell of the
+display the window is on, the bar's row included, with no bar, frame,
+shadow or Control Strip over it. One window at a time. Its app is told
+whenever it changes, by itself or by the desktop, through an optional
+`<app>_fullscreen ID on|off`. It ends when the window loses the focus or
+closes, when a menu, the saver or the lock comes up, and on **Leave Full
+Screen** (`DT_KEYS["fsleave"]`, ctrl-f11 by default, Control Panel >
+Shortcuts), which is taken before any app sees a key; Restart Desktop puts
+the window back first, so the restored state is where it was. While it is
+full screen a note of high or urgent priority is one line along the
+display's bottom edge, and others are not drawn over it. Call it behind
+`dt_has dt_fullscreen`, since a desktop older than 0.99.375 has none --
+Boxer falls back to `dt_zoom`.
+
 **A window that is text throughout** -- a terminal -- asks for the I-beam with
 `dt_pointer "$id" text`, and a field drawn with `dt_textdraw` gets it with no
 call at all (Gitea #394). Text is the one shape shown whether or not the

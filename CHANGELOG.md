@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.99.375
+
+**A window can take the whole display** (Gitea #405), for Boxer's games
+first: `dt_fullscreen ID on|off|toggle` covers every cell of the display
+the window is on, the bar's row included, with no bar, frame, shadow or
+Control Strip.
+- The app is told through an optional `<app>_fullscreen ID on|off`.
+- It ends on **Leave Full Screen** (ctrl-f11, Control Panel > Shortcuts),
+  which no app can take; and when the focus moves, a menu, the saver or the
+  lock comes up, or the window closes.
+- Restart Desktop puts it back first.
+- A note of high priority is one line along the bottom edge; others are
+  not drawn over the window.
+- The bar's pane gives up its place on top while it lasts, since the
+  console writes a top pane's cells only through that pane.
+
+Boxer 1.15 already uses it.
+
+**X Screen follows the mouse, can take every key, and can hold the
+pointer** (Gitea #404):
+- **Hover:** with Control Panel > Mouse > Hover on, the X pointer follows
+  the mouse with no button held, at pixel precision on Blit, so a program's
+  own hover, menus and tooltips work. The same position twice sends
+  nothing.
+- **Every Key to the Program:** a program set to it gets the desktop's
+  shortcuts too; Release Pointer and Leave Full Screen still leave.
+- **Relative Mouse:** a click in holds the pointer and sends relative
+  motion through XTEST, the click itself included; ctrl-f10 gives it back.
+
+Both new rows are off by default, in the pane's Defaults and in each
+program's dialog, which grew to 26 rows so its buttons no longer overlap.
+New xscr verbs: `rel ID DX DY` and `press ID press|release N`. X Screen
+1.9 and its pane 1.8 need this release.
+
+**The translation catalogue missed the X Screen pane's own labels.**
+`tools/strings.py` collects by the functions text is passed to, and did not
+know the pane's two helpers, so their labels, 0.99.373's included, read
+English in a translated desktop. Arabic 3.49 has them; the six extension
+names stay in Latin, as protocol names.
+
 ## 0.99.374
 
 **longwire's large telephones**, now that Blit 0.3.0 draws them. The blit

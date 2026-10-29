@@ -172,6 +172,7 @@ Back 10 Seconds
 Back 30 Seconds
 Back 5 Seconds
 Background
+Background:
 Backspace
 Band Intensity
 Bar Shadow
@@ -277,6 +278,7 @@ Colour: %s
 Colours
 Columns
 Command:
+Composite
 Compress Pictures
 Computer
 Connect to Server
@@ -357,6 +359,8 @@ Cut
 Cut %s characters
 Cycle
 Cycle Windows On
+DOUBLE-BUFFER
+DPI:
 Databases
 Date & Time
 Date/time
@@ -442,6 +446,8 @@ Engine For New Tabs
 Evaluate
 Event
 Every (minutes)
+Every Key to the Program
+Every Key:
 Everyone
 Export CSV…
 Exported %s
@@ -498,6 +504,7 @@ Forward
 Frame
 Frames For Video (as output)
 Frames a Second
+Frames:
 Freeze Above and Left
 Freeze First Column
 Freeze Top Row
@@ -507,6 +514,7 @@ From %s
 From:
 Full Command Line
 Full Player
+GLX
 Game
 Gateway
 Get Info
@@ -581,9 +589,11 @@ Jun
 June
 Keep History on Disk
 Keep Messages
+Keep Up:
 Keep in the List
 Keep it after the vault locks
 Keep the Screen Saver Away While Playing
+Keep the Server Up
 Kept as a favourite: %s
 Keyboard
 Kind:
@@ -861,6 +871,8 @@ Plain text
 Play
 Play Next Automatically
 Player
+Pointer
+Pointer:
 Pop Up
 Position
 Position Given
@@ -899,6 +911,7 @@ Quit Application
 Quit dBASE
 Quit hibr?
 Quote
+RENDER
 Rabi' al-Awwal
 Rabi' al-Thani
 Rajab
@@ -912,6 +925,8 @@ Redo
 Refresh
 Refresh Desktop
 Refreshed
+Relative Mouse
+Relative Mouse:
 Reload
 Remote folders need the desktop
 Remove
@@ -975,6 +990,7 @@ Saved the server %s
 Saved, and the invitation sent to %s
 Saved; the server has it at the next sync
 Screen Saver
+Screen:
 Screens
 Screenshot Folder
 Screenshot Format
@@ -1273,6 +1289,8 @@ Write
 Write an Email
 X Screen
 X Screen Program
+XINERAMA
+XVideo
 YYYY-MM-DD and HH:MM:SS, local time
 YouTube
 YouTube did not answer -- trying again

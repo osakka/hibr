@@ -47,6 +47,10 @@ SINKS = {
     # beside, and the line of help under it (wm/ask.hibr, Gitea #357).
     "dt_ask": [1, 2, 5],
     "console": "put", "dt_tr": [1], "dt_trn": [2, 3], "dt_tally": [3], "dt_tput": [4],
+    # X Screen's pane draws its switch rows and its dialog's choices through
+    # helpers of its own, which translate their label (Gitea #404): missed
+    # here, every one of them read English in a translated desktop.
+    "xss_bool": [3], "xsf_drop": [4],
 }
 # Templates that carry no words of ours, each with the reason it is one: a
 # filename, a letter, a value a dropdown shows, a server's own message, a

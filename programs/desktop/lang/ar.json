@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.48",
+ "version": "3.49",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1492,6 +1492,24 @@
   "Passed to Xvfb as typed, after the rest": "تُمرَّر إلى Xvfb كما كُتبت، بعد البقية",
   "Set for:": "اضبط لـ:",
   "Smoothest": "الأنعم",
-  "The screen -- Default is Control Panel > X Screen > Defaults:": "الشاشة — «افتراضي» يعني لوحة التحكم > شاشة X > الافتراضيات:"
+  "The screen -- Default is Control Panel > X Screen > Defaults:": "الشاشة — «افتراضي» يعني لوحة التحكم > شاشة X > الافتراضيات:",
+  "Background:": "الخلفية:",
+  "DPI:": "النقاط في البوصة:",
+  "Every Key to the Program": "كل مفتاح إلى البرنامج",
+  "Every Key:": "كل مفتاح:",
+  "Frames:": "الإطارات:",
+  "Keep Up:": "إبقاء الخادم:",
+  "Keep the Server Up": "إبقاء الخادم قائمًا",
+  "Pointer": "المؤشر",
+  "Pointer:": "المؤشر:",
+  "Relative Mouse": "فأرة نسبية",
+  "Relative Mouse:": "فأرة نسبية:",
+  "Screen:": "الشاشة:",
+  "Composite": "Composite",
+  "DOUBLE-BUFFER": "DOUBLE-BUFFER",
+  "GLX": "GLX",
+  "RENDER": "RENDER",
+  "XINERAMA": "XINERAMA",
+  "XVideo": "XVideo"
  }
 }
