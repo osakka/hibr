@@ -700,10 +700,13 @@ ctrl-a takes everything but `..`. A plain click on something already
 selected keeps the rest until the button comes up, so the selection can be
 picked up and dragged; the footer says how many are chosen.
 
-The file browser has three views, which `v` cycles and the View menu picks:
+The file browser has four views, which `v` cycles and the View menu picks:
 a **list** of names; **details**, with size, time and permissions from one
 `ls -l` per folder, dropping columns from the right as the window narrows;
-and **icons**, a grid the arrows move across and down. Delete moves the
+**icons**, a grid the arrows move across and down; and **small icons**,
+System 7's "by Small Icon" -- each entry's glyph and name on one row, in
+as many columns as the window holds, the glyph on the right when the
+desktop is mirrored. Delete moves the
 selection to the trash; alt-c copies its path, and alt-v in a Files window
 copies the file whose path was pasted into the folder shown.
 

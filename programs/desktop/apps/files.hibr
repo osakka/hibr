@@ -4,8 +4,9 @@
 #
 #     hibr programs/desktop/apps/files.hibr /etc
 #
-# Three views, which v cycles through: a list of names, the same with size,
-# time and permissions, and a grid of icons.  Everything moves under a fixed
+# Four views, which v cycles through: a list of names, the same with size,
+# time and permissions, a grid of icons, and small icons -- a glyph and its
+# name on one row, in columns.  Everything moves under a fixed
 # frame: the keys move the selection, the wheel moves the view without it,
 # and a click lands on what it was aimed at.
 #
@@ -20,7 +21,7 @@
 
 strict
 
-app files "A file browser" 3.5
+app files "A file browser" 3.6
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -53,8 +54,9 @@ command -v dt_app > /dev/null && dt_app ow "Open With" 8 54 "" "" fixed hidden
 DT_FBOPENWITH="${DT_FBOPENWITH-1}"
 DT_FBTERMHERE="${DT_FBTERMHERE-1}"
 command -v dt_keep > /dev/null && dt_keep DT_FBOPENWITH DT_FBTERMHERE
-FILES_VIEWS=(list details icons)
+FILES_VIEWS=(list details icons small)
 FILES_TILE=12
+FILES_SMALLTILE=20
 # A folder that holds its own picture shows it as its icon (Gitea #336), in
 # the icon view and where the terminal draws pixels: a bundle its
 # .cover.png or cover.png, a plain folder its .cover.png only, so a stray
@@ -462,6 +464,15 @@ fn fb_paths(int id, sel) {
 # the rest by what they are. The entry under the pointer is the theme's
 # well with the theme's own ink (#370) -- not its kind's colour, which on
 # the well, and over a folder's own background, could barely be read.
+# Whether the window shows a grid of tiles -- the icon views -- rather
+# than one entry a row.
+fn fb_grid(int id) {
+	case ${FB[$id]["view"]} in
+	icons | small) return 0 ;;
+	esac
+	return 1
+}
+
 fn fb_rowpen(int id, int i) {
 	if [ "$i" = "${FB[$id]["sel"]}" ]; then
 		console pen "$DT_SELINK" "$DT_ACTIVE" bold
@@ -1099,6 +1110,7 @@ fn files_draw(int id, int h, int w, int row, int col) {
 	case ${FB[$id]["view"]} in
 	details) fb_drawdet "$id" $((h - srows)) "$w" ;;
 	icons) fb_drawicons "$id" $((h - srows)) "$w" ;;
+	small) fb_drawsmall "$id" $((h - srows)) "$w" ;;
 	*) fb_drawlist "$id" $((h - srows)) "$w" ;;
 	esac
 	fb_bar "$id" $((h - srows)) "$w"
@@ -1139,7 +1151,7 @@ fn files_draw(int id, int h, int w, int row, int col) {
 # views, the tiles it overlaps in the icon view -- keeping what was marked
 # before a ctrl-press began it (Gitea #383).
 fn fb_band(int id, int r, int c) {
-	local r0 c0 r1 c1 t y0 per top i n th tw=$FILES_TILE x y w=${FB[$id]["w"]:-40}
+	local r0 c0 r1 c1 t y0 per top i n th tw=${FB[$id]["tw"]:-$FILES_TILE} x y w=${FB[$id]["w"]:-40}
 	local -a kept
 
 	read -r r0 c0 <<< "${FB[$id]["band"]}"
@@ -1157,7 +1169,7 @@ fn fb_band(int id, int r, int c) {
 	th=${FB[$id]["th"]:-3}
 	read -ra kept <<< "${FB[$id]["bandkeep"]-}"
 	for ((i = top; i < n; i++)); do
-		if [ "${FB[$id]["view"]}" = icons ]; then
+		if fb_grid "$id"; then
 			y=$((y0 + ((i - top) / per) * th))
 			x=$((1 + ((i - top) % per) * tw))
 			[ "$DT_MIRRORON" = 1 ] && x=$((w + 1 - ((i - top) % per + 1) * tw))
@@ -1427,6 +1439,66 @@ fn fb_cover(int id, int i, int bh, int bw) {
 	ret "$fr $fc $f"
 }
 
+# The small icon view (System 7's "by Small Icon"): each entry one row,
+# its glyph and then its name, in as many columns as the window holds --
+# the icon view's grid with tiles one row high, so the keys, the clicks
+# and the rubber band are the icon view's own. Mirrored, the glyph is on
+# the right and the name before it.
+fn fb_drawsmall(int id, int h, int w) {
+	local i n top sel per rows r c x y g gw nm nw gx nx tw=$FILES_SMALLTILE
+
+	per=$(((w - 1) / tw))
+	[ "$per" -lt 1 ] && per=1
+	tw=$(((w - 1) / per))
+	rows=$((h - 1))
+	[ "$rows" -lt 1 ] && rows=1
+	FB[$id]["y0"]=1
+	FB[$id]["th"]=1
+	FB[$id]["tw"]=$tw
+	FB[$id]["per"]=$per
+	FB[$id]["vis"]=$((per * rows))
+	n=${FB[$id]["n"]}
+	top=${FB[$id]["top"]}
+	sel=${FB[$id]["sel"]}
+	i=$top
+	while [ "$i" -lt "$n" ] && [ "$i" -lt $((top + per * rows)) ]; do
+		r=$(((i - top) / per))
+		c=$(((i - top) % per))
+		y=$((1 + r))
+		x=$((1 + c * tw))
+		case $DT_MIRRORON in 1) x=$((w + 1 - (c + 1) * tw)) ;; esac
+		if [ "$i" != "$sel" ] && dt_hot "$id" "row:$i"; then
+			console pen "$DT_INK" "$DT_WELL"
+			console fill -p "w$id" "$y" "$x" 1 "$tw" " "
+		fi
+		g := fb_glyph "$id" "$i"
+		gw := str width "$g"
+		nm=${FL[$id][$i]["name"]}
+		nw := str width "$nm"
+		if [ "$nw" -gt $((tw - gw - 2)) ]; then
+			nm := dt_cut "$nm" $((tw - gw - 3))
+			nm="$nm${GL[ellipsis]}"
+			nw := str width "$nm"
+		fi
+		gx=$x
+		nx=$((x + gw + 1))
+		case $DT_MIRRORON in
+		1)
+			gx=$((x + tw - gw))
+			nx=$((gx - 1 - nw))
+			;;
+		esac
+		fb_pen "${FL[$id][$i]["kind"]}"
+		dt_hot "$id" "row:$i" && [ "$i" != "$sel" ] &&
+			console pen "$DT_INK" "$DT_WELL"
+		console put -p "w$id" "$y" "$gx" "$g"
+		fb_rowpen "$id" "$i"
+		console put -p "w$id" "$y" "$nx" "$nm"
+		dt_has dt_hotreg && dt_hotreg "$id" "$y" "$x" "$tw" "row:$i"
+		i=$((i + 1))
+	done
+}
+
 fn fb_drawicons(int id, int h, int w) {
 	local i n top sel per rows r c x y g nm tw=$FILES_TILE th=3 pix= bh=1 bw=4
 	local gy ny cov fr fc f hy
@@ -1445,6 +1517,7 @@ fn fb_drawicons(int id, int h, int w) {
 	[ "$rows" -lt 1 ] && rows=1
 	FB[$id]["y0"]=1
 	FB[$id]["th"]=$th
+	FB[$id]["tw"]=$tw
 	FB[$id]["per"]=$per
 	FB[$id]["vis"]=$((per * rows))
 	n=${FB[$id]["n"]}
@@ -1535,7 +1608,7 @@ fn files_key(int id, k) {
 	per=${FB[$id]["per"]}
 	sel=${FB[$id]["sel"]}
 	n=${FB[$id]["n"]}
-	[ "${FB[$id]["view"]}" = icons ] && icons=1
+	fb_grid "$id" && icons=1
 	if fb_searchkey "$id" "$k"; then
 		return 0
 	fi
@@ -2148,6 +2221,7 @@ fn files_cycle(int id) {
 	case ${FB[$id]["view"]} in
 	list) files_view "$id" details ;;
 	details) files_view "$id" icons ;;
+	icons) files_view "$id" small ;;
 	*) files_view "$id" list ;;
 	esac
 }
@@ -2306,7 +2380,11 @@ files_menus() {
 	for v in "${FILES_VIEWS[@]}"; do
 		on=0
 		[ "${FB[$id]["view"]}" = "$v" ] && on=1
-		dt_mark "${v^}" "${v:0:1}" "$on" files_view "$id" "$v"
+		if [ "$v" = small ]; then
+			dt_mark "Small Icons" s "$on" files_view "$id" "$v"
+		else
+			dt_mark "${v^}" "${v:0:1}" "$on" files_view "$id" "$v"
+		fi
 	done
 	dt_sep
 	on=0
@@ -2429,13 +2507,13 @@ fn files_bg(int id, name) {
 
 # Which entry is under a point in the window, if any.
 fn fb_at(int id, int r, int c) {
-	local y0 per top i tw=$FILES_TILE
+	local y0 per top i tw=${FB[$id]["tw"]:-$FILES_TILE}
 
 	y0=${FB[$id]["y0"]}
 	per=${FB[$id]["per"]}
 	top=${FB[$id]["top"]}
 	[ "$r" -lt "$y0" ] && return 1
-	if [ "${FB[$id]["view"]}" = icons ]; then
+	if fb_grid "$id"; then
 		case $DT_MIRRORON in 1) c=$((${FB[$id]["w"]:-0} + 1 - c)) ;; esac
 		[ "$c" -lt 1 ] && return 1
 		[ $(((c - 1) / tw)) -ge "$per" ] && return 1

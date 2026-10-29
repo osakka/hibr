@@ -1092,6 +1092,7 @@ Skip
 Sleep
 Sleep, Restart, Shut Down
 Small
+Small Icons
 Smallest Height
 Smallest Width
 Smoothest

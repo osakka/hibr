@@ -3369,6 +3369,32 @@ check("the icon view is a grid, and the arrows move across and down it",
       sc.find("▤▤") is not None and sc.find("6 of %d" % ENTRIES) is not None,
       sc)
 
+
+# Small Icons (System 7's "by Small Icon"): a glyph and its name on one
+# row, in columns, mirrored with the glyph on the right; the arrows, a
+# click and `v` reach it as they reach the icon view.
+def smallicons():
+    spre = PRE + "\nFB_DEFAULTVIEW=small"
+    sc = run("files", "12 60 2 2", [b"\x1b[C", b"\x1b[B"], pre=spre)
+    row = sc.row(3)
+    check("the small icon view puts a glyph and its name on one row, in columns",
+          "▤▤ alpha" in row and "▤▤ beta" in row and
+          row.index("beta") > row.index("alpha") + 20, sc)
+    check("and the arrows move across and down it",
+          sc.find("4 of %d" % ENTRIES) is not None, sc)
+    sc = run("files", "12 60 2 2", [press(3, 35)], pre=spre)
+    check("a click on the second column's entry selects that entry",
+          sc.find("2 of %d" % ENTRIES) is not None, sc)
+    sc = run("files", "12 60 2 2", pre=spre + "\nDT_MIRROR=on")
+    check("mirrored, the glyph follows the name",
+          "alpha ▤▤" in sc.row(3) and "▤▤ alpha" not in sc.row(3), sc)
+    sc = run("files", "12 60 2 2", [b"v", b"v", b"v"], pre=PRE)
+    check("v goes from the icon view to small icons",
+          "small" in sc.row(12) and "▤▤ alpha" in sc.row(3), sc)
+
+
+smallicons()
+
 # The chosen view is remembered per directory, and survives a fresh
 # window entirely -- #49. Its own directory pair and XDG_STATE_HOME, not
 # D, since D is what every other files check above and below assumes
@@ -5870,4 +5896,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(772)
+report(777)

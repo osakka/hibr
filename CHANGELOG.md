@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.99.388
+
+**Small Icons** in Files: System 7's "by Small Icon", a fourth view
+beside List, Details and Icons. Each entry's glyph and name share one
+row, in as many columns as the window holds; mirrored, the glyph is on
+the right. View > Small Icons picks it, `v` cycles to it after Icons,
+and each folder remembers it like any other view; Control Panel > Files
+offers it as the default. On Blit it uses the two-column icons, and
+elsewhere the one-cell glyph. Files 3.6.
+
 ## 0.99.387
 
 **JPG, PNG and GIF pictures have icons of their own** (Blit 0.3.8), each

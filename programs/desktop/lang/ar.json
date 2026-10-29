@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.56",
+ "version": "3.57",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1550,6 +1550,7 @@
   "%s items done": "أُنجز %s عنصر",
   "Copied to %s": "نُسخ إلى %s",
   "Moved to %s": "نُقل إلى %s",
-  "Confirm": "تأكيد"
+  "Confirm": "تأكيد",
+  "Small Icons": "أيقونات صغيرة"
  }
 }
