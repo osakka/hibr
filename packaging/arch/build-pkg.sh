@@ -81,6 +81,7 @@ optdepends=('libpng: PNG pictures'
             'poppler-glib: the PDF Reader'
             'xorg-server-xvfb: X programs in desktop windows'
             'polkit: pkexec, for Administrative Access and Date & Time')
+conflicts=('please' 'pleaser')
 backup=('etc/pam.d/hibr' 'etc/pam.d/hibr-login')
 install=hibr.install
 options=(!strip !debug)

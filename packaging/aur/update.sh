@@ -43,6 +43,7 @@ sed -i -e "s/^pkgver=.*/pkgver=$ver/" -e "s/^pkgrel=.*/pkgrel=1/" \
 	for a in "${license[@]}"; do printf '\tlicense = %s\n' "$a"; done
 	for a in "${depends[@]}"; do printf '\tdepends = %s\n' "$a"; done
 	for a in "${optdepends[@]}"; do printf '\toptdepends = %s\n' "$a"; done
+	for a in "${conflicts[@]}"; do printf '\tconflicts = %s\n' "$a"; done
 	for a in "${source[@]}"; do printf '\tsource = %s\n' "$a"; done
 	for a in "${sha256sums[@]}"; do printf '\tsha256sums = %s\n' "$a"; done
 	printf '\npkgname = %s\n' "$pkgname"

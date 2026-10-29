@@ -61,3 +61,9 @@ The helper (`/usr/lib/hibr/hibr-run`) and the policy naming it
 (`/usr/share/polkit-1/actions/org.hibr.policy`) come with the packages, and
 with any `make install` to `/usr` on Linux. `please` says plainly when either
 is missing.
+
+The name is shared with an unrelated sudo alternative written in Rust,
+packaged as `pleaser` on Debian, Ubuntu, Fedora and openSUSE, which also
+installs `/usr/bin/please`. The hibr packages declare a conflict with it, so
+a package manager offers to replace one with the other rather than failing
+on the file. The two cannot be installed together.

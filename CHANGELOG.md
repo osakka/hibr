@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.99.389
+
+**The packages declare a conflict with `pleaser`**, an unrelated sudo
+alternative that Debian, Ubuntu, Fedora and openSUSE package and that
+installs `/usr/bin/please` too. Installing one where the other is present
+failed on the file; a package manager now offers to replace it instead.
+See docs/please.md.
+
 ## 0.99.388
 
 **Small Icons** in Files: System 7's "by Small Icon", a fourth view
