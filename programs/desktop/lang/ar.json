@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.54",
+ "version": "3.55",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1537,6 +1537,7 @@
   "Sort Folders By": "ترتيب المجلدات حسب",
   "Title Menu Modifier": "مفتاح قائمة العنوان",
   "Window Title": "عنوان النافذة",
-  "Empty": "فارغ"
+  "Empty": "فارغ",
+  "Not changed: pkexec is not installed (on Debian, the pkexec package)": "لم يتغيّر: pkexec غير مثبّت (في Debian، الحزمة pkexec)"
  }
 }

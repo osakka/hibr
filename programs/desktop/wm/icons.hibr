@@ -68,6 +68,20 @@ fn dt_iconadd(kind, name, label, glyph, key) {
 	DI_N=$((n + 1))
 }
 
+# The glyph a desktop icon of this kind has: Blit's own two-column icon in
+# the colourway Files uses, where the glyph set has them and Control Panel
+# > Files says Large -- the one Icon Size and Icon Colours for both -- and
+# the glyph given otherwise, which is the set's own, unicode or ascii.
+fn dt_iconbig(kind, plain) {
+	local c=${FB_ICONCOLOUR:-classic}
+
+	if [ "${FB_ICONSIZE:-double}" = double ] && [ -n "${GL["f$kind"]-}" ]; then
+		[ "$c" = classic ] && c= || c=_$c
+		[ -n "${GL["f$kind$c"]-}" ] && { ret "${GL["f$kind$c"]}"; return 0; }
+	fi
+	ret "$plain"
+}
+
 # Read what the desktop shows: home, the disks if wanted, the trash.
 dt_deskscan() {
 	local f g
@@ -75,7 +89,8 @@ dt_deskscan() {
 	DI_N=0
 	DI_SCANT=$EPOCHSECONDS
 	[ "$DT_ICONS" = 1 ] || return 0
-	dt_iconadd place "$HOME" "Home" "${GL[home]}" home
+	g := dt_iconbig home "${GL[home]}"
+	dt_iconadd place "$HOME" "Home" "$g" home
 	[ "$DT_DISKS" = 1 ] && dt_diskscan
 	g="${GL[trash]}"
 	for f in "$DT_TRASH"/files/* "$DT_TRASH"/files/.*; do
@@ -84,6 +99,7 @@ dt_deskscan() {
 		g="${GL[trashfull]}"
 		break
 	done
+	g := dt_iconbig trash "$g"
 	dt_iconadd trash "$DT_TRASH/files" "Trash" "$g" trash
 	dt_iconlay
 }
@@ -104,7 +120,7 @@ iso9660 udf zfs hfsplus apfs}"
 DT_VOLUMES="${DT_VOLUMES-/Volumes}"
 
 dt_diskscan() {
-	local dev mnt fs rest lbl v
+	local dev mnt fs rest lbl v g
 
 	if [ ! -r "$DT_MOUNTS" ]; then
 		[ -d "$DT_VOLUMES" ] || return 0
@@ -113,7 +129,8 @@ dt_diskscan() {
 			lbl=${v##*/}
 			mnt=$v
 			[ "$v" -ef / ] && mnt=/
-			dt_iconadd place "$mnt" "$lbl" "${GL[disk]}" "disk:$mnt"
+			g := dt_iconbig disk "${GL[disk]}"
+		dt_iconadd place "$mnt" "$lbl" "$g" "disk:$mnt"
 		done
 		return 0
 	fi
@@ -126,7 +143,8 @@ dt_diskscan() {
 		else
 			lbl=${mnt##*/}
 		fi
-		dt_iconadd place "$mnt" "$lbl" "${GL[disk]}" "disk:$mnt"
+		g := dt_iconbig disk "${GL[disk]}"
+		dt_iconadd place "$mnt" "$lbl" "$g" "disk:$mnt"
 	done < "$DT_MOUNTS"
 }
 

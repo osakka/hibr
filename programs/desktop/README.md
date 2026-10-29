@@ -709,8 +709,9 @@ copies the file whose path was pasted into the folder shown.
 
 Each folder remembers how it was left, as System 7's did: its view, its
 **Sort By** order (Name, Kind, Date or Size, and Reversed), its icon size
-and colours, its **Background** (White unless chosen otherwise, the text on
-it dark or light to suit), and where its window was and how big. A folder
+and colours, its **Background** (Follow Theme unless chosen otherwise --
+the theme's own colours; a chosen colour gets text dark or light to suit),
+and where its window was and how big. A folder
 never given its own takes Control Panel > Files' defaults. On Blit the icon
 view's **Large** icons are Blit's two-column file icons, a picture per kind
 of file in Classic, Blue, Green or Amber. There is no ".." row (Control

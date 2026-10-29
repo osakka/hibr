@@ -784,6 +784,7 @@
   "Not changed": "⟪Not changed⟫",
   "Not changed: %s": "⟪Not changed: %s⟫",
   "Not changed: pkexec ended with status %s": "⟪Not changed: pkexec ended with status %s⟫",
+  "Not changed: pkexec is not installed (on Debian, the pkexec package)": "⟪Not changed: pkexec is not installed (on Debian, the pkexec package)⟫",
   "Not changed: the password was cancelled": "⟪Not changed: the password was cancelled⟫",
   "Not changed: the password was not accepted": "⟪Not changed: the password was not accepted⟫",
   "Not connected": "⟪Not connected⟫",

@@ -291,6 +291,22 @@ check("an alt-click on the title drops the folders above, and choosing one "
       "goes there",
       sc.find(" alpha/") == (3, 3) and sc.find("1 of %d" % ENTRIES) is not None, sc)
 
+# From the root, a folder is /name and never //name: the title's list of
+# the folders above read / / //home //home/osakka from a doubled slash.
+sc = run("files", FW, [b"\x1b[F", b"\x1b[H"] + [press(2, 8, 8), 0.4], pre="FB_DIR=/tmp", end=None)
+rows = [(sc.row(r)[8:30].split() or [""])[0] for r in range(3, 6)]
+check("the folders above /tmp are / then /tmp, each once, and no doubled slash",
+      rows[:2] == ["/", "/tmp"] and "//" not in sc.text(), rows)
+sc = run("files", FW, pre=PRE)
+check("a folder never given a background follows the theme, and opens as a list",
+      sc.style(5, 10).get("bg") == sc.style(12, 10).get("bg") != "#ffffff"
+      and "list" in sc.row(12), sc)
+sc = run("files", FW, pre=PRE + "\nFB_BGDEF=Blue")
+st = [sc.style(12, c).get("bg") for c in range(3, 34)]
+check("the status row is one bar in the theme's colour, whatever the folder's background",
+      len(set(st)) == 1 and st[0] != "#a9c8e8" and sc.style(5, 10).get("bg") == "#a9c8e8",
+      (st, sc))
+
 sc = run("files", FW, [wheel(6, 10, up=False), press(4, 10)], pre=PRE)
 check("a click after scrolling lands on the row that is there",
       sc.find("5 of %d" % ENTRIES) is not None, sc)
@@ -319,7 +335,7 @@ def folderlook():
     first = subprocess.run([sx.HIBR, "-c", body +
         'fb_scan 7; names name\nfiles_sortby 7 kind; names kind\n'
         'p := fb_bgpair White; echo "white=$p"; p := fb_bgpair Charcoal; echo "dark=$p"\n'
-        'p := fb_bgpair Theme; echo "theme=[$p]"\n'
+        'p := fb_bgpair "Follow Theme"; echo "theme=[$p]"\n'
         'dt_glyphs blit; FB[7][isz]=double; FB[7][icol]=classic\n'
         'for ((i = 0; i < ${FB[7][n]}; i++)); do [ "${FL[7][$i][name]}" = b.png ] && k=$i; done\n'
         'g := fb_glyph 7 $k; printf "big=%%s\\n" "$g" | od -An -c | tr -d " \\n"; echo\n'
@@ -335,7 +351,7 @@ def folderlook():
     check("Sort By Kind puts folders first and then files by their kind",
           "kind: sub b.png c.pdf a.txt" in out and "name: sub a.txt b.png c.pdf" in out, out)
     check("and the folder keeps it, where a folder never sorted keeps the default",
-          "sort=kind" in out and "sub=[] bg=White" in out, out)
+          "sort=kind" in out and "sub=[] bg=Follow Theme" in out, out)
     check("a background's text is dark on a light colour and light on a dark one",
           "white=#ffffff #000000" in out and "dark=#2b2b33 #f0f0f0" in out
           and "theme=[]" in out, out)
@@ -346,6 +362,15 @@ def folderlook():
           and "blue-ok" in out and "small-ok" in out, out)
     check("a window's title is its folder's name by default, and the path when asked",
           "title Files [sub]" in out and "title Files [%s/sub]" % fd in out, out)
+    ic = subprocess.run([sx.HIBR, "-c", '. %s\n'
+        'dt_glyphs blit; g := dt_iconbig home PLAIN; [ "$g" = "${GL[fhome]}" ] && echo blit-big\n'
+        'FB_ICONCOLOUR=amber; g := dt_iconbig trash PLAIN; [ "$g" = "${GL[ftrash_amber]}" ] && echo amber\n'
+        'FB_ICONSIZE=single; g := dt_iconbig home PLAIN; echo "small=$g"\n'
+        'FB_ICONSIZE=double; dt_glyphs unicode; g := dt_iconbig home PLAIN; echo "unicode=$g"\n'
+        % tree("programs/desktop/desktop.hibr")], capture_output=True, text=True).stdout
+    check("the desktop's own icons follow Files' Icon Size and Colours on Blit, and "
+          "keep the set's own glyph everywhere else", "blit-big" in ic and "amber" in ic
+          and "small=PLAIN" in ic and "unicode=PLAIN" in ic, ic)
     shutil.rmtree(fd, True)
     if os.path.exists(vf):
         os.unlink(vf)
@@ -5800,4 +5825,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(764)
+report(768)

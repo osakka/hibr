@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.99.381
+
+**Files follows the theme until told otherwise.** A folder's background
+is **Follow Theme** by default -- the window's own face, and the theme's
+colours for each kind of entry -- where 0.99.380 started every folder on
+White. Follow Theme is the first choice in View > Background and in
+Control Panel > Files. Files 3.1.
+
+**The list of folders above reads right.** From the root, Files joined a
+folder's name as `//name`, so the title's alt-click list read `/`, `/`,
+`//home`, `//home/osakka`. A folder is `/name` now, a doubled slash from
+anywhere is squeezed to one, and the list skips an empty part.
+
+**The status row is one bar** in the theme's colours. A folder's
+background stopped at it and left its count and view name as two islands.
+
+**The desktop's own icons follow Files' Icon Size and Icon Colours**: on
+Blit, Home, the disks and the Trash are Blit's two-column icons in the
+colourway chosen; everywhere else they keep the glyph set's own, as before.
+
+**The packages recommend pkexec**, which Administrative Access and Date &
+Time need and Debian ships on its own. apt adds a new recommendation only
+on a fresh install, so an existing machine wants `sudo apt-get install
+pkexec`; Administrative Access now says so when it is missing. Arabic 3.55.
+
 ## 0.99.380
 
 **Files looks and works more like System 7's Finder.** Files 3.0.

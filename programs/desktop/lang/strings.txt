@@ -778,6 +778,7 @@ Not a valid name
 Not changed
 Not changed: %s
 Not changed: pkexec ended with status %s
+Not changed: pkexec is not installed (on Debian, the pkexec package)
 Not changed: the password was cancelled
 Not changed: the password was not accepted
 Not connected

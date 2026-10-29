@@ -20,7 +20,7 @@
 
 strict
 
-app files "A file browser" 3.0
+app files "A file browser" 3.1
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -85,13 +85,14 @@ command -v dt_keep > /dev/null && dt_keep FB_HIDDENDEF FB_OPENNEW
 # itself once it is (Gitea #406's companion, the owner's System 7 list):
 # the icons two columns wide where the glyph set has them (Blit's), and
 # their colourway; the order its entries are in; and its background, a
-# name from FB_BGS -- White unless the person chose another, in Control
-# Panel > Files for every folder and in a folder's View menu for that one,
-# which wins. Theme is the window's own face, as before.
+# name from FB_BGS -- Follow Theme, the window's own face and the theme's
+# colours for each kind of entry, unless the person chose another, in
+# Control Panel > Files for every folder and in a folder's View menu for
+# that one, which wins.
 FB_ICONSIZE="${FB_ICONSIZE-double}"
 FB_ICONCOLOUR="${FB_ICONCOLOUR-classic}"
 FB_SORTDEF="${FB_SORTDEF-name}"
-FB_BGDEF="${FB_BGDEF-White}"
+FB_BGDEF="${FB_BGDEF-Follow Theme}"
 # A ".." row first in every folder but the root: off, as System 7 had
 # none -- File > Go Up, its key and the title's path list go up instead.
 FB_SHOWUP="${FB_SHOWUP-0}"
@@ -104,8 +105,8 @@ FB_SORTS=(name kind time size)
 # The backgrounds a folder may have, a name and its colour: the person's
 # choice, not the theme's, so the text on it is worked out from it -- dark
 # on a light colour, light on a dark one -- rather than chosen as well.
-FB_BGS=("White #ffffff" "Grey #c8c8c8" "Blue #a9c8e8" "Green #b9dfa8"
-	"Yellow #f6e9a6" "Rose #efc1cb" "Lavender #cfc2e9" "Charcoal #2b2b33" "Theme -")
+FB_BGS=("Follow Theme|-" "White|#ffffff" "Grey|#c8c8c8" "Blue|#a9c8e8" "Green|#b9dfa8"
+	"Yellow|#f6e9a6" "Rose|#efc1cb" "Lavender|#cfc2e9" "Charcoal|#2b2b33")
 # The kind of a file by its ending, for its icon and for sorting by kind.
 declare -gA FB_EXTKIND
 FB_EXTKIND=([txt]=text [log]=text [json]=text [md]=md [markdown]=md
@@ -405,8 +406,13 @@ fn fb_crumbs(d) {
 	rest=${d#/}
 	while [ -n "$rest" ]; do
 		seg=${rest%%/*}
-		cur="$cur/$seg"
-		FB_CRUMBS+=("$cur")
+		# An empty segment is a doubled slash, which names no folder of
+		# its own: "//home" is /home, and listing / again for it read as
+		# a second root.
+		if [ -n "$seg" ]; then
+			cur="$cur/$seg"
+			FB_CRUMBS+=("$cur")
+		fi
 		case $rest in
 		*/*) rest=${rest#*/} ;;
 		*) rest= ;;
@@ -704,8 +710,12 @@ fn fb_go(int id, d) {
 	fi
 	case $d in
 	/*) ;;
-	*) d="${FB[$id]["dir"]}/$d" ;;
+	*) d="${FB[$id]["dir"]%/}/$d" ;;
 	esac
+	# Doubled slashes squeezed to one: a path from anywhere -- a join at
+	# the root, a saved folder, a drag -- names one folder one way, or the
+	# folder's own record and the title's list see two.
+	while [[ $d == *//* ]]; do d=${d//\/\//\/}; done
 	while [ "$d" != "${d%/.}" ]; do d=${d%/.}; done
 	case $d in
 	*/..)
@@ -849,8 +859,8 @@ fn fb_bgpair(name) {
 	local e c r g b
 
 	for e in "${FB_BGS[@]}"; do
-		[ "${e%% *}" = "$name" ] || continue
-		c=${e#* }
+		[ "${e%%|*}" = "$name" ] || continue
+		c=${e#*|}
 		[ "$c" = - ] && { ret ""; return 0; }
 		r=$((16#${c:1:2}))
 		g=$((16#${c:3:2}))
@@ -1018,8 +1028,12 @@ fn files_draw(int id, int h, int w, int row, int col) {
 	# window is a different width.
 	[ "${FB_TITLE:-name}" = pathend ] && [ "${FB[$id]["titlew"]-}" != "${DT[$id]["w"]-}" ] &&
 		fb_retitle "$id" "${FB[$id]["dir"]}"
-	# The folder's background, under everything below the path, its text
-	# in the ink worked out for it; empty for the theme's face.
+	# The search, when `/` has asked for it, takes the window's bottom
+	# row; the status row is the one above it.
+	srows := dt_searchrows "$id"
+	# The folder's background, under the entries and nowhere else, its
+	# text in the ink worked out for it; empty for the theme's face. The
+	# status row is the window's own, one bar in the theme's colours.
 	FB_FACENOW=
 	FB_INKNOW=
 	bp := fb_bgpair "${FB[$id]["bg"]-$FB_BGDEF}"
@@ -1027,12 +1041,8 @@ fn files_draw(int id, int h, int w, int row, int col) {
 		FB_FACENOW=${bp% *}
 		FB_INKNOW=${bp#* }
 		console pen "$FB_INKNOW" "$FB_FACENOW"
-		console fill -p "w$id" 1 1 "$h" "$w" " "
+		console fill -p "w$id" 1 1 $((h - srows - 1)) "$w" " "
 	fi
-	# The path gets the whole row now: the sixteen columns reserved
-	# here were the search box's, and the search has moved to the
-	# window's bottom row and draws nothing until `/` asks for it.
-	srows := dt_searchrows "$id"
 	FB[$id]["w"]=$w
 	FB[$id]["x0"]=1
 	sx=$((w - bw + 1))
@@ -1055,6 +1065,7 @@ fn files_draw(int id, int h, int w, int row, int col) {
 	n=${FB[$id]["n"]}
 	sel=${FB[$id]["sel"]}
 	console pen "$DT_DIM" "$DT_FACE"
+	console fill -p "w$id" $((h - srows)) 1 1 "$w" " "
 	if [ "${FB[$id]["marks"]}" -gt 0 ]; then
 		t := dt_tr "%s selected" "${FB[$id]["marks"]}"
 	elif [ "${n:-0}" = 0 ]; then
@@ -2279,7 +2290,7 @@ files_menus() {
 	fi
 	dt_sub "Background"
 	for v in "${FB_BGS[@]}"; do
-		v=${v%% *}
+		v=${v%%|*}
 		on=0
 		[ "${FB[$id]["bg"]-$FB_BGDEF}" = "$v" ] && on=1
 		dt_mark "$v" "" "$on" files_bg "$id" "$v"

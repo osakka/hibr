@@ -16,7 +16,7 @@
 
 strict
 
-app adminaccess "The Control Panel pane for administrative access" 1.1
+app adminaccess "The Control Panel pane for administrative access" 1.2
 command -v cp_pane > /dev/null && cp_pane adminaccess "Administrative Access" "⊛"
 
 # The choices, as the list shows them, and the setting each is.
@@ -240,6 +240,10 @@ aa_apply() {
 fn aa_run(what, ...lines) {
 	local n
 
+	if ! command -v pkexec > /dev/null; then
+		dt_notep low "Not changed: pkexec is not installed (on Debian, the pkexec package)"
+		return 1
+	fi
 	n := dt_ptyjob access "$what" aa_done aa_prompt pkexec "$AA_HELPER" "$what" "${lines[@]}"
 	if [ -z "$n" ]; then
 		dt_notep low "Could not start pkexec"

@@ -12,7 +12,7 @@
 strict
 
 
-app filesview "The Control Panel pane for Files" 1.5
+app filesview "The Control Panel pane for Files" 1.6
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
@@ -32,7 +32,7 @@ FV_COVERS=(large small)
 FB_ICONSIZE="${FB_ICONSIZE-double}"
 FB_ICONCOLOUR="${FB_ICONCOLOUR-classic}"
 FB_SORTDEF="${FB_SORTDEF-name}"
-FB_BGDEF="${FB_BGDEF-White}"
+FB_BGDEF="${FB_BGDEF-Follow Theme}"
 FB_SHOWUP="${FB_SHOWUP-0}"
 FB_TITLE="${FB_TITLE-name}"
 command -v dt_keep > /dev/null && dt_keep FB_ICONSIZE FB_ICONCOLOUR FB_SORTDEF FB_BGDEF FB_SHOWUP FB_TITLE
@@ -40,7 +40,7 @@ FV_TITLES=("Folder Name" "Path, End Showing" "Path")
 FV_SORTS=(Name Kind Date Size)
 FV_SIZES=(Small Large)
 FV_COLOURS=(Classic Blue Green Amber)
-FV_BGS=(White Grey Blue Green Yellow Rose Lavender Charcoal Theme)
+FV_BGS=("Follow Theme" White Grey Blue Green Yellow Rose Lavender Charcoal)
 
 fn fv_sortname(v) {
 	case $v in kind) ret Kind ;; time) ret Date ;; size) ret Size ;; *) ret Name ;; esac
@@ -83,7 +83,7 @@ fn filesview_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sort Folders By"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=fvsort; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Background"
-	CP[$w][$n]["val"]="${FB_BGDEF:-White}"; CP[$w][$n]["key"]=fvbg; n=$((n + 1))
+	CP[$w][$n]["val"]="${FB_BGDEF:-Follow Theme}"; CP[$w][$n]["key"]=fvbg; n=$((n + 1))
 	v := fv_titlename "$FB_TITLE"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Title"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=fvtitle; n=$((n + 1))
@@ -152,7 +152,7 @@ fn filesview_do(int w, k, int dir) {
 		FB_COVER=$v ;;
 	fvsort) v := fv_sortname "$FB_SORTDEF"; v := cp_next "$v" "$dir" "${FV_SORTS[@]}"
 		cp_set_fvsort "" "$v"; return 0 ;;
-	fvbg) v := cp_next "${FB_BGDEF:-White}" "$dir" "${FV_BGS[@]}"
+	fvbg) v := cp_next "${FB_BGDEF:-Follow Theme}" "$dir" "${FV_BGS[@]}"
 		cp_set_fvbg "" "$v"; return 0 ;;
 	fvtitle) v := fv_titlename "$FB_TITLE"; v := cp_next "$v" "$dir" "${FV_TITLES[@]}"
 		cp_set_fvtitle "" "$v"; return 0 ;;
