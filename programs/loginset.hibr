@@ -1,0 +1,162 @@
+#!@HIBR@
+#
+# hibr-loginset -- the login screen's settings, /etc/hibr/login.json, and
+# whether it runs on a virtual terminal (Gitea #389). Control Panel > Login
+# Manager runs it through pkexec, under hibr's action org.hibr.loginscreen,
+# which Administrative Access governs like any other.
+#
+#   hibr-loginset set KEY VALUE [KEY VALUE...]
+#                         an empty VALUE takes the key out, back to its
+#                         default
+#   hibr-loginset tty N on|off
+#                         hibr-login@ttyN started and enabled, or stopped
+#                         and disabled, through systemctl
+#   hibr-loginset show    the settings, as the screen reads them
+#
+# It takes keys and values, never a file, and checks each before anything
+# is written: a saver, a theme or a colour scheme must be one the screen
+# can read -- shipped, or in the system scope -- and a scheme must pass the
+# same reader the desktop's own Appearance uses (lib/colours.hibr); glyphs,
+# session and power are words from a list; the title and the message are
+# short and have no control character; a PAM service is a file in
+# /etc/pam.d. The file is written whole and renamed into place, readable by
+# everyone, since the pane reads it as the person.
+#
+# -f FILE and -d DIR put the settings and the shipped desktop somewhere
+# else, for the suites. Root never takes them: under pkexec they would only
+# point a privileged write at a path of the caller's.
+
+strict
+
+LGS_FILE=/etc/hibr/login.json
+LGS_DESK="@DESKDIR@"
+LGS_SYS=${HIBR_SYSDIR-}
+LGS_PAM=/etc/pam.d
+
+declare -gA LGS
+
+# Say what is wrong and stop.
+fn lgs_die(msg) {
+	echo "hibr-loginset: $msg" >&2
+	exit 1
+}
+
+# Whether a file of this name is where the screen looks: the system scope,
+# then what hibr ships -- never a home.
+fn lgs_have(kind, file) {
+	local d
+
+	[[ $file =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || return 1
+	for d in ${LGS_SYS:+"$LGS_SYS/$kind"} "$LGS_DESK/$kind"; do
+		[ -f "$d/$file" ] && [ ! -L "$d/$file" ] && { ret "$d/$file"; return 0; }
+	done
+	return 1
+}
+
+# Check one key's value, or stop.
+fn lgs_check(k, v) {
+	local f
+
+	[ -z "$v" ] && return 0
+	case $k in
+	saver)
+		[ "$v" = random ] && return 0
+		lgs_have savers "$v.hibr" > /dev/null || lgs_die "no saver called $v"
+		;;
+	theme) lgs_have themes "$v.json" > /dev/null || lgs_die "no theme called $v" ;;
+	colours)
+		f := lgs_have colours "$v.json" || lgs_die "no colour scheme called $v"
+		cp_colourread check "$f" || lgs_die "$v is not a colour scheme the screen can read"
+		;;
+	glyphs) case $v in unicode | ascii) ;; *) lgs_die "glyphs is unicode or ascii" ;; esac ;;
+	session) case $v in desktop | shell) ;; *) lgs_die "session is desktop or shell" ;; esac ;;
+	power) case $v in on | off) ;; *) lgs_die "power is on or off" ;; esac ;;
+	title | message)
+		[ "${#v}" -le 60 ] || lgs_die "$k is 60 characters at most"
+		[ "$v" = "${v//[[:cntrl:]]/}" ] || lgs_die "$k has a control character in it"
+		;;
+	service)
+		[[ $v =~ ^[a-z0-9][a-z0-9_.-]*$ ]] && [ -f "$LGS_PAM/$v" ] ||
+			lgs_die "no PAM service called $v in $LGS_PAM"
+		;;
+	*) lgs_die "not a login screen setting: $k" ;;
+	esac
+	return 0
+}
+
+# The settings as they are, into LGS: none at all when there is no file,
+# and a file that is not JSON is refused rather than overwritten blind.
+lgs_read() {
+	local j
+
+	LGS=()
+	[ -e "$LGS_FILE" ] || return 0
+	j=$(head -c 65536 "$LGS_FILE")
+	[ -n "$j" ] || return 0
+	json parse LGS "$j" 2> /dev/null || lgs_die "$LGS_FILE is not JSON; not touching it"
+}
+
+# The settings as JSON: an object, empty or not -- json emit writes an
+# empty map as "", which the screen would refuse as not an object.
+lgs_emit() {
+	if [ "${#LGS[@]}" = 0 ]; then
+		echo "{}"
+	else
+		json emit LGS -p
+	fi
+}
+
+# Write LGS whole and rename it into place.
+lgs_write() {
+	local d=${LGS_FILE%/*}
+
+	mkdir -p "$d" || lgs_die "cannot make $d"
+	lgs_emit > "$LGS_FILE.new" || lgs_die "cannot write $LGS_FILE.new"
+	chmod 644 "$LGS_FILE.new" 2> /dev/null
+	mv -f "$LGS_FILE.new" "$LGS_FILE" || lgs_die "cannot write $LGS_FILE"
+}
+
+while [ $# -gt 0 ]; do
+	case $1 in
+	-f | -d)
+		[ "$EUID" != 0 ] || lgs_die "$1 is for the suites, never for root"
+		[ $# -ge 2 ] || lgs_die "$1 wants a path"
+		[ "$1" = -f ] && LGS_FILE=$2 || LGS_DESK=$2
+		shift 2
+		;;
+	*) break ;;
+	esac
+done
+
+. "$LGS_DESK/lib/colours.hibr"
+
+case ${1-} in
+set)
+	shift
+	[ $# -gt 0 ] && [ $(($# % 2)) = 0 ] || lgs_die "usage: hibr-loginset set KEY VALUE [KEY VALUE...]"
+	lgs_read
+	while [ $# -gt 0 ]; do
+		lgs_check "$1" "$2"
+		if [ -z "$2" ]; then
+			unset LGS["$1"]
+		else
+			LGS["$1"]=$2
+		fi
+		shift 2
+	done
+	lgs_write
+	;;
+tty)
+	[[ ${2-} =~ ^[1-9][0-9]?$ ]] || lgs_die "usage: hibr-loginset tty N on|off"
+	case ${3-} in
+	on) systemctl enable --now "hibr-login@tty$2" ;;
+	off) systemctl disable --now "hibr-login@tty$2" ;;
+	*) lgs_die "usage: hibr-loginset tty N on|off" ;;
+	esac
+	;;
+show)
+	lgs_read
+	lgs_emit
+	;;
+*) lgs_die "usage: hibr-loginset set KEY VALUE... | tty N on|off | show" ;;
+esac

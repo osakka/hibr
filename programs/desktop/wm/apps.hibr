@@ -181,9 +181,12 @@ dt_libs() {
 		[ -r "$f" ] || continue
 		lib=
 		while IFS= read -r l; do
-			case $l in [A-Z]*_LIBDONE=1) lib=1; break ;; esac
+			case $l in [A-Z]*_LIBDONE=1) lib=${l%%=*}; break ;; esac
 		done < "$f"
-		[ -n "$lib" ] && . "$f"
+		# One the window manager already loaded (wm/machine.hibr takes
+		# lib/logind.hibr) is not loaded twice: a strict file refuses a
+		# function defined again from the same file.
+		[ -n "$lib" ] && [ -z "${!lib-}" ] && . "$f"
 	done
 	return 0
 }

@@ -16,8 +16,12 @@
 
 strict
 
-app adminaccess "The Control Panel pane for administrative access" 1.2
+app adminaccess "The Control Panel pane for administrative access" 1.3
 command -v cp_pane > /dev/null && cp_pane adminaccess "Administrative Access" "⊛"
+# pkexec's own password prompt answered from a dialog (lib/pkrun.hibr). A
+# desktop has loaded it already (dt_libs); a fixture that sources this pane
+# alone has not.
+[ -n "${PK_LIBDONE-}" ] || . "$DT_HERE/lib/pkrun.hibr"
 
 # The choices, as the list shows them, and the setting each is.
 AA_LABELS=("Package Default" "Administrator's Password" "Administrator's, Remembered"
@@ -30,7 +34,6 @@ declare -gA AA AA_SET AA_PEND
 AA_IDS=()
 AA_LOADED=
 AA_HELPER=
-AA_JOB=
 AA_CHECK=
 AA_DROP=
 
@@ -168,7 +171,7 @@ fn adminaccess_rows(int w) {
 	if [ -z "$AA_HELPER" ]; then
 		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Changes"
 		CP[$w][$n]["val"]="hibr's policy is not installed: read only"; n=$((n + 1))
-	elif [ -n "$AA_JOB" ]; then
+	elif pk_busy; then
 		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Changes"
 		CP[$w][$n]["val"]="being applied${GL[ellipsis]}"; n=$((n + 1))
 	else
@@ -224,7 +227,7 @@ aa_apply() {
 	local id set n
 	local -a lines
 
-	[ -n "$AA_HELPER" ] && [ -z "$AA_JOB" ] || return 0
+	[ -n "$AA_HELPER" ] && ! pk_busy || return 0
 	for id in "${AA_IDS[@]}"; do
 		set := aa_now "$id"
 		[ -n "$set" ] && lines+=("$id $set")
@@ -232,113 +235,21 @@ aa_apply() {
 	aa_run apply "${lines[@]}"
 }
 
-# Run the helper as a job: apply with its settings, or reset. pkexec runs
-# on a pty of its own and asks there with polkit's own text prompt, which
-# the desktop answers with a dialog of its own: started together, the
-# desktop's agent was not yet registered when pkexec looked for one, and
-# pkexec gave up at once with no dialog at all.
+# Run the helper, apply with its settings or reset, under pkexec through
+# lib/pkrun.hibr: its password asked in the desktop's own dialog.
 fn aa_run(what, ...lines) {
-	local n
+	local t
 
-	if ! command -v pkexec > /dev/null; then
-		dt_notep low "Not changed: pkexec is not installed (on Debian, the pkexec package)"
-		return 1
-	fi
-	n := dt_ptyjob access "$what" aa_done aa_prompt pkexec "$AA_HELPER" "$what" "${lines[@]}"
-	if [ -z "$n" ]; then
-		dt_notep low "Could not start pkexec"
-		return 1
-	fi
-	AA_JOB=$n
-	return 0
+	t := dt_tr "Administrative Access"
+	pk_run access "$t" hibr-access aa_done "$AA_HELPER" "$what" "${lines[@]}"
 }
 
-# What pkexec asks on its pty: whose password, through the desktop's own
-# dialog, and which identity when several may answer -- the person's own
-# where it is one of them.
-fn aa_prompt(int n, text) {
-	local l f who= hint pick= me
-
-	text=${text//$'\e[1;31m'/}
-	text=${text//$'\e[0m'/}
-	f := dt_jobfile "$n"
-	case $text in
-	*"assword: ")
-		[ -n "${DTJ[$n]["asking"]}" ] && return 0
-		DTJ[$n]["asking"]=1
-		while IFS= read -r l; do
-			case $l in *"Authenticating as: "*) who=${l##*Authenticating as: } ;; esac
-		done < "$f"
-		if [ -n "$who" ]; then
-			hint := dt_tr "The password of %s, to change who may act as an administrator" "$who"
-		else
-			hint := dt_tr "An administrator's password, to change who may act as an administrator"
-		fi
-		dt_ask "Authentication" "Password:" "" aa_pwgive "$hint" 1 76 aa_pwcancel > /dev/null
-		return 0
-		;;
-	"Choose identity to authenticate as"*": ")
-		me=${USER:-$LOGNAME}
-		while IFS= read -r l; do
-			[[ $l =~ ^\ *([0-9]+)\. ]] || continue
-			[ -n "$pick" ] || pick=${BASH_REMATCH[1]}
-			case $l in *"($me)"* | *" $me") pick=${BASH_REMATCH[1]} ;; esac
-		done < "$f"
-		pty write "${DTJ[$n]["pty"]}" "${pick:-1}"$'\r'
-		return 0
-		;;
-	esac
-	return 1
-}
-
-# The dialog answered: typed onto pkexec's pty by a builtin, so the
-# password is on no command line.
-fn aa_pwgive(v, int? id = "") {
-	local n=$AA_JOB
-
-	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
-	pty write "${DTJ[$n]["pty"]}" "$v"$'\r'
-	DTJ[$n]["asking"]=
-	return 0
-}
-
-# Cancelled: pkexec is told so, and gives up.
-fn aa_pwcancel(int? id = "") {
-	local n=$AA_JOB
-
-	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
-	pty write "${DTJ[$n]["pty"]}" $'\003'
-	return 0
-}
-
-# The helper has finished: say how it went, in pkexec's or the helper's
-# own words, and read everything again.
-fn aa_done(int n, int st) {
-	local l f why= failed=
-
-	AA_JOB=
-	f := dt_jobfile "$n"
-	while IFS= read -r l; do
-		l=${l//$'\e[1;31m'/}
-		l=${l//$'\e[0m'/}
-		case $l in
-		"hibr-access: "*) why=${l#hibr-access: } ;;
-		*"AUTHENTICATION FAILED"*) failed=1 ;;
-		"Error executing command"* | *"Not authorized"* | *"No authentication agent"*)
-			[ -n "$why" ] || why=$l ;;
-		esac
-	done < "$f"
+# The helper has finished; a failure has been said already. Read
+# everything again.
+fn aa_done(int st) {
 	if [ "$st" = 0 ]; then
 		AA_PEND=()
 		dt_note "Administrative access changed"
-	elif [ -n "$failed" ]; then
-		dt_notep low "Not changed: the password was not accepted"
-	elif [ "$st" = 126 ]; then
-		dt_notep low "Not changed: the password was cancelled"
-	elif [ -n "$why" ]; then
-		dt_notep low "Not changed: %s" "$why"
-	else
-		dt_notep low "Not changed: pkexec ended with status %s" "$st"
 	fi
 	aa_load
 	return 0
@@ -392,7 +303,7 @@ fn adminaccess_do(int? w = "", k = "", int? dir = "") {
 	apply) aa_apply ;;
 	forget) AA_PEND=() ;;
 	reset)
-		[ -n "$AA_HELPER" ] && [ -z "$AA_JOB" ] && AA_PEND=() && aa_run reset
+		[ -n "$AA_HELPER" ] && ! pk_busy && AA_PEND=() && aa_run reset
 		;;
 	reload) aa_load ;;
 	esac

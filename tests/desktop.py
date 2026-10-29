@@ -3852,7 +3852,7 @@ PANEL = ('. %s/panel.hibr\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANE
 # became Calendar & Contacts, so it sorts first among them now.
 ORDER = ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "power", "sound",
          "aboutme", "abouthibr", "adminaccess", "appearance", "cliphist", "control_strip",
-         "desktop", "filetypes", "language", "barset", "notify", "pictures",
+         "desktop", "filetypes", "language", "loginmgr", "barset", "notify", "pictures",
          "screensaver", "network", "shortcuts", "taskmgr", "windows",
          "pimset", "filesview", "mailset", "prayerset", "notes", "terminal",
          "vaultset", "tube"]
@@ -6303,6 +6303,95 @@ check("an arrow brings the box without typing anything, and with no About "
       s[1].find("User name") is not None and s[2].find("Password") is not None
       and "\u2580" not in s[2].text() and ran == "desktop %s from-pam" % ME, s[2])
 
+def loginlook():
+    """How the screen looks and what it offers, from login.json (Gitea #389):
+    a theme and a colour scheme read only from what hibr ships and the system
+    scope, the default session, and Sleep, Restart and Shut Down through a
+    stand-in logind that answers yes and writes down what it was asked."""
+    d = tempfile.mkdtemp(prefix="hibr-lglook-")
+    bus = os.path.join(d, "busctl")
+    open(bus, "w").write('#!/bin/sh\ncase $1 in --*) shift ;; esac\n'
+                         'case $1:$5 in\ncall:Can*) echo "s \\"yes\\"" ;;\n'
+                         'call:*) [ -n "$LDFAIL" ] && { echo "Access denied" >&2; exit 1; }\n'
+                         '        echo "$5 $6 $7" >> %s/asked ;;\nesac\n' % d)
+    os.chmod(bus, 0o755)
+    asked = os.path.join(d, "asked")
+
+    def conf(**kw):
+        f = os.path.join(d, "login.json")
+        json.dump(kw, open(f, "w"))
+        return {"LG_CONFFILE": f, "LD_BUSCTL": bus, "LG_SEAT": "seat0",
+                "XDG_CONFIG_HOME": os.path.join(LGDIR, "none")}
+
+    def face(sc):
+        r, c = sc.find("User name") or (0, 0)
+        return sc.style(r, c).get("bg")
+
+    s, _ = loginrun([0.3, b"x"], conf(theme="meadow"))
+    check("the login screen draws in its theme's colour scheme",
+          face(s[1]) == "#ece9d8", (face(s[1]), s[1]))
+    s, _ = loginrun([0.3, b"x"], conf(theme="meadow", colours="paper"))
+    check("and a colour scheme of its own wins over the theme's",
+          face(s[1]) == "#f5f2ea", face(s[1]))
+    # One name, two copies: meadow's colours in the system scope, paper's in
+    # a home. The screen must take the first and never see the second.
+    home = os.path.join(d, "home")
+    sysd = os.path.join(d, "sys")
+    os.makedirs(os.path.join(home, "hibr", "colours"))
+    os.makedirs(os.path.join(sysd, "colours"))
+    open(os.path.join(home, "hibr", "colours", "mine.json"), "w").write(
+        open(tree("programs/desktop/colours/paper.json")).read())
+    open(os.path.join(sysd, "colours", "mine.json"), "w").write(
+        open(tree("programs/desktop/colours/meadow.json")).read())
+    s, _ = loginrun([0.3, b"x"], dict(conf(colours="mine"), XDG_CONFIG_HOME=home,
+                                      XDG_DATA_HOME=home, HIBR_SYSDIR=sysd))
+    check("a scheme an administrator installed is read, and one of the same "
+          "name in somebody's home never is, since this is root",
+          face(s[1]) == "#ece9d8", face(s[1]))
+    s, _ = loginrun([0.3, b"x"], conf(message="Hi\x1b[2Jthere"))
+    check("its message is drawn without the control characters in it",
+          s[1].find("Hi[2Jthere") is not None, s[1])
+    s, ran = loginrun([0.3, b"\x1b[B", ME.encode() + b"\r", b"right horse\r"],
+                      conf(session="shell"))
+    check("the default session is the settings' for a person who has not "
+          "chosen one", ran == "shell %s from-pam" % ME, ran)
+
+    s, _ = loginrun([0.3, b"x", b"\x1b[21~", b"\x1b[B", b"\x1b[B", b"\r",
+                     b"\x1b", b"\x1b[A", b"\x1b[A", b"\r"], conf())
+    a = open(asked).read().split() if os.path.exists(asked) else []
+    check("Power is offered under the box where logind allows it",
+          s[1].find("Power  F10") is not None, s[1])
+    check("F10 lists what logind allows: Sleep, Hibernate, Restart, Shut Down",
+          all(s[2].find(t) is not None for t in
+              ("Sleep", "Hibernate", "Restart", "Shut Down")), s[2])
+    check("Restart asks first, and Esc takes the question back",
+          s[5].find("Restart? Enter: yes") is not None and
+          s[6].find("Restart?") is None, (s[5], s[6]))
+    check("Sleep goes to logind at once, and nothing else was asked of it",
+          a == ["Suspend", "b", "false"], a)
+    if os.path.exists(asked):
+        os.unlink(asked)
+    s, _ = loginrun([0.3, b"x", b"\x1b[21~", b"\x1b[B", b"\x1b[B", b"\x1b[B",
+                     b"\r", b"\r"], conf())
+    a = open(asked).read().split() if os.path.exists(asked) else []
+    check("Shut Down, answered yes, asks logind to power off",
+          a == ["PowerOff", "b", "false"], a)
+    s, _ = loginrun([0.3, b"x", b"\x1b[21~", b"\r"], dict(conf(), LDFAIL="1"))
+    check("and when logind refuses, the box says so rather than going quiet",
+          s[3].find("logind refused") is not None, s[3])
+    s, _ = loginrun([0.3, b"x", b"\x1b[21~"], conf(power="off"))
+    check("power off in the settings offers none of it",
+          s[1].find("Power  F10") is None and s[2].find("Shut Down") is None, s[2])
+    e = conf()
+    e.pop("LG_SEAT")
+    s, _ = loginrun([0.3, b"x"], e)
+    check("nor does a screen that is not at the computer: no seat, no VT",
+          s[1].find("Power  F10") is None, s[1])
+    shutil.rmtree(d, True)
+
+
+loginlook()
+
 s, ran = loginrun([0.3, b"r", b"oot\r", b"anything\r", 2.2, b"\x1b", b"\x1b"])
 check("root is refused at the box", s[3].find("root cannot log in here")
       is not None and ran is None, s[3])
@@ -7431,18 +7520,22 @@ PWLOG = os.path.join(PWD_, "asked")
 # Each stand-in does what the real one does on systemd's Debian: loginctl
 # knows show-session and refuses reboot, poweroff and suspend, which are
 # elogind's alone -- a stand-in that took them hid exactly that, and every
-# Restart on the owner's machine said "logind refused". busctl answers a
-# property and records the logind method it is called with.
+# Restart on the owner's machine said "logind refused". busctl answers
+# logind's Can* methods -- methods, not properties, which the desktop asked
+# for with get-property and so never offered Hibernate (0.99.391) -- with
+# $PWCAN, no by default, and records any other method it is called with.
 open(PWCTL, "w").write(
     '#!/bin/sh\ncase $1 in\nshow-session) printf "Remote=no\\nSeat=seat0\\n" ;;\n'
     '*) echo "Unknown command verb \'$1\'." >&2; exit 1 ;;\nesac\n')
 os.chmod(PWCTL, 0o755)
 PWBUS = os.path.join(PWD_, "busctl")
-open(PWBUS, "w").write('#!/bin/sh\ncase $1 in\ncall) echo "$5 $6 $7" >> %s ;;\n'
+open(PWBUS, "w").write('#!/bin/sh\ncase $1 in --*) shift ;; esac\n'
+                       'case $1:$5 in\ncall:Can*) echo "s \\"${PWCAN:-no}\\"" ;;\n'
+                       'call:*) echo "$5 $6 $7" >> %s ;;\n'
                        '*) echo \'s "no"\' ;;\nesac\n' % PWLOG)
 os.chmod(PWBUS, 0o755)
 PWENV = {"DT_POWERDIR": os.path.join(PWD_, "sys"), "DT_PWCTL": PWCTL,
-         "DT_PWBUSCTL": PWBUS}
+         "LD_BUSCTL": PWBUS}
 # The battery is the Power entry's, from the catalogue (Gitea #388), so a
 # session that wants it loads its watcher; Sleep, Restart and Shut Down are
 # the platform's, and the checks of them below run without it.
@@ -7573,6 +7666,12 @@ check("Special has Sleep, Restart and Shut Down",
       sc.find("Sleep") is not None and sc.find("Shut Down") is not None, sc)
 sr, scl = sc.find("Sleep") or (0, 0)
 dr, dcl = sc.find("Shut Down") or (0, 0)
+check("and no Hibernate where logind says it cannot",
+      sc.find("Hibernate") is None, sc)
+sc, _ = run("", [press(0, spc), release(0, spc), 0.3],
+            env=dict(PWLOC, PWCAN="yes"))
+check("Hibernate where logind says it can, asked as a method",
+      sc.find("Hibernate") is not None, sc)
 
 
 def pwasked(feed, env):
@@ -8181,4 +8280,4 @@ a, b, told = fsrun("fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
 check("and what a module draws at absolute coordinates over it shows",
       a.find("WORLD") == (4, 2), a)
 
-report(884)
+report(899)

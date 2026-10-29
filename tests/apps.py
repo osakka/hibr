@@ -437,14 +437,14 @@ GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "power", "sound",
                 "aboutme", "abouthibr", "adminaccess", "appearance", "cliphist",
-                "control_strip", "desktop", "filetypes", "language",
+                "control_strip", "desktop", "filetypes", "language", "loginmgr",
                 "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
                 "taskmgr", "versions", "wallset", "windows",
                 "browserset", "pimset", "filesview", "mailset", "prayerset",
                 "notes", "terminal", "vaultset", "webapps", "xscreenset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 8 + ["system"] * 19 + ["app"] * 11, out)
+      ["hardware"] * 8 + ["system"] * 20 + ["app"] * 11, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -478,7 +478,7 @@ BODYCOL = 22
 TITLE = {"aboutme": "About Me", "adminaccess": "Administrativ", "appearance": "Appearance", "control_strip": "Control Strip",
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
-         "displays": "Displays", "filetypes": "File Types", "language": "Language", "barset": "Menu Bar",
+         "displays": "Displays", "filetypes": "File Types", "language": "Language", "loginmgr": "Login Manager", "barset": "Menu Bar",
          "network": "Servers", "networks": "Network", "power": "Power", "bluetooth": "Bluetooth", "prayerset": "Prayer Times", "vaultset": "Vault",
          "pictures": "Pictures",
          "screensaver": "Screen Saver",
@@ -723,7 +723,10 @@ check("the Mail pane offers a connection test",
 # tests/desktop.py drives the bundled Arabic catalogue instead.
 DROPS = []
 for pane in ORDER:
-    if pane in ("datetime", "language"):
+    # Login Manager reads the machine's own /etc/hibr/login.json and asks
+    # systemctl, so its values are this box's; its own checks drive it on
+    # stand-ins.
+    if pane in ("datetime", "language", "loginmgr"):
         continue
     # Wallpaper's Display offers the displays attached and saved, and
     # this session has neither, so it has one value and nothing to step
@@ -1404,9 +1407,11 @@ check("Change Wallpaper on the desktop opens the Control Panel at Wallpaper",
 # and where it is left is a setting kept for next time.
 sc = run(*PANEL, feed=[press(10, 21), drag(10, 25), drag(10, 29),
                        release(10, 29), 0.3], pre=CPANES)
+# The list is read at a pane near its top: one further down is pushed
+# below the window whenever a pane is added above it (0.99.391).
 check("the Control Panel's divider drags: the list wider, the pane narrower",
       sc.at(10, 29) == "│" and sc.at(10, 21) != "│" and
-      sc.find("Menu Bar") is not None, sc)
+      sc.find("Appearance") is not None, sc)
 
 # Once it has browsed somewhere else, that becomes the new starting
 # point -- a directory distinct from both $HOME and the wallpaper's own,
@@ -2281,12 +2286,12 @@ def adminaccess_checks():
     open(os.path.join(FAKEPK, "set"), "w").write("org.test.one never - -\n")
     AASCRIPT = (
         '. %s\n. %s\n. %s/adminaccess.hibr\n'
-        'dt_ask() { echo "ask: $5" >&2; aa_pwgive secret; }\n'
+        'dt_ask() { echo "ask: $5" >&2; pk_pwgive secret; }\n'
         'dt_note() { echo "note: $*"; }; dt_notep() { echo "note: $*"; }\n'
         'AA_SETTINGS=%s\n'
         'rows() { declare -gA CP; n := adminaccess_rows 41; for ((i = 0; i < n; i++)); do '
         'echo "${CP[41][$i][kind]}|${CP[41][$i][text]}|${CP[41][$i][val]}"; done; }\n'
-        'tick() { for i in 1 2 3 4 5 6 7 8 9 10; do dt_jobtick; [ -z "$AA_CHECK$AA_JOB" ] && break; sleep 0.2; done; }\n'
+        'tick() { for i in 1 2 3 4 5 6 7 8 9 10; do dt_jobtick; [ -z "$AA_CHECK$PK_JOB" ] && break; sleep 0.2; done; }\n'
         'aa_load; tick; rows; echo ==\n'
         'AA_DROP=org.test.one; aa_choose 0 "Your Own, Remembered"; rows; echo ==\n'
         'aa_group no_such_group_zz; adminaccess_do 41 apply; tick; echo "pend=${#AA_PEND[@]}"\n'
@@ -2318,6 +2323,123 @@ def adminaccess_checks():
 
 
 adminaccess_checks()
+
+
+# Control Panel > Login Manager (Gitea #389), on stand-ins: pkaction names a
+# helper, pkexec asks a password on its pty and writes down what it was
+# asked to run, systemctl says the screen is on tty2. The settings are a
+# scratch file; nothing reaches /etc/hibr, polkit or systemd.
+def loginmgr_checks():
+    d = tempfile.mkdtemp(prefix="hibr-fakelm-")
+    rec = os.path.join(d, "asked")
+    helper = os.path.join(d, "hibr-loginset")
+    for prog, body in (
+            ("hibr-loginset", "exit 1\n"),
+            ("pkaction", "echo '  annotation:        org.freedesktop.policykit.exec.path -> %s'\n" % helper),
+            ("pkexec", "printf 'Authenticating as: tester\\r\\nPassword: '\nread -r pw\n"
+             'echo "pw=$pw" >> %s\n'
+             'for a in "$@"; do printf "[%%s]" "$a"; done >> %s; echo >> %s\n' % (rec, rec, rec)),
+            ("systemctl", '[ "$1 $2" = "is-enabled hibr-login@tty2" ] && exit 0\nexit 1\n')):
+        open(os.path.join(d, prog), "w").write("#!/bin/sh\n" + body)
+        os.chmod(os.path.join(d, prog), 0o755)
+    cfg = os.path.join(d, "login.json")
+    open(cfg, "w").write('{"theme": "meadow", "saver": "matrix"}\n')
+    script = (
+        '. %s\n. %s\n. %s/loginmgr.hibr\n'
+        'dt_ask() { echo "ask: $5" >&2; pk_pwgive secret; }\n'
+        'dt_note() { echo "note: $*"; }; dt_notep() { echo "note: $*"; }\n'
+        'LM_FILE=%s\n'
+        'rows() { declare -gA CP; n := loginmgr_rows 41; for ((i = 0; i < n; i++)); do '
+        'echo "${CP[41][$i][kind]}|${CP[41][$i][text]}|${CP[41][$i][val]}"; done; }\n'
+        'tick() { for i in $(seq 30); do dt_jobtick; pk_busy || break; sleep 0.2; done; }\n'
+        'rows; echo ==\n'
+        'loginmgr_do 41 colours 1; loginmgr_do 41 power 1; loginmgr_do 41 tty 1\n'
+        'lm_typed title "The Lab"; lm_typed message "$(printf "x\\033y")" || echo refused\n'
+        'rows; echo ==\n'
+        'loginmgr_do 41 apply 1; tick; tick; tick; echo ==\n'
+        'lm_choices saver; echo "savers: ${LM_LIST[*]}"\n'
+        'dt_jobfile() { ret %s/blit; }\n'
+        "printf '200\\n{\"enabled\": true, \"pane_id\": \"pane-display-93-2\"}\\n' > %s/blit\n"
+        'lm_blitdone 1 0; LM_BLITJOB=; rows | grep "Runs On"\n'
+        % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/system/panel.hibr"),
+           CP, cfg, d, d))
+    r = subprocess.run([sx.HIBR, "-c", script], capture_output=True, text=True,
+                       env=dict(os.environ, PATH=d + ":" + os.environ["PATH"],
+                                XDG_RUNTIME_DIR=d, XDG_CONFIG_HOME=d, XDG_STATE_HOME=d,
+                                HIBR_SYSDIR=os.path.join(d, "nosys")))
+    out = r.stdout + r.stderr
+    before, chose, applied, after = (out.split("==") + ["", "", "", ""])[:4]
+    asked = (open(rec).read() if os.path.exists(rec) else "").replace("\r", "")
+    check("Login Manager shows the screen's settings from its file, and where it runs",
+          "set|Theme|meadow" in before and "set|Screen Saver|matrix" in before
+          and "set|Colour Scheme|From Theme" in before and "set|Runs On|tty2" in before
+          and "action|Apply Changes" not in before, out)
+    check("a change waits, marked, until Apply Changes, and a message with a "
+          "control character is refused",
+          "set|Colour Scheme|* amber" in chose and "set|Title|* The Lab" in chose
+          and "set|Runs On|* tty3" in chose and "action|Apply Changes" in chose
+          and "refused" in chose, out)
+    check("Apply Changes sets everything in one call under pkexec, its password asked "
+          "in the desktop's own dialog, then moves the screen from tty2 to tty3",
+          asked.count("pw=secret") == 3
+          and "[%s][set]" % helper in asked and "[colours][amber]" in asked
+          and "[power][off]" in asked and "[title][The Lab]" in asked
+          and "[%s][tty][2][off]\n" % helper in asked
+          and "[%s][tty][3][on]\n" % helper in asked
+          and asked.index("[set]") < asked.index("[tty][2]") < asked.index("[tty][3]")
+          and out.count("ask: The password of tester, for Login Manager") == 3
+          and "note: The login screen changes at the next logout" in applied, (asked, out))
+    check("its savers are only what the screen can read: what hibr ships",
+          "savers: Random " in after and "mystify" in after, out)
+    check("on Blit, where Blit runs the screen it says so, and where",
+          "info|Runs On|Managed by Blit: on, display 93, pane 2" in after, out)
+    # The probe itself, against a stand-in for Blit's API that answers
+    # /v1/login only to the token the Blit pane keeps (0700, 0600, this very
+    # address), and 401 to anything else.
+    srv = subprocess.Popen([sys.executable, "-c",
+        "import http.server, json, sys\n"
+        "class H(http.server.BaseHTTPRequestHandler):\n"
+        "    def do_GET(s):\n"
+        "        ok = s.headers.get('Authorization') == 'Bearer tok123'\n"
+        "        b = json.dumps({'state': 'running', 'enabled': True, 'display_id': 'display-93',"
+        " 'pane_id': 'pane-display-93-2'}).encode() if ok else b'{}'\n"
+        "        s.send_response(200 if ok and s.path == '/v1/login' else 401)\n"
+        "        s.send_header('Content-Length', str(len(b))); s.end_headers(); s.wfile.write(b)\n"
+        "    def log_message(s, *a): pass\n"
+        "h = http.server.HTTPServer(('127.0.0.1', 0), H)\n"
+        "print(h.server_port, flush=True)\n"
+        "h.serve_forever()\n"], stdout=subprocess.PIPE, text=True)
+    try:
+        port = srv.stdout.readline().strip()
+        url = "http://127.0.0.1:%s" % port
+        bd = os.path.join(d, "hibr", "blit")
+        os.makedirs(bd)
+        os.chmod(bd, 0o700)
+        cf = os.path.join(bd, "connection.json")
+        json.dump({"url": url, "token": "tok123"}, open(cf, "w"))
+        os.chmod(cf, 0o600)
+        probe = (
+            '. %s\n. %s\n. %s/loginmgr.hibr\n'
+            'dt_jobfile() { ret %s/probe; }\n'
+            'lm_blitprobe > %s/probe; lm_blitdone 1 0; echo "says=[$LM_BLIT] [$LM_BLITSAYS]"\n'
+            % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/system/panel.hibr"),
+               CP, d, d))
+        pe = dict(os.environ, XDG_RUNTIME_DIR=d, XDG_CONFIG_HOME=d, XDG_STATE_HOME=d,
+                  BLIT_CP_URL=url, BLIT_VERSION="0.3.9")
+        r = subprocess.run([sx.HIBR, "-c", probe], capture_output=True, text=True, env=pe)
+        check("the probe asks Blit with the Blit pane's own token, and shows where",
+              "says=[yes] [on, display 93, pane 2]" in r.stdout, (r.stdout, r.stderr))
+        os.chmod(cf, 0o644)
+        r = subprocess.run([sx.HIBR, "-c", probe], capture_output=True, text=True, env=pe)
+        check("a token file anyone may read is not used: Blit, without the detail",
+              "says=[yes] []" in r.stdout, (r.stdout, r.stderr))
+    finally:
+        srv.kill()
+        srv.wait()
+    shutil.rmtree(d, True)
+
+
+loginmgr_checks()
 shutil.rmtree(FAKE, True)
 
 # Windows' own rows start with the chrome: Frame, Buttons, Title, Button Style.
@@ -5910,4 +6032,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(778)
+report(785)

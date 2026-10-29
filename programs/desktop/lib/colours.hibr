@@ -1,0 +1,76 @@
+#!/usr/bin/env hibr
+#
+# lib/colours -- what a colour scheme is, and the one reader that checks
+# it: Control Panel > Appearance lists and applies schemes through it, and
+# the login screen, which runs as root, reads its own scheme through it
+# too (Gitea #389), so a file the desktop refuses is one the login screen
+# refuses, by the same rule.
+#
+# A colour scheme is a JSON file, one to a scheme, named for it: seven
+# colours -- wall, dot, bar, active, idle, face, ink -- seven optional roles
+# -- dim, selink, good, warn, bad, info, well, each defaulting to the value
+# the dark schemes share (CP_CODEF) -- and shadow, console darken's own
+# pct, how much of a colour survives once it is darkened. JSON and not a
+# script, because it is only data and is the thing people pass around: a
+# file someone else wrote can set colours and nothing else
+# (docs/adr/0028). Where the files are looked for is each caller's own:
+# the desktop's scan list, or the login screen's shipped and system
+# folders, never a home.
+
+strict
+
+CO_LIBDONE=1
+
+declare -gA CP_CO
+CP_COKEYS=(wall dot bar active idle face ink)
+CP_COROLES=(dim selink good warn bad info well)
+declare -gA CP_CODEF
+CP_CODEF["dim"]="#718096"; CP_CODEF["selink"]="#1a202c"
+CP_CODEF["good"]="#68d391"; CP_CODEF["warn"]="#f6ad55"
+CP_CODEF["bad"]="#f56565"; CP_CODEF["info"]="#4fd1c5"
+CP_CODEF["well"]="#2d3748"
+
+
+# Read one colour file into CP_CO[name], or refuse it whole: every colour
+# must be #rrggbb and the shadow a number from 1 to 100, so a broken file
+# is left out of the list rather than half applied.
+fn cp_colourread(n, f) {
+	local j k v
+
+	json parse j < "$f" 2> /dev/null || return 1
+	for k in "${CP_COKEYS[@]}"; do
+		v=${j["$k"]}
+		v=${v#\#}
+		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
+			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
+	done
+	for k in "${CP_COROLES[@]}"; do
+		[ -n "${j["$k"]+x}" ] || continue
+		v=${j["$k"]}
+		v=${v#\#}
+		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
+			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
+	done
+	for k in titlebar titleink hot; do
+		[ -n "${j["$k"]+x}" ] || continue
+		v=${j["$k"]}
+		v=${v#\#}
+		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
+			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
+	done
+	case ${j["checks"]-box} in box | knob | block | tick) ;; *) return 1 ;; esac
+	v=${j["shadow"]-55}
+	case $v in '' | *[!0-9]*) return 1 ;; esac
+	[ ${#v} -le 3 ] && [ "$v" -ge 1 ] && [ "$v" -le 100 ] || return 1
+	for k in "${CP_COKEYS[@]}"; do
+		CP_CO["$n"]["$k"]=${j["$k"]}
+	done
+	for k in "${CP_COROLES[@]}"; do
+		CP_CO["$n"]["$k"]=${j["$k"]-${CP_CODEF["$k"]}}
+	done
+	CP_CO["$n"]["shadow"]=$v
+	CP_CO["$n"]["checks"]=${j["checks"]-}
+	CP_CO["$n"]["titlebar"]=${j["titlebar"]-}
+	CP_CO["$n"]["titleink"]=${j["titleink"]-}
+	CP_CO["$n"]["hot"]=${j["hot"]-}
+}

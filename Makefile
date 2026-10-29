@@ -409,8 +409,11 @@ ifneq ($(POLKITDIR),)
 	sed '1s|@HIBR@|$(PREFIX)/bin/hibr|' programs/run.hibr > $(DESTDIR)$(HELPDIR)/hibr-run
 	sed -e '1s|@HIBR@|$(PREFIX)/bin/hibr|' -e 's|@BINDIR@|$(PREFIX)/bin|' \
 		programs/catpriv.hibr > $(DESTDIR)$(HELPDIR)/hibr-catalogue
+	sed -e '1s|@HIBR@|$(PREFIX)/bin/hibr|' -e 's|@DESKDIR@|$(DESKDIR)|' \
+		programs/loginset.hibr > $(DESTDIR)$(HELPDIR)/hibr-loginset
 	chmod 755 $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime \
-		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(HELPDIR)/hibr-catalogue
+		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(HELPDIR)/hibr-catalogue \
+		$(DESTDIR)$(HELPDIR)/hibr-loginset
 	sed 's|@HELPDIR@|$(HELPDIR)|' packaging/polkit/org.hibr.policy.in \
 		> $(DESTDIR)$(POLKITDIR)/org.hibr.policy
 	chmod 644 $(DESTDIR)$(POLKITDIR)/org.hibr.policy
@@ -435,7 +438,7 @@ uninstall:
 ifneq ($(POLKITDIR),)
 	rm -f $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime \
 		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(HELPDIR)/hibr-catalogue \
-		$(DESTDIR)$(POLKITDIR)/org.hibr.policy
+		$(DESTDIR)$(HELPDIR)/hibr-loginset $(DESTDIR)$(POLKITDIR)/org.hibr.policy
 endif
 	rm -f $(DESTDIR)$(PREFIX)/bin/please
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \

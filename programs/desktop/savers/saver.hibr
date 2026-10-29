@@ -31,6 +31,10 @@ declare -gA SV
 SV_LIST=()
 sv_sysd=
 command -v dt_sysdir > /dev/null && sv_sysd := dt_sysdir savers
+# The login screen and the lock have no window manager, so no dt_sysdir:
+# the same folder from the shell's own HIBR_SYSDIR, or an administrator's
+# saver was one the login screen never saw (Gitea #389).
+[ -z "$sv_sysd" ] && [ -n "${HIBR_SYSDIR-}" ] && sv_sysd=$HIBR_SYSDIR/savers
 # The machine's scope sits **above** the person's own: an app an
 # administrator installed for everybody is authoritative and a user
 # does not override it (ADR 0045). Only ~/.config, which is a file

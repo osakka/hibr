@@ -56,4 +56,15 @@
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">@HELPDIR@/hibr-catalogue</annotate>
   </action>
+
+  <action id="org.hibr.loginscreen">
+    <description>Change the login screen</description>
+    <message>Authentication is required to change the login screen.</message>
+    <defaults>
+      <allow_any>auth_admin_keep</allow_any>
+      <allow_inactive>auth_admin_keep</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPDIR@/hibr-loginset</annotate>
+  </action>
 </policyconfig>

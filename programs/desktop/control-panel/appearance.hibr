@@ -24,15 +24,9 @@ command -v dt_keep > /dev/null && dt_keep CP_THEME CP_COLOURS
 CP_CHECKS=(theme box knob block tick)
 fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
 
-# A colour scheme is a JSON file, one to a scheme, named for it: seven
-# colours -- wall, dot, bar, active, idle, face, ink -- seven optional roles
-# -- dim, selink, good, warn, bad, info, well, each defaulting to the value
-# the dark schemes share (CP_CODEF) -- and shadow, console darken's own
-# pct, how much of a colour survives once it is darkened. 55 is a soft
-# shadow on a dark face; a light face needs much less of a cut, which is
-# why paper's is 90. JSON and not a script, because it is only data and is
-# the thing people pass around: a file someone else wrote can set colours
-# and nothing else (docs/adr/0028). The person's own folder is searched
+# A colour scheme is a JSON file (lib/colours.hibr says what is in one).
+# 55 is a soft shadow on a dark face; a light face needs much less of a
+# cut, which is why paper's is 90. The person's own folder is searched
 # first, so a file there replaces the bundled one of that name -- and their
 # themes folder after it, where every colour file lived before 0.99.33 --
 # then the data folder `catalogue install` writes into, so a scheme of your own
@@ -54,58 +48,10 @@ CP_COLOURDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/colours"
 	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/colours"
 	"$DT_HERE/colours")
 CP_COLOURLIST=()
-declare -gA CP_CO
-CP_COKEYS=(wall dot bar active idle face ink)
-CP_COROLES=(dim selink good warn bad info well)
-declare -gA CP_CODEF
-CP_CODEF["dim"]="#718096"; CP_CODEF["selink"]="#1a202c"
-CP_CODEF["good"]="#68d391"; CP_CODEF["warn"]="#f6ad55"
-CP_CODEF["bad"]="#f56565"; CP_CODEF["info"]="#4fd1c5"
-CP_CODEF["well"]="#2d3748"
-
-# Read one colour file into CP_CO[name], or refuse it whole: every colour
-# must be #rrggbb and the shadow a number from 1 to 100, so a broken file
-# is left out of the list rather than half applied.
-fn cp_colourread(n, f) {
-	local j k v
-
-	json parse j < "$f" 2> /dev/null || return 1
-	for k in "${CP_COKEYS[@]}"; do
-		v=${j["$k"]}
-		v=${v#\#}
-		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
-			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
-	done
-	for k in "${CP_COROLES[@]}"; do
-		[ -n "${j["$k"]+x}" ] || continue
-		v=${j["$k"]}
-		v=${v#\#}
-		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
-			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
-	done
-	for k in titlebar titleink hot; do
-		[ -n "${j["$k"]+x}" ] || continue
-		v=${j["$k"]}
-		v=${v#\#}
-		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
-			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
-	done
-	case ${j["checks"]-box} in box | knob | block | tick) ;; *) return 1 ;; esac
-	v=${j["shadow"]-55}
-	case $v in '' | *[!0-9]*) return 1 ;; esac
-	[ ${#v} -le 3 ] && [ "$v" -ge 1 ] && [ "$v" -le 100 ] || return 1
-	for k in "${CP_COKEYS[@]}"; do
-		CP_CO["$n"]["$k"]=${j["$k"]}
-	done
-	for k in "${CP_COROLES[@]}"; do
-		CP_CO["$n"]["$k"]=${j["$k"]-${CP_CODEF["$k"]}}
-	done
-	CP_CO["$n"]["shadow"]=$v
-	CP_CO["$n"]["checks"]=${j["checks"]-}
-	CP_CO["$n"]["titlebar"]=${j["titlebar"]-}
-	CP_CO["$n"]["titleink"]=${j["titleink"]-}
-	CP_CO["$n"]["hot"]=${j["hot"]-}
-}
+# What a scheme is, and cp_colourread, live in lib/colours.hibr, which
+# the login screen reads too (Gitea #389). A desktop has loaded it
+# already (dt_libs); a fixture that sources this pane alone has not.
+[ -n "${CO_LIBDONE-}" ] || . "$DT_HERE/lib/colours.hibr"
 
 # Every colour scheme in CP_COLOURDIRS, the first of each name winning,
 # sorted. A file in the old themes folder that is a theme, not colours, is

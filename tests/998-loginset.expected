@@ -1,0 +1,73 @@
+0
+-- nothing set: an empty object
+{}
+status 0
+-- what the screen can read, written
+status 0
+status 0
+{
+  "theme": "meadow",
+  "colours": "paper",
+  "saver": "matrix",
+  "glyphs": "ascii",
+  "session": "shell",
+  "power": "off",
+  "title": "The Lab",
+  "message": "Back at nine"
+}
+status 0
+-- an empty value takes a key back to its default
+status 0
+{
+  "theme": "meadow",
+  "saver": "matrix",
+  "glyphs": "ascii",
+  "session": "shell",
+  "title": "The Lab",
+  "message": "Back at nine"
+}
+status 0
+-- refused, and the file left as it was
+hibr-loginset: no colour scheme called nosuch
+status 1
+hibr-loginset: no colour scheme called ../../etc/passwd
+status 1
+hibr-loginset: no theme called nosuch
+status 1
+hibr-loginset: no saver called nosuch
+status 1
+hibr-loginset: glyphs is unicode or ascii
+status 1
+hibr-loginset: session is desktop or shell
+status 1
+hibr-loginset: power is on or off
+status 1
+hibr-loginset: title has a control character in it
+status 1
+hibr-loginset: message is 60 characters at most
+status 1
+hibr-loginset: no PAM service called nosuch-pam-service in /etc/pam.d
+status 1
+hibr-loginset: not a login screen setting: wallpaper
+status 1
+hibr-loginset: usage: hibr-loginset set KEY VALUE [KEY VALUE...]
+status 1
+hibr-loginset: usage: hibr-loginset tty N on|off
+status 1
+hibr-loginset: usage: hibr-loginset tty N on|off
+status 1
+hibr-loginset: usage: hibr-loginset set KEY VALUE... | tty N on|off | show
+status 1
+{
+  "theme": "meadow",
+  "saver": "matrix",
+  "glyphs": "ascii",
+  "session": "shell",
+  "title": "The Lab",
+  "message": "Back at nine"
+}
+status 0
+-- every key taken out leaves an empty object, which the screen reads
+status 0
+{}
+status 0

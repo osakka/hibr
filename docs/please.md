@@ -33,9 +33,10 @@ why hibr's own messages and pages say `please` and never `sudo`.
 
 `please` is the general way. Where hibr has a narrower job to do as root it
 has an action of its own, so a group can be let do that one thing without
-being given root: Date & Time has `org.hibr.settime`, and an install for
+being given root: Date & Time has `org.hibr.settime`, an install for
 every user (`catalogue --system`, see [catalogue.md](catalogue.md)) has
-`org.hibr.catalogue`, which the catalogue asks for by itself.
+`org.hibr.catalogue`, which the catalogue asks for by itself, and Control
+Panel > Login Manager has `org.hibr.loginscreen`.
 
 ## Who may, and with whose password
 

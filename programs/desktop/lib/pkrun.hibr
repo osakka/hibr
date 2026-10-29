@@ -1,0 +1,155 @@
+#!/usr/bin/env hibr
+#
+# lib/pkrun -- run one of hibr's root helpers through pkexec, from a
+# window: Control Panel > Administrative Access (Gitea #406) and > Login
+# Manager (Gitea #389) both change something root owns this way, and this
+# is the one way. pkexec runs on a pty of its own and asks there with
+# polkit's own text prompt, which the desktop answers with a dialog of its
+# own: started beside the desktop's polkit agent, the agent was not yet
+# registered when pkexec looked for one, and pkexec gave up at once with no
+# dialog at all (0.99.379). The password is typed onto the pty by a
+# builtin, so it is on no command line.
+#
+# One at a time: a second asked for while one runs is refused with a note.
+
+strict
+
+PK_LIBDONE=1
+
+PK_JOB=
+PK_TITLE=
+PK_SAYS=
+PK_THEN=
+
+# Run CMD under pkexec, as a job of KIND. TITLE heads the password dialog;
+# a line the helper prints beginning "SAYS: " is its reason for failing;
+# THEN is called with the status once it ends, after any failure has been
+# said, and says success itself.
+fn pk_run(kind, title, says, then, ...cmd) {
+	local n
+
+	if [ -n "$PK_JOB" ]; then
+		dt_notep low "Not changed: an administrator's password is already being asked for"
+		return 1
+	fi
+	if ! command -v pkexec > /dev/null; then
+		dt_notep low "Not changed: pkexec is not installed (on Debian, the pkexec package)"
+		return 1
+	fi
+	n := dt_ptyjob "$kind" pk pk_done pk_prompt pkexec "${cmd[@]}"
+	if [ -z "$n" ]; then
+		dt_notep low "Could not start pkexec"
+		return 1
+	fi
+	PK_JOB=$n
+	PK_TITLE=$title
+	PK_SAYS=$says
+	PK_THEN=$then
+	return 0
+}
+
+# The program an action of hibr's runs, as pkaction says -- or status 1
+# when that policy is not installed, and the window is read only.
+fn pk_helper(action) {
+	local l p=
+
+	command -v pkaction > /dev/null || return 1
+	while IFS= read -r l; do
+		case $l in *"exec.path -> "*) p=${l##*-> } ;; esac
+	done < <(pkaction --action-id "$action" --verbose 2> /dev/null)
+	[ -n "$p" ] && [ -x "$p" ] || return 1
+	ret "$p"
+}
+
+# Whether a helper is running for a window now.
+pk_busy() { [ -n "$PK_JOB" ]; }
+
+# What pkexec asks on its pty: whose password, through the desktop's own
+# dialog, and which identity when several may answer -- the person's own
+# where it is one of them.
+fn pk_prompt(int n, text) {
+	local l f who= hint pick= me
+
+	text=${text//$'\e[1;31m'/}
+	text=${text//$'\e[0m'/}
+	f := dt_jobfile "$n"
+	case $text in
+	*"assword: ")
+		[ -n "${DTJ[$n]["asking"]}" ] && return 0
+		DTJ[$n]["asking"]=1
+		while IFS= read -r l; do
+			case $l in *"Authenticating as: "*) who=${l##*Authenticating as: } ;; esac
+		done < "$f"
+		if [ -n "$who" ]; then
+			hint := dt_tr "The password of %s, for %s" "$who" "$PK_TITLE"
+		else
+			hint := dt_tr "An administrator's password, for %s" "$PK_TITLE"
+		fi
+		dt_ask "Authentication" "Password:" "" pk_pwgive "$hint" 1 76 pk_pwcancel > /dev/null
+		return 0
+		;;
+	"Choose identity to authenticate as"*": ")
+		me=${USER:-$LOGNAME}
+		while IFS= read -r l; do
+			[[ $l =~ ^\ *([0-9]+)\. ]] || continue
+			[ -n "$pick" ] || pick=${BASH_REMATCH[1]}
+			case $l in *"($me)"* | *" $me") pick=${BASH_REMATCH[1]} ;; esac
+		done < "$f"
+		pty write "${DTJ[$n]["pty"]}" "${pick:-1}"$'\r'
+		return 0
+		;;
+	esac
+	return 1
+}
+
+# The dialog answered: typed onto pkexec's pty.
+fn pk_pwgive(v, int? id = "") {
+	local n=$PK_JOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	pty write "${DTJ[$n]["pty"]}" "$v"$'\r'
+	DTJ[$n]["asking"]=
+	return 0
+}
+
+# Cancelled: pkexec is told so, and gives up.
+fn pk_pwcancel(int? id = "") {
+	local n=$PK_JOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	pty write "${DTJ[$n]["pty"]}" $'\003'
+	return 0
+}
+
+# The helper has finished: a failure said in pkexec's or the helper's own
+# words, then the caller told.
+fn pk_done(int n, int st) {
+	local l f why= failed= then=$PK_THEN
+
+	PK_JOB=
+	PK_THEN=
+	f := dt_jobfile "$n"
+	while IFS= read -r l; do
+		l=${l//$'\e[1;31m'/}
+		l=${l//$'\e[0m'/}
+		case $l in
+		"$PK_SAYS: "*) why=${l#"$PK_SAYS: "} ;;
+		*"AUTHENTICATION FAILED"*) failed=1 ;;
+		"Error executing command"* | *"Not authorized"* | *"No authentication agent"*)
+			[ -n "$why" ] || why=$l ;;
+		esac
+	done < "$f"
+	if [ "$st" = 0 ]; then
+		:
+	elif [ -n "$failed" ]; then
+		dt_notep low "Not changed: the password was not accepted"
+	elif [ "$st" = 126 ]; then
+		dt_notep low "Not changed: the password was cancelled"
+	elif [ -n "$why" ]; then
+		dt_notep low "Not changed: %s" "$why"
+	else
+		dt_notep low "Not changed: pkexec ended with status %s" "$st"
+	fi
+	[ -n "$then" ] && "$then" "$st"
+	return 0
+}

@@ -141,7 +141,7 @@ Almost done
 Already joining %s
 Already on %s
 Already pairing %s
-An administrator's password, to change who may act as an administrator
+An administrator's password, for %s
 An event stays in its calendar; make a new one in the other
 An item named %s already exists in %s.
 And Minutes Before
@@ -149,6 +149,7 @@ App
 Appearance
 Append
 Apply
+Apply Changes
 Apps
 Apps: %s available
 Apr
@@ -163,6 +164,7 @@ Ask Sites for Dark Pages
 Asked %s to join
 Asking %s what it keeps…
 Asr
+At most 60 characters
 Athan
 Attach File…
 Attach…
@@ -279,6 +281,7 @@ Close without saving? The changes are lost.
 Code
 Color
 Colour Detail
+Colour Scheme
 Colour a number when it is:
 Colour by Value
 Colour: %s
@@ -376,6 +379,7 @@ Date/time
 Date:
 Dec
 December
+Default Session
 Default View
 Defaults
 Degrees, north and east positive. Empty: the time zone's.
@@ -644,6 +648,9 @@ Lock Screen
 Locking
 Log In
 Log In…
+Login Manager
+Login Screen Message
+Login Screen Title
 Look
 Look Again
 Look for Devices
@@ -677,6 +684,7 @@ Menu bar
 Menus
 Message
 Message sent
+Message:
 Method
 Microphone
 Microphone:
@@ -760,6 +768,7 @@ No Rule
 No browser engine to clear
 No calendar yet: choose a server in Control Panel > PIM, then sync
 No contents
+No control characters
 No devices yet
 No file is selected
 No file type registered for this -- open in hvi anyway?
@@ -782,6 +791,7 @@ Not a place: latitude -90 to 90, longitude -180 to 180
 Not a valid name
 Not changed
 Not changed: %s
+Not changed: an administrator's password is already being asked for
 Not changed: pkexec ended with status %s
 Not changed: pkexec is not installed (on Debian, the pkexec package)
 Not changed: the password was cancelled
@@ -825,6 +835,7 @@ On 5 Seconds
 On Critical Battery
 On a server: no owner or permissions here.
 On the clipboard: %s characters
+One line under the title; empty for none.
 One that begins with an expansion is that expansion:
 Only a web page can be made an app
 Only files can be dropped on a window
@@ -852,6 +863,7 @@ Other Devices
 Other Side
 Other…
 Output
+Over the box; empty for the computer's name.
 Own Pointer:
 Owner
 Owner:
@@ -997,6 +1009,7 @@ Rule
 Rule…
 Run in a terminal
 Running Image
+Runs On
 STATE
 Safar
 Sat
@@ -1174,11 +1187,11 @@ The desktop stopped soon after putting its windows back, twice -- started withou
 The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)
 The download of %s did not finish: %s
 The end is a time, HH:MM
+The login screen changes at the next logout
 The mermaid module is not loaded
 The one there now goes to the trash.
 The page could not be saved as a PDF
 The password of %s, for %s
-The password of %s, to change who may act as an administrator
 The password was not accepted
 The pdf module is not installed
 The record could not be added
@@ -1231,6 +1244,7 @@ Timeout (seconds)
 Title
 Title Bar
 Title Menu Modifier
+Title:
 Titlebar Click
 Today
 Today  Month  Agenda
@@ -1419,6 +1433,7 @@ off -- locked here
 older than the hibr on disk
 on -- locked here
 on battery
+on, display %s, pane %s
 one of the desktop's own apps
 only on the computer's own screen
 order they need each other; one needing itself says #CYCLE.

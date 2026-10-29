@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.391
+
+**Control Panel > Login Manager** (Gitea #389), in the catalogue: how the
+login screen looks and what it offers, set from the desktop.
+
+- **The screen takes a theme and a colour scheme**, read from what hibr
+  ships and the system scope only, never a home folder, since it runs as
+  root. A scheme goes through the same reader Appearance uses, now
+  `lib/colours.hibr`. It also takes a default session for people who have
+  not chosen one, and administrator-installed savers, which it never saw
+  before.
+- **Sleep, Restart and Shut Down on the login screen**, when it is at the
+  computer: **Power** under the box, F10 or a click, each action only where
+  logind allows it, and Restart and Shut Down asking again first.
+  `"power": "off"` takes them away.
+- **The pane** reads `/etc/hibr/login.json` as you and keeps your changes
+  until Apply Changes. They then go in, with one password, through
+  `hibr-loginset` under a new polkit action, *Change the login screen*
+  (`org.hibr.loginscreen`). The helper checks every value. The pane also
+  turns `hibr-login@ttyN` on or off, and on Blit says *Managed by Blit*,
+  with where, from Blit's own `GET /v1/login`.
+- **Hibernate is offered at all, on the desktop too.** logind's `Can*`
+  questions are methods, not properties. They were asked with
+  `get-property`, which errors on every machine, so Hibernate never
+  appeared. The desktop and the login screen now share one way of asking
+  logind, `lib/logind.hibr`.
+- Administrative Access and Login Manager share one way of running a root
+  helper and answering pkexec's password prompt (`lib/pkrun.hibr`).
+
 ## 0.99.390
 
 **No more sudo in what hibr ships** (Gitea #407): elevation is polkit,

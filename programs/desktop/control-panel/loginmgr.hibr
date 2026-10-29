@@ -1,0 +1,455 @@
+#!/usr/bin/env hibr
+#
+# loginmgr -- Control Panel > Login Manager (Gitea #389): how hibr's login
+# screen looks and what it offers, and where it runs.
+#
+# Its settings are /etc/hibr/login.json, root's file, which the screen
+# reads once when it starts. This pane reads it as you -- it is readable by
+# everyone -- and changes it through hibr-loginset under pkexec, hibr's
+# action org.hibr.loginscreen, which Administrative Access governs like any
+# other: changes wait, marked, until Apply Changes, so several cost one
+# password. A theme, a colour scheme and a saver are offered only from
+# what the screen itself can read, which is what hibr ships and the system
+# scope -- never anybody's home, since the screen is root.
+#
+# Where it runs is Blit's to say when Blit runs it, which the pane asks
+# Blit (GET /v1/login) and shows as "Managed by Blit"; anywhere else it is
+# hibr-login@ttyN, switched on or off from here. Named loginmgr, not
+# login, so the prefix is no app's and no PAM service's.
+
+strict
+
+
+app loginmgr "The Control Panel pane for the login screen" 1.0
+command -v cp_pane > /dev/null && cp_pane loginmgr "Login Manager" "⊡"
+[ -n "${PK_LIBDONE-}" ] || . "$DT_HERE/lib/pkrun.hibr"
+
+LM_FILE="${LM_FILE-/etc/hibr/login.json}"
+LM_TTYS=(Off tty1 tty2 tty3 tty4 tty5 tty6)
+LM_GLYPHS=(Default Unicode ASCII)
+LM_SESSIONS=(Desktop Shell)
+
+declare -gA LM LM_PEND
+LM_LOADED=
+LM_HELPER=
+LM_TTY=Off
+LM_BLIT=
+LM_BLITSAYS=
+LM_BLITJOB=
+LM_SETNOW=
+declare -ga LM_TTYSTEPS
+LM_TTYSTEPS=()
+
+# Read the settings as they are, find the helper, and ask where the screen
+# runs: systemctl for a terminal of its own, Blit when this desktop runs on
+# Blit. A file that is not there is every default.
+lm_load() {
+	local j n
+
+	LM=()
+	LM_PEND=()
+	LM_LOADED=1
+	if [ -r "$LM_FILE" ]; then
+		j=$(head -c 65536 "$LM_FILE")
+		[ -n "$j" ] && { json parse LM "$j" 2> /dev/null || LM=(); }
+	fi
+	LM_HELPER=
+	LM_HELPER := pk_helper org.hibr.loginscreen || LM_HELPER=
+	LM_TTY=Off
+	if command -v systemctl > /dev/null; then
+		for n in 1 2 3 4 5 6; do
+			if systemctl is-enabled "hibr-login@tty$n" > /dev/null 2>&1; then
+				LM_TTY=tty$n
+				break
+			fi
+		done
+	fi
+	lm_blitask
+	return 0
+}
+
+# The value in force for a key, a change waiting over the file's own.
+fn lm_get(k) {
+	if [ -n "${LM_PEND["$k"]+x}" ]; then
+		ret "${LM_PEND["$k"]}"
+	else
+		ret "${LM["$k"]-}"
+	fi
+}
+
+# A change, kept until Apply Changes, or let go when it is the value the
+# file already has.
+fn lm_set(k, v) {
+	if [ "${LM["$k"]-}" = "$v" ]; then
+		unset LM_PEND["$k"]
+	else
+		LM_PEND["$k"]=$v
+	fi
+}
+
+# What a row shows: the value, marked when it is waiting.
+fn lm_show(k, v) {
+	if [ -n "${LM_PEND["$k"]+x}" ]; then
+		ret "* $v"
+	else
+		ret "$v"
+	fi
+}
+
+# The names in a folder the screen reads, the system scope's and what hibr
+# ships, each once and sorted: themes, colour schemes or savers.
+fn lm_names(kind, ext) {
+	local d f b out=
+	local -A seen
+	local -a all
+
+	for d in ${HIBR_SYSDIR:+"$HIBR_SYSDIR/$kind"} "$DT_HERE/$kind"; do
+		for f in "$d"/*"$ext"; do
+			[ -f "$f" ] && [ ! -L "$f" ] || continue
+			b=${f##*/}
+			b=${b%"$ext"}
+			[ "$b" = saver ] && continue
+			[[ $b =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || continue
+			[ -n "${seen["$b"]+x}" ] && continue
+			seen["$b"]=1
+			all+=("$b")
+		done
+	done
+	[ "${#all[@]}" -gt 0 ] && arr sort all && out="${all[*]}"
+	ret "$out"
+}
+
+# The choices for a key, as a list: a default first, then the names.
+fn lm_choices(k) {
+	local -a l
+	local x
+
+	case $k in
+	theme) x := lm_names themes .json; read -ra l <<< "$x"; l=("Default" "${l[@]}") ;;
+	colours) x := lm_names colours .json; read -ra l <<< "$x"; l=("From Theme" "${l[@]}") ;;
+	saver) x := lm_names savers .hibr; read -ra l <<< "$x"; l=("Random" "${l[@]}") ;;
+	glyphs) l=("${LM_GLYPHS[@]}") ;;
+	session) l=("${LM_SESSIONS[@]}") ;;
+	tty) l=("${LM_TTYS[@]}") ;;
+	esac
+	LM_LIST=("${l[@]}")
+}
+declare -ga LM_LIST
+
+# A key's value as its list says it, and back.
+fn lm_label(k, v) {
+	case $k in
+	theme) ret "${v:-Default}" ;;
+	colours) ret "${v:-From Theme}" ;;
+	saver) [ -z "$v" ] || [ "$v" = random ] && v=Random; ret "$v" ;;
+	glyphs) case $v in unicode) ret Unicode ;; ascii) ret ASCII ;; *) ret Default ;; esac ;;
+	session) case $v in shell) ret Shell ;; *) ret Desktop ;; esac ;;
+	*) ret "$v" ;;
+	esac
+}
+fn lm_value(k, label) {
+	case $k:$label in
+	theme:Default | colours:"From Theme" | saver:Random | glyphs:Default) ret "" ;;
+	glyphs:Unicode) ret unicode ;;
+	glyphs:ASCII) ret ascii ;;
+	session:Shell) ret shell ;;
+	session:Desktop) ret desktop ;;
+	*) ret "$label" ;;
+	esac
+}
+
+# Ask Blit whether it runs the login screen, in a job: only on a desktop
+# Blit runs, and with the token the Blit pane keeps, read under that
+# pane's own rules.
+lm_blitask() {
+	LM_BLIT=
+	LM_BLITSAYS=
+	[ -n "${BLIT_VERSION-}" ] || return 0
+	[ -n "$LM_BLITJOB" ] && return 0
+	LM_BLITJOB := dt_job loginmgr blit lm_blitdone lm_blitprobe
+	return 0
+}
+
+# The probe, in the job: GET /v1/login, its status on the first line and
+# the reply after it. The token is a header on a builtin, never on a command
+# line, and is used only where it was kept for this very address. A mode
+# is read from what ls prints -- bound with :=, ls gives only the name.
+lm_blitprobe() {
+	local dir=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/blit url tok= l
+	local -A saved
+	local -a o
+
+	need dav 2> /dev/null || { printf '0\n'; return 0; }
+	url=${BCP_URL:-${BLIT_CP_URL:-http://127.0.0.1:8080}}
+	url=${url%/}
+	if [ -f "$dir/connection.json" ] && [ ! -L "$dir" ] && [ ! -L "$dir/connection.json" ] &&
+	   [ -O "$dir" ] && [ -O "$dir/connection.json" ] && need ls 2> /dev/null; then
+		l=$(ls -ld -- "$dir")
+		if [ "${l:0:10}" = drwx------ ]; then
+			l=$(ls -l -- "$dir/connection.json")
+			if [ "${l:0:10}" = -rw------- ] && json parse saved < "$dir/connection.json" 2> /dev/null; then
+				[ "${saved["url"]}" = "$url" ] && tok=${saved["token"]}
+			fi
+		fi
+	fi
+	o=()
+	[ -n "$tok" ] && o=(-H "Authorization: Bearer $tok")
+	export HIBR_DAV_TIMEOUT=3
+	DAV_CODE=
+	l := dav request "${o[@]}" GET "$url/v1/login" 2> /dev/null || :
+	printf '%s\n%s\n' "${DAV_CODE:-0}" "$l"
+}
+
+# Blit answered, or did not. Its reply is its LoginManager (openapi
+# blit-0.1.yaml): .enabled says whether Blit runs the screen, and .pane_id
+# where it is now -- pane-display-93-2 reads as display 93, pane 2, since a
+# pane has no name of its own. A refusal of the token is still Blit, said
+# without the detail.
+fn lm_blitdone(int n, int st) {
+	local f code rest= l pane
+	local -A r
+
+	LM_BLITJOB=
+	f := dt_jobfile "$n"
+	{
+		read -r code
+		while IFS= read -r l; do rest+=$l; done
+	} < "$f"
+	case $code in
+	200)
+		LM_BLIT=yes
+		LM_BLITSAYS=off
+		json parse r "${rest:-"{}"}" 2> /dev/null || r=()
+		if [ "${r["enabled"]-}" = true ]; then
+			LM_BLITSAYS=on
+			pane=${r["pane_id"]-}
+			[ "$pane" = null ] && pane=
+			if [[ $pane =~ ^pane-display-([0-9]+)-([0-9]+)$ ]]; then
+				LM_BLITSAYS := dt_tr "on, display %s, pane %s" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+			elif [ -n "$pane" ]; then
+				LM_BLITSAYS="on, ${pane//[[:cntrl:]]/}"
+			fi
+		fi
+		;;
+	401 | 403) LM_BLIT=yes; LM_BLITSAYS= ;;
+	*) LM_BLIT=no ;;
+	esac
+	return 0
+}
+
+# A row choosing from a list: the value in force as its list says it,
+# marked when it is waiting.
+fn lm_row(int w, int n, k) {
+	local v
+
+	v := lm_get "$k"
+	v := lm_label "$k" "$v"
+	v := lm_show "$k" "$v"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=$k
+}
+
+fn loginmgr_rows(int w) {
+	local n=0 v
+
+	[ -n "$LM_LOADED" ] || lm_load
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Changes"
+	if [ -z "$LM_HELPER" ]; then
+		CP[$w][$n]["val"]="hibr's policy is not installed: read only"
+	elif pk_busy; then
+		CP[$w][$n]["val"]="being applied${GL[ellipsis]}"
+	else
+		CP[$w][$n]["val"]="show at the next logout"
+	fi
+	n=$((n + 1))
+	CP[$w][$n]["text"]="Theme"; lm_row "$w" "$n" theme; n=$((n + 1))
+	CP[$w][$n]["text"]="Colour Scheme"; lm_row "$w" "$n" colours; n=$((n + 1))
+	CP[$w][$n]["text"]="Screen Saver"; lm_row "$w" "$n" saver; n=$((n + 1))
+	CP[$w][$n]["text"]="Glyphs"; lm_row "$w" "$n" glyphs; n=$((n + 1))
+	CP[$w][$n]["text"]="Default Session"; lm_row "$w" "$n" session; n=$((n + 1))
+	v := lm_get power
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sleep, Restart, Shut Down"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=on; [ "$v" = off ] && CP[$w][$n]["val"]=off
+	CP[$w][$n]["key"]=power; n=$((n + 1))
+	v := lm_get title
+	v := lm_show title "${v:-the computer's name}"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=title; n=$((n + 1))
+	v := lm_get message
+	v := lm_show message "${v:-none}"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Message"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=message; n=$((n + 1))
+	if [ "$LM_BLIT" = yes ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Runs On"
+		CP[$w][$n]["val"]="Managed by Blit${LM_BLITSAYS:+: $LM_BLITSAYS}"; n=$((n + 1))
+	elif [ -n "$LM_BLITJOB" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Runs On"
+		CP[$w][$n]["val"]="asking Blit${GL[ellipsis]}"; n=$((n + 1))
+	elif command -v systemctl > /dev/null; then
+		v=$LM_TTY
+		[ -n "${LM_PEND["tty"]+x}" ] && v="* ${LM_PEND["tty"]}"
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Runs On"
+		CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=tty; n=$((n + 1))
+	fi
+	if [ -n "$LM_HELPER" ] && ! pk_busy; then
+		if [ "${#LM_PEND[@]}" -gt 0 ]; then
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Apply Changes"
+			CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=apply; n=$((n + 1))
+		fi
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Check Again"
+		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=reload; n=$((n + 1))
+	fi
+	ret "$n"
+}
+
+# A change from a list, by its label.
+fn lm_pick(k, label) {
+	local v
+
+	if [ "$k" = tty ]; then
+		if [ "$label" = "$LM_TTY" ]; then
+			unset LM_PEND["tty"]
+		else
+			LM_PEND["tty"]=$label
+		fi
+		return 0
+	fi
+	v := lm_value "$k" "$label"
+	lm_set "$k" "$v"
+}
+
+fn cp_set_lmtheme(int? id = "", value = "") { lm_pick theme "$value"; }
+fn cp_set_lmcolours(int? id = "", value = "") { lm_pick colours "$value"; }
+fn cp_set_lmsaver(int? id = "", value = "") { lm_pick saver "$value"; }
+fn cp_set_lmglyphs(int? id = "", value = "") { lm_pick glyphs "$value"; }
+fn cp_set_lmsession(int? id = "", value = "") { lm_pick session "$value"; }
+fn cp_set_lmtty(int? id = "", value = "") { lm_pick tty "$value"; }
+
+# The title or the message, typed: the desktop's one-line question.
+fn lm_ask(k) {
+	local v
+
+	v := lm_get "$k"
+	if [ "$k" = title ]; then
+		dt_ask "Login Screen Title" "Title:" "$v" lm_settitle \
+			"Over the box; empty for the computer's name."
+	else
+		dt_ask "Login Screen Message" "Message:" "$v" lm_setmessage \
+			"One line under the title; empty for none."
+	fi
+}
+fn lm_settitle(v, int? id = "") { lm_typed title "$v"; }
+fn lm_setmessage(v, int? id = "") { lm_typed message "$v"; }
+
+# Keep what was typed, if the screen would take it; refused, the question
+# stays open with it.
+fn lm_typed(k, v) {
+	if [ "${#v}" -gt 60 ]; then
+		dt_notep low "At most 60 characters"
+		return 1
+	fi
+	if [ "$v" != "${v//[[:cntrl:]]/}" ]; then
+		dt_notep low "No control characters"
+		return 1
+	fi
+	lm_set "$k" "$v"
+	return 0
+}
+
+fn loginmgr_do(int w, k, int dir) {
+	local v cur
+
+	case $k in
+	theme | colours | saver | glyphs | session)
+		lm_choices "$k"
+		cur := lm_get "$k"
+		cur := lm_label "$k" "$cur"
+		v := cp_next "$cur" "$dir" "${LM_LIST[@]}"
+		lm_pick "$k" "$v"
+		;;
+	tty)
+		v=${LM_PEND["tty"]-$LM_TTY}
+		v := cp_next "$v" "$dir" "${LM_TTYS[@]}"
+		lm_pick tty "$v"
+		;;
+	power)
+		v := lm_get power
+		if [ "$v" = off ]; then lm_set power on; else lm_set power off; fi
+		;;
+	title | message) lm_ask "$k" ;;
+	apply) lm_apply ;;
+	reload) lm_load ;;
+	esac
+	return 0
+}
+
+fn loginmgr_drop(int w, int r, int c, k) {
+	case $k in
+	theme | colours | saver | glyphs | session | tty)
+		lm_choices "$k"
+		dt_droplist "$w" "$r" "$c" "cp_set_lm$k" "${LM_LIST[@]}"
+		;;
+	title | message) lm_ask "$k" ;;
+	esac
+}
+
+# Apply Changes: the settings in one call to the helper, then each change
+# of terminal, one after the other; a refusal stops the rest.
+lm_apply() {
+	local cur want
+
+	[ -n "$LM_HELPER" ] && ! pk_busy || return 0
+	LM_TTYSTEPS=()
+	if [ -n "${LM_PEND["tty"]+x}" ]; then
+		cur=$LM_TTY
+		want=${LM_PEND["tty"]}
+		[ "$cur" != Off ] && LM_TTYSTEPS+=("${cur#tty} off")
+		[ "$want" != Off ] && LM_TTYSTEPS+=("${want#tty} on")
+	fi
+	LM_SETNOW=
+	local k
+	for k in "${!LM_PEND[@]}"; do
+		[ "$k" = tty ] || LM_SETNOW=1
+	done
+	lm_next
+}
+
+# The next step of an Apply Changes, or the end of it.
+lm_next() {
+	local t k
+	local -a a
+
+	if [ -n "$LM_SETNOW" ]; then
+		LM_SETNOW=
+		a=(set)
+		for k in "${!LM_PEND[@]}"; do
+			[ "$k" = tty ] && continue
+			a+=("$k" "${LM_PEND["$k"]}")
+		done
+		t := dt_tr "Login Manager"
+		pk_run loginmgr "$t" hibr-loginset lm_step "$LM_HELPER" "${a[@]}"
+		return 0
+	fi
+	if [ "${#LM_TTYSTEPS[@]}" -gt 0 ]; then
+		read -ra a <<< "${LM_TTYSTEPS[0]}"
+		LM_TTYSTEPS=("${LM_TTYSTEPS[@]:1}")
+		t := dt_tr "Login Manager"
+		pk_run loginmgr "$t" hibr-loginset lm_step "$LM_HELPER" tty "${a[@]}"
+		return 0
+	fi
+	dt_note "The login screen changes at the next logout"
+	lm_load
+}
+
+# A step has finished: on to the next, or stop where it failed -- the
+# failure has been said already -- and read everything again.
+fn lm_step(int st) {
+	if [ "$st" = 0 ]; then
+		lm_next
+		return 0
+	fi
+	LM_TTYSTEPS=()
+	LM_SETNOW=
+	lm_load
+	return 0
+}

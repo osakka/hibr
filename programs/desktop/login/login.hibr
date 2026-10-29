@@ -23,13 +23,23 @@
 # screen that stayed would carry the first person's session into the next
 # login, and logind would refuse the second a session of its own.
 #
-# Settings are /etc/hibr/login.json, root's to write: "saver" (a name, or
-# random), "title" (above the box; the host name by default), "message"
-# (one line under it), "service" (the PAM service; hibr-login when its
-# file is installed) and "glyphs" (unicode, or ascii -- the default on a
-# Linux console, whose font has no katakana for the Matrix). What it has to say goes to the journal under systemd,
-# else to /var/log/hibr-login.log -- never onto the screen. A run as anyone but root is a trial of the screen
-# itself, and can log in only as its own user.
+# Settings are /etc/hibr/login.json, root's to write, and Control Panel >
+# Login Manager's to change (Gitea #389): "saver" (a name, or random),
+# "title" (above the box; the host name by default), "message" (one line
+# under it), "service" (the PAM service; hibr-login when its file is
+# installed), "glyphs" (unicode, or ascii -- the default on a Linux
+# console, whose font has no katakana for the Matrix), "theme" and
+# "colours" (a theme gives its colour scheme and glyphs; "colours" names a
+# scheme of its own over the theme's), "session" (desktop or shell, for
+# whoever has not chosen) and "power" (on or off: Sleep, Restart and Shut
+# Down from the screen, where it is the computer's own). A scheme, a theme
+# and a saver are read only from the folders hibr ships and the system
+# scope ($HIBR_SYSDIR) -- never from anybody's home, since this is root.
+# The file is read once, at start: a change shows at the next logout.
+# What it has to say goes to the journal under systemd, else to
+# /var/log/hibr-login.log -- never onto the screen. A run as anyone but
+# root is a trial of the screen itself, and can log in only as its own
+# user.
 
 strict
 
@@ -50,6 +60,19 @@ LG_SAVER="${LG_SAVER-random}"
 LG_TITLE="${LG_TITLE-}"
 LG_MESSAGE="${LG_MESSAGE-}"
 LG_ONCE="${LG_ONCE-}"
+LG_THEME="${LG_THEME-}"
+LG_COLOURS="${LG_COLOURS-}"
+LG_DEFSESS="${LG_DEFSESS-desktop}"
+LG_POWER="${LG_POWER-on}"
+# The power actions this screen offers, found once at start, and where the
+# chooser is: the action highlighted, the state it was opened from, the
+# action waiting to be confirmed, and the row its list starts at.
+declare -ga LG_PWACTS
+LG_PWACTS=()
+LG_PWSEL=0
+LG_PWFROM=
+LG_PWASK=
+LG_PWROW=
 # Where the password box last drew its rows, for a click: the box's top
 # row, and the column the name, password and session start at.
 LG_BOXR=
@@ -97,7 +120,74 @@ lg_conf() {
 	[ -n "${LG_CONF["title"]}" ] && LG_TITLE=${LG_CONF["title"]}
 	[ -n "${LG_CONF["message"]}" ] && LG_MESSAGE=${LG_CONF["message"]}
 	[ -n "${LG_CONF["service"]}" ] && LG_SERVICE=${LG_CONF["service"]}
+	[ -n "${LG_CONF["theme"]}" ] && LG_THEME=${LG_CONF["theme"]}
+	[ -n "${LG_CONF["colours"]}" ] && LG_COLOURS=${LG_CONF["colours"]}
+	case ${LG_CONF["session"]} in desktop|shell) LG_DEFSESS=${LG_CONF["session"]} ;; esac
+	case ${LG_CONF["power"]} in on|off) LG_POWER=${LG_CONF["power"]} ;; esac
 	case ${LG_CONF["glyphs"]} in unicode|ascii) DT_GLYPHSET=${LG_CONF["glyphs"]} ;; esac
+	return 0
+}
+
+# How the screen looks, from the settings: the theme, then a colour scheme
+# of its own over the theme's. Root draws the title and the message, so no
+# control character in them reaches the terminal, as for a person's name.
+lg_look() {
+	LG_TITLE=${LG_TITLE//[[:cntrl:]]/}
+	LG_MESSAGE=${LG_MESSAGE//[[:cntrl:]]/}
+	[ -n "$LG_THEME" ] && lg_theme "$LG_THEME"
+	[ -n "$LG_COLOURS" ] && lg_colours "$LG_COLOURS"
+	return 0
+}
+
+# Where a theme, a colour scheme or a saver of this name is, as root may
+# read it: the system scope first, which an administrator installed and
+# is authoritative (ADR 0045), then what hibr ships. Never a home.
+fn lg_find(kind, file) {
+	local d
+
+	[[ $file =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || return 1
+	for d in ${HIBR_SYSDIR:+"$HIBR_SYSDIR/$kind"} "$LG_HERE/../$kind"; do
+		[ -f "$d/$file" ] && [ ! -L "$d/$file" ] && { ret "$d/$file"; return 0; }
+	done
+	return 1
+}
+
+# Take a theme's colour scheme and glyphs -- what this screen draws with
+# of what a theme says. A "colours" of the settings' own is applied after
+# it and wins, as it does in Control Panel > Appearance.
+fn lg_theme(name) {
+	local f v
+	local -A t
+
+	f := lg_find themes "$name.json" ||
+		{ printf 'login: no theme called %s\n' "$name" >&2; return 0; }
+	json parse t < "$f" 2> /dev/null ||
+		{ printf 'login: %s is not JSON\n' "$f" >&2; return 0; }
+	v=${t["colours"]-}
+	[ -z "$LG_COLOURS" ] && [ -n "$v" ] && LG_COLOURS=$v
+	if [ -z "${LG_CONF["glyphs"]}" ]; then
+		case ${t["glyphs"]-} in unicode|ascii) DT_GLYPHSET=${t["glyphs"]} ;; esac
+	fi
+	return 0
+}
+
+# Draw in a colour scheme: read through lib/colours.hibr, the reader the
+# desktop's own Appearance uses, so a file refused there is refused here;
+# a scheme that is not there, or is refused, leaves the colours as they
+# were.
+fn lg_colours(name) {
+	local f
+
+	f := lg_find colours "$name.json" ||
+		{ printf 'login: no colour scheme called %s\n' "$name" >&2; return 0; }
+	cp_colourread login "$f" ||
+		{ printf 'login: %s is not a colour scheme\n' "$f" >&2; return 0; }
+	DT_INK=${CP_CO["login"]["ink"]}
+	DT_FACE=${CP_CO["login"]["face"]}
+	DT_ACTIVE=${CP_CO["login"]["active"]}
+	DT_DIM=${CP_CO["login"]["dim"]}
+	DT_BAD=${CP_CO["login"]["bad"]}
+	DT_WELL=${CP_CO["login"]["well"]}
 	return 0
 }
 
@@ -141,7 +231,7 @@ fn lg_who(u) {
 	LG_NAME=$u
 	LG_LINE=
 	LG_PIC=
-	LG_SESS=desktop
+	LG_SESS=$LG_DEFSESS
 	LG_ME=()
 	[[ $u =~ ^[a-z_][a-z0-9_.-]*[$]?$ ]] || return 1
 	ent=$(getent passwd "$u" 2> /dev/null)
@@ -156,7 +246,7 @@ fn lg_who(u) {
 	if [ -n "$j" ] && json parse LG_ME "$j" 2> /dev/null; then
 		[ -n "${LG_ME["name"]}" ] && LG_NAME=${LG_ME["name"]:0:40}
 		LG_LINE=${LG_ME["line"]:0:60}
-		[ "${LG_ME["session"]}" = shell ] && LG_SESS=shell
+		case ${LG_ME["session"]} in desktop|shell) LG_SESS=${LG_ME["session"]} ;; esac
 		pic=${LG_ME["picture"]}
 		case $pic in
 		"~/"*) pic=$home/${pic#"~/"} ;;
@@ -212,6 +302,11 @@ lg_box() {
 	if [ -n "$LG_MESSAGE" ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		console put $((r + 2)) $((c + 3)) "${LG_MESSAGE:0:$((w - 6))}"
+	fi
+	lg_pwlabel $((r + h)) "$c" "$w"
+	if [ "$LG_STATE" = power ]; then
+		lg_pwbox "$r" "$c" "$w" "$h"
+		return 0
 	fi
 	if [ "$LG_STATE" = name ]; then
 		fw=$((w - 6))
@@ -275,6 +370,44 @@ lg_box() {
 	console cursor $((r + 7)) $((px + n))
 }
 
+# Under the box, where the power actions are offered: Power, and the key
+# that opens it. Kept for a click (LG_PWLAB).
+LG_PWLAB=
+fn lg_pwlabel(int r, int c, int w) {
+	local t
+
+	LG_PWLAB=
+	[ "${#LG_PWACTS[@]}" -gt 0 ] || return 0
+	[ "$r" -lt "$SV_ROWS" ] || return 0
+	t=" ${GL[power]} Power  F10 "
+	console pen "$DT_INK" "$DT_FACE"
+	console put "$r" $((c + w - ${#t} - 1)) "$t"
+	LG_PWLAB="$r $((c + w - ${#t} - 1)) ${#t}"
+}
+
+# The chooser, in the box: each action logind allows, the highlighted one
+# in the accent, then the line that says what Enter and Esc do.
+fn lg_pwbox(int r, int c, int w, int h) {
+	local i t
+
+	LG_PWROW=$((r + 4))
+	console pen "$DT_INK" "$DT_FACE"
+	console put $((r + 3)) $((c + 3)) "Power"
+	for i in "${!LG_PWACTS[@]}"; do
+		t := lg_pwname "${LG_PWACTS[$i]}"
+		if [ "$i" = "$LG_PWSEL" ]; then
+			console pen "$DT_FACE" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_WELL"
+		fi
+		console fill $((LG_PWROW + i)) $((c + 3)) 1 $((w - 6)) " "
+		console put $((LG_PWROW + i)) $((c + 4)) "$t"
+	done
+	LG_BOXX=$((c + 3))
+	lg_msg $((r + h - 3)) $((c + 3)) $((w - 6))
+	console cursor off
+}
+
 # The message line: what went wrong in red, a hint otherwise.
 fn lg_msg(int r, int c, int w) {
 	local t=$LG_MSG
@@ -286,6 +419,8 @@ fn lg_msg(int r, int c, int w) {
 		if [ -z "$t" ]; then
 			if [ "$LG_STATE" = name ]; then
 				t="Enter to go on"
+			elif [ "$LG_STATE" = power ]; then
+				t="Enter: do it  Esc: back"
 			else
 				t="Tab: session  Enter: log in  Esc: name"
 			fi
@@ -372,6 +507,95 @@ lg_login() {
 	lg_rest
 }
 
+# Whether this screen is at the computer: a seat named by whatever runs it
+# (Blit sets LG_SEAT), or a virtual terminal of its own (hibr-login@ttyN).
+# Over SSH or in a window it is neither, and Shut Down there would turn off
+# a computer nobody at it asked to turn off.
+lg_local() {
+	local t
+
+	[ -n "$LG_SEAT" ] && return 0
+	t=$(tty 2> /dev/null)
+	[[ $t =~ ^/dev/tty[0-9]+$ ]]
+}
+
+# The power actions to offer, asked of logind once (lib/logind.hibr): none
+# when the settings say off or the screen is not the computer's own.
+lg_pwfind() {
+	local a
+
+	LG_PWACTS=()
+	[ "$LG_POWER" = on ] && lg_local || return 0
+	for a in suspend hibernate reboot poweroff; do
+		ld_can "$a" && LG_PWACTS+=("$a")
+	done
+	return 0
+}
+
+# What an action is called on the screen.
+fn lg_pwname(a) {
+	case $a in
+	suspend) ret "Sleep" ;;
+	hibernate) ret "Hibernate" ;;
+	reboot) ret "Restart" ;;
+	poweroff) ret "Shut Down" ;;
+	esac
+}
+
+# Open the chooser, from whatever was showing; F10 or a click on Power.
+lg_pwopen() {
+	[ "${#LG_PWACTS[@]}" -gt 0 ] || return 0
+	[ "$LG_STATE" = power ] && return 0
+	LG_PWFROM=$LG_STATE
+	[ "$LG_PWFROM" = saver ] && LG_PWFROM=name
+	LG_STATE=power
+	LG_PWSEL=0
+	LG_PWASK=
+	LG_MSG=
+	LG_BAD=
+}
+
+# Back to what the chooser was opened from.
+lg_pwclose() {
+	LG_STATE=${LG_PWFROM:-name}
+	LG_PWASK=
+	LG_MSG=
+	LG_BAD=
+}
+
+# Choose the highlighted action: Sleep and Hibernate at once, Restart and
+# Shut Down only once asked again, as the desktop's own do.
+lg_pwchoose() {
+	local a=${LG_PWACTS[$LG_PWSEL]} t
+
+	case $a in
+	reboot | poweroff)
+		if [ "$LG_PWASK" != "$a" ]; then
+			LG_PWASK=$a
+			t := lg_pwname "$a"
+			LG_MSG="$t? Enter: yes  Esc: no"
+			LG_BAD=
+			return 0
+		fi
+		;;
+	esac
+	lg_pwgo "$a"
+}
+
+# Do it, through logind. A refusal says so in the box and in the log.
+fn lg_pwgo(a) {
+	LG_PWASK=
+	printf 'login: power: %s\n' "$a" >&2
+	if ! ld_do "$a"; then
+		printf 'login: power: %s refused: %s\n' "$a" "$LD_WHY" >&2
+		LG_MSG="The computer did not do it: logind refused"
+		LG_BAD=1
+		return 0
+	fi
+	lg_pwclose
+	lg_rest
+}
+
 # Milliseconds, for the hold after a wrong password.
 lg_ms() {
 	local t=${EPOCHREALTIME/./}
@@ -410,6 +634,49 @@ fn lg_click(k) {
 	return 0
 }
 
+# Whether a click landed on the Power label under the box.
+fn lg_pwhit(k) {
+	local -a ev l
+
+	[ -n "$LG_PWLAB" ] || return 1
+	read -ra ev <<< "$k"
+	read -ra l <<< "$LG_PWLAB"
+	[ "${ev[3]}" = "${l[0]}" ] && [ "${ev[4]}" -ge "${l[1]}" ] &&
+		[ "${ev[4]}" -lt $((l[1] + l[2])) ]
+}
+
+# A key or a click in the chooser: the arrows move, Enter chooses -- twice
+# for Restart and Shut Down -- and Esc goes back, first from a question,
+# then from the chooser. A click on an action chooses it.
+fn lg_pwkey(k) {
+	local n=${#LG_PWACTS[@]} r
+	local -a ev
+
+	case $k in
+	up) [ "$LG_PWSEL" -gt 0 ] && LG_PWSEL=$((LG_PWSEL - 1)); LG_PWASK=; LG_MSG= ;;
+	down) [ "$LG_PWSEL" -lt $((n - 1)) ] && LG_PWSEL=$((LG_PWSEL + 1)); LG_PWASK=; LG_MSG= ;;
+	enter) lg_pwchoose ;;
+	escape)
+		if [ -n "$LG_PWASK" ]; then
+			LG_PWASK=
+			LG_MSG=
+		else
+			lg_pwclose
+		fi
+		;;
+	"mouse press "*)
+		read -ra ev <<< "$k"
+		r=$((ev[3] - LG_PWROW))
+		if [ -n "$LG_PWROW" ] && [ "$r" -ge 0 ] && [ "$r" -lt "$n" ]; then
+			[ "$r" != "$LG_PWSEL" ] && LG_PWASK=
+			LG_PWSEL=$r
+			lg_pwchoose
+		fi
+		;;
+	esac
+	return 0
+}
+
 # A key or a click.
 fn lg_key(k) {
 	local now
@@ -417,6 +684,22 @@ fn lg_key(k) {
 	now := lg_ms
 	[ "$now" -lt "$LG_HOLD" ] && return 0
 	LG_SEEN=$EPOCHSECONDS
+	if [ "$k" = f10 ]; then
+		lg_pwopen
+		return 0
+	fi
+	if [ "$LG_STATE" = power ]; then
+		lg_pwkey "$k"
+		return 0
+	fi
+	case $k in
+	"mouse press "*)
+		if [ "$LG_STATE" != saver ] && lg_pwhit "$k"; then
+			lg_pwopen
+			return 0
+		fi
+		;;
+	esac
 	if [ "$LG_STATE" = saver ]; then
 		LG_STATE=name
 		[ "${#k}" = 1 ] || return 0
@@ -487,7 +770,11 @@ lg_main() {
 	fi
 	LG_TMP=$(mktemp -d "${TMPDIR:-/tmp}/hibr-login.XXXXXX") || return 1
 	trap 'rm -rf "$LG_TMP"' EXIT
+	. "$LG_HERE/../lib/colours.hibr"
+	. "$LG_HERE/../lib/logind.hibr"
 	lg_conf
+	lg_look
+	lg_pwfind
 	[ -z "$LG_SERVICE" ] && [ -r /etc/pam.d/hibr-login ] && LG_SERVICE=hibr-login
 	. "$LG_HERE/../wm/glyphs.hibr"
 	. "$LG_HERE/../savers/saver.hibr"

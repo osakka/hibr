@@ -15,13 +15,12 @@
 strict
 
 declare -gA DT_PW
-# logind's own commands, each a name a test can put a stand-in at.
-# loginctl only asks whether this session is local: its reboot, poweroff
-# and suspend are elogind's alone, and systemd's loginctl has no such
-# verbs, so on Debian every Restart said "logind refused". The actions go
-# to logind's own methods over D-Bus instead, which both answer.
+# loginctl, a name a test can put a stand-in at, only asks whether this
+# session is local. Asking logind whether it may, and doing it, is
+# lib/logind.hibr's, which the login screen shares (Gitea #389); its
+# LD_BUSCTL is busctl's own stand-in point.
 DT_PWCTL="${DT_PWCTL-loginctl}"
-DT_PWBUSCTL="${DT_PWBUSCTL-busctl}"
+[ -n "${LD_LIBDONE-}" ] || . "$DT_HERE/lib/logind.hibr"
 # What the confirm box is about to do.
 DT_PWDOING=
 
@@ -39,12 +38,7 @@ dt_pwlocal() {
 			esac
 		fi
 		DT_PW["hib"]=0
-		if [ "${DT_PW["local"]}" = 1 ] && command -v "$DT_PWBUSCTL" > /dev/null; then
-			o=$("$DT_PWBUSCTL" --timeout=2 get-property org.freedesktop.login1 \
-				/org/freedesktop/login1 org.freedesktop.login1.Manager \
-				CanHibernate 2> /dev/null)
-			[ "$o" = 's "yes"' ] && DT_PW["hib"]=1
-		fi
+		[ "${DT_PW["local"]}" = 1 ] && ld_can hibernate && DT_PW["hib"]=1
 	fi
 	[ "${DT_PW["local"]}" = 1 ]
 }
@@ -70,25 +64,17 @@ fn dt_pwdo(what) {
 	return 0
 }
 
-# Not interactive (the b false): a password logind wanted would be asked by
-# the desktop's own polkit agent, which cannot draw while this waits for
-# the answer, so a refusal is said instead of hanging the desktop.
+# Not interactive (ld_do): a password logind wanted would be asked by the
+# desktop's own polkit agent, which cannot draw while this waits for the
+# answer, so a refusal is said instead of hanging the desktop.
 dt_pwgo() {
-	local what=$DT_PWDOING m err
+	local what=$DT_PWDOING
 
 	DT_PWDOING=
-	case $what in
-	suspend) m=Suspend ;;
-	hibernate) m=Hibernate ;;
-	reboot) m=Reboot ;;
-	poweroff) m=PowerOff ;;
-	*) return 0 ;;
-	esac
+	ld_method "$what" > /dev/null || return 0
 	dt_log "power: $what"
-	if ! err=$("$DT_PWBUSCTL" call org.freedesktop.login1 \
-		/org/freedesktop/login1 org.freedesktop.login1.Manager "$m" b false \
-		2>&1 > /dev/null); then
-		dt_log "power: $what refused: $err"
+	if ! ld_do "$what"; then
+		dt_log "power: $what refused: $LD_WHY"
 		dt_note "The computer did not do it: logind refused"
 	fi
 	return 0

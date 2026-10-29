@@ -1,0 +1,67 @@
+#!/usr/bin/env hibr
+#
+# lib/logind -- the computer's own actions, asked of logind: Sleep,
+# Hibernate, Restart and Shut Down. The desktop's Special menu and Power
+# entry (wm/machine.hibr) and the login screen (login/login.hibr, Gitea
+# #389) both go through these two, so whether the computer may and how it
+# is asked is written once.
+#
+# Over D-Bus, with busctl, rather than loginctl: loginctl's reboot,
+# poweroff and suspend are elogind's alone, and systemd's has no such
+# verbs. CanSuspend, CanHibernate, CanReboot and CanPowerOff are logind's
+# methods, not properties -- asked with get-property they answer an error
+# on every machine, which is how the desktop never offered Hibernate until
+# 0.99.391. Who is asking, and whether the session is the machine's own,
+# is each caller's to know: the desktop asks logind about its session,
+# the login screen has none, since it is the login manager.
+
+strict
+
+LD_LIBDONE=1
+
+LD_BUSCTL="${LD_BUSCTL-busctl}"
+# Why logind did not do what ld_do asked, in its own words.
+LD_WHY=
+
+# logind's own method for an action, or status 1 for one it has none for.
+fn ld_method(what) {
+	case $what in
+	suspend) ret Suspend ;;
+	hibernate) ret Hibernate ;;
+	reboot) ret Reboot ;;
+	poweroff) ret PowerOff ;;
+	*) return 1 ;;
+	esac
+}
+
+# Whether logind would do it for this caller: yes, or challenge (it would
+# ask for a password). na, no and an unanswered question are all no.
+fn ld_can(what) {
+	local m o
+
+	m := ld_method "$what" || return 1
+	command -v "$LD_BUSCTL" > /dev/null || return 1
+	o=$("$LD_BUSCTL" --timeout=2 call org.freedesktop.login1 \
+		/org/freedesktop/login1 org.freedesktop.login1.Manager "Can$m" \
+		2> /dev/null)
+	case $o in
+	's "yes"' | 's "challenge"') return 0 ;;
+	esac
+	return 1
+}
+
+# Do it. Not interactive (the b false): a password logind wanted would be
+# asked by a polkit agent that cannot draw while this waits, so a refusal
+# is status 1 with logind's own words in LD_WHY, rather than a hang. Not
+# through ret, which would end the function with status 0.
+fn ld_do(what) {
+	local m
+
+	LD_WHY=
+	m := ld_method "$what" || { LD_WHY="no such action: $what"; return 1; }
+	LD_WHY=$("$LD_BUSCTL" call org.freedesktop.login1 \
+		/org/freedesktop/login1 org.freedesktop.login1.Manager "$m" b false \
+		2>&1 > /dev/null) && return 0
+	[ -n "$LD_WHY" ] || LD_WHY="logind refused"
+	return 1
+}

@@ -1331,11 +1331,37 @@ It is data, never run, and the login screen never reads it as root: a
 child that has become you reads it, and decodes the picture down to a small
 image, so a picture or a link pointing somewhere you cannot read shows
 nothing. Settings for the screen itself are root's, in
-`/etc/hibr/login.json`: `"saver"` (a name, or random), `"title"` (the host
-name by default), `"message"` (a line under it), `"service"` (the PAM
-service) and `"glyphs"` (`ascii` on a Linux console by default, whose font
-has no katakana for the Matrix). They are not in Control Panel, which runs
-as you.
+`/etc/hibr/login.json`:
+
+- `"theme"`, and `"colours"` over the theme's own scheme;
+- `"saver"` (a name, or random);
+- `"title"` (the host name by default) and `"message"` (a line under it);
+- `"glyphs"` (`ascii` on a Linux console by default, whose font has no
+  katakana for the Matrix);
+- `"session"` (Desktop or Shell, for whoever has not chosen one);
+- `"power"` (`on` by default): Sleep, Restart and Shut Down from the
+  screen, where logind allows them;
+- `"service"` (the PAM service).
+
+The screen has its own settings rather than following anybody's desktop,
+because everybody who logs in shares it. A theme, a colour scheme and a
+saver come only from what hibr ships and the system scope, never from a
+home folder, since the screen is root. A colour scheme is checked by the
+same reader Appearance uses (`lib/colours.hibr`).
+
+When the screen is at the computer (its own VT, or a seat Blit names),
+**Power** sits under the box: F10 or a click lists Sleep, Hibernate,
+Restart and Shut Down, each only where logind says it can. Restart and
+Shut Down ask again before acting.
+
+**Control Panel > Login Manager**, from the catalogue, changes them. Your
+changes wait, marked, until Apply Changes, then go in through
+`hibr-loginset` under pkexec, with one password for all of them.
+Administrative Access lists the action as *Change the login screen*. The
+same pane turns `hibr-login@ttyN` on or off. On a desktop Blit runs it asks
+Blit instead, and says *Managed by Blit*, since there it is Blit's to say
+where the screen runs. The screen reads its settings when it starts, so a
+change shows at the next logout.
 
 To try the screen without root, run it as yourself -- it can then only log
 in as you, and starts your session in the same terminal:

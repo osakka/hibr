@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.58",
+ "version": "3.59",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1523,8 +1523,6 @@
   "Not changed: %s": "لم يتغيّر: %s",
   "There is no group called %s": "لا توجد مجموعة باسم %s",
   "polkit": "polkit",
-  "The password of %s, to change who may act as an administrator": "كلمة مرور %s، لتغيير من يمكنه التصرف كمسؤول",
-  "An administrator's password, to change who may act as an administrator": "كلمة مرور مسؤول، لتغيير من يمكنه التصرف كمسؤول",
   "Not changed: the password was not accepted": "لم يتغيّر: لم تُقبل كلمة المرور",
   "Not changed: the password was cancelled": "لم يتغيّر: أُلغيت كلمة المرور",
   "Not changed: pkexec ended with status %s": "لم يتغيّر: انتهى pkexec بالحالة %s",
@@ -1552,6 +1550,23 @@
   "Confirm": "تأكيد",
   "Small Icons": "أيقونات صغيرة",
   "Set…": "ضبط…",
-  "This computer has no timedatectl, and hibr's polkit policy is not installed": "لا يوجد في هذا الحاسوب timedatectl، وسياسة polkit الخاصة بـ hibr غير مثبتة"
+  "This computer has no timedatectl, and hibr's polkit policy is not installed": "لا يوجد في هذا الحاسوب timedatectl، وسياسة polkit الخاصة بـ hibr غير مثبتة",
+  "An administrator's password, for %s": "كلمة مرور مسؤول، لـ %s",
+  "Apply Changes": "تطبيق التغييرات",
+  "At most 60 characters": "60 حرفًا على الأكثر",
+  "Colour Scheme": "نظام الألوان",
+  "Default Session": "الجلسة الافتراضية",
+  "Login Manager": "مدير تسجيل الدخول",
+  "Login Screen Message": "رسالة شاشة الدخول",
+  "Login Screen Title": "عنوان شاشة الدخول",
+  "Message:": "الرسالة:",
+  "No control characters": "بلا أحرف تحكم",
+  "Not changed: an administrator's password is already being asked for": "لم يتغير شيء: كلمة مرور المسؤول مطلوبة بالفعل",
+  "One line under the title; empty for none.": "سطر واحد تحت العنوان؛ فارغ لعدم وجوده.",
+  "Over the box; empty for the computer's name.": "فوق المربع؛ فارغ لاسم الحاسوب.",
+  "Runs On": "تعمل على",
+  "The login screen changes at the next logout": "تتغير شاشة الدخول عند الخروج التالي",
+  "Title:": "العنوان:",
+  "on, display %s, pane %s": "تعمل، الشاشة %s، اللوح %s"
  }
 }
