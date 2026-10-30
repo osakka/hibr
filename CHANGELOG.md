@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.393
+
+**A confirm opens where it belongs** (Gitea #390). It used to open on the
+primary display whichever window asked: "Close this terminal?" for a
+window on one display came up on the other. It now opens over the window
+that asked, on that window's display, by the same rule as every other
+dialog (`dt_dlgfor`, beside `dt_dlgat`). The desktop's own questions,
+Quit, Restart and Shut Down, still open on the primary.
+
+**A window deleted from inside a frame is closed after it** (Gitea #408).
+`dt_del` called from an app's `_draw`, `_dirty` or `_idle` used to take
+the window away while the frame was still drawing it. The frame then drew
+into a pane that had gone, and once drew a panel at an empty row. It now
+marks the window, which closes once the frame is drawn, as
+`dt_wantclose` does.
+
+The Browser 2.11 and its pane 1.10 from the catalogue are now the shipped
+copies too, and their new words are in Arabic (3.61).
+
 ## 0.99.392
 
 **The login screen speaks a language** (Gitea #389, cut 2). Control Panel

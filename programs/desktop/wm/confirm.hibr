@@ -10,12 +10,22 @@ strict
 # which cancels rather than reaching whatever it landed on. cmd is a single
 # word, a function of no arguments, since the message can hold a space and
 # a command built from stored, later-unquoted menu text cannot.
-fn dt_confirm(msg, cmd) {
+#
+# It opens over the window that asked -- the one with focus when it is
+# asked -- on that window's display, as every other dialog does (dt_dlgat).
+# The desktop's own questions (Quit, Restart, Shut Down, Empty Trash from
+# the menu) say whose they are with "desktop" and open on the primary,
+# whatever window happens to have focus (Gitea #390).
+DT_CONFIRM_OWNER=
+fn dt_confirm(msg, cmd, owner = "") {
 	case $DT_LANG in ?*) msg := dt_tr "$msg" ;; esac
 	dt_note_clear
 	DT_CONFIRM="$msg"
 	DT_CONFIRM_CMD=$cmd
 	DT_CONFIRM_FOCUS=y
+	DT_CONFIRM_OWNER=$DT_FOCUS
+	[ "$owner" = desktop ] && DT_CONFIRM_OWNER=
+	return 0
 }
 
 # A small window of its own, not just a coloured box: a border and a
@@ -31,9 +41,15 @@ dt_confirm_geom() {
 	w=$((${#msg} + 6))
 	[ "$w" -lt $((bw + 6)) ] && w=$((bw + 6))
 	h=7
-	# Centred on the **primary**, in both directions: DT_ROWS is the
+	# Over the window that asked, on its display; the desktop's own on
+	# the primary, centred there in both directions -- DT_ROWS is the
 	# whole union, so half of it is the middle of somebody else's
-	# display when the primary is a stacked pane (Gitea #240).
+	# display when the primary is a stacked pane (Gitea #240, #390).
+	if [ -n "$DT_CONFIRM_OWNER" ]; then
+		dt_dlgfor "$DT_CONFIRM_OWNER" "$h" "$w" 0
+		ret "$DT_DLGR $DT_DLGC $DT_DLGW $DT_DLGH"
+		return 0
+	fi
 	y0=$((DT_PRIMARY_ROW + (${DT_PRIMARY_H:-$DT_ROWS} - h) / 2))
 	x0=$((DT_PRIMARY_COL + (${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
 	ret "$y0 $x0 $w $h"
@@ -119,5 +135,5 @@ fn dt_confirm_key(key) {
 # go through this -- reaching it is already two keys (f10, then q), so
 # asking a third time is the annoyance this exists to remove, not add back.
 dt_quitconfirm() {
-	dt_confirm "Quit hibr?" dt_quit
+	dt_confirm "Quit hibr?" dt_quit desktop
 }

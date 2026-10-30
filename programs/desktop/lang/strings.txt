@@ -320,12 +320,15 @@ Conversation moved to %s
 Conversation moved to Trash
 Cookies cleared
 Copied
+Copied %s
 Copied %s characters
 Copied the paths of what is selected
 Copied to %s
 Copied; the clipboard clears in %s seconds
 Copy
 Copy Code
+Copy Image Address
+Copy Link Address
 Copy Password
 Copy Username
 Copy on Select
@@ -852,6 +855,8 @@ Open %s with:
 Open Clipboard
 Open Database…
 Open Folders in New Windows
+Open Image in New Tab
+Open Link in New Tab
 Open Location…
 Open Notes at Start
 Open Screenshots
@@ -879,6 +884,7 @@ PDF Reader
 PDFs need Poppler: apt install libpoppler-glib8, or brew install poppler
 PID:    %s
 PIN
+Page
 Page %s of %s
 Page Zoom
 Pages
@@ -1025,6 +1031,9 @@ Save
 Save As…
 Save Downloads Without Asking
 Save Drafts Every (seconds)
+Save Image As…
+Save Link As…
+Save Page As…
 Save as Draft
 Save as PDF…
 Saved %s
@@ -1199,7 +1208,9 @@ The end is a time, HH:MM
 The login screen changes at the next logout
 The mermaid module is not loaded
 The one there now goes to the trash.
+The page could not be saved
 The page could not be saved as a PDF
+The page's source could not be read
 The password of %s, for %s
 The password was not accepted
 The pdf module is not installed
@@ -1232,6 +1243,7 @@ This Terminal
 This account has no address to answer from
 This computer has no timedatectl, and hibr's polkit policy is not installed
 This desktop is not the computer's own
+This engine cannot save an address
 This links to %s
 This notification has been cleared.
 This page could not be drawn
@@ -1301,6 +1313,7 @@ Versions
 View
 View Details
 View History
+View Source
 Visible to Others
 Volume
 Volume %s%%
@@ -1333,6 +1346,7 @@ Window Switcher
 Window Title
 Window:
 Windows
+Windows Pages Open on Their Own
 Windows: %s open
 Windows: %s open, %s hidden
 Work Out Again

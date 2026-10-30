@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.9
+app browser "The web, in a window" 2.11
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -80,12 +80,13 @@ BW_PGEO="${BW_PGEO-refuse}"
 BW_PCAM="${BW_PCAM-refuse}"
 BW_PMIC="${BW_PMIC-refuse}"
 BW_PNOTE="${BW_PNOTE-refuse}"
+BW_PPOP="${BW_PPOP-refuse}"
 BW_DL="${BW_DL-0}"
 BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
 BW_AUTOPLAY="${BW_AUTOPLAY-0}"
 command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
 	BW_ENGINE BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
-	BW_LANG BW_DNT BW_RTC BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
+	BW_LANG BW_DNT BW_RTC BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_PPOP BW_DL BW_DLDIR \
 	BW_AUTOPLAY
 declare -gA BWX
 # A tab's sound: its player, the pipe into it, and when it was last
@@ -161,6 +162,7 @@ bw_cfg() {
 		web config webrtc "$x"
 	fi
 	web config profile "$BW_PROFILE"
+	bw_has notetab && web config notetab on 2> /dev/null
 	return 0
 }
 
@@ -283,7 +285,7 @@ bw_wide() {
 	local p v
 
 	for p in geolocation:BW_PGEO camera:BW_PCAM microphone:BW_PMIC \
-		 notifications:BW_PNOTE; do
+		 notifications:BW_PNOTE popups:BW_PPOP; do
 		v=${p#*:}
 		web permit "${p%%:*}" "${!v}" 2> /dev/null
 	done
@@ -376,7 +378,7 @@ fn bw_dlstop() {
 # What the browser has to say since it was last asked: a download that
 # ended, and a page's notification, each a note of the desktop's own.
 bw_heard() {
-	local l k o x why tn dn du dir
+	local l k o x why tn dn du dir tb
 
 	if x := web downloaded 2> /dev/null; then
 		while IFS=$'\t' read -r k l why; do
@@ -425,10 +427,18 @@ bw_heard() {
 	fi
 	# A page's own words, which no catalogue holds: passed as they are.
 	if x := web notes 2> /dev/null; then
-		while IFS=$'\t' read -r k l; do
-			x="${k:-${l:-?}}${l:+: $l}"
-			dt_notify "$x"
-		done <<< "$x"
+		if bw_has notetab; then
+			# With the tab it came from: a click on the note takes you there.
+			while IFS=$'\t' read -r tb k l; do
+				x="${k:-${l:-?}}${l:+: $l}"
+				dt_notify "$x" bw_raisetab "$tb"
+			done <<< "$x"
+		else
+			while IFS=$'\t' read -r k l; do
+				x="${k:-${l:-?}}${l:+: $l}"
+				dt_notify "$x"
+			done <<< "$x"
+		fi
 	fi
 	# A web app's, which the engine tells with its tab: named by the app, and a
 	# click raises its window.
@@ -439,6 +449,24 @@ bw_heard() {
 			done <<< "$x"
 		fi
 	fi
+	return 0
+}
+
+# A note's click: the window that has the tab, with that tab shown.
+fn bw_raisetab(tab) {
+	local id t
+
+	for id in "${!BW[@]}"; do
+		[ -n "${BW[$id]["tabs"]+x}" ] || continue
+		bw_tabs "$id"
+		for t in "${BW_TABS[@]}"; do
+			[ "$t" = "$tab" ] || continue
+			BW[$id]["cur"]=$tab
+			BW[$id]["sized"]=
+			dt_raise "$id"
+			return 0
+		done
+	done
 	return 0
 }
 
@@ -527,7 +555,7 @@ fn wa_write(id) {
 
 	mkdir -p "$WA_DIR" || return 1
 	{
-		for k in name url scope geo cam mic note zoom ua; do
+		for k in name url scope geo cam mic note pop zoom ua; do
 			[ -n "${WA["$id:$k"]-}" ] && printf '%s=%s\n' "$k" "${WA["$id:$k"]}"
 		done
 		:
@@ -577,6 +605,7 @@ fn bw_wapply(t, app) {
 	web permit camera "${WA["$app:cam"]:-refuse}" "$t" 2> /dev/null
 	web permit microphone "${WA["$app:mic"]:-refuse}" "$t" 2> /dev/null
 	web permit notifications "${WA["$app:note"]:-refuse}" "$t" 2> /dev/null
+	web permit popups "${WA["$app:pop"]:-refuse}" "$t" 2> /dev/null
 	if [ "${WA["$app:note"]:-refuse}" = allow ]; then
 		web set "$t" notes on 2> /dev/null
 	else
@@ -1432,6 +1461,129 @@ fn bw_pdfsaved(id = "", path = "", type = "") {
 		dt_notep normal "Saved %s" "${path##*/}"
 	else
 		dt_notep high "The page could not be saved as a PDF"
+	fi
+}
+
+# --- the menu a right-click opens ---------------------------------------------
+#
+# What is under the pointer is the engine's own hit test (`web at`, which needs no
+# script in the page), asked once for each place a menu is opened and kept for three
+# seconds (a scroll or a new page makes the same cell another thing): the desktop rebuilds an open menu every frame, and the question is a press
+# on the page.  An engine that cannot say (`at` not in `web caps`) gets the items that
+# do not depend on it.
+declare -gA BWC
+BW_AT_KIND=
+BW_AT_HREF=
+BW_AT_SRC=
+
+fn bw_under(int id) {
+	local t=${BW[$id]["cur"]} wr wc wa r c pt key a=
+
+	BW_AT_KIND=
+	BW_AT_HREF=
+	BW_AT_SRC=
+	[ -n "$t" ] && bw_has at || return 1
+	bw_drawmode
+	[ "$BW_DRAWN" = text ] && return 1
+	wr=${DT[$id]["row"]}
+	wc=${DT[$id]["col"]}
+	wa=$wc
+	dt_capped "$id" && wa=$((wc - 1))
+	r=$((MB_CY - wr))
+	c=$((MB_CX - wa))
+	pt=${BW[$id]["pt"]:-3}
+	[ "$r" -ge "$pt" ] || return 1
+	key="$id:$t:$MB_CY:$MB_CX"
+	if [ -z "${BWC["$key"]+x}" ] || [ $((EPOCHSECONDS - ${BWC["$key:t"]:-0})) -gt 3 ]; then
+		[ "${#BWC[@]}" -gt 100 ] && BWC=()
+		a := web at "$t" $((r - pt)) $((c - 1)) 2> /dev/null || a=
+		BWC["$key"]=$a
+		BWC["$key:t"]=$EPOCHSECONDS
+	fi
+	IFS=$'\t' read -r BW_AT_KIND BW_AT_HREF BW_AT_SRC _ <<< "${BWC["$key"]}"
+	return 0
+}
+
+fn bw_copyaddr(text) {
+	[ -n "$text" ] || return 0
+	dt_clipset "$text"
+	dt_notep low "Copied %s" "${text:0:60}"
+}
+
+# Save As is always asked: whatever Save Downloads Without Asking says, a person who chose
+# Save Link As or Save Image As is shown the desktop's own save dialog (the engine asks
+# through `web dlasks` and the dialog answers with `web dldest`).
+fn bw_saveurl(int id, url) {
+	local t=${BW[$id]["cur"]}
+
+	[ -n "$t" ] && [ -n "$url" ] || return 0
+	web download "$t" "$url" ask 2> /dev/null || dt_notep high "This engine cannot save an address"
+}
+
+# The page as it was served, in a tab of its own: a text file under the cache, which the
+# engine shows as text.
+fn bw_viewsource(int id) {
+	local t=${BW[$id]["cur"]} d=${XDG_CACHE_HOME:-$HOME/.cache}/hibr/browser f
+
+	[ -n "$t" ] || return 0
+	mkdir -p "$d" 2> /dev/null
+	f="$d/source-$t.txt"
+	if web source "$t" "$f" > /dev/null 2>&1; then
+		bw_newtab "$id" "file://$f"
+	else
+		dt_notep high "The page's source could not be read"
+	fi
+}
+
+# Save Page As: the same source, to where the save dialog says.
+fn bw_savepage(int id) {
+	local t=${BW[$id]["cur"]} nm d=$BW_DLDIR
+
+	[ -n "$t" ] || return 0
+	nm := web title "$t" 2> /dev/null
+	nm=${nm//[\/:]/-}
+	[ -d "$d" ] || d=$HOME
+	dt_filepick save "Save Page" "HTML:*.html" "$d" "${nm:-page}.html" bw_pagesaved "$id"
+}
+fn bw_pagesaved(id = "", path = "", type = "") {
+	local t=${BW[$id]["cur"]}
+
+	[ -n "$t" ] && [ -n "$path" ] || return 0
+	if web source "$t" "$path" > /dev/null 2>&1; then
+		dt_notep normal "Saved %s" "${path##*/}"
+	else
+		dt_notep high "The page could not be saved"
+	fi
+}
+
+fn browser_context(int? id = "") {
+	local t=${BW[$id]["cur"]}
+
+	bw_under "$id" || true
+	dt_menu "Page"
+	case $BW_AT_KIND in
+	link | linkimage)
+		dt_item "Open Link in New Tab" o bw_newtab "$id" "$BW_AT_HREF"
+		dt_item "Copy Link Address" c bw_copyaddr "$BW_AT_HREF"
+		bw_has download && dt_item "Save Link As${GL[ellipsis]}" k bw_saveurl "$id" "$BW_AT_HREF"
+		dt_sep
+		;;
+	esac
+	case $BW_AT_KIND in
+	image | media | linkimage)
+		dt_item "Open Image in New Tab" i bw_newtab "$id" "$BW_AT_SRC"
+		dt_item "Copy Image Address" d bw_copyaddr "$BW_AT_SRC"
+		bw_has download && dt_item "Save Image As${GL[ellipsis]}" v bw_saveurl "$id" "$BW_AT_SRC"
+		dt_sep
+		;;
+	esac
+	dt_item "Back" b bw_back "$id"
+	dt_item "Forward" f bw_fwd "$id"
+	dt_item "Reload" r bw_reload "$id"
+	if [ -n "$t" ] && bw_has source; then
+		dt_sep
+		dt_item "View Source" u bw_viewsource "$id"
+		dt_item "Save Page As${GL[ellipsis]}" p bw_savepage "$id"
 	fi
 }
 

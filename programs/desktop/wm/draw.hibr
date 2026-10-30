@@ -325,10 +325,15 @@ dt_drain() {
 	DT_NOTEWIN=
 }
 
+# Set while dt_draw draws, so a window deleted from inside a frame is closed
+# after it rather than taken away from under it (dt_del, Gitea #408).
+DT_INDRAW=
+
 dt_draw() {
 	local l id n0 n1
 	local -a ls
 
+	DT_INDRAW=1
 	DT_WANT=
 	# A hidden pointer that no longer belongs hidden comes back, though
 	# nothing moved: a key took focus, or a menu opened (Gitea #373).
@@ -446,4 +451,5 @@ dt_draw() {
 	DT_OVERDREW=
 	[ "$n0" = "$n1" ] || DT_OVERDREW=1
 	console flush
+	DT_INDRAW=
 }

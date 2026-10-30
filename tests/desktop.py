@@ -3680,6 +3680,52 @@ sc, _ = run(TWOD + 'dt_move "$DT_FOCUS" 0 5\n')
 check("while on the primary it still stops below the bar",
       sc.find("┤ Hello ├") is not None and
       sc.find("┤ Hello ├")[0] == 1 and sc.g[0][5] != "┌", sc)
+# A confirm opens where it belongs (Gitea #390): over the window that
+# asked, on that window's display -- the right one here -- and the
+# desktop's own questions on the primary, whatever has focus.
+def confirmshot(session):
+    """The screen with a confirm up: taken before the harness's own `qy`,
+    whose q would cancel it."""
+    path = scratch("confirmat.hibr")
+    open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, session))
+    t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+    t.keys([0.3])
+    sc = t.screen()
+    t.quit(b"nqy", 1.2)
+    return sc
+
+
+def confirmat():
+    sc = confirmshot(TWOD + 'dt_confirm "Delete this note?" true\n')
+    at = sc.find("Delete this note?")
+    check("a window's confirm opens on that window's display",
+          at is not None and at[1] > 40, sc)
+    sc = confirmshot(TWOD + 'dt_confirm "Quit hibr?" true desktop\n')
+    at = sc.find("Quit hibr?")
+    check("and the desktop's own on the primary, though a window elsewhere "
+          "has focus", at is not None and at[1] < 40, sc)
+
+
+confirmat()
+
+
+# A window deleted from inside a frame (Gitea #408): Boxer closed a finished
+# game's window with dt_del from its _dirty, the frame went on drawing from
+# a record that had gone, and a panel was drawn with an empty row. dt_del
+# from inside dt_draw now closes it once the frame is drawn. What fails
+# against the old code is the suite's own "no session printed a shell
+# error": the frame went on to draw into the pane that had gone.
+def delindraw():
+    sc, _ = run('gone_draw() { console put -p "w$1" 1 1 "here"; dt_del "$1"; }\n'
+                'dt_new "Gone" 8 30 6 10 gone\n'
+                'dt_new "Stays" 6 24 15 44\n', [0.6])
+    check("a window that deletes itself while being drawn is closed after the "
+          "frame, and the desktop goes on",
+          sc.find("Gone") is None and sc.find("Stays") is not None, sc)
+
+
+delindraw()
 # A right-click menu stays on the display it was opened on (Gitea #287).
 # It was kept inside the primary's rows whatever display the pointer was
 # on, so on a display stacked below the primary it was pushed up onto the
@@ -8316,4 +8362,4 @@ a, b, told = fsrun("fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
 check("and what a module draws at absolute coordinates over it shows",
       a.find("WORLD") == (4, 2), a)
 
-report(903)
+report(906)

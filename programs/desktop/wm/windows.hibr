@@ -63,6 +63,14 @@ fn dt_hooks(int id, ap = "") {
 fn dt_del(int id) {
 	local ws=${DT[$id]["ws"]:-1}
 
+	# Asked from inside a frame -- an app's _draw, _dirty or _idle, or a
+	# job's callback -- the window is marked and closed once the frame is
+	# drawn, as dt_wantclose does: taken away now, the frame went on
+	# drawing from a record that had gone (Gitea #408).
+	if [ -n "$DT_INDRAW" ]; then
+		[ -n "${DT[$id]["row"]+x}" ] && dt_wantclose "$id"
+		return 0
+	fi
 	# Whatever the search widget was holding for this window, centrally
 	# rather than in each app's own `_close`: an app that has no
 	# `_close` at all -- Files has none -- would otherwise leak its
@@ -538,7 +546,14 @@ DT_DLGC=0
 DT_DLGH=1
 DT_DLGW=1
 fn dt_dlgat(int h, int w, int? m = "") {
-	local f=$DT_FOCUS cr cc r c
+	dt_dlgfor "$DT_FOCUS" "$h" "$w" "$m"
+}
+
+# The same, for a dialog that belongs to window f rather than to whatever
+# has focus now -- a confirm remembers who asked (Gitea #390) -- and on the
+# primary for f empty, or a window that has gone, is minimised or away.
+fn dt_dlgfor(f, int h, int w, int? m = "") {
+	local cr cc r c
 
 	[ -n "$m" ] || m=2
 	if [ -n "$f" ] && [ -n "${DT[$f]["row"]+x}" ] &&

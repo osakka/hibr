@@ -27,7 +27,7 @@
 
 strict
 
-app browserset "The Control Panel pane for the Browser" 1.9
+app browserset "The Control Panel pane for the Browser" 1.10
 command -v cp_pane > /dev/null && cp_pane browserset "Browser" "◎" app
 command -v dt_app > /dev/null &&
 	dt_app bwfield "Browser Setting" 8 64 "" "" fixed hidden
@@ -52,12 +52,13 @@ BW_PGEO="${BW_PGEO-refuse}"
 BW_PCAM="${BW_PCAM-refuse}"
 BW_PMIC="${BW_PMIC-refuse}"
 BW_PNOTE="${BW_PNOTE-refuse}"
+BW_PPOP="${BW_PPOP-refuse}"
 BW_DL="${BW_DL-0}"
 BW_DLDIR="${BW_DLDIR-$HOME/Downloads}"
 BW_AUTOPLAY="${BW_AUTOPLAY-0}"
 command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_ENGINE BW_JS \
 	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS \
-	BW_LANG BW_DNT BW_RTC BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_DL BW_DLDIR \
+	BW_LANG BW_DNT BW_RTC BW_BLOCK BW_PGEO BW_PCAM BW_PMIC BW_PNOTE BW_PPOP BW_DL BW_DLDIR \
 	BW_AUTOPLAY
 BS_PERMS=(refuse allow)
 
@@ -79,6 +80,7 @@ fn cp_set_bwpgeo(int? id = "", value = "") { BW_PGEO=$value; cp_save; bs_tell; }
 fn cp_set_bwpcam(int? id = "", value = "") { BW_PCAM=$value; cp_save; bs_tell; }
 fn cp_set_bwpmic(int? id = "", value = "") { BW_PMIC=$value; cp_save; bs_tell; }
 fn cp_set_bwpnote(int? id = "", value = "") { BW_PNOTE=$value; cp_save; bs_tell again; }
+fn cp_set_bwppop(int? id = "", value = "") { BW_PPOP=$value; cp_save; bs_tell; }
 
 # One permission's row: refuse or allow, a dropdown.
 fn bs_perm(int w, int n, var, key) {
@@ -185,6 +187,10 @@ fn browserset_rows(int w) {
 		CP[$w][$n]["val"] := dt_tr "desktop notes"
 		n=$((n + 1))
 	fi
+	if bs_has popupallow; then
+		CP[$w][$n]["text"]="Windows Pages Open on Their Own"; bs_perm "$w" "$n" BW_PPOP ppop
+		n=$((n + 1))
+	fi
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Reset Permissions"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=preset; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Downloads"; n=$((n + 1))
@@ -250,6 +256,7 @@ fn browserset_do(int? w = "", k = "", int? dir = "") {
 	pgeo) v := cp_next "$BW_PGEO" "$dir" "${BS_PERMS[@]}"; BW_PGEO=$v; bs_tell ;;
 	pcam) v := cp_next "$BW_PCAM" "$dir" "${BS_PERMS[@]}"; BW_PCAM=$v; bs_tell ;;
 	pmic) v := cp_next "$BW_PMIC" "$dir" "${BS_PERMS[@]}"; BW_PMIC=$v; bs_tell ;;
+	ppop) v := cp_next "$BW_PPOP" "$dir" "${BS_PERMS[@]}"; BW_PPOP=$v; bs_tell ;;
 	pnote) v := cp_next "$BW_PNOTE" "$dir" "${BS_PERMS[@]}"; BW_PNOTE=$v
 		bs_tell again ;;
 	preset) bs_preset ;;
@@ -269,6 +276,7 @@ fn browserset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	pcam) dt_droplist "$w" "$r" "$c" cp_set_bwpcam "${BS_PERMS[@]}" ;;
 	pmic) dt_droplist "$w" "$r" "$c" cp_set_bwpmic "${BS_PERMS[@]}" ;;
 	pnote) dt_droplist "$w" "$r" "$c" cp_set_bwpnote "${BS_PERMS[@]}" ;;
+	ppop) dt_droplist "$w" "$r" "$c" cp_set_bwppop "${BS_PERMS[@]}" ;;
 	esac
 }
 
@@ -279,6 +287,7 @@ bs_preset() {
 	BW_PCAM=refuse
 	BW_PMIC=refuse
 	BW_PNOTE=refuse
+	BW_PPOP=refuse
 	cp_save
 	need web 2> /dev/null && web tabs > /dev/null 2>&1 &&
 		web permit reset 2> /dev/null

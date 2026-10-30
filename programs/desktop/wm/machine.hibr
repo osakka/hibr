@@ -50,11 +50,11 @@ fn dt_pwdo(what) {
 	case $what in
 	reboot)
 		DT_PWDOING=reboot
-		dt_confirm "Restart the computer?" dt_pwgo
+		dt_confirm "Restart the computer?" dt_pwgo desktop
 		;;
 	poweroff)
 		DT_PWDOING=poweroff
-		dt_confirm "Shut down the computer?" dt_pwgo
+		dt_confirm "Shut down the computer?" dt_pwgo desktop
 		;;
 	*)
 		DT_PWDOING=$what

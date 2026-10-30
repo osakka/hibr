@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.60",
+ "version": "3.61",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1577,6 +1577,20 @@
   "Not the password. Esc: name": "ليست كلمة المرور. Esc: الاسم",
   "Session": "الجلسة",
   "Tab: session  Enter: log in  Esc: name": "Tab: الجلسة  Enter: دخول  Esc: الاسم",
-  "User name": "اسم المستخدم"
+  "User name": "اسم المستخدم",
+  "Copied %s": "نُسخ %s",
+  "Copy Image Address": "نسخ عنوان الصورة",
+  "Copy Link Address": "نسخ عنوان الرابط",
+  "Open Image in New Tab": "فتح الصورة في لسان جديد",
+  "Open Link in New Tab": "فتح الرابط في لسان جديد",
+  "Page": "الصفحة",
+  "Save Image As…": "حفظ الصورة باسم…",
+  "Save Link As…": "حفظ الرابط باسم…",
+  "Save Page As…": "حفظ الصفحة باسم…",
+  "The page could not be saved": "تعذّر حفظ الصفحة",
+  "The page's source could not be read": "تعذّرت قراءة مصدر الصفحة",
+  "This engine cannot save an address": "هذا المحرك لا يستطيع حفظ عنوان",
+  "View Source": "عرض المصدر",
+  "Windows Pages Open on Their Own": "نوافذ تفتحها الصفحات بنفسها"
  }
 }
