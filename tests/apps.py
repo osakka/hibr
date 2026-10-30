@@ -4245,6 +4245,27 @@ check("nor a loaded module something may be holding the table of: the "
 
 TASKS = ("tasks", "16 50 4 4")
 
+# Task Manager is drawn when it has something new -- a scan, a key, a
+# resize -- and not on every frame another window asks for (0.99.399). On
+# the owner's mini PC a playing video asked for 27 frames a second and the
+# list was laid out again on each, 8.7 ms a frame for numbers that change
+# once a second. A ticker asks for a frame every 40 ms, as a film does, and
+# writes down how often the list has been drawn.
+TKCOUNT = os.path.join(S, "tk-draws-%d" % os.getpid())
+TKTICK = ('TKN=0\n'
+          'fn tk_frames() {\n'
+          '    TKN=$((TKN + 1))\n'
+          '    echo "${TK[1]["draws"]:-0} $TKN" > %s\n'
+          '    dt_want 40\n'
+          '}\n'
+          'dt_ticker tk_frames\n' % TKCOUNT)
+sc = run(*TASKS, pre=TKTICK, feed=[3.0])
+tkd = open(TKCOUNT).read().split() if os.path.exists(TKCOUNT) else []
+if os.path.exists(TKCOUNT):
+    os.unlink(TKCOUNT)
+check("Task Manager is drawn once a scan, not on every frame another window asks for",
+      len(tkd) == 2 and 1 <= int(tkd[0]) <= 8 and int(tkd[1]) >= 20, tkd)
+
 sc = run(*TASKS)
 check("the task manager lists processes under a header",
       sc.find("CPU%") is not None and sc.find("Mem") is not None and
@@ -4428,8 +4449,12 @@ TFULL = (
     '  sleep 0.05\n'
     '  i=$((i + 1))\n'
     'done\n'
-    'na := tasks_fullname "$cut" "$ca"\n'
-    'nr := tasks_fullname "$ren" "$cr"\n'
+    'need proctab\n'
+    't := proctab\n'
+    'while read -r p u s uid rss nm; do\n'
+    '  [ "$p" = "$cut" ] && na=$nm\n'
+    '  [ "$p" = "$ren" ] && nr=$nm\n'
+    'done <<< "$t"\n'
     'echo "cut comm=$ca full=$na"\n'
     'echo "renamed comm=$cr full=$nr"\n'
     'kill "$cut" "$ren" 2> /dev/null\n'
@@ -6057,4 +6082,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(787)
+report(788)

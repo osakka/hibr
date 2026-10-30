@@ -15,11 +15,11 @@ strict
 # CPU and memory, worked out the same way in every window that shows them.
 [ -n "${SY_LIBDONE-}" ] || . "$DT_HERE/lib/sysstat.hibr"
 
-app tasks "What is running, and a way to end one" 1.5
+app tasks "What is running, and a way to end one" 1.6
 # part: control-panel/taskmgr.hibr
 
 # 64 columns rather than the 50 it opened at until 0.99.133: the names are
-# whole now (see tasks_fullname) and 50 could not show one -- Name got 15
+# whole now (see mods/proctab.c) and 50 could not show one -- Name got 15
 # there, which is exactly what comm had already cut them to, so the default
 # window was the one place the fix could not be seen. 64 leaves Name 21
 # columns beside a sized Owner, and still fits an 80-column terminal.
@@ -221,65 +221,6 @@ if command -v dt_keep > /dev/null; then
 	dt_keep TK_FILTER
 fi
 
-# Name and CPU times, both from the one read of /proc/[pid]/stat -- status
-# was being read for the name alongside rss and uid, for a field the stat
-# read already had on the same line for free. rss stays out of this: its
-# own field here (24) is documented by proc(5) itself as inaccurate ("see
-# /proc/[pid]/statm"), and status's VmRSS is the one already trusted
-# everywhere else this shows memory, not something to trade for speed
-# silently.
-#
-# The command name is in parens and may itself contain both parens and
-# spaces -- found between the first "(" (pid, just above, is always a
-# plain number, so nothing before it can be one) and the last ")", never
-# the first, the same trap as before. Returned last, in the same
-# last-variable-takes-the-rest shape tasks_scan_ps's own comm already
-# relies on, so a name with a real space in it is never split across two
-# fields the way u/s (never containing one) safely can be -- status's own
-# Name: field actually had this bug already, silently truncating at the
-# first space; nothing before this depended on a name ever having one.
-fn tasks_times(int pid) {
-	local line name rest
-	local state a b c d e f g h j k u s _
-
-	read -r line 2> /dev/null < "/proc/$pid/stat" || return 1
-	name=${line%)*}
-	name=${name#*\(}
-	rest=${line##*)}
-	read -r state a b c d e f g h j k u s _ <<< "$rest"
-	ret "$u $s $name"
-}
-
-# uid and rss, from status -- breaking out once both are found rather than
-# reading to the end of a ~50-line file for two, which is most of what
-# this file's own scan still costs (VmRSS is well down the file; Uid is
-# not, but the loop cannot stop until the later of the two either way).
-fn tasks_uidrss(int pid) {
-	local k v uid= rss=
-
-	while read -r k v _; do
-		case $k in
-		Uid:) uid=$v ;;
-		VmRSS:) rss=$v ;;
-		esac
-		[ -n "$uid" ] && [ -n "$rss" ] && break
-	done 2> /dev/null < "/proc/$pid/status"
-	# No uid is no reading -- a process that went between two reads, or
-	# a read that failed -- and it must not come back as " 0": read back
-	# as `uid rss`, that is uid 0, and every such row said root (Gitea
-	# #281).
-	[ -n "$uid" ] || return 1
-	ret "$uid ${rss:-0}"
-}
-
-# One pass: every pid under /proc, its name and memory from status (no
-# bracket or position traps there), CPU from the delta against the last
-# scan. The first scan has nothing to compare against, so it reads 0.
-# Every process from ps -axo, one line each: pid, RSS in the same
-# kilobytes /proc/[pid]/status uses, %CPU already computed by the kernel,
-# user (ps resolves it itself here, unlike the Linux path's own uid), and
-# comm last so a path with a space in it -- an app bundle's, typically --
-# still reads whole, in read's own last-variable-takes-the-rest rule.
 # This desktop's own pid and everything descended from it, for the "this
 # desktop" filter: its terminal windows' shells and whatever they are
 # running. Linux lists a process's children itself, so only the tree is
@@ -399,32 +340,11 @@ fn tasks_filtercycle(int? id = "") {
 	return 0
 }
 
-# The program's own name for a process whose comm the kernel has cut.
-#
-# /proc/<pid>/stat carries comm, which lives in TASK_COMM_LEN -- 16 bytes,
-# 15 usable -- so `systemd-journald` is *stored* as `systemd-journal` and no
-# column width can bring the rest back. argv[0] has the whole thing and its
-# basename is the program. macOS needs none of this: `ps -axo comm=` answers
-# the executable's full path, which the scan there already takes a basename
-# of.
-#
-# Answered only when it **extends** what we have. A process may rewrite its
-# own argv -- this shell does, for every part of the desktop -- so argv[0]
-# can name something else entirely: a window's comm is `term:Terminal:1`,
-# cut from `term:Terminal:104`, against an argv of `desktop [Terminal 104]`,
-# and taking that would put a name from one string under a heading built
-# from another. The same test leaves a genuinely 15-character name alone,
-# which is the other thing this cannot tell apart from a cut one.
-fn tasks_fullname(int pid, nm) {
-	local a
-
-	read -r -d '' a 2> /dev/null < "/proc/$pid/cmdline"
-	a=${a##*/}
-	[ -z "$a" ] && { ret "$nm"; return 0; }
-	case $a in "$nm"?*) ret "$a"; return 0 ;; esac
-	ret "$nm"
-}
-
+# Every process from ps -axo, one line each: pid, RSS in the same
+# kilobytes /proc/[pid]/status uses, %CPU already computed by the kernel,
+# user (ps resolves it itself here, unlike the Linux path's own uid), and
+# comm last so a path with a space in it -- an app bundle's, typically --
+# still reads whole, in read's own last-variable-takes-the-rest rule.
 fn tasks_scan_ps(int? id = "") {
 	local pid rss pcpu user comm line n=0
 
@@ -447,35 +367,35 @@ fn tasks_scan_ps(int? id = "") {
 	TK[$id]["n"]=$n
 }
 
+# One pass: every process with its name, owner and memory, CPU from the
+# delta against the last scan. The first scan has nothing to compare
+# against, so it reads 0.
 fn tasks_scan(int id) {
-	local pid uidrss uid rss owner times u s name now elapsed du ds pct
+	local pid uid rss owner u s name now elapsed du ds pct tab k
 	local n=0
 	local prevt=${TK_PREV[$id]["t"]}
+	local -A seen
 
 	# uname is a program, not a builtin -- := does nothing for one of
 	# those and its output goes straight to the real terminal, so this
 	# has to be a real command substitution, not :=.
 	[ -z "$TK_OS" ] && TK_OS=$(command uname)
-	if [ "$TK_OS" != Linux ]; then
+	# The table comes from the proctab module in one call: every process's
+	# times, real uid, resident memory and name, the name recovered from
+	# argv[0] where comm cut it short. Read here in the shell it was a few
+	# thousand file reads a scan, 200 to 350 ms once a second on the
+	# owner's mini PC, every frame stopped meanwhile.
+	if [ "$TK_OS" != Linux ] || ! need proctab 2> /dev/null ||
+	   ! tab := proctab 2> /dev/null; then
 		tasks_scan_ps "$id"
 		return 0
 	fi
 	tasks_loadusers
 	[ "$TK_FILTER" = desktop ] && tasks_kin
 	now := dt_ms
-	for pid in /proc/[0-9]*; do
-		pid=${pid#/proc/}
-		times := tasks_times "$pid" || continue
-		read -r u s name <<< "$times"
-		[ -z "$name" ] && continue
-		# A name sitting exactly on comm's limit has almost certainly
-		# been cut, so ask argv[0] for the rest. One extra read for
-		# those alone -- 14 of 59 processes here -- not one per
-		# process, and it is done in the scan rather than in the draw
-		# so that sorting by Name agrees with what Name shows.
-		[ ${#name} -ge 15 ] && name := tasks_fullname "$pid" "$name"
-		uidrss := tasks_uidrss "$pid" || continue
-		read -r uid rss <<< "$uidrss"
+	while read -r pid u s uid rss name; do
+		[ -n "$name" ] || continue
+		seen["$pid"]=1
 		pct=0
 		if [ -n "$prevt" ] && [ -n "${TK_PREV[$id]["$pid.u"]}" ]; then
 			du=$((u - TK_PREV[$id]["$pid.u"]))
@@ -500,6 +420,12 @@ fn tasks_scan(int id) {
 		TK[$id][$n]["cpu"]=$pct
 		TK[$id][$n]["mem"]=${rss:-0}
 		n=$((n + 1))
+	done <<< "$tab"
+	# The times of processes that have gone are let go, or a window left
+	# open on a busy machine keeps every pid it ever saw.
+	for k in "${!TK_PREV[$id][@]}"; do
+		case $k in t) continue ;; esac
+		[ -n "${seen["${k%.*}"]+x}" ] || unset TK_PREV[$id]["$k"]
 	done
 	TK_PREV[$id]["t"]=$now
 	TK[$id]["n"]=$n
@@ -643,7 +569,7 @@ fn tasks_cmdline(int pid) {
 # under the graph and above dt_win's own border, reported live.
 fn tasks_draw(int id, int h, int w, int row, int col) {
 	local i r t n vis top sel by dir now full mk
-	local lp ln lo lc lm
+	local lp ln lo lc lm k
 	local pidw=6 ownerw=8 owner pidtxt namew cpu mem line pl ow
 	local showgraph=1 graphh=2 leftw rightw lbl spark
 
@@ -799,7 +725,37 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 		spark := tasks_spark "$id" memh "$rightw"
 		console put -p "w$id" $((r + 1)) $((leftw + 2)) "$spark"
 	fi
+	k := tasks_drawkey "$id"
+	TK[$id]["drawn"]=$k
+	TK[$id]["draws"]=$((${TK[$id]["draws"]:-0} + 1))
 	dt_want "$TK_SCANMS"
+}
+
+# Everything a drawing of this window was made from, but the list itself:
+# the scan it came from, the sort, the selection, the scroll, the full
+# command lines, the size, the focus, the mirroring, the scrollbar and the
+# filter.
+fn tasks_drawkey(int id) {
+	ret "${TK[$id]["scant"]} ${TK[$id]["by"]} ${TK[$id]["dir"]} ${TK[$id]["sel"]} ${TK[$id]["top"]} ${TK[$id]["full"]:-0} ${DT[$id]["h"]} ${DT[$id]["w"]} $DT_FOCUS ${DT_MIRRORON:-0} $TK_BAR $TK_FILTER"
+}
+
+# Whether this window has anything new to draw: only when a scan falls due
+# or something it was drawn from has changed. Every frame a film or a
+# terminal asked for used to redraw the whole list -- 8.7 ms a frame on the
+# owner's mini PC, at 27 frames a second while a video played, for numbers
+# that change once a scan. The dt_want that asks for the next scan is in
+# _draw, which this skips, so it is asked for here as well.
+fn tasks_dirty(int id) {
+	local now left k
+
+	[ -n "${TK[$id]["scant"]}" ] || return 0
+	now := dt_ms
+	left=$((TK_SCANMS - (now - TK[$id]["scant"])))
+	[ "$left" -gt 0 ] || return 0
+	k := tasks_drawkey "$id"
+	[ "$k" = "${TK[$id]["drawn"]}" ] || return 0
+	dt_want "$left"
+	return 1
 }
 
 fn tasks_end(int? id = "", sig = "") {

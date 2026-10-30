@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.62",
+ "version": "3.63",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -675,6 +675,7 @@
   "Next Month": "الشهر التالي",
   "Next Picture": "طريقة العرض التالية",
   "Next Prayer in the Menu Bar": "الصلاة القادمة في شريط القوائم",
+  "Next Quality": "الجودة التالية",
   "Next Tab": "اللسان التالي",
   "Next Wallpaper": "الخلفية التالية",
   "Nextcloud: https://HOST/remote.php/dav/files/USER": "Nextcloud: https://HOST/remote.php/dav/files/USER",

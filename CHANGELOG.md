@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.399
+
+**Task Manager no longer stops the desktop once a second.** Measured on
+the owner's mini PC with a video playing, the desktop drew nothing for
+224 ms (median, up to 290) once every second: Task Manager's scan of the
+process table, read in the shell -- a few thousand file reads a second on
+a machine running a browser engine. The video, the Browser and every
+other window stood still for a quarter of a second each time.
+
+- **The process table comes from C.** A new module, `proctab`, reads every
+  process under `/proc` in one call: times, real uid, resident memory and
+  the name, recovered from `argv[0]` where the kernel cut it -- the same
+  answers the shell scan gave, checked process by process. Where there is
+  no `/proc`, Task Manager reads `ps` as it does on the Mac. Task Manager
+  also lets go of the times of processes that have gone; it used to keep
+  every pid it had ever seen while it was open.
+- **Task Manager draws only when it has something new** (`tasks_dirty`):
+  a scan, a key, a scroll, the size or the focus. A film or a terminal
+  asking for 27 frames a second had it lay out its whole list on each,
+  8.7 ms a frame on the mini PC. Together, a busy terminal beside Task
+  Manager went from 12.6% to 6.2% of a core here.
+- **The picture hash is 40% cheaper**: four words a pass where it was one,
+  about 10 million instructions for a full-screen frame where it was 17.
+- **A press where a field used to be reaches the app.** After a window
+  had drawn a field focused once and then stopped drawing it, a left press
+  anywhere in its old rectangle was taken as the field's for ever after.
+  The Browser's address bar, once an address was sent, never took a click
+  again (found by the hibr-browser session).
+- YouTube 3.11 and Arabic 3.63 are the shipped copies. Browser stays at
+  2.12 here: 2.15 fails a check in the web suite, and goes in once it
+  passes.
+
 ## 0.99.398
 
 **The display you sign in on takes pictures by descriptor too.** The

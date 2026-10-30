@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.10
+app youtube "YouTube, in a window" 3.11
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -1687,8 +1687,38 @@ fn yt_drawmini(int id, int h, int w) {
 	console put -p "w$id" $((h / 2)) 1 "${YT[$id]["title"]:0:$((w - 2))}"
 }
 
-# A right click on the mini player.
+# A right click: the menu is the window's own, not always the mini player's -- the desktop
+# asks for it on any right press once this exists.  The mini player has Sticky, Shadow and the
+# way back to the full player; the full player has what is on its Play menu and the way to the
+# mini one; a list has the lists.
 fn youtube_context(int? id = "") {
+	if [ "${YT[$id]["mini"]}" != 1 ]; then
+		if [ "${YT[$id]["view"]}" = play ] && [ -n "${YT[$id]["p"]}" ]; then
+			dt_menu "Player"
+			dt_item "Pause or Play" p yt_toggle "$id"
+			dt_item "Back 10 Seconds" b yt_seek "$id" -10
+			dt_item "On 10 Seconds" o yt_seek "$id" +10
+			dt_item "Next" n yt_next "$id" 1
+			dt_item "Previous" r yt_next "$id" -1
+			dt_sep
+			dt_item "Louder" l youtube_key "$id" up
+			dt_item "Quieter" q youtube_key "$id" down
+			dt_sep
+			dt_mark "Captions" c "${YT_CAPTIONS:-0}" yt_captions "$id"
+			dt_item "Next Picture" x yt_mode
+			dt_item "Next Quality" y yt_quality "$id"
+			dt_sep
+			dt_item "Mini Player" i yt_mini "$id"
+		else
+			dt_menu "YouTube"
+			dt_item "Search${GL[ellipsis]}" s youtube_key "$id" "/"
+			dt_item "History" h youtube_key "$id" h
+			dt_item "Favourites" v youtube_key "$id" v
+		fi
+		dt_sep
+		dt_item "Close" w dt_closereq "$id"
+		return 0
+	fi
 	dt_menu "Player"
 	if [ -n "${YT[$id]["p"]}" ]; then
 		dt_item "Pause or Play" p yt_toggle "$id"

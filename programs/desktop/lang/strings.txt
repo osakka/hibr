@@ -767,6 +767,7 @@ Next Page
 Next Picture
 Next Prayer
 Next Prayer in the Menu Bar
+Next Quality
 Next Tab
 Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER

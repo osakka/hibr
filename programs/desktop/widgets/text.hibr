@@ -362,6 +362,11 @@ fn dt_fdhit(id, int r, int c) {
 	local fr fc fw
 
 	[ "${DT_FIELD["id"]}" = "$id" ] && [ -n "${DT_FIELD["rect"]}" ] || return 1
+	# Only a field the window drew focused on its last draw: one it has
+	# stopped drawing keeps its rectangle here, and a press there was taken
+	# as the field's for ever after, so the app never had the click (the
+	# Browser's address bar once an address was sent).
+	[ "${DT_FIELD["live"]}" = 1 ] || return 1
 	read -r fr fc fw <<< "${DT_FIELD["rect"]}"
 	[ "$r" = "$fr" ] && [ "$c" -ge "$fc" ] && [ "$c" -le $((fc + fw)) ]
 }

@@ -5704,6 +5704,31 @@ sc, _ = run(FX, feed=[press(4, 12), drag(4, 14), drag(4, 17), release(4, 17),
                       b"\x1bx"])
 check("a drag across a field's text selects it, for Cut to take",
       sc.row(4)[6:13] == "hello  " and "world" not in sc.row(4), sc.row(4))
+# A field the window has stopped drawing is not a field any more: a press
+# where it was goes to the app. The desktop kept the last focused field's
+# rectangle after the window stopped drawing it, and took every left press
+# there as the field's -- the Browser's address bar, once an address was
+# sent, never took a click again (0.99.399, found by the browser session).
+FY = ('declare -gA FY\n'
+      'fn fy_draw(int id, int h, int w, int row, int col) {\n'
+      '    if [ "${FY[$id]["off"]}" = 1 ]; then\n'
+      '        console put -p "w$id" 2 2 "${FY[$id]["said"]-plain text here}"\n'
+      '    else\n'
+      '        dt_textdraw "$id" 2 2 30 "a field" 0 1\n'
+      '    fi\n'
+      '}\n'
+      'fn fy_key(int id, key) {\n'
+      '    case $key in e) FY[$id]["off"]=1; return 0 ;; esac\n'
+      '    return 1\n'
+      '}\n'
+      'fn fy_click(int id, int r, int? c = "", btn = "") {\n'
+      '    FY[$id]["said"]="the app had the click"\n'
+      '}\n'
+      'dt_new "FY" 8 40 2 4 fy')
+sc, _ = run(FY, feed=[b"e", 0.3, press(4, 10), release(4, 10), 0.3])
+check("a press where a field used to be reaches the app once it is gone",
+      "the app had the click" in sc.row(4), sc.row(4))
+
 # And a field undoes and redoes its own typing (Gitea #372), from the
 # desktop as Copy and Paste are: changes less than a second apart are one
 # step, and the old text is typed back in, since the value is the app's.
@@ -8362,4 +8387,4 @@ a, b, told = fsrun("fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
 check("and what a module draws at absolute coordinates over it shows",
       a.find("WORLD") == (4, 2), a)
 
-report(906)
+report(907)

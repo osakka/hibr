@@ -154,6 +154,28 @@ unsigned cn_hash(const void *p, size_t n, unsigned h)
 		g *= 1099511628211ull;
 		n--;
 	}
+	/* Four words a pass into four running values, folded at the end: tcc
+	   keeps every local in memory, so the loop's own bookkeeping was most
+	   of the cost of one word a pass -- 21 instructions a word, 17 million
+	   for a 1914x1078 frame, which a film at a dozen frames a second pays
+	   on every one. */
+	{
+		unsigned long long g1 = g ^ 0x9e3779b97f4a7c15ull,
+				   g2 = g ^ 0xc2b2ae3d27d4eb4full,
+				   g3 = g ^ 0x165667b19e3779f9ull;
+		const unsigned long long *w = (const unsigned long long *)b;
+
+		while (n >= 32) {
+			g = (g ^ w[0]) * 1099511628211ull;
+			g1 = (g1 ^ w[1]) * 1099511628211ull;
+			g2 = (g2 ^ w[2]) * 1099511628211ull;
+			g3 = (g3 ^ w[3]) * 1099511628211ull;
+			w += 4;
+			n -= 32;
+		}
+		b = (const unsigned char *)w;
+		g = ((g * 31 + g1) * 31 + g2) * 31 + g3;
+	}
 	while (n >= 8) {
 		g ^= *(const unsigned long long *)b;
 		g *= 1099511628211ull;
