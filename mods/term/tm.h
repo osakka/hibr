@@ -65,6 +65,11 @@ struct tm_img {
 	   really does remove it, so this is 0 for one. */
 	int under;
 	str data;
+	/* How much of data is the transmission itself, and its size in
+	   pixels: an edit of the whole of it replaces every edit after that,
+	   so a film edited frame by frame keeps one frame, not all of them. */
+	size_t base;
+	long pw, ph;
 };
 
 /* The most a kept picture's escapes may hold. A program's picture reaches a
@@ -196,7 +201,7 @@ struct tm_t {
 	unsigned imgen;
 	int cellw, cellh;
 	str imgb;
-	int imgr, imgc, imgrows, imgcols, imgon, imgunder;
+	int imgr, imgc, imgrows, imgcols, imgon, imgunder, imgwhole;
 	unsigned imgid;
 	/* The scrolls since this terminal was last drawn, for the hint its
 	   draw gives the display (Gitea #353): one region and the rows it

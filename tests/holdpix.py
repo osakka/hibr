@@ -1315,6 +1315,69 @@ check("a held program's picture edited in place reaches a display that can "
 check("and a display that cannot is sent the whole picture again",
       len(kplaced(sc2)) == 2 and not kedited(sc2), (kplaced(sc2), kedited(sc2)))
 
+# A film's frames go as an edit of the whole picture into the one image
+# (0.99.396): on Blit each new image was a new texture and a placement torn
+# down, every frame. hold's emulator keeps such an edit in place of the
+# edits before it, so what it keeps for a display that joins later is the
+# picture and its latest frame -- not every frame since it was placed --
+# and only a server that says so (`hold frames`) is sent them.
+GRAD3 = png("grad3.png", 48, 48, lambda x, y: (255 - x * 5 % 256, 255 - y * 5 % 256, 200))
+
+
+def framesrun():
+    open(LOG, "w").close()
+    nm = name()
+    body = ("f := hold frames\necho \"frames $f\" >> %s\n"
+            "[ \"$f\" = yes ] && console imgedit whole\n"
+            "console pane w1 2 2 10 30\nconsole put 0 0 'HELD frames'\n" % LOG)
+    for g in (GRAD, GRAD3, GRAD, GRAD3):
+        body += ("img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\n"
+                 "console key 80 > /dev/null\n" % g)
+    body += "echo drawn >> %s\n" % LOG
+    one = os.path.join(D, "fone.hibr")
+    two = os.path.join(D, "ftwo.hibr")
+    open(one, "w").write(load("hold")
+                         + 'hold new -d %s "$HIBR" %s\n' % (nm, inner(body, 12000, nm))
+                         + "sleep 0.6\n"
+                         + "hold attach -m -n one %s 0 0\n" % nm)
+    open(two, "w").write(load("hold") + "hold attach -m -n two %s 0 0\n" % nm)
+    t1 = Term(one, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
+              env={"HIBR_GFX": "kitty", "TMPDIR": D}, caps=["kitty", "kedit"])
+    for _ in range(24 * SLOW):
+        t1.collect(0.25)
+        if "drawn" in open(LOG).read():
+            break
+    t2 = Term(two, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
+              env={"HIBR_GFX": "kitty", "TMPDIR": D}, caps=["kitty", "kedit"])
+    for _ in range(16 * SLOW):
+        t2.collect(0.25)
+        if "HELD frames" in t2.text and kplaced(t2.screen()):
+            break
+    t2.collect(1.0)
+    sc1, sc2 = t1.screen(), t2.screen()
+    t2.quit(None, 0.5)
+    t1.quit(None, 0.5)
+    kill(nm)
+    return sc1, sc2, open(LOG).read()
+
+
+def ckey(ctrl, k):
+    for f in ctrl.lstrip("G").split(";")[0].split(","):
+        if f.startswith(k + "="):
+            return f[len(k) + 1:]
+    return None
+
+
+fs1, fs2, flog = framesrun()
+check("hold frames says the server keeps a whole edit in place of the ones before",
+      "frames yes" in flog, flog)
+check("a held film's frames reach a display as edits into the one picture",
+      len(kplaced(fs1)) == 1 and len(kedited(fs1)) == 3
+      and ckey(kedited(fs1)[-1], "s") == ckey(kplaced(fs1)[0], "s"),
+      (kplaced(fs1), kedited(fs1)))
+check("and a display joining afterwards is sent the picture and its last frame only",
+      len(kplaced(fs2)) == 1 and len(kedited(fs2)) == 1, (kplaced(fs2), kedited(fs2)))
+
 # A display joining above (Gitea #257's negative row, how the Control Panel
 # and Blit stack displays) moves every display down in the union. hold
 # moved them and not what the program had drawn, so until the desktop drew
@@ -1356,4 +1419,4 @@ check("a display joining above is never a blank screen on the display already "
       worst < 12 and sc.find("┤ Note ├") == (4, 8), (worst, sc))
 
 shutil.rmtree(D, True)
-report(76)
+report(79)

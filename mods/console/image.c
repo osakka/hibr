@@ -60,6 +60,7 @@ typedef struct cn_img {
 	unsigned pgen;		/* the resize generation it was kept at */
 	str edit;		/* edits not yet sent */
 	size_t editb;		/* bytes of edits sent since the whole picture */
+	int edited;		/* an edit has gone since it went out whole */
 } cn_img;
 
 static cn_img *cn_imgs;
@@ -222,7 +223,7 @@ void cn_imgunedit(void)
 	size_t i = cn_nimg;
 
 	while (i--)
-		if (cn_imgs[i].editb)
+		if (cn_imgs[i].edited)
 			cn_imgdrop(i);
 }
 
@@ -471,13 +472,19 @@ unsigned char *cn_imgbuild(const unsigned char *rgb, int iw, int ih, int sx,
    when that was done -- or nothing had changed -- and 0 when the picture
    has to go out whole: a terminal that cannot edit, a size that moved, a
    change over most of it, or edits adding up to more than one whole
-   picture since the last, which keeps what hold has to carry bounded. */
+   picture since the last, which keeps what hold has to carry bounded.
+   Where the terminal takes an edit of the whole picture in place
+   (cn_canwhole) those last two go as exactly that, into the same image:
+   a film's every frame was a new image and the old one deleted behind
+   it, which on Blit is a new texture and a placement torn down per
+   frame. An edit of all of it starts the count again, because hold's
+   emulator keeps it in place of the edits before it. */
 int cn_imgtry(cn_img *im, const unsigned char *rgb, int iw, int ih,
 	      unsigned sum)
 {
 	unsigned char *nb, *sub;
 	const unsigned char *a, *b;
-	int x0, y0, x1 = -1, y1 = -1, x, y, bw, bh;
+	int x0, y0, x1 = -1, y1 = -1, x, y, bw, bh, whole = 0;
 	size_t full, n, row;
 
 	if (!cn_canedit() || !im->id || im->over || !im->prev || !im->sent ||
@@ -513,18 +520,32 @@ int cn_imgtry(cn_img *im, const unsigned char *rgb, int iw, int ih,
 		full = (size_t)im->ptw * im->pth * 4;
 		if ((long long)bw * bh * 10 > (long long)im->ptw * im->pth * 6 ||
 		    im->editb + (size_t)bw * bh * 4 > full) {
-			free(nb);
-			return 0;
+			if (!cn_canwhole()) {
+				free(nb);
+				return 0;
+			}
+			whole = 1;
+			x0 = y0 = 0;
+			bw = im->ptw;
+			bh = im->pth;
 		}
-		sub = xm((size_t)bw * bh * 3);
-		for (y = 0; y < bh; y++)
-			memcpy(sub + (size_t)y * bw * 3,
-			       nb + ((size_t)(y0 + y) * im->ptw + x0) * 3,
-			       (size_t)bw * 3);
+		if (whole) {
+			sub = nb;
+		} else {
+			sub = xm((size_t)bw * bh * 3);
+			for (y = 0; y < bh; y++)
+				memcpy(sub + (size_t)y * bw * 3,
+				       nb + ((size_t)(y0 + y) * im->ptw + x0) * 3,
+				       (size_t)bw * 3);
+		}
+		if (whole)
+			im->edit.n = 0;
 		n = im->edit.n;
 		kt_edit(sub, bw, bh, x0, y0, im->id, &im->edit);
-		im->editb += im->edit.n - n;
-		free(sub);
+		im->editb = whole ? 0 : im->editb + (im->edit.n - n);
+		im->edited = 1;
+		if (!whole)
+			free(sub);
 		lg(HIBR_LDBG, "image: %d,%d edited, %dx%d of %dx%d pixels, %zu bytes",
 		   im->row, im->col, bw, bh, im->ptw, im->pth, im->edit.n - n);
 	}
@@ -915,6 +936,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		im->pth = th;
 		im->pgen = (unsigned)cn_wgen;
 		im->editb = 0;
+		im->edited = 0;
 	}
 	free(px);
 	im->under = cn_imgunder(im);

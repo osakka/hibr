@@ -377,6 +377,31 @@ int hd_editlist(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* Whether a session's server keeps an edit of a whole picture in place of
+   the edits before it, "yes": hold frames [name]. Fails against a server
+   too old to say, which keeps them all. */
+int hd_frames(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok;
+
+	s_init(&path);
+	if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_ask(path.p, HD_FRAMES, &r);
+	s_free(&path);
+	if (!ok) {
+		s_free(&r);
+		return HIBR_FAIL;
+	}
+	hd_ret(s, r.p ? r.p : "");
+	s_free(&r);
+	return HIBR_OK;
+}
+
 /* Send every display of a session this many colours whatever it said, or
    auto (0) for what each said: hold colours [name] N (Gitea #353). */
 int hd_colours(sh *s, int ac, char **av)
@@ -606,6 +631,8 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_locklist(s, ac, av);
 	if (!strcmp(sub, "edits"))
 		return hd_editlist(s, ac, av);
+	if (!strcmp(sub, "frames"))
+		return hd_frames(s, ac, av);
 	if (!strcmp(sub, "stats"))
 		return hd_statlist(s, ac, av);
 	if (!strcmp(sub, "colours"))
@@ -712,7 +739,7 @@ int m_hold(sh *s, int ac, char **av)
 	}
 	s_free(&path);
 	lg(HIBR_LERR,
-	   "usage: hold new|attach|detach|list|kill|clients|gfx|pixels|pointers|locks|edits|stats|colours|shift|move|slot|drop|primary|upgrade ...");
+	   "usage: hold new|attach|detach|list|kill|clients|gfx|pixels|pointers|locks|edits|frames|stats|colours|shift|move|slot|drop|primary|upgrade ...");
 	return 2;
 }
 

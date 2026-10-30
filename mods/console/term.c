@@ -59,6 +59,7 @@ static int cn_capkit = -1;
    there the terminal answering is hold's own emulator. */
 int cn_editoks;
 int cn_imgedit = -1;
+static int cn_heldk = -1;
 static int cn_capsix = -1;
 /* And whether each has been answered since the last ask, which is what
    makes a *negative* possible for a protocol that can only ever answer
@@ -184,7 +185,28 @@ void cn_gotcap(int kind, int yes)
    sent again whole. */
 int cn_canedit(void)
 {
-	return cn_imgedit < 0 ? cn_editoks >= 2 : cn_imgedit;
+	return cn_imgedit < 0 ? cn_editoks >= 2 : cn_imgedit != 0;
+}
+
+/* Whether a picture that changed over most of itself -- a film's next
+   frame -- may go as one edit of the whole of it into the image already
+   there, rather than as a new image with the old deleted behind it. Said
+   outright (2) by a desktop inside hold whose server keeps such an edit in
+   place of the ones before it (`hold frames`); auto only where nothing is
+   between the console and the terminal, since an older hold server's
+   emulator would keep every frame. */
+int cn_canwhole(void)
+{
+	if (cn_imgedit == 2)
+		return 1;
+	if (cn_imgedit >= 0 || cn_editoks < 2)
+		return 0;
+	if (cn_heldk < 0) {
+		const char *h = getenv("HIBR_HOLD");
+
+		cn_heldk = h && *h;
+	}
+	return !cn_heldk;
 }
 
 /* The kitty keyboard protocol's disambiguate flag, pushed once the terminal

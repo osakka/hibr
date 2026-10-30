@@ -205,6 +205,32 @@ unsigned hd_imgid(const char *p, size_t n)
 	return 0;
 }
 
+/* How many of a kept kitty picture's bytes are its transmission: its
+   escapes up to and including the first that is not followed by more (no
+   m=1). What comes after is edits. n when there is no end to be found. */
+size_t hd_imgbase(const char *p, size_t n)
+{
+	size_t i = 0, e, k;
+	int more;
+
+	while (i + 3 < n && p[i] == '\033' && p[i + 1] == '_') {
+		for (e = i + 2; e + 1 < n && !(p[e] == '\033' && p[e + 1] == '\\');
+		     e++)
+			;
+		if (e + 1 >= n)
+			return n;
+		more = 0;
+		for (k = i + 2; k + 3 < e && p[k] != ';'; k++)
+			if ((k == i + 3 || p[k - 1] == ',') && p[k] == 'm' &&
+			    p[k + 1] == '=' && p[k + 2] == '1')
+				more = 1;
+		i = e + 2;
+		if (!more)
+			return i;
+	}
+	return n;
+}
+
 /* Append an absolute cursor move. */
 void hd_goto(str *b, int row, int col)
 {
@@ -720,13 +746,14 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	}
 	if (hd_tm->images && (clear || wipe || cn->imgen != hd_tm->imgen(tid))) {
 		int ir, ic, irows, icols, k, n = hd_tm->images(tid), sent = 0;
-		unsigned *nid, *nhash;
-		size_t *nlen, nn = 0, j, from;
+		unsigned *nid, *nhash, *nbase;
+		size_t *nlen, nn = 0, j, from, base;
 		str pic;
 
 		nid = n > 0 ? xm((size_t)n * sizeof *nid) : 0;
 		nhash = n > 0 ? xm((size_t)n * sizeof *nhash) : 0;
 		nlen = n > 0 ? xm((size_t)n * sizeof *nlen) : 0;
+		nbase = n > 0 ? xm((size_t)n * sizeof *nbase) : 0;
 		s_init(&pic);
 		for (k = 0; k < n; k++) {
 			unsigned id, h;
@@ -751,6 +778,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				continue;
 			id = hd_imgid(pic.p, pic.n);
 			h = hd_hash(pic.p, pic.n);
+			base = id ? hd_imgbase(pic.p, pic.n) : pic.n;
 			from = 0;
 			if (id && !clear)
 				for (j = 0; j < cn->pn; j++) {
@@ -764,12 +792,19 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 					if (cn->plen && cn->plen[j] < pic.n &&
 					    hd_hash(pic.p, cn->plen[j]) == cn->phash[j])
 						from = cn->plen[j];
+					/* Or edited whole since: what follows
+					   the transmission it already has. */
+					else if (cn->pbase && base < pic.n &&
+						 cn->plen[j] >= base &&
+						 hd_hash(pic.p, base) == cn->pbase[j])
+						from = base;
 					break;
 				}
 			if (id) {
 				nid[nn] = id;
 				nhash[nn] = h;
 				nlen[nn] = pic.n;
+				nbase[nn] = hd_hash(pic.p, base);
 				nn++;
 			}
 			if (had)
@@ -805,9 +840,11 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		free(cn->pid);
 		free(cn->phash);
 		free(cn->plen);
+		free(cn->pbase);
 		cn->pid = nid;
 		cn->phash = nhash;
 		cn->plen = nlen;
+		cn->pbase = nbase;
 		cn->pn = nn;
 		cn->imgen = hd_tm->imgen(tid);
 		if (sent)

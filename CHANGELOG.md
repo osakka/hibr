@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.99.396
+
+**A film's frames go into one picture.** Every frame of a video, a
+browser page or a game used to go to the terminal as a new image, with
+the previous one deleted behind it. On Blit that meant a new image
+object, a new placement and a full texture created and torn down every
+frame. Where the terminal can edit a picture in place, a frame that
+changed over most of the picture now goes as one edit of the whole of it
+into the same image. The pixels sent are the same; the image, its
+placement and the delete are no longer redone per frame.
+
+- `console imgedit` takes `whole`. `auto` uses it wherever the terminal
+  can edit and nothing is between them.
+- **Inside `hold`, only a server that says so is sent them.** A new
+  `hold frames` answers `yes` from a server whose emulator keeps an edit
+  of the whole picture in place of the edits before it, so what it keeps
+  of a film is the picture and its latest frame. An older server keeps
+  every edit, so the desktop does not ask for whole edits there, and a
+  display that joins later is sent the picture and its last frame only.
+- This is step one of two for video on Blit. Step two, frames passed to
+  Blit as a sealed memfd instead of through the terminal (Blit ADR
+  0202), follows.
+
 ## 0.99.395
 
 **The control socket stays the desktop's, and the CPU round goes on.**

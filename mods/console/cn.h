@@ -203,6 +203,7 @@ void cn_askmaybe(void);
 void cn_gotcap(int kind, int yes);
 extern int cn_editoks, cn_imgedit;
 int cn_canedit(void);
+int cn_canwhole(void);
 void cn_gotcolour(int which, int idx, unsigned rgb);
 unsigned cn_termbg(void);
 int cn_termbgok(void);

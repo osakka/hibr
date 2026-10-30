@@ -129,6 +129,12 @@ enum {
 	   letting the console send only what changed in a picture. Its own
 	   request for the reason HD_LOCKLIST is. */
 	HD_EDITLIST = 'F',
+	/* Whether this server keeps an edit of a whole picture in place of
+	   the edits before it, "yes" -- what lets a desktop send a film's
+	   every frame as an edit into one image rather than a new image each
+	   frame. A server too old to answer keeps every edit, and is then
+	   sent no such edit. */
+	HD_FRAMES = 'W',
 	/* What each display has been sent since it attached, name, bytes and
 	   frames a line (Gitea #353). Its own request for the reason
 	   HD_GFXLIST is. */
@@ -267,6 +273,11 @@ struct hd_cli {
 	   place (Gitea #404) is the bytes it had and its edits after them, so
 	   one whose bytes begin with exactly those is sent only the rest. */
 	size_t *plen;
+	/* And a hash of the transmission those bytes began with: an edit of
+	   the whole picture replaces the edits before it in what the session
+	   keeps, so a display that has the transmission is sent only what
+	   follows it, never the picture again. */
+	unsigned *pbase;
 	size_t pn;
 	/* Whether this client's terminal has been told to drop every picture
 	   it held before the list above began. The list starts empty for a
@@ -340,6 +351,7 @@ struct hd_cli {
 
 unsigned hd_hash(const char *p, size_t n);
 unsigned hd_imgid(const char *p, size_t n);
+size_t hd_imgbase(const char *p, size_t n);
 int hd_canshow(const struct hd_cli *cn, const char *p, size_t n);
 void hd_relay(int tid);
 int hd_gfxdue(vec *cls, int m);

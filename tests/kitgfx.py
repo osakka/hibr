@@ -1071,6 +1071,33 @@ check("once edits stop, a picture that was edited is sent whole again",
       len(places(sc3)) == 2 and len([a for a in sc3.apc if "a=f" in a and "i=4202" not in a]) == 1,
       (places(sc3), sc3.apc))
 
+# A picture changed over most of itself -- a film's next frame -- goes as
+# an edit of the whole of it into the same image where the terminal takes
+# one (0.99.396), with no new image and no delete behind it: on Blit each
+# new image was a new texture and a placement torn down, every frame. Not
+# inside hold unless the desktop says so, since an older server's emulator
+# would keep every frame; and with only part-edits allowed it is a new
+# picture as it was.
+GRAD3 = png("grad3.png", 48, 48, lambda x, y: (255 - x * 5 % 256, 255 - y * 5 % 256, 200))
+WHOLE = ("console key 400\nconsole pane w1 2 2 10 30\n"
+         "img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\nconsole key 60\n"
+         "img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\nconsole key 60\n"
+         % (GRAD, GRAD3))
+sc = run(WHOLE, caps=["kitty", "kedit"])
+ed = [a for a in sc.apc if "a=f" in a and "i=4202" not in a]
+check("a picture changed all over goes as one edit of the whole of it, same image",
+      len(places(sc)) == 1 and len(ed) == 1 and not mine(sc)
+      and key(ed[0], "i") == key(places(sc)[0], "i")
+      and key(ed[0], "s") == key(places(sc)[0], "s")
+      and key(ed[0], "v") == key(places(sc)[0], "v"), (places(sc), ed, mine(sc)))
+sc = run("console imgedit on\n" + WHOLE, caps=["kitty", "kedit"])
+check("with only part-edits allowed it is a new picture, the old deleted behind it",
+      len(places(sc)) == 2 and len(mine(sc)) == 1, (places(sc), mine(sc)))
+sc = run("console imgedit whole\nconsole imgedit off\n" + WHOLE, caps=["kitty", "kedit"])
+check("and with edits off it is a new picture too",
+      len(places(sc)) == 2 and not [a for a in sc.apc if "a=f" in a and "i=4202" not in a],
+      places(sc))
+
 # A pane that moves takes its picture with it: placed again at the new
 # place, the old placement is deleted. A full-screen game draws its picture
 # and no cells, and the old one used to stay on the first display for good
@@ -1089,4 +1116,4 @@ check("a pane that moves takes its picture with it, though it draws no cells",
       and key(pl[1], "i") != key(pl[0], "i"), (pl, deletes(sc)))
 
 shutil.rmtree(D, True)
-report(105)
+report(108)

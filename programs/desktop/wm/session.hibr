@@ -291,9 +291,14 @@ dt_size() {
 		# is told. A server too old to answer is no display that can.
 		# Turned off, the console drops what it had edited, so every
 		# window draws again and each such picture goes out whole.
+		# And a picture changed over most of itself -- a film's next
+		# frame -- goes as an edit of all of it into the same image only
+		# where the server keeps that edit in place of the ones before
+		# it (`hold frames`); an older one would keep every frame.
 		if [ "$DT_IMGEDITS" != off ] && gl := hold edits 2> /dev/null && [ -n "$gl" ] &&
 		   ! [[ $'\n'"$gl" == *" no"* ]]; then
 			gv=on
+			gl := hold frames 2> /dev/null && [ "$gl" = yes ] && gv=whole
 		else
 			gv=off
 		fi

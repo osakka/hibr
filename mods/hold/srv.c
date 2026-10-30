@@ -107,6 +107,7 @@ void hd_cdrop(vec *cls, int fd)
 			free(cn->pid);
 			free(cn->phash);
 			free(cn->plen);
+		free(cn->pbase);
 			s_free(&cn->mbuf);
 			s_free(&cn->name);
 			s_free(&cn->title);
@@ -447,6 +448,7 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		free(cn->pid);
 		free(cn->phash);
 		free(cn->plen);
+		free(cn->pbase);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
 		s_free(&cn->title);
@@ -695,6 +697,9 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		s_free(&o);
 		break;
 	}
+	case HD_FRAMES:
+		hd_send(c, HD_FRAMES, "yes", 3);
+		break;
 	case HD_EDITLIST: {
 		size_t ci;
 
@@ -1204,6 +1209,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 		free(cn->pid);
 		free(cn->phash);
 		free(cn->plen);
+		free(cn->pbase);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
 		s_free(&cn->title);

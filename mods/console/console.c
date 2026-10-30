@@ -985,7 +985,9 @@ int m_console(sh *s, int ac, char **av)
 	/* Whether a window's picture may go out as the part that changed,
 	   edited in place (Gitea #404): auto is what the terminal answered,
 	   which inside hold is hold's own emulator, so a held desktop says on
-	   or off from `hold edits`. With no argument, what it is now: on or
+	   or off from `hold edits`. whole is on, and a picture changed over
+	   most of itself goes as an edit of all of it into the same image,
+	   which a held desktop says from `hold frames`. With no argument, what it is now: on or
 	   off, and auto in brackets when that is where it came from. */
 	if (!strcmp(sub, "imgedit")) {
 		const char *m = ac > 2 ? av[2] : "";
@@ -993,7 +995,9 @@ int m_console(sh *s, int ac, char **av)
 
 		if (!*m) {
 			const char *now = cn_imgedit < 0
-				? (cn_canedit() ? "on (auto)" : "off (auto)")
+				? (cn_canwhole() ? "whole (auto)"
+				   : cn_canedit() ? "on (auto)" : "off (auto)")
+				: cn_imgedit == 2 ? "whole"
 				: cn_imgedit ? "on" : "off";
 
 			hibr_ret(s, now);
@@ -1006,10 +1010,12 @@ int m_console(sh *s, int ac, char **av)
 			cn_imgedit = 1;
 		else if (!strcmp(m, "off"))
 			cn_imgedit = 0;
+		else if (!strcmp(m, "whole"))
+			cn_imgedit = 2;
 		else if (!strcmp(m, "auto"))
 			cn_imgedit = -1;
 		else {
-			lg(HIBR_LERR, "usage: console imgedit on|off|auto");
+			lg(HIBR_LERR, "usage: console imgedit on|whole|off|auto");
 			return 2;
 		}
 		if (was && !cn_canedit())

@@ -135,6 +135,9 @@ void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id, int unde
 	m->under = under;
 	s_init(&m->data);
 	s_add(&m->data, p, n);
+	m->base = n;
+	m->pw = n > 3 ? tm_imgkey(p + 3, 's') : -1;
+	m->ph = n > 3 ? tm_imgkey(p + 3, 'v') : -1;
 	t->imgen++;
 	lg(HIBR_LDBG, "terminal %d: picture of %dx%d cells at %d,%d, %zu bytes",
 	   t->id, cols, rows, r, c, n);
@@ -190,7 +193,9 @@ void tm_apcraw(tm_t *t, str *o)
    (m=1), and a delete (a=d) takes one or all of them away. An edit of one
    already kept (a=f, Gitea #404) is added to the end of its escapes, so
    whatever re-serialises this grid can send a display that already has the
-   picture only what it has not had, and one that joins all of it. Any
+   picture only what it has not had, and one that joins all of it -- and an
+   edit of the whole picture replaces the edits before it, since it
+   overwrites every pixel they did. Any
    other APC, and a transmission that does not display, is dropped as it
    always was. */
 void tm_apcend(tm_t *t)
@@ -249,6 +254,10 @@ void tm_apcend(tm_t *t)
 		if (i == t->imgn)
 			return;
 		t->imgid = (unsigned)id;
+		t->imgwhole = tm_imgkey(s, 'x') <= 0 && tm_imgkey(s, 'y') <= 0 &&
+			      t->img[i].pw > 0 && t->img[i].ph > 0 &&
+			      tm_imgkey(s, 's') == t->img[i].pw &&
+			      tm_imgkey(s, 'v') == t->img[i].ph;
 		t->imgb.n = 0;
 		if (t->imgb.p)
 			t->imgb.p[0] = 0;
@@ -295,6 +304,8 @@ void tm_apcend(tm_t *t)
 	if (t->imgon == 3) {
 		for (i = 0; i < t->imgn; i++)
 			if (t->img[i].id == t->imgid) {
+				if (t->imgwhole)
+					t->img[i].data.n = t->img[i].base;
 				s_add(&t->img[i].data, t->imgb.p, t->imgb.n);
 				t->imgen++;
 				break;
