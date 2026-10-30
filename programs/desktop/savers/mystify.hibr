@@ -7,7 +7,7 @@
 strict
 
 
-app mystify "Two four-cornered shapes bouncing about the screen" 1.0
+app mystify "Two four-cornered shapes bouncing about the screen" 1.1
 command -v sv_saver > /dev/null && sv_saver mystify "Mystify" 90
 
 MY_TRAIL=2
@@ -37,26 +37,9 @@ fn mystify_start(int rows, int cols) {
 	done
 }
 
-# Draw a line between two cells with text, one cell at a time.
+# Draw a line between two cells with text, in the console's one call.
 fn my_line(int r0, int c0, int r1, int c1, t) {
-	local dr=$((r1 - r0)) dc=$((c1 - c0)) sr=1 sc=1 err e2
-
-	[ "$dr" -lt 0 ] && dr=$((-dr)) && sr=-1
-	[ "$dc" -lt 0 ] && dc=$((-dc)) && sc=-1
-	err=$((dc - dr))
-	while :; do
-		console put "$r0" "$c0" "$t"
-		[ "$r0" = "$r1" ] && [ "$c0" = "$c1" ] && break
-		e2=$((err * 2))
-		if [ "$e2" -gt $((-dr)) ]; then
-			err=$((err - dr))
-			c0=$((c0 + sc))
-		fi
-		if [ "$e2" -lt "$dc" ]; then
-			err=$((err + dc))
-			r0=$((r0 + sr))
-		fi
-	done
+	console line "$r0" "$c0" "$r1" "$c1" "$t"
 }
 
 # Draw one shape -- four corners from a list -- in text.

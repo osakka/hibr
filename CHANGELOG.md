@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.395
+
+**The control socket stays the desktop's, and the CPU round goes on.**
+
+- **A program the desktop starts no longer holds its control socket**
+  (Gitea #411). `listen` handed every listening descriptor on to anything
+  the shell ran, so each terminal's shell kept the desktop's socket open,
+  and the socket still had a listener after the desktop had gone. Both
+  forms of `listen` mark the descriptor close-on-exec now. A descriptor a
+  script passes on with a redirection is still passed on.
+- **The login screen's default saver costs a tenth of what it did.**
+  Mystify drew each line with one `console put` per cell: 13.7% of a core
+  at 49x174. The new `console line r0 c0 r1 c1 [char]` draws a whole line
+  in one call, clipped to the screen, and Mystify (1.1) uses it: 1.3%.
+- **An open menu is not rebuilt on every frame the pointer moves over
+  it.** It is rebuilt after a click, a key or another action that could
+  change its items, and at most once a second besides. The pointer over
+  an open menu went from 11.1% to 7.3% of a core, and the menus' share of
+  a frame from 6.5 to 0.9 ms.
+- **Moving a window redraws only what the move touched.** The window
+  that moved, and those its old or new place overlaps, are drawn whole;
+  every other window keeps its cells, and the wallpaper paints back what
+  the move uncovered. Untouched windows went from 1.8 to 0.5 ms a frame
+  while another window is dragged.
+- **`desktop ctl stats` times each part of a frame:** `part:arrange`,
+  `wall`, `windows`, `menus`, `barstrip` and `overlays`.
+
 ## 0.99.394
 
 **The desktop's CPU, measured and cut.** Measured with the owner's own

@@ -141,6 +141,7 @@ fn dt_clean(int id) {
 
 	[ "$DT_FORCEDRAW" = 1 ] && return 1
 	[ -n "$DT_FORCEONCE" ] && return 1
+	case $DT_FORCEWIN in *" $id "*) return 1 ;; esac
 	[ -n "$ap" ] || return 1
 	dt_hotmoved "$id" && return 1
 	case " $DT_ALONE " in *" $id "*) ;; *) return 1 ;; esac
@@ -249,6 +250,7 @@ fn dt_contentonly(int id) {
 
 	[ "$DT_FORCEDRAW" = 1 ] && return 1
 	[ -n "$DT_FORCEONCE" ] && return 1
+	case $DT_FORCEWIN in *" $id "*) return 1 ;; esac
 	[ -n "$ap" ] && [ -n "${DT[$id]["csig"]}" ] || return 1
 	dt_has "${ap}_paintsall" && "${ap}_paintsall" "$id" || return 1
 	dt_hotmoved "$id" && return 1

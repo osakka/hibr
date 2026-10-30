@@ -144,12 +144,22 @@ fn dt_cut(t, int n) {
 # can alter those; an open menu is rebuilt every frame as before.
 DT_MENUIN=
 DT_MENUFOC=
+# Whether anything but a hover has happened since the menus were last built,
+# and when that was: an open menu is rebuilt for an event that could change
+# its items, and at most once a second besides, not on every frame the
+# pointer moves over it.
+DT_MENUEV=
+DT_MENUAT=0
 
 # Which windows may be left as they are when their app says nothing has
 # changed, and what geometry that answer was worked out for.
 DT_ALONE=
 DT_ALONEFOR=
 DT_FORCEONCE=
+# The windows a move asks to be drawn whole this frame, " id id ", and the
+# stacking order the last frame had (dt_movedonly).
+DT_FORCEWIN=
+DT_ALONEORD=
 # A move the console sent as a rectangle copy (Gitea #337) has already put
 # the window's cells where it now is, so the frame after it need not redraw
 # every window: only the wallpaper, over the strip the window left. dt_move
@@ -246,9 +256,13 @@ fn dt_alone(...rest) {
 	fi
 	if [ -n "$quiet" ]; then
 		DT_WALLONCE=1
+	elif [ "$look" = "$DT_ALONELOOK" ] && [ "${#w[@]}" = "$DT_ALONEN" ] &&
+	     [ "${w[*]}" = "$DT_ALONEORD" ] && dt_movedonly "${w[@]}"; then
+		DT_WALLONCE=1
 	else
 		DT_FORCEONCE=1
 	fi
+	DT_ALONEORD="${w[*]}"
 	DT_MOVECOPY=()
 	DT_ALONELOOK=$look
 	DT_ALONEN=${#w[@]}
@@ -289,6 +303,48 @@ fn dt_alone(...rest) {
 	DT_NOOVERLAP=
 	read -ra alone <<< "$out"
 	[ "${#w[@]}" = "${#alone[@]}" ] && DT_NOOVERLAP=1
+	return 0
+}
+
+# Only windows moved or were resized, in the same stacking order: the ones
+# that did, and the ones whose rectangle (shadow included) meets where any
+# of them was or now is, are to be drawn whole (DT_FORCEWIN); the wallpaper
+# paints back what the move uncovered, and every other window keeps its
+# cells. Forcing every window instead made each step of a drag 11 ms where
+# the terminal cannot copy a rectangle. Status 1 when nothing moved -- a
+# change only in which window is where in the stack -- or a window is new.
+fn dt_movedonly(...ids) {
+	local id b old new r c h w br bc bh bw
+	local -a moved rects
+
+	DT_FORCEWIN=
+	for id in "${ids[@]}"; do
+		old=${DT_ALONEPOS["$id"]-}
+		[ -n "$old" ] || return 1
+		new="${DT[$id]["row"]},${DT[$id]["col"]},${DT[$id]["h"]},${DT[$id]["w"]}"
+		[ "$old" = "$new" ] && continue
+		moved+=("$id")
+		rects+=("$old" "$new")
+	done
+	[ "${#moved[@]}" -gt 0 ] || return 1
+	for b in "${ids[@]}"; do
+		case " ${moved[*]} " in *" $b "*) DT_FORCEWIN+=" $b"; continue ;; esac
+		br=$((DT[$b]["row"]))
+		bc=$((DT[$b]["col"]))
+		bh=$((DT[$b]["h"] + 1))
+		bw=$((DT[$b]["w"] + 2))
+		for old in "${rects[@]}"; do
+			IFS=, read -r r c h w <<< "$old"
+			h=$((h + 1))
+			w=$((w + 2))
+			if [ $((r < br + bh)) = 1 ] && [ $((br < r + h)) = 1 ] &&
+			   [ $((c < bc + bw)) = 1 ] && [ $((bc < c + w)) = 1 ]; then
+				DT_FORCEWIN+=" $b"
+				break
+			fi
+		done
+	done
+	DT_FORCEWIN+=" "
 	return 0
 }
 
@@ -334,6 +390,7 @@ dt_draw() {
 	local -a ls
 
 	DT_INDRAW=1
+	[ -n "$DT_STATON" ] && DT_TMARK=${EPOCHREALTIME/./}
 	DT_WANT=
 	# A hidden pointer that no longer belongs hidden comes back, though
 	# nothing moved: a key took focus, or a menu opened (Gitea #373).
@@ -394,6 +451,7 @@ dt_draw() {
 	l := dt_wpanes
 	read -ra ls <<< "$l"
 	dt_alone "${ls[@]}"
+	[ -n "$DT_STATON" ] && dt_tmark arrange
 	# A see-through menu or pop-up shows what is under it, and what is
 	# under it can be seen only if it was drawn this frame: while one is
 	# open, every window is drawn.
@@ -401,11 +459,14 @@ dt_draw() {
 		{ [ "$MB_OPEN" != -1 ] || [ -n "$DT_POP" ]; } && DT_FORCEONCE=1
 	dt_wall
 	if [ -n "$DT_STATON" ]; then
+		dt_tmark wall
 		dt_wintimed "${ls[@]}"
+		dt_tmark windows
 	else
 		for id in "${ls[@]}"; do dt_win "${id#w}"; done
 	fi
 	DT_FORCEONCE=
+	DT_FORCEWIN=
 	dt_idle
 	# What a *shut* menu bar shows is its menus' titles and the focused
 	# app's name, and both follow focus. Everything else dt_menus works
@@ -418,19 +479,29 @@ dt_draw() {
 	# titles (Gitea #109). DT_MENUIN is now only "the menus have been
 	# built": anything that changes what a shut bar shows clears it, as
 	# wm/lang.hibr and wm/session.hibr already did.
+	# And an open menu -- or a context menu -- is rebuilt when something
+	# other than the pointer moving could have changed its items (a click,
+	# a key, an action: DT_MENUEV), or a second has passed, for an item
+	# that shows something live. Rebuilding every menu on every frame a
+	# menu was open made moving the pointer over one 5.8 ms a frame, to
+	# draw the same items with a different one lit.
 	if [ -z "$DT_MENUIN" ] || [ "$DT_FOCUS" != "$DT_MENUFOC" ] ||
-	   [ "$MB_OPEN" != -1 ] || [ -n "$MB_CTXWHO" ]; then
+	   { { [ "$MB_OPEN" != -1 ] || [ -n "$MB_CTXWHO" ]; } && dt_menustale; }; then
 		dt_menus
 		dt_ctxbuild
 		dt_mfind
 		DT_MENUIN=1
 		DT_MENUFOC=$DT_FOCUS
+		DT_MENUEV=
+		DT_MENUAT=${EPOCHREALTIME/./}
 	fi
+	[ -n "$DT_STATON" ] && dt_tmark menus
 	# A window with the whole display has no bar or strip over it.
 	if [ -z "$DT_FULL" ]; then
 		dt_bar
 		dt_stripdraw
 	fi
+	[ -n "$DT_STATON" ] && dt_tmark barstrip
 	# Everything from here on is drawn over the finished frame and may stop
 	# being drawn at any moment, which is what DT_OVERDREW is counted for.
 	# Anything new that draws on top belongs between these two counts.
@@ -452,6 +523,7 @@ dt_draw() {
 	dt_confirm_draw
 	dt_shot_draw
 	n1 := console drawn
+	[ -n "$DT_STATON" ] && dt_tmark overlays
 	DT_OVERDREW=
 	[ "$n0" = "$n1" ] || DT_OVERDREW=1
 	if [ -n "$DT_STATON" ]; then
@@ -463,6 +535,23 @@ dt_draw() {
 		console flush
 	fi
 	DT_INDRAW=
+}
+
+# Whether an open menu's items may have changed since they were built.
+dt_menustale() {
+	[ -n "$DT_MENUEV" ] && return 0
+	[ $((${EPOCHREALTIME/./} - DT_MENUAT)) -ge 1000000 ]
+}
+
+# While timing is on, the time since the last mark, under part:<name>: what
+# each part of a frame costs, read by `desktop ctl stats` beside the windows.
+DT_TMARK=0
+fn dt_tmark(name) {
+	local t=${EPOCHREALTIME/./}
+
+	DT_STAT["t:part:$name"]=$((${DT_STAT["t:part:$name"]:-0} + t - DT_TMARK))
+	DT_STAT["n:part:$name"]=$((${DT_STAT["n:part:$name"]:-0} + 1))
+	DT_TMARK=$t
 }
 
 # The windows drawn, each timed into DT_STAT under its app's name, while

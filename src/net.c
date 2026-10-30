@@ -147,6 +147,19 @@ int fd_high(int fd)
 	return n;
 }
 
+/* A listening socket is the listener's, and no program it starts takes it
+   along: the desktop's control socket was inherited by every program run in
+   a terminal window, and a connect that reached one of those copies was
+   accepted by nobody (Gitea #411). A connection accepted on it, and the
+   process a `listen -f` forks, are unaffected -- close-on-exec acts only at
+   exec, and a redirection's dup2 clears it. */
+int net_noinherit(int fd)
+{
+	if (fd >= 0)
+		fcntl(fd, F_SETFD, FD_CLOEXEC);
+	return fd;
+}
+
 /* Split host and port out of a virtual path segment. */
 int net_split(const char *p, str *host, str *port)
 {
@@ -327,7 +340,7 @@ int net_bind(const char *port, int udp)
 		return -1;
 	}
 	lg(HIBR_LDBG, "listening on port %s, fd %d", port, fd);
-	return fd_high(fd);
+	return net_noinherit(fd_high(fd));
 }
 
 /* Listen on a Unix domain socket at path, readable and writable by its
@@ -376,7 +389,7 @@ int net_bindunix(const char *path)
 		return -1;
 	}
 	lg(HIBR_LDBG, "listening on %s, fd %d", path, fd);
-	return fd_high(fd);
+	return net_noinherit(fd_high(fd));
 }
 
 char *net_peer(struct sockaddr *sa, socklen_t n);

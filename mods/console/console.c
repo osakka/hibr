@@ -444,7 +444,7 @@ int m_console(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: console open|close|size|clear|pen|put|"
-			      "fill|cursor|flush|shot|key|watch|unwatch|watching|pane|hit|mouse|"
+			      "fill|line|cursor|flush|shot|key|watch|unwatch|watching|pane|hit|mouse|"
 			      "pixels|pointer|sent|colours");
 		return 2;
 	}
@@ -811,6 +811,52 @@ int m_console(sh *s, int ac, char **av)
 		}
 		cn_fill(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),
 			ac > 6 ? av[6] : " ");
+		cn_drawn++;
+		return HIBR_OK;
+	}
+	/* A straight line of one glyph from one cell to another, Bresenham's:
+	   what a screen saver's bouncing shapes are drawn with. Drawn in a
+	   script a cell at a time it was a call a cell -- over a thousand a
+	   frame for Mystify on a large screen, 13.7% of a core for a login
+	   screen nobody was at (0.99.395). */
+	if (!strcmp(sub, "line")) {
+		int r0, c0, r1, c1, dr, dc, sr, sc, err, e2;
+		const char *g;
+
+		if (!cn_need())
+			return HIBR_FAIL;
+		if (ac < 6) {
+			lg(HIBR_LERR, "usage: console line row col row col [char]");
+			return 2;
+		}
+		r0 = atoi(av[2]);
+		c0 = atoi(av[3]);
+		r1 = atoi(av[4]);
+		c1 = atoi(av[5]);
+		g = ac > 6 ? av[6] : " ";
+		dr = r1 > r0 ? r1 - r0 : r0 - r1;
+		dc = c1 > c0 ? c1 - c0 : c0 - c1;
+		if (dr > 100000 || dc > 100000) {
+			lg(HIBR_LERR, "console line: longer than any screen");
+			return HIBR_FAIL;
+		}
+		sr = r0 < r1 ? 1 : -1;
+		sc = c0 < c1 ? 1 : -1;
+		err = dc - dr;
+		for (;;) {
+			cn_put(r0, c0, g);
+			if (r0 == r1 && c0 == c1)
+				break;
+			e2 = 2 * err;
+			if (e2 > -dr) {
+				err -= dr;
+				c0 += sc;
+			}
+			if (e2 < dc) {
+				err += dc;
+				r0 += sr;
+			}
+		}
 		cn_drawn++;
 		return HIBR_OK;
 	}

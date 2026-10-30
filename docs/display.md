@@ -85,6 +85,7 @@ and the flush cost shown live. Run it and press things.
 | `console put row col text` | write into the back buffer |
 | `console put -p pane row col text` | the same, inside a pane and clipped to it |
 | `console fill row col h w [char]` | repeat a character over a rectangle |
+| `console line row col row col [char]` | a straight line of a character from one cell to another, both ends drawn, clipped to the screen |
 | `console cursor row col` / `console cursor off` | where the cursor should be seen |
 | `console flush` | send what changed; gives the byte count |
 | `console shot [-f ansi\|html\|text] file [row col h w]` | write what is on screen -- the last flush -- or a rectangle of it: `ansi` the cells with their colours as a terminal draws them (`cat` it), `html` the same as a page, `text` the characters alone |

@@ -1026,6 +1026,14 @@ fn dt_event(k) {
 		return 0
 		;;
 	esac
+	# Anything else may change what an open menu's items say: the next
+	# frame rebuilds them (wm/draw.hibr), where a hover only redraws -- and
+	# so does a drag, which over an open menu is tracking it with the button
+	# held, as a hover is without: only a press, a release or a key chooses.
+	case $k in
+	"mouse "*"drag "*) ;;
+	*) DT_MENUEV=1 ;;
+	esac
 	# Anything else done puts a tooltip away until the pointer moves on.
 	DT_TIPTXT=
 	DT_NOTEWIN=

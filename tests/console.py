@@ -134,6 +134,29 @@ check("nothing a paned fill does reaches the top left of the screen",
 check("a fill naming a pane that is not there says so and fails",
       b"ST[1]" in o)
 
+# `console line` is the Mystify saver's whole drawing, one call a line
+# where it was a `console put` a cell: 13.7% of a core at 49x174, 1.3%
+# after. It is Bresenham's, end to end, both ends drawn, and anything
+# off the screen is clipped by the put it is made of.
+def linerun(cmd):
+    o, _ = run('console open\n' + cmd + 'console flush\nconsole close\n')
+    sc = Screen()
+    sc.feed(o.decode("utf-8", "replace"))
+    return sc
+
+
+sc = linerun('console line 2 2 6 20 x\nconsole line 0 5 0 5 z\n')
+check("a line runs from one cell to the other, both ends drawn",
+      sc.row(2).startswith("  xxx") and sc.row(6).rstrip().endswith("xxx")
+      and len(sc.row(6).rstrip()) == 21 and sc.row(7).strip() == "", sc.row(6))
+check("a line from a cell to itself is that cell", sc.row(0).rstrip() == "     z",
+      sc.row(0))
+sc = linerun('console line 30 -10 -4 200 y\nconsole line 3 70 3 120 q\n'
+             'console put 10 0 alive\n')
+check("a line running off the screen is clipped, and the console goes on",
+      sc.row(3).rstrip().endswith("q" * 10) and sc.row(10).startswith("alive"),
+      sc.row(3))
+
 o, _ = run('console open\nconsole flush\n'
            'console pane a 5 10 3 20\nconsole pane b 6 15 3 20\n'
            'l := console pane list\necho "L[$l]"\n'
@@ -875,4 +898,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 111)
+report(len(WANT) + len(MWANT) + 114)
