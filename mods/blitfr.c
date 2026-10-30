@@ -217,6 +217,11 @@ int bf_drain(int fd)
 		if (k > 0) {
 			r[k] = 0;
 			lg(HIBR_LDBG, "frames: %s", r);
+			/* The person this connection was opened for has signed
+			   out (Blit 0.3.19): it is closed, and pictures go back
+			   on the terminal. */
+			if (strstr(r, "EACCES"))
+				return -1;
 			continue;
 		}
 		if (k == 0)

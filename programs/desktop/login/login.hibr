@@ -568,8 +568,17 @@ lg_login() {
 	# What Blit is, for the desktop's glyphs: a session starts from an
 	# empty environment, so this is the way through. Nothing else of
 	# Blit's is passed: its tokens and the login screen's own surface are
-	# this screen's, not the session's (the Blit maintainer, 0.99.357).
+	# this screen's, not the session's (the Blit maintainer, 0.99.357) --
+	# except the frame socket and its token (Blit ADR 0202, "A login
+	# session", 0.99.398), which reach only this Blit session's images and
+	# which Blit takes only from the person signed in, checked on every
+	# frame. Without them the session's display could not take pictures
+	# by descriptor, and every display of the desktop went back to the
+	# terminal for them.
 	[ -n "${BLIT_VERSION-}" ] && opt+=(-e "BLIT_VERSION=$BLIT_VERSION")
+	[ -n "${BLIT_FRAME_SOCKET-}" ] && [ -n "${BLIT_FRAME_TOKEN-}" ] &&
+		opt+=(-e "BLIT_FRAME_SOCKET=$BLIT_FRAME_SOCKET" \
+		      -e "BLIT_FRAME_TOKEN=$BLIT_FRAME_TOKEN")
 	LG_MSG := dt_tr "Checking${GL[ellipsis]}"
 	LG_BAD=
 	lg_box

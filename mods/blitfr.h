@@ -59,7 +59,8 @@ void bf_hdr(unsigned char *h, unsigned id, unsigned long long seq, int w,
 int bf_send(int fd, const unsigned char *h, int mfd);
 
 /* Read whatever the far side has said since -- errors only, a line each --
-   into the log, without waiting. -1 when the connection has gone. */
+   into the log, without waiting. -1 when the connection has gone, or Blit
+   said EACCES: the person it was opened for has signed out. */
 int bf_drain(int fd);
 
 #endif

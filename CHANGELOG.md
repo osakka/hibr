@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.398
+
+**The display you sign in on takes pictures by descriptor too.** The
+login screen starts a session from an empty environment and passed Blit
+only its version, so the desktop's attach process on that display never
+had Blit's frame socket. `hold descriptors` said no for it, and by the
+every-display-or-none rule all of a desktop's pictures stayed on the
+terminal. The login screen now passes `BLIT_FRAME_SOCKET` and
+`BLIT_FRAME_TOKEN`, and nothing else of Blit's, with the Blit
+maintainer's agreement (Blit ADR 0202, "A login session"): the token
+reaches only that session's images, and Blit takes frames only from the
+person signed in, checked on every frame since Blit 0.3.19. An `EACCES`
+from Blit -- that person has signed out -- puts pictures back on the
+terminal at once.
+
+The check is the live one: a trial run of the login screen, which is how
+the suites run it, keeps its whole environment, so only a login as root
+shows the difference. After installing, sign out and in once; `hold
+descriptors` then says yes for that display.
+
 ## 0.99.397
 
 **Video on Blit leaves the terminal, and Restart Desktop keeps what each
