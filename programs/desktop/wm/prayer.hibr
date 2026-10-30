@@ -34,6 +34,10 @@ DT_PKEY=
 DT_PTIMES=
 # The latest time a note has been given for, so each is given once.
 DT_PNOTED=0
+# When dt_ptick next has anything to do: the earliest note due, or a minute
+# on for the bar. Until then it only asks for that frame, since the loop may
+# run it many times a second while a terminal prints.
+DT_PCHECK=0
 # The player the athan is playing on, if it is.
 DT_PPLAY=
 
@@ -170,6 +174,10 @@ dt_ptick() {
 		fi
 	fi
 	[ "$DT_PNOTE" = on ] || [ "$DT_PBAR" = on ] || return 0
+	if [ "$now" -lt "$DT_PCHECK" ]; then
+		dt_want $(((DT_PCHECK - now) * 1000))
+		return 0
+	fi
 	[ "$DT_PNOTED" = 0 ] && DT_PNOTED=$now
 	if [ "$DT_PNOTE" = on ]; then
 		t := dt_ptimes || return 0
@@ -208,6 +216,7 @@ dt_ptick() {
 	t=60000
 	[ "$soon" -gt 0 ] && [ $(((soon - now) * 1000)) -lt "$t" ] && t=$(((soon - now) * 1000))
 	[ "$t" -lt 100 ] && t=100
+	DT_PCHECK=$((now + t / 1000))
 	dt_want "$t"
 }
 dt_ticker dt_ptick

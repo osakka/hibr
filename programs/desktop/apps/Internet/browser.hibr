@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.11
+app browser "The web, in a window" 2.12
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -1471,7 +1471,20 @@ fn bw_pdfsaved(id = "", path = "", type = "") {
 # seconds (a scroll or a new page makes the same cell another thing): the desktop rebuilds an open menu every frame, and the question is a press
 # on the page.  An engine that cannot say (`at` not in `web caps`) gets the items that
 # do not depend on it.
-declare -gA BWC
+declare -gA BWC BWTC
+
+# What one tab's engine can do (`web caps TAB`): a tab keeps its engine for life, and the
+# default one's list (bw_has) is not the list of a tab opened in the other engine.
+fn bw_tabhas(t, c) {
+	local caps
+
+	if [ -z "${BWTC["$t"]+x}" ]; then
+		caps := web caps "$t" 2> /dev/null || caps=
+		BWTC["$t"]=$caps
+	fi
+	case " ${BWTC["$t"]} " in *" $c "*) return 0 ;; esac
+	return 1
+}
 BW_AT_KIND=
 BW_AT_HREF=
 BW_AT_SRC=
@@ -1482,7 +1495,7 @@ fn bw_under(int id) {
 	BW_AT_KIND=
 	BW_AT_HREF=
 	BW_AT_SRC=
-	[ -n "$t" ] && bw_has at || return 1
+	[ -n "$t" ] && bw_tabhas "$t" at || return 1
 	bw_drawmode
 	[ "$BW_DRAWN" = text ] && return 1
 	wr=${DT[$id]["row"]}
@@ -1565,7 +1578,7 @@ fn browser_context(int? id = "") {
 	link | linkimage)
 		dt_item "Open Link in New Tab" o bw_newtab "$id" "$BW_AT_HREF"
 		dt_item "Copy Link Address" c bw_copyaddr "$BW_AT_HREF"
-		bw_has download && dt_item "Save Link As${GL[ellipsis]}" k bw_saveurl "$id" "$BW_AT_HREF"
+		bw_tabhas "$t" download && dt_item "Save Link As${GL[ellipsis]}" k bw_saveurl "$id" "$BW_AT_HREF"
 		dt_sep
 		;;
 	esac
@@ -1573,14 +1586,14 @@ fn browser_context(int? id = "") {
 	image | media | linkimage)
 		dt_item "Open Image in New Tab" i bw_newtab "$id" "$BW_AT_SRC"
 		dt_item "Copy Image Address" d bw_copyaddr "$BW_AT_SRC"
-		bw_has download && dt_item "Save Image As${GL[ellipsis]}" v bw_saveurl "$id" "$BW_AT_SRC"
+		bw_tabhas "$t" download && dt_item "Save Image As${GL[ellipsis]}" v bw_saveurl "$id" "$BW_AT_SRC"
 		dt_sep
 		;;
 	esac
 	dt_item "Back" b bw_back "$id"
 	dt_item "Forward" f bw_fwd "$id"
 	dt_item "Reload" r bw_reload "$id"
-	if [ -n "$t" ] && bw_has source; then
+	if [ -n "$t" ] && bw_tabhas "$t" source; then
 		dt_sep
 		dt_item "View Source" u bw_viewsource "$id"
 		dt_item "Save Page As${GL[ellipsis]}" p bw_savepage "$id"

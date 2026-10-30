@@ -68,7 +68,7 @@ fn dt_hothit(id, int r, int c) {
 
 # Record a widget's hit region.  The draw helpers below call this; an app
 # does not call it directly.
-fn dt_wreg(id, int r, int c, int w, tag) {
+fn dt_wreg(id, int r, int c, int w, tag, int? h = "") {
 	local n
 
 	n=${WG[$id]["n"]:-0}
@@ -76,7 +76,20 @@ fn dt_wreg(id, int r, int c, int w, tag) {
 	WG[$id][$n]["c"]=$c
 	WG[$id][$n]["w"]=$w
 	WG[$id][$n]["tag"]=$tag
+	WG[$id][$n]["h"]=$h
 	WG[$id]["n"]=$((n + 1))
+}
+
+# Whether region i of window id is several rows high and row r is in it: a
+# region is one row unless dt_wreg was given a height, as a scrollbar's
+# track is -- one region for the column rather than one per row, each of
+# which cost a registration on every frame the window drew.
+fn dt_wrows(id, int i, int r) {
+	local h=${WG[$id][$i]["h"]-} wr
+
+	[ -n "$h" ] || return 1
+	wr=${WG[$id][$i]["r"]}
+	[ "$r" -ge "$wr" ] && [ "$r" -lt $((wr + h)) ]
 }
 
 # Which widget, if any, sits at a pane-relative row/col -- ret's its tag,
@@ -90,8 +103,9 @@ fn dt_hit(id, int r, int c) {
 		wr=${WG[$id][$i]["r"]}
 		wc=${WG[$id][$i]["c"]}
 		ww=${WG[$id][$i]["w"]}
-		if [ "$r" = "$wr" ] && [ "$c" -ge "$wc" ] &&
-		   [ "$c" -lt $((wc + ww)) ]; then
+		if { [ "$r" = "$wr" ] || { [ -n "${WG[$id][$i]["h"]}" ] &&
+		     dt_wrows "$id" "$i" "$r"; }; } &&
+		   [ "$c" -ge "$wc" ] && [ "$c" -lt $((wc + ww)) ]; then
 			ret "${WG[$id][$i]["tag"]}"
 			return 0
 		fi
@@ -159,7 +173,8 @@ fn dt_wcol(int id, int r, tag) {
 
 	n=${WG[$id]["n"]:-0}
 	while [ "$i" -lt "$n" ]; do
-		if [ "${WG[$id][$i]["r"]}" = "$r" ] &&
+		if { [ "${WG[$id][$i]["r"]}" = "$r" ] || { [ -n "${WG[$id][$i]["h"]}" ] &&
+		     dt_wrows "$id" "$i" "$r"; }; } &&
 		   [ "${WG[$id][$i]["tag"]}" = "$tag" ]; then
 			ret "${WG[$id][$i]["c"]}"
 			return 0

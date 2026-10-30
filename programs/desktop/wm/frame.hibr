@@ -223,6 +223,40 @@ fn dt_wapp(int id) {
 	ret "$c"
 }
 
+# Everything a window's frame is drawn from: where it is and its size, the
+# focus colour, the title, its title bar's buttons lit or held, and the
+# theme's frame. The same signature twice means the frame on the screen is
+# the frame this would draw.
+fn dt_chromesig(int id) {
+	local b=
+	local f=0
+
+	[ "$DT_FOCUS" = "$id" ] && f=1
+	[ "${DT_HOVERBTN% *}" = "$id" ] && b="h${DT_HOVERBTN#* }"
+	[ "$DT_BTNID" = "$id" ] && b="$b p$DT_BTNKIND$DT_BTNOVER"
+	ret "${DT[$id]["row"]} ${DT[$id]["col"]} ${DT[$id]["h"]} ${DT[$id]["w"]} $f $b|${DT[$id]["title"]}|$DT_FRAME $DT_TITLEBAR $DT_BTNSTYLE $DT_BTNSIDE $DT_TITLEALIGN $DT_MIRRORON $DT_LANG ${DT[$id]["chrome"]} $DT_FACE $DT_INK $DT_SELINK $DT_IDLE $DT_ACTIVE ${DT_TITLE-} ${DT_TITLEINK-} ${DT_WINTRANS:-0}"
+}
+
+# Whether only a window's content needs drawing: everything dt_clean asks
+# holds but the app's own dirty answer -- nothing else has drawn over the
+# window -- its frame would come out exactly as it is, and its app says this
+# draw repaints every cell inside the frame (<app>_paintsall), so the
+# window's face need not be cleared under it. A terminal printing is the
+# case: about half of what each of its frames cost was the face and the
+# frame drawn again, unchanged.
+fn dt_contentonly(int id) {
+	local ap=${DT[$id]["app"]} s
+
+	[ "$DT_FORCEDRAW" = 1 ] && return 1
+	[ -n "$DT_FORCEONCE" ] && return 1
+	[ -n "$ap" ] && [ -n "${DT[$id]["csig"]}" ] || return 1
+	dt_has "${ap}_paintsall" && "${ap}_paintsall" "$id" || return 1
+	dt_hotmoved "$id" && return 1
+	case " $DT_ALONE " in *" $id "*) ;; *) return 1 ;; esac
+	s := dt_chromesig "$id"
+	[ "$s" = "${DT[$id]["csig"]}" ]
+}
+
 fn dt_win(int id) {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} on=$DT_IDLE
 	# A layer of its own: see-through shows what is under the window, and
@@ -240,6 +274,34 @@ fn dt_win(int id) {
 	if dt_clean "$id"; then
 		dt_shadow "$id"
 		return 0
+	fi
+	if dt_contentonly "$id"; then
+		dt_hotmark "$id"
+		unset WH["$id"]
+		dt_shadow "$id"
+		[ "${DT_WINTRANS:-0}" != 0 ] &&
+			console translucent "$DT_WINTRANS" "$DT_FACE" "$DT_FACE"
+		DT_NOTEWIN=$id
+		dt_wclear "$id"
+		dt_fieldstale "$id"
+		if dt_capped "$id"; then
+			console pane origin "w$id" 0 1
+			[ -n "$dr" ] && $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
+			console pane origin "w$id" 0 0
+		else
+			[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+		fi
+		[ "${DT_WINTRANS:-0}" != 0 ] && console translucent off
+		DT_NOTEWIN=
+		DT_STAT["r:contentonly"]=$((${DT_STAT["r:contentonly"]:-0} + 1))
+		# The app may have changed what its frame shows while it drew --
+		# a program's own title, the bell's mark on it -- after this was
+		# decided: then the window is drawn whole now, frame and all.
+		# Not left to the next frame, which its app's _dirty may well
+		# call clean, and then nothing would ever draw the new title.
+		local now
+		now := dt_chromesig "$id"
+		[ "$now" = "${DT[$id]["csig"]}" ] && return 0
 	fi
 	dt_hotmark "$id"
 	# A list's lit rows are registered again as it draws them, whether or
@@ -485,6 +547,7 @@ fn dt_win(int id) {
 			i=$((i + 1))
 		done
 	fi
+	dt_has "${DT[$id]["app"]}_paintsall" && DT[$id]["csig"] := dt_chromesig "$id"
 }
 
 # A #rrggbb colour moved pct of the way toward white; anything else as it

@@ -1104,6 +1104,15 @@ int m_need(sh *s, const char *nm)
 	for (i = 0; i < s->apis.n; i++)
 		if (!strcmp(((struct api *)s->apis.p[i])->nm, nm))
 			return HIBR_OK;
+	/* A module of that name already loaded is met, and is asked before the
+	   walk: a module that offers no interface of its own name -- img,
+	   console, salat, nearly all of them -- had every `need` read every
+	   descriptor on the module path again, 2.5 ms a call, which the
+	   desktop paid on every frame that asked (the end of this function
+	   always gave the same answer, after the walk). */
+	for (i = 0; i < s->mods.n; i++)
+		if (!strcmp(((mod *)s->mods.p[i])->m->nm, nm))
+			return HIBR_OK;
 	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
 	if (!m_nodot(s) && m_seek(s, ".", nm))
 		return HIBR_OK;
@@ -1120,9 +1129,6 @@ int m_need(sh *s, const char *nm)
 	if (m_seek(s, HIBR_MODDIR, nm))
 		return HIBR_OK;
 	/* Not an interface anyone offers; it may simply be a module. */
-	for (i = 0; i < s->mods.n; i++)
-		if (!strcmp(((mod *)s->mods.p[i])->m->nm, nm))
-			return HIBR_OK;
 	return m_load(s, nm);
 }
 

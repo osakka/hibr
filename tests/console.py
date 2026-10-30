@@ -246,6 +246,17 @@ mgot = [m.decode("utf8", "replace") for m in re.findall(rb"KEY\[([^\]]*)\]", o)]
 for mi, w in enumerate(MWANT):
     check("%-28s decodes" % w, mi < len(mgot) and mgot[mi] == w)
 
+# A run of hovers already read is one: only where the pointer ends up is
+# news, and a terminal reporting in pixels sends one for every pixel moved,
+# each a wake of whatever waits (0.99.394). A click behind them is its own.
+HOVERS = b"".join(b"\x1b[<35;%d;5M" % c for c in (10, 11, 12, 13)) + b"\x1b[<0;20;6M"
+o, _ = run('console open\nconsole mouse motion\nfor i in 1 2 3; do\n'
+           '  k := console key 1500\n  echo "KEY[$k]"\ndone\nconsole close\n',
+           feed=[HOVERS], wait=4)
+hgot = [m.decode("utf8", "replace") for m in re.findall(rb"KEY\[([^\]]*)\]", o)]
+check("a run of hovers read together reaches the program as its last, then the click",
+      hgot[:3] == ["mouse drag none 4 12", "mouse press left 5 19", ""], hgot)
+
 o, _ = run('console open\nconsole flush\nconsole close\n')
 check("mouse reporting is off unless asked for",
       b"\x1b[?1002h" not in o and b"\x1b[?1000h" not in o
@@ -864,4 +875,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 110)
+report(len(WANT) + len(MWANT) + 111)

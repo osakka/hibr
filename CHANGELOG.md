@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.99.394
+
+**The desktop's CPU, measured and cut.** Measured with the owner's own
+settings and installs, one display at a mini PC pane's size, a terminal
+printing about twenty lines a second went from **25.5% to about 5% of a
+core**, and the pointer moving costs about a quarter of what it did in
+bursts. Each change has a check that fails without it.
+
+- **`need` for a module already loaded is met at once.** A module that
+  offers no interface of its own name, nearly all of them (img, console,
+  media, salat), had every repeated `need` read every descriptor on the
+  module path again: about 2.5 ms a call, paid on every frame that asked.
+  It is 2 µs now. On its own this took the printing terminal from 25.5%
+  to about 8%.
+- **A run of pointer reports already read is one.** The console passes
+  on only the last of a run of hovers. A terminal reporting in pixels
+  sends one for every pixel moved, and each was a wake of the desktop.
+- **A terminal printing is drawn content only.** While nothing about its
+  frame has changed and nothing else has drawn over it, the window's
+  face and frame are not drawn again under it (`dt_contentonly`). An app
+  opts in with `<app>_paintsall` when its draw repaints every cell; the
+  Terminal does while its program runs (Terminal 1.7). The window's draw
+  went from about 2.0 to 1.0 ms a frame.
+- **A scrollbar draws its track in one fill,** and registers one region
+  for the column, not one per row. `dt_wreg` takes an optional height.
+- **The tickers run once a frame, not once a wake.** A pass that only
+  holds a frame back for a program writing waits quietly next, so they
+  wait for the frame pass. The prayer-times ticker also skips ahead to
+  its next due moment.
+- **`desktop ctl stats` times each window's draw and the flush,** under
+  `win:<app>` and `flush`, beside the tickers.
+
+The Browser 2.12 from the catalogue is now the shipped copy too.
+
 ## 0.99.393
 
 **A confirm opens where it belongs** (Gitea #390). It used to open on the

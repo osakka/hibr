@@ -807,8 +807,13 @@ dt_run() {
 		# 100 ms: they are each a check against the clock, and run per
 		# report they were three quarters of what a moving pointer cost
 		# (0.70 ms a report against 0.23 without them, at 60 a second).
+		# Nor on a pass that only held a frame back for a program
+		# writing: that pass waits quietly next (console key -q), so
+		# nothing these read can be left to wake it, and they run on the
+		# frame pass at most DT_TERMMS later -- half the passes of a
+		# printing terminal, each about half a millisecond of tickers.
 		nowu=${EPOCHREALTIME/./}
-		if [ -z "$DT_OLON" ] &&
+		if [ -z "$DT_OLON" ] && [ -z "$DT_QWAIT" ] &&
 		   { [ -z "$hq" ] || [ $((nowu - lastper)) -ge 100000 ]; }; then
 			lastper=$nowu
 			dt_updcheck

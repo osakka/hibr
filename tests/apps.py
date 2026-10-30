@@ -2854,6 +2854,30 @@ TW = "14 44 2 2"
 TERM = ("term", TW)
 SH = "TW_CMD=(/bin/sh -c 'PS1=\"sh> \"; export PS1; exec /bin/sh')"
 
+
+# A terminal printing is drawn content only (dt_contentonly, 0.99.394): its
+# frame is not drawn again under it while nothing about the frame changed,
+# since the program's screen and the scrollbar repaint every cell inside.
+# A ticker in the session writes down how many frames took that path; the
+# frame has to be whole on the last of them.
+def contentonly():
+    f = sx.scratch("contentonly")
+    pre = ("TW_CMD=(/bin/sh -c 'i=0; while :; do echo line$i; i=$((i+1)); sleep 0.05; done')\n"
+           "co_probe() { echo \"${DT_STAT[\"r:contentonly\"]:-0}\" > %s; }\n"
+           "dt_ticker co_probe\n" % f)
+    sc = run(*TERM, pre=pre, wait=1.0, end=None, until=lambda sc: "line20" in sc.text())
+    n = int(open(f).read().strip() or 0) if os.path.exists(f) else 0
+    top = sc.find("\u2524 Term \u251c")
+    bot = sc.find("\u2514\u2500\u2500")
+    check("a terminal printing is drawn content only, its frame left whole",
+          n > 5 and top is not None and bot is not None and "\u2500" in sc.row(top[0]),
+          (n, sc.text()))
+    if os.path.exists(f):
+        os.unlink(f)
+
+
+contentonly()
+
 sc = run(*TERM, pre=SH,
          wait=1.6)
 check("a shell starts in the window", sc.find("sh>") is not None, sc)
@@ -6033,4 +6057,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(785)
+report(786)

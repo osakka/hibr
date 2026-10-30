@@ -142,6 +142,7 @@ drawing in the wrong place. The calls:
 | `_canclose` | `id` -- asked before a close someone asked for; fail to keep the window, and close it yourself later |
 | `_refresh` | `id` -- something on disk changed |
 | `_dirty` | `id` -- asked before a window is left undrawn; succeed when it has changed (an app without one is drawn every frame) |
+| `_paintsall` | `id` -- succeed when this window's draw repaints every cell inside its frame, so a changed window whose frame is unchanged is drawn content only, without its face cleared or its frame drawn again (`dt_contentonly`); the Terminal does while its program runs |
 | `_about` | nothing -- the hibr menu's About for the front app, in place of the desktop's card |
 | `_drop` | `id r c op paths...` |
 | `_menus` | nothing -- the menus are built for whichever window has focus, `$DT_FOCUS` |

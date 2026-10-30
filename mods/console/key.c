@@ -1065,6 +1065,40 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 }
 
 /* Read one key, waiting at most ms milliseconds; 0 means nothing arrived. */
+/* Whether a decoded event is the pointer moving with no button held -- a
+   hover, `mouse [mod-]drag none ROW COL ...`. A relative report under the
+   pointer lock (`mouse rel ...`) is a step, not a place, and never is. */
+static int cn_ishover(const char *p, size_t n)
+{
+	const char *a, *e;
+
+	if (n < 6 || strncmp(p, "mouse ", 6))
+		return 0;
+	a = p + 6;
+	e = memchr(a, ' ', n - 6);
+	if (!e || e - a < 4 || strncmp(e - 4, "drag", 4))
+		return 0;
+	return (size_t)(e + 6 - p) <= n && !strncmp(e, " none ", 6);
+}
+
+/* Whether the next whole event already read is a hover too, so the one
+   just decoded is a place the pointer has already left. */
+static int cn_hovernext(void)
+{
+	str nx;
+	size_t used = 0;
+	int r, h;
+
+	if (cn_pend.n <= (size_t)cn_pendo)
+		return 0;
+	s_init(&nx);
+	r = cn_dec(cn_pend.p + cn_pendo, cn_pend.n - (size_t)cn_pendo, &nx,
+		   &used, 0);
+	h = r == 1 && cn_ishover(nx.p, nx.n);
+	s_free(&nx);
+	return h;
+}
+
 int cn_key(int ms, str *out)
 {
 	size_t used = 0;
@@ -1087,6 +1121,17 @@ int cn_key(int ms, str *out)
 				   waited);
 			if (r == 1) {
 				cn_eat(used);
+				/* A run of hovers already read is one: only where
+				   the pointer ends up is news, and a terminal that
+				   reports in pixels sends one for every pixel
+				   moved, each a wake and a pass of whatever waits
+				   on this. */
+				if (cn_ishover(out->p, out->n) && cn_hovernext()) {
+					out->n = 0;
+					if (out->p)
+						out->p[0] = 0;
+					continue;
+				}
 				return 1;
 			}
 			if (r == 2) {

@@ -105,22 +105,15 @@ fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos,
 		if [ "$thumb1" = 1 ]; then
 			dt_wreg "$id" "$thumb" "$col" 1 "dtsb:$key"
 		else
-			for ((r = row0; r < row0 + h; r++)); do
-				dt_wreg "$id" "$r" "$col" 1 "dtsb:$key"
-			done
+			dt_wreg "$id" "$row0" "$col" 1 "dtsb:$key" "$h"
 		fi
 	fi
-	r=$row0
-	while [ "$r" -lt $((row0 + h)) ]; do
-		if [ "$r" = "$thumb" ]; then
-			console pen "$DT_ACTIVE" "$DT_FACE"
-			console put -p "w$id" "$r" "$col" "$tg"
-		else
-			console pen "$DT_IDLE" "$DT_FACE"
-			console put -p "w$id" "$r" "$col" "$kg"
-		fi
-		r=$((r + 1))
-	done
+	# The track in one fill and the thumb over it: a put and a pen a row
+	# were most of what a terminal window's frame cost while it printed.
+	console pen "$DT_IDLE" "$DT_FACE"
+	console fill -p "w$id" "$row0" "$col" "$h" 1 "$kg"
+	console pen "$DT_ACTIVE" "$DT_FACE"
+	console put -p "w$id" "$thumb" "$col" "$tg"
 }
 
 # The same along a row: a track of GL[hline] over w columns from col0, the

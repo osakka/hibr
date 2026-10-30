@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.6
+app term "A shell in a window" 1.7
 # part: control-panel/terminal.hibr
 # modules: pty term
 
@@ -694,6 +694,18 @@ fn term_close(int id) {
 # because its cursor blinks in it; one that has just lost focus is drawn
 # once more to take the cursor away. A terminal with no program yet has to
 # be drawn, since tw_fit is what starts it.
+#
+# And whether this draw repaints every cell inside the frame, so the window
+# manager need not clear the face and draw the frame again under it
+# (dt_contentonly): the program's screen covers the rows and columns, the
+# scrollbar its own column, as long as the program runs -- once it has
+# ended, the window shows a line saying so and nothing else.
+fn term_paintsall(int id) {
+	local t=${TW[$id]["t"]}
+
+	[ -n "$t" ] && term alive "$t"
+}
+
 fn term_dirty(int id) {
 	local t=${TW[$id]["t"]} g v foc=0
 
