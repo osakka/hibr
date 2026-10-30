@@ -24,12 +24,15 @@ here:
 The control, as with OSC 52, is the unheld run of the same script: the
 sixel suite and the kitty suite are that control, and they pass.
 """
+import json
 import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
 import tempfile
+import time
 import zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -1378,6 +1381,116 @@ check("a held film's frames reach a display as edits into the one picture",
 check("and a display joining afterwards is sent the picture and its last frame only",
       len(kplaced(fs2)) == 1 and len(kedited(fs2)) == 1, (kplaced(fs2), kedited(fs2)))
 
+# Window pictures by descriptor through hold (Blit ADR 0202). Each display's
+# own client dials its own Blit session's frame socket -- the held program's
+# environment is frozen and names none of them -- and says so; the program
+# hands its server each frame, the server keeps the newest and passes it to
+# every display that can take one, and the a=p goes in the program's own
+# output. Every display or none: one that cannot take frames puts every
+# picture back on the terminal, so hold never needs an encoder of its own.
+FRAMESRV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frameserve.py")
+
+
+def fdsrv(tag):
+    nm = "hibr-holdpix-%s-%d" % (tag, os.getpid())
+    lg = os.path.join(D, "fs-%s.log" % tag)
+    open(lg, "w").close()
+    p = subprocess.Popen([sys.executable, FRAMESRV, nm, "tok", lg])
+    for _ in range(50):
+        if "listening" in open(lg).read():
+            break
+        time.sleep(0.05)
+    return p, lg, {"BLIT_FRAME_SOCKET": "@" + nm, "BLIT_FRAME_TOKEN": "tok"}
+
+
+def fdframes(lg):
+    return [json.loads(l) for l in open(lg) if l.strip() and '"frame"' in l]
+
+
+def fdrun(one_env, two_env):
+    """A held program drawing two frames of one picture, a display attached
+    from the start, and a second attaching once both have been drawn."""
+    open(LOG, "w").close()
+    nm = name()
+    body = ("d := hold descriptors\necho \"fd [$d]\" >> %s\n"
+            "case \"$d\" in ''|*' no'*) console imgfd off ;; *) console imgfd hold ;; esac\n"
+            "console pane w1 2 2 10 30\nconsole put 0 0 'HELD fd'\n" % LOG)
+    for g in (GRAD, GRAD3):
+        body += ("img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\n"
+                 "console key 120 > /dev/null\n" % g)
+    body += "echo drawn >> %s\n" % LOG
+    one = os.path.join(D, "done.hibr")
+    two = os.path.join(D, "dtwo.hibr")
+    open(one, "w").write(load("hold")
+                         + 'hold new -d %s "$HIBR" %s\n' % (nm, inner(body, 12000, nm))
+                         + "sleep 0.6\n"
+                         + "hold attach -m -n one %s 0 0\n" % nm)
+    open(two, "w").write(load("hold") + "hold attach -m -n two %s 0 0\n" % nm)
+    t1 = Term(one, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
+              env=dict({"HIBR_GFX": "kitty", "TMPDIR": D}, **one_env), caps=["kitty"])
+    for _ in range(24 * SLOW):
+        t1.collect(0.25)
+        if "drawn" in open(LOG).read():
+            break
+    t1.collect(0.5)
+    t2 = Term(two, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
+              env=dict({"HIBR_GFX": "kitty", "TMPDIR": D}, **two_env), caps=["kitty"])
+    for _ in range(16 * SLOW):
+        t2.collect(0.25)
+        if "HELD fd" in t2.text and [a for a in t2.screen().apc if "a=p" in a or "a=T" in a]:
+            break
+    t2.collect(1.0)
+    sc1, sc2 = t1.screen(), t2.screen()
+    t2.quit(None, 0.5)
+    t1.quit(None, 0.5)
+    kill(nm)
+    return sc1, sc2, open(LOG).read()
+
+
+def kplace(sc):
+    return [a for a in sc.apc if "a=p" in a]
+
+
+p1, lg1, e1 = fdsrv("a")
+p2, lg2, e2 = fdsrv("b")
+fd1, fd2, fdlog = fdrun(e1, e2)
+for p in (p1, p2):
+    p.terminate()
+    p.wait()
+f1, f2 = fdframes(lg1), fdframes(lg2)
+check("hold descriptors says each display can take frames by descriptor",
+      "fd [one yes]" in fdlog, fdlog)
+check("a held window's picture reaches a Blit display as frames, only placed on its terminal",
+      len(f1) == 2 and f1[1]["id"] == f1[0]["id"] and f1[1]["seq"] == f1[0]["seq"] + 1
+      and len(kplace(fd1)) == 1 and not kplaced(fd1)
+      and ckey(kplace(fd1)[0], "i") == str(f1[0]["id"]), (f1, fd1.apc))
+check("and a display joining later is sent the placement and the newest frame alone",
+      len(f2) == 1 and f2[0]["id"] == f1[0]["id"] and f2[0]["seq"] == f1[1]["seq"]
+      and len(kplace(fd2)) == 1 and not kplaced(fd2), (f2, fd2.apc))
+p1, lg1, e1 = fdsrv("c")
+nofd1, nofd2, nolog = fdrun({}, e1)
+p1.terminate()
+p1.wait()
+check("a display that cannot take frames puts the picture on the terminal for all",
+      "fd [one no]" in nolog and not fdframes(lg1) and kplaced(nofd1)
+      and not kplace(nofd1) and kplaced(nofd2) and not kplace(nofd2),
+      (nolog, nofd1.apc, nofd2.apc))
+
+# `hold upgrade` -- which Restart Desktop does whenever the session's server
+# is older than the desktop -- carries each display's own answers across: a
+# display that can edit pictures in place still can afterwards. It used to
+# read "no" until it attached again, so on the owner's mini PC every film's
+# frame after a restart went out as a new picture (0.99.397).
+UPBODY = ("e := hold edits\necho \"pre [$e]\" >> %s\n"
+          "hold upgrade\n"
+          "i=0\nwhile [ $i -lt 40 ]; do e := hold edits 2> /dev/null && break; "
+          "console key 100 > /dev/null; i=$((i + 1)); done\n"
+          "echo \"post [$e]\" >> %s\nconsole put 0 0 'HELD up'\nconsole flush\n"
+          % (LOG, LOG))
+sc, uplog = run(UPBODY, caps=["kitty", "kedit"], until="HELD up", wait=60)
+check("a display's answers survive hold upgrade: it can still edit pictures in place",
+      re.search(r"pre \[\S* ?yes\]", uplog) and re.search(r"post \[\S* ?yes\]", uplog), uplog)
+
 # A display joining above (Gitea #257's negative row, how the Control Panel
 # and Blit stack displays) moves every display down in the union. hold
 # moved them and not what the program had drawn, so until the desktop drew
@@ -1419,4 +1532,4 @@ check("a display joining above is never a blank screen on the display already "
       worst < 12 and sc.find("┤ Note ├") == (4, 8), (worst, sc))
 
 shutil.rmtree(D, True)
-report(79)
+report(84)

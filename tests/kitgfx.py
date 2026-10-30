@@ -29,12 +29,15 @@ Screen.images), so a check asks what was asked for rather than grepping the
 raw stream.
 """
 import base64
+import json
 import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
 import tempfile
+import time
 import zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -70,14 +73,16 @@ FLAT = png("flat.png", 16, 16, lambda x, y: (10, 200, 10))
 
 
 def run(body, cell=CELL, gfx="kitty", rows=24, cols=60, settle=1.0,
-        bg=None, pal=None, raw=False, caps=None, term=None):
+        bg=None, pal=None, raw=False, caps=None, term=None, env=None):
     """Run a console script on a pty that says what a cell measures -- and,
     given bg, on one that answers a colour query the way a real terminal
     does. raw answers the bytes as well as the screen."""
     p = os.path.join(D, "s.hibr")
     open(p, "w").write("%sconsole open\n%sconsole close\n"
                        % (load("console", "img"), body))
-    env = {} if gfx is None else {"HIBR_GFX": gfx}
+    env = dict(env or {})
+    if gfx is not None:
+        env["HIBR_GFX"] = gfx
     if term:
         env["TERM"] = term
     t = Term(p, rows=rows, cols=cols, settle=settle,
@@ -1098,6 +1103,65 @@ check("and with edits off it is a new picture too",
       len(places(sc)) == 2 and not [a for a in sc.apc if "a=f" in a and "i=4202" not in a],
       places(sc))
 
+# A window's picture by descriptor (Blit ADR 0202): on a Blit session that
+# offers a frame socket, the pixels go as a sealed memfd and the terminal is
+# given only the placement, a=p, under the same id; the next frame in the
+# same rectangle is a frame alone, with nothing on the terminal. The
+# stand-in refuses what Blit refuses -- a wrong token, an unsealed or short
+# memfd, a sequence that does not rise -- so a frame it logs is one Blit
+# would have taken. Without the socket, or refused, it is a=T as before.
+FS = os.path.join(D, "fs.log")
+
+
+def framesrv(tok="tok-kitgfx"):
+    nm = "hibr-kitgfx-%d" % os.getpid()
+    open(FS, "w").close()
+    p = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                       "frameserve.py"), nm, tok, FS])
+    for _ in range(50):
+        if "listening" in open(FS).read():
+            break
+        time.sleep(0.05)
+    return p, {"BLIT_FRAME_SOCKET": "@" + nm, "BLIT_FRAME_TOKEN": "tok-kitgfx"}
+
+
+def logged():
+    return [json.loads(l) for l in open(FS) if l.strip()]
+
+
+FRAMES = ("console key 400\nconsole pane w1 2 2 10 30\n"
+          "img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\nconsole key 80\n"
+          "img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\nconsole key 80\n"
+          "console put 0 0 'FRAMES DRAWN'\nconsole flush\nconsole key 200\n"
+          % (GRAD, GRAD3))
+srv, fenv = framesrv()
+sc = run(FRAMES, caps=["kitty"], env=fenv)
+srv.terminate()
+srv.wait()
+got = [x for x in logged() if x["kind"] == "frame"]
+pl = [a for a in sc.apc if "a=p" in a]
+check("a window's picture goes to Blit by descriptor and is only placed on the terminal",
+      len(got) == 2 and len(pl) == 1 and not places(sc) and not mine(sc)
+      and key(pl[0], "i") == str(got[0]["id"]) and key(pl[0], "C") == "1",
+      (got, pl, places(sc)))
+check("and its next frame in the same place is a frame alone, the next in sequence",
+      len(got) == 2 and got[1]["id"] == got[0]["id"] and got[1]["seq"] == got[0]["seq"] + 1
+      and got[0]["w"] == int(key(pl[0], "c")) * CELL[0]
+      and got[0]["h"] == int(key(pl[0], "r")) * CELL[1],
+      got)
+srv, fenv = framesrv(tok="another")
+sc = run(FRAMES, caps=["kitty"], env=fenv)
+srv.terminate()
+srv.wait()
+check("a session that refuses the hello gets the picture on the terminal as before",
+      len(places(sc)) == 2 and not [a for a in sc.apc if "a=p" in a]
+      and not [x for x in logged() if x["kind"] == "frame"]
+      and [x for x in logged() if x.get("why") == "hello"], (places(sc), logged()))
+sc = run(FRAMES, caps=["kitty"], env={"BLIT_FRAME_SOCKET": "@hibr-kitgfx-none-%d" % os.getpid(),
+                                      "BLIT_FRAME_TOKEN": "t"})
+check("and so does one whose frame socket is not there",
+      len(places(sc)) == 2 and not [a for a in sc.apc if "a=p" in a], places(sc))
+
 # A pane that moves takes its picture with it: placed again at the new
 # place, the old placement is deleted. A full-screen game draws its picture
 # and no cells, and the old one used to stay on the first display for good
@@ -1116,4 +1180,4 @@ check("a pane that moves takes its picture with it, though it draws no cells",
       and key(pl[1], "i") != key(pl[0], "i"), (pl, deletes(sc)))
 
 shutil.rmtree(D, True)
-report(108)
+report(112)

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.397
+
+**Video on Blit leaves the terminal, and Restart Desktop keeps what each
+display can do.**
+
+- **A window's pictures go to Blit by descriptor** (Blit ADR 0202). On a
+  Blit session that offers a frame socket, each frame of a film, a page
+  or a game goes to Blit as a sealed memfd, and the terminal is given
+  only where it is placed. Nothing is base64-encoded, nothing goes
+  through the pty, and `hold` never reads the pixels. Inside `hold`, each
+  display's own client dials its own Blit session; the desktop sends
+  frames this way only when every display can take them (`hold
+  descriptors`), so one display on ssh or a plain terminal puts every
+  picture back on the terminal, as before. The wallpaper stays on the
+  terminal. Control Panel > Pictures > Frames to Blit turns it off.
+  Linux only.
+- **`hold upgrade` carries each display's answers.** Whether it can edit
+  pictures in place, hold the pointer and take frames by descriptor were
+  not carried, so after Restart Desktop (which upgrades a stale session
+  server) every display read "no" until it attached again. Pictures then
+  went out whole every frame, which is why 0.99.396's whole-frame edits
+  never showed on the mini PC. A display carried from 0.99.396 or older
+  still reads "no" once: close and reopen its view after installing.
+- `console imgfd` and `hold descriptors` are new, and `console line`
+  (0.99.395) is joined by `mods/blitfr.c`, the one copy of Blit's frame
+  protocol, shared by the console and hold's client.
+- Arabic 3.62.
+
 ## 0.99.396
 
 **A film's frames go into one picture.** Every frame of a video, a

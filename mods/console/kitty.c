@@ -180,6 +180,25 @@ void kt_edit(const unsigned char *rgb, int iw, int ih, int x, int y,
 	s_free(&b);
 }
 
+/* Place an image whose pixels went by descriptor (Blit ADR 0202): cols by
+   rows cells at the cursor, layer z, the cursor left where it was. The
+   pixels are not here; Blit holds a placement whose frame has not arrived
+   yet for a moment, so the order the two take does not matter. */
+void kt_place(int cols, int rows, unsigned id, long z, str *o)
+{
+	s_cat(o, "\033_Ga=p,q=2,C=1,i=");
+	s_num(o, id);
+	s_cat(o, ",c=");
+	s_num(o, cols);
+	s_cat(o, ",r=");
+	s_num(o, rows);
+	if (z) {
+		s_cat(o, ",z=");
+		s_num(o, z);
+	}
+	s_cat(o, "\033\\");
+}
+
 /* Delete one image: its placements and the data behind them. */
 void kt_del(str *o, unsigned id)
 {

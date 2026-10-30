@@ -191,6 +191,7 @@ whenever a replacement writes one.
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
 | `mods/gfxask.c`, `mods/gfxask.h` | what a terminal says it can do, asked once and shared by the console and hold's client: the picture protocols, the kitty keyboard, pixel mouse (1016), pointer shapes (OSC 22), pointer lock (7701), XTGETTCAP |
+| `mods/blitfr.c`, `mods/blitfr.h` | picture frames handed to Blit by descriptor (Blit ADR 0202): the one copy of the protocol -- hello with the session's token, a 48-byte header and a sealed memfd over an abstract SOCK_SEQPACKET socket -- shared by the console, which sends straight to Blit when nothing is between, and hold's attaching client, which forwards what the held program's server passes it; `holdframes` is the interface hold offers the console for the held case, and `tests/frameserve.py` is the suites' refusing stand-in. Linux only |
 | `mods/display.h` | the interface a display backend offers; `console` is the only one so far |
 | `mods/cat/` | `cat` that is byte-identical in a pipe and useful on a terminal — see `mods/cat/README.md` |
 | `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR`, one-shot and live — see `mods/trace/README.md` |

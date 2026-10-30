@@ -107,7 +107,9 @@ void hd_cdrop(vec *cls, int fd)
 			free(cn->pid);
 			free(cn->phash);
 			free(cn->plen);
-		free(cn->pbase);
+			free(cn->pbase);
+			free(cn->fsid);
+			free(cn->fsseq);
 			s_free(&cn->mbuf);
 			s_free(&cn->name);
 			s_free(&cn->title);
@@ -449,6 +451,8 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		free(cn->phash);
 		free(cn->plen);
 		free(cn->pbase);
+		free(cn->fsid);
+		free(cn->fsseq);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
 		s_free(&cn->title);
@@ -700,6 +704,37 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 	case HD_FRAMES:
 		hd_send(c, HD_FRAMES, "yes", 3);
 		break;
+	case HD_FRAME: {
+		/* A window picture's newest frame, from the program
+		   (Blit ADR 0202): kept, and passed on. */
+		int fd = hd_takefd();
+
+		if (fd < 0)
+			break;
+		if (in.n != BF_HDR || !hd_frmpeer(c)) {
+			close(fd);
+			break;
+		}
+		hd_frmput((const unsigned char *)in.p, fd);
+		hd_frmpush(cls, tid, (const unsigned char *)in.p);
+		break;
+	}
+	case HD_FDLIST: {
+		size_t ci;
+
+		s_init(&o);
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (o.n)
+				s_ch(&o, '\n');
+			s_cat(&o, cn2->name.p ? cn2->name.p : "");
+			s_cat(&o, cn2->fdok ? " yes" : " no");
+		}
+		hd_send(c, HD_FDLIST, o.p, o.n);
+		s_free(&o);
+		break;
+	}
 	case HD_EDITLIST: {
 		size_t ci;
 
@@ -1117,6 +1152,17 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					lg(HIBR_LDBG, "hold: a display takes %d colours", v);
 					hd_rensend1(&cls, cn, tid);
 				}
+			} else if (t == HD_FDCAP && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+				int v;
+
+				memcpy(&v, in.p, sizeof v);
+				if (cn) {
+					cn->fdok = v != 0;
+					cn->fsn = 0;
+					lg(HIBR_LDBG, "hold: a display %s frames by descriptor",
+					   v ? "takes" : "no longer takes");
+				}
 			} else if (t == HD_EDIT && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
 				int v;
@@ -1195,6 +1241,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 	unlink(path);
 	close(l);
 	free(q);
+	hd_frmclear();
 	if (quit || hd_term)
 		hd_pty->drop(id);
 	for (i = 0; i < 300 && hd_pty->alive(id); i++)
@@ -1210,6 +1257,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 		free(cn->phash);
 		free(cn->plen);
 		free(cn->pbase);
+		free(cn->fsid);
+		free(cn->fsseq);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
 		s_free(&cn->title);
@@ -1351,6 +1400,14 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 		fprintf(f, "caps %d %d %d %d %d %d %d %d\n", cn->fd, cn->kbd,
 			cn->copy, cn->mpix, cn->ptrask, cn->bce, cn->rep,
 			cn->depth);
+		/* And what it said it can take beyond pictures' kind -- edits
+		   in place, holding the pointer, frames by descriptor -- on a
+		   line of its own for the same reason. Without it every
+		   display read "no" after an upgrade, which Restart Desktop
+		   does, so edits stopped and every film's frame went out as a
+		   new picture until each display attached again. */
+		fprintf(f, "more %d %d %d %d\n", cn->fd, cn->editok, cn->lockok,
+			cn->fdok);
 		hd_keepexec(cn->fd);
 	}
 	fclose(f);
@@ -1483,6 +1540,16 @@ int hd_resume(sh *s)
 		if (sscanf(line, "colours %d", &pa) == 1) {
 			hd_fdepth = pa == 24 || pa == 256 || pa == 16 || pa == 8 ?
 					    pa : 0;
+			continue;
+		}
+		if (sscanf(line, "more %d %d %d %d", &fd, &pa, &pb, &pr) == 4) {
+			struct hd_cli *cm = hd_cfind(&cls, fd);
+
+			if (cm) {
+				cm->editok = pa != 0;
+				cm->lockok = pb != 0;
+				cm->fdok = pr != 0;
+			}
 			continue;
 		}
 		if (sscanf(line, "gfx %d %d", &fd, &prim) == 2) {

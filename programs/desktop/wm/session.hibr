@@ -130,6 +130,7 @@ dt_open() {
 	console imgdetail "$DT_IMGDETAIL"
 	console imgcomp "$DT_IMGCOMP"
 	[ "$DT_IMGEDITS" = off ] && console imgedit off
+	[ "$DT_IMGFD" = off ] && console imgfd off
 	[ "${DT_COLOURS:-auto}" = auto ] || dt_colours
 	console signals off
 	# Click and drag only, not motion: reporting every movement with no
@@ -237,6 +238,9 @@ fn dt_shiftorigin(shift) {
 # Whether the console edits pictures in place, as last told: on, off, or
 # empty before the first time (Gitea #404).
 DT_IMGEDIT=
+# And whether it sends window pictures by descriptor, likewise: hold, off,
+# or empty (Blit ADR 0202).
+DT_IMGFDNOW=
 
 # Re-read the screen size after a resize, and this desktop's own primary
 # viewport from hold's own per-client data. Not held, or hold not loaded,
@@ -306,6 +310,23 @@ dt_size() {
 			console imgedit "$gv" 2> /dev/null
 			[ "$gv" = off ] && [ -n "$DT_IMGEDIT" ] && DT_FORCEONCE=1
 			DT_IMGEDIT=$gv
+		fi
+		# A window's picture goes by descriptor (Blit ADR 0202) only
+		# where every display's client has its Blit session's frame
+		# socket open: one that has not -- ssh, a plain terminal -- puts
+		# every picture back on the terminal, so hold needs no encoder
+		# of its own. Leaving it drops those pictures, and each is
+		# placed again whole on the terminal.
+		if [ "$DT_IMGFD" != off ] && gl := hold descriptors 2> /dev/null &&
+		   [ -n "$gl" ] && ! [[ $'\n'"$gl" == *" no"* ]]; then
+			gv=hold
+		else
+			gv=off
+		fi
+		if [ "$gv" != "$DT_IMGFDNOW" ]; then
+			console imgfd "$gv" 2> /dev/null
+			[ "$gv" = off ] && [ -n "$DT_IMGFDNOW" ] && DT_FORCEONCE=1
+			DT_IMGFDNOW=$gv
 		fi
 		if gl := hold gfx 2> /dev/null; then
 			while IFS=' ' read -r gnm gv _; do

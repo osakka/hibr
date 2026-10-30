@@ -528,6 +528,7 @@ Forward
 Frame
 Frames For Video (as output)
 Frames a Second
+Frames to Blit
 Frames:
 Freeze Above and Left
 Freeze First Column

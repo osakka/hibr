@@ -32,6 +32,8 @@
  * implement the same dp_api entry and never come here.
  */
 #include "cn.h"
+#include "../blitfr.h"
+#include <unistd.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,6 +63,10 @@ typedef struct cn_img {
 	str edit;		/* edits not yet sent */
 	size_t editb;		/* bytes of edits sent since the whole picture */
 	int edited;		/* an edit has gone since it went out whole */
+	/* Its pixels go by descriptor (Blit ADR 0202) and the terminal is
+	   given only the placement: the frame number its last went as. */
+	int fd;
+	unsigned long long seq;
 } cn_img;
 
 static cn_img *cn_imgs;
@@ -225,6 +231,115 @@ void cn_imgunedit(void)
 	while (i--)
 		if (cn_imgs[i].edited)
 			cn_imgdrop(i);
+}
+
+/* Window pictures by descriptor (Blit ADR 0202): -1, auto, straight to the
+   frame socket of the Blit session this environment names, only where
+   nothing is between the console and it; 1 through hold's server, which a
+   desktop says from `hold descriptors` when every display can take them;
+   0 never. The wallpaper never goes this way: it is placed rarely and
+   kept, so there is nothing to win. */
+int cn_imgfd = -1;
+static int cn_bfd = -1, cn_bfdtried;
+static const hf_api *cn_hf;
+
+/* Drop every region whose pixels went by descriptor, so each is placed
+   again whole on the terminal: frames have stopped -- turned off, a display
+   that cannot take them joined, or the socket went away. */
+void cn_imgfddrop(void)
+{
+	size_t i = cn_nimg;
+
+	while (i--)
+		if (cn_imgs[i].fd)
+			cn_imgdrop(i);
+}
+
+/* Whether a window's picture may go by descriptor now. */
+int cn_fdon(sh *s)
+{
+	const char *h;
+
+	if (cn_imgfd == 0)
+		return 0;
+	if (cn_imgfd == 1) {
+		if (!cn_hf)
+			cn_hf = (const hf_api *)hibr_require(s, "holdframes",
+							     HF_API_VER);
+		return cn_hf != 0;
+	}
+	h = getenv("HIBR_HOLD");
+	if (h && *h)
+		return 0;
+	if (!cn_bfdtried) {
+		cn_bfdtried = 1;
+		cn_bfd = bf_open();
+	}
+	return cn_bfd >= 0;
+}
+
+/* Frames stopped going: back to the terminal for good in this mode, every
+   picture that went this way placed again whole. */
+void cn_fdfail(void)
+{
+	lg(HIBR_LDBG, "image: frames by descriptor stopped; pictures go on "
+		      "the terminal again");
+	if (cn_bfd >= 0)
+		close(cn_bfd);
+	cn_bfd = -1;
+	cn_hf = 0;
+	cn_imgfd = 0;
+	cn_imgfddrop();
+}
+
+/* Send one whole frame, w by h pixels of RGB, for an image. 1 when it went;
+   on a failure frames are off from here on. */
+int cn_frsend(sh *s, unsigned id, unsigned long long seq,
+	      const unsigned char *px, int w, int h)
+{
+	unsigned char hd[BF_HDR];
+	int mfd, ok;
+
+	mfd = bf_memfd(px, (size_t)w * h * 3);
+	if (mfd < 0) {
+		cn_fdfail();
+		return 0;
+	}
+	bf_hdr(hd, id, seq, w, h);
+	if (cn_imgfd == 1)
+		ok = cn_hf && cn_hf->frame(s, hd, mfd);
+	else
+		ok = cn_bfd >= 0 && bf_drain(cn_bfd) >= 0 &&
+		     bf_send(cn_bfd, hd, mfd);
+	close(mfd);
+	if (!ok)
+		cn_fdfail();
+	return ok;
+}
+
+/* The next frame of a picture already placed by descriptor, in the same
+   rectangle: only the frame goes, and the terminal hears nothing. 0 when it
+   has to be placed again -- the size moved, or frames stopped. */
+int cn_imgfdnext(sh *s, cn_img *im, const unsigned char *rgb, int iw, int ih,
+		 unsigned sum)
+{
+	unsigned char *nb;
+	int ok;
+
+	if (!im->fd || im->piw != iw || im->pih != ih ||
+	    im->pgen != (unsigned)cn_wgen || !cn_fdon(s))
+		return 0;
+	nb = cn_imgbuild(rgb, iw, ih, im->psx, im->psy, im->psw, im->psh,
+			 im->ptw, im->pth);
+	ok = cn_frsend(s, im->id, im->seq + 1, nb, im->ptw, im->pth);
+	free(nb);
+	if (!ok)
+		return 0;
+	im->seq++;
+	im->sum = sum;
+	im->under = cn_imgunder(im);
+	im->plive = 1;
+	return 1;
 }
 
 /* Drop every region: the screen is being left, or cleared outright. */
@@ -735,6 +850,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		   Placing first and deleting behind leaves no such gap. */
 		/* Or the part of it that changed, where the terminal can
 		   edit a picture in place (Gitea #404). */
+		if (im->z == z && cn_imgfdnext(s, im, rgb, iw, ih, sum))
+			return 1;
 		if (im->z == z && cn_imgtry(im, rgb, iw, ih, sum))
 			return 1;
 		reuse = im->id;
@@ -915,14 +1032,30 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   remote session, and it cannot be had until something distinguishes
 	   "a picture that will not change" from "a picture with a palette". */
 	comp = im->over ? cn_imgcomp : CN_COMP_NONE;
-	if (im->id)
+	/* A window's picture by descriptor where it can go that way: the
+	   frame now, the placement with the cells. */
+	if (im->id && !im->over && cn_fdon(s) &&
+	    cn_frsend(s, im->id, 1, px ? px : rgb, tw, th)) {
+		im->fd = 1;
+		im->seq = 1;
+		kt_place(w, h, im->id, im->z, &im->data);
+		im->piw = iw;
+		im->pih = ih;
+		im->psx = sx;
+		im->psy = sy;
+		im->psw = sw;
+		im->psh = sh;
+		im->ptw = tw;
+		im->pth = th;
+		im->pgen = (unsigned)cn_wgen;
+	} else if (im->id)
 		kt_encode(px ? px : rgb, tw, th, w, h, im->id, im->z, comp,
 			  &im->data);
 	else
 		six_encode(px ? px : rgb, tw, th,
 			   (flags & DP_IMG_CHOSEN) ? 1 : 0, &im->data);
 	/* Kept for the next frame's edit, where one can be made. */
-	if (im->id && !im->over && cn_canedit()) {
+	if (im->id && !im->over && !im->fd && cn_canedit()) {
 		im->prev = px ? px : cn_imgbuild(rgb, iw, ih, sx, sy, sw, sh,
 						 tw, th);
 		px = 0;

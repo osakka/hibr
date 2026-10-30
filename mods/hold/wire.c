@@ -189,6 +189,113 @@ int hd_send(int fd, int type, const char *p, size_t n)
 	return r;
 }
 
+/* A descriptor that came with the last message received, or -1. The next
+   hd_recv closes one that nobody took, so a message that carries one where
+   none was wanted cannot leak it. */
+static int hd_rxfd = -1;
+
+/* Take the descriptor the last message carried, or -1: the caller's now. */
+int hd_takefd(void)
+{
+	int f = hd_rxfd;
+
+	hd_rxfd = -1;
+	return f;
+}
+
+/* Read a message's type byte, and the descriptor that rode on it if there
+   was one: on a stream socket a descriptor arrives with the byte it was
+   sent with. Close-on-exec as it arrives (Gitea #411). Anything that is
+   not a socket is read as before. */
+int hd_rtype(int fd, char *t)
+{
+	struct msghdr m;
+	struct iovec v;
+	struct cmsghdr *c;
+	union {
+		char b[CMSG_SPACE(sizeof(int))];
+		struct cmsghdr align;
+	} u;
+	ssize_t k;
+
+	if (hd_rxfd >= 0) {
+		close(hd_rxfd);
+		hd_rxfd = -1;
+	}
+	for (;;) {
+		memset(&m, 0, sizeof m);
+		v.iov_base = t;
+		v.iov_len = 1;
+		m.msg_iov = &v;
+		m.msg_iovlen = 1;
+		m.msg_control = u.b;
+		m.msg_controllen = sizeof u.b;
+		k = recvmsg(fd, &m, MSG_CMSG_CLOEXEC);
+		if (k < 0 && errno == EINTR)
+			continue;
+		if (k < 0 && errno == ENOTSOCK)
+			return hd_rall(fd, t, 1);
+		break;
+	}
+	if (k <= 0)
+		return k == 0 ? 0 : -1;
+	for (c = CMSG_FIRSTHDR(&m); c; c = CMSG_NXTHDR(&m, c))
+		if (c->cmsg_level == SOL_SOCKET && c->cmsg_type == SCM_RIGHTS &&
+		    c->cmsg_len >= CMSG_LEN(sizeof(int))) {
+			memcpy(&hd_rxfd, CMSG_DATA(c), sizeof hd_rxfd);
+			break;
+		}
+	return 1;
+}
+
+/* Send one message carrying a descriptor, on its type byte. */
+int hd_sendfd(int fd, int type, const char *p, size_t n, int xfd)
+{
+	struct msghdr m;
+	struct iovec v;
+	struct cmsghdr *c;
+	union {
+		char b[CMSG_SPACE(sizeof(int))];
+		struct cmsghdr align;
+	} u;
+	unsigned len = (unsigned)n;
+	char t = (char)type;
+	ssize_t k;
+
+	memset(&m, 0, sizeof m);
+	memset(&u, 0, sizeof u);
+	v.iov_base = &t;
+	v.iov_len = 1;
+	m.msg_iov = &v;
+	m.msg_iovlen = 1;
+	m.msg_control = u.b;
+	m.msg_controllen = sizeof u.b;
+	c = CMSG_FIRSTHDR(&m);
+	c->cmsg_level = SOL_SOCKET;
+	c->cmsg_type = SCM_RIGHTS;
+	c->cmsg_len = CMSG_LEN(sizeof(int));
+	memcpy(CMSG_DATA(c), &xfd, sizeof xfd);
+	for (;;) {
+		k = sendmsg(fd, &m, MSG_NOSIGNAL);
+		if (k < 0 && errno == EINTR)
+			continue;
+		if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+			struct pollfd q;
+
+			q.fd = fd;
+			q.events = POLLOUT;
+			if (poll(&q, 1, 1000) == 1)
+				continue;
+		}
+		break;
+	}
+	if (k != 1)
+		return 0;
+	if (!hd_wall(fd, (const char *)&len, sizeof len))
+		return 0;
+	return n ? hd_wall(fd, p, n) : 1;
+}
+
 /* Receive one message into out, replacing what was there. */
 int hd_recv(int fd, int *type, str *out)
 {
@@ -196,7 +303,7 @@ int hd_recv(int fd, int *type, str *out)
 	char t;
 	int r;
 
-	r = hd_rall(fd, &t, 1);
+	r = hd_rtype(fd, &t);
 	if (r <= 0)
 		return r;
 	r = hd_rall(fd, (char *)&len, sizeof len);

@@ -84,10 +84,10 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 {
 	struct termios sv, raw;
 	struct sigaction a, oa;
-	struct pollfd q[2];
+	struct pollfd q[3];
 	const char *why = "detached";
 	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0, gx, kbd = 0, copy = 0,
-	    mpix = 0, ptr = -1, lock = 0, edit = 0, one = 1, depth;
+	    mpix = 0, ptr = -1, lock = 0, edit = 0, one = 1, depth, bfd, nq;
 	gx_tcap tc;
 	ssize_t k;
 	char *p;
@@ -172,6 +172,13 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 		hd_send(s, HD_LOCK, (const char *)&lock, sizeof lock);
 	if (edit)
 		hd_send(s, HD_EDIT, (const char *)&edit, sizeof edit);
+	/* Pictures by descriptor, where this display is a Blit session that
+	   offers a frame socket (Blit ADR 0202): this client's own session,
+	   named by its own environment -- the held program's is frozen from
+	   whatever shell started it, and may name another session or none. */
+	bfd = bf_open();
+	if (bfd >= 0)
+		hd_send(s, HD_FDCAP, (const char *)&one, sizeof one);
 	if (tc.bce == 1)
 		hd_send(s, HD_BCE, (const char *)&one, sizeof one);
 	if (tc.rep == 1)
@@ -207,7 +214,14 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 		q[0].events = POLLIN;
 		q[1].fd = s;
 		q[1].events = POLLIN;
-		if (poll(q, 2, -1) < 0) {
+		nq = 2;
+		if (bfd >= 0) {
+			q[2].fd = bfd;
+			q[2].events = POLLIN;
+			q[2].revents = 0;
+			nq = 3;
+		}
+		if (poll(q, (nfds_t)nq, -1) < 0) {
 			if (errno == EINTR)
 				continue;
 			break;
@@ -233,12 +247,36 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 				break;
 			}
 		}
+		/* What Blit says on the frame socket is errors only, kept in
+		   the log; the socket closing puts this display back on the
+		   terminal, which the desktop learns from hold descriptors. */
+		if (nq == 3 && q[2].revents && bf_drain(bfd) < 0) {
+			int zero = 0;
+
+			close(bfd);
+			bfd = -1;
+			hd_send(s, HD_FDCAP, (const char *)&zero, sizeof zero);
+		}
 		if (q[1].revents) {
 			if (hd_recv(s, &t, &in) <= 0) {
 				why = "lost the session";
 				break;
 			}
-			if (t == HD_DATA) {
+			if (t == HD_FRAME) {
+				int mfd = hd_takefd();
+
+				if (bfd >= 0 && mfd >= 0 && in.n == BF_HDR &&
+				    !bf_send(bfd, (const unsigned char *)in.p, mfd)) {
+					int zero = 0;
+
+					close(bfd);
+					bfd = -1;
+					hd_send(s, HD_FDCAP, (const char *)&zero,
+						sizeof zero);
+				}
+				if (mfd >= 0)
+					close(mfd);
+			} else if (t == HD_DATA) {
 				hd_wall(1, in.p, in.n);
 			} else if (t == HD_DETACH) {
 				if (in.n)
@@ -253,6 +291,8 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 		}
 	}
 	close(s);
+	if (bfd >= 0)
+		close(bfd);
 	sigaction(SIGWINCH, &oa, 0);
 	if (!lost) {
 		/* The keyboard flags the session put on this terminal, taken

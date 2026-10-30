@@ -377,6 +377,50 @@ int hd_editlist(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* Whether each display of a session can be sent frames by descriptor, a
+   line each: hold descriptors [name] (Blit ADR 0202). */
+int hd_fdlist(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok;
+
+	s_init(&path);
+	if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_ask(path.p, HD_FDLIST, &r);
+	s_free(&path);
+	if (!ok) {
+		s_free(&r);
+		return HIBR_FAIL;
+	}
+	hd_ret(s, r.p ? r.p : "");
+	s_free(&r);
+	return HIBR_OK;
+}
+
+/* Hand the server of the session this program is in one frame, on a
+   connection of its own: what the console calls through "holdframes". */
+int hd_frame(sh *s, const unsigned char *h, int mfd)
+{
+	const char *hp = getenv("HIBR_HOLD");
+	int fd, ok;
+
+	(void)s;
+	if (!hp || !*hp)
+		return 0;
+	fd = hd_dial(hp);
+	if (fd < 0)
+		return 0;
+	ok = hd_sendfd(fd, HD_FRAME, (const char *)h, BF_HDR, mfd);
+	close(fd);
+	return ok;
+}
+
+static const hf_api hd_hfapi = { hd_frame };
+
 /* Whether a session's server keeps an edit of a whole picture in place of
    the edits before it, "yes": hold frames [name]. Fails against a server
    too old to say, which keeps them all. */
@@ -633,6 +677,8 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_editlist(s, ac, av);
 	if (!strcmp(sub, "frames"))
 		return hd_frames(s, ac, av);
+	if (!strcmp(sub, "descriptors"))
+		return hd_fdlist(s, ac, av);
 	if (!strcmp(sub, "stats"))
 		return hd_statlist(s, ac, av);
 	if (!strcmp(sub, "colours"))
@@ -739,7 +785,7 @@ int m_hold(sh *s, int ac, char **av)
 	}
 	s_free(&path);
 	lg(HIBR_LERR,
-	   "usage: hold new|attach|detach|list|kill|clients|gfx|pixels|pointers|locks|edits|frames|stats|colours|shift|move|slot|drop|primary|upgrade ...");
+	   "usage: hold new|attach|detach|list|kill|clients|gfx|pixels|pointers|locks|edits|frames|descriptors|stats|colours|shift|move|slot|drop|primary|upgrade ...");
 	return 2;
 }
 
@@ -755,11 +801,13 @@ int hd_ini(sh *s)
 		lg(HIBR_LERR, "hold: needs the term module");
 		return HIBR_FAIL;
 	}
+	hibr_provide(s, "holdframes", HF_API_VER, (void *)&hd_hfapi);
 	return hibr_provide(s, "hold", 1u, (void *)&m_hold);
 }
 
 void hd_fini(sh *s)
 {
+	hibr_unprovide(s, "holdframes");
 	hibr_unprovide(s, "hold");
 }
 

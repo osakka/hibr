@@ -40,6 +40,8 @@ DT_IMGCOMP="${DT_IMGCOMP-zlib}"
 command -v dt_keep > /dev/null && dt_keep DT_IMGCOMP
 DT_IMGEDITS="${DT_IMGEDITS-auto}"
 command -v dt_keep > /dev/null && dt_keep DT_IMGEDITS
+DT_IMGFD="${DT_IMGFD-auto}"
+command -v dt_keep > /dev/null && dt_keep DT_IMGFD
 DT_COLOURS="${DT_COLOURS-auto}"
 command -v dt_keep > /dev/null && dt_keep DT_COLOURS
 
@@ -111,6 +113,31 @@ fn cp_set_imgedits(int? id = "", value = "") {
 		else
 			console imgedit auto
 			DT_IMGEDIT=
+		fi
+	fi
+	cp_save
+}
+
+# Whether a window's picture goes to Blit by descriptor rather than through
+# the terminal (Blit ADR 0202): Automatic on a Blit session that offers it,
+# and inside hold only where every display can take it; Off for the
+# terminal every time.
+fn cp_set_imgfd(int? id = "", value = "") {
+	case $value in
+	Off) DT_IMGFD=off ;;
+	*) DT_IMGFD=auto ;;
+	esac
+	if command -v console > /dev/null; then
+		if [ "$DT_IMGFD" = off ]; then
+			console imgfd off
+			DT_IMGFDNOW=off
+			DT_FORCEONCE=1
+		elif [ -n "${HIBR_HOLD-}" ] && dt_has dt_size; then
+			DT_IMGFDNOW=
+			dt_size
+		else
+			console imgfd auto
+			DT_IMGFDNOW=
 		fi
 	fi
 	cp_save
@@ -196,6 +223,10 @@ fn pictures_rows(int w) {
 	[ "$DT_IMGEDITS" = off ] && v=Off
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Partial Updates"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgedits; n=$((n + 1))
+	v=Automatic
+	[ "$DT_IMGFD" = off ] && v=Off
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frames to Blit"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgfd; n=$((n + 1))
 	v := cp_depthname "${DT_COLOURS:-auto}"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=depth; n=$((n + 1))
@@ -237,6 +268,12 @@ fn pictures_do(int? w = "", k = "", int? dir = "") {
 		v := cp_next "$nm" "$dir" "${CP_IMGEDITS[@]}"
 		cp_set_imgedits "" "$v"
 		;;
+	imgfd)
+		nm=Automatic
+		[ "$DT_IMGFD" = off ] && nm=Off
+		v := cp_next "$nm" "$dir" "${CP_IMGEDITS[@]}"
+		cp_set_imgfd "" "$v"
+		;;
 	depth)
 		nm := cp_depthname "${DT_COLOURS:-auto}"
 		v := cp_next "$nm" "$dir" "${CP_DEPTHS[@]}"
@@ -254,6 +291,8 @@ fn pictures_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	imgcomp) dt_droplist "$w" "$r" "$c" cp_set_imgcomp \
 		"${CP_IMGCOMPS[@]}" ;;
 	imgedits) dt_droplist "$w" "$r" "$c" cp_set_imgedits \
+		"${CP_IMGEDITS[@]}" ;;
+	imgfd) dt_droplist "$w" "$r" "$c" cp_set_imgfd \
 		"${CP_IMGEDITS[@]}" ;;
 	depth) dt_droplist "$w" "$r" "$c" cp_set_depth \
 		"${CP_DEPTHS[@]}" ;;

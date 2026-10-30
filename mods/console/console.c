@@ -1022,6 +1022,39 @@ int m_console(sh *s, int ac, char **av)
 			cn_imgunedit();
 		return HIBR_OK;
 	}
+	/* Whether a window's picture goes by descriptor (Blit ADR 0202): auto
+	   straight to the Blit session this environment names, when nothing is
+	   between; hold through the server of the session this program is in,
+	   which a held desktop says from `hold descriptors`; off never. With no
+	   argument, which of those is in force. Leaving one drops what went
+	   that way, so each such picture is placed again on the terminal. */
+	if (!strcmp(sub, "imgfd")) {
+		const char *m = ac > 2 ? av[2] : "";
+		int was = cn_imgfd;
+
+		if (!*m) {
+			const char *now = cn_imgfd < 0 ? "auto"
+					  : cn_imgfd ? "hold" : "off";
+
+			hibr_ret(s, now);
+			if (!s->bind)
+				printf("%s\n", now);
+			return HIBR_OK;
+		}
+		if (!strcmp(m, "hold"))
+			cn_imgfd = 1;
+		else if (!strcmp(m, "off"))
+			cn_imgfd = 0;
+		else if (!strcmp(m, "auto"))
+			cn_imgfd = -1;
+		else {
+			lg(HIBR_LERR, "usage: console imgfd hold|off|auto");
+			return 2;
+		}
+		if (was != cn_imgfd)
+			cn_imgfddrop();
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "behind")) {
 		/* While this is on, a write at absolute coordinates skips any
 		   cell a pane covers -- so the wallpaper paints around the

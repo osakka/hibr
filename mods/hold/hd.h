@@ -6,6 +6,7 @@
 #include "../pty.h"
 #include "../term.h"
 #include "../gfxask.h"
+#include "../blitfr.h"
 
 /* Synchronized output's pair, which brackets every frame sent a client. */
 #ifndef HD_SYNCH
@@ -135,6 +136,22 @@ enum {
 	   frame. A server too old to answer keeps every edit, and is then
 	   sent no such edit. */
 	HD_FRAMES = 'W',
+	/* A picture frame by descriptor (Blit ADR 0202): a 48-byte header and
+	   a sealed memfd riding on the message's type byte. From a program to
+	   its own server, one connection a frame, from the server's own uid
+	   only; the server keeps the newest per image and passes it to each
+	   display that can take one, whose client hands it to Blit. */
+	HD_FRAME = 'I',
+	/* From a client: its own Blit session took its hello on the frame
+	   socket, so it can be sent frames (one int, 1), or that connection
+	   has gone (0). A server that does not know it ignores it, and such
+	   a display is never sent a frame. */
+	HD_FDCAP = 't',
+	/* Whether each display can be sent frames by descriptor, name and yes
+	   or no a line -- what the desktop asks before letting the console
+	   send a window's picture that way. Its own request for the reason
+	   HD_LOCKLIST is. */
+	HD_FDLIST = 'T',
 	/* What each display has been sent since it attached, name, bytes and
 	   frames a line (Gitea #353). Its own request for the reason
 	   HD_GFXLIST is. */
@@ -334,6 +351,13 @@ struct hd_cli {
 	int lockok, plock, lockgen;
 	/* Whether this display's terminal edits a picture in place (HD_EDIT). */
 	int editok;
+	/* Whether this display's client has Blit's frame socket open, and
+	   the frames by descriptor it has been sent: an image id and the
+	   sequence it was sent last, a pair each. */
+	int fdok;
+	unsigned *fsid;
+	unsigned long long *fsseq;
+	size_t fsn;
 	unsigned long inseq;
 	/* What this client has been sent since it attached: bytes and frames,
 	   for `hold stats` -- the number a leaner renderer is judged by, per
@@ -349,6 +373,25 @@ struct hd_cli {
 	str title;
 };
 
+/* The newest frame by descriptor the program handed over for one image
+   (Blit ADR 0202): its header, its sealed memfd, and whether the emulator
+   has been seen holding its placement. */
+struct hd_frm {
+	unsigned id;
+	unsigned long long seq;
+	int fd, seen;
+	unsigned char h[BF_HDR];
+};
+extern unsigned hd_fgen;
+void hd_frmput(const unsigned char *h, int fd);
+struct hd_frm *hd_frmget(unsigned id);
+void hd_frmsweep(int tid);
+void hd_frmclear(void);
+int hd_frmpeer(int c);
+void hd_frmsend(struct hd_cli *cn, unsigned id);
+int hd_frmplaced(int tid, unsigned id);
+void hd_frmpush(vec *cls, int tid, const unsigned char *h);
+unsigned long long hd_frmnum(const unsigned char *p, int n);
 unsigned hd_hash(const char *p, size_t n);
 unsigned hd_imgid(const char *p, size_t n);
 size_t hd_imgbase(const char *p, size_t n);
@@ -390,6 +433,9 @@ int hd_wall(int fd, const char *p, size_t n);
 int hd_rall(int fd, char *p, size_t n);
 int hd_send(int fd, int type, const char *p, size_t n);
 int hd_recv(int fd, int *type, str *out);
+int hd_takefd(void);
+int hd_rtype(int fd, char *t);
+int hd_sendfd(int fd, int type, const char *p, size_t n, int xfd);
 long hd_timeo(long dflt);
 int hd_dial(const char *path);
 int hd_askfd(int fd, int type, const char *p, size_t n, str *reply);

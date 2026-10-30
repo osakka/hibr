@@ -754,6 +754,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		nhash = n > 0 ? xm((size_t)n * sizeof *nhash) : 0;
 		nlen = n > 0 ? xm((size_t)n * sizeof *nlen) : 0;
 		nbase = n > 0 ? xm((size_t)n * sizeof *nbase) : 0;
+		hd_frmsweep(tid);
 		s_init(&pic);
 		for (k = 0; k < n; k++) {
 			unsigned id, h;
@@ -800,6 +801,11 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 						from = base;
 					break;
 				}
+			/* A picture placed by descriptor: its pixels go to the
+			   display's client first, on hold's own socket, so Blit
+			   has them when the placement arrives. */
+			if (id && pic.n > 5 && !memcmp(pic.p, "\033_Ga=p", 6))
+				hd_frmsend(cn, id);
 			if (id) {
 				nid[nn] = id;
 				nhash[nn] = h;

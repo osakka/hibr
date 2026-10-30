@@ -136,6 +136,7 @@ unsigned kt_id(void);
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 	       unsigned id, long z, int comp, str *o);
 void kt_del(str *o, unsigned id);
+void kt_place(int cols, int rows, unsigned id, long z, str *o);
 void kt_edit(const unsigned char *rgb, int iw, int ih, int x, int y,
 	     unsigned id, str *o);
 void kt_delall(str *o);
@@ -204,6 +205,10 @@ void cn_gotcap(int kind, int yes);
 extern int cn_editoks, cn_imgedit;
 int cn_canedit(void);
 int cn_canwhole(void);
+extern int cn_imgfd;
+void cn_imgfddrop(void);
+unsigned char *cn_imgbuild(const unsigned char *rgb, int iw, int ih, int sx,
+			   int sy, int sw, int sh, int tw, int th);
 void cn_gotcolour(int which, int idx, unsigned rgb);
 unsigned cn_termbg(void);
 int cn_termbgok(void);

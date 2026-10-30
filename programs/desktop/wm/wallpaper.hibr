@@ -89,6 +89,10 @@ dt_keep DT_IMGCOMP
 # #404): auto, where every display says it can, or off for whole pictures.
 DT_IMGEDITS="${DT_IMGEDITS-auto}"
 dt_keep DT_IMGEDITS
+# Whether a window's picture goes to Blit by descriptor (Blit ADR 0202):
+# auto, where Blit offers it to every display, or off for the terminal.
+DT_IMGFD="${DT_IMGFD-auto}"
+dt_keep DT_IMGFD
 # How many colours every display is sent (Gitea #353): auto for what each
 # display's own terminal said, or 24, 256 or 16 for all of them.
 DT_COLOURS="${DT_COLOURS-auto}"

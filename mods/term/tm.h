@@ -278,6 +278,7 @@ void tm_imghit(tm_t *t, int r, int c);
 void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id, int under,
 		const char *p, size_t n);
 long tm_imgkey(const char *s, int k);
+int tm_imgisplace(const char *p, size_t n);
 int tm_imgkeyc(const char *s, int k);
 void tm_apcraw(tm_t *t, str *o);
 void tm_apcend(tm_t *t);

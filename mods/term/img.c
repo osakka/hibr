@@ -143,6 +143,13 @@ void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id, int unde
 	   t->id, cols, rows, r, c, n);
 }
 
+/* Whether a kept picture's bytes are a placement by descriptor -- an a=p
+   and no pixels -- rather than a transmission. */
+int tm_imgisplace(const char *p, size_t n)
+{
+	return p && n > 5 && !memcmp(p, "\033_Ga=p", 6);
+}
+
 /* One key's number out of a kitty control string: tm_imgkey("a=T,i=7", 'i')
    is 7, and -1 when the key is not there. Every key is one letter. */
 long tm_imgkey(const char *s, int k)
@@ -244,6 +251,30 @@ void tm_apcend(tm_t *t)
 			t->imgb.p[0] = 0;
 		t->imgon = 1;
 		tm_apcraw(t, &t->imgb);
+	} else if (act == 'p') {
+		/* A placement of a picture whose pixels went by descriptor
+		   (Blit ADR 0202): kept like a transmission, the a=p as its
+		   bytes, so whatever re-serialises this grid places it on each
+		   display as it does any other. One naming a picture already
+		   kept from its own transmission is a second placement of
+		   that, which nothing here keeps, as before. */
+		long id = tm_imgkey(s, 'i');
+		str r;
+
+		rows = tm_imgkey(s, 'r');
+		cols = tm_imgkey(s, 'c');
+		if (id <= 0 || rows < 1 || cols < 1)
+			return;
+		for (i = 0; i < t->imgn; i++)
+			if (t->img[i].id == (unsigned)id &&
+			    !tm_imgisplace(t->img[i].data.p, t->img[i].data.n))
+				return;
+		s_init(&r);
+		tm_apcraw(t, &r);
+		tm_imgkeep(t, t->cr, t->cc, (int)rows, (int)cols, (unsigned)id,
+			   tm_imgkeyc(s, 'z') == '-', r.p, r.n);
+		s_free(&r);
+		return;
 	} else if (act == 'f') {
 		long id = tm_imgkey(s, 'i');
 
@@ -251,7 +282,8 @@ void tm_apcend(tm_t *t)
 		for (i = 0; i < t->imgn; i++)
 			if (id > 0 && t->img[i].id == (unsigned)id)
 				break;
-		if (i == t->imgn)
+		if (i == t->imgn ||
+		    tm_imgisplace(t->img[i].data.p, t->img[i].data.n))
 			return;
 		t->imgid = (unsigned)id;
 		t->imgwhole = tm_imgkey(s, 'x') <= 0 && tm_imgkey(s, 'y') <= 0 &&
