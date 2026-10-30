@@ -198,8 +198,6 @@ def collect():
     for f in sorted(glob.glob(os.path.join(ROOT, "programs/desktop/**/*.hibr"),
                               recursive=True)):
         rel = os.path.relpath(f, ROOT)
-        if "/login/" in rel:
-            continue
         src = open(f, encoding="utf-8").read()
         for ln, line in enumerate(src.split("\n"), 1):
             if line.lstrip().startswith("#"):

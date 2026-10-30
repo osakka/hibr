@@ -577,12 +577,21 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	if (cw < 2 || chh < 2)
 		return 0;
 	if (pane) {
+		cn_pane *pp;
+
 		if (!cn_prect(pane, &prow, &pcol, &ph, &pw))
 			return 0;
 		if (row < 0 || col < 0 || row + h > ph || col + w > pw)
 			return 0;
 		row += prow;
 		col += pcol;
+		/* Placing a picture through a pane is drawing that pane, so its
+		   pictures not placed again this frame go at the flush. Only
+		   cell writes said so, and a full-screen game draws no cells:
+		   moved to another display, its old picture stayed on the
+		   first for good. */
+		if ((pp = cn_pfind(pane)))
+			pp->drawn = 1;
 	}
 	/* A top pane -- the desktop's menu bar -- is above every picture, and
 	   a bitmap cannot leave a hole for it: a window in pixels dragged over

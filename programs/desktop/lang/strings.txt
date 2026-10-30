@@ -78,6 +78,7 @@
 %s, %s to full
 %s, a cell is %s by %s
 %s, and %s more could not go
+%s? Enter: yes  Esc: no
 (empty)
 (from the address)
 (none yet)
@@ -232,6 +233,8 @@ Cancelled
 Cannot hold the pasted text to send it
 Cannot keep a copy to read
 Cannot lock: no PAM to check a password with
+Cannot log in
+Cannot log in: %s
 Cannot make %s
 Cannot make a folder for jobs
 Cannot open %s -- see the desktop's log
@@ -256,6 +259,7 @@ Check for Mail
 Check the server's certificate
 Checkboxes
 Checking for mail…
+Checking…
 Choose a server for contacts first, in Control Panel > PIM
 Clean Up Desktop
 Clear
@@ -457,6 +461,8 @@ Empty the Trash? The one item in it is deleted for good.
 End Task
 End Task (force)
 Engine For New Tabs
+Enter to go on
+Enter: do it  Esc: back
 Evaluate
 Event
 Every (minutes)
@@ -802,6 +808,7 @@ Not held -- nothing to detach from
 Not in the Switcher
 Not started
 Not text
+Not the password. Esc: name
 Note
 Notes on Every Workspace
 Nothing copied yet
@@ -1059,6 +1066,7 @@ Sequence
 Server
 Server Image
 Servers
+Session
 Session at Login
 Set Date & Time
 Set Location…
@@ -1153,6 +1161,7 @@ Syncing
 Syncing calendars and contacts…
 Syncing calendars…
 Syncing contacts…
+Tab: session  Enter: log in  Esc: name
 Taken out of the favourites: %s
 Taken up at %s, where it was left
 Task
@@ -1283,6 +1292,7 @@ Use Answer
 Use Covers
 User Agent
 User agent the pages are told:
+User name
 Username
 Users: %s
 VERSION

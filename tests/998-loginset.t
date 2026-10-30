@@ -17,6 +17,13 @@ l show
 echo "-- an empty value takes a key back to its default"
 l set colours "" power ""
 l show
+echo "-- a language is a catalogue the screen can read: shipped, or the system scope's"
+mkdir -p "$d/sys/lang"
+printf '{"language": "zz", "name": "Zed", "strings": {}}\n' > "$d/sys/lang/zz.json"
+HIBR_SYSDIR=$d/sys "$HIBR" "$d/hibr-loginset" -f "$f" set language zz 2>&1; echo "status $?"
+l set language ""
+l set language zz
+l set language ../../etc/x
 echo "-- refused, and the file left as it was"
 l set colours nosuch
 l set colours ../../etc/passwd

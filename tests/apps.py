@@ -2373,6 +2373,7 @@ def loginmgr_checks():
     check("Login Manager shows the screen's settings from its file, and where it runs",
           "set|Theme|meadow" in before and "set|Screen Saver|matrix" in before
           and "set|Colour Scheme|From Theme" in before and "set|Runs On|tty2" in before
+          and "set|Language|English" in before
           and "action|Apply Changes" not in before, out)
     check("a change waits, marked, until Apply Changes, and a message with a "
           "control character is refused",

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.59",
+ "version": "3.60",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1567,6 +1567,16 @@
   "Runs On": "تعمل على",
   "The login screen changes at the next logout": "تتغير شاشة الدخول عند الخروج التالي",
   "Title:": "العنوان:",
-  "on, display %s, pane %s": "تعمل، الشاشة %s، اللوح %s"
+  "on, display %s, pane %s": "تعمل، الشاشة %s، اللوح %s",
+  "%s? Enter: yes  Esc: no": "%s؟ Enter: نعم  Esc: لا",
+  "Cannot log in": "تعذّر تسجيل الدخول",
+  "Cannot log in: %s": "تعذّر تسجيل الدخول: %s",
+  "Checking…": "جارٍ التحقق…",
+  "Enter to go on": "Enter للمتابعة",
+  "Enter: do it  Esc: back": "Enter: تنفيذ  Esc: رجوع",
+  "Not the password. Esc: name": "ليست كلمة المرور. Esc: الاسم",
+  "Session": "الجلسة",
+  "Tab: session  Enter: log in  Esc: name": "Tab: الجلسة  Enter: دخول  Esc: الاسم",
+  "User name": "اسم المستخدم"
  }
 }

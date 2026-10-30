@@ -1071,5 +1071,22 @@ check("once edits stop, a picture that was edited is sent whole again",
       len(places(sc3)) == 2 and len([a for a in sc3.apc if "a=f" in a and "i=4202" not in a]) == 1,
       (places(sc3), sc3.apc))
 
+# A pane that moves takes its picture with it: placed again at the new
+# place, the old placement is deleted. A full-screen game draws its picture
+# and no cells, and the old one used to stay on the first display for good
+# once the window moved to the other (hibr-boxer's report, 0.99.392).
+QUAD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img-quad.jpg")
+MOVED = ("console pane w1 0 0 10 20\n"
+         "img draw %s 0 0 8 16 -m pixels -p w1\nconsole flush\nconsole key 200\n"
+         "console pane w1 12 30 10 20\n"
+         "img draw %s 0 0 8 16 -m pixels -p w1\nconsole flush\nconsole key 200\n"
+         % (QUAD, QUAD))
+sc = run(MOVED, rows=30, cols=80)
+pl = places(sc)
+dl = [a for a in deletes(sc) if "d=I" in a]
+check("a pane that moves takes its picture with it, though it draws no cells",
+      len(pl) == 2 and len(dl) == 1 and key(dl[0], "i") == key(pl[0], "i")
+      and key(pl[1], "i") != key(pl[0], "i"), (pl, deletes(sc)))
+
 shutil.rmtree(D, True)
-report(104)
+report(105)

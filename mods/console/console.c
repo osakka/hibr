@@ -135,6 +135,11 @@ cn_pane *cn_pset(const char *nm, int row, int col, int h, int w)
 	} else {
 		p->copied = 0;
 	}
+	/* A pane that moves or changes size has its pictures where it no
+	   longer is: counted as drawn, so any not placed again at the new
+	   place go at the next flush, whether or not anything writes a cell. */
+	if (p->row != row || p->col != col || p->h != h || p->w != w)
+		p->drawn = 1;
 	p->row = row;
 	p->col = col;
 	p->h = h;

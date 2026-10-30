@@ -20,7 +20,7 @@
 strict
 
 
-app loginmgr "The Control Panel pane for the login screen" 1.0
+app loginmgr "The Control Panel pane for the login screen" 1.1
 command -v cp_pane > /dev/null && cp_pane loginmgr "Login Manager" "⊡"
 [ -n "${PK_LIBDONE-}" ] || . "$DT_HERE/lib/pkrun.hibr"
 
@@ -119,6 +119,33 @@ fn lm_names(kind, ext) {
 	ret "$out"
 }
 
+# The languages the screen can speak, code to the name each catalogue gives
+# itself: shipped, and the system scope's; never xx and xy, which are the
+# suites' own.
+declare -gA LM_LANGNAME
+lm_langs() {
+	local x c l f
+	local -a codes
+
+	LM_LANGNAME=()
+	x := lm_names lang .json
+	read -ra codes <<< "$x"
+	for c in "${codes[@]}"; do
+		[ "$c" = xx ] || [ "$c" = xy ] && continue
+		LM_LANGNAME["$c"]=$c
+		for f in ${HIBR_SYSDIR:+"$HIBR_SYSDIR/lang/$c.json"} "$DT_HERE/lang/$c.json"; do
+			[ -r "$f" ] || continue
+			while IFS= read -r l; do
+				if [[ $l =~ \"name\":\ *\"([^\"]*)\" ]]; then
+					LM_LANGNAME["$c"]=${BASH_REMATCH[1]}
+					break
+				fi
+			done < "$f"
+			break
+		done
+	done
+}
+
 # The choices for a key, as a list: a default first, then the names.
 fn lm_choices(k) {
 	local -a l
@@ -128,6 +155,13 @@ fn lm_choices(k) {
 	theme) x := lm_names themes .json; read -ra l <<< "$x"; l=("Default" "${l[@]}") ;;
 	colours) x := lm_names colours .json; read -ra l <<< "$x"; l=("From Theme" "${l[@]}") ;;
 	saver) x := lm_names savers .hibr; read -ra l <<< "$x"; l=("Random" "${l[@]}") ;;
+	language)
+		lm_langs
+		l=(English)
+		for x in "${!LM_LANGNAME[@]}"; do
+			l+=("${LM_LANGNAME["$x"]}")
+		done
+		;;
 	glyphs) l=("${LM_GLYPHS[@]}") ;;
 	session) l=("${LM_SESSIONS[@]}") ;;
 	tty) l=("${LM_TTYS[@]}") ;;
@@ -143,11 +177,26 @@ fn lm_label(k, v) {
 	colours) ret "${v:-From Theme}" ;;
 	saver) [ -z "$v" ] || [ "$v" = random ] && v=Random; ret "$v" ;;
 	glyphs) case $v in unicode) ret Unicode ;; ascii) ret ASCII ;; *) ret Default ;; esac ;;
+	language)
+		[ -n "$v" ] || { ret English; return 0; }
+		[ -n "${LM_LANGNAME["$v"]+x}" ] || lm_langs
+		ret "${LM_LANGNAME["$v"]:-$v}"
+		;;
 	session) case $v in shell) ret Shell ;; *) ret Desktop ;; esac ;;
 	*) ret "$v" ;;
 	esac
 }
 fn lm_value(k, label) {
+	local c
+
+	if [ "$k" = language ]; then
+		[ "$label" = English ] && { ret ""; return 0; }
+		for c in "${!LM_LANGNAME[@]}"; do
+			[ "${LM_LANGNAME["$c"]}" = "$label" ] && { ret "$c"; return 0; }
+		done
+		ret "$label"
+		return 0
+	fi
 	case $k:$label in
 	theme:Default | colours:"From Theme" | saver:Random | glyphs:Default) ret "" ;;
 	glyphs:Unicode) ret unicode ;;
@@ -264,6 +313,7 @@ fn loginmgr_rows(int w) {
 	CP[$w][$n]["text"]="Theme"; lm_row "$w" "$n" theme; n=$((n + 1))
 	CP[$w][$n]["text"]="Colour Scheme"; lm_row "$w" "$n" colours; n=$((n + 1))
 	CP[$w][$n]["text"]="Screen Saver"; lm_row "$w" "$n" saver; n=$((n + 1))
+	CP[$w][$n]["text"]="Language"; lm_row "$w" "$n" language; n=$((n + 1))
 	CP[$w][$n]["text"]="Glyphs"; lm_row "$w" "$n" glyphs; n=$((n + 1))
 	CP[$w][$n]["text"]="Default Session"; lm_row "$w" "$n" session; n=$((n + 1))
 	v := lm_get power
@@ -322,6 +372,7 @@ fn cp_set_lmtheme(int? id = "", value = "") { lm_pick theme "$value"; }
 fn cp_set_lmcolours(int? id = "", value = "") { lm_pick colours "$value"; }
 fn cp_set_lmsaver(int? id = "", value = "") { lm_pick saver "$value"; }
 fn cp_set_lmglyphs(int? id = "", value = "") { lm_pick glyphs "$value"; }
+fn cp_set_lmlanguage(int? id = "", value = "") { lm_pick language "$value"; }
 fn cp_set_lmsession(int? id = "", value = "") { lm_pick session "$value"; }
 fn cp_set_lmtty(int? id = "", value = "") { lm_pick tty "$value"; }
 
@@ -360,7 +411,7 @@ fn loginmgr_do(int w, k, int dir) {
 	local v cur
 
 	case $k in
-	theme | colours | saver | glyphs | session)
+	theme | colours | saver | language | glyphs | session)
 		lm_choices "$k"
 		cur := lm_get "$k"
 		cur := lm_label "$k" "$cur"
@@ -385,7 +436,7 @@ fn loginmgr_do(int w, k, int dir) {
 
 fn loginmgr_drop(int w, int r, int c, k) {
 	case $k in
-	theme | colours | saver | glyphs | session | tty)
+	theme | colours | saver | language | glyphs | session | tty)
 		lm_choices "$k"
 		dt_droplist "$w" "$r" "$c" "cp_set_lm$k" "${LM_LIST[@]}"
 		;;

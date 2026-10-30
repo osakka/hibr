@@ -57,43 +57,9 @@ DT_HJCACHE=
 declare -ga DT_MONTHS DT_MONTHSB DT_WDAYS DT_WDAYSA DT_HMONTHS
 dt_keep DT_HCAL DT_HADJ DT_DIGITS DT_WEEKSTART
 
-# The text a person reads, in the chosen language, %s and %N$s filled from the rest.
-# A trailing ellipsis glyph is looked up as "…" and put back, whatever the glyph set.
-fn dt_tr(key, ...rest) {
-	local t e=${GL["ellipsis"]}
-
-	if [ -n "$DT_LANGON" ]; then
-		if [ "$e" != "…" ] && [[ $key == *"$e" ]]; then
-			t := lang get "${key%"$e"}…" "${rest[@]}"
-			[[ $t == *… ]] && t="${t%…}$e"
-		else
-			t := lang get "$key" "${rest[@]}"
-		fi
-		ret "$t"
-		return 0
-	fi
-	if [ "${#rest[@]}" -gt 0 ]; then
-		printf -v t "${key//\%[1-9]\$/%}" "${rest[@]}"
-		ret "$t"
-		return 0
-	fi
-	ret "$key"
-}
-
-# A count's text in the chosen language's plural form, the English singular as the key.
-fn dt_trn(int n, one, many, ...rest) {
-	local t
-
-	if [ -n "$DT_LANGON" ]; then
-		t := lang plural "$n" "$one" "${rest[@]}"
-		ret "$t"
-		return 0
-	fi
-	t=$many
-	[ "$n" = 1 ] && t=$one
-	printf -v t "$t" "${rest[@]}"
-	ret "$t"
-}
+# dt_tr and dt_trn, the text a person reads in the chosen language, are
+# lib/tr.hibr's, which the login screen shares (Gitea #389).
+[ -n "${TR_LIBDONE-}" ] || . "$DT_HERE/lib/tr.hibr"
 
 # A window title translated: "Files [~/notes]" is the name translated, what is in brackets kept.
 fn dt_trtitle(t) {

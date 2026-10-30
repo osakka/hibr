@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.99.392
+
+**The login screen speaks a language** (Gitea #389, cut 2). Control Panel
+> Login Manager 1.1 has a Language row, and `login.json` a `"language"`
+key, from a catalogue that hibr ships or an administrator installed
+system-wide. A right-to-left language mirrors the box. Its words go
+through the desktop's own `dt_tr`, which moved to `lib/tr.hibr` so the
+two are translated one way, and `tools/strings.py` now reads `login/`.
+Places on the box are measured in columns, and the session buttons take
+clicks where they were drawn. The hint under the picture had been cut at
+the picture's edge, in English too, and now has the box's whole width.
+The wallpaper and clock of cut 2 were weighed and left out: the saver is
+the login screen's background.
+
+**A moved window takes its picture with it.** A picture placed through a
+pane was dropped only on a frame where the pane drew cells. A full-screen
+game draws only its picture, so once its window moved to another display
+the old picture stayed on the first, live-looking and unclickable (the
+hibr-boxer session's report from a two-monitor Blit). Placing a picture
+through a pane, and the pane moving, now count as drawing it, and the old
+placement is deleted.
+
+Appearance 2.9 (in the catalogue since 0.99.391) is now the shipped copy
+too.
+
 ## 0.99.391
 
 **Control Panel > Login Manager** (Gitea #389), in the catalogue: how the

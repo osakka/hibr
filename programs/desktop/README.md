@@ -1338,13 +1338,20 @@ nothing. Settings for the screen itself are root's, in
 - `"title"` (the host name by default) and `"message"` (a line under it);
 - `"glyphs"` (`ascii` on a Linux console by default, whose font has no
   katakana for the Matrix);
+- `"language"`: the screen's own words, from a catalogue that hibr ships
+  or an administrator installed (`catalogue --system install lang/ar`).
+  It is mirrored for a right-to-left language: labels, the picture, the
+  session buttons and Power move to the other side, and the name and
+  password fields still read left to right;
 - `"session"` (Desktop or Shell, for whoever has not chosen one);
 - `"power"` (`on` by default): Sleep, Restart and Shut Down from the
   screen, where logind allows them;
 - `"service"` (the PAM service).
 
 The screen has its own settings rather than following anybody's desktop,
-because everybody who logs in shares it. A theme, a colour scheme and a
+because everybody who logs in shares it. Behind the box is always a
+screen saver, never a picture: that is the screen's character. A theme,
+a colour scheme, a language and a
 saver come only from what hibr ships and the system scope, never from a
 home folder, since the screen is root. A colour scheme is checked by the
 same reader Appearance uses (`lib/colours.hibr`).

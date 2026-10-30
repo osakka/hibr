@@ -30,7 +30,8 @@
 # installed), "glyphs" (unicode, or ascii -- the default on a Linux
 # console, whose font has no katakana for the Matrix), "theme" and
 # "colours" (a theme gives its colour scheme and glyphs; "colours" names a
-# scheme of its own over the theme's), "session" (desktop or shell, for
+# scheme of its own over the theme's), "language" (the screen's own words,
+# a catalogue's code; English when there is none), "session" (desktop or shell, for
 # whoever has not chosen) and "power" (on or off: Sleep, Restart and Shut
 # Down from the screen, where it is the computer's own). A scheme, a theme
 # and a saver are read only from the folders hibr ships and the system
@@ -64,6 +65,9 @@ LG_THEME="${LG_THEME-}"
 LG_COLOURS="${LG_COLOURS-}"
 LG_DEFSESS="${LG_DEFSESS-desktop}"
 LG_POWER="${LG_POWER-on}"
+LG_LANG="${LG_LANG-}"
+# Whether the language reads right to left, so the box is mirrored.
+LG_RTL=
 # The power actions this screen offers, found once at start, and where the
 # chooser is: the action highlighted, the state it was opened from, the
 # action waiting to be confirmed, and the row its list starts at.
@@ -124,6 +128,7 @@ lg_conf() {
 	[ -n "${LG_CONF["colours"]}" ] && LG_COLOURS=${LG_CONF["colours"]}
 	case ${LG_CONF["session"]} in desktop|shell) LG_DEFSESS=${LG_CONF["session"]} ;; esac
 	case ${LG_CONF["power"]} in on|off) LG_POWER=${LG_CONF["power"]} ;; esac
+	[ -n "${LG_CONF["language"]}" ] && LG_LANG=${LG_CONF["language"]}
 	case ${LG_CONF["glyphs"]} in unicode|ascii) DT_GLYPHSET=${LG_CONF["glyphs"]} ;; esac
 	return 0
 }
@@ -168,6 +173,37 @@ fn lg_theme(name) {
 	if [ -z "${LG_CONF["glyphs"]}" ]; then
 		case ${t["glyphs"]-} in unicode|ascii) DT_GLYPHSET=${t["glyphs"]} ;; esac
 	fi
+	return 0
+}
+
+# Speak a language: its catalogue, from what hibr ships or the system scope
+# as a theme is, loaded with the lang module the desktop uses, so dt_tr
+# (lib/tr.hibr) answers in it. Right to left, the box is mirrored and the
+# console puts each line in display order, as the desktop does on a
+# terminal that does not do it itself -- a VT and Blit both. A catalogue
+# that is not there, or will not load, leaves the screen in English.
+lg_lang() {
+	local f i
+
+	DT_LANGON=
+	LG_RTL=
+	[ -n "$LG_LANG" ] || return 0
+	f := lg_find lang "$LG_LANG.json" ||
+		{ printf 'login: no language called %s\n' "$LG_LANG" >&2; return 0; }
+	if ! need lang 2> /dev/null || ! lang load "$f" 2> /dev/null; then
+		printf 'login: %s could not be loaded; English it is\n' "$f" >&2
+		return 0
+	fi
+	DT_LANGON=1
+	i := lang info
+	[[ $i == *$'\t'rtl$'\t'* ]] && LG_RTL=1
+	return 0
+}
+
+# The console's own right-to-left ordering, each time it is opened, for a
+# language that reads that way -- unless DT_BIDI says the terminal does it.
+lg_bidi() {
+	[ -n "$LG_RTL" ] && [ "${DT_BIDI:-auto}" != off ] && console bidi on
 	return 0
 }
 
@@ -269,7 +305,7 @@ lg_size() { sv_size; }
 # Draw the box over the saver: the title, then either the user name field
 # or the person's picture, name, password and session.
 lg_box() {
-	local w=56 h=14 r c i fw t dots n pen sx px
+	local w=56 h=14 r c i fw t dots n sx px lw x
 	local rows=$SV_ROWS cols=$SV_COLS
 
 	[ "$w" -gt $((cols - 2)) ] && w=$((cols - 2))
@@ -296,12 +332,13 @@ lg_box() {
 		console put $((r + i)) $((c + w - 1)) "${GL[vline]}"
 		i=$((i + 1))
 	done
-	t=${LG_TITLE:-$HOSTNAME}
+	t := lg_cut "${LG_TITLE:-$HOSTNAME}" $((w - 4))
+	lw := str width "$t"
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	console put $((r + 1)) $((c + (w - ${#t}) / 2)) "${t:0:$((w - 4))}"
+	console put $((r + 1)) $((c + (w - lw) / 2)) "$t"
 	if [ -n "$LG_MESSAGE" ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put $((r + 2)) $((c + 3)) "${LG_MESSAGE:0:$((w - 6))}"
+		lg_text $((r + 2)) $((c + 3)) $((w - 6)) "$LG_MESSAGE"
 	fi
 	lg_pwlabel $((r + h)) "$c" "$w"
 	if [ "$LG_STATE" = power ]; then
@@ -311,7 +348,8 @@ lg_box() {
 	if [ "$LG_STATE" = name ]; then
 		fw=$((w - 6))
 		console pen "$DT_INK" "$DT_FACE"
-		console put $((r + 5)) $((c + 3)) "User name"
+		t := dt_tr "User name"
+		lg_text $((r + 5)) $((c + 3)) "$fw" "$t"
 		console pen "$DT_INK" "$DT_WELL"
 		console fill $((r + 6)) $((c + 3)) 1 "$fw" " "
 		console put $((r + 6)) $((c + 3)) "${LG_USER: -$fw}"
@@ -321,8 +359,14 @@ lg_box() {
 		console cursor $((r + 6)) $((c + 3 + n))
 		return 0
 	fi
+	# The picture on the start side, the words beside it; mirrored, the
+	# picture is on the right and the words before it.
 	sx=$((c + 3))
 	px=$((c + 21))
+	if [ -n "$LG_RTL" ]; then
+		sx=$((c + w - 19))
+		px=$((c + 3))
+	fi
 	if [ -n "$LG_PIC" ] && [ "$w" -ge 50 ]; then
 		img draw "$LG_PIC" $((r + 3)) "$sx" 8 16 2> /dev/null
 	else
@@ -331,13 +375,15 @@ lg_box() {
 		console put $((r + 6)) $((sx + 7)) "${LG_NAME:0:1}"
 	fi
 	[ "$w" -lt 50 ] && px=$((c + 3))
-	fw=$((c + w - 3 - px))
+	fw=$((w - 24))
+	[ "$w" -lt 50 ] && fw=$((w - 6))
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	console put $((r + 3)) "$px" "${LG_NAME:0:$fw}"
+	lg_text $((r + 3)) "$px" "$fw" "$LG_NAME"
 	console pen "$DT_DIM" "$DT_FACE"
-	console put $((r + 4)) "$px" "${LG_LINE:0:$fw}"
+	lg_text $((r + 4)) "$px" "$fw" "$LG_LINE"
 	console pen "$DT_INK" "$DT_FACE"
-	console put $((r + 6)) "$px" "Password"
+	t := dt_tr "Password"
+	lg_text $((r + 6)) "$px" "$fw" "$t"
 	n=${#LG_PASS}
 	[ "$n" -gt "$fw" ] && n=$fw
 	dots=
@@ -349,40 +395,107 @@ lg_box() {
 	console pen "$DT_INK" "$DT_WELL"
 	console fill $((r + 7)) "$px" 1 "$fw" " "
 	console put $((r + 7)) "$px" "$dots"
+	lg_sessrow $((r + 9)) "$px" "$fw"
+	LG_BOXR=$r
+	LG_BOXX=$px
+	# The message is under the picture, so it has the box's whole width:
+	# beside it the hint was cut, in English as in any other language.
+	lg_msg $((r + h - 3)) $((c + 3)) $((w - 6))
+	console cursor $((r + 7)) $((px + n))
+}
+
+# Text in the columns from x to x+w, cut to fit and against the start
+# side: the left, or the right when the language reads right to left.
+fn lg_text(int r, int x, int w, t) {
+	local tw
+
+	t := lg_cut "$t" "$w"
+	if [ -n "$LG_RTL" ]; then
+		tw := str width "$t"
+		x=$((x + w - tw))
+	fi
+	console put "$r" "$x" "$t"
+}
+
+# Text cut to w columns. A character is a column unless the text says
+# otherwise, which is the common case and the cheap one.
+fn lg_cut(t, int w) {
+	local tw out= ch i=0 n
+
+	[ "$w" -lt 1 ] && { ret ""; return 0; }
+	tw := str width "$t"
+	[ "$tw" -le "$w" ] && { ret "$t"; return 0; }
+	[ "$tw" = "${#t}" ] && { ret "${t:0:$w}"; return 0; }
+	tw=0
+	while [ "$i" -lt "${#t}" ]; do
+		ch=${t:$i:1}
+		n := str width "$ch"
+		[ $((tw + n)) -gt "$w" ] && break
+		out+=$ch
+		tw=$((tw + n))
+		i=$((i + 1))
+	done
+	ret "$out"
+}
+
+# The Session row: its label, then Desktop and Shell, the chosen one in the
+# accent; mirrored, from the right. Where each was drawn is kept for a
+# click (LG_SESSD, LG_SESSS: the column it starts at and its width).
+LG_SESSD=
+LG_SESSS=
+fn lg_sessrow(int r, int px, int fw) {
+	local l d sh lw dw sw x
+
+	l := dt_tr "Session"
+	d := dt_tr "Desktop"
+	sh := dt_tr "Shell"
+	d=" $d "
+	sh=" $sh "
+	lw := str width "$l"
+	dw := str width "$d"
+	sw := str width "$sh"
 	console pen "$DT_INK" "$DT_FACE"
-	pen=$DT_DIM
-	console put $((r + 9)) "$px" "Session"
+	if [ -n "$LG_RTL" ]; then
+		x=$((px + fw - lw))
+		console put "$r" "$x" "$l"
+		LG_SESSD="$((x - 2 - dw)) $dw"
+		LG_SESSS="$((x - 3 - dw - sw)) $sw"
+	else
+		console put "$r" "$px" "$l"
+		LG_SESSD="$((px + lw + 2)) $dw"
+		LG_SESSS="$((px + lw + 3 + dw)) $sw"
+	fi
 	if [ "$LG_SESS" = desktop ]; then
 		console pen "$DT_FACE" "$DT_ACTIVE" bold
 	else
 		console pen "$DT_DIM" "$DT_FACE"
 	fi
-	console put $((r + 9)) $((px + 9)) " Desktop "
+	console put "$r" "${LG_SESSD%% *}" "$d"
 	if [ "$LG_SESS" = shell ]; then
 		console pen "$DT_FACE" "$DT_ACTIVE" bold
 	else
 		console pen "$DT_DIM" "$DT_FACE"
 	fi
-	console put $((r + 9)) $((px + 19)) " Shell "
-	LG_BOXR=$r
-	LG_BOXX=$px
-	lg_msg $((r + h - 3)) "$px" "$fw"
-	console cursor $((r + 7)) $((px + n))
+	console put "$r" "${LG_SESSS%% *}" "$sh"
 }
 
 # Under the box, where the power actions are offered: Power, and the key
-# that opens it. Kept for a click (LG_PWLAB).
+# that opens it, at the end side of the box. Kept for a click (LG_PWLAB).
 LG_PWLAB=
 fn lg_pwlabel(int r, int c, int w) {
-	local t
+	local t tw x
 
 	LG_PWLAB=
 	[ "${#LG_PWACTS[@]}" -gt 0 ] || return 0
 	[ "$r" -lt "$SV_ROWS" ] || return 0
-	t=" ${GL[power]} Power  F10 "
+	t := dt_tr "Power"
+	t=" ${GL[power]} $t  F10 "
+	tw := str width "$t"
+	x=$((c + w - tw - 1))
+	[ -n "$LG_RTL" ] && x=$((c + 1))
 	console pen "$DT_INK" "$DT_FACE"
-	console put "$r" $((c + w - ${#t} - 1)) "$t"
-	LG_PWLAB="$r $((c + w - ${#t} - 1)) ${#t}"
+	console put "$r" "$x" "$t"
+	LG_PWLAB="$r $x $tw"
 }
 
 # The chooser, in the box: each action logind allows, the highlighted one
@@ -392,7 +505,8 @@ fn lg_pwbox(int r, int c, int w, int h) {
 
 	LG_PWROW=$((r + 4))
 	console pen "$DT_INK" "$DT_FACE"
-	console put $((r + 3)) $((c + 3)) "Power"
+	t := dt_tr "Power"
+	lg_text $((r + 3)) $((c + 3)) $((w - 6)) "$t"
 	for i in "${!LG_PWACTS[@]}"; do
 		t := lg_pwname "${LG_PWACTS[$i]}"
 		if [ "$i" = "$LG_PWSEL" ]; then
@@ -401,7 +515,7 @@ fn lg_pwbox(int r, int c, int w, int h) {
 			console pen "$DT_INK" "$DT_WELL"
 		fi
 		console fill $((LG_PWROW + i)) $((c + 3)) 1 $((w - 6)) " "
-		console put $((LG_PWROW + i)) $((c + 4)) "$t"
+		lg_text $((LG_PWROW + i)) $((c + 4)) $((w - 8)) "$t"
 	done
 	LG_BOXX=$((c + 3))
 	lg_msg $((r + h - 3)) $((c + 3)) $((w - 6))
@@ -418,15 +532,15 @@ fn lg_msg(int r, int c, int w) {
 		console pen "$DT_DIM" "$DT_FACE"
 		if [ -z "$t" ]; then
 			if [ "$LG_STATE" = name ]; then
-				t="Enter to go on"
+				t := dt_tr "Enter to go on"
 			elif [ "$LG_STATE" = power ]; then
-				t="Enter: do it  Esc: back"
+				t := dt_tr "Enter: do it  Esc: back"
 			else
-				t="Tab: session  Enter: log in  Esc: name"
+				t := dt_tr "Tab: session  Enter: log in  Esc: name"
 			fi
 		fi
 	fi
-	console put "$r" "$c" "${t:0:$w}"
+	lg_text "$r" "$c" "$w" "$t"
 }
 
 # Back to the saver, everything typed forgotten.
@@ -456,7 +570,7 @@ lg_login() {
 	# Blit's is passed: its tokens and the login screen's own surface are
 	# this screen's, not the session's (the Blit maintainer, 0.99.357).
 	[ -n "${BLIT_VERSION-}" ] && opt+=(-e "BLIT_VERSION=$BLIT_VERSION")
-	LG_MSG="Checking${GL[ellipsis]}"
+	LG_MSG := dt_tr "Checking${GL[ellipsis]}"
 	LG_BAD=
 	lg_box
 	console flush
@@ -470,9 +584,15 @@ lg_login() {
 			# A refusal keeps the way back on the line, since the name
 			# may be what was wrong: the box asks every name for a
 			# password, so as not to say which names are accounts.
-			LG_MSG=${why:-"Not the password. Esc: name"}
+			if [ -n "$why" ]; then
+				LG_MSG=$why
+			else
+				LG_MSG := dt_tr "Not the password. Esc: name"
+			fi
+		elif [ -n "$why" ]; then
+			LG_MSG := dt_tr "Cannot log in: %s" "$why"
 		else
-			LG_MSG="Cannot log in${why:+: $why}"
+			LG_MSG := dt_tr "Cannot log in"
 		fi
 		printf 'login: %s refused: %s\n' "$LG_USER" "${why:-wrong password}" >&2
 		local now
@@ -503,6 +623,7 @@ lg_login() {
 	fi
 	console open
 	console mouse click
+	lg_bidi
 	lg_size
 	lg_rest
 }
@@ -534,12 +655,16 @@ lg_pwfind() {
 
 # What an action is called on the screen.
 fn lg_pwname(a) {
+	local t
+
 	case $a in
-	suspend) ret "Sleep" ;;
-	hibernate) ret "Hibernate" ;;
-	reboot) ret "Restart" ;;
-	poweroff) ret "Shut Down" ;;
+	suspend) t := dt_tr "Sleep" ;;
+	hibernate) t := dt_tr "Hibernate" ;;
+	reboot) t := dt_tr "Restart" ;;
+	poweroff) t := dt_tr "Shut Down" ;;
+	*) return 1 ;;
 	esac
+	ret "$t"
 }
 
 # Open the chooser, from whatever was showing; F10 or a click on Power.
@@ -573,7 +698,7 @@ lg_pwchoose() {
 		if [ "$LG_PWASK" != "$a" ]; then
 			LG_PWASK=$a
 			t := lg_pwname "$a"
-			LG_MSG="$t? Enter: yes  Esc: no"
+			LG_MSG := dt_tr "%s? Enter: yes  Esc: no" "$t"
 			LG_BAD=
 			return 0
 		fi
@@ -588,7 +713,7 @@ fn lg_pwgo(a) {
 	printf 'login: power: %s\n' "$a" >&2
 	if ! ld_do "$a"; then
 		printf 'login: power: %s refused: %s\n' "$a" "$LD_WHY" >&2
-		LG_MSG="The computer did not do it: logind refused"
+		LG_MSG := dt_tr "The computer did not do it: logind refused"
 		LG_BAD=1
 		return 0
 	fi
@@ -623,15 +748,23 @@ fn lg_click(k) {
 	c=${ev[4]}
 	[ -n "$LG_BOXR" ] || return 0
 	if [ "$r" = $((LG_BOXR + 9)) ]; then
-		if [ "$c" -ge $((LG_BOXX + 9)) ] && [ "$c" -lt $((LG_BOXX + 18)) ]; then
+		if lg_in "$c" "$LG_SESSD"; then
 			LG_SESS=desktop
-		elif [ "$c" -ge $((LG_BOXX + 19)) ] && [ "$c" -lt $((LG_BOXX + 26)) ]; then
+		elif lg_in "$c" "$LG_SESSS"; then
 			LG_SESS=shell
 		fi
 	elif [ "$r" -ge $((LG_BOXR + 3)) ] && [ "$r" -le $((LG_BOXR + 4)) ]; then
 		lg_back
 	fi
 	return 0
+}
+
+# Whether column c is inside a span kept as "start width".
+fn lg_in(int c, span) {
+	local -a s
+
+	read -ra s <<< "$span"
+	[ "${#s[@]}" = 2 ] && [ "$c" -ge "${s[0]}" ] && [ "$c" -lt $((s[0] + s[1])) ]
 }
 
 # Whether a click landed on the Power label under the box.
@@ -772,8 +905,10 @@ lg_main() {
 	trap 'rm -rf "$LG_TMP"' EXIT
 	. "$LG_HERE/../lib/colours.hibr"
 	. "$LG_HERE/../lib/logind.hibr"
+	. "$LG_HERE/../lib/tr.hibr"
 	lg_conf
 	lg_look
+	lg_lang
 	lg_pwfind
 	[ -z "$LG_SERVICE" ] && [ -r /etc/pam.d/hibr-login ] && LG_SERVICE=hibr-login
 	. "$LG_HERE/../wm/glyphs.hibr"
@@ -781,6 +916,7 @@ lg_main() {
 	sv_load
 	console open || return 1
 	console mouse click
+	lg_bidi
 	lg_size
 	lg_rest
 	while [ -z "$LG_QUIT" ]; do

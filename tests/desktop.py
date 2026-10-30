@@ -6379,6 +6379,42 @@ def loginlook():
     s, _ = loginrun([0.3, b"x", b"\x1b[21~", b"\r"], dict(conf(), LDFAIL="1"))
     check("and when logind refuses, the box says so rather than going quiet",
           s[3].find("logind refused") is not None, s[3])
+    # Its own words in a language (cut 2 of #389): Arabic, from the shipped
+    # catalogue, the labels against the right of the box and Power under its
+    # left. Arabic reaches the screen shaped and in display order, so the
+    # check reads where Arabic letters are, not the logical string.
+    s, _ = loginrun([0.3, b"x"], conf(language="ar"))
+    sc = s[1]
+    arab = [(r, sc.row(r)) for r in range(ROWS)
+            if re.search("[\u0600-\u06ff\ufb50-\ufeff]", sc.row(r))]
+    right = [r for r, t in arab if "\u2502" in t and
+             re.search("[\u0600-\u06ff\ufb50-\ufeff]  \u2502", t)]
+    f10 = sc.find("F10")
+    box = sc.find("\u2514")
+    check("in Arabic the box's words are Arabic, against its right side, and "
+          "Power is under its left",
+          len(right) >= 2 and sc.find("User name") is None and f10 is not None
+          and box is not None and f10[1] < box[1] + 20, sc)
+    # And its buttons are where they are drawn: a click on Shell, found where
+    # the mirrored row put it, starts a shell.
+    feed = [0.3, b"\x1b[B", ME.encode() + b"\r"]
+    s, _ = loginrun(feed, conf(language="ar"))
+    sh = s[2].find("\ufed3\ufeaa\ufebc\ufedf\ufe8d"[::-1]) or s[2].find("\ufe94\ufed3\ufeaa\ufebc\ufedf\ufe8d")
+    s, ran = loginrun(feed + ([press(sh[0], sh[1] + 2), release(sh[0], sh[1] + 2),
+                               b"right horse\r"] if sh else []),
+                      dict(conf(language="ar"), XDG_CONFIG_HOME=os.path.join(LGDIR, "none")))
+    check("in Arabic a click on Shell, where the mirrored row drew it, starts a shell",
+          sh is not None and ran == "shell %s from-pam" % ME, (sh, ran, s[2]))
+    s, _ = loginrun(feed, conf())
+    sh = s[2].find(" Shell ")
+    s, ran = loginrun(feed + ([press(sh[0], sh[1] + 2), release(sh[0], sh[1] + 2),
+                               b"right horse\r"] if sh else []),
+                      dict(conf(), XDG_CONFIG_HOME=os.path.join(LGDIR, "none")))
+    check("and in English a click on Shell starts a shell, where the row drew it",
+          sh is not None and ran == "shell %s from-pam" % ME, (sh, ran, s[2]))
+    s, _ = loginrun([0.3, b"x"], conf(language="nosuch"))
+    check("a language that is not installed leaves the screen in English",
+          s[1].find("User name") is not None, s[1])
     s, _ = loginrun([0.3, b"x", b"\x1b[21~"], conf(power="off"))
     check("power off in the settings offers none of it",
           s[1].find("Power  F10") is None and s[2].find("Shut Down") is None, s[2])
@@ -8280,4 +8316,4 @@ a, b, told = fsrun("fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
 check("and what a module draws at absolute coordinates over it shows",
       a.find("WORLD") == (4, 2), a)
 
-report(899)
+report(903)

@@ -14,8 +14,8 @@
 #   hibr-loginset show    the settings, as the screen reads them
 #
 # It takes keys and values, never a file, and checks each before anything
-# is written: a saver, a theme or a colour scheme must be one the screen
-# can read -- shipped, or in the system scope -- and a scheme must pass the
+# is written: a saver, a theme, a colour scheme or a language must be one
+# the screen can read -- shipped, or in the system scope -- and a scheme must pass the
 # same reader the desktop's own Appearance uses (lib/colours.hibr); glyphs,
 # session and power are words from a list; the title and the message are
 # short and have no control character; a PAM service is a file in
@@ -67,6 +67,10 @@ fn lgs_check(k, v) {
 	colours)
 		f := lgs_have colours "$v.json" || lgs_die "no colour scheme called $v"
 		cp_colourread check "$f" || lgs_die "$v is not a colour scheme the screen can read"
+		;;
+	language)
+		[[ $v =~ ^[a-z]{2,3}([_-][A-Za-z]{2,4})?$ ]] && lgs_have lang "$v.json" > /dev/null ||
+			lgs_die "no language called $v"
 		;;
 	glyphs) case $v in unicode | ascii) ;; *) lgs_die "glyphs is unicode or ascii" ;; esac ;;
 	session) case $v in desktop | shell) ;; *) lgs_die "session is desktop or shell" ;; esac ;;

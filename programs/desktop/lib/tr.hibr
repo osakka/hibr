@@ -1,0 +1,53 @@
+#!/usr/bin/env hibr
+#
+# lib/tr -- the text a person reads, in the language chosen: dt_tr and
+# dt_trn, the desktop's two ways to ask, and the login screen's (Gitea
+# #389), so a word is translated one way wherever it is drawn. English is
+# the source and every string its own key; with DT_LANGON empty nothing is
+# looked up at all. Whoever loads a catalogue with the lang module sets
+# DT_LANGON: the desktop's dt_langapply (wm/lang.hibr), the login screen's
+# lg_lang. tools/strings.py finds every literal handed to either.
+
+strict
+
+TR_LIBDONE=1
+
+DT_LANGON="${DT_LANGON-}"
+
+# The text a person reads, in the chosen language, %s and %N$s filled from the rest.
+# A trailing ellipsis glyph is looked up as "…" and put back, whatever the glyph set.
+fn dt_tr(key, ...rest) {
+	local t e=${GL["ellipsis"]}
+
+	if [ -n "$DT_LANGON" ]; then
+		if [ "$e" != "…" ] && [[ $key == *"$e" ]]; then
+			t := lang get "${key%"$e"}…" "${rest[@]}"
+			[[ $t == *… ]] && t="${t%…}$e"
+		else
+			t := lang get "$key" "${rest[@]}"
+		fi
+		ret "$t"
+		return 0
+	fi
+	if [ "${#rest[@]}" -gt 0 ]; then
+		printf -v t "${key//\%[1-9]\$/%}" "${rest[@]}"
+		ret "$t"
+		return 0
+	fi
+	ret "$key"
+}
+
+# A count's text in the chosen language's plural form, the English singular as the key.
+fn dt_trn(int n, one, many, ...rest) {
+	local t
+
+	if [ -n "$DT_LANGON" ]; then
+		t := lang plural "$n" "$one" "${rest[@]}"
+		ret "$t"
+		return 0
+	fi
+	t=$many
+	[ "$n" = 1 ] && t=$one
+	printf -v t "$t" "${rest[@]}"
+	ret "$t"
+}

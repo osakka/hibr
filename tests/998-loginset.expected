@@ -27,6 +27,13 @@ status 0
   "message": "Back at nine"
 }
 status 0
+-- a language is a catalogue the screen can read: shipped, or the system scope's
+status 0
+status 0
+hibr-loginset: no language called zz
+status 1
+hibr-loginset: no language called ../../etc/x
+status 1
 -- refused, and the file left as it was
 hibr-loginset: no colour scheme called nosuch
 status 1
