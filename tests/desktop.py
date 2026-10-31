@@ -6024,15 +6024,26 @@ t1 = Term(SESSION, env=SBENV, cols=80, settle=2.0)
 ts.collect(3.0)
 check("when the desktop starts, a waiting display joins it on its own",
       "spare" in sbclients(), sbclients())
-subprocess.run([screen.HIBR, "-c", HOLDC + "hold drop desktop spare"],
-               env=dict(os.environ, **SBENV), capture_output=True)
+# The drop's own answer is kept and the drop tried again if it failed: the
+# daily run of 0.99.402, sharing the box with another session's suites,
+# failed the three checks below together with the spare display still
+# showing the desktop -- never let go -- and the drop's answer had been
+# thrown away, so nothing said whether the drop itself had failed.
+for _ in range(3):
+    dr = subprocess.run([screen.HIBR, "-c", HOLDC + "hold drop desktop spare"],
+                        env=dict(os.environ, **SBENV), capture_output=True,
+                        text=True)
+    if dr.returncode == 0:
+        break
+    time.sleep(1.0)
 # Each of these waits for the thing, not for the clock: a fixed two
 # seconds read the state before the standby display had finished being
 # let go, three checks at once, once the box was busier than usual.
 sc = ts.until(lambda sc: sc.find("let go") is not None and
               sbstate("spare") == "released", 150)
 check("let go from the desktop, it waits again instead of ending",
-      sc.find("let go") is not None and sbstate("spare") == "released", sc)
+      sc.find("let go") is not None and sbstate("spare") == "released",
+      (dr.returncode, dr.stdout, dr.stderr, sbstate("spare"), sc))
 t1.collect(6.0)
 check("and a display the desktop let go is not joined again on its own",
       "spare" not in sbclients(), sbclients())
