@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.402
+
+**A script can be asked of a page and read later.** `web evask T JS` sends
+it and says the request's id; `web evget T ID` is status 1 while the answer
+has not come, 0 with the value once it has, and 2 for a script the page
+refused -- the same verbs hibr-browser's WebKit module offers (cap
+`evask`), so YouTube's four calls that waited on the browser engine inside
+a frame (its player's state on every tick while a video plays, the start
+script, the results, the autoplay switch) can ask in one frame and read in
+the next. On the owner's laptop that wait held the desktop 541 ms.
+YouTube itself stays on its waiting path for now (3.16, which is 3.14's
+player): its first version of the asking path, 3.15, reloaded a stalled
+video over and over and played the next ones by itself on Chromium, which
+this release's own suite caught before it shipped. Browser 2.20 asks what
+is under a right click without waiting, where the engine can (hibr-browser
+0.5.12's `atask`; this module has no `at`, so it waits as before).
+
 ## 0.99.401
 
 **An app that stalls the desktop is no longer paused.** 0.99.400 paused an

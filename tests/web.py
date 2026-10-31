@@ -245,6 +245,24 @@ def blocked(mode):
         return int(w[1]), (int(w[3]) if len(w) > 3 else None), out + err
     except (IndexError, ValueError):
         return None, None, out + err
+# `web evask` / `web evget` (cap evask, the shape hibr-browser's webkit.so
+# offers): a script asked now and read on a later frame. While the page is
+# busy the answer is "not yet" (1); then the value (0), read once -- a
+# second read is "not yet" again -- and a script the page refused is 2, so
+# a caller can tell waiting from failing.
+out, err = hb("t := web open %s; web wait $t 10000;"
+              " web eval $t 'setTimeout(()=>{const e=Date.now()+800;"
+              "while(Date.now()<e);},0);1' > /dev/null; sleep 0.1;"
+              " i := web evask $t '6*7'; web evget $t $i > /dev/null; echo \"first $?\";"
+              " n=0; while [ $n -lt 100 ]; do v := web evget $t $i && break;"
+              " sleep 0.05; n=$((n + 1)); done; echo \"val $v\";"
+              " web evget $t $i > /dev/null; echo \"again $?\";"
+              " j := web evask $t 'throw new Error(\"no\")'; rc=1; n=0;"
+              " while [ $rc = 1 ] && [ $n -lt 100 ]; do web evget $t $j > /dev/null; rc=$?;"
+              " sleep 0.05; n=$((n + 1)); done; echo \"refused $rc\"; web caps" % A)
+check("evask asks without waiting; evget says not yet, then the value once, and a refusal apart",
+      "first 1" in out and "val 42" in out and "again 1" in out and
+      "refused 2" in out and "evask" in out, out + err)
 smax, sgot, sout = blocked("sync")
 amax, agot, aout = blocked("async")
 check("an async render never waits on a busy page, and builds it after",
@@ -783,4 +801,4 @@ check("a page with no root element renders and zooms without a script error",
 SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(60)
+report(61)

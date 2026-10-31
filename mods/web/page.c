@@ -160,6 +160,7 @@ void wb_tabclose(wb_tab *t)
 		if (wb.tabs.p[i] == t)
 			wb.tabs.p[i] = 0;
 	wb_aclear(t);
+	wb_askclear(t);
 	wb_gridfree(t);
 	free(t->shot);
 	free(t->target);
@@ -284,6 +285,15 @@ int wb_evalg(wb_tab *t, const char *js, str *out, int gesture)
 	s_free(&p);
 	if (!r)
 		return HIBR_FAIL;
+	return wb_evvalue(r, out);
+}
+
+/* A script's reply as its value: a string as it is, anything else as JSON;
+   a thrown error said, and HIBR_FAIL. Frees the reply. */
+int wb_evvalue(jv *r, str *out)
+{
+	jv *x, *v;
+
 	x = jv_path(r, "result.exceptionDetails");
 	if (x) {
 		v = jv_path(x, "exception.description");
@@ -298,6 +308,49 @@ int wb_evalg(wb_tab *t, const char *js, str *out, int gesture)
 		jv_write(out, v);
 	jv_free(r);
 	return HIBR_OK;
+}
+
+/* Ask a script without waiting (hibr-browser's NONBLOCKING, cap evask): the
+   request's id, kept against the tab, or 0. wb_evget reads the answer on a
+   later frame. */
+int wb_evask(wb_tab *t, const char *js)
+{
+	str p;
+	int id;
+
+	s_init(&p);
+	s_cat(&p, "{\"expression\":");
+	jv_quote(&p, js);
+	s_cat(&p, ",\"returnByValue\":true,\"awaitPromise\":true}");
+	id = wb_req("Runtime.evaluate", p.p, t->session);
+	s_free(&p);
+	if (id)
+		v_add(&t->asks, (void *)(intptr_t)id);
+	return id;
+}
+
+/* An asked script's answer: 1 while it has not come (or the id is not this
+   tab's, or was already read), 0 with its value in out, 2 for a script the
+   page refused, said in the log. An answer is read once. */
+int wb_evget(wb_tab *t, int id, str *out)
+{
+	size_t i;
+	jv *r;
+
+	for (i = 0; i < t->asks.n; i++)
+		if ((int)(intptr_t)t->asks.p[i] == id)
+			break;
+	if (i == t->asks.n)
+		return 1;
+	wb_events();
+	r = wb_reply(id);
+	if (!r)
+		return 1;
+	t->asks.p[i] = t->asks.p[--t->asks.n];
+	r = wb_result("Runtime.evaluate", r);
+	if (!r)
+		return 2;
+	return wb_evvalue(r, out) == HIBR_OK ? 0 : 2;
 }
 
 /* A colour as the display takes it. */
@@ -747,6 +800,17 @@ void wb_build(wb_tab *t, jv *v, int now, jv *shot)
 		}
 	}
 	jv_free(v);
+}
+
+/* Forget the scripts a tab asked and nobody read: an answer still to
+   come is freed as it arrives. */
+void wb_askclear(wb_tab *t)
+{
+	size_t i;
+
+	for (i = 0; i < t->asks.n; i++)
+		wb_drop((int)(intptr_t)t->asks.p[i]);
+	v_free(&t->asks);
 }
 
 /* Forget an async render's requests and answers: a reply still to come is

@@ -5747,10 +5747,10 @@ check("a job's variables come back to the desktop, a nested map and a value "
 # the app goes on being drawn and handed its keys. The stall mark is
 # lowered for this session, and its `held:` lines are the point of the test
 # rather than a failure.
-expect(r"held: win:slw")
+expect(r"(held|slow): win:slw")
 SLWMARK = scratch("desktop-slw-key")
 SLW = ('fn slw_draw(int id, int h, int w, int row, int col) {\n'
-       '    sleep 0.15\n'
+       '    sleep 0.3\n'
        '    console put -p "w$id" 1 1 "DRAWN $EPOCHREALTIME"\n'
        '    dt_want 20\n'
        '}\n'
@@ -5775,7 +5775,11 @@ s2 = slt.screen()
 r2 = s2.find("DRAWN")
 slt.keys([b"k", 0.5])
 keyed = os.path.exists(SLWMARK)
-held = [l for l in open(slt.log, errors="replace") if "held: win:slw" in l]
+# Named either way: under a gate's load the wall clock has some of the
+# draw's time down as waiting for a processor, which is taken off before
+# the stall mark and can leave it a slow: line instead (0.99.402's gate).
+held = [l for l in open(slt.log, errors="replace")
+        if "held: win:slw" in l or "slow: win:slw" in l]
 slt.quit(b"qy", 1.0)
 check("an app that keeps holding the desktop keeps its window, still drawn",
       r1 is not None and r2 is not None and s1.row(r1[0]) != s2.row(r2[0]) and

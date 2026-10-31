@@ -117,6 +117,8 @@ struct wb_tab {
 	int async, aid, hid, sid, arows, acols, fresh;
 	long asent;
 	jv *ax, *as;
+	/* `web evask`: the ids of scripts asked and not yet read. */
+	vec asks;
 };
 
 /* The browser: one Chromium for the whole shell, driven over a pipe. */
@@ -173,6 +175,7 @@ jv *wb_reply(int id);
 jv *wb_result(const char *method, jv *v);
 void wb_noanswer(const char *method, const char *session);
 void wb_aclear(wb_tab *t);
+void wb_askclear(wb_tab *t);
 int wb_aprog(wb_tab *t);
 int wb_pump(int ms);
 int wb_events(void);
@@ -190,6 +193,9 @@ int wb_render(wb_tab *t);
 int wb_eval(wb_tab *t, const char *js, str *out);
 int wb_evalg(wb_tab *t, const char *js, str *out, int gesture);
 int wb_evalsend(wb_tab *t, const char *js);
+int wb_evvalue(jv *r, str *out);
+int wb_evask(wb_tab *t, const char *js);
+int wb_evget(wb_tab *t, int id, str *out);
 char *wb_extractjs(wb_tab *t);
 jv *wb_extracted(jv *r);
 void wb_build(wb_tab *t, jv *v, int now, jv *shot);

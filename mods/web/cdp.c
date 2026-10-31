@@ -505,8 +505,10 @@ void wb_stop(void)
 	wb.in = wb.out = -1;
 	s_free(&wb.buf);
 	for (i = 0; i < wb.tabs.n; i++)
-		if (wb.tabs.p[i])
+		if (wb.tabs.p[i]) {
 			wb_aclear(wb.tabs.p[i]);
+			wb_askclear(wb.tabs.p[i]);
+		}
 	for (i = 0; i < wb_resps.n; i++) {
 		jv_free(((wb_resp *)wb_resps.p[i])->v);
 		free(wb_resps.p[i]);

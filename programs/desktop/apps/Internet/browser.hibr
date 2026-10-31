@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.19
+app browser "The web, in a window" 2.20
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -839,6 +839,9 @@ fn browser_resume(int id) {
 # wake the desktop for ever.
 fn browser_idle(int id) {
 	[ -n "$BW_FD" ] && web poll > /dev/null 2>&1
+	# Called for a window not drawn, and for every window on a frame held back
+	# to keep the rate down: the right press asked about is still waited for.
+	bw_atpoll "$id"
 	[ -n "$BW_FD" ] && bw_heard
 	# A window not drawn has its page stop saying when it repaints, so a
 	# busy page in a hidden window wakes nothing (Gitea #289).
@@ -900,6 +903,7 @@ fn bw_goaddr(int id) {
 fn browser_draw(int id, int h, int w, int row, int col) {
 	local t=${BW[$id]["cur"]} ph ar pt
 
+	bw_atpoll "$id"
 	dt_wclear "$id"
 	bw_tabs "$id"
 	# The tab strip only when there is more than one tab to choose between
@@ -967,6 +971,7 @@ fn bw_drawkey(int id) {
 fn browser_dirty(int id) {
 	local t=${BW[$id]["cur"]} nw=$DT_NOTEWIN dl k
 
+	bw_atpoll "$id"
 	[ -n "$t" ] && [ -n "$BW_FD" ] || return 0
 	[ -z "${BW[$id]["err"]}" ] || return 0
 	[ "${BW[$id]["aed"]}" = 1 ] && return 0
@@ -1405,6 +1410,70 @@ fn browser_click(int id, int r, int c, btn = "") {
 	return 0
 }
 
+# Every press comes here once the app has a _mouse; all but the right one go
+# on to _click as before. The right one over the page asks the engine what is
+# under it without waiting (`web atask`, where the module has it) and the menu
+# opens from a later frame when the answer comes (bw_atpoll): finding out
+# whether the page took the press itself takes the engine up to half a second,
+# and the desktop used to wait that long on every right click over a page.
+fn browser_mouse(int id, act, btn, int r, int c, mods = "") {
+	local t=${BW[$id]["cur"]} pt=${BW[$id]["pt"]:-3} sr sc q
+
+	[ "$act" = press ] || return 0
+	if [ "$btn" != right ]; then
+		browser_click "$id" "$r" "$c" "$btn"
+		return 0
+	fi
+	sr=$((r + DT[$id]["row"]))
+	sc=$((c + DT[$id]["col"]))
+	dt_capped "$id" && sc=$((sc - 1))
+	bw_drawmode
+	if [ -n "$t" ] && [ "$r" -ge "$pt" ] && [ "$BW_DRAWN" != text ] && bw_tabhas "$t" atask &&
+	   q := web atask "$t" $((r - pt)) $((c - 1)) 2> /dev/null; then
+		BW[$id]["askq"]=$q
+		BW[$id]["askt"]=$t
+		BW[$id]["askr"]=$sr
+		BW[$id]["askc"]=$sc
+		BW[$id]["asks"]=$EPOCHSECONDS
+		dt_want 30
+		return 0
+	fi
+	dt_context_open browser "$id" "$sr" "$sc"
+	return 0
+}
+
+# The answer to a right press asked about (browser_mouse), once it has come:
+# kept where the menu looks for it (bw_under, BWC) and the menu opened, unless
+# the page took the press for itself. Asked again every frame until then.
+fn bw_atpoll(int id) {
+	local q=${BW[$id]["askq"]-} t=${BW[$id]["askt"]-} a key
+
+	[ -n "$q" ] || return 0
+	# A window gone from sight (minimised, another workspace) opens no menu.
+	if { dt_has dt_away && dt_away "$id"; } || { dt_has dt_hidden && dt_hidden "$id"; }; then
+		BW[$id]["askq"]=
+		return 0
+	fi
+	key="$id:$t:${BW[$id]["askr"]}:${BW[$id]["askc"]}"
+	if a := web atget "$t" "$q" 2> /dev/null; then
+		:
+	elif [ $((EPOCHSECONDS - ${BW[$id]["asks"]:-0})) -le 3 ]; then
+		dt_want 30
+		return 0
+	else
+		a=none		# no answer: the menu without what is under the pointer
+	fi
+	BW[$id]["askq"]=
+	[ "${#BWC[@]}" -gt 100 ] && BWC=()
+	BWC["$key"]=$a
+	BWC["$key:t"]=$EPOCHSECONDS
+	BWC["$key:keep"]=1
+	[ "${a%%$'\t'*}" = page ] && return 0
+	dt_context_open browser "$id" "${BW[$id]["askr"]}" "${BW[$id]["askc"]}"
+	dt_want 10
+	return 0
+}
+
 fn browser_wheel(int id, dir, int r = 0, int c = 0) {
 	local t=${BW[$id]["cur"]}
 
@@ -1580,7 +1649,8 @@ fn bw_under(int id) {
 	pt=${BW[$id]["pt"]:-3}
 	[ "$r" -ge "$pt" ] || return 1
 	key="$id:$t:$MB_CY:$MB_CX"
-	if [ -z "${BWC["$key"]+x}" ] || [ $((EPOCHSECONDS - ${BWC["$key:t"]:-0})) -gt 3 ]; then
+	# An answer a right press asked for (bw_atpoll) stands while its menu is open.
+	if [ -z "${BWC["$key"]+x}" ] || { [ -z "${BWC["$key:keep"]-}" ] && [ $((EPOCHSECONDS - ${BWC["$key:t"]:-0})) -gt 3 ]; }; then
 		[ "${#BWC[@]}" -gt 100 ] && BWC=()
 		a := web at "$t" $((r - pt)) $((c - 1)) 2> /dev/null || a=
 		BWC["$key"]=$a

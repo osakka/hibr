@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.14
+app youtube "YouTube, in a window" 3.16
 # part: control-panel/tube.hibr
 # modules: media web
 

@@ -158,7 +158,7 @@ drawing in the wrong place. The calls:
 | `_drop` | `id r c op paths...` |
 | `_menus` | nothing -- the menus are built for whichever window has focus, `$DT_FOCUS` |
 | `_context` | `id` |
-| `_idle` | `id` -- each frame, for a window that is not drawn (minimised, or on another workspace) |
+| `_idle` | `id` -- each frame, for a window that is not drawn (minimised, or on another workspace), and on a frame the desktop holds back for a window that is -- so it may run beside a drawn window, and must not cancel work that window is waiting on |
 | `_awake` | `id` -- only when the screen saver is due; succeed to keep it, and the lock, away for another idle period |
 | `_stash` | `id dir` -- Restart Desktop is about to exec; write down what a map cannot hold, in `dir` if it is a file |
 | `_resume` | `id` -- after a restart, once the maps named by `dt_keepstate` are back |

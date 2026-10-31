@@ -173,7 +173,7 @@ void wb_usage(void)
 		      "permit geolocation|camera|microphone|notifications "
 		      "allow|refuse | permit reset | downloads dir|off | "
 		      "downloaded | notes | pdf T path | scroll T | "
-		      "set T live on|off | set T render async|sync | send T js | "
+		      "set T live on|off | set T render async|sync | send T js | evask T js | evget T id | "
 		      "draw T row col [h w] "
 		      "[-p pane] | click T row col | wheel T rows | key T name | "
 		      "type T text | eval T js | tap|tapseek T | "
@@ -221,7 +221,7 @@ int m_web(sh *s, int ac, char **av)
 	 * records and plays itself. */
 	if (!strcmp(sub, "caps")) {
 		wb_say(s, "js images zoom ua dark lang dnt block geo notes permit "
-			  "downloads pdf live config tap renderasync send");
+			  "downloads pdf live config tap renderasync send evask");
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "fd")) {
@@ -419,6 +419,33 @@ int m_web(sh *s, int ac, char **av)
 	}
 	/* A script whose answer nobody reads, sent and not waited for
 	   (hibr-browser's NONBLOCKING step 2): play, pause, seek. */
+	/* A script asked now and read on a later frame (cap evask), the shape
+	   hibr-browser's webkit.so offers: evask says the id; evget is status
+	   1 while the answer has not come, 0 with the value once it has, and
+	   2 for a script the page refused, so "not yet" and "failed" differ. */
+	if (!strcmp(sub, "evask")) {
+		if (ac < 4) {
+			wb_usage();
+			return 2;
+		}
+		r = wb_evask(t, av[3]);
+		if (!r)
+			return HIBR_FAIL;
+		wb_sayn(s, r);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "evget")) {
+		if (ac < 4) {
+			wb_usage();
+			return 2;
+		}
+		s_init(&o);
+		r = wb_evget(t, atoi(av[3]), &o);
+		if (r == 0)
+			wb_say(s, o.p ? o.p : "");
+		s_free(&o);
+		return r == 0 ? HIBR_OK : r == 1 ? HIBR_FAIL : 2;
+	}
 	if (!strcmp(sub, "send")) {
 		if (ac < 4) {
 			wb_usage();
