@@ -533,7 +533,13 @@ char *bi_oval(int ac, char **av, int *i, size_t len)
    program's prompt -- used to hold the read until a newline came, however
    short the timeout, which froze a desktop draining such a program (Gitea
    #327's sibling, 0.99.272). On the deadline *tout is set and what was
-   taken is kept. A file never blocks, so only the byte path waits. */
+   taken is kept. A file never blocks, so only the byte path waits.
+   A datagram socket -- `/dev/udp` -- is read a datagram at a time instead
+   of a byte at a time: each read takes a whole datagram and drops what it
+   did not ask for, so a byte read kept a reply's first byte and threw the
+   rest away, and `read -N 12` then waited for a datagram that never came.
+   What follows the delimiter or the count in one datagram is lost, as it
+   is in bash, which reads such a socket in blocks too. */
 /* Add what read took to b, less any NUL byte, which bash drops too --
    unless NUL is the delimiter, when there is none left to drop. */
 void bi_rdadd(str *b, const char *p, size_t n, int delim)
@@ -562,6 +568,8 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 	long long left;
 
 	if (lseek(fd, 0, SEEK_CUR) == (off_t)-1) {
+		if (net_isdgram(fd))
+			return bi_rddgram(fd, delim, want, exact, b, dl, tout);
 		for (;;) {
 			if (dl) {
 				left = dl - bi_ms();
@@ -614,6 +622,53 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 	}
 	free(buf);
 	return n;
+}
+
+/* bi_rddelim for a datagram socket: each datagram whole, then its bytes. */
+long bi_rddgram(int fd, int delim, int want, int exact, str *b, long long dl,
+		int *tout)
+{
+	long n = 0, i;
+	char *buf;
+	size_t cap;
+	struct pollfd q;
+	long long left;
+
+	lg(HIBR_LDBG, "read: fd %d is a datagram socket, read a datagram at a time", fd);
+	for (;;) {
+		if (dl) {
+			left = dl - bi_ms();
+			q.fd = fd;
+			q.events = POLLIN;
+			if (left <= 0 || poll(&q, 1, (int)left) == 0) {
+				if (tout)
+					*tout = 1;
+				return -1;
+			}
+		}
+		cap = want ? (size_t)(want - (int)b->n) : HIBR_DGRAM;
+		buf = xm(cap);
+		n = read(fd, buf, cap);
+		if (n < 0 && errno == EINTR) {
+			free(buf);
+			continue;
+		}
+		if (n <= 0) {
+			free(buf);
+			return n;
+		}
+		for (i = 0; i < n; i++) {
+			if (!exact && (unsigned char)buf[i] == (unsigned char)delim)
+				break;
+			if (buf[i] || !delim)
+				s_ch(b, buf[i]);
+			if (want && (int)b->n >= want)
+				break;
+		}
+		free(buf);
+		if (i < n)
+			return 1;
+	}
 }
 
 /* Milliseconds on a clock nobody sets, for read's deadline. */
@@ -765,8 +820,8 @@ int b_read(sh *s, int ac, char **av)
 			return rdy > 0 ? 0 : 1;
 		}
 		if (rdy <= 0) {
-			lg(HIBR_LDBG, "read timed out after %g s", tmo);
-			return 142;
+			lg(HIBR_LDBG, "read timed out after %g s with nothing, assigning empty", tmo);
+			tout = 1;
 		}
 	}
 	if (silent && tcgetattr(fd, &sv) == 0) {
@@ -779,7 +834,7 @@ int b_read(sh *s, int ac, char **av)
 	s_init(&b);
 	/* A count of 0 reads nothing and succeeds, taking not even a byte
 	   from the descriptor, so the next command sees all of it. */
-	n = cnt && !want ? 1 : bi_rddelim(fd, delim, want, exact, &b, dl, &tout);
+	n = tout ? -1 : cnt && !want ? 1 : bi_rddelim(fd, delim, want, exact, &b, dl, &tout);
 	if (silent) {
 		tcsetattr(fd, TCSADRAIN, &sv);
 		fputc('\n', stderr);

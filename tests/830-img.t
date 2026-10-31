@@ -60,3 +60,20 @@ img size tests/img-2x2.png
 img size tests/img-quad.jpg
 img size tests/img-rot6.jpg
 img size /dev/null 2>&1 | sed 's/.*: //'
+
+# img save writes any picture it can read as a PNG (0.99.404), EXIF
+# orientation applied, through the console's own encoder; its pixels are the
+# source's own, so the two draw the same.
+echo "--- save as a PNG"
+o=/tmp/hibr-830-$$.png
+img save tests/img-rot6.jpg "$o"; echo "save: $?"
+img size "$o"
+[ "$(img -w 4 -h 2 "$o")" = "$(img -w 4 -h 2 tests/img-rot6.jpg)" ] && echo "draws as the source does"
+img save tests/img-wide.png "$o"; img size "$o"
+img save tests/img-rgba.png "$o"; img size "$o"
+[ "$(img -w 13 -h 4 "$o")" = "$(img -w 13 -h 4 tests/img-rgba.png)" ] && echo "an RGBA PNG keeps its colours"
+img save /dev/null "$o" 2>/dev/null; echo "unreadable: $?"
+img save /dev/null "$o" 2>&1 | sed 's/.*: //'
+img save tests/img-2x2.png /nonexistent/x.png 2>&1 | sed 's/.*: //'
+ls "$o".hibr-part 2>/dev/null; rm -f "$o"
+img save a 2>&1; echo "usage: $?"

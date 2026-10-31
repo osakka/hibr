@@ -146,6 +146,14 @@ text at that rectangle, unchanged on disk, is still wanted and the display
 kept it (`dp_api` version 6's `imgkeep`), 1 when it was not, and nothing is
 drawn either way, so a frame that meant to paint nothing paints nothing.
 
+`img save in out.png` writes any picture this module reads -- a PNG, a
+JPEG or a PPM -- as a PNG, EXIF orientation applied, so a picture fetched
+from the web is usable where only a PNG is read: Files' `.cover.png`, and
+Boxer's covers. The pixels are the decoder's own, unscaled; the encoder is
+the console's (`mods/png.c`, with `mods/deflate.c`), linked in here too
+since a module cannot reach another's symbols. It writes `out.hibr-part`
+and renames it when whole, and refuses under `--plan` (0.99.404).
+
 ## Testing
 
 `tests/830-img.t` is recorded, not compared against bash -- there is no

@@ -768,6 +768,62 @@ char *ex_stk0;
 size_t ex_stkmax;
 int ex_fnok;
 long ex_fnnest;
+/* PIPESTATUS, kept as numbers (ex_ps0 the first, ex_psv every one when a
+   pipeline had more than one) and made a variable only when a lookup of the
+   name misses (ex_psmake), since setting an array after every command is a
+   cost a loop would pay for nobody. ex_pslive says the variable exists and
+   is the next status's to take away. */
+int ex_ps0, ex_psn, ex_pslive, ex_psmaking;
+int *ex_psv;
+size_t ex_pscap;
+
+/* Take away a PIPESTATUS made for the last status, which a new one replaces. */
+void ex_psdrop(sh *s)
+{
+	ex_pslive = 0;
+	v_del(s, "PIPESTATUS");
+}
+
+/* A pipeline of one -- a command, a subshell, [[ ]] or (( )) -- sets PIPESTATUS to its status, as bash's does. */
+int ex_psone(sh *s, int st)
+{
+	ex_ps0 = st;
+	ex_psn = 1;
+	if (ex_pslive)
+		ex_psdrop(s);
+	return st;
+}
+
+/* Keep stage i of n's status for PIPESTATUS; stage 0 starts a new set. */
+void ex_psat(sh *s, int i, int n, int v)
+{
+	if ((size_t)n > ex_pscap) {
+		ex_pscap = (size_t)n;
+		ex_psv = xr(ex_psv, ex_pscap * sizeof *ex_psv);
+	}
+	if (i == 0)
+		ex_psone(s, v);
+	ex_psv[i] = v;
+	ex_psn = n;
+}
+
+/* Make PIPESTATUS, the array, from the numbers kept, when something asks for it. */
+var *ex_psmake(sh *s)
+{
+	vec *el;
+	int i;
+
+	ex_psmaking = 1;
+	el = vb_get(s);
+	for (i = 0; i < ex_psn; i++)
+		v_add(el, xnum(s, (long)(i ? ex_psv[i] : ex_ps0)));
+	v_arr(s, "PIPESTATUS", el);
+	vb_put(s, el);
+	ex_psmaking = 0;
+	ex_pslive = 1;
+	lg(HIBR_LDBG, "PIPESTATUS made from %d statuses", ex_psn);
+	return v_find(s, "PIPESTATUS");
+}
 
 /* Note where the stack begins and how far it may grow before ex_deep refuses to go deeper. */
 void ex_stkinit(void *base)
@@ -1784,6 +1840,10 @@ out:
 	if (s->psub.n)
 		xpsub_done(s);
 	ar_rel(s->xa, m);
+	ex_ps0 = st;
+	ex_psn = 1;
+	if (ex_pslive)
+		ex_psdrop(s);
 	s->st = st;
 	return st;
 }
@@ -1893,9 +1953,19 @@ int ex_pipe(sh *s, node *n, int t)
 	if (in >= 0)
 		close(in);
 	if (jb) {
+		rc = jc_fg(s, jb);
+		for (i = 0; i < pids.n; i++) {
+			size_t k;
+			int v = rc;
+
+			for (k = 0; k + 1 < jc_fgst.n; k += 2)
+				if (jc_fgst.p[k] == pids.p[i])
+					v = (int)(long)jc_fgst.p[k + 1];
+			ex_psat(s, (int)i, (int)pids.n, v);
+		}
 		v_free(&pids);
 		v_free(&st);
-		return s->st = jc_fg(s, jb);
+		return s->st = rc;
 	}
 	s->pfs = 0;
 	jc_tmo = 0;
@@ -1904,6 +1974,7 @@ int ex_pipe(sh *s, node *n, int t)
 		rc = wstat(w);
 		if (rc && !s->pfs)
 			s->pfs = rc;
+		ex_psat(s, (int)i, (int)pids.n, rc);
 	}
 	if (jc_tmo)
 		rc = s->pfs = 124;
@@ -2556,7 +2627,7 @@ int ex(sh *s, node *n)
 		return ex_bg(s, n);
 	case N_SUB:
 		s->ln = n->ln;
-		return ex_chk(s, ex_sub(s, n, t), t);
+		return ex_chk(s, ex_psone(s, ex_sub(s, n, t)), t);
 	case N_GRP:
 		s->ln = n->ln;
 		if (rd_do(s, n->rd, &sv) != HIBR_OK) {
@@ -2607,9 +2678,9 @@ int ex(sh *s, node *n)
 		rd_undo(&sv);
 		if (s->xerr) {
 			s->xerr = 0;
-			return s->st = HIBR_FAIL;
+			return s->st = ex_psone(s, HIBR_FAIL);
 		}
-		return s->st = v ? 0 : 1;
+		return s->st = ex_psone(s, v ? 0 : 1);
 	}
 	case N_COND:
 		s->ln = n->ln;
@@ -2619,7 +2690,7 @@ int ex(sh *s, node *n)
 		}
 		st = ex_cond(s, n);
 		rd_undo(&sv);
-		return ex_chk(s, st, t);
+		return ex_chk(s, ex_psone(s, st), t);
 	case N_CASE:
 		s->ln = n->ln;
 		if (rd_do(s, n->rd, &sv) != HIBR_OK) {

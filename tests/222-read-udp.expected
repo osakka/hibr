@@ -1,0 +1,6 @@
+0
+-N 8: 0 [hello wo]
+a line: 0 [hello world]
+-n 30 stops at the newline: 0 [hello world]
+-N 4 across two datagrams: 0 [abcd]
+nothing waiting: 142 []

@@ -291,9 +291,10 @@ $(B)/mods/md.so: $(MD_SRC) include/hibr.h mods/md/mk.h | $(B)/mods
 $(B)/mods/pdf.so: mods/pdf/pdf.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/pdf/pdf.c $(DLLIB)
 
-IMG_SRC = $(wildcard mods/img/*.c)
+# img save writes a PNG with the console's own encoder.
+IMG_SRC = $(wildcard mods/img/*.c) mods/png.c mods/deflate.c mods/inftab.c
 
-$(B)/mods/img.so: $(IMG_SRC) include/hibr.h mods/img/im.h mods/display.h | $(B)/mods
+$(B)/mods/img.so: $(IMG_SRC) include/hibr.h mods/img/im.h mods/display.h mods/png.h mods/inflate.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(IMG_SRC) $(DLLIB)
 
 $(B)/mods/http.so: mods/fetch.h

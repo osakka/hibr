@@ -30,6 +30,8 @@ var *v_find(sh *s, const char *k)
 	for (v = s->tab[vh(k) & (s->tsz - 1)]; v; v = v->nx)
 		if (!strcmp(v->k, k))
 			return v;
+	if (k[0] == 'P' && ex_psn && !ex_psmaking && !strcmp(k, "PIPESTATUS"))
+		return ex_psmake(s);
 	return 0;
 }
 

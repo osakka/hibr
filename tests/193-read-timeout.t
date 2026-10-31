@@ -40,3 +40,11 @@ echo "half a line: $? [$l]"
 read -t 0 -u $fd
 echo "and nothing waiting after: $?"
 exec {fd}<&-
+# A read that times out with nothing at all to read still assigns: every name
+# is emptied, as at end of file, and the status is still 142 (0.99.404).
+exec {fd}< <(sleep 2)
+a=old b=x; read -t 0.2 -r -u $fd a b
+echo "nothing before the timeout empties the names: $? [$a][$b]"
+REPLY=old; read -t 0.2 -u $fd
+echo "and REPLY: $? [$REPLY]"
+exec {fd}<&-

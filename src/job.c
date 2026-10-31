@@ -424,6 +424,9 @@ long jc_waitt(sh *s, long wp, long kp, int *w, int fl)
 	return (long)p;
 }
 
+/* Each process the last foreground job ended with, as a pid and its status in turn, for PIPESTATUS. */
+vec jc_fgst;
+
 /* Wait for a job in the foreground, returning its exit status. */
 int jc_fg(sh *s, job *j)
 {
@@ -432,6 +435,7 @@ int jc_fg(sh *s, job *j)
 
 	jc_grab(s, j->pgid);
 	jc_tmo = 0;
+	jc_fgst.n = 0;
 	while (j->ndone < j->np && j->state == J_RUN) {
 		p = (pid_t)jc_waitt(s, -(long)j->pgid, -(long)j->pgid, &w,
 				    WUNTRACED);
@@ -447,6 +451,8 @@ int jc_fg(sh *s, job *j)
 			break;
 		}
 		j->ndone++;
+		v_add(&jc_fgst, (void *)(long)p);
+		v_add(&jc_fgst, (void *)(long)wstat(w));
 		if (wstat(w) && !j->fail)
 			j->fail = wstat(w);
 		if ((long)p == j->last)

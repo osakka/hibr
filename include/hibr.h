@@ -8,7 +8,7 @@
 #define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.403"
+#define HIBR_VER "0.99.404"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -24,6 +24,10 @@
 #endif
 #ifndef HIBR_IOCH
 #define HIBR_IOCH 4096
+#endif
+/* The largest datagram a read may meet: UDP's own 16-bit length fixes it. */
+#ifndef HIBR_DGRAM
+#define HIBR_DGRAM 65536
 #endif
 #ifndef HIBR_MTNS
 #ifdef __APPLE__

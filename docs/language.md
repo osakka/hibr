@@ -97,7 +97,11 @@ function was defined in, which is how a sourced file finds its own directory
 (`${BASH_SOURCE%/*}`). As in bash, `RANDOM=5` seeds the generator, `SECONDS=5`
 restarts the count from 5, and an assignment to `$EPOCHSECONDS` or
 `$EPOCHREALTIME` is ignored; `${RANDOM[0]}` and the like read the value, as
-`[0]` of any scalar does. `$OSTYPE`, `$HOSTTYPE` and `$MACHTYPE` are set at
+`[0]` of any scalar does. `${PIPESTATUS[@]}` holds the status of each
+stage of the last pipeline, as in bash: a command, a function call, an
+assignment, a subshell, `[[ ]]` or `(( ))` is a pipeline of one, and a
+compound command leaves it to the pipelines inside it (until 0.99.404 it was
+never set at all). `$OSTYPE`, `$HOSTTYPE` and `$MACHTYPE` are set at
 startup from `uname()` and are bash's, not names of ours — every script
 already knows them, and `HIBR_ARCH` was taken (it is the arena's chunk
 size). On Linux all three are what bash reports exactly:

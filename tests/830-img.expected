@@ -29,3 +29,15 @@ bad -o: 2
 32 32
 16 32
 neither a PNG, a JPEG nor a PPM
+--- save as a PNG
+save: 0
+16 32
+draws as the source does
+40 4
+13 7
+an RGBA PNG keeps its colours
+unreadable: 1
+neither a PNG, a JPEG nor a PPM
+No such file or directory
+hibr: usage: img save in out.png
+usage: 2

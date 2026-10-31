@@ -2,6 +2,8 @@
 
 #include "im.h"
 #include "../display.h"
+#include "../png.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1085,8 +1087,59 @@ static int im_keep(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+int pl_prog(sh *s, char **av);
+
+/* img save IN OUT: a PNG, a JPEG or a PPM decoded and written as a PNG,
+   EXIF orientation applied, so a picture fetched from the web can be used
+   where only a PNG is read (Files' .cover.png, Boxer's covers). Written to
+   OUT.hibr-part and renamed when whole, so nothing reads half a file. */
+static int im_save(sh *s, int ac, char **av)
+{
+	image im;
+	str err, out, tmp;
+	FILE *f;
+	int ok;
+
+	if (ac != 4) {
+		lg(HIBR_LERR, "usage: img save in out.png");
+		return 2;
+	}
+	if ((s->sopt & O_PLAN) && !pl_prog(s, av))
+		return HIBR_FAIL;
+	memset(&im, 0, sizeof im);
+	s_init(&err);
+	if (im_load(av[2], &im, &err) != HIBR_OK) {
+		lg(HIBR_LERR, "img save: %s", err.p ? err.p : av[2]);
+		s_free(&err);
+		return HIBR_FAIL;
+	}
+	s_free(&err);
+	s_init(&out);
+	pw_write(im.px, im.w, im.h, &out);
+	lg(HIBR_LDBG, "img save: %s, %dx%d, %zu bytes of PNG", av[2], im.w, im.h, out.n);
+	im_free(&im);
+	s_init(&tmp);
+	s_cat(&tmp, av[3]);
+	s_cat(&tmp, ".hibr-part");
+	f = fopen(tmp.p, "wb");
+	ok = f && fwrite(out.p, 1, out.n, f) == out.n;
+	if (f && fclose(f) != 0)
+		ok = 0;
+	if (ok && rename(tmp.p, av[3]) != 0)
+		ok = 0;
+	if (!ok) {
+		lg(HIBR_LERR, "img save: %s: %s", av[3], strerror(errno));
+		unlink(tmp.p);
+	}
+	s_free(&tmp);
+	s_free(&out);
+	return ok ? HIBR_OK : HIBR_FAIL;
+}
+
 static int m_img(sh *s, int ac, char **av)
 {
+	if (ac > 1 && !strcmp(av[1], "save"))
+		return im_save(s, ac, av);
 	if (ac > 1 && !strcmp(av[1], "draw"))
 		return im_draw(s, ac, av);
 	if (ac > 1 && !strcmp(av[1], "keep"))

@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.404
+
+**`PIPESTATUS` is set**, as in bash: hibr only ever listed the name, so
+`false | true; echo "${PIPESTATUS[@]}"` printed nothing. A command, a
+function call, an assignment, a subshell, `[[ ]]` and `(( ))` are each a
+pipeline of one; a compound command leaves it to the pipelines inside it,
+and `!` keeps the status it negates -- seventeen cases compared against bash
+in `tests/223-pipestatus.t`. The statuses are kept as numbers and made into
+the array only when something reads it, so a loop that never does pays ten
+instructions a command (0.15% on a `while` loop, counted function by
+function); a loop that does read it builds the array each time it reads it.
+An interactive shell's pipeline, which runs as a job, keeps each stage's
+status the same way.
+
+**`read` from a UDP socket gets the reply.** Each read of a datagram socket
+empties a whole datagram, so reading one a byte at a time kept its first byte
+and lost the rest: a DNS answer read with `read -N 12` came back as one
+character and then waited for more. `read` takes a datagram at a time there
+now, across as many as a count needs. `-N` matches bash; a line and `-n` get
+the line where bash keeps only its first byte (ADR 0051).
+
+**A `read -t` that times out with nothing to read empties its names**, as
+bash's does and as an end of file already did; the old value was left in
+place.
+
+**`img save in out.png`** writes any picture the img module reads -- PNG,
+JPEG or PPM, EXIF orientation applied -- as a PNG, through the console's own
+encoder, so a picture fetched from the web can be a Files `.cover.png` or a
+Boxer cover. Written whole and then renamed, refused under `--plan`.
+
 ## 0.99.403
 
 **Full Screen is a desktop key** (the owner's request on Gitea #405): any
