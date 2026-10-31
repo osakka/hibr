@@ -754,6 +754,16 @@ everything else besides (Gitea #343). It answers:
   its server for everything again;
 - while `timing` is on, from a reset until `desktop ctl stats stop`: each
   ticker's `runs` and `ms`, and `draw_ms`;
+- while `timing` is on, `woke`: what ended each wait -- `input` (a key or
+  a report), `io` (something watched being ready: a program's output, the
+  browser's pipe) or `timer:<who>`, named for whoever asked for the soonest
+  frame (`win:<app>`, `idle:<app>`, `input:<app>`, a ticker, `held` for a
+  frame held back for a program's output, or `desktop`); and `drawn_why`:
+  for each app, why its windows were drawn rather than left as they were --
+  `left` (they were not), `dirty` (its `_dirty` said so), `nodirty` (it has
+  none), `overlap` (another window overlaps it), `hover`, `moved`, or
+  `full:<cause>` for a frame drawn whole (`arranged`, `overdrew`, `popup`,
+  `other`), counted once a window a frame (0.99.405);
 - `console_bytes`: what the display's flushes have written since it opened,
   and `displays`: for a held desktop, each attached terminal's `name`, the
   `bytes` hold has sent it since it attached and in how many `frames` --

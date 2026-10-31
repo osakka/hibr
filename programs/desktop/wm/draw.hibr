@@ -159,6 +159,8 @@ DT_FORCEONCE=
 # The windows a move asks to be drawn whole this frame, " id id ", and the
 # stacking order the last frame had (dt_movedonly).
 DT_FORCEWIN=
+# What forced the frame in hand to be a full one, for drawn_why.
+DT_FORCEBY=
 DT_ALONEORD=
 # A move the console sent as a rectangle copy (Gitea #337) has already put
 # the window's cells where it now is, so the frame after it need not redraw
@@ -261,6 +263,7 @@ fn dt_alone(...rest) {
 		DT_WALLONCE=1
 	else
 		DT_FORCEONCE=1
+		DT_FORCEBY=arranged
 	fi
 	DT_ALONEORD="${w[*]}"
 	DT_MOVECOPY=()
@@ -370,9 +373,11 @@ dt_idle() {
 fn dt_idlecall(int id) {
 	local ap=${DT[$id]["app"]} t0 t
 
+	DT_WHO="idle:${ap:-bare}"
 	t0=${EPOCHREALTIME/./}
 	${DT[$id]["idle"]} "$id"
 	t=$((${EPOCHREALTIME/./} - t0))
+	DT_WHO=
 	[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "idle:${ap:-bare}" "$t"
 	return 0
 }
@@ -441,7 +446,7 @@ dt_draw() {
 	# Something drawn over everything last frame has gone or moved by now,
 	# and only a full frame puts back what it covered. Set here, never
 	# cleared: dt_alone sets it too, for an arrangement that changed.
-	[ -n "$DT_OVERDREW" ] && DT_FORCEONCE=1
+	[ -n "$DT_OVERDREW" ] && { DT_FORCEONCE=1; DT_FORCEBY=overdrew; }
 	# And the bar's own gate goes with it. Here rather than in dt_bar,
 	# which cannot see either flag: DT_FORCEONCE is consumed by the
 	# wallpaper and the windows and cleared below, well before the bar
@@ -469,12 +474,14 @@ dt_draw() {
 	# under it can be seen only if it was drawn this frame: while one is
 	# open, every window is drawn.
 	[ "${DT_BARTRANS:-0}" != 0 ] &&
-		{ [ "$MB_OPEN" != -1 ] || [ -n "$DT_POP" ]; } && DT_FORCEONCE=1
+		{ [ "$MB_OPEN" != -1 ] || [ -n "$DT_POP" ]; } && { DT_FORCEONCE=1; DT_FORCEBY=popup; }
 	dt_wall
 	[ -n "$DT_STATON" ] && dt_tmark wall
 	dt_wintimed "${ls[@]}"
+	DT_WHO=
 	[ -n "$DT_STATON" ] && dt_tmark windows
 	DT_FORCEONCE=
+	DT_FORCEBY=
 	DT_FORCEWIN=
 	dt_idle
 	# What a *shut* menu bar shows is its menus' titles and the focused
@@ -566,9 +573,13 @@ fn dt_wintimed(...ids) {
 	for id in "${ids[@]}"; do
 		id=${id#w}
 		ap=${DT[$id]["app"]}
+		DT_WHO="win:${ap:-bare}"
+		DT_WHY=
 		t0=${EPOCHREALTIME/./}
 		dt_win "$id"
 		t=$((${EPOCHREALTIME/./} - t0))
 		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "win:${ap:-bare}" "$t" "$ap"
+		[ -n "$DT_STATON" ] && [ -n "$DT_WHY" ] &&
+			DT_STAT["y:${ap:-bare}:$DT_WHY"]=$((${DT_STAT["y:${ap:-bare}:$DT_WHY"]:-0} + 1))
 	done
 }

@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.16
+app youtube "YouTube, in a window" 3.18
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -532,7 +532,7 @@ fn yt_play(int id, int i) {
 	YT[$id]["resume"]=
 	YT[$id]["upause"]=
 	YT[$id]["efr"]=
-	YT[$id]["pat"]=
+	yt_pagestale "$id"
 	YT[$id]["sat"]=
 	YT[$id]["ofid"]=
 	YT[$id]["noauto"]=
@@ -579,25 +579,84 @@ fn yt_next(int id, int dir) {
 # since a window is drawn more often than the clock moves.
 declare -gA YTP
 YTPID=
-fn yt_page(int id) {
-	local js now nv
+# The player was just told something (play, pause, seek, load, volume): an
+# answer the page gave before is about the player as it was. Counted, so an
+# answer can say which command it came after.
+fn yt_pagestale(int id) {
+	YT[$id]["pat"]=
+	YT[$id]["gen"]=$(( ${YT[$id]["gen"]:-0} + 1 ))
+	return 0
+}
+
+# What the page's player says, into YTP: 0 when it is an answer to rely on.
+# Where the engine waits for it (no `web evask`), it is asked for and read
+# now, no more often than every 200 ms. Where it does not, it is asked for in
+# one call and read in a later one, and the desktop never waits on a busy
+# page: an answer is relied on only when it is about the video playing now,
+# was asked after the last command given (yt_pagestale), and is less than two
+# seconds old -- one guard, here, for every decision taken on it (stopped,
+# ended, held, taken up). Until such an answer is in, this says "not known".
+# What was last known stands for the clock and the bar (yt_pageknown).
+fn yt_page(int id, now = "") {
+	local js nv rc wait=$now
 
 	now=${EPOCHREALTIME/./}
 	now=${now:0:-3}
-	if [ "$YTPID" = "$id" ] && [ -n "${YT[$id]["pat"]}" ] && [ $((now - YT[$id]["pat"])) -lt 200 ] && [ -n "${YTP["st"]}" ]; then
+	# `now`: this one answer is waited for, as it always was -- for the rare
+	# moment that has to know where the page is this instant (a new stream).
+	if ! yt_has evask || [ -n "$wait" ]; then
+		# The last answer serves for 200 ms -- but not for `now`, which is
+		# asked when the page has just started a new stream: an answer from
+		# before it is about the last video, and sent the player to its end.
+		if [ -z "$wait" ] && [ "$YTPID" = "$id" ] && [ -n "${YT[$id]["pat"]}" ] && [ $((now - YT[$id]["pat"])) -lt 200 ] && [ -n "${YTP["st"]}" ]; then
+			return 0
+		fi
+		js := web eval "${YT[$id]["pt"]}" "$YT_PJS" 2> /dev/null || return 1
+		yt_pagetake "$id" "$js" "$now" || return 1
+		YT[$id]["pgen"]=${YT[$id]["gen"]:-0}
+		YT[$id]["pvid"]=${YT[$id]["vid"]}
+		YT[$id]["pseq"]=$(( ${YT[$id]["pseq"]:-0} + 1 ))
 		return 0
 	fi
-	js := web eval "${YT[$id]["pt"]}" "$YT_PJS" 2> /dev/null || return 1
+	# An answer in: taken if it is about what was asked, dropped if the tab, the
+	# video or the command count has moved on since -- and asked again.
+	if [ -n "${YT[$id]["pq"]-}" ]; then
+		rc=0
+		js := web evget "${YT[$id]["pt"]}" "${YT[$id]["pq"]}" 2> /dev/null || rc=$?
+		if [ "$rc" = 1 ] && [ $((now - ${YT[$id]["pqat"]:-0})) -lt 3000 ]; then
+			yt_pagefresh "$id"
+			return
+		fi
+		YT[$id]["pq"]=
+		if [ "$rc" = 0 ] && [ "${YT[$id]["pqv"]}" = "${YT[$id]["pt"]} ${YT[$id]["vid"]} ${YT[$id]["gen"]:-0}" ]; then
+			yt_pagetake "$id" "$js" "${YT[$id]["pqat"]}" || return 1
+			YT[$id]["pgen"]=${YT[$id]["gen"]:-0}
+			YT[$id]["pvid"]=${YT[$id]["vid"]}
+			YT[$id]["pseq"]=$(( ${YT[$id]["pseq"]:-0} + 1 ))
+		fi
+	fi
+	# The next one asked for, while the last is still fresh enough to use.
+	if [ -z "${YT[$id]["pq"]-}" ] && ! { yt_pagefresh "$id" && [ $((now - YT[$id]["pat"])) -lt 200 ]; }; then
+		YT[$id]["pq"] := web evask "${YT[$id]["pt"]}" "$YT_PJS" 2> /dev/null || return 1
+		YT[$id]["pqat"]=$now
+		YT[$id]["pqv"]="${YT[$id]["pt"]} ${YT[$id]["vid"]} ${YT[$id]["gen"]:-0}"
+	fi
+	yt_pagefresh "$id"
+}
+
+# An answer the page gave, into YTP, as of AT: 1 when it is not about the
+# video playing (right after a go the one before is still there), and then a
+# page that stays on another video is YouTube moving on by itself, which
+# yt_tick follows rather than showing the old video's clock for ever.
+fn yt_pagetake(int id, js, at) {
+	local nv
+
 	[ -n "$js" ] || return 1
 	YTP=()
 	json parse YTP <<< "$js" 2> /dev/null || return 1
-	# The page asked is the video's own: right after a go the one before is
-	# still there, and what it says is about another video.
 	case ${YTP["u"]} in
 	*"v=${YT[$id]["vid"]}"*) YT[$id]["ofid"]= ;;
 	*)
-		# A page that stays on another video is YouTube moving on by itself, which
-		# yt_tick follows rather than showing the old video's clock for ever.
 		nv=${YTP["u"]#*v=}
 		nv=${nv%%[&#]*}
 		if [ "$nv" != "${YTP["u"]}" ] && [ -n "$nv" ] && [ "$nv" != "${YT[$id]["ofid"]}" ]; then
@@ -605,12 +664,34 @@ fn yt_page(int id) {
 			YT[$id]["ofat"]=$EPOCHSECONDS
 		fi
 		YTP=()
+		[ "$YTPID" = "$id" ] && YTPID=
 		return 1 ;;
 	esac
-	YT[$id]["pat"]=$now
+	YT[$id]["pat"]=$at
 	YTPID=$id
 	YT[$id]["lpos"]=${YTP["t"]}
 	return 0
+}
+
+# Whether YTP holds an answer to rely on now (yt_page's guard), asking nothing.
+fn yt_pagefresh(int id) {
+	local now
+
+	yt_has evask || { [ "$YTPID" = "$id" ] && [ -n "${YT[$id]["pat"]}" ]; return; }
+	[ "$YTPID" = "$id" ] && [ -n "${YT[$id]["pat"]}" ] || return 1
+	[ "${YT[$id]["pvid"]}" = "${YT[$id]["vid"]}" ] || return 1
+	[ "${YT[$id]["pgen"]}" = "${YT[$id]["gen"]:-0}" ] || return 1
+	now=${EPOCHREALTIME/./}
+	now=${now:0:-3}
+	[ $((now - YT[$id]["pat"])) -lt 2000 ]
+}
+
+# Whether YTP is at least this window's last answer about the video playing:
+# enough for the clock and the bar, never for a decision. Where the engine
+# waits for answers, only a fresh one counts, as it always has.
+fn yt_pageknown(int id) {
+	yt_has evask || return 1
+	[ "$YTPID" = "$id" ] && [ -n "${YTP["st"]}" ] && [ "${YT[$id]["pvid"]}" = "${YT[$id]["vid"]}" ]
 }
 
 # What the player reports, into YTI: the position and length, paused or
@@ -640,7 +721,7 @@ fn yt_info(int id) {
 		return 0
 	fi
 	[ -n "${YT[$id]["pt"]}" ] || return 0
-	yt_page "$id" || return 0
+	yt_page "$id" || yt_pageknown "$id" || return 0
 	YTI["pos"]=${YTP["t"]}
 	YTI["paused"]=${YTP["pa"]:-0}
 	YTI["ended"]=${YTP["en"]:-0}
@@ -686,7 +767,7 @@ fn yt_adopt(int id, vid) {
 	YT[$id]["resume"]=
 	YT[$id]["upause"]=
 	YT[$id]["efr"]=
-	YT[$id]["pat"]=
+	yt_pagestale "$id"
 	YT[$id]["sat"]=
 	YT[$id]["ofid"]=
 	YT[$id]["noauto"]=
@@ -767,7 +848,7 @@ fn yt_tick(int id) {
 		if [ "${w[5]}" = 1 ]; then
 			YT[$id]["fed"]=
 			tm=0
-			yt_page "$id" && tm=${YTP["t"]}
+			yt_page "$id" now && tm=${YTP["t"]}
 			media seek "$p" "$tm"
 		elif [ "${w[1]:-0}" -gt 0 ] || [ "${w[3]:-0}" -gt 0 ]; then
 			YT[$id]["fed"]=1
@@ -791,6 +872,10 @@ fn yt_tick(int id) {
 		YT[$id]["resume"]=
 		dt_notep low "Taken up at %s, where it was left" "$m"
 	fi
+	# Asked without waiting, the page is asked every tick, so that a look at
+	# it (yt_watch, the end) finds an answer about now: with the media player
+	# as the clock nothing else here asks the page.
+	yt_has evask && [ "${YT[$id]["state"]}" = playing ] && yt_page "$id" > /dev/null
 	if [ "${YT[$id]["state"]}" = playing ] &&
 	   [ $((EPOCHSECONDS - ${YT[$id]["chk"]:-0})) -ge 3 ]; then
 		YT[$id]["chk"]=$EPOCHSECONDS
@@ -804,7 +889,11 @@ fn yt_tick(int id) {
 		# length and no frame has come for two.
 		e=0
 		[ "${YTI["ended"]}" = 1 ] && e=1
-		if yt_tap; then
+		if yt_has evask && ! yt_tap && ! yt_pagefresh "$id"; then
+			# Asked without waiting, the bar may be showing the last answer
+			# known: the end is decided only on one that is about now.
+			e=0
+		elif yt_tap; then
 			# The media player's own clock: at the length is the end.
 			[ "${m:-0}" -gt 0 ] && [ "${YTI["pos"]%.*}" -ge "$m" ] && e=1
 		elif [ "$e" = 0 ] && [ "${m:-0}" -gt 0 ] && [ "${YTI["pos"]%.*}" -ge $((m - 1)) ]; then
@@ -815,6 +904,11 @@ fn yt_tick(int id) {
 				e=1
 			fi
 		fi
+		# Not in a video's first seconds: after a load, or after following the
+		# page on to the next video, the media player's clock is still the
+		# last video's until the page's new stream reaches it, and at the end
+		# of a clip that read as this one having ended too.
+		[ $((EPOCHSECONDS - ${YT[$id]["since"]:-0})) -lt 3 ] && e=0
 		if [ "$e" = 1 ]; then
 			yt_histput "$id" "${YT[$id]["dur"]}"
 			YT[$id]["state"]=ended
@@ -857,13 +951,20 @@ fn yt_watch(int id) {
 	[ -n "${YT[$id]["upause"]}" ] && return 0
 	yt_info "$id"
 	yt_page "$id" || return 0
+	# An answer is acted on once: read without waiting, the same one can
+	# still be the newest at the next look, and counting it twice would load
+	# the video again for one stop.
+	if yt_has evask; then
+		[ "${YT[$id]["wseq"]-}" = "${YT[$id]["pseq"]}" ] && return 0
+		YT[$id]["wseq"]=${YT[$id]["pseq"]}
+	fi
 	if [ "${YTP["e"]}" = 1 ]; then
 		yt_recover "$id" "${YTI["pos"]%.*}"
 	elif [ "${YTP["pa"]}" = 1 ] && [ "${YTP["en"]}" != 1 ] && [ "${YTI["pos"]%.*}" -le 3 ]; then
 		# Paused at the very start, and nobody here paused it: a play() the
 		# page turned down before it had anything to play. Asked again.
 		yt_send "${YT[$id]["pt"]}" 'document.getElementById("movie_player").playVideo()'
-		YT[$id]["pat"]=
+		yt_pagestale "$id"
 	elif [ "${YTP["st"]}" = -1 ] && [ "${YTI["pos"]%.*}" -gt 3 ]; then
 		YT[$id]["bad"]=$(( ${YT[$id]["bad"]:-0} + 1 ))
 		[ "${YT[$id]["bad"]}" -ge 2 ] && yt_recover "$id" "${YTI["pos"]%.*}"
@@ -897,7 +998,7 @@ fn yt_recover(int id, int pos) {
 	fi
 	YT[$id]["state"]=loading
 	YT[$id]["since"]=$EPOCHSECONDS
-	YT[$id]["pat"]=
+	yt_pagestale "$id"
 	YT[$id]["noauto"]=
 	YT[$id]["nan"]=0
 	YT[$id]["ofid"]=
@@ -910,9 +1011,16 @@ fn yt_toggle(int id) {
 	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]}
 
 	[ -n "$p" ] || return 0
-	YT[$id]["pat"]=
+	yt_pagestale "$id"
 	yt_info "$id"
-	if [ "${YTI["paused"]}" = 1 ]; then
+	local pz=${YTI["paused"]}
+	# No answer since the last command (asked, not waited for): this app's own
+	# last word on it decides, so a quick second press undoes the first.
+	if yt_has evask && ! yt_pagefresh "$id"; then
+		pz=0
+		[ -n "${YT[$id]["upause"]}" ] && pz=1
+	fi
+	if [ "$pz" = 1 ]; then
 		YT[$id]["upause"]=
 		yt_tap && media play "$p"
 		yt_send "$t" 'document.getElementById("movie_player").playVideo()'
@@ -922,7 +1030,7 @@ fn yt_toggle(int id) {
 		yt_send "$t" 'document.getElementById("movie_player").pauseVideo()'
 		yt_histput "$id"
 	fi
-	YT[$id]["pat"]=
+	yt_pagestale "$id"
 }
 
 # Go to a time: YouTube's player sent there.
@@ -930,7 +1038,7 @@ fn yt_seek(int id, to) {
 	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]} d
 
 	[ -n "$p" ] || return 0
-	YT[$id]["pat"]=
+	yt_pagestale "$id"
 	yt_info "$id"
 	case $to in
 	+* | -*) to=$(( ${YTI["pos"]%.*} + to )) ;;
@@ -945,7 +1053,7 @@ fn yt_seek(int id, to) {
 		web tapseek "$t" > /dev/null 2>&1
 	fi
 	yt_send "$t" "document.getElementById(\"movie_player\").seekTo($to,true)"
-	YT[$id]["pat"]=
+	yt_pagestale "$id"
 }
 
 # --- the window -----------------------------------------------------------
@@ -1403,7 +1511,7 @@ fn youtube_key(int id, key) {
 				yt_send "${YT[$id]["pt"]}" "(function(){var p=document.getElementById(\"movie_player\");if(p&&p.setVolume)p.setVolume($v);var e=document.querySelector(\"video\");if(e)e.volume=$v/100})()"
 			fi
 			YT[$id]["vol"]=$v
-			YT[$id]["pat"]=
+			yt_pagestale "$id"
 			return 0
 			;;
 		n) yt_next "$id" 1; return 0 ;;
@@ -1899,7 +2007,7 @@ fn yt_captions(int id = 0) {
 	w := yt_ccword
 	[ -n "${YT[$id]["pt"]}" ] && [ -n "${YT[$id]["p"]}" ] &&
 		yt_send "${YT[$id]["pt"]}" "(function(){var p=document.getElementById(\"movie_player\");try{p.${w}Module(\"captions\")}catch(e){}})()"
-	YT[$id]["pat"]=
+	yt_pagestale "$id"
 	dt_want 10
 }
 

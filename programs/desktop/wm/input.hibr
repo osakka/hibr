@@ -1037,9 +1037,13 @@ fn dt_event(k) {
 	# Anything else done puts a tooltip away until the pointer moves on.
 	DT_TIPTXT=
 	DT_NOTEWIN=
+	# With a modifier held a report is `mouse alt-drag ...`, and it is no
+	# less a drag: missing it made every Alt-drag step a frame of its own,
+	# so a solid move crawled behind the mouse where a plain one kept up
+	# (Gitea #414).
 	case $k in
-	"mouse drag "*) DT_LASTDRAG=1; DT_LASTMOVE=1 ;;
-	"mouse wheel"*) DT_LASTDRAG=0; DT_LASTMOVE=1 ;;
+	"mouse drag "* | "mouse "*-drag" "*) DT_LASTDRAG=1; DT_LASTMOVE=1 ;;
+	"mouse wheel"* | "mouse "*-wheel*) DT_LASTDRAG=0; DT_LASTMOVE=1 ;;
 	*) DT_LASTDRAG=0; DT_LASTMOVE=0 ;;
 	esac
 	if [ -n "$DT_KEYCAP" ]; then

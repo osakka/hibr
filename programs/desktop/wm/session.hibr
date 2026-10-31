@@ -539,9 +539,11 @@ dt_tickers() {
 		keep+=("$f")
 		ap := dt_tickowner "$f"
 		[ "$ap" = - ] && ap=
+		DT_WHO=$f
 		t0=${EPOCHREALTIME/./}
 		"$f"
 		t=$((${EPOCHREALTIME/./} - t0))
+		DT_WHO=
 		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "$f" "$t" "$ap"
 	done
 	[ "${#keep[@]}" = "${#DT_TICKERS[@]}" ] || DT_TICKERS=("${keep[@]}")
@@ -556,10 +558,17 @@ dt_tickers() {
 # soonest of every ask in a frame wins; anything that shows the time has
 # to ask for its next change, or it stops changing.
 DT_WANT=
+DT_WANTBY=
+# The callback running now, by the name it is timed under, for DT_WANTBY.
+DT_WHO=
 
+# DT_WANTBY keeps who asked for the soonest frame -- the callback running
+# when it was asked (DT_WHO), or the desktop -- so `desktop ctl stats` can
+# say which of them each timed wake was for (woke).
 fn dt_want(int ms) {
 	if [ -z "$DT_WANT" ] || [ "$ms" -lt "$DT_WANT" ]; then
 		DT_WANT=$ms
+		DT_WANTBY=${DT_WHO:-desktop}
 	fi
 }
 
@@ -723,6 +732,7 @@ fn dt_mousecheck() {
 
 dt_run() {
 	local k rsz=0 last now pk= skipn=0 frames=0 lastdraw=0 t0 hq lastper=0 nowu hold
+	local wst=0 wfor= wby= wk
 
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
@@ -802,7 +812,9 @@ dt_run() {
 				   [ "$hold" -gt 0 ] &&
 				   [ $((now - lastdraw)) -lt "$hold" ]; then
 					dt_drain
+					DT_WHO=held
 					dt_want $((hold - now + lastdraw))
+					DT_WHO=
 					# Drained, so wait out the rest of the
 					# window without listening to them: a
 					# program writing a hundred times a
@@ -856,6 +868,7 @@ dt_run() {
 			k=$((k + DT_INBASE))
 			printf '\e]7777;idle;%s;%s\a' "$k" "$frames"
 		fi
+		[ -n "$DT_STATON" ] && { wst=${EPOCHREALTIME/./}; wfor=$DT_WANT; wby=$DT_WANTBY; }
 		if [ "$rsz" = 1 ]; then
 			k := console key 80
 		elif [ -n "$DT_QWAIT" ] || [ -n "$DT_OLON" ]; then
@@ -877,6 +890,19 @@ dt_run() {
 		DT_QWAIT=
 		DT_STAT["wakes"]=$((${DT_STAT["wakes"]:-0} + 1))
 		[ -n "$k" ] && DT_STAT["events"]=$((${DT_STAT["events"]:-0} + 1))
+		# Why it woke: a key or report, a timer -- named for whoever
+		# asked for the soonest frame -- or something watched being
+		# ready, a program's output or the browser's pipe.
+		if [ -n "$DT_STATON" ]; then
+			if [ -n "$k" ]; then
+				wk=input
+			elif [ -n "$wfor" ] && [ $(((${EPOCHREALTIME/./} - wst) / 1000)) -ge $((wfor - 2)) ]; then
+				wk="timer:$wby"
+			else
+				wk=io
+			fi
+			DT_STAT["w:$wk"]=$((${DT_STAT["w:$wk"]:-0} + 1))
+		fi
 		[ -n "$k" ] && pk=$k
 		if console resizing; then
 			rsz=1

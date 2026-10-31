@@ -139,10 +139,12 @@ fn dt_appcall(int id, cb, ...args) {
 	local ap=${DT[$id]["app"]} t0 t st
 
 	[ -n "$cb" ] || return 1
+	DT_WHO="input:${ap:-bare}"
 	t0=${EPOCHREALTIME/./}
 	"$cb" "$id" "${args[@]}"
 	st=$?
 	t=$((${EPOCHREALTIME/./} - t0))
+	DT_WHO=
 	[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "input:${ap:-bare}" "$t" "$ap"
 	return "$st"
 }
@@ -154,10 +156,12 @@ fn dt_appget(int id, cb, ...args) {
 	local ap=${DT[$id]["app"]} t0 t rv
 
 	[ -n "$cb" ] || return 1
+	DT_WHO="input:${ap:-bare}"
 	t0=${EPOCHREALTIME/./}
 	"$cb" "$id" "${args[@]}"
 	rv=$RET
 	t=$((${EPOCHREALTIME/./} - t0))
+	DT_WHO=
 	[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "input:${ap:-bare}" "$t" "$ap"
 	ret "$rv"
 }

@@ -643,6 +643,27 @@ check("...and leaves the window where the last report put it",
 t.quit(b"qy", 1.0)
 os.unlink(path)
 
+# And the same with Alt held (Gitea #414): a modifier drag reports as
+# `mouse alt-drag ...`, which the drag test once missed, so each report was
+# a frame of its own and the window crawled after an Alt-drag where it kept
+# up with a plain one. Alt and a press in a window's body drags the window;
+# solid, the owner's own setting, since an outline draws no frames at all.
+path = scratch("desktop-altburst.hibr")
+open(path, "w").write("%s. %s\nDT_MOVEMODE=solid\ndt_open\n%s\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, ONE))
+t = Term(path, rows=ROWS, cols=COLS, settle=0.6)
+f0 = t.frames()
+burst = press(8, 24, 8)
+for i in range(1, 101):
+    burst += drag(8 + i % 8, 24 + i % 40, 8)
+burst += release(8, 64, 8)
+t.send(burst)
+f1 = t.frames()
+check("a burst of a hundred Alt-drag reports draws a handful of frames too",
+      0 < f1 - f0 <= 5, "%d frames" % (f1 - f0))
+t.quit(b"qy", 1.0)
+os.unlink(path)
+
 sc, _ = run(ONE, [press(6, 20), drag(9, 24), release(9, 24)])
 check("dragging the title bar moves the window",
       sc.find("┤ Hello ├") == (9, 16), sc)
@@ -4914,6 +4935,13 @@ check("and a read counts the frames and wakes since, the CPU, and each ticker's 
 check("and each entry carries its longest single run, never less than its average",
       tks and all("max_ms" in v and v["max_ms"] + 0.1 >= v.get("ms", 0) / max(v.get("runs", 1), 1)
                   for v in tks.values()) and "paused" not in st, st)
+# And why (0.99.405): what ended each wait, and why each window was drawn
+# rather than left -- the Files window was moved, so it was drawn for that.
+wk, dw = st.get("woke", {}), st.get("drawn_why", {})
+check("and says what woke each wait and why each window was drawn",
+      isinstance(wk, dict) and sum(wk.values()) >= 1 and
+      all(k in ("input", "io") or k.startswith("timer:") for k in wk) and
+      isinstance(dw, dict) and any(k.startswith("files:") for k in dw), st)
 rc, st = ctl("stats", "stop")
 check("and stop ends the timing, the counts kept",
       rc == 0 and st.get("timing") is False and st.get("frames", 0) >= 1, st)
@@ -8535,4 +8563,4 @@ check("and the Window menu has Full Screen just under Zoom",
       s2.find("Zoom") is not None and
       s2.find("Full Screen")[0] == s2.find("Zoom")[0] + 1, (wcol, s2))
 
-report(916)
+report(918)

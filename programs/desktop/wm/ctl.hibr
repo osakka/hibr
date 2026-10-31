@@ -346,6 +346,7 @@ dt_statcpu() {
 DT_STATC0 := dt_statcpu
 fn dt_ctlstats(reset = "", stop = "") {
 	local now el c self kids s0 k0 pct k nm tk= rd= v cs= ds= dl dnm db df mx
+	local wo= yw=
 
 	if [ "$reset" = true ]; then
 		for k in "${!DT_STAT[@]}"; do
@@ -383,6 +384,14 @@ fn dt_ctlstats(reset = "", stop = "") {
 			nm := dt_jstr "${k#r:}"
 			rd+="${rd:+,}$nm:$v"
 			;;
+		w:*)
+			nm := dt_jstr "${k#w:}"
+			wo+="${wo:+,}$nm:$v"
+			;;
+		y:*)
+			nm := dt_jstr "${k#y:}"
+			yw+="${yw:+,}$nm:$v"
+			;;
 		esac
 	done
 	# What reached each display (Gitea #353): the console's own flushes,
@@ -399,7 +408,7 @@ fn dt_ctlstats(reset = "", stop = "") {
 	fi
 	v=false
 	[ -n "$DT_STATON" ] && v=true
-	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"tickers\":{$tk},\"console_bytes\":${cs:-0},\"displays\":[$ds],\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
+	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"woke\":{$wo},\"drawn_why\":{$yw},\"tickers\":{$tk},\"console_bytes\":${cs:-0},\"displays\":[$ds],\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
 }
 
 dt_ctlsession() {

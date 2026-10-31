@@ -136,17 +136,21 @@ fn dt_btnat(int id, int c) {
 # tests/desktop.py takes the same session both ways and compares the screen
 # cell for cell. An app with no _dirty is always redrawn, so this can only
 # ever be wrong for an app that went out of its way to say otherwise.
+DT_WHY=
+# DT_WHY says which answer it gave, for `desktop ctl stats` (drawn_why):
+# the reason every window was drawn rather than left, counted per app.
 fn dt_clean(int id) {
 	local ap=${DT[$id]["app"]}
 
-	[ "$DT_FORCEDRAW" = 1 ] && return 1
-	[ -n "$DT_FORCEONCE" ] && return 1
-	case $DT_FORCEWIN in *" $id "*) return 1 ;; esac
-	[ -n "$ap" ] || return 1
-	dt_hotmoved "$id" && return 1
-	case " $DT_ALONE " in *" $id "*) ;; *) return 1 ;; esac
-	dt_has "${ap}_dirty" || return 1
-	"${ap}_dirty" "$id" && return 1
+	[ "$DT_FORCEDRAW" = 1 ] && { DT_WHY=forcedraw; return 1; }
+	[ -n "$DT_FORCEONCE" ] && { DT_WHY="full:${DT_FORCEBY:-other}"; return 1; }
+	case $DT_FORCEWIN in *" $id "*) DT_WHY=moved; return 1 ;; esac
+	[ -n "$ap" ] || { DT_WHY=noapp; return 1; }
+	dt_hotmoved "$id" && { DT_WHY=hover; return 1; }
+	case " $DT_ALONE " in *" $id "*) ;; *) DT_WHY=overlap; return 1 ;; esac
+	dt_has "${ap}_dirty" || { DT_WHY=nodirty; return 1; }
+	"${ap}_dirty" "$id" && { DT_WHY=dirty; return 1; }
+	DT_WHY=left
 	return 0
 }
 

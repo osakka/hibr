@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.99.405
+
+**An Alt-drag keeps up with the mouse again** (Gitea #414). A report with a
+modifier held arrives as `mouse alt-drag ...`, and the frame loop knew a
+drag only as `mouse drag ...`, so with windows moved solid every Alt-drag
+step was a frame of its own and the window crawled behind the pointer --
+"dead slow", where a plain drag was crisp. A burst of a hundred Alt-drag
+reports now draws a handful of frames, as a plain one does; a modifier
+wheel is matched the same way.
+
+**`desktop ctl stats` says why** (Gitea #418). Two new fields, while timing
+is on: `woke`, what ended each wait -- a key or report (`input`), something
+watched being ready (`io`), or a timer, named for whoever asked for the
+soonest frame (`timer:win:tasks`, `timer:held`, `timer:desktop`, a ticker);
+and `drawn_why`, for each app why its windows were drawn rather than left as
+they were (`left`, `dirty`, `nodirty`, `overlap`, `hover`, `moved`,
+`full:arranged`, `full:overdrew`, `full:popup`, `full:other`). The owner's
+idle desktop draws about nine frames a second with every window redrawn on
+each; one reading of these names the cause rather than a guess. Costs
+nothing while timing is off beyond a few assignments on paths already
+taken.
+
+YouTube 3.18, the browser session's: a new stream no longer seeks to where
+the previous video was (its suite failed that one time in two).
+
 ## 0.99.404
 
 **`PIPESTATUS` is set**, as in bash: hibr only ever listed the name, so
