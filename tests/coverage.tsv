@@ -1,15 +1,17 @@
-# taken at 07bd39cbc9b8b731b777ee2b4f0758768da1e714; python3 tests/covmap.py --take
+# taken at 79187e219eade60802f7646fe72d0505bf2dbab4; python3 tests/covmap.py --take
 aa_apply	apps_panel
 aa_checkall	desktop_pictures apps_panel apps_reach apps_core uifuzz scopes
-aa_checked	desktop_pictures apps_panel uifuzz
+aa_checked	apps_panel uifuzz
 aa_choose	apps_panel
-aa_defname	desktop_pictures apps_panel apps_reach apps_core uifuzz scopes
+aa_defname	apps_panel uifuzz scopes
 aa_done	apps_panel
 aa_group	apps_panel
 aa_label	apps_panel
 aa_load	desktop_pictures apps_panel apps_reach apps_core uifuzz scopes
-aa_now	desktop_pictures apps_panel apps_reach apps_core uifuzz scopes
+aa_loaded	desktop_pictures apps_panel apps_reach apps_core uifuzz scopes
+aa_now	apps_panel uifuzz scopes
 aa_pend	apps_panel
+aa_read	desktop_pictures apps_panel apps_reach apps_core uifuzz scopes
 aa_run	apps_panel
 ab_dialog	apps_panel
 ab_file	desktop_pictures apps_panel apps_reach apps_core scopes
@@ -90,10 +92,12 @@ bricks_menus	apps_more uifuzz scopes
 bricks_open	apps_more uifuzz scopes
 browser_click	web
 browser_close	web
+browser_dirty	web
 browser_draw	web
 browser_idle	web
 browser_key	web
 browser_menus	web
+browser_mouse	web
 browser_open	web
 browser_scroll	web
 browserset_drop	apps_panel
@@ -113,10 +117,12 @@ btpair_open	bt
 bw_addr	web
 bw_apply	web
 bw_appname	web
+bw_atpoll	web
 bw_bar	web
 bw_body	web
 bw_cfg	web
 bw_closetab	web
+bw_drawkey	web
 bw_drawmode	apps_panel web
 bw_drawnname	apps_panel
 bw_editaddr	web
@@ -159,20 +165,20 @@ cat_act	apps_more
 cat_acted	apps_more
 cat_at	apps_more scopes
 cat_btns	apps_more scopes
-cat_filter	apps_more scopes
-cat_first	apps_more scopes
+cat_filter	apps_more
+cat_first	apps_more
 cat_fold	apps_more
 cat_go	apps_more
 cat_install	appmgr
 cat_job	apps_more scopes
-cat_jobdone	apps_more scopes
-cat_kindname	apps_more scopes
+cat_jobdone	apps_more
+cat_kindname	apps_more
 cat_kindone	apps_more appmgr
-cat_kindsfrom	apps_more scopes
-cat_loaded	apps_more scopes
+cat_kindsfrom	apps_more
+cat_loaded	apps_more
 cat_memrows	apps_more
 cat_memsay	apps_more
-cat_out	apps_more scopes
+cat_out	apps_more
 cat_reload	apps_more scopes
 cat_remove	appmgr
 cat_right	apps_more scopes
@@ -193,11 +199,11 @@ cedit_draw	calapp
 cedit_key	calapp
 cedit_open	calapp
 cedit_show	calapp
-ck_colon	desktop_windows scopes youtube
-ck_digit	desktop_windows scopes youtube
-ck_width	desktop_windows scopes youtube
-classicmac_frame	scopes
-classicmac_start	scopes
+ck_colon	desktop_windows desktop_pictures scopes youtube
+ck_digit	desktop_windows desktop_pictures scopes youtube
+ck_width	desktop_windows desktop_pictures scopes youtube
+classicmac_frame	desktop_windows scopes
+classicmac_start	desktop_windows scopes
 clipboard_draw	apps_reach scopes
 clipboard_key	apps_reach
 clipboard_menus	apps_reach scopes
@@ -207,10 +213,10 @@ cliphist_drop	apps_panel
 cliphist_rows	desktop_pictures apps_panel apps_reach uifuzz
 clock_copy	apps_reach
 clock_draw	desktop_windows desktop_pictures apps_panel apps_reach apps_core apps_more uifuzz scopes
-clock_frame	desktop_windows scopes youtube
-clock_start	desktop_windows scopes youtube
-cm_draw	scopes
-cm_screen	scopes
+clock_frame	desktop_windows desktop_pictures scopes youtube
+clock_start	desktop_windows desktop_pictures scopes youtube
+cm_draw	desktop_windows scopes
+cm_screen	desktop_windows scopes
 contacts_copy	contacts
 contacts_detail	contacts
 contacts_detailm	contacts
@@ -305,6 +311,7 @@ cp_set_iconbg	apps_panel
 cp_set_imgcomp	apps_panel
 cp_set_imgdetail	apps_panel
 cp_set_imgedits	apps_panel
+cp_set_imgfd	apps_panel
 cp_set_imgmode	apps_panel
 cp_set_lockwhere	apps_panel
 cp_set_mailbodies	apps_panel
@@ -542,8 +549,10 @@ dt_alone	desktop_basics desktop_windows desktop_pictures desktop_session apps_pa
 dt_altclick	apps_more
 dt_app	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp appmgr xscreen shots
 dt_appaction	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more scopes dav mermaid
+dt_appcall	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz mailapp contacts calapp web dav youtube sound net bt vault mermaid pdfapp xscreen
 dt_appfile	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault mermaid pdfapp xscreen
 dt_appfiles	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault mermaid pdfapp xscreen
+dt_appget	apps_panel apps_reach apps_core apps_more uifuzz mailapp contacts calapp dav pdfapp
 dt_appkeyed	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_write uifuzz
 dt_appline	desktop_basics desktop_windows desktop_pictures desktop_session scopes mermaid
 dt_appmdraw	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
@@ -569,7 +578,7 @@ dt_away	desktop_basics desktop_windows desktop_pictures desktop_session apps_pan
 dt_band	desktop_windows apps_more
 dt_banddraw	desktop_windows
 dt_bar	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
-dt_barcontext	desktop_basics
+dt_barcontext	desktop_basics sound
 dt_barhook	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp appmgr xscreen shots
 dt_barido	desktop_pictures desktop_session sound net bt
 dt_baridraw	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp appmgr xscreen shots
@@ -631,9 +640,11 @@ dt_btpopopen	bt
 dt_btpower	bt
 dt_btq	bt
 dt_btread	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
+dt_btreaddone	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
+dt_btreadnow	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
 dt_btscan	bt
 dt_btstart	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
-dt_btstop	desktop_pictures desktop_session apps_panel apps_reach apps_core bt
+dt_btstop	desktop_pictures desktop_session apps_panel apps_reach apps_core
 dt_bttick	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
 dt_bttoggle	bt
 dt_button	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp dav youtube net bt vault shots
@@ -646,6 +657,7 @@ dt_changed	desktop_windows desktop_pictures apps_reach apps_office apps_write ap
 dt_check	desktop_basics desktop_pictures desktop_session apps_panel apps_reach apps_core apps_more uifuzz scopes contacts dav youtube sound net bt vault
 dt_checkmark	desktop_basics desktop_pictures desktop_session apps_panel apps_reach apps_core apps_more uifuzz scopes contacts dav youtube sound net bt vault
 dt_checkstyle	desktop_basics desktop_pictures desktop_session apps_panel apps_reach apps_core apps_more uifuzz scopes contacts dav youtube sound net bt vault
+dt_chromesig	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes
 dt_clean	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_clipdel	apps_reach
 dt_clipkeep	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_core apps_more uifuzz mailapp contacts calapp dav pdfapp
@@ -658,7 +670,7 @@ dt_clipuse	apps_reach
 dt_clockhook	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_clockpress	desktop_pictures
 dt_clocktext	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
-dt_close	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more mailapp contacts calapp bt shots
+dt_close	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more mailapp contacts calapp shots
 dt_close_focused	desktop_basics desktop_pictures apps_write apps_core mailapp mermaid
 dt_closereq	desktop_basics desktop_windows desktop_pictures desktop_session apps_reach apps_write apps_core mailapp mermaid
 dt_colours	apps_panel
@@ -667,6 +679,7 @@ dt_confirm_draw	desktop_basics desktop_windows desktop_pictures desktop_session 
 dt_confirm_geom	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more mailapp contacts calapp dav youtube net bt shots
 dt_confirm_hit	desktop_windows
 dt_confirm_key	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more mailapp contacts calapp dav net bt shots
+dt_contentonly	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_context_open	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_core apps_more uifuzz mailapp youtube sound net bt
 dt_copyadd	apps_more
 dt_copyanswer	apps_more
@@ -678,7 +691,7 @@ dt_copyleft	apps_more
 dt_copystop	apps_more
 dt_copytitle	apps_more
 dt_cornerwhere	desktop_basics desktop_windows desktop_session
-dt_ctlclose	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more mailapp contacts calapp bt shots
+dt_ctlclose	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more mailapp contacts calapp shots
 dt_ctldisplays	desktop_session
 dt_ctldlist	desktop_session
 dt_ctlerr	desktop_session
@@ -818,7 +831,7 @@ dt_hover	desktop_pictures desktop_session apps_panel apps_more contacts
 dt_hoveron	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_hscrollbar	desktop_windows desktop_pictures desktop_session apps_reach uifuzz scopes
 dt_hwoffer	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
-dt_hwstop	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more mailapp contacts calapp bt shots
+dt_hwstop	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more mailapp contacts calapp shots
 dt_iconadd	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_iconat	desktop_windows desktop_pictures desktop_session apps_panel
 dt_iconband	desktop_windows
@@ -846,6 +859,7 @@ dt_iconset	desktop_windows
 dt_identify	desktop_session
 dt_identify_draw	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_idle	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
+dt_idlecall	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes mailapp calapp web youtube xscreen
 dt_ids	desktop_basics desktop_windows desktop_pictures desktop_session apps_reach apps_office apps_core uifuzz scopes web
 dt_imggfx	desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_core apps_more uifuzz scopes web youtube holdpix pdfapp xscreen
 dt_imgm	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz holdpix pdfapp shots
@@ -857,14 +871,18 @@ dt_isbundle	apps_reach
 dt_isdbl	desktop_windows uifuzz
 dt_isremote	apps_more dav
 dt_item	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
-dt_job	desktop_basics desktop_pictures apps_panel apps_reach apps_core apps_more uifuzz scopes mailapp contacts calapp dav net bt vault
-dt_jobdir	desktop_basics desktop_pictures apps_panel apps_reach apps_core apps_more uifuzz scopes mailapp contacts calapp dav net bt vault
-dt_jobfile	desktop_basics desktop_pictures apps_panel apps_more uifuzz scopes dav net bt vault
-dt_joblast	desktop_basics mailapp contacts calapp
+dt_job	desktop_basics desktop_pictures desktop_session apps_panel apps_reach apps_office apps_core apps_more uifuzz scopes mailapp contacts calapp dav sound net bt vault
+dt_jobdir	desktop_basics desktop_pictures desktop_session apps_panel apps_reach apps_office apps_core apps_more uifuzz scopes mailapp contacts calapp dav sound net bt vault
+dt_jobfile	desktop_basics desktop_pictures desktop_session apps_panel apps_reach apps_office apps_core apps_more uifuzz scopes dav sound net bt vault
+dt_joblast	desktop_basics apps_reach mailapp contacts calapp
 dt_jobmerge	net bt
-dt_jobname	desktop_basics desktop_pictures apps_panel apps_reach apps_core apps_more uifuzz scopes mailapp contacts calapp dav net bt vault
+dt_jobname	desktop_basics desktop_pictures desktop_session apps_panel apps_reach apps_office apps_core apps_more uifuzz scopes mailapp contacts calapp dav sound net bt vault
 dt_jobrunning	desktop_basics mailapp contacts calapp
 dt_jobtick	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
+dt_jobvars	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
+dt_jobvarsdone	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
+dt_jobvarsread	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt vault
+dt_jobvarsrun	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt vault
 dt_joinat	desktop_session
 dt_jstr	desktop_windows desktop_session
 dt_keep	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp appmgr xscreen shots
@@ -881,9 +899,8 @@ dt_keymove	apps_panel
 dt_keynav	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_keynorm	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_keyof	desktop_pictures apps_panel scopes
-dt_keyowner	desktop_pictures apps_panel scopes
+dt_keyowner	desktop_pictures apps_panel
 dt_keyset	desktop_pictures apps_panel
-dt_keyshared	desktop_pictures apps_panel scopes
 dt_keyshow	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_keyswap	desktop_pictures desktop_session apps_panel
 dt_keytake	desktop_pictures apps_panel
@@ -918,6 +935,7 @@ dt_menubar	desktop_basics desktop_windows desktop_pictures desktop_session apps_
 dt_menukeys	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_menuplat	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp appmgr xscreen shots
 dt_menus	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
+dt_menustale	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts web youtube sound net bt vault
 dt_mfind	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_mfoot	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_core apps_more uifuzz scopes sound net bt
 dt_mfootdraw	desktop_windows
@@ -934,6 +952,7 @@ dt_mouse	desktop_basics desktop_windows desktop_pictures desktop_session apps_pa
 dt_mousecheck	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_mouseset	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_move	desktop_basics desktop_windows desktop_pictures youtube
+dt_movedonly	desktop_basics desktop_windows desktop_pictures desktop_session apps_core apps_more uifuzz youtube vault xscreen
 dt_movewhere	desktop_basics desktop_windows desktop_pictures desktop_session apps_core apps_more youtube
 dt_movewin	desktop_session
 dt_mpick	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_core apps_more uifuzz scopes sound net bt
@@ -973,13 +992,15 @@ dt_netpwgive	net
 dt_netq	net
 dt_netradio	net
 dt_netread	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
+dt_netreaddone	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
+dt_netreadnow	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
 dt_netrescan	net
 dt_netrule	net
 dt_netruledone	net
 dt_netsplit	net
 dt_netssidof	net
 dt_netstart	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
-dt_netstop	desktop_pictures desktop_session apps_panel apps_reach apps_core bt
+dt_netstop	desktop_pictures desktop_session apps_panel apps_reach apps_core
 dt_nettick	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
 dt_new	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_nhat	desktop_basics desktop_pictures
@@ -1011,7 +1032,7 @@ dt_oloff	desktop_basics desktop_windows
 dt_olshow	desktop_basics desktop_windows desktop_pictures desktop_session apps_core apps_more
 dt_onbar	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt holdpix pdfapp
 dt_ondrop	desktop_windows apps_reach apps_more
-dt_onstop	desktop_windows desktop_session bt
+dt_onstop	desktop_windows desktop_session
 dt_open	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_opencan	desktop_pictures apps_panel apps_reach apps_write apps_more uifuzz scopes pdfapp
 dt_opener	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp appmgr xscreen shots
@@ -1088,7 +1109,7 @@ dt_rscarry	desktop_windows apps_write
 dt_rsclaim	desktop_windows apps_write
 dt_rslog	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_rsorphans	desktop_windows desktop_session apps_write
-dt_rswrite	desktop_windows desktop_pictures desktop_session apps_write bt
+dt_rswrite	desktop_windows desktop_pictures desktop_session apps_write
 dt_run	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_runatstart	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_runhandler	apps_more
@@ -1129,7 +1150,7 @@ dt_searchclear	apps_panel apps_reach apps_core apps_more scopes mailapp contacts
 dt_searchdraw	desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp dav youtube sound net bt pdfapp
 dt_searchfree	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more mailapp contacts calapp web dav net bt vault mermaid xscreen
 dt_searchkey	desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more uifuzz mailapp contacts calapp dav youtube pdfapp
-dt_searchon	apps_more scopes mailapp contacts calapp dav youtube pdfapp
+dt_searchon	apps_more mailapp contacts calapp dav youtube pdfapp
 dt_searchopen	apps_panel apps_more mailapp contacts youtube pdfapp
 dt_searchq	desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes mailapp contacts dav youtube sound net bt pdfapp
 dt_searchrows	desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp dav youtube sound net bt pdfapp
@@ -1153,10 +1174,11 @@ dt_shot_take	desktop_windows apps_reach
 dt_size	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_slidepos	desktop_basics apps_panel uifuzz
 dt_slider	desktop_basics desktop_pictures apps_panel apps_reach uifuzz scopes sound
+dt_slow	desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write scopes web dav youtube sound net bt
 dt_snap	desktop_windows desktop_pictures xscreen
 dt_snap_focused	desktop_windows
 dt_snapcheck	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
-dt_snapdrop	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more mailapp contacts calapp bt shots
+dt_snapdrop	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more mailapp contacts calapp shots
 dt_snapfile	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_snaptake	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_sndacard	sound
@@ -1180,18 +1202,21 @@ dt_sndpct	sound
 dt_sndplist	sound
 dt_sndrcwrite	sound
 dt_sndread	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
+dt_sndreaddone	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
+dt_sndreadnow	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
 dt_sndrow	sound
 dt_sndset	sound
 dt_sndslider	sound
 dt_sndstart	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
 dt_sndstep	sound
-dt_sndstop	desktop_pictures desktop_session apps_panel apps_reach apps_core bt
+dt_sndstop	desktop_pictures desktop_session apps_panel apps_reach apps_core
 dt_sndtick	desktop_pictures desktop_session apps_panel apps_reach apps_core uifuzz scopes sound net bt
 dt_sndvol	sound
 dt_sndwheel	sound
 dt_sndwread	sound
 dt_snpa	sound
 dt_snpw	sound
+dt_spent	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_split	desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes contacts dav youtube sound net bt mermaid
 dt_splitbar	desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes contacts dav youtube sound net bt mermaid
 dt_splitmove	desktop_session apps_panel
@@ -1229,6 +1254,7 @@ dt_textwrap	desktop_basics desktop_windows desktop_pictures desktop_session apps
 dt_ticker	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp appmgr xscreen shots
 dt_tickers	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_tickoff	scopes
+dt_tickowner	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_tile	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_tileat	desktop_windows
 dt_tiled	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
@@ -1242,6 +1268,7 @@ dt_tip_draw	desktop_basics desktop_windows desktop_pictures desktop_session apps
 dt_tipfor	desktop_pictures desktop_session apps_panel apps_more contacts
 dt_title	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes
 dt_titlecontext	desktop_basics desktop_windows desktop_pictures desktop_session apps_reach
+dt_tmark	desktop_session
 dt_toprow	desktop_basics desktop_windows desktop_pictures desktop_session apps_core apps_more youtube
 dt_tput	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp dav vault xscreen
 dt_tr	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
@@ -1250,9 +1277,9 @@ dt_trash1	desktop_windows apps_more
 dt_trashask	desktop_windows
 dt_trashcount	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes mailapp web dav youtube sound net bt holdpix mermaid xscreen
 dt_trashempty	desktop_windows
-dt_treelead	apps_more scopes
-dt_treepre	apps_more scopes
-dt_treespec	desktop_pictures apps_panel apps_more scopes
+dt_treelead	apps_more
+dt_treepre	apps_more
+dt_treespec	desktop_pictures apps_panel apps_more
 dt_trn	desktop_windows apps_more mailapp
 dt_trtitle	desktop_session apps_reach apps_office mailapp contacts calapp
 dt_tstamp	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp appmgr xscreen shots
@@ -1268,9 +1295,14 @@ dt_vwbar	desktop_basics desktop_windows desktop_pictures desktop_session apps_pa
 dt_vwcopy	vault
 dt_vwdialog	vault
 dt_vwdirs	vault
+dt_vwerrs	vault
 dt_vwforget	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
+dt_vwget	vault
+dt_vwjob	vault
+dt_vwjobdone	vault
 dt_vwlist	vault
 dt_vwlock	vault
+dt_vwlockjob	vault
 dt_vwlogin	vault
 dt_vwstate	apps_panel scopes vault
 dt_vwsyncdone	vault
@@ -1299,7 +1331,7 @@ dt_wantclose	desktop_windows desktop_pictures apps_reach apps_core apps_more mai
 dt_wapp	desktop_session uifuzz web
 dt_watchlines	desktop_windows sound net bt
 dt_watchstart	desktop_windows sound net bt
-dt_watchstop	desktop_pictures desktop_session apps_panel apps_reach apps_core bt
+dt_watchstop	desktop_pictures desktop_session apps_panel apps_reach apps_core
 dt_wclear	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_wcol	desktop_basics desktop_pictures desktop_session apps_panel apps_reach uifuzz bt
 dt_wdrop	desktop_basics desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core uifuzz scopes contacts dav youtube sound net bt
@@ -1308,9 +1340,11 @@ dt_wide	desktop_basics desktop_windows desktop_pictures desktop_session apps_pan
 dt_win	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_winbare	desktop_basics apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes
 dt_windisp	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz mailapp contacts calapp dav youtube net bt vault xscreen
+dt_wintimed	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_wintitle	desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more scopes mailapp calapp web dav youtube mermaid pdfapp xscreen
 dt_wpanes	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_wreg	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault mermaid pdfapp shots
+dt_wrows	desktop_session apps_core apps_more uifuzz web net pdfapp
 dt_wsdraw	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel apps_reach apps_office apps_write apps_core apps_more uifuzz scopes mailapp contacts calapp web dav youtube sound net bt vault holdpix mermaid pdfapp xscreen shots
 dt_wsgo	desktop_basics desktop_windows desktop_session apps_core youtube
 dt_wshit	desktop_basics desktop_windows
@@ -1361,6 +1395,8 @@ dts_close	apps_reach
 dts_dialog	apps_reach
 dts_draw	apps_reach
 dts_key	apps_reach
+dts_ntpask	apps_reach
+dts_ntpdone	apps_reach
 dtz_click	apps_reach
 dtz_close	desktop_pictures apps_reach
 dtz_dialog	desktop_pictures apps_reach
@@ -1512,6 +1548,7 @@ ld_method	desktop_windows desktop_session
 lg_as	desktop_windows
 lg_back	desktop_windows
 lg_bidi	desktop_windows
+lg_bound	desktop_windows
 lg_box	desktop_windows
 lg_click	desktop_windows
 lg_colours	desktop_windows
@@ -1550,15 +1587,17 @@ lm_blitask	desktop_pictures apps_panel apps_reach scopes
 lm_blitdone	apps_panel
 lm_blitprobe	apps_panel
 lm_choices	apps_panel
-lm_get	desktop_pictures apps_panel apps_reach scopes
-lm_label	desktop_pictures apps_panel apps_reach scopes
+lm_get	apps_panel scopes
+lm_label	apps_panel scopes
 lm_load	desktop_pictures apps_panel apps_reach scopes
+lm_loaded	desktop_pictures apps_panel apps_reach scopes
 lm_names	apps_panel
 lm_next	apps_panel
 lm_pick	apps_panel
-lm_row	desktop_pictures apps_panel apps_reach scopes
+lm_read	desktop_pictures apps_panel apps_reach scopes
+lm_row	apps_panel scopes
 lm_set	apps_panel
-lm_show	desktop_pictures apps_panel apps_reach scopes
+lm_show	apps_panel scopes
 lm_step	apps_panel
 lm_typed	apps_panel
 lm_value	apps_panel
@@ -1712,10 +1751,10 @@ mt_say	mail mailapp
 mt_try	mail
 mt_upgrades	mail
 mx_reset	scopes
-my_line	desktop_windows desktop_pictures scopes
-my_shape	desktop_windows desktop_pictures scopes
-mystify_frame	desktop_windows desktop_pictures scopes
-mystify_start	desktop_windows desktop_pictures scopes
+my_line	scopes
+my_shape	scopes
+mystify_frame	scopes
+mystify_start	scopes
 nd_do	desktop_pictures
 net_context	net
 net_popdraw	net
@@ -1823,7 +1862,7 @@ pimset_drop	apps_panel
 pimset_rows	apps_panel contacts
 pipes_frame	scopes
 pipes_start	scopes
-pk_busy	desktop_pictures apps_panel apps_reach apps_core uifuzz scopes
+pk_busy	apps_panel uifuzz scopes
 pk_done	apps_panel
 pk_helper	desktop_pictures apps_panel apps_reach scopes
 pk_prompt	apps_panel
@@ -1900,8 +1939,10 @@ sheet_mouse	apps_office
 sheet_open	apps_office scopes
 shortcuts_do	apps_panel
 shortcuts_modlabel	desktop_pictures apps_panel scopes
+shortcuts_owners	desktop_pictures apps_panel scopes
 shortcuts_row	desktop_pictures apps_panel scopes
 shortcuts_rows	desktop_pictures apps_panel scopes
+shortcuts_shared	desktop_pictures apps_panel scopes
 sn_food	apps_write apps_more uifuzz scopes
 sn_new	apps_write apps_more uifuzz scopes
 sn_now	apps_write apps_more uifuzz scopes
@@ -1953,6 +1994,8 @@ ss_picked_export	apps_office
 ss_q	apps_office
 ss_range	apps_office
 ss_recalc	apps_office scopes
+ss_recalcdone	apps_office
+ss_recalcjob	apps_office
 ss_refs	apps_office
 ss_render	apps_office scopes
 ss_retitle	apps_office scopes
@@ -2023,12 +2066,13 @@ tasks_click	apps_reach apps_more
 tasks_cmdline	apps_reach apps_more
 tasks_context	apps_reach apps_more
 tasks_details	apps_reach
+tasks_dirty	desktop_windows apps_panel apps_reach apps_more scopes
 tasks_draw	desktop_windows apps_panel apps_reach apps_more scopes
+tasks_drawkey	desktop_windows apps_panel apps_reach apps_more scopes
 tasks_end	run.sh
 tasks_filtercycle	apps_more
 tasks_filterlabel	apps_more
 tasks_filterset	apps_panel apps_more
-tasks_fullname	desktop_windows apps_panel apps_reach apps_more scopes
 tasks_fulltoggle	run.sh
 tasks_headsort	apps_more
 tasks_human	desktop_windows apps_panel apps_reach apps_more scopes
@@ -2050,8 +2094,6 @@ tasks_sort	desktop_windows apps_panel apps_reach apps_more scopes
 tasks_sortby	apps_more
 tasks_spark	desktop_windows apps_panel apps_reach apps_more scopes
 tasks_sysstat	desktop_windows apps_panel apps_reach apps_more scopes
-tasks_times	desktop_windows apps_panel apps_reach apps_more scopes
-tasks_uidrss	desktop_windows apps_panel apps_reach apps_more scopes
 tasks_wheel	apps_more
 tb_at	apps_more uifuzz
 tb_changed	apps_panel apps_reach apps_write apps_core apps_more uifuzz mailapp mermaid
@@ -2089,13 +2131,14 @@ term_cursorapply	apps_panel apps_core
 term_dirty	desktop_basics desktop_windows desktop_pictures apps_reach apps_write apps_core apps_more scopes
 term_draw	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes
 term_drop	apps_more
-term_idle	desktop_basics desktop_windows desktop_pictures apps_reach apps_write apps_core apps_more uifuzz scopes
+term_idle	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes
 term_isshell	desktop_basics apps_reach apps_core apps_more
 term_key	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_write apps_core apps_more
 term_menus	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_write apps_core apps_more scopes
 term_mouse	apps_reach apps_write apps_core apps_more
 term_mousepx	apps_core
 term_open	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes
+term_paintsall	desktop_basics desktop_windows desktop_pictures apps_panel apps_reach apps_write apps_core apps_more uifuzz scopes
 term_paste	apps_core apps_more
 term_resume	desktop_windows apps_write
 term_selcopy	apps_core
@@ -2132,7 +2175,9 @@ vp_read	apps_panel scopes
 vp_scan	apps_panel scopes
 vwd_close	vault
 vwd_do	vault
+vwd_done	vault
 vwd_draw	vault
+vwd_job	vault
 vwd_key	vault
 vwd_order	vault
 wa_load	desktop_basics desktop_windows desktop_pictures desktop_session apps_panel scopes web mermaid
@@ -2258,6 +2303,7 @@ xss_bool	apps_panel xscreen
 xss_remove	xscreen
 youtube_awake	youtube
 youtube_context	youtube
+youtube_dirty	youtube
 youtube_draw	youtube
 youtube_idle	youtube
 youtube_key	youtube
@@ -2281,6 +2327,7 @@ yt_held	youtube
 yt_histget	youtube
 yt_histput	youtube
 yt_info	youtube
+yt_listkey	youtube
 yt_load	youtube
 yt_mini	youtube
 yt_minikeep	youtube
@@ -2301,6 +2348,7 @@ yt_recover	youtube
 yt_results	youtube
 yt_search	youtube
 yt_seek	youtube
+yt_send	youtube
 yt_setquality	youtube
 yt_startjs_tap	youtube
 yt_step	youtube
