@@ -30,6 +30,8 @@ int ls_bytime(const void *a, const void *b)
 
 	if (x->st.st_mtime != y->st.st_mtime)
 		return x->st.st_mtime < y->st.st_mtime ? 1 : -1;
+	if (HIBR_MTNS(x->st) != HIBR_MTNS(y->st))
+		return HIBR_MTNS(x->st) < HIBR_MTNS(y->st) ? 1 : -1;
 	return strcmp(x->nm, y->nm);
 }
 

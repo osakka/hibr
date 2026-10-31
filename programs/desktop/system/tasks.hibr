@@ -15,7 +15,7 @@ strict
 # CPU and memory, worked out the same way in every window that shows them.
 [ -n "${SY_LIBDONE-}" ] || . "$DT_HERE/lib/sysstat.hibr"
 
-app tasks "What is running, and a way to end one" 1.6
+app tasks "What is running, and a way to end one" 1.7
 # part: control-panel/taskmgr.hibr
 
 # 64 columns rather than the 50 it opened at until 0.99.133: the names are
@@ -260,7 +260,7 @@ fn tasks_kin() {
 		return 0
 	fi
 	TK_PPID=()
-	while IFS= read -r line; do
+	while IFS= read -r line; do # fork: macOS only, where proctab has no reader yet (Gitea #413); Linux returned above
 		read -r pid ppid _ <<< "$line"
 		case $pid in '' | *[!0-9]*) continue ;; esac
 		TK_PPID["$pid"]=$ppid
@@ -349,8 +349,8 @@ fn tasks_scan_ps(int? id = "") {
 	local pid rss pcpu user comm line n=0
 
 	[ "$TK_FILTER" = desktop ] && tasks_kin
-	[ "$TK_FILTER" = mine ] && [ -z "$TK_ME" ] && TK_ME=$(command id -un)
-	while IFS= read -r line; do
+	[ "$TK_FILTER" = mine ] && [ -z "$TK_ME" ] && TK_ME=$(command id -un) # fork: once a desktop, kept in TK_ME
+	while IFS= read -r line; do # fork: macOS only, where proctab has no reader yet (Gitea #413); Linux never comes here
 		read -r pid rss pcpu user comm <<< "$line"
 		case $pid in '' | *[!0-9]*) continue ;; esac
 		case $TK_FILTER in
@@ -376,10 +376,13 @@ fn tasks_scan(int id) {
 	local prevt=${TK_PREV[$id]["t"]}
 	local -A seen
 
-	# uname is a program, not a builtin -- := does nothing for one of
-	# those and its output goes straight to the real terminal, so this
-	# has to be a real command substitution, not :=.
-	[ -z "$TK_OS" ] && TK_OS=$(command uname)
+	if [ -z "$TK_OS" ]; then
+		case ${OSTYPE-} in
+		linux*) TK_OS=Linux ;;
+		darwin*) TK_OS=Darwin ;;
+		*) TK_OS=other ;;
+		esac
+	fi
 	# The table comes from the proctab module in one call: every process's
 	# times, real uid, resident memory and name, the name recovered from
 	# argv[0] where comm cut it short. Read here in the shell it was a few

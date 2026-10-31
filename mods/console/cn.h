@@ -133,6 +133,8 @@ void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o);
 /* kitty.c: a picture as the kitty graphics protocol's own escape, which is an
    object with an id rather than paint, so every one placed is deleted later. */
 unsigned kt_id(void);
+void kt_idload(sh *s);
+void kt_idsave(sh *s);
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 	       unsigned id, long z, int comp, str *o);
 void kt_del(str *o, unsigned id);

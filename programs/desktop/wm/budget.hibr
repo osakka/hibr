@@ -1,0 +1,250 @@
+#!/usr/bin/env hibr
+#
+# budget -- how long the desktop's own code and every app's took, and what
+# is done about an app that holds the desktop too long.
+#
+# Every app runs in the desktop's one process, between frames: a callback
+# that takes a quarter of a second stops every display for a quarter of a
+# second. Task Manager's scan did that once a second for releases and was
+# seen by nobody, because the only timing kept was a total, and 233 ms a
+# second spread over 27 frames reads as 8.7 ms a frame (0.99.399).
+#
+# So every callback the desktop calls -- a ticker, a window's draw, its
+# idle, its key, click, mouse and wheel handlers -- is timed, the same way
+# in every place, through dt_spent:
+#
+#   - the longest single run of each is kept always, beside the total and
+#     the count that `desktop ctl stats` keeps while its timing is on;
+#   - a run longer than DT_SLOWMS (50) is a note in the log for whoever
+#     wrote it, `slow: NAME took N ms`, at most once a minute for each;
+#   - a run longer than DT_HOLDMS (150) is a stall a person sees -- every
+#     display stood still for it -- and is `held: NAME held the desktop N
+#     ms`, which the suites fail on, so a stalling callback cannot ship;
+#   - an app with DT_HOLDN such stalls inside a minute is paused: its
+#     windows show a notice saying what held the desktop and for how long,
+#     its key, click, mouse and wheel handlers and its tickers stop being
+#     called, and Window > Resume puts it back. Its _idle is still called,
+#     or a terminal's program would keep its pty readable and the desktop
+#     would spin. Nothing is cut off half way: a paused app has finished
+#     what it was doing, and simply is not asked to do more.
+#
+# What this cannot do is stop the first slow run: the shell cannot take a
+# callback away mid-way without leaving the app's own state half written,
+# and a module's C cannot be interrupted at all. Slow work belongs in a job
+# (dt_job, wm/jobs.hibr), whose result the next frame reads; ARCHITECTURE.md
+# says so for whoever writes an app.
+#
+# The first mark is advice: a pane drawn for the first time, or a big
+# folder listed once, can take longer than a frame and stall nothing anyone
+# notices. The second is the one that matters: 150 ms is the gap a video
+# shows, and Task Manager's scan held the desktop 224 ms once a second. Both
+# are diagnostics, not choices anybody has to make, so they are constants
+# here rather than Control Panel rows; the suites, which run many desktops
+# at once, double the second and scale it again under the sanitizers.
+
+strict
+
+DT_SLOWMS="${DT_SLOWMS-50}"
+DT_HOLDMS="${DT_HOLDMS-150}"
+DT_HOLDN="${DT_HOLDN-3}"
+# Nanoseconds this process had waited for a processor when the loop last
+# woke, from /proc/<pid>/schedstat (the loop reads it, wm/session.hibr). A
+# callback's stall is its wall time less what the machine kept it waiting
+# since then: waiting on a program it started, or on the disk, is its own,
+# and being taken off the processor because everything else wanted it is
+# not. A gate running dozens of desktops at once timed a ticker that writes
+# one number to a file at 441 ms by the clock. Where there is no schedstat
+# nothing is taken off.
+DT_SCHWAIT=0
+# How a stall is judged. wall, the desktop's own rule: wall time less what
+# the machine kept it waiting, which is what a person sees. cpu, the suites'
+# rule: the processor the desktop itself used in the callback, schedstat's
+# first field, since under a gate's load even a callback writing one line
+# to a file measured 565 ms by the clock, blocked on a disk fifty suites
+# shared. Not its children's: a child's time is counted when it is reaped,
+# which lands in whatever callback is running then. Waiting on a program
+# is caught by the desktop's own rule and by lint instead.
+DT_HOLDBY="${DT_HOLDBY-wall}"
+DT_SCHON=0
+# The longest single run of each callback, in microseconds, since the
+# desktop started or `desktop ctl stats` was reset.
+declare -gA DT_MAX
+# When each callback was last named slow in the log, and each app's recent
+# slow runs as times, oldest first.
+declare -gA DT_SLOWAT
+declare -gA DT_SLOWHIT
+# Each paused app: the callback that paused it and how long it took.
+declare -gA DT_PAUSED
+# Which app each ticker belongs to, worked out once from the file that
+# registered it; "-" for one that is the desktop's own.
+declare -gA DT_TICKAPP
+
+# One callback's run, us microseconds long, under its name -- and the app
+# it belongs to, if it is an app's. Callers time the call themselves, two
+# reads of the clock, and call this only when timing is on, or the run
+# took a millisecond or more: a frame of quick callbacks pays nothing
+# else.
+fn dt_spent(name, int us, app = "") {
+	[ "$us" -gt "${DT_MAX["$name"]:-0}" ] && DT_MAX["$name"]=$us
+	if [ -n "$DT_STATON" ]; then
+		DT_STAT["t:$name"]=$((${DT_STAT["t:$name"]:-0} + us))
+		DT_STAT["n:$name"]=$((${DT_STAT["n:$name"]:-0} + 1))
+	fi
+	# The frame's own parts -- the whole of it, its flush, the wallpaper,
+	# the menus -- are kept for `desktop ctl stats`, never named slow: a
+	# slow frame is a slow callback inside it, which says so itself.
+	case $name in draw | flush | part:*) return 0 ;; esac
+	[ "$us" -ge $((DT_SLOWMS * 1000)) ] && dt_slow "$name" "$us" "$app"
+	# Under the cpu rule each callback is charged only its own slice.
+	[ "$DT_HOLDBY" = cpu ] &&
+		{ read -r DT_SCHON _ _ 2> /dev/null < "/proc/$$/schedstat" || DT_SCHON=0; }
+	return 0
+}
+
+# A callback took longer than a frame: a note in the log, at most once a
+# minute for each -- and past DT_HOLDMS a stall, said as one and counted
+# against its app.
+fn dt_slow(name, int us, app = "") {
+	local now ms=$((us / 1000)) t n=0 keep= held= waited=
+	local -a hits
+
+	now := dt_ms
+	if [ "$ms" -ge "$DT_HOLDMS" ] && [ "$DT_HOLDBY" = cpu ]; then
+		read -r t _ _ 2> /dev/null < "/proc/$$/schedstat" || t=$DT_SCHON
+		t=$(((t - DT_SCHON) / 1000000))
+		if [ "$t" -ge "$DT_HOLDMS" ]; then
+			held=1
+			ms=$t
+		else
+			waited=", $t of it on the processor"
+		fi
+	elif [ "$ms" -ge "$DT_HOLDMS" ]; then
+		held=1
+		read -r _ t _ 2> /dev/null < "/proc/$$/schedstat" || t=$DT_SCHWAIT
+		t=$(((t - DT_SCHWAIT) / 1000000))
+		if [ "$t" -gt 0 ] && [ $((ms - t)) -lt "$DT_HOLDMS" ]; then
+			held=
+			waited=", $t of it waiting for a processor"
+		fi
+	fi
+	t=$((now - ${DT_SLOWAT["$name"]:-0}))
+	if { [ -n "$held" ] && [ "$t" -ge 10000 ]; } || [ "$t" -ge 60000 ]; then
+		DT_SLOWAT["$name"]=$now
+		if [ -n "$held" ]; then
+			dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)"
+		else
+			dt_log "slow: $name took $ms ms$waited (a frame is $DT_SLOWMS ms)"
+		fi
+	fi
+	[ -n "$held" ] && [ -n "$app" ] && [ -z "${DT_PAUSED["$app"]+x}" ] || return 0
+	read -ra hits <<< "${DT_SLOWHIT["$app"]} $now"
+	for t in "${hits[@]}"; do
+		[ $((now - t)) -lt 60000 ] || continue
+		keep+="${keep:+ }$t"
+		n=$((n + 1))
+	done
+	DT_SLOWHIT["$app"]=$keep
+	[ "$n" -ge "$DT_HOLDN" ] && dt_pause "$app" "$name" "$ms"
+	return 0
+}
+
+# Put an app on hold: nothing of it is called but its _idle until it is
+# resumed, and its windows say why.
+fn dt_pause(app, name, int ms) {
+	DT_PAUSED["$app"]="$ms $name"
+	DT_SLOWHIT["$app"]=
+	DT_FORCEONCE=1
+	dt_log "paused: $app held the desktop $DT_HOLDN times in a minute, last $name for $ms ms"
+	dt_notep high "%s was paused: it held the desktop for %s ms" "$app" "$ms"
+}
+
+# Take an app off hold.
+fn dt_resume(app) {
+	unset DT_PAUSED["$app"]
+	DT_SLOWHIT["$app"]=
+	DT_FORCEONCE=1
+	dt_log "resumed: $app"
+}
+
+# Window > Resume: the focused window's app.
+dt_resume_focused() {
+	[ -n "$DT_FOCUS" ] && dt_resume "${DT[$DT_FOCUS]["app"]}"
+}
+
+# Whether an app is on hold.
+fn dt_paused(app) {
+	[ -n "$app" ] && [ -n "${DT_PAUSED["$app"]+x}" ]
+}
+
+# Call one of a window's own input handlers -- its _key, _click, _mouse or
+# _wheel -- timed against its app; status 1 without calling it if that app
+# is paused, which the desktop reads as "not handled".
+fn dt_appcall(int id, cb, ...args) {
+	local ap=${DT[$id]["app"]} t0 t st
+
+	[ -n "$cb" ] || return 1
+	dt_paused "$ap" && return 1
+	t0=${EPOCHREALTIME/./}
+	"$cb" "$id" "${args[@]}"
+	st=$?
+	t=$((${EPOCHREALTIME/./} - t0))
+	[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "input:${ap:-bare}" "$t" "$ap"
+	return "$st"
+}
+
+# The same, for a handler that answers with ret -- a window's _copy, which
+# hands the desktop what it copied: its answer is passed on, so the caller
+# binds it with :=. Nothing for a paused app.
+fn dt_appget(int id, cb, ...args) {
+	local ap=${DT[$id]["app"]} t0 t rv
+
+	[ -n "$cb" ] || return 1
+	dt_paused "$ap" && return 1
+	t0=${EPOCHREALTIME/./}
+	"$cb" "$id" "${args[@]}"
+	rv=$RET
+	t=$((${EPOCHREALTIME/./} - t0))
+	[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "input:${ap:-bare}" "$t" "$ap"
+	ret "$rv"
+}
+
+# Which app a ticker belongs to: the one whose file registered it, or "-"
+# when the desktop itself did.
+fn dt_tickowner(f) {
+	local src a
+
+	if [ -z "${DT_TICKAPP["$f"]+x}" ]; then
+		DT_TICKAPP["$f"]=-
+		src=${DT_TICKSRC["$f"]-}
+		if [ -n "$src" ]; then
+			for a in "${!DT_APPS[@]}"; do
+				if [ "${DT_APPS[$a]["src"]-}" = "$src" ]; then
+					DT_TICKAPP["$f"]=$a
+					break
+				fi
+			done
+		fi
+	fi
+	ret "${DT_TICKAPP["$f"]}"
+}
+
+# A paused window's draw, with the signature every _draw has.
+fn dt_pausewin(int id, int h, int w, int row, int col) {
+	dt_pausedraw "$id" "$h" "$w"
+}
+
+# What a paused app's window shows in place of its own drawing.
+fn dt_pausedraw(int id, int h, int w) {
+	local ap=${DT[$id]["app"]} ms nm t
+
+	read -r ms nm <<< "${DT_PAUSED["$ap"]}"
+	console pen "$DT_INK" "$DT_FACE"
+	t := dt_tr "Paused: this window held the desktop for %s ms." "$ms"
+	t := dt_cut "$t" "$w"
+	console put -p "w$id" 1 1 "$t"
+	[ "$h" -ge 3 ] || return 0
+	console pen "$DT_DIM" "$DT_FACE"
+	t := dt_tr "Window > Resume runs it again."
+	t := dt_cut "$t" "$w"
+	console put -p "w$id" 3 1 "$t"
+}

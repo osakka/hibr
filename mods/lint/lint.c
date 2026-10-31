@@ -13,8 +13,16 @@ const hibr_bi *bi_find(const char *nm);
 
 typedef struct li {
 	sh *s;
-	vec fns, asg, assoc, arr, num, txt, out, noret;
+	vec fns, asg, assoc, arr, num, txt, out, noret, ticks;
 	int seterr, found;
+	/* The text, for a line's own excuse; and whether the walk is inside a
+	   function the desktop calls back, and which. */
+	const char *src;
+	const char *cbfn;
+	/* Who calls whom by name inside this file, caller then callee, the
+	   function the scan is in, and every function a callback reaches. */
+	vec calls, reach;
+	const char *scanfn;
 } li;
 
 typedef struct lif {
@@ -229,6 +237,9 @@ void li_scan(li *c, node *n)
 				assoc = 0;
 		v_add(assoc ? &c->num : &c->txt, xs(n->s));
 	}
+	if (n->k == N_CMD && li_cmd(n) && !strcmp(li_cmd(n), "dt_ticker") &&
+	    n->w->nx && li_lit(n->w->nx))
+		v_add(&c->ticks, (void *)li_lit(n->w->nx));
 	if (n->k == N_CMD) {
 		for (w = n->aw; w; w = w->nx)
 			if ((nm = li_asgname(w))) {
@@ -272,11 +283,24 @@ void li_scan(li *c, node *n)
 				v_add(&c->asg, nm);
 			}
 	}
+	if (n->k == N_CMD && c->scanfn && li_cmd(n)) {
+		v_add(&c->calls, (void *)c->scanfn);
+		v_add(&c->calls, (void *)li_cmd(n));
+	}
+	if (n->k == N_FUNC) {
+		const char *was = c->scanfn;
+
+		c->scanfn = n->s;
+		li_scan(c, n->l);
+		li_scan(c, n->r);
+		c->scanfn = was;
+		return;
+	}
 	li_scan(c, n->l);
 	li_scan(c, n->r);
-	if (n->k != N_FUNC)
-		li_scan(c, n->x);
+	li_scan(c, n->x);
 }
+
 
 /* Whether a word holds an unquoted expansion, naming it in *nm. */
 int li_unq(word *w, const char **nm)
@@ -527,6 +551,106 @@ int li_declsub(node *n)
 	return 0;
 }
 
+/* Whether a function is one the desktop calls back between frames: a
+   window's draw, idle and input handlers, or a ticker this file registers. */
+int li_iscb(li *c, const char *nm)
+{
+	static const char *sfx[] = { "_draw", "_dirty", "_idle", "_key",
+				     "_click", "_mouse", "_wheel", "_paste",
+				     "_copy", "_cut", "_scroll", 0 };
+	size_t l = strlen(nm), k;
+	int i;
+
+	if (li_has(&c->ticks, nm))
+		return 1;
+	for (i = 0; sfx[i]; i++) {
+		k = strlen(sfx[i]);
+		if (l > k && !strcmp(nm + l - k, sfx[i]))
+			return 1;
+	}
+	return 0;
+}
+
+/* Every function in this file a callback reaches by calling it by name:
+   a callback itself, and whatever any of those calls, until nothing new
+   is found. A function handed to dt_job or dt_jobvars as an argument is
+   not called, so a job's own body stays out. */
+void li_reach(li *c)
+{
+	size_t i;
+	int more = 1;
+
+	for (i = 0; i < c->fns.n; i++)
+		if (li_iscb(c, (char *)c->fns.p[i]))
+			v_add(&c->reach, c->fns.p[i]);
+	while (more) {
+		more = 0;
+		for (i = 0; i + 1 < c->calls.n; i += 2) {
+			const char *a = c->calls.p[i], *b = c->calls.p[i + 1];
+
+			if (li_has(&c->reach, a) && li_has(&c->fns, b) &&
+			    !li_has(&c->reach, b)) {
+				v_add(&c->reach, (void *)b);
+				more = 1;
+			}
+		}
+	}
+}
+
+/* Whether line ln of the text says why it may do what it does: a comment
+   holding "# fork:". */
+int li_excused(li *c, unsigned ln)
+{
+	const char *p = c->src, *e;
+	unsigned at = 1;
+
+	if (!p || !ln)
+		return 0;
+	while (at < ln && (p = strchr(p, '\n'))) {
+		p++;
+		at++;
+	}
+	if (!p)
+		return 0;
+	e = strchr(p, '\n');
+	if (!e)
+		e = p + strlen(p);
+	for (; p + 7 <= e; p++)
+		if (!strncmp(p, "# fork:", 7))
+			return 1;
+	return 0;
+}
+
+/* A command inside a callback that starts a process for a word: a $( ),
+   a `...` or a <( ) -- each a fork of the desktop, on every frame or key
+   that reaches it. $(< file) reads the file and starts nothing. */
+void li_cbfork(li *c, node *n, word *w)
+{
+	part *p;
+	const char *t;
+
+	for (; w; w = w->nx)
+		for (p = w->p; p; p = p->nx) {
+			if (p->k != P_CMD && p->k != P_PSUB)
+				continue;
+			t = p->t ? p->t : "";
+			while (*t == '(' || *t == ' ' || *t == '\t')
+				t++;
+			if (p->k == P_CMD && *t == '<')
+				continue;
+			if (li_excused(c, n->ln))
+				return;
+			li_say(c, n, "callback-forks", "%s runs inside a "
+			       "callback the desktop calls between frames, and "
+			       "this starts a process every time it does: nothing else on "
+			       "any display moves meanwhile. Run it as a job "
+			       "(dt_job) and read the result next frame, or say "
+			       "why it is cheap here with `# fork: reason` on "
+			       "the line", c->cbfn);
+			return;
+		}
+}
+
 /* Walk the tree running every rule; cond is set inside a condition, where a failing cd is already looked at. */
 void li_walk(li *c, node *n, int cond)
 {
@@ -535,6 +659,14 @@ void li_walk(li *c, node *n, int cond)
 
 	if (!n)
 		return;
+	/* A redirection's word starts a process too: `done <<< "$(cmd)"` on
+	   a loop is how most of the desktop's readers run a program. */
+	if (c->cbfn) {
+		redir *r;
+
+		for (r = n->rd; r; r = r->nx)
+			li_cbfork(c, n, r->w);
+	}
 	switch (n->k) {
 	case N_CMD:
 		cmd = li_cmd(n);
@@ -560,6 +692,10 @@ void li_walk(li *c, node *n, int cond)
 			li_barekey(c, n, w->p);
 		for (w = n->aw; w; w = w->nx)
 			li_barekey(c, n, w->p);
+		if (c->cbfn) {
+			li_cbfork(c, n, n->w);
+			li_cbfork(c, n, n->aw);
+		}
 		li_walk(c, n->x, cond);
 		return;
 	case N_SEQ: {
@@ -624,9 +760,14 @@ void li_walk(li *c, node *n, int cond)
 		li_walk(c, n->r, cond);
 		li_walk(c, n->x, cond);
 		return;
-	case N_FUNC:
+	case N_FUNC: {
+		const char *was = c->cbfn;
+
+		c->cbfn = n->s && li_has(&c->reach, n->s) ? n->s : 0;
 		li_walk(c, n->r, 0);
+		c->cbfn = was;
 		return;
+	}
 	default:
 		li_walk(c, n->l, cond);
 		li_walk(c, n->r, cond);
@@ -636,14 +777,16 @@ void li_walk(li *c, node *n, int cond)
 }
 
 /* Explain a parsed script: every finding reported, and how many there were. */
-int li_explain(sh *s, node *n)
+int li_explain(sh *s, node *n, const char *src)
 {
 	li c;
 	size_t i;
 
 	memset(&c, 0, sizeof c);
 	c.s = s;
+	c.src = src;
 	li_scan(&c, n);
+	li_reach(&c);
 	li_walk(&c, n, 0);
 	li_emit(&c);
 	for (i = 0; i < c.asg.n; i++)
@@ -655,6 +798,9 @@ int li_explain(sh *s, node *n)
 	v_free(&c.num);
 	v_free(&c.txt);
 	v_free(&c.noret);
+	v_free(&c.ticks);
+	v_free(&c.calls);
+	v_free(&c.reach);
 	for (i = 0; i < c.assoc.n; i++)
 		free(c.assoc.p[i]);
 	for (i = 0; i < c.arr.n; i++)

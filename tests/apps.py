@@ -2291,7 +2291,7 @@ def adminaccess_checks():
         'AA_SETTINGS=%s\n'
         'rows() { declare -gA CP; n := adminaccess_rows 41; for ((i = 0; i < n; i++)); do '
         'echo "${CP[41][$i][kind]}|${CP[41][$i][text]}|${CP[41][$i][val]}"; done; }\n'
-        'tick() { for i in 1 2 3 4 5 6 7 8 9 10; do dt_jobtick; [ -z "$AA_CHECK$PK_JOB" ] && break; sleep 0.2; done; }\n'
+        'tick() { for i in 1 2 3 4 5 6 7 8 9 10; do dt_jobtick; [ "$AA_LOADED" = 1 ] && [ -z "$AA_CHECK$PK_JOB" ] && break; sleep 0.2; done; }\n'
         'aa_load; tick; rows; echo ==\n'
         'AA_DROP=org.test.one; aa_choose 0 "Your Own, Remembered"; rows; echo ==\n'
         'aa_group no_such_group_zz; adminaccess_do 41 apply; tick; echo "pend=${#AA_PEND[@]}"\n'
@@ -2352,6 +2352,8 @@ def loginmgr_checks():
         'rows() { declare -gA CP; n := loginmgr_rows 41; for ((i = 0; i < n; i++)); do '
         'echo "${CP[41][$i][kind]}|${CP[41][$i][text]}|${CP[41][$i][val]}"; done; }\n'
         'tick() { for i in $(seq 30); do dt_jobtick; pk_busy || break; sleep 0.2; done; }\n'
+        'lmwait() { for i in $(seq 50); do dt_jobtick; [ "$LM_LOADED" = 1 ] && break; sleep 0.1; done; }\n'
+        'rows > /dev/null; lmwait\n'
         'rows; echo ==\n'
         'loginmgr_do 41 colours 1; loginmgr_do 41 power 1; loginmgr_do 41 tty 1\n'
         'lm_typed title "The Lab"; lm_typed message "$(printf "x\\033y")" || echo refused\n'
@@ -2360,7 +2362,7 @@ def loginmgr_checks():
         'lm_choices saver; echo "savers: ${LM_LIST[*]}"\n'
         'dt_jobfile() { ret %s/blit; }\n'
         "printf '200\\n{\"enabled\": true, \"pane_id\": \"pane-display-93-2\"}\\n' > %s/blit\n"
-        'lm_blitdone 1 0; LM_BLITJOB=; rows | grep "Runs On"\n'
+        'lmwait; lm_blitdone 1 0; LM_BLITJOB=; rows | grep "Runs On"\n'
         % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/system/panel.hibr"),
            CP, cfg, d, d))
     r = subprocess.run([sx.HIBR, "-c", script], capture_output=True, text=True,
@@ -2863,15 +2865,16 @@ SH = "TW_CMD=(/bin/sh -c 'PS1=\"sh> \"; export PS1; exec /bin/sh')"
 def contentonly():
     f = sx.scratch("contentonly")
     pre = ("TW_CMD=(/bin/sh -c 'i=0; while :; do echo line$i; i=$((i+1)); sleep 0.05; done')\n"
-           "co_probe() { echo \"${DT_STAT[\"r:contentonly\"]:-0}\" > %s; }\n"
+           "co_probe() { echo \"${DT_STAT[\"r:contentonly\"]:-0} frames=${DT_STAT[\"frames\"]:-0} paused=${!DT_PAUSED[*]} force=$DT_FORCEONCE alone=$DT_ALONE\" > %s; }\n"
            "dt_ticker co_probe\n" % f)
     sc = run(*TERM, pre=pre, wait=1.0, end=None, until=lambda sc: "line20" in sc.text())
-    n = int(open(f).read().strip() or 0) if os.path.exists(f) else 0
+    cot = open(f).read().strip() if os.path.exists(f) else ""
+    n = int(cot.split()[0]) if cot else 0
     top = sc.find("\u2524 Term \u251c")
     bot = sc.find("\u2514\u2500\u2500")
     check("a terminal printing is drawn content only, its frame left whole",
           n > 5 and top is not None and bot is not None and "\u2500" in sc.row(top[0]),
-          (n, sc.text()))
+          (cot, sc.text()))
     if os.path.exists(f):
         os.unlink(f)
 

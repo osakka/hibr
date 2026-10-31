@@ -274,6 +274,12 @@ int wb_set(wb_tab *t, const char *k, const char *v)
 					 "\"requestStage\":\"Request\"}]}",
 			     t->session) != HIBR_OK)
 			return HIBR_FAIL;
+	} else if (!strcmp(k, "render")) {
+		if (strcmp(v, "async") && strcmp(v, "sync"))
+			goto bad;
+		t->async = !strcmp(v, "async");
+		if (!t->async)
+			wb_aclear(t);
 	} else if (!strcmp(k, "zoom")) {
 		z = atoi(v);
 		if (z < 25 || z > 500)
@@ -357,13 +363,12 @@ void wb_imgpaused(wb_tab *t, jv *m)
    agree. Taken off again once the tab is back to 100. */
 void wb_zoomapply(wb_tab *t)
 {
-	str js, o;
+	str js;
 	int z = t->zoom ? t->zoom : 100;
 
 	if (z == 100 && !t->zoomed)
 		return;
 	s_init(&js);
-	s_init(&o);
 	if (z == 100) {
 		s_cat(&js, "(()=>{const s=document.getElementById('__hibr_zoom');"
 			   "if(s)s.remove();return 1})()");
@@ -376,10 +381,9 @@ void wb_zoomapply(wb_tab *t)
 			   "document.documentElement;if(!p)return 0;"
 			   "p.appendChild(s);return 1})()");
 	}
-	wb_eval(t, js.p, &o);
+	wb_evalsend(t, js.p);
 	t->zoomed = z != 100;
 	s_free(&js);
-	s_free(&o);
 }
 
 /* What the browser is started with, where the environment used to be the

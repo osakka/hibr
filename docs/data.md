@@ -100,7 +100,7 @@ subscript reaches.
 | `arr len var [out]` | the number of elements |
 | `arr push var v…` | append |
 | `arr pop var [out]` | remove and give back the last |
-| `arr sort var [-n] [-r]` | sort in place; `-n` numeric, `-r` reversed |
+| `arr sort var [-n] [-r]` | sort in place; `-n` numeric by each element's leading number (`1700000000:4` sorts as 1700000000), equal numbers as text, the way `sort -n` breaks a tie; `-r` reversed |
 | `arr reverse var` | reverse in place |
 | `arr uniq var` | drop later duplicates, keeping order |
 | `arr contains var value` | status: is the value in it |

@@ -161,12 +161,13 @@ int hd_frmpeer(int c)
 #endif
 }
 
-/* Whether the emulator holds a placement by descriptor for this image:
-   an a=p it kept, which is what a window picture sent by frames is. */
-int hd_frmplaced(int tid, unsigned id)
+/* Whether the emulator holds a placement by descriptor for this image --
+   an a=p it kept, which is what a window picture sent by frames is -- and
+   where: g gets its row, column, rows and columns. */
+int hd_frmplaced(int tid, unsigned id, int *g)
 {
 	str pic;
-	int k, n, r, c, rows, cols, yes = 0;
+	int k, n, yes = 0;
 
 	if (!hd_tm->images)
 		return 0;
@@ -174,7 +175,7 @@ int hd_frmplaced(int tid, unsigned id)
 	s_init(&pic);
 	for (k = 0; k < n && !yes; k++) {
 		pic.n = 0;
-		if (hd_tm->image(tid, k, &r, &c, &rows, &cols, &pic) &&
+		if (hd_tm->image(tid, k, &g[0], &g[1], &g[2], &g[3], &pic) &&
 		    pic.n > 5 && !memcmp(pic.p, "\033_Ga=p", 6) &&
 		    hd_imgid(pic.p, pic.n) == id)
 			yes = 1;
@@ -183,19 +184,35 @@ int hd_frmplaced(int tid, unsigned id)
 	return yes;
 }
 
-/* A frame has just been kept: every display that can take one has it at
-   once if its placement is already out -- an image whose pixels change
-   while it stays where it is writes nothing on the terminal, so nothing
-   else would send it. One not placed yet goes with its placement. */
+/* A frame has just been kept: every display that can take one and shows
+   the picture has it at once if its placement is already out -- an image
+   whose pixels change while it stays where it is writes nothing on the
+   terminal, so nothing else would send it. A display the picture is not
+   on is sent neither the frame nor the placement, by the same rule the
+   render pass keeps (render.c), so a video on one display costs the
+   others nothing. One not placed yet goes with its placement. */
 void hd_frmpush(vec *cls, int tid, const unsigned char *h)
 {
 	unsigned id = (unsigned)hd_frmnum(h + 4, 4);
+	int g[4];
 	size_t i;
 
-	if (!hd_frmplaced(tid, id))
+	if (!hd_frmplaced(tid, id, g))
 		return;
-	for (i = 0; i < cls->n; i++)
-		hd_frmsend(cls->p[i], id);
+	for (i = 0; i < cls->n; i++) {
+		struct hd_cli *cn = cls->p[i];
+
+		/* A frame is a kitty picture's pixels: a display that draws
+		   another kind, or none, is not sent one, as the render pass's
+		   hd_canshow would not send it the placement either. */
+		if (cn->gfx != GX_KITTY && cn->gfx != GX_UNASKED)
+			continue;
+		if (g[0] < cn->row || g[1] < cn->col ||
+		    g[0] + g[2] > cn->row + cn->rows ||
+		    g[1] + g[3] > cn->col + cn->cols)
+			continue;
+		hd_frmsend(cn, id);
+	}
 }
 
 /* Send a display the frames it has not had, for the images this frame of

@@ -407,7 +407,14 @@ try:
     # PulseAudio side too; and one that does not answer says so -- this box
     # has no ALSA mixer -- rather than another being taken in its place.
     reset()
-    sc = srun([], panel=True, env={"DT_SNDKIND": "PipeWire"}, until="Sound Server")
+    # The pane's labels draw at once and its values when the read, a job
+    # since 0.99.400, comes back: wait for a value, never for a label.
+    def served(want):
+        def ok(sc):
+            r = sc.find("Sound Server")
+            return r is not None and want in sc.row(r[0]) and "♪ 50%" in bar(sc)
+        return ok
+    sc = srun([], panel=True, env={"DT_SNDKIND": "PipeWire"}, until=served("PipeWire"))
     r = sc.find("Sound Server")
     check("Sound System set to PipeWire uses PipeWire itself",
           r is not None and "PipeWire" in sc.row(r[0]) and "PulseAudio" not in sc.row(r[0]) and
@@ -444,7 +451,8 @@ try:
 
     # Control Panel > Sound.
     reset()
-    sc = srun([], panel=True, until="Sound Server")
+    sc = srun([], panel=True, until=lambda sc: served("PulseAudio")(sc) and
+              sc.find("Speakers") is not None and sc.find("Microphone") is not None)
     check("Control Panel > Sound names the server and the devices in use",
           sc.find("PulseAudio") is not None and sc.find("Speakers") is not None and
           sc.find("Microphone") is not None and sc.find("Volume (50%)") is not None, sc)

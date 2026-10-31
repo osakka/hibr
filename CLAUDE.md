@@ -3918,7 +3918,37 @@ went in the shell.
   the dialog, and a job cannot be answered. Replace sends the one there to
   the trash first, so it can be put back.
 
-## Testing discipline
+- **An assignment's name ends after its subscripts, not at the first `=`**
+  (0.99.400). `ex_asg` split `m["a=b"]=1` at the `=` inside the key, took
+  `m["a` as the name and **emptied the whole map** -- found because the
+  Shortcuts pane's table of keys lost every entry the moment it reached
+  Volume Up, whose key is `mod-=`, and the desktop keys several maps by key
+  name (`DT_KEYHELD` among them). `asg_eq` is the one place that finds the
+  name's end, for `ex_asg` and `asg_push` alike; `tests/999-asg-subscript-eq.t`
+  compares it with bash. Anything new that splits an assignment word goes
+  through it.
+- **A desktop callback has a budget, and the log says when one breaks it**
+  (ADR 0049, 0.99.400). Every callback is timed through `dt_spent`; past
+  `DT_SLOWMS` (50) it is a `slow:` note, past `DT_HOLDMS` (150) a `held:`
+  stall that fails the suites and, three times in a minute, pauses the app.
+  When a suite fails on a `held:` line, measure the callback **alone**
+  before believing it: the first sweep named the Control Panel at 54 to 133
+  ms under a loaded gate, which unloaded was 2.8 ms for most panes and 39
+  to 73 ms for four -- those four were real (programs started in a draw,
+  and the Shortcuts pane comparing every key with every other), and the
+  rest was load. Slow work in a pane is `dt_jobvars`, which runs a load
+  function as a job and brings its variables back.
+- **A function that shadows a builtin, to time or log it, breaks every
+  `x := builtin ...` behind it** -- a function binds only through `ret`,
+  so `t := web open` came back empty and the probe measured a desktop that
+  never opened a page. End the wrapper with `ret -k` when the call
+  succeeded. And `builtin web` does not reach a module's builtin; `command
+  web` does. Both cost a probe each while attributing the Browser's stalls
+  (0.99.400), which then came to one line: the sixel palette chosen per
+  picture, 600 ms a page -- measured on one `img draw`, the call rather
+  than the frame, after three harnesses had failed on their scaffolding.
+
+## Testing discipline## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
   stdout+stderr) because the behaviour is deliberately ours. Everything else is

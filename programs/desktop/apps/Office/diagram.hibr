@@ -22,7 +22,7 @@
 
 strict
 
-app diagram "A Mermaid diagram editor: the text, and the diagram" 1.4
+app diagram "A Mermaid diagram editor: the text, and the diagram" 1.5
 # modules: mermaid
 
 command -v dt_app > /dev/null && dt_app diagram "Diagram" 24 86 many "◈"
@@ -187,7 +187,7 @@ fn dia_render(int id) {
 	DIA[$id]["rows"]=0
 	DIA[$id]["why"]=
 	if ! need mermaid 2> /dev/null; then
-		DIA[$id]["why"]=$(dt_tr "The mermaid module is not loaded")
+		DIA[$id]["why"] := dt_tr "The mermaid module is not loaded"
 		return 0
 	fi
 	t := tb_text "$id"

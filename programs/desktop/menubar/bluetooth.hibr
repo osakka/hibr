@@ -32,7 +32,7 @@
 
 strict
 
-app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.1
+app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.2
 
 # The state: kind (bluez, none, or gone for a bluetoothd that went; empty
 # until the first frame looks), why (asked for and not answering), addr and
@@ -51,6 +51,12 @@ DT_BTFD=
 DT_BTPTY=
 DT_BTAT=0
 DT_BTREAD=0
+# The read running as a job now, and whether another is owed after it.
+DT_BTRJOB=
+DT_BTRAGAIN=
+# Whether the first read is back: until it is, the bar says it does not
+# know yet, rather than that Bluetooth is off.
+DT_BTKNOWN=
 DT_BTLATE=
 DT_BTJOB=
 DT_BTJKIND=
@@ -94,7 +100,7 @@ dt_btkind() {
 		return 0
 	fi
 	if command -v bluetoothctl > /dev/null; then
-		r=$(dt_btq show)
+		r=$(dt_btq show) # fork: once, as the item starts, to learn whether BlueZ answers
 		case $r in
 		Controller*) DT_BT["kind"]=bluez; return 0 ;;
 		esac
@@ -115,13 +121,44 @@ dt_btagain() {
 # connected one its battery, which `info` gives only while it is connected.
 # Counted for `desktop ctl stats` (Gitea #343); declared here as well as in
 # wm/session.hibr, so this file still loads on its own.
+#
+# It is five runs of bluetoothctl and one more for each device connected,
+# 200 to 360 ms, so it is a job (ADR 0049, Gitea #412): the ticker that
+# called it on every change BlueZ reported held every display that long.
+# The bar shows what it had until the job's answer is back; a read asked
+# for while one is running is owed and starts when that one ends.
 declare -gA DT_STAT
 dt_btread() {
+	DT_BTREAD=$EPOCHREALTIME
+	DT_STAT["r:bt"]=$((${DT_STAT["r:bt"]:-0} + 1))
+	if [ -n "$DT_BTRJOB" ]; then
+		DT_BTRAGAIN=1
+		return 0
+	fi
+	DT_BTRJOB := dt_jobvars bt state dt_btreaddone dt_btreadnow DT_BT DT_BTM DT_BTN \
+		DT_BTP DT_BTC DT_BTB DT_BTI DT_BTICON 2> /dev/null ||
+		{ DT_BTRJOB=; dt_log "bluetooth: the read could not start as a job"; }
+	return 0
+}
+
+# A read is back: the bar shows it, and an owed one starts.
+fn dt_btreaddone(int? n = "", int? st = "") {
+	DT_BTRJOB=
+	DT_BTKNOWN=1
+	dt_btbar
+	if [ -n "$DT_BTRAGAIN" ]; then
+		DT_BTRAGAIN=
+		dt_btread
+	fi
+	command -v dt_want > /dev/null && dt_want 0
+	return 0
+}
+
+# The read itself, in the job.
+dt_btreadnow() {
 	local l k v mac nm i
 	local -A con pai
 
-	DT_BTREAD=$EPOCHREALTIME
-	DT_STAT["r:bt"]=$((${DT_STAT["r:bt"]:-0} + 1))
 	[ "${DT_BT["kind"]}" = bluez ] || return 0
 	DT_BT["power"]=no; DT_BT["disc"]=no; DT_BT["scan"]=no
 	while IFS= read -r l; do
@@ -216,7 +253,7 @@ dt_btbar() {
 		t=${GL[bt]}
 		[ "$n" -gt 0 ] && t="$t $n"
 	fi
-	[ -n "${DT_BT["busy"]}" ] && t="${GL[bt]} ${GL[ellipsis]}"
+	[ -n "${DT_BT["busy"]}" ] || [ -z "$DT_BTKNOWN" ] && t="${GL[bt]} ${GL[ellipsis]}"
 	dt_baritem bt "$t" dt_btpopopen
 	dt_bariright bt dt_btmenu
 }

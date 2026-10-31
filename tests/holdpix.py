@@ -1476,6 +1476,65 @@ check("a display that cannot take frames puts the picture on the terminal for al
       and not kplace(nofd1) and kplaced(nofd2) and not kplace(nofd2),
       (nolog, nofd1.apc, nofd2.apc))
 
+# A frame goes only to a display the picture is on (0.99.400). In 0.99.399
+# every frame went to every display that could take one, so a display the
+# picture was never placed on was made an image nothing would ever delete,
+# and one it had been taken off refused every frame after: on the owner's
+# mini PC, a frame a tick refused and a video that never came back. Two
+# displays side by side, each with a Blit session of its own; the picture
+# is on the first, and the second's session must hear nothing.
+def sidebyside(env1, env2):
+    open(LOG, "w").close()
+    nm = name()
+    body = ("i=0\nwhile [ $i -lt %d ]; do c := hold clients 2> /dev/null; "
+            "n=0; while read -r x; do [ -n \"$x\" ] && n=$((n + 1)); done <<< \"$c\"; "
+            "[ $n -ge 2 ] && break; console key 100 > /dev/null; i=$((i + 1)); done\n"
+            "d := hold descriptors\necho \"fd [$d]\" >> %s\n"
+            "case \"$d\" in ''|*' no'*) console imgfd off ;; *) console imgfd hold ;; esac\n"
+            "console pane w1 2 2 10 30\nconsole put 0 0 'HELD side'\n" % (40 * SLOW, LOG))
+    for g in (GRAD, GRAD3):
+        body += ("img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\n"
+                 "console key 150 > /dev/null\n" % g)
+    body += "echo drawn >> %s\n" % LOG
+    one = os.path.join(D, "sone.hibr")
+    two = os.path.join(D, "stwo.hibr")
+    open(one, "w").write(load("hold")
+                         + 'hold new -d %s "$HIBR" %s\n' % (nm, inner(body, 12000, nm))
+                         + "sleep 0.6\n"
+                         + "hold attach -m -n one %s 0 0\n" % nm)
+    open(two, "w").write(load("hold") + "hold attach -m -n two %s 0 60\n" % nm)
+    t1 = Term(one, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
+              env=dict({"HIBR_GFX": "kitty", "TMPDIR": D}, **env1), caps=["kitty"])
+    t1.collect(1.0)
+    t2 = Term(two, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
+              env=dict({"HIBR_GFX": "kitty", "TMPDIR": D}, **env2), caps=["kitty"])
+    for _ in range(40 * SLOW):
+        t1.collect(0.1)
+        t2.collect(0.1)
+        if "drawn" in open(LOG).read():
+            break
+    t1.collect(0.5)
+    t2.collect(0.5)
+    sc1, sc2 = t1.screen(), t2.screen()
+    t2.quit(None, 0.5)
+    t1.quit(None, 0.5)
+    kill(nm)
+    return sc1, sc2, open(LOG).read()
+
+
+p1, lg1, e1 = fdsrv("s1")
+p2, lg2, e2 = fdsrv("s2")
+sd1, sd2, sdlog = sidebyside(e1, e2)
+for p in (p1, p2):
+    p.terminate()
+    p.wait()
+f1, f2 = fdframes(lg1), fdframes(lg2)
+check("a picture on one of two displays sends its frames to that display",
+      "fd [" in sdlog and " no" not in sdlog and len(f1) >= 2 and kplace(sd1),
+      (sdlog, f1, sd1.apc))
+check("and none to the display it is not on, which is sent no picture at all",
+      not f2 and not kplace(sd2) and not kplaced(sd2), (f2, sd2.apc))
+
 # `hold upgrade` -- which Restart Desktop does whenever the session's server
 # is older than the desktop -- carries each display's own answers across: a
 # display that can edit pictures in place still can afterwards. It used to
@@ -1532,4 +1591,4 @@ check("a display joining above is never a blank screen on the display already "
       worst < 12 and sc.find("┤ Note ├") == (4, 8), (worst, sc))
 
 shutil.rmtree(D, True)
-report(84)
+report(86)

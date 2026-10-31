@@ -843,6 +843,39 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			s_num(out, (long)cn->pid[j]);
 			s_cat(out, "\033\\");
 		}
+		/* And every picture this display was sent frames for by
+		   descriptor that it no longer shows: deleted on its terminal
+		   if it never had the placement too -- or a frame alone made
+		   an image there nothing would ever take away -- and forgotten
+		   here either way, so the picture coming back is sent its frame
+		   again with its placement. Kept, the record said the display
+		   already had the newest frame, the placement went out alone,
+		   and Blit refused it: the video never came back (0.99.400). */
+		for (j = 0; j < cn->fsn;) {
+			size_t m;
+			int live = 0, placed = 0;
+
+			for (m = 0; m < nn; m++)
+				if (nid[m] == cn->fsid[j]) {
+					live = 1;
+					break;
+				}
+			if (live) {
+				j++;
+				continue;
+			}
+			for (m = 0; m < cn->pn; m++)
+				if (cn->pid[m] == cn->fsid[j])
+					placed = 1;
+			if (!placed) {
+				s_cat(out, "\033_Ga=d,d=I,q=2,i=");
+				s_num(out, (long)cn->fsid[j]);
+				s_cat(out, "\033\\");
+			}
+			cn->fsid[j] = cn->fsid[cn->fsn - 1];
+			cn->fsseq[j] = cn->fsseq[cn->fsn - 1];
+			cn->fsn--;
+		}
 		free(cn->pid);
 		free(cn->phash);
 		free(cn->plen);

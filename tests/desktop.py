@@ -715,9 +715,10 @@ check("dropped on a workspace's number, it goes to that workspace",
 # changed is not drawn again -- the wallpaper paints the strip it left. The
 # screen is the same as without the copy; what moves on the wire is less.
 CPYAPP = ('fn cpy_draw(int id, int h, int w, int row, int col) {\n'
-          '\tlocal r=1 c\n'
+          '\tlocal r=1 c bg\n'
           '\twhile [ $r -le "$h" ]; do c=1; while [ $c -le "$w" ]; do\n'
-          '\t\tconsole pen "#c0c0c8" "#$(printf %02x%02x40 $((r * 20)) $((c * 8)))"\n'
+          '\t\tprintf -v bg "#%02x%02x40" $((r * 20)) $((c * 8))\n'
+          '\t\tconsole pen "#c0c0c8" "$bg"\n'
           '\t\tconsole put -p "w$id" $r $c x; c=$((c + 1)); done; r=$((r + 1)); done\n'
           '\tCPYN=$((CPYN + 1))\n'
           '}\n'
@@ -1384,6 +1385,15 @@ def idle_wakes(env, session, act=None):
     def cpu():
         f = open("/proc/%d/stat" % t.pid).read().rsplit(")", 1)[1].split()
         return (int(f[11]) + int(f[12])) / os.sysconf("SC_CLK_TCK")
+    # Not across a minute: the bar's clock asks for a frame as each one
+    # turns, two frames and a handful of wakes, so a window that spanned
+    # one read 1.3 to 1.7 wakes a second -- one run in ten, since six
+    # seconds is a tenth of a minute, on 0.99.399 as much as 0.99.400
+    # (4 and 2 of 20). That frame is the clock working, not the desktop
+    # waking on its own.
+    left = 60 - time.time() % 60
+    if left < 7.0:
+        t.collect(left + 0.5)
     a, c, t0 = vol(), cpu(), time.time()
     t.collect(6.0)
     took = time.time() - t0
@@ -4897,6 +4907,12 @@ check("and a read counts the frames and wakes since, the CPU, and each ticker's 
       and isinstance(st.get("cpu", {}).get("pct"), (int, float))
       and st["cpu"].get("self_ms", -1) >= 0 and st.get("secs", 0) > 0
       and tks and all(v.get("runs", 0) >= 1 for v in tks.values()), st)
+# And each its longest single run (0.99.400, ADR 0049): the figure that
+# would have named Task Manager's once-a-second scan in one reading, where
+# a total spread it over every frame. Never less than the average.
+check("and each entry carries its longest single run, never less than its average",
+      tks and all("max_ms" in v and v["max_ms"] + 0.1 >= v.get("ms", 0) / max(v.get("runs", 1), 1)
+                  for v in tks.values()) and "paused" in st, st)
 rc, st = ctl("stats", "stop")
 check("and stop ends the timing, the counts kept",
       rc == 0 and st.get("timing") is False and st.get("frames", 0) >= 1, st)
@@ -5704,6 +5720,68 @@ sc, _ = run(FX, feed=[press(4, 12), drag(4, 14), drag(4, 17), release(4, 17),
                       b"\x1bx"])
 check("a drag across a field's text selects it, for Cut to take",
       sc.row(4)[6:13] == "hello  " and "world" not in sc.row(4), sc.row(4))
+# A load that sets variables runs as a job and its variables come back
+# (dt_jobvars, 0.99.400): a pane whose first draw had to start programs
+# reads in a job now. They come back through declare -p and eval, so this
+# holds a nested map and a value with a newline, a $ and quotes in it --
+# the round trip leans on declare -p quoting them, and this is what says
+# it does.
+JVSCRIPT = (load(MOD) + '. %s\n'
+            'declare -gA JM\nJM=()\nJV=\nGOT=\n'
+            'jv() { JM["a"]["b"]="x y"; JV=$\'line one\\nline two $HOME "q"\'; }\n'
+            'jvdone() { GOT=$2; }\n'
+            'dt_jobvars test t jvdone jv JM JV > /dev/null\n'
+            'for i in $(seq 50); do dt_jobtick; [ -n "$GOT" ] && break; sleep 0.1; done\n'
+            'printf "%%s|%%s|%%s\\n" "$GOT" "${JM["a"]["b"]}" "$JV"\n' % WM)
+jvo = subprocess.run([screen.HIBR, "-c", JVSCRIPT], capture_output=True, text=True).stdout
+check("a job's variables come back to the desktop, a nested map and a value "
+      "with a newline, a $ and quotes in it",
+      jvo == '0|x y|line one\nline two $HOME "q"\n', repr(jvo))
+
+# An app that keeps stalling the desktop is paused (0.99.400, ADR 0049): a
+# callback that holds the desktop past DT_HOLDMS three times in a minute
+# takes its app off the frame -- its window says how long it held it, its
+# keys are not delivered -- and Window > Resume brings it back. The stall
+# mark is lowered for this session, and its `held:` lines are the point of
+# the test rather than a failure.
+expect(r"held: win:slw")
+SLWMARK = scratch("desktop-slw-key")
+SLW = ('fn slw_draw(int id, int h, int w, int row, int col) {\n'
+       '    sleep 0.15\n'
+       '    console put -p "w$id" 1 1 "DRAWN"\n'
+       '    dt_want 20\n'
+       '}\n'
+       'fn slw_key(int id, key) {\n'
+       '    : > %s\n'
+       '}\n'
+       'dt_app slw "Slow" 8 30\n'
+       'dt_new "Slow" 8 40 3 4 slw\n' % SLWMARK)
+if os.path.exists(SLWMARK):
+    os.unlink(SLWMARK)
+slwp = scratch("desktop-slw.hibr")
+open(slwp, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n" % (load(MOD), WM, SLW))
+slt = Term(slwp, env={"DT_TICK": "60", "DT_HOLDMS": "100", "DT_HOLDN": "3", "DT_HOLDBY": "wall"},
+           rows=ROWS, cols=COLS, settle=0.6)
+s1 = slt.until(lambda sc: sc.find("Paused: this window held") is not None, 60)
+slt.keys([b"k", 0.5])
+keyed = os.path.exists(SLWMARK)
+s2 = slt.screen()
+wc = s2.row(0).find("Window")
+slt.keys([press(0, wc + 1), release(0, wc + 1), 0.3])
+rs = slt.screen().find("Resume")
+if rs:
+    slt.keys([press(rs[0], rs[1] + 1), release(rs[0], rs[1] + 1)])
+s3 = slt.until(lambda sc: sc.find("DRAWN") is not None, 20)
+slt.quit(b"qy", 1.0)
+check("an app that keeps holding the desktop is paused, and its window says so",
+      s1.find("Paused: this window held") is not None, s1)
+check("and a paused app is not handed its keys", not keyed, keyed)
+check("and Window > Resume brings it back", rs is not None and
+      s3.find("DRAWN") is not None, (rs, s3))
+for fn in (SLWMARK, slwp):
+    if os.path.exists(fn):
+        os.unlink(fn)
+
 # A field the window has stopped drawing is not a field any more: a press
 # where it was goes to the app. The desktop kept the last focused field's
 # rectangle after the window stopped drawing it, and took every left press
@@ -8387,4 +8465,4 @@ a, b, told = fsrun("fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
 check("and what a module draws at absolute coordinates over it shows",
       a.find("WORLD") == (4, 2), a)
 
-report(907)
+report(912)

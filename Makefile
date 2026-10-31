@@ -179,7 +179,7 @@ $(B)/mods/cat.so: $(CAT_SRC) include/hibr.h mods/cat/ct.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(CAT_SRC)
 
 HVI_SRC = $(wildcard mods/hvi/*.c)
-MON_SRC = $(wildcard mods/mon/*.c)
+MON_SRC = $(wildcard mods/mon/*.c) mods/procs.c
 
 $(B)/mods/sysinfo.so: mods/sysinfo/sysinfo.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/sysinfo/sysinfo.c
@@ -187,8 +187,12 @@ $(B)/mods/sysinfo.so: mods/sysinfo/sysinfo.c include/hibr.h | $(B)/mods
 $(B)/mods/db.so: mods/db/db.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/db/db.c
 
-$(B)/mods/mon.so: $(MON_SRC) include/hibr.h mods/mon/mn.h mods/display.h | $(B)/mods
+$(B)/mods/mon.so: $(MON_SRC) include/hibr.h mods/mon/mn.h mods/display.h mods/procs.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(MON_SRC)
+
+# The process table's one reader, shared with mon (mods/procs.c).
+$(B)/mods/proctab.so: mods/proctab.c mods/procs.c include/hibr.h mods/procs.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/proctab.c mods/procs.c
 
 $(B)/mods/hvi.so: $(HVI_SRC) include/hibr.h mods/hvi/vi.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(HVI_SRC)

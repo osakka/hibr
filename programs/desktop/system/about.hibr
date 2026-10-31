@@ -15,7 +15,7 @@ strict
 # CPU and memory, worked out the same way in every window that shows them.
 [ -n "${SY_LIBDONE-}" ] || . "$DT_HERE/lib/sysstat.hibr"
 
-app about "About this computer: the machine, and the desktop running on it" 1.4
+app about "About this computer: the machine, and the desktop running on it" 1.5
 # part: control-panel/abouthibr.hibr
 
 # 20 by 52, the same as about_size, which is what dt_launch actually asks
@@ -68,7 +68,8 @@ about_facts() {
 
 # How long the machine has been up, as days, hours and minutes: from
 # /proc/uptime on Linux, with no fork; from the boot time sysctl gives
-# anywhere else.
+# anywhere else, asked once.
+AB_BOOT=
 about_uptime() {
 	local s b t=
 
@@ -76,11 +77,13 @@ about_uptime() {
 		read -r s b < /proc/uptime
 		s=${s%%.*}
 	else
-		b=$(command sysctl -n kern.boottime 2> /dev/null)
-		b=${b#*sec = }
-		b=${b%%,*}
-		[ -n "$b" ] || { ret "unknown"; return 0; }
-		s=$((EPOCHSECONDS - b))
+		if [ -z "$AB_BOOT" ]; then
+			b=$(command sysctl -n kern.boottime 2> /dev/null) # fork: once a desktop, the boot time kept in AB_BOOT
+			b=${b#*sec = }
+			AB_BOOT=${b%%,*}
+		fi
+		[ -n "$AB_BOOT" ] || { ret "unknown"; return 0; }
+		s=$((EPOCHSECONDS - AB_BOOT))
 	fi
 	[ "$s" -ge 86400 ] && t="$((s / 86400))d "
 	t="$t$((s % 86400 / 3600))h $((s % 3600 / 60))m"
@@ -101,7 +104,7 @@ about_users() {
 	now := dt_ms
 	if [ -z "$AB_USERS" ] || [ $((now - AB_USERT)) -ge "$AB_USERMS" ]; then
 		AB_USERT=$now
-		while read -r u l; do
+		while read -r u l; do # fork: every AB_USERMS (30 s) while the window is open; utmp is binary records
 			[ -n "$u" ] || continue
 			[ -n "${cnt["$u"]}" ] || seen+=("$u")
 			cnt["$u"]=$((${cnt["$u"]:-0} + 1))
@@ -373,18 +376,13 @@ fn about_bar(int pct, int w) {
 # against and reads as 0, and the delta is taken between samples AB_SLOWMS
 # apart rather than every frame, which is also the less noisy reading.
 #
-# Elsewhere, the darwin module's own host_statistics(3) call, if it loaded
-# -- one syscall, the same two counters (total, idle) /proc/stat gives on
-# Linux, diffed here the same way. Without it (an older install, or a
-# build where Mach headers were not found), top -l 2 -n 0 is the fallback:
-# two samples a second or so apart, no process rows, and each one's
-# summary line -- "CPU usage: 12.3% user, 4.5% sys, 83.2% idle" -- which is
-# the one part of top's output that has held its shape for years; the
-# second line is the delta between them. Busy is what is not idle. This
-# fallback is the one path in this function that blocks the draw loop for
-# about a second; the darwin module exists specifically to avoid it.
+# Elsewhere, the darwin module's own host_statistics(3) call -- one
+# syscall, the same two counters /proc/stat gives on Linux, diffed the same
+# way. The Makefile builds that module on every Mac, so there is no third
+# way: top -l 2 was one until 0.99.400, and it held every display for a
+# second each time it ran (ADR 0049). Neither answering reads as 0.
 fn about_cpu(int id) {
-	local now line _w1 _w2 idlepct pct
+	local now pct
 
 	now := dt_ms
 	if [ -n "${AB[$id]["ccpu"]}" ] &&
@@ -392,21 +390,8 @@ fn about_cpu(int id) {
 		ret "${AB[$id]["ccpu"]}"
 		return 0
 	fi
-	# lib/sysstat's formula, Task Manager's too (Gitea #354); top below
-	# only where neither /proc nor the darwin module is there.
-	if pct := sy_cpupct "about$id"; then
-		:
-	else
-		line=$(command top -l 2 -n 0 2> /dev/null |
-			command grep "CPU usage")
-		line=${line##*$'\n'}
-		pct=0
-		if [ -n "$line" ]; then
-			read -r _w1 _w1 _w1 _w1 _w1 _w1 idlepct _w2 <<< "$line"
-			idlepct=${idlepct%\%}
-			pct=$((100 - ${idlepct%.*}))
-		fi
-	fi
+	# lib/sysstat's formula, Task Manager's too (Gitea #354).
+	pct := sy_cpupct "about$id" || pct=0
 	AB[$id]["ccpu"]=$pct
 	AB[$id]["ctime"]=$now
 	ret "$pct"
@@ -420,10 +405,9 @@ fn about_cpu(int id) {
 # give back under pressure.
 #
 # Elsewhere, the darwin module answers the same formula (free + inactive
-# pages counted as available) natively, if it loaded; sysctl hw.memsize
-# plus vm_stat's own free and inactive pages is the fallback otherwise.
+# pages counted as available) natively; neither answering reads as 0.
 fn about_mem(int id) {
-	local line k v total avail=0 now pagesize free=0 inactive=0
+	local v now
 
 	now := dt_ms
 	if [ -n "${AB[$id]["cmem"]}" ] &&
@@ -431,31 +415,7 @@ fn about_mem(int id) {
 		ret "${AB[$id]["cmem"]}"
 		return 0
 	fi
-	if v := sy_mempct; then
-		:
-	else
-		total=$(command sysctl -n hw.memsize 2> /dev/null)
-		if [ -z "$total" ] || [ "$total" = 0 ]; then
-			v=0
-		else
-			pagesize=$(command sysctl -n hw.pagesize 2> /dev/null)
-			[ -z "$pagesize" ] && pagesize=4096
-			while IFS= read -r line; do
-				case $line in
-				"Pages free:"*)
-					read -r _ _ free <<< "$line"
-					free=${free%.}
-					;;
-				"Pages inactive:"*)
-					read -r _ _ inactive <<< "$line"
-					inactive=${inactive%.}
-					;;
-				esac
-			done < <(command vm_stat 2> /dev/null)
-			avail=$(((free + inactive) * pagesize))
-			v=$(((total - avail) * 100 / total))
-		fi
-	fi
+	v := sy_mempct || v=0
 	AB[$id]["cmem"]=$v
 	AB[$id]["mtime"]=$now
 	ret "$v"

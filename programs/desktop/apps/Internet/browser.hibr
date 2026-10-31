@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.12
+app browser "The web, in a window" 2.19
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -180,6 +180,10 @@ fn bw_has(c) {
 fn bw_apply(t) {
 	local on=on
 
+	# Its pictures are asked for and not waited on, where the module can: a
+	# frame shows the last one made and never holds the desktop while the
+	# engine is busy (docs/NONBLOCKING.md in hibr-browser).
+	bw_has renderasync && web set "$t" render async 2> /dev/null
 	[ "$BW_JS" = 1 ] || on=off
 	web set "$t" js "$on" 2> /dev/null
 	on=on
@@ -415,7 +419,7 @@ bw_heard() {
 	fi
 	if bw_has profiles; then
 		if x := web leaves 2> /dev/null; then
-			while IFS=$'\t' read -r k l; do
+				while IFS=$'\t' read -r k l; do
 				[ -n "$l" ] && dt_launch browser "$l"
 			done <<< "$x"
 		fi
@@ -444,7 +448,7 @@ bw_heard() {
 	# click raises its window.
 	if bw_has profiles; then
 		if x := web appnotes 2> /dev/null; then
-			while IFS=$'\t' read -r k l why; do
+				while IFS=$'\t' read -r k l why; do
 				bw_appnote "$k" "$l" "$why"
 			done <<< "$x"
 		fi
@@ -701,7 +705,8 @@ fn bw_newtab(int id, url = "") {
 	bw_apply "$t"
 	[ -n "$app" ] && bw_wapply "$t" "$app"
 	bw_sndarm "$t"
-	[ -n "$url" ] && web go "$t" "$url"
+	# A tab starts blank: about:blank is not gone to (the light engine would fetch it, and fail).
+	[ -n "$url" ] && [ "$url" != about:blank ] && web go "$t" "$url"
 	bw_watch
 	BW[$id]["tabs"]="${BW[$id]["tabs"]:+${BW[$id]["tabs"]} }$t"
 	BW[$id]["cur"]=$t
@@ -921,6 +926,70 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	fi
 	bw_body "$id" "$t" "$h" "$w" "$pt" "$ph"
 	bw_sound "$id"
+	BW[$id]["dkey"] := bw_drawkey "$id"
+	# Last, after every web call: each reads what the engine has said, and a
+	# picture asked for earlier can come in among them -- with the pipe then
+	# drained, nothing else would wake the desktop to draw it.
+	[ -n "$t" ] && web dirty "$t" 2> /dev/null && dt_want 30
+}
+
+# What the window shows, in one line: compared with the line kept when it was
+# last drawn, it says whether anything the picture is made from has changed.
+# Not the page's pixels -- web dirty says when those are new -- but what is
+# drawn around them: the tabs and their titles, the address, the scroll bar,
+# the size and the focus.
+fn bw_drawkey(int id) {
+	local t=${BW[$id]["cur"]} n k x
+
+	bw_tabs "$id"
+	k="$t|${BW_TABS[*]}|${DT[$id]["h"]}x${DT[$id]["w"]}|${BW[$id]["aed"]:-0}|${BW[$id]["abuf"]}|$DT_FACE $DT_IMGMODE $BW_MODE|${BW[$id]["sized"]}"
+	if [ -n "$t" ]; then
+		for n in "${BW_TABS[@]}"; do
+			x := web title "$n" 2> /dev/null || x=
+			k+="|$x"
+		done
+		x := web url "$t" 2> /dev/null || x=
+		k+="|$x"
+		x := web scroll "$t" 2> /dev/null || x=
+		k+="|$x"
+	fi
+	ret "$k"
+}
+
+# Whether the window has anything new to draw. A quiet page, with nothing
+# being typed and nothing downloading, was drawn on every frame a video
+# elsewhere asked for: 2.9 ms each on the owner's mini PC. What _draw does
+# besides drawing is done here when it is skipped: the browser's messages
+# are read (or its pipe would wake the desktop for ever). Everything that
+# asks for a frame of its own -- a page loading, one that changed since it
+# was last rendered, a download, the address field's cursor, sound -- is a
+# reason to draw, so there is no dt_want to repeat on the way out.
+fn browser_dirty(int id) {
+	local t=${BW[$id]["cur"]} nw=$DT_NOTEWIN dl k
+
+	[ -n "$t" ] && [ -n "$BW_FD" ] || return 0
+	[ -z "${BW[$id]["err"]}" ] || return 0
+	[ "${BW[$id]["aed"]}" = 1 ] && return 0
+	bw_has tap && return 0
+	# Not drawn yet: _draw sets the tab up (its size, its mode) before it listens.
+	[ -n "${BW[$id]["dkey"]-}" ] || return 0
+	DT_NOTEWIN=$id
+	web poll > /dev/null 2>&1
+	bw_heard
+	DT_NOTEWIN=$nw
+	bw_drawmode
+	[ "$BW_DRAWN" = text ] && return 0
+	# The key first: its web calls read what the engine has said, so the
+	# checks after it see anything that came in meanwhile.
+	k := bw_drawkey "$id"
+	[ "$k" = "${BW[$id]["dkey"]-}" ] || return 0
+	web loading "$t" 2> /dev/null && return 0
+	web dirty "$t" 2> /dev/null && return 0
+	if bw_has dlstate; then
+		dl := bw_dlsay
+		[ -n "$dl" ] && return 0
+	fi
+	return 1
 }
 
 # The tab strip on row 1: each tab, its close box, and + for another.
@@ -974,6 +1043,10 @@ fn bw_bar(int id, t, int w, int ar) {
 			BW[$id]["asel"]=
 		fi
 	else
+		# Not editing: the desktop keeps the rectangle of the last field this window drew and takes a left
+		# click in it for that field, drawn or not, so after an address was typed the bar could not be
+		# clicked (a right click, which it does not take, was the way in).  Nothing is a field here now.
+		[ "${DT_FIELD["id"]-}" = "$id" ] && DT_FIELD["rect"]=
 		u=
 		[ -n "$t" ] && u := web url "$t" 2> /dev/null
 		[ "$u" = about:blank ] && u=
@@ -1573,6 +1646,9 @@ fn browser_context(int? id = "") {
 	local t=${BW[$id]["cur"]}
 
 	bw_under "$id" || true
+	# A page that took the right click for itself (a web app's own menu, a map) has had it: the
+	# press was sent to it to find out (`web at`), and no menu of ours goes over its own.
+	[ "$BW_AT_KIND" = page ] && return 0
 	dt_menu "Page"
 	case $BW_AT_KIND in
 	link | linkimage)

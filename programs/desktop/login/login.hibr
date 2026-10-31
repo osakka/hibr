@@ -228,19 +228,28 @@ fn lg_colours(name) {
 }
 
 # Run a command as a person, to read what is theirs: as root a child drops
-# to them first; anyone else may only read their own. It gets five seconds:
-# a person who made their About Me a pipe nobody writes to must not hang
-# the screen for everyone else.
+# to them first; anyone else -- a trial run -- may only read their own,
+# and its own permissions would refuse anything else anyway.
 fn lg_as(u, ...rest) {
-	local pid dog st
-
 	if [ "$EUID" = 0 ]; then
-		( drop "$u" > /dev/null 2>&1 && "${rest[@]}" ) &
-	elif [ "$u" = "$(id -un)" ]; then
-		( "${rest[@]}" ) &
+		lg_bound lg_drop "$u" "${rest[@]}"
+	elif [ "$u" = "${USER-}" ]; then
+		lg_bound "${rest[@]}"
 	else
 		return 1
 	fi
+}
+
+# Give up root for a person, then run the command as them.
+fn lg_drop(u, ...rest) { drop "$u" > /dev/null 2>&1 && "${rest[@]}"; }
+
+# Run a command in a child for at most five seconds: a person who made
+# their About Me a pipe nobody writes to, or a directory server that has
+# stopped answering, must not hang the screen for everyone else.
+fn lg_bound(...cmd) {
+	local pid dog st
+
+	( "${cmd[@]}" ) &
 	pid=$!
 	( sleep 5; kill -9 "$pid" ) > /dev/null 2>&1 &
 	dog=$!
@@ -270,7 +279,9 @@ fn lg_who(u) {
 	LG_SESS=$LG_DEFSESS
 	LG_ME=()
 	[[ $u =~ ^[a-z_][a-z0-9_.-]*[$]?$ ]] || return 1
-	ent=$(getent passwd "$u" 2> /dev/null)
+	# The login screen's own loop, not the desktop's: what it shows next
+	# is this answer, and lg_bound ends a lookup that takes five seconds.
+	ent=$(lg_bound getent passwd "$u" 2> /dev/null) # fork: once per name typed, bounded at five seconds
 	[ -n "$ent" ] || return 1
 	IFS=: read -ra f <<< "$ent"
 	[ "${f[2]}" != 0 ] || return 1
@@ -278,7 +289,7 @@ fn lg_who(u) {
 	home=${f[5]}
 	cfg=$home/.config
 	[ "$EUID" != 0 ] && [ -n "$XDG_CONFIG_HOME" ] && cfg=$XDG_CONFIG_HOME
-	j=$(lg_as "$u" lg_readf "$cfg/hibr/me.json" 2> /dev/null)
+	j=$(lg_as "$u" lg_readf "$cfg/hibr/me.json" 2> /dev/null) # fork: once per name typed, bounded at five seconds, as the person
 	if [ -n "$j" ] && json parse LG_ME "$j" 2> /dev/null; then
 		[ -n "${LG_ME["name"]}" ] && LG_NAME=${LG_ME["name"]:0:40}
 		LG_LINE=${LG_ME["line"]:0:60}

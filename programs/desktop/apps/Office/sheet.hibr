@@ -49,7 +49,7 @@
 
 strict
 
-app sheet "A spreadsheet whose formulas are hibr" 1.5
+app sheet "A spreadsheet whose formulas are hibr" 1.6
 # modules: csv db math
 
 command -v dt_app > /dev/null && dt_app sheet "Sheet" 24 84 many "⊞"
@@ -88,6 +88,10 @@ SS_ROW0=4
 SS_TOOLS=(B:b I:i "L:al:l" "C:al:c" "R:al:r" "0:nf:0" "0.00:nf:2"
           "%:pct" "1,000:th" "fx:help")
 SS_CPU=2
+# What the recalc job runs: the window, its folder and the command.
+SS_RID=
+SS_RTMP=
+SS_RCMD=()
 SS_SCHEMA=(r:int c:int v:str:4096 f:str:128)
 SS_REFS=()
 SS_CELLS=()
@@ -588,9 +592,9 @@ fn ss_trusted(int id) {
 # that runs them all -- under --plan unless the sheet is trusted, with two
 # seconds of CPU -- and each one's value or what went wrong.
 fn ss_recalc(int id) {
-	local k nm code q n i f dep out rc st v e prog tmp dir
-	local -a forms order lits rec fld ev
-	local -A deg need users isform litset done rng emitted
+	local k nm code q n i f dep v prog tmp dir
+	local -a forms order lits rec fld
+	local -A deg need users isform litset done rng
 
 	for k in "${!SC[$id][@]}"; do
 		[ "${SC[$id][$k]["src"]:0:1}" = "=" ] || continue
@@ -679,14 +683,56 @@ fn ss_recalc(int id) {
 		prog+="__c=$q; __eval $nm"$'\n'
 	done
 	printf '%s' "$prog" > "$tmp/run-$id.hibr" 2> /dev/null || return 0
-	local -a cmd=("$HIBR")
-	ss_trusted "$id" || cmd+=(--plan)
-	ev=("HOME=$HOME" "PATH=$PATH" "LANG=${LANG:-C.UTF-8}"
-		"HIBR_MODPATH=${HIBR_MODPATH-}" "TMPDIR=$tmp")
-	out=$(cd "$tmp" && env -i "${ev[@]}" \
-		"$HIBR" -c "$SS_RUNNER" x "$SS_CPU" "$SS_WALL" "${cmd[@]}" \
-		"$tmp/run-$id.hibr" < /dev/null 2> "$tmp/err-$id")
-	rc=$?
+	# The formulas run in a job (ADR 0049): a sandboxed hibr may take
+	# SS_WALL seconds, and every display would wait meanwhile. A recalc
+	# asked for while one runs is started when it ends, and the answer of
+	# the one before it is not taken, being for cells since changed.
+	SS[$id]["rorder"]="${order[*]}"
+	SS[$id]["rtmp"]=$tmp
+	if [ -n "${SS[$id]["rjob"]}" ]; then
+		SS[$id]["ragain"]=1
+		return 0
+	fi
+	SS_RID=$id
+	SS_RTMP=$tmp
+	SS_RCMD=("$HIBR")
+	ss_trusted "$id" || SS_RCMD+=(--plan)
+	SS[$id]["ragain"]=
+	SS[$id]["rjob"] := dt_job sheet "$id" ss_recalcdone ss_recalcjob || SS[$id]["rjob"]=
+}
+
+# The job's side of a recalc: the runner, alone in an empty environment.
+ss_recalcjob() {
+	local -a ev=("HOME=$HOME" "PATH=$PATH" "LANG=${LANG:-C.UTF-8}"
+		"HIBR_MODPATH=${HIBR_MODPATH-}" "TMPDIR=$SS_RTMP")
+
+	cd "$SS_RTMP" && env -i "${ev[@]}" \
+		"$HIBR" -c "$SS_RUNNER" x "$SS_CPU" "$SS_WALL" "${SS_RCMD[@]}" \
+		"$SS_RTMP/run-$SS_RID.hibr" < /dev/null 2> "$SS_RTMP/err-$SS_RID"
+}
+
+# A recalc has ended: each formula's answer into its cell, unless another
+# was asked for meanwhile, which is then started instead.
+fn ss_recalcdone(int n, int rc) {
+	local id=${DTJ[$n]["tag"]} f out nm st v e k tmp
+	local -a order
+	local -A isform emitted
+
+	[ -n "${SS[$id]["rjob"]+x}" ] || return 0
+	SS[$id]["rjob"]=
+	if [ -n "${SS[$id]["ragain"]}" ]; then
+		ss_recalc "$id"
+		return 0
+	fi
+	tmp=${SS[$id]["rtmp"]}
+	read -ra order <<< "${SS[$id]["rorder"]}"
+	for k in "${!SC[$id][@]}"; do
+		[ "${SC[$id][$k]["src"]:0:1}" = "=" ] || continue
+		nm := ss_name "${k%:*}" "${k#*:}"
+		isform["$nm"]=$k
+	done
+	f := dt_jobfile "$n" out
+	out=$(< "$f")
 	ss_notes "$tmp/err-$id"
 	for nm in "${order[@]}"; do emitted["$nm"]=; done
 	while [ -n "$out" ]; do
@@ -716,6 +762,7 @@ fn ss_recalc(int id) {
 	done
 	for nm in "${order[@]}"; do
 		[ -n "${emitted["$nm"]}" ] && continue
+		[ -n "${isform["$nm"]}" ] || continue
 		k=${isform["$nm"]}
 		if [ "$rc" -ge 128 ]; then
 			SC[$id][$k]["val"]="#TIME"

@@ -519,9 +519,16 @@ fn dt_tickon(f) {
 # missing library put 1.78 million `pe_servers: command not found` lines
 # into the owner's desktop.log (Gitea #262). The check costs one lookup
 # per ticker per frame, and there are a handful.
+# Each is timed (wm/budget.hibr), and one whose app is paused is skipped.
 dt_tickers() {
-	local f t0
+	local f t0 t ap
 	local -a keep=()
+
+	# The processor-wait baseline again (wm/budget.hibr): the saver's and
+	# the lock's waits call this and not the loop's own read, and a
+	# baseline an hour old would excuse the first stall after them.
+	read -r DT_SCHON DT_SCHWAIT _ 2> /dev/null < "/proc/$$/schedstat" ||
+		{ DT_SCHON=0; DT_SCHWAIT=0; }
 
 	for f in "${DT_TICKERS[@]}"; do
 		if ! dt_has "$f"; then
@@ -529,14 +536,13 @@ dt_tickers() {
 			continue
 		fi
 		keep+=("$f")
-		if [ -n "$DT_STATON" ]; then
-			t0=${EPOCHREALTIME/./}
-			"$f"
-			DT_STAT["t:$f"]=$((${DT_STAT["t:$f"]:-0} + ${EPOCHREALTIME/./} - t0))
-			DT_STAT["n:$f"]=$((${DT_STAT["n:$f"]:-0} + 1))
-		else
-			"$f"
-		fi
+		ap := dt_tickowner "$f"
+		[ "$ap" = - ] && ap=
+		dt_paused "$ap" && continue
+		t0=${EPOCHREALTIME/./}
+		"$f"
+		t=$((${EPOCHREALTIME/./} - t0))
+		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "$f" "$t" "$ap"
 	done
 	[ "${#keep[@]}" = "${#DT_TICKERS[@]}" ] || DT_TICKERS=("${keep[@]}")
 	return 0
@@ -809,13 +815,10 @@ dt_run() {
 					# the wait at once.
 					DT_QWAIT=1
 				else
-					if [ -n "$DT_STATON" ]; then
-						t0=${EPOCHREALTIME/./}
-						dt_draw
-						DT_STAT["t:draw"]=$((${DT_STAT["t:draw"]:-0} + ${EPOCHREALTIME/./} - t0))
-					else
-						dt_draw
-					fi
+					t0=${EPOCHREALTIME/./}
+					dt_draw
+					t0=$((${EPOCHREALTIME/./} - t0))
+					[ -z "$DT_STATON" ] && [ "$t0" -lt 1000 ] || dt_spent draw "$t0"
 					DT_STAT["frames"]=$((${DT_STAT["frames"]:-0} + 1))
 					dt_autoclose
 					skipn=0
@@ -866,6 +869,11 @@ dt_run() {
 		else
 			k := console key "${DT_WANT:-$DT_IDLEMS}"
 		fi
+		# How long this process has waited for a processor so far, so
+		# a callback that ran long because the machine was busy is not
+		# taken for one that stalled the desktop (wm/budget.hibr).
+		read -r DT_SCHON DT_SCHWAIT _ 2> /dev/null < "/proc/$$/schedstat" ||
+			{ DT_SCHON=0; DT_SCHWAIT=0; }
 		DT_QWAIT=
 		DT_STAT["wakes"]=$((${DT_STAT["wakes"]:-0} + 1))
 		[ -n "$k" ] && DT_STAT["events"]=$((${DT_STAT["events"]:-0} + 1))

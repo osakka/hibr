@@ -376,6 +376,12 @@ dt_menus() {
 		dt_sep
 		dt_dim "Close"
 	else
+		# An app paused for holding the desktop (wm/budget.hibr) is
+		# resumed from its own window's menu.
+		if dt_paused "${DT[$DT_FOCUS]["app"]}"; then
+			dt_item "Resume" e dt_resume_focused
+			dt_sep
+		fi
 		dt_item "Move" m dt_grab move
 		if [ "${DT_APPS[${DT[$DT_FOCUS]["app"]}]["fixed"]}" = 1 ]; then
 			dt_dim "Resize"
@@ -807,7 +813,7 @@ fn dt_editdo(op) {
 		return 0
 	fi
 	DT_NOTEWIN=$DT_FOCUS
-	$cb "$DT_FOCUS" || dt_notep low "Nothing to %s" "$op"
+	dt_appcall "$DT_FOCUS" "$cb" || dt_notep low "Nothing to %s" "$op"
 	return 0
 }
 

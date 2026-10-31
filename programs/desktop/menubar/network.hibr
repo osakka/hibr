@@ -42,7 +42,7 @@
 
 strict
 
-app network "The network on the menu bar and the connection it watches" 1.1
+app network "The network on the menu bar and the connection it watches" 1.2
 
 # The state: kind (nm, ip, none, or gone for a NetworkManager that went;
 # empty until the first frame looks), why (the system asked for that did
@@ -73,6 +73,12 @@ DT_NETFD=
 DT_NETPTY=
 DT_NETAT=0
 DT_NETREAD=0
+# The read running as a job now, and whether another is owed after it.
+DT_NETRJOB=
+DT_NETRAGAIN=
+# Whether the first read is back: until it is, the bar says it does not
+# know yet, rather than that the machine is offline.
+DT_NETKNOWN=
 DT_NETLATE=
 DT_NETJOB=
 DT_NETJSSID=
@@ -117,7 +123,7 @@ fn dt_nethas(k) {
 	case $k in
 	nm)
 		command -v nmcli > /dev/null || return 1
-		r=$(dt_netq -t -f RUNNING general)
+		r=$(dt_netq -t -f RUNNING general) # fork: once, as the item starts
 		[ "$r" = running ]
 		;;
 	ip) command -v ip > /dev/null ;;
@@ -179,7 +185,7 @@ dt_netperms() {
 	local k v
 
 	DT_NETPERM=()
-	while read -r k v; do
+	while read -r k v; do # fork: as the item starts, and after the permission rule changes
 		case $k in
 		*.network-control) DT_NETPERM["control"]=$v ;;
 		*.settings.modify.system) DT_NETPERM["system"]=$v ;;
@@ -342,10 +348,41 @@ fn dt_netconfor(ssid) {
 # Read everything again, in whichever way this machine has.
 # Counted for `desktop ctl stats` (Gitea #343); declared here as well as in
 # wm/session.hibr, so this file still loads on its own.
+#
+# Reading NetworkManager is several runs of nmcli, so it is a job (ADR
+# 0049, Gitea #412): the job callback that read it again after every
+# connect held every display for nearly 200 ms. The bar shows what it had
+# until the answer is back; a read asked for while one is running is owed.
 declare -gA DT_STAT
 dt_netread() {
 	DT_NETREAD=$EPOCHREALTIME
 	DT_STAT["r:net"]=$((${DT_STAT["r:net"]:-0} + 1))
+	if [ -n "$DT_NETRJOB" ]; then
+		DT_NETRAGAIN=1
+		return 0
+	fi
+	DT_NETRJOB := dt_jobvars net state dt_netreaddone dt_netreadnow DT_NET DT_NETAG \
+		DT_NETAK DT_NETAS DT_NETAU DT_NETCD DT_NETCN DT_NETCS DT_NETCT DT_NETCU \
+		DT_NIPA DT_NIPR 2> /dev/null ||
+		{ DT_NETRJOB=; dt_log "network: the read could not start as a job"; }
+	return 0
+}
+
+# A read is back: the bar shows it, and an owed one starts.
+fn dt_netreaddone(int? n = "", int? st = "") {
+	DT_NETRJOB=
+	DT_NETKNOWN=1
+	dt_netbar
+	if [ -n "$DT_NETRAGAIN" ]; then
+		DT_NETRAGAIN=
+		dt_netread
+	fi
+	command -v dt_want > /dev/null && dt_want 0
+	return 0
+}
+
+# The read itself, in the job.
+dt_netreadnow() {
 	case ${DT_NET["kind"]} in
 	nm) dt_netnmread ;;
 	ip) dt_netipread ;;
@@ -559,7 +596,7 @@ dt_netbar() {
 	connecting) t="${GL[wifi]:+${GL[wifi]} }${GL[ellipsis]}" ;;
 	*) t=${GL[netoff]} ;;
 	esac
-	[ -n "${DT_NET["busy"]}" ] && t="${GL[wifi]:+${GL[wifi]} }${GL[ellipsis]}"
+	[ -n "${DT_NET["busy"]}" ] || [ -z "$DT_NETKNOWN" ] && t="${GL[wifi]:+${GL[wifi]} }${GL[ellipsis]}"
 	dt_baritem net "$t" dt_netpopopen
 	dt_bariright net dt_netmenu
 }

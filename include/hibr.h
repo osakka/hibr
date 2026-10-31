@@ -8,7 +8,7 @@
 #define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.399"
+#define HIBR_VER "0.99.400"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -24,6 +24,13 @@
 #endif
 #ifndef HIBR_IOCH
 #define HIBR_IOCH 4096
+#endif
+#ifndef HIBR_MTNS
+#ifdef __APPLE__
+#define HIBR_MTNS(st) ((st).st_mtimespec.tv_nsec)
+#else
+#define HIBR_MTNS(st) ((st).st_mtim.tv_nsec)
+#endif
 #endif
 #ifndef HIBR_ARCH
 #define HIBR_ARCH 4096

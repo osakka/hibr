@@ -96,6 +96,7 @@ fn dt_winbare(int id) {
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]}
 	local bg=${DT[$id]["bg"]:-$DT_FACE} fg=${DT[$id]["fg"]:-$DT_INK} t pct=88
 
+	dt_paused "${DT[$id]["app"]}" && dr=dt_pausewin
 	console pen "$fg" "$bg"
 	console fill "$wr" "$wc" "$h" "$w" " "
 	DT_NOTEWIN=$id
@@ -143,6 +144,7 @@ fn dt_clean(int id) {
 	[ -n "$DT_FORCEONCE" ] && return 1
 	case $DT_FORCEWIN in *" $id "*) return 1 ;; esac
 	[ -n "$ap" ] || return 1
+	dt_paused "$ap" && return 1
 	dt_hotmoved "$id" && return 1
 	case " $DT_ALONE " in *" $id "*) ;; *) return 1 ;; esac
 	dt_has "${ap}_dirty" || return 1
@@ -252,6 +254,7 @@ fn dt_contentonly(int id) {
 	[ -n "$DT_FORCEONCE" ] && return 1
 	case $DT_FORCEWIN in *" $id "*) return 1 ;; esac
 	[ -n "$ap" ] && [ -n "${DT[$id]["csig"]}" ] || return 1
+	dt_paused "$ap" && return 1
 	dt_has "${ap}_paintsall" && "${ap}_paintsall" "$id" || return 1
 	dt_hotmoved "$id" && return 1
 	case " $DT_ALONE " in *" $id "*) ;; *) return 1 ;; esac
@@ -267,6 +270,9 @@ fn dt_win(int id) {
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
 	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} pc cap=0
 
+	# A paused app (wm/budget.hibr) is not asked to draw: its window says
+	# why instead, in the same place.
+	dt_paused "${DT[$id]["app"]}" && dr=dt_pausewin
 	# Nothing about it has changed and nothing else touches it: its cells
 	# are still on the screen from last frame, and the wallpaper painted
 	# around them rather than over them. Its shadow is not inside its own

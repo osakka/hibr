@@ -503,6 +503,19 @@ ERROR = re.compile(rb"(?<![\w./-])hibr: ([^\r\n\x1b]*)\r?\n")
 ERRS = []
 TERMS = [0]
 EXPECTED = []
+# A callback that stalled the desktop (wm/budget.hibr) is a `held:` line in
+# desktop.log, and a suite in which one was written fails the same way as
+# one in which the shell printed an error: the line a person reads in their
+# own log is the line the gate refuses. The mark is the desktop's own
+# DT_HOLDMS, doubled here because a gate runs many desktops at once, and
+# eight times that for the sanitizer build, which under a full gate's load
+# drew the Control Panel past four times the mark. A `slow:` line is advice and fails nothing.
+SLOWLINE = re.compile(rb" desktop: (held: [^\r\n]*)\r?\n")
+os.environ.setdefault("DT_HOLDMS", str(300 * (8 if os.environ.get("ASAN_OPTIONS") else 1)))
+# And judged by the processor the desktop itself used, not by the clock
+# (wm/budget.hibr): a test checking the desktop's own wall-time rule -- the
+# pause -- sets wall for its session.
+os.environ.setdefault("DT_HOLDBY", "cpu")
 
 
 def expect(pattern):
@@ -885,6 +898,14 @@ class Term:
             except OSError:
                 pass
             for m in ERROR.finditer(text):
+                e = m.group(1).decode("utf8", "replace")
+                if not any(x.search(e) for x in EXPECTED):
+                    ERRS.append(e)
+            try:
+                lt = open(self.log, "rb").read()
+            except OSError:
+                lt = b""
+            for m in SLOWLINE.finditer(lt):
                 e = m.group(1).decode("utf8", "replace")
                 if not any(x.search(e) for x in EXPECTED):
                     ERRS.append(e)

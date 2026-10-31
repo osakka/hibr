@@ -20,7 +20,7 @@
 strict
 
 
-app loginmgr "The Control Panel pane for the login screen" 1.1
+app loginmgr "The Control Panel pane for the login screen" 1.2
 command -v cp_pane > /dev/null && cp_pane loginmgr "Login Manager" "⊡"
 [ -n "${PK_LIBDONE-}" ] || . "$DT_HERE/lib/pkrun.hibr"
 
@@ -42,13 +42,22 @@ LM_TTYSTEPS=()
 
 # Read the settings as they are, find the helper, and ask where the screen
 # runs: systemctl for a terminal of its own, Blit when this desktop runs on
-# Blit. A file that is not there is every default.
+# Blit. A file that is not there is every default. The reading starts
+# programs -- pkaction, and systemctl for each terminal -- so it is a job,
+# never the pane's draw (ADR 0049): the pane says it is reading meanwhile.
 lm_load() {
+	LM_PEND=()
+	LM_LOADED=reading
+	dt_jobvars loginmgr load lm_loaded lm_read LM LM_HELPER LM_TTY > /dev/null ||
+		{ LM_LOADED=1; dt_log "login manager: its settings could not be read in a job"; }
+	return 0
+}
+
+# The reading itself, in the job.
+lm_read() {
 	local j n
 
 	LM=()
-	LM_PEND=()
-	LM_LOADED=1
 	if [ -r "$LM_FILE" ]; then
 		j=$(head -c 65536 "$LM_FILE")
 		[ -n "$j" ] && { json parse LM "$j" 2> /dev/null || LM=(); }
@@ -64,7 +73,15 @@ lm_load() {
 			fi
 		done
 	fi
+	return 0
+}
+
+# The reading is back: the pane draws it, and Blit is asked where the
+# screen runs there.
+fn lm_loaded(int? n = "", int? st = "") {
+	LM_LOADED=1
 	lm_blitask
+	command -v dt_want > /dev/null && dt_want 0
 	return 0
 }
 
@@ -301,6 +318,11 @@ fn loginmgr_rows(int w) {
 	local n=0 v
 
 	[ -n "$LM_LOADED" ] || lm_load
+	if [ "$LM_LOADED" = reading ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Settings"
+		CP[$w][$n]["val"]="reading${GL[ellipsis]}"
+		ret 1
+	fi
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Changes"
 	if [ -z "$LM_HELPER" ]; then
 		CP[$w][$n]["val"]="hibr's policy is not installed: read only"

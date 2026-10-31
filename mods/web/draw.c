@@ -40,7 +40,10 @@ int wb_draw(sh *s, const dp_api *dp, wb_tab *t, const char *pane, int row,
 	   layout -- and there is no text layer at all: a text cell paints its
 	   own background, so anything drawn over the bitmap would box itself
 	   out of it (ADR 0037). Clicks and keys still reach the page, since
-	   those go by coordinate rather than through the cells. */
+	   those go by coordinate rather than through the cells. The fixed
+	   palette, as a film's: a page changes as it scrolls and loads, and
+	   sixel's palette taken from each picture cost 600 ms of the desktop's
+	   processor a page at 608 by 352 (ADR 0049) -- for 216 colours. */
 	if (t->pixels && t->shot && dp->image) {
 		int ih = h < t->rows ? h : t->rows;
 
@@ -48,7 +51,7 @@ int wb_draw(sh *s, const dp_api *dp, wb_tab *t, const char *pane, int row,
 		    row + ih <= prow + ph && col + w <= pcol + pw &&
 		    dp->image(s, pane, pane ? row - prow : row,
 			      pane ? col - pcol : col, ih, w, t->shot, t->shotw,
-			      t->shoth, DP_IMG_CHOSEN))
+			      t->shoth, 0))
 			return HIBR_OK;
 	}
 	if (!t->grid)

@@ -97,7 +97,7 @@ int sh_explain(sh *s, const char *src)
 		lg(HIBR_LERR, "--explain needs the lint module, which was not found");
 		return 2;
 	}
-	found = li->explain(s, n);
+	found = li->explain(s, n, src);
 	return found ? 1 : 0;
 }
 

@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
 from screen import Term, check, report, tree, load, press, release, wheel
 
+
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
 
@@ -126,6 +127,21 @@ class Net:
         return [c["NAME"] for c in self.state()["cons"]]
 
 
+def settle(t, rows=(0,), quiet=3):
+    """Wait until the given screen rows stop changing: a read is a job since
+    0.99.400, so what the bar or a pane shows arrives a frame or two after
+    the key or the start that asked for it."""
+    last, still = None, 0
+    for _ in range(40):
+        sc = t.screen()
+        now = [sc.row(r) for r in rows]
+        still = still + 1 if now == last else 0
+        last = now
+        if still >= quiet:
+            break
+        t.collect(0.25)
+
+
 def srun(net, feed, until=None, panel=False, env=None, rows=30, cols=100, during=None):
     """A desktop with this stand-in, the Control Panel open at Network when
     asked; keys, then the screen once `until` (text or a function of the
@@ -145,6 +161,10 @@ def srun(net, feed, until=None, panel=False, env=None, rows=30, cols=100, during
         if net is None or BARS[0] in t.screen().row(0) or "✕" in t.screen().row(0):
             break
         t.collect(0.25)
+    # The read of NetworkManager is a job since 0.99.400 (ADR 0049, Gitea
+    # #412), so the item is on the bar before what it shows is: wait until
+    # the bar is still.
+    settle(t)
     if during:
         during(t)
     if feed:

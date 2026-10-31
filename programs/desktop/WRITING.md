@@ -211,6 +211,45 @@ The Control Panel and the saver framework are the exception: every pane and
 every saver is built on them, so they say `# platform:` in their headers,
 count as part of the desktop, and are never installed apart from it.
 
+**Every callback returns inside the frame, and slow work is a job.** Every
+app runs in the desktop's one process, between frames: while a `_draw`,
+`_key`, `_click`, `_mouse`, `_wheel`, `_idle` or ticker runs, nothing else
+does -- not the other windows, not the bar, not a video in another window,
+on any display. So a callback does only what it can finish in a few
+milliseconds. Anything that may take longer -- scanning `/proc` or a large
+folder, starting a program (`$( )` and `:= program` both start one),
+reading from the network, decoding a file -- runs as a job, which is a
+child of the desktop with every function of yours already loaded:
+
+<!-- not run: needs a running desktop -->
+```sh
+fn fb_scanned(int n, int st) {
+	local f
+	f := dt_jobfile "$n" out
+	[ "$st" = 0 ] && mapfile -t FB_LIST < "$f"
+	dt_want 0
+}
+n := dt_job scan "$dir" fb_scanned fb_scan "$dir"
+```
+
+The callback runs in a later frame, after the job has ended, with its
+number and status; what it printed is in `dt_jobfile n out`, and
+`wm/jobs.hibr` says the rest. `dt_job` is the one way to do this: write no
+`( ... ) &` of your own.
+
+The desktop times every callback (`wm/budget.hibr`). One that takes longer
+than a frame, 50 ms, is a note in the log -- `slow: win:files took 70 ms`
+-- for whoever wrote it. One that takes longer than 150 ms has stalled
+every display, which a person sees: it is `held: win:files held the
+desktop 230 ms`, the suites fail on that line, so it cannot ship, and an
+app that does it three times in a minute is **paused**: its windows show a
+notice saying how long it held the desktop, nothing of it but `_idle` is
+called, and Window > Resume puts it back. `desktop ctl stats` shows each
+callback's total and its longest single run, `max_ms`; read the second,
+since a callback that is slow once a second is invisible in an average. A
+window whose drawing costs more than a millisecond also offers `<app>_dirty`
+(below), so it is drawn only when it has something new.
+
 **A window that animates asks for its next frame.** The desktop redraws on
 every key, resize and terminal output, and otherwise sleeps: there is no
 refresh rate. Anything that shows the time or moves on its own must ask, or

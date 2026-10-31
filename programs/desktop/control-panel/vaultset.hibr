@@ -10,11 +10,13 @@
 strict
 
 
-app vaultset "The Control Panel pane for the Bitwarden or Vaultwarden vault" 1.0
+app vaultset "The Control Panel pane for the Bitwarden or Vaultwarden vault" 1.1
 command -v cp_pane > /dev/null && cp_pane vaultset "Vault" "⚿" app
 
 # Each setting's choices, "name=number" -- a number of minutes or seconds.
 declare -gA CP_VWCH
+# The timeout a job is setting.
+CP_VWN=0
 CP_VWCH["locktime"]="1 Minute=1|5 Minutes=5|15 Minutes=15|30 Minutes=30|1 Hour=60|4 Hours=240|Never=0"
 CP_VWCH["syncevery"]="Never=0|15 Minutes=15|1 Hour=60|4 Hours=240"
 CP_VWCH["clear"]="10 Seconds=10|30 Seconds=30|1 Minute=60|2 Minutes=120|Never=0"
@@ -58,13 +60,28 @@ fn cp_set_vwlock(int? id = "", value = "") {
 	local n
 
 	n := cp_vwnum locktime "$value"
-	if ! dt_vw "" timeout "$n"; then
-		local why=$DT_VWERR
-		if [ -z "$why" ]; then
-			why := dt_tr "The timeout could not be set"
-		fi
-		dt_note "$why"
+	CP_VWN=$n
+	dt_vwjob timeout cp_vwlockdone cp_vwlockjob
+}
+
+# The job's side of setting the timeout.
+cp_vwlockjob() { dt_vw "" timeout "$CP_VWN" || DT_VWST=$?; }
+
+fn cp_vwlockdone(int n, int st) {
+	[ "$st" = 0 ] && return 0
+	local why=$DT_VWERR
+	if [ -z "$why" ]; then
+		why := dt_tr "The timeout could not be set"
 	fi
+	dt_note "$why"
+}
+
+# The job's side of clearing the PIN.
+cp_vwpinjob() { dt_vw "" pin clear || DT_VWST=$?; }
+
+fn cp_vwpindone(int n, int st) {
+	[ "$st" = 0 ] && dt_notep low "The PIN is cleared"
+	return 0
 }
 fn cp_set_vwsyncevery(int? id = "", value = "") {
 	DT_VWSYNC := cp_vwnum syncevery "$value"
@@ -160,7 +177,7 @@ fn vaultset_do(int? w = "", k = "", int? dir = "") {
 		fi
 		dt_vwdialog pin > /dev/null
 		;;
-	pinoff) dt_vw "" pin clear && dt_notep low "The PIN is cleared" ;;
+	pinoff) dt_vwjob pin cp_vwpindone cp_vwpinjob ;;
 	syncnow)
 		if [ -z "$VW_SESSION" ]; then
 			dt_note "Unlock the vault first"

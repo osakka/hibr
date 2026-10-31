@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 2.2
+app mail "Email, offline, labels and conversations as Gmail has them" 2.3
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -472,7 +472,7 @@ fn ml_threads(int id) {
 	done
 	MW[$id]["order"]=
 	if [ "$nt" -gt 0 ]; then
-		IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -t: -k1,1nr)"
+		arr sort order -n -r
 		for k in "${order[@]}"; do
 			MW[$id]["order"]+="${k#*:} "
 		done
@@ -940,7 +940,7 @@ fn ml_read(int id) {
 	[ "$w" -lt 20 ] && w=20
 	read -ra rows <<< "${MLT[$id][$t]["rows"]}"
 	for i in "${rows[@]}"; do order+=("${ML["$acct"][$i]["date"]}:$i"); done
-	IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -t: -k1,1n)"
+	arr sort order -n
 	MLR[$id][$n]["t"]=${MLT[$id][$t]["subj"]:-(no subject)}
 	MLR[$id][$n]["k"]=subject
 	n=$((n + 1))
@@ -1654,9 +1654,9 @@ fn mlc_new(int? from = "", mode = new, toaddr = "") {
 				to=${r["replyto"]:-${r["from"]}}
 				if [ "${r["fromaddr"],,}" = "${me,,}" ]; then
 					to=${r["to"]}
-					[ "$mode" = all ] && cc=$(ml_others "$me" "${r["cc"]}")
+					[ "$mode" = all ] && cc := ml_others "$me" "${r["cc"]}"
 				elif [ "$mode" = all ]; then
-					cc=$(ml_others "$me" "${r["to"]}, ${r["cc"]}")
+					cc := ml_others "$me" "${r["to"]}, ${r["cc"]}"
 				fi
 				[[ ${subj,,} == re:* ]] || subj="Re: $subj"
 				q="On $d, ${r["fromname"]} wrote:"$'\n'
@@ -1734,11 +1734,11 @@ fn ml_others(me, list) {
 		[[ ${a,,} == *"${me,,}"* ]] && continue
 		out+="${out:+, }$a"
 	done
-	printf '%s' "$out"
+	ret "$out"
 }
 
 fn mailc_draw(int id, int h, int w, int row, int col) {
-	local f=${MC[$id]["focus"]} r=0 k on fw=$((w - 11)) lab att a n bh
+	local f=${MC[$id]["focus"]} r=0 k on fw=$((w - 11)) lab att a n bh ln
 	local -A labs=([to]="To:" [cc]="Cc:" [bcc]="Bcc:" [subj]="Subject:")
 	local -a as
 
@@ -1768,7 +1768,8 @@ fn mailc_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 1))
 	done
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" "$r" 0 "$(str repeat "${GL[hline]}" "$w")"
+	ln := str repeat "${GL[hline]}" "$w"
+	console put -p "w$id" "$r" 0 "$ln"
 	r=$((r + 1))
 	bh=$((h - r - 3))
 	[ "$bh" -lt 2 ] && bh=2
@@ -2087,7 +2088,7 @@ fn mlc_send(int id) {
 		return 0
 	fi
 	command rm -f "$body"
-	[ "${MLGMAIL["$acct"]}" = 1 ] || [ "${MLA["$acct"]}" = pop ] || sent=$(ml_sentfold "$acct")
+	[ "${MLGMAIL["$acct"]}" = 1 ] || [ "${MLA["$acct"]}" = pop ] || sent := ml_sentfold "$acct"
 	MC[$id]["sending"]=1
 	MC[$id]["err"]=
 	n := ml_job send "$acct" mlc_sent "$HIBR" -c 'need email || exit 2; email send "$1" "$2" || exit 1; [ -n "$3" ] || exit 0; h := email open "$1" && email append "$h" "$3" "$2" "\Seen"; exit 0' send "$acct" "$out" "$sent"
@@ -2195,9 +2196,9 @@ fn ml_sentfold(acct) {
 	local k
 
 	for k in "${!MW[@]}"; do
-		[[ $k == "role$acct:"* ]] && [ "${MW["$k"]}" = sent ] && { printf '%s' "${k#role$acct:}"; return 0; }
+		[[ $k == "role$acct:"* ]] && [ "${MW["$k"]}" = sent ] && ret "${k#role$acct:}"
 	done
-	printf '%s' Sent
+	ret Sent
 }
 
 # Sending finished: the window closed, or the reason shown in it.

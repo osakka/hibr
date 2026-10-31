@@ -13,6 +13,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
 from screen import Term, check, report, press, release, load, tree, expect
 
+# The Browser's draw waits on the browser engine for each page it renders,
+# which 0.99.400's budget names as a stall under load. The Browser is the
+# hibr-browser session's, and its `_dirty` (Browser 2.15) is the first
+# step; expected here until its draw no longer waits.
+expect(r"held: win:browser")
+
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
 
@@ -214,6 +220,37 @@ out, err = hb("t := web open %s; web wait $t 10000; web size $t 20 70;"
               " echo \"waited $n\"" % (A, S))
 check("an event that lands inside a render leaves the tab dirty",
       out.split("\n")[:2] == ["dirty", "idle"], out + err)
+# `web set T render async` (ADR 0049, hibr-browser's NONBLOCKING step 1): a
+# render sends and returns, and a later one builds what came back, so a
+# page whose main thread is busy holds no frame. The page blocks itself for
+# 1.5 s; each render is timed while it waits, until one has built the page
+# (its height is known). The same loop synchronous is the control: unless
+# it waits, the page was never blocked and the async figure says nothing.
+def blocked(mode):
+    out, err = hb("t := web open %s; web wait $t 10000; web size $t 20 70;"
+                  " web set $t render %s;"
+                  " web eval $t 'setTimeout(()=>{const e=Date.now()+1500;"
+                  "while(Date.now()<e);},0);1' > /dev/null; sleep 0.1;"
+                  " max=0; n=0; got=;"
+                  " while [ $n -lt 80 ]; do"
+                  "   s=${EPOCHREALTIME/./}; web render $t > /dev/null;"
+                  "   e=${EPOCHREALTIME/./}; d=$(( (e - s) / 1000 ));"
+                  "   [ $d -gt $max ] && max=$d;"
+                  "   sc := web scroll $t; read -r a h b <<< \"$sc\";"
+                  "   [ \"${h:-0}\" -gt 0 ] && { got=$n; break; };"
+                  "   sleep 0.05; n=$((n + 1));"
+                  " done; echo \"max $max got $got\"" % (A, mode))
+    w = out.split()
+    try:
+        return int(w[1]), (int(w[3]) if len(w) > 3 else None), out + err
+    except (IndexError, ValueError):
+        return None, None, out + err
+smax, sgot, sout = blocked("sync")
+amax, agot, aout = blocked("async")
+check("an async render never waits on a busy page, and builds it after",
+      smax is not None and smax >= 800 and amax is not None and
+      amax < (400 if os.environ.get("ASAN_OPTIONS") else 100) and agot is not None and agot >= 5,
+      (sout, aout))
 out, err = hb("t := web open %s; web wait $t 10000; web size $t 20 70;"
               " web render $t; web click $t 6 3; web type $t 'hello there';"
               " web key $t backspace; web eval $t 'document.getElementById(\"q\").value';"
@@ -460,6 +497,19 @@ def darkcells(sc):
     return n
 
 
+# An async render (Browser 2.17 turns it on where web.so offers it) hides
+# the page's text for the screenshot, waits for the hide to be answered,
+# and only then asks for the picture: a word drawn into the picture as well
+# as over it would put black under every letter of a large black word on a
+# white page. Three runs, since an ordering is what is being checked.
+open(os.path.join(D, "hw.html"), "w").write(
+    "<html><head><title>Heavy</title></head><body style='background:#fff'>"
+    "<h1 style='font-size:72px;color:#000;margin:0'>HEAVYWORD</h1></body></html>")
+HW = "file://" + os.path.join(D, "hw.html")
+hw = [darkcells(brun([2.0], arg=HW, until="HEAVYWORD",
+                     env={"DT_IMGMODE": "half"})) for _ in range(3)]
+check("an async render never draws the page's own text into its picture",
+      hw == [0, 0, 0], hw)
 on = brun([2.0], arg=IM, until="IMGPAGE", env={"DT_IMGMODE": "half"})
 off = brun([2.0], arg=IM, until="IMGPAGE",
            env={"DT_IMGMODE": "half", "BW_IMAGES": "0"})
@@ -733,4 +783,4 @@ check("a page with no root element renders and zooms without a script error",
 SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(58)
+report(60)

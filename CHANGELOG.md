@@ -1,5 +1,131 @@
 # Changelog
 
+## 0.99.400
+
+**Every app has a frame budget, and the desktop enforces it** (ADR 0049).
+Every app runs in the desktop's one process, between frames, so a callback
+that takes a quarter of a second stops every display for a quarter of a
+second. Task Manager did that once a second for many releases and nobody
+saw it, because the only timing kept was a total. This release makes that
+kind of fault hard to write, impossible to ship and quick to contain.
+
+- **One timing path.** Every callback the desktop calls -- tickers, a
+  window's draw and idle, its key, click, mouse and wheel handlers -- is
+  timed the same way (`wm/budget.hibr`), replacing the five copies there
+  were. `desktop ctl stats` shows each one's **longest single run**,
+  `max_ms`, beside its total, and lists any paused app.
+- **Two marks in the log.** Past 50 ms a callback is a `slow:` note for
+  whoever wrote it; past 150 ms it is a `held:` stall -- every display stood
+  still -- and the suites fail on that line, so a stalling callback cannot
+  ship.
+- **An app that keeps stalling is paused.** Three stalls in a minute and
+  its windows say how long it held the desktop, nothing of it but `_idle`
+  is called, and Window > Resume brings it back. Its windows always close.
+- **Lint names it before it is written down.** `hibr --explain` reports a
+  `$( )`, a backquote or a `<( )` -- in a word or a redirection -- in a
+  function the desktop calls back **or anything such a function calls in
+  the same file**, each a process started every time it runs, unless the
+  line says `# fork: reason`, and the reason names its bound ("once a
+  desktop", "every 30 s while open"). `tests/850-lint.t` lints every file
+  under `programs/`, so a new one fails the suite. Its first full run found
+  41, every one now converted or bounded -- below.
+- **The written contract** is in `WRITING.md`: slow work is a job.
+  `dt_jobvars` runs a function that sets variables as a job and brings
+  them back, for a pane whose first draw had to start programs.
+- **What the sweep found, and fixed.** Login Manager and Administrative
+  Access started `systemctl`, `pkaction` and `head` in their first draw
+  (73 and 44 ms); they read in a job now and say "reading" meanwhile. The
+  Shortcuts pane compared every key with every other on every frame it was
+  open: its row builder alone took 39 ms, and takes 5 ms now.
+- **Every reader that waited on a program is a job.** The Bluetooth reader
+  ran bluetoothctl five times and more from a ticker (200 to 360 ms on an
+  idle machine), the network reader ran nmcli after every connect (about
+  185 ms), and the sound reader ran pactl or wpctl; each reads in a job
+  now and the bar shows the last answer meanwhile (Gitea #412); before
+  the first answer it shows the item with an ellipsis, never a guess --
+  Bluetooth off, the machine offline or the volume at 0% were each what an
+  unread state looked like. The Vault
+  unlocked (a key derivation), logged in (the network) and read its list
+  synchronously from a key: all three are jobs, the box says "Unlocking…"
+  meanwhile, and a lock taken while one runs wins. A copied password is
+  still read on the click, through a pipe, because a job's answer comes
+  back through a file and a password must not touch one. Sheet's formulas,
+  one sandboxed hibr that may run for ten seconds, are a job too, and an
+  edit made meanwhile is worked out when it ends. Setting the date and
+  time asks whether the clock follows the network in a job.
+- **And what hibr already did in-process, it does in-process.** A
+  function's answer through `$( )` is `:=` (Mail's reply-all and sent
+  folder, the Calendar's times); `printf | sort` is `arr sort -n` (Mail's
+  threads, the Calendar's day); `$(str lower)` and `$(dt_tr)` are `:=`;
+  Files' details view lists through the ls module rather than GNU `ls`;
+  Task Manager reads the system from `$OSTYPE` rather than `uname`. About
+  This Computer's `top -l 2` fallback, a second-long stall on a Mac without
+  the darwin module, is gone: the Makefile builds that module on every Mac.
+  What still starts a program does so a bounded number of times and says
+  so: the zone link once per change of zone, `who` every 30 s while About
+  is open, Task Manager's `ps` on macOS until proctab has a reader there
+  (Gitea #413), and the login screen's lookup of a typed name, now bounded
+  at five seconds like the About Me read beside it.
+- **A desktop restarted in place drew its pictures again.** Pictures sent
+  to a terminal by the kitty protocol are numbered from the process id and
+  a count, and Restart Desktop is an exec in the same process, so the
+  count started again and the new desktop handed out the very ids the one
+  before it had used -- ids hold and Blit had just deleted. Blit refuses
+  frames for a deleted id, so after a restart the Browser and YouTube drew
+  their title and address and no page, and a window showed its picture
+  only for a moment as it moved. The count now goes across the exec
+  (`HIBR_KITTYID`). And a session upgraded by the restart clears what the
+  server before it left on each display: its first frame deletes every
+  picture there and sends again only what is on screen, so the fifteen
+  pictures nothing would ever delete go without signing out.
+- **The browser module never waits inside a frame** (hibr-browser's
+  NONBLOCKING step 1, Browser 2.17). `web set T render async`, offered as
+  the cap `renderasync`, makes `web render` send the page reading and
+  return; a later call hides the page's text, asks for the screenshot once
+  the hide is answered, shows the text again once the picture is in, and
+  builds the frame. A page blocking its own main thread for 1.5 s held a
+  synchronous render 1422 ms; an async one is never over 1 ms, and the
+  page is drawn when it unblocks. `web send T js` runs a script and reads
+  no answer (cap `send`), for play, pause and seek. A page drawn as pixels
+  on a sixel terminal takes the fixed palette, as a film does: the one
+  taken from each picture cost 600 ms of the desktop's processor per
+  608x352 page, for the 216 colours that remain. The module also kept
+  every reply nobody read -- each screencast frame's acknowledgement --
+  until the browser stopped; they are freed as they arrive. And a profile
+  of its own, made when another browser holds the shared one, is removed
+  in a process of its own rather than thousands of unlinks in the
+  desktop's.
+- **`arr sort -n` breaks a tie as text**, the way `sort -n` does, so equal
+  numbers come out in one order every time rather than qsort's. **The ls
+  module sorts `-t` to the nanosecond**, as GNU `ls` does.
+- **A shell bug: an assignment to a map entry whose key held `=` emptied
+  the whole map.** `m["a=b"]=1` was split at the `=` inside the key. Found
+  because the Shortcuts pane's table lost everything at Volume Up, whose
+  key is `mod-=`; the desktop keys several maps by key name. It now splits
+  after the subscripts, as bash does.
+- **One reader of the process table**, `mods/procs.c`, shared by
+  `proctab` and the system monitor `mon`, which also now reads memory from
+  `status` rather than `stat`'s inaccurate field.
+- **Frames by descriptor follow the picture** (Blit ADR 0202). A frame went
+  to every display that could take one, so a display the picture had left
+  refused every frame after and never got the picture back, and one it
+  was never on was left images nobody deleted. Frames now go only where
+  the picture is placed, and a display that loses a picture forgets it.
+- **A busy machine is not a stalled desktop.** A stall is a callback's
+  time less what the kernel kept the desktop waiting for a processor
+  meanwhile (`/proc/<pid>/schedstat`): waiting on a program it started,
+  or on the disk, is the callback's own, and being taken off the processor
+  because everything else wanted it is not. Under a gate running dozens
+  of desktops, a ticker that writes one number to a file measured 441 ms
+  by the clock; it is not an app's fault, and no app is paused for it.
+- Login Manager 1.2, Shortcuts 1.3, Administrative Access 1.4, Mail 2.3,
+  Browser 2.19, YouTube 3.14, Files 3.7, Calendar 1.9, Diagram 1.5, Sheet
+  1.6, Write 1.6, Date & Time 1.8, Vault settings 1.1, Network 1.2,
+  Bluetooth 1.2, Sound 1.3, Modules 1.3, About This Computer 1.5, Task
+  Manager 1.7.
+- ADR 0050 proposes apps in processes of their own, the step after this,
+  for the owner to decide. Arabic 3.64.
+
 ## 0.99.399
 
 **Task Manager no longer stops the desktop once a second.** Measured on

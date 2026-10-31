@@ -60,7 +60,7 @@ fn dt_ondrop(int mr, int mc, mods) {
 		wr=${DT[$id]["row"]}
 		wc=${DT[$id]["col"]}
 		DT_NOTEWIN=$id
-		$ap "$id" $((mr - wr)) $((mc - wc)) "$op" "${src[@]}"
+		dt_appcall "$id" "$ap" $((mr - wr)) $((mc - wc)) "$op" "${src[@]}"
 		return 0
 	fi
 	dt_has dt_deskdrop && dt_deskdrop "$mr" "$mc" "$op" "${src[@]}"
@@ -275,7 +275,7 @@ dt_changed() {
 
 	for id in "${!DT[@]}"; do
 		cb=${DT[$id]["refresh"]}
-		[ -n "$cb" ] && DT_NOTEWIN=$id && $cb "$id"
+		[ -n "$cb" ] && DT_NOTEWIN=$id && dt_appcall "$id" "$cb"
 	done
 	DT_NOTEWIN=
 	dt_has dt_deskscan && dt_deskscan
@@ -427,7 +427,7 @@ fn dt_fieldedit(op) {
 		fi
 		dt_clipset "$t" "$op" text
 		if [ "$op" = cut ]; then
-			$cb "$DT_FOCUS" backspace || true
+			dt_appcall "$DT_FOCUS" "$cb" backspace || true
 			dt_notep low "Cut %s characters" "${#t}"
 		else
 			dt_notep low "Copied %s characters" "${#t}"
@@ -435,7 +435,7 @@ fn dt_fieldedit(op) {
 		return 0
 		;;
 	selall)
-		$cb "$DT_FOCUS" end || true
+		dt_appcall "$DT_FOCUS" "$cb" end || true
 		[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
 		dt_want 10
 		return 0
@@ -457,7 +457,7 @@ fn dt_fieldedit(op) {
 		i=0
 		while [ "$i" -lt "${#t}" ]; do
 			c=${t:$i:1}
-			$cb "$DT_FOCUS" "$c" || true
+			dt_appcall "$DT_FOCUS" "$cb" "$c" || true
 			i=$((i + 1))
 		done
 		return 0
@@ -496,21 +496,21 @@ fn dt_fieldundo(op) {
 	t=${e#*$'\t'}
 	n=${e%%$'\t'*}
 	DT_FWANT=1
-	$cb "$DT_FOCUS" end || true
+	dt_appcall "$DT_FOCUS" "$cb" end || true
 	[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
 	if [ -z "$t" ]; then
-		$cb "$DT_FOCUS" backspace || true
+		dt_appcall "$DT_FOCUS" "$cb" backspace || true
 	else
 		i=0
 		while [ "$i" -lt "${#t}" ]; do
-			$cb "$DT_FOCUS" "${t:$i:1}" || true
+			dt_appcall "$DT_FOCUS" "$cb" "${t:$i:1}" || true
 			i=$((i + 1))
 		done
 	fi
-	$cb "$DT_FOCUS" home || true
+	dt_appcall "$DT_FOCUS" "$cb" home || true
 	i=0
 	while [ "$i" -lt "$n" ]; do
-		$cb "$DT_FOCUS" right || true
+		dt_appcall "$DT_FOCUS" "$cb" right || true
 		i=$((i + 1))
 	done
 	dt_want 10
@@ -555,11 +555,11 @@ fn dt_edit(op) {
 		return 0
 	fi
 	if [ "$op" = paste ]; then
-		[ -n "$DT_CLIP" ] && $cb "$DT_FOCUS" "$DT_CLIP" "${DT_CLIPOP:-copy}"
+		[ -n "$DT_CLIP" ] && dt_appcall "$DT_FOCUS" "$cb" "$DT_CLIP" "${DT_CLIPOP:-copy}"
 		return 0
 	fi
 	DT_CLIPKIND=text
-	if ! t := $cb "$DT_FOCUS" || [ -z "$t" ]; then
+	if ! t := dt_appget "$DT_FOCUS" "$cb" || [ -z "$t" ]; then
 		dt_notep low "Nothing is selected"
 		return 0
 	fi

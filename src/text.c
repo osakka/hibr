@@ -297,12 +297,12 @@ int ax_cmp(const void *a, const void *b)
 	return strcmp(*(char *const *)a, *(char *const *)b);
 }
 
-/* Compare two strings numerically. */
+/* Compare two strings numerically, and equal numbers as text. */
 int ax_ncmp(const void *a, const void *b)
 {
 	double x = atof(*(char *const *)a), y = atof(*(char *const *)b);
 
-	return x < y ? -1 : x > y ? 1 : 0;
+	return x < y ? -1 : x > y ? 1 : ax_cmp(a, b);
 }
 
 /* Quote an argument for a nested command. */

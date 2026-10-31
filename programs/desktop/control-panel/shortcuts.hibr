@@ -14,7 +14,7 @@
 strict
 
 
-app shortcuts "The Control Panel pane for every shortcut in one list" 1.2
+app shortcuts "The Control Panel pane for every shortcut in one list" 1.3
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌘"
 
 # Shortcut Key's three choices, as the pane shows them and as DT_MOD
@@ -59,12 +59,66 @@ fn shortcuts_drop(int w, int r, int c, k) {
 	dt_droplist "$w" "$r" "$c" cp_set_dtmod "${SC_MODLABELS[@]}"
 }
 
+# Every key in use, normalised once, and who holds it: " owner owner ".
+# Asking dt_keyshared row by row compared each key with every other, 46 by
+# 46, normalising both each time -- 35 of the pane's 39 ms on every frame
+# it was open, which under load was a stall (ADR 0049).
+declare -gA SC_OWN
+
+# Fill SC_OWN from every desktop action, app key and app action.
+shortcuts_owners() {
+	local a k
+
+	SC_OWN=()
+	for a in "${DT_KEYORDER[@]}"; do
+		[ -n "${DT_KEYS["$a"]}" ] || continue
+		k := dt_keynorm "${DT_KEYS["$a"]}"
+		SC_OWN["$k"]+=" $a"
+	done
+	for a in "${!DT_APPKEY[@]}"; do
+		[ -n "${DT_APPKEY["$a"]}" ] || continue
+		k := dt_keynorm "${DT_APPKEY["$a"]}"
+		SC_OWN["$k"]+=" app:$a"
+	done
+	for a in "${DT_AKEYORDER[@]}"; do
+		[ -n "${DT_AKEY["$a"]}" ] || continue
+		k := dt_keynorm "${DT_AKEY["$a"]}"
+		SC_OWN["$k"]+=" act:$a"
+	done
+	return 0
+}
+
+# Whether what shares its key with another action, by dt_keyowner's own
+# rule: two apps' own actions may share a key, since only the focused
+# app's acts, and one app's two may not.
+fn shortcuts_shared(what) {
+	local k o e
+	local -a os
+
+	k := dt_keyof "$what"
+	[ -n "$k" ] || return 1
+	k := dt_keynorm "$k"
+	read -ra os <<< "${SC_OWN["$k"]}"
+	for o in "${os[@]}"; do
+		[ "$o" = "$what" ] && continue
+		case $what:$o in
+		act:*:act:*)
+			e=${what#act:}
+			o=${o#act:}
+			[ "${e%%:*}" = "${o%%:*}" ] && return 0
+			;;
+		*) return 0 ;;
+		esac
+	done
+	return 1
+}
+
 # One row for an action: its label, marked if its key is shared.
 fn shortcuts_row(int w, int n, what) {
 	local l
 
 	l := dt_keylabel "$what"
-	dt_keyshared "$what" && l="$l ${GL[warn]}"
+	shortcuts_shared "$what" && l="$l ${GL[warn]}"
 	CP[$w][$n]["kind"]=key
 	CP[$w][$n]["text"]=$l
 	CP[$w][$n]["val"] := dt_keyof "$what"
@@ -75,6 +129,7 @@ fn shortcuts_row(int w, int n, what) {
 fn shortcuts_rows(int w) {
 	local n=0 a names nl last
 
+	shortcuts_owners
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shortcut Key"
 	CP[$w][$n]["val"] := shortcuts_modlabel
 	CP[$w][$n]["key"]=DT_MOD; n=$((n + 1))

@@ -38,7 +38,7 @@ web close $t; web quit
 | `web links T` | every link: a line each, address, tab, text; with `:=` a map `r[i]["href"]`, `r[i]["text"]` |
 | `web eval T js` | run JavaScript in the page; a string as it is, anything else as JSON; a thrown error is said, status 1 |
 | `web size T rows cols` | lay the page out for that many cells |
-| `web render T` | take a frame: the text, the fields and the picture |
+| `web render T` | take a frame: the text, the fields and the picture  -- or, with `render async` set, build the last frame that came back and ask for the next, never waiting |
 | `web draw T row col [h w] [-p pane]` | draw the last frame on the display, into a pane if named; in pixels a paned page is placed below the cells, so a window over part of it hides only that part (Gitea #382) |
 | `web mode T cells\|pixels\|text` | how a page is drawn: text over the colours behind it, the page itself as pixels where the terminal can paint them, or nothing at all -- `text` makes a render read nothing, for a caller drawing the page's words itself |
 | `web set T js\|images\|dark on\|off` | what this tab's pages may do: run their scripts, fetch their pictures (refused by resource type, so an image with no extension is caught too), and be asked for their dark scheme (`prefers-color-scheme`). Per tab, so another program's tabs in the same browser keep theirs; scripts and pictures already loaded stay until the page loads again |
@@ -54,6 +54,8 @@ web close $t; web quit
 | `web downloaded`, `web notes` | what has happened since the last asking, a line each, and forgotten once told: `done PATH` or `failed NAME` for a download, `TITLE BODY` for a notification, a tab between. Status 1 when there is nothing |
 | `web pdf T PATH` | the tab's page printed to PATH as a PDF, backgrounds included |
 | `web set T live on\|off` | have the browser say when this tab's page repaints, so a page that changes on its own is marked dirty and read again: a screencast at 32 pixels kept running only as that signal, each frame acknowledged, and a repaint a render itself causes (cells mode hides and shows the page's text) kept quiet for 200 ms after it |
+| `web set T render async\|sync` | async (cap `renderasync`): `web render` sends the page reading and returns, and a later call -- after the page's text is hidden, its screenshot taken and its text shown again, each answer waited for by nothing -- builds the frame; `web dirty` answers a repaint or a frame ready to build. A frame read at a size since changed is not built. A desktop callback that waited on the engine held every display (ADR 0049); sync is the default, for a script that renders and reads at once |
+| `web send T js` | run JavaScript and not wait for it or read its answer (cap `send`): play, pause, seek |
 | `web scroll T` | where the page is scrolled to, how tall it is and how much of it shows, in CSS pixels, from the last render: `top height shown` |
 | `web config browser\|profile\|args VALUE` | what the browser is started with next, over `HIBR_WEB_BROWSER`, `HIBR_WEB_PROFILE` and `HIBR_WEB_ARGS`; empty puts the environment's back |
 | `web clear cookies\|cache` | forget the whole profile's cookies, or its cache, starting the browser if it is not running |
@@ -64,7 +66,7 @@ web close $t; web quit
 | `web type T text` | text into whatever has the focus |
 | `web loading T`, `web dirty T`, `web focus T` | status 0 while loading, when the page has changed since the last frame, when a field has the keyboard |
 | `web tap T` | copy everything the tab's pages hand a media source: installed before each page's own scripts, it notes each buffer as video or audio by its type and keeps every chunk appended to it |
-| `web caps` | what this engine does, one word each, for an app to ask before it asks for it (`dnt`, `pdf`, `config`, `tap`, ...); the WebKit module (hibr-browser) answers the same verb with its own list |
+| `web caps` | what this engine does, one word each, for an app to ask before it asks for it (`dnt`, `pdf`, `config`, `tap`, `renderasync`, `send`, ...); the WebKit module (hibr-browser) answers the same verb with its own list |
 | `web sound T off\|click\|load` | record what the tab plays, for `web take` to hand over as audio: from when the page first plays -- a video or audio element, or an AudioContext made (`click`, after the browser's own rule that sound waits for a gesture), as each page loads (`load`, given as a gesture, so the page may play unasked -- and what it was refused before that is played again), or not at all (`off`). See Sound below |
 | `web take T [VFD\|- [AFD\|-]]` | write what the tap has kept since last asked -- video to one descriptor, audio to the other -- and say what happened: `v BYTES a BYTES reset 0\|1 vtype TYPE atype TYPE snd on\|quiet\|-`, `snd` being a recording tab's state; a reset is a new media source (the next video, an ad break): a take stops at one, and the reset comes alone on the next take, with the new streams -- from their init segments -- on the one after, so a player can be started afresh before any of them arrives |
 | `web tapseek T` | after a seek: drop what was kept and keep each buffer's init segment again, so what is taken next reads from its start |

@@ -787,7 +787,11 @@ check("a cell with no background of its own is still let through",
 # An index is the case that was reported: an ncurses program paints palette
 # 0, not an RGB value, and what that resolves to is the terminal's own
 # business -- so the comparison is against what *it* said the index is.
-IDX = ("console key 400 > /dev/null\n"
+# Waited for, as WAITBG does above, rather than 400 ms: the palette is
+# asked right after the background, answered in that order, so one more
+# read once the background is in takes the sixteen entries with it. A fixed
+# 400 ms read the index as left alone once, with nothing else running.
+IDX = (WAITBG + "console key 200 > /dev/null\n"
        "img draw %s 2 2 10 20 -m pixels -u\n"
        "console pen white black\n"
        "console put 5 5 \"hi\"\n"
@@ -1179,5 +1183,33 @@ check("a pane that moves takes its picture with it, though it draws no cells",
       len(pl) == 2 and len(dl) == 1 and key(dl[0], "i") == key(pl[0], "i")
       and key(pl[1], "i") != key(pl[0], "i"), (pl, deletes(sc)))
 
+# Restart Desktop is an exec: the same process, so the same pid and the
+# same band of picture ids. Counting from the start again handed the new
+# desktop the old one's ids -- which hold and Blit had just deleted, and
+# whose frames Blit refuses as deleted, so the restarted desktop drew no
+# pictures at all (0.99.400). The count goes across the exec in
+# HIBR_KITTYID, so the picture drawn after it has an id of its own.
+EX2 = os.path.join(D, "ex2.hibr")
+EX1 = os.path.join(D, "ex1.hibr")
+exbody = ("%sconsole open\nimg draw %s 1 1 6 12 -m pixels\nconsole flush\n"
+          "console key 300 > /dev/null\nconsole close\n" % (load("console", "img"), GRAD))
+open(EX2, "w").write(exbody)
+open(EX1, "w").write(exbody + 'exec "$HIBR" %s\n' % EX2)
+t = Term(EX1, rows=24, cols=60, settle=1.5, cellw=8, cellh=16,
+         env={"HIBR_GFX": "kitty"})
+# Counted in the bytes: the screen model keeps the control strings of the
+# session it can see, and the console's close ends the first one.
+def rawplaces(out):
+    return [m.decode() for m in re.findall(rb"\x1b_(G[^;\x1b]*a=T[^;\x1b]*)", out)]
+for _ in range(40):
+    if len(rawplaces(t.out)) >= 2:
+        break
+    t.collect(0.25)
+pl = rawplaces(t.out)
+ids = [key(a, "i") for a in pl]
+t.quit(None, 0.5)
+check("a picture drawn after an exec in place has an id of its own",
+      len(ids) == 2 and ids[0] != ids[1], (ids, pl))
+
 shutil.rmtree(D, True)
-report(112)
+report(113)

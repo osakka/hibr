@@ -15,6 +15,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
 from screen import Term, check, report, tree, load, press, release
 
+# YouTube's input handlers wait on the browser engine, which 0.99.400's
+# budget names as a stall under load. YouTube is the hibr-browser
+# session's; expected here until its handlers no longer wait.
+sx.expect(r"held: (input|win):youtube")
+
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
 
@@ -360,9 +365,19 @@ try:
           and s[-1].find("ended") is not None, s[-1])
     check("and the page is not sent on to another video", vloads("vid2") == was, (was, vloads("vid2")))
     # Whatever the page's switch says, if it does move on by itself, the app follows.
+    # The stand-in's forcing goes off the moment the first move is seen: on,
+    # it moves the page on at the end of every clip, and the second is twelve
+    # seconds, so under a gate's load the page had gone on to a third before
+    # the app's own player was playing -- and the app followed it, rightly,
+    # and the check read "Third result" where it looked for the second.
+    def followed(sc):
+        if sc.find(" Another clip -- Second Channel") is None:
+            return False
+        urllib.request.urlopen(BASE + "/control?force=0").read()
+        return True
     urllib.request.urlopen(BASE + "/control?force=1").read()
     s = yrun([([], "A test pattern"), ([b"\r"], playing),
-              ([], lambda sc: sc.find(" Another clip -- Second Channel") is not None, 60),
+              ([], followed, 60),
               ([], lambda sc: playing(sc) and sc.find("starting") is None, 20)])
     urllib.request.urlopen(BASE + "/control?force=0").read()
     check("a page that moves on by itself is followed: the title is the new video's",

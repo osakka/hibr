@@ -56,6 +56,7 @@
 #include "cn.h"
 #include "../inflate.h"
 #include "../png.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -65,6 +66,34 @@
 #endif
 
 static unsigned kt_base, kt_n;
+
+/* Where this process's ids go on from, when it was this process before an
+   exec. Restart Desktop is an exec, so the pid -- and with it the band --
+   is the same, and a counter starting again handed out the very ids the
+   desktop before it had used: ids hold and Blit had just deleted, whose
+   frames Blit then refused as deleted, so the new desktop's pictures --
+   the wallpaper first -- never appeared (0.99.400). A child that inherits
+   the variable has another pid and starts its own band at the beginning. */
+void kt_idload(sh *s)
+{
+	const char *v = hibr_get(s, "HIBR_KITTYID");
+	unsigned long p, n;
+
+	if (v && sscanf(v, "%lu %lu", &p, &n) == 2 &&
+	    p == (unsigned long)getpid())
+		kt_n = (unsigned)n & 0x3FFFu;
+}
+
+/* Leave where the ids got to, for this process after an exec. */
+void kt_idsave(sh *s)
+{
+	str b;
+
+	s_init(&b);
+	s_fmt(&b, "%ld %u", (long)getpid(), kt_n);
+	hibr_set(s, "HIBR_KITTYID", b.p, 1);
+	s_free(&b);
+}
 
 /* The next image id, in this process's own band. */
 unsigned kt_id(void)

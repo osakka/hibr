@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "mn.h"
+#include "../procs.h"
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -297,111 +298,67 @@ mn_proc *mn_proc_of(vec *v, long pid)
 	return 0;
 }
 
-/* Who owns a process, looked up once. */
-void mn_owner(mn_proc *p)
+/* Who owns a process, from the uid its status gave, looked up once. */
+void mn_owner(mn_proc *p, long uid)
 {
-	str path;
-	char *t;
-	struct passwd *pw;
-	unsigned long uid;
+	struct passwd *pw = getpwuid((uid_t)uid);
 
-	s_init(&path);
-	s_cat(&path, "/proc/");
-	s_num(&path, p->pid);
-	s_cat(&path, "/status");
-	t = mn_slurp(path.p);
-	s_free(&path);
-	if (!t) {
-		strcpy(p->user, "?");
-		return;
-	}
-	uid = (unsigned long)mn_field(t, "Uid:");
-	free(t);
-	pw = getpwuid((uid_t)uid);
 	if (pw && pw->pw_name)
 		strncpy(p->user, pw->pw_name, sizeof p->user - 1);
 	else
-		snprintf(p->user, sizeof p->user, "%lu", uid);
+		snprintf(p->user, sizeof p->user, "%ld", uid);
+}
+
+/* What mn_procs hands the one reader of the process table (mods/procs.c):
+   the monitor's state and how long since the last reading. */
+typedef struct mn_pctx {
+	mn_st *s;
+	double secs;
+} mn_pctx;
+
+/* One process from the reader: found or added, its name, memory and
+   processor time since the last reading. */
+void mn_proc1(const pq_ent *e, void *ctx)
+{
+	mn_pctx *c = ctx;
+	mn_st *s = c->s;
+	mn_proc *p = mn_proc_of(&s->procs, e->pid);
+	size_t nn = e->name.n;
+
+	if (!p) {
+		p = xm(sizeof *p);
+		memset(p, 0, sizeof *p);
+		p->pid = e->pid;
+		v_add(&s->procs, p);
+		mn_owner(p, e->uid);
+	}
+	if (nn > sizeof p->name - 1)
+		nn = sizeof p->name - 1;
+	memcpy(p->name, e->name.p ? e->name.p : "", nn);
+	p->name[nn] = 0;
+	p->rss = e->rss;
+	p->prev = p->ticks;
+	p->ticks = e->ut + e->st;
+	if (c->secs > 0 && p->prev && p->ticks >= p->prev)
+		p->pct = (double)(p->ticks - p->prev) * 100.0 /
+			 ((double)s->clk * c->secs);
+	else
+		p->pct = 0.0;
+	p->seen = 1;
 }
 
 /* Every process, with how much processor it used since the last reading. */
 void mn_procs(mn_st *s, double secs)
 {
-	DIR *d = opendir("/proc");
-	struct dirent *e;
+	mn_pctx c;
 	size_t i;
 
-	if (!d)
-		return;
+	c.s = s;
+	c.secs = secs;
 	for (i = 0; i < s->procs.n; i++)
 		((mn_proc *)s->procs.p[i])->seen = 0;
-	while ((e = readdir(d))) {
-		long pid;
-		str path;
-		char *t, *a, *b;
-		unsigned long long ut, st;
-		mn_proc *p;
-		if (!isdigit((unsigned char)e->d_name[0]))
-			continue;
-		pid = atol(e->d_name);
-		s_init(&path);
-		s_cat(&path, "/proc/");
-		s_cat(&path, e->d_name);
-		s_cat(&path, "/stat");
-		t = mn_slurp(path.p);
-		s_free(&path);
-		if (!t)
-			continue;
-		a = strchr(t, '(');
-		b = a ? strrchr(a, ')') : 0;
-		if (!a || !b) {
-			free(t);
-			continue;
-		}
-		p = mn_proc_of(&s->procs, pid);
-		if (!p) {
-			p = xm(sizeof *p);
-			memset(p, 0, sizeof *p);
-			p->pid = pid;
-			v_add(&s->procs, p);
-			mn_owner(p);
-		}
-		{
-			size_t nn = (size_t)(b - a - 1);
-			if (nn > sizeof p->name - 1)
-				nn = sizeof p->name - 1;
-			memcpy(p->name, a + 1, nn);
-			p->name[nn] = 0;
-		}
-		{
-			/* Fields are one-based and the third is a letter, so
-			   the skip has to step over it before counting
-			   numbers: 4..13, then utime and stime, then 16..23,
-			   then rss in pages. */
-			const char *q = b + 2;
-			int k;
-			while (*q && *q != ' ')
-				q++;
-			for (k = 0; k < 10 && *q; k++)
-				strtoull(q, (char **)&q, 10);
-			ut = strtoull(q, (char **)&q, 10);
-			st = strtoull(q, (char **)&q, 10);
-			for (k = 0; k < 8 && *q; k++)
-				strtoull(q, (char **)&q, 10);
-			p->rss = (long)strtoull(q, (char **)&q, 10) *
-				 (sysconf(_SC_PAGESIZE) / 1024);
-		}
-		p->prev = p->ticks;
-		p->ticks = ut + st;
-		if (secs > 0 && p->prev && p->ticks >= p->prev)
-			p->pct = (double)(p->ticks - p->prev) * 100.0 /
-				 ((double)s->clk * secs);
-		else
-			p->pct = 0.0;
-		p->seen = 1;
-		free(t);
-	}
-	closedir(d);
+	if (!pq_each(mn_proc1, &c))
+		return;
 	for (i = s->procs.n; i-- > 0;) {
 		mn_proc *p = (mn_proc *)s->procs.p[i];
 		if (p->seen)

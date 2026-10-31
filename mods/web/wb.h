@@ -4,6 +4,7 @@
 #include "hibr.h"
 #include "../display.h"
 #include <stddef.h>
+#include <stdint.h>
 #include <sys/types.h>
 
 /* The size of a cell, in the page's own CSS pixels, for a page drawn as
@@ -106,6 +107,16 @@ struct wb_tab {
 	   inside another call's wait. */
 	int snd, sndgo;
 	char *sndjs;
+	/* `web set T render async` (NONBLOCKING step 1, ADR 0049): a render
+	   sends and returns, and a later one builds what came back. aid and
+	   sid are the page-reading and screenshot requests out, and hid the
+	   text being hidden between them, the last sent at
+	   asent for a page of arows by acols; ax and as their answers; fresh
+	   both are in and not yet built. dirty stays the engine's own word
+	   that the page repainted, and `web dirty` answers it or fresh. */
+	int async, aid, hid, sid, arows, acols, fresh;
+	long asent;
+	jv *ax, *as;
 };
 
 /* The browser: one Chromium for the whole shell, driven over a pipe. */
@@ -154,7 +165,15 @@ void wb_useragent(void);
 int wb_alive(void);
 void wb_err(int lv, const char *f, ...);
 jv *wb_call(const char *method, const char *params, const char *session);
+int wb_req(const char *method, const char *params, const char *session);
 int wb_send(const char *method, const char *params, const char *session);
+int wb_dropped(int id);
+void wb_drop(int id);
+jv *wb_reply(int id);
+jv *wb_result(const char *method, jv *v);
+void wb_noanswer(const char *method, const char *session);
+void wb_aclear(wb_tab *t);
+int wb_aprog(wb_tab *t);
 int wb_pump(int ms);
 int wb_events(void);
 
@@ -170,6 +189,17 @@ long wb_ms(void);
 int wb_render(wb_tab *t);
 int wb_eval(wb_tab *t, const char *js, str *out);
 int wb_evalg(wb_tab *t, const char *js, str *out, int gesture);
+int wb_evalsend(wb_tab *t, const char *js);
+char *wb_extractjs(wb_tab *t);
+jv *wb_extracted(jv *r);
+void wb_build(wb_tab *t, jv *v, int now, jv *shot);
+int wb_arender(wb_tab *t);
+void wb_shotreq(wb_tab *t, str *b);
+void wb_shotput(wb_tab *t, jv *r);
+void wb_hidetext(wb_tab *t, int on);
+const char *wb_hidejs(int on);
+void wb_ashoot(wb_tab *t);
+void wb_pixels(wb_tab *t);
 int wb_sndguard(wb_tab *t);
 int wb_sound(wb_tab *t, const char *mode);
 int wb_docjs(wb_tab *t, char **slot, const char *js);

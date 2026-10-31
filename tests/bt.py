@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
 from screen import Term, check, report, tree, load, press, release
 
+
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
 
@@ -73,6 +74,21 @@ class Bt:
         return next((d for d in self.state()["devices"] if d["name"] == name), None)
 
 
+def settle(t, rows=(0,), quiet=3):
+    """Wait until the given screen rows stop changing: a read is a job since
+    0.99.400, so what the bar or a pane shows arrives a frame or two after
+    the key or the start that asked for it."""
+    last, still = None, 0
+    for _ in range(40):
+        sc = t.screen()
+        now = [sc.row(r) for r in rows]
+        still = still + 1 if now == last else 0
+        last = now
+        if still >= quiet:
+            break
+        t.collect(0.25)
+
+
 def srun(bt, feed, until=None, panel=False, env=None, during=None):
     s = tempfile.mkdtemp(prefix="s-", dir=D)
     p = os.path.join(s, "session.hibr")
@@ -85,10 +101,17 @@ def srun(bt, feed, until=None, panel=False, env=None, during=None):
          "DT_BARTIME": "12:00"}
     e.update(env or {})
     t = Term(p, env=e, rows=30, cols=100, settle=2.0)
-    for _ in range(40):
-        if BT in t.screen().row(0):
+    # The read of BlueZ is a job since 0.99.400 (ADR 0049, Gitea #412), so
+    # the item is on the bar before what it shows is, saying so with an
+    # ellipsis: wait for the answer, then for the bar to be still. A fixed
+    # stillness alone read the bar before the answer under the sanitizers,
+    # which run the job several times slower.
+    for _ in range(80):
+        r0 = t.screen().row(0)
+        if BT in r0 and BT + " \u2026" not in r0:
             break
         t.collect(0.25)
+    settle(t)
     if during:
         during(t)
     if feed:
@@ -241,9 +264,12 @@ try:
     t9.until(lambda sc: BT in sc.row(0), 80)
 
     def watchers():
-        """This suite's own stand-ins and the sleep that feeds one, by path."""
+        """This suite's own stand-in watching, by path: bluetoothctl with no
+        command of its own. A read is a job since 0.99.400 and runs
+        `bluetoothctl show` and the like beside it for a moment; that is a
+        query, not a watcher."""
         return [l for l in os.popen("ps -eo pid=,args=").read().splitlines()
-                if BIN in l and "bluetoothctl" in l]
+                if BIN in l and l.rstrip().endswith("bluetoothctl")]
     before = len(watchers())
 
     def tree_of(p):

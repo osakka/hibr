@@ -21,7 +21,7 @@
 
 strict
 
-app files "A file browser" 3.6
+app files "A file browser" 3.7
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -503,9 +503,14 @@ fn fb_meta(int id) {
 		FL[$id][$i]["trank"]=0
 		i=$((i + 1))
 	done
+	FB[$id]["meta"]=1
 	# -t lists newest first, so where a line falls is its age: the one
-	# number the text "Sep 29 18:05" cannot be sorted by.
-	out=$(LC_ALL=C ls -l -a -t "$d" 2> /dev/null)
+	# number the text "Sep 29 18:05" cannot be sorted by. The ls module
+	# lists in this process; GNU ls here was a fork and an exec from a
+	# draw, every display held meanwhile (ADR 0049).
+	need ls 2> /dev/null && dt_jobdir || return 0
+	out=$DTJ_DIR/files$id.ls
+	ls -l -a -t "$d" > "$out" 2> /dev/null
 	rank=0
 	while IFS= read -r line; do
 		case $line in total*) continue ;; esac
@@ -520,8 +525,8 @@ fn fb_meta(int id) {
 		FL[$id][$i]["user"]=$user
 		FL[$id][$i]["group"]=$group
 		FL[$id][$i]["trank"]=$rank
-	done <<< "$out"
-	FB[$id]["meta"]=1
+	done < "$out"
+	rm -f "$out"
 }
 
 # Order the list by the window's own sort, once a heading has been clicked:

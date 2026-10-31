@@ -39,7 +39,7 @@
 
 strict
 
-app sound "The speaker on the menu bar and the sound it watches" 1.2
+app sound "The speaker on the menu bar and the sound it watches" 1.3
 
 # The state: kind (pulse, pw, alsa, none, or gone for a server that went;
 # empty until the first frame looks), server (what the server calls
@@ -53,6 +53,12 @@ DT_SNDFD=
 DT_SNDPTY=
 DT_SNDAT=0
 DT_SNDREAD=0
+# The read running as a job now, and whether another is owed after it.
+DT_SNDRJOB=
+DT_SNDRAGAIN=
+# Whether the first read is back: until it is, the bar says it does not
+# know yet, rather than a level of 0%.
+DT_SNDKNOWN=
 DT_SNDLATE=
 DT_SNDRC="${DT_SNDRC-$HOME/.asoundrc}"
 
@@ -361,12 +367,41 @@ fn dt_sndactl(int card, ctl) {
 # Read everything the kind of sound here can say.
 # Counted for `desktop ctl stats` (Gitea #343); declared here as well as in
 # wm/session.hibr, so this file still loads on its own.
+#
+# It is several runs of pactl, wpctl or amixer, so it is a job (ADR 0049,
+# Gitea #412), as the network's and Bluetooth's are: the bar shows what it
+# had until the answer is back, and a read asked for meanwhile is owed.
 declare -gA DT_STAT
 dt_sndread() {
-	local l c r
-
 	DT_SNDREAD=$EPOCHREALTIME
 	DT_STAT["r:sound"]=$((${DT_STAT["r:sound"]:-0} + 1))
+	if [ -n "$DT_SNDRJOB" ]; then
+		DT_SNDRAGAIN=1
+		return 0
+	fi
+	DT_SNDRJOB := dt_jobvars sound state dt_sndreaddone dt_sndreadnow DT_SND DT_SNDON \
+		DT_SNDOD DT_SNDIN DT_SNDID DT_SNDTN DT_SNDTD DT_SNDTV DT_SNDTM 2> /dev/null ||
+		{ DT_SNDRJOB=; dt_log "sound: the read could not start as a job"; }
+	return 0
+}
+
+# A read is back: the bar shows it, and an owed one starts.
+fn dt_sndreaddone(int? n = "", int? st = "") {
+	DT_SNDRJOB=
+	DT_SNDKNOWN=1
+	dt_sndbar
+	if [ -n "$DT_SNDRAGAIN" ]; then
+		DT_SNDRAGAIN=
+		dt_sndread
+	fi
+	command -v dt_want > /dev/null && dt_want 0
+	return 0
+}
+
+# The read itself, in the job.
+dt_sndreadnow() {
+	local l c r
+
 	case ${DT_SND["kind"]} in
 	pulse)
 		while IFS= read -r l; do
@@ -433,6 +468,7 @@ dt_sndbar() {
 	else
 		t=$g
 	fi
+	[ -n "$DT_SNDKNOWN" ] || t="${GL[sound]} ${GL[ellipsis]}"
 	dt_baritem sound "$t" dt_sndslider
 	dt_bariright sound dt_sndmenu
 	dt_bariwheel sound dt_sndwheel

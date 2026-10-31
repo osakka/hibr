@@ -15,7 +15,7 @@
 strict
 
 
-app datetime "The Control Panel pane for the time, the date and the time zone" 1.7
+app datetime "The Control Panel pane for the time, the date and the time zone" 1.8
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷" hardware
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"
@@ -128,7 +128,7 @@ dtp_tzdata_path() {
 fn dtp_geo(tz) {
 	local city line co ld lm od om tab
 
-	city=$(str lower "${tz##*/}")
+	city := str lower "${tz##*/}"
 	dtp_extra "$city" && return 0
 	tab := dtp_tzdata_path || return 1
 	while read -r line; do
@@ -197,7 +197,9 @@ dtp_follow() {
 	[ "$DTP_TZUSER" = 1 ] && return 0
 	[ $((EPOCHSECONDS - DTP_TZT)) -lt 5 ] && return 0
 	DTP_TZT=$EPOCHSECONDS
-	l=$(readlink /etc/localtime 2> /dev/null)
+	[ -L /etc/localtime ] || return 0
+	[ -n "$DTP_TZ" ] && [ /etc/localtime -ef "/usr/share/zoneinfo/$DTP_TZ" ] && return 0
+	l=$(readlink /etc/localtime 2> /dev/null) # fork: only when the link no longer names DTP_TZ's file, so once per change of zone
 	z=${l##*zoneinfo/}
 	[ -z "$z" ] || [ "$z" = "$DTP_TZ" ] && return 0
 	DTP_TZ=$z
@@ -563,15 +565,21 @@ fn dtz_close(int id) {
 # hibr's own helper for the clock, where polkit names it (Gitea #406): the
 # program org.hibr.settime runs, as pkaction says, or status 1 when the
 # policy is not installed.
+DTP_HELPER=
 dtp_helper() {
 	local l p=
 
-	command -v pkaction > /dev/null || return 1
-	while IFS= read -r l; do
-		case $l in *"exec.path -> "*) p=${l##*-> } ;; esac
-	done < <(pkaction --action-id org.hibr.settime --verbose 2> /dev/null)
-	[ -n "$p" ] && [ -x "$p" ] || return 1
-	ret "$p"
+	if [ -z "$DTP_HELPER" ]; then
+		DTP_HELPER=-
+		if command -v pkaction > /dev/null; then
+			while IFS= read -r l; do # fork: once a desktop, on a click, the answer kept in DTP_HELPER
+				case $l in *"exec.path -> "*) p=${l##*-> } ;; esac
+			done < <(pkaction --action-id org.hibr.settime --verbose 2> /dev/null)
+			[ -n "$p" ] && [ -x "$p" ] && DTP_HELPER=$p
+		fi
+	fi
+	[ "$DTP_HELPER" != - ] || return 1
+	ret "$DTP_HELPER"
 }
 
 # Set the zone with whatever this system has for it. timedatectl asks
@@ -618,13 +626,33 @@ dts_dialog() {
 	DTS[$rid]["tbuf"]=$t
 	DTS[$rid]["tcur"]=${#t}
 	DTS[$rid]["focus"]=d
+	DTS[$rid]["ntp"]=
+	if command -v timedatectl > /dev/null || [ -x /usr/sbin/systemsetup ]; then
+		dt_job datetime "$rid" dts_ntpdone dts_ntpask
+	fi
+}
+
+# Whether the clock follows network time, yes or no, asked in a job: both
+# answers come over D-Bus or from a program that may take a moment.
+dts_ntpask() {
+	local ntp=
+
 	if command -v timedatectl > /dev/null; then
 		ntp=$(timedatectl show -p NTP --value 2> /dev/null)
-	elif [ -x /usr/sbin/systemsetup ]; then
+	else
 		ntp=$(/usr/sbin/systemsetup -getusingnetworktime 2> /dev/null)
 		case $ntp in *On*) ntp=yes ;; *) ntp=no ;; esac
 	fi
+	printf '%s\n' "$ntp"
+}
+
+fn dts_ntpdone(int n, int st) {
+	local rid=${DTJ[$n]["tag"]} ntp
+
+	[ -n "${DTS[$rid]["focus"]+x}" ] || return 0
+	ntp := dt_joblast "$n"
 	DTS[$rid]["ntp"]=$ntp
+	dt_want 30
 }
 
 fn dts_draw(int? id = "", int? h = "", int? w = "", int? row = "", int? col = "") {

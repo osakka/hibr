@@ -173,7 +173,7 @@ void wb_usage(void)
 		      "permit geolocation|camera|microphone|notifications "
 		      "allow|refuse | permit reset | downloads dir|off | "
 		      "downloaded | notes | pdf T path | scroll T | "
-		      "set T live on|off | "
+		      "set T live on|off | set T render async|sync | send T js | "
 		      "draw T row col [h w] "
 		      "[-p pane] | click T row col | wheel T rows | key T name | "
 		      "type T text | eval T js | tap|tapseek T | "
@@ -221,7 +221,7 @@ int m_web(sh *s, int ac, char **av)
 	 * records and plays itself. */
 	if (!strcmp(sub, "caps")) {
 		wb_say(s, "js images zoom ua dark lang dnt block geo notes permit "
-			  "downloads pdf live config tap");
+			  "downloads pdf live config tap renderasync send");
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "fd")) {
@@ -236,7 +236,9 @@ int m_web(sh *s, int ac, char **av)
 		wb_events();
 		for (i = 0; i < wb.tabs.n; i++) {
 			t = wb.tabs.p[i];
-			if (t && t->dirty)
+			if (t && t->async)
+				wb_aprog(t);
+			if (t && (t->dirty || t->fresh))
 				return HIBR_OK;
 		}
 		return HIBR_FAIL;
@@ -415,6 +417,15 @@ int m_web(sh *s, int ac, char **av)
 		s_free(&o);
 		return r;
 	}
+	/* A script whose answer nobody reads, sent and not waited for
+	   (hibr-browser's NONBLOCKING step 2): play, pause, seek. */
+	if (!strcmp(sub, "send")) {
+		if (ac < 4) {
+			wb_usage();
+			return 2;
+		}
+		return wb_evalsend(t, av[3]);
+	}
 	if (!strcmp(sub, "tap"))
 		return wb_tap(t);
 	if (!strcmp(sub, "tapseek"))
@@ -450,8 +461,13 @@ int m_web(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "loading"))
 		return t->loading ? HIBR_OK : HIBR_FAIL;
-	if (!strcmp(sub, "dirty"))
-		return t->dirty ? HIBR_OK : HIBR_FAIL;
+	if (!strcmp(sub, "dirty")) {
+		if (t->async) {
+			wb_events();
+			wb_aprog(t);
+		}
+		return t->dirty || t->fresh ? HIBR_OK : HIBR_FAIL;
+	}
 	if (!strcmp(sub, "focus"))
 		return t->focus ? HIBR_OK : HIBR_FAIL;
 	wb_err(HIBR_LERR, "web: no subcommand %s", sub);

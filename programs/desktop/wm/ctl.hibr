@@ -101,7 +101,7 @@ dt_ctltry() {
 	p := dt_ctlwhere
 	DT_CTLNEXT=$((EPOCHSECONDS + 5))
 	if ! [ -d "${p%/*}" ]; then
-		if ! err=$(mkdir -p -m 700 "${p%/*}" 2>&1); then
+		if ! err=$(mkdir -p -m 700 "${p%/*}" 2>&1); then # fork: only while the socket's folder is missing, at most every 5 s, for mkdir's reason
 			dt_ctlwhy "cannot make ${p%/*}: ${err#mkdir: }"
 			return 1
 		fi
@@ -339,11 +339,14 @@ dt_statcpu() {
 }
 
 fn dt_ctlstats(reset = "", stop = "") {
-	local now el c self kids s0 k0 pct k nm tk= rd= v cs= ds= dl dnm db df
+	local now el c self kids s0 k0 pct k nm tk= rd= v cs= ds= dl dnm db df mx ps=
 
 	if [ "$reset" = true ]; then
 		for k in "${!DT_STAT[@]}"; do
 			unset DT_STAT["$k"]
+		done
+		for k in "${!DT_MAX[@]}"; do
+			unset DT_MAX["$k"]
 		done
 		DT_STATT0=${EPOCHREALTIME/./}
 		c := dt_statcpu
@@ -367,7 +370,8 @@ fn dt_ctlstats(reset = "", stop = "") {
 			nm=${k#t:}
 			[ "$nm" = draw ] && continue
 			nm := dt_jstr "$nm"
-			tk+="${tk:+,}$nm:{\"runs\":${DT_STAT["n:${k#t:}"]:-0},\"ms\":$((v / 1000)).$((v % 1000 / 100))}"
+			mx=${DT_MAX["${k#t:}"]:-0}
+			tk+="${tk:+,}$nm:{\"runs\":${DT_STAT["n:${k#t:}"]:-0},\"ms\":$((v / 1000)).$((v % 1000 / 100)),\"max_ms\":$((mx / 1000)).$((mx % 1000 / 100))}"
 			;;
 		r:*)
 			nm := dt_jstr "${k#r:}"
@@ -387,9 +391,16 @@ fn dt_ctlstats(reset = "", stop = "") {
 			ds+="${ds:+,}{\"name\":$dnm,\"bytes\":${db:-0},\"frames\":${df:-0}}"
 		done <<< "$dl"
 	fi
+	# Each app paused for holding the desktop (wm/budget.hibr), and what
+	# paused it.
+	for k in "${!DT_PAUSED[@]}"; do
+		nm := dt_jstr "$k"
+		v := dt_jstr "${DT_PAUSED["$k"]}"
+		ps+="${ps:+,}$nm:$v"
+	done
 	v=false
 	[ -n "$DT_STATON" ] && v=true
-	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"tickers\":{$tk},\"console_bytes\":${cs:-0},\"displays\":[$ds],\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
+	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"tickers\":{$tk},\"paused\":{$ps},\"console_bytes\":${cs:-0},\"displays\":[$ds],\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
 }
 
 dt_ctlsession() {

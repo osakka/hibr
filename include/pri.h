@@ -227,6 +227,7 @@ void b_unexp(sh *s, const char *nm);
 int gcmp(const void *a, const void *b);
 
 int ex_asg(sh *s, char *kv, const char *mask, int ex_flag);
+char *asg_eq(char *kv);
 int ex(sh *s, node *n);
 int rd_isfd(const char *t);
 int rd_do(sh *s, redir *r, vec *sv);
@@ -396,13 +397,6 @@ int tx_or(tex *t);
 int t_two(const char *a, const char *op, const char *b);
 int cx_files(const char *a, const char *op, const char *b);
 
-#ifndef HIBR_MTNS
-#ifdef __APPLE__
-#define HIBR_MTNS(st) ((st).st_mtimespec.tv_nsec)
-#else
-#define HIBR_MTNS(st) ((st).st_mtim.tv_nsec)
-#endif
-#endif
 int b_match(sh *s, int ac, char **av);
 char *hx_expand(sh *s, const char *line, int *changed, int *bad);
 void pt_init(int ac, char **av);

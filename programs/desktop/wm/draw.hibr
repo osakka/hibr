@@ -359,9 +359,22 @@ dt_idle() {
 		[ -n "${DT[$id]["idle"]}" ] || continue
 		dt_away "$id" || dt_hidden "$id" || continue
 		DT_NOTEWIN=$id
-		${DT[$id]["idle"]} "$id"
+		dt_idlecall "$id"
 	done
 	DT_NOTEWIN=
+}
+
+# A window's _idle, timed under `idle:<app>`. Called for a paused app too:
+# a terminal's program left unread keeps its pty readable, and the desktop
+# would spin -- so it is timed and logged, never held.
+fn dt_idlecall(int id) {
+	local ap=${DT[$id]["app"]} t0 t
+
+	t0=${EPOCHREALTIME/./}
+	${DT[$id]["idle"]} "$id"
+	t=$((${EPOCHREALTIME/./} - t0))
+	[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "idle:${ap:-bare}" "$t"
+	return 0
 }
 
 # Read what every window's own program has written and draw nothing: the
@@ -376,7 +389,7 @@ dt_drain() {
 	for id in "${!DT[@]}"; do
 		[ -n "${DT[$id]["idle"]}" ] || continue
 		DT_NOTEWIN=$id
-		${DT[$id]["idle"]} "$id"
+		dt_idlecall "$id"
 	done
 	DT_NOTEWIN=
 }
@@ -458,13 +471,9 @@ dt_draw() {
 	[ "${DT_BARTRANS:-0}" != 0 ] &&
 		{ [ "$MB_OPEN" != -1 ] || [ -n "$DT_POP" ]; } && DT_FORCEONCE=1
 	dt_wall
-	if [ -n "$DT_STATON" ]; then
-		dt_tmark wall
-		dt_wintimed "${ls[@]}"
-		dt_tmark windows
-	else
-		for id in "${ls[@]}"; do dt_win "${id#w}"; done
-	fi
+	[ -n "$DT_STATON" ] && dt_tmark wall
+	dt_wintimed "${ls[@]}"
+	[ -n "$DT_STATON" ] && dt_tmark windows
 	DT_FORCEONCE=
 	DT_FORCEWIN=
 	dt_idle
@@ -526,14 +535,10 @@ dt_draw() {
 	[ -n "$DT_STATON" ] && dt_tmark overlays
 	DT_OVERDREW=
 	[ "$n0" = "$n1" ] || DT_OVERDREW=1
-	if [ -n "$DT_STATON" ]; then
-		t0=${EPOCHREALTIME/./}
-		console flush
-		DT_STAT["t:flush"]=$((${DT_STAT["t:flush"]:-0} + ${EPOCHREALTIME/./} - t0))
-		DT_STAT["n:flush"]=$((${DT_STAT["n:flush"]:-0} + 1))
-	else
-		console flush
-	fi
+	t0=${EPOCHREALTIME/./}
+	console flush
+	t0=$((${EPOCHREALTIME/./} - t0))
+	[ -z "$DT_STATON" ] && [ "$t0" -lt 1000 ] || dt_spent flush "$t0"
 	DT_INDRAW=
 }
 
@@ -549,23 +554,21 @@ DT_TMARK=0
 fn dt_tmark(name) {
 	local t=${EPOCHREALTIME/./}
 
-	DT_STAT["t:part:$name"]=$((${DT_STAT["t:part:$name"]:-0} + t - DT_TMARK))
-	DT_STAT["n:part:$name"]=$((${DT_STAT["n:part:$name"]:-0} + 1))
+	dt_spent "part:$name" $((t - DT_TMARK))
 	DT_TMARK=$t
 }
 
-# The windows drawn, each timed into DT_STAT under its app's name, while
-# `desktop ctl stats` has timing on: which window's own drawing a frame's
-# cost is, read as `win:<app>` beside the tickers.
+# The windows drawn, each timed under its app's name, `win:<app>` -- which
+# window's own drawing a frame's cost is (wm/budget.hibr).
 fn dt_wintimed(...ids) {
-	local id t0 ap
+	local id t0 t ap
 
 	for id in "${ids[@]}"; do
 		id=${id#w}
-		ap=${DT[$id]["app"]:-bare}
+		ap=${DT[$id]["app"]}
 		t0=${EPOCHREALTIME/./}
 		dt_win "$id"
-		DT_STAT["t:win:$ap"]=$((${DT_STAT["t:win:$ap"]:-0} + ${EPOCHREALTIME/./} - t0))
-		DT_STAT["n:win:$ap"]=$((${DT_STAT["n:win:$ap"]:-0} + 1))
+		t=$((${EPOCHREALTIME/./} - t0))
+		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "win:${ap:-bare}" "$t" "$ap"
 	done
 }

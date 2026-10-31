@@ -45,6 +45,20 @@ DT_VWERR=
 DT_VWSYNCED=0
 DT_VWJOB=0
 DT_VWHAND=0
+# What a vault job left: its status, and the count of locks it is judged
+# against -- a job that ends after a lock brings nothing back.
+DT_VWST=0
+DT_VWGEN=0
+# What the dialog's job is to do, set just before it starts and read by
+# the job; the password is cleared here the moment the job has it.
+VWJ_MODE=
+VWJ_SERVER=
+VWJ_EMAIL=
+VWJ_PASS=
+VWJ_VERIFY=0
+VWJ_CODE=
+VWJ_USEPIN=0
+VWJ_KEEP=0
 # When a copied password leaves the clipboard.
 DT_CLIPSECRET=0
 
@@ -68,16 +82,18 @@ fn dt_vwwhy(line) {
 
 # Run vw with text on its standard input (a password, a PIN, or nothing):
 # its output in DT_VWOUT, the reason it gave in DT_VWERR, its status back.
+# Only ever inside a job (dt_vwjob): unlocking is a key derivation and
+# logging in is the network, and either would hold every display.
 #
-# The reason goes through a file named after this desktop, never one name
-# for every desktop: two desktops of one person share the runtime folder,
-# and one removed desk.err while another was reading it -- found as a
-# release gate's shell error, with suites running side by side.
+# The reason goes through a file named after this desktop and this job,
+# never one name for every desktop: two desktops of one person share the
+# runtime folder, and one removed desk.err while another was reading it --
+# found as a release gate's shell error, with suites running side by side.
 fn dt_vw(input, ...args) {
-	local st l= ef
+	local st ef
 
 	dt_vwdirs
-	ef="$DT_VWRUN/desk.$$.err"
+	ef="$DT_VWRUN/desk.$$.$DTJ_N.err"
 	DT_VWERR=
 	if [ -n "$input" ]; then
 		DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef")
@@ -85,13 +101,53 @@ fn dt_vw(input, ...args) {
 		DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef" < /dev/null)
 	fi
 	st=$?
+	dt_vwerrs "$st" "$ef"
+	return "$st"
+}
+
+# vw's reason for a failure, from the file its errors went to, into
+# DT_VWERR; the file goes either way.
+fn dt_vwerrs(int st, ef) {
+	local l
+
 	if [ "$st" != 0 ] && [ -s "$ef" ]; then
 		while IFS= read -r l; do
 			[ -n "$l" ] && DT_VWERR := dt_vwwhy "$l"
 		done < "$ef"
 	fi
 	rm -f "$ef"
-	return "$st"
+}
+
+# Vault work as a job (ADR 0049): FUNCTION runs in the child and leaves
+# its status in DT_VWST and its reason in DT_VWERR, and those and the
+# names in VARS come back here when it ends -- unless the vault was locked
+# meanwhile, since a lock takes precedence over anything still running.
+# THEN n status runs after.
+fn dt_vwjob(tag, then, f, ...vars) {
+	local n
+
+	DT_VWST=0
+	DT_VWERR=
+	n := dt_job vault "$tag" dt_vwjobdone dt_jobvarsrun "$f" DT_VWST DT_VWERR "${vars[@]}" || return 1
+	DTJ[$n]["vwthen"]=$then
+	DTJ[$n]["vwgen"]=$DT_VWGEN
+	ret "$n"
+}
+
+fn dt_vwjobdone(int n, int st) {
+	local then=${DTJ[$n]["vwthen"]}
+
+	if [ "${DTJ[$n]["vwgen"]}" = "$DT_VWGEN" ]; then
+		dt_jobvarsread "$n"
+		[ "$st" = 0 ] || DT_VWST=$st
+	else
+		DT_VWST=1
+		DT_VWERR := dt_tr "The vault was locked meanwhile"
+	fi
+	export VW_SESSION
+	dt_vwbar
+	[ -n "$then" ] && "$then" "$n" "$DT_VWST"
+	return 0
 }
 
 # Whether there is a vault to speak of: absent (no vw), none (no account
@@ -186,15 +242,20 @@ $code" login "$email" || return $?
 	dt_vwtake
 }
 
-# Lock: the session ends for every shell, and the desktop forgets the list.
+# Lock: the session ends for every shell, and the desktop forgets the list
+# at once -- the job is started first, while it still has the session.
 dt_vwlock() {
-	dt_vw "" lock
+	dt_vwjob lock "" dt_vwlockjob
 	dt_vwforget
 }
+
+# The job's side of a lock.
+dt_vwlockjob() { dt_vw "" lock || DT_VWST=$?; }
 
 # Forget the session and everything read with it. VW_SESSION stays
 # exported, empty, which every vw reads as locked.
 dt_vwforget() {
+	DT_VWGEN=$((DT_VWGEN + 1))
 	VW_SESSION=
 	DT_VWW=
 	DT_VWITEMS=()
@@ -245,7 +306,7 @@ dt_vwlist() {
 fn dt_vwcopy(field, id) {
 	local v
 
-	if ! dt_vw "" get "$field" "$id"; then
+	if ! dt_vwget "$field" "$id"; then
 		local why=$DT_VWERR
 		if [ -z "$why" ]; then
 			why := dt_tr "Could not read it"
@@ -267,34 +328,43 @@ fn dt_vwcopy(field, id) {
 	return 0
 }
 
-# Start a sync, unless one is running, as a job (wm/jobs.hibr); by hand,
-# it says how it went.
+# One field of an item, read here and not in a job: a job's answer comes
+# back through a file, and a password must not touch one. One vw, on a
+# click, reading one item from the vault it keeps on disk.
+fn dt_vwget(field, id) {
+	local st ef
+
+	dt_vwdirs
+	ef="$DT_VWRUN/desk.$$.get.err"
+	DT_VWERR=
+	DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" get "$field" "$id" 2> "$ef" < /dev/null) # fork: a password reaches the clipboard through a pipe, never a job's file; one vw reading one item, on a click
+	st=$?
+	dt_vwerrs "$st" "$ef"
+	return "$st"
+}
+
+# Start a sync, unless a vault job is running; by hand, it says how it
+# went. The list is read again in the same job.
 fn dt_vwsyncnow(int hand = 0) {
 	[ "$DT_VWJOB" = 1 ] && return 0
 	dt_vwdirs
 	DT_VWHAND=$hand
 	DT_VWSYNCED=$EPOCHSECONDS
-	dt_job vault sync dt_vwsyncdone dt_vwsyncjob > /dev/null && DT_VWJOB=1
+	dt_vwjob sync dt_vwsyncdone dt_vwsyncjob DT_VWITEMS && DT_VWJOB=1
 }
 
-# The job's own work: a sync, with nothing to read on its input.
+# The job's side of a sync: the sync, then the list.
 dt_vwsyncjob() {
-	VW_STDIN=1 "$HIBR" "$DT_VWCMD" sync > /dev/null < /dev/null
+	dt_vw "" sync || { DT_VWST=$?; return 0; }
+	dt_vwlist || DT_VWST=$?
 }
 
-# A finished sync: read the list again, or say why not when asked.
+# A finished sync, said how it went when asked for.
 fn dt_vwsyncdone(int n, int st) {
-	local l= e
-
 	DT_VWJOB=0
 	if [ "$st" = 0 ]; then
-		dt_vwlist
 		[ "$DT_VWHAND" = 1 ] && dt_notep low "The vault is synced"
 	else
-		e := dt_jobfile "$n" err
-		while IFS= read -r l; do
-			[ -n "$l" ] && DT_VWERR := dt_vwwhy "$l"
-		done 2> /dev/null < "$e"
 		if [ "$DT_VWHAND" = 1 ]; then
 			local why=$DT_VWERR
 			if [ -z "$why" ]; then
@@ -327,10 +397,11 @@ dt_vwtick() {
 	[ -n "$VW_SESSION" ] || return 0
 	if [ -z "$DT_VWW" ]; then
 		IFS=$'\t' read -r e DT_VWW 2> /dev/null < "$DT_VWRUN/session"
-		if [ -z "$DT_VWW" ] || ! dt_vwlist; then
+		if [ -z "$DT_VWW" ]; then
 			dt_vwforget
 			return 0
 		fi
+		[ "$DT_VWJOB" = 1 ] || { dt_vwjob list dt_vwlistdone dt_vwlistjob DT_VWITEMS && DT_VWJOB=1; }
 	fi
 	s := dt_vwstate
 	if [ "$s" != unlocked ]; then
@@ -351,6 +422,15 @@ dt_vwtick() {
 	return 0
 }
 dt_ticker dt_vwtick
+
+# The job's side of reading a session found already open: the list.
+dt_vwlistjob() { dt_vwlist || DT_VWST=$?; }
+
+# A session found open whose list cannot be read is one to forget.
+fn dt_vwlistdone(int n, int st) {
+	DT_VWJOB=0
+	[ "$st" = 0 ] || dt_vwforget
+}
 
 # --- the dialog that logs in, unlocks and sets a PIN ------------------------
 
@@ -384,6 +464,7 @@ fn dt_vwdialog(mode) {
 	VWD[$id]["haspin"]=${DT_VWA["pin"]:-0}
 	VWD[$id]["keep"]=0
 	VWD[$id]["status"]=
+	VWD[$id]["busy"]=
 	for c in server email pass; do
 		VWD[$id]["${c}cur"]=${#VWD[$id]["$c"]}
 	done
@@ -461,7 +542,10 @@ fn vwd_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 2))
 		;;
 	esac
-	if [ -n "${VWD[$id]["status"]}" ]; then
+	if [ -n "${VWD[$id]["busy"]}" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" 2 "${VWD[$id]["busy"]}"
+	elif [ -n "${VWD[$id]["status"]}" ]; then
 		console pen "$DT_BAD" "$DT_FACE"
 		t=${VWD[$id]["status"]}
 		[ "${#t}" -gt $((w - 4)) ] && t="${t:0:$((w - 5))}${GL[ellipsis]}"
@@ -477,6 +561,10 @@ fn vwd_draw(int id, int h, int w, int row, int col) {
 fn vwd_key(int id, k) {
 	local f=${VWD[$id]["focus"]} d onb=1 res
 
+	if [ -n "${VWD[$id]["busy"]}" ]; then
+		[ "$k" = escape ] && dt_del "$id"
+		return 0
+	fi
 	case $f in server | email | pass | code) onb=0 ;; esac
 	vwd_order "$id"
 	if d := dt_focuskey "$k" "$onb"; then
@@ -506,6 +594,7 @@ fn vwd_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	local tag cur
 
 	tag := dt_hit "$id" "$r" "$c" || return 0
+	[ -z "${VWD[$id]["busy"]}" ] || [ "$tag" = cancel ] || return 0
 	case $tag in
 	server | email | pass | code)
 		VWD[$id]["focus"]=$tag
@@ -518,13 +607,15 @@ fn vwd_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	esac
 }
 
-# What enter, a click or space does to what has focus.
+# What enter, a click or space does to what has focus. Logging in,
+# unlocking and setting a PIN run as a job (dt_vwjob) while the box says
+# so; vwd_done takes up what it found.
 fn vwd_do(int id, what) {
-	local m=${VWD[$id]["mode"]} p=${VWD[$id]["pass"]} ok=1 v st=0
+	local m=${VWD[$id]["mode"]} p=${VWD[$id]["pass"]}
 
 	case $what in
 	verify | usepin | keep)
-		v=1
+		local v=1
 		[ "${VWD[$id]["$what"]}" = 1 ] && v=0
 		VWD[$id]["$what"]=$v
 		return 0
@@ -536,35 +627,67 @@ fn vwd_do(int id, what) {
 		[ "$m" = pin ] || [ "${VWD[$id]["usepin"]}" = 1 ] && VWD[$id]["status"]="Type the PIN first"
 		return 0
 	fi
-	case $m in
-	login)
-		if [ -z "${VWD[$id]["server"]}" ] || [ -z "${VWD[$id]["email"]}" ]; then
-			VWD[$id]["status"]="The server and the email are both needed"
-			return 0
-		fi
-		v=0
-		[ "${VWD[$id]["verify"]}" = 1 ] || v=1
-		# st before ok: an assignment is a command, and it would put $?
-		# back to 0 before the status could be read.
-		dt_vwlogin "${VWD[$id]["server"]}" "${VWD[$id]["email"]}" "$p" "$v" \
-			"${VWD[$id]["code"]}" || { st=$?; ok=0; }
-		;;
-	unlock) dt_vwunlock "$p" "${VWD[$id]["usepin"]}" || ok=0 ;;
+	if [ "$m" = login ] && { [ -z "${VWD[$id]["server"]}" ] || [ -z "${VWD[$id]["email"]}" ]; }; then
+		VWD[$id]["status"]="The server and the email are both needed"
+		return 0
+	fi
+	VWJ_MODE=$m
+	VWJ_SERVER=${VWD[$id]["server"]}
+	VWJ_EMAIL=${VWD[$id]["email"]}
+	VWJ_PASS=$p
+	VWJ_VERIFY=0
+	[ "${VWD[$id]["verify"]}" = 1 ] || VWJ_VERIFY=1
+	VWJ_CODE=${VWD[$id]["code"]}
+	VWJ_USEPIN=${VWD[$id]["usepin"]}
+	VWJ_KEEP=${VWD[$id]["keep"]}
+	if dt_vwjob "$id" vwd_done vwd_job VW_SESSION DT_VWW DT_VWITEMS DT_VWSYNCED; then
+		case $m in
+		login) VWD[$id]["busy"] := dt_tr "Logging in…" ;;
+		unlock) VWD[$id]["busy"] := dt_tr "Unlocking…" ;;
+		*) VWD[$id]["busy"] := dt_tr "Setting the PIN…" ;;
+		esac
+		VWD[$id]["status"]=
+	else
+		VWD[$id]["status"]="It could not be started"
+	fi
+	VWJ_PASS=
+	VWJ_CODE=
+	return 0
+}
+
+# The job's side of the dialog: what its mode does, with what it was given.
+vwd_job() {
+	case $VWJ_MODE in
+	login) dt_vwlogin "$VWJ_SERVER" "$VWJ_EMAIL" "$VWJ_PASS" "$VWJ_VERIFY" "$VWJ_CODE" || DT_VWST=$? ;;
+	unlock) dt_vwunlock "$VWJ_PASS" "$VWJ_USEPIN" || DT_VWST=$? ;;
 	*)
-		if [ "${VWD[$id]["keep"]}" = 1 ]; then
-			dt_vw "$p" pin set --keep || ok=0
+		if [ "$VWJ_KEEP" = 1 ]; then
+			dt_vw "$VWJ_PASS" pin set --keep || DT_VWST=$?
 		else
-			dt_vw "$p" pin set || ok=0
+			dt_vw "$VWJ_PASS" pin set || DT_VWST=$?
 		fi
 		;;
 	esac
+}
+
+# The dialog's job has ended: say how, or close the box. One closed
+# meanwhile still has its outcome said, since the vault did change.
+fn vwd_done(int n, int st) {
+	local id=${DTJ[$n]["tag"]} m
+
+	if [ -z "${VWD[$id]["mode"]+x}" ]; then
+		[ "$st" = 0 ] && dt_notep low "The vault is unlocked"
+		return 0
+	fi
+	m=${VWD[$id]["mode"]}
+	VWD[$id]["busy"]=
 	# Status 4 is vw saying the server wants a two-factor code and none
 	# came. The box grows a Code field and *keeps the password*, because
 	# the second round posts the same grant with the code beside it and
 	# there is nothing to ask the person again for -- it is held for the
 	# one extra attempt, in the same map it was held in while being typed,
 	# and cleared on any other outcome.
-	if [ "$ok" = 0 ] && [ "$st" = 4 ]; then
+	if [ "$st" = 4 ]; then
 		VWD[$id]["needcode"]=1
 		VWD[$id]["code"]=
 		VWD[$id]["codecur"]=0
@@ -578,19 +701,18 @@ fn vwd_do(int id, what) {
 	# and the box stays where it is. Clearing both would make a mistyped
 	# digit cost the password as well, which is how a person ends up
 	# turning two-factor off.
-	if [ "$ok" = 0 ] && [ "${VWD[$id]["needcode"]}" = 1 ]; then
+	if [ "$st" != 0 ] && [ "${VWD[$id]["needcode"]}" = 1 ]; then
 		VWD[$id]["code"]=
 		VWD[$id]["codecur"]=0
 		VWD[$id]["status"]=${DT_VWERR:-That code did not work}
 		VWD[$id]["focus"]=code
 		return 0
 	fi
-	p=
 	VWD[$id]["pass"]=
 	VWD[$id]["passcur"]=0
 	VWD[$id]["code"]=
 	VWD[$id]["codecur"]=0
-	if [ "$ok" = 0 ]; then
+	if [ "$st" != 0 ]; then
 		VWD[$id]["status"]=${DT_VWERR:-It did not work, and vw did not say why}
 		VWD[$id]["focus"]=pass
 		return 0

@@ -19,7 +19,7 @@
 
 strict
 
-app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.8
+app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.9
 # part: control-panel/pimset.hibr
 # modules: dav db email pim
 
@@ -58,7 +58,7 @@ cv_zone() {
 	if [ -z "$CV_ZONE" ]; then
 		if [[ ${TZ:-} == */* ]] && [ -f "/usr/share/zoneinfo/${TZ#:}" ]; then
 			CV_ZONE=${TZ#:}
-		elif l=$(readlink /etc/localtime 2> /dev/null) && [[ $l == *zoneinfo/* ]]; then
+		elif l=$(readlink /etc/localtime 2> /dev/null) && [[ $l == *zoneinfo/* ]]; then # fork: once a desktop, the answer kept in CV_ZONE
 			CV_ZONE=${l#*zoneinfo/}
 		else
 			CV_ZONE=UTC
@@ -99,7 +99,8 @@ fn cv_hm(int t) {
 
 	c := pim when civil "$t"
 	read -r y m d h mi c <<< "$c"
-	ret "$(printf '%02d:%02d' "$h" "$mi")"
+	printf -v c '%02d:%02d' "$h" "$mi"
+	ret "$c"
 }
 
 # A date as YYYY-MM-DD.
@@ -108,7 +109,8 @@ fn cv_ymd(int t) {
 
 	c := pim when civil "$t"
 	read -r y m d c <<< "$c"
-	ret "$(printf '%04d-%02d-%02d' "$y" "$m" "$d")"
+	printf -v c '%04d-%02d-%02d' "$y" "$m" "$d"
+	ret "$c"
 }
 
 # The calendars of every server chosen, into CVK: CVK[i]["srv"], ["href"],
@@ -210,13 +212,13 @@ fn cv_load(int id) {
 		db close "$h"
 		i=0
 		while [ -n "${r[$i]["start"]+x}" ]; do
-			order+=("${r[$i]["start"]}"$'\t'"$((1 - ${r[$i]["allday"]:-0}))"$'\t'"$s"$'\t'"$i")
+			order+=("$((r[$i]["start"] * 2 + 1 - ${r[$i]["allday"]:-0}))"$'\t'"$((1 - ${r[$i]["allday"]:-0}))"$'\t'"$s"$'\t'"$i")
 			CVI[$id]["r$s$i"]="${r[$i]["start"]}"$'\t'"${r[$i]["end"]}"$'\t'"${r[$i]["allday"]:-0}"$'\t'"${r[$i]["coll"]}"$'\t'"${r[$i]["href"]}"$'\t'"${r[$i]["uid"]}"$'\t'"${r[$i]["recurid"]:-0}"$'\t'" ${r[$i]["summary"]}"$'\t'" ${r[$i]["location"]}"
 			i=$((i + 1))
 		done
 	done
 	[ "${#order[@]}" -gt 0 ] || return 0
-	IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -t $'\t' -k1,1n -k2,2n)"
+	arr sort order -n
 	for line in "${order[@]}"; do
 		rest=${line#*$'\t'}
 		rest=${rest#*$'\t'}

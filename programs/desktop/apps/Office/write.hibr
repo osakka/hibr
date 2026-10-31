@@ -19,7 +19,7 @@
 
 strict
 
-app write "A word processor for markdown, shown as it reads" 1.5
+app write "A word processor for markdown, shown as it reads" 1.6
 # modules: md mermaid
 
 command -v dt_app > /dev/null && dt_app write "Write" 22 78 many "¶"
@@ -294,7 +294,7 @@ fn wr_mmdraw(int id, int o) {
 		i=$((i + 1))
 	done
 	if ! need mermaid 2> /dev/null; then
-		WR[$id]["mmt${o}_0"]=$(dt_tr "The mermaid module is not loaded")
+		WR[$id]["mmt${o}_0"] := dt_tr "The mermaid module is not loaded"
 		WR[$id]["mmr${o}_0"]=
 		WR[$id]["mmn$o"]=1
 		return 0

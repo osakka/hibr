@@ -377,7 +377,7 @@ fn dt_fdtype(id, key, int k) {
 
 	[ -n "$cb" ] || return 0
 	while [ "$k" -gt 0 ]; do
-		$cb "$id" "$key" || true
+		dt_appcall "$id" "$cb" "$key" || true
 		k=$((k - 1))
 	done
 }

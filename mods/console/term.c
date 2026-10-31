@@ -900,9 +900,9 @@ int cn_open(sh *s)
 	struct termios r;
 	int rows, cols, fd, mine = 0;
 
-	(void)s;
 	if (cn_on)
 		return HIBR_OK;
+	kt_idload(s);
 	fd = isatty(1) ? 1 : (isatty(0) ? 0 : -1);
 	if (fd < 0) {
 		fd = open("/dev/tty", O_RDWR);
@@ -990,6 +990,7 @@ void cn_close(sh *s)
 	}
 	cn_olay.on = 0;
 	cn_imgclear();
+	kt_idsave(s);
 	if (cn_gfx(s) == CN_GFX_KITTY) {
 		str o;
 

@@ -1148,6 +1148,33 @@ int asg_wasex(vec *old)
 	return sv && sv->w && sv->w->ex;
 }
 
+/* Where an expanded assignment's name ends: the = after the name and every
+   [subscript] it has, not merely the first = in the word -- a key may hold
+   one, and `m["a=b"]=1` split at the first emptied the whole map. bash
+   splits after the subscript too. */
+char *asg_eq(char *kv)
+{
+	char *p = kv;
+
+	while (*p == '_' || (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+	       (p > kv && *p >= '0' && *p <= '9'))
+		p++;
+	if (p == kv)
+		return strchr(kv, '=');
+	while (*p == '[') {
+		char *e = strchr(p, ']');
+
+		if (!e)
+			return strchr(kv, '=');
+		p = e + 1;
+	}
+	if (*p == '+' && p[1] == '=')
+		return p + 1;
+	if (*p == '=')
+		return p;
+	return strchr(kv, '=');
+}
+
 /* Apply temporary assignments, remembering the previous values. */
 void asg_push(sh *s, vec *asg, vec *old)
 {
@@ -1156,7 +1183,7 @@ void asg_push(sh *s, vec *asg, vec *old)
 
 	for (i = 0; i < asg->n; i++) {
 		kv = (char *)asg->p[i];
-		q = strchr(kv, '=');
+		q = asg_eq(kv);
 		if (!q)
 			continue;
 		*q = 0;
@@ -1298,7 +1325,7 @@ void xpsub_done(sh *s)
 /* Apply a name=value assignment to the shell variable table. */
 int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 {
-	char *q = strchr(kv, '=');
+	char *q = asg_eq(kv);
 	char *br, *r, *plus = 0;
 	vec *ks;
 	str cat;

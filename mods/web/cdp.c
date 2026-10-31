@@ -27,6 +27,12 @@ struct wb_resp {
 };
 
 vec wb_resps;
+/* The ids of requests whose replies nobody reads: wb_send's, and a render
+   abandoned mid-flight. Each reply is freed as it arrives, where it was
+   kept until the browser stopped -- a screencast acknowledged ten times a
+   second made the list, and every wb_call's walk of it, grow for the life
+   of a video. */
+vec wb_drops;
 
 /* Milliseconds on a clock that only goes forward. */
 long wb_ms(void)
@@ -374,6 +380,31 @@ fail:
 	return HIBR_FAIL;
 }
 
+/* Remove a folder in a process of its own: a profile Chromium wrote is
+   thousands of files, and unlinking them here held the desktop's every
+   display for a third of a second (ADR 0049). Forked twice so init owns
+   it and nothing here waits for it but the fork in between. */
+void wb_rmlater(const char *dir)
+{
+	pid_t pid;
+
+	fflush(0);
+	pid = fork();
+	if (pid < 0) {
+		nftw(dir, wb_rmone, 16, FTW_DEPTH | FTW_PHYS);
+		return;
+	}
+	if (!pid) {
+		if (fork() == 0) {
+			nftw(dir, wb_rmone, 16, FTW_DEPTH | FTW_PHYS);
+			_exit(0);
+		}
+		_exit(0);
+	}
+	while (waitpid(pid, 0, 0) < 0 && errno == EINTR)
+		;
+}
+
 /* Start the browser once; a profile another browser holds is not shared,
    one of its own for this shell is made instead and thrown away at the
    end. */
@@ -473,13 +504,17 @@ void wb_stop(void)
 	wb.pid = 0;
 	wb.in = wb.out = -1;
 	s_free(&wb.buf);
+	for (i = 0; i < wb.tabs.n; i++)
+		if (wb.tabs.p[i])
+			wb_aclear(wb.tabs.p[i]);
 	for (i = 0; i < wb_resps.n; i++) {
 		jv_free(((wb_resp *)wb_resps.p[i])->v);
 		free(wb_resps.p[i]);
 	}
 	v_free(&wb_resps);
+	v_free(&wb_drops);
 	if (wb.profile && wb.tmpprofile)
-		nftw(wb.profile, wb_rmone, 16, FTW_DEPTH | FTW_PHYS);
+		wb_rmlater(wb.profile);
 	free(wb.profile);
 	wb.profile = 0;
 	/* A download under way ends with the browser; one that had ended,
@@ -629,6 +664,10 @@ int wb_pump(int ms)
 			continue;
 		got++;
 		if (jv_get(m, "id")) {
+			if (wb_dropped((int)jv_num(jv_get(m, "id")))) {
+				jv_free(m);
+				continue;
+			}
 			rp = xm(sizeof *rp);
 			rp->id = (int)jv_num(jv_get(m, "id"));
 			rp->v = m;
@@ -693,10 +732,84 @@ int wb_req(const char *method, const char *params, const char *session)
 	return id;
 }
 
+/* Whether a reply is one nobody reads, forgetting the id if so. */
+int wb_dropped(int id)
+{
+	size_t i;
+
+	for (i = 0; i < wb_drops.n; i++)
+		if ((int)(intptr_t)wb_drops.p[i] == id) {
+			wb_drops.p[i] = wb_drops.p[--wb_drops.n];
+			return 1;
+		}
+	return 0;
+}
+
+/* Say a request's reply will not be read: freed as it arrives, or now if
+   it already has. */
+void wb_drop(int id)
+{
+	jv *v;
+
+	if (!id)
+		return;
+	v = wb_reply(id);
+	if (v)
+		jv_free(v);
+	else
+		v_add(&wb_drops, (void *)(intptr_t)id);
+}
+
 /* Send a request and not wait for what it says. */
 int wb_send(const char *method, const char *params, const char *session)
 {
-	return wb_req(method, params, session) ? HIBR_OK : HIBR_FAIL;
+	int id = wb_req(method, params, session);
+
+	wb_drop(id);
+	return id ? HIBR_OK : HIBR_FAIL;
+}
+
+/* A request's reply if it has come, taken from the kept ones; or null. */
+jv *wb_reply(int id)
+{
+	size_t i;
+	wb_resp *rp;
+	jv *v;
+
+	for (i = 0; i < wb_resps.n; i++) {
+		rp = wb_resps.p[i];
+		if (rp->id != id)
+			continue;
+		v = rp->v;
+		free(rp);
+		wb_resps.p[i] = wb_resps.p[--wb_resps.n];
+		return v;
+	}
+	return 0;
+}
+
+/* A reply's result, or null with the reason said and the reply freed. */
+jv *wb_result(const char *method, jv *v)
+{
+	jv *e = jv_get(v, "error");
+
+	if (!e)
+		return v;
+	wb_err(HIBR_LERR, "web: %s: %s", method, jv_str(jv_get(e, "message")));
+	jv_free(v);
+	return 0;
+}
+
+/* The browser gave no answer in time: said, and a browser that keeps not
+   answering is stopped. */
+void wb_noanswer(const char *method, const char *session)
+{
+	wb_err(HIBR_LERR, "web: %s: no answer from the browser", method);
+	if (wb_alive() && (++wb.stuck >= 2 || !session)) {
+		wb_err(HIBR_LERR, "web: the browser is not answering; it is stopped");
+		wb.failat = wb_ms();
+		wb_stop();
+	}
 }
 
 /* Send a request and wait for its reply; the reply's result, or null with
@@ -705,37 +818,19 @@ jv *wb_call(const char *method, const char *params, const char *session)
 {
 	int id = wb_req(method, params, session);
 	long until = wb_ms() + WB_WAITMS;
-	size_t i;
-	wb_resp *rp;
-	jv *v, *e;
+	jv *v;
 
 	if (!id)
 		return 0;
 	for (;;) {
-		for (i = 0; i < wb_resps.n; i++) {
-			rp = wb_resps.p[i];
-			if (rp->id != id)
-				continue;
-			v = rp->v;
-			free(rp);
-			wb_resps.p[i] = wb_resps.p[--wb_resps.n];
+		v = wb_reply(id);
+		if (v) {
 			wb.stuck = 0;
-			e = jv_get(v, "error");
-			if (e) {
-				wb_err(HIBR_LERR, "web: %s: %s", method,
-				   jv_str(jv_get(e, "message")));
-				jv_free(v);
-				return 0;
-			}
-			return v;
+			return wb_result(method, v);
 		}
 		if (wb_ms() > until || !wb_alive()) {
-			wb_err(HIBR_LERR, "web: %s: no answer from the browser", method);
-			if (wb_alive() && (++wb.stuck >= 2 || !session)) {
-				wb_err(HIBR_LERR, "web: the browser is not answering; it is stopped");
-				wb.failat = wb_ms();
-				wb_stop();
-			}
+			wb_drop(id);
+			wb_noanswer(method, session);
 			return 0;
 		}
 		wb_pump(50);

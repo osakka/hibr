@@ -67,6 +67,7 @@
 %s rows
 %s selected
 %s uses WEP, which is not joined from here
+%s was paused: it held the desktop for %s ms
 %s was updated: Restart Desktop to use the new version
 %s would not load
 %s would not unload
@@ -116,6 +117,7 @@ About This Computer…
 Account
 Account %s saved
 Accounts
+Actions
 Actual Size
 Adapter
 Add 10 Rows
@@ -658,6 +660,7 @@ Lock Screen
 Locking
 Log In
 Log In…
+Logging in…
 Login Manager
 Login Screen Message
 Login Screen Title
@@ -908,6 +911,7 @@ Pasted the first %s characters of %s
 Pattern
 Pause
 Pause or Play
+Paused: this window held the desktop for %s ms.
 Permissions reset
 Picture
 Picture Detail
@@ -1016,6 +1020,7 @@ Restarted, but the saved desktop could not be read -- see desktop.log
 Restarted, but the saved desktop is from another version
 Restarted: hibr %s
 Restart…
+Resume
 Reversed
 Right
 Rows
@@ -1085,6 +1090,8 @@ Set PIN
 Set as Wallpaper
 Set for:
 Set up a mail account first, in Control Panel > Mail
+Setting the PIN…
+Settings
 Settings%s
 Set…
 Several emails or phones: separate them with commas.
@@ -1229,6 +1236,7 @@ The vault is locked
 The vault is locked.
 The vault is synced
 The vault is unlocked
+The vault was locked meanwhile
 The vw command is not installed.
 The web module is not installed
 Theme
@@ -1296,6 +1304,7 @@ Unlock the vault first
 Unlock the vault first: the PIN wraps its key
 Unlock with the PIN
 Unlocked until %s
+Unlocking…
 Unlock…
 Unregistered extension .%s -- open in hvi anyway?
 Update
@@ -1344,6 +1353,7 @@ Wi-Fi is off
 Wi-Fi, %s
 Wider Column
 Window
+Window > Resume runs it again.
 Window Switcher
 Window Title
 Window:

@@ -159,6 +159,7 @@ void wb_tabclose(wb_tab *t)
 	for (i = 0; i < wb.tabs.n; i++)
 		if (wb.tabs.p[i] == t)
 			wb.tabs.p[i] = 0;
+	wb_aclear(t);
 	wb_gridfree(t);
 	free(t->shot);
 	free(t->target);
@@ -332,14 +333,28 @@ unsigned wb_utf8(const char *s, int *n)
 	return 0xFFFD;
 }
 
-/* Make the page's text invisible, or visible again, so the picture behind
-   it has its backgrounds and images and no letters drawn into them. */
-void wb_hidetext(wb_tab *t, int on)
+/* Run a script and not wait for it: the browser runs a session's messages
+   in order, so whatever is sent next sees what it did. */
+int wb_evalsend(wb_tab *t, const char *js)
 {
-	str o;
+	str p;
+	int r;
 
-	s_init(&o);
-	wb_eval(t, on ?
+	s_init(&p);
+	s_cat(&p, "{\"expression\":");
+	jv_quote(&p, js);
+	s_cat(&p, ",\"returnByValue\":true}");
+	r = wb_send("Runtime.evaluate", p.p, t->session);
+	s_free(&p);
+	return r;
+}
+
+/* The script that makes the page's text invisible, or visible again, so
+   the picture behind it has its backgrounds and images and no letters
+   drawn into them. */
+const char *wb_hidejs(int on)
+{
+	return on ?
 		"(()=>{let s=document.getElementById('__hibr_hide');"
 		"if(!s){s=document.createElement('style');s.id='__hibr_hide';"
 		"s.textContent='*,*::before,*::after,input,textarea{color:transparent!important;"
@@ -348,8 +363,28 @@ void wb_hidetext(wb_tab *t, int on)
 		"const p=document.head||document.documentElement;"
 		"if(!p)return 0;p.appendChild(s);return 1})()" :
 		"(()=>{const s=document.getElementById('__hibr_hide');"
-		"if(s)s.remove();return 1})()", &o);
+		"if(s)s.remove();return 1})()";
+}
+
+/* The same, waited for: the screenshot asked for next is taken after it. */
+void wb_hidetext(wb_tab *t, int on)
+{
+	str o;
+
+	s_init(&o);
+	wb_eval(t, wb_hidejs(on), &o);
 	s_free(&o);
+}
+
+/* The screenshot request's parameters, at the scroll position the page
+   reading found. A page drawn as pixels wants the screenshot at its own
+   size; one drawn as cells wants one pixel a column and two a row, which
+   is exactly what a half block shows. */
+void wb_shotreq(wb_tab *t, str *b)
+{
+	s_fmt(b, "{\"format\":\"png\",\"clip\":{\"x\":%ld,\"y\":%ld,"
+	      "\"width\":%d,\"height\":%d,\"scale\":%.6f}}", t->sx, t->sy,
+	      t->cols * t->cw, t->rows * t->ch, t->pixels ? 1.0 : 1.0 / t->cw);
 }
 
 /* The pixels behind the page: a screenshot at one pixel a column and two a
@@ -358,19 +393,9 @@ void wb_pixels(wb_tab *t)
 {
 	str b;
 	jv *r;
-	str png, err;
-	image im;
-	int row, col;
-	wb_cell *c;
-	unsigned char *top, *bot;
 
-	/* A page drawn as pixels wants the screenshot at its own size; one
-	   drawn as cells wants one pixel a column and two a row, which is
-	   exactly what a half block shows. */
 	s_init(&b);
-	s_fmt(&b, "{\"format\":\"png\",\"clip\":{\"x\":%ld,\"y\":%ld,"
-	      "\"width\":%d,\"height\":%d,\"scale\":%.6f}}", t->sx, t->sy,
-	      t->cols * t->cw, t->rows * t->ch, t->pixels ? 1.0 : 1.0 / t->cw);
+	wb_shotreq(t, &b);
 	/* Hidden only for the path that draws the text again. A page drawn
 	   as cells is this picture with its letters put back as real cells
 	   over it, so they must not be in it twice; a page drawn as pixels
@@ -383,6 +408,19 @@ void wb_pixels(wb_tab *t)
 	s_free(&b);
 	if (!t->pixels)
 		wb_hidetext(t, 0);
+	wb_shotput(t, r);
+}
+
+/* A screenshot's reply put behind the page: kept whole as pixels, or as
+   half blocks in the grid. Frees the reply. */
+void wb_shotput(wb_tab *t, jv *r)
+{
+	str png, err;
+	image im;
+	int row, col;
+	wb_cell *c;
+	unsigned char *top, *bot;
+
 	if (!r)
 		return;
 	s_init(&png);
@@ -527,18 +565,55 @@ void wb_slow(wb_tab *t)
 	   t->url.p ? t->url.p : "a page", (now - t->navat) / 1000);
 }
 
+/* The script that reads the page's text, layout and scroll position. */
+char *wb_extractjs(wb_tab *t)
+{
+	char *js = xm(sizeof wb_extract + 32);
+
+	snprintf(js, sizeof wb_extract + 32, wb_extract, t->cw, t->ch);
+	return js;
+}
+
+/* The page reading's reply as the page's value, or null with the reason
+   said. Frees the reply. */
+jv *wb_extracted(jv *r)
+{
+	jv *x, *v;
+	str out;
+
+	if (!r)
+		return 0;
+	x = jv_path(r, "result.exceptionDetails");
+	if (x) {
+		v = jv_path(x, "exception.description");
+		wb_err(HIBR_LERR, "web: %s", v ? jv_str(v) : jv_str(jv_get(x, "text")));
+		jv_free(r);
+		return 0;
+	}
+	s_init(&out);
+	v = jv_path(r, "result.result.value");
+	if (v && v->t == JV_STR)
+		s_cat(&out, v->s.p ? v->s.p : "");
+	else if (v)
+		jv_write(&out, v);
+	jv_free(r);
+	v = jv_parse(out.p ? out.p : "", out.n);
+	s_free(&out);
+	return v;
+}
+
 int wb_render(wb_tab *t)
 {
 	char *js;
 	str out;
-	jv *v, *a, *e;
-	size_t i, n;
-	unsigned at;
-	int k, *rs, *re;
+	jv *v;
+	int k;
 
 	if (t->rows < 1 || t->cols < 1)
 		return HIBR_FAIL;
 	wb_slow(t);
+	if (t->async && !t->textonly)
+		return wb_arender(t);
 	/* Cleared before the extraction, never after it: wb_eval waits for
 	   its own reply by pumping the pipe, and wb_pump hands every event
 	   queued behind it to wb_event -- Page.loadEventFired among them,
@@ -550,8 +625,7 @@ int wb_render(wb_tab *t)
 	if (t->textonly)
 		return HIBR_OK;
 	wb_zoomapply(t);
-	js = xm(sizeof wb_extract + 32);
-	snprintf(js, sizeof wb_extract + 32, wb_extract, t->cw, t->ch);
+	js = wb_extractjs(t);
 	s_init(&out);
 	k = wb_eval(t, js, &out);
 	free(js);
@@ -566,6 +640,20 @@ int wb_render(wb_tab *t)
 		t->dirty = 1;
 		return HIBR_FAIL;
 	}
+	wb_build(t, v, 1, 0);
+	return HIBR_OK;
+}
+
+/* The page from its reading v: the grid, the picture behind it -- taken
+   now, or the screenshot reply shot an async render already has -- and
+   the text, links and fields over it. Frees v and shot. */
+void wb_build(wb_tab *t, jv *v, int now, jv *shot)
+{
+	jv *a, *e;
+	size_t i, n;
+	unsigned at;
+	int k, *rs, *re;
+
 	t->sx = (long)jv_num(jv_get(v, "sx"));
 	t->sy = (long)jv_num(jv_get(v, "sy"));
 	t->sh = (long)jv_num(jv_get(v, "sh"));
@@ -586,7 +674,10 @@ int wb_render(wb_tab *t)
 	}
 	t->grows = t->rows;
 	t->gcols = t->cols;
-	wb_pixels(t);
+	if (now)
+		wb_pixels(t);
+	else
+		wb_shotput(t, shot);
 	a = jv_get(v, "l");
 	for (i = 0; a && i < a->v.n; i++)
 		v_add(&t->links, xs(jv_str(jv_path(a->v.p[i], "0"))));
@@ -656,6 +747,152 @@ int wb_render(wb_tab *t)
 		}
 	}
 	jv_free(v);
+}
+
+/* Forget an async render's requests and answers: a reply still to come is
+   freed as it arrives. */
+void wb_aclear(wb_tab *t)
+{
+	wb_drop(t->aid);
+	wb_drop(t->hid);
+	wb_drop(t->sid);
+	t->aid = t->hid = t->sid = t->fresh = 0;
+	jv_free(t->ax);
+	jv_free(t->as);
+	t->ax = t->as = 0;
+}
+
+/* Send what an async render asks the page for, in turn: the screenshot
+   at the scroll position the reading found, once the text is hidden. The
+   page runs a session's messages in order, but the screenshot is the
+   browser's copy of a frame already made, so the hide's own reply is
+   waited for before it is asked -- as the synchronous render does. */
+void wb_ashoot(wb_tab *t)
+{
+	str b;
+
+	s_init(&b);
+	wb_shotreq(t, &b);
+	t->sid = wb_req("Page.captureScreenshot", b.p, t->session);
+	s_free(&b);
+	t->asent = wb_ms();
+	t->hushto = t->asent + 200;
+}
+
+/* Move an async render on with what has come in: the reading's reply
+   hides the text (cells) or asks for the screenshot (pixels), the hide's
+   asks for the screenshot, and the screenshot's makes the pair fresh and
+   shows the text again. A request out longer than WB_WAITMS is the
+   browser not answering. Whether the tab is fresh. */
+int wb_aprog(wb_tab *t)
+{
+	jv *r;
+	str p;
+
+	if (t->aid && (r = wb_reply(t->aid))) {
+		t->aid = 0;
+		wb.stuck = 0;
+		t->ax = wb_extracted(wb_result("Runtime.evaluate", r));
+		if (!t->ax) {
+			t->dirty = 1;
+			return 0;
+		}
+		t->sx = (long)jv_num(jv_get(t->ax, "sx"));
+		t->sy = (long)jv_num(jv_get(t->ax, "sy"));
+		if (t->pixels)
+			wb_ashoot(t);
+		else {
+			s_init(&p);
+			s_cat(&p, "{\"expression\":");
+			jv_quote(&p, wb_hidejs(1));
+			s_cat(&p, ",\"returnByValue\":true}");
+			t->hid = wb_req("Runtime.evaluate", p.p, t->session);
+			s_free(&p);
+			t->asent = wb_ms();
+			t->hushto = t->asent + 200;
+		}
+		if (!t->hid && !t->sid) {
+			wb_aclear(t);
+			t->dirty = 1;
+			return 0;
+		}
+	}
+	if (t->hid && (r = wb_reply(t->hid))) {
+		t->hid = 0;
+		jv_free(r);
+		wb_ashoot(t);
+		if (!t->sid) {
+			wb_evalsend(t, wb_hidejs(0));
+			wb_aclear(t);
+			t->dirty = 1;
+			return 0;
+		}
+	}
+	if (t->sid && (r = wb_reply(t->sid))) {
+		t->sid = 0;
+		wb.stuck = 0;
+		if (!t->pixels)
+			wb_evalsend(t, wb_hidejs(0));
+		t->as = wb_result("Page.captureScreenshot", r);
+		t->fresh = 1;
+		t->hushto = wb_ms() + 200;
+	}
+	if ((t->aid || t->hid || t->sid) && wb_ms() - t->asent > WB_WAITMS) {
+		if (t->hid || t->sid)
+			wb_evalsend(t, wb_hidejs(0));
+		wb_noanswer(t->sid ? "Page.captureScreenshot" : "Runtime.evaluate",
+			    t->session);
+		wb_aclear(t);
+		t->dirty = 1;
+		return 0;
+	}
+	return t->fresh;
+}
+
+/* An async render: build the last answer if one is in, and ask for the
+   next if the page has repainted and nothing is out. Never waits. A page
+   read at another size is not built, and the new size's own repaint asks
+   again. */
+int wb_arender(wb_tab *t)
+{
+	str p;
+	char *js;
+	jv *x, *sh;
+
+	wb_events();
+	wb_aprog(t);
+	if (t->fresh) {
+		x = t->ax;
+		sh = t->as;
+		t->ax = t->as = 0;
+		t->fresh = 0;
+		if (t->arows == t->rows && t->acols == t->cols)
+			wb_build(t, x, 0, sh);
+		else {
+			jv_free(x);
+			jv_free(sh);
+			t->dirty = 1;
+		}
+	}
+	if (!t->dirty || t->aid || t->hid || t->sid)
+		return HIBR_OK;
+	t->dirty = 0;
+	wb_zoomapply(t);
+	js = wb_extractjs(t);
+	s_init(&p);
+	s_cat(&p, "{\"expression\":");
+	jv_quote(&p, js);
+	s_cat(&p, ",\"returnByValue\":true,\"awaitPromise\":true}");
+	free(js);
+	t->aid = wb_req("Runtime.evaluate", p.p, t->session);
+	s_free(&p);
+	t->asent = wb_ms();
+	t->arows = t->rows;
+	t->acols = t->cols;
+	if (!t->aid) {
+		t->dirty = 1;
+		return HIBR_FAIL;
+	}
 	return HIBR_OK;
 }
 

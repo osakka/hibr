@@ -90,6 +90,54 @@ fn dt_jobmerge(...cmd) {
 	"${cmd[@]}" 2>&1
 }
 
+# Run a function whose work is setting variables -- a pane reading what it
+# shows for the first time, which may mean starting programs -- as a job,
+# and bring those variables back when it ends:
+#   n := dt_jobvars KIND TAG CALLBACK FUNCTION VAR...
+# CALLBACK n status runs after they are set. The child prints them with
+# declare -p, which reads back exactly (Gitea #269), and here each is made
+# global again. A draw that started programs to fill its first frame held
+# every display while they ran (ADR 0049); this is the way it does not.
+fn dt_jobvars(kind, tag, then, f, ...vars) {
+	local n
+
+	n := dt_job "$kind" "$tag" dt_jobvarsdone dt_jobvarsrun "$f" "${vars[@]}" || return 1
+	DTJ[$n]["vthen"]=$then
+	ret "$n"
+}
+
+# The job's side: the function, quietly, then its variables.
+fn dt_jobvarsrun(f, ...vars) {
+	"$f" > /dev/null 2>&1
+	declare -p "${vars[@]}" 2> /dev/null
+	return 0
+}
+
+# The desktop's side: what the job printed read back, then the caller's
+# own callback.
+fn dt_jobvarsdone(int n, int st) {
+	local then=${DTJ[$n]["vthen"]}
+
+	dt_jobvarsread "$n"
+	[ -n "$then" ] && "$then" "$n" "$st"
+	return 0
+}
+
+# What a dt_jobvarsrun job printed, each declaration made global here: for
+# a caller with its own callback that decides first whether to take it.
+fn dt_jobvarsread(int n) {
+	local f l
+
+	f := dt_jobfile "$n" out
+	while IFS= read -r l; do
+		case $l in
+		"declare "*) eval "${l/#declare /declare -g }" ;;
+		?*) eval "$l" ;;
+		esac
+	done < "$f"
+	return 0
+}
+
 # Start a job on a pty, for a program that may ask a question on its
 # terminal -- nmcli's own polkit agent, pkexec -- which a file cannot
 # answer. What it prints goes to its output file as it arrives, so

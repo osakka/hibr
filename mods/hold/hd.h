@@ -389,7 +389,7 @@ void hd_frmsweep(int tid);
 void hd_frmclear(void);
 int hd_frmpeer(int c);
 void hd_frmsend(struct hd_cli *cn, unsigned id);
-int hd_frmplaced(int tid, unsigned id);
+int hd_frmplaced(int tid, unsigned id, int *g);
 void hd_frmpush(vec *cls, int tid, const unsigned char *h);
 unsigned long long hd_frmnum(const unsigned char *p, int n);
 unsigned hd_hash(const char *p, size_t n);

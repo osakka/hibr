@@ -24,5 +24,8 @@ hibr: unexpected end of input
 status 2
 --- standard input
 hibr: command line:1: unquoted-path: rm is handed $f unquoted: a blank or a * in its value makes more paths than meant; write "$f"
+--- a callback that starts a process
+hibr: cb.sh:2: callback-forks: x_draw runs inside a callback the desktop calls between frames, and this starts a process every time it does: nothing else on any display moves meanwhile. Run it as a job (dt_job) and read the result next frame, or say why it is cheap here with `# fork: reason` on the line
+hibr: cb.sh:11: callback-forks: tk runs inside a callback the desktop calls between frames, and this starts a process every time it does: nothing else on any display moves meanwhile. Run it as a job (dt_job) and read the result next frame, or say why it is cheap here with `# fork: reason` on the line
 --- hibr's own examples are clean
 examples linted

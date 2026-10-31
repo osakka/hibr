@@ -32,6 +32,17 @@ That terminal window is not a screenshot of a screenshot — it is a real
 real prompt with the actual git branch this repository is on. Nothing about
 what a window shows is faked or simulated for the picture.
 
+## The frame budget
+
+Every app runs inside the window manager's own process, between frames, so a
+callback that takes long stops every display while it runs. Each one is
+timed (`wm/budget.hibr`, ADR 0049): past 50 ms it is a `slow:` note in the
+log, past 150 ms a `held:` stall, which the suites fail on, and an app that
+stalls three times in a minute is paused until Window > Resume. Slow work is
+a job (`dt_job`, or `dt_jobvars` for a load that sets variables); the rule is
+written for app authors in [`WRITING.md`](WRITING.md). `desktop ctl stats`
+shows every callback's longest single run as `max_ms`.
+
 ## The event loop
 
 `dt_run`, in `wm/session.hibr`, is the whole of it:

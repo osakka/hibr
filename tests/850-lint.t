@@ -65,6 +65,23 @@ echo "--- a syntax error is status 2"
 echo "status $?"
 echo "--- standard input"
 echo 'rm $f' | "$h" --explain 2>&1
+echo "--- a callback that starts a process"
+cat > cb.sh <<'EOF'
+fn x_draw(int id, int h, int w, int row, int col) {
+	t=$(date)
+	u=$(date) # fork: a test of the excuse
+	v=$(< /etc/hostname)
+	console put -p "w$id" 1 1 "$t$u$v"
+}
+fn helper() {
+	w=$(date)
+}
+tk() {
+	y=`date`
+}
+dt_ticker tk
+EOF
+"$h" --explain cb.sh 2>&1 | sed 's/^hibr: [^:]*:/hibr: cb.sh:/'
 
 # Both folders, since the products moved to programs/ (Gitea #252):
 # `find examples` alone would lint the nine samples and silently stop
