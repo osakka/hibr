@@ -370,6 +370,7 @@ dt_menus() {
 		dt_dim "Move"
 		dt_dim "Resize"
 		dt_dim "Zoom"
+		dt_dim "Full Screen"
 		dt_dim "Snap"
 		dt_dim "Hide"
 		dt_dim "Sticky"
@@ -380,10 +381,17 @@ dt_menus() {
 		if [ "${DT_APPS[${DT[$DT_FOCUS]["app"]}]["fixed"]}" = 1 ]; then
 			dt_dim "Resize"
 			dt_dim "Zoom"
+			dt_dim "Full Screen"
 		else
 			dt_item "Resize" r dt_grab size
 			dt_item "Zoom" z dt_zoom_focused
 			dt_rowaccel "${DT_KEYS["zoom"]}"
+			if [ "$DT_FULL" = "$DT_FOCUS" ]; then
+				dt_item "Leave Full Screen" f dt_full_focused
+			else
+				dt_item "Full Screen" f dt_full_focused
+			fi
+			dt_rowaccel "${DT_KEYS["fullscreen"]}"
 		fi
 		dt_sub "Snap"
 		dt_item "Left" l dt_snap_focused left

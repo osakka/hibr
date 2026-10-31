@@ -259,8 +259,13 @@ it. It also goes back on its own when focus moves, a menu or a bar item's
 panel opens, the saver or the lock comes up, the window closes, or the
 desktop ends; and Blit gives it back when the session loses its focus.
 
-**A window can take the whole display** (Gitea #405): a game in Boxer, for
-one, on its full-screen key. No bar, no frame, no Control Strip; a note of
+**A window can take the whole display** (Gitea #405): any window, on
+**Full Screen** -- alt-enter by default, in Control Panel > Shortcuts, and
+on the Window menu and a title bar's own menu just under Zoom -- and again
+to put it back. A window of a fixed size cannot, as it cannot be zoomed,
+and an app that takes alt-enter for itself keeps it, as every window key
+is the focused app's first. A terminal window hands it to the desktop, as
+it does every desktop shortcut, unless the window's Pass Every Key is on. No bar, no frame, no Control Strip; a note of
 high priority is one line along the bottom edge. **Leave Full Screen**
 (ctrl-f11, in Control Panel > Shortcuts) puts it back, and no window can
 take that key, so a game that hangs cannot keep the screen. It also goes
@@ -731,7 +736,7 @@ desktop's right-click menu, Files' Special menu and the Trash window's own
 right-click menu.
 
 **alt-.** shows and hides hidden files in a Files window (View > Hidden
-Files, and `h`), and **alt-enter**, or a double click with **alt** held,
+Files, and `h`), and **alt-o**, or a double click with **alt** held,
 opens a folder in a new window rather than this one; File > Open in New
 Window and the right-click menu do the same. Both keys are Files' own:
 Control Panel > Shortcuts lists them under Files and changes them like any

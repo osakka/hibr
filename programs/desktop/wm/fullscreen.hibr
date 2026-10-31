@@ -86,6 +86,10 @@ fn dt_fullscreen(int id, how) {
 	return 0
 }
 
+# The Full Screen key and the Window menu's row: the focused window, on or
+# off. Whether it may is the caller's, as for Zoom: a fixed-size app may not.
+dt_full_focused() { [ -n "$DT_FOCUS" ] && dt_fullscreen "$DT_FOCUS" toggle; }
+
 # Size the full-screen window to its display again, as the display is now.
 fn dt_fullfit(int id) {
 	dt_fullrect "$id"

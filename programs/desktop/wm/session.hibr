@@ -128,6 +128,7 @@ dt_open() {
 	# actually appears on screen -- showed no visible darkening at all.
 	console darkdefault "$DT_INK" "$DT_FACE"
 	console imgdetail "$DT_IMGDETAIL"
+	console filmdetail "${DT_FILMDETAIL:-full}"
 	console imgcomp "$DT_IMGCOMP"
 	[ "$DT_IMGEDITS" = off ] && console imgedit off
 	[ "$DT_IMGFD" = off ] && console imgfd off

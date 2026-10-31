@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.99.403
+
+**Full Screen is a desktop key** (the owner's request on Gitea #405): any
+window that can be zoomed takes the whole display on alt-enter, and again
+puts it back, with **Full Screen** on the Window menu and a title bar's own
+menu just under Zoom, the key beside it. The key is in Control Panel >
+Shortcuts like every other. A window of a fixed size cannot, as it cannot
+be zoomed, and an app that answers alt-enter itself keeps it -- the focused
+app has every window key first, as with Zoom; a terminal window hands it to
+the desktop like every desktop shortcut, unless its Pass Every Key is on.
+**Files' Open in New Window
+moves to alt-o** (Shortcut Key + O) to make room: a desktop whose saved
+settings still hold the old alt-enter is moved once (settings version 19),
+and a key somebody chose for it stays theirs. Not alt-shift-enter, which a
+terminal sends exactly as alt-enter. Files 3.8.
+
+**Film Detail** (Control Panel > Pictures): a film's frames are sent at the
+cells' own resolution, Full, by default -- the owner's choice -- or at half
+in each direction, a quarter of the bytes a frame, for a link a film at full
+detail is too much for. The media module marks its frames (`DP_IMG_FILM`)
+and the console halves only those, on kitty, with `console filmdetail
+full|half`; Picture Detail still governs everything else. Pictures 1.4,
+Arabic 3.66.
+
+**The desktop's CPU after a Restart Desktop is measured from the restart.**
+`desktop ctl stats` worked the CPU out from the process's own count, which
+an exec keeps, so the first reading after a restart said 9618%; the count
+the desktop starts from is taken as it starts.
+
+The sound suite waits for the bar's first reading before it sends a key,
+since the bar now draws an unknown level as `♪ …`, which had satisfied the
+old wait; the desktop's standby check keeps the drop's own answer and tries
+it again; the Bluetooth suite waits for the row it is about to click
+rather than 0.4 seconds, which the sanitizer build outran; and the web and
+YouTube suites no longer excuse a `held:` line from their apps, and pass
+without one.
+
 ## 0.99.402
 
 **A script can be asked of a page and read later.** `web evask T JS` sends

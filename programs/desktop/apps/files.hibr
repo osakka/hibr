@@ -21,7 +21,7 @@
 
 strict
 
-app files "A file browser" 3.7
+app files "A file browser" 3.8
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -151,7 +151,7 @@ FB_DIRKIND=([.git]=git [.config]=config [.local]=local [desktop]=desktop
 	[games]=games)
 if command -v dt_appaction > /dev/null; then
 	dt_appaction files hidden "Show Hidden Files" "alt-."
-	dt_appaction files newwin "Open in New Window" "alt-enter"
+	dt_appaction files newwin "Open in New Window" "mod-o"
 	dt_appaction files info "Get Info" "mod-i"
 	dt_appaction files newfolder "New Folder" "mod-n"
 fi

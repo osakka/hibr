@@ -134,10 +134,17 @@ fn dt_titlecontext(int id) {
 	if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ]; then
 		dt_dim "Resize"
 		dt_dim "Zoom"
+		dt_dim "Full Screen"
 	else
 		dt_item "Resize" r dt_grab size
 		dt_item "Zoom" z dt_zoom "$id"
 		dt_rowaccel "${DT_KEYS["zoom"]}"
+		if [ "$DT_FULL" = "$id" ]; then
+			dt_item "Leave Full Screen" f dt_fullscreen "$id" off
+		else
+			dt_item "Full Screen" f dt_fullscreen "$id" on
+		fi
+		dt_rowaccel "${DT_KEYS["fullscreen"]}"
 	fi
 	dt_item "Hide" h dt_min "$id"
 	dt_rowaccel "${DT_KEYS["hide"]}"

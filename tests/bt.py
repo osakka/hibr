@@ -114,8 +114,14 @@ def srun(bt, feed, until=None, panel=False, env=None, during=None):
     settle(t)
     if during:
         during(t)
-    if feed:
-        t.keys(list(feed), settle=0.5)
+    # ("wait", text) waits for the text below the bar before the next key:
+    # a click into a pop-up the bar has not drawn yet lands on the
+    # wallpaper, which a fixed 0.4 s pause did under the sanitizers.
+    for k in feed or []:
+        if isinstance(k, tuple) and k[0] == "wait":
+            t.until(lambda sc, w=k[1]: sc.find_from(w, 1) is not None, tries=120, step=0.25)
+        else:
+            t.keys([k], settle=0.5)
     for _ in range(60):
         sc = t.screen()
         if until is None or (until(sc) if callable(until) else sc.find(until) is not None):
@@ -158,16 +164,16 @@ try:
     check("and devices in reach under them, to pair", jb is not None and "pair" in sc.row(jb[0]), sc)
 
     b = Bt()
-    sc = srun(b, [press(0, col), release(0, col), 0.4, press(kb[0], kb[1]), release(kb[0], kb[1])],
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "8BitDo Retro Keyboard"), press(kb[0], kb[1]), release(kb[0], kb[1])],
               until=lambda sc: (b.dev("8BitDo Retro Keyboard") or {}).get("connected"))
     check("a click on a known device connects it, and says so",
           b.dev("8BitDo Retro Keyboard")["connected"] and BT + " 2" in bar(sc), (bar(sc), sc))
-    sc = srun(b, [press(0, col), release(0, col), 0.4, press(hp[0], hp[1]), release(hp[0], hp[1])],
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "soundcore C30i"), press(hp[0], hp[1]), release(hp[0], hp[1])],
               until=lambda sc: not b.dev("soundcore C30i")["connected"])
     check("and a click on a connected one disconnects it", not b.dev("soundcore C30i")["connected"], sc)
 
     b = Bt()
-    sc = srun(b, [press(0, col), release(0, col), 0.4, press(jb[0], jb[1]), release(jb[0], jb[1])],
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "JBL Flip 6"), press(jb[0], jb[1]), release(jb[0], jb[1])],
               until=lambda sc: (b.dev("JBL Flip 6") or {}).get("connected"))
     check("a click on a device in reach pairs it, trusts it and connects it",
           b.dev("JBL Flip 6")["paired"] and b.dev("JBL Flip 6").get("trusted") and
@@ -176,24 +182,24 @@ try:
     b = Bt()
     px = at(sc, "Pixel Phone") or at(srun(b, [press(0, col), release(0, col)], until="Pixel Phone"),
                                      "Pixel Phone")
-    sc = srun(b, [press(0, col), release(0, col), 0.4, press(px[0], px[1]), release(px[0], px[1]), 1.5],
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "Pixel Phone"), press(px[0], px[1]), release(px[0], px[1]), 1.5],
               until="Does it show this number?")
     check("a device that shows a passkey asks whether it is the same, showing it",
           sc.find("Does it show this number?") is not None and sc.find("123456") is not None, sc)
-    sc = srun(b, [press(0, col), release(0, col), 0.4, press(px[0], px[1]), release(px[0], px[1]), 1.5,
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "Pixel Phone"), press(px[0], px[1]), release(px[0], px[1]), 1.5,
                   b"\r"],
               until=lambda sc: (b.dev("Pixel Phone") or {}).get("paired"))
     check("and yes pairs it", b.dev("Pixel Phone")["paired"], (b.dev("Pixel Phone"), sc))
 
     b = Bt()
     ok = at(srun(b, [press(0, col), release(0, col)], until="Old Keyboard"), "Old Keyboard")
-    sc = srun(b, [press(0, col), release(0, col), 0.4, press(ok[0], ok[1]), release(ok[0], ok[1]), 1.5,
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "Old Keyboard"), press(ok[0], ok[1]), release(ok[0], ok[1]), 1.5,
                   b"0000", b"\r"],
               until=lambda sc: (b.dev("Old Keyboard") or {}).get("paired"))
     check("a device that wants a PIN asks for it, and the right one pairs it",
           b.dev("Old Keyboard")["paired"], (b.dev("Old Keyboard"), sc))
     b = Bt()
-    sc = srun(b, [press(0, col), release(0, col), 0.4, press(ok[0], ok[1]), release(ok[0], ok[1]), 1.5,
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "Old Keyboard"), press(ok[0], ok[1]), release(ok[0], ok[1]), 1.5,
                   b"9999", b"\r"],
               until="Could not pair")
     check("and a wrong one says it could not pair, leaving it unpaired",
@@ -208,13 +214,13 @@ try:
           sc.find("8BitDo Retro Keyboard") is not None, sc)
     m = at(sc, "Bluetooth", 2)
     if m:
-        sc = srun(b, [press(0, col, 2), release(0, col, 2), 0.4, press(m[0], m[1]), release(m[0], m[1])],
+        sc = srun(b, [press(0, col, 2), release(0, col, 2), ("wait", "Bluetooth Settings"), press(m[0], m[1]), release(m[0], m[1])],
                   until=lambda sc: "✕" in bar(sc))
     check("Bluetooth off there turns the adapter off, and the bar says so",
           b.state()["power"] == "no" and BT + " ✕" in bar(sc), (b.state()["power"], bar(sc)))
 
     b = Bt(refuse=["set power off"])
-    sc = srun(b, [press(0, col, 2), release(0, col, 2), 0.4, press(m[0], m[1]), release(m[0], m[1])],
+    sc = srun(b, [press(0, col, 2), release(0, col, 2), ("wait", "Bluetooth Settings"), press(m[0], m[1]), release(m[0], m[1])],
               until="not allowed")
     check("a session BlueZ refuses says so in words, and nothing changes",
           sc.find("not allowed from this session") is not None and b.state()["power"] == "yes", sc)

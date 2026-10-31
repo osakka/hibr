@@ -127,7 +127,7 @@ int mv_draw(sh *s, const dp_api *dp, mv_pl *p, const char *pane, int row,
 		   prow, pcol, ph, pw, fits);
 		if (fits && dp->image(s, pane, pane ? ir - prow : ir,
 				      pane ? ic - pcol : ic, ih, iwc, f->rgb,
-				      f->w, f->h, 0)) {
+				      f->w, f->h, DP_IMG_FILM)) {
 			p->drew = 1;
 			return HIBR_OK;
 		}

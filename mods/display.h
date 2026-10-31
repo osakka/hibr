@@ -88,10 +88,17 @@ struct dp_api {
 	   every frame). What it costs in between belongs to the protocol
 	   rather than to a choice: a picture the terminal keeps below the
 	   text is sent once, and paint goes again whenever a cell over it has
-	   been written. */
+	   been written.
+
+	   DP_IMG_FILM says this is a frame of a film, one of a stream: the
+	   backend may send it at less than the cells' own resolution when it
+	   has been asked to (`console filmdetail half`), since a film's cost
+	   is bytes a frame. A backend that does not know the flag ignores it,
+	   which is the full picture, so it needed no new version. */
 #ifndef DP_IMG_CHOSEN
 #define DP_IMG_CHOSEN 1u
 #define DP_IMG_UNDER 2u
+#define DP_IMG_FILM 4u
 #endif
 	int (*image)(sh *s, const char *pane, int row, int col, int h, int w,
 		     const unsigned char *rgb, int iw, int ih, unsigned flags);

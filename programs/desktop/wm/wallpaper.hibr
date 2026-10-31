@@ -73,6 +73,11 @@ dt_walldrawn() {
 # link that cannot carry full frames.
 DT_IMGDETAIL="${DT_IMGDETAIL-auto}"
 dt_keep DT_IMGDETAIL
+# And a film's frames on their own, on top of that (0.99.403): full by
+# default, the owner's choice, half for a link a full frame is too much for.
+# Declared here for the same reason as the two beside it.
+DT_FILMDETAIL="${DT_FILMDETAIL-full}"
+dt_keep DT_FILMDETAIL
 
 # And how a still picture's payload is compressed before it is sent, which
 # dt_open hands to `console imgcomp` (Gitea #129). Declared **here** as well

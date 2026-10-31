@@ -957,6 +957,27 @@ int m_console(sh *s, int ac, char **av)
 		}
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "filmdetail")) {
+		const char *m = ac > 2 ? av[2] : "";
+
+		if (!*m) {
+			const char *now = cn_filmhalf ? "half" : "full";
+
+			hibr_ret(s, now);
+			if (!s->bind)
+				printf("%s\n", now);
+			return HIBR_OK;
+		}
+		if (!strcmp(m, "half"))
+			cn_filmhalf = 1;
+		else if (!strcmp(m, "full"))
+			cn_filmhalf = 0;
+		else {
+			lg(HIBR_LERR, "usage: console filmdetail full|half");
+			return 2;
+		}
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "imgcomp")) {
 		const char *m = ac > 2 ? av[2] : "";
 

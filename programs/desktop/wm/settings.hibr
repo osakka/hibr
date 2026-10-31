@@ -39,6 +39,10 @@ DT_MOD="${DT_MOD-alt}"
 # holding their old keys moved with them (DT_SETVER 12).
 [ -n "${DT_KEYS["zoom"]+x}" ] || DT_KEYS["zoom"]="mod-up"
 [ -n "${DT_KEYS["hide"]+x}" ] || DT_KEYS["hide"]="mod-down"
+# Full Screen for any window that may be zoomed (0.99.403, the owner's
+# request on #405): one key for every app, the focused app's own first as
+# every window key is, and the Leave Full Screen key below no window takes.
+[ -n "${DT_KEYS["fullscreen"]+x}" ] || DT_KEYS["fullscreen"]="mod-enter"
 [ -n "${DT_KEYS["snapcenter"]+x}" ] || DT_KEYS["snapcenter"]=
 [ -n "${DT_KEYS["ws1"]+x}" ] || DT_KEYS["ws1"]="mod-1"
 [ -n "${DT_KEYS["ws2"]+x}" ] || DT_KEYS["ws2"]="mod-2"
@@ -641,9 +645,18 @@ dt_load() {
 			# stays.
 			[ "${FB_BGDEF-}" = White ] && FB_BGDEF="Follow Theme"
 		fi
+		# 0.99.403 gives alt-enter to the desktop's Full Screen, the
+		# owner's choice, and Files' Open in New Window moves to mod-o
+		# -- only while it still holds the old default, since every save
+		# wrote that down as if chosen. Not alt-shift-enter: a terminal
+		# sends shift-enter as a plain return, so it arrives as alt-enter.
+		if [ "${DT_SETVER:-0}" -lt 19 ] &&
+		   [ "${DT_AKEY["files:newwin"]-}" = alt-enter ]; then
+			DT_AKEY["files:newwin"]="mod-o"
+		fi
 	fi
 	CS_Y=
-	DT_SETVER=18
+	DT_SETVER=19
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"

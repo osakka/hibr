@@ -1274,6 +1274,10 @@ fn dt_event(k) {
 		[ -n "$DT_FOCUS" ] &&
 			[ "${DT_APPS[${DT[$DT_FOCUS]["app"]}]["fixed"]}" != 1 ] &&
 			dt_zoom_focused
+	elif dt_keyis fullscreen "$k"; then
+		[ -n "$DT_FOCUS" ] &&
+			[ "${DT_APPS[${DT[$DT_FOCUS]["app"]}]["fixed"]}" != 1 ] &&
+			dt_full_focused
 	elif dt_keyis hide "$k"; then
 		dt_hide_focused
 	elif dt_keyis snapleft "$k"; then

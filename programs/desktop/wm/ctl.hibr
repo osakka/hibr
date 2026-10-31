@@ -338,6 +338,12 @@ dt_statcpu() {
 	ret "$((a + b)) $((c + d))"
 }
 
+# The CPU already spent when this desktop started, taken as it starts:
+# Restart Desktop is an exec, the same process, so `times` goes on counting
+# what the desktop before it used, and a baseline of zero set it against
+# seconds that had started again -- a reading of 9618% (hw-manager on the
+# mini PC, 0.99.402).
+DT_STATC0 := dt_statcpu
 fn dt_ctlstats(reset = "", stop = "") {
 	local now el c self kids s0 k0 pct k nm tk= rd= v cs= ds= dl dnm db df mx
 

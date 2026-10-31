@@ -967,9 +967,11 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   given the rectangle in cells and scales for itself, which is what
 	   makes a film affordable there: its cost is bytes, not encoding -- a
 	   frame of 100 by 34 cells is half a megabyte of base64 at full
-	   resolution -- so a picture that is not a still (no palette chosen
-	   from it, which is what a film asks for) is sent at half the pixels
-	   in each direction and the terminal scales it back up.
+	   resolution -- so a film's frame (DP_IMG_FILM) can be sent at half
+	   the pixels in each direction for the terminal to scale back up,
+	   though only when asked (`console filmdetail half`): halving every
+	   picture that was not a still is what made a video read as blocks
+	   (Gitea #228).
 
 	   A picture under the text is halved for the same reason and a
 	   stronger one: it is the wallpaper, every byte of it goes to every
@@ -985,7 +987,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	th = h * chh;
 	if (im->id && tw > 2 && th > 2 &&
 	    (cn_imghalf == CN_DETAIL_HALF ||
-	     (cn_imghalf == CN_DETAIL_AUTO && im->over))) {
+	     (cn_imghalf == CN_DETAIL_AUTO && im->over) ||
+	     (cn_filmhalf && (flags & DP_IMG_FILM)))) {
 		tw /= 2;
 		th /= 2;
 	}

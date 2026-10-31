@@ -324,6 +324,7 @@ extern int cn_mousemode;
 #define CN_DETAIL_HALF 2
 #endif
 extern int cn_imghalf;
+extern int cn_filmhalf;
 extern int cn_imgcomp;
 
 typedef struct cn_ol cn_ol;

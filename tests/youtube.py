@@ -15,10 +15,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
 from screen import Term, check, report, tree, load, press, release
 
-# YouTube's input handlers wait on the browser engine, which 0.99.400's
-# budget names as a stall under load. YouTube is the hibr-browser
-# session's; expected here until its handlers no longer wait.
-sx.expect(r"held: (input|win):youtube")
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])

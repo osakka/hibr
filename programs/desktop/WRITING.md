@@ -173,6 +173,11 @@ full screen a note of high or urgent priority is one line along the
 display's bottom edge, and others are not drawn over it. Call it behind
 `dt_has dt_fullscreen`, since a desktop older than 0.99.375 has none --
 Boxer falls back to `dt_zoom`.
+Since 0.99.403 the desktop does this itself for any window that is not
+of a fixed size, on its **Full Screen** key (`DT_KEYS["fullscreen"]`,
+alt-enter by default) and the Window menu's row, so an app needs no key
+of its own for it; one that answers alt-enter in its `_key` still has it
+first.
 
 **A window that is text throughout** -- a terminal -- asks for the I-beam with
 `dt_pointer "$id" text`, and a field drawn with `dt_textdraw` gets it with no

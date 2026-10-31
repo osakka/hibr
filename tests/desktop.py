@@ -4825,7 +4825,8 @@ t1.send(press(tb[0], tb[1], 2))
 sc = t1.screen()
 check("the titlebar's own context menu gets a Move to Display submenu",
       sc.find("Move to Display") is not None, sc)
-for _ in range(6):
+# Seven rows down: Full Screen (0.99.403) sits just under Zoom, above it.
+for _ in range(7):
     t1.send(b"\x1b[B")
 t1.send(b"\x1b[C")
 sc = t1.screen()
@@ -8484,4 +8485,54 @@ a, b, told = fsrun("fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
 check("and what a module draws at absolute coordinates over it shows",
       a.find("WORLD") == (4, 2), a)
 
-report(912)
+# Full Screen as a desktop key (0.99.403, the owner's request on #405): one
+# key for every window that may be zoomed, alt-enter by default, the
+# focused app's own first as every window key is; and a row beside Zoom on
+# the Window menu, with the key beside it.
+def fskey(apps, feed, rows=20, cols=50):
+    f = scratch("fsk.hibr")
+    open(f, "w").write(
+        "%s. %s\n"
+        "fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
+        "console fill -p \"w$1\" 0 0 \"$2\" \"$3\" '#'; }\n"
+        "%s\ndt_open\nFSID := dt_new Game 8 20 5 10 fsw\ndt_run\ndt_close\n"
+        % (load(MOD), WM, apps))
+    t = Term(f, rows=rows, cols=cols, settle=1.0)
+    t.collect(0.6)
+    shots = []
+    for k in feed:
+        t.keys([k, 0.4])
+        shots.append(t.screen())
+    t.quit(b"q", 0.5)
+    return shots
+
+
+s1, s2 = fskey('dt_app fsw "Game" 8 20', [b"\x1b\r", b"\x1b\r"])
+check("alt-enter puts any window full screen, and again puts it back",
+      s1.row(0) == "#" * 50 and s1.row(19) == "#" * 50 and
+      s2.find("┤ Game ├") is not None and s2.find("┤ Game ├")[0] == 5, (s1, s2))
+s1, = fskey('dt_app fsw "Game" 8 20 "" "" fixed', [b"\x1b\r"])
+check("but not a window of a fixed size, as Zoom does not",
+      s1.find("┤ Game ├") is not None and s1.row(0) != "#" * 50, s1)
+s1, = fskey('dt_app fsw "Game" 8 20\nfsw_key() { [ "$2" = alt-enter ] || return 1; '
+            'console put -p "w$1" 1 1 MINE; }\n'
+            'fsw_draw() { console pen "$DT_INK" "$DT_FACE"; '
+            'console fill -p "w$1" 0 0 "$2" "$3" "#"; console put -p "w$1" 1 1 MINE; }',
+            [b"\x1b\r"])
+check("and an app that takes alt-enter itself keeps it, the key being its own first",
+      s1.find("┤ Game ├") is not None and s1.row(0) != "#" * 50, s1)
+f2 = scratch("fsm.hibr")
+open(f2, "w").write("%s. %s\ndt_app fsw \"Game\" 8 20\ndt_open\n"
+                    "dt_new Game 8 20 5 10 fsw\ndt_run\ndt_close\n" % (load(MOD), WM))
+t = Term(f2, rows=20, cols=50, settle=1.0)
+t.collect(0.6)
+wcol = t.screen().row(0).find("Window")
+t.keys([press(0, wcol + 1), release(0, wcol + 1), 0.4])
+s2 = t.screen()
+t.quit(b"q", 0.5)
+check("and the Window menu has Full Screen just under Zoom",
+      wcol > 0 and s2.find("Full Screen") is not None and
+      s2.find("Zoom") is not None and
+      s2.find("Full Screen")[0] == s2.find("Zoom")[0] + 1, (wcol, s2))
+
+report(916)

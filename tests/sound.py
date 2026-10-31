@@ -185,8 +185,13 @@ def srun(feed, until=None, panel=False, env=None, rows=30, cols=100, settle=2.0,
         e["PULSE_SERVER"] = None
     e.update(env or {})
     t = Term(p, env=e, rows=rows, cols=cols, settle=settle)
-    for _ in range(40):
-        if "♪" in t.screen().text():
+    # The bar shows the speaker with an ellipsis until the reader's first
+    # answer is in (0.99.402), so the speaker alone is not the answer: keys
+    # sent then reached a desktop that did not know the server yet, and two
+    # checks failed in two full runs in a row and never alone.
+    for _ in range(80):
+        tx = t.screen().text()
+        if "♪" in tx and "♪ \u2026" not in tx:
             break
         t.collect(0.25)
     if feed:

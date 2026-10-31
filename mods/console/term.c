@@ -349,6 +349,12 @@ int cn_pixwant, cn_pixok = -1, cn_pixon;
    way back. */
 int cn_imghalf = CN_DETAIL_AUTO;
 
+/* Whether a film's frames (DP_IMG_FILM) are sent at half the pixels in each
+   direction: off by default, the owner's choice, since a film is the thing
+   being looked at; `console filmdetail half`, Control Panel > Pictures >
+   Film Detail, is the way back for a link a full frame is too much for. */
+int cn_filmhalf = 0;
+
 /* And whether its payload is compressed before it goes out, which is worth
    more than the halving and composes with it: the owner's own wallpaper,
    already halved, is 2.11 MB of base64 raw, 0.62 MB as a zlib stream and

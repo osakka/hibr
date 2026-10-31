@@ -13,11 +13,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
 from screen import Term, check, report, press, release, load, tree, expect
 
-# The Browser's draw waits on the browser engine for each page it renders,
-# which 0.99.400's budget names as a stall under load. The Browser is the
-# hibr-browser session's, and its `_dirty` (Browser 2.15) is the first
-# step; expected here until its draw no longer waits.
-expect(r"held: win:browser")
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])

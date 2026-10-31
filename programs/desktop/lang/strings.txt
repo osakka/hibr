@@ -497,6 +497,7 @@ Files cannot be copied: the copy module is not installed
 Files on Servers
 Fill
 Fills the window, 1:1, and follows it when it is resized.
+Film Detail
 Find
 Find Next
 Find:
@@ -540,6 +541,7 @@ From %s
 From:
 Full Command Line
 Full Player
+Full Screen
 GLX
 Game
 Gateway
@@ -639,6 +641,7 @@ Last Action
 Last Join
 Last Page
 Last Synced
+Leave Full Screen
 Left
 Left %s
 Level on Menu Bar

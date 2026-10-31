@@ -208,10 +208,51 @@ check("a paused film covered by a window is sent once and kept, below the cells"
       (p, gone, z))
 check("and the window over it is drawn on top of it", "TOP" in s.text(), s)
 
+# Film Detail (0.99.403): a film's frame goes out at the cells' own
+# resolution unless `console filmdetail half` asks for half in each
+# direction -- the frame carries DP_IMG_FILM, and nothing else is touched.
+# The first draw is where media learns what a cell measures, and a clip this
+# short is decoded whole before it, so a seek drops those frames and the
+# rest are decoded at pixels; the last placement is the one read.
+def filmsent(detail):
+    f = os.path.join(D, "film-%s.hibr" % detail)
+    open(f, "w").write(
+        "mod load %s\nneed console\nconsole open\nconsole imgdetail full\n"
+        "console filmdetail %s\nconsole pane w1 2 2 12 30\n"
+        "for i in 1 2 3 4 5 6 7 8 9 10; do g := console gfx\n"
+        "  [ \"${g%% *}\" = none ] || break; console key 100; done\n"
+        "p := media open t.mp4 -p\nmedia size $p 28 10 sixel\nsleep 0.4\n"
+        "media frame $p\nmedia draw $p 1 1 -p w1\n"
+        "media seek $p 1\nmedia play $p\n"
+        "for i in $(seq 200); do media frame $p && media draw $p 1 1 -p w1\n"
+        "  console flush; console key 50; done\n"
+        "media close $p\nconsole close\n" % (tree("build/mods/media.so"), detail))
+    t = Term(f, rows=24, cols=60, settle=1.2, cellw=8, cellh=16,
+             env={"HIBR_GFX": "kitty", "HIBR_MEDIA_AUDIO": "none",
+                  "HIBR_MODPATH": tree("build/mods")})
+
+    def sent(sc):
+        a = [x for x in sc.apc if "a=T" in x]
+        kv = dict(f.split("=", 1) for f in a[-1].lstrip("G").split(";")[0].split(",")
+                  if "=" in f) if a else {}
+        return int(kv.get("s", 0)), int(kv.get("v", 0))
+    # Waited for, not slept for: a frame decoded after the seek is wider in
+    # pixels than the 28 cells, whichever the detail.
+    sc = t.until(lambda sc: sent(sc)[0] > 28, tries=int(80 * SLOW), step=0.1)
+    t.quit(None, 0.5)
+    return sent(sc)
+
+
+full, half = filmsent("full"), filmsent("half")
+check("a film's frame is sent whole by default, and at half each way with "
+      "Film Detail at Half", full[0] > 2 and half[0] > 0 and
+      abs(full[0] - 2 * half[0]) <= 1 and abs(full[1] - 2 * half[1]) <= 1,
+      (full, half))
+
 out, err = subprocess.run([sx.HIBR, tree("examples/play.hibr"), "--help"],
                           capture_output=True, text=True).stdout, ""
 check("play.hibr's --help comes from its declarations",
       "--mode" in out and "--start" in out and "--paused" in out, out)
 
 shutil.rmtree(D, True)
-report(20)
+report(21)

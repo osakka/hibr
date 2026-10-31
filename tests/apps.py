@@ -395,7 +395,20 @@ def folderlook():
         capture_output=True, text=True).stdout
     os.unlink(mig)
     check("a desktop saved by 0.99.380 loads with Follow Theme where it wrote White "
-          "down, and the strip at its own place", "bg=[Follow Theme] rel=[] y=[] ver=18" in mo, mo)
+          "down, and the strip at its own place", "bg=[Follow Theme] rel=[] y=[] ver=19" in mo, mo)
+    # 0.99.403 gave alt-enter to the desktop's Full Screen: Files' Open in
+    # New Window moves to mod-o where a save had written the old default
+    # down, and a key somebody chose for it stays theirs.
+    nw = []
+    for key in ("alt-enter", "alt-n"):
+        open(mig, "w").write('DT_SETVER=18\nDT_AKEY["files:newwin"]=%s\n' % key)
+        nw.append(subprocess.run([sx.HIBR, "-c", '. %s\n. %s\nDT_CONF=%s\ndt_load\n'
+            'echo "nw=[${DT_AKEY["files:newwin"]}]"\n'
+            % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/files.hibr"), mig)],
+            capture_output=True, text=True).stdout.strip())
+        os.unlink(mig)
+    check("a desktop saved by 0.99.402 moves Files' new window off alt-enter, "
+          "and keeps a key chosen for it", nw == ["nw=[mod-o]", "nw=[alt-n]"], nw)
     ic = subprocess.run([sx.HIBR, "-c", '. %s\n'
         'dt_glyphs blit; g := dt_iconbig home PLAIN; [ "$g" = "${GL[fhome]}" ] && echo blit-big\n'
         'FB_ICONCOLOUR=amber; g := dt_iconbig trash PLAIN; [ "$g" = "${GL[ftrash]}" ] && echo amber\n'
@@ -4146,8 +4159,8 @@ check("alt-. shows them", sc.find(".secret") is not None, sc)
 sc = run("files", "12 40 2 2", pre=HPRE + "\nFB_HIDDENDEF=1")
 check("and Control Panel > Files can have new windows show them",
       sc.find(".secret") is not None, sc)
-sc = run("files", "12 40 2 2", [b"\x1b\r", 0.8], pre=HPRE)
-check("alt-enter opens a folder in a new window",
+sc = run("files", "12 40 2 2", [b"\x1bo", 0.8], pre=HPRE)
+check("alt-o opens a folder in a new window",
       sc.find("Files [sub]") is not None and sc.find("plain") is not None, sc)
 sc = run("files", "12 40 2 2", [press(3, 6, 8), release(3, 6, 8), 0.2,
                                 press(3, 6, 8), release(3, 6, 8), 0.8], pre=HPRE)
@@ -6085,4 +6098,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(788)
+report(790)
