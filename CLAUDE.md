@@ -3930,7 +3930,14 @@ went in the shell.
 - **A desktop callback has a budget, and the log says when one breaks it**
   (ADR 0049, 0.99.400). Every callback is timed through `dt_spent`; past
   `DT_SLOWMS` (50) it is a `slow:` note, past `DT_HOLDMS` (150) a `held:`
-  stall that fails the suites and, three times in a minute, pauses the app.
+  stall that fails the suites. **Nothing is ever done to the app for it**:
+  0.99.400 paused an app after three stalls in a minute, and its first
+  evening on the owner's machine replaced the Browser and YouTube they were
+  watching with a notice and withheld their keys -- reported as "one of the
+  worst user experiences I've seen crafted", and withdrawn in 0.99.401. A
+  diagnostic must never be charged to the person at the screen; when a
+  mechanism would punish the user for the desktop's own fault, it is the
+  wrong mechanism, however tidy it looks in the design.
   When a suite fails on a `held:` line, measure the callback **alone**
   before believing it: the first sweep named the Control Panel at 54 to 133
   ms under a loaded gate, which unloaded was 2.8 ms for most panes and 39

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.401
+
+**An app that stalls the desktop is no longer paused.** 0.99.400 paused an
+app whose callbacks held the desktop three times in a minute: its windows
+were replaced by a notice and its keys withheld until Window > Resume. On
+its first evening on a real machine that took the Browser and YouTube away
+from the person watching them, for stalls that are the desktop's to fix --
+both still wait on the browser engine in places. A stall is now only said:
+a `held:` line in the log, `max_ms` in `desktop ctl stats`, and a failure
+in the suites, for whoever wrote the code; the app goes on being drawn and
+handed its keys. The pause, its notice, Window > Resume and the stats'
+list of paused apps are gone, and there is no setting to bring them back
+(ADR 0049). The desktop's suite now checks the opposite of what it checked:
+an app that keeps stalling keeps its window, drawn and keyed. Arabic 3.65.
+
 ## 0.99.400
 
 **Every app has a frame budget, and the desktop enforces it** (ADR 0049).

@@ -2865,7 +2865,7 @@ SH = "TW_CMD=(/bin/sh -c 'PS1=\"sh> \"; export PS1; exec /bin/sh')"
 def contentonly():
     f = sx.scratch("contentonly")
     pre = ("TW_CMD=(/bin/sh -c 'i=0; while :; do echo line$i; i=$((i+1)); sleep 0.05; done')\n"
-           "co_probe() { echo \"${DT_STAT[\"r:contentonly\"]:-0} frames=${DT_STAT[\"frames\"]:-0} paused=${!DT_PAUSED[*]} force=$DT_FORCEONCE alone=$DT_ALONE\" > %s; }\n"
+           "co_probe() { echo \"${DT_STAT[\"r:contentonly\"]:-0} frames=${DT_STAT[\"frames\"]:-0} force=$DT_FORCEONCE alone=$DT_ALONE\" > %s; }\n"
            "dt_ticker co_probe\n" % f)
     sc = run(*TERM, pre=pre, wait=1.0, end=None, until=lambda sc: "line20" in sc.text())
     cot = open(f).read().strip() if os.path.exists(f) else ""

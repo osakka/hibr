@@ -241,10 +241,9 @@ The desktop times every callback (`wm/budget.hibr`). One that takes longer
 than a frame, 50 ms, is a note in the log -- `slow: win:files took 70 ms`
 -- for whoever wrote it. One that takes longer than 150 ms has stalled
 every display, which a person sees: it is `held: win:files held the
-desktop 230 ms`, the suites fail on that line, so it cannot ship, and an
-app that does it three times in a minute is **paused**: its windows show a
-notice saying how long it held the desktop, nothing of it but `_idle` is
-called, and Window > Resume puts it back. `desktop ctl stats` shows each
+desktop 230 ms`, and the suites fail on that line, so it cannot ship.
+Nothing is done to the app itself: a stall is for whoever wrote it to
+find, never for the person using it to pay for. `desktop ctl stats` shows each
 callback's total and its longest single run, `max_ms`; read the second,
 since a callback that is slow once a second is invisible in an average. A
 window whose drawing costs more than a millisecond also offers `<app>_dirty`

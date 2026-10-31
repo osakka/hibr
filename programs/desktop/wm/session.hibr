@@ -538,7 +538,6 @@ dt_tickers() {
 		keep+=("$f")
 		ap := dt_tickowner "$f"
 		[ "$ap" = - ] && ap=
-		dt_paused "$ap" && continue
 		t0=${EPOCHREALTIME/./}
 		"$f"
 		t=$((${EPOCHREALTIME/./} - t0))

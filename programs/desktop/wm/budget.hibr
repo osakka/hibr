@@ -1,7 +1,7 @@
 #!/usr/bin/env hibr
 #
-# budget -- how long the desktop's own code and every app's took, and what
-# is done about an app that holds the desktop too long.
+# budget -- how long the desktop's own code and every app's took, said in
+# the log so whoever wrote it knows.
 #
 # Every app runs in the desktop's one process, between frames: a callback
 # that takes a quarter of a second stops every display for a quarter of a
@@ -19,14 +19,15 @@
 #     wrote it, `slow: NAME took N ms`, at most once a minute for each;
 #   - a run longer than DT_HOLDMS (150) is a stall a person sees -- every
 #     display stood still for it -- and is `held: NAME held the desktop N
-#     ms`, which the suites fail on, so a stalling callback cannot ship;
-#   - an app with DT_HOLDN such stalls inside a minute is paused: its
-#     windows show a notice saying what held the desktop and for how long,
-#     its key, click, mouse and wheel handlers and its tickers stop being
-#     called, and Window > Resume puts it back. Its _idle is still called,
-#     or a terminal's program would keep its pty readable and the desktop
-#     would spin. Nothing is cut off half way: a paused app has finished
-#     what it was doing, and simply is not asked to do more.
+#     ms`, which the suites fail on, so a stalling callback cannot ship.
+#
+# Nothing is done to the app. 0.99.400 paused one that stalled three times
+# in a minute, and the first evening it ran on the owner's own machine it
+# took the Browser and YouTube away from the person using them, each window
+# replaced by a notice, to report a fault that was the desktop's to fix
+# (0.99.401). A stall is for whoever wrote the code to find -- in the log,
+# in the suites and in `desktop ctl stats` -- never for the person at the
+# screen to pay for.
 #
 # What this cannot do is stop the first slow run: the shell cannot take a
 # callback away mid-way without leaving the app's own state half written,
@@ -46,7 +47,6 @@ strict
 
 DT_SLOWMS="${DT_SLOWMS-50}"
 DT_HOLDMS="${DT_HOLDMS-150}"
-DT_HOLDN="${DT_HOLDN-3}"
 # Nanoseconds this process had waited for a processor when the loop last
 # woke, from /proc/<pid>/schedstat (the loop reads it, wm/session.hibr). A
 # callback's stall is its wall time less what the machine kept it waiting
@@ -69,12 +69,8 @@ DT_SCHON=0
 # The longest single run of each callback, in microseconds, since the
 # desktop started or `desktop ctl stats` was reset.
 declare -gA DT_MAX
-# When each callback was last named slow in the log, and each app's recent
-# slow runs as times, oldest first.
+# When each callback was last named slow in the log.
 declare -gA DT_SLOWAT
-declare -gA DT_SLOWHIT
-# Each paused app: the callback that paused it and how long it took.
-declare -gA DT_PAUSED
 # Which app each ticker belongs to, worked out once from the file that
 # registered it; "-" for one that is the desktop's own.
 declare -gA DT_TICKAPP
@@ -102,11 +98,9 @@ fn dt_spent(name, int us, app = "") {
 }
 
 # A callback took longer than a frame: a note in the log, at most once a
-# minute for each -- and past DT_HOLDMS a stall, said as one and counted
-# against its app.
+# minute for each -- and past DT_HOLDMS a stall, said as one.
 fn dt_slow(name, int us, app = "") {
-	local now ms=$((us / 1000)) t n=0 keep= held= waited=
-	local -a hits
+	local now ms=$((us / 1000)) t held= waited=
 
 	now := dt_ms
 	if [ "$ms" -ge "$DT_HOLDMS" ] && [ "$DT_HOLDBY" = cpu ]; then
@@ -136,54 +130,15 @@ fn dt_slow(name, int us, app = "") {
 			dt_log "slow: $name took $ms ms$waited (a frame is $DT_SLOWMS ms)"
 		fi
 	fi
-	[ -n "$held" ] && [ -n "$app" ] && [ -z "${DT_PAUSED["$app"]+x}" ] || return 0
-	read -ra hits <<< "${DT_SLOWHIT["$app"]} $now"
-	for t in "${hits[@]}"; do
-		[ $((now - t)) -lt 60000 ] || continue
-		keep+="${keep:+ }$t"
-		n=$((n + 1))
-	done
-	DT_SLOWHIT["$app"]=$keep
-	[ "$n" -ge "$DT_HOLDN" ] && dt_pause "$app" "$name" "$ms"
 	return 0
 }
 
-# Put an app on hold: nothing of it is called but its _idle until it is
-# resumed, and its windows say why.
-fn dt_pause(app, name, int ms) {
-	DT_PAUSED["$app"]="$ms $name"
-	DT_SLOWHIT["$app"]=
-	DT_FORCEONCE=1
-	dt_log "paused: $app held the desktop $DT_HOLDN times in a minute, last $name for $ms ms"
-	dt_notep high "%s was paused: it held the desktop for %s ms" "$app" "$ms"
-}
-
-# Take an app off hold.
-fn dt_resume(app) {
-	unset DT_PAUSED["$app"]
-	DT_SLOWHIT["$app"]=
-	DT_FORCEONCE=1
-	dt_log "resumed: $app"
-}
-
-# Window > Resume: the focused window's app.
-dt_resume_focused() {
-	[ -n "$DT_FOCUS" ] && dt_resume "${DT[$DT_FOCUS]["app"]}"
-}
-
-# Whether an app is on hold.
-fn dt_paused(app) {
-	[ -n "$app" ] && [ -n "${DT_PAUSED["$app"]+x}" ]
-}
-
 # Call one of a window's own input handlers -- its _key, _click, _mouse or
-# _wheel -- timed against its app; status 1 without calling it if that app
-# is paused, which the desktop reads as "not handled".
+# _wheel -- timed against its app.
 fn dt_appcall(int id, cb, ...args) {
 	local ap=${DT[$id]["app"]} t0 t st
 
 	[ -n "$cb" ] || return 1
-	dt_paused "$ap" && return 1
 	t0=${EPOCHREALTIME/./}
 	"$cb" "$id" "${args[@]}"
 	st=$?
@@ -194,12 +149,11 @@ fn dt_appcall(int id, cb, ...args) {
 
 # The same, for a handler that answers with ret -- a window's _copy, which
 # hands the desktop what it copied: its answer is passed on, so the caller
-# binds it with :=. Nothing for a paused app.
+# binds it with :=.
 fn dt_appget(int id, cb, ...args) {
 	local ap=${DT[$id]["app"]} t0 t rv
 
 	[ -n "$cb" ] || return 1
-	dt_paused "$ap" && return 1
 	t0=${EPOCHREALTIME/./}
 	"$cb" "$id" "${args[@]}"
 	rv=$RET
@@ -226,25 +180,4 @@ fn dt_tickowner(f) {
 		fi
 	fi
 	ret "${DT_TICKAPP["$f"]}"
-}
-
-# A paused window's draw, with the signature every _draw has.
-fn dt_pausewin(int id, int h, int w, int row, int col) {
-	dt_pausedraw "$id" "$h" "$w"
-}
-
-# What a paused app's window shows in place of its own drawing.
-fn dt_pausedraw(int id, int h, int w) {
-	local ap=${DT[$id]["app"]} ms nm t
-
-	read -r ms nm <<< "${DT_PAUSED["$ap"]}"
-	console pen "$DT_INK" "$DT_FACE"
-	t := dt_tr "Paused: this window held the desktop for %s ms." "$ms"
-	t := dt_cut "$t" "$w"
-	console put -p "w$id" 1 1 "$t"
-	[ "$h" -ge 3 ] || return 0
-	console pen "$DT_DIM" "$DT_FACE"
-	t := dt_tr "Window > Resume runs it again."
-	t := dt_cut "$t" "$w"
-	console put -p "w$id" 3 1 "$t"
 }

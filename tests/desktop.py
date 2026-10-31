@@ -4912,7 +4912,7 @@ check("and a read counts the frames and wakes since, the CPU, and each ticker's 
 # a total spread it over every frame. Never less than the average.
 check("and each entry carries its longest single run, never less than its average",
       tks and all("max_ms" in v and v["max_ms"] + 0.1 >= v.get("ms", 0) / max(v.get("runs", 1), 1)
-                  for v in tks.values()) and "paused" in st, st)
+                  for v in tks.values()) and "paused" not in st, st)
 rc, st = ctl("stats", "stop")
 check("and stop ends the timing, the counts kept",
       rc == 0 and st.get("timing") is False and st.get("frames", 0) >= 1, st)
@@ -5738,17 +5738,20 @@ check("a job's variables come back to the desktop, a nested map and a value "
       "with a newline, a $ and quotes in it",
       jvo == '0|x y|line one\nline two $HOME "q"\n', repr(jvo))
 
-# An app that keeps stalling the desktop is paused (0.99.400, ADR 0049): a
-# callback that holds the desktop past DT_HOLDMS three times in a minute
-# takes its app off the frame -- its window says how long it held it, its
-# keys are not delivered -- and Window > Resume brings it back. The stall
-# mark is lowered for this session, and its `held:` lines are the point of
-# the test rather than a failure.
+# An app that keeps stalling the desktop keeps its window (0.99.401, ADR
+# 0049). 0.99.400 paused one that held the desktop three times in a minute
+# -- its window replaced by a notice, its keys withheld until Window >
+# Resume -- and the first evening on the owner's own machine that took the
+# Browser and YouTube away from the person using them, for a fault that was
+# the desktop's to fix. A stall is said in the log, for whoever wrote it;
+# the app goes on being drawn and handed its keys. The stall mark is
+# lowered for this session, and its `held:` lines are the point of the test
+# rather than a failure.
 expect(r"held: win:slw")
 SLWMARK = scratch("desktop-slw-key")
 SLW = ('fn slw_draw(int id, int h, int w, int row, int col) {\n'
        '    sleep 0.15\n'
-       '    console put -p "w$id" 1 1 "DRAWN"\n'
+       '    console put -p "w$id" 1 1 "DRAWN $EPOCHREALTIME"\n'
        '    dt_want 20\n'
        '}\n'
        'fn slw_key(int id, key) {\n'
@@ -5760,24 +5763,25 @@ if os.path.exists(SLWMARK):
     os.unlink(SLWMARK)
 slwp = scratch("desktop-slw.hibr")
 open(slwp, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n" % (load(MOD), WM, SLW))
-slt = Term(slwp, env={"DT_TICK": "60", "DT_HOLDMS": "100", "DT_HOLDN": "3", "DT_HOLDBY": "wall"},
+slt = Term(slwp, env={"DT_TICK": "60", "DT_HOLDMS": "100", "DT_HOLDBY": "wall"},
            rows=ROWS, cols=COLS, settle=0.6)
-s1 = slt.until(lambda sc: sc.find("Paused: this window held") is not None, 60)
+# Long enough for the three stalls in a minute that used to pause it, and
+# then some: the window has to be drawing still, not merely once.
+slt.collect(2.0)
+s1 = slt.screen()
+r1 = s1.find("DRAWN")
+slt.collect(1.0)
+s2 = slt.screen()
+r2 = s2.find("DRAWN")
 slt.keys([b"k", 0.5])
 keyed = os.path.exists(SLWMARK)
-s2 = slt.screen()
-wc = s2.row(0).find("Window")
-slt.keys([press(0, wc + 1), release(0, wc + 1), 0.3])
-rs = slt.screen().find("Resume")
-if rs:
-    slt.keys([press(rs[0], rs[1] + 1), release(rs[0], rs[1] + 1)])
-s3 = slt.until(lambda sc: sc.find("DRAWN") is not None, 20)
+held = [l for l in open(slt.log, errors="replace") if "held: win:slw" in l]
 slt.quit(b"qy", 1.0)
-check("an app that keeps holding the desktop is paused, and its window says so",
-      s1.find("Paused: this window held") is not None, s1)
-check("and a paused app is not handed its keys", not keyed, keyed)
-check("and Window > Resume brings it back", rs is not None and
-      s3.find("DRAWN") is not None, (rs, s3))
+check("an app that keeps holding the desktop keeps its window, still drawn",
+      r1 is not None and r2 is not None and s1.row(r1[0]) != s2.row(r2[0]) and
+      s2.find("Paused") is None, (s1, s2))
+check("and it is still handed its keys", keyed, keyed)
+check("and the log names the stall, for whoever wrote it", len(held) >= 1, held)
 for fn in (SLWMARK, slwp):
     if os.path.exists(fn):
         os.unlink(fn)

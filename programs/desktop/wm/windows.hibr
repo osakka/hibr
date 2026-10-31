@@ -676,8 +676,7 @@ fn dt_closereq(int id) {
 	local cb=${DT[$id]["canclose"]}
 
 	DT_NOTEWIN=$id
-	# A paused app is not asked: its window always closes (wm/budget.hibr).
-	if [ -n "$cb" ] && ! dt_paused "${DT[$id]["app"]}" && ! dt_appcall "$id" "$cb"; then
+	if [ -n "$cb" ] && ! dt_appcall "$id" "$cb"; then
 		return 0
 	fi
 	dt_del "$id"

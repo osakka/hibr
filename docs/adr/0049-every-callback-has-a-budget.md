@@ -1,4 +1,4 @@
-# 0049 — Every callback has a budget, and an app that keeps breaking it is paused
+# 0049 — Every callback has a budget
 
 Status: accepted (0.99.400)
 
@@ -68,13 +68,16 @@ mark is twice the desktop's, and eight times that under the sanitizers,
 whose build under a full gate drew the Control Panel past four. So a stalling callback cannot ship, and the line a person
 reads in their own log is exactly what the release refused.
 
-**An app that keeps stalling is paused.** Three stalls of one app's
-callbacks in a minute pause it: its windows show a notice saying how long
-it held the desktop, its draw, input handlers and tickers stop being
-called, and Window > Resume puts it back. Its `_idle` is still called --
-a terminal's program left unread keeps its pty readable, and the desktop
-would spin -- and its windows always close. `desktop ctl stats` lists
-paused apps.
+**Nothing is done to the app.** 0.99.400 shipped this decision with a
+pause: three stalls of one app's callbacks in a minute replaced its windows
+with a notice and withheld its keys until Window > Resume. Withdrawn in
+0.99.401, after its first evening on the owner's own machine: the Browser
+and YouTube, the two apps still waiting on the browser engine, were taken
+away from the person watching them, to report a fault that was the
+desktop's to fix -- "one of the worst user experiences I've seen". A
+stall is for whoever wrote the code to find, in the log, the suites and
+`desktop ctl stats`; it is never charged to the person at the screen, and
+there is no setting to bring the pause back.
 
 **Before it ships, lint names it.** `hibr --explain` reports a `$( )`, a
 backquote or a `<( )` inside a function the desktop calls back -- each
@@ -115,7 +118,7 @@ it leaves the app's state half written -- a `_key` stopped between two
 assignments -- and because a module's C cannot be interrupted at all. What
 the desktop can promise is that a slow callback is caught three times: by
 lint before it is written down, by the gate before it ships, and by the log
-and the pause the first day it runs anywhere else. Taking that promise
+the first day it runs anywhere else. Taking that promise
 further needs apps in processes of their own, which is ADR 0050.
 
 The two marks are constants, not Control Panel rows: they are
