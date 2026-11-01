@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.22
+app browser "The web, in a window" 2.23
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -1871,12 +1871,21 @@ fn bw_cover(int id, src) {
 	local -a games
 
 	[ -n "$src" ] || return 0
-	# bx_games prints its boxes, a line each: read through a file, since
-	# $(...) would fork inside a desktop callback.
-	l=${XDG_RUNTIME_DIR:-/tmp}/hibr-browser-games.$$
-	bx_games > "$l" 2> /dev/null
+	# Boxer 1.29 and on fill BX_GAMELIST in-process (bx_gamelist); an older
+	# one prints its boxes (bx_games), read through a file, since $(...) would
+	# fork inside a desktop callback.
+	local -a boxes
+	if dt_has bx_gamelist; then
+		bx_gamelist 2> /dev/null
+		boxes=("${BX_GAMELIST[@]}")
+	else
+		l=${XDG_RUNTIME_DIR:-/tmp}/hibr-browser-games.$$
+		bx_games > "$l" 2> /dev/null
+		mapfile -t boxes < "$l"
+		rm -f "$l"
+	fi
 	BWCOVG=()
-	while IFS= read -r g; do
+	for g in "${boxes[@]}"; do
 		[ -n "$g" ] || continue
 		r=${g%/}
 		r=${r##*/}
@@ -1884,8 +1893,7 @@ fn bw_cover(int id, src) {
 		r=${r%.gamebox}
 		BWCOVG["$r"]=$g
 		games+=("$r")
-	done < "$l"
-	rm -f "$l"
+	done
 	if [ "${#games[@]}" = 0 ]; then
 		dt_notep normal "There are no games in Boxer's games folder to give a cover to"
 		return 0

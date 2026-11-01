@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.411
+
+YouTube 3.22 and Browser 2.23, the browser session's. **YouTube plays
+smoothly on WebKit with no Browser window open**: it never watched the web
+module's descriptor itself, so with no Browser window a frame came only on
+its own quarter-second tick, about four a second, and closing the last
+Browser window took the watch away from a playing video too (3.8 frames a
+second to 29.2 on the stand-in). It also makes the player's page no wider
+than the video's own resolution and lets the display scale it up, and
+builds its picture without waiting for it, so a frame on a large screen
+costs a fraction of what it did (the owner's 3200x1800 laptop drew one in
+19 ms and up to 343). Unchanged on Chromium.
+Browser's Use as Cover for a Game reads Boxer's list of games in-process.
+
 ## 0.99.410
 
 **A window that overlaps another is redrawn only when something under it
