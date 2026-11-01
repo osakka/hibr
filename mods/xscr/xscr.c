@@ -33,6 +33,25 @@
 #ifndef XS_WAITMS
 #define XS_WAITMS 3000
 #endif
+#ifndef XS_CLIPMAX
+#define XS_CLIPMAX (4 << 20)
+#endif
+#ifndef XS_CLIPWAIT
+#define XS_CLIPWAIT 3000
+#endif
+#ifndef XS_CLIPNOW
+#define XS_CLIPNOW 300
+#endif
+
+enum { XS_SIDLE, XS_SASKED, XS_SREADY, XS_SINCR, XS_SCHUNK };
+
+typedef struct xs_sel xs_sel;
+struct xs_sel {
+	unsigned atom, prop, target, when, ans, owner, own, gen;
+	int st, cut;
+	long t0;
+	str text, buf;
+};
 
 typedef struct xs_scr xs_scr;
 struct xs_scr {
@@ -61,6 +80,9 @@ struct xs_scr {
 	unsigned short errseq;
 	int errcode;
 	str title;
+	unsigned clipwin, incr, clipn;
+	int xfop, xfev;
+	xs_sel clip, prim;
 };
 
 static vec xs_scrs;
@@ -333,6 +355,90 @@ int xs_managed(xs_scr *x, unsigned w)
 	return -1;
 }
 
+/* Milliseconds on the monotonic clock. */
+long xs_ms(void)
+{
+	struct timespec t;
+
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
+/* The selection an atom names, CLIPBOARD or PRIMARY -- or the one whose
+   property it is, with prop set; 0 for any other. */
+xs_sel *xs_selof(xs_scr *x, unsigned a, int prop)
+{
+	if (!a)
+		return 0;
+	if (a == (prop ? x->clip.prop : x->clip.atom))
+		return &x->clip;
+	if (a == (prop ? x->prim.prop : x->prim.atom))
+		return &x->prim;
+	return 0;
+}
+
+/* Ask a selection's owner for its text as target (UTF8_STRING or STRING),
+   written into the selection's own property on the window this module
+   keeps for it; the answer comes as an event, never waited on here. */
+void xs_clipask(xs_scr *x, xs_sel *c, unsigned target, unsigned when)
+{
+	unsigned v[5];
+
+	v[0] = x->clipwin;
+	v[1] = c->atom;
+	v[2] = target;
+	v[3] = c->prop;
+	v[4] = when;
+	xs_simple(x, 24, 0, v, 5);
+	c->target = target;
+	c->when = when;
+	c->ans = 0;
+	c->st = XS_SASKED;
+	c->t0 = xs_ms();
+}
+
+/* The clipboard's events (Gitea #424), whatever the window manager is: a
+   selection taking a new owner (XFIXES), which for CLIPBOARD asks the
+   owner for its text and for PRIMARY only notes when it changed; the
+   owner's answer (SelectionNotify); and the next piece of a transfer too
+   large for one property (INCR). Whether the event was one of these. */
+int xs_clipev(xs_scr *x, const unsigned char *e)
+{
+	int code = e[0] & 0x7f;
+	unsigned t;
+	xs_sel *c;
+
+	if (!x->clipwin)
+		return 0;
+	if (x->xfop && code == x->xfev) {
+		c = xs_selof(x, xs_g32(e + 12), 0);
+		if (!c || e[1])
+			return 1;
+		c->owner = xs_g32(e + 8);
+		c->own = ++x->clipn;
+		if (c == &x->clip && c->owner && c->owner != x->clipwin)
+			xs_clipask(x, c, x->utf8 ? x->utf8 : 31, xs_g32(e + 16));
+		return 1;
+	}
+	if (code == 31 && xs_g32(e + 8) == x->clipwin) {
+		c = xs_selof(x, xs_g32(e + 12), 0);
+		t = xs_g32(e + 4);
+		if (c && c->st == XS_SASKED && xs_g32(e + 16) == c->target &&
+		    (!t || !c->when || t == c->when)) {
+			c->ans = xs_g32(e + 20);
+			c->st = XS_SREADY;
+		}
+		return 1;
+	}
+	if (code == 28 && xs_g32(e + 4) == x->clipwin) {
+		c = xs_selof(x, xs_g32(e + 8), 1);
+		if (c && c->st == XS_SINCR && !e[16])
+			c->st = XS_SCHUNK;
+		return 1;
+	}
+	return 0;
+}
+
 /* An event, as the server's packets arrive. A DamageNotify is the screen
    having changed. The damage is not taken off here but once the screen has
    been drawn (xs_seen): at the NonEmpty level the server says nothing more
@@ -353,6 +459,8 @@ void xs_event(xs_scr *x, const unsigned char *e)
 		x->dirty = 1;
 		return;
 	}
+	if (xs_clipev(x, e))
+		return;
 	if (!x->wm)
 		return;
 	switch (code) {
@@ -878,8 +986,242 @@ int xs_manage(xs_scr *x)
 		x->fith = x->h;
 	}
 	x->netname = xs_atom(x, "_NET_WM_NAME");
-	x->utf8 = xs_atom(x, "UTF8_STRING");
+	if (!x->utf8)
+		x->utf8 = xs_atom(x, "UTF8_STRING");
 	return HIBR_OK;
+}
+
+/* Hear of the clipboard (Gitea #424): an unmapped window of the module's
+   own, which the owners' answers are written to as properties, and XFIXES
+   asked to say whenever CLIPBOARD or PRIMARY takes a new owner -- so a
+   copy in a program arrives as an event and an idle screen asks nothing.
+   A server without XFIXES is never asked, and copies nothing out. */
+void xs_clipinit(xs_scr *x)
+{
+	str o, r;
+	xs_sel *c;
+	int i;
+
+	x->utf8 = xs_atom(x, "UTF8_STRING");
+	x->incr = xs_atom(x, "INCR");
+	x->clip.atom = xs_atom(x, "CLIPBOARD");
+	x->clip.prop = xs_atom(x, "HIBR_CLIPBOARD");
+	x->prim.atom = 1;
+	x->prim.prop = xs_atom(x, "HIBR_PRIMARY");
+	x->xfop = xs_ext(x, "XFIXES", &x->xfev);
+	if (!x->xfop || !x->clip.atom || !x->clip.prop || !x->prim.prop) {
+		lg(HIBR_LDBG, "xscr: no XFIXES; nothing is copied out of the screen");
+		x->xfop = 0;
+		return;
+	}
+	s_init(&o);
+	s_init(&r);
+	x->clipwin = x->ridbase | (2 & x->ridmask);
+	s_ch(&o, 1);
+	s_ch(&o, 0);
+	xs_p16(&o, 9);
+	xs_p32(&o, x->clipwin);
+	xs_p32(&o, x->root);
+	xs_p32(&o, 0);
+	xs_p16(&o, 1);
+	xs_p16(&o, 1);
+	xs_p16(&o, 0);
+	xs_p16(&o, 2);
+	xs_p32(&o, 0);
+	xs_p32(&o, 1u << 11);
+	xs_p32(&o, 1u << 22);
+	xs_send(x, &o);
+	o.n = 0;
+	s_ch(&o, x->xfop);
+	s_ch(&o, 0);
+	xs_p16(&o, 3);
+	xs_p32(&o, 5);
+	xs_p32(&o, 0);
+	if (xs_send(x, &o) != HIBR_OK || xs_reply(x, &r) != HIBR_OK) {
+		lg(HIBR_LDBG, "xscr: XFIXES did not answer; nothing is copied out");
+		x->xfop = 0;
+		x->clipwin = 0;
+		goto out;
+	}
+	for (i = 0; i < 2; i++) {
+		c = i ? &x->prim : &x->clip;
+		o.n = 0;
+		s_ch(&o, x->xfop);
+		s_ch(&o, 2);
+		xs_p16(&o, 4);
+		xs_p32(&o, x->clipwin);
+		xs_p32(&o, c->atom);
+		xs_p32(&o, 1);
+		xs_send(x, &o);
+	}
+	lg(HIBR_LDBG, "xscr: the clipboard is watched through XFIXES");
+out:
+	s_free(&o);
+	s_free(&r);
+}
+
+/* Append a piece of a selection's text to what has arrived so far, up to
+   XS_CLIPMAX: STRING is Latin-1 and becomes UTF-8, anything else is
+   taken as it is. */
+void xs_clipadd(xs_sel *c, const char *p, size_t n, int latin)
+{
+	size_t i, room;
+	unsigned u;
+
+	if (!latin) {
+		room = c->buf.n < XS_CLIPMAX ? XS_CLIPMAX - c->buf.n : 0;
+		if (n > room) {
+			n = room;
+			c->cut = 1;
+		}
+		s_add(&c->buf, p, n);
+		return;
+	}
+	for (i = 0; i < n; i++) {
+		if (c->buf.n + 2 > XS_CLIPMAX) {
+			c->cut = 1;
+			return;
+		}
+		u = (unsigned char)p[i];
+		if (u >= 0x80) {
+			s_ch(&c->buf, (int)(0xc0 | u >> 6));
+			s_ch(&c->buf, (int)(0x80 | (u & 0x3f)));
+		} else {
+			s_ch(&c->buf, (int)u);
+		}
+	}
+}
+
+/* Read a selection's property off the module's window and delete it,
+   which for a transfer in pieces is what asks the owner for the next one:
+   its bytes into out, its type into ty. A property larger than
+   XS_CLIPMAX is cut there, and deleted by hand since the server keeps
+   one it was not asked to read whole. */
+int xs_clipget(xs_scr *x, xs_sel *c, str *out, unsigned *ty)
+{
+	str o, r;
+	unsigned n, v[2];
+	int ok = HIBR_FAIL;
+
+	s_init(&o);
+	s_init(&r);
+	s_ch(&o, 20);
+	s_ch(&o, 1);
+	xs_p16(&o, 6);
+	xs_p32(&o, x->clipwin);
+	xs_p32(&o, c->prop);
+	xs_p32(&o, 0);
+	xs_p32(&o, 0);
+	xs_p32(&o, XS_CLIPMAX / 4);
+	if (xs_send(x, &o) == HIBR_OK && xs_reply(x, &r) == HIBR_OK && r.n >= 32) {
+		*ty = xs_g32((unsigned char *)r.p + 8);
+		n = xs_g32((unsigned char *)r.p + 16) * ((unsigned char)r.p[1] / 8);
+		if (n && 32 + (size_t)n <= r.n)
+			s_add(out, r.p + 32, n);
+		if (xs_g32((unsigned char *)r.p + 12)) {
+			v[0] = x->clipwin;
+			v[1] = c->prop;
+			xs_simple(x, 19, 0, v, 2);
+			c->cut = 1;
+		}
+		ok = HIBR_OK;
+	}
+	s_free(&o);
+	s_free(&r);
+	return ok;
+}
+
+/* A selection's text has all arrived: it becomes the text the module
+   answers with, and its generation moves on whether or not it differs --
+   the same text copied again is still a copy. */
+void xs_clipdone(xs_scr *x, xs_sel *c)
+{
+	c->st = XS_SIDLE;
+	c->text.n = 0;
+	s_add(&c->text, c->buf.p ? c->buf.p : "", c->buf.n);
+	c->buf.n = 0;
+	c->gen = ++x->clipn;
+	if (c->cut)
+		lg(HIBR_LDBG, "xscr: a selection over %d bytes was cut there",
+		   XS_CLIPMAX);
+	lg(HIBR_LDBG, "xscr: %s has %d bytes",
+	   c == &x->clip ? "CLIPBOARD" : "PRIMARY", (int)c->text.n);
+}
+
+/* The next step of a fetch, once events have been read: a refusal of
+   UTF8_STRING asked again as STRING, an answer read, the next piece of an
+   INCR transfer read -- a zero-length one ends it -- and an owner that has
+   said nothing for XS_CLIPWAIT given up on. Each step is one round trip to
+   the server, never a wait on the owner. */
+void xs_clipstep(xs_scr *x, xs_sel *c)
+{
+	str d;
+	unsigned ty = 0;
+
+	if ((c->st == XS_SASKED || c->st == XS_SINCR) &&
+	    xs_ms() - c->t0 > XS_CLIPWAIT) {
+		lg(HIBR_LDBG, "xscr: the selection's owner did not answer");
+		c->st = XS_SIDLE;
+		c->buf.n = 0;
+		return;
+	}
+	if (c->st != XS_SREADY && c->st != XS_SCHUNK)
+		return;
+	if (c->st == XS_SREADY && !c->ans) {
+		if (c->target != 31) {
+			xs_clipask(x, c, 31, c->when);
+			return;
+		}
+		lg(HIBR_LDBG, "xscr: the selection's owner offers no text");
+		c->st = XS_SIDLE;
+		return;
+	}
+	s_init(&d);
+	if (xs_clipget(x, c, &d, &ty) != HIBR_OK) {
+		c->st = XS_SIDLE;
+		c->buf.n = 0;
+	} else if (c->st == XS_SREADY && x->incr && ty == x->incr) {
+		c->buf.n = 0;
+		c->cut = 0;
+		c->st = XS_SINCR;
+		c->t0 = xs_ms();
+		lg(HIBR_LDBG, "xscr: the selection arrives in pieces (INCR)");
+	} else if (c->st == XS_SREADY) {
+		c->buf.n = 0;
+		c->cut = 0;
+		xs_clipadd(c, d.p, d.n, ty == 31);
+		xs_clipdone(x, c);
+	} else if (!d.n) {
+		xs_clipdone(x, c);
+	} else {
+		xs_clipadd(c, d.p, d.n, ty == 31);
+		c->st = XS_SINCR;
+		c->t0 = xs_ms();
+	}
+	s_free(&d);
+}
+
+/* Fetch a selection now, for an explicit Copy: ask its owner if no fetch
+   is under way, and step it as events arrive for no longer than ms. Status
+   0 when its text arrived in that time. */
+int xs_clipnow(xs_scr *x, xs_sel *c, int ms)
+{
+	long end = xs_ms() + ms;
+	unsigned g = c->gen;
+
+	if (!x->clipwin)
+		return HIBR_FAIL;
+	if (c->st == XS_SIDLE)
+		xs_clipask(x, c, x->utf8 ? x->utf8 : 31, 0);
+	while (c->st != XS_SIDLE && xs_ms() < end) {
+		xs_drain(x);
+		xs_clipstep(x, c);
+		if (c->st == XS_SIDLE || !xs_fill(x, 20))
+			break;
+	}
+	xs_drain(x);
+	xs_clipstep(x, c);
+	return c->gen != g ? HIBR_OK : HIBR_FAIL;
 }
 
 /* Show the windows that asked to be shown: a dialog -- one with
@@ -1060,6 +1402,10 @@ void xs_free(xs_scr *x)
 	free(x->rgb);
 	s_free(&x->in);
 	s_free(&x->title);
+	s_free(&x->clip.text);
+	s_free(&x->clip.buf);
+	s_free(&x->prim.text);
+	s_free(&x->prim.buf);
 	v_free(&x->mwin);
 	v_free(&x->mtr);
 	v_free(&x->pend);
@@ -1078,6 +1424,10 @@ xs_scr *xs_open(int n, const char *path)
 	x->fd = x->fbfd = -1;
 	s_init(&x->in);
 	s_init(&x->title);
+	s_init(&x->clip.text);
+	s_init(&x->clip.buf);
+	s_init(&x->prim.text);
+	s_init(&x->prim.buf);
 	if (xs_map(x, path) != HIBR_OK || xs_connect(x, n) != HIBR_OK) {
 		xs_free(x);
 		return 0;
@@ -1086,6 +1436,7 @@ xs_scr *xs_open(int n, const char *path)
 	xs_xtest(x);
 	if (xs_keymap(x) != HIBR_OK)
 		lg(HIBR_LDBG, "xscr: no keyboard map");
+	xs_clipinit(x);
 	x->id = xs_next++;
 	x->dirty = 1;
 	v_add(&xs_scrs, x);
@@ -1460,7 +1811,8 @@ void xs_usage(void)
 		      "key ID name | type ID text | move ID x y | rel ID dx dy | "
 		      "press ID press|release N | "
 		      "button ID press|release N x y | click ID N x y | "
-		      "wheel ID up|down x y | list");
+		      "wheel ID up|down x y | clip ID [clipboard|primary|last] [-f] | "
+		      "clipgen ID | list");
 }
 
 /* xscr: an X screen Xvfb draws, mapped and typed into. */
@@ -1576,6 +1928,8 @@ int m_xscr(sh *s, int ac, char **av)
 			}
 			xs_drain(x);
 			xs_pending(x);
+			xs_clipstep(x, &x->clip);
+			xs_clipstep(x, &x->prim);
 		}
 		return x->dirty || !x->dmgop ? HIBR_OK : HIBR_FAIL;
 	}
@@ -1623,6 +1977,48 @@ int m_xscr(sh *s, int ac, char **av)
 			xs_say(s, n.p);
 			s_free(&n);
 		}
+		return HIBR_OK;
+	}
+	/* What a program put on the X clipboard (Gitea #424): the text the
+	   module last fetched of a selection, or with -f fetched again now,
+	   waiting XS_CLIPNOW at most -- last is whichever took an owner most
+	   recently, so an explicit Copy takes the mouse selection when that is
+	   newer than the program's own Copy. Status 1 with nothing to give. */
+	if (!strcmp(sub, "clip")) {
+		xs_sel *c = &x->clip;
+		int f = 0, ok, a;
+
+		for (a = 3; a < ac; a++) {
+			if (!strcmp(av[a], "-f"))
+				f = 1;
+			else if (!strcmp(av[a], "primary"))
+				c = &x->prim;
+			else if (!strcmp(av[a], "clipboard"))
+				c = &x->clip;
+			else if (!strcmp(av[a], "last"))
+				c = x->prim.owner && (!x->clip.owner ||
+						      x->prim.own > x->clip.own) ?
+					&x->prim : &x->clip;
+			else {
+				xs_usage();
+				return 2;
+			}
+		}
+		if (f) {
+			ok = xs_clipnow(x, c, XS_CLIPNOW);
+			xs_say(s, ok == HIBR_OK && c->text.p ? c->text.p : "");
+			return ok == HIBR_OK && c->text.n ? HIBR_OK : HIBR_FAIL;
+		}
+		xs_say(s, c->text.p ? c->text.p : "");
+		return c->text.n ? HIBR_OK : HIBR_FAIL;
+	}
+	if (!strcmp(sub, "clipgen")) {
+		str n;
+
+		s_init(&n);
+		s_fmt(&n, "%u", x->clip.gen);
+		xs_say(s, n.p);
+		s_free(&n);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "seen")) {

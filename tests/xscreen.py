@@ -506,5 +506,91 @@ check("Relative Mouse holds the pointer from a click in, and then moves and "
       and out.index("after-hover") > 0 and "xscr move s1 55" not in out
       and "held=[]" in out, out + err)
 
+# The clipboard out of the screen (Gitea #424): a program's copy becomes the
+# desktop's clipboard, the desktop's Copy takes the X selection, and a
+# paste the desktop types into a program is never handed back as a copy.
+# Every check reads what the desktop sent the terminal as OSC 52, which is
+# where a copy goes on its way to every Paste; the owner is a real GTK
+# program, so the selection is asked for as Firefox would be.
+import base64, re
+CLIPPY = os.path.join(D, "clip.py")
+open(CLIPPY, "w").write(
+    "import gi, sys; gi.require_version('Gtk','3.0'); gi.require_version('Gdk','3.0')\n"
+    "from gi.repository import Gtk, Gdk, GLib\n"
+    "mode, arg = sys.argv[1], sys.argv[2]\n"
+    "cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)\n"
+    "pr = Gtk.Clipboard.get(Gdk.SELECTION_PRIMARY)\n"
+    "w = Gtk.Window(title='clip'); w.set_default_size(600, 120)\n"
+    "e = Gtk.Entry(); w.add(e); w.show_all(); w.present()\n"
+    "last = ['']\n"
+    "def later():\n"
+    "    if mode == 'copy': cb.set_text(arg, -1)\n"
+    "    if mode == 'primary': pr.set_text(arg, -1)\n"
+    "    return False\n"
+    "def quiet(t):\n"
+    "    if t == last[0]: cb.set_text('after:' + t, -1)\n"
+    "    return False\n"
+    "def changed(*a):\n"
+    "    t = e.get_text(); last[0] = t; open(arg, 'w').write(t)\n"
+    "    cb.set_text(t, -1); GLib.timeout_add(3000, quiet, t)\n"
+    "if mode == 'echo': e.connect('changed', changed)\n"
+    "GLib.timeout_add(1500, later); GLib.timeout_add(40000, Gtk.main_quit)\n"
+    "Gtk.main()\n")
+
+
+def osc52(t):
+    """Every text the desktop put on the terminal's clipboard, in order."""
+    return [base64.b64decode(m).decode("utf8", "replace")
+            for m in re.findall(rb"\x1b\]52;c;([A-Za-z0-9+/=]*)\x07", t.out)]
+
+
+def clipdesk(mode, arg, body="", wait=None, keys=()):
+    """X Screen running clip.py: the texts sent as OSC 52 once wait is
+    among them (or the time is up), after keys sent with the screen up."""
+    progs(("Clip", "%s %s %s '%s'" % (sys.executable, CLIPPY, mode, arg),
+           "fixed", "half"))
+    t = desk(body)
+    t.until(lambda sc: "▀" in sc.text(), 80, 0.25)
+    t.collect(2.5)
+    for k in keys:
+        t.send(k) if isinstance(k, bytes) else k()
+    for _ in range(60):
+        t.collect(0.25)
+        if wait is None or wait in osc52(t):
+            break
+    got = osc52(t)
+    t.signal(9)
+    time.sleep(0.5)
+    t.close()
+    return got
+
+
+got = clipdesk("copy", "from X: ünï", wait="from X: ünï")
+check("what an X program copies becomes the desktop's clipboard, "
+      "and reaches the terminal as OSC 52", got == ["from X: ünï"], got)
+got = clipdesk("primary", "the mouse selection", keys=[b"\x1bc"],
+               wait="the mouse selection")
+check("Copy with X Screen in front takes the program's selection, "
+      "which the program never copied itself", got == ["the mouse selection"], got)
+ECHO = os.path.join(D, "echo.txt")
+if os.path.exists(ECHO):
+    os.unlink(ECHO)
+
+
+def echoed():
+    for _ in range(40):
+        if os.path.exists(ECHO) and open(ECHO).read() == "pasted in":
+            return
+        time.sleep(0.1)
+
+
+got = clipdesk("echo", ECHO, 'dt_clipset "pasted in" copy text',
+               keys=[b"\x1bv", echoed], wait="after:pasted in")
+check("a paste typed into a program that copies what it is given does not "
+      "come back as a copy, but its next copy does",
+      got == ["pasted in", "after:pasted in"] and
+      os.path.exists(ECHO) and open(ECHO).read() == "pasted in",
+      (got, open(ECHO).read() if os.path.exists(ECHO) else None))
+
 shutil.rmtree(D, True)
-report(37)
+report(40)

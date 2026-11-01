@@ -33,6 +33,20 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
   and to the window under a click; the main window's title is read from
   `_NET_WM_NAME` or `WM_NAME` as it changes. Menus and tooltips are
   override-redirect and never reach it.
+- **The clipboard, out of the screen** (Gitea #424): at `open` the module
+  makes an unmapped window of its own and asks **XFIXES** to say whenever
+  CLIPBOARD or PRIMARY takes a new owner, so a copy in a program arrives
+  as an event and an idle screen asks nothing. A new CLIPBOARD owner is
+  asked for its text (`ConvertSelection` to UTF8_STRING, STRING if that is
+  refused, which is Latin-1 and becomes UTF-8) into a property on that
+  window; the answer is read and deleted once the owner says it is there,
+  each step one round trip to the server on a later `poll`, never a wait
+  on the owner. A selection too large for one property comes in pieces
+  (**INCR**), each read as the owner writes it; the text is cut at 4 MiB,
+  and the log says so. PRIMARY, the mouse selection, is only noted, not
+  fetched, until something asks for it: fetching it on every drag would put
+  every highlight on the desktop's clipboard. A server without XFIXES
+  copies nothing out.
 - **DAMAGE is taken off only once the screen has been drawn** (`xscr draw`
   or `xscr seen`), so at the NonEmpty level a window that is hidden or
   minimised hears of one change and then nothing. The app holds frames to
@@ -64,6 +78,8 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
 | `xscr button ID press\|release N X Y` | a button pressed or let go at a pixel |
 | `xscr click ID N X Y` | a button pressed and let go |
 | `xscr wheel ID up\|down X Y` | the wheel, as buttons 4 and 5 |
+| `xscr clip ID [clipboard\|primary\|last] [-f]` | the text a program last put on a selection, CLIPBOARD by default, as the module fetched it; status 1 when there is none. `last` is whichever selection took an owner most recently, so it is the mouse selection when that is newer than the program's own Copy. With `-f` it is fetched from its owner now, waiting 300 ms at most, and status 1 when the owner did not answer in time -- what X Screen's Edit > Copy does |
+| `xscr clipgen ID` | how many times a selection's text has arrived on this screen, as a number that changes with each CLIPBOARD copy -- the same text copied again included -- so a caller asks `clip` only when it moved |
 | `xscr close ID` | close the connection, and end its server when it has one |
 | `xscr list` | the screens open now |
 
@@ -72,7 +88,10 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
 - **Keys outside the server's map**, which is Xvfb's US layout: a character
   no key has is passed over and said in the log. Changing the map for one
   is the way to type them, and is not written yet.
-- **The clipboard** between the X screen and the desktop.
+- **A paste that is not typed.** The desktop's Paste types its text into
+  the program through XTEST, so it reaches whatever has the keyboard and
+  is bound by the keyboard map above; owning CLIPBOARD for the program to
+  ask, as an X clipboard manager does, is not written.
 - **Focus without a window manager** is wherever the pointer is, so a
   program that does not take the keyboard itself gets keys only once it has
   been clicked. GTK and Qt programs take it. A key the desktop holds, such

@@ -7,7 +7,9 @@
 # screen into the window -- as pixels where the terminal can place them,
 # half blocks where it cannot. Keys, clicks, drags, the wheel and paste go
 # to it through XTEST; the screen is drawn only when the server says it
-# changed (DAMAGE), so an idle or hidden one costs nothing.
+# changed (DAMAGE), so an idle or hidden one costs nothing. What a program
+# copies -- its own Copy, ctrl-c in Firefox -- comes back as the desktop's
+# clipboard (Gitea #424), and the desktop's Copy takes the X selection.
 #
 # The programs are a list Control Panel > X Screen keeps -- a name, a
 # command, how its window behaves and how it is drawn -- and each one is an
@@ -29,8 +31,8 @@
 # > Mouse > Hover is on (Gitea #404); a program may take every key, and may
 # hold the pointer for relative motion, each in its own dialog.
 #
-# What it cannot do yet: keys outside the server's US keyboard map, and the
-# clipboard between the X screen and the desktop.
+# What it cannot do yet: keys outside the server's US keyboard map, and a
+# paste that is not typed -- a paste is the text typed into the program.
 
 strict
 
@@ -343,6 +345,7 @@ fn xs_connect(int id) {
 	[ -S "/tmp/.X11-unix/X$n" ] && [ -s "$f" ] || return 1
 	x := xscr open "$n" "$f" "${XS[$id]["srv"]}" 2> /dev/null || return 1
 	XS[$id]["x"]=$x
+	XS[$id]["cgen"]=0
 	fd := xscr fd "$x"
 	XS[$id]["fd"]=$fd
 	command -v console > /dev/null && console watch "$fd"
@@ -556,6 +559,7 @@ fn xscreen_dirty(int id) {
 	xs_endcheck "$id"
 	xscr poll "$x" 2> /dev/null || st=$?
 	[ "$st" = 2 ] && { XS[$id]["err"]="The X screen has ended"; return 0; }
+	xs_clipin "$id"
 	if [ "$st" = 0 ]; then
 		now := dt_ms
 		left=$((${XS[$id]["at"]:-0} + ${XS[$id]["ms"]:-${DT_TERMMS:-70}} - now))
@@ -573,8 +577,36 @@ fn xscreen_dirty(int id) {
 # The server's messages are read whether or not the window is drawn, or its
 # socket would wake the desktop for ever.
 fn xscreen_idle(int id) {
-	[ -n "${XS[$id]["x"]}" ] && xscr poll "${XS[$id]["x"]}" > /dev/null 2>&1
+	if [ -n "${XS[$id]["x"]}" ]; then
+		xscr poll "${XS[$id]["x"]}" > /dev/null 2>&1
+		xs_clipin "$id"
+	fi
 	xs_endcheck "$id"
+	return 0
+}
+
+# What a program copied comes to the desktop's clipboard (Gitea #424): the
+# module fetches CLIPBOARD whenever it takes a new owner, and a new
+# generation is put on the desktop's clipboard as a copy from this window,
+# so it reaches the terminal it runs on and every Paste. Never what the
+# desktop already holds, and nothing while a paste into this window is
+# being typed -- a program that copies what it is given would otherwise
+# hand the paste back, and the partial texts on the way to it, as copies.
+XS_PASTEMS=1500
+fn xs_clipin(int id) {
+	local x=${XS[$id]["x"]} g t now
+
+	[ -n "$x" ] || return 0
+	g := xscr clipgen "$x" 2> /dev/null
+	[ -n "$g" ] && [ "$g" != "${XS[$id]["cgen"]}" ] || return 0
+	XS[$id]["cgen"]=$g
+	t := xscr clip "$x" 2> /dev/null || return 0
+	[ -n "$t" ] && [ "$t" != "$DT_CLIP" ] || return 0
+	now := dt_ms
+	[ $((now - ${XS[$id]["pat"]:-0})) -lt "$XS_PASTEMS" ] && return 0
+	dt_clipset "$t" copy text
+	dt_notep low "Copied %s characters" "${#t}"
+	dt_want 10
 	return 0
 }
 
@@ -680,10 +712,27 @@ fn xscreen_wheel(int id, dir, int r, int c) {
 	return 0
 }
 
-# Text pasted into the window is typed into the screen.
+# Text pasted into the window is typed into the screen, and the moment
+# kept, so that nothing the program copies while it is typed comes back.
 fn xscreen_paste(int id, text, op = "") {
-	[ -n "${XS[$id]["x"]}" ] && xscr type "${XS[$id]["x"]}" "$text"
+	[ -n "${XS[$id]["x"]}" ] || return 0
+	XS[$id]["pat"] := dt_ms
+	xscr type "${XS[$id]["x"]}" "$text"
 	return 0
+}
+
+# The desktop's Copy with this window in front: the X selection made most
+# recently -- what is highlighted with the mouse, or what the program
+# itself last copied -- fetched from its owner now, and the program's
+# last copy when that owner does not answer.
+fn xscreen_copy(int id) {
+	local x=${XS[$id]["x"]} t=
+
+	[ -n "$x" ] || return 1
+	t := xscr clip "$x" last -f 2> /dev/null || t=
+	[ -n "$t" ] || t := xscr clip "$x" 2> /dev/null || t=
+	[ -n "$t" ] || return 1
+	ret "$t"
 }
 
 fn xscreen_close(int id) {
@@ -708,6 +757,7 @@ fn xscreen_close(int id) {
 fn xscreen_stash(int id, dir) {
 	XS[$id]["x"]=
 	XS[$id]["fd"]=
+	XS[$id]["cgen"]=
 	return 0
 }
 fn xscreen_resume(int id) {
