@@ -45,6 +45,11 @@ DT_FIELD["rect"]=
 # the window rather than into a field that no longer has the focus -- a
 # paste holding a space would otherwise have pressed the button (#357).
 DT_FIELD["live"]=
+# How a paste into the focused field folds lines: empty, where a line break
+# becomes a space so a name pasted over two lines stays two words, or url,
+# where a line break and the blanks around it go, as a browser's address bar
+# does -- a terminal program that wrapped a long address put them there.
+DT_FIELD["paste"]=
 
 # The focused field's undo history (Gitea #372), kept while it has the
 # focus and dropped when another field takes it: each entry is what the
@@ -151,7 +156,7 @@ dt_fieldlive() {
 		[ "${DT_FIELD["live"]}" = 1 ]
 }
 
-fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
+fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = "") {
 	local shown t ch lo hi
 
 	DT_TEXTAT["$id"]+="$r $c $w|"
@@ -163,6 +168,7 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
 		DT_FIELD["text"]=$text
 		DT_FIELD["cur"]=$cur
 		DT_FIELD["live"]=1
+		DT_FIELD["paste"]=$paste
 		[ -n "${DT_FIELD["anc"]}" ] && [ "${DT_FIELD["anc"]}" -gt "${#text}" ] &&
 			DT_FIELD["anc"]=${#text}
 		dt_fieldnote "$id $r $c" "$text" "$cur"
@@ -325,15 +331,36 @@ fn dt_fieldsel() {
 	ret "${DT_FIELD["text"]:$lo:$((hi - lo))}"
 }
 
-# Paste into a one-line field at its cursor: what was copied on several
-# lines becomes one, its newlines and tabs spaces. Gives "text cur", the
-# same as dt_textkey.
-fn dt_textpaste(text, int cur, ins) {
-	local r lo=$cur hi=$cur
+# Text pasted into a one-line field, as one line: a line break becomes a
+# space, or with mode url goes with the blanks around it; a tab is a space.
+fn dt_pastefold(t, mode = "") {
+	local a b
 
-	ins=${ins//$'\r'/}
-	ins=${ins//$'\n'/ }
-	ins=${ins//$'\t'/ }
+	t=${t//$'\r\n'/$'\n'}
+	t=${t//$'\r'/$'\n'}
+	if [ "$mode" = url ]; then
+		while [[ $t == *$'\n'* ]]; do
+			a=${t%%$'\n'*}
+			b=${t#*$'\n'}
+			a=${a%"${a##*[! $'\t']}"}
+			b=${b#"${b%%[! $'\t']*}"}
+			t=$a$b
+		done
+	else
+		t=${t//$'\n'/ }
+	fi
+	ret "${t//$'\t'/ }"
+}
+
+# Paste into a one-line field at its cursor: what was copied on several
+# lines becomes one (dt_pastefold, by the field's own rule when it is the
+# focused one). Gives "text cur", the same as dt_textkey.
+fn dt_textpaste(text, int cur, ins) {
+	local r lo=$cur hi=$cur mode=
+
+	[ "${DT_FIELD["text"]}" = "$text" ] && [ "${DT_FIELD["cur"]}" = "$cur" ] &&
+		mode=${DT_FIELD["paste"]}
+	ins := dt_pastefold "$ins" "$mode"
 	# Over a selection in the focused field, the paste replaces it.
 	if [ "${DT_FIELD["text"]}" = "$text" ] && [ "${DT_FIELD["cur"]}" = "$cur" ] &&
 	   r := dt_fieldrange; then

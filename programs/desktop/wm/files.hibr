@@ -443,11 +443,9 @@ fn dt_fieldedit(op) {
 	paste)
 		t=$DT_CLIP
 		[ -n "$t" ] || return 0
-		# One line: what was copied across several becomes one, the
-		# same normalisation dt_textpaste makes.
-		t=${t//$'\r'/}
-		t=${t//$'\n'/ }
-		t=${t//$'\t'/ }
+		# One line: what was copied across several becomes one, by the
+		# field's own rule, as dt_textpaste folds it.
+		t := dt_pastefold "$t" "${DT_FIELD["paste"]}"
 		n=${#t}
 		if [ "$n" -gt "$DT_FIELDMAX" ]; then
 			t=${t:0:$DT_FIELDMAX}

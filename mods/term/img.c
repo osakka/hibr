@@ -99,18 +99,20 @@ void tm_imgarea(tm_t *t, int r0, int c0, int r1, int c1)
 
 /* Keep a picture: rows by cols cells at r,c, the bytes as they came. id is
    the kitty protocol's own image id, or 0 for a sixel, which has none. One
-   with the same id, or in the same place, replaces what was there. */
+   with the same id, or in the same place on the same layer, replaces what
+   was there. */
 void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id, int under,
 		const char *p, size_t n)
 {
 	tm_img *m;
+	long z = tm_imgz(p, n);
 	int i;
 
 	if (rows < 1 || cols < 1 || !n || n > TM_IMGMAX)
 		return;
 	for (i = 0; i < t->imgn; i++)
 		if ((id && t->img[i].id == id) ||
-		    (t->img[i].r == r && t->img[i].c == c)) {
+		    (t->img[i].r == r && t->img[i].c == c && t->img[i].z == z)) {
 			tm_imgdrop(t, i);
 			break;
 		}
@@ -133,6 +135,7 @@ void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id, int unde
 	m->cols = cols;
 	m->id = id;
 	m->under = under;
+	m->z = z;
 	s_init(&m->data);
 	s_add(&m->data, p, n);
 	m->base = n;
@@ -148,6 +151,28 @@ void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id, int unde
 int tm_imgisplace(const char *p, size_t n)
 {
 	return p && n > 5 && !memcmp(p, "\033_Ga=p", 6);
+}
+
+/* The layer a kept picture's bytes name: its z, or 0, the protocol's own
+   default, when it names none -- tm_imgkey cannot say, since it answers -1
+   both for no z and for z=-1. */
+long tm_imgz(const char *p, size_t n)
+{
+	const char *s;
+
+	if (!p || n < 4 || memcmp(p, "\033_G", 3))
+		return 0;
+	s = p + 3;
+	while (*s && *s != ';' && *s != '\033') {
+		if (s[0] == 'z' && s[1] == '=')
+			return strtol(s + 2, 0, 10);
+		while (*s && *s != ',' && *s != ';' && *s != '\033')
+			s++;
+		if (*s != ',')
+			break;
+		s++;
+	}
+	return 0;
 }
 
 /* One key's number out of a kitty control string: tm_imgkey("a=T,i=7", 'i')

@@ -107,11 +107,11 @@ fn mt_one(dir, acct, kind, host, port, sec, noverify = "", login = "", addr = ""
 	}
 	if [ "$sec" = tls ]; then
 		# In a child, with the variable as a prefix rather than an
-		# export: HIBR_TLS_INSECURE is read with getenv and anything
-		# *set* turns verification off, empty included, so a shell
-		# that declared it at file level -- which a strict file would
-		# have to, to assign it in a function -- would quietly stop
-		# verifying everything it does afterwards. A prefix on a
+		# export: HIBR_TLS_INSECURE set to anything but empty or 0
+		# turns verification off, so a shell that set it at file level
+		# -- which a strict file would have to, to assign it in a
+		# function -- would quietly stop verifying everything it does
+		# afterwards. A prefix on a
 		# child cannot leak that way, and a handshake that hangs
 		# hangs over there.
 		#

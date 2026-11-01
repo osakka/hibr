@@ -188,6 +188,22 @@ check("whole, every chunk of it",
 check("with the text around it still text",
       sc.row(0).startswith("HELD PICTURE HERE"), sc.row(0))
 
+# A wallpaper and a full-screen window's picture start at the same corner,
+# on two layers, and hold's emulator kept one picture per corner whatever
+# its layer: the window's replaced the wallpaper, hold deleted the wallpaper
+# from every display, and the console -- which since 0.99.415 keeps both --
+# went on keeping a wallpaper nobody had. The owner's HDMI display went
+# black behind a full-screen Boxer and stayed black (0.99.418).
+GRADC = png("gradc.png", 48, 48, lambda x, y: (200, x * 5 % 256, y * 5 % 256))
+CORNER = ("console put 0 0 'HELD CORNER'\nconsole pane w1 0 0 20 50\n"
+          + ("img draw %s 0 0 20 50 -m pixels -u\nimg draw %s 0 0 20 50 -m pixels -p w1\n"
+             "console flush\nconsole key 80 > /dev/null\n" % (GRAD, GRADC)) * 3)
+sc, log = run(CORNER, pics=2)
+cdel = [a for a in sc.apc if "a=d" in a and "d=I" in a]
+check("a wallpaper and a window's picture at the same corner both reach a held "
+      "display, and hold deletes neither",
+      len(sc.images) >= 2 and not cdel, (len(sc.images), cdel, log))
+
 # A picture reaches a held display only as hold's emulator keeps it, and it
 # kept at most 4 MB of escapes: a wider one was refused and the display got
 # nothing, which is a Browser window in pixels wider than about 160 columns
@@ -1736,4 +1752,4 @@ check("a held desktop sends Blit's panel its eight lines through hold",
                            for h in st), fl)
 
 shutil.rmtree(D, True)
-report(93)
+report(94)

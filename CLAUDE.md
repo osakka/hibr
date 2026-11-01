@@ -3980,6 +3980,21 @@ went in the shell.
   picture, 600 ms a page -- measured on one `img draw`, the call rather
   than the frame, after three harnesses had failed on their scaffolding.
 
+- **A rule fixed in the console has a twin in hold's emulator, and fixing
+  one end turns the other's slip from a blink into a loss.** 0.99.415 made
+  the console keep a wallpaper and a full-screen window's picture as two
+  regions; hold's emulator still kept one picture per top-left corner
+  (`tm_imgkeep`), so it dropped the wallpaper, hold deleted it from the
+  display, and the console -- no longer replacing anything itself -- kept
+  "keeping" a picture nobody had: `img` read `kept`, never `placed`, and
+  the owner's HDMI display stayed black behind its windows (0.99.418).
+  Before 0.99.415 the two replaced each other once a second, a blink; after
+  it, a loss. Anything the console decides about pictures -- what replaces
+  what, what a layer is, when one is gone -- the emulator decides again for
+  every display hold serves, and the two must agree; a held check
+  (`tests/holdpix.py`'s two pictures at one corner) is the only kind that
+  sees both.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

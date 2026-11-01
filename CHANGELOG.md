@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.99.418
+
+**A wallpaper no longer goes black behind a full-screen picture on a held
+desktop.** hold's emulator kept one picture per top-left corner whatever
+its layer, so a full-screen window's picture whose corner was the
+display's own -- a video or a game in Full Screen -- replaced that
+display's wallpaper, and hold deleted it from the display. The console,
+which since 0.99.415 keeps both, went on keeping a wallpaper hold no longer
+had, so it stayed black until something happened to place it again. Found
+on the owner's HDMI display by the Blit session's watcher. A picture now
+replaces another at the same corner only on the same layer. It reaches a
+session that is new: log out and in.
+
+**An address pasted over several lines arrives as one.** Claude Code
+wraps a long sign-in address over several lines, and a paste into a field
+turned each line break into a space, so the Browser's address bar got
+`...%2 Fcallback` and the sign-in was refused. A field drawn with
+`dt_textdraw ... focused url` folds a paste as a browser's address bar
+does -- a line break and the blanks around it go -- and every other field
+still makes it a space (`dt_pastefold`, tests/999-paste-fold.t).
+
+**The shell bugs the documentation sweep found (Gitea #422):**
+
+- `read` without `-r` treats a backslash as bash does: a backslash-newline
+  continues the line, any other backslash quotes the next character, and a
+  quoted separator stays inside its field. It was always raw.
+- `unset` takes `-v`, `-f`, `-n` and `--`; a plain name removes the
+  variable, or the function when there is no variable, never both.
+- `trap`'s listing quotes a `'` so `eval "$(trap -p)"` reads it back, and
+  `trap -p ERR|DEBUG|RETURN` is accepted. A subshell, `$( )`, a pipeline
+  stage or a background job no longer runs an ERR trap it inherited, as in
+  bash without `-E`.
+- `$'\cX'` and `$'\E'` work, and an escape bash does not know keeps its
+  backslash; `\E` works in `printf` and `echo -e` too.
+- Extended patterns glob in filenames: `@(a|b)`, `!(x)` and `+(…)` printed
+  literally there. A dotfile is matched only by a dot the pattern spells.
+- `time` is a reserved word before a pipeline, compound commands included,
+  with bash's report, `-p` and `TIMEFORMAT`.
+- A non-executable file named by path says "Permission denied" and exits
+  126, a directory "Is a directory", as bash does.
+- `+=( … )` takes `[k]=v` elements, for indexed and associative arrays.
+- A readonly variable's refusal is printed once.
+- The line editor: Home and End in every spelling terminals send, ctrl- and
+  alt-arrows by word, ctrl-Delete, and alt-b/alt-f again; `$VAR` and
+  `${VAR` complete as in bash. An unknown sequence is dropped, not typed.
+- `arr map` binds each command's result and prints nothing, and no stale
+  `$RET` survives an element.
+- `HIBR_TLS_INSECURE` set to empty or `0` keeps verification on.
+- `deploy.sh` notices a change under `programs/` and in a module header.
+
 ## 0.99.417
 
 **The documentation, measured and read again against the code.** Every

@@ -344,8 +344,13 @@ and `[ ]`), a knob, a block or a tick. `dt_wdrop id row col width value
 A single-line editable field is the same shape, split in two rather than
 one, since typing has to change what an app's own state holds and neither
 of the widgets above ever does that: `dt_textdraw id row col width text
-cursor focused` draws the text, padded or truncated to `width`, and --
-while `focused` -- the character at `cursor` shown inverted. `dt_textkey
+cursor focused [paste]` draws the text, padded or truncated to `width`, and --
+while `focused` -- the character at `cursor` shown inverted. `paste` is how
+a paste into it folds lines: empty, the default, turns a line break into a
+space, so a name pasted over two lines stays two words; `url` removes a
+line break and the blanks around it, as a browser's address bar does, for
+a field that holds an address a terminal program may have wrapped
+(0.99.418). `dt_textkey
 text cursor key` applies one key to that pair and returns the new one as
 `"text cursor"`, for the app's own state to hold; left, right, home, end,
 backspace and delete all do what they say, any other single character is

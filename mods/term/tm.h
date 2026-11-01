@@ -64,6 +64,10 @@ struct tm_img {
 	   A sixel carries no z and is paint, where writing over the cells
 	   really does remove it, so this is 0 for one. */
 	int under;
+	/* Its layer, the kitty z it was placed at (0 when it named none):
+	   two pictures at one corner on different layers are a wallpaper
+	   and a window's picture, both wanted. */
+	long z;
 	str data;
 	/* How much of data is the transmission itself, and its size in
 	   pixels: an edit of the whole of it replaces every edit after that,
@@ -278,6 +282,7 @@ void tm_imghit(tm_t *t, int r, int c);
 void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id, int under,
 		const char *p, size_t n);
 long tm_imgkey(const char *s, int k);
+long tm_imgz(const char *p, size_t n);
 int tm_imgisplace(const char *p, size_t n);
 int tm_imgkeyc(const char *s, int k);
 void tm_apcraw(tm_t *t, str *o);
