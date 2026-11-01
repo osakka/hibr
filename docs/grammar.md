@@ -52,13 +52,32 @@ is what bash gives you too when no translation is installed.
 ### Reserved words
 
 `!` `[[` `]]` `{` `}` `case` `do` `done` `elif` `else` `esac` `fi` `for` `fn`
-`function` `if` `in` `select` `then` `until` `while`
+`function` `if` `in` `select` `then` `time` `until` `while`
 
 They are only reserved where a command word may start. `esac` closes a `case`
-arm even with no `;;` before it, and `echo esac` prints `esac`.
+arm even with no `;;` before it, and `echo esac` prints `esac`. `!` and `time`
+are reserved only in front of a pipeline, so `echo | time cat`, `\time` and
+`command time` reach a program called `time`, as in bash.
 
-**[hibr]** `time` and `coproc`, reserved words in bash, are builtins here,
-not reserved words (`type time` says so).
+`time` times the whole pipeline after it -- a compound command such as
+`time { a; b; }` included -- and once it has finished writes the elapsed,
+user and system time to the shell's standard error, so a redirection on the
+pipeline itself does not reach the report; `{ time cmd; } 2>file` does. The
+user and system times are the shell's own as well as its children's. The
+report follows `TIMEFORMAT` when it is set (an empty one prints nothing) and
+bash's three lines with a blank line before them when it is not; `time -p`
+writes POSIX's `real 0.00` form whatever `TIMEFORMAT` says, and so does
+`time --`, as in bash. In `TIMEFORMAT`,
+`%R`, `%U` and `%S` are the real, user and system seconds, an optional digit
+before the letter is the number of decimals (0 to 3, 3 by default) and an
+`l` asks for minutes as well (`%lR` is `0m0.004s`); `%P` is the CPU
+percentage, `%%` a percent sign, and any other letter after a `%` is refused
+with nothing printed. The pipeline's own status is what `time` leaves, and
+it trips `set -e` as the pipeline would. `time` with nothing after it
+reports on nothing, as in bash.
+
+**[hibr]** `coproc`, a reserved word in bash, is a builtin here, not a
+reserved word (`type coproc` says so).
 
 **[hibr]** `fn` declares a function with typed parameters and a return type,
 and always takes a parenthesised list, `fn f() { … }` when it has no
@@ -76,7 +95,9 @@ list        = and_or { ( ";" | "&" | newline ) [ and_or ] } ;
 
 and_or      = pipeline { ( "&&" | "||" ) [ newline ] pipeline } ;
 
-pipeline    = [ "!" ] command { ( "|" | "|&" ) [ newline ] command } ;
+pipeline    = { "!" | time } [ command { ( "|" | "|&" ) [ newline ] command } ] ;
+                                         (* the command may be left out after a lone time *)
+time        = "time" [ "-p" ] [ "--" ] ;
 
 command     = compound [ redirect_list ]
             | simple ;
@@ -117,8 +138,7 @@ param       = [ "..." ] [ type ] name [ "=" word ] ;
 type        = ( "int" | "num" | "str" | "path" | "arr" | "map" | "any" ) [ "?" ] ;
 
 assignment  = name [ "[" subscript "]" ] ( "=" | "+=" ) word
-            | name "=" "(" { word | "[" subscript "]" "=" word } ")"
-            | name "+=" "(" { word } ")" ;
+            | name ( "=" | "+=" ) "(" { word | "[" subscript "]" "=" word } ")" ;
 
 redirect    = [ number | "{" name "}" ] redirect_op word ;
 redirect_op = "<" | ">" | ">>" | ">|" | "<&" | ">&" | "<>"

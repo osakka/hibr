@@ -1069,6 +1069,8 @@ int cmd_ext(sh *s, char **av, const char *who)
 	int w;
 
 	path = findx(s, av[0]);
+	if (!path && strchr(av[0], '/'))
+		return ex_why(av[0], 0);
 	if (!path) {
 		lg(HIBR_LERR, "%s: %s: not found", who, av[0]);
 		return HIBR_NOCMD;
@@ -1082,7 +1084,8 @@ int cmd_ext(sh *s, char **av, const char *who)
 	pid = (pid_t)jc_fork(s);
 	if (pid == 0) {
 		execve(path, av, env);
-		_exit(HIBR_NOEXEC);
+		lg(HIBR_LERR, "%s: %s", path, strerror(errno));
+		_exit(errno == ENOENT ? HIBR_NOCMD : HIBR_NOEXEC);
 	}
 	free(path);
 	envfree(env);
@@ -1134,8 +1137,8 @@ int kw_name(const char *t)
 {
 	static const char *k[] = { "!", "[[", "]]", "{", "}", "case", "do",
 				   "done", "elif", "else", "esac", "fi", "for",
-				   "fn", "if", "in", "select", "then", "until",
-				   "while", 0 };
+				   "fn", "if", "in", "select", "then", "time",
+				   "until", "while", 0 };
 	int i;
 
 	for (i = 0; k[i]; i++)
@@ -1350,38 +1353,110 @@ int b_umask(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Time a command and report how long it took. */
-int b_time(sh *s, int ac, char **av)
+/* Microseconds between two timevals. */
+long long bi_tvus(struct timeval *a, struct timeval *b)
+{
+	return (long long)(b->tv_sec - a->tv_sec) * 1000000 +
+	       (b->tv_usec - a->tv_usec);
+}
+
+/* One of time's three figures, as %[prec][l]R prints it in bash. */
+void bi_tione(str *o, long long us, int prec, int lng)
+{
+	long long sec = us / 1000000, ms = us % 1000000 / 1000;
+
+	if (lng)
+		s_fmt(o, "%lldm%lld", sec / 60, sec % 60);
+	else
+		s_fmt(o, "%lld", sec);
+	if (prec > 0)
+		s_fmt(o, ".%0*lld", prec, prec == 1 ? ms / 100 : prec == 2 ? ms / 10 : ms);
+	if (lng)
+		s_ch(o, 's');
+}
+
+/* Fill o from a TIMEFORMAT, as bash reads one; 0 on a character it refuses. */
+int bi_tifmt(str *o, const char *f, long long *t)
+{
+	int prec, lng;
+	long long cpu;
+
+	for (; *f; f++) {
+		if (*f != '%' || !f[1]) {
+			s_ch(o, *f);
+			continue;
+		}
+		f++;
+		if (*f == '%') {
+			s_ch(o, '%');
+			continue;
+		}
+		if (*f == 'P') {
+			cpu = t[0] > 0 ? (t[1] + t[2]) * 10000 / t[0] : 0;
+			s_fmt(o, "%lld.%02lld", cpu / 100, cpu % 100);
+			continue;
+		}
+		prec = 3;
+		lng = 0;
+		if (*f >= '0' && *f <= '9') {
+			prec = *f - '0' > 3 ? 3 : *f - '0';
+			f++;
+		}
+		if (*f == 'l') {
+			lng = 1;
+			f++;
+		}
+		if (*f != 'R' && *f != 'U' && *f != 'S') {
+			lg(HIBR_LERR, "TIMEFORMAT: `%c': invalid format character", *f);
+			return 0;
+		}
+		bi_tione(o, t[*f == 'R' ? 0 : *f == 'U' ? 1 : 2], prec, lng);
+	}
+	return 1;
+}
+
+/* Run a pipeline under the time reserved word and report what it took on
+   standard error: TIMEFORMAT when set, an empty one printing nothing, and
+   POSIX's three lines for time -p, as in bash. The shell's own time counts
+   as well as its children's, so a timed loop of builtins is not nothing. */
+int ex_time(sh *s, node *n, int t)
 {
 	struct timeval a, b;
-	struct rusage r0, r1;
-	str cmd;
-	int i, st;
+	struct rusage s0, s1, c0, c1;
+	long long tv[3];
+	const char *f;
+	str o;
+	int st;
 
-	if (ac < 2) {
-		lg(HIBR_LERR, "usage: time command [args...]");
-		return 2;
-	}
-	s_init(&cmd);
-	for (i = 1; i < ac; i++) {
-		if (cmd.n)
-			s_ch(&cmd, ' ');
-		al_quote(&cmd, av[i], 0);
-	}
 	gettimeofday(&a, 0);
-	getrusage(RUSAGE_CHILDREN, &r0);
-	hibr_run(s, cmd.p);
-	st = s->st;
-	getrusage(RUSAGE_CHILDREN, &r1);
+	getrusage(RUSAGE_SELF, &s0);
+	getrusage(RUSAGE_CHILDREN, &c0);
+	s->tst = t;
+	st = n->l ? ex(s, n->l) : 0;
 	gettimeofday(&b, 0);
-	fprintf(stderr, "real %.3fs  user %.3fs  sys %.3fs\n",
-		(double)(b.tv_sec - a.tv_sec) +
-			(double)(b.tv_usec - a.tv_usec) / 1e6,
-		(double)(r1.ru_utime.tv_sec - r0.ru_utime.tv_sec) +
-			(double)(r1.ru_utime.tv_usec - r0.ru_utime.tv_usec) / 1e6,
-		(double)(r1.ru_stime.tv_sec - r0.ru_stime.tv_sec) +
-			(double)(r1.ru_stime.tv_usec - r0.ru_stime.tv_usec) / 1e6);
-	s_free(&cmd);
+	getrusage(RUSAGE_SELF, &s1);
+	getrusage(RUSAGE_CHILDREN, &c1);
+	if (s->ret)
+		return s->st = st;
+	tv[0] = bi_tvus(&a, &b);
+	tv[1] = bi_tvus(&s0.ru_utime, &s1.ru_utime) +
+		bi_tvus(&c0.ru_utime, &c1.ru_utime);
+	tv[2] = bi_tvus(&s0.ru_stime, &s1.ru_stime) +
+		bi_tvus(&c0.ru_stime, &c1.ru_stime);
+	if (n->f & 1)
+		f = "real %2R\nuser %2U\nsys %2S";
+	else if (!(f = hibr_get(s, "TIMEFORMAT")))
+		f = "\nreal\t%3lR\nuser\t%3lU\nsys\t%3lS";
+	else if (!*f)
+		return s->st = st;
+	s_init(&o);
+	if (bi_tifmt(&o, f, tv)) {
+		s_ch(&o, '\n');
+		fflush(0);
+		fputs(o.p, stderr);
+		fflush(stderr);
+	}
+	s_free(&o);
 	return s->st = st;
 }
 

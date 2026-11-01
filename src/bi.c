@@ -1451,6 +1451,8 @@ int b_exec(sh *s, int ac, char **av)
 	if (i >= ac)
 		return HIBR_OK;
 	path = findx(s, av[i]);
+	if (!path && strchr(av[i], '/'))
+		return ex_why(av[i], "exec");
 	if (!path) {
 		lg(HIBR_LERR, "exec: %s: command not found", av[i]);
 		return HIBR_NOCMD;
@@ -1661,6 +1663,10 @@ int b_type(sh *s, int ac, char **av)
 	char *p;
 
 	for (i = 1; i < ac; i++) {
+		if (kw_name(av[i])) {
+			printf("%s is a shell keyword\n", av[i]);
+			continue;
+		}
 		if (fn_find(s, av[i])) {
 			printf("%s is a function\n", av[i]);
 			continue;
@@ -2509,7 +2515,6 @@ const hibr_bi bitab[] = {
 	{ "str", b_str, "text operations" },
 	{ "strict", b_strict, "refuse, in this file, what is usually a mistake" },
 	{ "test", b_test, "evaluate a conditional expression" },
-	{ "time", b_time, "time a command" },
 	{ "times", b_times, "the shell's and its children's CPU time" },
 	{ "title", b_title, "rename the running process" },
 	{ "trap", b_trap, "run a command on a signal or on exit" },

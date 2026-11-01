@@ -792,14 +792,39 @@ void v_list(sh *s, const char *nm, char **ks, int nk, vec *out, int keys)
 		v_add(out, keys ? e->k : (e->s ? e->s : ""));
 }
 
+/* Put values into an array from index nx on, a [key]=value element setting
+   that key and moving a numeric next index past it. */
+void v_arrput(sh *s, const char *k, vec *vals, long nx)
+{
+	size_t i;
+	str ix;
+	char *kv, *q, *end, *key;
+	long at;
+
+	for (i = 0; i < vals->n; i++) {
+		kv = (char *)vals->p[i];
+		if (kv[0] == '[' && (q = strstr(kv, "]=")) != 0) {
+			*q = 0;
+			key = kv + 1;
+			at = strtol(key, &end, 10);
+			if (*key && !*end)
+				nx = at + 1;
+			v_setp(s, k, &key, 1, q + 2);
+			*q = ']';
+			continue;
+		}
+		s_init(&ix);
+		s_num(&ix, nx++);
+		key = ix.p;
+		v_setp(s, k, &key, 1, kv);
+		s_free(&ix);
+	}
+}
+
 /* Replace a variable with an array of values. */
 void v_arr(sh *s, const char *k, vec *vals)
 {
 	var *e;
-	size_t i;
-	long nx = 0;
-	str ix;
-	char *kv, *q, *end;
 
 	if (hibr_set(s, k, "", 0) != HIBR_OK)
 		return;
@@ -808,29 +833,7 @@ void v_arr(sh *s, const char *k, vec *vals)
 		return;
 	v_free_el(e);
 	e->am = 1;
-	for (i = 0; i < vals->n; i++) {
-		kv = (char *)vals->p[i];
-		q = 0;
-		if (kv[0] == '[' && (q = strstr(kv, "]=")) != 0) {
-			*q = 0;
-			{
-				char *key = kv + 1;
-				long at = strtol(key, &end, 10);
-				if (*key && !*end)
-					nx = at + 1;
-				v_setp(s, k, &key, 1, q + 2);
-			}
-			*q = ']';
-			continue;
-		}
-		s_init(&ix);
-		s_num(&ix, nx++);
-		{
-			char *key = ix.p;
-			v_setp(s, k, &key, 1, kv);
-		}
-		s_free(&ix);
-	}
+	v_arrput(s, k, vals, 0);
 	lg(HIBR_LDBG, "map %s has %lu entries", k, (unsigned long)e->n);
 }
 

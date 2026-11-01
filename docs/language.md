@@ -7,7 +7,9 @@ precedence tables and the order expansions happen in — see
 
 ## Everything you expect from a shell
 
-Pipelines, `&&`, `||`, `!`, `;`, background `&`, subshells `( )`, groups `{ }`,
+Pipelines, `&&`, `||`, `!`, `time` -- a reserved word, as in bash, timing a
+whole pipeline or compound command, with `TIMEFORMAT` and `time -p` (see
+[the grammar](grammar.md#reserved-words)) --, `;`, background `&`, subshells `( )`, groups `{ }`,
 `if`/`elif`/`else`, `while`, `until`, `for`, `select`, `case` (with `|`, a
 leading `(`, and the `;&` / `;;&` fallthroughs), functions with recursion --
 written `name() { … }`, bash's `function name { … }`, or hibr's `fn` -- and
@@ -278,7 +280,11 @@ and abandons the line at the prompt. Inside `try` it fails only the command,
 so `(( v = expr, 1 ))` or `try` is how a script evaluates something that may
 not be an expression.
 
-`+=` appends: `s+=tail`, `list+=(more items)`, `map[key]+=tail`.
+`+=` appends: `s+=tail`, `list+=(more items)`, `map[key]+=tail`. A
+`[key]=value` element in `+=( )` sets that key, as it does in `=( )`, and a
+plain element after it goes to the next index: `a=(1); a+=(2 [5]=x y)` gives
+keys 0, 1, 5 and 6; on a map declared `-A` the key is used as written. A
+scalar appended to with `+=( )` becomes element 0.
 
 A quoted subscript is a literal key inside arithmetic as everywhere else,
 and `$[ ]` is bash's older spelling of `$(( ))`:

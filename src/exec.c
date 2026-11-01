@@ -79,15 +79,38 @@ void hsh_put(sh *s, const char *nm, const char *path)
 	v_add(&s->cmds, b.p);
 }
 
-/* Locate an executable along PATH. */
+/* Say why a command named by a path cannot run, as bash does, and give
+   bash's status for it: 127 when there is nothing there, 126 otherwise. */
+int ex_why(const char *nm, const char *who)
+{
+	struct stat sb;
+	int e;
+
+	if (stat(nm, &sb))
+		e = errno;
+	else if (S_ISDIR(sb.st_mode))
+		e = EISDIR;
+	else
+		e = access(nm, X_OK) ? errno : ENOEXEC;
+	if (who)
+		lg(HIBR_LERR, "%s: %s: %s", who, nm, strerror(e));
+	else
+		lg(HIBR_LERR, "%s: %s", nm, strerror(e));
+	return e == ENOENT ? HIBR_NOCMD : HIBR_NOEXEC;
+}
+
+/* Locate an executable along PATH; a name with a slash is taken as it is,
+   if it is a file that may be run. */
 char *findx(sh *s, const char *nm)
 {
 	const char *p = hibr_get(s, "PATH");
 	const char *q;
+	struct stat sb;
 	str b;
 
 	if (strchr(nm, '/'))
-		return access(nm, X_OK) == 0 ? xs(nm) : 0;
+		return !access(nm, X_OK) && !stat(nm, &sb) && !S_ISDIR(sb.st_mode) ?
+		       xs(nm) : 0;
 	q = hsh_get(s, nm);
 	if (q) {
 		if (access(q, X_OK) == 0)
@@ -1123,8 +1146,22 @@ void ex_arrasg(sh *s, node *f)
 	if (nl > 1 && f->s[nl - 1] == '+') {
 		char *nm = ar_dup(s->xa, f->s, nl - 1);
 		vec *cur = vb_get(s);
+		var *v = v_find(s, nm);
 		size_t z;
 		long next = 0;
+		if (v && v->ro) {
+			lg(HIBR_LERR, "%s: readonly variable", nm);
+			s->st = 1;
+			v_refused = 1;
+			vb_put(s, cur);
+			vb_put(s, el);
+			return;
+		}
+		if (v && !v->map && !v->am && v->v) {
+			lg(HIBR_LDBG, "%s was a scalar, and is element 0 now", nm);
+			v_setel(s, nm, 0, ar_dup(s->xa, v->v, strlen(v->v)));
+			next = 1;
+		}
 		v_list(s, nm, 0, 0, cur, 1);
 		for (z = 0; z < cur->n; z++) {
 			long kk = atol((char *)cur->p[z]);
@@ -1132,8 +1169,7 @@ void ex_arrasg(sh *s, node *f)
 				next = kk + 1;
 		}
 		vb_put(s, cur);
-		for (z = 0; z < el->n; z++)
-			v_setel(s, nm, next + (long)z, (char *)el->p[z]);
+		v_arrput(s, nm, el, next);
 		if (!el->n && !v_find(s, nm)) {
 			vec empty = { 0, 0, 0 };
 			v_arr(s, nm, &empty);
@@ -1236,6 +1272,7 @@ void asg_push(sh *s, vec *asg, vec *old)
 {
 	size_t i;
 	char *kv, *q;
+	struct sav *sv;
 
 	for (i = 0; i < asg->n; i++) {
 		kv = (char *)asg->p[i];
@@ -1244,7 +1281,13 @@ void asg_push(sh *s, vec *asg, vec *old)
 			continue;
 		*q = 0;
 		asg_keep(s, old, kv);
-		hibr_set(s, kv, q + 1, 1);
+		if (hibr_set(s, kv, q + 1, 1) != HIBR_OK) {
+			sv = (struct sav *)old->p[--old->n];
+			lg(HIBR_LDBG, "%s was refused, so nothing is put back", kv);
+			free(sv->k);
+			free(sv->v);
+			free(sv);
+		}
 		*q = '=';
 	}
 }
@@ -1575,9 +1618,22 @@ int ex_cmd(sh *s, node *n)
 		if (!ac && abad)
 			st = s->st ? s->st : HIBR_FAIL;
 	}
-	for (f = n->x; f; f = f->x)
-		if (f->f != 4)
-			ex_arrasg(s, f);
+	if (n->x) {
+		v_refused = 0;
+		for (f = n->x; f; f = f->x)
+			if (f->f != 4)
+				ex_arrasg(s, f);
+		if (!ac && !s->xerr && v_refused) {
+			lg(HIBR_LDBG, "a refused array assignment ends %s, as in bash",
+			   s->it ? "the line" : "the script");
+			st = s->st = HIBR_FAIL;
+			if (s->it)
+				s->stop = 1;
+			else
+				s->quit = 1;
+			goto out;
+		}
+	}
 	if (s->xerr) {
 		if (s->xerr == 2 && !s->intry && !(s->sopt & O_KEEPGOING)) {
 			lg(HIBR_LDBG, "an arithmetic error ends %s, as in bash",
@@ -1680,6 +1736,13 @@ int ex_cmd(sh *s, node *n)
 	}
 	if (!path)
 		path = findx(s, av[0]);
+	if (!path && strchr(av[0], '/')) {
+		st = HIBR_FAIL;
+		if (!n->rd || rd_do(s, n->rd, &sv) == HIBR_OK)
+			st = ex_why(av[0], 0);
+		rd_undo(&sv);
+		goto out;
+	}
 	if (!path) {
 		node *cnf = fn_find(s, "command_not_found");
 		if (cnf) {
@@ -2702,6 +2765,9 @@ int ex(sh *s, node *n)
 		return st;
 	case N_FUNC:
 		return s->st = fn_add(s, n);
+	case N_TIME:
+		s->ln = n->ln;
+		return ex_time(s, n, t);
 	}
 	lg(HIBR_LERR, "internal: unknown node kind %d", n->k);
 	return s->st = HIBR_FAIL;

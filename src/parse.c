@@ -934,15 +934,52 @@ void p_errpipe(lex *l, node *n)
 	*rt = r;
 }
 
-/* Parse a pipeline with optional leading negation. */
+/* Parse the ! and time words in front of a pipeline, each a node to wrap it;
+   a time straight after a time is the same timing, as in bash. */
+node **p_pfx(lex *l, node **hole, int *np)
+{
+	char *t;
+	node *p, *lp = 0;
+
+	while (l->tk == T_WORD && (t = w_lit(l->w)) &&
+	       ((t[0] == '!' && !t[1]) || (t[0] == 't' && !strcmp(t, "time")))) {
+		if (t[0] == 't' && lp && lp->k == N_TIME) {
+			lx_next(l);
+			continue;
+		}
+		(*np)++;
+		if (++l->depth > HIBR_DEPTH) {
+			perr(l, "input nested too deeply");
+			return hole;
+		}
+		p = nd(l, t[0] == '!' ? N_NOT : N_TIME);
+		lx_next(l);
+		if (p->k == N_TIME && kw(l, "-p")) {
+			p->f = 1;
+			lx_next(l);
+		}
+		if (p->k == N_TIME && kw(l, "--")) {
+			p->f = 1;
+			lx_next(l);
+		}
+		*hole = p;
+		hole = &p->l;
+		lp = p;
+	}
+	return hole;
+}
+
+/* Parse a pipeline with optional leading negation and timing. */
 node *p_pipe(lex *l)
 {
-	node *n, *p;
-	int bang = 0;
+	node *n, *p, *top = 0, **hole = &top;
+	int np = 0;
 
-	if (kw(l, "!")) {
-		bang = 1;
-		lx_next(l);
+	if (l->tk == T_WORD) {
+		hole = p_pfx(l, &top, &np);
+		l->depth -= np;
+		if (l->err)
+			return 0;
 	}
 	n = p_cmd(l);
 	while (n && (l->tk == T_PIPE || l->tk == T_PIPEAMP)) {
@@ -959,12 +996,12 @@ node *p_pipe(lex *l)
 			break;
 		}
 	}
-	if (bang && n) {
-		p = nd(l, N_NOT);
-		p->l = n;
-		n = p;
-	}
-	return n;
+	if (!top)
+		return n;
+	if (!n && !(top->k == N_TIME && hole == &top->l))
+		return 0;
+	*hole = n;
+	return top;
 }
 
 /* Parse an && / || chain. */

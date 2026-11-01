@@ -208,6 +208,7 @@
 #define N_CFOR 17
 #define N_COND 18
 #define N_SELECT 19
+#define N_TIME 20
 #endif
 
 typedef struct blk blk;
