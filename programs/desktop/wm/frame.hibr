@@ -120,6 +120,31 @@ fn dt_winbare(int id) {
 	fi
 }
 
+# The windows drawn so far this frame, bottom to top, each as "row col h w"
+# with its shadow's strip counted in (dt_wintimed fills it). A window that
+# overlaps another need be drawn only when one drawn before it -- under it
+# -- overlaps it, since that one's cells have just been painted over its
+# own; a window above it repainting touches nothing of it but the shadow it
+# casts, which `console darken -s` casts only once on any cell (0.99.84).
+# Drawing every window that overlaps any other, which this replaces, made a
+# playing video redraw three terminals, the Browser and the Control Panel
+# for each of its frames: 33 ms a frame and 92% of a core on the mini PC
+# (Gitea #418).
+DT_DRAWNR=()
+
+# Whether a window drawn before this one this frame overlaps it.
+fn dt_under(int id) {
+	local ar=${DT[$id]["row"]} ac=${DT[$id]["col"]} ah aw x r c h w
+
+	ah=$((DT[$id]["h"] + 1))
+	aw=$((DT[$id]["w"] + 2))
+	for x in "${DT_DRAWNR[@]}"; do
+		read -r r c h w <<< "$x"
+		[ $((ar < r + h && r < ar + ah && ac < c + w && c < ac + aw)) = 1 ] && return 0
+	done
+	return 1
+}
+
 # Which title-bar button is at column c of window id, if any -- for a bare
 # window only its close box.
 fn dt_btnat(int id, int c) {
@@ -147,7 +172,7 @@ fn dt_clean(int id) {
 	case $DT_FORCEWIN in *" $id "*) DT_WHY=moved; return 1 ;; esac
 	[ -n "$ap" ] || { DT_WHY=noapp; return 1; }
 	dt_hotmoved "$id" && { DT_WHY=hover; return 1; }
-	case " $DT_ALONE " in *" $id "*) ;; *) DT_WHY=overlap; return 1 ;; esac
+	case " $DT_ALONE " in *" $id "*) ;; *) dt_under "$id" && { DT_WHY=overlap; return 1; } ;; esac
 	dt_has "${ap}_dirty" || { DT_WHY=nodirty; return 1; }
 	"${ap}_dirty" "$id" && { DT_WHY=dirty; return 1; }
 	DT_WHY=left
@@ -258,7 +283,7 @@ fn dt_contentonly(int id) {
 	[ -n "$ap" ] && [ -n "${DT[$id]["csig"]}" ] || return 1
 	dt_has "${ap}_paintsall" && "${ap}_paintsall" "$id" || return 1
 	dt_hotmoved "$id" && return 1
-	case " $DT_ALONE " in *" $id "*) ;; *) return 1 ;; esac
+	case " $DT_ALONE " in *" $id "*) ;; *) dt_under "$id" && return 1 ;; esac
 	s := dt_chromesig "$id"
 	[ "$s" = "${DT[$id]["csig"]}" ]
 }
@@ -278,7 +303,14 @@ fn dt_win(int id) {
 	# strip the shadow falls on and it has to be cast again -- without
 	# redrawing a single cell of the window itself.
 	if dt_clean "$id"; then
+		# Its shadow only on what no window covers: a window above it
+		# that is left too keeps cells this shadow never marked, which
+		# would darken and stay dark. Under it, nothing was drawn this
+		# frame that touches it (dt_under), so those cells keep the
+		# shadow already cast on them.
+		console behind on
 		dt_shadow "$id"
+		console behind off
 		return 0
 	fi
 	if dt_contentonly "$id"; then

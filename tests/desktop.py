@@ -3606,8 +3606,11 @@ diff = [(r, c) for r in range(plain.rows) for c in range(plain.cols)
 # two, which the meters are not on, and passed only while the machine's
 # memory held still between the two runs -- under a full gate it moved a
 # point, and MEM's 10% against 11% failed a release.
+# Uptime is the same kind of reading: its minute turned between the two runs
+# under a sanitizer gate, one cell at its tens of minutes.
 meters = [r for r in range(plain.rows)
-          if " CPU " in plain.row(r) or " MEM " in plain.row(r)]
+          if " CPU " in plain.row(r) or " MEM " in plain.row(r)
+          or " Uptime: " in plain.row(r)]
 diff = [(r, c) for (r, c) in diff if r != 0 and r not in meters]
 check("and About with its own _dirty draws what a forced redraw would",
       not diff, (diff[:12], plain, forced))

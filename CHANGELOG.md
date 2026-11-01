@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.410
+
+**A window that overlaps another is redrawn only when something under it
+was** (Gitea #418). Every window touching another used to be redrawn on
+every frame, so one playing video redrew every terminal, the Browser and the
+Control Panel around it: 33 ms a frame, 92% of a core and about ten frames
+a second on the mini PC. Windows are drawn bottom to top, so a window now
+needs drawing only when one drawn under it this frame overlaps it, its
+shadow included; otherwise its app's own `_dirty` decides, as it always did
+for a window alone. A window left alone casts its shadow only on cells no
+window covers (`console darken` honours `console behind`), so an idle
+window above it keeps no dark band. Measured with a 30-frame video and three
+idle windows overlapping it: under them, 16.6 frames a second to 26.8; over
+them, 22.4 to 29.4, with a frame going from 36.5 ms to 11.4.
+
 ## 0.99.409
 
 **A held frame waits out its hold, and no longer spins through it.** When

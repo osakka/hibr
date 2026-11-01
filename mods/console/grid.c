@@ -667,7 +667,7 @@ void cn_darken1(int row, int col, int h, int w, int pct, int once, int half)
 		for (c = col; c < col + w; c++) {
 			if (c < 0 || c >= cn_back.cols)
 				continue;
-			if (g && cn_ptopat(r, c))
+			if (cn_skip(r, c) || (g && cn_ptopat(r, c)))
 				continue;
 			k = &cn_back.c[r * cn_back.cols + c];
 			if (once && (k->attr & CN_SHADOWED))

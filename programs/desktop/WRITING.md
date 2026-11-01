@@ -761,7 +761,9 @@ everything else besides (Gitea #343). It answers:
   frame held back for a program's output, or `desktop`); and `drawn_why`:
   for each app, why its windows were drawn rather than left as they were --
   `left` (they were not), `dirty` (its `_dirty` said so), `nodirty` (it has
-  none), `overlap` (another window overlaps it), `hover`, `moved`, or
+  none), `overlap` (a window drawn under it this frame overlaps it; since
+  0.99.410 a window that only overlaps another, with nothing under it
+  drawn, can be `left`), `hover`, `moved`, or
   `full:<cause>` for a frame drawn whole (`arranged`, `overdrew`, `popup`,
   `other`), counted once a window a frame (0.99.405);
 - `console_bytes`: what the display's flushes have written since it opened,

@@ -204,16 +204,17 @@ DT_INCNT=
 # built out of one of those has to set DT_OVERDREW itself. None does today.
 DT_OVERDREW=
 
-# A window can be left alone only if its own rectangle, and the strip its
-# shadow falls on, touch no other window's. Two that overlap are always both
-# redrawn: windows are drawn bottom to top, so a lower one repainting would
-# paint over the higher one's cells, and a higher one's shadow darkens what
-# is under it -- which, on a lower window nobody repainted, would darken
-# cells that are already dark, again on every frame. The wallpaper is no
-# longer a problem for either of them (it paints behind the panes now), so
-# this is the only rule left. Worked out once per arrangement, not per
-# frame: five windows is ten comparisons and the answer only changes when
-# something moves.
+# Which windows touch no other -- their own rectangle and the strip their
+# shadow falls on. Such a window can be left alone whenever its app says
+# nothing changed. One that does touch another can be left too, unless a
+# window drawn under it this frame overlaps it (dt_under, frame.hibr):
+# windows are drawn bottom to top, so a lower one repainting paints over the
+# higher one's cells, while a higher one repainting touches the lower only
+# with its shadow, which `console darken -s` casts once on any cell. Until
+# 0.99.410 every window touching another was always redrawn, which made one
+# playing video redraw every overlapping window for each of its frames
+# (Gitea #418). Worked out once per arrangement, not per frame: five windows
+# is ten comparisons and the answer only changes when something moves.
 fn dt_alone(...rest) {
 	local sig= id a b ar ac ah aw br bc bh bw ok out= look quiet= old new
 	local -a w alone
@@ -477,6 +478,7 @@ dt_draw() {
 		{ [ "$MB_OPEN" != -1 ] || [ -n "$DT_POP" ]; } && { DT_FORCEONCE=1; DT_FORCEBY=popup; }
 	dt_wall
 	[ -n "$DT_STATON" ] && dt_tmark wall
+	DT_DRAWNR=()
 	dt_wintimed "${ls[@]}"
 	DT_WHO=
 	[ -n "$DT_STATON" ] && dt_tmark windows
@@ -577,6 +579,8 @@ fn dt_wintimed(...ids) {
 		DT_WHY=
 		t0=${EPOCHREALTIME/./}
 		dt_win "$id"
+		[ "$DT_WHY" = left ] ||
+			DT_DRAWNR+=("${DT[$id]["row"]} ${DT[$id]["col"]} $((DT[$id]["h"] + 1)) $((DT[$id]["w"] + 2))")
 		t=$((${EPOCHREALTIME/./} - t0))
 		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "win:${ap:-bare}" "$t" "$ap"
 		[ -n "$DT_STATON" ] && [ -n "$DT_WHY" ] &&
