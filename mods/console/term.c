@@ -9,6 +9,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <time.h>
 
 int cn_fd = -1;
 int cn_own;
@@ -524,6 +525,26 @@ void cn_lock(int on)
 	else
 		cn_wr(cn_fd, cn_lockoff, sizeof cn_lockoff - 1);
 	lg(HIBR_LDBG, "console: pointer lock %s", on ? "asked for" : "given back");
+}
+
+/* A locked pointer's report arrived with nothing held here: the terminal
+   is told again that nothing is held, at most twice a second, since a
+   moving pointer sends a hundred reports a second and one release is all
+   it takes. Inside hold the display that has it is told by hold. */
+void cn_lockstray(void)
+{
+	static long long last;
+	struct timespec t;
+	long long now;
+
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	now = (long long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+	if (now - last < 500 || cn_fd < 0)
+		return;
+	last = now;
+	cn_wr(cn_fd, cn_lockoff, sizeof cn_lockoff - 1);
+	lg(HIBR_LWRN, "console: a held pointer's report with nothing held -- "
+		      "told the terminal to let it go");
 }
 
 /* Put the terminal back before a fatal signal is allowed to finish us -- in

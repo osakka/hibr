@@ -280,6 +280,24 @@ hgot = [m.decode("utf8", "replace") for m in re.findall(rb"KEY\[([^\]]*)\]", o)]
 check("a run of hovers read together reaches the program as its last, then the click",
       hgot[:3] == ["mouse drag none 4 12", "mouse press left 5 19", ""], hgot)
 
+# What a terminal sends that no person typed is never typed into anything
+# (Gitea #379): a held pointer's report with signed offsets when nothing is
+# held, a device control string, a privacy message, a start of string, an
+# OSC, an APC, and a CSI nothing knows -- each taken whole, so only the
+# keys between them arrive. One of these skipped a byte at a time typed
+# `[<35;-5;-5M` into a terminal hundreds of times a second.
+STRAYS = [b"\x1b[<35;-5;-5M", b"a", b"\x1bPsome dcs payload\x1b\\", b"b",
+          b"\x1b^privacy message\x1b\\", b"c", b"\x1bXstart of string\x07", b"d",
+          b"\x1b]999;garbage text\x07", b"e", b"\x1b_Gi=31;OK\x1b\\", b"f",
+          b"\x1b[5;7;9}", b"g"]
+expect(r"a held pointer's report with nothing held")
+o, _ = run('console open\nconsole mouse click\nfor i in 1 2 3 4 5 6 7 8; do\n'
+           '  k := console key 1500\n  echo "KEY[$k]"\ndone\nconsole close\n',
+           feed=STRAYS, wait=5)
+sgot = [m.decode("utf8", "replace") for m in re.findall(rb"KEY\[([^\]]*)\]", o)]
+check("what a terminal sends unasked is taken whole and never typed",
+      sgot[:8] == ["a", "b", "c", "d", "e", "f", "g", ""], sgot)
+
 o, _ = run('console open\nconsole flush\nconsole close\n')
 check("mouse reporting is off unless asked for",
       b"\x1b[?1002h" not in o and b"\x1b[?1000h" not in o
@@ -916,4 +934,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 115)
+report(len(WANT) + len(MWANT) + 116)

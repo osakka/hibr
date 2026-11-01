@@ -473,4 +473,6 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 int hd_attach(const char *name, const char *path, int multi, int row,
 	      int col, const char *dname);
 
+void hd_lockgone(vec *cls, int tid);
+void hd_lockstray(struct hd_cli *cn, const char *p, size_t n);
 #endif

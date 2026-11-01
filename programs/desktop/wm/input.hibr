@@ -592,6 +592,14 @@ fn dt_ptrcan() {
 # and DX where a column does, and `rel` where the modifiers would be.
 DT_PTRLOCK=
 
+# When the person last pressed a key or a mouse button, in milliseconds. A
+# window may take the pointer only within DT_PTRGESTMS of it: a lock is the
+# person's choice, made with a click or a key, never something a window
+# restored at login, a timer or a job takes by itself -- one that did kept the
+# pointer through a reboot, and its reports were typed into a terminal.
+DT_PTRGEST=0
+DT_PTRGESTMS=2000
+
 # Whether a display of this desktop can hold the pointer: one of the held
 # session's said so at attach, or, unheld, the terminal the console asked.
 # Only Blit can, from 0.2.42; elsewhere a game keeps letting go at the edge.
@@ -611,11 +619,18 @@ fn dt_ptrlockcan() {
 # done, since the display may still refuse -- the window hears `unlock`
 # then, as it does whenever the lock ends.
 fn dt_pointerlock(int id, on) {
+	local now
+
 	case $on in
 	on)
 		dt_ptrlockcan || return 1
 		[ "$DT_FOCUS" = "$id" ] || return 1
 		[ "$DT_PTRLOCK" = "$id" ] && return 0
+		now := dt_ms
+		if [ $((now - DT_PTRGEST)) -gt "$DT_PTRGESTMS" ]; then
+			dt_log "pointer lock: refused for window $id: no key or click in the last $DT_PTRGESTMS ms"
+			return 1
+		fi
 		[ -n "$DT_PTRLOCK" ] && dt_ptrunlock
 		console pointer lock on 2> /dev/null || return 1
 		DT_PTRLOCK=$id
@@ -992,6 +1007,11 @@ fn dt_event(k) {
 		dt_ptrunlock
 		return 0
 		;;
+	esac
+	case $k in
+	" "|"mouse "*press" "*) DT_PTRGEST := dt_ms ;;
+	*" "*) ;;
+	*) DT_PTRGEST := dt_ms ;;
 	esac
 	if [ -n "$DT_PTRLOCK" ] && dt_keyis ptrrelease "$k"; then
 		dt_ptrunlock

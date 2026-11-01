@@ -513,6 +513,25 @@ int cn_mouse(const char *p, size_t n, str *o, size_t *used)
 
 	if (cn_locked)
 		return cn_mrel(p, n, o, used);
+	/* A report with a signed movement while nothing is held: the
+	   terminal still holds the pointer for us, or reports from a lock
+	   just given back were still on their way. It is never a position,
+	   and it is never typing -- skipped a byte at a time it became the
+	   text `[<35;-5;-5M`, hundreds of times, typed into whatever window
+	   had the focus (a terminal running a program, on the owner's
+	   machine). It is dropped whole, and the terminal told again that
+	   nothing is held. */
+	for (; i < (int)n && ((p[i] >= '0' && p[i] <= '9') || p[i] == ';' ||
+			      p[i] == '-'); i++)
+		;
+	if (i >= (int)n)
+		return 0;
+	if ((p[i] == 'M' || p[i] == 'm') && memchr(p + 3, '-', (size_t)i - 3)) {
+		*used = (size_t)i + 1;
+		cn_lockstray();
+		return 2;
+	}
+	i = 3;
 	if (n < 9)
 		return 0;
 	for (; i < (int)n && p[i] >= '0' && p[i] <= '9'; i++)
@@ -732,6 +751,42 @@ static int cn_osc(const char *p, size_t n, size_t *used)
 	return 2;
 }
 
+/* Where a string sequence -- DCS, SOS, PM, OSC, APC -- ends: the offset
+   just past its BEL or ST, or 0 while neither has arrived. */
+size_t cn_strend(const char *p, size_t n)
+{
+	size_t i;
+
+	for (i = 2; i < n; i++) {
+		if ((unsigned char)p[i] == 7)
+			return i + 1;
+		if ((unsigned char)p[i] == 27 && i + 1 < n && p[i + 1] == '\\')
+			return i + 2;
+	}
+	return 0;
+}
+
+/* A device control string, a privacy message or a start of string that no
+   answer of ours is shaped like, arriving as input: a terminal's, never a
+   person's, so it is taken whole and nothing of it is typed -- decoded as a
+   key it came out as `alt-P` and then its text. One still arriving is waited
+   for while the bytes keep coming; once they stop, ESC and one character is
+   the Alt combination it looks like, and anything longer with no end is
+   dropped by cn_seqlen as the unknown sequence it is. */
+static int cn_str(const char *p, size_t n, size_t *used, int last)
+{
+	size_t e = cn_strend(p, n);
+
+	if (e) {
+		*used = e;
+		lg(HIBR_LDBG, "console: a string sequence of %zu bytes taken", e);
+		return 2;
+	}
+	if (!last && n < CN_STRMAX)
+		return 0;
+	return n <= 3 ? -2 : -1;
+}
+
 /* An application programming command arriving as *input* is an answer
    too: the kitty graphics protocol replies `Gi=<id>;OK` to a query of its
    own, which is how a terminal that speaks it says so rather than being
@@ -918,7 +973,8 @@ int cn_isans(const char *p, size_t n)
 {
 	if (n < 3 || p[0] != 27)
 		return 0;
-	if (p[1] == ']' || p[1] == '_' || p[1] == 'P')
+	if (p[1] == ']' || p[1] == '_' || p[1] == 'P' || p[1] == '^' ||
+	    p[1] == 'X')
 		return 1;
 	return p[1] == '[' && p[2] == '?';
 }
@@ -978,6 +1034,12 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		return 0;
 	if (p[1] == 'P' && n == 3 && p[2] == '>')
 		return 0;
+	if ((p[1] == 'P' || p[1] == '^' || p[1] == 'X') && n >= 3) {
+		int r = cn_str(p, n, used, last);
+
+		if (r != -2)
+			return r;
+	}
 	if (p[1] == '[' && n >= 3 && p[2] == '?')
 		return cn_report(p, n, o, used);
 	if (p[1] == 'O' || p[1] == '[') {
@@ -1099,6 +1161,29 @@ static int cn_hovernext(void)
 	return h;
 }
 
+/* How many bytes an escape sequence nothing decodes takes, so it can be
+   skipped whole: a CSI (ESC [) runs to its final byte, 0x40 to 0x7e; any
+   other escape is the escape and the one byte after it. Only bytes already
+   read are counted, and never fewer than one. */
+size_t cn_seqlen(const char *p, size_t n)
+{
+	size_t i;
+
+	if (n < 2 || (unsigned char)p[0] != 27)
+		return 1;
+	if (p[1] == 'P' || p[1] == '^' || p[1] == 'X' || p[1] == ']' ||
+	    p[1] == '_') {
+		i = cn_strend(p, n);
+		return i ? i : n;
+	}
+	if (p[1] != '[')
+		return 2;
+	for (i = 2; i < n; i++)
+		if ((unsigned char)p[i] >= 0x40 && (unsigned char)p[i] <= 0x7e)
+			return i + 1;
+	return 1;
+}
+
 int cn_key(int ms, str *out)
 {
 	size_t used = 0;
@@ -1145,9 +1230,15 @@ int cn_key(int ms, str *out)
 				continue;
 			}
 			if (r < 0) {
+				/* Skip the whole of a sequence nothing decodes,
+				   through its final byte, never just its escape:
+				   what follows the escape would otherwise be
+				   read as keys, and typed into a window. */
+				used = cn_seqlen(cn_pend.p + cn_pendo,
+						 cn_pend.n - (size_t)cn_pendo);
 				lg(HIBR_LDBG, "console: unknown sequence, "
-					      "skipping a byte");
-				cn_eat(1);
+					      "skipping %zu bytes", used);
+				cn_eat(used);
 				out->n = 0;
 				if (out->p)
 					out->p[0] = 0;

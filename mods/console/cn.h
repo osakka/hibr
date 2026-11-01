@@ -196,6 +196,9 @@ unsigned cn_dim1(unsigned v, int pct, unsigned deflt);
    to on it -- see the comment on cn_tbgv in term.c for why a display that
    places a picture under the text has to know. The longest reply worth
    waiting for the end of. */
+#ifndef CN_STRMAX
+#define CN_STRMAX 4096
+#endif
 #ifndef CN_OSCMAX
 #define CN_OSCMAX 64
 #endif
@@ -210,6 +213,9 @@ int cn_canwhole(void);
 extern int cn_imgfd;
 void cn_imgfddrop(void);
 void cn_fdfail(void);
+void cn_lockstray(void);
+size_t cn_seqlen(const char *p, size_t n);
+size_t cn_strend(const char *p, size_t n);
 int cn_hudon(sh *s);
 int cn_status(sh *s, const char *p, size_t n);
 unsigned char *cn_imgbuild(const unsigned char *rgb, int iw, int ih, int sx,

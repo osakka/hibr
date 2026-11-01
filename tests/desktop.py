@@ -8117,6 +8117,9 @@ check("and a solid window frame gives notes the ring the windows wear",
 # the display holds the pointer every report is movement, handed to that
 # window's _mouse with `rel` where the modifiers go; Release Pointer, a menu
 # and the display giving it back each end it, and the window hears `unlock`.
+# A report after the lock has ended is dropped, and the console says so
+# in the log while it tells the terminal again to let go.
+expect(r"a held pointer's report with nothing held")
 LOCKAPP = ('declare -gA LK\n'
            'lk_draw() { console put -p "w$1" 2 1 "[${LK[$1]:-}]"; }\n'
            'lk_key() { [ "$2" = L ] || return 1; dt_pointerlock "$1" on; '
@@ -8145,6 +8148,30 @@ check("opening a menu gives it back", b"\x1b[?7701l" in raw and
 sc, raw = run(LOCKAPP, [1.0, b"L", 0.4], caps=[])
 check("a display that cannot hold it is never asked, and the window is told no",
       b"\x1b[?7701h" not in raw and sc.find("[lock 1]") is not None, sc)
+
+# A lock is the person's choice: a window that asks with no key or click
+# behind it -- one restored at login, a timer, a job -- is refused. One that
+# did kept the pointer through a reboot, and the held pointer's reports were
+# typed into a terminal as text.
+LOCKSELF = ('declare -gA LK LKW\n'
+            'lk_draw() { if [ -z "${LK[$1]:-}" ]; then '
+            'if [ -z "${LKW[$1]:-}" ]; then LKW[$1]=1; dt_want 800; '
+            'else dt_pointerlock "$1" on; LK[$1]="lock $?"; fi; fi; '
+            'console put -p "w$1" 2 1 "[${LK[$1]:-}]"; }\n'
+            'dt_new "Lock" 8 40 6 10 lk\n')
+sc, raw = run(LOCKSELF, [2.0], caps=["lock"])
+check("a window that asks for the pointer with no key or click behind it is refused",
+      b"\x1b[?7701h" not in raw and sc.find("[lock 1]") is not None, sc)
+# And a held pointer's reports that reach a desktop holding no lock are
+# dropped whole: never a key, never text in the focused window.
+STRAY = ('declare -gA KY\n'
+         'ky_draw() { console put -p "w$1" 2 1 "[${KY[$1]:-}]"; }\n'
+         'ky_key() { KY[$1]+="<$2>"; return 0; }\n'
+         'dt_new "Keys" 8 40 6 10 ky\n')
+sc, raw = run(STRAY, [1.0, b"\x1b[<35;-5;-5M\x1b[<32;-36;0M", 0.3,
+                      b"\x1b[<35;-5;-5M", 0.3, b"x", 0.4], caps=["lock"])
+check("a held pointer's report reaching a desktop that holds no lock is dropped, "
+      "not typed", sc.find("[<x>") is not None, sc)
 
 # Focus Follows Mouse (Gitea #370): with it on, resting over a window gives
 # it the keyboard and leaves it where it is in the stack; off, the default,
@@ -8621,4 +8648,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(922)
+report(924)

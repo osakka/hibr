@@ -1095,6 +1095,60 @@ raw, log = lockheld([], [b"\x1b[<0;5;3M"])
 check("a display that cannot is never asked, and hold locks says no",
       b"\x1b[?7701h" not in raw and "locks no" in log, log)
 
+# The program giving the pointer back while nothing is drawn (the owner's
+# mini PC, 0.99.416). The release went out only in the holding display's
+# next render, and a full-screen game's display may never render again: the
+# display kept the lock, and its signed reports went on arriving after the
+# program had stopped expecting them -- skipped an escape at a time, they
+# were typed into the focused window as `[<35;-5;-5M`, hundreds of times.
+def lockrelease():
+    nm = name()
+    open(LOG, "w").close()
+    p = os.path.join(D, "lr%s.hibr" % nm)
+    open(p, "w").write(
+        load("console", "hold") + "console open\nconsole mouse click\nconsole flush\n"
+        + "sleep %s\n" % (1.5 * SLOW)
+        + 'hl := hold locks; echo "locks ${hl##* }" >> ' + LOG + "\n"
+        + "console pointer lock on\nconsole flush\n"
+        + "i=0\nwhile [ $i -lt %d ]; do k := console key 250; " % (24 * SLOW)
+        + '[ -n "$k" ] && echo "key [$k]" >> ' + LOG + "; "
+        + '[ $i = %d ] && { console pointer lock off; echo released >> %s; }; ' % (6 * SLOW, LOG)
+        + "i=$((i + 1)); done\nconsole close\n")
+    outer = os.path.join(D, "r%s.hibr" % nm)
+    open(outer, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n'
+                           % (nm, p) + "sleep 0.6\nhold attach -m -n one %s 0 0\n" % nm)
+    t = Term(outer, rows=24, cols=60, settle=1.0, env={"TMPDIR": D}, caps=["lock"])
+    for _ in range(int(24 * SLOW)):
+        t.collect(0.25)
+        if "locks" in open(LOG).read():
+            break
+    for _ in range(int(16 * SLOW)):
+        t.collect(0.25)
+        if "released" in open(LOG).read():
+            break
+    t.collect(0.6)
+    mark = len(t.raw)
+    for _ in range(4):
+        os.write(t.fd, b"\x1b[<35;-5;-5M\x1b[<32;-36;0M")
+        t.collect(0.3)
+    t.collect(0.6)
+    after = t.raw[mark:]
+    os.write(t.fd, b"\x1c")
+    t.collect(1.0)
+    t.close()
+    kill(nm)
+    return t.raw, after, open(LOG).read()
+
+
+raw, after, log = lockrelease()
+typed = [l for l in log.splitlines() if l.startswith("key [") and len(l) == len("key [x]")]
+check("a program giving the pointer back with nothing drawn tells the display at once",
+      "released" in log and raw.count(b"\x1b[?7701l") >= 1, (log, raw[-300:]))
+check("and a held pointer's reports arriving after it are neither typed nor a "
+      "place, and the display is told again to let go",
+      not typed and "mouse press" not in log.split("released")[-1]
+      and b"\x1b[?7701l" in after, (typed, log, after[-200:]))
+
 # Which display is asked to hold the pointer, with two that can (Gitea
 # #379): the one that was clicked. Blit sends a mouse report to the session
 # under the pointer, not to the focused one, so motion over a second display
@@ -1682,4 +1736,4 @@ check("a held desktop sends Blit's panel its eight lines through hold",
                            for h in st), fl)
 
 shutil.rmtree(D, True)
-report(91)
+report(93)

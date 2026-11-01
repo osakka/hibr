@@ -146,7 +146,9 @@ keeps its pointer. Call both behind `dt_has`, since a desktop older than
 asks to **hold** the pointer with `dt_pointerlock "$id" on` (Gitea #379) and
 gives it back with `dt_pointerlock "$id" off`. `dt_ptrlockcan` says whether
 any display can (Blit, from 0.2.42; nothing else). On answers whether the
-asking was done -- it fails without focus or a display that can -- not
+asking was done -- it fails without focus or a display that can, and
+unless the person pressed a key or clicked in the last two seconds, so ask
+from a click or a key and never from a timer, a job or a restore -- not
 whether the display agreed. While it is held every mouse report goes to the
 window's `_mouse`, whatever is under the pointer, with `rel` where the
 modifiers go: `rel BTN DY DX` for movement, `none` when no button is held,

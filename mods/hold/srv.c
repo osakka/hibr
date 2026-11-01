@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <time.h>
 
 volatile sig_atomic_t hd_term;
 
@@ -460,6 +461,57 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		free(cn);
 	}
 	cls->n = 0;
+}
+
+/* The program gave the pointer back: the display holding it is told now,
+   not on its next render -- a display nothing is drawn on, a full-screen
+   game's, may never render again, and Blit kept the lock and its signed
+   reports went on arriving after the desktop had stopped expecting them,
+   typed as text into the focused window (the owner's mini PC). */
+void hd_lockgone(vec *cls, int tid)
+{
+	size_t ci;
+
+	if (!hd_tm->plock || hd_tm->plock(tid))
+		return;
+	for (ci = 0; ci < cls->n; ci++) {
+		struct hd_cli *cn = cls->p[ci];
+
+		if (!cn->plock)
+			continue;
+		hd_send(cn->fd, HD_DATA, "\033[?7701l", 8);
+		cn->plock = 0;
+		cn->lockgen = 0;
+		lg(HIBR_LDBG, "hold: a display was told to give the pointer back");
+	}
+}
+
+/* A display not holding the pointer sent a held pointer's report -- an SGR
+   report with a signed movement, which a terminal sends only while it
+   holds one: it is told to let go, at most twice a second. */
+void hd_lockstray(struct hd_cli *cn, const char *p, size_t n)
+{
+	const char *q = memmem(p, n, "\033[<", 3);
+	static long long last;
+	struct timespec t;
+	long long now;
+	size_t i;
+
+	if (!q)
+		return;
+	for (i = (size_t)(q - p) + 3; i < n && p[i] != 'M' && p[i] != 'm'; i++)
+		if (p[i] == '-')
+			break;
+	if (i >= n || p[i] != '-')
+		return;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	now = (long long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+	if (now - last < 500)
+		return;
+	last = now;
+	hd_send(cn->fd, HD_DATA, "\033[?7701l", 8);
+	lg(HIBR_LWRN, "hold: a display not holding the pointer sent a held "
+		      "pointer's report -- told it to let go");
 }
 
 /* Handle one new connection: a plain attach takes the session over,
@@ -1044,6 +1096,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				if (hd_tm->reply(tid, &rq))
 					hd_wall(m, rq.p, rq.n);
 				hd_passsend(&cls, tid);
+				hd_lockgone(&cls, tid);
 				fed = 1;
 			} else if (!(k < 0 && (errno == EAGAIN ||
 					       errno == EINTR))) {
@@ -1065,6 +1118,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					cn->inseq = ++hd_inseq;
 					if (cn->lockok && hd_focusin(in.p, in.n))
 						hd_lockfd = fd;
+					if (!cn->plock)
+						hd_lockstray(cn, in.p, in.n);
 					if (cn->plock) {
 						/* A held pointer's reports are
 						   movement, not a place: this

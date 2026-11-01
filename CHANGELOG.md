@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.416
+
+**A held pointer's reports are never typed into a window** (Gitea #379).
+Blit, holding the pointer for a game, sends its movement as mouse reports
+with signed offsets, `ESC [ < 35 ; -5 ; -5 M`. After the lock had ended --
+on one display while another view still held it -- those reports kept
+coming, and the console, finding a sequence it could not decode, skipped
+its first byte and typed the rest: `[<35;-5;-5M`, hundreds of times a
+second, into whatever had focus, a terminal running another program among
+them. Three changes, any one of which would have stopped it:
+
+- the console drops a report with a signed offset when it holds no lock,
+  whole, and tells the terminal again to let the pointer go (at most twice
+  a second, logged); any escape it cannot decode is now skipped whole
+  rather than a byte at a time; and a device control string, privacy
+  message or start of string that no answer of ours is shaped like is
+  taken whole too, where it was `alt-P` and then its text;
+- `hold` tells every display holding the pointer directly, as soon as the
+  program gives it back, rather than with the next frame it renders --
+  which waits for the program to stop writing and to close any frame it
+  has open, and a game writes all the time -- and a display that sends a
+  held pointer's report without holding one is told to let go;
+- the desktop gives the pointer to a window only within two seconds of a
+  key or a click, so a window restored at login, a timer or a job cannot
+  take it by itself (`pointer lock: refused ...` in the desktop's log).
+
 ## 0.99.415
 
 **A wallpaper and a full-screen window no longer replace each other once a
