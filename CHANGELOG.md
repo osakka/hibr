@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.417
+
+**The documentation, measured and read again against the code.** Every
+page, the man pages and every README were checked claim by claim against
+the tree, and caught up with what shipped since each was last edited --
+the desktop's measuring (`desktop ctl stats`, the performance panel), the
+pointer lock, Full Screen, callback budgets, the system scope, the copy and
+proctab modules, `img save`, `keep` and `stats`, `:=` and `ret -k`,
+`PIPESTATUS` and the lint rules among them. The README's numbers are new:
+its table had rows from 0.68 and 0.99.366 and times 350 releases old.
+
+`tools/measure.py` prints that table -- hibr against dash and bash, binary
+size, resident memory, the loop in time and in instructions, `:=` against
+`$( )`, startup -- by one stated method, with the version, CPU and load it
+ran under. On 0.99.416: 497 KB, 1960 kB against bash's 3088, the loop 2.7
+times bash's speed and 10% behind dash's.
+
+**`umask` takes a symbolic mode, and `umask -S` no longer sets the mask to
+0000.** It read every argument as octal with no check, so `umask -S` --
+which only shows the mask -- and `umask u=rwx,g=rx,o=` both set it to 0000,
+and every file made afterwards was writable by anyone. Symbolic modes,
+`-S` and `-p` now behave as bash's, compared in `tests/999-umask.t`.
+
+`dt_check` and `dt_wdrop` take their tag as optional, as WRITING.md always
+said; seven modules' usage lines name every verb they take. Other shell
+bugs the sweep found are Gitea #422.
+
 ## 0.99.416
 
 **A held pointer's reports are never typed into a window** (Gitea #379).

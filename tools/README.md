@@ -69,16 +69,19 @@ own `--help` for why.
 Run `tools/screenshot.py --help` for the rest — `--session-file` to run a
 session file directly instead of an inline snippet, `--keys` to send input
 before the screenshot is taken, `--rows`/`--cols`/`--wait`/`--tick` for the
-terminal size and timing.
+terminal size and timing, `--until TEXT` with `--untilmax` to bound the
+wait, `--apps` and `--modules` for what the session loads, `--env` for
+variables it starts with, and `--cell` for pixels.
 
 Regenerate a doc's screenshots whenever the thing they show changes; a stale
 screenshot is worse than none, since it reads as current when it is not.
 
 The tour in `docs/desktop.md` shows the desktop as the package installs
-it, which has no applications, so its pictures cannot read the tree's
-`apps/` the way the others do. `docshots.py` serves a copy of the real
-catalogue (`~/hibr-apps`, or `CATALOGUE_DIR`) with the suites' own
-`tests/davserve.py`, installs Calculator and Files from it with the real
+it -- the seven applications `packaging/ships` names and nothing else --
+so its pictures cannot read the tree's `apps/` the way the others do.
+`docshots.py` builds that desktop from `tools/ships.hibr`'s answer, serves
+a copy of the real catalogue (`~/hibr-apps`, or `CATALOGUE_DIR`) with the
+suites' own `tests/davserve.py`, installs Mail from it with the real
 `catalogue` command into a data folder of its own, and hands that folder
 to the shots that come after the install with `--env`. Nothing is fetched
 from anywhere and nothing published changes. Every shot is given a home
@@ -86,6 +89,26 @@ folder that is nobody's, `/tmp/visitor`, made fresh and removed after, so
 no picture of Files shows the home of whoever ran it. A glyph DejaVu Sans
 Mono lacks is drawn from Noto Sans Symbols, as a terminal would fall back,
 where it used to be drawn as the missing-glyph box.
+
+## measure.py
+
+The README's Measurements table, measured: hibr against dash and bash,
+printed as Markdown with the version, the host's CPU and the load average
+it ran under, so a reading carries what it needs to be judged. The table
+had been re-measured by hand three times, a different subset of rows each
+time; a script takes every row the same way every time.
+
+```text
+tools/measure.py [path-to-hibr]        # build/hibr by default
+```
+
+The binary is the stripped size of a copy, the file itself left alone.
+Resident memory is the shell's own `VmHWM`, read from `/proc/self/status`
+with the shell's own `read` so no fork is counted, and is the median of 25
+runs, since one reading spreads by about 180 kB. Times are the best of 11,
+each process pinned to one core. The loop's instruction count comes from
+callgrind, because wall time between two builds moves several percent on
+code layout alone.
 
 ## mdanchors.py
 
@@ -135,19 +158,84 @@ Keeps the published Homebrew tap's formula on the newest tag the public
 mirror can serve: it fetches that tag's tarball, takes its checksum and pushes
 the formula when it is behind. Run on a timer, not by hand.
 
-## desktop-launcher.in
+## desktop-launcher.in, vw-launcher.in, catalogue-launcher.in
 
-The template for the installed `desktop` command: `make install` fills in
-where the desktop went and writes it to `$(PREFIX)/bin/desktop`.
+The templates for the three commands `make install` places in
+`$(PREFIX)/bin`: `desktop`, `vw` and `catalogue`. Each is a short hibr
+script that runs the installed copy, with the place it went (`@DESKDIR@`
+or `@SHAREDIR@`) filled in by `sed` at install time. The catalogue's also
+points `HIBR_APPS_KEYRING` at the installed signing key unless it is set
+already (ADR 0044).
+
+## strings.py
+
+Every string the desktop shows a person, for translation (ADR 0032). It
+reads `programs/desktop/**/*.hibr` the way the shell would -- quote state
+carried across lines, commands split at newlines, `;`, `&&`, `||`, `|`
+and braces -- and takes the text arguments of every call that draws
+something a person reads.
+
+```text
+python3 tools/strings.py            # a census: counts per kind, per file
+python3 tools/strings.py --list     # every string, file:line kind text
+python3 tools/strings.py --keys     # the sorted catalogue keys
+python3 tools/strings.py --check    # what tests/992-strings.t runs
+python3 tools/strings.py --write    # lang/strings.txt and the two pseudo-languages
+```
+
+`--check` fails on a string drawn and not in `programs/desktop/lang/strings.txt`,
+on one listed and no longer drawn, and on a string with an expansion in it,
+which cannot be a catalogue key and so would never be translated.
+`--write` brings `strings.txt` up to date and rewrites `xx.json` and
+`xy.json`, the pseudo-translations that mark every string, left to right
+and right to left.
+
+## htmlents.py
+
+Writes `mods/html/ent.c` from WHATWG's `entities.json`: each name once,
+without `&` and `;`, sorted for a binary search, with whether it is also
+recognised without its semicolon.
+
+```text
+curl -sO https://html.spec.whatwg.org/entities.json
+python3 tools/htmlents.py entities.json > mods/html/ent.c
+```
+
+## hcalgen.py
+
+Writes `mods/hcal/calendars/umalqura.json` from ICU's own Umm al-Qura
+table, which covers 1300-1600 AH: a 12-bit mask of month lengths a year,
+and the Julian day of the table's first day. It needs PyICU
+(`python3-icu`); run it only to regenerate, and check the result with
+`tests/hcal_icu.py`.
+
+```text
+python3 tools/hcalgen.py
+```
+
+## mvoffsets.sh
+
+Where each libav field the media module reads sits, per FFmpeg release --
+the numbers in `mods/media/av.c`'s `mv_tabs` -- taken with `offsetof` from
+that release's own headers, cloned from FFmpeg's repository, rather than
+written by hand. Run it when FFmpeg makes a new major release and add a
+line for it; the two zeros it prints are libswscale's and libswresample's
+majors, filled in by hand.
+
+```text
+tools/mvoffsets.sh n8.0 [n9.0 ...]
+```
 
 
 ## unigen.py
 
 Writes `mods/uni/tab.c` -- bidi classes, mirrored and bracket pairs, joining
-types, Arabic presentation forms and display widths -- from one version of
+types, Arabic presentation forms and display widths -- and the core's own
+width tables, `src/wtab.c`, from one version of
 the Unicode Character Database. `tools/unigen.py fetch 15.1.0 build/ucd`
 downloads what it reads; `python3 tools/unigen.py gen build/ucd >
-mods/uni/tab.c` writes the tables, naming the version. Replace the gzipped
+mods/uni/tab.c` writes the tables, naming the version, and `python3
+tools/unigen.py width build/ucd > src/wtab.c` the core's. Replace the gzipped
 conformance suites in `tests/uni` from the same download: the tables and the
 tests must never be from different versions (ADR 0030).
 

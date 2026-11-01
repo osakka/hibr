@@ -34,8 +34,8 @@
 #       answer. The pty's id is DTJ[n]["pty"]; DTJ[n]["why"] says why one
 #       was ended early.
 #
-# A callback runs inside a frame, so a window it closes goes through
-# dt_wantclose, never dt_del. A job ending wakes the desktop by itself: its
+# A callback runs from a ticker, between frames, so dt_del closes a window
+# at once there; from inside a frame dt_del defers itself. A job ending wakes the desktop by itself: its
 # child exiting raises SIGCHLD, which ends the frame loop's wait, and the
 # tickers run on every pass. So nothing polls for it; the 5 s asked for
 # while a job is live is only a net, for a wake that was somehow lost, and

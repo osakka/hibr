@@ -71,8 +71,8 @@ The crypto is Bitwarden's: the master key by PBKDF2-SHA256 or Argon2id
 over the lowercased email, stretched by HKDF-Expand into an encryption
 key and a MAC key, and EncStrings of type 2 -- AES-256-CBC with an
 HMAC-SHA256 checked before anything is decrypted. libcrypto is opened on
-first use, never linked (`libcrypto.so.3`, then `.so`, then the macOS
-names), and libargon2 only for an Argon2id account. Keys are wiped from
+first use, never linked (on macOS Homebrew's `openssl@3` first, then
+`libcrypto.so.3`, `libcrypto.so.1.1` and `libcrypto.so`), and libargon2 only for an Argon2id account. Keys are wiped from
 memory when they are done with, and on `vwk lock` and when the module is
 unloaded.
 
@@ -83,7 +83,7 @@ against `tests/bwserve.py`, a stand-in server.
 
 ## On the desktop
 
-The **Vault** desk accessory and **Control Panel > Passwords** are built on
+The **Vault** application and **Control Panel > Vault** are built on
 this command, not on the module: `programs/desktop/wm/vault.hibr` runs `vw`
 as a child, so the keys stay where they are. The desktop is unlocked once
 for all of it -- the session key is exported, so a Terminal window opened

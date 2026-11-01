@@ -36,13 +36,14 @@ Measured, on an eighty by twenty-four terminal:
 
 | | bytes written |
 |---|---|
-| the first flush, painting everything | 2111 |
-| writing four characters | 27 |
-| changing one of them | 24 |
+| the first flush, painting everything | 179 |
+| writing four characters | 26 |
+| changing one of them | 23 |
 | flushing with nothing changed | **0** |
 
 Sixteen bytes of each are synchronized output's pair, below; the diff itself
-is 2095, 11 and 8.
+is 163, 10 and 7. The first flush paints a blank screen as one erase a row
+(`CSI K`, then down a row), not a cell at a time, since 0.99.313.
 
 Every frame that sends anything is one synchronized update (mode 2026, Gitea
 #338): `CSI ?2026h` before its first byte and `CSI ?2026l` after the cursor,
@@ -108,6 +109,16 @@ on top. Only an RGB colour can be scaled exactly; a palette index or the
 terminal's own default colour has no table to scale by, so those cells get
 the dim attribute alone. It reads back what `cn_put` already wrote, which
 `cn_fill` and `cn_put` themselves never do.
+
+`-s` makes it a shadow that can be cast any number of times and still comes
+out the same. Darkening multiplies, so a shadow cast on two frames running
+would otherwise be twice as dark; `-s` marks each cell it darkens
+(`CN_SHADOWED`, a private bit above every `DP_` attribute, never sent to the
+terminal) and leaves a marked cell alone. Any ordinary write to the cell
+clears the mark, because `cn_put` and `cn_fill` set the pen's own attributes,
+so a cell drawn again gets its shadow back on the next cast. The desktop
+casts every shadow with it on every frame, rather than working out which
+frames may cast one.
 
 `-t` and `-b` darken only the top or the bottom half of each cell, drawn as
 an upper or lower half block (Gitea #340): the desktop's Half Block shadow.
@@ -259,9 +270,10 @@ this colour. The formula is `darken`'s own, in one place.
 
 `console pane top name` puts one pane above everything (Gitea #293): its
 cells are written only by drawing through it. The check lives in the grid's
-three writers -- `cn_put`, `cn_fill`, `cn_darken1` -- as `cn_guard`, two
-comparisons against the rows any top pane spans (`cn_ttop`, `cn_tbot`) for
-every cell outside that band, so a full-screen fill pays nothing measurable;
+writers -- `cn_put`, `cn_fill`, `cn_darken1`, `cn_tint` -- as `cn_gband`,
+asked once a row against the rows any top pane spans (`cn_ttop`, `cn_tbot`),
+never once a cell, so a row outside that band costs the writers nothing per
+cell (asked per cell it measured 2 ns a cell, about 35 us a frame at 232x71);
 `cn_pput` and `cn_pfill` name the pane being drawn through in `cn_wpane`,
 which is how the pane's own drawing gets past. A bitmap cannot leave a hole,
 so `cn_image` places a picture that owns its cells as the parts above and

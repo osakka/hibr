@@ -156,8 +156,9 @@ fn dt_btnat(int id, int c) {
 }
 
 # Whether this window can be left exactly as it is this frame: its app has
-# to offer a _dirty and say nothing has changed, it has to be clear of every
-# other window (dt_alone), and DT_FORCEDRAW has to be off -- which is how
+# to offer a _dirty and say nothing has changed, no window drawn under it
+# this frame may overlap it, shadow included (dt_under; any overlap at all
+# drew it every frame before 0.99.410), and DT_FORCEDRAW has to be off -- which is how
 # tests/desktop.py takes the same session both ways and compares the screen
 # cell for cell. An app with no _dirty is always redrawn, so this can only
 # ever be wrong for an app that went out of its way to say otherwise.

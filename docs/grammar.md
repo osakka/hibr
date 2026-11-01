@@ -22,7 +22,7 @@ and subscripts each ask a different question about the same text.
 | token | spelling |
 |---|---|
 | word | any run of characters not ended by a metacharacter |
-| operator | `\| \|\| & && ; ;; ;& ;;& ( ) \|& < > >> <& >& <> <<< << <<-` |
+| operator | `\| \|\| & && ; ;; ;& ;;& ( ) \|& < > >> >\| <& >& <> &> &>> <<< << <<-` |
 | assignment | `name=value` or `name+=value`, only before the command word |
 | newline | ends a list; a `\` before it continues the line |
 | comment | `#` to end of line, when `#` starts a word |
@@ -40,7 +40,7 @@ nothing to switch on — [0017](adr/0017-one-namespace-for-options.md).
 | `\c` | the single character `c`, literally; `\` before a newline joins lines |
 | `'…'` | every byte literal, no escapes, cannot contain `'` |
 | `"…"` | literal except `$` `` ` `` `\` and, inside, `!` when history expansion is on |
-| `$'…'` | ANSI-C escapes: `\n \t \r \a \b \f \v \e \\ \' \xHH \0NNN \uHHHH \UHHHHHHHH` |
+| `$'…'` | ANSI-C escapes: `\n \t \r \a \b \f \v \e \\ \' \xHH \NNN \uHHHH \UHHHHHHHH`; `\NNN` is one to three octal digits, as in bash |
 | `$"…"` | exactly `"…"` — see below |
 
 `$"…"` is bash's locale-translation form, accepted so that scripts written
@@ -56,6 +56,9 @@ is what bash gives you too when no translation is installed.
 
 They are only reserved where a command word may start. `esac` closes a `case`
 arm even with no `;;` before it, and `echo esac` prints `esac`.
+
+**[hibr]** `time` and `coproc`, reserved words in bash, are builtins here,
+not reserved words (`type time` says so).
 
 **[hibr]** `fn` declares a function with typed parameters and a return type,
 and always takes a parenthesised list, `fn f() { … }` when it has no
@@ -78,7 +81,8 @@ pipeline    = [ "!" ] command { ( "|" | "|&" ) [ newline ] command } ;
 command     = compound [ redirect_list ]
             | simple ;
 
-simple      = { assignment } word { word | redirect } ;
+simple      = { assignment | redirect } [ word { word | redirect } ] ;
+                                         (* at least one item *)
 
 compound    = subshell | group  | if_cl | loop  | for_cl
             | select | case_cl | cond  | arith | function ;
@@ -109,15 +113,16 @@ function    = "fn" name "(" [ params ] ")" [ "->" type ] "{" list "}"
             | name "(" ")" compound
             | "function" word [ "(" ")" ] compound ;
 params      = param { "," param } ;
-param       = [ type ] name [ "=" word ] ;
+param       = [ "..." ] [ type ] name [ "=" word ] ;
 type        = ( "int" | "num" | "str" | "path" | "arr" | "map" | "any" ) [ "?" ] ;
 
 assignment  = name [ "[" subscript "]" ] ( "=" | "+=" ) word
-            | name "=" "(" { word | "[" subscript "]" "=" word } ")" ;
+            | name "=" "(" { word | "[" subscript "]" "=" word } ")"
+            | name "+=" "(" { word } ")" ;
 
 redirect    = [ number | "{" name "}" ] redirect_op word ;
 redirect_op = "<" | ">" | ">>" | ">|" | "<&" | ">&" | "<>"
-            | "<<" | "<<-" | "<<<" ;
+            | "<<" | "<<-" | "<<<" | "&>" | "&>>" ;
 ```
 
 The last arm of a `case` may omit its `;;`, as POSIX allows. `;&` falls through
@@ -142,6 +147,7 @@ late in it stops it after the commands before it have run, unless
 | `{v}< f` | open on a free descriptor above 9 and put its number in `v` |
 | `<& n` `>& n` | duplicate; `<&-` and `>&-` close |
 | `<> f` | open for reading and writing |
+| `&> f` `&>> f` | standard output and standard error both to `f`, truncating or appending |
 | `<<< word` | the word, with a newline, as standard input |
 | `<< T` `<<- T` | here document to the line `T`; `<<-` strips leading tabs |
 
@@ -237,7 +243,7 @@ quoted byte is never split, globbed, or read as an operator.
 1. **Brace expansion** — `{a,b}`, `{1..9}`, `{01..12}`, `{a..e}`, `{1..9..2}`,
    nested and multiplied. **[hibr]** literal only: `{$a,$b}` is not expanded —
    [0007](adr/0007-brace-expansion-is-literal.md).
-2. **Tilde** — `~`, `~user`, `~+`, `~-`, `~N`.
+2. **Tilde** — `~`, `~user`, `~+`, `~-`, `~N`, `~-N` (the directory stack, counted from either end).
 3. **Parameter, command, arithmetic and process substitution**, left to right in
    one pass: `$name`, `${…}`, `$(…)`, `` `…` ``, `$((…))`, `<(…)`, `>(…)`.
    bash's old spelling of arithmetic, `$[…]`, is the same as `$((…))`.
@@ -272,15 +278,15 @@ expansion produced; text written in the word still splits and globs
 | `${x@P}` | expanded as a prompt is: `\u`, `\w` and the rest |
 | `${x@K}` | quoted, as `@Q`; `${a[@]@K}` the keys and values as quoted pairs, `0 "p" 1 "q r"` |
 | `${a[@]@k}` | the keys and values as separate words |
-
-Every one of these, and the case changes, acts on each element of `${a[@]}`
-on its own -- `"${a[@]@Q}"` is one quoted word per element -- and an unset
-variable gives nothing, not `''`.
-| `${!ref}` | the value of the variable *named* by `x`, subscripts and all, keeping any modifier |
+| `${!ref}` | the value of the variable *named* by `ref`, subscripts and all, keeping any modifier |
 | `${!pre*}` `${!pre@}` | the names that begin with `pre`, sorted |
 | `${a[k]}` | one element; `${a[@]}` all, `${a[*]}` joined |
 | `${!a[@]}` | the keys |
 | `${a[-1]}` | counted back from the **highest key**, so sparse arrays agree |
+
+Every one of the `@` transforms, and the case changes, acts on each element
+of `${a[@]}` on its own -- `"${a[@]@Q}"` is one quoted word per element --
+and an unset variable gives nothing, not `''`.
 
 Dropping the `:` in the first row tests only whether the name is set, not
 whether it is also non-empty.

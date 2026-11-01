@@ -17,7 +17,9 @@ prettier version of them.
 ## The two paths
 
 `ct_plainish` decides. When nothing about the run needs the content looked at —
-no `-n`, no `-A`, not a terminal — `ct_raw` copies descriptor to descriptor in
+no option that changes the output (`-n`, `-b`, `-s`, `-E`, `-T`, `-v` and the
+ones made of them, `-A`, `-e`, `-t`), not a terminal — `ct_raw` copies
+descriptor to descriptor in
 64 kB blocks and never examines a byte. A hundred megabytes takes 15 ms against
 `/bin/cat`'s 14.
 

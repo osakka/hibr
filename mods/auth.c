@@ -675,7 +675,7 @@ void au_fini(sh *s)
 }
 
 const hibr_bi auth_bi[] = {
-	{ "auth", m_auth, "check a password through PAM" },
+	{ "auth", m_auth, "PAM: check a password, run a session as a user: auth check|open|run|close|service|ready|whoami" },
 	HIBR_BI_END
 };
 

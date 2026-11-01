@@ -32,7 +32,7 @@ nothing has to be saved and restored.
 | `hold slot name display` | where a display of that name was when it last went -- hung up, detached, or dropped -- as `row col rows cols primary` in the union's frame now; nothing and status 1 when none is remembered, when one by that name is attached, or when another display has taken the place since. `desktop --join` and `--standby` ask it, so a display that went without being detached comes back where it was, with its windows; a returning primary takes the role back unless another was chosen meanwhile -- and only the real primary does: a display that held the role only because the primary had gone is not remembered as primary when it leaves itself (0.99.320) |
 | `hold drop name display` | detach a named client, server-side -- "switch off" a display from the panel |
 | `hold primary name display` | make a named client the session's primary; every other client stops being it |
-| `hold kill name` | end the program and the session |
+| `hold kill [name]` | end the program and the session; with no name, the session this shell is running in |
 | `hold upgrade name` | re-exec the server on the hibr that is on disk now and take the session back: the program, every attached display and what is on screen all survive |
 
 While attached, **ctrl-\\** detaches. Everything else, ctrl-c included, goes
@@ -93,7 +93,8 @@ is no longer paying to re-derive what console had already worked out.
 Drawing from an emulator loses anything that is not drawn, and a program
 sends several such things on purpose: the clipboard (OSC 52), the bell,
 notifications (OSC 9 and 777), the window title (OSC 0 and 2), and links
-(OSC 8). The emulator keeps each (`"terminal"` version 3), and hold sends
+(OSC 8). The emulator keeps each (`"terminal"` version 2 for the clipboard,
+3 for the rest), and hold sends
 them on: the clipboard, bells and notifications exactly as the program
 wrote them, to every attached client the moment they arrive; the title as
 part of each client's mode state, sent when it changes and to a client as
@@ -211,7 +212,8 @@ their own.
   starts gets the default back: an ignored signal survives `exec`, and a
   held program that could not be hung up would outlive its own terminal.
 - **Nothing is lost while detached.** What the program writes while nobody
-  is attached is read and dropped, or the pty would fill and stop it.
+  is attached is still read into hold's emulator, so the pty never fills and
+  stops it, and the next client is drawn from the emulator's screen.
 - **Reattaching repaints.** A newly attached client is rendered at once,
   brought to the session's actual mode state and sent its own rectangle's
   current content, whether or not the program does anything at all -- a
@@ -394,6 +396,22 @@ since only a connect can learn that the queue has room. It is also kinder
 to the wedged server than the blocking call was, which left another
 connection on its queue every time anything retried.
 
+## Interfaces
+
+hold asks for `"pty"` (`PY_API_VER` 4) and `"terminal"` (`TM_API_VER` 12)
+with `hibr_require` when it loads, and refuses to load without either. It
+offers two of its own. `"hold"`, version 1, is the one named in its
+descriptor, so a module can find hold before it is loaded. `"holdframes"`
+(`HF_API_VER` 2, `mods/blitfr.h`) is what a program inside a session uses
+to hand the server a picture's frame (`frame`) and, from version 2, the
+performance panel's status lines (`status`, `hud`; Blit ADR 0203). Since a
+module's descriptor names only one interface, `"holdframes"` cannot be
+found before hold is loaded, so the console asks for `"hold"` first.
+
+`hold resume` is not for typing: it is what `hold upgrade`'s exec runs to
+take the session back from the descriptors it kept open and the file
+`HIBR_HOLD_RESUME` names, and it never returns.
+
 ## Files
 
 | file | role |
@@ -404,7 +422,8 @@ connection on its queue every time anything retried.
 | `render.c` | one client's own rectangle of the emulator's grid, diffed against a per-client front to send only what changed |
 | `mouse.c` | a client's own SGR mouse report, rewritten by its own offset, put in the session's pixels when the program asked for them (`hd_mpixel`), and re-encoded to legacy if that is what the program asked for |
 | `cli.c` | the client: raw mode, the relay, ctrl-\\, and giving the terminal back |
-| `hold.c` | the builtin, and starting a server |
+| `frames.c` | picture frames by descriptor (Blit ADR 0202): the newest frame of each picture, handed over by the program as a sealed memfd, kept and passed to every client with Blit's frame socket open; a frame whose placement never comes is let go once `HD_FRMMAX` (32) are kept |
+| `hold.c` | the builtin, starting a server, and the interfaces it offers |
 
 ## Tests
 
@@ -447,7 +466,5 @@ held pointer's movement passed on without the display's offset.
 
 ## What it does not do
 
-No copy of the screen is kept across a full detach with nobody attached,
-so a program that does not redraw on `SIGWINCH` comes back blank until it
-next writes on its own. No splitting, no windows, no scrollback: that is
-the desktop's job, and the terminal module's.
+No splitting, no windows, no scrollback: that is the desktop's job, and the
+terminal module's.

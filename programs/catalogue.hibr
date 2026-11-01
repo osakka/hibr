@@ -28,8 +28,11 @@
 #   sha256   the integrity of the *payload*. A bundle changed in transit or
 #            on a mirror is refused. This forks `sha256sum`, which the shell
 #            has no equivalent of; `--plan` already knows it only reads.
-#   nothing  the identity of the *author*. There are no signatures, and
-#            `catalogue info` says so in as many words rather than implying it.
+#   signature  the identity of the *publisher*: a detached OpenPGP signature
+#            over index.json by the apt repository's key (cat_verify), and
+#            since the index carries every bundle's sha256, it covers them
+#            all. A module from an unsigned or unverified catalogue is
+#            refused; a script installs with a warning.
 #
 # What it will not do, each refused rather than half-done: a bundle holding
 # a `.so` is refused with that word (native code has no sandbox, and root
@@ -850,7 +853,7 @@ CAT_CHANGED=0
 # --- the verbs ------------------------------------------------------------
 
 # `-j` answers the same walk as JSON, for anything that is not a person:
-# the desktop's Applications window reads this rather than parsing the
+# the desktop's Catalogue window reads this rather than parsing the
 # columns below it, so the window and the command read **one** answer
 # instead of one parsing the other's layout (Gitea #219).
 #
@@ -1479,7 +1482,7 @@ fn cat_installed(int j = 0) {
 # it to standard output without placing anything. This is the thing a
 # catalogue of **scripts** can offer that a package manager cannot: read
 # it before you run it, which is the whole point of an app being a file
-# you can open (ADR 0041). The desktop's Applications window is a window
+# you can open (ADR 0041). The desktop's Catalogue window is a window
 # around this (Gitea #219).
 #
 # Only the entry's own file: a part is its own entry and is read by
@@ -3276,7 +3279,7 @@ cat_help() {
 	"                         cannot" \
 	"" \
 	"  -j on list, installed or info answers JSON instead of columns, for" \
-	"  anything that is not a person: the desktop's Applications window" \
+	"  anything that is not a person: the desktop's Catalogue window" \
 	"  reads that rather than parsing these columns, so the window and the" \
 	"  command read one answer instead of one parsing the other's layout." \
 	"" \
@@ -3285,7 +3288,10 @@ cat_help() {
 	"                         comes back in one command: 'catalogue install" \
 	"                         apps/' places every application, and" \
 	"                         'catalogue install themes/' every theme" \
-	"  catalogue remove [-f] NAME  take one away; -f even if a window is open" \
+	"  catalogue remove [-f] [-y|-k] NAME" \
+	"                              take one away; -f even if a window is open;" \
+	"                              for a bundle, -y takes its members too and" \
+	"                              -k keeps them" \
 	"  --system on any of them installs into, removes from or lists" \
 	"  the machine's own scope rather than your own: one copy for" \
 	"  every user, in \$HIBR_SYSDIR, which only root can write. Your" \

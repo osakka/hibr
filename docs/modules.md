@@ -27,18 +27,34 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `mod list` | the modules loaded in this shell |
 | `mod avail`, `mod list -a` | every module that *could* be loaded |
 | `mod drop <name>` | unload one |
-| `mod find <builtin>` | which module would provide that builtin, without loading it |
-| `need <name>...` | load whatever offers each interface or module name, or fail saying which is missing |
+| `mod drop all` | unload every module, and say how many |
+| `mod find <builtin>` | load whichever module on the search path registers that builtin; status 1 if none does |
+| `need <name>...` | load whatever offers each interface or module name, or fail saying which is missing; one already loaded is met at once, with no search |
 
 A name containing a `/` is a path and is opened directly. Everything else is
 searched for: the current directory, then each entry of `HIBR_MODPATH`, then
 `$XDG_DATA_HOME/hibr/mods` (`~/.local/share/hibr/mods` when that is unset),
-then the install directory. A shell running as root skips every one of those
-and consults only the install directory — see
-[0016](adr/0016-privileges-are-dropped-never-gained.md).
+then the system scope, `$HIBR_SYSDIR/mods`, then the install directory.
 
-`$XDG_DATA_HOME/hibr/mods` is where `catalogue install` puts a module, and it is
-searched **only when something asks for a module by name** — `mod load`,
+The system scope is where `catalogue --system` installs a module for every
+user of the machine ([0045](adr/0045-a-thing-has-a-scope.md)), so a person's
+own copy still wins over it and the package's is still the floor.
+`$HIBR_SYSDIR` is set at startup to the path compiled in -- `/var/lib/hibr`
+for a package, `$PREFIX/var/lib/hibr` for any other prefix -- unless the
+environment already set it. The compiled path is used only when its `mods`
+folder is owned by root or by whoever owns the hibr binary and nobody else
+may write it; a path you set yourself is yours.
+
+A shell running as root reads neither the current directory, nor
+`HIBR_MODPATH`, nor the data folder, nor `$HIBR_SYSDIR` from the
+environment: only the compiled system scope, under that ownership test, and
+the install directory — see
+[0016](adr/0016-privileges-are-dropped-never-gained.md). A `--plan` run
+skips the current directory too, since opening a module found there would
+run its code.
+
+`$XDG_DATA_HOME/hibr/mods` is where `catalogue install` puts a module, and it
+and the system scope are searched **only when something asks for a module by name** — `mod load`,
 `mod find`, `need`, `mod list`, `mod avail`. It is deliberately left out of
 the index that lets a *command* load the module declaring it, because that
 index is built by anything that is not a builtin, not a function and not on
@@ -104,6 +120,9 @@ A module can reach everything the language can:
 | `hibr_fail` | `$ERRMSG`, as `fail` sets it |
 | `hibr_run` | run shell source |
 | `hibr_dial` | open a TCP or UDP connection |
+| `hibr_conntimeo` | how long a connect may wait, in milliseconds: `HIBR_CONNTIMEO`, or the caller's default |
+| `hibr_title`, `hibr_title2` | rename the process, as the `title` builtin renames a script: the sentence `ps` shows, and with `hibr_title2` the 15-byte name `top` and `pgrep` read |
+| `hibr_provide`, `hibr_require`, `hibr_unprovide` | offer a table of functions to other modules, ask for one, and withdraw the offer |
 | `hibr_wrall` | write all of a buffer to a descriptor the module owns, without a peer that has gone killing the process |
 | `hibr_scheme`, `hibr_schemef`, `hibr_unscheme` | register a `/dev/<name>/` protocol |
 | `lg`, arenas, `str`, `vec` | the shell's own utilities |
@@ -117,8 +136,10 @@ ordinary redirection a *script* writes through is left alone, deliberately:
 `hibr script | head -3` has to end when `head` does.
 
 **Schemes** let a module add a protocol rather than a command: once registered,
-`/dev/<name>/…` works anywhere a file does — `<`, `exec 3<`, `while … done <`,
-pipelines. The built-in `/dev/tcp/` and `/dev/tls/` use the same mechanism.
+`/dev/<name>/…` works in any redirection — `<`, `exec 3<`, `while … done <`,
+pipelines -- the same redirection path the built-in `/dev/tcp/`, `/dev/udp/`,
+`/dev/tls/` and `/dev/unix/` take, though those four are the shell's own and
+are not registered schemes.
 Module builtins take precedence over the built-in ones; lookup order is alias,
 function, module, builtin, `PATH`.
 
@@ -184,7 +205,9 @@ lists every one, file by file:
 - **`prompt`** builds the prompt out of segments; see
   [The prompt](prompt.md).
 - **`ls`** is an in-process `ls` with columns, `-l -a -A -h -t -S -r -d -1 -F`
-  and colour, whose listing also lands in `$RET` — `files := ls -q src`.
+  and colour (`-G` for colour where standard output is not a terminal), whose
+  listing also lands in `$RET` — `files := ls -q src`, where `-q` prints
+  nothing.
 - **`pty`** runs a program on a pseudo terminal and drives it: keys in,
   output out, resize, signal, exit status. It offers **pty**.
 - **`term`** is a terminal emulator: a program's screen as cells, drawn into a
@@ -194,13 +217,30 @@ lists every one, file by file:
   attach again, from more than one terminal at once.
 - **`img`** decodes an image and draws it as terminal cells, or as pixels
   where the terminal takes them; libpng and libturbojpeg are opened on
-  first use.
+  first use. `img size` answers a picture's size; `img save in out.png`
+  writes a PNG, a JPEG or a PPM as a PNG (0.99.404); `img keep` asks the
+  display to keep the picture it last placed under the text at a rectangle,
+  the part of it placed included, drawing nothing either way (0.99.414);
+  and `img stats` counts how those keeps went and why one did not
+  (0.99.415).
+- **`copy`** copies or moves trees in a job (0.99.371): `copy run [-m] [-i
+  ms] [-s statusfile] [-k stopfile] dst src...` writes each item under a
+  hidden `.hibr-part` name and renames it when whole, keeps a one-line
+  status file current, and stops cleanly when the stop file appears or on
+  SIGTERM, removing the item in hand; `copy rename` does only the renames.
+  Files' copy window is built on it. See [`mods/README.md`](../mods/README.md).
+- **`proctab`** prints every process under `/proc` in one call (0.99.399),
+  `pid utime stime uid rss name` a line, into `$RET` as well; it fails where
+  there is no `/proc`. It shares its reader with `mon`.
 - **`db`** is a small column store: typed columns in one file, rows
   appended, filters and count/sum/min/max/avg over them, with zone maps
   that let a filter skip whole groups of rows; results print or come back
   as a map. See [`mods/db/README.md`](../mods/db/README.md).
 - **`lint`** holds the rules behind `hibr --explain`; it adds no builtin and
-  offers **lint**.
+  offers **lint**. Among them: `bind-no-ret`, a function bound with `:=` that
+  never calls `ret` (0.99.368), and `callback-forks`, a `$( )`, a backquote
+  or a `<( )` in a function the desktop calls back (0.99.400) -- see
+  [the language](language.md).
 - **`darwin`** (macOS only) gives `cpu` and `mem` from the kernel's own
   counters, with no fork.
 - **`sys`** is a minimal example. **`http`** also carries two test builtins,

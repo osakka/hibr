@@ -1,11 +1,12 @@
 #!/usr/bin/env hibr
 #
-# catalogue -- Applications: the catalogue in a window. `apps` is the whole
-# implementation and this is a window around it, the way the Vault
-# accessory is a window around `vw` -- anything one can do the other can,
-# because there is only one of them (Gitea #219).
+# catalogue -- the Catalogue window: the catalogue in a window. The
+# `catalogue` command is the whole implementation and this is a window
+# around it, the way the Vault accessory is a window around `vw` --
+# anything one can do the other can, because there is only one of them
+# (Gitea #219).
 #
-# It reads `apps -j`, never the columns `apps` prints for a person: the
+# It reads `catalogue list -j`, never the columns `catalogue` prints for a person: the
 # command answers JSON for exactly this, so the window and the command
 # read one answer instead of one parsing the other's layout. Parsing a
 # layout is how a window comes to disagree with its own command.

@@ -1071,6 +1071,7 @@ void dv_usage(void)
 		      "get [-r] location [dest] | put [-r] [-m etag] [-n] [-t type] path location | "
 		      "mv|cp [-f] location location | propfind [-d 0|1] location prop... | "
 		      "report [-d depth] location -b body|-f file | sync location [-t token] [prop...] | "
+		      "request [-H 'Name: value']... [-d body] [-k] METHOD URL | "
 		      "test server | servers | server set|rm|rename ... | close");
 }
 

@@ -6,8 +6,9 @@ starts the desktop.
 
 It is also the **only** route for everything the package does not ship. A
 hibr install is the window manager and what manages it, Files, Terminal
-and five accessories, and one theme with two colour schemes ([ADR
-0047](adr/0047-what-the-package-ships.md)); an application's Control
+and five accessories, one theme with two colour schemes, and one screen
+saver, Mystify ([ADR 0047](adr/0047-what-the-package-ships.md)); an
+application's Control
 Panel pane comes with the application. One command puts every application
 in:
 
@@ -48,7 +49,9 @@ catalogue list
 catalogue index https://your.host/hibr-apps/index.json
 ```
 
-`catalogue index` with no argument says which address is in force. An `http://`
+`catalogue index` with no argument says which address is in force; one set
+with it is kept in `~/.config/hibr/apps.json`, and `HIBR_APPS_URL` in the
+environment wins over both. An `http://`
 address is accepted with a warning, because nothing then says which server
 answered; anything that is not an address is refused.
 
@@ -67,10 +70,13 @@ answered; anything that is not an address is refused.
 | `catalogue install KIND/` | every one of a kind -- `catalogue install apps/` is a whole desktop |
 | `catalogue remove [-f] [-y\|-k] NAME...` | take one away; `-f` even if a window is open; for a bundle, `-y` takes its members too and `-k` keeps them |
 | `catalogue purge [-y]` | take away modules nothing needs any more; `--dry-run` lists them |
-| `catalogue update [NAME...]` | everything with a newer version, or just these |
+| `catalogue update [NAME...]` | everything out of date -- a newer version, bytes that changed under the same version, or an entry that moved -- or just these |
 | `catalogue index [URL]` | the index this fetches from, or set it |
 | `catalogue refresh` | fetch the index again now |
 | `catalogue help` | the list above |
+
+`uninstall` is `remove`, `upgrade` is `update`, `read` is `show` and
+`owner` is `owns`; `--json` is `-j`.
 
 `-j` on `list`, `installed` or `info` answers JSON instead of columns, for
 anything that is not a person — the Catalogue window below reads that,
@@ -91,24 +97,28 @@ info NAME` still answers for one, and says which machine it is for —
 somebody asking by name is asking a different question.
 
 `catalogue list` says **where** each thing is rather than merely whether
-you have it — `user` for one you installed, `system` for one an
-administrator installed for the whole machine, `shipped` for one the
-package carries, and the version alone for one you do not have — and it
-says when the index has something newer:
+you have it — its SCOPE is `user` for one you installed, `system` for one
+an administrator installed for the whole machine, `shipped` for one the
+package carries, and blank for one you do not have. VERSION is always what
+the index offers; where yours is older it reads `0.9→1.1`, yours first. On
+a terminal a heading line comes first:
 
 ```text
-apps/clock                  Clock                     1.2
-apps/notes                  Sticky Notes              user
-apps/weather                Weather                   user (0.9, 1.1 available)
-themes/classic              Classic                   shipped
+KIND           NAME          TITLE                     VERSION  SCOPE
+apps           clock         Clock                     1.0      shipped
+savers         clock         Clock                     1.0
+apps           snake         Snake                     1.0      user
+themes         classic       Classic                   1.0      shipped
 ```
 
 `catalogue installed` answers the same question the other way round,
-listing only what is here, with its version and scope:
+listing only what is here, with its version, its scope and a note:
 
 ```text
-apps/notes                  1.0       user     +1 part
-themes/classic              1.0       shipped
+KIND           NAME          VERSION  SCOPE    NOTE
+apps           mail          2.3      user     +1 part
+apps           snake         1.0      user
+themes         classic       1.0      shipped
 ```
 
 The three words mean the same thing in both, which they did not until
@@ -117,8 +127,10 @@ two read as different programs.
 
 ## Where a file lands, and why yours wins
 
-Nine of the twelve kinds are places the **desktop** scans, and each begins
-with a folder of **yours** followed by a data folder the manager writes to:
+Nine of the twelve kinds are places the **desktop** scans, each in four
+scopes, read in the order of [the table below](#one-copy-for-everybody):
+a folder of **yours** first, then the machine's, then the data folder the
+catalogue writes to, then the shipped copy:
 
 | what it is | your folder | a file is |
 |---|---|---|
@@ -133,9 +145,9 @@ with a folder of **yours** followed by a data folder the manager writes to:
 | languages | `~/.config/hibr/lang` | `.json` |
 
 Your folder is scanned **first**, so a file you wrote shadows a fetched app
-of the same name, and `catalogue update` cannot overwrite your copy. That is the
-whole protection: there is no lock and no database, only the order of two
-directories.
+of the same name, and `catalogue update` cannot overwrite your copy. That
+ordering is the whole protection for your own copy: the catalogue never
+writes in your folder, and nothing it places is read before it.
 
 The tenth is `mods`, and it belongs to the **shell** rather than the
 desktop: a module lands in `$XDG_DATA_HOME/hibr/mods`, which a non-root
@@ -221,7 +233,7 @@ Each refused outright rather than half-done, and each names what it found:
 - **a member whose path is absolute or climbs out of its own folder** —
   `../escaped.hibr` and `/etc/x` are both refused, naming the path;
 - **a symbolic link**, which a bundle has no business carrying;
-- **a part whose kind is not one of the ten, or whose name is anything
+- **a part whose kind is not one of the twelve, or whose name is anything
   but a plain filename** — a part decides a destination;
 - **an entry whose own name is not a plain filename** — the name decides
   where the file lands, so `../../../climbed` is refused, and that one
@@ -280,7 +292,7 @@ mirror legitimately gives absolute addresses.
 
 ### Why an id and not a name
 
-The desktop has **eight** scan roots, and a name only has to be unique
+The desktop has **nine** scan roots, and a name only has to be unique
 inside one of them: `clock` is an application *and* a screen saver, and
 both are installable. So an entry is identified by `kind/name`, and `name`
 is what the file is called where it lands — a destination is never built
@@ -291,7 +303,7 @@ means two, it is **refused and both are named**, because whichever the
 index happened to hold is not an answer:
 
 ```text
-apps: clock: the catalogue has more than one -- apps/clock, savers/clock
+catalogue: clock: the catalogue has more than one -- apps/clock, savers/clock
 Name the one you mean.
 ```
 
@@ -305,7 +317,7 @@ catalogue publishes both.
 An application in a folder of hibr's own tree is published into the same
 folder and installed into it again, so a fetched desktop has the
 submenus a shipped one has — `Accessories`, `Office`, `Internet`,
-`Games` — instead of twenty-one applications in one list:
+`Games` — instead of two dozen applications in one list:
 
 ```text
 bundles/apps/Internet/mail.hibr   ->  dir: "Internet"
@@ -340,7 +352,7 @@ shared workstation wants:
 
 <!-- not run: writes outside the home directory and asks for a password -->
 ```sh
-catalogue --system install apps/term apps/files system/panel
+catalogue --system install apps/mail apps/snake
 ```
 
 Writing that scope is root's, so an ordinary account is asked for a
@@ -368,6 +380,11 @@ root instead:
 
 [`please`](please.md) is hibr's own way to run a command as root.
 
+The login screen runs as root and so reads no home folder: the themes,
+colour schemes and screen savers it can show are what hibr ships and what
+is in the machine's scope. `catalogue --system install themes/NAME` is how
+an administrator makes one available there.
+
 **Reading that scope needs nothing.** `catalogue --system list` and
 `catalogue --system installed` answer for any account, which is what you
 run before reaching for root; only the verbs that write ask.
@@ -394,7 +411,7 @@ a copy that was already yours when the administrator installed theirs
 is reported as **defunct**, with the command that frees the space:
 
 ```text
-apps/snake       1.0        apps           user    defunct: the machine has this
+apps           snake         1.0      user     defunct: the machine has this
 1 of these is defunct: the machine has its own, which is read first --
 `catalogue remove NAME` frees the space
 ```
@@ -437,7 +454,7 @@ A bundle's own header says it, beside the `# part:` lines that say what
 it brings:
 
 ```text
-app contacts "The people in your address books, kept offline from CardDAV" 1.1
+app contacts "The people in your address books, kept offline from CardDAV" 1.8
 # part: control-panel/pimset.hibr
 # modules: dav db pim
 ```
@@ -467,8 +484,8 @@ Panel pane that acts through a menu bar item's watcher says so, and the
 item is installed first, from the same index:
 
 ```text
-app sound "The Control Panel pane for the machine's sound" 3.0
 # needs: menubar/sound
+app sound "The Control Panel pane for the machine's sound" 3.0
 ```
 
 Unlike a part, what an entry needs is an entry of its own: the speaker on
@@ -480,7 +497,8 @@ allowed. The state remembers which entry pulled it in.
 A bundle is a list of entries that make one thing between them, installed
 and removed together -- Sound is the speaker on the menu bar and the
 Control Panel pane, and so are Network, Bluetooth and Power (Gitea #392).
-Its file in the catalogue is a JSON list and nothing more:
+Its file in the catalogue is a JSON object -- a title, an about and a
+list of members -- and nothing more:
 
 ```text
 {
@@ -571,7 +589,7 @@ kind under another extension:
 }
 ```
 
-A part's `kind` must be one of the eight and its own name a plain filename:
+A part's `kind` must be one of the twelve and its own name a plain filename:
 a part decides where a file lands, so the rules a path follows hold for the
 destination too. **Every part is fetched and verified before any is
 placed**, so an entry with one bad part installs nothing at all — not even
@@ -599,10 +617,11 @@ Three things can put a file in a scope, and they are undone differently:
 - **something needed it** — a module fetched for a `needs`, which only
   `purge` takes away.
 
-So `catalogue installed` says what each entry brought, and ends with the
-two numbers that let you check a folder against it — twenty-one entries
-put thirty files in a scope, and the nine that are parts are the
-difference:
+So `catalogue installed` says what each entry brought, and after the
+shipped and system-wide rows ends with the two numbers that let you check
+a folder against it -- below, two entries put three files in a scope, and
+the one that is a part is the difference (the shipped rows cut to two
+here):
 
 <!-- not run: reads the state of whatever machine it runs on -->
 ```sh
@@ -610,18 +629,20 @@ catalogue installed
 ```
 
 ```text
-apps/files       1.1        apps           user    +1 part
-apps/mail        1.1        apps           user    +1 part
-apps/prayer      1.0        apps           user    +2 parts
-apps/snake       1.0        apps           user
+KIND           NAME          VERSION  SCOPE    NOTE
+apps           mail          2.3      user     +1 part
+apps           snake         1.0      user
+apps           files         3.8      shipped
+apps           term          1.7      shipped
 
-21 entries, 30 files
+2 entries, 3 files
+36 more are shipped or system-wide; this cannot remove them
 ```
 
 A module fetched for something else says so on the same line:
 
 ```text
-mods/pim         1.0        mods           user    automatic, not asked for by name
+mods           pim           1.0      user     automatic, not asked for by name
 ```
 
 It does **not** name who wanted it, though the record remembers one. That
@@ -781,7 +802,8 @@ already the submenu of every app you can open, and two rows of one name on
 one menu is a menu nobody can learn.
 
 It shows what the command's own columns show, which until 0.99.202 it did
-not: an entry wears **✓** when it is installed, **↻** when there is a
+not: an entry wears **✓** when you have it, wherever it is -- the WHERE
+column says `user`, `system` or `shipped` -- **↻** when there is a
 newer version, and **⚠** when the machine has its own copy — read before
 yours, so yours can never run, which is worth more than a tick. The detail
 pane says when an entry **shadows the one hibr ships**, and how many files
@@ -806,32 +828,28 @@ Restart Desktop. A `--system` install reaches only the desktops of
 whoever ran it; anybody else's picks it up at their Refresh Desktop or
 their next start.
 
+A sketch of its layout, drawn from `system/catalogue.hibr` rather than
+taken from a running desktop:
+
 ```text
-┌─┤ Catalogue ├─────────────────────────────────────────────────────┤_ □ x├┐
-│ Search                                               5 in the catalogue  │
-│ ITEM                            VERSION│ Snake                           │
-│[-] Applications                      3 │ apps/snake                      │
-│├─ ✓ snake                      1.0     │ installed 1.0                   │
-│├─   retro_car                  1.2     │                                 │
-│└─ ↻ mines                      1.1     │ A snake that grows as it eats,  │
-│[+] Control Strip modules             1 │ on a board of your window's own │
-│[+] Themes                            1 │ size.                           │
-│                                        │                                 │
-│                                        │                                 │
-│                                        │                                 │
-│                                        │                                 │
-│                                        │                                 │
-│                                        │                                 │
-│  Uninstall ▄  Read It ▄  Refresh ▄                                       │
-│  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀                                       │
-└──────────────────────────────────────────────────────────────────────────◢
+ ITEM                       VERSION WHERE │ Snake
+ [+] Bundles (4)                          │ apps/snake
+ [-] Applications (3)                     │
+ ├─ ✓ snake                   1.0   user  │ A snake that grows as it eats,
+ ├─   retro_car               1.2         │ on a board of your window's own
+ └─ ↻ mines                   1.1   user  │ size.
+ [+] Control Strip (1)                    │
+ [+] Themes (3)                           │
+                                          │
+  Uninstall   Read It   Refresh                        5 in the catalogue
 ```
 
-The list is a **tree**, one branch per kind, each saying how many it holds
-against the list's own right edge — a branch has no version, and a count
-under that heading would read as one. `right` and `left` open and shut a
-branch, `enter` and space toggle one, and a click on a heading does the
-same. A branch with nothing in it is left out rather than drawn empty.
+The list is a **tree**, one branch per kind, Bundles first, each with how
+many it holds in brackets beside its name -- `Applications (3)` -- never
+out at the right edge where the versions are, which would read as one.
+`right` and `left` open and shut a branch, `enter` and space toggle one,
+and a click on a heading does the same. A branch with nothing in it is
+left out rather than drawn empty.
 A tick marks an entry you already have and `↻` one with a newer version
 waiting; the pane on the right is what the selected entry says about
 itself, paragraphs kept.
@@ -843,11 +861,14 @@ lines joining a child to its branch off. Every mark is three columns wide
 whichever style is chosen, so changing it never moves the columns beside
 it.
 
-`tab` or `/` moves to the search box and `tab`, `enter` or `escape` comes
-back. Typing narrows the list as you type, against an entry's id, its title
-and its prose, and the count beside the box says how many **entries**
-matched — not how many rows are drawn, which would count the headings too.
-A branch with a match in it opens itself.
+Nothing is drawn for a search until `/` (or Edit > Find) opens one, as a
+bar on the window's bottom row. Typing narrows the list as you type,
+against an entry's id, its title and its prose, and the count on the
+buttons' row says how many **entries** matched -- `2 of 41` -- not how many
+rows are drawn, which would count the headings too. A branch with a match
+in it opens itself. `enter` or `tab` gives the keys back to the list and
+keeps the search, its bar still showing while it filters; `escape` clears
+it and closes the bar.
 
 | key | what it does |
 |---|---|
@@ -865,11 +886,10 @@ flips with it, for the same reason.
 
 Every fetch is a **job**. `catalogue install` is seconds of network, and a
 desktop that stops drawing while it waits is a desktop that looks broken,
-so the command runs in the background with its output in a file of its own
-and the next frame picks up the status — the shape `wm/remote.hibr` uses
-for transfers. It is polled from the window's `_draw` *and* its `_idle`,
-because a window nobody is looking at still has a job running in it. The
-status line says what is happening while one runs, and what the command
+so the command runs as a desktop job (`dt_job`, `wm/jobs.hibr`) with its
+output in a file of its own, and its callback runs after the frame in
+which it ends, whether or not the window is drawn. The status on the
+buttons' row says what is happening while one runs, and what the command
 said when it failed.
 
 What the window reads is `catalogue list -j`, never the columns `catalogue` prints

@@ -10,7 +10,9 @@ for a window or the desktop's own wallpaper.
 (the same in grey), `ascii` (the character ramp, what `-g` has always
 meant), `pixels` (real pixels, where the terminal can place them; `sixel`
 is the same thing by its old name) and `auto`, the default, which takes
-pixels where they are to be had and half blocks everywhere else. Which
+pixels where they are to be had and half blocks everywhere else. `halfblock`,
+`grey` or `gray`, and `text` are also taken, for `half`, `mono` and `ascii`;
+a name it does not know is `auto`. Which
 protocol carries them -- the kitty graphics protocol or sixel -- is the
 display's business and not named here. Pixels go through its own `image`
 entry (ADR 0037): the console keeps the picture as a region of its own,
@@ -33,7 +35,7 @@ background colour of their own, or the colour paints over the picture.
 | file | role |
 |---|---|
 | `im.h` | the `image`/`cell` types, decode and resample entry points |
-| `png.c` | libpng, dlopen'd on first use |
+| `png.c` | libpng, dlopen'd on first use; `im_scale`, the area-averaging resample, and `im_mode`, the names `-m` takes. The web module is built with it too, to decode the browser's screenshots |
 | `jpeg.c` | libturbojpeg, dlopen'd on first use; EXIF orientation |
 | `img.c` | resampling, every renderer, the `img` builtin |
 
@@ -97,12 +99,12 @@ pixel is treated as opaque.
 
 ## The two entry points
 
-`img [-g] [-w cols] [-h rows] file` never touches the display module at
+`img [-g] [-o ppm] [-w cols] [-h rows] file` never touches the display module at
 all -- terminal size comes from `TIOCGWINSZ` directly when neither `-w` nor
 `-h` is given and stdout is a terminal, `80x24` otherwise. This is the
 testable path: deterministic ANSI bytes, no pty required.
 
-`img draw file row col h w [-g] [-p pane] [-c x y w h]` requires `"display"`
+`img draw file row col h w [-g] [-m mode] [-p pane] [-u] [-c x y w h]` requires `"display"`
 (`hibr_require`) only inside this one subcommand, so printing an image in a
 plain pipe never loads the console module. There is no bulk cell-write
 primitive in `dp_api` -- drawing means one `pen`+`put` pair per cell, the
@@ -119,10 +121,23 @@ without breaking when the window moves or resizes. `dt_wall()` keeps using
 the root screen directly: the wallpaper *is* the background everything
 else composites onto, not a window's own content, so it has no pane of its
 own to target. The resampled-grid cache (`im_cache`) holds `IM_CACHEN` (4)
-entries, evicted round-robin, rather than one: once a pane preview and
+entries, rather than one: once a pane preview and
 `dt_wall()` can both call `img draw` with different files in the same
 frame, a single slot would thrash between them, paying for a full decode
-and resample of each on every frame instead of caching either.
+and resample of each on every frame instead of caching either. The slot
+given up is the one least recently used, not the one longest in the
+cache: round-robin let four other pictures in one frame evict a wallpaper
+redrawn every frame, which then paid its whole decode again (Gitea #105).
+
+The pixel path keeps its own cache of pictures already scaled to pixels
+(`im_pixget`/`im_pixput`), since `img draw -m pixels` of a 3840x2160
+photograph onto a 232x71 screen used to decode and resample it on every
+call, 330 ms, and the wallpaper then placed its picture every frame (Gitea #108). It has
+a slot per path and size actually being placed -- one per display in use
+-- and a slot nothing has asked for in `IM_PIXIDLE` (120) calls is freed.
+A screen-sized slot is the picture at three bytes a pixel, 6.3 MB at that
+size, held only while it is placed. A slot whose file has changed on disk
+is a miss.
 
 With `-c x y w h` only that rectangle of the picture is drawn, in the
 picture's own pixels and clamped to it -- what the Image Viewer's zoom and

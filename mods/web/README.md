@@ -181,7 +181,7 @@ it started a recording for a page with no sound at all.
 Chromium is the module's child, and on Linux it is asked to end with the
 process that started it (`PR_SET_PDEATHSIG`), so a desktop that dies does
 not leave one running; one that misses that moment, its parent already
-gone, ends itself. Each call waits `WB_WAITMS` for its answer. A browser
+gone, ends itself. Each call waits `WB_WAITMS` (8 s) for its answer. A browser
 that misses two in a row, or the first of a session, is stopped rather
 than waited on again, and none is started for `WB_RESTMS` (30 s) after it
 is stopped or fails to start: every call meanwhile fails at once. A
@@ -214,6 +214,22 @@ the tap is installed in has every media element muted, so the YouTube
 player's own page stays silent at the browser. A tab neither recorded nor
 tapped would play on the machine Chromium runs on: the Browser records
 every tab it opens.
+
+## Files
+
+| file | role |
+|---|---|
+| `wb.h` | the tab record, the cell size a page is laid out at, the timeouts, and every function the files share |
+| `web.c` | the `web` builtin: the verbs, the usage line, results into `$RET` |
+| `cdp.c` | the browser's life -- finding it, the profile folder, starting it on `--remote-debugging-pipe`, stopping it -- and the DevTools protocol over that pipe: requests, replies, events |
+| `js.c` | a small JSON reader for what the browser sends back |
+| `page.c` | tabs: opening, going to an address, the viewport, script evaluation, and the screenshot a frame is drawn over |
+| `draw.c` | a tab's last frame into the display, as cells or as a picture |
+| `set.c` | what a tab is set to: user agent, locale, extra headers, scripts added to every document, downloads |
+| `tap.c` | the tap that copies what a page appends to its media buffers, for the shell to take |
+
+`png.c` from the img module is built in as well (`WEB_SRC` in the Makefile):
+it decodes the screenshot the browser hands back as a PNG (`page.c`).
 
 ## What it does not do
 

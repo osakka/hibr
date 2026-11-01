@@ -72,7 +72,7 @@ markup by what it is for:
 | `h` | raw HTML, block or inline |
 | `m` | markup with nothing to show: `**`, a link's `(url)`, a fence, `#`, a setext underline, a backslash |
 | ` ` | indentation at the start of a line, and the space after a list marker |
-| `-` | a bullet list's marker |
+| `-` | a bullet list's marker; on a task item the marker and the space after it are `m`, since the box stands for them (`- [ ] t` is `mmxxxpp`) |
 | `n` | an ordered list's number and its `.` or `)` |
 | `x` `X` | a task's box, unticked or ticked (all three characters) |
 | `>` | a block quote's marker |

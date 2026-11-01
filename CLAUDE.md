@@ -6,10 +6,11 @@ decisions and the traps already found, so they don't get rediscovered.
 
 ## What hibr is
 
-A shell that runs a useful subset of bash syntax in ~22,400 lines and a 487 KB
-binary (both measured on 0.99.366), with resident memory under two-thirds of bash's (and about 260 kB more
-than dash's, measured on 0.99.366 — see the README's own Measurements table for the honest comparison),
-and faster than bash on tight loops. It is *not* a drop-in bash replacement
+A shell that runs a useful subset of bash syntax in ~22,900 lines and a 497 KB
+binary, with resident memory under two-thirds of bash's and about 280 kB more
+than dash's, and 2.7 times bash's speed on a tight loop, 10% behind dash's
+(all measured on 0.99.416 by `tools/measure.py`, which prints the README's
+Measurements table -- run it rather than trusting a number written here). It is *not* a drop-in bash replacement
 and must not be described as one: some divergences are deliberate (see Design
 decisions).
 
@@ -25,14 +26,16 @@ releases).
 
 ## Build and test
 
-    make                 # tcc; builds ./build/hibr and mods/*.so
+    make                 # tcc; builds ./build/hibr and build/mods/*.so
     make TLS=0           # compile TLS out entirely
     make CC=gcc OPT=-O2  # optimised: ~20% smaller text, ~45% faster, not the default
     make check           # = tests/run.sh
-    make check-all       # = tests/all.py: every suite, side by side, ~19 min on 4 cores
+    make check-all       # = tests/all.py: every suite, side by side, ~21 min on 4 cores
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr,
-                         # the desktop to $(PREFIX)/share/hibr/desktop and
-                         # a `desktop` launcher to $(PREFIX)/bin
+                         # the desktop to $(PREFIX)/share/hibr/desktop,
+                         # `desktop`, `catalogue` and `vw` launchers to
+                         # $(PREFIX)/bin, and `please` with the polkit
+                         # helpers where POLKITDIR is set (docs/deployment.md)
     ./build/hibr -n script      # parse only
 
     tests/run.sh [-v] [prefix]           # C-side harness, every tests/*.t
@@ -84,8 +87,10 @@ shots, dav) that draw through the desktop, which the hand-written
 
 Sanitizers come in two tiers. `tests/asan.py --quick` is the gate a release
 that changes C waits for (minutes): run.sh, self.hibr, the parser fuzzer,
-the quick C module suites (`QUICK` in `tests/asan.py`: cat, console,
-term_diff, md_spec, html_tree, mail, pim, pim_rrule, dav), and the suites a
+the quick C module suites (`QUICK` in `tests/asan.py`, 22 of them: cat,
+console, term_diff, md_spec, html_tree, mail, pim, pim_rrule, dav, fetch,
+uni_bidi, uni_shape, hcal_icu, salat_adhan, vw_crypto, vw, sixel, kitgfx,
+holdpix, archive, mermaid, pdfapp), and the suites a
 module changed since the last tag reaches -- the desktop's pty suites only
 when that module is one they draw through (console, term, pty, hold): a
 module the desktop merely loads is checked by its own suites, and the
@@ -94,7 +99,9 @@ the end of a long session, or after a risky C change -- one at a time, never
 beside a gate, whose time it doubles. Any report it makes is a ticket at
 once. By hand, the core alone:
 
-    gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
+    make asan            # the same build the gate uses, modules included
+    gcc -Iinclude -DHIBR_TLS -DHIBR_SYSDIR=\"/var/lib/hibr\" \
+        -DHIBR_MODDIR=\"/usr/local/lib/hibr\" -g -O1 -fsanitize=address,undefined \
         -fno-sanitize-recover=undefined -w -rdynamic -o build/hibr.asan src/*.c -ldl
     ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
     ASAN_OPTIONS=detect_leaks=1 ./build/hibr.asan tests/<one>.t    # leak check
@@ -186,7 +193,7 @@ whenever a replacement writes one.
 | `src/wtab.c` | the display width of every codepoint, for `str width` and the line editor |
 | `src/recheck.c` | asserts `include/re.h` against the real `<regex.h>` wherever the compiler can read it, so a wrong width fails the build |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `math` (floating point; one of the two modules `--plan` may load, see `pl_pure`), `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
-| `programs/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/`, every **application**, listed under one Applications submenu with a folder inside it becoming a submenu of its own (file browser, terminal, Vault, Calendar, Contacts; `Accessories/` for the calculator, clock, image viewer, note pad, sliding puzzle, and `Office/`, `Internet/` and `Games/`), `system/`, the desktop's **own** apps, listed on the hibr menu itself because they manage or report on the desktop rather than opening anything of yours (About This Computer, Control Panel, Task Manager, Modules, Notifications, Clipboard, Screenshot, Catalogue), `control-panel/` panes, `control-strip/` modules — see `programs/desktop/README.md` for how to use it and `programs/desktop/ARCHITECTURE.md` for how it is built |
+| `programs/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/`, every **application**, listed under one Applications submenu with a folder inside it becoming a submenu of its own (file browser, terminal, Vault, Calendar, Contacts; `Accessories/` for the calculator, clock, image viewer, prayer times, sliding puzzle and stickies, and `Office/`, `Internet/` and `Games/`; X Screen is `apps/xscreen.hibr`), `system/`, the desktop's **own** apps, listed on the hibr menu itself because they manage or report on the desktop rather than opening anything of yours (About This Computer, Control Panel, Task Manager, Modules, Notifications, Clipboard, Screenshot, Catalogue), `control-panel/` panes, `control-strip/` modules — see `programs/desktop/README.md` for how to use it and `programs/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -215,9 +222,9 @@ whenever a replacement writes one.
 | `mods/html/` | HTML as the WHATWG standard parses it, our own tokenizer and tree builder, all 1792 html5lib tree-construction cases passing (`tests/html_tree.py`); CSS selectors, and `html lines`, the layout Mail reads messages through -- see `mods/html/README.md` |
 | `mods/pim/` | calendars and contacts: iCalendar and vCard parse and build, RRULE expansion checked rule by rule against python-dateutil on RFC 5545's examples (`tests/pim_rrule.py`, its answers kept in `tests/pim/rrule.txt`), zones through zoneinfo with TZ put back, iTIP replies -- see `mods/pim/README.md`; the dav module carries them (`propfind`, `report`, `sync`) |
 | `programs/desktop/wm/ctl.hibr` | the desktop's control socket, for Blit and tests: displays, windows, move/resize/focus as JSON, one request per connection, served between frames; `desktop ctl` (`lib/ctl.hibr`) is the client, and `rescan` is how the catalogue tells a desktop what it installed -- see Controlling a running desktop in `programs/desktop/WRITING.md` |
-| `mods/proctab.c` | `proctab`: every process under `/proc` in one call, `pid utime stime uid rss name` a line -- Task Manager's scan, which read the same in the shell and stopped a busy desktop for a quarter of a second once a second (0.99.399) |
+| `mods/proctab.c` | `proctab`: every process under `/proc` in one call, `pid utime stime uid rss name` a line -- Task Manager's scan, which read the same in the shell and stopped a busy desktop for a quarter of a second once a second (0.99.399); its `/proc` reader is `mods/procs.c`, compiled into both proctab and mon |
 | `mods/csv.c` | CSV as RFC 4180 says: `csv read` (a map, built in one pass -- `hibr_setp` per field was quadratic, 50,000 rows took 3.5 minutes, now 0.24 s), `open`/`row`/`close` streaming, `line`, `split`; Sheet's CSV goes through it |
-| `programs/catalogue.hibr` | `catalogue`, which installs what the desktop runs -- applications, themes, colour schemes, languages and modules -- installed as a command the way `vw` is (ADR 0041, ADR 0045, Gitea #159); called `apps` until 0.99.195, and it moves to `programs/catalogue.hibr` with the desktop (Gitea #236): an index over HTTPS with `dav get` (binary-safe to a file, where `dav request` NUL-terminates its answer), a bundle's `sha256` verified, `archive` to look inside before anything is unpacked, and `mkdir`/`rm`/`mv` to place it. No C, so no module. Each of the desktop's **eight** scan lists reads `~/.config/hibr`, then the **system** scope (`$HIBR_SYSDIR`, `/var/lib/hibr`), then the user's `$XDG_DATA_HOME`, then the shipped copy -- so an administrator's install wins over anybody's own, and a file you wrote by hand still wins over both (ADR 0045). The `mods` kind is for **somebody else's** module only: hibr ships every module it builds, in every packaging, because a module is bytes and a source install compiles its own -- see ADR 0045's Alternatives for the split that was decided and then refused. What the package ships of the desktop is `packaging/ships`, one path a line, with every part those bring; `tools/ships.hibr` is the only thing that reads it, and the Makefile, `tests/scopes.py` and `tools/docshots.py` ask it (ADR 0047) |
+| `programs/catalogue.hibr` | `catalogue`, which installs what the desktop runs -- applications, themes, colour schemes, languages and modules -- installed as a command the way `vw` is (ADR 0041, ADR 0045, Gitea #159) -- twelve kinds now (`CAT_KINDS`); called `apps` until 0.99.195, and it moves to `programs/catalogue.hibr` with the desktop (Gitea #236): an index over HTTPS with `dav get` (binary-safe to a file, where `dav request` NUL-terminates its answer), a bundle's `sha256` verified, `archive` to look inside before anything is unpacked, and `mkdir`/`rm`/`mv` to place it. No C, so no module. Each of the desktop's **nine** scan lists (menubar the ninth, since 0.99.351) reads `~/.config/hibr`, then the **system** scope (`$HIBR_SYSDIR`, `/var/lib/hibr`), then the user's `$XDG_DATA_HOME`, then the shipped copy -- so an administrator's install wins over anybody's own, and a file you wrote by hand still wins over both (ADR 0045). The `mods` kind is for **somebody else's** module only: hibr ships every module it builds, in every packaging, because a module is bytes and a source install compiles its own -- see ADR 0045's Alternatives for the split that was decided and then refused. What the package ships of the desktop is `packaging/ships`, one path a line, with every part those bring; `tools/ships.hibr` is the only thing that reads it, and the Makefile, `tests/scopes.py` and `tools/docshots.py` ask it (ADR 0047) |
 | `mods/lines.c` | `lines show|grep|count|edit`: slicing, tree search and exact multi-line edits, so work on this tree needs no sed, grep or python -- see Editing this tree |
 | `mods/copy.c` | `copy run|rename`: copying and moving trees in a job, with a status file the desktop reads and a stop file it drops, each item written under a hidden `.hibr-part` name and renamed when whole; Files' copy window (`programs/desktop/wm/copying.hibr`, Gitea #402) is built on it -- see `mods/README.md` |
 | `mods/uni/` | bidi (UAX #9, both Unicode conformance suites passing), Arabic shaping (checked against FriBidi), mirroring and widths, tables generated by `tools/unigen.py` from one UCD version -- ADR 0030, Gitea #68 |
@@ -317,7 +324,9 @@ went in the shell.
    default; `shopt -s inherit_errexit` restores the POSIX behaviour dash has.
    **TLS verifies certificates by default**; `HIBR_TLS_INSECURE=1` to disable.
    **Options live in one namespace**: `set -o` and `shopt` reach the same
-   table, extended patterns need no switch, and an option that cannot move
+   table, extended patterns need no switch (in `case` and `[[ ]]`; in pathname
+   expansion only `?(`, `*(` and `+(` glob today -- `@(` and `!(` do not,
+   Gitea #422), and an option that cannot move
    says so rather than appearing to succeed — see `docs/adr/0017`.
    **Privilege only ever goes one way**: `drop` gives up root irreversibly,
    hibr is never setuid, and root loads modules only from `HIBR_MODDIR` — see
@@ -591,7 +600,7 @@ went in the shell.
 - **`cn_key` must not consume the resize flag.** `select` returns `EINTR` on
   `SIGWINCH`; treating that as an error, or swallowing the flag to report it,
   leaves the application unable to learn that the terminal changed size. The
-  wait ends early and `screen resized` still answers.
+  wait ends early and `console resized` still answers.
 - **A module must not name a function the shell already exports — and the
   shell must not grow a name a module already has.** The shell is linked
   `-rdynamic`, so a module's own global symbol is preempted by the shell's of
@@ -888,7 +897,9 @@ went in the shell.
   ordinary write clears what `darken -s` marked, so a gated frame stopped
   re-casting it and the shadow vanished during a drag, which the drag
   oracle caught rather than a person; and the clock's **`dt_want`**, moved
-  to `dt_barwant` called every frame, because gating a drawing takes with
+  out of the drawing -- it is `dt_clockhook` in `menubar/clock.hibr` now,
+  registered with `dt_barhook` and run every frame before the bar's gate --
+  because gating a drawing takes with
   it whatever asks for the next frame from inside it -- Cursor Blink, the
   icon rescan, `about_dirty`, and now this, the fourth time.
   And the gate's own first version read `[ -z "$DT_FORCEDRAW" ]`: that
@@ -918,12 +929,15 @@ went in the shell.
   `DT_KEYS` like Copy (alt-c), Cut, Paste and every other, since 0.77 --
   and only then do letters mean anything. A key the desktop acts on goes
   in `DT_KEYS` with a name in `DT_KEYNAME` and a place in `DT_KEYORDER`,
-  and is tested with `dt_keyis`; never a literal key in a `case`. Direct modifier shortcuts were
-  considered and rejected: ctrl collides with everything a terminal window
-  will need, and alt with what a program inside one might. A desktop that
+  and is tested with `dt_keyis`; never a literal key in a `case`. Direct
+  modifier shortcuts were first considered and rejected, and then arrived
+  through the Shortcut Key (`DT_MOD`, alt by default, Gitea #326): the
+  defaults are `mod-c`, `mod-w`, `mod-tab` and so on, and a terminal keeps
+  ctrl with one letter (`DT_TERMCTRL`, on by
+  default) -- ctrl collides with everything a terminal window will need. A desktop that
   eats ctrl-c is a desktop nothing can run in. The one exception
-  (`DT_TERMKEEP`, Control Panel > Keyboard > Desktop Shortcuts Win, 0.71,
-  on by default since 0.72):
+  (`DT_TERMKEEP`, now the Shortcuts in Terminals row, 0.71, on by default
+  since 0.72):
   a terminal declines, in `term_key`, a key `dt_keyassigned` says the
   desktop or an app launcher holds -- and only a chord or a function key,
   never a plain one, never ctrl with one letter -- so the desktop's own shortcuts
@@ -1167,8 +1181,9 @@ went in the shell.
   underline on instead of off. Once that happened, everything typed after
   stayed underlined until a full `SGR 0` reset arrived, which is what
   running a program built with a modern terminal-styling library inside a
-  hibr terminal window looked like: everything underlined. `tm_sub` reads
-  what follows the colon; nothing else sent here uses one.
+  hibr terminal window looked like: everything underlined. `tm_ppush`
+  marks a colon sub-parameter (`t->ps`) and `tm_sgr` reads it; nothing else
+  sent here uses one.
 - **`ioctl(fd, TIOCGWINSZ, …)` can answer 0x0 for a real terminal's first
   moment.** Seen on some terminals right after a new window opens, before
   it has settled on a size -- asked that early, the console read "no
@@ -1250,8 +1265,8 @@ went in the shell.
   light theme: what read as a shadow elsewhere read as broken alignment
   there, since its right-and-down offset (one row, two columns) is what a
   real shadow looks like once it stops blending in and starts looking like
-  a second, misplaced box. `DT_SHADOW_PCT` is now part of the theme, next
-  to the other seven colours, chosen for paper by rendering a few
+  a second, misplaced box. `DT_SHADOW_PCT` is now part of the colour
+  scheme (`colours/*.json`, its `shadow` key), beside its other colours, chosen for paper by rendering a few
   candidates and comparing them to how subtle midnight's own shadow reads,
   not by eye against paper alone. A theme added later needs its own
   considered value here, not a copy of 55 -- check it against a light face
@@ -1389,7 +1404,7 @@ went in the shell.
   the installed shell again and the same 13 tests failed a second time.
 - **A submenu created mid-build occupies a real index in the same array
   the top-level bar menus live in**, so "the next index" is not "the next
-  bar menu": `dt_appmenu`'s own `dt_sub` (a folder of apps -- Desk
+  bar menu": `dt_appmenu`'s own `dt_sub` (a folder of apps --
   Accessories is the common one) allocates a new `MB[]` entry the moment
   it runs, interleaved between whichever bar menus were declared before
   and after it. With a submenu sitting between the hibr menu and
@@ -1538,7 +1553,8 @@ went in the shell.
   no `dt_note`, nothing -- which reads as "my keypress did nothing" both
   for a genuine Escape and for the disambiguation race above, since
   either way the "Press a key for X…" box simply vanishes with no
-  explanation. `escape) DT_KEYCAP=; dt_note "Cancelled"` now says why.
+  explanation. `escape)` clears `DT_KEYCAP` and `dt_notep low "Cancelled"`
+  now says why.
 - **`dt_win` reduces `h`/`w` by 2 before calling an app's own `_draw`**,
   to exclude both border rows/columns -- an app's own layout math must
   not subtract border space a second time. Task Manager's own gap under
@@ -1624,8 +1640,8 @@ went in the shell.
   seeds the generator or moves the count's start, as bash does. Stored as
   plain variables they shadowed the computed ones and read the same value
   for ever -- which is what made a seeded Minesweeper test impossible. The
-  gate is the name's first letter, so an ordinary assignment pays one
-  comparison.
+  gate is the name's first letter (R, S or E), so an ordinary assignment
+  pays one comparison.
 
 - **An escape sequence's prefix and intermediates are part of it.** The old
   parser stripped `?`, `>` and `!` and dispatched on the final byte alone,
@@ -1653,8 +1669,9 @@ went in the shell.
   key, a key moved only while it still holds its old default. 0.99.26 is
   3 (workspace and snap keys swapped), 0.99.33 is 4 (`CP_THEME`, a colour
   scheme's name until then, moved to `CP_COLOURS` by Appearance's own
-  `cp_setver4`, which `dt_load` calls when the pane is loaded). The next
-  default that must reach saved files bumps it to 3 and adds a branch --
+  `cp_setver4`, which `dt_load` calls when the pane is loaded). It is 19
+  now; the next default that must reach saved files bumps it to 20 and adds
+  a branch --
   never change `dt_load` to re-apply a default unconditionally. A key
   default is set only when a session has not set it already (`${..+x}`),
   which is how `tests/screen.py`'s `load()` gives every suite `q` to quit
@@ -1673,7 +1690,7 @@ went in the shell.
 - **The Control Panel picker is one row per pane plus one per heading, and
   until 0.94 it did not scroll.** Fifteen panes in three groups need 18 rows, and the
   window's default height of 20 left 18 -- the bottom row drew over the
-  border. The default is 22 now and `panel_draw` stops at the window's
+  border. The default is 26 now and `panel_draw` stops at the window's
   edge. Since 0.94 the list scrolls on its own (`PW[..]["ltop"]`), with
   its own scrollbar, brought to the selection only when the selection moves
   (`lseen`) -- so a sixteenth pane is fine, and a wheel-scrolled list does
@@ -1752,10 +1769,11 @@ went in the shell.
   `tests/screen.py` puts `build/mods` first in `HIBR_MODPATH` for everything a
   suite starts.
 - **A key with a dash in it is arithmetic when unquoted.** `DT_KEYHELD[alt-c]`
-  is `alt` minus `c`, key 0, so the three alt keys the desktop keeps were all
-  stored as one entry named 0 and never refused -- and `DT_KEYHELD[$knorm]`
-  with `ctrl-\` was a syntax error. Every subscript that is a name, a key or
-  anything with a dash is quoted: `DT_KEYHELD["alt-c"]`, `["$knorm"]`. This is
+  (a map since gone) was `alt` minus `c`, key 0, so the three alt keys the
+  desktop kept were all stored as one entry named 0 and never refused -- and
+  `DT_KEYHELD[$knorm]` with `ctrl-\` was a syntax error. Every subscript that
+  is a name, a key or anything with a dash is quoted: `DT_KEYS["$an"]`,
+  `["$knorm"]`. This is
   the unquoted-subscript trap above again, in a table whose keys are all
   dashed.
 - **`local x` hides a name without creating it.** So "does this variable
@@ -2172,16 +2190,17 @@ went in the shell.
   the size the last fit found unless `cn_wgen` (bumped by SIGWINCH) has
   moved; `cn_flush` still does a full `cn_fit` every frame, which is what
   the trap about `console flush` re-fitting relies on.
-- **The menus are rebuilt only when input or focus changed, or one is
-  open** (`dt_draw`, by `console consumed`). Anything new that can change
-  what a *shut* menu bar shows without input -- a title on the bar, the
-  focused app's name -- has to clear `DT_MENUIN` so the next frame
-  rebuilds; an open menu rebuilds every frame regardless.
+- **The menus are rebuilt only when something says they are stale**
+  (`dt_draw`): `DT_MENUIN` empty, focus changed, or a menu or context menu
+  open and `dt_menustale` saying so (Gitea #109; the gate was `console
+  consumed` until then). Anything new that can change what a *shut* menu
+  bar shows -- a title on the bar, the focused app's name -- has to clear
+  `DT_MENUIN` so the next frame rebuilds.
 
 - **A glyph the desktop draws is named, never written.** `wm/glyphs.hibr`
-  fills `GL` -- `GL[vline]`, `GL[tl]`, `GL[spark3]` -- from one of two sets,
-  unicode (`$'\u2502'` with the Unicode name beside it) or ascii, chosen
-  by `DT_GLYPHSET`; drawing code reads `${GL[name]}`, and a loop that draws
+  fills `GL` -- `GL[vline]`, `GL[tl]`, `GL[spark3]` -- from one of four
+  sets (`DT_GLYPHSETS`: unicode, `$'\u2502'` with the Unicode name beside
+  it, ascii, nerd and blit), chosen by `DT_GLYPHSET`; drawing code reads `${GL[name]}`, and a loop that draws
   many cells takes it into a local first. Three things stay literal, on
   purpose: the icon an app or pane picks on its `dt_app`/`cp_pane` line, a
   list that is itself a choice of characters (wallpaper glyphs, the
@@ -2244,9 +2263,9 @@ went in the shell.
   sets a status variable (`DAV_CODE`) is still checked: a strict file
   declares it at file level.
 - **A remote transfer is a job, never a wait in the loop.** `wm/remote.hibr`
-  runs each `dav` transfer in a `( ... ) &` subshell writing its status to
-  a file, and `dt_remotepoll`, after every frame, hands it to its callback
-  and asks for the next frame only while one is running. A job's body
+  runs each `dav` transfer through `dt_job "dav:..."` (it was a `( ... ) &`
+  subshell polled by `dt_remotepoll`, which now only watches open remote
+  copies), and the job runner hands its result to the callback. A job's body
   prints its summary on standard output, so anything else it runs that
   prints -- `dav put` gives the new ETag -- must go to `/dev/null`, or the
   first line read as the count is an ETag.
@@ -2399,7 +2418,7 @@ went in the shell.
   invitation was going out was taken as already running, marked "again",
   and never started: the "again" is only acted on when a *sync* finishes.
   The queued change sat there until the next timed sync. It checks
-  `PEJ[n]["what"] = sync` now; anything else that asks "is X running" of
+  the kind now (`dt_jobrunning pim:sync`, over `DTJ`); anything else that asks "is X running" of
   a shared job table has to ask about the kind as well as the owner.
 - **A ticker that adds a note must ask for a frame.** `dt_tickers` runs
   after the frame is drawn, so a note queued there waits for whatever
@@ -2414,7 +2433,8 @@ went in the shell.
   three and a half minutes that way. It declares `v_find` (as db declares
   `v_path`) and links each row's entries as it reads them, with a pointer
   kept at the end: 0.24 s. Anything returning a large map should do the
-  same until maps are indexed (Gitea #73).
+  same -- maps are indexed since 0.99.74 (Gitea #73), so `hibr_setp` is no
+  longer quadratic, but building the map directly is still the cheaper way.
 - **`printf` reads escapes the way bash does, and that differs by place.**
   In a format `\NNN` is up to three octal digits with a leading 0 among
   them (`\0101` is backspace then 1), `%b` takes `\NNN` and `\0NNN`, `echo
@@ -2434,7 +2454,7 @@ went in the shell.
   That is what a desktop that has stopped drawing looks like, and it hung
   `apps remove` for two minutes per call (Gitea #180, 0.99.143). `ss -xl`
   names it in one line (`Recv-Q 17` against `Send-Q 16`, the backlog
-  `net_listen` hard-codes) and `strace` confirms it (`connect(...) =
+  `net_bind` hard-codes) and `strace` confirms it (`connect(...) =
   ERESTARTSYS`); every call that hangs adds another to the queue, so the
   machine gets worse the more anything retries. `HIBR_CONNTIMEO`
   milliseconds bounds it, opt-in so no script that waits on purpose
@@ -2499,7 +2519,7 @@ went in the shell.
   four `${VAR:-a literal}` defaults beside them (Gitea #202, 0.99.168).
   `tools/strings.py` had called them `template` and counted 37 from the
   beginning; `--check` **fails** on one now, naming the file, the line,
-  the text and the fix, and the 11 that remain are a `VALUEONLY` list with
+  the text and the fix, and the 13 that remain are a `VALUEONLY` list with
   a reason each. Two things to know before adding a string. The tool sees
   an expansion **at the sink call**, so `t="x $v"; dt_note "$t"` slips
   past it. And **punctuation is not translatable**: the first version made
@@ -2554,15 +2574,17 @@ went in the shell.
   the record always has -- `${MC[$id]["focus"]+x}` -- or a window that
   should close on a job's callback never does. A core fix (an entry with a
   map counts as set) is possible and has not been made.
-- **A job's callback runs inside a frame**, from `_draw` or `_idle`, so a
-  window it closes goes through `dt_wantclose`, never `dt_del`: the frame
-  still has the window in its list and draws into a pane that is gone
-  ("console put: w2: no such pane").
-- **A job is done before its callback runs.** Mail's `ml_poll` unset a job
+- **A job's callback used to run inside a frame**, from `_draw` or `_idle`,
+  where closing a window had to go through `dt_wantclose`: the frame still
+  had the window in its list and drew into a pane that was gone ("console
+  put: w2: no such pane"). Callbacks run from `dt_jobtick`, a ticker between
+  frames, since the one job runner (0.99.299), and `dt_del` defers itself
+  whenever it is asked from inside a frame (`DT_INDRAW`, Gitea #408).
+- **A job is done before its callback runs.** Mail's old poller unset a job
   only after calling `then`, so a callback that starts the next sync asked
-  `ml_running`, saw itself, set "again" and started nothing; the archive
-  queued meanwhile sat until the timer. Mark it (`MLJ[$n]["done"]=1`) first
-  and have the "is one running" check skip it.
+  whether one was running, saw itself, set "again" and started nothing; the
+  archive queued meanwhile sat until the timer. `dt_jobtick` marks it
+  (`DTJ[$n]["done"]=1`) first and `dt_jobrunning` skips a done job.
 - **Tab is IFS whitespace, so empty tab-separated fields collapse.**
   `IFS=$'\t' read -r op fold uid arg` on `sent<TAB><TAB><TAB>file` puts the
   file in `fold`. Write a queue line with no empty middle field, or split it
@@ -2607,7 +2629,7 @@ went in the shell.
   address") rather than as an answer to one of them.
   The file format half is worth copying: the account file grew a
   **fourteenth** tab-separated field, *appended* rather than inserted, and
-  `ml_confparse` counts nothing -- so a new build reads an old line and an
+  the parser (`ml_conf`, in `mods/email/conf.c`) counts nothing -- so a new build reads an old line and an
   old build reads a new one. Both directions were **run**, the second
   against the installed previous release rather than reasoned about, which
   is the only way that claim is worth anything.
@@ -2886,7 +2908,8 @@ went in the shell.
   **948,892** read calls, 0.30 s of it in the kernel; `mapfile` the same.
   `src/main.c`'s own `in_line` had always done it properly for scripts --
   read a block, find the newline, `lseek` back to just past it -- and
-  `bi_rddelim` is that, shared by `read` and `mapfile`: 20,002 calls and
+  `bi_rddelim` is that for `read` (and `mapfile` has its own block read):
+  20,002 calls and
   0.066 s for the same loop, 234 calls for the same `mapfile`. A pipe, a
   socket and a terminal still go a byte at a time, because nothing can be
   put back on them. The desktop felt this on every frame: its own mount
@@ -2941,8 +2964,8 @@ went in the shell.
   ships, because everything here carries `q=2` (answer nothing, or the reply
   lands in the stream the key decoder owns), so a terminal that takes `f=24`
   and not `f=100` draws a blank rectangle and nothing anywhere errors. That
-  is the 0.99.72 shape exactly, and konsole -- one of the four terminals
-  `cn_gfx` sends kitty escapes to -- implements only part of the protocol.
+  is the 0.99.72 shape exactly, and konsole implements only part of the
+  protocol.
   `console imgcomp zlib|png|off` chooses, `zlib` by default, Control Panel >
   Pictures > Compress Pictures (Gitea #129). The other half of the rule:
   **only the wallpaper is compressed** -- `cn_image` gates it on `im->over`
@@ -3191,7 +3214,8 @@ went in the shell.
   is why typing cost what it did; the app list part of that is worked out
   once since 0.99.80 (`dt_appplan`, cleared by `dt_app`), and the rest waits
   on Gitea #109, because an app's own `_key` may change what its menus say
-  and today the input gate covers that by accident.
+  and the input gate covered that by accident (#109 is done: the gate is
+  `dt_menustale` now, see the menus trap above).
 - **A session file that does not load the apps gives a window with no app
   behind it, and says so only as "apps 0" in the log.** `desktop.hibr`
   loads the window manager and the widgets; `DT_APPDIRS`/`dt_apps`,
@@ -3404,8 +3428,9 @@ went in the shell.
   Every oracle written for the skipping -- the settled one, the per-step drag
   one, and two written while chasing this very bug -- ran with **overlapping
   windows and a glyph wallpaper**, which are exactly the two conditions under
-  which nothing is ever gated: `dt_alone` finds an overlap, so `DT_NOOVERLAP`
-  is empty and the wallpaper paints every frame, and with no picture there is
+  which nothing was gated then: `dt_alone` found an overlap, so `DT_NOOVERLAP`
+  was empty and the wallpaper painted every frame (since 0.99.410 and
+  0.99.413 an overlapping window and the wallpaper are kept too), and with no picture there is
   nothing for the console to drop. Both of those oracles reported zero
   differing cells while the bug was live and reported by a person. An oracle
   for a saving has to be driven in the arrangement where the saving actually
@@ -3502,9 +3527,9 @@ went in the shell.
   frame from inside `term_draw`, the desktop icons' rescan sat inside
   `dt_wall`, and the bar's clock asks for its next tick from inside
   `dt_bar`. The first keeps a focused terminal dirty while it is on; the
-  second moved outside the gate; the third is why the bar still draws every
-  frame and keeps its 0.19 ms, a trade worth more than a clock that tells
-  the truth once. Before gating any drawing, look for what asks for the next
+  second moved outside the gate; the third kept the bar drawing every frame
+  until the clock's request moved into `dt_clockhook` and the bar got a
+  pane of its own and a gate. Before gating any drawing, look for what asks for the next
   frame from inside it.
 - **Pane buffers and a compositor were tried first, and the ABI is not ready
   for them.** Giving each pane its own cells and compositing them bottom to
@@ -3534,9 +3559,10 @@ went in the shell.
   colour paints over a picture the terminal is compositing below the glyphs"
   -- and that assumption was simply never true. It could not have been seen
   before 0.99.134, because until then no picture wallpaper reached a held
-  client at all and every desktop is held. `CN_ZUNDER` is the constant; a
-  picture that **owns** its cells still carries no z, since it is drawn over
-  the text by rights and a z would put it under the very cells it owns.
+  client at all and every desktop is held. Today `cn_imgz` decides: a
+  picture under the text goes at `CN_ZWALL`, a window's picture at
+  `CN_ZWALL + 1 +` its pane's place in the stack (capped at `CN_ZUNDER`),
+  and anything else carries no z.
 - **Restart Desktop takes the session's server with it since 0.99.166, and
   the gate that matters is not an identity but a depth.** `dt_restart`
   calls `dt_upsession`, which upgrades the session's own server when it is
@@ -3875,7 +3901,8 @@ went in the shell.
   every frame, deleted before it was sent -- a blank window while anything
   overlapped, which is what the Browser, YouTube and Boxer showed. Cutting
   around the panes above was refused because a shadow, a menu or a note is
-  not a pane. On kitty a pane's picture is placed at `CN_ZUNDER` with its
+  not a pane. On kitty a pane's picture is placed below the cells (since
+  refined to `CN_ZWALL + 1 +` its pane's stack place, `cn_imgz`) with its
   cells blanked (`cn_imgblank`), kept by the pane rule alone; the wallpaper
   is at `CN_ZWALL` beneath it, because the layer's threshold is strict and
   there is no z between the old wallpaper and it. The check that names it
@@ -3923,7 +3950,7 @@ went in the shell.
   `m["a` as the name and **emptied the whole map** -- found because the
   Shortcuts pane's table of keys lost every entry the moment it reached
   Volume Up, whose key is `mod-=`, and the desktop keys several maps by key
-  name (`DT_KEYHELD` among them). `asg_eq` is the one place that finds the
+  name (`DT_KEYS` among them). `asg_eq` is the one place that finds the
   name's end, for `ex_asg` and `asg_push` alike; `tests/999-asg-subscript-eq.t`
   compares it with bash. Anything new that splits an assignment word goes
   through it.
@@ -3955,7 +3982,7 @@ went in the shell.
   picture, 600 ms a page -- measured on one `img draw`, the call rather
   than the frame, after three harnesses had failed on their scaffolding.
 
-## Testing discipline## Testing discipline
+## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
   stdout+stderr) because the behaviour is deliberately ours. Everything else is
@@ -4233,7 +4260,8 @@ went in the shell.
   separate names have now hidden behind it.
 - **Adding a check means bumping `apps.py`'s `report(N)` and the right
   row of `appslice.PLAN`, and the sum being right is not enough.** The
-  Sheet section lives inside *"what nothing reached before 0.56"*, not
+  Sheet section lived inside *"what nothing reached before 0.56"* (it is
+  its own part, `office`, now), not
   in `more` where a section with no named part goes -- so a check added
   to it raised `reach` and I raised `more`, and the two errors cancelled
   in `sum(PLAN)`, which is what `appslice` compares against apps.py's own
@@ -4669,8 +4697,9 @@ went in the shell.
   `pkexec`, `systemctl`, `dbus-send`, `nohup` or `setsid`. Build the list
   that way again rather than running all of `/usr/bin`. `cc_aiwo_bootstrap.sh` is the owner's own script and
   **bash** is the one that fails it, with 127.
-- Loop throughput is 1.2x behind dash on a `while` loop and 1.4x on `case`,
-  from 1.7x and 1.6x. What is left is genuinely diffuse. Measure this with
+- Loop throughput is 1.1x behind dash on a `while` loop and 1.3x on `case`
+  (0.99.416, instructions: 656M against 599M, and 1066M against 797M for
+  `case $((i%3))` over 50,000), from 1.7x and 1.6x. What is left is genuinely diffuse. Measure this with
   instruction counts, not the clock: the wall time between two separately
   built binaries moves several percent on code layout alone, and said +5.5%
   for a change that cost 0.23% of the instructions.
@@ -4733,8 +4762,8 @@ went in the shell.
   so do not splice a chain by hand again. A module that links entries itself
   (csv, db) may leave `tl` and `ix` zero: `mp_tail` finds the tail once, and
   csv asks for an index when it has finished a large result.
-- hibr uses about 160 kB more than dash (measured on 0.68), and that is the
-  binary rather than the heap: 36 kB of a 1852 kB resident set is heap, so there is no allocator work
+- hibr uses about 280 kB more than dash (0.99.416; 160 kB on 0.68), and that is the
+  binary rather than the heap: 40 kB of a 1960 kB resident set is heap, so there is no allocator work
   left that would move it. Shrinking it means less code. The README says so.
   Measure memory as a median of many runs; the spread is about 180 kB.
 - `set -S` stays opt-in, measured in `docs/adr/0009`. It now changes a working
@@ -4771,16 +4800,18 @@ went in the shell.
   frame with `DT_FORCEDRAW` on, glyphs and pens. It was owed from 0.99.83,
   when the skipping shipped without it, and in between every fault in that
   work was found by the owner looking at their own screen.
-- The core binary is 487 KB stripped, 22,409 lines across `src/*.c`
-  (measured on 0.99.366; it was 398 KB and 17,566 lines on 0.68) -- the README and this file's opening line had drifted
-  stale twice (313 KB, then 358 KB) before being re-measured and corrected.
-  The per-file sizes below are from the 358 KB measurement. Per-file
-  text size, compiled separately with `tcc -c`: `expand.c` 52.6K, `exec.c`
-  36.7K, `bi.c` 31.4K, `edit.c` 20.2K, `daily.c` 19.0K, `lex.c` 19.0K,
-  `net.c` 15.9K, `parse.c` 15.8K, the rest under 13K each. Nothing
+- The core binary is 497 KB stripped, 22,909 lines across `src/*.c`
+  (measured on 0.99.416; it was 398 KB and 17,566 lines on 0.68) -- the README and this file's opening line had drifted
+  stale three times (313 KB, 358 KB, 487 KB) before being re-measured, which
+  is why `tools/measure.py` exists. Per-file text size on 0.99.416, compiled
+  separately with `tcc -c`: `expand.c` 69.3K, `exec.c` 50.0K, `bi.c` 44.4K,
+  `edit.c` 25.1K, `daily.c` 23.3K, `lex.c` 21.3K, `net.c` 20.3K, `parse.c`
+  18.1K, `var.c` 16.0K, the rest under 15K each (`mod.c` and `main.c`,
+  which need `-DHIBR_SYSDIR` to compile alone, are about 18K and 15K).
+  Nothing
   desktop-related is in `src/*.c` at all -- console, term, pty and hold are
-  already modules, loaded on demand, and all 14 `.so` files together total
-  476K outside the core. What is core but arguably language-adjacent rather
+  already modules, loaded on demand, and all 40 `.so` files together total
+  2.5 MB outside the core. What is core but arguably language-adjacent rather
   than shell-core by this file's own "grows only for what makes it a better
   shell" test -- `net.c`, `json.c`, `text.c`, `args.c`, the interactive-only
   `edit.c` -- are also exactly the features the README leads with as reasons
@@ -5189,8 +5220,9 @@ went in the shell.
   halves were green. So the rule this file already carries for the *full*
   sanitizer run -- never beside a gate -- applies to the quick one too once
   its set is large; `asan.py` prints a line saying so past `QUICKMANY`
-  suites, because the operator is the only one who knows whether `all.py`
-  is running. Before believing a release broke a check, ask how many ptys
+  suites -- which, with `QUICK` grown to 22 suites, is every quick run now,
+  so read it as "always run --quick alone" -- because the operator is the
+  only one who knows whether `all.py` is running. Before believing a release broke a check, ask how many ptys
   the gate was running.
 - **`Term.keys` makes a key early-proof, and nothing makes what the key
   *causes* early-proof.** The marker a key waits for says the desktop drew

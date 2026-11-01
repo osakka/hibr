@@ -11,6 +11,9 @@ desktop \- hibr's text-mode desktop, held so it can always be detached from
 .RB [ \-n | \-\-name
 .IR name ]
 .br
+.B desktop
+.BR \-h " | " \-\-help
+.br
 .B desktop ctl
 .RB [ \-s | \-\-session
 .IR name ]
@@ -20,7 +23,11 @@ desktop \- hibr's text-mode desktop, held so it can always be detached from
 .RI [ arg ...]
 .br
 .B desktop ctl
-.B \-j
+.RB [ \-s | \-\-session
+.IR name ]
+.RB [ \-S | \-\-socket
+.IR path ]
+.BR \-j | \-\-json
 .I json
 .SH DESCRIPTION
 .B desktop
@@ -69,11 +76,28 @@ Wait to be joined, now and again each time this display is let go.
 .BR \-n ", " \-\-name " \fIname\fR"
 Name this display, as the Control Panel's Displays pane and
 .B desktop ctl displays
-show it. Without it a display is
-.BI client\- fd\fR.
+show it. Without it a display is named for where its terminal is: the
+machine an ssh connection comes from, by its short name where it resolves
+and its address otherwise
+.RB ( SSH_CONNECTION ),
+else the terminal program
+.RB ( TERM_PROGRAM ),
+else this machine's
+.BR HOSTNAME ;
+a second display with the name already attached is
+.IB name #2\fR,
+then
+.BR #3 .
+So two terminals on one machine share a name, and what it remembers (its
+wallpaper among them), unless one is given
+.BR \-\-name .
+.TP
+.BR \-h ", " \-\-help
+Print a summary of these options, and exit.
 .SH KEYS
 These are the defaults. Each one can be changed in Control Panel >
-Shortcuts. Every other key goes to the focused window, so a
+Shortcuts, which lists every action that has a key, a few more with none
+by default. Every other key goes to the focused window, so a
 program in a terminal window gets its own ctrl-c.
 .TP
 .BR F10 " or " escape
@@ -87,14 +111,69 @@ stands on, and escape goes nowhere.
 .B alt-w
 Close the focused window.
 .TP
+.B alt-enter
+Full Screen: the focused window, if it may be zoomed, takes every cell of its display, with no
+bar, frame or shadow; again puts it back. It also ends when the window
+loses the focus, or a menu, the screen saver or the lock comes up.
+.TP
+.B ctrl-f11
+Leave Full Screen, which no window can take for itself.
+.TP
 .B ctrl-f10
-Release Pointer: take the pointer back from a window holding it.
+Release Pointer: take the pointer back from a window holding it, which no
+window can take for itself either. A window may take the pointer only within
+two seconds of a key or a click, so one restored at login, a timer or a job
+cannot take it by itself; a refusal is a
+.B pointer lock: refused
+line in the desktop's log.
 .TP
 .B ctrl-\e
 Detach.
+.TP
+.BR alt-up ", " alt-down
+Zoom the focused window, and minimise it.
+.TP
+.BR alt-left ", " alt-right ", " ctrl-alt-up ", " ctrl-alt-down
+Snap the focused window to the left, right, top or bottom half.
+.TP
+.BR alt-1 ", " alt-2 ", " alt-3
+Go to that workspace;
+.BR ctrl-alt-left " and " ctrl-alt-right
+go to the previous and the next.
+.TP
+.BR alt-c ", " alt-x ", " alt-v
+Copy, Cut and Paste, through the focused window.
+.TP
+.BR alt-z ", " alt-y ", " ctrl-s
+Undo, Redo and Save, in a window that has them.
+.TP
+.B alt-q
+Quit the focused application: close every window it has.
+.TP
+.BR shift-pageup ", " shift-pagedown
+Page a terminal window back through what scrolled off, and on again.
+.TP
+.B ctrl-a
+Select every icon on the desktop.
+.TP
+.B alt-s
+Give the keys to the Control Strip.
+.TP
+.B ctrl-alt-g
+Screenshot.
+.TP
+.B ctrl-alt-r
+Refresh Desktop: draw the whole screen again.
+.TP
+.B ctrl-alt-l
+Lock the screen.
+.TP
+.BR alt-= ", " alt-\- ", " alt-0
+Volume up, volume down, and mute.
 .PP
-The alt in these is Control Panel > Shortcuts > Shortcut Key, which can
-be Alt, Super or Alt, or Super.
+The alt in these, except beside ctrl, is Control Panel > Shortcuts >
+Shortcut Key, which can be Alt, Super or Alt, or Super; a ctrl-alt key
+stays ctrl-alt whichever it is.
 .PP
 Quit, on the hibr menu, ends the desktop and its windows. A window is
 moved by its title bar, or by alt and a drag anywhere in it.
@@ -113,10 +192,12 @@ sends a request written as JSON as it is. The requests:
 .TP
 .B displays
 The displays attached: each one's name, place and size, whether it is the
-primary, and what it draws.
+primary, what it draws, and whether the wallpaper goes to it as pixels or
+cells; and the session's own answer to what the terminal draws.
 .TP
 .B windows
-The windows: id, title, place, size, workspace, and whether each has focus.
+The windows: id, title, application, place, size, workspace, and whether
+each is on every workspace, hidden, and has focus.
 .TP
 .B session
 The session's name, whether it is held, the focused window, the current
@@ -146,11 +227,24 @@ the wakes, frames and events since;
 .IP \(bu 2
 how often the sound, network and Bluetooth layers re-read their servers;
 .IP \(bu 2
-while timing is on, from a reset until a stop, each ticker's runs and
-milliseconds.
+the bytes the console sent, and, for a held desktop, the bytes and frames
+sent to each display;
+.IP \(bu 2
+how often the img module kept the wallpaper rather than placing it again,
+and why it last could not;
+.IP \(bu 2
+while timing is on, from a reset until a stop: the runs, total and longest
+milliseconds of each ticker, each app's windows
+.RB ( win: \fIapp\fR),
+each part of a frame
+.RB ( part: \fIname\fR)
+and the flush; the milliseconds spent drawing; what ended each wait; and why
+each app's windows were drawn.
 .RE
 .IP
-It does not count hold's server or the terminal, which are other processes.
+The CPU is counted from when this desktop started, a Restart Desktop
+included. It does not count hold's server or the terminal, which are other
+processes.
 .TP
 .BI "move " "id display"
 Move a window to a display, named as
@@ -165,11 +259,19 @@ Raise a window and give it focus.
 .B raise
 is the same.
 .SH EXIT STATUS
+.B desktop
+exits 1 when the session is already running and
+.B \-r
+was not given, or when
+.B \-j
+finds no desktop to join.
+.PP
 .B desktop ctl
 exits 0 when the desktop answered
 .BR {"ok":true} ,
-1 for an error the desktop gave, and 2 when there is no desktop to ask or
-the request was not understood.
+1 for an error the desktop gave, and 2 when there is no desktop to ask, it
+did not answer within five seconds, or the request was not one the client
+knows how to send.
 .SH FILES
 .TP
 .I ~/.config/hibr/desktop.hibr
@@ -178,7 +280,21 @@ script of its own, read at each start.
 .TP
 .I ~/.config/hibr/
 Also where applications, themes and the rest are found first, before the
-system's and the shipped copies.
+installed, the system's and the shipped copies.
+.TP
+.I ~/.local/share/hibr/
+Where
+.B catalogue install
+puts applications, themes and the rest for you
+.RB ( $XDG_DATA_HOME/hibr ).
+.TP
+.I /var/lib/hibr/
+The system scope, where
+.B catalogue \-\-system
+installs for every user of the machine, read before your own installs;
+.I \%$PREFIX/var/lib/hibr
+when hibr was installed anywhere but
+.IR /usr .
 .TP
 .I ~/.local/state/hibr/desktop.log
 What went wrong, and what the desktop did that is worth knowing, one line
@@ -196,20 +312,54 @@ the window manager, and what ships with it.
 .SH ENVIRONMENT
 .TP
 .B HIBR_HOLD
-Set inside a held session to that session's name. A desktop started from a
-terminal window of another desktop compares it with its own session's name,
-and so is held on its own.
+Set inside a held session to the path of that session's socket, whose last
+part is the session's name. A desktop started from a terminal window of
+another desktop compares that name with its own session's, and so is held
+on its own.
 .TP
-.BR XDG_CONFIG_HOME ", " XDG_STATE_HOME
-Where the settings and the log are kept, as above.
+.BR XDG_CONFIG_HOME ", " XDG_STATE_HOME ", " XDG_DATA_HOME
+Where the settings, the log and your own installs are kept, as above.
+.TP
+.B TMPDIR
+Where the control socket's folder is made, as above.
+.TP
+.B HIBR_CONNTIMEO
+Milliseconds
+.B desktop ctl
+waits for the desktop to accept its connection; 2000 when unset.
+.TP
+.B HIBR_GFX
+.BR kitty ", " sixel " or " off :
+the picture protocol to use, said outright rather than asked of the
+terminal.
+.TP
+.B HIBR_COLOURS
+.BR 24 ", " 256 ", " 16 " or " 8 :
+how many colours to send, said outright rather than asked of the terminal.
+.TP
+.BR SSH_CONNECTION ", " TERM_PROGRAM
+Name a display given no
+.BR \-\-name ,
+as above.
 .PP
 A session file may set any of the desktop's own
 .B DT_
-settings; they are listed in
-.IR programs/desktop/README.md .
+settings; most are declared with their defaults in the window manager's
+.IR wm/settings.hibr ,
+the rest beside the code that reads them, and described in
+.I programs/desktop/README.md
+in hibr's source.
 .SH SEE ALSO
 .BR hibr (1)
 .PP
 The desktop's own guide is
 .I docs/desktop.md
-in hibr's source.
+in hibr's source;
+.I docs/catalogue.md
+covers
+.BR catalogue ,
+and
+.I docs/please.md
+covers
+.BR please ,
+which runs a command as root.

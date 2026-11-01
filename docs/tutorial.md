@@ -99,8 +99,18 @@ take every subscript literally, as in bash.
 
 **`set -e` does not switch off inside a function you call from a
 condition.** In bash, `if f; then` quietly stops `set -e` checking anything
-inside `f`; in hibr a failure in there still stops the script. And a
-pipeline fails if any part of it does, so there is no `pipefail` to remember.
+inside `f`; in hibr a failure in there still stops the script. And under
+`set -e` a pipeline stops the script if any part of it fails, so there is no
+`pipefail` to remember; `$?` is still the last stage's status, as in bash,
+and `PIPESTATUS` holds every stage's:
+
+```sh
+false | true; echo "status $?, stages ${PIPESTATUS[*]}"
+```
+
+```output
+status 0, stages 1 0
+```
 
 **Regex captures land in `M`**, and `[[ =~ ]]` fills bash's `BASH_REMATCH`
 too, so bash scripts find them where they look. Every deliberate difference
@@ -148,6 +158,26 @@ refused: status 2
 
 A call with a wrong type, a missing argument or one too many is refused
 before the body runs.
+
+`:=` takes from a function only what `ret` gives it. The bash habit of
+`echo`ing an answer binds empty -- the text goes to the screen -- so either
+end the function in `ret`, or keep `$( )` for it. A function whose last
+command is a builtin that left a result passes it on with `ret -k`:
+
+```sh
+fn greet(str who) { echo "hello $who"; }
+g := greet ada; echo "[$g]"
+g=$(greet ada); echo "[$g]"
+fn shout(str who) { str upper "$who" u; ret -k; }
+s := shout ada; echo "[$s]"
+```
+
+```output
+hello ada
+[]
+[hello ada]
+[ADA]
+```
 
 ## JSON without jq
 

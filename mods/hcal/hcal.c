@@ -721,7 +721,7 @@ int hc_bi(sh *s, int ac, char **av)
 
 	hc_load();
 	if (ac < 2) {
-		lg(HIBR_LERR, "usage: hcal list | format [-c cal] [-a days] FORMAT [time] | date [-c cal] [-a days] [time|yyyy-mm-dd] | greg [-c cal] [-a days] y m d | month [-c cal] y m | name [-c cal] m | info [-c cal]");
+		lg(HIBR_LERR, "usage: hcal list | format [-c cal] [-a days] [-n names] [-s names] FORMAT [time] | date [-c cal] [-a days] [time|yyyy-mm-dd] | greg [-c cal] [-a days] y m d | month [-c cal] y m | name [-c cal] m | info [-c cal]");
 		return 2;
 	}
 	if (!strcmp(av[1], "list")) {

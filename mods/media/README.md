@@ -7,9 +7,9 @@ as pixels where the terminal can place them.
 The decoding is libavformat and libavcodec, loaded at run time the way
 hibr loads libssl and libpng: nothing is linked, no FFmpeg headers are
 needed to build, and no ffmpeg or mpv process is started. Sound goes to
-the machine's sound server when there is one -- PipeWire or PulseAudio,
-through libpulse-simple -- else to its own device, ALSA on Linux,
-AudioQueue on macOS, and the picture follows the sound's clock.
+AudioQueue on macOS; elsewhere to the machine's sound server when there is
+one -- PipeWire or PulseAudio, through libpulse-simple -- else to ALSA. The
+picture follows the sound's clock.
 
 ```text
 mod load media                       # or need media
@@ -34,13 +34,13 @@ media close $p
 | `media seek ID SECONDS [-r]` | go to a time; `-r`, or a leading `+` or `-`, from where it is |
 | `media volume ID [0-100]` | set the volume; says what it is |
 | `media size ID COLS ROWS [half\|ascii\|mono\|pixels]` | the cells the picture fills, and how it is drawn |
-| `media mode ID half\|ascii\|mono\|pixels` | half blocks (two pixels a cell), ASCII by brightness in colour, ASCII plain, or real pixels where the terminal can place them (ADR 0037, which has what a frame costs each way) |
+| `media mode ID half\|ascii\|mono\|pixels` | half blocks (two pixels a cell), ASCII by brightness in colour, ASCII plain, or real pixels where the terminal can place them (ADR 0037, which has what a frame costs each way); `sixel` is taken as another name for `pixels` |
 | `media detail ID 0-3` | how finely colours are kept: lower changes fewer cells from frame to frame, which is less to send to the terminal (default 2) |
 | `media fps ID N` | the most frames drawn a second (default 24; 0 for every one) |
 | `media frame ID` | bring the shown frame up to the clock: status 0 when it changed |
 | `media draw ID ROW COL [-p PANE]` | draw the shown frame, into a pane when named; in pixels a paned picture is placed below the cells, so a window over part of it hides only that part (Gitea #382) |
 | `media next ID` | milliseconds until the next frame is due, -1 when nothing will change by itself -- for a caller that sleeps between frames |
-| `media info ID` | `pos`, `dur`, `shown` (the time of the frame shown), `paused`, `ended`, `width`, `height`, `volume`, `video`, `audio` (codecs), `output` (where the sound goes), `mode`, `error`; a map with `:=` |
+| `media info ID` | `pos`, `dur`, `shown` (the time of the frame shown), `paused`, `ended`, `width`, `height`, `volume`, `video`, `audio` (codecs), `output` (where the sound goes), `mode` (what was asked for: `half`, `ascii`, `mono`, or `sixel` for pixels), `drawn` (what the last draw did: `pixels`, or `cells` when the picture fell back to cells -- the terminal draws no pictures, has not said yet, or the frame did not fit), `error`; a map with `:=` |
 | `media feed [-p]` | a player with no source of its own: its picture and sound arrive on pipes |
 | `media pipe ID video\|audio` | a fed player's pipe for one stream, the end to write to as the result; each stream is a container of its own (fragmented MP4, WebM), from its init segment on -- what `web take` writes |
 | `media close ID`, `media close all`, `media list` | |
@@ -68,11 +68,12 @@ picture stood still while the sound went on (Gitea #288).
 a file, at the same
 pace -- what the tests listen to; each write is flushed, since a desktop a
 suite ends is killed rather than closed, and the header's length is only
-put right when the player closes). Unset, a sound server is tried first
--- it is what follows the output chosen in Control Panel > Sound (Gitea
-#306), where ALSA's `default` follows it only through a plugin a machine
-may not have -- then the platform's own device, and a machine with none
-plays silently and says so in `info`'s `error`. The server's stream is
+put right when the player closes). Unset, AudioQueue is tried first,
+which only a Mac has; then a sound server -- it is what follows the output
+chosen in Control Panel > Sound (Gitea #306), where ALSA's `default`
+follows it only through a plugin a machine may not have -- then ALSA; and
+a machine with none of them plays silently and says so in `info`'s
+`error`. The server's stream is
 asked for a tenth of a second of buffer, as ALSA is; its own default is
 seconds, which a pause or a seek would then have to wait out.
 

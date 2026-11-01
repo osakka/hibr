@@ -56,7 +56,8 @@ dt_run
 dt_close
 ```
 
-`dt_new title height width row col [app]` makes a window and puts it on top.
+`dt_new title height width row col [app [arg]]` makes a window and puts it
+on top; `arg` is handed to the app's `_open`.
 Its id lands in `$RET`, so `id := dt_new ...` works if you want to keep it.
 
 A callback declares everything it is called with -- `_draw` is handed the
@@ -81,7 +82,7 @@ these, and the window manager calls only the ones that exist:
 | `hello_paste` | `id text op` | Edit > Paste or alt-v, with `op` `cut` or `copy`, and a paste from the terminal the desktop runs on, as a copy |
 | `hello_drop` | `id row col move\|copy path...` | files dragged from elsewhere, let go over this one; there may be several |
 | `hello_refresh` | `id` | something on disk changed: a move, a copy, the trash |
-| `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
+| `hello_wheel` | `id up\|down\|left\|right row col` | the wheel, over this window whether or not it has focus; left and right are a sideways wheel or a tilt |
 | `hello_hover` | `id row col` | the pointer moving over this window with no button held, in the coordinates it draws in; `-1 -1` when it leaves. Only where hovering is on (Control Panel > Mouse > Hover), and a frame is drawn only when the cell changes |
 | `hello_scroll` | `id key top` | a scrollbar drawn with a key, held and dragged -- set the offset |
 | `hello_close` | `id` | once, when the window closes |
@@ -148,8 +149,10 @@ gives it back with `dt_pointerlock "$id" off`. `dt_ptrlockcan` says whether
 any display can (Blit, from 0.2.42; nothing else). On answers whether the
 asking was done -- it fails without focus or a display that can, and
 unless the person pressed a key or clicked in the last two seconds, so ask
-from a click or a key and never from a timer, a job or a restore -- not
-whether the display agreed. While it is held every mouse report goes to the
+from a click or a key and never from a timer, a job or a restore; a refusal
+is logged as `pointer lock: refused ...` -- not whether the display agreed.
+A report that arrives after the lock has ended is dropped, never handed to
+a window as a key (0.99.416). While it is held every mouse report goes to the
 window's `_mouse`, whatever is under the pointer, with `rel` where the
 modifiers go: `rel BTN DY DX` for movement, `none` when no button is held,
 and the press, release or wheel it was with its own deltas, signed, in the
@@ -214,9 +217,11 @@ each checked on every gate by `tests/deps.py` and `tests/scopes.py`:
   are optional integrations, never dependencies: either side can be
   installed or removed and the other keeps working.
 
-The Control Panel and the saver framework are the exception: every pane and
-every saver is built on them, so they say `# platform:` in their headers,
-count as part of the desktop, and are never installed apart from it.
+The Control Panel, the saver framework and the bar's own four items (the
+application menu, the clock, the notification icon and the workspace
+numbers) are the exception: everything else is built on them, so they say
+`# platform:` in their headers, count as part of the desktop, and are never
+installed apart from it.
 
 **Every callback returns inside the frame, and slow work is a job.** Every
 app runs in the desktop's one process, between frames: while a `_draw`,
@@ -230,19 +235,34 @@ child of the desktop with every function of yours already loaded:
 
 <!-- not run: needs a running desktop -->
 ```sh
-fn fb_scanned(int n, int st) {
-	local f
+fn hello_scanned(int n, int st) {
+	local id=${DTJ[$n]["tag"]} f
 	f := dt_jobfile "$n" out
-	[ "$st" = 0 ] && mapfile -t FB_LIST < "$f"
+	[ "$st" = 0 ] && read -r -d '' HELLO["$id"]["list"] < "$f"
 	dt_want 0
 }
-n := dt_job scan "$dir" fb_scanned fb_scan "$dir"
+n := dt_job scan "$id" hello_scanned hello_scan "$dir"
 ```
 
 The callback runs in a later frame, after the job has ended, with its
-number and status; what it printed is in `dt_jobfile n out`, and
+number and status; what it printed is in `dt_jobfile n out`, the job's
+`TAG` -- here the window it is for -- is `${DTJ[$n]["tag"]}`, and
 `wm/jobs.hibr` says the rest. `dt_job` is the one way to do this: write no
 `( ... ) &` of your own.
+
+When what the work produces is variables -- a pane reading what it shows
+for the first time -- `dt_jobvars KIND TAG CALLBACK FUNCTION VAR...` runs
+`FUNCTION` as a job and brings the named variables back before `CALLBACK n
+status` runs; until then the pane draws "reading". Login Manager and
+Administrative Access read their first state this way.
+
+`hibr --explain` holds a file to this before it is written down: a `$( )`,
+a backquote or a `<( )` in a callback, or in anything a callback calls in
+the same file, is a program started every time it runs, and is reported
+unless the line ends with `# fork: reason`, the reason naming how often it
+can happen ("once a desktop", "every 30 s while open").
+`tests/850-lint.t` lints every file under `programs/`, so a new one fails
+the suite.
 
 The desktop times every callback (`wm/budget.hibr`). One that takes longer
 than a frame, 50 ms, is a note in the log -- `slow: win:files took 70 ms`
@@ -252,9 +272,23 @@ desktop 230 ms`, and the suites fail on that line, so it cannot ship.
 Nothing is done to the app itself: a stall is for whoever wrote it to
 find, never for the person using it to pay for. `desktop ctl stats` shows each
 callback's total and its longest single run, `max_ms`; read the second,
-since a callback that is slow once a second is invisible in an average. A
-window whose drawing costs more than a millisecond also offers `<app>_dirty`
-(below), so it is drawn only when it has something new.
+since a callback that is slow once a second is invisible in an average.
+
+**A window that is expensive to draw says when it has changed.** The desktop
+asks `<app>_dirty id` before it draws a window: succeed when something in it
+has changed, fail when it is exactly as last drawn, and the window is left
+alone with the screen keeping its cells. An app without one is drawn every
+frame, which is always correct, so offer it once a draw costs more than a
+millisecond and only if it can answer truly -- a wrong "clean" leaves a
+stale window, which is worse than a slow one. Since 0.99.410 a clean window
+is left even when it overlaps another, unless a window drawn under it in the
+same frame overlaps it, so the answer is relied on more often than before.
+Count what changes your drawing -- a key, a scan, the size, the focus, a
+scroll -- in a generation of your own and compare it, as `tasks_dirty` and
+`term_dirty` do. A window whose draw repaints every cell inside its frame can
+also offer `<app>_paintsall id`, succeeding while it does; the desktop then
+draws only its content, not its face and frame again, while nothing else has
+drawn over it. The Terminal does while its program runs.
 
 **A window that animates asks for its next frame.** The desktop redraws on
 every key, resize and terminal output, and otherwise sleeps: there is no
@@ -284,8 +318,9 @@ exited cleanly, instead of leaving `[exited 0 — close this window]` sitting
 there for someone to close by hand; it still shows the message and waits to
 be closed for a nonzero exit, since that is worth seeing before the window
 goes. The close itself happens once the frame that asked is fully drawn, not
-from inside `_draw` -- calling `dt_del` there would pull the window's pane
-out from under the border the frame still has left to draw over it.
+from inside `_draw`; since 0.99.393 `dt_del` called from a `_draw`, `_dirty`
+or `_idle` does the same, marking the window and closing it after the frame.
+A job's callback runs between frames, where `dt_del` closes at once.
 
 ## Widgets
 
@@ -299,11 +334,12 @@ same as anywhere else.
 `_draw`, before drawing any widget, since a scrolled list moves them and
 last frame's regions must not answer this frame's click.
 
-`dt_check id row col on label [tag]` draws `[x] label` or `[ ] label`.
-`dt_wdrop id row col width value [tag]` draws a value padded to `width`
-columns with a caret after it: `value ▾`. Both take pane-relative
-coordinates, the same ones `_draw` and `_click` already use, and both
-default `tag` to `label`/`value` if left off.
+`dt_check id row col on label [tag]` draws an on/off choice and its label,
+in the style the person chose under Appearance > Checkboxes: a box (`[x]`
+and `[ ]`), a knob, a block or a tick. `dt_wdrop id row col width value
+[tag]` draws a value padded to `width` columns with a caret after it:
+`value ▾`. Both take pane-relative coordinates, the same ones `_draw` and
+`_click` already use, and both default `tag` to `label`/`value` if left off.
 
 A single-line editable field is the same shape, split in two rather than
 one, since typing has to change what an app's own state holds and neither
@@ -388,16 +424,17 @@ of its own.
 An app declares them by providing `<app>_menus`, which calls `dt_menu`,
 `dt_item` and `dt_sep` — the same shape `opt` uses to declare a command line,
 and the same prefix contract as `_draw` and `_key`. An app with no `_menus`
-simply has none, and the desktop's show instead.
+is given File > Close and Edit, as below.
 
 <!-- not run: an app's callback; the desktop calls it -->
 ```sh
-clock_menus() {
-	dt_menu "Clock"
-	dt_item "Set Alarm"  a  clock_alarm
-	dt_item "12 Hour"    h  clock_ampm
-	dt_sep
+fn hello_menus() {
+	dt_menu "File"
 	dt_item "Close"      w  dt_close_focused
+	dt_editmenu
+	dt_menu "Hello"
+	dt_item "Set Alarm"  a  hello_alarm
+	dt_item "12 Hour"    h  hello_ampm
 }
 ```
 
@@ -407,7 +444,7 @@ clock_menus() {
 | `dt_mark <label> <key> <on> <cmd…>` | the same, with a tick when `on` is not `0` |
 | `dt_dim <label>` | an item that is there and cannot be chosen |
 | `dt_sep` | a dividing line |
-| `dt_sub <label>` … `dt_end` | a submenu; the items between belong to it |
+| `dt_sub <label> [key]` … `dt_end` | a submenu; the items between belong to it |
 
 `dt_item <label> <key> <command> [args…]` — the key is the letter that picks
 it while the menu is open, and the command is run when it is chosen.
@@ -423,7 +460,7 @@ shape.
 
 <!-- not run: an app's callback; the desktop calls it -->
 ```sh
-notes_menus() {
+fn notes_menus() {
 	dt_menu "File"
 	dt_item "Save"   s  notes_save
 	dt_editmenu
@@ -504,6 +541,40 @@ from inside a function, so its tables must be declared
 `declare -gA`, or they vanish when the loading function returns, exactly as
 they would in bash.
 
+## Settings and words
+
+**A setting an app keeps is one the Control Panel shows.** A variable the
+app reads -- with its default set the way the window manager's are,
+`HELLO_SIZE="${HELLO_SIZE-12}"` -- is written to the settings file with
+everything else once the app names it:
+
+<!-- not run: a line from an app's file, read when the desktop loads it -->
+```sh
+command -v dt_keep > /dev/null && dt_keep HELLO_SIZE HELLO_WRAP
+```
+
+From then on `dt_save` writes it and `dt_load` reads it back, and a change
+reaches every window at once. Every kept name has to appear in a Control
+Panel pane -- usually the app's own, brought with it as a `# part:` --
+or `tests/540-examples.t` fails: nothing a person can choose should be
+reachable only by editing the settings file. A pane whose app is installed
+and not loaded in this session says so with `cp_absent`. Because the file
+keeps every kept setting, defaults included, changing a default in code
+does not reach anyone who has saved; the window manager's own migrations
+are `DT_SETVER` branches in `dt_load`.
+
+**Words a person reads go through the language.** The desktop translates
+at its widgets: a menu row, a checkbox's label, a button, a pane's row and
+a window's title are looked up for you, and `dt_note` and `dt_notep`
+translate their text when given format arguments. Text an app draws itself
+with `console put` goes through `t := dt_tr "Text"`, or `dt_tr "%s files"
+"$n"` with arguments, and `dt_trn n one many` picks a plural. The key is
+the English sentence with `%s` where a value goes -- never the value
+itself, since a key holding somebody's folder name can have no
+translation; `tools/strings.py --check` fails on one. The catalogues are
+JSON files under `lang/`, and `lang/strings.txt` is the list of every key
+(ADR 0032).
+
 ## Managing other windows
 
 Most apps mind their own business. One that manages *other* windows — a
@@ -524,8 +595,9 @@ manager's own table:
 | `dt_resize <id> <h> <w>` | give it a size, clamped to what is usable and what fits |
 | `dt_min <id>` | minimise it, or restore it if it already is |
 | `dt_del <id>` | close it |
-| `dt_new <title> <h> <w> <row> <col> [app]` | open one; the id lands in `$RET` |
+| `dt_new <title> <h> <w> <row> <col> [app] [arg]` | open one; the id lands in `$RET` |
 | `dt_dlgat <h> <w> [margin]` | where a dialog opens: over the focused window, on its display, made to fit it -- in `DT_DLGR`, `DT_DLGC`, `DT_DLGH`, `DT_DLGW` |
+| `dt_dlgfor <id> <h> <w> [margin]` | the same, over window `id` rather than the focused one -- for a question a window asks when it may not have focus, as a confirm does |
 
 A dialog is placed with `dt_dlgat`, never centred on `DT_ROWS` and
 `DT_COLS`: with several displays the middle of the whole screen is between
@@ -549,8 +621,8 @@ its trouble.
 ```sh
 fn hello_key(id, key) {
 	case $key in
-	up)   N=$((N - 1)) ;;
-	down) N=$((N + 1)) ;;
+	up)   HELLO[$id]["n"]=$((HELLO[$id]["n"] - 1)) ;;
+	down) HELLO[$id]["n"]=$((HELLO[$id]["n"] + 1)) ;;
 	*)    return 1 ;;
 	esac
 }
@@ -583,8 +655,9 @@ instead, in the same `w$id` coordinates every other `_draw`/`_click` pair
 already uses; `bx` is where its own body starts, since it shares the window
 with the pane list to its left. Either shape may also define `name_key` for
 keys the host's own row/pane navigation does not already handle, and the
-body shape `name_wheel`. `datetime.hibr` is the one bundled example of this
-shape. It holds the menu bar clock's format (a dropdown of examples, or
+body shape `name_wheel`. Date & Time, Displays, File Types and About Me
+are bundled examples of this shape. `datetime.hibr` holds the menu bar
+clock's format (a dropdown of examples, or
 Custom… for any strftime format up to 24 columns wide), a time zone finder,
 and Set Date & Time where the machine owns its clock -- in a container it
 says "set by the host" instead. Changing the zone or the clock runs in a
@@ -755,7 +828,9 @@ everything else besides (Gitea #343). It answers:
 - `rereads`: how often each of the sound, network and Bluetooth layers asked
   its server for everything again;
 - while `timing` is on, from a reset until `desktop ctl stats stop`: each
-  ticker's `runs` and `ms`, and `draw_ms`;
+  callback's `runs`, its total `ms` and its longest single run `max_ms`
+  (tickers, `win:<app>`, `idle:<app>`, `input:<app>`, `flush`), and
+  `draw_ms`;
 - while `timing` is on, `woke`: what ended each wait -- `input` (a key or
   a report), `io` (something watched being ready: a program's output, the
   browser's pipe) or `timer:<who>`, named for whoever asked for the soonest
@@ -765,7 +840,8 @@ everything else besides (Gitea #343). It answers:
   `left` (they were not), `dirty` (its `_dirty` said so), `nodirty` (it has
   none), `overlap` (a window drawn under it this frame overlaps it; since
   0.99.410 a window that only overlaps another, with nothing under it
-  drawn, can be `left`), `hover`, `moved`, or
+  drawn, can be `left`), `hover`, `moved`, `noapp` (a window with no app),
+  `forcedraw` (`DT_FORCEDRAW` is on), or
   `full:<cause>` for a frame drawn whole (`arranged`, `overdrew`, `popup`,
   `other`), counted once a window a frame (0.99.405);
 - while `timing` is on, the frame's parts as tickers named `part:<name>`
@@ -806,8 +882,9 @@ own and outlasting a logout the same way, in a folder only its owner can
 enter; a connection from another user is refused. One request per
 connection, a line of JSON -- `{"op":"displays"}`, `{"op":"windows"}`,
 `{"op":"session"}`, `{"op":"move","id":3,"display":"right"}`,
-`{"op":"resize","id":3,"h":20,"w":60}`, `{"op":"focus","id":3}`,
-`{"op":"rescan"}`, `{"op":"state"}` -- and one
+`{"op":"resize","id":3,"h":20,"w":60}`, `{"op":"focus","id":3}` (or
+`raise`), `{"op":"rescan"}`, `{"op":"state"}`, `{"op":"stats"}` (with
+`"reset":true` or `"stop":true`), `{"op":"signedin"}` -- and one
 line back, `{"ok":true,...}` or `{"ok":false,"error":...,"detail":...}`
 with the errors `bad-request`, `unknown-op`, `no-window`, `no-display`,
 `detached`, `bad-geometry` and `unauthorized`. `desktop ctl -j '{...}'`

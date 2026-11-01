@@ -19,10 +19,11 @@ Arrays are maps, so the counter *is* the data structure.
 ```sh
 count=()
 for w in the quick brown fox the lazy dog the end; do
-  count[$w]=$(( ${count[$w]:-0} + 1 ))
+  count["$w"]=$(( ${count["$w"]:-0} + 1 ))
 done
 for w in "${!count[@]}"; do
-  printf '%s %s\n' "$(str pad "$w" -6)" "${count[$w]}"
+  str pad "$w" -6 ' ' p
+  printf '%s %s\n' "$p" "${count["$w"]}"
 done
 ```
 
@@ -36,7 +37,9 @@ done
    end 1
 ```
 
-Insertion order is kept, which `sort | uniq -c` cannot do at all.
+Insertion order is kept, which `sort | uniq -c` cannot do at all. The key is
+quoted because a word is not always a name: unquoted, `count[a-b]` is `a`
+minus `b`, key 0.
 
 ### Pull fields out of a log
 
@@ -109,7 +112,7 @@ while read -r line; do
   match "$line" '^([^=]+)=(.*)$' || continue
   str trim "${M[1]}" k
   str trim "${M[2]}" v
-  cfg[$section][$k]=$v
+  cfg["$section"]["$k"]=$v
 done < app.ini
 
 echo "sections: ${!cfg[@]}"
@@ -121,8 +124,9 @@ sections: server auth
 host: example.com  port: 8080
 ```
 
-`cfg[$section][$k]=$v` builds the intermediate level as it goes. No other shell
-has the container to hold this.
+`cfg["$section"]["$k"]=$v` builds the intermediate level as it goes, and the
+quotes keep a key such as `max-size` literal. No other shell has the
+container to hold this.
 
 ### Build JSON from shell data
 
@@ -189,8 +193,9 @@ w2: 5 -> 25
 w2: 6 -> 36
 ```
 
-bash cannot keep two coprocesses at once — it warns and loses the first. See
-[0018](adr/0018-a-coprocess-is-an-endpoint.md).
+bash warns when a second coprocess starts while the first is still alive, and
+its manual allows only one active at a time; hibr keeps any number, each its
+own pair of descriptors. See [0018](adr/0018-a-coprocess-is-an-endpoint.md).
 
 ### Wait for whichever finishes first
 
@@ -303,7 +308,42 @@ echo "$sum"
 
 `$(add 2 3)` would fork. `:=` does not — [0005](adr/0005-results-travel-in-a-slot.md).
 
+`:=` takes from a function only what it gives with `ret`. One that prints its
+answer binds empty, as a program that prints nothing would; `ret -k` passes on
+what a builtin left as the last command:
+
+```sh
+fn hi() { echo hi; }
+x := hi; echo "[$x]"
+fn up(str s) { str upper "$s" u; ret -k; }
+y := up hello; echo "[$y]"
+```
+
+```output
+hi
+[]
+[HELLO]
+```
+
 ## Discipline
+
+### Know which stage of a pipeline failed
+
+```sh
+printf '%s\n' apple banana | grep cherry | wc -l
+st=("${PIPESTATUS[@]}")
+echo "stages: ${st[*]}"
+[ "${st[1]}" -eq 1 ] && echo "grep found no cherry"
+```
+
+```output
+0
+stages: 0 1 0
+grep found no cherry
+```
+
+`$?` is the last stage's status, as in bash; `PIPESTATUS` holds every stage's,
+until the next command replaces it, so copy it first.
 
 ### Retry with a growing delay
 

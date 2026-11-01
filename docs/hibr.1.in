@@ -3,7 +3,7 @@
 hibr \- a small, fast shell that runs the bash you already write
 .SH SYNOPSIS
 .B hibr
-.RB [ \-eiluxCHS ]
+.RB [ \-efilnuxCHS ]
 .RB [ \-d
 .IR level ]
 .RB [ \-o
@@ -12,6 +12,9 @@ hibr \- a small, fast shell that runs the bash you already write
 .RB [ \-\-checkfirst ]
 .RB [ \-\-explain ]
 .RB [ \-\-plan ]
+.RB [ \-\-login ]
+.RB [ \-\-modules= \fIvalue\fR ]
+.RB [ \-\- ]
 .RI [ script
 .RI [ arg ...]]
 .br
@@ -125,12 +128,12 @@ Job control needs a real terminal, so a
 .B \-i
 shell on a pipe says it has none and carries on.
 .TP
-.BR \-e ", " \-u ", " \-x ", " \-C ", " \-H ", " \-S ", " \-n ", " \-o " " \fIoption\fR
+.BR \-e ", " \-f ", " \-u ", " \-x ", " \-C ", " \-H ", " \-S ", " \-n ", " \-o " " \fIoption\fR
 Every short option
 .B set
 takes, read by the same code, so the two spellings cannot drift apart:
-errexit, nounset, xtrace, noclobber, histexpand, strict expansion and
-noexec, or any option by name. They bundle as one word
+errexit, noglob, nounset, xtrace, noclobber, histexpand, strict expansion
+and noexec, or any option by name. They bundle as one word
 .RB ( \-ex ),
 .B +x
 turns one off, and
@@ -179,7 +182,9 @@ Run nothing: parse the script and name the common mistakes in it, one per
 line with the line number and what to write instead. The rules live in the
 .B lint
 module. Status 0 when it found nothing, 1 when it found something, 2 for a
-syntax error.
+syntax error or when the
+.B lint
+module cannot be found.
 .TP
 .B \-\-plan
 A dry run: follow the script's own logic, but refuse every write outside a
@@ -194,6 +199,10 @@ list runs for real. Given with
 .B \-\-explain
 wins.
 .TP
+.BR \-\- ", " \-
+End the options: what follows is the script and its arguments, even when it
+begins with a dash.
+.TP
 .BI \-d " level"
 Log at
 .IR level :
@@ -207,13 +216,40 @@ Print a summary of these options, and exit.
 .SH ENVIRONMENT
 .TP
 .B HIBR_MODPATH
-Directories, separated by colons, searched for modules before the installed
-module directory. Not consulted when running as root, which loads modules
-only from the installed directory.
+Directories, separated by colons, searched for modules. The whole search, in
+order: the current directory, these, your own
+.RI ( $XDG_DATA_HOME/hibr/mods ),
+the system scope's, and the installed directory. A shell running as root
+consults none of the first three, and loads modules only from the system
+scope and the installed directory; under
+.B \-\-plan
+the current directory is left out.
+.TP
+.B HIBR_SYSDIR
+The system scope, where
+.B catalogue \-\-system
+installs for every user; modules are looked for in its
+.I mods
+folder after your own and before the installed directory. The shell sets it
+at startup to the path it was built with unless the environment already set
+it. The built-in path is used only when it is owned by root or by the
+binary's owner and writable by nobody else; a path you set is trusted as it
+is. A shell running as root ignores this variable and uses the built-in
+path. Like your own folder, it is searched for a module asked for by name,
+never for one a mistyped command might load.
+.TP
+.B XDG_DATA_HOME
+Where
+.B catalogue install
+puts what it installs, modules in
+.IR hibr/mods ;
+.I ~/.local/share
+when unset. Searched for a module asked for by name, never for one a mistyped
+command might load.
 .TP
 .B HIBR_RC
 The startup file an interactive shell reads, in place of
-.IR ~/.hibrc .
+.IR \%~/.hibrc .
 .TP
 .B HIBR_MODULES
 Whether a module may answer a command nothing else did, and from which end
@@ -236,7 +272,7 @@ whatever this says.
 .TP
 .B HIBR_PROFILE
 The system profile a login shell reads, in place of
-.IR /etc/profile .
+.IR \%/etc/profile .
 .TP
 .B HIBR_PROCTITLE
 A name to wear in
@@ -244,6 +280,15 @@ A name to wear in
 worn at startup and removed from the environment as it is used, so it does
 not reach anything this shell goes on to run. The desktop names each
 terminal window's own shell this way.
+.TP
+.B HIBR_PROCNAME
+The short name to wear beside
+.BR HIBR_PROCTITLE :
+the 15 bytes the kernel keeps, which
+.BR top (1)
+and
+.BR pgrep (1)
+read. Removed from the environment with it.
 .TP
 .B HIBR_HISTFILE
 Where an interactive shell keeps its history, in place of
@@ -253,9 +298,19 @@ Where an interactive shell keeps its history, in place of
 In agent mode, the seconds each foreground process may run: TERM when they
 run out, KILL two seconds later, and status 124.
 .TP
+.B HIBR_CONNTIMEO
+Milliseconds a connection may take to be made, for
+.IR /dev/tcp ,
+.IR /dev/udp ,
+.IR /dev/unix ,
+.IR /dev/tls ,
+.B connect
+and the TLS relay. Unset, a connect waits as long as the system lets it; zero
+or less means no bound, and more than an hour is taken as an hour.
+.TP
 .B HIBR_TLS_INSECURE
-Set to 1 to accept a TLS certificate that does not verify. Certificates are
-verified by default.
+Set in the environment, to any value at all (even 0 or empty), to accept a
+TLS certificate that does not verify. Certificates are verified by default.
 .TP
 .B HIBR_TLS_CAFILE
 A file of certificates to trust besides the ones the system already trusts,
@@ -266,16 +321,58 @@ which replaces the default CA file, this adds to it. Empty counts as unset.
 .B HIBR_DEBUG
 The log level, as
 .B \-d
-sets it.
+sets it; read once, at startup.
+.TP
+.B HIBR_BIDI
+Set to
+.B off
+for a terminal that reorders right-to-left text itself: the line editor
+then draws such a line as it was typed, rather than in display order
+through the
+.B uni
+module. It is also the default for
+.BR "console bidi" .
+.TP
+.B COMPLETE
+A map: the function named by
+.BI COMPLETE[ cmd ]
+is called with the command and the partial word when tab is pressed after
+.IR cmd ,
+and what it
+.BR ret s
+becomes the candidates.
+.TP
+.B TMPDIR
+Where a here-document too large for a pipe is written while it is read;
+.I /tmp
+when unset or empty.
+.B \-\-plan
+sets it to a scratch folder of the plan's own.
 .TP
 .B PROMPT_FN
 The name of a function whose result is the interactive prompt, in place of
 .BR PS1 .
 .TP
+.B RET_RIGHT
+Set by a
+.B PROMPT_FN
+function, beside
+.BR RET ,
+to give the right-hand prompt.
+.TP
 .BR PS1 ", " PS2 ", " PS3
 The primary and continuation prompts, and the prompt
 .B select
 prints, as in bash.
+.TP
+.BR RPS1 ", " TPS1
+A right-hand prompt, drawn against the right edge, and a transient prompt,
+left behind in place of the prompt once a line has run.
+.TP
+.B FUNCNEST
+How deep functions may call each other, as in bash; past it the script ends
+as an arithmetic error ends it. Recursion is refused before the stack runs
+out whether or not it is set.
 .TP
 .B HIBR
 Set by the shell to the absolute path of the running binary, so a script can
@@ -283,6 +380,16 @@ run itself, or another script, under the same shell.
 .TP
 .B HIBR_VERSION
 Set by the shell to its version.
+.TP
+.B HIBR_ABI
+Set by the shell to its module ABI, which a module has to have been built
+against.
+.PP
+Modules read variables of their own, such as
+.B HIBR_GFX
+and
+.B HIBR_COLOURS
+for the console; each is named in that module's documentation.
 .SH FILES
 .TP
 .I ~/.hibrc
@@ -306,6 +413,19 @@ The installed modules, loaded with
 .BR "mod load" ,
 .B need
 or on first use of a command a module provides.
+.TP
+.I ~/.local/share/hibr/mods
+Modules
+.B catalogue install
+placed for you, searched before the system scope and the installed ones.
+.TP
+.I /var/lib/hibr/mods
+The system scope's modules, which
+.B catalogue \-\-system
+placed for every user;
+.I \%$PREFIX/var/lib/hibr
+when hibr was installed anywhere but
+.IR /usr .
 .TP
 .I ~/.local/state/hibr/desktop.log
 Errors from a running desktop, which are kept off its screen.
@@ -333,7 +453,7 @@ in agent mode.
 A program was found but could not be run.
 .TP
 .B 127
-A command was not found.
+A command, or the script named on the command line, was not found.
 .TP
 .B 128 + n
 A command was ended by signal
@@ -360,6 +480,7 @@ echo "$sum ${doc[meta][stars]}"
 .fi
 .RE
 .SH SEE ALSO
+.BR desktop (1),
 .BR bash (1),
 .BR dash (1).
 The guides that come with the source:

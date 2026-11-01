@@ -37,7 +37,7 @@ same underlying grid, not the interface itself.
     t := term open [-r rows] [-c cols] [-s lines] [--] cmd args...
     t := term new [-r rows] [-c cols]  # a terminal with no program: fed by hand
     term poll  t [ms]            # read what the program wrote, parse it
-    term draw  t row col h w [curon]  # paint the screen into a rectangle
+    term draw  t row col [h w [curon]] [-p pane]  # paint the screen into a rectangle
     term key   t name            # a decoded key name, as the program expects it
     term write t text            # raw bytes, to the program
     term feed  t text... | -f file  # bytes into the emulator itself, as if the program wrote them
@@ -68,6 +68,10 @@ same underlying grid, not the interface itself.
     term select t none
     term copy t                  # the selected text; fails when nothing is
     term close t
+
+`term draw` without `h` and `w` (or with 0) paints the whole terminal. With
+`-p pane`, `row` and `col` are the pane's own and the rectangle is clipped
+to the pane, the same translate-and-clip `img draw -p` does.
 
 Each `term open` is its own terminal, its own session and its own program.
 Two windows of `programs/desktop/apps/term.hibr` are two shells on two ptys, and
@@ -115,7 +119,8 @@ follows from it:
   (Gitea #194). OSC 11 goes unanswered where the background was left that
   way and OSC 10 where the foreground was, since there is no one colour to
   name -- and a colour query this emulator cannot answer is **passed on**
-  (`term pass`) rather than dropped, which is what carries it out of a held
+  (the interface's `pass`, version 3; there is no `term pass` builtin)
+  rather than dropped, which is what carries it out of a held
   session to the real terminal, whose reply comes back the way a keystroke
   does. A display that places a picture under the text has to know what the
   terminal's own background is, because a cell painted exactly that colour
@@ -124,7 +129,7 @@ follows from it:
   is the real terminal's. **Primary device attributes** (`CSI c`) and the
   kitty protocol's own `a=q` query are passed on for the same reason, but
   only where this emulator is a relay rather than the terminal -- which it
-  knows by whether anybody drains what it passes on (`term pass`): `hold`
+  knows by whether anybody drains what it passes on (`pass`): `hold`
   does, every frame, and a window of the desktop never does. So a program
   in a window is still told what this emulator is (`CSI ?62;22c`), and a
   display inside a held session is told what the terminal it is really
@@ -219,8 +224,8 @@ a paste or a mouse event sent to the program goes back to the live screen,
 and so does a resize.
 
 A line is stored without its trailing blanks, so the cost is the text: a cell
-is 24 bytes, and 1000 lines of 40 characters are about 960 kB. A short session
-costs next to nothing.
+is 28 bytes and a line carries 4 more, so 1000 lines of 40 characters are
+about 1.1 MB. A short session costs next to nothing.
 
 A window that shrinks under the cursor pushes its top lines into the
 scrollback rather than losing the line being typed on, and one that grows
@@ -332,10 +337,11 @@ r c`, above), and where Control Panel > Mouse > Hover is on the desktop
 hears the pointer move (Gitea #370), but it hands a hover to a window's own
 hover callback, never to `_mouse`, and the terminal window has none.
 Modifiers on a mouse event are not passed on. Nothing reflows
-on a resize. Left and right margins (DECLRMM) and the kitty keyboard
-protocol are not implemented -- the parser consumes their sequences so
-nothing leaks onto the screen, and a program asking about them hears nothing
-back and falls back, as it would on xterm. Neither bitmap protocol is
+on a resize. Left and right margins (DECLRMM) are not implemented -- the
+parser consumes their sequences so nothing leaks onto the screen, and a
+program asking about them hears nothing back and falls back, as it would on
+xterm. The kitty keyboard protocol's query goes unanswered only in a window
+of the desktop; in a held session it is passed on, as above. Neither bitmap protocol is
 *rendered* either, for the reason above; both are kept.
 Underline styles and colours are parsed and drawn as a plain underline,
 since the display has only the one.

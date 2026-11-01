@@ -38,7 +38,7 @@
 #endif
 
 /* The most an archive may inflate to, so a crafted .tar.gz cannot ask for
-   the machine's memory. Raise it with TAR_MAX. */
+   the machine's memory. Raise it with ARCHIVE_MAX. */
 #ifndef ARC_MAXGZ
 #define ARC_MAXGZ (512ull * 1024 * 1024)
 #endif
@@ -384,7 +384,7 @@ int arc_openarch(sh *s, const char *nm, const char *path)
 		s_free(&raw);
 		if (!ok) {
 			lg(HIBR_LERR, "archive open: %s: the gzip stream does not "
-			   "expand (or is larger than TAR_MAX)", path);
+			   "expand (or is larger than ARCHIVE_MAX)", path);
 			s_free(&out);
 			arc_free(a);
 			return HIBR_FAIL;

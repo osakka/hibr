@@ -23,14 +23,14 @@ Where hibr is deliberately different:
 |---|---|
 | `set -e` is switched off inside a function called from a condition (`if f`, `f \|\| …`) | only the tested pipeline is exempt; a failure inside a function it calls still stops |
 | a failing `((expr))` trips `set -e` | `((expr))` never trips `set -e`; its status is a value |
-| `pipefail` is an option | any failing stage fails the pipeline for `set -e`; there is no `pipefail` |
+| `pipefail` is an option | any failing stage fails the pipeline for `set -e`; there is no `pipefail`, and `PIPESTATUS` holds each stage's status |
 | `=~` captures into `BASH_REMATCH` | the same, and into `M` too: `${M[1]}` is shorter; `match` fills only `M` |
 | functions return data by printing it | `ret value` sets the result slot; `x := f args` binds it without a fork |
 | an indexed array is a list | arrays are sparse ordered maps; subscripts chain: `${m[a][b]}` |
 | an indexed array's subscript is arithmetic, an associative one's a key | the same for `declare -A`; an array made without it reads `h[content-type]` as `content - type`, so quote a literal key: `h["content-type"]` |
 | `{$a,$b}` brace-expands | brace expansion is literal-only |
 | `**` needs `shopt -s globstar` | `**` is always on, and never follows symlinked directories |
-| `extglob` is an option | extended patterns always work |
+| `extglob` is an option | extended patterns always work in `case` and `[[ ]]`; in a filename glob only `?(…)`, `*(…)` and `+(…)` do so far |
 | `${#s}` counts bytes in some locales | `${#s}` and `${s:i:n}` count characters |
 | unquoted expansions split and glob | the same by default; `set -S` or `strict expansion` stops it |
 | `"${x:-the machine's zone}"` does not parse | an apostrophe inside `${…}`'s own text is just a character |
@@ -109,7 +109,10 @@ subshell and no fork. For a program on the PATH it binds the program's
 standard output, trailing newlines removed, as `$(…)` does (since 0.99.89,
 [ADR 0038](adr/0038-the-slot-takes-a-programs-output-too.md)). A function is not
 captured: what it prints still goes to the screen, and it hands a value
-back with `ret`.
+back with `ret`. One that never calls `ret` binds empty, as a program that
+prints nothing does; if its last command left a value, standard error names
+the function once. `ret -k` passes on what the last command left, a map
+included.
 
 ```sh
 fn half(int n) { ret $((n / 2)); }
@@ -121,6 +124,9 @@ m[k] := half 10
 echo "${m[k]}"
 p := expr 6 \* 7
 echo "$p"
+fn shout(str s) { str upper "$s" u; ret -k; }
+s := shout hi
+echo "$s"
 ```
 
 ```output
@@ -128,6 +134,7 @@ echo "$p"
 SHOUT
 5
 42
+HI
 ```
 
 ## Maps, nested
@@ -418,7 +425,11 @@ status 1
 Nothing runs. Status is 0 when clean, 1 when something was found, 2 for a
 syntax error. It also catches `for f in $(ls)`, `[ $x = y ]`, `unset
 'm[$k]'`, `local a=$1 b=${m[$a]}`, `$?` after `local x=$(cmd)`, a failing
-`return` after `ret`, and `${m[row]}` with `row` never assigned.
+`return` after `ret`, `${m[row]}` with `row` never assigned, `x := f` where
+`f` never calls `ret` (`bind-no-ret`), and, in a desktop app, a `$( )`, a
+backquote or a `<( )` inside a callback the desktop runs between frames
+(`callback-forks`; a `# fork: reason` comment on the line says why it is
+cheap there).
 
 ## A dry run
 
@@ -452,14 +463,18 @@ what it would do.
 `need name` loads a module that provides a name, or says it cannot;
 `mod load path.so` loads one by path; `mod list` shows what is loaded.
 Modules add builtins and protocols, and a script that uses none pays
-nothing for them. For HTTP, `need fetch` gives `fetch [METHOD] URL`:
+nothing for them. A module's builtin also loads itself the first time a
+command names it, in a script as at the prompt, unless `HIBR_MODULES=off`;
+`need` says so up front and fails cleanly where the module is missing. For
+HTTP, `need fetch` gives `fetch [METHOD] URL`:
 the body printed, or with `r := fetch URL` a map of `status`, `type`,
 `headers` and `body` (see [Networking](networking.md)).
 
 ## Mistakes to avoid
 
 - `x := f` for a function does not capture what `f` prints -- that still
-  goes to the screen; hand the value back with `ret`.
+  goes to the screen and `x` is empty; hand the value back with `ret`, or
+  `ret -k` after a builtin.
 - `ret "$v"; return 1` never reaches the `return`: `ret` has already ended
   the function with status 0.
 - An unquoted literal key is looked up as a variable first: write

@@ -1,8 +1,8 @@
 # Deployment
 
 `make install` is enough if you only want the binary somewhere. `deploy.sh`
-does the whole job: it builds with the right module directory, runs the test
-suite, keeps the previous installation so you can go back, verifies that the
+does the whole job: it builds with the right module directory, runs the core
+test suites, keeps the previous installation so you can go back, verifies that the
 copy it just installed actually works, and can keep itself current.
 
 ```text
@@ -25,11 +25,13 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
    the module directory is compiled into the binary, so installing to a
    different prefix without rebuilding produces a shell that cannot find its
    own modules.
-2. Runs every suite and stops if anything fails: `tests/run.sh`, then
+2. Runs the core suites and stops if anything fails: `tests/run.sh`, then
    `tests/self.hibr`, then the pseudo-terminal suites — `tests/editor.py`,
    `tests/console.py`, `tests/cat.py`, `tests/most.py`, `tests/hvi.py`,
    `tests/mtr.py` and `tests/mon.py` — which make their own terminals and so
    run headless, and are skipped with a note where there is no `python3`.
+   The rest -- the desktop's suites and the sanitizers -- are the release
+   gate's, described in [testing.md](testing.md), not an install's.
    Nothing is installed from a tree that does not pass. This is checked rather
    than assumed: a deliberately failing test leaves the installed binary
    byte-identical and exits 1, which is what makes the timer report a failure
@@ -37,7 +39,10 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
 3. Copies the current installation aside, so `rollback` has somewhere to go.
 4. Installs with `make install`, and records a manifest next to the modules:
    version, a checksum of every source file, where it was built from, and
-   when. What lands where, under the prefix:
+   when. A module an earlier deploy installed that this build no longer
+   makes -- renamed or dropped -- is taken away, so it cannot go on
+   shadowing anything; one installed by hand is never touched. What lands
+   where, under the prefix:
 
    | path | what |
    |---|---|
@@ -46,6 +51,12 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
    | `bin/catalogue`, `bin/vw` | the catalogue and the vault client, each a hibr script under `share/hibr/` |
    | `lib/hibr/*.so` | the modules, and the manifest |
    | `share/hibr/desktop/` | the window manager, its apps and accessories |
+   | `share/hibr/calendars/`, `share/hibr/salat/` | the calendar systems and prayer-time methods the `hcal` and `salat` modules read |
+   | `share/hibr/keyring.gpg` | the key the catalogue checks its index against |
+   | `var/lib/hibr/` | the system scope, where `catalogue --system` installs for every user; `/var/lib/hibr` when the prefix is `/usr`, and left for the catalogue to make with `MKSYSDIR=no` |
+   | `bin/please` | runs a command as root ([please.md](please.md)); on macOS always, on Linux only with the prefix `/usr`, beside the helpers below |
+   | `lib/hibr/hibr-access`, `hibr-settime`, `hibr-run`, `hibr-catalogue`, `hibr-loginset` | the root helpers `pkexec` runs, Linux with the prefix `/usr` only |
+   | `/usr/share/polkit-1/actions/org.hibr.policy` | the polkit actions naming them, the one path outside the prefix, because polkit reads no other |
    | `share/man/man1/hibr.1`, `desktop.1` | `man hibr` and `man desktop`, with the version and module directory filled in |
    | `include/hibr/hibr.h`, `fetch.h` | the module ABI, and the fetch module's interface, for building a module of your own |
 5. Runs the installed copy — not the one in the build tree — to check that it
@@ -110,8 +121,19 @@ The [project README](../README.md#install) has the commands for each. One
 key signs the apt, dnf and pacman repositories.
 
 A package installs under `/usr`: the shell in `/usr/bin`, its modules in
-`/usr/lib/hibr`, the manual pages and the desktop beside them, and the
-`desktop`, `catalogue` and `vw` commands.
+`/usr/lib/hibr`, the manual pages and the desktop beside them, the
+`desktop`, `catalogue`, `vw` and `please` commands, the root helpers and
+the polkit policy, and two PAM files: `/etc/pam.d/hibr`, which the screen
+lock checks a password with, and `/etc/pam.d/hibr-login`, the login
+screen's.
+
+The packages recommend `pkexec`, which `please`, Control Panel >
+Administrative Access, Date & Time, `catalogue --system` and the Login
+Manager pane all ask for -- and apt adds a new `Recommends:` only on a
+fresh install, so a machine that had hibr before needs `sudo apt-get
+install pkexec` once. They conflict with `pleaser`, another program that
+installs a `please` command; the Arch package conflicts with `please` as
+well.
 
 The desktop in it is what `packaging/ships` lists and what those bring
 ([ADR 0047](adr/0047-what-the-package-ships.md)): the window manager, the
@@ -143,6 +165,21 @@ files differ, using each system's own `login` rules -- and each has a
 `publish.sh` beside it for its repository (`itdlabs/hibr-rpm`,
 `itdlabs/hibr-arch`). The Homebrew formula is refreshed by
 `release.sh --formula` and `tools/homebrew-sync.sh`.
+
+## Privileged helpers
+
+hibr is never setuid ([ADR 0016](adr/0016-privileges-are-dropped-never-gained.md)).
+Everything the desktop or a person needs done as root -- running a
+command for `please`, changing who is an administrator, setting the
+clock, installing for every user, changing the login screen -- is a small
+hibr script in `/usr/lib/hibr`, run through `pkexec` under an action of
+its own: `org.hibr.run`, `org.hibr.access.apply`, `org.hibr.settime`,
+`org.hibr.catalogue` and `org.hibr.loginscreen`. Who may use each, and
+with whose password, is set in Control Panel > Administrative Access;
+[please.md](please.md) has the details. An install anywhere but `/usr`
+carries none of this, since polkit reads its actions from
+`/usr/share/polkit-1/actions` alone and runs only a helper an action
+names.
 
 ---
 

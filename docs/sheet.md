@@ -66,6 +66,11 @@ B18  =max "${B13_B15[@]}"   → 22
 loaded for every formula. Formulas are worked out in the order they need
 each other; one that needs itself says `#CYCLE`.
 
+They are worked out as a desktop job, away from the frame loop, so the
+desktop goes on drawing and taking keys while a slow formula runs; a formula
+cell is blank until its answer arrives. An edit made meanwhile is worked out
+once the job ends, and the answer of the run before it is not used.
+
 ## Nothing a formula does can touch anything
 
 A formula runs in a hibr of its own, **under `--plan`** — the dry run of
@@ -75,7 +80,8 @@ that would write, connect or start a program that does is refused:
 | the cell says | because |
 |---|---|
 | `#REFUSED` | it would have written, connected or run something that does |
-| `#TIME` | it used its two seconds of CPU; a loop says this rather than hanging the desktop |
+| `#TIME` | it used its two seconds of CPU, or the formulas together ran past ten seconds; a loop says this rather than hanging the desktop |
+| `#ERR` | the formula failed, or did not finish; why is shown under the grid when the cell is selected |
 | `#CYCLE` | it needs its own value |
 
 So a sheet that arrives by mail cannot act when you open it. **Sheet >

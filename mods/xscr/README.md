@@ -60,7 +60,7 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
 | `xscr draw ID row col h w [-p pane] [-m pixels\|half] [-c]` | the screen scaled to h by w cells, as pixels where the display can place them and half blocks where it cannot or `-m half` says so; with `-c`, only the region `fit` set, which a fitted window shows 1:1 |
 | `xscr key ID NAME` | a key by the console's name for it -- a character, or `enter`, `left`, `f5`..., with `ctrl-`, `alt-` and `shift-` in front |
 | `xscr type ID TEXT` | type text, a character at a time |
-| `xscr move ID X Y` | move the pointer to a pixel of the screen |
+| `xscr move ID X Y` | move the pointer to a pixel of the screen; the X Screen app calls it from its `_hover` too, so with Control Panel > Mouse > Hover on the X pointer follows the mouse with no button held, and a program's own hover, menus and tooltips work |
 | `xscr button ID press\|release N X Y` | a button pressed or let go at a pixel |
 | `xscr click ID N X Y` | a button pressed and let go |
 | `xscr wheel ID up\|down X Y` | the wheel, as buttons 4 and 5 |
@@ -69,11 +69,6 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
 
 ## What it cannot do yet
 
-- **Hover**: the pointer moves only with a button held. The module has the
-  verb (`xscr move`), and the desktop hears movement with no button where
-  Control Panel > Mouse > Hover is on (Gitea #370), but it hands a hover to
-  a window's own hover callback, never to `_mouse`, and the X Screen app
-  has none.
 - **Keys outside the server's map**, which is Xvfb's US layout: a character
   no key has is passed over and said in the log. Changing the map for one
   is the way to type them, and is not written yet.

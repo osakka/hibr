@@ -1,7 +1,7 @@
 # Tests
 
 ```text
-make check                                    # tests/run.sh: 198 test scripts
+make check                                    # tests/run.sh: 212 test scripts
 ./build/hibr tests/self.hibr                  # 92 assertions written in hibr
 HIBR=./build/hibr REF=dash tests/run.sh       # compare with another shell
 python3 tests/fuzz.py ./build/hibr.asan 500   # mutation fuzzing of the parser
@@ -10,6 +10,38 @@ make check-all                                # tests/all.py: every suite at onc
 
 The full-screen suites, the sanitizer runner and the other harnesses are
 listed in [tests/README.md](../tests/README.md).
+
+## The release gate, and the daily run
+
+A release does not run every suite. It runs the ones its change can reach,
+and then, when the change touched C, the quick sanitizer pass:
+
+```text
+python3 tests/affected.py --since <last tag> --run   # the suites the change reaches
+python3 tests/asan.py --quick                        # only when C changed
+```
+
+`affected.py` works out what reaches what rather than reading a list: a
+module's suites from who loads and requires it, and a change under
+`programs/desktop` from `tests/coverage.tsv`, which records the desktop
+functions each suite was seen calling. A change to `src/`, `include/`, the
+Makefile or `tests/screen.py` still reaches everything, and so does a path
+it does not recognise. The map is measured by `python3 tests/covmap.py
+--take`, which runs every suite under a build that logs each function call,
+and is committed with the commit it was taken at. It refuses what it did
+not measure -- a changed line outside every function, a function no suite
+was seen calling, a map from another history -- and every desktop suite
+runs then instead.
+
+`tests/all.py` is the daily run: every suite side by side, about 21
+minutes on four cores, after which the map is taken again. The full
+`tests/asan.py` is daily too, never beside a gate, whose time it doubles.
+
+A desktop callback that stalls the desktop writes a `held:` line to its
+log, and a pty suite in which one was written fails, the same as one in
+which the shell printed an error. `tests/850-lint.t` lints every script
+under `examples/` and `programs/`, so a rule `--explain` learns -- a fork
+in a desktop callback is one -- holds the shipped scripts to it.
 
 Each `tests/*.t` is a script. When a matching `.expected` file exists, the test
 is compared with that recording — exit status on the first line, then the
@@ -24,12 +56,17 @@ levels of map nesting, a 2000-element array sorted, a 20,000-character string,
 The whole suite runs clean under AddressSanitizer and UndefinedBehaviorSanitizer:
 
 ```text
-gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined -w -rdynamic \
+gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
+    -fno-sanitize-recover=undefined -w -rdynamic \
     -o build/hibr.asan src/*.c -ldl
 ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
 python3 tests/asan.py        # the same for every suite, the pty ones too
-python3 tests/asan.py --quick    # core, C modules and what changed: the release gate
+python3 tests/asan.py --quick    # core, C modules and what changed: the gate's half
 ```
+
+`-fno-sanitize-recover=undefined` makes an undefined-behaviour report end the
+run rather than print and go on; `make asan` builds the shell and every module
+the same way, into `build/asan`.
 
 Both forms of `tests/asan.py` run the recorded tests a third time with
 `detect_leaks=1`, and fail on any leak report (since 0.99.309, when every

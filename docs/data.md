@@ -1,6 +1,6 @@
 # Text, regex and JSON
 
-Four builtins that do in the shell's own process what a shell usually forks for.
+Five builtins that do in the shell's own process what a shell usually forks for.
 No `sed`, no `awk`, no `jq`, no pipeline, no subshell. Every example that
 shows its output is run again on every build by `tests/531-doc-examples.t`,
 and the build fails if it stops printing what the page says.
@@ -28,6 +28,20 @@ HELLO
 
 `str starts`, `str ends`, `str contains`, `arr contains` and `match` answer with
 their **exit status** instead, so they read naturally in `if` and `&&`.
+
+A function that wraps one of them does not pass its answer on by itself: `:=`
+takes from a function only what it gives with `ret`, and one that never calls
+`ret` binds empty, with a note on standard error naming it when its last
+command left something. `ret -k` passes on what the last command left:
+
+```sh
+fn shout(str x) { str upper "$x" s; ret -k; }
+y := shout hello; echo "$y"
+```
+
+```output
+HELLO
+```
 
 ## `str`
 
@@ -153,13 +167,14 @@ succeeds. Neither forks.
 
 ## `match` and `rsub`
 
-POSIX extended regular expressions, with our own engine — `tcc` cannot parse
-glibc's `regex.h`, so `include/re.h` is ours.
+POSIX extended regular expressions, through the C library's own `regcomp`;
+only the declarations in `include/re.h` are hibr's, because `tcc` cannot
+parse glibc's `regex.h`.
 
 | form | does |
 |---|---|
-| `match [-i] [-a] subject pattern [var]` | match; groups land in `M` |
-| `rsub [-i] [-g] subject pattern replacement [var]` | substitute; `\1`…`\9` are the groups |
+| `match [-i] [-a] subject pattern [var]` | match; groups land in `var`, `M` by default |
+| `rsub [-i] [-g] subject pattern replacement [var]` | substitute; `\0` is the whole match and `\1`…`\9` the groups; status 1 when nothing matched |
 
 `-i` ignores case, `-a` collects **every** match into an array, `-g` replaces
 every occurrence rather than the first.
@@ -186,7 +201,7 @@ smith, john
 ```
 
 `match` fails when there is no match, so it reads as a condition. Captures go to
-`M` — [0004](adr/0004-regex-captures-go-to-M.md). The same engine backs `=~`
+the variable named, or to `M` — [0004](adr/0004-regex-captures-go-to-M.md). The same engine backs `=~`
 inside `[[ ]]`, which fills bash's `BASH_REMATCH` as well.
 
 ## `json`
@@ -286,6 +301,17 @@ echo "${!seen[@]}"
 a-b
 ```
 
+A key may hold an `=`: an assignment's name ends after its subscripts, so
+`m["a=b"]=1` sets the key `a=b`.
+
+```sh
+m=([a]=1); m["k=v"]=2; echo "${!m[@]}"
+```
+
+```output
+a k=v
+```
+
 See [0006](adr/0006-arrays-are-sparse-maps.md).
 
 ## Worked examples
@@ -353,6 +379,34 @@ Ada -- London -- wrote "the first" program
 Omar -- Cairo, Egypt -- plain
 "a,b","say ""hi""",plain
 ```
+
+`csv read` builds the whole file as one map. For a file too large for that,
+`csv open` gives a handle, `csv row` returns one record at a time as an array
+and fails at the end, and `csv close` lets the file go; `csv split` splits a
+single line. `read`, `open` and `split` take `-s sep` for a separator other
+than a comma, and `csv read -t text` reads a string rather than a file:
+
+<!-- setup
+printf '%s\n' 'name,city,note' 'Ada,London,"wrote ""the first"" program"' 'Omar,"Cairo, Egypt",plain' > people2.csv
+-->
+```sh
+need csv
+h := csv open people2.csv
+while row := csv row "$h"; do echo "${row[0]} / ${row[1]}"; done
+csv close "$h"
+f := csv split 'x,"y,z",w'; echo "${f[1]}"
+```
+
+```output
+name / city
+Ada / London
+Omar / Cairo, Egypt
+y,z
+```
+
+Data with columns to filter and sum, rather than lines to read, belongs in
+the `db` module, a small column store in one file -- see
+[`mods/db/README.md`](../mods/db/README.md).
 
 ### Turn a CSV column into a sorted, unique list
 

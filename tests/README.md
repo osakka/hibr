@@ -1,7 +1,7 @@
 # tests
 
 ```text
-tests/run.sh [-v] [prefix]                  # 198 test scripts
+tests/run.sh [-v] [prefix]                  # 212 test scripts
 ./build/hibr tests/self.hibr                # 92 assertions, written in hibr
 HIBR=./build/hibr REF=dash tests/run.sh     # compare against another shell
 ```
@@ -102,10 +102,15 @@ python3 tests/appmgr.py       the catalogue, against a stand-in index
 ```
 
 The stand-ins (`mailserve.py`, `davserve.py`, `fetchserve.py`,
-`bwserve.py`, `ytserve.py`) are servers, not suites; `pdfmake.py` writes
-the PDF Reader's documents, and `appslice.py` cuts `apps.py` and
-`desktop.py` into their parts (`SUITES` in it says which sections each
-part runs and how many checks it makes). All of these suites are in `tests/all.py`'s `SUITES`.
+`bwserve.py`, `ytserve.py`) are servers, not suites, and so is
+`frameserve.py`, Blit's frame socket, which refuses what Blit refuses;
+`tests/net/` holds the programs that stand in for `nmcli`, `bluetoothctl`,
+`pkexec` and `pkttyagent`, with the output they were captured giving (see
+its [README](net/README.md)). `pdfmake.py` writes the PDF Reader's
+documents, and `appslice.py` cuts `apps.py` and `desktop.py` into their
+parts (`SUITES` in it says which sections each part runs and how many
+checks it makes). All of these suites are in `tests/all.py`'s `SUITES` --
+`desktop.py` and `apps.py` as their parts.
 
 `term_diff.py`, in the first list, drives no pty of its own. It feeds the
 same bytes to `mods/term` (`term new` and `term feed`) and to a private tmux
@@ -124,10 +129,10 @@ copies of that and five of the model, differing in timings, so fixing one
 fixed one. Do not write a seventh; add what is missing to `screen.py`.
 
 It also names scratch files: `screen.scratch("desktop-rsz.hibr")` puts this
-process's own pid in the name. `all.py` and `asan.py` run side by side in
-the release gate, so two copies of a suite are live at once, and a fixed
-name means one unlinks the file the other was about to be started on --
-which fails only in a gate and reads as a check about something else.
+process's own pid in the name. `all.py` and `asan.py` can run side by
+side, so two copies of a suite are live at once, and a fixed name means
+one unlinks the file the other was about to be started on -- which fails
+only when two run together and reads as a check about something else.
 
 **It waits for the program, not for the clock.** A desktop run with
 `HIBR_TESTIDLE` set -- every `Term` sets it -- prints an escape a terminal
@@ -162,11 +167,29 @@ nothing.
 
 More tools sit around it:
 
-- **`tests/affected.py`** -- the suites a change reaches, from `git diff` or
-  from paths given; `--run` runs just those, `--why` says which path chose
-  each. Module dependencies are read from each module's `hibr_require` and
-  `hibr_provide`, not listed, and an unrecognised path reaches everything.
-  For iterating; `all.py` stays the release gate.
+- **`tests/affected.py`** -- the suites a change reaches, from `git diff`,
+  from `--since REF` or from paths given; `--run` runs just those with
+  `all.py`, `--why` says which path chose each. Module dependencies are read
+  from each module's `hibr_require` and `hibr_provide`, not listed, and an
+  unrecognised path reaches everything, as do `src/`, `include/`, the
+  Makefile and `tests/screen.py`. A change under `programs/desktop` reaches
+  only the suites `tests/coverage.tsv` says called the changed function.
+  **`python3 tests/affected.py --since <last tag> --run` is the release
+  gate**; `all.py` is the daily full run, about 21 minutes on this box's
+  four cores, after which the map is taken again.
+- **`tests/covmap.py`** -- the map `affected.py` narrows the desktop with.
+  `--take` builds the census shell (`make census`), runs every suite under
+  it and writes `tests/coverage.tsv`: for each function defined under
+  `programs/desktop`, the suites that called it, with the commit it was
+  taken at on the first line. It refuses a tree with changes, since a map is
+  taken at a commit; run it in a clean worktree and commit the map.
+  `--write` writes it again from the last run's logs, and `covmap.py
+  FUNCTION...` says which suites the map has calling each. The map refuses
+  three questions, and each runs every desktop suite instead: a changed
+  line outside a function body, a function it has no entry for, and a map
+  not taken in this history. What it cannot see is a call made after it
+  was taken, so `affected.py` diffs from the map's own commit whenever that
+  is older than the tag.
 - **`tests/census.py`** -- builds `build/hibr.census` (`make census`), which
   logs every function call, runs the desktop suites under it and lists each
   desktop function no suite called, with the count and which way it moved

@@ -678,8 +678,8 @@ int main(int ac, char **av)
 			continue;
 		}
 		if (!strcmp(av[i], "-h") || !strcmp(av[i], "--help")) {
-			printf("usage: hibr [-eiluxCHS] [-d level] [-o option] [--agent]\n"
-			       "            [--checkfirst] [--explain] [--plan]\n"
+			printf("usage: hibr [-efilnuxCHS] [-d level] [-o option] [--agent]\n"
+			       "            [--checkfirst] [--explain] [--plan] [--login]\n"
 			       "            [--modules=off|after|before] [script [args...]]\n"
 			       "       hibr -c 'commands' [name [args...]]\n"
 			       "       hibr -s [args...]        # commands on standard input\n"
@@ -690,7 +690,7 @@ int main(int ac, char **av)
 			       "  -i   interactive: read ~/.hibrc and prompt, whether or\n"
 			       "       not standard input is a terminal\n"
 			       "  -n   parse only, report syntax errors, run nothing\n"
-			       "  -e -u -x -C -H -S -o name  every option `set` takes,\n"
+			       "  -e -f -u -x -C -H -S -o name  every option `set` takes,\n"
 			       "       bundled as one word if you like (-ex), and +x to\n"
 			       "       turn one off; `set -o` lists them all\n"
 			       "  --agent  for a script a program runs: errors as JSON\n"
@@ -712,9 +712,12 @@ int main(int ac, char **av)
 			       "  -l   a login shell: read /etc/profile, then the first\n"
 			       "       of ~/.hibr_profile, ~/.hibr_login, ~/.profile,\n"
 			       "       and ~/.hibr_logout on the way out (also when\n"
-			       "       argv[0] begins with a dash, as login invokes it)\n"
+			       "       argv[0] begins with a dash, as login invokes it);\n"
+			       "       --login is the same\n"
+			       "  --   end of options; - the same, as in sh\n"
 			       "  -d   log level 0-4 (error, warn, info, debug, trace)\n"
-			       "  -v   print version and module ABI\n\n"
+			       "  -v --version  print version and module ABI\n"
+			       "  -h --help     this\n\n"
 			       "Interactive when stdin is a terminal: reads ~/.hibrc,\n"
 			       "line editing, history, job control, completion.\n"
 			       "Type help for the builtin list.\n");

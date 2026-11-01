@@ -10,7 +10,7 @@ one that is.
 
 <!-- not run: needs pkexec and an administrator's password -->
 ```sh
-please apt-get install pkexec
+please apt-get install htop
 please -u backup rsync -a /srv/ /mnt/backup/
 please -s
 ```
@@ -77,6 +77,7 @@ is missing.
 
 The name is shared with an unrelated sudo alternative written in Rust,
 packaged as `pleaser` on Debian, Ubuntu, Fedora and openSUSE, which also
-installs `/usr/bin/please`. The hibr packages declare a conflict with it, so
+installs `/usr/bin/please`. The hibr packages declare a conflict with it --
+the Arch package with both `pleaser` and `please` -- so
 a package manager offers to replace one with the other rather than failing
 on the file. The two cannot be installed together.

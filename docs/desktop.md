@@ -40,7 +40,11 @@ desktop -r
 ```
 
 puts you back where you were, windows, running programs and all. A second
-terminal can join the same desktop as another display with `desktop -j`.
+terminal can join the same desktop as another display with `desktop -j`,
+named for the Control Panel with `-n NAME`, and a terminal started with
+`desktop -w` shows its name on a quiet screen until the desktop takes it
+in -- on its own, unless Control Panel > Displays says otherwise -- and
+waits again each time it is let go.
 
 ## 2. Look in the hibr menu
 
@@ -83,12 +87,12 @@ catalogue install mail snake
 ```
 
 ```text
-apps           contacts      Contacts                  1.2
-apps           calendar      Calendar                  1.1
-apps           mail          Mail                      1.2
+apps           contacts      Contacts                  1.8
+apps           calendar      Calendar                  1.9
+apps           mail          Mail                      2.3
 installed control-panel/mailset.hibr, which mail brings with it
-installed mail as ~/.local/share/hibr/apps/Internet/mail.hibr
-installed snake as ~/.local/share/hibr/apps/Games/snake.hibr
+installed mail as /home/you/.local/share/hibr/apps/Internet/mail.hibr
+installed snake as /home/you/.local/share/hibr/apps/Games/snake.hibr
 ```
 
 Mail brought its Control Panel pane with it, and said so: an
@@ -109,17 +113,19 @@ tells every desktop you are running.
 
 ![Calculator and Files side by side, Files showing a home folder with Documents, Downloads, Music, Pictures and Projects](../programs/desktop/img/tour-4-windows.png)
 
-Drag a window by its title bar, and resize it from its bottom-right
-corner. The buttons at the top right of each window minimise, maximise
-and close it. A few keys are worth learning early:
+Drag a window by its title bar, and resize it from any of its corners.
+The buttons at the top right of each window minimise, maximise and close
+it. A few keys are worth learning early:
 
 | | |
 |---|---|
 | **alt-tab**, **alt-shift-tab** | the window switcher: the window list, stepped forward or back; a pause goes there, escape goes nowhere |
 | **alt-left**, **alt-right** | snap the window to that half of the screen |
 | **alt-up**, **alt-down** | zoom the window, minimise it |
+| **alt-enter** | full screen: the window takes the whole display, bar included, and alt-enter or **ctrl-f11** puts it back |
 | **alt-1**, **alt-2**, **alt-3** | change workspace -- the three numbers in the bar |
 | **alt-w** | close the window |
+| **alt-q** | quit the application, every window of it |
 | **alt-c**, **alt-x**, **alt-v** | copy, cut and paste, between any two windows |
 | **ctrl-\\** | detach, as above |
 
@@ -180,8 +186,10 @@ Two folders are yours, and knowing which is which is most of what there
 is to know about how the desktop finds anything:
 
 - **`~/.local/share/hibr/`** is where the catalogue installs. `catalogue
-  installed` lists it, and `catalogue remove NAME` takes something out
-  again, with everything it brought.
+  installed` lists everything you have with where it lives -- `user` for
+  what it put here, `shipped` for what came with the package -- and
+  `catalogue remove NAME` takes something it put here out again, with
+  everything it brought.
 - **`~/.config/hibr/`** is for files you write yourself. A script you put
   in `~/.config/hibr/apps/` is an application as soon as you right-click
   the desktop and choose **Refresh Desktop**, and a file there with the

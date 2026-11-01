@@ -16,7 +16,7 @@ the same memory and proves nothing (CLAUDE.md, on `bwserve.py`).
 | `dev-show.txt` | `nmcli -t -f GENERAL.STATE,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS dev show` |
 | `con-show-ts.txt` | `nmcli -t -f NAME,UUID,TYPE,TIMESTAMP,AUTOCONNECT con show` |
 | `permissions.txt` | `nmcli general permissions` -- the owner's own session: every action auth or no |
-| `polkit-prompt.txt`, `polkit-failed.txt` | `pkttyagent`'s prompt for a check-only action, and its answer to a wrong password -- captured on this machine with `pkcheck`, which performs nothing |
+| `polkit-prompt.txt`, `polkit-failed.txt` | `pkttyagent`'s prompt for a check-only action, and its answer to a wrong password -- captured on this machine with `pkcheck`, which performs nothing. The action is `org.freedesktop.policykit.exec`, pkexec's own, so this is also what pkexec's agent prints |
 | `bt-show.txt`, `bt-devices.txt`, `bt-info.txt` | `bluetoothctl show`, `devices`, `info <a keyboard>` -- for Gitea #312 |
 
 The owner's paste turned bluetoothctl's indentation into spaces; bluetoothctl
@@ -44,6 +44,13 @@ for `auth.res`; the agent prints the captured prompt, reads a line on its
 pty, and prints the captured failure or, for the right password (state's
 `agentpw`), the green COMPLETE banner -- which was not captured, there
 being no password to give here, and is polkit's own text from its source.
+
+`pkexec` is the stand-in for pkexec itself (Gitea #369): it appends its
+argv to `pkexec.log` in `$HIBR_NMSTATE`, prints the captured prompt, reads
+a password, and for a wrong one prints the captured failure and exits 127,
+as pkexec does; for state's `agentpw` it prints the COMPLETE banner and runs
+the command as given. `tests/net.py` points `DT_NETRULEDIR` at a folder of
+its own, so nothing it runs this way writes `/etc`.
 
 `bluetoothctl` is `tests/bt.py`'s stand-in for BlueZ: `show`, `devices`
 and `info` are the captured text with their values put in, checked byte

@@ -12,7 +12,8 @@ back.
 
 ## Starting up
 
-`man hibr` lists every flag, environment variable and exit status.
+`man hibr` lists the flags, the main environment variables and the exit
+status.
 `~/.hibrc` is read by interactive shells only — a script pays nothing for it.
 `$HIBR_RC` names a different file, which is how the test harness starts a shell
 with a prompt of its own.
@@ -30,6 +31,9 @@ case $- in *i*) echo interactive ;; *) echo a script ;; esac
 ```output
 a script
 ```
+
+`hibr -f`, like `set -f` and `set -o noglob`, turns pathname expansion off,
+and `$-` then carries an `f`.
 
 A **login shell** — `hibr -l`, `hibr --login`, or one whose `argv[0]` begins
 with a dash, which is how `login`, `getty` and `sshd` invoke it — reads
@@ -58,30 +62,29 @@ alias ll='ls -lh'
 export EDITOR=vim
 ```
 
-A `command_not_found` function defined here — `deploy.sh` writes one into a
-new install's starter `.hibrc` by default — is called with the missing
-command and its arguments once ordinary lookup has already failed, the same
-convention bash's `command_not_found_handle` uses:
+A `command_not_found` function is called with the missing command and its
+arguments once ordinary lookup **and** the modules have both failed, the same
+convention bash's `command_not_found_handle` uses. It works in a script as
+well as at the prompt:
 
 ```sh
 command_not_found() {
-	mod find "$1" > /dev/null 2>&1 && "$@" ||
-		{ echo "hibr: $1: command not found" >&2; return 127; }
+	echo "$1: not a command here, nor any module's" >&2
+	return 127
 }
 upper hello world
-totally-bogus-command
+totally-bogus-command; echo "status $?"
 ```
 
 ```output
 HELLO WORLD
-hibr: totally-bogus-command: command not found
+totally-bogus-command: not a command here, nor any module's
+status 127
 ```
 
-`upper` autoloaded the `sys` module that registers it — no `mod load`/`need`
-line first — while a command nothing registers still fails cleanly. This is
-interactive-only: `.hibrc` is never read by a script, so a script that wants
-a module's builtin still needs its own explicit `need`. See [`mod
-find`](builtins.md#modules).
+`upper` autoloaded the `sys` module that registers it, with no `mod load` or
+`need` line first and without reaching the function; a script autoloads the
+same way, unless `HIBR_MODULES=off`. See [`mod find`](builtins.md#modules).
 
 ## Prompts
 
@@ -93,7 +96,20 @@ find`](builtins.md#modules).
 | `TPS1` | **[hibr]** a transient prompt, left behind after the line runs |
 
 All four take the same escapes, and are then expanded like any other word, so
-`$(…)` and `${…}` work in them.
+`$(…)` and `${…}` work in them. `${var@P}` expands a string the same way,
+as bash's does, which is how a script sees what a prompt will look like:
+
+```sh
+p='\$ \j jobs'; echo "${p@P}"
+```
+
+```output
+$ 0 jobs
+```
+
+bash's `PROMPT_COMMAND` is not read: a function named by `PROMPT_FN` is the
+hook, and its result is the prompt -- see [the prompt module](prompt.md).
+Nor is `PS4`; `set -x` marks each line with `+ `.
 
 | escape | gives | escape | gives |
 |---|---|---|---|
@@ -101,21 +117,20 @@ All four take the same escapes, and are then expanded like any other word, so
 | `\h` `\H` | host, short and full | `\T` `\@` | 12-hour time, and with am/pm |
 | `\w` `\W` | working directory, full and basename | `\d` | the date |
 | `\s` | the shell's name | `\n` | a newline |
-| `\v` | its version | `\e` `\a` | escape and bell |
+| `\v` `\V` | the version, both in full | `\e` `\a` | escape and bell |
 | `\j` | how many jobs | `\[` `\]` | around bytes that take no width |
 | `\$` | `#` for root, `$` otherwise | `\r` | a carriage return |
 | `\NNN` | the byte with that octal value, `\033` an escape | `\A` | time, `HH:MM` |
 | `\D{fmt}` | the time as `strftime` writes `fmt`, `\D{}` the locale's time | `\l` | the terminal's name |
 | `\!` | this command's number in the history | `\#` | this command's number in the shell |
-| `\V` | the version, in full | | |
 
 <!-- not run: a prompt is drawn only by an interactive shell -->
 ```sh
-PS1='[\u|\h|\w|\s|\v|\$]'
+PS1='[\u|\h|\w|\s|\$]'
 ```
 
 ```text
-[osakka|claude-code|~/hibr|hibr|0.68|$]
+[osakka|claude-code|~/hibr|hibr|$]
 ```
 
 Colour goes inside `\[ \]` so the editor does not count it as width, and the
@@ -169,7 +184,7 @@ when the terminal is resized under it.
 | `^A` `^E` | start, end of line | `^B` `^F` | back, forward one character |
 | `^P` `^N` | previous, next history | `^K` | kill to end of line |
 | `^U` | kill back to the start of the line | `^W` | kill the word before the cursor |
-| `^L` | redraw | `^R` | search history backwards |
+| `^L` | clear the screen and redraw | `^R` | search history backwards |
 | `^D` | delete forward, or end the shell on an empty line | `^C` | abandon the line |
 | `Tab` | complete | `^Z` | stop the foreground job |
 | arrows, `Home`, `End`, `Delete` | as expected | | |
@@ -186,6 +201,10 @@ default for `console bidi`.
 ## History
 
 Saved to `$HIBR_HISTFILE`, or `~/.hibr_history`. `^R` searches it incrementally.
+It keeps the last 500 lines, does not add a line that repeats the one before
+it, and is written when the shell exits -- the whole file at once, so of two
+shells open together the last to exit decides what it holds. `\!` in a prompt
+therefore stops at 501.
 
 `history` prints it, `history -c` clears it, `history -s text` adds an entry
 without running it, and `history -p` shows what an expansion would become:
@@ -205,8 +224,9 @@ echo first
 echo second
 ```
 
-Expansion — `!!`, `!$`, `!n`, `!-n`, `!prefix` — happens in interactive shells
-under `set -H`, and `set +H` turns it off. A script never sees it.
+Expansion — `!!`, `!$`, `!n`, `!-n`, `!prefix` — happens in an interactive
+shell, where `set -H` is on by default as in bash, and `set +H` turns it off.
+A script never sees it.
 
 ## Completion
 
@@ -228,7 +248,8 @@ A single candidate is completed and a space added (a folder gets its `/`
 instead); several are listed, and the word taken as far as they agree.
 
 What is put on the line is quoted, so it reads back as the name it is. A name
-with a space or any of `$ & ; | < > ( ) * ? [ ] { } ! # ' "` is escaped with
+with a space, a tab, a newline or any of
+``$ & ; | < > ( ) * ? [ ] { } ! # ' " \ ` `` is escaped with
 backslashes; a word that opened a quote is finished inside it, and the quote
 closed once the name is whole; and a word already escaped or quoted, or one
 beginning `~/` or `~user/`, is understood before it is completed:
@@ -304,6 +325,9 @@ kill %1 %2
 [2]+  Running                sleep 60
 ```
 
+After a pipeline `PIPESTATUS` holds each stage's status, as in bash, while
+`$?` is the last stage's.
+
 `^Z` stops the foreground job, `fg` and `bg` resume one, `kill` takes a signal
 name or a `%job`, `disown` forgets one without signalling it, and `wait` waits —
 for a job, a pid, or with `-n` for whichever finishes first, naming it with
@@ -365,7 +389,22 @@ a
 1
 ```
 
-The last is 1 because the read met the end of its input.
+The last is 1 because the read met the end of its input. One that runs out of
+time instead returns 142 and empties its names, as bash does, and a NUL byte
+in a line is dropped, as bash drops it:
+
+```sh
+x=old; read -t 0.2 x < <(sleep 1); echo "$? [$x]"
+printf 'a\0b\n' | { read -r y; echo "[$y]"; }
+```
+
+```output
+142 []
+[ab]
+```
+
+A read from a datagram socket takes a whole datagram at a time -- see
+[Networking](networking.md).
 
 `select` builds a menu and loops until something breaks it. A long list is laid
 out in columns, as many as the terminal takes, filled down each column in turn —

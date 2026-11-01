@@ -31,8 +31,9 @@ mermaid: line 1: this kind of diagram is not understood yet: classDiagram
 ```
 
 Not understood yet, each named rather than half-drawn: `subgraph`; the
-shapes `[[ ]]`, `[( )]`, `[/ /]`, `[\ \]`; sequence blocks (`loop`, `alt`,
-`opt`, `par`, `critical`, `break`); and every other kind of diagram
+shapes `[[ ]]`, `{{ }}`, `[( )]`, `[/ /]`, `[\ \]`; sequence blocks
+(`loop`, `alt`, `opt`, `par`, `critical`, `break`, `rect`); and every other
+kind of diagram
 (`classDiagram`, `erDiagram`, `stateDiagram`, `gantt`, `journey`,
 `gitGraph`). An edge from a node to itself is dropped with a word about it
 and the rest of the diagram still draws.
@@ -47,6 +48,7 @@ and the rest of the diagram still draws.
 | `d["kind"]` | `flowchart`, `sequence`, `pie`, or empty when it was not understood |
 | `d["why"]` | why, when `kind` is empty |
 | `d["note"]` | something left out of a diagram that still drew |
+| `d["title"]` | a pie's title, empty when it has none and for the other kinds |
 | `d["w"]` `d["h"]` | the drawing's own size in cells |
 | `d["text"][i]` | row *i* |
 | `d["runs"][i]` | the style of every character in it |

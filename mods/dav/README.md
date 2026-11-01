@@ -86,8 +86,8 @@ suites, and `tests/pim.py` drives these commands against it.
 
 ## In the desktop
 
-Files browses `dav://` locations, the Control Panel's Network Servers
-pane keeps the list, and opened files go back on save -- see
+Files browses `dav://` locations, Control Panel > Servers keeps the
+list, and opened files go back on save -- see
 [Folders on servers](../../programs/desktop/README.md#folders-on-servers).
 A script under `strict vars` that calls `dav` in a function declares
 `DAV_CODE` at file level, as the desktop's `wm/remote.hibr` does, since
@@ -106,9 +106,10 @@ only pretend -- so a file anyone else can read is refused outright.
   server closed it while idle; a server that closes every connection works
   as well, just slower.
 - **Redirects are followed**, five at most -- a folder named without its
-  slash is the usual one, and the method and body go with it: only a POST
-  becomes a GET on a 301 or 302. A redirect to another origin goes there
-  without the login.
+  slash is the usual one, and the method and body go with it, except that
+  a 303 becomes a GET (a HEAD stays a HEAD) and a POST becomes a GET on a
+  301 or 302, as the fetch module does for everything. A redirect to
+  another origin goes there without the login.
 - **A name in a listing that could step outside its folder is never
   listed or written**: empty, `.`, `..`, or one holding a slash once
   decoded. That is what keeps a hostile server from making `get -r` write
@@ -127,10 +128,22 @@ only pretend -- so a file anyone else can read is refused outright.
 
 - No locking (`LOCK`/`UNLOCK`), no properties of your own (`PROPPATCH`).
 - Digest with SHA-256 is not spoken; MD5 Digest and Basic are. A server
-  that only offers Bearer, NTLM or Negotiate is refused, by name.
+  that only offers another login (Bearer, NTLM, Negotiate) is not
+  answered: its 401 comes back, in `DAV_CODE`.
 - Folders are copied between two servers with `get -r` and `put -r`
   through a local folder; `mv` and `cp` work within one server.
 - It is refused under `--plan`: it reaches the network.
+
+## Files
+
+| file | role |
+|---|---|
+| `dv.h` | the timeout, redirect and depth limits, the server and address records, and every function the files share |
+| `dav.c` | the `dav` builtin: every verb, listings, transfers, `DAV_CODE` and what a status means said plainly |
+| `http.c` | locations to addresses, percent-encoding, and each request made through the fetch module's interface, asked for on every request |
+| `ms.c` | properties: PROPFIND, REPORT and sync, and the multistatus they answer read into a map |
+| `xml.c` | a small namespace-aware XML reader for those answers |
+| `conf.c` | the server list in `~/.config/hibr/dav`, read again when the file changes |
 
 `tests/dav.py` runs it against `tests/davserve.py`, a WebDAV server of the
 suite's own that can be any of the above shapes, and it was checked by hand

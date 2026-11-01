@@ -192,7 +192,7 @@ Windows-1252, which is what it nearly always is.
 $ email hdec "=?utf-8?q?Caf=C3=A9?= at =?utf-8?b?bm9vbg==?="
 Café at noon
 $ printf 'Lunch on Friday?\n' > body.txt
-$ email build out.eml -f "Pat Doe <pat@example.com>" -t "Zoë <zoe@example.org>" -s "Café" -T body.txt
+$ email build out.eml -f "Pat Doe <pat@example.com>" -t "Zoë <zoe@example.org>" -s "Café" -T body.txt > /dev/null
 $ grep -v '^Date:\|^Message-ID:' out.eml
 From: Pat Doe <pat@example.com>
 To: =?UTF-8?B?Wm/Dqw==?= <zoe@example.org>
@@ -216,7 +216,10 @@ Zoë Ü
 iCalendar object added beside the text, inside the same
 multipart/alternative, as `text/calendar; method=METHOD` -- how an
 invitation (REQUEST), an answer (REPLY) or a cancellation (CANCEL) is
-mailed so any mail program offers its buttons. `email clip bytes text` shortens text
+mailed so any mail program offers its buttons. `email build` prints the
+Message-ID it gave the message, with the sender's domain after the `@`, or
+binds it with `:=`; the transcript above sends it to `/dev/null`.
+`email clip bytes text` shortens text
 to at most that many bytes without cutting a character in half, for a
 fixed-width column.
 

@@ -26,8 +26,8 @@ the builtin loads and refuses, saying why, rather than pretending.
 | | |
 |---|---|
 | `-l` | keep probing and watch it live; needs a display |
-| `-m hops` | how far to go, default 24 |
-| `-w ms` | how long to wait for each hop, default 1000 |
+| `-m hops` | how far to go, 1 to 64, default 24; anything outside that range is taken as 24 |
+| `-w ms` | how long to wait for each hop, default 1000; with `-l`, never less than 200 |
 | `-v name` | fill this map instead of `TRACE` |
 | `-q` | fill the map and print nothing |
 | `-n` | skip reverse DNS |

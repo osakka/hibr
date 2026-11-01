@@ -9,7 +9,7 @@ strict
 # columns, and a value too long for them cut with an ellipsis, so it can
 # never cover its own caret or run past what is beside it (Gitea #282).
 # tag is what dt_hit answers for a click on it.
-fn dt_wdrop(int id, int r, int c, int w, value, tag) {
+fn dt_wdrop(int id, int r, int c, int w, value, tag = "") {
 	local tag=${tag:-$value} lb=$value
 	local -i vw
 

@@ -38,10 +38,23 @@ Every app runs inside the window manager's own process, between frames, so a
 callback that takes long stops every display while it runs. Each one is
 timed (`wm/budget.hibr`, ADR 0049): past 50 ms it is a `slow:` note in the
 log, past 150 ms a `held:` stall, which the suites fail on; the app itself
-is never stopped or paused for it (0.99.401). Slow work is
-a job (`dt_job`, or `dt_jobvars` for a load that sets variables); the rule is
-written for app authors in [`WRITING.md`](WRITING.md). `desktop ctl stats`
-shows every callback's longest single run as `max_ms`.
+is never stopped or paused for it (0.99.401): a stall is for whoever wrote
+the code to find, never for the person at the screen to pay for. Slow work
+is a job (`dt_job`, or `dt_jobvars` for a load that sets variables); the
+rule is written for app authors in [`WRITING.md`](WRITING.md).
+
+What a desktop spends its time on can be read while it runs, rather than
+guessed. `desktop ctl stats reset` turns timing on and `desktop ctl stats`
+answers: each callback's total and its longest single run (`max_ms`), what
+ended each wait of the loop (`woke`: input, a watched descriptor, or the
+timer of whoever asked for the soonest frame), why each app's windows were
+drawn rather than left (`drawn_why`), the parts of a frame
+(`part:arrange`, `part:wall`, `part:windows` ...) and the steps of a
+wallpaper repaint (`part:wall.picture` ...), and whether the wallpaper was
+kept or placed again (`img`). The fields are listed in
+[WRITING.md](WRITING.md#controlling-a-running-desktop). On Blit the same
+timing feeds a section of its performance panel (`wm/hud.hibr`, Blit ADR
+0203): eight lines a second, sent only while the panel asks for them.
 
 ## The event loop
 
@@ -83,20 +96,31 @@ it outlives the code that set it — and the shipped `session.hibr` set 200
 itself. A live session measured 19% of a core doing nothing. With the tick
 gone an idle desktop with a terminal window open measures about 0.2 wakes
 a second and 0.2% CPU; a blinking cursor cost about 1.5% when that was
-measured, because each blink ran every window's `_draw`. Since 0.99.83 a
-window whose app offers `_dirty` and answers clean, and which overlaps
-nothing, is left undrawn, the screen keeping its cells; `uifuzz.py oracle`
-compares such frames against forced full ones. `tests/desktop.py` counts the
+measured, because each blink ran every window's `_draw`. A window whose app
+offers `_dirty` and answers clean is left undrawn, the screen keeping its
+cells, unless a window drawn under it in this frame overlaps it, its shadow
+included (`dt_clean` and `dt_under`, `wm/frame.hibr`; before 0.99.410 any
+overlap at all meant drawing it every frame). Windows are drawn bottom to
+top, so that is the only way a window's cells can have been written over.
+A window that moved, and those its old or new place overlaps, are drawn
+whole; the wallpaper is kept rather than painted again whenever nothing it
+paints has changed, and painted at least once a second (0.99.413).
+`uifuzz.py oracle` compares such frames against forced full ones.
+`tests/desktop.py` counts the
 process's own wakes with nothing happening, so a tick cannot come back
 unnoticed.
 
 `dt_draw` walks every open window bottom to top, drawing its face and letting
 its own `_draw` callback fill it in, then the menu bar and whatever floats
 above everything — a menu, a drag, the confirm box. `dt_event` decodes one
-key or mouse line and dispatches it: to a confirm box or a rebind capture if
-one is pending, to the open menu if one is, to the focused window's own key
-handler, and only once all of those have declined it, to the handful of
-global shortcuts (Control Panel has the current list).
+key or mouse line and dispatches it. A held pointer's reports go to the
+window holding it, and Release Pointer and Leave Full Screen are taken
+before anything else; then a confirm box or a rebind capture if one is
+pending, the open menu if one is, and the keys every window shares --
+Save, Undo, Redo, Copy, Cut, Paste and the Menu Bar key -- before the
+focused window sees them. Then the focused window's own key handler, and
+only once it has declined a key, the rest of the global shortcuts (Control
+Panel > Shortcuts has the current list).
 
 ## Redrawing costs only what changed
 
@@ -108,6 +132,18 @@ zero bytes, not a redraw with nothing in it — the comparison itself is real
 CPU work, but nothing crosses the pty. This is what makes a frame woken by
 a clock or a cursor blink cheap: it costs a wake-up and a grid diff, not a
 full terminal repaint.
+
+A window whose draw repaints every cell inside its frame can say so with
+`<app>_paintsall`; while its frame has not changed and nothing else has
+drawn over it, only its content is drawn, not its face and frame again
+(`dt_contentonly`, 0.99.394). The Terminal does while its program runs.
+
+A picture is not cells. The console places it once and keeps it until the
+cells under it stop matching (ADR 0037). On Blit, where every display can
+take them, a window's pictures go by descriptor instead of through the
+terminal: a sealed memfd on Blit's frame socket, and only the placement on
+the pty (Blit ADR 0202, `console imgfd`, Control Panel > Pictures > Frames
+to Blit). The wallpaper always goes through the terminal.
 
 ## An app is a prefix, not a class
 
@@ -137,12 +173,12 @@ drawing in the wrong place. The calls:
 
 | callback | arguments |
 |---|---|
-| `_open` | `id arg` -- `arg` is whatever `dt_new` was given last, often empty |
+| `_open` | `id arg` -- `arg` is `dt_new`'s seventh argument or `dt_launch`'s second, often empty |
 | `_close` | `id` |
 | `_draw` | `id h w row col` -- the body's size, and the window's place on screen |
 | `_key` | `id key` |
 | `_click` | `id r c btn` |
-| `_mouse` | `id act btn r c mods` -- and while the window holds the pointer (`dt_pointerlock`), `id rel btn dy dx rel` for movement, a press, release or wheel with its own deltas and `rel` as mods, and `id unlock none 0 0 ""` when the lock ends |
+| `_mouse` | `id act btn r c mods` -- and while the window holds the pointer (`dt_pointerlock`, granted only within two seconds of a key or click), `id rel btn dy dx rel` for movement, a press, release or wheel with its own deltas and `rel` as mods, and `id unlock none 0 0 ""` when the lock ends |
 | `_wheel` | `id dir r c` -- dir is up, down, left or right, never wheelup |
 | `_hover` | `id r c` -- the pointer over the window with no button held, where hovering is on; `-1 -1` when it leaves |
 | `_scroll` | `id key top` -- a scrollbar drawn with that key, held and dragged |
@@ -154,6 +190,7 @@ drawing in the wrong place. The calls:
 | `_refresh` | `id` -- something on disk changed |
 | `_dirty` | `id` -- asked before a window is left undrawn; succeed when it has changed (an app without one is drawn every frame) |
 | `_paintsall` | `id` -- succeed when this window's draw repaints every cell inside its frame, so a changed window whose frame is unchanged is drawn content only, without its face cleared or its frame drawn again (`dt_contentonly`); the Terminal does while its program runs |
+| `_fullscreen` | `id on\|off` -- the window has gone full screen or come back, by its own `dt_fullscreen` or the desktop's Full Screen key |
 | `_about` | nothing -- the hibr menu's About for the front app, in place of the desktop's card |
 | `_drop` | `id r c op paths...` |
 | `_menus` | nothing -- the menus are built for whichever window has focus, `$DT_FOCUS` |
@@ -163,14 +200,16 @@ drawing in the wrong place. The calls:
 | `_stash` | `id dir` -- Restart Desktop is about to exec; write down what a map cannot hold, in `dir` if it is a file |
 | `_resume` | `id` -- after a restart, once the maps named by `dt_keepstate` are back |
 
-A Control Panel pane is called with its own set -- `_draw id h w x`,
-`_key id key`, `_click id r c`, `_drop id r c key`, `_wheel id dir`,
-`_slide id key value` -- and a Control Strip module with `_draw row col`
+A Control Panel pane is called with its own set -- `_rows id` and
+`_do id key dir` for a pane of rows, `_draw id h w x` for one with a body
+of its own, `_key id key`, `_click id r c`, `_mouse id act btn r c`,
+`_drop id r c key`, `_wheel id dir`, `_slide id key value` and
+`_order id group name...` -- and a Control Strip module with `_draw row col`
 and `_click row col`. `_slide` is a `wtype=slider` row being set where its
 track was clicked or dragged: the value is already in the row's own
 `min`..`max`, and the pane clamps and snaps it to whatever step the setting
 has, because the step is the setting's business and not the track's. A function
-that takes a list ends in one, as `fn dt_row(tick, dim, lb, k, ...rest)`
+that takes a list ends in one, as `fn dt_row(tick, int dim, lb, k, ...rest)`
 does; the old `name() { local id=$1 ...` form still works for an app of
 your own, unchecked.
 
@@ -209,9 +248,10 @@ Every item is a file of `menubar/` since 0.99.351 (Gitea #392), the
 desktop's own four too: the application menu (`appmenu.hibr`), the clock,
 the notification icon and the workspace numbers. Those four say
 `# platform:` and are loaded by `desktop.hibr` itself, so a desktop with no
-session still has its bar; the rest -- the network, the speaker, Bluetooth
-and the battery -- are catalogue entries, each in a bundle with the pane
-that acts through it, and the session reads them as it reads apps. One
+session still has its bar; the rest are catalogue entries -- the network,
+the speaker, Bluetooth and power each in a bundle with the pane that acts
+through it, and the next prayer as a part of Prayer Times -- and the
+session reads them as it reads apps. One
 layout places all of them from the bar's outer end inwards. `dt_baripin
 name n` keeps an item in a place of its own -- 1 is the corner, a negative
 place is beyond every ordinary item -- until `DT_BARORDER` names it, which
@@ -265,7 +305,7 @@ A right-click gets a different menu, specific to what was clicked rather
 than to what has focus — the desktop background, a title bar, or an app's
 own `<app>_context` if it defines one:
 
-![A right-click on the desktop background: Arrange Icons, Change Wallpaper, Next Wallpaper, and Refresh Desktop](img/desktop-context.png)
+![A right-click on the desktop background: Arrange Icons, Change Wallpaper, Next Wallpaper, Empty Trash (dimmed while the trash is empty) and Refresh Desktop](img/desktop-context.png)
 
 ## Control Panel settings are a script, not a format
 
@@ -292,7 +332,7 @@ from the catalogue — then **Desktop** — Appearance, Control Strip, Desktop,
 File Types, Menu Bar, Notifications, Shortcuts, Wallpaper, Windows and the
 rest, sorted by name — and **Apps**, one pane per app that has something to choose:
 Files, Terminal and Stickies as shipped, and Mail, Calendar & Contacts,
-Vault, YouTube and Prayer Times once installed. An app's pane is one of the
+Vault, Browser, Web Apps, YouTube, X Screen and Prayer Times once installed. An app's pane is one of the
 files the app brings, so it is there exactly when the app is (ADR 0047);
 it says so when its app is installed and not loaded in this session.
 Everything an app keeps across restarts has a row in
@@ -318,9 +358,10 @@ pane can take and how `CP_PANEDIRS` finds them.
 
 ## A real app, for scale
 
-The task manager reads `/proc` directly on Linux, no forking, throttled to
-once a second; it is not a mockup of a process list, it is this machine's
-actual processes at the moment the screenshot was taken:
+The task manager reads the process table through the `proctab` module, in
+one call and without forking, once a second, and is drawn only when it has
+something new (`tasks_dirty`); it is not a mockup of a process list, it is
+this machine's actual processes at the moment the screenshot was taken:
 
 ![The task manager, sorted by CPU, showing real processes from this machine](img/desktop-tasks.png)
 
@@ -332,7 +373,8 @@ overlaps with blending, and a window's shadow is a darkened copy of the
 cells under it,
 computed once per frame, not a rendering effect. It is not accelerated:
 every cell is a real character cell, drawn with real SGR escape sequences,
-at whatever rate the terminal it runs in can keep up with. And it does not
-yet match a purely event-driven multiplexer's idle cost — see the note under
-[the event loop](#the-event-loop) above, and the project's own
-[backlog](../../docs/backlog.md) for what is still open about it.
+at whatever rate the terminal it runs in can keep up with. And it is one
+process: every app runs in it, so a slow callback stops every display while
+it runs -- which is why each is timed ([the frame budget](#the-frame-budget))
+and ADR 0050 weighs apps in processes of their own. The project's own
+[backlog](../../docs/backlog.md) has what is still open.

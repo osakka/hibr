@@ -33,7 +33,7 @@ fn dt_checkmark(int on) {
 # off dimmed, on the well -- after the label, which keeps the caller's.
 # tag is what dt_hit answers for a click on it -- the field the app will
 # toggle, by default the label itself.
-fn dt_check(int id, int r, int c, int on, label, tag) {
+fn dt_check(int id, int r, int c, int on, label, tag = "") {
 	local tag=${tag:-$label} m st
 
 	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac

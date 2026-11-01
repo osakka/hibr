@@ -25,15 +25,22 @@ This is the first module to use another. Modules are opened `RTLD_LOCAL`, so
 interface rather than for a module:
 
 ```c
-dp = hibr_require(s, "display", DP_API_VER);
-if (!dp) { lg(HIBR_LERR, "most: needs a display; mod load console"); return HIBR_FAIL; }
+dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
+if (!dp) {
+	lg(HIBR_LERR, "most: no display is available; nothing on the\n"
+		      "      module path offers one");
+	return HIBR_FAIL;
+}
 ```
 
 `console.so` offers that table in its init with `hibr_provide` and withdraws it
-in its finaliser, so dropping the console makes `most` refuse rather than call
-into an unloaded object. Because it asks for "display" and not for "console", a
-framebuffer backend offering the same table would work unchanged. Both halves are checked in
-`tests/670-module-api.t`.
+in its finaliser, so dropping the console takes the table away rather than
+leaving `most` to call into an unloaded object. Nothing has to be loaded by
+hand: when nothing has offered "display", `hibr_require` reads the modules on
+the path, finds the one whose descriptor says it offers it, and loads that --
+and does the same again after the console is dropped. Because it asks for
+"display" and not for "console", a framebuffer backend offering the same table
+would work unchanged. All of this is checked in `tests/670-module-api.t`.
 
 ## What it does
 

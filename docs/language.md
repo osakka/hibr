@@ -14,7 +14,7 @@ written `name() { … }`, bash's `function name { … }`, or hibr's `fn` -- and
 `local`. An empty `then`, `do` or `{ }` is a syntax error, as in bash, and a
 syntax error is status 2.
 
-**Expansion.** Single, double and `$'…'` quoting (`\n \t \e \xHH \0NNN \uHHHH \UHHHHHHHH`, the last two a character by its Unicode code point).
+**Expansion.** Single, double and `$'…'` quoting (`\n \t \e \xHH \NNN \uHHHH \UHHHHHHHH`: `\NNN` is one to three octal digits, as in bash, so `\101` is `A` and `\0101` is a backspace and then `1`; the last two are a character by its Unicode code point).
 `${x:-d} ${x:=d} ${x:?msg} ${x:+alt}`, `${#x}`, `${x#p} ${x##p} ${x%p} ${x%%p}`,
 `${x/p/r} ${x//p/r}`, anchored `${x/#p/r}` and `${x/%p/r}`, `${x:off:len}` with
 negative offsets and negative lengths, over a scalar's characters or a list's
@@ -34,9 +34,10 @@ substitution alike, `?` and a bracket take one whole UTF-8 character, never
 one byte of it -- and brace expansion — `{a,b}`, `{1..9}`, `{01..12}`, `{a..e}`,
 `{1..9..2}`, nested and multiplied.
 
-**Declarations.** `declare` / `typeset` take bash's flags — `-i -r -x -a -A -n
--p -g` — and, instead of them, one of the shell's own type names: `declare int
-n`, `declare num f`, `declare path p`. A flagged `-i` coerces the way bash does,
+**Declarations.** `declare` / `typeset` take bash's flags — `-i -l -u -r -x -a
+-A -n -p -g`, and `-f`/`-F` for functions — and, instead of them, one of the
+shell's own type names: `declare int n`, `declare num f`, `declare path p`.
+A flagged `-i` coerces the way bash does,
 turning anything unreadable into `0`; a declared type *validates*, with the same
 check that guards typed function parameters, and a bad value fails loudly and
 stops. `readonly` and `export -p` round out the set.
@@ -293,7 +294,8 @@ echo $(( m["x-y"] * 2 )) $[ 1 + 1 ]
 
 `[[ … ]]` never splits or globs its operands. It has `&& || ! ( )`, pattern
 `==`/`!=` (quoted text is literal), string `< >`, numeric `-eq -ne -lt -le -gt
--ge`, file tests including `-nt -ot -ef`, `-v name` for "is set", and `=~`.
+-ge`, file tests including `-nt -ot -ef`, `-v name` for "is set", `-R name`
+for "is a nameref", `-o opt` for "is this option on", and `=~`.
 The right side of `&&` or `||` is not even expanded when the left side decides
 the answer.
 
@@ -378,8 +380,10 @@ content-type
 content-type 0
 ```
 
-That is why `json parse` can hand back a document with any field name at all and
-every field stays reachable. See
+A quoted key may hold anything, an `=` included: `m["k=v"]=2` sets the key
+`k=v`, where until 0.99.400 the assignment was cut at that `=` and emptied
+the map. That is why `json parse` can hand back a document with any field
+name at all and every field stays reachable. See
 [decision 0006](adr/0006-arrays-are-sparse-maps.md).
 
 `"${a[@]}"` gives one field per entry; `"${a[*]}"` joins them with the first
@@ -470,6 +474,29 @@ sum=42
 value, and it tells builtins they are being bound so they fill the slot without
 printing. A function that should print uses `echo`; `$( )` still works and still
 forks.
+
+The binding is the function's, never the builtin's inside it. Since 0.99.370
+a function that does not call `ret` binds empty, even when its last command
+left something in the slot -- and is named once on standard error when it
+did, since a script written for the old rule, which bound that leftover,
+reads empty now. `ret -k` hands on what the last command left, a map or a
+list included, as the function's own. The builtin inside still prints in
+both cases, because it is the function that is being bound:
+
+```sh
+fn shout(w) { str upper "$w"; }
+x := shout hi; echo "x=[$x]"
+fn loud(w) { str upper "$w"; ret -k; }
+y := loud hi; echo "y=[$y]"
+```
+
+```output
+HI
+hibr: shout: bound with := and gave nothing with ret, so it bound empty; its last command left a value -- end shout with `ret -k` to pass that on, or `ret VALUE`
+x=[]
+HI
+y=[HI]
+```
 
 `local` gives dynamic scoping as in bash: a called function sees its caller's
 locals, and every binding is restored on return, including its export flag.
@@ -685,7 +712,8 @@ creates with `local`, `declare` or `declare -g`; and a name the shell sets
 on the script's behalf is never taken for a new global -- `REPLY`, `M`,
 `BASH_REMATCH`, `PIPESTATUS`, `MAPFILE`, `OPTARG`, `OPTIND`, `RET`,
 `RET_RIGHT`, `ERR`, `ERRMSG`, `ERRSTATUS`, `CMD`, `REMOTE`, the `PWD` and
-`OLDPWD` that `cd` keeps, and `_`, so a `cd`, and the `_` that
+`OLDPWD` that `cd` keeps, the `HIBR_KITTYID` the console keeps for its
+pictures, and `_`, so a `cd`, and the `_` that
 `read -r k v _` throws a field into, are never refused whatever the
 environment held. Name the checks to take only
 some -- `strict functions vars` -- and `strict off vars` to put one back;
@@ -840,6 +868,7 @@ with `--agent` each finding is a line of JSON keyed `warning`. The rules:
 | `dead-return` | a failing `return` straight after `ret`, which has already ended the function |
 | `bind-no-ret` | `x := f`, where `f` is defined in the file and never calls `ret`: that binds nothing, as a program that prints nothing does; end `f` with `ret VALUE`, or `ret -k` to pass on what its last command left |
 | `bare-key` | `${m[row]}` with `row` never assigned, on an array this file makes without `-A` |
+| `callback-forks` | a `$( )`, a backquote or a `<( )` inside a function the desktop calls between frames -- one ending `_draw`, `_dirty`, `_idle`, `_key`, `_click`, `_mouse`, `_wheel`, `_paste`, `_copy`, `_cut` or `_scroll`, a ticker the file registers with `dt_ticker`, or anything in the file those call. `$(< file)` starts nothing and is let through, and so is a line carrying a `# fork: reason` comment saying why the fork is cheap there |
 
 The rules live in a module, `lint`, loaded only by `--explain`, so running a
 script never pays for them. bash's `set -e`-inside-a-condition trap is not a

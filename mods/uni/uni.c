@@ -330,7 +330,7 @@ int un_bi(sh *s, int ac, char **av)
 	k = un_dir(ac, av, 2, &dir);
 	if (k + 1 != ac || (strcmp(sub, "vis") && strcmp(sub, "shape") &&
 			    strcmp(sub, "width") && strcmp(sub, "class"))) {
-		lg(HIBR_LERR, "usage: uni vis [-d ltr|rtl|auto] text | shape text | width text | class text | levels [-c] | version");
+		lg(HIBR_LERR, "usage: uni vis [-d ltr|rtl|auto] text | map [-d ltr|rtl|auto] text from to | shape text | width text | class text | levels [-c] | version");
 		return 2;
 	}
 	s_init(&o);
@@ -398,7 +398,7 @@ void un_fini(sh *s)
 }
 
 const hibr_bi un_bis[] = {
-	{ "uni", un_bi, "Unicode text for a cell grid: uni vis|shape|width|class|levels|version" },
+	{ "uni", un_bi, "Unicode text for a cell grid: uni vis|map|shape|width|class|levels|version" },
 	HIBR_BI_END
 };
 

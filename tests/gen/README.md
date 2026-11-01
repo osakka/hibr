@@ -9,11 +9,11 @@ So the fixtures are generated once, here, and committed as `printf` statements
 with octal escapes inside the test scripts themselves. Running a test rebuilds
 its own repository from those bytes. No `git` binary is involved.
 
-```
+```text
 python3 tests/gen/410-object.py     # rewrites tests/410-object.t
 python3 tests/gen/420-status.py     # rewrites tests/420-status.t
 ```
 
-These are the only part of the test suite that needs Python, and only when a
-fixture changes. After regenerating, run the test, read the diff, and
+Of the recorded tests, these are the only part that needs Python, and only
+when a fixture changes. After regenerating, run the test, read the diff, and
 re-record the `.expected` file only if the new behaviour is right.

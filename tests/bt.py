@@ -276,7 +276,15 @@ try:
         query, not a watcher."""
         return [l for l in os.popen("ps -eo pid=,args=").read().splitlines()
                 if BIN in l and l.rstrip().endswith("bluetoothctl")]
+    # A read job may run a bluetoothctl of its own for a moment, fed on its
+    # standard input and so also with no command of its own: take the count
+    # once those have gone rather than at one instant, which counted two
+    # about one run in three under load.
+    end = time.time() + 6
     before = len(watchers())
+    while before > 1 and time.time() < end:
+        time.sleep(0.2)
+        before = len(watchers())
 
     def tree_of(p):
         out = []

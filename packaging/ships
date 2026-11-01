@@ -9,7 +9,7 @@
 # catalogue only.
 #
 # tools/ships.hibr reads this; the Makefile, tests/scopes.py,
-# tools/docshots.py and tests/541-bare-desktop.t all ask it rather than
+# tools/docshots.py and tests/541-ships.t all ask it rather than
 # keeping a rule of their own.
 
 # The desktop's own apps, on the hibr menu. Their panes are their parts.

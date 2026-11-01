@@ -1,6 +1,6 @@
 # hibr documentation
 
-A shell that runs a useful subset of bash in about 22,400 lines of C, and adds
+A shell that runs a useful subset of bash in about 22,900 lines of C, and adds
 nested maps, JSON, regex capture, native sockets and TLS, typed functions,
 results without forking, declared command-line arguments, and modules that can
 add whole protocols.
@@ -33,8 +33,8 @@ exists. These pages are the detail.
 | | |
 |---|---|
 | [The grammar](grammar.md) | Lexical structure, EBNF, operator precedence, expansion order, patterns |
-| [Builtins](builtins.md) | All 73, what each takes and what it gives back |
-| `man hibr` | Every flag (`--agent`, `--explain`, `--plan`, `--checkfirst`), environment variable, file and exit status |
+| [Builtins](builtins.md) | All 77, what each takes and what it gives back |
+| `man hibr` | Its flags (`--agent`, `--explain`, `--plan`, `--checkfirst`, `--modules=`, `--login`), environment variables, files and exit status |
 | `man desktop` | The `desktop` command: its options, keys, and `desktop ctl`, the control socket |
 | [Modules](modules.md) | The module ABI, and writing one |
 | [Sheet](sheet.md) | The spreadsheet whose formula language is hibr: formulas, cells as variables, ranges as arrays, and the sandbox they run in |
@@ -72,6 +72,12 @@ Every divergence has a record. The short version:
 | [Agent mode](adr/0025-agent-mode.md) | `--agent`: JSON errors, `set -u`, strict expansion, a timeout per process |
 | [A script runs as it is read](adr/0026-a-script-runs-as-it-is-read.md) | as in bash; `--checkfirst` parses the whole of it first |
 | [A dry run](adr/0027-a-dry-run-refuses-what-it-cannot-show-is-harmless.md) | `--plan` refuses what it cannot show is harmless, and lists it |
+| [`mkdir`, `rm` and `mv` are builtins](adr/0029-mkdir-and-rm-are-builtins.md) | answering as GNU's do for what they implement, and handing the rest to the program |
+| [`:=` takes any command's result](adr/0038-the-slot-takes-a-programs-output-too.md) | a program's output too, the way `$( )` does; a function's only through `ret` |
+| [A login shell reads both](adr/0039-an-interactive-login-shell-reads-both.md) | an interactive login shell reads the profile and then `~/.hibrc` |
+| [A module may answer a command](adr/0040-a-module-may-answer-a-command.md) | `HIBR_MODULES` says whether a module is loaded for a command, and before or after `PATH` |
+| [`source` honours a local scheme](adr/0043-source-honours-a-local-scheme.md) | `. /dev/archive/…` works; a scheme that fetches, like `/dev/http`, is refused |
+| [`read` takes a datagram whole](adr/0051-read-takes-a-datagram-whole.md) | on `/dev/udp` a line or `-n` gets the line, where bash keeps its first byte |
 
 ## Reading these pages in a browser
 

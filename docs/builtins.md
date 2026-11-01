@@ -28,9 +28,9 @@ purpose. Everything else behaves as bash does unless the entry says otherwise.
 | `command -v name` | print how `name` would resolve; status 1 if it would not |
 | `command -V name` | the same, in a sentence |
 | `builtin name args…` | run the builtin `name`, ignoring a function of that name |
-| `type name…` | say what each name resolves to |
+| `type name…` | say whether each name is a function, a module builtin, a shell builtin or a program, and where; it takes no options, and an alias is not one of its answers -- `command -v` names an alias |
 | `help` | list every builtin with a one-line description |
-| `time cmd` | run `cmd` and report how long it took |
+| `time cmd args…` | **[hibr]** run a command and write `real`, `user` and `sys` on one line to standard error; a builtin rather than bash's reserved word, so it takes no `-p`, and in a pipeline it times its own stage |
 | `times` | the shell's own user and system time, then its children's, as bash prints them (`0m0.004s 0m0.001s`, two lines); children are those already waited for. Bound with `:=`, the same two lines fill the slot and nothing is printed |
 | `let expr…` | evaluate arithmetic; the status is 0 when the last value is non-zero |
 | `title [-s short] name…` | **[hibr]** rename the running process. `name…` is the sentence `ps` shows; `-s` is the name the *kernel* keeps (`/proc/pid/comm`), which is 15 usable bytes and what `top`, htop's default column, `pgrep` and `killall` read -- so it is role-first, short, and holds no brackets, since `ps` wraps a defunct process's own name in brackets. Without `-s` the long name is truncated to fit there, which is what every caller got before 0.99.131. A shell also wears `HIBR_PROCTITLE` and `HIBR_PROCNAME` from its environment at startup, and removes both as it does, so a parent can name the shell it starts without those names reaching anything the shell itself goes on to run -- which is how the desktop names each terminal window's own shell |
@@ -103,7 +103,7 @@ hibr: source: /dev/tcp/example.com/80: No such file or directory
 | `declare -f [name…]` / `declare -F [name…]` | print functions as written, or list their names |
 | `typeset …` | the same builtin under its other name |
 | `readonly [-p] [--] [name[=v]…]` | make variables readonly, or list the ones that are |
-| `local name[=v]…` | declare function-local variables |
+| `local name[=v]…` | declare function-local variables; given a flag first (`local -a x`, `local -A m`, `local -i n`) it takes `declare`'s flags, and is still local |
 | `export [-p] [-n] [name[=v]…]` | mark variables for export; `-p` lists them; `-n` takes them out of the environment and keeps their values |
 | `unset [-f] name…` | remove variables, array elements or functions |
 | | `unset a[1]`, `a[-1]` and `h["a-b"]` all reach what they name |
@@ -113,7 +113,7 @@ hibr: source: /dev/tcp/example.com/80: No such file or directory
 | `shopt [-s\|-u\|-q\|-p] [name…]` | read or set shell options; `-p` prints the `shopt -s`/`-u` lines that put them back |
 | `strict [off] [functions\|vars\|expansion…]` / `strict -p` | **[hibr]** refuse, in the file that runs it, what is usually a mistake: a function defined twice in it, a function creating a global without `local`, an expansion that splits -- see [0023](adr/0023-strict-is-per-file.md) |
 | `shift [n]` | drop the first `n` positional parameters |
-| `read [-rs] [-p s] [-n k] [-N k] [-d c] [-t s] [-u fd] [-a arr] [name…]` | read one line; `-n` stops at `k` characters *or* the delimiter, whichever comes first, and `-N` takes exactly `k` and splits nothing; `-t` bounds the whole read at that many seconds, fractions too, as bash's does -- 142 when it runs out, with whatever had arrived kept in the variable, or the names emptied when nothing had -- and `-t 0` reads nothing at all, only saying whether input is waiting, as in bash; from a datagram socket (`/dev/udp`) it takes a datagram at a time and the rest of one past the delimiter or count is lost ([ADR 0051](adr/0051-read-takes-a-datagram-whole.md)); a name may be subscripted, as in `read h[k]` |
+| `read [-rs] [-p s] [-n k] [-N k] [-d c] [-t s] [-u fd] [-a arr] [name…]` | read one line; `-n` stops at `k` characters *or* the delimiter, whichever comes first, and `-N` takes exactly `k` and splits nothing; `-t` bounds the whole read at that many seconds, fractions too, as bash's does -- 142 when it runs out, with whatever had arrived kept in the variable, or the names emptied when nothing had -- and `-t 0` reads nothing at all, only saying whether input is waiting, as in bash; the bound holds on a descriptor that never ends, such as `/dev/zero`; a NUL byte in the input is dropped, as bash drops it; from a datagram socket (`/dev/udp`) it takes a datagram at a time and the rest of one past the delimiter or count is lost ([ADR 0051](adr/0051-read-takes-a-datagram-whole.md)); a name may be subscripted, as in `read h[k]` |
 | `mapfile` / `readarray [-t] [-n k] [-s k] [-O k] [-d c] [-u fd] [arr]` | read lines into an array |
 | `getopts optstring name [args…]` | parse option letters, one call at a time |
 
@@ -187,7 +187,7 @@ as the positional parameters, so a name there is `$1` and never a file to
 open. `$-` is the letters of the options now on, then `i`, then `c` or `s`
 for how the shell was started: `case $- in *i*) …` is the question
 `/etc/skel/.bashrc` asks, and it is answered here now. Options that cannot move — `extglob`, `globstar`,
-`expand_aliases` always on, `pipefail` always off — say so rather than
+`expand_aliases`, `sourcepath` always on, `pipefail` always off — say so rather than
 appearing to succeed. See [0017](adr/0017-one-namespace-for-options.md).
 **[hibr]** `set -o checkfirst`, or `hibr --checkfirst`, parses a whole
 script, `-c` text, standard input or sourced file before running any of it,
@@ -214,7 +214,7 @@ program not known to only read -- see [a dry run](language.md#a-dry-run).
 
 ## Text and data
 
-All four work in the shell's own process. No pipeline, no fork.
+All of them work in the shell's own process. No pipeline, no fork.
 
 | builtin | synopsis |
 |---|---|
@@ -223,7 +223,7 @@ All four work in the shell's own process. No pipeline, no fork.
 | `json op var args…` | **[hibr]** `parse get set emit keys len type` |
 | `match [-i] [-a] subject pattern [var]` | **[hibr]** match a regex, groups land in `M` |
 | `rsub [-i] [-g] subject pattern replacement [var]` | **[hibr]** substitute regex matches |
-| `printf fmt [args…]` | formatted output, including `%q`, `%(fmt)T` and a `*` width or precision taken from the next argument; an argument that is not a number says so and fails, as in bash |
+| `printf [-v var] fmt [args…]` | formatted output, including `%b`, `%q`, `%(fmt)T` and a `*` width or precision taken from the next argument; `-v` puts the result in `var` instead of printing it; an argument that is not a number says so and fails, as in bash |
 | `echo [-n] [-e] [-E] args…` | write arguments |
 
 <!-- setup
@@ -295,8 +295,8 @@ echo "$sum"
 | `disown [%job]` | forget a job without signalling it |
 | `coproc [name] cmd args…` | **[hibr]** run a command as a coprocess |
 | `trap [cmd] sig…` | run `cmd` on a signal, on `EXIT`, `ERR`, `DEBUG` or `RETURN`; `trap` or `trap -p [sig…]` lists what is set, `trap - sig…` clears it, `trap '' sig…` ignores it |
-| `ulimit [-HSa] [-cdfilnstuv] [limit]` | read or set a resource limit |
-| `umask [mask]` | show or set the file creation mask |
+| `ulimit [-HSa] [-cdflnstuv] [limit]` | read or set a resource limit |
+| `umask [-p] [-S] [mask]` | show or set the file creation mask: octal (`022`) or symbolic (`u=rwx,g=rx,o=`, `g+w`, `a-x`), as bash; `-S` shows it as what each class may do, `-p` in a form that sets it again |
 | `hash [-r] [-d name] [name…]` | show or forget where commands were found |
 
 **[hibr]** A coprocess is an endpoint, spoken to with the same verbs as a
@@ -352,7 +352,7 @@ looked up again.
 
 | builtin | synopsis |
 |---|---|
-| `cd [-L\|-P] [--] [dir]` | change directory; `cd -` returns to the previous one. `-L` and `-P` are accepted; hibr's `cd` always follows the physical path, which is `-P` |
+| `cd [-L\|-P] [--] [dir]` | change directory; `cd -` returns to the previous one. `-L`, `-P`, `-e` and `-@` are accepted; hibr's `cd` always follows the physical path, which is `-P`. A relative name not starting with `.` is looked for along `CDPATH` first, and the directory found there is printed, as in bash |
 | `pwd` | print the working directory |
 | `pushd dir` / `popd` | push a directory and change to it / pop the stack |
 | `dirs` | show the directory stack |
@@ -372,12 +372,12 @@ the next entry, `~-1` the one before last, and `~+` and `~-` are `$PWD` and
 
 | builtin | synopsis |
 |---|---|
-| `connect [-u\|-s] host port [var]` | **[hibr]** open a client connection; `-u` UDP, `-s` TLS |
-| `listen [-f] [-n count] port handler` | **[hibr]** serve connections with a handler |
-| `listen -b port [var]` | **[hibr]** bind only, and hand back the descriptor; a port with a `/` is a Unix socket, owner-only |
-| `accept [-t secs] listenfd [var]` | **[hibr]** wait for one connection, at most secs with `-t`; `$REMOTE` is `uid:N` for a Unix socket |
+| `connect [-u\|-s] host port [var]` | **[hibr]** open a client connection; `-u` UDP, `-s` TLS; the descriptor goes in `var`, `FD` by default |
+| `listen [-f] [-n count] port handler` | **[hibr]** serve connections with a handler, which is given the peer as `$1` and in `$REMOTE` |
+| `listen [-u] -b port [var]` | **[hibr]** bind only, and hand back the descriptor in `var`, `FD` by default; a port with a `/` is a Unix socket, owner-only; `-u` binds a UDP port, which `recv` then reads a datagram at a time |
+| `accept [-t secs] listenfd [var]` | **[hibr]** wait for one connection, at most secs with `-t`, its descriptor in `var`, `FD` by default; `$REMOTE` is `uid:N` for a Unix socket |
 | `send [-n\|-r] fd text…` | **[hibr]** write to a descriptor; `-r` ends CRLF; a peer that has gone is a failing status, never a signal |
-| `recv [-a\|-n bytes] fd [var]` | **[hibr]** read one line, all of it, or `n` bytes |
+| `recv [-a\|-n bytes] fd [var]` | **[hibr]** read one line, all of it, or `n` bytes, into `var`, `REPLY` by default; from a datagram socket, one datagram |
 
 Descriptors come back above 9, so a redirection cannot tread on one. `send`
 and `recv` take a descriptor as a number and refuse anything else, with
@@ -414,6 +414,7 @@ See [Networking](networking.md) and
 | builtin | synopsis |
 |---|---|
 | `opt -s --long name [type[!+][=default]] [help…]` | **[hibr]** declare one option; declaring the same name again replaces it |
+| `opt . [text]` | **[hibr]** the line `--help` prints under its usage line, saying what the script does |
 | `opt -clear` | **[hibr]** forget every declared option, to start another set |
 | `args "$@"` | **[hibr]** parse the arguments against what was declared, then forget the declarations, so the next `args` starts from its own |
 
@@ -444,7 +445,7 @@ inside a function or a `try` it returns 2 —
 | builtin | synopsis |
 |---|---|
 | `mod load path\|name` | load a module |
-| `mod drop name` | unload one |
+| `mod drop name`, `mod drop all` | unload one, or every module loaded |
 | `mod list` | list what is loaded, with its ABI and builtins; under `:=` both listings fill the slot in their plain form and print nothing |
 | `mod avail`, `mod list -a` | list every module that could be loaded, and its state: columns on a terminal, and in a pipe one line of eight tab-separated fields per module -- name, version, ABI, state, path, the interface it offers, its builtins, its description -- with no header, so a script reads it with no line to skip |
 | `mod find builtin` | load whichever module on the module path registers this builtin |
@@ -455,7 +456,7 @@ inside a function or a `try` it returns 2 —
 | `auth check [-s service] [-c dir] [-q] user password`, `auth service\|ready\|whoami` | **[module]** whether PAM takes a password: 0 yes, 1 no with PAM's reason in `$RET`, 2 when PAM cannot be asked; libpam opened on first use, no privilege needed to check one's own password. The service is `hibr` when `/etc/pam.d/hibr` exists (the Debian package installs it), else `screensaver` on macOS, else `login`; `-c` gives PAM a folder of its own, for tests. `whoami` is the login name, a tab, and the account's real name. `auth open` checks the password and opens a PAM session on this terminal (root refused), `-e NAME=VALUE` putting a variable in PAM's environment first -- `XDG_SEAT` and `XDG_VTNR` for a display that is not a VT of its own, as a login screen under Blit is; `auth run cmd...` runs a command in it as that user -- dropped for good when root, with PAM's environment, recorded in utmp -- and waits; `auth close` ends it. That is the login screen's whole use of privilege |
 | `dav ls\|stat\|get\|put\|mkdir\|rm\|mv\|cp\|servers\|server\|request ...` | **[module]** a WebDAV client: list, fetch and change files on any WebDAV server, Basic or Digest, over TLS, with servers kept in a private list; `dav request` is any HTTP request, for an API -- see [mods/dav](../mods/dav/README.md) |
 | `fetch [get\|head\|post\|put\|patch\|delete\|options] URL [-H 'Name: value']... [-d body \| -f file] [-o file] [-j jar] [-u user:pass] [-t s] [-k] [-n] [-i]`, `fetch jar clear NAME` | **[module]** an HTTP client: the body printed, written to a file, or with `:=` the reply as a map of status, headers and body; kept connections, gzip and deflate, redirects (the caller's login and cookies not carried to another origin), Basic and Digest, proxies, cookies in named JSON jars; `FETCH_STATUS` is the status. Also the `"fetch"` interface other modules make requests through -- see [mods/fetch](../mods/fetch/README.md) |
-| `web open\|go\|back\|text\|links\|eval\|click\|type\|render\|draw ...` | **[module]** a web browser: headless Chromium driven over a pipe, pages as cells and as text a script can read -- see [mods/web](../mods/web/README.md) |
+| `web open\|go\|back\|text\|links\|eval\|evask\|click\|type\|render\|draw ...` | **[module]** a web browser: headless Chromium driven over a pipe, pages as cells and as text a script can read -- see [mods/web](../mods/web/README.md) |
 | `media open\|play\|pause\|seek\|volume\|size\|frame\|draw\|info ...` | **[module]** video and sound from a file or address, decoded by FFmpeg's libraries loaded at run time, the picture drawn as half blocks or ASCII -- see [mods/media](../mods/media/README.md) |
 | `md html\|lines [-c] [-t text \| file]` | **[module]** markdown, CommonMark with GitHub's extensions: HTML, or a style letter per character of each line — see [mods/md](../mods/md/README.md) |
 | `html parse\|dump\|query\|text\|attr\|tag\|kids\|parent\|title\|lines\|close ...` | **[module]** HTML parsed as browsers do (WHATWG), queried with CSS selectors, and laid out as lines of cells with styles, links and picture boxes — see [mods/html](../mods/html/README.md) |
@@ -472,8 +473,8 @@ inside a function or a `try` it returns 2 —
 | `sysinfo [-p] [-l picture]` | **[module]** what this machine is, with a picture — see [mods/sysinfo](../mods/sysinfo/README.md) |
 | `trace [-l] [-m hops] [-w ms] [-v var] [-q] [-n] host` | **[module]** an unprivileged traceroute over UDP, its hops in a map (`TRACE` unless `-v` names another); `-l` keeps going, as mtr does — see [mods/trace](../mods/trace/README.md) |
 | `prompt [render [right]\|list\|object]` | **[module]** the segment-based prompt — see [Prompt](prompt.md) |
-| `console open\|close\|size\|clear\|pen\|put\|fill\|cursor\|flush\|shot\|key\|watch\|pane\|hit\|mouse\|…` | **[module]** the text display: the alternate screen, a cell grid redrawn by damage, panes and decoded keys — see [mods/console](../mods/console/README.md) and [Display](display.md) |
-| `img file`, `img draw file row col h w [-m mode] [-p pane]` | **[module]** decode a PNG or JPEG and print it as ANSI, or draw it into the open display as half blocks, characters or pixels — see [mods/img](../mods/img/README.md) |
+| `console open\|close\|size\|clear\|pen\|put\|fill\|cursor\|flush\|shot\|key\|watch\|pane\|hit\|mouse\|hud\|status\|…` | **[module]** the text display: the alternate screen, a cell grid redrawn by damage, panes and decoded keys — see [mods/console](../mods/console/README.md) and [Display](display.md) |
+| `img file`, `img draw file row col h w [-m mode] [-p pane]`, `img size\|keep\|save\|stats ...` | **[module]** decode a PNG or JPEG and print it as ANSI, or draw it into the open display as half blocks, characters or pixels; `img size file` is its width and height in pixels, `img save in out.png` writes any picture it reads as a PNG, `img keep` keeps a picture already under the text, and `img stats` counts how often that worked — see [mods/img](../mods/img/README.md) |
 | `pty spawn\|read\|drain\|write\|resize\|size\|alive\|wait\|signal\|fd\|pid\|close\|adopt\|release\|list ...` | **[module]** run a program on a pseudo terminal of its own and drive it — see [mods/pty](../mods/pty/README.md) |
 | `term open\|new\|poll\|draw\|key\|write\|feed\|size\|...` | **[module]** a terminal emulator: a program's screen kept as cells and drawn into a window — see [mods/term](../mods/term/README.md) |
 | `hold new\|attach\|detach\|list\|kill\|clients\|...` | **[module]** sessions that outlive their terminal: detach, log off, attach again — see [mods/hold](../mods/hold/README.md) |
@@ -483,15 +484,20 @@ inside a function or a `try` it returns 2 —
 | `csv read\|split\|line\|open\|row\|close ...` | **[module]** CSV as RFC 4180 says, read whole into a map or a row at a time |
 | `db create\|open\|insert\|import\|query\|count\|sum\|min\|max\|avg\|set\|update\|delete\|compact ...` | **[module]** a small column store: typed columns in one file, filters and aggregates over zone maps — see [mods/db](../mods/db/README.md) |
 | `lines show\|grep\|count\|edit ...` | **[module]** files by line: slices, tree search and exact multi-line edits |
+| `copy run [-m] [-i ms] [-s statusfile] [-k stopfile] dst src...`, `copy rename dst src...` | **[module]** copy, or with `-m` move, trees into the folder `dst`, each item written under a hidden `.hibr-part` name and renamed when whole; progress goes to a one-line status file and a stop file appearing ends it cleanly. `copy rename` does only the moves that are a rename and answers the rest. Files' copy window runs it as a job — see [mods/README.md](../mods/README.md) |
+| `proctab` | **[module]** every process under `/proc` in one call, `pid utime stime uid rss name` a line; fails where there is no `/proc` |
+| `darwin cpu\|mem` | **[module]** macOS only: processor and memory figures from the system itself, with no program started |
 | `lang load\|get\|plural\|has\|info\|keys\|off ...` | **[module]** translation catalogues, with CLDR plural rules |
 | `uni vis\|shape\|width\|class\|levels\|version ...` | **[module]** Unicode for a cell grid: bidirectional text, Arabic shaping and widths, from one UCD version |
 | `drop user[:group]`, `epoch`, `sleepms ms`, `state`, `upper word…` | **[module]** the `sys` module: give up root for good, seconds since the epoch, a sleep in milliseconds, the shell's own state, and the reference module's example builtin |
 | `msum mapvar`, `oops [message]` | **[module]** the `http` module's examples beside its `/dev/http/` scheme: sum a map's values, fail with a message |
 
 A module adds builtins, and it can add a *protocol*: register a scheme and
-`/dev/<name>/…` works anywhere a filename does. When the effective uid is 0 the
-search skips `.` and `HIBR_MODPATH` and consults only the module directory. See
-[Modules](modules.md).
+`/dev/<name>/…` works in any redirection. When the effective uid is 0 the
+search skips `.`, `HIBR_MODPATH` and the user's own folder, and consults only
+the system scope at its compiled path (`/var/lib/hibr/mods` in the packages,
+and only while it is owned by root or the shell's owner and nobody else can
+write it) and the module directory. See [Modules](modules.md).
 
 **`HIBR_MODULES` says whether a module may answer a command nothing else
 did, and from which end of the search** — `off`, `after` (the default) or
@@ -508,7 +514,7 @@ A module already loaded is already a builtin and shadows PATH whatever this
 says: that is what `mod load` means, and the setting governs *autoloading*.
 `before` keeps an index of every builtin the module path declares, built once
 on first use, because finding one otherwise means opening every candidate
-module (4.3 ms for 35 of them) and `before` is asked on every command that is
+module (about 4 ms for the 40 a build carries, on 0.99.416) and `before` is asked on every command that is
 not a builtin or a function. A `--plan` run never autoloads; `mod find` is
 still there to do it by hand.
 

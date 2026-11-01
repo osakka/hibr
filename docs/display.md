@@ -30,10 +30,14 @@ eighty by twenty-four terminal:
 
 | | bytes actually written |
 |---|---|
-| the first flush, painting everything | 2095 |
-| writing four characters | 11 |
-| changing one of them | 8 |
+| the first flush, a blank screen | 179 |
+| writing four characters | 26 |
+| changing one of them | 23 |
 | flushing again with nothing changed | **0** |
+
+Measured on 0.99.416 through a pseudo terminal of 24 by 80. The first
+flush clears each row rather than writing every cell; the next two are
+mostly the cursor move and the pen, and the last is nothing at all.
 
 The last row is the one that matters. A monitor that samples every second and
 redraws its entire layout sends nothing at all when nothing moved.
@@ -78,7 +82,7 @@ and the flush cost shown live. Run it and press things.
 | `console imgdetail [auto\|full\|half]` | how many pixels a picture is sent at, since the two kinds want opposite answers. `auto`, the default, halves one drawn *under* the text -- a wallpaper, which sits behind the words, goes to every client that attaches and is never looked at closely -- and sends every other at the cell's own resolution, because a film's frame and a page *are* the thing being looked at. `full` and `half` are one rule for everything, for a link that cannot carry full frames: halving each direction is a quarter of the bytes. With no argument it says which is in force |
 | `console filmdetail [full\|half]` | how many pixels a film's frame is sent at, on top of `imgdetail`: `full`, the default, is the cells' own resolution, and `half` halves each direction -- a quarter of the bytes a frame -- for a link a film at full detail is too much for. Only a frame the media module marks as a film is touched, and only on kitty; Control Panel > Pictures > Film Detail sets it. With no argument it says which is in force |
 | `console imgfd [hold\|off\|auto]` | whether a window's picture goes to Blit by descriptor (Blit ADR 0202): its pixels as a sealed memfd over the Blit session's frame socket, and only the placement (`a=p`) on the terminal. `auto`, the default, does it where `BLIT_FRAME_SOCKET` and `BLIT_FRAME_TOKEN` name a session that takes the hello and nothing is between the console and Blit; inside `hold` the desktop says `hold` when `hold descriptors` says every display can take frames, and `off` otherwise. Leaving it, or a frame failing to go, places each such picture again on the terminal. The wallpaper never goes this way. Linux only |
-| `console hud` | `on` while Blit's performance panel asks for this desktop's status (Blit ADR 0203), `off` otherwise: read off the frame socket where nothing is between the console and Blit, and asked of hold's server inside `hold`, which keeps what each display's Blit said. A Blit older than 0.3.22 speaks only wire version 1 and never asks, and nothing without a frame socket ever does |
+| `console hud` | `on` while Blit's performance panel asks for this desktop's status (Blit ADR 0203), `off` otherwise: read off the frame socket where nothing is between the console and Blit, and asked of hold's server inside `hold`, which keeps what each display's Blit said. A Blit that speaks only the frame socket's wire version 1 never asks, and nothing without a frame socket ever does |
 | `console status line...` | send the panel its status, each argument a line -- at most eight, each cut to 64 bytes on a character, a control character made a space -- as `STA1` on the frame socket, or through hold's server to every display whose Blit asked. Fails, sending nothing, while the panel is not asking. The desktop sends its eight lines once a second while it asks (`wm/hud.hibr`) |
 | `console imgedit [on\|whole\|off\|auto]` | whether a window's picture that changed only in part is sent as that part, edited into the one already on the terminal with kitty's `a=f,r=1` (Gitea #404), rather than as a whole picture again. `auto`, the default, edits where the terminal answered the display's own probe; inside `hold` the desktop sets it from `hold edits`. A change over most of the picture, or edits adding up to more than a whole one, goes out whole: as a new picture with the old one deleted behind it, or, under `whole`, as an edit of all of it into the same picture, which is what a film's every frame then is. `auto` takes `whole` wherever the terminal can edit and nothing is between them; inside `hold` the desktop sets it from `hold frames`. One cell changing in a 640x400 picture is 2.2 kB a frame this way against 999 kB whole. Turned off, every picture that was edited goes out whole on its next placement |
 | `console imgcomp [zlib\|png\|off]` | how a still picture's payload is compressed: `zlib` is the kitty protocol's own `o=z`, `png` is `f=100` and smaller again, `off` sends the pixels. `zlib` by default, because a terminal that takes `f=24` and not `f=100` draws nothing and `q=2` means it cannot say so. A film's frame is never compressed, whatever this says: there the cost would be encoding rather than bytes |
@@ -88,12 +92,14 @@ and the flush cost shown live. Run it and press things.
 | `console pen -s`, `console pen -r` | keep the pen as it is, and put it back -- one slot, for drawing something lit without losing the caller's pen |
 | `console put row col text` | write into the back buffer |
 | `console put -p pane row col text` | the same, inside a pane and clipped to it |
-| `console fill row col h w [char]` | repeat a character over a rectangle |
+| `console put -r ...` | either of those with right-to-left text left in the order given, for text already reordered |
+| `console fill [-p pane] row col h w [char]` | repeat a character over a rectangle, inside a pane with `-p` |
 | `console line row col row col [char]` | a straight line of a character from one cell to another, both ends drawn, clipped to the screen |
 | `console cursor row col` / `console cursor off` | where the cursor should be seen |
 | `console flush` | send what changed; gives the byte count |
 | `console shot [-f ansi\|html\|text] file [row col h w]` | write what is on screen -- the last flush -- or a rectangle of it: `ansi` the cells with their colours as a terminal draws them (`cat` it), `html` the same as a page, `text` the characters alone |
 | `console key [ms]` | wait for a key, up to ms; gives its name |
+| `console key -q [ms]` | the same, but not woken by a watched descriptor -- for a wait that is only running down the clock, with what is watched to be read afterwards |
 | `console waiting` | true when more input is already there; never waits |
 | `console resizing` | true while a resize is pending, without consuming it |
 | `console reassert` | send the terminal's modes again and repaint everything on the next flush |
@@ -110,7 +116,7 @@ and the flush cost shown live. Run it and press things.
 | `console colours [auto\|24\|256\|16\|8]` | how many colours to send: as the terminal answered (XTGETTCAP `RGB` and `colors`, then `COLORTERM`, then its name -- `HIBR_COLOURS` says outright), or forced; with no argument, the depth in force. A colour is sent as the nearest the terminal takes |
 | `console sent` | how many bytes the display's flushes have written to the terminal since it opened |
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
-| `console darken row col h w [pct]` | shade what is already in the back buffer, a shadow |
+| `console darken [-s] [-t\|-b] row col h w [pct]` | shade what is already in the back buffer, a shadow: each colour scaled to `pct` percent, 55 by default, a palette colour resolved through the palette the terminal reported. `-s` marks each cell it darkens and leaves a marked one alone, so a shadow cast on every frame does not come out darker each time; any ordinary write clears the mark. `-t` and `-b` darken only the top or bottom half of each cell, as a half block, where the cell holds no text and no pane covers it; any other is darkened whole. Under `console behind on` it skips cells a pane covers |
 | `console tint [-p pane] row col h w colour pct` | blend a colour into what is already there at pct percent, its text still in its own colour and readable -- the rubber band's solid and translucent looks |
 | `console outline row col h w colour tl h tr v bl br [title]` / `console outline off` | a rectangle composited over the screen at every flush and never written into the back buffer, so moving it costs only the edge cells that changed -- how the desktop drags a window by its outline |
 | `console copy [auto\|on\|off]` | whether a pane moved whole is sent as a rectangle copy (DECCRA) where the terminal says it can; with no argument, `on` or `off`. `console copied pane` says whether that pane's last move was copied |
@@ -138,8 +144,9 @@ and the flush cost shown live. Run it and press things.
 | `console pane clear` | forget every pane |
 | `console hit row col` | the topmost pane at a cell, or nothing |
 
-Rows and columns count from zero. `console flush`, `console key`, `console
-size`, `console shade` and `console hit` fill the result slot, so `n := console
+Rows and columns count from zero. Every command that answers something --
+`console flush`, `console key`, `console size`, `console gfx`, `console
+shade`, `console hit` and the rest -- fills the result slot, so `n := console
 flush` and `k := console key 1000` are how you read them without forking.
 `console shade`, and the pane commands with `console hit` (see
 [Panes](#panes)), work before `console open`, with no terminal at all:
@@ -244,8 +251,9 @@ while true; do
 done
 ```
 
-The desktop does exactly this for drags and the wheel: a burst of a hundred
-drag reports draws two frames, not a hundred.
+The desktop does exactly this for drags and the wheel, with or without a
+modifier held: a burst of a hundred drag reports draws a handful of frames,
+not a hundred.
 
 ## Keys that would be signals
 
@@ -280,7 +288,7 @@ Reports arrive through `console key` like any other key:
 mouse press left 3 12        the action, the button, then row and column
 mouse release left 3 12
 mouse drag left 9 40
-mouse wheelup 4 4            the wheel has no button
+mouse wheelup 4 4            the wheel has no button; wheeldown, wheelleft, wheelright
 mouse ctrl-press left 6 6    modifiers prefix the action
 ```
 
@@ -317,10 +325,18 @@ on` asks, `console pointer can lock` says whether the terminal can -- only
 Blit, from 0.2.42 -- and the reports that follow are `mouse rel ...` until
 `console pointer lock off` or the event `pointer unlocked`, which is the
 terminal ending it: it refuses one while the session does not have its
-focus, and takes the pointer back when the session stops reading its input
-for two seconds. Inside `hold` the lock goes to the one display that can
+focus, and may take the pointer back on its own. Inside `hold` the lock goes to the one display that can
 hold a pointer and was used last, `hold locks` says which displays can, and
 a held display's movement reaches the program with no offset added.
+
+A held pointer's report carries signed offsets, which no ordinary key or
+click does, so one arriving while the console holds no lock -- after the
+lock ended, on one display while another still held it -- is dropped whole,
+and the terminal is told again to let the pointer go, at most twice a second
+and logged. More generally, an escape the console cannot decode is skipped
+whole rather than a byte at a time, and a device control string, privacy
+message or start of string that is not an answer to something it asked is
+taken whole too: none of them can reach a program as typed text (0.99.416).
 
 <!-- not run: needs a terminal: it waits for a click -->
 ```sh
@@ -420,7 +436,10 @@ after it is not shifted.
 This is the part that matters more than the drawing. `SIGINT`, `SIGTERM` and
 `SIGHUP` restore the terminal — alternate console off, cursor back, raw mode
 undone — and then re-raise the signal, so the shell still dies of whatever
-killed it. `mod drop console` and shell exit do the same.
+killed it. `mod drop console` and shell exit do the same. Only the process
+that opened the console does this: a child forked from it inherits the
+handler and leaves the terminal alone, since a background process setting
+the terminal's modes would be stopped by `SIGTTOU`.
 
 `console open` with no terminal to draw on fails with status 1 and a message; it
 does not hang and does not half-open. So a script that might be run from cron

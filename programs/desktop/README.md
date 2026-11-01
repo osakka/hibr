@@ -119,8 +119,8 @@ desktop or the bar -- down to the next, up to the previous, one step a
 notch. A terminal gives the desktop every shortcut it holds, because they
 are all on alt or ctrl-alt and what a terminal keeps for its program is ctrl
 with a letter. Window > Move to Workspace sends the focused window, and a title
-bar's right-click menu has the same for its own. Window > On Every
-Workspace (or the title bar's right-click menu) makes a window sticky: it
+bar's right-click menu has the same for its own. Window > Sticky (or the
+title bar's right-click menu) puts a window on every workspace: it
 stays in view whichever workspace is current, floats over a tiled one, and
 taking it off leaves it on the workspace you see it on -- as does sending
 it to one workspace. With one workspace the
@@ -160,14 +160,19 @@ nothing at all. It never zooms a fixed window, the same restriction `□`
 itself already has.
 
 A minimised window has no pane at all, so nothing draws it and nothing can
-click it. Its label on the bar across the top is the only way back — click it
-to restore the window. The bar also says how many windows are open and how
-many are hidden.
+click it. The application menu at the bar's corner lists every window, a
+hidden one marked; choose it there to bring it back.
 
 A window casts a shadow, darkening whatever it falls across -- another
-window, or the desktop underneath. `DT_SHADOW`, a Control Panel entry, turns
-it off; it costs a few `console darken` calls per window, and nothing at all
-when off.
+window, or the desktop underneath, a terminal program's own palette
+colours included. `DT_SHADOW`, a Control Panel entry, turns it off; it
+costs a few `console darken` calls per window, and nothing at all when off.
+
+Overlapping costs nothing while nothing changes: a window whose app can
+say it has not changed is left as it is, overlapping or not, unless a
+window under it was drawn in the same frame; and the wallpaper is kept
+rather than painted again while nothing it shows has changed. How that is worked
+out is in [ARCHITECTURE.md](ARCHITECTURE.md#the-event-loop).
 
 Its shape is Control Panel > Appearance > **Shadow Shape** (`DT_SHADOWSHAPE`,
 Gitea #340), and every shadow takes it: windows, menus, the bar's pop-ups,
@@ -192,9 +197,10 @@ whether to pay for its shadow is a separate choice from a window's.
 
 The menu bar itself casts a shadow too, one row straight down across the
 full width of the screen, giving it a sense of sitting above everything
-else -- `DT_BARSHADOW`, a third and separate setting again, since the bar
-is drawn every frame it is visible at all (always), which is neither a
-window moving nor a menu opening.
+else -- `DT_BARSHADOW`, a third and separate setting again: the bar itself
+is drawn only when something on it changes, but its shadow falls on the
+row below, whose cells are not the bar's to keep, so it is cast on every
+frame.
 
 How dark a shadow falls is `DT_SHADOW_PCT`, part of the theme rather than one
 constant: a theme's `shadow` sets it alongside the other seven colours.
@@ -258,6 +264,11 @@ any app sees a key, so an app that hangs holding the pointer cannot keep
 it. It also goes back on its own when focus moves, a menu or a bar item's
 panel opens, the saver or the lock comes up, the window closes, or the
 desktop ends; and Blit gives it back when the session loses its focus.
+A window is given the pointer only within two seconds of a key or a click,
+so a window restored at login, a timer or a job cannot take it by itself;
+a refusal is a `pointer lock: refused ...` line in the desktop's log. A
+report that arrives after the lock has gone is dropped, never typed into
+the window that has focus (0.99.416).
 
 **A window can take the whole display** (Gitea #405): any window, on
 **Full Screen** -- alt-enter by default, in Control Panel > Shortcuts, and
@@ -329,8 +340,9 @@ the marks a collapsible tree wears, so a theme that draws its windows one
 way does not leave every tree looking like the one before it) and
 `treelines` (`true` or `false`, the rules joining a child to its branch),
 `side` (`right`, `left`), `align` (`left`,
-`center`, `right`), `checks` (`theme`, `box`, `knob`, `block`), `dialog`
-(`filled`, `brackets`), `glyphs` (`unicode`, `ascii`), `band` (`frame`,
+`center`, `right`), `checks` (`theme`, `box`, `knob`, `block`, `tick`),
+`dialog` (`filled`, `brackets`), `glyphs` (`unicode`, `ascii`, `nerd`,
+`blit`), `band` (`frame`,
 `dashed`, `solid`, `translucent`, the rubber band's look) and `bandpct` (0
 to 100, how strongly it tints), and `windowshadow`,
 `menushadow`, `barshadow` and `buttonshadow` (`true` or `false`). What a
@@ -377,11 +389,11 @@ text), `selink` (text drawn on the accent, a selection), `good`, `warn` and
 `bad` (the traffic-light buttons, an answer, an error, an exit status),
 `info`, and `well` (the darker surface keys and cells sit in). One left out
 is what the dark schemes share, so a file with only the seven colours
-keeps working. Two more, `titlebar` and `titleink`, are the focused window's
+keeps working; paper, phosphor and amber set their own, so a light scheme
+is not drawn with dark-scheme greys and the monochrome ones stay one hue. Two more, `titlebar` and `titleink`, are the focused window's
 frame or title bar and the text on it: left out, they are the accent and
 `selink`, which is what every scheme had before them, and Charcoal sets them
-so its title bar can be charcoal while its accent is a bright white; paper, phosphor and amber set their own, so a light scheme is
-not drawn with dark-scheme greys and the monochrome ones stay one hue. One
+so its title bar can be charcoal while its accent is a bright white. One
 more, `hot`, is what a button is filled with while a press or enter would
 act on it -- under the pointer, or with the focus: left out, it is the
 accent made brighter, lighter on a dark face and deeper on a light one.
@@ -473,15 +485,18 @@ repeated (`·` by default, Control Panel > Wallpaper's Pattern row and the
 strip's `wallpaper` module, from the catalogue, both cycle it), or a real picture in `DT_WALLIMG` instead
 when one is set. A picture is decoded and drawn by the `img` module
 (`mods/img`, `need img` on first use so a desktop that never sets one never
-loads it) -- `img draw` blits it straight into the display, resampled to
-fill the screen exactly, cached by the module itself so a redraw every
-frame does not mean a decode every frame. The two are mutually exclusive in
+loads it) -- `img draw` places it under the text, fitted as the
+**Mode** row says (stretch, scale, zoom or centre), and decoded and
+resampled once, then kept: the wallpaper is painted again only when
+something it paints has changed, and at least once a second, and a picture
+already on the terminal at the same place is kept rather than sent again
+(0.99.413-0.99.415). The two are mutually exclusive in
 the UI: picking a glyph clears `DT_WALLIMG`, and a picture wins over the
 glyph when both happen to be set. Control Panel > Wallpaper's **Image…**
 row opens a picker -- the desktop's own Open dialog's folder list beside a
 preview of the picture fitted to its own shape; or open a picture in the
 Image Viewer and choose "Set as Wallpaper" from its own **Image** menu. If the file cannot be decoded --
-moved, deleted, not actually a PNG -- `dt_wall` falls back to the glyph
+moved, deleted, not a picture img can read -- `dt_wall` falls back to the glyph
 rather than leaving the screen blank.
 
 How a picture wallpaper is drawn is its own setting, Control Panel >
@@ -548,7 +563,9 @@ when they have drifted somewhere inconvenient anyway.
 **With no window focused the desktop is the Finder**, and its menus are
 System 7's: **File** (New Window, Open what is selected, Find…), Edit,
 **View** (Desktop Icons on or off, Refresh) and **Special** (Clean Up
-Desktop, and Empty Trash…, which asks first and then deletes for good).
+Desktop; Empty Trash…, which asks first and then deletes for good; and
+Sleep, Restart… and Shut Down…, with Hibernate where the machine offers it,
+dimmed where this desktop is not the computer's own).
 Every app with menus of its own puts File and Edit first in the same way.
 
 **About follows the front app, and there is only one of it.** The hibr menu's
@@ -695,8 +712,10 @@ dimmed for what does not apply to the entry under the pointer, or to `..`.
 Cut marks the clipboard so the next Paste moves the files instead of
 copying them; Paste itself, and the note it leaves, say which happened.
 The desktop's own background and every window's title bar have their own
-right-click menus too, unrelated to this one -- Arrange Icons and Change
-Wallpaper on the desktop, Move/Resize/Zoom/Hide/Close on a title bar.
+right-click menus too, unrelated to this one -- Arrange Icons, Change
+Wallpaper, Next Wallpaper, Empty Trash… and Refresh Desktop on the
+desktop; Move, Resize, Zoom, Full Screen, Hide, Sticky, Move to Workspace,
+Move to Display (with more than one display) and Close on a title bar.
 
 In the file browser a click selects one entry; ctrl and a click adds or
 takes away; shift and a click takes a run; shift with the arrows carries
@@ -706,8 +725,9 @@ selected keeps the rest until the button comes up, so the selection can be
 picked up and dragged; the footer says how many are chosen.
 
 The file browser has four views, which `v` cycles and the View menu picks:
-a **list** of names; **details**, with size, time and permissions from one
-`ls -l` per folder, dropping columns from the right as the window narrows;
+a **list** of names; **details**, with size, time and permissions from the
+ls module's `ls -l`, once per folder and without starting a program,
+dropping columns from the right as the window narrows;
 **icons**, a grid the arrows move across and down; and **small icons**,
 System 7's "by Small Icon" -- each entry's glyph and name on one row, in
 as many columns as the window holds, the glyph on the right when the
@@ -885,9 +905,11 @@ See [mods/dav](../../mods/dav/README.md) for the module itself.
 
 ## YouTube
 
-**YouTube**, in the Internet folder, searches YouTube and plays what it
-finds in a window: the picture as coloured half blocks (or ASCII), the
-sound through the machine's own device. Type a search and press enter;
+**YouTube**, in the Internet folder and installed from the Catalogue,
+searches YouTube and plays what it finds in a window: the picture as
+pixels where the terminal can show them, or as coloured half blocks, ASCII
+or monochrome (Control Panel > YouTube > Picture), edge to edge in Full
+Screen; the sound through the machine's own device. Type a search and press enter;
 up and down choose, enter plays. While playing: space pauses, left and
 right are five seconds (with shift thirty), up and down the volume, `m`
 the picture, escape back to the list, and a click on the bar goes there.
@@ -910,6 +932,9 @@ it up there; `f` keeps a video, a playlist or a channel as a favourite,
 starred in every list, and `v` lists them. Both are files of their own in
 `~/.local/share/hibr/youtube/`.
 
+It runs on either engine the `web` verbs come from. On hibr-browser's WPE
+WebKit the engine fetches, decodes and plays the video itself, as it does
+any page's. On Chromium,
 YouTube's own page does the fetching, in the web module's headless
 Chromium: its player is asked for its lowest quality -- plenty for a
 window of cells -- and muted, and every chunk it plays is copied into a
@@ -987,8 +1012,8 @@ readable only by you; the pane never shows a password.
 
 How big a mailbox stays quick is measured, not hoped: with 1000 messages
 kept, opening the app reads them in 0.2 s and changing view takes about
-0.35 s. Many more than that and every action slows, because the shell's
-maps are lists -- which is why the Keep Messages choices stop at 2000.
+0.35 s. Many more than that and every action slows, which is why the Keep
+Messages choices stop at 2000.
 
 ## Contacts
 
@@ -1579,13 +1604,13 @@ the first to attach, until something picks another -- rather than
 spreading across every display a terminal has joined beside it; a window
 is unaffected and can sit anywhere across the whole arrangement.
 
-Right-click a window's own title bar for **Move to**, a submenu of every
-attached display by name, to hand that window from one screen to another.
-The hibr menu's own **Displays** submenu lists the same displays, primary
-ticked, and switches one off from there -- a server-side detach, the same
-as that display's own ctrl-\\, for when the terminal sitting on it is not
-the one doing the choosing. Both are built from `hold clients`, which also
-answers directly:
+Right-click a window's own title bar for **Move to Display**, a submenu of
+every attached display by name, there while more than one is attached, to
+hand that window from one screen to another. Control Panel > Displays
+lists the same displays, and a right click on one there detaches it -- a
+server-side detach, the same as that display's own ctrl-\\, for when the
+terminal sitting on it is not the one doing the choosing. Both are built
+from `hold clients`, which also answers directly:
 
     hold clients desktop        # name row col rows cols primary, one per line
     hold move desktop NAME 0 80 # reposition a named display, from the primary
@@ -1638,9 +1663,10 @@ its own screen).
 ## Keys that would be signals
 
 ctrl-c, ctrl-\\ and ctrl-z are keys on the desktop, not signals: the
-desktop is left by Quit and nothing else. Each goes to the focused window, so
-ctrl-c in a terminal window interrupts the program running there, and does
-nothing to a calculator.
+desktop is left by Quit and nothing else. ctrl-c and ctrl-z go to the
+focused window, so ctrl-c in a terminal window interrupts the program
+running there, and does nothing to a calculator; ctrl-\\ is the Detach
+shortcut unless Shortcuts gives it to something else.
 
 The terminal is put back if the desktop dies anyway, whether from `kill`, a
 hangup or a crash in a module. While it holds the screen its stderr goes to
@@ -1654,6 +1680,36 @@ and session, so a log read later says which build wrote which part. The
 exception is a program the desktop starts that writes to its standard error
 itself: its lines are not stamped, though they still fall between stamped
 ones. Past 8 MB (`DT_LOGMAX`), a start moves the log to `desktop.log.1`.
+
+## Measuring the desktop
+
+Every app runs in the desktop's one process, between frames, so a callback
+that takes long stops every display while it runs. Each one is timed
+(ADR 0049): past 50 ms (`DT_SLOWMS`) it is a `slow:` line in the log, and
+past 150 ms (`DT_HOLDMS`) a `held:` stall, which the suites fail on, so a
+stalling app cannot ship. Nothing is done to the app itself -- it goes on
+being drawn and handed its keys -- because a stall is for whoever wrote
+the code to find, never for the person at the screen to pay for. A busy
+machine is not counted against it: the time the kernel kept the desktop
+waiting for a processor is taken off.
+
+`desktop ctl stats` says what the desktop has done since `desktop ctl stats
+reset`: its CPU, wakes, frames and events, and while timing is on, each
+callback's total and longest single run (`max_ms`), what woke each wait
+(`woke`), why each app's windows were drawn rather than left
+(`drawn_why`), the parts of a frame and of a wallpaper repaint
+(`part:...`), and whether the wallpaper was kept or placed again (`img`).
+Every field is listed in
+[WRITING.md](WRITING.md#controlling-a-running-desktop). Reset, leave the
+desktop doing what is slow, then read: the answer names the cause rather
+than a guess, and two machines can be compared by asking each.
+
+On Blit, its performance panel has a section for the desktop (Blit ADR
+0203): while the panel shows it, the desktop times itself and sends eight
+lines a second -- frames and wakes, CPU, the slowest callback, what woke
+it, windows drawn and why, a frame's time, stalls in the last minute and
+the flush. The switch is on Blit's side, and a desktop with no Blit pays
+nothing for it.
 
 ## Inside GNU screen or tmux
 
@@ -1696,7 +1752,8 @@ picks what shows on the right, System 7's Control Panels folder rather than
 one long scrolling list -- which is also what Date & Time's own small world
 map needs room for that a shared list of rows never could.
 
-It opens on **Date & Time**: the menu bar clock's format, a time zone
+It opens on the first pane -- **Date & Time** on a desktop as it ships,
+which has the menu bar clock's format, a time zone
 finder with a small world map, and Set Date & Time where the machine
 owns its clock -- in a container it says "set by the host" instead.
 Changing the zone or the clock runs in a terminal window of its own,
@@ -1707,6 +1764,19 @@ which has no polkit, so `please` is sudo there. With none of the three it
 says what is missing rather than run anything. Who may do it is
 Administrative Access's to say.
 How a pane is written is in [WRITING.md](WRITING.md#control-panel-panes).
+
+**Pictures** is how every picture the desktop draws is drawn -- the Image
+Viewer, the wallpaper, Mail's pictures, a film, a page. **Draw Pictures
+As** is Automatic, Half Blocks, Grey Blocks, Characters or Pixels, and the
+pane says beside it what this terminal can do. **Picture Detail** halves
+a picture's pixels in each direction, for a slow link (Automatic halves
+only the wallpaper); **Film Detail** does the same for a film's frames
+alone, Full by default; **Compress Pictures** is Zlib, PNG or Off;
+**Partial Updates** sends only the part of a picture that changed where
+the terminal can take it; **Frames to Blit**, on Blit with every display
+able to take them, sends a window's pictures by descriptor rather than
+through the terminal (Blit ADR 0202); and **Colours** is how many colours
+every display is sent.
 
 **Administrative Access** (Gitea #406) lists every action an installed
 package asks polkit about, grouped by package, each with its package's
@@ -1769,7 +1839,8 @@ colour.
 The Desktop pane's **Redraw Skip** (0-9, `DT_DRAWSKIP`) leaves out that many
 frames of a window drag between each one drawn. A drag is already drawn only
 once it has caught up with the mouse -- while the next report is waiting,
-the frame is skipped -- so the window never trails behind the pointer;
+the frame is skipped, with a modifier held as well as without -- so the
+window never trails behind the pointer;
 Redraw Skip thins what is left, for a terminal that draws slowly. The row
 names what the number counts -- `Redraw Skip (none)`, `(1 frame)`,
 `(4 frames)` -- rather than showing the bare number, which reads as either
@@ -1796,8 +1867,9 @@ than from a settings row elsewhere.
 
 ## The apps
 
-In `programs/desktop/apps/` -- and, for `panel`, `about`, `tasks`, `modman`
-and `catalogue`, the desktop's own `system/` -- each one also a file you can
+In `programs/desktop/apps/` -- and, for `panel`, `about`, `tasks`,
+`modman`, `catalogue`, `clipboard`, `notifications` and `screenshot`, the
+desktop's own `system/` -- each one also a file you can
 read in a sitting. The `system/` ones ship with the package, and so do
 `files` and `term` (and the accessories under **System apps and
 Applications** below); every other app here is one `catalogue install`
@@ -1808,7 +1880,7 @@ away, or one click in the Catalogue window.
 |---|---|
 | `files` | a file browser, with a scrollbar and the wheel |
 | `panel` | Control Panel: a picker of panes (see below) |
-| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` (Terminal Page Back, in Shortcuts) scrolls back, and a program that asks for the mouse gets it. A new terminal gives its program 24 rows and 80 columns unless the Terminal pane's Rows and Columns say otherwise, shrunk to fit a smaller screen. A program's bell rings the real terminal and puts a • before the window's title until it is clicked; its notifications (OSC 9, 777) become the desktop's own, clicking one brings the window up, and are sent on to the real terminal too; a link it prints stays clickable there. `DT_TERMBAR` (the Terminal pane, on by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one. In `ps` each window's own shell is named for its window -- `desktop [Terminal 3]`, the number being the window id `desktop ctl windows` lists it under -- so one of four can be found and ended by hand; the desktop itself is `desktop [<session>]` and its supervisor `desktop [<session>: supervisor]`. Only a hibr child is renamed (it reads `HIBR_PROCTITLE` at startup and removes it), so a window running `vim` shows `vim` |
+| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` (Terminal Page Back, in Shortcuts) scrolls back, and a program that asks for the mouse gets it. A new terminal gives its program 24 rows and 80 columns unless the Terminal pane's Rows and Columns say otherwise, shrunk to fit a smaller screen. A program's bell rings the real terminal and puts a • before the window's title until it is clicked; its notifications (OSC 9, 777) become the desktop's own, clicking one brings the window up, and are sent on to the real terminal too; a link it prints stays clickable there. `DT_TERMBAR` (the Terminal pane, on by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one. In `ps` each window's own shell is named for its window -- `term [<session>::3:Terminal]`, or `term [3:Terminal]` when the desktop is not held, the number being the window id `desktop ctl windows` lists it under -- so one of four can be found and ended by hand; the desktop itself is `desktop [desktop::<session>]` and its supervisor `supervisor [<session>]`. Only a hibr child is renamed (it reads `HIBR_PROCTITLE` at startup and removes it), so a window running `vim` shows `vim` |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
 | `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |
@@ -1818,7 +1890,7 @@ away, or one click in the Catalogue window.
 | `write` | a word processor for markdown, in Office: what you write is shown as it reads -- headings large, **bold** bold, *italic* italic, lists with their bullets, tasks with boxes you click to tick, quotes with their bar, `code` shaded, links underlined, rules drawn -- and only the line the cursor is on shows its markdown, the marks dimmed, so it is always edited exactly. A toolbar and the Format menu put the marks in -- bold, italic, strikethrough, code, link, three headings, bulleted, numbered and task lists, quote, rule -- on the selection, or on the line. File > Open…, Save (ctrl-s, settable as Save) and Save As…; Find… and Find Next; the Edit menu's undo, redo, cut, copy, paste and select all. A `.txt` is edited as plain text. A window with unsaved changes asks before it closes and keeps them across Restart Desktop. Files opens `.md` and `.txt` in it. A ```` ```mermaid ```` block in a document is drawn as the diagram where it sits, through the same module and the same widget the Diagram editor uses, and shows its source again the moment the cursor is anywhere inside it -- there is no editing a diagram you cannot see the text of |
 | `sheet` | a spreadsheet whose formulas are hibr, in Office. A cell holds text, a number, or `=` and hibr: what a formula prints is its value (`=math "A1 * 1.2"`, `=sum "${B1_B9[@]}"`), and one that is an expansion is that (`=$((A1 * 2))`). Every cell a formula names is a variable holding its value, a range `A1_B9` an array; formulas are worked out in the order they need each other, and one that needs itself says `#CYCLE`. They run in a hibr of their own under `--plan`, with two seconds of CPU and ten of the clock: they compute and read, and what would write, connect or start a program says `#REFUSED` with what it would have done -- Sheet > Trust This Sheet lets one sheet's run for real, remembered on this machine, never in the file. A sheet is a `db` file (`.hsheet`), one row per cell, written as it changes; Save As copies it. Typing replaces a cell, enter or f2 edits it, delete clears the selection, a column's header edge drags its width, and the Sheet menu inserts and deletes rows and columns, the formulas following the cells they name. CSV in and out from File. The Format menu works on the selection: bold, italic, a text colour and a fill from the theme's roles, alignment, decimals, thousands, percent and currency (`SS_CURRENCY`, `$` unless set), a bottom or right border, a rule that colours a number by its value (Negatives Bad, Positives Good, or Rule... for `> 100 good`), and frozen top rows and left columns. Sheets live in `SS_DIR`, `~/.local/share/hibr/sheets` unless set |
 | `xscreen` | **X Screen**, X11 programs in windows (Gitea #290, #291): Control Panel > X Screen keeps a list of programs, each a name, a command, a Window choice, a Picture choice and When It Ends -- default, close or keep: close takes the window with the program once every process it started has gone and none of its windows is left on the screen, so a launcher that forks keeps the window while the program's is up, and default follows Close When It Ends, a switch for every program -- with Add Program and a row to change or delete each; every one is an entry under **Applications > X Screen**, and the app itself is hidden. Each window starts an Xvfb of its own. **Fit the window** (the default) makes the xscr module the screen's window manager: the program's window is kept the hibr window's size in pixels, 1:1, and follows a resize, dialogs keep their own size centred, and focus follows a click; the screen is the Largest Screen size (1920x1080 by default, 8.3 MB of memory-backed storage per window), and a window larger than that is the screen, scaled. **Fixed size** is a screen of Fixed Size scaled in; **Program's own** leaves the window to the program, for a window manager. The window is titled with the program's name and its own title. Drawn as pixels where the terminal can place them and half blocks where it cannot, only when the server says the screen changed, and at most every `DT_TERMMS`; nothing at all while hidden. Keys, clicks, drags, the wheel and paste go to it, and with Control Panel > Mouse > Hover on the X pointer follows the mouse with no button held -- and, unless a program is set otherwise (**The Program's Own Pointer**, on by default), the desktop's own pointer is hidden over the window, so the program's pointer, with its own shapes, is the only one; one whose X pointer is off keeps the desktop's. Each program can take **every key** (the desktop's shortcuts too; Release Pointer and Leave Full Screen still leave) and can hold the pointer for **relative motion**, as a game wants, from a click in. Its screen's options -- frames a second, size, background, DPI, pointer, extensions, extra Xvfb flags -- are the pane's Defaults or its own (Gitea #404). A US keyboard map, no shared clipboard yet; OpenGL is Mesa's, in software without a GPU. Needs Xvfb (`xvfb`) |
-| `browser` | the web, in Internet: a headless Chromium driven by the `web` module, each page drawn as cells -- its text where it was laid out, in its colours, over a half-block picture of backgrounds and images. A tab strip (click to switch, the x to close, + for another), back, forward, reload and the address bar: f6 or ctrl-l puts the keyboard there, enter goes -- a bare name gets https://, anything not an address is searched for (`BW_SEARCH`). Clicks follow links and focus fields, typing goes to the page, the wheel scrolls, alt-b and alt-f go back and forward -- each key shown beside its item in the File and Go menus, and the page runs to the window's bottom row, with a page still loading saying so at the end of the address. Bookmarks > Add Bookmark keeps a page in `~/.local/share/hibr/bookmarks.tsv`, a title and an address a line; the rest of that menu goes to one. Control Panel > Browser sets the home page a new window or tab opens at, the search, the Picture (Follow, Half Blocks, Pixels, or Text Only -- the page's words wrapped to the window, each link numbered, a click on the number follows it), JavaScript, Images, Ask Sites for Dark Pages, Page Zoom and the user agent; the program, profile folder and extra flags Chromium next starts with; and Clear Cookies, Clear Cache and Clear History. Its Privacy rows set the Languages pages are asked for, Do Not Track (with Global Privacy Control) and Block Addresses (patterns never fetched, `*` for anything); What a Page May Have sets Location, Camera, Microphone and Notifications to refuse or allow -- a headless Chromium can ask nobody, so there is no asking -- where an allowed location is the place Prayer Times knows, an allowed camera or microphone finds no device here, and an allowed notification becomes one of the desktop's own notes; Reset Permissions forgets every grant. Permissions and downloads are the whole browser's, so the YouTube player's tabs share them. Downloads go nowhere until Allow Downloads is on, then into Folder (`~/Downloads` by default), each told in a note as it lands. File > Save as PDF prints the page to a file. With one tab there is no tab strip, and the address is the window's first row; ctrl-t opens a tab, ctrl-w closes one, ctrl-PageDown and ctrl-PageUp move between them (Go > Next Tab, Previous Tab). A page that changes on its own is drawn as it changes, at most every `DT_TERMMS`, and only while its window is shown; a long page has a scroll bar in its last column, and a click on it scrolls there. A page's sound plays through the media module, a player for each tab: the browser records the tab once the page is pressed or typed into, as Chromium's own rule has it, or as it loads with Pages May Play Sound On Their Own (off by default); Chromium is no longer started muted, and nothing a tab plays reaches the machine's own device past the recording. Needs Chromium or Chrome (`HIBR_WEB_BROWSER`) |
+| `browser` | the web, in Internet: a headless Chromium driven by the `web` module, each page drawn as cells -- its text where it was laid out, in its colours, over a half-block picture of backgrounds and images. A tab strip (click to switch, the x to close, + for another), back, forward, reload and the address bar: f6 or ctrl-l puts the keyboard there, enter goes -- a bare name gets https://, anything not an address is searched for (`BW_SEARCH`). Clicks follow links and focus fields, typing goes to the page, the wheel scrolls, alt-b and alt-f go back and forward -- each key shown beside its item in the File and Go menus, and the page runs to the window's bottom row, with a page still loading saying so at the end of the address. Bookmarks > Add Bookmark keeps a page in `~/.local/share/hibr/bookmarks.tsv`, a title and an address a line; the rest of that menu goes to one. Control Panel > Browser sets the home page a new window or tab opens at, the search, the Picture (Follow, Half Blocks, Pixels, or Text Only -- the page's words wrapped to the window, each link numbered, a click on the number follows it), JavaScript, Images, Ask Sites for Dark Pages, Page Zoom and the user agent; the program, profile folder and extra flags Chromium next starts with; and Clear Cookies, Clear Cache and Clear History. Its Privacy rows set the Languages pages are asked for, Do Not Track (with Global Privacy Control) and Block Addresses (patterns never fetched, `*` for anything); What a Page May Have sets Location, Camera and Microphone to Ask, Allow or Refuse, and Notifications to allow or refuse: Ask, the default where the engine can ask (hibr-browser 0.5.17 and later), puts a bar over the tab that asked, with the site, what it wants, and Allow Once, Always Allow and Refuse, Always being kept per site; where it cannot, Ask behaves as Refuse. An allowed location is the place Prayer Times knows, an allowed camera or microphone finds no device here, and an allowed notification becomes one of the desktop's own notes; Reset Permissions forgets every grant. Permissions and downloads are the whole browser's, so the YouTube player's tabs share them. Downloads go nowhere until Allow Downloads is on, then into Folder (`~/Downloads` by default), each told in a note as it lands. File > Save as PDF prints the page to a file. With one tab there is no tab strip, and the address is the window's first row; ctrl-t opens a tab, ctrl-w closes one, ctrl-PageDown and ctrl-PageUp move between them (Go > Next Tab, Previous Tab). A page that changes on its own is drawn as it changes, at most every `DT_TERMMS`, and only while its window is shown; a long page has a scroll bar in its last column, and a click on it scrolls there. A page's sound plays through the media module, a player for each tab: the browser records the tab once the page is pressed or typed into, as Chromium's own rule has it, or as it loads with Pages May Play Sound On Their Own (off by default); Chromium is no longer started muted, and nothing a tab plays reaches the machine's own device past the recording. Needs Chromium or Chrome (`HIBR_WEB_BROWSER`) |
 | `mail` | mail, laid out like Gmail and kept offline: IMAP with push and labels, POP3, SMTP -- see Mail above |
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); Task > Show, or `w`, lists everyone's, only yours or only this desktop's -- the desktop and what it has started, which is its terminals' shells and their programs; `x` ends the selected one, `shift-x` forces it |
 | `modman` | **Modules**: every module the module path can offer, loaded or not -- its version, whether it is loaded, the interface it offers and the builtins it adds, with the selected one's description and path below, which is what a list has no room for. Enter loads or unloads, `l` and `u` do one each, `r` scans again. Two things it refuses, and says why on that same line before anything is pressed: the console, pty, term and hold, because the desktop is drawn and held through them; and any loaded module that offers an interface, because another module may be holding its table and `mod drop` would leave it pointing into an unloaded object. It reads `mod avail`'s own answer, which names and describes a module without ever running its init |
@@ -1960,8 +2032,10 @@ convenience.
 
 Earlier versions drew a single letter or glyph per module -- clever, but
 nothing anyone could read without already knowing what it meant. Every
-module in this tree now draws its own name instead: `[Cursor][Shadow][Theme]
-[Wallpaper]`, in `programs/desktop/control-strip/`, each a few lines reusing a
+module that sets something draws its own name instead -- `[Cursor][Shadow]
+[Theme][Wallpaper]` -- while Power is its one glyph, Workspaces the numbers
+and Next Prayer the time; they are in `programs/desktop/control-strip/` and
+come from the Catalogue, each a few lines reusing a
 setting Control Panel already has. `shadow` toggles `DT_SHADOW` on click,
 bold in the active colour when on and dimmed when off; `cursor`, `theme`
 and `wallpaper` -- each with more than two values -- open a dropdown of
@@ -2099,9 +2173,11 @@ The application menu lists every window, with `•` against the active one and
 only way back from minimising, and it is where System 7 put it too.
 
 **A Window menu is always there**, after the application's own, so an app
-cannot hide the only way to move or close its window. It holds Move, Resize,
-Zoom, Hide, Close and Cycle — and with nothing focused those are drawn
-without their letters, present but not choosable, rather than vanishing.
+cannot hide the only way to move or close its window. It holds Move,
+Resize, Zoom, Full Screen, Snap, Move to Workspace, Hide, Sticky, Pass
+Every Key (a terminal's), Close, Quit Application, Tile Workspace, Make
+Main and Cycle — and with nothing focused those are drawn without their
+letters, present but not choosable, rather than vanishing.
 
 **Move and Resize take the arrows** until enter or escape gives them back,
 which is the keyboard's answer to dragging. A desktop that can only be
@@ -2110,7 +2186,9 @@ arranged with a mouse is a desktop half its users cannot arrange.
 ## What it does not do
 
 It is cooperative: one process, one loop, apps called in turn, so an app that
-takes a long time in `_draw` stalls the desktop. Windows snap to cells, and
+takes a long time in `_draw` stalls the desktop -- which is why each
+callback is timed and a stall is logged ([Measuring the
+desktop](#measuring-the-desktop)). Windows snap to cells, and
 a window's See Through is a colour worked out per cell from the picture
 beneath, not real transparency: a cell has no alpha. The widgets in
 `widgets/` are the ones three apps turned out to need -- buttons,

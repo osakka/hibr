@@ -1454,7 +1454,7 @@ int m_mail(sh *s, int ac, char **av)
 	lg(HIBR_LERR, "usage: email account set|rm NAME ... | account mv OLD NEW | accounts | open ACCOUNT | close h | "
 		      "folders h | select h folder [-r] | headers|flags h uids | uids h | "
 		      "fetch h uid file | store|label h uids +x -y | move|copy h uids folder | "
-		      "expunge h | append h folder file [flags] | idle h [secs] | list h | "
+		      "expunge h | append h folder file [flags] | idle h [secs] | gmail h | list h | "
 		      "check ACCOUNT [-o] [-u login] | "
 		      "delete h n | send ACCOUNT file [rcpt...] | parse file | part file i out | "
 		      "build out -f from ... | hdec text | clip bytes text");

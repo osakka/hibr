@@ -2,7 +2,7 @@
 
 | file | audience | contents |
 |---|---|---|
-| `hibr.h` | **public** | Types, macros and the module ABI. This is what a module compiles against, and the only header installed by `make install` |
+| `hibr.h` | **public** | Types, macros and the module ABI. This is what a module compiles against; `make install` puts it in `$(PREFIX)/include/hibr/`, beside `mods/fetch.h`, the one module interface installed for other modules to use |
 | `pri.h` | internal | Declarations shared across `src/`, the token set, and the `lex` struct |
 | `re.h` | internal | Regex declarations. glibc's `regex.h` cannot be parsed by tcc, so the pieces actually used are declared here |
 

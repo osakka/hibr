@@ -326,7 +326,7 @@ census: $(B)/hibr.census $(MODS)
 $(B)/hibr.census: $(SRC) include/hibr.h include/pri.h $(B)/.moddir | $(B)/mods
 	$(CC) $(SHCFLAGS) -DHIBR_CENSUS $(LDFLAGS) -o $@ $(SRC)
 
-# Every suite, the pty ones included, side by side: a couple of minutes.
+# Every suite, the pty ones included, side by side: about 21 minutes on four cores.
 check-all: all
 	python3 tests/all.py
 

@@ -2,12 +2,12 @@
 
 **hibr** is a shell that finally behaves the way you already expect a shell
 to behave. Familiar bash syntax, its sharpest edges resolved instead of
-carried forward, in about 22,400 lines of C and a 487 KB binary — under
+carried forward, in about 22,900 lines of C and a 497 KB binary — under
 two-thirds of bash's memory, and about two and a half times its speed on a
 tight loop. Built with `tcc`, depending on nothing but libc and libdl.
 
 The name says what it is. **Highly**: two-thirds of bash's memory, tight
-loops two and a half times faster, in a 487 KB binary — the numbers below. **Intuitive**:
+loops two and a half times faster, in a 497 KB binary — the numbers below. **Intuitive**:
 the things that make bash surprising the first time you hit them —
 `test`'s word-splitting traps, `$BASH_REMATCH`'s awkward capture, a dozen more
 in [the decision records](docs/adr/README.md) — fixed, so the shell does what
@@ -41,9 +41,12 @@ man hibr                    # every flag, variable and exit status
 
 ## Install
 
-Every route installs the same things: `hibr`, its modules, `man hibr`, the
-text desktop with a `desktop` launcher and `man desktop`, and the
-`catalogue` and `vw` commands. hibr needs only libc and libdl;
+Every route installs `hibr`, its modules, `man hibr`, the text desktop with
+a `desktop` launcher and `man desktop`, and the `catalogue` and `vw`
+commands. The packages, and any install on macOS, add
+[`please`](docs/please.md), which runs a command as root; on Linux it and
+the desktop's root helpers go through polkit's `pkexec`, so only an install
+to `/usr` -- the packages' -- carries them. hibr needs only libc and libdl;
 libssl, libpng and libturbojpeg are used if they are there, for TLS and
 images, and
 nothing fails without them until it is asked for.
@@ -89,7 +92,8 @@ sudo pacman -Syu hibr
 ```
 
 One key signs all three repositories, and the three packages hold the same
-files, byte for byte; `dnf upgrade` and `pacman -Syu` keep them current.
+files, byte for byte, but for the PAM files, which use each system's own
+rules; `dnf upgrade` and `pacman -Syu` keep them current.
 
 **From source**, anywhere with a C compiler:
 
@@ -109,7 +113,8 @@ two colour schemes; everything else comes from the catalogue, and
 `catalogue install apps/` places every application in it (`make install
 SHIP=all` places the lot from this tree instead). `make TLS=0` leaves TLS out
 entirely. [`deploy.sh`](docs/deployment.md) does the same install but also
-runs every suite first, keeps the previous version to roll back to, and can
+runs the core suites first (`tests/run.sh`, `tests/self.hibr` and the
+terminal suites), keeps the previous version to roll back to, and can
 update itself from the tree on a timer.
 
 To take it out again: `brew uninstall hibr`, `sudo apt remove hibr`,
@@ -121,39 +126,39 @@ place to start.
 
 ## Measurements
 
-Measured on 0.68, on one host -- the size and startup memory again on
-0.99.366, below the table; the loop is
-`while [ $i -lt 50000 ]; do i=$((i+1)); done`. Times are the best of eleven
-runs. Memory is the shell's own `VmHWM`, read without forking, as the median
-of twenty-five runs — a single reading is worthless here, because run-to-run
-spread is about 180 kB either way.
+Measured on 0.99.416, on one host (an Intel Core i3-N300, every process
+pinned to one core), by `tools/measure.py`, which prints this table and
+says what it ran under -- run it again rather than trusting a number here
+that has aged. The loop is `while [ $i -lt 50000 ]; do i=$((i+1)); done`.
+Times are the best of eleven runs. Memory is the shell's own `VmHWM`, read
+without forking, as the median of twenty-five runs — a single reading is
+worthless here, because run-to-run spread is about 180 kB either way.
+Instructions are the loop under callgrind, which, unlike the clock, does not
+move with where the code happens to land in memory.
 
 | | hibr | dash | bash |
 |---|---|---|---|
-| binary, stripped | 398 KB | 122 KB | 1235 KB |
-| resident memory at startup | 1852 kB | 1688 kB | 2900 kB |
-| resident memory after the loop | 1888 kB | 1656 kB | 2944 kB |
-| the loop | 87 ms | 79 ms | 211 ms |
-| 5000 function calls, results via `:=` | **19 ms** | — | — |
-| the same through `$( )` | 1145 ms | 1018 ms | 1836 ms |
-| startup, `-c true` | 1.67 ms | 1.70 ms | 2.30 ms |
+| binary, stripped | 497 KB | 122 KB | 1235 KB |
+| resident memory at startup | 1960 kB | 1680 kB | 3088 kB |
+| resident memory after the loop | 2028 kB | 1684 kB | 3100 kB |
+| the loop | 77 ms | 70 ms | 211 ms |
+| the loop, instructions | 656M | 599M | 1418M |
+| 5000 function calls, results via `:=` | **14 ms** | — | — |
+| the same through `$( )` | 989 ms | 839 ms | 1625 ms |
+| startup, `-c true` | 1.28 ms | 1.26 ms | 1.70 ms |
 
-Read honestly. Against bash hibr is under two-thirds of the memory and two and
-a half times the speed on a tight loop. Against dash it is level on startup
-and within 10% on the loop, and about 160 kB heavier — and dash is a far
-smaller language, so being close is the claim, not being ahead. The loop gap
-was 1.7x before a round of profiling.
+Read honestly. Against bash hibr is under two-thirds of the memory and about
+two and three-quarter times the speed on a tight loop. Against dash it is
+level on startup and 10% behind on the loop -- further behind on a loop
+built around `case` -- and about 280 kB heavier, and dash is a far smaller
+language, so being close is the claim, not being ahead. On 0.68 the binary
+was 398 KB, the loop 87 ms and the gap to dash 1.7x before a round of
+profiling; the language and the binary have grown together since, and the
+loop has got faster.
 
-Where the memory goes is worth knowing: the heap at startup is 36 kB of the
-1852, so memory here means the binary, and the binary means how
-much language there is. There is no allocator trick left that would move it.
-
-Two of those rows were measured again on 0.99.366, the same way, on the
-same host: the stripped binary is 487 KB (tcc, the default build), and
-resident memory at startup is a median of 1920 kB against dash's 1660 and
-bash's 3000 -- still under two-thirds of bash, and now about 260 kB more
-than dash, the language and the binary having grown together. The times
-were not run again.
+Where the memory goes is worth knowing: the heap at startup is about 40 kB
+of it, so memory here means the binary, and the binary means how much
+language there is. There is no allocator trick left that would move it.
 
 The row that is not a near-miss is the fifth. Returning a value through `$( )`
 costs a fork per call in every shell; `:=` costs none, which is where the 60x
@@ -186,7 +191,7 @@ args "$@"
 |---|---|
 | [From bash to hibr, in ten minutes](docs/tutorial.md) | **Start here**: install, then each thing hibr adds, one checked example each |
 | [The language](docs/language.md) | The whole language, and every place it differs from bash |
-| [Builtins](docs/builtins.md) | All 73, what each takes and what it gives back |
+| [Builtins](docs/builtins.md) | All 77, what each takes and what it gives back |
 | [hibr, for a language model](docs/llm.md) | The whole language on one page, for a model to read; `llms.txt` points to it |
 | [The desktop](docs/desktop.md) | hui, the hibr user interface: windows, menus and applications in a terminal, all of it hibr -- a first hour, in five pictures |
 | [Everything else](docs/README.md) | Data, networking, the prompt, interactive use, full-screen programs, the desktop, modules, deployment, testing |
@@ -229,6 +234,9 @@ text.
 | [`include/`](include/) | Public header and module ABI, internal declarations, regex declarations |
 | [`src/`](src/) | The shell itself — lexer, parser, expansion, execution, builtins, editor, networking |
 | [`mods/`](mods/) | Reference modules, including the prompt and its git implementation |
+| [`programs/`](programs/) | What is written in hibr and installed beside it: the desktop, `catalogue`, `vw`, `please` and the root helpers polkit runs |
+| [`packaging/`](packaging/) | The deb, rpm, Arch, AUR and Homebrew builds, the polkit policy, and `ships`, the list of what the package's desktop carries |
+| [`tools/`](tools/) | What builds, measures and documents the tree: the screenshot renderer, table generators, `measure.py` |
 | [`tests/`](tests/) | The harness, the scripts compared against bash or recorded, the full-screen suites, and the suite hibr runs on itself |
 | [`examples/`](examples/) | Complete scripts showing the pieces working together |
 | [`docs/`](docs/) | Everything above, in detail |

@@ -63,9 +63,8 @@ fn dt_hooks(int id, ap = "") {
 fn dt_del(int id) {
 	local ws=${DT[$id]["ws"]:-1}
 
-	# Asked from inside a frame -- an app's _draw, _dirty or _idle, or a
-	# job's callback -- the window is marked and closed once the frame is
-	# drawn, as dt_wantclose does: taken away now, the frame went on
+	# Asked from inside a frame -- an app's _draw, _dirty or _idle -- the
+	# window is marked and closed once the frame is drawn, as dt_wantclose does: taken away now, the frame went on
 	# drawing from a record that had gone (Gitea #408).
 	if [ -n "$DT_INDRAW" ]; then
 		[ -n "${DT[$id]["row"]+x}" ] && dt_wantclose "$id"

@@ -7,7 +7,9 @@
     python3 tests/affected.py --run [...]     # and run them with tests/all.py
     python3 tests/affected.py --why [...]     # say which path chose each
 
-For iterating. The full run, tests/all.py, stays the release gate: this reads
+This is the release gate: `--since <last tag> --run`, with the desktop's
+suites narrowed by tests/coverage.tsv (which functions each suite was seen
+calling). The full run, tests/all.py, is the daily one, because this reads
 dependencies from the tree, and a dependency it cannot see -- a script
 reaching a module through a string it builds -- it does not know about.
 

@@ -14,7 +14,8 @@ Whatever the command leaves in the result slot becomes the prompt, verbatim —
 it is not run through `\u`-style escapes or word expansion again, so a branch
 name containing `$` or a backslash is safe. Two variables are set for it:
 `$STATUS`, the status of the last command, and `$DURATION`, how long that
-command took in milliseconds.
+command took in milliseconds. `${PS1@P}` shows what `PS1`'s escapes expand
+to, without drawing a prompt.
 
 ## The prompt module
 
@@ -35,8 +36,9 @@ echo "${PROMPT[dir][style]}"
 bold cyan
 ```
 
-Loading the module points `PROMPT_FN` at itself, so a `.hibrc` that loads it
-gets a working prompt immediately. `prompt list` names every segment, and
+Loading the module points an unset `PROMPT_FN` at itself, so a `.hibrc` that
+loads it gets a working prompt immediately, and one that set `PROMPT_FN`
+first keeps its own. `prompt list` names every segment, and
 `prompt render` prints one prompt for inspection.
 
 **Format strings.** `$name` names a segment at the top level, or one of that
@@ -239,9 +241,9 @@ PROMPT_FN=myprompt
 
 A colour given as `#rrggbb` or as a number from 0 to 255 is drawn as near as
 the terminal can show it: in full where `COLORTERM` says `truecolor` or
-`24bit`, as the nearest of 256 where `TERM` ends in `256color`, and as the
+`24bit`, as the nearest of 256 where `TERM` contains `256color`, and as the
 nearest of the sixteen on the Linux console, `screen` and the old `vt`
-terminals. `HIBR_COLOURS=24`, `256` or `16` says which outright. A terminal
+terminals. `HIBR_COLOURS=24`, `256`, `16` or `8` says which outright. A terminal
 window of the desktop says `truecolor` for its programs, and the desktop then
 sends each display what it can show (Control Panel > Pictures > Colours). A
 named colour -- `red`, `bright-blue` -- is one of the sixteen everywhere.

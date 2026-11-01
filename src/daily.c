@@ -1218,19 +1218,135 @@ int b_builtin(sh *s, int ac, char **av)
 	return b->fn(s, ac - 1, av + 1);
 }
 
-/* Show or set the file creation mask. */
+/* A mask as `umask -S` writes it: what each class is allowed, not denied. */
+void um_sym(mode_t m, str *o)
+{
+	const char *cl = "ugo";
+	int i, sh, p;
+
+	for (i = 0; i < 3; i++) {
+		sh = 6 - 3 * i;
+		p = (int)(~m >> sh) & 7;
+		if (i)
+			s_ch(o, ',');
+		s_ch(o, cl[i]);
+		s_ch(o, '=');
+		if (p & 4)
+			s_ch(o, 'r');
+		if (p & 2)
+			s_ch(o, 'w');
+		if (p & 1)
+			s_ch(o, 'x');
+	}
+}
+
+/* Apply a symbolic mode (`u=rwx,g=rx,o=`, `a-w`, `g+w`) to mask m, as bash
+   does: each clause is who, one operator and what they may do; 0 and an
+   error when a character or an operator is not one it knows. */
+int um_parse(const char *t, mode_t *m)
+{
+	unsigned allow = ~(unsigned)*m & 0777, who, perm, bits;
+	const char *p = t;
+	char op;
+
+	for (;;) {
+		who = 0;
+		for (; *p == 'u' || *p == 'g' || *p == 'o' || *p == 'a'; p++)
+			who |= *p == 'u' ? 0700 : *p == 'g' ? 070 : *p == 'o' ? 07 : 0777;
+		if (!who)
+			who = 0777;
+		if (*p != '=' && *p != '+' && *p != '-') {
+			lg(HIBR_LERR, "umask: `%c': invalid symbolic mode operator", *p ? *p : ' ');
+			return 0;
+		}
+		{
+			op = *p++;
+			perm = 0;
+			for (; *p && *p != ','; p++) {
+				if (*p == 'r')
+					perm |= 4;
+				else if (*p == 'w')
+					perm |= 2;
+				else if (*p == 'x')
+					perm |= 1;
+				else {
+					lg(HIBR_LERR, "umask: `%c': invalid symbolic mode character", *p);
+					return 0;
+				}
+			}
+			bits = (perm << 6 | perm << 3 | perm) & who;
+			if (op == '=')
+				allow = (allow & ~who) | bits;
+			else if (op == '+')
+				allow |= bits;
+			else
+				allow &= ~bits;
+		}
+		if (*p != ',')
+			break;
+		p++;
+	}
+	if (*p) {
+		lg(HIBR_LERR, "umask: `%c': invalid symbolic mode character", *p);
+		return 0;
+	}
+	*m = (mode_t)(~allow & 0777);
+	return 1;
+}
+
+/* Show or set the file creation mask: octal or symbolic, `-S` to show it
+   as what each class may do, `-p` in a form that sets it again. */
 int b_umask(sh *s, int ac, char **av)
 {
 	mode_t m;
+	int i = 1, sym = 0, re = 0;
+	char *e;
+	long v;
+	str o;
 
 	(void)s;
-	if (ac < 2) {
-		m = umask(0);
-		umask(m);
-		printf("%04o\n", (unsigned)m);
-		return HIBR_OK;
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
+		}
+		for (e = av[i] + 1; *e; e++) {
+			if (*e == 'S')
+				sym = 1;
+			else if (*e == 'p')
+				re = 1;
+			else {
+				lg(HIBR_LERR, "umask: -%c: invalid option", *e);
+				return 2;
+			}
+		}
 	}
-	umask((mode_t)strtol(av[1], 0, 8));
+	m = umask(0);
+	umask(m);
+	if (i < ac) {
+		if (av[i][0] >= '0' && av[i][0] <= '9') {
+			v = strtol(av[i], &e, 8);
+			if (*e || v < 0 || v > 0777) {
+				lg(HIBR_LERR, "umask: %s: octal number out of range", av[i]);
+				return 1;
+			}
+			m = (mode_t)v;
+		} else if (!um_parse(av[i], &m)) {
+			return 1;
+		}
+		umask(m);
+		if (!sym)
+			return HIBR_OK;
+	}
+	s_init(&o);
+	if (re)
+		s_cat(&o, sym ? "umask -S " : "umask ");
+	if (sym)
+		um_sym(m, &o);
+	else
+		s_fmt(&o, "%04o", (unsigned)m);
+	printf("%s\n", o.p);
+	s_free(&o);
 	return HIBR_OK;
 }
 

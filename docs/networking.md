@@ -10,8 +10,10 @@ printf 'PING\r\n' >&3; read pong <&3
 
 ### Schemes
 
-A scheme works anywhere a filename does — in a redirection, as an argument to
-anything that opens a file.
+A scheme works wherever the shell itself opens a path — in any redirection,
+and in `source` for a scheme that reads something already here. A program
+given one as an argument sees a path that does not exist; redirect it
+instead (`prog < /dev/tcp/host/port`).
 
 | scheme | opens |
 |---|---|
@@ -37,7 +39,7 @@ hibr: connect /nosuchsock: No such file or directory
 |---|---|
 | `connect [-u\|-s] host port [var]` | connect; `-u` UDP, `-s` TLS. Sets `$var` (default `FD`) and `$RET` |
 | `send [-n\|-r] fd text…` | write; `-n` without a trailing newline, `-r` ending CRLF |
-| `recv [-a\|-n bytes] fd [var]` | read one line; `-a` everything to end of stream, `-n` exactly that many bytes |
+| `recv [-a\|-n bytes] fd [var]` | read one line, or from a datagram socket one datagram; `-a` everything to end of stream, `-n` exactly that many bytes. Into `var`, `REPLY` by default |
 | `accept [-t secs] listenfd [var]` | wait for one connection; sets `$var` (default `FD`) and `$REMOTE`. `-t` waits at most that long and fails if none came; `-t 0` only looks |
 | `listen [-f] [-n count] port handler` | serve; `-f` forks per connection, `-n` stops after that many |
 | `listen -b [-u] port [var]` | bind only, and hand back the descriptor; `-u` binds UDP |
@@ -101,8 +103,37 @@ status 2
 `$REMOTE` is the peer, as `host:port` — `127.0.0.1:39254`.
 
 `listen` calls the handler once per connection with the socket as its standard
-input and output, inside the shell, so the handler can use your functions and
-variables; `-f` forks per connection instead.
+input and output and the peer as its first argument, inside the shell, so the
+handler can use your functions and variables; `-f` forks per connection
+instead. Both forms of `listen` mark the listening descriptor close-on-exec,
+so a program the handler or the script starts does not hold the socket open
+after the server has gone; one passed on with a redirection still gets it.
+
+A `read` from a datagram socket -- `/dev/udp`, or one `listen -b -u` made --
+takes a whole datagram at a time, since the kernel drops whatever part of a
+datagram is not read. A line is the datagram up to its newline, `-N` counts
+across as many datagrams as it needs, and what follows the newline or the
+count inside one datagram is lost --
+[0051](adr/0051-read-takes-a-datagram-whole.md). A `read -t` that times out
+returns 142 and empties its names, as in bash:
+
+```sh
+port=$(( 20000 + $$ % 20000 ))
+listen -b -u $port U
+connect -u 127.0.0.1 $port C
+send -n $C "one
+two"
+send $C three
+read -r a <&$U; echo "[$a]"
+read -r b <&$U; echo "[$b]"
+x=old; read -t 0.2 x <&$U; echo "status $? [$x]"
+```
+
+```output
+[one]
+[three]
+status 142 []
+```
 
 ### A server and a client, whole
 

@@ -982,8 +982,8 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
    a hangup -- a closed terminal, a logout -- reaches only that one client,
    which is dropped from the list, and the server carries on with whoever
    else (if anyone) is still attached.  While nobody is, what the program
-   writes is read and dropped, or it would fill the pty and stop; the next
-   attach asks it to draw everything again anyway. */
+   writes is still read into hold's emulator, or it would fill the pty and
+   stop, and the next attach is drawn from that emulator's screen. */
 void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	      int ready)
 {
