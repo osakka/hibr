@@ -294,7 +294,7 @@ echo "$sum"
 | `kill [-sig\|-s sig\|-n num] %job\|pid` | signal a job or process; `kill -l` lists the signals (the real-time ones bash also lists are left out), `kill -l 9` and `kill -l TERM` translate, and an exit status above 128 names its signal |
 | `disown [%job]` | forget a job without signalling it |
 | `coproc [name] cmd args…` | **[hibr]** run a command as a coprocess |
-| `trap [cmd] sig…` | run `cmd` on a signal, on `EXIT`, `ERR`, `DEBUG` or `RETURN`; `trap` or `trap -p [sig…]` lists what is set, `trap - sig…` clears it, `trap '' sig…` ignores it |
+| `trap [cmd] sig…` | run `cmd` on a signal, on `EXIT`, `ERR`, `DEBUG` or `RETURN`; `trap` or `trap -p [sig…]` lists what is set -- `ERR`, `DEBUG` and `RETURN` among the names `-p` takes -- as lines that read back in, `trap - sig…` clears it, `trap '' sig…` ignores it |
 | `ulimit [-HSa] [-cdflnstuv] [limit]` | read or set a resource limit |
 | `umask [-p] [-S] [mask]` | show or set the file creation mask: octal (`022`) or symbolic (`u=rwx,g=rx,o=`, `g+w`, `a-x`), as bash; `-S` shows it as what each class may do, `-p` in a form that sets it again |
 | `hash [-r] [-d name] [name…]` | show or forget where commands were found |
@@ -321,10 +321,25 @@ got:again
 As many as you like, at once. See
 [0018](adr/0018-a-coprocess-is-an-endpoint.md).
 
+`trap … ERR` runs after a command fails where `set -e` would stop the shell:
+not in an `if`, `while` or `until` test, not left of `&&` or `||`, not after
+`!`, and not inside `try`. A child -- a pipeline stage, a `( )`, a `$( )`, a
+background job -- does not run the ERR trap it inherited, as in bash without
+`set -E`: the shell that started it sees its status and runs the trap once,
+so `true | false` runs it once and `(false; echo x)` not at all. The child
+still lists it, so `saved=$(trap -p)` keeps it, and one the child sets for
+itself runs there. Two places differ from bash, both because errexit does:
+a command failing inside a function body runs it (bash needs `set -E`), and
+so does a pipeline any of whose stages failed (design decision 1).
+
 `trap … DEBUG` runs before each command, with the command text in `$CMD`.
 `trap … RETURN` runs when the function that set it returns, and is forgotten
 afterwards, so it does not leak into the next call — set it inside the function
 you mean, as in bash.
+
+The listing is written as bash writes it, so `eval` reads it back: signals
+first, then `DEBUG`, `ERR` and `RETURN`, and each `'` in a command as `'\''`
+-- `trap "echo 'hi'" USR1` lists as `trap -- 'echo '\''hi'\''' SIGUSR1`.
 
 An **ignored** signal is a trap like any other: `trap '' TERM` ignores it and
 `trap` lists it as `trap -- '' SIGTERM`, so the listing can be read back —

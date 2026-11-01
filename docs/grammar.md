@@ -40,7 +40,7 @@ nothing to switch on — [0017](adr/0017-one-namespace-for-options.md).
 | `\c` | the single character `c`, literally; `\` before a newline joins lines |
 | `'…'` | every byte literal, no escapes, cannot contain `'` |
 | `"…"` | literal except `$` `` ` `` `\` and, inside, `!` when history expansion is on |
-| `$'…'` | ANSI-C escapes: `\n \t \r \a \b \f \v \e \\ \' \xHH \NNN \uHHHH \UHHHHHHHH`; `\NNN` is one to three octal digits, as in bash |
+| `$'…'` | ANSI-C escapes: `\n \t \r \a \b \f \v \e \E \\ \' \" \? \xHH \NNN \uHHHH \UHHHHHHHH \cX`; `\NNN` is one to three octal digits and `\cX` the control character `X & 0x1f` (`\c?` is DEL), as in bash; any other escape, `\x` with no hex digit after it among them, keeps its backslash |
 | `$"…"` | exactly `"…"` — see below |
 
 `$"…"` is bash's locale-translation form, accepted so that scripts written
@@ -271,7 +271,7 @@ expansion produced; text written in the word still splits and globs
 | `${x:off:len}` | substring; a negative offset counts from the end |
 | `${x^} ${x^^} ${x,} ${x,,}` | upper or lower the first letter, or all: the cased letters of Latin, Greek, Cyrillic and Armenian, whatever the locale, since hibr reads text as UTF-8 (in bash's C locale `é` stays `é`) |
 | `${x@Q}` | quoted so reading it back gives the same string |
-| `${x@E}` | with backslash escapes expanded |
+| `${x@E}` | with backslash escapes expanded, as `$'…'` does them, but for `\u` and `\U`, which it leaves |
 | `${x@U} ${x@L} ${x@u}` | upper, lower, first letter upper, over the same letters |
 | `${x@A}` | the assignment that would make `x` again: `x='v'`, or `declare -ix x='v'` with its attributes; `${a[@]@A}` the whole array, as `declare -p` writes it |
 | `${x@a}` | its attributes, as bash names them and in bash's order: `a A i n r x l u` |

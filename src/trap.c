@@ -126,6 +126,9 @@ void tr_run(sh *s)
 	s->st = ost;
 }
 
+/* Set in a forked child, whose inherited ERR trap is listed but not run. */
+static int tr_errkid;
+
 /* Forget an inherited exit trap in a freshly forked child. */
 void tr_fork(sh *s)
 {
@@ -133,6 +136,9 @@ void tr_fork(sh *s)
 	   would send it to waitpid for pids it cannot wait for. Harmless --
 	   ECHILD marks nothing -- but there is no reason to go. */
 	jc_chld = 0;
+	tr_errkid = 1;
+	if (s->etrap)
+		lg(HIBR_LDBG, "subshell keeps the ERR trap listed and runs it only if set again");
 	if (!s->trap || !s->trap[0])
 		return;
 	lg(HIBR_LDBG, "subshell forgets the inherited exit trap");
@@ -167,7 +173,7 @@ void tr_err(sh *s, int st)
 	char *cmd = s->etrap;
 	int ost = s->st;
 
-	if (!cmd || s->intry)
+	if (!cmd || s->intry || tr_errkid)
 		return;
 	s->etrap = 0;
 	s->st = st;
@@ -323,6 +329,45 @@ int tr_sig(const char *nm)
 	return -1;
 }
 
+/* Print one trap as a line that reads back in, an inherited ignore included; g is a signal, or -2 ERR, -3 DEBUG, -4 RETURN. */
+void tr_show(sh *s, int g)
+{
+	const struct signm *sm;
+	const char *cm, *nm = 0;
+	str o;
+
+	if (g < 0) {
+		cm = g == -2 ? s->etrap : g == -3 ? s->dtrap : s->rtrap;
+		nm = g == -2 ? "ERR" : g == -3 ? "DEBUG" : "RETURN";
+	} else {
+		cm = s->trap[g];
+		if (!cm && g && tr_wasign(g))
+			cm = "";
+		if (!g)
+			nm = "EXIT";
+		for (sm = jc_sigs; g && sm->nm; sm++)
+			if (sm->sig == g)
+				nm = sm->nm;
+	}
+	if (!cm)
+		return;
+	s_init(&o);
+	s_cat(&o, "trap -- ");
+	if (!strcmp(cm, "'"))
+		s_cat(&o, "\\'");
+	else
+		net_q(&o, cm);
+	s_ch(&o, ' ');
+	if (g > 0 && nm)
+		s_cat(&o, "SIG");
+	if (nm)
+		s_cat(&o, nm);
+	else
+		s_num(&o, g);
+	puts(o.p);
+	s_free(&o);
+}
+
 /* Set, clear or list signal handlers. */
 int b_trap(sh *s, int ac, char **av)
 {
@@ -346,23 +391,12 @@ int b_trap(sh *s, int ac, char **av)
 			int k;
 			for (k = 2; k < ac; k++) {
 				int g = tr_sig(av[k]);
-				const struct signm *sm;
-				const char *nm = "EXIT", *cm;
-				if (g < 0 || g >= tr_n) {
+				if (g < -4 || g == -1 || g >= tr_n) {
 					lg(HIBR_LERR, "trap: %s: unknown "
 					   "signal", av[k]);
 					return HIBR_FAIL;
 				}
-				cm = s->trap[g];
-				if (!cm && g && tr_wasign(g))
-					cm = "";
-				if (!cm)
-					continue;
-				for (sm = jc_sigs; g && sm->nm; sm++)
-					if (sm->sig == g)
-						nm = sm->nm;
-				printf("trap -- '%s' %s%s\n", cm,
-				       g ? "SIG" : "", nm);
+				tr_show(s, g);
 			}
 			return HIBR_OK;
 		}
@@ -375,29 +409,11 @@ int b_trap(sh *s, int ac, char **av)
 			return HIBR_OK;
 	}
 	if (ac == 1) {
-		if (s->etrap)
-			printf("trap -- '%s' ERR\n", s->etrap);
-		if (s->dtrap)
-			printf("trap -- '%s' DEBUG\n", s->dtrap);
-		if (s->rtrap)
-			printf("trap -- '%s' RETURN\n", s->rtrap);
-		/* A signal with no trap of its own is still listed when it
-		   arrived ignored, which is what makes `eval "$(trap -p)"`
-		   put back what it found: an ignore restored as a default is
-		   a signal that starts killing the shell. */
-		for (i = 0; i < tr_n; i++) {
-			const struct signm *sm;
-			const char *nm = "EXIT";
-			const char *cm = s->trap[i];
-			if (!cm && i && tr_wasign(i))
-				cm = "";
-			if (!cm)
-				continue;
-			for (sm = jc_sigs; i && sm->nm; sm++)
-				if (sm->sig == i)
-					nm = sm->nm;
-			printf("trap -- '%s' %s%s\n", cm, i ? "SIG" : "", nm);
-		}
+		for (i = 0; i < tr_n; i++)
+			tr_show(s, i);
+		tr_show(s, -3);
+		tr_show(s, -2);
+		tr_show(s, -4);
 		return HIBR_OK;
 	}
 	cmd = av[1];
@@ -413,6 +429,7 @@ int b_trap(sh *s, int ac, char **av)
 		if (sig == -2) {
 			free(s->etrap);
 			s->etrap = reset || !*cmd ? 0 : xs(cmd);
+			tr_errkid = 0;
 			continue;
 		}
 		if (sig == -3) {
@@ -472,11 +489,18 @@ int b_trap(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* The control character \cX names, as bash makes it: \c? is DEL, anything else X & 0x1f. */
+int pf_ctl(int c)
+{
+	return c == '?' ? 0x7f : toupper((unsigned char)c) & 0x1f;
+}
+
 /* Expand backslash escapes into a buffer, as bash does where fl says:
    PF_STOP, \c ends the output (echo -e, %b); PF_OCT, \NNN is up to three
    octal digits, a leading 0 among them (a printf format, ${x@E}); PF_OCTB,
-   \NNN and \0NNN both (%b). \0NNN alone is echo -e's; \xHH is everyone's.
-   1 when a \c ended it. */
+   \NNN and \0NNN both (%b); PF_CTL, \cX is a control character (${x@E}).
+   \0NNN alone is echo -e's; \xHH and \e or \E are everyone's, and \" \? \'
+   lose their backslash where PF_OCT is set. 1 when a \c ended it. */
 int pf_esc(str *o, const char *p, int fl)
 {
 	int v, i, h;
@@ -495,11 +519,21 @@ int pf_esc(str *o, const char *p, int fl)
 		case 'b': s_ch(o, '\b'); p++; break;
 		case 'f': s_ch(o, '\f'); p++; break;
 		case 'v': s_ch(o, '\v'); p++; break;
-		case 'e': s_ch(o, 27); p++; break;
+		case 'e': case 'E': s_ch(o, 27); p++; break;
 		case '\\': s_ch(o, '\\'); p++; break;
+		case '"': case '?': case '\'':
+			if (!(fl & PF_OCT))
+				s_ch(o, '\\');
+			s_ch(o, *p++);
+			break;
 		case 'c':
 			if (fl & PF_STOP)
 				return 1;
+			if ((fl & PF_CTL) && p[1]) {
+				s_ch(o, pf_ctl(p[1]));
+				p += p[1] == '\\' && p[2] == '\\' ? 3 : 2;
+				break;
+			}
 			s_ch(o, '\\');
 			s_ch(o, 'c');
 			p++;
@@ -848,6 +882,10 @@ void tr_fini(sh *s)
 	s->trap = 0;
 	free(s->etrap);
 	s->etrap = 0;
+	free(s->dtrap);
+	s->dtrap = 0;
+	free(s->rtrap);
+	s->rtrap = 0;
 	free((void *)tr_pend);
 	tr_pend = 0;
 }

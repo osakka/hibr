@@ -14,7 +14,7 @@ written `name() { … }`, bash's `function name { … }`, or hibr's `fn` -- and
 `local`. An empty `then`, `do` or `{ }` is a syntax error, as in bash, and a
 syntax error is status 2.
 
-**Expansion.** Single, double and `$'…'` quoting (`\n \t \e \xHH \NNN \uHHHH \UHHHHHHHH`: `\NNN` is one to three octal digits, as in bash, so `\101` is `A` and `\0101` is a backspace and then `1`; the last two are a character by its Unicode code point).
+**Expansion.** Single, double and `$'…'` quoting (`\n \t \e \E \xHH \NNN \uHHHH \UHHHHHHHH \cX`: `\NNN` is one to three octal digits, as in bash, so `\101` is `A` and `\0101` is a backspace and then `1`; `\uHHHH` and `\UHHHHHHHH` are a character by its Unicode code point; `\cX` is a control character, `X & 0x1f`, so `\cA` is 1 and `\c[` is escape, with `\c?` for DEL; an escape bash does not know keeps its backslash, so `$'\q'` is `\q`).
 `${x:-d} ${x:=d} ${x:?msg} ${x:+alt}`, `${#x}`, `${x#p} ${x##p} ${x%p} ${x%%p}`,
 `${x/p/r} ${x//p/r}`, anchored `${x/#p/r}` and `${x/%p/r}`, `${x:off:len}` with
 negative offsets and negative lengths, over a scalar's characters or a list's

@@ -684,8 +684,32 @@ word *lx_word(lex *l, int lit)
 				case 'b': lx_ch(l, &b, &t, &cq, 1, '\b'); l->p++; break;
 				case 'f': lx_ch(l, &b, &t, &cq, 1, '\f'); l->p++; break;
 				case 'v': lx_ch(l, &b, &t, &cq, 1, '\v'); l->p++; break;
-				case 'e': lx_ch(l, &b, &t, &cq, 1, 27); l->p++; break;
+				case 'e': case 'E': lx_ch(l, &b, &t, &cq, 1, 27); l->p++; break;
+				case 'c':
+					if (l->p + 1 >= l->e || l->p[1] == '\'') {
+						lx_ch(l, &b, &t, &cq, 1, '\\');
+						lx_ch(l, &b, &t, &cq, 1, *l->p++);
+						break;
+					}
+					lx_ch(l, &b, &t, &cq, 1, pf_ctl(l->p[1]));
+					l->p += 2;
+					if (l->p[-1] == '\\' && l->p < l->e &&
+					    (*l->p == '\\' || *l->p == '\'')) {
+						if (*l->p == '\'')
+							lx_ch(l, &b, &t, &cq, 1, '\'');
+						l->p++;
+					}
+					break;
+				case '\\': case '\'': case '"': case '?':
+					lx_ch(l, &b, &t, &cq, 1, *l->p++);
+					break;
 				case 'x':
+					if (l->p + 1 >= l->e ||
+					    !isxdigit((unsigned char)l->p[1])) {
+						lx_ch(l, &b, &t, &cq, 1, '\\');
+						lx_ch(l, &b, &t, &cq, 1, *l->p++);
+						break;
+					}
 					l->p++;
 					v = 0;
 					for (k = 0; k < 2 && l->p < l->e &&
@@ -714,6 +738,7 @@ word *lx_word(lex *l, int lit)
 					       *l->p == 'u' ? 4 : 8);
 					break;
 				default:
+					lx_ch(l, &b, &t, &cq, 1, '\\');
 					lx_ch(l, &b, &t, &cq, 1, *l->p++);
 					break;
 				}

@@ -99,7 +99,11 @@ int v_delp(sh *s, const char *nm, char **ks, int nk);
 #define PF_OCT 2
 #define PF_OCTB 4
 #endif
+#ifndef PF_CTL
+#define PF_CTL 8
+#endif
 int pf_esc(str *o, const char *p, int fl);
+int pf_ctl(int c);
 
 int ismeta(int c);
 int isname(const char *t);
@@ -332,6 +336,7 @@ void tr_return(sh *s);
 void tr_fork(sh *s);
 void tr_fini(sh *s);
 int tr_pending(void);
+void tr_show(sh *s, int g);
 int b_trap(sh *s, int ac, char **av);
 int b_fail(sh *s, int ac, char **av);
 int b_try(sh *s, int ac, char **av);
@@ -437,6 +442,7 @@ const char *net_schnm(sh *s, const char *p);
 int net_open(sh *s, const char *p);
 int net_dial(const char *host, const char *port, int udp);
 int net_isdgram(int fd);
+void net_q(str *o, const char *a);
 void sc_fini(sh *s);
 int b_connect(sh *s, int ac, char **av);
 int b_listen(sh *s, int ac, char **av);
