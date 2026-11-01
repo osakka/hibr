@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.22
+app youtube "YouTube, in a window" 3.23
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -782,7 +782,7 @@ fn yt_adopt(int id, vid) {
 # One step of playing: start the page's player once it is there, take up a
 # video where it was left, and at the end go on to the next.
 fn yt_tick(int id) {
-	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js m i e ms tm q cc wf
+	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js m i e ms tm q cc
 	local -a w
 
 	# Playing, its frames come as fast as the video's: the desktop holds
@@ -795,15 +795,6 @@ fn yt_tick(int id) {
 		fi
 	fi
 	[ -n "$p" ] || return 0
-	# With the page itself playing it (WebKit), the engine's word of each new
-	# frame is what should wake the desktop: its descriptor watched, as the
-	# Browser watches it. Only the Browser did, so with no Browser window open
-	# -- or once its last one closed, which stops the watching -- the video
-	# went at this tick's 250 ms, about four frames a second. Asked each tick:
-	# watching a descriptor already watched does nothing.
-	if ! yt_tap && wf := web fd 2> /dev/null; then
-		command -v console > /dev/null && console watch "$wf"
-	fi
 	# An ended video is not asked about, so the page leaving it would go unseen: its
 	# address is looked at every few seconds.
 	if [ "${YT[$id]["state"]}" = ended ] && [ $((EPOCHSECONDS - ${YT[$id]["chk"]:-0})) -ge 3 ]; then
@@ -1213,13 +1204,6 @@ fn youtube_draw(int id, int h, int w, int row, int col) {
 		yt_drawlist "$id" "$h" "$w"
 		YT[$id]["dkey"] := yt_listkey "$id"
 	fi
-	# Last, after every web call of the frame: the player's picture is asked
-	# for and not waited on, and any web call reads what the engine has said --
-	# the word of its next frame among it. Read here, nothing else would wake
-	# the desktop for that frame, and the video went on at the 250 ms tick in
-	# bursts (5.5 frames a second on a slow machine, half-second gaps).
-	[ "${YT[$id]["view"]}" = play ] && [ -n "${YT[$id]["pt"]}" ] && ! yt_tap &&
-		web dirty "${YT[$id]["pt"]}" 2> /dev/null && dt_want 1
 }
 
 # What the list shows, in one line, to be compared with the line kept when

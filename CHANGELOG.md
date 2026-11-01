@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.99.412
+
+YouTube 3.23, the browser session's, in place of 3.22: 3.22's own watch of
+the web module's descriptor held the desktop at a whole core on the owner's
+machines and slowed the video. 3.23 is 3.21's player -- the page no wider
+than the video, its picture built without waiting -- without that watch.
+
 ## 0.99.411
 
 YouTube 3.22 and Browser 2.23, the browser session's. **YouTube plays
