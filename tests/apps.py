@@ -2874,12 +2874,15 @@ SH = "TW_CMD=(/bin/sh -c 'PS1=\"sh> \"; export PS1; exec /bin/sh')"
 # frame is not drawn again under it while nothing about the frame changed,
 # since the program's screen and the scrollbar repaint every cell inside.
 # A ticker in the session writes down how many frames took that path; the
-# frame has to be whole on the last of them.
+# frame has to be whole on the last of them. It writes a temporary file and
+# renames it: the session is ended by a kill, and under a loaded gate the
+# kill landed between `>`'s truncate and its write twice, leaving an empty
+# file that read as no count at all.
 def contentonly():
     f = sx.scratch("contentonly")
     pre = ("TW_CMD=(/bin/sh -c 'i=0; while :; do echo line$i; i=$((i+1)); sleep 0.05; done')\n"
-           "co_probe() { echo \"${DT_STAT[\"r:contentonly\"]:-0} frames=${DT_STAT[\"frames\"]:-0} force=$DT_FORCEONCE alone=$DT_ALONE\" > %s; }\n"
-           "dt_ticker co_probe\n" % f)
+           "co_probe() { echo \"${DT_STAT[\"r:contentonly\"]:-0} frames=${DT_STAT[\"frames\"]:-0} force=$DT_FORCEONCE alone=$DT_ALONE\" > %s.part && mv -f %s.part %s; }\n"
+           "dt_ticker co_probe\n" % (f, f, f))
     sc = run(*TERM, pre=pre, wait=1.0, end=None, until=lambda sc: "line20" in sc.text())
     cot = open(f).read().strip() if os.path.exists(f) else ""
     n = int(cot.split()[0]) if cot else 0

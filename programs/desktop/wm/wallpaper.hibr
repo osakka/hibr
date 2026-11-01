@@ -422,13 +422,14 @@ dt_wall() {
 	fi
 	# Nothing it paints has changed, and nothing drawn over it has gone:
 	# its cells are still on the screen, because every window paints
-	# inside its own rectangle and this paints behind them. Painted at
+	# inside its own rectangle and this paints behind them -- overlapping
+	# or not, since 0.99.413 (see DT_NOOVERLAP in draw.hibr). Painted at
 	# least once a second regardless, so anything the signature does not
 	# know about cannot be seen for longer than that.
 	sig := dt_wallsig
 	ms := dt_ms
 	if [ "$sig" = "$DT_WALLFOR" ] && [ "$DT_FORCEDRAW" != 1 ] &&
-	   [ -n "$DT_NOOVERLAP" ] && [ -z "$DT_WALLONCE" ] &&
+	   [ -z "$DT_WALLONCE" ] &&
 	   [ -z "$DT_FORCEONCE" ] && [ $((ms - DT_WALLMS)) -lt 1000 ]; then
 		dt_wallkeep
 		return 0

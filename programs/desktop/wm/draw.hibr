@@ -296,14 +296,13 @@ fn dt_alone(...rest) {
 	done
 	DT_ALONE=$out
 	DT_ALONEFOR=$sig
-	# A shadow is cast on whatever is under it, and darkening the same
-	# cells twice makes them twice as dark -- so a shadow may only be cast
-	# onto cells painted this frame. Where nothing overlaps, every shadow
-	# falls on wallpaper and casting them follows the wallpaper. Where two
-	# windows do overlap, one's shadow falls on the other, and the only
-	# arrangement in which every shadow is certain of fresh cells beneath
-	# it is the one where the wallpaper paints too. So overlapping windows
-	# cost the wallpaper's own saving, and keep the picture right.
+	# Whether every window is clear of every other. The wallpaper used to
+	# repaint on every frame unless this held, because a shadow cast twice
+	# darkens twice; `console darken -s` casts once on any cell (0.99.84)
+	# and a window left alone casts only on cells no window covers
+	# (0.99.410), so since 0.99.413 the wallpaper is kept whether windows
+	# overlap or not -- a picture wallpaper repainted per frame under a
+	# playing video cost 367 ms a frame on a slow laptop (Gitea #418).
 	DT_NOOVERLAP=
 	read -ra alone <<< "$out"
 	[ "${#w[@]}" = "${#alone[@]}" ] && DT_NOOVERLAP=1

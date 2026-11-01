@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.413
+
+**The wallpaper is kept, not repainted, while windows overlap** (Gitea
+#418). It was painted again on every frame whenever any two windows
+overlapped -- a rule from before a shadow could be cast only once on a
+cell -- so a playing video under or beside another window repainted a
+picture wallpaper with every frame of the video: on the owner's slow laptop
+that was 367 ms a frame, 19 of every 23 seconds, the desktop at 83% of a
+core and the video at two frames a second. Shadows are cast once on any
+cell now (`console darken -s`, and a window left alone casts only on cells
+no window covers, 0.99.410), so the reason has gone: the wallpaper is kept
+whenever nothing it paints has changed, still painted at least once a
+second, and the forced-redraw oracle finds no cell different.
+
 ## 0.99.412
 
 YouTube 3.23, the browser session's, in place of 3.22: 3.22's own watch of
