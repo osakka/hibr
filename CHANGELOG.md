@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.99.408
+
+Browser 2.22 and its Control Panel pane 1.12, the browser session's: a
+page asking for the camera, the microphone or the location asks the person
+first (hibr-browser 0.5.17) -- a bar over the tab that asked, with the
+site, what it wants, and Allow Once, Always Allow and Refuse; Always is kept
+per site, Ask is the default for all three, and Control Panel > Browser
+forgets the sites with Reset Permissions. On an engine that cannot ask,
+Ask behaves as Refuse, as before. Arabic 3.68.
+
 ## 0.99.407
 
 **The desktop has a section in Blit's performance panel** (Blit ADR 0203).

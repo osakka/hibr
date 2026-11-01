@@ -5,6 +5,7 @@
  "plural": "en",
  "strings": {
   " %s Compose ": "⟪ %s Compose ⟫",
+  " %s wants %s ": "⟪ %s wants %s ⟫",
   "\"%s\" is not here": "⟪\"%s\" is not here⟫",
   "%H %M %S %l %p %a %d %b %Y, as strftime": "⟪%H %M %S %l %p %a %d %b %Y, as strftime⟫",
   "%d step failed": "⟪%d step failed⟫",
@@ -1134,6 +1135,7 @@
   "Side": "⟪Side⟫",
   "Signature": "⟪Signature⟫",
   "Signature, put under every message you write:": "⟪Signature, put under every message you write:⟫",
+  "Sites Answered For Always": "⟪Sites Answered For Always⟫",
   "Size: %s": "⟪Size: %s⟫",
   "Skip": "⟪Skip⟫",
   "Sleep": "⟪Sleep⟫",

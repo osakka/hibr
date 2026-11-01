@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.21
+app browser "The web, in a window" 2.22
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -76,9 +76,11 @@ BW_LANG="${BW_LANG-}"
 BW_DNT="${BW_DNT-0}"
 BW_RTC="${BW_RTC-0}"
 BW_BLOCK="${BW_BLOCK-}"
-BW_PGEO="${BW_PGEO-refuse}"
-BW_PCAM="${BW_PCAM-refuse}"
-BW_PMIC="${BW_PMIC-refuse}"
+# Location, camera and microphone: asked of the person, site by site, where the
+# engine can wait for the answer (cap permask); refused where it cannot.
+BW_PGEO="${BW_PGEO-ask}"
+BW_PCAM="${BW_PCAM-ask}"
+BW_PMIC="${BW_PMIC-ask}"
 BW_PNOTE="${BW_PNOTE-refuse}"
 BW_PPOP="${BW_PPOP-refuse}"
 BW_DL="${BW_DL-0}"
@@ -278,7 +280,7 @@ fn bw_sound(int id) {
 fn bw_geo(t) {
 	local p=
 
-	[ "$BW_PGEO" = allow ] && dt_has dt_ploc && p := dt_ploc
+	{ [ "$BW_PGEO" = allow ] || [ "$BW_PGEO" = ask ]; } && dt_has dt_ploc && p := dt_ploc
 	web set "$t" geo "$p" 2> /dev/null
 	return 0
 }
@@ -291,7 +293,9 @@ bw_wide() {
 	for p in geolocation:BW_PGEO camera:BW_PCAM microphone:BW_PMIC \
 		 notifications:BW_PNOTE popups:BW_PPOP; do
 		v=${p#*:}
-		web permit "${p%%:*}" "${!v}" 2> /dev/null
+		v=${!v}
+		[ "$v" = ask ] && ! bw_has permask && v=refuse
+		web permit "${p%%:*}" "$v" 2> /dev/null
 	done
 	if [ "$BW_DL" = 1 ] && [ -n "$BW_DLDIR" ]; then
 		mkdir -p "$BW_DLDIR" 2> /dev/null
@@ -439,6 +443,14 @@ bw_heard() {
 			dt_notep low "A page tried to open a window of its own, and was refused: %s" "${l:0:60}"
 		done <<< "$x"
 	fi
+	# A page asking for the camera, the microphone or the location: a site
+	# answered for before is answered the same way at once; otherwise its
+	# window shows the question (bw_askbar).
+	if bw_has permask && x := web permasks 2> /dev/null; then
+		while IFS=$'\t' read -r k tb o l; do
+			[ -n "$k" ] && bw_permask "$k" "$tb" "$o" "$l"
+		done <<< "$x"
+	fi
 	# A page's own words, which no catalogue holds: passed as they are.
 	if x := web notes 2> /dev/null; then
 		if bw_has notetab; then
@@ -464,6 +476,150 @@ bw_heard() {
 		fi
 	fi
 	return 0
+}
+
+# Sites answered for, kept: "host<TAB>kind<TAB>allow|refuse" a line.
+BW_SITES="${BW_SITES-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/browser-sites.tsv}"
+declare -gA BWSITE
+BW_SITESREAD=
+fn bw_sitesread() {
+	local h k v
+
+	[ -n "$BW_SITESREAD" ] && return 0
+	BW_SITESREAD=1
+	BWSITE=()
+	[ -r "$BW_SITES" ] || return 0
+	while IFS=$'\t' read -r h k v; do
+		[ -n "$h" ] && BWSITE["$h $k"]=$v
+	done < "$BW_SITES"
+	return 0
+}
+
+fn bw_sitekeep(host, kind, how) {
+	local k
+
+	bw_sitesread
+	BWSITE["$host $kind"]=$how
+	mkdir -p "${BW_SITES%/*}" 2> /dev/null
+	: > "$BW_SITES.new"
+	for k in "${!BWSITE[@]}"; do
+		printf '%s\t%s\t%s\n' "${k%% *}" "${k#* }" "${BWSITE["$k"]}" >> "$BW_SITES.new"
+	done
+	mv -f "$BW_SITES.new" "$BW_SITES"
+}
+
+# A question from the engine (web permasks): ID, the tab, what is wanted
+# (camera, microphone, camera+microphone, geolocation), the site.
+fn bw_permask(k, tab, kind, host) {
+	local id t a=
+
+	bw_sitesread
+	a=${BWSITE["$host $kind"]-}
+	if [ -z "$a" ] && [ "$kind" = camera+microphone ]; then
+		[ "${BWSITE["$host camera"]-}" = allow ] && [ "${BWSITE["$host microphone"]-}" = allow ] && a=allow
+		{ [ "${BWSITE["$host camera"]-}" = refuse ] || [ "${BWSITE["$host microphone"]-}" = refuse ]; } && a=refuse
+	fi
+	case $a in
+	allow) web permans "$k" allow 2> /dev/null; return 0 ;;
+	refuse) web permans "$k" deny 2> /dev/null; return 0 ;;
+	esac
+	for id in "${!BW[@]}"; do
+		[ -n "${BW[$id]["tabs"]+x}" ] || continue
+		bw_tabs "$id"
+		for t in "${BW_TABS[@]}"; do
+			[ "$t" = "$tab" ] || continue
+			# one question at a time a window: a second is refused, as a
+			# browser that asks one thing at a time would leave it
+			if [ -n "${BW[$id]["askk"]-}" ]; then
+				web permans "$k" deny 2> /dev/null
+				return 0
+			fi
+			BW[$id]["askk"]=$k
+			BW[$id]["askt"]=$tab
+			BW[$id]["askw"]=$kind
+			BW[$id]["askh"]=$host
+			dt_want 10
+			return 0
+		done
+	done
+	# a tab no Browser window has (YouTube's): nobody to ask
+	web permans "$k" deny 2> /dev/null
+}
+
+# A question whose site is no longer on show -- its tab went to another site --
+# is refused and no longer shown: what the bar said is not about that page.
+fn bw_askcheck(int id) {
+	local k=${BW[$id]["askk"]-} u
+
+	[ -n "$k" ] || return 0
+	u := web url "${BW[$id]["askt"]}" 2> /dev/null || u=
+	# an address with no site (about:blank, as the tab starts) says nothing yet
+	case $u in
+	*://*)
+		u=${u#*://}
+		u=${u%%/*}
+		u=${u%%:*}
+		;;
+	*) u= ;;
+	esac
+	[ -z "$u" ] || [ "$u" = "${BW[$id]["askh"]}" ] && return 0
+	BW[$id]["askk"]=
+	web permans "$k" deny 2> /dev/null
+	return 0
+}
+
+# The question, on the page's first row: who wants what, and the three answers.
+# Only over the tab that asked.
+fn bw_askbar(int id, int r, int w) {
+	local k=${BW[$id]["askk"]-} what lab lb c a h
+
+	[ -n "$k" ] || return 0
+	[ "${BW[$id]["askt"]}" = "${BW[$id]["cur"]}" ] || return 0
+	case ${BW[$id]["askw"]} in
+	camera) what="your camera" ;;
+	microphone) what="your microphone" ;;
+	camera+microphone) what="camera and mic" ;;
+	geolocation) what="your location" ;;
+	*) what=${BW[$id]["askw"]} ;;
+	esac
+	# the three answers need 36 columns; the site's name gives way to them
+	h=${BW[$id]["askh"]}
+	[ "${#h}" -gt $((w - 54)) ] && [ $((w - 54)) -gt 8 ] && h="${h:0:$((w - 55))}${GL[ellipsis]}"
+	lab := dt_tr " %s wants %s " "$h" "$what"
+	console pen "$DT_INK" "$DT_WARN"
+	lb := str pad "$lab" "$w"
+	console put -p "w$id" "$r" 1 "$lb"
+	c=$(( ${#lab} + 2 ))
+	for a in "once:Allow Once" "always:Always Allow" "refuse:Refuse"; do
+		lab=" ${a#*:} "
+		[ $((c + ${#lab})) -gt "$w" ] && continue
+		console pen "$DT_SELINK" "$DT_ACTIVE" bold
+		console put -p "w$id" "$r" "$c" "$lab"
+		dt_wreg "$id" "$r" "$c" "${#lab}" "ask:${a%%:*}"
+		c=$((c + ${#lab} + 1))
+	done
+}
+
+# An answer to the question in window id.
+fn bw_askanswer(int id, how) {
+	local k=${BW[$id]["askk"]-} h=${BW[$id]["askh"]-} w=${BW[$id]["askw"]-}
+
+	[ -n "$k" ] || return 0
+	BW[$id]["askk"]=
+	case $how in
+	once) web permans "$k" allow 2> /dev/null ;;
+	always)
+		web permans "$k" allow 2> /dev/null
+		if [ "$w" = camera+microphone ]; then
+			bw_sitekeep "$h" camera allow
+			bw_sitekeep "$h" microphone allow
+		else
+			bw_sitekeep "$h" "$w" allow
+		fi
+		;;
+	*) web permans "$k" deny 2> /dev/null ;;
+	esac
+	dt_want 10
 }
 
 # A note's click: the window that has the tab, with that tab shown.
@@ -737,6 +893,8 @@ fn bw_closetab(int id, t) {
 		n=$((n + 1))
 	done
 	bw_sndstop "$t"
+	# its question goes with it (the engine refuses it as the tab closes)
+	[ "${BW[$id]["askt"]-}" = "$t" ] && BW[$id]["askk"]=
 	web close "$t" 2> /dev/null
 	BW[$id]["tabs"]=$out
 	if [ "$n" = 0 ]; then
@@ -941,6 +1099,8 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 		bw_bar "$id" "$t" "$w" "$ar"
 	fi
 	bw_body "$id" "$t" "$h" "$w" "$pt" "$ph"
+	bw_askcheck "$id"
+	bw_askbar "$id" "$pt" "$w"
 	bw_sound "$id"
 	BW[$id]["dkey"] := bw_drawkey "$id"
 	# Last, after every web call: each reads what the engine has said, and a
@@ -985,6 +1145,8 @@ fn browser_dirty(int id) {
 
 	bw_atpoll "$id"
 	bw_coverlist "$id"
+	bw_askcheck "$id"
+	[ -n "${BW[$id]["askk"]-}" ] && [ "${BW[$id]["askt"]}" = "$t" ] && return 0
 	[ -n "$t" ] && [ -n "$BW_FD" ] || return 0
 	[ -z "${BW[$id]["err"]}" ] || return 0
 	[ "${BW[$id]["aed"]}" = 1 ] && return 0
@@ -1403,6 +1565,7 @@ fn browser_click(int id, int r, int c, btn = "") {
 		return 0
 		;;
 	close:*) bw_closetab "$id" "${tag#close:}"; return 0 ;;
+	ask:*) bw_askanswer "$id" "${tag#ask:}"; return 0 ;;
 	newtab) bw_newtab "$id"; return 0 ;;
 	back) [ -n "$t" ] && web back "$t" 2> /dev/null; return 0 ;;
 	forward) [ -n "$t" ] && web forward "$t" 2> /dev/null; return 0 ;;

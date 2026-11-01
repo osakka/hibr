@@ -1,11 +1,12 @@
 {
  "dir": "rtl",
- "version": "3.67",
+ "version": "3.68",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
  "strings": {
   " %s Compose ": " %s إنشاء ",
+  " %s wants %s ": " %s يطلب %s ",
   "\"%s\" is not here": "«%s» غير موجود هنا",
   "%H %M %S %l %p %a %d %b %Y, as strftime": "%H %M %S %l %p %a %d %b %Y، كما في strftime",
   "%d step failed": {
@@ -997,6 +998,7 @@
   "Side": "الجانب",
   "Signature": "التوقيع",
   "Signature, put under every message you write:": "التوقيع، يوضع أسفل كل رسالة تكتبها:",
+  "Sites Answered For Always": "المواقع التي أُجيب لها دائماً",
   "Size: %s": "الحجم: %s",
   "Smallest Height": "أدنى ارتفاع",
   "Smallest Width": "أدنى عرض",
