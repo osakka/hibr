@@ -406,6 +406,20 @@ fn dt_wallcells() {
 }
 DT_WALLCARG=()
 
+# While timing is on, the time since the last mark of a repaint, under
+# part:wall.<step> -- which step of painting the wallpaper costs what
+# (`desktop ctl stats`). A repaint that cost 360 ms on one laptop and 1 ms
+# everywhere else could not be split without it (Gitea #418).
+DT_WALLT=0
+fn dt_wallmark(step) {
+	local t
+
+	[ -n "$DT_STATON" ] || return 0
+	t=${EPOCHREALTIME/./}
+	[ "$step" = start ] || dt_spent "part:wall.$step" $((t - DT_WALLT))
+	DT_WALLT=$t
+}
+
 # Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
 # drop-down menu covers them.
 dt_wall() {
@@ -437,6 +451,7 @@ dt_wall() {
 	DT_WALLFOR=$sig
 	DT_WALLMS=$ms
 	DT_WALLONCE=
+	dt_wallmark start
 
 	# Paint around the windows, not over them. Nothing visible changes --
 	# every window is drawn after this and covers its own cells anyway --
@@ -488,6 +503,7 @@ dt_wall() {
 		dt_imgm "$wm"
 		dt_wallcells
 		dt_wallfit "$dr" "$dc" "$drows" "$dcols"
+		dt_wallmark fit
 		# A display that cannot show the session's pixels gets half
 		# blocks in its own rectangle (Gitea #258).
 		if ! dt_wallpixon "$dgx"; then
@@ -498,6 +514,7 @@ dt_wall() {
 				dt_wallbad
 				plain+=("$dr $dc $drows $dcols")
 			fi
+			dt_wallmark halfblocks
 			continue
 		fi
 		# Where a picture of real pixels is going, the cells it covers
@@ -512,6 +529,7 @@ dt_wall() {
 			console fill "$DT_WALLR" "$DT_WALLC" "$DT_WALLH" \
 				"$DT_WALLW" " "
 		fi
+		dt_wallmark blank
 		# -u: text is drawn over the wallpaper in this same frame --
 		# the bar, every window, the icons -- and a picture that owns
 		# its cells would be dropped before it was ever sent (ADR
@@ -526,6 +544,7 @@ dt_wall() {
 			dt_wallbad
 			plain+=("$dr $dc $drows $dcols")
 		fi
+		dt_wallmark picture
 	done
 	DT_WALLIMG=$gi
 	DT_WALLMODE=$gm
@@ -544,7 +563,9 @@ dt_wall() {
 	# The icons are the desktop's too, and a window covers them whether
 	# they were painted under it or skipped, so this stays inside the
 	# behind-the-panes mode. Its rescan is above, outside the gate.
+	dt_wallmark pattern
 	[ "$DT_ICONS" = 1 ] && dt_icondraw
+	dt_wallmark icons
 	console behind off
 }
 

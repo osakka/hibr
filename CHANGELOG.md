@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.414
+
+**A wallpaper zoomed to fill is kept between repaints** (Gitea #418). The
+img module remembers what it last placed under the text so the same picture
+in the same place is kept rather than hashed and compressed again, and it
+remembered nothing for a picture drawn with a crop -- which is what Zoom
+draws -- so a zoomed wallpaper was placed whole again on every repaint and
+never kept between them. The crop is recorded with the placement now, and
+`img keep` keeps whatever was last placed at that rectangle.
+
+`desktop ctl stats` times each step of a wallpaper repaint while its timing
+is on, as `part:wall.fit`, `.blank`, `.picture`, `.halfblocks`, `.pattern`
+and `.icons`: a repaint that costs 360 ms on one laptop and a few
+milliseconds elsewhere can be split on the machine that has it.
+
 ## 0.99.413
 
 **The wallpaper is kept, not repainted, while windows overlap** (Gitea

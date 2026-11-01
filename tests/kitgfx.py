@@ -1211,5 +1211,21 @@ t.quit(None, 0.5)
 check("a picture drawn after an exec in place has an id of its own",
       len(ids) == 2 and ids[0] != ids[1], (ids, pl))
 
+# A picture drawn with a crop -- a wallpaper zoomed to fill -- placed under
+# the text a second time in the same place is kept, not hashed and placed
+# again (Gitea #418, 0.99.414). The img module remembered nothing for a
+# cropped placement, so a zoomed wallpaper was placed whole on every repaint.
+# The console sends a repeated picture once either way, so the placements
+# cannot tell the two paths apart; img's own debug line can.
+KEPTLOG = os.path.join(D, "kept.log")
+KEPT = ("set -d 3\nexec 2> %s\n"
+        "img draw %s 0 0 8 28 -m pixels -u -c 0 6 48 36\nconsole flush > /dev/null\n"
+        "img draw %s 0 0 8 28 -m pixels -u -c 0 6 48 36\nconsole flush > /dev/null\n"
+        "console key 200 > /dev/null\n" % (KEPTLOG, GRAD, GRAD))
+run(KEPT, caps=["kitty"])
+kl = open(KEPTLOG).read() if os.path.exists(KEPTLOG) else ""
+check("a cropped picture placed under the text again in the same place is kept",
+      "kept the picture already placed" in kl, kl[-600:])
+
 shutil.rmtree(D, True)
-report(113)
+report(114)

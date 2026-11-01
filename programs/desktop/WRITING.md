@@ -766,6 +766,12 @@ everything else besides (Gitea #343). It answers:
   drawn, can be `left`), `hover`, `moved`, or
   `full:<cause>` for a frame drawn whole (`arranged`, `overdrew`, `popup`,
   `other`), counted once a window a frame (0.99.405);
+- while `timing` is on, the frame's parts as tickers named `part:<name>`
+  (`arrange`, `wall`, `windows`, `menus`, `barstrip`, `overlays`), and each
+  step of a wallpaper repaint as `part:wall.<step>` (`fit`, `blank`,
+  `picture`, `halfblocks`, `pattern`, `icons`; since 0.99.414) -- `part:wall`
+  counts every frame, a kept wallpaper included, so the steps are what say
+  what one repaint costs;
 - `console_bytes`: what the display's flushes have written since it opened,
   and `displays`: for a held desktop, each attached terminal's `name`, the
   `bytes` hold has sent it since it attached and in how many `frames` --

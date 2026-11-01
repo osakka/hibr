@@ -489,16 +489,27 @@ static size_t im_pixn;
 struct im_under {
 	char *path;
 	int iw, ih, row, col, rows, cols;
+	/* The part of the picture placed, for a wallpaper zoomed to fill:
+	   all zero for the whole of it. */
+	int crop[4];
 	time_t mtime;
 };
 static struct im_under *im_lastu;
 static size_t im_lastn;
 
-static int im_same(const char *path, int iw, int ih, int row, int col,
-		   int rows, int cols)
+/* Whether this picture is what was last placed under the text here.
+   crop is the part asked for, or null for the whole; anycrop takes
+   whatever part was placed, which is what `img keep` asks -- it names no
+   crop, and keeps what is there. A crop was never recorded until 0.99.414,
+   so a wallpaper zoomed to fill was placed whole again, hashed and
+   compressed, on every repaint, and never kept between them (Gitea #418:
+   360 ms a repaint on the owner's laptop). */
+static int im_same(const char *path, const int *crop, int anycrop, int iw,
+		   int ih, int row, int col, int rows, int cols)
 {
 	struct stat st;
 	size_t i;
+	int k;
 
 	for (i = 0; i < im_lastn; i++) {
 		struct im_under *u = &im_lastu[i];
@@ -508,13 +519,17 @@ static int im_same(const char *path, int iw, int ih, int row, int col,
 			continue;
 		if (strcmp(u->path, path) || u->iw != iw || u->ih != ih)
 			return 0;
+		if (!anycrop)
+			for (k = 0; k < 4; k++)
+				if (u->crop[k] != (crop ? crop[k] : 0))
+					return 0;
 		return stat(path, &st) == 0 && u->mtime == st.st_mtime;
 	}
 	return 0;
 }
 
-static void im_placed(const char *path, int iw, int ih, int row, int col,
-		      int rows, int cols)
+static void im_placed(const char *path, const int *crop, int iw, int ih,
+		      int row, int col, int rows, int cols)
 {
 	struct stat st;
 	struct im_under *u = 0;
@@ -546,6 +561,8 @@ static void im_placed(const char *path, int iw, int ih, int row, int col,
 	u->col = col;
 	u->rows = rows;
 	u->cols = cols;
+	if (crop)
+		memcpy(u->crop, crop, sizeof u->crop);
 }
 
 /* The scaled pixels for this picture at this size, or nothing. key is what
@@ -813,8 +830,9 @@ static int im_draw2(sh *s, const dp_api *dp, const char *path, const char *key,
 				   pixel -- and without the scaled copy, which
 				   another picture may have taken the one cache
 				   slot for. */
-				if (under && !pane && !crop && dp->imgkeep &&
-				    im_same(path, iw, ih, row, col, rows, cols) &&
+				if (under && !pane && dp->imgkeep &&
+				    im_same(path, crop, 0, iw, ih, row, col,
+					    rows, cols) &&
 				    dp->imgkeep(s, row, col, rows, cols)) {
 					lg(HIBR_LDBG, "img draw: kept the "
 					   "picture already placed at %d,%d",
@@ -846,8 +864,8 @@ static int im_draw2(sh *s, const dp_api *dp, const char *path, const char *key,
 						 DP_IMG_CHOSEN |
 						 (under ? DP_IMG_UNDER : 0));
 				if (done) {
-					if (under && !pane && !crop)
-						im_placed(path, iw, ih, row,
+					if (under && !pane)
+						im_placed(path, crop, iw, ih, row,
 							  col, rows, cols);
 					return HIBR_OK;
 				}
@@ -1079,7 +1097,7 @@ static int im_keep(sh *s, int ac, char **av)
 	dp->cellpx(&cw, &chh);
 	if (cw < 2 || chh < 2)
 		return HIBR_FAIL;
-	if (!im_same(path, cols * cw, rows * chh, row, col, rows, cols))
+	if (!im_same(path, 0, 1, cols * cw, rows * chh, row, col, rows, cols))
 		return HIBR_FAIL;
 	if (!dp->imgkeep(s, row, col, rows, cols))
 		return HIBR_FAIL;
