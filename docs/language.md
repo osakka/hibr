@@ -46,7 +46,9 @@ stops. `readonly` and `export -p` round out the set.
 `shopt -s errexit` both work, and `shopt` alone lists everything. Extended
 patterns `?(…) *(…) +(…) @(…) !(…)` work in `case`, `[[ ]]` and globbing with
 nothing to switch on, which is what bash's parse-time `extglob` cannot manage —
-see [0017](adr/0017-one-namespace-for-options.md).
+see [0017](adr/0017-one-namespace-for-options.md). In a filename glob a
+leading dot is matched only where the pattern spells one out, as in bash:
+`!(x)` lists no dotfiles, and `@(.env|*.sh)` lists `.env`.
 
 `set -n` (`set -o noexec`) stops execution **from the next command**, not the
 next line, so nothing after it on the same line runs — and the `set +n` that

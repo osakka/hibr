@@ -1553,6 +1553,9 @@ int gmeta(const char *p, size_t n)
 		}
 		if (p[i] == '*' || p[i] == '?')
 			return 1;
+		if ((p[i] == '@' || p[i] == '!' || p[i] == '+') && i + 1 < n &&
+		    p[i + 1] == '(')
+			return 1;
 		if (p[i] != '[')
 			continue;
 		for (j = i + 2; j < n; j++) {
@@ -1588,6 +1591,47 @@ int xmeta(const char *t, const char *mk, size_t n)
 				return 1;
 	}
 	return 0;
+}
+
+/* Match a dotfile, which only a leading dot the pattern spells out may take. */
+int gdot(const char *p, const char *t)
+{
+	const char *close, *a, *b;
+	int d = 1, ok = 0;
+	str x;
+
+	if (*p == '.' || (*p == '\\' && p[1] == '.'))
+		return gmatch(p, t);
+	if (!*p || p[1] != '(' || !strchr("?*+@", *p))
+		return 0;
+	for (close = p + 2; *close; close++) {
+		if (*close == '(')
+			d++;
+		else if (*close == ')' && !--d)
+			break;
+	}
+	if (!*close)
+		return 0;
+	if ((*p == '?' || *p == '*') && gdot(close + 1, t))
+		return 1;
+	for (a = p + 2; a <= close && !ok; a = b + 1) {
+		b = gnext(a, close);
+		if (b > a) {
+			s_init(&x);
+			s_add(&x, a, (size_t)(b - a));
+			if (*p == '*' || *p == '+') {
+				s_cat(&x, "*(");
+				s_add(&x, p + 2, (size_t)(close - p - 2));
+				s_ch(&x, ')');
+			}
+			s_cat(&x, close + 1);
+			ok = gdot(x.p, t);
+			s_free(&x);
+		}
+		if (b >= close)
+			break;
+	}
+	return ok;
 }
 
 /* Order directory entries for stable glob output. */
@@ -1676,11 +1720,10 @@ void gwalk(sh *s, str *dir, const char *pat, vec *out, int *cnt)
 		return;
 	}
 	while ((de = readdir(d))) {
-		if (de->d_name[0] == '.' && seg[0] != '.')
-			continue;
 		if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
 			continue;
-		if (!gmatch(seg, de->d_name))
+		if (de->d_name[0] == '.' ? !gdot(seg, de->d_name) :
+		    !gmatch(seg, de->d_name))
 			continue;
 		v_add(&names, xs(de->d_name));
 	}
@@ -1756,7 +1799,7 @@ void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out,
 	meta = 1;
 	s_init(&pat);
 	for (i = 0; i < n; i++) {
-		if (mk[i] && (t[i] == '*' || t[i] == '?' || t[i] == '[' || t[i] == '\\'))
+		if (mk[i] && t[i] && strchr("*?[\\()|!@+", t[i]))
 			s_ch(&pat, '\\');
 		s_ch(&pat, t[i]);
 	}
@@ -2144,7 +2187,7 @@ normal:
 			return;
 		}
 		for (k = 0; k < p0->n && plain; k++)
-			if (strchr("*?[~ \t\n", p0->t[k]))
+			if (strchr("*?[(~ \t\n", p0->t[k]))
 				plain = 0;
 		if (plain && p0->n && !sh_ifs(s)) {
 			xout(s, out, outm, p0->t, 0, p0->n);
@@ -2396,7 +2439,7 @@ void br_expand(sh *s, word *w, vec *out)
 
 /* Bytes that stop a word being its own expansion: patterns, braces, IFS. */
 const char w_meta[256] = {
-	['*'] = 1, ['?'] = 1, ['['] = 1, ['~'] = 1, ['{'] = 1,
+	['*'] = 1, ['?'] = 1, ['['] = 1, ['('] = 1, ['~'] = 1, ['{'] = 1,
 	[' '] = 1, ['\t'] = 1, ['\n'] = 1
 };
 

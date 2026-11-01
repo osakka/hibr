@@ -324,9 +324,7 @@ went in the shell.
    default; `shopt -s inherit_errexit` restores the POSIX behaviour dash has.
    **TLS verifies certificates by default**; `HIBR_TLS_INSECURE=1` to disable.
    **Options live in one namespace**: `set -o` and `shopt` reach the same
-   table, extended patterns need no switch (in `case` and `[[ ]]`; in pathname
-   expansion only `?(`, `*(` and `+(` glob today -- `@(` and `!(` do not,
-   Gitea #422), and an option that cannot move
+   table, extended patterns need no switch, and an option that cannot move
    says so rather than appearing to succeed — see `docs/adr/0017`.
    **Privilege only ever goes one way**: `drop` gives up root irreversibly,
    hibr is never setuid, and root loads modules only from `HIBR_MODDIR` — see

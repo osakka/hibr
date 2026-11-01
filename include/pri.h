@@ -220,6 +220,7 @@ char **xargv(sh *s, word *w, int *ac, char ***am);
 	} while (0)
 #endif
 const char *gnext(const char *a, const char *close);
+int gdot(const char *p, const char *t);
 int gneg(const char *body, const char *close, const char *rest, const char *t);
 int gext(const char *p, const char *t);
 int gmatch(const char *p, const char *t);

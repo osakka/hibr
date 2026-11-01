@@ -30,7 +30,7 @@ Where hibr is deliberately different:
 | an indexed array's subscript is arithmetic, an associative one's a key | the same for `declare -A`; an array made without it reads `h[content-type]` as `content - type`, so quote a literal key: `h["content-type"]` |
 | `{$a,$b}` brace-expands | brace expansion is literal-only |
 | `**` needs `shopt -s globstar` | `**` is always on, and never follows symlinked directories |
-| `extglob` is an option | extended patterns always work in `case` and `[[ ]]`; in a filename glob only `?(…)`, `*(…)` and `+(…)` do so far |
+| `extglob` is an option | extended patterns always work, in `case`, `[[ ]]` and filename globs alike |
 | `${#s}` counts bytes in some locales | `${#s}` and `${s:i:n}` count characters |
 | unquoted expansions split and glob | the same by default; `set -S` or `strict expansion` stops it |
 | `"${x:-the machine's zone}"` does not parse | an apostrophe inside `${…}`'s own text is just a character |
