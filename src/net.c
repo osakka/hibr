@@ -458,14 +458,20 @@ int net_unix(const char *path)
    already trusts, or 0 for none. Read from the environment the way
    HIBR_CONNTIMEO is, so it reaches a module and a child alike -- the relay
    below is a forked child, and the dav and vault modules speak through it.
-   Empty counts as unset on purpose: HIBR_TLS_INSECURE is read with getenv
-   alone, so anything set at all turns verification off there, and a second
-   variable repeating that would be a trap rather than a convention. */
+   Empty counts as unset, as it does for HIBR_TLS_INSECURE. */
 const char *net_cafile(void)
 {
 	const char *p = getenv("HIBR_TLS_CAFILE");
 
 	return p && *p ? p : 0;
+}
+
+/* Whether HIBR_TLS_INSECURE asks for certificates to go unchecked: set, not empty and not 0. */
+int net_insecure(void)
+{
+	const char *p = getenv("HIBR_TLS_INSECURE");
+
+	return p && *p && strcmp(p, "0");
 }
 
 /* Pump plaintext between a socket pair and a TLS connection. */
@@ -498,7 +504,7 @@ void tls_relay(int plain, int sock, const char *host)
 	ssl = tls.new(ctx);
 	tls.set_fd(ssl, sock);
 	tls.ctrl(ssl, TLS_CTRL_HOST, TLS_NAME_HOST, (void *)host);
-	if (!getenv("HIBR_TLS_INSECURE")) {
+	if (!net_insecure()) {
 		tls.set_verify(ssl, TLS_VERIFY_PEER, 0);
 		tls.set1_host(ssl, host);
 	}
@@ -515,7 +521,7 @@ void tls_relay(int plain, int sock, const char *host)
 		   why && *why ? why : "handshake error");
 		_exit(1);
 	}
-	if (!getenv("HIBR_TLS_INSECURE") &&
+	if (!net_insecure() &&
 	    tls.verify_result(ssl) != TLS_X509_OK) {
 		lg(HIBR_LERR, "tls certificate for %s not trusted", host);
 		_exit(1);

@@ -65,9 +65,8 @@ read -r pa pb < "$d/ports"
 # connection that is about to fail verification still opens -- believing
 # the open is how a refused certificate reads as a good one.
 # The variables go to a child as an env prefix rather than being exported
-# here: HIBR_TLS_INSECURE's own rule is that anything set turns
-# verification off, and a test shell that declared one of these at file
-# level would carry it into everything after.
+# here: a test shell that declared one of these at file level would carry
+# it into everything after.
 say() {
 	local port=$1 out
 	local -a pre
@@ -91,8 +90,8 @@ echo "signed by the other, not named: $b"
 a := say "$pa" "$d/cb.pem" "$d/ca.pem"
 b := say "$pb" "$d/cb.pem" "$d/ca.pem"
 echo "one named each way: $a $b"
-# Empty is unset, which HIBR_TLS_INSECURE is not: anything set at all turns
-# verification off there, and repeating that here would be a trap.
+# Empty is unset, as it is for HIBR_TLS_INSECURE, which turns verification
+# off only when set to something other than empty or 0 (999-tls-insecure).
 a := say "$pa" ""
 echo "named empty: $a"
 kill "$server" 2> /dev/null

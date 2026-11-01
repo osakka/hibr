@@ -647,6 +647,20 @@ int ed_hook(sh *s, const char *cmd, const char *word, vec *out)
 	return 1;
 }
 
+/* How long the $ or ${ before a partial variable name is, or 0 when the word is not one. */
+int ed_isvar(const char *w)
+{
+	int k = w[0] == '$' ? w[1] == '{' ? 2 : 1 : 0;
+	const char *p;
+
+	if (!k)
+		return 0;
+	for (p = w + k; *p; p++)
+		if (!(isalnum((unsigned char)*p) || *p == '_'))
+			return 0;
+	return k;
+}
+
 /* Collect completion candidates for a partial word. */
 void ed_cand(sh *s, str *b, size_t start, const char *word, vec *out, str *dir)
 {
@@ -666,11 +680,14 @@ void ed_cand(sh *s, str *b, size_t start, const char *word, vec *out, str *dir)
 		if (b->p[i] != ' ' && b->p[i] != '\t' && b->p[i] != ';' &&
 		    b->p[i] != '|' && b->p[i] != '&')
 			iscmd = 0;
-	if (word[0] == '$') {
+	if ((i = (size_t)ed_isvar(word))) {
+		size_t pk = i;
 		for (i = 0; i < s->tsz; i++)
 			for (v = s->tab[i]; v; v = v->nx) {
+				if (!isname(v->k))
+					continue;
 				s_init(&full);
-				s_ch(&full, '$');
+				s_add(&full, word, pk);
 				s_cat(&full, v->k);
 				ed_cand1(out, full.p, word, strlen(word));
 				s_free(&full);
@@ -883,7 +900,7 @@ void ed_tab(sh *s, est *e, str *b, size_t *pos)
 	size_t st, i, k, keep = 0;
 	vec c = { 0, 0, 0 };
 	str dir, word, common, raw;
-	int q, qq;
+	int q, qq, var;
 
 	st = ed_wstart(b->p ? b->p : "", *pos, &q);
 	s_init(&word);
@@ -893,6 +910,7 @@ void ed_tab(sh *s, est *e, str *b, size_t *pos)
 	if (!raw.p)
 		s_cat(&raw, "");
 	ed_tilde(&raw);
+	var = ed_isvar(raw.p ? raw.p : "");
 	ed_cand(s, b, st, raw.p ? raw.p : "", &c, &dir);
 	if (!c.n) {
 		s_free(&word);
@@ -950,7 +968,12 @@ void ed_tab(sh *s, est *e, str *b, size_t *pos)
 			qq = word.p[keep];
 			s_ch(&nb, (char)qq);
 		}
-		ed_quote(&nb, common.p ? common.p : "", common.n, qq);
+		if (var)
+			s_add(&nb, common.p ? common.p : "", common.n);
+		else
+			ed_quote(&nb, common.p ? common.p : "", common.n, qq);
+		if (whole && var == 2)
+			s_ch(&nb, '}');
 		if (whole && qq)
 			s_ch(&nb, (char)qq);
 		if (whole)
@@ -986,6 +1009,85 @@ void ed_killw(str *b, size_t *pos)
 	memmove(b->p + *pos, b->p + e, b->n - e);
 	b->n -= e - *pos;
 	b->p[b->n] = 0;
+}
+
+/* Whether a byte belongs to a word for moving by words: a letter, a digit, or part of a UTF-8 character. */
+int ed_wch(char c)
+{
+	return isalnum((unsigned char)c) || (unsigned char)c >= 0x80;
+}
+
+/* Where moving one word left from pos lands: the start of the word before it. */
+size_t ed_wordl(str *b, size_t pos)
+{
+	while (pos && !ed_wch(b->p[pos - 1]))
+		pos--;
+	while (pos && ed_wch(b->p[pos - 1]))
+		pos--;
+	return pos;
+}
+
+/* Where moving one word right from pos lands: the end of the word after it. */
+size_t ed_wordr(str *b, size_t pos)
+{
+	while (pos < b->n && !ed_wch(b->p[pos]))
+		pos++;
+	while (pos < b->n && ed_wch(b->p[pos]))
+		pos++;
+	return pos;
+}
+
+/* Remove the bytes from a to e of the line. */
+void ed_cut(str *b, size_t a, size_t e)
+{
+	if (e <= a)
+		return;
+	memmove(b->p + a, b->p + e, b->n - e);
+	b->n -= e - a;
+	b->p[b->n] = 0;
+}
+
+/* Act on a finished ESC [ or ESC O sequence, alt or ctrl moving by words; 1 for an up or down arrow, left to the caller. */
+int ed_csi(str *b, size_t *pos, int intro, const char *seq, char fin, int meta)
+{
+	const char *sc = strchr(seq, ';');
+	int n1 = atoi(seq), md = sc ? atoi(sc + 1) : 1;
+	int word = meta || (md > 1 && ((md - 1) & 6)) || (!sc && n1 == 5);
+
+	if (intro == 'O' && (fin == 'c' || fin == 'd')) {
+		word = 1;
+		fin = fin == 'c' ? 'C' : 'D';
+	}
+	switch (fin) {
+	case 'A':
+	case 'B':
+		return 1;
+	case 'C':
+		*pos = word ? ed_wordr(b, *pos) : *pos < b->n ? u8next(b, *pos) : *pos;
+		break;
+	case 'D':
+		*pos = word ? ed_wordl(b, *pos) : *pos ? u8prev(b, *pos) : 0;
+		break;
+	case 'H':
+		*pos = 0;
+		break;
+	case 'F':
+		*pos = b->n;
+		break;
+	case '~':
+		if (n1 == 1 || n1 == 7)
+			*pos = 0;
+		else if (n1 == 4 || n1 == 8)
+			*pos = b->n;
+		else if (n1 == 3 && word)
+			ed_cut(b, *pos, ed_wordr(b, *pos));
+		else if (n1 == 3 && *pos < b->n)
+			ed_cut(b, *pos, u8next(b, *pos));
+		break;
+	default:
+		lg(HIBR_LTRC, "line editor: escape sequence %s%c ignored", seq, fin);
+	}
+	return 0;
 }
 
 /* Incremental reverse search through the history. */
@@ -1092,12 +1194,12 @@ char *ed_ret(est *e, char *r)
 /* Read one edited line, returning heap memory or NULL at end of input. */
 char *ed_line(sh *s, const char *ps)
 {
-	str b, save;
+	str b, save, seq;
 	size_t pos = 0;
 	size_t hi;
 	est e;
 	char c;
-	int esc = 0;
+	int esc = 0, intro = 0, meta = 0;
 	char *r, *rt = ed_rtext;
 
 	ed_sh = s;
@@ -1109,6 +1211,7 @@ char *ed_line(sh *s, const char *ps)
 	}
 	s_init(&b);
 	s_init(&save);
+	s_init(&seq);
 	hi = s->hist.n;
 	e.ps = ps;
 	e.rps = rt ? rt : ed_prompt(s, "RPS1");
@@ -1131,17 +1234,42 @@ char *ed_line(sh *s, const char *ps)
 				ed_off();
 				s_free(&b);
 				s_free(&save);
+				s_free(&seq);
 				return ed_ret(&e, 0);
 			}
 			break;
 		}
 		if (esc == 1) {
-			esc = c == '[' || c == 'O' ? 2 : 0;
+			esc = 0;
+			if (c == '[' || c == 'O') {
+				esc = 2;
+				intro = c;
+				seq.n = 0;
+				s_cat(&seq, "");
+				continue;
+			}
+			if (c == 27 && !meta) {
+				esc = meta = 1;
+				continue;
+			}
+			meta = 0;
+			if (c == 'b')
+				pos = ed_wordl(&b, pos);
+			else if (c == 'f')
+				pos = ed_wordr(&b, pos);
+			else
+				continue;
+			ed_draw(&e, &b, pos);
 			continue;
 		}
 		if (esc == 2) {
+			if ((unsigned char)c >= 0x20 && (unsigned char)c < 0x40) {
+				s_ch(&seq, c);
+				continue;
+			}
 			esc = 0;
-			if (c == 'A' || c == 'B') {
+			if (ed_csi(&b, &pos, intro, seq.p, c, meta) &&
+			    (c == 'A' || c == 'B')) {
 				if (hi == s->hist.n) {
 					save.n = 0;
 					s_add(&save, b.p ? b.p : "", b.n);
@@ -1153,22 +1281,8 @@ char *ed_line(sh *s, const char *ps)
 				ed_load(&b, &pos,
 					hi < s->hist.n ? (char *)s->hist.p[hi] :
 							 save.p);
-			} else if (c == 'C' && pos < b.n) {
-				pos = u8next(&b, pos);
-			} else if (c == 'D' && pos) {
-				pos = u8prev(&b, pos);
-			} else if (c == 'H') {
-				pos = 0;
-			} else if (c == 'F') {
-				pos = b.n;
-			} else if (c == '3') {
-				if (read(0, &c, 1) == 1 && pos < b.n) {
-					size_t k = u8next(&b, pos);
-					memmove(b.p + pos, b.p + k, b.n - k);
-					b.n -= k - pos;
-					b.p[b.n] = 0;
-				}
 			}
+			meta = 0;
 			ed_draw(&e, &b, pos);
 			continue;
 		}
@@ -1178,12 +1292,14 @@ char *ed_line(sh *s, const char *ps)
 			r = ed_done(s, &e, &b);
 			s_free(&b);
 			s_free(&save);
+			s_free(&seq);
 			return ed_ret(&e, r);
 		case 18:
 			if (ed_search(s, &b, &pos)) {
 				r = ed_done(s, &e, &b);
 				s_free(&b);
 				s_free(&save);
+				s_free(&seq);
 				return ed_ret(&e, r);
 			}
 			ed_fresh(&e);
@@ -1199,6 +1315,7 @@ char *ed_line(sh *s, const char *ps)
 			ed_off();
 			s_free(&b);
 			s_free(&save);
+			s_free(&seq);
 			r = xs("\n");
 			return ed_ret(&e, r);
 		case 4:
@@ -1207,6 +1324,7 @@ char *ed_line(sh *s, const char *ps)
 				ed_off();
 				s_free(&b);
 				s_free(&save);
+				s_free(&seq);
 				return ed_ret(&e, 0);
 			}
 			if (pos < b.n) {
@@ -1305,6 +1423,7 @@ char *ed_line(sh *s, const char *ps)
 	r = xs(b.p);
 	s_free(&b);
 	s_free(&save);
+	s_free(&seq);
 	return ed_ret(&e, r);
 }
 

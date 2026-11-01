@@ -48,9 +48,10 @@ whose default CA directory is empty — naming a private authority silently
 stops every public certificate verifying. Added and substituted are different
 things, and only one of them is safe to suggest.
 
-Empty counts as unset, which `HIBR_TLS_INSECURE` does not: anything set at all
-turns verification off there. Repeating that reading in a second variable
-would have been a trap rather than a convention.
+Empty counts as unset, and does for `HIBR_TLS_INSECURE` too: since Gitea #422 it
+turns verification off only when set to something other than empty or `0`.
+It was read with `getenv` alone before, so `HIBR_TLS_INSECURE=0` -- which
+reads as "do check" -- checked nothing.
 
 ---
 

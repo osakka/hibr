@@ -87,9 +87,13 @@ priv() {
 }
 
 # A fingerprint of everything that ends up installed: the binary and the
-# modules, and also programs/desktop, which install's own `cp -R` copies
-# whole, and the desktop launcher template -- none of it .c or .h, so a
-# glob over source files alone missed every one of them. update compares
+# modules, with every header either includes (mods/*.h among them); all of
+# programs, the desktop that install's own `cp -R` copies whole and the
+# commands beside it such as vw.hibr; the launcher templates; and
+# packaging/ships with tools/ships.hibr, which decide what of the desktop
+# ships. Most of it is not .c, so a glob over source files alone missed
+# every one of them, and a change to vw.hibr or a module's shared header
+# alone was missed until programs/*.hibr and mods/*.h joined. update compares
 # this against what was last installed and says "already current" when it
 # matches; before programs/desktop was included here, that was true after
 # a desktop.hibr-only change had actually changed nothing on disk, so
@@ -102,9 +106,10 @@ priv() {
 # byte identical content elsewhere still changes the fingerprint.
 srcid() {
 	{ cat "$SRC"/Makefile "$SRC"/include/*.h "$SRC"/src/*.c "$SRC"/mods/*.c \
-	      "$SRC"/mods/*/*.c "$SRC"/mods/*/*.h 2>/dev/null
-	  cat "$SRC"/tools/desktop-launcher.in 2>/dev/null
-	  find "$SRC"/programs/desktop -type f 2>/dev/null | sort |
+	      "$SRC"/mods/*.h "$SRC"/mods/*/*.c "$SRC"/mods/*/*.h 2>/dev/null
+	  cat "$SRC"/tools/*.in "$SRC"/tools/ships.hibr "$SRC"/packaging/ships \
+	      2>/dev/null
+	  find "$SRC"/programs -type f 2>/dev/null | sort |
 		  while IFS= read -r f; do printf '%s\n' "$f"; cat "$f"; done
 	} | cksum | cut -d' ' -f1
 }

@@ -118,8 +118,8 @@ subscript reaches.
 | `arr reverse var` | reverse in place |
 | `arr uniq var` | drop later duplicates, keeping order |
 | `arr contains var value` | status: is the value in it |
-| `arr map var command` | replace each element with what `command` returns |
-| `arr filter var command` | keep the elements for which `command` succeeds |
+| `arr map var command [arg...]` | replace each element with what `command` returns |
+| `arr filter var command [arg...]` | keep the elements for which `command` succeeds |
 
 ```sh
 a=(banana Apple cherry)
@@ -162,8 +162,33 @@ h=(ab abcd xy wxyz); arr filter h long; echo "${h[*]}"
 abcd wxyz
 ```
 
-`map` collects each call's `$RET`; `filter` keeps the element when the call
-succeeds. Neither forks.
+`command` is shell text, so `'str upper'` is a command and its first
+argument; any `arg` after it is passed as one word, and the element comes
+last. `filter` keeps the element when the call succeeds.
+
+`map` puts in each element what `x := command element` would bind: a
+builtin's answer goes into the element and not to the screen (`echo`
+answers nothing and writes, as with `:=`), a function's
+only through `ret`, and a program's from what it prints. A call that leaves
+nothing gives an empty element, never the answer of the call before it. A
+function that ends without calling `ret` leaves nothing, and when its last
+command had left an answer, standard error says so once, as it does for
+`:=`. Only a program forks.
+
+```sh
+a=(p q);     arr map a 'str upper';       echo "${a[*]}"
+d=(/x/one /y/two); arr map d basename;    echo "${d[*]}"
+e=(x y);     arr map e printf '%s:%s' A;  echo "${e[*]}"
+quiet() { :; }
+c=(1 2);     arr map c quiet;             echo "[${c[0]}] [${c[1]}]"
+```
+
+```output
+P Q
+one two
+A:x A:y
+[] []
+```
 
 ## `match` and `rsub`
 

@@ -187,7 +187,15 @@ when the terminal is resized under it.
 | `^L` | clear the screen and redraw | `^R` | search history backwards |
 | `^D` | delete forward, or end the shell on an empty line | `^C` | abandon the line |
 | `Tab` | complete | `^Z` | stop the foreground job |
-| arrows, `Home`, `End`, `Delete` | as expected | | |
+| arrows, `Home`, `End`, `Delete` | as expected | `alt-b` `alt-f` | back, forward one word |
+| `ctrl` or `alt` with left, right | back, forward one word | `ctrl-Delete` | delete the word ahead |
+
+`Home` and `End` are understood in each spelling a terminal sends them --
+`ESC [ H`, `ESC O H`, `ESC [ 1 ~` and `ESC [ 7 ~` for one, `ESC [ F`,
+`ESC O F`, `ESC [ 4 ~` and `ESC [ 8 ~` for the other -- and a word move as
+`ESC [ 1 ; 5 D` (ctrl), `ESC [ 1 ; 3 D` (alt), `ESC ESC [ D` or rxvt's
+`ESC O d`. A word is letters and digits, as in bash. A sequence the editor
+has no use for is dropped whole rather than typed in.
 
 A line holding Arabic, Hebrew or another right-to-left script is drawn in
 display order, with Arabic in its joined forms, one screen row at a time,
@@ -235,14 +243,21 @@ A script never sees it.
 | position | candidates |
 |---|---|
 | command | builtins, functions and everything on `PATH` |
-| after `$` | variable names |
+| after `$` or `${` | variable names |
 | anywhere else | paths |
 
 ```text
 > unal<Tab>                → unalias
 > echo $HIBR_VERS<Tab>     → echo $HIBR_VERSION
+> echo ${HIBR_VERS<Tab>    → echo ${HIBR_VERSION}
+> echo "$HIBR_VERS<Tab>    → echo "$HIBR_VERSION"
 > ls some/dir/uniq<Tab>    → ls some/dir/unique-name.txt
 ```
+
+A variable's name is written as it is, never escaped, and `${` is closed
+with its brace once the name is whole. As in bash, only a word that begins
+with `$` (after any quote it opened) completes a variable: `foo$HO<Tab>`
+does not.
 
 A single candidate is completed and a space added (a folder gets its `/`
 instead); several are listed, and the word taken as far as they agree.

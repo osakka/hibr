@@ -120,6 +120,31 @@ int sx_out(sh *s, const char *nm, const char *v)
 	return HIBR_OK;
 }
 
+/* Run one call of arr map as `x := call` runs: a builtin fills the slot quietly, a function only through ret, a program with what it prints. */
+void sx_bind1(sh *s, const char *src)
+{
+	amark m = ar_mark(s->ar), xm2 = ar_mark(s->xa);
+	int okeep = s->keep, ob = s->bind, more = 0;
+	node *n;
+
+	s->keep = 0;
+	v_del(s, "RET");
+	hibr_set(s, "RET", "", 0);
+	n = hibr_parse(s, src, &more);
+	if (n && n->k == N_CMD && !n->f)
+		n->f = 2;
+	else if (n)
+		lg(HIBR_LDBG, "arr map: %s is not one command, so it runs as written", src);
+	if (n && !s->noexec)
+		ex(s, n);
+	if (!s->keep) {
+		ar_rel(s->xa, xm2);
+		ar_rel(s->ar, m);
+	}
+	s->keep = okeep || s->keep;
+	s->bind = ob;
+}
+
 /* Deliver a number the same way. */
 int sx_num(sh *s, const char *nm, long n)
 {
@@ -398,25 +423,32 @@ int b_arr(sh *s, int ac, char **av)
 		str cmd;
 		int keep = !strcmp(sub, "filter");
 		if (ac < 4) {
-			lg(HIBR_LERR, "usage: arr %s var command", sub);
+			lg(HIBR_LERR, "usage: arr %s var command [arg...]", sub);
 			vb_put(s, out);
 			rc = 2;
 			goto done;
 		}
 		for (i = 0; i < vals->n; i++) {
+			size_t j;
 			s_init(&cmd);
 			s_cat(&cmd, av[3]);
 			s_ch(&cmd, ' ');
+			for (j = 4; j < (size_t)ac; j++) {
+				ax_q(&cmd, av[j]);
+				s_ch(&cmd, ' ');
+			}
 			ax_q(&cmd, (char *)vals->p[i]);
-			hibr_run(s, cmd.p);
-			s_free(&cmd);
 			if (keep) {
+				hibr_run(s, cmd.p);
 				if (s->st == 0)
 					v_add(out, xs((char *)vals->p[i]));
 			} else {
-				const char *r = hibr_get(s, "RET");
+				const char *r;
+				sx_bind1(s, cmd.p);
+				r = hibr_get(s, "RET");
 				v_add(out, xs(r ? r : ""));
 			}
+			s_free(&cmd);
 		}
 		v_arr(s, nm, out);
 		for (i = 0; i < out->n; i++)

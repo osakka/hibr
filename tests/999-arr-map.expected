@@ -1,0 +1,9 @@
+0
+builtin: P Q
+function with ret: <m> <n>
+function with nothing: [] [] count 2
+program: one two
+arguments after the command: A x| A y|
+missing command: [] []
+function whose last builtin answered: [] []
+filter: abcd wxyz

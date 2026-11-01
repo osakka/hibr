@@ -309,8 +309,9 @@ and the TLS relay. Unset, a connect waits as long as the system lets it; zero
 or less means no bound, and more than an hour is taken as an hour.
 .TP
 .B HIBR_TLS_INSECURE
-Set in the environment, to any value at all (even 0 or empty), to accept a
-TLS certificate that does not verify. Certificates are verified by default.
+Set in the environment to any value other than empty or 0, to accept a
+TLS certificate that does not verify. Certificates are verified by default,
+and still are with HIBR_TLS_INSECURE=0 or an empty value.
 .TP
 .B HIBR_TLS_CAFILE
 A file of certificates to trust besides the ones the system already trusts,

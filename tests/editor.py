@@ -170,6 +170,41 @@ check("a word beginning ~/ completes and keeps its tilde",
       plain(last)[0] == "> ls ~/My\\ Folder/", repr(last))
 shutil.rmtree(D, True)
 
+# A variable's name completes after $ or ${, written as it is -- never
+# escaped into \$ -- and ${ is closed with its brace, as bash does (#422).
+VARS = [
+    ("echo $HIBRZ\t", "echo $HIBRZQ "),
+    ("echo ${HIBRZ\t", "echo ${HIBRZQ} "),
+    ('echo "$HIBRZ\t', 'echo "$HIBRZQ" '),
+]
+for typed, want in VARS:
+    last, t = shell('PS1="> "\nHIBRZQ=1\n', [typed])
+    check("completing %r gives %r" % (typed, want), plain(last)[0] == "> " + want,
+          repr(last))
+
+# Home, End, Delete and the word moves arrive in more than one spelling:
+# the ~ forms (1 4 7 8 3), a modifier on an arrow (;5 ctrl, ;3 alt), ESC
+# ESC before one, and alt-b, alt-f. Each moves or deletes and leaves no
+# text of its own behind (#422). X marks where the cursor was.
+KEYS = [
+    ("abc def\x1b[1~X", "Xabc def", "Home as ESC [ 1 ~"),
+    ("abc\x01\x1b[4~X", "abcX", "End as ESC [ 4 ~"),
+    ("abc def\x1b[7~X", "Xabc def", "Home as ESC [ 7 ~ (rxvt)"),
+    ("abc\x01\x1b[8~X", "abcX", "End as ESC [ 8 ~ (rxvt)"),
+    ("abc def ghi\x1b[1;5DX", "abc def Xghi", "ctrl-left moves back a word"),
+    ("abc def ghi\x01\x1b[1;5CX", "abcX def ghi", "ctrl-right moves on a word"),
+    ("abc def ghi\x1b[1;3DX", "abc def Xghi", "alt-left moves back a word"),
+    ("abc def ghi\x01\x1b[1;3CX", "abcX def ghi", "alt-right moves on a word"),
+    ("abc def ghi\x1b\x1b[DX", "abc def Xghi", "ESC ESC left moves back a word"),
+    ("abc def\x01\x1b[3;5~X", "X def", "ctrl-delete deletes the word ahead"),
+    ("abc def\x01\x1b[3~X", "Xbc def", "delete still deletes one character"),
+    ("abc def\x1bbX", "abc Xdef", "alt-b moves back a word"),
+    ("abc def\x01\x1bfX", "abcX def", "alt-f moves on a word"),
+]
+for typed, want, what in KEYS:
+    last, t = shell('PS1="> "\n', [typed])
+    check(what, plain(last)[0] == "> " + want, repr(last))
+
 print()
 # Agent mode is for a script a program runs, with nobody at the terminal, so
 # a terminal on standard input is swapped for /dev/null: a read gets the end
@@ -180,4 +215,4 @@ t.wait(3.0)
 check("in agent mode a read on a terminal ends at once instead of waiting",
       t.exited and "read [] status 1" in t.text, t.text)
 
-report(33)
+report(49)

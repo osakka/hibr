@@ -224,6 +224,7 @@ json parse api "$body"
 **TLS** hands the shell an ordinary descriptor backed by a relay process that
 does the handshake, which is why `read` and `>&3` work unchanged. Certificates
 and hostnames are verified by default; `HIBR_TLS_INSECURE=1` turns that off.
+Any value but empty or `0` does, so `HIBR_TLS_INSECURE=0` keeps checking.
 libssl is loaded with `dlopen` on the first TLS connection, so a shell that
 never uses TLS pays nothing for it — linking it would have cost 1.6 MB of
 memory in every shell. No OpenSSL headers are needed to build.
