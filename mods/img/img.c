@@ -504,12 +504,39 @@ static size_t im_lastn;
    so a wallpaper zoomed to fill was placed whole again, hashed and
    compressed, on every repaint, and never kept between them (Gitea #418:
    360 ms a repaint on the owner's laptop). */
+/* Why a keep was or was not possible, counted for `img stats`: a keep
+   that held, and each reason one did not -- what `desktop ctl stats`
+   reports, so a machine where the wallpaper is never kept can say why
+   (Gitea #418). */
+enum { IM_KHIT, IM_KNOREC, IM_KPATH, IM_KSIZE, IM_KCROP, IM_KMTIME,
+       IM_KDISPLAY, IM_KPLACED, IM_KN };
+static const char *const im_kname[IM_KN] = {
+	"kept", "no_record", "path", "size", "crop", "mtime", "display",
+	"placed"
+};
+static unsigned long im_kcount[IM_KN];
+static str im_klast;
+
+/* Count one keep outcome, and for a miss say what differed. */
+static void im_kcount1(int why, const char *how)
+{
+	im_kcount[why]++;
+	if (why != IM_KHIT && why != IM_KPLACED && how) {
+		s_free(&im_klast);
+		s_init(&im_klast);
+		s_fmt(&im_klast, "%s: %s", im_kname[why], how);
+	}
+}
+
+/* 0 when this picture is what was last placed under the text here, or
+   the IM_K reason it is not. */
 static int im_same(const char *path, const int *crop, int anycrop, int iw,
 		   int ih, int row, int col, int rows, int cols)
 {
 	struct stat st;
 	size_t i;
 	int k;
+	str h;
 
 	for (i = 0; i < im_lastn; i++) {
 		struct im_under *u = &im_lastu[i];
@@ -517,15 +544,44 @@ static int im_same(const char *path, const int *crop, int anycrop, int iw,
 		if (u->row != row || u->col != col || u->rows != rows ||
 		    u->cols != cols)
 			continue;
-		if (strcmp(u->path, path) || u->iw != iw || u->ih != ih)
-			return 0;
+		s_init(&h);
+		if (strcmp(u->path, path)) {
+			s_fmt(&h, "%s against %s", path, u->path);
+			im_kcount1(IM_KPATH, h.p);
+			s_free(&h);
+			return IM_KPATH;
+		}
+		if (u->iw != iw || u->ih != ih) {
+			s_fmt(&h, "%dx%d against %dx%d", iw, ih, u->iw, u->ih);
+			im_kcount1(IM_KSIZE, h.p);
+			s_free(&h);
+			return IM_KSIZE;
+		}
 		if (!anycrop)
 			for (k = 0; k < 4; k++)
-				if (u->crop[k] != (crop ? crop[k] : 0))
-					return 0;
-		return stat(path, &st) == 0 && u->mtime == st.st_mtime;
+				if (u->crop[k] != (crop ? crop[k] : 0)) {
+					s_fmt(&h, "%d,%d,%d,%d against %d,%d,%d,%d",
+					      crop ? crop[0] : 0, crop ? crop[1] : 0,
+					      crop ? crop[2] : 0, crop ? crop[3] : 0,
+					      u->crop[0], u->crop[1], u->crop[2],
+					      u->crop[3]);
+					im_kcount1(IM_KCROP, h.p);
+					s_free(&h);
+					return IM_KCROP;
+				}
+		s_free(&h);
+		if (stat(path, &st) != 0 || u->mtime != st.st_mtime) {
+			im_kcount1(IM_KMTIME, path);
+			return IM_KMTIME;
+		}
+		return 0;
 	}
-	return 0;
+	s_init(&h);
+	s_fmt(&h, "%s at %d,%d %dx%d, %zu held", path, row, col, rows, cols,
+	      im_lastn);
+	im_kcount1(IM_KNOREC, h.p);
+	s_free(&h);
+	return IM_KNOREC;
 }
 
 static void im_placed(const char *path, const int *crop, int iw, int ih,
@@ -831,13 +887,17 @@ static int im_draw2(sh *s, const dp_api *dp, const char *path, const char *key,
 				   another picture may have taken the one cache
 				   slot for. */
 				if (under && !pane && dp->imgkeep &&
-				    im_same(path, crop, 0, iw, ih, row, col,
-					    rows, cols) &&
-				    dp->imgkeep(s, row, col, rows, cols)) {
-					lg(HIBR_LDBG, "img draw: kept the "
-					   "picture already placed at %d,%d",
-					   row, col);
-					return HIBR_OK;
+				    !im_same(path, crop, 0, iw, ih, row, col,
+					     rows, cols)) {
+					if (dp->imgkeep(s, row, col, rows, cols)) {
+						im_kcount1(IM_KHIT, 0);
+						lg(HIBR_LDBG, "img draw: kept the "
+						   "picture already placed at %d,%d",
+						   row, col);
+						return HIBR_OK;
+					}
+					im_kcount1(IM_KDISPLAY, "the display had no "
+						   "picture there to keep");
 				}
 				px = im_pixget(key, path, iw, ih);
 				if (!px) {
@@ -864,9 +924,11 @@ static int im_draw2(sh *s, const dp_api *dp, const char *path, const char *key,
 						 DP_IMG_CHOSEN |
 						 (under ? DP_IMG_UNDER : 0));
 				if (done) {
-					if (under && !pane)
+					if (under && !pane) {
 						im_placed(path, crop, iw, ih, row,
 							  col, rows, cols);
+						im_kcount1(IM_KPLACED, 0);
+					}
 					return HIBR_OK;
 				}
 			}
@@ -1097,10 +1159,13 @@ static int im_keep(sh *s, int ac, char **av)
 	dp->cellpx(&cw, &chh);
 	if (cw < 2 || chh < 2)
 		return HIBR_FAIL;
-	if (!im_same(path, 0, 1, cols * cw, rows * chh, row, col, rows, cols))
+	if (im_same(path, 0, 1, cols * cw, rows * chh, row, col, rows, cols))
 		return HIBR_FAIL;
-	if (!dp->imgkeep(s, row, col, rows, cols))
+	if (!dp->imgkeep(s, row, col, rows, cols)) {
+		im_kcount1(IM_KDISPLAY, "the display had no picture there to keep");
 		return HIBR_FAIL;
+	}
+	im_kcount1(IM_KHIT, 0);
 	lg(HIBR_LDBG, "img keep: %s kept at %d,%d", path, row, col);
 	return HIBR_OK;
 }
@@ -1154,8 +1219,35 @@ static int im_save(sh *s, int ac, char **av)
 	return ok ? HIBR_OK : HIBR_FAIL;
 }
 
+/* img stats [reset]: how often a picture under the text was kept, and
+   each reason it was not, a line each as `name count`, then `last` and the
+   most recent miss. reset zeroes them. */
+static int im_stats(sh *s, int ac, char **av)
+{
+	str o;
+	int i;
+
+	if (ac > 2 && !strcmp(av[2], "reset")) {
+		memset(im_kcount, 0, sizeof im_kcount);
+		s_free(&im_klast);
+		s_init(&im_klast);
+		return HIBR_OK;
+	}
+	s_init(&o);
+	for (i = 0; i < IM_KN; i++)
+		s_fmt(&o, "%s %lu\n", im_kname[i], im_kcount[i]);
+	s_fmt(&o, "last %s", im_klast.p ? im_klast.p : "");
+	hibr_ret(s, o.p);
+	if (!s->bind)
+		printf("%s\n", o.p);
+	s_free(&o);
+	return HIBR_OK;
+}
+
 static int m_img(sh *s, int ac, char **av)
 {
+	if (ac > 1 && !strcmp(av[1], "stats"))
+		return im_stats(s, ac, av);
 	if (ac > 1 && !strcmp(av[1], "save"))
 		return im_save(s, ac, av);
 	if (ac > 1 && !strcmp(av[1], "draw"))
@@ -1199,6 +1291,7 @@ void im_fini(sh *s)
 	for (i = 0; i < im_lastn; i++)
 		free(im_lastu[i].path);
 	free(im_lastu);
+	s_free(&im_klast);
 	im_lastu = 0;
 	im_lastn = 0;
 	for (i = 0; i < im_said.n; i++)

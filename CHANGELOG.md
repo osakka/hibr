@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.415
+
+**A wallpaper and a full-screen window no longer replace each other once a
+second** (Gitea #418). The console knew a picture region by its rectangle
+alone, and a full-screen window's picture has exactly the display's
+rectangle -- as does a wallpaper that fills it, stretched, or zoomed from a
+picture of the display's own shape, which is what the owner's 16:9 photo on
+a 160x45 display is. Each took the other for its own older self: the
+wallpaper was placed whole again on every repaint, hashed and compressed,
+and the window's picture was deleted and placed again behind it -- 430 ms
+once a second on the owner's slow laptop, the video stopping during it. A
+picture under the text and a window's picture are two regions now, whatever
+their rectangles.
+
+`img stats` counts what happens to a picture placed under the text -- kept,
+placed again, and for each keep that was not possible, why: nothing placed
+there, a different path, size, crop or file time, or the display holding no
+picture there -- with the most recent miss spelled out; `desktop ctl stats`
+reports them as `img` and its reset zeroes them.
+
 ## 0.99.414
 
 **A wallpaper zoomed to fill is kept between repaints** (Gitea #418). The

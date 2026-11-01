@@ -899,6 +899,15 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		if (im->wrow != wrow || im->wcol != wcol || im->wh != wh ||
 		    im->ww != ww)
 			continue;
+		/* The same rectangle is not the same region when one is the
+		   wallpaper under the text and the other a window's picture:
+		   a full-screen window's picture has exactly the display's
+		   rectangle, and so does a wallpaper drawn to fill it, and
+		   each took the other for its own older self and dropped it
+		   -- the wallpaper placed whole again on every repaint, and
+		   never kept between (Gitea #418). */
+		if (im->over != ((flags & DP_IMG_UNDER) ? 1 : 0) || im->lo != lo)
+			continue;
 		/* Its window moved in the stack: the same picture at another
 		   layer, which the terminal takes as a new placement. */
 		if (im->sum == sum && im->z == z) {

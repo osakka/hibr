@@ -346,7 +346,7 @@ dt_statcpu() {
 DT_STATC0 := dt_statcpu
 fn dt_ctlstats(reset = "", stop = "") {
 	local now el c self kids s0 k0 pct k nm tk= rd= v cs= ds= dl dnm db df mx
-	local wo= yw=
+	local wo= yw= im= il
 
 	if [ "$reset" = true ]; then
 		for k in "${!DT_STAT[@]}"; do
@@ -360,6 +360,7 @@ fn dt_ctlstats(reset = "", stop = "") {
 		DT_STATC0=$c
 		DT_STATON=1
 		DT_HUDTIMED=
+		dt_has img && img stats reset 2> /dev/null
 	fi
 	[ "$stop" = true ] && DT_STATON=
 	now=${EPOCHREALTIME/./}
@@ -407,9 +408,24 @@ fn dt_ctlstats(reset = "", stop = "") {
 			ds+="${ds:+,}{\"name\":$dnm,\"bytes\":${db:-0},\"frames\":${df:-0}}"
 		done <<< "$dl"
 	fi
+	# Whether a picture under the text -- the wallpaper -- was kept or
+	# placed again, and why not kept (0.99.415, Gitea #418): the img
+	# module's own count, since a repaint's cost is mostly that answer.
+	im=
+	if dt_has img && il := img stats 2> /dev/null; then
+		while read -r dnm db; do
+			[ -n "$dnm" ] || continue
+			if [ "$dnm" = last ]; then
+				db := dt_jstr "$db"
+				im+="${im:+,}\"last\":$db"
+			else
+				im+="${im:+,}\"$dnm\":${db:-0}"
+			fi
+		done <<< "$il"
+	fi
 	v=false
 	[ -n "$DT_STATON" ] && v=true
-	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"woke\":{$wo},\"drawn_why\":{$yw},\"tickers\":{$tk},\"console_bytes\":${cs:-0},\"displays\":[$ds],\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
+	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"woke\":{$wo},\"drawn_why\":{$yw},\"tickers\":{$tk},\"img\":{$im},\"console_bytes\":${cs:-0},\"displays\":[$ds],\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
 }
 
 dt_ctlsession() {

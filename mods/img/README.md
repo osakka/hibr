@@ -145,6 +145,13 @@ wallpaper's: status 0 when the picture this module last placed under the
 text at that rectangle, unchanged on disk, is still wanted and the display
 kept it (`dp_api` version 6's `imgkeep`), 1 when it was not, and nothing is
 drawn either way, so a frame that meant to paint nothing paints nothing.
+A placement made with a crop (`-c`, what a wallpaper zoomed to fill draws)
+is recorded with its crop since 0.99.414, so it can be kept too; `img keep`
+keeps whatever was last placed at the rectangle. `img stats [reset]` counts
+the outcomes, `name count` a line: `kept`, `placed`, and each reason a keep
+was not possible -- `no_record` (nothing placed there), `path`, `size`,
+`crop`, `mtime`, `display` (the display had no picture there) -- then
+`last` and the most recent miss. `desktop ctl stats` reports them as `img`.
 
 `img save in out.png` writes any picture this module reads -- a PNG, a
 JPEG or a PPM -- as a PNG, EXIF orientation applied, so a picture fetched

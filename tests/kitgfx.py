@@ -1211,6 +1211,22 @@ t.quit(None, 0.5)
 check("a picture drawn after an exec in place has an id of its own",
       len(ids) == 2 and ids[0] != ids[1], (ids, pl))
 
+# A wallpaper under the text and a window's picture with the same rectangle
+# are two regions (Gitea #418, 0.99.415). A full-screen window's picture has
+# exactly the display's rectangle, and so does a wallpaper that fills it --
+# stretched, or zoomed to a picture of the display's own shape -- and each
+# took the other for its own older self: the wallpaper was placed whole
+# again every repaint, and the window's picture deleted and placed again
+# with it, which on the owner's laptop was 430 ms once a second.
+SAMERECT = ("console pane w1 0 0 8 28\n"
+            + "img draw %s 0 0 8 28 -m pixels -u\nimg draw %s 0 0 8 28 -m pixels -p w1\n"
+              "console flush > /dev/null\nconsole key 60 > /dev/null\n" % (GRAD, GRAD3) * 3)
+sc = run(SAMERECT, caps=["kitty"])
+sd = [a for a in sc.apc if "a=d" in a and "d=I" in a]
+check("a wallpaper and a window's picture at the same rectangle are each placed "
+      "once, and neither deletes the other",
+      len(places(sc)) == 2 and not sd, (places(sc), sd))
+
 # A picture drawn with a crop -- a wallpaper zoomed to fill -- placed under
 # the text a second time in the same place is kept, not hashed and placed
 # again (Gitea #418, 0.99.414). The img module remembered nothing for a
@@ -1228,4 +1244,4 @@ check("a cropped picture placed under the text again in the same place is kept",
       "kept the picture already placed" in kl, kl[-600:])
 
 shutil.rmtree(D, True)
-report(114)
+report(115)

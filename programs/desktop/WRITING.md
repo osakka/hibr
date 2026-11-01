@@ -772,6 +772,9 @@ everything else besides (Gitea #343). It answers:
   `picture`, `halfblocks`, `pattern`, `icons`; since 0.99.414) -- `part:wall`
   counts every frame, a kept wallpaper included, so the steps are what say
   what one repaint costs;
+- `img`: how often a picture under the text -- the wallpaper -- was
+  kept rather than placed again, and each reason it was not (`img stats`,
+  since 0.99.415); reset with the rest;
 - `console_bytes`: what the display's flushes have written since it opened,
   and `displays`: for a held desktop, each attached terminal's `name`, the
   `bytes` hold has sent it since it attached and in how many `frames` --
