@@ -99,3 +99,8 @@ read x y <<< 'one\ two three'
 echo "[$x][$y]"
 read -r x y <<< 'one\ two three'
 echo "[$x][$y]"
+
+echo "--- without -r a backslash is never the delimiter"
+printf 'a\\b\\c' | { read -d '\' x; echo "[$x] $?"; }
+printf 'a\\b\\c' | { read -r -d '\' x; echo "[$x] $?"; }
+printf 'a\\b\\c' | { read -n 2 -d '\' x; echo "[$x] $?"; }

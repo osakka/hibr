@@ -801,7 +801,8 @@ void bi_rdq(str *b, str *m, int c)
 }
 
 /* bi_rddelim without -r: a backslash quotes the next byte, kept in m, a
-   backslash-newline joins the next line on, and counts are of what is left. */
+   backslash-newline joins the next line on, and counts are of what is left;
+   a backslash is never the delimiter, so -d '\' reads to the end. */
 long bi_rdbs(int fd, int delim, int want, int exact, str *b, str *m,
 	     long long dl, int *tout)
 {
@@ -809,6 +810,8 @@ long bi_rdbs(int fd, int delim, int want, int exact, str *b, str *m,
 	size_t at;
 	int hit;
 
+	if (delim == '\\')
+		exact = 1;
 	for (;;) {
 		at = b->n;
 		n = bi_rddelim(fd, delim, want, exact, b, dl, tout);
