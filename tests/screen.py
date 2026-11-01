@@ -594,6 +594,13 @@ class Term:
             # restore somebody else's windows.
             for v in ("DT_SUPERVISED", "DT_RESTORE", "DT_T0"):
                 os.environ.pop(v, None)
+            # A suite run from a terminal inside a Blit session inherits
+            # that session's frame socket, and every desktop would then
+            # send its pictures to the real Blit, and ask its performance
+            # panel for status every few seconds -- frames the suite never
+            # asked for. A suite that wants one gives its own stand-in.
+            for v in ("BLIT_FRAME_SOCKET", "BLIT_FRAME_TOKEN"):
+                os.environ.pop(v, None)
             # Who orders right-to-left text is decided from what the
             # terminal says it is (DT_BIDI=auto), so a suite run from kitty
             # would draw Arabic differently from one run anywhere else. The

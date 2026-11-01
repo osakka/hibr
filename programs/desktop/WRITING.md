@@ -770,6 +770,18 @@ everything else besides (Gitea #343). It answers:
   what crosses the wire, and what a leaner encoding is judged by (Gitea
   #353). Neither is reset by `reset`.
 
+Blit's performance panel (Blit ADR 0203) shows a section of eight lines
+from the desktop on the screen it is shown on, and asks for it on the frame
+socket: while it does, `wm/hud.hibr` turns the same timing on (and off
+again when the panel goes, unless a `reset` here took it over) and sends,
+once a second, `fps=` and `wakes=`, `cpu=`, `slow=` (the longest callback
+of the second), `woke=` (its two commonest causes), `drawn=` (windows drawn
+/ left, and the commonest reason), `frame=` (average and longest draw),
+`held=` (stalls in the last minute) and `flush=` with `live=` while a window
+plays. The switch is Blit's: Control Panel > Blit > Performance panel and
+Hibr section. A desktop with no frame socket never asks and pays nothing;
+one with a socket and the panel off asks every five seconds, a frame each.
+
 A re-read's program runs are inside its ticker's time. What it cannot see
 it says, in `unseen`: hold's server, which is the emulator and renderer a
 held desktop draws through, and the terminal or Blit are other processes.

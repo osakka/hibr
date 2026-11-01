@@ -209,6 +209,9 @@ int cn_canedit(void);
 int cn_canwhole(void);
 extern int cn_imgfd;
 void cn_imgfddrop(void);
+void cn_fdfail(void);
+int cn_hudon(sh *s);
+int cn_status(sh *s, const char *p, size_t n);
 unsigned char *cn_imgbuild(const unsigned char *rgb, int iw, int ih, int sx,
 			   int sy, int sw, int sh, int tw, int th);
 void cn_gotcolour(int which, int idx, unsigned rgb);

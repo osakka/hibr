@@ -53,8 +53,10 @@ void bf_put32(unsigned char *p, unsigned long v)
 	p[3] = (unsigned char)((v >> 24) & 0xff);
 }
 
-/* Connect to a frame socket and say hello with a token. */
-int bf_dial(const char *sock, const char *tok)
+/* Connect to a frame socket and say hello with a token at wire version
+   ver. -1 when refused; *inval set when the refusal was EINVAL, which is
+   what a Blit older than 0.3.22 says to a version it does not know. */
+int bf_hello(const char *sock, const char *tok, int ver, int *inval)
 {
 	struct sockaddr_un a;
 	struct pollfd q;
@@ -64,8 +66,7 @@ int bf_dial(const char *sock, const char *tok)
 	ssize_t k;
 	int fd;
 
-	if (!sock || !*sock || !tok || !*tok)
-		return -1;
+	*inval = 0;
 	sl = strlen(sock);
 	tl = strlen(tok);
 	if (tl > 64 || sl >= sizeof a.sun_path)
@@ -86,7 +87,7 @@ int bf_dial(const char *sock, const char *tok)
 	}
 	m = xm(16 + tl);
 	memcpy(m, "BLITFRM1", 8);
-	bf_put32(m + 8, 1);
+	bf_put32(m + 8, (unsigned long)ver);
 	bf_put32(m + 12, (unsigned long)tl);
 	memcpy(m + 16, tok, tl);
 	k = send(fd, m, 16 + tl, MSG_NOSIGNAL);
@@ -97,13 +98,32 @@ int bf_dial(const char *sock, const char *tok)
 	}
 	q.fd = fd;
 	q.events = POLLIN;
-	if (poll(&q, 1, 2000) != 1 ||
-	    (k = recv(fd, r, sizeof r - 1, 0)) < 3 || memcmp(r, "OK\n", 3)) {
-		lg(HIBR_LDBG, "frames: %s refused the hello", sock);
+	k = poll(&q, 1, 2000) == 1 ? recv(fd, r, sizeof r - 1, 0) : -1;
+	if (k < 3 || memcmp(r, "OK\n", 3)) {
+		if (k > 0) {
+			r[k] = 0;
+			*inval = strstr(r, "EINVAL") != 0;
+		}
+		lg(HIBR_LDBG, "frames: %s refused a version %d hello", sock, ver);
 		close(fd);
 		return -1;
 	}
-	lg(HIBR_LDBG, "frames: %s open", sock);
+	lg(HIBR_LDBG, "frames: %s open at version %d", sock, ver);
+	return fd;
+}
+
+/* Connect to a frame socket and say hello with a token: version 2, which
+   is what lets Blit's performance panel ask for status (ADR 0203), and
+   version 1 again where that is refused as unknown. */
+int bf_dial(const char *sock, const char *tok)
+{
+	int fd, inval;
+
+	if (!sock || !*sock || !tok || !*tok)
+		return -1;
+	fd = bf_hello(sock, tok, 2, &inval);
+	if (fd < 0 && inval)
+		fd = bf_hello(sock, tok, 1, &inval);
 	return fd;
 }
 
@@ -204,11 +224,30 @@ int bf_send(int fd, const unsigned char *h, int mfd)
 	return k == BF_HDR;
 }
 
-/* What the far side has said since, into the log. */
-int bf_drain(int fd)
+/* One line the far side said: HUD1 into *hud, anything else into the
+   log. -1 for EACCES. */
+int bf_line(const char *l, int *hud)
 {
-	char r[128];
+	if (!strncmp(l, "HUD1 ", 5)) {
+		if (hud)
+			*hud = !strcmp(l + 5, "on");
+		lg(HIBR_LDBG, "frames: the performance panel %s status",
+		   strcmp(l + 5, "on") ? "no longer wants" : "wants");
+		return 0;
+	}
+	lg(HIBR_LDBG, "frames: %s", l);
+	/* The person this connection was opened for has signed out (Blit
+	   0.3.19): it is closed, and pictures go back on the terminal. */
+	return strstr(l, "EACCES") ? -1 : 0;
+}
+
+/* What the far side has said since: errors into the log, HUD1 into
+   *hud when that is not null. */
+int bf_drain(int fd, int *hud)
+{
+	char r[128], *l, *e;
 	ssize_t k;
+	int bad;
 
 	if (fd < 0)
 		return -1;
@@ -216,11 +255,17 @@ int bf_drain(int fd)
 		k = recv(fd, r, sizeof r - 1, MSG_DONTWAIT);
 		if (k > 0) {
 			r[k] = 0;
-			lg(HIBR_LDBG, "frames: %s", r);
-			/* The person this connection was opened for has signed
-			   out (Blit 0.3.19): it is closed, and pictures go back
-			   on the terminal. */
-			if (strstr(r, "EACCES"))
+			bad = 0;
+			for (l = r; *l; l = e) {
+				e = strchr(l, '\n');
+				if (e)
+					*e++ = 0;
+				else
+					e = l + strlen(l);
+				if (*l && bf_line(l, hud) < 0)
+					bad = 1;
+			}
+			if (bad)
 				return -1;
 			continue;
 		}
@@ -230,6 +275,63 @@ int bf_drain(int fd)
 			continue;
 		return errno == EAGAIN || errno == EWOULDBLOCK ? 0 : -1;
 	}
+}
+
+/* The longest prefix of p, at most max bytes, that ends on a character. */
+size_t bf_cut(const char *p, size_t n, size_t max)
+{
+	if (n <= max)
+		return n;
+	n = max;
+	while (n && ((unsigned char)p[n] & 0xc0) == 0x80)
+		n--;
+	return n;
+}
+
+/* Send the panel its status (Blit ADR 0202 version 2): the lines of the
+   n bytes at p, at most BF_STLINES of them and each cut to BF_STBYTES on a
+   character, a control character made a space, an empty line skipped. 1
+   when it went, or when the socket was full and it was dropped -- the next
+   second's replaces it; 0 when there was nothing to send or it has gone. */
+int bf_status(int fd, const char *p, size_t n)
+{
+	str m;
+	size_t i, j, ll;
+	unsigned long cnt = 0;
+	ssize_t k;
+	unsigned char c;
+
+	if (fd < 0)
+		return 0;
+	s_init(&m);
+	s_add(&m, "STA1\0\0\0\0", 8);
+	for (i = 0; i < n && cnt < BF_STLINES; i = j + 1) {
+		for (j = i; j < n && p[j] != '\n'; j++)
+			;
+		ll = bf_cut(p + i, j - i, BF_STBYTES);
+		if (!ll)
+			continue;
+		for (k = 0; (size_t)k < ll; k++) {
+			c = (unsigned char)p[i + k];
+			s_ch(&m, c < 0x20 || c == 0x7f ? ' ' : (char)c);
+		}
+		s_ch(&m, '\n');
+		cnt++;
+	}
+	if (!cnt) {
+		s_free(&m);
+		return 0;
+	}
+	bf_put32((unsigned char *)m.p + 4, cnt);
+	do
+		k = send(fd, m.p, m.n, MSG_NOSIGNAL | MSG_DONTWAIT);
+	while (k < 0 && errno == EINTR);
+	s_free(&m);
+	if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+		lg(HIBR_LDBG, "frames: the socket was full, a status dropped");
+		return 1;
+	}
+	return k > 0;
 }
 
 #else
@@ -277,10 +379,20 @@ int bf_send(int fd, const unsigned char *h, int mfd)
 }
 
 /* Not Linux: never connected. */
-int bf_drain(int fd)
+int bf_drain(int fd, int *hud)
 {
 	(void)fd;
+	(void)hud;
 	return -1;
+}
+
+/* Not Linux: never sent. */
+int bf_status(int fd, const char *p, size_t n)
+{
+	(void)fd;
+	(void)p;
+	(void)n;
+	return 0;
 }
 
 #endif

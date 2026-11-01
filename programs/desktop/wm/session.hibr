@@ -318,8 +318,13 @@ dt_size() {
 		# every picture back on the terminal, so hold needs no encoder
 		# of its own. Leaving it drops those pictures, and each is
 		# placed again whole on the terminal.
-		if [ "$DT_IMGFD" != off ] && gl := hold descriptors 2> /dev/null &&
-		   [ -n "$gl" ] && ! [[ $'\n'"$gl" == *" no"* ]]; then
+		gl := hold descriptors 2> /dev/null || gl=
+		# And whether any can, which is where Blit's performance panel
+		# may ask for the desktop's status (wm/hud.hibr).
+		DT_FDANY=
+		[[ $gl == *" yes"* ]] && DT_FDANY=1
+		if [ "$DT_IMGFD" != off ] && [ -n "$gl" ] &&
+		   ! [[ $'\n'"$gl" == *" no"* ]]; then
 			gv=hold
 		else
 			gv=off

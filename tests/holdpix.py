@@ -1391,11 +1391,11 @@ check("and a display joining afterwards is sent the picture and its last frame o
 FRAMESRV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frameserve.py")
 
 
-def fdsrv(tag):
+def fdsrv(tag, mode=None):
     nm = "hibr-holdpix-%s-%d" % (tag, os.getpid())
     lg = os.path.join(D, "fs-%s.log" % tag)
     open(lg, "w").close()
-    p = subprocess.Popen([sys.executable, FRAMESRV, nm, "tok", lg])
+    p = subprocess.Popen([sys.executable, FRAMESRV, nm, "tok", lg] + ([mode] if mode else []))
     for _ in range(50):
         if "listening" in open(lg).read():
             break
@@ -1590,5 +1590,96 @@ check("a display joining above is never a blank screen on the display already "
       "there, which keeps its windows where they were",
       worst < 12 and sc.find("┤ Note ├") == (4, 8), (worst, sc))
 
+# Blit's performance panel (Blit ADR 0203): a held program's status reaches
+# the Blit a display is on through hold, both ways -- the client reads
+# `HUD1 on` off its frame socket and tells the server, the program asks the
+# server with `console hud`, and its `console status` goes back the same way
+# as STA1. When the panel goes, nothing more is sent. The stand-in shows the
+# panel while its LOG.hud exists, and checks STA1 as Blit does.
+def hudrun(mode, wait_on):
+    open(LOG, "w").close()
+    nm = name()
+    p, lg, env = fdsrv("hud" + (mode or ""), mode)
+    open(lg + ".hud", "w").close()
+    body = ("i=0\nwhile [ $i -lt %d ]; do h := console hud; [ \"$h\" = on ] && break; "
+            "console key 100 > /dev/null; i=$((i + 1)); done\n"
+            "echo \"hud $h\" >> %s\n"
+            "console status 'fps=12 wakes=3' 'held=0'; echo \"sent $?\" >> %s\n"
+            "i=0\nwhile [ $i -lt %d ]; do [ -e %s.hud ] || break; console key 100 > /dev/null; "
+            "i=$((i + 1)); done\n"
+            "i=0\nwhile [ $i -lt %d ]; do h := console hud; [ \"$h\" = off ] && break; "
+            "console key 100 > /dev/null; i=$((i + 1)); done\n"
+            "console status 'fps=0'; echo \"after $h $?\" >> %s\n"
+            % (wait_on * SLOW, LOG, LOG, 60 * SLOW, lg, 40 * SLOW, LOG))
+    one = os.path.join(D, "hud%s.hibr" % nm)
+    open(one, "w").write(load("hold")
+                         + 'hold new -d %s "$HIBR" %s\n' % (nm, inner(body, 12000, nm))
+                         + "sleep 0.6\n"
+                         + "hold attach -m -n one %s 0 0\n" % nm)
+    t = Term(one, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
+             env=dict({"HIBR_GFX": "kitty", "TMPDIR": D}, **env), caps=["kitty"])
+    for _ in range(int(40 * SLOW)):
+        t.collect(0.25)
+        if "sent" in open(LOG).read():
+            break
+    os.unlink(lg + ".hud")
+    for _ in range(int(40 * SLOW)):
+        t.collect(0.25)
+        if "after" in open(LOG).read():
+            break
+    t.quit(None, 0.5)
+    kill(nm)
+    p.terminate()
+    p.wait()
+    return open(LOG).read(), [json.loads(l) for l in open(lg) if l.strip()]
+
+
+hl, fl = hudrun(None, 60)
+st = [x for x in fl if x["kind"] == "status"]
+check("a held program is told Blit's performance panel asks for its status",
+      "hud on" in hl and {"kind": "hello", "version": 2} in fl, (hl, fl))
+check("and its status reaches that Blit through hold as STA1, line for line",
+      "sent 0" in hl and len(st) == 1 and st[0]["lines"] == ["fps=12 wakes=3", "held=0"]
+      and not [x for x in fl if x.get("why") == "status"], (hl, fl))
+check("and when the panel goes it is told so, and a status goes nowhere",
+      "after off 1" in hl and len(st) == 1, (hl, fl))
+hl, fl = hudrun("v1", 15)
+check("a Blit that speaks only version 1 is still opened, and is never sent a status",
+      "hud off" in hl and "sent 1" in hl and {"kind": "hello", "version": 1} in fl
+      and not [x for x in fl if x["kind"] == "status" or x.get("why") == "status"],
+      (hl, fl))
+
+# And the whole of it where the owner uses it: a desktop held, a display
+# attaching from a Blit session whose panel is up. The desktop learns its
+# display has a frame socket when it reads its displays (hold descriptors),
+# asks hold's server, and its eight lines reach that Blit.
+def hudheld():
+    nm = name()
+    p, lg, env = fdsrv("hudd")
+    open(lg + ".hud", "w").close()
+    sess = os.path.join(D, "hudd%s.hibr" % nm)
+    open(sess, "w").write(load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
+        + "dt_open || exit 1\ndt_new Note 8 30 4 6\ndt_run\ndt_close\n")
+    one = os.path.join(D, "huddone%s.hibr" % nm)
+    open(one, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, sess)
+                         + "sleep 0.8\nhold attach -m -n one %s 0 0\n" % nm)
+    t = Term(one, rows=24, cols=80, settle=1.0, env=dict({"TMPDIR": D}, **env))
+    for _ in range(int(60 * SLOW)):
+        t.collect(0.25)
+        if len([l for l in open(lg) if '"status"' in l]) >= 2:
+            break
+    t.quit(None, 0.5)
+    kill(nm)
+    p.terminate()
+    p.wait()
+    return [json.loads(l) for l in open(lg) if l.strip()]
+
+
+fl = hudheld()
+st = [x["lines"] for x in fl if x["kind"] == "status"]
+check("a held desktop sends Blit's panel its eight lines through hold",
+      len(st) >= 1 and all(len(h) == 8 and h[0].startswith("fps=") and h[7].startswith("flush=")
+                           for h in st), fl)
+
 shutil.rmtree(D, True)
-report(86)
+report(91)

@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
-"""A stand-in for Blit's frame socket (Blit ADR 0202, wire version 1).
+"""A stand-in for Blit's frame socket (Blit ADR 0202, wire versions 1 and 2).
 
-    python3 tests/frameserve.py NAME TOKEN LOG
+    python3 tests/frameserve.py NAME TOKEN LOG [v1]
+
+With v1 it is a Blit older than 0.3.22, refusing a version 2 hello with
+EINVAL as that one does.
+
+Version 2 (Blit ADR 0203, the performance panel): while a file LOG.hud
+exists the panel is shown, and each version 2 client is sent "HUD1 on\n"
+-- right after its OK when it already applies -- and "HUD1 off\n" when the
+file goes. A STA1 message is checked as Blit's frame_status checks it and
+logged with its lines, or refused with "ERROR 0 EINVAL\n".
 
 Listens on the abstract Unix socket NAME (SOCK_SEQPACKET), as Blit does,
 takes a hello carrying TOKEN, and then frames: a 48-byte header and one
@@ -23,6 +32,7 @@ import struct
 import sys
 
 NAME, TOKEN, LOG = sys.argv[1], sys.argv[2].encode(), sys.argv[3]
+OLD = len(sys.argv) > 4 and sys.argv[4] == "v1"
 F_GET_SEALS = 1034
 SEALS = 0x0002 | 0x0004 | 0x0008
 
@@ -71,15 +81,45 @@ def frame(conn, st, data, fds):
          size=size, first=list(head))
 
 
+def status(data, fds):
+    """The lines of a STA1 message, or None where Blit refuses it."""
+    if fds or len(data) < 8:
+        return None
+    count = struct.unpack("<I", data[4:8])[0]
+    if not 1 <= count <= 8 or not data.endswith(b"\n"):
+        return None
+    lines = data[8:-1].split(b"\n")
+    if len(lines) != count:
+        return None
+    out = []
+    for l in lines:
+        if len(l) > 64 or any(c < 0x20 or c == 0x7f for c in l):
+            return None
+        try:
+            out.append(l.decode("utf-8"))
+        except UnicodeDecodeError:
+            return None
+    return out
+
+
 def main():
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
     srv.bind("\0" + NAME.lstrip("@"))
     srv.listen(8)
     note(kind="listening")
     conns = {}
+    vers = {}
     images = {}
+    hud = False
     while True:
-        r, _, _ = select.select([srv] + list(conns), [], [], 1.0)
+        r, _, _ = select.select([srv] + list(conns), [], [], 0.1)
+        now = os.path.exists(LOG + ".hud")
+        if now != hud:
+            hud = now
+            for c, ok in conns.items():
+                if ok and vers.get(c) == 2:
+                    c.send(b"HUD1 on\n" if hud else b"HUD1 off\n")
+                    note(kind="hud", on=hud)
         for s in r:
             if s is srv:
                 c, _ = srv.accept()
@@ -91,23 +131,45 @@ def main():
                 data, fds = b"", []
             if not data:
                 del conns[s]
+                vers.pop(s, None)
                 s.close()
                 note(kind="closed")
                 continue
             if not conns[s]:
                 for fd in fds:
                     os.close(fd)
-                ok = (data[:8] == b"BLITFRM1" and len(data) >= 16 and
+                ver = struct.unpack("<I", data[8:12])[0] if len(data) >= 12 else 0
+                if data[:8] != b"BLITFRM1" or ver not in ((1,) if OLD else (1, 2)):
+                    note(kind="refused", why="hello-version", version=ver)
+                    s.send(b"ERROR 0 EINVAL\n")
+                    del conns[s]
+                    s.close()
+                    continue
+                ok = (len(data) >= 16 and
                       data[16:16 + struct.unpack("<I", data[12:16])[0]] == TOKEN)
                 if not ok:
                     note(kind="refused", why="hello")
-                    s.send(b"ERROR EACCES\n")
+                    s.send(b"ERROR 0 EACCES\n")
                     del conns[s]
                     s.close()
                     continue
                 conns[s] = True
-                note(kind="hello")
+                vers[s] = ver
+                note(kind="hello", version=ver)
                 s.send(b"OK\n")
+                if ver == 2 and hud:
+                    s.send(b"HUD1 on\n")
+                    note(kind="hud", on=True)
+                continue
+            if data[:4] == b"STA1":
+                lines = status(data, fds) if vers.get(s) == 2 else None
+                for fd in fds:
+                    os.close(fd)
+                if lines is None:
+                    note(kind="refused", why="status")
+                    s.send(b"ERROR 0 EINVAL\n")
+                else:
+                    note(kind="status", lines=lines)
                 continue
             frame(s, images, data, fds)
 

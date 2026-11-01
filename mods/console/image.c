@@ -262,8 +262,70 @@ void cn_imgunedit(void)
    0 never. The wallpaper never goes this way: it is placed rarely and
    kept, so there is nothing to win. */
 int cn_imgfd = -1;
-static int cn_bfd = -1, cn_bfdtried;
+static int cn_bfd = -1, cn_bfdtried, cn_hud;
 static const hf_api *cn_hf;
+
+/* The frame socket of the Blit session this environment names, opened on
+   first use for whichever needs it -- pictures, or the performance
+   panel's status (Blit ADR 0203) -- and only where nothing is between. */
+int cn_bfconn(void)
+{
+	const char *h = getenv("HIBR_HOLD");
+
+	if (h && *h)
+		return -1;
+	if (!cn_bfdtried) {
+		cn_bfdtried = 1;
+		cn_bfd = bf_open();
+	}
+	return cn_bfd;
+}
+
+/* What hold offers for frames and status, asked for once. A module names
+   one interface in its descriptor, and hold's is "hold", so "holdframes"
+   cannot be found before hold is loaded: hold is asked for first. */
+const hf_api *cn_hold(sh *s)
+{
+	if (!cn_hf && hibr_require(s, "hold", 1u))
+		cn_hf = (const hf_api *)hibr_require(s, "holdframes", HF_API_VER);
+	return cn_hf;
+}
+
+/* Whether Blit's performance panel wants this desktop's status: asked of
+   hold's server in a held session, which knows each display's answer,
+   and read off the frame socket where nothing is between. */
+int cn_hudon(sh *s)
+{
+	const char *h = getenv("HIBR_HOLD");
+	const hf_api *hf;
+
+	if (h && *h) {
+		hf = cn_hold(s);
+		return hf && hf->hud(s);
+	}
+	if (cn_bfconn() < 0)
+		return 0;
+	if (bf_drain(cn_bfd, &cn_hud) < 0)
+		cn_fdfail();
+	return cn_bfd >= 0 && cn_hud;
+}
+
+/* Hand the panel its status, the n bytes at p, a line each -- only while
+   it asks, which a Blit that speaks only version 1 never does. 1 when it
+   went. */
+int cn_status(sh *s, const char *p, size_t n)
+{
+	const char *h = getenv("HIBR_HOLD");
+	const hf_api *hf;
+
+	if (h && *h) {
+		hf = cn_hold(s);
+		return hf && hf->hud(s) && hf->status(s, p, n);
+	}
+	if (!cn_hudon(s))
+		return 0;
+	return bf_status(cn_bfd, p, n);
+}
 
 /* Drop every region whose pixels went by descriptor, so each is placed
    again whole on the terminal: frames have stopped -- turned off, a display
@@ -284,20 +346,12 @@ int cn_fdon(sh *s)
 
 	if (cn_imgfd == 0)
 		return 0;
-	if (cn_imgfd == 1) {
-		if (!cn_hf)
-			cn_hf = (const hf_api *)hibr_require(s, "holdframes",
-							     HF_API_VER);
-		return cn_hf != 0;
-	}
+	if (cn_imgfd == 1)
+		return cn_hold(s) != 0;
 	h = getenv("HIBR_HOLD");
 	if (h && *h)
 		return 0;
-	if (!cn_bfdtried) {
-		cn_bfdtried = 1;
-		cn_bfd = bf_open();
-	}
-	return cn_bfd >= 0;
+	return cn_bfconn() >= 0;
 }
 
 /* Frames stopped going: back to the terminal for good in this mode, every
@@ -309,7 +363,7 @@ void cn_fdfail(void)
 	if (cn_bfd >= 0)
 		close(cn_bfd);
 	cn_bfd = -1;
-	cn_hf = 0;
+	cn_hud = 0;
 	cn_imgfd = 0;
 	cn_imgfddrop();
 }
@@ -331,7 +385,7 @@ int cn_frsend(sh *s, unsigned id, unsigned long long seq,
 	if (cn_imgfd == 1)
 		ok = cn_hf && cn_hf->frame(s, hd, mfd);
 	else
-		ok = cn_bfd >= 0 && bf_drain(cn_bfd) >= 0 &&
+		ok = cn_bfd >= 0 && bf_drain(cn_bfd, &cn_hud) >= 0 &&
 		     bf_send(cn_bfd, hd, mfd);
 	close(mfd);
 	if (!ok)

@@ -1,0 +1,244 @@
+#!/usr/bin/env hibr
+#
+# hud -- the desktop's section of Blit's performance panel (Blit ADR 0203).
+#
+# Blit draws the panel itself, over everything, and asks for a section of
+# eight lines from the desktop on the screen it shows: its frame socket
+# says `HUD1 on` while the panel is up with a hibr section on a display
+# this session feeds, and `HUD1 off` when it goes. The console reads that
+# straight off the socket where nothing is between, and hold's server keeps
+# each display's answer for a held desktop (`console hud`).
+#
+# While it asks, the desktop times itself -- the timing `desktop ctl stats`
+# turns on, which costs a clock read around every callback -- and sends,
+# once a second, what that second was (`console status`):
+#
+#   fps=     frames a second, and wakes= of the loop
+#   cpu=     the desktop's own processor time and its waited-for programs'
+#   slow=    the longest single callback of the second, and its ms
+#   woke=    the two things that woke the loop most, and how many times
+#   drawn=   windows drawn / left alone, and the commonest reason to draw
+#   frame=   a frame's draw time, average and longest, in ms
+#   held=    callbacks that held the desktop over DT_HOLDMS, the last minute
+#   flush=   a flush's average ms, and live= windows playing, when any
+#
+# When it stops asking, the timing stops -- unless somebody had turned it
+# on with `desktop ctl stats`, whose reset takes it over. Nothing is asked
+# where no Blit can be: an unheld desktop with no BLIT_FRAME_SOCKET, or a
+# held one with no display whose client has a frame socket open. Where one
+# can be, the question costs a frame every DT_HUDPOLL seconds (5) while the
+# panel is off, and the answer one a second while it is on. Held, that is
+# three round trips to hold's server a second -- this asking, and the
+# status asking again before it goes -- each a connection; cheap, and the
+# first thing to fold into one if it ever shows.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_HUDPOLL="${DT_HUDPOLL-5}"
+DT_HUDON=
+DT_HUDTIMED=
+DT_HUDNEXT=0
+DT_HUDT=0
+DT_HUDCPU=0
+# Whether any display of a held session has a frame socket, as hold
+# descriptors said the last time the displays were read (wm/session.hibr).
+DT_FDANY="${DT_FDANY-}"
+# The longest run of each callback in the second being measured, in
+# microseconds: dt_spent keeps it while the panel asks.
+declare -gA DT_HMAX
+# The counters as they stood a second ago.
+declare -gA DT_HPREV
+# When each stall of the last minute was, in milliseconds.
+DT_HELDT=()
+
+command -v dt_ticker > /dev/null && dt_ticker dt_hudtick
+
+# Whether a Blit could be asking: its frame socket named where nothing is
+# between, or open on a held session's display.
+dt_hudmay() {
+	if [ -n "${HIBR_HOLD-}" ]; then
+		[ -n "$DT_FDANY" ]
+	else
+		[ -n "${BLIT_FRAME_SOCKET-}" ]
+	fi
+}
+
+# Once a frame: ask whether the panel wants the section when it is time,
+# and send it once a second while it does.
+dt_hudtick() {
+	local now h
+
+	now=${EPOCHREALTIME/./}
+	if [ "$now" -lt "$DT_HUDNEXT" ]; then
+		dt_hudmay && dt_want $(((DT_HUDNEXT - now) / 1000 + 1))
+		return 0
+	fi
+	if ! dt_hudmay; then
+		[ -n "$DT_HUDON" ] && dt_hudstop
+		DT_HUDNEXT=$((now + DT_HUDPOLL * 1000000))
+		return 0
+	fi
+	h := console hud 2> /dev/null
+	if [ "$h" = on ]; then
+		if [ -n "$DT_HUDON" ]; then
+			dt_hudsend "$now"
+		else
+			dt_hudstart "$now"
+		fi
+		DT_HUDNEXT=$((now + 1000000))
+		dt_want 1000
+	else
+		[ -n "$DT_HUDON" ] && dt_hudstop
+		DT_HUDNEXT=$((now + DT_HUDPOLL * 1000000))
+		dt_want $((DT_HUDPOLL * 1000))
+	fi
+	return 0
+}
+
+# The panel has started asking: time, and take the counters as they are.
+fn dt_hudstart(int now) {
+	DT_HUDON=1
+	if [ -z "$DT_STATON" ]; then
+		DT_STATON=1
+		DT_HUDTIMED=1
+	fi
+	DT_HELDT=()
+	dt_hudsnap "$now"
+	dt_log "hud: Blit's performance panel asks for the desktop's status"
+}
+
+# The panel has stopped asking: stop the timing this turned on.
+dt_hudstop() {
+	DT_HUDON=
+	if [ -n "$DT_HUDTIMED" ]; then
+		DT_STATON=
+		DT_HUDTIMED=
+	fi
+	DT_HELDT=()
+	dt_log "hud: Blit's performance panel no longer asks"
+}
+
+# The counters a second's figures are worked out from, kept as they stand.
+fn dt_hudsnap(int now) {
+	local k c a b
+
+	for k in "${!DT_HPREV[@]}"; do
+		unset DT_HPREV["$k"]
+	done
+	for k in "${!DT_STAT[@]}"; do
+		DT_HPREV["$k"]=${DT_STAT["$k"]}
+	done
+	for k in "${!DT_HMAX[@]}"; do
+		unset DT_HMAX["$k"]
+	done
+	c := dt_statcpu
+	read -r a b <<< "$c"
+	DT_HUDCPU=$((a + b))
+	DT_HUDT=$now
+}
+
+# A figure in tenths, as "a.b".
+fn dt_hud10(int v) {
+	ret "$((v / 10)).$((v % 10))"
+}
+
+# How much a counter has moved since the snapshot.
+fn dt_hudd(k) {
+	ret $((${DT_STAT["$k"]:-0} - ${DT_HPREV["$k"]:-0}))
+}
+
+# The second since the snapshot, as the panel's eight lines.
+fn dt_hudsend(int now) {
+	local el k v n nm fr wk c a b cpu sl=- sv=0 w1= n1=0 w2= n2=0 dn=0 lf=0
+	local yw=- yn=0 why fa fm fl hc=0 t ms lv=0 out
+	local -A ys
+
+	# Somebody's `desktop ctl stats` stop turned the timing off under it.
+	if [ -z "$DT_STATON" ]; then
+		DT_STATON=1
+		DT_HUDTIMED=1
+	fi
+	el=$((now - DT_HUDT))
+	[ "$el" -gt 0 ] || el=1
+	fr := dt_hudd frames
+	wk := dt_hudd wakes
+	c := dt_statcpu
+	read -r a b <<< "$c"
+	# Milliseconds of processor over microseconds of clock, as hundredths
+	# of a percent.
+	cpu=$(((a + b - DT_HUDCPU) * 10000000 / el))
+	for k in "${!DT_HMAX[@]}"; do
+		case $k in draw | flush | part:*) continue ;; esac
+		v=${DT_HMAX["$k"]}
+		[ "$v" -gt "$sv" ] && { sv=$v; sl=$k; }
+	done
+	for k in "${!DT_STAT[@]}"; do
+		case $k in
+		w:*)
+			v := dt_hudd "$k"
+			[ "$v" -gt 0 ] || continue
+			nm=${k#w:}
+			if [ "$v" -gt "$n1" ]; then
+				w2=$w1 n2=$n1 w1=$nm n1=$v
+			elif [ "$v" -gt "$n2" ]; then
+				w2=$nm n2=$v
+			fi
+			;;
+		y:*)
+			v := dt_hudd "$k"
+			[ "$v" -gt 0 ] || continue
+			why=${k##*:}
+			if [ "$why" = left ]; then
+				lf=$((lf + v))
+			else
+				dn=$((dn + v))
+				ys["$why"]=$((${ys["$why"]:-0} + v))
+			fi
+			;;
+		esac
+	done
+	for why in "${!ys[@]}"; do
+		[ "${ys["$why"]}" -gt "$yn" ] && { yn=${ys["$why"]}; yw=$why; }
+	done
+	t := dt_hudd t:draw
+	n := dt_hudd n:draw
+	[ "$n" -gt 0 ] && fa=$((t / n / 100)) || fa=0
+	fa := dt_hud10 "$fa"
+	fm := dt_hud10 $((${DT_HMAX["draw"]:-0} / 100))
+	t := dt_hudd t:flush
+	n := dt_hudd n:flush
+	[ "$n" -gt 0 ] && fl=$((t / n / 100)) || fl=0
+	fl := dt_hud10 "$fl"
+	ms := dt_ms
+	out=()
+	for t in "${DT_HELDT[@]}"; do
+		[ $((ms - t)) -lt 60000 ] && out+=("$t")
+	done
+	DT_HELDT=("${out[@]}")
+	hc=${#DT_HELDT[@]}
+	for k in "${!DT_LIVE[@]}"; do
+		[ -n "${DT[$k]["row"]+x}" ] && lv=$((lv + 1))
+	done
+	cpu := dt_hud10 $((cpu / 10))
+	[ "$sl" = - ] && sv=0
+	fr := dt_hud10 $(((fr * 10000000 + el / 2) / el))
+	wk := dt_hud10 $(((wk * 10000000 + el / 2) / el))
+	[ -n "$w1" ] || w1=-
+	[ -n "$w2" ] && [ "$n2" -gt 0 ] && w2=" $w2 $n2" || w2=
+	v=
+	[ "$lv" -gt 0 ] && v=" live=$lv"
+	console status \
+		"fps=$fr wakes=$wk" \
+		"cpu=$cpu%" \
+		"slow=$sl $((sv / 1000))ms" \
+		"woke=$w1 $n1$w2" \
+		"drawn=$dn/$lf $yw" \
+		"frame=$fa ${fm}ms" \
+		"held=$hc" \
+		"flush=${fl}ms$v" 2> /dev/null
+	dt_hudsnap "$now"
+	return 0
+}

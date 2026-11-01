@@ -87,7 +87,7 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	struct pollfd q[3];
 	const char *why = "detached";
 	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0, gx, kbd = 0, copy = 0,
-	    mpix = 0, ptr = -1, lock = 0, edit = 0, one = 1, depth, bfd, nq;
+	    mpix = 0, ptr = -1, lock = 0, edit = 0, one = 1, depth, bfd, nq, hud = 0;
 	gx_tcap tc;
 	ssize_t k;
 	char *p;
@@ -247,15 +247,23 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 				break;
 			}
 		}
-		/* What Blit says on the frame socket is errors only, kept in
-		   the log; the socket closing puts this display back on the
-		   terminal, which the desktop learns from hold descriptors. */
-		if (nq == 3 && q[2].revents && bf_drain(bfd) < 0) {
-			int zero = 0;
+		/* What Blit says on the frame socket is errors, kept in the
+		   log, and whether its performance panel asks for status,
+		   passed to the server; the socket closing puts this display
+		   back on the terminal, which the desktop learns from hold
+		   descriptors. */
+		if (nq == 3 && q[2].revents) {
+			int was = hud, zero = 0;
 
-			close(bfd);
-			bfd = -1;
-			hd_send(s, HD_FDCAP, (const char *)&zero, sizeof zero);
+			if (bf_drain(bfd, &hud) < 0) {
+				close(bfd);
+				bfd = -1;
+				hud = 0;
+				hd_send(s, HD_FDCAP, (const char *)&zero,
+					sizeof zero);
+			} else if (hud != was) {
+				hd_send(s, HD_HUD, (const char *)&hud, sizeof hud);
+			}
 		}
 		if (q[1].revents) {
 			if (hd_recv(s, &t, &in) <= 0) {
@@ -276,6 +284,9 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 				}
 				if (mfd >= 0)
 					close(mfd);
+			} else if (t == HD_STATUS) {
+				if (bfd >= 0 && hud)
+					bf_status(bfd, in.p, in.n);
 			} else if (t == HD_DATA) {
 				hd_wall(1, in.p, in.n);
 			} else if (t == HD_DETACH) {

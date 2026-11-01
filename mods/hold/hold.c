@@ -419,7 +419,36 @@ int hd_frame(sh *s, const unsigned char *h, int mfd)
 	return ok;
 }
 
-static const hf_api hd_hfapi = { hd_frame };
+/* Hand the server of the session this program is in the performance
+   panel's status, for every display whose Blit asked (Blit ADR 0203). */
+int hd_status(sh *s, const char *p, size_t n)
+{
+	const char *hp = getenv("HIBR_HOLD");
+
+	(void)s;
+	if (!hp || !*hp)
+		return 0;
+	return hd_askp(hp, HD_STATUS, p, n, 0);
+}
+
+/* Whether any display of the session this program is in has a Blit whose
+   performance panel asks for status. */
+int hd_hudq(sh *s)
+{
+	const char *hp = getenv("HIBR_HOLD");
+	str r;
+	int on;
+
+	(void)s;
+	if (!hp || !*hp)
+		return 0;
+	s_init(&r);
+	on = hd_askp(hp, HD_HUDQ, 0, 0, &r) && r.p && !strcmp(r.p, "on");
+	s_free(&r);
+	return on;
+}
+
+static const hf_api hd_hfapi = { hd_frame, hd_status, hd_hudq };
 
 /* Whether a session's server keeps an edit of a whole picture in place of
    the edits before it, "yes": hold frames [name]. Fails against a server

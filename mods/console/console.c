@@ -1076,6 +1076,36 @@ int m_console(sh *s, int ac, char **av)
 			cn_imgfddrop();
 		return HIBR_OK;
 	}
+	/* Blit's performance panel (Blit ADR 0203): hud answers on while it
+	   asks for this desktop's status and off otherwise, and status sends
+	   it -- each argument a line, at most eight of 64 bytes -- straight to
+	   the Blit session this environment names, or through hold's server
+	   to every display whose Blit asked. Fails when it went nowhere. */
+	if (!strcmp(sub, "hud")) {
+		const char *a = cn_hudon(s) ? "on" : "off";
+
+		hibr_ret(s, a);
+		if (!s->bind)
+			printf("%s\n", a);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "status")) {
+		str t;
+		int i, ok;
+
+		if (ac < 3) {
+			lg(HIBR_LERR, "usage: console status LINE...");
+			return 2;
+		}
+		s_init(&t);
+		for (i = 2; i < ac; i++) {
+			s_cat(&t, av[i]);
+			s_ch(&t, '\n');
+		}
+		ok = cn_status(s, t.p, t.n);
+		s_free(&t);
+		return ok ? HIBR_OK : HIBR_FAIL;
+	}
 	if (!strcmp(sub, "behind")) {
 		/* While this is on, a write at absolute coordinates skips any
 		   cell a pane covers -- so the wallpaper paints around the

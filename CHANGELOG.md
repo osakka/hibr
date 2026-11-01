@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.407
+
+**The desktop has a section in Blit's performance panel** (Blit ADR 0203).
+Blit draws the panel; while it is shown with its Hibr section, the desktop
+times itself and sends eight lines a second -- frames and wakes, CPU, the
+slowest callback, what woke it, windows drawn and why, a frame's time,
+stalls, and the flush -- and stops timing when the panel goes. The frame
+socket speaks wire version 2 (`HUD1`, `STA1`) and falls back to version 1
+for an older Blit; `hold` carries both ways for a held desktop; `console
+hud` and `console status` are the verbs. Control Panel > Blit's
+Performance panel and Hibr section rows are the switch, on Blit's side.
+Nothing is asked where there is no frame socket.
+
+The console now loads `hold` before asking for its frames interface, which
+a module cannot be found by until it is loaded; window pictures by
+descriptor only worked because the desktop had always loaded hold first.
+
 ## 0.99.406
 
 **A palette colour behind a shadow or a see-through window is dimmed like

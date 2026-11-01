@@ -4,7 +4,8 @@
 #include "hibr.h"
 
 /* Picture frames handed to Blit by descriptor rather than written through
-   the terminal (Blit ADR 0202, wire version 1). One copy of the protocol,
+   the terminal (Blit ADR 0202, wire version 2 where Blit speaks it, 1
+   where it does not). One copy of the protocol,
    for the two places that speak it: the console, when it draws straight
    onto a Blit session, and hold's attaching client, which forwards the
    frames a held desktop gives its server.
@@ -33,11 +34,25 @@
    server one frame, which it keeps and passes to each display's client.
    1 when it went. */
 #ifndef HF_API_VER
-#define HF_API_VER 1
+#define HF_API_VER 2
 #endif
 typedef struct hf_api {
 	int (*frame)(sh *s, const unsigned char *h, int mfd);
+	/* Version 2 (Blit ADR 0203): hand the server the panel's status, the
+	   n bytes at p, a line each, for every display whose Blit asked; and
+	   whether any display's Blit is asking, 1 or 0. */
+	int (*status)(sh *s, const char *p, size_t n);
+	int (*hud)(sh *s);
 } hf_api;
+
+/* The performance panel's status (Blit ADR 0203): at most this many lines
+   of at most this many bytes each. */
+#ifndef BF_STLINES
+#define BF_STLINES 8
+#endif
+#ifndef BF_STBYTES
+#define BF_STBYTES 64
+#endif
 
 /* A connection to the frame socket of the session this environment names,
    after its hello was taken: a descriptor, close-on-exec, or -1 when there
@@ -58,9 +73,15 @@ void bf_hdr(unsigned char *h, unsigned id, unsigned long long seq, int w,
 /* Send one frame, a header and its memfd. 1 when it went. */
 int bf_send(int fd, const unsigned char *h, int mfd);
 
-/* Read whatever the far side has said since -- errors only, a line each --
-   into the log, without waiting. -1 when the connection has gone, or Blit
+/* Read whatever the far side has said since, a line each, without
+   waiting: errors into the log, and on wire version 2 Blit's "HUD1 on" or
+   "HUD1 off" -- whether its performance panel wants status -- into *hud
+   as 1 or 0 when hud is not null. -1 when the connection has gone, or Blit
    said EACCES: the person it was opened for has signed out. */
-int bf_drain(int fd);
+int bf_drain(int fd, int *hud);
+
+/* Send the panel its status, the lines of the n bytes at p (see
+   bf_status in blitfr.c for what is cut). 1 when it went. */
+int bf_status(int fd, const char *p, size_t n);
 
 #endif

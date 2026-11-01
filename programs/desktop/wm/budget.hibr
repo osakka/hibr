@@ -82,6 +82,8 @@ declare -gA DT_TICKAPP
 # else.
 fn dt_spent(name, int us, app = "") {
 	[ "$us" -gt "${DT_MAX["$name"]:-0}" ] && DT_MAX["$name"]=$us
+	[ -n "$DT_HUDON" ] && [ "$us" -gt "${DT_HMAX["$name"]:-0}" ] &&
+		DT_HMAX["$name"]=$us
 	if [ -n "$DT_STATON" ]; then
 		DT_STAT["t:$name"]=$((${DT_STAT["t:$name"]:-0} + us))
 		DT_STAT["n:$name"]=$((${DT_STAT["n:$name"]:-0} + 1))
@@ -121,6 +123,7 @@ fn dt_slow(name, int us, app = "") {
 			waited=", $t of it waiting for a processor"
 		fi
 	fi
+	[ -n "$held" ] && [ -n "$DT_HUDON" ] && DT_HELDT+=("$now")
 	t=$((now - ${DT_SLOWAT["$name"]:-0}))
 	if { [ -n "$held" ] && [ "$t" -ge 10000 ]; } || [ "$t" -ge 60000 ]; then
 		DT_SLOWAT["$name"]=$now

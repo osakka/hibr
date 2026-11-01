@@ -8563,4 +8563,59 @@ check("and the Window menu has Full Screen just under Zoom",
       s2.find("Zoom") is not None and
       s2.find("Full Screen")[0] == s2.find("Zoom")[0] + 1, (wcol, s2))
 
-report(918)
+# --- Blit's performance panel ---------------------------------------------
+# The desktop's section of the panel Blit draws (Blit ADR 0203): while the
+# frame socket says the panel asks, the desktop times itself and sends its
+# eight lines once a second as STA1, which the stand-in checks as Blit
+# does; when it stops asking, nothing more goes. The stand-in shows the
+# panel while its LOG.hud exists.
+HUDLG = scratch("hudfs.log")
+open(HUDLG, "w").close()
+open(HUDLG + ".hud", "w").close()
+hudnm = "hibr-desktop-hud-%d" % os.getpid()
+hudsrv = subprocess.Popen([sys.executable, screen.tree("tests/frameserve.py"), hudnm, "tok", HUDLG])
+for _ in range(50):
+    if "listening" in open(HUDLG).read():
+        break
+    time.sleep(0.05)
+f2 = scratch("hud.hibr")
+# A ticker that keeps the processor busy for 80 ms of every frame while the
+# panel asks -- under DT_HOLDMS, so not a stall -- so the cpu= line has
+# something to measure and slow= a name to give.
+open(f2, "w").write("%s. %s\n"
+                    "hudbusy() { [ -n \"$DT_HUDON\" ] || return 0; local e=$((${EPOCHREALTIME/./} + 80000)); "
+                    "while [ ${EPOCHREALTIME/./} -lt $e ]; do :; done; }\n"
+                    "dt_ticker hudbusy\ndt_open\ndt_new Note 8 30 4 6\ndt_run\ndt_close\n" % (load(MOD), WM))
+t = Term(f2, rows=24, cols=80, settle=1.0,
+         env={"BLIT_FRAME_SOCKET": "@" + hudnm, "BLIT_FRAME_TOKEN": "tok"})
+
+
+def hudsaid():
+    return [json.loads(l) for l in open(HUDLG) if l.strip()]
+
+
+t.until(lambda sc: len([x for x in hudsaid() if x["kind"] == "status"]) >= 2, tries=150)
+os.unlink(HUDLG + ".hud")
+t.until(lambda sc: [x for x in hudsaid() if x["kind"] == "hud" and not x["on"]], tries=80)
+hudoff = len([x for x in hudsaid() if x["kind"] == "status"])
+t.collect(2.5)
+t.quit(b"q", 0.5)
+hudsrv.terminate()
+hudsrv.wait()
+hst = [x["lines"] for x in hudsaid() if x["kind"] == "status"]
+hkeys = ["fps", "cpu", "slow", "woke", "drawn", "frame", "held", "flush"]
+check("while Blit's performance panel asks, the desktop sends it eight lines a second",
+      len(hst) >= 2 and all([l.split("=")[0] for l in h] == hkeys for h in hst)
+      and not [x for x in hudsaid() if x.get("why") == "status"], hudsaid())
+check("and they say how it drew: frames a second, a frame's time, why windows were drawn",
+      hst and re.match(r"fps=\d+\.\d wakes=\d+\.\d$", hst[-1][0])
+      and re.match(r"frame=\d+\.\d \d+\.\dms$", hst[-1][5])
+      and re.match(r"drawn=\d+/\d+ ", hst[-1][4]), hst)
+hcpu = [float(h[1][4:-1]) for h in hst[1:] if re.match(r"cpu=\d+\.\d%$", h[1])]
+check("and what it cost: the processor a busy ticker took, and that ticker named slowest",
+      hcpu and max(hcpu) >= 3.0 and max(hcpu) <= 100.0
+      and any(h[2].startswith("slow=hudbusy ") for h in hst[1:]), hst)
+check("and when it stops asking, nothing more is sent",
+      hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
+
+report(922)

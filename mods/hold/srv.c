@@ -719,6 +719,34 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		hd_frmpush(cls, tid, (const unsigned char *)in.p);
 		break;
 	}
+	case HD_STATUS: {
+		/* The performance panel's status, from the program (Blit ADR
+		   0203): to each display whose Blit asked. */
+		size_t ci;
+
+		if (!hd_frmpeer(c) || in.n > 4096)
+			break;
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (cn2->hud && cn2->fdok)
+				hd_send(cn2->fd, HD_STATUS, in.p, in.n);
+		}
+		break;
+	}
+	case HD_HUDQ: {
+		size_t ci;
+		int on = 0;
+
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (cn2->hud && cn2->fdok)
+				on = 1;
+		}
+		hd_send(c, HD_HUDQ, on ? "on" : "off", on ? 2 : 3);
+		break;
+	}
 	case HD_FDLIST: {
 		size_t ci;
 
@@ -1159,9 +1187,22 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				memcpy(&v, in.p, sizeof v);
 				if (cn) {
 					cn->fdok = v != 0;
+					if (!v)
+						cn->hud = 0;
 					cn->fsn = 0;
 					lg(HIBR_LDBG, "hold: a display %s frames by descriptor",
 					   v ? "takes" : "no longer takes");
+				}
+			} else if (t == HD_HUD && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+				int v;
+
+				memcpy(&v, in.p, sizeof v);
+				if (cn) {
+					cn->hud = v != 0;
+					lg(HIBR_LDBG, "hold: a display's performance "
+						      "panel %s status",
+					   v ? "asks for" : "no longer asks for");
 				}
 			} else if (t == HD_EDIT && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);

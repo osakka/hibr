@@ -359,6 +359,7 @@ fn dt_ctlstats(reset = "", stop = "") {
 		c := dt_statcpu
 		DT_STATC0=$c
 		DT_STATON=1
+		DT_HUDTIMED=
 	fi
 	[ "$stop" = true ] && DT_STATON=
 	now=${EPOCHREALTIME/./}

@@ -174,7 +174,20 @@ enum {
 	/* A request: send every display this many colours whatever it said,
 	   or 0 to go back to what each said -- Control Panel's Colours row. One
 	   int, answered with nothing. */
-	HD_COLOURS = 'C'
+	HD_COLOURS = 'C',
+	/* The performance panel's status (Blit ADR 0203), its lines as text:
+	   from a program to its own server, one connection each, from the
+	   server's own uid only, answered with nothing; the server passes it
+	   to each display whose Blit asked (HD_HUD), and that client sends it
+	   on its frame socket. A server too old to know it closes. */
+	HD_STATUS = 'U',
+	/* From a client: its Blit's performance panel asks for status (one
+	   int, 1), or has stopped (0). A server that does not know it ignores
+	   it. */
+	HD_HUD = 'J',
+	/* A request: whether any display's Blit asks for status, "on" or
+	   "off". An older server closes, which reads as off. */
+	HD_HUDQ = 'K'
 };
 
 /* What one pass reads of the program's output: a pty hands over about 4 kB
@@ -355,6 +368,8 @@ struct hd_cli {
 	   the frames by descriptor it has been sent: an image id and the
 	   sequence it was sent last, a pair each. */
 	int fdok;
+	/* Whether its Blit's performance panel asks for status (HD_HUD). */
+	int hud;
 	unsigned *fsid;
 	unsigned long long *fsseq;
 	size_t fsn;
