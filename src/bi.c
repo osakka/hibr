@@ -300,40 +300,107 @@ int bi_mask(const char *nm)
 	return bi_argk(nm) & 1;
 }
 
-/* Remove variables or functions. */
+/* Remove the function named nm, if there is one. */
+void bi_unfn(sh *s, const char *nm)
+{
+	size_t j;
+
+	if (!fn_find(s, nm))
+		return;
+	j = s->fni;
+	s->fns.p[j] = s->fns.p[s->fns.n - 1];
+	s->fsrc.p[j] = s->fsrc.p[s->fns.n - 1];
+	s->fns.n--;
+	s->fsrc.n--;
+	s->fhok = 0;
+}
+
+/* Remove variables or functions: -v only a variable, -f only a function,
+   -n a nameref itself; with neither, the variable, or the function when no
+   variable has the name. A plain name reaches through a nameref, as in bash. */
 int b_unset(sh *s, int ac, char **av)
 {
-	int i;
-	size_t j;
-	node *f;
+	int i = 1, vo = 0, fo = 0, no = 0, rc = HIBR_OK, hop;
+	const char *f, *nm;
+	var *v;
 
-	for (i = 1; i < ac; i++) {
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
+		}
+		for (f = av[i] + 1; *f; f++) {
+			if (*f == 'v') {
+				vo = 1;
+			} else if (*f == 'f') {
+				fo = 1;
+			} else if (*f == 'n') {
+				no = 1;
+			} else {
+				lg(HIBR_LERR, "unset: -%c: invalid option", *f);
+				lg(HIBR_LERR, "unset: usage: unset [-f] [-v] [-n] [name ...]");
+				return 2;
+			}
+		}
+	}
+	if (vo && fo) {
+		lg(HIBR_LERR, "unset: cannot simultaneously unset a function and a variable");
+		return HIBR_FAIL;
+	}
+	for (; i < ac; i++) {
+		if (fo) {
+			bi_unfn(s, av[i]);
+			continue;
+		}
 		{
 			vec *ks = vb_get(s);
 			char *br = bi_keys(s, av[i],
 					   s->amask ? s->amask[i] : 0, ks);
 			if (br) {
-				v_delp(s, av[i], (char **)ks->p, (int)ks->n);
+				if (vo && !isname(av[i])) {
+					*br = '[';
+					lg(HIBR_LERR, "unset: `%s': not a valid identifier", av[i]);
+					rc = HIBR_FAIL;
+				} else {
+					v_delp(s, av[i], (char **)ks->p, (int)ks->n);
+					*br = '[';
+				}
 				vb_put(s, ks);
-				*br = '[';
 				continue;
 			}
 			vb_put(s, ks);
 		}
-		v_del(s, av[i]);
-		for (j = 0; j < s->fns.n; j++) {
-			f = (node *)s->fns.p[j];
-			if (!strcmp(f->s, av[i])) {
-				s->fns.p[j] = s->fns.p[s->fns.n - 1];
-				s->fsrc.p[j] = s->fsrc.p[s->fns.n - 1];
-				s->fns.n--;
-				s->fhok = 0;
-				s->fsrc.n--;
-				break;
+		if (vo && !isname(av[i])) {
+			lg(HIBR_LERR, "unset: `%s': not a valid identifier", av[i]);
+			rc = HIBR_FAIL;
+			continue;
+		}
+		v = v_find(s, av[i]);
+		nm = av[i];
+		if (no) {
+			if (!v || !(v->at & A_REF))
+				continue;
+		} else {
+			for (hop = 0; v && (v->at & A_REF) && v->v && *v->v &&
+			     hop < 16; hop++) {
+				nm = v->v;
+				v = v_find(s, nm);
 			}
 		}
+		if (!v) {
+			if (!vo && !no)
+				bi_unfn(s, av[i]);
+			continue;
+		}
+		if (v->ro) {
+			lg(HIBR_LERR, "unset: %s: cannot unset: readonly variable", nm);
+			rc = HIBR_FAIL;
+			continue;
+		}
+		lg(HIBR_LTRC, "unset: %s%s", nm, nm == av[i] ? "" : " through a nameref");
+		v_del(s, nm);
 	}
-	return HIBR_OK;
+	return rc;
 }
 
 /* Leave the shell. */
@@ -680,42 +747,151 @@ long long bi_ms(void)
 	return (long long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
-/* Read a line from standard input into variables. */
+/* Pad read's quote mask with unquoted bytes up to k, the length of b. */
+void bi_rdpad(str *m, size_t k)
+{
+	if (m->n >= k)
+		return;
+	s_grow(m, k - m->n);
+	memset(m->p + m->n, 0, k - m->n);
+	m->n = k;
+	m->p[k] = 0;
+}
+
+/* Take read's backslashes out of b from byte at, marking each quoted byte in m; 1 when a lone backslash ended it. */
+int bi_rdesc(str *b, str *m, size_t at)
+{
+	char *q = b->n > at ? memchr(b->p + at, '\\', b->n - at) : 0;
+	size_t i, w;
+	int end = 0;
+
+	if (!q) {
+		if (m->n)
+			bi_rdpad(m, b->n);
+		return 0;
+	}
+	w = (size_t)(q - b->p);
+	bi_rdpad(m, w);
+	s_grow(m, b->n - m->n);
+	for (i = w; i < b->n; i++) {
+		if (b->p[i] == '\\') {
+			if (++i == b->n) {
+				end = 1;
+				break;
+			}
+			if (b->p[i] == '\n')
+				continue;
+			m->p[w] = 1;
+		} else {
+			m->p[w] = 0;
+		}
+		b->p[w++] = b->p[i];
+	}
+	b->n = m->n = w;
+	b->p[w] = m->p[w] = 0;
+	return end;
+}
+
+/* Append c to b as a byte a backslash quoted. */
+void bi_rdq(str *b, str *m, int c)
+{
+	bi_rdpad(m, b->n);
+	s_ch(m, 1);
+	s_ch(b, c);
+}
+
+/* bi_rddelim without -r: a backslash quotes the next byte, kept in m, a
+   backslash-newline joins the next line on, and counts are of what is left. */
+long bi_rdbs(int fd, int delim, int want, int exact, str *b, str *m,
+	     long long dl, int *tout)
+{
+	long n;
+	size_t at;
+	int hit;
+
+	for (;;) {
+		at = b->n;
+		n = bi_rddelim(fd, delim, want, exact, b, dl, tout);
+		if (n <= 0) {
+			bi_rdesc(b, m, at);
+			return n;
+		}
+		hit = !exact && !(want && (int)b->n >= want);
+		if (bi_rdesc(b, m, at)) {
+			if (hit) {
+				lg(HIBR_LDBG, "read: an escaped delimiter, reading on");
+				if (delim != '\n' && delim)
+					bi_rdq(b, m, delim);
+				continue;
+			}
+			at = b->n;
+			n = bi_rddelim(fd, delim, (int)at + 1, 1, b, dl, tout);
+			if (n <= 0)
+				return n;
+			if (b->p[at] == '\n') {
+				b->n = at;
+				b->p[at] = 0;
+			} else {
+				bi_rdpad(m, at);
+				s_ch(m, 1);
+			}
+		} else if (hit) {
+			return n;
+		}
+		if (!want || (int)b->n >= want)
+			return n;
+	}
+}
+
 /* What read's last variable takes: the rest of the line, less trailing IFS
    whitespace -- and, when that rest is one field and a single delimiter after
-   it, less the delimiter too, which is bash's rule: a:b: gives b, a:b:: b::. */
-void bi_rdrest(str *b, size_t *p, const char *ifs, size_t *fs, size_t *fe)
+   it, less the delimiter too, which is bash's rule: a:b: gives b, a:b:: b::.
+   A rest of several fields loses trailing IFS whitespace even where a
+   backslash quoted it, which is bash's strip_trailing_ifs_whitespace. */
+void bi_rdrest(str *b, const char *m, size_t *p, const char *ifs, size_t *fs,
+	       size_t *fe)
 {
 	size_t i = *p, k, j;
 
 	if (!i)
-		while (i < b->n && xifsws(b->p, 0, i, ifs))
+		while (i < b->n && xifsws(b->p, m, i, ifs))
 			i++;
 	*fs = i;
 	*fe = b->n;
-	while (*fe > *fs && xifsws(b->p, 0, *fe - 1, ifs))
-		(*fe)--;
-	if (*fe > *fs && xifsat(b->p, 0, *fe - 1, ifs)) {
-		k = *fe - 1;
-		while (k > *fs && xifsws(b->p, 0, k - 1, ifs))
-			k--;
-		for (j = *fs; j < k && !xifsat(b->p, 0, j, ifs); j++)
-			;
-		if (j == k)
-			*fe = k;
-	}
 	*p = b->n;
+	while (*fe > *fs && xifsws(b->p, m, *fe - 1, ifs))
+		(*fe)--;
+	if (*fe > *fs && xifsat(b->p, m, *fe - 1, ifs)) {
+		k = *fe - 1;
+		while (k > *fs && xifsws(b->p, m, k - 1, ifs))
+			k--;
+		for (j = *fs; j < k && !xifsat(b->p, m, j, ifs); j++)
+			;
+		if (j == k) {
+			*fe = k;
+			return;
+		}
+	}
+	if (!m)
+		return;
+	for (j = *fs; j < *fe && !xifsat(b->p, m, j, ifs); j++)
+		;
+	if (j < *fe)
+		while (*fe > *fs && xifsws(b->p, 0, *fe - 1, ifs))
+			(*fe)--;
 }
 
+/* Read a line from standard input into variables. */
 int b_read(sh *s, int ac, char **av)
 {
 	str b;
 	long n;
 	int i = 1, want = 0, cnt = 0, exact = 0, silent = 0, fd = 0;
-	int delim = '\n', eof = 0, rdy, tout = 0, rv;
+	int delim = '\n', eof = 0, rdy, tout = 0, rv, rr = 0;
 	long long dl = 0;
-	const char *arr = 0, *prompt = 0;
+	const char *arr = 0, *prompt = 0, *mp;
 	char *ov;
+	str m;
 	double tmo = -1;
 	const char *ifs = sh_ifs(s);
 	size_t p = 0, st;
@@ -746,6 +922,7 @@ int b_read(sh *s, int ac, char **av)
 			}
 			switch (o) {
 			case 'r':
+				rr = 1;
 				break;
 			case 's':
 				silent = 1;
@@ -832,9 +1009,23 @@ int b_read(sh *s, int ac, char **av)
 		silent = 0;
 	}
 	s_init(&b);
+	mp = 0;
 	/* A count of 0 reads nothing and succeeds, taking not even a byte
 	   from the descriptor, so the next command sees all of it. */
-	n = tout ? -1 : cnt && !want ? 1 : bi_rddelim(fd, delim, want, exact, &b, dl, &tout);
+	if (tout) {
+		n = -1;
+	} else if (cnt && !want) {
+		n = 1;
+	} else if (rr) {
+		n = bi_rddelim(fd, delim, want, exact, &b, dl, &tout);
+	} else {
+		s_init(&m);
+		n = bi_rdbs(fd, delim, want, exact, &b, &m, dl, &tout);
+		if (m.n)
+			mp = m.p;
+		else if (m.p)
+			s_free(&m);
+	}
 	if (silent) {
 		tcsetattr(fd, TCSADRAIN, &sv);
 		fputc('\n', stderr);
@@ -855,6 +1046,8 @@ int b_read(sh *s, int ac, char **av)
 		v_arr(s, arr, el);
 		vb_put(s, el);
 		s_free(&b);
+		if (mp)
+			free((char *)mp);
 		return rv;
 	}
 	if (exact && i < ac) {
@@ -862,28 +1055,34 @@ int b_read(sh *s, int ac, char **av)
 		for (i++; i < ac; i++)
 			hibr_set(s, av[i], "", 0);
 		s_free(&b);
+		if (mp)
+			free((char *)mp);
 		return rv;
 	}
 	if (arr) {
 		vec *el = vb_get(s);
 		size_t fs, fe;
-		while (xifs(b.p, 0, b.n, &p, ifs, &fs, &fe))
+		while (xifs(b.p, mp, b.n, &p, ifs, &fs, &fe))
 			v_add(el, ar_dup(s->xa, b.p + fs, fe - fs));
 		v_arr(s, arr, el);
 		vb_put(s, el);
 		s_free(&b);
+		if (mp)
+			free((char *)mp);
 		return rv;
 	}
 	if (i >= ac) {
 		hibr_set(s, "REPLY", b.p ? b.p : "", 0);
 		s_free(&b);
+		if (mp)
+			free((char *)mp);
 		return rv;
 	}
 	for (; i < ac; i++) {
 		size_t fs = b.n, fe = b.n;
 		if (i == ac - 1) {
-			bi_rdrest(&b, &p, ifs, &fs, &fe);
-		} else if (!xifs(b.p, 0, b.n, &p, ifs, &fs, &fe)) {
+			bi_rdrest(&b, mp, &p, ifs, &fs, &fe);
+		} else if (!xifs(b.p, mp, b.n, &p, ifs, &fs, &fe)) {
 			fs = fe = b.n;
 		}
 		st = fs;
@@ -907,6 +1106,8 @@ int b_read(sh *s, int ac, char **av)
 		}
 	}
 	s_free(&b);
+	if (mp)
+		free((char *)mp);
 	return rv;
 }
 
