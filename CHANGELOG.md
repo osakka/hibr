@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.409
+
+**A held frame waits out its hold, and no longer spins through it.** When
+a frame woken by a program's output or a playing video is held back, the
+desktop sleeps for the rest of the hold. It used to keep the soonest
+earlier request instead, which only ever shrank, so once anything had asked
+for a frame in a millisecond the desktop woke every millisecond until the
+hold ended: about twice the passes of its loop while a video played (116
+a second against 54, measured). And a request for a frame at a time
+already past (`dt_want` with a negative wait) is now a request for one at
+once; it used to sleep until the next key.
+
 ## 0.99.408
 
 Browser 2.22 and its Control Panel pane 1.12, the browser session's: a

@@ -571,6 +571,9 @@ DT_WHO=
 # when it was asked (DT_WHO), or the desktop -- so `desktop ctl stats` can
 # say which of them each timed wake was for (woke).
 fn dt_want(int ms) {
+	# A time already past is now: console key takes a negative wait
+	# as none, and the desktop would sleep until a key.
+	[ "$ms" -ge 0 ] || ms=0
 	if [ -z "$DT_WANT" ] || [ "$ms" -lt "$DT_WANT" ]; then
 		DT_WANT=$ms
 		DT_WANTBY=${DT_WHO:-desktop}
@@ -817,6 +820,13 @@ dt_run() {
 				   [ "$hold" -gt 0 ] &&
 				   [ $((now - lastdraw)) -lt "$hold" ]; then
 					dt_drain
+					# The wait is the hold's remainder and
+					# nothing shorter: no frame woken without
+					# a key draws before it ends, and a want
+					# kept from before would only ever shrink
+					# -- one of a millisecond woke the desktop
+					# every millisecond of the hold.
+					DT_WANT=
 					DT_WHO=held
 					dt_want $((hold - now + lastdraw))
 					DT_WHO=
