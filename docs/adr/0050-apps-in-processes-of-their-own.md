@@ -23,11 +23,15 @@ against a pane's own chrome. `dp_api` has no paned put for a picture.
 
 In three steps, each a release that stands on its own:
 
-1. **Panes own their cells.** `dp_api` gains a paned put and a paned image,
-   img, media, web and most move onto them, and the console composes panes
-   at flush, bottom to top. Nothing outside the console and those four
-   modules changes. Measured against today before it is kept: a frame with
-   nothing changed must not cost more.
+1. **Panes own their cells.** A paned put and fill are offered beside
+   `dp_api` (a sibling `"pane"` interface, as `"scroll"` was, so `dp_api`'s
+   own version does not move); `dp->image` has taken a pane since version
+   5. The five modules that write at absolute coordinates inside a window
+   -- term, img, media, web and xscr -- move onto them (most, hvi, mon and
+   trace take the whole console and need nothing), and the console
+   composes panes at flush, bottom to top. Measured against today before it
+   is kept: a frame with nothing changed must not cost more. The design and
+   its review are on Gitea #421.
 2. **A pane can be drawn from another process.** The console offers a pane's
    cells over a socket -- a write of cells, as `hold` already carries cells
    between processes -- so an app can draw its window from a process of its
@@ -44,11 +48,18 @@ In three steps, each a release that stands on its own:
 - Memory: a hibr process per app, about 2 MB resident each.
 - Latency: a key reaches an app as a message and its window comes back as
   cells, two hops where today there are none.
-- Work: `dp_api` and four modules, then a protocol, then each app.
+- Work: a paned put beside `dp_api` and five modules, then a protocol, then each app.
 - What stays in-process stays fast; an app moved out cannot be cheaper to
   draw than it is now, only unable to stop anyone else.
 
 ## Status
 
-Proposed. Nothing here is built until the owner has decided whether the
-robustness is worth those costs, and in what order.
+Step 1 accepted (owner, 2026-11-01): panes own their cells, and pictures
+draw through panes, kept only if a frame costs no more than today, with a
+second opinion on the rendering before it is built. Steps 2 and 3 --
+drawing a pane from another process, and moving apps out -- are decided on
+step 1's measurement, not before. Asked as "what is our end-all solution
+for a bad app?": this is it, since every other layer (lint, the budget's
+diagnostics, jobs and asynchronous verbs) protects only against an app
+whose author can be asked to change it. Pausing, hiding or withholding
+keys from an app is not an answer and does not come back (0.99.401).

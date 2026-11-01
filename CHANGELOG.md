@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.406
+
+**A palette colour behind a shadow or a see-through window is dimmed like
+any other** (Gitea #417). Darkening resolved RGB colours and returned a
+palette index unchanged, so a terminal program's palette background --
+htop's green, aptitude's blue -- showed through a window over it at full
+strength. It is now resolved through the palette the terminal reported (or
+the standard one) and scaled.
+
+Browser 2.21 and YouTube 3.20, the browser session's: Browser hands every
+desktop shortcut back properly, so Zoom and Full Screen work while it has
+the focus, saves, opens and copies a picture that is not a link again, and
+offers Use as Cover for a Game for Boxer; YouTube draws edge to edge in
+Full Screen (#419), where it had fallen back to half blocks, and no longer
+starts a video in half blocks until the window is resized. Arabic 3.67.
+
+ADR 0050's first step is accepted (panes own their cells, measured against
+today before it is kept), with its design and review on Gitea #421.
+
 ## 0.99.405
 
 **An Alt-drag keeps up with the mouse again** (Gitea #414). A report with a

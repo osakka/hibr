@@ -50,7 +50,7 @@
 
 strict
 
-app browser "The web, in a window" 2.20
+app browser "The web, in a window" 2.21
 # modules: web
 # part: control-panel/browserset.hibr
 # part: control-panel/webapps.hibr
@@ -386,6 +386,12 @@ bw_heard() {
 
 	if x := web downloaded 2> /dev/null; then
 		while IFS=$'\t' read -r k l why; do
+			# A picture fetched to be a game's cover goes to Boxer, not to a note
+			# of its own, and does not stay in the temporary folder.
+			if [ -n "${BWCOVP["$l"]-}" ]; then
+				bw_coverdone "$k" "$l" "$why"
+				continue
+			fi
 			case $k in
 			done)
 				# Clicking the note shows the folder in the Files app: that, and
@@ -404,6 +410,10 @@ bw_heard() {
 	# gives up after five minutes in any case).
 	if x := web dlasks 2> /dev/null; then
 		while IFS=$'\t' read -r k dn du; do
+			if [ -n "${BWCOV["$du"]-}" ]; then
+				bw_coverland "$k" "$dn" "$du"
+				continue
+			fi
 			dir=$BW_DLDIR
 			[ -d "$dir" ] || dir=$HOME
 			dt_filepick save "Save File" "All files:*" "$dir" "$dn" bw_dlpicked "$k" bw_dlnone
@@ -842,6 +852,7 @@ fn browser_idle(int id) {
 	# Called for a window not drawn, and for every window on a frame held back
 	# to keep the rate down: the right press asked about is still waited for.
 	bw_atpoll "$id"
+	bw_coverlist "$id"
 	[ -n "$BW_FD" ] && bw_heard
 	# A window not drawn has its page stop saying when it repaints, so a
 	# busy page in a hidden window wakes nothing (Gitea #289).
@@ -904,6 +915,7 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	local t=${BW[$id]["cur"]} ph ar pt
 
 	bw_atpoll "$id"
+	bw_coverlist "$id"
 	dt_wclear "$id"
 	bw_tabs "$id"
 	# The tab strip only when there is more than one tab to choose between
@@ -972,6 +984,7 @@ fn browser_dirty(int id) {
 	local t=${BW[$id]["cur"]} nw=$DT_NOTEWIN dl k
 
 	bw_atpoll "$id"
+	bw_coverlist "$id"
 	[ -n "$t" ] && [ -n "$BW_FD" ] || return 0
 	[ -z "${BW[$id]["err"]}" ] || return 0
 	[ "${BW[$id]["aed"]}" = 1 ] && return 0
@@ -1352,9 +1365,18 @@ fn browser_key(int id, key) {
 		bw_textmove "$id" "$key" && return 0
 		[ "$key" = " " ] && bw_textmove "$id" pagedown && return 0
 	fi
-	for k in "${!DT_KEYS[@]}"; do
-		[ "${DT_KEYS["$k"]}" = "$key" ] && return 1
-	done
+	# A desktop shortcut goes back to the desktop. Its keys are written with
+	# the Shortcut Key (`mod-enter`) and arrive as what it is (`alt-enter`), so
+	# they are compared through the desktop's own normaliser (dt_keyassigned,
+	# which also knows the app launchers); compared as strings, Zoom and Full
+	# Screen went to the page.
+	if dt_has dt_keyassigned; then
+		dt_keyassigned "$key" && return 1
+	else
+		for k in "${!DT_KEYS[@]}"; do
+			[ "${DT_KEYS["$k"]}" = "$key" ] && return 1
+		done
+	fi
 	# Tabs, with the keys every browser has (Gitea #292) -- after the
 	# desktop's own, so a desktop shortcut on one of them still wins.
 	case $key in
@@ -1656,7 +1678,15 @@ fn bw_under(int id) {
 		BWC["$key"]=$a
 		BWC["$key:t"]=$EPOCHSECONDS
 	fi
-	IFS=$'\t' read -r BW_AT_KIND BW_AT_HREF BW_AT_SRC _ <<< "${BWC["$key"]}"
+	# Split by hand: `read` with a tab for IFS takes tabs for white space and
+	# runs two of them together, so a picture's "image<TAB><TAB>src" put its
+	# address where the link's goes, and Save Image As had none (2.10-2.20).
+	local f=${BWC["$key"]}
+	BW_AT_KIND=${f%%$'\t'*}
+	f=${f#*$'\t'}
+	BW_AT_HREF=${f%%$'\t'*}
+	f=${f#*$'\t'}
+	BW_AT_SRC=${f%%$'\t'*}
 	return 0
 }
 
@@ -1664,6 +1694,102 @@ fn bw_copyaddr(text) {
 	[ -n "$text" ] || return 0
 	dt_clipset "$text"
 	dt_notep low "Copied %s" "${text:0:60}"
+}
+
+# A picture on a page as a game's cover, for Boxer (`bx_games`, `bx_setcover`):
+# the games are offered in a list under where the menu was, and the one chosen
+# gets the picture -- fetched by the engine into a temporary folder, handed to
+# bx_setcover (which makes a PNG of it where hibr can), said in a note, and
+# deleted. BWCOVG maps a game's title to its box, BWCOV a picture's address
+# to the box waiting for it, BWCOVP the file it lands in to that box.
+declare -gA BWCOV BWCOVP BWCOVG
+fn bw_cover(int id, src) {
+	local l g r c
+	local -a games
+
+	[ -n "$src" ] || return 0
+	# bx_games prints its boxes, a line each: read through a file, since
+	# $(...) would fork inside a desktop callback.
+	l=${XDG_RUNTIME_DIR:-/tmp}/hibr-browser-games.$$
+	bx_games > "$l" 2> /dev/null
+	BWCOVG=()
+	while IFS= read -r g; do
+		[ -n "$g" ] || continue
+		r=${g%/}
+		r=${r##*/}
+		r=${r%.boxer}
+		r=${r%.gamebox}
+		BWCOVG["$r"]=$g
+		games+=("$r")
+	done < "$l"
+	rm -f "$l"
+	if [ "${#games[@]}" = 0 ]; then
+		dt_notep normal "There are no games in Boxer's games folder to give a cover to"
+		return 0
+	fi
+	BW[$id]["covsrc"]=$src
+	# Opened on the next frame (bw_coverlist): this runs as the menu's own
+	# item, and the desktop closes its menus once the item has run.
+	BW[$id]["covr"]=$((MB_CY - DT[$id]["row"]))
+	BW[$id]["covc"]=$((MB_CX - DT[$id]["col"]))
+	BW[$id]["covlist"]="${games[*]}"
+	BW_COVGAMES=("${games[@]}")
+	BW[$id]["covopen"]=1
+	dt_want 10
+}
+
+# The list of games bw_cover asked for, opened from a frame after the menu
+# closed.
+BW_COVGAMES=()
+fn bw_coverlist(int id) {
+	[ -n "${BW[$id]["covopen"]-}" ] || return 0
+	BW[$id]["covopen"]=
+	dt_droplist "$id" "${BW[$id]["covr"]}" "${BW[$id]["covc"]}" bw_coverpick "${BW_COVGAMES[@]}"
+	dt_want 10
+}
+
+# A game chosen: the picture is fetched for it.
+fn bw_coverpick(int id, title) {
+	local t=${BW[$id]["cur"]} src=${BW[$id]["covsrc"]-} box=${BWCOVG["$title"]-}
+
+	[ -n "$t" ] && [ -n "$src" ] && [ -n "$box" ] || return 0
+	BWCOV["$src"]=$box
+	web download "$t" "$src" ask 2> /dev/null || {
+		unset BWCOV["$src"]
+		dt_notep high "This engine cannot fetch that picture"
+	}
+}
+
+# The engine asks where the picture goes: a temporary folder, and no dialog.
+fn bw_coverland(k, name, url) {
+	local dir=${XDG_RUNTIME_DIR:-/tmp}/hibr-browser-covers f
+
+	mkdir -p "$dir" 2> /dev/null
+	name=${name//\//_}
+	f="$dir/$k-${name:-cover}"
+	BWCOVP["$f"]=${BWCOV["$url"]}
+	unset BWCOV["$url"]
+	web dldest "$k" "$f" 2> /dev/null
+}
+
+# The picture is in (or not): to the game, then gone from the temporary folder.
+fn bw_coverdone(how, f, why) {
+	local box=${BWCOVP["$f"]} title
+
+	unset BWCOVP["$f"]
+	title=${box%/}
+	title=${title##*/}
+	title=${title%.boxer}
+	title=${title%.gamebox}
+	if [ "$how" != done ]; then
+		dt_notep high "The picture for %s did not download: %s" "$title" "${why:-no reason given}"
+	elif bx_setcover "$box" "$f" 2> /dev/null; then
+		dt_notep normal "%s has a new cover" "$title"
+	else
+		dt_notep high "Boxer could not use that picture as the cover of %s" "$title"
+	fi
+	rm -f "$f"
+	return 0
 }
 
 # Save As is always asked: whatever Save Downloads Without Asking says, a person who chose
@@ -1733,6 +1859,9 @@ fn browser_context(int? id = "") {
 		dt_item "Open Image in New Tab" i bw_newtab "$id" "$BW_AT_SRC"
 		dt_item "Copy Image Address" d bw_copyaddr "$BW_AT_SRC"
 		bw_tabhas "$t" download && dt_item "Save Image As${GL[ellipsis]}" v bw_saveurl "$id" "$BW_AT_SRC"
+		# Boxer loaded: the picture can be a game's box art (bx_setcover).
+		dt_has bx_setcover && bw_tabhas "$t" download &&
+			dt_item "Use as Cover for a Game${GL[ellipsis]}" g bw_cover "$id" "$BW_AT_SRC"
 		dt_sep
 		;;
 	esac

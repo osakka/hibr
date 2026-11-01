@@ -403,15 +403,20 @@ void cn_clear(void)
    the program itself did not ask to be coloured) darkens the same as the
    decoration around it does, rather than not at all. A palette index is
    a program's own deliberate colour choice, not a placeholder for "none
-   set" the way DP_DEFAULT is, so it is left exactly as DP_DEFAULT always
-   was: unscaled without a colour table the display does not have, DP_DIM
-   the fallback that reaches every terminal regardless. */
+   set" the way DP_DEFAULT is -- but it is dimmed like one: resolved to
+   the terminal's own colour for that index (cn_rgbof, which knows the
+   palette the terminal reported, Gitea #215) and scaled as RGB. Left
+   unscaled, as it was until 0.99.406, a palette background behind a
+   shadow or a translucent window showed through at full strength --
+   htop's green and aptitude's blue inside mtr's window (Gitea #417). */
 unsigned cn_dim1(unsigned v, int pct, unsigned deflt)
 {
 	unsigned r, g, b;
 
 	if (v == DP_DEFAULT)
 		v = deflt;
+	if (v & DP_PAL)
+		v = DP_RGB | cn_rgbof(v);
 	if (!(v & DP_RGB))
 		return v;
 	r = (v >> 16) & 0xFF;

@@ -610,6 +610,24 @@ check("a cell written again loses the mark, so its shadow is cast afresh",
             'console fill 0 0 3 8 " "\nconsole darken -s 1 1 1 4 55\n')
       == one, one)
 
+# And a palette background darkens like an RGB one (Gitea #417): it is
+# resolved to the terminal's own colour for that index and then scaled. Left
+# as an index it came through a shadow or a translucent window at full
+# strength -- htop's green inside mtr's window. Index 2 is green: this
+# terminal reports no palette, so it is the console's standard one, #008000.
+def palshade(bg):
+    o, _ = run('console open\nconsole pen "#c0c0c8" %s\n'
+               'console fill 0 0 3 8 " "\nconsole darken 1 1 1 4 55\n'
+               'console flush\nconsole close\n' % bg)
+    sc = Screen()
+    sc.feed(o.decode("utf-8", "replace"))
+    return sc.p[1][2]
+
+
+pal, rgb = palshade("2"), palshade('"#008000"')
+check("a palette background is darkened as its own colour is, not left at full strength",
+      pal == rgb and "48;5;2" not in pal, (pal, rgb))
+
 # A pane marked `top` is above everything: its cells are written only by
 # drawing through it, whatever else is drawn over it and in whatever order.
 # That is the desktop's menu bar, which a window dragged over it, a window's
@@ -898,4 +916,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 114)
+report(len(WANT) + len(MWANT) + 115)

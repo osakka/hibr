@@ -22,6 +22,7 @@
 %s file with it
 %s files with it
 %s follows All Displays again
+%s has a new cover
 %s has no address book yet -- sync it first
 %s has no shortcut now
 %s in %s h %s min
@@ -210,6 +211,7 @@ Bookmarked %s
 Bookmarks
 Border
 Bottom
+Boxer could not use that picture as the cover of %s
 Bricks
 Browse
 Browser
@@ -1223,6 +1225,7 @@ The page's source could not be read
 The password of %s, for %s
 The password was not accepted
 The pdf module is not installed
+The picture for %s did not download: %s
 The record could not be added
 The remote file cache is empty
 The screen -- Default is Control Panel > X Screen > Defaults:
@@ -1240,6 +1243,7 @@ The vault was locked meanwhile
 The vw command is not installed.
 The web module is not installed
 Theme
+There are no games in Boxer's games folder to give a cover to
 There is a theme called %s already
 There is already a program called %s
 There is no file %s
@@ -1253,6 +1257,7 @@ This Terminal
 This account has no address to answer from
 This computer has no timedatectl, and hibr's polkit policy is not installed
 This desktop is not the computer's own
+This engine cannot fetch that picture
 This engine cannot save an address
 This links to %s
 This notification has been cleared.
@@ -1313,6 +1318,7 @@ Uptime: %s
 Use
 Use Answer
 Use Covers
+Use as Cover for a Game…
 User Agent
 User agent the pages are told:
 User name

@@ -59,7 +59,7 @@ downside is usually a decision nobody had to make.
 | [0047](0047-what-the-package-ships.md) | What the package ships is one list, and a part goes where its owner goes | accepted |
 | [0048](0048-a-menu-bar-item-is-a-file-and-a-bundle-is-a-list.md) | A menu bar item is a file, and a bundle is a list of entries | accepted |
 | [0049](0049-every-callback-has-a-budget.md) | Every callback has a budget | accepted |
-| [0050](0050-apps-in-processes-of-their-own.md) | Apps in processes of their own | proposed |
+| [0050](0050-apps-in-processes-of-their-own.md) | Apps in processes of their own | step 1 accepted |
 | [0051](0051-read-takes-a-datagram-whole.md) | read takes a datagram whole | accepted |
 
 ---
