@@ -37,6 +37,7 @@ import covmap  # noqa: E402
 SUITE_MODS = {
     "console": ["console"],
     "cat": ["cat"],
+    "contain": ["contain"],
     "most": ["console", "most"],
     "hvi": ["console", "hvi"],
     "mon": ["console", "mon"],

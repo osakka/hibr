@@ -71,24 +71,60 @@ desktop goes on drawing and taking keys while a slow formula runs; a formula
 cell is blank until its answer arrives. An edit made meanwhile is worked out
 once the job ends, and the answer of the run before it is not used.
 
-## Nothing a formula does can touch anything
+## A formula is contained until you say otherwise
 
-A formula runs in a hibr of its own, **under `--plan`** — the dry run of
-`docs/adr/0027`. It can compute and read what you can read, and anything
-that would write, connect or start a program that does is refused:
+A formula runs in a hibr of its own, **contained** (`docs/adr/0052`): it
+can read what you can read, compute and run programs, but it writes only
+into a folder of its own that is emptied before every run, opens no socket,
+cannot change a file's mode, owner or times, and cannot signal anything
+but itself. The kernel refuses the rest — Landlock and a seccomp filter on
+Linux, the system sandbox on macOS — so this holds for a program a formula
+starts as much as for the formula.
+
+Where nothing can contain it — a kernel built without Landlock, for one —
+a formula runs as a **dry run** instead, under `--plan` (`docs/adr/0027`),
+which refuses by name whatever would write, connect or start a program that
+does. Sheet finds out which by trying once, and the status line under the
+grid says `contained` or `dry run`.
 
 | the cell says | because |
 |---|---|
-| `#REFUSED` | it would have written, connected or run something that does |
+| `#REFUSED` | it tried to write outside its folder, connect, or run something that does; what it said is shown under the grid |
 | `#TIME` | it used its two seconds of CPU, or the formulas together ran past ten seconds; a loop says this rather than hanging the desktop |
 | `#ERR` | the formula failed, or did not finish; why is shown under the grid when the cell is selected |
 | `#CYCLE` | it needs its own value |
 
-So a sheet that arrives by mail cannot act when you open it. **Sheet >
-Trust This Sheet** lifts the refusal for *that one sheet*, and the trust is
-kept on this machine — never in the sheet — so a sheet cannot arrive
-trusted. The Tour has a cell that tries to write a file and a cell that
-loops, on purpose: they are the only way to see what the sandbox does.
+Reading is not contained: a formula can show anything you can read in its
+cell. It cannot send it anywhere, so it stays on your screen — but it is a
+value of the sheet like any other, so a sheet saved and passed on carries
+it.
+
+On a kernel older than Linux 6.12 a contained formula cannot signal its
+own child either, so `timeout` and `kill $!` inside one fail there.
+
+## Full access: a sheet as a program
+
+So a sheet that arrives by mail cannot act when you open it. A sheet you
+want to act — to write its results to a file, fetch a price, start a
+build — needs **Sheet > Run with Full Access** (or **Full Access** on the
+toolbar). Its formulas then run as you, with nothing refused, and the
+status line says `full access`. Choose it again to contain the sheet
+once more.
+
+Full access is kept on this machine, never in the sheet, so a sheet cannot
+arrive with it. It is kept for the file *as it is*: a fingerprint of every
+cell goes with it, which your own edits in Sheet move along with them and
+Save As carries to the new name. A file changed or replaced outside Sheet
+no longer matches, so its formulas run contained and Sheet says so; give
+it full access again if the change was yours.
+
+**Control Panel > Sheet > Formulas in a New Sheet** sets what a sheet
+never seen before does: **Contained** (the default), **Ask When Opened**,
+which asks only of a sheet that has formulas, or **Full Access**, for
+sheets you write yourself and want to act.
+
+The Tour has a cell that tries to write a file and a cell that loops, on
+purpose: they are the only way to see what containment does.
 
 ## The Tour
 

@@ -13,7 +13,9 @@ so it is the place to ask. bash has nothing like it.
 A kernel boundary -- Landlock on Linux, a sandbox profile on macOS -- would
 contain programs as well as the shell. The machine this was built on has
 Landlock switched off, so it could not be built or tested there; a policy
-that runs for real stays in the backlog.
+that runs for real stays in the backlog. (Since 0.99.427 the `contain`
+module is that boundary, and Sheet's formulas run in it where it holds --
+ADR 0052; a plan is still a plan.)
 
 ## Decision
 

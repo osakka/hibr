@@ -5184,8 +5184,10 @@ shutil.rmtree(CLD, True)
 
 # --- Sheet ---------------------------------------------------------------------
 
-# Sheet: a spreadsheet whose formulas are hibr, run under --plan unless the
-# sheet is trusted, kept in a db file one row per cell.
+# Sheet: a spreadsheet whose formulas are hibr, run contained -- or as a dry
+# run under --plan where nothing can contain them, which is this build
+# machine -- unless the sheet has full access, kept in a db file one row per
+# cell (ADR 0052).
 SHD = tempfile.mkdtemp(prefix="hibr-sheet-")
 
 
@@ -5228,6 +5230,14 @@ def shname(sc):
 
 def shk(t):
     return [c.encode() for c in t]
+
+
+def shmode(sc):
+    """What the status line says holds the formulas: full access, contained
+    or dry run -- read from the line itself, since a notice or a question
+    on screen can say the same words."""
+    m = re.search(r"columns \S (full access|contained|dry run)", sc.text())
+    return m.group(1) if m else ""
 
 
 SHEET = SHD + "/untitled-1.hsheet"
@@ -5273,9 +5283,13 @@ check("a range is an array of its cells, and a formula can be an expansion",
       "6" in shcells(sc, 4) and "60" in shcells(sc, 5), sc)
 os.remove(SHEET)
 sc = shrun(shk("=touch %s/made" % SHD) + [b"\r", b"\x1b[A"])
-check("a formula that would write is refused, and says what it would do",
-      "#REFUSED" in shcells(sc, 1) and "would run touch" in sc.text() and
-      not os.path.exists(SHD + "/made"), sc)
+check("a formula that would write is refused, and says why",
+      "#REFUSED" in shcells(sc, 1) and not os.path.exists(SHD + "/made") and
+      ("would run touch" in sc.text() or "contained" in sc.text()), sc)
+os.remove(SHEET)
+sc = shrun(shk("5") + [b"\r"])
+check("and the status line says what holds the formulas",
+      shmode(sc) in ("contained", "dry run"), sc)
 os.remove(SHEET)
 sc = shrun(shk("=echo $A2") + [b"\r"] + shk("=echo $A1") + [b"\r"])
 check("two formulas that need each other say #CYCLE",
@@ -5283,13 +5297,67 @@ check("two formulas that need each other say #CYCLE",
 os.remove(SHEET)
 sc = shrun(shk("=touch %s/made" % SHD) + [b"\r"],
            pre="SS_TRUST=%s" % SHEET)
-check("a trusted sheet's formulas run for real",
-      os.path.exists(SHD + "/made") and "trusted" in sc.text(), sc)
+check("a sheet with full access runs its formulas for real, an entry kept "
+      "before fingerprints included",
+      os.path.exists(SHD + "/made") and shmode(sc) == "full access", sc)
 os.remove(SHEET)
+os.remove(SHD + "/made")
 sc = shrun(shk("1") + [b"\r", b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C",
-                        b"t", 0.4, b"y", 0.4])
-check("Sheet > Trust This Sheet asks first, and then trusts it",
-      "trusted" in sc.text(), sc)
+                        b"u", 0.4, b"y", 0.4])
+check("Sheet > Run with Full Access asks first, and then gives it",
+      shmode(sc) == "full access", sc)
+os.remove(SHEET)
+
+# Full access is kept with a fingerprint of everything the sheet holds, so
+# a file whose cells are not the ones it was given to -- changed or
+# replaced outside Sheet -- runs contained and says so (Gitea #432).
+SHCFG = tempfile.mkdtemp(prefix="hibr-sheetcfg-")
+sc = shrun(shk("=touch %s/made" % SHD) + [b"\r", b"\x1b[21~", b"\x1b[C",
+                                           b"\x1b[C", b"\x1b[C", b"u", 0.4,
+                                           b"y", 1.0],
+           env={"XDG_CONFIG_HOME": SHCFG})
+check("full access given in one session", os.path.exists(SHD + "/made"), sc)
+os.remove(SHD + "/made")
+sc = shrun([], arg=SHEET, env={"XDG_CONFIG_HOME": SHCFG}, wait=1.0)
+check("is still there when the same sheet is opened again",
+      os.path.exists(SHD + "/made") and shmode(sc) == "full access", sc)
+os.remove(SHD + "/made")
+sc = shrun([], arg=SHEET, wait=0.3,
+           pre="SS_TRUST=%s$'\\t'123" % SHEET,
+           until="changed outside Sheet")
+check("and a sheet whose cells do not match it is contained, and told so",
+      not os.path.exists(SHD + "/made") and "changed outside Sheet" in sc.text()
+      and "#REFUSED" in shcells(sc, 1), sc)
+sc = shrun([], arg=SHEET, wait=0.3, pre="SS_NEWTRUST=ask",
+           until="with full access?")
+check("Ask When Opened asks of a sheet with formulas",
+      "with full access?" in sc.text() and not os.path.exists(SHD + "/made"), sc)
+os.remove(SHEET)
+sc = shrun(shk("5") + [b"\r"], wait=1.0, pre="SS_NEWTRUST=ask")
+check("and not of one without",
+      "with full access?" not in sc.text(), sc)
+os.remove(SHEET)
+
+# A containment that says it holds and then cannot contain a run is
+# reported once, and the sheet is worked out again as a dry run -- never a
+# sheet whose every cell fails. On a kernel with Landlock the same session
+# is genuinely contained, and the formula's answer is all there is to see.
+SHNOTE = []
+
+
+def shfell(s):
+    """The note is up for a moment, and the answer comes after it: remember
+    seeing the one while waiting for the other."""
+    if "could not contain" in s.text():
+        SHNOTE.append(1)
+    return "hi" in shcells(s, 1) and (SHNOTE or shmode(s) == "contained")
+
+
+sc = shrun(shk("=echo hi") + [b"\r"], wait=0.1,
+           pre="SS_CJ='landlock 9'", until=shfell)
+check("a containment that fails falls back to a dry run, and says so",
+      "hi" in shcells(sc, 1) and
+      ((SHNOTE and shmode(sc) == "dry run") or shmode(sc) == "contained"), sc)
 os.remove(SHEET)
 sc = shrun(shk("2") + [b"\r"] + shk("=$((A1 * 3))") + [b"\r", b"\x1b[A",
                                                         b"\x1b[A", b"\x1b[21~",
@@ -5392,7 +5460,7 @@ check("and it fits, with its button clear of the text",
 os.remove(SHEET)
 # The tour: a sheet of worked examples, in a window of its own, with the
 # formulas actually worked out -- and one the sandbox refuses, which is the
-# only way Trust This Sheet means anything.
+# only way Run with Full Access means anything.
 # The condition is a *worked-out* cell, not the window's title: the title is
 # there as soon as the window is, and every formula in the tour forks a
 # sandboxed hibr of its own, so under load the values arrive well after it.
@@ -6140,4 +6208,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(795)
+report(802)

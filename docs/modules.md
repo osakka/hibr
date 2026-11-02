@@ -237,6 +237,16 @@ lists every one, file by file:
 - **`proctab`** prints every process under `/proc` in one call (0.99.399),
   `pid utime stime uid rss name` a line, into `$RET` as well; it fails where
   there is no `/proc`. It shares its reader with `mon`.
+- **`contain`** runs a program that may read and compute but not act on
+  the world (0.99.427, ADR 0052): `contain exec DIR -- CMD [ARG...]` closes
+  every descriptor above 2, lets the program write only under `DIR`, opens
+  it no socket, refuses it `chmod`, `chown`, times and extended attributes
+  and any signal to another process, then execs `CMD` in that state, which
+  every program it starts inherits. On Linux that is Landlock and a seccomp
+  filter, on macOS the system sandbox; where neither is there it refuses
+  rather than run the command uncontained. `contain probe` says what the
+  system offers (`landlock 4`, `sandbox`) and fails where it offers
+  nothing. Sheet's formulas run in it.
 - **`db`** is a small column store: typed columns in one file, rows
   appended, filters and count/sum/min/max/avg over them, with zone maps
   that let a filter skip whole groups of rows; results print or come back

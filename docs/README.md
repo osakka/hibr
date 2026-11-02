@@ -37,7 +37,7 @@ exists. These pages are the detail.
 | `man hibr` | Its flags (`--agent`, `--explain`, `--plan`, `--checkfirst`, `--modules=`, `--login`), environment variables, files and exit status |
 | `man desktop` | The `desktop` command: its options, keys, and `desktop ctl`, the control socket |
 | [Modules](modules.md) | The module ABI, and writing one |
-| [Sheet](sheet.md) | The spreadsheet whose formula language is hibr: formulas, cells as variables, ranges as arrays, and the sandbox they run in |
+| [Sheet](sheet.md) | The spreadsheet whose formula language is hibr: formulas, cells as variables, ranges as arrays, the containment they run in, and full access for a sheet that should act |
 
 ## Build on it
 

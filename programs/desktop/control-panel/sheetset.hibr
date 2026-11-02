@@ -1,0 +1,62 @@
+#!/usr/bin/env hibr
+#
+# sheetset -- the Control Panel pane for Sheet: what the formulas of a sheet
+# never seen before do (Gitea #432, ADR 0052) -- run contained, ask when it
+# is opened, or run with full access. One sheet's own choice is made on the
+# sheet itself, Sheet > Run with Full Access. Named sheetset, not sheet,
+# which is the app's own prefix.
+
+strict
+
+app sheetset "The Control Panel pane for Sheet" 1.0
+command -v cp_pane > /dev/null && cp_pane sheetset "Sheet" "⊞" app
+
+SS_NEWTRUST="${SS_NEWTRUST-contained}"
+command -v dt_keep > /dev/null && dt_keep SS_NEWTRUST
+SS_NEWTRUSTS=(contained ask full)
+
+# What a stored choice is called on the row.
+fn sheetset_label(v) {
+	case $v in
+	ask) ret "Ask When Opened" ;;
+	full) ret "Full Access" ;;
+	esac
+	ret "Contained"
+}
+
+fn cp_set_sstrust(int? id = "", value = "") {
+	case $value in
+	"Ask When Opened") SS_NEWTRUST=ask ;;
+	"Full Access") SS_NEWTRUST=full ;;
+	*) SS_NEWTRUST=contained ;;
+	esac
+	cp_save
+}
+
+fn sheetset_rows(int w) {
+	local n=0 v
+
+	dt_has ss_load || { cp_absent "$w" Sheet; ret 1; }
+	v := sheetset_label "$SS_NEWTRUST"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Formulas in a New Sheet"
+	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=sstrust
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn sheetset_do(int? w = "", k = "", int? dir = "") {
+	local v
+
+	case $k in
+	sstrust) v := cp_next "$SS_NEWTRUST" "$dir" "${SS_NEWTRUSTS[@]}"
+		SS_NEWTRUST=$v ;;
+	esac
+	cp_save
+}
+
+fn sheetset_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	sstrust) dt_droplist "$w" "$r" "$c" cp_set_sstrust "Contained" \
+		"Ask When Opened" "Full Access" ;;
+	esac
+}

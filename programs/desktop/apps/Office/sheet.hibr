@@ -20,11 +20,17 @@
 # range A1_B9 an array of its values, row by row; formulas are worked out in
 # the order their cells need them, and one that needs itself says #CYCLE.
 #
-# Formulas run in a hibr of their own, under --plan: they can compute and
-# read what you can read, and anything that would write, connect or start a
-# program that does is refused and the cell says #REFUSED. Sheet > Trust
-# This Sheet lets one sheet's formulas run for real; that is kept on this
-# machine, never in the sheet, so a sheet cannot arrive trusted. Every run
+# Formulas run in a hibr of their own, contained (ADR 0052): they can read
+# what you can read, compute and run programs, but write only into a scratch
+# folder of their own and open no socket, so a sheet someone sends you
+# cannot touch your files or the network; what tries says #REFUSED. Where
+# the system offers no containment they run as a dry run, under --plan,
+# which refuses the same things by name. Sheet > Run with Full Access lets
+# one sheet's formulas run as you; that is kept on this machine, never in
+# the sheet, so a sheet cannot arrive trusted, and it is tied to the
+# sheet's formulas, so a file changed or replaced outside Sheet is asked
+# about again. Control Panel > Sheet sets what a sheet never seen before
+# does: contained, ask, or full access. Every run
 # has two seconds of CPU, so a formula that loops says #TIME rather than
 # holding the desktop. math is loaded for every run: floating point,
 # shell variables by name, sum avg min max count over arrays.
@@ -49,7 +55,8 @@
 
 strict
 
-app sheet "A spreadsheet whose formulas are hibr" 1.6
+app sheet "A spreadsheet whose formulas are hibr" 1.7
+# part: control-panel/sheetset.hibr
 # modules: csv db math
 
 command -v dt_app > /dev/null && dt_app sheet "Sheet" 24 84 many "⊞"
@@ -66,6 +73,15 @@ command -v dt_keepstate > /dev/null && dt_keepstate sheet SS
 SS_DIR="${SS_DIR-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/sheets}"
 SS_TRUST="${SS_TRUST-}"
 command -v dt_keep > /dev/null && dt_keep SS_TRUST
+# What a sheet nobody has said anything about does with its formulas:
+# contained, ask when it is opened, or full access (Gitea #432; Control
+# Panel > Sheet).
+SS_NEWTRUST="${SS_NEWTRUST-contained}"
+command -v dt_keep > /dev/null && dt_keep SS_NEWTRUST
+# What contains a sheet's formulas here: the contain module's answer, asked
+# once, or none, when only a dry run is left (ADR 0052).
+SS_CJ=
+
 SS_ROWS=100
 SS_COLS=26
 SS_COLW=10
@@ -86,7 +102,7 @@ SS_ROW0=4
 # label and the tag ss_tool turns back into the same call the menu makes, so
 # there is one implementation of each and not two.
 SS_TOOLS=(B:b I:i "L:al:l" "C:al:c" "R:al:r" "0:nf:0" "0.00:nf:2"
-          "%:pct" "1,000:th" "fx:help")
+          "%:pct" "1,000:th" "fx:help" "Full Access:trust")
 SS_CPU=2
 # What the recalc job runs: the window, its folder and the command.
 SS_RID=
@@ -431,6 +447,7 @@ fn ss_load(int id, path) {
 		done
 	fi
 	ss_retitle "$id"
+	ss_trustload "$id"
 	ss_recalc "$id"
 }
 
@@ -581,11 +598,133 @@ fn ss_q(t) {
 	ret "'${t//\'/\'\\\'\'}'"
 }
 
-# Whether this sheet's formulas may run for real.
+# Whether this sheet's formulas may run as you: decided when it was opened
+# (ss_trustload) and by Run with Full Access since.
 fn ss_trusted(int id) {
-	local p=${SS[$id]["path"]}
+	[ "${SS[$id]["trust"]-}" = 1 ]
+}
 
-	[ -n "$p" ] && [[ $'\n'"$SS_TRUST"$'\n' == *$'\n'"$p"$'\n'* ]]
+# What contains formulas here: "landlock N" or "sandbox", or none when only
+# a dry run is left. Worked out once by containing a hibr that writes inside
+# its folder and then outside it -- what the system says it offers is not
+# taken on trust, so a containment that cannot run, or does not hold, is a
+# dry run rather than a sheet whose every cell fails.
+ss_canhold() {
+	local d a
+
+	[ -n "$SS_CJ" ] && return 0
+	SS_CJ=none
+	d=$(mktemp -d 2> /dev/null) || return 0
+	printf '%s\n' 'echo ok > "$1/ok"' 'echo no > "$1-out"' > "$d/p.hibr" 2> /dev/null
+	a=$("$HIBR" -c 'need contain || exit 97; contain probe || exit 1
+contain exec "$1" -- "$2" "$1/p.hibr" "$1"' x "$d" "$HIBR" 2> /dev/null < /dev/null)
+	[ -s "$d/ok" ] && [ ! -e "$d-out" ] && [ -n "$a" ] && SS_CJ=$a
+	rm -rf "$d" "$d-out" 2> /dev/null
+	return 0
+}
+
+# What a sheet holds, as one fingerprint: what full access is tied to, so a
+# file changed or replaced outside Sheet is asked about again. Every cell,
+# not only the formulas, since a formula given full access acts on what the
+# cells it names say.
+fn ss_fhash(int id) {
+	local k h
+
+	h=$(for k in "${!SC[$id][@]}"; do
+		[ -n "${SC[$id][$k]["src"]}" ] &&
+			printf '%s\t%s\n' "$k" "${SC[$id][$k]["src"]}"
+	done | LC_ALL=C sort | cksum 2> /dev/null)
+	ret "${h%% *}"
+}
+
+# Whether a sheet has a formula at all, which is all there is to ask about.
+fn ss_hasforms(int id) {
+	local k
+
+	for k in "${!SC[$id][@]}"; do
+		[ "${SC[$id][$k]["src"]:0:1}" = "=" ] && return 0
+	done
+	return 1
+}
+
+# A sheet with full access, edited here by the person who gave it: what it
+# holds is theirs, so the fingerprint follows it.
+fn ss_trustkeep(int id) {
+	local q
+
+	ss_trusted "$id" || return 0
+	q := ss_fhash "$id"
+	[ "$q" = "${SS[$id]["th"]}" ] && return 0
+	SS[$id]["th"]=$q
+	ss_trustset "${SS[$id]["path"]}" "$q"
+}
+
+# A path's full access as recorded: its fingerprint, empty for one recorded
+# before 0.99.427 without one, and status 1 when there is none.
+fn ss_trustof(p) {
+	local l
+	local -a ls
+
+	IFS=$'\n' read -d '' -ra ls <<< "$SS_TRUST"
+	for l in "${ls[@]}"; do
+		[ "${l%%$'\t'*}" = "$p" ] || continue
+		if [[ $l == *$'\t'* ]]; then
+			ret "${l#*$'\t'}"
+		fi
+		ret ""
+	done
+	return 1
+}
+
+# Record a path's full access with its fingerprint, or with none drop it.
+fn ss_trustset(p, h = "") {
+	local l out=
+	local -a ls
+
+	IFS=$'\n' read -d '' -ra ls <<< "$SS_TRUST"
+	for l in "${ls[@]}"; do
+		[ -n "$l" ] && [ "${l%%$'\t'*}" != "$p" ] && out+="$l"$'\n'
+	done
+	[ -n "$h" ] && out+="$p"$'\t'"$h"$'\n'
+	SS_TRUST=${out%$'\n'}
+	command -v dt_save > /dev/null && dt_save
+}
+
+# A sheet has been opened: full access if it was given to these formulas,
+# and otherwise what Control Panel > Sheet says for one never seen.
+fn ss_trustload(int id) {
+	local p=${SS[$id]["path"]} h t f=
+
+	SS[$id]["trust"]=
+	[ -n "$p" ] || return 0
+	h := ss_fhash "$id"
+	SS[$id]["th"]=$h
+	ss_hasforms "$id" && f=1
+	if t := ss_trustof "$p"; then
+		if [ -z "$f" ] && [ -n "$t" ] && [ "$t" != "$h" ]; then
+			# Nothing left to run: an untitled name used again, or a
+			# sheet emptied elsewhere. Forget it rather than warn.
+			ss_trustset "$p"
+		elif [ -z "$t" ] || [ "$t" = "$h" ]; then
+			SS[$id]["trust"]=1
+			[ -z "$t" ] && ss_trustset "$p" "$h"
+		else
+			dt_notep normal "%s changed outside Sheet: its formulas run contained until you give it full access again" "${p##*/}"
+		fi
+		[ -z "$f" ] || return 0
+	fi
+	case $SS_NEWTRUST in
+	full)
+		SS[$id]["trust"]=1
+		ss_trustset "$p" "$h"
+		;;
+	ask)
+		[ -n "$f" ] || return 0
+		SS_TRUSTID=$id
+		DT_T := dt_tr "Run the formulas in %s with full access? They would run as you: write files, start programs, use the network." "${p##*/}"
+		dt_confirm "$DT_T" ss_trustyes
+		;;
+	esac
 }
 
 # Work out every formula: the order they need each other in, then one hibr
@@ -596,6 +735,7 @@ fn ss_recalc(int id) {
 	local -a forms order lits rec fld
 	local -A deg need users isform litset done rng
 
+	ss_trustkeep "$id"
 	for k in "${!SC[$id][@]}"; do
 		[ "${SC[$id][$k]["src"]:0:1}" = "=" ] || continue
 		nm := ss_name "${k%:*}" "${k#*:}"
@@ -696,16 +836,31 @@ fn ss_recalc(int id) {
 	SS_RID=$id
 	SS_RTMP=$tmp
 	SS_RCMD=("$HIBR")
-	ss_trusted "$id" || SS_RCMD+=(--plan)
+	SS[$id]["rmode"]=trusted
+	if ! ss_trusted "$id"; then
+		ss_canhold
+		if [ "$SS_CJ" != none ]; then
+			SS[$id]["rmode"]=contained
+			SS_RCMD=("$HIBR" -c 'need contain || exit 97; contain exec "$1" -- "$HIBR" "$2"' \
+				contain "$tmp/w-$id")
+		else
+			SS[$id]["rmode"]=dryrun
+			SS_RCMD+=(--plan)
+		fi
+	fi
 	SS[$id]["ragain"]=
 	SS[$id]["rjob"] := dt_job sheet "$id" ss_recalcdone ss_recalcjob || SS[$id]["rjob"]=
 }
 
 # The job's side of a recalc: the runner, alone in an empty environment.
 ss_recalcjob() {
+	local w="$SS_RTMP/w-$SS_RID"
 	local -a ev=("HOME=$HOME" "PATH=$PATH" "LANG=${LANG:-C.UTF-8}"
-		"HIBR_MODPATH=${HIBR_MODPATH-}" "TMPDIR=$SS_RTMP")
+		"HIBR_MODPATH=${HIBR_MODPATH-}" "TMPDIR=$w")
 
+	# The one folder contained formulas may write in, fresh each run.
+	rm -rf "$w" 2> /dev/null
+	mkdir -p "$w" 2> /dev/null
 	cd "$SS_RTMP" && env -i "${ev[@]}" \
 		"$HIBR" -c "$SS_RUNNER" x "$SS_CPU" "$SS_WALL" "${SS_RCMD[@]}" \
 		"$SS_RTMP/run-$SS_RID.hibr" < /dev/null 2> "$SS_RTMP/err-$SS_RID"
@@ -733,6 +888,11 @@ fn ss_recalcdone(int n, int rc) {
 	done
 	f := dt_jobfile "$n" out
 	out=$(< "$f")
+	if [ "${SS[$id]["rmode"]}" = contained ] && [ -z "$out" ] &&
+	   { [ "$rc" = 126 ] || [ "$rc" = 97 ]; }; then
+		ss_unheld "$id" "$tmp/err-$id"
+		return 0
+	fi
 	ss_notes "$tmp/err-$id"
 	for nm in "${order[@]}"; do emitted["$nm"]=; done
 	while [ -n "$out" ]; do
@@ -751,7 +911,11 @@ fn ss_recalcdone(int n, int rc) {
 			SC[$id][$k]["val"]=$v
 		elif [ -n "${SS_NOTE["$nm"]}" ]; then
 			SC[$id][$k]["val"]="#REFUSED"
-			SC[$id][$k]["err"]="would ${SS_NOTE["$nm"]} -- refused: this sheet is not trusted"
+			SC[$id][$k]["err"]="would ${SS_NOTE["$nm"]} -- refused: this sheet has no full access"
+		elif [ "${SS[$id]["rmode"]}" = contained ] &&
+		     [[ $e == *"ermission denied"* || $e == *"ot permitted"* ]]; then
+			SC[$id][$k]["val"]="#REFUSED"
+			SC[$id][$k]["err"]="$e -- refused: this sheet's formulas are contained"
 		elif [ "$st" -ge 128 ]; then
 			SC[$id][$k]["val"]="#TIME"
 			SC[$id][$k]["err"]="it ran out of time -- $SS_CPU seconds of CPU"
@@ -772,6 +936,20 @@ fn ss_recalcdone(int n, int rc) {
 			SC[$id][$k]["err"]="it did not finish (status $rc)"
 		fi
 	done
+}
+
+# Containment said it held and then could not contain a run: say why, once,
+# and work the sheet out again as a dry run, rather than leave every
+# formula failing for the rest of the session.
+fn ss_unheld(int id, f) {
+	local l why=
+
+	while IFS= read -r l; do
+		[[ $l == *"contain: "* ]] && { why=${l#*contain: }; break; }
+	done < "$f" 2> /dev/null
+	SS_CJ=none
+	dt_notep high "Sheet could not contain its formulas (%s): they run as a dry run instead" "${why:-status unknown}"
+	ss_recalc "$id"
 }
 
 # What a cell shows: its value, worked out if it is a formula.
@@ -1056,7 +1234,7 @@ fn sheet_close(int id) {
 	[ -n "$h" ] && db close "$h" 2> /dev/null
 	if [[ ${p##*/} == untitled-*.hsheet ]]; then
 		n := ss_count "$p"
-		[ "$n" = 0 ] && rm -f "$p"
+		[ "$n" = 0 ] && { rm -f "$p"; ss_trustof "$p" > /dev/null && ss_trustset "$p"; }
 	fi
 	unset "SS[$id]"
 	unset "SC[$id]"
@@ -1208,6 +1386,7 @@ fn ss_tool(int id, tag) {
 	al:*) ss_format "$id" al "${tag#al:}" ;;
 	nf:*) ss_format "$id" nf "${tag#nf:}" ;;
 	help) ss_helpshow "$id" ;;
+	trust) ss_trust "$id" ;;
 	*) return 1 ;;
 	esac
 	return 0
@@ -1406,7 +1585,12 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 	else
 		console pen "$DT_DIM" "$DT_FACE"
 		t="${rows} rows ${GL[dot]} ${cols} columns ${GL[dot]} "
-		if ss_trusted "$id"; then t+="trusted"; else t+="sandboxed"; fi
+		if ss_trusted "$id"; then
+			t+="full access"
+		else
+			ss_canhold
+			if [ "$SS_CJ" != none ]; then t+="contained"; else t+="dry run"; fi
+		fi
 	fi
 	if [ "$m" = 1 ]; then
 		t := dt_rpad "${t:0:$w}" "$w"
@@ -1762,7 +1946,7 @@ fn ss_picked_export(int id, path, type = "") {
 # Save As: the file as it is, copied under the new name, and the window
 # goes on with the copy; an untitled one's own file is let go.
 fn ss_picked_saveas(int id, path, type = "") {
-	local old=${SS[$id]["path"]} h=${SS[$id]["h"]}
+	local old=${SS[$id]["path"]} h=${SS[$id]["h"]} full=
 
 	[ -n "${DT[$id]["title"]}" ] || return 0
 	[ "${path%.hsheet}" = "$path" ] && path="$path.hsheet"
@@ -1773,7 +1957,14 @@ fn ss_picked_saveas(int id, path, type = "") {
 		ss_load "$id" "$old"
 		return 1
 	fi
-	[[ ${old##*/} == untitled-*.hsheet ]] && rm -f "$old"
+	# Full access goes with the formulas it was given to, under the new
+	# name as under the old; an untitled sheet's entry goes with its file.
+	ss_trusted "$id" && full=${SS[$id]["th"]}
+	[ -n "$full" ] && ss_trustset "$path" "$full"
+	if [[ ${old##*/} == untitled-*.hsheet ]]; then
+		rm -f "$old"
+		ss_trustof "$old" > /dev/null && ss_trustset "$old"
+	fi
 	ss_load "$id" "$path"
 	dt_notep low "Saved as %s" "${path##*/}"
 	command -v dt_changed > /dev/null && dt_changed
@@ -1786,29 +1977,27 @@ fn ss_trust(int id) {
 	local -a ls
 
 	if ss_trusted "$id"; then
-		IFS=$'\n' read -d '' -ra ls <<< "$SS_TRUST"
-		for l in "${ls[@]}"; do
-			[ -n "$l" ] && [ "$l" != "$p" ] && out+="$l"$'\n'
-		done
-		SS_TRUST=${out%$'\n'}
-		command -v dt_save > /dev/null && dt_save
-		dt_notep low "%s is sandboxed again" "${p##*/}"
+		ss_trustset "$p"
+		SS[$id]["trust"]=
+		dt_notep low "%s is contained again" "${p##*/}"
 		ss_recalc "$id"
 		return 0
 	fi
 	SS_TRUSTID=$id
-	DT_T := dt_tr "Trust %s? Its formulas will run as you: write files, start programs, use the network." "${p##*/}"
+	DT_T := dt_tr "Run the formulas in %s with full access? They would run as you: write files, start programs, use the network." "${p##*/}"
 	dt_confirm "$DT_T" ss_trustyes
 }
 
 ss_trustyes() {
-	local id=$SS_TRUSTID p
+	local id=$SS_TRUSTID p h
 
 	[ -n "$id" ] && [ -n "${SS[$id]["path"]}" ] || return 0
 	p=${SS[$id]["path"]}
-	SS_TRUST="${SS_TRUST:+$SS_TRUST$'\n'}$p"
-	command -v dt_save > /dev/null && dt_save
-	dt_notep low "%s is trusted" "${p##*/}"
+	h := ss_fhash "$id"
+	SS[$id]["th"]=$h
+	SS[$id]["trust"]=1
+	ss_trustset "$p" "$h"
+	dt_notep low "%s runs with full access" "${p##*/}"
 	ss_recalc "$id"
 }
 
@@ -1980,7 +2169,7 @@ sheet_menus() {
 	dt_sep
 	dt_item "Work Out Again" k ss_recalcnow "$id"
 	ss_trusted "$id" && on=1
-	dt_mark "Trust This Sheet${GL[ellipsis]}" t "$on" ss_trust "$id"
+	dt_mark "Run with Full Access${GL[ellipsis]}" u "$on" ss_trust "$id"
 	ss_formatmenu "$id"
 	dt_menu "Help"
 	dt_item "How Formulas Work" f ss_helpshow "$id"
@@ -2041,11 +2230,11 @@ fn sshelp_draw(int id, int h, int w, int row, int col) {
 	dt_tput "$id" "$i" 2 "order they need each other; one needing itself says #CYCLE."
 	i=$((i + 2))
 	console pen "$DT_WARN" "$DT_FACE"
-	dt_tput "$id" "$i" 2 "Formulas run as a dry run: one that would write or connect"
+	dt_tput "$id" "$i" 2 "Formulas run contained: one that would write or connect"
 	i=$((i + 1))
-	dt_tput "$id" "$i" 2 "says #REFUSED, one that loops says #TIME. Trust This Sheet"
+	dt_tput "$id" "$i" 2 "says #REFUSED, one that loops says #TIME. Run with Full"
 	i=$((i + 1))
-	dt_tput "$id" "$i" 2 "lifts that for one sheet, here only."
+	dt_tput "$id" "$i" 2 "Access lifts that for one sheet, on this machine only."
 	dt_dlgbtns "$id" "$h" "$w" ok ok Close
 	return 0
 }
@@ -2078,8 +2267,9 @@ fn sshelp_key(int id, key) {
 }
 
 # A sheet whose cells are the documentation: every formula in it is one you
-# can look at, change and watch work out again, including one the sandbox
-# refuses -- which is the only way Trust This Sheet means anything. Shipped
+# can look at, change and watch work out again, including one the
+# containment refuses -- which is the only way Run with Full Access means
+# anything. Shipped
 # as CSV rather than as a .hsheet, because a sheet is a db file and nobody
 # should have to take a binary on trust; imported into a *new* window, so
 # it cannot land on top of what someone was working on.

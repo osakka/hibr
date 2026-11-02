@@ -16,6 +16,7 @@
 %s cannot be made
 %s changed on the server while you edited it; yours is saved as %s
 %s changed on the server, and your edit could not be saved beside it: %s
+%s changed outside Sheet: its formulas run contained until you give it full access again
 %s columns
 %s connected
 %s does not take files
@@ -35,6 +36,7 @@
 %s is a number
 %s is a whole number
 %s is blank
+%s is contained again
 %s is in use again
 %s is loaded already
 %s is not answering
@@ -43,10 +45,8 @@
 %s is now %s
 %s is on every workspace
 %s is on workspace %s only
-%s is sandboxed again
 %s is the primary display -- make another primary first
 %s is there already. Replace it?
-%s is trusted
 %s is your own; the card is not changed
 %s item done
 %s item remaining
@@ -67,6 +67,7 @@
 %s or %s
 %s pixels, a cell is %s by %s
 %s rows
+%s runs with full access
 %s selected
 %s uses WEP, which is not joined from here
 %s was updated: Restart Desktop to use the new version
@@ -115,6 +116,7 @@ About %s…
 About Me
 About This Computer
 About This Computer…
+Access lifts that for one sheet, on this machine only.
 Account
 Account %s saved
 Accounts
@@ -530,7 +532,8 @@ Forget a Device
 Forgot %s
 Format
 Format:
-Formulas run as a dry run: one that would write or connect
+Formulas in a New Sheet
+Formulas run contained: one that would write or connect
 Forward
 Frame
 Frames For Video (as output)
@@ -1036,6 +1039,8 @@ Rubber Band
 Rule
 Rule…
 Run in a terminal
+Run the formulas in %s with full access? They would run as you: write files, start programs, use the network.
+Run with Full Access…
 Running Image
 Runs On
 STATE
@@ -1109,6 +1114,7 @@ Shadow Shape
 Shadows
 Shawwal
 Sheet
+Sheet could not contain its formulas (%s): they run as a dry run instead
 Sheet needs the db module
 Shell
 Shortcut Key
@@ -1298,8 +1304,6 @@ Tour
 Trash
 Tree Rules
 Tree Style
-Trust %s? Its formulas will run as you: write files, start programs, use the network.
-Trust This Sheet…
 Tue
 Tuesday
 Turns off automatic time (NTP) first
@@ -1459,7 +1463,6 @@ installed, with %s
 integers only
 it did not answer -- is it on and near?
 it took too long
-lifts that for one sheet, here only.
 looking%s
 moving — arrows, then enter
 nmcli asked something the desktop cannot answer
@@ -1495,7 +1498,7 @@ range A1_B9 an array of its values, worked out in the
 reading the catalogue
 replaced on disk
 resizing — arrows, then enter
-says #REFUSED, one that loops says #TIME. Trust This Sheet
+says #REFUSED, one that loops says #TIME. Run with Full
 server to keep its vault here, readable offline.
 sets a place, or the time zone gives one.
 shadows the one hibr ships

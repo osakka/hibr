@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.427
+
+**A sheet's formulas are contained, and a sheet can be given full access**
+(Gitea #432, ADR 0052). A new module, `contain`, runs a program that may read
+and compute but not act on the world: it writes only in a folder of its own,
+opens no socket, changes no file's mode, owner or times, signals no other
+process, and holds no descriptor it was handed -- Landlock and a seccomp
+filter on Linux, the system sandbox on macOS, inherited by everything it
+starts, and never the command uncontained when that cannot be done. Sheet's
+formulas run in it, so a sheet that arrives by mail cannot touch your files
+or the network, and what tries says `#REFUSED` with the program's own words.
+Sheet decides by running a contained write once, not by what the system says
+it offers; where nothing can contain a formula it runs as a dry run under
+`--plan`, as before, and the status line says which.
+
+**Sheet > Run with Full Access** (and Full Access on the toolbar) lets one
+sheet's formulas run as you -- write files, start programs, use the network,
+a sheet as a program. It is kept on this machine, never in the sheet, and
+with a fingerprint of every cell, so your own edits keep it, Save As carries
+it, and a file changed or replaced outside Sheet is contained again and says
+so. **Control Panel > Sheet** chooses what a sheet never seen before does:
+Contained, Ask When Opened, or Full Access. An entry kept by Trust This Sheet
+before this release is taken as given and fingerprinted on first open.
+
+What containment does not stop is written down rather than glossed: a
+formula can still *read* anything you can and show it in its cell; and on a
+kernel older than Linux 6.12 it cannot signal its own children either, so
+`timeout` inside a formula fails there. The Landlock path has not run on the
+machine this was built on, whose kernel has none -- the seccomp filter was
+run there under a harness -- and `tests/contain.py` says so and skips; it is
+run on a machine with Landlock before #432 closes. Sheet 1.7.
+
 ## 0.99.426
 
 **Six inputs that crashed the shell are errors or answers** (Gitea #428,
