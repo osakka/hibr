@@ -126,58 +126,139 @@ int al_run(sh *s, const char *body, int ac, char **av, char **am)
 	return st;
 }
 
-/* Define aliases, or list the ones already defined. */
+/* Write a value in single quotes, each quote of its own as '\'', which is
+   how bash prints an alias and what reads back as the same text. */
+void al_sq(str *o, const char *v)
+{
+	s_ch(o, '\'');
+	for (; *v; v++) {
+		if (*v == '\'')
+			s_cat(o, "'\\''");
+		else
+			s_ch(o, *v);
+	}
+	s_ch(o, '\'');
+}
+
+/* Print one alias as the command that defines it. */
+void al_print(const char *k, const char *v)
+{
+	str o;
+
+	s_init(&o);
+	s_cat(&o, "alias ");
+	s_cat(&o, k);
+	s_ch(&o, '=');
+	al_sq(&o, v);
+	puts(o.p);
+	s_free(&o);
+}
+
+/* Order aliases by name for a listing. */
+int al_cmp(const void *a, const void *b)
+{
+	return strcmp((*(struct al *const *)a)->k, (*(struct al *const *)b)->k);
+}
+
+/* Define aliases, or list the ones already defined, by name and quoted to
+   read back; a name with no alias fails, as in bash (Gitea #458). */
 int b_alias(sh *s, int ac, char **av)
 {
-	int i;
+	int i = 1, rc = HIBR_OK;
 	size_t j;
 	char *q;
 	struct al *a;
 
-	if (ac == 1) {
-		for (j = 0; j < s->als.n; j++) {
-			a = (struct al *)s->als.p[j];
-			printf("alias %s='%s'\n", a->k, a->v);
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
 		}
+		if (strcmp(av[i], "-p")) {
+			lg(HIBR_LERR, "alias: %s: invalid option", av[i]);
+			return 2;
+		}
+	}
+	if (i >= ac) {
+		vec l = { 0, 0, 0 };
+
+		for (j = 0; j < s->als.n; j++)
+			v_add(&l, s->als.p[j]);
+		if (l.n > 1)
+			qsort(l.p, l.n, sizeof *l.p, al_cmp);
+		for (j = 0; j < l.n; j++) {
+			a = (struct al *)l.p[j];
+			al_print(a->k, a->v);
+		}
+		v_free(&l);
 		return HIBR_OK;
 	}
-	for (i = 1; i < ac; i++) {
+	for (; i < ac; i++) {
 		q = strchr(av[i], '=');
 		if (!q) {
 			const char *v = al_get(s, av[i]);
-			if (v)
-				printf("alias %s='%s'\n", av[i], v);
-			else
+			if (v) {
+				al_print(av[i], v);
+			} else {
 				lg(HIBR_LERR, "alias: %s: not found", av[i]);
+				rc = HIBR_FAIL;
+			}
 			continue;
 		}
 		*q = 0;
 		al_set(s, av[i], q + 1);
 		*q = '=';
 	}
-	return HIBR_OK;
+	return rc;
 }
 
-/* Remove aliases. */
-int b_unalias(sh *s, int ac, char **av)
+/* Take one alias out of the table: 1 when there was one. */
+int al_del(sh *s, const char *k)
 {
-	int i;
 	size_t j;
 	struct al *a;
 
-	for (i = 1; i < ac; i++)
-		for (j = 0; j < s->als.n; j++) {
-			a = (struct al *)s->als.p[j];
-			if (strcmp(a->k, av[i]))
-				continue;
+	for (j = 0; j < s->als.n; j++) {
+		a = (struct al *)s->als.p[j];
+		if (strcmp(a->k, k))
+			continue;
+		free(a->k);
+		free(a->v);
+		free(a);
+		s->als.p[j] = s->als.p[s->als.n - 1];
+		s->als.n--;
+		return 1;
+	}
+	return 0;
+}
+
+/* Remove aliases, or all of them with -a; one that is not there fails. */
+int b_unalias(sh *s, int ac, char **av)
+{
+	int i = 1, rc = HIBR_OK;
+	struct al *a;
+
+	if (i < ac && !strcmp(av[i], "-a")) {
+		while (s->als.n) {
+			a = (struct al *)s->als.p[--s->als.n];
 			free(a->k);
 			free(a->v);
 			free(a);
-			s->als.p[j] = s->als.p[s->als.n - 1];
-			s->als.n--;
-			break;
 		}
-	return HIBR_OK;
+		return HIBR_OK;
+	}
+	if (i < ac && !strcmp(av[i], "--"))
+		i++;
+	if (i >= ac) {
+		lg(HIBR_LERR, "unalias: usage: unalias [-a] name [name ...]");
+		return 2;
+	}
+	for (; i < ac; i++)
+		if (!al_del(s, av[i])) {
+			lg(HIBR_LERR, "unalias: %s: not found", av[i]);
+			rc = HIBR_FAIL;
+		}
+	return rc;
 }
 
 /* Release the alias table. */
@@ -229,46 +310,170 @@ const char *dir_at(sh *s, long k)
 	return (const char *)s->dirs.p[s->dirs.n - (size_t)i];
 }
 
-/* Print the directory stack, newest first. */
+/* Read a +N or -N stack index: 1 with *k set, 0 when w is not one. */
+int dir_idx(const char *w, long *k)
+{
+	char *end;
+
+	if ((w[0] != '+' && w[0] != '-') || !isdigit((unsigned char)w[1]))
+		return 0;
+	*k = strtol(w + 1, &end, 10);
+	if (*end)
+		return 0;
+	if (w[0] == '-')
+		*k = -*k - 1;
+	return 1;
+}
+
+/* The stack's position for a +N or -N index, entry 0 being the working
+   directory: -1 when it is out of range. */
+long dir_pos(sh *s, long k)
+{
+	long len = (long)s->dirs.n + 1;
+
+	if (k < 0)
+		k += len;
+	return k < 0 || k >= len ? -1 : k;
+}
+
+/* Print the directory stack, newest first: -c clears it, -l keeps paths
+   whole, -p prints one a line, -v numbers them, +N or -N prints one. */
 int b_dirs(sh *s, int ac, char **av)
 {
 	char *c = cwd(), *t;
-	size_t i = s->dirs.n;
+	long i, n = (long)s->dirs.n, k, pos = -1;
+	int clr = 0, lng = 0, per = 0, num = 0, a = 1;
+	const char *e, *f;
 
-	(void)ac;
-	(void)av;
-	if (c) {
-		t = dir_short(s, c);
-		printf("%s", t);
-		free(t);
+	for (; a < ac; a++) {
+		if (dir_idx(av[a], &k)) {
+			pos = dir_pos(s, k);
+			if (pos < 0) {
+				lg(HIBR_LERR, "dirs: %s: directory stack index out of range", av[a]);
+				free(c);
+				return HIBR_FAIL;
+			}
+			continue;
+		}
+		if (av[a][0] != '-' || !av[a][1]) {
+			lg(HIBR_LERR, "dirs: %s: invalid argument", av[a]);
+			free(c);
+			return 2;
+		}
+		for (f = av[a] + 1; *f; f++) {
+			if (*f == 'c')
+				clr = 1;
+			else if (*f == 'l')
+				lng = 1;
+			else if (*f == 'p')
+				per = 1;
+			else if (*f == 'v')
+				per = num = 1;
+			else {
+				lg(HIBR_LERR, "dirs: -%c: invalid option", *f);
+				free(c);
+				return 2;
+			}
+		}
+	}
+	if (clr) {
+		while (s->dirs.n)
+			free(s->dirs.p[--s->dirs.n]);
 		free(c);
+		return HIBR_OK;
 	}
-	while (i--) {
-		t = dir_short(s, (char *)s->dirs.p[i]);
-		printf(" %s", t);
+	for (i = 0; i <= n; i++) {
+		if (pos >= 0 && i != pos)
+			continue;
+		e = i ? (const char *)s->dirs.p[n - i] : (c ? c : "");
+		t = lng ? xs(e) : dir_short(s, e);
+		if (num)
+			printf("%2ld  %s\n", i, t);
+		else if (per || pos >= 0)
+			printf("%s\n", t);
+		else
+			printf(i ? " %s" : "%s", t);
 		free(t);
 	}
-	printf("\n");
+	if (!per && pos < 0)
+		printf("\n");
+	free(c);
 	return HIBR_OK;
 }
 
-/* Change directory, remembering where we were. */
+/* cd for the directory stack: 0 on success, with OLDPWD and PWD set. */
+int dir_cd(sh *s, const char *d)
+{
+	char *args[3];
+
+	args[0] = "cd";
+	args[1] = "--";
+	args[2] = (char *)d;
+	return b_cd(s, 3, args);
+}
+
+/* Change directory, remembering where we were: with no name the top two
+   swap, -n adds without changing directory, +N or -N rotates the stack so
+   that entry is on top, as bash's pushd does. */
 int b_pushd(sh *s, int ac, char **av)
 {
-	char *c;
-	char *args[2];
+	char *c, *top;
+	int a = 1, nocd = 0;
+	long k, pos, i, n;
+	vec l = { 0, 0, 0 };
 
-	if (ac < 2) {
+	if (a < ac && !strcmp(av[a], "-n")) {
+		nocd = 1;
+		a++;
+	}
+	if (a < ac && !strcmp(av[a], "--"))
+		a++;
+	if (a >= ac) {
 		if (!s->dirs.n) {
-			lg(HIBR_LERR, "pushd: the stack is empty");
+			lg(HIBR_LERR, "pushd: no other directory");
 			return HIBR_FAIL;
 		}
-		return b_popd(s, 1, av);
+		top = (char *)s->dirs.p[s->dirs.n - 1];
+		c = cwd();
+		if (!nocd && dir_cd(s, top) != HIBR_OK) {
+			free(c);
+			return HIBR_FAIL;
+		}
+		free(top);
+		s->dirs.p[s->dirs.n - 1] = c ? c : xs("");
+		return b_dirs(s, 1, av);
+	}
+	if (dir_idx(av[a], &k)) {
+		pos = dir_pos(s, k);
+		if (pos < 0) {
+			lg(HIBR_LERR, "pushd: %s: directory stack index out of range", av[a]);
+			return HIBR_FAIL;
+		}
+		n = (long)s->dirs.n;
+		c = cwd();
+		v_add(&l, c ? c : xs(""));
+		for (i = n - 1; i >= 0; i--)
+			v_add(&l, s->dirs.p[i]);
+		if (!nocd && pos && dir_cd(s, (char *)l.p[pos]) != HIBR_OK) {
+			free(l.p[0]);
+			v_free(&l);
+			return HIBR_FAIL;
+		}
+		s->dirs.n = 0;
+		for (i = (long)l.n - 1; i >= 1; i--)
+			v_add(&s->dirs, l.p[(pos + i) % (long)l.n]);
+		if (pos == 0)
+			lg(HIBR_LDBG, "pushd +0 leaves the stack as it is");
+		free(l.p[pos]);
+		v_free(&l);
+		return b_dirs(s, 1, av);
+	}
+	if (nocd) {
+		v_add(&s->dirs, xs(av[a]));
+		return b_dirs(s, 1, av);
 	}
 	c = cwd();
-	args[0] = "cd";
-	args[1] = av[1];
-	if (b_cd(s, 2, args) != HIBR_OK) {
+	if (dir_cd(s, av[a]) != HIBR_OK) {
 		free(c);
 		return HIBR_FAIL;
 	}
@@ -277,29 +482,56 @@ int b_pushd(sh *s, int ac, char **av)
 	return b_dirs(s, 1, av);
 }
 
-/* Return to the directory on top of the stack. */
+/* Return to the directory on top of the stack, or with +N or -N take that
+   entry out; -n takes one out without changing directory. */
 int b_popd(sh *s, int ac, char **av)
 {
 	char *d;
-	char *args[2];
-	int rc;
+	int a = 1, nocd = 0;
+	long k, pos = 1, at;
 
-	(void)ac;
+	if (a < ac && !strcmp(av[a], "-n")) {
+		nocd = 1;
+		a++;
+	}
+	if (a < ac && !strcmp(av[a], "--"))
+		a++;
 	if (!s->dirs.n) {
-		lg(HIBR_LERR, "popd: the stack is empty");
+		lg(HIBR_LERR, "popd: directory stack empty");
 		return HIBR_FAIL;
 	}
-	d = (char *)s->dirs.p[--s->dirs.n];
-	args[0] = "cd";
-	args[1] = d;
-	rc = b_cd(s, 2, args);
+	if (a < ac) {
+		if (!dir_idx(av[a], &k) || (pos = dir_pos(s, k)) < 0) {
+			lg(HIBR_LERR, "popd: %s: directory stack index out of range", av[a]);
+			return HIBR_FAIL;
+		}
+	}
+	if (pos == 0) {
+		lg(HIBR_LDBG, "popd +0 leaves for the next entry");
+		pos = 1;
+		nocd = 0;
+	} else if (a < ac || nocd) {
+		at = (long)s->dirs.n - pos;
+		d = (char *)s->dirs.p[at];
+		memmove(s->dirs.p + at, s->dirs.p + at + 1,
+			(s->dirs.n - (size_t)at - 1) * sizeof *s->dirs.p);
+		s->dirs.n--;
+		free(d);
+		return b_dirs(s, 1, av);
+	}
+	d = (char *)s->dirs.p[s->dirs.n - 1];
+	if (dir_cd(s, d) != HIBR_OK)
+		return HIBR_FAIL;
+	s->dirs.n--;
 	free(d);
-	if (rc != HIBR_OK)
-		return rc;
 	return b_dirs(s, 1, av);
 }
 
-/* Expand one prompt escape, returning the bytes consumed. */
+/* Expand one prompt escape, returning the bytes consumed.
+
+   bash's \NNN: the character of up to three octal digits -- \033 is how
+   most prompts found on the web say escape, and it printed as itself until
+   0.99.294 (Gitea #350). */
 int pr_esc(sh *s, str *o, const char *p)
 {
 	char *c;
@@ -392,9 +624,6 @@ int pr_esc(sh *s, str *o, const char *p)
 		return 1;
 	case '0': case '1': case '2': case '3':
 	case '4': case '5': case '6': case '7': {
-		/* bash's \NNN: the character of up to three octal digits --
-		   \033 is how most prompts found on the web say escape, and
-		   it printed as itself until 0.99.294 (Gitea #350). */
 		int v = 0, n = 0;
 
 		while (n < 3 && p[n] >= '0' && p[n] <= '7') {
@@ -874,7 +1103,16 @@ int sh_optget(sh *s, const char *nm)
 	return -1;
 }
 
-/* Set one option by name, refusing the ones that do not move. */
+/* Set one option by name, refusing the ones that do not move.
+
+   noexec turning on stops the rest of the list it was turned on in, which
+   is what makes `set -n; echo X` print nothing as in bash: the flag it
+   borrows is one ex() already loads in its prologue, so the loop pays no
+   instruction for this. The read loops clear it again before the next
+   line, or a later syntax error would go unreported -- which is the whole
+   point of noexec. An interactive shell ignores noexec, as bash's own
+   documentation says it does, so it is never armed there. On the 0->1 edge
+   only: hibr -n sets this from main, before anything has run. */
 int sh_optset(sh *s, const char *nm, int on)
 {
 	int *f = sh_optflag(s, nm);
@@ -896,16 +1134,6 @@ int sh_optset(sh *s, const char *nm, int on)
 		return HIBR_FAIL;
 	}
 	if (f) {
-		/* noexec turning on stops the rest of the list it was turned
-		   on in, which is what makes `set -n; echo X` print nothing as
-		   in bash: the flag it borrows is one ex() already loads in
-		   its prologue, so the loop pays no instruction for this. The
-		   read loops clear it again before the next line, or a later
-		   syntax error would go unreported -- which is the whole point
-		   of noexec. An interactive shell ignores noexec, as bash's
-		   own documentation says it does, so it is never armed there.
-		   On the 0->1 edge only: hibr -n sets this from main, before
-		   anything has run. */
 		if (f == &s->noexec && on && !*f && !s->it)
 			s->stop = 1;
 		*f = on;
@@ -1127,26 +1355,69 @@ int cmd_ext(sh *s, char **av, const char *who)
 	return WIFEXITED(w) ? WEXITSTATUS(w) : HIBR_FAIL;
 }
 
+/* command: run a name skipping functions and aliases, or with -v and -V
+   say what it is; -p looks along the default path; -- ends the options. */
 int b_command(sh *s, int ac, char **av)
+{
+	int i = 1, v = 0, vb = 0, dp = 0, st;
+	const char *f;
+	char **oam = s->amask;
+
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
+		}
+		for (f = av[i] + 1; *f; f++) {
+			if (*f == 'v')
+				v = 1;
+			else if (*f == 'V')
+				v = vb = 1;
+			else if (*f == 'p')
+				dp = 1;
+			else {
+				lg(HIBR_LERR, "command: -%c: invalid option", *f);
+				return 2;
+			}
+		}
+	}
+	if (oam)
+		s->amask = oam + (i - 1);
+	if (dp) {
+		char *old = hibr_get(s, "PATH") ? xs(hibr_get(s, "PATH")) : 0;
+
+		lg(HIBR_LDBG, "command -p looks along the default path");
+		hibr_set(s, "PATH", HIBR_DEFPATH, 0);
+		st = b_command1(s, v, vb, ac - i + 1, av + i - 1);
+		if (old) {
+			hibr_set(s, "PATH", old, 0);
+			free(old);
+		} else {
+			v_del(s, "PATH");
+		}
+	} else {
+		st = b_command1(s, v, vb, ac - i + 1, av + i - 1);
+	}
+	s->amask = oam;
+	return st;
+}
+
+/* command's work once its options are read: av[1] is the name. */
+int b_command1(sh *s, int v, int vb, int ac, char **av)
 {
 	const hibr_bi *b;
 
-	if (ac > 1 && av[1][0] == '-' && av[1][1] && !av[1][2] &&
-	    (av[1][1] == 'v' || av[1][1] == 'V' || av[1][1] == 'p')) {
-		int vb = av[1][1] == 'V', nm = 2;
-		if (av[1][1] == 'p') {
-			if (ac > 2 && !strcmp(av[2], "-v"))
-				nm = 3;
-			else if (ac > 2 && !strcmp(av[2], "-V"))
-				vb = 1, nm = 3;
-			else
-				return b_command(s, ac - 1, av + 1);
-		}
-		if (nm >= ac) {
+	if (v) {
+		int k, rc = HIBR_OK;
+
+		if (ac < 2) {
 			lg(HIBR_LERR, "usage: command -v name");
 			return 2;
 		}
-		return cmd_what(s, av[nm], vb);
+		for (k = 1; k < ac; k++)
+			if (cmd_what(s, av[k], vb) != HIBR_OK)
+				rc = HIBR_FAIL;
+		return rc;
 	}
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: command name [args...]");
@@ -1181,42 +1452,61 @@ int kw_name(const char *t)
 	return 0;
 }
 
+/* What a name resolves to, in the order the shell looks: an alias, a
+   keyword, a function, a builtin (a module's or the shell's), a file -- the
+   one resolver type and command -v share (Gitea #458). *path is the file's,
+   to be freed, for NK_FILE. -f leaves functions out. */
+int nm_kind(sh *s, const char *nm, int nofn, char **path)
+{
+	*path = 0;
+	if (al_get(s, nm))
+		return NK_ALIAS;
+	if (kw_name(nm))
+		return NK_KEYWORD;
+	if (!nofn && fn_find(s, nm))
+		return NK_FUNC;
+	if (m_find(s, nm))
+		return NK_MODBI;
+	if (bi_find(nm))
+		return NK_BUILTIN;
+	if ((*path = findx(s, nm)) != 0)
+		return NK_FILE;
+	return NK_NONE;
+}
+
 /* Say what a name resolves to, for command -v and -V. */
 int cmd_what(sh *s, const char *nm, int vb)
 {
-	const char *al;
 	char *path;
 	str o;
-	int ok = 1;
+	int ok = 1, k = nm_kind(s, nm, 0, &path);
 
 	s_init(&o);
-	al = al_get(s, nm);
-	if (al) {
+	if (k == NK_ALIAS) {
 		if (vb) {
 			s_cat(&o, nm);
 			s_cat(&o, " is aliased to `");
-			s_cat(&o, al);
+			s_cat(&o, al_get(s, nm));
 			s_ch(&o, '\'');
 		} else {
 			s_cat(&o, "alias ");
 			s_cat(&o, nm);
-			s_cat(&o, "='");
-			s_cat(&o, al);
-			s_ch(&o, '\'');
+			s_ch(&o, '=');
+			al_sq(&o, al_get(s, nm));
 		}
-	} else if (fn_find(s, nm)) {
+	} else if (k == NK_FUNC) {
 		s_cat(&o, nm);
 		if (vb)
 			s_cat(&o, " is a function");
-	} else if (kw_name(nm)) {
+	} else if (k == NK_KEYWORD) {
 		s_cat(&o, nm);
 		if (vb)
 			s_cat(&o, " is a shell keyword");
-	} else if (m_find(s, nm) || bi_find(nm)) {
+	} else if (k == NK_MODBI || k == NK_BUILTIN) {
 		s_cat(&o, nm);
 		if (vb)
 			s_cat(&o, " is a shell builtin");
-	} else if ((path = findx(s, nm)) != 0) {
+	} else if (k == NK_FILE) {
 		if (vb) {
 			s_cat(&o, nm);
 			s_cat(&o, " is ");

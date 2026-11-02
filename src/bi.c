@@ -49,6 +49,10 @@ int b_cd(sh *s, int ac, char **av)
 			return 2;
 		}
 	}
+	if (i < ac && !*av[i]) {
+		lg(HIBR_LDBG, "cd to an empty name stays where it is, as bash's does");
+		return HIBR_OK;
+	}
 	t = i < ac ? av[i] : hibr_get(s, "HOME");
 	old = cwd();
 	if (!t)
@@ -57,6 +61,11 @@ int b_cd(sh *s, int ac, char **av)
 		t = hibr_get(s, "OLDPWD");
 		if (!t) {
 			lg(HIBR_LERR, "cd: OLDPWD not set");
+			free(old);
+			return HIBR_FAIL;
+		}
+		if (chdir(t) < 0) {
+			lg(HIBR_LERR, "cd: %s: %s", t, strerror(errno));
 			free(old);
 			return HIBR_FAIL;
 		}
@@ -296,12 +305,6 @@ int bi_argk(const char *nm)
 	return 0;
 }
 
-/* True for a builtin that reads the quote mask of its own arguments. */
-int bi_mask(const char *nm)
-{
-	return bi_argk(nm) & 1;
-}
-
 /* Remove the function named nm, if there is one. */
 void bi_unfn(sh *s, const char *nm)
 {
@@ -434,7 +437,10 @@ int b_exit(sh *s, int ac, char **av)
 	return s->st;
 }
 
-/* Place a function's result in the result slot and return. */
+/* Place a function's result in the result slot and return.
+
+   `ret -k`: the result is what the slot holds now -- what the last command
+   left, a map and its types included -- passed on as this function's own. */
 int b_ret(sh *s, int ac, char **av)
 {
 	const char *v = ac > 1 ? av[1] : "";
@@ -445,9 +451,6 @@ int b_ret(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "ret: can only `ret' from a function or sourced script");
 		return s->st = 2;
 	}
-	/* `ret -k`: the result is what the slot holds now -- what the last
-	   command left, a map and its types included -- passed on as this
-	   function's own. */
 	if (ac == 2 && !strcmp(av[1], "-k")) {
 		const char *k = hibr_get(s, "RET");
 
@@ -1055,7 +1058,20 @@ void bi_rdrest(str *b, const char *m, size_t *p, const char *ifs, size_t *fs,
 			(*fe)--;
 }
 
-/* Read a line from standard input into variables. */
+/* Read a line from standard input into variables.
+
+   A count given as 0 is not the same as no count: bash takes nothing and
+   succeeds, where no count at all reads a whole line. And a count that is
+   not a number is bash's error rather than a silent 0.
+
+   A count of 0 reads nothing and succeeds, taking not even a byte from the
+   descriptor, so the next command sees all of it.
+
+   `read -N` splits nothing: the whole of what was taken goes to the first
+   name, leading and trailing blanks and all, and any further name is left
+   empty -- which is what the form is for, and is bash's own behaviour (an
+   array gets one element, and with no name at all REPLY gets the lot,
+   which the paths below already do). */
 int b_read(sh *s, int ac, char **av)
 {
 	str b;
@@ -1106,11 +1122,6 @@ int b_read(sh *s, int ac, char **av)
 				break;
 			case 'n':
 			case 'N':
-				/* A count given as 0 is not the same as no
-				   count: bash takes nothing and succeeds,
-				   where no count at all reads a whole line.
-				   And a count that is not a number is bash's
-				   error rather than a silent 0. */
 				{
 					char *e2;
 					long v = strtol(ov, &e2, 10);
@@ -1201,8 +1212,6 @@ int b_read(sh *s, int ac, char **av)
 	}
 	s_init(&b);
 	mp = 0;
-	/* A count of 0 reads nothing and succeeds, taking not even a byte
-	   from the descriptor, so the next command sees all of it. */
 	if (tout) {
 		n = -1;
 	} else if (cnt && !want) {
@@ -1223,11 +1232,6 @@ int b_read(sh *s, int ac, char **av)
 	rv = tout ? 142 : eof ? HIBR_FAIL : HIBR_OK;
 	if (tout)
 		lg(HIBR_LDBG, "read timed out after %g s with %zu bytes taken", tmo, b.n);
-	/* `read -N` splits nothing: the whole of what was taken goes to the
-	   first name, leading and trailing blanks and all, and any further
-	   name is left empty -- which is what the form is for, and is bash's
-	   own behaviour (an array gets one element, and with no name at all
-	   REPLY gets the lot, which the paths below already do). */
 	if (exact && arr) {
 		vec *el = vb_get(s);
 
@@ -1812,7 +1816,26 @@ int b_strict(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Read and execute a file in the current shell. */
+/* Read and execute a file in the current shell.
+
+   A scheme whose module says it reads something already here is opened the
+   way every other reader opens one, so a library can come out of a mounted
+   archive -- the thing ADR 0041 deferred and ADR 0043 takes. net_sch asks
+   that flag and nothing else: `source` runs what it reads, and the http
+   module registers a scheme too, so every scheme would have made this a
+   one-word way to execute bytes off the network. Refused under a dry run,
+   because a scheme's own open function is arbitrary C -- checked here
+   rather than in pl_redir, which calls every scheme a connection, true of
+   a socket and wrong about a tarball. That branch cannot be reached today,
+   since `mod` and `need` both refuse under a plan so nothing ever
+   registers a scheme there; it costs one test of a flag and is kept for
+   the day that changes.
+
+   fclose below takes the descriptor with it; only a failed fdopen leaves
+   it ours to close.
+
+   A scheme that has not said it is local is refused by name: falling
+   through to fopen would report a thing that plainly exists as missing. */
 int b_src(sh *s, int ac, char **av)
 {
 	FILE *f;
@@ -1833,19 +1856,6 @@ int b_src(sh *s, int ac, char **av)
 	if (ex_deep(s, "source", 0))
 		return 1;
 	path = strchr(av[1], '/') ? 0 : findr(s, av[1]);
-	/* A scheme whose module says it reads something already here is opened
-	   the way every other reader opens one, so a library can come out of a
-	   mounted archive -- the thing ADR 0041 deferred and ADR 0043 takes.
-	   net_sch asks that flag and nothing else: `source` runs what it
-	   reads, and the http module registers a scheme too, so every scheme
-	   would have made this a one-word way to execute bytes off the
-	   network. Refused under a dry run, because a scheme's own open
-	   function is arbitrary C -- checked here rather than in pl_redir,
-	   which calls every scheme a connection, true of a socket and wrong
-	   about a tarball. That branch cannot be reached today, since `mod`
-	   and `need` both refuse under a plan so nothing ever registers a
-	   scheme there; it costs one test of a flag and is kept for the day
-	   that changes. */
 	if (net_sch(s, av[1])) {
 		int sfd;
 
@@ -1861,15 +1871,10 @@ int b_src(sh *s, int ac, char **av)
 			free(path);
 			return HIBR_FAIL;
 		}
-		/* fclose below takes the descriptor with it; only a failed
-		   fdopen leaves it ours to close. */
 		f = fdopen(sfd, "r");
 		if (!f)
 			close(sfd);
 	} else {
-		/* A scheme that has not said it is local is refused by name:
-		   falling through to fopen would report a thing that plainly
-		   exists as missing. */
 		const char *sn = net_schnm(s, av[1]);
 
 		if (sn) {
@@ -1939,37 +1944,118 @@ int b_src(sh *s, int ac, char **av)
 	return s->st;
 }
 
-/* Describe how a name would be resolved. */
+/* Every file a name finds along PATH, for type -a. */
+void ty_all(sh *s, const char *nm, vec *out)
+{
+	const char *p = hibr_get(s, "PATH"), *q;
+	struct stat st;
+	str b;
+	size_t n;
+
+	if (!p)
+		return;
+	for (;;) {
+		q = strchr(p, ':');
+		n = q ? (size_t)(q - p) : strlen(p);
+		s_init(&b);
+		s_add(&b, n ? p : ".", n ? n : 1);
+		s_ch(&b, '/');
+		s_cat(&b, nm);
+		if (!access(b.p, X_OK) && !stat(b.p, &st) && !S_ISDIR(st.st_mode))
+			v_add(out, xs(b.p));
+		s_free(&b);
+		if (!q)
+			break;
+		p = q + 1;
+	}
+}
+
+/* Say what each name is, through the resolver command -v uses: -t the kind
+   alone, -p or -P the file it runs, -a every match, -f leaving functions
+   out, as bash's type does (Gitea #458). */
 int b_type(sh *s, int ac, char **av)
 {
-	int i, rc = HIBR_OK;
+	static const char *kw[] = { "", "alias", "keyword", "function",
+				    "builtin", "builtin", "file" };
+	int i = 1, rc = HIBR_OK, t = 0, pp = 0, all = 0, nofn = 0, k;
 	char *p;
+	const char *f;
+	size_t j;
 
-	for (i = 1; i < ac; i++) {
-		if (kw_name(av[i])) {
-			printf("%s is a shell keyword\n", av[i]);
-			continue;
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
 		}
-		if (fn_find(s, av[i])) {
-			printf("%s is a function\n", av[i]);
-			continue;
+		for (f = av[i] + 1; *f; f++) {
+			if (*f == 't')
+				t = 1;
+			else if (*f == 'p')
+				pp = pp ? pp : 1;
+			else if (*f == 'P')
+				pp = 2;
+			else if (*f == 'a')
+				all = 1;
+			else if (*f == 'f')
+				nofn = 1;
+			else {
+				lg(HIBR_LERR, "type: -%c: invalid option", *f);
+				return 2;
+			}
 		}
-		if (m_find(s, av[i])) {
-			printf("%s is a module builtin\n", av[i]);
-			continue;
+	}
+	for (; i < ac; i++) {
+		vec files = { 0, 0, 0 };
+
+		k = nm_kind(s, av[i], nofn, &p);
+		if (pp == 2 || (all && (pp || t || k != NK_NONE)))
+			ty_all(s, av[i], &files);
+		if (pp == 2 && !all && files.n > 1)
+			files.n = 1;
+		if (pp) {
+			if (pp == 1 && k != NK_FILE) {
+				free(p);
+				v_free(&files);
+				continue;
+			}
+			if (!all && pp == 1 && p) {
+				printf("%s\n", p);
+			} else {
+				for (j = 0; j < files.n; j++)
+					printf("%s\n", (char *)files.p[j]);
+			}
+			if (pp == 2 && !files.n)
+				rc = HIBR_FAIL;
+		} else if (k == NK_NONE) {
+			if (!t)
+				lg(HIBR_LERR, "type: %s: not found", av[i]);
+			rc = HIBR_FAIL;
+		} else if (t) {
+			printf("%s\n", kw[k]);
+			if (all)
+				for (j = 1; j < files.n; j++)
+					printf("file\n");
+		} else {
+			if (k == NK_ALIAS)
+				printf("%s is aliased to `%s'\n", av[i], al_get(s, av[i]));
+			else if (k == NK_KEYWORD)
+				printf("%s is a shell keyword\n", av[i]);
+			else if (k == NK_FUNC)
+				printf("%s is a function\n", av[i]);
+			else if (k == NK_MODBI)
+				printf("%s is a module builtin\n", av[i]);
+			else if (k == NK_BUILTIN)
+				printf("%s is a shell builtin\n", av[i]);
+			else
+				printf("%s is %s\n", av[i], p);
+			if (all)
+				for (j = k == NK_FILE ? 1 : 0; j < files.n; j++)
+					printf("%s is %s\n", av[i], (char *)files.p[j]);
 		}
-		if (bi_find(av[i])) {
-			printf("%s is a shell builtin\n", av[i]);
-			continue;
-		}
-		p = findx(s, av[i]);
-		if (p) {
-			printf("%s is %s\n", av[i], p);
-			free(p);
-			continue;
-		}
-		lg(HIBR_LERR, "type: %s: not found", av[i]);
-		rc = HIBR_FAIL;
+		for (j = 0; j < files.n; j++)
+			free(files.p[j]);
+		v_free(&files);
+		free(p);
 	}
 	return rc;
 }
@@ -2590,7 +2676,15 @@ int b_local(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Read lines into an array, one element each. */
+/* Read lines into an array, one element each.
+
+   A whole file a block at a time, the same reason `read` does it (see
+   bi_rddelim): one syscall a byte over a 950 kB file is 948,892 of them. A
+   pipe is read a byte at a time only under -n, which may stop part way
+   through when nothing can be put back on a pipe; without it mapfile takes
+   everything anyway (Gitea #455). A seekable descriptor that stops early
+   is seeked to just past the line it stopped on, so whatever reads next
+   sees the rest. */
 int b_mapfile(sh *s, int ac, char **av)
 {
 	str b;
@@ -2655,13 +2749,6 @@ int b_mapfile(sh *s, int ac, char **av)
 		nm = av[i];
 	el = vb_get(s);
 	s_init(&b);
-	/* A whole file a block at a time, the same reason `read` does it (see
-	   bi_rddelim): one syscall a byte over a 950 kB file is 948,892 of
-	   them. A pipe is read a byte at a time only under -n, which may stop
-	   part way through when nothing can be put back on a pipe; without it
-	   mapfile takes everything anyway (Gitea #455). A seekable descriptor
-	   that stops early is seeked to just past the line it stopped on, so
-	   whatever reads next sees the rest. */
 	seek = lseek(fd, 0, SEEK_CUR) != (off_t)-1;
 	buf = xm(HIBR_IOCH);
 	for (;;) {

@@ -157,6 +157,8 @@ void hibr_title(const char *name)
 	pt_rename(0, name);
 }
 
+/* Rename a module's process with both names: the sentence ps shows and the
+   short one the kernel keeps. */
 void hibr_title2(const char *shortnm, const char *name)
 {
 	pt_rename(shortnm, name);
@@ -172,7 +174,10 @@ void hibr_title2(const char *shortnm, const char *name)
    every program that shell goes on to start would inherit the same name.
    What it must not do is run before the script name and the positional
    parameters have been copied out of that same region, which is why its
-   callers are where they are and not beside v_env. */
+   callers are where they are and not beside v_env.
+
+   Both copied out before either is used, for the reason above: the rename
+   overwrites the region these strings live in. */
 void sh_proctitle(sh *s)
 {
 	const char *v = hibr_get(s, "HIBR_PROCTITLE");
@@ -181,8 +186,6 @@ void sh_proctitle(sh *s)
 
 	if (!v || !*v)
 		return;
-	/* Both copied out before either is used, for the reason above: the
-	   rename overwrites the region these strings live in. */
 	t = xs(v);
 	if (n && *n)
 		sn = xs(n);
@@ -217,6 +220,23 @@ void op_clear(sh *s)
 	s->odesc = 0;
 }
 
+/* Whether a word is opt's type: int, str, num, path or bool, whole, with
+   its ! or + marks and an =default after -- never a help word that merely
+   starts like one ("integer output"). */
+int op_isty(const char *w)
+{
+	static const char *ty[] = { "int", "str", "num", "path", "bool", 0 };
+	size_t n = strcspn(w, "=");
+	int i;
+
+	while (n && (w[n - 1] == '!' || w[n - 1] == '+'))
+		n--;
+	for (i = 0; ty[i]; i++)
+		if (strlen(ty[i]) == n && !strncmp(w, ty[i], n))
+			return 1;
+	return 0;
+}
+
 /* Declare one option: switches, a name, an optional type, and help text. */
 int b_opt(sh *s, int ac, char **av)
 {
@@ -244,15 +264,15 @@ int b_opt(sh *s, int ac, char **av)
 		v_add(&o->sw, xs(av[i]));
 	if (!o->sw.n || i >= ac || !isname(av[i])) {
 		lg(HIBR_LERR, "opt: expected switches then a variable name");
+		while (o->sw.n)
+			free(o->sw.p[--o->sw.n]);
 		v_free(&o->sw);
 		free(o);
 		return 2;
 	}
 	o->nm = xs(av[i++]);
 	o->isbool = 1;
-	if (i < ac && (!strncmp(av[i], "int", 3) || !strncmp(av[i], "str", 3) ||
-		       !strncmp(av[i], "num", 3) || !strncmp(av[i], "path", 4) ||
-		       !strncmp(av[i], "bool", 4))) {
+	if (i < ac && op_isty(av[i])) {
 		o->ty = xs(av[i++]);
 		eq = strchr(o->ty, '=');
 		if (eq) {
@@ -293,11 +313,30 @@ int b_opt(sh *s, int ac, char **av)
 }
 
 /* Print the generated usage text. */
+/* The switch column of one option: its switches, and its name in capitals
+   when it takes a value. */
+void op_col(struct ospec *o, str *col)
+{
+	size_t j;
+
+	for (j = 0; j < o->sw.n; j++) {
+		if (j)
+			s_cat(col, ", ");
+		s_cat(col, (char *)o->sw.p[j]);
+	}
+	if (!o->isbool) {
+		s_ch(col, ' ');
+		for (j = 0; o->nm[j]; j++)
+			s_ch(col, toupper((unsigned char)o->nm[j]));
+	}
+}
+
 void op_usage(sh *s, FILE *f)
 {
 	struct ospec *o;
-	size_t i, j, w = 0;
-	str col;
+	size_t i, w = 0;
+	vec cols = { 0, 0, 0 };
+	str *col;
 
 	{
 		const char *nm = s->arg0 ? s->arg0 : "hibr";
@@ -308,36 +347,17 @@ void op_usage(sh *s, FILE *f)
 		fprintf(f, "  %s\n", s->odesc);
 	fprintf(f, "\n");
 	for (i = 0; i < s->opts.n; i++) {
-		o = (struct ospec *)s->opts.p[i];
-		s_init(&col);
-		for (j = 0; j < o->sw.n; j++) {
-			if (j)
-				s_cat(&col, ", ");
-			s_cat(&col, (char *)o->sw.p[j]);
-		}
-		if (!o->isbool) {
-			s_ch(&col, ' ');
-			for (j = 0; o->nm[j]; j++)
-				s_ch(&col, toupper((unsigned char)o->nm[j]));
-		}
-		if (col.n > w)
-			w = col.n;
-		s_free(&col);
+		col = xm(sizeof *col);
+		s_init(col);
+		op_col((struct ospec *)s->opts.p[i], col);
+		if (col->n > w)
+			w = col->n;
+		v_add(&cols, col);
 	}
 	for (i = 0; i < s->opts.n; i++) {
 		o = (struct ospec *)s->opts.p[i];
-		s_init(&col);
-		for (j = 0; j < o->sw.n; j++) {
-			if (j)
-				s_cat(&col, ", ");
-			s_cat(&col, (char *)o->sw.p[j]);
-		}
-		if (!o->isbool) {
-			s_ch(&col, ' ');
-			for (j = 0; o->nm[j]; j++)
-				s_ch(&col, toupper((unsigned char)o->nm[j]));
-		}
-		fprintf(f, "  %-*s  %s", (int)w, col.p, o->help);
+		col = (str *)cols.p[i];
+		fprintf(f, "  %-*s  %s", (int)w, col->p ? col->p : "", o->help);
 		if (!o->isbool) {
 			fprintf(f, " (%s", o->ty);
 			if (o->dflt)
@@ -349,8 +369,10 @@ void op_usage(sh *s, FILE *f)
 			fprintf(f, ")");
 		}
 		fprintf(f, "\n");
-		s_free(&col);
+		s_free(col);
+		free(col);
 	}
+	v_free(&cols);
 	fprintf(f, "  %-*s  %s\n", (int)w, "-h, --help", "show this help");
 }
 

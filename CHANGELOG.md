@@ -233,6 +233,30 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   subshell, whose exec is not the parent's. The browser's web module uses
   it from hibr-browser 0.5.26 on.
 
+**Builtins: names, small items, JSON** (#458, #459, #462).
+- **One resolver for what a name is** -- alias, keyword, function,
+  builtin, file, in bash's order -- shared by `type` and `command -v`,
+  which disagreed. `type` takes `-t`, `-p`, `-P`, `-a` and `-f`; `command`
+  takes `--`, `-p` and bundled options (`command -pv`).
+- **`alias`** prints in bash's quoting, which reads back, sorted by name;
+  `alias -p` lists; an unknown name fails, as `unalias` of one does;
+  `unalias -a` removes them all.
+- **`pushd`, `popd`, `dirs`.** A bare `pushd` swaps the top two, as bash's
+  does, where it popped; `-n`, `+N` and `-N` work in all three; `dirs -c`,
+  `-l`, `-p` and `-v` too.
+- **`cd ""`** stays where it is, and a `cd -` that fails prints nothing.
+- **Smaller items.** `opt` takes a type only as a whole word, so help text
+  beginning "integer" is help. `mkdir -p c1/x` with `c1` a file says
+  `c1/x: Not a directory`, as GNU does. `mv`'s handover to the program
+  builds its arguments in a vector, not a fixed array; `bi_mask`, unused
+  since `bi_argk`, is gone; comments inside function bodies moved into
+  their descriptions.
+- **JSON.** A `\u` surrogate pair is one character, a lone surrogate or
+  `\u0000` is U+FFFD, and an escape needs its four digits. An empty array
+  or object counts 0 and `json get` prints it as `[]` or `{}`; an empty
+  shell array emits `[]` and an empty `-A` map `{}`. Text after the
+  document is malformed input.
+
 ## 0.99.427
 
 **A sheet's formulas are contained, and a sheet can be given full access**

@@ -811,7 +811,7 @@ size_t v_count(sh *s, const char *nm, char **ks, int nk)
 	e = v_path(s, nm, ks, nk, 0);
 	if (!e)
 		return 0;
-	return e->map ? e->n : 1;
+	return e->map || e->ty == J_ARR || e->ty == J_OBJ ? e->n : 1;
 }
 
 /* Collect the keys or the values directly below a subscript path. */
@@ -830,7 +830,7 @@ void v_list(sh *s, const char *nm, char **ks, int nk, vec *out, int keys)
 			return;
 		m = e->map;
 		if (!m) {
-			if (!keys && e->s)
+			if (!keys && e->s && e->ty != J_ARR && e->ty != J_OBJ)
 				v_add(out, e->s);
 			return;
 		}

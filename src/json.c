@@ -13,27 +13,28 @@ void j_ws(struct jp *j)
 		j->p++;
 }
 
-/* Encode one code point as UTF-8. */
-void j_utf8(str *o, unsigned c)
+/* Read the four hex digits of a \u escape at p: 1 with *u set, 0 when
+   there are not four. */
+int j_hex4(const char *p, unsigned *u)
 {
-	if (c < 0x80) {
-		s_ch(o, (int)c);
-	} else if (c < 0x800) {
-		s_ch(o, (int)(0xC0 | (c >> 6)));
-		s_ch(o, (int)(0x80 | (c & 0x3F)));
-	} else {
-		s_ch(o, (int)(0xE0 | (c >> 12)));
-		s_ch(o, (int)(0x80 | ((c >> 6) & 0x3F)));
-		s_ch(o, (int)(0x80 | (c & 0x3F)));
+	int i;
+
+	*u = 0;
+	for (i = 0; i < 4; i++) {
+		if (!isxdigit((unsigned char)p[i]))
+			return 0;
+		*u = *u * 16 + (unsigned)(isdigit((unsigned char)p[i]) ?
+					  p[i] - '0' :
+					  (tolower((unsigned char)p[i]) - 'a' + 10));
 	}
+	return 1;
 }
 
 /* Read a quoted JSON string, resolving escapes. */
 char *j_str(struct jp *j)
 {
 	str o;
-	unsigned u;
-	int i;
+	unsigned u, lo;
 
 	s_init(&o);
 	if (*j->p != '"') {
@@ -55,14 +56,21 @@ char *j_str(struct jp *j)
 		case 'f': s_ch(&o, '\f'); j->p++; break;
 		case 'u':
 			j->p++;
-			u = 0;
-			for (i = 0; i < 4 && isxdigit((unsigned char)*j->p); i++) {
-				u = u * 16 + (unsigned)(isdigit((unsigned char)*j->p) ?
-							*j->p - '0' :
-							(tolower(*j->p) - 'a' + 10));
-				j->p++;
+			if (!j_hex4(j->p, &u)) {
+				j->bad = 1;
+				break;
 			}
-			j_utf8(&o, u);
+			j->p += 4;
+			if (u >= 0xD800 && u <= 0xDBFF && j->p[0] == '\\' &&
+			    j->p[1] == 'u' && j_hex4(j->p + 2, &lo) &&
+			    lo >= 0xDC00 && lo <= 0xDFFF) {
+				u = 0x10000 + ((u - 0xD800) << 10) + (lo - 0xDC00);
+				j->p += 6;
+			} else if ((u >= 0xD800 && u <= 0xDFFF) || !u) {
+				lg(HIBR_LDBG, "json: \\u%04x has no character of its own; U+FFFD stands for it", u);
+				u = 0xFFFD;
+			}
+			u8put(&o, u);
 			break;
 		default:
 			if (*j->p)
@@ -400,6 +408,11 @@ int b_json(sh *s, int ac, char **av)
 		j.bad = 0;
 		j.dep = 0;
 		j_val(&j, &root);
+		j_ws(&j);
+		if (!j.bad && *j.p) {
+			lg(HIBR_LDBG, "json: text after the document");
+			j.bad = 1;
+		}
 		if (j.bad) {
 			lg(HIBR_LERR, "json: malformed input near '%.16s'", j.p);
 			mp_free(root.map);
@@ -423,7 +436,7 @@ int b_json(sh *s, int ac, char **av)
 			v->map = root.map;
 			v->n = root.n;
 			v->ty = root.ty;
-			v->am = root.map ? 1 : 0;
+			v->am = root.map || root.ty == J_ARR || root.ty == J_OBJ;
 		} else {
 			mp_free(root.map);
 		}
@@ -442,7 +455,8 @@ int b_json(sh *s, int ac, char **av)
 			return HIBR_FAIL;
 		}
 		s_init(&o);
-		j_out(&o, v->map, v->n, v->v, v->ty, pretty, 0);
+		j_out(&o, v->map, v->n, v->v, !v->map && v->am && !v->ty ?
+		      ((v->at & A_ASSOC) ? J_OBJ : J_ARR) : v->ty, pretty, 0);
 		if (!s->bind)
 			printf("%s\n", o.p ? o.p : "null");
 		hibr_set(s, "RET", o.p ? o.p : "null", 0);
@@ -481,7 +495,7 @@ int b_json(sh *s, int ac, char **av)
 		size_t n = e ? e->n : v->n;
 		short ty = e ? e->ty : v->ty;
 		s_init(&o);
-		if (m)
+		if (m || ty == J_ARR || ty == J_OBJ)
 			j_out(&o, m, n, sc, ty, 0, 0);
 		else
 			s_cat(&o, sc ? sc : "");

@@ -423,8 +423,8 @@ went in the shell.
   subscripted name goes through it: `unset`, `read`, `[[ -v ]]` and the
   assignment path. It honours a quoted subscript and a negative one, and it
   leaves the name truncated at the bracket for the caller to restore. A builtin
-  that wants the quoting of its own arguments must also be named in `bi_mask`,
-  or it silently gets none -- which is what made `read h["a-b"]` write to key 0
+  that wants the quoting of its own arguments must also have bit 1 in
+  `bi_argk`, or it silently gets none -- which is what made `read h["a-b"]` write to key 0
   after the parsing was already right.
 - **`al_quote` reproduces the caller's quoting rather than inventing its own.**
   An alias re-emits arguments that have already been expanded and are then
@@ -436,9 +436,10 @@ went in the shell.
   mask it falls back to escaping, and an argument that is empty or holds a
   newline is quoted whole, since `\<newline>` is a line continuation.
   `xargv` builds the mask for a command whose first word names an alias, as
-  well as one in `bi_mask`.
+  well as one `bi_argk` marks with bit 1.
 - **Argument masks are gated on the command name.** `xargv` builds them only
-  when the first expanded word names a builtin in `bi_mask`, so an ordinary
+  when the first expanded word names a builtin `bi_argk` marks with bit 1,
+  so an ordinary
   command pays one `strcmp` and nothing else — building them unconditionally
   cost 7% on tight loops. A builtin that grows an interest in its arguments'
   quoting has to be added to that list, and `command` must keep forwarding

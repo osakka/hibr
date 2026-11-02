@@ -57,6 +57,15 @@ var *v_findr(sh *s, const char **nm);
 #ifndef HIBR_DEFPATH
 #define HIBR_DEFPATH "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 #endif
+#ifndef NK_NONE
+#define NK_NONE 0
+#define NK_ALIAS 1
+#define NK_KEYWORD 2
+#define NK_FUNC 3
+#define NK_MODBI 4
+#define NK_BUILTIN 5
+#define NK_FILE 6
+#endif
 #ifndef HIBR_FNSELF
 #define HIBR_FNSELF "\001fnself"
 #endif
@@ -282,6 +291,12 @@ int m_declaresbi(const char *path, const char *nm);
 int m_seekbi(sh *s, const char *dir, const char *nm);
 int m_findbi(sh *s, const char *nm);
 int cmd_what(sh *s, const char *nm, int vb);
+int nm_kind(sh *s, const char *nm, int nofn, char **path);
+int b_command1(sh *s, int v, int vb, int ac, char **av);
+void al_sq(str *o, const char *v);
+void al_print(const char *k, const char *v);
+int al_cmp(const void *a, const void *b);
+int al_del(sh *s, const char *k);
 int fn_call(sh *s, node *f, int ac, char **av);
 const char *hsh_get(sh *s, const char *nm);
 void hsh_clear(sh *s, const char *nm);
@@ -319,7 +334,6 @@ const char *fn_src(sh *s, node *f);
 var *v_take(sh *s, const char *k);
 void v_back(sh *s, var *v);
 void asg_pop(sh *s, vec *old);
-int bi_mask(const char *nm);
 long long bi_ms(void);
 long bi_rddgram(int fd, int delim, int want, int exact, str *b, long long dl,
 		int *tout);
@@ -334,6 +348,7 @@ struct rngw { unsigned lo, hi; int w; };
 extern const struct rngw u8wtab[];
 extern const size_t u8wtab_n;
 size_t u8n(const char *t, size_t n);
+void u8put(str *o, unsigned c);
 size_t u8off(const char *t, size_t n, size_t c);
 char *bi_keys(sh *s, char *word, const char *mk, vec *ks);
 void b_decl1(sh *s, var *v, str *o, int set);
@@ -386,6 +401,9 @@ const char *xtilde1(sh *s, const char *t, size_t n);
 int b_dirs(sh *s, int ac, char **av);
 int b_pushd(sh *s, int ac, char **av);
 int b_popd(sh *s, int ac, char **av);
+int dir_idx(const char *w, long *k);
+long dir_pos(sh *s, long k);
+int dir_cd(sh *s, const char *d);
 const char *al_get(sh *s, const char *k);
 int al_busy(sh *s, const char *k);
 int al_run(sh *s, const char *body, int ac, char **av, char **am);
@@ -481,6 +499,7 @@ const char *m_bixfind(sh *s, const char *nm);
 int m_ldauto(sh *s, const char *nm);
 int b_title(sh *s, int ac, char **av);
 int b_opt(sh *s, int ac, char **av);
+int op_isty(const char *w);
 int b_args(sh *s, int ac, char **av);
 void op_clear(sh *s);
 int net_is(sh *s, const char *p);

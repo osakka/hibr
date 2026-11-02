@@ -95,6 +95,16 @@ int fs_mkdir(const char *p, mode_t m, int fl)
 		if (t.p[i] != '/' || t.p[i - 1] == '/')
 			continue;
 		t.p[i] = 0;
+		{
+			struct stat st;
+
+			if (!stat(t.p, &st) && !S_ISDIR(st.st_mode)) {
+				fs_err("mkdir", "cannot create directory", p,
+				       ENOTDIR);
+				r = 1;
+				break;
+			}
+		}
 		r = fs_mk1(t.p, up, fl & ~FS_M, 0);
 		t.p[i] = '/';
 	}
@@ -377,22 +387,24 @@ int b_rm(sh *s, int ac, char **av)
 /* A move across filesystems, or one GNU would ask about: one source handed to the program. */
 int fs_mvext(sh *s, const char *src, const char *dst, int fl, int *none)
 {
-	char *av[8];
-	int n = 0;
+	vec av = { 0, 0, 0 };
+	int r;
 
-	av[n++] = "mv";
+	v_add(&av, "mv");
 	if (fl & FS_F)
-		av[n++] = "-f";
+		v_add(&av, "-f");
 	if (fl & FS_N)
-		av[n++] = "-n";
+		v_add(&av, "-n");
 	if (fl & FS_V)
-		av[n++] = "-v";
-	av[n++] = "-T";
-	av[n++] = "--";
-	av[n++] = (char *)src;
-	av[n++] = (char *)dst;
-	av[n] = 0;
-	return fs_ext(s, av, none);
+		v_add(&av, "-v");
+	v_add(&av, "-T");
+	v_add(&av, "--");
+	v_add(&av, (char *)src);
+	v_add(&av, (char *)dst);
+	v_add(&av, 0);
+	r = fs_ext(s, (char **)av.p, none);
+	v_free(&av);
+	return r;
 }
 
 /* Move one source to exactly dst, in GNU's words when it cannot. */
@@ -542,7 +554,7 @@ int b_mv(sh *s, int ac, char **av)
 		tdir = dst;
 	}
 	if (stat(tdir, &st) < 0 || !S_ISDIR(st.st_mode)) {
-		fs_err("mv", "target", tdir, errno ? errno : ENOTDIR);
+		fs_err("mv", "target", tdir, stat(tdir, &st) < 0 ? errno : ENOTDIR);
 		return HIBR_FAIL;
 	}
 	s_init(&o);

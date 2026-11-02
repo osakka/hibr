@@ -1,8 +1,8 @@
 0
 hello
 hello there
-alias hi='echo hello'
 alias count='wc -l'
+alias hi='echo hello'
 3
 after unalias status=127
 NOT-REAL-LS
