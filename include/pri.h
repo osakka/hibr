@@ -566,6 +566,7 @@ int b_app(sh *s, int ac, char **av);
 char *rdline(FILE *f);
 char *in_line(int fd, int seek);
 const char *ed_esc(const char *p);
+void relay_detach(int a, int b);
 struct hksave { int st, stop, intry, bind, xerr, brk, cont, ret, quit; };
 void hk_save(sh *s, struct hksave *h);
 void hk_restore(sh *s, struct hksave *h);

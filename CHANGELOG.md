@@ -289,6 +289,15 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   including the user's and the system's; `mod drop` keeps the list in
   order, and a module is taken out of it before its finaliser runs.
 
+**Networking** (#465, #466).
+- **The TLS relay** is a process of its own: a session of its own, so the
+  terminal's interrupt and a script's `kill 0` do not reach it; every
+  signal the shell caught back to the default, so a resize or a trapped
+  signal no longer ends a transfer; and only its two descriptors open, so
+  a relay started after connection A no longer keeps A open when the
+  script closes it. `hibr_closerest(a, b)` is that last step for a
+  module's own helper, and the fetch module uses it.
+
 ## 0.99.427
 
 **A sheet's formulas are contained, and a sheet can be given full access**

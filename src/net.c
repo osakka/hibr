@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "pri.h"
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -453,6 +454,57 @@ int net_unix(const char *path)
 	return fd_high(fd);
 }
 
+/* Close every descriptor but a and b and the standard three, in a freshly
+   forked helper, so it holds nobody else's terminal, pipe or socket: a
+   relay that kept the shell's descriptors kept every other connection's
+   end open, and a pipe's reader never saw its end (Gitea #465). */
+void hibr_closerest(int a, int b)
+{
+	DIR *d;
+	struct dirent *e;
+	vec fds = { 0, 0, 0 };
+	size_t i;
+	long fd;
+	int dfd;
+
+	d = opendir("/dev/fd");
+	if (!d)
+		return;
+	dfd = dirfd(d);
+	while ((e = readdir(d))) {
+		if (e->d_name[0] < '0' || e->d_name[0] > '9')
+			continue;
+		fd = atol(e->d_name);
+		if (fd > 2 && fd != a && fd != b && fd != dfd)
+			v_add(&fds, (void *)fd);
+	}
+	closedir(d);
+	for (i = 0; i < fds.n; i++)
+		close((int)(long)fds.p[i]);
+	v_free(&fds);
+}
+
+/* Make a relay its own: a session of its own, so the terminal's interrupt
+   does not reach it; every signal the shell caught back to its default,
+   so a resize or a trap cannot end a transfer; nothing blocked; and only
+   its two descriptors open. */
+void relay_detach(int a, int b)
+{
+	struct sigaction sa;
+	sigset_t none;
+	int i;
+
+	setsid();
+	for (i = 1; i < NSIG; i++)
+		if (sigaction(i, 0, &sa) == 0 && sa.sa_handler != SIG_IGN &&
+		    sa.sa_handler != SIG_DFL)
+			signal(i, SIG_DFL);
+	signal(SIGINT, SIG_IGN);
+	sigemptyset(&none);
+	sigprocmask(SIG_SETMASK, &none, 0);
+	hibr_closerest(a, b);
+}
+
 #ifdef HIBR_TLS
 /* A certificate authority file to trust besides the ones the system
    already trusts, or 0 for none. Read from the environment the way
@@ -479,11 +531,11 @@ void tls_relay(int plain, int sock, const char *host)
 {
 	const char *ca = net_cafile();
 	void *ctx, *ssl;
-	fd_set rd;
+	struct pollfd pf[2];
 	char *buf;
-	int hi = (plain > sock ? plain : sock) + 1;
 	long n;
 
+	relay_detach(plain, sock);
 	ctx = tls.ctx_new(tls.meth());
 	if (!ctx)
 		_exit(1);
@@ -528,19 +580,25 @@ void tls_relay(int plain, int sock, const char *host)
 	}
 	buf = xm(HIBR_IOCH);
 	for (;;) {
-		FD_ZERO(&rd);
-		FD_SET(plain, &rd);
-		FD_SET(sock, &rd);
-		if (select(hi, &rd, 0, 0, 0) < 0)
+		pf[0].fd = plain;
+		pf[0].events = POLLIN;
+		pf[1].fd = sock;
+		pf[1].events = POLLIN;
+		if (poll(pf, 2, -1) < 0) {
+			if (errno == EINTR)
+				continue;
 			break;
-		if (FD_ISSET(plain, &rd)) {
+		}
+		if (pf[0].revents & (POLLIN | POLLHUP | POLLERR)) {
 			n = read(plain, buf, HIBR_IOCH);
+			if (n < 0 && errno == EINTR)
+				continue;
 			if (n <= 0)
 				break;
 			if (tls.write(ssl, buf, (int)n) <= 0)
 				break;
 		}
-		if (FD_ISSET(sock, &rd)) {
+		if (pf[1].revents & (POLLIN | POLLHUP | POLLERR)) {
 			/* Drain what the library already holds, rather than
 			   one read of it. A TLS record carries up to 16 kB
 			   of plaintext and SSL_read answers at most what it
@@ -627,9 +685,11 @@ int net_tls(const char *host, const char *port)
 		   lifetime is its peer closing, not the shell's bookkeeping;
 		   hold's own server is reparented the same way. */
 		close(sp[0]);
-		if (fork())
+		pid = fork();
+		if (pid < 0)
+			_exit(1);
+		if (pid)
 			_exit(0);
-		signal(SIGINT, SIG_DFL);
 		tls_relay(sp[1], sock, host);
 		_exit(0);
 	}

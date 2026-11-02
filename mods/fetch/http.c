@@ -167,34 +167,6 @@ int ft_dial(ft_job *j, const char *host, const char *port)
 	return fd;
 }
 
-/* In a freshly forked relay: close every descriptor but the two it needs
-   and the standard three, so it holds nobody else's terminal or pipe. */
-void ft_closerest(int a, int b)
-{
-	DIR *d;
-	struct dirent *e;
-	vec fds = { 0, 0, 0 };
-	size_t i;
-	long fd;
-	int dfd;
-
-	d = opendir("/dev/fd");
-	if (!d)
-		return;
-	dfd = dirfd(d);
-	while ((e = readdir(d))) {
-		if (e->d_name[0] < '0' || e->d_name[0] > '9')
-			continue;
-		fd = atol(e->d_name);
-		if (fd > 2 && fd != a && fd != b && fd != dfd)
-			v_add(&fds, (void *)fd);
-	}
-	closedir(d);
-	for (i = 0; i < fds.n; i++)
-		close((int)(long)fds.p[i]);
-	v_free(&fds);
-}
-
 /* Wrap a connected socket in TLS: the shell's own relay, run in a child of
    ours so its exit can be collected, told to skip the certificate check
    only when the request says so. */
@@ -234,7 +206,7 @@ int ft_tls(ft_job *j, ft_conn *c, int sock)
 	}
 	if (pid == 0) {
 		close(sp[0]);
-		ft_closerest(sp[1], sock);
+		hibr_closerest(sp[1], sock);
 		signal(SIGINT, SIG_IGN);
 		signal(SIGPIPE, SIG_DFL);
 		fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) & ~O_NONBLOCK);

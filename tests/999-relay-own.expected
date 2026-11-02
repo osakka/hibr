@@ -1,0 +1,3 @@
+0
+a signal to the shell's group leaves the relay: ok-0
+closing one connection ends it while another is open: closed 1

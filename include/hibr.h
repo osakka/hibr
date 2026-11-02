@@ -428,5 +428,8 @@ int hibr_unscheme(sh *s, const char *nm);
    finaliser unregisters with the same pair. */
 void hibr_onexec(sh *s, void (*fn)(sh *, void *), void *arg);
 int hibr_offexec(sh *s, void (*fn)(sh *, void *), void *arg);
+/* In a helper a module forks: close every descriptor but a, b and the
+   standard three, so it holds no other connection or pipe open. */
+void hibr_closerest(int a, int b);
 
 #endif
