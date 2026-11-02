@@ -411,7 +411,12 @@ int b_json(sh *s, int ac, char **av)
 			free(txt);
 			return HIBR_OK;
 		}
-		hibr_set(s, av[2], root.s ? root.s : "", 0);
+		if (hibr_set(s, av[2], root.s ? root.s : "", 0) != HIBR_OK) {
+			mp_free(root.map);
+			free(root.s);
+			free(txt);
+			return HIBR_FAIL;
+		}
 		v = v_find(s, av[2]);
 		if (v) {
 			v_free_el(v);

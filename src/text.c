@@ -370,8 +370,22 @@ void ax_q(str *o, const char *a)
 	s_ch(o, '\'');
 }
 
-/* Array operations that keep the data in this process. */
+/* arr: a write the variable refused -- it is readonly -- fails the
+   command rather than being reported and answering 0 (Gitea #457). */
 int b_arr(sh *s, int ac, char **av)
+{
+	int r;
+
+	v_refused = 0;
+	r = b_arr1(s, ac, av);
+	if (v_refused && r == HIBR_OK)
+		r = HIBR_FAIL;
+	v_refused = 0;
+	return r;
+}
+
+/* Array operations that keep the data in this process. */
+int b_arr1(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "";
 	const char *nm = ac > 2 ? av[2] : "";

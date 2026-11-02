@@ -1,0 +1,7 @@
+0
+match 2 [keep]
+json 1 [keep]
+arr 1 [1 2]
+inside 3 [3]
+outside 3
+inside 2

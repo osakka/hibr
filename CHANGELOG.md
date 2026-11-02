@@ -185,6 +185,41 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   - `set -a` (allexport) exports every variable assigned while it is on,
     the `set -a; . ./.env; set +a` idiom. `-B` and `-h` are accepted, being
     always on.
+
+**Builtins: declarations, namerefs, attributes** (#457, #460, #461).
+- **`declare`.**
+  - `declare -x` of a variable that has a value puts it in the
+    environment at once.
+  - `declare +x`, `+i`, `+l`, `+u` and `+n` take an attribute off.
+  - `-l` and `-u` replace each other.
+  - `declare -a arr=(…)` and `declare -a str=(…)` no longer list every
+    variable: `arr`, `str`, `map` and `int` are type names only when a
+    name follows them.
+- **`readonly`.**
+  - It checks its names and takes `-a`, `-A`, `-f` and `-p`.
+  - `readonly -f` makes a function one that can be neither defined again
+    nor unset.
+  - `match`, `json parse` and `arr` refuse a readonly variable rather
+    than writing through it or answering 0.
+- **A refused assignment abandons the rest of the line**, and the script
+  goes on with the next, as bash does; it ended the script. Under
+  `keepgoing` it fails only the command. A value a declared type refuses
+  (`declare int m; m=abc`) still ends the script, as documented.
+- **Namerefs reach arrays**: `r[1]=x`, `${r[0]}`, `${#r[@]}`, `${!r[@]}`,
+  `r+=(y)` and `unset 'r[0]'` act on the array `r` names, followed at most
+  16 hops as a plain value is.
+- **Attributes reach elements**: `declare -i` evaluates `a[1]=2+3`, `-u`
+  and `-l` change an element's case, and `n+=2` adds rather than appends
+  for a `-i` variable, so `declare -A -i c; c[k]+=1` counts.
+- **A scalar assigned to an array sets element 0**, as bash does, where it
+  emptied the array and left `$a` and `${a[0]}` disagreeing; and
+  `unset 'a[0]'` empties `$a` too.
+- **`PATH`.** Unsetting it forgets the commands already found, and with no
+  PATH nothing is searched for; a shell started with none gets bash's
+  default (without its trailing `.`), unexported.
+- **A map or array parameter named after the variable passed to it**
+  (`fn f(map m)` called as `f m`) receives it; hiding the outer one first
+  had left it empty.
 - **A module can end its children before an exec in place**
   (`hibr_onexec`, `hibr_offexec`). Restart Desktop execs in place, and the
   web engine, a child of the image being replaced, was left to exit

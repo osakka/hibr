@@ -80,6 +80,15 @@ int b_match(sh *s, int ac, char **av)
 		nm = av[i];
 	if (re_make(&re, pat, icase) != HIBR_OK)
 		return 2;
+	{
+		var *rv = v_find(s, nm);
+
+		if (rv && rv->ro) {
+			lg(HIBR_LERR, "%s: readonly variable", nm);
+			regfree(&re);
+			return 2;
+		}
+	}
 	ng = re_groups(pat);
 	m = xm(ng * sizeof *m);
 	v_del(s, nm);

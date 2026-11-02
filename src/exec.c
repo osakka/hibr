@@ -158,8 +158,10 @@ char *findx(sh *s, const char *nm)
 		lg(HIBR_LDBG, "%s moved; looking again", nm);
 		hsh_clear(s, nm);
 	}
-	if (!p)
-		p = "/usr/local/bin:/usr/bin:/bin";
+	if (!p) {
+		lg(HIBR_LDBG, "PATH is unset, so %s is not looked for along it", nm);
+		return 0;
+	}
 	while (*p) {
 		size_t n;
 		q = strchr(p, ':');
@@ -191,8 +193,10 @@ char *findr(sh *s, const char *nm)
 	struct stat st;
 	str b;
 
-	if (!p)
-		p = "/usr/local/bin:/usr/bin:/bin";
+	if (!p) {
+		lg(HIBR_LDBG, "PATH is unset, so %s is not looked for along it", nm);
+		return 0;
+	}
 	while (*p) {
 		size_t n;
 		q = strchr(p, ':');
@@ -591,9 +595,35 @@ const char *fn_src(sh *s, node *f)
 	return 0;
 }
 
+/* The functions readonly -f has made so, by name: kept beside the table
+   rather than in it, so the ABI does not move. */
+static vec fn_ros;
+
+/* Whether readonly -f has made a function readonly. */
+int fn_isro(const char *nm)
+{
+	size_t i;
+
+	for (i = 0; i < fn_ros.n; i++)
+		if (!strcmp((char *)fn_ros.p[i], nm))
+			return 1;
+	return 0;
+}
+
+/* Make a function readonly: it can be neither defined again nor unset. */
+void fn_setro(const char *nm)
+{
+	if (!fn_isro(nm))
+		v_add(&fn_ros, xs(nm));
+}
+
 /* Register or replace a shell function. */
 int fn_add(sh *s, node *f)
 {
+	if (fn_isro(f->s)) {
+		lg(HIBR_LERR, "%s: readonly function", f->s);
+		return 1;
+	}
 	if (fn_find(s, f->s)) {
 		if ((s->sfl & SF_FN) && s->fsrc.p[s->fni] == (void *)s->src) {
 			lg(HIBR_LERR, "%s:%u: %s is already defined at line %u "
@@ -715,14 +745,17 @@ int fn_bind(sh *s, node *f, vec *fr, int ac, char **av)
 {
 	node *pm;
 	char *val;
-	int i = 1;
+	int i = 1, self;
 
 	for (pm = f->x; pm; pm = pm->x) {
 		if (pm->f & TY_REST) {
 			vec *rest = vb_get(s);
 			for (; i < ac; i++)
 				v_add(rest, av[i]);
-			asg_hide(s, fr, pm->s);
+			if (asg_hide(s, fr, pm->s) != HIBR_OK) {
+				vb_put(s, rest);
+				return HIBR_FAIL;
+			}
 			v_arr(s, pm->s, rest);
 			vb_put(s, rest);
 			return HIBR_OK;
@@ -740,11 +773,23 @@ int fn_bind(sh *s, node *f, vec *fr, int ac, char **av)
 			   pm->tx, val);
 			return HIBR_FAIL;
 		}
-		asg_hide(s, fr, pm->s);
+		self = (pm->f & TY_KIND) == TY_COPY && !strcmp(val, pm->s);
+		if (self) {
+			lg(HIBR_LDBG, "%s: %s is passed its own name; copied before it is hidden", f->s, pm->s);
+			v_copy(s, HIBR_FNSELF, val);
+			val = HIBR_FNSELF;
+		}
+		if (asg_hide(s, fr, pm->s) != HIBR_OK) {
+			if (self)
+				v_del(s, HIBR_FNSELF);
+			return HIBR_FAIL;
+		}
 		if ((pm->f & TY_KIND) == TY_COPY)
 			v_copy(s, pm->s, val);
 		else
 			hibr_set(s, pm->s, val, 0);
+		if (self)
+			v_del(s, HIBR_FNSELF);
 	}
 	if (i < ac) {
 		lg(HIBR_LERR, "%s: too many arguments (%d given)", f->s, ac - 1);
@@ -802,7 +847,7 @@ void ce_exp(sh *s, const char *kind, const char *t, size_t n)
 }
 #endif
 
-int ex_loops, ex_srcs;
+int ex_loops, ex_srcs, ex_abline;
 /* Whether `ret` ran in the function being run now, and in the one that has
    just returned -- not `return`, which shares s->ret with it. A bound call
    to a function that never said what it returns binds empty, and this is
@@ -1167,9 +1212,9 @@ void ex_arrasg(sh *s, node *f)
 		else
 			xw(s, w, el, 0);
 	if (nl > 1 && f->s[nl - 1] == '+') {
-		char *nm = ar_dup(s->xa, f->s, nl - 1);
+		const char *nm = ar_dup(s->xa, f->s, nl - 1);
 		vec *cur = vb_get(s);
-		var *v = v_find(s, nm);
+		var *v = v_findr(s, &nm);
 		size_t z;
 		long next = 0;
 		if (v && v->ro) {
@@ -1444,6 +1489,20 @@ void xpsub_done(sh *s)
 	s->psub.n = j;
 }
 
+/* What name+=word makes of old: the sum, for a variable declared -i, as
+   bash adds rather than appends; the two joined otherwise (Gitea #461). */
+void asg_cat(sh *s, var *v, const char *old, const char *add, str *out)
+{
+	if (v && (v->at & A_INT)) {
+		long a = old && *old ? ax_run(s, old) : 0;
+
+		s_num(out, (long)((unsigned long)a + (unsigned long)ax_run(s, add)));
+		return;
+	}
+	s_cat(out, old ? old : "");
+	s_cat(out, add);
+}
+
 /* Apply a name=value assignment to the shell variable table. */
 int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 {
@@ -1466,17 +1525,27 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 	br = strchr(kv, '[');
 	if (!br) {
 		int rc;
+		const char *tn = kv, *val = q + 1;
+		var *tv = v_findr(s, &tn);
+
+		s_init(&cat);
 		if (plus) {
-			const char *old = hibr_get(s, kv);
-			s_init(&cat);
-			s_cat(&cat, old ? old : "");
-			s_cat(&cat, q + 1);
-			rc = hibr_set(s, kv, cat.p, ex_flag);
-			s_free(&cat);
-			*plus = '+';
-		} else {
-			rc = hibr_set(s, kv, q + 1, ex_flag);
+			asg_cat(s, tv, hibr_get(s, kv), q + 1, &cat);
+			val = cat.p ? cat.p : "";
 		}
+		if (tv && (tv->am || tv->map) && !tv->ro) {
+			char *k0 = "0";
+
+			lg(HIBR_LDBG, "%s is an array: the assignment sets element 0, as in bash", tn);
+			v_refused = 0;
+			v_setp(s, tn, &k0, 1, val);
+			rc = v_refused ? HIBR_FAIL : HIBR_OK;
+		} else {
+			rc = hibr_set(s, kv, val, ex_flag);
+		}
+		s_free(&cat);
+		if (plus)
+			*plus = '+';
 		*q = '=';
 		return rc;
 	}
@@ -1496,10 +1565,11 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 	}
 	if (plus) {
 		const char *old = v_getp(s, kv, (char **)ks->p, (int)ks->n);
+		const char *tn = kv;
+
 		s_init(&cat);
-		s_cat(&cat, old ? old : "");
-		s_cat(&cat, q + 1);
-		v_setp(s, kv, (char **)ks->p, (int)ks->n, cat.p);
+		asg_cat(s, v_findr(s, &tn), old, q + 1, &cat);
+		v_setp(s, kv, (char **)ks->p, (int)ks->n, cat.p ? cat.p : "");
 		s_free(&cat);
 		*plus = '+';
 	} else {
@@ -1631,13 +1701,19 @@ int ex_cmd(sh *s, node *n)
 			}
 		}
 		if (!ac && !s->xerr && abad && v_refused) {
-			lg(HIBR_LDBG, "a refused assignment ends %s, as in bash",
-			   s->it ? "the line" : "the script");
 			st = s->st = HIBR_FAIL;
-			if (s->it)
-				s->stop = 1;
-			else
+			if (s->sopt & O_KEEPGOING) {
+				lg(HIBR_LDBG, "a refused assignment fails the command (keepgoing)");
+				goto out;
+			}
+			if (v_refused == 2 && !s->it) {
+				lg(HIBR_LDBG, "a value its declared type refuses ends the script");
 				s->quit = 1;
+				goto out;
+			}
+			lg(HIBR_LDBG, "a refused assignment abandons the rest of the line, as in bash");
+			s->stop = 1;
+			ex_abline = 1;
 			goto out;
 		}
 		if (!ac && abad)
@@ -1649,13 +1725,19 @@ int ex_cmd(sh *s, node *n)
 			if (f->f != 4)
 				ex_arrasg(s, f);
 		if (!ac && !s->xerr && v_refused) {
-			lg(HIBR_LDBG, "a refused array assignment ends %s, as in bash",
-			   s->it ? "the line" : "the script");
 			st = s->st = HIBR_FAIL;
-			if (s->it)
-				s->stop = 1;
-			else
+			if (s->sopt & O_KEEPGOING) {
+				lg(HIBR_LDBG, "a refused array assignment fails the command (keepgoing)");
+				goto out;
+			}
+			if (v_refused == 2 && !s->it) {
+				lg(HIBR_LDBG, "a value its declared type refuses ends the script");
 				s->quit = 1;
+				goto out;
+			}
+			lg(HIBR_LDBG, "a refused array assignment abandons the rest of the line, as in bash");
+			s->stop = 1;
+			ex_abline = 1;
 			goto out;
 		}
 	}

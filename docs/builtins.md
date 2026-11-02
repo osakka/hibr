@@ -99,10 +99,10 @@ hibr: source: /dev/tcp/example.com/80: No such file or directory
 
 | builtin | synopsis |
 |---|---|
-| `declare [-aAgilnprux] [type] [name[=v]…]` | declare variables and attributes |
+| `declare [-aAgilnprux] [+ilnux] [type] [name[=v]…]` | declare variables and attributes; `+` takes one off; a type name (`int`, `str`, `arr`, `map`, …) counts only when a name follows it |
 | `declare -f [name…]` / `declare -F [name…]` | print functions as written, or list their names |
 | `typeset …` | the same builtin under its other name |
-| `readonly [-p] [--] [name[=v]…]` | make variables readonly, or list the ones that are |
+| `readonly [-aAfp] [--] [name[=v]…]` | make variables readonly, or list the ones that are; `-f` makes functions readonly, so they can be neither defined again nor unset |
 | `local name[=v]…` | declare function-local variables; given a flag first (`local -a x`, `local -A m`, `local -i n`) it takes `declare`'s flags, and is still local |
 | `export [-p] [-n] [name[=v]…]` | mark variables for export; `-p` lists them; `-n` takes them out of the environment and keeps their values |
 | `unset [-f\|-v] [-n] [--] name…` | remove variables, array elements or functions: `-v` only a variable, `-f` only a function, and with neither the variable, or the function when no variable has that name -- never both; a nameref is followed to what it names, and `-n` removes the nameref itself (and nothing, for a name that is not one); a readonly variable is refused with status 1, and so is a name that is not an identifier under `-v`, as in bash |

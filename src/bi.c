@@ -351,6 +351,11 @@ int b_unset(sh *s, int ac, char **av)
 	}
 	for (; i < ac; i++) {
 		if (fo) {
+			if (fn_isro(av[i])) {
+				lg(HIBR_LERR, "unset: %s: cannot unset: readonly function", av[i]);
+				rc = HIBR_FAIL;
+				continue;
+			}
 			bi_unfn(s, av[i]);
 			continue;
 		}
@@ -1431,18 +1436,22 @@ int t_isset(sh *s, const char *w, const char *mk)
    one. */
 int t_cmp(long x, const char *op, long y)
 {
-	if (!strcmp(op, "-eq"))
+	if (op[0] != '-' || !op[1] || !op[2] || op[3])
+		return -1;
+	switch (op[1] << 8 | op[2]) {
+	case 'e' << 8 | 'q':
 		return x == y;
-	if (!strcmp(op, "-ne"))
+	case 'n' << 8 | 'e':
 		return x != y;
-	if (!strcmp(op, "-lt"))
+	case 'l' << 8 | 't':
 		return x < y;
-	if (!strcmp(op, "-le"))
+	case 'l' << 8 | 'e':
 		return x <= y;
-	if (!strcmp(op, "-gt"))
+	case 'g' << 8 | 't':
 		return x > y;
-	if (!strcmp(op, "-ge"))
+	case 'g' << 8 | 'e':
 		return x >= y;
+	}
 	return -1;
 }
 
@@ -1477,9 +1486,9 @@ int t_two(const char *a, const char *op, const char *b)
 		return strcmp(a, b) > 0;
 	if (!strcmp(op, "-ef") || !strcmp(op, "-nt") || !strcmp(op, "-ot"))
 		return cx_files(a, op, b);
-	if (t_cmp(0, op, 0) < 0)
-		return -1;
 	if (!t_int(a, &x) || !t_int(b, &y)) {
+		if (t_cmp(0, op, 0) < 0)
+			return -1;
 		lg(HIBR_LERR, "test: %s: integer expression expected",
 		   t_int(a, &x) ? b : a);
 		return -2;
@@ -2304,16 +2313,37 @@ int b_declf(sh *s, int full, int ac, char **av, int i, str *o)
 /* declare and typeset: set attributes and types on names, or list them. */
 int b_decl(sh *s, int ac, char **av)
 {
-	unsigned at = 0, code;
-	int i = 1, ro = 0, ex = 0, pr = 0, map = 0, glob = 0, n = 0, fn = 0;
+	unsigned at = 0, unat = 0, code;
+	int i = 1, ro = 0, ex = 0, unex = 0, pr = 0, map = 0, glob = 0, n = 0;
+	int fn = 0;
 	char *q;
 	var *v;
 
-	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+	for (; i < ac && (av[i][0] == '-' || av[i][0] == '+') && av[i][1];
+	     i++) {
 		char *f;
 		if (!strcmp(av[i], "--")) {
 			i++;
 			break;
+		}
+		if (av[i][0] == '+') {
+			for (f = av[i] + 1; *f; f++) {
+				switch (*f) {
+				case 'x': unex = 1; break;
+				case 'i': unat |= A_INT; break;
+				case 'n': unat |= A_REF; break;
+				case 'l': unat |= A_LOW; break;
+				case 'u': unat |= A_UPP; break;
+				case 'g': break;
+				case 'r':
+					lg(HIBR_LERR, "declare: +r: a readonly variable stays readonly");
+					return HIBR_FAIL;
+				default:
+					lg(HIBR_LERR, "declare: +%c: invalid option", *f);
+					return 2;
+				}
+			}
+			continue;
 		}
 		for (f = av[i] + 1; *f; f++) {
 			switch (*f) {
@@ -2344,7 +2374,7 @@ int b_decl(sh *s, int ac, char **av)
 		s_free(&o);
 		return n;
 	}
-	if (i < ac && (code = v_tycode(av[i]))) {
+	if (i + 1 < ac && (code = v_tycode(av[i]))) {
 		at |= code << A_TYSH;
 		i++;
 	}
@@ -2392,9 +2422,19 @@ int b_decl(sh *s, int ac, char **av)
 			v = v_find(s, av[i]);
 		}
 		if (v) {
+			v->at &= ~unat;
+			if (at & A_LOW)
+				v->at &= ~A_UPP;
+			if (at & A_UPP)
+				v->at &= ~A_LOW;
 			v->at |= at;
-			if (ex)
+			if (ex) {
 				v->ex = 1;
+				if (!q && v->v)
+					setenv(av[i], v->v, 1);
+			}
+			if (unex)
+				b_unexp(s, av[i]);
 			if (map && !v->am)
 				v->am = 1;
 		}
@@ -2412,17 +2452,44 @@ int b_decl(sh *s, int ac, char **av)
 	return n ? HIBR_FAIL : HIBR_OK;
 }
 
-/* Make variables readonly, or list the ones that are. */
+/* Make variables readonly, or list the ones that are: -a and -A make the
+   name an array, -f a function, as bash's options do (Gitea #457). */
 int b_ro(sh *s, int ac, char **av)
 {
-	int i = 1, n = 0;
-	char *q;
+	int i = 1, n = 0, fnm = 0, map = 0, assoc = 0;
+	char *q, *f;
 	var *v;
 
-	if (i < ac && !strcmp(av[i], "-p"))
-		i++;
-	if (i < ac && !strcmp(av[i], "--"))
-		i++;
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
+		}
+		for (f = av[i] + 1; *f; f++) {
+			if (*f == 'f')
+				fnm = 1;
+			else if (*f == 'a')
+				map = 1;
+			else if (*f == 'A')
+				assoc = map = 1;
+			else if (*f != 'p') {
+				lg(HIBR_LERR, "readonly: -%c: invalid option", *f);
+				lg(HIBR_LERR, "readonly: usage: readonly [-aAf] [name[=value] ...] or readonly -p");
+				return 2;
+			}
+		}
+	}
+	if (fnm) {
+		for (; i < ac; i++) {
+			if (!fn_find(s, av[i])) {
+				lg(HIBR_LERR, "readonly: %s: not a function", av[i]);
+				n = 1;
+				continue;
+			}
+			fn_setro(av[i]);
+		}
+		return n ? HIBR_FAIL : HIBR_OK;
+	}
 	if (i >= ac) {
 		str o;
 		s_init(&o);
@@ -2433,18 +2500,29 @@ int b_ro(sh *s, int ac, char **av)
 	}
 	for (; i < ac; i++) {
 		q = strchr(av[i], '=');
-		if (q) {
+		if (q)
 			*q = 0;
-			if (hibr_set(s, av[i], q + 1, 0) != HIBR_OK)
-				n = 1;
+		if (!isname(av[i])) {
+			lg(HIBR_LERR, "readonly: `%s': not a valid identifier", av[i]);
+			if (q)
+				*q = '=';
+			n = 1;
+			continue;
 		}
+		if (q && hibr_set(s, av[i], q + 1, 0) != HIBR_OK)
+			n = 1;
 		v = v_find(s, av[i]);
 		if (!v) {
 			hibr_set(s, av[i], "", 0);
 			v = v_find(s, av[i]);
 		}
-		if (v)
+		if (v) {
 			v->ro = 1;
+			if (map && !v->am)
+				v->am = 1;
+			if (assoc)
+				v->at |= A_ASSOC;
+		}
 		if (q)
 			*q = '=';
 	}

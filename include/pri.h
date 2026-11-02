@@ -53,6 +53,13 @@ ssize_t io_rdall(int fd, void *buf, size_t n);
 
 unsigned vh(const char *k);
 var *v_find(sh *s, const char *k);
+var *v_findr(sh *s, const char **nm);
+#ifndef HIBR_DEFPATH
+#define HIBR_DEFPATH "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+#endif
+#ifndef HIBR_FNSELF
+#define HIBR_FNSELF "\001fnself"
+#endif
 void v_del(sh *s, const char *k);
 void v_env(sh *s);
 int v_shadowed(vec *extra, const char *k);
@@ -78,6 +85,7 @@ void ce_exp(sh *s, const char *kind, const char *t, size_t n);
 #endif
 int b_str(sh *s, int ac, char **av);
 int b_arr(sh *s, int ac, char **av);
+int b_arr1(sh *s, int ac, char **av);
 ent *mp_add(ent **m, size_t *n, const char *k);
 void mp_free(ent *m);
 /* A map's own index and tail (Gitea #73): kept in the chain's first entry,
@@ -129,7 +137,7 @@ int w_asg(word *w);
 node *hibr_parse(sh *s, const char *src, int *more);
 node *p_line(lex *l);
 int sh_check(sh *s, const char *src);
-extern int ex_loops, ex_srcs, v_refused;
+extern int ex_loops, ex_srcs, v_refused, ex_abline;
 extern int ex_retd, ex_lastret;
 void ex_retnone(sh *s, const char *fn, int st);
 void ex_stkinit(void *base);
@@ -254,6 +262,8 @@ int rd_isfd(const char *t);
 int rd_do(sh *s, redir *r, vec *sv);
 void rd_undo(vec *sv);
 node *fn_find(sh *s, const char *nm);
+int fn_isro(const char *nm);
+void fn_setro(const char *nm);
 int kw_name(const char *t);
 int m_isload(sh *s, const char *nm, const char *path);
 void m_probe(sh *s, const char *path, const char *file, str *out);

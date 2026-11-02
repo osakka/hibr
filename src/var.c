@@ -60,7 +60,9 @@ void v_grow(sh *s)
 /* A variable the shell keeps a copy of has been set or removed: IFS, FUNCNEST. Asked by its first letter, so any other name pays one comparison. */
 void v_named(sh *s, const char *k)
 {
-	if (k[0] == 'I' && !strcmp(k, "IFS"))
+	if (k[0] == 'P' && !strcmp(k, "PATH"))
+		hsh_clear(s, 0);
+	else if (k[0] == 'I' && !strcmp(k, "IFS"))
 		s->ifsok = 0;
 	else if (k[0] == 'F' && !strcmp(k, "FUNCNEST"))
 		ex_fnok = 0;
@@ -125,7 +127,7 @@ const char *v_coerce(sh *s, var *e, const char *v, str *tmp)
 	}
 	if (*ty && !ty_ok(ty, v)) {
 		lg(HIBR_LERR, "%s: declared %s, got '%s'", e->k, ty, v);
-		v_refused = 1;
+		v_refused = 2;
 		return 0;
 	}
 	return v;
@@ -264,8 +266,6 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 			e->ex = 1;
 		if (e->ex)
 			setenv(k, e->v, 1);
-		if (!strcmp(k, "PATH"))
-			hsh_clear(s, 0);
 		v_named(s, k);
 		s_free(&t);
 		return HIBR_OK;
@@ -301,9 +301,7 @@ void v_del(sh *s, const char *k)
 	while ((v = *pp)) {
 		if (!strcmp(v->k, k)) {
 			*pp = v->nx;
-			s->ifsok = 0;
-			ex_fnok = 0;
-			m_ldmode = -1;
+			v_named(s, k);
 			if (v->ex)
 				unsetenv(k);
 			v_free_el(v);
@@ -336,8 +334,6 @@ var *v_take(sh *s, const char *k)
 			v->nx = 0;
 			s->tn--;
 			v_named(s, k);
-			if (!strcmp(k, "PATH"))
-				hsh_clear(s, 0);
 			return v;
 		}
 		pp = &v->nx;
@@ -360,8 +356,6 @@ void v_back(sh *s, var *v)
 	if (v->ex && v->v)
 		setenv(v->k, v->v, 1);
 	v_named(s, v->k);
-	if (!strcmp(v->k, "PATH"))
-		hsh_clear(s, 0);
 }
 
 /* Import the process environment into the variable table. */
@@ -685,10 +679,27 @@ void v_free_el(var *v)
 	v->n = 0;
 }
 
+/* Find a variable through its namerefs, as an element or a whole array is
+   reached through one in bash (Gitea #460): *nm becomes the name finally
+   reached, so a caller that creates it creates the target. Bounded at 16
+   hops, as hibr_get is; a reference naming an element is left alone. */
+var *v_findr(sh *s, const char **nm)
+{
+	var *v = v_find(s, *nm);
+	int hop = 0;
+
+	while (v && (v->at & A_REF) && v->v && *v->v && !strchr(v->v, '[') &&
+	       hop++ < 16) {
+		*nm = v->v;
+		v = v_find(s, *nm);
+	}
+	return v;
+}
+
 /* Walk a subscript path, optionally creating the levels it crosses. */
 ent *v_path(sh *s, const char *nm, char **ks, int nk, int make)
 {
-	var *v = v_find(s, nm);
+	var *v = v_findr(s, &nm);
 	ent *e = 0;
 	ent **mp;
 	size_t *np;
@@ -734,21 +745,32 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 	ent *e;
 	var *v;
 	char *nv;
+	str ct;
 
 	if (!nk) {
 		hibr_set(s, nm, val, 0);
 		return;
 	}
-	v = v_find(s, nm);
+	v = v_findr(s, &nm);
 	if (v && v->ro) {
 		lg(HIBR_LERR, "%s: readonly variable", nm);
 		s->st = 1;
 		v_refused = 1;
 		return;
 	}
+	s_init(&ct);
+	if (v && (v->at & (A_INT | A_LOW | A_UPP))) {
+		const char *cv = v_coerce(s, v, val, &ct);
+
+		lg(HIBR_LTRC, "%s's attributes reach its element too", nm);
+		if (cv)
+			val = cv;
+	}
 	e = v_path(s, nm, ks, nk, 1);
-	if (!e)
+	if (!e) {
+		s_free(&ct);
 		return;
+	}
 	{
 		var *vv = v_find(s, nm);
 		if (vv)
@@ -769,13 +791,14 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 			v_named(s, nm);
 		}
 	}
+	s_free(&ct);
 	lg(HIBR_LTRC, "set %s depth %d", nm, nk);
 }
 
 /* Count the entries directly below a subscript path. */
 size_t v_count(sh *s, const char *nm, char **ks, int nk)
 {
-	var *v = v_find(s, nm);
+	var *v = v_findr(s, &nm);
 	ent *e;
 
 	if (!v)
@@ -791,7 +814,7 @@ size_t v_count(sh *s, const char *nm, char **ks, int nk)
 /* Collect the keys or the values directly below a subscript path. */
 void v_list(sh *s, const char *nm, char **ks, int nk, vec *out, int keys)
 {
-	var *v = v_find(s, nm);
+	var *v = v_findr(s, &nm);
 	ent *m, *e;
 
 	if (!v)
@@ -854,7 +877,7 @@ void v_arr(sh *s, const char *k, vec *vals)
 
 	if (hibr_set(s, k, "", 0) != HIBR_OK)
 		return;
-	e = v_find(s, k);
+	e = v_findr(s, &k);
 	if (!e)
 		return;
 	v_free_el(e);
@@ -1016,7 +1039,7 @@ void hibr_fail(sh *s, const char *msg)
 /* Remove the entry at a subscript path. */
 int v_delp(sh *s, const char *nm, char **ks, int nk)
 {
-	var *v = v_find(s, nm);
+	var *v = v_findr(s, &nm);
 	ent **mp, *e;
 	size_t *np;
 	int i;
@@ -1032,5 +1055,12 @@ int v_delp(sh *s, const char *nm, char **ks, int nk)
 		mp = &e->map;
 		np = &e->n;
 	}
-	return mp_del(mp, np, ks[nk - 1]) ? HIBR_OK : HIBR_FAIL;
+	if (!mp_del(mp, np, ks[nk - 1]))
+		return HIBR_FAIL;
+	if (nk == 1 && !strcmp(ks[0], "0")) {
+		lg(HIBR_LTRC, "%s lost element 0, which $%s reads", nm, nm);
+		free(v->v);
+		v->v = xs("");
+	}
+	return HIBR_OK;
 }

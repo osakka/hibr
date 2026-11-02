@@ -1,0 +1,38 @@
+p() { printf '<%s>' "$@"; echo; }
+echo "-- declare -x reaches the environment"
+TZV=one; declare -x TZV; sh -c 'echo "child [$TZV]"'
+declare -x FOO=bar; declare +x FOO; sh -c 'echo "unexported [$FOO]"'; echo "still [$FOO]"
+echo "-- case attributes"
+declare -u x; declare -l x; x=AbC; echo "$x"
+declare -l y=ABC; declare -u y; y=dEf; echo "$y"
+echo "-- readonly"
+readonly "a b"=1 2>/dev/null; echo "readonly bad name $?"
+f() { :; }; readonly -f f 2>/dev/null; echo "readonly -f $?"; declare -p -- -f 2>/dev/null; echo "no variable -f $?"
+readonly rk=keep; ( rk=x ) 2>/dev/null; echo "assign $? $rk"
+echo "-- declare -a with a list"
+set -- "a b" c; declare -a arr=("$@"); echo "${#arr[@]} [${arr[0]}]"
+declare -a arr2=(x y) 2>&1 | head -3
+echo "-- namerefs reach arrays"
+ar=(a b); declare -n r=ar; r[1]=x; echo "${ar[1]} ${r[0]} ${#r[@]} ${!r[@]}"
+r+=(y); echo "${ar[*]}"; unset 'r[0]'; echo "${!ar[@]}"
+declare -A h=([k]=v); declare -n hr=h; hr[j]=w; echo "${h[j]} ${hr[k]}"
+echo "-- integer attribute"
+declare -i n=1; n+=2; echo "$n"
+declare -i ia; ia[1]=2+3; echo "${ia[1]}"
+declare -A -i cnt; cnt[k]+=5; cnt[k]+=5; echo "${cnt[k]}"
+declare -u ua; ua[0]=abc; echo "${ua[0]}"
+echo "-- scalar over an array"
+a=(1 2); a=x; echo "[$a] ${#a[@]} [${a[0]}] [${a[1]}]"
+c=(x y); unset 'c[0]'; echo "[$c] ${#c[@]}"
+echo "-- unset PATH forgets hashed commands"
+true; ls / > /dev/null; ( unset PATH; ls / > /dev/null 2>&1; echo "ls after unset PATH $?" )
+echo "-- a builtin's name as an array's"
+declare -a arr=(x y) | wc -l; declare -a str=(p q); echo "${str[1]}"
+echo "-- readonly options"
+readonly -a ra=(1 2); echo "${ra[1]}"; ra[0]=9 2>/dev/null; echo "ro element $? ${ra[0]}"
+g() { echo g1; }; readonly -f g; g() { echo g2; } 2>/dev/null; g; unset -f g 2>/dev/null; echo "unset -f $?"; g
+readonly -f nosuchfn 2>/dev/null; echo "not a function $?"
+echo "-- unset of element 0 and a later scalar"
+d=(p q); unset 'd[0]'; d=z; echo "[$d] ${#d[@]} [${d[1]}]"
+echo "-- PATH unset"
+( unset PATH; command -v ls > /dev/null; echo "command -v $?" )

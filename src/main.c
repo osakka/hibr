@@ -151,8 +151,10 @@ int sh_runx(sh *s, const char *src, const char **rest, int one)
 		   for. Only the outermost text clears it: a nested one is an
 		   eval, a source or a trap, and `eval "set -n; echo A"; echo
 		   B` must stop the caller's list too, as bash does. */
-		if (s->noexec && run_dep == 1)
+		if ((s->noexec || ex_abline) && run_dep == 1) {
 			s->stop = 0;
+			ex_abline = 0;
+		}
 		if (s->keep)
 			kept = 1;
 		else {
@@ -603,6 +605,10 @@ int main(int ac, char **av)
 	pt_init(ac, av);
 	v_env(&s);
 	hibr_set(&s, "IFS", " \t\n", 0);
+	if (!hibr_get(&s, "PATH")) {
+		lg(HIBR_LDBG, "no PATH was given; the default is set, not exported, as bash's is");
+		hibr_set(&s, "PATH", HIBR_DEFPATH, 0);
+	}
 	s.sopt |= O_PATSUB;
 	tr_init(&s);
 	s.t0 = (long)time(0);
