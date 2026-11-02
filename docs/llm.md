@@ -393,7 +393,7 @@ HIBR_TIMEOUT=1 "$HIBR" --agent -c 'sleep 30; echo "status $?"' 2>&1
 ```output
 start
 {"error":"missing: unbound variable","file":"run.sh","line":2,"source":"echo \"$missing\""}
-status 127
+status 1
 {"error":"timed out after 1 seconds (HIBR_TIMEOUT)","file":"command line","line":1}
 status 124
 ```

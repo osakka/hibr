@@ -1,0 +1,5 @@
+0
+a subshell's exec left the parent's child alone
+exechook: child ended before the exec
+zombies after the exec: 0
+status 0

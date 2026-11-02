@@ -130,7 +130,22 @@ A module can reach everything the language can:
 | `hibr_provide`, `hibr_require`, `hibr_unprovide` | offer a table of functions to other modules, ask for one, and withdraw the offer |
 | `hibr_wrall` | write all of a buffer to a descriptor the module owns, without a peer that has gone killing the process |
 | `hibr_scheme`, `hibr_schemef`, `hibr_unscheme` | register a `/dev/<name>/` protocol |
+| `hibr_onexec`, `hibr_offexec` | run a function just before `exec` replaces the process, and withdraw it |
 | `lg`, arenas, `str`, `vec` | the shell's own utilities |
+
+**A child the module starts ends before an exec in place.** Restart
+Desktop -- and any script's `exec` -- replaces the shell without ending it,
+so a module's helper process outlives the image that started it and, once
+it exits, is a zombie of one that does not know it: the web engine left one
+per restart. `hibr_onexec(s, fn, arg)` in the init registers `fn`, which
+ends the module's children and waits for each by pid; `exec` runs every
+hook, the last registered first, just before it replaces the process, and
+only in the process that registered it, so a subshell's `exec` never ends
+its parent's children. The finaliser calls `hibr_offexec` with the same
+pair. A child that is meant to cross the exec, such as a terminal's program,
+is simply not registered. A module that must still load on a hibr older
+than 0.99.428 looks the function up with `dlsym(RTLD_DEFAULT,
+"hibr_onexec")`.
 
 **Write with `hibr_wrall`, not `write`**, for a socket or a pipe the module
 holds. A plain write to one whose far end has closed raises SIGPIPE, whose

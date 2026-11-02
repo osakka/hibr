@@ -1161,6 +1161,66 @@ int hibr_unprovide(sh *s, const char *nm)
 	return HIBR_FAIL;
 }
 
+/* What a module asked exec to do first, and which process asked it. */
+struct exhook {
+	void (*fn)(sh *, void *);
+	void *arg;
+	long pid;
+};
+static vec exhooks;
+
+/* Register a hook that exec runs before replacing this process. */
+void hibr_onexec(sh *s, void (*fn)(sh *, void *), void *arg)
+{
+	struct exhook *h = xm(sizeof *h);
+
+	memset(h, 0, sizeof *h);
+	h->fn = fn;
+	h->arg = arg;
+	h->pid = (long)getpid();
+	v_add(&exhooks, h);
+	lg(HIBR_LDBG, "exec hook added, %zu now", exhooks.n);
+	(void)s;
+}
+
+/* Withdraw a hook, by identity, which a module does before it is unloaded. */
+int hibr_offexec(sh *s, void (*fn)(sh *, void *), void *arg)
+{
+	struct exhook *h;
+	size_t i;
+
+	(void)s;
+	for (i = 0; i < exhooks.n; i++) {
+		h = (struct exhook *)exhooks.p[i];
+		if (h->fn != fn || h->arg != arg)
+			continue;
+		free(h);
+		memmove(exhooks.p + i, exhooks.p + i + 1,
+			(exhooks.n - i - 1) * sizeof *exhooks.p);
+		exhooks.n--;
+		lg(HIBR_LDBG, "exec hook withdrawn, %zu left", exhooks.n);
+		return HIBR_OK;
+	}
+	return HIBR_FAIL;
+}
+
+/* Run the exec hooks this process registered, last first: called by exec
+   just before the process is replaced. A forked child skips its parent's. */
+void exhook_run(sh *s)
+{
+	struct exhook *h;
+	long me = (long)getpid();
+	size_t i;
+
+	for (i = exhooks.n; i > 0; i--) {
+		h = (struct exhook *)exhooks.p[i - 1];
+		if (h->pid != me)
+			continue;
+		lg(HIBR_LDBG, "exec hook %zu runs", i - 1);
+		h->fn(s, h->arg);
+	}
+}
+
 /* Release every offer, at shutdown. */
 void m_apifree(sh *s)
 {

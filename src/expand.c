@@ -7,6 +7,8 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
+#include <limits.h>
 
 #ifdef HIBR_CENSUS
 #define XV(s, p, b, m, t, n) xputv(s, p, b, m, t, n)
@@ -215,36 +217,63 @@ void xslice(sh *s, part *p, size_t n, long *off, long *len)
 }
 
 /* ${a[@]:off:len} of an indexed array, as bash counts it: off is an index,
-   not a position, so the slice starts at the first element whose index is
-   at least off -- from the highest index plus one when off is negative --
-   and len counts the elements present (Gitea #442). keys are the elements'
-   indexes in order. */
-void xslicek(sh *s, part *p, vec *keys, long *from, long *len)
+   not a position, so the slice keeps the elements whose index is at least
+   off -- counted from the highest index plus one when off is negative --
+   in the order the array lists them, and len counts those (Gitea #442).
+   keys are the indexes of lst's elements; lst is narrowed in place. A map
+   with a key that is not an index answers -1 before anything is expanded,
+   and is sliced by position. */
+int xslicek(sh *s, part *p, vec *keys, vec *lst, long *len)
 {
-	char *spec = xone(s, p->arg), *colon = strchr(spec, ':');
-	long off, top = 0, n = (long)keys->n, i;
+	char *spec, *colon;
+	long off, top = 0, n = (long)keys->n, i, j = 0, k;
+	const char *c;
 
+	for (i = 0; i < n; i++) {
+		c = (char *)keys->p[i];
+		if (!*c)
+			return -1;
+		for (; *c; c++)
+			if (!isdigit((unsigned char)*c))
+				return -1;
+		k = atol((char *)keys->p[i]);
+		if (k + 1 > top)
+			top = k + 1;
+	}
+	spec = xone(s, p->arg);
+	colon = strchr(spec, ':');
 	if (colon)
 		*colon = 0;
 	off = ax_run(s, spec);
-	if (n)
-		top = atol((char *)keys->p[n - 1]) + 1;
 	if (off < 0)
 		off += top;
-	*from = n;
 	if (off >= 0)
 		for (i = 0; i < n; i++)
-			if (atol((char *)keys->p[i]) >= off) {
-				*from = i;
-				break;
-			}
-	*len = colon ? ax_run(s, colon + 1) : n - *from;
+			if (atol((char *)keys->p[i]) >= off)
+				lst->p[j++] = lst->p[i];
+	lst->n = (size_t)j;
+	*len = colon ? ax_run(s, colon + 1) : j;
 	if (*len < 0)
-		*len = n - *from + *len;
+		*len = j + *len;
 	if (*len < 0)
 		*len = 0;
-	if (*from + *len > n)
-		*len = n - *from;
+	if (*len > j)
+		*len = j;
+	return 0;
+}
+
+/* One element's value; a scalar is its own element 0, as in bash. */
+const char *xgetk(sh *s, const char *nm, char **ks, int nk)
+{
+	const char *v = v_getp(s, nm, ks, nk);
+	var *sv;
+
+	if (!v && nk == 1 && !strcmp(ks[0], "0")) {
+		sv = v_find(s, nm);
+		if (sv && sv->v && !sv->map && !sv->am)
+			v = sv->v;
+	}
+	return v;
 }
 
 /* Append text to the buffer with a uniform quoting mask. */
@@ -520,6 +549,8 @@ void xrepcat(str *out, const char *rep, const char *mk, const char *m, size_t mn
 	for (i = 0; rep[i]; i++)
 		if (rep[i] == '&' && !mk[i])
 			s_add(out, m, mn);
+		else if (rep[i] == '\\' && !mk[i] && rep[i + 1] == '&')
+			s_ch(out, rep[++i]);
 		else
 			s_ch(out, rep[i]);
 }
@@ -672,7 +703,7 @@ int xassoc(sh *s, const char *nm)
    evaluate, names stay, and every key of a declare -A variable is literal. */
 char *xkey(sh *s, const char *nm, char *t)
 {
-	const char *v;
+	const char *v, *c;
 	size_t i;
 	int digits = 1;
 
@@ -683,7 +714,8 @@ char *xkey(sh *s, const char *nm, char *t)
 			digits = 0;
 	if (digits)
 		return t;
-	if (strpbrk(t, "+-*/%()<>=!&|^ ?:~"))
+	if (strpbrk(t, "+-*/%()<>=!&|^ ") || *t == '~' ||
+	    ((c = strchr(t, '?')) && strchr(c, ':')))
 		return xassoc(s, nm) ? t : xnum(s, ax_run(s, t));
 	if (isname(t)) {
 		v = hibr_get(s, t);
@@ -820,12 +852,48 @@ void xbrk(str *b, str *m, int q)
 
 /* Elements from..to of a list, joined: by IFS's first character for a *
    list, by field breaks for an @ list. */
+/* Whether "$@" or "$*" counts as set for -, = and ?, so that its value is
+   the list itself rather than the operator's word. */
+int xposok(sh *s, part *p)
+{
+	vec *lst = vb_get(s);
+	int ok;
+
+	xposlist(s, lst);
+	ok = xlistok(s, p, lst, 1, p->t[0] == '*');
+	vb_put(s, lst);
+	return ok;
+}
+
+/* Whether a list from `from` on counts as set for -, = and ? : it has an
+   element, and with a colon its join is not empty, as bash tests "$@". */
+int xlistok(sh *s, part *p, vec *lst, size_t from, int star)
+{
+	const char *sep;
+	size_t k;
+
+	if (lst->n <= from)
+		return 0;
+	if (!p->col)
+		return 1;
+	for (k = from; k < lst->n; k++)
+		if (*(char *)lst->p[k])
+			return 1;
+	sep = star ? xsep(s, p->q || s->strict) : " ";
+	return lst->n - from > 1 && *sep;
+}
+
 void xlist(sh *s, part *p, str *b, str *m, vec *lst, size_t from, size_t to,
 	   int star)
 {
 	const char *sep = star ? xsep(s, p->q || s->strict) : 0;
 	size_t k;
 
+	if (star && !p->q && !s->strict && sh_ifs(s) && !*sh_ifs(s)) {
+		lg(HIBR_LTRC, "unquoted %s with an empty IFS keeps its fields",
+		   p->t);
+		star = 0;
+	}
 	for (k = from; k < to; k++) {
 		const char *t = (char *)lst->p[k];
 
@@ -993,12 +1061,19 @@ void xvar(sh *s, part *p, str *b, str *m)
 		char **ks;
 		int all, nk = xkeys(s, p, &ks, &all);
 		if (p->op == V_LEN) {
-			const char *lv = all ? 0 : v_getp(s, p->t, ks, nk);
+			const char *lv = all ? 0 : xgetk(s, p->t, ks, nk);
 			char *c = xnum(s, all ?
 				       (long)v_count(s, p->t, ks, nk) :
 				       (long)u8n(lv ? lv : "",
 						 lv ? strlen(lv) : 0));
 			xput(b, m, c, strlen(c), 1);
+			return;
+		}
+		if (p->op == V_KEYS && all && !xstar(ks, nk)) {
+			vec *kl = vb_get(s);
+			v_list(s, p->t, ks, nk, kl, 1);
+			xlist(s, p, b, m, kl, 0, kl->n, 0);
+			vb_put(s, kl);
 			return;
 		}
 		if (p->op == V_KEYS) {
@@ -1011,14 +1086,16 @@ void xvar(sh *s, part *p, str *b, str *m)
 			vec *lst = vb_get(s);
 			long off, len;
 			v_list(s, p->t, ks, nk, lst, 0);
+			off = -1;
 			if (!xassoc(s, p->t) && nk <= 1) {
 				vec *kl = vb_get(s);
 				v_list(s, p->t, ks, nk, kl, 1);
-				xslicek(s, p, kl, &off, &len);
+				if (!xslicek(s, p, kl, lst, &len))
+					off = 0;
 				vb_put(s, kl);
-			} else {
-				xslice(s, p, lst->n, &off, &len);
 			}
+			if (off < 0)
+				xslice(s, p, lst->n, &off, &len);
 			xlist(s, p, b, m, lst, (size_t)off, (size_t)(off + len),
 			      xstar(ks, nk));
 			vb_put(s, lst);
@@ -1031,12 +1108,18 @@ void xvar(sh *s, part *p, str *b, str *m)
 			vb_put(s, lst);
 			return;
 		}
-		if (all && p->op == V_NONE && v_find(s, p->t)) {
+		if (all && v_find(s, p->t) && (p->op == V_NONE ||
+		    p->op == V_DEF || p->op == V_ASG || p->op == V_ERR)) {
 			vec *lst = vb_get(s);
 			v_list(s, p->t, ks, nk, lst, 0);
-			xlist(s, p, b, m, lst, 0, lst->n, xstar(ks, nk));
+			if (p->op == V_NONE ||
+			    xlistok(s, p, lst, 0, xstar(ks, nk))) {
+				xlist(s, p, b, m, lst, 0, lst->n,
+				      xstar(ks, nk));
+				vb_put(s, lst);
+				return;
+			}
 			vb_put(s, lst);
-			return;
 		}
 		if (all && (p->op == V_XA || p->op == V_XK ||
 			    p->op == V_XKW || xper(p->op))) {
@@ -1054,13 +1137,7 @@ void xvar(sh *s, part *p, str *b, str *m)
 				xajoin(s, p->t, ks, nk, xstar(ks, nk) ?
 				       xsep(s, p->q || s->strict) : " ", 0) : 0;
 		else
-			v = v_getp(s, p->t, ks, nk);
-		if (!all && !v && nk == 1 && !strcmp(ks[0], "0")) {
-			var *sv = v_find(s, p->t);
-
-			if (sv && sv->v && !sv->map && !sv->am)
-				v = sv->v;
-		}
+			v = xgetk(s, p->t, ks, nk);
 		if (!all && !v && s->uset && xucheck(p->op) &&
 		    (v_find(s, p->t) || nk > 1 || strcmp(ks[0], "0"))) {
 			str nm;
@@ -1099,10 +1176,20 @@ void xvar(sh *s, part *p, str *b, str *m)
 		v_names(s, p->t, nm);
 		if (nm->n > 1)
 			qsort(nm->p, nm->n, sizeof *nm->p, gcmp);
+		if (!p->col) {
+			for (i = 0; i < nm->n; i++) {
+				char *t = (char *)nm->p[i];
+				nm->p[i] = ar_dup(s->xa, t, strlen(t));
+				free(t);
+			}
+			xlist(s, p, b, m, nm, 0, nm->n, 0);
+			vb_put(s, nm);
+			return;
+		}
 		s_init(&j);
 		for (i = 0; i < nm->n; i++) {
 			if (i)
-				s_ch(&j, ' ');
+				s_cat(&j, xsep(s, p->q || s->strict));
 			s_cat(&j, (char *)nm->p[i]);
 			free(nm->p[i]);
 		}
@@ -1133,6 +1220,14 @@ void xvar(sh *s, part *p, str *b, str *m)
 		a = xnum(s, (long)s->ac);
 		lg(HIBR_LTRC, "${#%c} is how many parameters there are", p->t[0]);
 		xput(b, m, a, strlen(a), 1);
+		return;
+	} else if ((p->t[0] == '@' || p->t[0] == '*') && !p->t[1] &&
+		   (p->op == V_DEF || p->op == V_ASG || p->op == V_ERR) &&
+		   xposok(s, p)) {
+		vec *lst = vb_get(s);
+		xposlist(s, lst);
+		xlist(s, p, b, m, lst, 1, lst->n, p->t[0] == '*');
+		vb_put(s, lst);
 		return;
 	} else if ((p->t[0] == '@' || p->t[0] == '*') && !p->t[1] &&
 		   (p->op == V_NONE || xper(p->op))) {
@@ -1253,12 +1348,14 @@ const char *xbyname(sh *s, const char *r)
 }
 
 /* Add an operator's word as written: its own text splits and globs, what
-   expands inside it follows the usual rules, and its quotes still protect. */
-const char *xarg(sh *s, part *p, str *b, str *m)
+   expands inside it follows the usual rules, and its quotes still protect.
+   keep says whether an @ list inside it stays a list: it does for - and +,
+   and not for =, whose value is the one string assigned. */
+const char *xarg(sh *s, part *p, str *b, str *m, int keep)
 {
 	char *mk;
 	unsigned b0 = x_brkn;
-	char *a = xone_fq(s, p->arg, &mk, HIBR_XBRK |
+	char *a = xone_fq(s, p->arg, &mk, (keep ? HIBR_XBRK : 0) |
 			  (p->q ? HIBR_XONE | HIBR_XNOTIL : HIBR_XONE));
 	size_t n = strlen(a), i;
 	int brk = 0;
@@ -1294,11 +1391,14 @@ int xucheck(int op)
 	       op != V_KEYS && op != V_IND && op != V_NAMES && !(op & V_INDF);
 }
 
-/* set -u found an unset variable: say which, and stop as bash does. */
+/* set -u found an unset variable: say which, and stop as bash does -- 127
+   for the shell of a -c command itself, 1 for a script, an interactive
+   shell and any subshell. */
 void xunset(sh *s, const char *nm)
 {
 	lg(HIBR_LERR, "%s: unbound variable", nm);
-	s->st = s->it ? 1 : 127;
+	s->st = !s->it && (s->sopt & O_DASHC) && (long)getpid() == s->pid ?
+		127 : 1;
 	s->stop = 1;
 	if (!s->it)
 		s->quit = 1;
@@ -1411,7 +1511,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		return;
 	case V_DEF:
 		if (!ok) {
-			xarg(s, p, b, m);
+			xarg(s, p, b, m, 1);
 			return;
 		}
 		break;
@@ -1422,7 +1522,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 
 			x_aks = 0;
 			if (p->arr && aks) {
-				a = (char *)xarg(s, p, b, m);
+				a = (char *)xarg(s, p, b, m, 0);
 				v_setp(s, p->t, aks, ank, a);
 				return;
 			}
@@ -1434,7 +1534,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 					s->quit = 1;
 				return;
 			}
-			hibr_set(s, p->t, xarg(s, p, b, m), 0);
+			hibr_set(s, p->t, xarg(s, p, b, m, 0), 0);
 			return;
 		}
 		break;
@@ -1451,7 +1551,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		break;
 	case V_ALT:
 		if (ok)
-			xarg(s, p, b, m);
+			xarg(s, p, b, m, 1);
 		return;
 	case V_RS:
 	case V_RL:
@@ -2504,14 +2604,16 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 				goto normal;
 			lst = vb_get(s);
 			v_list(s, p0->t, ks, nk, lst, 0);
+			off = -1;
 			if (!xassoc(s, p0->t) && nk <= 1) {
 				vec *kl = vb_get(s);
 				v_list(s, p0->t, ks, nk, kl, 1);
-				xslicek(s, p0, kl, &off, &len);
+				if (!xslicek(s, p0, kl, lst, &len))
+					off = 0;
 				vb_put(s, kl);
-			} else {
-				xslice(s, p0, lst->n, &off, &len);
 			}
+			if (off < 0)
+				xslice(s, p0, lst->n, &off, &len);
 			for (k2 = off; k2 < off + len; k2++)
 				xoutq(s, out, outm, (char *)lst->p[k2],
 				      strlen((char *)lst->p[k2]));
@@ -2724,7 +2826,6 @@ word *br_make(sh *s, word *w, part *tgt, const char *txt, size_t tn)
 	return nw;
 }
 
-/* Generate the items of a {a..b} or {1..9..2} range. */
 /* Whether n bytes at p are an integer as a brace range takes one: an
    optional sign and digits, nothing else. */
 int br_int(const char *p, size_t n)
@@ -2739,6 +2840,23 @@ int br_int(const char *p, size_t n)
 		if (!isdigit((unsigned char)p[i]))
 			return 0;
 	return 1;
+}
+
+/* Read n bytes at p, which br_int accepted, as a long; 0 when it does not
+   fit, which leaves the range as written, as bash does. */
+int br_long(const char *p, size_t n, long *v)
+{
+	str t;
+	char *end;
+	int ok;
+
+	s_init(&t);
+	s_add(&t, p, n);
+	errno = 0;
+	*v = strtol(t.p, &end, 10);
+	ok = errno != ERANGE && *end == 0;
+	s_free(&t);
+	return ok;
 }
 
 /* How wide a range end asks its numbers to be: its own width when it has
@@ -2759,8 +2877,8 @@ int br_range(sh *s, const char *b, size_t n, vec *out)
 	const char *e = b + n, *d1, *d2 = 0, *x, *y;
 	size_t xn, yn;
 	long lo, hi, step = 1, v;
+	unsigned long span, i, cnt;
 	int pad, alpha = 0;
-	str t;
 
 	d1 = 0;
 	for (x = b; x + 1 < e; x++)
@@ -2781,12 +2899,10 @@ int br_range(sh *s, const char *b, size_t n, vec *out)
 	y = x;
 	x = b;
 	if (d2) {
-		if (!br_int(d2 + 2, (size_t)(e - d2 - 2)))
+		if (!br_int(d2 + 2, (size_t)(e - d2 - 2)) ||
+		    !br_long(d2 + 2, (size_t)(e - d2 - 2), &step) ||
+		    step == LONG_MIN)
 			return 0;
-		s_init(&t);
-		s_add(&t, d2 + 2, (size_t)(e - d2 - 2));
-		step = atol(t.p);
-		s_free(&t);
 	}
 	if (!step)
 		step = 1;
@@ -2799,13 +2915,8 @@ int br_range(sh *s, const char *b, size_t n, vec *out)
 		hi = *y;
 		pad = 0;
 	} else if (br_int(x, xn) && br_int(y, yn)) {
-		s_init(&t);
-		s_add(&t, x, xn);
-		lo = atol(t.p);
-		t.n = 0;
-		s_add(&t, y, yn);
-		hi = atol(t.p);
-		s_free(&t);
+		if (!br_long(x, xn, &lo) || !br_long(y, yn, &hi))
+			return 0;
 		pad = br_width(x, xn) > br_width(y, yn) ? br_width(x, xn) :
 			br_width(y, yn);
 		if (pad && (int)xn > pad)
@@ -2815,16 +2926,23 @@ int br_range(sh *s, const char *b, size_t n, vec *out)
 	} else {
 		return 0;
 	}
-	for (v = lo; lo <= hi ? v <= hi : v >= hi; v += lo <= hi ? step : -step) {
+	span = lo <= hi ? (unsigned long)hi - (unsigned long)lo :
+			  (unsigned long)lo - (unsigned long)hi;
+	cnt = span / (unsigned long)step;
+	for (i = 0; i <= cnt; i++) {
 		str o, num;
 		int k;
+
+		v = (long)(lo <= hi ? (unsigned long)lo + i * (unsigned long)step :
+			   (unsigned long)lo - i * (unsigned long)step);
 
 		s_init(&o);
 		if (alpha) {
 			s_ch(&o, (int)v);
 		} else {
 			s_init(&num);
-			s_num(&num, v < 0 ? -v : v);
+			s_fmt(&num, "%lu", v < 0 ? 0UL - (unsigned long)v :
+			      (unsigned long)v);
 			if (v < 0)
 				s_ch(&o, '-');
 			for (k = pad - (int)num.n - (v < 0); k > 0; k--)

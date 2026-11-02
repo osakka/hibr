@@ -46,7 +46,12 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   - Inside a longer word: `"x$@y"` with `a "" b` is `<xa><><by>`, as in
     bash, where it was one word.
   - When IFS has no blank: `${a[@]}` with `IFS=,` keeps `"x y"` whole.
-  - The same holds for slices and for `"${u:-$@}"`.
+  - The same holds for slices and for `"${u:-$@}"`, for `"${!a[@]}"` and
+    `"${!pre@}"` inside a longer word, and for `"${@:-x}"` and
+    `"${a[@]:-x}"` when the list is set.
+  - With an empty IFS, an unquoted `$*` or `${a[*]}` keeps its elements
+    as separate words, and `"${!pre*}"` joins the names with IFS's first
+    character.
 - **Operators act on each element.** `${a[@]#p}`, `${a[@]%.c}`,
   `${a[@]/p/P}`, `${@%.c}` and `${*%.c}` work on every element, with
   their pattern expanded once. They acted on the list joined into one
@@ -56,8 +61,9 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   turned splitting off for the rest of the script.
 - **Smaller expansion fixes, each compared against bash** (#442).
   - **`set -u`.** It refuses an unset variable under every operator but
-    `-`, `=`, `?` and `+`. It names an element as `a[3]`, and a script
-    stopped by it exits 127, as bash does, where it said 1.
+    `-`, `=`, `?` and `+`. It names an element as `a[3]`. A `hibr -c`
+    command stopped by it exits 127, as bash's does; a script, a subshell
+    and a substitution still say 1.
   - **Assignments.** `${a[k]:=v}` assigns that key, and `${1:=x}` is the
     error bash gives.
   - **Tilde.** `~"x"` and `~$USER` are not tilde expansions.
@@ -66,10 +72,19 @@ The rest of the core audit (Gitea #427), in one release, area by area.
     `{1..3x}`, `{1..}` and `{1..a}` are left as written.
   - **Globstar.** Its results are sorted as one list. One recorded test
     had kept the old order and is re-recorded.
-  - **Subscripts.** `?:` and `~` are operators in an unquoted subscript, so
-    `${a[k?2:0]}` evaluates; `${x[0]}` of a scalar is the scalar; and
-    `${a[@]:2}` of a sparse array starts at index 2, not at the third
-    element.
+  - **Subscripts.** A conditional and a leading `~` evaluate in an
+    unquoted subscript, so `${a[k?2:0]}` and `${a[~i]}` work; a key that
+    merely holds a `:` or a `?` -- `12:30`, `what?` -- is still a key.
+    `${x[0]}` and `${#x[0]}` of a scalar are the scalar and its length.
+  - **Slices of a sparse array.** `${a[@]:2}` keeps the elements whose
+    index is at least 2, where it took everything from the third element;
+    a map with keys that are not numbers is still sliced by position.
+  - **`${u:=$@}` and `${u=$@}`** give the one string they assign; `-`
+    and `+` keep the list apart.
+  - **Brace ranges at the limits.** A range end or step outside a long
+    is left as written, and a range near the limit no longer loops for
+    ever.
+  - **`\&` from a variable** in a replacement is a literal `&`.
 - **`&` in a replacement is the text that matched**, as bash 5.2 has it
   (`patsub_replacement`, on; `shopt -u patsub_replacement` turns it off).
   This is the incompatibility bash 5.2 made: `${t//</&lt;}` now gives
@@ -114,6 +129,14 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   - `for ((;;))` stops at an arithmetic error in its condition.
 - **The build renames the shell into place**, so a rebuild no longer takes
   `build/hibr` from under a process running it.
+- **A module can end its children before an exec in place**
+  (`hibr_onexec`, `hibr_offexec`). Restart Desktop execs in place, and the
+  web engine, a child of the image being replaced, was left to exit
+  unwaited: one zombie per restart, the only zombies on the owner's
+  machine. A module registers a hook that ends its children and waits for
+  them; `exec` runs it just before replacing the process, and never in a
+  subshell, whose exec is not the parent's. The browser's web module uses
+  it from hibr-browser 0.5.26 on.
 
 ## 0.99.427
 

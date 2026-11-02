@@ -337,6 +337,7 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 		   is an operator on what v names, as in bash. */
 		if (q < e && (*q == '*' || *q == '@') && q + 1 >= e) {
 			p->op = V_NAMES;
+			p->col = *q == '*';
 			return;
 		}
 		if (q >= e) {

@@ -1474,6 +1474,8 @@ int b_exec(sh *s, int ac, char **av)
 	lg(HIBR_LDBG, "exec %s as %s%s", path, argv[0], clean ? ", no environment" : "");
 	env = clean ? none : v_envp(s, 0);
 	fflush(0);
+	exhook_run(s);
+	fflush(0);
 	execve(path, argv, env);
 	r = errno;
 	lg(HIBR_LERR, "exec: %s: %s", path, strerror(r));

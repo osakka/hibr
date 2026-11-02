@@ -979,7 +979,8 @@ void sh_opt1(sh *s, str *o, const char *nm, int style)
 		s_cat(o, nm);
 	} else {
 		s_cat(o, nm);
-		for (w = strlen(nm); w < 16; w++)
+		s_ch(o, ' ');
+		for (w = strlen(nm) + 1; w < 16; w++)
 			s_ch(o, ' ');
 		s_cat(o, v ? "on" : "off");
 	}
@@ -1051,7 +1052,7 @@ int b_shopt(sh *s, int ac, char **av)
 				continue;
 			}
 			if (!quiet)
-				printf("%-16s%s\n", av[i], v ? "on" : "off");
+				printf("%-15s %s\n", av[i], v ? "on" : "off");
 			if (!v)
 				n = 1;
 			continue;

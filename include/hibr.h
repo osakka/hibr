@@ -416,4 +416,14 @@ void *hibr_require(sh *s, const char *nm, unsigned ver);
 int hibr_unprovide(sh *s, const char *nm);
 int hibr_unscheme(sh *s, const char *nm);
 
+/* A module whose children must not outlive an exec in place -- Restart
+   Desktop's, or any script's `exec` -- registers a hook that ends them and
+   waits for them; exec runs every hook, last registered first, just before
+   it replaces the process, and only in the process that registered it, so
+   a subshell's exec never touches its parent's children. A child meant to
+   cross the exec (a terminal's program) is simply not registered. The
+   finaliser unregisters with the same pair. */
+void hibr_onexec(sh *s, void (*fn)(sh *, void *), void *arg);
+int hibr_offexec(sh *s, void (*fn)(sh *, void *), void *arg);
+
 #endif
