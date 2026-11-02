@@ -1,7 +1,7 @@
 # 0052 — A sheet's formulas are contained, and full access is per sheet
 
-Status: accepted (0.99.427); the Landlock path is not yet run on a kernel
-that has it
+Status: accepted (0.99.427); the Landlock path verified on Linux 6.12
+(Landlock ABI 6), the macOS one not yet run
 
 ## Context
 
@@ -90,14 +90,21 @@ own sheets and wants them to act.
   says `#TIME`.
 - **CPU and disk inside its folder are not bounded** beyond the run's own
   limits and the folder being thrown away before every run.
-- **The Landlock path has not run on the machine this was built on**: its
-  kernel answers `EOPNOTSUPP`, Landlock not being in the host's list of
-  security modules. The seccomp filter was run there, under a harness,
-  with hibr, `math`, a pipeline, `sort`, `cksum` and `date` working inside
-  it and sockets, `chmod`, `touch` and signals refused. The macOS branch is
-  compiled there and has not been run. Both are verified on real machines
-  before Gitea #432 closes, and until then the probe is what keeps a fault
-  in either from reaching a sheet.
+- **Where it was verified.** The machine this was built on has no
+  Landlock (its kernel answers `EOPNOTSUPP`, the LSM not being in the
+  host's list), so there the seccomp filter was run under a harness --
+  hibr, `math`, a pipeline, `sort`, `cksum` and `date` working inside it;
+  sockets, `chmod`, `touch` and signals refused -- and `tests/contain.py`
+  skips, saying so. On Linux 6.12 with Landlock ABI 6 the whole suite was
+  run on a real machine: 12 of 12, writes beside the folder and from a
+  program it starts refused, TCP and a reachable Unix socket refused, no
+  mode or time changed, no signal to another process, a handed descriptor
+  closed. Sheet's own suite ran there too, its formulas genuinely
+  contained, and found the one thing the build machine could not: the
+  reason a cell was refused came after the program's own error, where the
+  window cut it off. It comes first now (`refused, contained: ...`). The
+  macOS branch is compiled and has not been run; the probe is
+  what keeps a fault there from reaching a sheet.
 - `--plan` stays what ADR 0027 says it is -- a dry run for reading a
   script's intentions -- and is still what a sheet runs under where nothing
   can contain it.

@@ -5285,7 +5285,7 @@ os.remove(SHEET)
 sc = shrun(shk("=touch %s/made" % SHD) + [b"\r", b"\x1b[A"])
 check("a formula that would write is refused, and says why",
       "#REFUSED" in shcells(sc, 1) and not os.path.exists(SHD + "/made") and
-      ("would run touch" in sc.text() or "contained" in sc.text()), sc)
+      ("would run touch" in sc.text() or "refused, contained: " in sc.text()), sc)
 os.remove(SHEET)
 sc = shrun(shk("5") + [b"\r"])
 check("and the status line says what holds the formulas",

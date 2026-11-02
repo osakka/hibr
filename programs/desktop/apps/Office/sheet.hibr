@@ -916,7 +916,7 @@ fn ss_recalcdone(int n, int rc) {
 		elif [ "${SS[$id]["rmode"]}" = contained ] &&
 		     [[ $e == *"ermission denied"* || $e == *"ot permitted"* ]]; then
 			SC[$id][$k]["val"]="#REFUSED"
-			SC[$id][$k]["err"]="$e -- refused: this sheet's formulas are contained"
+			SC[$id][$k]["err"]="refused, contained: $e"
 		elif [ "$st" -ge 128 ]; then
 			SC[$id][$k]["val"]="#TIME"
 			SC[$id][$k]["err"]="it ran out of time -- $SS_CPU seconds of CPU"

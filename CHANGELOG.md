@@ -27,10 +27,9 @@ before this release is taken as given and fingerprinted on first open.
 What containment does not stop is written down rather than glossed: a
 formula can still *read* anything you can and show it in its cell; and on a
 kernel older than Linux 6.12 it cannot signal its own children either, so
-`timeout` inside a formula fails there. The Landlock path has not run on the
-machine this was built on, whose kernel has none -- the seccomp filter was
-run there under a harness -- and `tests/contain.py` says so and skips; it is
-run on a machine with Landlock before #432 closes. Sheet 1.7.
+`timeout` inside a formula fails there. `tests/contain.py` passes 12 of 12
+on Linux 6.12 with Landlock ABI 6; on a kernel without Landlock it says so
+and skips, and the macOS branch has not yet been run. Sheet 1.7.
 
 **A desktop job could read a job from before as its own.** A job's number is
 the desktop's own count and its files sit in a folder named by the desktop's
