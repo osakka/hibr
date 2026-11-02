@@ -1234,12 +1234,21 @@ char *ed_line(sh *s, const char *ps)
 			}
 			if (errno == EINTR) {
 				if (tr_pending()) {
-					lg(HIBR_LDBG, "a trap ran while a line was being typed");
-					ed_put("\r\n", 2);
+					int wasint = tr_ispend(SIGINT);
+
+					lg(HIBR_LDBG, "a trap ran while a line was being typed%s",
+					   wasint ? ", and interrupt drops the line" : "");
+					ed_put(wasint ? "^C\r\n" : "\r\n", wasint ? 4 : 2);
 					ed_off();
 					tr_run(s);
 					fflush(0);
 					ed_on();
+					if (wasint) {
+						b.n = 0;
+						if (b.p)
+							b.p[0] = 0;
+						pos = 0;
+					}
 					ed_fresh(&e);
 					ed_draw(&e, &b, pos);
 				}

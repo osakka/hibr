@@ -100,17 +100,24 @@ The rest of the core audit (Gitea #427), in one release, area by area.
     number, and the trap runs then. It used to run only once the child
     had finished.
   - An interactive prompt runs a trap the moment its signal arrives, and
-    redraws the line being typed.
+    redraws the line being typed -- or, for an interrupt, drops it, as
+    bash does.
   - `hibr -i -c` now does job control as `-i` promises.
 - **`wait`, as in bash.**
   - Without operands it waits for everything and answers 0.
   - Given several pids it waits for each, with the last one's status.
   - A job reaped already still answers its status.
   - A pid that is not a child is status 127.
+  - A stopped job is kept, with a warning and 128 plus the stop signal.
+  - A process that left its job's process group is still waited for, by
+    its own pid; this used to hang.
 - **Children are started as bash starts them.**
-  - A subshell, a command substitution or a pipeline stage drops the
-    parent's jobs and resets every signal the script trapped.
-  - A background job of a non-interactive shell ignores `INT` and `QUIT`.
+  - A child resets every signal the script trapped. A subshell, a
+    background job and a compound pipeline stage forget the parent's
+    jobs; a command substitution and a simple stage keep them, so
+    `$(jobs)` and `jobs | wc -l` still answer.
+  - A simple command run in the background by a non-interactive shell
+    ignores `INT` and `QUIT`, as bash's does.
   - A signal ignored when the shell started stays ignored; a script cannot
     trap it.
 - **`trap`.**
@@ -118,15 +125,23 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   - `2abc` is not a signal.
   - A missing signal name is a usage error, status 2.
 - **`exec` that fails ends a non-interactive shell**, with status 127 for a
-  missing program and 126 for one that cannot run, as in bash.
+  missing program and 126 for one that cannot run, and without running the
+  exit trap, as in bash.
   `shopt -s execfail` keeps the shell, and Restart Desktop sets it around
   its own exec, so a failed restart leaves the desktop running.
 - **Redirections.**
-  - `>& file` sends both output streams to the file, as `&>` does.
+  - `>& file` and `1>& file` send both output streams to the file, as
+    `&>` does.
   - A here-document of more than a pipe's worth goes through a temporary
     file rather than blocking the shell on its own write.
   - A `dup2` that fails is reported.
   - `for ((;;))` stops at an arithmetic error in its condition.
+- **A file with no `#!` line runs as a script** in a new hibr, as POSIX
+  and bash have it, wherever a program can run; it said "Exec format
+  error". A file whose first line holds a NUL is still refused.
+- **`trap -` alone** is a usage error, status 2.
+- **`wait` sleeps a tenth of a second at most** between asking, so a
+  module's thread taking the SIGCHLD cannot leave it waiting for ever.
 - **The build renames the shell into place**, so a rebuild no longer takes
   `build/hibr` from under a process running it.
 - **A module can end its children before an exec in place**

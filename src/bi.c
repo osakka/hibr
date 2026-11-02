@@ -1477,6 +1477,7 @@ int b_exec(sh *s, int ac, char **av)
 	exhook_run(s);
 	fflush(0);
 	execve(path, argv, env);
+	ex_noshebang(s, path, argv, env);
 	r = errno;
 	lg(HIBR_LERR, "exec: %s: %s", path, strerror(r));
 	if (env != none)
@@ -1495,6 +1496,11 @@ int b_execfail(sh *s, int rc)
 	if (!s->it && !(s->sopt & O_EXECFAIL)) {
 		s->st = rc;
 		s->quit = 1;
+		if (s->trap && s->trap[0]) {
+			lg(HIBR_LDBG, "a failed exec ends the shell without its exit trap, as bash's does");
+			free(s->trap[0]);
+			s->trap[0] = 0;
+		}
 	}
 	return rc;
 }

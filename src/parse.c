@@ -221,7 +221,7 @@ int p_redir(lex *l, redir ***rt)
 		r->fl |= RF_CLOB;
 	if (tk == T_HERES)
 		r->fl |= RF_STR;
-	if (tk == T_DOUT && l->fd < 0 && !l->fdvar)
+	if (tk == T_DOUT && (l->fd < 0 || l->fd == 1) && !l->fdvar)
 		r->fl |= RF_NOFD;
 	r->var = l->fdvar;
 	lx_next(l);

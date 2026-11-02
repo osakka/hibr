@@ -250,4 +250,21 @@ t = Term("-i", "-c", 'trap "echo q" QUIT; trap -p QUIT', rows=24, cols=80,
 t.close()
 check("an interactive shell can trap QUIT", "echo q" in t.text)
 
-report(54)
+# Interrupt at the prompt with an INT trap (review of #448): the trap
+# runs and, as in bash, the half-typed line is dropped rather than drawn
+# again for Enter to run.
+t = session('PS1="> "\ntrap "echo INTTRAP" INT\n',
+            ["echo partial", "\x03", 0.6, "\n", "echo alive\n", "exit\n"])
+check("interrupt with an INT trap runs it and drops the line",
+      "INTTRAP" in t and "alive\r\n" in t and "\r\npartial\r\n" not in t, repr(t))
+
+# wait on a stopped job (review of #446): bash keeps the job and answers
+# 128 and the stop signal; dropping it orphaned the process.
+expect(r"^wait: job 1 is stopped")
+t = session('PS1="> "\n', ["sleep 30 &\n", 0.3, "kill -STOP %1\n", 0.4,
+            "wait %1; echo rc=$?\n", 0.3, "jobs\n", 0.3,
+            "kill -9 %1; echo killed=$?\n", 0.3, "exit\n"])
+check("wait on a stopped job keeps it and answers 147",
+      "rc=147" in t and "Stopped" in t and "killed=0" in t, repr(t))
+
+report(56)

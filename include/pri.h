@@ -349,11 +349,15 @@ void tr_debug(sh *s, const char *what);
 void tr_return(sh *s);
 void tr_fork(sh *s);
 void tr_child(sh *s, int jc);
+void tr_nojobs(sh *s);
+void tr_bgign(sh *s);
 int b_execfail(sh *s, int rc);
 int tr_waitsig(sh *s);
 void jc_blk(sh *s, sigset_t *old);
+void jc_sleep(sigset_t *old);
 void tr_fini(sh *s);
 int tr_pending(void);
+int tr_ispend(int sig);
 void tr_show(sh *s, int g);
 int b_trap(sh *s, int ac, char **av);
 int b_fail(sh *s, int ac, char **av);
@@ -414,6 +418,10 @@ void bi_tione(str *o, long long us, int prec, int lng);
 int bi_tifmt(str *o, const char *f, long long *t);
 int ex_time(sh *s, node *n, int t);
 int ex_why(const char *nm, const char *who);
+void ex_noshebang(sh *s, const char *path, char **av, char **env);
+#ifndef HIBR_SHEBANGN
+#define HIBR_SHEBANGN 80
+#endif
 void v_arrput(sh *s, const char *k, vec *vals, long nx);
 int b_getopts(sh *s, int ac, char **av);
 int b_disown(sh *s, int ac, char **av);

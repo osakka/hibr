@@ -1089,6 +1089,7 @@ int cmd_ext(sh *s, char **av, const char *who)
 	pid = (pid_t)jc_fork(s);
 	if (pid == 0) {
 		execve(path, av, env);
+		ex_noshebang(s, path, av, env);
 		lg(HIBR_LERR, "%s: %s", path, strerror(errno));
 		_exit(errno == ENOENT ? HIBR_NOCMD : HIBR_NOEXEC);
 	}

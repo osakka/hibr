@@ -79,6 +79,19 @@ void tr_child(sh *s, int jc)
 	}
 }
 
+/* A simple command run in the background by a shell without job control
+   ignores INT and QUIT, as bash's does, unless a parent had them set
+   otherwise on entry -- asked first, so the cache keeps what the shell was
+   given rather than what this child is about to set. */
+void tr_bgign(sh *s)
+{
+	(void)s;
+	tr_wasign(SIGINT);
+	tr_wasign(SIGQUIT);
+	signal(SIGINT, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+}
+
 /* Allocate the trap and pending tables. */
 void tr_init(sh *s)
 {
@@ -112,6 +125,12 @@ void tr_init(sh *s)
 int tr_pending(void)
 {
 	return tr_any != 0;
+}
+
+/* Whether one signal has arrived and its trap not yet run. */
+int tr_ispend(int sig)
+{
+	return tr_pend && sig > 0 && sig < tr_n && tr_pend[sig];
 }
 
 /* A trapped signal other than SIGCHLD that has arrived and not yet run,
@@ -184,10 +203,6 @@ void tr_fork(sh *s)
 	   ECHILD marks nothing -- but there is no reason to go. */
 	jc_chld = 0;
 	tr_errkid = 1;
-	/* The parent's jobs are not this child's: a wait here would ask after
-	   groups it has no children in (Gitea #445). Forgotten, not signalled. */
-	while (s->jobs.n)
-		jc_drop(s, (job *)s->jobs.p[0]);
 	if (s->etrap)
 		lg(HIBR_LDBG, "subshell keeps the ERR trap listed and runs it only if set again");
 	if (!s->trap || !s->trap[0])
@@ -195,6 +210,17 @@ void tr_fork(sh *s)
 	lg(HIBR_LDBG, "subshell forgets the inherited exit trap");
 	free(s->trap[0]);
 	s->trap[0] = 0;
+}
+
+/* Forget the parent's jobs in a child that is a subshell of its own -- a
+   ( ), a background job, a compound pipeline stage -- as bash does; a
+   command substitution and a simple pipeline stage keep them, so
+   `$(jobs)` and `jobs | wc -l` answer about the shell (Gitea #445). A wait
+   on one the child inherited finds no children and marks it done. */
+void tr_nojobs(sh *s)
+{
+	while (s->jobs.n)
+		jc_drop(s, (job *)s->jobs.p[0]);
 }
 
 /* Run the exit trap, if one is set. */
@@ -473,6 +499,10 @@ int b_trap(sh *s, int ac, char **av)
 	}
 	cmd = av[1];
 	i = 2;
+	if (!strcmp(cmd, "-") && ac == 2) {
+		lg(HIBR_LERR, "trap: usage: trap [-lp] [[arg] signal_spec ...]");
+		return 2;
+	}
 	if (!strcmp(cmd, "-")) {
 		reset = 1;
 	} else if (ac == 2 && tr_sig(cmd) != -1) {

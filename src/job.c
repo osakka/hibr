@@ -8,6 +8,8 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/wait.h>
+#include <sys/select.h>
+#include <time.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -200,7 +202,7 @@ void jc_drop(sh *s, job *j)
 
    This is what `wait` and `wait -n` used to get from waitpid(-1), which
    also collected children the shell never started, so each job's own
-   group is asked in turn. Between rounds it sleeps in sigsuspend with
+   group is asked in turn. Between rounds it sleeps in jc_sleep with
    SIGCHLD blocked while it asks, so a child exiting wakes it and nothing
    polls (it was 500 wakeups a second). A group that is gone -- a job
    table inherited by a subshell names children it never had -- is done,
@@ -215,12 +217,18 @@ long jc_anyone(sh *s, int *w)
 
 	jc_blk(s, &old);
 	for (;;) {
+		if (tr_waitsig(s)) {
+			sigprocmask(SIG_SETMASK, &old, 0);
+			return -2;
+		}
 		any = 0;
 		for (k = 0; k < s->jobs.n; k++) {
 			j = (job *)s->jobs.p[k];
-			if (j->state == J_DONE)
+			if (j->state == J_DONE || j->state == J_STOP)
 				continue;
 			p = waitpid(-(pid_t)j->pgid, w, WNOHANG | WUNTRACED);
+			if (p < 0 && errno == ECHILD && j->last)
+				p = waitpid((pid_t)j->last, w, WNOHANG | WUNTRACED);
 			if (p > 0) {
 				sigprocmask(SIG_SETMASK, &old, 0);
 				return (long)p;
@@ -236,17 +244,24 @@ long jc_anyone(sh *s, int *w)
 			sigprocmask(SIG_SETMASK, &old, 0);
 			return -1;
 		}
-		if (tr_waitsig(s)) {
-			sigprocmask(SIG_SETMASK, &old, 0);
-			return -2;
-		}
-		sigsuspend(&old);
+		jc_sleep(&old);
 	}
+}
+
+/* Sleep until a signal arrives, with the mask a wait had before it blocked
+   SIGCHLD -- or for a tenth of a second at most, because a module's thread
+   may take a SIGCHLD meant for this one, and the wait must still see the
+   child gone. */
+void jc_sleep(sigset_t *old)
+{
+	struct timespec ts = { 0, 100000000 };
+
+	pselect(0, 0, 0, 0, &ts, old);
 }
 
 /* Block SIGCHLD and every trapped signal while a wait asks whether there is
    anything to collect, so neither can arrive between the asking and the
-   sigsuspend that sleeps until one does. */
+   jc_sleep that sleeps until one does. */
 void jc_blk(sh *s, sigset_t *old)
 {
 	sigset_t blk;
@@ -262,7 +277,9 @@ void jc_blk(sh *s, sigset_t *old)
 }
 
 /* Wait for every process of one job: 0 once it is done, its last
-   process's status in *st, or -2 when a trapped signal arrived first. */
+   process's status in *st; 1 when it stopped instead, with 128 and the
+   signal in *st; or -2 when a trapped signal arrived first. A process
+   that left the job's group is still waited for by its own pid. */
 int jc_waitjob(sh *s, job *j, int *st)
 {
 	sigset_t old;
@@ -271,7 +288,19 @@ int jc_waitjob(sh *s, job *j, int *st)
 
 	jc_blk(s, &old);
 	while (j->ndone < j->np && j->state == J_RUN) {
-		p = waitpid(-(pid_t)j->pgid, &w, WNOHANG);
+		if (tr_waitsig(s)) {
+			sigprocmask(SIG_SETMASK, &old, 0);
+			return -2;
+		}
+		p = waitpid(-(pid_t)j->pgid, &w, WNOHANG | WUNTRACED);
+		if (p < 0 && errno == ECHILD && j->last)
+			p = waitpid((pid_t)j->last, &w, WNOHANG | WUNTRACED);
+		if (p > 0 && WIFSTOPPED(w)) {
+			j->state = J_STOP;
+			j->st = *st = 128 + WSTOPSIG(w);
+			sigprocmask(SIG_SETMASK, &old, 0);
+			return 1;
+		}
 		if (p > 0) {
 			j->ndone++;
 			if ((long)p == j->last)
@@ -280,11 +309,7 @@ int jc_waitjob(sh *s, job *j, int *st)
 		}
 		if (p < 0 && errno != EINTR)
 			break;
-		if (tr_waitsig(s)) {
-			sigprocmask(SIG_SETMASK, &old, 0);
-			return -2;
-		}
-		sigsuspend(&old);
+		jc_sleep(&old);
 	}
 	sigprocmask(SIG_SETMASK, &old, 0);
 	return 0;
@@ -582,6 +607,7 @@ void jc_poll(sh *s, int report)
 			if (j->state != J_STOP)
 				j->note = 0;
 			j->state = J_STOP;
+			j->st = 128 + WSTOPSIG(w);
 			continue;
 		}
 		j->ndone++;
@@ -755,6 +781,10 @@ int jc_waitone(sh *s, const char *a)
 	if (!j && a[0] != '%' && atol(a) > 0) {
 		jc_blk(s, &old);
 		for (;;) {
+			if (tr_waitsig(s)) {
+				sigprocmask(SIG_SETMASK, &old, 0);
+				return -2;
+			}
 			p = waitpid((pid_t)atol(a), &w, WNOHANG);
 			if (p > 0)
 				break;
@@ -763,11 +793,7 @@ int jc_waitone(sh *s, const char *a)
 				lg(HIBR_LERR, "wait: pid %s is not a child of this shell", a);
 				return 127;
 			}
-			if (tr_waitsig(s)) {
-				sigprocmask(SIG_SETMASK, &old, 0);
-				return -2;
-			}
-			sigsuspend(&old);
+			jc_sleep(&old);
 		}
 		sigprocmask(SIG_SETMASK, &old, 0);
 		return wstat(w);
@@ -781,9 +807,17 @@ int jc_waitone(sh *s, const char *a)
 		jc_drop(s, j);
 		return st;
 	}
+	if (j->state == J_STOP) {
+		lg(HIBR_LWRN, "wait: job %d is stopped", j->id);
+		return j->st ? j->st : 128 + SIGSTOP;
+	}
 	r = jc_waitjob(s, j, &st);
 	if (r == -2)
 		return -2;
+	if (r == 1) {
+		lg(HIBR_LWRN, "wait: job %d is stopped", j->id);
+		return st;
+	}
 	jc_drop(s, j);
 	return st;
 }
@@ -811,8 +845,15 @@ int b_wait(sh *s, int ac, char **av)
 			lg(HIBR_LDBG, "wait -n: nothing left to wait for");
 			return s->st = 127;
 		}
-		st = wstat(w);
 		j = jc_bypid(s, p);
+		if (WIFSTOPPED(w)) {
+			if (j) {
+				j->state = J_STOP;
+				j->st = 128 + WSTOPSIG(w);
+			}
+			return s->st = 128 + WSTOPSIG(w);
+		}
+		st = wstat(w);
 		if (j) {
 			j->ndone++;
 			if (j->ndone >= j->np) {
@@ -837,6 +878,12 @@ int b_wait(sh *s, int ac, char **av)
 		j = jc_bypid(s, p);
 		if (!j)
 			continue;
+		if (WIFSTOPPED(w)) {
+			j->state = J_STOP;
+			j->st = 128 + WSTOPSIG(w);
+			lg(HIBR_LWRN, "wait: job %d is stopped", j->id);
+			continue;
+		}
 		j->ndone++;
 		if (j->ndone >= j->np) {
 			j->state = J_DONE;

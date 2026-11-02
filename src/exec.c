@@ -79,6 +79,46 @@ void hsh_put(sh *s, const char *nm, const char *path)
 	v_add(&s->cmds, b.p);
 }
 
+/* A file the kernel refused as no executable format is a script with no
+   #! line, and runs in a new shell, as POSIX and bash have it -- unless its
+   first line holds a NUL, which makes it a binary bash also refuses. Only
+   returns when it could not. */
+void ex_noshebang(sh *s, const char *path, char **av, char **env)
+{
+	char *head;
+	char **nv;
+	const char *self = hibr_get(s, "HIBR");
+	ssize_t n;
+	size_t ac, k;
+	int fd;
+
+	if (errno != ENOEXEC || !self || !*self)
+		return;
+	fd = open(path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return;
+	head = xm(HIBR_SHEBANGN);
+	n = read(fd, head, HIBR_SHEBANGN);
+	close(fd);
+	if (n < 0 || memchr(head, 0, (size_t)n)) {
+		free(head);
+		errno = ENOEXEC;
+		return;
+	}
+	free(head);
+	for (ac = 0; av[ac]; ac++)
+		;
+	nv = xm(sizeof *nv * (ac + 2));
+	nv[0] = (char *)self;
+	nv[1] = (char *)path;
+	for (k = 1; k <= ac; k++)
+		nv[k + 1] = av[k];
+	lg(HIBR_LDBG, "%s has no #! line, so a new shell runs it", path);
+	execve(self, nv, env);
+	free(nv);
+	errno = ENOEXEC;
+}
+
 /* Say why a command named by a path cannot run, as bash does, and give
    bash's status for it: 127 when there is nothing there, 126 otherwise. */
 int ex_why(const char *nm, const char *who)
@@ -1764,6 +1804,7 @@ int ex_cmd(sh *s, node *n)
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
 		execve(path, av, env);
+		ex_noshebang(s, path, av, env);
 		lg(HIBR_LERR, "%s: %s", path, strerror(errno));
 		_exit(errno == ENOENT ? HIBR_NOCMD : HIBR_NOEXEC);
 	}
@@ -1810,6 +1851,7 @@ int ex_cmd(sh *s, node *n)
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
 		execve(path, av, env);
+		ex_noshebang(s, path, av, env);
 		lg(HIBR_LERR, "%s: %s", path, strerror(errno));
 		_exit(errno == ENOENT ? HIBR_NOCMD : HIBR_NOEXEC);
 	}
@@ -1971,6 +2013,8 @@ int ex_pipe(sh *s, node *n, int t)
 			tr_fork(s);
 			if (q->k == N_CMD)
 				s->nofork = 1;
+			else
+				tr_nojobs(s);
 			s->tst = t;
 			rc = ex(s, q);
 			tr_exit(s);
@@ -2027,7 +2071,7 @@ int ex_pipe(sh *s, node *n, int t)
 int ex_bg(sh *s, node *n)
 {
 	pid_t pid;
-	int w;
+	int w, bgjc;
 	job *jb;
 
 	if (s->jobs.n)
@@ -2043,18 +2087,19 @@ int ex_bg(sh *s, node *n)
 	}
 	if (pid == 0) {
 		setpgid(0, 0);
-		if (s->it && s->tty) {
+		bgjc = s->it && s->tty;
+		if (bgjc)
 			tr_child(s, 1);
-		} else {
-			signal(SIGINT, SIG_IGN);
-			signal(SIGQUIT, SIG_IGN);
-		}
 		s->it = 0;
 		if (s->errx)
 			s->errx = 2;
 		tr_fork(s);
-		if (n->l && n->l->k == N_CMD)
+		tr_nojobs(s);
+		if (n->l && n->l->k == N_CMD) {
 			s->nofork = 1;
+			if (!bgjc)
+				tr_bgign(s);
+		}
 		w = ex(s, n->l);
 		tr_exit(s);
 		fflush(0);
@@ -2090,6 +2135,7 @@ int ex_sub(sh *s, node *n, int t)
 		if (s->errx)
 			s->errx = 2;
 		tr_fork(s);
+		tr_nojobs(s);
 		ex_loops = 0;
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
