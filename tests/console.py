@@ -327,7 +327,10 @@ check("a forked child ended by a signal is not stopped, and leaves the terminal 
 # A watched pipe nobody reads stops waking the wait (Gitea #323): a desktop
 # whose watcher's pipe was no longer drained went round its loop 1,200 times
 # a second. Muted after two seconds of that, said so, woken for again once it
-# is read; a pipe that is read is never muted.
+# is read; a pipe that is read is never muted. The wait after the read is a
+# second, not two: the writer adds a line every half second, so two seconds
+# unread is the mute threshold itself, and the check then read a pipe muted
+# again, correctly, about one run in three.
 WLOOP = ('fn spin(secs) {\n local n=0 e\n e=$(( ${EPOCHREALTIME/./} + secs * 1000000 ))\n'
          ' while [ "${EPOCHREALTIME/./}" -lt "$e" ]; do console key 200 > /dev/null; n=$((n + 1)); done\n ret "$n"\n}\n')
 expect(r"watched descriptor \d+ has been ready for \d+ ms with nothing reading it")
@@ -336,7 +339,7 @@ o, _ = run('console open\nconsole flush\n' + WLOOP +
            'exec {f}< <(while :; do echo x; sleep 0.5; done)\nconsole watch "$f"\n'
            'a := spin 3\nb := spin 1\nw1 := console watching\n'
            'while read -t 0 -u "$f"; do read -r -u "$f" l; done\n'
-           'spin 2 > /dev/null\nw2 := console watching\n'
+           'spin 1 > /dev/null\nw2 := console watching\n'
            'console close\necho "W a=$a b=$b w1=[$w1] w2=[$w2] f=$f"\n', wait=8)
 m = re.search(rb"W a=(\d+) b=(\d+) w1=\[([^]]*)\] w2=\[([^]]*)\] f=(\d+)", o)
 check("a watched pipe nobody reads stops waking the wait after two seconds",

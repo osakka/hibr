@@ -395,7 +395,9 @@ def folderlook():
         capture_output=True, text=True).stdout
     os.unlink(mig)
     check("a desktop saved by 0.99.380 loads with Follow Theme where it wrote White "
-          "down, and the strip at its own place", "bg=[Follow Theme] rel=[] y=[] ver=19" in mo, mo)
+          "down, and the strip at its own place", "bg=[Follow Theme] rel=[] y=[] ver=%s\n" % re.search(
+              r"\n\tDT_SETVER=(\d+)\n", open(tree("programs/desktop/wm/settings.hibr")).read()
+          ).group(1) in mo, mo)
     # 0.99.403 gave alt-enter to the desktop's Full Screen: Files' Open in
     # New Window moves to mod-o where a save had written the old default
     # down, and a key somebody chose for it stays theirs.
