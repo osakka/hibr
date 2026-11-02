@@ -54,8 +54,8 @@ int b_match(sh *s, int ac, char **av)
 	re_t re;
 	re_m *m;
 	const char *nm = "M";
-	const char *sub, *pat, *t;
-	size_t ng;
+	const char *sub, *pat, *t, *p, *end;
+	size_t ng, k;
 	int i = 1, icase = 0, all = 0, rc, found = 0;
 	long slot = 0;
 
@@ -84,6 +84,7 @@ int b_match(sh *s, int ac, char **av)
 	m = xm(ng * sizeof *m);
 	v_del(s, nm);
 	t = sub;
+	end = sub + strlen(sub);
 	for (;;) {
 		rc = regexec(&re, t, ng, m, t == sub ? 0 : HIBR_REG_NOTBOL);
 		if (rc)
@@ -97,11 +98,18 @@ int b_match(sh *s, int ac, char **av)
 				re_cap(s, nm, (long)g, t, &m[g]);
 			break;
 		}
-		if (m[0].eo == m[0].so)
-			t += m[0].eo + 1;
-		else
+		if (m[0].eo == m[0].so) {
+			p = t + m[0].eo;
+			if (p >= end)
+				break;
+			k = (size_t)u8len((unsigned char)*p);
+			if (k < 1 || p + k > end)
+				k = 1;
+			t = p + k;
+		} else {
 			t += m[0].eo;
-		if (!*t || (size_t)(t - sub) > strlen(sub))
+		}
+		if (t >= end)
 			break;
 	}
 	free(m);
@@ -138,9 +146,9 @@ int b_rsub(sh *s, int ac, char **av)
 {
 	re_t re;
 	re_m *m;
-	const char *sub, *pat, *rep, *t;
+	const char *sub, *pat, *rep, *t, *p, *end;
 	str o;
-	size_t ng;
+	size_t ng, k;
 	int i = 1, icase = 0, global = 0, n = 0;
 
 	for (; i < ac; i++) {
@@ -167,18 +175,26 @@ int b_rsub(sh *s, int ac, char **av)
 	m = xm(ng * sizeof *m);
 	s_init(&o);
 	t = sub;
+	end = sub + strlen(sub);
 	while (!regexec(&re, t, ng, m, t == sub ? 0 : HIBR_REG_NOTBOL)) {
 		s_add(&o, t, (size_t)m[0].so);
 		re_rep(&o, rep, t, m, ng);
 		n++;
 		if (m[0].eo == m[0].so) {
-			if (t[m[0].eo])
-				s_ch(&o, t[m[0].eo]);
-			t += m[0].eo + 1;
+			p = t + m[0].eo;
+			if (p >= end) {
+				t = end;
+				break;
+			}
+			k = (size_t)u8len((unsigned char)*p);
+			if (k < 1 || p + k > end)
+				k = 1;
+			s_add(&o, p, k);
+			t = p + k;
 		} else {
 			t += m[0].eo;
 		}
-		if (!global || !*t)
+		if (!global || t >= end)
 			break;
 	}
 	s_cat(&o, t);

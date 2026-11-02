@@ -28,6 +28,13 @@ def session(rc, keys, cols=60):
 
 RUN = ["echo hi\n", "exit\n"]
 
+# Ctrl-U and Ctrl-K at an empty prompt, before anything is typed (Gitea #429):
+# the line had no storage yet, and both kills wrote its terminator through a
+# NULL pointer -- the interactive shell died on signal 11.
+t = session('PS1="> "\n', ["\x15", "\x0b", "echo killed-ok\n", "exit\n"])
+check("Ctrl-U and Ctrl-K at an empty prompt leave the shell running",
+      "killed-ok\r\n" in t or "killed-ok\n" in t)
+
 t = session('PS1="> "\nRPS1="[right]"\n', RUN)
 check("right prompt is drawn at the right edge", "\033[53G[right]" in t)
 check("the cursor comes back after it", "[right]\r\033[" in t)
@@ -215,4 +222,4 @@ t.wait(3.0)
 check("in agent mode a read on a terminal ends at once instead of waiting",
       t.exited and "read [] status 1" in t.text, t.text)
 
-report(49)
+report(50)

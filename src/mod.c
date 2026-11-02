@@ -170,7 +170,9 @@ int m_sysdir(sh *s, str *out)
    much as at a prompt -- and building it dlopens every candidate to read
    its descriptor, which runs that object's ELF constructors. A module you
    installed is one you can ask for by name; it is never loaded because
-   you mistyped something. */
+   you mistyped something. The current directory is left out of it for the
+   same reason and more so (Gitea #431): a typo in /tmp, a cloned
+   repository or a library folder loaded whatever objects were there. */
 void m_wstart(sh *s, struct mwalk *w, int bix)
 {
 	w->s = s;
@@ -189,7 +191,7 @@ const char *m_wnext(struct mwalk *w)
 	switch (w->step) {
 	case 0:
 		w->step = 1;
-		if (!m_nodot(s))
+		if (!m_nodot(s) && !w->bix)
 			return ".";
 		/* fall through */
 	case 1:
@@ -873,14 +875,21 @@ void m_bixadd(const char *path)
    builtin resolve the same way twice running. */
 void m_bixdir(sh *s, const char *dir)
 {
-	DIR *dp = opendir(dir);
+	DIR *dp;
 	struct dirent *de;
 	vec names;
 	size_t i;
+	char *abs = realpath(dir, 0);
 
 	(void)s;
-	if (!dp)
+	if (!abs)
 		return;
+	dir = abs;
+	dp = opendir(dir);
+	if (!dp) {
+		free(abs);
+		return;
+	}
 	names.p = 0;
 	names.n = 0;
 	names.cap = 0;
@@ -904,6 +913,7 @@ void m_bixdir(sh *s, const char *dir)
 	for (i = 0; i < names.n; i++)
 		free(names.p[i]);
 	v_free(&names);
+	free(abs);
 }
 
 /* Build the index: the same places, in the same order, that m_findbi

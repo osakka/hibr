@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.99.425
+
+The first four urgent tickets from the core audit (#427).
+
+**A mistyped command no longer loads objects from the current directory**
+(Gitea #431). Anything that is not a builtin, a function or a program builds
+the index that lets a command load the module declaring it, and building it
+opens every candidate -- which runs its constructors. ADR 0044 had already
+taken the user's own module folder out of that index for this reason; the
+current directory was still in it, so a typo in `/tmp`, in a cloned
+repository or in a folder of libraries ran whatever objects were there. It
+is searched now only when a module is asked for by name (`mod load`, `need`),
+and the index keeps absolute paths, so a `cd` after it was built cannot
+change which file a command loads.
+
+**Ctrl-U or Ctrl-K at an empty prompt no longer kills the shell** (Gitea
+#429). The line had no storage until something was typed, and both keys
+wrote its end through a null pointer: signal 11.
+
+**Two values were read after being freed** (Gitea #430). `RET := f` copied
+`RET` onto itself, freeing the value before copying it, and bound garbage;
+`IFS[0]=…` freed the value the shell's cached IFS still pointed at. A new
+value is now copied before the old one is freed, which costs nothing, a copy
+onto itself does nothing, and the element-0 mirror refreshes what the shell
+caches about the name.
+
+**`rsub -g` and `match -a` stay inside their text** (Gitea #433). After an
+empty match they stepped one byte past it -- at the end of the text, into
+whatever argument followed it in memory, which `rsub -g abcdefghijklmno '$'
+X` printed as `abcdefghijklmnoX$X` -- and through a multibyte character one
+byte at a time, putting a replacement between its bytes. They stop at the
+end now and step a whole character.
+
 ## 0.99.424
 
 **The Control Panel's divider stands in the middle of its gap** (the

@@ -53,15 +53,20 @@ the install directory — see
 skips the current directory too, since opening a module found there would
 run its code.
 
-`$XDG_DATA_HOME/hibr/mods` is where `catalogue install` puts a module, and it
-and the system scope are searched **only when something asks for a module by name** — `mod load`,
+`$XDG_DATA_HOME/hibr/mods` is where `catalogue install` puts a module, and it,
+the system scope and the current directory are searched **only when something asks for a module by name** — `mod load`,
 `mod find`, `need`, `mod list`, `mod avail`. It is deliberately left out of
 the index that lets a *command* load the module declaring it, because that
 index is built by anything that is not a builtin, not a function and not on
 `PATH` — a typo, in a script as much as at a prompt — and building it opens
 every candidate to read its descriptor, which runs that object's own
 constructors. So a module you installed is one you can ask for, and is never
-loaded because you mistyped something:
+loaded because you mistyped something. The current directory is left out of
+that index for the same reason and more so (Gitea #431, 0.99.425): a typo in
+`/tmp`, in a cloned repository or in a folder of libraries ran the
+constructors of whatever objects were there. The index also keeps each path
+absolute, so a `cd` after it was built cannot change which file a command
+loads:
 
 <!-- not run: needs a module installed in the data folder -->
 ```sh

@@ -1210,6 +1210,8 @@ char *ed_line(sh *s, const char *ps)
 		return rdline(stdin);
 	}
 	s_init(&b);
+	s_grow(&b, 0);
+	b.p[0] = 0;
 	s_init(&save);
 	s_init(&seq);
 	hi = s->hist.n;

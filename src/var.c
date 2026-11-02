@@ -212,6 +212,7 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 {
 	var *e;
 	unsigned b;
+	char *nv;
 
 	if ((k[0] == 'R' || k[0] == 'S' || k[0] == 'E') && v_dyn(s, k, v))
 		return HIBR_OK;
@@ -235,9 +236,10 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 			s->st = 1;
 			return HIBR_FAIL;
 		}
+		nv = xs(v);
 		v_free_el(e);
 		free(e->v);
-		e->v = xs(v);
+		e->v = nv;
 		if (ex)
 			e->ex = 1;
 		if (e->ex)
@@ -711,6 +713,7 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 {
 	ent *e;
 	var *v;
+	char *nv;
 
 	if (!nk) {
 		hibr_set(s, nm, val, 0);
@@ -731,16 +734,19 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 		if (vv)
 			vv->am = 1;
 	}
+	nv = xs(val);
 	mp_free(e->map);
 	e->map = 0;
 	e->n = 0;
 	free(e->s);
-	e->s = xs(val);
+	e->s = nv;
 	if (nk == 1 && !strcmp(ks[0], "0")) {
 		v = v_find(s, nm);
 		if (v) {
+			nv = xs(val);
 			free(v->v);
-			v->v = xs(val);
+			v->v = nv;
+			v_named(s, nm);
 		}
 	}
 	lg(HIBR_LTRC, "set %s depth %d", nm, nk);
@@ -905,6 +911,8 @@ void v_copy(sh *s, const char *dst, const char *src)
 {
 	var *a = v_find(s, src), *b;
 
+	if (!strcmp(dst, src))
+		return;
 	hibr_set(s, dst, a && a->v ? a->v : "", 0);
 	b = v_find(s, dst);
 	if (!a || !b)
