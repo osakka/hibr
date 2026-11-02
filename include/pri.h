@@ -198,11 +198,14 @@ int m_sysdir(sh *s, str *out);
 void p_nl(lex *l);
 
 int ax_digit(int c, long base, long *out);
+int ax_hasasg(const char *t);
 long ax_run(sh *s, const char *src);
 long ax_text(sh *s, part *p);
 #ifndef AX_QKEY
 #define AX_PLAIN 1
 #define AX_QKEY 2
+#define AX_RAW 3
+#define AX_EMPTY 4
 #endif
 void xwm(sh *s, word *w, vec *out, int fl, vec *outm);
 void xoutq(sh *s, vec *out, vec *outm, const char *t, size_t n);

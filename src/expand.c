@@ -3262,7 +3262,7 @@ long ax_sub(struct ax *a, const char *src)
 	b.depth = a->depth + 1;
 	b.bad = 0;
 	b.skip = a->skip;
-	b.hasq = strchr(src, '=') != 0;
+	b.hasq = ax_hasasg(src);
 	v = ax_comma(&b);
 	ax_ws(&b);
 	if (*b.p && !b.bad)
@@ -3383,7 +3383,7 @@ int ax_digit(int c, long base, long *out)
 long ax_prim(struct ax *a)
 {
 	long v = 0;
-	str nm;
+	str *nm;
 
 	ax_ws(a);
 	if (*a->p == '(') {
@@ -3425,19 +3425,22 @@ long ax_prim(struct ax *a)
 		a->p = e;
 		return v;
 	}
-	s_init(&nm);
-	if (ax_name(a, &nm)) {
-		v = ax_get(a, nm.p);
-		ax_ws(a);
-		if ((a->p[0] == '+' && a->p[1] == '+') ||
-		    (a->p[0] == '-' && a->p[1] == '-')) {
-			ax_set(a, nm.p, a->p[0] == '+' ? v + 1 : v - 1);
-			a->p += 2;
+	if (isalpha((unsigned char)*a->p) || *a->p == '_') {
+		nm = sb_get(a->s);
+		if (ax_name(a, nm)) {
+			v = ax_get(a, nm->p);
+			ax_ws(a);
+			if ((a->p[0] == '+' && a->p[1] == '+') ||
+			    (a->p[0] == '-' && a->p[1] == '-')) {
+				ax_set(a, nm->p, a->p[0] == '+' ? v + 1 : v - 1);
+				a->p += 2;
+			}
+			sb_put(a->s, nm);
+			return v;
 		}
-		s_free(&nm);
-		return v;
+		sb_put(a->s, nm);
+		return 0;
 	}
-	s_free(&nm);
 	if (*a->p == '$') {
 		while (*a->p == '$')
 			a->p++;
@@ -3468,7 +3471,7 @@ long ax_unop(struct ax *a)
 /* Parse a unary expression, including prefix increment and decrement. */
 long ax_un(struct ax *a)
 {
-	str nm;
+	str *nm;
 	long v;
 
 	ax_ws(a);
@@ -3476,15 +3479,15 @@ long ax_un(struct ax *a)
 		int up = a->p[0] == '+';
 		a->p += 2;
 		ax_ws(a);
-		s_init(&nm);
-		if (!ax_name(a, &nm)) {
+		nm = sb_get(a->s);
+		if (!ax_name(a, nm)) {
 			ax_err(a, "++ and -- need a variable");
-			s_free(&nm);
+			sb_put(a->s, nm);
 			return 0;
 		}
-		v = ax_get(a, nm.p) + (up ? 1 : -1);
-		ax_set(a, nm.p, v);
-		s_free(&nm);
+		v = ax_get(a, nm->p) + (up ? 1 : -1);
+		ax_set(a, nm->p, v);
+		sb_put(a->s, nm);
 		return v;
 	}
 	if (*a->p == '-') {
@@ -3658,17 +3661,17 @@ const int ax_asop[] = { 7, 8, 18, 13, 14, 15, 16, 17, 4, 2, 3, -1 };
 long ax_assign(struct ax *a)
 {
 	const char *save;
-	str nm;
+	str *nm;
 	long v, r;
 	int i;
 	size_t n;
 
 	ax_ws(a);
 	save = a->p;
-	if (!a->hasq)
+	if (!a->hasq || !(isalpha((unsigned char)*a->p) || *a->p == '_'))
 		return ax_tern(a);
-	s_init(&nm);
-	if (ax_name(a, &nm)) {
+	nm = sb_get(a->s);
+	if (ax_name(a, nm)) {
 		ax_ws(a);
 		for (i = 0; ax_as[i]; i++) {
 			n = strlen(ax_as[i]);
@@ -3678,13 +3681,13 @@ long ax_assign(struct ax *a)
 				break;
 			a->p += n;
 			r = ax_assign(a);
-			v = ax_asop[i] < 0 ? r : ax_do(a, ax_asop[i], ax_get(a, nm.p), r);
-			ax_set(a, nm.p, v);
-			s_free(&nm);
+			v = ax_asop[i] < 0 ? r : ax_do(a, ax_asop[i], ax_get(a, nm->p), r);
+			ax_set(a, nm->p, v);
+			sb_put(a->s, nm);
 			return v;
 		}
 	}
-	s_free(&nm);
+	sb_put(a->s, nm);
 	a->p = save;
 	return ax_tern(a);
 }
@@ -3703,6 +3706,24 @@ long ax_comma(struct ax *a)
 	}
 }
 
+/* Whether an expression may assign: an = that is not part of ==, !=, <= or >=, so a comparison is not parsed twice (Gitea #443). */
+int ax_hasasg(const char *t)
+{
+	const char *e;
+
+	for (e = strchr(t, '='); e; e = strchr(e + 1, '=')) {
+		if (e[1] == '=') {
+			e++;
+			continue;
+		}
+		if (e > t && (e[-1] == '!' || e[-1] == '<' || e[-1] == '>') &&
+		    !(e - t > 1 && e[-2] == e[-1]))
+			continue;
+		return 1;
+	}
+	return 0;
+}
+
 /* Evaluate an arithmetic expression string. */
 long ax_run(sh *s, const char *src)
 {
@@ -3714,7 +3735,7 @@ long ax_run(sh *s, const char *src)
 	a.depth = 0;
 	a.bad = 0;
 	a.skip = 0;
-	a.hasq = strchr(src, '=') != 0;
+	a.hasq = ax_hasasg(src);
 	v = ax_comma(&a);
 	ax_ws(&a);
 	if (*a.p && !a.bad)
@@ -3787,7 +3808,7 @@ long ax_textq(sh *s, const char *t)
 	return v;
 }
 
-/* Expand then evaluate an arithmetic part's text; whether it holds a quoted key is decided on first use and kept in op. */
+/* Expand then evaluate an arithmetic part's text; what it needs is decided on first use and kept in op: AX_EMPTY for blank text, which is 0 as in bash, AX_RAW for text with nothing to expand, which is evaluated as it stands (Gitea #443), AX_QKEY for a quoted key, AX_PLAIN for the rest. */
 long ax_text(sh *s, part *p)
 {
 	amark m;
@@ -3796,7 +3817,23 @@ long ax_text(sh *s, part *p)
 	long v;
 	vec *o;
 
+	if (p->op == AX_RAW) {
+		m = ar_mark(s->xa);
+		v = ax_run(s, p->t);
+		ar_rel(s->xa, m);
+		return v;
+	}
+	if (p->op == AX_EMPTY)
+		return 0;
 	if (p->op != AX_PLAIN) {
+		if (!p->op && !p->t[strspn(p->t, " \t\n")]) {
+			p->op = AX_EMPTY;
+			return 0;
+		}
+		if (!p->op && !strpbrk(p->t, "$`'\"\\")) {
+			p->op = AX_RAW;
+			return ax_text(s, p);
+		}
 		if (!p->op && !(memchr(p->t, '[', p->n) && strpbrk(p->t, "\"'")))
 			p->op = AX_PLAIN;
 		else {

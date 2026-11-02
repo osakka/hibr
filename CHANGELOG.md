@@ -312,6 +312,15 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   (they meant success with nothing, and a line), and `0` reads nothing.
   `accept` reads its descriptor and `-t` the way `send` and `recv` do.
 
+**Performance** (#443, #444, #451, #463, #464).
+- **Arithmetic** with nothing to expand -- no `$`, quote, backquote or
+  backslash -- is evaluated as written, where it was lexed and expanded
+  again on every evaluation: `while ((i<50000)); do ((i++)); done` is
+  263M instructions against 475M. An expression whose only `=` is in `<=`,
+  `>=`, `==` or `!=` is no longer parsed twice, and a name in arithmetic
+  borrows a pooled string rather than allocating one. `$(( ))` is 0, as in
+  bash, where it was an error.
+
 ## 0.99.427
 
 **A sheet's formulas are contained, and a sheet can be given full access**
