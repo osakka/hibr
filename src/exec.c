@@ -2657,6 +2657,11 @@ int ex(sh *s, node *n)
 	case N_CMD:
 		return ex_chk(s, ex_cmd(s, n), t);
 	case N_SEQ:
+		while (n->r && n->r->k == N_SEQ) {
+			ex(s, n->l);
+			s->tst = t;
+			n = n->r;
+		}
 		ex(s, n->l);
 		s->tst = t;
 		return ex(s, n->r);

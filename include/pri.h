@@ -223,6 +223,10 @@ const char *gnext(const char *a, const char *close);
 int gdot(const char *p, const char *t);
 int gneg(const char *body, const char *close, const char *rest, const char *t);
 int gext(const char *p, const char *t);
+int galt(const char *body, const char *close, const char *t);
+int gxrep(int op, const char *body, const char *close, const char *rest,
+	  const char *t);
+int gdotn(const char *p, const char *t, int dep);
 int gmatch(const char *p, const char *t);
 int gbrk(const char *p, unsigned c, const char **end);
 int gch(const char *t, unsigned *cp);

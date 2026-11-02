@@ -1310,6 +1310,58 @@ int gneg(const char *body, const char *close, const char *rest, const char *t)
 	return 0;
 }
 
+/* Whether one of a group's alternatives matches the whole of t. */
+int galt(const char *body, const char *close, const char *t)
+{
+	const char *a, *b;
+	str x;
+	int ok = 0;
+
+	for (a = body; a <= close && !ok; a = b + 1) {
+		b = gnext(a, close);
+		s_init(&x);
+		s_add(&x, a, (size_t)(b - a));
+		ok = gmatch(x.p ? x.p : "", t);
+		s_free(&x);
+		if (b >= close)
+			break;
+	}
+	return ok;
+}
+
+/* A repeated group, *( or +(, one of whose alternatives can match nothing,
+   and what follows it: each repetition takes at least one character, so it
+   cannot recurse without end (Gitea #428: `*(*)y` was a stack overflow),
+   and +( may also stand for one empty repetition. A group whose
+   alternatives all take a character is matched the cheaper way in gext. */
+int gxrep(int op, const char *body, const char *close, const char *rest,
+	 const char *t)
+{
+	size_t n = strlen(t), j;
+	str star, sub;
+	int ok = 0;
+
+	if (op == '+' && galt(body, close, "") && gmatch(rest, t))
+		return 1;
+	s_init(&star);
+	s_cat(&star, "*(");
+	s_add(&star, body, (size_t)(close - body));
+	s_ch(&star, ')');
+	s_cat(&star, rest);
+	s_init(&sub);
+	for (j = 1; j <= n && !ok; j++) {
+		if (j < n && ((unsigned char)t[j] & 0xC0) == 0x80)
+			continue;
+		sub.n = 0;
+		s_add(&sub, t, j);
+		if (galt(body, close, sub.p) && gmatch(star.p, t + j))
+			ok = 1;
+	}
+	s_free(&sub);
+	s_free(&star);
+	return ok;
+}
+
 /* Match one extended group -- ?( *( +( @( !( -- and what follows it. */
 int gext(const char *p, const char *t)
 {
@@ -1330,6 +1382,8 @@ int gext(const char *p, const char *t)
 		return gneg(body, close, rest, t);
 	if ((op == '?' || op == '*') && gmatch(rest, t))
 		return 1;
+	if ((op == '*' || op == '+') && galt(body, close, ""))
+		return gxrep(op, body, close, rest, t);
 	for (a = body; a <= close && !ok; a = b + 1) {
 		b = gnext(a, close);
 		if (b > a || op == '?' || op == '@') {
@@ -1596,10 +1650,19 @@ int xmeta(const char *t, const char *mk, size_t n)
 /* Match a dotfile, which only a leading dot the pattern spells out may take. */
 int gdot(const char *p, const char *t)
 {
+	return gdotn(p, t, 0);
+}
+
+/* gdot at a depth of repeated groups unrolled: a group whose alternative is
+   itself a group can unroll for ever, and one that deep spells out no dot. */
+int gdotn(const char *p, const char *t, int dep)
+{
 	const char *close, *a, *b;
 	int d = 1, ok = 0;
 	str x;
 
+	if (dep > 32)
+		return 0;
 	if (*p == '.' || (*p == '\\' && p[1] == '.'))
 		return gmatch(p, t);
 	if (!*p || p[1] != '(' || !strchr("?*+@", *p))
@@ -1612,7 +1675,7 @@ int gdot(const char *p, const char *t)
 	}
 	if (!*close)
 		return 0;
-	if ((*p == '?' || *p == '*') && gdot(close + 1, t))
+	if ((*p == '?' || *p == '*') && gdotn(close + 1, t, dep + 1))
 		return 1;
 	for (a = p + 2; a <= close && !ok; a = b + 1) {
 		b = gnext(a, close);
@@ -1625,7 +1688,7 @@ int gdot(const char *p, const char *t)
 				s_ch(&x, ')');
 			}
 			s_cat(&x, close + 1);
-			ok = gdot(x.p, t);
+			ok = gdotn(x.p, t, dep + 1);
 			s_free(&x);
 		}
 		if (b >= close)
@@ -2570,6 +2633,7 @@ struct ax { sh *s; const char *p; int depth, bad, skip, hasq; };
 
 long ax_comma(struct ax *a);
 long ax_assign(struct ax *a);
+long ax_un(struct ax *a);
 long ax_bin(struct ax *a, int mp);
 
 /* Skip arithmetic whitespace. */
@@ -2824,11 +2888,30 @@ long ax_prim(struct ax *a)
 	}
 	s_free(&nm);
 	if (*a->p == '$') {
-		a->p++;
+		while (*a->p == '$')
+			a->p++;
 		return ax_prim(a);
 	}
 	ax_err(a, "syntax error");
 	return 0;
+}
+
+/* The operand of a prefix operator, counted against HIBR_AXDEPTH so a long
+   chain of them is an error rather than a stack overflow (Gitea #428). */
+long ax_unop(struct ax *a)
+{
+	long v;
+
+	if (++a->depth > HIBR_AXDEPTH) {
+		ax_err(a, "nested too deeply");
+		while (*a->p)
+			a->p++;
+		a->depth--;
+		return 0;
+	}
+	v = ax_un(a);
+	a->depth--;
+	return v;
 }
 
 /* Parse a unary expression, including prefix increment and decrement. */
@@ -2855,19 +2938,19 @@ long ax_un(struct ax *a)
 	}
 	if (*a->p == '-') {
 		a->p++;
-		return (long)(0UL - (unsigned long)ax_un(a));
+		return (long)(0UL - (unsigned long)ax_unop(a));
 	}
 	if (*a->p == '+') {
 		a->p++;
-		return ax_un(a);
+		return ax_unop(a);
 	}
 	if (*a->p == '!') {
 		a->p++;
-		return !ax_un(a);
+		return !ax_unop(a);
 	}
 	if (*a->p == '~') {
 		a->p++;
-		return ~ax_un(a);
+		return ~ax_unop(a);
 	}
 	return ax_prim(a);
 }

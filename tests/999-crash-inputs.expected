@@ -1,0 +1,12 @@
+0
+getopts 0 a 2
+end [?]
+extglob n
+extglob n
+extglob y
+hibr: na: circular name reference
+circular refused
+empty nameref 5
+json too deep
+arithmetic too deep
+long-done

@@ -227,8 +227,26 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 			v_refused = 1;
 			return HIBR_FAIL;
 		}
-		if (e->at & A_REF)
-			return hibr_set(s, e->v, v, ex);
+		if (e->at & A_REF) {
+			int hop = 0;
+
+			while (e && (e->at & A_REF) && e->v && *e->v) {
+				if (++hop > 16) {
+					lg(HIBR_LERR, "%s: circular name reference", k);
+					s->st = 1;
+					return HIBR_FAIL;
+				}
+				k = e->v;
+				e = v_find(s, k);
+			}
+			if (e && (e->at & A_REF)) {
+				nv = xs(v);
+				free(e->v);
+				e->v = nv;
+				return HIBR_OK;
+			}
+			return hibr_set(s, k, v, ex);
+		}
 		s_init(&t);
 		v = v_coerce(s, e, v, &t);
 		if (!v) {

@@ -1035,23 +1035,33 @@ node *p_andor(lex *l)
 	return n;
 }
 
-/* Join two commands into a sequence. */
-node *p_seq(lex *l, node *a, node *b)
+/* Append a command to a sequence, leaning right -- a; (b; (c; d)) -- so
+   ex runs it in a loop rather than recursing once per command, which
+   overflowed the stack for a function of 100,000 lines (Gitea #428). tail
+   is the sequence's last N_SEQ, kept by the caller. */
+node *p_seq(lex *l, node *a, node *b, node **tail)
 {
 	node *q;
 
 	if (!a)
 		return b;
 	q = nd(l, N_SEQ);
-	q->l = a;
 	q->r = b;
-	return q;
+	if (!*tail) {
+		q->l = a;
+		*tail = q;
+		return q;
+	}
+	q->l = (*tail)->r;
+	(*tail)->r = q;
+	*tail = q;
+	return a;
 }
 
 /* Parse a sequence of commands separated by ; & or newline. */
 node *p_list(lex *l)
 {
-	node *n = 0, *r, *q;
+	node *n = 0, *r, *q, *tail = 0;
 
 	p_nl(l);
 	if (p_end(l))
@@ -1069,10 +1079,10 @@ node *p_list(lex *l)
 		} else if (l->tk == T_SEMI || l->tk == T_NL) {
 			lx_next(l);
 		} else {
-			n = p_seq(l, n, r);
+			n = p_seq(l, n, r, &tail);
 			break;
 		}
-		n = p_seq(l, n, r);
+		n = p_seq(l, n, r, &tail);
 		p_nl(l);
 		if (l->err || p_end(l))
 			break;
@@ -1083,7 +1093,7 @@ node *p_list(lex *l)
 /* Parse one complete command line, leaving the newline that ends it unread. */
 node *p_line(lex *l)
 {
-	node *n = 0, *r, *q;
+	node *n = 0, *r, *q, *tail = 0;
 
 	for (;;) {
 		if (p_end(l))
@@ -1100,10 +1110,10 @@ node *p_line(lex *l)
 		} else if (l->tk == T_SEMI) {
 			lx_next(l);
 		} else {
-			n = p_seq(l, n, r);
+			n = p_seq(l, n, r, &tail);
 			break;
 		}
-		n = p_seq(l, n, r);
+		n = p_seq(l, n, r, &tail);
 		if (l->err || l->tk == T_NL || l->tk == T_EOF)
 			break;
 	}

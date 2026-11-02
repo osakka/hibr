@@ -1517,14 +1517,23 @@ int b_getopts(sh *s, int ac, char **av)
 	}
 	if (quiet)
 		spec++;
+	if (idx < 1) {
+		lg(HIBR_LDBG, "getopts: OPTIND %s read as 1", oi);
+		idx = 1;
+		s->optpos = 0;
+	}
 	if (idx != s->optind)
 		s->optpos = 0;
 	hibr_set(s, "OPTARG", "", 0);
-	if (idx > n)
+	if (idx > n) {
+		hibr_set(s, nm, "?", 0);
 		return HIBR_FAIL;
+	}
 	cur = args[idx - 1];
-	if (!cur || cur[0] != '-' || !cur[1])
+	if (!cur || cur[0] != '-' || !cur[1]) {
+		hibr_set(s, nm, "?", 0);
 		return HIBR_FAIL;
+	}
 	if (!strcmp(cur, "--")) {
 		s->optpos = 0;
 		s->optind = idx + 1;
@@ -1532,6 +1541,7 @@ int b_getopts(sh *s, int ac, char **av)
 		s_num(&nx, (long)(idx + 1));
 		hibr_set(s, "OPTIND", nx.p, 0);
 		s_free(&nx);
+		hibr_set(s, nm, "?", 0);
 		return HIBR_FAIL;
 	}
 	if (!s->optpos)
@@ -1545,7 +1555,7 @@ int b_getopts(sh *s, int ac, char **av)
 	s_init(&one);
 	s_ch(&one, c);
 	if (!hit || c == ':') {
-		hibr_set(s, nm, quiet ? "?" : "?", 0);
+		hibr_set(s, nm, "?", 0);
 		if (quiet)
 			hibr_set(s, "OPTARG", one.p, 0);
 		else

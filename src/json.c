@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct jp { const char *p; int bad; };
+struct jp { const char *p; int bad; int dep; };
 
 /* Skip JSON whitespace. */
 void j_ws(struct jp *j)
@@ -89,11 +89,18 @@ void j_val(struct jp *j, ent *e)
 	if (*j->p == '{' || *j->p == '[') {
 		int arr = *j->p == '[';
 		long n = 0;
+		if (++j->dep > HIBR_DEPTH) {
+			lg(HIBR_LERR, "json: nested more than %d deep", HIBR_DEPTH);
+			j->bad = 1;
+			j->dep--;
+			return;
+		}
 		j->p++;
 		e->ty = arr ? J_ARR : J_OBJ;
 		j_ws(j);
 		if (*j->p == (arr ? ']' : '}')) {
 			j->p++;
+			j->dep--;
 			return;
 		}
 		for (;;) {
@@ -120,9 +127,11 @@ void j_val(struct jp *j, ent *e)
 			}
 			if (*j->p == (arr ? ']' : '}')) {
 				j->p++;
+				j->dep--;
 				return;
 			}
 			j->bad = 1;
+			j->dep--;
 			return;
 		}
 	}
@@ -389,6 +398,7 @@ int b_json(sh *s, int ac, char **av)
 		memset(&root, 0, sizeof root);
 		j.p = txt;
 		j.bad = 0;
+		j.dep = 0;
 		j_val(&j, &root);
 		if (j.bad) {
 			lg(HIBR_LERR, "json: malformed input near '%.16s'", j.p);
