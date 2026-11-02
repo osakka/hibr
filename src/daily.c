@@ -1075,7 +1075,7 @@ int cmd_ext(sh *s, char **av, const char *who)
 		lg(HIBR_LERR, "%s: %s: not found", who, av[0]);
 		return HIBR_NOCMD;
 	}
-	if ((s->sopt & O_PLAN) && !pl_prog(s, av)) {
+	if ((s->sopt & O_PLAN) && !pl_prog(s, &av, path)) {
 		free(path);
 		return HIBR_FAIL;
 	}

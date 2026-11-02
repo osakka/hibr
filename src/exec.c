@@ -1766,7 +1766,7 @@ int ex_cmd(sh *s, node *n)
 		st = HIBR_NOCMD;
 		goto out;
 	}
-	if ((s->sopt & O_PLAN) && !pl_prog(s, av)) {
+	if ((s->sopt & O_PLAN) && !pl_prog(s, &av, path)) {
 		if (n->rd) {
 			rd_do(s, n->rd, &sv);
 			rd_undo(&sv);

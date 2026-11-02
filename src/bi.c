@@ -1425,9 +1425,9 @@ int b_eval(sh *s, int ac, char **av)
 int b_exec(sh *s, int ac, char **av)
 {
 	char *path, *a0 = 0, *nm, **argv, *none[1] = { 0 };
-	char **env;
+	char **env, **pv;
 	int i = 1, login = 0, clean = 0, r;
-	size_t n;
+	size_t n, pn;
 
 	while (i < ac && av[i][0] == '-' && av[i][1]) {
 		if (!strcmp(av[i], "--")) {
@@ -1457,14 +1457,17 @@ int b_exec(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "exec: %s: command not found", av[i]);
 		return HIBR_NOCMD;
 	}
-	if ((s->sopt & O_PLAN) && !pl_prog(s, av + i)) {
+	pv = av + i;
+	if ((s->sopt & O_PLAN) && !pl_prog(s, &pv, path)) {
 		free(path);
 		return HIBR_FAIL;
 	}
+	for (pn = 0; pv[pn]; pn++)
+		;
 	nm = a0 ? a0 : av[i];
 	n = strlen(nm);
-	argv = xm(sizeof *argv * (size_t)(ac - i + 1));
-	memcpy(argv, av + i, sizeof *argv * (size_t)(ac - i + 1));
+	argv = xm(sizeof *argv * (pn + 1));
+	memcpy(argv, pv, sizeof *argv * (pn + 1));
 	argv[0] = xm(n + 2);
 	argv[0][0] = '-';
 	memcpy(argv[0] + login, nm, n + 1);

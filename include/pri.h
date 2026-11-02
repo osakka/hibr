@@ -143,7 +143,8 @@ void pl_init(sh *s);
 void pl_fini(void);
 void pl_note(sh *s, const char *f, ...);
 int pl_redir(sh *s, int k, const char *t);
-int pl_prog(sh *s, char **av);
+int pl_prog(sh *s, char ***avp, const char *path);
+int pl_flag(const char *a, int c);
 int pl_pure(const char *nm);
 int m_nodot(sh *s);
 /* One walk of the module search path; see m_wstart in src/mod.c. */

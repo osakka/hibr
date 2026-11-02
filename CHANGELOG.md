@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.426
+
+**Six inputs that crashed the shell are errors or answers** (Gitea #428,
+from the core audit). `getopts` with `OPTIND` at 0 or below read before its
+arguments; it now starts at 1, and says `?` at the end of the options, as
+bash does. An extended pattern whose alternative can match nothing --
+`*(*)y`, `+(?(a))b` -- recursed with nothing consumed; each repetition now
+takes a character, and a pattern whose alternatives all take one keeps the
+old, faster path (a failing match on 3,000 characters is 3 ms either way).
+A circular nameref recursed on assignment and is now "circular name
+reference"; assigning to an empty one sets what it refers to, as in bash.
+JSON nested more than 2,000 deep, a chain of thousands of `!` or `-` in
+arithmetic, and a function of 100,000 lines all overflowed the stack: the
+first two are errors now, and the third runs -- a command list is built
+leaning right and run in a loop, which measured no different on the loop
+benchmark.
+
+**`--plan` no longer does for real what it reports it would not** (Gitea
+#432). A script could copy a shell into its scratch folder as `cat` and run
+it, since a program was judged by its name; a program found inside the
+scratch is never run now, since that is the one place a plan writes. GNU
+`sed` runs with `--sandbox`, so its `e` command cannot run a shell and its
+`w` cannot write; `-ni` is read as the in-place edit it is; `cp -t` and
+`--target-directory=` are judged as paths; `git -c`, `--output`, `-O` and a
+pager are refused; `connect` is refused like `listen`; and `$TMPDIR/..` is
+no longer taken for the scratch. Sheet's formulas get a containment of
+their own next, which `--plan` was never meant to be (ADR 0027).
+
 ## 0.99.425
 
 The first four urgent tickets from the core audit (#427).

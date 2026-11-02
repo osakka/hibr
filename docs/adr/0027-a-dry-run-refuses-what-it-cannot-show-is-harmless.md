@@ -25,11 +25,20 @@ effect it cannot show is harmless:
   that pretended not to read would mislead about what it touched.
 - A program runs only if it is known to read and nothing more, judged from
   its name and, for `sed`, `sort`, `find`, `git`, `uniq`, `tee`, `date`,
-  `file` and `mktemp`, its arguments. Arguments are all it judges: a `w`
-  command inside a `sed` script writes a file and is not caught, for the
-  same reason `awk` is refused -- what a program's own language does cannot
-  be read from its text without guessing, and a guess that fires on prose
-  (`s/x/now what/`) refuses honest scripts. Anything else fails with status 1 and no output. A failure
+  `file` and `mktemp`, its arguments. Arguments are all it judges: what a
+  program's own language does cannot be read from its text without
+  guessing, and a guess that fires on prose (`s/x/now what/`) refuses honest
+  scripts -- which is why GNU `sed` is run with `--sandbox`, its own switch
+  that takes away the `e`, `w` and `r` commands, rather than its script being
+  read (0.99.426, Gitea #432; elsewhere, where `sed` has no such switch, it
+  is refused). A short-option cluster is read letter by letter (`-ni` is an
+  in-place edit as `-i` is), a `cp`/`mv`/`ln` target given as `-t` or
+  `--target-directory=` is judged as a path, `chmod`'s mode is not taken for
+  one, and `git` with `-c`, `--output`, `-O` or a pager is refused.
+  A program found **inside the scratch** is never run, whatever its name:
+  the scratch is the only place a plan writes, so it is the only place a
+  script can have put a program of its own under a reassuring name like
+  `cat`. Anything else fails with status 1 and no output. A failure
   rather than a pretended success: an empty `$(mktemp -d)` made every later
   path relative to the wrong directory, and a plan listing writes to the
   wrong paths is worse than one that stops.
@@ -39,7 +48,7 @@ effect it cannot show is harmless:
 - `awk` and every program that runs another (`env` with arguments,
   `timeout`, `xargs`, `nice`, `sudo`, `sh -c`) are refused: whether they
   write cannot be told from their arguments, and allowing one allows all.
-- `exec`, `kill` (except `-0`), `listen`, `mod load` and `need` are refused:
+- `exec`, `kill` (except `-0`), `listen`, `connect`, `mod load` and `need` are refused:
   a module's builtins can do anything. The exception (0.99.7) is a module
   that only computes -- `math` and `md`, a list in `pl_pure` -- loaded by
   name, never by path, and found on the module path but never in the

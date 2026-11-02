@@ -170,7 +170,7 @@ int b_mkdir(sh *s, int ac, char **av)
 			"Try 'mkdir --help' for more information.\n");
 		return HIBR_FAIL;
 	}
-	if ((s->sopt & O_PLAN) && !pl_prog(s, av))
+	if ((s->sopt & O_PLAN) && !pl_prog(s, &av, 0))
 		return HIBR_FAIL;
 	for (; i < ac; i++)
 		r |= fs_mkdir(av[i], m, fl);
@@ -346,7 +346,7 @@ int b_rm(sh *s, int ac, char **av)
 				return r;
 			break;
 		}
-	if ((s->sopt & O_PLAN) && !pl_prog(s, av))
+	if ((s->sopt & O_PLAN) && !pl_prog(s, &av, 0))
 		return HIBR_FAIL;
 	s_init(&path);
 	for (; i < ac; i++) {
@@ -526,7 +526,7 @@ int b_mv(sh *s, int ac, char **av)
 		fprintf(stderr, "Try 'mv --help' for more information.\n");
 		return HIBR_FAIL;
 	}
-	if ((s->sopt & O_PLAN) && !pl_prog(s, av))
+	if ((s->sopt & O_PLAN) && !pl_prog(s, &av, 0))
 		return HIBR_FAIL;
 	if (!tdir) {
 		dst = av[--ac];

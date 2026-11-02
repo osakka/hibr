@@ -1,0 +1,14 @@
+0
+hibr: plan: would run ./cat -c echo ESCAPED
+rc=1
+rc=1
+hibr: plan: would run sed -ni p /etc/hostname
+rc=1
+hibr: plan: would run cp -t / /etc/hostname
+rc=1
+hibr: plan: would write $TMPDIR/..
+hibr: plan: would connect: connect 127.0.0.1 9
+rc=1
+hibr: plan: would run git -c core.pager=cat --version
+rc=1
+Hello

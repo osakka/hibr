@@ -815,6 +815,19 @@ int b_connect(sh *s, int ac, char **av)
 	int i = 1, udp = 0, tls = 0, fd;
 	const char *nm = "FD";
 
+	if (s->sopt & O_PLAN) {
+		str c;
+
+		s_init(&c);
+		for (i = 1; i < ac; i++) {
+			if (i > 1)
+				s_ch(&c, ' ');
+			s_cat(&c, av[i]);
+		}
+		pl_note(s, "would connect: connect %s", c.p ? c.p : "");
+		s_free(&c);
+		return HIBR_FAIL;
+	}
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		if (!strcmp(av[i], "-u"))
 			udp = 1;

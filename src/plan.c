@@ -160,11 +160,18 @@ int pl_scratch(const char *t)
 	}
 	s_cat(&p, t);
 	cut = strrchr(p.p, '/');
-	if (cut == p.p)
-		cut[1] = 0;
-	else
-		*cut = 0;
+	if (!strcmp(cut + 1, ".") || !strcmp(cut + 1, "..")) {
+		s_free(&p);
+		return 0;
+	}
 	real = realpath(p.p, 0);
+	if (!real) {
+		if (cut == p.p)
+			cut[1] = 0;
+		else
+			*cut = 0;
+		real = realpath(p.p, 0);
+	}
 	s_free(&p);
 	if (!real)
 		return 0;
@@ -190,6 +197,13 @@ int pl_redir(sh *s, int k, const char *t)
 	pl_note(s, k == R_APP ? "would append to %s" :
 		   k == R_RW ? "would open %s for writing" : "would write %s", t);
 	return 1;
+}
+
+/* Whether an argument is a cluster of short options holding letter c:
+   -ni holds i, as -i alone does, where --in-place is a long one. */
+int pl_flag(const char *a, int c)
+{
+	return a[0] == '-' && a[1] && a[1] != '-' && strchr(a + 1, c) != 0;
 }
 
 /* Whether a name is in a null-ended list. */
@@ -234,27 +248,54 @@ int pl_safe(char **av)
 		"rev-parse", "ls-files", "describe", "blame", "shortlog",
 		"cat-file", "grep", "rev-list", "merge-base", 0 };
 	const char *nm = strrchr(av[0], '/') ? strrchr(av[0], '/') + 1 : av[0];
-	int i, plain = 0;
+	int i, plain = 0, skip = !strcmp(nm, "chmod");
 
 	if (!strcmp(nm, "env"))
 		return av[1] == 0;
 	if (pl_in(nm, fsw)) {
-		for (i = 1; av[i]; i++)
-			if (av[i][0] != '-' && ++plain && !pl_scratch(av[i]))
+		for (i = 1; av[i]; i++) {
+			if (!strncmp(av[i], "--target-directory=", 19)) {
+				if (!pl_scratch(av[i] + 19))
+					return 0;
+				continue;
+			}
+			if (!strcmp(av[i], "-t") || !strcmp(av[i], "--target-directory")) {
+				if (!av[i + 1] || !pl_scratch(av[++i]))
+					return 0;
+				continue;
+			}
+			if (av[i][0] == '-' && av[i][1] == 't' && !pl_scratch(av[i] + 2))
 				return 0;
+			if (av[i][0] == '-')
+				continue;
+			if (skip) {
+				skip = 0;
+				continue;
+			}
+			if (++plain && !pl_scratch(av[i]))
+				return 0;
+		}
 		return plain > 0;
+	}
+	if (!strcmp(nm, "hostname")) {
+		for (i = 1; av[i]; i++)
+			if (av[i][0] != '-' || !strcmp(av[i], "-F") ||
+			    !strncmp(av[i], "--file", 6) || !strcmp(av[i], "-b") ||
+			    !strcmp(av[i], "--boot"))
+				return 0;
+		return 1;
 	}
 	if (pl_in(nm, ro))
 		return 1;
 	if (!strcmp(nm, "sed")) {
 		for (i = 1; av[i]; i++)
-			if (!strncmp(av[i], "-i", 2) || !strncmp(av[i], "--in-place", 10))
+			if (pl_flag(av[i], 'i') || !strncmp(av[i], "--in-place", 10))
 				return 0;
 		return 1;
 	}
 	if (!strcmp(nm, "date")) {
 		for (i = 1; av[i]; i++)
-			if (!strncmp(av[i], "-s", 2) || !strncmp(av[i], "--set", 5))
+			if (pl_flag(av[i], 's') || !strncmp(av[i], "--set", 5))
 				return 0;
 		return 1;
 	}
@@ -295,9 +336,18 @@ int pl_safe(char **av)
 		return pl_tmp != 0;
 	}
 	if (!strcmp(nm, "git")) {
-		for (i = 1; av[i] && av[i][0] == '-'; i++)
-			if (!strcmp(av[i], "-C") || !strcmp(av[i], "-c"))
+		for (i = 1; av[i]; i++)
+			if (!strcmp(av[i], "-c") || !strncmp(av[i], "--config-env", 12) ||
+			    !strncmp(av[i], "--output", 8) || !strcmp(av[i], "-O") ||
+			    !strncmp(av[i], "--open-files-in-pager", 21) ||
+			    !strncmp(av[i], "--ext-diff", 10))
+				return 0;
+		for (i = 1; av[i] && av[i][0] == '-'; i++) {
+			if (!strcmp(av[i], "-p") || !strcmp(av[i], "--paginate"))
+				return 0;
+			if (!strcmp(av[i], "-C"))
 				i++;
+		}
 		if (!av[i])
 			return 0;
 		if (pl_in(av[i], gitr))
@@ -323,14 +373,38 @@ int pl_safe(char **av)
 	return 0;
 }
 
-/* Whether to run a program, recording it when the plan will not: only what is known to read and nothing more. */
-int pl_prog(sh *s, char **av)
+/* Whether to run a program, recording it when the plan will not: only what
+   is known to read and nothing more. path is where it was found: a program
+   inside the scratch is one the script itself may have put there under a
+   reassuring name, since the scratch is the only place a plan writes, so
+   it is never run (Gitea #432). GNU sed is run with --sandbox, which takes
+   away its e and w commands; *avp is then a new argument list. */
+int pl_prog(sh *s, char ***avp, const char *path)
 {
+	char **av = *avp;
 	str c;
 	int i;
+	const char *nm;
 
-	if (pl_safe(av))
-		return 1;
+	if (pl_safe(av) && !(path && pl_scratch(path))) {
+		nm = strrchr(av[0], '/') ? strrchr(av[0], '/') + 1 : av[0];
+		if (strcmp(nm, "sed"))
+			return 1;
+#ifdef __linux__
+		{
+			char **nv;
+
+			for (i = 0; av[i]; i++)
+				;
+			nv = ar_alloc(s->xa, sizeof *nv * (size_t)(i + 2));
+			nv[0] = av[0];
+			nv[1] = "--sandbox";
+			memcpy(nv + 2, av + 1, sizeof *nv * (size_t)i);
+			*avp = nv;
+			return 1;
+		}
+#endif
+	}
 	s_init(&c);
 	for (i = 0; av[i]; i++) {
 		if (i)
