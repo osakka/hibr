@@ -1158,8 +1158,12 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		if (!v)
 			return;
 		s_init(&cs);
-		u8cased(&cs, v, p->op == V_UP || p->op == V_UPALL,
-			p->op == V_UP || p->op == V_LOW);
+		if (p->arg)
+			u8casep(&cs, v, p->op == V_UP || p->op == V_UPALL,
+				p->op == V_UP || p->op == V_LOW, xpat(s, p->arg));
+		else
+			u8cased(&cs, v, p->op == V_UP || p->op == V_UPALL,
+				p->op == V_UP || p->op == V_LOW);
 		a = ar_dup(s->xa, cs.p ? cs.p : "", cs.n);
 		s_free(&cs);
 		XV(s, p, b, m, a, strlen(a));

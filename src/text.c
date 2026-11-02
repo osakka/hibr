@@ -109,6 +109,33 @@ void u8cased(str *o, const char *v, int up, int first)
 	}
 }
 
+/* Change the case of each character the pattern matches, or of the first
+   alone, as ${x^^pat} and ${x^pat} do. */
+void u8casep(str *o, const char *v, int up, int first, const char *pat)
+{
+	size_t n = strlen(v), i = 0;
+	unsigned c;
+	int k;
+	str ch;
+
+	s_init(&ch);
+	while (i < n) {
+		k = u8dec(v + i, n - i, &c);
+		ch.n = 0;
+		s_add(&ch, v + i, (size_t)k);
+		if (!(k == 1 && (unsigned char)v[i] >= 0x80) && gmatch(pat, ch.p))
+			u8put(o, u8case(c, up));
+		else
+			s_add(o, v + i, (size_t)k);
+		i += (size_t)k;
+		if (first) {
+			s_add(o, v + i, n - i);
+			break;
+		}
+	}
+	s_free(&ch);
+}
+
 /* Deliver a result to a variable, or to standard output. */
 int sx_out(sh *s, const char *nm, const char *v)
 {

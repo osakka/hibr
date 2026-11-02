@@ -101,7 +101,8 @@ const char *sk_brace(lex *l, const char *p, int *d)
 		return p + 2;
 	}
 	if (p + 1 < l->e && p[1] == '(') {
-		p = sk_bal(l, p + 2, '(', ')', 0);
+		p = p + 2 < l->e && p[2] == '(' ? sk_bal(l, p + 2, '(', ')', 0) :
+			sk_cmd(l, p + 2);
 		return p ? p + 1 : 0;
 	}
 	return p + 1;
@@ -154,6 +155,51 @@ const char *sk_bal(lex *l, const char *p, char o, char c, int dq)
 	}
 	l->more = 1;
 	return 0;
+}
+
+/* The end of a command's text after $( <( or >(, found by parsing it as
+   the list it is, quietly: here-documents, comments, case patterns, $'...'
+   and nested quotes decide where it ends, as when it runs. Text that does
+   not parse falls back to counting parens, and its error is reported when
+   it runs, as before; text that runs out asks for more. */
+const char *sk_cmd(lex *l, const char *p)
+{
+	lex t;
+	amark m;
+	int lv = hibr_lv, keep = l->s->keep, more;
+	const char *r = 0;
+
+	if (l->depth >= HIBR_DEPTH)
+		return sk_bal(l, p, '(', ')', 0);
+	memset(&t, 0, sizeof t);
+	t.s = l->s;
+	t.a = l->a;
+	t.p = p;
+	t.e = l->e;
+	t.fd = -1;
+	t.lnp = p;
+	t.bol = p;
+	t.ln = 1;
+	t.depth = l->depth + 1;
+	m = ar_mark(t.a);
+	hibr_lv = -1;
+	lx_next(&t);
+	p_list(&t);
+	hibr_lv = lv;
+	if (!t.err && !t.more && t.tk == T_RP)
+		r = t.p - 1;
+	more = !t.err && (t.more || t.tk == T_EOF);
+	ar_rel(t.a, m);
+	v_free(&t.hq);
+	l->s->keep = keep;
+	if (r)
+		return r;
+	if (more) {
+		l->more = 1;
+		return 0;
+	}
+	lg(HIBR_LTRC, "lex: a substitution that does not parse is measured by its parens");
+	return sk_bal(l, p, '(', ')', 0);
 }
 
 /* Take the raw text up to the matching close paren, consuming it. */
@@ -302,7 +348,12 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 	if (q >= e)
 		return;
 	if (*q == ':') {
-		if (q + 1 >= e || !strchr("-=?+", q[1])) {
+		if (q + 1 >= e) {
+			lg(HIBR_LERR, "bad substitution: ${%.*s}", (int)(e - b), b);
+			l->err = 1;
+			return;
+		}
+		if (!strchr("-=?+", q[1])) {
 			p->op = V_SUBSTR;
 			p->arg = lx_sub(l, q + 1, e, lit);
 			return;
@@ -313,6 +364,11 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 	if (q >= e)
 		return;
 	if (*q == '@' && q + 1 < e) {
+		if (q + 2 < e || !strchr("QEULuAaPKk", q[1])) {
+			lg(HIBR_LERR, "bad substitution: ${%.*s}", (int)(e - b), b);
+			l->err = 1;
+			return;
+		}
 		switch (q[1]) {
 		case 'Q':
 			p->op = V_XQ;
@@ -349,6 +405,9 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 	if (*q == '^' || *q == ',') {
 		int dbl = q + 1 < e && q[1] == *q;
 		p->op = *q == '^' ? (dbl ? V_UPALL : V_UP) : (dbl ? V_LOWALL : V_LOW);
+		q += dbl ? 2 : 1;
+		if (q < e)
+			p->arg = lx_sub(l, q, e, lit);
 		return;
 	}
 	switch (*q) {
@@ -403,6 +462,27 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 		for (r = q; r < e; r++) {
 			if (*r == '\\') {
 				r++;
+				continue;
+			}
+			if (*r == '"') {
+				for (r++; r < e && *r != '"'; r++)
+					if (*r == '\\')
+						r++;
+				continue;
+			}
+			if (*r == '\'' && !lit) {
+				for (r++; r < e && *r != '\''; r++)
+					;
+				continue;
+			}
+			if (*r == '$' && r + 1 < e && (r[1] == '{' || r[1] == '(')) {
+				int more = l->more;
+				const char *z = sk_bal(l, r + 2, r[1],
+						       r[1] == '{' ? '}' : ')', 0);
+
+				l->more = more;
+				if (z && z < e)
+					r = z;
 				continue;
 			}
 			if (*r == '/')
@@ -472,19 +552,28 @@ part *lx_dol(lex *l, int q)
 	c = *l->p;
 	if (c == '(') {
 		b = l->p + 1;
-		e = sk_bal(l, b, '(', ')', 0);
+		if (b < l->e && *b == '(') {
+			int more = l->more;
+			const char *in;
+
+			e = sk_bal(l, b, '(', ')', 0);
+			in = e ? sk_bal(l, b + 1, '(', ')', 0) : 0;
+			if (e && in && in + 1 == e) {
+				l->p = e + 1;
+				p->k = P_ARI;
+				p->t = ar_dup(l->a, b + 1, (size_t)(in - b - 1));
+				p->n = (size_t)(in - b - 1);
+				return p;
+			}
+			l->more = more;
+		}
+		e = sk_cmd(l, b);
 		if (!e)
 			return 0;
 		l->p = e + 1;
-		if (e > b && *b == '(' && e[-1] == ')') {
-			p->k = P_ARI;
-			p->t = ar_dup(l->a, b + 1, (size_t)(e - b - 2));
-			p->n = (size_t)(e - b - 2);
-		} else {
-			p->k = P_CMD;
-			p->t = ar_dup(l->a, b, (size_t)(e - b));
-			p->n = (size_t)(e - b);
-		}
+		p->k = P_CMD;
+		p->t = ar_dup(l->a, b, (size_t)(e - b));
+		p->n = (size_t)(e - b);
 		return p;
 	}
 	if (c == '[') {
@@ -581,18 +670,18 @@ word *lx_word(lex *l, int lit)
 	str b;
 	part *h = 0, **t = &h, *x;
 	word *w;
-	int q = 0, cq = 0, seen = 0, c;
+	int q = 0, cq = 0, seen = 0, c, gd = 0;
 
 	s_init(&b);
 	while (l->p < l->e) {
 		c = *l->p;
-		if ((c == '<' || c == '>') && l->p + 1 < l->e &&
+		if (!q && !l->nb && (c == '<' || c == '>') && l->p + 1 < l->e &&
 		    l->p[1] == '(') {
 			const char *bb, *ee;
 			lx_flush(l, &b, &t, cq);
 			l->p += 2;
 			bb = l->p;
-			ee = sk_bal(l, bb, '(', ')', 0);
+			ee = sk_cmd(l, bb);
 			if (!ee)
 				break;
 			x = ar_alloc(l->a, sizeof *x);
@@ -612,15 +701,25 @@ word *lx_word(lex *l, int lit)
 		if (!q && !l->nb && l->p + 1 < l->e && l->p[1] == '(' &&
 		    (c == '?' || c == '*' || c == '+' || c == '@' ||
 		     c == '!')) {
+			int more = l->more;
 			const char *ee = sk_bal(l, l->p + 2, '(', ')', 0);
+
+			l->more = more;
 			if (ee) {
 				lg(HIBR_LTRC, "extended pattern group %.*s",
 				   (int)(ee - l->p + 1), l->p);
-				for (; l->p <= ee; l->p++)
-					lx_ch(l, &b, &t, &cq, 0, *l->p);
+				lx_ch(l, &b, &t, &cq, 0, *l->p++);
+				lx_ch(l, &b, &t, &cq, 0, *l->p++);
+				gd++;
 				seen = 1;
 				continue;
 			}
+		}
+		if (gd && !q && !l->nb && (c == ' ' || c == '\t' || c == '|' ||
+					   c == '(' || c == ')')) {
+			gd += c == '(' ? 1 : c == ')' ? -1 : 0;
+			lx_ch(l, &b, &t, &cq, 0, *l->p++);
+			continue;
 		}
 		if (!q && !l->nb && (c == ' ' || c == '\t' || ismeta(c)))
 			break;
@@ -645,7 +744,8 @@ word *lx_word(lex *l, int lit)
 		if (c == '\\') {
 			l->p++;
 			if (l->p >= l->e) {
-				l->more = 1;
+				lx_ch(l, &b, &t, &cq, 1, '\\');
+				seen = 1;
 				break;
 			}
 			c = *l->p++;
@@ -878,6 +978,15 @@ void lx_hdoc(lex *l)
 			}
 			nl = memchr(l->p, '\n', (size_t)(l->e - l->p));
 			if (!nl) {
+				ln = l->p;
+				if (h->dash)
+					while (ln < l->e && *ln == '\t')
+						ln++;
+				if ((size_t)(l->e - ln) == strlen(h->d) &&
+				    !memcmp(ln, h->d, (size_t)(l->e - ln))) {
+					l->p = l->e;
+					break;
+				}
 				l->more = 1;
 				break;
 			}
@@ -1083,10 +1192,14 @@ int lx_next(lex *l)
 		l->w = lx_word(l, 0);
 		if (l->w)
 			return l->tk = T_WORD;
+		if (l->more)
+			return l->tk = T_EOF;
 	}
 	if (c == '<' || c == '>')
 		return lx_redir(l);
 	l->w = lx_word(l, 0);
+	if (!l->w && l->more)
+		return l->tk = T_EOF;
 	if (!l->w) {
 		lg(HIBR_LERR, "unexpected character '%c'", c);
 		l->err = 1;

@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.99.428
+
+The rest of the core audit (Gitea #427), in one release, area by area.
+
+**Lexer and parser** (#434-#438, #472).
+- **Where a `$(…)` ends.** It is found by parsing what is inside it, so a
+  here-document, a comment, a `case` pattern, `$'…'` and nested quotes decide
+  its end as they do when it runs. The usage-text idiom `x=$(cat <<EOF` …
+  `it's here` … `EOF` `)` was a syntax error, and so was any comment with an
+  apostrophe inside `$( )`.
+- **Arithmetic or subshells.** `$((echo a); (echo b))` is two subshells, not
+  arithmetic; `$((` is arithmetic only when its `))` close the pair that
+  opened it.
+- **Piped scripts.** A script piped into hibr no longer stops at a `$(`,
+  backquote or `${` that spans lines, and says status 2, not 0, when it
+  does meet a syntax error.
+- **Process substitution.** `<(` and `>(` are substitutions only where a word
+  may start: `$(( a<(b) ))` compares instead of running `b`, and
+  `"a<(x)"` is text.
+- **`=~`.** Quoting means what it means in bash: `"a.b"` matches only
+  `a.b`, `^"$x"$` matches `$x` literally, `"a"b` is the regex `ab`, and a
+  regex kept in a variable is still a regex, under `set -S` too.
+- **Case modification with a pattern.** `${x^^pat}` and `${x,,pat}` change
+  only the characters the pattern matches.
+- **Extended globs.** A `$var` inside an extended glob group is expanded:
+  `@($p)` matches what `$p` holds.
+- **Smaller parser fixes.**
+  - A here-document whose delimiter is the last line, with no newline after
+    it, ends there.
+  - `${x/"a/b"/c}` finds its separator outside the quotes.
+  - A final backslash is a character.
+  - `name()` takes any word bash takes as a name (`foo-bar`, `a.b`).
+  - `for` and `select` take a `{ }` body.
+  - `[[ ($x =~ ^a) ]]` parses.
+  - `${x:}` and `${x@Qjunk}` are a bad substitution.
+  - `fn f(a, b-c)` is a syntax error naming `-c`, where `-c` was silently
+    dropped.
+
 ## 0.99.427
 
 **A sheet's formulas are contained, and a sheet can be given full access**

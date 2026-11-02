@@ -75,16 +75,25 @@ int w_asgbare(word *w)
 	return p && !p->nx && p->k == P_TXT && p->n && p->t[p->n - 1] == '=';
 }
 
-/* Report a parse error and stop the current unit. */
-void perr(lex *l, const char *m)
+/* Whether a syntax error can be reported now: not after one already was,
+   and not at the end of the text, which only means more is needed. */
+int perr_due(lex *l)
 {
 	if (l->err)
-		return;
+		return 0;
 	if (l->tk == T_EOF) {
 		l->more = 1;
-		return;
+		return 0;
 	}
-	if (!l->err && !l->more) {
+	return 1;
+}
+
+/* Report a syntax error at the current token, once. */
+void perr(lex *l, const char *m)
+{
+	if (!perr_due(l))
+		return;
+	if (!l->more) {
 		p_where(l);
 		lg(HIBR_LERR, "syntax error: %s", m);
 		lg_ln = lg_col = 0;
@@ -106,13 +115,9 @@ void perr_near(lex *l)
 {
 	const char *b = l->tkb, *e = l->p;
 
-	if (l->err)
+	if (!perr_due(l))
 		return;
-	if (l->tk == T_EOF) {
-		l->more = 1;
-		return;
-	}
-	if (!l->err && !l->more) {
+	if (!l->more) {
 		while (b && e > b && (e[-1] == ' ' || e[-1] == '\t'))
 			e--;
 		if (b && e > b && e[-1] == '\n')
@@ -245,13 +250,38 @@ void p_rtail(lex *l, node *n)
 }
 
 /* Parse a simple command, assignment list or function definition. */
+/* Parse the ( elements ) of name=( ... ), the name taken from w. */
+node *p_arrasg(lex *l, word *w)
+{
+	node *cl;
+	word **et;
+
+	lx_next(l);
+	p_nl(l);
+	cl = nd(l, N_CLAUSE);
+	cl->s = ar_dup(l->a, w->p->t, w->p->n - 1);
+	et = &cl->w;
+	while (l->tk == T_WORD) {
+		*et = p_arrel(l);
+		et = &(*et)->nx;
+		lx_next(l);
+		p_nl(l);
+	}
+	if (l->tk != T_RP) {
+		perr(l, "expected ) in array assignment");
+		return 0;
+	}
+	lx_next(l);
+	return cl;
+}
+
 node *p_simple(lex *l)
 {
 	node *n = nd(l, N_CMD);
 	word **wt = &n->w, **at = &n->aw;
 	redir **rt = &n->rd;
 	node **xt = &n->x, *cl;
-	word *w, **et;
+	word *w;
 	char *t, *cmd0 = 0;
 	int got = 0;
 
@@ -260,7 +290,7 @@ node *p_simple(lex *l)
 			w = l->w;
 			t = w_lit(w);
 			lx_next(l);
-			if (!got && t && isname(t) && l->tk == T_LP) {
+			if (!got && t && *t && !strchr(t, '=') && l->tk == T_LP) {
 				node *f;
 				lx_next(l);
 				if (l->tk != T_RP) {
@@ -286,24 +316,10 @@ node *p_simple(lex *l)
 				lx_next(l);
 				continue;
 			}
-			if (!got && w_asg(w) && w_asgbare(w) &&
-			    l->tk == T_LP) {
-				lx_next(l);
-				p_nl(l);
-				cl = nd(l, N_CLAUSE);
-				cl->s = ar_dup(l->a, w->p->t, w->p->n - 1);
-				et = &cl->w;
-				while (l->tk == T_WORD) {
-					*et = p_arrel(l);
-					et = &(*et)->nx;
-					lx_next(l);
-					p_nl(l);
-				}
-				if (l->tk != T_RP) {
-					perr(l, "expected ) in array assignment");
+			if (!got && l->tk == T_LP && w_asg(w) && w_asgbare(w)) {
+				cl = p_arrasg(l, w);
+				if (!cl)
 					return n;
-				}
-				lx_next(l);
 				*xt = cl;
 				xt = &cl->x;
 				continue;
@@ -313,14 +329,13 @@ node *p_simple(lex *l)
 				at = &w->nx;
 				continue;
 			}
-			if (got && cmd0 && (bi_argk(cmd0) & 2) && w_asg(w) &&
-			    w_asgbare(w) && l->tk == T_LP) {
+			if (got && cmd0 && l->tk == T_LP && w_asg(w) &&
+			    w_asgbare(w) && (bi_argk(cmd0) & 2)) {
 				word *nw;
 				part *np;
-				lx_next(l);
-				p_nl(l);
-				cl = nd(l, N_CLAUSE);
-				cl->s = ar_dup(l->a, w->p->t, w->p->n - 1);
+				cl = p_arrasg(l, w);
+				if (!cl)
+					return n;
 				cl->f = (bi_argk(cmd0) & 4) ? 5 : 4;
 				nw = ar_alloc(l->a, sizeof *nw);
 				np = ar_alloc(l->a, sizeof *np);
@@ -332,18 +347,6 @@ node *p_simple(lex *l)
 				nw->p = np;
 				*wt = nw;
 				wt = &nw->nx;
-				et = &cl->w;
-				while (l->tk == T_WORD) {
-					*et = p_arrel(l);
-					et = &(*et)->nx;
-					lx_next(l);
-					p_nl(l);
-				}
-				if (l->tk != T_RP) {
-					perr(l, "expected ) in array assignment");
-					return n;
-				}
-				lx_next(l);
 				*xt = cl;
 				xt = &cl->x;
 				continue;
@@ -477,28 +480,23 @@ node *p_cfor(lex *l)
 	return n;
 }
 
-/* The array element the lexer has just read, whole: one opening with a [ is
-   re-read from its start to its matching ], so a key holding blanks stays one
-   element, as bash has it -- [c d]=2 is the key "c d". */
-word *p_arrel(lex *l)
+/* The end of a word that keeps its brackets and parens balanced and its
+   quotes whole: an array element's [key]=value and the right side of =~
+   both end at a blank, or at a ) that closes nothing. */
+const char *p_balw(const char *e, const char *end)
 {
-	const char *b = l->tkb, *e, *t;
 	int d = 0;
-	word *w;
 
-	if (!b || b >= l->p || *b != '[')
-		return l->w;
-	for (t = b; t < l->p; t++)
-		if (*t == ']')
-			return l->w;
-	for (e = b; e < l->e; e++) {
-		if (*e == '\\' && e + 1 < l->e) {
-			e++;
+	while (e < end) {
+		if (*e == '\\' && e + 1 < end) {
+			e += 2;
 			continue;
 		}
 		if (*e == '\'' || *e == '"') {
 			char qc = *e++;
-			while (e < l->e && *e != qc)
+			while (e < end && *e != qc)
+				e++;
+			if (e < end)
 				e++;
 			continue;
 		}
@@ -508,7 +506,25 @@ word *p_arrel(lex *l)
 			d--;
 		else if (!d && (*e == ' ' || *e == '\t' || *e == '\n' || *e == ')'))
 			break;
+		e++;
 	}
+	return e;
+}
+
+/* The array element the lexer has just read, whole: one opening with a [ is
+   re-read from its start to its matching ], so a key holding blanks stays one
+   element, as bash has it -- [c d]=2 is the key "c d". */
+word *p_arrel(lex *l)
+{
+	const char *b = l->tkb, *e, *t;
+	word *w;
+
+	if (!b || b >= l->p || *b != '[')
+		return l->w;
+	for (t = b; t < l->p; t++)
+		if (*t == ']')
+			return l->w;
+	e = p_balw(b, l->e);
 	lg(HIBR_LTRC, "array element %.*s read whole", (int)(e - b), b);
 	l->p = e;
 	w = lx_sub(l, b, e, 0);
@@ -530,7 +546,6 @@ node *p_cond(lex *l)
 	node *n = nd(l, N_COND);
 	word **wt = &n->w, *w;
 	const char *op, *b, *e;
-	int d;
 
 	lx_next(l);
 	for (;;) {
@@ -560,40 +575,16 @@ node *p_cond(lex *l)
 			b = l->p;
 			while (b < l->e && (*b == ' ' || *b == '\t'))
 				b++;
-			e = b;
-			d = 0;
-			while (e < l->e) {
-				if (*e == '\\' && e + 1 < l->e) {
-					e += 2;
-					continue;
-				}
-				if (*e == '\'' || *e == '"') {
-					char qc = *e++;
-					while (e < l->e && *e != qc)
-						e++;
-					if (e < l->e)
-						e++;
-					continue;
-				}
-				if (*e == '(' || *e == '[')
-					d++;
-				else if ((*e == ')' || *e == ']') && d > 0)
-					d--;
-				else if (!d && (*e == ' ' || *e == '\t' || *e == '\n'))
-					break;
-				e++;
-			}
-			if (memchr(b, '$', (size_t)(e - b))) {
+			e = p_balw(b, l->e);
+			if (memchr(b, '$', (size_t)(e - b)) ||
+			    memchr(b, '\'', (size_t)(e - b)) ||
+			    memchr(b, '"', (size_t)(e - b))) {
 				w = lx_sub(l, b, e, 0);
 				if (!w) {
 					if (!l->err && !l->more)
 						perr(l, "bad regular expression after =~");
 					return n;
 				}
-			} else if (e - b >= 2 && (*b == '\'' || *b == '"') &&
-				   e[-1] == *b) {
-				w = p_litw(l, b + 1, (size_t)(e - b - 2));
-				w->p->op = -2;
 			} else {
 				w = p_litw(l, b, (size_t)(e - b));
 				w->p->op = -2;
@@ -631,6 +622,10 @@ node *p_for(lex *l)
 	}
 	while (l->tk == T_SEMI || l->tk == T_NL)
 		lx_next(l);
+	if (kw(l, "{")) {
+		n->r = p_cmd(l);
+		return n;
+	}
 	if (!kw(l, "do")) {
 		perr(l, "expected do");
 		return n;
@@ -766,10 +761,25 @@ node *p_fn(lex *l)
 	p_nl(l);
 	e = sig + strlen(sig);
 	for (p = sig; p && p < e;) {
+		const char *at = p;
+
 		pm = nd(l, N_CLAUSE);
 		p = p_param(l, pm, p, e);
-		if (!p || !pm->s || !*pm->s)
+		if (!p)
 			break;
+		if (!pm->s || !*pm->s) {
+			str m;
+
+			while (at < e && (*at == ' ' || *at == '\t' || *at == ',' ||
+					  *at == '\n'))
+				at++;
+			s_init(&m);
+			s_fmt(&m, "bad parameter `%.*s' in (%s)",
+			      (int)strcspn(at, ", \t\n"), at, sig);
+			perr(l, m.p);
+			s_free(&m);
+			return n;
+		}
 		*pt = pm;
 		pt = &pm->x;
 	}

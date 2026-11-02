@@ -2291,6 +2291,39 @@ int cx_is(struct cx *c, size_t i, const char *t)
 	return l && !strcmp(l, t);
 }
 
+/* The right side of =~ as a regular expression: what was quoted matches
+   itself, so its metacharacters are escaped, and the rest is the regex,
+   as in bash. A word that was all literal text is the regex as written. */
+char *cx_rx(struct cx *c, size_t i)
+{
+	word *w = c->it[i];
+	char *v, *m;
+	str o;
+	size_t k, n;
+	int st;
+
+	if (c->skip)
+		return (char *)"";
+	if (w->p && w->p->op == -2)
+		return w->p->t;
+	st = c->s->strict;
+	c->s->strict = 0;
+	v = xone_q(c->s, w, &m);
+	c->s->strict = st;
+	if (!m)
+		return v;
+	n = strlen(v);
+	s_init(&o);
+	for (k = 0; k < n; k++) {
+		if (m[k] && strchr("\\^$.|?*+()[]{}", v[k]))
+			s_ch(&o, '\\');
+		s_ch(&o, v[k]);
+	}
+	v = ar_dup(c->s->xa, o.p ? o.p : "", o.n);
+	s_free(&o);
+	return v;
+}
+
 /* Expand an operand, unless this branch is being skipped. */
 char *cx_val(struct cx *c, size_t i)
 {
@@ -2384,7 +2417,7 @@ int cx_prim(struct cx *c)
 			r = gmatch(b, a);
 			return op[0] == '!' ? !r : r;
 		}
-		b = cx_val(c, c->i);
+		b = !strcmp(op, "=~") ? cx_rx(c, c->i) : cx_val(c, c->i);
 		c->i++;
 		if (c->skip)
 			return 0;

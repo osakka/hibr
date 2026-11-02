@@ -267,6 +267,15 @@ quoted byte is never split, globbed, or read as an operator.
 3. **Parameter, command, arithmetic and process substitution**, left to right in
    one pass: `$name`, `${…}`, `$(…)`, `` `…` ``, `$((…))`, `<(…)`, `>(…)`.
    bash's old spelling of arithmetic, `$[…]`, is the same as `$((…))`.
+   Where a `$(…)`, `<(…)` or `>(…)` ends is found by parsing what is inside
+   it as the command list it is, so a here-document, a comment, a `case`
+   pattern's `)`, `$'…'` and nested quotes inside one decide its end as they
+   do when it runs; text inside that does not parse is measured by its
+   parentheses and reports its error when it runs. `$((` is arithmetic
+   only when its closing `))` are the pair that opened it — `$((echo a);
+   (echo b))` is a command substitution, as in bash. `<(` and `>(` are
+   substitutions only where a word may start, never inside quotes or
+   arithmetic, so `$(( a<(b) ))` compares.
 4. **Word splitting** on `IFS`, over unquoted bytes only. A run of `IFS`
    whitespace is one separator; any other `IFS` character ends a field on
    its own, so two in a row make an empty field between them, as in bash.
