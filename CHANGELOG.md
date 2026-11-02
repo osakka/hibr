@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.99.424
+
+**The Control Panel's divider stands in the middle of its gap** (the
+owner's). The list of panes left a column clear before the divider and the
+pane beside it started right after it, so a pane that draws a heading or a
+list from its own first column -- Menu Bar's "Look" and its items, for one
+-- touched the divider while the list stood off it, and the divider read as
+sitting a column too far to the right. A pane now starts one column after
+the divider, so both sides keep the same gap.
+
 ## 0.99.423
 
 **A see-through window no longer blinks when the window under it refreshes**

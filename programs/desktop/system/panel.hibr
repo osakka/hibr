@@ -426,8 +426,12 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	fi
 
 	[ -z "$pane" ] && return 0
-	bx=$((lw + 1))
-	bw=$((w - lw - 1))
+	# A column clear on each side of the divider: the list keeps one
+	# before it, and the pane starts one after it, rather than a heading
+	# or a list in the pane touching the divider while the list stands
+	# off it -- which read as the divider sitting a column too far right.
+	bx=$((lw + 2))
+	bw=$((w - lw - 2))
 	case $DT_MIRRORON in 1) bx=2 ;; esac
 	if dt_has "${pane}_draw"; then
 		"${pane}_draw" "$id" $((h - 1 - srows)) "$bw" "$bx"
