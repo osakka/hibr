@@ -804,6 +804,8 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 	e->n = 0;
 	free(e->s);
 	e->s = nv;
+	if (e->ty == J_ARR || e->ty == J_OBJ)
+		e->ty = 0;
 	if (nk == 1 && !strcmp(ks[0], "0")) {
 		v = v_find(s, nm);
 		if (v && !(v->at & A_REF)) {

@@ -33,4 +33,10 @@ pushd 2>/dev/null >/dev/null; echo "nothing to swap $?"
 echo "-- type -a, -P, -f"
 type -t -a ls | sort -u; type -P ls | head -1 | sed 's|.*/||'
 f() { :; }; type -f f 2>/dev/null; echo "type -f f $?"
+echo "-- from the review"
+cd "$d"; mkdir -p rel; OLDPWD=rel; cd - >/dev/null; echo "relative cd - $?"; pwd | sed 's|.*/||'; cd "$d"
+( PATH=/usr/bin:/bin:/nonexist; export PATH; command -p printenv PATH )
+( command -p export PATH=/foo; echo "$PATH" )
+command -v ls nosuch >/dev/null; echo "command -v any found $?"
+type -p nosuch; echo "type -p nosuch $?"; type -at echo; type -P /bin/ls
 cd /; rm -rf "$d"

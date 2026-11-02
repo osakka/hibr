@@ -141,9 +141,13 @@ int ex_why(const char *nm, const char *who)
 
 /* Locate an executable along PATH; a name with a slash is taken as it is,
    if it is a file that may be run. */
+/* The path command -p looks along in place of PATH, for the one lookup it
+   makes; nothing else sees it, and the command hash is left alone. */
+const char *x_pathover;
+
 char *findx(sh *s, const char *nm)
 {
-	const char *p = hibr_get(s, "PATH");
+	const char *p = x_pathover ? x_pathover : hibr_get(s, "PATH");
 	const char *q;
 	struct stat sb;
 	str b;
@@ -151,7 +155,7 @@ char *findx(sh *s, const char *nm)
 	if (strchr(nm, '/'))
 		return !access(nm, X_OK) && !stat(nm, &sb) && !S_ISDIR(sb.st_mode) ?
 		       xs(nm) : 0;
-	q = hsh_get(s, nm);
+	q = x_pathover ? 0 : hsh_get(s, nm);
 	if (q) {
 		if (access(q, X_OK) == 0)
 			return xs(q);
@@ -174,7 +178,8 @@ char *findx(sh *s, const char *nm)
 		s_ch(&b, '/');
 		s_cat(&b, nm);
 		if (access(b.p, X_OK) == 0) {
-			hsh_put(s, nm, b.p);
+			if (!x_pathover)
+				hsh_put(s, nm, b.p);
 			return b.p;
 		}
 		s_free(&b);

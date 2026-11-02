@@ -241,7 +241,9 @@ The rest of the core audit (Gitea #427), in one release, area by area.
 - **One resolver for what a name is** -- alias, keyword, function,
   builtin, file, in bash's order -- shared by `type` and `command -v`,
   which disagreed. `type` takes `-t`, `-p`, `-P`, `-a` and `-f`; `command`
-  takes `--`, `-p` and bundled options (`command -pv`).
+  takes `--`, `-p` and bundled options (`command -pv`); `-p` looks along
+  the default path for that one lookup, leaving PATH and the command hash
+  alone.
 - **`alias`** prints in bash's quoting, which reads back, sorted by name;
   `alias -p` lists; an unknown name fails, as `unalias` of one does;
   `unalias -a` removes them all.
@@ -251,7 +253,7 @@ The rest of the core audit (Gitea #427), in one release, area by area.
 - **`cd ""`** stays where it is, and a `cd -` that fails prints nothing.
 - **Smaller items.** `opt` takes a type only as a whole word, so help text
   beginning "integer" is help. `mkdir -p c1/x` with `c1` a file says
-  `c1/x: Not a directory`, as GNU does. `mv`'s handover to the program
+  `'c1': Not a directory`, as GNU does, where it said `File exists`. `mv`'s handover to the program
   builds its arguments in a vector, not a fixed array; `bi_mask`, unused
   since `bi_argk`, is gone; comments inside function bodies moved into
   their descriptions.

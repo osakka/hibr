@@ -151,6 +151,7 @@ node *hibr_parse(sh *s, const char *src, int *more);
 node *p_line(lex *l);
 int sh_check(sh *s, const char *src);
 extern int ex_loops, ex_srcs, v_refused, ex_abline;
+extern const char *x_pathover;
 extern int ex_retd, ex_lastret;
 void ex_retnone(sh *s, const char *fn, int st);
 void ex_stkinit(void *base);

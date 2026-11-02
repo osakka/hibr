@@ -11,3 +11,4 @@ a=(); json emit a; declare -A h; json emit h
 json parse t '{"a":1} junk' 2>/dev/null; echo "trailing text $?"
 json parse w '{"a":1}  '; echo "trailing blanks $?"
 json parse z '"\u12"' 2>/dev/null; echo "short escape $?"
+json parse D '{"a":[]}'; D[a]=hello; echo "scalar over [] ${#D[a][@]} [${D[a][@]}] [${D[a]}]"

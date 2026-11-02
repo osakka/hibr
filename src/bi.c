@@ -71,7 +71,7 @@ int b_cd(sh *s, int ac, char **av)
 		}
 		puts(t);
 	}
-	{
+	if (!(i < ac && !strcmp(av[i], "-"))) {
 		const char *cp = hibr_get(s, "CDPATH");
 		int done = 0;
 		if (cp && *cp && t[0] != '/' && t[0] != '.') {
@@ -1956,6 +1956,11 @@ void ty_all(sh *s, const char *nm, vec *out)
 	str b;
 	size_t n;
 
+	if (strchr(nm, '/')) {
+		if (!access(nm, X_OK) && !stat(nm, &st) && !S_ISDIR(st.st_mode))
+			v_add(out, xs(nm));
+		return;
+	}
 	if (!p)
 		return;
 	for (;;) {
@@ -2018,6 +2023,8 @@ int b_type(sh *s, int ac, char **av)
 			files.n = 1;
 		if (pp) {
 			if (pp == 1 && k != NK_FILE) {
+				if (k == NK_NONE)
+					rc = HIBR_FAIL;
 				free(p);
 				v_free(&files);
 				continue;
@@ -2037,7 +2044,7 @@ int b_type(sh *s, int ac, char **av)
 		} else if (t) {
 			printf("%s\n", kw[k]);
 			if (all)
-				for (j = 1; j < files.n; j++)
+				for (j = k == NK_FILE ? 1 : 0; j < files.n; j++)
 					printf("file\n");
 		} else {
 			if (k == NK_ALIAS)

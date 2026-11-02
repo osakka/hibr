@@ -1408,17 +1408,12 @@ int b_command(sh *s, int ac, char **av)
 	if (oam)
 		s->amask = oam + (i - 1);
 	if (dp) {
-		char *old = hibr_get(s, "PATH") ? xs(hibr_get(s, "PATH")) : 0;
+		const char *op = x_pathover;
 
-		lg(HIBR_LDBG, "command -p looks along the default path");
-		hibr_set(s, "PATH", HIBR_DEFPATH, 0);
+		lg(HIBR_LDBG, "command -p looks along the default path, leaving PATH alone");
+		x_pathover = HIBR_DEFPATH;
 		st = b_command1(s, v, vb, ac - i + 1, av + i - 1);
-		if (old) {
-			hibr_set(s, "PATH", old, 0);
-			free(old);
-		} else {
-			v_del(s, "PATH");
-		}
+		x_pathover = op;
 	} else {
 		st = b_command1(s, v, vb, ac - i + 1, av + i - 1);
 	}
@@ -1438,9 +1433,10 @@ int b_command1(sh *s, int v, int vb, int ac, char **av)
 			lg(HIBR_LERR, "usage: command -v name");
 			return 2;
 		}
+		rc = HIBR_FAIL;
 		for (k = 1; k < ac; k++)
-			if (cmd_what(s, av[k], vb) != HIBR_OK)
-				rc = HIBR_FAIL;
+			if (cmd_what(s, av[k], vb) == HIBR_OK)
+				rc = HIBR_OK;
 		return rc;
 	}
 	if (ac < 2) {
@@ -1542,7 +1538,7 @@ int cmd_what(sh *s, const char *nm, int vb)
 	}
 	if (!ok) {
 		if (vb)
-			lg(HIBR_LERR, "%s: not found", nm);
+			lg(HIBR_LERR, "command: %s: not found", nm);
 		s_free(&o);
 		return HIBR_FAIL;
 	}

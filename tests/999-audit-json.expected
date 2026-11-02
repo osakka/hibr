@@ -11,3 +11,4 @@ nested 0 0 2
 trailing text 1
 trailing blanks 0
 short escape 1
+scalar over [] 1 [hello] [hello]

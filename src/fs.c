@@ -99,7 +99,7 @@ int fs_mkdir(const char *p, mode_t m, int fl)
 			struct stat st;
 
 			if (!stat(t.p, &st) && !S_ISDIR(st.st_mode)) {
-				fs_err("mkdir", "cannot create directory", p,
+				fs_err("mkdir", "cannot create directory", t.p,
 				       ENOTDIR);
 				r = 1;
 				break;
