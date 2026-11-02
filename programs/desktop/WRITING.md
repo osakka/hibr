@@ -371,6 +371,30 @@ that does keep its own `_copy` and `_cut` for a field takes the selection
 with `t := dt_fieldsel` and `t := dt_fieldcut id`, each failing when
 nothing is selected.
 
+An address field with suggestions under it, as a browser's address bar
+has, is the same field with a list (`widgets/omnibox.hibr`, 0.99.421).
+`dt_omnidraw id row col width text cursor focused [paste]` draws the field,
+with `dt_textdraw`'s arguments; `dt_omnilist id h`, called **last** in
+`_draw` with `_draw`'s own `h`, draws the list under it, so nothing drawn
+afterwards covers it. `dt_omnikey id cb text cursor key` takes the place of
+`dt_textkey`: whenever the text changes it calls `cb id text`, which answers
+the rows to offer through `ret`, one a line as `title<tab>address<tab>kind`
+with kind `history`, `bookmark` or `search` -- synchronously, once a key, so
+it reads what it already holds rather than starting a program. Up and down
+put a row's address in the field, escape puts back what was typed and shuts
+the list, and enter shuts it and comes back unhandled for the app to go;
+the top row's address, when it begins with what was typed, completes the
+field after the cursor, selected, so the next character replaces it.
+`a := dt_omnihit id row col` answers the address of a row a press landed
+on, and shuts the list on a press anywhere else but the field, so an app
+calls it first with every press -- from `_mouse` if it has one, since that
+takes the place of `_click`. `dt_omniselect id` selects the whole field on
+its next draw, for the moment it is given the keys; `dt_omnisig id` is a
+word to put in a `_dirty` key; `dt_omnifree id` belongs in `_close`. The
+list is drawn inside the window rather than as a popup, because a popup is
+a menu and a menu takes every key, where here typing goes on reaching the
+field.
+
 `dt_scrollbar id row0 col h total shown pos` draws a vertical scrollbar:
 a track of `│` over `h` rows starting at `row0`, one cell shown as the
 thumb `█` at a position proportional to how far through `total` the view

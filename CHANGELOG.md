@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.421
+
+**An address field with suggestions, for the Browser** (Gitea #334). A new
+widget, `widgets/omnibox.hibr`: a one-line field, the same one every
+other field is, with a list under it of what an app's own callback offers
+for what is typed -- history, bookmarks, a search -- one row a line as
+title, address and kind. Up and down put a row's address in the field,
+escape puts back what was typed and shuts the list, enter is the app's, a
+press on a row takes it, and the top row's address completes the field
+after the cursor, selected, so the next character typed replaces it and a
+backspace takes it away. The list shuts when its window loses the focus.
+It is drawn inside the window rather than as a popup, which the ticket
+first suggested: a popup is a menu, and a menu takes every key while it is
+open, where typing has to go on reaching the field. The Browser takes it up
+in its own release; `WRITING.md` has the interface.
+
 ## 0.99.420
 
 **A Files window with nothing new in it is left undrawn.** Files had no

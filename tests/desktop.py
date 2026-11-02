@@ -1488,6 +1488,81 @@ rate, sc = idle_wakes({"DT_CURSOR_BLINK": "0"},
 check("and one whose program ends while it is away (%.0f%% of a core)"
       % (sc.cpu * 100), sc.cpu < 0.05, sc)
 
+# An address field with suggestions (dt_omnibox, Gitea #334): what is typed
+# stays the app's, a callback answers the rows for it, up and down put a
+# row's address in the field, escape puts back what was typed, enter is the
+# app's, a press takes a row, and the top row completes the field after the
+# cursor, selected. The fixture is a window whose app routes keys and
+# presses through the widget, the shape the Browser's address bar will have.
+OB = ('declare -gA OB\n'
+      'OBROWS=$\'Example Site\\thttps://www.example.com/\\thistory\\n'
+      'Example Docs\\thttps://docs.example.org/guide\\tbookmark\\n'
+      'Zebra\\thttps://zebra.test/\\thistory\'\n'
+      'fn ob_rows(int id, text) {\n'
+      '    local out= l\n'
+      '    while IFS= read -r l; do\n'
+      '        [[ ${l,,} == *"${text,,}"* ]] && out+="$l"$\'\\n\'\n'
+      '    done <<< "$OBROWS"\n'
+      '    out+="Search the web for $text"$\'\\t\'"$text"$\'\\tsearch\'\n'
+      '    ret "$out"\n'
+      '}\n'
+      'fn ob_draw(int id, int h, int w, int row, int col) {\n'
+      '    dt_wclear "$id"\n'
+      '    console put -p "w$id" 1 1 "went:${OB[$id]["went"]-}"\n'
+      '    dt_omnidraw "$id" 2 2 30 "${OB[$id]["t"]-}" "${OB[$id]["c"]:-0}" 1 url\n'
+      '    dt_omnilist "$id" "$h"\n'
+      '}\n'
+      'fn ob_key(int id, key) {\n'
+      '    local r\n'
+      '    case $key in\n'
+      '    q | y) return 1 ;;\n'
+      '    f2) dt_new "Other" 5 20 16 50; return 0 ;;\n'
+      '    enter)\n'
+      '        dt_omnikey "$id" ob_rows "${OB[$id]["t"]-}" "${OB[$id]["c"]:-0}" enter || true\n'
+      '        OB[$id]["went"]=${OB[$id]["t"]-}\n'
+      '        return 0 ;;\n'
+      '    esac\n'
+      '    r := dt_omnikey "$id" ob_rows "${OB[$id]["t"]-}" "${OB[$id]["c"]:-0}" "$key" || return 1\n'
+      '    OB[$id]["t"]=${r% *}; OB[$id]["c"]=${r##* }\n'
+      '}\n'
+      'fn ob_click(int? id = "", int? r = "", int? c = "", btn = "") {\n'
+      '    local a\n'
+      '    a := dt_omnihit "$id" "$r" "$c" || return 0\n'
+      '    OB[$id]["t"]=$a; OB[$id]["c"]=${#a}; OB[$id]["went"]=$a\n'
+      '}\n'
+      'dt_new "OB" 14 44 2 4 ob')
+DOWN, F2 = b"\x1b[B", b"\x1bOQ"
+sc, _ = run(OB, feed=[b"e", b"x", b"a"])
+check("an address field offers the rows its callback answers, a bookmark "
+      "starred and the search last",
+      "Example Site  https://www." in sc.row(5) and
+      "Example Docs" in sc.row(6) and "\u2731" in sc.row(6) and
+      "Search the web for exa" in sc.row(7) and sc.find("Zebra") is None, sc)
+check("and the top row completes what was typed, the rest selected",
+      sc.row(4)[6:18] == "example.com/" and
+      sc.style(4, 12)["bg"] != sc.style(4, 6)["bg"], sc.row(4))
+sc, _ = run(OB, feed=[b"e", b"x", b"a", b"\x7f"])
+check("a backspace takes the completion away and does not put it back",
+      sc.row(4)[6:10] == "exa " and "Example Site" in sc.row(5), sc.row(4))
+sc, _ = run(OB, feed=[b"e", b"x", b"a", DOWN])
+check("down puts the first row's address in the field and lights the row",
+      "https://www.example.com/" in sc.row(4) and
+      sc.style(5, 8)["bg"] != sc.style(6, 8)["bg"], sc)
+sc, _ = run(OB, feed=[b"e", b"x", b"a", DOWN, DOWN, b"\x1b", 0.3])
+check("escape puts back what was typed and shuts the list",
+      sc.row(4)[6:10] == "exa " and sc.find("Example Site") is None, sc)
+sc, _ = run(OB, feed=[b"e", b"x", b"a", DOWN, b"\r"])
+check("enter is the app's, with the highlighted row's address, and the list "
+      "shuts", "went:https://www.example.com/" in sc.row(3) and
+      sc.find("Example Docs") is None, sc)
+sc, _ = run(OB, feed=[b"e", b"x", b"a", press(6, 12), release(6, 12)])
+check("a press on a row takes that row",
+      "went:https://docs.example.org/guide" in sc.row(3) and
+      sc.find("Example Site") is None, sc)
+sc, _ = run(OB, feed=[b"e", b"x", b"a", F2])
+check("and the list shuts when its window loses the focus",
+      sc.find("Example Site") is None and sc.find("Other") is not None, sc)
+
 # --- right-click context menus ---------------------------------------------
 #
 # ctx has both _click and _context: right-click must reach _context, not
@@ -8687,4 +8762,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(928)
+report(936)

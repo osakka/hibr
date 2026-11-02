@@ -1,7 +1,7 @@
 # `widgets/` — what an app draws with
 
 The desktop's widget library: the controls an app puts in its own window —
-a checkbox, a dropdown, a slider, a text field, a scrollbar, a button, a tree, a search, text that fits a box — and the hit
+a checkbox, a dropdown, a slider, a text field, an address field with suggestions, a scrollbar, a button, a tree, a search, text that fits a box — and the hit
 regions that tell it which one a click landed on. `desktop.hibr` sources every
 file here, in no particular order, before any app is loaded.
 
@@ -12,6 +12,7 @@ file here, in no particular order, before any app is loaded.
 | `dropdown.hibr` | `dt_wdrop`, `dt_droplist`, `dt_dropcontext`: a value with a `▾`, and the popup of choices under it |
 | `slider.hibr` | `dt_slider`: a track with a marker, changed with the arrows or by clicking and dragging on the track (`dt_slidepos`) |
 | `text.hibr` | `dt_textdraw`, `dt_textkey`, `dt_textpaste`, `dt_pastefold`: a one-line text field, one key applied to it, a paste into it, and how a paste's lines fold (a space, or `url` for an address field) |
+| `omnibox.hibr` | `dt_omnidraw`, `dt_omnilist`, `dt_omnikey`, `dt_omnihit`, `dt_omniselect`, `dt_omnisig`, `dt_omnifree`: an address field with a list of suggestions under it, as a browser's has -- the field is `dt_textdraw`'s and its text the app's own; a callback the app names answers the rows for what is typed, up and down move through them, escape puts back what was typed, a press takes a row, and the top row completes the field, selected. It keeps the list under the window id, freed by `dt_omnifree` |
 | `textarea.hibr` | `tb_*`: a multi-line editor -- lines, cursor, selection, undo and redo, soft wrap -- keeping its buffer in `TB` under the window id, the one widget that keeps state, freed by the app's `_close` with `tb_free`. Stickies uses it whole; the markdown editor uses its editing and draws its own way |
 | `textfit.hibr` | `dt_textwrap`, `dt_textfit`, `dt_fitmark`: text in a box with a smallest and a largest size -- wrapped, laid out between the two, and marked with `▾` on the box's edge when it was cut or `▴` when it was opened past its usual size, so what did not fit is never silently gone. The box itself, its border and where it goes are the caller's; a notification is the first user |
 | `scrollbar.hibr` | `dt_scrollbar` and `dt_hscrollbar` draw a track and thumb, and given a key can be held and dragged (`<app>_scroll id key top`); `dt_scrollfit`, `dt_scrollsel`, `dt_scrollmove` and `dt_scrollview` are the behaviour behind them, and `DT_SCROLLWHEEL` is how far one wheel notch moves anything |

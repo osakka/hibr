@@ -1,0 +1,301 @@
+# widgets/omnibox -- an address field with a list of suggestions under it,
+# as a browser's address bar has (Gitea #334).
+#
+# Part of the widget library apps draw with -- see widgets/README.md.
+#
+# The field is dt_textdraw's and the text in it stays the app's own, as with
+# every other field. What this adds is the list: the app names a callback
+# that is asked, whenever what is typed changes, for the rows to offer, one
+# a line as "title<tab>address<tab>kind" -- kind is history, bookmark or
+# search -- answered through ret. Up and down move through the rows and put
+# each one's address in the field, escape puts back what was typed and
+# shuts the list, enter shuts it and is left to the app, and a press on a
+# row takes it. The top row's address, when it begins with what was typed,
+# is completed in the field after the cursor, selected, so the next
+# character typed replaces it.
+#
+# The list is drawn inside the window, under the field, rather than as a
+# popup through dt_droplist, which the ticket first suggested: that opens a
+# context menu, and a menu takes every key while it is open, where here
+# typing has to go on reaching the field with the list showing.
+#
+# Like the textarea, this is a widget that keeps state: the rows on offer,
+# which is highlighted and what was typed, under the window id in DT_OMNI.
+# An app's _close calls dt_omnifree.
+
+strict
+
+declare -gA DT_OMNI
+# The most rows the list shows.
+DT_OMNIROWS=8
+
+# Shut window id's list, keeping where its field is.
+fn dt_omnishut(int id) {
+	DT_OMNI["$id"]["open"]=0
+	DT_OMNI["$id"]["sel"]=-1
+	DT_OMNI["$id"]["n"]=0
+	DT_OMNI["$id"]["shown"]=0
+}
+
+# Forget window id's list: for the app's _close.
+fn dt_omnifree(int id) {
+	unset DT_OMNI["$id"]
+	return 0
+}
+
+# Select the whole of window id's field the next time it is drawn, so what
+# is typed first replaces it -- for the moment the field is given the keys.
+fn dt_omniselect(int id) {
+	DT_OMNI["$id"]["selall"]=1
+}
+
+# Whether window id's list is showing.
+fn dt_omnion(int id) {
+	[ "${DT_OMNI["$id"]["open"]-}" = 1 ] && [ "${DT_OMNI["$id"]["n"]:-0}" -gt 0 ]
+}
+
+# What window id's list looks like now, as one word, for an app's _dirty to
+# compare: whether it is open, what is highlighted and what is on offer.
+fn dt_omnisig(int id) {
+	local s="${DT_OMNI["$id"]["open"]-}:${DT_OMNI["$id"]["sel"]-}:${DT_OMNI["$id"]["n"]-}"
+
+	s+=":${DT_OMNI["$id"]["typed"]-}:${DT_OMNI["$id"]["r0"]-}"
+	ret "$s"
+}
+
+# Ask cb for the rows to offer for text, and keep them for window id. The
+# list opens when there are any; empty text offers none.
+fn dt_omniask(int id, cb, text) {
+	local out line i=0 t0 t
+	local -a rows
+
+	dt_omnishut "$id"
+	DT_OMNI["$id"]["typed"]=$text
+	[ -n "$text" ] && [ -n "$cb" ] && dt_has "$cb" || return 0
+	t0=${EPOCHREALTIME/./}
+	out := "$cb" "$id" "$text" || out=
+	t=$((${EPOCHREALTIME/./} - t0))
+	[ -z "${DT_STATON-}" ] && [ "$t" -lt 1000 ] ||
+		dt_spent "input:${DT[$id]["app"]:-bare}" "$t" "${DT[$id]["app"]}"
+	[ -n "$out" ] || return 0
+	mapfile -t rows <<< "$out"
+	for line in "${rows[@]}"; do
+		[ -n "$line" ] || continue
+		[ "$i" -lt "$DT_OMNIROWS" ] || break
+		DT_OMNI["$id"]["r$i"]=$line
+		i=$((i + 1))
+	done
+	DT_OMNI["$id"]["n"]=$i
+	[ "$i" -gt 0 ] && DT_OMNI["$id"]["open"]=1
+	return 0
+}
+
+# Row i of window id's list: its address, or with part title or kind that.
+fn dt_omnirow(int id, int i, part = "address") {
+	local line=${DT_OMNI["$id"]["r$i"]-} rest
+
+	rest=${line#*$'\t'}
+	[[ $line == *$'\t'* ]] || rest=
+	case $part in
+	title) ret "${line%%$'\t'*}" ;;
+	kind) [[ $rest == *$'\t'* ]] && ret "${rest#*$'\t'}" || ret "" ;;
+	*) ret "${rest%%$'\t'*}" ;;
+	esac
+}
+
+# Whether text and cur are the focused field's own pair, as last drawn.
+fn dt_omniown(text, int cur) {
+	[ -n "${DT_FIELD["at"]}" ] && [ "${DT_FIELD["text"]}" = "$text" ] &&
+		[ "${DT_FIELD["cur"]}" = "$cur" ]
+}
+
+# The top row's address completing typed, as the whole completed text; status
+# 1 when it does not begin with what was typed, or is a search. Compared
+# without case, and also without the scheme and a leading www., the parts
+# nobody types.
+fn dt_omnifill(int id, typed) {
+	local a k p p2 lt=${typed,,}
+
+	[ "${DT_OMNI["$id"]["n"]:-0}" -gt 0 ] || return 1
+	k := dt_omnirow "$id" 0 kind
+	[ "$k" != search ] || return 1
+	a := dt_omnirow "$id" 0
+	for p in "$a" "${a#*://}" "${a#*://www.}"; do
+		[ "${#p}" -gt "${#typed}" ] || continue
+		p2=${p,,}
+		if [ "${p2:0:${#typed}}" = "$lt" ]; then
+			ret "$typed${p:${#typed}}"
+		fi
+	done
+	return 1
+}
+
+# Apply one key to window id's field, whose text and cursor the app keeps,
+# asking cb for rows whenever the text changes. Gives "text cursor" the way
+# dt_textkey does, with status 1 for a key it leaves to the app: enter
+# (the list is shut first), tab, escape with no list showing, and up or
+# down with none.
+fn dt_omnikey(int id, cb, text, int cur, key) {
+	local n=${DT_OMNI["$id"]["n"]:-0} sel=${DT_OMNI["$id"]["sel"]:--1}
+	local typed=${DT_OMNI["$id"]["typed"]-} own=0 r nt nc full
+
+	dt_omniown "$text" "$cur" && own=1
+	case $key in
+	up | down)
+		if ! dt_omnion "$id"; then
+			[ "$key" = down ] && [ -n "$text" ] || return 1
+			dt_omniask "$id" "$cb" "$text"
+			dt_omnion "$id" || return 1
+			ret "$text $cur"
+		fi
+		if [ "$key" = down ]; then
+			sel=$((sel + 1))
+			[ "$sel" -ge "$n" ] && sel=-1
+		else
+			sel=$((sel - 1))
+			[ "$sel" -lt -1 ] && sel=$((n - 1))
+		fi
+		DT_OMNI["$id"]["sel"]=$sel
+		if [ "$sel" = -1 ]; then
+			text=$typed
+		else
+			text := dt_omnirow "$id" "$sel"
+		fi
+		dt_textown "$own" "$text" "${#text}" ""
+		ret "$text ${#text}"
+		;;
+	escape)
+		dt_omnion "$id" || return 1
+		[ "$sel" != -1 ] && text=$typed
+		dt_omnishut "$id"
+		DT_OMNI["$id"]["typed"]=$text
+		dt_textown "$own" "$text" "${#text}" ""
+		ret "$text ${#text}"
+		;;
+	enter)
+		dt_omnishut "$id"
+		return 1
+		;;
+	tab) return 1 ;;
+	esac
+	r := dt_textkey "$text" "$cur" "$key" || return 1
+	nt=${r% *}
+	nc=${r##* }
+	if [ "$nt" != "$text" ]; then
+		dt_omniask "$id" "$cb" "$nt"
+		# Completed only when a character was typed at the end: never after
+		# a backspace or a delete, which would put back what was just taken.
+		if [ "${#key}" = 1 ] && [ "$nc" = "${#nt}" ] && dt_omniown "$nt" "$nc" &&
+		   full := dt_omnifill "$id" "$nt"; then
+			dt_textown 1 "$full" "$nc" "${#full}"
+			ret "$full $nc"
+		fi
+	fi
+	ret "$nt $nc"
+}
+
+# Draw window id's field at row r, column c, w wide: dt_textdraw's, and the
+# same arguments. The list is drawn by dt_omnilist, called last in the
+# app's _draw so nothing the app draws after it covers it. The list shuts
+# when the field is drawn without the focus, or its window has lost it.
+fn dt_omnidraw(int id, int r, int c, int w, text, int cur, int focused, paste = "") {
+	DT_OMNI["$id"]["at"]="$r $c $w"
+	if [ "$focused" != 1 ] || [ "${DT_FOCUS-}" != "$id" ]; then
+		dt_omnion "$id" && dt_omnishut "$id"
+	fi
+	if [ "$focused" = 1 ] && [ "${DT_OMNI["$id"]["selall"]-}" = 1 ]; then
+		DT_OMNI["$id"]["selall"]=
+		DT_FIELD["at"]="$id $r $c"
+		if [ "$cur" = 0 ]; then
+			DT_FIELD["anc"]=${#text}
+		else
+			DT_FIELD["anc"]=0
+		fi
+	fi
+	dt_textdraw "$id" "$r" "$c" "$w" "$text" "$cur" "$focused" "$paste"
+}
+
+# Draw window id's list, if it is showing, under its field and no lower than
+# row h, the last row the app draws on (its _draw's own h). Each row is its
+# title and, dimmed after it, its address, a bookmark marked with a star.
+fn dt_omnilist(int id, int h) {
+	local fr fc fw n k i row t a kind mk lw aw sel
+	local face=$DT_FACE ink=$DT_INK
+
+	DT_OMNI["$id"]["shown"]=0
+	dt_omnion "$id" && [ "${DT_FOCUS-}" = "$id" ] || return 0
+	read -r fr fc fw <<< "${DT_OMNI["$id"]["at"]-}"
+	[ -n "$fw" ] || return 0
+	n=${DT_OMNI["$id"]["n"]}
+	sel=${DT_OMNI["$id"]["sel"]:--1}
+	k=$((h - fr))
+	[ "$k" -gt "$n" ] && k=$n
+	[ "$k" -gt 0 ] || return 0
+	DT_OMNI["$id"]["shown"]=$k
+	i=0
+	while [ "$i" -lt "$k" ]; do
+		row=$((fr + 1 + i))
+		t := dt_omnirow "$id" "$i" title
+		a := dt_omnirow "$id" "$i"
+		kind := dt_omnirow "$id" "$i" kind
+		[ -n "$t" ] || { t=$a; a=; }
+		[ "$a" = "$t" ] && a=
+		mk=" "
+		[ "$kind" = bookmark ] && mk=${GL[star]}
+		if [ "$i" = "$sel" ]; then
+			face=$DT_ACTIVE
+			ink=$DT_SELINK
+		elif dt_hot "$id" "omni$i"; then
+			face=$DT_WELL
+			ink=$DT_INK
+		else
+			face=$DT_FACE
+			ink=$DT_INK
+		fi
+		t := dt_cut " $mk $t" "$fw"
+		lw := str width "$t"
+		console pen "$ink" "$face"
+		console put -p "w$id" "$row" "$fc" "$t"
+		aw=$((fw - lw))
+		if [ -n "$a" ] && [ "$aw" -gt 4 ]; then
+			a := dt_cut "  $a" "$aw"
+			[ "$i" = "$sel" ] || console pen "$DT_DIM" "$face"
+			console put -p "w$id" "$row" $((fc + lw)) "$a"
+			lw := str width "$t$a"
+		fi
+		if [ "$lw" -lt "$fw" ]; then
+			console pen "$ink" "$face"
+			t := str pad "" $((fw - lw))
+			console put -p "w$id" "$row" $((fc + lw)) "$t"
+		fi
+		dt_wreg "$id" "$row" "$fc" "$fw" "omni$i"
+		i=$((i + 1))
+	done
+	# A rule under the last row, when there is room for one, so the list
+	# ends visibly over whatever the window shows beneath it.
+	if [ $((fr + 1 + k)) -le "$h" ]; then
+		t := str repeat "${GL[hline]}" "$fw"
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" $((fr + 1 + k)) "$fc" "$t"
+	fi
+}
+
+# A press at row r, column c of window id: on a row of its list, that row's
+# address, and the list shut. A press anywhere else but the field shuts the
+# list too, with status 1, so an app calls this first with every press.
+fn dt_omnihit(int id, int r, int c) {
+	local fr fc fw i a
+
+	dt_omnion "$id" || return 1
+	read -r fr fc fw <<< "${DT_OMNI["$id"]["at"]-}"
+	i=$((r - fr - 1))
+	if [ "$i" -ge 0 ] && [ "$i" -lt "${DT_OMNI["$id"]["shown"]:-0}" ] &&
+	   [ "$c" -ge "$fc" ] && [ "$c" -lt $((fc + fw)) ]; then
+		a := dt_omnirow "$id" "$i"
+		dt_omnishut "$id"
+		DT_OMNI["$id"]["typed"]=$a
+		ret "$a"
+	fi
+	[ "$r" = "$fr" ] || dt_omnishut "$id"
+	return 1
+}
