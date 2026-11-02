@@ -18,19 +18,67 @@ struct mod {
 	char *path;
 };
 
-/* Look up a builtin provided by a loaded module. */
-const hibr_bi *m_find(sh *s, const char *nm)
+static const hibr_bi **mx_tab;
+static size_t mx_cap, mx_n;
+static int mx_ok;
+static sh *mx_sh;
+
+/* Forget the index of the modules' builtins; every change to the module list calls this before anything else runs. */
+void mx_stale(void)
 {
-	size_t i;
+	mx_ok = 0;
+}
+
+/* Index the loaded modules' builtins by name, newest module first and a module's first entry first, so a name resolves as the scan it replaces did (Gitea #451). */
+void mx_build(sh *s)
+{
+	size_t i, cnt = 0, h;
 	mod *m;
 	const hibr_bi *b;
 
+	for (i = 0; i < s->mods.n; i++)
+		for (b = ((mod *)s->mods.p[i])->m->bi; b && b->nm; b++)
+			cnt++;
+	for (h = 16; h < cnt * 2; h <<= 1)
+		;
+	if (h != mx_cap) {
+		free(mx_tab);
+		mx_tab = xm(h * sizeof *mx_tab);
+		mx_cap = h;
+	}
+	memset(mx_tab, 0, mx_cap * sizeof *mx_tab);
 	for (i = s->mods.n; i-- > 0;) {
 		m = (mod *)s->mods.p[i];
-		for (b = m->m->bi; b && b->nm; b++)
-			if (!strcmp(b->nm, nm))
-				return b;
+		for (b = m->m->bi; b && b->nm; b++) {
+			for (h = vh(b->nm) & (mx_cap - 1); mx_tab[h];
+			     h = (h + 1) & (mx_cap - 1))
+				if (!strcmp(mx_tab[h]->nm, b->nm))
+					break;
+			if (!mx_tab[h])
+				mx_tab[h] = b;
+		}
 	}
+	mx_ok = 1;
+	mx_sh = s;
+	mx_n = s->mods.n;
+	lg(HIBR_LDBG, "indexed %zu module builtins from %zu modules", cnt,
+	   s->mods.n);
+}
+
+/* Look up a builtin provided by a loaded module. */
+const hibr_bi *m_find(sh *s, const char *nm)
+{
+	size_t h;
+	const hibr_bi *b;
+
+	if (!s->mods.n)
+		return 0;
+	if (!mx_ok || mx_sh != s || mx_n != s->mods.n)
+		mx_build(s);
+	for (h = vh(nm) & (mx_cap - 1); (b = mx_tab[h]);
+	     h = (h + 1) & (mx_cap - 1))
+		if (!strcmp(b->nm, nm))
+			return b;
 	return 0;
 }
 
@@ -300,6 +348,7 @@ int m_load(sh *s, const char *path)
 	m->m = d;
 	m->path = p.p;
 	v_add(&s->mods, m);
+	mx_stale();
 	if (d->ini && d->ini(s) != HIBR_OK) {
 		lg(HIBR_LERR, "mod: %s: init failed", d->nm);
 		/* This record goes by identity, never by position: an init
@@ -310,7 +359,11 @@ int m_load(sh *s, const char *path)
 		   dereference. */
 		for (i = 0; i < s->mods.n; i++)
 			if (s->mods.p[i] == m) {
-				s->mods.p[i] = s->mods.p[--s->mods.n];
+				memmove(s->mods.p + i, s->mods.p + i + 1,
+					(s->mods.n - i - 1) *
+						sizeof *s->mods.p);
+				s->mods.n--;
+				mx_stale();
 				break;
 			}
 		dlclose(h);
@@ -335,6 +388,7 @@ int m_drop(sh *s, const char *nm)
 		memmove(s->mods.p + i, s->mods.p + i + 1,
 			(s->mods.n - i - 1) * sizeof *s->mods.p);
 		s->mods.n--;
+		mx_stale();
 		lg(HIBR_LDBG, "%s is out of the list, in order, before its finaliser runs", nm);
 		if (m->m->fin)
 			m->m->fin(s);
@@ -362,6 +416,7 @@ int m_dropall(sh *s)
 		   be taken before dlclose unmaps it. */
 		nm = xs(m->m->nm);
 		s->mods.n--;
+		mx_stale();
 		if (m->m->fin)
 			m->m->fin(s);
 		dlclose(m->h);
@@ -1240,6 +1295,7 @@ void m_fini(sh *s)
 
 	while (s->mods.n) {
 		m = (mod *)s->mods.p[--s->mods.n];
+		mx_stale();
 		if (m->m->fin)
 			m->m->fin(s);
 		dlclose(m->h);
@@ -1247,6 +1303,9 @@ void m_fini(sh *s)
 		free(m);
 	}
 	v_free(&s->mods);
+	free(mx_tab);
+	mx_tab = 0;
+	mx_cap = 0;
 	m_apifree(s);
 }
 

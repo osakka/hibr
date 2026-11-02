@@ -320,6 +320,12 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   `>=`, `==` or `!=` is no longer parsed twice, and a name in arithmetic
   borrows a pooled string rather than allocating one. `$(( ))` is 0, as in
   bash, where it was an error.
+- **Module builtins** are found through an index of the loaded modules'
+  names, rebuilt when a module is loaded or dropped, where every command
+  compared its name with every module's every builtin first: with 39
+  modules loaded a `[ ]` loop of 20,000 is 288M instructions against 450M.
+  A module whose init fails leaves the others in the order they were
+  loaded, which decides which of two modules' same-named builtins wins.
 
 ## 0.99.427
 

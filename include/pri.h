@@ -556,6 +556,8 @@ void v_copy(sh *s, const char *dst, const char *src);
 void v_copyp(sh *s, const char *dst, char **ks, int nk, const char *src);
 
 const hibr_bi *bi_find(const char *nm);
+void mx_stale(void);
+void mx_build(sh *s);
 const hibr_bi *m_find(sh *s, const char *nm);
 int m_load(sh *s, const char *path);
 int m_drop(sh *s, const char *nm);
