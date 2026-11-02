@@ -795,10 +795,14 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 				break;
 			if (c || !delim) {
 				s_ch(b, c);
-				if (bi_u8step((unsigned char)c, want, &chars,
-					      &need))
+				if (want && bi_u8step((unsigned char)c, want,
+						      &chars, &need))
 					break;
 			}
+		}
+		if (!n && want && chars >= want) {
+			lg(HIBR_LDBG, "read: input ended inside the last character; it counts");
+			n = 1;
 		}
 		return n;
 	}
@@ -811,6 +815,11 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 			break;
 		}
 		n = read(fd, buf, HIBR_IOCH);
+		if (!n && want && chars >= want) {
+			lg(HIBR_LDBG, "read: input ended inside the last character; it counts");
+			n = 1;
+			break;
+		}
 		if (n <= 0)
 			break;
 		cut = -1;
@@ -886,8 +895,8 @@ long bi_rddgram(int fd, int delim, int want, int exact, str *b, long long dl,
 				break;
 			if (buf[i] || !delim) {
 				s_ch(b, buf[i]);
-				if (bi_u8step((unsigned char)buf[i], want,
-					      &chars, &need)) {
+				if (want && bi_u8step((unsigned char)buf[i],
+						      want, &chars, &need)) {
 					full = 1;
 					break;
 				}
@@ -1163,10 +1172,17 @@ int b_read(sh *s, int ac, char **av)
 		pq.fd = fd;
 		pq.events = POLLIN;
 		pq.revents = 0;
-		do
+		for (;;) {
+			long long left = tmo == 0 ? 0 : dl ? dl - bi_ms() : -1;
+
+			if (dl && left < 0)
+				left = 0;
 			rdy = poll(&pq, 1, tmo > (double)INT_MAX / 1000 ? -1 :
-				   (int)(tmo * 1000 + 0.5));
-		while (rdy < 0 && errno == EINTR && !tr_pending());
+				   (int)(left > INT_MAX ? INT_MAX : left));
+			if (rdy >= 0 || errno != EINTR || tr_waitsig(s))
+				break;
+			lg(HIBR_LTRC, "read -t: a signal with no trap of its own; waiting out the rest");
+		}
 		if (tmo == 0) {
 			lg(HIBR_LDBG, "read -t 0: input %s", rdy > 0 ? "waiting" : "none");
 			return rdy > 0 ? 0 : 1;
@@ -1385,6 +1401,11 @@ int t_one(const char *op, const char *a)
 		return v && (v->at & A_REF) != 0;
 	}
 	case 'v':
+		if (lg_sh && isdigit((unsigned char)*a)) {
+			long pn;
+
+			return t_int(a, &pn) && pn >= 0 && pn <= lg_sh->ac;
+		}
 		return lg_sh && t_isset(lg_sh, a, 0);
 	}
 	return -1;
@@ -1397,13 +1418,14 @@ int t_isun(const char *w)
 	       strchr("znefdrwxsLhabcpSgukOGNtoRv", w[1]) != 0;
 }
 
-/* Read a test operand as an integer, as bash's test does: blanks around
-   it, a sign, decimal digits, nothing else and nothing too large. */
+/* Read a test operand as an integer, as bash's test does: any white space
+   before it, blanks after, a sign, decimal digits, nothing else and nothing
+   too large. */
 int t_int(const char *a, long *v)
 {
 	char *end;
 
-	while (*a == ' ' || *a == '\t' || *a == '\n')
+	while (isspace((unsigned char)*a))
 		a++;
 	if (!*a || ((*a == '-' || *a == '+') && !isdigit((unsigned char)a[1])) ||
 	    (*a != '-' && *a != '+' && !isdigit((unsigned char)*a)))
@@ -1412,7 +1434,7 @@ int t_int(const char *a, long *v)
 	*v = strtol(a, &end, 10);
 	if (errno == ERANGE)
 		return 0;
-	while (*end == ' ' || *end == '\t' || *end == '\n')
+	while (*end == ' ' || *end == '\t')
 		end++;
 	return *end == 0;
 }
@@ -2648,15 +2670,10 @@ int b_mapfile(sh *s, int ac, char **av)
 		got = read(fd, buf, seek || !want ? (size_t)HIBR_IOCH : 1);
 		if (got < 0 && errno == EINTR)
 			continue;
-		if (got < 0) {
-			lg(HIBR_LERR, "mapfile: read error: %d: %s", fd,
-			   strerror(errno));
-			free(buf);
-			s_free(&b);
-			vb_put(s, el);
-			return HIBR_FAIL;
-		}
-		if (got == 0)
+		if (got < 0)
+			lg(HIBR_LDBG, "mapfile: read error on %d: %s, taken as the end, as bash takes it",
+			   fd, strerror(errno));
+		if (got <= 0)
 			break;
 		for (k = 0; k < got; k++) {
 			c = buf[k];

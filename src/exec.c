@@ -2411,6 +2411,10 @@ long cx_num(struct cx *c, const char *a, int *no)
 	const char *p = a;
 	long v;
 
+	if (c->s->xerr) {
+		*no = 1;
+		return 0;
+	}
 	while (*p == ' ' || *p == '\t' || *p == '\n')
 		p++;
 	if (!*p)

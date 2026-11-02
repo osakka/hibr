@@ -55,3 +55,14 @@ set -a; envvar=exported; set +a; sh -c 'echo "child sees [$envvar]"'
 notexp=no; sh -c 'echo "child sees [$notexp]"'
 set -B; echo "-B $?"; set -h; echo "-h $?"
 cd /; rm -rf "$d"
+echo "-- from the review"
+"$self" -c '[[ $((1/0)) -eq 0 ]]; echo "not reached"' 2>/dev/null; echo "an earlier error ends it $?"
+printf 'a\346\227' | { read -n 2 a; echo "cut at the end $?"; }
+[ $'\v5' -eq 5 ]; echo "vertical tab before $?"
+[ $'\t5\n' -eq 5 ] 2>/dev/null; echo "newline after $?"
+set -- a; [ -v 1 ]; echo "-v 1 $?"; [ -v 2 ]; echo "-v 2 $?"
+set +h; echo "set +h $?"
+x=(old); mapfile -t x < /; echo "mapfile of a folder $? ${#x[@]}"
+set -a; f() { local lv=1; sh -c 'echo "local [$lv]"'; }; f; read rv <<< r; for fv in q; do :; done; printf -v pv %s p; set +a
+sh -c 'echo "read [$rv] for [$fv] printf [$pv]"'
+trap "" USR1; (sleep 0.3; kill -USR1 $$) & s=${EPOCHREALTIME/./}; read -t 1 x < <(sleep 3); e=${EPOCHREALTIME/./}; echo "read -t waits it out $? $(( e - s > 900000 ))"

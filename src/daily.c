@@ -881,6 +881,10 @@ int sh_optset(sh *s, const char *nm, int on)
 	int fix = sh_optfix(nm);
 	unsigned b;
 
+	if (fix && !on && !strcmp(nm, "hashall")) {
+		lg(HIBR_LDBG, "hashall off: commands are still remembered, and a remembered one is checked before it is used");
+		return HIBR_OK;
+	}
 	if (fix) {
 		if ((fix == O_FIXON) == (on != 0)) {
 			lg(HIBR_LDBG, "%s is always %s here", nm,

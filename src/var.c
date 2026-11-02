@@ -220,6 +220,9 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 
 	if ((k[0] == 'R' || k[0] == 'S' || k[0] == 'E') && v_dyn(s, k, v))
 		return HIBR_OK;
+	if ((s->sopt & O_ALLEXP) && !ex && (isalpha((unsigned char)*k) || *k == '_') &&
+	    !v_shellvar(k))
+		ex = 1;
 	if (!s->tab || s->tn * 4 >= s->tsz * 3)
 		v_grow(s);
 	e = v_find(s, k);

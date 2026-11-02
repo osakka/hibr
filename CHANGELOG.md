@@ -147,12 +147,14 @@ The rest of the core audit (Gitea #427), in one release, area by area.
 
 **Builtins: test, numbers, read, set** (#453-#456).
 - **`test` reads integers as bash does.**
-  - Blanks around a number and a sign are allowed.
+  - White space before a number, blanks after it, and a sign are
+    allowed.
   - Anything else -- empty, `1x`, `0x10`, too large -- is "integer
     expression expected" and status 2. It was taken as 0, so `[ "" -lt 5 ]`
     was true; and the `[ "$n" -eq "$n" ]` idiom for "is a number" said yes
     to everything.
-  - `==` and `-v` work, `-v` with a subscript too.
+  - `==` and `-v` work, `-v` with a subscript or a positional parameter
+    too.
   - In `[[ ]]`, the operands of `-eq` and its kin are arithmetic, as in
     bash: `[[ 1+1 -eq 2 ]]`, `[[ x -eq 0 ]]` and an empty side (0).
   - Every test in the desktop suites was run under a census of empty and
@@ -172,19 +174,21 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   - `-n` and `-N` count characters, not bytes, on a file, a pipe and a
     socket alike.
   - `-t` waits with `poll`; `select` wrote past its set for a descriptor
-    above 1023.
+    above 1023. A signal with no trap of its own -- a child exiting --
+    no longer ends the wait early.
   - `-u` refuses a word that is not a descriptor, and one that is not open.
   - `-s` no longer prints a newline of its own.
 - **`mapfile`** reads a pipe a block at a time unless `-n` may stop it part
-  way, reports a read error rather than taking it for the end, and refuses
-  counts and descriptors that are not numbers.
+  way, and refuses counts and descriptors that are not numbers.
 - **`set`.**
   - `set -` ends the options and turns xtrace off, as bash's does.
   - An `o` inside a bundle takes the next word: `set -eo nounset` works,
     and `set -euo pipefail` gets ADR 0017's own refusal of pipefail.
   - `set -a` (allexport) exports every variable assigned while it is on,
+    by any means -- an assignment, `local`, `read`, `for`, `printf -v` --
     the `set -a; . ./.env; set +a` idiom. `-B` and `-h` are accepted, being
-    always on.
+    always on, and `set +h` too, since commands are still checked before a
+    remembered one is used.
 
 **Builtins: declarations, namerefs, attributes** (#457, #460, #461).
 - **`declare`.**
