@@ -516,6 +516,7 @@ const char *net_schnm(sh *s, const char *p);
 int net_open(sh *s, const char *p);
 int net_dial(const char *host, const char *port, int udp);
 int net_isdgram(int fd);
+int net_fdarg(const char *t, int *fd);
 void net_q(str *o, const char *a);
 void sc_fini(sh *s);
 int b_connect(sh *s, int ac, char **av);

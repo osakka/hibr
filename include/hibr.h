@@ -385,6 +385,8 @@ void hibr_retn(sh *s, char **vals, size_t n);
 void hibr_fail(sh *s, const char *msg);
 int hibr_dial(const char *host, const char *port, int udp);
 long hibr_conntimeo(long dflt);
+struct sockaddr;
+int hibr_uconn(int fd, const struct sockaddr *sa, unsigned n, long ms);
 
 typedef int (*hibr_open_fn)(sh *s, const char *rest);
 int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn);

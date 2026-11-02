@@ -344,16 +344,6 @@ long hd_timeo(long dflt)
 	return hibr_conntimeo(dflt);
 }
 
-/* Milliseconds on the monotonic clock, for a deadline no signal and no
-   clock change can move. */
-static long hd_now(void)
-{
-	struct timespec t;
-
-	clock_gettime(CLOCK_MONOTONIC, &t);
-	return (long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
-}
-
 /* Connect to a session's socket; -1 when nothing answers there, with errno
    saying which kind of nothing -- ENOENT or ECONNREFUSED for a socket that
    is gone or unlistened, and ETIMEDOUT for one that is listening and not
@@ -370,12 +360,13 @@ static long hd_now(void)
    deadline, since only a connect can learn that the queue has room. Each
    try that fails this way enqueues nothing, which is also why this is
    kinder to a wedged server than the blocking call was: that one left
-   another connection on the queue every time anything retried. */
+   another connection on the queue every time anything retried. The loop
+   is the shell's hibr_uconn, which /dev/unix uses too. */
 int hd_dial(const char *path)
 {
 	struct sockaddr_un a;
-	long ms = hd_timeo(HD_DIALMS), end;
-	int fd, fl, e;
+	long ms = hd_timeo(HD_DIALMS);
+	int fd, e;
 
 	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0)
@@ -393,35 +384,14 @@ int hd_dial(const char *path)
 		}
 		return fd;
 	}
-	fl = fcntl(fd, F_GETFL, 0);
-	fcntl(fd, F_SETFL, fl | O_NONBLOCK);
-	end = hd_now() + ms;
-	for (;;) {
-		if (connect(fd, (struct sockaddr *)&a, sizeof a) == 0) {
-			fcntl(fd, F_SETFL, fl);
-			return fd;
-		}
-		e = errno;
-		if (e == EINTR)
-			continue;
-		if (e == EISCONN) {
-			fcntl(fd, F_SETFL, fl);
-			return fd;
-		}
-		if (e != EAGAIN && e != EINPROGRESS && e != EALREADY) {
-			close(fd);
-			errno = e;
-			return -1;
-		}
-		if (hd_now() >= end) {
-			lg(HIBR_LDBG, "hold: %s: no answer in %ld ms", path,
-			   ms);
-			close(fd);
-			errno = ETIMEDOUT;
-			return -1;
-		}
-		usleep(20000);
-	}
+	if (hibr_uconn(fd, (struct sockaddr *)&a, sizeof a, ms) == 0)
+		return fd;
+	e = errno;
+	if (e == ETIMEDOUT)
+		lg(HIBR_LDBG, "hold: %s: no answer in %ld ms", path, ms);
+	close(fd);
+	errno = e;
+	return -1;
 }
 
 /* Send one request on a socket already connected and, if a reply is

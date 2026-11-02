@@ -297,6 +297,20 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   a relay started after connection A no longer keeps A open when the
   script closes it. `hibr_closerest(a, b)` is that last step for a
   module's own helper, and the fetch module uses it.
+- **`/dev/unix` under `HIBR_CONNTIMEO`** waits for a full queue to drain,
+  up to the bound; a Unix socket answers a full queue at once, so the
+  connect failed in a millisecond and `desktop ctl` called a busy desktop
+  stopped. `hibr_uconn` is the one loop, and hold's dial uses it.
+- **`coproc`** takes its first word as a name only when the word after it
+  is a command (`coproc ls -l` ran `-l`); a coprocess is a background job,
+  so it is reaped, `wait` reads its status and `jobs` lists it; its EXIT
+  trap runs; a failed pipe or fork closes what it opened.
+- **`listen`** reports a failed accept and fails, rather than returning
+  0; a failed fork under `-f` drops that connection and goes on, where it
+  fell through to the child's code; a handler's EXIT trap runs.
+- **`recv -n`** takes a count: `-1` and `abc` are refused with status 2
+  (they meant success with nothing, and a line), and `0` reads nothing.
+  `accept` reads its descriptor and `-t` the way `send` and `recv` do.
 
 ## 0.99.427
 

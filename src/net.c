@@ -203,6 +203,47 @@ int net_timeo(void)
 	return (int)hibr_conntimeo(0);
 }
 
+/* Connect an AF_UNIX socket within ms milliseconds, retrying the connect itself: a full backlog answers EAGAIN at once, and a poll then reads as connected to nothing (Gitea #466; hold's hd_dial is the same call). */
+int hibr_uconn(int fd, const struct sockaddr *sa, unsigned n, long ms)
+{
+	struct timespec t0, now;
+	int fl, e;
+	long el;
+
+	fl = fcntl(fd, F_GETFL, 0);
+	if (fl < 0 || fcntl(fd, F_SETFL, fl | O_NONBLOCK) < 0)
+		return connect(fd, sa, n);
+	clock_gettime(CLOCK_MONOTONIC, &t0);
+	for (;;) {
+		if (connect(fd, sa, n) == 0) {
+			fcntl(fd, F_SETFL, fl);
+			return 0;
+		}
+		e = errno;
+		if (e == EINTR)
+			continue;
+		if (e == EISCONN) {
+			fcntl(fd, F_SETFL, fl);
+			return 0;
+		}
+		if (e != EAGAIN && e != EINPROGRESS && e != EALREADY) {
+			fcntl(fd, F_SETFL, fl);
+			errno = e;
+			return -1;
+		}
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		el = (now.tv_sec - t0.tv_sec) * 1000 +
+		     (now.tv_nsec - t0.tv_nsec) / 1000000;
+		if (el >= ms) {
+			fcntl(fd, F_SETFL, fl);
+			lg(HIBR_LDBG, "connect gave up after %ld ms", ms);
+			errno = ETIMEDOUT;
+			return -1;
+		}
+		poll(0, 0, ms - el < 20 ? (int)(ms - el) : 20);
+	}
+}
+
 /* Connect, giving up after HIBR_CONNTIMEO when it is set.
    Reaches every connect this shell makes through net_dial and net_unix:
    /dev/tcp, /dev/udp, /dev/unix, /dev/tls, the `connect` builtin and the
@@ -226,6 +267,8 @@ int net_conn(int fd, const struct sockaddr *sa, socklen_t n)
 
 	if (ms <= 0)
 		return connect(fd, sa, n);
+	if (sa->sa_family == AF_UNIX)
+		return hibr_uconn(fd, sa, n, ms);
 	fl = fcntl(fd, F_GETFL, 0);
 	if (fl < 0 || fcntl(fd, F_SETFL, fl | O_NONBLOCK) < 0)
 		return connect(fd, sa, n);
@@ -946,29 +989,36 @@ int b_accept(sh *s, int ac, char **av)
 	struct sockaddr_storage ss;
 	socklen_t sl = sizeof ss;
 	const char *nm;
-	char *peer;
-	int fd, i = 1, ms = -1;
+	char *peer, *e;
+	int fd, lfd, i = 1, ms = -1;
+	double t;
 	struct pollfd pf;
 
 	if (ac > 2 && !strcmp(av[1], "-t")) {
-		ms = (int)(strtod(av[2], 0) * 1000);
-		if (ms < 0)
-			ms = 0;
+		t = strtod(av[2], &e);
+		if (e == av[2] || *e) {
+			lg(HIBR_LERR, "accept: %s: not a number of seconds",
+			   av[2]);
+			return 2;
+		}
+		ms = t < 0 ? 0 : t > 2000000 ? 2000000000 : (int)(t * 1000);
 		i = 3;
 	}
 	if (ac <= i) {
 		lg(HIBR_LERR, "usage: accept [-t secs] listenfd [var]");
 		return 2;
 	}
+	if (net_fdarg(av[i], &lfd) != HIBR_OK)
+		return 2;
 	nm = ac > i + 1 ? av[i + 1] : "FD";
 	if (ms >= 0) {
-		pf.fd = atoi(av[i]);
+		pf.fd = lfd;
 		pf.events = POLLIN;
 		pf.revents = 0;
 		if (poll(&pf, 1, ms) <= 0)
 			return HIBR_FAIL;
 	}
-	fd = accept(atoi(av[i]), (struct sockaddr *)&ss, &sl);
+	fd = accept(lfd, (struct sockaddr *)&ss, &sl);
 	if (fd < 0) {
 		lg(HIBR_LERR, "accept: %s", strerror(errno));
 		return HIBR_FAIL;
@@ -1020,10 +1070,12 @@ void cp_slot(sh *s, const char *nm, const char *key, int idx, int fd)
 /* Start a command as a coprocess, reachable by the same verbs as a socket. */
 int b_coproc(sh *s, int ac, char **av)
 {
-	int in[2], out[2], i = 1;
+	int in[2], out[2], i = 1, bgjc, k;
+	char *path;
 	const char *nm = "COPROC";
 	pid_t pid;
-	str cmd, pv;
+	str cmd, pv, tx;
+	job *jb;
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: coproc [name] command [args...]");
@@ -1031,15 +1083,21 @@ int b_coproc(sh *s, int ac, char **av)
 	}
 	if (ac > 2 && isname(av[1]) && !fn_find(s, av[1]) &&
 	    !bi_find(av[1]) && !m_find(s, av[1])) {
-		nm = av[1];
-		i = 2;
+		k = nm_kind(s, av[2], 0, &path);
+		free(path);
+		if (k != NK_NONE && k != NK_KEYWORD) {
+			nm = av[1];
+			i = 2;
+		}
 	}
-	if (i >= ac) {
-		lg(HIBR_LERR, "coproc: a command is required");
-		return 2;
-	}
-	if (pipe(in) < 0 || pipe(out) < 0) {
+	if (pipe(in) < 0) {
 		lg(HIBR_LERR, "coproc: pipe: %s", strerror(errno));
+		return HIBR_FAIL;
+	}
+	if (pipe(out) < 0) {
+		lg(HIBR_LERR, "coproc: pipe: %s", strerror(errno));
+		close(in[0]);
+		close(in[1]);
 		return HIBR_FAIL;
 	}
 	s_init(&cmd);
@@ -1048,27 +1106,51 @@ int b_coproc(sh *s, int ac, char **av)
 			s_ch(&cmd, ' ');
 		net_q(&cmd, av[i]);
 	}
+	if (s->jobs.n)
+		jc_tidy(s);
+	s_init(&tx);
+	s_cat(&tx, "coproc");
+	for (k = 1; k < ac; k++) {
+		s_ch(&tx, ' ');
+		s_cat(&tx, av[k]);
+	}
+	jb = jc_new(s, tx.p, 1);
+	s_free(&tx);
 	fflush(0);
 	pid = fork();
 	if (pid < 0) {
 		lg(HIBR_LERR, "coproc: fork: %s", strerror(errno));
+		jc_drop(s, jb);
+		close(in[0]);
+		close(in[1]);
+		close(out[0]);
+		close(out[1]);
 		s_free(&cmd);
 		return HIBR_FAIL;
 	}
 	if (pid == 0) {
+		setpgid(0, 0);
 		close(in[1]);
 		close(out[0]);
 		dup2(in[0], 0);
 		dup2(out[1], 1);
 		close(in[0]);
 		close(out[1]);
-		signal(SIGINT, SIG_DFL);
+		bgjc = s->it && s->tty;
+		if (bgjc)
+			tr_child(s, 1);
 		s->it = 0;
 		tr_fork(s);
+		tr_nojobs(s);
+		if (!bgjc)
+			tr_bgign(s);
 		hibr_run(s, cmd.p ? cmd.p : "");
+		tr_exit(s);
 		fflush(0);
 		_exit(s->st);
 	}
+	setpgid(pid, pid);
+	jc_pid(s, jb, (long)pid);
 	close(in[0]);
 	close(out[1]);
 	s_free(&cmd);
@@ -1144,9 +1226,14 @@ int b_listen(sh *s, int ac, char **av)
 		sl = sizeof ss;
 		cfd = accept(lfd, (struct sockaddr *)&ss, &sl);
 		if (cfd < 0) {
-			if (errno == EINTR && !s->quit)
+			if (s->quit)
+				break;
+			if (errno == EINTR || errno == ECONNABORTED ||
+			    errno == EPROTO)
 				continue;
-			break;
+			lg(HIBR_LERR, "listen: accept: %s", strerror(errno));
+			close(lfd);
+			return HIBR_FAIL;
 		}
 		peer = net_who(cfd, (struct sockaddr *)&ss, sl);
 		hibr_set(s, "REMOTE", peer, 0);
@@ -1158,8 +1245,21 @@ int b_listen(sh *s, int ac, char **av)
 		if (forky) {
 			fflush(0);
 			pid = fork();
+			if (pid < 0) {
+				lg(HIBR_LERR, "listen: fork: %s",
+				   strerror(errno));
+				close(cfd);
+				s_free(&cmd);
+				continue;
+			}
 			if (pid == 0) {
-				if (fork())
+				pid = fork();
+				if (pid < 0) {
+					lg(HIBR_LERR, "listen: fork: %s",
+					   strerror(errno));
+					_exit(1);
+				}
+				if (pid)
 					_exit(0);
 				close(lfd);
 				dup2(cfd, 0);
@@ -1167,7 +1267,9 @@ int b_listen(sh *s, int ac, char **av)
 				close(cfd);
 				signal(SIGINT, SIG_DFL);
 				s->it = 0;
+				tr_fork(s);
 				hibr_run(s, cmd.p);
+				tr_exit(s);
 				fflush(0);
 				_exit(s->st);
 			}
@@ -1290,8 +1392,8 @@ int net_isdgram(int fd)
 /* Read from a descriptor into a variable. */
 int b_recv(sh *s, int ac, char **av)
 {
-	int i = 1, fd, all = 0, want = 0;
-	const char *nm;
+	int i = 1, fd, all = 0, want = 0, hasn = 0;
+	const char *nm, *q;
 	str b;
 	char *buf;
 	ssize_t n;
@@ -1300,9 +1402,18 @@ int b_recv(sh *s, int ac, char **av)
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		if (!strcmp(av[i], "-a"))
 			all = 1;
-		else if (!strcmp(av[i], "-n") && i + 1 < ac)
-			want = atoi(av[++i]);
-		else {
+		else if (!strcmp(av[i], "-n") && i + 1 < ac) {
+			q = av[++i];
+			while (*q >= '0' && *q <= '9')
+				q++;
+			if (!*av[i] || *q || q - av[i] > 9) {
+				lg(HIBR_LERR, "recv: %s: invalid number",
+				   av[i]);
+				return 2;
+			}
+			want = atoi(av[i]);
+			hasn = 1;
+		} else {
 			lg(HIBR_LERR, "recv: %s: unknown option", av[i]);
 			return 2;
 		}
@@ -1317,7 +1428,9 @@ int b_recv(sh *s, int ac, char **av)
 	fflush(0);
 	nm = i < ac ? av[i] : "REPLY";
 	s_init(&b);
-	if (net_isdgram(fd)) {
+	if (hasn && !want) {
+		lg(HIBR_LDBG, "recv -n 0 reads nothing");
+	} else if (net_isdgram(fd)) {
 		buf = xm(65536);
 		n = recv(fd, buf, 65536, 0);
 		if (n < 0) {

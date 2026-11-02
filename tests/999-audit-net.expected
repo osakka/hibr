@@ -1,0 +1,11 @@
+0
+coproc ls -d /: /
+a name before a command: hey
+wait on a coprocess: 3
+left nothing behind
+recv -n -1: 2
+recv -n abc: 2
+recv -n 0: 0 []
+the input is still there: hi
+accept abc: 2
+accept -t soon: 2

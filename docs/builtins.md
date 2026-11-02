@@ -293,7 +293,7 @@ echo "$sum"
 | `wait -n [-p var]` | wait for the next one, and name which it was |
 | `kill [-sig\|-s sig\|-n num] %job\|pid` | signal a job or process; `kill -l` lists the signals (the real-time ones bash also lists are left out), `kill -l 9` and `kill -l TERM` translate, and an exit status above 128 names its signal |
 | `disown [%job]` | forget a job without signalling it |
-| `coproc [name] cmd args…` | **[hibr]** run a command as a coprocess |
+| `coproc [name] cmd args…` | **[hibr]** run a command as a coprocess, a background job the shell reaps; the first word is a name only when the word after it is a command, so `coproc ls -l` is `ls` |
 | `trap [cmd] sig…` | run `cmd` on a signal, on `EXIT`, `ERR`, `DEBUG` or `RETURN`; `trap` or `trap -p [sig…]` lists what is set -- `ERR`, `DEBUG` and `RETURN` among the names `-p` takes -- as lines that read back in, `trap - sig…` clears it, `trap '' sig…` ignores it |
 | `ulimit [-HSa] [-cdflnstuv] [limit]` | read or set a resource limit |
 | `umask [-p] [-S] [mask]` | show or set the file creation mask: octal (`022`) or symbolic (`u=rwx,g=rx,o=`, `g+w`, `a-x`), as bash; `-S` shows it as what each class may do, `-p` in a form that sets it again |
@@ -392,7 +392,7 @@ the next entry, `~-1` the one before last, and `~+` and `~-` are `$PWD` and
 | `listen [-u] -b port [var]` | **[hibr]** bind only, and hand back the descriptor in `var`, `FD` by default; a port with a `/` is a Unix socket, owner-only; `-u` binds a UDP port, which `recv` then reads a datagram at a time |
 | `accept [-t secs] listenfd [var]` | **[hibr]** wait for one connection, at most secs with `-t`, its descriptor in `var`, `FD` by default; `$REMOTE` is `uid:N` for a Unix socket |
 | `send [-n\|-r] fd text…` | **[hibr]** write to a descriptor; `-r` ends CRLF; a peer that has gone is a failing status, never a signal |
-| `recv [-a\|-n bytes] fd [var]` | **[hibr]** read one line, all of it, or `n` bytes, into `var`, `REPLY` by default; from a datagram socket, one datagram |
+| `recv [-a\|-n bytes] fd [var]` | **[hibr]** read one line, all of it, or `n` bytes (a count, and `0` reads nothing), into `var`, `REPLY` by default; from a datagram socket, one datagram |
 
 Descriptors come back above 9, so a redirection cannot tread on one. `send`
 and `recv` take a descriptor as a number and refuse anything else, with
