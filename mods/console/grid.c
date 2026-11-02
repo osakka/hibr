@@ -53,8 +53,11 @@ static unsigned cn_transfb;
    field. DP_DEFAULT is none, which is what the terminal's own cells need. */
 static unsigned cn_transmat = DP_DEFAULT;
 /* What is beneath each cell for a translucent write: see cn_tbelow. */
-typedef struct { unsigned fr, ly, un; } cn_tcell;
+typedef struct { unsigned fr, ly, id, un; } cn_tcell;
 static cn_tcell *cn_tl;
+/* The layer being drawn by name, for a window, so a cell it draws again on
+   a later frame knows it as its own: 0 for one with no name. */
+static unsigned cn_tlid;
 static int cn_tlr, cn_tlc;
 static unsigned cn_tfr = 1, cn_tly = 1, cn_tlseq = 1;
 #define CN_TNONE 0xFFFFFFFFu
@@ -436,16 +439,53 @@ unsigned cn_dim1(unsigned v, int pct, unsigned deflt)
    never what its own terminal is translucent over. Kept from the first
    translucent write on, against its own size, since a resize lands
    between two statements. */
-/* Begin a layer: what is drawn next is over what was drawn before it. */
-void cn_layer(void)
+/* Begin a layer: what is drawn next is over what was drawn before it. A
+   name -- a window's own -- lets a later frame find its cells again: what
+   was beneath them then is still beneath them when nothing under them has
+   been drawn since, because whatever had changed would have been drawn
+   (the owner's, 0.99.423: a see-through window over one its app had left
+   alone that frame found nothing beneath and showed the wallpaper, and
+   blinked between the two on every refresh of the window under it). */
+void cn_layer(const char *name)
 {
+	unsigned h = 5381;
+
 	cn_tly = ++cn_tlseq;
+	if (!name || !*name) {
+		cn_tlid = 0;
+		return;
+	}
+	while (*name)
+		h = h * 33 + (unsigned char)*name++;
+	cn_tlid = h ? h : 1;
+}
+
+/* Forget what was beneath every cell of rows r to r + h, columns c to
+   c + w -- every cell at all when h is 0: a window has moved from there or
+   to there, or all of them have and a full frame is about to draw every
+   one again. The name's hash may in principle meet another's; a window id
+   is never reused and the names are short, and a meeting would cost one
+   stale frame until the next full one, so it is left as it is. */
+void cn_layerforget(int r, int c, int h, int w)
+{
+	int i, j;
+
+	if (!cn_tl || !cn_tlr || !cn_tlc)
+		return;
+	if (h <= 0) {
+		memset(cn_tl, 0, sizeof *cn_tl * (size_t)cn_tlr * (size_t)cn_tlc);
+		return;
+	}
+	for (i = r < 0 ? 0 : r; i < r + h && i < cn_tlr; i++)
+		for (j = c < 0 ? 0 : c; j < c + w && j < cn_tlc; j++)
+			memset(&cn_tl[i * cn_tlc + j], 0, sizeof *cn_tl);
 }
 
 /* What a write to this cell lands on, noted for the next one: what the
    same layer found there if it wrote first this frame, what an earlier
-   layer drew this frame, or nothing drawn this frame -- CN_TNONE, under
-   which only the picture is. */
+   layer drew this frame, what was beneath it when this same named layer
+   last drew it and nothing under it has been drawn since, or nothing --
+   CN_TNONE, under which only the picture is. */
 unsigned cn_tbelow(int row, int col, unsigned now)
 {
 	cn_tcell *t;
@@ -472,10 +512,13 @@ unsigned cn_tbelow(int row, int col, unsigned now)
 		b = t->un;
 	else if (t->fr == cn_tfr)
 		b = now;
+	else if (cn_tlid && t->id == cn_tlid)
+		b = t->un;
 	else
 		b = CN_TNONE;
 	t->fr = cn_tfr;
 	t->ly = cn_tly;
+	t->id = cn_tlid;
 	t->un = b;
 	return b;
 }

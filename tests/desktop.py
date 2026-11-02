@@ -8620,6 +8620,48 @@ over, open_, under = pbg(sc, 11, 30), pbg(sc, 15, 45), pbg(sc, 8, 15)
 check("a see-through window over another shows that window, dimmed, and over "
       "the wallpaper its own face", over is not None and open_ is not None and
       over == dimmed(under, 50) and over != open_, (over, open_, under))
+# And it goes on showing it on a frame the window under it has nothing new
+# for. From 0.99.410 a window under another is left alone when its app says
+# nothing changed, and the one over it drawn alone -- which found nothing
+# drawn beneath it that frame and showed its own face, so a see-through
+# window blinked between the two on every refresh of the one under it (the
+# owner's). With see-through on, windows that overlap are drawn together.
+LAYERS = ('TLZ=1\n'
+          'TLN=0\n'
+          'fn tlo_draw(int id, int h, int w, int row, int col) { TLN=$((TLN + 1)); console put -p "w$id" 1 1 "under $TLN"; }\n'
+          'fn tlo_dirty(int id) { [ "$TLZ" = 1 ] || return 1; TLZ=0; }\n'
+          'fn thi_draw(int id, int h, int w, int row, int col) { console put -p "w$id" 1 1 over; }\n'
+          'fn thi_key(int id, key) { case $key in r) TLZ=1 ;; z) ;; x) dt_del "$TLO" ;; *) return 1 ;; esac; }\n'
+          'TLO := dt_new "Under" 8 30 6 10 tlo\ndt_new "Over" 8 30 9 20 thi\n')
+sc, _ = run(LAYERS, [b"r", 0.3], env={"DT_WINTRANS": "50"})
+both, under = pbg(sc, 11, 30), pbg(sc, 8, 15)
+# Read before quitting: Quit's box is drawn over everything, so the frame
+# after it is a full one and would draw both windows whatever this did.
+lyp = scratch("desktop-layers.hibr")
+open(lyp, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n" % (load(MOD), WM, LAYERS))
+lyt = Term(lyp, env={"DT_TICK": "60", "DT_WINTRANS": "50"}, rows=ROWS,
+           cols=COLS, settle=0.5)
+lyt.keys([b"r", 0.3, b"z", 0.3])
+alone = pbg(lyt.screen(), 11, 30)
+lyt.keys([b"x", 0.3, b"z", 0.3])
+gone = lyt.screen()
+lyt.quit(b"qy", 1.0)
+check("a see-through window keeps showing the window under it on a frame that "
+      "one has nothing new for", both == dimmed(under, 50) and alone == both,
+      (both, alone, under))
+check("and once that window has gone, what it showed there goes with it",
+      gone.find("under") is None and pbg(gone, 11, 30) == pbg(gone, 15, 45),
+      (pbg(gone, 11, 30), pbg(gone, 15, 45)))
+# And with see-through off the window under it is still left alone on such a
+# frame, which is what the overlap rule of 0.99.410 saves.
+lyt = Term(lyp, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+lyt.keys([b"r", 0.3])
+n1 = lyt.screen().row(7)
+lyt.keys([b"z", 0.3, b"z", 0.3])
+n2 = lyt.screen().row(7)
+lyt.quit(b"qy", 1.0)
+check("and with see-through off the window under is not drawn again for it",
+      "under " in n1 and n1 == n2, (n1, n2))
 F10 = b"\x1b[21~"
 sc1, _ = run(ONE, [F10, 0.3], env={"DT_BARTRANS": "50"})
 sc3, _ = run(ONE, [F10, 0.3, b"\x1b[B", 0.2, b"\x1b[A", 0.2, b"\x1b[B", 0.2,
@@ -8806,4 +8848,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(941)
+report(944)

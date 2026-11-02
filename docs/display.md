@@ -121,7 +121,7 @@ and the flush cost shown live. Run it and press things.
 | `console outline row col h w colour tl h tr v bl br [title]` / `console outline off` | a rectangle composited over the screen at every flush and never written into the back buffer, so moving it costs only the edge cells that changed -- how the desktop drags a window by its outline |
 | `console copy [auto\|on\|off]` | whether a pane moved whole is sent as a rectangle copy (DECCRA) where the terminal says it can; with no argument, `on` or `off`. `console copied pane` says whether that pane's last move was copied |
 | `console behind on\|off` | while on, a write at absolute coordinates skips every cell a pane covers, so a wallpaper paints around the windows rather than over them |
-| `console layer` | begin a layer of a frame, for `translucent` (below): a write never blends with its own layer's earlier cells |
+| `console layer [NAME\|forget [R C H W]]` | begin a layer of a frame, for `translucent` (below): a write never blends with its own layer's earlier cells; a named layer drawn again on a later frame keeps what was beneath its cells when nothing under them was drawn since, and `forget` drops that, for every cell or for a rectangle |
 | `console drawn` | how many writes have been made at absolute coordinates rather than through a pane; compared with itself a moment later, it says whether anything drew over the finished screen |
 | `console bidi [on\|off]` | whether right-to-left text a script puts is drawn in display order; with no argument, status 0 when on. Follows `HIBR_BIDI` until a script says |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |

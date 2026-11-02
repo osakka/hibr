@@ -292,8 +292,10 @@ fn dt_contentonly(int id) {
 fn dt_win(int id) {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} on=$DT_IDLE
 	# A layer of its own: see-through shows what is under the window, and
-	# never the window's own face under its own terminal.
-	console layer
+	# never the window's own face under its own terminal. Named, so on a
+	# frame the window under it is left alone its cells still show that
+	# window rather than the wallpaper.
+	console layer "w$id"
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
 	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} pc cap=0
 

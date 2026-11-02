@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.423
+
+**A see-through window no longer blinks when the window under it refreshes**
+(Gitea #426, the owner's). A see-through cell takes its colour from what a
+window under it drew, and the console only knew what was drawn in the same
+frame. Since 0.99.410 a window under another is left alone on a frame its
+app has nothing new for, while the one over it can still be drawn -- and
+then it found nothing beneath and showed the wallpaper, and the next time
+the window under it refreshed it showed that window again: a blink on every
+refresh. The desktop now names each window's layer (`console layer w$id`),
+and a cell a window draws again with nothing under it drawn in between
+keeps what was beneath it the last time, since anything there that had
+changed would have been drawn. Where windows move, the console forgets: on
+a full frame everywhere, and on a frame where windows only moved, the
+rectangles they left and came to, so a window that has gone is not shown
+through the one that was over it.
+
+Measured with a see-through window redrawing every frame over three idle
+terminals: 1.8 ms a frame before and 1.8 to 2.0 ms after, which is noise.
+Drawing every window under a see-through one along with it, in the window
+manager, was built first and measured at 4.7 to 6.0 ms a frame, and
+refused. The memory it costs is 16 bytes a cell instead of 12 -- about
+66 kB at 232x71 -- and only once anything is see-through. It takes a
+Restart Desktop, not a new session: the console is in the desktop's own
+process.
+
 ## 0.99.422
 
 **A click in a text field works the way it does everywhere else** (the

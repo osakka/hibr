@@ -237,9 +237,17 @@ while painting behind the panes, are not counted, since it never paints
 under a window. `console layer` begins a layer -- the desktop calls it for
 each window, the bar and each menu -- and a write never blends with its own
 layer's earlier cells, so a window's terminal is translucent over what is
-under the window, not over the window's own face. Each cell remembers the
-frame and layer it was last written in and what was beneath, 12 bytes a
-cell, kept only from the first translucent write on.
+under the window, not over the window's own face. `console layer NAME`
+names the layer -- the desktop names each window -- and a cell a named layer
+draws again on a later frame, with nothing under it drawn in between, keeps
+what was beneath it then: a window under another that its app left alone
+for a frame is still what the one over it shows, not the picture (0.99.423;
+before, a see-through window blinked between the two on every refresh of
+the one under it). `console layer forget` drops all of that -- or a
+rectangle's, `forget R C H W`, where a window moved from or to -- for a frame
+that draws every window again after they have moved. Each cell remembers
+the frame, the layer and its name, and what was beneath, 16 bytes a cell,
+kept only from the first translucent write on.
 
 `console consumed` answers how many bytes of input have been turned into keys
 since the console was loaded -- what the desktop's idle marker reports, under

@@ -1258,9 +1258,18 @@ int m_console(sh *s, int ac, char **av)
 	/* What is drawn next is a layer over what was drawn before it: a
 	   window, the bar, a menu. A translucent write shows what an earlier
 	   layer drew under it this frame, and never its own layer's cells --
-	   a window's terminal is not translucent over the window's own face. */
+	   a window's terminal is not translucent over the window's own face.
+	   A named layer, a window, keeps what was beneath its cells for a
+	   frame nothing under it is drawn; `forget` drops all of that, for a
+	   frame that draws every window again after they have moved. */
 	if (!strcmp(sub, "layer")) {
-		cn_layer();
+		if (ac > 2 && !strcmp(av[2], "forget"))
+			cn_layerforget(ac > 6 ? atoi(av[3]) : 0,
+				       ac > 6 ? atoi(av[4]) : 0,
+				       ac > 6 ? atoi(av[5]) : 0,
+				       ac > 6 ? atoi(av[6]) : 0);
+		else
+			cn_layer(ac > 2 ? av[2] : 0);
 		return HIBR_OK;
 	}
 	/* How translucent the writes that follow are, over a picture drawn

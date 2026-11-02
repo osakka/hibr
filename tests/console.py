@@ -649,6 +649,34 @@ pal, rgb = palshade("2"), palshade('"#008000"')
 check("a palette background is darkened as its own colour is, not left at full strength",
       pal == rgb and "48;5;2" not in pal, (pal, rgb))
 
+# A named layer drawn again on a later frame with nothing under it drawn in
+# between still shows what was under it (0.99.423): a see-through window over
+# one its app left alone that frame showed the wallpaper instead, and blinked.
+# `forget` drops that, for where a window moved from or to.
+LAYA = ('console layer wA\nconsole pen "#c0c0c8" "#406080"\nconsole fill 0 0 3 10 " "\n')
+LAYB = ('console layer wB\nconsole translucent 50 "#101010" "#101010"\n'
+        'console pen "#c0c0c8" "#101010"\nconsole fill 1 2 1 4 " "\n'
+        'console translucent off\nconsole flush\n')
+
+
+def laybg(frames):
+    o, _ = run('console open\n' + frames + 'console close\n')
+    sc = Screen()
+    sc.feed(o.decode("utf-8", "replace"))
+    return sc.style(1, 3)["bg"]
+
+
+# The first frame primes it: what is beneath is kept from the first
+# translucent write on, as the desktop's first frame does.
+PRIME = LAYA + LAYB
+under = laybg(PRIME + LAYA + LAYB)
+check("a translucent layer over another shows it, dimmed", under == "#203040", under)
+again = laybg(PRIME + LAYA + LAYB + LAYB)
+check("and still does on a frame only it is drawn again", again == under, (again, under))
+moved = laybg(PRIME + LAYA + LAYB + "console layer forget 0 0 3 10\n" + LAYB)
+check("and not once that place is forgotten, where its own colour stands",
+      moved == "#101010", moved)
+
 # A pane marked `top` is above everything: its cells are written only by
 # drawing through it, whatever else is drawn over it and in whatever order.
 # That is the desktop's menu bar, which a window dragged over it, a window's
@@ -937,4 +965,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 116)
+report(len(WANT) + len(MWANT) + 119)

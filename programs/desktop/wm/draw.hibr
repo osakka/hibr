@@ -270,6 +270,18 @@ fn dt_alone(...rest) {
 	DT_MOVECOPY=()
 	DT_ALONELOOK=$look
 	DT_ALONEN=${#w[@]}
+	# Where a window was and is now, shadow included, a see-through window
+	# over either must not go on showing what was under it there before
+	# (the console keeps that for a window drawn alone, 0.99.423).
+	for id in "${w[@]}"; do
+		old=${DT_ALONEPOS["$id"]-}
+		new="${DT[$id]["row"]},${DT[$id]["col"]},${DT[$id]["h"]},${DT[$id]["w"]}"
+		[ -n "$old" ] && [ "$old" != "$new" ] || continue
+		IFS=, read -r ar ac ah aw <<< "$old"
+		console layer forget "$ar" "$ac" $((ah + 1)) $((aw + 2))
+		IFS=, read -r ar ac ah aw <<< "$new"
+		console layer forget "$ar" "$ac" $((ah + 1)) $((aw + 2))
+	done
 	DT_ALONEPOS=()
 	for id in "${w[@]}"; do
 		DT_ALONEPOS["$id"]="${DT[$id]["row"]},${DT[$id]["col"]},${DT[$id]["h"]},${DT[$id]["w"]}"
@@ -475,6 +487,10 @@ dt_draw() {
 	# open, every window is drawn.
 	[ "${DT_BARTRANS:-0}" != 0 ] &&
 		{ [ "$MB_OPEN" != -1 ] || [ -n "$DT_POP" ]; } && { DT_FORCEONCE=1; DT_FORCEBY=popup; }
+	# A full frame draws every window again, after something has moved:
+	# what was beneath each window's cells before is not what is beneath
+	# them now, so the console forgets it and this frame says it afresh.
+	{ [ -n "$DT_FORCEONCE" ] || [ "$DT_FORCEDRAW" = 1 ]; } && console layer forget
 	dt_wall
 	[ -n "$DT_STATON" ] && dt_tmark wall
 	DT_DRAWNR=()
