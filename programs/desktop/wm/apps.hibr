@@ -635,6 +635,35 @@ fn dt_needs(app, f) {
 	return 1
 }
 
+# Open an address (Gitea #423): a mailbox in Mail's New Message when Mail is
+# installed, anything else in the Browser; with neither, it is copied and
+# said so, since a desktop drawn on another machine has nowhere else to send
+# it.
+fn dt_openlink(u) {
+	local a
+
+	case $u in
+	mailto:*)
+		a=${u#mailto:}
+		a=${a%%\?*}
+		;;
+	http://* | https://* | ftp://* | file://*) a= ;;
+	www.*) a=; u="https://$u" ;;
+	*@*) a=$u ;;
+	esac
+	if [ -n "$a" ] && dt_has mlc_new; then
+		mlc_new "" new "$a"
+		return 0
+	fi
+	if [ -z "$a" ] && [ -n "${DT_APPS["browser"]["title"]-}" ]; then
+		dt_launch browser "$u"
+		return
+	fi
+	dt_clipset "$u" copy text
+	dt_notep low "Nothing here opens it, so the link is copied"
+	return 0
+}
+
 fn dt_launch(n, arg = "") {
 	local h w sz id pl r c
 

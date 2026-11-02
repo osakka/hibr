@@ -58,6 +58,7 @@ same underlying grid, not the interface itself.
     term cursor t                # row, column, shown, and its shape
     term cursor t block|underline|bar  # set the shape directly
     term row   t n               # one row of what is shown, as text
+    term link  t row col         # the address under a cell, status 1 for none
     term cells t n               # the same row as cells: column, fg, bg, attributes, text
     term focus t 1|0             # tell a program that asked (mode 1004) it gained or lost focus
     term colors t #fg|- #bg|-|off # paint the default colours in these, and answer OSC 10/11 with them
@@ -240,6 +241,23 @@ So it stays on the same text while more output scrolls underneath it, and it
 reaches back into the scrollback when the view is scrolled there. It is
 drawn reversed; `term copy` gives it as text, each line without its trailing
 blanks and joined by newlines, as a terminal's copy does. A resize clears it.
+
+## Links
+
+`term link t row col` gives the address under a cell of what is on view, or
+status 1 when there is none (Gitea #423). It is the link the program gave
+the cell with OSC 8 if there is one. Otherwise it is an address written as
+text: a run of the characters RFC 3986 allows around the cell, read as one
+if it starts `http://`, `https://`, `ftp://`, `file://` or `mailto:`, or
+with `www.`, or is shaped like a mailbox. Trailing punctuation that belongs
+to the prose is left off, including a closing bracket with no opening one in
+the address. A program that wraps its own long lines breaks an address with
+a newline where a row runs out, so a run that reaches within three columns
+of the right edge carries on from the next row. The run on the next row has
+to be that row's whole content, which is how a wrapped address looks and a
+sentence that follows one does not. Clicking anywhere on a continued row
+gives the whole address too, read backwards the same way.
+`tests/999-term-link.t` covers each case.
 
 ## The mouse
 

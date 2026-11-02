@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.7
+app term "A shell in a window" 1.8
 # part: control-panel/terminal.hibr
 # modules: pty term
 
@@ -108,6 +108,13 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMCLIP
 # out of habit does not run a half-typed line. Off by default.
 DT_TERMSELCOPY="${DT_TERMSELCOPY-0}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMSELCOPY
+
+# Clickable Links (Gitea #423): ctrl and a click on an address opens it --
+# one the program marked as a link, or a web address or a mailbox written
+# as text, carried across rows where a program wrapped it -- and a
+# right-click on one offers Open Link and Copy Link. On by default.
+DT_TERMLINKS="${DT_TERMLINKS-1}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMLINKS
 
 # Ask before closing a terminal that still has a command running in it:
 # closing one kills whatever holds the pty, which may be an editor with an
@@ -500,6 +507,19 @@ fn term_mouse(int id, act, btn, int r, int c, mods) {
 	local -a px
 
 	[ -n "$t" ] || return 0
+	# A link first, ctrl and a click, before a program that has the mouse
+	# is sent it: ctrl-click on nothing still goes where it went.
+	if [ "$DT_TERMLINKS" = 1 ] && [ "$btn" = left ] && [ "$act" = press ]; then
+		case $mods in
+		*ctrl*)
+			local u
+			if u := term link "$t" $(($r - 1)) $(($c - 1)) 2> /dev/null; then
+				dt_openlink "$u"
+				return 0
+			fi
+			;;
+		esac
+	fi
 	mode := term mouse "$t"
 	if [ "$mode" != off ]; then
 		case $mods in
@@ -518,6 +538,8 @@ fn term_mouse(int id, act, btn, int r, int c, mods) {
 	# work below, so this is the one place that can tell right-click from
 	# a program wanting it for its own use.
 	if [ "$btn" = right ] && [ "$act" = press ]; then
+		TW[$id]["ctxr"]=$(($r - 1))
+		TW[$id]["ctxc"]=$(($c - 1))
 		dt_context_open term "$id" \
 			$((${DT[$id]["row"]} + $r)) $((${DT[$id]["col"]} + $c))
 		return 0
@@ -565,10 +587,18 @@ fn term_passall(int id) {
 # menu's own items: it already puts a copy on the clipboard and shows the
 # note that says so.
 fn term_context(int? id = "") {
-	local t=${TW[$id]["t"]}
+	local t=${TW[$id]["t"]} u=
 
 	dt_menu "Terminal"
 	if [ -n "$t" ]; then
+		if [ "$DT_TERMLINKS" = 1 ] && [ -n "${TW[$id]["ctxr"]-}" ]; then
+			u := term link "$t" "${TW[$id]["ctxr"]}" "${TW[$id]["ctxc"]}" 2> /dev/null || u=
+		fi
+		if [ -n "$u" ]; then
+			dt_item "Open Link" o dt_openlink "$u"
+			dt_item "Copy Link" l dt_clipset "$u" copy text
+			dt_sep
+		fi
 		dt_item "Copy" c dt_edit copy
 		dt_item "Paste" v dt_edit paste
 		dt_sep

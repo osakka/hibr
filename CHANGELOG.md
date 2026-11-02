@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.99.419
+
+**Links in a terminal window open with a click** (Gitea #423, the owner's,
+found signing in to Claude Code). Ctrl and a click on an address opens it,
+and a right-click on one offers Open Link and Copy Link. An address is one
+the program marked (OSC 8), or a web address or a mailbox written as text.
+When a program wraps a long address with its own line breaks, as Claude
+Code does its sign-in address, the rows are joined back into one: a row
+carries on only when the address reaches the right edge and the next row
+holds nothing else. A web address opens in the Browser and a mailbox in
+Mail's New Message; with neither installed the link is copied and a note
+says so. Control Panel > Terminal > Clickable Links, on by default.
+`term link t row col` is the module's half (tests/999-term-link.t).
+
+**What an X program copies reaches the desktop** (Gitea #424, the same
+sign-in: a code copied in Firefox on X Screen could not get to a terminal).
+The xscr module watches CLIPBOARD and PRIMARY through XFIXES and fetches a
+new CLIPBOARD as UTF-8 (INCR for a large one, cut at 4 MB); X Screen puts it
+on the desktop's clipboard, so it reaches the terminal through OSC 52 and
+the desktop's own Paste, and Edit > Copy with X Screen in front takes the
+program's selection. A paste typed into X does not come back as a copy.
+`xscr clip` and `xscr clipgen` are the verbs.
+
 ## 0.99.418
 
 **A wallpaper no longer goes black behind a full-screen picture on a held

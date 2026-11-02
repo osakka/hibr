@@ -3277,6 +3277,24 @@ check("with it on, releasing a selection copies it, no key needed",
 check("and the next key only clears the highlight: Q never reaches the program, ZW does",
       sc.find("ZW") is not None and sc.find("QZW") is None, sc)
 
+# Clickable Links (Gitea #423): ctrl and a click on an address written in a
+# terminal opens it -- with no Browser in this session it is copied and said
+# so -- and a right-click on one offers Open Link and Copy Link. Switched
+# off, ctrl-click does nothing of the kind.
+LINKS = "TW_CMD=(/bin/sh -c 'echo \"see https://example.com/x?y=1 here\"; sleep 5')"
+sc = run(*TERM, feed=[1.0, press(3, 10, 16), release(3, 10, 16), 0.4], pre=LINKS, wait=1.0,
+         end=None, until="see https")
+check("ctrl and a click on an address in a terminal opens it, or copies it with nothing to open it",
+      b"\x1b]52;c;aHR0cHM6Ly9leGFtcGxlLmNvbS94P3k9MQ==\x07" in sc.out and sc.find("the link is copied") is not None, sc)
+sc = run(*TERM, feed=[1.0, press(3, 10, 2), release(3, 10, 2), 0.4], pre=LINKS, wait=1.0,
+         end=None, until="see https")
+check("and a right-click on one offers Open Link and Copy Link",
+      sc.find("Open Link") is not None and sc.find("Copy Link") is not None, sc)
+sc = run(*TERM, feed=[1.0, press(3, 10, 16), release(3, 10, 16), 0.4],
+         pre=LINKS + "\nDT_TERMLINKS=0", wait=1.0, end=None, until="see https")
+check("with Clickable Links off, ctrl-click opens nothing",
+      b"\x1b]52;c;aHR0cHM6Ly9leGFtcGxlLmNvbS94P3k9MQ==\x07" not in sc.out, sc)
+
 CLICK = ("TW_CMD=(/bin/sh -c 'stty raw -echo; "
          "printf \"\\033[?1000h\\033[?1006h\"; head -c 18 | cat -v; sleep 5')")
 sc = run(*TERM, feed=[press(6, 10), release(6, 10)], pre=CLICK, wait=1.2, end=None)
@@ -6101,4 +6119,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(790)
+report(793)

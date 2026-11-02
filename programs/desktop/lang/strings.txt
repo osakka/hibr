@@ -274,6 +274,7 @@ Clear History
 Clear Low
 Clear Selected
 Clear the Clipboard After
+Clickable Links
 Clip
 Clipboard
 Clipboard history cleared, pins kept
@@ -332,6 +333,7 @@ Copied; the clipboard clears in %s seconds
 Copy
 Copy Code
 Copy Image Address
+Copy Link
 Copy Link Address
 Copy Password
 Copy Username
@@ -826,6 +828,7 @@ Note
 Notes on Every Workspace
 Nothing copied yet
 Nothing here opens %s
+Nothing here opens it, so the link is copied
 Nothing here yet -- the first sync brings them
 Nothing in the next sixty days.
 Nothing is selected
@@ -866,6 +869,7 @@ Open Clipboard
 Open Database…
 Open Folders in New Windows
 Open Image in New Tab
+Open Link
 Open Link in New Tab
 Open Location…
 Open Notes at Start

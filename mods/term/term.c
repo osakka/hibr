@@ -41,6 +41,184 @@ void tm_ret(sh *s, const char *t)
 		printf("%s\n", t);
 }
 
+/* Whether a byte may be part of an address written as text: the
+   characters RFC 3986 allows, and nothing that ends one in prose. */
+int tm_urlch(unsigned cp)
+{
+	if (cp > 126 || cp <= ' ')
+		return 0;
+	if ((cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z') ||
+	    (cp >= '0' && cp <= '9'))
+		return 1;
+	return strchr("-._~:/?#[]@!$&'()*+,;=%", (int)cp) != 0;
+}
+
+/* Row r of what is on view as one codepoint a column, a wide character's
+   second half 0, so a column is an index. */
+void tm_rowcps(tm_t *t, int r, unsigned *o)
+{
+	tm_cell *k;
+	int c;
+
+	for (c = 0; c < t->cols; c++) {
+		k = tm_vat(t, r, c);
+		o[c] = !k ? ' ' : !k->w ? 0 : k->cp ? k->cp : ' ';
+	}
+}
+
+/* The last column of a row that is not blank, -1 for an empty row. */
+int tm_rowend(const unsigned *rc, int cols)
+{
+	int c = cols - 1;
+
+	while (c >= 0 && (rc[c] == ' ' || !rc[c]))
+		c--;
+	return c;
+}
+
+/* The first column of a row that is not blank, cols for an empty row. */
+int tm_rowstart(const unsigned *rc, int cols)
+{
+	int c = 0;
+
+	while (c < cols && (rc[c] == ' ' || !rc[c]))
+		c++;
+	return c;
+}
+
+/* Whether a row's run from column a to b is all address characters. */
+int tm_urlrun(const unsigned *rc, int a, int b)
+{
+	for (; a <= b; a++)
+		if (!tm_urlch(rc[a]))
+			return 0;
+	return 1;
+}
+
+/* Whether an address has more closing brackets than opening ones, so its
+   last is the prose's rather than its own: "(see https://x/y_(z))". */
+int tm_unbal(const char *u)
+{
+	int d = 0;
+
+	for (; *u; u++)
+		d += *u == '(' ? 1 : *u == ')' ? -1 : 0;
+	return d < 0;
+}
+
+/* Whether text reads as an address worth opening: a scheme a browser or a
+   mail program takes, www., or a mailbox. */
+int tm_urlok(const char *u)
+{
+	const char *at;
+
+	if (!strncmp(u, "http://", 7) || !strncmp(u, "https://", 8) ||
+	    !strncmp(u, "ftp://", 6) || !strncmp(u, "file://", 7) ||
+	    !strncmp(u, "mailto:", 7))
+		return strlen(u) > 8;
+	if (!strncmp(u, "www.", 4))
+		return strlen(u) > 6 && strchr(u + 4, '.') != 0;
+	at = strchr(u, '@');
+	return at && at > u && strchr(at + 1, '.') && !strchr(u, '/') &&
+	       !strchr(at + 1, '@');
+}
+
+/* The address under a cell of what is on view: the link the program gave
+   it (OSC 8), or one written there as text -- and that one may go on
+   across rows, since a program that wraps its own long lines breaks an
+   address with a newline where the row runs out: a run that reaches
+   within a few columns of the right edge carries on from the first run of
+   the next row, and one that starts a row is carried back to the last run
+   of the row before, the same way. A continued row has to hold that run
+   and nothing else, which is how a wrapped address looks and a sentence
+   that happens to follow one does not. */
+int tm_linkat2(tm_t *t, int r, int c, str *o)
+{
+	tm_cell *k = tm_vat(t, r, c);
+	unsigned *rc;
+	int a, b, e, rr, n = t->cols, edge = t->cols - 3, ok = 0;
+	str u;
+
+	o->n = 0;
+	if (!k)
+		return 0;
+	if (k->link && (int)k->link <= t->lkn) {
+		s_cat(o, t->lk[k->link - 1]);
+		return 1;
+	}
+	if (c < 0 || c >= n || r < 0 || r >= t->rows)
+		return 0;
+	rc = xm((size_t)n * sizeof *rc);
+	tm_rowcps(t, r, rc);
+	if (!tm_urlch(rc[c])) {
+		free(rc);
+		return 0;
+	}
+	for (a = c; a > 0 && tm_urlch(rc[a - 1]); a--)
+		;
+	for (b = c; b + 1 < n && tm_urlch(rc[b + 1]); b++)
+		;
+	s_init(&u);
+	for (e = a; e <= b; e++)
+		tm_utf8(&u, rc[e]);
+	rr = r;
+	while (a == tm_rowstart(rc, n) && b == tm_rowend(rc, n) && rr > 0) {
+		tm_rowcps(t, rr - 1, rc);
+		e = tm_rowend(rc, n);
+		if (e < edge)
+			break;
+		for (a = e; a > 0 && tm_urlch(rc[a - 1]); a--)
+			;
+		if (!tm_urlch(rc[e]))
+			break;
+		{
+			str p;
+
+			s_init(&p);
+			for (b = a; b <= e; b++)
+				tm_utf8(&p, rc[b]);
+			s_cat(&p, u.p ? u.p : "");
+			s_free(&u);
+			u = p;
+		}
+		b = e;
+		rr--;
+	}
+	tm_rowcps(t, r, rc);
+	for (b = c; b + 1 < n && tm_urlch(rc[b + 1]); b++)
+		;
+	rr = r;
+	while (b >= edge && b == tm_rowend(rc, n) && rr + 1 < t->rows) {
+		tm_rowcps(t, rr + 1, rc);
+		a = tm_rowstart(rc, n);
+		if (a >= n)
+			break;
+		for (e = a; e + 1 < n && tm_urlch(rc[e + 1]); e++)
+			;
+		if (!tm_urlrun(rc, a, e) || e != tm_rowend(rc, n))
+			break;
+		for (b = a; b <= e; b++)
+			tm_utf8(&u, rc[b]);
+		b = e;
+		rr++;
+	}
+	free(rc);
+	for (;;) {
+		if (u.n && strchr(".,;:!?'\"", u.p[u.n - 1]))
+			u.p[--u.n] = 0;
+		else if (u.n && u.p[u.n - 1] == ')' && tm_unbal(u.p))
+			u.p[--u.n] = 0;
+		else
+			break;
+	}
+	if (u.n && tm_urlok(u.p)) {
+		s_cat(o, u.p);
+		ok = 1;
+	}
+	s_free(&u);
+	return ok;
+}
+
 /* Collect whatever the program has written and run it through the parser. */
 int tm_pump(tm_t *m, int ms)
 {
@@ -665,6 +843,20 @@ int m_term(sh *s, int ac, char **av)
 		tm_ret(s, o.p ? o.p : "");
 		s_free(&o);
 		return HIBR_OK;
+	}
+	if (!strcmp(sub, "link")) {
+		if (ac < 5) {
+			lg(HIBR_LERR, "usage: term link id row col");
+			return 2;
+		}
+		s_init(&o);
+		r = tm_linkat2(m, atoi(av[3]), atoi(av[4]), &o);
+		if (r)
+			tm_ret(s, o.p);
+		else
+			hibr_ret(s, "");
+		s_free(&o);
+		return r ? HIBR_OK : 1;
 	}
 	if (!strcmp(sub, "scroll")) {
 		if (ac > 3) {

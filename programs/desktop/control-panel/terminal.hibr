@@ -9,7 +9,7 @@
 strict
 
 
-app terminal "The Control Panel pane for how a terminal window behaves" 1.2
+app terminal "The Control Panel pane for how a terminal window behaves" 1.3
 command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "▸" app
 
 CP_CURSORS=(block underline bar)
@@ -94,6 +94,10 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMSELCOPY" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_TERMSELCOPY; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Clickable Links"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMLINKS" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMLINKS; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Close When a Program Ends"
 	CP[$w][$n]["val"]="$DT_TERMEND"; CP[$w][$n]["key"]=termend
 	n=$((n + 1))
@@ -128,7 +132,7 @@ fn terminal_do(int w, k, int dir) {
 	local v
 
 	case $k in
-	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_TERMSELCOPY | DT_TERMASK) cp_toggle "$k" ;;
+	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_TERMSELCOPY | DT_TERMASK | DT_TERMLINKS) cp_toggle "$k" ;;
 	# Blink is read every frame, but turning it on asks for none, so on a
 	# settled desktop it waited for something else to wake it (#261).
 	DT_CURSOR_BLINK) cp_toggle "$k"

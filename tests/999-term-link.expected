@@ -1,0 +1,12 @@
+0
+0 8: https://example.com/a?b=1
+0 30: none
+1 10: me@example.org
+2 10: https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=https%3A%2F%2Fconsole.anthropic.com%2Foauth%2Fcode%2Fcallback
+3 3: https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=https%3A%2F%2Fconsole.anthropic.com%2Foauth%2Fcode%2Fcallback
+5 4: https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=https%3A%2F%2Fconsole.anthropic.com%2Foauth%2Fcode%2Fcallback
+6 3: https://osc8.example/x
+7 25: https://ex.com/path/to/some/thing/xx
+8 2: none
+9 10: https://en.wikipedia.org/wiki/Shell_(computing)
+the wrapped address is whole

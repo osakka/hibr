@@ -863,6 +863,17 @@ copied stays lit, and the next key only puts the highlight out -- it is not
 sent to the program, so an enter pressed out of habit after copying does not
 run whatever is half typed on the line.
 
+Ctrl and a click on an address in a terminal opens it, and a right-click on
+one offers Open Link and Copy Link (Control Panel > Terminal > Clickable
+Links, on by default). An address is a link a program marked as one, or a
+web address or a mailbox written as text. When a program wraps its own long
+lines -- Claude Code does its sign-in address -- the rows are joined back into
+one address, so long as each continued row holds nothing else. A web address
+opens in the Browser and a mailbox in Mail's New Message. With neither
+installed the link is copied instead, and a note says so. A program that has
+taken the mouse still gets every click, ctrl-clicks on anything but a link
+included.
+
 Text is what crosses between a machine and the desktop. Files and pictures
 copy and paste as files inside the desktop, but a picture or a file on a
 machine's own clipboard cannot reach it: a terminal carries text only.
