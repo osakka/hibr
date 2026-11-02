@@ -13,9 +13,9 @@ ax ay bx by
 {}
 tab	here|AB|octA|esc[0m|
 top.c
-top.c a/one.c a/b/two.c a/b/c/three.c
-each top.c
-each a/one.c
-each a/b/two.c
+a/b/c/three.c a/b/two.c a/one.c top.c
 each a/b/c/three.c
-a/one.c a/b/two.c a/b/c/three.c
+each a/b/two.c
+each a/one.c
+each top.c
+a/b/c/three.c a/b/two.c a/one.c

@@ -19,7 +19,7 @@
 
 strict
 
-app write "A word processor for markdown, shown as it reads" 1.6
+app write "A word processor for markdown, shown as it reads" 1.7
 # modules: md mermaid
 
 command -v dt_app > /dev/null && dt_app write "Write" 22 78 many "¶"
@@ -1164,9 +1164,9 @@ fn wr_plain(int id) {
 
 # HTML-escape text.
 fn wr_esc(t) {
-	t=${t//&/&amp;}
-	t=${t//</&lt;}
-	t=${t//>/&gt;}
+	t=${t//&/"&amp;"}
+	t=${t//</"&lt;"}
+	t=${t//>/"&gt;"}
 	ret "$t"
 }
 

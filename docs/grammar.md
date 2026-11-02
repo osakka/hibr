@@ -297,6 +297,7 @@ expansion produced; text written in the word still splits and globs
 | `${x#p}` `${x##p}` `${x%p}` `${x%%p}` | strip shortest or longest prefix, suffix |
 | `${x/p/r}` `${x//p/r}` | replace first, replace all: the leftmost longest match each time, an empty match taking the character after it along, and an empty `p` replacing nothing, as in bash |
 | `${x/#p/r}` `${x/%p/r}` | replace only at the start, at the end |
+| `&` in `r` | the text that matched, as bash 5.2 has it; a quoted `&` — `"&"`, `\&` — is itself, so `${t//</"&lt;"}` escapes as it always did. `shopt -u patsub_replacement` makes every `&` itself |
 | `${x:off:len}` | substring; a negative offset counts from the end |
 | `${x^} ${x^^} ${x,} ${x,,}` | upper or lower the first letter, or all: the cased letters of Latin, Greek, Cyrillic and Armenian, whatever the locale, since hibr reads text as UTF-8 (in bash's C locale `é` stays `é`) |
 | `${x@Q}` | quoted so reading it back gives the same string |

@@ -324,8 +324,8 @@ fn ps_fetch(coll, kind, ...hrefs) {
 			key=address-data
 		fi
 		for h in "${hrefs[@]:$n:50}"; do
-			h=${h//&/&amp;}
-			h=${h//</&lt;}
+			h=${h//&/"&amp;"}
+			h=${h//</"&lt;"}
 			b+="<d:href>$h</d:href>"
 		done
 		[ "$kind" = cal ] && b+='</c:calendar-multiget>' || b+='</card:addressbook-multiget>'

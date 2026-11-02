@@ -54,6 +54,28 @@ The rest of the core audit (Gitea #427), in one release, area by area.
 - **IFS is set when the shell starts** (#441), and one in the environment is
   not used, as in bash. The save-and-restore idiom `o=$IFS; …; IFS=$o` had
   turned splitting off for the rest of the script.
+- **Smaller expansion fixes, each compared against bash** (#442).
+  - **`set -u`.** It refuses an unset variable under every operator but
+    `-`, `=`, `?` and `+`. It names an element as `a[3]`, and a script
+    stopped by it exits 127, as bash does, where it said 1.
+  - **Assignments.** `${a[k]:=v}` assigns that key, and `${1:=x}` is the
+    error bash gives.
+  - **Tilde.** `~"x"` and `~$USER` are not tilde expansions.
+  - **Patterns.** An unclosed `[` is an ordinary character.
+  - **Brace ranges.** `{1..010..4}` is padded to the wider end, and
+    `{1..3x}`, `{1..}` and `{1..a}` are left as written.
+  - **Globstar.** Its results are sorted as one list. One recorded test
+    had kept the old order and is re-recorded.
+  - **Subscripts.** `?:` and `~` are operators in an unquoted subscript, so
+    `${a[k?2:0]}` evaluates; `${x[0]}` of a scalar is the scalar; and
+    `${a[@]:2}` of a sparse array starts at index 2, not at the third
+    element.
+- **`&` in a replacement is the text that matched**, as bash 5.2 has it
+  (`patsub_replacement`, on; `shopt -u patsub_replacement` turns it off).
+  This is the incompatibility bash 5.2 made: `${t//</&lt;}` now gives
+  `<lt;`. Quote the replacement (`${t//</"&lt;"}`), which reads the same in
+  every version of both shells. The escaping in Write, Mail and the
+  calendar sync is quoted that way now, as Write 1.7 and Mail 2.4.
 - **Cost.** About 0.3% more instructions on the `while` loop benchmark,
   besides `strcmp`'s usual layout noise; the array loop is 1% cheaper.
 

@@ -162,6 +162,9 @@
 #define O_FIXON 1
 #define O_FIXOFF 2
 #endif
+#ifndef O_PATSUB
+#define O_PATSUB 16384u
+#endif
 
 #ifndef J_STR
 #define J_STR 0

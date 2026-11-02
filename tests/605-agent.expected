@@ -1,7 +1,7 @@
 0
 start
 {"error":"missing: unbound variable","file":"unset.sh","line":2,"source":"echo \"$missing\""}
-status 1
+status 127
 {"error":"syntax error near unexpected token `fi'","file":"syntax.sh","line":3,"col":3,"source":"  fi"}
 status 2
 [a b]

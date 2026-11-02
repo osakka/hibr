@@ -17,6 +17,9 @@ static int ce_xfl;
 
 void xvar2(sh *s, part *p, str *b, str *m, const char *v);
 char *xop1(sh *s, part *p, const char *v);
+int xucheck(int op);
+char *xrepw(sh *s, part *p, char **mk);
+void xunset(sh *s, const char *nm);
 
 /* Render a signed number into the expansion arena. */
 char *xnum(sh *s, long v)
@@ -211,6 +214,39 @@ void xslice(sh *s, part *p, size_t n, long *off, long *len)
 		*len = (long)n - *off;
 }
 
+/* ${a[@]:off:len} of an indexed array, as bash counts it: off is an index,
+   not a position, so the slice starts at the first element whose index is
+   at least off -- from the highest index plus one when off is negative --
+   and len counts the elements present (Gitea #442). keys are the elements'
+   indexes in order. */
+void xslicek(sh *s, part *p, vec *keys, long *from, long *len)
+{
+	char *spec = xone(s, p->arg), *colon = strchr(spec, ':');
+	long off, top = 0, n = (long)keys->n, i;
+
+	if (colon)
+		*colon = 0;
+	off = ax_run(s, spec);
+	if (n)
+		top = atol((char *)keys->p[n - 1]) + 1;
+	if (off < 0)
+		off += top;
+	*from = n;
+	if (off >= 0)
+		for (i = 0; i < n; i++)
+			if (atol((char *)keys->p[i]) >= off) {
+				*from = i;
+				break;
+			}
+	*len = colon ? ax_run(s, colon + 1) : n - *from;
+	if (*len < 0)
+		*len = n - *from + *len;
+	if (*len < 0)
+		*len = 0;
+	if (*from + *len > n)
+		*len = n - *from;
+}
+
 /* Append text to the buffer with a uniform quoting mask. */
 void xput(str *b, str *m, const char *t, size_t n, int q)
 {
@@ -285,9 +321,7 @@ long glen(const char *p)
 			return -1;
 		if (*p == '[') {
 			gbrk(p, 0, &q);
-			if (!q)
-				return -1;
-			p = q + 1;
+			p = q ? q + 1 : p + 1;
 		} else {
 			if (*p == '\\' && p[1])
 				p++;
@@ -472,7 +506,26 @@ char *xtrim(sh *s, const char *v, const char *pat, int op)
 /* Replace the first or every match of a pattern inside a value, as bash
    does: the leftmost longest each time, an empty match taking the whole
    character after it along, and an empty pattern matching nothing. */
-char *xrepl(sh *s, const char *v, const char *pat, const char *rep, int all)
+/* Add a replacement to out: with mk, an unquoted & in it stands for the
+   text matched, m for mn bytes, as bash 5.2's patsub_replacement has it;
+   without, it is added as written. */
+void xrepcat(str *out, const char *rep, const char *mk, const char *m, size_t mn)
+{
+	size_t i;
+
+	if (!mk) {
+		s_cat(out, rep);
+		return;
+	}
+	for (i = 0; rep[i]; i++)
+		if (rep[i] == '&' && !mk[i])
+			s_add(out, m, mn);
+		else
+			s_ch(out, rep[i]);
+}
+
+char *xrepl(sh *s, const char *v, const char *pat, const char *rep,
+	    const char *mk, int all)
 {
 	size_t n = strlen(v), i = 0, ms, me;
 	long len;
@@ -482,17 +535,22 @@ char *xrepl(sh *s, const char *v, const char *pat, const char *rep, int all)
 
 	if (!*pat)
 		return ar_dup(s->xa, v, n);
-	if (!n)
-		return gmatch(pat, "") ? ar_dup(s->xa, rep, strlen(rep)) :
-					 ar_dup(s->xa, "", 0);
+	if (!n && !gmatch(pat, ""))
+		return ar_dup(s->xa, "", 0);
+	s_init(&out);
+	if (!n) {
+		xrepcat(&out, rep, mk, "", 0);
+		r = ar_dup(s->xa, out.p ? out.p : "", out.n);
+		s_free(&out);
+		return r;
+	}
 	len = glen(pat);
 	any = len < 0 ? gwrap(s, pat, 1, 1) : 0;
 	s_init(&w);
-	s_init(&out);
 	s_add(&w, v, n);
 	while (i < n && xfind(w.p, n, i, pat, len, any, &ms, &me)) {
 		s_add(&out, v + i, ms - i);
-		s_cat(&out, rep);
+		xrepcat(&out, rep, mk, v + ms, me - ms);
 		i = me;
 		if (me == ms && i < n) {
 			s_ch(&out, v[i++]);
@@ -510,7 +568,8 @@ char *xrepl(sh *s, const char *v, const char *pat, const char *rep, int all)
 }
 
 /* Replace a match anchored at one end of the value, longest first. */
-char *xrepl_a(sh *s, const char *v, const char *pat, const char *rep, int end)
+char *xrepl_a(sh *s, const char *v, const char *pat, const char *rep,
+	      const char *mk, int end)
 {
 	size_t n = strlen(v), i = 0, k;
 	long len = glen(pat);
@@ -519,9 +578,15 @@ char *xrepl_a(sh *s, const char *v, const char *pat, const char *rep, int end)
 	str w, out;
 	char *r;
 
-	if (!n)
-		return gmatch(pat, "") ? ar_dup(s->xa, rep, strlen(rep)) :
-					 ar_dup(s->xa, "", 0);
+	if (!n) {
+		if (!gmatch(pat, ""))
+			return ar_dup(s->xa, "", 0);
+		s_init(&out);
+		xrepcat(&out, rep, mk, "", 0);
+		r = ar_dup(s->xa, out.p ? out.p : "", out.n);
+		s_free(&out);
+		return r;
+	}
 	if (len >= 0 && (size_t)len > n)
 		return ar_dup(s->xa, v, n);
 	any = len < 0 ? gwrap(s, pat, end, !end) : 0;
@@ -550,9 +615,9 @@ char *xrepl_a(sh *s, const char *v, const char *pat, const char *rep, int end)
 		s_add(&out, v, n);
 	else if (end) {
 		s_add(&out, v, n - i);
-		s_cat(&out, rep);
+		xrepcat(&out, rep, mk, v + n - i, i);
 	} else {
-		s_cat(&out, rep);
+		xrepcat(&out, rep, mk, v, i);
 		s_add(&out, v + i, n - i);
 	}
 	r = ar_dup(s->xa, out.p ? out.p : "", out.n);
@@ -618,7 +683,7 @@ char *xkey(sh *s, const char *nm, char *t)
 			digits = 0;
 	if (digits)
 		return t;
-	if (strpbrk(t, "+-*/%()<>=!&|^ "))
+	if (strpbrk(t, "+-*/%()<>=!&|^ ?:~"))
 		return xassoc(s, nm) ? t : xnum(s, ax_run(s, t));
 	if (isname(t)) {
 		v = hibr_get(s, t);
@@ -738,6 +803,8 @@ int xper(int op)
 }
 
 unsigned x_brkn;
+char **x_aks;
+int x_ank;
 
 /* A field break between two elements of an @ list: a space, so a context
    that joins reads it as one, marked 2 when quoted and 3 when not, so
@@ -801,16 +868,34 @@ part xprep(sh *s, part *p)
 	wp->p = tp;
 	s_free(&e);
 	if (p->arg->nx) {
-		r = xone(s, p->arg->nx);
+		char *rm;
+		part **pt;
+		size_t i = 0, j, rn;
+
+		r = xrepw(s, p, &rm);
+		rn = strlen(r);
 		wr = ar_alloc(s->xa, sizeof *wr);
-		tr = ar_alloc(s->xa, sizeof *tr);
 		memset(wr, 0, sizeof *wr);
-		memset(tr, 0, sizeof *tr);
-		tr->k = P_TXT;
-		tr->q = 1;
-		tr->t = ar_dup(s->xa, r, strlen(r));
-		tr->n = strlen(r);
-		wr->p = tr;
+		pt = &wr->p;
+		while (i < rn || !wr->p) {
+			int lit = !rm || rm[i] || r[i] == '~' || r[i] != '&';
+
+			for (j = i; j < rn && (!rm || rm[j] || r[j] != '&') == lit; j++)
+				;
+			if (j == i && i < rn)
+				j++;
+			tr = ar_alloc(s->xa, sizeof *tr);
+			memset(tr, 0, sizeof *tr);
+			tr->k = P_TXT;
+			tr->q = (unsigned)lit;
+			tr->t = ar_dup(s->xa, r + i, j - i);
+			tr->n = j - i;
+			*pt = tr;
+			pt = &tr->nx;
+			i = j;
+			if (!rn)
+				break;
+		}
 		wp->nx = wr;
 	}
 	q.arg = wp;
@@ -926,7 +1011,14 @@ void xvar(sh *s, part *p, str *b, str *m)
 			vec *lst = vb_get(s);
 			long off, len;
 			v_list(s, p->t, ks, nk, lst, 0);
-			xslice(s, p, lst->n, &off, &len);
+			if (!xassoc(s, p->t) && nk <= 1) {
+				vec *kl = vb_get(s);
+				v_list(s, p->t, ks, nk, kl, 1);
+				xslicek(s, p, kl, &off, &len);
+				vb_put(s, kl);
+			} else {
+				xslice(s, p, lst->n, &off, &len);
+			}
 			xlist(s, p, b, m, lst, (size_t)off, (size_t)(off + len),
 			      xstar(ks, nk));
 			vb_put(s, lst);
@@ -963,12 +1055,38 @@ void xvar(sh *s, part *p, str *b, str *m)
 				       xsep(s, p->q || s->strict) : " ", 0) : 0;
 		else
 			v = v_getp(s, p->t, ks, nk);
+		if (!all && !v && nk == 1 && !strcmp(ks[0], "0")) {
+			var *sv = v_find(s, p->t);
+
+			if (sv && sv->v && !sv->map && !sv->am)
+				v = sv->v;
+		}
+		if (!all && !v && s->uset && xucheck(p->op) &&
+		    (v_find(s, p->t) || nk > 1 || strcmp(ks[0], "0"))) {
+			str nm;
+			int i;
+
+			s_init(&nm);
+			s_cat(&nm, p->t);
+			for (i = 0; i < nk; i++) {
+				s_ch(&nm, '[');
+				s_cat(&nm, ks[i]);
+				s_ch(&nm, ']');
+			}
+			xunset(s, nm.p);
+			s_free(&nm);
+			return;
+		}
 		if (!v && nk <= 1 && (all || !strcmp(ks[0], "0")) &&
 		    !v_find(s, p->t)) {
 			v = xval(s, p->t);
 			if (v)
 				lg(HIBR_LTRC, "%s is computed; its [0] is its value",
 				   p->t);
+		}
+		if (!all && p->op == V_ASG) {
+			x_aks = ks;
+			x_ank = nk;
 		}
 	} else if (p->op == V_KEYS) {
 		a = xajoin(s, p->t, 0, 0, " ", 1);
@@ -1032,6 +1150,7 @@ void xvar(sh *s, part *p, str *b, str *m)
 		v = xval(s, p->t);
 	}
 	xvar2(s, p, b, m, v);
+	x_aks = 0;
 }
 
 /* True for a byte that needs no escape in a backslash quoted word. */
@@ -1167,13 +1286,54 @@ const char *xarg(sh *s, part *p, str *b, str *m)
 	return a;
 }
 
+/* Whether set -u refuses an unset variable under this operator: all but
+   the four that exist to deal with one, as in bash (Gitea #442). */
+int xucheck(int op)
+{
+	return op != V_DEF && op != V_ASG && op != V_ERR && op != V_ALT &&
+	       op != V_KEYS && op != V_IND && op != V_NAMES && !(op & V_INDF);
+}
+
+/* set -u found an unset variable: say which, and stop as bash does. */
+void xunset(sh *s, const char *nm)
+{
+	lg(HIBR_LERR, "%s: unbound variable", nm);
+	s->st = s->it ? 1 : 127;
+	s->stop = 1;
+	if (!s->it)
+		s->quit = 1;
+}
+
+/* The replacement of ${x/pat/rep}, and with patsub_replacement on its
+   quote mask, so an unquoted & in it can stand for the match. */
+char *xrepw(sh *s, part *p, char **mk)
+{
+	char *r;
+
+	*mk = 0;
+	if (!p->arg || !p->arg->nx)
+		return (char *)"";
+	if (!(s->sopt & O_PATSUB))
+		return xone(s, p->arg->nx);
+	r = xone_q(s, p->arg->nx, mk);
+	if (!*mk) {
+		*mk = ar_alloc(s->xa, strlen(r) + 1);
+		memset(*mk, 0, strlen(r) + 1);
+	}
+	return r;
+}
+
 /* Apply the parameter modifier to a resolved value. */
 void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 {
-	char *a;
+	char *a, *rep, *rmk;
 	int set = v != 0;
 	int ok = set && (!p->col || *v);
 
+	if (!v && s->uset && p->op != V_NONE && xucheck(p->op)) {
+		xunset(s, p->t);
+		return;
+	}
 	switch (p->op) {
 	case V_XQ:
 	case V_XK:
@@ -1257,6 +1417,23 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		break;
 	case V_ASG:
 		if (!ok) {
+			char **aks = x_aks;
+			int ank = x_ank;
+
+			x_aks = 0;
+			if (p->arr && aks) {
+				a = (char *)xarg(s, p, b, m);
+				v_setp(s, p->t, aks, ank, a);
+				return;
+			}
+			if (!isalpha((unsigned char)p->t[0]) && p->t[0] != '_') {
+				lg(HIBR_LERR, "$%s: cannot assign in this way", p->t);
+				s->st = 1;
+				s->stop = 1;
+				if (!s->it)
+					s->quit = 1;
+				return;
+			}
 			hibr_set(s, p->t, xarg(s, p, b, m), 0);
 			return;
 		}
@@ -1333,17 +1510,16 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 	case V_SUBA:
 		if (!v)
 			return;
-		a = xrepl(s, v, xpat(s, p->arg),
-			  p->arg ? xone(s, p->arg->nx) : "", p->op == V_SUBA);
+		rep = xrepw(s, p, &rmk);
+		a = xrepl(s, v, xpat(s, p->arg), rep, rmk, p->op == V_SUBA);
 		XV(s, p, b, m, a, strlen(a));
 		return;
 	case V_SUBP:
 	case V_SUBF:
 		if (!v)
 			return;
-		a = xrepl_a(s, v, xpat(s, p->arg),
-			    p->arg ? xone(s, p->arg->nx) : "",
-			    p->op == V_SUBF);
+		rep = xrepw(s, p, &rmk);
+		a = xrepl_a(s, v, xpat(s, p->arg), rep, rmk, p->op == V_SUBF);
 		XV(s, p, b, m, a, strlen(a));
 		return;
 	}
@@ -1351,13 +1527,8 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		XV(s, p, b, m, v, strlen(v));
 		return;
 	}
-	if (s->uset && p->op == V_NONE) {
-		lg(HIBR_LERR, "%s: unbound variable", p->t);
-		s->st = 1;
-		s->stop = 1;
-		if (!s->it)
-			s->quit = 1;
-	}
+	if (s->uset && p->op == V_NONE)
+		xunset(s, p->t);
 }
 
 /* Expand one word part into the output buffer. */
@@ -1615,7 +1786,7 @@ int gch(const char *t, unsigned *cp)
 }
 
 /* Read the bracket expression opening at p: its closing ] into *end (0
-   when it is never closed, and then it matches nothing), and whether the
+   when it is never closed, and then the [ is an ordinary character), and whether the
    character c, a code point, is one it takes. A class names ASCII only,
    in the C locale. */
 int gbrk(const char *p, unsigned c, const char **end)
@@ -1692,7 +1863,14 @@ int gmatch(const char *p, const char *t)
 		if (*p == '[') {
 			const char *q;
 			int l = GCH(t, cp), hit = gbrk(p, cp, &q);
-			if (!q || !hit)
+			if (!q) {
+				if (*t != '[')
+					return 0;
+				p++;
+				t++;
+				continue;
+			}
+			if (!hit)
 				return 0;
 			p = q + 1;
 			t += l;
@@ -1981,7 +2159,7 @@ void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out,
 	    vec *outm)
 {
 	str pat, dir;
-	size_t i;
+	size_t i, o0;
 	int meta = 0, cnt = 0;
 
 	if (!xmeta(t, mk, n)) {
@@ -2002,12 +2180,15 @@ void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out,
 		return;
 	}
 	s_init(&dir);
+	o0 = out->n;
 	if (pat.p[0] == '/') {
 		s_ch(&dir, '/');
 		gwalk(s, &dir, pat.p + 1, out, &cnt);
 	} else {
 		gwalk(s, &dir, pat.p, out, &cnt);
 	}
+	if (out->n - o0 > 1)
+		qsort(out->p + o0, out->n - o0, sizeof *out->p, gcmp);
 	if (!cnt && (s->sopt & O_FAILGLOB)) {
 		lg(HIBR_LERR, "no match: %.*s", (int)n, t);
 		s->xerr = 1;
@@ -2203,6 +2384,10 @@ size_t xtilde(sh *s, word *w, str *b, str *m)
 		return 0;
 	while (1 + n < p->n && p->t[1 + n] != '/')
 		n++;
+	if (1 + n == p->n && p->nx) {
+		lg(HIBR_LTRC, "a quoted or expanded tilde prefix is not a login name");
+		return 0;
+	}
 	h = xtilde1(s, p->t + 1, n);
 	if (!h)
 		return 0;
@@ -2319,7 +2504,14 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 				goto normal;
 			lst = vb_get(s);
 			v_list(s, p0->t, ks, nk, lst, 0);
-			xslice(s, p0, lst->n, &off, &len);
+			if (!xassoc(s, p0->t) && nk <= 1) {
+				vec *kl = vb_get(s);
+				v_list(s, p0->t, ks, nk, kl, 1);
+				xslicek(s, p0, kl, &off, &len);
+				vb_put(s, kl);
+			} else {
+				xslice(s, p0, lst->n, &off, &len);
+			}
 			for (k2 = off; k2 < off + len; k2++)
 				xoutq(s, out, outm, (char *)lst->p[k2],
 				      strlen((char *)lst->p[k2]));
@@ -2533,51 +2725,109 @@ word *br_make(sh *s, word *w, part *tgt, const char *txt, size_t tn)
 }
 
 /* Generate the items of a {a..b} or {1..9..2} range. */
+/* Whether n bytes at p are an integer as a brace range takes one: an
+   optional sign and digits, nothing else. */
+int br_int(const char *p, size_t n)
+{
+	size_t i = 0;
+
+	if (n && (*p == '-' || *p == '+'))
+		i++;
+	if (i >= n)
+		return 0;
+	for (; i < n; i++)
+		if (!isdigit((unsigned char)p[i]))
+			return 0;
+	return 1;
+}
+
+/* How wide a range end asks its numbers to be: its own width when it has
+   a leading zero, as bash pads {01..10}; 0 otherwise. */
+int br_width(const char *p, size_t n)
+{
+	size_t i = n && (*p == '-' || *p == '+') ? 1 : 0;
+
+	return n - i > 1 && p[i] == '0' ? (int)n : 0;
+}
+
+/* Expand {a..b} or {a..b..step} into out, as bash does: whole integers or
+   single letters at both ends, a step an integer, numbers padded to the
+   wider end when either has a leading zero; anything else is left as it
+   was written (Gitea #442). */
 int br_range(sh *s, const char *b, size_t n, vec *out)
 {
-	str t;
-	const char *d1, *d2;
+	const char *e = b + n, *d1, *d2 = 0, *x, *y;
+	size_t xn, yn;
 	long lo, hi, step = 1, v;
-	int pad = 0, alpha = 0;
-	char *txt;
+	int pad, alpha = 0;
+	str t;
 
-	s_init(&t);
-	s_add(&t, b, n);
-	txt = t.p ? t.p : (char *)"";
-	d1 = strstr(txt, "..");
-	if (!d1) {
-		s_free(&t);
+	d1 = 0;
+	for (x = b; x + 1 < e; x++)
+		if (x[0] == '.' && x[1] == '.') {
+			d1 = x;
+			break;
+		}
+	if (!d1)
 		return 0;
+	for (x = d1 + 2; x + 1 < e; x++)
+		if (x[0] == '.' && x[1] == '.') {
+			d2 = x;
+			break;
+		}
+	x = d1 + 2;
+	xn = (size_t)(d1 - b);
+	yn = (size_t)((d2 ? d2 : e) - x);
+	y = x;
+	x = b;
+	if (d2) {
+		if (!br_int(d2 + 2, (size_t)(e - d2 - 2)))
+			return 0;
+		s_init(&t);
+		s_add(&t, d2 + 2, (size_t)(e - d2 - 2));
+		step = atol(t.p);
+		s_free(&t);
 	}
-	d2 = strstr(d1 + 2, "..");
-	if (d2)
-		step = atol(d2 + 2);
 	if (!step)
 		step = 1;
-	if (isalpha((unsigned char)txt[0]) && d1 == txt + 1 &&
-	    isalpha((unsigned char)d1[2])) {
-		alpha = 1;
-		lo = txt[0];
-		hi = d1[2];
-	} else {
-		if (txt[0] == '0' && d1 - txt > 1)
-			pad = (int)(d1 - txt);
-		lo = atol(txt);
-		hi = atol(d1 + 2);
-	}
 	if (step < 0)
 		step = -step;
+	if (xn == 1 && yn == 1 && isalpha((unsigned char)*x) &&
+	    isalpha((unsigned char)*y)) {
+		alpha = 1;
+		lo = *x;
+		hi = *y;
+		pad = 0;
+	} else if (br_int(x, xn) && br_int(y, yn)) {
+		s_init(&t);
+		s_add(&t, x, xn);
+		lo = atol(t.p);
+		t.n = 0;
+		s_add(&t, y, yn);
+		hi = atol(t.p);
+		s_free(&t);
+		pad = br_width(x, xn) > br_width(y, yn) ? br_width(x, xn) :
+			br_width(y, yn);
+		if (pad && (int)xn > pad)
+			pad = (int)xn;
+		if (pad && (int)yn > pad)
+			pad = (int)yn;
+	} else {
+		return 0;
+	}
 	for (v = lo; lo <= hi ? v <= hi : v >= hi; v += lo <= hi ? step : -step) {
-		str o;
+		str o, num;
+		int k;
+
 		s_init(&o);
 		if (alpha) {
 			s_ch(&o, (int)v);
 		} else {
-			str num;
-			int k;
 			s_init(&num);
-			s_num(&num, v);
-			for (k = pad - (int)num.n; k > 0; k--)
+			s_num(&num, v < 0 ? -v : v);
+			if (v < 0)
+				s_ch(&o, '-');
+			for (k = pad - (int)num.n - (v < 0); k > 0; k--)
 				s_ch(&o, '0');
 			s_add(&o, num.p, num.n);
 			s_free(&num);
@@ -2585,7 +2835,6 @@ int br_range(sh *s, const char *b, size_t n, vec *out)
 		v_add(out, ar_dup(s->xa, o.p ? o.p : "", o.n));
 		s_free(&o);
 	}
-	s_free(&t);
 	return 1;
 }
 

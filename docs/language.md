@@ -51,6 +51,8 @@ nothing to switch on, which is what bash's parse-time `extglob` cannot manage â€
 see [0017](adr/0017-one-namespace-for-options.md). In a filename glob a
 leading dot is matched only where the pattern spells one out, as in bash:
 `!(x)` lists no dotfiles, and `@(.env|*.sh)` lists `.env`.
+`patsub_replacement` is on, as in bash 5.2: an unquoted `&` in the
+replacement of `${x/p/r}` is the text that matched.
 
 `set -n` (`set -o noexec`) stops execution **from the next command**, not the
 next line, so nothing after it on the same line runs â€” and the `set +n` that
@@ -833,7 +835,7 @@ HIBR_TIMEOUT=1 "$HIBR" --agent -c 'sleep 30; echo "status $?"' 2>&1
 ```output
 start
 {"error":"missing: unbound variable","file":"run.sh","line":2,"source":"echo \"$missing\""}
-status 1
+status 127
 {"error":"timed out after 1 seconds (HIBR_TIMEOUT)","file":"command line","line":1}
 status 124
 ```

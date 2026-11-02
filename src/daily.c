@@ -772,6 +772,8 @@ unsigned sh_optbit(const char *nm)
 		return O_DOTGLOB;
 	if (!strcmp(nm, "failglob"))
 		return O_FAILGLOB;
+	if (!strcmp(nm, "patsub_replacement"))
+		return O_PATSUB;
 	if (!strcmp(nm, "nocasematch"))
 		return O_NOCASEMATCH;
 	if (!strcmp(nm, "inherit_errexit"))
@@ -832,7 +834,7 @@ const char *sh_optnames[] = { "errexit", "nounset", "xtrace", "noclobber",
 			      "nocasematch", "extglob", "globstar",
 			      "expand_aliases", "pipefail", "inherit_errexit",
 			      "agent", "checkfirst", "keepgoing", "logtime",
-			      "noglob", 0 };
+			      "noglob", "patsub_replacement", 0 };
 
 /* Read one option by name, or -1 when there is no such option. */
 int sh_optget(sh *s, const char *nm)

@@ -601,6 +601,7 @@ int main(int ac, char **av)
 	pt_init(ac, av);
 	v_env(&s);
 	hibr_set(&s, "IFS", " \t\n", 0);
+	s.sopt |= O_PATSUB;
 	tr_init(&s);
 	s.t0 = (long)time(0);
 	srand((unsigned)(s.t0 ^ (long)getpid()));

@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 2.3
+app mail "Email, offline, labels and conversations as Gmail has them" 2.4
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -902,9 +902,9 @@ fn ml_text2html(t) {
 	local out= q=0 line u
 	local -a ls
 
-	t=${t//&/&amp;}
-	t=${t//</&lt;}
-	t=${t//>/&gt;}
+	t=${t//&/"&amp;"}
+	t=${t//</"&lt;"}
+	t=${t//>/"&gt;"}
 	mapfile -t ls <<< "${t//$'\r'/}"
 	for line in "${ls[@]}"; do
 		if [[ $line == '&gt;'* ]]; then
@@ -917,7 +917,7 @@ fn ml_text2html(t) {
 		fi
 		while [[ $line =~ (^|[^\"])(https?://[^ <]+) ]]; do
 			u=${BASH_REMATCH[2]}
-			line=${line/"$u"/"<a href=\"${u//&amp;/&}\">${u//:/&#58;}</a>"}
+			line=${line/"$u"/"<a href=\"${u//&amp;/"&"}\">${u//:/"&#58;"}</a>"}
 		done
 		if [ -z "$line" ]; then out+="<p>"; else out+="$line<br>"; fi
 	done
