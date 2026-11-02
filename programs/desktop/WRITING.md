@@ -365,7 +365,12 @@ A field has a selection, which the widget keeps for the focused field and
 nothing in an app has to: shift with an arrow, home or end draws it out,
 typing replaces it, backspace and delete remove it, and a press and a drag
 on the focused field set it with the mouse -- the window manager does that
-by typing into the app's own `_key`. The desktop's Copy, Cut, Paste and
+by typing into the app's own `_key`. A double click selects the word under
+it and a triple click the whole field. A press on a field that does not
+have the keys is still the app's, to give it them; once the app draws that
+field focused, the window manager puts the cursor where the press landed,
+unless the app selected the field on giving it the keys, as an address bar
+does (0.99.422). The desktop's Copy, Cut, Paste and
 Select All reach a field in a window whose app has none of its own; an app
 that does keep its own `_copy` and `_cut` for a field takes the selection
 with `t := dt_fieldsel` and `t := dt_fieldcut id`, each failing when

@@ -5866,6 +5866,50 @@ sc, _ = run(FX, feed=[press(4, 12), drag(4, 14), drag(4, 17), release(4, 17),
                       b"\x1bx"])
 check("a drag across a field's text selects it, for Cut to take",
       sc.row(4)[6:13] == "hello  " and "world" not in sc.row(4), sc.row(4))
+# Clicks in a field as everywhere else (0.99.422, the owner's): a double
+# click selects a word and a triple the whole field, a click inside a
+# selection puts the cursor there, a click on a field that does not have
+# the keys puts the cursor where it landed once its app gives it them, and
+# Select All is one key in every window. Each is read through what Cut
+# takes or what a typed character lands beside.
+CLK2 = press(4, 13) + release(4, 13) + press(4, 13) + release(4, 13)
+sc, _ = run(FX, feed=[CLK2, b"\x1bx"])
+check("a double click in a field selects the word under it",
+      sc.row(4)[6:13] == "hello  " and "world" not in sc.row(4), sc.row(4))
+sc, _ = run(FX, feed=[CLK2 + press(4, 13) + release(4, 13), b"\x1bx"])
+check("and a triple click the whole field",
+      "hello" not in sc.row(4) and "world" not in sc.row(4), sc.row(4))
+sc, _ = run(FX, feed=[HOME] + [SR] * 5 + [press(4, 9), release(4, 9), b"X"])
+check("a click inside a selection puts the cursor there and lets it go",
+      "helXlo world" in sc.row(4), sc.row(4))
+sc, _ = run(FX, feed=[b"\x1ba", b"Z"])
+check("Select All selects the whole field, wherever it is",
+      sc.row(4)[6:9] == "Z  " and "hello" not in sc.row(4), sc.row(4))
+UF = ('declare -gA UF\n'
+      'fn uf_draw(int id, int h, int w, int row, int col) {\n'
+      '    local f=${UF[$id]["f"]:-0}\n'
+      '    dt_wclear "$id"\n'
+      '    dt_textdraw "$id" 2 2 20 "${UF[$id]["a"]}" "${UF[$id]["ac"]}" $((f == 0))\n'
+      '    dt_textdraw "$id" 4 2 20 "${UF[$id]["b"]}" "${UF[$id]["bc"]}" $((f == 1))\n'
+      '}\n'
+      'fn uf_click(int? id = "", int? r = "", int? c = "", btn = "") {\n'
+      '    [ "$r" = 4 ] && UF[$id]["f"]=1\n'
+      '    [ "$r" = 2 ] && UF[$id]["f"]=0\n'
+      '    return 0\n'
+      '}\n'
+      'fn uf_key(int id, key) {\n'
+      '    local r k=a c=ac\n'
+      '    case $key in q | y) return 1 ;; esac\n'
+      '    if [ "${UF[$id]["f"]:-0}" = 1 ]; then k=b; c=bc; fi\n'
+      '    r := dt_textkey "${UF[$id]["$k"]}" "${UF[$id]["$c"]}" "$key" || return 1\n'
+      '    UF[$id]["$k"]=${r% *}; UF[$id]["$c"]=${r##* }\n'
+      '}\n'
+      'uid := dt_new "UF" 10 40 2 4 uf\n'
+      'UF[$uid]["a"]="alpha beta"; UF[$uid]["ac"]=0\n'
+      'UF[$uid]["b"]="gamma delta"; UF[$uid]["bc"]=11\n')
+sc, _ = run(UF, feed=[press(6, 12), release(6, 12), b"X"])
+check("a click on a field without the keys puts the cursor where it landed",
+      "gamma Xdelta" in sc.row(6) and "alpha beta" in sc.row(4), sc)
 # A load that sets variables runs as a job and its variables come back
 # (dt_jobvars, 0.99.400): a pane whose first draw had to start programs
 # reads in a job now. They come back through declare -p and eval, so this
@@ -8762,4 +8806,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(936)
+report(941)

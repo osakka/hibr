@@ -27,7 +27,11 @@ DT_MOD="${DT_MOD-alt}"
 [ -n "${DT_KEYS["copy"]+x}" ] || DT_KEYS["copy"]="mod-c"
 [ -n "${DT_KEYS["cut"]+x}" ] || DT_KEYS["cut"]="mod-x"
 [ -n "${DT_KEYS["paste"]+x}" ] || DT_KEYS["paste"]="mod-v"
-[ -n "${DT_KEYS["selectall"]+x}" ] || DT_KEYS["selectall"]="ctrl-a"
+# Select All is one key in every window since 0.99.422, so it is a chord
+# like Copy rather than ctrl-a, which a field and an app have their own
+# uses for; a settings file still holding ctrl-a moved with it (DT_SETVER
+# 20).
+[ -n "${DT_KEYS["selectall"]+x}" ] || DT_KEYS["selectall"]="mod-a"
 [ -n "${DT_KEYS["scrollup"]+x}" ] || DT_KEYS["scrollup"]="shift-pageup"
 [ -n "${DT_KEYS["scrolldown"]+x}" ] || DT_KEYS["scrolldown"]="shift-pagedown"
 [ -n "${DT_KEYS["snapleft"]+x}" ] || DT_KEYS["snapleft"]="mod-left"
@@ -654,9 +658,16 @@ dt_load() {
 		   [ "${DT_AKEY["files:newwin"]-}" = alt-enter ]; then
 			DT_AKEY["files:newwin"]="mod-o"
 		fi
+		# 0.99.422: Select All reaches every window, and moves from
+		# ctrl-a, which only the icons had, to mod-a -- only while it
+		# still holds the old default.
+		if [ "${DT_SETVER:-0}" -lt 20 ] &&
+		   [ "${DT_KEYS["selectall"]-}" = ctrl-a ]; then
+			DT_KEYS["selectall"]="mod-a"
+		fi
 	fi
 	CS_Y=
-	DT_SETVER=19
+	DT_SETVER=20
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"

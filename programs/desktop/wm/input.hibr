@@ -209,6 +209,9 @@ dt_mouse() {
 			   dt_fdpress "$id" $((mr - wr)) $((mc - wa)) "$mods"; then
 				return 0
 			fi
+			# A field that does not have the keys: the press is the app's,
+			# and the cursor goes there once the app has given it them.
+			[ "$1" = left ] && dt_fdlater "$id" $((mr - wr)) $((mc - wa)) || true
 			mo=${DT[$id]["mouse"]}
 			if [ -n "$mo" ]; then
 				DT_MOUSE=$id
@@ -1225,6 +1228,14 @@ fn dt_event(k) {
 	if dt_keyis copy "$k"; then dt_edit copy; return 0; fi
 	if dt_keyis cut "$k"; then dt_edit cut; return 0; fi
 	if dt_keyis paste "$k"; then dt_edit paste; return 0; fi
+	# Select All is one key everywhere (0.99.422): the focused field's,
+	# the window's own when its app has one, and with no window focused
+	# the desktop's icons, further down. A window with neither keeps it.
+	if [ -n "$DT_FOCUS" ] && dt_keyis selectall "$k" &&
+	   { dt_fieldlive || [ -n "${DT[$DT_FOCUS]["selall"]}" ]; }; then
+		dt_editdo selall
+		return 0
+	fi
 	case $k in
 	"paste "*)
 		# The host terminal's own paste is the Paste key's, through the

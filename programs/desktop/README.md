@@ -548,7 +548,7 @@ passes shift-click on; many keep it for their own text selection), and a
 drag across the empty desktop draws a band that selects every icon it
 touches. With no window focused the keyboard works too: the arrows go from
 icon to icon, shift with them extends the selection, space picks or drops
-one, ctrl-a takes them all, enter opens what is selected. alt-c copies their
+one, alt-a (Select All) takes them all, enter opens what is selected. alt-c copies their
 paths.
 
 **Drag** an icon somewhere empty and it stays there, remembered in the
@@ -720,7 +720,7 @@ Move to Display (with more than one display) and Close on a title bar.
 In the file browser a click selects one entry; ctrl and a click adds or
 takes away; shift and a click takes a run; shift with the arrows carries
 the selection along; space marks the entry under the cursor and steps on;
-ctrl-a takes everything but `..`. A plain click on something already
+ctrl-a or alt-a (Select All) takes everything but `..`. A plain click on something already
 selected keeps the rest until the button comes up, so the selection can be
 picked up and dragged; the footer says how many are chosen.
 
@@ -770,7 +770,9 @@ does not move goes to the app.
 ## Copy and paste
 
 **alt-z** undoes and **alt-y** redoes in anything that edits text, and
-Select All is on the Edit menu beside them. Every one-line text field keeps
+**alt-a** selects all, in a text field or in a window that has something to
+select, and on the desktop's icons with no window focused -- all three on
+the Edit menu. Every one-line text field keeps
 a history of its own while it has the focus, changes less than a second
 apart being one step. In Files, Undo puts back the last move, copy, rename
 or trip to the trash -- a batch is one step, the last twenty are kept, and

@@ -548,6 +548,7 @@ dt_draw() {
 	t0=$((${EPOCHREALTIME/./} - t0))
 	[ -z "$DT_STATON" ] && [ "$t0" -lt 1000 ] || dt_spent flush "$t0"
 	DT_INDRAW=
+	[ -z "${DT_FDGO-}" ] || dt_fdgo
 }
 
 # Whether an open menu's items may have changed since they were built.

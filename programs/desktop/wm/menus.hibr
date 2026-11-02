@@ -789,6 +789,7 @@ dt_editmenu() {
 	else
 		dt_dim "Select All"
 	fi
+	dt_rowaccel "${DT_KEYS["selectall"]}"
 	# The one place a search can be found with nothing on screen saying
 	# so: widgets/search.hibr draws nothing until `/` is pressed, which
 	# is what the owner chose, and this is how the feature stays
@@ -813,6 +814,7 @@ fn dt_editdo(op) {
 	# behind it would undo (Gitea #372), as it takes Copy and Paste.
 	case $op in
 	undo | redo) dt_fieldundo "$op" && return 0 ;;
+	selall) dt_fieldlive && dt_fieldedit selall && return 0 ;;
 	esac
 	cb=${DT[$DT_FOCUS]["$op"]}
 	if [ -z "$cb" ]; then

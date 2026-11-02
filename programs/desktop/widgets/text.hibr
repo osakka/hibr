@@ -171,6 +171,7 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 		DT_FIELD["paste"]=$paste
 		[ -n "${DT_FIELD["anc"]}" ] && [ "${DT_FIELD["anc"]}" -gt "${#text}" ] &&
 			DT_FIELD["anc"]=${#text}
+		[ -z "$DT_FDPEND" ] || dt_fdtake "$id" "$r" "$c" "$w"
 		dt_fieldnote "$id $r $c" "$text" "$cur"
 	fi
 	shown="$text"
@@ -435,15 +436,136 @@ fn dt_fdmove(id, int c, int ext) {
 }
 
 # A press at pane row r, column c: on window id's focused field, the cursor
-# goes there (or the selection does, with shift) and the drag is held.
+# goes there (or the selection does, with shift) and the drag is held. A
+# second press in the same place within DT_DBLMS selects the word there, and
+# a third the whole field.
 fn dt_fdpress(id, int r, int c, mods = "") {
-	local ext=0
+	local ext=0 n=1
 
 	dt_fdhit "$id" "$r" "$c" || return 1
 	case "-$mods-" in *-shift-*) ext=1 ;; esac
-	dt_fdmove "$id" "$c" "$ext"
-	DT_FDRAG=$id
+	if [ "$ext" = 0 ]; then
+		n := dt_fdcount "$id" "$r" "$c"
+	fi
+	case $n in
+	2) dt_fdword "$id" "$c" ;;
+	3) dt_fdall "$id" ;;
+	*)
+		dt_fdmove "$id" "$c" "$ext"
+		DT_FDRAG=$id
+		;;
+	esac
 	return 0
+}
+
+# Presses on fields, counted for a double and a triple click: the window,
+# the row and column, when, and how many so far. A fourth starts again.
+DT_FDCLK=
+
+# Count a press at pane row r, column c of window id: 1, 2 or 3.
+fn dt_fdcount(id, int r, int c) {
+	local now cid cr cc ct cn
+
+	now := dt_ms
+	read -r cid cr cc ct cn <<< "$DT_FDCLK"
+	if [ "$cid" = "$id" ] && [ "$cr" = "$r" ] && [ "$cc" = "$c" ] &&
+	   [ -n "$ct" ] && [ $((now - ct)) -lt "$DT_DBLMS" ] && [ "$cn" -lt 3 ]; then
+		cn=$((cn + 1))
+	else
+		cn=1
+	fi
+	DT_FDCLK="$id $r $c $now $cn"
+	ret "$cn"
+}
+
+# Whether ch is part of a word, for a double click: anything but a blank
+# or punctuation, and the underscore, which names are made of.
+fn dt_fdwordch(ch) {
+	[ "$ch" = _ ] && return 0
+	case $ch in
+	[[:space:]] | [[:punct:]]) return 1 ;;
+	esac
+	return 0
+}
+
+# Select the word at pane column c of window id's focused field; on a blank
+# or a punctuation mark, that one character.
+fn dt_fdword(id, int c) {
+	local fr fc fw t=${DT_FIELD["text"]} i lo hi
+
+	read -r fr fc fw <<< "${DT_FIELD["rect"]}"
+	i=$((c - fc))
+	[ "$i" -ge "${#t}" ] && i=$((${#t} - 1))
+	[ "$i" -ge 0 ] || return 0
+	lo=$i
+	hi=$((i + 1))
+	if dt_fdwordch "${t:$i:1}"; then
+		while [ "$lo" -gt 0 ] && dt_fdwordch "${t:$((lo - 1)):1}"; do
+			lo=$((lo - 1))
+		done
+		while [ "$hi" -lt "${#t}" ] && dt_fdwordch "${t:$hi:1}"; do
+			hi=$((hi + 1))
+		done
+	fi
+	dt_fdmove "$id" $((fc + lo)) 0
+	dt_fdmove "$id" $((fc + hi)) 1
+}
+
+# Select the whole of window id's focused field.
+fn dt_fdall(id) {
+	DT_FIELD["anc"]=
+	dt_fdtype "$id" home 1
+	dt_fdtype "$id" shift-end 1
+	dt_want 10
+}
+
+# A press on a field its window had not given the keys (0.99.422, the
+# owner's): the app is handed the press, as before, and when the window
+# then draws that field focused, the cursor goes where the press landed.
+# Held as "window row column when", and taken only within a second, so a
+# field given the keys later by a key rather than a press is left alone.
+DT_FDPEND=
+# Set by dt_textdraw when the pending press's field is drawn focused, and
+# acted on by dt_fdgo once the frame is drawn, never in the middle of it.
+DT_FDGO=
+
+# Note a press at pane row r, column c of window id, on one of its fields
+# that does not have the keys; status 1 when there is no field there.
+fn dt_fdlater(id, int r, int c) {
+	local now
+
+	DT_FDPEND=
+	dt_textat "$id" "$r" "$c" || return 1
+	now := dt_ms
+	dt_fdcount "$id" "$r" "$c"
+	DT_FDPEND="$id $r $c $now"
+}
+
+# The field a pending press was on is drawn focused at row r, columns c to
+# c + w of window id: take the press for dt_fdgo.
+fn dt_fdtake(id, int r, int c, int w) {
+	local pid pr pc pt now
+
+	read -r pid pr pc pt <<< "$DT_FDPEND"
+	[ "$pid" = "$id" ] && [ "$pr" = "$r" ] || return 0
+	[ "$pc" -ge "$c" ] && [ "$pc" -le $((c + w)) ] || return 0
+	DT_FDPEND=
+	now := dt_ms
+	[ $((now - pt)) -lt 1000 ] || return 0
+	DT_FDGO="$id $pc"
+}
+
+# After a frame: put the cursor where a pending press landed, unless the app
+# selected its field on giving it the keys -- an address bar selects all,
+# and a press that only gave it the keys must not undo that.
+fn dt_fdgo() {
+	local id c
+
+	read -r id c <<< "$DT_FDGO"
+	DT_FDGO=
+	[ "${DT_FIELD["id"]}" = "$id" ] && [ "${DT_FIELD["live"]}" = 1 ] || return 0
+	[ -z "${DT_FIELD["anc"]}" ] || return 0
+	dt_fdmove "$id" "$c" 0
 }
 
 # A drag or a release while a field's selection is being drawn out, at

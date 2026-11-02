@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.422
+
+**A click in a text field works the way it does everywhere else** (the
+owner's). A click on any field puts the cursor where it landed -- until now
+only the field that already had the keys did; a click on another one was
+its app's alone, and most put the cursor at the end. The press is still the
+app's, to give the field the keys, and once the app draws it focused the
+window manager moves the cursor there; a field its app selected on giving it
+the keys, as an address bar does, keeps that selection. A double click
+selects the word under it and a triple click the whole field, and a click
+inside a selection puts the cursor there and lets the selection go, as it
+already did. Every field in every window has this, with no change to any
+app, because the window manager does it by typing into the app's own
+`_key`, as it already did for a drag.
+
+**Select All is one key, in every window.** It was a key only the desktop's
+icons answered to, as "Select All Icons" on ctrl-a; everywhere else Select
+All was the Edit menu row alone. It is **alt-a** now (Shortcut Key and a,
+like Copy's alt-c): the focused field, the window when its app has
+something to select -- Files, Write, Sheet, Diagram, Stickies, a mail being
+written -- and the icons when no window is focused, and the Edit menu shows
+it. A window with nothing to select keeps the key for itself. It moved off
+ctrl-a because a field and an app each have their own use for that, and a
+settings file still holding ctrl-a moves with it, once; a key somebody chose
+stays. Files keeps its own ctrl-a as well.
+
 ## 0.99.421
 
 **An address field with suggestions, for the Browser** (Gitea #334). A new

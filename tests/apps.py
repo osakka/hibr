@@ -1564,6 +1564,25 @@ check("a key changed from its old default is not touched",
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
       out.startswith(SETVER + " 1 0 0 "), out)
+# Select All reaches every window since 0.99.422 and moved from ctrl-a,
+# which only the icons had, to mod-a: a file still on ctrl-a moves, and a
+# key somebody chose stays.
+def loadsel(conf):
+    d = tempfile.mkdtemp(prefix="hibr-mig-")
+    os.makedirs(os.path.join(d, "hibr"))
+    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
+    out = subprocess.run(
+        [sx.HIBR, "-c", ". %s\ndt_load\necho \"${DT_KEYS[selectall]}\"" % WM],
+        env=dict(os.environ, XDG_CONFIG_HOME=d),
+        capture_output=True, text=True).stdout.strip()
+    shutil.rmtree(d, True)
+    return out
+
+
+out = loadsel('DT_SETVER=19\nDT_KEYS["selectall"]=ctrl-a\n')
+check("a saved Select All still on ctrl-a moves to mod-a", out == "mod-a", out)
+out = loadsel('DT_SETVER=19\nDT_KEYS["selectall"]=f7\n')
+check("and one somebody chose stays", out == "f7", out)
 
 
 # 0.99.324 calls the frame that is only a title bar none, and the border left
@@ -6119,4 +6138,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(793)
+report(795)
