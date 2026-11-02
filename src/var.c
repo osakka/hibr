@@ -136,6 +136,8 @@ const char *sh_ifs(sh *s)
 {
 	if (!s->ifsok) {
 		s->ifsc = hibr_get(s, "IFS");
+		if (s->ifsc && !strcmp(s->ifsc, " \t\n"))
+			s->ifsc = 0;
 		s->ifsok = 1;
 	}
 	return s->ifsc;

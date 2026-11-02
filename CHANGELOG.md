@@ -51,6 +51,9 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   `${a[@]/p/P}`, `${@%.c}` and `${*%.c}` work on every element, with
   their pattern expanded once. They acted on the list joined into one
   string.
+- **IFS is set when the shell starts** (#441), and one in the environment is
+  not used, as in bash. The save-and-restore idiom `o=$IFS; …; IFS=$o` had
+  turned splitting off for the rest of the script.
 - **Cost.** About 0.3% more instructions on the `while` loop benchmark,
   besides `strcmp`'s usual layout noise; the array loop is 1% cheaper.
 
