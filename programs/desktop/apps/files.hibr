@@ -21,7 +21,7 @@
 
 strict
 
-app files "A file browser" 3.8
+app files "A file browser" 3.9
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -237,6 +237,7 @@ fn fb_scan(int id) {
 		n=$((n + 1))
 	done
 	FB[$id]["n"]=$n
+	FB[$id]["lgen"]=$((${FB[$id]["lgen"]:-0} + 1))
 	# A new listing looks for covers afresh (#336).
 	FB[$id]["cgen"]=$((${FB[$id]["cgen"]:-0} + 1))
 	FB[$id]["top"]=0
@@ -324,6 +325,7 @@ fn fb_rscan(int id, d) {
 		done
 	done
 	FB[$id]["n"]=$n
+	FB[$id]["lgen"]=$((${FB[$id]["lgen"]:-0} + 1))
 	FB[$id]["top"]=0
 	FB[$id]["sel"]=0
 	FB[$id]["last"]=-1
@@ -1149,6 +1151,38 @@ fn files_draw(int id, int h, int w, int row, int col) {
 		dt_band "w$id" "${bb[0]}" "${bb[1]}" "${bb[2]}" "${bb[3]}" "$DT_FACE"
 	fi
 	dt_searchdraw "$id" "$h" "$w"
+	FB[$id]["drawn"] := fb_drawkey "$id"
+}
+
+# Everything a Files window draws from, as one string: what _dirty compares
+# with the one it drew last. The focused window is drawn on every frame, as
+# keys and the search reach only it; an unfocused one changes only when a
+# listing comes back, a copy lands in its folder or the clipboard's cut
+# marks move, all of which this names.
+fn fb_drawkey(int id) {
+	local c=
+
+	[ "${DT_CLIPKIND-}" = paths ] && c=$DT_CLIP
+	ret "${DT[$id]["h"]} ${DT[$id]["w"]} ${FB[$id]["dir"]} ${FB[$id]["n"]} ${FB[$id]["lgen"]:-0} ${FB[$id]["top"]} ${FB[$id]["sel"]} ${FB[$id]["view"]} ${FB[$id]["sort"]} ${FB[$id]["marks"]} ${FB[$id]["cgen"]} ${FB[$id]["covers"]} ${FB[$id]["meta"]} ${FB[$id]["bg"]-} ${FB[$id]["band"]-} ${FB[$id]["bandr"]-} ${FB[$id]["hx"]-} ${FB[$id]["per"]} ${FB[$id]["q"]-}|${DT_CLIPKIND-}|$c|$DT_MIRRORON|$FB_TITLE"
+}
+
+# Whether this window has anything new to draw (see fb_drawkey). A window
+# that had the focus when it was last drawn is drawn once more, to take its
+# cursor and its selection's lighting away.
+fn files_dirty(int id) {
+	local k
+
+	if [ "$DT_FOCUS" = "$id" ]; then
+		FB[$id]["foc"]=1
+		return 0
+	fi
+	if [ -n "${FB[$id]["foc"]-}" ]; then
+		FB[$id]["foc"]=
+		return 0
+	fi
+	k := fb_drawkey "$id"
+	[ "$k" = "${FB[$id]["drawn"]-}" ] && return 1
+	return 0
 }
 
 # Stretch Files' rubber band to r,c, in the window's own cells, and mark

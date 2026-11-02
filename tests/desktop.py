@@ -4945,6 +4945,45 @@ check("and says what woke each wait and why each window was drawn",
       isinstance(wk, dict) and sum(wk.values()) >= 1 and
       all(k in ("input", "io") or k.startswith("timer:") for k in wk) and
       isinstance(dw, dict) and any(k.startswith("files:") for k in dw), st)
+# An app the catalogue updated keeps running the copy it loaded until the
+# desktop restarts (Gitea #267), so the desktop says so three ways: a note
+# that restarts it when clicked, the bar's reload mark, and the hibr menu's
+# Restart Desktop row named for it (0.99.420). The app here is a file in
+# the session's own data folder, changed after the first scan; a window's
+# key runs the rescan the catalogue would have asked for.
+UPDATA = scratch("upd-data")
+os.makedirs(os.path.join(UPDATA, "hibr", "apps"), exist_ok=True)
+UPAPP = os.path.join(UPDATA, "hibr", "apps", "upprobe.hibr")
+open(UPAPP, "w").write('command -v dt_app > /dev/null && dt_app upprobe "Up Probe" 8 30\n')
+UPSESS = ('dt_apps\n'
+          'ru_draw() { console put -p "w$1" 1 1 "rescan"; }\n'
+          'ru_key() { [ "$2" = u ] || return 1; '
+          'printf "%%s\\n" "command -v dt_app > /dev/null && dt_app upprobe \\"Up Probe\\" 8 30 # 2" > %s; '
+          'dt_rescan > /dev/null; return 0; }\n'
+          'dt_new "Rescan" 6 30 6 10 ru\n' % UPAPP)
+# Read before quitting: Quit's confirm box clears every note on screen.
+upath = scratch("desktop-upd.hibr")
+open(upath, "w").write("%s. %s\n\ndt_open\n%s\ndt_run\ndt_close\n" % (load(MOD), WM, UPSESS))
+ut = Term(upath, env={"DT_TICK": "60", "XDG_DATA_HOME": UPDATA, "DT_NOTEMS": "60000"},
+          rows=ROWS, cols=COLS, settle=0.6)
+ut.keys([1.0, b"u"])
+ut.until(lambda s: s.find("Up Probe was updated") is not None, 40)
+sc = ut.screen()
+ut.quit(b"qy", 1.0)
+check("an app updated on disk is named in a note saying a restart loads it",
+      sc.find("Up Probe was updated") is not None, sc)
+check("and the bar wears the reload mark", "\u21bb" in sc.row(0) or "@" in sc.row(0), sc.row(0))
+sc, _ = run(UPSESS, [1.0, b"u", 0.6, b"\x1b[21~", 0.4], env={"XDG_DATA_HOME": UPDATA, "DT_NOTEMS": "60000"})
+check("and the hibr menu's Restart Desktop row says it would update",
+      sc.find("Restart Desktop to Update") is not None, sc)
+shutil.rmtree(UPDATA, True)
+
+# And Files says when it has something new to draw (0.99.420), so it is no
+# longer drawn on every frame for having no say: the Boxer measurement on
+# the owner's mini PC counted files:nodirty once a frame, at 8 frames a
+# second, with nothing in it changing.
+check("and Files is never drawn for want of saying whether it changed",
+      isinstance(dw, dict) and "files:nodirty" not in dw, dw)
 rc, st = ctl("stats", "stop")
 check("and stop ends the timing, the counts kept",
       rc == 0 and st.get("timing") is False and st.get("frames", 0) >= 1, st)
@@ -8648,4 +8687,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(924)
+report(928)

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.420
+
+**A Files window with nothing new in it is left undrawn.** Files had no
+`_dirty`, so every Files window was drawn on every frame anything asked
+for -- the owner's mini PC counted `files:nodirty` once a frame while a
+game played full screen beside it. `files_dirty` compares one string made
+of everything a Files window draws from (its folder, its listing, the
+cursor, the scroll, the marks, the view, the covers, the search, the cut
+marks on the clipboard) with the one it last drew; the focused window is
+still drawn every frame, and one that just lost the focus once more, to put
+its cursor out. Files 3.9.
+
+**An updated app says how to load it, and the note does it.** An app, pane
+or module the catalogue updates keeps running the copy it loaded until the
+desktop restarts, since swapping one under its open windows is not safe
+(Gitea #267). The note that says so now restarts the desktop when clicked,
+and while anything is waiting the hibr menu's row reads Restart Desktop to
+Update, beside the bar's reload mark that was already there.
+
+The Control Panel was the other half of this and is not done: its panes
+show state that changes from outside it -- the volume keys, the network and
+Bluetooth watchers, a clock -- so a key built the same way would leave a
+pane stale. It waits for panes that own their cells (ADR 0050, #421).
+
 ## 0.99.419
 
 **Links in a terminal window open with a click** (Gitea #423, the owner's,

@@ -1028,6 +1028,7 @@
   "Resize": "⟪Resize⟫",
   "Restart": "⟪Restart⟫",
   "Restart Desktop": "⟪Restart Desktop⟫",
+  "Restart Desktop to Update": "⟪Restart Desktop to Update⟫",
   "Restart failed: %s would not run": "⟪Restart failed: %s would not run⟫",
   "Restart the computer?": "⟪Restart the computer?⟫",
   "Restarted, but the saved desktop could not be read -- see desktop.log": "⟪Restarted, but the saved desktop could not be read -- see desktop.log⟫",

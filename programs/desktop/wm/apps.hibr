@@ -485,10 +485,14 @@ dt_rescan() {
 	dt_has cp_colourlist && cp_colourlist
 	DT_APPPLANK=
 	DT_MENUIN=
+	# Clickable: the note restarts the desktop, the one thing that loads
+	# the new copy. The bar's reload mark and the hibr menu's own row say
+	# it for as long as it is true; a note is gone in seconds.
 	if [ "${#DT_STALENEW[@]}" -gt 0 ]; then
 		t=
 		for w in "${DT_STALENEW[@]}"; do t="$t${t:+, }$w"; done
-		dt_notep normal "%s was updated: Restart Desktop to use the new version" "$t"
+		t := dt_tr "%s was updated: Restart Desktop to use the new version" "$t"
+		dt_notifyp normal "$t" dt_restart
 	fi
 	dt_changed
 	ret "$added $gone $changed"

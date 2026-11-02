@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.69",
+ "version": "3.70",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -873,6 +873,7 @@
   "Reset Permissions": "إعادة ضبط الأذونات",
   "Resize": "تغيير الحجم",
   "Restart Desktop": "إعادة تشغيل سطح المكتب",
+  "Restart Desktop to Update": "أعد تشغيل سطح المكتب للتحديث",
   "Restart failed: %s would not run": "فشلت إعادة التشغيل: تعذّر تشغيل %s",
   "Restarted, but the saved desktop could not be read -- see desktop.log": "أُعيد التشغيل، لكن تعذّرت قراءة سطح المكتب المحفوظ -- انظر desktop.log",
   "Restarted, but the saved desktop is from another version": "أُعيد التشغيل، لكن سطح المكتب المحفوظ من إصدار آخر",

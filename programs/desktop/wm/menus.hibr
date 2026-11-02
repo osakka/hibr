@@ -159,7 +159,14 @@ dt_hibrtail() {
 	dt_item "Screen Saver" s dt_saverstart
 	dt_item "Lock Screen" l dt_lock
 	dt_sep
-	dt_item "Restart Desktop" r dt_restart
+	# Named for what it would do while something is waiting for it: a newer
+	# hibr on disk, or an app, pane or module the catalogue updated, which
+	# runs the copy it loaded until the desktop restarts.
+	if [ -n "$DT_UPNEW$DT_UPAPPS" ]; then
+		dt_item "Restart Desktop to Update" r dt_restart
+	else
+		dt_item "Restart Desktop" r dt_restart
+	fi
 	# Dimmed when the desktop is not held, and its letter kept either way,
 	# so no application's letter moves with whether it is.
 	if [ -n "$HIBR_HOLD" ]; then
