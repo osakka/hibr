@@ -26,6 +26,13 @@ refused. The memory it costs is 16 bytes a cell instead of 12 -- about
 Restart Desktop, not a new session: the console is in the desktop's own
 process.
 
+**hibr builds on macOS again** (the owner's, from Homebrew). Since 0.99.397
+the hold module received a window picture's descriptor with
+`MSG_CMSG_CLOEXEC`, which only Linux has, so `brew install hibr` stopped
+at `hold.so`. Elsewhere the descriptor is received plainly and marked
+close-on-exec straight after, as the module's other descriptors already
+were; on Linux nothing changes.
+
 ## 0.99.422
 
 **A click in a text field works the way it does everywhere else** (the

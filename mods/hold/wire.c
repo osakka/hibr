@@ -54,6 +54,17 @@ int hd_nameok(const char *name)
 	return 1;
 }
 
+/* A descriptor received is closed on exec as it arrives where the kernel
+   can do that (Linux); elsewhere hd_rtype marks it straight after. */
+#ifdef MSG_CMSG_CLOEXEC
+#define HD_RXCLOEXEC MSG_CMSG_CLOEXEC
+#else
+#define HD_RXCLOEXEC 0
+#endif
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+
 /* Keep a descriptor out of whatever this process execs next.  SOCK_CLOEXEC,
    accept4 and pipe2's O_CLOEXEC do this in one call on Linux; this is the
    POSIX form every platform this runs on has, macOS included, where none
@@ -230,7 +241,7 @@ int hd_rtype(int fd, char *t)
 		m.msg_iovlen = 1;
 		m.msg_control = u.b;
 		m.msg_controllen = sizeof u.b;
-		k = recvmsg(fd, &m, MSG_CMSG_CLOEXEC);
+		k = recvmsg(fd, &m, HD_RXCLOEXEC);
 		if (k < 0 && errno == EINTR)
 			continue;
 		if (k < 0 && errno == ENOTSOCK)
@@ -243,6 +254,8 @@ int hd_rtype(int fd, char *t)
 		if (c->cmsg_level == SOL_SOCKET && c->cmsg_type == SCM_RIGHTS &&
 		    c->cmsg_len >= CMSG_LEN(sizeof(int))) {
 			memcpy(&hd_rxfd, CMSG_DATA(c), sizeof hd_rxfd);
+			if (!HD_RXCLOEXEC)
+				hd_cloexec(hd_rxfd);
 			break;
 		}
 	return 1;
