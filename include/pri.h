@@ -54,6 +54,7 @@ ssize_t io_rdall(int fd, void *buf, size_t n);
 unsigned vh(const char *k);
 var *v_find(sh *s, const char *k);
 var *v_findr(sh *s, const char **nm);
+int v_assign(sh *s, const char *k, const char *v, int ex, int keep);
 #ifndef HIBR_DEFPATH
 #define HIBR_DEFPATH "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 #endif
@@ -65,6 +66,9 @@ var *v_findr(sh *s, const char **nm);
 #define NK_MODBI 4
 #define NK_BUILTIN 5
 #define NK_FILE 6
+#endif
+#ifndef HIBR_RXTMP
+#define HIBR_RXTMP "\001rx"
 #endif
 #ifndef HIBR_FNSELF
 #define HIBR_FNSELF "\001fnself"

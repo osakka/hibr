@@ -398,8 +398,12 @@ int b_unset(sh *s, int ac, char **av)
 			}
 		}
 		if (!v) {
-			if (!vo && !no)
+			if (!vo && !no && fn_isro(av[i])) {
+				lg(HIBR_LERR, "unset: %s: cannot unset: readonly function", av[i]);
+				rc = HIBR_FAIL;
+			} else if (!vo && !no) {
 				bi_unfn(s, av[i]);
+			}
 			continue;
 		}
 		if (v->ro) {
@@ -1429,7 +1433,7 @@ int t_int(const char *a, long *v)
 {
 	char *end;
 
-	while (isspace((unsigned char)*a))
+	while (*a == ' ' || (*a >= '\t' && *a <= '\r'))
 		a++;
 	if (!*a || ((*a == '-' || *a == '+') && !isdigit((unsigned char)a[1])) ||
 	    (*a != '-' && *a != '+' && !isdigit((unsigned char)*a)))

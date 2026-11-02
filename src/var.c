@@ -214,6 +214,15 @@ int v_strict(sh *s, const char *k)
 /* Store a variable value, optionally marking it exported. */
 int hibr_set(sh *s, const char *k, const char *v, int ex)
 {
+	return v_assign(s, k, v, ex, 0);
+}
+
+/* hibr_set, and for a script's own assignment (keep) the rule bash has for
+   a name that holds an array: the value goes to element 0 and the rest
+   stay, decided on the one lookup the assignment makes anyway (Gitea
+   #461). The shell's own writes -- RET, a module's result -- replace. */
+int v_assign(sh *s, const char *k, const char *v, int ex, int keep)
+{
 	var *e;
 	unsigned b;
 	char *nv;
@@ -252,7 +261,14 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 				e->v = nv;
 				return HIBR_OK;
 			}
-			return hibr_set(s, k, v, ex);
+			return v_assign(s, k, v, ex, keep);
+		}
+		if (keep && (e->am || e->map)) {
+			char *k0 = "0";
+
+			lg(HIBR_LDBG, "%s is an array: the assignment sets element 0, as in bash", k);
+			v_setp(s, k, &k0, 1, v);
+			return HIBR_OK;
 		}
 		s_init(&t);
 		v = v_coerce(s, e, v, &t);
@@ -691,8 +707,11 @@ var *v_findr(sh *s, const char **nm)
 	var *v = v_find(s, *nm);
 	int hop = 0;
 
-	while (v && (v->at & A_REF) && v->v && *v->v && !strchr(v->v, '[') &&
-	       hop++ < 16) {
+	while (v && (v->at & A_REF) && v->v && *v->v && !strchr(v->v, '[')) {
+		if (!strcmp(v->v, *nm) || ++hop > 16) {
+			lg(HIBR_LDBG, "%s: circular name reference; the reference itself is used", *nm);
+			return v;
+		}
 		*nm = v->v;
 		v = v_find(s, *nm);
 	}
@@ -787,7 +806,7 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 	e->s = nv;
 	if (nk == 1 && !strcmp(ks[0], "0")) {
 		v = v_find(s, nm);
-		if (v) {
+		if (v && !(v->at & A_REF)) {
 			nv = xs(val);
 			free(v->v);
 			v->v = nv;
@@ -1060,7 +1079,7 @@ int v_delp(sh *s, const char *nm, char **ks, int nk)
 	}
 	if (!mp_del(mp, np, ks[nk - 1]))
 		return HIBR_FAIL;
-	if (nk == 1 && !strcmp(ks[0], "0")) {
+	if (nk == 1 && !strcmp(ks[0], "0") && !(v->at & A_REF)) {
 		lg(HIBR_LTRC, "%s lost element 0, which $%s reads", nm, nm);
 		free(v->v);
 		v->v = xs("");

@@ -206,9 +206,13 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   - `match`, `json parse` and `arr` refuse a readonly variable rather
     than writing through it or answering 0.
 - **A refused assignment abandons the rest of the line**, and the script
-  goes on with the next, as bash does; it ended the script. Under
-  `keepgoing` it fails only the command. A value a declared type refuses
-  (`declare int m; m=abc`) still ends the script, as documented.
+  goes on with the next, as bash does; it ended the script. In a sourced
+  file or an `eval` it abandons that line of it. Under `set -e` it ends
+  the script; under `keepgoing` it fails only the command. A value a
+  declared type refuses (`declare int m; m=abc`) still ends the script,
+  as documented, except under `keepgoing`.
+- **`[[ =~ ]]` with a readonly `M`** fills `BASH_REMATCH` and leaves `M`
+  alone, rather than failing.
 - **Namerefs reach arrays**: `r[1]=x`, `${r[0]}`, `${#r[@]}`, `${!r[@]}`,
   `r+=(y)` and `unset 'r[0]'` act on the array `r` names, followed at most
   16 hops as a plain value is.

@@ -1526,23 +1526,16 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 	if (!br) {
 		int rc;
 		const char *tn = kv, *val = q + 1;
-		var *tv = v_findr(s, &tn);
 
+		if (!plus) {
+			rc = v_assign(s, kv, val, ex_flag, 1);
+			*q = '=';
+			return rc;
+		}
 		s_init(&cat);
-		if (plus) {
-			asg_cat(s, tv, hibr_get(s, kv), q + 1, &cat);
-			val = cat.p ? cat.p : "";
-		}
-		if (tv && (tv->am || tv->map) && !tv->ro) {
-			char *k0 = "0";
-
-			lg(HIBR_LDBG, "%s is an array: the assignment sets element 0, as in bash", tn);
-			v_refused = 0;
-			v_setp(s, tn, &k0, 1, val);
-			rc = v_refused ? HIBR_FAIL : HIBR_OK;
-		} else {
-			rc = hibr_set(s, kv, val, ex_flag);
-		}
+		asg_cat(s, v_findr(s, &tn), hibr_get(s, kv), q + 1, &cat);
+		val = cat.p ? cat.p : "";
+		rc = v_assign(s, kv, val, ex_flag, 1);
 		s_free(&cat);
 		if (plus)
 			*plus = '+';
@@ -1576,7 +1569,11 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 		v_setp(s, kv, (char **)ks->p, (int)ks->n, q + 1);
 	}
 	vb_put(s, ks);
-	ro = (rv = v_find(s, kv)) && rv->ro;
+	{
+		const char *rn = kv;
+
+		ro = (rv = v_findr(s, &rn)) && rv->ro;
+	}
 	*br = '[';
 	*q = '=';
 	return s->stop || ro ? HIBR_FAIL : HIBR_OK;
@@ -1698,6 +1695,8 @@ int ex_cmd(sh *s, node *n)
 				v_free(&one);
 			} else if (ex_asg(s, kv, mk, 0) != HIBR_OK) {
 				abad = 1;
+				if (v_refused)
+					break;
 			}
 		}
 		if (!ac && !s->xerr && abad && v_refused) {
@@ -1708,6 +1707,12 @@ int ex_cmd(sh *s, node *n)
 			}
 			if (v_refused == 2 && !s->it) {
 				lg(HIBR_LDBG, "a value its declared type refuses ends the script");
+				s->quit = 1;
+				goto out;
+			}
+			if (s->errx && !s->tst && !s->intry && !s->it) {
+				lg(HIBR_LDBG, "a refused assignment under errexit ends the script, as in bash");
+				s->stop = 1;
 				s->quit = 1;
 				goto out;
 			}
@@ -1732,6 +1737,12 @@ int ex_cmd(sh *s, node *n)
 			}
 			if (v_refused == 2 && !s->it) {
 				lg(HIBR_LDBG, "a value its declared type refuses ends the script");
+				s->quit = 1;
+				goto out;
+			}
+			if (s->errx && !s->tst && !s->intry && !s->it) {
+				lg(HIBR_LDBG, "a refused array assignment under errexit ends the script, as in bash");
+				s->stop = 1;
 				s->quit = 1;
 				goto out;
 			}
@@ -2521,14 +2532,17 @@ int cx_files(const char *a, const char *op, const char *b)
 }
 
 /* Copy what =~ put in M into BASH_REMATCH too, so a script written for bash finds its captures there. */
-void cx_rematch(sh *s)
+void cx_rematch(sh *s, const char *from)
 {
-	size_t i, n = v_alen(s, "M");
+	size_t i, n = v_alen(s, from);
 	const char *v;
+	var *br = v_find(s, "BASH_REMATCH");
 
+	if (br && br->ro)
+		return;
 	v_del(s, "BASH_REMATCH");
 	for (i = 0; i < n; i++) {
-		v = v_getel(s, "M", (long)i);
+		v = v_getel(s, from, (long)i);
 		v_setel(s, "BASH_REMATCH", (long)i, v ? v : "");
 	}
 }
@@ -2584,14 +2598,21 @@ int cx_prim(struct cx *c)
 			return 0;
 		if (!strcmp(op, "=~")) {
 			char *mv[4];
+			var *mr = v_find(c->s, "M");
+			int ro = mr && mr->ro;
+
+			if (ro)
+				lg(HIBR_LDBG, "=~: M is readonly, so only BASH_REMATCH is filled");
 			mv[0] = "match";
 			mv[1] = a;
 			mv[2] = b;
-			mv[3] = "M";
+			mv[3] = ro ? HIBR_RXTMP : "M";
 			r = b_match(c->s, 4, mv);
 			if (r == 2)
 				c->bad = 1;
-			cx_rematch(c->s);
+			cx_rematch(c->s, mv[3]);
+			if (ro)
+				v_del(c->s, HIBR_RXTMP);
 			return r == HIBR_OK;
 		}
 		if (!strcmp(op, "<"))

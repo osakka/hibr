@@ -151,7 +151,7 @@ int sh_runx(sh *s, const char *src, const char **rest, int one)
 		   for. Only the outermost text clears it: a nested one is an
 		   eval, a source or a trap, and `eval "set -n; echo A"; echo
 		   B` must stop the caller's list too, as bash does. */
-		if ((s->noexec || ex_abline) && run_dep == 1) {
+		if ((s->noexec && run_dep == 1) || ex_abline) {
 			s->stop = 0;
 			ex_abline = 0;
 		}
@@ -385,6 +385,7 @@ int loop(sh *s)
 			s_free(&d);
 		}
 		s->stop = 0;
+		ex_abline = 0;
 		recycle(s);
 		acc.n = 0;
 		if (acc.p)

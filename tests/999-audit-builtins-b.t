@@ -1,3 +1,4 @@
+self=$(readlink /proc/$$/exe)
 p() { printf '<%s>' "$@"; echo; }
 echo "-- declare -x reaches the environment"
 TZV=one; declare -x TZV; sh -c 'echo "child [$TZV]"'
@@ -36,3 +37,16 @@ echo "-- unset of element 0 and a later scalar"
 d=(p q); unset 'd[0]'; d=z; echo "[$d] ${#d[@]} [${d[1]}]"
 echo "-- PATH unset"
 ( unset PATH; command -v ls > /dev/null; echo "command -v $?" )
+echo "-- from the review"
+"$self" -c 'set -e; readonly r=1; r=2; echo same
+echo next' 2>/dev/null; echo "errexit $?"
+"$self" -c 'readonly r=1; a=(1 2); r=2 a=x; echo "same ${a[@]}"
+echo "next ${a[@]}"' 2>/dev/null
+f(){ echo f1; }; readonly -f f; unset f 2>/dev/null; f
+"$self" -c 'readonly M=x; [[ abc =~ (b) ]]; echo "=~ $? ${BASH_REMATCH[1]}"'
+"$self" -c 'readonly -a ra=(1 2); declare -n r=ra; r[0]=9; echo after
+echo next' 2>/dev/null
+printf 'r=2; echo s1\necho s2\n' > /tmp/rvsrc$$
+"$self" -c "readonly r=1; . /tmp/rvsrc$$; echo same
+echo next" 2>/dev/null; rm -f /tmp/rvsrc$$
+"$self" -c 'readonly r=1; eval $'"'"'r=2\necho ev2'"'"'; echo same' 2>/dev/null
