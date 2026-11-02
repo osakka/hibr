@@ -10,6 +10,7 @@
 
 volatile sig_atomic_t *tr_pend;
 volatile sig_atomic_t tr_any;
+extern volatile sig_atomic_t g_hup;
 int tr_n;
 extern volatile sig_atomic_t jc_chld;
 
@@ -140,6 +141,8 @@ int tr_waitsig(sh *s)
 {
 	int i;
 
+	if (g_hup)
+		return SIGHUP;
 	if (!tr_any || !s->trap || !tr_pend)
 		return 0;
 	for (i = 1; i < tr_n; i++)
@@ -154,6 +157,8 @@ void tr_run(sh *s)
 	int i, ost = s->st;
 	char *cmd;
 
+	if (g_hup)
+		sh_hupnow(s);
 	tr_any = 0;
 	if (!s->trap || !tr_pend)
 		return;
@@ -203,6 +208,7 @@ void tr_fork(sh *s)
 	   ECHILD marks nothing -- but there is no reason to go. */
 	jc_chld = 0;
 	tr_errkid = 1;
+	tr_hupdfl();
 	if (s->etrap)
 		lg(HIBR_LDBG, "subshell keeps the ERR trap listed and runs it only if set again");
 	if (!s->trap || !s->trap[0])
@@ -210,6 +216,20 @@ void tr_fork(sh *s)
 	lg(HIBR_LDBG, "subshell forgets the inherited exit trap");
 	free(s->trap[0]);
 	s->trap[0] = 0;
+}
+
+/* In a forked child, put a hangup back to its default when it is only the
+   interactive shell's own handler: a subshell, a $( ) or a pipeline stage
+   has no history to save, and a child that caught it could not be hung up
+   at all. A trap the script set on HUP is tr_fork's to reset, and an ignore
+   stays. */
+void tr_hupdfl(void)
+{
+	struct sigaction cur;
+
+	g_hup = 0;
+	if (sigaction(SIGHUP, 0, &cur) == 0 && cur.sa_handler == on_hup)
+		signal(SIGHUP, SIG_DFL);
 }
 
 /* Forget the parent's jobs in a child that is a subshell of its own -- a

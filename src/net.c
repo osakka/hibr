@@ -1314,7 +1314,7 @@ int net_fdarg(const char *t, int *fd)
 
 	while (*p >= '0' && *p <= '9')
 		p++;
-	if (!*t || *p) {
+	if (!*t || *p || p - t > 9) {
 		lg(HIBR_LERR, "%s: not a descriptor", t);
 		return HIBR_FAIL;
 	}

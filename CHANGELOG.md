@@ -267,14 +267,18 @@ The rest of the core audit (Gitea #427), in one release, area by area.
 - **Startup.** `-c` takes its command after every option (`hibr -c -x
   'cmd'`, `hibr -ec ...`). A folder or a binary named as the script is
   refused with status 126, as bash does; a folder ran nothing and said 0,
-  a binary was read as commands. `hibr -i` on a pipe reads no further than
+  a binary was read as commands. Only a regular file's head is looked at,
+  so a script from a pipe, a FIFO or `<( )` runs whole. `hibr -i` on a pipe reads no further than
   each line, so a `read` in the input gets the next line.
 - **History** is written to a file only its owner can read (0600), whole,
   and renamed into place, so two shells ending together cannot truncate
-  it.
+  it; a history file that is a symbolic link is written through the link.
 - **A hangup** -- the terminal closing -- saves history, sends HUP to the
   jobs (and CONT to a stopped one), runs the logout file of a login shell,
-  and ends the shell by the signal; it used to kill the shell first.
+  and ends the shell by the signal; it used to kill the shell first. It
+  does so wherever the shell is: at the prompt, waiting for a command, or
+  in a loop. A subshell, a `$( )` and a pipeline stage take the default
+  back, so each can still be hung up.
 - **The line editor.**
   - An OSC in the prompt (a window title) takes no columns; it was counted
     up to its first letter, and the cursor sat far to the right.

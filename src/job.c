@@ -8,6 +8,8 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/wait.h>
+
+extern volatile sig_atomic_t g_hup;
 #include <sys/select.h>
 #include <time.h>
 #include <termios.h>
@@ -484,6 +486,8 @@ long jc_waitt(sh *s, long wp, long kp, int *w, int fl)
 			p = waitpid((pid_t)wp, w, fl);
 			if (p >= 0 || errno != EINTR)
 				return (long)p;
+			if (g_hup)
+				sh_hupnow(s);
 		}
 	}
 	memset(&a, 0, sizeof a);
@@ -496,6 +500,8 @@ long jc_waitt(sh *s, long wp, long kp, int *w, int fl)
 		p = waitpid((pid_t)wp, w, fl);
 		if (p >= 0 || errno != EINTR)
 			break;
+		if (g_hup)
+			sh_hupnow(s);
 		if (!jc_alrm)
 			continue;
 		jc_alrm = 0;

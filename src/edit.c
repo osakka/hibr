@@ -555,15 +555,20 @@ void ed_fini(sh *s)
 	if (s->hfile && s->hist.n) {
 		str tmp;
 		int fd;
+		char *dst = realpath(s->hfile, 0);
 
+		if (!dst)
+			dst = xs(s->hfile);
+		else if (strcmp(dst, s->hfile))
+			lg(HIBR_LDBG, "history file is a link: writing %s", dst);
 		s_init(&tmp);
-		s_fmt(&tmp, "%s.%ld.tmp", s->hfile, (long)getpid());
+		s_fmt(&tmp, "%s.%ld.tmp", dst, (long)getpid());
 		fd = open(tmp.p, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
 		f = fd >= 0 ? fdopen(fd, "w") : 0;
 		if (f) {
 			for (i = 0; i < s->hist.n; i++)
 				fprintf(f, "%s\n", (char *)s->hist.p[i]);
-			if (fclose(f) || rename(tmp.p, s->hfile)) {
+			if (fclose(f) || rename(tmp.p, dst)) {
 				lg(HIBR_LWRN, "cannot write %s: %s", s->hfile,
 				   strerror(errno));
 				unlink(tmp.p);
@@ -577,6 +582,7 @@ void ed_fini(sh *s)
 			   strerror(errno));
 		}
 		s_free(&tmp);
+		free(dst);
 	}
 	for (i = 0; i < s->hist.n; i++)
 		free(s->hist.p[i]);

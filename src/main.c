@@ -27,11 +27,35 @@ void on_int(int sig)
 /* The terminal went away: say so, and let the loop leave through
    sh_fini, so history is saved and jobs are told (Gitea #468). */
 volatile sig_atomic_t g_hup;
+extern volatile sig_atomic_t tr_any;
 
 void on_hup(int sig)
 {
 	(void)sig;
 	g_hup = 1;
+	tr_any = 1;
+}
+
+static int g_login;
+
+/* End an interactive shell for a hangup, wherever it was: jobs told,
+   history saved, the logout file of a login shell, and death by the
+   signal. Reached from the loop and, through tr_run, from between any two
+   commands and from a wait, so a running command or a busy loop does not
+   keep a shell alive whose terminal has gone. */
+void sh_hupnow(sh *s)
+{
+	g_hup = 0;
+	tr_any = 0;
+	lg(HIBR_LDBG, "hangup: leaving");
+	sh_hangup(s);
+	if (g_login)
+		rc_logout(s);
+	sh_fini(s);
+	fflush(0);
+	signal(SIGHUP, SIG_DFL);
+	raise(SIGHUP);
+	_exit(128 + SIGHUP);
 }
 
 /* Leave after a hangup as bash does: every job is sent HUP, a stopped one
@@ -253,8 +277,11 @@ char *in_line(int fd, int seek)
 		free(buf);
 	} else {
 		while ((n = read(fd, &c, 1)) == 1 || (n < 0 && errno == EINTR)) {
-			if (n != 1)
+			if (n != 1) {
+				if (g_hup)
+					break;
 				continue;
+			}
 			s_ch(&b, c);
 			if (c == '\n')
 				break;
@@ -458,14 +485,22 @@ int sc_refuse(FILE *f, const char *nm)
 {
 	struct stat st;
 	char *head;
+	ssize_t r;
 	size_t n, k;
 
-	if (!fstat(fileno(f), &st) && S_ISDIR(st.st_mode)) {
+	if (fstat(fileno(f), &st))
+		return 0;
+	if (S_ISDIR(st.st_mode)) {
 		lg(HIBR_LERR, "%s: %s: Is a directory", nm, nm);
 		return 1;
 	}
+	if (!S_ISREG(st.st_mode)) {
+		lg(HIBR_LDBG, "%s is not a regular file, so its head is not looked at: what is read from a pipe cannot be put back", nm);
+		return 0;
+	}
 	head = xm(HIBR_SHEBANGN);
-	n = fread(head, 1, HIBR_SHEBANGN, f);
+	r = pread(fileno(f), head, HIBR_SHEBANGN, 0);
+	n = r > 0 ? (size_t)r : 0;
 	for (k = 0; k < n && head[k] != '\n'; k++)
 		if (!head[k]) {
 			lg(HIBR_LERR, "%s: %s: cannot execute binary file", nm, nm);
@@ -473,7 +508,6 @@ int sc_refuse(FILE *f, const char *nm)
 			return 1;
 		}
 	free(head);
-	rewind(f);
 	return 0;
 }
 
@@ -870,6 +904,7 @@ int main(int ac, char **av)
 		}
 		src = xs(av[i++]);
 	}
+	g_login = login;
 	if (iact) {
 		s.it = 1;
 		if (!explain && !s.noexec) {
@@ -961,15 +996,8 @@ int main(int ac, char **av)
 		rc_load(&s);
 		lg(HIBR_LINF, "interactive shell, pid %ld", (long)getpid());
 		rc = loop(&s);
-		if (g_hup) {
-			sh_hangup(&s);
-			if (login)
-				rc_logout(&s);
-			sh_fini(&s);
-			signal(SIGHUP, SIG_DFL);
-			raise(SIGHUP);
-			return 128 + SIGHUP;
-		}
+		if (g_hup)
+			sh_hupnow(&s);
 	} else if (s.sopt & O_CHECK) {
 		text = slurp(stdin);
 		rc = sh_check(&s, text) ? 2 : hibr_run(&s, text);

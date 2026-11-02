@@ -287,6 +287,39 @@ check("a hangup is passed to background jobs",
                                   text=True).stdout.splitlines())
 t.close()
 
+# Review of #468: the hangup was only noticed between lines, so a shell
+# running a command -- or a busy loop -- outlived its terminal; and the
+# history file was renamed over, which replaced a symbolic link with a
+# file and left the link's target stale.
+hhome = _tf.mkdtemp()
+os.mkdir(os.path.join(hhome, "dots"))
+open(os.path.join(hhome, "dots", "hist"), "w").write("old line\n")
+os.symlink("dots/hist", os.path.join(hhome, ".hibr_history"))
+t = Term("-i", rows=24, cols=80, env={"HIBR_RC": "/dev/null", "TERM": "xterm",
+                                       "HOME": hhome}, settle=0.6)
+t.keys([b"echo linked-marker\n", 0.3, b"while :; do :; done\n", 0.4])
+os.kill(t.pid, _sig.SIGHUP)
+def _ended(pid):
+    try:
+        return open("/proc/%d/stat" % pid).read().rsplit(")", 1)[1].split()[0] == "Z"
+    except OSError:
+        return True
+gone = False
+for _ in range(20):
+    time.sleep(0.05)
+    if _ended(t.pid):
+        gone = True
+        break
+check("a hangup ends a shell in the middle of a busy loop", gone)
+hl = os.path.join(hhome, ".hibr_history")
+check("history is written through a symbolic link",
+      os.path.islink(hl) and
+      "linked-marker" in open(os.path.join(hhome, "dots", "hist")).read(),
+      repr((os.path.islink(hl), open(hl).read()[-80:])))
+if not gone:
+    os.kill(t.pid, _sig.SIGKILL)
+t.close()
+
 # The line editor's audit (Gitea #469). An OSC in the prompt -- a window
 # title -- was counted as columns up to its first letter, so the cursor sat
 # far right of the text.
@@ -310,4 +343,4 @@ check("a completion hook keeps $? and cannot end the shell",
       "status=0 alive" in t, repr(t[-300:]))
 shutil.rmtree(d, ignore_errors=True)
 
-report(62)
+report(64)
