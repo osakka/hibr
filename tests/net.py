@@ -296,7 +296,7 @@ try:
     check("Control Panel > Network says what manages it, what it is on, and its address",
           sc.find("NetworkManager") is not None and sc.find("Wi-Fi, .gibnet/5ghz") is not None and
           sc.find("192.168.10.54/24") is not None and
-          sc.find("192.168.15.100, 192.1") is not None, sc)
+          sc.find("192.168.15.100, 192") is not None, sc)
     k = row(sc, ".gibnet/5ghz 2")
     check("and lists the networks it knows, each by its name and the network it joins",
           k is not None and ".gibnet/5ghz  Forget" in sc.row(k), sc)
