@@ -43,3 +43,9 @@ case "a b" in @(a b)) echo 20y;; *) echo 20n;; esac
 foo-bar() { echo 21; }; foo-bar
 for k in a b; { echo "22$k"; }
 echo a \
+case 'a;b' in @(a;b)) echo 23y;; esac
+[[ "a&b" == @(a&b) ]] && echo 24y
+[[ 'x\' =~ ^x["."]$ ]] && echo 25y || echo 25n
+c=".-"; [[ - =~ ^[^"$c"]$ ]] && echo 26y || echo 26n
+[[ a =~ ^[[:alpha:]]$ ]] && echo 27y
+echo ${u:-$(echo "}")}

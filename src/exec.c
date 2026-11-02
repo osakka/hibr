@@ -2315,6 +2315,30 @@ char *cx_rx(struct cx *c, size_t i)
 	n = strlen(v);
 	s_init(&o);
 	for (k = 0; k < n; k++) {
+		if (!m[k] && v[k] == '[') {
+			size_t e = k + 1;
+
+			if (e < n && v[e] == '^')
+				e++;
+			if (e < n && v[e] == ']')
+				e++;
+			while (e < n && v[e] != ']') {
+				if (v[e] == '[' && e + 1 < n && strchr(":.=", v[e + 1])) {
+					const char *z = strstr(v + e + 2, v[e + 1] == ':' ? ":]" :
+							       v[e + 1] == '.' ? ".]" : "=]");
+					if (z) {
+						e = (size_t)(z - v) + 2;
+						continue;
+					}
+				}
+				e++;
+			}
+			if (e < n) {
+				s_add(&o, v + k, e - k + 1);
+				k = e;
+				continue;
+			}
+		}
 		if (m[k] && strchr("\\^$.|?*+()[]{}", v[k]))
 			s_ch(&o, '\\');
 		s_ch(&o, v[k]);

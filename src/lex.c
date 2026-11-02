@@ -101,8 +101,7 @@ const char *sk_brace(lex *l, const char *p, int *d)
 		return p + 2;
 	}
 	if (p + 1 < l->e && p[1] == '(') {
-		p = p + 2 < l->e && p[2] == '(' ? sk_bal(l, p + 2, '(', ')', 0) :
-			sk_cmd(l, p + 2);
+		p = sk_bal(l, p + 2, '(', ')', 0);
 		return p ? p + 1 : 0;
 	}
 	return p + 1;
@@ -701,10 +700,8 @@ word *lx_word(lex *l, int lit)
 		if (!q && !l->nb && l->p + 1 < l->e && l->p[1] == '(' &&
 		    (c == '?' || c == '*' || c == '+' || c == '@' ||
 		     c == '!')) {
-			int more = l->more;
 			const char *ee = sk_bal(l, l->p + 2, '(', ')', 0);
 
-			l->more = more;
 			if (ee) {
 				lg(HIBR_LTRC, "extended pattern group %.*s",
 				   (int)(ee - l->p + 1), l->p);
@@ -715,8 +712,8 @@ word *lx_word(lex *l, int lit)
 				continue;
 			}
 		}
-		if (gd && !q && !l->nb && (c == ' ' || c == '\t' || c == '|' ||
-					   c == '(' || c == ')')) {
+		if (gd && !q && !l->nb && c != '\n' &&
+		    (c == ' ' || c == '\t' || ismeta(c))) {
 			gd += c == '(' ? 1 : c == ')' ? -1 : 0;
 			lx_ch(l, &b, &t, &cq, 0, *l->p++);
 			continue;
