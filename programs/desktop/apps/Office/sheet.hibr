@@ -610,14 +610,15 @@ fn ss_trusted(int id) {
 # taken on trust, so a containment that cannot run, or does not hold, is a
 # dry run rather than a sheet whose every cell fails.
 ss_canhold() {
-	local d a
+	local d=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/sheet/probe-$$ a
+	local s='need contain || exit 97; contain probe || exit 1; contain exec "$1" -- "$2" "$1/p.hibr" "$1"'
 
 	[ -n "$SS_CJ" ] && return 0
 	SS_CJ=none
-	d=$(mktemp -d 2> /dev/null) || return 0
+	rm -rf "$d" "$d-out" 2> /dev/null
+	mkdir -p "$d" 2> /dev/null || return 0
 	printf '%s\n' 'echo ok > "$1/ok"' 'echo no > "$1-out"' > "$d/p.hibr" 2> /dev/null
-	a=$("$HIBR" -c 'need contain || exit 97; contain probe || exit 1
-contain exec "$1" -- "$2" "$1/p.hibr" "$1"' x "$d" "$HIBR" 2> /dev/null < /dev/null)
+	a=$("$HIBR" -c "$s" x "$d" "$HIBR" 2> /dev/null < /dev/null) # fork: once a desktop, the answer kept in SS_CJ
 	[ -s "$d/ok" ] && [ ! -e "$d-out" ] && [ -n "$a" ] && SS_CJ=$a
 	rm -rf "$d" "$d-out" 2> /dev/null
 	return 0
@@ -630,7 +631,7 @@ contain exec "$1" -- "$2" "$1/p.hibr" "$1"' x "$d" "$HIBR" 2> /dev/null < /dev/n
 fn ss_fhash(int id) {
 	local k h
 
-	h=$(for k in "${!SC[$id][@]}"; do
+	h=$(for k in "${!SC[$id][@]}"; do # fork: when a sheet opens, and per recalc of one with full access, beside the job that recalc starts
 		[ -n "${SC[$id][$k]["src"]}" ] &&
 			printf '%s\t%s\n' "$k" "${SC[$id][$k]["src"]}"
 	done | LC_ALL=C sort | cksum 2> /dev/null)

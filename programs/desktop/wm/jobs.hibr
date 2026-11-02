@@ -72,6 +72,11 @@ fn dt_job(kind, tag, then, ...cmd) {
 	DTJ[$n]["tag"]=$tag
 	DTJ[$n]["then"]=$then
 	DTJ[$n]["done"]=
+	# A number is this desktop's count, and the folder is named by its
+	# pid: a restart keeps the pid and a pid is reused, so a finished
+	# job's files from before can be waiting under this number -- read as
+	# this job's at once, and evaluated by dt_jobvarsread.
+	rm -f "$d/$n.out" "$d/$n.err" "$d/$n.st" 2> /dev/null
 	(
 		command -v dt_jobname > /dev/null && dt_jobname "$kind" "$tag"
 		"${cmd[@]}" > "$d/$n.out" 2> "$d/$n.err"

@@ -32,6 +32,15 @@ machine this was built on, whose kernel has none -- the seccomp filter was
 run there under a harness -- and `tests/contain.py` says so and skips; it is
 run on a machine with Landlock before #432 closes. Sheet 1.7.
 
+**A desktop job could read a job from before as its own.** A job's number is
+the desktop's own count and its files sit in a folder named by the desktop's
+pid, so a restart -- which keeps the pid -- or a pid used again could find a
+finished job's files under the same number, take them for the new job's at
+once, and evaluate them: a release gate saw Administrative Access's pkcheck
+answers run as a command (`com.mesonbuild.install.run: command not found`),
+and the new job's own result was lost. Each job clears its own files before
+it starts (`tests/999-job-stale.t`, which fails against 0.99.426).
+
 ## 0.99.426
 
 **Six inputs that crashed the shell are errors or answers** (Gitea #428,

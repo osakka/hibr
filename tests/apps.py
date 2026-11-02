@@ -456,10 +456,10 @@ check("panes register and sort by title within their group, not load order",
                 "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
                 "taskmgr", "versions", "wallset", "windows",
                 "browserset", "pimset", "filesview", "mailset", "prayerset",
-                "notes", "terminal", "vaultset", "webapps", "xscreenset", "tube"], out)
+                "sheetset", "notes", "terminal", "vaultset", "webapps", "xscreenset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 8 + ["system"] * 20 + ["app"] * 11, out)
+      ["hardware"] * 8 + ["system"] * 20 + ["app"] * 12, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
