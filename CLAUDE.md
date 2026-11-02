@@ -5117,7 +5117,8 @@ went in the shell.
   so the ABI did not move; they are set once in `main`, are not in
   `sh_optnames` so `set -o` cannot reach them, and travel with every fork --
   a subshell and a `$( )` under `-c` both still answer `c`, which is what
-  bash does (`hBc` in all three places there, `c` in all three here).
+  bash does (`hBc` in all three places, in both shells since 0.99.428,
+  when `-B` and `-h` became options hibr accepts as always on).
 - **`console flush` is not idempotent for a picture drawn under the text,
   and a second flush in one frame is how that bites.** What keeps such a
   picture is the caller placing it again (ADR 0037), so `cn_imgcheck` asks

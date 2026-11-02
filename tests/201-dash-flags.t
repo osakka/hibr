@@ -1,11 +1,11 @@
 # $- is the letters of the short options this shell has on, then how it was
 # started: i interactive, c for -c, s for commands on standard input.
 #
-# Recorded rather than compared because the letters are hibr's own. bash's
-# include h (hashall) and B (braceexpand), which hibr has no option for and
-# therefore cannot honestly report; a script asking the usual questions --
-# `case $- in *i*)`, `*e*` -- gets the same answer from both, and that is
-# what tests/199-startup-opts.t checks against bash (Gitea #153).
+# Recorded rather than compared because the letters are hibr's own. Since
+# 0.99.428 they include h (hashall) and B (braceexpand), which are always on
+# here, so the strings read as bash's do; a script asking the usual
+# questions -- `case $- in *i*)`, `*e*` -- gets the same answer from both,
+# and that is what tests/199-startup-opts.t checks against bash (Gitea #153).
 #
 # $SH is this shell, so the lines below can ask about a shell started some
 # other way than this one was.

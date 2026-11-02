@@ -107,7 +107,7 @@ hibr: source: /dev/tcp/example.com/80: No such file or directory
 | `export [-p] [-n] [name[=v]…]` | mark variables for export; `-p` lists them; `-n` takes them out of the environment and keeps their values |
 | `unset [-f\|-v] [-n] [--] name…` | remove variables, array elements or functions: `-v` only a variable, `-f` only a function, and with neither the variable, or the function when no variable has that name -- never both; a nameref is followed to what it names, and `-n` removes the nameref itself (and nothing, for a name that is not one); a readonly variable is refused with status 1, and so is a name that is not an identifier under `-v`, as in bash |
 | | `unset a[1]`, `a[-1]` and `h["a-b"]` all reach what they name |
-| `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters; letters bundle (`set -ex`) and `hibr` takes the same ones on its command line: `-e` errexit, `-f` noglob (a word with pattern characters stays the word), `-u` nounset, `-x` xtrace, `-C` noclobber, `-H` histexpand, `-S` strict, `-n` noexec |
+| `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters; letters bundle (`set -ex`) and `hibr` takes the same ones on its command line: `-e` errexit, `-f` noglob (a word with pattern characters stays the word), `-u` nounset, `-x` xtrace, `-C` noclobber, `-H` histexpand, `-S` strict, `-n` noexec, `-a` allexport (every variable assigned is exported), and `-B`, `-h` accepted as always on; an `o` in a bundle takes the next word (`set -eo nounset`), and `set -` alone ends the options and turns xtrace off |
 | `set` | list every variable, then every function, in a form that reads back in |
 | `set -o` / `set +o` | every option as a table, or as the `set -o`/`set +o` lines that put it back |
 | `shopt [-s\|-u\|-q\|-p] [name…]` | read or set shell options; `-p` prints the `shopt -s`/`-u` lines that put them back |
@@ -252,7 +252,7 @@ Every operation of each, with examples, is in
 
 | builtin | synopsis |
 |---|---|
-| `test expr` / `[ expr ]` | evaluate a conditional expression |
+| `test expr` / `[ expr ]` | evaluate a conditional expression; `-eq` and its kin take integers as bash does -- blanks and a sign, decimal digits -- and anything else is "integer expression expected" with status 2; `==` is `=`, and `-v name` (with a subscript too) asks whether it is set |
 | `break [n]` | leave `n` enclosing loops of this function; outside a loop, an error with status 0 and nothing left |
 | `continue [n]` | restart the `n`th enclosing loop; outside a loop, the same as `break` |
 | `return [n]` | return from a function or sourced file with status `n`; anywhere else, an error with status 2 |

@@ -168,6 +168,9 @@
 #ifndef O_EXECFAIL
 #define O_EXECFAIL 32768u
 #endif
+#ifndef O_ALLEXP
+#define O_ALLEXP 65536u
+#endif
 
 #ifndef J_STR
 #define J_STR 0

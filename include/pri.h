@@ -438,6 +438,11 @@ int tx_prim(tex *t);
 int tx_and(tex *t);
 int tx_or(tex *t);
 int t_two(const char *a, const char *op, const char *b);
+int t_int(const char *a, long *v);
+int bi_num(const char *who, const char *w, long *v);
+int bi_loops(sh *s, const char *who, int ac, char **av);
+int t_isset(sh *s, const char *w, const char *mk);
+int t_cmp(long x, const char *op, long y);
 int cx_files(const char *a, const char *op, const char *b);
 
 int b_match(sh *s, int ac, char **av);

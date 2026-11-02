@@ -144,6 +144,47 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   module's thread taking the SIGCHLD cannot leave it waiting for ever.
 - **The build renames the shell into place**, so a rebuild no longer takes
   `build/hibr` from under a process running it.
+
+**Builtins: test, numbers, read, set** (#453-#456).
+- **`test` reads integers as bash does.**
+  - Blanks around a number and a sign are allowed.
+  - Anything else -- empty, `1x`, `0x10`, too large -- is "integer
+    expression expected" and status 2. It was taken as 0, so `[ "" -lt 5 ]`
+    was true; and the `[ "$n" -eq "$n" ]` idiom for "is a number" said yes
+    to everything.
+  - `==` and `-v` work, `-v` with a subscript too.
+  - In `[[ ]]`, the operands of `-eq` and its kin are arithmetic, as in
+    bash: `[[ 1+1 -eq 2 ]]`, `[[ x -eq 0 ]]` and an empty side (0).
+  - Every test in the desktop suites was run under a census of empty and
+    non-numeric operands: one menu lookup relied on empty being 0 and says
+    what it means now.
+- **Numeric arguments are checked.**
+  - `exit` and `return` take their status modulo 256 (`return 300` is 44).
+    A word that is not a number is "numeric argument required" and status 2.
+  - `shift abc` and `shift -1` fail; `shift` past the end fails quietly.
+  - `break 0` and `continue -1` leave every loop with status 1; a count
+    larger than the loops there are leaves them all. It used to end the
+    rest of the script.
+  - `ulimit -n abc` is refused; it set the limit to 0, after which the
+    shell could open no files. A limit set with neither `-H` nor `-S` sets
+    both, as in bash.
+- **`read`.**
+  - `-n` and `-N` count characters, not bytes, on a file, a pipe and a
+    socket alike.
+  - `-t` waits with `poll`; `select` wrote past its set for a descriptor
+    above 1023.
+  - `-u` refuses a word that is not a descriptor, and one that is not open.
+  - `-s` no longer prints a newline of its own.
+- **`mapfile`** reads a pipe a block at a time unless `-n` may stop it part
+  way, reports a read error rather than taking it for the end, and refuses
+  counts and descriptors that are not numbers.
+- **`set`.**
+  - `set -` ends the options and turns xtrace off, as bash's does.
+  - An `o` inside a bundle takes the next word: `set -eo nounset` works,
+    and `set -euo pipefail` gets ADR 0017's own refusal of pipefail.
+  - `set -a` (allexport) exports every variable assigned while it is on,
+    the `set -a; . ./.env; set +a` idiom. `-B` and `-h` are accepted, being
+    always on.
 - **A module can end its children before an exec in place**
   (`hibr_onexec`, `hibr_offexec`). Restart Desktop execs in place, and the
   web engine, a child of the image being replaced, was left to exit

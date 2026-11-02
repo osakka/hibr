@@ -1,6 +1,8 @@
 #include "pri.h"
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -403,11 +405,27 @@ int b_unset(sh *s, int ac, char **av)
 	return rc;
 }
 
-/* Leave the shell. */
+/* Read a builtin's numeric argument as bash does -- blanks around it, a
+   sign, decimal digits, nothing too large -- and say so when it is not
+   one (Gitea #454). */
+int bi_num(const char *who, const char *w, long *v)
+{
+	if (t_int(w, v))
+		return 1;
+	lg(HIBR_LERR, "%s: %s: numeric argument required", who, w);
+	return 0;
+}
+
+/* Leave the shell, with the status modulo 256 as the system keeps it. */
 int b_exit(sh *s, int ac, char **av)
 {
+	long v;
+
 	s->quit = 1;
-	s->st = ac > 1 ? atoi(av[1]) : s->st;
+	if (ac > 1 && !bi_num("exit", av[1], &v))
+		return s->st = 2;
+	if (ac > 1)
+		s->st = (int)(v & 255);
 	return s->st;
 }
 
@@ -465,47 +483,96 @@ int b_retf(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "return: can only `return' from a function or sourced script");
 		return s->st = 2;
 	}
+	long v;
+
 	s->ret = 1;
-	s->st = ac > 1 ? atoi(av[1]) : s->st;
+	if (ac > 1 && !bi_num("return", av[1], &v))
+		return s->st = 2;
+	if (ac > 1)
+		s->st = (int)(v & 255);
 	return s->st;
+}
+
+/* How many loops break or continue leaves: 0 when the count is out of
+   range, which leaves every loop with status 1; a count that is no number
+   ends a script with 128 -- both as bash's do. */
+int bi_loops(sh *s, const char *who, int ac, char **av)
+{
+	long v = 1;
+
+	if (ac > 1 && !bi_num(who, av[1], &v)) {
+		s->st = 128;
+		if (!s->it)
+			s->quit = 1;
+		return -1;
+	}
+	if (v < 1) {
+		lg(HIBR_LERR, "%s: %ld: loop count out of range", who, v);
+		return 0;
+	}
+	if (v > ex_loops) {
+		lg(HIBR_LDBG, "%s %ld leaves the %d loops there are", who, v,
+		   ex_loops);
+		v = ex_loops;
+	}
+	return (int)v;
 }
 
 /* Leave one or more enclosing loops. */
 int b_brk(sh *s, int ac, char **av)
 {
+	int n;
+
 	if (!ex_loops) {
 		lg(HIBR_LERR, "break: only meaningful in a `for', `while', or `until' loop");
 		return HIBR_OK;
 	}
-	s->brk = ac > 1 ? atoi(av[1]) : 1;
-	if (s->brk < 1)
-		s->brk = 1;
+	n = bi_loops(s, "break", ac, av);
+	if (n < 0)
+		return 128;
+	if (!n) {
+		s->brk = ex_loops;
+		return HIBR_FAIL;
+	}
+	s->brk = n;
 	return HIBR_OK;
 }
 
 /* Continue one or more enclosing loops. */
 int b_cont(sh *s, int ac, char **av)
 {
+	int n;
+
 	if (!ex_loops) {
 		lg(HIBR_LERR, "continue: only meaningful in a `for', `while', or `until' loop");
 		return HIBR_OK;
 	}
-	s->cont = ac > 1 ? atoi(av[1]) : 1;
-	if (s->cont < 1)
-		s->cont = 1;
+	n = bi_loops(s, "continue", ac, av);
+	if (n < 0)
+		return 128;
+	if (!n) {
+		s->brk = ex_loops;
+		return HIBR_FAIL;
+	}
+	s->cont = n;
 	return HIBR_OK;
 }
 
-/* Drop leading positional parameters. */
+/* Drop leading positional parameters: a count larger than there are
+   fails quietly, as bash's does. */
 int b_shift(sh *s, int ac, char **av)
 {
-	int n = ac > 1 ? atoi(av[1]) : 1;
+	long n = 1;
 
-	if (n < 0 || n > s->ac) {
-		lg(HIBR_LERR, "shift: %d: out of range", n);
+	if (ac > 1 && !bi_num("shift", av[1], &n))
+		return HIBR_FAIL;
+	if (n < 0) {
+		lg(HIBR_LERR, "shift: %ld: shift count out of range", n);
 		return HIBR_FAIL;
 	}
-	v_pos(s, s->ac - n, s->av + n);
+	if (n > s->ac)
+		return HIBR_FAIL;
+	v_pos(s, s->ac - (int)n, s->av + n);
 	return HIBR_OK;
 }
 
@@ -531,6 +598,14 @@ int b_set(sh *s, int ac, char **av)
 		}
 		if (av[i][0] != '-' && av[i][0] != '+')
 			break;
+		if (!av[i][1] && av[i][0] == '-') {
+			lg(HIBR_LDBG, "set - ends the options and turns xtrace off, as bash's does");
+			sh_optset(s, "xtrace", 0);
+			i++;
+			if (i >= ac)
+				return HIBR_OK;
+			break;
+		}
 		if (!av[i][1]) {
 			lg(HIBR_LERR, "set: %s: unknown option", av[i]);
 			return HIBR_FAIL;
@@ -551,12 +626,28 @@ int b_set(sh *s, int ac, char **av)
 			continue;
 		}
 		on = av[i][0] == '-';
-		for (p = av[i] + 1; *p; p++)
-			if (sh_optch(s, *p, on) != HIBR_OK) {
-				lg(HIBR_LERR, "set: %c%c: unknown option",
-				   av[i][0], *p);
-				return HIBR_FAIL;
+		{
+			int at = i;
+
+			for (p = av[at] + 1; *p; p++) {
+				if (*p == 'o') {
+					if (i + 1 >= ac) {
+						sh_optlist(s, on ? 0 : 1);
+						continue;
+					}
+					if (sh_optset(s, av[++i], on) != HIBR_OK)
+						return HIBR_FAIL;
+					continue;
+				}
+				if (!sh_optltr(*p)) {
+					lg(HIBR_LERR, "set: %c%c: unknown option",
+					   av[at][0], *p);
+					return HIBR_FAIL;
+				}
+				if (sh_optch(s, *p, on) != HIBR_OK)
+					return HIBR_FAIL;
 			}
+		}
 	}
 	if (i < ac || (ac > 1 && !strcmp(av[ac - 1], "--")))
 		v_pos(s, ac - i, av + i);
@@ -607,6 +698,45 @@ char *bi_oval(int ac, char **av, int *i, size_t len)
    rest away, and `read -N 12` then waited for a datagram that never came.
    What follows the delimiter or the count in one datagram is lost, as it
    is in bash, which reads such a socket in blocks too. */
+/* How many characters n bytes hold: a byte that does not continue a UTF-8
+   sequence starts one. read's -n and -N count these (ADR 0021). */
+int bi_u8chars(const char *p, size_t n)
+{
+	size_t i;
+	int c = 0;
+
+	for (i = 0; i < n; i++)
+		if (((unsigned char)p[i] & 0xc0) != 0x80)
+			c++;
+	return c;
+}
+
+/* How many continuation bytes a UTF-8 lead byte promises. */
+int bi_u8more(unsigned char c)
+{
+	if ((c & 0xe0) == 0xc0)
+		return 1;
+	if ((c & 0xf0) == 0xe0)
+		return 2;
+	if ((c & 0xf8) == 0xf0)
+		return 3;
+	return 0;
+}
+
+/* Count one more byte of what read takes: 1 once the want-th character is
+   whole. A continuation byte nobody promised counts as a character of its
+   own, so a stray one cannot stall the count. */
+int bi_u8step(unsigned char c, int want, int *chars, int *need)
+{
+	if (*need && (c & 0xc0) == 0x80)
+		(*need)--;
+	else {
+		(*chars)++;
+		*need = bi_u8more(c);
+	}
+	return want && *chars >= want && !*need;
+}
+
 /* Add what read took to b, less any NUL byte, which bash drops too --
    unless NUL is the delimiter, when there is none left to drop. */
 void bi_rdadd(str *b, const char *p, size_t n, int delim)
@@ -628,12 +758,14 @@ void bi_rdadd(str *b, const char *p, size_t n, int delim)
 long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 		int *tout)
 {
-	long n = 0;
-	char c, *buf, *d;
-	size_t cap;
+	long n = 0, i, cut;
+	char c, *buf;
 	struct pollfd q;
 	long long left;
+	int chars = want ? bi_u8chars(b->p, b->n) : 0, need = 0, end;
 
+	if (want && chars >= want)
+		return 1;
 	if (lseek(fd, 0, SEEK_CUR) == (off_t)-1) {
 		if (net_isdgram(fd))
 			return bi_rddgram(fd, delim, want, exact, b, dl, tout);
@@ -653,12 +785,15 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 				continue;
 			if (n != 1)
 				break;
-			if (!exact && (unsigned char)c == (unsigned char)delim)
+			if (!exact && (unsigned char)c == (unsigned char)delim &&
+			    !need)
 				break;
-			if (c || !delim)
+			if (c || !delim) {
 				s_ch(b, c);
-			if (want && (int)b->n >= want)
-				break;
+				if (bi_u8step((unsigned char)c, want, &chars,
+					      &need))
+					break;
+			}
 		}
 		return n;
 	}
@@ -670,22 +805,37 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 			n = -1;
 			break;
 		}
-		cap = HIBR_IOCH;
-		if (want && (size_t)(want - (int)b->n) < cap)
-			cap = (size_t)(want - (int)b->n);
-		n = read(fd, buf, cap);
+		n = read(fd, buf, HIBR_IOCH);
 		if (n <= 0)
 			break;
-		d = exact ? 0 : memchr(buf, delim, (size_t)n);
-		if (d) {
-			bi_rdadd(b, buf, (size_t)(d - buf), delim);
-			lseek(fd, (off_t)((d - buf) + 1 - n), SEEK_CUR);
+		cut = -1;
+		end = 0;
+		for (i = 0; i < n; i++) {
+			if (!exact && !need &&
+			    (unsigned char)buf[i] == (unsigned char)delim) {
+				end = 1;
+				break;
+			}
+			if (want && (buf[i] || !delim) &&
+			    bi_u8step((unsigned char)buf[i], want, &chars,
+				      &need)) {
+				cut = i + 1;
+				break;
+			}
+		}
+		if (end) {
+			bi_rdadd(b, buf, (size_t)i, delim);
+			lseek(fd, (off_t)(i + 1 - n), SEEK_CUR);
 			n = 1;
 			break;
 		}
-		bi_rdadd(b, buf, (size_t)n, delim);
-		if (want && (int)b->n >= want)
+		if (cut >= 0) {
+			bi_rdadd(b, buf, (size_t)cut, delim);
+			if (cut < n)
+				lseek(fd, (off_t)(cut - n), SEEK_CUR);
 			break;
+		}
+		bi_rdadd(b, buf, (size_t)n, delim);
 	}
 	free(buf);
 	return n;
@@ -700,6 +850,7 @@ long bi_rddgram(int fd, int delim, int want, int exact, str *b, long long dl,
 	size_t cap;
 	struct pollfd q;
 	long long left;
+	int chars = want ? bi_u8chars(b->p, b->n) : 0, need = 0, full = 0;
 
 	lg(HIBR_LDBG, "read: fd %d is a datagram socket, read a datagram at a time", fd);
 	for (;;) {
@@ -713,7 +864,7 @@ long bi_rddgram(int fd, int delim, int want, int exact, str *b, long long dl,
 				return -1;
 			}
 		}
-		cap = want ? (size_t)(want - (int)b->n) : HIBR_DGRAM;
+		cap = HIBR_DGRAM;
 		buf = xm(cap);
 		n = read(fd, buf, cap);
 		if (n < 0 && errno == EINTR) {
@@ -725,15 +876,20 @@ long bi_rddgram(int fd, int delim, int want, int exact, str *b, long long dl,
 			return n;
 		}
 		for (i = 0; i < n; i++) {
-			if (!exact && (unsigned char)buf[i] == (unsigned char)delim)
+			if (!exact && !need &&
+			    (unsigned char)buf[i] == (unsigned char)delim)
 				break;
-			if (buf[i] || !delim)
+			if (buf[i] || !delim) {
 				s_ch(b, buf[i]);
-			if (want && (int)b->n >= want)
-				break;
+				if (bi_u8step((unsigned char)buf[i], want,
+					      &chars, &need)) {
+					full = 1;
+					break;
+				}
+			}
 		}
 		free(buf);
-		if (i < n)
+		if (i < n || full)
 			return 1;
 	}
 }
@@ -819,7 +975,7 @@ long bi_rdbs(int fd, int delim, int want, int exact, str *b, str *m,
 			bi_rdesc(b, m, at);
 			return n;
 		}
-		hit = !exact && !(want && (int)b->n >= want);
+		hit = !exact && !(want && bi_u8chars(b->p, b->n) >= want);
 		if (bi_rdesc(b, m, at)) {
 			if (hit) {
 				lg(HIBR_LDBG, "read: an escaped delimiter, reading on");
@@ -828,7 +984,8 @@ long bi_rdbs(int fd, int delim, int want, int exact, str *b, str *m,
 				continue;
 			}
 			at = b->n;
-			n = bi_rddelim(fd, delim, (int)at + 1, 1, b, dl, tout);
+			n = bi_rddelim(fd, delim, bi_u8chars(b->p, at) + 1, 1,
+				       b, dl, tout);
 			if (n <= 0)
 				return n;
 			if (b->p[at] == '\n') {
@@ -841,7 +998,7 @@ long bi_rdbs(int fd, int delim, int want, int exact, str *b, str *m,
 		} else if (hit) {
 			return n;
 		}
-		if (!want || (int)b->n >= want)
+		if (!want || bi_u8chars(b->p, b->n) >= want)
 			return n;
 	}
 }
@@ -899,8 +1056,8 @@ int b_read(sh *s, int ac, char **av)
 	const char *ifs = sh_ifs(s);
 	size_t p = 0, st;
 	struct termios sv, raw;
-	fd_set rs;
-	struct timeval tv;
+	struct pollfd pq;
+	long fv;
 
 	if (!ifs)
 		ifs = " \t\n";
@@ -969,7 +1126,15 @@ int b_read(sh *s, int ac, char **av)
 				}
 				break;
 			case 'u':
-				fd = atoi(ov);
+				if (!t_int(ov, &fv) || fv < 0 || fv > INT_MAX) {
+					lg(HIBR_LERR, "read: %s: invalid file descriptor specification", ov);
+					return 1;
+				}
+				fd = (int)fv;
+				if (fcntl(fd, F_GETFD) < 0) {
+					lg(HIBR_LERR, "read: %d: invalid file descriptor: %s", fd, strerror(errno));
+					return 1;
+				}
 				break;
 			case 'a':
 				arr = ov;
@@ -990,11 +1155,13 @@ int b_read(sh *s, int ac, char **av)
 	if (tmo > 0)
 		dl = bi_ms() + (long long)(tmo * 1000);
 	if (tmo >= 0) {
-		FD_ZERO(&rs);
-		FD_SET(fd, &rs);
-		tv.tv_sec = (time_t)tmo;
-		tv.tv_usec = (suseconds_t)((tmo - (double)tv.tv_sec) * 1e6);
-		rdy = select(fd + 1, &rs, 0, 0, &tv);
+		pq.fd = fd;
+		pq.events = POLLIN;
+		pq.revents = 0;
+		do
+			rdy = poll(&pq, 1, tmo > (double)INT_MAX / 1000 ? -1 :
+				   (int)(tmo * 1000 + 0.5));
+		while (rdy < 0 && errno == EINTR && !tr_pending());
 		if (tmo == 0) {
 			lg(HIBR_LDBG, "read -t 0: input %s", rdy > 0 ? "waiting" : "none");
 			return rdy > 0 ? 0 : 1;
@@ -1029,10 +1196,8 @@ int b_read(sh *s, int ac, char **av)
 		else if (m.p)
 			s_free(&m);
 	}
-	if (silent) {
+	if (silent)
 		tcsetattr(fd, TCSADRAIN, &sv);
-		fputc('\n', stderr);
-	}
 	eof = n <= 0;
 	rv = tout ? 142 : eof ? HIBR_FAIL : HIBR_OK;
 	if (tout)
@@ -1214,6 +1379,8 @@ int t_one(const char *op, const char *a)
 
 		return v && (v->at & A_REF) != 0;
 	}
+	case 'v':
+		return lg_sh && t_isset(lg_sh, a, 0);
 	}
 	return -1;
 }
@@ -1222,37 +1389,48 @@ int t_one(const char *op, const char *a)
 int t_isun(const char *w)
 {
 	return w[0] == '-' && w[1] && !w[2] &&
-	       strchr("znefdrwxsLhabcpSgukOGNtoR", w[1]) != 0;
+	       strchr("znefdrwxsLhabcpSgukOGNtoRv", w[1]) != 0;
 }
 
-/* Say whether a word is a binary test operator. */
-int t_isbin(const char *w)
+/* Read a test operand as an integer, as bash's test does: blanks around
+   it, a sign, decimal digits, nothing else and nothing too large. */
+int t_int(const char *a, long *v)
 {
-	static const char *b[] = { "=", "!=", "<", ">", "-eq", "-ne", "-lt",
-				   "-le", "-gt", "-ge", "-ef", "-nt", "-ot", 0 };
-	int i;
+	char *end;
 
-	for (i = 0; b[i]; i++)
-		if (!strcmp(w, b[i]))
-			return 1;
-	return 0;
+	while (*a == ' ' || *a == '\t' || *a == '\n')
+		a++;
+	if (!*a || ((*a == '-' || *a == '+') && !isdigit((unsigned char)a[1])) ||
+	    (*a != '-' && *a != '+' && !isdigit((unsigned char)*a)))
+		return 0;
+	errno = 0;
+	*v = strtol(a, &end, 10);
+	if (errno == ERANGE)
+		return 0;
+	while (*end == ' ' || *end == '\t' || *end == '\n')
+		end++;
+	return *end == 0;
 }
 
-/* Evaluate a binary test operator. */
-int t_two(const char *a, const char *op, const char *b)
+/* Whether a variable or an element is set, for test -v and [[ -v ]]: a
+   subscript is read as bi_keys reads one, quoted keys literal by mk. */
+int t_isset(sh *s, const char *w, const char *mk)
 {
-	long x, y;
+	vec *ks = vb_get(s);
+	char *nm = ar_dup(s->xa, w, strlen(w)), *br;
+	int set;
 
-	if (!strcmp(op, "="))
-		return !strcmp(a, b);
-	if (!strcmp(op, "!="))
-		return strcmp(a, b) != 0;
-	if (!strcmp(op, "<"))
-		return strcmp(a, b) < 0;
-	if (!strcmp(op, ">"))
-		return strcmp(a, b) > 0;
-	x = strtol(a, 0, 10);
-	y = strtol(b, 0, 10);
+	br = bi_keys(s, nm, mk, ks);
+	set = br ? v_getp(s, nm, (char **)ks->p, (int)ks->n) != 0 :
+		   v_find(s, nm) != 0;
+	vb_put(s, ks);
+	return set;
+}
+
+/* Compare two integers under a numeric test operator: -1 when op is not
+   one. */
+int t_cmp(long x, const char *op, long y)
+{
 	if (!strcmp(op, "-eq"))
 		return x == y;
 	if (!strcmp(op, "-ne"))
@@ -1265,9 +1443,49 @@ int t_two(const char *a, const char *op, const char *b)
 		return x > y;
 	if (!strcmp(op, "-ge"))
 		return x >= y;
+	return -1;
+}
+
+/* Say whether a word is a binary test operator. */
+int t_isbin(const char *w)
+{
+	static const char *b[] = { "=", "==", "!=", "<", ">", "-eq", "-ne", "-lt",
+				   "-le", "-gt", "-ge", "-ef", "-nt", "-ot", 0 };
+	int i;
+
+	for (i = 0; b[i]; i++)
+		if (!strcmp(w, b[i]))
+			return 1;
+	return 0;
+}
+
+/* Evaluate a binary test operator: -1 when op is not one, -2 when a
+   numeric comparison was given something that is not an integer, which
+   has already been said (Gitea #453). */
+int t_two(const char *a, const char *op, const char *b)
+{
+	long x, y;
+	int r;
+
+	if (!strcmp(op, "=") || !strcmp(op, "=="))
+		return !strcmp(a, b);
+	if (!strcmp(op, "!="))
+		return strcmp(a, b) != 0;
+	if (!strcmp(op, "<"))
+		return strcmp(a, b) < 0;
+	if (!strcmp(op, ">"))
+		return strcmp(a, b) > 0;
 	if (!strcmp(op, "-ef") || !strcmp(op, "-nt") || !strcmp(op, "-ot"))
 		return cx_files(a, op, b);
-	return -1;
+	if (t_cmp(0, op, 0) < 0)
+		return -1;
+	if (!t_int(a, &x) || !t_int(b, &y)) {
+		lg(HIBR_LERR, "test: %s: integer expression expected",
+		   t_int(a, &x) ? b : a);
+		return -2;
+	}
+	r = t_cmp(x, op, y);
+	return r;
 }
 
 /* Evaluate a primary: a negation, a parenthesised group, or a comparison. */
@@ -1297,7 +1515,7 @@ int tx_prim(tex *t)
 		r = t_two(t->v[t->i], t->v[t->i + 1], t->v[t->i + 2]);
 		t->i += 3;
 		if (r < 0)
-			t->err = 1;
+			t->err = r == -2 ? 2 : 1;
 		return r > 0;
 	}
 	if (t_isun(t->v[t->i]) && t->i + 1 < t->n) {
@@ -1372,18 +1590,23 @@ int b_test(sh *s, int ac, char **av)
 		r = t_one(av[1], av[2]);
 	} else if (ac == 4) {
 		r = t_two(av[1], av[2], av[3]);
+		if (r == -2)
+			return 2;
 		if (r < 0 && !strcmp(av[1], "!"))
 			r = t_one(av[2], av[3]) < 0 ? -1 :
 			    !t_one(av[2], av[3]);
 		else if (r < 0 && !strcmp(av[1], "(") && !strcmp(av[3], ")"))
 			return *av[2] ? HIBR_OK : HIBR_FAIL;
 	} else if (ac == 5) {
-		if (!strcmp(av[1], "!") && t_isbin(av[3]))
-			r = t_two(av[2], av[3], av[4]) < 0 ? -1 :
-			    !t_two(av[2], av[3], av[4]);
+		if (!strcmp(av[1], "!") && t_isbin(av[3])) {
+			r = t_two(av[2], av[3], av[4]);
+			r = r < 0 ? r : !r;
+		}
 		else if (!strcmp(av[1], "(") && !strcmp(av[4], ")"))
 			r = t_two(av[2], av[3], av[4]);
 	}
+	if (r == -2)
+		return 2;
 	if (r < 0 && ac > 3) {
 		t.v = av + 1;
 		t.n = ac - 1;
@@ -1391,9 +1614,13 @@ int b_test(sh *s, int ac, char **av)
 		t.err = 0;
 		t.d = 0;
 		r = tx_or(&t);
-		if (t.err || t.i != t.n)
+		if (t.err == 2)
+			r = -2;
+		else if (t.err || t.i != t.n)
 			r = -1;
 	}
+	if (r == -2)
+		return 2;
 	if (r < 0) {
 		lg(HIBR_LERR, "test: bad expression");
 		return 2;
@@ -2283,23 +2510,37 @@ int b_mapfile(sh *s, int ac, char **av)
 			ov = bi_oval(ac, av, &i, 1);
 			if (!ov)
 				return 2;
-			want = atol(ov);
+			if (!t_int(ov, &want) || want < 0) {
+				lg(HIBR_LERR, "mapfile: %s: invalid line count", ov);
+				return 1;
+			}
 		} else if (!strncmp(av[i], "-s", 2)) {
 			ov = bi_oval(ac, av, &i, 1);
 			if (!ov)
 				return 2;
-			skip = atol(ov);
+			if (!t_int(ov, &skip) || skip < 0) {
+				lg(HIBR_LERR, "mapfile: %s: invalid line count", ov);
+				return 1;
+			}
 		} else if (!strncmp(av[i], "-O", 2)) {
 			ov = bi_oval(ac, av, &i, 1);
 			if (!ov)
 				return 2;
-			origin = atol(ov);
+			if (!t_int(ov, &origin) || origin < 0) {
+				lg(HIBR_LERR, "mapfile: %s: invalid array origin", ov);
+				return 1;
+			}
 			keep = 1;
 		} else if (!strncmp(av[i], "-u", 2)) {
 			ov = bi_oval(ac, av, &i, 1);
 			if (!ov)
 				return 2;
-			fd = atoi(ov);
+			if (!t_int(ov, &k) || k < 0 || k > INT_MAX ||
+			    fcntl((int)k, F_GETFD) < 0) {
+				lg(HIBR_LERR, "mapfile: %s: invalid file descriptor specification", ov);
+				return 1;
+			}
+			fd = (int)k;
 		} else if (!strncmp(av[i], "-d", 2)) {
 			ov = bi_oval(ac, av, &i, 1);
 			if (!ov)
@@ -2316,17 +2557,28 @@ int b_mapfile(sh *s, int ac, char **av)
 	s_init(&b);
 	/* A whole file a block at a time, the same reason `read` does it (see
 	   bi_rddelim): one syscall a byte over a 950 kB file is 948,892 of
-	   them. A pipe is still read a byte at a time, because -n may stop
-	   part way through and nothing can be put back on a pipe; a seekable
-	   descriptor that stops early is seeked to just past the line it
-	   stopped on, so whatever reads next sees the rest. */
+	   them. A pipe is read a byte at a time only under -n, which may stop
+	   part way through when nothing can be put back on a pipe; without it
+	   mapfile takes everything anyway (Gitea #455). A seekable descriptor
+	   that stops early is seeked to just past the line it stopped on, so
+	   whatever reads next sees the rest. */
 	seek = lseek(fd, 0, SEEK_CUR) != (off_t)-1;
 	buf = xm(HIBR_IOCH);
 	for (;;) {
 		long k;
 
-		got = read(fd, buf, seek ? (size_t)HIBR_IOCH : 1);
-		if (got <= 0)
+		got = read(fd, buf, seek || !want ? (size_t)HIBR_IOCH : 1);
+		if (got < 0 && errno == EINTR)
+			continue;
+		if (got < 0) {
+			lg(HIBR_LERR, "mapfile: read error: %d: %s", fd,
+			   strerror(errno));
+			free(buf);
+			s_free(&b);
+			vb_put(s, el);
+			return HIBR_FAIL;
+		}
+		if (got == 0)
 			break;
 		for (k = 0; k < got; k++) {
 			c = buf[k];

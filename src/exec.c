@@ -1456,6 +1456,8 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 
 	if (!q)
 		return HIBR_OK;
+	if (s->sopt & O_ALLEXP)
+		ex_flag = 1;
 	*q = 0;
 	if (q > kv && q[-1] == '+') {
 		plus = q - 1;
@@ -2319,6 +2321,27 @@ int cx_is(struct cx *c, size_t i, const char *t)
 	return l && !strcmp(l, t);
 }
 
+/* An operand of a numeric [[ ]] comparison, which bash evaluates as an
+   arithmetic expression: blank is 0, and an error sets *no, making the
+   comparison false with status 1 and the script going on, as bash's does. */
+long cx_num(struct cx *c, const char *a, int *no)
+{
+	const char *p = a;
+	long v;
+
+	while (*p == ' ' || *p == '\t' || *p == '\n')
+		p++;
+	if (!*p)
+		return 0;
+	v = ax_run(c->s, a);
+	if (c->s->xerr) {
+		lg(HIBR_LDBG, "[[: %s is not an expression; the test is false", a);
+		c->s->xerr = 0;
+		*no = 1;
+	}
+	return v;
+}
+
 /* The right side of =~ as a regular expression: what was quoted matches
    itself, so its metacharacters are escaped, and the rest is the regex,
    as in bash. A word that was all literal text is the regex as written. */
@@ -2492,6 +2515,12 @@ int cx_prim(struct cx *c)
 		if (op[0] == '-' && (op[1] == 'n' || op[1] == 'o' || op[1] == 'e') &&
 		    (op[2] == 't' || op[2] == 'f'))
 			return cx_files(a, op, b);
+		if (t_cmp(0, op, 0) >= 0) {
+			int no = 0;
+			long x = cx_num(c, a, &no), y = no ? 0 : cx_num(c, b, &no);
+
+			return no ? 0 : t_cmp(x, op, y);
+		}
 		r = t_two(a, op, b);
 		return r > 0;
 	}
@@ -2506,18 +2535,10 @@ int cx_prim(struct cx *c)
 			return 0;
 		if (op[1] == 'v') {
 			word *aw = c->it[c->i - 1];
-			vec *ks = vb_get(c->s);
-			char *mk = 0, *nm, *br;
-			int set;
+			char *mk = 0, *nm;
 			nm = aw->p && aw->p->op == -2 ? a :
 						       xone_q(c->s, aw, &mk);
-			nm = ar_dup(c->s->xa, nm, strlen(nm));
-			br = bi_keys(c->s, nm, mk, ks);
-			set = br ? v_getp(c->s, nm, (char **)ks->p,
-					  (int)ks->n) != 0 :
-				   v_find(c->s, nm) != 0;
-			vb_put(c->s, ks);
-			return set;
+			return t_isset(c->s, nm, mk);
 		}
 		r = t_one(op, a);
 		if (r < 0) {

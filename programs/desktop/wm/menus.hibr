@@ -1558,7 +1558,7 @@ fn dt_mhit(int c) {
 	while [ "$i" -lt "$MB_N" ]; do
 		x=${MB[$i]["x"]}
 		w=${MB[$i]["tw"]}
-		[ "$c" -ge "$x" ] && [ "$c" -lt $((x + w)) ] &&
+		[ -n "$x" ] && [ "$c" -ge "$x" ] && [ "$c" -lt $((x + ${w:-0})) ] &&
 			{ ret "$i"; return 0; }
 		i=$((i + 1))
 	done

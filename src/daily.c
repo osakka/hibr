@@ -693,9 +693,11 @@ void ul_show(int c, int hard, int label)
 /* Read or set a resource limit. */
 int b_ulimit(sh *s, int ac, char **av)
 {
-	int i = 1, hard = 0, c = 0, all = 0, r;
+	int i = 1, hard = 0, soft = 0, c = 0, all = 0, r;
 	struct rlimit rl;
 	const char *val = 0;
+	rlim_t nv;
+	long n;
 
 	(void)s;
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
@@ -704,7 +706,7 @@ int b_ulimit(sh *s, int ac, char **av)
 			if (*f == 'H')
 				hard = 1;
 			else if (*f == 'S')
-				hard = 0;
+				soft = 1;
 			else if (*f == 'a')
 				all = 1;
 			else if (ul_res(*f) >= 0)
@@ -728,7 +730,7 @@ int b_ulimit(sh *s, int ac, char **av)
 	if (i < ac)
 		val = av[i];
 	if (!val) {
-		ul_show(c, hard, 0);
+		ul_show(c, hard && !soft, 0);
 		return HIBR_OK;
 	}
 	r = ul_res(c);
@@ -736,12 +738,24 @@ int b_ulimit(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "ulimit: %s", strerror(errno));
 		return HIBR_FAIL;
 	}
-	if (!strcmp(val, "unlimited"))
-		rl.rlim_cur = RLIM_INFINITY;
-	else
-		rl.rlim_cur = (rlim_t)atol(val) * (rlim_t)ul_scale(c);
-	if (hard)
-		rl.rlim_max = rl.rlim_cur;
+	if (!strcmp(val, "unlimited")) {
+		nv = RLIM_INFINITY;
+	} else if (!strcmp(val, "hard")) {
+		nv = rl.rlim_max;
+	} else if (!strcmp(val, "soft")) {
+		nv = rl.rlim_cur;
+	} else if (t_int(val, &n) && n >= 0) {
+		nv = (rlim_t)n * (rlim_t)ul_scale(c);
+	} else {
+		lg(HIBR_LERR, "ulimit: %s: invalid number", val);
+		return HIBR_FAIL;
+	}
+	lg(HIBR_LDBG, "ulimit sets the %s limit", hard && !soft ? "hard" :
+	   soft && !hard ? "soft" : "hard and the soft");
+	if (soft || !hard)
+		rl.rlim_cur = nv;
+	if (hard || !soft)
+		rl.rlim_max = nv;
 	if (setrlimit(r, &rl) != 0) {
 		lg(HIBR_LERR, "ulimit: %s", strerror(errno));
 		return HIBR_FAIL;
@@ -754,7 +768,8 @@ int b_ulimit(sh *s, int ac, char **av)
 int sh_optfix(const char *nm)
 {
 	if (!strcmp(nm, "extglob") || !strcmp(nm, "globstar") ||
-	    !strcmp(nm, "expand_aliases") || !strcmp(nm, "sourcepath"))
+	    !strcmp(nm, "expand_aliases") || !strcmp(nm, "sourcepath") ||
+	    !strcmp(nm, "braceexpand") || !strcmp(nm, "hashall"))
 		return O_FIXON;
 	if (!strcmp(nm, "pipefail"))
 		return O_FIXOFF;
@@ -776,6 +791,8 @@ unsigned sh_optbit(const char *nm)
 		return O_PATSUB;
 	if (!strcmp(nm, "execfail"))
 		return O_EXECFAIL;
+	if (!strcmp(nm, "allexport"))
+		return O_ALLEXP;
 	if (!strcmp(nm, "nocasematch"))
 		return O_NOCASEMATCH;
 	if (!strcmp(nm, "inherit_errexit"))
@@ -836,7 +853,8 @@ const char *sh_optnames[] = { "errexit", "nounset", "xtrace", "noclobber",
 			      "nocasematch", "extglob", "globstar",
 			      "expand_aliases", "pipefail", "inherit_errexit",
 			      "agent", "checkfirst", "keepgoing", "logtime",
-			      "noglob", "patsub_replacement", "execfail", 0 };
+			      "noglob", "patsub_replacement", "execfail",
+			      "allexport", "braceexpand", "hashall", 0 };
 
 /* Read one option by name, or -1 when there is no such option. */
 int sh_optget(sh *s, const char *nm)
@@ -925,6 +943,12 @@ const char *sh_optltr(int c)
 		return "noexec";
 	case 'f':
 		return "noglob";
+	case 'a':
+		return "allexport";
+	case 'B':
+		return "braceexpand";
+	case 'h':
+		return "hashall";
 	}
 	return 0;
 }
@@ -942,7 +966,7 @@ int sh_optch(sh *s, int c, int on)
 /* The letters $- shows: every short option that is on, then how this shell was started. */
 char *sh_dash(sh *s)
 {
-	const char *ord = "efuxCHSn";
+	const char *ord = "aefhuxBCHSn";
 	str b;
 	char *r;
 	int i;
