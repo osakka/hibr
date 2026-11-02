@@ -1232,6 +1232,19 @@ char *ed_line(sh *s, const char *ps)
 				ed_draw(&e, &b, pos);
 				continue;
 			}
+			if (errno == EINTR) {
+				if (tr_pending()) {
+					lg(HIBR_LDBG, "a trap ran while a line was being typed");
+					ed_put("\r\n", 2);
+					ed_off();
+					tr_run(s);
+					fflush(0);
+					ed_on();
+					ed_fresh(&e);
+					ed_draw(&e, &b, pos);
+				}
+				continue;
+			}
 			if (!b.n) {
 				ed_off();
 				s_free(&b);

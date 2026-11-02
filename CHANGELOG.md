@@ -79,6 +79,42 @@ The rest of the core audit (Gitea #427), in one release, area by area.
 - **Cost.** About 0.3% more instructions on the `while` loop benchmark,
   besides `strcmp`'s usual layout noise; the array loop is 1% cheaper.
 
+**Execution and signals** (#445-#449, #452).
+- **A trap runs while the shell waits.**
+  - `wait` returns as soon as a trapped signal arrives, with 128 plus its
+    number, and the trap runs then. It used to run only once the child
+    had finished.
+  - An interactive prompt runs a trap the moment its signal arrives, and
+    redraws the line being typed.
+  - `hibr -i -c` now does job control as `-i` promises.
+- **`wait`, as in bash.**
+  - Without operands it waits for everything and answers 0.
+  - Given several pids it waits for each, with the last one's status.
+  - A job reaped already still answers its status.
+  - A pid that is not a child is status 127.
+- **Children are started as bash starts them.**
+  - A subshell, a command substitution or a pipeline stage drops the
+    parent's jobs and resets every signal the script trapped.
+  - A background job of a non-interactive shell ignores `INT` and `QUIT`.
+  - A signal ignored when the shell started stays ignored; a script cannot
+    trap it.
+- **`trap`.**
+  - `trap INT` and `trap 2` reset the signal.
+  - `2abc` is not a signal.
+  - A missing signal name is a usage error, status 2.
+- **`exec` that fails ends a non-interactive shell**, with status 127 for a
+  missing program and 126 for one that cannot run, as in bash.
+  `shopt -s execfail` keeps the shell, and Restart Desktop sets it around
+  its own exec, so a failed restart leaves the desktop running.
+- **Redirections.**
+  - `>& file` sends both output streams to the file, as `&>` does.
+  - A here-document of more than a pipe's worth goes through a temporary
+    file rather than blocking the shell on its own write.
+  - A `dup2` that fails is reported.
+  - `for ((;;))` stops at an arithmetic error in its condition.
+- **The build renames the shell into place**, so a rebuild no longer takes
+  `build/hibr` from under a process running it.
+
 ## 0.99.427
 
 **A sheet's formulas are contained, and a sheet can be given full access**

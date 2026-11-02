@@ -222,4 +222,32 @@ t.wait(3.0)
 check("in agent mode a read on a terminal ends at once instead of waiting",
       t.exited and "read [] status 1" in t.text, t.text)
 
-report(50)
+# A trapped signal while the prompt waits (Gitea #448): it ran the trap
+# and then ended the shell, or, with a line half typed, ran that line as
+# if Enter had been pressed. The read is interrupted on purpose -- traps
+# have no SA_RESTART so a `read` builtin can be broken out of -- and the
+# editor took the interruption for end of input.
+SIG = 'PS1="> "\ntrap "echo got-sig" USR1\n(sleep 0.6; kill -USR1 $$) &\n'
+t = session(SIG, [1.4, "echo alive\n", "exit\n"])
+check("a trap at an empty prompt runs and the shell stays", "got-sig" in t and "alive\r\n" in t)
+t = session(SIG, ["echo par", 1.4, "tial\n", "exit\n"])
+check("a trap mid-line runs and the line goes on being typed",
+      "got-sig" in t and "partial\r\n" in t and "\npar\r\n" not in t)
+
+# hibr -i -c on a terminal (Gitea #447): job control was never set up on
+# that path, so every pipeline's child took the terminal from a background
+# group and was stopped.
+t = Term("-i", "-c", "ls /etc/hostname | cat; echo end-ok", rows=24, cols=80,
+         env={"HIBR_RC": "/dev/null", "TERM": "xterm"}, settle=0.6)
+t.close()
+check("hibr -i -c runs a pipeline on a terminal",
+      "/etc/hostname" in t.text and "end-ok" in t.text and "Stopped" not in t.text)
+
+# An interactive shell's own ignore of QUIT was taken for the parent's,
+# so trap refused to trap it (Gitea #446).
+t = Term("-i", "-c", 'trap "echo q" QUIT; trap -p QUIT', rows=24, cols=80,
+         env={"HIBR_RC": "/dev/null", "TERM": "xterm"}, settle=0.6)
+t.close()
+check("an interactive shell can trap QUIT", "echo q" in t.text)
+
+report(54)

@@ -32,6 +32,9 @@ status 0
 -- set -e; true | false; echo after
 hibr: errexit: command failed with status 1
 status 1
--- set -e; false & wait; echo "a background job is not this shell"
+-- set -e; false & wait; echo "a plain wait answers 0, as in bash"
+a plain wait answers 0, as in bash
+status 0
+-- set -e; false & wait $!; echo "a background job is not this shell"
 hibr: errexit: command failed with status 1
 status 1

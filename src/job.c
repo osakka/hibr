@@ -194,49 +194,118 @@ void jc_drop(sh *s, job *j)
 	free(j);
 }
 
-/* Find the job that owns a process. */
-/* Wait for the next process in any of our own jobs to finish.
+/* Wait for the next process in any of our own jobs to finish: its pid,
+   -1 when no job has anything left to wait for, or -2 when a trapped
+   signal arrived first.
 
    This is what `wait` and `wait -n` used to get from waitpid(-1), which
-   also collected children the shell never started. Polling the groups in
-   turn is a little cruder and correct. */
+   also collected children the shell never started, so each job's own
+   group is asked in turn. Between rounds it sleeps in sigsuspend with
+   SIGCHLD blocked while it asks, so a child exiting wakes it and nothing
+   polls (it was 500 wakeups a second). A group that is gone -- a job
+   table inherited by a subshell names children it never had -- is done,
+   not waited for for ever (Gitea #445). */
 long jc_anyone(sh *s, int *w)
 {
 	size_t k;
 	job *j;
 	pid_t p;
 	int any;
+	sigset_t old;
 
+	jc_blk(s, &old);
 	for (;;) {
 		any = 0;
 		for (k = 0; k < s->jobs.n; k++) {
 			j = (job *)s->jobs.p[k];
 			if (j->state == J_DONE)
 				continue;
-			any = 1;
 			p = waitpid(-(pid_t)j->pgid, w, WNOHANG | WUNTRACED);
-			if (p > 0)
+			if (p > 0) {
+				sigprocmask(SIG_SETMASK, &old, 0);
 				return (long)p;
+			}
+			if (p < 0 && errno == ECHILD) {
+				lg(HIBR_LDBG, "job [%d] has no children left", j->id);
+				j->state = J_DONE;
+				continue;
+			}
+			any = 1;
 		}
-		if (!any)
+		if (!any) {
+			sigprocmask(SIG_SETMASK, &old, 0);
 			return -1;
-		usleep(2000);
+		}
+		if (tr_waitsig(s)) {
+			sigprocmask(SIG_SETMASK, &old, 0);
+			return -2;
+		}
+		sigsuspend(&old);
 	}
 }
 
+/* Block SIGCHLD and every trapped signal while a wait asks whether there is
+   anything to collect, so neither can arrive between the asking and the
+   sigsuspend that sleeps until one does. */
+void jc_blk(sh *s, sigset_t *old)
+{
+	sigset_t blk;
+	int i;
+
+	sigemptyset(&blk);
+	sigaddset(&blk, SIGCHLD);
+	if (s->trap)
+		for (i = 1; i < NSIG; i++)
+			if (s->trap[i] && *s->trap[i])
+				sigaddset(&blk, i);
+	sigprocmask(SIG_BLOCK, &blk, old);
+}
+
+/* Wait for every process of one job: 0 once it is done, its last
+   process's status in *st, or -2 when a trapped signal arrived first. */
+int jc_waitjob(sh *s, job *j, int *st)
+{
+	sigset_t old;
+	pid_t p;
+	int w;
+
+	jc_blk(s, &old);
+	while (j->ndone < j->np && j->state == J_RUN) {
+		p = waitpid(-(pid_t)j->pgid, &w, WNOHANG);
+		if (p > 0) {
+			j->ndone++;
+			if ((long)p == j->last)
+				*st = wstat(w);
+			continue;
+		}
+		if (p < 0 && errno != EINTR)
+			break;
+		if (tr_waitsig(s)) {
+			sigprocmask(SIG_SETMASK, &old, 0);
+			return -2;
+		}
+		sigsuspend(&old);
+	}
+	sigprocmask(SIG_SETMASK, &old, 0);
+	return 0;
+}
+
+/* Find the job that owns a process. */
 job *jc_bypid(sh *s, long p)
 {
 	size_t i;
 	job *j;
+	pid_t g;
 
 	for (i = 0; i < s->jobs.n; i++) {
 		j = (job *)s->jobs.p[i];
 		if (j->pgid == p || j->last == p)
 			return j;
 	}
+	g = getpgid((pid_t)p);
 	for (i = 0; i < s->jobs.n; i++) {
 		j = (job *)s->jobs.p[i];
-		if (getpgid((pid_t)p) == (pid_t)j->pgid)
+		if (g == (pid_t)j->pgid)
 			return j;
 	}
 	return 0;
@@ -371,6 +440,7 @@ long jc_waitt(sh *s, long wp, long kp, int *w, int fl)
 	pid_t p;
 	int stage = 0;
 
+	*w = 0;
 	if (!t) {
 		/* Retried, because an interrupted wait is not an answer. A
 		   signal with a handler -- the console's own SIGWINCH, a
@@ -543,11 +613,11 @@ void jc_poll(sh *s, int report)
 	}
 }
 
-/* Reap finished jobs before another starts, and keep a script's table bounded. */
 /* Set by the SIGCHLD handler: a child has gone, so there may be something to
    reap. Read and cleared at the end of a command, where reaping is safe. */
 volatile sig_atomic_t jc_chld;
 
+/* Reap finished jobs before another starts, and keep a script's table bounded. */
 void jc_tidy(sh *s)
 {
 	size_t i, nd = 0;
@@ -672,12 +742,61 @@ int b_bg(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Wait for jobs to finish. */
+/* Wait for one operand of wait, a pid or a job spec: its status, or -2
+   when a trapped signal arrived first. */
+int jc_waitone(sh *s, const char *a)
+{
+	job *j;
+	int w, st = 0, r;
+	pid_t p;
+	sigset_t old;
+
+	j = a[0] == '%' ? jc_find(s, a) : jc_bypid(s, atol(a));
+	if (!j && a[0] != '%' && atol(a) > 0) {
+		jc_blk(s, &old);
+		for (;;) {
+			p = waitpid((pid_t)atol(a), &w, WNOHANG);
+			if (p > 0)
+				break;
+			if (p < 0 && errno != EINTR) {
+				sigprocmask(SIG_SETMASK, &old, 0);
+				lg(HIBR_LERR, "wait: pid %s is not a child of this shell", a);
+				return 127;
+			}
+			if (tr_waitsig(s)) {
+				sigprocmask(SIG_SETMASK, &old, 0);
+				return -2;
+			}
+			sigsuspend(&old);
+		}
+		sigprocmask(SIG_SETMASK, &old, 0);
+		return wstat(w);
+	}
+	if (!j) {
+		lg(HIBR_LERR, "wait: %s: no such job", a);
+		return 127;
+	}
+	if (j->state == J_DONE) {
+		st = j->st;
+		jc_drop(s, j);
+		return st;
+	}
+	r = jc_waitjob(s, j, &st);
+	if (r == -2)
+		return -2;
+	jc_drop(s, j);
+	return st;
+}
+
+/* Wait for jobs to finish: every one with no operand, answering 0; each
+   operand in turn, answering the last one's status; or, with -n, the next
+   to finish. A trapped signal ends any of them at once with 128 and its
+   number, and the trap runs next, as POSIX asks (Gitea #445). */
 int b_wait(sh *s, int ac, char **av)
 {
 	job *j;
-	int w, st = 0;
-	pid_t p;
+	int w, st = 0, i;
+	long p;
 
 	if (ac > 1 && (!strcmp(av[1], "-n") || !strcmp(av[1], "-p"))) {
 		const char *nm = 0;
@@ -686,12 +805,14 @@ int b_wait(sh *s, int ac, char **av)
 			if (!strcmp(av[k], "-p") && k + 1 < ac)
 				nm = av[++k];
 		p = jc_anyone(s, &w);
+		if (p == -2)
+			return s->st = 128 + tr_waitsig(s);
 		if (p <= 0) {
 			lg(HIBR_LDBG, "wait -n: nothing left to wait for");
 			return s->st = 127;
 		}
 		st = wstat(w);
-		j = jc_bypid(s, (long)p);
+		j = jc_bypid(s, p);
 		if (j) {
 			j->ndone++;
 			if (j->ndone >= j->np) {
@@ -700,47 +821,20 @@ int b_wait(sh *s, int ac, char **av)
 			}
 		}
 		if (nm)
-			hibr_set(s, nm, xnum(s, (long)p), 0);
-		lg(HIBR_LDBG, "wait -n reaped %ld", (long)p);
+			hibr_set(s, nm, xnum(s, p), 0);
+		lg(HIBR_LDBG, "wait -n reaped %ld", p);
 		return s->st = st;
 	}
 	if (ac > 1) {
-		j = av[1][0] == '%' ? jc_find(s, av[1]) : jc_bypid(s, atol(av[1]));
-		if (!j && av[1][0] != '%' && atol(av[1]) > 0) {
-			p = waitpid((pid_t)atol(av[1]), &w, 0);
-			if (p < 0) {
-				lg(HIBR_LERR, "wait: %s: not a child", av[1]);
-				return HIBR_FAIL;
-			}
-			return s->st = wstat(w);
+		for (i = 1; i < ac; i++) {
+			st = jc_waitone(s, av[i]);
+			if (st == -2)
+				return s->st = 128 + tr_waitsig(s);
 		}
-		if (!j) {
-			lg(HIBR_LERR, "wait: %s: no such job", av[1]);
-			return HIBR_FAIL;
-		}
-		if (j->state == J_DONE) {
-			st = j->st;
-			jc_drop(s, j);
-			return s->st = st;
-		}
-		while (j->ndone < j->np && j->state == J_RUN) {
-			p = waitpid(-(pid_t)j->pgid, &w, 0);
-			if (p < 0) {
-				if (errno == EINTR)
-					continue;
-				break;
-			}
-			j->ndone++;
-			if ((long)p == j->last)
-				st = wstat(w);
-		}
-		if (j->state == J_RUN)
-			jc_drop(s, j);
 		return s->st = st;
 	}
 	while ((p = jc_anyone(s, &w)) > 0) {
-		j = jc_bypid(s, (long)p);
-		st = wstat(w);
+		j = jc_bypid(s, p);
 		if (!j)
 			continue;
 		j->ndone++;
@@ -749,7 +843,9 @@ int b_wait(sh *s, int ac, char **av)
 			jc_drop(s, j);
 		}
 	}
-	return s->st = st;
+	if (p == -2)
+		return s->st = 128 + tr_waitsig(s);
+	return s->st = 0;
 }
 
 /* Send a signal to a job or process. */

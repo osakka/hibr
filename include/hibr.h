@@ -165,6 +165,9 @@
 #ifndef O_PATSUB
 #define O_PATSUB 16384u
 #endif
+#ifndef O_EXECFAIL
+#define O_EXECFAIL 32768u
+#endif
 
 #ifndef J_STR
 #define J_STR 0
@@ -188,6 +191,7 @@
 #define RF_BOTH 1
 #define RF_CLOB 2
 #define RF_STR 4
+#define RF_NOFD 8
 #endif
 
 #ifndef N_CMD

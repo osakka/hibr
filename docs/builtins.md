@@ -22,7 +22,7 @@ purpose. Everything else behaves as bash does unless the entry says otherwise.
 | `true` / `false` | succeed / fail |
 | `exit [n]` | leave the shell with status `n`, or the last status |
 | `eval word…` | join the words and run the result as a command |
-| `exec [-cl] [-a name] [cmd]` | replace the shell with `cmd`; with none, apply the redirections permanently. `-a` gives the program `name` as its `$0`, `-l` puts a dash before it (a login shell), `-c` gives it no environment -- as in bash |
+| `exec [-cl] [-a name] [cmd]` | replace the shell with `cmd`; with none, apply the redirections permanently. `-a` gives the program `name` as its `$0`, `-l` puts a dash before it (a login shell), `-c` gives it no environment -- as in bash. A program that cannot be run ends a non-interactive shell, 127 when missing and 126 when not executable, unless `shopt -s execfail` |
 | `source f [args…]` / `. f [args…]` | run `f` in this shell; extra arguments become its positional parameters |
 | `command [-p] name args…` | run `name` ignoring functions and aliases |
 | `command -v name` | print how `name` would resolve; status 1 if it would not |
@@ -289,7 +289,7 @@ echo "$sum"
 |---|---|
 | `jobs` | list active jobs |
 | `fg [%job]` / `bg [%job]` | resume a job in the foreground or background |
-| `wait [%job\|pid]` | wait for jobs to finish |
+| `wait [%job\|pid ...]` | wait for jobs to finish: with none, for all of them, answering 0; with several, for each, answering the last one's status; 127 for a pid that is not a child; a trapped signal ends the wait with 128 plus its number |
 | `wait -n [-p var]` | wait for the next one, and name which it was |
 | `kill [-sig\|-s sig\|-n num] %job\|pid` | signal a job or process; `kill -l` lists the signals (the real-time ones bash also lists are left out), `kill -l 9` and `kill -l TERM` translate, and an exit status above 128 names its signal |
 | `disown [%job]` | forget a job without signalling it |

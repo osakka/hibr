@@ -140,7 +140,8 @@ $(B)/.moddir: FORCE | $(B)/mods
 FORCE:
 
 $(BIN): $(SRC) include/hibr.h include/pri.h include/re.h mods/lint.h $(B)/.moddir $(B)/.recheck | $(B)/mods
-	$(CC) $(SHCFLAGS) $(LDFLAGS) -o $@ $(SRC)
+	$(CC) $(SHCFLAGS) $(LDFLAGS) -o $@.new $(SRC)
+	mv -f $@.new $@
 
 # include/re.h declares the C library's regex types by hand, since tcc cannot
 # read glibc's <regex.h>, and a wrong width there overran every capture on a

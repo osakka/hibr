@@ -1452,10 +1452,10 @@ int b_exec(sh *s, int ac, char **av)
 		return HIBR_OK;
 	path = findx(s, av[i]);
 	if (!path && strchr(av[i], '/'))
-		return ex_why(av[i], "exec");
+		return b_execfail(s, ex_why(av[i], "exec"));
 	if (!path) {
 		lg(HIBR_LERR, "exec: %s: command not found", av[i]);
-		return HIBR_NOCMD;
+		return b_execfail(s, HIBR_NOCMD);
 	}
 	pv = av + i;
 	if ((s->sopt & O_PLAN) && !pl_prog(s, &pv, path)) {
@@ -1477,10 +1477,24 @@ int b_exec(sh *s, int ac, char **av)
 	execve(path, argv, env);
 	r = errno;
 	lg(HIBR_LERR, "exec: %s: %s", path, strerror(r));
+	if (env != none)
+		envfree(env);
 	free(argv[0]);
 	free(argv);
 	free(path);
-	return HIBR_NOEXEC;
+	return b_execfail(s, r == ENOENT ? HIBR_NOCMD : HIBR_NOEXEC);
+}
+
+/* exec could not run its command: a non-interactive shell ends there with
+   the status, as POSIX and bash have it, unless execfail is on; an
+   interactive one goes on (Gitea #449). */
+int b_execfail(sh *s, int rc)
+{
+	if (!s->it && !(s->sopt & O_EXECFAIL)) {
+		s->st = rc;
+		s->quit = 1;
+	}
+	return rc;
 }
 
 /* strict [off] [functions|vars|expansion]... -- turn checks on, or off,
@@ -2052,6 +2066,7 @@ int b_declf(sh *s, int full, int ac, char **av, int i, str *o)
 	return rc;
 }
 
+/* declare and typeset: set attributes and types on names, or list them. */
 int b_decl(sh *s, int ac, char **av)
 {
 	unsigned at = 0, code;

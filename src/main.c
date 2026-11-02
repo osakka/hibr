@@ -28,6 +28,8 @@ void sig_init(void)
 {
 	struct sigaction sa;
 
+	tr_wasign(SIGINT);
+	tr_wasign(SIGQUIT);
 	memset(&sa, 0, sizeof sa);
 	sa.sa_handler = on_int;
 	sigaction(SIGINT, &sa, 0);
@@ -797,8 +799,13 @@ int main(int ac, char **av)
 			break;
 		}
 	}
-	if (iact)
+	if (iact) {
 		s.it = 1;
+		if (!explain && !s.noexec) {
+			sig_init();
+			jc_init(&s);
+		}
+	}
 	if (plan && !explain)
 		pl_init(&s);
 	/* The profile files come before anything this shell was asked to do,
@@ -870,8 +877,10 @@ int main(int ac, char **av)
 	if (iact || isatty(0)) {
 		s.it = 1;
 		s.hx = 1;
-		sig_init();
-		jc_init(&s);
+		if (!iact) {
+			sig_init();
+			jc_init(&s);
+		}
 		ed_init(&s);
 		rc_load(&s);
 		lg(HIBR_LINF, "interactive shell, pid %ld", (long)getpid());

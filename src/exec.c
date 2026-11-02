@@ -189,14 +189,14 @@ int hdfd(const char *t, size_t n)
 			lg(HIBR_LERR, "pipe: %s", strerror(errno));
 			return -1;
 		}
-		if (write(pf[1], t, n) != (ssize_t)n) {
-			lg(HIBR_LERR, "here-document write failed");
-			close(pf[0]);
+		fcntl(pf[1], F_SETFL, O_NONBLOCK);
+		if (write(pf[1], t, n) == (ssize_t)n) {
 			close(pf[1]);
-			return -1;
+			return pf[0];
 		}
+		lg(HIBR_LDBG, "here-document did not fit the pipe; spilling it");
+		close(pf[0]);
 		close(pf[1]);
-		return pf[0];
 	}
 	td = getenv("TMPDIR");
 	s_init(&nm);
@@ -323,10 +323,8 @@ int rd_do(sh *s, redir *r, vec *sv)
 				break;
 			}
 			fd = hdfd(t, strlen(t));
-			if (fd < 0) {
+			if (fd < 0)
 				st = HIBR_FAIL;
-				r = 0;
-			}
 			break;
 		case R_DUP: {
 			int tgt = r->fd;
@@ -345,6 +343,30 @@ int rd_do(sh *s, redir *r, vec *sv)
 					rd_save(sv, tgt);
 				close(tgt);
 				lg(HIBR_LTRC, "closed fd %d", tgt);
+				continue;
+			}
+			if (!rd_isfd(t) && (r->fl & RF_NOFD) && r->fd == 1 && *t) {
+				struct stat rs;
+				int guard = s->noclob &&
+					    !(stat(t, &rs) == 0 && !S_ISREG(rs.st_mode));
+
+				lg(HIBR_LTRC, ">& %s is &> %s: no descriptor was named", t, t);
+				fd = open(t, O_WRONLY | O_CREAT | O_TRUNC |
+						    (guard ? O_EXCL : 0), 0666);
+				if (fd < 0) {
+					lg(HIBR_LERR, "%s: %s", t, guard && errno == EEXIST ?
+					   "exists (noclobber)" : strerror(errno));
+					st = HIBR_FAIL;
+					continue;
+				}
+				if (sv) {
+					rd_save(sv, 1);
+					rd_save(sv, 2);
+				}
+				dup2(fd, 1);
+				dup2(fd, 2);
+				if (fd > 2)
+					close(fd);
 				continue;
 			}
 			if (!rd_isfd(t)) {
@@ -403,7 +425,12 @@ int rd_do(sh *s, redir *r, vec *sv)
 		if (sv)
 			rd_save(sv, r->fd);
 		if (fd != r->fd) {
-			dup2(fd, r->fd);
+			if (dup2(fd, r->fd) < 0) {
+				lg(HIBR_LERR, "%d: %s", r->fd, strerror(errno));
+				close(fd);
+				st = HIBR_FAIL;
+				continue;
+			}
 			close(fd);
 		}
 		if (r->fl & RF_BOTH) {
@@ -640,51 +667,7 @@ int ty_fast(int f, const char *v)
    accepts an empty value. */
 int ty_ok(const char *ty, const char *v)
 {
-	size_t i = 0, n;
-
-	if (!ty || !*ty)
-		return 1;
-	n = strlen(ty);
-	if (ty[n - 1] == '?') {
-		if (!*v)
-			return 1;
-		n--;
-	}
-	switch (ty[0]) {
-	case 'i':
-	case 'n':
-		if (!ty_is(ty, n, "int") && !ty_is(ty, n, "num"))
-			break;
-		{
-			int dot = 0, num = ty[0] == 'n';
-			if (v[i] == '-' || v[i] == '+')
-				i++;
-			if (!v[i])
-				return 0;
-			for (; v[i]; i++) {
-				if (v[i] == '.' && !dot && num) {
-					dot = 1;
-					continue;
-				}
-				if (v[i] < '0' || v[i] > '9')
-					return 0;
-			}
-			return 1;
-		}
-	case 's':
-	case 'a':
-	case 'm':
-		if (ty_is(ty, n, "str") || ty_is(ty, n, "any") ||
-		    ty_is(ty, n, "arr") || ty_is(ty, n, "map"))
-			return 1;
-		break;
-	case 'p':
-		if (ty_is(ty, n, "path"))
-			return *v != 0;
-		break;
-	}
-	lg(HIBR_LWRN, "unknown parameter type %s, not checked", ty);
-	return 1;
+	return !ty || !*ty || ty_fast(ty_code(ty), v);
 }
 
 /* Bind declared parameters into the function's scope. */
@@ -1044,7 +1027,7 @@ char *xcap(sh *s, const char *src)
 		close(pf[0]);
 		dup2(pf[1], 1);
 		close(pf[1]);
-		signal(SIGINT, SIG_DFL);
+		tr_child(s, 0);
 		s->it = 0;
 		if (!(s->sopt & O_INHERITERR)) {
 			lg(HIBR_LDBG, "substitution runs without errexit");
@@ -1345,7 +1328,7 @@ char *xpsub(sh *s, part *p)
 			dup2(pf[0], 0);
 			close(pf[0]);
 		}
-		signal(SIGINT, SIG_DFL);
+		tr_child(s, 0);
 		s->it = 0;
 		tr_fork(s);
 		hibr_run(s, p->t);
@@ -1796,7 +1779,7 @@ int ex_cmd(sh *s, node *n)
 		lg(HIBR_LERR, "pipe: %s", strerror(errno));
 		cap = 0;
 	}
-	if (s->it && !cap)
+	if (s->it && s->tty && !cap)
 		jb = jc_new(s, n->tx, 0);
 	pid = (pid_t)jc_fork(s);
 	if (pid < 0) {
@@ -1822,12 +1805,8 @@ int ex_cmd(sh *s, node *n)
 		if (jb) {
 			setpgid(0, 0);
 			tcsetpgrp(s->tty, getpid());
-			signal(SIGTSTP, SIG_DFL);
-			signal(SIGTTIN, SIG_DFL);
-			signal(SIGTTOU, SIG_DFL);
 		}
-		signal(SIGINT, SIG_DFL);
-		signal(SIGQUIT, SIG_DFL);
+		tr_child(s, jb != 0);
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
 		execve(path, av, env);
@@ -1956,7 +1935,7 @@ int ex_pipe(sh *s, node *n, int t)
 	node *q;
 
 	pflat(n, &st);
-	if (s->it)
+	if (s->it && s->tty)
 		jb = jc_new(s, n->tx, 0);
 	for (i = 0; i < st.n; i++) {
 		fflush(0);
@@ -1975,9 +1954,6 @@ int ex_pipe(sh *s, node *n, int t)
 				setpgid(0, (pid_t)jb->pgid);
 				if (!jb->pgid)
 					tcsetpgrp(s->tty, getpid());
-				signal(SIGTSTP, SIG_DFL);
-				signal(SIGTTIN, SIG_DFL);
-				signal(SIGTTOU, SIG_DFL);
 			}
 			if (in >= 0) {
 				dup2(in, 0);
@@ -1988,7 +1964,7 @@ int ex_pipe(sh *s, node *n, int t)
 				dup2(pf[1], 1);
 				close(pf[1]);
 			}
-			signal(SIGINT, SIG_DFL);
+			tr_child(s, jb != 0);
 			s->it = 0;
 			if (s->errx)
 				s->errx = 2;
@@ -2067,10 +2043,12 @@ int ex_bg(sh *s, node *n)
 	}
 	if (pid == 0) {
 		setpgid(0, 0);
-		signal(SIGINT, SIG_IGN);
-		signal(SIGTSTP, SIG_DFL);
-		signal(SIGTTIN, SIG_DFL);
-		signal(SIGTTOU, SIG_DFL);
+		if (s->it && s->tty) {
+			tr_child(s, 1);
+		} else {
+			signal(SIGINT, SIG_IGN);
+			signal(SIGQUIT, SIG_IGN);
+		}
 		s->it = 0;
 		if (s->errx)
 			s->errx = 2;
@@ -2107,7 +2085,7 @@ int ex_sub(sh *s, node *n, int t)
 		return s->st = HIBR_FAIL;
 	}
 	if (pid == 0) {
-		signal(SIGINT, SIG_DFL);
+		tr_child(s, 0);
 		s->it = 0;
 		if (s->errx)
 			s->errx = 2;
@@ -2241,12 +2219,16 @@ int ex_cfor(sh *s, node *n)
 	for (;;) {
 		if (s->quit || s->stop || s->ret)
 			break;
-		if (wc && wc->p->n && !ax_text(s, wc->p))
-			break;
-		if (s->xerr) {
-			s->xerr = 0;
-			st = HIBR_FAIL;
-			break;
+		if (wc && wc->p->n) {
+			int go = ax_text(s, wc->p);
+
+			if (s->xerr) {
+				s->xerr = 0;
+				st = HIBR_FAIL;
+				break;
+			}
+			if (!go)
+				break;
 		}
 		st = ex(s, n->r);
 		if (s->brk) {
@@ -2626,6 +2608,8 @@ void sel_show(vec *o, int cols)
 	}
 }
 
+/* Run a select loop: show the numbered menu, read a choice into the variable
+   and REPLY, and run the body until it breaks or input ends. */
 int ex_select(sh *s, node *n)
 {
 	amark m = ar_mark(s->xa);

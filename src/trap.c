@@ -59,6 +59,26 @@ int tr_wasign(int sig)
 	return tr_was[sig] == 1;
 }
 
+/* A child's own signals, as bash leaves them: INT and QUIT -- and with job
+   control the stop signals -- back to their default, unless the shell was
+   started with one ignored or the script ignores it with trap ''. One
+   place for what six forks each did by hand, and did unconditionally
+   (Gitea #446). */
+void tr_child(sh *s, int jc)
+{
+	int sigs[] = { SIGINT, SIGQUIT, SIGTSTP, SIGTTIN, SIGTTOU };
+	int i, n = jc ? 5 : 2, g;
+
+	for (i = 0; i < n; i++) {
+		g = sigs[i];
+		if (tr_wasign(g))
+			continue;
+		if (s->trap && g < tr_n && s->trap[g] && !*s->trap[g])
+			continue;
+		signal(g, SIG_DFL);
+	}
+}
+
 /* Allocate the trap and pending tables. */
 void tr_init(sh *s)
 {
@@ -92,6 +112,21 @@ void tr_init(sh *s)
 int tr_pending(void)
 {
 	return tr_any != 0;
+}
+
+/* A trapped signal other than SIGCHLD that has arrived and not yet run,
+   or 0: what makes wait return at once with 128 and its number, as POSIX
+   asks, so the trap runs next (Gitea #445). */
+int tr_waitsig(sh *s)
+{
+	int i;
+
+	if (!tr_any || !s->trap || !tr_pend)
+		return 0;
+	for (i = 1; i < tr_n; i++)
+		if (tr_pend[i] && i != SIGCHLD && s->trap[i] && *s->trap[i])
+			return i;
+	return 0;
 }
 
 /* Run the handlers for every signal that has arrived. */
@@ -132,11 +167,27 @@ static int tr_errkid;
 /* Forget an inherited exit trap in a freshly forked child. */
 void tr_fork(sh *s)
 {
+	int i;
+
+	/* A trap's handler is the parent's: a child takes each trapped
+	   signal's default back, as bash's subshells do, and forgets what was
+	   pending for it. An ignore set with trap '' stays, and SIGCHLD keeps
+	   the handler the shell's own reaping needs. */
+	if (s->trap && tr_pend)
+		for (i = 1; i < tr_n; i++)
+			if (s->trap[i] && *s->trap[i] && i != SIGCHLD) {
+				signal(i, SIG_DFL);
+				tr_pend[i] = 0;
+			}
 	/* The parent's children are not this one's, so a flag inherited set
 	   would send it to waitpid for pids it cannot wait for. Harmless --
 	   ECHILD marks nothing -- but there is no reason to go. */
 	jc_chld = 0;
 	tr_errkid = 1;
+	/* The parent's jobs are not this child's: a wait here would ask after
+	   groups it has no children in (Gitea #445). Forgotten, not signalled. */
+	while (s->jobs.n)
+		jc_drop(s, (job *)s->jobs.p[0]);
 	if (s->etrap)
 		lg(HIBR_LDBG, "subshell keeps the ERR trap listed and runs it only if set again");
 	if (!s->trap || !s->trap[0])
@@ -310,9 +361,13 @@ void tr_return(sh *s)
 int tr_sig(const char *nm)
 {
 	const struct signm *sm;
+	const char *p;
 
-	if (isdigit((unsigned char)nm[0]))
-		return atoi(nm);
+	if (isdigit((unsigned char)nm[0])) {
+		for (p = nm; isdigit((unsigned char)*p); p++)
+			;
+		return *p ? -1 : atoi(nm);
+	}
 	if (!strcasecmp(nm, "EXIT") || !strcmp(nm, "0"))
 		return 0;
 	if (!strcasecmp(nm, "ERR"))
@@ -420,9 +475,17 @@ int b_trap(sh *s, int ac, char **av)
 	i = 2;
 	if (!strcmp(cmd, "-")) {
 		reset = 1;
+	} else if (ac == 2 && tr_sig(cmd) != -1) {
+		lg(HIBR_LDBG, "trap %s alone resets it, as bash does", cmd);
+		reset = 1;
+		i = 1;
+	} else if (isdigit((unsigned char)cmd[0]) && tr_sig(cmd) != -1) {
+		lg(HIBR_LDBG, "trap with a number first resets each condition, as POSIX says");
+		reset = 1;
+		i = 1;
 	} else if (ac == 2) {
 		lg(HIBR_LERR, "trap: a signal name is required");
-		return HIBR_FAIL;
+		return 2;
 	}
 	for (; i < ac; i++) {
 		sig = tr_sig(av[i]);
@@ -639,7 +702,6 @@ long pf_num(const char *arg, int uns, int *bad)
 void pf_star(str *spec, const char *arg, int prec, int *bad)
 {
 	long v = pf_num(arg, 0, bad);
-	char d[32];
 
 	if (v < 0) {
 		if (prec) {
@@ -652,8 +714,7 @@ void pf_star(str *spec, const char *arg, int prec, int *bad)
 	}
 	if (v > INT_MAX)
 		v = INT_MAX;
-	snprintf(d, sizeof d, "%ld", v);
-	s_cat(spec, d);
+	s_num(spec, v);
 }
 
 /* Emit one conversion with its flags, width and precision. */
