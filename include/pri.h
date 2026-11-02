@@ -113,6 +113,10 @@ word *lx_word(lex *l, int dq);
 char *lx_span(lex *l);
 const char *sk_bal(lex *l, const char *p, char o, char c, int dq);
 const char *sk_cmd(lex *l, const char *p);
+#ifndef HIBR_XBRK
+#define HIBR_XBRK 16
+#endif
+extern unsigned x_brkn;
 node *p_list(lex *l);
 const char *sk_brace(lex *l, const char *p, int *d);
 char *lx_arrow(lex *l);

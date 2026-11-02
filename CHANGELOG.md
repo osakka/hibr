@@ -38,6 +38,22 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   - `fn f(a, b-c)` is a syntax error naming `-c`, where `-c` was silently
     dropped.
 
+**Expansion** (#439, #440).
+- **A subscript is evaluated once.** `"${a[i++]}"` read the wrong element
+  and ran `i++` twice, because whether a subscript was `@` was asked by
+  expanding it.
+- **An `@` list keeps its elements apart.**
+  - Inside a longer word: `"x$@y"` with `a "" b` is `<xa><><by>`, as in
+    bash, where it was one word.
+  - When IFS has no blank: `${a[@]}` with `IFS=,` keeps `"x y"` whole.
+  - The same holds for slices and for `"${u:-$@}"`.
+- **Operators act on each element.** `${a[@]#p}`, `${a[@]%.c}`,
+  `${a[@]/p/P}`, `${@%.c}` and `${*%.c}` work on every element, with
+  their pattern expanded once. They acted on the list joined into one
+  string.
+- **Cost.** About 0.3% more instructions on the `while` loop benchmark,
+  besides `strcmp`'s usual layout noise; the array loop is 1% cheaper.
+
 ## 0.99.427
 
 **A sheet's formulas are contained, and a sheet can be given full access**

@@ -16,6 +16,7 @@ static int ce_xfl;
 #endif
 
 void xvar2(sh *s, part *p, str *b, str *m, const char *v);
+char *xop1(sh *s, part *p, const char *v);
 
 /* Render a signed number into the expansion arena. */
 char *xnum(sh *s, long v)
@@ -581,6 +582,18 @@ int xallw(word *w)
 	return p->n == 1 && (p->t[0] == '@' || p->t[0] == '*');
 }
 
+/* Whether p's last subscript is written as a bare @, the form that makes a
+   field of each element: asked of the word, so nothing is expanded, or
+   evaluated twice, to find out (Gitea #439). */
+int xlastat(part *p)
+{
+	word *lw = p->idx;
+
+	while (lw && lw->nx)
+		lw = lw->nx;
+	return xallw(lw) && lw->p->t[0] == '@';
+}
+
 /* Whether a variable was declared with declare -A, whose subscripts are
    always literal keys, as in bash. */
 int xassoc(sh *s, const char *nm)
@@ -714,11 +727,106 @@ var *xvref(sh *s, const char *k)
 }
 
 /* Whether an operator acts on each element of ${a[@]} on its own, as bash's
-   case changes, quoting and prompt expansion do. */
+   case changes, quoting, prompt expansion, pattern removal and substitution
+   do (Gitea #440). */
 int xper(int op)
 {
 	return op == V_XQ || op == V_XE || op == V_XP || op == V_XAT ||
-	       op == V_UP || op == V_UPALL || op == V_LOW || op == V_LOWALL;
+	       op == V_UP || op == V_UPALL || op == V_LOW || op == V_LOWALL ||
+	       op == V_RS || op == V_RL || op == V_SS || op == V_SL ||
+	       op == V_SUB || op == V_SUBA || op == V_SUBP || op == V_SUBF;
+}
+
+unsigned x_brkn;
+
+/* A field break between two elements of an @ list: a space, so a context
+   that joins reads it as one, marked 2 when quoted and 3 when not, so
+   splitting ends a field there whatever IFS holds (Gitea #440). */
+void xbrk(str *b, str *m, int q)
+{
+	s_ch(b, ' ');
+	s_grow(m, 1);
+	m->p[m->n++] = (char)(q ? 2 : 3);
+	m->p[m->n] = 0;
+	x_brkn++;
+}
+
+/* Elements from..to of a list, joined: by IFS's first character for a *
+   list, by field breaks for an @ list. */
+void xlist(sh *s, part *p, str *b, str *m, vec *lst, size_t from, size_t to,
+	   int star)
+{
+	const char *sep = star ? xsep(s, p->q || s->strict) : 0;
+	size_t k;
+
+	for (k = from; k < to; k++) {
+		const char *t = (char *)lst->p[k];
+
+		if (k > from) {
+			if (star)
+				XV(s, p, b, m, sep, strlen(sep));
+			else
+				xbrk(b, m, p->q || s->strict);
+		}
+		XV(s, p, b, m, t, strlen(t));
+	}
+}
+
+/* A copy of p with its pattern and replacement already expanded, so an
+   operator applied to each element of a list runs a $( ) in them once
+   rather than once an element. The pattern stays a pattern, its leading ~
+   escaped so it is not expanded again; the replacement becomes quoted text. */
+part xprep(sh *s, part *p)
+{
+	part q = *p;
+	word *wp, *wr;
+	part *tp, *tr;
+	const char *pat, *r;
+	str e;
+
+	if (!p->arg)
+		return q;
+	pat = xpat(s, p->arg);
+	s_init(&e);
+	if (*pat == '~')
+		s_ch(&e, '\\');
+	s_cat(&e, pat);
+	wp = ar_alloc(s->xa, sizeof *wp);
+	tp = ar_alloc(s->xa, sizeof *tp);
+	memset(wp, 0, sizeof *wp);
+	memset(tp, 0, sizeof *tp);
+	tp->k = P_TXT;
+	tp->t = ar_dup(s->xa, e.p ? e.p : "", e.n);
+	tp->n = e.n;
+	wp->p = tp;
+	s_free(&e);
+	if (p->arg->nx) {
+		r = xone(s, p->arg->nx);
+		wr = ar_alloc(s->xa, sizeof *wr);
+		tr = ar_alloc(s->xa, sizeof *tr);
+		memset(wr, 0, sizeof *wr);
+		memset(tr, 0, sizeof *tr);
+		tr->k = P_TXT;
+		tr->q = 1;
+		tr->t = ar_dup(s->xa, r, strlen(r));
+		tr->n = strlen(r);
+		wr->p = tr;
+		wp->nx = wr;
+	}
+	q.arg = wp;
+	return q;
+}
+
+/* Each element of a list through an operator that acts on one at a time,
+   then joined as xlist joins. */
+void xlistop(sh *s, part *p, str *b, str *m, vec *lst, size_t from, int star)
+{
+	part q = xprep(s, p);
+	size_t k;
+
+	for (k = from; k < lst->n; k++)
+		lst->p[k] = xop1(s, &q, (char *)lst->p[k]);
+	xlist(s, p, b, m, lst, from, lst->n, star);
 }
 
 /* One value through an operator, as text: an element of ${a[@]}. */
@@ -816,21 +924,26 @@ void xvar(sh *s, part *p, str *b, str *m)
 		}
 		if (all && p->op == V_SUBSTR) {
 			vec *lst = vb_get(s);
-			long off, len, k2;
-			str j;
-			const char *sp = xstar(ks, nk) ?
-				xsep(s, p->q || s->strict) : " ";
+			long off, len;
 			v_list(s, p->t, ks, nk, lst, 0);
 			xslice(s, p, lst->n, &off, &len);
-			s_init(&j);
-			for (k2 = off; k2 < off + len; k2++) {
-				if (k2 > off)
-					s_cat(&j, sp);
-				s_cat(&j, (char *)lst->p[k2]);
-			}
+			xlist(s, p, b, m, lst, (size_t)off, (size_t)(off + len),
+			      xstar(ks, nk));
 			vb_put(s, lst);
-			XV(s, p, b, m, j.p ? j.p : "", j.n);
-			s_free(&j);
+			return;
+		}
+		if (all && xper(p->op) && v_find(s, p->t)) {
+			vec *lst = vb_get(s);
+			v_list(s, p->t, ks, nk, lst, 0);
+			xlistop(s, p, b, m, lst, 0, xstar(ks, nk));
+			vb_put(s, lst);
+			return;
+		}
+		if (all && p->op == V_NONE && v_find(s, p->t)) {
+			vec *lst = vb_get(s);
+			v_list(s, p->t, ks, nk, lst, 0);
+			xlist(s, p, b, m, lst, 0, lst->n, xstar(ks, nk));
+			vb_put(s, lst);
 			return;
 		}
 		if (all && (p->op == V_XA || p->op == V_XK ||
@@ -902,6 +1015,16 @@ void xvar(sh *s, part *p, str *b, str *m)
 		a = xnum(s, (long)s->ac);
 		lg(HIBR_LTRC, "${#%c} is how many parameters there are", p->t[0]);
 		xput(b, m, a, strlen(a), 1);
+		return;
+	} else if ((p->t[0] == '@' || p->t[0] == '*') && !p->t[1] &&
+		   (p->op == V_NONE || xper(p->op))) {
+		vec *lst = vb_get(s);
+		xposlist(s, lst);
+		if (p->op == V_NONE)
+			xlist(s, p, b, m, lst, 1, lst->n, p->t[0] == '*');
+		else
+			xlistop(s, p, b, m, lst, 1, p->t[0] == '*');
+		vb_put(s, lst);
 		return;
 	} else if (p->t[0] == '*' && !p->t[1]) {
 		v = xjoin(s, xsep(s, p->q || s->strict));
@@ -1015,20 +1138,32 @@ const char *xbyname(sh *s, const char *r)
 const char *xarg(sh *s, part *p, str *b, str *m)
 {
 	char *mk;
-	char *a = xone_fq(s, p->arg, &mk,
-			  p->q ? HIBR_XONE | HIBR_XNOTIL : HIBR_XONE);
+	unsigned b0 = x_brkn;
+	char *a = xone_fq(s, p->arg, &mk, HIBR_XBRK |
+			  (p->q ? HIBR_XONE | HIBR_XNOTIL : HIBR_XONE));
 	size_t n = strlen(a), i;
+	int brk = 0;
 
-	if (!mk || p->q) {
+	if (!mk || (p->q && x_brkn == b0)) {
 		xput(b, m, a, n, p->q);
 		return a;
 	}
 	s_add(b, a, n);
 	s_grow(m, n);
-	for (i = 0; i < n; i++)
-		m->p[m->n + i] = mk[i] ? 1 : 0;
+	for (i = 0; i < n; i++) {
+		unsigned char c = (unsigned char)mk[i];
+
+		if (c >= 2) {
+			brk = 1;
+			m->p[m->n + i] = (char)(p->q ? 2 : c);
+		} else {
+			m->p[m->n + i] = p->q || c ? 1 : 0;
+		}
+	}
 	m->n += n;
 	m->p[m->n] = 0;
+	if (brk)
+		x_brkn++;
 	return a;
 }
 
@@ -1174,21 +1309,11 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		if (!p->arr && p->t[0] && !p->t[1] &&
 		    (p->t[0] == '*' || p->t[0] == '@')) {
 			vec *lst = vb_get(s);
-			long k2;
-			str j;
-			const char *sp = p->t[0] == '*' ?
-				xsep(s, p->q || s->strict) : " ";
 			xposlist(s, lst);
 			xslice(s, p, lst->n, &off, &len);
-			s_init(&j);
-			for (k2 = off; k2 < off + len; k2++) {
-				if (k2 > off)
-					s_cat(&j, sp);
-				s_cat(&j, (char *)lst->p[k2]);
-			}
+			xlist(s, p, b, m, lst, (size_t)off, (size_t)(off + len),
+			      p->t[0] == '*');
 			vb_put(s, lst);
-			XV(s, p, b, m, j.p ? j.p : "", j.n);
-			s_free(&j);
 			return;
 		}
 		if (!v) {
@@ -1955,8 +2080,9 @@ int xifs(const char *b, const char *m, size_t n, size_t *p, const char *ifs,
 	return 1;
 }
 
-/* Split an expanded buffer into fields on unquoted IFS characters. */
-void xsplit(sh *s, str *b, str *m, vec *out, vec *outm)
+/* Split n expanded bytes into fields on unquoted IFS characters. */
+void xsplitn(sh *s, const char *t, const char *mk, size_t n, vec *out,
+	     vec *outm)
 {
 	const char *ifs = sh_ifs(s);
 	size_t i = 0, st, fs, fe;
@@ -1964,27 +2090,66 @@ void xsplit(sh *s, str *b, str *m, vec *out, vec *outm)
 	if (!ifs)
 		ifs = " \t\n";
 #ifdef HIBR_CENSUS
-	for (st = 0; st < b->n && *ifs; st++)
-		if (!m->p[st] && strchr(ifs, b->p[st])) {
-			ce_exp(s, "split", b->p, b->n);
+	for (st = 0; st < n && *ifs; st++)
+		if (!mk[st] && strchr(ifs, t[st])) {
+			ce_exp(s, "split", t, n);
 			break;
 		}
 #endif
 	if (xifsnws(ifs)) {
-		while (xifs(b->p, m->p, b->n, &i, ifs, &fs, &fe))
-			xfield(s, b->p + fs, m->p + fs, fe - fs, out, outm);
+		while (xifs(t, mk, n, &i, ifs, &fs, &fe))
+			xfield(s, t + fs, mk + fs, fe - fs, out, outm);
 		return;
 	}
-	while (i < b->n) {
-		while (i < b->n && !m->p[i] && *ifs && strchr(ifs, b->p[i]))
+	while (i < n) {
+		while (i < n && !mk[i] && *ifs && strchr(ifs, t[i]))
 			i++;
-		if (i >= b->n)
+		if (i >= n)
 			break;
 		st = i;
-		while (i < b->n && !(!m->p[i] && *ifs && strchr(ifs, b->p[i])))
+		while (i < n && !(!mk[i] && *ifs && strchr(ifs, t[i])))
 			i++;
-		xfield(s, b->p + st, m->p + st, i - st, out, outm);
+		xfield(s, t + st, mk + st, i - st, out, outm);
 	}
+}
+
+/* Split an expanded buffer into fields. With brk set it may hold field
+   breaks between the elements of an @ list, which end a field whatever
+   IFS says: each piece between them is split on its own, and an empty
+   piece is a field only beside a quoted break, as "x$@y" keeps an empty
+   element and $@ drops one (Gitea #440). */
+void xsplit(sh *s, str *b, str *m, vec *out, vec *outm, int brk)
+{
+	size_t i, st = 0;
+	int pb = 0;
+
+	if (!brk) {
+		xsplitn(s, b->p, m->p, b->n, out, outm);
+		return;
+	}
+	for (i = 0; i <= b->n; i++) {
+		int nb = i < b->n ? (unsigned char)m->p[i] : 0;
+
+		if (i < b->n && nb < 2)
+			continue;
+		if (i > st)
+			xsplitn(s, b->p + st, m->p + st, i - st, out, outm);
+		else if (pb == 2 || nb == 2)
+			xout(s, out, outm, "", 0, 0);
+		pb = nb;
+		st = i + 1;
+	}
+}
+
+/* A buffer about to be used whole: each field break becomes the space it
+   stands for, quoted as its list was. */
+void xunbrk(str *m)
+{
+	size_t i;
+
+	for (i = 0; i < m->n; i++)
+		if ((unsigned char)m->p[i] >= 2)
+			m->p[i] = (char)(m->p[i] == 2);
 }
 
 /* True if a word carries any quoted part. */
@@ -2114,6 +2279,8 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 	part *p;
 	size_t k;
 	part first;
+	unsigned brk0;
+	int brk;
 
 	if (!w)
 		return;
@@ -2142,10 +2309,13 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 		}
 		if (p0->arr && p0->op == V_SUBSTR) {
 			char **ks;
-			int all, nk = xkeys(s, p0, &ks, &all);
+			int all, nk;
 			vec *lst;
 			long off, len, k2;
-			if (!all || xstar(ks, nk))
+			if (!xlastat(p0))
+				goto normal;
+			nk = xkeys(s, p0, &ks, &all);
+			if (!all)
 				goto normal;
 			lst = vb_get(s);
 			v_list(s, p0->t, ks, nk, lst, 0);
@@ -2158,18 +2328,20 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 		}
 		if (p0->arr && (xper(p0->op) || p0->op == V_XKW)) {
 			char **ks;
-			int all, nk = xkeys(s, p0, &ks, &all);
+			int all, nk;
 			vec *lst, *kl;
 			size_t k;
-			word *lw = p0->idx;
-			while (lw && lw->nx)
-				lw = lw->nx;
-			if (!all || strcmp(xone(s, lw), "@"))
+			part q0;
+			if (!xlastat(p0))
+				goto normal;
+			nk = xkeys(s, p0, &ks, &all);
+			if (!all)
 				goto normal;
 			lst = vb_get(s);
 			kl = vb_get(s);
 			v_list(s, p0->t, ks, nk, lst, 0);
 			v_list(s, p0->t, ks, nk, kl, 1);
+			q0 = xprep(s, p0);
 			for (k = 0; k < lst->n; k++) {
 				const char *t;
 
@@ -2178,7 +2350,7 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 					xoutq(s, out, outm, t, strlen(t));
 					t = (char *)lst->p[k];
 				} else {
-					t = xop1(s, p0, (char *)lst->p[k]);
+					t = xop1(s, &q0, (char *)lst->p[k]);
 				}
 				xoutq(s, out, outm, t, strlen(t));
 			}
@@ -2188,13 +2360,13 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 		}
 		if (p0->arr && (p0->op == V_NONE || p0->op == V_KEYS)) {
 			char **ks;
-			int all, nk = xkeys(s, p0, &ks, &all);
+			int all, nk;
 			vec *lst;
 			size_t k;
-			word *lw = p0->idx;
-			while (lw && lw->nx)
-				lw = lw->nx;
-			if (!all || strcmp(xone(s, lw), "@"))
+			if (!xlastat(p0))
+				goto normal;
+			nk = xkeys(s, p0, &ks, &all);
+			if (!all)
 				goto normal;
 			lst = vb_get(s);
 			v_list(s, p0->t, ks, nk, lst, p0->op == V_KEYS);
@@ -2215,7 +2387,8 @@ normal:
 		return;
 	}
 	if (w->p && !w->p->nx && w->p->k == P_VAR && !w->p->q && !w->p->arr &&
-	    w->p->op == V_NONE && !s->uset && !(fl & HIBR_XPAT)) {
+	    w->p->op == V_NONE && !s->uset && !(fl & HIBR_XPAT) &&
+	    !((fl & HIBR_XBRK) && w->p->t[0] == '@' && !w->p->t[1])) {
 		const char *v = xval(s, w->p->t);
 		size_t k, n;
 		if (fl & HIBR_XONE) {
@@ -2263,6 +2436,7 @@ normal:
 	}
 	b = sb_get(s);
 	m = sb_get(s);
+	brk0 = x_brkn;
 	k = 0;
 	if (!(fl & HIBR_XASG))
 		k = fl & HIBR_XNOTIL ? 0 : xtilde(s, w, b, m);
@@ -2278,6 +2452,9 @@ normal:
 	}
 	for (; p; p = p->nx)
 		xpart(s, p, b, m);
+	brk = x_brkn != brk0;
+	if (brk && (fl & (HIBR_XPAT | HIBR_XONE)) && !(fl & HIBR_XBRK))
+		xunbrk(m);
 	if (fl & HIBR_XPAT) {
 		str *q = sb_get(s);
 		size_t i;
@@ -2294,7 +2471,10 @@ normal:
 		if (w_hasq(w))
 			xout(s, out, outm, "", 0, 0);
 	} else {
-		xsplit(s, b, m, out, outm);
+		if (brk)
+			xsplit(s, b, m, out, outm, brk);
+		else
+			xsplitn(s, b->p, m->p, b->n, out, outm);
 	}
 	sb_put(s, m);
 	sb_put(s, b);
