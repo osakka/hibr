@@ -261,6 +261,32 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   shell array emits `[]` and an empty `-A` map `{}`. Text after the
   document is malformed input.
 
+**Startup, history, the line editor, modules** (#467-#470).
+- **Startup.** `-c` takes its command after every option (`hibr -c -x
+  'cmd'`, `hibr -ec ...`). A folder or a binary named as the script is
+  refused with status 126, as bash does; a folder ran nothing and said 0,
+  a binary was read as commands. `hibr -i` on a pipe reads no further than
+  each line, so a `read` in the input gets the next line.
+- **History** is written to a file only its owner can read (0600), whole,
+  and renamed into place, so two shells ending together cannot truncate
+  it.
+- **A hangup** -- the terminal closing -- saves history, sends HUP to the
+  jobs (and CONT to a stopped one), runs the logout file of a login shell,
+  and ends the shell by the signal; it used to kill the shell first.
+- **The line editor.**
+  - An OSC in the prompt (a window title) takes no columns; it was counted
+    up to its first letter, and the cursor sat far to the right.
+  - After `;`, `|`, `&` and `(` a word completes as a command again, and
+    `COMPLETE` is asked by the command being typed, not the line's first.
+  - A completion hook keeps the shell's state, as the prompt hook does:
+    `$?`, an errexit and an `exit` inside it stay inside it, and it runs
+    out of raw mode.
+  - The common part of several completions stops before a character it
+    would cut.
+- **Modules.** `need` looks in the same folders `hibr_require` does,
+  including the user's and the system's; `mod drop` keeps the list in
+  order, and a module is taken out of it before its finaliser runs.
+
 ## 0.99.427
 
 **A sheet's formulas are contained, and a sheet can be given full access**

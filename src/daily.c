@@ -714,8 +714,8 @@ char *pr_hook(sh *s)
 	node *f;
 	char *av[2];
 	char *r;
-	int ost = s->st, ostop = s->stop, oin = s->intry, ob = s->bind;
-	int oxe = s->xerr, obrk = s->brk, ocont = s->cont, oret = s->ret;
+	int ost = s->st;
+	struct hksave hs;
 	str n;
 
 	if (!nm || !*nm)
@@ -736,10 +736,8 @@ char *pr_hook(sh *s)
 	s_free(&n);
 	hibr_set(s, "RET", "", 0);
 	hibr_set(s, "RET_RIGHT", "", 0);
+	hk_save(s, &hs);
 	s->bind = f ? 0 : 1;
-	s->intry = 1;
-	s->brk = 0;
-	s->cont = 0;
 	av[0] = (char *)nm;
 	av[1] = 0;
 	if (f)
@@ -750,17 +748,43 @@ char *pr_hook(sh *s)
 	free(ed_rtext);
 	ed_rtext = hibr_get(s, "RET_RIGHT") && *hibr_get(s, "RET_RIGHT") ?
 		   xs(hibr_get(s, "RET_RIGHT")) : 0;
-	s->bind = ob;
-	s->intry = oin;
-	s->stop = ostop;
-	s->st = ost;
-	s->xerr = oxe;
-	s->brk = obrk;
-	s->cont = ocont;
-	s->ret = oret;
+	hk_restore(s, &hs);
 	lg(HIBR_LDBG, "prompt hook %s produced %lu bytes", nm,
 	   (unsigned long)strlen(r));
 	return r;
+}
+
+/* Keep the shell state a hook run between two commands must not change --
+   the status, a stop, try, a bind, an error, break, continue, return, and
+   an exit -- and set it up for the hook: inside a try, no loop to leave. */
+void hk_save(sh *s, struct hksave *h)
+{
+	h->st = s->st;
+	h->stop = s->stop;
+	h->intry = s->intry;
+	h->bind = s->bind;
+	h->xerr = s->xerr;
+	h->brk = s->brk;
+	h->cont = s->cont;
+	h->ret = s->ret;
+	h->quit = s->quit;
+	s->intry = 1;
+	s->brk = 0;
+	s->cont = 0;
+}
+
+/* Put back what hk_save kept. */
+void hk_restore(sh *s, struct hksave *h)
+{
+	s->st = h->st;
+	s->stop = h->stop;
+	s->intry = h->intry;
+	s->bind = h->bind;
+	s->xerr = h->xerr;
+	s->brk = h->brk;
+	s->cont = h->cont;
+	s->ret = h->ret;
+	s->quit = h->quit;
 }
 
 /* Source one startup file if there is one to read, saying either way.

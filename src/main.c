@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/utsname.h>
 #include <time.h>
 #include <unistd.h>
@@ -23,6 +24,34 @@ void on_int(int sig)
 	g_int = 1;
 }
 
+/* The terminal went away: say so, and let the loop leave through
+   sh_fini, so history is saved and jobs are told (Gitea #468). */
+volatile sig_atomic_t g_hup;
+
+void on_hup(int sig)
+{
+	(void)sig;
+	g_hup = 1;
+}
+
+/* Leave after a hangup as bash does: every job is sent HUP, a stopped one
+   CONT as well so it can act on it, and the shell ends by the signal. */
+void sh_hangup(sh *s)
+{
+	size_t i;
+	job *j;
+
+	lg(HIBR_LDBG, "hangup: telling %zu jobs", s->jobs.n);
+	for (i = 0; i < s->jobs.n; i++) {
+		j = (job *)s->jobs.p[i];
+		if (j->state == J_DONE || !j->pgid)
+			continue;
+		kill(-(pid_t)j->pgid, SIGHUP);
+		if (j->state == J_STOP)
+			kill(-(pid_t)j->pgid, SIGCONT);
+	}
+}
+
 /* Install interactive signal handling. */
 void sig_init(void)
 {
@@ -34,6 +63,10 @@ void sig_init(void)
 	sa.sa_handler = on_int;
 	sigaction(SIGINT, &sa, 0);
 	signal(SIGQUIT, SIG_IGN);
+	if (!tr_wasign(SIGHUP)) {
+		sa.sa_handler = on_hup;
+		sigaction(SIGHUP, &sa, 0);
+	}
 }
 
 /* Read one line of input, returning heap memory or NULL. */
@@ -355,6 +388,10 @@ int loop(sh *s)
 			strcat(line, "\n");
 			free(ex);
 		}
+		if (!line && g_hup) {
+			lg(HIBR_LDBG, "the terminal hung up");
+			break;
+		}
 		if (!line) {
 			if (g_int || (ferror(stdin) && errno == EINTR)) {
 				g_int = 0;
@@ -391,6 +428,8 @@ int loop(sh *s)
 		if (acc.p)
 			acc.p[0] = 0;
 		g_int = 0;
+		if (g_hup)
+			break;
 	}
 	s_free(&acc);
 	return s->st;
@@ -410,6 +449,32 @@ char *slurp(FILE *f)
 	if (!b.p)
 		s_ch(&b, 0), b.n = 0;
 	return b.p;
+}
+
+/* Whether a file named as the script is one no shell should run: a folder,
+   or a binary -- a NUL before the end of its first line -- said as bash
+   says it, for status 126. The file is left where it started. */
+int sc_refuse(FILE *f, const char *nm)
+{
+	struct stat st;
+	char *head;
+	size_t n, k;
+
+	if (!fstat(fileno(f), &st) && S_ISDIR(st.st_mode)) {
+		lg(HIBR_LERR, "%s: %s: Is a directory", nm, nm);
+		return 1;
+	}
+	head = xm(HIBR_SHEBANGN);
+	n = fread(head, 1, HIBR_SHEBANGN, f);
+	for (k = 0; k < n && head[k] != '\n'; k++)
+		if (!head[k]) {
+			lg(HIBR_LERR, "%s: %s: cannot execute binary file", nm, nm);
+			free(head);
+			return 1;
+		}
+	free(head);
+	rewind(f);
+	return 0;
 }
 
 /* Release every shell resource. */
@@ -795,16 +860,15 @@ int main(int ac, char **av)
 				return 2;
 			}
 		}
-		if (cmd) {
-			if (i + 1 >= ac) {
-				lg(HIBR_LERR, "-c: needs a command");
-				sh_fini(&s);
-				return 2;
-			}
-			src = xs(av[++i]);
-			i++;
-			break;
+	}
+	if (cmd) {
+		lg(HIBR_LDBG, "-c takes the first word after the options, as bash's does");
+		if (i >= ac) {
+			lg(HIBR_LERR, "-c: needs a command");
+			sh_fini(&s);
+			return 2;
 		}
+		src = xs(av[i++]);
 	}
 	if (iact) {
 		s.it = 1;
@@ -850,6 +914,11 @@ int main(int ac, char **av)
 			sh_fini(&s);
 			return HIBR_NOCMD;
 		}
+		if (sc_refuse(f, av[i])) {
+			fclose(f);
+			sh_fini(&s);
+			return HIBR_NOEXEC;
+		}
 		free(s.arg0);
 		s.arg0 = xs(av[i]);
 		s.src = sr_name(&s, av[i]);
@@ -892,6 +961,15 @@ int main(int ac, char **av)
 		rc_load(&s);
 		lg(HIBR_LINF, "interactive shell, pid %ld", (long)getpid());
 		rc = loop(&s);
+		if (g_hup) {
+			sh_hangup(&s);
+			if (login)
+				rc_logout(&s);
+			sh_fini(&s);
+			signal(SIGHUP, SIG_DFL);
+			raise(SIGHUP);
+			return 128 + SIGHUP;
+		}
 	} else if (s.sopt & O_CHECK) {
 		text = slurp(stdin);
 		rc = sh_check(&s, text) ? 2 : hibr_run(&s, text);

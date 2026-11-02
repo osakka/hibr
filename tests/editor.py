@@ -267,4 +267,47 @@ t = session('PS1="> "\n', ["sleep 30 &\n", 0.3, "kill -STOP %1\n", 0.4,
 check("wait on a stopped job keeps it and answers 147",
       "rc=147" in t and "Stopped" in t and "killed=0" in t, repr(t))
 
-report(56)
+# A hangup (Gitea #468): the terminal closing used to kill the shell before
+# it saved its history or told its jobs. History is written readable by its
+# owner alone, a background job is sent HUP, and the shell ends by the signal.
+import signal as _sig, tempfile as _tf, stat as _st, subprocess as _sp
+hhome = _tf.mkdtemp()
+t = Term("-i", rows=24, cols=80, env={"HIBR_RC": "/dev/null", "TERM": "xterm",
+                                       "HOME": hhome}, settle=0.6)
+t.keys([b"echo hangup-marker\n", 0.3, b"sleep 3.23 &\n", 0.4])
+os.kill(t.pid, _sig.SIGHUP)
+time.sleep(0.8)
+hf = os.path.join(hhome, ".hibr_history")
+check("a hangup saves history, readable by its owner alone",
+      os.path.exists(hf) and "hangup-marker" in open(hf).read() and
+      (os.stat(hf).st_mode & 0o777) == 0o600,
+      repr(os.path.exists(hf) and oct(os.stat(hf).st_mode)))
+check("a hangup is passed to background jobs",
+      "sleep 3.23" not in _sp.run(["ps", "-eo", "args"], capture_output=True,
+                                  text=True).stdout.splitlines())
+t.close()
+
+# The line editor's audit (Gitea #469). An OSC in the prompt -- a window
+# title -- was counted as columns up to its first letter, so the cursor sat
+# far right of the text.
+last, t = shell('PS1=$\'\\e]0;title here\\a$ \'\n', ["abc"])
+check("an OSC in the prompt takes no columns", plain(last)[1] == 5, repr(last))
+# After ; | && a word is a command again, and COMPLETE is asked by the
+# command the word belongs to, not by the line's first word.
+d = tempfile.mkdtemp()
+last, t = shell('PS1="> "\n', ["echo a; ech\t"], cwd=d)
+check("a command completes after ;", "echo a; echo " in plain(last)[0], repr(last))
+rc = ('PS1="> "\nfn gc(cmd, w) { ret checkout status; }\n'
+      'declare -A COMPLETE; COMPLETE[git]=gc\n')
+last, t = shell(rc, ["ls; git che\t"], cwd=d)
+check("COMPLETE is asked by the command being typed",
+      "ls; git checkout " in plain(last)[0], repr(last))
+# The completion hook keeps the shell's state: $? and an exit inside it.
+rc = ('PS1="> "\nfn bad(cmd, w) { false; exit 3; }\n'
+      'declare -A COMPLETE; COMPLETE[zz]=bad\n')
+t = session(rc, ["true\n", "zz q\t", 0.3, "\x15echo status=$? alive\n", "exit\n"])
+check("a completion hook keeps $? and cannot end the shell",
+      "status=0 alive" in t, repr(t[-300:]))
+shutil.rmtree(d, ignore_errors=True)
+
+report(62)

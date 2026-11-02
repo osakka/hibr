@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -14,7 +15,7 @@
 #include <unistd.h>
 
 extern const hibr_bi bitab[];
-extern volatile sig_atomic_t g_int;
+extern volatile sig_atomic_t g_int, g_hup;
 
 sh *ed_sh;
 struct termios ed_saved;
@@ -166,6 +167,31 @@ int ed_cols(void)
 	return 80;
 }
 
+/* Skip one escape sequence in a prompt, from its ESC: a CSI to its final
+   byte, an OSC or other string to BEL or ESC \\ -- a window title set in
+   PS1 is one -- and anything else as ESC and one byte. Shared by ed_pos and
+   ed_width, which counted an OSC's text as columns (Gitea #469). */
+const char *ed_esc(const char *p)
+{
+	p++;
+	if (*p == '[') {
+		p++;
+		while (*p && !(*p >= '@' && *p <= '~'))
+			p++;
+		return *p ? p + 1 : p;
+	}
+	if (*p == ']' || *p == 'P' || *p == '_' || *p == '^' || *p == 'X') {
+		for (p++; *p; p++) {
+			if (*p == 7)
+				return p + 1;
+			if (*p == 27 && p[1] == '\\')
+				return p + 2;
+		}
+		return p;
+	}
+	return *p ? p + 1 : p;
+}
+
 /* Lay the prompt and buffer out in rows, reporting the cursor cell. */
 void ed_pos(const char *ps, str *b, size_t pos, int cols, int *rows, int *crow,
 	    int *ccol, int *ecol)
@@ -177,13 +203,7 @@ void ed_pos(const char *ps, str *b, size_t pos, int cols, int *rows, int *crow,
 
 	while (*p) {
 		if (*p == 27) {
-			p++;
-			if (*p == '[' || *p == ']')
-				p++;
-			while (*p && !(*p >= '@' && *p <= '~'))
-				p++;
-			if (*p)
-				p++;
+			p = ed_esc(p);
 			continue;
 		}
 		if (*p == '\n') {
@@ -235,13 +255,7 @@ int ed_width(const char *p)
 
 	while (*p) {
 		if (*p == 27) {
-			p++;
-			if (*p == '[' || *p == ']')
-				p++;
-			while (*p && !(*p >= '@' && *p <= '~'))
-				p++;
-			if (*p)
-				p++;
+			p = ed_esc(p);
 			continue;
 		}
 		l = u8dec(p, n - (size_t)(p - b), &cp);
@@ -539,15 +553,30 @@ void ed_fini(sh *s)
 
 	ed_off();
 	if (s->hfile && s->hist.n) {
-		f = fopen(s->hfile, "w");
+		str tmp;
+		int fd;
+
+		s_init(&tmp);
+		s_fmt(&tmp, "%s.%ld.tmp", s->hfile, (long)getpid());
+		fd = open(tmp.p, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+		f = fd >= 0 ? fdopen(fd, "w") : 0;
 		if (f) {
 			for (i = 0; i < s->hist.n; i++)
 				fprintf(f, "%s\n", (char *)s->hist.p[i]);
-			fclose(f);
+			if (fclose(f) || rename(tmp.p, s->hfile)) {
+				lg(HIBR_LWRN, "cannot write %s: %s", s->hfile,
+				   strerror(errno));
+				unlink(tmp.p);
+			} else {
+				lg(HIBR_LDBG, "history written whole, readable by its owner alone");
+			}
 		} else {
+			if (fd >= 0)
+				close(fd);
 			lg(HIBR_LWRN, "cannot write %s: %s", s->hfile,
 			   strerror(errno));
 		}
+		s_free(&tmp);
 	}
 	for (i = 0; i < s->hist.n; i++)
 		free(s->hist.p[i]);
@@ -617,6 +646,7 @@ int ed_hook(sh *s, const char *cmd, const char *word, vec *out)
 	const char *word0 = word;
 	char *key = (char *)cmd;
 	const char *fn = v_getp(s, "COMPLETE", &key, 1);
+	struct hksave hs;
 	str c;
 	vec *res;
 	size_t i;
@@ -635,7 +665,12 @@ int ed_hook(sh *s, const char *cmd, const char *word, vec *out)
 			s_ch(&c, *word);
 	}
 	s_cat(&c, "'");
+	hk_save(s, &hs);
+	ed_off();
+	lg(HIBR_LTRC, "completion hook runs with the shell's state kept, out of raw mode");
 	hibr_run(s, c.p);
+	ed_on();
+	hk_restore(s, &hs);
 	s_free(&c);
 	res = vb_get(s);
 	v_list(s, "RET", 0, 0, res, 0);
@@ -674,11 +709,14 @@ void ed_cand(sh *s, str *b, size_t start, const char *word, vec *out, str *dir)
 	node *f;
 	var *v;
 	int iscmd = 1;
+	size_t seg = 0;
 
 	s_init(dir);
 	for (i = 0; i < start; i++)
-		if (b->p[i] != ' ' && b->p[i] != '\t' && b->p[i] != ';' &&
-		    b->p[i] != '|' && b->p[i] != '&')
+		if (strchr(";|&(\n", b->p[i]))
+			seg = i + 1;
+	for (i = seg; i < start; i++)
+		if (b->p[i] != ' ' && b->p[i] != '\t')
 			iscmd = 0;
 	if ((i = (size_t)ed_isvar(word))) {
 		size_t pk = i;
@@ -695,7 +733,7 @@ void ed_cand(sh *s, str *b, size_t start, const char *word, vec *out, str *dir)
 		return;
 	}
 	if (!iscmd) {
-		size_t cs = 0, ce;
+		size_t cs = seg, ce;
 		while (cs < b->n && (b->p[cs] == ' ' || b->p[cs] == '\t'))
 			cs++;
 		ce = cs;
@@ -928,6 +966,18 @@ void ed_tab(sh *s, est *e, str *b, size_t *pos)
 			;
 		common.n = k;
 		common.p[k] = 0;
+	}
+	if (c.n > 1) {
+		const char *f0 = (char *)c.p[0];
+
+		k = common.n;
+		while (k && ((unsigned char)f0[k] & 0xc0) == 0x80)
+			k--;
+		if (k < common.n) {
+			lg(HIBR_LTRC, "completion: the common part stops before a character it would cut");
+			common.n = k;
+			common.p[k] = 0;
+		}
 	}
 	if (c.n > 1) {
 		str o;
@@ -1207,7 +1257,8 @@ char *ed_line(sh *s, const char *ps)
 	if (!s->it || !isatty(0) || ed_on() != HIBR_OK) {
 		free(rt);
 		ed_put(ps, strlen(ps));
-		return rdline(stdin);
+		lg(HIBR_LTRC, "no terminal: a line read with nothing read past it");
+		return in_line(0, lseek(0, 0, SEEK_CUR) != (off_t)-1);
 	}
 	s_init(&b);
 	s_grow(&b, 0);
@@ -1221,6 +1272,13 @@ char *ed_line(sh *s, const char *ps)
 	ed_draw(&e, &b, pos);
 	for (;;) {
 		if (read(0, &c, 1) != 1) {
+			if (errno == EINTR && g_hup) {
+				ed_off();
+				s_free(&b);
+				s_free(&save);
+				s_free(&seq);
+				return ed_ret(&e, 0);
+			}
 			if (errno == EINTR && g_int) {
 				g_int = 0;
 				ed_put("^C\r\n", 4);

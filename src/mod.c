@@ -332,13 +332,15 @@ int m_drop(sh *s, const char *nm)
 		m = (mod *)s->mods.p[i];
 		if (strcmp(m->m->nm, nm))
 			continue;
+		memmove(s->mods.p + i, s->mods.p + i + 1,
+			(s->mods.n - i - 1) * sizeof *s->mods.p);
+		s->mods.n--;
+		lg(HIBR_LDBG, "%s is out of the list, in order, before its finaliser runs", nm);
 		if (m->m->fin)
 			m->m->fin(s);
 		dlclose(m->h);
 		free(m->path);
 		free(m);
-		s->mods.p[i] = s->mods.p[s->mods.n - 1];
-		s->mods.n--;
 		lg(HIBR_LINF, "dropped module %s", nm);
 		return HIBR_OK;
 	}
@@ -359,6 +361,7 @@ int m_dropall(sh *s)
 		/* The descriptor lives inside the object, so its name has to
 		   be taken before dlclose unmaps it. */
 		nm = xs(m->m->nm);
+		s->mods.n--;
 		if (m->m->fin)
 			m->m->fin(s);
 		dlclose(m->h);
@@ -366,7 +369,6 @@ int m_dropall(sh *s)
 		free(nm);
 		free(m->path);
 		free(m);
-		s->mods.n--;
 		n++;
 	}
 	return n;
@@ -1104,7 +1106,6 @@ void *hibr_require(sh *s, const char *nm, unsigned ver)
    for what it needs the same way a module does. */
 int m_need(sh *s, const char *nm)
 {
-	const char *mp;
 	size_t i;
 
 	if (!nm || !*nm)
@@ -1123,21 +1124,19 @@ int m_need(sh *s, const char *nm)
 	for (i = 0; i < s->mods.n; i++)
 		if (!strcmp(((mod *)s->mods.p[i])->m->nm, nm))
 			return HIBR_OK;
-	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
-	if (!m_nodot(s) && m_seek(s, ".", nm))
-		return HIBR_OK;
-	while (mp && *mp) {
-		const char *e = strchr(mp, ':');
-		size_t n = e ? (size_t)(e - mp) : strlen(mp);
-		if (n) {
-			char *d = ar_dup(s->xa, mp, n);
-			if (m_seek(s, d, nm))
+	{
+		struct mwalk w;
+		const char *d;
+
+		lg(HIBR_LDBG, "need %s walks the folders hibr_require walks", nm);
+		m_wstart(s, &w, 0);
+		while ((d = m_wnext(&w)))
+			if (m_seek(s, d, nm)) {
+				m_wend(&w);
 				return HIBR_OK;
-		}
-		mp = e ? e + 1 : mp + n;
+			}
+		m_wend(&w);
 	}
-	if (m_seek(s, HIBR_MODDIR, nm))
-		return HIBR_OK;
 	/* Not an interface anyone offers; it may simply be a module. */
 	return m_load(s, nm);
 }
