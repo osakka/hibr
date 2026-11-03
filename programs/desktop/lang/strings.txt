@@ -372,6 +372,7 @@ Could not rename it: %s
 Could not save %s
 Could not save %s: %s -- it will be tried again on the next save
 Could not save About Me in %s
+Could not save the photo in %s
 Could not send to %s%s
 Could not start pkexec
 Could not switch Wi-Fi: %s
@@ -595,6 +596,7 @@ Icons
 Identify
 Image
 Image Viewer
+Image support isn't installed
 Images
 Import CSV…
 Imported %s rows from %s
@@ -796,6 +798,8 @@ No Picture
 No Rule
 No browser engine to clear
 No calendar yet: choose a server in Control Panel > PIM, then sync
+No camera
+No camera is connected to this computer
 No contents
 No control characters
 No devices yet
@@ -1178,6 +1182,7 @@ Starred
 Start After (minutes)
 Start Page:
 Starting the X screen…
+Starting the camera%s
 Stay On:
 Stickies
 Sticky
@@ -1202,6 +1207,7 @@ Syncing calendars and contacts…
 Syncing calendars…
 Syncing contacts…
 Tab: session  Enter: log in  Esc: name
+Take Photo
 Taken out of the favourites: %s
 Taken up at %s, where it was left
 Task
@@ -1226,6 +1232,10 @@ The YouTube history is empty
 The administrator's (root) password, for %s
 The administrator's (root) password, to manage networks without one
 The administrator's (root) password, to remove the rule
+The camera could not be started
+The camera has no picture yet
+The camera needs ffmpeg, which is not installed
+The camera stopped
 The catalogue command did not answer JSON. It may be older than this window.
 The colours are good, warn, bad, info and dim
 The computer did not do it: logind refused

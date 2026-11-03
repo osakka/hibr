@@ -1187,9 +1187,17 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				   again. */
 				if (cn)
 					cn->gfxwait = 0;
+				/* And is wiped again first: an answer
+				   of none that a late kitty one then
+				   replaces had already counted as the
+				   wipe, and the first picture went out
+				   with nothing taken off before it --
+				   under a gate's load, where the first
+				   answer is the one that times out. */
 				if (cn && cn->gfx != g) {
 					cn->gfx = g;
 					cn->imgen = 0;
+					cn->kwiped = 0;
 					hd_poke(m);
 				}
 			} else if (t == HD_KBD && in.n == sizeof(int)) {

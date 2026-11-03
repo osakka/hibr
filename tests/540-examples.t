@@ -208,6 +208,8 @@ awk '
     for (i in a) NOT[a[i]] = "copy cut paste selall undo redo"
     # The Vault copies a secret with its own buttons, kept off the history.
     NOT["vault"] = "copy cut paste selall undo redo"
+    # The Camera shows a live picture, and the clipboard holds text.
+    NOT["camera"] = "copy cut paste selall undo redo"
     # Shows things and copies what is chosen, and edits nothing in place:
     # an edit is a dialog of its own, with fields that undo for themselves.
     split("about calendar clock contacts imgview mail modman pdfr tasks", a, " ")

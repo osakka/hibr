@@ -12,6 +12,15 @@ line, with the sender or "Confirm" in it, their frame or none, and their
 see-through face. A note's title bar takes the focused window's colour, or
 its priority's when high or urgent.
 - One box scaler for the console and img (`mods/boxscale.c`, #356).
+- A held display whose picture answer changed (none, then a late kitty)
+  is wiped again before its first picture, so a picture is never sent over
+  what the terminal still holds (`hold`, found by the gate).
+- **Camera** (catalogue, Accessories): the computer's camera in a window,
+  and Take Photo (space, or the button) keeps a JPEG in
+  `~/Pictures/Camera`. ffmpeg reads the camera -- video4linux, or
+  AVFoundation on a Mac -- on a pty of the desktop's own, so it ends with
+  the window or the desktop; the Camera menu chooses between cameras.
+  Needs ffmpeg.
 
 ## 0.99.434
 

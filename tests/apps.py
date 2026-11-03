@@ -6197,6 +6197,34 @@ check("an `apps` too old to know -j is named as the likely cause, rather "
       sc.find("did not answer JSON") is not None, sc)
 shutil.rmtree(ASBIN, True)
 
+# Camera (owner, 2026-11-03): ffmpeg's test pattern stands in for a
+# camera. The picture is drawn, space keeps a photo in ~/Pictures/Camera,
+# and with no camera at all the window says so rather than staying blank.
+camh = tempfile.mkdtemp(prefix="hibr-cam-")
+camenv = {"HOME": camh, "CAMERA_SRC": "-f lavfi -i testsrc=size=320x240:rate=6"}
+
+
+def camphotos():
+    d = os.path.join(camh, "Pictures", "Camera")
+    return sorted(os.listdir(d)) if os.path.isdir(d) else []
+
+
+if shutil.which("ffmpeg"):
+    sc = run("camera", "22 64 2 2", env=camenv, feed=[b" "], tries=80,
+             ready=lambda s: any("▀" * 20 in s.row(r) for r in range(3, 20)),
+             until=lambda s: camphotos() != [])
+    check("Camera draws the camera's picture, and space keeps it as a photo",
+          any("▀" * 20 in sc.row(r) for r in range(3, 20)) and
+          len(camphotos()) == 1 and camphotos()[0].startswith("Photo "), (camphotos(), sc))
+else:
+    check("Camera draws the camera's picture (skipped: no ffmpeg here)", True)
+if not any(f.startswith("video") for f in os.listdir("/dev")):
+    sc = run("camera", "22 64 2 2", env={"HOME": camh},
+             until=lambda s: s.find("No camera") is not None)
+    check("with no camera the window says so", sc.find("No camera is connected") is not None, sc)
+else:
+    check("with no camera the window says so (skipped: this machine has one)", True)
+shutil.rmtree(camh, True)
 
 for f in os.listdir(D):
     p = os.path.join(D, f)
@@ -6208,4 +6236,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(802)
+report(804)

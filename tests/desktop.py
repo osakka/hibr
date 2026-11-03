@@ -4198,8 +4198,11 @@ check("and the action it carried is offered as a button, named after itself",
       sc.find("dt_note") is not None, sc)
 t.keys([b"\r"], settle=0.8)
 sc = t.screen()
+# The window is told by its action button, not its title: a note that
+# follows the windows wears the same chrome, and the one the action raised
+# says it is from the Notification window (#102).
 check("and running it closes the window and leaves the note in the history",
-      sc.find("┤ Notification ├") is None and sc.find("RANIT") is not None
+      sc.find("dt_note") is None and sc.find("RANIT") is not None
       and sc.find("thirtieth column") is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
