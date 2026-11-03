@@ -8,7 +8,7 @@
 #define HIBR_ABI 17u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.433"
+#define HIBR_VER "0.99.434"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -370,6 +370,8 @@ void s_sqb(str *s, const char *p, size_t n);
 void s_sq(str *s, const char *p);
 int hibr_rdfd(int fd, str *o);
 int hibr_slurp(const char *path, str *o);
+const char *hibr_jws(const char *p);
+const char *hibr_jstr(const char *p, str *o);
 int hibr_tlswrap(int sock, const char *host, int noverify, pid_t *pid,
 		 const char **why);
 void s_fmt(str *s, const char *f, ...);

@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../jsondir.h"
 #include "hibr.h"
 #include <dirent.h>
 #include <stdio.h>
@@ -30,39 +31,6 @@ static size_t hc_n, hc_cap;
 static int hc_loaded;
 
 int sx_out(sh *s, const char *nm, const char *v);
-
-/* Skip blanks in a JSON text. */
-const char *hc_ws(const char *p)
-{
-	while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
-		p++;
-	return p;
-}
-
-/* Read a JSON string at p into o; the text after it, or 0. */
-const char *hc_str(const char *p, str *o)
-{
-	o->n = 0;
-	if (*p != '"')
-		return 0;
-	for (p++; *p && *p != '"'; p++) {
-		if (*p == '\\' && p[1]) {
-			p++;
-			switch (*p) {
-			case 'n': s_add(o, "\n", 1); break;
-			case 't': s_add(o, "\t", 1); break;
-			default: s_add(o, p, 1); break;
-			}
-			continue;
-		}
-		s_add(o, p, 1);
-	}
-	if (*p != '"')
-		return 0;
-	s_grow(o, 1);
-	o->p[o->n] = 0;
-	return p + 1;
-}
 
 /* Read a JSON number at p into *v; the text after it, or 0. */
 const char *hc_num(const char *p, long *v)
@@ -106,7 +74,7 @@ const char *hc_nums(const char *p, hc_cal *c, int leap)
 
 	if (*p != '[')
 		return 0;
-	p = hc_ws(p + 1);
+	p = hibr_jws(p + 1);
 	while (*p && *p != ']') {
 		if (!(p = hc_num(p, &v)))
 			return 0;
@@ -122,9 +90,9 @@ const char *hc_nums(const char *p, hc_cal *c, int leap)
 			}
 			c->mask[c->ny++] = (unsigned)v;
 		}
-		p = hc_ws(p);
+		p = hibr_jws(p);
 		if (*p == ',')
-			p = hc_ws(p + 1);
+			p = hibr_jws(p + 1);
 	}
 	return *p == ']' ? p + 1 : 0;
 }
@@ -136,18 +104,18 @@ const char *hc_names(const char *p, hc_cal *c, str *t, int sh)
 
 	if (*p != '[')
 		return 0;
-	p = hc_ws(p + 1);
+	p = hibr_jws(p + 1);
 	while (*p && *p != ']') {
-		if (!(p = hc_str(p, t)))
+		if (!(p = hibr_jstr(p, t)))
 			return 0;
 		if (i < 12) {
 			char **slot = sh ? &c->shorts[i++] : &c->months[i++];
 			free(*slot);
 			*slot = hc_dup(t);
 		}
-		p = hc_ws(p);
+		p = hibr_jws(p);
 		if (*p == ',')
-			p = hc_ws(p + 1);
+			p = hibr_jws(p + 1);
 	}
 	return *p == ']' ? p + 1 : 0;
 }
@@ -166,7 +134,7 @@ int hc_bits(unsigned v)
 int hc_parse(const char *text, hc_cal *c)
 {
 	str k, v;
-	const char *p = hc_ws(text);
+	const char *p = hibr_jws(text);
 	long n;
 	int ok = 0, y;
 
@@ -174,14 +142,14 @@ int hc_parse(const char *text, hc_cal *c)
 	s_init(&v);
 	if (*p != '{')
 		goto out;
-	p = hc_ws(p + 1);
+	p = hibr_jws(p + 1);
 	while (*p && *p != '}') {
-		if (!(p = hc_str(p, &k)))
+		if (!(p = hibr_jstr(p, &k)))
 			goto out;
-		p = hc_ws(p);
+		p = hibr_jws(p);
 		if (*p != ':')
 			goto out;
-		p = hc_ws(p + 1);
+		p = hibr_jws(p + 1);
 		if (!strcmp(k.p, "years")) {
 			p = hc_nums(p, c, 0);
 		} else if (!strcmp(k.p, "leap")) {
@@ -189,7 +157,7 @@ int hc_parse(const char *text, hc_cal *c)
 		} else if (!strcmp(k.p, "months") || !strcmp(k.p, "short")) {
 			p = hc_names(p, c, &v, k.p[0] == 's');
 		} else if (*p == '"') {
-			if (!(p = hc_str(p, &v)))
+			if (!(p = hibr_jstr(p, &v)))
 				goto out;
 			if (!strcmp(k.p, "name"))
 				c->name = hc_dup(&v);
@@ -211,9 +179,9 @@ int hc_parse(const char *text, hc_cal *c)
 		}
 		if (!p)
 			goto out;
-		p = hc_ws(p);
+		p = hibr_jws(p);
 		if (*p == ',')
-			p = hc_ws(p + 1);
+			p = hibr_jws(p + 1);
 	}
 	if (*p != '}' || !c->name || !c->kind)
 		goto out;
@@ -264,53 +232,19 @@ void hc_add(hc_cal *c)
 	hc_tab[hc_n++] = *c;
 }
 
-/* Read every *.json in one folder. */
-void hc_dir(const char *d)
+/* One calendar file's text: kept when it parses as a calendar. */
+void hc_one(const char *path, const char *text)
 {
-	DIR *dp = opendir(d);
-	struct dirent *e;
-	str p, t;
-	FILE *f;
-	size_t r, l;
 	hc_cal c;
 
-	if (!dp)
-		return;
-	s_init(&p);
-	s_init(&t);
-	while ((e = readdir(dp))) {
-		l = strlen(e->d_name);
-		if (l < 6 || strcmp(e->d_name + l - 5, ".json"))
-			continue;
-		p.n = 0;
-		s_cat(&p, d);
-		s_cat(&p, "/");
-		s_cat(&p, e->d_name);
-		if (!(f = fopen(p.p, "r")))
-			continue;
-		t.n = 0;
-		for (;;) {
-			s_grow(&t, HIBR_IOCH);
-			r = fread(t.p + t.n, 1, t.cap - t.n - 1, f);
-			if (!r)
-				break;
-			t.n += r;
-		}
-		fclose(f);
-		s_grow(&t, 1);
-		t.p[t.n] = 0;
-		memset(&c, 0, sizeof c);
-		if (hc_parse(t.p, &c) == 0) {
-			c.path = xs(p.p);
-			hc_add(&c);
-		} else {
-			lg(HIBR_LINF, "hcal: %s is not a calendar, left out", p.p);
-			hc_drop(&c);
-		}
+	memset(&c, 0, sizeof c);
+	if (hc_parse(text, &c) == 0) {
+		c.path = xs(path);
+		hc_add(&c);
+	} else {
+		lg(HIBR_LINF, "hcal: %s is not a calendar, left out", path);
+		hc_drop(&c);
 	}
-	closedir(dp);
-	s_free(&p);
-	s_free(&t);
 }
 
 /* The arithmetic calendar there always is, whatever the folders hold. */
@@ -348,38 +282,16 @@ void hc_sort(void)
 	}
 }
 
-/* Read the folders once: HIBR_CALENDARS, then the person's own, then the installed ones. */
+/* Read every calendar, once: HIBR_CALENDARS's folders, the person's
+   (the folder is calendars), the shipped ones, then the built-in. */
 void hc_load(void)
 {
-	const char *e = getenv("HIBR_CALENDARS"), *h, *x;
-	char *dup, *tok, *save;
-	str d;
-
 	if (hc_loaded)
 		return;
 	hc_loaded = 1;
-	s_init(&d);
-	if (e && *e) {
-		dup = xs(e);
-		for (tok = strtok_r(dup, ":", &save); tok; tok = strtok_r(0, ":", &save))
-			hc_dir(tok);
-		free(dup);
-	}
-	x = getenv("XDG_CONFIG_HOME");
-	h = getenv("HOME");
-	if (x && *x) {
-		s_cat(&d, x);
-		s_cat(&d, "/hibr/calendars");
-		hc_dir(d.p);
-	} else if (h && *h) {
-		s_cat(&d, h);
-		s_cat(&d, "/.config/hibr/calendars");
-		hc_dir(d.p);
-	}
-	hc_dir(HIBR_SHAREDIR "/calendars");
+	jd_walk("HIBR_CALENDARS", "calendars", HIBR_SHAREDIR, hc_one);
 	hc_builtin();
 	hc_sort();
-	s_free(&d);
 }
 
 /* Forget every calendar read. */

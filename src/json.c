@@ -30,6 +30,57 @@ int j_hex4(const char *p, unsigned *u)
 	return 1;
 }
 
+/* Pass over JSON whitespace. */
+const char *hibr_jws(const char *p)
+{
+	while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+		p++;
+	return p;
+}
+
+/* Read the quoted JSON string at p into o, every escape resolved and a
+   \u surrogate pair as the one code point it names: just past the closing
+   quote, or null. For a module reading a small JSON file of its own --
+   lang, hcal and salat each wrote this out (Gitea #356). */
+const char *hibr_jstr(const char *p, str *o)
+{
+	unsigned c, lo;
+
+	o->n = 0;
+	if (*p != '"')
+		return 0;
+	for (p++; *p && *p != '"'; p++) {
+		if (*p != '\\') {
+			s_ch(o, *p);
+			continue;
+		}
+		switch (*++p) {
+		case 'n': s_ch(o, '\n'); break;
+		case 't': s_ch(o, '\t'); break;
+		case 'r': s_ch(o, '\r'); break;
+		case 'b': s_ch(o, '\b'); break;
+		case 'f': s_ch(o, '\f'); break;
+		case 'u':
+			if (!j_hex4(p + 1, &c))
+				return 0;
+			p += 4;
+			if (c >= 0xD800 && c < 0xDC00 && p[1] == '\\' && p[2] == 'u' &&
+			    j_hex4(p + 3, &lo) && lo >= 0xDC00 && lo < 0xE000) {
+				c = 0x10000 + ((c - 0xD800) << 10) + (lo - 0xDC00);
+				p += 6;
+			}
+			u8put(o, c);
+			break;
+		case 0: return 0;
+		default: s_ch(o, *p);
+		}
+	}
+	if (*p != '"')
+		return 0;
+	s_add(o, "", 0);
+	return p + 1;
+}
+
 /* Read a quoted JSON string, resolving escapes. */
 char *j_str(struct jp *j)
 {

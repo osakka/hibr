@@ -16,7 +16,6 @@ static size_t la_cap, la_n;
 static char *la_code, *la_name, *la_dir, *la_rule;
 
 int sx_out(sh *s, const char *nm, const char *v);
-void u8put(str *o, unsigned c);
 
 static const char *la_cats[6] = { "zero", "one", "two", "few", "many", "other" };
 
@@ -79,83 +78,6 @@ void la_grow(void)
 	free(old);
 }
 
-/* Skip blanks in JSON text. */
-const char *la_ws(const char *p)
-{
-	while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
-		p++;
-	return p;
-}
-
-/* Four hex digits as a number, or 0 if they are not. */
-unsigned la_hex4(const char *p)
-{
-	unsigned c = 0, d;
-	int i;
-
-	for (i = 0; i < 4; i++) {
-		d = (unsigned char)p[i];
-		if (d >= '0' && d <= '9')
-			c = c * 16 + d - '0';
-		else if ((d | 32) >= 'a' && (d | 32) <= 'f')
-			c = c * 16 + (d | 32) - 'a' + 10;
-		else
-			return 0;
-	}
-	return c;
-}
-
-/* Read a JSON string at p into o; returns past it, or NULL. */
-const char *la_str(const char *p, str *o)
-{
-	unsigned c, d;
-	int i;
-
-	o->n = 0;
-	if (*p != '"')
-		return 0;
-	for (p++; *p && *p != '"'; p++) {
-		if (*p != '\\') {
-			s_ch(o, *p);
-			continue;
-		}
-		switch (*++p) {
-		case 'n': s_ch(o, '\n'); break;
-		case 't': s_ch(o, '\t'); break;
-		case 'r': s_ch(o, '\r'); break;
-		case 'b': s_ch(o, '\b'); break;
-		case 'f': s_ch(o, '\f'); break;
-		case 'u':
-			for (c = 0, i = 1; i <= 4; i++) {
-				d = (unsigned char)p[i];
-				if (d >= '0' && d <= '9')
-					c = c * 16 + d - '0';
-				else if ((d | 32) >= 'a' && (d | 32) <= 'f')
-					c = c * 16 + (d | 32) - 'a' + 10;
-				else
-					return 0;
-			}
-			p += 4;
-			if (c >= 0xD800 && c < 0xDC00 && p[1] == '\\' && p[2] == 'u') {
-				unsigned lo = la_hex4(p + 3);
-				if (lo >= 0xDC00 && lo < 0xE000) {
-					c = 0x10000 + ((c - 0xD800) << 10) + (lo - 0xDC00);
-					p += 6;
-				}
-			}
-			u8put(o, c);
-			break;
-		case 0: return 0;
-		default: s_ch(o, *p);
-		}
-	}
-	if (*p != '"')
-		return 0;
-	s_grow(o, 1);
-	o->p[o->n] = 0;
-	return p + 1;
-}
-
 /* A copy of a str's text. */
 char *la_dup(str *t)
 {
@@ -168,17 +90,17 @@ const char *la_strings(const char *p, str *k, str *v)
 	la_ent *e;
 	int j;
 
-	p = la_ws(p);
+	p = hibr_jws(p);
 	if (*p != '{')
 		return 0;
-	p = la_ws(p + 1);
+	p = hibr_jws(p + 1);
 	while (*p && *p != '}') {
-		if (!(p = la_str(p, k)))
+		if (!(p = hibr_jstr(p, k)))
 			return 0;
-		p = la_ws(p);
+		p = hibr_jws(p);
 		if (*p != ':')
 			return 0;
-		p = la_ws(p + 1);
+		p = hibr_jws(p + 1);
 		la_grow();
 		e = la_slot(k->p);
 		if (!e->k) {
@@ -186,39 +108,39 @@ const char *la_strings(const char *p, str *k, str *v)
 			la_n++;
 		}
 		if (*p == '"') {
-			if (!(p = la_str(p, v)))
+			if (!(p = hibr_jstr(p, v)))
 				return 0;
 			free(e->v);
 			e->v = la_dup(v);
 		} else if (*p == '{') {
-			p = la_ws(p + 1);
+			p = hibr_jws(p + 1);
 			while (*p && *p != '}') {
-				if (!(p = la_str(p, v)))
+				if (!(p = hibr_jstr(p, v)))
 					return 0;
 				for (j = 0; j < 6 && strcmp(v->p, la_cats[j]); j++)
 					;
-				p = la_ws(p);
+				p = hibr_jws(p);
 				if (*p != ':')
 					return 0;
-				p = la_ws(p + 1);
-				if (!(p = la_str(p, v)))
+				p = hibr_jws(p + 1);
+				if (!(p = hibr_jstr(p, v)))
 					return 0;
 				if (j < 6) {
 					free(e->pf[j]);
 					e->pf[j] = la_dup(v);
 				}
-				p = la_ws(p);
+				p = hibr_jws(p);
 				if (*p == ',')
-					p = la_ws(p + 1);
+					p = hibr_jws(p + 1);
 			}
 			if (*p != '}')
 				return 0;
 			p++;
 		} else
 			return 0;
-		p = la_ws(p);
+		p = hibr_jws(p);
 		if (*p == ',')
-			p = la_ws(p + 1);
+			p = hibr_jws(p + 1);
 	}
 	return *p == '}' ? p + 1 : 0;
 }
@@ -250,22 +172,22 @@ int la_load(const char *path)
 	s_grow(&t, 1);
 	t.p[t.n] = 0;
 	la_clear();
-	p = la_ws(t.p);
+	p = hibr_jws(t.p);
 	if (*p != '{')
 		goto out;
-	p = la_ws(p + 1);
+	p = hibr_jws(p + 1);
 	while (*p && *p != '}') {
-		if (!(p = la_str(p, &k)))
+		if (!(p = hibr_jstr(p, &k)))
 			goto out;
-		p = la_ws(p);
+		p = hibr_jws(p);
 		if (*p != ':')
 			goto out;
-		p = la_ws(p + 1);
+		p = hibr_jws(p + 1);
 		if (!strcmp(k.p, "strings")) {
 			if (!(p = la_strings(p, &k, &v)))
 				goto out;
 		} else {
-			if (!(p = la_str(p, &v)))
+			if (!(p = hibr_jstr(p, &v)))
 				goto out;
 			slot = !strcmp(k.p, "language") ? &la_code : !strcmp(k.p, "name") ? &la_name :
 			       !strcmp(k.p, "dir") ? &la_dir : !strcmp(k.p, "plural") ? &la_rule : 0;
@@ -274,9 +196,9 @@ int la_load(const char *path)
 				*slot = la_dup(&v);
 			}
 		}
-		p = la_ws(p);
+		p = hibr_jws(p);
 		if (*p == ',')
-			p = la_ws(p + 1);
+			p = hibr_jws(p + 1);
 	}
 	ok = *p == '}' && la_code;
 out:

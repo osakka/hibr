@@ -213,11 +213,11 @@ $(B)/mods/lint.so: $(LINT_SRC) include/hibr.h mods/lint.h $(B)/.moddir | $(B)/mo
 
 # Calendar systems are data: the module reads them from the installed
 # folder too, so it is told where that is, the way lint is told MODDIR.
-$(B)/mods/hcal.so: mods/hcal/hcal.c include/hibr.h | $(B)/mods
-	$(CC) $(CFLAGS) -DHIBR_SHAREDIR=\"$(SHAREDIR)\" $(SOFLAGS) -o $@ mods/hcal/hcal.c
+$(B)/mods/hcal.so: mods/hcal/hcal.c mods/jsondir.c mods/jsondir.h include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) -DHIBR_SHAREDIR=\"$(SHAREDIR)\" $(SOFLAGS) -o $@ mods/hcal/hcal.c mods/jsondir.c
 
-$(B)/mods/salat.so: mods/salat/salat.c include/hibr.h | $(B)/mods
-	$(CC) $(CFLAGS) -DHIBR_SHAREDIR=\"$(SHAREDIR)\" $(SOFLAGS) -o $@ mods/salat/salat.c -lm
+$(B)/mods/salat.so: mods/salat/salat.c mods/jsondir.c mods/jsondir.h include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) -DHIBR_SHAREDIR=\"$(SHAREDIR)\" $(SOFLAGS) -o $@ mods/salat/salat.c mods/jsondir.c -lm
 
 $(B)/mods/vw.so: mods/vw/vw.c mods/b64.c mods/b64.h include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/vw/vw.c mods/b64.c $(DLLIB)

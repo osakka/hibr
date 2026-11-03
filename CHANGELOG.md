@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.434
+
+**One copy each, the second part** (Gitea #356). Nothing a script sees
+changes; 731 lines of C go.
+- The TLS relay: the shell's own `/dev/tls`, Mail and fetch each forked it
+  themselves, and Mail kept its own copy of the descriptor sweep the relay
+  already does. `hibr_tlswrap` is the one place now. Mail's account
+  insists on a checked certificate whatever `HIBR_TLS_INSECURE` says, as it
+  did; fetch leaves it to the variable unless `-k` is given, as it did.
+- The uni module's width table was the core's again, from the same
+  Unicode data -- equal on all 1,114,112 code points, checked before it
+  went -- so uni asks the core's `u8w` and `tools/unigen.py` stops writing
+  it (485 lines).
+- The console's and hold's colour, pen-change and cursor-move escapes are
+  written once, in `gfxask.c`, which both already shared.
+- lang, hcal and salat each read JSON strings their own way; `hibr_jstr`
+  is the one, and hcal and salat now read a `\u` escape in a calendar or
+  method file, which they took as text before. Their identical folder
+  walks are `mods/jsondir.c`.
+
 ## 0.99.433
 
 **One copy each** (Gitea #356, the first part): code written more than once,

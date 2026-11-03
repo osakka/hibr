@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../jsondir.h"
 #include "hibr.h"
 #include <dirent.h>
 #include <math.h>
@@ -244,37 +245,11 @@ long sa_round(long t, double adj, const char *how)
 	return s >= 30 ? t + 60 - s : t - s;
 }
 
-/* Skip blanks in a JSON text. */
-const char *sa_ws(const char *p)
-{
-	while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
-		p++;
-	return p;
-}
-
-/* Read a JSON string at p into o; the text after it, or 0. */
-const char *sa_str(const char *p, str *o)
-{
-	o->n = 0;
-	if (*p != '"')
-		return 0;
-	for (p++; *p && *p != '"'; p++) {
-		if (*p == '\\' && p[1])
-			p++;
-		s_add(o, p, 1);
-	}
-	if (*p != '"')
-		return 0;
-	s_grow(o, 1);
-	o->p[o->n] = 0;
-	return p + 1;
-}
-
 /* Parse one method file into m; 0 when it is a whole, usable method. */
 int sa_parse(const char *text, sa_meth *m)
 {
 	str k, v;
-	const char *p = sa_ws(text);
+	const char *p = hibr_jws(text);
 	char *e;
 	double n;
 	int ok = 0, i;
@@ -283,16 +258,16 @@ int sa_parse(const char *text, sa_meth *m)
 	s_init(&v);
 	if (*p != '{')
 		goto out;
-	p = sa_ws(p + 1);
+	p = hibr_jws(p + 1);
 	while (*p && *p != '}') {
-		if (!(p = sa_str(p, &k)))
+		if (!(p = hibr_jstr(p, &k)))
 			goto out;
-		p = sa_ws(p);
+		p = hibr_jws(p);
 		if (*p != ':')
 			goto out;
-		p = sa_ws(p + 1);
+		p = hibr_jws(p + 1);
 		if (*p == '"') {
-			if (!(p = sa_str(p, &v)))
+			if (!(p = hibr_jstr(p, &v)))
 				goto out;
 			if (!strcmp(k.p, "name"))
 				m->name = xs(v.p);
@@ -301,16 +276,16 @@ int sa_parse(const char *text, sa_meth *m)
 			else if (!strcmp(k.p, "rounding"))
 				m->round = xs(v.p);
 		} else if (*p == '[') {
-			p = sa_ws(p + 1);
+			p = hibr_jws(p + 1);
 			for (i = 0; *p && *p != ']'; i++) {
 				n = strtod(p, &e);
 				if (e == p)
 					goto out;
 				if (!strcmp(k.p, "adjust") && i < 6)
 					m->adj[i] = n;
-				p = sa_ws(e);
+				p = hibr_jws(e);
 				if (*p == ',')
-					p = sa_ws(p + 1);
+					p = hibr_jws(p + 1);
 			}
 			if (*p != ']')
 				goto out;
@@ -331,9 +306,9 @@ int sa_parse(const char *text, sa_meth *m)
 			else if (!strcmp(k.p, "seasonal"))
 				m->seasonal = (long)n;
 		}
-		p = sa_ws(p);
+		p = hibr_jws(p);
 		if (*p == ',')
-			p = sa_ws(p + 1);
+			p = hibr_jws(p + 1);
 	}
 	ok = *p == '}' && m->name && m->fajr > 0 && (m->isha > 0 || m->ishamin > 0);
 out:
@@ -379,53 +354,19 @@ void sa_add(sa_meth *m)
 	sa_tab[sa_n++] = *m;
 }
 
-/* Read every *.json in one folder. */
-void sa_dir(const char *d)
+/* One method file's text: kept when it parses as a method. */
+void sa_one(const char *path, const char *text)
 {
-	DIR *dp = opendir(d);
-	struct dirent *e;
-	str p, t;
-	FILE *f;
-	size_t r, l;
 	sa_meth m;
 
-	if (!dp)
-		return;
-	s_init(&p);
-	s_init(&t);
-	while ((e = readdir(dp))) {
-		l = strlen(e->d_name);
-		if (l < 6 || strcmp(e->d_name + l - 5, ".json"))
-			continue;
-		p.n = 0;
-		s_cat(&p, d);
-		s_cat(&p, "/");
-		s_cat(&p, e->d_name);
-		if (!(f = fopen(p.p, "r")))
-			continue;
-		t.n = 0;
-		for (;;) {
-			s_grow(&t, HIBR_IOCH);
-			r = fread(t.p + t.n, 1, t.cap - t.n - 1, f);
-			if (!r)
-				break;
-			t.n += r;
-		}
-		fclose(f);
-		s_grow(&t, 1);
-		t.p[t.n] = 0;
-		memset(&m, 0, sizeof m);
-		if (sa_parse(t.p, &m) == 0) {
-			m.path = xs(p.p);
-			sa_add(&m);
-		} else {
-			lg(HIBR_LINF, "salat: %s is not a method, left out", p.p);
-			sa_drop(&m);
-		}
+	memset(&m, 0, sizeof m);
+	if (sa_parse(text, &m) == 0) {
+		m.path = xs(path);
+		sa_add(&m);
+	} else {
+		lg(HIBR_LINF, "salat: %s is not a method, left out", path);
+		sa_drop(&m);
 	}
-	closedir(dp);
-	s_free(&p);
-	s_free(&t);
 }
 
 /* The method there always is, the Muslim World League's, whatever the folders hold. */
@@ -459,38 +400,16 @@ void sa_sort(void)
 	}
 }
 
-/* Read the folders once: HIBR_SALAT, then the person's own, then the installed ones. */
+/* Read every method, once: HIBR_SALAT's folders, the person's, the
+   shipped ones, then the built-in. */
 void sa_load(void)
 {
-	const char *e = getenv("HIBR_SALAT"), *h, *x;
-	char *dup, *tok, *save;
-	str d;
-
 	if (sa_loaded)
 		return;
 	sa_loaded = 1;
-	s_init(&d);
-	if (e && *e) {
-		dup = xs(e);
-		for (tok = strtok_r(dup, ":", &save); tok; tok = strtok_r(0, ":", &save))
-			sa_dir(tok);
-		free(dup);
-	}
-	x = getenv("XDG_CONFIG_HOME");
-	h = getenv("HOME");
-	if (x && *x) {
-		s_cat(&d, x);
-		s_cat(&d, "/hibr/salat");
-		sa_dir(d.p);
-	} else if (h && *h) {
-		s_cat(&d, h);
-		s_cat(&d, "/.config/hibr/salat");
-		sa_dir(d.p);
-	}
-	sa_dir(HIBR_SHAREDIR "/salat");
+	jd_walk("HIBR_SALAT", "salat", HIBR_SHAREDIR, sa_one);
 	sa_builtin();
 	sa_sort();
-	s_free(&d);
 }
 
 /* Forget every method read. */

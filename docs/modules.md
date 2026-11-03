@@ -133,6 +133,8 @@ A module can reach everything the language can:
 | `hibr_onexec`, `hibr_offexec` | run a function just before `exec` replaces the process, and withdraw it |
 | `hibr_slurp`, `hibr_rdfd` | a whole file, or everything left on a descriptor, appended to a `str`, a signal never taken for the end (0.99.433) |
 | `s_sq`, `s_sqb`, `u8put` | a string as one single-quoted word, or the inside of one; a code point as UTF-8 (0.99.433) |
+| `hibr_tlswrap` | wrap a connected socket in TLS through the shell's relay: the descriptor to use instead, the relay's pid to collect (0.99.434) |
+| `hibr_jstr`, `hibr_jws` | a quoted JSON string, every escape resolved, and JSON whitespace passed over -- for a module reading a small JSON file of its own (0.99.434) |
 | `lg`, arenas, `str`, `vec` | the shell's own utilities |
 
 **A child the module starts ends before an exec in place.** Restart
