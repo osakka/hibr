@@ -749,6 +749,9 @@ int bi_u8step(unsigned char c, int want, int *chars, int *need)
 	return want && *chars >= want && !*need;
 }
 
+/* read's block buffer, taken once: a read of a seekable file allocated and freed 4 kB per call (Gitea #451). */
+static char *bi_rdbuf;
+
 /* Add what read took to b, less any NUL byte, which bash drops too --
    unless NUL is the delimiter, when there is none left to drop. */
 void bi_rdadd(str *b, const char *p, size_t n, int delim)
@@ -813,7 +816,9 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 		}
 		return n;
 	}
-	buf = xm(HIBR_IOCH);
+	if (!bi_rdbuf)
+		bi_rdbuf = xm(HIBR_IOCH);
+	buf = bi_rdbuf;
 	for (;;) {
 		if (dl && bi_ms() >= dl) {
 			if (tout)
@@ -858,7 +863,6 @@ long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 		}
 		bi_rdadd(b, buf, (size_t)n, delim);
 	}
-	free(buf);
 	return n;
 }
 

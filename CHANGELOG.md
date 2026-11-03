@@ -360,6 +360,15 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   columns, where it wrote the first byte of a multibyte one. A JSON control
   character is escaped without an allocation, a bad regex's message is
   sized by asking for it, and an empty `s_fmt` leaves a terminated string.
+- **`( cmd )` and `$(cmd)`** of one simple command run the program in
+  place of the subshell, as `cmd &` already did: one fork where there were
+  two. A function call that stays in its own file no longer rescans the
+  list of strict files twice; a command with no redirections no longer
+  marks and releases the expansion arena for them; `[[ ]]` keeps its
+  operator table rather than building it per test; and `read` from a file
+  reuses one block buffer rather than allocating one per call. `printf`
+  still flushes every time: the pty suites' idle marker and any prompt
+  printed before a `read` depend on it.
 
 ## 0.99.427
 

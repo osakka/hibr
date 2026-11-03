@@ -293,13 +293,15 @@ int rd_isfd(const char *t)
 /* Apply a redirection list, optionally recording the old descriptors. */
 int rd_do(sh *s, redir *r, vec *sv)
 {
-	amark m = ar_mark(s->xa);
+	amark m;
 	int st = HIBR_OK;
 	int fd;
 	char *t;
 
-	if (r)
-		fflush(0);
+	if (!r)
+		return HIBR_OK;
+	m = ar_mark(s->xa);
+	fflush(0);
 	for (; r; r = r->nx) {
 		t = xone(s, r->w);
 		fd = -1;
@@ -499,6 +501,8 @@ void rd_undo(vec *sv)
 	size_t i = sv->n;
 	int *e;
 
+	if (!i && !sv->p)
+		return;
 	if (i)
 		fflush(0);
 	while (i--) {
@@ -984,7 +988,7 @@ int fn_call(sh *s, node *f, int ac, char **av)
 		return 1;
 	fr = vb_get(s);
 	s->src = fn_src(s, f);
-	if (s->sf.n)
+	if (s->sf.n && s->src != osrc)
 		sh_sfl(s);
 	v_add(&s->scope, fr);
 	s->av = av + 1;
@@ -1034,9 +1038,11 @@ int fn_call(sh *s, node *f, int ac, char **av)
 	s->ac = oac;
 	s->avo = oavo;
 	s->rty = orty;
-	s->src = osrc;
-	if (s->sf.n)
+	if (s->sf.n && s->src != osrc) {
+		s->src = osrc;
 		sh_sfl(s);
+	}
+	s->src = osrc;
 	return st;
 }
 
@@ -1088,6 +1094,25 @@ char *xcapfile(sh *s, const char *src)
 	return r;
 }
 
+/* Run a substitution's text in its child: one line that is one simple command runs with its program replacing the child, as ( ) and & already do, so $(cmd) forks once rather than twice (Gitea #451); anything else runs as a script. */
+int xcaprun(sh *s, const char *src)
+{
+	node *nd;
+
+	if (!strchr(src, '\n')) {
+		nd = hibr_parse(s, src, 0);
+		if (nd && nd->k == N_CMD) {
+			lg(HIBR_LDBG, "substitution of one command: exec in place");
+			s->nofork = 1;
+			return ex(s, nd);
+		}
+		if (!nd)
+			return s->st;
+	}
+	hibr_run(s, src);
+	return s->st;
+}
+
 /* Capture the standard output of a command substitution. */
 char *xcap(sh *s, const char *src)
 {
@@ -1126,8 +1151,7 @@ char *xcap(sh *s, const char *src)
 			s->errx = 2;
 		}
 		tr_fork(s);
-		hibr_run(s, src);
-		w = s->st;
+		w = xcaprun(s, src);
 		tr_exit(s);
 		fflush(0);
 		_exit(w);
@@ -2261,6 +2285,10 @@ int ex_sub(sh *s, node *n, int t)
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
 		s->tst = t;
+		if (n->l && n->l->k == N_CMD) {
+			lg(HIBR_LDBG, "( ) of one command: its program replaces the subshell (Gitea #451)");
+			s->nofork = 1;
+		}
 		w = ex(s, n->l);
 		tr_exit(s);
 		fflush(0);
@@ -2576,7 +2604,7 @@ void cx_rematch(sh *s, const char *from)
 /* Evaluate a primary: group, unary test, binary test or bare string. */
 int cx_prim(struct cx *c)
 {
-	const char *bin[] = { "==", "=", "!=", "=~", "<", ">", "-eq", "-ne",
+	static const char *const bin[] = { "==", "=", "!=", "=~", "<", ">", "-eq", "-ne",
 			      "-lt", "-le", "-gt", "-ge", "-nt", "-ot", "-ef", 0 };
 	char *a, *b, *op;
 	int k, r;
@@ -2605,9 +2633,13 @@ int cx_prim(struct cx *c)
 		c->i++;
 		return r;
 	}
-	for (k = 0; bin[k]; k++)
-		if (c->i + 2 < c->n && cx_is(c, c->i + 1, bin[k]))
-			break;
+	k = 0;
+	if (c->i + 2 < c->n)
+		while (bin[k] && !cx_is(c, c->i + 1, bin[k]))
+			k++;
+	else
+		while (bin[k])
+			k++;
 	if (bin[k]) {
 		a = cx_val(c, c->i);
 		op = (char *)bin[k];
