@@ -1016,6 +1016,13 @@ node *p_pipe(lex *l)
 	return top;
 }
 
+/* Whether an and-or list keeps its own source text: a function definition (declare -f prints it), a simple command (a DEBUG trap's $CMD), a list run in the background or anything an interactive shell runs (a job's name). Every list kept it, so a compound command's text was held once per level of nesting -- 3.7 MB copied for the desktop (Gitea #463). */
+int p_keeptx(lex *l, node *n)
+{
+	return n->k == N_FUNC || n->k == N_CMD || l->tk == T_AMP ||
+	       (l->s && l->s->it);
+}
+
 /* Parse an && / || chain. */
 node *p_andor(lex *l)
 {
@@ -1038,7 +1045,7 @@ node *p_andor(lex *l)
 			break;
 		}
 	}
-	if (n) {
+	if (n && p_keeptx(l, n)) {
 		e = l->tkb;
 		while (e > b && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\n'))
 			e--;

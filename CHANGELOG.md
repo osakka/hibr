@@ -369,6 +369,13 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   reuses one block buffer rather than allocating one per call. `printf`
   still flushes every time: the pty suites' idle marker and any prompt
   printed before a `read` depend on it.
+- **A compound command no longer keeps a copy of its source text** unless
+  something reads it: a function definition (`declare -f`), a simple
+  command (a DEBUG trap's `$CMD`), a background list (a job's name), and
+  everything in an interactive shell keep theirs. Every list kept it, so a
+  function body's text was held once per level of nesting: 3.7 MB was
+  copied while the desktop loaded, and an idle desktop is 13.3 MB against
+  13.8 MB.
 
 ## 0.99.427
 
