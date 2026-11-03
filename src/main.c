@@ -73,9 +73,9 @@ void sh_hangup(sh *s)
 		j = (job *)s->jobs.p[i];
 		if (j->state == J_DONE || !j->pgid)
 			continue;
-		kill(-(pid_t)j->pgid, SIGHUP);
+		jc_kill(j, SIGHUP);
 		if (j->state == J_STOP)
-			kill(-(pid_t)j->pgid, SIGCONT);
+			jc_kill(j, SIGCONT);
 	}
 }
 

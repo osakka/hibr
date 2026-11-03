@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.429
+
+**Background jobs stay in the shell's process group** (#450), as in bash.
+Without job control -- a script, `-c`, any shell not on a terminal -- each
+`&` job made a group of its own, so `timeout`, which ends the whole group,
+a kill of the group and systemd's group kill all missed it:
+`timeout 0.5 hibr -c 'sleep 9 & wait'` left the sleep running. A job is
+waited for and signalled by its process now, and by its group only where
+job control gave it one.
+- Every background job ignores SIGINT and SIGQUIT when job control is off,
+  as bash's do, where only a simple command did: a `( ... ) &` died of an
+  interrupt sent to it, and now that it shares the group an interrupt to
+  the group would have reached it.
+- `( list ) &` runs the list in the background child rather than forking
+  again for the subshell, so `$!` is the subshell, a trap it sets catches
+  a signal sent to `$!`, and the job costs one fork.
+
 ## 0.99.428
 
 The rest of the core audit (Gitea #427), in one release, area by area.

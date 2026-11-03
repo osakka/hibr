@@ -599,13 +599,15 @@ void hs_add(sh *s, const char *line);
 #define J_DONE 2
 
 struct job {
-	int id, bg, state, np, ndone, st, fail, note;
+	int id, bg, state, np, ndone, st, fail, note, grp;
 	long pgid, last;
 	char *tx;
 };
 
 void jc_init(sh *s);
 job *jc_new(sh *s, const char *tx, int bg);
+pid_t jc_who(job *j);
+int jc_kill(job *j, int sig);
 void jc_pid(sh *s, job *j, long p);
 int jc_fg(sh *s, job *j);
 void jc_bgnote(sh *s, job *j);

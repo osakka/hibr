@@ -162,6 +162,7 @@ job *jc_new(sh *s, const char *tx, int bg)
 		s->jid = 0;
 	j->id = ++s->jid;
 	j->bg = bg;
+	j->grp = s->it && s->tty;
 	j->state = J_RUN;
 	j->tx = xs(tx && *tx ? tx : "(command)");
 	v_add(&s->jobs, j);
@@ -169,6 +170,18 @@ job *jc_new(sh *s, const char *tx, int bg)
 	s->jcur = j->id;
 	lg(HIBR_LDBG, "job [%d] created: %s", j->id, j->tx);
 	return j;
+}
+
+/* What a wait or a signal for a job names: its process group when job control gave it one, else its one process -- a non-interactive shell's background job stays in the shell's group, as in bash, so timeout and a kill of the group reach it (Gitea #450). */
+pid_t jc_who(job *j)
+{
+	return j->grp ? -(pid_t)j->pgid : (pid_t)j->last;
+}
+
+/* Send a signal to a job, as jc_who names it. */
+int jc_kill(job *j, int sig)
+{
+	return kill(jc_who(j), sig);
 }
 
 /* Record a process belonging to a job. */
@@ -228,8 +241,8 @@ long jc_anyone(sh *s, int *w)
 			j = (job *)s->jobs.p[k];
 			if (j->state == J_DONE || j->state == J_STOP)
 				continue;
-			p = waitpid(-(pid_t)j->pgid, w, WNOHANG | WUNTRACED);
-			if (p < 0 && errno == ECHILD && j->last)
+			p = waitpid(jc_who(j), w, WNOHANG | WUNTRACED);
+			if (p < 0 && errno == ECHILD && j->last && j->grp)
 				p = waitpid((pid_t)j->last, w, WNOHANG | WUNTRACED);
 			if (p > 0) {
 				sigprocmask(SIG_SETMASK, &old, 0);
@@ -294,8 +307,8 @@ int jc_waitjob(sh *s, job *j, int *st)
 			sigprocmask(SIG_SETMASK, &old, 0);
 			return -2;
 		}
-		p = waitpid(-(pid_t)j->pgid, &w, WNOHANG | WUNTRACED);
-		if (p < 0 && errno == ECHILD && j->last)
+		p = waitpid(jc_who(j), &w, WNOHANG | WUNTRACED);
+		if (p < 0 && errno == ECHILD && j->last && j->grp)
 			p = waitpid((pid_t)j->last, &w, WNOHANG | WUNTRACED);
 		if (p > 0 && WIFSTOPPED(w)) {
 			j->state = J_STOP;
@@ -534,11 +547,12 @@ int jc_fg(sh *s, job *j)
 	int w, st = 0;
 	pid_t p;
 
-	jc_grab(s, j->pgid);
+	if (j->grp)
+		jc_grab(s, j->pgid);
 	jc_tmo = 0;
 	jc_fgst.n = 0;
 	while (j->ndone < j->np && j->state == J_RUN) {
-		p = (pid_t)jc_waitt(s, -(long)j->pgid, -(long)j->pgid, &w,
+		p = (pid_t)jc_waitt(s, (long)jc_who(j), (long)jc_who(j), &w,
 				    WUNTRACED);
 		if (p < 0) {
 			if (errno == EINTR)
@@ -604,7 +618,7 @@ void jc_poll(sh *s, int report)
 		   loop is here to drain this job's group, so EINTR goes
 		   round again rather than leaving the rest of a burst
 		   unreaped. */
-		while ((p = waitpid(-(pid_t)j->pgid, &w,
+		while ((p = waitpid(jc_who(j), &w,
 				    WNOHANG | WUNTRACED)) > 0 ||
 		       (p < 0 && errno == EINTR)) {
 			if (p < 0)
@@ -748,7 +762,7 @@ int b_fg(sh *s, int ac, char **av)
 	j->note = 0;
 	s->jprv = s->jcur;
 	s->jcur = j->id;
-	if (kill(-(pid_t)j->pgid, SIGCONT) < 0)
+	if (jc_kill(j, SIGCONT) < 0)
 		lg(HIBR_LWRN, "fg: continue: %s", strerror(errno));
 	return s->st = jc_fg(s, j);
 }
@@ -765,7 +779,7 @@ int b_bg(sh *s, int ac, char **av)
 	j->state = J_RUN;
 	j->bg = 1;
 	j->note = 1;
-	if (kill(-(pid_t)j->pgid, SIGCONT) < 0) {
+	if (jc_kill(j, SIGCONT) < 0) {
 		lg(HIBR_LERR, "bg: continue: %s", strerror(errno));
 		return HIBR_FAIL;
 	}
@@ -941,7 +955,7 @@ int b_kill(sh *s, int ac, char **av)
 				rc = HIBR_FAIL;
 				continue;
 			}
-			if (kill(-(pid_t)j->pgid, sig) < 0) {
+			if (jc_kill(j, sig) < 0) {
 				lg(HIBR_LERR, "kill: %s", strerror(errno));
 				rc = HIBR_FAIL;
 				continue;
@@ -949,7 +963,7 @@ int b_kill(sh *s, int ac, char **av)
 			if (j->state == J_STOP && sig != SIGSTOP &&
 			    sig != SIGTSTP) {
 				lg(HIBR_LDBG, "waking stopped job [%d]", j->id);
-				kill(-(pid_t)j->pgid, SIGCONT);
+				jc_kill(j, SIGCONT);
 			}
 			if (sig == SIGCONT)
 				j->state = J_RUN;
@@ -972,8 +986,8 @@ void jc_fini(sh *s)
 		j = (job *)s->jobs.p[--s->jobs.n];
 		if (j->state == J_STOP) {
 			lg(HIBR_LWRN, "leaving stopped job [%d] %s", j->id, j->tx);
-			kill(-(pid_t)j->pgid, SIGCONT);
-			kill(-(pid_t)j->pgid, SIGHUP);
+			jc_kill(j, SIGCONT);
+			jc_kill(j, SIGHUP);
 		}
 		free(j->tx);
 		free(j);

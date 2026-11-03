@@ -2212,6 +2212,7 @@ int ex_pipe(sh *s, node *n, int t)
 /* Run a command in the background. */
 int ex_bg(sh *s, node *n)
 {
+	node *body;
 	pid_t pid;
 	int w, bgjc;
 	job *jb;
@@ -2228,26 +2229,37 @@ int ex_bg(sh *s, node *n)
 		return s->st = HIBR_FAIL;
 	}
 	if (pid == 0) {
-		setpgid(0, 0);
 		bgjc = s->it && s->tty;
-		if (bgjc)
+		if (bgjc) {
+			setpgid(0, 0);
 			tr_child(s, 1);
+		}
 		s->it = 0;
 		if (s->errx)
 			s->errx = 2;
 		tr_fork(s);
 		tr_nojobs(s);
-		if (n->l && n->l->k == N_CMD) {
-			s->nofork = 1;
-			if (!bgjc)
-				tr_bgign(s);
+		if (!bgjc)
+			tr_bgign(s);
+		body = n->l;
+		if (body && body->k == N_SUB) {
+			lg(HIBR_LDBG, "( ) & runs its body in the background child, so $! is the subshell");
+			ex_loops = 0;
+			if (rd_do(s, body->rd, 0) != HIBR_OK)
+				_exit(HIBR_FAIL);
+			body = body->l;
 		}
-		w = ex(s, n->l);
+		if (body && body->k == N_CMD)
+			s->nofork = 1;
+		w = ex(s, body);
 		tr_exit(s);
 		fflush(0);
 		_exit(w);
 	}
-	setpgid(pid, pid);
+	if (jb->grp)
+		setpgid(pid, pid);
+	else
+		lg(HIBR_LDBG, "background pid %ld stays in the shell's process group", (long)pid);
 	jc_pid(s, jb, (long)pid);
 	hibr_set(s, "!", xnum(s, (long)pid), 0);
 	if (s->it)

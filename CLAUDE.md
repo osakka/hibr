@@ -3925,8 +3925,11 @@ went in the shell.
   `DTJ[n]["pid"]` ended the wrapper and left `copy run` copying, with a
   `.hibr-part` behind it once the session ended. The copy module checks a
   stop file on the same clock it writes its status, which needs no pid at
-  all. Anything else that wants to end a job's command cleanly wants the
-  same, until `( list ) &` stops forking twice.
+  all. Since 0.99.429 (#450) `( list ) &` runs the list in the background
+  child itself, so `$!` is the subshell, as in bash -- but the list's own
+  commands are still its children, so a stop file is still the clean way
+  to end one; and a non-interactive shell's jobs now share its process
+  group, so whatever ends the group (timeout, a hangup) ends them too.
 - **A press with the drag key is a click until the mouse moves**
   (`DT_ALTPRESS`, 0.99.371). Alt and a press in a window body starts a
   window drag, so before then an alt-click never reached any app; now a

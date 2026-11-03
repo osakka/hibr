@@ -1128,7 +1128,8 @@ int b_coproc(sh *s, int ac, char **av)
 		return HIBR_FAIL;
 	}
 	if (pid == 0) {
-		setpgid(0, 0);
+		if (s->it && s->tty)
+			setpgid(0, 0);
 		close(in[1]);
 		close(out[0]);
 		dup2(in[0], 0);
@@ -1148,7 +1149,8 @@ int b_coproc(sh *s, int ac, char **av)
 		fflush(0);
 		_exit(s->st);
 	}
-	setpgid(pid, pid);
+	if (jb->grp)
+		setpgid(pid, pid);
 	jc_pid(s, jb, (long)pid);
 	close(in[0]);
 	close(out[1]);
