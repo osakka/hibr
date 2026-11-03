@@ -17,7 +17,7 @@ DT_KEYPEND_FROM=
 # wm/settings.hibr, and every one can be changed or cleared; an app's
 # launch shortcut is DT_APPKEY, keyed by the app's name. Nothing the
 # desktop does is on a key that is not in one of the two.
-DT_KEYORDER=(menu menu2 save undo redo copy cut paste selectall scrollup scrolldown
+DT_KEYORDER=(menu menu2 save undo redo copy cut paste selectall signin scrollup scrolldown
 	zoom fullscreen hide snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
 	ws7 ws8 ws9 wsnext wsprev tile tilemain close quitapp cycle cycleback strip shot
 	refresh lock volup voldown mute
@@ -32,6 +32,7 @@ DT_KEYNAME["copy"]="Copy"
 DT_KEYNAME["cut"]="Cut"
 DT_KEYNAME["paste"]="Paste"
 DT_KEYNAME["selectall"]="Select All"
+DT_KEYNAME["signin"]="Fill Sign-In"
 DT_KEYNAME["scrollup"]="Terminal Page Back"
 DT_KEYNAME["scrolldown"]="Terminal Page On"
 DT_KEYNAME["zoom"]="Zoom"

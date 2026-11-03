@@ -16,7 +16,7 @@ import base64, os, re, shutil, subprocess, sys, tempfile, time, urllib.request, 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, load, tree
+from screen import Term, check, report, load, tree, press, release
 
 try:
     import cryptography  # noqa: F401
@@ -160,13 +160,14 @@ try:
 finally:
     t.quit()
 
-# --- a login picked for a site (the Browser's fill, Gitea #104) ----------
+# --- a login picked for a site (the Browser's fill, Gitea #474) ----------
 #
 # dt_vwpick on a locked vault opens the unlock dialog and goes on from
 # there; several logins for the site are offered in the vault's picker, the
 # same host first; one is handed back without asking.
 PICK = os.path.join(D, "pick")
 PICKED = os.path.join(D, "picked")
+SRV = os.path.join(D, "srv")
 open(PICK, "w").write("bank.example.com\n")
 post = """vt_picked() { echo "$1" >> %s; }
 vt_picktick() {
@@ -176,7 +177,19 @@ vt_picktick() {
 	rm -f %s
 	dt_vwpick "$h" vt_picked
 }
-dt_ticker vt_picktick""" % (PICKED, PICK, PICK, PICK)
+dt_ticker vt_picktick
+vt_srvtick() {
+	local a id
+	[ -r %s ] || return 0
+	read -r a < %s
+	rm -f %s
+	id := dt_davserver
+	DSV[$id]["url"]=$a
+	DSV[$id]["urlcur"]=${#a}
+	DSV[$id]["focus"]=url
+	dt_want 10
+}
+dt_ticker vt_srvtick""" % (PICKED, PICK, PICK, PICK, SRV, SRV, SRV)
 t = session("pick", post=post)
 try:
     sc = waitfor(t, "Unlock the Vault")
@@ -203,6 +216,45 @@ try:
         got = open(PICKED).read().split() if os.path.exists(PICKED) else []
     check("a site with one login gets it without a picker",
           got[1:] == ["c0000000-0000-0000-0000-000000000001"] and not look(t).find("Choose a Login"), (got, look(t)))
+    # A sign-in form of the desktop's own -- the Server dialog -- fills
+    # from the vault the same way: a key mark beside its password while
+    # there is a vault, and Fill Sign-In (mod-l) or a click on the mark.
+    open(SRV, "w").write("https://bank.example.com/dav\n")
+    t.keys([b"\x1b[B"])
+    sc = waitfor(t, "Connect to Server")
+    pr = sc.find("Password:")
+    check("the Server dialog draws a key mark beside its password",
+          pr and "\u26bf" in sc.row(pr[0]), sc)
+    t.keys([b"\x1bl"])
+    sc = waitfor(t, "Choose a Login")
+    check("Fill Sign-In offers the address's logins in the picker", sc.find("Logins for bank.example.com"), sc)
+    t.keys([b"\r"])
+    sc = waitfor(t, "pat.doe")
+    ur, pr = sc.find("User:"), sc.find("Password:")
+    check("and the one chosen fills User and Password, the password never shown",
+          ur and "pat.doe" in sc.row(ur[0]) and pr and "*" * 9 in sc.row(pr[0]) and "*" * 10 not in sc.row(pr[0])
+          and not sc.find("Choose a Login") and b"b4nk-p4ss" not in t.out, sc)
+    open(SRV, "w").write("mail.example.com\n")
+    t.keys([b"\x1b[B"])
+    end = time.time() + 8 * SLOW
+    while True:
+        sc = look(t, 0.3)
+        ur = sc.find("User:")
+        if (ur and "pat.doe" not in sc.row(ur[0])) or time.time() > end:
+            break
+    pr = sc.find("Password:")
+    m = pr and (pr[0], sc.row(pr[0]).find("\u26bf"))
+    if m and m[1] >= 0:
+        t.keys([press(*m), release(*m)])
+    end = time.time() + 8 * SLOW
+    while True:
+        sc = look(t, 0.3)
+        ur, pr = sc.find("User:"), sc.find("Password:")
+        if (ur and "pat" in sc.row(ur[0])) or time.time() > end:
+            break
+    check("a click on the mark fills a site's one login without a picker",
+          m and m[1] >= 0 and ur and "pat" in sc.row(ur[0]) and pr and "*" * 11 in sc.row(pr[0])
+          and not sc.find("Choose a Login"), (m, sc))
 finally:
     t.quit()
 
@@ -251,4 +303,4 @@ try:
 finally:
     srv2.kill()
 shutil.rmtree(D2, True)
-report(26)
+report(30)

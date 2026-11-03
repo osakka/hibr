@@ -569,7 +569,7 @@ fn dt_davserver(name = "") {
 # The dialog: four fields, the certificate box, a line for what a test
 # said, and Test, Save, Remove and Cancel.
 fn dsv_draw(int id, int h, int w, int row, int col) {
-	local f=${DSV[$id]["focus"]} r=1 k lab on fw=$((w - 15)) t
+	local f=${DSV[$id]["focus"]} r=1 k lab on fw=$((w - 15)) t x
 	local -A labs=([name]="Name:" [url]="Address:" [user]="User:" [pass]="Password:")
 
 	dt_wclear "$id"
@@ -579,14 +579,18 @@ fn dsv_draw(int id, int h, int w, int row, int col) {
 		on=0
 		[ "$f" = "$k" ] && on=1
 		t=${DSV[$id]["$k"]}
-		[ "$k" = pass ] && t := str repeat "*" "${#t}"
-		dt_textdraw "$id" "$r" 13 "$fw" "$t" "${DSV[$id]["${k}cur"]}" "$on"
+		x=$fw
+		if [ "$k" = pass ]; then
+			t := str repeat "*" "${#t}"
+			dt_signmark "$id" "$r" $((13 + fw - 1)) && x=$((fw - 2))
+		fi
+		dt_textdraw "$id" "$r" 13 "$x" "$t" "${DSV[$id]["${k}cur"]}" "$on"
 		if [ "$k" = pass ] && [ -z "${DSV[$id]["pass"]}" ] &&
 		   [ "${DSV[$id]["haspass"]}" = 1 ] && [ "$on" = 0 ]; then
 			console pen "$DT_DIM" "$DT_FACE"
 			dt_tput "$id" "$r" 13 "(unchanged)"
 		fi
-		dt_wreg "$id" "$r" 13 "$fw" "$k"
+		dt_wreg "$id" "$r" 13 "$x" "$k"
 		r=$((r + 2))
 	done
 	console pen "$DT_INK" "$DT_FACE"
@@ -665,6 +669,25 @@ fn dsv_click(int? id = "", int? r = "", int? c = "", btn = "") {
 		;;
 	*) DSV[$id]["focus"]=$tag; dsv_do "$id" "$tag" ;;
 	esac
+}
+
+# The sign-in this dialog is for, for the desktop's Fill Sign-In: the
+# server's host, and nothing until an address has been typed.
+fn dsv_signin(int id) {
+	local h
+
+	h := dt_vwhost "${DSV[$id]["url"]}"
+	[ -n "$h" ] || return 1
+	ret "$h"
+}
+
+# A login from the vault, into the User and Password fields.
+fn dsv_signfill(int id, user, pass) {
+	DSV[$id]["user"]=$user
+	DSV[$id]["usercur"]=${#user}
+	DSV[$id]["pass"]=$pass
+	DSV[$id]["passcur"]=${#pass}
+	DSV[$id]["focus"]=pass
 }
 
 # What enter, a click or space does to what has focus.

@@ -802,6 +802,16 @@ dt_editmenu() {
 		dt_dim "Find"
 	fi
 	dt_rowaccel "/"
+	# Only in a window with a sign-in form of its own -- it is that kind
+	# of window, not that moment, which decides, so the menu keeps its
+	# shape while the window is open.
+	local sh
+	if [ -n "$who" ] && [ -n "${DT[$who]["signin"]}" ] &&
+	   sh := "${DT[$who]["signin"]}" "$who"; then
+		dt_sep
+		dt_item "Fill Sign-In" l dt_vwfill
+		dt_rowaccel "${DT_KEYS["signin"]}"
+	fi
 }
 
 # Undo, Redo or Select All in the focused window, through its own _undo,

@@ -15,7 +15,7 @@ vw unlock [--pin]           unlock -- offline, from the vault kept here
 vw lock                     forget the key
 vw sync                     fetch the vault again
 vw list [TEXT]              id, name and user of every item, or those with TEXT
-vw get password|username|totp|notes|uri|item NAME-OR-ID
+vw get password|username|login|totp|notes|uri|item NAME-OR-ID
 vw match HOST               the logins for a site: name, id and user, the same
                             host first
 vw pin set [--keep]|clear   a PIN to unlock with; --keep survives a restart
@@ -110,7 +110,17 @@ for a vault that is locked or absent -- it runs `vw`, so call it from a job
 person choose among several, unlocking first through the Vault's own
 dialog when it must, and calls `callback ID` with the one chosen (directly,
 when there is only one); and `dt_vwget username|password ID` reads the
-value into `DT_VWOUT`, through a pipe and never a file.
+value into `DT_VWOUT`, through a pipe and never a file -- `login` gives
+the username and then the password, a line each, for one `vw` where a fill
+needs both.
+
+A window of the desktop's own with a sign-in form fills the same way
+(Gitea #474): its app answers `<app>_signin ID` with the host the form is
+for, and takes the chosen login in `<app>_signfill ID USER PASS`. The
+desktop does the rest -- Fill Sign-In (mod-l, and a row on the Edit menu of
+such a window), and `dt_signmark ID ROW COL`, a key mark the form draws
+beside its password field, which a click on fills it. The Server dialog and
+Mail's account dialog are the two so far.
 
 ## Two-step login
 

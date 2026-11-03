@@ -100,6 +100,9 @@ check("with the server gone, vw unlock opens the vault kept here", rc == 0 and s
 S = {"VW_SESSION": sess}
 out, rc, err = vw("get", "username", "bank", env=S)
 check("and reads it offline", out == "pat.doe", (out, err))
+out, rc, err = vw("get", "login", "bank", env=S)
+check("vw get login gives the username and then the password, a line each",
+      rc == 0 and out.split("\n") == ["pat.doe", "b4nk-p4ss"], (out, err))
 # vw match: the logins for a site, the same host first, each address by
 # its own rule -- Bank's is "host", so a sibling host does not reach it.
 out, rc, err = vw("match", "bank.example.com", env=S)
@@ -258,4 +261,4 @@ finally:
     srv3.kill()
 
 shutil.rmtree(D, True)
-report(37)
+report(38)

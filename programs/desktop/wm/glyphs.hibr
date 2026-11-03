@@ -143,6 +143,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["wifi"]="wifi"; GL["wired"]="lan"; GL["netoff"]="net x"
 		GL["bar1"]="."; GL["bar2"]=":"; GL["bar3"]="i"; GL["bar4"]="I"; GL["baroff"]="_"
 		GL["secure"]="*"
+		GL["signin"]="K"
 		GL["bt"]="bt"; GL["btoff"]="bt x"
 		GL["bat0"]="bat"; GL["bat1"]="bat"; GL["bat2"]="bat"
 		GL["bat3"]="bat"; GL["bat4"]="bat"; GL["batchg"]="+"
@@ -228,6 +229,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["bar1"]=$'▂'; GL["bar2"]=$'▄'; GL["bar3"]=$'▆'; GL["bar4"]=$'█' # LOWER ONE QUARTER BLOCK .. FULL BLOCK
 		GL["baroff"]=$'_'    # LOW LINE: a bar the signal does not reach
 		GL["secure"]=$'⚿'    # SQUARED KEY: a network that asks for a password
+		GL["signin"]=$'⚿'    # SQUARED KEY: a sign-in the vault can fill
 		GL["bt"]=$'ᛒ'       # RUNIC LETTER BERKANAN BEORC BJARKAN B, Bluetooth's own
 		GL["btoff"]=$'ᛒ ✕' # the same, MULTIPLICATION X: switched off
 		# A battery's charge as a level: LOWER ONE EIGHTH BLOCK .. FULL BLOCK
@@ -289,6 +291,7 @@ dt_glyphsnerd() {
 	GL["wired"]=$'\uf1e6'     # nf-fa-plug
 	GL["netoff"]=$'\uf05e'    # nf-fa-ban
 	GL["secure"]=$'\uf023'    # nf-fa-lock
+	GL["signin"]=$'\uf084'    # nf-fa-key
 	GL["bt"]=$'\uf293'        # nf-fa-bluetooth
 	GL["btoff"]=$'\uf293 \uf00d' # nf-fa-bluetooth, nf-fa-times
 	GL["bat0"]=$'\uf244'      # nf-fa-battery_empty

@@ -186,6 +186,7 @@ drawing in the wrong place. The calls:
 | `_paste` | `id text op` -- `op` is `cut` or `copy`; a paste from the host terminal comes the same way, as a copy |
 | `_undo`, `_redo`, `_selall`, `_find` | `id` -- the Edit menu's rows, dimmed for an app without them; fail to say there was nothing to do |
 | `_savefile` | `id` -- the Save key |
+| `_signin`, `_signfill` | `id` -- the host a sign-in form is for, with `ret`, failing while it has none; and `id user pass` -- a login from the vault to put in its fields. Fill Sign-In, the key mark (`dt_signmark`) and an Edit row come with them |
 | `_canclose` | `id` -- asked before a close someone asked for; fail to keep the window, and close it yourself later |
 | `_refresh` | `id` -- something on disk changed |
 | `_dirty` | `id` -- asked before a window is left undrawn; succeed when it has changed (an app without one is drawn every frame) |

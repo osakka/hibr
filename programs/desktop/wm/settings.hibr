@@ -27,6 +27,7 @@ DT_MOD="${DT_MOD-alt}"
 [ -n "${DT_KEYS["copy"]+x}" ] || DT_KEYS["copy"]="mod-c"
 [ -n "${DT_KEYS["cut"]+x}" ] || DT_KEYS["cut"]="mod-x"
 [ -n "${DT_KEYS["paste"]+x}" ] || DT_KEYS["paste"]="mod-v"
+[ -n "${DT_KEYS["signin"]+x}" ] || DT_KEYS["signin"]="mod-l"
 # Select All is one key in every window since 0.99.422, so it is a chord
 # like Copy rather than ctrl-a, which a field and an app have their own
 # uses for; a settings file still holding ctrl-a moved with it (DT_SETVER

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.73",
+ "version": "3.74",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -8,6 +8,8 @@
   " %s Compose ": " %s إنشاء ",
   " %s wants %s ": " %s يطلب %s ",
   "Choose a Login": "اختر بيانات دخول",
+  "Fill Sign-In": "ملء بيانات الدخول",
+  "Filled in from the vault": "مُلئت من الخزنة",
   "Enter fills it; escape cancels": "Enter يملؤها، وEscape يلغي",
   "Logins for %s": "بيانات الدخول لـ %s",
   "The vault has no login for %s": "لا تحتوي الخزنة على بيانات دخول لـ %s",

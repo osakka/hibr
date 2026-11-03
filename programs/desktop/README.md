@@ -1980,6 +1980,13 @@ exports `VW_SESSION`, so a Terminal window opened afterwards can use `vw`
 too; Lock, or the timeout, ends it everywhere. The vault is kept here
 encrypted, so everything but a sync works with no network.
 
+A **sign-in form** fills from it: the Browser's pages, and the desktop's
+own Server and Mail Account dialogs. **Fill Sign-In** (mod-l, on the Edit
+menu of such a window) or a click on the key mark beside the password
+offers the vault's logins for the address, the same host first, and puts
+the chosen one in -- the username, and the password, never shown. A locked
+vault is unlocked first.
+
 An account with **two-step login** asks for its code in the same box: the
 Code field is not there until the server asks for one, and then it says
 which code it wants -- an authenticator app, an emailed code or a YubiKey

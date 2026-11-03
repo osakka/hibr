@@ -12,7 +12,7 @@
 #   vw lock                     forget the key
 #   vw sync                     fetch the vault again
 #   vw list [TEXT]              the items, or those whose name or user has TEXT
-#   vw get password|username|totp|notes|uri|item NAME-OR-ID
+#   vw get password|username|login|totp|notes|uri|item NAME-OR-ID
 #   vw match HOST               the logins whose addresses match a site:
 #                               "name TAB id TAB user", the same host first
 #   vw pin set [--keep]|clear   a PIN to unlock with; --keep survives a restart
@@ -593,7 +593,7 @@ fn vw_cmd(cmd = "", ...rest) {
 		done
 		;;
 	get)
-		[ "${#rest[@]}" = 2 ] || vw_die "usage: vw get password|username|totp|notes|uri|item NAME-OR-ID" 2
+		[ "${#rest[@]}" = 2 ] || vw_die "usage: vw get password|username|login|totp|notes|uri|item NAME-OR-ID" 2
 		vw_acct
 		vw_open
 		vw_vault
@@ -601,6 +601,11 @@ fn vw_cmd(cmd = "", ...rest) {
 		case ${rest[0]} in
 		password) f := vw_field "$i" login.password || vw_die "it has no password" ;;
 		username) f := vw_field "$i" login.username || vw_die "it has no username" ;;
+		login)
+			f := vw_field "$i" login.username || f=
+			t := vw_field "$i" login.password || vw_die "it has no password"
+			f+=$'\n'$t
+			;;
 		notes) f := vw_field "$i" notes || vw_die "it has no notes" ;;
 		uri) f := vw_field "$i" login.uris.0.uri || vw_die "it has no address" ;;
 		totp)
@@ -614,7 +619,7 @@ fn vw_cmd(cmd = "", ...rest) {
 			t := vw_field "$i" login.uris.0.uri && f+=$'\n'"uri: $t"
 			t := vw_field "$i" notes && f+=$'\n'"notes: $t"
 			;;
-		*) vw_die "usage: vw get password|username|totp|notes|uri|item NAME-OR-ID" 2 ;;
+		*) vw_die "usage: vw get password|username|login|totp|notes|uri|item NAME-OR-ID" 2 ;;
 		esac
 		printf '%s\n' "$f"
 		;;

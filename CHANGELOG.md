@@ -1,8 +1,30 @@
 # Changelog
 
+## 0.99.432
+
+**The desktop's own sign-in forms fill from the vault too** (Gitea #474),
+where 0.99.431 gave the Browser its fill.
+- A form says what it is for and takes a login: `<app>_signin ID` answers
+  the host with `ret`, or fails while the form has none, and
+  `<app>_signfill ID USER PASS` puts a login in its own fields. The Server
+  dialog (Network Servers, and so Calendars and Contacts) answers with its
+  address's host, and Mail's account dialog with the incoming server, or
+  the address's domain while that is empty.
+- **Fill Sign-In** is a desktop key, mod-l, in Keyboard > Shortcuts, and a
+  row on the Edit menu of such a window. It goes only to a window with a
+  form, so the Browser's own fill on the same key still reaches it. The
+  vault's logins for the host are offered in its picker, unlocking first
+  when it is locked, as the Browser's are.
+- A key mark beside the password field does the same on a click, drawn
+  only while there is a vault (`dt_signmark`).
+- `vw get login ID` gives the username and the password, a line each, so
+  a fill is one `vw` after the pick rather than two. A fill is two `vw` in
+  all, about 66 ms against the suites' stand-in vault, on a key press.
+
 ## 0.99.431
 
-**The vault fills sign-ins** (#104), with the Browser's half in
+**The vault fills sign-ins** (Gitea #474 -- this entry said #104 at
+release, which is a wallpaper ticket), with the Browser's half in
 hibr-browser 0.5.29 / Browser 2.35.
 - `vw match HOST` lists the logins for a site -- name, id and user -- the
   same host first, then the same base domain, each address by its own match

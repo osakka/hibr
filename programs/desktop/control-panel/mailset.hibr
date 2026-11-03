@@ -611,7 +611,7 @@ fn mlad_show(name = "", what = "") {
 }
 
 fn mlad_draw(int id, int h, int w, int row, int col) {
-	local f=${MLAD[$id]["focus"]} r=1 k on fw=$((w - 22)) t
+	local f=${MLAD[$id]["focus"]} r=1 k on fw=$((w - 22)) t x
 	local -A labs=([name]="Account name:" [email]="Email address:" [alias]="Other addresses:" \
 		[user]="Login:" [full]="Your name:" \
 		[pass]="Password:" [host]="Incoming server:" [port]="Port:" [shost]="Outgoing server:" \
@@ -640,8 +640,12 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 			;;
 		*)
 			t=${MLAD[$id]["$k"]}
-			[ "$k" = pass ] && t := str repeat "*" "${#t}"
-			dt_textdraw "$id" "$r" 20 "$fw" "$t" "${MLAD[$id]["${k}cur"]}" "$on"
+			x=$fw
+			if [ "$k" = pass ]; then
+				t := str repeat "*" "${#t}"
+				dt_has dt_signmark && dt_signmark "$id" "$r" $((20 + fw - 1)) && x=$((fw - 2))
+			fi
+			dt_textdraw "$id" "$r" 20 "$x" "$t" "${MLAD[$id]["${k}cur"]}" "$on"
 			if [ "$k" = pass ] && [ -z "${MLAD[$id]["pass"]}" ] && [ "${MLAD[$id]["haspass"]}" = 1 ] && [ "$on" = 0 ]; then
 				console pen "$DT_DIM" "$DT_FACE"
 				dt_tput "$id" "$r" 20 "(unchanged)"
@@ -650,7 +654,7 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 				console pen "$DT_DIM" "$DT_FACE"
 				dt_tput "$id" "$r" 20 "(from the address)"
 			fi
-			dt_wreg "$id" "$r" 20 "$fw" "$k"
+			dt_wreg "$id" "$r" 20 "$x" "$k"
 			;;
 		esac
 		r=$((r + 1))
@@ -733,6 +737,34 @@ fn mlad_click(int? id = "", int? r = "", int? c = "", btn = "") {
 }
 
 fn mlad_close(int id) { unset MLAD["$id"]; return 0; }
+
+# The sign-in this dialog is for, for the desktop's Fill Sign-In: the
+# incoming server, or the address's own domain while that is empty, as
+# the account itself would use. The signature dialog has none.
+fn mlad_signin(int id) {
+	local h
+
+	[ "${MLAD[$id]["sig"]-}" = 1 ] && return 1
+	h=${MLAD[$id]["host"]}
+	if [ -z "$h" ]; then
+		h=${MLAD[$id]["email"]}
+		case $h in *@*) h=${h##*@} ;; *) h= ;; esac
+	fi
+	h := dt_vwhost "$h"
+	[ -n "$h" ] || return 1
+	ret "$h"
+}
+
+# A login from the vault, into the Login and Password fields; a login
+# that is the address itself leaves Login empty, as the dialog shows one.
+fn mlad_signfill(int id, user, pass) {
+	[ "$user" = "${MLAD[$id]["email"]}" ] && user=
+	MLAD[$id]["user"]=$user
+	MLAD[$id]["usercur"]=${#user}
+	MLAD[$id]["pass"]=$pass
+	MLAD[$id]["passcur"]=${#pass}
+	MLAD[$id]["focus"]=pass
+}
 
 # What enter, a click or space does to what has focus.
 fn mlad_do(int id, what) {

@@ -352,7 +352,7 @@ fn dt_vwget(field, id) {
 # The unlocked vault's logins for a site, "name TAB id TAB user" a line, the
 # same host first: status 0 for some, 1 for none, 2 when the vault is
 # locked or there is none. It runs vw, so call it from a job, never from a
-# frame: an app asks when a page with a sign-in form arrives (Gitea #104's
+# frame: an app asks when a page with a sign-in form arrives (Gitea #474's
 # fill, with the Browser).
 fn dt_vwmatch(host) {
 	local st ef out
@@ -501,6 +501,81 @@ fn vwp_choose(int id, int i) {
 }
 
 fn vwp_close(int id) { unset VWP["$id"]; }
+
+# The host an address names, for a form's _signin: no scheme, no login,
+# no path and no port -- https://pat@dav.example.com:8443/remote.php/ is
+# dav.example.com, and so is dav.example.com on its own.
+fn dt_vwhost(addr) {
+	local h=${addr#*://}
+
+	h=${h%%/*}
+	h=${h##*@}
+	case $h in
+	\[*) h=${h%%]*}; h=${h#[} ;;
+	*) h=${h%%:*} ;;
+	esac
+	ret "${h,,}"
+}
+
+# The key mark a sign-in form draws beside its password field, at pane row
+# r and column c, while there is a vault to fill it from: a press on it is
+# Fill Sign-In, taken by the desktop before the app is asked. Nothing is
+# drawn, and nothing taken, with no vault.
+fn dt_signmark(int id, int r, int c) {
+	local g=${GL["signin"]} n
+
+	[ -r "$DT_VWCMD" ] && [ -r "$DT_VWCONF/account.json" ] || return 1
+	n := str width "$g"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$r" "$c" "$g"
+	dt_wreg "$id" "$r" "$c" "$n" dt-signin
+	return 0
+}
+
+# The window whose sign-in a pick is filling, while the pick is open.
+DT_VWFILLWIN=
+
+# Fill the focused window's sign-in form from the vault: its app's _signin
+# says what the form is for, a host, and _signfill is handed the username
+# and the password once one of that host's logins is chosen. Status 1 for
+# a window with no such form, so a key it does not use stays its own.
+fn dt_vwfill(win = "") {
+	local id=${win:-${DT_FOCUS:-}} host cb
+
+	[ -n "$id" ] && [ -n "${DT[$id]["signin"]-}" ] || return 1
+	cb=${DT[$id]["signin"]}
+	host := "$cb" "$id" || return 1
+	DT_VWFILLWIN=$id
+	dt_vwpick "$host" dt_vwfilled
+	return 0
+}
+
+# The chosen login, read with one vw and put in the form; nothing if the
+# window went while the person was choosing.
+fn dt_vwfilled(item) {
+	local id=$DT_VWFILLWIN us pw cb
+
+	DT_VWFILLWIN=
+	[ -n "$id" ] && [ -n "${DT[$id]["row"]+x}" ] || return 0
+	cb=${DT[$id]["signfill"]-}
+	[ -n "$cb" ] || return 0
+	if ! dt_vwget login "$item"; then
+		local why=$DT_VWERR
+		if [ -z "$why" ]; then
+			why := dt_tr "Could not read it"
+		fi
+		dt_note "$why"
+		return 0
+	fi
+	us=${DT_VWOUT%%$'\n'*}
+	pw=${DT_VWOUT#*$'\n'}
+	DT_VWOUT=
+	DT_NOTEWIN=$id
+	"$cb" "$id" "$us" "$pw"
+	pw=
+	dt_notep low "Filled in from the vault"
+	return 0
+}
 
 # Start a sync, unless a vault job is running; by hand, it says how it
 # went. The list is read again in the same job.

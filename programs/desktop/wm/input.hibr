@@ -209,6 +209,14 @@ dt_mouse() {
 			   dt_fdpress "$id" $((mr - wr)) $((mc - wa)) "$mods"; then
 				return 0
 			fi
+			# A sign-in form's key mark (dt_signmark) is the desktop's,
+			# so no app has to pass it on.
+			if [ "$1" = left ] && [ -n "${DT[$id]["signin"]}" ] &&
+			   p := dt_hit "$id" $((mr - wr)) $((mc - wa)) &&
+			   [ "$p" = dt-signin ]; then
+				dt_vwfill "$id" || true
+				return 0
+			fi
 			# A field that does not have the keys: the press is the app's,
 			# and the cursor goes there once the app has given it them.
 			[ "$1" = left ] && dt_fdlater "$id" $((mr - wr)) $((mc - wa)) || true
@@ -1221,6 +1229,12 @@ fn dt_event(k) {
 	   dt_keyis save "$k"; then
 		DT_NOTEWIN=$DT_FOCUS
 		${DT[$DT_FOCUS]["savefile"]} "$DT_FOCUS"
+		return 0
+	fi
+	# Fill Sign-In, the same way: only a window with a sign-in form of its
+	# own takes it, so the Browser's own fill on the same key still works.
+	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["signin"]}" ] &&
+	   dt_keyis signin "$k" && dt_vwfill; then
 		return 0
 	fi
 	if dt_keyis undo "$k"; then dt_editdo undo; return 0; fi

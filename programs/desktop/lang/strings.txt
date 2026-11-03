@@ -505,6 +505,8 @@ Files
 Files cannot be copied: the copy module is not installed
 Files on Servers
 Fill
+Fill Sign-In
+Filled in from the vault
 Fills the window, 1:1, and follows it when it is resized.
 Film Detail
 Find
