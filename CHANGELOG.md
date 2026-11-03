@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.437
+
+**hibr builds on macOS again** (owner: `brew upgrade hibr` failed with
+"unknown type name 'sigset_t'"). The core audit's 0.99.428 declared
+`jc_blk` and `jc_sleep` in `include/pri.h` with a `sigset_t`, which glibc's
+`<sys/types.h>` happens to bring in and macOS's does not, so Homebrew could
+not build any release after 0.99.425. `pri.h` includes `<signal.h>` itself
+now, and the containment module's Mac branch includes `<stdint.h>` for the
+`uint64_t` it names. `tests/999-headers.t` compiles both headers under
+strict POSIX, which takes glibc's extras away as macOS does, and fails on
+a header that leans on one.
+
 ## 0.99.436
 
 **One drawer for everything that looks like a window** (#102, owner: "no

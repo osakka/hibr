@@ -346,6 +346,7 @@ int cj_what(str *o)
 	return 1;
 }
 #elif defined(__APPLE__)
+#include <stdint.h>
 int sandbox_init(const char *profile, uint64_t flags, char **err);
 void sandbox_free_error(char *err);
 

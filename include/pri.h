@@ -2,6 +2,7 @@
 #define HIBR_PRI_H
 
 #include "hibr.h"
+#include <signal.h>
 #include <stdio.h>
 
 #define T_EOF 0
