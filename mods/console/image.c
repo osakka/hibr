@@ -31,6 +31,7 @@
  * A backend that could place pixels itself (a framebuffer, Blit) would
  * implement the same dp_api entry and never come here.
  */
+#include "../boxscale.h"
 #include "cn.h"
 #include "../blitfr.h"
 #include <unistd.h>
@@ -571,40 +572,8 @@ void cn_imgscalesrc(const unsigned char *in, int iw, int ih,
 		    int rx, int ry, int rw, int rh,
 		    unsigned char *out, int w, int h)
 {
-	int x, y, c;
-
 	(void)ih;
-	for (y = 0; y < h; y++) {
-		int y0 = ry + (int)((long long)y * rh / h);
-		int y1 = ry + (int)((long long)(y + 1) * rh / h);
-
-		if (y1 <= y0)
-			y1 = y0 + 1;
-		if (y1 > ry + rh)
-			y1 = ry + rh;
-		for (x = 0; x < w; x++) {
-			int x0 = rx + (int)((long long)x * rw / w);
-			int x1 = rx + (int)((long long)(x + 1) * rw / w);
-			unsigned long sum[3] = { 0, 0, 0 }, n = 0;
-			int sx, sy;
-
-			if (x1 <= x0)
-				x1 = x0 + 1;
-			if (x1 > rx + rw)
-				x1 = rx + rw;
-			for (sy = y0; sy < y1; sy++)
-				for (sx = x0; sx < x1; sx++) {
-					const unsigned char *p = in + ((size_t)sy * iw + sx) * 3;
-
-					for (c = 0; c < 3; c++)
-						sum[c] += p[c];
-					n++;
-				}
-			for (c = 0; c < 3; c++)
-				out[((size_t)y * w + x) * 3 + c] =
-					(unsigned char)(n ? sum[c] / n : 0);
-		}
-	}
+	bx_scale(in, iw, rx, ry, rw, rh, out, w, h);
 }
 
 /* The kitty layer a picture goes in: the wallpaper's at the bottom, a

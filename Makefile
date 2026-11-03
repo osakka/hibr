@@ -61,7 +61,7 @@ PROMPT_SRC = $(wildcard mods/prompt/*.c) mods/inflate.c mods/inftab.c mods/gfxas
 # read, rather than the whole of inflate.c: it never expands anything, and
 # the decoder is six kilobytes of code it would not call.
 CONSOLE_SRC = $(wildcard mods/console/*.c) mods/deflate.c mods/inftab.c \
-	      mods/png.c mods/gfxask.c mods/blitfr.c mods/b64.c
+	      mods/png.c mods/gfxask.c mods/blitfr.c mods/b64.c mods/boxscale.c
 PTY_SRC = $(wildcard mods/pty/*.c)
 TERM_SRC = $(wildcard mods/term/*.c) mods/b64.c
 HOLD_SRC = $(wildcard mods/hold/*.c) mods/gfxask.c mods/blitfr.c
@@ -258,7 +258,7 @@ DAV_SRC = $(wildcard mods/dav/*.c)
 $(B)/mods/dav.so: $(DAV_SRC) include/hibr.h mods/dav/dv.h mods/fetch.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(DAV_SRC) $(DLLIB)
 
-WEB_SRC = $(wildcard mods/web/*.c) mods/img/png.c mods/b64.c
+WEB_SRC = $(wildcard mods/web/*.c) mods/img/png.c mods/b64.c mods/boxscale.c
 
 $(B)/mods/web.so: $(WEB_SRC) include/hibr.h mods/b64.h mods/web/wb.h mods/img/im.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(WEB_SRC) $(DLLIB)
@@ -293,7 +293,7 @@ $(B)/mods/pdf.so: mods/pdf/pdf.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/pdf/pdf.c $(DLLIB)
 
 # img save writes a PNG with the console's own encoder.
-IMG_SRC = $(wildcard mods/img/*.c) mods/png.c mods/deflate.c mods/inftab.c
+IMG_SRC = $(wildcard mods/img/*.c) mods/png.c mods/deflate.c mods/inftab.c mods/boxscale.c
 
 $(B)/mods/img.so: $(IMG_SRC) include/hibr.h mods/img/im.h mods/display.h mods/png.h mods/inflate.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(IMG_SRC) $(DLLIB)

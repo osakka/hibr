@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../boxscale.h"
 #include "im.h"
 #include <dlfcn.h>
 #include <setjmp.h>
@@ -208,43 +209,9 @@ int im_pngmem(const unsigned char *b, size_t n, image *out, str *err)
    a photograph scaled down looks blurred rather than speckled. */
 void im_scale(const image *im, unsigned char *out, int w, int h)
 {
-	int x, y, c;
-
 	if (!im || !im->px || w < 1 || h < 1)
 		return;
-	for (y = 0; y < h; y++) {
-		int y0 = (int)((long long)y * im->h / h);
-		int y1 = (int)((long long)(y + 1) * im->h / h);
-
-		if (y1 <= y0)
-			y1 = y0 + 1;
-		if (y1 > im->h)
-			y1 = im->h;
-		for (x = 0; x < w; x++) {
-			int x0 = (int)((long long)x * im->w / w);
-			int x1 = (int)((long long)(x + 1) * im->w / w);
-			unsigned long sum[3] = { 0, 0, 0 };
-			unsigned long n = 0;
-			int sx, sy;
-
-			if (x1 <= x0)
-				x1 = x0 + 1;
-			if (x1 > im->w)
-				x1 = im->w;
-			for (sy = y0; sy < y1; sy++)
-				for (sx = x0; sx < x1; sx++) {
-					const unsigned char *p =
-						im->px + ((size_t)sy * im->w + sx) * 3;
-
-					for (c = 0; c < 3; c++)
-						sum[c] += p[c];
-					n++;
-				}
-			for (c = 0; c < 3; c++)
-				out[((size_t)y * w + x) * 3 + c] =
-					(unsigned char)(n ? sum[c] / n : 0);
-		}
-	}
+	bx_scale(im->px, im->w, 0, 0, im->w, im->h, out, w, h);
 }
 
 /* A mode's own name, as -m takes it. */
