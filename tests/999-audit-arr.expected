@@ -1,0 +1,15 @@
+0
+declare -a a=([2]="x" [7]="y" [8]="p" [9]="q")
+declare -a m=(["a"]="1" ["b"]="2" [0]="z")
+declare -a s=([0]="hi" [1]="t")
+declare -a fresh=([0]="1" [1]="2")
+uniq: b a c
+len: 3
+contains c
+does not contain zz
+push onto a readonly array: 1
+declare -a b=([9]="a" [10]="b" [99]="c" [007]="d" [100]="e")
+[abééé]
+[éééab]
+[ab漢漢 ]
+{"k":"a\u0001b\u001fc"}

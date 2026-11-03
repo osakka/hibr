@@ -718,14 +718,28 @@ var *v_findr(sh *s, const char **nm)
 	return v;
 }
 
+/* Walk a subscript path below a variable already found, optionally creating the levels it crosses. */
+ent *v_walk(var *v, char **ks, int nk, int make)
+{
+	ent *e = 0;
+	ent **mp = &v->map;
+	size_t *np = &v->n;
+	int i;
+
+	for (i = 0; i < nk; i++) {
+		e = make ? mp_add(mp, np, ks[i]) : mp_find(*mp, ks[i]);
+		if (!e)
+			return 0;
+		mp = &e->map;
+		np = &e->n;
+	}
+	return e;
+}
+
 /* Walk a subscript path, optionally creating the levels it crosses. */
 ent *v_path(sh *s, const char *nm, char **ks, int nk, int make)
 {
 	var *v = v_findr(s, &nm);
-	ent *e = 0;
-	ent **mp;
-	size_t *np;
-	int i;
 
 	if (!v) {
 		if (!make)
@@ -735,16 +749,7 @@ ent *v_path(sh *s, const char *nm, char **ks, int nk, int make)
 		if (!v)
 			return 0;
 	}
-	mp = &v->map;
-	np = &v->n;
-	for (i = 0; i < nk; i++) {
-		e = make ? mp_add(mp, np, ks[i]) : mp_find(*mp, ks[i]);
-		if (!e)
-			return 0;
-		mp = &e->map;
-		np = &e->n;
-	}
-	return e;
+	return v_walk(v, ks, nk, make);
 }
 
 /* Read the scalar at a subscript path. */
@@ -788,16 +793,16 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 		if (cv)
 			val = cv;
 	}
-	e = v_path(s, nm, ks, nk, 1);
+	if (!v) {
+		hibr_set(s, nm, "", 0);
+		v = v_find(s, nm);
+	}
+	e = v ? v_walk(v, ks, nk, 1) : 0;
 	if (!e) {
 		s_free(&ct);
 		return;
 	}
-	{
-		var *vv = v_find(s, nm);
-		if (vv)
-			vv->am = 1;
-	}
+	v->am = 1;
 	nv = xs(val);
 	mp_free(e->map);
 	e->map = 0;
@@ -806,9 +811,8 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 	e->s = nv;
 	if (e->ty == J_ARR || e->ty == J_OBJ)
 		e->ty = 0;
-	if (nk == 1 && !strcmp(ks[0], "0")) {
-		v = v_find(s, nm);
-		if (v && !(v->at & A_REF)) {
+	if (nk == 1 && ks[0][0] == '0' && !ks[0][1]) {
+		if (!(v->at & A_REF)) {
 			nv = xs(val);
 			free(v->v);
 			v->v = nv;
@@ -874,6 +878,7 @@ void v_arrput(sh *s, const char *k, vec *vals, long nx)
 	char *kv, *q, *end, *key;
 	long at;
 
+	s_init(&ix);
 	for (i = 0; i < vals->n; i++) {
 		kv = (char *)vals->p[i];
 		if (kv[0] == '[' && (q = strstr(kv, "]=")) != 0) {
@@ -886,12 +891,43 @@ void v_arrput(sh *s, const char *k, vec *vals, long nx)
 			*q = ']';
 			continue;
 		}
-		s_init(&ix);
+		ix.n = 0;
 		s_num(&ix, nx++);
 		key = ix.p;
 		v_setp(s, k, &key, 1, kv);
-		s_free(&ix);
 	}
+	s_free(&ix);
+}
+
+/* The index an append to an array takes: one past its highest numeric key, a scalar becoming element 0 first, as a+=(x) does. Keys are compared as digit strings -- longer is larger, then byte order -- and only the largest converted, since a strtol per key per append made pushing quadratic in libc. */
+long v_arrnext(sh *s, const char *nm)
+{
+	var *v = v_findr(s, &nm);
+	ent *e;
+	const char *k, *best = 0;
+	size_t n, bn = 0;
+
+	if (!v)
+		return 0;
+	if (!v->map && !v->am && v->v) {
+		lg(HIBR_LDBG, "%s was a scalar, and is element 0 now", nm);
+		v_setel(s, nm, 0, ar_dup(s->xa, v->v, strlen(v->v)));
+		return 1;
+	}
+	for (e = v->map; e; e = e->nx) {
+		k = e->k;
+		while (*k == '0' && k[1] >= '0' && k[1] <= '9')
+			k++;
+		for (n = 0; k[n] >= '0' && k[n] <= '9'; n++)
+			;
+		if (!n || k[n])
+			continue;
+		if (!best || n > bn || (n == bn && memcmp(k, best, n) > 0)) {
+			best = k;
+			bn = n;
+		}
+	}
+	return best ? strtol(best, 0, 10) + 1 : 0;
 }
 
 /* Replace a variable with an array of values. */

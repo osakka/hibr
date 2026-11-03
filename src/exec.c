@@ -1257,30 +1257,16 @@ void ex_arrasg(sh *s, node *f)
 			xw(s, w, el, 0);
 	if (nl > 1 && f->s[nl - 1] == '+') {
 		const char *nm = ar_dup(s->xa, f->s, nl - 1);
-		vec *cur = vb_get(s);
 		var *v = v_findr(s, &nm);
-		size_t z;
-		long next = 0;
+		long next;
 		if (v && v->ro) {
 			lg(HIBR_LERR, "%s: readonly variable", nm);
 			s->st = 1;
 			v_refused = 1;
-			vb_put(s, cur);
 			vb_put(s, el);
 			return;
 		}
-		if (v && !v->map && !v->am && v->v) {
-			lg(HIBR_LDBG, "%s was a scalar, and is element 0 now", nm);
-			v_setel(s, nm, 0, ar_dup(s->xa, v->v, strlen(v->v)));
-			next = 1;
-		}
-		v_list(s, nm, 0, 0, cur, 1);
-		for (z = 0; z < cur->n; z++) {
-			long kk = atol((char *)cur->p[z]);
-			if (kk >= next)
-				next = kk + 1;
-		}
-		vb_put(s, cur);
+		next = v_arrnext(s, nm);
 		v_arrput(s, nm, el, next);
 		if (!el->n && !v_find(s, nm)) {
 			vec empty = { 0, 0, 0 };

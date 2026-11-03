@@ -86,13 +86,17 @@ const char *v_coerce(sh *s, var *e, const char *v, str *tmp);
 void v_pos(sh *s, int ac, char **av);
 void v_free_el(var *v);
 void v_arr(sh *s, const char *k, vec *vals);
+long v_arrnext(sh *s, const char *nm);
+void arr_uniq(vec *in, vec *out);
 void v_setel(sh *s, const char *k, long i, const char *val);
 const char *v_getel(sh *s, const char *k, long i);
 size_t v_alen(sh *s, const char *k);
 ent *mp_find(ent *m, const char *k);
+ent *v_walk(var *v, char **ks, int nk, int make);
 ent *v_path(sh *s, const char *nm, char **ks, int nk, int make);
 int b_json(sh *s, int ac, char **av);
 int sx_out(sh *s, const char *nm, const char *v);
+size_t sx_u8len(const char *p);
 #ifdef HIBR_CENSUS
 void ce_exp(sh *s, const char *kind, const char *t, size_t n);
 #endif

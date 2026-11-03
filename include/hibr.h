@@ -351,6 +351,7 @@ char *xs(const char *s);
 
 arena *ar_new(size_t ch);
 void *ar_alloc(arena *a, size_t n);
+void *ar_raw(arena *a, size_t n);
 char *ar_dup(arena *a, const char *s, size_t n);
 amark ar_mark(arena *a);
 void ar_rel(arena *a, amark m);

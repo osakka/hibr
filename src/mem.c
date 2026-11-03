@@ -238,6 +238,15 @@ void ar_drop(arena *a, blk *b)
 /* Bump allocate zeroed memory from an arena. */
 void *ar_alloc(arena *a, size_t n)
 {
+	void *p = ar_raw(a, n);
+
+	memset(p, 0, (n + 15) & ~(size_t)15);
+	return p;
+}
+
+/* Take n bytes from an arena without clearing them, for a caller that writes every one. */
+void *ar_raw(arena *a, size_t n)
+{
 	blk *b = a->b;
 	char *p;
 
@@ -246,17 +255,17 @@ void *ar_alloc(arena *a, size_t n)
 		b = ar_blk(a, n);
 	p = b->d + b->use;
 	b->use += n;
-	memset(p, 0, n);
 	return p;
 }
 
-/* Copy n bytes into an arena as a NUL terminated string. */
+/* Copy n bytes into an arena as a NUL terminated string, writing them once rather than clearing them first (Gitea #464). */
 char *ar_dup(arena *a, const char *s, size_t n)
 {
-	char *p = ar_alloc(a, n + 1);
+	char *p = ar_raw(a, n + 1);
 
 	if (n)
 		memcpy(p, s, n);
+	p[n] = 0;
 	return p;
 }
 
@@ -462,6 +471,9 @@ void s_fmt(str *s, const char *f, ...)
 		s_grow(s, (size_t)n);
 		vsnprintf(s->p + s->n, (size_t)n + 1, f, ap);
 		s->n += (size_t)n;
+	} else if (!s->p) {
+		s_grow(s, 0);
+		s->p[s->n] = 0;
 	}
 	va_end(ap);
 }

@@ -348,6 +348,18 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   each entry's type from the folder and calls `lstat` only where the
   system does not say: `echo /usr/share/doc/**` makes 2,943 stat calls
   against 11,968.
+- **`arr`** no longer rebuilds the array for every operation: `len` and
+  `contains` read it in place, `uniq` uses a hash, and `push` appends one
+  past the highest numeric key and leaves the other keys as they are, as
+  `a+=(x)` does -- it renumbered every key, so `([a]=1 [b]=2)` became 0, 1,
+  2. 20,000 pushes take 3.6 s against 149 s; what remains is finding the
+  highest key, which a map will carry with the ABI change. A subscripted
+  assignment looks its variable up once rather than three or four times
+  (`m[$i]=x` 50,000 times: 565M instructions against 787M).
+- **`str pad`** pads with a whole character, counting a wide one as two
+  columns, where it wrote the first byte of a multibyte one. A JSON control
+  character is escaped without an allocation, a bad regex's message is
+  sized by asking for it, and an empty `s_fmt` leaves a terminated string.
 
 ## 0.99.427
 

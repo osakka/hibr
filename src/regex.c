@@ -24,13 +24,15 @@ size_t re_groups(const char *p)
 int re_make(re_t *re, const char *pat, int icase)
 {
 	int rc = regcomp(re, pat, HIBR_REG_EXTENDED | (icase ? HIBR_REG_ICASE : 0));
+	size_t n;
 	str b;
 
 	if (!rc)
 		return HIBR_OK;
 	s_init(&b);
-	s_grow(&b, 256);
-	regerror(rc, re, b.p, 256);
+	n = regerror(rc, re, 0, 0);
+	s_grow(&b, n);
+	regerror(rc, re, b.p, n + 1);
 	lg(HIBR_LERR, "bad pattern /%s/: %s", pat, b.p);
 	s_free(&b);
 	return HIBR_FAIL;

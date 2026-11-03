@@ -303,19 +303,32 @@ int b_str(sh *s, int ac, char **av)
 		rc = sx_out(s, ac > 4 ? av[4] : 0, o.p ? o.p : "");
 	} else if (!strcmp(sub, "pad")) {
 		long w = ac > 3 ? atol(av[3]) : 0;
-		char c = ac > 4 && av[4][0] ? av[4][0] : ' ';
-		long need;
+		const char *pc = ac > 4 && av[4][0] ? av[4] : " ";
+		size_t cl = sx_u8len(pc);
+		long need, cw;
+		str pad;
+		char *one = xm(cl + 1);
+		memcpy(one, pc, cl);
+		one[cl] = 0;
+		cw = ed_width(one);
+		if (cw < 1)
+			cw = 1;
+		free(one);
 		n = (size_t)ed_width(a);
 		need = (w < 0 ? -w : w) - (long)n;
 		if (need < 0)
 			need = 0;
-		if (w < 0)
-			for (k = 0; k < need; k++)
-				s_ch(&o, c);
+		s_init(&pad);
+		for (k = 0; k + cw <= need; k += cw)
+			s_add(&pad, pc, cl);
+		for (; k < need; k++)
+			s_ch(&pad, ' ');
+		if (w < 0 && pad.n)
+			s_add(&o, pad.p, pad.n);
 		s_cat(&o, a);
-		if (w > 0)
-			for (k = 0; k < need; k++)
-				s_ch(&o, c);
+		if (w > 0 && pad.n)
+			s_add(&o, pad.p, pad.n);
+		s_free(&pad);
 		rc = sx_out(s, ac > 5 ? av[5] : 0, o.p ? o.p : "");
 	} else if (!strcmp(sub, "repeat")) {
 		long t = ac > 3 ? atol(av[3]) : 0;
@@ -341,6 +354,18 @@ int b_str(sh *s, int ac, char **av)
 	}
 	s_free(&o);
 	return rc;
+}
+
+/* The byte length of the UTF-8 character at p, 1 for a byte that does not begin one. */
+size_t sx_u8len(const char *p)
+{
+	unsigned char c = (unsigned char)*p;
+	size_t n = c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 1, i;
+
+	for (i = 1; i < n; i++)
+		if (((unsigned char)p[i] & 0xC0) != 0x80)
+			return 1;
+	return n;
 }
 
 /* Compare two strings for sorting. */
@@ -370,6 +395,29 @@ void ax_q(str *o, const char *a)
 	s_ch(o, '\'');
 }
 
+/* The first of each distinct value in order, found through a hash of them rather than by comparing each with all before it (Gitea #464). */
+void arr_uniq(vec *in, vec *out)
+{
+	size_t cap, i, h;
+	char **tab;
+
+	for (cap = 16; cap < in->n * 2; cap <<= 1)
+		;
+	tab = xm(cap * sizeof *tab);
+	memset(tab, 0, cap * sizeof *tab);
+	for (i = 0; i < in->n; i++) {
+		for (h = vh((char *)in->p[i]) & (cap - 1); tab[h];
+		     h = (h + 1) & (cap - 1))
+			if (!strcmp(tab[h], (char *)in->p[i]))
+				break;
+		if (tab[h])
+			continue;
+		tab[h] = (char *)in->p[i];
+		v_add(out, in->p[i]);
+	}
+	free(tab);
+}
+
 /* arr: a write the variable refused -- it is readonly -- fails the
    command rather than being reported and answering 0 (Gitea #457). */
 int b_arr(sh *s, int ac, char **av)
@@ -397,17 +445,48 @@ int b_arr1(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "usage: arr len|push|pop|sort|uniq|reverse|contains|map|filter var ...");
 		return 2;
 	}
+	if (!strcmp(sub, "len")) {
+		vals = vb_get(s);
+		v_list(s, nm, 0, 0, vals, 0);
+		rc = sx_num(s, ac > 3 ? av[3] : 0, (long)vals->n);
+		vb_put(s, vals);
+		return rc;
+	}
+	if (!strcmp(sub, "contains")) {
+		vals = vb_get(s);
+		v_list(s, nm, 0, 0, vals, 0);
+		rc = HIBR_FAIL;
+		for (i = 0; i < vals->n && ac > 3; i++)
+			if (!strcmp((char *)vals->p[i], av[3])) {
+				rc = HIBR_OK;
+				break;
+			}
+		vb_put(s, vals);
+		return rc;
+	}
+	if (!strcmp(sub, "push")) {
+		var *v;
+		long next;
+		const char *vn = nm;
+		if ((v = v_findr(s, &vn)) && v->ro) {
+			lg(HIBR_LERR, "%s: readonly variable", nm);
+			return HIBR_FAIL;
+		}
+		next = v_arrnext(s, nm);
+		if (ac == 3 && !v_find(s, nm)) {
+			vec empty = { 0, 0, 0 };
+			v_arr(s, nm, &empty);
+		}
+		for (i = 3; i < (size_t)ac; i++)
+			v_setel(s, nm, next++, av[i]);
+		lg(HIBR_LDBG, "arr push appends after the highest key, keeping the others (Gitea #464)");
+		return HIBR_OK;
+	}
 	vals = vb_get(s);
 	v_list(s, nm, 0, 0, vals, 0);
 	for (i = 0; i < vals->n; i++)
 		vals->p[i] = xs((char *)vals->p[i]);
-	if (!strcmp(sub, "len")) {
-		rc = sx_num(s, ac > 3 ? av[3] : 0, (long)vals->n);
-	} else if (!strcmp(sub, "push")) {
-		for (i = 3; i < (size_t)ac; i++)
-			v_add(vals, xs(av[i]));
-		v_arr(s, nm, vals);
-	} else if (!strcmp(sub, "pop")) {
+	if (!strcmp(sub, "pop")) {
 		if (!vals->n) {
 			rc = HIBR_FAIL;
 		} else {
@@ -443,22 +522,9 @@ int b_arr1(sh *s, int ac, char **av)
 		v_arr(s, nm, vals);
 	} else if (!strcmp(sub, "uniq")) {
 		vec *out = vb_get(s);
-		size_t j;
-		for (i = 0; i < vals->n; i++) {
-			for (j = 0; j < out->n; j++)
-				if (!strcmp((char *)out->p[j], (char *)vals->p[i]))
-					break;
-			if (j == out->n)
-				v_add(out, vals->p[i]);
-		}
+		arr_uniq(vals, out);
 		v_arr(s, nm, out);
 		vb_put(s, out);
-	} else if (!strcmp(sub, "contains")) {
-		int hit = 0;
-		for (i = 0; i < vals->n && ac > 3; i++)
-			if (!strcmp((char *)vals->p[i], av[3]))
-				hit = 1;
-		rc = hit ? HIBR_OK : HIBR_FAIL;
 	} else if (!strcmp(sub, "map") || !strcmp(sub, "filter")) {
 		vec *out = vb_get(s);
 		str cmd;

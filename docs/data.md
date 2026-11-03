@@ -112,7 +112,7 @@ subscript reaches.
 | form | does |
 |---|---|
 | `arr len var [out]` | the number of elements |
-| `arr push var v…` | append |
+| `arr push var v…` | append, one past the highest numeric key, leaving other keys as they are (`a+=(v…)` does the same) |
 | `arr pop var [out]` | remove and give back the last |
 | `arr sort var [-n] [-r]` | sort in place; `-n` numeric by each element's leading number (`1700000000:4` sorts as 1700000000), equal numbers as text, the way `sort -n` breaks a tie; `-r` reversed |
 | `arr reverse var` | reverse in place |

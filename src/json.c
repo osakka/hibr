@@ -238,10 +238,9 @@ void j_quote(str *o, const char *p)
 		case '\r': s_cat(o, "\\r"); break;
 		default:
 			if ((unsigned char)*p < 0x20) {
-				char *t = xm(8);
-				sprintf(t, "\\u%04x", (unsigned char)*p);
-				s_cat(o, t);
-				free(t);
+				s_cat(o, "\\u00");
+				s_ch(o, "0123456789abcdef"[(unsigned char)*p >> 4]);
+				s_ch(o, "0123456789abcdef"[*p & 15]);
 			} else {
 				s_ch(o, *p);
 			}
