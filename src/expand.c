@@ -409,6 +409,36 @@ int gfirst(const char *p)
 	return (unsigned char)*p;
 }
 
+/* Whether a directory entry is a folder of its own, not a link to one: the entry's own type where the system gives it, and lstat only where it does not, so ** costs no system call per file (Gitea #444). */
+int gisdir(struct dirent *de, const char *path, struct stat *st)
+{
+#ifdef DT_DIR
+	if (de->d_type == DT_DIR)
+		return 1;
+	if (de->d_type != DT_UNKNOWN)
+		return 0;
+#endif
+	return !lstat(path, st) && S_ISDIR(st->st_mode);
+}
+
+/* The literal byte a pattern must end with, or -1 when its last element is a wildcard, a bracket, an extended group or a lone backslash: a prefix not ending in that byte cannot match, which spares a basename trim a match per position (Gitea #444). */
+int glast(const char *p)
+{
+	size_t n = strlen(p), k = 0;
+	int c;
+
+	if (!n)
+		return -1;
+	c = (unsigned char)p[n - 1];
+	while (k + 1 < n && p[n - 2 - k] == '\\')
+		k++;
+	if (k & 1)
+		return c;
+	if (c == '*' || c == '?' || c == ']' || c == ')' || c == '\\')
+		return -1;
+	return c;
+}
+
 /* The pattern with a star before it, after it or both, which says whether
    any part of a text could match at all; 0 where adding one would change
    what the pattern means -- a leading ( would become *( and a trailing
@@ -497,7 +527,7 @@ char *xtrim(sh *s, const char *v, const char *pat, int op)
 	size_t n = strlen(v), i = 0, k;
 	long len = glen(pat);
 	int pre = op == V_RS || op == V_RL, lng = op == V_RL || op == V_SL;
-	int got = 0;
+	int got = 0, lit;
 	const char *any;
 	str w;
 	char *r;
@@ -507,8 +537,10 @@ char *xtrim(sh *s, const char *v, const char *pat, int op)
 	any = len < 0 ? gwrap(s, pat, !pre, pre) : 0;
 	if (any && !gmatch(any, v))
 		return ar_dup(s->xa, v, n);
+	lit = len < 0 ? (pre ? glast(pat) : gfirst(pat)) : -1;
 	s_init(&w);
-	s_add(&w, v, n);
+	if (pre)
+		s_add(&w, v, n);
 	for (k = 0; k <= n; k++) {
 		if (len >= 0)
 			i = pre ? gfw(v, n, 0, len) : gbk(v, n, len);
@@ -516,6 +548,8 @@ char *xtrim(sh *s, const char *v, const char *pat, int op)
 			i = lng ? n - k : k;
 		if (i == (size_t)-1)
 			break;
+		if (lit >= 0 && (!i || (unsigned char)(pre ? v[i - 1] : v[n - i]) != lit))
+			continue;
 		if (len < 0 && !gat(v, n, pre ? i : n - i))
 			continue;
 		if (pre ? gcut(pat, w.p, 0, i) : gmatch(pat, v + n - i)) {
@@ -2149,7 +2183,7 @@ void gwalk(sh *s, str *dir, const char *pat, vec *out, int *cnt)
 			if (de->d_name[0] == '.')
 				continue;
 			s_cat(dir, de->d_name);
-			if (!lstat(dir->p, &st) && S_ISDIR(st.st_mode))
+			if (gisdir(de, dir->p, &st))
 				v_add(&subs, xs(de->d_name));
 			dir->n = keep;
 			dir->p[keep] = 0;
@@ -2683,7 +2717,7 @@ normal:
 	if (w->p && !w->p->nx && w->p->k == P_VAR && !w->p->q && !w->p->arr &&
 	    w->p->op == V_NONE && !s->uset && !(fl & HIBR_XPAT) &&
 	    !((fl & HIBR_XBRK) && w->p->t[0] == '@' && !w->p->t[1])) {
-		const char *v = xval(s, w->p->t);
+		const char *v = xval(s, w->p->t), *ifs;
 		size_t k, n;
 		if (fl & HIBR_XONE) {
 			if (s->strict && outm)
@@ -2700,7 +2734,7 @@ normal:
 			for (k = 0; k < n; k++)
 				if (w_meta[(unsigned char)v[k]])
 					break;
-			if (k == n && !sh_ifs(s)) {
+			if (k == n && (!(ifs = sh_ifs(s)) || !strpbrk(v, ifs))) {
 				if (n)
 					xout(s, out, outm, v, 0, n);
 				return;

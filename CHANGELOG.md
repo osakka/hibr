@@ -340,6 +340,14 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   or vector past 8192 entries frees its buffer on return, and glibc's mmap
   threshold is fixed at 256 kB so a freed large buffer is returned rather
   than kept on the heap.
+- **Trimming** with `#`, `##`, `%` and `%%` tries only the ends that can
+  hold the pattern's literal last or first byte: `x=${f##*/}; y=${f%/*}`
+  20,000 times is 509M instructions against 961M. An unquoted variable with
+  no glob byte and no IFS byte is used as it stands whatever IFS holds,
+  which also stops `$RANDOM` drawing twice when IFS is set. `**` reads
+  each entry's type from the folder and calls `lstat` only where the
+  system does not say: `echo /usr/share/doc/**` makes 2,943 stat calls
+  against 11,968.
 
 ## 0.99.427
 
