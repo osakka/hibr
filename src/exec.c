@@ -1149,14 +1149,55 @@ char *xcap(sh *s, const char *src)
 	return r;
 }
 
+static vec asv_free;
+
+/* A save record for k, from the records earlier calls gave back with their name buffers, so a function call does not allocate per parameter (Gitea #451). */
+struct sav *asv_new(const char *k)
+{
+	struct sav *sv;
+	size_t n = strlen(k) + 1;
+	char *kb = 0;
+	size_t kc = 0;
+
+	if (asv_free.n) {
+		sv = (struct sav *)asv_free.p[--asv_free.n];
+		kb = sv->k;
+		kc = sv->kc;
+	} else {
+		sv = xm(sizeof *sv);
+	}
+	memset(sv, 0, sizeof *sv);
+	if (n > kc) {
+		free(kb);
+		kc = n < 32 ? 32 : n;
+		kb = xm(kc);
+	}
+	memcpy(kb, k, n);
+	sv->k = kb;
+	sv->kc = kc;
+	return sv;
+}
+
+/* Give a save record back, keeping at most 256 of them. */
+void asv_put(struct sav *sv)
+{
+	free(sv->v);
+	sv->v = 0;
+	sv->w = 0;
+	if (asv_free.n >= 256) {
+		free(sv->k);
+		free(sv);
+		return;
+	}
+	v_add(&asv_free, sv);
+}
+
 /* Remember a variable's current binding so it can be restored. */
 void asg_keep(sh *s, vec *old, const char *k)
 {
 	var *v = v_find(s, k);
-	struct sav *sv = xm(sizeof *sv);
+	struct sav *sv = asv_new(k);
 
-	memset(sv, 0, sizeof *sv);
-	sv->k = xs(k);
 	sv->v = v ? xs(v->v) : 0;
 	sv->ex = v ? v->ex : 0;
 	v_add(old, sv);
@@ -1192,9 +1233,7 @@ int asg_hide(sh *s, vec *old, const char *k)
 		lg(HIBR_LERR, "%s: readonly variable", k);
 		return HIBR_FAIL;
 	}
-	sv = xm(sizeof *sv);
-	memset(sv, 0, sizeof *sv);
-	sv->k = xs(k);
+	sv = asv_new(k);
 	sv->w = v_take(s, k);
 	v_add(old, sv);
 	return HIBR_OK;
@@ -1357,9 +1396,7 @@ void asg_push(sh *s, vec *asg, vec *old)
 		if (hibr_set(s, kv, q + 1, 1) != HIBR_OK) {
 			sv = (struct sav *)old->p[--old->n];
 			lg(HIBR_LDBG, "%s was refused, so nothing is put back", kv);
-			free(sv->k);
-			free(sv->v);
-			free(sv);
+			asv_put(sv);
 		}
 		*q = '=';
 	}
@@ -1377,14 +1414,12 @@ void asg_pop(sh *s, vec *old)
 			v_back(s, sv->w);
 		} else if (sv->v) {
 			hibr_set(s, sv->k, sv->v, sv->ex);
-			free(sv->v);
 		} else {
 			v_del(s, sv->k);
 		}
-		free(sv->k);
-		free(sv);
+		asv_put(sv);
 	}
-	v_free(old);
+	old->n = 0;
 }
 
 /* Run a process substitution and name the descriptor it reads or writes. */

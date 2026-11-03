@@ -330,6 +330,10 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   modules loaded a `[ ]` loop of 20,000 is 288M instructions against 450M.
   A module whose init fails leaves the others in the order they were
   loaded, which decides which of two modules' same-named builtins wins.
+- **A function call** keeps its frame's buffer and reuses the records that
+  save a parameter's outer value, name buffer and all, where it allocated
+  and freed each one per call: 20,000 calls of four parameters are 450M
+  instructions against 509M.
 
 ## 0.99.427
 

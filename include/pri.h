@@ -321,7 +321,9 @@ int b_strict(sh *s, int ac, char **av);
 unsigned lx_line(lex *l);
 node *fn_hfind(sh *s, const char *nm);
 
-struct sav { char *k, *v; unsigned ex; var *w; };
+struct sav { char *k, *v; unsigned ex; var *w; size_t kc; };
+struct sav *asv_new(const char *k);
+void asv_put(struct sav *sv);
 
 void asg_keep(sh *s, vec *old, const char *k);
 int asg_hide(sh *s, vec *old, const char *k);
