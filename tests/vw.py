@@ -100,6 +100,20 @@ check("with the server gone, vw unlock opens the vault kept here", rc == 0 and s
 S = {"VW_SESSION": sess}
 out, rc, err = vw("get", "username", "bank", env=S)
 check("and reads it offline", out == "pat.doe", (out, err))
+# vw match: the logins for a site, the same host first, each address by
+# its own rule -- Bank's is "host", so a sibling host does not reach it.
+out, rc, err = vw("match", "bank.example.com", env=S)
+rows = [l.split("\t") for l in out.split("\n") if l]
+check("vw match gives the same host first, then the same base domain",
+      rc == 0 and [(r[0], r[2]) for r in rows] == [("Bank", "pat.doe"), ("Example Mail", "pat")]
+      and rows[0][1] == "c0000000-0000-0000-0000-000000000002", (out, err))
+out, rc, err = vw("match", "www.example.com", env=S)
+check("an address whose rule is host does not match a sibling host",
+      rc == 0 and [l.split("\t")[0] for l in out.split("\n") if l] == ["Example Mail"], (out, err))
+out, rc, err = vw("match", "example.org", env=S)
+check("a site with no login is status 1, and says nothing", rc == 1 and out == "", (out, err))
+out, rc, err = vw("match", "bank.example.com")
+check("a locked vault is status 3", rc == 3, (out, err))
 out, rc, err = vw("unlock", stdin="nope\n")
 check("a wrong password offline opens nothing", rc != 0, (out, err))
 out, rc, err = vw("pin", "set", stdin="2468\n", env=S)
@@ -244,4 +258,4 @@ finally:
     srv3.kill()
 
 shutil.rmtree(D, True)
-report(33)
+report(37)

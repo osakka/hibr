@@ -36,12 +36,12 @@ PW = "correct horse battery staple"
 CLIPFILE = os.path.join(D, "s", "hibr", "clipboard.json")
 
 
-def session(tag, pre=""):
+def session(tag, pre="", post=""):
     sess = os.path.join(D, tag + ".hibr")
-    open(sess, "w").write("%s%s\n. %s\n. %s\n. %s\ndt_open\ndt_new Vault 20 64 1 2 vault\ndt_run\ndt_close\n" % (
+    open(sess, "w").write("%s%s\n. %s\n. %s\n. %s\n%s\ndt_open\ndt_new Vault 20 64 1 2 vault\ndt_run\ndt_close\n" % (
         load("console", "vw", "dav"), pre, tree("programs/desktop/desktop.hibr"),
         tree("programs/desktop/apps/vault.hibr"),
-        tree("programs/desktop/control-panel/vaultset.hibr")))
+        tree("programs/desktop/control-panel/vaultset.hibr"), post))
     return Term(sess, rows=30, cols=100, settle=1.5, env=ENV)
 
 
@@ -160,6 +160,52 @@ try:
 finally:
     t.quit()
 
+# --- a login picked for a site (the Browser's fill, Gitea #104) ----------
+#
+# dt_vwpick on a locked vault opens the unlock dialog and goes on from
+# there; several logins for the site are offered in the vault's picker, the
+# same host first; one is handed back without asking.
+PICK = os.path.join(D, "pick")
+PICKED = os.path.join(D, "picked")
+open(PICK, "w").write("bank.example.com\n")
+post = """vt_picked() { echo "$1" >> %s; }
+vt_picktick() {
+	local h
+	[ -r %s ] || return 0
+	read -r h < %s
+	rm -f %s
+	dt_vwpick "$h" vt_picked
+}
+dt_ticker vt_picktick""" % (PICKED, PICK, PICK, PICK)
+t = session("pick", post=post)
+try:
+    sc = waitfor(t, "Unlock the Vault")
+    check("a pick on a locked vault asks to unlock it first", sc.find("Unlock the Vault"), sc)
+    t.keys([PW.encode(), b"\r"])
+    sc = waitfor(t, "Choose a Login")
+    rows = [r for r in range(30) if "Choose a Login" not in sc.row(r) and
+            any(n in sc.row(r) for n in ("Bank", "Example Mail"))]
+    names = [next(n for n in ("Bank", "Example Mail") if n in sc.row(r)) for r in rows]
+    check("then the picker offers the site's logins, the same host first",
+          sc.find("Logins for bank.example.com") and names[:2] == ["Bank", "Example Mail"], (names, sc))
+    t.keys([b"\x1b[B", b"\r"])
+    end = time.time() + 8 * SLOW
+    while not os.path.exists(PICKED) and time.time() < end:
+        look(t, 0.3)
+    got = open(PICKED).read().split() if os.path.exists(PICKED) else []
+    check("the one chosen is handed back by id, and the picker goes",
+          got == ["c0000000-0000-0000-0000-000000000001"] and not look(t).find("Choose a Login"), (got, look(t)))
+    open(PICK, "w").write("mail.example.com\n")
+    t.keys([b"\x1b[B"])
+    end = time.time() + 8 * SLOW
+    while len(got) < 2 and time.time() < end:
+        look(t, 0.3)
+        got = open(PICKED).read().split() if os.path.exists(PICKED) else []
+    check("a site with one login gets it without a picker",
+          got[1:] == ["c0000000-0000-0000-0000-000000000001"] and not look(t).find("Choose a Login"), (got, look(t)))
+finally:
+    t.quit()
+
 leak = [os.path.join(r, f) for r, _, fs in os.walk(D) for f in fs
         if any(s in open(os.path.join(r, f), "rb").read() for s in (b"s3cr", b"b4nk-p4ss", b"h0me-w1fi", PW.encode()))]
 check("nothing decrypted, nor the password, was written anywhere", not leak, leak)
@@ -205,4 +251,4 @@ try:
 finally:
     srv2.kill()
 shutil.rmtree(D2, True)
-report(22)
+report(26)

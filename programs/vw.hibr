@@ -13,6 +13,8 @@
 #   vw sync                     fetch the vault again
 #   vw list [TEXT]              the items, or those whose name or user has TEXT
 #   vw get password|username|totp|notes|uri|item NAME-OR-ID
+#   vw match HOST               the logins whose addresses match a site:
+#                               "name TAB id TAB user", the same host first
 #   vw pin set [--keep]|clear   a PIN to unlock with; --keep survives a restart
 #   vw timeout MINUTES          lock after this long unused (0: never)
 #   vw status
@@ -297,6 +299,107 @@ fn vw_find(q) {
 	vw_die "$n items have $q in their names; give more of one, or its id"
 }
 
+# The part of a host a sign-in is shared across, as Bitwarden's default
+# "base domain" rule has it: the last two labels, or three where the last
+# two are a public suffix of their own (co.uk). A short list, not the whole
+# Public Suffix List, so a rare suffix matches more widely than Bitwarden
+# would; an address is itself.
+fn vw_base(h) {
+	local -a l
+	local two
+
+	[[ $h =~ ^[0-9.]+$ || $h == *:* ]] && { ret "$h"; return 0; }
+	IFS=. read -ra l <<< "$h"
+	[ "${#l[@]}" -le 2 ] && { ret "$h"; return 0; }
+	two="${l[-2]}.${l[-1]}"
+	case $two in
+	co.uk | org.uk | ac.uk | gov.uk | me.uk | net.uk | ltd.uk | plc.uk | \
+	com.au | net.au | org.au | edu.au | gov.au | co.nz | org.nz | net.nz | \
+	co.jp | ne.jp | or.jp | ac.jp | com.br | net.br | org.br | co.za | \
+	com.cn | com.tw | com.hk | co.in | co.kr | com.mx | com.tr | com.sg | \
+	com.my | co.id | co.il | com.ar | com.sa | com.eg | com.pk | co.th | \
+	github.io | gitlab.io | herokuapp.com | blogspot.com | appspot.com)
+		ret "${l[-3]}.$two"
+		;;
+	*) ret "$two" ;;
+	esac
+}
+
+# How well one address of an item matches a site: 2 the same host, 1 the
+# same base domain (or, for a file, any file address), 0 not at all, by
+# the address's own rule -- 0 or none base domain, 1 host, 2 starts with,
+# 3 exact, 4 a regular expression, 5 never. Only the host is known here,
+# so starts-with and exact ask for the same host.
+fn vw_urimatch(host, uri, rule) {
+	local u=${uri,,} h bh bu
+
+	[ "$rule" = 5 ] && { ret 0; return 0; }
+	if [ -z "$host" ]; then
+		[[ $u == file:* ]] && { ret 1; return 0; }
+		ret 0
+		return 0
+	fi
+	if [ "$rule" = 4 ]; then
+		[[ "https://$host/" =~ $uri ]] && { ret 2; return 0; }
+		ret 0
+		return 0
+	fi
+	[[ $u == *://* ]] && u=${u#*://}
+	u=${u%%[/?#]*}
+	u=${u##*@}
+	u=${u%.}
+	[ -n "$u" ] || { ret 0; return 0; }
+	h=${host%%:*}
+	if [ "$u" = "$host" ] || [ "${u%%:*}" = "$h" ]; then
+		ret 2
+		return 0
+	fi
+	case $rule in 1 | 2 | 3) ret 0; return 0 ;; esac
+	bh := vw_base "$h"
+	bu := vw_base "${u%%:*}"
+	[ "$bh" = "$bu" ] && { ret 1; return 0; }
+	ret 0
+}
+
+# Every login whose addresses match host, the same host first and each
+# group by name; status 1 when none does.
+fn vw_matchall(host) {
+	local i=0 n r best rule uri nm us
+	local -a same base
+
+	host=${host,,}
+	host=${host%.}
+	while [ -n "${VV["ciphers"][$i]["id"]+x}" ]; do
+		best=0
+		n=0
+		while [ "$n" -lt 64 ] && [ -n "${VV["ciphers"][$i]["login"]["uris"][$n]["uri"]+x}" ]; do
+			rule=${VV["ciphers"][$i]["login"]["uris"][$n]["match"]}
+			[ "$rule" = null ] && rule=
+			if uri := vw_field "$i" "login.uris.$n.uri"; then
+				r := vw_urimatch "$host" "$uri" "${rule:-0}"
+				[ "$r" -gt "$best" ] && best=$r
+			fi
+			n=$((n + 1))
+		done
+		if [ "$best" -gt 0 ]; then
+			nm := vw_field "$i" name
+			us := vw_field "$i" login.username || us=
+			if [ "$best" = 2 ]; then
+				same+=("$nm"$'\t'"${VV["ciphers"][$i]["id"]}"$'\t'"$us")
+			else
+				base+=("$nm"$'\t'"${VV["ciphers"][$i]["id"]}"$'\t'"$us")
+			fi
+		fi
+		i=$((i + 1))
+	done
+	[ "${#same[@]}" -gt 0 ] || [ "${#base[@]}" -gt 0 ] || return 1
+	arr sort same
+	arr sort base
+	[ "${#same[@]}" -gt 0 ] && printf '%s\n' "${same[@]}"
+	[ "${#base[@]}" -gt 0 ] && printf '%s\n' "${base[@]}"
+	return 0
+}
+
 fn vw_cmd(cmd = "", ...rest) {
 	local r h hf kdf i nm us q f t
 	local recovery grant tfa prov code cf why em
@@ -515,6 +618,15 @@ fn vw_cmd(cmd = "", ...rest) {
 		esac
 		printf '%s\n' "$f"
 		;;
+	match)
+		[ "${#rest[@]}" = 1 ] || vw_die "usage: vw match HOST" 2
+		[ -r "$VW_ACCT" ] || vw_die "no account here yet: vw server URL, then vw login EMAIL" 2
+		vw_acct
+		[ -r "$VW_VAULT" ] || vw_die "no vault here yet: vw sync" 2
+		vw_open
+		vw_vault
+		vw_matchall "${rest[0]}"
+		;;
 	pin)
 		vw_acct
 		case ${rest[0]-} in
@@ -555,7 +667,7 @@ fn vw_cmd(cmd = "", ...rest) {
 		[ -r "$VW_VAULT" ] && printf 'synced %(%F %T)T\n' "$(stat -c %Y "$VW_VAULT" 2> /dev/null || stat -f %m "$VW_VAULT" 2> /dev/null || echo 0)"
 		;;
 	*)
-		sed -n '3,17s/^# \{0,1\}//p' "$0" >&2
+		sed -n '3,19s/^# \{0,1\}//p' "$0" >&2
 		return 2
 		;;
 	esac

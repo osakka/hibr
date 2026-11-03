@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.431
+
+**The vault fills sign-ins** (#104), with the Browser's half in
+hibr-browser 0.5.29 / Browser 2.35.
+- `vw match HOST` lists the logins for a site -- name, id and user -- the
+  same host first, then the same base domain, each address by its own match
+  rule as Bitwarden has it (base domain by default, host, starts with,
+  exact, a regular expression, never). Status 1 for none, 2 with no account
+  or vault, 3 when locked.
+- `dt_vwmatch HOST` asks it for an application, from a job; `dt_vwpick HOST
+  callback` lets the person choose among several in a small picker, the
+  same host first, and hands the chosen id to the callback. A locked vault
+  is unlocked first, through the Vault's own dialog, and the pick goes on
+  once it is; closing that dialog cancels it.
+
 ## 0.99.430
 
 **Module ABI 17** (#463): a map entry and a variable are 56 bytes, where

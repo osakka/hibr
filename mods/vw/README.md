@@ -16,6 +16,8 @@ vw lock                     forget the key
 vw sync                     fetch the vault again
 vw list [TEXT]              id, name and user of every item, or those with TEXT
 vw get password|username|totp|notes|uri|item NAME-OR-ID
+vw match HOST               the logins for a site: name, id and user, the same
+                            host first
 vw pin set [--keep]|clear   a PIN to unlock with; --keep survives a restart
 vw timeout MINUTES          lock after this long unused (0: never; 15 by default)
 vw status
@@ -25,6 +27,16 @@ vw status
 Bitwarden's own CLI hands out `BW_SESSION`: `eval "$(vw unlock)"` keeps
 the shell unlocked. A command that finds the vault locked exits 3, a
 usage error 2, anything else that fails 1.
+
+`vw match` follows each address's own match rule, as Bitwarden does: base
+domain unless the item says otherwise (`mail.example.com` matches a page on
+`www.example.com`), host, starts with and exact (all three compare the host
+here, since that is all a caller gives), a regular expression, or never.
+The base domain is the last two labels, or three under a two-part suffix
+such as `co.uk`, from a short list rather than the whole Public Suffix
+List. An empty host matches `file:` addresses. It exits 1 when nothing
+matches and 2 when there is no account or vault yet; a locked vault is 3,
+as everywhere.
 
 ## Online and offline
 
@@ -90,6 +102,15 @@ for all of it -- the session key is exported, so a Terminal window opened
 afterwards can use `vw` too -- and what is copied from the vault leaves the
 clipboard after a while and never reaches the clipboard history. See the
 desktop's own README under Passwords.
+
+An application can fill a sign-in from it (the Browser does): `m :=
+dt_vwmatch HOST` gives `vw match`'s lines with status 0, 1 for none and 2
+for a vault that is locked or absent -- it runs `vw`, so call it from a job
+(`dt_jobvars`), never from a frame; `dt_vwpick HOST callback` lets the
+person choose among several, unlocking first through the Vault's own
+dialog when it must, and calls `callback ID` with the one chosen (directly,
+when there is only one); and `dt_vwget username|password ID` reads the
+value into `DT_VWOUT`, through a pipe and never a file.
 
 ## Two-step login
 

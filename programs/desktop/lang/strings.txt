@@ -266,6 +266,7 @@ Check the server's certificate
 Checkboxes
 Checking for mail…
 Checking…
+Choose a Login
 Choose a server for contacts first, in Control Panel > PIM
 Clean Up Desktop
 Clear
@@ -472,6 +473,7 @@ Empty the Trash? The one item in it is deleted for good.
 End Task
 End Task (force)
 Engine For New Tabs
+Enter fills it; escape cancels
 Enter to go on
 Enter: do it  Esc: back
 Evaluate
@@ -674,6 +676,7 @@ Logging in…
 Login Manager
 Login Screen Message
 Login Screen Title
+Logins for %s
 Look
 Look Again
 Look for Devices
@@ -1247,6 +1250,7 @@ The time is HH:MM or HH:MM:SS
 The timeout could not be set
 The tour is not installed
 The vault has locked
+The vault has no login for %s
 The vault is empty.
 The vault is locked
 The vault is locked.
@@ -1262,6 +1266,7 @@ There is already a program called %s
 There is no file %s
 There is no folder %s
 There is no group called %s
+There is no vault: log in to one in the Vault accessory
 There was nothing to read
 This Computer
 This Desktop

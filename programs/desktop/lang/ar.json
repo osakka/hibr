@@ -1,12 +1,17 @@
 {
  "dir": "rtl",
- "version": "3.72",
+ "version": "3.73",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
  "strings": {
   " %s Compose ": " %s إنشاء ",
   " %s wants %s ": " %s يطلب %s ",
+  "Choose a Login": "اختر بيانات دخول",
+  "Enter fills it; escape cancels": "Enter يملؤها، وEscape يلغي",
+  "Logins for %s": "بيانات الدخول لـ %s",
+  "The vault has no login for %s": "لا تحتوي الخزنة على بيانات دخول لـ %s",
+  "There is no vault: log in to one in the Vault accessory": "لا توجد خزنة: سجّل الدخول إلى واحدة من أداة الخزنة",
   "\"%s\" is not here": "«%s» غير موجود هنا",
   "%H %M %S %l %p %a %d %b %Y, as strftime": "%H %M %S %l %p %a %d %b %Y، كما في strftime",
   "%d step failed": {

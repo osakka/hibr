@@ -58,6 +58,12 @@ VWJ_PASS=
 VWJ_VERIFY=0
 VWJ_CODE=
 VWJ_USEPIN=0
+# A pick asked for while the vault was locked: the site and who to tell,
+# taken up once the unlock it opened succeeds, forgotten if it is closed.
+DT_VWPICKH=
+DT_VWPICKCB=
+# The picker's windows: each one's site, choices and selection.
+declare -gA VWP
 VWJ_KEEP=0
 # When a copied password leaves the clipboard.
 DT_CLIPSECRET=0
@@ -342,6 +348,159 @@ fn dt_vwget(field, id) {
 	dt_vwerrs "$st" "$ef"
 	return "$st"
 }
+
+# The unlocked vault's logins for a site, "name TAB id TAB user" a line, the
+# same host first: status 0 for some, 1 for none, 2 when the vault is
+# locked or there is none. It runs vw, so call it from a job, never from a
+# frame: an app asks when a page with a sign-in form arrives (Gitea #104's
+# fill, with the Browser).
+fn dt_vwmatch(host) {
+	local st ef out
+
+	dt_vwdirs
+	ef="$DT_VWRUN/desk.$$.match.err"
+	DT_VWERR=
+	out=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" match "$host" 2> "$ef" < /dev/null)
+	st=$?
+	dt_vwerrs "$st" "$ef"
+	case $st in
+	0) ret "$out" ;;
+	1) return 1 ;;
+	esac
+	return 2
+}
+
+# Let the person choose which of a site's logins to use, and hand its id to
+# callback; nothing is called if they close the picker. A locked vault is
+# unlocked first, through the Vault's own dialog, and the pick goes on from
+# there; one login is chosen without asking.
+fn dt_vwpick(host, callback) {
+	local s m n id h w
+	local -a l
+
+	s := dt_vwstate
+	case $s in
+	absent | none)
+		dt_notep low "There is no vault: log in to one in the Vault accessory"
+		return 0
+		;;
+	locked)
+		DT_VWPICKH=$host
+		DT_VWPICKCB=$callback
+		id := dt_vwdialog unlock
+		return 0
+		;;
+	esac
+	m := dt_vwmatch "$host"
+	case $? in
+	0) ;;
+	2)
+		DT_VWPICKH=$host
+		DT_VWPICKCB=$callback
+		id := dt_vwdialog unlock
+		return 0
+		;;
+	*)
+		dt_notep low "The vault has no login for %s" "${host:-this page}"
+		return 0
+		;;
+	esac
+	IFS=$'\n' read -d '' -ra l <<< "$m"
+	n=${#l[@]}
+	if [ "$n" = 1 ]; then
+		m=${l[0]#*$'\t'}
+		"$callback" "${m%%$'\t'*}"
+		return 0
+	fi
+	h=$((n + 5))
+	[ "$h" -gt 16 ] && h=16
+	w=56
+	dt_dlgat "$h" "$w"
+	id := dt_new "Choose a Login" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" vwp
+	VWP[$id]["host"]=$host
+	VWP[$id]["cb"]=$callback
+	VWP[$id]["n"]=$n
+	VWP[$id]["sel"]=0
+	VWP[$id]["top"]=0
+	n=0
+	for m in "${l[@]}"; do
+		VWP[$id]["l$n"]=$m
+		n=$((n + 1))
+	done
+	return 0
+}
+
+fn vwp_draw(int id, int h, int w, int row, int col) {
+	local n=${VWP[$id]["n"]} s=${VWP[$id]["sel"]} top=${VWP[$id]["top"]} vis=$((h - 4))
+	local i r=3 nm x us uw nw line e
+
+	dt_wclear "$id"
+	console pen "$DT_DIM" "$DT_FACE"
+	line := dt_tr "Logins for %s" "${VWP[$id]["host"]:-this page}"
+	line := dt_cut "$line" $((w - 4))
+	console put -p "w$id" 1 2 "$line"
+	top := dt_scrollfit "$top" "$n" "$vis" "$s"
+	VWP[$id]["top"]=$top
+	uw=$((w / 3))
+	nw=$((w - uw - 4))
+	i=$top
+	while [ "$i" -lt "$n" ] && [ "$r" -lt $((3 + vis)) ]; do
+		IFS=$'\t' read -r nm x us <<< "${VWP[$id]["l$i"]}"
+		nm := dt_cut " $nm" $((nw - 1))
+		line := str pad "$nm" "$nw"
+		us := dt_cut "$us" $((uw - 1))
+		e := str pad "$us" "$uw"
+		if [ "$i" = "$s" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" 1 "$line "
+		[ "$i" = "$s" ] || console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" $((nw + 2)) "$e "
+		dt_wreg "$id" "$r" 1 $((w - 2)) "row$i"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	console pen "$DT_DIM" "$DT_FACE"
+	r=$((h - 1))
+	dt_tput "$id" "$r" 2 "Enter fills it; escape cancels"
+}
+
+fn vwp_key(int id, k) {
+	local s=${VWP[$id]["sel"]} n=${VWP[$id]["n"]}
+
+	case $k in
+	up) [ "$s" -gt 0 ] && VWP[$id]["sel"]=$((s - 1)) ;;
+	down) [ "$s" -lt $((n - 1)) ] && VWP[$id]["sel"]=$((s + 1)) ;;
+	home) VWP[$id]["sel"]=0 ;;
+	end) VWP[$id]["sel"]=$((n - 1)) ;;
+	enter) vwp_choose "$id" "$s" ;;
+	escape) dt_del "$id" ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+fn vwp_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	row*) vwp_choose "$id" "${tag#row}" ;;
+	esac
+}
+
+# Hand the chosen login's id to whoever asked, once the picker is gone.
+fn vwp_choose(int id, int i) {
+	local m=${VWP[$id]["l$i"]} cb=${VWP[$id]["cb"]}
+
+	m=${m#*$'\t'}
+	dt_del "$id"
+	"$cb" "${m%%$'\t'*}"
+}
+
+fn vwp_close(int id) { unset VWP["$id"]; }
 
 # Start a sync, unless a vault job is running; by hand, it says how it
 # went. The list is read again in the same job.
@@ -721,8 +880,14 @@ fn vwd_done(int n, int st) {
 	pin) dt_notep low "The PIN is set" ;;
 	*) dt_notep low "The vault is unlocked" ;;
 	esac
+	local ph=$DT_VWPICKH pc=$DT_VWPICKCB
+	DT_VWPICKCB=
 	dt_del "$id"
+	[ "$m" = unlock ] && [ -n "$pc" ] && dt_vwpick "$ph" "$pc"
 	return 0
 }
 
-fn vwd_close(int id) { unset VWD["$id"]; }
+fn vwd_close(int id) {
+	[ "${VWD[$id]["mode"]-}" = unlock ] && DT_VWPICKCB=
+	unset VWD["$id"]
+}

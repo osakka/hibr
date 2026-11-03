@@ -113,7 +113,7 @@ CIPHERS = [
     {"id": "c0000000-0000-0000-0000-000000000002", "type": 1, "folderId": None, "key": enc(IK, UK),
      "name": enc("Bank", IK), "notes": enc("the one with the card", IK),
      "login": {"username": enc("pat.doe", IK), "password": enc("b4nk-p4ss", IK), "totp": None,
-               "uris": [{"uri": enc("https://bank.example.com", IK)}]},
+               "uris": [{"uri": enc("https://bank.example.com", IK), "match": 1}]},
      "revisionDate": "2026-10-02T00:00:00Z"},
     {"id": "c0000000-0000-0000-0000-000000000003", "type": 2, "folderId": FOLDER, "key": None,
      "name": enc("Wifi", UK), "notes": enc("network: home\npassword: h0me-w1fi", UK), "login": None,
