@@ -188,6 +188,11 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 			DT_FIELD["anc"]=${#text}
 		[ -z "$DT_FDPEND" ] || dt_fdtake "$id" "$r" "$c" "$w"
 		dt_fieldnote "$id $r $c" "$text" "$cur"
+	elif [ "${DT_FIELD["at"]}" = "$id $r $c" ]; then
+		# Drawn without the keys it shows its start, so it forgets how far
+		# it was scrolled: a click on it is placed against the start, and
+		# the next draw with the keys must agree with what was clicked.
+		DT_FIELD["off"]=0
 	fi
 	shown="${text:$off:$w}"
 	console pen "$DT_INK" "$DT_FACE"

@@ -1,8 +1,8 @@
 #!/usr/bin/env hibr
 #
 # wm/ask -- a question with one line of text for an answer: a small window
-# with a label, a field, an optional line of help, OK and Cancel (Gitea
-# #357). The size review found eight copies of this dialog written out by
+# with a label, a field, optional help wrapped to the window, OK and Cancel
+# (Gitea #357). The size review found eight copies of this dialog written out by
 # hand, each its own keys, focus ring and click-to-cursor.
 #
 #   dt_ask TITLE LABEL VALUE CALLBACK [HINT] [MASKED] [WIDTH] [CANCELLED]
