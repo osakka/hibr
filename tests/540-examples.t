@@ -458,6 +458,18 @@ grep -rnE --include=*.hibr '\(\(\(?DT_ROWS *(/ *2 *-|- *[a-z0-9]+\) */ *2)' \
 	sed 's/^/centred on the whole screen, not with dt_dlgat: /'
 echo "every dialog is placed with dt_dlgat"
 
+# Everything drawn as a window -- a window, a note that follows the windows,
+# the confirm box -- wears one chrome, drawn by dt_chrome in wm/frame.hibr
+# and nowhere else (#102). A second drawer was how the confirm box came to
+# wear a single line under a theme whose windows have none: it copied the
+# frame's line style and found no lines. So no file but frame.hibr reads
+# the windows' frame. A note in a frame style of its own (Notifications >
+# Frame) is a different box, by choice, and reads its own.
+grep -rlnE --include=*.hibr 'DT_FRAMES\[\$\{?DT_FRAME|=\$\{?DT_FRAME\b' programs/desktop |
+	grep -v '/wm/frame\.hibr$' |
+	sed 's/^/draws a window frame of its own, not through dt_chrome: /'
+echo "window chrome is drawn by dt_chrome alone"
+
 # A window's _wheel is told up, down, left or right: the window manager
 # strips "wheel" from the action before it calls one (wm/input.hibr).
 # Contacts and Diagram matched wheelup and the rest, so their wheels had

@@ -99,7 +99,7 @@ fn wp_init(int id) {
 	[ -d "$d" ] && [ -r "$d" ] || d=${HOME:-/}
 	FP[$id]["types"]=$WPK_TYPES
 	FP[$id]["ti"]=0
-	WPK[$id]["last"]=-1
+	dt_dblclear
 	fp_go "$id" "$d" || fp_go "$id" /
 	WPK[$id]["previewfor"]=
 }
@@ -123,7 +123,7 @@ fn wp_goto(int id, dir) {
 		d="${d%/}/$dir"
 	fi
 	fp_go "$id" "$d" || return 0
-	WPK[$id]["last"]=-1
+	dt_dblclear
 	WPK_DIR=${FP[$id]["dir"]}
 	command -v dt_save > /dev/null && dt_save
 	wp_refresh "$id"
@@ -419,12 +419,10 @@ fn wp_apply(int id) {
 	command -v dt_note > /dev/null && dt_notep low "Wallpaper set"
 }
 
-# A click selects a row; a second click on the same, already-selected row
-# either enters the directory or applies the image -- the same
-# select-then-activate convention panel.hibr's own generic row list and
-# files.hibr's own file list both already use, tracked the same way:
-# WPK[$id]["last"] (reset to -1 on every directory change, so a
-# stale index from the old listing can never falsely count as a repeat).
+# A click selects a row; a double click on it (dt_isdbl, named by the row,
+# so a slow second click only selects) enters the directory or applies the
+# image, as in Files. A directory change forgets a first click
+# (dt_dblclear), so an index from the old listing never counts.
 fn wallpick_click(int id, int r, int c, btn = "") {
 	local bx=${WPK[$id]["bx"]} listw=${WPK[$id]["listw"]} n i tag
 
@@ -444,7 +442,7 @@ fn wallpick_click(int id, int r, int c, btn = "") {
 	n=${FP[$id]["n"]}
 	i=$((FP[$id]["top"] + r - 2))
 	[ "$i" -ge "$n" ] && return 0
-	if [ "$i" = "${FP[$id]["sel"]}" ] && [ "$i" = "${WPK[$id]["last"]}" ]; then
+	if dt_isdbl "$id" "$i" && [ "$i" = "${FP[$id]["sel"]}" ]; then
 		if wp_isdir "$id" "$i"; then
 			wp_goto "$id" "${FP[$id]["e$i"]}"
 		else
@@ -453,6 +451,5 @@ fn wallpick_click(int id, int r, int c, btn = "") {
 		return 0
 	fi
 	FP[$id]["sel"]=$i
-	WPK[$id]["last"]=$i
 	wp_refresh "$id"
 }

@@ -242,7 +242,7 @@ fn fb_scan(int id) {
 	FB[$id]["cgen"]=$((${FB[$id]["cgen"]:-0} + 1))
 	FB[$id]["top"]=0
 	FB[$id]["sel"]=0
-	FB[$id]["last"]=-1
+	dt_dblclear
 	FB[$id]["meta"]=
 	FB[$id]["marks"]=0
 	FB[$id]["anchor"]=0
@@ -328,7 +328,7 @@ fn fb_rscan(int id, d) {
 	FB[$id]["lgen"]=$((${FB[$id]["lgen"]:-0} + 1))
 	FB[$id]["top"]=0
 	FB[$id]["sel"]=0
-	FB[$id]["last"]=-1
+	dt_dblclear
 	FB[$id]["meta"]=1
 	FB[$id]["marks"]=0
 	FB[$id]["anchor"]=0
@@ -2632,15 +2632,14 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 				fb_mark "$id" "$i" 1
 			fi
 			FB[$id]["anchor"]=$i
-			FB[$id]["last"]=-1
+			dt_dblclear
 			;;
 		*shift*)
 			fb_range "$id" "${FB[$id]["anchor"]}" "$i"
-			FB[$id]["last"]=-1
+			dt_dblclear
 			;;
 		*)
-			if [ "$i" = "${FB[$id]["sel"]}" ] &&
-			   [ "$i" = "${FB[$id]["last"]}" ] &&
+			if dt_isdbl "$id" "$i" && [ "$i" = "${FB[$id]["sel"]}" ] &&
 			   [ "${FB[$id]["marks"]}" = 0 ]; then
 				case $mods in
 				*alt*) fb_open "$id" alt ;;
@@ -2654,7 +2653,6 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 				fb_clear "$id"
 			fi
 			FB[$id]["anchor"]=$i
-			FB[$id]["last"]=$i
 			;;
 		esac
 		FB[$id]["sel"]=$i

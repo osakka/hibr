@@ -271,8 +271,14 @@ check("a click selects the row it landed on",
       sc.find("4 of %d" % ENTRIES) is not None, sc)
 
 sc = run("files", FW, [press(3, 10), press(3, 10)], pre=PRE)
-check("a second click on the same row enters the directory, which says it is empty",
+check("a double click on a row enters the directory, which says it is empty",
       sc.find("Empty") is not None and sc.find(" alpha/") is None, sc)
+# Two clicks further apart than a double click are two clicks: the second
+# on the row already selected keeps it selected and opens nothing (owner:
+# any later click on the selected row used to open it).
+sc = run("files", FW, [press(3, 10), 0.8, press(3, 10)], pre=PRE)
+check("a slow second click on the selected row opens nothing",
+      sc.find(" alpha/") == (3, 3) and sc.find("Empty") is None, sc)
 
 sc = run("files", FW, [press(3, 10), press(3, 10), b"\x7f"], pre=PRE)
 check("backspace goes back up", sc.find(" alpha/") == (3, 3) and
@@ -3286,6 +3292,15 @@ check("a drag in a terminal selects, and alt-c copies it everywhere",
 check("and alt-v pastes it back into the program",
       "row 30" in sc.row(14), sc)
 
+# A selection is lit while it is drawn out, not only once something forces
+# a whole frame: a terminal window is left undrawn while its program says
+# nothing new, and selecting used to say nothing either, so the owner was
+# selecting blind until opening a menu showed what had been chosen.
+sc = run(*TERM, feed=[press(3, 3), drag(3, 8), 0.4], pre=LONG, wait=1.0, end=None)
+check("a selection is drawn while it is dragged out, before any menu or key",
+      sc.find("row 30") == (3, 3) and
+      sc.p[3][3] != sc.p[4][3], (sc.p[3][3], sc.p[4][3], sc))
+
 # Copy on Select (Control Panel > Terminal): the release copies, the text
 # stays lit, and the next key only puts it out -- the program never sees
 # it. Off, a release copies nothing.
@@ -6236,4 +6251,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(804)
+report(806)

@@ -28,25 +28,37 @@ fn dt_confirm(msg, cmd, owner = "") {
 	return 0
 }
 
-# A small window of its own, not just a coloured box: a border and a
-# title bar, the same shapes dt_win draws, at an absolute position rather
-# than a pane's, since this has no pane and takes no drag or resize. Its
-# buttons are drawn onto the screen (widgets/button.hibr's "root") and
-# found again by dt_hit under the same name, so the box a click is tested
-# against is the one that was drawn.
+# A small window of its own, not just a coloured box: the windows' own
+# chrome (dt_chrome), at an absolute position rather than a pane's, since
+# this has no pane and takes no drag or resize. The question is wrapped to
+# at most DT_CONFIRMW columns, or the display's width less a margin, and
+# the box grows a row for each line, so a long one is read rather than cut
+# off at the screen's edge. Its buttons are drawn onto the screen
+# (widgets/button.hibr's "root") and found again by dt_hit under the same
+# name, so the box a click is tested against is the one that was drawn.
+# The lines are left in DT_FITLINES for dt_confirm_draw.
+DT_CONFIRMW=60
 dt_confirm_geom() {
-	local msg=$DT_CONFIRM w h y0 x0 bw
+	local msg=$DT_CONFIRM w h y0 x0 bw tw=$DT_CONFIRMW
+	local o=$DT_CONFIRM_OWNER
 
 	bw := dt_btnw Yes No
-	w=$((${#msg} + 6))
-	[ "$w" -lt $((bw + 6)) ] && w=$((bw + 6))
-	h=7
+	# The display it opens on decides how wide it may be.
+	if [ -n "$o" ] && [ -n "${DT[$o]["row"]+x}" ]; then
+		dt_windisp "$o"
+	else
+		dt_dispat "${DT_PRIMARY_ROW:-0}" "${DT_PRIMARY_COL:-0}"
+	fi
+	[ "$tw" -gt $((DTW_W - 8)) ] && tw=$((DTW_W - 8))
+	dt_textfit "$msg" "$bw" "$tw" 1 $((DTW_H - 8))
+	w=$((DT_FITW + 6))
+	h=$((DT_FITH + 6))
 	# Over the window that asked, on its display; the desktop's own on
 	# the primary, centred there in both directions -- DT_ROWS is the
 	# whole union, so half of it is the middle of somebody else's
 	# display when the primary is a stacked pane (Gitea #240, #390).
-	if [ -n "$DT_CONFIRM_OWNER" ]; then
-		dt_dlgfor "$DT_CONFIRM_OWNER" "$h" "$w" 0
+	if [ -n "$o" ]; then
+		dt_dlgfor "$o" "$h" "$w" 0
 		ret "$DT_DLGR $DT_DLGC $DT_DLGW $DT_DLGH"
 		return 0
 	fi
@@ -62,22 +74,29 @@ fn dt_confirm_hit(int mr, int mc) {
 }
 
 dt_confirm_draw() {
-	local msg=$DT_CONFIRM w h y0 x0 g bw t
+	local msg=$DT_CONFIRM w h y0 x0 g bw t l i=0 lw cap=0
 
 	[ -z "$msg" ] && return 0
 	g := dt_confirm_geom
 	read -r y0 x0 w h <<< "$g"
-	# The windows' own chrome, as a focused window's (#102): their frame
-	# or none, their title bar, their see-through face.
+	# The windows' own chrome, as a focused window's (#102): their shadow,
+	# their see-through face, their frame or none and their title bar.
+	[ "$DT_SHADOW" = 1 ] && dt_castshadow "$y0" "$x0" "$h" "$w"
+	dt_chromeface "$y0" "$x0" "$h" "$w"
+	[ "$DT_FRAME" = none ] && cap=1
 	t := dt_tr "Confirm"
-	dt_chromebox "$y0" "$x0" "$h" "$w" "$t" "${DT_TITLE:-$DT_ACTIVE}"
+	dt_chrome "" "$y0" "$x0" "$h" "$w" "$t" "${DT_TITLE:-$DT_ACTIVE}" "$cap"
 	dt_chromein on
 	console pen "$DT_INK" "$DT_FACE" bold
-	console put $((y0 + 2)) $((x0 + (w - ${#msg}) / 2)) "$msg"
+	for l in "${DT_FITLINES[@]}"; do
+		lw := str width "$l"
+		console put $((y0 + 2 + i)) $((x0 + (w - lw) / 2)) "$l"
+		i=$((i + 1))
+	done
 	dt_chromein off
 	dt_wclear root
 	bw := dt_btnw Yes No
-	dt_buttons root $((y0 + 4)) $((x0 + (w - bw) / 2)) \
+	dt_buttons root $((y0 + h - 3)) $((x0 + (w - bw) / 2)) \
 		"$DT_CONFIRM_FOCUS" y Yes n No
 }
 

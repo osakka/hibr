@@ -38,6 +38,8 @@ DT_FIELD["cur"]=0
 DT_FIELD["anc"]=
 DT_FIELD["at"]=
 DT_FIELD["rect"]=
+# How far the focused field is scrolled: the character at its left edge.
+DT_FIELD["off"]=0
 # Whether the field was drawn focused the last time its window was drawn:
 # set here, cleared by dt_fieldstale before every draw of that window. A
 # window whose focus has moved from its field to a button draws the field
@@ -157,11 +159,24 @@ dt_fieldlive() {
 }
 
 fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = "") {
-	local shown t ch lo hi
+	local shown t ch lo hi off=0 most
 
 	DT_TEXTAT["$id"]+="$r $c $w|"
 	if [ "$focused" = 1 ]; then
-		[ "${DT_FIELD["at"]}" = "$id $r $c" ] || DT_FIELD["anc"]=
+		if [ "${DT_FIELD["at"]}" = "$id $r $c" ]; then
+			off=${DT_FIELD["off"]:-0}
+		else
+			DT_FIELD["anc"]=
+		fi
+		# Scrolled only as far as keeps the cursor in the box, and no
+		# further than leaves the end of the text and the cell after it
+		# showing, so taking text away brings what is left back into view.
+		[ "$cur" -lt "$off" ] && off=$cur
+		[ "$w" -gt 0 ] && [ "$cur" -gt $((off + w - 1)) ] && off=$((cur - w + 1))
+		most=$((${#text} + 1 - w))
+		[ "$most" -lt 0 ] && most=0
+		[ "$off" -gt "$most" ] && off=$most
+		DT_FIELD["off"]=$off
 		DT_FIELD["at"]="$id $r $c"
 		DT_FIELD["rect"]="$r $c $w"
 		DT_FIELD["id"]=$id
@@ -174,22 +189,23 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 		[ -z "$DT_FDPEND" ] || dt_fdtake "$id" "$r" "$c" "$w"
 		dt_fieldnote "$id $r $c" "$text" "$cur"
 	fi
-	shown="$text"
-	[ ${#shown} -gt "$w" ] && shown="${shown:0:$w}"
+	shown="${text:$off:$w}"
 	console pen "$DT_INK" "$DT_FACE"
 	t := str pad "$shown" "$w"
 	console put -p "w$id" "$r" "$c" "$t"
 	# The selection, in the colours a selected row wears.
 	if [ "$focused" = 1 ] && lo := dt_fieldrange; then
-		hi=${lo#* }
-		lo=${lo% *}
+		hi=$((${lo#* } - off))
+		lo=$((${lo% *} - off))
+		[ "$lo" -lt 0 ] && lo=0
 		[ "$hi" -gt "${#shown}" ] && hi=${#shown}
 		if [ "$lo" -lt "$hi" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 			console put -p "w$id" "$r" $((c + lo)) "${shown:$lo:$((hi - lo))}"
 		fi
 	fi
-	if [ "$focused" = 1 ] && [ "$cur" -lt "$w" ]; then
+	cur=$((cur - off))
+	if [ "$focused" = 1 ] && [ "$cur" -ge 0 ] && [ "$cur" -lt "$w" ]; then
 		ch=" "
 		[ "$cur" -lt "${#shown}" ] && ch="${shown:$cur:1}"
 		console pen "$DT_FACE" "$DT_INK" bold
@@ -416,7 +432,7 @@ fn dt_fdmove(id, int c, int ext) {
 	local fr fc fw t cur=${DT_FIELD["cur"]:-0} n=${#DT_FIELD["text"]} p=
 
 	read -r fr fc fw <<< "${DT_FIELD["rect"]}"
-	t=$((c - fc))
+	t=$((c - fc + ${DT_FIELD["off"]:-0}))
 	[ "$t" -lt 0 ] && t=0
 	[ "$t" -gt "$n" ] && t=$n
 	# A plain move lets any selection go first: left over one goes to its
@@ -491,10 +507,10 @@ fn dt_fdwordch(ch) {
 # Select the word at pane column c of window id's focused field; on a blank
 # or a punctuation mark, that one character.
 fn dt_fdword(id, int c) {
-	local fr fc fw t=${DT_FIELD["text"]} i lo hi
+	local fr fc fw t=${DT_FIELD["text"]} i lo hi off=${DT_FIELD["off"]:-0}
 
 	read -r fr fc fw <<< "${DT_FIELD["rect"]}"
-	i=$((c - fc))
+	i=$((c - fc + off))
 	[ "$i" -ge "${#t}" ] && i=$((${#t} - 1))
 	[ "$i" -ge 0 ] || return 0
 	lo=$i
@@ -507,8 +523,8 @@ fn dt_fdword(id, int c) {
 			hi=$((hi + 1))
 		done
 	fi
-	dt_fdmove "$id" $((fc + lo)) 0
-	dt_fdmove "$id" $((fc + hi)) 1
+	dt_fdmove "$id" $((fc + lo - off)) 0
+	dt_fdmove "$id" $((fc + hi - off)) 1
 }
 
 # Select the whole of window id's focused field.

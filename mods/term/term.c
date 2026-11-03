@@ -876,6 +876,8 @@ int m_term(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "select")) {
 		if (ac > 3 && !strcmp(av[3], "none")) {
+			if (m->sel)
+				m->gen++;
 			m->sel = 0;
 			return HIBR_OK;
 		}
@@ -885,6 +887,7 @@ int m_term(sh *s, int ac, char **av)
 			return 2;
 		}
 		tm_selset(m, atoi(av[4]), atoi(av[5]), av[3][0] == 's');
+		m->gen++;
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "copy")) {

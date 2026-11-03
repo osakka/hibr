@@ -254,69 +254,144 @@ fn dt_wapp(int id) {
 	ret "$c"
 }
 
-# A window's chrome at screen coordinates, for what draws itself as a
-# window without being one -- a note that follows the windows, the confirm
-# box (#102): the face, see-through as the windows' are; their frame, or
-# none; and their title bar, a line, solid or curved, holding title in the
-# colour on. The inside is the caller's, rows 1 to h-2 and columns 1 to
-# w-2, and so is the translucency it draws its face-coloured text with
-# (dt_chromein). Under Charcoal a box that only copied the frame's line
-# style found no lines for "none" and fell back to a plain single box with
-# no title bar: the one thing on the screen that was not the theme.
-fn dt_chromebox(int r, int c, int h, int w, title, on) {
-	local ts=0 bar i tl tr bl br fv tc tdl=" " tdr=" " tink=${DT_TITLEINK:-$DT_SELINK}
+# What the chrome's settings come to, worked out again only when one of
+# them changes, since every window drawn asks: DT_CSIDE, the side the
+# buttons sit on, and DT_CALIGN, how the title is aligned, both mirrored
+# for a right-to-left language; DT_CTS 1 when the title bar is a filled row
+# of the frame's colour -- a solid or curved one, or any under a solid
+# frame, whose top edge is that bar -- where a line title sits in the
+# frame's own top line, or on the face with no border. Asked per window as
+# two functions it cost a forced three-window frame 8%.
+DT_CKEY=
+DT_CSIDE=right
+DT_CALIGN=left
+DT_CTS=0
+dt_chromecfg() {
+	local k="$DT_BTNSIDE $DT_TITLEALIGN $DT_MIRRORON $DT_TITLEBAR $DT_FRAME"
 
+	[ "$k" = "$DT_CKEY" ] && return 0
+	DT_CKEY=$k
+	DT_CSIDE=$DT_BTNSIDE
+	DT_CALIGN=$DT_TITLEALIGN
+	if [ "$DT_MIRRORON" = 1 ]; then
+		case $DT_CSIDE in left) DT_CSIDE=right ;; *) DT_CSIDE=left ;; esac
+		case $DT_CALIGN in right) DT_CALIGN=left ;; center) ;; *) DT_CALIGN=right ;; esac
+	fi
+	DT_CTS=0
+	{ [ "$DT_TITLEBAR" != line ] || [ "$DT_FRAME" = solid ]; } && DT_CTS=1
+	return 0
+}
+
+# The face of a box drawn as a window, see-through as the windows' are, for
+# what is not a window and so has no pane the window manager fills.
+fn dt_chromeface(int r, int c, int h, int w) {
 	dt_chromein on
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$r" "$c" "$h" "$w" " "
 	dt_chromein off
-	{ [ "$DT_TITLEBAR" != line ] || [ "$DT_FRAME" = solid ]; } && ts=1
-	if [ "$DT_FRAME" = solid ]; then
-		console pen "$DT_SELINK" "$on"
-		console fill "$r" "$c" 1 "$w" " "
-		console fill $((r + h - 1)) "$c" 1 "$w" " "
-		console fill "$r" "$c" "$h" 1 " "
-		console fill "$r" $((c + w - 1)) "$h" 1 " "
-	elif [ -n "${DT_FRAMES[$DT_FRAME]["tl"]+x}" ]; then
-		tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
-		bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
-		fv=${DT_FRAMES[$DT_FRAME]["v"]}
-		bar := dt_rep $((w - 2)) "${DT_FRAMES[$DT_FRAME]["h"]}"
-		console pen "$on" "$DT_FACE"
-		console put "$r" "$c" "$tl$bar$tr"
-		console put $((r + h - 1)) "$c" "$bl$bar$br"
-		i=1
-		while [ "$i" -lt $((h - 1)) ]; do
-			console put $((r + i)) "$c" "$fv"
-			console put $((r + i)) $((c + w - 1)) "$fv"
-			i=$((i + 1))
-		done
-		[ "$ts" = 0 ] && { tdl=${GL[teel]}; tdr=${GL[teer]}; }
+}
+
+# The chrome of everything drawn as a window -- a window, a note that
+# follows the windows, the confirm box -- and the only code that draws it
+# (#102): the border of the theme's frame, or none, the title bar, and the
+# title. A window draws into its pane, rows and columns from 0; anything
+# else at screen coordinates, with pane empty. on is the frame's colour,
+# cap 1 for a box with no border (Frame none), grow 1 for the grow box in
+# its bottom right corner, and bw the width of the button cluster its
+# caller puts on the title bar, 0 for none. Answers "bc ts": the column the
+# cluster goes in, and 1 when the title bar is filled.
+fn dt_chrome(pane, int r, int c, int h, int w, title, on, int cap = 0, int grow = 0, int bw = 0) {
+	local -a at=()
+	local ts bar tl tr bl br fv side align bc tc0 room tc tmax
+	local tink=${DT_TITLEINK:-$DT_SELINK} tbg=$DT_FACE tfg=$on tdl tdr
+
+	[ -n "$pane" ] && at=(-p "$pane")
+	dt_chromecfg
+	ts=$DT_CTS side=$DT_CSIDE align=$DT_CALIGN
+	if [ "$cap" = 0 ]; then
+		if [ "$DT_FRAME" = solid ]; then
+			console pen "$DT_SELINK" "$on"
+			bar := dt_rep "$w" " "
+			console put "${at[@]}" "$r" "$c" "$bar"
+			console put "${at[@]}" $((r + h - 1)) "$c" "$bar"
+			if [ "$h" -gt 2 ]; then
+				console fill "${at[@]}" $((r + 1)) "$c" $((h - 2)) 1 " "
+				console fill "${at[@]}" $((r + 1)) $((c + w - 1)) $((h - 2)) 1 " "
+			fi
+		elif [ -n "${DT_FRAMES[$DT_FRAME]["tl"]+x}" ]; then
+			tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
+			bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
+			fv=${DT_FRAMES[$DT_FRAME]["v"]}
+			bar := dt_rep $((w - 2)) "${DT_FRAMES[$DT_FRAME]["h"]}"
+			console pen "$on" "$DT_FACE"
+			console put "${at[@]}" "$r" "$c" "$tl$bar$tr"
+			console put "${at[@]}" $((r + h - 1)) "$c" "$bl$bar$br"
+			# Each side one fill, not a put a row: a window's border
+			# was two calls for every row it has.
+			if [ "$h" -gt 2 ]; then
+				console fill "${at[@]}" $((r + 1)) "$c" $((h - 2)) 1 "$fv"
+				console fill "${at[@]}" $((r + 1)) $((c + w - 1)) $((h - 2)) 1 "$fv"
+			fi
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		# A fixed window keeps the plain corner the border just drew
+		# instead of the grow box: no drag can resize it, so nothing
+		# should invite one.
+		[ "$grow" = 1 ] &&
+			console put "${at[@]}" $((r + h - 1)) $((c + w - 1)) "${GL[grow]}"
 	fi
+	# A filled title bar is the frame's own colour, and the title on it in
+	# the title's ink. A curved one has its outer top corners rounded off,
+	# in the bar's colour over whatever is behind, with a cell that has only
+	# that corner cut -- which no ordinary font has: Blit's own (blit#140).
+	# A glyph set without one leaves capl blank, and the ends are square.
 	if [ "$ts" = 1 ]; then
+		tbg=$on
+		tfg=$tink
+		bar := dt_rep "$w" " "
 		console pen "$tink" "$on"
-		console fill "$r" "$c" 1 "$w" " "
+		console put "${at[@]}" "$r" "$c" "$bar"
 		if [ "$DT_TITLEBAR" = curved ] && [ "${GL[capl]}" != " " ]; then
 			console pen "$on" default
-			console put "$r" "$c" "${GL[capl]}"
-			console put "$r" $((c + w - 1)) "${GL[capr]}"
+			console put "${at[@]}" "$r" "$c" "${GL[capl]}"
+			console put "${at[@]}" "$r" $((c + w - 1)) "${GL[capr]}"
 		fi
-		console pen "$tink" "$on" bold
-	else
-		console pen "$on" "$DT_FACE" bold
 	fi
-	[ -n "$title" ] || return 0
-	[ ${#title} -gt $((w - 6)) ] && title=${title:0:$((w - 6))}
-	case $DT_TITLEALIGN in
-	center) tc=$((c + (w - ${#title} - 4) / 2)) ;;
-	right) tc=$((c + w - ${#title} - 6)) ;;
-	*) tc=$((c + 2)) ;;
+	# Room for the title is measured from the button cluster's own real
+	# position and width, not a style's worst case, so a centred or
+	# right-aligned title lands on the real boundary.
+	if [ "$side" = left ]; then
+		bc=$((c + 1))
+		tc0=$((bc + bw))
+		room=$((c + w - 1 - tc0 - 4))
+	else
+		bc=$((c + w - 1 - bw))
+		tc0=$((c + 2))
+		room=$((bc - tc0 - 4))
+	fi
+	[ "$room" -lt 0 ] && room=0
+	[ ${#title} -gt "$room" ] && title="${title:0:$room}"
+	tmax=$((tc0 + room - ${#title}))
+	case $align in
+	# Centred on the bar's own full width, not on the room left once the
+	# cluster is excluded -- which pushes the title away from the buttons
+	# by half the cluster's width and reads as off-centre -- and clamped
+	# into the room the cluster keeps clear.
+	center) tc=$((c + 1 + (w - 6 - ${#title}) / 2))
+		[ "$tc" -lt "$tc0" ] && tc=$tc0
+		[ "$tc" -gt "$tmax" ] && tc=$tmax ;;
+	right)  tc=$tmax ;;
+	*)      tc=$tc0 ;;
 	esac
-	console put "$r" "$tc" "$tdl $title $tdr"
+	tdl=${GL[teel]} tdr=${GL[teer]}
+	{ [ "$ts" = 1 ] || [ "$cap" = 1 ]; } && { tdl=" "; tdr=" "; }
+	console pen "$tfg" "$tbg" bold
+	console put "${at[@]}" "$r" "$tc" "$tdl $title $tdr"
+	ret "$bc $ts"
 }
 
 # Turn on or off the see-through the windows' faces have, for what a
-# dt_chromebox's caller draws on its face.
+# what is drawn on a dt_chromeface.
 fn dt_chromein(how) {
 	[ "${DT_WINTRANS:-0}" != 0 ] || return 0
 	if [ "$how" = on ]; then
@@ -484,89 +559,23 @@ fn dt_win(int id) {
 	[ "${DT_WINTRANS:-0}" != 0 ] && console translucent off
 	DT_NOTEWIN=
 
-	# The title row is a filled bar of the frame's own colour under a
-	# solid or curved title bar, and under a solid frame, whose top edge
-	# is that bar; a line title sits in the frame's own top line, or,
-	# with no border, on the window's face.
-	local ts=0
-	{ [ "$DT_TITLEBAR" != line ] || [ "$DT_FRAME" = solid ]; } && ts=1
-	# The border, for a frame that has one: a ring of glyphs, or under
-	# solid a ring of whole cells in the frame's colour. None has no
-	# border at all.
-	if [ "$cap" = 0 ]; then
-		local bar r=1
-		if [ "$DT_FRAME" = solid ]; then
-			console pen "$DT_SELINK" "$on"
-			bar := dt_rep "$w" " "
-			console put -p "w$id" 0 0 "$bar"
-			console put -p "w$id" $((h - 1)) 0 "$bar"
-			while [ "$r" -lt $((h - 1)) ]; do
-				console put -p "w$id" "$r" 0 " "
-				console put -p "w$id" "$r" $((w - 1)) " "
-				r=$((r + 1))
-			done
-		else
-			console pen "$on" "$DT_FACE"
-			local tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
-			local bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
-			local fh=${DT_FRAMES[$DT_FRAME]["h"]} fv=${DT_FRAMES[$DT_FRAME]["v"]}
-			bar := dt_rep $((w - 2)) "$fh"
-			console put -p "w$id" 0 0 "$tl$bar$tr"
-			console put -p "w$id" $((h - 1)) 0 "$bl$bar$br"
-			while [ "$r" -lt $((h - 1)) ]; do
-				console put -p "w$id" "$r" 0 "$fv"
-				console put -p "w$id" "$r" $((w - 1)) "$fv"
-				r=$((r + 1))
-			done
-			console pen "$DT_INK" "$DT_FACE"
-		fi
-		# A fixed window keeps the plain corner the border just drew
-		# instead of the grow box: no drag can resize it, so nothing
-		# should invite one.
-		[ "$fixed" != 1 ] &&
-			console put -p "w$id" $((h - 1)) $((w - 1)) "${GL[grow]}"
-	fi
+	# The frame, the title bar and the title are dt_chrome's, the one
+	# drawer of everything that looks like a window; the buttons are the
+	# window's own. On a filled bar everything on it is in the title's ink.
+	local bs bc ts off i tbg=$DT_FACE bink=$DT_INK cr t=${DT[$id]["title"]}
 
-	local bs bc off i tbg=$DT_FACE tfg=$on bink=$DT_INK
-	local tink=${DT_TITLEINK:-$DT_SELINK}
-	# A filled title bar is the frame's own colour, and everything on it --
-	# the title, a button drawn in ink -- is drawn in the title's ink,
-	# DT_SELINK unless the scheme gives one. A curved one has its outer
-	# top corners rounded off, in the bar's colour over whatever is behind
-	# the window, with a cell that has only that corner cut -- which no
-	# ordinary font has (a half circle rounds the bottom too): Blit's own
-	# (blit#140). A glyph set without one leaves capl blank, and the ends
-	# are square, as a solid bar's are.
-	if [ "$ts" = 1 ]; then
-		tbg=$on
-		tfg=$tink
-		bink=$tink
-		local sb
-		sb := dt_rep "$w" " "
-		console pen "$tink" "$on"
-		console put -p "w$id" 0 0 "$sb"
-		if [ "$DT_TITLEBAR" = curved ] && [ "${GL[capl]}" != " " ]; then
-			console pen "$on" default
-			console put -p "w$id" 0 0 "${GL[capl]}"
-			console put -p "w$id" 0 $((w - 1)) "${GL[capr]}"
-		fi
-	fi
-	local side=$DT_BTNSIDE align=$DT_TITLEALIGN
-
-	case $DT_MIRRORON in
-	1)
-		case $side in left) side=right ;; *) side=left ;; esac
-		case $align in right) align=left ;; center) ;; *) align=right ;; esac
-		;;
-	esac
-	dt_btnorder "$DT_BTNSTYLE" "$fixed" "$side"
-	# On a solid bar, or with no border, the tick marks a style wraps its
+	dt_chromecfg
+	dt_btnorder "$DT_BTNSTYLE" "$fixed" "$DT_CSIDE"
+	# On a filled bar, or with no border, the tick marks a style wraps its
 	# cluster in are box-drawing glyphs with no line to sit on, and stay
 	# undrawn, though the buttons they wrap keep working.
-	{ [ "$ts" = 1 ] || [ "$cap" = 1 ]; } &&
-		{ BTN_DL=" "; BTN_DR=" "; }
+	{ [ "$DT_CTS" = 1 ] || [ "$cap" = 1 ]; } && { BTN_DL=" "; BTN_DR=" "; }
 	bs := dt_btnstr
-	if [ "$side" = left ]; then bc=1; else bc=$((w - 1 - ${#bs})); fi
+	case $DT_LANG in ?*) t := dt_trtitle "$t" ;; esac
+	cr := dt_chrome "w$id" 0 0 "$h" "$w" "$t" "$on" "$cap" $((fixed != 1)) "${#bs}"
+	bc=${cr% *}
+	ts=${cr#* }
+	[ "$ts" = 1 ] && { tbg=$on; bink=${DT_TITLEINK:-$DT_SELINK}; }
 	console pen "$bink" "$tbg"
 	console put -p "w$id" 0 "$bc" "$bs"
 	if [ "$fixed" = 1 ]; then off=(1 3); else off=(1 3 5); fi
@@ -578,44 +587,6 @@ fn dt_win(int id) {
 		fi
 		i=$((i + 1))
 	done
-
-	# Room for the title is measured from the button cluster's own real
-	# position and width, not a style's worst case -- a fixed window's
-	# five-wide cluster leaves two columns more than a movable one's seven,
-	# and a centred or right-aligned title has to land on the real
-	# boundary or it reads as off-centre once anything narrower than the
-	# widest cluster is in play.
-	local t=${DT[$id]["title"]} tc0 room tc tmax
-
-	case $DT_LANG in ?*) t := dt_trtitle "$t" ;; esac
-	if [ "$side" = left ]; then
-		tc0=$((bc + ${#bs}))
-		room=$((w - 1 - tc0 - 4))
-	else
-		tc0=2
-		room=$((bc - tc0 - 4))
-	fi
-	[ ${#t} -gt "$room" ] && t="${t:0:$room}"
-	tmax=$((tc0 + room - ${#t}))
-	case $align in
-	# Centred on the bar's own full width, not on the room left over once
-	# the button cluster is excluded -- centring in that remaining room
-	# pushes the title away from the buttons by about half the cluster's
-	# own width, which is exactly what reads as off-centre, and in the
-	# opposite direction depending on which side the buttons are docked.
-	# Still clamped into the same safe range the button cluster already
-	# keeps clear, so a long title still cannot run into it.
-	center) tc=$((1 + (w - 6 - ${#t}) / 2))
-		[ "$tc" -lt "$tc0" ] && tc=$tc0
-		[ "$tc" -gt "$tmax" ] && tc=$tmax ;;
-	right)  tc=$tmax ;;
-	*)      tc=$tc0 ;;
-	esac
-	local tdl="${GL[teel]}" tdr="${GL[teer]}"
-	{ [ "$ts" = 1 ] || [ "$cap" = 1 ]; } &&
-		{ tdl=" "; tdr=" "; }
-	console pen "$tfg" "$tbg" bold
-	console put -p "w$id" 0 "$tc" "$tdl $t $tdr"
 
 	# Held down and still over the one that was pressed: the glyph alone
 	# changes colour, no block behind it -- a grey one takes the theme's

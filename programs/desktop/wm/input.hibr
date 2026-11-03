@@ -1361,21 +1361,34 @@ fn dt_event(k) {
 }
 
 # Whether this press in a window is the second of a double click: another
-# press in the same window within DT_DBLMS. An app's _click asks it for
-# itself; the window manager asks it for a window with no chrome.
+# press in the same window, on the same item when the caller names one,
+# within DT_DBLMS. An app's _click asks it for itself; the window manager
+# asks it for a window with no chrome. A list names the row, so a press on
+# the selected row long after it was selected is a click and not an open --
+# Files kept its own untimed "pressed this row last" and opened a file on
+# any second click, however slow.
 DT_DBLWIN=
+DT_DBLITEM=
 DT_DBLWT=0
-fn dt_isdbl(int id) {
+fn dt_isdbl(int id, item = "") {
 	local now
 
 	now := dt_ms
-	if [ "$DT_DBLWIN" = "$id" ] && [ $((now - DT_DBLWT)) -lt "$DT_DBLMS" ]; then
+	if [ "$DT_DBLWIN" = "$id" ] && [ "$DT_DBLITEM" = "$item" ] &&
+	   [ $((now - DT_DBLWT)) -lt "$DT_DBLMS" ]; then
 		DT_DBLWIN=
 		return 0
 	fi
 	DT_DBLWIN=$id
+	DT_DBLITEM=$item
 	DT_DBLWT=$now
 	return 1
+}
+
+# Forget a first click: what it was on has changed, or a press with a
+# modifier came between.
+dt_dblclear() {
+	DT_DBLWIN=
 }
 
 # Milliseconds, for telling a double click from two.

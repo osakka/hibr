@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.99.436
+
+**One drawer for everything that looks like a window** (#102, owner: "no
+hackiness"). 0.99.435 drew notes and the confirm box with `dt_chromebox`,
+a second copy of the frame and title-bar code inside `dt_win`, which is
+how two looks drift apart. `dt_chrome` is the only code that draws a
+frame, a title bar and a title now: a window draws into its pane, a note
+or the confirm box at screen coordinates, through the same calls, and
+`tests/540-examples.t` fails on any other file reading the windows' frame.
+The confirm box casts the windows' shadow, as they do. It is faster than
+what it replaced: each side of a border is one `console fill` rather than
+two puts a row, and the settings it reads are worked out once, not per
+window -- 373 us a window drawn against 398, measured side by side in one
+session.
+- **A long question wraps.** The confirm box wraps its message (at most 60
+  columns, or the display less a margin) and grows a row a line; a
+  prompt's hint wraps to the dialog and the dialog grows to hold it
+  (longwire's report: hints and questions were cut at the edge).
+- **A narrow text field scrolls** to keep the cursor in view (owner:
+  longwire's Routes and Name servers): what was typed past the edge is
+  shown, home brings the start back, and a click, a double click or a
+  drag lands on the character under it. One widget, `dt_textdraw`, so
+  every one-line field in the desktop.
+- **A terminal's selection is drawn while it is dragged out** (owner: "I'm
+  highlighting blind"). Selecting changed nothing a terminal window is
+  redrawn for, so it showed only once something forced a frame -- opening
+  the menu to Copy. `term select` moves the window's generation now.
+- **A double click is two clicks on the same row within the double-click
+  time** (owner, Files). Files and the wallpaper picker opened the selected
+  row on any second click, however long after; `dt_isdbl` takes the row
+  now, and both ask it.
+- A gate check read a blank first frame under the sanitizers' load; it
+  waits for its note.
+
 ## 0.99.435
 
 **Notes and the confirm box look like the windows** (#102, owner,

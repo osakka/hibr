@@ -535,7 +535,10 @@ its `_draw` given the whole window's size and drawing from row and column
 0; any press on it moves it, a double click reaches its `_click` with
 `double` as the button, and a right click its `_context`. The YouTube mini
 player is one. An app's own `_click` can ask `dt_isdbl "$id"` whether a
-press is the second of a double click. `once`
+press is the second of a double click, and a list names the row as well --
+`dt_isdbl "$id" "$row"` -- so a later click on the row already selected is
+only a click; `dt_dblclear` forgets a first click when the list changes
+under it. Files and the wallpaper picker open this way. `once`
 means one window at most: launching it again brings that window forward,
 shown if it was hidden. The calculator, Control Panel, the clock and the games
 are `once`; the terminal and the file browser are `many`. The icon is what

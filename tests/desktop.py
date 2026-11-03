@@ -133,6 +133,18 @@ check("and a callback that refuses the answer keeps the question open",
 sc, _ = run(ASKS % (ASKD, '1'), [b"x"])
 check("a masked question draws its answer as stars",
       sc.find("****") is not None and sc.find("Adax") is None, sc)
+# A field narrower than what is typed into it scrolls to keep the cursor in
+# view (owner, longwire's Routes and Name servers): the end of what was typed
+# shows and its start has gone by, and home brings the start back.
+LONGT = b"abcdefghijklmnopqrstuvwxyz0123456789"
+sc, _ = run(ASKS.replace('"Who you are" %s', '"Who you are" %s 24') % (ASKD, '""'),
+            [b"\x15", LONGT])
+check("a narrow field scrolls with what is typed: its end shows, its start has gone",
+      sc.find("3456789") is not None and sc.find("abcdef") is None, sc)
+sc, _ = run(ASKS.replace('"Who you are" %s', '"Who you are" %s 24') % (ASKD, '""'),
+            [b"\x15", LONGT, b"\x1b[H"])
+check("and home scrolls it back to its start",
+      sc.find("abcdef") is not None and sc.find("3456789") is None, sc)
 shutil.rmtree(ASKD, True)
 
 # dt_job, the desktop's one runner for background work (wm/jobs.hibr): the
@@ -376,9 +388,12 @@ def barshadow_run(env=None):
     open(path, "w").write("%s. %s\ndt_open\ndt_run\ndt_close\n" % (load(MOD), WM))
     t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
              cols=COLS, settle=0.6)
+    # What was drawn before the quitting keys: the Quit box they open is a
+    # window's look, shadow and all (#102), and no part of the bar's.
+    raw = bytes(t.raw)
     t.quit(b"qy", 1.0)
     os.unlink(path)
-    return t.raw
+    return raw
 
 
 raw_barshadow = barshadow_run(env={"DT_SHADOWSHAPE": "cols"})
@@ -3818,6 +3833,51 @@ def confirmat():
 
 confirmat()
 
+# A long question is wrapped and the box grows to hold it (longwire's
+# report): every word is on the screen, on more than one row, and the box
+# casts the windows' own shadow along its bottom (#102).
+LONGQ = ("Delete the profile Office and everything it remembers about the "
+         "line, its routes and its name servers, for good?")
+sc = confirmshot('dt_new "Hello" 8 20 2 2\ndt_confirm "%s" true desktop\n' % LONGQ)
+first, last = sc.find("Delete the profile"), sc.find("for good?")
+yes = sc.find(" Yes ")
+check("a long question is wrapped onto more rows, every word of it shown",
+      first is not None and last is not None and last[0] > first[0], sc)
+check("and the confirm box casts the windows' shadow under its bottom edge",
+      yes is not None and
+      (sc.g[yes[0] + 3][yes[1]], sc.p[yes[0] + 3][yes[1]]) !=
+      (sc.g[yes[0] + 3][0], sc.p[yes[0] + 3][0]), sc)
+# One drawer for everything drawn as a window (#102): the confirm box's
+# title bar is a focused window's, cell for cell -- glyph and pen -- under
+# a filled title bar with no frame and under a line one with a frame.
+def barmatch(pre):
+    sc = confirmshot(pre + 'dt_new "Hello" 8 20 2 2\n'
+                     'dt_confirm "Delete this?" true desktop\n')
+    at = sc.find(" Confirm ")
+    if at is None:
+        return False, sc
+    # The cell just left of each title is the bar's own; Hello's window is
+    # focused, so both are drawn in the focused title's colour.
+    hl = sc.find(" Hello ")
+    if hl is None:
+        return False, sc
+    a, b = (at[0], at[1] - 1), (hl[0], hl[1] - 1)
+    return (sc.g[a[0]][a[1]] == sc.g[b[0]][b[1]] and
+            sc.p[a[0]][a[1]] == sc.p[b[0]][b[1]]), sc
+ok, sc = barmatch('DT_FRAME=none\nDT_TITLEBAR=solid\n')
+check("the confirm box's title bar is a window's, with no frame and a solid bar", ok, sc)
+ok, sc = barmatch('DT_FRAME=double\nDT_TITLEBAR=line\n')
+check("and with a double frame and a line title bar", ok, sc)
+
+# A prompt's hint is wrapped too, and the prompt grows to hold it.
+sc, _ = run('fn hint_got(v, int id) { return 0; }\n'
+            'dt_ask "Routes" "Networks" "" hint_got "networks to reach through '
+            'the gateway, like 192.168.150.0/24 10.20.0.0/16, separated by commas '
+            'or spaces; empty for none"\n')
+first, last = sc.find("networks to reach"), sc.find("empty for none")
+check("a prompt's long hint is wrapped onto more rows, every word shown",
+      first is not None and last is not None and last[0] > first[0], sc)
+
 
 # A window deleted from inside a frame (Gitea #408): Boxer closed a finished
 # game's window with dt_del from its _dirty, the frame went on drawing from
@@ -4097,7 +4157,9 @@ check("and the panel says so too",
       t.screen())
 t.quit(None, 0.5); shutil.rmtree(d, True)
 t, d = dotrun('dt_note "On its own"')
-sc = t.screen()
+# Waited for: under a sanitizer gate's load the first frame can still be
+# blank when a plain screen() is taken, and the check then read nothing.
+sc = t.until("On its own")
 r = sc.find("On its own")
 check("one the desktop makes on its own is from the Desktop",
       r is not None and "Desktop" in sc.row(r[0] - 1), sc)
@@ -8851,4 +8913,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(944)
+report(951)

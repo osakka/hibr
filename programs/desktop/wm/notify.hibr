@@ -281,25 +281,19 @@ fn dt_notehist_add(int id) {
 dt_note_draw() {
 	local id now age w h r c t n=0 top bar f used i k ar ac arows acols gx
 	local wmin wmax hmin hmax hopen
-	local col vl fr follow=
+	local col vl fr follow= ncap
 
 	# The frame every note is drawn in this frame: the windows' own unless
 	# one was chosen, and with the windows frameless a note still has one.
-	# Same as Windows draws the window's whole chrome (dt_chromebox): its
+	# Same as Windows draws the window's whole chrome (dt_chrome): its
 	# title bar, curved or solid, its see-through face, its frame or none
 	# -- copying only the frame's line style was what made a note under
 	# Charcoal a plain single box (#102).
 	fr=$DT_NOTEFRAME
 	[ "$fr" = windows ] && follow=1
-	# A window's solid frame is a ring round its face, which a note
-	# calls solid reversed; a note's own solid is one block of colour.
-	if [ "$fr" = windows ]; then
-		fr=$DT_FRAME
-		[ "$fr" = solid ] && fr=solidrev
-	fi
 	local ring=0
 	case $fr in solid|solidrev) ring=1 ;; esac
-	[ -n "${DT_FRAMES[$fr]["tl"]+x}" ] || [ "$ring" = 1 ] || fr=single
+	[ -n "$follow" ] || [ -n "${DT_FRAMES[$fr]["tl"]+x}" ] || [ "$ring" = 1 ] || fr=single
 	local -a keep areas
 
 	now := dt_ms
@@ -391,7 +385,10 @@ dt_note_draw() {
 			# focused window's colour, or the priority's when high.
 			if [ -n "$follow" ]; then
 				[ "$col" = "$DT_ACTIVE" ] && col=${DT_TITLE:-$DT_ACTIVE}
-				dt_chromebox "$r" "$c" "$h" "$w" "$f" "$col"
+				dt_chromeface "$r" "$c" "$h" "$w"
+				ncap=0
+				[ "$DT_FRAME" = none ] && ncap=1
+				dt_chrome "" "$r" "$c" "$h" "$w" "$f" "$col" "$ncap"
 				if [ -n "${DT_NOTEQ[$id]["cut"]}" ]; then
 					dt_fitmark $((r + h - 1)) "$c" "$w"
 				elif [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
