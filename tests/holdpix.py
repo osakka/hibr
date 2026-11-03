@@ -1556,8 +1556,11 @@ check("a display that cannot take frames puts the picture on the terminal for al
 def sidebyside(env1, env2):
     open(LOG, "w").close()
     nm = name()
-    body = ("i=0\nwhile [ $i -lt %d ]; do c := hold clients 2> /dev/null; "
-            "n=0; while read -r x; do [ -n \"$x\" ] && n=$((n + 1)); done <<< \"$c\"; "
+    # Both displays listed is not both displays answered: the second's
+    # frame socket says hello after it has joined, so under a gate's load
+    # `hold descriptors` once read "two no" -- wait for the answers.
+    body = ("i=0\nwhile [ $i -lt %d ]; do d := hold descriptors 2> /dev/null; "
+            "n=0; while read -r x y; do [ \"$y\" = yes ] && n=$((n + 1)); done <<< \"$d\"; "
             "[ $n -ge 2 ] && break; console key 100 > /dev/null; i=$((i + 1)); done\n"
             "d := hold descriptors\necho \"fd [$d]\" >> %s\n"
             "case \"$d\" in ''|*' no'*) console imgfd off ;; *) console imgfd hold ;; esac\n"

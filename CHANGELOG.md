@@ -19,6 +19,14 @@ changes; 731 lines of C go.
   is the one, and hcal and salat now read a `\u` escape in a calendar or
   method file, which they took as text before. Their identical folder
   walks are `mods/jsondir.c`.
+- **Network 1.3**, in the catalogue: Rescan finds networks that came into
+  reach -- it only asked NetworkManager to look, and nothing read what it
+  found until the desktop started again -- and a network that wants you to
+  sign in first says so, with a click that opens its page in the Browser;
+  the list offers Sign In to This Network while it does, and the network
+  menu always on Wi-Fi.
+- tests/holdpix.py waited for two displays to be listed where it meant
+  both to have answered, and once read "two no" under a gate's load.
 
 ## 0.99.433
 
