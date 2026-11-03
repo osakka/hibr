@@ -1030,19 +1030,6 @@ int b_accept(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Quote an argument for re-parsing. */
-void net_q(str *o, const char *a)
-{
-	s_ch(o, '\'');
-	for (; *a; a++) {
-		if (*a == '\'')
-			s_cat(o, "'\\''");
-		else
-			s_ch(o, *a);
-	}
-	s_ch(o, '\'');
-}
-
 /* Record one end of a coprocess under a readable key and a bash one. */
 void cp_slot(sh *s, const char *nm, const char *key, int idx, int fd)
 {
@@ -1103,7 +1090,7 @@ int b_coproc(sh *s, int ac, char **av)
 	for (; i < ac; i++) {
 		if (cmd.n)
 			s_ch(&cmd, ' ');
-		net_q(&cmd, av[i]);
+		s_sq(&cmd, av[i]);
 	}
 	if (s->jobs.n)
 		jc_tidy(s);
@@ -1241,7 +1228,7 @@ int b_listen(sh *s, int ac, char **av)
 		s_init(&cmd);
 		s_cat(&cmd, av[i + 1]);
 		s_ch(&cmd, ' ');
-		net_q(&cmd, peer);
+		s_sq(&cmd, peer);
 		free(peer);
 		if (forky) {
 			fflush(0);

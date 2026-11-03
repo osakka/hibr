@@ -262,6 +262,25 @@ int xslicek(sh *s, part *p, vec *keys, vec *lst, long *len)
 	return 0;
 }
 
+/* An array's elements for ${a[@]:off:len} into lst, and where the slice
+   starts and how long it is: an indexed array is sliced by its keys, an
+   associative one by position. */
+void xaslice(sh *s, part *p, char **ks, int nk, vec *lst, long *off, long *len)
+{
+	v_list(s, p->t, ks, nk, lst, 0);
+	*off = -1;
+	if (!xassoc(s, p->t) && nk <= 1) {
+		vec *kl = vb_get(s);
+
+		v_list(s, p->t, ks, nk, kl, 1);
+		if (!xslicek(s, p, kl, lst, len))
+			*off = 0;
+		vb_put(s, kl);
+	}
+	if (*off < 0)
+		xslice(s, p, lst->n, off, len);
+}
+
 /* One element's value; a scalar is its own element 0, as in bash. */
 const char *xgetk(sh *s, const char *nm, char **ks, int nk)
 {
@@ -305,8 +324,9 @@ void xputv(sh *s, part *p, str *b, str *m, const char *t, size_t n)
 }
 #endif
 
-/* Expand a word into a single joined string. */
-char *xone(sh *s, word *w)
+/* Expand a word to one field, as a scalar assignment or a pattern (fl:
+   HIBR_XONE or HIBR_XPAT, which keeps quoted characters literal). */
+char *xonef(sh *s, word *w, int fl)
 {
 	vec *o;
 	char *r;
@@ -314,25 +334,22 @@ char *xone(sh *s, word *w)
 	if (!w)
 		return ar_dup(s->xa, "", 0);
 	o = vb_get(s);
-	xw(s, w, o, HIBR_XONE);
+	xw(s, w, o, fl);
 	r = o->n ? (char *)o->p[0] : ar_dup(s->xa, "", 0);
 	vb_put(s, o);
 	return r;
 }
 
+/* Expand a word into a single joined string. */
+char *xone(sh *s, word *w)
+{
+	return xonef(s, w, HIBR_XONE);
+}
+
 /* Expand a word into a match pattern, keeping quoted characters literal. */
 char *xpat(sh *s, word *w)
 {
-	vec *o;
-	char *r;
-
-	if (!w)
-		return ar_dup(s->xa, "", 0);
-	o = vb_get(s);
-	xw(s, w, o, HIBR_XPAT);
-	r = o->n ? (char *)o->p[0] : ar_dup(s->xa, "", 0);
-	vb_put(s, o);
-	return r;
+	return xonef(s, w, HIBR_XPAT);
 }
 
 /* The number of characters a pattern always matches, or -1 when it can
@@ -1119,17 +1136,7 @@ void xvar(sh *s, part *p, str *b, str *m)
 		if (all && p->op == V_SUBSTR) {
 			vec *lst = vb_get(s);
 			long off, len;
-			v_list(s, p->t, ks, nk, lst, 0);
-			off = -1;
-			if (!xassoc(s, p->t) && nk <= 1) {
-				vec *kl = vb_get(s);
-				v_list(s, p->t, ks, nk, kl, 1);
-				if (!xslicek(s, p, kl, lst, &len))
-					off = 0;
-				vb_put(s, kl);
-			}
-			if (off < 0)
-				xslice(s, p, lst->n, &off, &len);
+			xaslice(s, p, ks, nk, lst, &off, &len);
 			xlist(s, p, b, m, lst, (size_t)off, (size_t)(off + len),
 			      xstar(ks, nk));
 			vb_put(s, lst);
@@ -1309,14 +1316,7 @@ char *xquote(sh *s, const char *v, int bs)
 			s_ch(&o, *p);
 		}
 	} else if (!ctl) {
-		s_ch(&o, '\'');
-		for (p = v; *p; p++) {
-			if (*p == '\'')
-				s_cat(&o, "'\\''");
-			else
-				s_ch(&o, *p);
-		}
-		s_ch(&o, '\'');
+		s_sq(&o, v);
 	} else {
 		s_cat(&o, "$'");
 		for (p = v; *p; p++) {
@@ -2624,17 +2624,7 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 			if (!all)
 				goto normal;
 			lst = vb_get(s);
-			v_list(s, p0->t, ks, nk, lst, 0);
-			off = -1;
-			if (!xassoc(s, p0->t) && nk <= 1) {
-				vec *kl = vb_get(s);
-				v_list(s, p0->t, ks, nk, kl, 1);
-				if (!xslicek(s, p0, kl, lst, &len))
-					off = 0;
-				vb_put(s, kl);
-			}
-			if (off < 0)
-				xslice(s, p0, lst->n, &off, &len);
+			xaslice(s, p0, ks, nk, lst, &off, &len);
 			for (k2 = off; k2 < off + len; k2++)
 				xoutq(s, out, outm, (char *)lst->p[k2],
 				      strlen((char *)lst->p[k2]));

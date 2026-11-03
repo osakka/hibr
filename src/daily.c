@@ -63,7 +63,7 @@ void al_set(sh *s, const char *k, const char *v)
 /* Quote one argument so it survives being re-parsed. */
 void al_quote(str *o, const char *a, const char *mk)
 {
-	const char *p;
+	const char *p, *q;
 
 	if (mk) {
 		for (p = a; *p; p++) {
@@ -74,13 +74,11 @@ void al_quote(str *o, const char *a, const char *mk)
 				s_ch(o, *p);
 				continue;
 			}
+			q = p;
+			while (*p && mk[p - a])
+				p++;
 			s_ch(o, '\'');
-			for (; *p && mk[p - a]; p++) {
-				if (*p == '\'')
-					s_cat(o, "'\\''");
-				else
-					s_ch(o, *p);
-			}
+			s_sqb(o, q, p - q);
 			s_ch(o, '\'');
 			p--;
 		}
@@ -89,14 +87,7 @@ void al_quote(str *o, const char *a, const char *mk)
 		return;
 	}
 	if (!*a || strchr(a, '\n')) {
-		s_ch(o, '\'');
-		for (p = a; *p; p++) {
-			if (*p == '\'')
-				s_cat(o, "'\\''");
-			else
-				s_ch(o, *p);
-		}
-		s_ch(o, '\'');
+		s_sq(o, a);
 		return;
 	}
 	for (p = a; *p; p++) {
@@ -126,20 +117,6 @@ int al_run(sh *s, const char *body, int ac, char **av, char **am)
 	return st;
 }
 
-/* Write a value in single quotes, each quote of its own as '\'', which is
-   how bash prints an alias and what reads back as the same text. */
-void al_sq(str *o, const char *v)
-{
-	s_ch(o, '\'');
-	for (; *v; v++) {
-		if (*v == '\'')
-			s_cat(o, "'\\''");
-		else
-			s_ch(o, *v);
-	}
-	s_ch(o, '\'');
-}
-
 /* Print one alias as the command that defines it. */
 void al_print(const char *k, const char *v)
 {
@@ -149,7 +126,7 @@ void al_print(const char *k, const char *v)
 	s_cat(&o, "alias ");
 	s_cat(&o, k);
 	s_ch(&o, '=');
-	al_sq(&o, v);
+	s_sq(&o, v);
 	puts(o.p);
 	s_free(&o);
 }
@@ -1511,7 +1488,7 @@ int cmd_what(sh *s, const char *nm, int vb)
 			s_cat(&o, "alias ");
 			s_cat(&o, nm);
 			s_ch(&o, '=');
-			al_sq(&o, al_get(s, nm));
+			s_sq(&o, al_get(s, nm));
 		}
 	} else if (k == NK_FUNC) {
 		s_cat(&o, nm);

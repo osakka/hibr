@@ -365,6 +365,8 @@ void s_cat(str *s, const char *p);
 void s_ch(str *s, int c);
 void s_free(str *s);
 void s_num(str *s, long v);
+void s_sqb(str *s, const char *p, size_t n);
+void s_sq(str *s, const char *p);
 void s_fmt(str *s, const char *f, ...);
 void v_add(vec *v, void *x);
 void v_free(vec *v);

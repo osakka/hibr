@@ -27,6 +27,8 @@ void lg_jstr(str *o, const char *t)
 			s_cat(o, "\\n");
 		} else if (c == '\t') {
 			s_cat(o, "\\t");
+		} else if (c == '\r') {
+			s_cat(o, "\\r");
 		} else if (c < 0x20) {
 			s_cat(o, "\\u00");
 			s_ch(o, "0123456789abcdef"[c >> 4]);
@@ -478,6 +480,29 @@ void s_fmt(str *s, const char *f, ...)
 	va_end(ap);
 }
 
+/* Append n bytes as the inside of a single-quoted word: each quote of
+   their own as '\'', the one thing a single quote cannot hold. */
+void s_sqb(str *s, const char *p, size_t n)
+{
+	const char *e = p + n, *q;
+
+	while (p < e && (q = memchr(p, '\'', e - p))) {
+		s_add(s, p, q - p);
+		s_cat(s, "'\\''");
+		p = q + 1;
+	}
+	s_add(s, p, e - p);
+}
+
+/* Append a string as one single-quoted word, which reads back as itself
+   wherever the shell parses it again. */
+void s_sq(str *s, const char *p)
+{
+	s_ch(s, '\'');
+	s_sqb(s, p, strlen(p));
+	s_ch(s, '\'');
+}
+
 /* Append a signed number in decimal. */
 void s_num(str *s, long v)
 {
@@ -519,6 +544,17 @@ ssize_t io_rdall(int fd, void *buf, size_t n)
 		if (r >= 0 || errno != EINTR)
 			return r;
 	}
+}
+
+/* Append everything left on a descriptor to o, to its end of file. */
+void io_rdto(int fd, str *o)
+{
+	char *buf = xm(HIBR_IOCH);
+	ssize_t n;
+
+	while ((n = io_rdall(fd, buf, HIBR_IOCH)) > 0)
+		s_add(o, buf, (size_t)n);
+	free(buf);
 }
 
 /* write everything, and never let a peer that has gone kill the shell.

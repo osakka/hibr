@@ -1053,9 +1053,8 @@ char *xcapfile(sh *s, const char *src)
 	const char *p = src;
 	amark m;
 	node *nd;
-	char *path, *buf, *r = 0;
+	char *path, *r = 0;
 	str o;
-	ssize_t n;
 	int fd;
 
 	while (*p == ' ' || *p == '\t' || *p == '\n')
@@ -1080,10 +1079,7 @@ char *xcapfile(sh *s, const char *src)
 		return ar_dup(s->xa, "", 0);
 	}
 	s_init(&o);
-	buf = xm(HIBR_IOCH);
-	while ((n = io_rdall(fd, buf, HIBR_IOCH)) > 0)
-		s_add(&o, buf, (size_t)n);
-	free(buf);
+	io_rdto(fd, &o);
 	close(fd);
 	while (o.n && o.p[o.n - 1] == '\n')
 		o.n--;
@@ -1117,8 +1113,6 @@ char *xcap(sh *s, const char *src)
 	int pf[2];
 	pid_t pid;
 	str o;
-	char *buf;
-	ssize_t n;
 	char *r;
 	int w;
 
@@ -1156,10 +1150,7 @@ char *xcap(sh *s, const char *src)
 	}
 	close(pf[1]);
 	s_init(&o);
-	buf = xm(HIBR_IOCH);
-	while ((n = io_rdall(pf[0], buf, HIBR_IOCH)) > 0)
-		s_add(&o, buf, (size_t)n);
-	free(buf);
+	io_rdto(pf[0], &o);
 	close(pf[0]);
 	jc_waitt(s, pid, pid, &w, 0);
 	s->st = wstat(w);
@@ -2007,15 +1998,9 @@ int ex_cmd(sh *s, node *n)
 	   check it. */
 	if (cap) {
 		str o;
-		char *buf;
-		ssize_t got;
-
 		close(cf[1]);
 		s_init(&o);
-		buf = xm(HIBR_IOCH);
-		while ((got = io_rdall(cf[0], buf, HIBR_IOCH)) > 0)
-			s_add(&o, buf, (size_t)got);
-		free(buf);
+		io_rdto(cf[0], &o);
 		close(cf[0]);
 		while (o.n && o.p[o.n - 1] == '\n')
 			o.n--;

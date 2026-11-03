@@ -624,7 +624,8 @@ part *lx_dol(lex *l, int q)
 void lx_uni(lex *l, str *b, part ***t, int *cq, int max)
 {
 	unsigned long v = 0;
-	int k, n, s;
+	int k, n;
+	str u;
 
 	l->p++;
 	for (k = 0; k < max && l->p < l->e &&
@@ -640,17 +641,11 @@ void lx_uni(lex *l, str *b, part ***t, int *cq, int max)
 	}
 	if (v > 0x10FFFF)
 		v = 0xFFFD;
-	if (v < 0x80) {
-		lx_ch(l, b, t, cq, 1, (int)v);
-		return;
-	}
-	n = v < 0x800 ? 2 : v < 0x10000 ? 3 : 4;
-	s = 6 * (n - 1);
-	lx_ch(l, b, t, cq, 1, (int)((0xF00u >> n) & 0xFF) | (int)(v >> s));
-	while (s > 0) {
-		s -= 6;
-		lx_ch(l, b, t, cq, 1, (int)(0x80 | ((v >> s) & 0x3F)));
-	}
+	s_init(&u);
+	u8put(&u, (unsigned)v);
+	for (n = 0; n < (int)u.n; n++)
+		lx_ch(l, b, t, cq, 1, (unsigned char)u.p[n]);
+	s_free(&u);
 }
 
 /* Read one shell word, resolving quotes into parts. lit is lx_sub's own

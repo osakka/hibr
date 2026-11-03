@@ -321,17 +321,7 @@ int b_try(sh *s, int ac, char **av)
 	for (i = 1; i < ac; i++) {
 		if (cmd.n)
 			s_ch(&cmd, ' ');
-		s_ch(&cmd, '\'');
-		{
-			const char *p = av[i];
-			for (; *p; p++) {
-				if (*p == '\'')
-					s_cat(&cmd, "'\\''");
-				else
-					s_ch(&cmd, *p);
-			}
-		}
-		s_ch(&cmd, '\'');
+		s_sq(&cmd, av[i]);
 	}
 	s->intry = 1;
 	hibr_run(s, cmd.p);
@@ -457,7 +447,7 @@ void tr_show(sh *s, int g)
 	if (!strcmp(cm, "'"))
 		s_cat(&o, "\\'");
 	else
-		net_q(&o, cm);
+		s_sq(&o, cm);
 	s_ch(&o, ' ');
 	if (g > 0 && nm)
 		s_cat(&o, "SIG");

@@ -229,23 +229,7 @@ int j_isarr(ent *m, size_t n, short ty)
 void j_quote(str *o, const char *p)
 {
 	s_ch(o, '"');
-	for (; *p; p++) {
-		switch (*p) {
-		case '"': s_cat(o, "\\\""); break;
-		case '\\': s_cat(o, "\\\\"); break;
-		case '\n': s_cat(o, "\\n"); break;
-		case '\t': s_cat(o, "\\t"); break;
-		case '\r': s_cat(o, "\\r"); break;
-		default:
-			if ((unsigned char)*p < 0x20) {
-				s_cat(o, "\\u00");
-				s_ch(o, "0123456789abcdef"[(unsigned char)*p >> 4]);
-				s_ch(o, "0123456789abcdef"[*p & 15]);
-			} else {
-				s_ch(o, *p);
-			}
-		}
-	}
+	lg_jstr(o, p);
 	s_ch(o, '"');
 }
 
@@ -329,24 +313,6 @@ short j_guess(const char *v)
 	return J_NUM;
 }
 
-/* Read every byte of a stream. */
-char *j_slurp(FILE *f)
-{
-	str b;
-	char *buf = xm(HIBR_IOCH);
-	size_t n;
-
-	s_init(&b);
-	clearerr(f);
-	while ((n = fread(buf, 1, HIBR_IOCH, f)) > 0)
-		s_add(&b, buf, n);
-	clearerr(f);
-	free(buf);
-	if (!b.p)
-		s_cat(&b, "");
-	return b.p;
-}
-
 /* Parse into a subscripted target, name[k]..., replacing what was there;
    0 when the name holds no subscript after all. Takes root's contents. */
 int j_parsep(sh *s, char *nm, ent *root)
@@ -401,7 +367,7 @@ int b_json(sh *s, int ac, char **av)
 		return 2;
 	}
 	if (!strcmp(sub, "parse")) {
-		txt = ac > 3 ? xs(av[3]) : j_slurp(stdin);
+		txt = ac > 3 ? xs(av[3]) : slurp(stdin);
 		memset(&root, 0, sizeof root);
 		j.p = txt;
 		j.bad = 0;

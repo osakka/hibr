@@ -382,19 +382,6 @@ int ax_ncmp(const void *a, const void *b)
 	return x < y ? -1 : x > y ? 1 : ax_cmp(a, b);
 }
 
-/* Quote an argument for a nested command. */
-void ax_q(str *o, const char *a)
-{
-	s_ch(o, '\'');
-	for (; *a; a++) {
-		if (*a == '\'')
-			s_cat(o, "'\\''");
-		else
-			s_ch(o, *a);
-	}
-	s_ch(o, '\'');
-}
-
 /* The first of each distinct value in order, found through a hash of them rather than by comparing each with all before it (Gitea #464). */
 void arr_uniq(vec *in, vec *out)
 {
@@ -541,10 +528,10 @@ int b_arr1(sh *s, int ac, char **av)
 			s_cat(&cmd, av[3]);
 			s_ch(&cmd, ' ');
 			for (j = 4; j < (size_t)ac; j++) {
-				ax_q(&cmd, av[j]);
+				s_sq(&cmd, av[j]);
 				s_ch(&cmd, ' ');
 			}
-			ax_q(&cmd, (char *)vals->p[i]);
+			s_sq(&cmd, (char *)vals->p[i]);
 			if (keep) {
 				hibr_run(s, cmd.p);
 				if (s->st == 0)

@@ -663,14 +663,8 @@ int ed_hook(sh *s, const char *cmd, const char *word, vec *out)
 	s_cat(&c, fn);
 	s_cat(&c, " '");
 	s_cat(&c, cmd);
-	s_cat(&c, "' '");
-	for (; *word; word++) {
-		if (*word == '\'')
-			s_cat(&c, "'\\''");
-		else
-			s_ch(&c, *word);
-	}
-	s_cat(&c, "'");
+	s_cat(&c, "' ");
+	s_sq(&c, word);
 	hk_save(s, &hs);
 	ed_off();
 	lg(HIBR_LTRC, "completion hook runs with the shell's state kept, out of raw mode");

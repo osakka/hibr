@@ -597,7 +597,7 @@ void m_probe(sh *s, const char *path, const char *file, str *out)
 
 	s_init(&ab);
 	s_init(&bl);
-	h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+	h = m_descopen(path, &d);
 	if (!h) {
 		lg(HIBR_LDBG, "mod avail: %s: %s", path, dlerror());
 		s_cat(&ab, "-");
@@ -611,7 +611,6 @@ void m_probe(sh *s, const char *path, const char *file, str *out)
 		s_free(&bl);
 		return;
 	}
-	d = (const hibr_mod *)dlsym(h, "hibr_module");
 	if (!d) {
 		s_cat(&ab, "-");
 		if (tty)
@@ -675,28 +674,69 @@ int m_cmp(const void *a, const void *b)
 	return strcmp(*(const char *const *)a, *(const char *const *)b);
 }
 
-/* Probe every shared object in one directory. */
-void m_scan(sh *s, const char *dir, vec *seen, str *out)
+/* The shared objects in one directory into names, by name in order: 0 when
+   it is not a directory to read. m_dirfree gives them back. */
+int m_dirsos(const char *dir, vec *names)
 {
 	DIR *dp = opendir(dir);
 	struct dirent *de;
+
+	names->p = 0;
+	names->n = 0;
+	names->cap = 0;
+	if (!dp)
+		return 0;
+	while ((de = readdir(dp)))
+		if (m_hasso(de->d_name))
+			v_add(names, xs(de->d_name));
+	closedir(dp);
+	if (names->n > 1)
+		qsort(names->p, names->n, sizeof *names->p, m_cmp);
+	return 1;
+}
+
+/* Free the names m_dirsos listed. */
+void m_dirfree(vec *names)
+{
+	size_t i;
+
+	for (i = 0; i < names->n; i++)
+		free(names->p[i]);
+	v_free(names);
+}
+
+/* A directory and a name in it, as one path in o, which this starts. */
+void m_pathin(str *o, const char *dir, const char *nm)
+{
+	s_init(o);
+	s_cat(o, dir);
+	if (o->n && o->p[o->n - 1] != '/')
+		s_ch(o, '/');
+	s_cat(o, nm);
+}
+
+/* Open a candidate object for its descriptor alone, never calling its init:
+   the handle to dlclose, or null when it does not open; *d is null when it
+   has no descriptor. */
+void *m_descopen(const char *path, const hibr_mod **d)
+{
+	void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+
+	*d = h ? (const hibr_mod *)dlsym(h, "hibr_module") : 0;
+	return h;
+}
+
+/* Probe every shared object in one directory. */
+void m_scan(sh *s, const char *dir, vec *seen, str *out)
+{
 	vec names;
 	size_t i, j;
 	str full;
 
-	if (!dp) {
+	if (!m_dirsos(dir, &names)) {
 		lg(HIBR_LDBG, "mod avail: %s: not a directory", dir);
 		return;
 	}
-	names.p = 0;
-	names.n = 0;
-	names.cap = 0;
-	while ((de = readdir(dp)))
-		if (m_hasso(de->d_name))
-			v_add(&names, xs(de->d_name));
-	closedir(dp);
-	if (names.n > 1)
-		qsort(names.p, names.n, sizeof *names.p, m_cmp);
 	for (i = 0; i < names.n; i++) {
 		for (j = 0; j < seen->n; j++)
 			if (!strcmp((char *)seen->p[j], (char *)names.p[i]))
@@ -704,20 +744,14 @@ void m_scan(sh *s, const char *dir, vec *seen, str *out)
 		if (j < seen->n) {
 			lg(HIBR_LDBG, "mod avail: %s/%s is shadowed", dir,
 			   (char *)names.p[i]);
-			free(names.p[i]);
 			continue;
 		}
 		v_add(seen, xs((char *)names.p[i]));
-		s_init(&full);
-		s_cat(&full, dir);
-		if (full.n && full.p[full.n - 1] != '/')
-			s_ch(&full, '/');
-		s_cat(&full, (char *)names.p[i]);
+		m_pathin(&full, dir, (char *)names.p[i]);
 		m_probe(s, full.p, (char *)names.p[i], out);
 		s_free(&full);
-		free(names.p[i]);
 	}
-	v_free(&names);
+	m_dirfree(&names);
 }
 
 /* List every module that could be loaded, in the order a bare name finds. */
@@ -809,43 +843,30 @@ void *m_offered(sh *s, const char *nm, unsigned ver, int *wrong)
 	return 0;
 }
 
-/* Does the module in this file say it offers that interface? */
-int m_declares(const char *path, const char *iface)
+/* Does the module in this file say it offers that interface -- or, with
+   bi, register a builtin by that exact name? It reads the static
+   descriptor without ever calling the module's own init, so finding out
+   costs a dlopen and a dlclose, not the module's own startup work, for
+   every candidate that turns out not to be the one. */
+int m_saysso(const char *path, const char *key, int bi)
 {
-	void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
-	const hibr_mod *d;
-	int yes = 0;
-
-	if (!h)
-		return 0;
-	d = (const hibr_mod *)dlsym(h, "hibr_module");
-	if (d && d->abi == HIBR_ABI && d->prov && !strcmp(d->prov, iface))
-		yes = 1;
-	dlclose(h);
-	return yes;
-}
-
-/* Does the module in this file register a builtin by this exact name?
-   The same probe m_declares makes for an interface, reading the static
-   descriptor without ever calling the module's own init -- so finding out
-   costs a dlopen/dlclose, not the module's own startup work, for every
-   candidate that turns out not to be the one. */
-int m_declaresbi(const char *path, const char *nm)
-{
-	void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
 	const hibr_mod *d;
 	const hibr_bi *b;
+	void *h = m_descopen(path, &d);
 	int yes = 0;
 
 	if (!h)
 		return 0;
-	d = (const hibr_mod *)dlsym(h, "hibr_module");
-	if (d && d->abi == HIBR_ABI)
-		for (b = d->bi; b && b->nm; b++)
-			if (!strcmp(b->nm, nm)) {
-				yes = 1;
-				break;
-			}
+	if (d && d->abi == HIBR_ABI) {
+		if (!bi)
+			yes = d->prov && !strcmp(d->prov, key);
+		else
+			for (b = d->bi; b && b->nm; b++)
+				if (!strcmp(b->nm, key)) {
+					yes = 1;
+					break;
+				}
+	}
 	dlclose(h);
 	return yes;
 }
@@ -911,13 +932,12 @@ int m_bixcmp(const void *a, const void *b)
 /* Index every builtin one candidate object declares. */
 void m_bixadd(const char *path)
 {
-	void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
 	const hibr_mod *d;
 	const hibr_bi *b;
+	void *h = m_descopen(path, &d);
 
 	if (!h)
 		return;
-	d = (const hibr_mod *)dlsym(h, "hibr_module");
 	if (d && d->abi == HIBR_ABI)
 		for (b = d->bi; b && b->nm; b++) {
 			struct bix *g = realloc(m_bix,
@@ -936,44 +956,21 @@ void m_bixadd(const char *path)
    builtin resolve the same way twice running. */
 void m_bixdir(sh *s, const char *dir)
 {
-	DIR *dp;
-	struct dirent *de;
 	vec names;
 	size_t i;
+	str full;
 	char *abs = realpath(dir, 0);
 
 	(void)s;
 	if (!abs)
 		return;
-	dir = abs;
-	dp = opendir(dir);
-	if (!dp) {
-		free(abs);
-		return;
-	}
-	names.p = 0;
-	names.n = 0;
-	names.cap = 0;
-	while ((de = readdir(dp)))
-		if (m_hasso(de->d_name))
-			v_add(&names, xs(de->d_name));
-	closedir(dp);
-	if (names.n > 1)
-		qsort(names.p, names.n, sizeof *names.p, m_cmp);
-	for (i = 0; i < names.n; i++) {
-		str full;
-
-		s_init(&full);
-		s_cat(&full, dir);
-		if (full.n && full.p[full.n - 1] != '/')
-			s_ch(&full, '/');
-		s_cat(&full, (char *)names.p[i]);
-		m_bixadd(full.p);
-		s_free(&full);
-	}
-	for (i = 0; i < names.n; i++)
-		free(names.p[i]);
-	v_free(&names);
+	if (m_dirsos(abs, &names))
+		for (i = 0; i < names.n; i++) {
+			m_pathin(&full, abs, (char *)names.p[i]);
+			m_bixadd(full.p);
+			s_free(&full);
+		}
+	m_dirfree(&names);
 	free(abs);
 }
 
@@ -1025,87 +1022,27 @@ int m_ldauto(sh *s, const char *nm)
 	return m_load(s, p);
 }
 
-/* Walk one directory for a module that offers the interface, and load it. */
-int m_seek(sh *s, const char *dir, const char *iface)
+/* Walk one directory for a module that offers the interface -- or, with
+   bi, registers the builtin -- and load the first that does. */
+int m_seek(sh *s, const char *dir, const char *key, int bi)
 {
-	DIR *dp = opendir(dir);
-	struct dirent *de;
 	vec names;
 	size_t i;
+	str full;
 	int got = 0;
 
-	if (!dp)
+	if (!m_dirsos(dir, &names))
 		return 0;
-	names.p = 0;
-	names.n = 0;
-	names.cap = 0;
-	while ((de = readdir(dp)))
-		if (m_hasso(de->d_name))
-			v_add(&names, xs(de->d_name));
-	closedir(dp);
-	if (names.n > 1)
-		qsort(names.p, names.n, sizeof *names.p, m_cmp);
 	for (i = 0; i < names.n && !got; i++) {
-		str full;
-		s_init(&full);
-		s_cat(&full, dir);
-		if (full.n && full.p[full.n - 1] != '/')
-			s_ch(&full, '/');
-		s_cat(&full, (char *)names.p[i]);
-		if (m_declares(full.p, iface)) {
-			lg(HIBR_LINF, "loading %s, which offers %s", full.p,
-			   iface);
+		m_pathin(&full, dir, (char *)names.p[i]);
+		if (m_saysso(full.p, key, bi)) {
+			lg(HIBR_LINF, "loading %s, which %s %s", full.p,
+			   bi ? "registers" : "offers", key);
 			got = m_load(s, full.p) == HIBR_OK;
 		}
 		s_free(&full);
 	}
-	for (i = 0; i < names.n; i++)
-		free(names.p[i]);
-	v_free(&names);
-	return got;
-}
-
-/* Walk one directory for a module that registers this builtin, and load
-   it. Same shape as m_seek, one directory below it, checking m_declaresbi
-   instead of m_declares -- kept as its own copy rather than a shared
-   walker taking a predicate, since the two are three lines apart and a
-   parameter here would only be used by these two callers. */
-int m_seekbi(sh *s, const char *dir, const char *nm)
-{
-	DIR *dp = opendir(dir);
-	struct dirent *de;
-	vec names;
-	size_t i;
-	int got = 0;
-
-	if (!dp)
-		return 0;
-	names.p = 0;
-	names.n = 0;
-	names.cap = 0;
-	while ((de = readdir(dp)))
-		if (m_hasso(de->d_name))
-			v_add(&names, xs(de->d_name));
-	closedir(dp);
-	if (names.n > 1)
-		qsort(names.p, names.n, sizeof *names.p, m_cmp);
-	for (i = 0; i < names.n && !got; i++) {
-		str full;
-		s_init(&full);
-		s_cat(&full, dir);
-		if (full.n && full.p[full.n - 1] != '/')
-			s_ch(&full, '/');
-		s_cat(&full, (char *)names.p[i]);
-		if (m_declaresbi(full.p, nm)) {
-			lg(HIBR_LINF, "loading %s, which registers %s", full.p,
-			   nm);
-			got = m_load(s, full.p) == HIBR_OK;
-		}
-		s_free(&full);
-	}
-	for (i = 0; i < names.n; i++)
-		free(names.p[i]);
-	v_free(&names);
+	m_dirfree(&names);
 	return got;
 }
 
@@ -1125,7 +1062,7 @@ int m_findbi(sh *s, const char *nm)
 		return HIBR_OK;
 	m_wstart(s, &w, 0);
 	while ((d = m_wnext(&w)))
-		if (m_seekbi(s, d, nm)) {
+		if (m_seek(s, d, nm, 1)) {
 			m_wend(&w);
 			return HIBR_OK;
 		}
@@ -1150,7 +1087,7 @@ void *hibr_require(sh *s, const char *nm, unsigned ver)
 	lg(HIBR_LDBG, "no loaded module offers %s; looking for one", nm);
 	m_wstart(s, &w, 0);
 	while ((d = m_wnext(&w)))
-		if (m_seek(s, d, nm)) {
+		if (m_seek(s, d, nm, 0)) {
 			m_wend(&w);
 			return m_offered(s, nm, ver, &wrong);
 		}
@@ -1190,7 +1127,7 @@ int m_need(sh *s, const char *nm)
 		lg(HIBR_LDBG, "need %s walks the folders hibr_require walks", nm);
 		m_wstart(s, &w, 0);
 		while ((d = m_wnext(&w)))
-			if (m_seek(s, d, nm)) {
+			if (m_seek(s, d, nm, 0)) {
 				m_wend(&w);
 				return HIBR_OK;
 			}

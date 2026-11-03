@@ -465,7 +465,10 @@ int loop(sh *s)
 	return s->st;
 }
 
-/* Read an entire stream into a dynamic string. */
+/* Read an entire stream into a dynamic string. The stream's end of file
+   is cleared before and after, because BSD libc keeps it once reached and a
+   second read of stdin in one process then got nothing (json parse twice,
+   macOS). */
 char *slurp(FILE *f)
 {
 	str b;
@@ -473,8 +476,10 @@ char *slurp(FILE *f)
 	size_t n;
 
 	s_init(&b);
+	clearerr(f);
 	while ((n = fread(buf, 1, HIBR_IOCH, f)) > 0)
 		s_add(&b, buf, n);
+	clearerr(f);
 	free(buf);
 	if (!b.p)
 		s_ch(&b, 0), b.n = 0;
