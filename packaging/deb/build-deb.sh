@@ -142,7 +142,7 @@ Depends: libc6 (>= $glibc)
 Recommends: libpng16-16t64 | libpng16-16, libturbojpeg0, pkexec
 Suggests: libssl3 | libssl1.1, libargon2-1, libavformat62 | libavformat61 | libavformat60 | libavformat59, xvfb, libpoppler-glib8
 Conflicts: pleaser
-Breaks: hibr-retro (<< 0.1.8), hibr-browser (<< 0.5.29)
+Breaks: hibr-retro (<< 0.1.8), hibr-browser (<< 0.5.29), longwire (<< 0.5.40)
 Section: shells
 Priority: optional
 Homepage: https://github.com/osakka/hibr
