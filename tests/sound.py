@@ -553,6 +553,15 @@ try:
         wp("set-volume", spk, "0.3")
         t2.until(lambda sc: "♪ 30%" in sc.row(0), 100)
         sc2 = t2.screen()
+        # Every wpctl a read runs is a client PipeWire adds and removes, and
+        # pw-mon says so: counted as a change, each read caused the next a
+        # second later, for ever -- 10% of a core on an idle desktop (10.52).
+        t2.collect(2.0)
+        f0 = t2.frames()
+        t2.collect(4.0)
+        f1 = t2.frames()
+        check("and an idle desktop on PipeWire does not read the devices again and again",
+              f1 - f0 <= 2, (f0, f1))
         wtree = tree_of(t2.pid)
         names = [n for _, _, n in wtree]
         check("and watches PipeWire with pw-mon alone, filtering it itself, no grep",
@@ -566,7 +575,8 @@ try:
                      "and alt-= turns PipeWire's own volume up",
                      "choosing Headphones makes it PipeWire's output, and the input stays",
                      "and a volume PipeWire changes elsewhere reaches the bar with nothing pressed",
-                     "and watches PipeWire with pw-mon alone, filtering it itself, no grep"):
+                     "and watches PipeWire with pw-mon alone, filtering it itself, no grep",
+                     "and an idle desktop on PipeWire does not read the devices again and again"):
             check(name + " (the PipeWire-only server did not start)", False)
 
     # With ALSA alone the output and the input are a card each, chosen
@@ -633,4 +643,4 @@ finally:
     shutil.rmtree(RT, True)
     shutil.rmtree(RT2, True)
     shutil.rmtree(D, True)
-report(39)
+report(40)

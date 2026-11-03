@@ -39,7 +39,7 @@
 
 strict
 
-app sound "The speaker on the menu bar and the sound it watches" 1.3
+app sound "The speaker on the menu bar and the sound it watches" 1.4
 
 # The state: kind (pulse, pw, alsa, none, or gone for a server that went;
 # empty until the first frame looks), server (what the server calls
@@ -60,6 +60,14 @@ DT_SNDRAGAIN=
 # know yet, rather than a level of 0%.
 DT_SNDKNOWN=
 DT_SNDLATE=
+# pw-mon's event being read, across reads (added, changed or removed), its
+# object's id once seen, and the ids of objects whose events are never a
+# change of sound: every wpctl a read runs is a client added and removed,
+# and counted as a change that read the devices again a second later, for
+# ever (measured on 10.52: a read a second, 10% of a core, idle).
+DT_SNDPWEV=
+DT_SNDPWID=
+declare -gA DT_SNDPWNOT
 DT_SNDRC="${DT_SNDRC-$HOME/.asoundrc}"
 
 # The one place a PulseAudio server is spoken to: pactl, in the C locale so
@@ -534,7 +542,35 @@ dt_sndtick() {
 	for l in "${DT_WLINES[@]}"; do
 		case $l in
 		*" on sink "* | *" on source "* | *" on server "* | *" on card "*) stale=1 ;;
-		changed:* | added:* | removed:*) stale=1 ;;
+		changed:* | added:* | removed:*)
+			DT_SNDPWEV=${l%%:*}
+			DT_SNDPWID=
+			;;
+		*"id: "[0-9]*)
+			[ -n "$DT_SNDPWEV" ] && [ -z "$DT_SNDPWID" ] || continue
+			DT_SNDPWID=${l##*id: }
+			# A removal names no type, so it is told by what was added.
+			if [ "$DT_SNDPWEV" = removed ]; then
+				if [ -n "${DT_SNDPWNOT["$DT_SNDPWID"]+x}" ]; then
+					unset DT_SNDPWNOT["$DT_SNDPWID"]
+				else
+					stale=1
+				fi
+				DT_SNDPWEV=
+			fi
+			;;
+		*"type: PipeWire:Interface:"*)
+			[ -n "$DT_SNDPWEV" ] || continue
+			case $l in
+			*Interface:Client* | *Interface:Link* | *Interface:Port* | *Interface:Module* | \
+			*Interface:Factory* | *Interface:Core* | *Interface:Profiler*)
+				[ "$DT_SNDPWEV" = added ] && [ -n "$DT_SNDPWID" ] &&
+					DT_SNDPWNOT["$DT_SNDPWID"]=1
+				;;
+			*) stale=1 ;;
+			esac
+			DT_SNDPWEV=
+			;;
 		esac
 	done
 	[ -n "$stale" ] || return 0
