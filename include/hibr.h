@@ -5,10 +5,10 @@
 #include <sys/types.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 16u
+#define HIBR_ABI 17u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.429"
+#define HIBR_VER "0.99.430"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -259,8 +259,8 @@ struct mix { size_t cap, n, dead; ent *t[]; };
    is not a walk, and the index, built once a chain reaches HIBR_MPHASH
    entries. A module that links entries itself (csv, db) may leave both 0:
    mp_add finds the tail once and writes it down. */
-struct ent { ent *nx; char *k, *s; ent *map; size_t n; short ty; ent *tl; mix *ix; };
-struct var { var *nx; char *k, *v; ent *map; size_t n; short ty; unsigned ex, ro, am, at; };
+struct ent { ent *nx; char *k, *s; ent *map; unsigned n; short ty; ent *tl; mix *ix; };
+struct var { var *nx; char *k, *v; ent *map; unsigned n; short ty; unsigned ex, ro, am, at; };
 
 struct sh {
 	arena *ar, *xa;

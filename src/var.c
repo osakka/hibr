@@ -604,7 +604,7 @@ ent *mp_find(ent *m, const char *k)
 }
 
 /* Find an entry by key, appending it when absent. */
-ent *mp_add(ent **m, size_t *n, const char *k)
+ent *mp_add(ent **m, unsigned *n, const char *k)
 {
 	ent *e = mp_find(*m, k), *h = *m;
 
@@ -635,7 +635,7 @@ ent *mp_add(ent **m, size_t *n, const char *k)
 
 /* Remove the entry a key names, keeping the tail, the index and the head's
    ownership of both right. 0 when there is no such key. */
-int mp_del(ent **head, size_t *n, const char *k)
+int mp_del(ent **head, unsigned *n, const char *k)
 {
 	ent *h = *head, *e, *prev = 0;
 
@@ -723,7 +723,7 @@ ent *v_walk(var *v, char **ks, int nk, int make)
 {
 	ent *e = 0;
 	ent **mp = &v->map;
-	size_t *np = &v->n;
+	unsigned *np = &v->n;
 	int i;
 
 	for (i = 0; i < nk; i++) {
@@ -1101,7 +1101,7 @@ int v_delp(sh *s, const char *nm, char **ks, int nk)
 {
 	var *v = v_findr(s, &nm);
 	ent **mp, *e;
-	size_t *np;
+	unsigned *np;
 	int i;
 
 	if (!v || nk < 1)

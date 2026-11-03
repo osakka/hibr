@@ -103,11 +103,11 @@ void ce_exp(sh *s, const char *kind, const char *t, size_t n);
 int b_str(sh *s, int ac, char **av);
 int b_arr(sh *s, int ac, char **av);
 int b_arr1(sh *s, int ac, char **av);
-ent *mp_add(ent **m, size_t *n, const char *k);
+ent *mp_add(ent **m, unsigned *n, const char *k);
 void mp_free(ent *m);
 /* A map's own index and tail (Gitea #73): kept in the chain's first entry,
    so only these touch them. mp_del is the one way to remove an entry. */
-int mp_del(ent **head, size_t *n, const char *k);
+int mp_del(ent **head, unsigned *n, const char *k);
 ent *mp_tail(ent *h);
 mix *mp_ixnew(size_t n);
 void mp_ixput(mix *x, ent *e);

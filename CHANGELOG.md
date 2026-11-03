@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.430
+
+**Module ABI 17** (#463): a map entry and a variable are 56 bytes, where
+they were 64. Their count is `unsigned` now, beside the type, instead of a
+`size_t` followed by six bytes of padding, which moves an entry from
+glibc's 80-byte allocation class into the 64-byte one: 42,000 map entries
+take 7.6 MB against 8.4 MB. `mp_add` and `mp_del` take an `unsigned *`. A
+module built against ABI 16 is refused, and says so, until it is rebuilt;
+every module in this tree is. hibr-browser's WebKit module, the retro
+module and Blit are rebuilt in step.
+
 ## 0.99.429
 
 **Background jobs stay in the shell's process group** (#450), as in bash.
