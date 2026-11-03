@@ -224,6 +224,8 @@ def main(a):
         print("%-66s%s" % ("PERMISSION", "VALUE"))
         for p in PERMS:
             print("%-66s%s" % ("org.freedesktop.NetworkManager." + p, perm(s, p)))
+    elif obj in ("n", "networking") and verb == "connectivity":
+        print(s.get("conn", "full"))
     elif obj in ("g", "general"):
         out([{"RUNNING": "running", "STATE": "connected", "WIFI": s["wifi"]}], fields or ["RUNNING"])
     elif obj in ("r", "radio"):
@@ -266,6 +268,11 @@ def main(a):
             if w == "list":
                 if s["wifi"] != "enabled":
                     return
+                # A network only a scan finds: listed once a list has
+                # waited for one (--rescan yes), never on a plain read.
+                if "--rescan" in a and a[a.index("--rescan") + 1] == "yes" and s.get("unscanned"):
+                    s["aps"] += s.pop("unscanned")
+                    save(s)
                 rows = [dict(ap, BARS=ap.get("BARS") or bars(int(ap["SIGNAL"]))) for ap in s["aps"]]
                 out(rows, fields or ["IN-USE", "SSID", "BSSID", "MODE", "CHAN", "SIGNAL", "BARS", "SECURITY"])
             elif w == "rescan":

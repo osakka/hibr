@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.74",
+ "version": "3.75",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -9,6 +9,9 @@
   " %s wants %s ": " %s يطلب %s ",
   "Choose a Login": "اختر بيانات دخول",
   "Fill Sign-In": "ملء بيانات الدخول",
+  "Sign In to This Network%s": "تسجيل الدخول إلى هذه الشبكة%s",
+  "Sign In to This Network…": "تسجيل الدخول إلى هذه الشبكة…",
+  "This network wants you to sign in -- click to open its page": "تطلب هذه الشبكة تسجيل الدخول -- انقر لفتح صفحتها",
   "Filled in from the vault": "مُلئت من الخزنة",
   "Enter fills it; escape cancels": "Enter يملؤها، وEscape يلغي",
   "Logins for %s": "بيانات الدخول لـ %s",

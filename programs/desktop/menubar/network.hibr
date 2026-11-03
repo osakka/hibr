@@ -42,7 +42,7 @@
 
 strict
 
-app network "The network on the menu bar and the connection it watches" 1.2
+app network "The network on the menu bar and the connection it watches" 1.3
 
 # The state: kind (nm, ip, none, or gone for a NetworkManager that went;
 # empty until the first frame looks), why (the system asked for that did
@@ -93,6 +93,21 @@ DT_NETNEWS=
 DT_NETTOP=0
 DT_NETSEL=0
 DT_NETSEEN=
+# A scan asked for: the next read waits for one (`--rescan yes`) and lists
+# what it found. The monitor says nothing about networks coming into reach,
+# so a scan that only asked NetworkManager to look was never seen until the
+# desktop started again (owner, 2026-11-03).
+DT_NETRSCWANT=
+DT_NETRESCAN=no
+# When a scan that needed a password is done, the list is read again a few
+# seconds on, since NetworkManager scans after it says yes: the moment.
+DT_NETRERE=
+# Whether this network was last seen asking to be signed in to (a captive
+# portal), so that is said once when it starts rather than every read.
+DT_NETPORTAL=
+# The page a sign-in is opened at: plain http, which a portal answers with
+# its own sign-in page wherever the request was going.
+DT_NETSIGNURL="${DT_NETSIGNURL:-http://neverssl.com/}"
 
 # The one place NetworkManager is spoken to, in the C locale so its words
 # are the ones read here, saying nothing on stderr.
@@ -361,6 +376,11 @@ dt_netread() {
 		DT_NETRAGAIN=1
 		return 0
 	fi
+	DT_NETRESCAN=no
+	if [ -n "$DT_NETRSCWANT" ]; then
+		DT_NETRESCAN=yes
+		DT_NETRSCWANT=
+	fi
 	DT_NETRJOB := dt_jobvars net state dt_netreaddone dt_netreadnow DT_NET DT_NETAG \
 		DT_NETAK DT_NETAS DT_NETAU DT_NETCD DT_NETCN DT_NETCS DT_NETCT DT_NETCU \
 		DT_NIPA DT_NIPR 2> /dev/null ||
@@ -373,6 +393,15 @@ fn dt_netreaddone(int? n = "", int? st = "") {
 	DT_NETRJOB=
 	DT_NETKNOWN=1
 	dt_netbar
+	if [ "${DT_NET["conn"]-}" = portal ]; then
+		if [ -z "$DT_NETPORTAL" ]; then
+			DT_NETPORTAL=1
+			dt_notify "This network wants you to sign in -- click to open its page" \
+				dt_netsignin
+		fi
+	else
+		DT_NETPORTAL=
+	fi
 	if [ -n "$DT_NETRAGAIN" ]; then
 		DT_NETRAGAIN=
 		dt_netread
@@ -399,6 +428,10 @@ dt_netnmread() {
 
 	r=$(dt_netq -t -f WIFI radio)
 	DT_NET["radio"]=${r:-enabled}
+	# full, limited, portal (a network that wants a sign-in first), none,
+	# or unknown where NetworkManager does not check.
+	r=$(dt_netq networking connectivity)
+	DT_NET["conn"]=$r
 	DT_NET["wdev"]=; DT_NET["wstate"]=; DT_NET["wcon"]=
 	DT_NET["edev"]=; DT_NET["estate"]=
 	while IFS= read -r l; do
@@ -436,7 +469,7 @@ dt_netnmread() {
 		g+=("$sig")
 		k+=("${DT_NF[3]}")
 		if [ "${DT_NF[0]}" = "*" ]; then u+=(1); else u+=(0); fi
-	done <<< "$(dt_netq -t -f IN-USE,SSID,SIGNAL,SECURITY device wifi list --rescan no)"
+	done <<< "$(dt_netq -t -f IN-USE,SSID,SIGNAL,SECURITY device wifi list --rescan "$DT_NETRESCAN")"
 	DT_NETAS=(); DT_NETAG=(); DT_NETAK=(); DT_NETAU=()
 	# In use first, then by signal: a selection sort, since a list in
 	# reach is a few dozen at the most.
@@ -650,6 +683,16 @@ dt_nettick() {
 		return 0
 	fi
 	[ "${#DT_WLINES[@]}" = 0 ] || stale=1
+	# What a scan found, a few seconds after NetworkManager said it would
+	# look: nothing on the monitor says so.
+	if [ -n "$DT_NETRERE" ]; then
+		if [ "$EPOCHSECONDS" -ge "$DT_NETRERE" ]; then
+			DT_NETRERE=
+			stale=1
+		else
+			dt_want 1000
+		fi
+	fi
 	[ -n "$stale" ] || return 0
 	ms=$(( (${EPOCHREALTIME/./} - ${DT_NETREAD/./}) / 1000 ))
 	if [ "$ms" -lt 1000 ]; then
@@ -964,6 +1007,7 @@ fn dt_netjobdone(int n, int st) {
 		forget) dt_notep high "Could not forget %s: %s" "$DT_NETJSSID" "${why:-nmcli $st}" ;;
 		esac
 	fi
+	[ "$DT_NETJKIND" = scan ] && [ "$st" = 0 ] && DT_NETRERE=$((EPOCHSECONDS + 4))
 	DT_NETJSSID=
 	DT_NETJKIND=
 	dt_netread
@@ -1110,6 +1154,13 @@ dt_netradio() {
 	dt_netbar
 }
 
+# Open the page a network that wants a sign-in shows: any plain http
+# address, which its portal answers with its own page, in the Browser.
+dt_netsignin() {
+	dt_popclose 2> /dev/null
+	dt_openlink "$DT_NETSIGNURL"
+}
+
 # Forget a saved connection, by uuid.
 fn dt_netforget(u) {
 	local i=0 nm=$u
@@ -1131,7 +1182,10 @@ fn dt_netforget(u) {
 fn dt_netrescan(asked = "") {
 	[ "${DT_NET["kind"]}" = nm ] || return 0
 	case ${DT_NETPERM["scan"]:-yes} in
-	yes) (dt_netq device wifi rescan > /dev/null &) ;;
+	yes)
+		DT_NETRSCWANT=1
+		dt_netread
+		;;
 	auth) [ -n "$asked" ] && dt_netjob scan "" nmcli device wifi rescan ;;
 	esac
 	return 0
@@ -1145,10 +1199,12 @@ dt_netpopopen() {
 	[ "${DT_NET["kind"]}" = nm ] || { dt_netmenu; return 0; }
 	dt_netrescan
 	# A row more than it lists, left blank at the bottom the way a menu
-	# ends, so the settings line does not sit on the edge.
+	# ends, so the settings line does not sit on the edge; and a row more
+	# for Sign In while the network wants one.
 	h=$((n + 5))
 	[ "$n" = 0 ] && h=6
 	[ "$h" -gt 17 ] && h=17
+	[ "${DT_NET["conn"]-}" = portal ] && h=$((h + 1))
 	DT_NETTOP=0
 	DT_NETSEL=0
 	DT_NETSEEN=
@@ -1158,11 +1214,12 @@ dt_netpopopen() {
 # The rows of the list: 0 is Wi-Fi's switch, then a rule, the networks, a
 # rule and the settings -- or a line saying there are none.
 fn net_popdraw(int r, int c, int h, int w) {
-	local n=${#DT_NETAS[@]} vis i row t b lk g sw
+	local n=${#DT_NETAS[@]} vis i row t b lk g sw ex=0
 
 	# The last row is the blank margin dt_popdraw has already filled.
 	h=$((h - 1))
-	vis=$((h - 4))
+	[ "${DT_NET["conn"]-}" = portal ] && ex=1
+	vis=$((h - 4 - ex))
 
 	sw="off"
 	[ "${DT_NET["radio"]}" = enabled ] && sw="on"
@@ -1183,7 +1240,12 @@ fn net_popdraw(int r, int c, int h, int w) {
 	console pen "$DT_IDLE" "$DT_FACE"
 	t := dt_rep "$w" "${GL[hline]}"
 	console put $((r + 1)) "$c" "$t"
-	console put $((r + h - 2)) "$c" "$t"
+	console put $((r + h - 2 - ex)) "$c" "$t"
+	if [ "$ex" = 1 ]; then
+		console pen "$DT_ACTIVE" "$DT_FACE" bold
+		t := dt_tr "Sign In to This Network%s" "${GL[ellipsis]}"
+		console put $((r + h - 2)) $((c + 1)) "$t"
+	fi
 	if [ "$n" = 0 ] || [ "$sw" = off ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		if [ "$sw" = off ]; then
@@ -1245,7 +1307,7 @@ fn dt_netpopbar(int r, int c, int h, int w, int n, int vis) {
 # A press on a row: the switch turns Wi-Fi on or off, a network is joined,
 # the last row opens the settings; the wheel scrolls the list.
 fn net_popmouse(act, int r, int c) {
-	local n=${#DT_NETAS[@]} i
+	local n=${#DT_NETAS[@]} i ex=0
 
 	case $act in
 	press) ;;
@@ -1262,8 +1324,15 @@ fn net_popmouse(act, int r, int c) {
 		dt_netsettings
 		return 0
 	fi
+	if [ "${DT_NET["conn"]-}" = portal ]; then
+		if [ "$r" = $((DT_POPH - 3)) ]; then
+			dt_netsignin
+			return 0
+		fi
+		ex=1
+	fi
 	i=$((DT_NETTOP + r - 2))
-	[ "$r" -ge 2 ] && [ "$i" -lt "$n" ] && [ "$r" -lt $((DT_POPH - 3)) ] || return 0
+	[ "$r" -ge 2 ] && [ "$i" -lt "$n" ] && [ "$r" -lt $((DT_POPH - 3 - ex)) ] || return 0
 	[ "${DT_NET["radio"]}" = enabled ] || return 0
 	DT_NETSEL=$i
 	dt_popclose
@@ -1332,6 +1401,9 @@ fn net_context(id = "") {
 		fi
 		if [ "${DT_NET["state"]}" = wifi ]; then
 			dt_sep
+			# Always offered on Wi-Fi, not only when NetworkManager saw a
+			# portal: where it does not check, this is the only way in.
+			dt_item "Sign In to This Network${GL[ellipsis]}" i dt_netsignin
 			dt_item "Disconnect" d dt_netleave
 		fi
 	fi

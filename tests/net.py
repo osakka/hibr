@@ -404,6 +404,26 @@ try:
           n.inuse() == ["Neighbour 5G"] and own and own[0].get("owner", "").startswith("user:"),
           (n.inuse(), own))
 
+    # A network that comes into reach is seen once the list is opened,
+    # which asks for a scan and reads what it found. The scan only asked
+    # NetworkManager to look and the read never waited for it, so a new
+    # network was missing until the desktop started again (owner,
+    # 2026-11-03). The stand-in lists it only to a read that scans.
+    n = Net()
+    n.poke(lambda s: s.__setitem__("unscanned", [
+        {"IN-USE": "", "SSID": "Station Wi-Fi", "BSSID": "AA:BB:CC:00:00:09", "MODE": "Infra",
+         "CHAN": "1", "SIGNAL": "70", "BARS": "", "SECURITY": ""}]))
+    sc = srun(n, [press(0, col), release(0, col)], until="Station Wi-Fi")
+    check("opening the list scans, and a network that came into reach is in it",
+          sc.find("Station Wi-Fi") is not None, sc)
+    # A network that wants a sign-in first (a captive portal): said once,
+    # and the list offers to open its page.
+    n = Net()
+    n.poke(lambda s: s.__setitem__("conn", "portal"))
+    sc = srun(n, [press(0, col), release(0, col)], until="Sign In to This Network")
+    check("a network that wants a sign-in says so, and the list offers its page",
+          sc.find("Sign In to This Network") is not None, sc)
+
     # iproute2 alone, against this machine itself: the default route's
     # device, wired, and its own address.
     r = subprocess.run(["ip", "-j", "route", "show", "default"], capture_output=True, text=True).stdout
@@ -426,4 +446,4 @@ try:
 finally:
     shutil.rmtree(D, True)
 
-report(34)
+report(36)

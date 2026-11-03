@@ -1143,6 +1143,8 @@ Shut Down
 Shut Down…
 Shut down the computer?
 Side
+Sign In to This Network%s
+Sign In to This Network…
 Signature
 Signature, put under every message you write:
 Sites Answered For Always
@@ -1280,6 +1282,7 @@ This desktop is not the computer's own
 This engine cannot fetch that picture
 This engine cannot save an address
 This links to %s
+This network wants you to sign in -- click to open its page
 This notification has been cleared.
 This page could not be drawn
 This site and its sister hosts. Any other site opens in the Browser.
