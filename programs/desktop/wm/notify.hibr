@@ -281,11 +281,16 @@ fn dt_notehist_add(int id) {
 dt_note_draw() {
 	local id now age w h r c t n=0 top bar f used i k ar ac arows acols gx
 	local wmin wmax hmin hmax hopen
-	local col vl fr
+	local col vl fr follow=
 
 	# The frame every note is drawn in this frame: the windows' own unless
 	# one was chosen, and with the windows frameless a note still has one.
+	# Same as Windows draws the window's whole chrome (dt_chromebox): its
+	# title bar, curved or solid, its see-through face, its frame or none
+	# -- copying only the frame's line style was what made a note under
+	# Charcoal a plain single box (#102).
 	fr=$DT_NOTEFRAME
+	[ "$fr" = windows ] && follow=1
 	# A window's solid frame is a ring round its face, which a note
 	# calls solid reversed; a note's own solid is one block of colour.
 	if [ "$fr" = windows ]; then
@@ -381,9 +386,32 @@ dt_note_draw() {
 			low) col=$DT_DIM ;;
 			*) col=$DT_ACTIVE ;;
 			esac
-			# Its frame, the windows' own unless chosen (Gitea #398):
-			# a ring of glyphs, or under solid a ring of cells in
-			# the priority's colour -- round the note's own face when
+			# A note following the windows is drawn as one: their
+			# chrome, the sender for its title, its title bar in the
+			# focused window's colour, or the priority's when high.
+			if [ -n "$follow" ]; then
+				[ "$col" = "$DT_ACTIVE" ] && col=${DT_TITLE:-$DT_ACTIVE}
+				dt_chromebox "$r" "$c" "$h" "$w" "$f" "$col"
+				if [ -n "${DT_NOTEQ[$id]["cut"]}" ]; then
+					dt_fitmark $((r + h - 1)) "$c" "$w"
+				elif [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
+					dt_fitmark $((r + h - 1)) "$c" "$w" open
+				fi
+				dt_chromein on
+				console pen "$DT_INK" "$DT_FACE" bold
+				i=0
+				while [ "$i" -lt "$DT_FITH" ]; do
+					t := str pad "${DT_FITLINES[$i]-}" $((w - 4))
+					console put $((r + 1 + i)) $((c + 2)) "$t"
+					i=$((i + 1))
+				done
+				dt_chromein off
+				n=$((n + 1))
+				continue
+			fi
+			# Its frame, when one was chosen (Gitea #398): a ring of
+			# glyphs, or under solid a ring of cells in the
+			# priority's colour -- round the note's own face when
 			# reversed, and the body that colour too when not.
 			if [ "$ring" = 1 ]; then
 				console pen "$DT_SELINK" "$col"

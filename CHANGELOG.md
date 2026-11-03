@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.435
+
+**Notes and the confirm box look like the windows** (#102, owner,
+Charcoal). A note set to Same as Windows copied only the frame's line
+style, and Charcoal's windows have none -- so it fell back to a plain
+single box with no title bar, and the confirm box did the same, the two
+things on the screen that were not the theme. Both are drawn now with the
+windows' own chrome, `dt_chromebox`: their title bar, curved, solid or a
+line, with the sender or "Confirm" in it, their frame or none, and their
+see-through face. A note's title bar takes the focused window's colour, or
+its priority's when high or urgent.
+- One box scaler for the console and img (`mods/boxscale.c`, #356).
+
 ## 0.99.434
 
 **One copy each, the second part** (Gitea #356). Nothing a script sees

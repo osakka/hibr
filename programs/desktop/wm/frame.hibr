@@ -254,6 +254,78 @@ fn dt_wapp(int id) {
 	ret "$c"
 }
 
+# A window's chrome at screen coordinates, for what draws itself as a
+# window without being one -- a note that follows the windows, the confirm
+# box (#102): the face, see-through as the windows' are; their frame, or
+# none; and their title bar, a line, solid or curved, holding title in the
+# colour on. The inside is the caller's, rows 1 to h-2 and columns 1 to
+# w-2, and so is the translucency it draws its face-coloured text with
+# (dt_chromein). Under Charcoal a box that only copied the frame's line
+# style found no lines for "none" and fell back to a plain single box with
+# no title bar: the one thing on the screen that was not the theme.
+fn dt_chromebox(int r, int c, int h, int w, title, on) {
+	local ts=0 bar i tl tr bl br fv tc tdl=" " tdr=" " tink=${DT_TITLEINK:-$DT_SELINK}
+
+	dt_chromein on
+	console pen "$DT_INK" "$DT_FACE"
+	console fill "$r" "$c" "$h" "$w" " "
+	dt_chromein off
+	{ [ "$DT_TITLEBAR" != line ] || [ "$DT_FRAME" = solid ]; } && ts=1
+	if [ "$DT_FRAME" = solid ]; then
+		console pen "$DT_SELINK" "$on"
+		console fill "$r" "$c" 1 "$w" " "
+		console fill $((r + h - 1)) "$c" 1 "$w" " "
+		console fill "$r" "$c" "$h" 1 " "
+		console fill "$r" $((c + w - 1)) "$h" 1 " "
+	elif [ -n "${DT_FRAMES[$DT_FRAME]["tl"]+x}" ]; then
+		tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
+		bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
+		fv=${DT_FRAMES[$DT_FRAME]["v"]}
+		bar := dt_rep $((w - 2)) "${DT_FRAMES[$DT_FRAME]["h"]}"
+		console pen "$on" "$DT_FACE"
+		console put "$r" "$c" "$tl$bar$tr"
+		console put $((r + h - 1)) "$c" "$bl$bar$br"
+		i=1
+		while [ "$i" -lt $((h - 1)) ]; do
+			console put $((r + i)) "$c" "$fv"
+			console put $((r + i)) $((c + w - 1)) "$fv"
+			i=$((i + 1))
+		done
+		[ "$ts" = 0 ] && { tdl=${GL[teel]}; tdr=${GL[teer]}; }
+	fi
+	if [ "$ts" = 1 ]; then
+		console pen "$tink" "$on"
+		console fill "$r" "$c" 1 "$w" " "
+		if [ "$DT_TITLEBAR" = curved ] && [ "${GL[capl]}" != " " ]; then
+			console pen "$on" default
+			console put "$r" "$c" "${GL[capl]}"
+			console put "$r" $((c + w - 1)) "${GL[capr]}"
+		fi
+		console pen "$tink" "$on" bold
+	else
+		console pen "$on" "$DT_FACE" bold
+	fi
+	[ -n "$title" ] || return 0
+	[ ${#title} -gt $((w - 6)) ] && title=${title:0:$((w - 6))}
+	case $DT_TITLEALIGN in
+	center) tc=$((c + (w - ${#title} - 4) / 2)) ;;
+	right) tc=$((c + w - ${#title} - 6)) ;;
+	*) tc=$((c + 2)) ;;
+	esac
+	console put "$r" "$tc" "$tdl $title $tdr"
+}
+
+# Turn on or off the see-through the windows' faces have, for what a
+# dt_chromebox's caller draws on its face.
+fn dt_chromein(how) {
+	[ "${DT_WINTRANS:-0}" != 0 ] || return 0
+	if [ "$how" = on ]; then
+		console translucent "$DT_WINTRANS" "$DT_FACE" "$DT_FACE"
+	else
+		console translucent off
+	fi
+}
+
 # Everything a window's frame is drawn from: where it is and its size, the
 # focus colour, the title, its title bar's buttons lit or held, and the
 # theme's frame. The same signature twice means the frame on the screen is
