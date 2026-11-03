@@ -1343,7 +1343,6 @@ int b_shopt(sh *s, int ac, char **av)
 	return n ? HIBR_FAIL : HIBR_OK;
 }
 
-/* Run a command, ignoring any function or alias of the same name. */
 /* Run av as a program found on PATH, never a builtin or a function, and
    wait for it: command's own path, and a builtin's way out to the real
    program for an option it does not implement. */

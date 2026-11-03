@@ -175,7 +175,6 @@ int net_split(const char *p, str *host, str *port)
 	return HIBR_OK;
 }
 
-/* Open a client connection to a host and service. */
 /* HIBR_CONNTIMEO in milliseconds, one reading for the shell and every
    module (Gitea #354): dflt when unset or not a whole number, 0 -- no bound
    -- for 0 or less, and at most an hour, where a larger value used to turn
@@ -318,6 +317,7 @@ int net_conn(int fd, const struct sockaddr *sa, socklen_t n)
 	return 0;
 }
 
+/* Open a client connection to a host and service. */
 int net_dial(const char *host, const char *port, int udp)
 {
 	struct addrinfo hint, *res, *a;
@@ -1053,7 +1053,6 @@ void cp_slot(sh *s, const char *nm, const char *key, int idx, int fd)
 	s_num(&b, (long)fd);
 	ks[0] = (char *)key;
 	hibr_setp(s, nm, ks, 1, b.p);
-	s_num(&b, 0);
 	b.n = 0;
 	s_num(&b, (long)idx);
 	{

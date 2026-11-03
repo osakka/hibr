@@ -676,40 +676,6 @@ char *bi_oval(int ac, char **av, int *i, size_t len)
 	return 0;
 }
 
-/* One delimited run from a descriptor, for `read` and `mapfile`.
-
-   A descriptor that can be seeked is read a block at a time and put back --
-   lseek to just past the delimiter -- which is how `in_line` has always read
-   a script. A pipe, a socket or a terminal cannot be put back, so there it
-   stays one byte a syscall, which is the reason this ever was one: `read`
-   must not consume a byte the next command would want.
-
-   It matters more than it looks. `while read -r l; do :; done < file` over a
-   950 kB file made 948,892 read calls, one a byte, 0.30 s of it in the
-   kernel -- and the desktop's own mount scan read /proc/mounts the same way
-   on a machine where that file is 6 kB, several times a second. Blocks make
-   it 2 calls a line.
-
-   want caps how much is taken. exact says whether the delimiter still ends
-   the read before that cap is reached: it does for `read -n`, which takes N
-   characters *or* the delimiter, whichever comes first, and it does not for
-   `read -N`, which is the form that takes exactly N and keeps a delimiter
-   among them (Gitea #107). Both spellings read N bytes regardless until
-   0.99.144, which made them one command written two ways.
-   Returns the last read's own result, so the caller can still tell end of
-   file from a delimiter. dl, when not 0, is a CLOCK_MONOTONIC deadline in
-   milliseconds for the whole read, as `read -t` means it in bash: a pipe
-   that sends half a line and then nothing more -- an interactive
-   program's prompt -- used to hold the read until a newline came, however
-   short the timeout, which froze a desktop draining such a program (Gitea
-   #327's sibling, 0.99.272). On the deadline *tout is set and what was
-   taken is kept. A file never blocks, so only the byte path waits.
-   A datagram socket -- `/dev/udp` -- is read a datagram at a time instead
-   of a byte at a time: each read takes a whole datagram and drops what it
-   did not ask for, so a byte read kept a reply's first byte and threw the
-   rest away, and `read -N 12` then waited for a datagram that never came.
-   What follows the delimiter or the count in one datagram is lost, as it
-   is in bash, which reads such a socket in blocks too. */
 /* How many characters n bytes hold: a byte that does not continue a UTF-8
    sequence starts one. read's -n and -N count these (ADR 0021). */
 int bi_u8chars(const char *p, size_t n)
@@ -770,6 +736,40 @@ void bi_rdadd(str *b, const char *p, size_t n, int delim)
 	s_add(b, p, n);
 }
 
+/* One delimited run from a descriptor, for `read` and `mapfile`.
+
+   A descriptor that can be seeked is read a block at a time and put back --
+   lseek to just past the delimiter -- which is how `in_line` has always read
+   a script. A pipe, a socket or a terminal cannot be put back, so there it
+   stays one byte a syscall, which is the reason this ever was one: `read`
+   must not consume a byte the next command would want.
+
+   It matters more than it looks. `while read -r l; do :; done < file` over a
+   950 kB file made 948,892 read calls, one a byte, 0.30 s of it in the
+   kernel -- and the desktop's own mount scan read /proc/mounts the same way
+   on a machine where that file is 6 kB, several times a second. Blocks make
+   it 2 calls a line.
+
+   want caps how much is taken. exact says whether the delimiter still ends
+   the read before that cap is reached: it does for `read -n`, which takes N
+   characters *or* the delimiter, whichever comes first, and it does not for
+   `read -N`, which is the form that takes exactly N and keeps a delimiter
+   among them (Gitea #107). Both spellings read N bytes regardless until
+   0.99.144, which made them one command written two ways.
+   Returns the last read's own result, so the caller can still tell end of
+   file from a delimiter. dl, when not 0, is a CLOCK_MONOTONIC deadline in
+   milliseconds for the whole read, as `read -t` means it in bash: a pipe
+   that sends half a line and then nothing more -- an interactive
+   program's prompt -- used to hold the read until a newline came, however
+   short the timeout, which froze a desktop draining such a program (Gitea
+   #327's sibling, 0.99.272). On the deadline *tout is set and what was
+   taken is kept. A file never blocks, so only the byte path waits.
+   A datagram socket -- `/dev/udp` -- is read a datagram at a time instead
+   of a byte at a time: each read takes a whole datagram and drops what it
+   did not ask for, so a byte read kept a reply's first byte and threw the
+   rest away, and `read -N 12` then waited for a datagram that never came.
+   What follows the delimiter or the count in one datagram is lost, as it
+   is in bash, which reads such a socket in blocks too. */
 long bi_rddelim(int fd, int delim, int want, int exact, str *b, long long dl,
 		int *tout)
 {
@@ -2387,7 +2387,6 @@ void b_out(sh *s, str *o)
 		fputs(o->p, stdout);
 }
 
-/* Declare variables, with bash's flags or one of our own type names. */
 /* Order two functions by name, for declare -f and -F. */
 int fn_cmp(const void *a, const void *b)
 {

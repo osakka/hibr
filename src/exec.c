@@ -139,12 +139,12 @@ int ex_why(const char *nm, const char *who)
 	return e == ENOENT ? HIBR_NOCMD : HIBR_NOEXEC;
 }
 
-/* Locate an executable along PATH; a name with a slash is taken as it is,
-   if it is a file that may be run. */
 /* The path command -p looks along in place of PATH, for the one lookup it
    makes; nothing else sees it, and the command hash is left alone. */
 const char *x_pathover;
 
+/* Locate an executable along PATH; a name with a slash is taken as it is,
+   if it is a file that may be run. */
 char *findx(sh *s, const char *nm)
 {
 	const char *p = x_pathover ? x_pathover : hibr_get(s, "PATH");
@@ -2108,8 +2108,7 @@ void pflat(node *n, vec *v)
 	v_add(v, n);
 }
 
-/* Execute a pipeline, one process per stage. */
-/* t is whether the pipeline's status is being tested, which each stage
+/* Execute a pipeline, one process per stage. t is whether the pipeline's status is being tested, which each stage
    inherits: a stage keeps errexit, as bash's does (Gitea #270), and is
    exempt from it exactly when the pipeline is. */
 int ex_pipe(sh *s, node *n, int t)
@@ -2259,8 +2258,7 @@ int ex_bg(sh *s, node *n)
 	return s->st = 0;
 }
 
-/* Run a command list inside a subshell process. */
-/* t is whether the subshell's status is being tested: what runs inside is
+/* Run a command list inside a subshell process. t is whether the subshell's status is being tested: what runs inside is
    exempt from errexit exactly when a { } group there would be. */
 int ex_sub(sh *s, node *n, int t)
 {

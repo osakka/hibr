@@ -377,6 +377,19 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   copied while the desktop loaded, and an idle desktop is 13.3 MB against
   13.8 MB.
 
+**Code quality** (#471).
+- An indirect reference to an element (`r='m[k]'; ${!r}`) copies each key
+  out rather than writing a NUL into the referring variable's own value for
+  the time it takes to read it.
+- Dead code is gone: an unused operator table, an unused variable, an
+  `if (0)` that existed only to hold a label, a number formatted and thrown
+  away, and a glob test that could never be false. `m_fini` unloads
+  through `m_dropall` rather than a second copy of it.
+- Sixteen function descriptions that had drifted away from their functions
+  -- a function inserted between a description and its own -- are back
+  above them, two stale duplicates are gone, and four functions that had
+  none have one.
+
 ## 0.99.427
 
 **A sheet's formulas are contained, and a sheet can be given full access**

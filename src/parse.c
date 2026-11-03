@@ -251,7 +251,6 @@ void p_rtail(lex *l, node *n)
 			break;
 }
 
-/* Parse a simple command, assignment list or function definition. */
 /* Parse the ( elements ) of name=( ... ), the name taken from w. */
 node *p_arrasg(lex *l, word *w)
 {
@@ -277,6 +276,7 @@ node *p_arrasg(lex *l, word *w)
 	return cl;
 }
 
+/* Parse a simple command, assignment list or function definition. */
 node *p_simple(lex *l)
 {
 	node *n = nd(l, N_CMD);

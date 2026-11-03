@@ -312,7 +312,6 @@ int b_opt(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Print the generated usage text. */
 /* The switch column of one option: its switches, and its name in capitals
    when it takes a value. */
 void op_col(struct ospec *o, str *col)
@@ -331,6 +330,7 @@ void op_col(struct ospec *o, str *col)
 	}
 }
 
+/* Print the generated usage text. */
 void op_usage(sh *s, FILE *f)
 {
 	struct ospec *o;

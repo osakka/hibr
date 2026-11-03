@@ -566,9 +566,6 @@ char *xtrim(sh *s, const char *v, const char *pat, int op)
 	return r;
 }
 
-/* Replace the first or every match of a pattern inside a value, as bash
-   does: the leftmost longest each time, an empty match taking the whole
-   character after it along, and an empty pattern matching nothing. */
 /* Add a replacement to out: with mk, an unquoted & in it stands for the
    text matched, m for mn bytes, as bash 5.2's patsub_replacement has it;
    without, it is added as written. */
@@ -589,6 +586,9 @@ void xrepcat(str *out, const char *rep, const char *mk, const char *m, size_t mn
 			s_ch(out, rep[i]);
 }
 
+/* Replace the first or every match of a pattern inside a value, as bash
+   does: the leftmost longest each time, an empty match taking the whole
+   character after it along, and an empty pattern matching nothing. */
 char *xrepl(sh *s, const char *v, const char *pat, const char *rep,
 	    const char *mk, int all)
 {
@@ -884,8 +884,6 @@ void xbrk(str *b, str *m, int q)
 	x_brkn++;
 }
 
-/* Elements from..to of a list, joined: by IFS's first character for a *
-   list, by field breaks for an @ list. */
 /* Whether "$@" or "$*" counts as set for -, = and ?, so that its value is
    the list itself rather than the operator's word. */
 int xposok(sh *s, part *p)
@@ -917,6 +915,8 @@ int xlistok(sh *s, part *p, vec *lst, size_t from, int star)
 	return lst->n - from > 1 && *sep;
 }
 
+/* Elements from..to of a list, joined: by IFS's first character for a *
+   list, by field breaks for an @ list. */
 void xlist(sh *s, part *p, str *b, str *m, vec *lst, size_t from, size_t to,
 	   int star)
 {
@@ -1085,7 +1085,7 @@ void xarrop(sh *s, part *p, const char *k, char **ks, int nk, str *o,
 	vb_put(s, vl);
 }
 
-/* Expand one variable part into the output buffer. */
+/* Expand one variable part into the output buffer; through an indirection, @A and @a describe the variable named, not the one naming it. */
 void xvar(sh *s, part *p, str *b, str *m)
 {
 	const char *v;
@@ -1235,7 +1235,6 @@ void xvar(sh *s, part *p, str *b, str *m)
 		const char *r = xval(s, p->t);
 		part q2 = *p;
 		q2.op = p->op & ~V_INDF;
-		/* @A and @a describe the variable named, not the one naming it. */
 		if ((q2.op == V_XA || q2.op == V_XAT) && r && *r)
 			q2.t = (char *)r;
 		lg(HIBR_LTRC, "indirect with modifier via %s", p->t);
@@ -1346,28 +1345,26 @@ char *xquote(sh *s, const char *v, int bs)
 	return r;
 }
 
-/* Read the variable a piece of text names, subscripts and all. */
+/* Read the variable a piece of text names, subscripts and all; each key is copied out, never cut in place, since the text is a variable's own value (Gitea #471). */
 const char *xbyname(sh *s, const char *r)
 {
 	const char *br = strchr(r, '[');
 	const char *v;
 	vec *ks;
 	str nm;
-	char *q, *end;
+	const char *q, *end;
 
 	if (!br)
 		return xval(s, r);
 	s_init(&nm);
 	s_add(&nm, r, (size_t)(br - r));
 	ks = vb_get(s);
-	q = (char *)br + 1;
+	q = br + 1;
 	while (q && *q) {
 		end = strchr(q, ']');
 		if (!end)
 			break;
-		*end = 0;
-		v_add(ks, xkey(s, nm.p, ar_dup(s->xa, q, strlen(q))));
-		*end = ']';
+		v_add(ks, xkey(s, nm.p, ar_dup(s->xa, q, (size_t)(end - q))));
 		q = end + 1;
 		if (*q == '[')
 			q++;
@@ -1457,7 +1454,7 @@ char *xrepw(sh *s, part *p, char **mk)
 	return r;
 }
 
-/* Apply the parameter modifier to a resolved value. */
+/* Apply the parameter modifier to a resolved value; @Q and @K of an unset variable give nothing at all, as in bash, since '' would be a value it never had. */
 void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 {
 	char *a, *rep, *rmk;
@@ -1472,8 +1469,6 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 	case V_XQ:
 	case V_XK:
 	case V_XKW:
-		/* Unset quotes to nothing at all, as in bash: '' would be a
-		   value the variable never had. */
 		if (!set)
 			return;
 		a = xquote(s, v, 0);
@@ -2288,30 +2283,23 @@ char *xkey_q(sh *s, const char *nm, char *t, const char *mk)
 	return xkey(s, nm, t);
 }
 
-/* Expand one field, globbing it when it holds unquoted patterns. */
+/* Expand one field, globbing it when it holds unquoted patterns and set -f is off; under set -f a word with pattern characters is the word, as in bash. */
 void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out,
 	    vec *outm)
 {
 	str pat, dir;
 	size_t i, o0;
-	int meta = 0, cnt = 0;
+	int cnt = 0;
 
-	if (!xmeta(t, mk, n)) {
+	if (!xmeta(t, mk, n) || (s->sopt & O_NOGLOB)) {
 		xout(s, out, outm, t, mk, n);
 		return;
 	}
-	meta = 1;
 	s_init(&pat);
 	for (i = 0; i < n; i++) {
 		if (mk[i] && t[i] && strchr("*?[\\()|!@+", t[i]))
 			s_ch(&pat, '\\');
 		s_ch(&pat, t[i]);
-	}
-	/* set -f: a word with pattern characters is the word, as in bash. */
-	if (!meta || (s->sopt & O_NOGLOB)) {
-		xout(s, out, outm, t, mk, n);
-		s_free(&pat);
-		return;
 	}
 	s_init(&dir);
 	o0 = out->n;
@@ -2478,7 +2466,6 @@ int w_hasq(word *w)
 	return 0;
 }
 
-/* Expand a leading tilde in place. */
 /* What a ~ prefix names: home, a user, the working directory, the stack. */
 const char *xtilde1(sh *s, const char *t, size_t n)
 {
@@ -2705,10 +2692,7 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 			return;
 		}
 	}
-	if (0) {
 normal:
-		;
-	}
 	if ((fl & HIBR_XPAT) && w->p && !w->p->nx && w->p->k == P_TXT &&
 	    !w->p->q && w->p->n && w->p->t[0] != '~') {
 		xout(s, out, outm, w->p->t, 0, w->p->n);
@@ -3105,7 +3089,6 @@ int w_simple(word *w)
 	return 1;
 }
 
-/* Build a NULL terminated argv from a word list. */
 /* True for a word that can be the target of :=, a name or name[sub]...
    The name and the bracket must be literal; the subscript need not be, so
    m[$i]["k"] is a target and $m is not. */
@@ -3149,6 +3132,7 @@ int w_assign(word *w)
 	return i < n && t[i] == '=';
 }
 
+/* Build a NULL terminated argv from a word list. */
 char **xargv(sh *s, word *w, int *ac, char ***am)
 {
 	vec *o = vb_get(s);
@@ -3237,7 +3221,6 @@ void ax_err(struct ax *a, const char *m)
 }
 
 
-/* Read a variable's numeric value. */
 /* Drop the quotes from a subscript, marking what they made literal.
    Arithmetic sees the quote characters as ordinary text, so without this
    a["k"] would look for a key spelt with its quotes still on. */
@@ -3324,6 +3307,7 @@ long ax_val(struct ax *a, const char *t)
 	return ax_sub(a, t);
 }
 
+/* Read a variable's numeric value. */
 long ax_get(struct ax *a, const char *nm)
 {
 	const char *t;
@@ -3543,8 +3527,6 @@ long ax_un(struct ax *a)
 	return ax_prim(a);
 }
 
-const char *ax_tk[] = { "||", "&&", "|", "^", "&", "==", "!=", "<<", ">>",
-			"<=", ">=", "<", ">", "+", "-", "*", "/", "%", "**", 0 };
 const int ax_pr[] = { 1, 2, 3, 4, 5, 6, 6, 9, 9, 7, 7, 7, 7, 10, 10, 11, 11, 11, 12 };
 const int ax_ln[] = { 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 2 };
 
@@ -3585,8 +3567,6 @@ int ax_op(struct ax *a, int *pr, int *ln)
 /* Apply a binary arithmetic operator. */
 long ax_do(struct ax *a, int op, long l, long r)
 {
-	long v = 1;
-
 	if (a->skip)
 		return 0;
 	switch (op) {
@@ -3627,7 +3607,6 @@ long ax_do(struct ax *a, int op, long l, long r)
 			base *= base;
 			r >>= 1;
 		}
-		(void)v;
 		return (long)acc;
 	}
 	}

@@ -27,11 +27,11 @@ void on_int(int sig)
 	g_int = 1;
 }
 
-/* The terminal went away: say so, and let the loop leave through
-   sh_fini, so history is saved and jobs are told (Gitea #468). */
 volatile sig_atomic_t g_hup;
 extern volatile sig_atomic_t tr_any;
 
+/* The terminal went away: say so, and let the shell leave through
+   sh_hupnow, so history is saved and jobs are told (Gitea #468). */
 void on_hup(int sig)
 {
 	(void)sig;
@@ -590,7 +590,6 @@ void sh_fini(sh *s)
 	}
 }
 
-/* Start the shell. */
 /* Ask the system which file this process is running, or return 0. */
 char *sh_exe(void)
 {
@@ -700,6 +699,7 @@ void sh_machine(sh *s)
 	s_free(&o);
 }
 
+/* Start the shell. */
 int main(int ac, char **av)
 {
 	sh s;

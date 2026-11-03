@@ -230,6 +230,7 @@ void m_wstart(sh *s, struct mwalk *w, int bix)
 	s_init(&w->d);
 }
 
+/* The next folder of a module-path walk, or 0 when the walk is over. */
 const char *m_wnext(struct mwalk *w)
 {
 	sh *s = w->s;
@@ -274,6 +275,7 @@ const char *m_wnext(struct mwalk *w)
 	return 0;
 }
 
+/* Release what a module-path walk holds. */
 void m_wend(struct mwalk *w)
 {
 	s_free(&w->d);
@@ -437,20 +439,6 @@ int m_cmpnm(const void *a, const void *b)
 	return strcmp(x->m->nm, y->m->nm);
 }
 
-/* Print the loaded module table.
-
-   Two forms, decided on isatty(1), the same discipline the cat module keeps:
-   in a pipe it is byte for byte what it has always printed, because
-   tests/090-module.expected records it and anything parsing it reads that;
-   on a terminal it is fitted to the width.
-
-   Unfitted, six of the modules a desktop loads ran past eighty columns --
-   hold at 85, pty at 83 -- so they wrapped and every other row was a
-   continuation (Gitea #132). Fitted: sorted by name, since the load order
-   is not interesting; the columns only as wide as the widest name and
-   version actually present; the abi said once in the heading, because a
-   module whose abi does not match the shell's is refused at load, so every
-   loaded one has the same; and the description cut to what is left. */
 /* One line of a listing, to the screen or into a result slot: `out` is set
    only while a slot is bound, and then nothing is printed at all. A builtin
    that answers something has to go quiet when its answer is being captured
@@ -487,6 +475,20 @@ void m_bound(sh *s, str *o)
 	hibr_set(s, "RET", o->p ? o->p : "", 0);
 }
 
+/* Print the loaded module table.
+
+   Two forms, decided on isatty(1), the same discipline the cat module keeps:
+   in a pipe it is byte for byte what it has always printed, because
+   tests/090-module.expected records it and anything parsing it reads that;
+   on a terminal it is fitted to the width.
+
+   Unfitted, six of the modules a desktop loads ran past eighty columns --
+   hold at 85, pty at 83 -- so they wrapped and every other row was a
+   continuation (Gitea #132). Fitted: sorted by name, since the load order
+   is not interesting; the columns only as wide as the widest name and
+   version actually present; the abi said once in the heading, because a
+   module whose abi does not match the shell's is refused at load, so every
+   loaded one has the same; and the description cut to what is left. */
 void m_list(sh *s)
 {
 	size_t i;
@@ -854,6 +856,7 @@ int m_declaresbi(const char *path, const char *nm)
    command that is neither a builtin nor a function; v_named clears it. */
 int m_ldmode = -1;
 
+/* Read HIBR_MODULES into m_ldmode, once until v_named clears it. */
 int m_ldwhen(sh *s)
 {
 	const char *v;
@@ -899,6 +902,7 @@ struct bix *m_bix;
 size_t m_bixn;
 int m_bixok;
 
+/* Order two autoload index entries by builtin name. */
 int m_bixcmp(const void *a, const void *b)
 {
 	return strcmp(((const struct bix *)a)->nm, ((const struct bix *)b)->nm);
@@ -1291,17 +1295,7 @@ void m_apifree(sh *s)
 /* Unload every module at shutdown. */
 void m_fini(sh *s)
 {
-	mod *m;
-
-	while (s->mods.n) {
-		m = (mod *)s->mods.p[--s->mods.n];
-		mx_stale();
-		if (m->m->fin)
-			m->m->fin(s);
-		dlclose(m->h);
-		free(m->path);
-		free(m);
-	}
+	m_dropall(s);
 	v_free(&s->mods);
 	free(mx_tab);
 	mx_tab = 0;
