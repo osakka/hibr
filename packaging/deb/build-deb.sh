@@ -127,6 +127,11 @@ gzip -9n < CHANGELOG.md > "$STAGE/usr/share/doc/hibr/changelog.gz"
 gzip -9nf "$STAGE/usr/share/man/man1/hibr.1"
 gzip -9nf "$STAGE/usr/share/man/man1/desktop.1"
 
+# Breaks: packages that ship a module, at the last version built for an
+# older module ABI -- 16, before 0.99.430 -- which this shell refuses to
+# load. apt then upgrades them with hibr or holds hibr back, rather than
+# leaving a module installed that cannot load. Raise a version here, or
+# add a package, whenever HIBR_ABI moves.
 cat > "$STAGE/DEBIAN/control" <<EOF
 Package: hibr
 Version: $VER-$REV
@@ -137,6 +142,7 @@ Depends: libc6 (>= $glibc)
 Recommends: libpng16-16t64 | libpng16-16, libturbojpeg0, pkexec
 Suggests: libssl3 | libssl1.1, libargon2-1, libavformat62 | libavformat61 | libavformat60 | libavformat59, xvfb, libpoppler-glib8
 Conflicts: pleaser
+Breaks: hibr-retro (<< 0.1.8), hibr-browser (<< 0.5.29)
 Section: shells
 Priority: optional
 Homepage: https://github.com/osakka/hibr
