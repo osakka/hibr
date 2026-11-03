@@ -116,7 +116,6 @@ int mm_vert(mm_dia *d);
 
 mm_grid *mm_render(mm_dia *d, int ascii, int wide);
 void mm_gfree(mm_grid *g);
-void mm_u8(str *o, unsigned cp);
 size_t mm_width(const char *p);
 unsigned mm_glyph(int g, int ascii);
 

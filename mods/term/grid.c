@@ -582,7 +582,7 @@ void tm_cellstr(tm_t *t, const tm_cell *k, str *out)
 {
 	if (!k->w)
 		return;
-	tm_utf8(out, k->cp ? k->cp : ' ');
+	u8put(out, k->cp ? k->cp : ' ');
 	if (k->x)
 		s_cat(out, tm_ext(t, k));
 }
@@ -625,7 +625,7 @@ void tm_combine(tm_t *t, unsigned cp)
 		return;
 	s_init(&s);
 	s_cat(&s, tm_ext(t, k));
-	tm_utf8(&s, cp);
+	u8put(&s, cp);
 	k->x = tm_intern(t, s.p);
 	s_free(&s);
 }

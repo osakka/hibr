@@ -4,26 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Append a code point to a string as UTF-8. */
-void tm_utf8(str *b, unsigned cp)
-{
-	if (cp < 0x80) {
-		s_ch(b, (int)cp);
-	} else if (cp < 0x800) {
-		s_ch(b, (int)(0xC0 | (cp >> 6)));
-		s_ch(b, (int)(0x80 | (cp & 0x3F)));
-	} else if (cp < 0x10000) {
-		s_ch(b, (int)(0xE0 | (cp >> 12)));
-		s_ch(b, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(b, (int)(0x80 | (cp & 0x3F)));
-	} else {
-		s_ch(b, (int)(0xF0 | (cp >> 18)));
-		s_ch(b, (int)(0x80 | ((cp >> 12) & 0x3F)));
-		s_ch(b, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(b, (int)(0x80 | (cp & 0x3F)));
-	}
-}
-
 /* Where the cursor is drawn: where the program left it, or where it was
    when a synchronized frame began, while that frame is still being built. */
 void tm_curpos(tm_t *t, int *r, int *c)
@@ -228,7 +208,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 	    cc < w && cr < h) {
 		k = tm_dat(t, cr, cc);
 		s_init(&bar);
-		tm_utf8(&bar, 0x258F);
+		u8put(&bar, 0x258F);
 		dp->pen(tm_paint(t, k ? k->fg : t->dfg, 0),
 			tm_paint(t, k ? k->bg : t->dbg, 1), 0);
 		dp->put(row + cr, col + cc, bar.p);

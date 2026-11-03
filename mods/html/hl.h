@@ -88,7 +88,6 @@ const char *hl_attr_get(hl_n *e, const char *nm);
 void hl_docfree(hl_doc *d);
 void hl_dump(hl_n *n, int dep, str *o);
 int hl_isel(hl_n *n, const char *tag);
-int hl_isnsel(hl_n *n, int ns, const char *tag);
 hl_n *hl_clone(hl_doc *d, hl_n *n);
 hl_n *hl_findel(hl_n *n, const char *tag);
 void hl_selected(hl_doc *d, hl_n *n);
@@ -107,7 +106,6 @@ void hl_emit(hl_p *p, hl_tok *t);
 int hl_foreign(hl_p *p);
 
 int hl_utf8(const char *s, size_t n, unsigned *cp);
-void hl_putcp(str *o, unsigned cp);
 const hl_ent *hl_entfind(const char *nm, size_t len);
 
 #endif

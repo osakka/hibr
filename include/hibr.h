@@ -8,7 +8,7 @@
 #define HIBR_ABI 17u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.432"
+#define HIBR_VER "0.99.433"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -308,6 +308,7 @@ struct sh {
 
 int u8len(unsigned char c);
 int u8dec(const char *p, size_t n, unsigned *cp);
+void u8put(str *o, unsigned c);
 int u8w(unsigned c);
 int ed_cols(void);
 int ed_width(const char *p);
@@ -367,6 +368,8 @@ void s_free(str *s);
 void s_num(str *s, long v);
 void s_sqb(str *s, const char *p, size_t n);
 void s_sq(str *s, const char *p);
+int hibr_rdfd(int fd, str *o);
+int hibr_slurp(const char *path, str *o);
 void s_fmt(str *s, const char *f, ...);
 void v_add(vec *v, void *x);
 void v_free(vec *v);

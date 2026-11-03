@@ -40,7 +40,7 @@ void mm_row(mm_grid *g, int y, str *text, str *runs)
 		runs->p[0] = 0;
 	while (x < g->w) {
 		cp = g->cp[y * g->w + x];
-		mm_u8(text, cp);
+		u8put(text, cp);
 		s_ch(&st, g->sty[y * g->w + x]);
 		w = u8w(cp);
 		x += w < 1 ? 1 : w;

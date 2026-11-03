@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../b64.h"
 #include "hibr.h"
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -135,62 +136,6 @@ int vw_aload(void)
 	return 0;
 }
 
-static const char vw_b64c[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-/* Bytes as base64. */
-void vw_b64e(str *o, const unsigned char *p, size_t n)
-{
-	size_t i;
-	unsigned v;
-
-	for (i = 0; i + 2 < n; i += 3) {
-		v = p[i] << 16 | p[i + 1] << 8 | p[i + 2];
-		s_ch(o, vw_b64c[v >> 18 & 63]);
-		s_ch(o, vw_b64c[v >> 12 & 63]);
-		s_ch(o, vw_b64c[v >> 6 & 63]);
-		s_ch(o, vw_b64c[v & 63]);
-	}
-	if (n - i == 1) {
-		v = p[i] << 16;
-		s_ch(o, vw_b64c[v >> 18 & 63]);
-		s_ch(o, vw_b64c[v >> 12 & 63]);
-		s_cat(o, "==");
-	} else if (n - i == 2) {
-		v = p[i] << 16 | p[i + 1] << 8;
-		s_ch(o, vw_b64c[v >> 18 & 63]);
-		s_ch(o, vw_b64c[v >> 12 & 63]);
-		s_ch(o, vw_b64c[v >> 6 & 63]);
-		s_ch(o, '=');
-	}
-}
-
-/* Base64 (n bytes of it) into bytes; -1 on anything that is not base64. */
-long vw_b64d(str *o, const char *p, size_t n)
-{
-	unsigned v = 0;
-	int bits = 0;
-	const char *c;
-	size_t i;
-	long out = 0;
-
-	for (i = 0; i < n; i++) {
-		if (p[i] == '=')
-			break;
-		if (p[i] == '-' || p[i] == '_')
-			c = vw_b64c + (p[i] == '-' ? 62 : 63);
-		else if (!p[i] || !(c = strchr(vw_b64c, p[i])))
-			return -1;
-		v = v << 6 | (unsigned)(c - vw_b64c);
-		bits += 6;
-		if (bits >= 8) {
-			bits -= 8;
-			s_ch(o, (char)(v >> bits & 255));
-			out++;
-		}
-	}
-	return out;
-}
-
 /* The two halves HKDF-Expand makes of a 32-byte key: an encryption key and a MAC key. */
 void vw_stretch(const unsigned char *k, unsigned char *out)
 {
@@ -258,7 +203,7 @@ int vw_decs(const char *es, const unsigned char *key, str *o)
 	s_init(&ct);
 	s_init(&mac);
 	s_init(&buf);
-	if (vw_b64d(&iv, p, a - p) != 16 || vw_b64d(&ct, a + 1, b - a - 1) < 16 || vw_b64d(&mac, b + 1, strlen(b + 1)) != 32)
+	if (b64_dec(&iv, p, a - p, 1) != 16 || b64_dec(&ct, a + 1, b - a - 1, 1) < 16 || b64_dec(&mac, b + 1, strlen(b + 1), 1) != 32)
 		goto out;
 	s_add(&buf, iv.p, iv.n);
 	s_add(&buf, ct.p, ct.n);
@@ -306,11 +251,11 @@ int vw_encs(const unsigned char *p, size_t n, const unsigned char *key, str *o)
 		s_add(&buf, ct.p, ct.n);
 		vw_hmacf(vw_sha256(), key + 32, 32, (unsigned char *)buf.p, buf.n, m, &mn);
 		s_cat(o, "2.");
-		vw_b64e(o, iv, 16);
+		b64_enc(o, iv, 16);
 		s_ch(o, '|');
-		vw_b64e(o, (unsigned char *)ct.p, ct.n);
+		b64_enc(o, (unsigned char *)ct.p, ct.n);
 		s_ch(o, '|');
-		vw_b64e(o, m, 32);
+		b64_enc(o, m, 32);
 		rc = 0;
 	}
 	vw_ctxfree(ctx);
@@ -574,7 +519,7 @@ int vw_bi(sh *s, int ac, char **av)
 		}
 		vw_wipe(sec.p, sec.n);
 		s_free(&sec);
-		vw_b64e(&o, mk, 32);
+		b64_enc(&o, mk, 32);
 		vw_wipe(mk, sizeof mk);
 		return vw_say(s, &o);
 	}
@@ -670,14 +615,14 @@ int vw_bi(sh *s, int ac, char **av)
 			}
 			if (vw_rand(key, VW_KEYLEN) != 1)
 				return HIBR_FAIL;
-			vw_b64e(&o, key, VW_KEYLEN);
+			b64_enc(&o, key, VW_KEYLEN);
 			s_ch(&o, '\t');
 			vw_encs(vw_uk, VW_KEYLEN, key, &o);
 			vw_wipe(key, sizeof key);
 			return vw_say(s, &o);
 		}
 		if (ac == 5 && !strcmp(av[2], "open")) {
-			if (vw_b64d(&sec, av[3], strlen(av[3])) != VW_KEYLEN || vw_decs(av[4], (unsigned char *)sec.p, &o) < 0 ||
+			if (b64_dec(&sec, av[3], strlen(av[3]), 1) != VW_KEYLEN || vw_decs(av[4], (unsigned char *)sec.p, &o) < 0 ||
 			    o.n != VW_KEYLEN) {
 				vw_wipe(sec.p, sec.n);
 				s_free(&sec);

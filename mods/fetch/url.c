@@ -301,32 +301,3 @@ long ft_httpdate(const char *p)
 	return (long)timegm(&tm);
 }
 
-/* Base64, for a Basic login. */
-void ft_b64(str *o, const char *p, size_t n)
-{
-	static const char t[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-				"0123456789+/";
-	size_t i;
-	unsigned v;
-
-	for (i = 0; i + 2 < n; i += 3) {
-		v = (unsigned char)p[i] << 16 | (unsigned char)p[i + 1] << 8 |
-		    (unsigned char)p[i + 2];
-		s_ch(o, t[v >> 18]);
-		s_ch(o, t[(v >> 12) & 63]);
-		s_ch(o, t[(v >> 6) & 63]);
-		s_ch(o, t[v & 63]);
-	}
-	if (n - i == 1) {
-		v = (unsigned char)p[i] << 16;
-		s_ch(o, t[v >> 18]);
-		s_ch(o, t[(v >> 12) & 63]);
-		s_cat(o, "==");
-	} else if (n - i == 2) {
-		v = (unsigned char)p[i] << 16 | (unsigned char)p[i + 1] << 8;
-		s_ch(o, t[v >> 18]);
-		s_ch(o, t[(v >> 12) & 63]);
-		s_ch(o, t[(v >> 6) & 63]);
-		s_ch(o, '=');
-	}
-}

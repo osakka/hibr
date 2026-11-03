@@ -607,13 +607,6 @@ void cn_imgscalesrc(const unsigned char *in, int iw, int ih,
 	}
 }
 
-/* The whole bitmap into w by h pixels. */
-void cn_imgscale(const unsigned char *in, int iw, int ih,
-		 unsigned char *out, int w, int h)
-{
-	cn_imgscalesrc(in, iw, ih, 0, 0, iw, ih, out, w, h);
-}
-
 /* The kitty layer a picture goes in: the wallpaper's at the bottom, a
    window's picture above it by where its pane is in the stack, counted from
    the bottom so that opening a window moves nobody else's, and 0 -- over the

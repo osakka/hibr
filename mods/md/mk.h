@@ -78,7 +78,6 @@ int mk_ispunct(unsigned c);
 int mk_isspace(unsigned c);
 unsigned mk_utf8(const char *p, size_t n, int *len);
 unsigned mk_before(const char *s, size_t i);
-void mk_putu(str *o, unsigned c);
 const char *mk_entity(const char *nm, size_t n);
 void mk_fold(str *o, const char *p, size_t n);
 void mk_esc(str *o, const char *p, size_t n);

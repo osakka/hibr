@@ -300,20 +300,11 @@ void pm_line(str *o, const char *line)
 /* The whole of a file. */
 int pm_slurp(const char *path, str *o)
 {
-	int fd = open(path, O_RDONLY | O_CLOEXEC);
-	char *buf;
-	ssize_t r;
-
-	if (fd < 0) {
+	if (hibr_slurp(path, o) < 0) {
 		lg(HIBR_LERR, "pim: cannot read %s: %s", path, strerror(errno));
 		return HIBR_FAIL;
 	}
-	buf = xm(HIBR_IOCH);
-	while ((r = read(fd, buf, HIBR_IOCH)) > 0)
-		s_add(o, buf, (size_t)r);
-	free(buf);
-	close(fd);
-	return r < 0 ? HIBR_FAIL : HIBR_OK;
+	return HIBR_OK;
 }
 
 /* The text a subcommand works on, from av[i]: -t TEXT, a file, or - (or

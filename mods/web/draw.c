@@ -3,26 +3,6 @@
 #include "wb.h"
 #include <string.h>
 
-/* Append a code point as UTF-8. */
-void wb_putu(str *b, unsigned cp)
-{
-	if (cp < 0x80) {
-		s_ch(b, (int)cp);
-	} else if (cp < 0x800) {
-		s_ch(b, (int)(0xC0 | (cp >> 6)));
-		s_ch(b, (int)(0x80 | (cp & 0x3F)));
-	} else if (cp < 0x10000) {
-		s_ch(b, (int)(0xE0 | (cp >> 12)));
-		s_ch(b, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(b, (int)(0x80 | (cp & 0x3F)));
-	} else {
-		s_ch(b, (int)(0xF0 | (cp >> 18)));
-		s_ch(b, (int)(0x80 | ((cp >> 12) & 0x3F)));
-		s_ch(b, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(b, (int)(0x80 | (cp & 0x3F)));
-	}
-}
-
 /* Draw a tab's last frame, rows by w at row, col of the screen, clipped to
    the rectangle prow, pcol, ph, pw; runs of one pen go out together, and a
    link's cells carry its address. As pixels the page is placed through
@@ -73,7 +53,7 @@ int wb_draw(sh *s, const dp_api *dp, wb_tab *t, const char *pane, int row,
 					break;
 				sc = col + c;
 				if (sc >= pcol && sc < pcol + pw && k->cp != WB_CONT)
-					wb_putu(&run, k->cp ? k->cp : ' ');
+					u8put(&run, k->cp ? k->cp : ' ');
 				c++;
 			}
 			if (!run.n)

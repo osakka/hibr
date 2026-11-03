@@ -28,27 +28,6 @@ struct li_grep {
 
 int pl_prog(sh *s, char **av);
 
-/* Read a whole descriptor into o; 0 on success. */
-int li_slurp(int fd, str *o)
-{
-	ssize_t n;
-
-	for (;;) {
-		s_grow(o, HIBR_IOCH);
-		n = read(fd, o->p + o->n, o->cap - o->n - 1);
-		if (n < 0 && errno == EINTR)
-			continue;
-		if (n < 0)
-			return -1;
-		if (n == 0)
-			break;
-		o->n += (size_t)n;
-	}
-	s_grow(o, 1);
-	o->p[o->n] = 0;
-	return 0;
-}
-
 /* Read a whole file into o; 0 on success, the reason logged otherwise. */
 int li_file(const char *who, const char *path, str *o)
 {
@@ -58,7 +37,7 @@ int li_file(const char *who, const char *path, str *o)
 		lg(HIBR_LERR, "lines %s: %s: %s", who, path, strerror(errno));
 		return -1;
 	}
-	r = li_slurp(fd, o);
+	r = hibr_rdfd(fd, o);
 	if (r < 0)
 		lg(HIBR_LERR, "lines %s: %s: %s", who, path, strerror(errno));
 	close(fd);
@@ -421,7 +400,7 @@ int li_edit(sh *s, int ac, char **av)
 	s_init(&a);
 	s_init(&b);
 	s_init(&tmp);
-	if (li_slurp(0, &in) < 0 || li_file("edit", path, &f) < 0 || stat(path, &st) < 0)
+	if (hibr_rdfd(0, &in) < 0 || li_file("edit", path, &f) < 0 || stat(path, &st) < 0)
 		goto out;
 	while (i < in.n) {
 		e = i;

@@ -105,12 +105,6 @@ int hl_isel(hl_n *n, const char *tag)
 	return n && n->t == HL_ELEM && n->ns == HL_NSHTML && !strcmp(n->tag, tag);
 }
 
-/* Whether a node is an element of a namespace with this name. */
-int hl_isnsel(hl_n *n, int ns, const char *tag)
-{
-	return n && n->t == HL_ELEM && n->ns == ns && !strcmp(n->tag, tag);
-}
-
 /* Free a document and every node in it. */
 void hl_docfree(hl_doc *d)
 {

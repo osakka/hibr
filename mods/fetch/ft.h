@@ -71,7 +71,6 @@ void ft_urlstr(const ft_url *u, str *o);
 void ft_resolve(const char *base, const char *ref, str *o);
 int ft_sameorigin(const char *a, const char *b);
 long ft_httpdate(const char *p);
-void ft_b64(str *o, const char *p, size_t n);
 
 int ft_timeout(const ft_req *rq);
 void ft_closeall(void);

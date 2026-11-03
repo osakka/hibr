@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <signal.h>
 #include <time.h>
@@ -546,15 +547,37 @@ ssize_t io_rdall(int fd, void *buf, size_t n)
 	}
 }
 
-/* Append everything left on a descriptor to o, to its end of file. */
-void io_rdto(int fd, str *o)
+/* Append everything left on a descriptor to o, to its end of file, a
+   signal never taken for the end: 0, or -1 with errno when a read fails.
+   o is a string afterwards even when nothing was read. */
+int hibr_rdfd(int fd, str *o)
 {
 	char *buf = xm(HIBR_IOCH);
 	ssize_t n;
+	int e;
 
 	while ((n = io_rdall(fd, buf, HIBR_IOCH)) > 0)
 		s_add(o, buf, (size_t)n);
+	e = errno;
 	free(buf);
+	s_add(o, "", 0);
+	errno = e;
+	return n < 0 ? -1 : 0;
+}
+
+/* Append a whole file to o: 0, or -1 with errno when it cannot be opened
+   or read. The one copy of what a dozen modules each wrote out. */
+int hibr_slurp(const char *path, str *o)
+{
+	int fd = open(path, O_RDONLY | O_CLOEXEC), r, e;
+
+	if (fd < 0)
+		return -1;
+	r = hibr_rdfd(fd, o);
+	e = errno;
+	close(fd);
+	errno = e;
+	return r;
 }
 
 /* write everything, and never let a peer that has gone kill the shell.

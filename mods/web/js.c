@@ -68,26 +68,6 @@ long jr_hex4(const char *p, const char *e)
 	return v;
 }
 
-/* Append a code point as UTF-8. */
-void jr_utf8(str *o, unsigned long c)
-{
-	if (c < 0x80) {
-		s_ch(o, (int)c);
-	} else if (c < 0x800) {
-		s_ch(o, (int)(0xC0 | (c >> 6)));
-		s_ch(o, (int)(0x80 | (c & 0x3F)));
-	} else if (c < 0x10000) {
-		s_ch(o, (int)(0xE0 | (c >> 12)));
-		s_ch(o, (int)(0x80 | ((c >> 6) & 0x3F)));
-		s_ch(o, (int)(0x80 | (c & 0x3F)));
-	} else {
-		s_ch(o, (int)(0xF0 | (c >> 18)));
-		s_ch(o, (int)(0x80 | ((c >> 12) & 0x3F)));
-		s_ch(o, (int)(0x80 | ((c >> 6) & 0x3F)));
-		s_ch(o, (int)(0x80 | (c & 0x3F)));
-	}
-}
-
 /* A string, after its opening quote, into o; fails on a bad one. */
 int jr_str(jr *r, str *o)
 {
@@ -125,7 +105,7 @@ int jr_str(jr *r, str *o)
 			}
 			if (c >= 0xD800 && c < 0xE000)
 				c = 0xFFFD;
-			jr_utf8(o, (unsigned long)c);
+			u8put(o, (unsigned long)c);
 			break;
 		default:
 			return 0;

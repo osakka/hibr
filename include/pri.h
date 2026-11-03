@@ -51,7 +51,6 @@ struct lex {
 
 ssize_t io_rdall(int fd, void *buf, size_t n);
 char *slurp(FILE *f);
-void io_rdto(int fd, str *o);
 void lg_jstr(str *o, const char *t);
 
 unsigned vh(const char *k);
@@ -368,7 +367,6 @@ struct rngw { unsigned lo, hi; int w; };
 extern const struct rngw u8wtab[];
 extern const size_t u8wtab_n;
 size_t u8n(const char *t, size_t n);
-void u8put(str *o, unsigned c);
 size_t u8off(const char *t, size_t n, size_t c);
 char *bi_keys(sh *s, char *word, const char *mk, vec *ks);
 void b_decl1(sh *s, var *v, str *o, int set);

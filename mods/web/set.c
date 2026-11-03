@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../b64.h"
 #include "wb.h"
 #include <string.h>
 #include <stdlib.h>
@@ -656,34 +657,6 @@ void wb_drain(sh *s, vec *q)
 	s_free(&o);
 }
 
-/* Decode base64 onto out, skipping anything that is not part of it. */
-void wb_unb64(const char *p, str *out)
-{
-	unsigned acc = 0;
-	int bits = 0, v;
-
-	for (; *p && *p != '='; p++) {
-		if (*p >= 'A' && *p <= 'Z')
-			v = *p - 'A';
-		else if (*p >= 'a' && *p <= 'z')
-			v = *p - 'a' + 26;
-		else if (*p >= '0' && *p <= '9')
-			v = *p - '0' + 52;
-		else if (*p == '+')
-			v = 62;
-		else if (*p == '/')
-			v = 63;
-		else
-			continue;
-		acc = (acc << 6) | (unsigned)v;
-		bits += 6;
-		if (bits >= 8) {
-			bits -= 8;
-			s_ch(out, (int)((acc >> bits) & 0xFF));
-		}
-	}
-}
-
 /* The tab's page as a PDF, written to path: printed the way the browser
    prints it, backgrounds included. */
 int wb_pdf(wb_tab *t, const char *path)
@@ -700,7 +673,8 @@ int wb_pdf(wb_tab *t, const char *path)
 		return HIBR_FAIL;
 	}
 	s_init(&d);
-	wb_unb64(jv_str(jv_path(r, "result.data")), &d);
+	b64_dec(&d, jv_str(jv_path(r, "result.data")),
+		strlen(jv_str(jv_path(r, "result.data"))), 0);
 	jv_free(r);
 	f = fopen(path, "wb");
 	if (!f) {

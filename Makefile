@@ -61,9 +61,9 @@ PROMPT_SRC = $(wildcard mods/prompt/*.c) mods/inflate.c mods/inftab.c mods/gfxas
 # read, rather than the whole of inflate.c: it never expands anything, and
 # the decoder is six kilobytes of code it would not call.
 CONSOLE_SRC = $(wildcard mods/console/*.c) mods/deflate.c mods/inftab.c \
-	      mods/png.c mods/gfxask.c mods/blitfr.c
+	      mods/png.c mods/gfxask.c mods/blitfr.c mods/b64.c
 PTY_SRC = $(wildcard mods/pty/*.c)
-TERM_SRC = $(wildcard mods/term/*.c)
+TERM_SRC = $(wildcard mods/term/*.c) mods/b64.c
 HOLD_SRC = $(wildcard mods/hold/*.c) mods/gfxask.c mods/blitfr.c
 CAT_SRC = $(wildcard mods/cat/*.c)
 
@@ -167,13 +167,13 @@ $(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h mods/inflate.
 $(B)/mods/pty.so: $(PTY_SRC) include/hibr.h mods/pty/tt.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PTY_SRC)
 
-$(B)/mods/term.so: $(TERM_SRC) include/hibr.h mods/term/tm.h mods/pty.h mods/display.h mods/term.h | $(B)/mods
+$(B)/mods/term.so: $(TERM_SRC) include/hibr.h mods/b64.h mods/term/tm.h mods/pty.h mods/display.h mods/term.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(TERM_SRC)
 
 $(B)/mods/hold.so: $(HOLD_SRC) include/hibr.h mods/hold/hd.h mods/pty.h mods/term.h mods/display.h mods/gfxask.h mods/blitfr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(HOLD_SRC)
 
-$(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/console/cn.h mods/display.h mods/inflate.h mods/png.h mods/gfxask.h mods/blitfr.h | $(B)/mods
+$(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/b64.h mods/console/cn.h mods/display.h mods/inflate.h mods/png.h mods/gfxask.h mods/blitfr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(CONSOLE_SRC)
 
 $(B)/mods/cat.so: $(CAT_SRC) include/hibr.h mods/cat/ct.h | $(B)/mods
@@ -219,8 +219,8 @@ $(B)/mods/hcal.so: mods/hcal/hcal.c include/hibr.h | $(B)/mods
 $(B)/mods/salat.so: mods/salat/salat.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) -DHIBR_SHAREDIR=\"$(SHAREDIR)\" $(SOFLAGS) -o $@ mods/salat/salat.c -lm
 
-$(B)/mods/vw.so: mods/vw/vw.c include/hibr.h | $(B)/mods
-	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/vw/vw.c $(DLLIB)
+$(B)/mods/vw.so: mods/vw/vw.c mods/b64.c mods/b64.h include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/vw/vw.c mods/b64.c $(DLLIB)
 
 # The inflate is mods/inflate.c, the prompt module's own, shared rather than
 # written twice (Gitea #102), with mods/inftab.c beside it for the tables
@@ -248,9 +248,9 @@ $(B)/mods/media.so: $(MEDIA_SRC) include/hibr.h mods/media/mv.h mods/display.h |
 
 # fetch: the HTTP client every module that speaks to a web server asks for
 # (Gitea #399), with the shared inflate for gzip and deflate bodies.
-FETCH_SRC = $(wildcard mods/fetch/*.c) mods/inflate.c mods/inftab.c
+FETCH_SRC = $(wildcard mods/fetch/*.c) mods/inflate.c mods/inftab.c mods/b64.c
 
-$(B)/mods/fetch.so: $(FETCH_SRC) include/hibr.h mods/fetch.h mods/fetch/ft.h mods/inflate.h | $(B)/mods
+$(B)/mods/fetch.so: $(FETCH_SRC) include/hibr.h mods/b64.h mods/fetch.h mods/fetch/ft.h mods/inflate.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(FETCH_SRC) $(DLLIB)
 
 DAV_SRC = $(wildcard mods/dav/*.c)
@@ -258,14 +258,14 @@ DAV_SRC = $(wildcard mods/dav/*.c)
 $(B)/mods/dav.so: $(DAV_SRC) include/hibr.h mods/dav/dv.h mods/fetch.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(DAV_SRC) $(DLLIB)
 
-WEB_SRC = $(wildcard mods/web/*.c) mods/img/png.c
+WEB_SRC = $(wildcard mods/web/*.c) mods/img/png.c mods/b64.c
 
-$(B)/mods/web.so: $(WEB_SRC) include/hibr.h mods/web/wb.h mods/img/im.h mods/display.h | $(B)/mods
+$(B)/mods/web.so: $(WEB_SRC) include/hibr.h mods/b64.h mods/web/wb.h mods/img/im.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(WEB_SRC) $(DLLIB)
 
-EMAIL_SRC = $(wildcard mods/email/*.c)
+EMAIL_SRC = $(wildcard mods/email/*.c) mods/b64.c
 
-$(B)/mods/email.so: $(EMAIL_SRC) include/hibr.h mods/email/ml.h | $(B)/mods
+$(B)/mods/email.so: $(EMAIL_SRC) include/hibr.h mods/b64.h mods/email/ml.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(EMAIL_SRC) $(DLLIB)
 
 HTML_SRC = $(wildcard mods/html/*.c)

@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../b64.h"
 #include "wb.h"
 #include "../img/im.h"
 #include <stdio.h>
@@ -479,8 +480,8 @@ void wb_shotput(wb_tab *t, jv *r)
 	s_init(&png);
 	s_init(&err);
 	memset(&im, 0, sizeof im);
-	if (wb_b64(jv_str(jv_path(r, "result.data")),
-		   strlen(jv_str(jv_path(r, "result.data"))), &png) == HIBR_OK &&
+	if (b64_dec(&png, jv_str(jv_path(r, "result.data")),
+		    strlen(jv_str(jv_path(r, "result.data"))), 1) >= 0 &&
 	    im_pngmem((const unsigned char *)png.p, png.n, &im, &err) == HIBR_OK) {
 		if (t->pixels) {
 			/* Keep the picture itself; there is no text layer to
@@ -1157,37 +1158,3 @@ int wb_hist(wb_tab *t, int d)
 	return HIBR_OK;
 }
 
-/* Base64 into bytes. */
-int wb_b64(const char *in, size_t n, str *out)
-{
-	unsigned v = 0;
-	int bits = 0;
-	size_t i;
-	int d;
-	char c;
-
-	for (i = 0; i < n; i++) {
-		c = in[i];
-		if (c >= 'A' && c <= 'Z')
-			d = c - 'A';
-		else if (c >= 'a' && c <= 'z')
-			d = c - 'a' + 26;
-		else if (c >= '0' && c <= '9')
-			d = c - '0' + 52;
-		else if (c == '+')
-			d = 62;
-		else if (c == '/')
-			d = 63;
-		else if (c == '=' || c == '\n' || c == '\r')
-			continue;
-		else
-			return HIBR_FAIL;
-		v = (v << 6) | (unsigned)d;
-		bits += 6;
-		if (bits >= 8) {
-			bits -= 8;
-			s_ch(out, (int)((v >> bits) & 255));
-		}
-	}
-	return HIBR_OK;
-}

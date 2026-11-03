@@ -9,7 +9,6 @@ extern cn_grid cn_front;
 extern unsigned cn_deffg, cn_defbg;
 void cn_sgrcol(str *b, unsigned v, int bgp);
 void cn_sgr(str *b, unsigned fg, unsigned bg, unsigned at);
-void cn_enc(str *b, unsigned cp);
 
 /* A colour as #rrggbb, for HTML: a palette index by xterm's own table, the
    terminal's default as whatever the desktop said its ink and face are. */
@@ -61,7 +60,7 @@ void cn_shotch(str *b, const cn_cell *c, int html)
 		s_cat(b, cp == '<' ? "&lt;" : cp == '>' ? "&gt;" : "&amp;");
 		return;
 	}
-	cn_enc(b, cp);
+	u8put(b, cp);
 	if (c->ext)
 		s_cat(b, c->ext);
 }

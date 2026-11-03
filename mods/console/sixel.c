@@ -34,12 +34,6 @@ int six_lvl(unsigned v)
 	return (int)((v * 5 + 127) / 255);
 }
 
-/* The fixed palette's index for one colour. */
-int six_fixed(const unsigned char *p)
-{
-	return six_lvl(p[0]) * 36 + six_lvl(p[1]) * 6 + six_lvl(p[2]);
-}
-
 /* A fixed palette entry's own colour, in sixel's 0..100 per channel. */
 void six_fixedrgb(int i, int *r, int *g, int *b)
 {

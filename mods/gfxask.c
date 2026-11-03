@@ -457,18 +457,3 @@ const char *gx_name(int g)
 	return "unknown";
 }
 
-/* That word back as a capability; anything else is unknown. */
-int gx_byname(const char *s)
-{
-	if (!s)
-		return GX_UNKNOWN;
-	if (!strcmp(s, "kitty"))
-		return GX_KITTY;
-	if (!strcmp(s, "sixel"))
-		return GX_SIXEL;
-	if (!strcmp(s, "none"))
-		return GX_NONE;
-	if (!strcmp(s, "unasked"))
-		return GX_UNASKED;
-	return GX_UNKNOWN;
-}

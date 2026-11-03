@@ -622,17 +622,6 @@ int cn_transon(unsigned bg)
 			       (cn_transmat != DP_DEFAULT && bg == cn_transmat));
 }
 
-/* Darken a rectangle of the back buffer in place, in front of whatever is
-   drawn under it -- a window's shadow, cast on the desktop and on windows
-   below it, is this over their already-drawn cells before the window
-   drawing on top of it goes in and paints over its own footprint.  Nothing
-   is undone: a fixed shape darkened once a frame, not state carried between
-   frames, so there is nothing to restore when the window moves. */
-void cn_darken(int row, int col, int h, int w, int pct)
-{
-	cn_darken1(row, col, h, w, pct, 0, 0);
-}
-
 /* What a half of a cell shows now, top or bottom, and whether that came
    from the cell's background: a half block -- a wallpaper drawn in half
    blocks is all of them -- shows one colour in each half, a full block its
@@ -1108,26 +1097,6 @@ int cn_same(const cn_cell *a, const cn_cell *b)
 	return !strcmp(a->ext, b->ext);
 }
 
-/* Encode one codepoint as UTF-8 into the buffer. */
-void cn_enc(str *b, unsigned cp)
-{
-	if (cp < 0x80) {
-		s_ch(b, (char)cp);
-	} else if (cp < 0x800) {
-		s_ch(b, (char)(0xC0 | (cp >> 6)));
-		s_ch(b, (char)(0x80 | (cp & 0x3F)));
-	} else if (cp < 0x10000) {
-		s_ch(b, (char)(0xE0 | (cp >> 12)));
-		s_ch(b, (char)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(b, (char)(0x80 | (cp & 0x3F)));
-	} else {
-		s_ch(b, (char)(0xF0 | (cp >> 18)));
-		s_ch(b, (char)(0x80 | ((cp >> 12) & 0x3F)));
-		s_ch(b, (char)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(b, (char)(0x80 | (cp & 0x3F)));
-	}
-}
-
 /* True when a changed cell is close enough that moving costs more than drawing. */
 int cn_near(int r, int c)
 {
@@ -1541,7 +1510,7 @@ long cn_flush(void)
 				s_ch(&b, 7);
 				cn_llink = e->link;
 			}
-			cn_enc(&b, e->cp ? e->cp : ' ');
+			u8put(&b, e->cp ? e->cp : ' ');
 			if (e->ext)
 				s_cat(&b, e->ext);
 			cr = r;

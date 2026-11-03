@@ -73,26 +73,6 @@ int hl_utf8(const char *s, size_t n, unsigned *cp)
 	return k;
 }
 
-/* Append a code point as UTF-8. */
-void hl_putcp(str *o, unsigned c)
-{
-	if (c < 0x80) {
-		s_ch(o, (char)c);
-	} else if (c < 0x800) {
-		s_ch(o, (char)(0xC0 | (c >> 6)));
-		s_ch(o, (char)(0x80 | (c & 0x3F)));
-	} else if (c < 0x10000) {
-		s_ch(o, (char)(0xE0 | (c >> 12)));
-		s_ch(o, (char)(0x80 | ((c >> 6) & 0x3F)));
-		s_ch(o, (char)(0x80 | (c & 0x3F)));
-	} else {
-		s_ch(o, (char)(0xF0 | (c >> 18)));
-		s_ch(o, (char)(0x80 | ((c >> 12) & 0x3F)));
-		s_ch(o, (char)(0x80 | ((c >> 6) & 0x3F)));
-		s_ch(o, (char)(0x80 | (c & 0x3F)));
-	}
-}
-
 /* A named character reference by its exact name, or none. */
 const hl_ent *hl_entfind(const char *nm, size_t len)
 {
@@ -224,7 +204,7 @@ void tk_char(hl_p *p, unsigned c)
 	if (p->charws && (p->charws != k || k == 3))
 		tk_flush(p);
 	p->charws = k;
-	hl_putcp(&p->chars, c);
+	u8put(&p->chars, c);
 }
 
 /* Gather a string of characters. */
@@ -381,7 +361,7 @@ void tk_ref(hl_p *p, int inattr, str *out)
 		else
 			v = tk_c1((unsigned)v);
 		if (out)
-			hl_putcp(out, (unsigned)v);
+			u8put(out, (unsigned)v);
 		else
 			tk_char(p, (unsigned)v);
 		return;
@@ -467,8 +447,8 @@ void tk_eof(hl_p *p)
 int tk_endname(hl_p *p, int c, int back)
 {
 	if (tk_alpha(c)) {
-		hl_putcp(&p->tok.nm, (unsigned)tk_low(c));
-		hl_putcp(&p->tmp, (unsigned)c);
+		u8put(&p->tok.nm, (unsigned)tk_low(c));
+		u8put(&p->tmp, (unsigned)c);
 		return -1;
 	}
 	if (tk_apt(p)) {
@@ -589,7 +569,7 @@ void hl_toknext(hl_p *p)
 				tk_eof(p);
 				return;
 			} else
-				hl_putcp(&p->tok.nm, c ? (unsigned)tk_low(c) : 0xFFFD);
+				u8put(&p->tok.nm, c ? (unsigned)tk_low(c) : 0xFFFD);
 			break;
 		case S_RCLT:
 		case S_RAWLT:
@@ -720,7 +700,7 @@ void hl_toknext(hl_p *p)
 					p->state = is ? S_SCESC : S_SCDESC;
 				tk_char(p, (unsigned)c);
 			} else if (tk_alpha(c)) {
-				hl_putcp(&p->tmp, (unsigned)tk_low(c));
+				u8put(&p->tmp, (unsigned)tk_low(c));
 				tk_char(p, (unsigned)c);
 			} else {
 				tk_back(p, c);
@@ -794,7 +774,7 @@ void hl_toknext(hl_p *p)
 			} else if (c == '=')
 				p->state = S_BATTRVAL;
 			else
-				hl_putcp(&p->buf, c ? (unsigned)tk_low(c) : 0xFFFD);
+				u8put(&p->buf, c ? (unsigned)tk_low(c) : 0xFFFD);
 			break;
 		case S_AATTRNAME:
 			if (tk_ws(c))
@@ -842,7 +822,7 @@ void hl_toknext(hl_p *p)
 				tk_eof(p);
 				return;
 			} else
-				hl_putcp(&p->tmp, c ? (unsigned)c : 0xFFFD);
+				u8put(&p->tmp, c ? (unsigned)c : 0xFFFD);
 			break;
 		case S_ATTRVALUQ:
 			if (tk_ws(c)) {
@@ -857,7 +837,7 @@ void hl_toknext(hl_p *p)
 				tk_eof(p);
 				return;
 			} else
-				hl_putcp(&p->tmp, c ? (unsigned)c : 0xFFFD);
+				u8put(&p->tmp, c ? (unsigned)c : 0xFFFD);
 			break;
 		case S_AATTRVALQ:
 			tk_attrdone(p);
@@ -898,7 +878,7 @@ void hl_toknext(hl_p *p)
 				tk_eof(p);
 				return;
 			} else
-				hl_putcp(&p->tok.data, c ? (unsigned)c : 0xFFFD);
+				u8put(&p->tok.data, c ? (unsigned)c : 0xFFFD);
 			break;
 		case S_MARKUP:
 			tk_back(p, c);
@@ -958,7 +938,7 @@ void hl_toknext(hl_p *p)
 				tk_eof(p);
 				return;
 			} else
-				hl_putcp(&p->tok.data, c ? (unsigned)c : 0xFFFD);
+				u8put(&p->tok.data, c ? (unsigned)c : 0xFFFD);
 			break;
 		case S_CLT:
 			if (c == '!') {
@@ -1066,7 +1046,7 @@ void hl_toknext(hl_p *p)
 				tk_eof(p);
 				return;
 			} else {
-				hl_putcp(&p->tok.nm, c ? (unsigned)tk_low(c) : 0xFFFD);
+				u8put(&p->tok.nm, c ? (unsigned)tk_low(c) : 0xFFFD);
 				p->tok.hasnm = 1;
 				p->state = S_DTNAME;
 			}
@@ -1083,7 +1063,7 @@ void hl_toknext(hl_p *p)
 				tk_eof(p);
 				return;
 			} else
-				hl_putcp(&p->tok.nm, c ? (unsigned)tk_low(c) : 0xFFFD);
+				u8put(&p->tok.nm, c ? (unsigned)tk_low(c) : 0xFFFD);
 			break;
 		case S_ADTNAME:
 			if (tk_ws(c))
@@ -1147,7 +1127,7 @@ void hl_toknext(hl_p *p)
 				tk_eof(p);
 				return;
 			} else
-				hl_putcp((p->state == S_DTPUBIDDQ || p->state == S_DTPUBIDSQ) ?
+				u8put((p->state == S_DTPUBIDDQ || p->state == S_DTPUBIDSQ) ?
 					 &p->tok.pub : &p->tok.sys, c ? (unsigned)c : 0xFFFD);
 			break;
 		case S_ADTPUBID:

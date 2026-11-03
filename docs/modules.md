@@ -131,6 +131,8 @@ A module can reach everything the language can:
 | `hibr_wrall` | write all of a buffer to a descriptor the module owns, without a peer that has gone killing the process |
 | `hibr_scheme`, `hibr_schemef`, `hibr_unscheme` | register a `/dev/<name>/` protocol |
 | `hibr_onexec`, `hibr_offexec` | run a function just before `exec` replaces the process, and withdraw it |
+| `hibr_slurp`, `hibr_rdfd` | a whole file, or everything left on a descriptor, appended to a `str`, a signal never taken for the end (0.99.433) |
+| `s_sq`, `s_sqb`, `u8put` | a string as one single-quoted word, or the inside of one; a code point as UTF-8 (0.99.433) |
 | `lg`, arenas, `str`, `vec` | the shell's own utilities |
 
 **A child the module starts ends before an exec in place.** Restart

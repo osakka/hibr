@@ -16,21 +16,8 @@ struct dv_nsb {
 /* Append a code point as UTF-8. */
 void dv_putu(str *o, unsigned long cp)
 {
-	if (cp < 0x80) {
-		s_ch(o, (int)cp);
-	} else if (cp < 0x800) {
-		s_ch(o, (int)(0xC0 | (cp >> 6)));
-		s_ch(o, (int)(0x80 | (cp & 0x3F)));
-	} else if (cp < 0x10000) {
-		s_ch(o, (int)(0xE0 | (cp >> 12)));
-		s_ch(o, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(o, (int)(0x80 | (cp & 0x3F)));
-	} else if (cp < 0x110000) {
-		s_ch(o, (int)(0xF0 | (cp >> 18)));
-		s_ch(o, (int)(0x80 | ((cp >> 12) & 0x3F)));
-		s_ch(o, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(o, (int)(0x80 | (cp & 0x3F)));
-	}
+	if (cp < 0x110000)
+		u8put(o, (unsigned)cp);
 }
 
 /* Append text with its character and entity references replaced. */

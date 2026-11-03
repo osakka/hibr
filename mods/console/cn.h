@@ -111,7 +111,6 @@ void cn_reassert(void);
 void cn_mouseon(int mode);
 void cn_signals(int on);
 void cn_clip(const char *t);
-void cn_b64(str *o, const unsigned char *p, size_t n);
 void cn_pen(unsigned fg, unsigned bg, unsigned attr);
 void cn_getpen(unsigned *fg, unsigned *bg, unsigned *attr);
 void cn_clear(void);
@@ -152,8 +151,6 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 void cn_imgscalesrc(const unsigned char *in, int iw, int ih,
 		    int rx, int ry, int rw, int rh,
 		    unsigned char *out, int w, int h);
-void cn_imgscale(const unsigned char *in, int iw, int ih,
-		 unsigned char *out, int w, int h);
 void cn_imgcheck(int again);
 int cn_imgkeep(sh *s, int row, int col, int h, int w);
 size_t cn_imgsend(str *b, int over);
@@ -229,7 +226,6 @@ unsigned cn_rgbof(unsigned v);
    exactly the terminal's and a picture drawn under the text would be let
    through it. */
 unsigned cn_opaque(int row, int col, unsigned bg);
-void cn_darken(int row, int col, int h, int w, int pct);
 void cn_darken1(int row, int col, int h, int w, int pct, int once, int half);
 unsigned cn_mix(unsigned a, unsigned b, int pct);
 void cn_tint(int row, int col, int h, int w, unsigned colour, int pct, int r0,

@@ -304,20 +304,11 @@ int dv_cpropfind(sh *s, int ac, char **av)
 /* The whole of a file, for a request body. */
 int dv_slurp(const char *path, str *o)
 {
-	int fd = open(path, O_RDONLY | O_CLOEXEC);
-	char *buf;
-	ssize_t r;
-
-	if (fd < 0) {
+	if (hibr_slurp(path, o) < 0) {
 		lg(HIBR_LERR, "dav: cannot read %s: %s", path, strerror(errno));
 		return HIBR_FAIL;
 	}
-	buf = xm(HIBR_IOCH);
-	while ((r = read(fd, buf, HIBR_IOCH)) > 0)
-		s_add(o, buf, (size_t)r);
-	free(buf);
-	close(fd);
-	return r < 0 ? HIBR_FAIL : HIBR_OK;
+	return HIBR_OK;
 }
 
 /* dav report [-d N] LOC -b BODY | -f FILE: a REPORT with a body of the

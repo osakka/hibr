@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../b64.h"
 #include "tm.h"
 #include <langinfo.h>
 #include <locale.h>
@@ -160,7 +161,7 @@ int tm_linkat2(tm_t *t, int r, int c, str *o)
 		;
 	s_init(&u);
 	for (e = a; e <= b; e++)
-		tm_utf8(&u, rc[e]);
+		u8put(&u, rc[e]);
 	rr = r;
 	while (a == tm_rowstart(rc, n) && b == tm_rowend(rc, n) && rr > 0) {
 		tm_rowcps(t, rr - 1, rc);
@@ -176,7 +177,7 @@ int tm_linkat2(tm_t *t, int r, int c, str *o)
 
 			s_init(&p);
 			for (b = a; b <= e; b++)
-				tm_utf8(&p, rc[b]);
+				u8put(&p, rc[b]);
 			s_cat(&p, u.p ? u.p : "");
 			s_free(&u);
 			u = p;
@@ -198,7 +199,7 @@ int tm_linkat2(tm_t *t, int r, int c, str *o)
 		if (!tm_urlrun(rc, a, e) || e != tm_rowend(rc, n))
 			break;
 		for (b = a; b <= e; b++)
-			tm_utf8(&u, rc[b]);
+			u8put(&u, rc[b]);
 		b = e;
 		rr++;
 	}
@@ -429,35 +430,6 @@ int tm_hex(const char *p, unsigned *v)
 		return 0;
 	*v = (unsigned)strtoul(p + 1, &e, 16);
 	return !*e;
-}
-
-/* Run a program on a terminal of its own and keep a picture of its screen. */
-/* Decode base64 onto out, skipping anything that is not part of it. */
-void tm_unb64(const char *p, str *out)
-{
-	unsigned acc = 0;
-	int bits = 0, v;
-
-	for (; *p && *p != '='; p++) {
-		if (*p >= 'A' && *p <= 'Z')
-			v = *p - 'A';
-		else if (*p >= 'a' && *p <= 'z')
-			v = *p - 'a' + 26;
-		else if (*p >= '0' && *p <= '9')
-			v = *p - '0' + 52;
-		else if (*p == '+')
-			v = 62;
-		else if (*p == '/')
-			v = 63;
-		else
-			continue;
-		acc = (acc << 6) | (unsigned)v;
-		bits += 6;
-		if (bits >= 8) {
-			bits -= 8;
-			s_ch(out, (int)((acc >> bits) & 0xFF));
-		}
-	}
 }
 
 int m_term(sh *s, int ac, char **av)
@@ -788,8 +760,8 @@ int m_term(sh *s, int ac, char **av)
 		if (!m->clip.n)
 			return HIBR_FAIL;
 		s_init(&o);
-		tm_unb64(strchr(m->clip.p, ';') ? strchr(m->clip.p, ';') + 1 : "",
-			 &o);
+		b64_dec(&o, strchr(m->clip.p, ';') ? strchr(m->clip.p, ';') + 1 : "",
+			strlen(strchr(m->clip.p, ';') ? strchr(m->clip.p, ';') + 1 : ""), 0);
 		m->clip.n = 0;
 		m->clip.p[0] = 0;
 		tm_ret(s, o.p ? o.p : "");

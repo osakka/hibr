@@ -29,26 +29,6 @@ unsigned mm_glyph(int g, int ascii)
 	return ascii ? mm_asc[g] : mm_uni[g];
 }
 
-/* A codepoint as UTF-8. */
-void mm_u8(str *o, unsigned cp)
-{
-	if (cp < 0x80) {
-		s_ch(o, (int)cp);
-	} else if (cp < 0x800) {
-		s_ch(o, (int)(0xC0 | (cp >> 6)));
-		s_ch(o, (int)(0x80 | (cp & 0x3F)));
-	} else if (cp < 0x10000) {
-		s_ch(o, (int)(0xE0 | (cp >> 12)));
-		s_ch(o, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(o, (int)(0x80 | (cp & 0x3F)));
-	} else {
-		s_ch(o, (int)(0xF0 | (cp >> 18)));
-		s_ch(o, (int)(0x80 | ((cp >> 12) & 0x3F)));
-		s_ch(o, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(o, (int)(0x80 | (cp & 0x3F)));
-	}
-}
-
 /* One cell, if it is on the grid at all. */
 void mm_put(mm_grid *g, int x, int y, unsigned cp, int sty)
 {

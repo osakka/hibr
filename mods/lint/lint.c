@@ -146,29 +146,6 @@ void li_emit(li *c)
 	v_free(&c->out);
 }
 
-/* Whether a program of this name is on the PATH. */
-int li_onpath(const char *nm)
-{
-	const char *p = getenv("PATH"), *e;
-	str f;
-	int ok = 0;
-
-	if (!p || !*nm || strchr(nm, '/'))
-		return 0;
-	s_init(&f);
-	while (*p && !ok) {
-		e = strchr(p, ':');
-		f.n = 0;
-		s_add(&f, p, e ? (size_t)(e - p) : strlen(p));
-		s_ch(&f, '/');
-		s_cat(&f, nm);
-		ok = access(f.p, X_OK) == 0;
-		p = e ? e + 1 : p + strlen(p);
-	}
-	s_free(&f);
-	return ok;
-}
-
 /* Whether a text is a non-empty run of digits. */
 int li_digits(const char *t)
 {
@@ -352,39 +329,6 @@ void li_test(li *c, node *n, const char *cmd)
 			       w->p->t);
 			return;
 		}
-}
-
-/* Whether a module of this name exists, and so may make it a builtin: ls is a program and the ls module's builtin. */
-int li_mod(li *c, const char *nm)
-{
-	const char *p = getenv("HIBR_MODPATH"), *e;
-	str f;
-	int ok = 0;
-
-	(void)c;
-	s_init(&f);
-	while (p && *p && !ok) {
-		e = strchr(p, ':');
-		f.n = 0;
-		s_add(&f, p, e ? (size_t)(e - p) : strlen(p));
-		s_ch(&f, '/');
-		s_cat(&f, nm);
-		s_cat(&f, ".so");
-		ok = access(f.p, R_OK) == 0;
-		p = e ? e + 1 : 0;
-	}
-#ifdef HIBR_MODDIR
-	if (!ok) {
-		f.n = 0;
-		s_cat(&f, HIBR_MODDIR);
-		s_ch(&f, '/');
-		s_cat(&f, nm);
-		s_cat(&f, ".so");
-		ok = access(f.p, R_OK) == 0;
-	}
-#endif
-	s_free(&f);
-	return ok;
 }
 
 /* bind-program: x := program, where a program prints instead and x stays empty. */

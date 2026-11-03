@@ -1079,7 +1079,7 @@ char *xcapfile(sh *s, const char *src)
 		return ar_dup(s->xa, "", 0);
 	}
 	s_init(&o);
-	io_rdto(fd, &o);
+	hibr_rdfd(fd, &o);
 	close(fd);
 	while (o.n && o.p[o.n - 1] == '\n')
 		o.n--;
@@ -1150,7 +1150,7 @@ char *xcap(sh *s, const char *src)
 	}
 	close(pf[1]);
 	s_init(&o);
-	io_rdto(pf[0], &o);
+	hibr_rdfd(pf[0], &o);
 	close(pf[0]);
 	jc_waitt(s, pid, pid, &w, 0);
 	s->st = wstat(w);
@@ -2000,7 +2000,7 @@ int ex_cmd(sh *s, node *n)
 		str o;
 		close(cf[1]);
 		s_init(&o);
-		io_rdto(cf[0], &o);
+		hibr_rdfd(cf[0], &o);
 		close(cf[0]);
 		while (o.n && o.p[o.n - 1] == '\n')
 			o.n--;

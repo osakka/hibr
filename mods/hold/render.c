@@ -323,27 +323,6 @@ int hd_blankok(unsigned cp, unsigned at, unsigned w, unsigned lk)
 	       !(at & (DP_REV | DP_UNDER | DP_STRIKE));
 }
 
-/* Append a code point as UTF-8 -- term's own tm_utf8 (mods/term/draw.c),
-   duplicated for the same reason as hd_sgr above. */
-void hd_utf8(str *b, unsigned cp)
-{
-	if (cp < 0x80) {
-		s_ch(b, (int)cp);
-	} else if (cp < 0x800) {
-		s_ch(b, (int)(0xC0 | (cp >> 6)));
-		s_ch(b, (int)(0x80 | (cp & 0x3F)));
-	} else if (cp < 0x10000) {
-		s_ch(b, (int)(0xE0 | (cp >> 12)));
-		s_ch(b, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(b, (int)(0x80 | (cp & 0x3F)));
-	} else {
-		s_ch(b, (int)(0xF0 | (cp >> 18)));
-		s_ch(b, (int)(0x80 | ((cp >> 12) & 0x3F)));
-		s_ch(b, (int)(0x80 | ((cp >> 6) & 0x3F)));
-		s_ch(b, (int)(0x80 | (cp & 0x3F)));
-	}
-}
-
 /* Bring a client's own terminal to the mode state the session is actually
    in right now, transition by transition: the alternate screen, mouse
    reporting and its encoding, bracketed paste, the cursor's shape, the
@@ -662,7 +641,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				s_ch(out, 7);
 				llk = lk;
 			}
-			hd_utf8(out, cp ? cp : ' ');
+			u8put(out, cp ? cp : ' ');
 			f->cp = cp;
 			f->fg = fg;
 			f->bg = bg;

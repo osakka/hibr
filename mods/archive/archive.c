@@ -148,20 +148,7 @@ arcf *arc_find(const char *nm)
 /* Read the whole of a file. */
 int arc_slurp(const char *path, str *o)
 {
-	int fd = open(path, O_RDONLY);
-	ssize_t k;
-
-	if (fd < 0)
-		return 0;
-	for (;;) {
-		s_grow(o, ARC_CH);
-		k = read(fd, o->p + o->n, o->cap - o->n - 1);
-		if (k <= 0)
-			break;
-		o->n += (size_t)k;
-	}
-	close(fd);
-	return k == 0;
+	return hibr_slurp(path, o) == 0;
 }
 
 /* A path with the leading ./ and any trailing / taken off, so what a person

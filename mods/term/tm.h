@@ -262,7 +262,6 @@ void tm_reset(tm_t *t, int hard);
 long tm_ms(void);
 int tm_syncing(tm_t *t);
 long tm_syncleft(tm_t *t);
-void tm_utf8(str *b, unsigned cp);
 void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 	     int curon);
 void tm_hint(tm_t *t, const dps_api *ds, int row, int col, int h, int w);
@@ -291,7 +290,6 @@ void tm_imgparams(tm_t *t, str *o);
 void tm_sixelend(tm_t *t);
 void tm_note(tm_t *t, const char *title, size_t tn, const char *body);
 unsigned tm_linkid(tm_t *t, const char *uri);
-void tm_unb64(const char *p, str *out);
 int tm_api_clip(int id, str *out);
 int tm_api_pass(int id, str *out);
 int tm_api_title(int id, str *out);

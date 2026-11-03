@@ -115,7 +115,6 @@ void iv_free(ml_iv *v);
 ml_iv *iv_get(ml_iv *list, const char *key);
 
 void ml_b64enc(str *o, const char *p, size_t n);
-void ml_b64dec(str *o, const char *p, size_t n);
 void ml_qpdec(str *o, const char *p, size_t n, int header);
 void ml_qpenc(str *o, const char *p, size_t n);
 void ml_toutf8(str *o, const char *cs, const char *p, size_t n);

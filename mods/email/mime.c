@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../b64.h"
 #include "ml.h"
 #include <ctype.h>
 #include <dlfcn.h>
@@ -13,58 +14,20 @@
 #define ML_DEPTH 32
 #endif
 
-static const char ml_b64[] =
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
 /* Base64, wrapped at 76 columns for a message body. */
 void ml_b64enc(str *o, const char *p, size_t n)
 {
-	const unsigned char *u = (const unsigned char *)p;
-	size_t i;
-	int col = 0;
+	str t;
+	size_t i, k;
 
-	for (i = 0; i < n; i += 3) {
-		unsigned v = (unsigned)u[i] << 16;
-
-		if (i + 1 < n)
-			v |= (unsigned)u[i + 1] << 8;
-		if (i + 2 < n)
-			v |= u[i + 2];
-		s_ch(o, ml_b64[(v >> 18) & 63]);
-		s_ch(o, ml_b64[(v >> 12) & 63]);
-		s_ch(o, i + 1 < n ? ml_b64[(v >> 6) & 63] : '=');
-		s_ch(o, i + 2 < n ? ml_b64[v & 63] : '=');
-		col += 4;
-		if (col >= 76) {
-			s_cat(o, "\r\n");
-			col = 0;
-		}
-	}
-	if (col)
+	s_init(&t);
+	b64_enc(&t, (const unsigned char *)p, n);
+	for (i = 0; i < t.n; i += k) {
+		k = t.n - i < 76 ? t.n - i : 76;
+		s_add(o, t.p + i, k);
 		s_cat(o, "\r\n");
-}
-
-/* Base64 decoded, anything not of the alphabet skipped. */
-void ml_b64dec(str *o, const char *p, size_t n)
-{
-	unsigned v = 0;
-	int bits = 0;
-	size_t i;
-	const char *q;
-
-	for (i = 0; i < n; i++) {
-		if (p[i] == '=')
-			break;
-		q = strchr(ml_b64, p[i]);
-		if (!q || !p[i])
-			continue;
-		v = (v << 6) | (unsigned)(q - ml_b64);
-		bits += 6;
-		if (bits >= 8) {
-			bits -= 8;
-			s_ch(o, (char)((v >> bits) & 255));
-		}
 	}
+	s_free(&t);
 }
 
 /* The value of a hex digit, or -1. */
@@ -138,26 +101,6 @@ void ml_qpenc(str *o, const char *p, size_t n)
 			s_ch(o, hx[c & 15]);
 			col += 3;
 		}
-	}
-}
-
-/* Append a code point as UTF-8. */
-void ml_putcp(str *o, unsigned c)
-{
-	if (c < 0x80) {
-		s_ch(o, (char)c);
-	} else if (c < 0x800) {
-		s_ch(o, (char)(0xC0 | (c >> 6)));
-		s_ch(o, (char)(0x80 | (c & 0x3F)));
-	} else if (c < 0x10000) {
-		s_ch(o, (char)(0xE0 | (c >> 12)));
-		s_ch(o, (char)(0x80 | ((c >> 6) & 0x3F)));
-		s_ch(o, (char)(0x80 | (c & 0x3F)));
-	} else {
-		s_ch(o, (char)(0xF0 | (c >> 18)));
-		s_ch(o, (char)(0x80 | ((c >> 12) & 0x3F)));
-		s_ch(o, (char)(0x80 | ((c >> 6) & 0x3F)));
-		s_ch(o, (char)(0x80 | (c & 0x3F)));
 	}
 }
 
@@ -259,11 +202,11 @@ void ml_toutf8(str *o, const char *cs, const char *p, size_t n)
 		for (i = 0; i < n; i++) {
 			c = (unsigned char)p[i];
 			if (c >= 0x80 && c <= 0x9F)
-				ml_putcp(o, w1252[c - 0x80]);
+				u8put(o, w1252[c - 0x80]);
 			else if (c == 0xA4 && !strcasecmp(cs, "iso-8859-15"))
-				ml_putcp(o, 0x20AC);
+				u8put(o, 0x20AC);
 			else
-				ml_putcp(o, c);
+				u8put(o, c);
 		}
 		return;
 	}
@@ -297,7 +240,7 @@ void ml_toutf8(str *o, const char *cs, const char *p, size_t n)
 	}
 	for (i = 0; i < n; i++) {
 		c = (unsigned char)p[i];
-		ml_putcp(o, c < 0x80 ? c : 0xFFFD);
+		u8put(o, c < 0x80 ? c : 0xFFFD);
 	}
 }
 
@@ -332,7 +275,7 @@ void ml_hdec(str *o, const char *p, size_t n)
 					o->n -= ws;
 				ml_clr(&raw);
 				if (q1[1] == 'B' || q1[1] == 'b')
-					ml_b64dec(&raw, q2 + 1, (size_t)(end - q2 - 1));
+					b64_dec(&raw, q2 + 1, (size_t)(end - q2 - 1), 0);
 				else
 					ml_qpdec(&raw, q2 + 1, (size_t)(end - q2 - 1), 1);
 				ml_toutf8(o, c.p, raw.p ? raw.p : "", raw.n);
@@ -446,10 +389,10 @@ void ml_mutf7dec(str *o, const char *p)
 				if (u16 >= 0xD800 && u16 <= 0xDBFF) {
 					hi = u16;
 				} else if (u16 >= 0xDC00 && u16 <= 0xDFFF && hi) {
-					ml_putcp(o, 0x10000 + ((hi - 0xD800) << 10) + (u16 - 0xDC00));
+					u8put(o, 0x10000 + ((hi - 0xD800) << 10) + (u16 - 0xDC00));
 					hi = 0;
 				} else {
-					ml_putcp(o, u16);
+					u8put(o, u16);
 				}
 			}
 		}
@@ -823,7 +766,7 @@ int ml_partbody(ml_msg *m, size_t i, str *o)
 	p = m->parts.p[i];
 	s_init(&raw);
 	if (p->enc && !strcasecmp(p->enc, "base64"))
-		ml_b64dec(&raw, m->raw + p->bs, p->be - p->bs);
+		b64_dec(&raw, m->raw + p->bs, p->be - p->bs, 0);
 	else if (p->enc && !strcasecmp(p->enc, "quoted-printable"))
 		ml_qpdec(&raw, m->raw + p->bs, p->be - p->bs, 0);
 	else

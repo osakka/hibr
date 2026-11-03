@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../b64.h"
 #include "ft.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -224,7 +225,7 @@ void ft_authhdr(ft_auth *a, const char *user, const char *pass,
 		s_ch(&t, ':');
 		s_cat(&t, pass);
 		s_cat(o, "Authorization: Basic ");
-		ft_b64(o, t.p, t.n);
+		b64_enc(o, (const unsigned char *)t.p, t.n);
 		s_cat(o, "\r\n");
 		s_free(&t);
 		return;

@@ -53,6 +53,7 @@
  * using the same protocol with the same id would replace our picture. The
  * band is taken from the process id, with the counter in the low bits.
  */
+#include "../b64.h"
 #include "cn.h"
 #include "../inflate.h"
 #include "../png.h"
@@ -131,7 +132,7 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 		comp = CN_COMP_NONE;
 	}
 	s_init(&b);
-	cn_b64(&b, pay, payn);
+	b64_enc(&b, pay, payn);
 	s_free(&c);
 	n = b.n;
 	if (!n) {
@@ -182,7 +183,7 @@ void kt_edit(const unsigned char *rgb, int iw, int ih, int x, int y,
 	size_t i, n, k;
 
 	s_init(&b);
-	cn_b64(&b, rgb, (size_t)iw * ih * 3);
+	b64_enc(&b, rgb, (size_t)iw * ih * 3);
 	n = b.n;
 	for (i = 0; i < n; i += k) {
 		k = n - i > KT_CHUNK ? (size_t)KT_CHUNK : n - i;

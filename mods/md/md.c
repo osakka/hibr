@@ -8,24 +8,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-/* Read a whole descriptor into o. */
-static int md_slurp(int fd, str *o)
-{
-	char *b = xm(HIBR_IOCH);
-	ssize_t r;
-
-	for (;;) {
-		r = read(fd, b, HIBR_IOCH);
-		if (r < 0 && errno == EINTR)
-			continue;
-		if (r <= 0)
-			break;
-		s_add(o, b, (size_t)r);
-	}
-	free(b);
-	return r < 0 ? -1 : 0;
-}
-
 /* The document a command names: -t text, a file, or standard input. */
 static int md_input(int ac, char **av, int i, str *o)
 {
@@ -40,13 +22,13 @@ static int md_input(int ac, char **av, int i, str *o)
 		return 0;
 	}
 	if (i >= ac || !strcmp(av[i], "-"))
-		return md_slurp(0, o);
+		return hibr_rdfd(0, o);
 	fd = open(av[i], O_RDONLY | O_CLOEXEC);
 	if (fd < 0) {
 		lg(HIBR_LERR, "md: %s: %s", av[i], strerror(errno));
 		return -1;
 	}
-	r = md_slurp(fd, o);
+	r = hibr_rdfd(fd, o);
 	close(fd);
 	return r;
 }

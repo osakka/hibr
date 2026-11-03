@@ -54,6 +54,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `term/` | A terminal emulator, a program's screen as cells; offers `"terminal"` (`mods/term.h`) — [README](term/README.md) |
 | `hold/` | Sessions that outlive their terminal: detach, log off, attach again; offers `"hold"` and `"holdframes"` (`mods/blitfr.h`) — [README](hold/README.md) |
 | `gfxask.c`, `gfxask.h` | Not a module: what a terminal says it can draw, asked once and parsed in one place -- the kitty graphics query and primary device attributes for sixel -- compiled into `console`, `hold` and `prompt` |
+| `b64.c`, `b64.h` | Not a module: base64 both ways, compiled into `console`, `term`, `email`, `fetch`, `vw` and `web`, which each wrote their own until 0.99.433 (nine copies, Gitea #356). The decoder takes the standard and the URL-safe alphabet alike, passes over line breaks, stops at `=`, and skips anything else -- or with `strict` refuses the text |
 | `blitfr.c`, `blitfr.h` | Not a module: picture frames handed to Blit by descriptor (Blit ADR 0202), a sealed memfd over an abstract `SOCK_SEQPACKET` socket, compiled into `console` and `hold`; Linux only |
 | `img/` | Decode an image and draw it as cells, libpng and libturbojpeg opened on first use — [README](img/README.md) |
 | `db/` | A small column store: typed columns, appended rows changed and deleted in place, filters and aggregates, zone maps — [README](db/README.md) |

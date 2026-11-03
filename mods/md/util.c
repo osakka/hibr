@@ -188,26 +188,6 @@ int mk_ispunct(unsigned c)
 	return 0;
 }
 
-/* Append a character as UTF-8. */
-void mk_putu(str *o, unsigned c)
-{
-	if (c < 0x80) {
-		s_ch(o, (int)c);
-	} else if (c < 0x800) {
-		s_ch(o, (int)(0xC0 | (c >> 6)));
-		s_ch(o, (int)(0x80 | (c & 0x3F)));
-	} else if (c < 0x10000) {
-		s_ch(o, (int)(0xE0 | (c >> 12)));
-		s_ch(o, (int)(0x80 | ((c >> 6) & 0x3F)));
-		s_ch(o, (int)(0x80 | (c & 0x3F)));
-	} else {
-		s_ch(o, (int)(0xF0 | (c >> 18)));
-		s_ch(o, (int)(0x80 | ((c >> 12) & 0x3F)));
-		s_ch(o, (int)(0x80 | ((c >> 6) & 0x3F)));
-		s_ch(o, (int)(0x80 | (c & 0x3F)));
-	}
-}
-
 /* A character folded for comparing link labels: lower case, and the
    sharp s, capital or small, as ss -- the cases the spec's labels need. */
 unsigned mk_lower(unsigned c, str *o)
@@ -251,7 +231,7 @@ void mk_fold(str *o, const char *p, size_t n)
 		sp = 0;
 		c = mk_lower(c, o);
 		if (c)
-			mk_putu(o, c);
+			u8put(o, c);
 	}
 }
 
@@ -308,7 +288,7 @@ size_t mk_entref(const char *p, size_t n, str *o)
 		}
 		if (v == 0 || v > 0x10FFFF || (v >= 0xD800 && v <= 0xDFFF))
 			v = 0xFFFD;
-		mk_putu(o, (unsigned)v);
+		u8put(o, (unsigned)v);
 		return i + 1;
 	}
 	for (i = 1; i < n && i < 40 && (((p[i] | 32) >= 'a' && (p[i] | 32) <= 'z') ||

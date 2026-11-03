@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.99.433
+
+**One copy each** (Gitea #356, the first part): code written more than once,
+in the core and the modules, is written once. Nothing a script sees changes.
+- The core: the single-quoting loop eight times (`s_sq`, `s_sqb`), the
+  read to end of file four times, the two JSON escapers, the three UTF-8
+  encoders, the module folder walk and the descriptor probe four times each
+  in `mod.c`, the array slice's selection twice, `xone` and `xpat`. A
+  `while`/`case` loop costs the same (436.7M instructions against 438.5M).
+- The modules: base64 nine times in six modules is `mods/b64.c`, compiled
+  in the way `inflate.c` is; nine UTF-8 encoders are the core's `u8put`;
+  seven whole-file readers are `hibr_slurp` and `hibr_rdfd`, which retry a
+  read a signal interrupted where four of the copies did not; and seven
+  functions nothing called are gone.
+- `hibr_slurp`, `hibr_rdfd`, `s_sq`, `s_sqb` and `u8put` are in the module
+  API (docs/modules.md). `HIBR_ABI` does not move: nothing was taken away
+  from it.
+- **Sound 1.4**, in the catalogue since 0.99.432 was released: an idle
+  desktop on PipeWire no longer reads the devices once a second. Every
+  `wpctl` a read runs is a client PipeWire adds and removes, and pw-mon said
+  so; counted as a change, each read caused the next, 10% of a core on an
+  idle laptop. Events are told by their object's type now.
+
 ## 0.99.432
 
 **The desktop's own sign-in forms fill from the vault too** (Gitea #474),

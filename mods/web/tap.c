@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "../b64.h"
 #include "wb.h"
 #include <errno.h>
 #include <stdio.h>
@@ -285,8 +286,8 @@ int wb_take(sh *s, wb_tab *t, int vfd, int afd)
 			continue;
 		}
 		b.n = 0;
-		if (wb_b64(jv_str(jv_path(e, "1")), strlen(jv_str(jv_path(e, "1"))),
-			   &b) != HIBR_OK)
+		if (b64_dec(&b, jv_str(jv_path(e, "1")),
+			    strlen(jv_str(jv_path(e, "1"))), 1) < 0)
 			continue;
 		if (k[0] == 'v' && vfd >= 0) {
 			if (wb_wall(vfd, b.p ? b.p : "", b.n) != HIBR_OK)

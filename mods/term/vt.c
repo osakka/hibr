@@ -1308,7 +1308,7 @@ void tm_print(tm_t *t, unsigned c)
 void tm_sput(tm_t *t, unsigned c)
 {
 	if (t->os.n < TM_SMAX)
-		tm_utf8(&t->os, c);
+		u8put(&t->os, c);
 }
 
 /* How far from p, of n bytes, the printable ASCII goes: eight bytes at a
