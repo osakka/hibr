@@ -17,3 +17,7 @@ m[2]=4; k=2; ((m[k] += 1)); echo "${m[2]}"
 echo $(( 2#101 + 0x1f + 010 ))
 for ((j = 0; j < 3; j++)); do printf %s "$j"; done; echo
 n=0; while ((n < 5)); do ((n++)); done; echo "n=$n"
+# A blank condition in for (( )) is true, as an empty one is; blank text
+# evaluating to 0 made the loop end before its first pass.
+for (( i=0 ; ; i++ )); do echo "$i"; [ "$i" -ge 2 ] && break; done
+n=0; for (( ; ; )); do n=$((n+1)); [ "$n" -ge 3 ] && break; done; echo "n=$n"

@@ -1094,20 +1094,18 @@ char *xcapfile(sh *s, const char *src)
 	return r;
 }
 
-/* Run a substitution's text in its child: one line that is one simple command runs with its program replacing the child, as ( ) and & already do, so $(cmd) forks once rather than twice (Gitea #451); anything else runs as a script. */
+/* Run a substitution's text in its child: one line that is one simple command runs with its program replacing the child, as ( ) and & already do, so $(cmd) forks once rather than twice (Gitea #451); a := capture, which needs its own pipe, and anything else -- an incomplete line included, so it is reported -- runs as a script. */
 int xcaprun(sh *s, const char *src)
 {
 	node *nd;
 
 	if (!strchr(src, '\n')) {
 		nd = hibr_parse(s, src, 0);
-		if (nd && nd->k == N_CMD) {
+		if (nd && nd->k == N_CMD && nd->f != 2) {
 			lg(HIBR_LDBG, "substitution of one command: exec in place");
 			s->nofork = 1;
 			return ex(s, nd);
 		}
-		if (!nd)
-			return s->st;
 	}
 	hibr_run(s, src);
 	return s->st;
@@ -2283,7 +2281,7 @@ int ex_sub(sh *s, node *n, int t)
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
 		s->tst = t;
-		if (n->l && n->l->k == N_CMD) {
+		if (n->l && n->l->k == N_CMD && n->l->f != 2) {
 			lg(HIBR_LDBG, "( ) of one command: its program replaces the subshell (Gitea #451)");
 			s->nofork = 1;
 		}
@@ -2412,7 +2410,7 @@ int ex_cfor(sh *s, node *n)
 	for (;;) {
 		if (s->quit || s->stop || s->ret)
 			break;
-		if (wc && wc->p->n) {
+		if (wc && wc->p->n && wc->p->t[strspn(wc->p->t, " \t\n")]) {
 			int go = ax_text(s, wc->p);
 
 			if (s->xerr) {

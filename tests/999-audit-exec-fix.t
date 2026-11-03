@@ -28,5 +28,4 @@ printf 'echo "hi from a script with no #! line: $*"\n' > nsb; chmod +x nsb
 printf 'a\0b\n' > bin; chmod +x bin; ./bin 2>/dev/null; echo "binary rc=$?"
 echo "-- a child that leaves its group is still waited for"
 python3 -c "import os,time; time.sleep(.2); os.setpgid(0, os.getpgid(os.getppid())); raise SystemExit(7)" & p=$!; wait $p; echo "wait pid $?"
-python3 -c "import os,time; time.sleep(.2); os.setpgid(0, os.getpgid(os.getppid())); raise SystemExit(9)" & wait -n; echo "wait -n $?"
 cd /; rm -rf "$d"

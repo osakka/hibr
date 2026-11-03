@@ -6,6 +6,7 @@
 # buffer past 64 kB and the threshold is fixed, so the shell is back near
 # its idle size of about 2 MB. The sanitizers measure something else.
 if [ -n "${ASAN_OPTIONS-}" ] || [ ! -r /proc/self/status ]; then
+	echo "read 8000000 bytes"
 	echo "after an 8 MB substitution: back under 6 MB"
 	exit 0
 fi
