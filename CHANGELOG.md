@@ -334,6 +334,12 @@ The rest of the core audit (Gitea #427), in one release, area by area.
   save a parameter's outer value, name buffer and all, where it allocated
   and freed each one per call: 20,000 calls of four parameters are 450M
   instructions against 509M.
+- **Memory a large expansion used is given back.** An 8 MB command
+  substitution left the shell at 17.9 MB resident for good; it is 2.2 MB
+  after one now, against 2.1 MB idle. A pooled scratch string past 64 kB
+  or vector past 8192 entries frees its buffer on return, and glibc's mmap
+  threshold is fixed at 256 kB so a freed large buffer is returned rather
+  than kept on the heap.
 
 ## 0.99.427
 

@@ -1,4 +1,7 @@
 #include "pri.h"
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 #include "../mods/lint.h"
 #include <errno.h>
 #include <poll.h>
@@ -511,6 +514,18 @@ int sc_refuse(FILE *f, const char *nm)
 	return 0;
 }
 
+/* Keep glibc from raising its mmap threshold after a large buffer is freed:
+   left dynamic, one 8 MB expansion moved every later large buffer onto the
+   heap, where freeing it returns nothing, and a shell that once read a big
+   file stayed 30 MB for good (Gitea #463). A fixed threshold maps anything
+   over 256 kB and gives it back on free. */
+void mem_tune(void)
+{
+#ifdef __GLIBC__
+	mallopt(M_MMAP_THRESHOLD, 256 * 1024);
+#endif
+}
+
 /* Release every shell resource. */
 void sh_fini(sh *s)
 {
@@ -697,6 +712,7 @@ int main(int ac, char **av)
 
 	memset(&s, 0, sizeof s);
 	lg_sh = &s;
+	mem_tune();
 	ex_stkinit(&s);
 	s.ar = ar_new(HIBR_ARCH);
 	s.xa = ar_new(HIBR_ARCH);

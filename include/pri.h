@@ -417,6 +417,7 @@ int dir_cd(sh *s, const char *d);
 int sc_refuse(FILE *f, const char *nm);
 void on_hup(int sig);
 void sh_hupnow(sh *s);
+void mem_tune(void);
 void sh_fini(sh *s);
 void tr_hupdfl(void);
 void sh_hangup(sh *s);

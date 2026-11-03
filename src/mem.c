@@ -409,9 +409,13 @@ str *sb_get(sh *s)
 	return b;
 }
 
-/* Return a scratch string to the shell pool. */
+/* Return a scratch string to the shell pool; one grown past 64 kB gives its buffer back, or one huge expansion would stay resident for the shell's life (Gitea #463). */
 void sb_put(sh *s, str *b)
 {
+	if (b->cap > 65536) {
+		lg(HIBR_LDBG, "pooled string of %zu bytes freed", b->cap);
+		s_free(b);
+	}
 	v_add(&s->sbf, b);
 }
 
@@ -432,9 +436,13 @@ vec *vb_get(sh *s)
 	return v;
 }
 
-/* Return a scratch vector to the shell pool. */
+/* Return a scratch vector to the shell pool; one grown past 8192 entries gives its buffer back, as a string does. */
 void vb_put(sh *s, vec *v)
 {
+	if (v->cap > 8192) {
+		lg(HIBR_LDBG, "pooled vector of %zu entries freed", v->cap);
+		v_free(v);
+	}
 	v_add(&s->vbf, v);
 }
 
