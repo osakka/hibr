@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.23
+app youtube "YouTube, in a window" 3.25
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -96,7 +96,7 @@ YT_RJS='(function(){var d=window.ytInitialData;if(!d)return "";function t(x){ret
 
 # Where YouTube's player is: its state, the time, the length, the title,
 # and whether it is showing its own error.
-YT_PJS='(function(){var p=document.getElementById("movie_player"),v=document.querySelector("video");if(!p||!p.getPlayerState)return "";var d=p.getVideoData?p.getVideoData():{};return JSON.stringify({st:p.getPlayerState(),t:v?v.currentTime:0,d:p.getDuration?p.getDuration():0,title:d.title||"",author:d.author||"",e:document.querySelector(".ytp-error")?1:0,pa:v&&v.paused?1:0,en:v&&v.ended?1:0,rs:v?v.readyState:0,u:location.href,cc:(function(){var l=[].slice.call(document.querySelectorAll(".ytp-caption-segment")).map(function(e){return e.textContent});return l.some(function(t){return /Click\s+for settings/.test(t)})?"":l.join(" ")})(),vol:v?Math.round(v.volume*100):100,fr:v&&v.getVideoPlaybackQuality?v.getVideoPlaybackQuality().totalVideoFrames:0})})()'
+YT_PJS='(function(){var p=document.getElementById("movie_player"),v=document.querySelector("video");if(!p||!p.getPlayerState)return "";var d=p.getVideoData?p.getVideoData():{};return JSON.stringify({st:p.getPlayerState(),t:v?v.currentTime:0,d:p.getDuration?p.getDuration():0,title:d.title||"",author:d.author||"",e:document.querySelector(".ytp-error")?1:0,pa:v&&v.paused?1:0,en:v&&v.ended?1:0,rs:v?v.readyState:0,ad:p.classList&&p.classList.contains("ad-showing")?1:0,u:location.href,cc:(function(){var l=[].slice.call(document.querySelectorAll(".ytp-caption-segment")).map(function(e){return e.textContent});return l.some(function(t){return /Click\s+for settings/.test(t)})?"":l.join(" ")})(),vol:v?Math.round(v.volume*100):100,fr:v&&v.getVideoPlaybackQuality?v.getVideoPlaybackQuality().totalVideoFrames:0})})()'
 
 # Start YouTube's player once it is there: the quality asked for, the
 # volume, captions off, and the page cut down to the video. That is done by
@@ -516,6 +516,8 @@ fn yt_play(int id, int i) {
 	YT[$id]["fed"]=
 	YT[$id]["cur"]=$i
 	YT[$id]["vid"]=$vid
+	YT[$id]["inad"]=
+	YT[$id]["adat"]=
 	YT[$id]["title"]=${YR[$id][$i]["title"]}
 	YT[$id]["author"]=${YR[$id][$i]["ch"]}
 	YT[$id]["len"]=${YR[$id][$i]["len"]}
@@ -654,12 +656,24 @@ fn yt_pagetake(int id, js, at) {
 	[ -n "$js" ] || return 1
 	YTP=()
 	json parse YTP <<< "$js" 2> /dev/null || return 1
+	# An advert (the player's ad-showing): its time and length are the advert's,
+	# and YouTube's player calls the video itself unstarted all through it. Kept
+	# as when one was last seen (yt_inad); once it is over, the length and the
+	# title are read again, from the video.
+	if [ "${YTP["ad"]-}" = 1 ]; then
+		YT[$id]["adat"]=$EPOCHSECONDS
+		YT[$id]["inad"]=1
+	elif [ -n "${YT[$id]["inad"]-}" ]; then
+		YT[$id]["inad"]=
+		YT[$id]["dur"]=0
+		YT[$id]["len"]=
+	fi
 	case ${YTP["u"]} in
 	*"v=${YT[$id]["vid"]}"*) YT[$id]["ofid"]= ;;
 	*)
 		nv=${YTP["u"]#*v=}
 		nv=${nv%%[&#]*}
-		if [ "$nv" != "${YTP["u"]}" ] && [ -n "$nv" ] && [ "$nv" != "${YT[$id]["ofid"]}" ]; then
+		if [ "$nv" != "${YTP["u"]}" ] && [ -n "$nv" ] && [ "$nv" != "${YT[$id]["ofid"]}" ] && ! yt_inad "$id"; then
 			YT[$id]["ofid"]=$nv
 			YT[$id]["ofat"]=$EPOCHSECONDS
 		fi
@@ -671,6 +685,16 @@ fn yt_pagetake(int id, js, at) {
 	YTPID=$id
 	YT[$id]["lpos"]=${YTP["t"]}
 	return 0
+}
+
+# Whether an advert is on, or was a moment ago: the answer can be two seconds old
+# (asked without waiting), and the player goes through unstarted and buffering
+# on its way from the advert to the video. Nothing in it is the video's: not a
+# stop, not an end, not a length. (YouTube 3.25: the owner's pre-roll adverts
+# read as the video stopped at 0:07 and loaded it again, over and over.)
+fn yt_inad(int id) {
+	[ -n "${YT[$id]["inad"]-}" ] && return 0
+	[ $((EPOCHSECONDS - ${YT[$id]["adat"]:-0})) -lt 5 ]
 }
 
 # Whether YTP holds an answer to rely on now (yt_page's guard), asking nothing.
@@ -757,6 +781,8 @@ fn yt_noauto(int id) {
 fn yt_adopt(int id, vid) {
 	printf 'youtube: the page moved on by itself to %s; following it\n' "$vid" >&2
 	YT[$id]["vid"]=$vid
+	YT[$id]["inad"]=
+	YT[$id]["adat"]=
 	YT[$id]["title"]=
 	YT[$id]["author"]=
 	YT[$id]["len"]=
@@ -782,7 +808,7 @@ fn yt_adopt(int id, vid) {
 # One step of playing: start the page's player once it is there, take up a
 # video where it was left, and at the end go on to the next.
 fn yt_tick(int id) {
-	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js m i e ms tm q cc
+	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js m i e ms tm q cc wf
 	local -a w
 
 	# Playing, its frames come as fast as the video's: the desktop holds
@@ -795,6 +821,19 @@ fn yt_tick(int id) {
 		fi
 	fi
 	[ -n "$p" ] || return 0
+	# With the page itself playing it (WebKit), the engine's word of each new
+	# frame is what should wake the desktop: its descriptor watched, as the
+	# Browser watches it. Only the Browser did, so with no Browser window open
+	# -- or once its last one closed, which stops the watching -- the video
+	# went at this tick's 250 ms, about four frames a second. Asked each tick:
+	# watching a descriptor already watched does nothing.
+	# Only with a module that builds a waiting picture in `web poll`
+	# (pollbuild, hibr-browser 0.5.19): with an older one the descriptor stays
+	# readable while a frame is held back and the watch wakes the desktop again
+	# and again until the draw.
+	if ! yt_tap && yt_has pollbuild && wf := web fd 2> /dev/null; then
+		command -v console > /dev/null && console watch "$wf"
+	fi
 	# An ended video is not asked about, so the page leaving it would go unseen: its
 	# address is looked at every few seconds.
 	if [ "${YT[$id]["state"]}" = ended ] && [ $((EPOCHSECONDS - ${YT[$id]["chk"]:-0})) -ge 3 ]; then
@@ -854,7 +893,7 @@ fn yt_tick(int id) {
 			YT[$id]["fed"]=1
 		fi
 	fi
-	if [ "${YT[$id]["dur"]%.*}" = 0 ] && yt_page "$id"; then
+	if [ "${YT[$id]["dur"]%.*}" = 0 ] && yt_page "$id" && ! yt_inad "$id"; then
 		YT[$id]["dur"]=${YTP["d"]}
 		[ -n "${YTP["title"]}" ] && YT[$id]["title"]=${YTP["title"]}
 		[ -n "${YTP["author"]}" ] && YT[$id]["author"]=${YTP["author"]}
@@ -909,6 +948,8 @@ fn yt_tick(int id) {
 		# last video's until the page's new stream reaches it, and at the end
 		# of a clip that read as this one having ended too.
 		[ $((EPOCHSECONDS - ${YT[$id]["since"]:-0})) -lt 3 ] && e=0
+		# an advert ending is not the video ending
+		yt_inad "$id" && e=0
 		if [ "$e" = 1 ]; then
 			yt_histput "$id" "${YT[$id]["dur"]}"
 			YT[$id]["state"]=ended
@@ -957,6 +998,11 @@ fn yt_watch(int id) {
 	if yt_has evask; then
 		[ "${YT[$id]["wseq"]-}" = "${YT[$id]["pseq"]}" ] && return 0
 		YT[$id]["wseq"]=${YT[$id]["pseq"]}
+	fi
+	# An advert playing is the player at work, whatever it calls the video
+	if yt_inad "$id"; then
+		YT[$id]["bad"]=0
+		return 0
 	fi
 	if [ "${YTP["e"]}" = 1 ]; then
 		yt_recover "$id" "${YTI["pos"]%.*}"
@@ -1185,6 +1231,13 @@ fn youtube_fullscreen(int id, on) {
 
 fn youtube_idle(int id) {
 	[ "${YT[$id]["view"]}" = play ] && yt_tick "$id"
+	# Called on every frame the desktop holds back as well as for a window not
+	# drawn: what the engine has said is read here, as the Browser reads it, and
+	# a picture whose answers are in is built (hibr-browser 0.5.19), or the
+	# descriptor yt_tick watches stays readable until the next draw. (3.22's
+	# whole core on two machines was the desktop's wallpaper, repainted on each
+	# of the frames this asks for; hibr 0.99.413 fixed it, and 3.24 needs it.)
+	yt_tap || web poll > /dev/null 2>&1
 	return 0
 }
 
@@ -1204,6 +1257,13 @@ fn youtube_draw(int id, int h, int w, int row, int col) {
 		yt_drawlist "$id" "$h" "$w"
 		YT[$id]["dkey"] := yt_listkey "$id"
 	fi
+	# Last, after every web call of the frame: the player's picture is asked
+	# for and not waited on, and any web call reads what the engine has said --
+	# the word of its next frame among it. Read here, nothing else would wake
+	# the desktop for that frame, and the video went on at the 250 ms tick in
+	# bursts (5.5 frames a second on a slow machine, half-second gaps).
+	[ "${YT[$id]["view"]}" = play ] && [ -n "${YT[$id]["pt"]}" ] && ! yt_tap &&
+		web dirty "${YT[$id]["pt"]}" 2> /dev/null && dt_want 1
 }
 
 # What the list shows, in one line, to be compared with the line kept when
@@ -1492,6 +1552,7 @@ fn yt_drawplay(int id, int h, int w) {
 	[ "${YTI["paused"]}" = 1 ] && st="paused"
 	[ "${YTI["ended"]}" = 1 ] || [ "${YT[$id]["state"]}" = ended ] && st="ended"
 	[ "${YT[$id]["state"]}" = loading ] && st="starting"
+	[ -n "${YT[$id]["inad"]-}" ] && st="advert"
 	# What is drawn, and -- when it is following Control Panel > Pictures
 	# -- that it is following rather than set: a bar that said only "half"
 	# would not change when the key moved the setting from follow to half.

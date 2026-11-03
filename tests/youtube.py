@@ -313,6 +313,23 @@ try:
           "again and plays on past where it stopped",
           at(s[-1]) >= 9 and loads.get("vid2", 0) >= 2, (loads, s[-1]))
 
+    # An advert before the video (YouTube 3.25): YouTube's player says the video
+    # is unstarted while the advert's clock runs, which read as the player
+    # having stopped -- the app loaded the video again at 0:07, the advert came
+    # again, and so on (the owner's machine, 2026-11-03). Played through, once.
+    urllib.request.urlopen(BASE + "/control?ad=vid3:9").read()
+    wasa = json.loads(urllib.request.urlopen(BASE + "/loads").read()).get("vid3", 0)
+    s = yrun([([], "Third result"), ([b"\x1b[B", b"\x1b[B", b"\r"], "advert", 15),
+              ([], lambda sc: at(sc) >= 10 and "advert" not in sc.text(), 50)])
+    nowa = json.loads(urllib.request.urlopen(BASE + "/loads").read()).get("vid3", 0)
+    urllib.request.urlopen(BASE + "/control?ad=vid3:0").read()
+    print("advert scenario: loads %d, clock at the end %d" % (nowa - wasa, at(s[-1])))
+    check("an advert before the video is played through: the video then plays on, "
+          "loaded once, not again and again", at(s[-1]) >= 10 and nowa - wasa == 1,
+          (nowa - wasa, s[-1].text()[-300:]))
+    check("and the bar says it is an advert while it plays",
+          "advert" in s[1].text() and "advert" not in s[-1].text(), (s[1].text()[-300:], s[-1].text()[-300:]))
+
     # The same, with the new page held back from appending anything for a
     # moment: its media source and buffers are made at once, so the tap's
     # reset reaches the app before any of the new stream does. That is the
@@ -505,4 +522,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(44)
+report(46)

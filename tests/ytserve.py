@@ -13,6 +13,12 @@ GET /control?fail=VID:SECONDS makes the next load of that video fail the
 way YouTube's player does: it stops fetching at that second and its player
 falls back to unstarted under its own error. The load after plays normally.
 
+GET /control?ad=VID:SECONDS plays an advert that long before that video, on
+every load as YouTube's pre-rolls come: the player carries ad-showing, says
+the video is unstarted (-1) while the advert's clock runs from 0, gives the
+advert's length, then goes through buffering into the video from its start --
+as the owner's machine showed (2026-11-03).
+
 GET /control?slow=VID:MS holds every load of that video's first fragments
 back by that long -- the media source and its buffers are made at once, as
 they are here and on YouTube, and nothing is appended to them until then.
@@ -29,6 +35,7 @@ ROOT = sys.argv[1]
 DUR = int(sys.argv[2]) if len(sys.argv) > 2 else 12
 LEN = "%d:%02d" % (DUR // 60, DUR % 60)
 FAILS = {}
+ADS = {}
 SLOWS = {}
 LATES = {}
 LOADS = {}
@@ -82,13 +89,22 @@ ms.addEventListener("sourceopen", function () {
     if (slowInit) setTimeout(go, slowInit); else go();
   });
 });
-var state = -1, quality = "auto";
+var state = -1, quality = "auto", adFor = %(ad)s;
 P.getPlayerState = function () { return state; };
-P.getDuration = function () { return %(dur)s; };
+P.getDuration = function () { return P.classList.contains("ad-showing") ? adFor : %(dur)s; };
 P.getVideoData = function () { return {title: "%(title)s", author: "%(author)s"}; };
 P.setPlaybackQualityRange = function (q) { quality = q; window.__quality = q; };
 P.mute = function () { V.muted = true; };
 P.playVideo = function () {
+  if (adFor && !window.__adStart) {
+    window.__adStart = 1; P.classList.add("ad-showing"); state = -1; V.play().catch(function () {});
+    setTimeout(function () {
+      P.classList.remove("ad-showing"); state = 3; V.currentTime = 0;
+      setTimeout(function () { state = 1; }, 800);
+    }, adFor * 1000);
+    return;
+  }
+  if (P.classList.contains("ad-showing")) { V.play().catch(function () {}); return; }
   state = 1; V.play().catch(function () {});
   if (failAt && !window.__failing) window.__failing = setTimeout(function () {
     state = -1; V.pause();
@@ -178,6 +194,8 @@ class H(BaseHTTPRequestHandler):
             FAILS[vid] = int(at or 0)
             vid, _, ms = q.get("slow", [":"])[0].partition(":")
             SLOWS[vid] = int(ms or 0)
+            vid, _, s = q.get("ad", [":"])[0].partition(":")
+            ADS[vid] = int(s or 0)
             vid, _, ms = q.get("late", [":"])[0].partition(":")
             LATES[vid] = int(ms or 0)
             if "force" in q:
@@ -198,6 +216,7 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, WATCH % {"title": t[0], "author": t[1],
                                            "vid": vid, "dur": DUR,
                                            "fail": FAILS.pop(vid, 0),
+                                           "ad": ADS.get(vid, 0),
                                            "slow": SLOWS.get(vid, 0),
                                            "late": LATES.get(vid, 0),
                                            "next": NEXT.get(vid, vid),
