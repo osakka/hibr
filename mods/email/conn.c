@@ -106,82 +106,23 @@ int ml_sock(const char *host, const char *port, int tmo)
 	return fd;
 }
 
-/* In a freshly forked relay: close every descriptor but the two it needs
-   and the standard three. */
-void ml_closerest(int a, int b)
-{
-	DIR *d;
-	struct dirent *e;
-	vec fds = { 0, 0, 0 };
-	size_t i;
-	long fd;
-	int dfd;
-
-	d = opendir("/dev/fd");
-	if (!d)
-		return;
-	dfd = dirfd(d);
-	while ((e = readdir(d))) {
-		if (e->d_name[0] < '0' || e->d_name[0] > '9')
-			continue;
-		fd = atol(e->d_name);
-		if (fd > 2 && fd != a && fd != b && fd != dfd)
-			v_add(&fds, (void *)fd);
-	}
-	closedir(d);
-	for (i = 0; i < fds.n; i++)
-		close((int)(long)fds.p[i]);
-	v_free(&fds);
-}
-
 /* Wrap a connection's socket in TLS: the shell's own relay, run in a child
    of ours so its exit can be collected. Whatever was read before the
    handshake has to have been used up -- STARTTLS waits for that. */
 int ml_tls(ml_conn *c)
 {
-	void (*relay)(int, int, const char *);
-	int (*load)(void);
-	int sp[2], sock = c->fd;
+	const char *why;
 	pid_t pid;
+	int fd = hibr_tlswrap(c->fd, c->host, c->noverify ? 1 : 0, &pid, &why);
 
-	relay = (void (*)(int, int, const char *))dlsym(RTLD_DEFAULT, "tls_relay");
-	load = (int (*)(void))dlsym(RTLD_DEFAULT, "tls_load");
-	if (!relay || !load) {
-		lg(HIBR_LERR, "email: this hibr was built without TLS");
+	c->fd = -1;
+	if (fd < 0) {
+		lg(HIBR_LERR, "email: %s", why);
 		return HIBR_FAIL;
 	}
-	if (load() != HIBR_OK)
-		return HIBR_FAIL;
-	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sp) < 0) {
-		lg(HIBR_LERR, "email: socketpair: %s", strerror(errno));
-		return HIBR_FAIL;
-	}
-	fflush(0);
-	pid = fork();
-	if (pid < 0) {
-		lg(HIBR_LERR, "email: fork: %s", strerror(errno));
-		close(sp[0]);
-		close(sp[1]);
-		return HIBR_FAIL;
-	}
-	if (pid == 0) {
-		close(sp[0]);
-		ml_closerest(sp[1], sock);
-		signal(SIGINT, SIG_IGN);
-		signal(SIGPIPE, SIG_DFL);
-		fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) & ~O_NONBLOCK);
-		if (c->noverify)
-			setenv("HIBR_TLS_INSECURE", "1", 1);
-		else
-			unsetenv("HIBR_TLS_INSECURE");
-		relay(sp[1], sock, c->host);
-		_exit(0);
-	}
-	close(sp[1]);
-	close(sock);
 	c->relay = pid;
 	c->tls = 1;
-	c->fd = fd_high(sp[0]);
+	c->fd = fd;
 	ml_fdprep(c->fd, c->tmo);
 	lg(HIBR_LDBG, "email: tls relay for %s on pid %ld", c->host, (long)pid);
 	return HIBR_OK;

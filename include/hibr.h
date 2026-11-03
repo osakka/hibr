@@ -370,6 +370,8 @@ void s_sqb(str *s, const char *p, size_t n);
 void s_sq(str *s, const char *p);
 int hibr_rdfd(int fd, str *o);
 int hibr_slurp(const char *path, str *o);
+int hibr_tlswrap(int sock, const char *host, int noverify, pid_t *pid,
+		 const char **why);
 void s_fmt(str *s, const char *f, ...);
 void v_add(vec *v, void *x);
 void v_free(vec *v);

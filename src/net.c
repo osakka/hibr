@@ -695,55 +695,97 @@ done:
 /* Give the shell a plain descriptor backed by a TLS relay process. */
 int net_tls(const char *host, const char *port)
 {
-	int sp[2], sock;
-	pid_t pid;
+	const char *why;
+	int sock, fd;
 
 	if (tls_load() != HIBR_OK)
 		return -1;
 	sock = net_dial(host, port, 0);
 	if (sock < 0)
 		return -1;
+	fd = hibr_tlswrap(sock, host, -1, 0, &why);
+	if (fd < 0)
+		lg(HIBR_LERR, "%s", why);
+	else
+		lg(HIBR_LDBG, "tls relay for %s started", host);
+	return fd;
+}
+#endif
+
+/* What the last hibr_tlswrap that failed said. */
+str net_tlswhy;
+
+/* Wrap a connected socket in TLS through a relay process -- the one copy
+   of what the shell's own /dev/tls, Mail and fetch each wrote out (Gitea
+   #356): the plain descriptor to use in its place, or -1 with *why saying
+   what failed, the socket closed either way. With pid the relay is this
+   process's child, its pid there for the caller to collect when it drops
+   the connection; without, it is forked twice and belongs to init, since
+   nothing in the shell knows when a descriptor it handed a script has gone.
+   noverify 1 skips the certificate check, 0 insists on it whatever
+   HIBR_TLS_INSECURE says, and -1 leaves that to the variable. */
+int hibr_tlswrap(int sock, const char *host, int noverify, pid_t *pid,
+		 const char **why)
+{
+#ifdef HIBR_TLS
+	int sp[2];
+	pid_t p;
+
+	s_free(&net_tlswhy);
+	if (tls_load() != HIBR_OK) {
+		s_cat(&net_tlswhy, "TLS is not available: libssl could not be loaded");
+		goto fail;
+	}
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sp) < 0) {
-		lg(HIBR_LERR, "socketpair: %s", strerror(errno));
-		close(sock);
-		return -1;
+		s_fmt(&net_tlswhy, "socketpair: %s", strerror(errno));
+		goto fail;
 	}
 	fflush(0);
-	pid = fork();
-	if (pid < 0) {
-		lg(HIBR_LERR, "fork: %s", strerror(errno));
-		close(sock);
+	p = fork();
+	if (p < 0) {
+		s_fmt(&net_tlswhy, "fork: %s", strerror(errno));
 		close(sp[0]);
 		close(sp[1]);
-		return -1;
+		goto fail;
 	}
-	if (pid == 0) {
-		/* A second fork, so the relay belongs to init rather than to
-		   this shell. Nothing here is in a position to wait for it:
-		   the descriptor it serves can be dup'd, inherited, passed
-		   to a child or closed anywhere, so there is no one place
-		   that knows the relay has ended -- and a child nobody waits
-		   for is a zombie for the life of the shell. One TLS
-		   connection, one zombie, measured. The relay's real
-		   lifetime is its peer closing, not the shell's bookkeeping;
-		   hold's own server is reparented the same way. */
+	if (p == 0) {
 		close(sp[0]);
-		pid = fork();
-		if (pid < 0)
-			_exit(1);
-		if (pid)
-			_exit(0);
+		if (!pid) {
+			p = fork();
+			if (p < 0)
+				_exit(1);
+			if (p)
+				_exit(0);
+		}
+		fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) & ~O_NONBLOCK);
+		if (noverify > 0)
+			setenv("HIBR_TLS_INSECURE", "1", 1);
+		else if (!noverify)
+			unsetenv("HIBR_TLS_INSECURE");
 		tls_relay(sp[1], sock, host);
 		_exit(0);
 	}
 	close(sp[1]);
 	close(sock);
-	while (waitpid(pid, 0, 0) < 0 && errno == EINTR)
-		;
-	lg(HIBR_LDBG, "tls relay for %s started", host);
+	if (pid)
+		*pid = p;
+	else
+		while (waitpid(p, 0, 0) < 0 && errno == EINTR)
+			;
 	return fd_high(sp[0]);
-}
+fail:
+	close(sock);
+	*why = net_tlswhy.p;
+	return -1;
+#else
+	(void)host;
+	(void)noverify;
+	(void)pid;
+	close(sock);
+	*why = "this hibr was built without TLS";
+	return -1;
 #endif
+}
 
 struct scheme { char *nm; hibr_open_fn fn; unsigned f; };
 

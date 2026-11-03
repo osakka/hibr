@@ -24,8 +24,8 @@ typedef struct un_form { unsigned c, f[4]; } un_form;
 typedef struct un_lig { unsigned alef, iso, fin; } un_lig;
 
 extern const char un_ucdver[];
-extern const un_rng un_bidi[], un_join[], un_width[];
-extern const size_t un_nbidi, un_njoin, un_nwidth;
+extern const un_rng un_bidi[], un_join[];
+extern const size_t un_nbidi, un_njoin;
 extern const un_pair un_mirror[];
 extern const size_t un_nmirror;
 extern const un_brk un_brack[];

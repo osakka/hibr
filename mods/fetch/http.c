@@ -172,53 +172,16 @@ int ft_dial(ft_job *j, const char *host, const char *port)
    only when the request says so. */
 int ft_tls(ft_job *j, ft_conn *c, int sock)
 {
-	void (*relay)(int, int, const char *);
-	int (*load)(void);
-	int sp[2];
+	const char *why;
 	pid_t pid;
+	int fd = hibr_tlswrap(sock, c->host, c->noverify ? 1 : -1, &pid, &why);
 
-	relay = (void (*)(int, int, const char *))dlsym(RTLD_DEFAULT,
-							   "tls_relay");
-	load = (int (*)(void))dlsym(RTLD_DEFAULT, "tls_load");
-	if (!relay || !load) {
-		ft_fail(j, "this hibr was built without TLS");
-		close(sock);
+	if (fd < 0) {
+		ft_fail(j, "%s", why);
 		return -1;
 	}
-	if (load() != HIBR_OK) {
-		ft_fail(j, "TLS is not available: libssl could not be loaded");
-		close(sock);
-		return -1;
-	}
-	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sp) < 0) {
-		ft_fail(j, "socketpair: %s", strerror(errno));
-		close(sock);
-		return -1;
-	}
-	fflush(0);
-	pid = fork();
-	if (pid < 0) {
-		ft_fail(j, "fork: %s", strerror(errno));
-		close(sock);
-		close(sp[0]);
-		close(sp[1]);
-		return -1;
-	}
-	if (pid == 0) {
-		close(sp[0]);
-		hibr_closerest(sp[1], sock);
-		signal(SIGINT, SIG_IGN);
-		signal(SIGPIPE, SIG_DFL);
-		fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) & ~O_NONBLOCK);
-		if (c->noverify)
-			setenv("HIBR_TLS_INSECURE", "1", 1);
-		relay(sp[1], sock, c->host);
-		_exit(0);
-	}
-	close(sp[1]);
-	close(sock);
 	c->relay = pid;
-	c->fd = fd_high(sp[0]);
+	c->fd = fd;
 	fcntl(c->fd, F_SETFD, FD_CLOEXEC);
 	return c->fd;
 }

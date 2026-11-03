@@ -79,6 +79,11 @@ int gx_depth(const gx_tcap *tc);
    standard palette as the classic 30-37/90-97 codes (Gitea #353). v is a
    DP_ colour: DP_DEFAULT, DP_RGB | rgb, or an index. */
 void gx_sgrcol(str *b, unsigned v, int bgp, int depth);
+void gx_sgr(str *b, unsigned fg, unsigned bg, unsigned at, int depth);
+void gx_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, int have,
+	      unsigned lfg, unsigned lbg, unsigned lat, int depth);
+void gx_csin(str *b, long n, char f);
+void gx_mvto(str *b, int lr, int lc, int row, int col, int cols);
 
 /* An OSC at the front of p, taken whole, and when it is OSC 22's answer to
    `?none`, *ptr set to 1 or 0. Returns as gx_apc does. */

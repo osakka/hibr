@@ -8,10 +8,12 @@ int un_jtype(unsigned c)
 	return un_rngv(un_join, un_njoin, c, UN_JU);
 }
 
-/* The display width of a code point: 0, 1 or 2 columns. */
+/* The display width of a code point: 0, 1 or 2 columns -- the core's own
+   table, from the same UCD version, which answers the same for every code
+   point (Gitea #356). */
 int un_cw(unsigned c)
 {
-	return un_rngv(un_width, un_nwidth, c, 1);
+	return u8w(c);
 }
 
 /* The four presentation forms of a letter, or NULL. */

@@ -17,57 +17,19 @@ void hd_sgrcol(str *b, unsigned v, int bgp)
 	gx_sgrcol(b, v, bgp, hd_cdep);
 }
 
-/* Append the escape sequence that moves from one pen to another -- console's
-   own cn_sgr, duplicated for the same reason as hd_sgrcol above. */
+/* Append the escape sequence that sets a whole pen (gfxask's gx_sgr, shared
+   with the console), at the client's colour depth. */
 void hd_sgr(str *b, unsigned fg, unsigned bg, unsigned at)
 {
-	s_cat(b, "\033[0");
-	if (at & DP_BOLD)
-		s_cat(b, ";1");
-	if (at & DP_DIM)
-		s_cat(b, ";2");
-	if (at & DP_ITAL)
-		s_cat(b, ";3");
-	if (at & DP_UNDER)
-		s_cat(b, ";4");
-	if (at & DP_BLINK)
-		s_cat(b, ";5");
-	if (at & DP_REV)
-		s_cat(b, ";7");
-	if (at & DP_STRIKE)
-		s_cat(b, ";9");
-	hd_sgrcol(b, fg, 0);
-	hd_sgrcol(b, bg, 1);
-	s_ch(b, 'm');
+	gx_sgr(b, fg, bg, at, hd_cdep);
 }
 
-/* From the pen the client's terminal has to this one: only the colour that
-   changed when the attributes are the same -- what console's cn_sgrto does
-   too, and for the same reason: a cell over a translucent window or a
-   picture differs from the one before it in its background alone, and the
-   full reset form sent the foreground and the attributes again for each.
-   have says whether the client's pen is known at all. */
+/* From the pen the client's terminal has to this one, through gfxask's
+   gx_sgrto; have says whether the client's pen is known at all. */
 void hd_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, int have,
 	      unsigned lfg, unsigned lbg, unsigned lat)
 {
-	size_t p;
-
-	if (!have || at != lat) {
-		hd_sgr(b, fg, bg, at);
-		return;
-	}
-	s_cat(b, "\033[");
-	p = b->n;
-	if (fg != lfg)
-		hd_sgrcol(b, fg, 0);
-	if (bg != lbg)
-		hd_sgrcol(b, bg, 1);
-	if (b->n > p && b->p[p] == ';') {
-		memmove(b->p + p, b->p + p + 1, b->n - p - 1);
-		b->n--;
-		b->p[b->n] = 0;
-	}
-	s_ch(b, 'm');
+	gx_sgrto(b, fg, bg, at, have, lfg, lbg, lat, hd_cdep);
 }
 
 /* One of the program's rectangle copies, replayed on a client whose
@@ -234,84 +196,20 @@ size_t hd_imgbase(const char *p, size_t n)
 /* Append an absolute cursor move. */
 void hd_goto(str *b, int row, int col)
 {
-	s_cat(b, "\033[");
-	s_num(b, (long)(row + 1));
-	s_ch(b, ';');
-	s_num(b, (long)(col + 1));
-	s_ch(b, 'H');
+	gx_mvto(b, -1, -1, row, col, 0);
 }
 
-/* One control sequence with a count, the count left out when it is 1:
-   `CSI n f`. */
+/* One control sequence with a count, the count left out when it is 1. */
 void hd_csin(str *b, long n, char f)
 {
-	s_cat(b, "\033[");
-	if (n != 1)
-		s_num(b, n);
-	s_ch(b, f);
+	gx_csin(b, n, f);
 }
 
-/* The cheapest way from where the client's cursor is (lr, lc; lr < 0 or lc
-   past the last column when it is not known) to row, col (Gitea #353): an
-   absolute move, or a vertical one and a horizontal one -- a carriage
-   return, a column, or a count forward or back. A scrolled screen of text
-   has its changed cells scattered over every row, and one absolute move
-   before each was 37% of what a scrolling terminal window cost. A cursor
-   past the last column is in the pending-wrap state, from which a relative
-   move is not the same on every terminal, so only an absolute one goes. */
+/* The cheapest way from where the client's cursor is to row, col: gfxask's
+   gx_mvto (Gitea #353). */
 void hd_mvto(str *b, int lr, int lc, int row, int col, int cols)
 {
-	str v, h;
-	size_t best;
-
-	if (lr == row && lc == col)
-		return;
-	if (lr < 0 || lc < 0 || lc >= cols) {
-		hd_goto(b, row, col);
-		return;
-	}
-	s_init(&v);
-	s_init(&h);
-	if (row > lr)
-		hd_csin(&v, row - lr, 'B');
-	else if (row < lr)
-		hd_csin(&v, lr - row, 'A');
-	if (col == 0 && lc != 0)
-		s_ch(&h, '\r');
-	else if (col > lc)
-		hd_csin(&h, col - lc, 'C');
-	else if (col < lc)
-		hd_csin(&h, lc - col, 'D');
-	best = v.n + h.n;
-	if (col != lc && col != 0) {
-		str a;
-
-		s_init(&a);
-		hd_csin(&a, col + 1, 'G');
-		if (a.n < h.n) {
-			h.n = 0;
-			s_add(&h, a.p, a.n);
-			best = v.n + h.n;
-		}
-		s_free(&a);
-	}
-	{
-		str a;
-
-		s_init(&a);
-		hd_goto(&a, row, col);
-		if (a.n <= best) {
-			s_add(b, a.p, a.n);
-		} else {
-			if (v.n)
-				s_add(b, v.p, v.n);
-			if (h.n)
-				s_add(b, h.p, h.n);
-		}
-		s_free(&a);
-	}
-	s_free(&v);
-	s_free(&h);
+	gx_mvto(b, lr, lc, row, col, cols);
 }
 
 /* Whether a cell is a blank an erase can stand for: a space, alone in its

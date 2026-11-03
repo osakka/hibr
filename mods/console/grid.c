@@ -959,119 +959,31 @@ void cn_sgrcol(str *b, unsigned v, int bgp)
 	gx_sgrcol(b, v, bgp, cn_depth());
 }
 
-/* Append the escape sequence that moves from one pen to another. */
+/* Append the escape sequence that sets a whole pen (gfxask's gx_sgr). */
 void cn_sgr(str *b, unsigned fg, unsigned bg, unsigned at)
 {
-	s_cat(b, "\033[0");
-	if (at & DP_BOLD)
-		s_cat(b, ";1");
-	if (at & DP_DIM)
-		s_cat(b, ";2");
-	if (at & DP_ITAL)
-		s_cat(b, ";3");
-	if (at & DP_UNDER)
-		s_cat(b, ";4");
-	if (at & DP_BLINK)
-		s_cat(b, ";5");
-	if (at & DP_REV)
-		s_cat(b, ";7");
-	if (at & DP_STRIKE)
-		s_cat(b, ";9");
-	cn_sgrcol(b, fg, 0);
-	cn_sgrcol(b, bg, 1);
-	s_ch(b, 'm');
+	gx_sgr(b, fg, bg, at, cn_depth());
 }
 
-/* The escape that moves the terminal's pen from what it is to this one:
-   only the colour that changed when the attributes are the same, the full
-   reset form otherwise. A cell over a translucent window or a picture
-   differs from the one before it in its background alone, and sending the
-   reset, the attributes and the foreground again for each one was half of
-   what such a cell cost -- every frame, and every step of a drag. */
+/* The escape that moves the terminal's pen from what it is to this one,
+   through gfxask's gx_sgrto: only the colour that changed when the
+   attributes are the same. */
 void cn_sgrto(str *b, unsigned fg, unsigned bg, unsigned at)
 {
-	size_t p;
-
-	if (!cn_lset || at != cn_lat) {
-		cn_sgr(b, fg, bg, at);
-		return;
-	}
-	s_cat(b, "\033[");
-	p = b->n;
-	if (fg != cn_lfg)
-		cn_sgrcol(b, fg, 0);
-	if (bg != cn_lbg)
-		cn_sgrcol(b, bg, 1);
-	if (b->n > p && b->p[p] == ';') {
-		memmove(b->p + p, b->p + p + 1, b->n - p - 1);
-		b->n--;
-		b->p[b->n] = 0;
-	}
-	s_ch(b, 'm');
+	gx_sgrto(b, fg, bg, at, cn_lset, cn_lfg, cn_lbg, cn_lat, cn_depth());
 }
 
 /* One control sequence with a count, left out when it is 1. */
 void cn_csin(str *b, long n, char f)
 {
-	s_cat(b, "\033[");
-	if (n != 1)
-		s_num(b, n);
-	s_ch(b, f);
+	gx_csin(b, n, f);
 }
 
-/* Append the cheapest cursor move from cr,cc to row,col (Gitea #353): an
-   absolute one, or a vertical and a horizontal one -- a carriage return, a
-   column, or a count forward or back -- whichever is shorter. A cursor not
-   known (cr < 0) or past the last column, where it waits to wrap and a
-   relative move differs between terminals, gets the absolute one. */
+/* Append the cheapest cursor move from cr,cc to row,col: gfxask's gx_mvto
+   (Gitea #353). */
 void cn_goto(str *b, int row, int col, int cr, int cc)
 {
-	str v, h, a;
-
-	if (row == cr && col == cc)
-		return;
-	s_init(&a);
-	s_cat(&a, "\033[");
-	s_num(&a, (long)(row + 1));
-	s_ch(&a, ';');
-	s_num(&a, (long)(col + 1));
-	s_ch(&a, 'H');
-	if (cr < 0 || cc < 0 || cc >= cn_back.cols) {
-		s_add(b, a.p, a.n);
-		s_free(&a);
-		return;
-	}
-	s_init(&v);
-	s_init(&h);
-	if (row > cr)
-		cn_csin(&v, row - cr, 'B');
-	else if (row < cr)
-		cn_csin(&v, cr - row, 'A');
-	if (col == 0 && cc != 0) {
-		s_ch(&h, '\r');
-	} else if (col != cc) {
-		str g;
-
-		cn_csin(&h, col > cc ? col - cc : cc - col, col > cc ? 'C' : 'D');
-		s_init(&g);
-		cn_csin(&g, col + 1, 'G');
-		if (g.n < h.n) {
-			h.n = 0;
-			s_add(&h, g.p, g.n);
-		}
-		s_free(&g);
-	}
-	if (a.n <= v.n + h.n) {
-		s_add(b, a.p, a.n);
-	} else {
-		if (v.n)
-			s_add(b, v.p, v.n);
-		if (h.n)
-			s_add(b, h.p, h.n);
-	}
-	s_free(&a);
-	s_free(&v);
-	s_free(&h);
+	gx_mvto(b, cr, cc, row, col, cn_back.cols);
 }
 
 /* Whether a cell is a blank an erase can stand for: a space alone in its

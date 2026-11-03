@@ -325,6 +325,128 @@ void gx_sgrcol(str *b, unsigned v, int bgp, int depth)
 	s_num(b, (long)((i < 8 ? (bgp ? 40 : 30) : (bgp ? 100 : 90)) + i % 8));
 }
 
+/* Append the escape sequence that sets a whole pen, from a reset: the
+   console's and hold's renderer's, written once (Gitea #356). */
+void gx_sgr(str *b, unsigned fg, unsigned bg, unsigned at, int depth)
+{
+	s_cat(b, "\033[0");
+	if (at & DP_BOLD)
+		s_cat(b, ";1");
+	if (at & DP_DIM)
+		s_cat(b, ";2");
+	if (at & DP_ITAL)
+		s_cat(b, ";3");
+	if (at & DP_UNDER)
+		s_cat(b, ";4");
+	if (at & DP_BLINK)
+		s_cat(b, ";5");
+	if (at & DP_REV)
+		s_cat(b, ";7");
+	if (at & DP_STRIKE)
+		s_cat(b, ";9");
+	gx_sgrcol(b, fg, 0, depth);
+	gx_sgrcol(b, bg, 1, depth);
+	s_ch(b, 'm');
+}
+
+/* From the pen the terminal has (have says whether that is known at all)
+   to this one: only the colour that changed when the attributes are the
+   same, the full reset form otherwise. A cell over a translucent window or
+   a picture differs from the one before it in its background alone, and
+   sending the reset, the attributes and the foreground again for each one
+   was half of what such a cell cost. */
+void gx_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, int have,
+	      unsigned lfg, unsigned lbg, unsigned lat, int depth)
+{
+	size_t p;
+
+	if (!have || at != lat) {
+		gx_sgr(b, fg, bg, at, depth);
+		return;
+	}
+	s_cat(b, "\033[");
+	p = b->n;
+	if (fg != lfg)
+		gx_sgrcol(b, fg, 0, depth);
+	if (bg != lbg)
+		gx_sgrcol(b, bg, 1, depth);
+	if (b->n > p && b->p[p] == ';') {
+		memmove(b->p + p, b->p + p + 1, b->n - p - 1);
+		b->n--;
+		b->p[b->n] = 0;
+	}
+	s_ch(b, 'm');
+}
+
+/* One control sequence with a count, the count left out when it is 1:
+   `CSI n f`. */
+void gx_csin(str *b, long n, char f)
+{
+	s_cat(b, "\033[");
+	if (n != 1)
+		s_num(b, n);
+	s_ch(b, f);
+}
+
+/* The cheapest way from where the cursor is (lr, lc; lr < 0, or lc past
+   the last of cols columns, when it is not known) to row, col (Gitea
+   #353): an absolute move, or a vertical one and a horizontal one -- a
+   carriage return, a column, or a count forward or back. A scrolled screen
+   of text has its changed cells scattered over every row, and one
+   absolute move before each was 37% of what a scrolling terminal window
+   cost a held display. A cursor past the last column is in the
+   pending-wrap state, from which a relative move is not the same on every
+   terminal, so only an absolute one goes. */
+void gx_mvto(str *b, int lr, int lc, int row, int col, int cols)
+{
+	str v, h, a;
+
+	if (lr == row && lc == col)
+		return;
+	s_init(&a);
+	s_cat(&a, "\033[");
+	s_num(&a, (long)(row + 1));
+	s_ch(&a, ';');
+	s_num(&a, (long)(col + 1));
+	s_ch(&a, 'H');
+	if (lr < 0 || lc < 0 || lc >= cols) {
+		s_add(b, a.p, a.n);
+		s_free(&a);
+		return;
+	}
+	s_init(&v);
+	s_init(&h);
+	if (row > lr)
+		gx_csin(&v, row - lr, 'B');
+	else if (row < lr)
+		gx_csin(&v, lr - row, 'A');
+	if (col == 0 && lc != 0) {
+		s_ch(&h, '\r');
+	} else if (col != lc) {
+		str g;
+
+		gx_csin(&h, col > lc ? col - lc : lc - col, col > lc ? 'C' : 'D');
+		s_init(&g);
+		gx_csin(&g, col + 1, 'G');
+		if (g.n < h.n) {
+			h.n = 0;
+			s_add(&h, g.p, g.n);
+		}
+		s_free(&g);
+	}
+	if (a.n <= v.n + h.n) {
+		s_add(b, a.p, a.n);
+	} else {
+		if (v.n)
+			s_add(b, v.p, v.n);
+		if (h.n)
+			s_add(b, h.p, h.n);
+	}
+	s_free(&a);
+	s_free(&v);
+	s_free(&h);
+}
+
 /* Milliseconds on a clock no one sets. */
 long gx_now(void)
 {

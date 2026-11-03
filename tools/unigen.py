@@ -114,19 +114,6 @@ def gen(d):
                 and parts[1] in (0x0622, 0x0623, 0x0625, 0x0627):
             lig.setdefault(parts[1], [0, 0])[tag[dec[0]]] = cp
 
-    width = {}
-    for f in lines(os.path.join(d, "EastAsianWidth.txt")):
-        if f[1] in ("W", "F"):
-            lo, hi = rng(f[0])
-            for c in range(lo, hi + 1):
-                width[c] = 2
-    for cp, f in ud.items():
-        if f[2] in ("Mn", "Me") or (f[2] == "Cf" and cp != 0x00AD) or \
-           0x1160 <= cp <= 0x11FF or cp == 0x200B:
-            width[cp] = 0
-    for c in list(range(0, 32)) + list(range(0x7F, 0xA0)):
-        width[c] = 0
-    wrun = [r for r in runs(width) if r[2] != 1]
 
     o = []
     o.append('#include "un.h"\n')
@@ -152,10 +139,7 @@ def gen(d):
     o.append("};\nconst size_t un_nforms = sizeof un_forms / sizeof *un_forms;\n")
     o.append("const un_lig un_ligs[] = {")
     o += ["\t{ 0x%04X, 0x%04X, 0x%04X }," % ((c,) + tuple(v)) for c, v in sorted(lig.items())]
-    o.append("};\nconst size_t un_nligs = sizeof un_ligs / sizeof *un_ligs;\n")
-    o.append("const un_rng un_width[] = {")
-    o += ["\t{ 0x%04X, 0x%04X, %d }," % tuple(r) for r in wrun]
-    o.append("};\nconst size_t un_nwidth = sizeof un_width / sizeof *un_width;")
+    o.append("};\nconst size_t un_nligs = sizeof un_ligs / sizeof *un_ligs;")
     print("\n".join(o))
 
 
