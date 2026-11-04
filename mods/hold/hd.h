@@ -253,7 +253,7 @@ int hd_focusin(const char *p, size_t n);
 /* A cell as a client was last sent it. w is its width, 0 for the second
    half of a wide glyph, which is what lets a replayed rectangle copy send
    again only the cells it cut a wide glyph at (Gitea #337). */
-struct hd_cell { unsigned cp, fg, bg, attr, link; unsigned char w; };
+struct hd_cell { unsigned cp, fg, bg, attr, link, ul; unsigned char w; };
 
 /* A run of blank cells inside a row this long or longer goes out as one
    erase of characters (ECH) rather than a space each; and a gap of

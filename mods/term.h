@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 12u
+#define TM_API_VER 13u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -148,6 +148,10 @@ struct tm_api {
 	   the program draws again -- an empty screen with the windows on the
 	   display above, at every login with displays stacked. 1 when done. */
 	int (*shift)(int id, int dr, int dc);
+	/* Version 13: the line colour a cell's framing and underline are drawn
+	   in (SGR 58, Blit ADR 0210), DP_DEFAULT for the foreground -- the one
+	   part of a cell's look at() does not answer, for a relay to send on. */
+	unsigned (*ulat)(int id, int r, int c);
 };
 
 #endif

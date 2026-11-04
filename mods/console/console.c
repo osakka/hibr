@@ -248,7 +248,7 @@ int cn_bidi = -1;
 /* The pen `console pen -s` keeps for `console pen -r`: one slot, so a widget
    can draw itself lit and leave the caller's pen as it found it (Gitea #370).
    Nothing reads it but those two. */
-unsigned cn_svfg = DP_DEFAULT, cn_svbg = DP_DEFAULT, cn_svat;
+unsigned cn_svfg = DP_DEFAULT, cn_svbg = DP_DEFAULT, cn_svat, cn_svul;
 int u8rtlq(const char *t, size_t n);
 
 /* The text a script asked for, in display order when it holds right-to-left and bidi is on. */
@@ -422,6 +422,14 @@ unsigned cn_attr(const char *t)
 		return DP_REV;
 	if (!strcmp(t, "strike"))
 		return DP_STRIKE;
+	if (!strcmp(t, "framed"))
+		return DP_FRTHIN;
+	if (!strcmp(t, "framed-thick"))
+		return DP_FRTHICK;
+	if (!strcmp(t, "framed-slate"))
+		return DP_FRSLATE;
+	if (!strcmp(t, "framed-slate-dark"))
+		return DP_FRSLATEDARK;
 	return 0;
 }
 
@@ -439,7 +447,7 @@ int m_console(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "";
 	int rows, cols;
-	unsigned fg, bg, at;
+	unsigned fg, bg, at, ul;
 	str k;
 
 	if (ac < 2) {
@@ -656,10 +664,13 @@ int m_console(sh *s, int ac, char **av)
 	if (!strcmp(sub, "pen")) {
 		int i;
 		if (ac == 3 && (!strcmp(av[2], "-s") || !strcmp(av[2], "-r"))) {
-			if (av[2][1] == 's')
+			if (av[2][1] == 's') {
 				cn_getpen(&cn_svfg, &cn_svbg, &cn_svat);
-			else
+				cn_svul = cn_getul();
+			} else {
 				cn_pen(cn_svfg, cn_svbg, cn_svat);
+				cn_penul(cn_svul);
+			}
 			return HIBR_OK;
 		}
 		if (ac < 3) {
@@ -676,16 +687,30 @@ int m_console(sh *s, int ac, char **av)
 			return HIBR_FAIL;
 		}
 		at = 0;
+		ul = DP_DEFAULT;
 		for (i = 4; i < ac; i++) {
-			unsigned a = cn_attr(av[i]);
+			unsigned a;
+
+			if (!strncmp(av[i], "line=", 5)) {
+				if (cn_colour(av[i] + 5, &ul) != HIBR_OK) {
+					lg(HIBR_LERR, "console pen: %s: not a colour",
+					   av[i] + 5);
+					return HIBR_FAIL;
+				}
+				continue;
+			}
+			a = cn_attr(av[i]);
 			if (!a) {
 				lg(HIBR_LERR, "console pen: %s: not an attribute",
 				   av[i]);
 				return HIBR_FAIL;
 			}
+			if (a & DP_FRAME)
+				at &= ~DP_FRAME;
 			at |= a;
 		}
 		cn_pen(fg, bg, at);
+		cn_penul(ul);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "put")) {

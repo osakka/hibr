@@ -30,6 +30,7 @@ void tm_blank(tm_t *t, tm_cell *c)
 	c->fg = t->fg;
 	c->bg = t->bg;
 	c->attr = 0;
+	c->ul = DP_DEFAULT;
 	c->x = 0;
 	c->link = 0;
 	c->w = 1;
@@ -682,6 +683,7 @@ void tm_glyph(tm_t *t, unsigned cp)
 	c->fg = t->fg;
 	c->bg = t->bg;
 	c->attr = t->attr;
+	c->ul = t->ul;
 	c->x = 0;
 	c->link = t->link;
 	c->w = (unsigned char)w;
@@ -691,6 +693,7 @@ void tm_glyph(tm_t *t, unsigned cp)
 		c->fg = t->fg;
 		c->bg = t->bg;
 		c->attr = t->attr;
+		c->ul = t->ul;
 		c->x = 0;
 		c->link = t->link;
 		c->w = 0;

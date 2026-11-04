@@ -368,7 +368,7 @@ class Screen:
         the console's own full form, `0;attrs;fg;bg`, so a check comparing
         against that form reads a pen however it was sent."""
         if self.pst is None or not seq or seq.split(";")[0] in ("", "0"):
-            self.pst = {"at": [], "fg": None, "bg": None}
+            self.pst = {"at": [], "fg": None, "bg": None, "fr": None, "ul": None}
         st = self.pst
         a = seq.split(";") if seq else []
         i = 0
@@ -376,6 +376,16 @@ class Screen:
             x = a[i]
             if x in ("", "0"):
                 st["at"], st["fg"], st["bg"] = [], None, None
+                st["fr"], st["ul"] = None, None
+            elif x == "51" or x.startswith("51:"):
+                # Framing, Blit's SGR 51 and its kind (ADR 0210).
+                st["fr"] = "51" if x in ("51", "51:1") else x
+            elif x == "54":
+                st["fr"] = None
+            elif x.startswith("58:"):
+                st["ul"] = x
+            elif x == "59":
+                st["ul"] = None
             elif x in ("1", "2", "3", "4", "5", "7", "9"):
                 if x not in st["at"]:
                     st["at"].append(x)
@@ -397,8 +407,12 @@ class Screen:
             i += 1
         out = ["0"] + [y for y in ("1", "2", "3", "4", "5", "7", "9")
                        if y in st["at"]]
+        if st.get("fr"):
+            out.append(st["fr"])
         out.append(st["fg"] or "39")
         out.append(st["bg"] or "49")
+        if st.get("ul"):
+            out.append(st["ul"])
         return ";".join(out)
 
     def row(self, r):

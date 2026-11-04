@@ -25,6 +25,9 @@ struct tm_cop {
 struct tm_cell {
 	unsigned cp;
 	unsigned fg, bg, attr;
+	/* SGR 58's line colour for framing and underline, DP_DEFAULT for the
+	   foreground. */
+	unsigned ul;
 	unsigned x;
 	unsigned link;
 	unsigned char w;
@@ -39,7 +42,7 @@ struct tm_line {
    mode and the character sets -- not just where the cursor was. */
 struct tm_save {
 	int set, r, c, wrap, om, gl;
-	unsigned fg, bg, attr;
+	unsigned fg, bg, attr, ul;
 	unsigned char g[2];
 };
 
@@ -109,7 +112,7 @@ struct tm_t {
 	tm_cell *g, *alt;
 	int cr, cc;
 	int top, bot;
-	unsigned fg, bg, attr;
+	unsigned fg, bg, attr, ul;
 	unsigned dfg, dbg, dattr;
 	int vis, wrapnext, autowrap, inalt, done;
 	/* Up by one every time the program has been fed anything, so a

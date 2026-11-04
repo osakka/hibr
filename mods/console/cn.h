@@ -61,6 +61,9 @@ struct cn_cell {
 	unsigned cp;
 	char *ext;
 	unsigned fg, bg, attr;
+	/* The line colour framing and underline are drawn in (SGR 58), a DP_
+	   colour; DP_DEFAULT draws them in the foreground. */
+	unsigned ul;
 	unsigned link;
 	unsigned char w, cont;
 };
@@ -113,6 +116,8 @@ void cn_signals(int on);
 void cn_clip(const char *t);
 void cn_pen(unsigned fg, unsigned bg, unsigned attr);
 void cn_getpen(unsigned *fg, unsigned *bg, unsigned *attr);
+void cn_penul(unsigned ul);
+unsigned cn_getul(void);
 void cn_clear(void);
 int cn_put(int row, int col, const char *t);
 void cn_fill(int row, int col, int h, int w, const char *t);

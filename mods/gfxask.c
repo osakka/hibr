@@ -327,8 +327,11 @@ void gx_sgrcol(str *b, unsigned v, int bgp, int depth)
 
 /* Append the escape sequence that sets a whole pen, from a reset: the
    console's and hold's renderer's, written once (Gitea #356). */
-void gx_sgr(str *b, unsigned fg, unsigned bg, unsigned at, int depth)
+void gx_sgr(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul,
+	    int depth)
 {
+	unsigned fr = (at & DP_FRAME) >> DP_FRSHIFT;
+
 	s_cat(b, "\033[0");
 	if (at & DP_BOLD)
 		s_cat(b, ";1");
@@ -344,9 +347,35 @@ void gx_sgr(str *b, unsigned fg, unsigned bg, unsigned at, int depth)
 		s_cat(b, ";7");
 	if (at & DP_STRIKE)
 		s_cat(b, ";9");
+	if (fr) {
+		s_cat(b, ";51");
+		if (fr != 1) {
+			s_ch(b, ':');
+			s_num(b, fr);
+		}
+	}
 	gx_sgrcol(b, fg, 0, depth);
 	gx_sgrcol(b, bg, 1, depth);
+	gx_sgrul(b, ul);
 	s_ch(b, 'm');
+}
+
+/* The line colour framing and underline are drawn in, SGR 58 in its colon
+   form, which is the one terminals that know it agree on: nothing for the
+   default, which the reset before it already put back. */
+void gx_sgrul(str *b, unsigned v)
+{
+	if (v & DP_RGB) {
+		s_cat(b, ";58:2::");
+		s_num(b, (v >> 16) & 255);
+		s_ch(b, ':');
+		s_num(b, (v >> 8) & 255);
+		s_ch(b, ':');
+		s_num(b, v & 255);
+	} else if (v & DP_PAL) {
+		s_cat(b, ";58:5:");
+		s_num(b, v & 255);
+	}
 }
 
 /* From the pen the terminal has (have says whether that is known at all)
@@ -355,13 +384,14 @@ void gx_sgr(str *b, unsigned fg, unsigned bg, unsigned at, int depth)
    a picture differs from the one before it in its background alone, and
    sending the reset, the attributes and the foreground again for each one
    was half of what such a cell cost. */
-void gx_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, int have,
-	      unsigned lfg, unsigned lbg, unsigned lat, int depth)
+void gx_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul,
+	      int have, unsigned lfg, unsigned lbg, unsigned lat, unsigned lul,
+	      int depth)
 {
 	size_t p;
 
-	if (!have || at != lat) {
-		gx_sgr(b, fg, bg, at, depth);
+	if (!have || at != lat || ul != lul) {
+		gx_sgr(b, fg, bg, at, ul, depth);
 		return;
 	}
 	s_cat(b, "\033[");

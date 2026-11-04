@@ -158,6 +158,16 @@ unsigned tm_api_linkat(int id, int r, int c)
 	return k ? k->link : 0;
 }
 
+/* The line colour a cell's framing and underline are drawn in (SGR 58),
+   DP_DEFAULT for the foreground or no such cell. */
+unsigned tm_api_ulat(int id, int r, int c)
+{
+	tm_t *t = tm_find(id);
+	tm_cell *k = t ? tm_at(t, r, c) : 0;
+
+	return k ? k->ul : DP_DEFAULT;
+}
+
 /* The address a link number stands for, or null. */
 const char *tm_api_linkuri(int id, unsigned link)
 {
@@ -328,7 +338,7 @@ static const tm_api term_api = {
 	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image,
 	tm_api_save, tm_api_load, tm_api_kbd, tm_api_copyseq, tm_api_copyop,
 	tm_api_syncleft, tm_api_mpix, tm_api_reply, tm_api_pointer,
-	tm_api_plock, tm_api_shift
+	tm_api_plock, tm_api_shift, tm_api_ulat
 };
 
 const tm_api *tm_apiget(void)

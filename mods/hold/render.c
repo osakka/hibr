@@ -19,17 +19,17 @@ void hd_sgrcol(str *b, unsigned v, int bgp)
 
 /* Append the escape sequence that sets a whole pen (gfxask's gx_sgr, shared
    with the console), at the client's colour depth. */
-void hd_sgr(str *b, unsigned fg, unsigned bg, unsigned at)
+void hd_sgr(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul)
 {
-	gx_sgr(b, fg, bg, at, hd_cdep);
+	gx_sgr(b, fg, bg, at, ul, hd_cdep);
 }
 
 /* From the pen the client's terminal has to this one, through gfxask's
    gx_sgrto; have says whether the client's pen is known at all. */
-void hd_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, int have,
-	      unsigned lfg, unsigned lbg, unsigned lat)
+void hd_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul,
+	      int have, unsigned lfg, unsigned lbg, unsigned lat, unsigned lul)
 {
-	gx_sgrto(b, fg, bg, at, have, lfg, lbg, lat, hd_cdep);
+	gx_sgrto(b, fg, bg, at, ul, have, lfg, lbg, lat, lul, hd_cdep);
 }
 
 /* One of the program's rectangle copies, replayed on a client whose
@@ -218,7 +218,7 @@ void hd_mvto(str *b, int lr, int lc, int row, int col, int cols)
 int hd_blankok(unsigned cp, unsigned at, unsigned w, unsigned lk)
 {
 	return (cp == ' ' || cp == 0) && w == 1 && !lk &&
-	       !(at & (DP_REV | DP_UNDER | DP_STRIKE));
+	       !(at & (DP_REV | DP_UNDER | DP_STRIKE | DP_FRAME));
 }
 
 /* Bring a client's own terminal to the mode state the session is actually
@@ -374,6 +374,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 {
 	int r, c, lr, lc, have, cr, cc, cvis, clear, wipe = 0;
 	unsigned cp, fg, bg, at, w, lfg = 0, lbg = 0, lat = 0, lk, llk = 0;
+	unsigned ul, lul = DP_DEFAULT;
 	const char *uri;
 	struct hd_cell *f;
 	size_t n, i;
@@ -432,9 +433,10 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 					&fg, &bg, &at, &w) || !w)
 				continue;
 			lk = hd_tm->linkat(tid, cn->row + r, cn->col + c);
+			ul = hd_tm->ulat(tid, cn->row + r, cn->col + c);
 			f = &cn->front[(size_t)r * cn->cols + c];
 			if (f->cp == cp && f->fg == fg && f->bg == bg &&
-			    f->attr == at && f->link == lk)
+			    f->attr == at && f->link == lk && f->ul == ul)
 				continue;
 			/* A run of blank cells in one pen as one erase (Gitea
 			   #353): to the end of the row, or eight or more inside
@@ -452,6 +454,8 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 						 &c2, &f2, &b2, &a2, &w2) &&
 				       w2 == 1 && (c2 == ' ' || c2 == 0) &&
 				       f2 == fg && b2 == bg && a2 == at &&
+				       hd_tm->ulat(tid, cn->row + r,
+						   cn->col + c + k) == ul &&
 				       !hd_tm->linkat(tid, cn->row + r,
 						      cn->col + c + k))
 					k++;
@@ -461,12 +465,13 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 
 					hd_mvto(out, lr, lc, r, c, cn->cols);
 					if (!have || fg != lfg || bg != lbg ||
-					    at != lat) {
-						hd_sgrto(out, fg, bg, at, have, lfg,
-							 lbg, lat);
+					    at != lat || ul != lul) {
+						hd_sgrto(out, fg, bg, at, ul, have,
+							 lfg, lbg, lat, lul);
 						lfg = fg;
 						lbg = bg;
 						lat = at;
+						lul = ul;
 						have = 1;
 					}
 					if (llk) {
@@ -484,6 +489,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 						g2->fg = fg;
 						g2->bg = bg;
 						g2->attr = at;
+						g2->ul = ul;
 						g2->link = 0;
 						g2->w = 1;
 					}
@@ -510,6 +516,8 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 						       &c2, &f2, &b2, &a2, &w2) &&
 					     w2 == 1 && (c2 == 0 || (c2 >= 32 && c2 < 127)) &&
 					     f2 == lfg && b2 == lbg && a2 == lat &&
+					     hd_tm->ulat(tid, cn->row + r,
+							 cn->col + i2) == lul &&
 					     hd_tm->linkat(tid, cn->row + r,
 							   cn->col + i2) == llk;
 				if (ok && (size_t)g <= mv.n) {
@@ -524,11 +532,14 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				}
 				s_free(&mv);
 			}
-			if (!have || fg != lfg || bg != lbg || at != lat) {
-				hd_sgrto(out, fg, bg, at, have, lfg, lbg, lat);
+			if (!have || fg != lfg || bg != lbg || at != lat ||
+			    ul != lul) {
+				hd_sgrto(out, fg, bg, at, ul, have, lfg, lbg, lat,
+					 lul);
 				lfg = fg;
 				lbg = bg;
 				lat = at;
+				lul = ul;
 				have = 1;
 			}
 			if (lk != llk) {
@@ -544,6 +555,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			f->fg = fg;
 			f->bg = bg;
 			f->attr = at;
+			f->ul = ul;
 			f->link = lk;
 			f->w = (unsigned char)w;
 			/* The continuation half is never itself read from
@@ -573,6 +585,8 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 						 &c2, &f2, &b2, &a2, &w2) &&
 				       c2 == cp && w2 == 1 && f2 == fg && b2 == bg &&
 				       a2 == at &&
+				       hd_tm->ulat(tid, cn->row + r,
+						   cn->col + c + 1 + k) == ul &&
 				       hd_tm->linkat(tid, cn->row + r,
 						     cn->col + c + 1 + k) == lk)
 					k++;

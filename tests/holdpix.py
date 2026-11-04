@@ -910,6 +910,28 @@ def syncheld(body, mid, last, gap=0.4):
     return early, late, t.raw
 
 
+# Framing reaches a held client (Blit ADR 0210): the program's console
+# sends SGR 51 and 58, hold's emulator keeps them on the cell, and hold's
+# renderer sends them on -- three places that must agree, and only a held
+# check sees all of them. Blit is reached this way: the owner's desktop is
+# a held session.
+FRAMED = ('console pen "#000000" "#dddddd" framed-thick "line=#a8a8b0"\n'
+          'console put 2 2 "OK"\n'
+          'console pen "#e5e5ea" "#3c3c43" framed-slate-dark\n'
+          'console put 3 2 "Title"\n'
+          "console pen '#ffffff' '#000000'\nconsole put 6 2 HELD\nconsole flush\n")
+fsc, _ = run(FRAMED)
+ok = fsc.find("OK")
+ti = fsc.find("Title")
+check("a held program's framed cells reach the client framed, line colour and all",
+      ok is not None and "51:3" in fsc.p[ok[0]][ok[1]] and
+      "58:2::168:168:176" in fsc.p[ok[0]][ok[1]],
+      ok and fsc.p[ok[0]][ok[1]])
+check("and a Slate dark title's cells keep their own kind",
+      ti is not None and "51:4" in fsc.p[ti[0]][ti[1]] and
+      "58:" not in fsc.p[ti[0]][ti[1]], ti and fsc.p[ti[0]][ti[1]])
+
+
 def paired(raw):
     """Every opening of the pair closed before the next one opens."""
     on, seen = False, 0
@@ -1755,4 +1777,4 @@ check("a held desktop sends Blit's panel its eight lines through hold",
                            for h in st), fl)
 
 shutil.rmtree(D, True)
-report(94)
+report(96)

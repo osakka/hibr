@@ -258,6 +258,7 @@ void tm_decsc(tm_t *t)
 	s->fg = t->fg;
 	s->bg = t->bg;
 	s->attr = t->attr;
+	s->ul = t->ul;
 	s->g[0] = t->gset[0];
 	s->g[1] = t->gset[1];
 	s->gl = t->gl;
@@ -272,6 +273,7 @@ void tm_decrc(tm_t *t)
 		t->fg = t->dfg;
 		t->bg = t->dbg;
 		t->attr = 0;
+		t->ul = DP_DEFAULT;
 		t->om = 0;
 		t->gset[0] = t->gset[1] = 'B';
 		t->gl = 0;
@@ -282,6 +284,7 @@ void tm_decrc(tm_t *t)
 	t->fg = s->fg;
 	t->bg = s->bg;
 	t->attr = s->attr;
+	t->ul = s->ul;
 	t->gset[0] = s->g[0];
 	t->gset[1] = s->g[1];
 	t->gl = s->gl;
@@ -351,6 +354,7 @@ void tm_sgr(tm_t *t)
 		t->fg = t->dfg;
 		t->bg = t->dbg;
 		t->attr = 0;
+		t->ul = DP_DEFAULT;
 		return;
 	}
 	for (i = 0; i < t->pn; i++) {
@@ -362,6 +366,7 @@ void tm_sgr(tm_t *t)
 			t->fg = t->dfg;
 			t->bg = t->dbg;
 			t->attr = 0;
+			t->ul = DP_DEFAULT;
 			break;
 		case 1: t->attr |= DP_BOLD; break;
 		case 2: t->attr |= DP_DIM; break;
@@ -390,7 +395,16 @@ void tm_sgr(tm_t *t)
 		case 39: t->fg = t->dfg; break;
 		case 48: t->bg = tm_colour(t, &i); break;
 		case 49: t->bg = t->dbg; break;
-		case 58: (void)tm_colour(t, &i); break;
+		case 51:
+			sub = i + 1 < t->pn && t->ps[i + 1] ? t->pv[i + 1] : 1;
+			if (sub < 1 || sub > 4)
+				sub = 1;
+			t->attr = (t->attr & ~DP_FRAME) |
+				  ((unsigned)sub << DP_FRSHIFT);
+			break;
+		case 54: t->attr &= ~DP_FRAME; break;
+		case 58: t->ul = tm_colour(t, &i); break;
+		case 59: t->ul = DP_DEFAULT; break;
 		default:
 			if (v >= 30 && v <= 37)
 				t->fg = DP_PAL | (unsigned)(v - 30);
@@ -605,6 +619,7 @@ void tm_reset(tm_t *t, int hard)
 	t->fg = t->dfg;
 	t->bg = t->dbg;
 	t->attr = 0;
+	t->ul = DP_DEFAULT;
 	t->link = 0;
 	t->top = 0;
 	t->bot = t->rows - 1;
@@ -661,6 +676,13 @@ void tm_decrqss(tm_t *t)
 		if (t->attr & DP_REV) s_cat(&r, ";7");
 		if (t->attr & TM_HIDE) s_cat(&r, ";8");
 		if (t->attr & DP_STRIKE) s_cat(&r, ";9");
+		if (t->attr & DP_FRAME) {
+			s_cat(&r, ";51");
+			if ((t->attr & DP_FRAME) != DP_FRTHIN) {
+				s_ch(&r, ':');
+				s_num(&r, (long)((t->attr & DP_FRAME) >> DP_FRSHIFT));
+			}
+		}
 		for (v = 0; v < 2; v++) {
 			unsigned c = v ? t->bg : t->fg;
 			if (c & DP_RGB) {

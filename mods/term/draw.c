@@ -67,7 +67,7 @@ const tm_cell *tm_dat(tm_t *t, int r, int c)
 unsigned tm_cellattr(tm_t *t, const tm_cell *k, int curon, long ar, int r,
 		     int c)
 {
-	unsigned at = k->attr & DP_ATTRS;
+	unsigned at = k->attr & (DP_ATTRS | DP_FRAME);
 	int cur = tm_atcursor(t, curon, r, c);
 
 	if (tm_insel(t, ar, c) || (cur && t->cshape == TM_BLOCK))

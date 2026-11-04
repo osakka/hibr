@@ -227,6 +227,39 @@ check("console pen -r puts back the pen -s kept",
       b"\x1b[0;1;38;5;1;48;5;4m" in drawn(o) and drawn(o).rstrip().find(b"back") >
       drawn(o).find(b"\x1b[0;1;38;5;1;48;5;4m"), drawn(o)[-200:])
 
+# Framing, Blit's SGR 51 (ADR 0210): a pen names its kind and the colour its
+# lines are drawn in, and the console sends exactly that and nothing for a
+# pen that names neither -- a terminal that has never heard of 51 must
+# never be sent one.
+o, _ = run('console open\nconsole flush\n'
+           'console pen "#000000" "#dddddd" framed\nconsole put 1 1 "a"\n'
+           'console pen "#000000" "#dddddd" framed-thick\nconsole put 1 3 "b"\n'
+           'console pen "#000000" "#d6d6d6" framed-slate\nconsole put 1 5 "c"\n'
+           'console pen "#ffffff" "#3c3c43" framed-slate-dark\nconsole put 1 7 "d"\n'
+           'console pen "#ffffff" "#4e4e56" framed "line=#a8a8b0"\nconsole put 1 9 "e"\n'
+           'console flush\nconsole close\n')
+d = drawn(o)
+check("each framing kind is SGR 51 with its own sub-parameter, and line= is SGR 58",
+      re.search(rb"\x1b\[0;51;[0-9;]*ma", d) is not None and
+      re.search(rb"\x1b\[0;51:3;[0-9;]*mb", d) is not None and
+      re.search(rb"\x1b\[0;51:2;[0-9;]*mc", d) is not None and
+      re.search(rb"\x1b\[0;51:4;[0-9;]*md", d) is not None and
+      re.search(rb"\x1b\[0;51;[0-9;]*;58:2::168:168:176me", d) is not None, d[-400:])
+o, _ = run('console open\nconsole flush\nconsole pen red blue bold\n'
+           'console put 1 1 "plain"\nconsole fill 2 1 1 20 " "\n'
+           'console flush\nconsole close\n')
+check("and a pen that asks for neither never sends 51 or 58",
+      b";51" not in o and b"[51" not in o and b"58:" not in o, drawn(o)[-200:])
+o, _ = run('console open\nconsole flush\nconsole pen "#000000" "#dddddd" framed\n'
+           'console put 1 1 "          "\nconsole put 1 30 "x"\nconsole flush\nconsole close\n')
+check("a framed run of blanks is drawn, not erased: its lines still show",
+      re.search(rb"51;[0-9;]*m {10}", drawn(o)) is not None, drawn(o)[-200:])
+o, _ = run('console open\nconsole flush\nconsole pen "#000000" "#dddddd" framed-thick "line=#a8a8b0"\n'
+           'console pen -s\nconsole pen red blue\nconsole put 1 1 "x"\n'
+           'console pen -r\nconsole put 1 5 "kept"\nconsole flush\nconsole close\n')
+check("console pen -s and -r keep the framing and the line colour",
+      re.search(rb"51:3;[0-9;]*;58:2::168:168:176mkept", drawn(o)) is not None, drawn(o)[-300:])
+
 SEQ = [b"\x1b[A", b"\x1b[1;5C", b"\x1b[1;2B", b"\x01", b"\x1b[15~", b"\x1b[H",
        b"\x1b[5~", b"\x1b[Z", b"\x1b[<0;13;4M", b"\x1bx", b"\xc3\xa9", b"\r",
        b"\x1b[200~pasted\x1b[201~", b"\x1b[1;4Z", b"\x1b"]
@@ -965,4 +998,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 119)
+report(len(WANT) + len(MWANT) + 123)

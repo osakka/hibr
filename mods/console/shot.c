@@ -8,7 +8,7 @@
 extern cn_grid cn_front;
 extern unsigned cn_deffg, cn_defbg;
 void cn_sgrcol(str *b, unsigned v, int bgp);
-void cn_sgr(str *b, unsigned fg, unsigned bg, unsigned at);
+void cn_sgr(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul);
 
 /* A colour as #rrggbb, for HTML: a palette index by xterm's own table, the
    terminal's default as whatever the desktop said its ink and face are. */
@@ -156,8 +156,8 @@ int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w)
 				continue;
 			}
 			if (ansi && (!p || p->fg != k->fg || p->bg != k->bg ||
-				     p->attr != k->attr))
-				cn_sgr(&b, k->fg, k->bg, k->attr);
+				     p->attr != k->attr || p->ul != k->ul))
+				cn_sgr(&b, k->fg, k->bg, k->attr, k->ul);
 			if (html && (!p || p->fg != k->fg || p->bg != k->bg ||
 				     p->attr != k->attr)) {
 				if (p)

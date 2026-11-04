@@ -30,7 +30,7 @@ size_t cn_wrote;
 static size_t cn_wflush;
 static int cn_skip(int row, int col);
 static int cn_gband(int row);
-unsigned cn_fg, cn_bg, cn_penat;
+unsigned cn_fg, cn_bg, cn_penat, cn_ul;
 /* While this is non-zero, a cell written with no background colour of its
    own, over a picture drawn under the text, takes that picture's colour
    scaled to this percentage instead -- a window the wallpaper shows
@@ -62,7 +62,7 @@ static int cn_tlr, cn_tlc;
 static unsigned cn_tfr = 1, cn_tly = 1, cn_tlseq = 1;
 #define CN_TNONE 0xFFFFFFFFu
 int cn_crow, cn_ccol, cn_cvis;
-unsigned cn_lfg, cn_lbg, cn_lat;
+unsigned cn_lfg, cn_lbg, cn_lat, cn_lul;
 int cn_lset, cn_lvis = -1, cn_lcr = -1, cn_lcc = -1;
 
 /* What a cell left at the terminal's own default colour should darken
@@ -364,6 +364,21 @@ void cn_pen(unsigned fg, unsigned bg, unsigned attr)
 	cn_fg = fg;
 	cn_bg = bg;
 	cn_penat = attr;
+	cn_ul = DP_DEFAULT;
+}
+
+/* The pen's line colour, after cn_pen, which puts it back to the default:
+   a caller that never asks for one never draws in a colour left by
+   another. */
+void cn_penul(unsigned ul)
+{
+	cn_ul = ul;
+}
+
+/* Read the pen's line colour back. */
+unsigned cn_getul(void)
+{
+	return cn_ul;
 }
 
 /* Read the pen back. */
@@ -393,6 +408,7 @@ void cn_clear(void)
 		cn_back.c[i].fg = cn_fg;
 		cn_back.c[i].bg = cn_bg;
 		cn_back.c[i].attr = cn_penat;
+		cn_back.c[i].ul = cn_ul;
 		cn_back.c[i].link = 0;
 	}
 }
@@ -873,6 +889,7 @@ int cn_put(int row, int col, const char *t)
 		c->fg = cn_fg;
 		c->bg = cn_opaque(row, col, cn_bgfor(row, col, c->bg));
 		c->attr = cn_penat;
+		c->ul = cn_ul;
 		c->link = cn_plink;
 		if (w == 2) {
 			cn_tbelow(row, col + 1, (c + 1)->bg);
@@ -882,6 +899,7 @@ int cn_put(int row, int col, const char *t)
 			(c + 1)->fg = cn_fg;
 			(c + 1)->bg = c->bg;
 			(c + 1)->attr = cn_penat;
+			(c + 1)->ul = cn_ul;
 			(c + 1)->link = cn_plink;
 		}
 		col += w;
@@ -932,6 +950,7 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 				p->fg = cn_fg;
 				p->bg = cn_opaque(r, c, cn_bgfor(r, c, p->bg));
 				p->attr = cn_penat | CN_FILLED;
+				p->ul = cn_ul;
 				p->link = cn_plink;
 			}
 		}
@@ -960,17 +979,18 @@ void cn_sgrcol(str *b, unsigned v, int bgp)
 }
 
 /* Append the escape sequence that sets a whole pen (gfxask's gx_sgr). */
-void cn_sgr(str *b, unsigned fg, unsigned bg, unsigned at)
+void cn_sgr(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul)
 {
-	gx_sgr(b, fg, bg, at, cn_depth());
+	gx_sgr(b, fg, bg, at, ul, cn_depth());
 }
 
 /* The escape that moves the terminal's pen from what it is to this one,
    through gfxask's gx_sgrto: only the colour that changed when the
    attributes are the same. */
-void cn_sgrto(str *b, unsigned fg, unsigned bg, unsigned at)
+void cn_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul)
 {
-	gx_sgrto(b, fg, bg, at, cn_lset, cn_lfg, cn_lbg, cn_lat, cn_depth());
+	gx_sgrto(b, fg, bg, at, ul, cn_lset, cn_lfg, cn_lbg, cn_lat, cn_lul,
+		 cn_depth());
 }
 
 /* One control sequence with a count, left out when it is 1. */
@@ -992,13 +1012,13 @@ int cn_blankok(const cn_cell *k)
 {
 	return (k->cp == ' ' || k->cp == 0) && !k->ext && k->w <= 1 &&
 	       !k->cont && !k->link &&
-	       !(k->attr & (DP_REV | DP_UNDER | DP_STRIKE));
+	       !(k->attr & (DP_REV | DP_UNDER | DP_STRIKE | DP_FRAME));
 }
 
 /* True when two cells would draw identically. */
 int cn_same(const cn_cell *a, const cn_cell *b)
 {
-	if (a->cp != b->cp || a->fg != b->fg || a->bg != b->bg ||
+	if (a->cp != b->cp || a->fg != b->fg || a->bg != b->bg || a->ul != b->ul ||
 	    (a->attr & ~CN_FILLED) != (b->attr & ~CN_FILLED) ||
 	    a->w != b->w || a->cont != b->cont || a->link != b->link)
 		return 0;
@@ -1338,6 +1358,7 @@ long cn_flush(void)
 						oc.fg = cn_olay.fg;
 						oc.bg = DP_DEFAULT;
 						oc.attr = 0;
+						oc.ul = DP_DEFAULT;
 					}
 					e = &oc;
 				}
@@ -1365,6 +1386,7 @@ long cn_flush(void)
 				while (c + k < cn_back.cols &&
 				       cn_blankok(bk + k) &&
 				       bk[k].fg == bk->fg && bk[k].bg == bk->bg &&
+				       bk[k].ul == bk->ul &&
 				       (bk[k].attr & ~CN_FILLED) ==
 					       (bk->attr & ~CN_FILLED) &&
 				       !(cn_imgn() && cn_imgat(r, c + k)))
@@ -1373,13 +1395,14 @@ long cn_flush(void)
 				if ((end && k >= 2) || k >= CN_ECHMIN) {
 					cn_goto(&b, r, c, cr, cc);
 					if (!cn_lset || bk->fg != cn_lfg ||
-					    bk->bg != cn_lbg ||
+					    bk->bg != cn_lbg || bk->ul != cn_lul ||
 					    (bk->attr & ~CN_FILLED) != cn_lat) {
 						cn_sgrto(&b, bk->fg, bk->bg,
-							 bk->attr & ~CN_FILLED);
+							 bk->attr & ~CN_FILLED, bk->ul);
 						cn_lfg = bk->fg;
 						cn_lbg = bk->bg;
 						cn_lat = bk->attr & ~CN_FILLED;
+						cn_lul = bk->ul;
 						cn_lset = 1;
 					}
 					if (cn_llink) {
@@ -1395,6 +1418,7 @@ long cn_flush(void)
 						ft[i2].fg = bk[i2].fg;
 						ft[i2].bg = bk[i2].bg;
 						ft[i2].attr = bk[i2].attr;
+						ft[i2].ul = bk[i2].ul;
 						ft[i2].link = 0;
 						ft[i2].w = 1;
 						ft[i2].cont = 0;
@@ -1407,12 +1431,14 @@ long cn_flush(void)
 			}
 			cn_goto(&b, r, c, cr, cc);
 			if (!cn_lset || e->fg != cn_lfg ||
-			    e->bg != cn_lbg ||
+			    e->bg != cn_lbg || e->ul != cn_lul ||
 			    (e->attr & ~CN_FILLED) != cn_lat) {
-				cn_sgrto(&b, e->fg, e->bg, e->attr & ~CN_FILLED);
+				cn_sgrto(&b, e->fg, e->bg, e->attr & ~CN_FILLED,
+					 e->ul);
 				cn_lfg = e->fg;
 				cn_lbg = e->bg;
 				cn_lat = e->attr & ~CN_FILLED;
+				cn_lul = e->ul;
 				cn_lset = 1;
 			}
 			if (e->link != cn_llink) {
@@ -1432,6 +1458,7 @@ long cn_flush(void)
 			ft->fg = e->fg;
 			ft->bg = e->bg;
 			ft->attr = e->attr;
+			ft->ul = e->ul;
 			ft->link = e->link;
 			ft->w = e->w;
 			ft->cont = e->cont;
@@ -1443,6 +1470,7 @@ long cn_flush(void)
 				f2->fg = b2->fg;
 				f2->bg = b2->bg;
 				f2->attr = b2->attr;
+				f2->ul = b2->ul;
 				f2->link = b2->link;
 			}
 			/* The same glyph in the same pen right after it, on a
@@ -1461,6 +1489,7 @@ long cn_flush(void)
 					if (n2->cp != e->cp || n2->ext || n2->w > 1 ||
 					    n2->cont || n2->fg != e->fg ||
 					    n2->bg != e->bg || n2->link != e->link ||
+					    n2->ul != e->ul ||
 					    (n2->attr & ~CN_FILLED) !=
 						    (e->attr & ~CN_FILLED) ||
 					    (cn_imgn() && cn_imgat(r, c + 1 + k)))
@@ -1477,6 +1506,7 @@ long cn_flush(void)
 						ft[i2].fg = bk[i2].fg;
 						ft[i2].bg = bk[i2].bg;
 						ft[i2].attr = bk[i2].attr;
+						ft[i2].ul = bk[i2].ul;
 						ft[i2].link = bk[i2].link;
 						ft[i2].w = bk[i2].w;
 						ft[i2].cont = 0;
