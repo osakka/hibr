@@ -16,7 +16,7 @@
 strict
 
 
-app notify "The Control Panel pane for the corner-stacked notes" 1.4
+app notify "The Control Panel pane for the corner-stacked notes" 1.5
 command -v cp_pane > /dev/null && cp_pane notify "Notifications" "◉"
 
 CP_NOTEPOS=(top-right top-left bottom-right bottom-left)
