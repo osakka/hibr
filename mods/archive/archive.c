@@ -24,11 +24,15 @@
  */
 #include "hibr.h"
 #include "../inflate.h"
+#include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 /* How much of an archive is read at a time: a chunk on the heap, or what a
@@ -51,6 +55,7 @@ struct arcm {
 	long long size, off, mtime;
 	unsigned mode;
 	char kind;		/* f a file, d a folder, l a link, else as given */
+	int hard;		/* a hard link ('1'), which extract does not make */
 	char *link;
 };
 
@@ -272,8 +277,14 @@ int arc_index(arcf *a)
 		m->mode = (unsigned)arc_num((const char *)h + 100, 8);
 		m->mtime = arc_num((const char *)h + 136, 12);
 		m->kind = kind == '5' ? 'd' : kind == '2' || kind == '1' ? 'l' : 'f';
-		if (m->kind == 'l')
-			m->link = xs((const char *)h + 157);
+		m->hard = kind == '1';
+		if (m->kind == 'l') {
+			size_t ln = strnlen((const char *)h + 157, 100);
+
+			m->link = xm(ln + 1);
+			memcpy(m->link, h + 157, ln);
+			m->link[ln] = 0;
+		}
 		v_add(&a->mem, m);
 		off += (size + 511) / 512 * 512;
 	}
@@ -669,7 +680,547 @@ int arc_scheme(sh *s, const char *rest)
 	return fd;
 }
 
-/* archive open|close|list|ls|stat|cat ... */
+
+/* Whether a member's name, as extract would write it, stays inside the folder: not empty, not absolute, and no empty, "." or ".." part. */
+int arc_safe(const char *p)
+{
+	const char *q = p;
+
+	if (!*p || *p == '/')
+		return 0;
+	while (*q) {
+		const char *e = strchr(q, '/');
+		size_t n = e ? (size_t)(e - q) : strlen(q);
+
+		if (!n || (n == 1 && q[0] == '.') || (n == 2 && q[0] == '.' && q[1] == '.'))
+			return 0;
+		q += n;
+		if (*q == '/')
+			q++;
+	}
+	return 1;
+}
+
+/* Make every folder above a path that is relative to the descriptor dfd, as mkdir -p would; an existing folder is fine, anything else there is not. */
+int arc_mkparents(int dfd, const char *rel)
+{
+	str t;
+	size_t i;
+	int ok = 1;
+
+	s_init(&t);
+	s_cat(&t, rel);
+	for (i = 1; ok && t.p && i < t.n; i++) {
+		struct stat st;
+
+		if (t.p[i] != '/')
+			continue;
+		t.p[i] = 0;
+		if (fstatat(dfd, t.p, &st, AT_SYMLINK_NOFOLLOW) == 0) {
+			if (!S_ISDIR(st.st_mode))
+				ok = 0;
+		} else if (mkdirat(dfd, t.p, 0755) != 0 && errno != EEXIST) {
+			ok = 0;
+		}
+		t.p[i] = '/';
+	}
+	s_free(&t);
+	return ok;
+}
+
+/* The name a member lands under when PATH (n bytes, tidied) was asked for: PATH's own last part and what is below it, or the whole name when nothing was. 0 when the member is not PATH or under it. */
+const char *arc_landing(const char *name, const char *path, size_t pn)
+{
+	const char *base;
+
+	if (!pn)
+		return name;
+	if (strncmp(name, path, pn) || (name[pn] && name[pn] != '/'))
+		return 0;
+	base = strrchr(path, '/');
+	return name + (base ? (size_t)(base - path) + 1 : 0);
+}
+
+/* Write one member's bytes to a new file at rel under dfd, with its permission bits (never set-id or sticky) and its time. */
+int arc_putfile(arcf *a, arcm *m, int dfd, const char *rel)
+{
+	int fd = openat(dfd, rel, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0600);
+	long long left = m->size;
+	char *buf;
+	struct timespec ts[2];
+
+	if (fd < 0)
+		return 0;
+	buf = xm(ARC_CH);
+	while (left > 0) {
+		size_t want = left > (long long)ARC_CH ? ARC_CH : (size_t)left;
+		ssize_t k = pread(a->fd, buf, want, (off_t)(m->off + m->size - left));
+
+		if (k <= 0 || hibr_wrall(fd, buf, (size_t)k) != k)
+			break;
+		left -= k;
+	}
+	free(buf);
+	fchmod(fd, (m->mode & 0777) | 0400);
+	ts[0].tv_sec = ts[1].tv_sec = (time_t)m->mtime;
+	ts[0].tv_nsec = ts[1].tv_nsec = 0;
+	futimens(fd, ts);
+	close(fd);
+	return left == 0;
+}
+
+/* archive extract NAME DEST [PATH]: every member, or PATH and what is under it, written into the folder DEST. Every name is checked on the path it would be written to before anything is written, and the whole extraction is refused on the first that would land outside DEST, overwrite something there, or link out of it. */
+int arc_extract(sh *s, arcf *a, const char *dest, const char *path)
+{
+	str want, o;
+	size_t i, n = 0;
+	int dfd, pass, ok = 1;
+	struct stat st;
+
+	if (stat(dest, &st) != 0 || !S_ISDIR(st.st_mode)) {
+		lg(HIBR_LERR, "archive extract: %s is not a folder", dest);
+		return HIBR_FAIL;
+	}
+	s_init(&want);
+	arc_tidy(&want, path ? path : "");
+	if (want.n && !arc_isdir(a, want.p, want.n) && !arc_member(a, want.p)) {
+		lg(HIBR_LERR, "archive extract: %s: not in %s", want.p, a->nm);
+		s_free(&want);
+		return HIBR_FAIL;
+	}
+	for (i = 0; i < a->mem.n; i++) {
+		arcm *m = a->mem.p[i];
+		const char *r = arc_landing(m->name, want.p ? want.p : "", want.n);
+		struct stat t;
+
+		if (!r)
+			continue;
+		if (!arc_safe(r)) {
+			lg(HIBR_LERR, "archive extract: %s would land outside %s, so nothing was written", m->name, dest);
+			ok = 0;
+			break;
+		}
+		if (m->kind == 'l' && !m->hard &&
+		    (!m->link || !arc_safe(m->link))) {
+			lg(HIBR_LERR, "archive extract: %s links out of the folder (to %s), so nothing was written",
+			   m->name, m->link ? m->link : "");
+			ok = 0;
+			break;
+		}
+		s_init(&o);
+		s_cat(&o, dest);
+		s_ch(&o, '/');
+		s_cat(&o, r);
+		if (lstat(o.p, &t) == 0 && !(m->kind == 'd' && S_ISDIR(t.st_mode))) {
+			lg(HIBR_LERR, "archive extract: %s is there already, so nothing was written", o.p);
+			ok = 0;
+		}
+		s_free(&o);
+		if (!ok)
+			break;
+	}
+	if (!ok) {
+		s_free(&want);
+		return HIBR_FAIL;
+	}
+	dfd = open(dest, O_RDONLY | O_DIRECTORY);
+	if (dfd < 0) {
+		lg(HIBR_LERR, "archive extract: %s cannot be opened", dest);
+		s_free(&want);
+		return HIBR_FAIL;
+	}
+	for (pass = 0; pass < 2 && ok; pass++) {
+		for (i = 0; i < a->mem.n && ok; i++) {
+			arcm *m = a->mem.p[i];
+			const char *r = arc_landing(m->name, want.p ? want.p : "", want.n);
+
+			if (!r || (pass == 0) == (m->kind == 'l'))
+				continue;
+			if (!arc_mkparents(dfd, r)) {
+				lg(HIBR_LERR, "archive extract: cannot make the folders above %s", r);
+				ok = 0;
+				break;
+			}
+			if (m->kind == 'd') {
+				if (mkdirat(dfd, r, (m->mode & 0777) | 0700) != 0 && errno != EEXIST) {
+					lg(HIBR_LERR, "archive extract: cannot make %s", r);
+					ok = 0;
+				}
+			} else if (m->kind == 'l') {
+				if (m->hard) {
+					lg(HIBR_LDBG, "archive extract: %s is a hard link, left out", r);
+					continue;
+				}
+				if (symlinkat(m->link, dfd, r) != 0) {
+					lg(HIBR_LERR, "archive extract: cannot make the link %s", r);
+					ok = 0;
+				}
+			} else if (!arc_putfile(a, m, dfd, r)) {
+				lg(HIBR_LERR, "archive extract: cannot write %s", r);
+				ok = 0;
+			}
+			if (ok)
+				n++;
+		}
+	}
+	close(dfd);
+	s_free(&want);
+	if (s->bind) {
+		s_init(&o);
+		s_num(&o, (long)n);
+		hibr_ret(s, o.p ? o.p : "0");
+		s_free(&o);
+	}
+	return ok ? HIBR_OK : HIBR_FAIL;
+}
+
+/* An octal field of width w, NUL-terminated as ustar wants; a size too large for it is written base-256, as GNU tar does. */
+void arc_oct(unsigned char *f, size_t w, unsigned long long v)
+{
+	size_t i;
+
+	if (v >> (3 * (w - 1))) {
+		memset(f, 0, w);
+		f[0] = 0x80;
+		for (i = w - 1; i > 0 && v; i--, v >>= 8)
+			f[i] = (unsigned char)(v & 0xff);
+		return;
+	}
+	f[w - 1] = 0;
+	for (i = w - 1; i > 0; i--, v >>= 3)
+		f[i - 1] = (unsigned char)('0' + (v & 7));
+}
+
+/* One ustar header block appended to o: a GNU long-name block ahead of it when the name fits neither the name field nor a prefix split, and another for a link target past a hundred bytes. */
+void arc_hdr(str *o, const char *name, char kind, unsigned mode,
+	     unsigned long long size, long long mtime, const char *link)
+{
+	/* Sized by the format: a tar header is one 512-byte block. */
+	unsigned char h[512];
+	size_t nl = strlen(name), ll = link ? strlen(link) : 0, i, cut = 0;
+	unsigned sum = 0;
+
+	if (ll > 100)
+		arc_hdr(o, "././@LongLink", 'K', 0644, ll + 1, 0, 0);
+	if (ll > 100) {
+		s_add(o, link, ll + 1);
+		while (o->n % 512)
+			s_ch(o, 0);
+	}
+	if (nl > 100) {
+		for (i = nl - 1; i > 0; i--)
+			if (name[i] == '/' && i <= 155 && nl - i - 1 <= 100 && nl - i - 1 > 0) {
+				cut = i;
+				break;
+			}
+		if (!cut) {
+			arc_hdr(o, "././@LongLink", 'L', 0644, nl + 1, 0, 0);
+			s_add(o, name, nl + 1);
+			while (o->n % 512)
+				s_ch(o, 0);
+		}
+	}
+	memset(h, 0, sizeof h);
+	if (nl <= 100)
+		memcpy(h, name, nl);
+	else if (cut) {
+		memcpy(h, name + cut + 1, nl - cut - 1);
+		memcpy(h + 345, name, cut);
+	} else
+		memcpy(h, name, 100);
+	arc_oct(h + 100, 8, mode & 07777);
+	arc_oct(h + 108, 8, (unsigned long long)getuid());
+	arc_oct(h + 116, 8, (unsigned long long)getgid());
+	arc_oct(h + 124, 12, size);
+	arc_oct(h + 136, 12, (unsigned long long)(mtime < 0 ? 0 : mtime));
+	memset(h + 148, ' ', 8);
+	h[156] = (unsigned char)kind;
+	if (link)
+		memcpy(h + 157, link, ll > 100 ? 100 : ll);
+	memcpy(h + 257, "ustar", 6);
+	memcpy(h + 263, "00", 2);
+	for (i = 0; i < 512; i++)
+		sum += h[i];
+	arc_oct(h + 148, 7, sum);
+	h[155] = ' ';
+	s_add(o, (const char *)h, 512);
+}
+
+/* Everything a create needs as it walks: where to write, whether it is all kept for gzip, how far it may grow, and the file being written so it is never put inside itself. */
+typedef struct arcw arcw;
+struct arcw {
+	str o;
+	int fd, gz, bad;
+	size_t max;
+	dev_t dev;
+	ino_t ino;
+};
+
+/* Write what is held to the file, unless it is being kept whole for gzip. */
+int arc_wflush(arcw *w)
+{
+	if (w->gz) {
+		if (w->o.n > w->max) {
+			lg(HIBR_LERR, "archive create: larger than ARCHIVE_MAX before compressing");
+			w->bad = 1;
+		}
+		return !w->bad;
+	}
+	if (w->o.n && hibr_wrall(w->fd, w->o.p, w->o.n) != (ssize_t)w->o.n) {
+		lg(HIBR_LERR, "archive create: cannot write the archive");
+		w->bad = 1;
+	}
+	w->o.n = 0;
+	return !w->bad;
+}
+
+/* Sort names for a folder's listing, so an archive of the same tree is the same archive. */
+int arc_namecmp(const void *x, const void *y)
+{
+	return strcmp(*(char *const *)x, *(char *const *)y);
+}
+
+/* Add the path rel (under base) and, for a folder, everything in it, depth first, to the archive; depth bounds how far a tree may nest. */
+void arc_add(arcw *w, const char *base, const char *rel, int depth)
+{
+	str full, nm;
+	struct stat st;
+
+	if (w->bad)
+		return;
+	if (depth > 256) {
+		lg(HIBR_LERR, "archive create: %s nests deeper than 256 folders", rel);
+		w->bad = 1;
+		return;
+	}
+	s_init(&full);
+	s_cat(&full, base);
+	s_ch(&full, '/');
+	s_cat(&full, rel);
+	if (lstat(full.p, &st) != 0) {
+		lg(HIBR_LERR, "archive create: %s cannot be read", full.p);
+		w->bad = 1;
+		s_free(&full);
+		return;
+	}
+	if (st.st_dev == w->dev && st.st_ino == w->ino) {
+		s_free(&full);
+		return;
+	}
+	s_init(&nm);
+	s_cat(&nm, rel);
+	if (S_ISDIR(st.st_mode)) {
+		DIR *d;
+		struct dirent *e;
+		vec names;
+		size_t i;
+
+		s_ch(&nm, '/');
+		arc_hdr(&w->o, nm.p, '5', st.st_mode, 0, (long long)st.st_mtime, 0);
+		arc_wflush(w);
+		d = opendir(full.p);
+		if (!d) {
+			lg(HIBR_LERR, "archive create: %s cannot be listed", full.p);
+			w->bad = 1;
+		}
+		memset(&names, 0, sizeof names);
+		while (d && (e = readdir(d))) {
+			if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
+				continue;
+			v_add(&names, xs(e->d_name));
+		}
+		if (d)
+			closedir(d);
+		if (names.n)
+			qsort(names.p, names.n, sizeof *names.p, arc_namecmp);
+		for (i = 0; i < names.n; i++) {
+			str sub;
+
+			s_init(&sub);
+			s_cat(&sub, rel);
+			s_ch(&sub, '/');
+			s_cat(&sub, names.p[i]);
+			arc_add(w, base, sub.p, depth + 1);
+			s_free(&sub);
+			free(names.p[i]);
+		}
+		v_free(&names);
+	} else if (S_ISLNK(st.st_mode)) {
+		str t;
+		ssize_t k;
+
+		s_init(&t);
+		s_grow(&t, (size_t)st.st_size + 256);
+		k = readlink(full.p, t.p, (size_t)st.st_size + 255);
+		if (k < 0) {
+			lg(HIBR_LERR, "archive create: %s cannot be read", full.p);
+			w->bad = 1;
+		} else {
+			t.p[k] = 0;
+			arc_hdr(&w->o, nm.p, '2', 0777, 0, (long long)st.st_mtime, t.p);
+			arc_wflush(w);
+		}
+		s_free(&t);
+	} else if (S_ISREG(st.st_mode)) {
+		int fd = open(full.p, O_RDONLY);
+		unsigned long long left = (unsigned long long)st.st_size;
+
+		if (fd < 0) {
+			lg(HIBR_LERR, "archive create: %s cannot be read", full.p);
+			w->bad = 1;
+		} else {
+			arc_hdr(&w->o, nm.p, '0', st.st_mode, left, (long long)st.st_mtime, 0);
+			while (left > 0 && !w->bad) {
+				size_t want = left > ARC_CH ? ARC_CH : (size_t)left;
+				ssize_t k;
+
+				s_grow(&w->o, want);
+				k = read(fd, w->o.p + w->o.n, want);
+				if (k <= 0) {
+					memset(w->o.p + w->o.n, 0, want);
+					k = (ssize_t)want;
+					lg(HIBR_LERR, "archive create: %s shrank while it was read", full.p);
+				}
+				w->o.n += (size_t)k;
+				left -= (unsigned long long)k;
+				arc_wflush(w);
+			}
+			for (left = (512 - (unsigned long long)st.st_size % 512) % 512; left; left--)
+				s_ch(&w->o, 0);
+			close(fd);
+			arc_wflush(w);
+		}
+	} else {
+		lg(HIBR_LERR, "archive create: %s is not a file, a folder or a link, and is left out", full.p);
+	}
+	s_free(&nm);
+	s_free(&full);
+}
+
+/* Add everything in the folder base at the top of the archive, sorted, which is what "." asks for. */
+void arc_addall(arcw *w, const char *base)
+{
+	DIR *d = opendir(base);
+	struct dirent *e;
+	vec names;
+	size_t i;
+
+	if (!d) {
+		lg(HIBR_LERR, "archive create: %s cannot be listed", base);
+		w->bad = 1;
+		return;
+	}
+	memset(&names, 0, sizeof names);
+	while ((e = readdir(d)))
+		if (strcmp(e->d_name, ".") && strcmp(e->d_name, ".."))
+			v_add(&names, xs(e->d_name));
+	closedir(d);
+	if (names.n)
+		qsort(names.p, names.n, sizeof *names.p, arc_namecmp);
+	for (i = 0; i < names.n; i++) {
+		if (!w->bad)
+			arc_add(w, base, names.p[i], 0);
+		free(names.p[i]);
+	}
+	v_free(&names);
+}
+
+/* archive create [-z] OUT [-C DIR] PATH...: a new tar of the paths named, relative to DIR (the current folder by default), gzipped with -z or when OUT ends .gz or .tgz. Written beside OUT and moved into place only when whole, and never over a file that is there. */
+int arc_create(sh *s, int ac, char **av)
+{
+	const char *out = 0, *base = ".";
+	int i = 2, gz = 0, first;
+	arcw w;
+	str tmp, z;
+	struct stat st;
+	const char *v;
+	size_t ol;
+
+	if (i < ac && !strcmp(av[i], "-z")) {
+		gz = 1;
+		i++;
+	}
+	if (i >= ac) {
+		lg(HIBR_LERR, "usage: archive create [-z] OUT [-C DIR] PATH...");
+		return 2;
+	}
+	out = av[i++];
+	if (i + 1 < ac && !strcmp(av[i], "-C")) {
+		base = av[i + 1];
+		i += 2;
+	}
+	if (i >= ac) {
+		lg(HIBR_LERR, "usage: archive create [-z] OUT [-C DIR] PATH...");
+		return 2;
+	}
+	first = i;
+	for (; i < ac; i++)
+		if (strcmp(av[i], ".") && !arc_safe(av[i])) {
+			lg(HIBR_LERR, "archive create: %s: name the paths relative to the folder, with no ..", av[i]);
+			return HIBR_FAIL;
+		}
+	ol = strlen(out);
+	if ((ol > 3 && !strcmp(out + ol - 3, ".gz")) || (ol > 4 && !strcmp(out + ol - 4, ".tgz")))
+		gz = 1;
+	if (lstat(out, &st) == 0) {
+		lg(HIBR_LERR, "archive create: %s is there already", out);
+		return HIBR_FAIL;
+	}
+	memset(&w, 0, sizeof w);
+	s_init(&w.o);
+	w.gz = gz;
+	w.max = ARC_MAXGZ;
+	if ((v = hibr_get(s, "ARCHIVE_MAX")) && *v)
+		w.max = (size_t)strtoull(v, 0, 10);
+	s_init(&tmp);
+	s_cat(&tmp, out);
+	s_cat(&tmp, ".hibr-part");
+	w.fd = open(tmp.p, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
+	if (w.fd < 0) {
+		lg(HIBR_LERR, "archive create: cannot write %s", tmp.p);
+		s_free(&tmp);
+		return HIBR_FAIL;
+	}
+	fstat(w.fd, &st);
+	w.dev = st.st_dev;
+	w.ino = st.st_ino;
+	for (i = first; i < ac && !w.bad; i++)
+		if (!strcmp(av[i], "."))
+			arc_addall(&w, base);
+		else
+			arc_add(&w, base, av[i], 0);
+	if (!w.bad) {
+		s_grow(&w.o, 1024);
+		memset(w.o.p + w.o.n, 0, 1024);
+		w.o.n += 1024;
+		if (gz) {
+			s_init(&z);
+			if (!def_gzip((const unsigned char *)(w.o.p ? w.o.p : ""), w.o.n,
+				      (long)time(0), &z) ||
+			    hibr_wrall(w.fd, z.p, z.n) != (ssize_t)z.n) {
+				lg(HIBR_LERR, "archive create: cannot write the compressed archive");
+				w.bad = 1;
+			}
+			s_free(&z);
+			w.o.n = 0;
+		} else {
+			arc_wflush(&w);
+		}
+	}
+	s_free(&w.o);
+	if (close(w.fd) != 0)
+		w.bad = 1;
+	if (!w.bad && link(tmp.p, out) != 0) {
+		lg(HIBR_LERR, "archive create: %s", errno == EEXIST ?
+		   "something took the name while it was written" : "cannot put the archive in place");
+		w.bad = 1;
+	}
+	unlink(tmp.p);
+	s_free(&tmp);
+	return w.bad ? HIBR_FAIL : HIBR_OK;
+}
+
+/* archive open|close|list|ls|stat|cat|extract|create ... */
 int arc_bi(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "";
@@ -679,6 +1230,16 @@ int arc_bi(sh *s, int ac, char **av)
 
 	if (!strcmp(sub, "open") && ac == 4)
 		return arc_openarch(s, av[2], av[3]);
+	if (!strcmp(sub, "create"))
+		return arc_create(s, ac, av);
+	if (!strcmp(sub, "extract") && (ac == 4 || ac == 5)) {
+		a = arc_find(av[2]);
+		if (!a) {
+			lg(HIBR_LERR, "archive extract: %s is not open", av[2]);
+			return HIBR_FAIL;
+		}
+		return arc_extract(s, a, av[3], ac == 5 ? av[4] : 0);
+	}
 	if (!strcmp(sub, "close") && ac == 3) {
 		for (i = 0; i < arc_list.n; i++) {
 			a = arc_list.p[i];
@@ -746,7 +1307,8 @@ int arc_bi(sh *s, int ac, char **av)
 		}
 	}
 	lg(HIBR_LERR, "usage: archive open NAME FILE | close NAME | list | "
-		      "ls NAME [PATH] | stat NAME PATH | cat NAME PATH");
+		      "ls NAME [PATH] | stat NAME PATH | cat NAME PATH | "
+		      "extract NAME DEST [PATH] | create [-z] OUT [-C DIR] PATH...");
 	return 2;
 }
 
@@ -767,10 +1329,10 @@ void arc_fini(sh *s)
 }
 
 const hibr_bi arc_bis[] = {
-	{ "archive", arc_bi, "an archive as a folder: archive open|close|list|ls|stat|cat, "
+	{ "archive", arc_bi, "an archive as a folder: archive open|close|list|ls|stat|cat|extract|create, "
 			 "and /dev/archive/NAME/path anywhere a filename goes" },
 	HIBR_BI_END
 };
 
-HIBR_MODULE("archive", "1.0", "tar and tar.gz read as folders, with a /dev/archive/ scheme",
+HIBR_MODULE("archive", "1.1", "tar and tar.gz read as folders, written and extracted",
 	    arc_bis, arc_init, arc_fini);

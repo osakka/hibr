@@ -3863,6 +3863,28 @@ sc = run("files", FW, [press(3, 10, 2)], pre=HPRE + "\nFB_SHOWUP=1")
 check("right-clicking .. dims what does not apply to it",
       sc.find("Open") is not None and sc.at(3, 29) != "o", sc)
 
+# A location (wm/locations.hibr, ADR 0053) that can only be read: Files
+# lists it through its _ls, titles it through its _title, has no .. at its
+# _top, and dims every row that would write -- asked of its _can, never of
+# its scheme's name (Gitea #475).
+ROL = ('fn rol_ls(d) { unset RET; RET["0"]["name"]="inside.txt"; RET["0"]["dir"]=0; '
+       'RET["0"]["size"]=5; RET["0"]["mtime"]=1700000000; RET["1"]["name"]="sub"; '
+       'RET["1"]["dir"]=1; RET["1"]["size"]=0; RET["1"]["mtime"]=1700000000; ret -k; }\n'
+       'fn rol_top(d) { ret "rol://x"; }\n'
+       'fn rol_title(d) { ret "Box:${d#rol://x}"; }\n'
+       'fn rol_can(op) { [ "$op" = open ]; }\n'
+       'dt_location rol rol\nFB_DIR=rol://x\nFB_SHOWUP=1')
+sc = run("files", FW, pre=ROL)
+check("a location Files has no code for is listed and titled by its own functions, "
+      "with no .. at its top",
+      sc.find("Files [Box:]") is not None and sc.find(" sub/") is not None and
+      sc.find(" inside.txt") is not None and sc.find("../") is None, sc)
+sc = run("files", FW, [b"\x1b[B", press(4, 10, 2)], pre=ROL)
+rolpen = lambda t: (lambda f: sc.p[f[0]][f[1]] if f else None)(sc.find(t))
+check("and one that can only be read dims Rename, Cut and Delete, and not Copy",
+      rolpen("Rename") is not None and rolpen("Rename") == rolpen("Cut ") ==
+      rolpen("Delete") != rolpen("Copy"), sc)
+
 # Rename and Get Info are real windows of their own, not a one-line note --
 # opened on the entry the context menu (or the keyboard: n and i, straight
 # from the browser) was aimed at.
@@ -6251,4 +6273,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(807)
+report(809)

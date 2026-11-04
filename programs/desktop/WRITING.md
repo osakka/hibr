@@ -818,6 +818,38 @@ otherwise -- there is no reason to prefer one over the other beyond what
 actually fits, and the strip's own default position, most of the way down
 the screen, means most of its dropdowns open upward in practice.
 
+## Locations: somewhere Files goes that is not a folder here
+
+A server's folder, the inside of an archive: anything Files should list
+and open that is not on this machine is a **location** (`wm/locations.hibr`,
+ADR 0053). Register a scheme and a prefix, and write the prefix's
+functions; Files never names the scheme.
+
+<!-- not run: a desktop file's own line; the desktop sources it -->
+```sh
+dt_location dav rdav
+```
+
+| function | what it does |
+|---|---|
+| `_ls DIR` | a map of what DIR holds -- each entry's `name`, `dir` (1 or 0), `size`, `mtime`, and `etag` and `type` where it has them -- or status 1 with `DT_WHY`. **The one that is required** |
+| `_ok` | whether it can be reached now; `DT_WHY` if not |
+| `_norm DIR` | DIR tidied: no trailing slash, `..` taken up |
+| `_top DIR` | its own root, which has no `..` |
+| `_title DIR` | DIR as a window's title shows it |
+| `_can OP` | `write`, `mkdir`, `rename`, `delete`, `open`: status 0 for yes |
+| `_open PATH [APP]` | open a file: fetch a copy here and open that, since no program reads a scheme |
+| `_mkdir PATH`, `_mv OLD NEW`, `_delete PATH...` | `DT_WHY` on failure |
+| `_fileop OP DST SRC...` | move or copy where either end is in it |
+
+Return a map from `_ls` the way a function returns anything: let the
+builtin that lists fill the slot with `:=` and end with `ret -k`, as
+`rdav_ls` in `wm/remote.hibr` does. A location that cannot write says no
+to `_can` and leaves those functions out; Files dims what would need them
+and turns a move out of it into a copy. `dt_unlocation` takes it away,
+and a location whose `_ls` is not loaded is no location at all, so an
+extension removed leaves Files as it was.
+
 ## Controlling a running desktop
 
 A program can ask a held desktop about its displays and windows, and move

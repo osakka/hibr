@@ -632,3 +632,56 @@ int def_zlib(const unsigned char *in, size_t n, str *out)
 	s_ch(out, (int)(a & 0xff));
 	return 1;
 }
+
+static unsigned df_crctab[256];
+static int df_crcok;
+
+/* The CRC-32 gzip and PNG both use: the reversed polynomial 0xedb88320, its table built once. */
+unsigned df_crc32(const unsigned char *p, size_t n)
+{
+	unsigned c = 0xffffffffu;
+	size_t i;
+	int k;
+
+	if (!df_crcok) {
+		unsigned j;
+
+		for (j = 0; j < 256; j++) {
+			unsigned v = j;
+
+			for (k = 0; k < 8; k++)
+				v = (v & 1) ? 0xedb88320u ^ (v >> 1) : v >> 1;
+			df_crctab[j] = v;
+		}
+		df_crcok = 1;
+	}
+	for (i = 0; i < n; i++)
+		c = df_crctab[(c ^ p[i]) & 0xff] ^ (c >> 8);
+	return c ^ 0xffffffffu;
+}
+
+/* A little-endian 32-bit number, as gzip writes its trailer and its time. */
+void df_le32(str *o, unsigned v)
+{
+	s_ch(o, (int)(v & 0xff));
+	s_ch(o, (int)((v >> 8) & 0xff));
+	s_ch(o, (int)((v >> 16) & 0xff));
+	s_ch(o, (int)((v >> 24) & 0xff));
+}
+
+/* Compress in into out as a gzip member (RFC 1952): a ten byte header, the deflate data, then CRC-32 and the length modulo 2^32. */
+int def_gzip(const unsigned char *in, size_t n, long mtime, str *out)
+{
+	s_ch(out, 0x1f);
+	s_ch(out, 0x8b);
+	s_ch(out, 8);
+	s_ch(out, 0);
+	df_le32(out, (unsigned)mtime);
+	s_ch(out, 0);
+	s_ch(out, 3);
+	if (!def_raw(in, n, out))
+		return 0;
+	df_le32(out, df_crc32(in, n));
+	df_le32(out, (unsigned)(n & 0xffffffffu));
+	return 1;
+}

@@ -49,6 +49,107 @@ fn dt_isremote(p) {
 	[[ $p == dav://* ]]
 }
 
+# --- a folder on a server, as a location (wm/locations.hibr) ---------------
+#
+# Files reaches a server only through these, as it would any location: it
+# lists, renames, deletes, makes folders and opens files here by asking
+# the prefix, and nothing in Files says dav (Gitea #475).
+
+# Whether servers can be reached at all: the module, and somewhere for jobs.
+rdav_ok() {
+	dt_davok
+}
+
+# What a folder on a server holds, as the location contract wants it:
+# dav ls's own map, which already has name, dir, size, mtime, etag, type.
+fn rdav_ls(d) {
+	local -A m
+
+	dt_davok || return 1
+	if ! m := dav ls "$d" 2> "$DR_ERRF"; then
+		dt_davwhy
+		return 1
+	fi
+	ret -k
+}
+
+# A server path tidied: no trailing slash or "/.", and ".." taken up one,
+# never above the server itself.
+fn rdav_norm(d) {
+	while [ "$d" != "${d%/}" ]; do d=${d%/}; done
+	while [ "$d" != "${d%/.}" ]; do d=${d%/.}; done
+	if [[ $d == */.. ]]; then
+		d=${d%/..}
+		[[ ${d#dav://} == */* ]] && d=${d%/*}
+	fi
+	ret "$d"
+}
+
+# The server itself, which a path on it goes no higher than.
+fn rdav_top(d) {
+	d=${d#dav://}
+	ret "dav://${d%%/*}"
+}
+
+# How a window names a folder on a server: NAME:/path.
+fn rdav_title(d) {
+	d=${d#dav://}
+	case $d in
+	*/*) ret "${d%%/*}:/${d#*/}" ;;
+	*) ret "$d:/" ;;
+	esac
+}
+
+# Everything a folder on a server can have done to it.
+fn rdav_can(op) {
+	case $op in
+	write | mkdir | rename | delete | open) return 0 ;;
+	esac
+	return 1
+}
+
+# Open a file on a server: fetched, then the copy opened.
+fn rdav_open(p, app = "") {
+	dt_davopen "$p" "$app"
+}
+
+# A new folder on a server.
+fn rdav_mkdir(p) {
+	dt_davok || return 1
+	if ! dav mkdir "$p" 2> "$DR_ERRF"; then
+		dt_davwhy
+		return 1
+	fi
+	return 0
+}
+
+# Rename on a server: within one folder, never over something there.
+fn rdav_mv(old, new) {
+	dt_davok || return 1
+	if dav stat "$new" > /dev/null 2>&1; then
+		DT_WHY="There is already a ${new##*/}"
+		return 1
+	fi
+	if ! dav mv "$old" "$new" 2> "$DR_ERRF"; then
+		dt_davwhy
+		return 1
+	fi
+	return 0
+}
+
+# Delete on a server, once Files has asked.
+fn rdav_delete(...rest) {
+	dt_davdelete "$@"
+}
+
+# Move or copy where either end is on a server.
+fn rdav_fileop(op, dst, ...rest) {
+	shift 2
+	dt_davop "$op" "$dst" "$@"
+}
+
+command -v dt_location > /dev/null && dt_location dav rdav
+
 # The server a location is on: dav://NAME/x gives NAME.
 fn dt_davname(p) {
 	p=${p#dav://}

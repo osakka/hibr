@@ -13,6 +13,13 @@ archive list               what is open: name, file, members
 archive ls NAME [PATH]     what a folder holds, a line each
 archive stat NAME PATH     one member's own line
 archive cat NAME PATH      its bytes
+archive extract NAME DEST [PATH]
+                           write it all, or PATH and what is under it,
+                           into the folder DEST
+archive create [-z] OUT [-C DIR] PATH...
+                           write a new tar of PATH... (relative to DIR;
+                           `.` is everything in it), gzipped with -z or
+                           when OUT ends .gz or .tgz
 ```
 
 A line is `kind TAB size TAB mtime TAB name`, the shape `dav ls` already
@@ -52,11 +59,60 @@ byte-identical in a pipe and nothing can tell; this is no replacement for
 tar, so it does not take the name. The name also leaves room for a zip
 reader behind the same commands later.
 
-## Reading only
+## Writing a new one, and extracting one
 
-A tar is append-only in practice, and rewriting one to change a member is
-the thing archivemount does badly. Writing waits until it can be honest
-about rewriting the whole file.
+A member is never changed in place: a tar is append-only in practice, and
+rewriting one to change a member is the thing archivemount does badly. What
+the module writes is a whole new archive, or a whole extraction (Gitea #475).
+
+<!-- setup
+mkdir -p ex/notes && printf 'hibr\n' > ex/README.md
+printf 'one\ntwo\n' > ex/notes/list.txt
+-->
+```sh
+need archive
+archive create demo.tgz -C ex README.md notes
+archive open d demo.tgz
+mkdir out
+n := archive extract d out
+echo "extracted $n members"
+ls out out/notes
+archive close d
+```
+
+```output
+extracted 3 members
+out:
+README.md
+notes
+
+out/notes:
+list.txt
+```
+
+`create` writes ustar, with the prefix field for a long path and GNU's
+long-name block where even that is too short, so GNU tar, bsdtar and
+Python's tarfile all read it. It writes `OUT.hibr-part` and moves it into
+place only when whole, never over a file that is there, and leaves out the
+archive itself when it is written into a folder it is archiving. A `.gz`
+is kept whole in memory before compressing, bounded by `ARCHIVE_MAX`; a
+plain tar is written as it is read. Symbolic links are stored as links;
+anything that is not a file, a folder or a link is left out, saying so.
+
+`extract` is the one place a name from somebody else's archive becomes a
+path on this machine, so it checks every member before it writes any:
+
+- a name with an empty, `.` or `..` part is refused (a leading `/` was
+  already taken off when the archive was read, as GNU tar does, so an
+  absolute name lands inside DEST);
+- a symbolic link whose target is absolute or climbs with `..` is refused;
+- anything that would land on a file already in DEST is refused;
+
+and on any of those **nothing is written**: the whole extraction is
+refused, naming the member, rather than the bad one skipped. Links are
+made last, after every file and folder, so nothing is ever written through
+one; a hard link is left out. Set-id and sticky bits are dropped, the rest
+of the mode kept, and each file's time put back.
 
 ## A member can be sourced
 
@@ -105,7 +161,7 @@ the first version did with a 40-byte text file.
 
 ## What it does not do yet
 
-- Writing anything.
+- Changing a member in place: an archive is written whole, or not at all.
 - `.tar.bz2`, `.tar.xz`, `.tar.zst`: each is another decompressor, and only
   gzip came free with the prompt module's inflate.
 - zip, which is a different container with its own index at the end.

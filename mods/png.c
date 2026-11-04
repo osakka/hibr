@@ -24,32 +24,10 @@
 #define PW_BPP 3
 #endif
 
-static unsigned pw_tab[256];
-static int pw_tabok;
-
-/* The CRC-32 of the PNG and gzip world: the reversed polynomial 0xedb88320,
-   a table built once. */
+/* The CRC-32 of the PNG and gzip world: deflate.c's, kept under the name png.c's callers use. */
 unsigned pw_crc(const unsigned char *p, size_t n)
 {
-	unsigned c = 0xffffffffu;
-	size_t i;
-	int k;
-
-	if (!pw_tabok) {
-		unsigned j;
-
-		for (j = 0; j < 256; j++) {
-			unsigned v = j;
-
-			for (k = 0; k < 8; k++)
-				v = (v & 1) ? 0xedb88320u ^ (v >> 1) : v >> 1;
-			pw_tab[j] = v;
-		}
-		pw_tabok = 1;
-	}
-	for (i = 0; i < n; i++)
-		c = pw_tab[(c ^ p[i]) & 0xff] ^ (c >> 8);
-	return c ^ 0xffffffffu;
+	return df_crc32(p, n);
 }
 
 /* A four byte big-endian number, which is every length and every CRC here. */

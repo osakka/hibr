@@ -34,7 +34,8 @@ can be read on its own, and the order is only for reading.
 | `lock.hibr` | the screen lock: the saver with a password box over it, the password checked by the auth module through PAM, no key reaching the desktop until it opens |
 | `restart.hibr` | Restart Desktop: the desktop replaces itself with whatever hibr is installed now, in the same process, windows and running programs kept |
 | `recover.hibr` | the supervisor of a held desktop, which starts it again from its last snapshot when it dies |
-| `remote.hibr` | folders on WebDAV servers: `dav://` locations moved, copied and deleted in background jobs, remote files opened from a cache and put back when saved, the server dialog |
+| `locations.hibr` | somewhere Files goes that is not a folder here: `dt_location scheme prefix`, `dt_locof`, `dt_loccan`, and the list of functions a location answers -- Files names no scheme (ADR 0053) |
+| `remote.hibr` | folders on WebDAV servers, the first location (`rdav_`): `dav://` paths moved, copied and deleted in background jobs, remote files opened from a cache and put back when saved, the server dialog |
 | `handlers.hibr` | `dt_handler`: what opens a file, by its extension |
 | `filepick.hibr` | `dt_filepick`: the Open and Save dialog any app can use, with a preview of what is selected |
 | `shot.hibr` | screenshots: the whole screen, the focused window or an area |

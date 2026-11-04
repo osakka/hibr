@@ -42,5 +42,7 @@ extern const short inf_dext[30];
 
 int def_raw(const unsigned char *in, size_t n, str *out);
 int def_zlib(const unsigned char *in, size_t n, str *out);
+int def_gzip(const unsigned char *in, size_t n, long mtime, str *out);
+unsigned df_crc32(const unsigned char *p, size_t n);
 
 #endif

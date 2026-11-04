@@ -62,6 +62,7 @@ downside is usually a decision nobody had to make.
 | [0050](0050-apps-in-processes-of-their-own.md) | Apps in processes of their own | step 1 accepted |
 | [0051](0051-read-takes-a-datagram-whole.md) | read takes a datagram whole | accepted |
 | [0052](0052-a-sheets-formulas-are-contained.md) | A sheet's formulas are contained, and full access is per sheet | accepted |
+| [0053](0053-files-reaches-anywhere-through-locations.md) | Files reaches anywhere through locations | accepted |
 
 ---
 

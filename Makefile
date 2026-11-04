@@ -225,8 +225,8 @@ $(B)/mods/vw.so: mods/vw/vw.c mods/b64.c mods/b64.h include/hibr.h | $(B)/mods
 # The inflate is mods/inflate.c, the prompt module's own, shared rather than
 # written twice (Gitea #102), with mods/inftab.c beside it for the tables
 # the encoder reads as well.
-$(B)/mods/archive.so: mods/archive/archive.c mods/inflate.c mods/inftab.c mods/inflate.h include/hibr.h | $(B)/mods
-	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/archive/archive.c mods/inflate.c mods/inftab.c
+$(B)/mods/archive.so: mods/archive/archive.c mods/inflate.c mods/deflate.c mods/inftab.c mods/inflate.h include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/archive/archive.c mods/inflate.c mods/deflate.c mods/inftab.c
 
 MERMAID_SRC = $(wildcard mods/mermaid/*.c)
 

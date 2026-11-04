@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.99.439
+
+**The groundwork for archives in Files** (Gitea #475, the first of two
+releases). Nothing changes on screen yet; the extension that opens,
+creates and extracts archives in Files comes next, from the catalogue.
+
+- **Files reaches anywhere through locations** (ADR 0053). Files used to
+  test for `dav://` in about twenty places and call the server code from
+  each. It now asks `dt_locof` (`wm/locations.hibr`) whether a folder is
+  in a location and calls that location's functions -- list, title, top,
+  open, rename, delete, new folder, move and copy -- and names no scheme.
+  WebDAV is the first location, its functions the code that was inline in
+  Files, and `tests/dav.py`, which drives Files against a stand-in server,
+  passes unedited. What a location cannot do is asked of it (`_can`):
+  Files dims New Folder, Rename, Cut, Paste and Delete where it says no,
+  and a move out of one that cannot delete becomes a copy. The copy window
+  routes a move or copy with either end in a location to that location.
+- **`archive extract NAME DEST [PATH]`** writes an archive, or one folder
+  of it, into a folder. Every name is checked on the path it would be
+  written to before anything is written, and the whole extraction is
+  refused, naming the member, on one that would land outside DEST, climb
+  with `..`, link out of the folder, or land on something already there.
+  Links are made last so nothing is written through one; set-id bits are
+  dropped and times put back.
+- **`archive create [-z] OUT [-C DIR] PATH...`** writes a new tar, gzipped
+  for `.gz`/`.tgz`: ustar with the prefix field and GNU's long-name block,
+  read back identically by GNU tar in the suite. It is written beside OUT
+  and moved into place only when whole, never over a file that is there,
+  and an archive written into the folder it holds leaves itself out.
+- **gzip in both directions without zlib**: `def_gzip` beside `def_zlib`
+  in `mods/deflate.c`, whose CRC-32 is now the one PNG writing uses too.
+- An archive's link target exactly a hundred bytes long was read on into
+  the next field; it is cut at the field's end.
+- Files is 3.10, and needs this release.
+
 ## 0.99.438
 
 **Chalk and Slate: Blit's own window chrome** (owner, with Blit ADR 0210).

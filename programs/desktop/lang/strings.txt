@@ -340,6 +340,7 @@ Copy Link
 Copy Link Address
 Copy Password
 Copy Username
+Copy it to this machine first, then from there
 Copy on Select
 Copy something anywhere, or paste here,
 Copying
@@ -504,6 +505,7 @@ File Type
 File Types
 Files
 Files cannot be copied: the copy module is not installed
+Files cannot be opened from here
 Files on Servers
 Fill
 Fill Sign-In
@@ -805,6 +807,7 @@ No control characters
 No devices yet
 No file is selected
 No file type registered for this -- open in hvi anyway?
+No folder can be made here
 No folders to move to
 No labels to choose from
 No more in this list
@@ -838,6 +841,9 @@ Not text
 Not the password. Esc: name
 Note
 Notes on Every Workspace
+Nothing can be deleted here
+Nothing can be pasted here
+Nothing can be renamed here
 Nothing copied yet
 Nothing here opens %s
 Nothing here opens it, so the link is copied
@@ -1003,7 +1009,6 @@ Refreshed
 Relative Mouse
 Relative Mouse:
 Reload
-Remote folders need the desktop
 Remove
 Remove %s and its sign-in?
 Remove %s from your address book?

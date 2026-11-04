@@ -87,17 +87,38 @@ fn dt_copyleft(src, ...rest) {
 # what has to be copied is copied in a window of its own, and how it went is
 # said once, when it is over.
 fn dt_fileop(op, dst, ...rest) {
-	local src bad=0 why= id i r what now
+	local src bad=0 why= id i r what now dx sx x
 	local -a go clash rest done
 
 	shift 2
-	if dt_has dt_davop; then
-		for src in "$dst" "$@"; do
-			if dt_isremote "$src"; then
-				dt_davop "$op" "$dst" "$@"
-				return
-			fi
-		done
+	# Where either end is in a location (wm/locations.hibr), the location
+	# moves it: the folder's own when the folder is in one, else the
+	# first source's. Two different locations cannot reach each other.
+	dx := dt_locof "$dst" || dx=
+	sx=
+	for src in "$@"; do
+		sx := dt_locof "$src" && break
+		sx=
+	done
+	if [ -n "$dx" ] && [ -n "$sx" ] && [ "$dx" != "$sx" ]; then
+		dt_notep low "Copy it to this machine first, then from there"
+		return 1
+	fi
+	x=${dx:-$sx}
+	if [ -n "$x" ]; then
+		if [ -n "$dx" ] && ! dt_loccan "$dst" write; then
+			dt_notep low "Nothing can be pasted here"
+			return 1
+		fi
+		if [ "$op" = move ] && [ -n "$sx" ] && ! dt_loccan "$1" delete; then
+			op=copy
+		fi
+		if ! dt_has "${x}_fileop"; then
+			dt_notep low "Nothing can be pasted here"
+			return 1
+		fi
+		"${x}_fileop" "$op" "$dst" "$@"
+		return
 	fi
 	for src in "$@"; do
 		dt_fopok "$op" "$src" "$dst"

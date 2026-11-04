@@ -1,0 +1,73 @@
+#!/usr/bin/env hibr
+#
+# wm/locations -- somewhere Files goes that is not a folder on this machine.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+#
+# A location is a scheme -- dav://SERVER/path, archive://... -- and the
+# functions one prefix answers with (Gitea #475, ADR 0053). Files knows
+# nothing of any location's own code: it asks dt_locof whether a path is in
+# one, and then calls that location's functions, so a location can be added by
+# something installed later (the archive extension is one) and taken away
+# with it, leaving Files exactly as it was. WebDAV is the first, in
+# wm/remote.hibr.
+#
+#     dt_location dav rdav
+#
+# What a prefix answers -- every one optional except _ls:
+#
+#   _ls DIR          a map of what DIR holds: each entry's name, dir (1 or
+#                    0), size and mtime, and etag and type where it has
+#                    them; status 1 with DT_WHY when it cannot be read
+#   _ok              whether it can be reached at all now, DT_WHY if not
+#   _norm DIR        DIR tidied: no trailing slash, `..` resolved
+#   _top DIR         the location's own root, what has no parent
+#   _title DIR       DIR as a window's title says it
+#   _can OP          whether it can OP: write, mkdir, rename, delete, open
+#   _open PATH [APP] open a file there, as a copy here
+#   _mkdir PATH, _mv OLD NEW, _delete PATH...  DT_WHY on failure
+#   _fileop OP DST SRC...  move or copy where either end is in it
+#
+# A location that cannot write leaves those out and says no to _can, and Files
+# then dims the rows that would: nothing is decided by a scheme's name.
+
+strict
+
+declare -gA DT_LOCS
+
+# Register a location: paths beginning scheme:// are answered by prefix's
+# functions.
+fn dt_location(scheme, prefix) {
+	DT_LOCS["$scheme"]=$prefix
+	return 0
+}
+
+# Take a location away, as an extension does when it is removed.
+fn dt_unlocation(scheme) {
+	unset DT_LOCS["$scheme"]
+	return 0
+}
+
+# The prefix of the location a path is in, or status 1 for a path on this
+# machine -- and for a location whose functions are not loaded, which is then
+# no location at all.
+fn dt_locof(p) {
+	local sc x
+
+	[[ $p == ?*://* ]] || return 1
+	sc=${p%%://*}
+	x=${DT_LOCS["$sc"]-}
+	[ -n "$x" ] && dt_has "${x}_ls" || return 1
+	ret "$x"
+}
+
+# Whether the location a path is in can do op; a path on this machine can
+# always, and a location that says nothing can do nothing.
+fn dt_loccan(p, op) {
+	local x
+
+	x := dt_locof "$p" || return 0
+	dt_has "${x}_can" || return 1
+	"${x}_can" "$op"
+}
