@@ -24,7 +24,8 @@ scheme.
 
 **What a location answers is one list,** every part optional but `_ls`:
 `_ls DIR` (a map of name, dir, size, mtime, and etag and type where it has
-them -- the shape `dav ls` and `archive ls` already had), `_ok`, `_norm`,
+them -- the shape `dav ls` already had; `archive ls` gives `kind` where
+this wants `dir`, so a location over it translates), `_ok`, `_norm`,
 `_top`, `_title`, `_can OP`, `_open`, `_mkdir`, `_mv`, `_delete` and
 `_fileop`. A file is opened by the location fetching a copy and opening
 that, because no program can read a scheme.
