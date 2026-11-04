@@ -15,7 +15,7 @@ a frame over a strip with its sender and a close box, ruled along its
 bottom edge (SGR 51:5, Blit 0.3.37's, and `framed-rule` in a console pen). Slate draws its dark
 set under a dark face. The two **themes** that choose all of it at once
 are in the catalogue, with colour schemes of their own (Chalk, and
-Platinum for Slate). It needs Blit's glyphs; with any other glyph set
+Pewter for Slate). It needs Blit's glyphs; with any other glyph set
 the three values draw `single`, `line` and `brackets`, so a theme carried
 to another terminal still draws its windows. Shown in Appearance only
 where they can be drawn.

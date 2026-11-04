@@ -1033,7 +1033,7 @@ check("the colour popup offers black, neon, phosphor and amber",
 sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 7, VALCOL + 3)])
 check("and choosing dracula applies it",
       "dracula" in brow(sc, "Colours") and sc.find("midnight") is None, sc)
-sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 15, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 16, VALCOL + 3)])
 check("and phosphor, further down the list",
       "phosphor" in brow(sc, "Colours"), sc)
 
@@ -1731,7 +1731,7 @@ shutil.rmtree(TD, True)
 check("every bundled colour scheme is listed, sorted, with a new one of the "
       "person's own among them",
       out[0] == "amber black chalk charcoal dracula ember forest hazard meadow midnight neon "
-      "paper phosphor platinum slate zinc", out)
+      "paper pewter phosphor slate zinc", out)
 check("a scheme of the person's own replaces the bundled one of that name",
       out[1] == "#010203 70", out)
 check("the bundled ones still apply as before", out[2] == "#0d1b2a", out)
