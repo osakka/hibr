@@ -215,7 +215,7 @@ fn dt_fitsize(int r, int c, int h, int w) {
 fn dt_resize(int id, int h, int w) {
 	local s
 
-	[ -n "${DT[$id]["sh"]-}" ] && dt_shade "$id"
+	[ -n "${DT[$id]["shaded"]-}" ] && dt_shade "$id"
 
 	s := dt_fitsize "${DT[$id]["row"]}" "${DT[$id]["col"]}" "$h" "$w" ||
 		return 1
@@ -588,7 +588,7 @@ fn dt_dlgfor(f, int h, int w, int? m = "") {
 # Windows > Zoom Fills says so (Gitea #286) -- or go back to where the
 # window was.
 fn dt_zoom(int id) {
-	[ -n "${DT[$id]["sh"]-}" ] && dt_shade "$id"
+	[ -n "${DT[$id]["shaded"]-}" ] && dt_shade "$id"
 	if [ -n "${DT[$id]["oh"]}" ]; then
 		DT[$id]["row"]=${DT[$id]["or"]}
 		DT[$id]["col"]=${DT[$id]["oc"]}
@@ -699,12 +699,12 @@ dt_zoom_focused() { [ -n "$DT_FOCUS" ] && dt_zoom "$DT_FOCUS"; }
 fn dt_shade(int id) {
 	local rows=2
 
-	if [ -n "${DT[$id]["sh"]-}" ]; then
-		DT[$id]["h"]=${DT[$id]["sh"]}
-		DT[$id]["sh"]=
+	if [ -n "${DT[$id]["shaded"]-}" ]; then
+		DT[$id]["h"]=${DT[$id]["shaded"]}
+		DT[$id]["shaded"]=
 	else
 		dt_capped "$id" && rows=1
-		DT[$id]["sh"]=${DT[$id]["h"]}
+		DT[$id]["shaded"]=${DT[$id]["h"]}
 		DT[$id]["h"]=$rows
 	fi
 	console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \

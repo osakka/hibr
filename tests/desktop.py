@@ -1226,6 +1226,13 @@ sc, _ = run('fn tk_draw(int id, int h, int w, int row, int col) { :; }\n'
 check("a window rolled up still has its idle call, so a program in it is read",
       os.path.exists(SHD) and os.path.getsize(SHD) > 0, sc)
 os.path.exists(SHD) and os.unlink(SHD)
+# Shade keeps the full height in a field of its own: snap's "sh" is its
+# saved height, and sharing it made every snapped window read as shaded,
+# its app undrawn (found by xscreen's resize check).
+sc, _ = run('fn snp_draw(int id, int h, int w, int row, int col) { console put -p "w$id" 2 2 "body here"; }\n'
+            'dt_app snp Snp 8 30\nid := dt_new Snp 8 30 3 3 snp\ndt_snap "$id" left\n', [0.5])
+check("a snapped window is not a shaded one: its app is still drawn",
+      sc.find("body here") is not None, sc)
 
 
 def macconfirm(session):
@@ -9028,4 +9035,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(963)
+report(964)

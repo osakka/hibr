@@ -292,12 +292,13 @@ fn dt_chromeset(v) {
 	case $v in
 	chalk) [ -n "${GL[chalk-stripe]-}" ] && ret chalk ;;
 	slate)
-		[ -n "${GL[slate-stripe]-}" ] || return 0
-		if dt_darkface; then ret slatedark; fi
-		ret slate
+		if [ -n "${GL[slate-stripe]-}" ]; then
+			if dt_darkface; then ret slatedark; fi
+			ret slate
+		fi
 		;;
 	esac
-	return 0
+	ret ""
 }
 
 # Whether the scheme's face is dark: its brightness under half.
@@ -841,7 +842,7 @@ fn dt_win(int id) {
 	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} cap=0
 
 	# Rolled up to its title bar, its app is not drawn (dt_idle reads it).
-	[ -n "${DT[$id]["sh"]-}" ] && dr=
+	[ -n "${DT[$id]["shaded"]-}" ] && dr=
 
 	# Nothing about it has changed and nothing else touches it: its cells
 	# are still on the screen from last frame, and the wallpaper painted

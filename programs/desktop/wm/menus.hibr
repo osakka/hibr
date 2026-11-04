@@ -431,7 +431,7 @@ dt_menus() {
 		fi
 		dt_item "Hide" h dt_hide_focused
 		dt_rowaccel "${DT_KEYS["hide"]}"
-		if [ -n "${DT[$DT_FOCUS]["sh"]-}" ]; then
+		if [ -n "${DT[$DT_FOCUS]["shaded"]-}" ]; then
 			dt_item "Unshade" u dt_shade_focused
 		else
 			dt_item "Shade" u dt_shade_focused
