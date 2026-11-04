@@ -11,7 +11,8 @@ and zoom on the right. The title bar is Blit's glyphs cell for cell
 (SGR 51, a line the terminal draws round the cell); the frame is Blit's
 edge glyphs; the confirm box is Blit's alert, its default button in a
 thick ring between caps; and a note following the windows is Blit's note,
-a frame over a strip with its sender and a close box. Slate draws its dark
+a frame over a strip with its sender and a close box, ruled along its
+bottom edge (SGR 51:5, Blit 0.3.37's, and `framed-rule` in a console pen). Slate draws its dark
 set under a dark face. The two **themes** that choose all of it at once
 are in the catalogue, with colour schemes of their own (Chalk, and
 Platinum for Slate). It needs Blit's glyphs; with any other glyph set

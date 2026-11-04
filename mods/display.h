@@ -28,7 +28,8 @@
    cell's top and bottom edge, which is how a button's label and a window
    title's cells are outlined (Blit ADR 0210). It is a kind, not a flag,
    held in three bits of the attributes as SGR 51's own sub-parameter: 1
-   thin, 3 thick, 2 and 4 a Slate light and dark title bar's rows. Nothing
+   thin, 3 thick, 2 and 4 a Slate light and dark title bar's rows, 5 a rule
+   along the cell's bottom edge alone (a note's strip). Nothing
    asks for it unless a pen names it, so a terminal that has never heard of
    SGR 51 is never sent one. */
 #ifndef DP_FRAME
@@ -38,6 +39,7 @@
 #define DP_FRSLATE (2u << DP_FRSHIFT)
 #define DP_FRTHICK (3u << DP_FRSHIFT)
 #define DP_FRSLATEDARK (4u << DP_FRSHIFT)
+#define DP_FRRULE (5u << DP_FRSHIFT)
 #endif
 
 #ifndef DP_COLOUR

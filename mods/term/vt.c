@@ -397,7 +397,7 @@ void tm_sgr(tm_t *t)
 		case 49: t->bg = t->dbg; break;
 		case 51:
 			sub = i + 1 < t->pn && t->ps[i + 1] ? t->pv[i + 1] : 1;
-			if (sub < 1 || sub > 4)
+			if (sub < 1 || sub > 5)
 				sub = 1;
 			t->attr = (t->attr & ~DP_FRAME) |
 				  ((unsigned)sub << DP_FRSHIFT);

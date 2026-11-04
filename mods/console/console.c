@@ -434,6 +434,8 @@ unsigned cn_attr(const char *t)
 		return DP_FRSLATE;
 	if (!strcmp(t, "framed-slate-dark"))
 		return DP_FRSLATEDARK;
+	if (!strcmp(t, "framed-rule"))
+		return DP_FRRULE;
 	return 0;
 }
 

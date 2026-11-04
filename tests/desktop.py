@@ -1260,7 +1260,9 @@ os.unlink(path)
 n = sc.find("Saved the file")
 check("and a note following Chalk windows is Blit's note: frame, strip, close box",
       n is not None and macrow(sc, n[0] - 2, n[1] - 4, 1) == ["C:frame-top-left"] and
-      "C:note-close" in macrow(sc, n[0] - 1, n[1] - 4, 4), sc)
+      "C:note-close" in macrow(sc, n[0] - 1, n[1] - 4, 4) and
+      all(";51:5;" in sc.p[n[0] - 1][c] for c in range(n[1] - 3, n[1] + 6)),
+      n and sc.p[n[0] - 1][n[1] - 3:n[1] + 6])
 
 # --- widgets -----------------------------------------------------------
 #

@@ -237,6 +237,7 @@ o, _ = run('console open\nconsole flush\n'
            'console pen "#000000" "#d6d6d6" framed-slate\nconsole put 1 5 "c"\n'
            'console pen "#ffffff" "#3c3c43" framed-slate-dark\nconsole put 1 7 "d"\n'
            'console pen "#ffffff" "#4e4e56" framed "line=#a8a8b0"\nconsole put 1 9 "e"\n'
+           'console pen "#000000" "#fff3a0" framed-rule\nconsole put 1 11 "f"\n'
            'console flush\nconsole close\n')
 d = drawn(o)
 check("each framing kind is SGR 51 with its own sub-parameter, and line= is SGR 58",
@@ -244,6 +245,7 @@ check("each framing kind is SGR 51 with its own sub-parameter, and line= is SGR 
       re.search(rb"\x1b\[0;51:3;[0-9;]*mb", d) is not None and
       re.search(rb"\x1b\[0;51:2;[0-9;]*mc", d) is not None and
       re.search(rb"\x1b\[0;51:4;[0-9;]*md", d) is not None and
+      re.search(rb"\x1b\[0;51:5;[0-9;]*mf", d) is not None and
       re.search(rb"\x1b\[0;51;[0-9;]*;58:2::168:168:176me", d) is not None, d[-400:])
 o, _ = run('console open\nconsole flush\nconsole pen red blue bold\n'
            'console put 1 1 "plain"\nconsole fill 2 1 1 20 " "\n'

@@ -530,7 +530,8 @@ DT_NOTECOLOURS=(yellow blue green pink lavender grey)
 
 # A note drawn with Chalk or Slate glyphs (Blit ADR 0210) at row r, col c,
 # h by w, from glyph set s: the frame's top edge on the row above a strip
-# that carries a close box and the sender in bold, the frame down both sides
+# that carries a close box and the sender in bold, ruled along its bottom
+# edge (SGR 51:5, drawn by the terminal), the frame down both sides
 # and along the bottom with its shadow, and the message's rows on the note's
 # face from column 4 -- which the caller writes. The frame's cells keep what
 # the note covers, as a window's do.
@@ -553,11 +554,11 @@ fn dt_macnote(int r, int c, int h, int w, s, from) {
 	}
 	g := dt_rep $((w - 3)) "${GL["$s-frame-bottom"]}"
 	console put $((r + h - 1)) "$c" "${GL["$s-frame-bottom-left"]}${GL["$s-frame-bottom-first"]}$g${GL["$s-frame-bottom-right"]}"
-	console pen "$fg" "$strip"
+	console pen "$fg" "$strip" framed-rule
 	console fill $((r + 1)) $((c + 1)) 1 $((w - 2)) " "
 	console put $((r + 1)) $((c + 2)) "${GL["$bs-note-close"]}"
 	[ ${#from} -gt $((w - 6)) ] && from=${from:0:$((w - 6))}
-	console pen "$fg" "$strip" bold
+	console pen "$fg" "$strip" bold framed-rule
 	console put $((r + 1)) $((c + 4)) "$from"
 	console pen "$fg" "$face"
 	[ "$h" -gt 3 ] && console fill $((r + 2)) $((c + 1)) $((h - 3)) $((w - 2)) " "
