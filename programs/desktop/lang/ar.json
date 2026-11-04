@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.76",
+ "version": "3.77",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -9,6 +9,9 @@
   " %s wants %s ": " %s يطلب %s ",
   "Choose a Login": "اختر بيانات دخول",
   "Fill Sign-In": "ملء بيانات الدخول",
+  "Slate Note Colour": "لون ملاحظات Slate",
+  "Shade": "طيّ",
+  "Unshade": "فتح الطيّ",
   "Could not save the photo in %s": "تعذّر حفظ الصورة في %s",
   "Image support isn't installed": "دعم الصور غير مثبّت",
   "No camera": "لا توجد كاميرا",

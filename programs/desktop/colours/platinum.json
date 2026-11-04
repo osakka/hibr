@@ -1,0 +1,20 @@
+{
+  "title": "Platinum",
+  "about": "Light grey faces on a cool grey desktop, black ink and a blue accent: Blit's Slate windows in their light set.",
+  "version": "1.0",
+  "wall": "#a8a8b8",
+  "dot": "#9898a8",
+  "bar": "#eeeeee",
+  "active": "#4a4ac8",
+  "idle": "#888888",
+  "face": "#eeeeee",
+  "ink": "#000000",
+  "dim": "#777777",
+  "selink": "#ffffff",
+  "good": "#2f7a3a",
+  "warn": "#a85a00",
+  "bad": "#b00020",
+  "info": "#1f5f8b",
+  "well": "#dddddd",
+  "shadow": 90
+}

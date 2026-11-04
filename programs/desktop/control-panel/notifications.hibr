@@ -45,6 +45,9 @@ fn cp_noteframelabel() {
 	done
 	ret "Same as Windows"
 }
+# Note Colour: the face and strip a note drawn with Slate glyphs takes.
+fn cp_set_notecolour(int? id = "", value = "") { DT_NOTECOLOUR=$value; cp_save; }
+
 fn cp_set_noteframe(int? id = "", value = "") {
 	local i=0
 
@@ -151,6 +154,9 @@ fn notify_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"
 	CP[$w][$n]["val"] := cp_noteframelabel; CP[$w][$n]["key"]=noteframe
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Slate Note Colour"
+	CP[$w][$n]["val"]="$DT_NOTECOLOUR"; CP[$w][$n]["key"]=notecolour
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show On"
 	CP[$w][$n]["val"]="$DT_NOTEWHERE"; CP[$w][$n]["key"]=notewhere
 	n=$((n + 1))
@@ -207,6 +213,8 @@ fn notify_do(int? w = "", k = "", int? dir = "") {
 	         cp_set_noteframe "" "$v"; return 0 ;;
 	notewhere) v := cp_next "$DT_NOTEWHERE" "$dir" "${CP_NOTEWHERE[@]}"
 	         DT_NOTEWHERE=$v ;;
+	notecolour) v := cp_next "$DT_NOTECOLOUR" "$dir" "${DT_NOTECOLOURS[@]}"
+	         DT_NOTECOLOUR=$v ;;
 	notems) v := cp_next "$DT_NOTEMS" "$dir" "${CP_NOTETICKS[@]}"
 	        DT_NOTEMS=$v ;;
 	notecount) v := cp_next "$DT_NOTECOUNT" "$dir" "${DT_NOTELEVELS[@]}"
@@ -238,6 +246,7 @@ fn notify_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	notepos) dt_droplist "$w" "$r" "$c" cp_set_notepos "${CP_NOTEPOS[@]}" ;;
 	noteframe) dt_droplist "$w" "$r" "$c" cp_set_noteframe "${CP_NOTEFRAMEL[@]}" ;;
+	notecolour) dt_droplist "$w" "$r" "$c" cp_set_notecolour "${DT_NOTECOLOURS[@]}" ;;
 	notewhere) dt_droplist "$w" "$r" "$c" cp_set_notewhere "${CP_NOTEWHERE[@]}" ;;
 	notems) dt_droplist "$w" "$r" "$c" cp_set_notems "${CP_NOTETICKS[@]}" ;;
 	notecount) dt_droplist "$w" "$r" "$c" cp_set_notecount \

@@ -372,6 +372,10 @@ int cn_colour(const char *t, unsigned *out)
 		*out = DP_DEFAULT;
 		return HIBR_OK;
 	}
+	if (!strcmp(t, "under")) {
+		*out = CN_KEEPBG;
+		return HIBR_OK;
+	}
 	for (i = 0; nm[i]; i++)
 		if (!strcmp(t, nm[i])) {
 			*out = DP_PAL | (unsigned)i;
@@ -447,7 +451,7 @@ int m_console(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "";
 	int rows, cols;
-	unsigned fg, bg, at, ul;
+	unsigned fg, bg, at, ul, kfb;
 	str k;
 
 	if (ac < 2) {
@@ -682,7 +686,14 @@ int m_console(sh *s, int ac, char **av)
 			return HIBR_FAIL;
 		}
 		bg = DP_DEFAULT;
-		if (ac > 3 && cn_colour(av[3], &bg) != HIBR_OK) {
+		kfb = DP_DEFAULT;
+		if (ac > 3 && !strncmp(av[3], "under:", 6)) {
+			if (cn_colour(av[3] + 6, &kfb) != HIBR_OK) {
+				lg(HIBR_LERR, "console pen: %s: not a colour", av[3] + 6);
+				return HIBR_FAIL;
+			}
+			bg = CN_KEEPBG;
+		} else if (ac > 3 && cn_colour(av[3], &bg) != HIBR_OK) {
 			lg(HIBR_LERR, "console pen: %s: not a colour", av[3]);
 			return HIBR_FAIL;
 		}
@@ -711,6 +722,7 @@ int m_console(sh *s, int ac, char **av)
 		}
 		cn_pen(fg, bg, at);
 		cn_penul(ul);
+		cn_keepfb(kfb);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "put")) {

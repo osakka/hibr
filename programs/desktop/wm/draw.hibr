@@ -372,7 +372,7 @@ dt_idle() {
 
 	for id in "${!DT[@]}"; do
 		[ -n "${DT[$id]["idle"]}" ] || continue
-		dt_away "$id" || dt_hidden "$id" || continue
+		dt_away "$id" || dt_hidden "$id" || [ -n "${DT[$id]["sh"]-}" ] || continue
 		DT_NOTEWIN=$id
 		dt_idlecall "$id"
 	done

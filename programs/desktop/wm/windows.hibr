@@ -215,6 +215,8 @@ fn dt_fitsize(int r, int c, int h, int w) {
 fn dt_resize(int id, int h, int w) {
 	local s
 
+	[ -n "${DT[$id]["sh"]-}" ] && dt_shade "$id"
+
 	s := dt_fitsize "${DT[$id]["row"]}" "${DT[$id]["col"]}" "$h" "$w" ||
 		return 1
 	DT[$id]["h"]=${s% *}
@@ -586,6 +588,7 @@ fn dt_dlgfor(f, int h, int w, int? m = "") {
 # Windows > Zoom Fills says so (Gitea #286) -- or go back to where the
 # window was.
 fn dt_zoom(int id) {
+	[ -n "${DT[$id]["sh"]-}" ] && dt_shade "$id"
 	if [ -n "${DT[$id]["oh"]}" ]; then
 		DT[$id]["row"]=${DT[$id]["or"]}
 		DT[$id]["col"]=${DT[$id]["oc"]}
@@ -684,6 +687,32 @@ fn dt_closereq(int id) {
 dt_hide_focused() { [ -n "$DT_FOCUS" ] && dt_min "$DT_FOCUS"; }
 
 dt_zoom_focused() { [ -n "$DT_FOCUS" ] && dt_zoom "$DT_FOCUS"; }
+
+# Roll window id up to its title bar, or down again: the shade box of a
+# Chalk or Slate title bar (Blit ADR 0210), the Window menu's Shade and its
+# shortcut. Rolled up it is its title bar and its frame's bottom edge --
+# the title bar alone with no border -- below the window manager's own
+# least height, so the full height is kept in its own field, never in the
+# one zoom keeps. Its app is not drawn while it is, and is still given its
+# _idle, so a terminal's program is read and cannot leave the desktop
+# spinning on it.
+fn dt_shade(int id) {
+	local rows=2
+
+	if [ -n "${DT[$id]["sh"]-}" ]; then
+		DT[$id]["h"]=${DT[$id]["sh"]}
+		DT[$id]["sh"]=
+	else
+		dt_capped "$id" && rows=1
+		DT[$id]["sh"]=${DT[$id]["h"]}
+		DT[$id]["h"]=$rows
+	fi
+	console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+		"${DT[$id]["h"]}" "${DT[$id]["w"]}"
+	DT_FORCEONCE=1
+}
+
+dt_shade_focused() { [ -n "$DT_FOCUS" ] && dt_shade "$DT_FOCUS"; }
 
 # Bring the bottom window to the top.
 dt_cycle() {

@@ -117,6 +117,7 @@ void cn_clip(const char *t);
 void cn_pen(unsigned fg, unsigned bg, unsigned attr);
 void cn_getpen(unsigned *fg, unsigned *bg, unsigned *attr);
 void cn_penul(unsigned ul);
+void cn_keepfb(unsigned fb);
 unsigned cn_getul(void);
 void cn_clear(void);
 int cn_put(int row, int col, const char *t);
@@ -313,6 +314,20 @@ int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w);
    Private like CN_SHADOWED, and never emitted. */
 #ifndef CN_FILLED
 #define CN_FILLED (1u << 17)
+#endif
+
+/* A pen's background that is the cell's own: a write keeps the background
+   already there -- the wallpaper's colour, the window beneath, or none over
+   a picture, so the picture shows through -- for what draws only part of
+   its cell and must let the rest be whatever it covers, the window chrome
+   Blit draws with Chalk and Slate glyphs (ADR 0210). `under` in a pen, or
+   `under:COLOUR`, where COLOUR is what a cell nothing was ever painted
+   under takes: the wallpaper never paints beneath a window, so a cell of
+   one is empty until the window is drawn, and the caller knows what the
+   wallpaper there would have been. Private to the console and never stored
+   in a cell: it is resolved as the cell is written. */
+#ifndef CN_KEEPBG
+#define CN_KEEPBG 0x4000000u
 #endif
 
 /* What a still picture's payload is compressed as before it goes out

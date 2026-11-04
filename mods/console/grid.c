@@ -30,7 +30,7 @@ size_t cn_wrote;
 static size_t cn_wflush;
 static int cn_skip(int row, int col);
 static int cn_gband(int row);
-unsigned cn_fg, cn_bg, cn_penat, cn_ul;
+unsigned cn_fg, cn_bg, cn_penat, cn_ul, cn_kfb;
 /* While this is non-zero, a cell written with no background colour of its
    own, over a picture drawn under the text, takes that picture's colour
    scaled to this percentage instead -- a window the wallpaper shows
@@ -365,6 +365,7 @@ void cn_pen(unsigned fg, unsigned bg, unsigned attr)
 	cn_bg = bg;
 	cn_penat = attr;
 	cn_ul = DP_DEFAULT;
+	cn_kfb = DP_DEFAULT;
 }
 
 /* The pen's line colour, after cn_pen, which puts it back to the default:
@@ -373,6 +374,12 @@ void cn_pen(unsigned fg, unsigned bg, unsigned attr)
 void cn_penul(unsigned ul)
 {
 	cn_ul = ul;
+}
+
+/* What an `under` pen gives a cell nothing was painted under. */
+void cn_keepfb(unsigned fb)
+{
+	cn_kfb = fb;
 }
 
 /* Read the pen's line colour back. */
@@ -406,7 +413,7 @@ void cn_clear(void)
 		cn_back.c[i].w = 1;
 		cn_back.c[i].cont = 0;
 		cn_back.c[i].fg = cn_fg;
-		cn_back.c[i].bg = cn_bg;
+		cn_back.c[i].bg = cn_bg == CN_KEEPBG ? DP_DEFAULT : cn_bg;
 		cn_back.c[i].attr = cn_penat;
 		cn_back.c[i].ul = cn_ul;
 		cn_back.c[i].link = 0;
@@ -887,7 +894,10 @@ int cn_put(int row, int col, const char *t)
 		c->w = (unsigned char)w;
 		c->cont = 0;
 		c->fg = cn_fg;
-		c->bg = cn_opaque(row, col, cn_bgfor(row, col, c->bg));
+		if (cn_bg != CN_KEEPBG)
+			c->bg = cn_opaque(row, col, cn_bgfor(row, col, c->bg));
+		else if (c->bg == DP_DEFAULT)
+			c->bg = cn_kfb;
 		c->attr = cn_penat;
 		c->ul = cn_ul;
 		c->link = cn_plink;
@@ -948,7 +958,10 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 				p->w = 1;
 				p->cont = 0;
 				p->fg = cn_fg;
-				p->bg = cn_opaque(r, c, cn_bgfor(r, c, p->bg));
+				if (cn_bg != CN_KEEPBG)
+					p->bg = cn_opaque(r, c, cn_bgfor(r, c, p->bg));
+				else if (p->bg == DP_DEFAULT)
+					p->bg = cn_kfb;
 				p->attr = cn_penat | CN_FILLED;
 				p->ul = cn_ul;
 				p->link = cn_plink;

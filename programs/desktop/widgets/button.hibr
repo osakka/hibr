@@ -80,6 +80,11 @@ fn dt_button(id, int r, int c, label, int on, tag) {
 	t=" $label "
 
 	n=${#t}
+	dt_chromecfg
+	if [ -n "$DT_CMACB" ]; then
+		dt_macbutton "$id" "$r" "$c" "$label" "$on" "$tag"
+		return 0
+	fi
 	if [ "$DT_DLGBTN" = brackets ]; then
 		t="[$label]"
 		bg=$DT_FACE
@@ -120,6 +125,37 @@ fn dt_btnw(...labels) {
 	done
 	[ "${#labels[@]}" -gt 0 ] && w=$((w - 2 + DT_BTNSHADOW))
 	ret "$w"
+}
+
+# A Chalk or Slate button (Blit ADR 0210): a cap glyph each end and the
+# label framed between them (SGR 51, Blit's top and bottom line), the
+# default one -- the one with the focus, or the one enter answers -- with
+# the thick ring and its caps. The same width as any other button, so a
+# dialog's layout does not move. The caps sit on the face around them
+# (DT_DLGFACE while a dialog of the window manager's own is drawn, the
+# window's face otherwise) and the label on the button's own face. Under
+# the pointer a Chalk label takes the hot colour; Slate's caps carry their
+# own colours, so a Slate button does not light.
+DT_DLGFACE=
+fn dt_macbutton(id, int r, int c, label, int on, tag) {
+	local s=$DT_CMACB face=${DT_DLGFACE:-$DT_FACE} bf fg ring fr=framed l=button-left rt=button-right hot
+
+	if [ "$s" = chalk ]; then
+		bf=$face fg=$DT_INK ring=$DT_INK
+	else
+		bf=${DT_SLATE["$s-btn"]} fg=${DT_SLATE["$s-ink"]} ring=${DT_SLATE["$s-ring"]}
+	fi
+	[ "$on" -ge 1 ] && { fr=framed-thick; l=default-button-left; rt=default-button-right; }
+	console pen "$DT_INK" "$face"
+	dt_bput "$id" "$r" "$c" "${GL["$s-$l"]}"
+	dt_bput "$id" "$r" $((c + ${#label} + 1)) "${GL["$s-$rt"]}"
+	if [ "$s" = chalk ] && dt_hot "$id" "$tag"; then
+		hot := dt_hotcolour
+		fg=$hot
+	fi
+	console pen "$fg" "$bf" bold $fr "line=$ring"
+	dt_bput "$id" "$r" $((c + 1)) "$label"
+	dt_wreg "$id" "$r" "$c" $((${#label} + 2)) "$tag"
 }
 
 # Draw a row of buttons from c, two columns apart: pairs of tag and label,

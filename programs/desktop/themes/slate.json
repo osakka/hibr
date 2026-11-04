@@ -1,0 +1,11 @@
+{
+  "title": "Slate",
+  "about": "Blit's Slate windows: a grey title bar with its boxes together on the right, a bevelled frame, and the alerts and notes to match; under a dark colour scheme it draws Slate's dark set. It needs Blit's glyphs (Appearance > Glyphs: Blit); elsewhere it falls back to plain lines.",
+  "version": "1.0",
+  "colours": "platinum",
+  "frame": "slate",
+  "titlebar": "slate",
+  "buttons": "slate",
+  "side": "right",
+  "align": "center"
+}

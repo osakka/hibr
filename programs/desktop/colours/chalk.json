@@ -1,0 +1,20 @@
+{
+  "title": "Chalk",
+  "about": "Black on white over a grey desktop, the way Blit's Chalk windows are drawn.",
+  "version": "1.0",
+  "wall": "#9a9a9a",
+  "dot": "#8a8a8a",
+  "bar": "#ffffff",
+  "active": "#000000",
+  "idle": "#808080",
+  "face": "#ffffff",
+  "ink": "#000000",
+  "dim": "#6e6e6e",
+  "selink": "#ffffff",
+  "good": "#2f7a3a",
+  "warn": "#a85a00",
+  "bad": "#b00020",
+  "info": "#1f5f8b",
+  "well": "#e8e8e8",
+  "shadow": 90
+}

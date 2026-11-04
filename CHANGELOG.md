@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.99.438
+
+**Chalk and Slate: Blit's own window chrome** (owner, with Blit ADR 0210).
+They are values of the settings that were already there, not a new
+"window style": Frame, Title Bar and Buttons each gain `chalk` and
+`slate`, and the button placement gains `mac` -- close on the left, shade
+and zoom on the right. The title bar is Blit's glyphs cell for cell
+(stripes, the boxes and the spaces between them), its title *framed*
+(SGR 51, a line the terminal draws round the cell); the frame is Blit's
+edge glyphs; the confirm box is Blit's alert, its default button in a
+thick ring between caps; and a note following the windows is Blit's note,
+a frame over a strip with its sender and a close box. Slate draws its dark
+set under a dark face. The two **themes** that choose all of it at once
+are in the catalogue, with colour schemes of their own (Chalk, and
+Platinum for Slate). It needs Blit's glyphs; with any other glyph set
+the three values draw `single`, `line` and `brackets`, so a theme carried
+to another terminal still draws its windows. Shown in Appearance only
+where they can be drawn.
+- **Shade** rolls a window up to its title bar: the Window menu, a
+  shortcut (none by default, Keyboard > Shortcuts), and the shade box.
+  A rolled-up window's app is not drawn and its `_idle` still runs, so a
+  program in a terminal is still read.
+- **Note Colour** (Control Panel > Notifications): Slate's notes are
+  yellow, blue, green, pink, lavender or grey.
+- **`console pen fg under:COLOUR`** keeps each cell's own background, or
+  COLOUR where it has none, for a glyph that draws only part of its cell:
+  a frame's edge keeps the wallpaper's colour behind it.
+- Buttons are clicked where `dt_chrome` drew them (`DT[$id]["btns"]`), so a
+  style may be any width.
+- The framing itself (SGR 51, 54, 58 and 59) went into the console, the
+  terminal emulator, hold's renderer and the harness's model in the
+  commit before this one: a held session carries it to every display, and
+  one whose terminal does not draw it shows the title plainly. The
+  outlines reach a desktop already running only once its `hold` session
+  is new, since the emulator lives in the session's server.
+
 ## 0.99.437
 
 **hibr builds on macOS again** (owner: `brew upgrade hibr` failed with

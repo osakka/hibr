@@ -1150,6 +1150,118 @@ bf, be = bar.find("File"), bar.find("Edit")
 check("and the File, Edit bar every other app has",
       bf >= 0 and bf < be, sc)
 
+# Chalk and Slate (Blit ADR 0210): Blit's own window chrome, as values of
+# Frame, Title Bar and Button Style, drawn from its glyphs and checked cell
+# by cell against the layout Blit's owner-approved renders have -- by
+# glyph name, since a glyph here is a private-use code point.
+MACPARTS = ("stripe stripe-first stripe-last stripe-before-title "
+            "stripe-after-title title stripe-to-box stripe-from-box "
+            "stripe-between close shade zoom frame-left frame-right-top "
+            "frame-right frame-bottom-left frame-bottom-first frame-bottom "
+            "frame-bottom-right frame-top-left frame-top frame-top-right "
+            "note-close dialog-top-left dialog-top dialog-top-right "
+            "dialog-left dialog-right dialog-bottom-left dialog-bottom "
+            "dialog-bottom-right button-left button-right default-button-left "
+            "default-button-right").split()
+MACNAME = {}
+for _i, _n in enumerate(MACPARTS):
+    MACNAME[0x100231 + _i] = "C:" + _n
+    MACNAME[0x100254 + _i] = "S:" + _n
+    MACNAME[0x100277 + _i] = "D:" + _n
+
+
+def macrow(sc, r, c0, n):
+    """The cells of a row as Chalk and Slate glyph names, anything else as
+    the text it is."""
+    out = []
+    for c in range(c0, c0 + n):
+        g = sc.g[r][c]
+        out.append(MACNAME.get(ord(g[0]) if g else 32, g or " "))
+    return out
+
+
+CHALK = "DT_GLYPHSET=blit; DT_FRAME=chalk; DT_TITLEBAR=chalk; DT_BTNSTYLE=chalk; DT_BTNSIDE=mac\n"
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK)
+row = macrow(sc, 2, 2, 24)
+check("a Chalk title bar in the mac placement is Blit's layout, cell for cell",
+      row[:4] == ["C:frame-left", "C:stripe-to-box", "C:close", "C:stripe-from-box"] and
+      row[8:15] == ["C:stripe-before-title", "N", "o", "t", "e", "s", "C:stripe-after-title"] and
+      row[-6:] == ["C:stripe-to-box", "C:shade", "C:stripe-between", "C:zoom",
+                   "C:stripe-from-box", "C:frame-right-top"], row)
+check("and its title is framed, the bar's line in the ink",
+      ";51;" in sc.p[2][11] and "58:2::" in sc.p[2][11], sc.p[2][11])
+def penbg(p):
+    m = re.search(r"48;2;\d+;\d+;\d+|48;5;\d+|49", p)
+    return m.group(0) if m else None
+
+
+check("and its frame's cells keep the wallpaper's colour, not the terminal's",
+      macrow(sc, 3, 2, 1) == ["C:frame-left"] and penbg(sc.p[3][2]) != "49" and
+      penbg(sc.p[3][2]) == penbg(sc.p[3][0]), (sc.p[3][2], sc.p[3][0]))
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_GLYPHSET=blit; ", ""))
+check("without Blit's glyphs, chalk is drawn as the plain styles",
+      sc.g[2][2] == "\u250c" and sc.find("Notes") is not None, macrow(sc, 2, 2, 24))
+SLATE = "DT_GLYPHSET=blit; DT_FRAME=slate; DT_TITLEBAR=slate; DT_BTNSTYLE=slate; DT_BTNSIDE=right\n"
+sc, _ = run('dt_new Back 6 24 5 30\ndt_new Front 6 24 2 2\n', pre=SLATE)
+front, back = macrow(sc, 2, 2, 24), macrow(sc, 5, 30, 24)
+check("under a dark scheme Slate is its dark set, the boxes together on the right",
+      front[1] == "D:stripe-first" and
+      front[-8:] == ["D:stripe-to-box", "D:close", "D:stripe-between", "D:shade",
+                     "D:stripe-between", "D:zoom", "D:stripe-from-box", "D:frame-right-top"],
+      front)
+check("and a window without the focus is the plain bar, its title dim, no boxes",
+      "D:close" not in back and back.count("D:title") > 10 and
+      ";51:4;" in sc.p[5][30 + back.index("B")], back)
+sc, _ = run('dt_new Notes 6 24 2 2\n', [press(2, 4), release(2, 4)], pre=CHALK)
+check("a press on Chalk's close box closes the window",
+      sc.find("Notes") is None, sc)
+sc, _ = run('dt_new Notes 6 24 2 2\n', [press(2, 21), release(2, 21)], pre=CHALK)
+check("and one on its shade box rolls it up to its title bar",
+      sc.find("Notes") is not None and macrow(sc, 3, 2, 1) == ["C:frame-bottom-left"],
+      macrow(sc, 3, 2, 3))
+SHD = scratch("shadeidle")
+sc, _ = run('fn tk_draw(int id, int h, int w, int row, int col) { :; }\n'
+            'fn tk_idle(int id) { echo x >> "%s"; dt_want 100; }\n'
+            'dt_app tk Tk 6 24\nid := dt_new Tk 6 24 2 2 tk\ndt_shade "$id"\n' % SHD, [1.0], pre=CHALK)
+check("a window rolled up still has its idle call, so a program in it is read",
+      os.path.exists(SHD) and os.path.getsize(SHD) > 0, sc)
+os.path.exists(SHD) and os.unlink(SHD)
+
+
+def macconfirm(session):
+    path = scratch("macconfirm.hibr")
+    open(path, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, SLATE, session))
+    t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+    t.keys([0.3])
+    sc = t.screen()
+    t.quit(b"nqy", 1.2)
+    return sc
+
+
+sc = macconfirm("dt_confirm 'Delete this?' true desktop")
+m = sc.find("Delete this?")
+yes, no = sc.find("Yes"), sc.find("No")
+check("under Slate the confirm box is Blit's alert: the double border round it",
+      m is not None and "D:dialog-top-left" in macrow(sc, m[0] - 2, 0, COLS) and
+      "D:dialog-bottom-right" in macrow(sc, m[0] + 4, 0, COLS), sc)
+check("and its default button a thick ring between its caps, the other a thin one",
+      yes is not None and no is not None and ";51:3;" in sc.p[yes[0]][yes[1]] and
+      macrow(sc, yes[0], yes[1] - 1, 1) == ["D:default-button-left"] and
+      ";51;" in sc.p[no[0]][no[1]] and macrow(sc, no[0], no[1] - 1, 1) == ["D:button-left"],
+      (sc.p[yes[0]][yes[1]] if yes else None, sc.p[no[0]][no[1]] if no else None))
+path = scratch("macnote.hibr")
+open(path, "w").write("%s. %s\n%sdt_open\ndt_note \"Saved the file\"\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, CHALK))
+t = Term(path, env={"DT_TICK": "300"}, rows=ROWS, cols=COLS, settle=0.5)
+sc = t.screen()
+t.quit(None, 1.0)
+os.unlink(path)
+n = sc.find("Saved the file")
+check("and a note following Chalk windows is Blit's note: frame, strip, close box",
+      n is not None and macrow(sc, n[0] - 2, n[1] - 4, 1) == ["C:frame-top-left"] and
+      "C:note-close" in macrow(sc, n[0] - 1, n[1] - 4, 4), sc)
+
 # --- widgets -----------------------------------------------------------
 #
 # dt_check and dt_wdrop are draw helpers plus a per-window hit registry
@@ -4008,8 +4120,9 @@ def stripdrop(col, downs=1):
     return sc, text
 
 
-# Two down: Charcoal sorts before Classic, so Under Construction is two away.
-sc, saved = stripdrop(17, 2)
+# Three down: Chalk and Charcoal sort before Classic, so Under
+# Construction is three away.
+sc, saved = stripdrop(17, 3)
 check("the strip's Theme module applies the theme chosen from its list",
       "CP_THEME=construction" in saved, sc)
 sc, saved = stripdrop(25)
@@ -8913,4 +9026,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(951)
+report(963)

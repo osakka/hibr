@@ -308,6 +308,7 @@ dt_mouse() {
 					close) dt_closereq "$id" ;;
 					min) dt_min "$id" ;;
 					max) dt_zoom "$id" ;;
+					shade) dt_shade "$id" ;;
 					esac
 				fi
 				DT_BTNID=
@@ -713,6 +714,7 @@ fn dt_tipfor(t, int r, int c) {
 		close) x=Close ;;
 		min) x=Hide ;;
 		max) x=Zoom ;;
+		shade) x=Shade ;;
 		esac
 		;;
 	cs:*)
@@ -1329,6 +1331,8 @@ fn dt_event(k) {
 			dt_full_focused
 	elif dt_keyis hide "$k"; then
 		dt_hide_focused
+	elif dt_keyis shade "$k"; then
+		dt_shade_focused
 	elif dt_keyis snapleft "$k"; then
 		dt_snap_focused left
 	elif dt_keyis snapright "$k"; then

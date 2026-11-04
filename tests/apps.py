@@ -1022,7 +1022,7 @@ check("a second tab leaves the pane, back to moving the picker",
 sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL)])
 check("clicking the dropdown's own cell opens a real popup of choices",
       sc.find("construction") is not None and sc.find("meadow") is not None, sc)
-sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 4, VALCOL + 3)],
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 5, VALCOL + 3)],
            geom=PWTALL)
 check("choosing one there applies it, the same as cycling would",
       "construction" in brow(sc, "Theme") and "hazard" in brow(sc, "Colours"), sc)
@@ -1030,10 +1030,10 @@ sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL)])
 check("the colour popup offers black, neon, phosphor and amber",
       all(sc.find(t) is not None for t in ("black", "neon", "phosphor",
                                             "amber")), sc)
-sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 6, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 7, VALCOL + 3)])
 check("and choosing dracula applies it",
       "dracula" in brow(sc, "Colours") and sc.find("midnight") is None, sc)
-sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 14, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 15, VALCOL + 3)])
 check("and phosphor, further down the list",
       "phosphor" in brow(sc, "Colours"), sc)
 
@@ -1062,7 +1062,7 @@ out = subprocess.run(
      'cp_themerenamed "" "%s/hibr/themes/ours"\necho "$CP_THEME ${CP_THEMES[*]}"' % TD],
     env=dict(os.environ, XDG_CONFIG_HOME=TD), capture_output=True, text=True).stdout.strip()
 check("Rename moves the file and keeps it chosen",
-      out == "ours charcoal classic construction meadow ours retro_car" and
+      out == "ours chalk charcoal classic construction meadow ours retro_car slate" and
       os.path.exists(os.path.join(TD, "hibr", "themes", "ours.json")), out)
 shutil.rmtree(TD, True)
 
@@ -1730,8 +1730,8 @@ out = subprocess.run(
 shutil.rmtree(TD, True)
 check("every bundled colour scheme is listed, sorted, with a new one of the "
       "person's own among them",
-      out[0] == "amber black charcoal dracula ember forest hazard meadow midnight neon paper "
-      "phosphor slate zinc", out)
+      out[0] == "amber black chalk charcoal dracula ember forest hazard meadow midnight neon "
+      "paper phosphor platinum slate zinc", out)
 check("a scheme of the person's own replaces the bundled one of that name",
       out[1] == "#010203 70", out)
 check("the bundled ones still apply as before", out[2] == "#0d1b2a", out)
@@ -1785,7 +1785,7 @@ out = subprocess.run(
     capture_output=True, text=True).stdout.split("\n")
 check("the bundled themes and the person's own are listed; a colour file, and "
       "a theme with a value its setting cannot take or no colours, are not",
-      out[0] == "charcoal classic construction dusk meadow retro_car", out)
+      out[0] == "chalk charcoal classic construction dusk meadow retro_car slate", out)
 check("a theme sets its colours and the look with them -- Under Construction "
       "is yellow, double framed, solid barred, with its own picture",
       out[1] == "construction hazard double solid squares block #ffd400 construction.png", out)
@@ -1855,8 +1855,8 @@ def loadlook(conf):
     return out
 
 
-out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate " + SETVER, out)
+out = loadlook("DT_SETVER=3\nCP_THEME=dracula\n")
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] dracula " + SETVER, out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
 check("and a file written since is read as it is", out == "[meadow] paper " + SETVER, out)
 
@@ -6251,4 +6251,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(806)
+report(807)

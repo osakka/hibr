@@ -90,6 +90,8 @@ and the flush cost shown live. Run it and press things.
 | `console clear` | blank the back buffer with the current pen |
 | `console pen [fg [bg [attr…]]]` | the colours and attributes later writes use |
 | `console pen -s`, `console pen -r` | keep the pen as it is, and put it back -- one slot, for drawing something lit without losing the caller's pen |
+| `console pen fg under:COLOUR` | a background that keeps whatever colour each cell already has, or COLOUR where it has none (the terminal's default) -- for a glyph that draws only part of its cell, such as a frame's edge |
+| `console pen fg bg framed`, `framed-thick`, `framed-slate`, `framed-slate-dark`, `line=COLOUR` | Blit's framing (SGR 51 and its kinds, ADR 0210): a line the terminal draws round the cell, in COLOUR (SGR 58) or the foreground; a terminal without it draws the text plainly |
 | `console put row col text` | write into the back buffer |
 | `console put -p pane row col text` | the same, inside a pane and clipped to it |
 | `console put -r ...` | either of those with right-to-left text left in the order given, for text already reordered |

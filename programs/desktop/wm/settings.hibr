@@ -44,6 +44,7 @@ DT_MOD="${DT_MOD-alt}"
 # holding their old keys moved with them (DT_SETVER 12).
 [ -n "${DT_KEYS["zoom"]+x}" ] || DT_KEYS["zoom"]="mod-up"
 [ -n "${DT_KEYS["hide"]+x}" ] || DT_KEYS["hide"]="mod-down"
+[ -n "${DT_KEYS["shade"]+x}" ] || DT_KEYS["shade"]=
 # Full Screen for any window that may be zoomed (0.99.403, the owner's
 # request on #405): one key for every app, the focused app's own first as
 # every window key is, and the Leave Full Screen key below no window takes.
@@ -298,14 +299,16 @@ DT_DBLT=0
 # filled from the glyph set by dt_glyphs (wm/glyphs.hibr), so another is
 # six lines there, not a change to dt_win. Until 0.99.324 none was a border
 # left blank and bar was what none is now; 0.99.324's curved is a title bar
-# since 0.99.327, below.
+# since 0.99.327, below. chalk and slate are Blit's own window frames, a
+# line hugging the content with a drop shadow, drawn from its glyphs (Blit
+# ADR 0210): only while Blit's glyph set is chosen, single anywhere else.
 DT_FRAME="${DT_FRAME-single}"
 # How much of a picture wallpaper shows through a window's own face and
 # through the menu bar, as a percentage of the picture's brightness: 0 is
 # opaque, as everything was. A terminal has its own, which wins inside it.
 DT_WINTRANS="${DT_WINTRANS-0}"
 DT_BARTRANS="${DT_BARTRANS-0}"
-WS_FRAMES=(single double rounded solid none)
+WS_FRAMES=(single double rounded solid none chalk slate)
 
 # The title bar: a line, the title sitting in the frame's own top line as
 # it always has (with no border, on the window's face); solid -- the whole
@@ -314,9 +317,11 @@ WS_FRAMES=(single double rounded solid none)
 # desktops of around 2001; or curved, that bar with its top corners
 # rounded, where the glyph set has a cell for it (Blit's, U+100007 and
 # U+100008, blit#140) -- anywhere else it is drawn as solid and the Control
-# Panel shows it dimmed.
+# Panel shows it dimmed. chalk and slate are Blit's pinstriped bars, with
+# close, shade and zoom boxes of their own (Blit ADR 0210), and line
+# anywhere Blit's glyphs are not in force.
 DT_TITLEBAR="${DT_TITLEBAR-line}"
-DT_TITLEBARS=(line solid curved)
+DT_TITLEBARS=(line solid curved chalk slate)
 
 # Which side the min/max/close cluster docks to, where the title sits in
 # whatever room that leaves, and which glyphs the cluster is drawn with:
@@ -326,9 +331,12 @@ DT_TITLEBARS=(line solid curved)
 DT_BTNSIDE="${DT_BTNSIDE-right}"
 DT_TITLEALIGN="${DT_TITLEALIGN-left}"
 DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
-WS_SIDES=(right left)
+# mac puts close at the left and the rest at the right. chalk and slate
+# buttons are Blit's: on a chalk or slate title bar its boxes, and in a
+# dialog a cap each end of a framed label (Blit ADR 0210).
+WS_SIDES=(right left mac)
 WS_ALIGNS=(left center right)
-WS_STYLES=(brackets circles squares diamonds dashes)
+WS_STYLES=(brackets circles squares diamonds dashes chalk slate)
 
 # What Zoom fills: the display the window is on, or every display at once
 # (Gitea #286). Control Panel > Windows > Zoom Fills.
@@ -467,7 +475,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_YREL
 	CS_COLLAPSED CS_LEN CS_SHADOW CS_SHOW CS_HIDE CS_ORDER
 	DT_FRAME DT_WINTRANS DT_BARTRANS DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
-	DT_DRAGMOD DT_DRAGKEY DT_TITLEKEY DT_MOVEMODE DT_DRAWSKIP DT_TERMMS DT_LIVEMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEFRAME DT_NOTEWHERE DT_NOTECOUNT DT_NOTELIST DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
+	DT_DRAGMOD DT_DRAGKEY DT_TITLEKEY DT_MOVEMODE DT_DRAWSKIP DT_TERMMS DT_LIVEMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEFRAME DT_NOTECOLOUR DT_NOTEWHERE DT_NOTECOUNT DT_NOTELIST DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BARORDER DT_BARHIDE DT_MENUMARK DT_BTNSHADOW DT_SHADOWSHAPE DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
 	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_MENUMAX DT_SCROLLWHEEL DT_NETKIND DT_NETBAR DT_NETRULE DT_PWBAR DT_PWLEVEL DT_PWLOW DT_PWCRIT DT_PWCRITDO DT_HOVER DT_FOCUSHOVER DT_TIPS DT_TIPMS DT_SWITCHER DT_SWMS DT_SWSKIP DT_BAND DT_BANDPCT DT_BTKIND DT_BTBAR DT_MOD DT_SETVER)
 

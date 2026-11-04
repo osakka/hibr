@@ -1118,6 +1118,7 @@ Settings%s
 Set…
 Several emails or phones: separate them with commas.
 Sha'ban
+Shade
 Shadow
 Shadow Shape
 Shadows
@@ -1154,6 +1155,7 @@ Signature, put under every message you write:
 Sites Answered For Always
 Size: %s
 Skip
+Slate Note Colour
 Sleep
 Sleep, Restart, Shut Down
 Small
@@ -1343,6 +1345,7 @@ Unlocked until %s
 Unlocking…
 Unlock…
 Unregistered extension .%s -- open in hvi anyway?
+Unshade
 Update
 Upload Edits on Save
 Uptime: %s

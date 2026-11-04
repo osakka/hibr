@@ -335,11 +335,11 @@ another window, or the wallpaper's picture where nothing else is --
 Control Panel > Windows and Menu Bar each have a See Through
 slider for them, and a terminal's own setting still decides inside a
 terminal when it is above 0), `buttons` (`brackets`, `circles`, `squares`,
-`diamonds`, `dashes`), `tree` (`plus`, `arrows`, `triangles`, `dots` --
+`diamonds`, `dashes`, `chalk`, `slate`), `tree` (`plus`, `arrows`, `triangles`, `dots` --
 the marks a collapsible tree wears, so a theme that draws its windows one
 way does not leave every tree looking like the one before it) and
 `treelines` (`true` or `false`, the rules joining a child to its branch),
-`side` (`right`, `left`), `align` (`left`,
+`side` (`right`, `left`, `mac`), `align` (`left`,
 `center`, `right`), `checks` (`theme`, `box`, `knob`, `block`, `tick`),
 `dialog` (`filled`, `brackets`), `glyphs` (`unicode`, `ascii`, `nerd`,
 `blit`), `band` (`frame`,
@@ -1818,24 +1818,42 @@ Windows' rows -- Frame, Title Bar, See Through, Buttons, Title and Button
 Style -- are read by `dt_win` and `dt_btn` in `wm/frame.hibr`, not by the
 pane: `DT_FRAME` is the border alone, its glyphs from the `DT_FRAMES`
 table (`single`, `double`, `rounded` with arcs at its corners, `solid` --
-a ring of whole cells in the frame's colour -- or `none`, no border at
+a ring of whole cells in the frame's colour, `chalk` or `slate` -- or
+`none`, no border at
 all and the content running to the window's edge; move, resize, zoom,
 hide and close stay reachable through the Window menu even then, since
 the title row is still there to drag or double-click); `DT_TITLEBAR` is
 the top row alone, any of it going with any frame: `line` (the title in
 the frame's own top line, or on the window's face where there is no
 border), `solid` (a filled bar) or `curved` (that bar with its top corners
-rounded, where the glyph set has the cells for it -- Blit's);
-`DT_BTNSIDE` docks the button cluster left or right, close always at the
-window's outer edge (max, min, close on the right; close, min, max on the
-left); `DT_TITLEALIGN` places the title in
+rounded, where the glyph set has the cells for it -- Blit's), `chalk` or
+`slate`; `DT_BTNSIDE` docks the button cluster left or right, close always
+at the window's outer edge (max, min, close on the right; close, min, max
+on the left), or `mac`, close on the left and the rest on the right;
+`DT_TITLEALIGN` places the title in
 whatever room that leaves; `DT_BTNSTYLE` picks its glyphs and colours from
 `dt_btnspec` -- the Windows-style brackets this shipped with, or coloured
-circles, squares, diamonds or dashes. Every style's cluster is 5 (fixed) or 7
-(movable) characters wide, so changing it never moves where a button is
-clicked, only what is drawn there -- a fourth style is a branch in
-`dt_btnspec`, a fifth frame is six glyphs in `DT_FRAMES`, and neither
-touches `dt_win` or `dt_btn` themselves.
+circles, squares, diamonds or dashes. `dt_chrome` draws all of it, for a
+window, the confirm box and a note alike, and leaves the columns its
+buttons landed on in `DT[$id]["btns"]`, which is what `dt_btnat` reads to
+answer a click -- so a style may be any width without a click landing
+beside its button.
+
+**Chalk and Slate** are Blit's own window chrome (Blit ADR 0210), drawn
+from Blit's glyphs: a striped (Chalk) or grey (Slate) title bar whose
+title is *framed* -- SGR 51, the line drawn by the terminal round the
+cell rather than by a glyph -- a frame of Blit's own edge glyphs, close,
+shade and zoom boxes, and alerts and notes in the same set. Each is a
+value of Frame, Title Bar and Buttons, so any one can be mixed with the
+others; the Chalk and Slate themes in the catalogue choose all three.
+Slate draws its dark set under a dark face. They need `DT_GLYPHSET=blit`:
+with any other glyph set chalk and slate fall back to `single`, `line` and
+`brackets`, so a theme carried to another terminal still draws a window.
+A frame cell keeps the colour of what was under it (`console pen ...
+under:COLOUR`), since its glyph only draws an edge in part of the cell.
+**Shade** (the Window menu, a shortcut in Keyboard > Shortcuts, and
+Chalk's and Slate's shade box) rolls a window up to its title bar; its
+app is not drawn while it is, and its `_idle` still runs.
 
 Appearance's Dialog Buttons group is for the buttons inside dialogs rather
 than on title bars, and `widgets/button.hibr` reads it: `DT_DLGBTN` draws
