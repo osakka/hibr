@@ -22,7 +22,7 @@ where they can be drawn.
   shortcut (none by default, Keyboard > Shortcuts), and the shade box.
   A rolled-up window's app is not drawn and its `_idle` still runs, so a
   program in a terminal is still read.
-- **Note Colour** (Control Panel > Notifications): Slate's notes are
+- **Slate Note Colour** (Control Panel > Notifications): Slate's notes are
   yellow, blue, green, pink, lavender or grey.
 - **`console pen fg under:COLOUR`** keeps each cell's own background, or
   COLOUR where it has none, for a glyph that draws only part of its cell:
