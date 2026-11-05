@@ -432,8 +432,6 @@ unsigned cn_attr(const char *t)
 		return DP_FRTHICK;
 	if (!strcmp(t, "framed-slate"))
 		return DP_FRSLATE;
-	if (!strcmp(t, "framed-slate-dark"))
-		return DP_FRSLATEDARK;
 	if (!strcmp(t, "framed-rule"))
 		return DP_FRRULE;
 	return 0;
@@ -931,6 +929,56 @@ int m_console(sh *s, int ac, char **av)
 		cn_darken1(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),
 			   ac > 6 ? atoi(av[6]) : 55, once, half);
 		cn_drawn++;
+		return HIBR_OK;
+	}
+	/* console shadow [-p pane] row col h w kind width inset [colour]: a
+	   shadow the terminal draws itself, SGR 66 (Blit ADR 0211). */
+	if (!strcmp(sub, "shadow")) {
+		unsigned v = DP_DEFAULT, bits;
+		int r0 = 0, c0 = 0, r1 = 1 << 30, c1 = 1 << 30, orow = 0, ocol = 0;
+		int a = 2, kind;
+
+		if (!cn_need())
+			return HIBR_FAIL;
+		if (ac > 3 && !strcmp(av[2], "-p")) {
+			cn_pane *p = cn_pfind(av[3]);
+
+			if (!p) {
+				lg(HIBR_LERR, "console shadow: %s: no such pane",
+				   av[3]);
+				return HIBR_FAIL;
+			}
+			orow = p->row - p->orow;
+			ocol = p->col - p->ocol;
+			r0 = p->row;
+			c0 = p->col;
+			r1 = p->row + p->h - 1;
+			c1 = p->col + p->w - 1;
+			a = 4;
+		}
+		if (ac < a + 7) {
+			lg(HIBR_LERR, "usage: console shadow [-p pane] row col h w"
+				      " kind width inset [colour]");
+			return 2;
+		}
+		kind = atoi(av[a + 4]);
+		if (kind < 1 || kind > 5) {
+			lg(HIBR_LERR, "console shadow: %s: not a kind", av[a + 4]);
+			return HIBR_FAIL;
+		}
+		if (ac > a + 7 && cn_colour(av[a + 7], &v) != HIBR_OK) {
+			lg(HIBR_LERR, "console shadow: %s: not a colour", av[a + 7]);
+			return HIBR_FAIL;
+		}
+		bits = (unsigned)kind << DP_SHSHIFT;
+		if (atoi(av[a + 5]) == 1)
+			bits |= DP_SHW1;
+		if (atoi(av[a + 6]) == 0)
+			bits |= DP_SHFLUSH;
+		cn_shadow(orow + atoi(av[a]), ocol + atoi(av[a + 1]), atoi(av[a + 2]),
+			  atoi(av[a + 3]), bits, v, r0, c0, r1, c1, a == 4);
+		if (a == 2)
+			cn_drawn++;
 		return HIBR_OK;
 	}
 	/* console tint [-p pane] row col h w colour pct: blend colour into a

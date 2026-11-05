@@ -193,7 +193,40 @@ fn dt_shadow(int id) {
 	# A window can do without one: YouTube's mini player, by a setting of
 	# its own (Gitea #304).
 	[ "${DT[$id]["noshadow"]}" = 1 ] && return 0
+	dt_frameshadows && return 0
 	dt_castshadow "$wr" "$wc" "$h" "$w"
+}
+
+# Whether Thin is a line the terminal draws (SGR 66, Blit ADR 0211) rather
+# than an eighth block: on Blit's glyphs, which only Blit draws.
+dt_shadowattr() {
+	[ "$DT_SHADOWSHAPE" = thin ] && [ "$DT_GLYPHSET" = blit ]
+}
+
+# Whether a box's shadow goes on its own frame cells: a glyph frame, inset,
+# which dt_frameshadow casts once the frame is drawn, since drawing a cell
+# clears what it carried.
+dt_frameshadows() {
+	dt_shadowattr || return 1
+	dt_chromecfg
+	[ -n "$DT_CFSET" ]
+}
+
+# The Thin shadow of a glyph frame just drawn, on the frame's own cells.
+fn dt_frameshadow(pane, int r, int c, int h, int w) {
+	local -a at=()
+	local x y
+
+	[ "$DT_SHADOW" = 1 ] && dt_shadowattr || return 0
+	x=$((c + w - 1))
+	y=$((r + h - 1))
+	[ -n "$pane" ] && at=(-p "$pane")
+	console shadow "${at[@]}" "$r" "$x" 1 1 2 1 1 "$DT_SHADOWINK"
+	[ "$h" -gt 2 ] && console shadow "${at[@]}" $((r + 1)) "$x" $((h - 2)) 1 1 1 1 "$DT_SHADOWINK"
+	console shadow "${at[@]}" "$y" $((c + 1)) 1 1 4 1 1 "$DT_SHADOWINK"
+	[ "$w" -gt 3 ] && console shadow "${at[@]}" "$y" $((c + 2)) 1 $((w - 3)) 3 1 1 "$DT_SHADOWINK"
+	console shadow "${at[@]}" "$y" "$x" 1 1 5 1 1 "$DT_SHADOWINK"
+	return 0
 }
 
 # The shadow of a box -- a window, a menu, a pop-up, the Control Strip -- at
@@ -213,6 +246,21 @@ fn dt_castshadow(int r, int c, int h, int w, int? lim = "") {
 	local p=$DT_SHADOW_PCT bw rw
 
 	[ -n "$lim" ] || lim=$((c + w + 2))
+	if dt_shadowattr; then
+		# Beyond a box-drawn edge, flush: down the column right of it from
+		# its first row, along the row under it from its first column,
+		# and the corner beyond both.
+		if [ $((c + w)) -lt "$lim" ]; then
+			console shadow "$r" $((c + w)) 1 1 2 1 0 "$DT_SHADOWINK"
+			[ "$h" -gt 1 ] && console shadow $((r + 1)) $((c + w)) $((h - 1)) 1 1 1 0 "$DT_SHADOWINK"
+			console shadow $((r + h)) $((c + w)) 1 1 5 1 0 "$DT_SHADOWINK"
+		fi
+		bw=$((w - 1))
+		[ $((c + 1 + bw)) -gt "$lim" ] && bw=$((lim - c - 1))
+		console shadow $((r + h)) "$c" 1 1 4 1 0 "$DT_SHADOWINK"
+		[ "$bw" -gt 0 ] && console shadow $((r + h)) $((c + 1)) 1 "$bw" 3 1 0 "$DT_SHADOWINK"
+		return 0
+	fi
 	if [ "$DT_SHADOWSHAPE" = thin ] && [ "$DT_GLYPHSET" != ascii ]; then
 		[ $((c + w)) -lt "$lim" ] && [ "$h" -gt 1 ] &&
 			console darken -s -l $((r + 1)) $((c + w)) $((h - 1)) 1 "$p"
@@ -555,7 +603,7 @@ dt_notecolours() {
 	if [ -z "$t" ]; then
 		DT_NOTEBG=$DT_FACE DT_NOTESTRIP=$DT_WELL DT_NOTEFG=$DT_INK
 	else
-		DT_NOTEBG=${t% *} DT_NOTESTRIP=${t#* } DT_NOTEFG="#000000"
+		DT_NOTEBG=${t% *} DT_NOTESTRIP=${t#* } DT_NOTEFG="$DT_SHADOWINK"
 	fi
 }
 
@@ -647,6 +695,7 @@ fn dt_chrome(pane, int r, int c, int h, int w, title, on, int cap = 0, fixed = "
 		# should invite one.
 		[ "$fixed" = 0 ] &&
 			console put "${at[@]}" $((r + h - 1)) $((c + w - 1)) "${GL[grow]}"
+		[ -n "$DT_CFSET" ] && dt_frameshadow "$pane" "$r" "$c" "$h" "$w"
 	fi
 	[ -n "$fixed" ] && dt_chromebtns "$fixed"
 	# A Chalk or Slate title bar is its own row of glyphs, between the

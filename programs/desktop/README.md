@@ -188,8 +188,10 @@ the menu bar and the Control Strip.
   the column beside the box, from a row below its top, and one along the
   top of the row under it, from a column in, meeting at the corner -- a
   shadow that hugs the box. It is what the Chalk and Slate themes choose.
-  On Blit it will become Blit's own shadow attribute, drawn under any
-  glyph, once Blit ships it.
+  On Blit's glyphs it is Blit's own shadow attribute (SGR 66), a line the
+  terminal draws behind the glyph: on a Chalk or Slate frame's own cells,
+  and on the cells beyond any other box. Its colour is the scheme's
+  `shadowink`, black where the scheme says nothing.
 
 A half block replaces the cell it is drawn in, so it is drawn only where
 nothing can be read: on the wallpaper, its pattern included. Over a window,

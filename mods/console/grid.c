@@ -783,6 +783,35 @@ void cn_darken1(int row, int col, int h, int w, int pct, int once, int half)
 	}
 }
 
+/* Mark a rectangle with a shadow the terminal draws (SGR 66), in colour ul:
+   the cells keep what they hold, and any ordinary write clears it, so it can
+   be cast on every frame as darken -s is. r0..c1 is the pane the rectangle
+   is kept to; with none it is the screen, and what the wallpaper would skip
+   is skipped. */
+void cn_shadow(int row, int col, int h, int w, unsigned bits, unsigned ul,
+	       int r0, int c0, int r1, int c1, int inpane)
+{
+	int r, c;
+	cn_cell *k;
+
+	if (cn_fitq() != HIBR_OK)
+		return;
+	cn_wrote++;
+	for (r = row; r < row + h; r++) {
+		if (r < 0 || r >= cn_back.rows || r < r0 || r > r1)
+			continue;
+		for (c = col; c < col + w; c++) {
+			if (c < 0 || c >= cn_back.cols || c < c0 || c > c1)
+				continue;
+			if (!inpane && cn_skip(r, c))
+				continue;
+			k = &cn_back.c[r * cn_back.cols + c];
+			k->attr = (k->attr & ~DP_SHADOW) | bits;
+			k->ul = ul;
+		}
+	}
+}
+
 /* b laid over a at pct percent: a colour mixed toward another, not only
    darkened. Two RGB colours mix exactly; a palette colour cannot be, so
    whichever of the two is more than half of it stands. */
@@ -1042,7 +1071,7 @@ int cn_blankok(const cn_cell *k)
 {
 	return (k->cp == ' ' || k->cp == 0) && !k->ext && k->w <= 1 &&
 	       !k->cont && !k->link &&
-	       !(k->attr & (DP_REV | DP_UNDER | DP_STRIKE | DP_FRAME));
+	       !(k->attr & (DP_REV | DP_UNDER | DP_STRIKE | DP_FRAME | DP_SHKIND));
 }
 
 /* True when two cells would draw identically. */

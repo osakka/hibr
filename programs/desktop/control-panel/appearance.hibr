@@ -12,7 +12,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.10
+app appearance "The Control Panel pane for how the desktop looks" 2.11
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -99,6 +99,7 @@ fn cp_colours(t) {
 	DT_TITLE=${CP_CO["$t"]["titlebar"]}
 	DT_TITLEINK=${CP_CO["$t"]["titleink"]}
 	DT_HIGHLIGHT=${CP_CO["$t"]["highlight"]}
+	DT_SHADOWINK=${CP_CO["$t"]["shadowink"]:-#000000}
 	DT_HOT=${CP_CO["$t"]["hot"]}
 	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
 }

@@ -917,7 +917,7 @@ def syncheld(body, mid, last, gap=0.4):
 # a held session.
 FRAMED = ('console pen "#000000" "#dddddd" framed-thick "line=#a8a8b0"\n'
           'console put 2 2 "OK"\n'
-          'console pen "#e5e5ea" "#3c3c43" framed-slate-dark\n'
+          'console pen "#e5e5ea" "#3c3c43" framed-slate\n'
           'console put 3 2 "Title"\n'
           'console pen "#000000" "#fff3a0" framed-rule\n'
           'console put 4 2 "Strip"\n'
@@ -930,8 +930,8 @@ check("a held program's framed cells reach the client framed, line colour and al
       "58:2::168:168:176" in fsc.p[ok[0]][ok[1]],
       ok and fsc.p[ok[0]][ok[1]])
 ru = fsc.find("Strip")
-check("and a Slate dark title's cells keep their own kind, a note strip's rule its own",
-      ti is not None and "51:4" in fsc.p[ti[0]][ti[1]] and
+check("and a Slate title's cells keep their own kind, a note strip's rule its own",
+      ti is not None and "51:2" in fsc.p[ti[0]][ti[1]] and
       "58:" not in fsc.p[ti[0]][ti[1]] and
       ru is not None and "51:5" in fsc.p[ru[0]][ru[1]],
       (ti and fsc.p[ti[0]][ti[1]], ru and fsc.p[ru[0]][ru[1]]))
@@ -1781,5 +1781,13 @@ check("a held desktop sends Blit's panel its eight lines through hold",
       len(st) >= 1 and all(len(h) == 8 and h[0].startswith("fps=") and h[7].startswith("flush=")
                            for h in st), fl)
 
+# A shadow the terminal draws (Blit's SGR 66) reaches a client through hold's
+# emulator, which redraws: dropped there, a held desktop has none.
+sc, log = run('console put 1 1 HELD\nconsole shadow 2 2 1 1 2 1 0 "#000000"\n'
+              'console shadow 3 2 1 3 3 1 1\nconsole flush\n')
+pens = " ".join(str(p) for row in sc.p for p in row)
+check("a shadow attribute crosses hold with its kind, width and inset",
+      "66:2:1:0" in pens and "66:3:1:1" in pens, pens[:300])
+
 shutil.rmtree(D, True)
-report(96)
+report(97)

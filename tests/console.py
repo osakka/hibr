@@ -235,7 +235,6 @@ o, _ = run('console open\nconsole flush\n'
            'console pen "#000000" "#dddddd" framed\nconsole put 1 1 "a"\n'
            'console pen "#000000" "#dddddd" framed-thick\nconsole put 1 3 "b"\n'
            'console pen "#000000" "#d6d6d6" framed-slate\nconsole put 1 5 "c"\n'
-           'console pen "#ffffff" "#3c3c43" framed-slate-dark\nconsole put 1 7 "d"\n'
            'console pen "#ffffff" "#4e4e56" framed "line=#a8a8b0"\nconsole put 1 9 "e"\n'
            'console pen "#000000" "#fff3a0" framed-rule\nconsole put 1 11 "f"\n'
            'console flush\nconsole close\n')
@@ -244,9 +243,25 @@ check("each framing kind is SGR 51 with its own sub-parameter, and line= is SGR 
       re.search(rb"\x1b\[0;51;[0-9;]*ma", d) is not None and
       re.search(rb"\x1b\[0;51:3;[0-9;]*mb", d) is not None and
       re.search(rb"\x1b\[0;51:2;[0-9;]*mc", d) is not None and
-      re.search(rb"\x1b\[0;51:4;[0-9;]*md", d) is not None and
       re.search(rb"\x1b\[0;51:5;[0-9;]*mf", d) is not None and
       re.search(rb"\x1b\[0;51;[0-9;]*;58:2::168:168:176me", d) is not None, d[-400:])
+# A shadow the terminal draws, Blit's SGR 66 (ADR 0211): the cells keep what
+# they hold, and an ordinary write takes it off again.
+o, _ = run('console open\nconsole flush\nconsole pen white blue\nconsole put 1 1 "ab"\n'
+           'console shadow 1 1 1 1 2 1 0 "#000000"\n'
+           'console shadow 1 2 1 1 5 2 1\nconsole flush\nconsole close\n')
+d = drawn(o)
+check("console shadow marks each cell with SGR 66, kind, width and inset, and the "
+      "cell keeps its glyph",
+      re.search(rb"\x1b\[0;66:2:1:0;[0-9;:]*;58:2::0:0:0ma", d) is not None and
+      re.search(rb"\x1b\[0;66:5:2:1;[0-9;]*mb", d) is not None, d[-300:])
+o, _ = run('console open\nconsole flush\nconsole pen white blue\nconsole put 1 1 "a"\n'
+           'console shadow 1 1 1 1 1 1 1\nconsole put 1 1 "a"\nconsole flush\nconsole close\n')
+check("an ordinary write clears it", b"66:" not in drawn(o), drawn(o)[-200:])
+o, _ = run('console open\nconsole flush\nconsole pen default default\n'
+           'console shadow 1 1 1 3 3 1 0\nconsole flush\nconsole close\n')
+check("and a blank that carries one is drawn, not erased",
+      re.search(rb"66:3:1:0[0-9;]*m {3}", drawn(o)) is not None, drawn(o)[-200:])
 o, _ = run('console open\nconsole flush\nconsole pen red blue bold\n'
            'console put 1 1 "plain"\nconsole fill 2 1 1 20 " "\n'
            'console flush\nconsole close\n')
@@ -1000,4 +1015,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 123)
+report(len(WANT) + len(MWANT) + 126)

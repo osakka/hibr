@@ -91,7 +91,7 @@ and the flush cost shown live. Run it and press things.
 | `console pen [fg [bg [attr…]]]` | the colours and attributes later writes use |
 | `console pen -s`, `console pen -r` | keep the pen as it is, and put it back -- one slot, for drawing something lit without losing the caller's pen |
 | `console pen fg under:COLOUR` | a background that keeps whatever colour each cell already has, or COLOUR where it has none (the terminal's default) -- for a glyph that draws only part of its cell, such as a frame's edge |
-| `console pen fg bg framed`, `framed-thick`, `framed-slate`, `framed-slate-dark`, `framed-rule`, `line=COLOUR` | Blit's framing (SGR 51 and its kinds, ADR 0210): a line the terminal draws round the cell -- along its bottom edge alone for `framed-rule` -- in COLOUR (SGR 58) or the foreground; a terminal without it draws the text plainly |
+| `console pen fg bg framed`, `framed-thick`, `framed-slate`, `framed-rule`, `line=COLOUR` | Blit's framing (SGR 51 and its kinds, ADR 0210): a line the terminal draws round the cell -- along its bottom edge alone for `framed-rule` -- in COLOUR (SGR 58) or the foreground; a terminal without it draws the text plainly |
 | `console put row col text` | write into the back buffer |
 | `console put -p pane row col text` | the same, inside a pane and clipped to it |
 | `console put -r ...` | either of those with right-to-left text left in the order given, for text already reordered |
@@ -126,6 +126,7 @@ and the flush cost shown live. Run it and press things.
 | `console layer [NAME\|forget [R C H W]]` | begin a layer of a frame, for `translucent` (below): a write never blends with its own layer's earlier cells; a named layer drawn again on a later frame keeps what was beneath its cells when nothing under them was drawn since, and `forget` drops that, for every cell or for a rectangle |
 | `console drawn` | how many writes have been made at absolute coordinates rather than through a pane; compared with itself a moment later, it says whether anything drew over the finished screen |
 | `console bidi [on\|off]` | whether right-to-left text a script puts is drawn in display order; with no argument, status 0 when on. Follows `HIBR_BIDI` until a script says |
+| `console shadow [-p pane] row col h w kind width inset [colour]` | a shadow the terminal draws itself (Blit's SGR 66, ADR 0211): each cell keeps what it holds and gains a line along its edge, kind 1 right, 2 right from a box's first row, 3 under, 4 under from its first cell, 5 the corner; width 1 or 2 pixels; inset 1 on a Blit frame glyph, 0 beyond a box-drawn frame. In `colour`, or the foreground. Any ordinary write clears it, so it can be cast on every frame |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
 | `console translucent pct [colour [match]]` | how much of a picture drawn under the text shows through the writes that follow: a cell written with no background of its own -- or in `match`, a window's own face -- takes the picture's own colour there, scaled to `pct`, or `colour` where there is no picture. `off` ends it, and so does the next flush |
 | `console termbg` | what the terminal says its own background is, and whether it said it: `#101418 answered`, or `#000000 assumed` by a terminal that answers nothing |

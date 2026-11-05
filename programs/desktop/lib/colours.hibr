@@ -51,7 +51,7 @@ fn cp_colourread(n, f) {
 		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
 			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
 	done
-	for k in titlebar titleink highlight hot; do
+	for k in titlebar titleink highlight shadowink hot; do
 		[ -n "${j["$k"]+x}" ] || continue
 		v=${j["$k"]}
 		v=${v#\#}
@@ -73,5 +73,6 @@ fn cp_colourread(n, f) {
 	CP_CO["$n"]["titlebar"]=${j["titlebar"]-}
 	CP_CO["$n"]["titleink"]=${j["titleink"]-}
 	CP_CO["$n"]["highlight"]=${j["highlight"]-}
+	CP_CO["$n"]["shadowink"]=${j["shadowink"]-}
 	CP_CO["$n"]["hot"]=${j["hot"]-}
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.443
+
+**Thin is Blit's own shadow, and Slate takes its colours as Blit 0.3.39 reads
+them.** On Blit's glyphs Thin is now SGR 66, a line the terminal draws behind
+the glyph: inset on a Chalk or Slate frame's own cells, flush on the cells
+beyond a box-drawn frame, and flush under the bar, a menu and the Control
+Strip. Anywhere else it is still the eighth block. `console shadow` casts it,
+and hold carries it. Its colour is a scheme's new `shadowink`, black by
+default. A Slate button cap paints the button's face in the line colour, on the
+dialog's own. Dialogs keep following the windows' frame, so Blit's dialog
+border glyphs stay undrawn. The `framed-slate-dark` pen is gone with the glyphs
+it drew.
+
 ## 0.99.442
 
 **A copy to or from a server opens the copy window** (owner, copying from a

@@ -218,7 +218,7 @@ void hd_mvto(str *b, int lr, int lc, int row, int col, int cols)
 int hd_blankok(unsigned cp, unsigned at, unsigned w, unsigned lk)
 {
 	return (cp == ' ' || cp == 0) && w == 1 && !lk &&
-	       !(at & (DP_REV | DP_UNDER | DP_STRIKE | DP_FRAME));
+	       !(at & (DP_REV | DP_UNDER | DP_STRIKE | DP_FRAME | DP_SHKIND));
 }
 
 /* Bring a client's own terminal to the mode state the session is actually

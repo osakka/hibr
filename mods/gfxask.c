@@ -354,6 +354,12 @@ void gx_sgr(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul,
 			s_num(b, fr);
 		}
 	}
+	if (at & DP_SHKIND) {
+		s_cat(b, ";66:");
+		s_num(b, (at & DP_SHKIND) >> DP_SHSHIFT);
+		s_cat(b, at & DP_SHW1 ? ":1" : ":2");
+		s_cat(b, at & DP_SHFLUSH ? ":0" : ":1");
+	}
 	gx_sgrcol(b, fg, 0, depth);
 	gx_sgrcol(b, bg, 1, depth);
 	gx_sgrul(b, ul);

@@ -403,6 +403,18 @@ void tm_sgr(tm_t *t)
 				  ((unsigned)sub << DP_FRSHIFT);
 			break;
 		case 54: t->attr &= ~DP_FRAME; break;
+		case 66:
+			sub = i + 1 < t->pn && t->ps[i + 1] ? t->pv[i + 1] : 0;
+			t->attr &= ~DP_SHADOW;
+			if (sub >= 1 && sub <= 5) {
+				t->attr |= (unsigned)sub << DP_SHSHIFT;
+				if (i + 2 < t->pn && t->ps[i + 2] && t->pv[i + 2] == 1)
+					t->attr |= DP_SHW1;
+				if (i + 3 < t->pn && t->ps[i + 3] && t->pv[i + 3] == 0)
+					t->attr |= DP_SHFLUSH;
+			}
+			break;
+		case 67: t->attr &= ~DP_SHADOW; break;
 		case 58: t->ul = tm_colour(t, &i); break;
 		case 59: t->ul = DP_DEFAULT; break;
 		default:
@@ -682,6 +694,13 @@ void tm_decrqss(tm_t *t)
 				s_ch(&r, ':');
 				s_num(&r, (long)((t->attr & DP_FRAME) >> DP_FRSHIFT));
 			}
+		}
+		if (t->attr & DP_SHKIND) {
+			s_cat(&r, ";66:");
+			s_num(&r, (long)((t->attr & DP_SHKIND) >> DP_SHSHIFT));
+			s_cat(&r, t->attr & DP_SHW1 ? ":1" : ":2");
+			if (t->attr & DP_SHFLUSH)
+				s_cat(&r, ":0");
 		}
 		for (v = 0; v < 2; v++) {
 			unsigned c = v ? t->bg : t->fg;

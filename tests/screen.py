@@ -376,12 +376,16 @@ class Screen:
             x = a[i]
             if x in ("", "0"):
                 st["at"], st["fg"], st["bg"] = [], None, None
-                st["fr"], st["ul"] = None, None
+                st["fr"], st["ul"], st["sh"] = None, None, None
             elif x == "51" or x.startswith("51:"):
                 # Framing, Blit's SGR 51 and its kind (ADR 0210).
                 st["fr"] = "51" if x in ("51", "51:1") else x
             elif x == "54":
                 st["fr"] = None
+            elif x.startswith("66:"):
+                st["sh"] = x
+            elif x == "67":
+                st["sh"] = None
             elif x.startswith("58:"):
                 st["ul"] = x
             elif x == "59":
@@ -409,6 +413,8 @@ class Screen:
                        if y in st["at"]]
         if st.get("fr"):
             out.append(st["fr"])
+        if st.get("sh"):
+            out.append(st["sh"])
         out.append(st["fg"] or "39")
         out.append(st["bg"] or "49")
         if st.get("ul"):

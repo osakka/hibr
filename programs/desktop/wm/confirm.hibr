@@ -82,7 +82,7 @@ dt_confirm_draw() {
 	# The windows' own chrome, as a focused window's (#102): their shadow,
 	# their see-through face, their frame or none and their title bar --
 	# the one drawer every window goes through, whatever they are set to.
-	[ "$DT_SHADOW" = 1 ] && dt_castshadow "$y0" "$x0" "$h" "$w"
+	[ "$DT_SHADOW" = 1 ] && ! dt_frameshadows && dt_castshadow "$y0" "$x0" "$h" "$w"
 	dt_chromeface "$y0" "$x0" "$h" "$w"
 	[ "$DT_FRAME" = none ] && cap=1
 	t := dt_tr "Confirm"

@@ -28,7 +28,7 @@
    cell's top and bottom edge, which is how a button's label and a window
    title's cells are outlined (Blit ADR 0210). It is a kind, not a flag,
    held in three bits of the attributes as SGR 51's own sub-parameter: 1
-   thin, 3 thick, 2 and 4 a Slate light and dark title bar's rows, 5 a rule
+   thin, 3 thick, 2 a Slate title bar's rows (4 is the same), 5 a rule
    along the cell's bottom edge alone (a note's strip). Nothing
    asks for it unless a pen names it, so a terminal that has never heard of
    SGR 51 is never sent one. */
@@ -40,6 +40,21 @@
 #define DP_FRTHICK (3u << DP_FRSHIFT)
 #define DP_FRSLATEDARK (4u << DP_FRSHIFT)
 #define DP_FRRULE (5u << DP_FRSHIFT)
+#endif
+
+/* A window's shadow as Blit draws it, SGR 66 (Blit ADR 0211): a thin line
+   along the cell's edge, in the line colour or the foreground, behind the
+   glyph, so a frame's cell and a shadow share one. Its kind in three bits
+   (1 right, 2 right from a window's first row, 3 under, 4 under from the
+   first cell, 5 the corner), a bit for one pixel rather than two, and a bit
+   for flush rather than inset, the 0 a shadow beyond a box-drawn frame wants.
+   Only the desktop asks for it, on a display that says it draws Blit's. */
+#ifndef DP_SHADOW
+#define DP_SHSHIFT 10
+#define DP_SHKIND (7u << DP_SHSHIFT)
+#define DP_SHW1 (1u << 13)
+#define DP_SHFLUSH (1u << 14)
+#define DP_SHADOW (DP_SHKIND | DP_SHW1 | DP_SHFLUSH)
 #endif
 
 #ifndef DP_COLOUR

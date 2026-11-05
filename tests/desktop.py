@@ -406,6 +406,35 @@ raw_barhalf = barshadow_run(env={"DT_SHADOWSHAPE": "half"})
 check("and in Half Block, the default, it is half a row of upper half blocks",
       b"38;2;7;15;23;48;2;" in raw_barhalf and "\u2580".encode() in raw_barhalf,
       raw_barhalf[-400:])
+# Thin on Blit's glyphs is a line the terminal draws (SGR 66, Blit ADR 0211);
+# anywhere else it stays an eighth block.
+raw_barattr = barshadow_run(env={"DT_SHADOWSHAPE": "thin", "DT_GLYPHSET": "blit"})
+check("on Blit's glyphs Thin is the terminal's own shadow, the bar's flush under it",
+      b"66:3:1:0" in raw_barattr and "\u2594".encode() not in raw_barattr,
+      raw_barattr[-400:])
+raw_barthin = barshadow_run(env={"DT_SHADOWSHAPE": "thin"})
+check("and anywhere else it is still an eighth block, with no SGR 66 sent",
+      b"66:" not in raw_barthin and "\u2594".encode() in raw_barthin, raw_barthin[-400:])
+
+
+def winshadow_run(env):
+    path = scratch("desktop-winshadow.hibr")
+    open(path, "w").write('%s. %s\ndt_open\ndt_new "Shade" 8 30 4 6\ndt_run\ndt_close\n'
+                          % (load(MOD), WM))
+    t = Term(path, env=dict({"DT_SHADOWSHAPE": "thin", "DT_GLYPHSET": "blit"}, **env),
+             rows=ROWS, cols=COLS, settle=0.6)
+    raw = bytes(t.raw)
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return raw
+
+
+raw_box = winshadow_run({})
+check("a box-drawn window's goes on the cells beyond it, flush, all five kinds",
+      all(b"66:%d:1:0" % k in raw_box for k in (1, 2, 3, 4, 5)), raw_box[-400:])
+raw_chalk = winshadow_run({"DT_FRAME": "chalk"})
+check("and a Chalk frame's on its own frame cells, inset",
+      all(b"66:%d:1:1" % k in raw_chalk for k in (1, 2, 3, 4, 5)), raw_chalk[-400:])
 raw_nobarshadow = barshadow_run(env={"DT_BARSHADOW": "0"})
 check("DT_BARSHADOW=0 casts none, independently of the other two",
       SHADOW_RGB not in raw_nobarshadow, raw_nobarshadow)
@@ -1237,11 +1266,13 @@ sc, _ = run('fn snp_draw(int id, int h, int w, int row, int col) { console put -
 check("a snapped window is not a shaded one: its app is still drawn",
       sc.find("body here") is not None, sc)
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK + "DT_SHADOWSHAPE=thin\n")
-check("a Chalk frame casts the shadow Shadow Shape says -- Thin: a line down the right "
-      "from a row below, one along the bottom from a column in, meeting at the corner",
-      all(sc.g[r][26] == "▏" for r in range(3, 8)) and sc.g[2][26] != "▏" and
-      all(sc.g[8][c] == "▔" for c in range(3, 26)) and sc.g[8][26] != "▔",
-      ([sc.g[r][26] for r in range(2, 9)], "".join(sc.g[8][2:28])))
+check("a Chalk frame casts the shadow Shadow Shape says -- Thin, on Blit's glyphs, is "
+      "the terminal's own, inset on the frame's cells: down the right from the first "
+      "row, along the bottom from a column in, meeting at the corner",
+      "66:2:1:1" in sc.p[2][25] and all("66:1:1:1" in sc.p[r][25] for r in range(3, 7)) and
+      "66:4:1:1" in sc.p[7][3] and all("66:3:1:1" in sc.p[7][c] for c in range(4, 25)) and
+      "66:5:1:1" in sc.p[7][25] and "66:" not in sc.p[7][2] and "66:" not in sc.p[3][26],
+      ([sc.p[r][25] for r in range(2, 8)], sc.p[7][2:5]))
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_BTNSTYLE=chalk", "DT_BTNSTYLE=circles"))
 row = glyphrow(sc, 2, 2, 24)
 check("Window Buttons draws the buttons on any title bar: circles on a Chalk bar",
@@ -9071,4 +9102,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(968)
+report(972)
