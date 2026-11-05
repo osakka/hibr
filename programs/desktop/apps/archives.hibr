@@ -1,0 +1,815 @@
+#!/usr/bin/env hibr
+#
+# archives -- an archive in Files is a folder (Gitea #475, ADR 0053).
+#
+# A catalogue extension: it opens no window of its own. It registers a
+# location, archive://FILE/path, which Files shows read-only, an opener
+# that sends an archive there, and the verbs Compress, Extract Here and
+# Extract To. Removed, an archive is a plain file again and Files is exactly
+# as it was: Files names none of this.
+#
+# tar, tar.gz and .tgz need nothing but the archive module. Everything else
+# goes through a program that is already on the machine -- bsdtar for all of
+# it, unzip and zip, or 7z -- asked for each time it is wanted, and a format
+# with no program is simply not offered.
+#
+# Nothing here waits in the desktop's loop. Reading an archive's list,
+# fetching a member, extracting and compressing are all jobs; a window that
+# goes into an archive not yet read shows it empty for that long. What is
+# read is kept as an index, one line a member, until the file changes.
+#
+# Extraction never spills and never overwrites. It lands in a hidden folder
+# beside the result and is moved into place whole, under a name not taken
+# ("a 2" when "a" is), so a refusal or a failure leaves nothing behind. A
+# member named outside that folder refuses the whole archive -- before
+# anything is written where the list shows it, and by bsdtar and the module
+# themselves where it does not, since bsdtar's list drops the climbing part
+# of a name and its extraction will not write one. A link leading out is
+# refused after the extraction, with the hidden folder removed; a 7z program
+# is not trusted with links at all, since writing through one is what it
+# has got wrong.
+
+strict
+
+app archives "Show archives as folders in Files, compress and extract them" 1.0
+# part: control-panel/archiveset.hibr
+
+command -v dt_app > /dev/null && dt_app archives "Archives" 6 30 "" "" fixed hidden
+
+# Which format Compress writes; whether Extract Here keeps a single folder
+# as it is or always makes one; whether the result opens afterwards.
+DT_ARCFORMAT="${DT_ARCFORMAT-tar.gz}"
+DT_ARCFOLDER="${DT_ARCFOLDER-smart}"
+DT_ARCOPEN="${DT_ARCOPEN-0}"
+command -v dt_keep > /dev/null && dt_keep DT_ARCFORMAT DT_ARCFOLDER DT_ARCOPEN
+
+ARC_TYPES="tar tgz tar.gz tar.bz2 tbz tbz2 tar.xz txz tar.zst tzst zip 7z"
+
+declare -gA ARC_N ARC_RUN ARC_SEEN
+ARC_SEQ=${EPOCHSECONDS:-1}
+ARC_TMP=
+ARC_F=
+ARC_M=
+ARC_BAD=
+ARC_FORMATS=()
+
+# --- what an archive is, and what reads it ----------------------------------
+
+# What kind of archive a name says: tar for what the module reads, xtar for a
+# tar under a compression it does not, zip and 7z; nothing for anything else.
+fn arc_kind(p) {
+	local nm=${p##*/}
+
+	case ${nm,,} in
+	*.tar | *.tar.gz | *.tgz) ret tar ;;
+	*.tar.bz2 | *.tbz | *.tbz2 | *.tar.xz | *.txz | *.tar.zst | *.tzst) ret xtar ;;
+	*.zip) ret zip ;;
+	*.7z) ret 7z ;;
+	esac
+	return 1
+}
+
+# The first of some programs that is here, or status 1.
+fn arc_found(...names) {
+	local t
+
+	for t in "${names[@]}"; do
+		command -v "$t" > /dev/null 2>&1 && { ret "$t"; return 0; }
+	done
+	return 1
+}
+
+# What reads a kind of archive: `archive` for the module, or a program.
+fn arc_tool(kind) {
+	case $kind in
+	tar) ret archive ;;
+	xtar) arc_found bsdtar || return 1; ret -k ;;
+	zip) arc_found bsdtar unzip || return 1; ret -k ;;
+	7z) arc_found bsdtar 7z 7za 7zz || return 1; ret -k ;;
+	esac
+	return 1
+}
+
+# What writes a format, the same way.
+fn arc_maker(fmt) {
+	case $fmt in
+	tar | tar.gz) ret archive ;;
+	tar.xz | tar.bz2 | tar.zst) arc_found bsdtar || return 1; ret -k ;;
+	zip) arc_found bsdtar zip || return 1; ret -k ;;
+	7z) arc_found bsdtar 7z 7za 7zz || return 1; ret -k ;;
+	esac
+	return 1
+}
+
+# The formats that can be written here, into ARC_FORMATS.
+arc_formats() {
+	local f
+
+	ARC_FORMATS=()
+	for f in tar.gz tar zip 7z tar.xz tar.bz2 tar.zst; do
+		arc_maker "$f" && ARC_FORMATS+=("$f")
+	done
+	return 0
+}
+
+# A name without what makes it an archive: a.tar.gz is a.
+fn arc_base(nm) {
+	local l=${nm,,} e
+
+	for e in .tar.gz .tar.bz2 .tar.xz .tar.zst .tgz .tbz2 .tbz .txz .tzst .tar .zip .7z; do
+		[[ $l == *"$e" ]] && { ret "${nm:0:$((${#nm} - ${#e}))}"; return 0; }
+	done
+	ret "$nm"
+}
+
+# A name in a folder that nothing has: base then ext, or "base 2" then ext.
+fn arc_free(into, base, ext = "") {
+	local n=2 p="$into/$base$ext"
+
+	while [ -e "$p" ] || [ -L "$p" ]; do
+		p="$into/$base $n$ext"
+		n=$((n + 1))
+	done
+	ret "$p"
+}
+
+# Somewhere for this desktop's indexes and copies, and any left by a desktop
+# that has gone.
+arc_tmp() {
+	local d pid root="${XDG_CACHE_HOME:-$HOME/.cache}/hibr/archives"
+
+	[ -n "$ARC_TMP" ] && return 0
+	for d in "$root"/*/; do
+		pid=${d%/}
+		pid=${pid##*/}
+		[[ $pid == +([0-9]) ]] || continue
+		[ "$pid" = "$$" ] && continue
+		kill -0 "$pid" 2> /dev/null || command rm -rf -- "${d%/}"
+	done
+	if ! command mkdir -p -m 700 -- "$root/$$" 2> /dev/null; then
+		DT_WHY := dt_tr "Cannot make %s" "$root"
+		return 1
+	fi
+	ARC_TMP="$root/$$"
+}
+
+# The first thing a job complained of, for a note.
+fn arc_why(int n) {
+	local e l=
+
+	e := dt_jobfile "$n" err
+	[ -f "$e" ] && read -r l 2> /dev/null < "$e"
+	l=${l#hibr: }
+	if [ -z "$l" ]; then
+		l := dt_tr "It could not be read"
+	fi
+	ret "$l"
+}
+
+# Say what went wrong with a job on something of this name.
+fn arc_fail(int n, name) {
+	local why m
+
+	why := arc_why "$n"
+	m="$name: $why"
+	dt_notep high "$m"
+}
+
+# --- walking the members ----------------------------------------------------
+#
+# Each of these calls cb with a member's path, its kind (f, d or l), its size
+# and its time, whatever the tool says them as.
+
+# Seconds from a local date, as a list of members gives one.
+fn arc_epoch(int y, int m, int d, int H, int M, int S) {
+	local z o era yoe doy doe
+
+	[ "$m" -le 2 ] && y=$((y - 1))
+	era=$((y / 400))
+	yoe=$((y - era * 400))
+	doy=$(((153 * ((m + 9) % 12) + 2) / 5 + d - 1))
+	doe=$((yoe * 365 + yoe / 4 - yoe / 100 + doy))
+	printf -v z '%(%z)T' -1
+	o=$((10#${z:1:2} * 3600 + 10#${z:3:2} * 60))
+	[ "${z:0:1}" = - ] && o=$((-o))
+	ret $(((era * 146097 + doe - 719468) * 86400 + H * 3600 + M * 60 + S - o))
+}
+
+# The module's own folders, walked down.
+fn arc_wdir(cb, d) {
+	local k p
+	local -A r
+
+	r := archive ls arcw "$d" || return 1
+	for k in "${!r[@]}"; do
+		p=${r[$k]["path"]}
+		[ -n "$p" ] || continue
+		[ "${r[$k]["name"]}" = .. ] && continue
+		"$cb" "$p" "${r[$k]["kind"]}" "${r[$k]["size"]}" "${r[$k]["mtime"]}"
+		[ "${r[$k]["kind"]}" = d ] && arc_wdir "$cb" "$p"
+	done
+	return 0
+}
+
+fn arc_wmod(f, cb) {
+	need archive || return 1
+	archive open arcw "$f" || return 1
+	arc_wdir "$cb" ""
+}
+
+# bsdtar's mtree form, which any archive it reads can be written as: a name
+# with its octal escapes, then key=value.
+fn arc_wbsd(f, cb) {
+	local out line p k s t w
+	local -a ws
+
+	out=$(bsdtar --format=mtree --options='!all,type,size,time' -cf - "@$f") ||
+		return 1
+	while IFS= read -r line; do
+		[[ $line == \#* ]] && continue
+		p=${line%% *}
+		read -ra ws <<< "${line#"$p"}"
+		k=f s=0 t=0
+		for w in "${ws[@]}"; do
+			case $w in
+			"type=dir") k=d ;;
+			"type=link") k=l ;;
+			"size="*) s=${w#size=} ;;
+			"time="*) t=${w#time=}; t=${t%.*} ;;
+			esac
+		done
+		printf -v p '%b' "$p"
+		"$cb" "$p" "$k" "$s" "$t"
+	done <<< "$out"
+	return 0
+}
+
+# unzip's own long listing, one member a line.
+fn arc_wzip(f, cb) {
+	local out perm ver os s tf meth dt nm k t
+
+	out=$(unzip -Z -T "$f") || return 1
+	while read -r perm ver os s tf meth dt nm; do
+		[[ $dt == +([0-9]).+([0-9]) ]] || continue
+		k=f
+		[[ $perm == l* ]] && k=l
+		[[ $nm == */ ]] && k=d
+		t := arc_epoch "${dt:0:4}" $((10#${dt:4:2})) $((10#${dt:6:2})) \
+			$((10#${dt:9:2})) $((10#${dt:11:2})) $((10#${dt:13:2}))
+		"$cb" "$nm" "$k" "$s" "$t"
+	done <<< "$out"
+	return 0
+}
+
+# 7z's technical listing: a block of Key = value lines a member.
+fn arc_w7z(tool, f, cb) {
+	local out l p= k=f s=0 t=0 on=0 v
+
+	out=$("$tool" l -slt -- "$f" < /dev/null) || return 1
+	while IFS= read -r l; do
+		[ "$l" = "----------" ] && { on=1; continue; }
+		[ "$on" = 1 ] || continue
+		case $l in
+		"Path = "*) p=${l#Path = } ;;
+		"Size = "*) s=${l#Size = } ;;
+		"Modified = "*)
+			v=${l#Modified = }
+			[ ${#v} -ge 19 ] && t := arc_epoch "${v:0:4}" $((10#${v:5:2})) \
+				$((10#${v:8:2})) $((10#${v:11:2})) $((10#${v:14:2})) $((10#${v:17:2}))
+			;;
+		"Attributes = "*)
+			v=${l#Attributes = }
+			[[ $v == D* ]] && k=d
+			[[ $v == *" l"* ]] && k=l
+			;;
+		"")
+			[ -n "$p" ] && "$cb" "$p" "$k" "${s:-0}" "$t"
+			p= k=f s=0 t=0
+			;;
+		esac
+	done <<< "$out"
+	[ -n "$p" ] && "$cb" "$p" "$k" "${s:-0}" "$t"
+	return 0
+}
+
+# Every member of an archive, through whatever reads it.
+fn arc_walk(f, cb) {
+	local kind tool
+
+	kind := arc_kind "$f" || return 1
+	tool := arc_tool "$kind" || return 1
+	case $tool in
+	archive) arc_wmod "$f" "$cb" ;;
+	bsdtar) arc_wbsd "$f" "$cb" ;;
+	unzip) arc_wzip "$f" "$cb" ;;
+	*) arc_w7z "$tool" "$f" "$cb" ;;
+	esac
+}
+
+# --- the index --------------------------------------------------------------
+
+# One index line: parent, kind, size, time, name.
+fn arc_line(par, k, s, t, nm) {
+	printf '%s\t%s\t%s\t%s\t%s\n' "$par" "$k" "$s" "$t" "$nm"
+}
+
+# A member, with any folder above it that the archive never declared. A name
+# that climbs out or starts at the root is never listed.
+fn arc_row(p, k, s, t) {
+	local d par
+
+	while [[ $p == ./* ]]; do p=${p#./}; done
+	while [[ $p == */ ]]; do p=${p%/}; done
+	[ -n "$p" ] || return 0
+	case /$p/ in //* | */../* | */./*) return 0 ;; esac
+	d=$p
+	while [[ $d == */* ]]; do
+		d=${d%/*}
+		[ -n "${ARC_SEEN["$d"]-}" ] && break
+		ARC_SEEN["$d"]=1
+		par=.
+		[[ $d == */* ]] && par=${d%/*}
+		arc_line "$par" d 0 "$t" "${d##*/}"
+	done
+	if [ "$k" = d ]; then
+		[ -n "${ARC_SEEN["$p"]-}" ] && return 0
+		ARC_SEEN["$p"]=1
+	fi
+	par=.
+	[[ $p == */* ]] && par=${p%/*}
+	arc_line "$par" "$k" "$s" "$t" "${p##*/}"
+}
+
+# The job that reads an archive's list into its index, whole or not at all.
+fn arc_index(f, idx) {
+	arc_walk "$f" arc_row > "$idx.part" || return 1
+	command mv -- "$idx.part" "$idx"
+}
+
+# The index of an archive, or nothing while it is being read. Whoever reads
+# it first starts that, and the windows are told when it is done.
+fn arc_idx(f) {
+	local n=${ARC_N["$f"]-} idx j
+
+	arc_tmp || return 1
+	if [ -z "$n" ]; then
+		ARC_SEQ=$((ARC_SEQ + 1))
+		n=$ARC_SEQ
+		ARC_N["$f"]=$n
+	fi
+	idx="$ARC_TMP/$n.idx"
+	if [ -f "$idx" ] && [ ! "$f" -nt "$idx" ]; then
+		ret "$idx"
+		return 0
+	fi
+	if [ -z "${ARC_RUN["$f"]-}" ]; then
+		j := dt_job arc:index "" arc_indexed arc_index "$f" "$idx" || return 1
+		DTJ[$j]["arc"]=$f
+		DTJ[$j]["idx"]=$idx
+		ARC_RUN["$f"]=1
+	fi
+	ret ""
+}
+
+# A list read: the windows in the archive show it, or go back where the file
+# is, with the reason.
+fn arc_indexed(int n, int st) {
+	local f=${DTJ[$n]["arc"]} d
+
+	unset ARC_RUN["$f"]
+	if [ "$st" = 0 ] && [ -f "${DTJ[$n]["idx"]}" ]; then
+		dt_has fb_relist && fb_relist "archive://$f"
+		return 0
+	fi
+	arc_fail "$n" "${f##*/}"
+	d=${f%/*}
+	dt_has fb_relist && fb_relist "archive://$f" "${d:-/}"
+	return 0
+}
+
+# --- the location -----------------------------------------------------------
+
+# A path split into the file, ARC_F, and the member inside it, ARC_M.
+fn arc_split(p) {
+	local f=${p#archive://}
+
+	while [ -n "$f" ]; do
+		if [ -f "$f" ]; then
+			ARC_F=$f
+			ARC_M=${p#archive://"$f"}
+			ARC_M=${ARC_M#/}
+			return 0
+		fi
+		[[ $f == */* ]] || break
+		f=${f%/*}
+	done
+	DT_WHY := dt_tr "That archive is not there"
+	return 1
+}
+
+fn arc_ls(d) {
+	local f m idx par k s t nm n=0 x
+
+	arc_split "$d" || return 1
+	f=$ARC_F m=${ARC_M:-.}
+	idx := arc_idx "$f" || return 1
+	[ -n "$idx" ] || { ret -k; return 0; }
+	while IFS=$'\t' read -r par k s t nm; do
+		x=0
+		[ "$k" = d ] && x=1
+		RET[$n]["name"]=$nm
+		RET[$n]["dir"]=$x
+		RET[$n]["size"]=$s
+		RET[$n]["mtime"]=$t
+		n=$((n + 1))
+	done < <(ARC_P=$m awk -F '\t' '$1 == ENVIRON["ARC_P"]' "$idx")
+	ret -k
+}
+
+# A path tidied; `..` at the top of an archive is the folder it is in.
+fn arc_norm(d) {
+	while [[ $d == */ ]]; do d=${d%/}; done
+	while [[ $d == */. ]]; do d=${d%/.}; done
+	if [[ $d == */.. ]]; then
+		d=${d%/..}
+		arc_split "$d" || { ret "$d"; return 0; }
+		if [ -z "$ARC_M" ]; then
+			d=${ARC_F%/*}
+			ret "${d:-/}"
+			return 0
+		fi
+		d=${d%/*}
+	fi
+	ret "$d"
+}
+
+fn arc_top(d) {
+	arc_split "$d" || { ret "$d"; return 0; }
+	ret "archive://$ARC_F"
+}
+
+# How a window names a folder in an archive: NAME:/path.
+fn arc_title(d) {
+	arc_split "$d" || { ret "$d"; return 0; }
+	ret "${ARC_F##*/}:/$ARC_M"
+}
+
+# An archive can be read and left, and that is all; one is shown at all when
+# something reads its kind.
+fn arc_can(op, p = "") {
+	local k
+
+	case $op in
+	open | leave) return 0 ;;
+	browse)
+		k := arc_kind "$p" || return 1
+		arc_tool "$k"
+		return
+		;;
+	esac
+	return 1
+}
+
+# --- taking members out -----------------------------------------------------
+
+# Refuse a member named outside the folder it is going into.
+fn arc_check(p, k, s, t) {
+	case /$p/ in
+	//* | */../*) ARC_BAD=$p ;;
+	esac
+	[ "$k" = l ] && [ -n "$ARC_LINKS" ] && ARC_BAD=$p
+	return 0
+}
+ARC_LINKS=
+
+# Whether every link under a folder stays under it.
+fn arc_links(dest) {
+	local l t r
+
+	r=$(cd -- "$dest" && pwd -P) || return 1
+	while IFS= read -r l; do
+		t=$(readlink -f -- "$l" 2> /dev/null)
+		case $t in
+		"$r" | "$r"/*) ;;
+		*)
+			printf '%s\n' "${l#"$dest"/} leads out of the archive" >&2
+			return 1
+			;;
+		esac
+	done < <(find "$dest" -type l)
+	return 0
+}
+
+# A member as the tool's own pattern matching needs it.
+fn arc_pat(m) {
+	m=${m//\\/\\\\}
+	m=${m//\*/\\*}
+	m=${m//\?/\\?}
+	m=${m//\[/\\[}
+	ret "$m"
+}
+
+# Write an archive, or the members named, under the folder dest, checked.
+fn arc_take(f, dest, ...ms) {
+	local kind tool m q
+	local -a pats
+
+	kind := arc_kind "$f" || return 1
+	tool := arc_tool "$kind" || return 1
+	if [ "$tool" = archive ]; then
+		need archive || return 1
+		archive open arcx "$f" || return 1
+		if [ "${#ms[@]}" = 0 ]; then
+			archive extract arcx "$dest" > /dev/null || return 1
+		fi
+		for m in "${ms[@]}"; do
+			q=$dest
+			[[ $m == */* ]] && q="$dest/${m%/*}"
+			command mkdir -p -- "$q" || return 1
+			archive extract arcx "$q" "$m" > /dev/null || return 1
+		done
+		return 0
+	fi
+	ARC_BAD=
+	ARC_LINKS=
+	case $tool in bsdtar | unzip) ;; *) ARC_LINKS=1 ;; esac
+	arc_walk "$f" arc_check || return 1
+	if [ -n "$ARC_BAD" ]; then
+		printf '%s\n' "$ARC_BAD is not safe to write" >&2
+		return 1
+	fi
+	for m in "${ms[@]}"; do
+		q := arc_pat "$m"
+		pats+=("$q")
+	done
+	case $tool in
+	bsdtar)
+		bsdtar -xf "$f" -C "$dest" -- "${pats[@]}" < /dev/null || return 1
+		;;
+	unzip)
+		if [ "${#ms[@]}" = 0 ]; then
+			unzip -qqo "$f" -d "$dest" < /dev/null || return 1
+		else
+			# A member or a folder, and unzip says 11 for the pattern that
+			# matched nothing; whether it landed is what counts.
+			for m in "${ms[@]}"; do
+				q := arc_pat "$m"
+				unzip -qqo "$f" "$q" "$q/*" -d "$dest" < /dev/null
+				[ -e "$dest/$m" ] || return 1
+			done
+		fi
+		;;
+	*)
+		"$tool" x -y -bd -spd "-o$dest" -- "$f" "${ms[@]}" < /dev/null \
+			> /dev/null || return 1
+		;;
+	esac
+	arc_links "$dest"
+}
+
+# Open a member: a copy of it, opened as any file is.
+fn arc_open(p, app = "") {
+	local f m j d
+
+	arc_split "$p" || { dt_notep high "$DT_WHY"; return 1; }
+	f=$ARC_F m=$ARC_M
+	arc_tmp || { dt_notep high "$DT_WHY"; return 1; }
+	ARC_SEQ=$((ARC_SEQ + 1))
+	d="$ARC_TMP/$ARC_SEQ"
+	j := dt_job arc:open "" arc_opened arc_fetch "$f" "$d" "$m" || return 1
+	DTJ[$j]["out"]="$d/$m"
+	DTJ[$j]["app"]=$app
+	return 0
+}
+
+fn arc_fetch(f, d, m) {
+	command mkdir -p -- "$d" || return 1
+	arc_take "$f" "$d" "$m"
+}
+
+fn arc_opened(int n, int st) {
+	local out=${DTJ[$n]["out"]} app=${DTJ[$n]["app"]}
+
+	if [ "$st" != 0 ] || [ ! -e "$out" ]; then
+		arc_fail "$n" "${out##*/}"
+		return 0
+	fi
+	if [ -n "$app" ] && dt_has dt_openwith; then
+		dt_openwith "$app" "$out"
+	else
+		dt_openfile "$out"
+	fi
+	return 0
+}
+
+# A move or copy out of an archive is a copy, which dt_fileop has seen to;
+# what lands keeps its name unless that is taken.
+fn arc_fileop(op, dst, ...rest) {
+	local p f= j
+	local -a ms
+
+	for p in "${rest[@]}"; do
+		arc_split "$p" || { dt_notep high "$DT_WHY"; return 1; }
+		f=$ARC_F
+		ms+=("$ARC_M")
+	done
+	[ -n "$f" ] || return 0
+	ARC_SEQ=$((ARC_SEQ + 1))
+	j := dt_job arc:copy "" arc_copied arc_copyjob "$f" "$dst" \
+		"$dst/.hibr-part.$ARC_SEQ" "${ms[@]}" || return 1
+	DTJ[$j]["dst"]=$dst
+	DTJ[$j]["n"]=${#ms[@]}
+	DTJ[$j]["arc"]=$f
+	return 0
+}
+
+fn arc_copyjob(f, dst, part, ...ms) {
+	local m to
+
+	command mkdir -- "$part" || return 1
+	if ! arc_take "$f" "$part" "${ms[@]}"; then
+		command rm -rf -- "$part"
+		return 1
+	fi
+	for m in "${ms[@]}"; do
+		to := arc_free "$dst" "${m##*/}"
+		command mv -- "$part/$m" "$to" || { command rm -rf -- "$part"; return 1; }
+	done
+	command rm -rf -- "$part"
+}
+
+fn arc_copied(int n, int st) {
+	local f=${DTJ[$n]["arc"]}
+
+	if [ "$st" != 0 ]; then
+		arc_fail "$n" "${f##*/}"
+		return 0
+	fi
+	dt_has fb_relist && fb_relist "${DTJ[$n]["dst"]}"
+	dt_notep low "Copied from %s" "${f##*/}"
+	return 0
+}
+
+# --- extracting -------------------------------------------------------------
+
+# Whether a path is an archive that something here can extract.
+fn arc_canextract(p) {
+	local k
+
+	[ -f "$p" ] || return 1
+	k := arc_kind "$p" || return 1
+	arc_tool "$k"
+}
+
+# Extract an archive into a folder of this name, or for smart, into the
+# archive's own single folder when it has one, and say where it went.
+fn arc_xjob(f, into, part, name, smart) {
+	local to src=$part e b n=0 one=
+
+	command mkdir -- "$part" || return 1
+	if ! arc_take "$f" "$part"; then
+		command rm -rf -- "$part"
+		return 1
+	fi
+	for e in "$part"/* "$part"/.*; do
+		b=${e##*/}
+		[ "$b" = . ] || [ "$b" = .. ] && continue
+		[ -e "$e" ] || [ -L "$e" ] || continue
+		n=$((n + 1))
+		one=$e
+	done
+	if [ "$smart" = 1 ] && [ "$n" = 1 ] && [ -d "$one" ] && [ ! -L "$one" ]; then
+		src=$one
+		name=${one##*/}
+	fi
+	to := arc_free "$into" "$name"
+	if ! command mv -- "$src" "$to"; then
+		command rm -rf -- "$part"
+		return 1
+	fi
+	[ "$src" = "$part" ] || command rm -rf -- "$part"
+	printf '%s\n' "$to"
+}
+
+# Start extracting one archive.
+fn arc_extract(f, into, name, int smart) {
+	local j
+
+	ARC_SEQ=$((ARC_SEQ + 1))
+	j := dt_job arc:extract "" arc_extracted arc_xjob "$f" "$into" \
+		"$into/.hibr-part.$ARC_SEQ" "$name" "$smart" || return 1
+	DTJ[$j]["arc"]=$f
+	DTJ[$j]["into"]=$into
+	return 0
+}
+
+fn arc_extracted(int n, int st) {
+	local f=${DTJ[$n]["arc"]} to
+
+	if [ "$st" != 0 ]; then
+		arc_fail "$n" "${f##*/}"
+		return 0
+	fi
+	to := dt_joblast "$n"
+	dt_has fb_relist && fb_relist "${DTJ[$n]["into"]}"
+	dt_notep low "Extracted %s" "${to##*/}"
+	[ "$DT_ARCOPEN" = 1 ] && [ -n "$to" ] && dt_launch files "$to"
+	return 0
+}
+
+# Extract Here: beside the archive, by the Control Panel's rule.
+fn arc_here(...paths) {
+	local p b smart=0
+
+	[ "$DT_ARCFOLDER" = smart ] && smart=1
+	for p in "${paths[@]}"; do
+		b := arc_base "${p##*/}"
+		arc_extract "$p" "${p%/*}" "$b" "$smart"
+	done
+	return 0
+}
+
+# Extract To: a new folder, named and placed in the dialog, for each.
+fn arc_to(...paths) {
+	local p b
+
+	for p in "${paths[@]}"; do
+		b := arc_base "${p##*/}"
+		dt_filepick save "Extract To" "Folder:*" "${p%/*}" "$b" arc_tochosen "$p"
+	done
+	return 0
+}
+
+fn arc_tochosen(f, p, ty = "") {
+	arc_extract "$f" "${p%/*}" "${p##*/}" 0
+}
+
+# --- compressing ------------------------------------------------------------
+
+fn arc_cancompress(p) {
+	[ -e "$p" ] || [ -L "$p" ]
+}
+
+# Write an archive of names in a folder under a hidden name, then give it its
+# own.
+fn arc_cjob(tool, dir, part, out, ...names) {
+	case $tool in
+	archive)
+		need archive || return 1
+		archive create "$part" -C "$dir" "${names[@]}" > /dev/null
+		;;
+	bsdtar) bsdtar -a -cf "$part" -C "$dir" -- "${names[@]}" ;;
+	zip) ( cd -- "$dir" && zip -qry "$part" -- "${names[@]}" ) ;;
+	*) ( cd -- "$dir" && "$tool" a -bd -spd -- "$part" "${names[@]}" > /dev/null ) ;;
+	esac
+	if [ "$?" != 0 ] || [ ! -f "$part" ]; then
+		command rm -f -- "$part"
+		return 1
+	fi
+	command mv -- "$part" "$out" || return 1
+	printf '%s\n' "$out"
+}
+
+# Compress what is selected, in the folder it is in: one thing under its own
+# name, several as Archive, in the format the Control Panel says, or tar.gz
+# where that one's program has gone.
+fn arc_compress(...paths) {
+	local fmt=$DT_ARCFORMAT tool dir base out j p
+	local -a names
+
+	tool := arc_maker "$fmt" || { fmt=tar.gz; tool=archive; }
+	dir=${paths[0]%/*}
+	[ -n "$dir" ] || dir=/
+	for p in "${paths[@]}"; do names+=("${p##*/}"); done
+	base=${names[0]}
+	if [ "${#names[@]}" -gt 1 ]; then
+		base := dt_tr "Archive"
+	fi
+	out := arc_free "$dir" "$base" ".$fmt"
+	ARC_SEQ=$((ARC_SEQ + 1))
+	j := dt_job arc:compress "" arc_compressed arc_cjob "$tool" "$dir" \
+		"$dir/.hibr-part.$ARC_SEQ.$fmt" "$out" "${names[@]}" || return 1
+	DTJ[$j]["dir"]=$dir
+	DTJ[$j]["out"]=$out
+	return 0
+}
+
+fn arc_compressed(int n, int st) {
+	local out=${DTJ[$n]["out"]}
+
+	if [ "$st" != 0 ]; then
+		arc_fail "$n" "${out##*/}"
+		return 0
+	fi
+	dt_has fb_relist && fb_relist "${DTJ[$n]["dir"]}"
+	dt_notep low "Made %s" "${out##*/}"
+	return 0
+}
+
+command -v dt_location > /dev/null && dt_location archive arc archives
+if command -v dt_opener > /dev/null; then
+	dt_opener archives "Show Contents" "$ARC_TYPES" browse archive
+	dt_openerverb "$ARC_TYPES" "Extract Here" archives arc_here arc_canextract
+	dt_openerverb "$ARC_TYPES" "Extract To..." archives arc_to arc_canextract
+	dt_openerverb "*" "Compress" archives arc_compress arc_cancompress
+fi

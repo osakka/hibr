@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.79",
+ "version": "3.80",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1646,6 +1646,20 @@
   "Formulas run contained: one that would write or connect": "تعمل الصيغ محصورة: ما يحاول منها أن يكتب أو يتّصل",
   "Run the formulas in %s with full access? They would run as you: write files, start programs, use the network.": "أتشغّل صيغ %s بوصول كامل؟ ستعمل باسمك: تكتب الملفات وتشغّل البرامج وتستخدم الشبكة.",
   "Run with Full Access…": "تشغيل بوصول كامل…",
-  "says #REFUSED, one that loops says #TIME. Run with Full": "يعرض #REFUSED، وما يدور بلا نهاية يعرض #TIME. «تشغيل بوصول"
+  "says #REFUSED, one that loops says #TIME. Run with Full": "يعرض #REFUSED، وما يدور بلا نهاية يعرض #TIME. «تشغيل بوصول",
+  "Archives": "الأرشيفات",
+  "Compress": "ضغط",
+  "Compress To": "الضغط إلى",
+  "Copied from %s": "نُسخ من %s",
+  "Extract Here": "استخراج هنا",
+  "Extract Here Makes": "ينشئ الاستخراج هنا",
+  "Extract To...": "استخراج إلى...",
+  "Extracted %s": "تم استخراج %s",
+  "It could not be read": "تعذرت قراءته",
+  "Made %s": "تم إنشاء %s",
+  "Open Folder Afterwards": "فتح المجلد بعد ذلك",
+  "Run in Terminal": "تشغيل في الطرفية",
+  "Text Editor (hvi)": "محرر النصوص (hvi)",
+  "That archive is not there": "ذلك الأرشيف غير موجود"
  }
 }

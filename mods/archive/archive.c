@@ -1125,6 +1125,20 @@ void arc_addall(arcw *w, const char *base)
 	v_free(&names);
 }
 
+/* Put an archive in place where the folder has no hard links, as FAT has none: nothing is there, so a rename replaces nothing. */
+int arc_nolink(const char *tmp, const char *out)
+{
+	struct stat st;
+
+	if (errno != EPERM && errno != ENOTSUP && errno != ENOSYS)
+		return 0;
+	if (lstat(out, &st) == 0) {
+		errno = EEXIST;
+		return 0;
+	}
+	return rename(tmp, out) == 0;
+}
+
 /* archive create [-z] OUT [-C DIR] PATH...: a new tar of the paths named, relative to DIR (the current folder by default), gzipped with -z or when OUT ends .gz or .tgz. Written beside OUT and moved into place only when whole, and never over a file that is there. */
 int arc_create(sh *s, int ac, char **av)
 {
@@ -1210,7 +1224,7 @@ int arc_create(sh *s, int ac, char **av)
 	s_free(&w.o);
 	if (close(w.fd) != 0)
 		w.bad = 1;
-	if (!w.bad && link(tmp.p, out) != 0) {
+	if (!w.bad && link(tmp.p, out) != 0 && !arc_nolink(tmp.p, out)) {
 		lg(HIBR_LERR, "archive create: %s", errno == EEXIST ?
 		   "something took the name while it was written" : "cannot put the archive in place");
 		w.bad = 1;

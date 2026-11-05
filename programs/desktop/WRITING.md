@@ -828,16 +828,21 @@ functions; Files never names the scheme.
 <!-- not run: a desktop file's own line; the desktop sources it -->
 ```sh
 dt_location dav rdav
+dt_location archive arc archives
 ```
+
+A third word names the app that brings the location, for something the
+catalogue can take away: the location is there while that app is
+registered, so removing it takes the location with it at once.
 
 | function | what it does |
 |---|---|
 | `_ls DIR` | a map of what DIR holds -- each entry's `name`, `dir` (1 or 0), `size`, `mtime`, and `etag` and `type` where it has them -- or status 1 with `DT_WHY`. **The one that is required** |
 | `_ok` | whether it can be reached now; `DT_WHY` if not |
-| `_norm DIR` | DIR tidied: no trailing slash, `..` taken up |
+| `_norm DIR` | DIR tidied: no trailing slash, `..` taken up; a path on this machine when `..` leaves the location |
 | `_top DIR` | its own root, which has no `..` |
 | `_title DIR` | DIR as a window's title shows it |
-| `_can OP` | `write`, `mkdir`, `rename`, `delete`, `open`: status 0 for yes |
+| `_can OP [PATH]` | `write`, `mkdir`, `rename`, `delete`, `open`: status 0 for yes; `leave`, whether its top has a parent on this machine, which `..` goes to; `browse`, whether PATH can be shown at all, which a browse opener asks |
 | `_open PATH [APP]` | open a file: fetch a copy here and open that, since no program reads a scheme |
 | `_mkdir PATH`, `_mv OLD NEW`, `_delete PATH...` | `DT_WHY` on failure |
 | `_fileop OP DST SRC...` | move or copy where either end is in it |

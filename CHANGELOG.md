@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.441
+
+**An archive in Files is a folder** (Gitea #475). The Archives extension,
+from the catalogue, shows tar, tar.gz, .tgz, tar.xz, tar.bz2, tar.zst, zip
+and 7z read-only as folders, and adds Extract Here, Extract To... and
+Compress to the right-click menu. tar and tar.gz need no program; the rest
+go through bsdtar, unzip and zip, or 7z, and a format with nothing to read
+it is simply not offered. Extract Here makes a smart folder, never spills
+and never overwrites, and an archive with a member named outside the
+folder or a link leading out of it is refused whole, leaving nothing.
+Control Panel > Archives has the format, the folder rule and whether the
+folder opens afterwards. Removed, an archive is a plain file again at once.
+
+For it, and for anything else that wants the same:
+
+- **`dt_openerverb`** takes a list of extensions or `*`, a function to call
+  with everything selected, and a function asked whether the verb is
+  offered at all. Verbs are on every entry's menu now, not only a bundle's.
+- **`dt_opener` has `browse`**, which goes in rather than opening, and a
+  two-word extension such as `tar.gz` is a type of its own.
+- **A location** can name the app that brings it, and `_can` answers
+  `leave` and `browse`; `..` at its top can reach this machine.
+- **`fb_relist`** tells every window in a folder that something in the
+  background changed it.
+- Opener and verb names are translated (`tools/strings.py` reads them).
+
 ## 0.99.440
 
 **Every appearance setting draws its own part, and nothing else** (owner:

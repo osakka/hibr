@@ -161,6 +161,7 @@ Apps: %s available
 Apr
 April
 Archive
+Archives
 Arrange Icons
 As It Is
 As Its Priority Says
@@ -300,7 +301,9 @@ Colours
 Columns
 Command:
 Composite
+Compress
 Compress Pictures
+Compress To
 Computer
 Confirm
 Connect to Server
@@ -329,6 +332,7 @@ Cookies cleared
 Copied
 Copied %s
 Copied %s characters
+Copied from %s
 Copied the paths of what is selected
 Copied to %s
 Copied; the clipboard clears in %s seconds
@@ -493,6 +497,10 @@ Extra Flags
 Extra Xvfb Options
 Extra flags for the browser:
 Extra:
+Extract Here
+Extract Here Makes
+Extract To...
+Extracted %s
 Fajr
 Favourite
 Favourites
@@ -618,6 +626,7 @@ Installed from the Catalogue
 Inviting people needs a mail account to send from
 Isha
 It asks for a password (%s).
+It could not be read
 Italic
 Item
 Its passkey or PIN:
@@ -690,6 +699,7 @@ Looking for networks
 Louder
 Low Battery Note
 MODULE
+Made %s
 Made if it is not there. Off, the Save dialog asks every time.
 Made if it is not there. Used once downloads are on.
 Made if it is not there; ~ is your home.
@@ -885,6 +895,7 @@ Open
 Open %s with:
 Open Clipboard
 Open Database…
+Open Folder Afterwards
 Open Folders in New Windows
 Open Image in New Tab
 Open Link
@@ -1052,6 +1063,7 @@ Rows
 Rubber Band
 Rule
 Rule…
+Run in Terminal
 Run in a terminal
 Run the formulas in %s with full access? They would run as you: write files, start programs, use the network.
 Run with Full Access…
@@ -1226,6 +1238,8 @@ Terminals Keep Ctrl+A-Z
 Test
 Text
 Text Colour
+Text Editor (hvi)
+That archive is not there
 That event is not kept here any more; syncing
 The Control Strip is off -- Control Panel > Control Strip shows it
 The Control Strip's modules are now in the Catalogue -- click to install them

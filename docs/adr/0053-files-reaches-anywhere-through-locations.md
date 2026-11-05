@@ -49,6 +49,15 @@ stand-in server, passes unedited. The Servers menu stays WebDAV's own.
 - A new kind of place -- the archive extension, and anything after it -- is
   a file of functions and one `dt_location` line, installed and removed
   with whatever brings it, and Files gains nothing.
+- The archive extension followed in 0.99.441 and needed three things this
+  list did not have. `_can leave` says a location's top has a parent on
+  this machine, so `..` shows there and `_norm` answers a local path; `_can
+  browse PATH` says whether an opener may offer a file at all; and a third
+  word on `dt_location` names the app that brings it, so unregistering the
+  app takes the location at once, where functions already sourced would
+  otherwise keep it alive until a restart. Listing went into a job, since
+  a big compressed archive takes seconds to read: `_ls` answers empty until
+  the index exists, and `fb_relist` then tells the windows showing it.
 - A terminal still cannot start in a location, and a folder in one opens in
   the same window: Files keeps those two rules itself, since no location
   could honour them.

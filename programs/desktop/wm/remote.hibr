@@ -101,7 +101,7 @@ fn rdav_title(d) {
 }
 
 # Everything a folder on a server can have done to it.
-fn rdav_can(op) {
+fn rdav_can(op, p = "") {
 	case $op in
 	write | mkdir | rename | delete | open) return 0 ;;
 	esac

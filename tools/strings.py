@@ -25,6 +25,7 @@ SINKS = {
     # notice, because 992-strings.t asks whether every string found here is
     # listed, not whether everything that reaches dt_tr was found
     # (Gitea #137).
+    "dt_opener": [2], "dt_openerverb": [2],
     "dt_menu": [1], "dt_item": [1], "dt_sub": [1], "dt_dim": [1],
     "dt_barilabel": [2],
     "dt_mark": [1],

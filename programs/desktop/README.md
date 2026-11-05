@@ -665,6 +665,42 @@ dt_openerverb boxer "Get Info..." boxerinfo
 An extension nobody registered, or one whose app is not loaded, is an
 ordinary folder.
 
+A verb is not only for bundles. Its first word is a list of extensions,
+or `*` for anything; given a function after the app, it calls that with
+every path selected instead of opening the app; and a last function,
+asked of each path, decides whether the verb is offered at all, so one
+that needs a missing program is absent rather than failing. An opener
+whose how is `browse` goes in instead of opening: Files shows
+`scheme://PATH` as a folder, through the location of that scheme, and a
+two-word extension such as `tar.gz` is a type of its own.
+
+<!-- not run: lines from a desktop file, read when the desktop loads it -->
+```sh
+dt_opener archives "Show Contents" "zip tar.gz" browse archive
+dt_openerverb "*" "Compress" archives arc_compress arc_cancompress
+```
+
+The **Archives** extension, from the catalogue, is built on both. It shows
+an archive as a folder: enter or a double click goes in, read-only, a
+member opens as a copy of itself, Copy or a drag takes one out, and
+backspace at the top goes back to the folder the archive is in. Removed,
+an archive is a plain file again, at once.
+
+Right-click offers **Extract Here**, **Extract To...** and, on anything,
+**Compress**. tar, tar.gz and .tgz need no program at all; tar.xz,
+tar.bz2 and tar.zst need bsdtar; zip needs bsdtar, or unzip to read and
+zip to write; 7z needs bsdtar or a 7z program. A format with nothing to
+read it is not shown as an archive and not offered.
+
+Extract Here makes a **smart folder**: an archive holding one top folder
+gives that folder, and anything else goes into a new folder named after
+the archive. Nothing is spilled and nothing is overwritten, since a name
+already taken gets " 2". Everything lands in a hidden folder first and
+moves into place whole, so an archive that fails or is refused leaves
+nothing behind; one is refused whole when a member is named outside the
+folder or a link leads out of it. Control Panel > Archives has **Compress
+To**, **Extract Here Makes** and **Open Folder Afterwards**.
+
 A folder can carry its own picture (Gitea #336). In the icon view, on a
 terminal that draws pixels, a bundle shows its `.cover.png`, or failing
 that its `cover.png`, as its icon. An ordinary folder shows its

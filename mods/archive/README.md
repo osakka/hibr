@@ -111,7 +111,11 @@ path on this machine, so it checks every member before it writes any:
 and on any of those **nothing is written**: the whole extraction is
 refused, naming the member, rather than the bad one skipped. Links are
 made last, after every file and folder, so nothing is ever written through
-one; a hard link is left out. Set-id and sticky bits are dropped, the rest
+one. That leaves one refusal that comes late: a link whose own name an
+earlier member has already made a folder of (`d`, then `d/x`) fails when
+its turn comes, with what came before it already in DEST, all of it inside
+DEST. So write into a folder of your own and move it when it is whole, as
+the desktop's Archives extension does. A hard link is left out. Set-id and sticky bits are dropped, the rest
 of the mode kept, and each file's time put back.
 
 ## A member can be sourced

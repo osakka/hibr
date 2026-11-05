@@ -128,7 +128,7 @@ fn dt_openfile(path) {
 		DT_OPENSELF=1
 		dt_launch term "$path"
 	elif [ "${#DT_OWLIST[@]}" -gt 0 ] &&
-	     [ "${DT_OPENERS[${DT_OWLIST[0]}]["how"]}" = app ]; then
+	     [[ ${DT_OPENERS[${DT_OWLIST[0]}]["how"]} == @(app|browse) ]]; then
 		dt_openwith "${DT_OWLIST[0]}" "$path"
 	elif [ -n "${DT_APPS[term]["title"]}" ]; then
 		DT_OPENPENDING=$path
@@ -169,6 +169,13 @@ fn dt_openfile(path) {
 # plain folder.
 #
 #     dt_opener boxerplay "Boxer" "boxer" app boxerplay dir
+#
+# An opener whose how is `browse` goes in rather than opening: its app is
+# a location's scheme (wm/locations.hibr), Files shows scheme://PATH as a
+# folder, and it is offered only while that location can show the file.
+# An extension of two words, `tar.gz`, is a type of its own.
+#
+#     dt_opener archives "Show Contents" "zip tar.gz" browse archive
 declare -gA DT_OPENERS
 DT_OPENERORDER=()
 DT_OPENWITH="${DT_OPENWITH-}"
@@ -192,45 +199,83 @@ fn dt_opener(name, title, types, how, app = "", kind = "") {
 	return 0
 }
 
-# A bundle's own verbs, besides Open and Open With (Gitea #318): an app
-# adds entries to the right-click menu of a bundle of its extension, each
-# opening that app with the bundle's path -- Boxer's Get Info, its settings
-# for one game.
+# What else can be done to a file or a folder, besides Open and Open With
+# (Gitea #318, #475): an app adds entries to the right-click menu of what
+# has one of its extensions -- a list of them, or * for anything. A verb
+# opens that app with the path, Boxer's Get Info for one game; or, with a
+# function after the app, calls it with every path selected. A last
+# function, asked of each path, says whether the verb is offered at all,
+# so one that needs a program that is not there is simply absent. Either
+# way the verb goes when its app does.
 #
 #     dt_openerverb boxer "Get Info..." boxerinfo
+#     dt_openerverb "*" "Compress" archives arc_compress arc_cancompress
 declare -gA DT_OPENVERBS
 DT_OVN=0
 DT_OVLIST=()
 
-fn dt_openerverb(ext, label, app) {
+fn dt_openerverb(ext, label, app, call = "", when = "") {
 	DT_OPENVERBS[$DT_OVN]["ext"]=$ext
 	DT_OPENVERBS[$DT_OVN]["label"]=$label
 	DT_OPENVERBS[$DT_OVN]["app"]=$app
+	DT_OPENVERBS[$DT_OVN]["call"]=$call
+	DT_OPENVERBS[$DT_OVN]["when"]=$when
 	DT_OVN=$((DT_OVN + 1))
 }
 
-# The verbs a bundle offers, by number into DT_OVLIST, in the order they
-# were registered: those of its extension whose app is loaded.
-fn dt_openverbs(path) {
-	local ext i=0 ap
+# Whether a path's extension is among types, a space-separated list with
+# a space at each end: * is anything, and a name ending .tar.gz is tar.gz
+# as well as gz.
+fn dt_extin(path, ext, types) {
+	case $types in *" * "*) return 0 ;; esac
+	[ -n "$ext" ] || return 1
+	case $types in *" $ext "*) return 0 ;; esac
+	case ${path##*/} in
+	*.tar."$ext") case $types in *" tar.$ext "*) return 0 ;; esac ;;
+	esac
+	return 1
+}
+
+# The verbs a selection offers, by number into DT_OVLIST, in the order they
+# were registered: those that take every path in it and whose app is
+# loaded. A verb that opens an app opens it for one path.
+fn dt_openverbs(...paths) {
+	local ext i=0 ap call when ty p ok
 
 	DT_OVLIST=()
-	ext := dt_ext "$path"
-	[ -n "$ext" ] || return 0
 	while [ "$i" -lt "$DT_OVN" ]; do
 		ap=${DT_OPENVERBS[$i]["app"]}
-		if [ "${DT_OPENVERBS[$i]["ext"]}" = "$ext" ] &&
-		   { dt_has "${ap}_open" || dt_has "${ap}_draw"; }; then
-			DT_OVLIST+=("$i")
+		call=${DT_OPENVERBS[$i]["call"]}
+		when=${DT_OPENVERBS[$i]["when"]}
+		ty=" ${DT_OPENVERBS[$i]["ext"]} "
+		ok=1
+		if [ -n "$call" ]; then
+			{ [ -n "${DT_APPS["$ap"]["title"]-}" ] && dt_has "$call"; } || ok=0
+		else
+			[ "${#paths[@]}" = 1 ] || ok=0
+			dt_has "${ap}_open" || dt_has "${ap}_draw" || ok=0
 		fi
+		for p in "${paths[@]}"; do
+			[ "$ok" = 1 ] || break
+			ext := dt_ext "$p"
+			dt_extin "$p" "$ext" "$ty" || ok=0
+			[ -z "$when" ] || "$when" "$p" || ok=0
+		done
+		[ "$ok" = 1 ] && DT_OVLIST+=("$i")
 		i=$((i + 1))
 	done
 	return 0
 }
 
-# Run a bundle's verb, by its number.
-fn dt_openverb(int n, path) {
-	dt_launch "${DT_OPENVERBS[$n]["app"]}" "$path"
+# Run a verb, by its number, on a selection.
+fn dt_openverb(int n, ...paths) {
+	local call=${DT_OPENVERBS[$n]["call"]}
+
+	if [ -n "$call" ]; then
+		"$call" "${paths[@]}"
+	else
+		dt_launch "${DT_OPENVERBS[$n]["app"]}" "${paths[0]}"
+	fi
 }
 
 # Whether a path is a bundle: a folder an opener whose app is loaded claims
@@ -258,14 +303,17 @@ fn dt_opencan(name, path, ext, int dir) {
 	else
 		[ "$dir" = 1 ] && return 1
 	fi
-	if [ -n "$ap" ]; then
+	if [ "${DT_OPENERS[$name]["how"]}" = browse ]; then
+		dt_has files_open && dt_locof "$ap://$path" &&
+			dt_loccan "$ap://$path" browse || return 1
+	elif [ -n "$ap" ]; then
 		dt_has "${ap}_open" || dt_has "${ap}_draw" || return 1
 	fi
 	case $ty in
 	*" * "*) return 0 ;;
 	*" x "*) [ -x "$path" ] && return 0 ;;
 	esac
-	[ -n "$ext" ] && case $ty in *" $ext "*) return 0 ;; esac
+	dt_extin "$path" "$ext" "$ty" && return 0
 	return 1
 }
 
@@ -309,6 +357,19 @@ fn dt_openers(path, kind = "") {
 	DT_OWLIST=("${all[@]}")
 }
 
+# Where a path goes when it is opened from a Files window, or status 1 when
+# it opens as anything else: scheme://PATH, for a browse opener that comes
+# first for it. A window goes there itself where a new one would be opened.
+fn dt_openbrowse(path) {
+	local o
+
+	dt_openers "$path"
+	[ "${#DT_OWLIST[@]}" -gt 0 ] || return 1
+	o=${DT_OWLIST[0]}
+	[ "${DT_OPENERS[$o]["how"]}" = browse ] || return 1
+	ret "${DT_OPENERS[$o]["app"]}://$path"
+}
+
 # An opener's name for a menu.
 fn dt_openertitle(name, ext = "") {
 	if [ "$name" = handler ]; then
@@ -329,6 +390,7 @@ fn dt_openwith(name, path) {
 	ap=${DT_OPENERS[$name]["app"]}
 	case ${DT_OPENERS[$name]["how"]} in
 	app) dt_launch "$ap" "$path" ;;
+	browse) dt_launch files "$ap://$path" ;;
 	edit) DT_OPENCMD=(); dt_launch term "$path" ;;
 	run)
 		DT_OPENCMD=("$path")

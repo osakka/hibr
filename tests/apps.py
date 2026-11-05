@@ -461,11 +461,11 @@ check("panes register and sort by title within their group, not load order",
                 "control_strip", "desktop", "filetypes", "language", "loginmgr",
                 "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
                 "taskmgr", "versions", "wallset", "windows",
-                "browserset", "pimset", "filesview", "mailset", "prayerset",
+                "archiveset", "browserset", "pimset", "filesview", "mailset", "prayerset",
                 "sheetset", "notes", "terminal", "vaultset", "webapps", "xscreenset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 8 + ["system"] * 20 + ["app"] * 12, out)
+      ["hardware"] * 8 + ["system"] * 20 + ["app"] * 13, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -496,7 +496,7 @@ CPANES = 'DT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANEDIRS+=("%s")\ncp_
 R0, VALCOL = 3, 58
 LISTCOL = 5
 BODYCOL = 22
-TITLE = {"aboutme": "About Me", "adminaccess": "Administrativ", "appearance": "Appearance", "control_strip": "Control Strip",
+TITLE = {"archiveset": "Archives", "aboutme": "About Me", "adminaccess": "Administrativ", "appearance": "Appearance", "control_strip": "Control Strip",
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types", "language": "Language", "loginmgr": "Login Manager", "barset": "Menu Bar",
@@ -3873,7 +3873,7 @@ ROL = ('fn rol_ls(d) { unset RET; RET["0"]["name"]="inside.txt"; RET["0"]["dir"]
        'RET["1"]["dir"]=1; RET["1"]["size"]=0; RET["1"]["mtime"]=1700000000; ret -k; }\n'
        'fn rol_top(d) { ret "rol://x"; }\n'
        'fn rol_title(d) { ret "Box:${d#rol://x}"; }\n'
-       'fn rol_can(op) { [ "$op" = open ]; }\n'
+       'fn rol_can(op, p = "") { [ "$op" = open ]; }\n'
        'dt_location rol rol\nFB_DIR=rol://x\nFB_SHOWUP=1')
 sc = run("files", FW, pre=ROL)
 check("a location Files has no code for is listed and titled by its own functions, "

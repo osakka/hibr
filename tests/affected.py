@@ -61,6 +61,7 @@ SUITE_MODS = {
     "mailapp": ["email", "html", "db"],
     "md_spec": ["md"],
     "dav": ["dav"],
+    "archives": ["archive", "inflate"],
     "fetch": ["fetch", "inflate"],
     "web": ["web"],
     "media": ["media"],
@@ -91,7 +92,7 @@ SUITE_MODS = {
 APPS = ("apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more")
 DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session")
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
-                                         "sound", "net", "bt")
+                                         "sound", "net", "bt", "archives")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 

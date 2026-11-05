@@ -21,7 +21,7 @@
 
 strict
 
-app files "A file browser" 3.10
+app files "A file browser" 3.11
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -272,7 +272,8 @@ fn fb_lscan(int id, d, x) {
 	fi
 	FB[$id]["dir"]=$d
 	dt_has "${x}_top" && top := "${x}_top" "$d"
-	if [ "$d" != "$top" ] && [ "$FB_SHOWUP" = 1 ]; then
+	if { [ "$d" != "$top" ] || dt_loccan "$d" leave; } &&
+	   [ "$FB_SHOWUP" = 1 ]; then
 		FL[$id][$n]["name"]=".."
 		FL[$id][$n]["dir"]=1
 		FL[$id][$n]["kind"]=up
@@ -780,13 +781,15 @@ fn fb_go(int id, d) {
 	fi
 	if x := dt_locof "$d"; then
 		dt_has "${x}_norm" && d := "${x}_norm" "$d"
-		fb_lscan "$id" "$d" "$x" || return 1
-		FB[$id]["q"]=
-		dt_searchclear "$id"
-		FB[$id]["view"] := fb_dirview "$d"
-		fb_dirapply "$id" "$d"
-		fb_retitle "$id" "$d"
-		return 0
+		if dt_locof "$d"; then
+			fb_lscan "$id" "$d" "$x" || return 1
+			FB[$id]["q"]=
+			dt_searchclear "$id"
+			FB[$id]["view"] := fb_dirview "$d"
+			fb_dirapply "$id" "$d"
+			fb_retitle "$id" "$d"
+			return 0
+		fi
 	fi
 	case $d in
 	/*) ;;
@@ -1782,7 +1785,7 @@ fn fb_searchkey(int id, k) {
 # this one, and where they open in windows of their own, the folder's
 # window with this one closed behind it -- System 7's option-double-click.
 fn fb_open(int id, how = "") {
-	local sel p
+	local sel p u
 
 	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
@@ -1814,7 +1817,36 @@ fn fb_open(int id, how = "") {
 		fb_locopen "$p"
 		return 0
 	fi
+	if dt_has dt_openbrowse && u := dt_openbrowse "$p"; then
+		fb_go "$id" "$u"
+		return 0
+	fi
 	command -v dt_openfile > /dev/null && dt_openfile "$p"
+	return 0
+}
+
+# Read a folder again in every window showing it or anything under it, for
+# what changed it in the background; or, with back, send those windows
+# there, for a folder that could not be read.
+fn fb_relist(d, back = "") {
+	local id ids
+	local -a all
+
+	ids := dt_ids
+	read -ra all <<< "$ids"
+	for id in "${all[@]}"; do
+		[ -n "${FB[$id]["dir"]-}" ] || continue
+		case ${FB[$id]["dir"]}/ in
+		"$d"/*)
+			if [ -n "$back" ]; then
+				fb_go "$id" "$back"
+			else
+				files_refresh "$id"
+			fi
+			;;
+		esac
+	done
+	dt_want 30
 	return 0
 }
 
@@ -2735,12 +2767,13 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 	return 0
 }
 
-# One of a bundle's own verbs, on the selected entry.
+# A verb an app registered for what is selected (dt_openerverb).
 fn files_verb(int id, int v) {
-	local p
+	local s
 
-	p := fb_path "$id" "${FB[$id]["sel"]}"
-	dt_openverb "$v" "$p"
+	s := fb_selected "$id" || return 0
+	fb_paths "$id" "$s"
+	dt_openverb "$v" "${FB_PATHS[@]}"
 }
 
 # Right-click on an entry, or on empty space in the list: the same actions
@@ -2750,7 +2783,7 @@ fn files_verb(int id, int v) {
 # With is for.
 fn files_context(int id) {
 	local sel=${FB[$id]["sel"]} n=${FB[$id]["n"]} none isdir ext p t first o
-	local bundle=0 v
+	local bundle=0 v s
 
 	none=0
 	[ "$n" = 0 ] || [ "${FL[$id][$sel]["kind"]}" = up ] && none=1
@@ -2764,12 +2797,14 @@ fn files_context(int id) {
 		if [ "$isdir" = 1 ] && [ "$bundle" = 0 ] && ! fb_located "$id"; then
 			dt_item "Open in New Window" "" fb_open "$id" new
 		fi
-		# A bundle is still a folder (#318): Show Contents goes in, and the
-		# verbs its app registered for it follow.
-		if [ "$bundle" = 1 ]; then
+		# A bundle is still a folder (#318): Show Contents goes in.
+		[ "$bundle" = 1 ] &&
 			dt_item "Show Contents" "" fb_go "$id" "${FL[$id][$sel]["name"]}"
-			p := fb_path "$id" "$sel"
-			dt_openverbs "$p"
+		# What apps offer for what is selected follows; a location's
+		# files are not on this machine for them to reach.
+		if ! fb_located "$id" && s := fb_selected "$id"; then
+			fb_paths "$id" "$s"
+			dt_openverbs "${FB_PATHS[@]}"
 			for v in "${DT_OVLIST[@]}"; do
 				dt_item "${DT_OPENVERBS[$v]["label"]}" "" files_verb "$id" "$v"
 			done
