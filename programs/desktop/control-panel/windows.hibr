@@ -11,36 +11,10 @@
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.5
+app windows "The Control Panel pane for how a window looks and where it opens" 1.6
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
-# Whether a Frame, Title Bar or Button Style value can be drawn with the
-# glyph set in use: curved needs a cell for a rounded top corner, and chalk
-# and slate Blit's window glyphs (blit#140, Blit ADR 0210), which only
-# Blit's own set has. Elsewhere they are drawn as the plain style, so a
-# list shows them dimmed and the arrows step past them.
-fn ws_drawable(v) {
-	case $v in
-	curved) [ "${GL[capl]}" != " " ] ;;
-	chalk) [ -n "${GL[chalk-stripe]-}" ] ;;
-	slate) [ -n "${GL[slate-stripe]-}" ] ;;
-	*) return 0 ;;
-	esac
-}
-
-# The values of a list that can be drawn, as words, and in DT_POPDIMNEXT
-# the ones that cannot, for a dropdown to show dimmed.
-fn ws_avail(...vals) {
-	local f
-	local -a out=()
-
-	DT_POPDIMNEXT=()
-	for f in "${vals[@]}"; do
-		if ws_drawable "$f"; then out+=("$f"); else DT_POPDIMNEXT+=("$f"); fi
-	done
-	ret "${out[*]}"
-}
 fn cp_set_titlebar(int? id = "", value = "") { DT_TITLEBAR=$value; cp_save; }
 fn cp_set_side(int? id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
 fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
@@ -63,20 +37,20 @@ fn windows_rows(int w) {
 	CP[$w][$n]["val"]="$DT_FRAME"; CP[$w][$n]["key"]=frame; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Bar"
 	CP[$w][$n]["val"]="$DT_TITLEBAR"; CP[$w][$n]["key"]=titlebar; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Buttons"
+	CP[$w][$n]["val"]="$DT_BTNSTYLE"; CP[$w][$n]["key"]=btnstyle
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Placement"
+	CP[$w][$n]["val"]="$DT_BTNSIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"
+	CP[$w][$n]["val"]="$DT_TITLEALIGN"; CP[$w][$n]["key"]=align
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="See Through"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]="${DT_WINTRANS:-0}"
 	CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
 	CP[$w][$n]["after"]="(${DT_WINTRANS:-0}%)"
 	CP[$w][$n]["key"]=wintrans; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Buttons"
-	CP[$w][$n]["val"]="$DT_BTNSIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"
-	CP[$w][$n]["val"]="$DT_TITLEALIGN"; CP[$w][$n]["key"]=align
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Style"
-	CP[$w][$n]["val"]="$DT_BTNSTYLE"; CP[$w][$n]["key"]=btnstyle
-	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Placement"
 	CP[$w][$n]["val"]="$DT_PLACE"; CP[$w][$n]["key"]=place
 	n=$((n + 1))
@@ -97,12 +71,12 @@ fn windows_do(int w, k, int dir) {
 	local -a fa
 
 	case $k in
-	frame) fl := ws_avail "${WS_FRAMES[@]}"
+	frame) fl := dt_chromeavail "${WS_FRAMES[@]}"
 	       DT_POPDIMNEXT=()
 	       read -ra fa <<< "$fl"
 	       v := cp_next "$DT_FRAME" "$dir" "${fa[@]}"
 	       DT_FRAME=$v ;;
-	titlebar) fl := ws_avail "${DT_TITLEBARS[@]}"
+	titlebar) fl := dt_chromeavail "${DT_TITLEBARS[@]}"
 	          DT_POPDIMNEXT=()
 	          read -ra fa <<< "$fl"
 	          v := cp_next "$DT_TITLEBAR" "$dir" "${fa[@]}"
@@ -111,7 +85,7 @@ fn windows_do(int w, k, int dir) {
 	      DT_BTNSIDE=$v ;;
 	align) v := cp_next "$DT_TITLEALIGN" "$dir" "${WS_ALIGNS[@]}"
 	       DT_TITLEALIGN=$v ;;
-	btnstyle) fl := ws_avail "${WS_STYLES[@]}"
+	btnstyle) fl := dt_chromeavail "${WS_STYLES[@]}"
 	          DT_POPDIMNEXT=()
 	          read -ra fa <<< "$fl"
 	          v := cp_next "$DT_BTNSTYLE" "$dir" "${fa[@]}"
@@ -152,15 +126,15 @@ fn windows_slide(int w, k, int value) {
 
 fn windows_drop(int w, int r, int c, k) {
 	case $k in
-	frame) ws_avail "${WS_FRAMES[@]}"
+	frame) dt_chromeavail "${WS_FRAMES[@]}"
 	       dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
-	titlebar) ws_avail "${DT_TITLEBARS[@]}"
+	titlebar) dt_chromeavail "${DT_TITLEBARS[@]}"
 	          dt_droplist "$w" "$r" "$c" cp_set_titlebar "${DT_TITLEBARS[@]}" ;;
 	place) dt_droplist "$w" "$r" "$c" cp_set_place "${DT_PLACES[@]}" ;;
 	zoomfill) dt_droplist "$w" "$r" "$c" cp_set_zoomfill "${DT_ZOOMFILLS[@]}" ;;
 	side) dt_droplist "$w" "$r" "$c" cp_set_side "${WS_SIDES[@]}" ;;
 	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
-	btnstyle) ws_avail "${WS_STYLES[@]}"
+	btnstyle) dt_chromeavail "${WS_STYLES[@]}"
 		dt_droplist "$w" "$r" "$c" cp_set_btnstyle "${WS_STYLES[@]}" ;;
 	esac
 }

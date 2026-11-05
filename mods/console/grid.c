@@ -678,6 +678,22 @@ void cn_darkhalf(cn_cell *k, int r, int c, int pct, int half)
 	unsigned on, off, pic, v;
 	int isbg, offbg;
 
+	if (half > 2) {
+		on = cn_halfof(k, 1, &isbg);
+		if (on == DP_DEFAULT && isbg && cn_imgcellat(r, c, &pic))
+			v = cn_dim1(pic, pct, 0);
+		else
+			v = cn_dim1(on, pct, isbg ? cn_defbg : cn_deffg);
+		cn_split(r, c);
+		cn_cellset(k, half == 3 ? 0x258F : 0x2594, 0, 0);
+		k->w = 1;
+		k->cont = 0;
+		k->link = 0;
+		k->fg = v;
+		k->bg = on;
+		k->attr = (v & DP_RGB) ? 0 : DP_DIM;
+		return;
+	}
 	on = cn_halfof(k, half == 1, &isbg);
 	off = cn_halfof(k, half != 1, &offbg);
 	if (on == DP_DEFAULT && isbg && cn_imgcellat(r, c, &pic))
@@ -734,9 +750,10 @@ void cn_darken1(int row, int col, int h, int w, int pct, int once, int half)
 			   dimmed whole instead, as a shadow always was. What
 			   a fill laid down is the wallpaper's pattern, not
 			   text, and may go. */
-			if (half && (k->cp == ' ' || !k->cp || k->cp == 0x2580 ||
-				     k->cp == 0x2584 || k->cp == 0x2588 ||
-				     (k->attr & CN_FILLED)) &&
+			if (half && (k->cp == ' ' || !k->cp || k->cp == 0x258F ||
+				     k->cp == 0x2594 || (k->attr & CN_FILLED) ||
+				     (half < 3 && (k->cp == 0x2580 || k->cp == 0x2584 ||
+						   k->cp == 0x2588))) &&
 			    !k->ext && !k->cont && k->w <= 1 && !cn_inpane(r, c)) {
 				cn_darkhalf(k, r, c, pct, half);
 				if (once)

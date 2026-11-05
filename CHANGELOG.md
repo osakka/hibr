@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.99.440
+
+**Every appearance setting draws its own part, and nothing else** (owner:
+"overrides happen randomly and the UI is just a facade"). 0.99.438 let
+Chalk and Slate reach across settings: a Chalk or Slate frame switched the
+window shadow and grow box off and redrew the confirm box and notes as
+Blit's alert and note; a Chalk or Slate title bar decided which buttons a
+window had; Window Buttons restyled dialog buttons; Slate had a palette of
+its own in code and picked its dark set by itself. All of that is gone:
+
+- **Frame** draws the border. The shadow is Shadow Shape's again, and the
+  grow box is drawn on every frame (Blit 0.3.38's frame glyphs carry no
+  shadow of their own).
+- **Title Bar** draws the row and the title; **Window Buttons** (was
+  Button Style) chooses the buttons -- chalk and slate are Blit's close,
+  shade and zoom boxes, on any bar, and circles sit on a Chalk bar as
+  happily -- and **Button Placement** (was Buttons) arranges them: right,
+  left, or **split**, close on the left and the rest on the right (was
+  "mac"; a saved "mac" is not read).
+- **Dialog Buttons** gains chalk and slate of its own: Blit's capped
+  buttons.
+- **The confirm box and a note that is Same as Windows** wear the windows'
+  chrome through `dt_chrome`, as every window does. Blit's note -- strip,
+  close box, rule -- is now **Notifications > Frame** chalk or slate.
+- **Note Colour** (was Slate Note Colour) colours every note, whatever its
+  frame: Theme, the scheme's own, by default, or yellow, blue, green, pink,
+  lavender or grey.
+- **Shadow Shape** gains **Thin**: an eighth of a cell down the right and
+  along the bottom, meeting at the corner (`console darken -l` and `-u`).
+  A theme can set it (`"shadowshape"`). On Blit it becomes Blit's shadow
+  attribute once that ships.
+- **Slate's colours are the scheme's**: its bar the title bar's colour, its
+  lines the ink, its highlight a scheme's new `highlight` key or a lighter
+  bar. Slate is one glyph set; a dark scheme makes it dark. **Pewter**
+  carries Blit's greys and white highlight, and **Pewter Dark** is new.
+  The Slate dark glyphs (U+100277 on) are retired, as Blit retires them.
+- The Chalk and Slate themes (1.1) choose all of it at once, with Thin
+  shadows and Dialog Buttons to match.
+- The Control Panel dims chalk and slate in every list that offers them
+  where Blit's glyphs are not in force.
+- A box with no buttons (a note) could leave every window after it with
+  none: the shared button lists were emptied without their cache.
+- `tests/xscreen.py` reads its state file until it is whole, rather than
+  failing on the moment the desktop rewrites it.
+
 ## 0.99.439
 
 **The groundwork for archives in Files** (Gitea #475, the first of two

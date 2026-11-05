@@ -74,34 +74,21 @@ fn dt_confirm_hit(int mr, int mc) {
 }
 
 dt_confirm_draw() {
-	local msg=$DT_CONFIRM w h y0 x0 g bw t l i=0 lw cap=0 s face fg
+	local msg=$DT_CONFIRM w h y0 x0 g bw t l i=0 lw cap=0
 
 	[ -z "$msg" ] && return 0
 	g := dt_confirm_geom
 	read -r y0 x0 w h <<< "$g"
-	dt_chromecfg
-	if [ -n "$DT_CMACF" ]; then
-		# Under a Chalk or Slate frame, the alert those glyph sets draw
-		# (Blit ADR 0210): a double border round its own face, its shadow
-		# in the border's glyphs, no title bar.
-		s=$DT_CMACF face=$DT_FACE fg=$DT_INK
-		[ "$s" != chalk ] && face=${DT_SLATE["$s-face"]} fg=${DT_SLATE["$s-ink"]}
-		console pen "$fg" "$face"
-		console fill $((y0 + 1)) $((x0 + 1)) $((h - 2)) $((w - 2)) " "
-		dt_macdialog "$y0" "$x0" "$h" "$w" "$s" "$face"
-		console pen "$fg" "$face" bold
-	else
-		# The windows' own chrome, as a focused window's (#102): their
-		# shadow, their see-through face, their frame or none and their
-		# title bar.
-		[ "$DT_SHADOW" = 1 ] && dt_castshadow "$y0" "$x0" "$h" "$w"
-		dt_chromeface "$y0" "$x0" "$h" "$w"
-		[ "$DT_FRAME" = none ] && cap=1
-		t := dt_tr "Confirm"
-		dt_chrome "" "$y0" "$x0" "$h" "$w" "$t" "${DT_TITLE:-$DT_ACTIVE}" "$cap"
-		dt_chromein on
-		console pen "$DT_INK" "$DT_FACE" bold
-	fi
+	# The windows' own chrome, as a focused window's (#102): their shadow,
+	# their see-through face, their frame or none and their title bar --
+	# the one drawer every window goes through, whatever they are set to.
+	[ "$DT_SHADOW" = 1 ] && dt_castshadow "$y0" "$x0" "$h" "$w"
+	dt_chromeface "$y0" "$x0" "$h" "$w"
+	[ "$DT_FRAME" = none ] && cap=1
+	t := dt_tr "Confirm"
+	dt_chrome "" "$y0" "$x0" "$h" "$w" "$t" "${DT_TITLE:-$DT_ACTIVE}" "$cap"
+	dt_chromein on
+	console pen "$DT_INK" "$DT_FACE" bold
 	for l in "${DT_FITLINES[@]}"; do
 		lw := str width "$l"
 		console put $((y0 + 2 + i)) $((x0 + (w - lw) / 2)) "$l"
@@ -110,10 +97,8 @@ dt_confirm_draw() {
 	dt_chromein off
 	dt_wclear root
 	bw := dt_btnw Yes No
-	[ -n "$DT_CMACF" ] && DT_DLGFACE=$face
 	dt_buttons root $((y0 + h - 3)) $((x0 + (w - bw) / 2)) \
 		"$DT_CONFIRM_FOCUS" y Yes n No
-	DT_DLGFACE=
 }
 
 # y and n answer at once, as they always have; enter answers with the

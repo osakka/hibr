@@ -764,7 +764,10 @@ dt_bar() {
 	# Across the whole width, so with no offset; Half Block makes it half
 	# a row (Gitea #340).
 	if [ "$DT_BARSHADOW" = 1 ]; then
-		if [ "$DT_SHADOWSHAPE" != cols ] && [ "$DT_GLYPHSET" != ascii ]; then
+		if [ "$DT_SHADOWSHAPE" = thin ] && [ "$DT_GLYPHSET" != ascii ]; then
+			console darken -s -u $((DT_PRIMARY_ROW + 1)) "$DT_PRIMARY_COL" \
+				1 "$w" "$DT_SHADOW_PCT"
+		elif [ "$DT_SHADOWSHAPE" != cols ] && [ "$DT_GLYPHSET" != ascii ]; then
 			console darken -s -t $((DT_PRIMARY_ROW + 1)) "$DT_PRIMARY_COL" \
 				1 "$w" "$DT_SHADOW_PCT"
 		else

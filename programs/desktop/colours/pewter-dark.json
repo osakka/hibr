@@ -1,0 +1,22 @@
+{
+  "title": "Pewter Dark",
+  "about": "Pewter in the dark: charcoal-grey faces and title bars, pale grey ink and a soft blue accent -- Slate's dark look, drawn by Blit in these colours.",
+  "version": "1.0",
+  "wall": "#26262c",
+  "dot": "#2e2e35",
+  "bar": "#34343a",
+  "active": "#8a8af0",
+  "idle": "#4e4e56",
+  "face": "#34343a",
+  "ink": "#c8c8ce",
+  "dim": "#7a7a82",
+  "selink": "#1e1e22",
+  "good": "#6fcf7f",
+  "warn": "#e0a050",
+  "bad": "#f06070",
+  "info": "#60c0d0",
+  "well": "#4e4e56",
+  "titlebar": "#3c3c43",
+  "titleink": "#e5e5ea",
+  "shadow": 50
+}

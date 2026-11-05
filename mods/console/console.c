@@ -909,18 +909,22 @@ int m_console(sh *s, int ac, char **av)
 		   coming out darker each time, and nothing has to decide
 		   which frame may cast it. -t and -b darken only the top or
 		   the bottom half of each cell, drawn as a half block: the
-		   Half Block shadow, half a row thick (Gitea #340). */
+		   Half Block shadow, half a row thick (Gitea #340). -l and -u
+		   darken an eighth of it, down its left edge or along its
+		   top: the Thin shadow, which hugs what casts it. */
 		while (ac > 2 && (!strcmp(av[2], "-s") || !strcmp(av[2], "-t") ||
-				  !strcmp(av[2], "-b"))) {
+				  !strcmp(av[2], "-b") || !strcmp(av[2], "-l") ||
+				  !strcmp(av[2], "-u"))) {
 			if (av[2][1] == 's')
 				once = 1;
 			else
-				half = av[2][1] == 't' ? 1 : 2;
+				half = av[2][1] == 't' ? 1 : av[2][1] == 'b' ? 2 :
+				       av[2][1] == 'l' ? 3 : 4;
 			av++;
 			ac--;
 		}
 		if (ac < 6) {
-			lg(HIBR_LERR, "usage: console darken [-s] [-t|-b] row col h w"
+			lg(HIBR_LERR, "usage: console darken [-s] [-t|-b|-l|-u] row col h w"
 				      " [pct]");
 			return 2;
 		}

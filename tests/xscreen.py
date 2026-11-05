@@ -260,7 +260,14 @@ for _ in range(40):
     if s2 and s1 and s2[1] != s1[1]:
         break
 t.collect(1.0)
-s2 = state()
+# Read until whole: the ticker rewrites the file with `>`, so one read can
+# meet it empty -- under a loaded gate that was the whole failure, a check
+# about resizing reading (None, None, None) with the window resized.
+for _ in range(20):
+    s2 = state()
+    if s2:
+        break
+    t.collect(0.25)
 g2 = winfo(s2[0]) if s2 and s2[0] else None
 t.signal(9)
 time.sleep(0.5)

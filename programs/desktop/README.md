@@ -184,6 +184,12 @@ the menu bar and the Control Strip.
   it.
 - **Two Columns** is a row below and two columns right, as shadows were
   before 0.99.286.
+- **Thin** (0.99.440) is an eighth of a cell: a line down the left edge of
+  the column beside the box, from a row below its top, and one along the
+  top of the row under it, from a column in, meeting at the corner -- a
+  shadow that hugs the box. It is what the Chalk and Slate themes choose.
+  On Blit it will become Blit's own shadow attribute, drawn under any
+  glyph, once Blit ships it.
 
 A half block replaces the cell it is drawn in, so it is drawn only where
 nothing can be read: on the wallpaper, its pattern included. Over a window,
@@ -339,9 +345,10 @@ terminal when it is above 0), `buttons` (`brackets`, `circles`, `squares`,
 the marks a collapsible tree wears, so a theme that draws its windows one
 way does not leave every tree looking like the one before it) and
 `treelines` (`true` or `false`, the rules joining a child to its branch),
-`side` (`right`, `left`, `mac`), `align` (`left`,
+`side` (`right`, `left`, `split`), `align` (`left`,
 `center`, `right`), `checks` (`theme`, `box`, `knob`, `block`, `tick`),
-`dialog` (`filled`, `brackets`), `glyphs` (`unicode`, `ascii`, `nerd`,
+`dialog` (`filled`, `brackets`, `chalk`, `slate`), `shadowshape` (`half`,
+`cols`, `thin`), `glyphs` (`unicode`, `ascii`, `nerd`,
 `blit`), `band` (`frame`,
 `dashed`, `solid`, `translucent`, the rubber band's look) and `bandpct` (0
 to 100, how strongly it tints), and `windowshadow`,
@@ -1827,30 +1834,46 @@ the top row alone, any of it going with any frame: `line` (the title in
 the frame's own top line, or on the window's face where there is no
 border), `solid` (a filled bar) or `curved` (that bar with its top corners
 rounded, where the glyph set has the cells for it -- Blit's), `chalk` or
-`slate`; `DT_BTNSIDE` docks the button cluster left or right, close always
-at the window's outer edge (max, min, close on the right; close, min, max
-on the left), or `mac`, close on the left and the rest on the right;
-`DT_TITLEALIGN` places the title in
-whatever room that leaves; `DT_BTNSTYLE` picks its glyphs and colours from
-`dt_btnspec` -- the Windows-style brackets this shipped with, or coloured
-circles, squares, diamonds or dashes. `dt_chrome` draws all of it, for a
+`slate`; `DT_BTNSIDE` (Button Placement) docks the buttons left or right,
+close always at the window's outer edge (max, min, close on the right;
+close, min, max on the left), or `split`, close on the left and the rest
+on the right; `DT_TITLEALIGN` places the title in whatever room that
+leaves; `DT_BTNSTYLE` (Window Buttons) picks which buttons and their glyphs
+and colours from `dt_btnspec` -- the Windows-style brackets this shipped
+with, coloured circles, squares, diamonds or dashes, or Blit's chalk or
+slate close, shade and zoom boxes. `dt_chrome` draws all of it, for a
 window, the confirm box and a note alike, and leaves the columns its
 buttons landed on in `DT[$id]["btns"]`, which is what `dt_btnat` reads to
 answer a click -- so a style may be any width without a click landing
 beside its button.
 
+**Every setting draws its own part and nothing else.** Frame draws the
+border, Title Bar the title row, Window Buttons the title bar's buttons,
+Button Placement where they sit, Dialog Buttons a dialog's buttons, Shadow
+Shape every shadow, Notifications > Frame a note's frame and Note Colour a
+note's colours -- and no value of one changes another. 0.99.438 broke
+that, and 0.99.440 put it back: a frame had switched the shadow off and
+redrawn the confirm box and notes, a title bar had decided the buttons, and
+Slate had colours of its own. The confirm box and a note that is Same as
+Windows go through `dt_chrome` like any window.
+
 **Chalk and Slate** are Blit's own window chrome (Blit ADR 0210), drawn
 from Blit's glyphs: a striped (Chalk) or grey (Slate) title bar whose
 title is *framed* -- SGR 51, the line drawn by the terminal round the
 cell rather than by a glyph -- a frame of Blit's own edge glyphs, close,
-shade and zoom boxes, and alerts and notes in the same set. Each is a
-value of Frame, Title Bar and Buttons, so any one can be mixed with the
-others; the Chalk and Slate themes in the catalogue choose all three.
-Slate draws its dark set under a dark face. They need `DT_GLYPHSET=blit`:
-with any other glyph set chalk and slate fall back to `single`, `line` and
-`brackets`, so a theme carried to another terminal still draws a window.
-A frame cell keeps the colour of what was under it (`console pen ...
-under:COLOUR`), since its glyph only draws an edge in part of the cell.
+shade and zoom boxes, Blit's capped dialog buttons, and Blit's note. Each
+is a value of the setting it belongs to -- Frame, Title Bar, Window
+Buttons, Dialog Buttons, Notifications > Frame -- so any one can be mixed
+with any other; the Chalk and Slate themes in the catalogue choose them
+together, with Shadow Shape Thin. Their colours are the scheme's: Chalk
+is the face and the ink, and Slate's bar is the title bar's colour, its
+lines the ink and its highlight the scheme's `highlight` (Pewter's white,
+or a lightened bar), so a dark scheme -- Pewter Dark -- makes Slate dark.
+They need `DT_GLYPHSET=blit`: with any other glyph set chalk and slate are
+drawn as `single`, `line`, `brackets` and `filled`, and the Control Panel
+shows them dimmed. A frame cell keeps the colour of what was under it
+(`console pen ... under:COLOUR`), since its glyph only draws an edge in
+part of the cell.
 **Shade** (the Window menu, a shortcut in Keyboard > Shortcuts, and
 Chalk's and Slate's shade box) rolls a window up to its title bar; its
 app is not drawn while it is, and its `_idle` still runs.

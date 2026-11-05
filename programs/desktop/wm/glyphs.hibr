@@ -29,10 +29,11 @@ declare -gA DT_FRAMES
 DT_GLYPHSET="${DT_GLYPHSET-unicode}"
 DT_GLYPHSETS=(unicode ascii nerd blit)
 # The window chrome's parts in Blit's Chalk and Slate glyph sets (Blit ADR
-# 0210), in Blit's own order: GL["chalk-<part>"], GL["slate-<part>"] for the
-# light set and GL["slatedark-<part>"] for the dark one. Only the blit set
-# fills them, and Frame, Title Bar and Buttons draw chalk and slate only
-# while they are filled.
+# 0210), in Blit's own order: GL["chalk-<part>"] and GL["slate-<part>"].
+# Slate takes its colours from the cell, so a dark scheme makes it dark;
+# the dark set Blit once had (U+100277 on) is retired. Only the blit set
+# fills them, and Frame, Title Bar, Window Buttons, Dialog Buttons and a
+# note's Frame draw chalk and slate only while they are filled.
 DT_CHROMEPARTS=(stripe stripe-first stripe-last stripe-before-title stripe-after-title title stripe-to-box stripe-from-box stripe-between close shade zoom frame-left frame-right-top frame-right frame-bottom-left frame-bottom-first frame-bottom frame-bottom-right frame-top-left frame-top frame-top-right note-close dialog-top-left dialog-top dialog-top-right dialog-left dialog-right dialog-bottom-left dialog-bottom dialog-bottom-right button-left button-right default-button-left default-button-right)
 # The set in force, exported so the shells a terminal window starts draw
 # their prompt in it too: the prompt module's PROMPT[glyphs]=auto reads it
@@ -56,7 +57,7 @@ fn dt_glyphs(set = "unicode") {
 	# And the window chrome's Chalk and Slate parts.
 	local cpart
 	for cpart in "${DT_CHROMEPARTS[@]}"; do
-		GL["chalk-$cpart"]=; GL["slate-$cpart"]=; GL["slatedark-$cpart"]=
+		GL["chalk-$cpart"]=; GL["slate-$cpart"]=
 	done
 	# And longwire's telephone (its menu bar item and strip module), which
 	# it draws with its own characters when these are empty.
@@ -363,43 +364,43 @@ dt_glyphsblit() {
 	# bar meeting the window's content square below.
 	GL["capl"]=$'\U00100007'
 	GL["capr"]=$'\U00100008'
-	# The window chrome's parts, three sets of 35 in Blit's order (ADR 0210):
-	# Chalk from U+100231, Slate light from U+100254, Slate dark from U+100277.
-	GL["chalk-stripe"]=$'\U00100231' GL["slate-stripe"]=$'\U00100254' GL["slatedark-stripe"]=$'\U00100277'
-	GL["chalk-stripe-first"]=$'\U00100232' GL["slate-stripe-first"]=$'\U00100255' GL["slatedark-stripe-first"]=$'\U00100278'
-	GL["chalk-stripe-last"]=$'\U00100233' GL["slate-stripe-last"]=$'\U00100256' GL["slatedark-stripe-last"]=$'\U00100279'
-	GL["chalk-stripe-before-title"]=$'\U00100234' GL["slate-stripe-before-title"]=$'\U00100257' GL["slatedark-stripe-before-title"]=$'\U0010027A'
-	GL["chalk-stripe-after-title"]=$'\U00100235' GL["slate-stripe-after-title"]=$'\U00100258' GL["slatedark-stripe-after-title"]=$'\U0010027B'
-	GL["chalk-title"]=$'\U00100236' GL["slate-title"]=$'\U00100259' GL["slatedark-title"]=$'\U0010027C'
-	GL["chalk-stripe-to-box"]=$'\U00100237' GL["slate-stripe-to-box"]=$'\U0010025A' GL["slatedark-stripe-to-box"]=$'\U0010027D'
-	GL["chalk-stripe-from-box"]=$'\U00100238' GL["slate-stripe-from-box"]=$'\U0010025B' GL["slatedark-stripe-from-box"]=$'\U0010027E'
-	GL["chalk-stripe-between"]=$'\U00100239' GL["slate-stripe-between"]=$'\U0010025C' GL["slatedark-stripe-between"]=$'\U0010027F'
-	GL["chalk-close"]=$'\U0010023A' GL["slate-close"]=$'\U0010025D' GL["slatedark-close"]=$'\U00100280'
-	GL["chalk-shade"]=$'\U0010023B' GL["slate-shade"]=$'\U0010025E' GL["slatedark-shade"]=$'\U00100281'
-	GL["chalk-zoom"]=$'\U0010023C' GL["slate-zoom"]=$'\U0010025F' GL["slatedark-zoom"]=$'\U00100282'
-	GL["chalk-frame-left"]=$'\U0010023D' GL["slate-frame-left"]=$'\U00100260' GL["slatedark-frame-left"]=$'\U00100283'
-	GL["chalk-frame-right-top"]=$'\U0010023E' GL["slate-frame-right-top"]=$'\U00100261' GL["slatedark-frame-right-top"]=$'\U00100284'
-	GL["chalk-frame-right"]=$'\U0010023F' GL["slate-frame-right"]=$'\U00100262' GL["slatedark-frame-right"]=$'\U00100285'
-	GL["chalk-frame-bottom-left"]=$'\U00100240' GL["slate-frame-bottom-left"]=$'\U00100263' GL["slatedark-frame-bottom-left"]=$'\U00100286'
-	GL["chalk-frame-bottom-first"]=$'\U00100241' GL["slate-frame-bottom-first"]=$'\U00100264' GL["slatedark-frame-bottom-first"]=$'\U00100287'
-	GL["chalk-frame-bottom"]=$'\U00100242' GL["slate-frame-bottom"]=$'\U00100265' GL["slatedark-frame-bottom"]=$'\U00100288'
-	GL["chalk-frame-bottom-right"]=$'\U00100243' GL["slate-frame-bottom-right"]=$'\U00100266' GL["slatedark-frame-bottom-right"]=$'\U00100289'
-	GL["chalk-frame-top-left"]=$'\U00100244' GL["slate-frame-top-left"]=$'\U00100267' GL["slatedark-frame-top-left"]=$'\U0010028A'
-	GL["chalk-frame-top"]=$'\U00100245' GL["slate-frame-top"]=$'\U00100268' GL["slatedark-frame-top"]=$'\U0010028B'
-	GL["chalk-frame-top-right"]=$'\U00100246' GL["slate-frame-top-right"]=$'\U00100269' GL["slatedark-frame-top-right"]=$'\U0010028C'
-	GL["chalk-note-close"]=$'\U00100247' GL["slate-note-close"]=$'\U0010026A' GL["slatedark-note-close"]=$'\U0010028D'
-	GL["chalk-dialog-top-left"]=$'\U00100248' GL["slate-dialog-top-left"]=$'\U0010026B' GL["slatedark-dialog-top-left"]=$'\U0010028E'
-	GL["chalk-dialog-top"]=$'\U00100249' GL["slate-dialog-top"]=$'\U0010026C' GL["slatedark-dialog-top"]=$'\U0010028F'
-	GL["chalk-dialog-top-right"]=$'\U0010024A' GL["slate-dialog-top-right"]=$'\U0010026D' GL["slatedark-dialog-top-right"]=$'\U00100290'
-	GL["chalk-dialog-left"]=$'\U0010024B' GL["slate-dialog-left"]=$'\U0010026E' GL["slatedark-dialog-left"]=$'\U00100291'
-	GL["chalk-dialog-right"]=$'\U0010024C' GL["slate-dialog-right"]=$'\U0010026F' GL["slatedark-dialog-right"]=$'\U00100292'
-	GL["chalk-dialog-bottom-left"]=$'\U0010024D' GL["slate-dialog-bottom-left"]=$'\U00100270' GL["slatedark-dialog-bottom-left"]=$'\U00100293'
-	GL["chalk-dialog-bottom"]=$'\U0010024E' GL["slate-dialog-bottom"]=$'\U00100271' GL["slatedark-dialog-bottom"]=$'\U00100294'
-	GL["chalk-dialog-bottom-right"]=$'\U0010024F' GL["slate-dialog-bottom-right"]=$'\U00100272' GL["slatedark-dialog-bottom-right"]=$'\U00100295'
-	GL["chalk-button-left"]=$'\U00100250' GL["slate-button-left"]=$'\U00100273' GL["slatedark-button-left"]=$'\U00100296'
-	GL["chalk-button-right"]=$'\U00100251' GL["slate-button-right"]=$'\U00100274' GL["slatedark-button-right"]=$'\U00100297'
-	GL["chalk-default-button-left"]=$'\U00100252' GL["slate-default-button-left"]=$'\U00100275' GL["slatedark-default-button-left"]=$'\U00100298'
-	GL["chalk-default-button-right"]=$'\U00100253' GL["slate-default-button-right"]=$'\U00100276' GL["slatedark-default-button-right"]=$'\U00100299'
+	# The window chrome's parts, two sets of 35 in Blit's order (ADR 0210):
+	# Chalk from U+100231, Slate from U+100254.
+	GL["chalk-stripe"]=$'\U00100231' GL["slate-stripe"]=$'\U00100254'
+	GL["chalk-stripe-first"]=$'\U00100232' GL["slate-stripe-first"]=$'\U00100255'
+	GL["chalk-stripe-last"]=$'\U00100233' GL["slate-stripe-last"]=$'\U00100256'
+	GL["chalk-stripe-before-title"]=$'\U00100234' GL["slate-stripe-before-title"]=$'\U00100257'
+	GL["chalk-stripe-after-title"]=$'\U00100235' GL["slate-stripe-after-title"]=$'\U00100258'
+	GL["chalk-title"]=$'\U00100236' GL["slate-title"]=$'\U00100259'
+	GL["chalk-stripe-to-box"]=$'\U00100237' GL["slate-stripe-to-box"]=$'\U0010025A'
+	GL["chalk-stripe-from-box"]=$'\U00100238' GL["slate-stripe-from-box"]=$'\U0010025B'
+	GL["chalk-stripe-between"]=$'\U00100239' GL["slate-stripe-between"]=$'\U0010025C'
+	GL["chalk-close"]=$'\U0010023A' GL["slate-close"]=$'\U0010025D'
+	GL["chalk-shade"]=$'\U0010023B' GL["slate-shade"]=$'\U0010025E'
+	GL["chalk-zoom"]=$'\U0010023C' GL["slate-zoom"]=$'\U0010025F'
+	GL["chalk-frame-left"]=$'\U0010023D' GL["slate-frame-left"]=$'\U00100260'
+	GL["chalk-frame-right-top"]=$'\U0010023E' GL["slate-frame-right-top"]=$'\U00100261'
+	GL["chalk-frame-right"]=$'\U0010023F' GL["slate-frame-right"]=$'\U00100262'
+	GL["chalk-frame-bottom-left"]=$'\U00100240' GL["slate-frame-bottom-left"]=$'\U00100263'
+	GL["chalk-frame-bottom-first"]=$'\U00100241' GL["slate-frame-bottom-first"]=$'\U00100264'
+	GL["chalk-frame-bottom"]=$'\U00100242' GL["slate-frame-bottom"]=$'\U00100265'
+	GL["chalk-frame-bottom-right"]=$'\U00100243' GL["slate-frame-bottom-right"]=$'\U00100266'
+	GL["chalk-frame-top-left"]=$'\U00100244' GL["slate-frame-top-left"]=$'\U00100267'
+	GL["chalk-frame-top"]=$'\U00100245' GL["slate-frame-top"]=$'\U00100268'
+	GL["chalk-frame-top-right"]=$'\U00100246' GL["slate-frame-top-right"]=$'\U00100269'
+	GL["chalk-note-close"]=$'\U00100247' GL["slate-note-close"]=$'\U0010026A'
+	GL["chalk-dialog-top-left"]=$'\U00100248' GL["slate-dialog-top-left"]=$'\U0010026B'
+	GL["chalk-dialog-top"]=$'\U00100249' GL["slate-dialog-top"]=$'\U0010026C'
+	GL["chalk-dialog-top-right"]=$'\U0010024A' GL["slate-dialog-top-right"]=$'\U0010026D'
+	GL["chalk-dialog-left"]=$'\U0010024B' GL["slate-dialog-left"]=$'\U0010026E'
+	GL["chalk-dialog-right"]=$'\U0010024C' GL["slate-dialog-right"]=$'\U0010026F'
+	GL["chalk-dialog-bottom-left"]=$'\U0010024D' GL["slate-dialog-bottom-left"]=$'\U00100270'
+	GL["chalk-dialog-bottom"]=$'\U0010024E' GL["slate-dialog-bottom"]=$'\U00100271'
+	GL["chalk-dialog-bottom-right"]=$'\U0010024F' GL["slate-dialog-bottom-right"]=$'\U00100272'
+	GL["chalk-button-left"]=$'\U00100250' GL["slate-button-left"]=$'\U00100273'
+	GL["chalk-button-right"]=$'\U00100251' GL["slate-button-right"]=$'\U00100274'
+	GL["chalk-default-button-left"]=$'\U00100252' GL["slate-default-button-left"]=$'\U00100275'
+	GL["chalk-default-button-right"]=$'\U00100253' GL["slate-default-button-right"]=$'\U00100276'
 	# The battery and the speaker, one picture a state, the charge or the
 	# level inside it (Blit 0.2.38, ADR 0196 there).
 	GL["bat0"]=$'\U00100009'   # Blit battery-0

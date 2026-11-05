@@ -220,9 +220,8 @@ Browse
 Browser
 Browser Setting
 Bulleted List
+Button Placement
 Button Shadow
-Button Style
-Buttons
 By Kind
 CPU:    %s%%       Memory: %s
 Cache cleared
@@ -840,6 +839,7 @@ Not started
 Not text
 Not the password. Esc: name
 Note
+Note Colour
 Notes on Every Workspace
 Nothing can be deleted here
 Nothing can be pasted here
@@ -1160,7 +1160,6 @@ Signature, put under every message you write:
 Sites Answered For Always
 Size: %s
 Skip
-Slate Note Colour
 Sleep
 Sleep, Restart, Shut Down
 Small
@@ -1398,6 +1397,7 @@ Wi-Fi is off
 Wi-Fi, %s
 Wider Column
 Window
+Window Buttons
 Window Switcher
 Window Title
 Window:

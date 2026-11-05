@@ -1,12 +1,12 @@
 {
   "title": "Pewter",
-  "about": "Light grey faces on a cool grey desktop, black ink and a blue accent: Blit's Slate windows in their light set.",
-  "version": "1.0",
+  "about": "Light grey faces on a cool grey desktop, black ink and a blue accent, with grey title bars: the colours Slate is drawn in by Blit.",
+  "version": "1.1",
   "wall": "#a8a8b8",
   "dot": "#9898a8",
   "bar": "#eeeeee",
   "active": "#4a4ac8",
-  "idle": "#888888",
+  "idle": "#c4c4c8",
   "face": "#eeeeee",
   "ink": "#000000",
   "dim": "#777777",
@@ -16,5 +16,8 @@
   "bad": "#b00020",
   "info": "#1f5f8b",
   "well": "#dddddd",
+  "titlebar": "#d6d6d6",
+  "titleink": "#000000",
+  "highlight": "#ffffff",
   "shadow": 90
 }

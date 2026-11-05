@@ -74,17 +74,21 @@ dt_hotcolour() {
 # in a field or a list -- whose label is the accent colour, so it is always
 # plain what enter will do. tag is what dt_hit answers for a click on it.
 fn dt_button(id, int r, int c, label, int on, tag) {
-	local t n sh bg=$DT_IDLE hot
+	local t n sh bg=$DT_IDLE hot s
 
 	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
 	t=" $label "
 
 	n=${#t}
-	dt_chromecfg
-	if [ -n "$DT_CMACB" ]; then
-		dt_macbutton "$id" "$r" "$c" "$label" "$on" "$tag"
-		return 0
-	fi
+	case $DT_DLGBTN in
+	chalk | slate)
+		s := dt_chromeset "$DT_DLGBTN"
+		if [ -n "$s" ]; then
+			dt_glyphbutton "$id" "$r" "$c" "$label" "$on" "$tag" "$s"
+			return 0
+		fi
+		;;
+	esac
 	if [ "$DT_DLGBTN" = brackets ]; then
 		t="[$label]"
 		bg=$DT_FACE
@@ -127,29 +131,24 @@ fn dt_btnw(...labels) {
 	ret "$w"
 }
 
-# A Chalk or Slate button (Blit ADR 0210): a cap glyph each end and the
-# label framed between them (SGR 51, Blit's top and bottom line), the
-# default one -- the one with the focus, or the one enter answers -- with
-# the thick ring and its caps. The same width as any other button, so a
-# dialog's layout does not move. The caps sit on the face around them
-# (DT_DLGFACE while a dialog of the window manager's own is drawn, the
-# window's face otherwise) and the label on the button's own face. Under
-# the pointer a Chalk label takes the hot colour; Slate's caps carry their
-# own colours, so a Slate button does not light.
-DT_DLGFACE=
-fn dt_macbutton(id, int r, int c, label, int on, tag) {
-	local s=$DT_CMACB face=${DT_DLGFACE:-$DT_FACE} bf fg ring fr=framed l=button-left rt=button-right hot
+# A Chalk or Slate button (Blit ADR 0210), as Dialog Buttons chooses, from
+# glyph set s: a cap glyph each end and the label framed between them
+# (SGR 51, Blit's top and bottom line), the default one -- the one with the
+# focus, or the one enter answers -- with the thick ring and its caps. The
+# same width as any other button, so a dialog's layout does not move. Its
+# colours are the scheme's: the caps sit on the face, Chalk's label on the
+# face too and Slate's on the well, in the ink, ringed in the ink. Under
+# the pointer the label takes the hot colour, as any button's does.
+fn dt_glyphbutton(id, int r, int c, label, int on, tag, s) {
+	local face=$DT_FACE bf fg=$DT_INK ring=$DT_INK fr=framed l=button-left rt=button-right hot
 
-	if [ "$s" = chalk ]; then
-		bf=$face fg=$DT_INK ring=$DT_INK
-	else
-		bf=${DT_SLATE["$s-btn"]} fg=${DT_SLATE["$s-ink"]} ring=${DT_SLATE["$s-ring"]}
-	fi
+	bf=$face
+	[ "$s" = slate ] && bf=$DT_WELL
 	[ "$on" -ge 1 ] && { fr=framed-thick; l=default-button-left; rt=default-button-right; }
 	console pen "$DT_INK" "$face"
 	dt_bput "$id" "$r" "$c" "${GL["$s-$l"]}"
 	dt_bput "$id" "$r" $((c + ${#label} + 1)) "${GL["$s-$rt"]}"
-	if [ "$s" = chalk ] && dt_hot "$id" "$tag"; then
+	if dt_hot "$id" "$tag"; then
 		hot := dt_hotcolour
 		fg=$hot
 	fi

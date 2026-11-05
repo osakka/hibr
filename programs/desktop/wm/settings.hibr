@@ -135,6 +135,10 @@ DT_SELINK="${DT_SELINK-#1a202c}"
 # with a dark bar and a bright accent needs the two apart (Charcoal).
 DT_TITLE="${DT_TITLE-}"
 DT_TITLEINK="${DT_TITLEINK-}"
+# The highlight a bevelled bar's lit edge and a box's face are drawn in --
+# Slate's, through the cell's line colour (Blit ADR 0210) -- where a scheme
+# gives one; empty means the title bar's colour, lightened.
+DT_HIGHLIGHT="${DT_HIGHLIGHT-}"
 DT_GOOD="${DT_GOOD-#68d391}"
 DT_WARN="${DT_WARN-#f6ad55}"
 DT_BAD="${DT_BAD-#f56565}"
@@ -192,9 +196,13 @@ DT_SHADOW="${DT_SHADOW-1}"
 # The shape every shadow is cast in (Gitea #340): `half`, half a row below
 # and one column right, drawn in half blocks -- as thick each way, since a
 # cell is about twice as tall as it is wide, and thinner -- or `cols`, a row
-# below and two columns right, as shadows were until 0.99.286. Half by
-# default; a glyph set without half blocks casts cols whatever this says.
+# below and two columns right, as shadows were until 0.99.286 -- or `thin`,
+# an eighth of a cell down the right and along the bottom, hugging what
+# casts it. Half by default; a glyph set without block elements casts cols
+# whatever this says. It is the one thing that decides a shadow's shape:
+# no frame, title bar or theme changes it except by choosing this.
 DT_SHADOWSHAPE="${DT_SHADOWSHAPE-half}"
+DT_SHADOWSHAPES=(half cols thin)
 
 # The order of the items on the menu bar's right -- the speaker, the
 # network, Bluetooth, an app's own -- as names in the order they read
@@ -268,9 +276,13 @@ DT_BTNSHADOW="${DT_BTNSHADOW-1}"
 
 # How a dialog's buttons are drawn: filled, a block of colour each, or
 # brackets, [OK] on the window's face, filled only while it has focus -- the
-# same width either way, so no dialog's layout moves when it changes.
+# same width either way, so no dialog's layout moves when it changes -- or
+# chalk or slate, Blit's capped buttons, a cap each end of a framed label
+# (Blit ADR 0210), drawn as filled where Blit's glyphs are not in force.
+# Only this setting draws a dialog's buttons; the title bar's are Window
+# Buttons'.
 DT_DLGBTN="${DT_DLGBTN-filled}"
-DT_DLGBTNS=(filled brackets)
+DT_DLGBTNS=(filled brackets chalk slate)
 
 # How much a shadow darkens what is under it -- console darken's own pct,
 # kept per theme rather than as one constant. 55 (its builtin default)
@@ -300,8 +312,9 @@ DT_DBLT=0
 # six lines there, not a change to dt_win. Until 0.99.324 none was a border
 # left blank and bar was what none is now; 0.99.324's curved is a title bar
 # since 0.99.327, below. chalk and slate are Blit's own window frames, a
-# line hugging the content with a drop shadow, drawn from its glyphs (Blit
-# ADR 0210): only while Blit's glyph set is chosen, single anywhere else.
+# line hugging the content, drawn from its glyphs (Blit ADR 0210): only
+# while Blit's glyph set is chosen, single anywhere else. A frame draws
+# the frame and nothing more: the shadow is Shadow Shape's.
 DT_FRAME="${DT_FRAME-single}"
 # How much of a picture wallpaper shows through a window's own face and
 # through the menu bar, as a percentage of the picture's brightness: 0 is
@@ -317,24 +330,25 @@ WS_FRAMES=(single double rounded solid none chalk slate)
 # desktops of around 2001; or curved, that bar with its top corners
 # rounded, where the glyph set has a cell for it (Blit's, U+100007 and
 # U+100008, blit#140) -- anywhere else it is drawn as solid and the Control
-# Panel shows it dimmed. chalk and slate are Blit's pinstriped bars, with
-# close, shade and zoom boxes of their own (Blit ADR 0210), and line
-# anywhere Blit's glyphs are not in force.
+# Panel shows it dimmed. chalk and slate are Blit's pinstriped bars (Blit
+# ADR 0210), and line anywhere Blit's glyphs are not in force. A title bar
+# draws the row and the title; the buttons on it are Window Buttons'.
 DT_TITLEBAR="${DT_TITLEBAR-line}"
 DT_TITLEBARS=(line solid curved chalk slate)
 
-# Which side the min/max/close cluster docks to, where the title sits in
-# whatever room that leaves, and which glyphs the cluster is drawn with:
-# the Windows-style brackets this shipped with, or coloured circles,
-# squares, diamonds or dashes. dt_btnspec is the table for the third of these, the
+# Where the title bar's buttons sit (Button Placement), where the title
+# sits in whatever room that leaves, and which buttons they are (Window
+# Buttons): the Windows-style brackets this shipped with, coloured
+# circles, squares, diamonds or dashes, or Blit's chalk or slate close,
+# shade and zoom boxes. dt_btnspec is the table for the third of these, the
 # same shape cp_theme's own case statement already is for a theme.
 DT_BTNSIDE="${DT_BTNSIDE-right}"
 DT_TITLEALIGN="${DT_TITLEALIGN-left}"
 DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
-# mac puts close at the left and the rest at the right. chalk and slate
-# buttons are Blit's: on a chalk or slate title bar its boxes, and in a
-# dialog a cap each end of a framed label (Blit ADR 0210).
-WS_SIDES=(right left mac)
+# split puts close at the left and the rest at the right. chalk and slate
+# buttons are Blit's boxes, on any title bar, and brackets anywhere Blit's
+# glyphs are not in force; a dialog's buttons are Dialog Buttons'.
+WS_SIDES=(right left split)
 WS_ALIGNS=(left center right)
 WS_STYLES=(brackets circles squares diamonds dashes chalk slate)
 
@@ -469,7 +483,7 @@ DT_SWSKIP="${DT_SWSKIP-stickies}"
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_DIM DT_SELINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL DT_HOT DT_TITLE DT_TITLEINK
+	DT_DIM DT_SELINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL DT_HOT DT_TITLE DT_TITLEINK DT_HIGHLIGHT
 	DT_WALLIMG DT_WALLMODE
 	DT_ICONS DT_DISKS DT_ICONBG DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_YREL
