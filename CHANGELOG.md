@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.442
+
+**A copy to or from a server opens the copy window** (owner, copying from a
+NAS: "no window popped up showing the progress"). #402's window only ever
+covered folders on the machine; a copy with a `dav://` end ran in the
+background behind one short note. It is the same window now, for servers and
+for archives: the total counted first, a bar that moves inside one large file
+in both directions, Stop, what is already there asked about before anything
+moves, and a window that says what could not be done. A stopped download
+leaves no part file and a stopped upload nothing on the server, since an
+upload goes through a hidden name. A server has no trash, so Replace says
+the one there cannot be put back, and nothing done on a server goes in Undo.
+
+- **`dav get` and `dav put` take `-p FILE` and `-k FILE`**: how far one
+  transfer has got, and a file that stops it.
+- **A location's `_fileop` is `_copyplan` and `_copyrun`** (ADR 0053), jobs
+  that report as `copy run` does. Archives 1.1 goes with it.
+- Copying out of an archive onto a name that is taken asks, rather than
+  adding a 2. Extract Here still adds one.
+- `archive create` puts its file in place on a filesystem with no hard
+  links, a FAT stick for one, where it used to fail.
+
 ## 0.99.441
 
 **An archive in Files is a folder** (Gitea #475). The Archives extension,

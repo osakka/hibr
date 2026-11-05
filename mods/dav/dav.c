@@ -8,7 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <signal.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 void v_del(sh *s, const char *k);
@@ -447,12 +450,100 @@ void dv_base(const char *p, str *o)
 		s_cat(o, "");
 }
 
+#ifndef DV_WTICK
+#define DV_WTICK 100000
+#endif
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
+/* Where a transfer says how far it has got and what stops it, from the -p
+   and -k of dav get and dav put; 0 for neither. */
+const char *dv_pfile, *dv_kfile;
+
+/* A transfer's watcher: its process, and the word it stops the request by. */
+typedef struct dv_wt dv_wt;
+struct dv_wt {
+	pid_t pid;
+	volatile int *stop;
+};
+
+/* What a watcher does until it is ended: the file's position, which a fork
+   shares with the transfer reading or writing it, replaced whole in the
+   progress file, and a look for the stop file. */
+void dv_wloop(int fd, volatile int *stop, pid_t parent)
+{
+	str tmp, line;
+	int o;
+
+	s_init(&tmp);
+	s_init(&line);
+	if (dv_pfile) {
+		s_cat(&tmp, dv_pfile);
+		s_cat(&tmp, ".new");
+	}
+	while (getppid() == parent) {
+		if (dv_pfile) {
+			line.n = 0;
+			s_fmt(&line, "%lld\n", (long long)lseek(fd, 0, SEEK_CUR));
+			o = open(tmp.p, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+			if (o >= 0) {
+				if (hibr_wrall(o, line.p, line.n) == (ssize_t)line.n)
+					rename(tmp.p, dv_pfile);
+				close(o);
+			}
+		}
+		if (dv_kfile && access(dv_kfile, F_OK) == 0)
+			*stop = 1;
+		usleep(DV_WTICK);
+	}
+	_exit(0);
+}
+
+/* Start watching a transfer on fd, when -p or -k asked for it. The watcher
+   belongs to the call that started it, which ends and waits for it. */
+void dv_watch(dv_wt *w, dv_req *rq, int fd)
+{
+	pid_t me = getpid();
+	void *m;
+
+	w->pid = 0;
+	w->stop = 0;
+	if (!dv_pfile && !dv_kfile)
+		return;
+	m = mmap(0, sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	if (m == MAP_FAILED)
+		return;
+	w->stop = m;
+	*w->stop = 0;
+	fflush(0);
+	w->pid = fork();
+	if (w->pid == 0)
+		dv_wloop(fd, w->stop, me);
+	if (w->pid < 0)
+		w->pid = 0;
+	rq->stop = w->stop;
+}
+
+/* End a watcher, and wait for it through any signal. */
+void dv_unwatch(dv_wt *w)
+{
+	if (w->pid > 0) {
+		kill(w->pid, SIGKILL);
+		while (waitpid(w->pid, 0, 0) < 0 && errno == EINTR)
+			;
+	}
+	if (w->stop)
+		munmap((void *)w->stop, sizeof(int));
+}
+
 /* Download one address to a file, through a .part beside it so a failure
    never leaves half a file where the whole one should be. */
 int dv_get1(sh *s, const char *url, const dv_srv *sv, const char *dest,
 	    dv_res *rs)
 {
 	dv_req rq;
+	dv_wt w;
 	str part;
 	int fd, rc, tostd = !strcmp(dest, "-");
 
@@ -478,7 +569,9 @@ int dv_get1(sh *s, const char *url, const dv_srv *sv, const char *dest,
 	rq.sv = sv;
 	rq.follow = 1;
 	rq.out = fd;
+	dv_watch(&w, &rq, fd);
 	rc = dv_do(s, &rq, rs);
+	dv_unwatch(&w);
 	dv_reqfree(&rq);
 	if (!tostd) {
 		if (close(fd) < 0)
@@ -559,12 +652,20 @@ int dv_get(sh *s, int ac, char **av)
 	const dv_srv *sv;
 	dv_res rs;
 
-	if (i < ac && !strcmp(av[i], "-r")) {
-		rec = 1;
+	dv_pfile = dv_kfile = 0;
+	while (i < ac && av[i][0] == '-' && av[i][1]) {
+		if (!strcmp(av[i], "-r"))
+			rec = 1;
+		else if (!strcmp(av[i], "-p") && i + 1 < ac)
+			dv_pfile = av[++i];
+		else if (!strcmp(av[i], "-k") && i + 1 < ac)
+			dv_kfile = av[++i];
+		else
+			break;
 		i++;
 	}
 	if (i >= ac) {
-		lg(HIBR_LERR, "usage: dav get [-r] location [file|folder|-]");
+		lg(HIBR_LERR, "usage: dav get [-r] [-p progressfile] [-k stopfile] location [file|folder|-]");
 		return 2;
 	}
 	loc = av[i++];
@@ -618,6 +719,7 @@ int dv_put1(sh *s, const char *src, const char *url, const dv_srv *sv,
 	    const char *ifmatch, int ifnone, dv_res *rs, str *etag, const char *ctype)
 {
 	dv_req rq;
+	dv_wt w;
 	struct stat st;
 	int fd, rc;
 
@@ -673,7 +775,9 @@ int dv_put1(sh *s, const char *src, const char *url, const dv_srv *sv,
 		dv_reqfree(&op);
 		dv_resfree(&pre);
 	}
+	dv_watch(&w, &rq, fd);
 	rc = dv_do(s, &rq, rs);
+	dv_unwatch(&w);
 	dv_reqfree(&rq);
 	close(fd);
 	if (rc == HIBR_OK && etag) {
@@ -792,9 +896,14 @@ int dv_put(sh *s, int ac, char **av)
 	const dv_srv *sv;
 	dv_res rs;
 
+	dv_pfile = dv_kfile = 0;
 	while (i < ac && av[i][0] == '-' && av[i][1]) {
 		if (!strcmp(av[i], "-r"))
 			rec = 1;
+		else if (!strcmp(av[i], "-p") && i + 1 < ac)
+			dv_pfile = av[++i];
+		else if (!strcmp(av[i], "-k") && i + 1 < ac)
+			dv_kfile = av[++i];
 		else if (!strcmp(av[i], "-n"))
 			ifnone = 1;
 		else if (!strcmp(av[i], "-m") && i + 1 < ac)
@@ -806,7 +915,7 @@ int dv_put(sh *s, int ac, char **av)
 		i++;
 	}
 	if (i + 1 >= ac) {
-		lg(HIBR_LERR, "usage: dav put [-r] [-m etag] [-n] [-t type] path location");
+		lg(HIBR_LERR, "usage: dav put [-r] [-m etag] [-n] [-t type] [-p progressfile] [-k stopfile] path location");
 		return 2;
 	}
 	src = av[i];

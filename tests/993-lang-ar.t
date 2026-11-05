@@ -16,7 +16,7 @@ import json
 # Kept in Latin on purpose: product and protocol names, the project's own
 # tagline, an address shown as an example, and a label that is all
 # placeholders. Anything else identical to its English is untranslated.
-LATIN = {"YouTube", "JavaScript", "dBASE", "ETag: %s", "PID:    %s", "%s %s…",
+LATIN = {"YouTube", "JavaScript", "dBASE", "ETag: %s", "PID:    %s",
          "Highly Intuitive Bash-like Runtime",
          "Nextcloud: https://HOST/remote.php/dav/files/USER",
          "Composite", "DOUBLE-BUFFER", "GLX", "RENDER", "XINERAMA", "XVideo", "polkit"}

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.80",
+ "version": "3.81",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -57,9 +57,7 @@
   "%d steps failed": "فشلت %d خطوة",
   "%d steps failed -- r tests again": "فشلت %d خطوة — r يعيد الاختبار",
   "%s %s items%s": "%s %s عناصر%s",
-  "%s %s items…": "%s %s عناصر…",
   "%s %s; %s": "%s %s؛ %s",
-  "%s %s…": "%s %s…",
   "%s already has a %s": "%s فيه %s بالفعل",
   "%s at %s": "%s عند %s",
   "%s cannot %s": "لا يمكن لـ %s أن %s",
@@ -1650,7 +1648,6 @@
   "Archives": "الأرشيفات",
   "Compress": "ضغط",
   "Compress To": "الضغط إلى",
-  "Copied from %s": "نُسخ من %s",
   "Extract Here": "استخراج هنا",
   "Extract Here Makes": "ينشئ الاستخراج هنا",
   "Extract To...": "استخراج إلى...",
@@ -1660,6 +1657,7 @@
   "Open Folder Afterwards": "فتح المجلد بعد ذلك",
   "Run in Terminal": "تشغيل في الطرفية",
   "Text Editor (hvi)": "محرر النصوص (hvi)",
-  "That archive is not there": "ذلك الأرشيف غير موجود"
+  "That archive is not there": "ذلك الأرشيف غير موجود",
+  "The one there now cannot be put back.": "لا يمكن استعادة الموجود حاليًا."
  }
 }

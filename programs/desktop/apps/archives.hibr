@@ -31,7 +31,7 @@
 
 strict
 
-app archives "Show archives as folders in Files, compress and extract them" 1.0
+app archives "Show archives as folders in Files, compress and extract them" 1.1
 # part: control-panel/archiveset.hibr
 
 command -v dt_app > /dev/null && dt_app archives "Archives" 6 30 "" "" fixed hidden
@@ -602,51 +602,101 @@ fn arc_opened(int n, int st) {
 	return 0
 }
 
-# A move or copy out of an archive is a copy, which dt_fileop has seen to;
-# what lands keeps its name unless that is taken.
-fn arc_fileop(op, dst, ...rest) {
-	local p f= j
+# A copy out of an archive: what is already there is the copy window's to
+# ask about, and a move is a copy, which dt_fileop has seen to.
+fn arc_copyplan(op, dst, ...rest) {
+	local p b
+
+	shift 2
+	for p in "$@"; do
+		b=${p##*/}
+		if [ -e "$dst/$b" ] || [ -L "$dst/$b" ]; then
+			printf 'c %s\n' "$p"
+		else
+			printf 'g %s\n' "$p"
+		fi
+	done
+	return 0
+}
+
+# How many bytes some members come to, by the index.
+fn arc_bytes(idx, ...ms) {
+	local t
+
+	t=$(ARC_MS=$(printf '%s\n' "${ms[@]}") awk -F '\t' '
+		BEGIN { n = split(ENVIRON["ARC_MS"], m, "\n") }
+		{
+			p = ($1 == "." ? "" : $1 "/") $5
+			for (i = 1; i <= n; i++)
+				if (p == m[i] || index(p, m[i] "/") == 1) { s += $3; break }
+		}
+		END { print s + 0 }' "$idx" 2> /dev/null)
+	ret "${t:-0}"
+}
+
+# Replace the copy window's status line whole.
+fn arc_stat(st, kind, done, total, idone, items, name = "") {
+	printf '%s %s %s %s %s %s\n' "$kind" "$done" "$total" "$idone" "$items" "$name" > "$st.new"
+	command mv -f -- "$st.new" "$st"
+}
+
+# The job a copy out of an archive runs, reporting as `copy run` does. One
+# extraction takes every member, so what is done is how much has landed in
+# the hidden folder, and a stop ends the extraction and removes it.
+fn arc_copyrun(st, stop, rp, op, dst, ...rest) {
+	local p f= pid part="$dst/.hibr-part.$$.$RANDOM" total idx k why to m
 	local -a ms
 
-	for p in "${rest[@]}"; do
-		arc_split "$p" || { dt_notep high "$DT_WHY"; return 1; }
+	shift 5
+	for p in "$@"; do
+		arc_split "$p" || { printf 'err %s\t%s\n' "$p" "$DT_WHY"; continue; }
 		f=$ARC_F
 		ms+=("$ARC_M")
 	done
 	[ -n "$f" ] || return 0
-	ARC_SEQ=$((ARC_SEQ + 1))
-	j := dt_job arc:copy "" arc_copied arc_copyjob "$f" "$dst" \
-		"$dst/.hibr-part.$ARC_SEQ" "${ms[@]}" || return 1
-	DTJ[$j]["dst"]=$dst
-	DTJ[$j]["n"]=${#ms[@]}
-	DTJ[$j]["arc"]=$f
-	return 0
-}
-
-fn arc_copyjob(f, dst, part, ...ms) {
-	local m to
-
-	command mkdir -- "$part" || return 1
-	if ! arc_take "$f" "$part" "${ms[@]}"; then
-		command rm -rf -- "$part"
-		return 1
-	fi
-	for m in "${ms[@]}"; do
-		to := arc_free "$dst" "${m##*/}"
-		command mv -- "$part/$m" "$to" || { command rm -rf -- "$part"; return 1; }
-	done
-	command rm -rf -- "$part"
-}
-
-fn arc_copied(int n, int st) {
-	local f=${DTJ[$n]["arc"]}
-
-	if [ "$st" != 0 ]; then
-		arc_fail "$n" "${f##*/}"
+	idx := arc_idx "$f"
+	total=0
+	[ -n "$idx" ] && total := arc_bytes "$idx" "${ms[@]}"
+	arc_stat "$st" copy 0 "$total" 0 "${#ms[@]}" "${f##*/}"
+	if ! command mkdir -- "$part" 2> "$st.err"; then
+		read -r why < "$st.err"
+		printf 'err %s\t%s\n' "$1" "$why"
 		return 0
 	fi
-	dt_has fb_relist && fb_relist "${DTJ[$n]["dst"]}"
-	dt_notep low "Copied from %s" "${f##*/}"
+	( arc_take "$f" "$part" "${ms[@]}" ) 2> "$st.err" &
+	pid=$!
+	while kill -0 "$pid" 2> /dev/null; do
+		if [ -e "$stop" ]; then
+			kill "$pid" 2> /dev/null
+			wait "$pid" 2> /dev/null
+			command rm -rf -- "$part"
+			printf 'stopped\n'
+			return 0
+		fi
+		k=$(du -sk "$part" 2> /dev/null)
+		k=${k%%[[:space:]]*}
+		arc_stat "$st" copy $((${k:-0} * 1024)) "$total" 0 "${#ms[@]}" "${f##*/}"
+		sleep 0.1
+	done
+	if ! wait "$pid"; then
+		why=
+		read -r why < "$st.err"
+		command rm -rf -- "$part" "$st.err"
+		for p in "$@"; do printf 'err %s\t%s\n' "$p" "${why:-It could not be read}"; done
+		return 0
+	fi
+	k=0
+	for m in "${ms[@]}"; do
+		to="$dst/${m##*/}"
+		if command mv -- "$part/$m" "$to" 2> /dev/null; then
+			printf 'ok archive://%s/%s\t%s\n' "$f" "$m" "$to"
+		else
+			printf 'err archive://%s/%s\t%s\n' "$f" "$m" "${m##*/} could not be put in place"
+		fi
+		k=$((k + 1))
+	done
+	command rm -rf -- "$part" "$st.err"
+	arc_stat "$st" done "$total" "$total" "$k" "$k"
 	return 0
 }
 

@@ -7,9 +7,7 @@
 %d steps failed
 %d steps failed -- r tests again
 %s %s items%s
-%s %s items…
 %s %s; %s
-%s %s…
 %s already has a %s
 %s at %s
 %s cannot %s
@@ -332,7 +330,6 @@ Cookies cleared
 Copied
 Copied %s
 Copied %s characters
-Copied from %s
 Copied the paths of what is selected
 Copied to %s
 Copied; the clipboard clears in %s seconds
@@ -1268,6 +1265,7 @@ The download of %s did not finish: %s
 The end is a time, HH:MM
 The login screen changes at the next logout
 The mermaid module is not loaded
+The one there now cannot be put back.
 The one there now goes to the trash.
 The page could not be saved
 The page could not be saved as a PDF

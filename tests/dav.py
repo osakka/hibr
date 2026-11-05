@@ -6,7 +6,7 @@ path, idle connections dropped, nonces gone stale, no ETag on a PUT, and
 a hostile server whose names try to step outside a download.
 Nothing here reaches the network.
 """
-import os, shutil, stat, subprocess, sys, tempfile, time
+import os, re, shutil, stat, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -340,14 +340,118 @@ try:
           sc.find("\u21c5 Servers") is not None and sc.find("nc") is not None and
           sc.find("Add Server") is not None and sc.find("Timeout (seconds)") is not None
           and sc.find("Clear Cache") is not None, sc)
+    ST = os.path.join(D, "copy.st")
     out, err = hb("mod load %s; . %s; dav server set far http://localhost:%d/ -u u -p p; dt_davok;"
-                  " dt_davbatch copy dav://far/sub dav://t/a.txt; dt_davbatch copy dav://t dav://far/sub"
-                  % (tree("build/mods/console.so"), tree("programs/desktop/desktop.hibr"), p),
+                  " rdav_copyplan copy dav://far/sub dav://t/a.txt;"
+                  " rdav_copyrun %s %s.stop '' copy dav://far/sub dav://t/a.txt;"
+                  " rdav_copyplan copy dav://far/sub dav://t/a.txt"
+                  % (tree("build/mods/console.so"), tree("programs/desktop/desktop.hibr"), p, ST, ST),
                   env={"XDG_CACHE_HOME": CACHE})
-    check("between two servers a file and a folder go through a copy here, and the "
-          "batch says only how it went",
-          out == "1\n0\na.txt\n\n0\n1\n\nt already has a sub\n" and
+    check("between two servers a file comes through a copy here, reported as `copy run` "
+          "does, and the plan then sees it there",
+          out == "g dav://t/a.txt\nok dav://t/a.txt\tdav://far/sub/a.txt\nc dav://t/a.txt\n" and
           server("sub/a.txt") == "their change\n", out + err)
+
+    # The copy window (the owner, copying from a NAS: "no window popped up
+    # showing the progress"). A server paced by --rate, so a transfer is
+    # still going when the window is read.
+    BIG = b"0123456789abcdef" * 65536
+    open(os.path.join(ROOT, "big.bin"), "wb").write(BIG)
+    open(os.path.join(LOCAL, "bigup.bin"), "wb").write(BIG)
+    ps = serve("--rate", "300")
+    hb("dav server set slow http://127.0.0.1:%d/" % ps)
+
+    def right(text):
+        """A click on text in the window on the right, when both show it."""
+        def f(sc):
+            for r in range(sc.rows):
+                c = sc.row(r).find(text, 48)
+                if c >= 0:
+                    return [press(r, c + 1), release(r, c + 1)]
+            return []
+        return f
+
+    def sizes(sc):
+        """The two sizes of the window's 'X of Y' line."""
+        for r in range(sc.rows):
+            m = re.search(r"([0-9.]+ \w+) of ([0-9.]+ \w+)", sc.row(r))
+            if m:
+                return m.group(1), m.group(2)
+        return None
+
+    def sent(sc):
+        s = sizes(sc)
+        return s is not None and s[0] not in ("0 bytes",) and sc.find("Copying to") is not None
+
+    down = lambda: 'dt_new "Files" 12 44 2 2 files "dav://slow"\n' \
+                   'dt_new "Files" 12 44 2 50 files "%s"' % LOCAL
+    shots = drun(down(), [
+        ([], "big.bin"),
+        (click("big.bin"), None),
+        ([b"\x1bc"], None),
+        (click("up.txt"), None),
+        ([b"\x1bv"], sent),
+        (click("Stop"), lambda sc: sc.find("Copying to") is None and
+         sc.find("Preparing") is None),
+    ])
+    check("copying from a server opens the copy window, with bytes moving inside one file",
+          sent(shots[4]) and sizes(shots[4])[1] == "1.0 MB", shots[4])
+    check("and Stop ends it with nothing left behind",
+          not [n for n in os.listdir(LOCAL) if n.startswith("big") and n != "bigup.bin"],
+          os.listdir(LOCAL))
+
+    shots = drun('dt_new "Files" 12 44 2 2 files "%s"\n'
+                 'dt_new "Files" 12 44 2 50 files "dav://slow/sub"' % LOCAL, [
+        ([], "b c.txt"),
+        (click("bigup.bin"), None),
+        ([b"\x1bc"], None),
+        (right("b c.txt"), None),
+        ([b"\x1bv"], sent),
+        (click("Stop"), lambda sc: sc.find("Copying to") is None),
+    ])
+    check("uploading shows its bytes too", sent(shots[4]), shots[4])
+    check("and a stopped upload leaves nothing on the server, not even under a hidden name",
+          not [n for n in os.listdir(os.path.join(ROOT, "sub")) if "bigup" in n],
+          os.listdir(os.path.join(ROOT, "sub")))
+
+    open(os.path.join(LOCAL, "a.txt"), "w").write("mine\n")
+    shots = drun('dt_new "Files" 12 44 2 2 files "dav://t"\n'
+                 'dt_new "Files" 12 44 2 50 files "%s"' % LOCAL, [
+        ([], "a.txt"),
+        (click("a.txt"), None),
+        ([b"\x1bc"], None),
+        (click("up.txt"), None),
+        ([b"\x1bv"], "already exists"),
+        (click("Skip"), lambda sc: sc.find("already exists") is None),
+    ])
+    check("a name already here is asked about before anything moves, and goes to the trash",
+          shots[4].find("goes to the trash") is not None, shots[4])
+    check("and Skip leaves it", open(os.path.join(LOCAL, "a.txt")).read() == "mine\n",
+          shots[5])
+
+    shots = drun('dt_new "Files" 12 44 2 2 files "%s"\n'
+                 'dt_new "Files" 12 44 2 50 files "dav://t"' % LOCAL, [
+        ([], "sub"),
+        (click("a.txt"), None),
+        ([b"\x1bc"], None),
+        (click("sub"), None),
+        ([b"\x1bv"], "already exists"),
+        (click("Replace \u2584"), lambda sc: server("a.txt") == "mine\n"),
+    ])
+    check("on a server there is no trash, and the question says so",
+          shots[4].find("cannot be put back") is not None, shots[4])
+    check("and Replace writes over it", server("a.txt") == "mine\n", shots[5])
+
+    shots = drun('dt_new "Files" 12 44 2 2 files "dav://t"\n'
+                 'dt_new "Files" 12 44 2 50 files "%s"' % LOCAL, [
+        ([], "sub"),
+        (click("sub"), None),
+        ([b"\x1bc"], None),
+        (click("up.txt"), None),
+        ([b"\x1bv"], lambda sc: os.path.exists(os.path.join(LOCAL, "sub", "b c.txt"))),
+    ])
+    check("a folder comes down with everything in it",
+          open(os.path.join(LOCAL, "sub", "b c.txt")).read() == "x y\n", shots[-1])
 
 finally:
     for s in SERVERS:
@@ -355,4 +459,4 @@ finally:
         s.wait()
     shutil.rmtree(D, True)
 
-report(31)
+report(40)

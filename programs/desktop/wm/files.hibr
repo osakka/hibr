@@ -67,46 +67,6 @@ fn dt_ondrop(int mr, int mc, mods) {
 	return 0
 }
 
-# Move or copy one path into a folder: 0 done, 1 refused with the reason in
-# DT_WHY, 2 nothing to do.  Nothing is ever put over something already
-# there, and a folder cannot go inside itself.
-fn dt_fileop1(op, src, dst) {
-	local base dir
-
-	base=${src##*/}
-	if ! [ -e "$src" ] && ! [ -L "$src" ]; then
-		DT_WHY="$base is not there any more"
-		return 1
-	fi
-	if ! [ -d "$dst" ]; then
-		DT_WHY="${dst##*/} is not a folder"
-		return 1
-	fi
-	dir=${src%/*}
-	[ -z "$dir" ] && dir=/
-	[ "$op" = move ] && [ "$dir" = "$dst" ] && return 2
-	case "$dst/" in
-	"$src/"*)
-		DT_WHY="$base cannot go inside itself"
-		return 1
-		;;
-	esac
-	if [ -e "$dst/$base" ] || [ -L "$dst/$base" ]; then
-		DT_WHY="${dst##*/} already has a $base"
-		return 1
-	fi
-	if [ "$op" = copy ]; then
-		command cp -R -- "$src" "$dst/" 2>> "$DT_LOG"
-	else
-		command mv -- "$src" "$dst/" 2>> "$DT_LOG"
-	fi
-	if [ $? != 0 ]; then
-		DT_WHY="Could not $op $base"
-		return 1
-	fi
-	return 0
-}
-
 # Say how a batch went: what was done, and the first thing refused. detail
 # (optional) is appended to the done>1 note only -- "to $dst" or "to the
 # trash" -- so the caller has one note to fire for that case, not two: a

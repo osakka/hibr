@@ -35,8 +35,8 @@ address it begins with.
 |---|---|
 | `dav ls LOC` | what a folder holds, a line each: `d` or `f`, size, modified (seconds since the epoch), name; with `:=` a map per entry |
 | `dav stat LOC` | one file or folder, the same fields; with `:=` one map |
-| `dav get [-r] LOC [DEST\|-]` | download, to a file named after it unless told; `-` is standard output; `-r` a folder and everything in it |
-| `dav put [-r] [-m ETAG] [-n] [-t TYPE] PATH LOC` | upload; a location ending in `/` keeps the file's name; `-m` only if the file still has that ETag, `-n` only if nothing is there; `-t` the content type, else `text/calendar` for `.ics`, `text/vcard` for `.vcf`, octets otherwise; the new ETag is the result |
+| `dav get [-r] [-p FILE] [-k FILE] LOC [DEST\|-]` | download, to a file named after it unless told; `-` is standard output; `-r` a folder and everything in it. `-p` and `-k`, for one file: see below |
+| `dav put [-r] [-m ETAG] [-n] [-t TYPE] [-p FILE] [-k FILE] PATH LOC` | upload; a location ending in `/` keeps the file's name; `-m` only if the file still has that ETag, `-n` only if nothing is there; `-t` the content type, else `text/calendar` for `.ics`, `text/vcard` for `.vcf`, octets otherwise; the new ETag is the result |
 | `dav mkdir LOC`, `dav rm [-m ETAG] LOC` | make a folder, remove a file or folder -- with `-m`, only if it still has that ETag |
 | `dav propfind [-d 0\|1] LOC PROP...` | the named properties of a location, and with `-d 1` of what it holds: a line each of href, status, name and value, or with `:=` a map per entry, `r[i]["href"]`, `["status"]`, `["props"][name]` |
 | `dav report [-d N] LOC -b BODY \| -f FILE` | a REPORT with a body of the script's making -- CalDAV's calendar-query and calendar-multiget, CardDAV's addressbook-query and multiget -- answered in the same maps |
@@ -52,6 +52,15 @@ address it begins with.
 `$DAV_CODE` holds the last HTTP status (0 when nothing answered), so a
 script can tell a conflict (412) from a missing file (404) from a refused
 login (401) without reading the message.
+
+
+`-p FILE` keeps how many bytes of this file have moved in FILE, replaced whole
+about ten times a second, and `-k FILE` ends the transfer once FILE exists,
+with status 1 and no half file where the whole one should be. A process
+beside the transfer does both: it shares the file's position with the
+transfer, which is how it knows, and the transfer waits for it when it ends.
+That is what lets the copy window move its bar inside one large file, and
+what its Stop means, without the fetch interface changing.
 
 ## Properties, reports and sync
 

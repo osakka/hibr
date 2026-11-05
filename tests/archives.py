@@ -16,7 +16,7 @@ from screen import Term, check, report, tree, load, press, release, expect
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
 
-PLAN = 75
+PLAN = 76
 D = tempfile.mkdtemp(prefix="hibr-arc-")
 W = os.path.join(D, "work")
 CACHE = os.path.join(D, "cache")
@@ -191,6 +191,8 @@ mk("demo.zip", "proj")
 body = ('dt_fileop copy "%s" "archive://%s/demo.tar.gz/proj/README.md" '
         '"archive://%s/demo.tar.gz/proj/sub"\n' % (W, W, W))
 t = session(files() + "\n" + body)
+sc = t.until("Copied to", tries=150)
+check("copying out of an archive opens the copy window", sc.find("Copied to") is not None, sc)
 waitfor(lambda: "README.md" in ls() and "sub" in ls())
 sc = t.until("README.md")
 check("a member and a folder copy out of an archive, and the window shows them",
@@ -198,10 +200,11 @@ check("a member and a folder copy out of an archive, and the window shows them",
       ls("sub") == ["note one.txt"] and sc.find("README.md") is not None, ls())
 t.quit(None, 0.3)
 t = session(files() + "\n" + body.replace("demo.tar.gz", "demo.zip"))
-waitfor(lambda: "README.md 2" in ls())
+sc = t.until("already exists", tries=150)
+check("and a name already there is asked about, in the copy window",
+      sc.find("Replace") is not None and sc.find("goes to the trash") is not None, sc)
+t.keys([b"\x1b"], settle=0.3)
 t.quit(None, 0.3)
-check("and a name already taken gets a 2 rather than being overwritten",
-      "README.md 2" in ls() and "sub 2" in ls(), ls())
 check("with nothing hidden left behind",
       not [n for n in ls() if n.startswith(".")], ls())
 

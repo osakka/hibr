@@ -109,10 +109,29 @@ class H(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if self.command != "HEAD":
-                self.wfile.write(body)
+                self.paced(body)
+
+    def paced(self, body):
+        """Send a body, at --rate kilobytes a second where one is set."""
+        if not A.rate:
+            self.wfile.write(body)
+            return
+        for i in range(0, len(body), 16384):
+            self.wfile.write(body[i:i + 16384])
+            self.wfile.flush()
+            time.sleep(16.0 / A.rate)
 
     def body(self):
         n = int(self.headers.get("Content-Length") or 0)
+        if n and A.rate:
+            out = b""
+            while len(out) < n:
+                part = self.rfile.read(min(16384, n - len(out)))
+                if not part:
+                    break
+                out += part
+                time.sleep(16.0 / A.rate)
+            return out
         return self.rfile.read(n) if n else b""
 
     def authed(self):
@@ -540,6 +559,7 @@ def main():
     ap.add_argument("--absolute", action="store_true")
     ap.add_argument("--noetag", action="store_true")
     ap.add_argument("--idle", type=float, default=0)
+    ap.add_argument("--rate", type=int, default=0)
     ap.add_argument("--stale", type=int, default=0)
     ap.add_argument("--evil", action="store_true")
     ap.add_argument("--log")

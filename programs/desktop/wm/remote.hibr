@@ -142,12 +142,6 @@ fn rdav_delete(...rest) {
 	dt_davdelete "$@"
 }
 
-# Move or copy where either end is on a server.
-fn rdav_fileop(op, dst, ...rest) {
-	shift 2
-	dt_davop "$op" "$dst" "$@"
-}
-
 command -v dt_location > /dev/null && dt_location dav rdav
 
 # The server a location is on: dav://NAME/x gives NAME.
@@ -228,157 +222,224 @@ dt_remotepoll() {
 
 # --- moving and copying ---------------------------------------------------
 
-# Move or copy one thing into a folder when either end is on a server: 0
-# done, 1 refused with the reason in DT_WHY, 2 nothing to do. Run inside a
-# job. Nothing is put over something already there, as for local files.
-fn dt_davone(op, src, dst) {
-	local base t dir e=$DR_JOBS/one.$BASHPID.err tmp isdir=0 s sn= dn=
-
-	base=${src%/}
-	base=${base##*/}
-	t="$dst/$base"
-	dir=${src%/*}
-	[ "$op" = move ] && [ "$dir" = "$dst" ] && return 2
-	if ! dt_isremote "$src" && ! dt_isremote "$dst"; then
-		dt_fileop1 "$op" "$src" "$dst"
-		return
-	fi
-	if dt_isremote "$src"; then
-		if ! s := dav stat "$src" 2> "$e"; then
-			dt_davwhy "$e"
-			return 1
-		fi
-		isdir=${s["dir"]}
-	elif ! [ -e "$src" ] && ! [ -L "$src" ]; then
-		DT_WHY="$base is not there any more"
-		return 1
-	else
-		[ -d "$src" ] && isdir=1
-	fi
-	if dt_isremote "$dst"; then
-		if dav stat "$t" > /dev/null 2>&1; then
-			DT_WHY="${dst##*/} already has a $base"
-			return 1
-		fi
-	elif [ -e "$t" ] || [ -L "$t" ]; then
-		DT_WHY="${dst##*/} already has a $base"
-		return 1
-	fi
-	if dt_isremote "$src" && dt_isremote "$dst"; then
-		case "$t/" in
-		"$src/"*)
-			DT_WHY="$base cannot go inside itself"
-			return 1
-			;;
-		esac
-		sn := dt_davname "$src"
-		dn := dt_davname "$dst"
-	fi
-	if [ -n "$sn" ] && [ "$sn" = "$dn" ]; then
-		if [ "$op" = move ]; then
-			dav mv "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
-		else
-			dav cp "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
-		fi
-		return 0
-	fi
-	if dt_isremote "$src" && dt_isremote "$dst"; then
-		tmp="$DT_DAVCACHE/.jobs/x.$BASHPID.$RANDOM"
-		if [ "$isdir" = 1 ]; then
-			dav get -r "$src" "$tmp" 2> "$e" &&
-				dav put -r "$tmp" "$t" 2>> "$e"
-		else
-			dav get "$src" "$tmp" 2> "$e" &&
-				dav put -n "$tmp" "$t" > /dev/null 2>> "$e"
-		fi
-		s=$?
-		command rm -rf -- "$tmp"
-		[ "$s" = 0 ] || { dt_davwhy "$e"; return 1; }
-	elif dt_isremote "$dst"; then
-		if [ "$isdir" = 1 ]; then
-			dav put -r "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
-		else
-			dav put -n "$src" "$t" > /dev/null 2> "$e" ||
-				{ dt_davwhy "$e"; return 1; }
-		fi
-	else
-		if [ "$isdir" = 1 ]; then
-			dav get -r "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
-		else
-			dav get "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
-		fi
-	fi
-	[ "$op" = move ] || return 0
-	if dt_isremote "$src"; then
-		dav rm "$src" 2> "$e" || { dt_davwhy "$e"; DT_WHY="Copied $base, but could not remove it: $DT_WHY"; return 1; }
-	else
-		command rm -rf -- "$src" 2> /dev/null ||
-			{ DT_WHY="Copied $base, but could not remove it"; return 1; }
-	fi
-	return 0
-}
-
-# A job's body: move or copy each path, then say how it went on standard
-# output -- the count done and refused, the last name, the first reason.
-fn dt_davbatch(op, dst, ...rest) {
-	local src n=0 bad=0 why= last=
+# What of a copy can go, and what is there already: the copy window's plan.
+fn rdav_copyplan(op, dst, ...rest) {
+	local src base t dir e=$DR_JOBS/plan.$BASHPID.err
 
 	shift 2
 	for src in "$@"; do
-		dt_davone "$op" "$src" "$dst"
-		case $? in
-		0) n=$((n + 1)); last=${src%/}; last=${last##*/} ;;
-		1) bad=$((bad + 1)); [ -z "$why" ] && why=$DT_WHY ;;
+		base=${src%/}
+		base=${base##*/}
+		t="$dst/$base"
+		dir=${src%/*}
+		[ "$op" = move ] && [ "$dir" = "$dst" ] && continue
+		if dt_isremote "$src"; then
+			if ! dav stat "$src" > /dev/null 2> "$e"; then
+				dt_davwhy "$e"
+				printf 'e %s\t%s\n' "$src" "$DT_WHY"
+				continue
+			fi
+		elif ! [ -e "$src" ] && ! [ -L "$src" ]; then
+			printf 'e %s\t%s is not there any more\n' "$src" "$base"
+			continue
+		fi
+		case "$t/" in
+		"$src/"*)
+			printf 'e %s\t%s cannot go inside itself\n' "$src" "$base"
+			continue
+			;;
 		esac
+		if dt_isremote "$dst"; then
+			if dav stat "$t" > /dev/null 2>&1; then
+				printf 'c %s\n' "$src"
+				continue
+			fi
+		elif [ -e "$t" ] || [ -L "$t" ]; then
+			printf 'c %s\n' "$src"
+			continue
+		fi
+		printf 'g %s\n' "$src"
 	done
-	printf '%s\n%s\n%s\n%s\n' "$n" "$bad" "$last" "$why"
-}
-
-# Move or copy paths into a folder when either end is on a server: a job,
-# told about when it ends. dt_fileop sends anything remote here.
-fn dt_davop(op, dst, ...rest) {
-	local n src what=Moving
-
-	shift 2
-	[ "$op" = copy ] && what=Copying
-	if ! n := dt_davjob "$what" dt_davopdone dt_davbatch "$op" "$dst" "$@"; then
-		dt_notep high "$DT_WHY"
-		return 1
-	fi
-	DTJ[$n]["op"]=$op
-	DTJ[$n]["dst"]=$dst
-	src=${1%/}
-	if [ "$#" = 1 ]; then
-		dt_notep low "%s %s${GL[ellipsis]}" "$what" "${src##*/}"
-	else
-		dt_notep low "%s %s items${GL[ellipsis]}" "$what" "$#"
-	fi
 	return 0
 }
 
-# A move or copy has finished: say how it went, once, and show it.
-fn dt_davopdone(int n, int st) {
-	local -a l
-	local o
-	local done=0 bad=1 last= why what=Moved dst
+declare -gA DRC
+DRC_N=0
+DRC_TOTAL=0
 
-	dst=${DTJ[$n]["dst"]}
-	[ "${DTJ[$n]["op"]}" = copy ] && what=Copied
-	why=$DT_WHY
-	o := dt_jobfile "$n"
-	if [ -s "$o" ]; then
-		mapfile -t l < "$o"
-		done=${l[0]:-0}
-		bad=${l[1]:-0}
-		last=${l[2]}
-		[ -n "${l[3]}" ] && why=${l[3]}
+# Everything under one source, into DRC: each file's path and where it goes,
+# each folder as one to make, and the bytes to move.
+fn dt_davwalk(src, t) {
+	local s k p
+	local -A m
+
+	if dt_isremote "$src"; then
+		s := dav stat "$src" || return 1
+		if [ "${s["dir"]}" != 1 ]; then
+			dt_davwalked "$src" "$t" f "${s["size"]:-0}"
+			return 0
+		fi
+		dt_davwalked "$src" "$t" d 0
+		m := dav ls "$src" || return 1
+		for k in "${!m[@]}"; do
+			[ -n "${m[$k]["name"]}" ] || continue
+			dt_davwalk "$src/${m[$k]["name"]}" "$t/${m[$k]["name"]}" || return 1
+		done
+		return 0
 	fi
-	if [ "$done" = 1 ]; then
-		dt_tally 1 "$bad" "$what" "$last to ${dst##*/}" "$why"
+	if [ -d "$src" ] && [ ! -L "$src" ]; then
+		dt_davwalked "$src" "$t" d 0
+		for p in "$src"/* "$src"/.*; do
+			k=${p##*/}
+			[ "$k" = . ] || [ "$k" = .. ] && continue
+			[ -e "$p" ] || continue
+			dt_davwalk "$p" "$t/$k" || return 1
+		done
+		return 0
+	fi
+	s=$(wc -c < "$src") || return 1
+	dt_davwalked "$src" "$t" f "${s// /}"
+}
+
+fn dt_davwalked(src, t, k, int size) {
+	DRC[$DRC_N]["src"]=$src
+	DRC[$DRC_N]["t"]=$t
+	DRC[$DRC_N]["k"]=$k
+	DRC[$DRC_N]["size"]=$size
+	DRC_N=$((DRC_N + 1))
+	DRC_TOTAL=$((DRC_TOTAL + size))
+}
+
+# Replace the copy window's status line whole.
+fn dt_davstat(st, kind, done, total, idone, items, name = "") {
+	printf '%s %s %s %s %s %s\n' "$kind" "$done" "$total" "$idone" "$items" "$name" > "$st.new"
+	command mv -f -- "$st.new" "$st"
+}
+
+# One file from src to t, watched: through a hidden name on a server, as a
+# download already goes through its .part, so a stop leaves nothing whole
+# looking. Between two servers it comes through a copy here.
+fn dt_davmove1(st, stop, src, t, e) {
+	local tmp dir base hid rc
+
+	if dt_isremote "$src" && dt_isremote "$t"; then
+		tmp="$DR_JOBS/x.$BASHPID.$RANDOM"
+		dav get -p "$st.p" -k "$stop" "$src" "$tmp" 2> "$e" || return 1
+		dt_davmove1 "$st" "$stop" "$tmp" "$t" "$e"
+		rc=$?
+		command rm -f -- "$tmp"
+		return "$rc"
+	fi
+	if dt_isremote "$src"; then
+		dav get -p "$st.p" -k "$stop" "$src" "$t" 2> "$e"
+		return
+	fi
+	dir=${t%/*}
+	base=${t##*/}
+	hid="$dir/.$base.hibr-part"
+	if ! dav put -p "$st.p" -k "$stop" "$src" "$hid" > /dev/null 2> "$e"; then
+		dav rm "$hid" > /dev/null 2>&1
+		return 1
+	fi
+	dav mv "$hid" "$t" 2> "$e"
+}
+
+# Make a folder wherever t is.
+fn dt_davmkdir(t, e) {
+	if dt_isremote "$t"; then
+		dav mkdir "$t" 2> "$e"
 	else
-		dt_tally "$done" "$bad" "$what" "" "$why" "to ${dst##*/}"
+		command mkdir -p -- "$t" 2> "$e"
 	fi
-	dt_changed
+}
+
+# A job's body: move or copy each source into a folder where either end is
+# on a server, as `copy run` does it for the copy window. A move or copy
+# within one server is the server's own, and costs nothing here.
+fn rdav_copyrun(st, stop, rp, op, dst, ...rest) {
+	local src base t e=$DR_JOBS/one.$BASHPID.err sn dn i first ok done=0 idone=0
+	local -a from
+
+	shift 5
+	dt_davstat "$st" scan 0 0 0 0
+	DRC_N=0 DRC_TOTAL=0
+	for src in "$@"; do
+		base=${src%/}
+		base=${base##*/}
+		t="$dst/$base"
+		sn=
+		dn=
+		dt_isremote "$src" && sn := dt_davname "$src"
+		dt_isremote "$dst" && dn := dt_davname "$dst"
+		from+=("$DRC_N")
+		if [ -n "$sn" ] && [ "$sn" = "$dn" ]; then
+			dt_davwalked "$src" "$t" s 0
+		elif ! dt_davwalk "$src" "$t" 2> "$e"; then
+			dt_davwhy "$e"
+			printf 'err %s\t%s\n' "$src" "$DT_WHY"
+		fi
+		dt_davstat "$st" scan 0 "$DRC_TOTAL" 0 "$DRC_N"
+	done
+	from+=("$DRC_N")
+	first=0
+	for src in "$@"; do
+		base=${src%/}
+		base=${base##*/}
+		t="$dst/$base"
+		ok=1
+		case $'\n'"$rp" in
+		*$'\n'"$base"$'\n'*)
+			dt_isremote "$t" && dav rm "$t" > /dev/null 2>&1
+			;;
+		esac
+		for ((i = ${from[$first]}; i < ${from[$((first + 1))]}; i++)); do
+			if [ -e "$stop" ]; then
+				printf 'stopped\n'
+				return 0
+			fi
+			dt_davstat "$st" copy "$done" "$DRC_TOTAL" "$idone" "$DRC_N" "${DRC[$i]["t"]##*/}"
+			case ${DRC[$i]["k"]} in
+			s)
+				if [ "$op" = move ]; then
+					dav mv "${DRC[$i]["src"]}" "${DRC[$i]["t"]}" 2> "$e" || ok=0
+				else
+					dav cp "${DRC[$i]["src"]}" "${DRC[$i]["t"]}" 2> "$e" || ok=0
+				fi
+				;;
+			d) dt_davmkdir "${DRC[$i]["t"]}" "$e" || ok=0 ;;
+			f) dt_davmove1 "$st" "$stop" "${DRC[$i]["src"]}" "${DRC[$i]["t"]}" "$e" || ok=0 ;;
+			esac
+			command rm -f -- "$st.p"
+			if [ -e "$stop" ]; then
+				printf 'stopped\n'
+				return 0
+			fi
+			[ "$ok" = 1 ] || break
+			done=$((done + ${DRC[$i]["size"]}))
+			idone=$((idone + 1))
+		done
+		first=$((first + 1))
+		if [ "$ok" != 1 ]; then
+			dt_davwhy "$e"
+			printf 'err %s\t%s\n' "$src" "$DT_WHY"
+			continue
+		fi
+		if [ "$op" = move ] && [ "${DRC[${from[$((first - 1))]}]["k"]}" != s ]; then
+			if dt_isremote "$src"; then
+				if ! dav rm "$src" 2> "$e"; then
+					dt_davwhy "$e"
+					printf 'err %s\tCopied %s, but could not remove it: %s\n' "$src" "$base" "$DT_WHY"
+					continue
+				fi
+			elif ! command rm -rf -- "$src" 2> /dev/null; then
+				printf 'err %s\tCopied %s, but could not remove it\n' "$src" "$base"
+				continue
+			fi
+		fi
+		printf 'ok %s\t%s\n' "$src" "$t"
+	done
+	dt_davstat "$st" done "$DRC_TOTAL" "$DRC_TOTAL" "$DRC_N" "$DRC_N"
+	return 0
 }
 
 # A job's body: remove each location from its server.

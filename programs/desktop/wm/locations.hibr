@@ -36,7 +36,12 @@
 #                    shown at all, which an opener asks
 #   _open PATH [APP] open a file there, as a copy here
 #   _mkdir PATH, _mv OLD NEW, _delete PATH...  DT_WHY on failure
-#   _fileop OP DST SRC...  move or copy where either end is in it
+#   _copyplan OP DST SRC...  a job: what of SRC can go to DST, printed as
+#                    `g PATH`, `c PATH` for what is already there, or `e PATH`
+#                    TAB WHY for what cannot
+#   _copyrun STATUS STOP REPLACE OP DST SRC...  a job: move or copy, reporting
+#                    as `copy run` does (wm/copying.hibr); REPLACE names what
+#                    may be written over, a name a line
 #
 # A location that cannot write leaves those out and says no to _can, and Files
 # then dims the rows that would: nothing is decided by a scheme's name.

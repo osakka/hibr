@@ -26,8 +26,8 @@ scheme.
 `_ls DIR` (a map of name, dir, size, mtime, and etag and type where it has
 them -- the shape `dav ls` already had; `archive ls` gives `kind` where
 this wants `dir`, so a location over it translates), `_ok`, `_norm`,
-`_top`, `_title`, `_can OP`, `_open`, `_mkdir`, `_mv`, `_delete` and
-`_fileop`. A file is opened by the location fetching a copy and opening
+`_top`, `_title`, `_can OP`, `_open`, `_mkdir`, `_mv`, `_delete`,
+`_copyplan` and `_copyrun` (`_fileop` until 0.99.442). A file is opened by the location fetching a copy and opening
 that, because no program can read a scheme.
 
 **What a location cannot do is asked, never inferred from its name.**
@@ -58,6 +58,13 @@ stand-in server, passes unedited. The Servers menu stays WebDAV's own.
   otherwise keep it alive until a restart. Listing went into a job, since
   a big compressed archive takes seconds to read: `_ls` answers empty until
   the index exists, and `fb_relist` then tells the windows showing it.
+- Copies moved into the copy window in 0.99.442, after one from a NAS ran
+  for minutes with nothing on screen. `_fileop` did the whole thing itself
+  and could only leave a note, so it became a plan and a run: a job that says
+  what is already there, since that may mean asking a server, and a job that
+  reports as `copy run` does. What a location replaces has no trash to go
+  to, so the window's question says it cannot be put back, and nothing a
+  location does goes in Undo.
 - A terminal still cannot start in a location, and a folder in one opens in
   the same window: Files keeps those two rules itself, since no location
   could honour them.

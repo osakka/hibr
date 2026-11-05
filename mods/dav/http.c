@@ -350,6 +350,7 @@ int dv_do(sh *s, dv_req *rq, dv_res *rs)
 	fq.onhead = dv_onhead;
 	fq.ondata = dv_ondata;
 	fq.ctx = &k;
+	fq.cancel = rq->stop;
 	lg(HIBR_LDBG, "dav: %s %s", rq->method, rq->loc);
 	rc = api->fetch(s, &fq, &fr);
 	rs->code = fr.code;

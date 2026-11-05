@@ -845,7 +845,8 @@ registered, so removing it takes the location with it at once.
 | `_can OP [PATH]` | `write`, `mkdir`, `rename`, `delete`, `open`: status 0 for yes; `leave`, whether its top has a parent on this machine, which `..` goes to; `browse`, whether PATH can be shown at all, which a browse opener asks |
 | `_open PATH [APP]` | open a file: fetch a copy here and open that, since no program reads a scheme |
 | `_mkdir PATH`, `_mv OLD NEW`, `_delete PATH...` | `DT_WHY` on failure |
-| `_fileop OP DST SRC...` | move or copy where either end is in it |
+| `_copyplan OP DST SRC...` | run as a job when a copy starts: print `g PATH` for what can go, `c PATH` for what is already at DST, `e PATH`, a tab and why for what cannot. The copy window asks about the `c`s |
+| `_copyrun STATUS STOP REPLACE OP DST SRC...` | run as a job to do it, reporting as `copy run` does: the one line in STATUS, `ok SRC`, tab, `DST`, or `err SRC`, tab, why, on standard output, and `stopped` once STOP exists. REPLACE names what may be written over, a name a line. Bytes moved in the file in hand can go in STATUS`.p`, added to the line's own count, so a transfer that blocks can still move the bar |
 
 Return a map from `_ls` the way a function returns anything: let the
 builtin that lists fill the slot with `:=` and end with `ret -k`, as

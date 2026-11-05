@@ -56,6 +56,7 @@ struct dv_req {
 	off_t bflen;
 	int out;
 	int follow;
+	volatile int *stop;
 };
 
 /* A reply: the status, the headers kept, and the body when not streamed. */
