@@ -79,6 +79,9 @@ void hd_sizepx(int *sz)
    the given row/col offset into the session's own virtual space -- 0,0
    unless this client is one of several placed side by side.  Returns 0
    after a detach, or the program's own status when it ended. */
+/* Why the last attach ended, for HOLD_WHY: `ended` when the session did. */
+str hd_endwhy;
+
 int hd_attach(const char *name, const char *path, int multi, int row,
 	      int col, const char *dname)
 {
@@ -150,6 +153,8 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	/* Before the pixel size, which is what makes the server work out the
 	   union and nudge the program: by then it knows what this display
 	   can be sent. */
+	if (tc.blit >= 0)
+		hd_send(s, HD_BLIT, (const char *)&tc.blit, sizeof tc.blit);
 	hd_send(s, HD_GFX, (const char *)&gx, sizeof gx);
 	if (kbd) {
 		int one = 1;
@@ -323,6 +328,8 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 			fprintf(stderr, "[%s: %s -- hold attach %s]\n", name,
 				why, name);
 	}
+	hd_endwhy.n = 0;
+	s_cat(&hd_endwhy, ended ? "ended" : why);
 	s_free(&rb);
 	s_free(&in);
 	return ended ? st : 0;

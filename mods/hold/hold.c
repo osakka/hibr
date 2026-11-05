@@ -278,6 +278,52 @@ int hd_gfxlist(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* Which displays are Blit, name and yes, no or unknown a line (Gitea #476).
+   A server too old to answer fails quietly. */
+int hd_blitlist(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok;
+
+	s_init(&path);
+	if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_ask(path.p, HD_BLITLIST, &r);
+	s_free(&path);
+	if (!ok) {
+		s_free(&r);
+		return HIBR_FAIL;
+	}
+	hd_ret(s, r.p ? r.p : "");
+	s_free(&r);
+	return HIBR_OK;
+}
+
+/* Tell a session what a display that is not Blit gets for Blit's glyphs. */
+int hd_substcmd(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok;
+
+	if (ac < 3) {
+		lg(HIBR_LERR, "usage: hold subst TABLE [session]");
+		return 2;
+	}
+	s_init(&path);
+	if (!hd_which(ac > 3 ? av[3] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_askp(path.p, HD_SUBST, av[2], strlen(av[2]), &r);
+	s_free(&path);
+	s_free(&r);
+	return ok ? HIBR_OK : HIBR_FAIL;
+}
+
 /* What each display's own terminal said about reporting the mouse in
    pixels, name and yes or no a line (Gitea #370). A server too old to
    answer fails quietly, which a caller reads as no display that does. */
@@ -696,6 +742,10 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_clients(s, ac, av);
 	if (!strcmp(sub, "gfx"))
 		return hd_gfxlist(s, ac, av);
+	if (!strcmp(sub, "blit"))
+		return hd_blitlist(s, ac, av);
+	if (!strcmp(sub, "subst"))
+		return hd_substcmd(s, ac, av);
 	if (!strcmp(sub, "pixels"))
 		return hd_pixlist(s, ac, av);
 	if (!strcmp(sub, "pointers"))
@@ -751,6 +801,7 @@ int m_hold(sh *s, int ac, char **av)
 			col = atoi(av[ai + 1]);
 		}
 		r = hd_attach(nm, path.p, multi, row, col, dname);
+		hibr_set(s, "HOLD_WHY", hd_endwhy.p ? hd_endwhy.p : "", 0);
 		s_free(&path);
 		return r;
 	}

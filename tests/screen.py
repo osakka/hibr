@@ -721,7 +721,9 @@ class Term:
                 # "hterm" an old one that ignores a rectangle copy, "hcopy"
                 # one that applies it (Gitea #337). A real terminal's answer
                 # names itself, so the rest answer nothing.
-                if self.caps is not None and "hcopy" in self.caps:
+                if self.caps is not None and "blit" in self.caps:
+                    os.write(self.fd, b"\x1bP>|Blit(0.3.44)\x1b\\")
+                elif self.caps is not None and "hcopy" in self.caps:
                     os.write(self.fd, b"\x1bP>|hibr-term 0.25 deccra\x1b\\")
                 elif self.caps is not None and "hterm" in self.caps:
                     os.write(self.fd, b"\x1bP>|hibr-term 0.24\x1b\\")

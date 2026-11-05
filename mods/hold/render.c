@@ -24,6 +24,82 @@ void hd_sgr(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul)
 	gx_sgr(b, fg, bg, at, ul, hd_cdep);
 }
 
+/* What a display that is not Blit gets for Blit's glyphs: the desktop's table,
+   sorted by code point, and a hollow square for one it does not name. */
+static unsigned *hd_subk, *hd_subv;
+static size_t hd_subn;
+
+/* What to send for code point cp of Blit's private plane. */
+unsigned hd_subst(unsigned cp)
+{
+	size_t a = 0, b = hd_subn;
+
+	while (a < b) {
+		size_t m = a + (b - a) / 2;
+
+		if (hd_subk[m] == cp)
+			return hd_subv[m];
+		if (hd_subk[m] < cp)
+			a = m + 1;
+		else
+			b = m;
+	}
+	return 0x25A1;
+}
+
+/* Take the desktop's table, `CODEPOINT REPLACEMENT` a line, in hex and in
+   order of code point. */
+void hd_substset(const char *p, size_t n)
+{
+	size_t i = 0, cap = 0, k = 0;
+	unsigned *ks = 0, *vs = 0;
+
+	while (i < n) {
+		char *e;
+		unsigned long c, v;
+		str l;
+
+		s_init(&l);
+		while (i < n && p[i] != '\n')
+			s_ch(&l, p[i++]);
+		i++;
+		if (!l.n) {
+			s_free(&l);
+			continue;
+		}
+		s_ch(&l, 0);
+		c = strtoul(l.p, &e, 16);
+		v = strtoul(e, &e, 16);
+		s_free(&l);
+		if (!c || !v || (k && c <= ks[k - 1]))
+			continue;
+		if (k == cap) {
+			cap = cap ? cap * 2 : 256;
+			ks = xr(ks, cap * sizeof *ks);
+			vs = xr(vs, cap * sizeof *vs);
+		}
+		ks[k] = (unsigned)c;
+		vs[k++] = (unsigned)v;
+	}
+	free(hd_subk);
+	free(hd_subv);
+	hd_subk = ks;
+	hd_subv = vs;
+	hd_subn = k;
+	lg(HIBR_LDBG, "hold: %zu of Blit's glyphs have a plain form", k);
+}
+
+/* Forget what this client was sent, so every cell goes again. */
+void hd_cstale(struct hd_cli *cn)
+{
+	size_t i, n = (size_t)cn->rows * (size_t)cn->cols;
+
+	if (!cn->front)
+		return;
+	for (i = 0; i < n; i++)
+		cn->front[i].cp = ~0u;
+}
+
 /* From the pen the client's terminal has to this one, through gfxask's
    gx_sgrto; have says whether the client's pen is known at all. */
 void hd_sgrto(str *b, unsigned fg, unsigned bg, unsigned at, unsigned ul,
@@ -373,7 +449,7 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 void hd_render(int tid, struct hd_cli *cn, str *out)
 {
 	int r, c, lr, lc, have, cr, cc, cvis, clear, wipe = 0;
-	unsigned cp, fg, bg, at, w, lfg = 0, lbg = 0, lat = 0, lk, llk = 0;
+	unsigned cp, fg, bg, at, pa, w, lfg = 0, lbg = 0, lat = 0, lk, llk = 0;
 	unsigned ul, lul = DP_DEFAULT;
 	const char *uri;
 	struct hd_cell *f;
@@ -438,6 +514,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			if (f->cp == cp && f->fg == fg && f->bg == bg &&
 			    f->attr == at && f->link == lk && f->ul == ul)
 				continue;
+			pa = cn->blit == 2 ? at & ~(DP_FRAME | DP_SHADOW) : at;
 			/* A run of blank cells in one pen as one erase (Gitea
 			   #353): to the end of the row, or eight or more inside
 			   it -- only where the erase gives the same colour, which
@@ -465,12 +542,12 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 
 					hd_mvto(out, lr, lc, r, c, cn->cols);
 					if (!have || fg != lfg || bg != lbg ||
-					    at != lat || ul != lul) {
-						hd_sgrto(out, fg, bg, at, ul, have,
+					    pa != lat || ul != lul) {
+						hd_sgrto(out, fg, bg, pa, ul, have,
 							 lfg, lbg, lat, lul);
 						lfg = fg;
 						lbg = bg;
-						lat = at;
+						lat = pa;
 						lul = ul;
 						have = 1;
 					}
@@ -532,13 +609,13 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				}
 				s_free(&mv);
 			}
-			if (!have || fg != lfg || bg != lbg || at != lat ||
+			if (!have || fg != lfg || bg != lbg || pa != lat ||
 			    ul != lul) {
-				hd_sgrto(out, fg, bg, at, ul, have, lfg, lbg, lat,
+				hd_sgrto(out, fg, bg, pa, ul, have, lfg, lbg, lat,
 					 lul);
 				lfg = fg;
 				lbg = bg;
-				lat = at;
+				lat = pa;
 				lul = ul;
 				have = 1;
 			}
@@ -550,7 +627,8 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				s_ch(out, 7);
 				llk = lk;
 			}
-			u8put(out, cp ? cp : ' ');
+			u8put(out, cn->blit == 2 && cp >= 0x100000 ? hd_subst(cp)
+							      : cp ? cp : ' ');
 			f->cp = cp;
 			f->fg = fg;
 			f->bg = bg;
@@ -804,6 +882,11 @@ void hd_rensend1(vec *cls, struct hd_cli *cn, int tid)
 {
 	str out;
 
+	/* Nothing until it has said what it draws, which comes at once from
+	   any client that will: its first frame must already be the right
+	   one for its terminal (Gitea #476). */
+	if (cn->gfxwait)
+		return;
 	s_init(&out);
 	hd_render(tid, cn, &out);
 	cn->sent += (long long)out.n;

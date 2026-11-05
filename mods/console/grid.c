@@ -1105,7 +1105,7 @@ int cn_near(int r, int c)
 long long cn_sent;
 int cn_bce;
 int cn_rep = -1;
-gx_tcap cn_tc = { -1, -1, -1, -1 };
+gx_tcap cn_tc = { -1, -1, -1, -1, -1 };
 static int cn_dep;
 
 /* What the terminal answered by XTGETTCAP, kept, and the colour depth

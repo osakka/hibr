@@ -104,6 +104,19 @@ enum {
 	   sent the shape the program asks for, and `none` only when it said
 	   1. A server that does not know it ignores it. */
 	HD_PTR = 'h',
+	/* From a client: what XTVERSION said of its terminal, asked with the
+	   rest before it joined (Gitea #476). One int, 1 for Blit and 0 for
+	   anything else; never sent by a client whose terminal did not
+	   answer, or by one older than this, and those are sent what they
+	   always were. A server that does not know it ignores it. */
+	HD_BLIT = 'B',
+	/* Each display's answer, name and yes, no or unknown a line. Its own
+	   request for the reason HD_GFXLIST is. */
+	HD_BLITLIST = 'E',
+	/* From the desktop: what a display that is not Blit gets for each of
+	   Blit's glyphs, `CODEPOINT REPLACEMENT` a line, both in hex, the
+	   policy being the desktop's and the mechanism hold's. */
+	HD_SUBST = 'G',
 	/* Whether each display's own terminal can hide its pointer, name and
 	   yes or no a line, as HD_PTR said -- what the desktop asks before
 	   offering a window a hidden pointer. Its own request for the reason
@@ -342,6 +355,10 @@ struct hd_cli {
 	   and the flags last put on it, which hd_modes keeps in step with
 	   what the program asked for. */
 	int kbd, kset;
+	/* What its terminal is: 0 it never said, and it gets what it always
+	   did; 1 Blit; 2 not, so Blit's glyphs and SGR extensions stop here
+	   (hd_subst). Never a default read as an answer (Gitea #274). */
+	int blit;
 	/* Whether this client's terminal copies rectangles, and the last of
 	   the program's copies it has been sent or no longer needs. */
 	int copy;
@@ -412,7 +429,10 @@ unsigned hd_imgid(const char *p, size_t n);
 size_t hd_imgbase(const char *p, size_t n);
 int hd_canshow(const struct hd_cli *cn, const char *p, size_t n);
 void hd_relay(int tid);
-int hd_gfxdue(vec *cls, int m);
+int hd_gfxdue(vec *cls, int m, int tid);
+unsigned hd_subst(unsigned cp);
+void hd_substset(const char *p, size_t n);
+void hd_cstale(struct hd_cli *cn);
 /* Where a named display was when it last went (Gitea #297): in the frame
    from before any normalisation, a position less hd_shiftr/hd_shiftc,
    which no later shift moves; by the name before any #. */
@@ -470,6 +490,7 @@ int hd_selfmod(const char *name, str *out);
 int hd_resume(sh *s);
 int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 	       int l);
+extern str hd_endwhy;
 int hd_attach(const char *name, const char *path, int multi, int row,
 	      int col, const char *dname);
 

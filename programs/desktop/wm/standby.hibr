@@ -119,9 +119,11 @@ dt_sbdraw() {
 }
 
 # Join the desktop now, at the union's width, beside whoever is there; back
-# here when it lets this terminal go. Still running then means it was let
-# go on purpose -- released, until asked again; gone means it quit, and the
-# next one is waited for.
+# here when it lets this terminal go. hold attach says why it came back:
+# let go on purpose is released, until asked again; the session gone means
+# the next one is waited for. Asking `hold list` afterwards was a guess, and
+# an answer late under load read as gone, so the display rejoined.
+HOLD_WHY=
 fn dt_sbjoin(base) {
 	local line wxh cols dn at
 
@@ -135,12 +137,10 @@ fn dt_sbjoin(base) {
 	dn := dt_dispfree "$base" "$DT_SBDISP"
 	at := dt_joinat "$base" "$dn" "$cols"
 	hold attach -m -n "$dn" "$base" ${at% *} ${at#* }
-	line := dt_holdline "$base"
-	if [ -n "$line" ]; then
-		DT_SBSTATE=released
-	else
-		DT_SBSTATE=waiting
-	fi
+	case $HOLD_WHY in
+	ended | "lost the session") DT_SBSTATE=waiting ;;
+	*) DT_SBSTATE=released ;;
+	esac
 	dt_sbwrite
 	console open
 	console mouse off

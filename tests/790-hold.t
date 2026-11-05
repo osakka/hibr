@@ -35,7 +35,24 @@ L="mod load $M/pty.so; mod load $M/term.so; mod load $M/hold.so"
 seen() {
   local o
   o := pty drain "$1" "${2:-1500}"
-  printf '%s' "$o" | tr '\r' '\n' |
+  sclean "$o"
+}
+
+# What a client prints as it comes back, read until it has come: a fixed
+# window was a bet on how fast a loaded machine gets to it. Bounded, so one
+# that never comes back still fails.
+seenback() {
+  local o= p i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    p := pty drain "$1" 1500
+    o+=$p
+    [[ $o == *"back rc="* ]] && break
+  done
+  sclean "$o"
+}
+
+sclean() {
+  printf '%s' "$1" | tr '\r' '\n' |
     sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9]*;[0-9]*H/ /g;
          s/\x1b\[[0-9]*B/\n/g; s/\x1b\[[0-9]*G/ /g;
          s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
@@ -139,7 +156,7 @@ hold new -d t3 $H
 c := pty spawn $H -c "$L; hold attach t3; echo \"back rc=\$?\""
 attached t3
 hold detach t3; echo "detach: $?"
-seen $c
+seenback $c
 pty close $c
 
 echo "--- a second attach takes over from the first"

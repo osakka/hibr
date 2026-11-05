@@ -60,8 +60,10 @@ extern const char gx_ask[];
 /* What a terminal said by XTGETTCAP (Gitea #353): whether its erase paints
    the pen's background, whether it repeats a character (REP), whether it
    takes 24-bit colour (RGB or Tc), and how many colours it has -- each -1
-   while it has not said. */
-typedef struct gx_tcap { int bce, rep, rgb; long colors; } gx_tcap;
+   while it has not said. blit is 1 when XTVERSION names Blit, whose private
+   glyphs and SGR extensions no other terminal draws (Gitea #476), 0 when the
+   device attributes came with no such name, -1 when nothing answered. */
+typedef struct gx_tcap { int bce, rep, rgb; long colors; int blit; } gx_tcap;
 
 /* A DCS at the front of p, taken whole; an XTGETTCAP answer fills the
    field it is about. Returns as gx_apc does. */

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.448
+
+**A Blit desktop on a display that is not Blit** (Gitea #476). Each display
+says what it is before it joins, by XTVERSION, so this works over ssh too. One
+that is not Blit is sent plain box-drawing and text for Blit's window parts and
+icons, and none of its SGR extensions, while a Blit display on the same desktop
+keeps all of it. A display that never answered is sent what it always was. An
+icon with no plain form shows as a hollow square. `hold blit` lists the
+answers, and a new display's first frame now waits for them.
+
+- **A standby display you let go stays let go.** It asked `hold list` whether
+  the desktop was still there, and an answer late under load read as gone, so
+  it rejoined on its own. `hold attach` now says why it ended, in `HOLD_WHY`.
+
 ## 0.99.447
 
 **Blit's glyphs come from Blit** (Gitea #121). The desktop reads

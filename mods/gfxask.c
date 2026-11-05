@@ -17,7 +17,7 @@ const char gx_ask[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\"
 		       "\033_Ga=f,r=1,i=4202,x=0,y=0,s=1,v=1,f=24;AAAA\033\\\033[?u"
 		       "\033[?1016$p\033[?7701$p\033]22;?none\033\\\033P+q626365\033\\"
 		       "\033P+q726570\033\\\033P+q524742\033\\"
-		       "\033P+q636f6c6f7273\033\\\033[c";
+		       "\033P+q636f6c6f7273\033\\\033[>q\033[c";
 
 /* An APC at the front of p, and what kitty's own `OK` in it answers: 1 for
    the picture query (i=4201), 2 for the edit probe's picture (i=4202, which
@@ -163,6 +163,8 @@ int gx_dcs(const char *p, size_t n, size_t max, size_t *used, gx_tcap *tc)
 		if ((unsigned char)p[i] != 27 || p[i + 1] != '\\')
 			continue;
 		*used = i + 2;
+		if (i >= 9 && p[2] == '>' && p[3] == '|' && !strncmp(p + 4, "Blit(", 5))
+			tc->blit = 1;
 		if (i < 6 || (p[2] != '0' && p[2] != '1') || p[3] != '+' ||
 		    p[4] != 'r')
 			return 2;
@@ -515,6 +517,7 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 	*lock = 0;
 	*edit = 0;
 	tc->bce = tc->rep = tc->rgb = tc->colors = -1;
+	tc->blit = -1;
 	if (f && *f)
 		force = !strcmp(f, "kitty") ? GX_KITTY
 			: !strcmp(f, "sixel") ? GX_SIXEL : GX_NONE;
@@ -591,6 +594,8 @@ int gx_probe(int in, int out, long ms, str *rest, int *kbd, int *copy,
 		s_add(rest, b.p + off, b.n - off);
 	s_free(&b);
 	*edit = eok >= 2;
+	if (da && tc->blit < 0)
+		tc->blit = 0;
 	if (force >= 0) {
 		lg(HIBR_LDBG, "gfx: %s, as HIBR_GFX asks; asked the rest anyway",
 		   gx_name(force));

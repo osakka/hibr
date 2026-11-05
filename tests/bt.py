@@ -165,7 +165,8 @@ try:
 
     b = Bt()
     sc = srun(b, [press(0, col), release(0, col), ("wait", "8BitDo Retro Keyboard"), press(kb[0], kb[1]), release(kb[0], kb[1])],
-              until=lambda sc: (b.dev("8BitDo Retro Keyboard") or {}).get("connected"))
+              until=lambda sc: (b.dev("8BitDo Retro Keyboard") or {}).get("connected")
+              and BT + " 2" in bar(sc))
     check("a click on a known device connects it, and says so",
           b.dev("8BitDo Retro Keyboard")["connected"] and BT + " 2" in bar(sc), (bar(sc), sc))
     sc = srun(b, [press(0, col), release(0, col), ("wait", "soundcore C30i"), press(hp[0], hp[1]), release(hp[0], hp[1])],

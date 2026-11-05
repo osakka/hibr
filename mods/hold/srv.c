@@ -57,7 +57,7 @@ void hd_relay(int tid)
    from before the asking: unasked, sent what it was sent before (Gitea
    #279), and the program nudged to read the displays again. How long the
    loop may wait before the next such deadline, -1 when there is none. */
-int hd_gfxdue(vec *cls, int m)
+int hd_gfxdue(vec *cls, int m, int tid)
 {
 	size_t i;
 	long now = gx_now(), left, best = -1;
@@ -75,6 +75,8 @@ int hd_gfxdue(vec *cls, int m)
 			lg(HIBR_LDBG, "hold: %s said nothing of pictures: unasked",
 			   cn->name.p ? cn->name.p : "a client");
 			hd_poke(m);
+			hd_rensend1(cls, cn, tid);
+			i = (size_t)-1;
 			continue;
 		}
 		if (best < 0 || left < best)
@@ -667,6 +669,36 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		s_free(&o);
 		break;
 	}
+	case HD_BLITLIST: {
+		size_t ci;
+
+		s_init(&o);
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (o.n)
+				s_ch(&o, '\n');
+			s_cat(&o, cn2->name.p ? cn2->name.p : "");
+			s_cat(&o, cn2->blit == 1 ? " yes" : cn2->blit == 2 ? " no" : " unknown");
+		}
+		hd_send(c, HD_BLITLIST, o.p, o.n);
+		s_free(&o);
+		break;
+	}
+	case HD_SUBST: {
+		size_t ci;
+
+		hd_substset(in.p, in.n);
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (cn2->blit == 2)
+				hd_cstale(cn2);
+		}
+		hd_send(c, HD_SUBST, "", 0);
+		hd_poke(m);
+		break;
+	}
 	case HD_GFXLIST: {
 		size_t ci;
 
@@ -1073,7 +1105,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 		}
 		/* A render held back for an open frame wakes the loop when
 		   that frame's guard runs out, if nothing else does first. */
-		due = hd_gfxdue(&cls, m);
+		due = hd_gfxdue(&cls, m, tid);
 		if (owed && (left = hd_tm->syncleft(tid)) >= 0 &&
 		    (due < 0 || left + 1 < due))
 			due = (int)left + 1;
@@ -1185,6 +1217,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				   draws for it: send its pictures afresh
 				   and have the program read the displays
 				   again. */
+				int held = cn && cn->gfxwait;
+
 				if (cn)
 					cn->gfxwait = 0;
 				/* And is wiped again first: an answer
@@ -1198,6 +1232,16 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					cn->gfx = g;
 					cn->imgen = 0;
 					cn->kwiped = 0;
+					hd_poke(m);
+				}
+				if (held)
+					hd_rensend1(&cls, cn, tid);
+			} else if (t == HD_BLIT && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+
+				if (cn) {
+					cn->blit = *(int *)in.p ? 1 : 2;
+					hd_cstale(cn);
 					hd_poke(m);
 				}
 			} else if (t == HD_KBD && in.n == sizeof(int)) {

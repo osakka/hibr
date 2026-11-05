@@ -1024,7 +1024,7 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		gx_tcap tc;
 		int r;
 
-		tc.bce = tc.rep = tc.rgb = tc.colors = -1;
+		tc.bce = tc.rep = tc.rgb = tc.colors = tc.blit = -1;
 		r = gx_dcs(p, n, CN_OSCMAX, used, &tc);
 		if (r == 2)
 			cn_gottcap(&tc);

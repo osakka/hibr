@@ -797,6 +797,87 @@ kill(nm)
 # client whose own terminal answered the question when it attached, and on
 # no other; a super chord typed at such a client reaches the program by
 # name; and a client leaving takes the flags off its terminal again.
+# Blit's private glyphs and SGR extensions mean nothing on any other terminal,
+# and a held desktop is one picture for every display, so each display says
+# what it is before it joins and hold draws the rest plainly (Gitea #476).
+BLITFONT = re.compile(rb"\xf4[\x80-\x8f][\x80-\xbf][\x80-\xbf]")
+
+
+def blitheld(cap2):
+    """A held Chalk desktop with an Edge frame shown on Blit, and a second
+    display of the given caps joining beside it. Everything the second was
+    sent, the first's, and what `hold blit` names them."""
+    nm = name()
+    sess = os.path.join(D, "bdesk%s.hibr" % nm)
+    answer = os.path.join(D, "blit%s" % nm)
+    open(sess, "w").write(
+        load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
+        + "DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=chalk; DT_BTNSTYLE=chalk\n"
+        + "DT_SHADOWSHAPE=thin; DT_BLITCAT=\n"
+        + "dt_open || exit 1\ndt_new Notes 8 30 3 4\n"
+        + 'seen() { l := hold blit; printf "%s\\n" "$l" > "' + answer + '"; dt_want 500; }\n'
+        + "dt_ticker seen\ndt_run\ndt_close\n")
+    one = os.path.join(D, "bone%s.hibr" % nm)
+    two = os.path.join(D, "btwo%s.hibr" % nm)
+    open(one, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, sess)
+                         + "sleep 0.8\nhold attach -m -n one %s 0 0\n" % nm)
+    open(two, "w").write(load("hold") + "hold attach -m -n two %s 0 0\n" % nm)
+    t1 = Term(one, rows=24, cols=80, settle=1.0, env={"TMPDIR": D}, caps=["blit"])
+    for _ in range(int(24 * SLOW)):
+        t1.collect(0.25)
+    t2 = Term(two, rows=24, cols=80, settle=1.0, env={"TMPDIR": D}, caps=cap2)
+    for _ in range(int(32 * SLOW)):
+        t2.collect(0.25)
+        t1.collect(0.05)
+    said = open(answer).read() if os.path.exists(answer) else ""
+    r1, r2 = bytes(t1.raw), bytes(t2.raw)
+    s2 = t2.screen()
+    kill(nm)
+    t2.close()
+    t1.close()
+    return r1, r2, said, s2
+
+
+r1, r2, said, s2 = blitheld([])
+check("hold says which displays are Blit: one yes, the other no",
+      "one yes" in said and "two no" in said, said)
+check("a Blit display is sent Blit's glyphs and its framed title", b"\xf4\x80\x8a\xae" in r1
+      and b";51" in r1, r1[-300:])
+check("a display that is not Blit is sent none of them", not BLITFONT.search(r2),
+      BLITFONT.findall(r2)[:5])
+check("nor the attributes only Blit draws", b"66:" not in r2 and b";51" not in r2, r2[-300:])
+check("and it draws the window plainly, title and all",
+      s2.find("Notes") is not None and any(g == "│" for row in s2.g for g in row), s2)
+r1, r2, said, s2 = blitheld(None)
+check("a display that said nothing is sent what it always was, not taken for a no",
+      "two unknown" in said and BLITFONT.search(r2) is not None, said)
+
+
+# `hold attach` says why it came back, so nothing has to guess from a `hold
+# list` that may answer late (0.99.402 and 0.99.448's gates, under load).
+def whyheld(end):
+    nm = name()
+    out = os.path.join(D, "why%s" % nm)
+    sc = os.path.join(D, "why%s.hibr" % nm)
+    open(sc, "w").write(load("hold") + 'hold new -d %s "$HIBR" -c "sleep 60"\nsleep 0.5\n'
+                        'hold attach -m -n w %s 0 0\nprintf "%%s" "$HOLD_WHY" > %s\n'
+                        % (nm, nm, out))
+    t = Term(sc, rows=24, cols=80, settle=1.0, env={"TMPDIR": D}, caps=[])
+    t.collect(2.5 * SLOW)
+    os.system("TMPDIR=%s %s -c '%s hold %s' > /dev/null 2>&1"
+              % (D, sx.HIBR, load("hold").replace("\n", "; "), end % nm))
+    t.collect(1.5 * SLOW)
+    kill(nm)
+    t.close()
+    return open(out).read() if os.path.exists(out) else None
+
+
+why = whyheld("drop %s w")
+check("a display let go is told so, in HOLD_WHY", why == "switched off", why)
+why = whyheld("kill %s")
+check("and one whose session ended is told that", why == "ended", why)
+
+
 def kbdrun(caps):
     nm = name()
     open(LOG, "w").close()
@@ -1824,4 +1905,4 @@ check("a shadow attribute crosses hold with its kind, width and inset",
       "66:2:1:0" in pens and "66:3:1:1" in pens, pens[:300])
 
 shutil.rmtree(D, True)
-report(98)
+report(106)

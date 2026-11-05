@@ -27,6 +27,8 @@ nothing has to be saved and restored.
 | `hold frames [name]` | `yes` from a server that keeps an edit of a whole picture in place of the edits before it, so what it keeps of a film is the picture and its latest frame. The desktop sets `console imgedit whole` only when this says yes and every display can edit. Fails, quietly, against a server older than 0.99.396, which keeps every edit |
 | `hold edits [name]` | one line per attached client: `name` and `yes` or `no`, whether its own terminal edits a kitty picture in place (`a=f,r=1`, which Blit takes from 0.3.1, Gitea #404), as it answered when it attached. The desktop turns `console imgedit` on only when every line says yes, since hold keeps an edited picture as the whole one and its edits after it and sends a display that cannot apply them the whole picture instead. A display carried across `hold upgrade` keeps its answer since 0.99.397; one carried from an older server reads `no` until it attaches again, which only costs it whole pictures. Fails, quietly, against a server older than 0.99.376 |
 | `hold gfx [name]` | one line per attached client: `name` and what its own terminal draws -- `kitty`, `sixel`, `none`, or `unknown` for a client that never said. Fails, quietly, against a server older than 0.99.235, which a caller reads as every display unknown |
+| `hold blit [name]` | one line per attached client: `name` and `yes`, `no` or `unknown`, what XTVERSION said of its terminal |
+| `hold subst TABLE [name]` | what a display that is not Blit gets for Blit's glyphs: `CODEPOINT REPLACEMENT` a line, in hex, in order of code point |
 | `hold shift [name]` | how far the session's origin has been normalised since the server started, as `row col` -- what a program drawing on the union translates its own content by |
 | `hold move name display row col` | reposition a named client, `row` and `col` counted from where the primary display is (the union's own 0,0 when there is none); they may be negative, and the whole arrangement is then shifted so its top-left corner is the union's own 0,0. Counted from the primary since 0.99.256, so the same move names the same place after any shift, and sent again changes nothing (Gitea #297) |
 | `hold slot name display` | where a display of that name was when it last went -- hung up, detached, or dropped -- as `row col rows cols primary` in the union's frame now; nothing and status 1 when none is remembered, when one by that name is attached, or when another display has taken the place since. `desktop --join` and `--standby` ask it, so a display that went without being detached comes back where it was, with its windows; a returning primary takes the role back unless another was chosen meanwhile -- and only the real primary does: a display that held the role only because the primary had gone is not remembered as primary when it leaves itself (0.99.320) |
@@ -34,6 +36,8 @@ nothing has to be saved and restored.
 | `hold primary name display` | make a named client the session's primary; every other client stops being it |
 | `hold kill [name]` | end the program and the session; with no name, the session this shell is running in |
 | `hold upgrade name` | re-exec the server on the hibr that is on disk now and take the session back: the program, every attached display and what is on screen all survive |
+
+`hold attach` sets `HOLD_WHY` as it returns: `ended` when the session ended, `lost the session`, or why it was let go, such as `switched off` or `detached`.
 
 While attached, **ctrl-\\** detaches. Everything else, ctrl-c included, goes
 to the program. A second plain `hold attach` takes the session over and
@@ -195,6 +199,23 @@ session's protocol and as half blocks on every other. The answer travels
 across `hold upgrade` on a `gfx` line of its own; a client carried from an
 older server has none and draws half blocks until it attaches again. A
 terminal that answers nothing at all costs the deadline, once, at attach.
+
+## One desktop, a Blit display and one that is not
+
+A held desktop is one picture for every display, and Blit's private glyphs,
+its framed titles (SGR 51) and its shadow (SGR 66) mean nothing anywhere else
+(Gitea #476). So each client asks its own terminal with XTVERSION before it
+joins and sends `HD_BLIT`, and the server keeps three answers: Blit, not, and
+**never said**, which is an older client or a terminal that did not answer and
+is sent what it always was. To a display that said not, the renderer sends the
+plain form of each glyph at the last moment, after the diff, so `front` keeps
+the true cell, and drops those attributes from the pen.
+
+The table is the desktop's policy and hold only applies it: `dt_blitmap`
+pairs each Blit glyph with the unicode set's, and a glyph it does not name
+reaches the terminal as a hollow square. A nerd glyph is not touched, since
+such a terminal may well have the font. A client's first frame waits for its
+`HD_GFX`, which follows `HD_BLIT` at once, so it is already the right one.
 
 ## How it works
 

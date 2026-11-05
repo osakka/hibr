@@ -341,6 +341,7 @@ dt_size() {
 		else
 			gv=unasked
 		fi
+		dt_blitplain
 		DT_DISPLAYS=()
 		DT_DISPNAMES=()
 		# No `break` on finding the primary: every display is wanted,

@@ -386,6 +386,90 @@ fn dt_bg(name, ...ids) {
 	GL["$name"]=$g
 }
 
+# What a display that is not Blit gets for one of Blit's window parts (Gitea
+# #476): the unicode set's own glyph for the same name where it has one,
+# and otherwise this. An icon named nowhere is left to hold's hollow square.
+fn dt_blitpart(part) {
+	case $part in
+	frame-left | frame-right | dialog-left | dialog-right) ret "${GL[vline]}" ;;
+	frame-bottom | dialog-top | dialog-bottom | stripe*) ret "${GL[hline]}" ;;
+	frame-bottom-left | dialog-bottom-left) ret "${GL[bl]}" ;;
+	frame-bottom-right | dialog-bottom-right) ret "${GL[br]}" ;;
+	title-end*-left | dialog-top-left) ret "${GL[tl]}" ;;
+	title-end*-right | dialog-top-right) ret "${GL[tr]}" ;;
+	close | note-close) ret x ;;
+	shade) ret _ ;;
+	zoom) ret "${GL[square]}" ;;
+	*button-left) ret "[" ;;
+	*button-right) ret "]" ;;
+	title | capl | capr) ret " " ;;
+	esac
+	ret ""
+}
+
+# The table `hold subst` takes: each of Blit's glyphs in force and the plain
+# glyph one cell wide that stands for it, in order of code point. A job's work,
+# since it has to draw the unicode set over the set in force. A two-column
+# icon gets its glyph in the left column and a blank in the right.
+dt_blitmap() {
+	local -A b
+	local k v c u i p w
+	local -a out=()
+
+	for k in "${!GL[@]}"; do
+		b["$k"]=${GL["$k"]}
+	done
+	dt_glyphs unicode
+	for k in "${!b[@]}"; do
+		v=${b["$k"]}
+		u=${GL["$k"]-}
+		if [ -z "$u" ]; then
+			p=${k#chalk-}
+			p=${p#slate-}
+			u := dt_blitpart "$p"
+		fi
+		u=${u:0:1}
+		if [ -n "$u" ]; then
+			w := str width "$u"
+			[ "$w" = 1 ] || u=
+		fi
+		for ((i = 0; i < ${#v}; i++)); do
+			c=${v:$i:1}
+			printf -v p '%x' "'$c"
+			[ "${#p}" = 6 ] || continue
+			if [ -n "$u" ]; then
+				printf -v w '%x' "'$u"
+				out+=("$p $w")
+			fi
+			u=" "
+		done
+	done
+	printf '%s\n' "${out[@]}" | sort -u
+}
+
+# Hand a session that table when a display on it is not Blit. Asked each
+# time the displays change, since the table is lost with its server.
+dt_blitplain() {
+	local l
+
+	[ "$DT_GLYPHSET" = blit ] || return 0
+	l := hold blit 2> /dev/null || return 0
+	[[ $'\n'"$l" == *" no"* ]] || return 0
+	dt_job hold subst dt_blitplained dt_blitsend > /dev/null
+}
+
+# The job's side, and nothing to do when it ends.
+dt_blitsend() {
+	local t
+
+	t=$(dt_blitmap)
+	hold subst "$t"
+}
+
+fn dt_blitplained(int n, int st) {
+	return 0
+}
+
 # The blit set (Gitea #330): the nerd set, since Blit's own fonts carry the
 # whole Nerd catalogue, and over it the originals Blit drew for hibr --
 # intrinsic-colour icons one cell wide, at supplementary private-use code
