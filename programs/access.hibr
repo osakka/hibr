@@ -7,13 +7,13 @@
 #
 #   hibr-access apply [SETTING...]
 #                         each SETTING, or each line of standard input
-#                         with none: ACTION admin|self|group|never [GROUP]
-#                         [keep]
+#                         with none: ACTION admin|self|user|group|never
+#                         [USER|GROUP] [keep]
 #   hibr-access reset     back to every package's own defaults
 #   hibr-access show      the settings in force, as apply takes them
 #
 # It takes settings, never a file: every line is checked -- the action is
-# one an installed policy declares, a group is one getent knows -- and the
+# one an installed policy declares, a group or user is one getent knows -- and the
 # rules are written from them here. A line naming hibr's own actions is
 # refused, so the file it writes can never take its own password away. The
 # rules go to RULES, the settings to SETTINGS (readable by everyone, since
@@ -52,8 +52,8 @@ fn acc_known(act) {
 	return 1
 }
 
-# Check one settings line and keep it, as words: ACTION CHOICE GROUP KEEP,
-# with - for no group and keep or - for remembering.
+# Check one settings line and keep it, as words: ACTION CHOICE WHO KEEP, with
+# WHO the group or the user, - for neither, and keep or - for remembering.
 fn acc_take(line) {
 	local -a w
 	local act ch grp=- keep=- i
@@ -68,13 +68,13 @@ fn acc_take(line) {
 	for i in "${ACC_LINES[@]}"; do
 		[ "${i%% *}" = "$act" ] && acc_die "$act is named twice"
 	done
-	case $ch in admin | self | group | never) ;; *) acc_die "$act: not a choice: $ch" ;; esac
+	case $ch in admin | self | user | group | never) ;; *) acc_die "$act: not a choice: $ch" ;; esac
 	for ((i = 2; i < ${#w[@]}; i++)); do
 		if [ "${w[$i]}" = - ]; then
 			continue
 		elif [ "${w[$i]}" = keep ]; then
 			keep=keep
-		elif [ "$ch" = group ] && [ "$grp" = - ]; then
+		elif { [ "$ch" = group ] || [ "$ch" = user ]; } && [ "$grp" = - ]; then
 			grp=${w[$i]}
 		else
 			acc_die "$act: did not expect ${w[$i]}"
@@ -84,6 +84,11 @@ fn acc_take(line) {
 		[ "$grp" != - ] || acc_die "$act: which group?"
 		[[ $grp =~ ^[A-Za-z_][A-Za-z0-9_.-]*$ ]] || acc_die "not a group: $grp"
 		getent group "$grp" > /dev/null 2>&1 || acc_die "no such group: $grp"
+	fi
+	if [ "$ch" = user ]; then
+		[ "$grp" != - ] || acc_die "$act: which user?"
+		[[ $grp =~ ^[A-Za-z_][A-Za-z0-9_.-]*$ ]] || acc_die "not a user: $grp"
+		getent passwd "$grp" > /dev/null 2>&1 || acc_die "no such user: $grp"
 	fi
 	case $ch in admin | self) ;; *) [ "$keep" = - ] || acc_die "$act: only a password is remembered" ;; esac
 	ACC_LINES+=("$act $ch $grp $keep")
@@ -102,12 +107,14 @@ fn acc_rules() {
 		case $ch in
 		admin) r=AUTH_ADMIN ;;
 		self) r=AUTH_SELF ;;
-		group) r=YES ;;
+		user | group) r=YES ;;
 		never) r=NO ;;
 		esac
 		[ "$keep" = keep ] && r=${r}_KEEP
 		if [ "$ch" = group ]; then
 			echo "	if (action.id == \"$act\" && subject.isInGroup(\"$grp\"))"
+		elif [ "$ch" = user ]; then
+			echo "	if (action.id == \"$act\" && subject.user == \"$grp\")"
 		else
 			echo "	if (action.id == \"$act\")"
 		fi

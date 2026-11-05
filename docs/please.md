@@ -52,6 +52,7 @@ hibr, and offers the same choices as every other action:
 | Administrator's, Remembered | the default, stated outright |
 | Your Own Password | your own password, each time |
 | Your Own, Remembered | your own password, remembered a few minutes |
+| No Password, Just Me | you alone run it with no password |
 | No Password for a Group | members of one group run it with no password: sudo's `NOPASSWD` |
 | Never | refused, for everyone |
 

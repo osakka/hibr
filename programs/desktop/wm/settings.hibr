@@ -741,6 +741,14 @@ dt_keyfix() {
 
 # Write every kept variable back, through a temporary file and a rename,
 # so a crash halfway through never leaves half a settings file.
+# Whether a map's key can be written into the settings script: inside its
+# double quotes, anything the shell would expand runs when the file is read,
+# and a sender's name is not ours to trust.
+fn dt_savekey(k) {
+	case $k in *['"$`\\']*) return 1 ;; esac
+	return 0
+}
+
 dt_save() {
 	local v tmp=$DT_CONF.$$ n i line
 
@@ -761,16 +769,20 @@ dt_save() {
 				"${DT_WALLDPIC["$v"]}"
 		done
 		for v in "${!DT_KEYS[@]}"; do
+			dt_savekey "$v" || continue
 			printf 'DT_KEYS["%s"]=%q\n' "$v" "${DT_KEYS["$v"]}"
 		done
 		for v in "${!DT_APPKEY[@]}"; do
+			dt_savekey "$v" || continue
 			printf 'DT_APPKEY["%s"]=%q\n' "$v" "${DT_APPKEY["$v"]}"
 		done
 		for v in "${!DT_AKEY[@]}"; do
+			dt_savekey "$v" || continue
 			printf 'DT_AKEY["%s"]=%q\n' "$v" "${DT_AKEY["$v"]}"
 		done
 		# What each sender's notes do (wm/notify.hibr's DT_NOTEAPP).
 		for v in "${!DT_NOTEAPP[@]}"; do
+			dt_savekey "$v" || continue
 			printf 'DT_NOTEAPP["%s"]=%q\n' "$v" "${DT_NOTEAPP["$v"]}"
 		done
 		# A dt_handler call, reconstructed from the table it built --

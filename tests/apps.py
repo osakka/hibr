@@ -338,7 +338,7 @@ def folderlook():
         open(os.path.join(fd, nm), "w").write("x\n")
     vf = fd + "-views"
     body = ('. %s\n. %s\nFB_VIEWFILE=%s\ndeclare -gA FB_VIEWS FB_DIRSET\n'
-            '[ -r "$FB_VIEWFILE" ] && . "$FB_VIEWFILE"\n'
+            'fb_viewload\n'
             'names() { local i o=; for ((i = 0; i < ${FB[7][n]}; i++)); do o+="${FL[7][$i][name]} "; done; echo "$1: $o"; }\n'
             'FB[7][dir]=%s; FB[7][hidden]=; FB[7][view]=list\nfb_dirapply 7 "${FB[7][dir]}"\n'
             % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/files.hibr"), vf, fd))
@@ -2226,6 +2226,21 @@ out = subprocess.run([sx.HIBR, "-c", RVSCRIPT], capture_output=True, text=True,
 check("it clears a remembered view back to the default",
       "before=icons" in out and "after=list" in out, out)
 check("and removes the persisted file", "file=no" in out, out)
+shutil.rmtree(RVSTATE, True)
+
+# A folder's name is anybody's to choose: from an archive, a stick or a server.
+# Its look is kept as data, and nothing in that file may ever run (0.99.444).
+RVSTATE = tempfile.mkdtemp(prefix="hibr-hostile-state-")
+PROOF = os.path.join(RVSTATE, "ran")
+EVIL = '/tmp/$(touch %s)/`touch %s`' % (PROOF, PROOF)
+FILES = appdir("files") + "/files.hibr"
+env = dict(os.environ, XDG_STATE_HOME=RVSTATE, EVIL=EVIL)
+subprocess.run([sx.HIBR, "-c", '. %s\nfb_view_save "$EVIL" icons\n' % FILES],
+               env=env, capture_output=True, text=True)
+out = subprocess.run([sx.HIBR, "-c", '. %s\nv := fb_dirview "$EVIL"; echo "v=$v"\n' % FILES],
+                     env=env, capture_output=True, text=True).stdout
+check("a folder named as a command is remembered as a name, and nothing it says runs",
+      "v=icons" in out and not os.path.exists(PROOF), (out, os.listdir(RVSTATE)))
 shutil.rmtree(RVSTATE, True)
 
 # Date & Time is a custom pane -- a body of its own, not rows -- proving
@@ -6274,4 +6289,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(809)
+report(810)

@@ -56,4 +56,14 @@ a show
 echo "show status $?"
 a frobnicate 2>&1
 echo "status $?"
+echo "-- no password for one person"
+u=$(id -un)
+a apply "org.test.one user $u" 2>&1
+echo "status $?"
+sed "s/\"$u\"/\"USER\"/" "$d/rules"
+a show | sed "s/ $u / USER /"
+for l in "org.test.one user" "org.test.one user no_such_user_zz" "org.test.one user $u keep"; do
+	a apply "$l" 2>&1
+	echo "status $?"
+done
 rm -rf "${d:?}"

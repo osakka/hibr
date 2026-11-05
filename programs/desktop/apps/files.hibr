@@ -21,7 +21,7 @@
 
 strict
 
-app files "A file browser" 3.11
+app files "A file browser" 3.12
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -158,12 +158,26 @@ fi
 
 # Which view a directory was last shown in, kept across windows and across
 # restarts -- its own small file, not the desktop's DT_CONF, since it is
-# the browser's own concern and nothing else reads it. One assignment per
-# line, sourced back exactly the way dt_load reads DT_CONF, so no parser
-# of its own is needed.
-FB_VIEWFILE="${FB_VIEWFILE-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/files-views}"
-declare -gA FB_VIEWS FB_DIRSET
-[ -r "$FB_VIEWFILE" ] && . "$FB_VIEWFILE"
+# the browser's own concern and nothing else reads it. JSON, and never
+# sourced: its keys are folder names, which anybody can choose.
+FB_VIEWFILE="${FB_VIEWFILE-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/files-views.json}"
+declare -gA FB_VIEWS FB_DIRSET FBJ
+
+# Every folder's look, from the file that keeps them.
+fb_viewload() {
+	local k
+
+	if [ -r "$FB_VIEWFILE" ] && json parse FBJ < "$FB_VIEWFILE" 2> /dev/null; then
+		for k in "${!FBJ["views"][@]}"; do
+			FB_VIEWS["$k"]=${FBJ["views"]["$k"]}
+		done
+		for k in "${!FBJ["dirs"][@]}"; do
+			FB_DIRSET["$k"]=${FBJ["dirs"]["$k"]}
+		done
+	fi
+	return 0
+}
+fb_viewload
 
 # The in-process ls, so the details view does not exec a program; the one on
 # the PATH writes the same columns if the module cannot be had.
@@ -873,19 +887,13 @@ fn fb_view_save(dir, view) {
 
 # Write every folder's view and its own settings back to the file.
 fb_viewwrite() {
-	local d tmp=$FB_VIEWFILE.$$
+	local tmp=$FB_VIEWFILE.$$ v s
 
 	mkdir -p "${FB_VIEWFILE%/*}" 2> /dev/null || return 1
-	{
-		for d in "${!FB_VIEWS[@]}"; do
-			case $d in *'"'*) continue ;; esac
-			printf 'FB_VIEWS["%s"]=%q\n' "$d" "${FB_VIEWS["$d"]}"
-		done
-		for d in "${!FB_DIRSET[@]}"; do
-			case $d in *'"'*) continue ;; esac
-			printf 'FB_DIRSET["%s"]=%q\n' "$d" "${FB_DIRSET["$d"]}"
-		done
-	} > "$tmp" && mv -f "$tmp" "$FB_VIEWFILE"
+	v := json emit FB_VIEWS
+	s := json emit FB_DIRSET
+	printf '{"views":%s,"dirs":%s}\n' "${v:-{\}}" "${s:-{\}}" > "$tmp" &&
+		mv -f "$tmp" "$FB_VIEWFILE"
 }
 
 # One of a folder's own settings, from its record ";key=value;...", or

@@ -2,7 +2,7 @@
 # #406): every action an installed package asks polkit about, what its
 # package answers by default, and a choice of your own for each -- an
 # administrator's password, your own, either remembered for a few minutes,
-# no password for the members of a group, or never.
+# no password for you alone or for the members of a group, or never.
 #
 # Choices are kept until Apply Changes, which writes them all at once
 # through hibr-access under pkexec, asking an administrator's password
@@ -16,7 +16,7 @@
 
 strict
 
-app adminaccess "The Control Panel pane for administrative access" 1.4
+app adminaccess "The Control Panel pane for administrative access" 1.5
 command -v cp_pane > /dev/null && cp_pane adminaccess "Administrative Access" "âŠ›"
 # pkexec's own password prompt answered from a dialog (lib/pkrun.hibr). A
 # desktop has loaded it already (dt_libs); a fixture that sources this pane
@@ -25,8 +25,9 @@ command -v cp_pane > /dev/null && cp_pane adminaccess "Administrative Access" "â
 
 # The choices, as the list shows them, and the setting each is.
 AA_LABELS=("Package Default" "Administrator's Password" "Administrator's, Remembered"
-	"Your Own Password" "Your Own, Remembered" "No Password for a Group${GL[ellipsis]}" "Never")
-AA_CHOICES=("" "admin" "admin keep" "self" "self keep" "group" "never")
+	"Your Own Password" "Your Own, Remembered" "No Password, Just Me"
+	"No Password for a Group${GL[ellipsis]}" "Never")
+AA_CHOICES=("" "admin" "admin keep" "self" "self keep" "user" "group" "never")
 AA_SETTINGS=/var/lib/hibr/access
 
 declare -ga AA_IDS
@@ -149,6 +150,13 @@ fn aa_label(set) {
 	admin*) ret "Administrator's Password" ;;
 	selfkeep) ret "Your Own Password, Remembered" ;;
 	self*) ret "Your Own Password" ;;
+	user*)
+		if [ "$grp" = "${USER-}" ]; then
+			ret "No Password, Just Me"
+		else
+			ret "No Password for $grp"
+		fi
+		;;
 	group*) ret "No Password for $grp" ;;
 	never*) ret "Never" ;;
 	*) ret "Package Default" ;;
@@ -292,6 +300,7 @@ fn aa_choose(int? id = "", value = "") {
 				"Members of this group are let through without a password"
 			return 0
 			;;
+		user) aa_pend "$act" "user ${USER:-$(id -un)} -" ;;
 		"") aa_pend "$act" "" ;;
 		*" keep") aa_pend "$act" "${AA_CHOICES[$i]% keep} - keep" ;;
 		*) aa_pend "$act" "${AA_CHOICES[$i]} - -" ;;

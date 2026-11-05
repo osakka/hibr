@@ -130,6 +130,7 @@ int v_delp(sh *s, const char *nm, char **ks, int nk);
 #ifndef PF_CTL
 #define PF_CTL 8
 #endif
+const char *pf_uni(str *o, const char *p, int fl);
 int pf_esc(str *o, const char *p, int fl);
 int pf_ctl(int c);
 

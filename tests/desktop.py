@@ -406,6 +406,16 @@ raw_barhalf = barshadow_run(env={"DT_SHADOWSHAPE": "half"})
 check("and in Half Block, the default, it is half a row of upper half blocks",
       b"38;2;7;15;23;48;2;" in raw_barhalf and "\u2580".encode() in raw_barhalf,
       raw_barhalf[-400:])
+# A plain terminal sends alt-shift-l as ESC L, read as alt with a capital:
+# the same key, so it has to compare as the same name.
+KN = scratch("keynorm")
+sc, _ = run('for k in alt-L ctrl-alt-L mod-shift-l alt-l L ctrl-L; do n := dt_keynorm "$k"; '
+            'echo "$n" >> "%s"; done\n' % KN, [0.3])
+got = open(KN).read().split() if os.path.exists(KN) else []
+os.path.exists(KN) and os.unlink(KN)
+check("alt with a capital is alt-shift with the small letter, and nothing else folds",
+      got == ["mod-shift-l", "ctrl-shift-mod-l", "shift-mod-l", "mod-l", "L", "ctrl-L"]
+      or got == ["shift-mod-l", "ctrl-shift-mod-l", "shift-mod-l", "mod-l", "L", "ctrl-L"], got)
 # Thin on Blit's glyphs is a line the terminal draws (SGR 66, Blit ADR 0211);
 # anywhere else it stays an eighth block.
 raw_barattr = barshadow_run(env={"DT_SHADOWSHAPE": "thin", "DT_GLYPHSET": "blit"})
@@ -1328,11 +1338,10 @@ check("a note Same as Windows wears the windows' chrome: a Chalk title bar, not 
       "C:note-close" not in glyphrow(sc, n[0] - 1, n[1] - 4, 6), sc)
 sc = glyphnote(CHALK + "DT_NOTEFRAME=chalk\n")
 n = sc.find("Saved the file")
-check("and Notifications > Frame chalk is Blit's note: frame, strip, close box, ruled",
-      n is not None and glyphrow(sc, n[0] - 2, n[1] - 4, 1) == ["C:frame-top-left"] and
-      "C:note-close" in glyphrow(sc, n[0] - 1, n[1] - 4, 4) and
-      all(";51:5;" in sc.p[n[0] - 1][c] for c in range(n[1] - 3, n[1] + 6)),
-      n and sc.p[n[0] - 1][n[1] - 3:n[1] + 6])
+check("and a Frame of chalk saved before 0.99.444 is a plain note, with no close box "
+      "that nothing answers",
+      n is not None and sc.find("\u2502") is not None and
+      "C:note-close" not in glyphrow(sc, n[0] - 1, n[1] - 4, 6), sc)
 sc = glyphnote("DT_NOTEFRAME=single; DT_NOTECOLOUR=yellow\n")
 n = sc.find("Saved the file")
 check("Note Colour is every note's: a single-framed note in yellow",
@@ -9102,4 +9111,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(972)
+report(973)

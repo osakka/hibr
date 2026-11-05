@@ -598,6 +598,50 @@ int pf_ctl(int c)
 	return c == '?' ? 0x7f : toupper((unsigned char)c) & 0x1f;
 }
 
+/* \uHHHH or \UHHHHHHHH at p, as bash reads it: up to that many digits, written
+   in UTF-8 past what Unicode allows too, and a backslash and the letter for none. */
+const char *pf_uni(str *o, const char *p, int fl)
+{
+	int max = *p == 'u' ? 4 : 8, i, h;
+	unsigned v = 0;
+
+	for (i = 0; i < max && isxdigit((unsigned char)p[1 + i]); i++) {
+		h = p[1 + i];
+		v = v * 16 + (unsigned)(h <= '9' ? h - '0' : (h | 32) - 'a' + 10);
+	}
+	if (!i) {
+		if (fl & (PF_OCT | PF_OCTB))
+			lg(HIBR_LERR, "printf: missing unicode digit for \\%c", *p);
+		s_ch(o, '\\');
+		s_ch(o, *p);
+		return p + 1;
+	}
+	if (v > 0x7FFFFFFFu)
+		return p + 1 + i;
+	if (v <= 0x10FFFF) {
+		u8put(o, v);
+	} else if (v < 0x200000) {
+		s_ch(o, (int)(0xF0 | (v >> 18)));
+		s_ch(o, (int)(0x80 | ((v >> 12) & 63)));
+		s_ch(o, (int)(0x80 | ((v >> 6) & 63)));
+		s_ch(o, (int)(0x80 | (v & 63)));
+	} else if (v < 0x4000000) {
+		s_ch(o, (int)(0xF8 | (v >> 24)));
+		s_ch(o, (int)(0x80 | ((v >> 18) & 63)));
+		s_ch(o, (int)(0x80 | ((v >> 12) & 63)));
+		s_ch(o, (int)(0x80 | ((v >> 6) & 63)));
+		s_ch(o, (int)(0x80 | (v & 63)));
+	} else {
+		s_ch(o, (int)(0xFC | (v >> 30)));
+		s_ch(o, (int)(0x80 | ((v >> 24) & 63)));
+		s_ch(o, (int)(0x80 | ((v >> 18) & 63)));
+		s_ch(o, (int)(0x80 | ((v >> 12) & 63)));
+		s_ch(o, (int)(0x80 | ((v >> 6) & 63)));
+		s_ch(o, (int)(0x80 | (v & 63)));
+	}
+	return p + 1 + i;
+}
+
 /* Expand backslash escapes into a buffer, as bash does where fl says:
    PF_STOP, \c ends the output (echo -e, %b); PF_OCT, \NNN is up to three
    octal digits, a leading 0 among them (a printf format, ${x@E}); PF_OCTB,
@@ -654,6 +698,9 @@ int pf_esc(str *o, const char *p, int fl)
 			}
 			s_ch(o, v);
 			p += 1 + i;
+			break;
+		case 'u': case 'U':
+			p = pf_uni(o, p, fl);
 			break;
 		case '0':
 			if (fl & PF_OCT)

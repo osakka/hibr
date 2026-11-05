@@ -607,40 +607,6 @@ dt_notecolours() {
 	fi
 }
 
-# A note drawn with Chalk or Slate glyphs (Blit ADR 0210), as Notifications
-# > Frame chooses, at row r, col c, h by w, from glyph set s: the frame's
-# top edge on the row above a strip that carries a close box and the sender
-# in bold, ruled along its bottom edge (SGR 51:5, drawn by the terminal),
-# the frame down both sides and along the bottom, and the message's rows on
-# the note's face from column 4 -- which the caller writes. It draws in the
-# face, the ink and the well, which the note drawer has given the note's own
-# colours (Note Colour). The frame's cells keep what the note covers, as a
-# window's do.
-fn dt_glyphnote(int r, int c, int h, int w, s, from) {
-	local fb=$DT_WALL g
-
-	[ "${#DT_WALLPIX[@]}" -gt 0 ] && fb=default
-	console pen "$DT_INK" "under:$fb"
-	g := dt_rep $((w - 2)) "${GL["$s-frame-top"]}"
-	console put "$r" "$c" "${GL["$s-frame-top-left"]}$g${GL["$s-frame-top-right"]}"
-	console put $((r + 1)) "$c" "${GL["$s-frame-left"]}"
-	console put $((r + 1)) $((c + w - 1)) "${GL["$s-frame-right-top"]}"
-	[ "$h" -gt 3 ] && {
-		console fill $((r + 2)) "$c" $((h - 3)) 1 "${GL["$s-frame-left"]}"
-		console fill $((r + 2)) $((c + w - 1)) $((h - 3)) 1 "${GL["$s-frame-right"]}"
-	}
-	g := dt_rep $((w - 3)) "${GL["$s-frame-bottom"]}"
-	console put $((r + h - 1)) "$c" "${GL["$s-frame-bottom-left"]}${GL["$s-frame-bottom-first"]}$g${GL["$s-frame-bottom-right"]}"
-	console pen "$DT_INK" "$DT_WELL" framed-rule
-	console fill $((r + 1)) $((c + 1)) 1 $((w - 2)) " "
-	console put $((r + 1)) $((c + 2)) "${GL["$s-note-close"]}"
-	[ ${#from} -gt $((w - 6)) ] && from=${from:0:$((w - 6))}
-	console pen "$DT_INK" "$DT_WELL" bold framed-rule
-	console put $((r + 1)) $((c + 4)) "$from"
-	console pen "$DT_INK" "$DT_FACE"
-	[ "$h" -gt 3 ] && console fill $((r + 2)) $((c + 1)) $((h - 3)) $((w - 2)) " "
-}
-
 # The chrome of everything drawn as a window -- a window, a note that
 # follows the windows, the confirm box -- and the only code that draws it
 # (#102): the border of the theme's frame, or none, the title bar, the

@@ -1841,7 +1841,8 @@ package asks polkit about, grouped by package, each with its package's
 default and what it does for you right now -- asked of `pkcheck`, so a
 rule somebody else wrote shows too. For each, a choice: the package's
 default, an administrator's password, your own, either remembered for
-polkit's few minutes, no password for the members of a group, or never.
+polkit's few minutes, no password for you alone or for the members of a
+group, or never.
 Choices wait, marked with `*`, until **Apply Changes**, which writes them
 all as one rules file (`/etc/polkit-1/rules.d/60-hibr-access.rules`)
 through `hibr-access` under `pkexec`, asking an administrator's password
@@ -1899,9 +1900,9 @@ Windows go through `dt_chrome` like any window.
 from Blit's glyphs: a striped (Chalk) or grey (Slate) title bar whose
 title is *framed* -- SGR 51, the line drawn by the terminal round the
 cell rather than by a glyph -- a frame of Blit's own edge glyphs, close,
-shade and zoom boxes, Blit's capped dialog buttons, and Blit's note. Each
-is a value of the setting it belongs to -- Frame, Title Bar, Window
-Buttons, Dialog Buttons, Notifications > Frame -- so any one can be mixed
+shade and zoom boxes, and Blit's capped dialog buttons. Each is a value of
+the setting it belongs to -- Frame, Title Bar, Window Buttons, Dialog
+Buttons -- so any one can be mixed
 with any other; the Chalk and Slate themes in the catalogue choose them
 together, with Shadow Shape Thin. Their colours are the scheme's: Chalk
 is the face and the ink, and Slate's bar is the title bar's colour, its

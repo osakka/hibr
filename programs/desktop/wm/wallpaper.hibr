@@ -363,7 +363,7 @@ fn dt_wallkeep() {
 		IFS=' ' read -r r c h w <<< "${DT_WALLPIX[$i]}"
 		dt_imgm "${DT_WALLPIXM[$i]}"
 		img keep "${DT_WALLPIXI[$i]}" "$r" "$c" "$h" "$w" \
-			"${DT_IMGARG[@]}" || true
+			"${DT_IMGARG[@]}" || return 1
 	done
 	return 0
 }
@@ -444,8 +444,8 @@ dt_wall() {
 	ms := dt_ms
 	if [ "$sig" = "$DT_WALLFOR" ] && [ "$DT_FORCEDRAW" != 1 ] &&
 	   [ -z "$DT_WALLONCE" ] &&
-	   [ -z "$DT_FORCEONCE" ] && [ $((ms - DT_WALLMS)) -lt 1000 ]; then
-		dt_wallkeep
+	   [ -z "$DT_FORCEONCE" ] && [ $((ms - DT_WALLMS)) -lt 1000 ] &&
+	   dt_wallkeep; then
 		return 0
 	fi
 	DT_WALLFOR=$sig

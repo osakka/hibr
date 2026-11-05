@@ -120,6 +120,11 @@ fn dt_keynorm(k) {
 	case $mods in *shift*) s=1 ;; esac
 	case $mods in *super*) u=1 ;; esac
 	case $mods in *mod*) m=1 ;; esac
+	# A terminal with no kitty keyboard sends alt-shift-l as ESC L, which
+	# reads as alt with a capital: the same key, so the same name.
+	if [ "$a$m" != 00 ]; then
+		case $base in [A-Z]) s=1; base=${base,,} ;; esac
+	fi
 	if [ "$m" = 0 ]; then
 		case " $DT_MOD " in *" super "*) [ "$u" = 1 ] && u=0 m=1 ;; esac
 	fi

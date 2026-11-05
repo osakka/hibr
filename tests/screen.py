@@ -156,6 +156,10 @@ class Screen:
         # not a shape, so it is left out; a screen clear keeps the list.
         self.ptr = []
         self.last = ""
+        # Every APC control string since the start, through any clear: what
+        # order they were sent in, which `apc` cannot say once a clear lands
+        # between a display's wipe and its first picture.
+        self.apcall = []
         self.clear()
 
     def clear(self):
@@ -182,8 +186,9 @@ class Screen:
         # which reads as the encoder being broken rather than as the cap.
         self.imgdata = []
         self.imgkept = 0
-        # Every APC control string, in order, whole: "a=T,f=24,...,m=0" or
-        # "a=d,d=I,q=2,i=1234". What a test asks about a kitty picture.
+        # Every APC control string since the last clear, in order, whole:
+        # "a=T,f=24,...,m=0" or "a=d,d=I,q=2,i=1234". What a test asks about
+        # a kitty picture.
         self.apc = []
         # Where each kitty placement landed, with its control string, in
         # the order imgdata keeps their payloads -- what a renderer of the
@@ -287,6 +292,7 @@ class Screen:
                     j += 1
                 ctrl, _, data = t[i + 2:j].partition(";")
                 self.apc.append(ctrl)
+                self.apcall.append(ctrl)
                 if "a=T" in ctrl or "a=p" in ctrl:
                     self.kplace.append((self.r, self.c, ctrl))
                     self.images.append((self.r, self.c, len(data)))

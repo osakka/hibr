@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.99.444
+
+- **Security: a folder's name could run a command.** Files kept each folder's
+  look in a file it read back as a script, with the folder's path inside
+  double quotes, so a folder called `$(command)` ran that command the next
+  time Files started. Opening one from an archive, a USB stick or a server
+  and closing the window was enough, since the window's place is kept. It
+  came with per-folder memory in 0.99.380. The file is `files-views.json`
+  now and is never run. The old file is not read at all, so each folder's look
+  starts again from the default.
+  The desktop's own settings file had the same shape for a sender's name
+  and now refuses such a key; it stops being a script next.
+- **Administrative Access has No Password, Just Me**: a rule for you by name,
+  where No Password for a Group meant finding your own private group. The
+  settings file gains `ACTION user NAME`.
+- **Chalk and Slate are gone from Notifications > Frame** (owner). They drew
+  the same note, and its close box answered nothing: a click anywhere closes a
+  note, and on one with an action the box ran the action. A note under Chalk
+  or Slate windows wears them through Same as Windows. A saved chalk or slate
+  is a Single note.
+- **A font size change no longer loses the wallpaper** (Gitea #410). With the
+  same rows and columns the wallpaper only tried to keep its picture, the keep
+  failed on the new cell size, and the picture was deleted and not sent again
+  until something else drew a frame: up to five seconds on an idle desktop.
+  A keep that fails now paints in that same frame. It was never about odd
+  sizes: any change within a second of the wallpaper's last paint did it.
+- **`printf`, `%b` and `echo -e` read `\u` and `\U`** as bash does, byte for byte
+  past what Unicode allows, and `printf` says so when there are no digits.
+- **A shortcut on alt with shift works on a plain terminal**: ESC L, alt with a
+  capital, is the same key as alt-shift-l, so `mod-shift-l` matches it.
+
 ## 0.99.443
 
 **Thin is Blit's own shadow, and Slate takes its colours as Blit 0.3.39 reads

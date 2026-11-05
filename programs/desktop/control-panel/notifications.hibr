@@ -16,7 +16,7 @@
 strict
 
 
-app notify "The Control Panel pane for the corner-stacked notes" 1.6
+app notify "The Control Panel pane for the corner-stacked notes" 1.7
 command -v cp_pane > /dev/null && cp_pane notify "Notifications" "◉"
 
 CP_NOTEPOS=(top-right top-left bottom-right bottom-left)
@@ -33,8 +33,8 @@ fn cp_set_notepos(int? id = "", value = "") { DT_NOTEPOS=$value; cp_save; }
 
 # A note's frame (Gitea #398), as the row shows it and as DT_NOTEFRAME
 # keeps it: Same as Windows by default.
-CP_NOTEFRAMEV=(windows single double rounded solid solidrev chalk slate)
-CP_NOTEFRAMEL=("Same as Windows" "Single" "Double" "Curved" "Solid" "Solid Reversed" "Chalk" "Slate")
+CP_NOTEFRAMEV=(windows single double rounded solid solidrev)
+CP_NOTEFRAMEL=("Same as Windows" "Single" "Double" "Curved" "Solid" "Solid Reversed")
 fn cp_noteframelabel() {
 	local i=0
 
@@ -205,14 +205,12 @@ fn notify_rows(int w) {
 
 fn notify_do(int? w = "", k = "", int? dir = "") {
 	local v f
-	local -a fa=()
 
 	case $k in
 	notepos) v := cp_next "$DT_NOTEPOS" "$dir" "${CP_NOTEPOS[@]}"
 	         DT_NOTEPOS=$v ;;
 	noteframe) v := cp_noteframelabel
-	         for f in "${CP_NOTEFRAMEL[@]}"; do dt_chromedrawable "$f" && fa+=("$f"); done
-	         v := cp_next "$v" "$dir" "${fa[@]}"
+	         v := cp_next "$v" "$dir" "${CP_NOTEFRAMEL[@]}"
 	         cp_set_noteframe "" "$v"; return 0 ;;
 	notewhere) v := cp_next "$DT_NOTEWHERE" "$dir" "${CP_NOTEWHERE[@]}"
 	         DT_NOTEWHERE=$v ;;
@@ -248,8 +246,7 @@ fn notify_do(int? w = "", k = "", int? dir = "") {
 fn notify_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	notepos) dt_droplist "$w" "$r" "$c" cp_set_notepos "${CP_NOTEPOS[@]}" ;;
-	noteframe) dt_chromeavail "${CP_NOTEFRAMEL[@]}"
-		dt_droplist "$w" "$r" "$c" cp_set_noteframe "${CP_NOTEFRAMEL[@]}" ;;
+	noteframe) dt_droplist "$w" "$r" "$c" cp_set_noteframe "${CP_NOTEFRAMEL[@]}" ;;
 	notecolour) dt_droplist "$w" "$r" "$c" cp_set_notecolour "${DT_NOTECOLOURS[@]}" ;;
 	notewhere) dt_droplist "$w" "$r" "$c" cp_set_notewhere "${CP_NOTEWHERE[@]}" ;;
 	notems) dt_droplist "$w" "$r" "$c" cp_set_notems "${CP_NOTETICKS[@]}" ;;

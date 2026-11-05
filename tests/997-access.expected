@@ -48,3 +48,19 @@ kept as .bak
 show status 0
 usage: hibr-access [-r RULES] [-s SETTINGS] [-a ACTIONS] apply|reset|show
 status 2
+-- no password for one person
+status 0
+// Written by hibr-access for Control Panel > Administrative Access.
+// Changed only through it: each change writes this file whole.
+polkit.addRule(function(action, subject) {
+	if (action.id == "org.test.one" && subject.user == "USER")
+		return polkit.Result.YES;
+	return polkit.Result.NOT_HANDLED;
+});
+org.test.one user USER -
+hibr-access: org.test.one: which user?
+status 1
+hibr-access: no such user: no_such_user_zz
+status 1
+hibr-access: org.test.one: only a password is remembered
+status 1

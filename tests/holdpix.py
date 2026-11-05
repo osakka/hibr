@@ -1283,12 +1283,12 @@ def lowheld():
     # From the moment it is up: whatever an attach and its resize did
     # before that is the attach's, and what is checked is that the frames
     # after it -- the window over it drawn every one -- send nothing more.
-    seen = len(t.screen().apc)
+    seen = len(t.screen().apcall)
     t.collect(1.5 * SLOW)
     sc = t.screen()
     t.close()
     kill(nm)
-    return sc, sc.apc[:seen], sc.apc[seen:]
+    return sc, sc.apcall[:seen], sc.apcall[seen:]
 
 
 sc, first, after = lowheld()
@@ -1781,6 +1781,40 @@ check("a held desktop sends Blit's panel its eight lines through hold",
       len(st) >= 1 and all(len(h) == 8 and h[0].startswith("fps=") and h[7].startswith("flush=")
                            for h in st), fl)
 
+# A font size changing under an idle desktop (Gitea #410). The frame the
+# resize brings has the same rows and columns, so the wallpaper only keeps;
+# the keep fails on the new cell size, and the picture was then deleted and
+# not sent again until the icons' rescan drew a frame, up to five seconds on.
+nm = name()
+sess = os.path.join(D, "cell%s.hibr" % nm)
+open(sess, "w").write(
+    load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
+    + "DT_WALLIMG=%s\nDT_IMGMODE=auto\nDT_WALLMODE=stretch\n"
+    % sx.tree("tests/img-quad.jpg")
+    + "dt_open || exit 1\ndt_run\ndt_close\n")
+first = os.path.join(D, "cellf%s.hibr" % nm)
+open(first, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, sess)
+                       + "sleep 0.8\nhold attach -m -n one %s 0 0\n" % nm)
+t = Term(first, rows=24, cols=80, settle=1.0, cellw=9, cellh=18,
+         env={"TMPDIR": D}, caps=["kitty"])
+for _ in range(int(32 * SLOW)):
+    t.collect(0.25)
+    if t.raw.count(b"a=T"):
+        break
+# At once: a wallpaper painted over a second ago paints again whatever it is
+# asked, and only one painted just now tries to keep.
+mark = len(t.raw)
+t.resize(24, 80, 9, 17)
+for _ in range(int(12 * SLOW)):
+    t.collect(0.25)
+    if b"a=T" in bytes(t.raw[mark:]):
+        break
+got = bytes(t.raw[mark:])
+t.quit(None, 0.5)
+kill(nm)
+check("a new cell size sends the wallpaper again at once, not at the next rescan",
+      b"a=T" in got, got[-200:])
+
 # A shadow the terminal draws (Blit's SGR 66) reaches a client through hold's
 # emulator, which redraws: dropped there, a held desktop has none.
 sc, log = run('console put 1 1 HELD\nconsole shadow 2 2 1 1 2 1 0 "#000000"\n'
@@ -1790,4 +1824,4 @@ check("a shadow attribute crosses hold with its kind, width and inset",
       "66:2:1:0" in pens and "66:3:1:1" in pens, pens[:300])
 
 shutil.rmtree(D, True)
-report(97)
+report(98)
