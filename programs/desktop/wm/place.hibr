@@ -7,8 +7,9 @@
 # DT_PLACE (Control Panel > Windows > Placement) is smart, cascade or
 # center. Smart takes the first spot on the primary display, scanning from
 # the top left, where the window overlaps no visible window and not the
-# Control Strip, below the menu bar; with no such spot, the one where it
-# overlaps least. Cascade is the step down and across the desktop always
+# Control Strip, below the menu bar and clear of its shadow, so a window does
+# not open in the shade (it can still be moved there); with no such spot, the
+# one where it overlaps least. Cascade is the step down and across the desktop always
 # did; center is the middle of the display. Every way, a window larger than
 # the display is shrunk to fit it.
 #
@@ -31,6 +32,10 @@ fn dt_place(int h, int w) {
 	local sr sw scol dr=0 dc=0
 	local -a R C H W
 
+	if [ "$DT_BARSHADOW" = 1 ]; then
+		top=$((top + 1))
+		ph=$((ph - 1))
+	fi
 	[ "$h" -gt "$ph" ] && h=$ph
 	[ "$w" -gt "$pw" ] && w=$pw
 	case $DT_PLACE in

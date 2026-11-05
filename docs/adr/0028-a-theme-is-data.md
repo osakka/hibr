@@ -10,8 +10,8 @@ meant editing that file, and a person could not keep one of their own
 without replacing the whole pane.
 
 The project's rule is that what the user configures is a script of their
-own, not a configuration file format: the session file, apps, panes and the
-settings file are all hibr. A theme could follow it -- a file of
+own, not a configuration file format: the session file, apps and panes are
+all hibr, and so was the settings file until ADR 0054. A theme could follow it -- a file of
 assignments, sourced.
 
 ## Decision

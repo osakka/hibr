@@ -393,30 +393,6 @@ def folderlook():
           "folder's from its own name", all(got.get(k) == v for k, v in want.items()),
           (got, ko.stderr))
     shutil.rmtree(kd, True)
-    mig = os.path.join(fd if os.path.isdir(fd) else tempfile.gettempdir(), "old-desktop.hibr")
-    open(mig, "w").write("DT_SETVER=17\nFB_BGDEF=White\nCS_Y=95\n")
-    mo = subprocess.run([sx.HIBR, "-c", '. %s\n. %s\nDT_CONF=%s\ndt_load\n'
-        'echo "bg=[$FB_BGDEF] rel=[$CS_YREL] y=[$CS_Y] ver=$DT_SETVER"\n'
-        % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/files.hibr"), mig)],
-        capture_output=True, text=True).stdout
-    os.unlink(mig)
-    check("a desktop saved by 0.99.380 loads with Follow Theme where it wrote White "
-          "down, and the strip at its own place", "bg=[Follow Theme] rel=[] y=[] ver=%s\n" % re.search(
-              r"\n\tDT_SETVER=(\d+)\n", open(tree("programs/desktop/wm/settings.hibr")).read()
-          ).group(1) in mo, mo)
-    # 0.99.403 gave alt-enter to the desktop's Full Screen: Files' Open in
-    # New Window moves to mod-o where a save had written the old default
-    # down, and a key somebody chose for it stays theirs.
-    nw = []
-    for key in ("alt-enter", "alt-n"):
-        open(mig, "w").write('DT_SETVER=18\nDT_AKEY["files:newwin"]=%s\n' % key)
-        nw.append(subprocess.run([sx.HIBR, "-c", '. %s\n. %s\nDT_CONF=%s\ndt_load\n'
-            'echo "nw=[${DT_AKEY["files:newwin"]}]"\n'
-            % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/files.hibr"), mig)],
-            capture_output=True, text=True).stdout.strip())
-        os.unlink(mig)
-    check("a desktop saved by 0.99.402 moves Files' new window off alt-enter, "
-          "and keeps a key chosen for it", nw == ["nw=[mod-o]", "nw=[alt-n]"], nw)
     ic = subprocess.run([sx.HIBR, "-c", '. %s\n'
         'dt_glyphs blit; g := dt_iconbig home PLAIN; [ "$g" = "${GL[fhome]}" ] && echo blit-big\n'
         'FB_ICONCOLOUR=amber; g := dt_iconbig trash PLAIN; [ "$g" = "${GL[ftrash]}" ] && echo amber\n'
@@ -950,21 +926,6 @@ check("and so is alt-c, which is Copy's -- a key with a dash in its name",
 sc = cprun(reach("shortcuts", "Menu Bar") + [b"\r", b"\x1b[C"], end=None)
 check("an arrow after activating a row is not taken as its shortcut",
       "f10" in brow(sc, "Menu Bar") and sc.find("Not changed") is not None, sc)
-SAVED = tempfile.mkdtemp(prefix="hibr-keyfix-")
-os.makedirs(os.path.join(SAVED, "hibr"))
-open(os.path.join(SAVED, "hibr", "desktop.hibr"), "w").write(
-    'DT_SETVER=2\nDT_KEYS["menu"]=right\nDT_KEYS["close"]=enter\n'
-    'DT_KEYS["terminal"]=alt-ctrl-t\nDT_APPKEY["snake"]=down\n')
-out = subprocess.run(
-    [sx.HIBR, "-c", '. %s\ndt_load\necho "${DT_KEYS[menu]} ${DT_KEYS[close]} '
-     '[${DT_KEYS[terminal]+x}] [${DT_APPKEY[snake]}]"' % WM],
-    env=dict(os.environ, XDG_CONFIG_HOME=SAVED),
-    capture_output=True, text=True).stdout.strip()
-shutil.rmtree(SAVED, True)
-check("a saved shortcut on an arrow or enter goes back to its default, and "
-      "one for an action that no longer exists is dropped",
-      out == "f10 mod-w [] []", out)
-
 # A key another action holds is asked about, and yes moves it: a key never
 # has two owners. Detach's ctrl-\\ is the one taken here, not Quit's q,
 # since every run ends by pressing q to quit.
@@ -1108,7 +1069,7 @@ wsout = subprocess.run(
      "echo \"[$n]\"; unset SSH_CONNECTION; TERM_PROGRAM='My Term'\n"
      "n := dt_dispname; echo \"[$n]\"; DT_CONF=%s\n"
      "dt_walldisp work-laptop '/x y.png' zoom half; dt_save\n"
-     "unset DT_WALLDMODE; declare -gA DT_WALLDMODE; . \"$DT_CONF\"\n"
+     "unset DT_WALLDMODE; declare -gA DT_WALLDMODE; dt_load\n"
      "echo \"${DT_WALLDIMG[work-laptop]}|${DT_WALLDMODE[work-laptop]}|"
      "${DT_WALLDPIC[work-laptop]}\"\n"
      % os.path.join(PANEHOME, "wsconf.hibr")],
@@ -1322,8 +1283,8 @@ check("going up a folder at a time reaches the root",
 AWCONF = tempfile.mkdtemp(prefix="hibr-wp-conf-")
 run(*PANEL, feed=DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\r"],
     env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF}, pre=CPANES)
-saved = os.path.join(AWCONF, "hibr", "desktop.hibr")
-text = open(saved).read() if os.path.exists(saved) else ""
+saved = os.path.join(AWCONF, "hibr", "desktop.json")
+text = sx.conftext(saved)
 check("enter on a previewed file applies it, saved as the wallpaper",
       ("DT_WALLIMG=%s/wall.png" % AWHOME) in text and
       "DT_WALLASCII" not in text, text)
@@ -1534,176 +1495,6 @@ sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"\nDT_KEYS["menu2"]=',
 check("and f10 and escape then do nothing of the menu bar's",
       sc.find("Screen Saver") is None, sc)
 
-# A settings file keeps every default as it was when written, so new
-# defaults reach it through DT_SETVER, once: a file with no version gets
-# Desktop Shortcuts Win (0.72); one older than 2 gets 0.73's -- the
-# terminal scrollbar, alt-drag, ctrl-w, alt-tab and no quit key -- and a
-# key that was changed from its old default is left alone.
-def loadconf(conf):
-    d = tempfile.mkdtemp(prefix="hibr-mig-")
-    os.makedirs(os.path.join(d, "hibr"))
-    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
-    out = subprocess.run(
-        [sx.HIBR, "-c", ". %s\ndt_load\necho \"$DT_SETVER $DT_TERMKEEP "
-         "$DT_TERMBAR $DT_DRAGMOD ${DT_KEYS[close]} ${DT_KEYS[cycle]} "
-         "[${DT_KEYS[quit]}]\"" % WM],
-        env=dict(os.environ, XDG_CONFIG_HOME=d),
-        capture_output=True, text=True).stdout.strip()
-    shutil.rmtree(d, True)
-    return out
-
-
-# The settings version dt_load writes now, read from it rather than written
-# down here -- each new migration raised it and broke every check below.
-SETVER = re.search(r"\n\tDT_SETVER=(\d+)\n",
-                   open(tree("programs/desktop/wm/settings.hibr")).read()).group(1)
-OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
-           'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
-out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
-check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == SETVER + " 1 1 1 mod-w mod-tab []", out)
-out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
-check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == SETVER + " 0 1 1 mod-w mod-tab []", out)
-out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
-               'DT_KEYS["quit"]=ctrl-q\n')
-check("a key changed from its old default is not touched",
-      out.endswith("alt-x f6 [ctrl-q]"), out)
-out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
-check("and a 0.73 file is read as it is, choices and all",
-      out.startswith(SETVER + " 1 0 0 "), out)
-# Select All reaches every window since 0.99.422 and moved from ctrl-a,
-# which only the icons had, to mod-a: a file still on ctrl-a moves, and a
-# key somebody chose stays.
-def loadsel(conf):
-    d = tempfile.mkdtemp(prefix="hibr-mig-")
-    os.makedirs(os.path.join(d, "hibr"))
-    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
-    out = subprocess.run(
-        [sx.HIBR, "-c", ". %s\ndt_load\necho \"${DT_KEYS[selectall]}\"" % WM],
-        env=dict(os.environ, XDG_CONFIG_HOME=d),
-        capture_output=True, text=True).stdout.strip()
-    shutil.rmtree(d, True)
-    return out
-
-
-out = loadsel('DT_SETVER=19\nDT_KEYS["selectall"]=ctrl-a\n')
-check("a saved Select All still on ctrl-a moves to mod-a", out == "mod-a", out)
-out = loadsel('DT_SETVER=19\nDT_KEYS["selectall"]=f7\n')
-check("and one somebody chose stays", out == "f7", out)
-
-
-# 0.99.324 calls the frame that is only a title bar none, and the border left
-# blank that none used to be is gone: a saved bar is none from then on, and a
-# theme that still says bar -- Charcoal as the catalogue published it -- is
-# read as none rather than refused, which would drop it from the list.
-def framefrom(conf, theme):
-    d = tempfile.mkdtemp(prefix="hibr-mig-")
-    os.makedirs(os.path.join(d, "hibr"))
-    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
-    th = os.path.join(d, "old.json")
-    open(th, "w").write(theme)
-    out = subprocess.run(
-        [sx.HIBR, "-c", ". %s\n. %s\ndt_load\necho -n \"$DT_FRAME $DT_TITLEBAR \"\n"
-         "cp_themeread old %s && echo \"${CP_TH[old][frame]} ${CP_TH[old][titlebar]}\" || echo refused"
-         % (WM, tree("programs/desktop/control-panel/appearance.hibr"), th)],
-        env=dict(os.environ, XDG_CONFIG_HOME=d),
-        capture_output=True, text=True).stdout.strip()
-    shutil.rmtree(d, True)
-    return out
-
-
-out = framefrom("DT_SETVER=13\nDT_FRAME=bar\n",
-                '{"title": "Old", "colours": "midnight", "frame": "bar"}')
-check("a saved bar frame is none after 0.99.324, its title bar still solid, "
-      "and a theme saying bar is read the same way",
-      out == "none solid none solid", out)
-# 0.99.327 makes curved a title bar; 0.99.324 saved it, and published
-# Charcoal with it, as a frame.
-out = framefrom("DT_SETVER=14\nDT_FRAME=curved\n",
-                '{"title": "Old", "colours": "midnight", "frame": "curved"}')
-check("a saved curved frame is no border with a curved title bar, and so is "
-      "a theme that says it", out == "none curved none curved", out)
-
-
-# 0.99.80 holds an output-driven frame 70 ms from the last rather than 33
-# (thirty a second, which no text program needs, and twice the CPU of
-# fifteen). A file still holding the old default moves; a chosen value stays.
-def loadms(conf):
-    d = tempfile.mkdtemp(prefix="hibr-mig-")
-    os.makedirs(os.path.join(d, "hibr"))
-    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
-    out = subprocess.run(
-        [sx.HIBR, "-c", ". %s\ndt_load\necho \"$DT_TERMMS\"" % WM],
-        env=dict(os.environ, XDG_CONFIG_HOME=d),
-        capture_output=True, text=True).stdout.strip()
-    shutil.rmtree(d, True)
-    return out
-
-
-out = loadms("DT_SETVER=7\nDT_TERMMS=33\n")
-check("a file holding 0.99.79's 33ms between output frames moves to 70",
-      out == "70", out)
-out = loadms("DT_SETVER=7\nDT_TERMMS=45\n")
-check("and a frame interval somebody chose is left alone", out == "45", out)
-
-
-# 0.99.26 put the workspaces on alt and an arrow and Snap on ctrl-alt: a
-# file still holding the old defaults swaps them, and a key someone chose
-# is kept, its partner moving onto the key it gave up.
-def loadclose(conf):
-    """The same, for the Close Window key, which 9 moves on its own rather
-    than by a swap."""
-    d = tempfile.mkdtemp(prefix="hibr-mig-")
-    os.makedirs(os.path.join(d, "hibr"))
-    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
-    out = subprocess.run(
-        [sx.HIBR, "-c", '. %s\ndt_load\necho "${DT_KEYS[close]}"' % WM],
-        env=dict(os.environ, XDG_CONFIG_HOME=d),
-        capture_output=True, text=True).stdout.strip()
-    shutil.rmtree(d, True)
-    return out
-
-
-def loadkeys(conf):
-    d = tempfile.mkdtemp(prefix="hibr-mig-")
-    os.makedirs(os.path.join(d, "hibr"))
-    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
-    out = subprocess.run(
-        [sx.HIBR, "-c", ". %s\ndt_load\necho \"${DT_KEYS[snapleft]} ${DT_KEYS[wsprev]} "
-         "${DT_KEYS[snapright]} ${DT_KEYS[wsnext]}\"" % WM],
-        env=dict(os.environ, XDG_CONFIG_HOME=d),
-        capture_output=True, text=True).stdout.strip()
-    shutil.rmtree(d, True)
-    return out
-
-
-OLDWS = ('DT_SETVER=2\nDT_KEYS["snapleft"]=alt-left\nDT_KEYS["snapright"]=alt-right\n'
-         'DT_KEYS["wsprev"]=ctrl-alt-left\nDT_KEYS["wsnext"]=ctrl-alt-right\n')
-# 0.99.26 swapped Snap and the workspaces; 0.99.90 (settings version 9) swapped
-# them back, because the 0.99.26 arrangement left the four tiling directions
-# split across two modifiers. So a file from before 0.99.26 goes through both
-# and lands where it began -- which is the point rather than a coincidence, and
-# is why this reads as "unchanged" now.
-out = loadkeys(OLDWS)
-check("a file from before 0.99.26 goes through both swaps and ends where it was",
-      out == "mod-left ctrl-alt-left mod-right ctrl-alt-right", out)
-out = loadkeys(OLDWS + 'DT_KEYS["wsprev"]=f7\n')
-check("a workspace key someone chose stays, and Snap still lands on alt",
-      out == "mod-left f7 mod-right ctrl-alt-right", out)
-out = loadkeys('DT_SETVER=3\nDT_KEYS["snapleft"]=alt-left\nDT_KEYS["wsprev"]=ctrl-alt-left\n')
-check("a file written between the two is already where 9 wants it",
-      out == "mod-left ctrl-alt-left mod-right ctrl-alt-right", out)
-NEWWS = ('DT_SETVER=8\nDT_KEYS["snapleft"]=ctrl-alt-left\nDT_KEYS["snapright"]=ctrl-alt-right\n'
-         'DT_KEYS["wsprev"]=alt-left\nDT_KEYS["wsnext"]=alt-right\nDT_KEYS["close"]=ctrl-w\n')
-out = loadkeys(NEWWS)
-check("a file holding 0.99.89's own defaults moves to alt and ctrl-alt",
-      out == "mod-left ctrl-alt-left mod-right ctrl-alt-right", out)
-out = loadkeys(NEWWS + 'DT_KEYS["close"]=ctrl-q\n')
-check("and a close key someone chose is not moved to alt-w",
-      loadclose(NEWWS) == "mod-w" and loadclose(NEWWS + 'DT_KEYS["close"]=ctrl-q\n')
-      == "ctrl-q", loadclose(NEWWS + 'DT_KEYS["close"]=ctrl-q\n'))
-
 # Colour schemes are JSON files, read from the person's own folders first
 # and then the bundled one; a file of the same name replaces a bundled
 # scheme, a new name adds one, and a file that is not valid is left out
@@ -1840,48 +1631,6 @@ check("and a file of the person's own wins over a fetched one of that name, "
       out[2] == "dracula rounded", out)
 shutil.rmtree(CD, True)
 shutil.rmtree(DD, True)
-
-# Before 0.99.33 the colour scheme's name was kept as CP_THEME; a file that
-# old has it moved to CP_COLOURS once, and a theme chosen since is kept.
-def loadlook(conf):
-    d = tempfile.mkdtemp(prefix="hibr-mig-")
-    os.makedirs(os.path.join(d, "hibr"))
-    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
-    out = subprocess.run(
-        [sx.HIBR, "-c", CPLOAD + 'dt_load\necho "[$CP_THEME] $CP_COLOURS $DT_SETVER"'],
-        env=dict(os.environ, XDG_CONFIG_HOME=d),
-        capture_output=True, text=True).stdout.strip()
-    shutil.rmtree(d, True)
-    return out
-
-
-out = loadlook("DT_SETVER=3\nCP_THEME=dracula\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] dracula " + SETVER, out)
-out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper " + SETVER, out)
-
-
-# 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
-# setting reaches every picture the desktop draws (ADR 0037). A file still
-# holding the old default moves; a picture someone chose for it is kept.
-def loadtube(conf):
-    d = tempfile.mkdtemp(prefix="hibr-mig-")
-    os.makedirs(os.path.join(d, "hibr"))
-    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
-    out = subprocess.run(
-        [sx.HIBR, "-c", CPLOAD + ". %s/youtube.hibr\ndt_load\n"
-         'echo "$YT_MODE $DT_SETVER"' % appdir("youtube")],
-        env=dict(os.environ, XDG_CONFIG_HOME=d),
-        capture_output=True, text=True).stdout.strip()
-    shutil.rmtree(d, True)
-    return out
-
-
-out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
-check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow " + SETVER, out)
-out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii " + SETVER, out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -2789,7 +2538,7 @@ open(os.path.join(NPD4, "1.txt"), "w").write("first")
 open(os.path.join(NPD4, "2.txt"), "w").write("second")
 open(os.path.join(NPD4, "notes.json"), "w").write(
     '{"1":{"color":"blue","h":8,"w":24},"2":{"color":"pink","h":8,"w":24}}')
-sc = run("calc", CW, [], pre="dt_launch stickies", extra=("stickies",),
+sc = run("calc", "8 30 14 44", [], pre="dt_launch stickies", extra=("stickies",),
          env=stenv(NPD4), end=None)
 check("launching Stickies opens every note",
       sc.find("✕ first") is not None and sc.find("✕ second") is not None,
@@ -2800,7 +2549,7 @@ NPD4 = stdir()
 OLDN = tempfile.mkdtemp(prefix="hibr-oldnote-")
 os.makedirs(os.path.join(OLDN, "hibr"))
 open(os.path.join(OLDN, "hibr", "notepad.txt"), "w").write("from note pad\n")
-sc = run("calc", CW, [], pre="dt_launch stickies", extra=("stickies",),
+sc = run("calc", "8 30 14 44", [], pre="dt_launch stickies", extra=("stickies",),
          env=dict(stenv(NPD4), XDG_CONFIG_HOME=OLDN), end=None)
 check("the first time, Note Pad's note becomes the first sticky",
       stnote(NPD4) == "from note pad" and
@@ -6289,4 +6038,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(810)
+report(788)

@@ -597,8 +597,8 @@ or `tests/540-examples.t` fails: nothing a person can choose should be
 reachable only by editing the settings file. A pane whose app is installed
 and not loaded in this session says so with `cp_absent`. Because the file
 keeps every kept setting, defaults included, changing a default in code
-does not reach anyone who has saved; the window manager's own migrations
-are `DT_SETVER` branches in `dt_load`.
+does not reach anyone who has saved, and nothing in the desktop migrates a
+saved value (ADR 0054).
 
 **Words a person reads go through the language.** The desktop translates
 at its widgets: a menu row, a checkbox's label, a button, a pane's row and

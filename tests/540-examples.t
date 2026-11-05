@@ -253,8 +253,7 @@ echo "every Edit row an app leaves out is one it means to"
 # whether it is folded are set by dragging and clicking the strip itself,
 # where a split window's divider sits by dragging the divider, which
 # sheets are trusted by the Sheet menu's own switch,
-# WPK_DIR is only where the wallpaper picker was last left, and DT_SETVER
-# is which version of the settings wrote the file.
+# and WPK_DIR is only where the wallpaper picker was last left.
 panes=$(grep -l '^command -v cp_pane' programs/desktop/control-panel/*.hibr)
 kept=$( (grep -rhoE 'dt_keep( [A-Z_][A-Z0-9_]*)+' programs/desktop \
           --include='*.hibr' | sed 's/^dt_keep//'
@@ -268,7 +267,7 @@ for v in $kept; do
   # which sheets this machine trusts (never in a sheet, so one cannot
   # arrive trusted), the wallpaper picker's last folder, where YouTube's
   # mini player was last left, and the settings file's own version.
-  case $v in CS_YREL | CS_LEN | CS_COLLAPSED | CP_DIVCOL | FP_LISTW | DIA_SPLIT | CAT_SPLIT | SS_TRUST | WPK_DIR | YT_MINIGEO | DT_SETVER) continue ;; esac
+  case $v in CS_YREL | CS_LEN | CS_COLLAPSED | CP_DIVCOL | FP_LISTW | DIA_SPLIT | CAT_SPLIT | SS_TRUST | WPK_DIR | YT_MINIGEO) continue ;; esac
   grep -qw "$v" $panes || echo "kept but in no Control Panel pane: $v"
 done
 echo "every kept preference is in the Control Panel"

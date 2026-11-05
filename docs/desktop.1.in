@@ -274,7 +274,7 @@ did not answer within five seconds, or the request was not one the client
 knows how to send.
 .SH FILES
 .TP
-.I ~/.config/hibr/desktop.hibr
+.I ~/.config/hibr/desktop.json
 The settings, written as the Control Panel changes them. It is a hibr
 script of its own, read at each start.
 .TP

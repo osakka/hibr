@@ -30,8 +30,7 @@ DT_MOD="${DT_MOD-alt}"
 [ -n "${DT_KEYS["signin"]+x}" ] || DT_KEYS["signin"]="mod-l"
 # Select All is one key in every window since 0.99.422, so it is a chord
 # like Copy rather than ctrl-a, which a field and an app have their own
-# uses for; a settings file still holding ctrl-a moved with it (DT_SETVER
-# 20).
+# uses for.
 [ -n "${DT_KEYS["selectall"]+x}" ] || DT_KEYS["selectall"]="mod-a"
 [ -n "${DT_KEYS["scrollup"]+x}" ] || DT_KEYS["scrollup"]="shift-pageup"
 [ -n "${DT_KEYS["scrolldown"]+x}" ] || DT_KEYS["scrolldown"]="shift-pagedown"
@@ -40,8 +39,7 @@ DT_MOD="${DT_MOD-alt}"
 [ -n "${DT_KEYS["snaptop"]+x}" ] || DT_KEYS["snaptop"]="ctrl-alt-up"
 [ -n "${DT_KEYS["snapbottom"]+x}" ] || DT_KEYS["snapbottom"]="ctrl-alt-down"
 # Zoom and Minimise on the vertical arrows since 0.99.265, the owner's
-# choice; Snap Top and Bottom moved to ctrl-alt, a settings file still
-# holding their old keys moved with them (DT_SETVER 12).
+# choice; Snap Top and Bottom moved to ctrl-alt.
 [ -n "${DT_KEYS["zoom"]+x}" ] || DT_KEYS["zoom"]="mod-up"
 [ -n "${DT_KEYS["hide"]+x}" ] || DT_KEYS["hide"]="mod-down"
 [ -n "${DT_KEYS["shade"]+x}" ] || DT_KEYS["shade"]=
@@ -428,16 +426,6 @@ DT_TERMCTRL="${DT_TERMCTRL-1}"
 # scrollback is visible as something there is. The terminal app keeps it.
 DT_TERMBAR="${DT_TERMBAR-1}"
 
-# Which version of these settings a saved file was written by. A file from
-# before the number existed is version 0; dt_load brings an older one up to
-# date once, so a default changed here reaches someone whose first save
-# froze the old one -- the trap a frozen DT_TICK=200 once was.
-DT_SETVER="${DT_SETVER-}"
-# Whether these settings predate 0.99.349, so that the entries that left the
-# package are offered (dt_hwoffer); set by dt_load, never saved.
-DT_HWOFFER=
-DT_CSOFFER=
-
 # How many consecutive drag reports dt_run lets go by before it actually
 # redraws -- 0 skips none (today's behaviour, and the default): a drag
 # itself is not slower for it, since every report still updates the
@@ -484,7 +472,8 @@ DT_SWSKIP="${DT_SWSKIP-stickies}"
 # one changes and read back at the next start: plain assignments, so it can
 # be edited by hand and needs no format of its own.  An app that wants a
 # variable of its own kept names it with dt_keep.
-DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
+DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.json}"
+declare -gA DT_CONFJ DT_CONFOUT
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_DIM DT_SELINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL DT_HOT DT_TITLE DT_TITLEINK DT_HIGHLIGHT DT_SHADOWINK
 	DT_WALLIMG DT_WALLMODE
@@ -494,27 +483,13 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_FRAME DT_WINTRANS DT_BARTRANS DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_TITLEKEY DT_MOVEMODE DT_DRAWSKIP DT_TERMMS DT_LIVEMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEFRAME DT_NOTECOLOUR DT_NOTEWHERE DT_NOTECOUNT DT_NOTELIST DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BARORDER DT_BARHIDE DT_MENUMARK DT_BTNSHADOW DT_SHADOWSHAPE DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
-	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_MENUMAX DT_SCROLLWHEEL DT_NETKIND DT_NETBAR DT_NETRULE DT_PWBAR DT_PWLEVEL DT_PWLOW DT_PWCRIT DT_PWCRITDO DT_HOVER DT_FOCUSHOVER DT_TIPS DT_TIPMS DT_SWITCHER DT_SWMS DT_SWSKIP DT_BAND DT_BANDPCT DT_BTKIND DT_BTBAR DT_MOD DT_SETVER)
+	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_MENUMAX DT_SCROLLWHEEL DT_NETKIND DT_NETBAR DT_NETRULE DT_PWBAR DT_PWLEVEL DT_PWLOW DT_PWCRIT DT_PWCRITDO DT_HOVER DT_FOCUSHOVER DT_TIPS DT_TIPMS DT_SWITCHER DT_SWMS DT_SWSKIP DT_BAND DT_BANDPCT DT_BTKIND DT_BTBAR DT_MOD)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
 # failure is still there to read after it.
 DT_LOG="${DT_LOG-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/desktop.log}"
 DT_ERR=
-
-# Settings version 3 moved the workspaces onto alt and an arrow and Snap
-# onto ctrl-alt. Each of a pair still on its old default takes its new one,
-# which the other has just given up -- or someone moved the other already
-# -- so a key someone chose stays theirs.
-fn dt_keyswap(a, b, olda, oldb) {
-	local ma=0 mb=0
-
-	[ "${DT_KEYS["$a"]}" = "$olda" ] && ma=1
-	[ "${DT_KEYS["$b"]}" = "$oldb" ] && mb=1
-	[ "$ma" = 1 ] && DT_KEYS["$a"]=$oldb
-	[ "$mb" = 1 ] && DT_KEYS["$b"]=$olda
-	return 0
-}
 
 # Keep these variables in the settings file too.
 dt_keep() {
@@ -525,281 +500,109 @@ dt_keep() {
 			[ "$k" = "$v" ] && continue 2
 		done
 		DT_KEEP+=("$v")
+		dt_keepload "$v"
 	done
+}
+
+# Give a kept name its saved value. Only a name something has kept is ever
+# set from the file, so the file cannot reach any other variable.
+fn dt_keepload(v) {
+	[ -n "${DT_CONFJ["settings"]["$v"]+x}" ] || return 0
+	declare -g "$v=${DT_CONFJ["settings"]["$v"]}"
 }
 
 # Read the settings file, if there is one.  It runs after the session file
 # has set its defaults, so what was chosen last time wins.
 dt_load() {
-	DT_SETVER=
-	if [ -r "$DT_CONF" ]; then
-		. "$DT_CONF"
-		if [ -z "$DT_SETVER" ]; then
-			DT_TERMKEEP=1
-		fi
-		if [ "${DT_SETVER:-0}" -lt 2 ]; then
-			DT_TERMBAR=1
-			DT_DRAGMOD=1
-			[ "${DT_KEYS["close"]}" = alt-f4 ] && DT_KEYS["close"]="ctrl-w"
-			[ "${DT_KEYS["cycle"]}" = tab ] && DT_KEYS["cycle"]="alt-tab"
-			[ "${DT_KEYS["quit"]}" = q ] && DT_KEYS["quit"]=
-		fi
-		if [ "${DT_SETVER:-0}" -lt 3 ]; then
-			dt_keyswap snapleft wsprev alt-left ctrl-alt-left
-			dt_keyswap snapright wsnext alt-right ctrl-alt-right
-		fi
-		if [ "${DT_SETVER:-0}" -lt 4 ] && dt_has cp_setver4; then
-			cp_setver4
-		fi
-		# 0.99.66 had Show Hijri Dates; 0.99.68 has a Hijri code in the
-		# format instead, and "None" for no Hijri at all (ADR 0034).
-		if [ "${DT_SETVER:-0}" -lt 5 ]; then
-			if [ "$DT_HIJRI" = on ]; then
-				[ "$DT_HCAL" = none ] && DT_HCAL=umalqura
-				case $DT_BARTIME in *%i*) ;; *) DT_BARTIME="%ie %ib  $DT_BARTIME" ;; esac
-			else
-				DT_HCAL=none
-			fi
-		fi
-		# 0.99.70 ordered right-to-left text itself unless told not to,
-		# and froze that "on" into every saved file; 0.99.71 asks the
-		# terminal instead (kitty, VTE and iTerm2 order it themselves).
-		# Someone who had turned it off keeps that.
-		if [ "${DT_SETVER:-0}" -lt 6 ] && [ "$DT_BIDI" = on ]; then
-			DT_BIDI=auto
-		fi
-		# 0.99.77 has the YouTube player follow Control Panel >
-		# Pictures rather than keeping a picture of its own, so the
-		# one setting reaches every picture the desktop draws. Its
-		# pane moves a file still holding the old default.
-		if [ "${DT_SETVER:-0}" -lt 7 ] && dt_has cp_setver7; then
-			cp_setver7
-		fi
-		# 0.99.79 held an output-driven frame to 33 ms apart, thirty a
-		# second, which no text program needs: 0.99.80 asks for 70,
-		# about fifteen. Measured on three programs each writing every
-		# 10 ms at 71x232: 18.2% of a core against 28.7%, with the
-		# frames themselves 15.1 a second against 29.9. A file still
-		# holding the old default moves; a value somebody chose stays.
-		if [ "${DT_SETVER:-0}" -lt 8 ] && [ "$DT_TERMMS" = 33 ]; then
-			DT_TERMMS=70
-		fi
-		# 0.99.90 puts every shortcut the desktop itself acts on under
-		# alt or ctrl-alt, because a terminal never yields ctrl with a
-		# letter (dt_keyassigned's own carve-out for DT_TERMCTRL) -- so
-		# ctrl-w silently did nothing whenever a terminal had focus.
-		# Tiling takes all four arrows on alt and the workspaces move
-		# to ctrl-alt, which is where they were before 0.99.26: that
-		# swap gave the arrows to the workspaces and left the four
-		# tiling directions split across two modifiers, which no rule
-		# can explain to anyone. A key somebody chose is kept, as
-		# always -- dt_keyswap moves one only while it still holds the
-		# default it is being moved off.
-		if [ "${DT_SETVER:-0}" -lt 9 ]; then
-			dt_keyswap snapleft wsprev ctrl-alt-left alt-left
-			dt_keyswap snapright wsnext ctrl-alt-right alt-right
-			if [ "${DT_KEYS["close"]}" = ctrl-w ]; then
-				DT_KEYS["close"]="alt-w"
-			fi
-		fi
-		# 0.99.154 turned the terminal shade from a list of five
-		# values into a slider in tens, so a saved 85, 75 or 65 is
-		# snapped to the nearest position it can actually sit on.
-		if [ "${DT_SETVER:-0}" -lt 10 ] && dt_has cp_setver10; then
-			cp_setver10
-		fi
-		# 0.99.188: one flag named for the wallpaper in fact halved
-		# every picture whose caller had not chosen a palette, so a
-		# video was always sent at a quarter of the area it covers.
-		# It is DT_IMGDETAIL now, three-state, and a saved choice
-		# carries over (Gitea #228).
-		if [ "${DT_SETVER:-0}" -lt 11 ] && dt_has cp_setver11; then
-			cp_setver11
-		fi
-		# 0.99.265 gives alt-up and alt-down to Zoom and Minimise, and
-		# Snap Top and Bottom go to ctrl-alt-up and ctrl-alt-down -- a
-		# key somebody chose for either is kept, as always.
-		if [ "${DT_SETVER:-0}" -lt 12 ]; then
-			[ "${DT_KEYS["snaptop"]}" = alt-up ] && DT_KEYS["snaptop"]="ctrl-alt-up"
-			[ "${DT_KEYS["snapbottom"]}" = alt-down ] &&
-				DT_KEYS["snapbottom"]="ctrl-alt-down"
-		fi
-		# 0.99.272 writes the desktop's alt chords with `mod`, which
-		# Shortcut Key decides (Gitea #326). A key still on its old
-		# alt default moves to the mod one; a key somebody chose stays
-		# exactly as they chose it.
-		if [ "${DT_SETVER:-0}" -lt 13 ]; then
-			dt_keymodmove
-		fi
-		# 0.99.324: the frame that is only a title bar is called none,
-		# and the border left blank that none was is gone with it.
-		if [ "${DT_SETVER:-0}" -lt 14 ]; then
-			[ "$DT_FRAME" = bar ] && DT_FRAME=none
-		fi
-		# 0.99.327: curved is a title bar, and none's title row is no
-		# longer always filled -- it follows Title Bar, as every other
-		# frame's does. A saved one keeps the look it had.
-		if [ "${DT_SETVER:-0}" -lt 15 ]; then
-			if [ "$DT_FRAME" = curved ]; then
-				DT_FRAME=none
-				DT_TITLEBAR=curved
-			elif [ "$DT_FRAME" = none ] && [ "$DT_TITLEBAR" = line ]; then
-				DT_TITLEBAR=solid
-			fi
-		fi
-		# 0.99.349: Network, Sound, Bluetooth and Power left the
-		# package for the catalogue (Gitea #388). A desktop whose
-		# settings predate that had them, and dt_hwoffer tells it where
-		# they went; a new desktop never had them and is told nothing.
-		if [ "${DT_SETVER:-0}" -lt 16 ]; then
-			DT_HWOFFER=1
-		fi
-		# 0.99.354: the Control Strip is off unless chosen, and its
-		# modules left the package (Gitea #393). A desktop from before
-		# had it showing and keeps it, and is told where the modules
-		# went.
-		if [ "${DT_SETVER:-0}" -lt 17 ]; then
-			CS_SHOW=1
-			DT_CSOFFER=1
-		fi
-		# 0.99.383: the strip's row is the primary's own, CS_YREL. The
-		# old CS_Y was a row of the whole union, which a display joining
-		# above moved, and what was saved cannot be told apart from where
-		# it was pushed: the strip starts once at its own default place.
-		if [ "${DT_SETVER:-0}" -lt 18 ]; then
-			CS_YREL=
-			# And Files' background default was White for one release
-			# (0.99.380) and is Follow Theme since: every desktop that
-			# saved anything then wrote White down as if chosen. A colour
-			# a folder was given in its own View menu is its own, and
-			# stays.
-			[ "${FB_BGDEF-}" = White ] && FB_BGDEF="Follow Theme"
-		fi
-		# 0.99.403 gives alt-enter to the desktop's Full Screen, the
-		# owner's choice, and Files' Open in New Window moves to mod-o
-		# -- only while it still holds the old default, since every save
-		# wrote that down as if chosen. Not alt-shift-enter: a terminal
-		# sends shift-enter as a plain return, so it arrives as alt-enter.
-		if [ "${DT_SETVER:-0}" -lt 19 ] &&
-		   [ "${DT_AKEY["files:newwin"]-}" = alt-enter ]; then
-			DT_AKEY["files:newwin"]="mod-o"
-		fi
-		# 0.99.422: Select All reaches every window, and moves from
-		# ctrl-a, which only the icons had, to mod-a -- only while it
-		# still holds the old default.
-		if [ "${DT_SETVER:-0}" -lt 20 ] &&
-		   [ "${DT_KEYS["selectall"]-}" = ctrl-a ]; then
-			DT_KEYS["selectall"]="mod-a"
-		fi
+	local v k i ext
+	local -a argv
+
+	unset DT_CONFJ
+	declare -gA DT_CONFJ
+	if [ -r "$DT_CONF" ] && ! json parse DT_CONFJ < "$DT_CONF" 2> /dev/null; then
+		echo "desktop: $DT_CONF is not JSON, set aside as $DT_CONF.bad" >&2
+		command mv -f -- "$DT_CONF" "$DT_CONF.bad"
+		unset DT_CONFJ
+		declare -gA DT_CONFJ
 	fi
-	CS_Y=
-	DT_SETVER=20
-	dt_keyfix
+	for v in "${DT_KEEP[@]}"; do
+		dt_keepload "$v"
+	done
+	for k in "${!DT_CONFJ["keys"][@]}"; do
+		DT_KEYS["$k"]=${DT_CONFJ["keys"]["$k"]}
+	done
+	for k in "${!DT_CONFJ["appkeys"][@]}"; do
+		DT_APPKEY["$k"]=${DT_CONFJ["appkeys"]["$k"]}
+	done
+	for k in "${!DT_CONFJ["akeys"][@]}"; do
+		DT_AKEY["$k"]=${DT_CONFJ["akeys"]["$k"]}
+	done
+	for k in "${!DT_CONFJ["noteapps"][@]}"; do
+		DT_NOTEAPP["$k"]=${DT_CONFJ["noteapps"]["$k"]}
+	done
+	for k in "${!DT_CONFJ["icons"][@]}"; do
+		DT_ICONPOS["$k"]=${DT_CONFJ["icons"]["$k"]}
+	done
+	for k in "${!DT_CONFJ["displays"][@]}"; do
+		dt_walldisp "$k" "${DT_CONFJ["displays"]["$k"]["img"]}" \
+			"${DT_CONFJ["displays"]["$k"]["mode"]}" \
+			"${DT_CONFJ["displays"]["$k"]["pic"]}"
+	done
+	for ext in "${!DT_CONFJ["handlers"][@]}"; do
+		argv=()
+		[ "${DT_CONFJ["handlers"]["$ext"]["term"]}" = 1 ] && argv=(term)
+		for i in "${!DT_CONFJ["handlers"]["$ext"]["argv"][@]}"; do
+			argv+=("${DT_CONFJ["handlers"]["$ext"]["argv"][$i]}")
+		done
+		dt_handler "$ext" "${argv[@]}"
+	done
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"
 	return 0
 }
 
-# A shortcut still on the alt default it had before 0.99.272 moves to the
-# mod default that replaced it.
-dt_keymodmove() {
-	local k d
-
-	for k in "${!DT_KEYDEF[@]}"; do
-		d=${DT_KEYDEF["$k"]}
-		case $d in mod-*) ;; *) continue ;; esac
-		[ "${DT_KEYS["$k"]-}" = "alt-${d#mod-}" ] && DT_KEYS["$k"]=$d
-	done
-	return 0
-}
-
-# Settings saved by 0.77 to 0.79 could hold a shortcut on an arrow, enter or
-# another key that moves around the panel -- the capture took whatever came
-# next -- and a Menu Bar on the right arrow took every arrow from every
-# window. Such a binding goes back to its default (or to none, for an app's
-# launch key), and an entry for an action that no longer exists is dropped.
-dt_keyfix() {
-	local k
-
-	for k in "${!DT_KEYS[@]}"; do
-		if [ -z "${DT_KEYDEF["$k"]+x}" ]; then
-			unset DT_KEYS["$k"]
-		elif [ -n "${DT_KEYS["$k"]}" ] && dt_keynav "${DT_KEYS["$k"]}"; then
-			DT_KEYS["$k"]=${DT_KEYDEF["$k"]}
-		fi
-	done
-	for k in "${!DT_APPKEY[@]}"; do
-		[ -n "${DT_APPKEY["$k"]}" ] && dt_keynav "${DT_APPKEY["$k"]}" &&
-			DT_APPKEY["$k"]=
-	done
-	for k in "${!DT_AKEY[@]}"; do
-		[ -n "${DT_AKEY["$k"]}" ] && dt_keynav "${DT_AKEY["$k"]}" &&
-			DT_AKEY["$k"]=
-	done
-	return 0
-}
-
 # Write every kept variable back, through a temporary file and a rename,
-# so a crash halfway through never leaves half a settings file.
-# Whether a map's key can be written into the settings script: inside its
-# double quotes, anything the shell would expand runs when the file is read,
-# and a sender's name is not ours to trust.
-fn dt_savekey(k) {
-	case $k in *['"$`\\']*) return 1 ;; esac
-	return 0
-}
-
+# so a crash halfway through never leaves half a settings file. A setting
+# nothing has kept yet this session, a pane not loaded, goes back as it came.
 dt_save() {
-	local v tmp=$DT_CONF.$$ n i line
+	local v k n i s tmp=$DT_CONF.$$
 
 	mkdir -p "${DT_CONF%/*}" 2> /dev/null || return 1
-	{
-		echo "# The desktop's settings, written whenever one changes and"
-		echo "# read at the next start.  A script like any other."
-		for v in "${DT_KEEP[@]}"; do
-			[ -n "${!v+set}" ] && printf '%s=%q\n' "$v" "${!v}"
+	unset DT_CONFOUT
+	declare -gA DT_CONFOUT
+	for k in "${!DT_CONFJ["settings"][@]}"; do
+		DT_CONFOUT["settings"]["$k"]=${DT_CONFJ["settings"]["$k"]}
+	done
+	for v in "${DT_KEEP[@]}"; do
+		[ -n "${!v+set}" ] && DT_CONFOUT["settings"]["$v"]=${!v}
+	done
+	for k in "${!DT_KEYS[@]}"; do
+		DT_CONFOUT["keys"]["$k"]=${DT_KEYS["$k"]}
+	done
+	for k in "${!DT_APPKEY[@]}"; do
+		DT_CONFOUT["appkeys"]["$k"]=${DT_APPKEY["$k"]}
+	done
+	for k in "${!DT_AKEY[@]}"; do
+		DT_CONFOUT["akeys"]["$k"]=${DT_AKEY["$k"]}
+	done
+	for k in "${!DT_NOTEAPP[@]}"; do
+		DT_CONFOUT["noteapps"]["$k"]=${DT_NOTEAPP["$k"]}
+	done
+	for k in "${!DT_ICONPOS[@]}"; do
+		DT_CONFOUT["icons"]["$k"]=${DT_ICONPOS["$k"]}
+	done
+	for k in "${!DT_WALLDMODE[@]}"; do
+		DT_CONFOUT["displays"]["$k"]["img"]=${DT_WALLDIMG["$k"]}
+		DT_CONFOUT["displays"]["$k"]["mode"]=${DT_WALLDMODE["$k"]}
+		DT_CONFOUT["displays"]["$k"]["pic"]=${DT_WALLDPIC["$k"]}
+	done
+	for k in "${!DT_HANDLERS[@]}"; do
+		n=${DT_HANDLERS[$k]["n"]}
+		DT_CONFOUT["handlers"]["$k"]["term"]=${DT_HANDLERS[$k]["term"]:-0}
+		for ((i = 0; i < n; i++)); do
+			DT_CONFOUT["handlers"]["$k"]["argv"][$i]=${DT_HANDLERS[$k][$i]}
 		done
-		for v in "${!DT_ICONPOS[@]}"; do
-			printf 'dt_iconpos %q %q\n' "$v" "${DT_ICONPOS["$v"]}"
-		done
-		# A display's own wallpaper (Gitea #284).
-		for v in "${!DT_WALLDMODE[@]}"; do
-			printf 'dt_walldisp %q %q %q %q\n' "$v" \
-				"${DT_WALLDIMG["$v"]}" "${DT_WALLDMODE["$v"]}" \
-				"${DT_WALLDPIC["$v"]}"
-		done
-		for v in "${!DT_KEYS[@]}"; do
-			dt_savekey "$v" || continue
-			printf 'DT_KEYS["%s"]=%q\n' "$v" "${DT_KEYS["$v"]}"
-		done
-		for v in "${!DT_APPKEY[@]}"; do
-			dt_savekey "$v" || continue
-			printf 'DT_APPKEY["%s"]=%q\n' "$v" "${DT_APPKEY["$v"]}"
-		done
-		for v in "${!DT_AKEY[@]}"; do
-			dt_savekey "$v" || continue
-			printf 'DT_AKEY["%s"]=%q\n' "$v" "${DT_AKEY["$v"]}"
-		done
-		# What each sender's notes do (wm/notify.hibr's DT_NOTEAPP).
-		for v in "${!DT_NOTEAPP[@]}"; do
-			dt_savekey "$v" || continue
-			printf 'DT_NOTEAPP["%s"]=%q\n' "$v" "${DT_NOTEAPP["$v"]}"
-		done
-		# A dt_handler call, reconstructed from the table it built --
-		# added to by the File Types pane now, not only by a line in a
-		# script of the user's own, so the same table needs writing back
-		# out here too. %q on each word, not on the whole line, so a
-		# command with an argument of its own survives the round trip.
-		for v in "${!DT_HANDLERS[@]}"; do
-			n=${DT_HANDLERS[$v]["n"]}
-			line="dt_handler $(printf '%q' "$v")"
-			[ "${DT_HANDLERS[$v]["term"]}" = 1 ] && line="$line term"
-			i=0
-			while [ "$i" -lt "$n" ]; do
-				line="$line $(printf '%q' "${DT_HANDLERS[$v][$i]}")"
-				i=$((i + 1))
-			done
-			echo "$line"
-		done
-	} > "$tmp" && mv -f "$tmp" "$DT_CONF"
+	done
+	s := json emit DT_CONFOUT -p
+	printf '%s\n' "$s" > "$tmp" && mv -f "$tmp" "$DT_CONF"
 }

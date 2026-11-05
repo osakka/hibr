@@ -310,10 +310,10 @@ own `<app>_context` if it defines one:
 
 ## Control Panel settings are a script, not a format
 
-Nothing about the desktop's configuration is a config file format of its
-own. `dt_save` writes plain assignments and setter calls to
-`~/.config/hibr/desktop.hibr`, `dt_load` sources it back — a script like
-any other, editable by hand, and it is exactly the plain variables the
+The desktop's configuration is data (ADR 0054). `dt_save` writes
+`~/.config/hibr/desktop.json`, and `dt_load` reads it back with `json parse`,
+giving a value only to a name `dt_keep` has named. Nothing in it runs, and
+it is exactly the plain variables the
 window manager already reads every frame (`DT_WALL`, `DT_ICONS`, `DT_KEYS`,
 and so on), so a change takes effect the moment it is written, in every
 window at once, without anything being told to refresh. `panel.hibr`, the

@@ -50,8 +50,7 @@ YT_BASE="${YT_BASE-https://www.youtube.com}"
 # How the picture is drawn. `follow` is Control Panel > Pictures, which is
 # the one setting meant to reach every picture the desktop draws (ADR 0037);
 # the rest say outright, for someone who wants this window different from
-# the Image Viewer. A settings file from before 0.99.77 holds `half`, the
-# old default, and cp_setver7 brings that one -- and only that one -- here.
+# the Image Viewer.
 YT_MODE="${YT_MODE-follow}"
 # auto asks for what the picture can show: 144p drawn as blocks or ASCII (a
 # window is about 120 by 80 picture pixels, which 256 by 144 already covers),

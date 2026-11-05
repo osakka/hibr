@@ -64,7 +64,10 @@ releases).
 
 The release gate is targeted, the daily run is not. A release runs
 `python3 tests/affected.py --since <last tag> --run` and then, when C
-changed, `tests/asan.py --quick`, one after the other. A change to `src/`,
+changed, `tests/asan.py --quick`, one after the other. After a full gate,
+a change only to test code reruns just the suites it affects (owner,
+2026-11-05); the next full run covers a harness change reaching one not
+rerun. A change to `src/`,
 `include/`, the Makefile or `tests/screen.py` still reaches every suite. A
 change under `programs/desktop` reaches the suites that **called the
 changed function**, as measured by `tests/coverage.tsv`. Once a day, and
@@ -286,8 +289,9 @@ compatibility, expansion, job control, the module mechanism itself. Everything
 else is a module, and every module is `dlopen`ed on demand: a shell that only
 runs your scripts loads none of them and pays for none of them.
 
-**Tools are modules. Applications are scripts. What the user configures is a
-script of their own** — not a configuration file format. The desktop follows
+**Tools are modules. Applications are scripts. What a person writes on purpose
+is a script of their own; what the desktop writes for itself is data, never
+sourced** (ADR 0054). The desktop follows
 X's shape: the display is a module you load and unload, the window manager is a
 script you run and exit, and the session file is the user's. Nothing stays
 resident after it returns.
@@ -1464,16 +1468,6 @@ went in the shell.
   155 releases, nothing in a settings file can tell a stale default from a
   deliberate choice, and the only honest way to find out was to **ask the
   person whose file it was** rather than migrate on a guess.
-- **Before adding a `DT_SETVER` branch, measure whether one is owed.**
-  #212 was filed claiming a default had changed with no migration, and the
-  premise was wrong twice over: that change landed in **0.23**, 47
-  releases before `DT_SETVER` existed, so there was never a version to
-  bump; and a sweep of every setting's default at `v0.72` (when the
-  mechanism arrived) against its default now found **two** that had moved,
-  `DT_DRAGMOD` and `DT_TERMBAR`, both already named in `dt_load`. The
-  sweep is twenty lines and worth re-running rather than reasoned about:
-  read each `NAME="${NAME-default}"` out of `git show v0.72:<file>` and
-  out of the tree, diff them, and grep `dt_load` for each name that moved.
 - **A process substitution's child is only reaped if the first `WNOHANG`
   wait happens to catch it already dead, and the record was discarded
   either way.** `xpsub_done` closes the descriptor and calls
@@ -1660,18 +1654,10 @@ went in the shell.
   who has ever saved anything. That is how a 2000ms default tick went on
   running at 200ms for its own author. Changing a default is not enough to
   change behaviour: either the setting stops mattering (what the tick got)
-  or the old value needs migrating on load. `DT_SETVER` is that migration:
-  `dt_load` blanks it before sourcing the file, so a file written before
-  0.72 leaves it empty and gets the new defaults (`DT_TERMKEEP=1`) once,
-  then `dt_save` writes `DT_SETVER=1` and the person's own choice sticks.
-  0.73 is version 2: the scrollbar, alt-drag, ctrl-w, alt-tab and no quit
-  key, a key moved only while it still holds its old default. 0.99.26 is
-  3 (workspace and snap keys swapped), 0.99.33 is 4 (`CP_THEME`, a colour
-  scheme's name until then, moved to `CP_COLOURS` by Appearance's own
-  `cp_setver4`, which `dt_load` calls when the pane is loaded). It is 19
-  now; the next default that must reach saved files bumps it to 20 and adds
-  a branch --
-  never change `dt_load` to re-apply a default unconditionally. A key
+  or the person changes it, since nothing migrates a saved value (ADR 0054).
+  A settings file is data, `desktop.json`, and nothing the desktop writes for
+  itself is ever sourced. Never change `dt_load` to re-apply a default
+  unconditionally. A key
   default is set only when a session has not set it already (`${..+x}`),
   which is how `tests/screen.py`'s `load()` gives every suite `q` to quit
   with now that the desktop has none.

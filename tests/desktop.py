@@ -267,21 +267,6 @@ check("and alt-w still does", sc.find("Hello") is None, sc)
 sc, _ = run(ONE, [b"\x1bw"], pre='DT_MOD="super"')
 check("on Super alone, alt-w is no longer the desktop's",
       sc.find("Hello") is not None, sc)
-# A settings file from 0.99.271 holds the old alt defaults as literal keys:
-# one still on its old default moves to mod, one chosen by hand stays.
-OLDMOD = tempfile.mkdtemp(prefix="hibr-oldmod-")
-os.makedirs(os.path.join(OLDMOD, "hibr"))
-open(os.path.join(OLDMOD, "hibr", "desktop.hibr"), "w").write(
-    'DT_SETVER=12\nDT_MOD=super\nDT_KEYS["close"]=alt-w\n'
-    'DT_KEYS["hide"]=alt-m\n')
-sc, _ = run(ONE, [SUPERW], env={"XDG_CONFIG_HOME": OLDMOD})
-check("a saved Close Window still on its old alt-w moves to mod-w",
-      sc.find("Hello") is None, sc)
-sc, _ = run(ONE, [b"\x1bm"], env={"XDG_CONFIG_HOME": OLDMOD})
-check("and a key chosen by hand, alt-m for Minimise, stays alt-m",
-      sc.g[6][10] == "·" and sc.g[10][20] == "·", sc)
-shutil.rmtree(OLDMOD, True)
-
 # alt-q is Quit Application: every window of the focused app, not only the one
 # in front, which is what Quit means where one app may have several. Each goes
 # through dt_closereq, so an app that asks before closing still asks -- once
@@ -2351,9 +2336,17 @@ ACC = tree("programs/desktop/apps/Accessories")
 PLACEAPPS = (". %s/calc.hibr\n. %s/clock.hibr\n. %s/imgview.hibr\n"
              ". %s/puzzle.hibr\nDT_ICONS=0" % (ACC, ACC, ACC, ACC))
 sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch imgview", pre=PLACEAPPS)
-check("three launched windows land side by side, overlapping nothing",
-      sc.find("┤ Calculator ├") == (1, 2) and sc.find("┤ Clock ├") == (1, 28)
+check("two launched windows land side by side, and a third covers least",
+      sc.find("┤ Calculator ├") == (2, 2) and sc.find("┤ Clock ├") == (2, 28)
       and sc.find("┤ Image Viewer ├") == (8, 42), sc)
+check("and they open a row down, clear of the shadow the menu bar casts",
+      sc.find("┤ Calculator ├")[0] == 2, sc)
+sc, _ = run("dt_launch calc", pre=PLACEAPPS + "\nDT_BARSHADOW=0")
+check("with the bar casting none, a window opens right under it",
+      sc.find("┤ Calculator ├") == (1, 2), sc)
+sc, _ = run(ONE, [press(6, 20), drag(1, 20), release(1, 20)])
+check("and a person can still put a window there",
+      sc.find("┤ Hello ├")[0] == 1, sc)
 sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch imgview\n"
             "dt_launch puzzle", pre=PLACEAPPS)
 p4 = sc.find("┤ Puzzle ├")
@@ -2370,11 +2363,11 @@ TERMLOAD = ("mod load %s\nmod load %s\n. %s/term.hibr\nDT_ICONS=0"
                tree("programs/desktop/apps")))
 sc, _ = run("dt_launch term", pre=TERMLOAD)
 check("a terminal opens at 24 by 80 by default, shrunk to fit a smaller "
-      "screen", sc.at(1, 0) == "┌" and sc.at(23, 79) == "◢", sc)
+      "screen", sc.at(2, 0) == "┌" and sc.at(23, 79) == "◢", sc)
 sc, _ = run("dt_launch term", pre=TERMLOAD + "\nDT_TERMROWS=10\nDT_TERMCOLS=40"
             "\nDT_TERMBAR=0")
 check("and at the size the Terminal pane sets, which fits",
-      sc.at(1, 0) == "┌" and sc.at(12, 41) == "◢", sc)
+      sc.at(2, 0) == "┌" and sc.at(13, 41) == "◢", sc)
 
 # --- snapping ----------------------------------------------------------------
 #
@@ -2419,20 +2412,6 @@ check("Bold Menu Titles puts the bar's menu titles in bold, and only them",
       plain is False and fb is not None and sc.style(0, fb[1])["bold"] and
       sc.style(0, sc.find("Window")[1])["bold"] and cl > 0 and
       not sc.style(0, cl - 1)["bold"], (plain, sc.row(0)))
-# A settings file from before keeps a key somebody chose and moves one that
-# still holds the old default: Snap Top on alt-up goes to ctrl-alt-up, and
-# Snap Bottom, put on x by hand, stays there.
-OLDKEYS = tempfile.mkdtemp(prefix="hibr-oldkeys-")
-os.makedirs(os.path.join(OLDKEYS, "hibr"))
-open(os.path.join(OLDKEYS, "hibr", "desktop.hibr"), "w").write(
-    'DT_SETVER=11\nDT_KEYS["snaptop"]=alt-up\nDT_KEYS["snapbottom"]=x\n')
-sc, _ = run(ONE, [CU], env={"XDG_CONFIG_HOME": OLDKEYS})
-check("a saved Snap Top still on alt-up moves to ctrl-alt-up",
-      sc.at(1, 0) == "┌" and sc.at(11, 79) == "◢", sc)
-sc, _ = run(ONE, [b"x"], env={"XDG_CONFIG_HOME": OLDKEYS})
-check("and a key chosen by hand is kept",
-      sc.at(12, 0) == "┌" and sc.at(23, 79) == "◢", sc)
-shutil.rmtree(OLDKEYS, True)
 sc, _ = run(ONE, [AL, AL])
 check("and the same snap again puts it back where it was",
       sc.find("┤ Hello ├") == (6, 12) and sc.at(13, 39) == "◢", sc)
@@ -2496,7 +2475,7 @@ check("launching a once-app open on another workspace goes there, not a "
       sc.row(0).find("1 2 3") > 0, sc)
 sc, _ = run("dt_launch calc\ndt_wsgo 2\ndt_launch clock", pre=PLACEAPPS)
 check("a new window is placed as if the other workspaces' were not there",
-      sc.find("┤ Clock ├") == (1, 2), sc)
+      sc.find("┤ Clock ├") == (2, 2), sc)
 sc, _ = run(WS2 + "dt_wsmove 2 3\ndt_wsset 2\n", [b"\x1b2"])
 check("fewer workspaces: windows on one that went move to the last left",
       sc.find("┤ Over ├") == (9, 27) and "1 2 3" not in sc.row(0), sc)
@@ -2869,7 +2848,7 @@ shutil.rmtree(d, True)
 d, env, pre, home, backup, usb, src = desk()
 sc, raw = run("", feed=[press(3, 70), drag(3, 74), drag(15, 20),
                         release(15, 20)], env=env, pre=pre)
-conf = open(os.path.join(d, "conf", "hibr", "desktop.hibr")).read()
+conf = screen.conftext(os.path.join(d, "conf", "hibr", "desktop.json"))
 # It keeps where it was held: grabbed at (3, 70) and let go at (15, 20), it
 # has moved twelve rows down and fifty columns left.
 check("an icon dragged somewhere empty stays where it was put",
@@ -3359,8 +3338,8 @@ def csrun(feed=()):
 
 
 def cssaved(sc):
-    saved = os.path.join(sc.conf, "hibr", "desktop.hibr")
-    return open(saved).read() if os.path.exists(saved) else ""
+    saved = os.path.join(sc.conf, "hibr", "desktop.json")
+    return screen.conftext(saved)
 
 
 sc = csrun()
@@ -3464,8 +3443,8 @@ sc = csrun([press(row, ARROW_COL), drag(row - 1, ARROW_COL),
 TAIL = "◂[Cursor][Shadow][Theme][Wallpaper]"
 check("dragging the arrow across the screen re-docks it to the other side",
       sc.row(15)[-len(TAIL):] == TAIL, sc)
-saved = os.path.join(sc.conf, "hibr", "desktop.hibr")
-text = open(saved).read() if os.path.exists(saved) else ""
+saved = os.path.join(sc.conf, "hibr", "desktop.json")
+text = screen.conftext(saved)
 check("the new side and position are saved",
       "CS_SIDE=right" in text and "CS_YREL=15" in text, text)
 shutil.rmtree(sc.conf, True)
@@ -3683,8 +3662,8 @@ WCONF = tempfile.mkdtemp(prefix="hibr-imgview-")
 sc, raw = run('dt_launch imgview "%s"' % IMGFIX,
               feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"w"],
               env={"XDG_CONFIG_HOME": WCONF}, pre=IMGMOD + DASRC)
-saved = os.path.join(WCONF, "hibr", "desktop.hibr")
-text = open(saved).read() if os.path.exists(saved) else ""
+saved = os.path.join(WCONF, "hibr", "desktop.json")
+text = screen.conftext(saved)
 check("Set as Wallpaper on its own Image menu sets and saves DT_WALLIMG",
       ("DT_WALLIMG=%s" % IMGFIX) in text, text)
 shutil.rmtree(WCONF, True)
@@ -4199,8 +4178,8 @@ def stripdrop(col, downs=1):
                 env={"XDG_CONFIG_HOME": d},
                 pre=CSSRC + "\n. %s\n" % tree(
                     "programs/desktop/control-panel/appearance.hibr"))
-    saved = os.path.join(d, "hibr", "desktop.hibr")
-    text = open(saved).read() if os.path.exists(saved) else ""
+    saved = os.path.join(d, "hibr", "desktop.json")
+    text = screen.conftext(saved)
     shutil.rmtree(d, True)
     return sc, text
 
@@ -4418,8 +4397,8 @@ check("a right click on a note in the panel is its sender's menu, Pop Up ticked"
 t.keys([press(pr[0], pr[1])] if pr else [], settle=0.6)
 t.keys([b"\x1b", b"x"], settle=0.6)
 sc = t.screen()
-conf = os.path.join(d, "config", "hibr", "desktop.hibr")
-saved = open(conf).read() if os.path.exists(conf) else ""
+conf = os.path.join(d, "config", "hibr", "desktop.json")
+saved = screen.conftext(conf)
 check("and unticking it stops that sender's notes popping up, and is kept",
       sc.find("Made by the app") is None and
       'DT_NOTEAPP["Noter"]=' in saved, (sc, saved[-400:]))
@@ -4502,11 +4481,10 @@ check("its list shows examples, not strftime codes",
       sc.find("%H") is None, sc)
 t.keys([press(item[0], item[1] + 1)], settle=0.8)
 sc = t.screen()
-saved = open(os.path.join(d, "config", "hibr", "desktop.hibr")).read() \
-    if os.path.exists(os.path.join(d, "config", "hibr", "desktop.hibr")) else ""
+saved = screen.conftext(os.path.join(d, "config", "hibr", "desktop.json"))
 check("choosing one changes the bar at once, and is saved",
       re.search(r"\d?\d:\d\d:\d\d [AP]M", sc.row(0)) and
-      "DT_BARTIME=%l:%M:%S\\ %p" in saved, saved or sc)
+      "DT_BARTIME=%l:%M:%S %p" in saved, saved or sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 t, d = dotrun(DTPANEL, keys=DOWN_DT)
@@ -4549,16 +4527,52 @@ CONF = tempfile.mkdtemp(prefix="hibr-conf-")
 sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
               feed=DOWN_APP + [b"\x1b[C", b"\x1b[C"],
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
-saved = os.path.join(CONF, "hibr", "desktop.hibr")
-text = open(saved).read() if os.path.exists(saved) else ""
-check("a changed setting is written at once, as a script",
-      "CP_THEME=construction" in text and "DT_WALL=\\#0d0d0d" in text and
+saved = os.path.join(CONF, "hibr", "desktop.json")
+text = screen.conftext(saved)
+check("a changed setting is written at once, as data",
+      "CP_THEME=construction" in text and "DT_WALL=#0d0d0d" in text and
       "DT_ICONS=" in text, text or sc)
 sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel', feed=DOWN_APP,
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
 check("and the next desktop starts with it", sc.find("construction") is not None,
       sc)
 shutil.rmtree(CONF, True)
+
+# The settings are data: nothing in the file runs, and a value reaches only
+# a name something kept (ADR 0054).
+CONFD = tempfile.mkdtemp(prefix="hibr-confd-")
+os.makedirs(os.path.join(CONFD, "hibr"))
+dsaved = os.path.join(CONFD, "hibr", "desktop.json")
+dmark = os.path.join(CONFD, "ran")
+dout = os.path.join(CONFD, "out")
+evil = "$(touch %s)" % dmark
+json.dump({"settings": {"PATH": "/nowhere", "DT_WALL": "#112233",
+                        "DT_NOBODY": evil},
+           "keys": {"close": "`touch %s`" % dmark},
+           "noteapps": {evil: "0"}}, open(dsaved, "w"))
+sc, _ = run("k='%s'\nprintf '%%s|%%s|%%s\\n' \"$PATH\" \"$DT_WALL\" "
+            "\"${DT_NOTEAPP[\"$k\"]-unset}\" > %s\ndt_save" % (evil, dout),
+            env={"XDG_CONFIG_HOME": CONFD})
+got = open(dout).read().strip().split("|") if os.path.exists(dout) else ["", "", ""]
+check("a setting nothing kept never reaches its variable",
+      got[0] != "/nowhere" and got[0] != "", got)
+check("and one that was kept does", got[1] == "#112233", got)
+check("a key that came from outside stays a key", got[2] == "0", got)
+back = json.load(open(dsaved))
+check("a stored setting nothing has kept yet survives a save",
+      back["settings"].get("DT_NOBODY") == evil, back["settings"])
+check("and none of what the file held ever ran", not os.path.exists(dmark))
+sc, _ = run("dt_save", env={"XDG_CONFIG_HOME": CONFD})
+check("not at the next start either, after the desktop wrote it back itself",
+      not os.path.exists(dmark) and
+      json.load(open(dsaved))["noteapps"].get(evil) == "0")
+open(dsaved, "w").write("{ this is not json")
+sc, _ = run(ONE, env={"XDG_CONFIG_HOME": CONFD})
+check("a settings file that cannot be read still leaves a desktop",
+      sc.find("┤ Hello ├") is not None, sc)
+check("and it is set aside rather than overwritten",
+      open(dsaved + ".bad").read() == "{ this is not json")
+shutil.rmtree(CONFD, True)
 
 # ORDER.index("shortcuts") downs on the picker reaches Shortcuts; entering it
 # lands on its first row that is not a heading, Shortcut Key, and one down
@@ -4575,8 +4589,8 @@ sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
       sc.find("alt-w") is None, sc)
-saved2 = os.path.join(CONF2, "hibr", "desktop.hibr")
-text2 = open(saved2).read() if os.path.exists(saved2) else ""
+saved2 = os.path.join(CONF2, "hibr", "desktop.json")
+text2 = screen.conftext(saved2)
 check("and the new binding is saved", 'DT_KEYS["close"]=x' in text2, text2)
 shutil.rmtree(CONF2, True)
 
@@ -4599,8 +4613,8 @@ sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
 check("a shortcut can be assigned to any app, not only the two defaults",
       sc.find("Calculator") is not None and
       "g" in sc.row(sc.find("Calculator")[0]), sc)
-saved3 = os.path.join(CONF3, "hibr", "desktop.hibr")
-text3 = open(saved3).read() if os.path.exists(saved3) else ""
+saved3 = os.path.join(CONF3, "hibr", "desktop.json")
+text3 = screen.conftext(saved3)
 check("and it is saved as DT_APPKEY, not DT_KEYS",
       'DT_APPKEY["calc"]=g' in text3, text3)
 sc, _ = run('', env={"XDG_CONFIG_HOME": CONF3}, pre=CALCSRC, feed=[b"g"])
@@ -4776,8 +4790,8 @@ check("and one that says is followed display by display",
 # a reason that has nothing to do with this.
 WCFG = os.path.join(HOLD, "wcfg")
 os.makedirs(os.path.join(WCFG, "hibr"), exist_ok=True)
-open(os.path.join(WCFG, "hibr", "desktop.hibr"), "w").write(
-    "DT_WALLIMG=%s\nDT_WALLMODE=stretch\n" % tree("tests/img-2x2.png"))
+open(os.path.join(WCFG, "hibr", "desktop.json"), "w").write(
+    '{"settings":{"DT_WALLIMG":"%s","DT_WALLMODE":"stretch"}}' % tree("tests/img-2x2.png"))
 WENV = dict(HENV, XDG_CONFIG_HOME=WCFG, HIBR_GFX="kitty")
 subprocess.run([screen.HIBR, "-c", HOLDC + "hold new -d wp %s %s --session wp"
                 % (screen.HIBR, vheld)],
@@ -6373,15 +6387,6 @@ check("a Hijri code in the bar's format puts the Hijri date beside the clock",
 sc, _ = run(ONE, env={"DT_HCAL": "none", "DT_BARTIME": "%ie %iB %iY %H:%M"})
 check("and with no Hijri calendar the same format leaves it out",
       re.search(HMON, sc.row(0)) is None and re.search(r"\d\d:\d\d", sc.row(0)), sc.row(0))
-MIG = tempfile.mkdtemp(prefix="hibr-mig-")
-os.makedirs(os.path.join(MIG, "hibr"))
-open(os.path.join(MIG, "hibr", "desktop.hibr"), "w").write(
-    "DT_SETVER=4\nDT_HIJRI=on\nDT_HCAL=umalqura\nDT_BARTIME='%H:%M'\n")
-sc, _ = run(ONE, env={"XDG_CONFIG_HOME": MIG})
-check("settings saved with 0.99.66's Show Hijri Dates on keep the Hijri date in the bar",
-      re.search(r"\d+ (Muh|Saf|Rab I|Rab II|Jum I|Jum II|Raj|Sha|Ram|Shaw|Dhu Q|Dhu H) +\d\d:\d\d",
-                sc.row(0)) is not None, sc.row(0))
-shutil.rmtree(MIG, True)
 sc, _ = run(ONE, env={"DT_DIGITS": "arabic"})
 check("and Arabic-Indic digits write the clock in them",
       re.search("[\u0660-\u0669]{2}:[\u0660-\u0669]{2}", sc.row(0)) is not None and
@@ -8288,29 +8293,6 @@ sc = pwlive([0.3], PWENV, "Battery low", PWPRE)
 check("a low charge says so in a note, as the desktop starts",
       sc.find("Battery low: 9% left") is not None, sc)
 
-# After the upgrade that took Network, Sound, Bluetooth and Power out of
-# the package (Gitea #388): a desktop whose saved settings show one was in
-# use and which does not have it now is told where it went, once.
-HWST = tempfile.mkdtemp(prefix="hibr-hw-")
-os.makedirs(os.path.join(HWST, "conf", "hibr"))
-open(os.path.join(HWST, "conf", "hibr", "desktop.hibr"), "w").write(
-    "DT_SNDBAR=1\nDT_SETVER=15\n")
-HWENV = {"XDG_STATE_HOME": os.path.join(HWST, "st"),
-         "XDG_CONFIG_HOME": os.path.join(HWST, "conf")}
-# Read before the quitting key, which puts the notes away.
-sc = pwlive([0.3], HWENV, "Sound is now in")
-check("a desktop whose settings predate the move is told Sound is in the Catalogue",
-      sc.find("Sound is now in") is not None, sc)
-sc, _ = run("", env=HWENV)
-check("and told it once, not on every start",
-      sc.find("is now in the Catalogue") is None, sc)
-open(os.path.join(HWST, "conf", "hibr", "desktop.hibr"), "w").write(
-    "DT_SNDBAR=1\nDT_SETVER=16\n")
-sc, _ = run("", env=dict(HWENV, XDG_STATE_HOME=os.path.join(HWST, "st2")))
-check("and settings saved since then, whatever they hold, are told nothing",
-      sc.find("is now in the Catalogue") is None, sc)
-shutil.rmtree(HWST, True)
-
 # Special holds Sleep, Restart and Shut Down, through logind -- the
 # platform's, so with no Power entry installed at all: acting on a
 # desktop that is the computer's own -- Shut Down asking first -- and on
@@ -8461,17 +8443,6 @@ d = tempfile.mkdtemp(prefix="hibr-csoff-")
 sc, _ = run("", env={"XDG_CONFIG_HOME": d, "CS_SHOW": ""}, pre=CSSRC)
 check("the Control Strip is off by default, its modules loaded or not",
       sc.find("\u25b8") is None and sc.find("Cursor") is None, sc)
-os.makedirs(os.path.join(d, "hibr"), exist_ok=True)
-open(os.path.join(d, "hibr", "desktop.hibr"), "w").write("DT_SETVER=16\n")
-sc, _ = run("", env={"XDG_CONFIG_HOME": d, "CS_SHOW": "",
-                     "XDG_STATE_HOME": os.path.join(d, "st")}, pre=CSSRC)
-check("a desktop from before keeps its strip",
-      sc.find("\u25b8") is not None or sc.find("\u25c2") is not None, sc)
-sc = pwlive([0.3], {"XDG_CONFIG_HOME": d, "CS_SHOW": "",
-                    "XDG_STATE_HOME": os.path.join(d, "st2")},
-            "Control Strip's modules")
-check("and one with none of the strip's modules is told they are in the Catalogue",
-      sc.find("Control Strip's modules are now in") is not None, sc)
 shutil.rmtree(d, True)
 def wsonstrip(sc):
     """Where the strip's own workspace numbers are: below the bar, which
@@ -9111,4 +9082,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(973)
+report(974)

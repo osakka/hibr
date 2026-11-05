@@ -21,7 +21,7 @@ Run it directly to look at something rather than assert on it:
     python3 tests/screen.py programs/desktop/session.hibr
     python3 tests/screen.py -c 'mod load build/mods/mon.so; mon'
 """
-import fcntl, os, pty, re, select, signal, struct, sys, termios, time
+import fcntl, json, os, pty, re, select, signal, struct, sys, termios, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HIBR = os.environ.get("HIBR") or os.path.join(ROOT, "build/hibr")
@@ -989,6 +989,20 @@ class Term:
     def screen(self, rows=None, cols=None):
         return Screen(rows or self.rows, cols or self.cols,
                       bce=bool(self.caps and "bce" in self.caps)).feed(self.text)
+
+
+def conftext(path):
+    """A saved desktop.json as one line a value, NAME=value, for a check to
+    look for; empty when nothing was saved."""
+    if not os.path.exists(path):
+        return ""
+    j = json.load(open(path))
+    out = ["%s=%s" % kv for kv in j.get("settings", {}).items()]
+    for key, name in (("keys", "DT_KEYS"), ("appkeys", "DT_APPKEY"),
+                      ("akeys", "DT_AKEY"), ("noteapps", "DT_NOTEAPP")):
+        out += ['%s["%s"]=%s' % (name, k, v) for k, v in j.get(key, {}).items()]
+    out += ["dt_iconpos %s %s" % kv for kv in j.get("icons", {}).items()]
+    return "\n".join(out) + "\n"
 
 
 def load(*mods):

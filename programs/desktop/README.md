@@ -1785,17 +1785,17 @@ default; `set -sg escape-time 10` in `~/.tmux.conf` makes it quicker.
 ## Settings are kept
 
 Every change in the Control Panel window is saved the moment it is made, to
-`~/.config/hibr/desktop.hibr` (`$XDG_CONFIG_HOME`, or `DT_CONF`), and read
-back by `dt_open` at the next start. It is a script, not a format:
+`~/.config/hibr/desktop.json` (`$XDG_CONFIG_HOME`, or `DT_CONF`), and read
+back by `dt_open` at the next start. It is data, and nothing in it ever runs
+(ADR 0054): a value goes only to a name something has kept, and a file that
+does not parse is set aside as `desktop.json.bad`.
 
-<!-- not run: a settings file, which dt_open sources -->
-```sh
-# The desktop's settings, written whenever one changes and
-# read at the next start.  A script like any other.
-DT_WALL=\#1a202c
-DT_ICONS=1
-CP_THEME=classic
-CP_COLOURS=slate
+```text
+{
+  "settings": { "DT_WALL": "#1a202c", "DT_ICONS": "1", "CP_THEME": "classic" },
+  "keys": { "close": "mod-w" },
+  "icons": { "home": "15 21" }
+}
 ```
 
 `dt_open` reads it after the session file has set its own defaults, so what

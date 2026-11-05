@@ -9,7 +9,7 @@
 strict
 
 
-app terminal "The Control Panel pane for how a terminal window behaves" 1.3
+app terminal "The Control Panel pane for how a terminal window behaves" 1.4
 command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "▸" app
 
 CP_CURSORS=(block underline bar)
@@ -35,17 +35,6 @@ fn cp_set_termcolours(int? id = "", value = "") { DT_TERMCOLOURS=$value; cp_save
 # panel_click never offers a slider to a pane's _drop -- with no second
 # place to forget, which is what #186 was.
 DT_TERMTRANS="${DT_TERMTRANS-0}"
-
-# A value saved by the dropdown is 85, 75 or 65, which would leave the dot
-# between two of the eleven positions for ever and make an arrow key look
-# as though it had done nothing. Snapped once, on the first load that knows
-# about the slider.
-fn cp_setver10() {
-	local v=${DT_TERMTRANS:-0}
-
-	[ "$v" != 0 ] && DT_TERMTRANS=$(((v + 5) / 10 * 10))
-	return 0
-}
 
 # Every tenth from 0 to 100, clamped: the step belongs to the setting, not
 # to the track, which has eleven positions whatever the range is.

@@ -47,10 +47,8 @@ CS_SIDE="${CS_SIDE-left}"
 # never as a row of the whole union: a display joining above it moves the
 # union's origin, and a row of the union then pointed somewhere else -- a
 # restart's first, smaller union shifted and clamped it to just under the
-# bar, and that was saved. CS_Y, the old absolute row, is still read from
-# an old settings file and dropped by DT_SETVER 18.
+# bar, and that was saved.
 CS_YREL="${CS_YREL-}"
-CS_Y=
 CS_COLLAPSED="${CS_COLLAPSED-0}"
 CS_LEN="${CS_LEN-}"
 CS_SCROLL="${CS_SCROLL-0}"

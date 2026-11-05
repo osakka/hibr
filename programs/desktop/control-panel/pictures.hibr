@@ -17,7 +17,7 @@
 strict
 
 
-app pictures "The Control Panel pane for how a picture is drawn" 1.4
+app pictures "The Control Panel pane for how a picture is drawn" 1.5
 command -v cp_pane > /dev/null && cp_pane pictures "Pictures" "▦"
 
 CP_IMGMODES=("Automatic" "Half Blocks" "Grey Blocks" "Characters" "Pixels")
@@ -78,19 +78,6 @@ fn cp_detailname(m) {
 	half) ret "Half (every picture)" ;;
 	*) ret "Automatic (wallpaper half, the rest full)" ;;
 	esac
-}
-
-# 0.99.187 and before had one flag, named for the wallpaper, that in fact
-# halved every picture whose caller had not chosen a palette -- which is
-# why a video read as blocks. A saved `full` meant "do not halve", so it
-# becomes `full`; a saved `half` was the default and meant "halve the
-# wallpaper", which is what `auto` does now (Gitea #228).
-fn cp_setver11() {
-	case ${DT_WALLDETAIL-} in
-	full) DT_IMGDETAIL=full ;;
-	half) DT_IMGDETAIL=auto ;;
-	esac
-	return 0
 }
 
 # How a still picture's payload is compressed before it is sent (Gitea

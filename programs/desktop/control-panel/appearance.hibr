@@ -12,7 +12,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.11
+app appearance "The Control Panel pane for how the desktop looks" 2.12
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -338,17 +338,6 @@ fn cp_themesaved(id = "", path = "", type = "") {
 	[ -n "$path" ] || return 0
 	[[ $path == *.json ]] || path+=.json
 	cp_themewrite "$path"
-}
-
-# Settings saved before 0.99.33 kept the colour scheme's name as CP_THEME,
-# when colour schemes were what a theme was: it becomes CP_COLOURS, and the
-# theme, which nothing chose, is none.
-cp_setver4() {
-	if [ -n "${CP_CO["$CP_THEME"]["wall"]+x}" ] && [ -z "${CP_TH["$CP_THEME"]["colours"]+x}" ]; then
-		CP_COLOURS=$CP_THEME
-		CP_THEME=
-	fi
-	return 0
 }
 
 fn cp_set_theme(int id, value) { cp_theme "$value" && cp_save; }

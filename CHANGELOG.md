@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.445
+
+**Settings are data.** `desktop.json` replaces `desktop.hibr`, which ran as
+code on every start (ADR 0054). A value only ever reaches a name something
+kept, and a file that does not parse is set aside as `.bad`. Nothing reads
+the old file: existing settings move once, by a conversion outside hibr. The
+upgrade ladder (`DT_SETVER`) and the "now in the Catalogue" offers are gone.
+
+- **New windows open clear of the menu bar's shadow** (owner). A person can
+  still move one there.
+
 ## 0.99.444
 
 - **Security: a folder's name could run a command.** Files kept each folder's

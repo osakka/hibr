@@ -63,6 +63,7 @@ downside is usually a decision nobody had to make.
 | [0051](0051-read-takes-a-datagram-whole.md) | read takes a datagram whole | accepted |
 | [0052](0052-a-sheets-formulas-are-contained.md) | A sheet's formulas are contained, and full access is per sheet | accepted |
 | [0053](0053-files-reaches-anywhere-through-locations.md) | Files reaches anywhere through locations | accepted |
+| [0054](0054-what-the-desktop-writes-is-data.md) | What the desktop writes for itself is data | accepted |
 
 ---
 

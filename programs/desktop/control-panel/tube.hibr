@@ -11,7 +11,7 @@
 strict
 
 
-app tube "The Control Panel pane for the YouTube app" 2.3
+app tube "The Control Panel pane for the YouTube app" 2.4
 command -v cp_pane > /dev/null && cp_pane tube "YouTube" "▶" app
 
 # follow is Control Panel > Pictures, which is the one setting meant to
@@ -33,14 +33,6 @@ fn tb_tap() {
 
 fn cp_set_ytmode(int? id = "", value = "") { YT_MODE=$value; cp_save; }
 
-# Settings version 7 moved this default from half to follow, so the one
-# Pictures setting reaches the player as it already reaches the viewer, the
-# wallpaper and the browser. Only a file still holding the old default is
-# moved: someone who chose half keeps it.
-fn cp_setver7() {
-	[ "$YT_MODE" = half ] && YT_MODE=follow
-	return 0
-}
 fn cp_set_ytquality(int? id = "", value = "") {
 	YT_QUALITY=$value
 	cp_save
