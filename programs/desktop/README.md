@@ -189,9 +189,8 @@ the menu bar and the Control Strip.
   top of the row under it, from a column in, meeting at the corner -- a
   shadow that hugs the box. It is what the Chalk and Slate themes choose.
   On Blit's glyphs it is Blit's own shadow attribute (SGR 66), a line the
-  terminal draws behind the glyph: on a Chalk or Slate frame's own cells,
-  and on the cells beyond any other box. Its colour is the scheme's
-  `shadowink`, black where the scheme says nothing.
+  terminal draws behind the glyph, on the cells beyond the box. Its colour
+  is the scheme's `shadowink`, black where the scheme says nothing.
 
 A half block replaces the cell it is drawn in, so it is drawn only where
 nothing can be read: on the wallpaper, its pattern included. Over a window,
@@ -1864,7 +1863,7 @@ Windows' rows -- Frame, Title Bar, See Through, Buttons, Title and Button
 Style -- are read by `dt_win` and `dt_btn` in `wm/frame.hibr`, not by the
 pane: `DT_FRAME` is the border alone, its glyphs from the `DT_FRAMES`
 table (`single`, `double`, `rounded` with arcs at its corners, `solid` --
-a ring of whole cells in the frame's colour, `chalk` or `slate` -- or
+a ring of whole cells in the frame's colour, `edge`, Blit's -- or
 `none`, no border at
 all and the content running to the window's edge; move, resize, zoom,
 hide and close stay reachable through the Window menu even then, since
@@ -1899,20 +1898,20 @@ Windows go through `dt_chrome` like any window.
 **Chalk and Slate** are Blit's own window chrome (Blit ADR 0210), drawn
 from Blit's glyphs: a striped (Chalk) or grey (Slate) title bar whose
 title is *framed* -- SGR 51, the line drawn by the terminal round the
-cell rather than by a glyph -- a frame of Blit's own edge glyphs, close,
-shade and zoom boxes, and Blit's capped dialog buttons. Each is a value of
-the setting it belongs to -- Frame, Title Bar, Window Buttons, Dialog
-Buttons -- so any one can be mixed
-with any other; the Chalk and Slate themes in the catalogue choose them
-together, with Shadow Shape Thin. Their colours are the scheme's: Chalk
+cell rather than by a glyph -- close, shade and zoom boxes, and Blit's
+capped dialog buttons. Each is a value of the setting it belongs to --
+Title Bar, Window Buttons, Dialog Buttons -- so any one can be mixed with
+any other. Both sit in **Edge**, Blit's one window frame (Blit ADR 0214), a
+value of Frame: a line on the outer edge of each frame cell, the window's
+face running right out to it, and the title bar's own end cells on the title
+row. The Chalk and Slate themes in the catalogue choose them together, with
+Shadow Shape Thin. Their colours are the scheme's: Chalk
 is the face and the ink, and Slate's bar is the title bar's colour, its
 lines the ink and its highlight the scheme's `highlight` (Pewter's white,
 or a lightened bar), so a dark scheme -- Pewter Dark -- makes Slate dark.
-They need `DT_GLYPHSET=blit`: with any other glyph set chalk and slate are
-drawn as `single`, `line`, `brackets` and `filled`, and the Control Panel
-shows them dimmed. A frame cell keeps the colour of what was under it
-(`console pen ... under:COLOUR`), since its glyph only draws an edge in
-part of the cell.
+They need `DT_GLYPHSET=blit`: with any other glyph set edge, chalk and
+slate are drawn as `single`, `line`, `brackets` and `filled`, and the
+Control Panel shows them dimmed.
 **Shade** (the Window menu, a shortcut in Keyboard > Shortcuts, and
 Chalk's and Slate's shade box) rolls a window up to its title bar; its
 app is not drawn while it is, and its `_idle` still runs.

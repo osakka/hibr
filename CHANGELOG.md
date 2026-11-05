@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.446
+
+**One window frame on Blit: Edge** (Gitea #480, Blit ADR 0214). A new value of
+Frame replaces `chalk` and `slate`, which drew the same thing. Its line sits
+on the outer edge of each frame cell, the window's face runs out to it, and a
+Chalk or Slate title bar has its own end cells. A Thin shadow is flush in the
+cells beyond the frame. It needs Blit 0.3.41 or later. A saved Frame of
+`chalk` or `slate` draws as `single` until a new one is chosen, and the Chalk
+and Slate themes move to Edge in version 1.2.
+
+- **The Vault no longer locks itself just after unlocking.** Every `vw` command
+  rewrote its session file in place, and the desktop read an empty moment as
+  locked, so a busy machine could lose the session. It is written whole now.
+- YouTube 3.26 and Tube 2.5: one list of qualities, 144p to 2160p.
+
 ## 0.99.445
 
 **Settings are data.** `desktop.json` replaces `desktop.hibr`, which ran as

@@ -9,6 +9,7 @@ timeout; and that nothing decrypted is left on disk. Every run has a
 config, data and runtime folder of its own. Needs Python's cryptography
 package for the stand-in server; skips, saying so, without it.
 """
+import threading
 import base64, hashlib, hmac, json, os, shutil, struct, subprocess, sys, tempfile, time, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -72,6 +73,27 @@ try:
     rows = [(l.split("\t") + [""])[:3] for l in out.split("\n") if l]
     check("vw list gives each item's id, name and user",
           [r[1:] for r in rows] == [["Example Mail", "pat"], ["Bank", "pat.doe"], ["Wifi", ""]], (out, err))
+    # Every command puts the session's expiry forward, and the desktop reads
+    # the same file once a frame: a moment when it is empty reads as locked.
+    sessf = [os.path.join(p, f) for p, _, fs in os.walk(ENV["XDG_RUNTIME_DIR"])
+             for f in fs if f == "session"][0]
+    seen = {"reads": 0, "empty": 0}
+    stop = threading.Event()
+
+    def sessreader():
+        while not stop.is_set():
+            seen["reads"] += 1
+            if not open(sessf).read():
+                seen["empty"] += 1
+
+    th = threading.Thread(target=sessreader)
+    th.start()
+    for _ in range(40):
+        vw("list", env=S)
+    stop.set()
+    th.join()
+    check("the session file is never empty while a command puts its expiry forward",
+          seen["empty"] == 0 and seen["reads"] > 100, seen)
     out, rc, err = vw("get", "password", "mail", env=S)
     check("vw get password reads it, accents and all", out == "s3crét-mail", (out, err))
     out, rc, err = vw("get", "notes", "Bank", env=S)
@@ -261,4 +283,4 @@ finally:
     srv3.kill()
 
 shutil.rmtree(D, True)
-report(38)
+report(39)

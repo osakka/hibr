@@ -427,9 +427,10 @@ def winshadow_run(env):
 raw_box = winshadow_run({})
 check("a box-drawn window's goes on the cells beyond it, flush, all five kinds",
       all(b"66:%d:1:0" % k in raw_box for k in (1, 2, 3, 4, 5)), raw_box[-400:])
-raw_chalk = winshadow_run({"DT_FRAME": "chalk"})
-check("and a Chalk frame's on its own frame cells, inset",
-      all(b"66:%d:1:1" % k in raw_chalk for k in (1, 2, 3, 4, 5)), raw_chalk[-400:])
+raw_edge = winshadow_run({"DT_FRAME": "edge"})
+check("and so does the Edge frame's, which draws its line on its own outer edge",
+      all(b"66:%d:1:0" % k in raw_edge for k in (1, 2, 3, 4, 5)) and b"66:1:1:1" not in raw_edge,
+      raw_edge[-400:])
 raw_nobarshadow = barshadow_run(env={"DT_BARSHADOW": "0"})
 check("DT_BARSHADOW=0 casts none, independently of the other two",
       SHADOW_RGB not in raw_nobarshadow, raw_nobarshadow)
@@ -1194,6 +1195,10 @@ GLYPHNAME = {}
 for _i, _n in enumerate(GLYPHPARTS):
     GLYPHNAME[0x100231 + _i] = "C:" + _n
     GLYPHNAME[0x100254 + _i] = "S:" + _n
+for _i, _n in enumerate(("F:frame-left F:frame-right F:frame-bottom-left F:frame-bottom "
+                         "F:frame-bottom-right C:title-end-left C:title-end-right "
+                         "S:title-end-left S:title-end-right").split()):
+    GLYPHNAME[0x1002AE + _i] = _n
 
 
 def glyphrow(sc, r, c0, n):
@@ -1211,40 +1216,45 @@ def penbg(p):
     return m.group(0) if m else None
 
 
-CHALK = "DT_GLYPHSET=blit; DT_FRAME=chalk; DT_TITLEBAR=chalk; DT_BTNSTYLE=chalk; DT_BTNSIDE=split\n"
+CHALK = "DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=chalk; DT_BTNSTYLE=chalk; DT_BTNSIDE=split\n"
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK)
 row = glyphrow(sc, 2, 2, 24)
 check("a Chalk title bar with Chalk buttons split is Blit's layout, cell for cell",
-      row[:4] == ["C:frame-left", "C:stripe-to-box", "C:close", "C:stripe-from-box"] and
+      row[:4] == ["C:title-end-left", "C:stripe-to-box", "C:close", "C:stripe-from-box"] and
       row[8:15] == ["C:stripe-before-title", "N", "o", "t", "e", "s", "C:stripe-after-title"] and
       row[-6:] == ["C:stripe-to-box", "C:shade", "C:stripe-between", "C:zoom",
-                   "C:stripe-from-box", "C:frame-right-top"], row)
+                   "C:stripe-from-box", "C:title-end-right"], row)
 check("and its title is framed, the bar's line in the ink",
       ";51;" in sc.p[2][11] and "58:2::" in sc.p[2][11], sc.p[2][11])
-check("and its frame's cells keep the wallpaper's colour, not the terminal's",
-      glyphrow(sc, 3, 2, 1) == ["C:frame-left"] and penbg(sc.p[3][2]) != "49" and
-      penbg(sc.p[3][2]) == penbg(sc.p[3][0]), (sc.p[3][2], sc.p[3][0]))
+check("and its frame's cells are the window's face, out to the line on their edge",
+      glyphrow(sc, 3, 2, 1) == ["F:frame-left"] and glyphrow(sc, 3, 25, 1) == ["F:frame-right"]
+      and penbg(sc.p[3][2]) == penbg(sc.p[3][3]) and penbg(sc.p[3][25]) == penbg(sc.p[3][3])
+      and penbg(sc.p[3][2]) != penbg(sc.p[3][0]), (sc.p[3][2], sc.p[3][3], sc.p[3][0]))
+check("and the bottom row is the one frame's, corner to corner",
+      glyphrow(sc, 7, 2, 2) == ["F:frame-bottom-left", "F:frame-bottom"] and
+      glyphrow(sc, 7, 24, 1) == ["F:frame-bottom"], glyphrow(sc, 7, 2, 24))
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_GLYPHSET=blit; ", ""))
 check("without Blit's glyphs, chalk is drawn as the plain styles",
       sc.g[2][2] == "┌" and sc.find("Notes") is not None, glyphrow(sc, 2, 2, 24))
-SLATE = ("DT_GLYPHSET=blit; DT_FRAME=slate; DT_TITLEBAR=slate; DT_BTNSTYLE=slate; "
+SLATE = ("DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=slate; DT_BTNSTYLE=slate; "
          "DT_BTNSIDE=right; DT_TITLE='#3c3c43'\n")
 sc, _ = run('dt_new Back 6 24 5 30\ndt_new Front 6 24 2 2\n', pre=SLATE)
 front, back = glyphrow(sc, 2, 2, 24), glyphrow(sc, 5, 30, 24)
 check("Slate is one glyph set, coloured by the scheme: the title bar's colour, the boxes on the right",
-      front[1] == "S:stripe-first" and penbg(sc.p[2][3]) == "48;2;60;60;67" and
+      front[:2] == ["S:title-end-left", "S:stripe"] and penbg(sc.p[2][3]) == "48;2;60;60;67" and
       front[-8:] == ["S:stripe-to-box", "S:close", "S:stripe-between", "S:shade",
-                     "S:stripe-between", "S:zoom", "S:stripe-from-box", "S:frame-right-top"],
+                     "S:stripe-between", "S:zoom", "S:stripe-from-box", "S:title-end-right"],
       (front, sc.p[2][3]))
 check("and a window without the focus is the plain bar, its title dim, no boxes",
       "S:close" not in back and back.count("S:title") > 10 and
+      back[0] == "F:frame-left" and back[-1] == "F:frame-right" and
       ";51:2;" in sc.p[5][30 + back.index("B")], back)
 sc, _ = run('dt_new Notes 6 24 2 2\n', [press(2, 4), release(2, 4)], pre=CHALK)
 check("a press on Chalk's close box closes the window",
       sc.find("Notes") is None, sc)
 sc, _ = run('dt_new Notes 6 24 2 2\n', [press(2, 21), release(2, 21)], pre=CHALK)
 check("and one on its shade box rolls it up to its title bar",
-      sc.find("Notes") is not None and glyphrow(sc, 3, 2, 1) == ["C:frame-bottom-left"],
+      sc.find("Notes") is not None and glyphrow(sc, 3, 2, 1) == ["F:frame-bottom-left"],
       glyphrow(sc, 3, 2, 3))
 SHD = scratch("shadeidle")
 sc, _ = run('fn tk_draw(int id, int h, int w, int row, int col) { :; }\n'
@@ -1261,13 +1271,25 @@ sc, _ = run('fn snp_draw(int id, int h, int w, int row, int col) { console put -
 check("a snapped window is not a shaded one: its app is still drawn",
       sc.find("body here") is not None, sc)
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK + "DT_SHADOWSHAPE=thin\n")
-check("a Chalk frame casts the shadow Shadow Shape says -- Thin, on Blit's glyphs, is "
-      "the terminal's own, inset on the frame's cells: down the right from the first "
-      "row, along the bottom from a column in, meeting at the corner",
-      "66:2:1:1" in sc.p[2][25] and all("66:1:1:1" in sc.p[r][25] for r in range(3, 7)) and
-      "66:4:1:1" in sc.p[7][3] and all("66:3:1:1" in sc.p[7][c] for c in range(4, 25)) and
-      "66:5:1:1" in sc.p[7][25] and "66:" not in sc.p[7][2] and "66:" not in sc.p[3][26],
-      ([sc.p[r][25] for r in range(2, 8)], sc.p[7][2:5]))
+check("the Edge frame casts the shadow Shadow Shape says -- Thin, on Blit's glyphs, is "
+      "the terminal's own, flush in the cells beyond the frame, inset 0",
+      "66:2:1:0" in sc.p[2][26] and all("66:1:1:0" in sc.p[r][26] for r in range(3, 8)) and
+      "66:4:1:0" in sc.p[8][2] and all("66:3:1:0" in sc.p[8][c] for c in range(3, 26)) and
+      "66:5:1:0" in sc.p[8][26], ([sc.p[r][26] for r in range(2, 9)], sc.p[8][2:5]))
+check("and nothing of it is on the frame's own cells",
+      all("66:" not in sc.p[r][25] for r in range(2, 8)) and
+      all("66:" not in sc.p[7][c] for c in range(2, 26)), [sc.p[r][25] for r in range(2, 8)])
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_FRAME=edge", "DT_FRAME=none"))
+row = glyphrow(sc, 2, 2, 24)
+check("a Chalk bar on no frame has its own end cells", row[0] == "C:title-end-left" and
+      row[-1] == "C:title-end-right", row)
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_FRAME=edge", "DT_FRAME=single"))
+row = glyphrow(sc, 2, 2, 24)
+check("and between a drawn border's corners, none: the stripes run to them",
+      row[0] == "┌" and row[-1] == "┐" and "C:title-end-left" not in row, row)
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_FRAME=edge", "DT_FRAME=chalk"))
+check("a Frame that is no longer one is drawn single", sc.g[2][2] == "┌" and
+      sc.g[3][2] == "│", glyphrow(sc, 3, 2, 3))
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_BTNSTYLE=chalk", "DT_BTNSTYLE=circles"))
 row = glyphrow(sc, 2, 2, 24)
 check("Window Buttons draws the buttons on any title bar: circles on a Chalk bar",
@@ -9082,4 +9104,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(974)
+report(979)

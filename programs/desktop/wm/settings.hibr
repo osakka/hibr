@@ -312,9 +312,9 @@ DT_DBLT=0
 # filled from the glyph set by dt_glyphs (wm/glyphs.hibr), so another is
 # six lines there, not a change to dt_win. Until 0.99.324 none was a border
 # left blank and bar was what none is now; 0.99.324's curved is a title bar
-# since 0.99.327, below. chalk and slate are Blit's own window frames, a
-# line hugging the content, drawn from its glyphs (Blit ADR 0210): only
-# while Blit's glyph set is chosen, single anywhere else. A frame draws
+# since 0.99.327, below. edge is Blit's own window frame, a line on the
+# outer edge of its cells with the window's face inside it (Blit ADR 0214):
+# only while Blit's glyph set is chosen, single anywhere else. A frame draws
 # the frame and nothing more: the shadow is Shadow Shape's.
 DT_FRAME="${DT_FRAME-single}"
 # How much of a picture wallpaper shows through a window's own face and
@@ -322,7 +322,7 @@ DT_FRAME="${DT_FRAME-single}"
 # opaque, as everything was. A terminal has its own, which wins inside it.
 DT_WINTRANS="${DT_WINTRANS-0}"
 DT_BARTRANS="${DT_BARTRANS-0}"
-WS_FRAMES=(single double rounded solid none chalk slate)
+WS_FRAMES=(single double rounded solid none edge)
 
 # The title bar: a line, the title sitting in the frame's own top line as
 # it always has (with no border, on the window's face); solid -- the whole

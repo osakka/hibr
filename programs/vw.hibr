@@ -201,6 +201,16 @@ vw_kdf() {
 	fi
 }
 
+# Write the session file whole: the desktop reads it once a frame, and an
+# empty one reads as a vault that has locked.
+fn vw_sessput(exp, w) {
+	local t=$VW_RUN/session.$$
+
+	printf '%s\t%s\n' "$exp" "$w" > "$t"
+	chmod 600 "$t"
+	mv -f "$t" "$VW_RUN/session"
+}
+
 # Hand the open key to the next command: a session key to export, the key wrapped under it here.
 vw_session() {
 	local s k w t=${VA["timeout"]:-15} exp=0
@@ -209,8 +219,7 @@ vw_session() {
 	IFS=$'\t' read -r k w <<< "$s"
 	[ "$t" -gt 0 ] && exp=$((EPOCHSECONDS + t * 60))
 	vw_dirs
-	printf '%s\t%s\n' "$exp" "$w" > "$VW_RUN/session"
-	chmod 600 "$VW_RUN/session"
+	vw_sessput "$exp" "$w"
 	echo "unlocked; to stay unlocked in this shell:" >&2
 	echo "export VW_SESSION=$k"
 }
@@ -227,7 +236,7 @@ vw_open() {
 	fi
 	vwk session open "$VW_SESSION" "$w" 2> /dev/null || vw_die "locked: this VW_SESSION is not the one in use; vw unlock" 3
 	if [ "$exp" -gt 0 ]; then
-		printf '%s\t%s\n' $((EPOCHSECONDS + t * 60)) "$w" > "$VW_RUN/session"
+		vw_sessput $((EPOCHSECONDS + t * 60)) "$w"
 	fi
 }
 

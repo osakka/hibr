@@ -193,7 +193,6 @@ fn dt_shadow(int id) {
 	# A window can do without one: YouTube's mini player, by a setting of
 	# its own (Gitea #304).
 	[ "${DT[$id]["noshadow"]}" = 1 ] && return 0
-	dt_frameshadows && return 0
 	dt_castshadow "$wr" "$wc" "$h" "$w"
 }
 
@@ -201,32 +200,6 @@ fn dt_shadow(int id) {
 # than an eighth block: on Blit's glyphs, which only Blit draws.
 dt_shadowattr() {
 	[ "$DT_SHADOWSHAPE" = thin ] && [ "$DT_GLYPHSET" = blit ]
-}
-
-# Whether a box's shadow goes on its own frame cells: a glyph frame, inset,
-# which dt_frameshadow casts once the frame is drawn, since drawing a cell
-# clears what it carried.
-dt_frameshadows() {
-	dt_shadowattr || return 1
-	dt_chromecfg
-	[ -n "$DT_CFSET" ]
-}
-
-# The Thin shadow of a glyph frame just drawn, on the frame's own cells.
-fn dt_frameshadow(pane, int r, int c, int h, int w) {
-	local -a at=()
-	local x y
-
-	[ "$DT_SHADOW" = 1 ] && dt_shadowattr || return 0
-	x=$((c + w - 1))
-	y=$((r + h - 1))
-	[ -n "$pane" ] && at=(-p "$pane")
-	console shadow "${at[@]}" "$r" "$x" 1 1 2 1 1 "$DT_SHADOWINK"
-	[ "$h" -gt 2 ] && console shadow "${at[@]}" $((r + 1)) "$x" $((h - 2)) 1 1 1 1 "$DT_SHADOWINK"
-	console shadow "${at[@]}" "$y" $((c + 1)) 1 1 4 1 1 "$DT_SHADOWINK"
-	[ "$w" -gt 3 ] && console shadow "${at[@]}" "$y" $((c + 2)) 1 $((w - 3)) 3 1 1 "$DT_SHADOWINK"
-	console shadow "${at[@]}" "$y" "$x" 1 1 5 1 1 "$DT_SHADOWINK"
-	return 0
 }
 
 # The shadow of a box -- a window, a menu, a pop-up, the Control Strip -- at
@@ -313,8 +286,8 @@ fn dt_wapp(int id) {
 # the right, or splitr, split mirrored) and DT_CALIGN how the title is
 # aligned, both mirrored for a right-to-left language. DT_CFRAME, DT_CTB and
 # DT_CBTN are Frame, Title Bar and Window Buttons as they can be drawn:
-# chalk and slate need Blit's glyphs (Blit ADR 0210), and without them are
-# single, line and brackets. DT_CFSET, DT_CTSET and DT_CBSET name the glyph
+# edge, chalk and slate need Blit's glyphs (Blit ADR 0210, 0214), and without
+# them are single, line and brackets. DT_CFSET, DT_CTSET and DT_CBSET name the glyph
 # set each of the three draws from when it is chalk or slate, and are empty
 # otherwise -- each read by its own part's drawing and by nothing else.
 # DT_CTS is 1 when the title bar is a filled row of the frame's colour. A
@@ -331,7 +304,7 @@ DT_CFSET=
 DT_CTSET=
 DT_CBSET=
 dt_chromecfg() {
-	local k="$DT_BTNSIDE $DT_TITLEALIGN $DT_MIRRORON $DT_TITLEBAR $DT_FRAME $DT_BTNSTYLE ${GL[chalk-stripe]-}${GL[slate-stripe]-}"
+	local k="$DT_BTNSIDE $DT_TITLEALIGN $DT_MIRRORON $DT_TITLEBAR $DT_FRAME $DT_BTNSTYLE ${GL[frame-left]-}${GL[chalk-stripe]-}${GL[slate-stripe]-}"
 
 	[ "$k" = "$DT_CKEY" ] && return 0
 	[ -n "$DT_CKEY" ] && DT_FORCEONCE=1
@@ -348,7 +321,12 @@ dt_chromecfg() {
 	DT_CFRAME=$DT_FRAME
 	DT_CTB=$DT_TITLEBAR
 	DT_CBTN=$DT_BTNSTYLE
-	case $DT_CFRAME in chalk | slate) [ -n "$DT_CFSET" ] || DT_CFRAME=single ;; esac
+	case $DT_CFRAME in
+	edge) [ -n "$DT_CFSET" ] || DT_CFRAME=single ;;
+	single | double | rounded | solid | none) ;;
+	*) DT_CFRAME=single ;;
+	esac
+	[ "$DT_CFRAME" = edge ] || DT_CFSET=
 	case $DT_CTB in chalk | slate) [ -n "$DT_CTSET" ] || DT_CTB=line ;; esac
 	case $DT_CBTN in chalk | slate) [ -n "$DT_CBSET" ] || DT_CBTN=brackets ;; esac
 	DT_CTS=0
@@ -361,6 +339,7 @@ dt_chromecfg() {
 # nothing for any other value, or without them.
 fn dt_chromeset(v) {
 	case $v in
+	edge) [ -n "${GL[frame-left]-}" ] && ret edge ;;
 	chalk) [ -n "${GL[chalk-stripe]-}" ] && ret chalk ;;
 	slate) [ -n "${GL[slate-stripe]-}" ] && ret slate ;;
 	esac
@@ -376,6 +355,7 @@ fn dt_chromeset(v) {
 fn dt_chromedrawable(v) {
 	case ${v,,} in
 	curved) [ "${GL[capl]}" != " " ] ;;
+	edge) [ -n "${GL[frame-left]-}" ] ;;
 	chalk) [ -n "${GL[chalk-stripe]-}" ] ;;
 	slate) [ -n "${GL[slate-stripe]-}" ] ;;
 	*) return 0 ;;
@@ -464,11 +444,13 @@ fn dt_chromebtns(int fixed) {
 # the scheme's own (DT_HIGHLIGHT) or else a lighter bar: the three roles
 # Blit's glyphs take from a cell. Its title is framed, so the bar's own
 # rows run under the letters. Inactive, it is the plain bar with the title
-# in the dim colour and no buttons. Answers the buttons' columns, "col:kind
-# ...", counted from c0, and leaves the bar's colour in DT_CBARBG for the
-# lighting of a button under the pointer.
+# in the dim colour and no buttons. With ends set, the cells either side of
+# a and b are the bar's own ends (Blit ADR 0214), its stripes running into
+# them; a plain bar has none, so a frame's two cells carry its colour there.
+# Answers the buttons' columns, "col:kind ...", counted from c0, and leaves
+# the bar's colour in DT_CBARBG for the lighting of a button under the pointer.
 DT_CBARBG=
-fn dt_glyphbar(pane, int r, int a, int b, s, title, int act, on, int c0 = 0) {
+fn dt_glyphbar(pane, int r, int a, int b, s, title, int act, on, int c0 = 0, int ends = 0) {
 	local -a at=() ln=()
 	local fg bg tfg fr n m ll rl st i x k q= rec= g hl
 
@@ -490,7 +472,11 @@ fn dt_glyphbar(pane, int r, int a, int b, s, title, int act, on, int c0 = 0) {
 	if [ "$act" != 1 ]; then
 		[ "$n" -gt $((b - a + 1)) ] && { title=${title:0:$((b - a + 1))}; n=${#title}; }
 		g := dt_rep $((b - a + 1)) "${GL["$s-title"]}"
-		console put "${at[@]}" "$r" "$a" "$g"
+		if [ "$ends" = 1 ]; then
+			console put "${at[@]}" "$r" $((a - 1)) "${GL["frame-left"]}$g${GL["frame-right"]}"
+		else
+			console put "${at[@]}" "$r" "$a" "$g"
+		fi
 		st=$((a + (b - a + 1 - n) / 2))
 		[ "$n" -gt 0 ] && console pen "$tfg" "$bg" bold $fr "${ln[@]}" &&
 			console put "${at[@]}" "$r" "$st" "$title"
@@ -516,7 +502,7 @@ fn dt_glyphbar(pane, int r, int a, int b, s, title, int act, on, int c0 = 0) {
 		done
 		q+=${GL["$s-stripe-from-box"]}
 	else
-		q=${GL["$s-stripe-first"]}
+		q=${GL["$s-stripe"]}
 	fi
 	g := dt_rep $((st - 1 - a - ll)) "${GL["$s-stripe"]}"
 	q+=$g${GL["$s-stripe-before-title"]}
@@ -534,9 +520,13 @@ fn dt_glyphbar(pane, int r, int a, int b, s, title, int act, on, int c0 = 0) {
 		done
 		q+=${GL["$s-stripe-from-box"]}
 	else
-		q+=${GL["$s-stripe-last"]}
+		q+=${GL["$s-stripe"]}
 	fi
 	console put "${at[@]}" "$r" $((st + n)) "$q"
+	if [ "$ends" = 1 ]; then
+		console put "${at[@]}" "$r" $((a - 1)) "${GL["$s-title-end-left"]}"
+		console put "${at[@]}" "$r" $((b + 1)) "${GL["$s-title-end-right"]}"
+	fi
 	# A button of a colour of its own -- close's red, the traffic lights --
 	# in that colour on the bar, as on any other title bar.
 	for ((i = 0; i < ${#DT_CBL[@]}; i++)); do
@@ -556,31 +546,22 @@ fn dt_glyphbar(pane, int r, int a, int b, s, title, int act, on, int c0 = 0) {
 	ret "${rec# }"
 }
 
-# A Chalk or Slate window frame (Blit ADR 0210) round rows r to r+h-1 and
-# cols c to c+w-1, from glyph set s: a line hugging the content down both
-# sides -- the right one beside the title bar's row too -- and along the
-# bottom, in the ink. Those cells keep the background already there
-# (`under`): the wallpaper's own colour, the window beneath, or none over
-# a picture, so whatever the window covers shows round its edge. It draws
-# the frame alone: a shadow is Shadow Shape's, cast like any other.
-fn dt_glyphframe(pane, int r, int c, int h, int w, s) {
+# The Edge frame (Blit ADR 0214) round rows r to r+h-1 and cols c to c+w-1:
+# one line on the outer edge of its cells, in the ink, and the rest of each
+# cell the window's face, which runs right out to the line. A glyph title
+# bar's end cells then replace the two on the title row.
+fn dt_glyphframe(pane, int r, int c, int h, int w) {
 	local -a at=()
 	local g
 
 	[ -n "$pane" ] && at=(-p "$pane")
-	# Nothing is ever painted beneath a window, so a cell it has just come
-	# to cover is empty: then the wallpaper's own colour, or nothing over a
-	# picture, which shows through.
-	if [ "${#DT_WALLPIX[@]}" -gt 0 ]; then
-		console pen "$DT_INK" under:default
-	else
-		console pen "$DT_INK" "under:$DT_WALL"
+	console pen "$DT_INK" "$DT_FACE"
+	if [ "$h" -gt 1 ]; then
+		console fill "${at[@]}" "$r" "$c" $((h - 1)) 1 "${GL["frame-left"]}"
+		console fill "${at[@]}" "$r" $((c + w - 1)) $((h - 1)) 1 "${GL["frame-right"]}"
 	fi
-	[ "$h" -gt 1 ] && console fill "${at[@]}" "$r" "$c" $((h - 1)) 1 "${GL["$s-frame-left"]}"
-	console put "${at[@]}" "$r" $((c + w - 1)) "${GL["$s-frame-right-top"]}"
-	[ "$h" -gt 2 ] && console fill "${at[@]}" $((r + 1)) $((c + w - 1)) $((h - 2)) 1 "${GL["$s-frame-right"]}"
-	g := dt_rep $((w - 3)) "${GL["$s-frame-bottom"]}"
-	console put "${at[@]}" $((r + h - 1)) "$c" "${GL["$s-frame-bottom-left"]}${GL["$s-frame-bottom-first"]}$g${GL["$s-frame-bottom-right"]}"
+	g := dt_rep $((w - 2)) "${GL["frame-bottom"]}"
+	console put "${at[@]}" $((r + h - 1)) "$c" "${GL["frame-bottom-left"]}$g${GL["frame-bottom-right"]}"
 }
 
 # The colours a note is drawn in, by Note Colour (Control Panel >
@@ -630,7 +611,7 @@ fn dt_chrome(pane, int r, int c, int h, int w, title, on, int cap = 0, fixed = "
 	[ -n "$id" ] && [ "$DT_FOCUS" != "$id" ] && act=0
 	if [ "$cap" = 0 ]; then
 		if [ -n "$DT_CFSET" ]; then
-			dt_glyphframe "$pane" "$r" "$c" "$h" "$w" "$DT_CFSET"
+			dt_glyphframe "$pane" "$r" "$c" "$h" "$w"
 		elif [ "$DT_CFRAME" = solid ]; then
 			console pen "$DT_SELINK" "$on"
 			bar := dt_rep "$w" " "
@@ -661,7 +642,6 @@ fn dt_chrome(pane, int r, int c, int h, int w, title, on, int cap = 0, fixed = "
 		# should invite one.
 		[ "$fixed" = 0 ] &&
 			console put "${at[@]}" $((r + h - 1)) $((c + w - 1)) "${GL[grow]}"
-		[ -n "$DT_CFSET" ] && dt_frameshadow "$pane" "$r" "$c" "$h" "$w"
 	fi
 	[ -n "$fixed" ] && dt_chromebtns "$fixed"
 	# A Chalk or Slate title bar is its own row of glyphs, between the
@@ -672,11 +652,10 @@ fn dt_chrome(pane, int r, int c, int h, int w, title, on, int cap = 0, fixed = "
 		# empty the cache that says they are current, or the next window
 		# is handed none.
 		[ -z "$fixed" ] && { DT_CBL=(); DT_CBR=(); DT_CBKEY=; }
-		if [ "$cap" = 0 ]; then
-			rec := dt_glyphbar "$pane" "$r" $((c + 1)) $((c + w - 2)) "$DT_CTSET" "$title" "$act" "$on" "$c"
-		else
-			rec := dt_glyphbar "$pane" "$r" "$c" $((c + w - 1)) "$DT_CTSET" "$title" "$act" "$on" "$c"
-		fi
+		# Its own end cells, unless a drawn border's corners are there.
+		g=0
+		{ [ "$cap" = 1 ] || [ -n "$DT_CFSET" ]; } && g=1
+		rec := dt_glyphbar "$pane" "$r" $((c + 1)) $((c + w - 2)) "$DT_CTSET" "$title" "$act" "$on" "$c" "$g"
 		[ -n "$id" ] && { [ "$DT_BTNID" = "$id" ] || [ "${DT_HOVERBTN% *}" = "$id" ]; } &&
 			dt_chromehot "$pane" "$r" "$c" "$id" "$rec" "$DT_CBARBG"
 		ret "$rec"
@@ -977,15 +956,7 @@ fn dt_win(int id) {
 	[ "${DT_WINTRANS:-0}" != 0 ] &&
 		console translucent "$DT_WINTRANS" "$DT_FACE" "$DT_FACE"
 	console pen "$DT_INK" "$DT_FACE"
-	# A Chalk or Slate frame draws only part of its cells, its line, and
-	# keeps whatever the window covers in the rest (console's `under`), so
-	# the face fills inside it and leaves those cells alone.
-	dt_chromecfg
-	if [ -n "$DT_CFSET" ]; then
-		console fill "$wr" $((wc + 1)) $((h - 1)) $((w - 2)) " "
-	else
-		console fill "$wr" "$wc" "$h" "$w" " "
-	fi
+	console fill "$wr" "$wc" "$h" "$w" " "
 	DT_NOTEWIN=$id
 	dt_wclear "$id"
 	dt_fieldstale "$id"

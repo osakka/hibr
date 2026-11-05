@@ -36,7 +36,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 3.25
+app youtube "YouTube, in a window" 3.26
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -50,7 +50,8 @@ YT_BASE="${YT_BASE-https://www.youtube.com}"
 # How the picture is drawn. `follow` is Control Panel > Pictures, which is
 # the one setting meant to reach every picture the desktop draws (ADR 0037);
 # the rest say outright, for someone who wants this window different from
-# the Image Viewer.
+# the Image Viewer. A settings file from before 0.99.77 holds `half`, the
+# old default, and cp_setver7 brings that one -- and only that one -- here.
 YT_MODE="${YT_MODE-follow}"
 # auto asks for what the picture can show: 144p drawn as blocks or ASCII (a
 # window is about 120 by 80 picture pixels, which 256 by 144 already covers),
@@ -1439,13 +1440,8 @@ fn yt_picture(int id, w, h, row, col, md) {
 		# up to the window, which looks the same: the video has no more.
 		if yt_has pixmax; then
 			local pq pw=0
-			pq := yt_qeff
-			if [ "$m" = pixels ]; then
-				case $pq in
-				tiny) pw=256 ;; small) pw=426 ;; medium) pw=640 ;;
-				large) pw=854 ;; hd720) pw=1280 ;; hd1080) pw=1920 ;;
-				esac
-			fi
+			pq := yt_qeffp
+			[ "$m" = pixels ] && pw := yt_qwidth "$pq"
 			web set "$t" pixmax "$pw" 2> /dev/null
 		fi
 		# And its picture asked for and not waited on: a busy engine (150% of
@@ -1671,7 +1667,7 @@ fn youtube_key(int id, key) {
 # the menu offers rather than a second one written out here, which is how
 # `pixels` was missing from this key for a release.
 yt_mode() {
-	local i=0 n=${#YT_MODES[@]}
+	local i=0 n=${#YT_MODES[@]} qc
 
 	while [ "$i" -lt "$n" ]; do
 		if [ "${YT_MODES[$i]}" = "$YT_MODE" ]; then
@@ -1682,7 +1678,8 @@ yt_mode() {
 	done
 	[ "$i" -lt "$n" ] || YT_MODE=${YT_MODES[0]}
 	command -v dt_save > /dev/null && dt_save
-	[ "$YT_QUALITY" = auto ] && yt_qapply
+	qc := yt_qnorm "$YT_QUALITY"
+	[ "$qc" = auto ] && yt_qapply
 	return 0
 }
 
@@ -1785,7 +1782,7 @@ fn youtube_paste(int id, text, op = "") {
 }
 
 youtube_menus() {
-	local id=$DT_FOCUS v on q l x
+	local id=$DT_FOCUS v on q l x qc kq
 
 	# Every key the window takes is here, beside its item: the line of
 	# hints under the list and the player went, and their rows with it.
@@ -1861,10 +1858,12 @@ youtube_menus() {
 	dt_sep
 	for q in "${YT_QUALITIES[@]}"; do
 		on=0
-		[ "$YT_QUALITY" = "$q" ] && on=1
+		qc := yt_qnorm "$YT_QUALITY"
+		[ "$qc" = "$q" ] && on=1
 		l := yt_qlab "$q"
 		x := dt_tr "Quality %s" "$l"
-		dt_mark "$x" "${l:0:1}" "$on" yt_setquality "$q"
+		kq := yt_qkey "$q"
+		dt_mark "$x" "$kq" "$on" yt_setquality "$q"
 	done
 	dt_menu "Picture"
 	for v in "${YT_MODES[@]}"; do
@@ -2044,30 +2043,106 @@ fn yt_setmode(v) {
 	command -v dt_save > /dev/null && dt_save
 }
 
-# The quality's levels, in the order q steps through them, and what each is.
-YT_QUALITIES=(auto tiny small medium large hd720)
-fn yt_qlab(q) {
+# The quality's levels, in the order q steps through them: the ONE list. The
+# menu, the bar, Control Panel > YouTube and the saved setting all say these
+# words, which are resolutions (the picture's height in pixels). YouTube's own
+# names for them -- tiny, medium, hd1080 -- are said in one place only, yt_qname,
+# to its player; a setting saved under one of those (before 3.26) is read as
+# the resolution it means (yt_qnorm). 2160p is 4K; what YouTube has of a video
+# above what its player is asked for is not fetched, and a video that has no 4K
+# plays at the best it has.
+YT_QUALITIES=(auto 144p 240p 360p 480p 720p 1080p 1440p 2160p)
+
+# A setting as one of YT_QUALITIES: the old names as the resolution they meant,
+# anything not known as auto.
+fn yt_qnorm(q) {
 	case $q in
-	auto) ret auto ;;
-	hd720) ret 720p ;;
+	auto | 144p | 240p | 360p | 480p | 720p | 1080p | 1440p | 2160p) ret "$q" ;;
 	tiny) ret 144p ;;
 	small) ret 240p ;;
 	medium) ret 360p ;;
 	large) ret 480p ;;
-	*) ret "$q" ;;
+	hd720) ret 720p ;;
+	hd1080) ret 1080p ;;
+	hd1440) ret 1440p ;;
+	hd2160 | highres) ret 2160p ;;
+	*) ret auto ;;
 	esac
 }
 
-# What the player is asked for: the setting, or for auto what the picture can
-# show. An engine with a tap (Chromium) is not measured here, so auto is the
-# lowest for it, as it always was.
-fn yt_qeff() {
-	local m
+# What a level is called on screen: the words of the list, with 4K said for the top.
+fn yt_qlab(q) {
+	local n
 
-	[ "$YT_QUALITY" = auto ] || { ret "$YT_QUALITY"; return 0; }
-	yt_tap && { ret tiny; return 0; }
+	n := yt_qnorm "$q"
+	case $n in
+	2160p) ret "2160p 4K" ;;
+	*) ret "$n" ;;
+	esac
+}
+
+# The key a level has in the Quality menu, each its own (the first character of
+# the words would be 1 for four of them).
+fn yt_qkey(q) {
+	case $q in
+	auto) ret a ;;
+	144p) ret 1 ;; 240p) ret 2 ;; 360p) ret 3 ;; 480p) ret 4 ;;
+	720p) ret 7 ;; 1080p) ret 8 ;; 1440p) ret 9 ;; 2160p) ret 0 ;;
+	*) ret "" ;;
+	esac
+}
+
+# YouTube's name for a level, for its player (setPlaybackQualityRange): the only place they are.
+fn yt_qname(q) {
+	case $q in
+	144p) ret tiny ;;
+	240p) ret small ;;
+	360p) ret medium ;;
+	480p) ret large ;;
+	720p) ret hd720 ;;
+	1080p) ret hd1080 ;;
+	1440p) ret hd1440 ;;
+	2160p) ret hd2160 ;;
+	*) ret tiny ;;
+	esac
+}
+
+# How many pixels wide a level's picture is (16:9), which is as wide as the video
+# has: a frame made wider is the video magnified before it is shown.
+fn yt_qwidth(q) {
+	case $q in
+	144p) ret 256 ;;
+	240p) ret 426 ;;
+	360p) ret 640 ;;
+	480p) ret 854 ;;
+	720p) ret 1280 ;;
+	1080p) ret 1920 ;;
+	1440p) ret 2560 ;;
+	2160p) ret 3840 ;;
+	*) ret 0 ;;
+	esac
+}
+
+# The level the player is asked for, as one of the list: the setting, or for auto
+# what the picture can show. An engine with a tap (Chromium) is not measured
+# here, so auto is the lowest for it, as it always was.
+fn yt_qeffp() {
+	local m q
+
+	q := yt_qnorm "$YT_QUALITY"
+	[ "$q" = auto ] || { ret "$q"; return 0; }
+	yt_tap && { ret 144p; return 0; }
 	m := yt_drawmode
-	[ "$m" = pixels ] && ret large || ret tiny
+	[ "$m" = pixels ] && ret 480p || ret 144p
+}
+
+# The same, in YouTube's name for it.
+fn yt_qeff() {
+	local p n
+
+	p := yt_qeffp
+	n := yt_qname "$p"
+	ret "$n"
 }
 
 # Tell every player playing now what it is asked for: it takes it at once, not
@@ -2095,8 +2170,10 @@ fn yt_setquality(q) {
 fn yt_quality(int id = 0) {
 	local i q l
 
+	local qc
+	qc := yt_qnorm "$YT_QUALITY"
 	for i in "${!YT_QUALITIES[@]}"; do
-		[ "${YT_QUALITIES[$i]}" = "$YT_QUALITY" ] && break
+		[ "${YT_QUALITIES[$i]}" = "$qc" ] && break
 	done
 	q=${YT_QUALITIES[$(( (i + 1) % ${#YT_QUALITIES[@]} ))]}
 	yt_setquality "$q"

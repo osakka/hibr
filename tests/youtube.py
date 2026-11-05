@@ -330,6 +330,18 @@ try:
     check("and the bar says it is an advert while it plays",
           "advert" in s[1].text() and "advert" not in s[-1].text(), (s[1].text()[-300:], s[-1].text()[-300:]))
 
+    # One list of resolutions, 144p to 2160p (4K), said the same everywhere (YouTube 3.26): the bar says the resolution, a setting saved
+    # under YouTube's old name (hd720, what 3.25 and before kept) is read as the resolution it meant, the top of the list is 4K, and the
+    # Control Panel pane carries no list of its own.
+    s = yrun([([], "A test pattern"), ([b"\r"], playing), ([], lambda sc: at(sc) >= 1)], env={"YT_QUALITY": "hd720"})
+    check("a quality saved under YouTube's old name is read as its resolution: hd720 says 720p",
+          "720p" in s[-1].text() and "hd720" not in s[-1].text(), s[-1].text()[-300:])
+    s = yrun([([], "A test pattern"), ([b"\r"], playing), ([], lambda sc: at(sc) >= 1)], env={"YT_QUALITY": "2160p"})
+    check("the list goes up to 4K: 2160p is offered and said so", "2160p 4K" in s[-1].text(), s[-1].text()[-300:])
+    pane = open(tree("programs/desktop/control-panel/tube.hibr")).read()
+    check("Control Panel > YouTube has no list of qualities of its own: the app's is the one", "TB_QUALITY" not in pane
+          and "YT_QUALITIES" in pane, "")
+
     # The same, with the new page held back from appending anything for a
     # moment: its media source and buffers are made at once, so the tap's
     # reset reaches the app before any of the new stream does. That is the
@@ -522,4 +534,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(46)
+report(49)
