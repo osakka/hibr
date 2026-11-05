@@ -446,7 +446,7 @@ fn dt_chromebtns(int fixed) {
 # rows run under the letters. Inactive, it is the plain bar with the title
 # in the dim colour and no buttons. With ends set, the cells either side of
 # a and b are the bar's own ends (Blit ADR 0214), its stripes running into
-# them; a plain bar has none, so a frame's two cells carry its colour there.
+# them, and on a plain bar the plain ends, a frame's cells on an older Blit.
 # Answers the buttons' columns, "col:kind ...", counted from c0, and leaves
 # the bar's colour in DT_CBARBG for the lighting of a button under the pointer.
 DT_CBARBG=
@@ -473,7 +473,7 @@ fn dt_glyphbar(pane, int r, int a, int b, s, title, int act, on, int c0 = 0, int
 		[ "$n" -gt $((b - a + 1)) ] && { title=${title:0:$((b - a + 1))}; n=${#title}; }
 		g := dt_rep $((b - a + 1)) "${GL["$s-title"]}"
 		if [ "$ends" = 1 ]; then
-			console put "${at[@]}" "$r" $((a - 1)) "${GL["frame-left"]}$g${GL["frame-right"]}"
+			console put "${at[@]}" "$r" $((a - 1)) "${GL["$s-title-end-plain-left"]:-${GL["frame-left"]}}$g${GL["$s-title-end-plain-right"]:-${GL["frame-right"]}}"
 		else
 			console put "${at[@]}" "$r" "$a" "$g"
 		fi

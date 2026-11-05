@@ -34,7 +34,7 @@ DT_GLYPHSETS=(unicode ascii nerd blit)
 # the dark set Blit once had (U+100277 on) is retired. Only the blit set
 # fills them, and Frame, Title Bar, Window Buttons, Dialog Buttons and a
 # note's Frame draw chalk and slate only while they are filled.
-DT_CHROMEPARTS=(stripe stripe-before-title stripe-after-title title stripe-to-box stripe-from-box stripe-between close shade zoom note-close dialog-top-left dialog-top dialog-top-right dialog-left dialog-right dialog-bottom-left dialog-bottom dialog-bottom-right button-left button-right default-button-left default-button-right title-end-left title-end-right)
+DT_CHROMEPARTS=(stripe stripe-before-title stripe-after-title title stripe-to-box stripe-from-box stripe-between close shade zoom note-close dialog-top-left dialog-top dialog-top-right dialog-left dialog-right dialog-bottom-left dialog-bottom dialog-bottom-right button-left button-right default-button-left default-button-right title-end-left title-end-right title-end-plain-left title-end-plain-right)
 # The set in force, exported so the shells a terminal window starts draw
 # their prompt in it too: the prompt module's PROMPT[glyphs]=auto reads it
 # (Gitea #360), since a program cannot ask a terminal which font it has.
@@ -342,6 +342,50 @@ dt_glyphsnerd() {
 	GL["fx"]=$''       # nf-fa-calculator
 }
 
+# Blit's glyphs by id: its own catalogue where this machine has one (Gitea
+# #121), so a glyph is never a number written here, and otherwise
+# wm/blit-glyphs.json, generated from that catalogue by tools/blitglyphs.py,
+# for the login screen and for a Blit on another machine. Read once.
+DT_BLITCAT="${DT_BLITCAT-/usr/lib/blit/fonts/icons/catalogue.json}"
+DT_BGREAD=0
+declare -gA BG
+dt_blitread() {
+	local -A j
+	local s i
+
+	[ "$DT_BGREAD" = 1 ] && return 0
+	DT_BGREAD=1
+	if [ -r "$DT_BLITCAT" ] && json parse j < "$DT_BLITCAT" 2> /dev/null; then
+		for s in icons text_glyphs cell_geometry; do
+			for i in "${!j["$s"][@]}"; do
+				BG["${j["$s"][$i]["id"]}"]=${j["$s"][$i]["codepoint"]}
+			done
+		done
+		[ "${#BG[@]}" -gt 0 ] && return 0
+	fi
+	unset j
+	local -A j
+	json parse j < "$DT_HERE/wm/blit-glyphs.json" 2> /dev/null || return 0
+	for i in "${!j["glyphs"][@]}"; do
+		BG["$i"]=${j["glyphs"]["$i"]}
+	done
+}
+
+# GL's name as Blit's glyphs of these ids, side by side. One this Blit does not
+# have leaves the name as it was: the nerd set's, or empty.
+fn dt_bg(name, ...ids) {
+	local id c g=
+
+	for id in "${ids[@]}"; do
+		case ${BG["$id"]-} in
+		"" | *[!0-9A-Fa-f]*) return 0 ;;
+		esac
+		printf -v c "\U00${BG["$id"]}"
+		g+=$c
+	done
+	GL["$name"]=$g
+}
+
 # The blit set (Gitea #330): the nerd set, since Blit's own fonts carry the
 # whole Nerd catalogue, and over it the originals Blit drew for hibr --
 # intrinsic-colour icons one cell wide, at supplementary private-use code
@@ -354,197 +398,230 @@ dt_glyphsnerd() {
 # (the owner, 0.99.360). It wants a Blit as new as the hibr it runs; they
 # ship together, and an older one draws its newest icons as blank cells.
 dt_glyphsblit() {
-	GL["hibr"]=$'\U00100001'   # Blit hibr-pen, the colour hibr menu mark
-	GL["wifi1"]=$'\U00100002'  # Blit wifi-1, signal level 1 of 4
-	GL["wifi2"]=$'\U00100003'  # Blit wifi-2
-	GL["wifi3"]=$'\U00100004'  # Blit wifi-3
-	GL["wifi4"]=$'\U00100005'  # Blit wifi-4
-	GL["bt"]=$'\U00100006'     # Blit bluetooth, in its own colours
-	GL["btoff"]=$'\U00100006 \uf00d' # the same, nf-fa-times
+	dt_blitread
+	dt_bg hibr hibr-pen
+	dt_bg wifi1 wifi-1
+	dt_bg wifi2 wifi-2
+	dt_bg wifi3 wifi-3
+	dt_bg wifi4 wifi-4
+	dt_bg bt bluetooth
+	dt_bg btoff bluetooth
+	[ -n "${GL[btoff]-}" ] && GL["btoff"]+=$' \uf00d'
 	# Blit bar-corner-left and -right (blit#140): a cell filled but for
 	# its top-left or top-right corner, rounded -- a curved frame's title
 	# bar meeting the window's content square below.
-	GL["capl"]=$'\U00100007'
-	GL["capr"]=$'\U00100008'
+	dt_bg capl bar-corner-left
+	dt_bg capr bar-corner-right
 	# The one window frame, its line on the outer edge of each cell (Blit
 	# ADR 0214).
-	GL["frame-left"]=$'\U001002AE' GL["frame-right"]=$'\U001002AF'
-	GL["frame-bottom-left"]=$'\U001002B0' GL["frame-bottom"]=$'\U001002B1'
-	GL["frame-bottom-right"]=$'\U001002B2'
+	dt_bg frame-left frame-left
+	dt_bg frame-right frame-right
+	dt_bg frame-bottom-left frame-bottom-left
+	dt_bg frame-bottom frame-bottom
+	dt_bg frame-bottom-right frame-bottom-right
 	# The title bar's and dialogs' parts, Chalk's and Slate's (ADR 0210).
-	GL["chalk-stripe"]=$'\U00100231' GL["slate-stripe"]=$'\U00100254'
-	GL["chalk-stripe-before-title"]=$'\U00100234' GL["slate-stripe-before-title"]=$'\U00100257'
-	GL["chalk-stripe-after-title"]=$'\U00100235' GL["slate-stripe-after-title"]=$'\U00100258'
-	GL["chalk-title"]=$'\U00100236' GL["slate-title"]=$'\U00100259'
-	GL["chalk-stripe-to-box"]=$'\U00100237' GL["slate-stripe-to-box"]=$'\U0010025A'
-	GL["chalk-stripe-from-box"]=$'\U00100238' GL["slate-stripe-from-box"]=$'\U0010025B'
-	GL["chalk-stripe-between"]=$'\U00100239' GL["slate-stripe-between"]=$'\U0010025C'
-	GL["chalk-close"]=$'\U0010023A' GL["slate-close"]=$'\U0010025D'
-	GL["chalk-shade"]=$'\U0010023B' GL["slate-shade"]=$'\U0010025E'
-	GL["chalk-zoom"]=$'\U0010023C' GL["slate-zoom"]=$'\U0010025F'
-	GL["chalk-title-end-left"]=$'\U001002B3' GL["slate-title-end-left"]=$'\U001002B5'
-	GL["chalk-title-end-right"]=$'\U001002B4' GL["slate-title-end-right"]=$'\U001002B6'
-	GL["chalk-note-close"]=$'\U00100247' GL["slate-note-close"]=$'\U0010026A'
-	GL["chalk-dialog-top-left"]=$'\U00100248' GL["slate-dialog-top-left"]=$'\U0010026B'
-	GL["chalk-dialog-top"]=$'\U00100249' GL["slate-dialog-top"]=$'\U0010026C'
-	GL["chalk-dialog-top-right"]=$'\U0010024A' GL["slate-dialog-top-right"]=$'\U0010026D'
-	GL["chalk-dialog-left"]=$'\U0010024B' GL["slate-dialog-left"]=$'\U0010026E'
-	GL["chalk-dialog-right"]=$'\U0010024C' GL["slate-dialog-right"]=$'\U0010026F'
-	GL["chalk-dialog-bottom-left"]=$'\U0010024D' GL["slate-dialog-bottom-left"]=$'\U00100270'
-	GL["chalk-dialog-bottom"]=$'\U0010024E' GL["slate-dialog-bottom"]=$'\U00100271'
-	GL["chalk-dialog-bottom-right"]=$'\U0010024F' GL["slate-dialog-bottom-right"]=$'\U00100272'
-	GL["chalk-button-left"]=$'\U00100250' GL["slate-button-left"]=$'\U00100273'
-	GL["chalk-button-right"]=$'\U00100251' GL["slate-button-right"]=$'\U00100274'
-	GL["chalk-default-button-left"]=$'\U00100252' GL["slate-default-button-left"]=$'\U00100275'
-	GL["chalk-default-button-right"]=$'\U00100253' GL["slate-default-button-right"]=$'\U00100276'
+	dt_bg chalk-stripe chalk-stripe
+	dt_bg slate-stripe slate-light-stripe
+	dt_bg chalk-stripe-before-title chalk-stripe-before-title
+	dt_bg slate-stripe-before-title slate-light-stripe-before-title
+	dt_bg chalk-stripe-after-title chalk-stripe-after-title
+	dt_bg slate-stripe-after-title slate-light-stripe-after-title
+	dt_bg chalk-title chalk-title
+	dt_bg slate-title slate-light-title
+	dt_bg chalk-stripe-to-box chalk-stripe-to-box
+	dt_bg slate-stripe-to-box slate-light-stripe-to-box
+	dt_bg chalk-stripe-from-box chalk-stripe-from-box
+	dt_bg slate-stripe-from-box slate-light-stripe-from-box
+	dt_bg chalk-stripe-between chalk-stripe-between
+	dt_bg slate-stripe-between slate-light-stripe-between
+	dt_bg chalk-close chalk-close
+	dt_bg slate-close slate-light-close
+	dt_bg chalk-shade chalk-shade
+	dt_bg slate-shade slate-light-shade
+	dt_bg chalk-zoom chalk-zoom
+	dt_bg slate-zoom slate-light-zoom
+	dt_bg chalk-title-end-plain-left chalk-title-end-plain-left
+	dt_bg slate-title-end-plain-left slate-light-title-end-plain-left
+	dt_bg chalk-title-end-plain-right chalk-title-end-plain-right
+	dt_bg slate-title-end-plain-right slate-light-title-end-plain-right
+	dt_bg chalk-title-end-left chalk-title-end-left
+	dt_bg slate-title-end-left slate-light-title-end-left
+	dt_bg chalk-title-end-right chalk-title-end-right
+	dt_bg slate-title-end-right slate-light-title-end-right
+	dt_bg chalk-note-close chalk-note-close
+	dt_bg slate-note-close slate-light-note-close
+	dt_bg chalk-dialog-top-left chalk-dialog-top-left
+	dt_bg slate-dialog-top-left slate-light-dialog-top-left
+	dt_bg chalk-dialog-top chalk-dialog-top
+	dt_bg slate-dialog-top slate-light-dialog-top
+	dt_bg chalk-dialog-top-right chalk-dialog-top-right
+	dt_bg slate-dialog-top-right slate-light-dialog-top-right
+	dt_bg chalk-dialog-left chalk-dialog-left
+	dt_bg slate-dialog-left slate-light-dialog-left
+	dt_bg chalk-dialog-right chalk-dialog-right
+	dt_bg slate-dialog-right slate-light-dialog-right
+	dt_bg chalk-dialog-bottom-left chalk-dialog-bottom-left
+	dt_bg slate-dialog-bottom-left slate-light-dialog-bottom-left
+	dt_bg chalk-dialog-bottom chalk-dialog-bottom
+	dt_bg slate-dialog-bottom slate-light-dialog-bottom
+	dt_bg chalk-dialog-bottom-right chalk-dialog-bottom-right
+	dt_bg slate-dialog-bottom-right slate-light-dialog-bottom-right
+	dt_bg chalk-button-left chalk-button-left
+	dt_bg slate-button-left slate-light-button-left
+	dt_bg chalk-button-right chalk-button-right
+	dt_bg slate-button-right slate-light-button-right
+	dt_bg chalk-default-button-left chalk-default-button-left
+	dt_bg slate-default-button-left slate-light-default-button-left
+	dt_bg chalk-default-button-right chalk-default-button-right
+	dt_bg slate-default-button-right slate-light-default-button-right
 	# The battery and the speaker, one picture a state, the charge or the
 	# level inside it (Blit 0.2.38, ADR 0196 there).
-	GL["bat0"]=$'\U00100009'   # Blit battery-0
-	GL["bat1"]=$'\U0010000A'   # Blit battery-1
-	GL["bat2"]=$'\U0010000B'   # Blit battery-2
-	GL["bat3"]=$'\U0010000C'   # Blit battery-3
-	GL["bat4"]=$'\U0010000D'   # Blit battery-4
-	GL["batchg0"]=$'\U0010000E' # Blit battery-0-charging
-	GL["batchg1"]=$'\U0010000F' # Blit battery-1-charging
-	GL["batchg2"]=$'\U00100010' # Blit battery-2-charging
-	GL["batchg3"]=$'\U00100011' # Blit battery-3-charging
-	GL["batchg4"]=$'\U00100012' # Blit battery-4-charging
-	GL["batfull"]=$'\U00100013' # Blit battery-ac: on mains, not charging
-	GL["vol0"]=$'\U00100014'   # Blit volume-0, muted
-	GL["vol1"]=$'\U00100015'   # Blit volume-1
-	GL["vol2"]=$'\U00100016'   # Blit volume-2
-	GL["vol3"]=$'\U00100017'   # Blit volume-3
+	dt_bg bat0 battery-0
+	dt_bg bat1 battery-1
+	dt_bg bat2 battery-2
+	dt_bg bat3 battery-3
+	dt_bg bat4 battery-4
+	dt_bg batchg0 battery-0-charging
+	dt_bg batchg1 battery-1-charging
+	dt_bg batchg2 battery-2-charging
+	dt_bg batchg3 battery-3-charging
+	dt_bg batchg4 battery-4-charging
+	dt_bg batfull battery-ac
+	dt_bg vol0 volume-0
+	dt_bg vol1 volume-1
+	dt_bg vol2 volume-2
+	dt_bg vol3 volume-3
 	# The hui mark (Blit 0.2.40, ADR 0197 there): one badge two cells
 	# square, drawn as its left and its right half, written side by side
 	# -- the hibr menu's mark where Menu Bar > Menu Mark asks for it.
-	GL["huil"]=$'\U00100018'   # Blit hui-left
-	GL["huir"]=$'\U00100019'   # Blit hui-right
+	dt_bg huil hui-left
+	dt_bg huir hui-right
 	# The power symbol, in Blit's colours (0.2.41): the Power item on a
 	# machine with no battery.
-	GL["power"]=$'\U0010001A'  # Blit power
+	dt_bg power power
 	# A telephone in four states (0.2.44), one column each, for longwire.
-	GL["phoneoff"]=$'\U0010001B'  # Blit phone-off, an outline
-	GL["phonewait"]=$'\U0010001C' # Blit phone-wait, dashed
-	GL["phoneon"]=$'\U0010001D'   # Blit phone-on, filled
-	GL["phonering"]=$'\U0010001E' # Blit phone-ring, with waves
+	dt_bg phoneoff phone-off
+	dt_bg phonewait phone-wait
+	dt_bg phoneon phone-on
+	dt_bg phonering phone-ring
 	# And the classic rotary desk telephone (0.2.45), for longwire's Phone
 	# Style: Classic.
-	GL["phoneoffc"]=$'\U0010001F'  # Blit classic-off, an outline
-	GL["phonewaitc"]=$'\U00100020' # Blit classic-wait, dashed
-	GL["phoneonc"]=$'\U00100021'   # Blit classic-on, filled
-	GL["phoneringc"]=$'\U00100022' # Blit classic-ring, with waves
+	dt_bg phoneoffc phone-classic-off
+	dt_bg phonewaitc phone-classic-wait
+	dt_bg phoneonc phone-classic-on
+	dt_bg phoneringc phone-classic-ring
 	# Files' icons (0.3.4), two columns each, a left then right pair:
 	# classic, blue, green and amber, each kind in the same order.
-	GL["ffolder"]=$'\U00100033\U00100034' # Blit file-folder-classic
-	GL["fdoc"]=$'\U00100035\U00100036' # Blit file-document-classic
-	GL["ftext"]=$'\U00100037\U00100038' # Blit file-text-classic
-	GL["fpdf"]=$'\U00100039\U0010003A' # Blit file-pdf-classic
-	GL["fimage"]=$'\U0010003B\U0010003C' # Blit file-image-classic
-	GL["faudio"]=$'\U0010003D\U0010003E' # Blit file-audio-classic
-	GL["fvideo"]=$'\U0010003F\U00100040' # Blit file-video-classic
-	GL["farchive"]=$'\U00100041\U00100042' # Blit file-archive-classic
-	GL["fcode"]=$'\U00100043\U00100044' # Blit file-code-classic
-	GL["fapp"]=$'\U00100045\U00100046' # Blit file-application-classic
-	GL["fdisk"]=$'\U00100047\U00100048' # Blit file-disk-classic
-	GL["ftrash"]=$'\U00100049\U0010004A' # Blit file-trash-classic
-	GL["ffolder_blue"]=$'\U0010004B\U0010004C' # Blit file-folder-blue
-	GL["ffolder_green"]=$'\U00100063\U00100064' # Blit file-folder-green
-	GL["ffolder_amber"]=$'\U0010007B\U0010007C' # Blit file-folder-amber
+	dt_bg ffolder file-folder-classic-left file-folder-classic-right
+	dt_bg fdoc file-document-classic-left file-document-classic-right
+	dt_bg ftext file-text-classic-left file-text-classic-right
+	dt_bg fpdf file-pdf-classic-left file-pdf-classic-right
+	dt_bg fimage file-image-classic-left file-image-classic-right
+	dt_bg faudio file-audio-classic-left file-audio-classic-right
+	dt_bg fvideo file-video-classic-left file-video-classic-right
+	dt_bg farchive file-archive-classic-left file-archive-classic-right
+	dt_bg fcode file-code-classic-left file-code-classic-right
+	dt_bg fapp file-application-classic-left file-application-classic-right
+	dt_bg fdisk file-disk-classic-left file-disk-classic-right
+	dt_bg ftrash file-trash-classic-left file-trash-classic-right
+	dt_bg ffolder_blue file-folder-blue-left file-folder-blue-right
+	dt_bg ffolder_green file-folder-green-left file-folder-green-right
+	dt_bg ffolder_amber file-folder-amber-left file-folder-amber-right
 	# Kinds added later go one at a time, four colourways each (0.3.6).
-	GL["fhome"]=$'\U00100093\U00100094' # Blit file-home-classic
-	GL["fboxer"]=$'\U0010009B\U0010009C' # Blit file-boxer-classic
-	GL["fmd"]=$'\U001000A3\U001000A4' # Blit file-markdown-classic
-	GL["fsheet"]=$'\U001000AB\U001000AC' # Blit file-spreadsheet-classic
-	GL["fdiagram"]=$'\U001000B3\U001000B4' # Blit file-diagram-classic
-	GL["fslides"]=$'\U001000BB\U001000BC' # Blit file-presentation-classic
-	GL["ffont"]=$'\U001000C3\U001000C4' # Blit file-font-classic
-	GL["fweb"]=$'\U001000CB\U001000CC' # Blit file-web-classic
-	GL["fterm"]=$'\U001000D3\U001000D4' # Blit file-terminal-classic
-	GL["fsettings"]=$'\U001000DB\U001000DC' # Blit file-settings-classic
-	GL["fbundle"]=$'\U001000E3\U001000E4' # Blit file-bundle-classic
-	GL["flink"]=$'\U001000EB\U001000EC' # Blit file-link-classic
+	dt_bg fhome file-home-classic-left file-home-classic-right
+	dt_bg fboxer file-boxer-classic-left file-boxer-classic-right
+	dt_bg fmd file-markdown-classic-left file-markdown-classic-right
+	dt_bg fsheet file-spreadsheet-classic-left file-spreadsheet-classic-right
+	dt_bg fdiagram file-diagram-classic-left file-diagram-classic-right
+	dt_bg fslides file-presentation-classic-left file-presentation-classic-right
+	dt_bg ffont file-font-classic-left file-font-classic-right
+	dt_bg fweb file-web-classic-left file-web-classic-right
+	dt_bg fterm file-terminal-classic-left file-terminal-classic-right
+	dt_bg fsettings file-settings-classic-left file-settings-classic-right
+	dt_bg fbundle file-bundle-classic-left file-bundle-classic-right
+	dt_bg flink file-link-classic-left file-link-classic-right
 	# Special folders and more kinds (0.3.7), the same way.
-	GL["fgit"]=$'\U001000F3\U001000F4' # Blit file-git-classic
-	GL["fgit_blue"]=$'\U001000F5\U001000F6' # Blit file-git-blue
-	GL["fgit_green"]=$'\U001000F7\U001000F8' # Blit file-git-green
-	GL["fgit_amber"]=$'\U001000F9\U001000FA' # Blit file-git-amber
-	GL["fconfig"]=$'\U001000FB\U001000FC' # Blit file-config-classic
-	GL["fconfig_blue"]=$'\U001000FD\U001000FE' # Blit file-config-blue
-	GL["fconfig_green"]=$'\U001000FF\U00100100' # Blit file-config-green
-	GL["fconfig_amber"]=$'\U00100101\U00100102' # Blit file-config-amber
-	GL["flocal"]=$'\U00100103\U00100104' # Blit file-local-classic
-	GL["flocal_blue"]=$'\U00100105\U00100106' # Blit file-local-blue
-	GL["flocal_green"]=$'\U00100107\U00100108' # Blit file-local-green
-	GL["flocal_amber"]=$'\U00100109\U0010010A' # Blit file-local-amber
-	GL["fsystem"]=$'\U0010010B\U0010010C' # Blit file-system-classic
-	GL["fsystem_blue"]=$'\U0010010D\U0010010E' # Blit file-system-blue
-	GL["fsystem_green"]=$'\U0010010F\U00100110' # Blit file-system-green
-	GL["fsystem_amber"]=$'\U00100111\U00100112' # Blit file-system-amber
-	GL["fdesktop"]=$'\U00100113\U00100114' # Blit file-desktop-classic
-	GL["fdesktop_blue"]=$'\U00100115\U00100116' # Blit file-desktop-blue
-	GL["fdesktop_green"]=$'\U00100117\U00100118' # Blit file-desktop-green
-	GL["fdesktop_amber"]=$'\U00100119\U0010011A' # Blit file-desktop-amber
-	GL["fdownloads"]=$'\U0010011B\U0010011C' # Blit file-downloads-classic
-	GL["fdownloads_blue"]=$'\U0010011D\U0010011E' # Blit file-downloads-blue
-	GL["fdownloads_green"]=$'\U0010011F\U00100120' # Blit file-downloads-green
-	GL["fdownloads_amber"]=$'\U00100121\U00100122' # Blit file-downloads-amber
-	GL["fdocuments"]=$'\U00100123\U00100124' # Blit file-documents-classic
-	GL["fdocuments_blue"]=$'\U00100125\U00100126' # Blit file-documents-blue
-	GL["fdocuments_green"]=$'\U00100127\U00100128' # Blit file-documents-green
-	GL["fdocuments_amber"]=$'\U00100129\U0010012A' # Blit file-documents-amber
-	GL["fmusic"]=$'\U0010012B\U0010012C' # Blit file-music-classic
-	GL["fmusic_blue"]=$'\U0010012D\U0010012E' # Blit file-music-blue
-	GL["fmusic_green"]=$'\U0010012F\U00100130' # Blit file-music-green
-	GL["fmusic_amber"]=$'\U00100131\U00100132' # Blit file-music-amber
-	GL["fpictures"]=$'\U00100133\U00100134' # Blit file-pictures-classic
-	GL["fpictures_blue"]=$'\U00100135\U00100136' # Blit file-pictures-blue
-	GL["fpictures_green"]=$'\U00100137\U00100138' # Blit file-pictures-green
-	GL["fpictures_amber"]=$'\U00100139\U0010013A' # Blit file-pictures-amber
-	GL["fvideos"]=$'\U0010013B\U0010013C' # Blit file-videos-classic
-	GL["fvideos_blue"]=$'\U0010013D\U0010013E' # Blit file-videos-blue
-	GL["fvideos_green"]=$'\U0010013F\U00100140' # Blit file-videos-green
-	GL["fvideos_amber"]=$'\U00100141\U00100142' # Blit file-videos-amber
-	GL["fapps"]=$'\U00100143\U00100144' # Blit file-apps-classic
-	GL["fapps_blue"]=$'\U00100145\U00100146' # Blit file-apps-blue
-	GL["fapps_green"]=$'\U00100147\U00100148' # Blit file-apps-green
-	GL["fapps_amber"]=$'\U00100149\U0010014A' # Blit file-apps-amber
-	GL["fgames"]=$'\U0010014B\U0010014C' # Blit file-games-classic
-	GL["fgames_blue"]=$'\U0010014D\U0010014E' # Blit file-games-blue
-	GL["fgames_green"]=$'\U0010014F\U00100150' # Blit file-games-green
-	GL["fgames_amber"]=$'\U00100151\U00100152' # Blit file-games-amber
-	GL["frc"]=$'\U00100153\U00100154' # Blit file-rc-classic
-	GL["fhistory"]=$'\U0010015B\U0010015C' # Blit file-history-classic
-	GL["fservice"]=$'\U00100163\U00100164' # Blit file-service-classic
-	GL["fkey"]=$'\U0010016B\U0010016C' # Blit file-key-classic
-	GL["fnetwork"]=$'\U00100173\U00100174' # Blit file-network-classic
-	GL["fcron"]=$'\U0010017B\U0010017C' # Blit file-cron-classic
-	GL["freadme"]=$'\U00100183\U00100184' # Blit file-readme-classic
-	GL["flicense"]=$'\U0010018B\U0010018C' # Blit file-license-classic
-	GL["flog"]=$'\U00100193\U00100194' # Blit file-log-classic
-	GL["fkernel"]=$'\U0010019B\U0010019C' # Blit file-kernel-classic
-	GL["fboot"]=$'\U001001A3\U001001A4' # Blit file-boot-classic
-	GL["fc"]=$'\U001001AB\U001001AC' # Blit file-c-classic
-	GL["fasm"]=$'\U001001B3\U001001B4' # Blit file-asm-classic
-	GL["fmake"]=$'\U001001BB\U001001BC' # Blit file-makefile-classic
-	GL["fpatch"]=$'\U001001C3\U001001C4' # Blit file-patch-classic
-	GL["fjson"]=$'\U001001CB\U001001CC' # Blit file-json-classic
-	GL["fvector"]=$'\U001001D3\U001001D4' # Blit file-vector-classic
-	GL["from"]=$'\U001001DB\U001001DC' # Blit file-rom-classic
-	GL["febook"]=$'\U001001E3\U001001E4' # Blit file-ebook-classic
-	GL["fexe"]=$'\U001001EB\U001001EC' # Blit file-exe-classic
-	GL["fdisc"]=$'\U001001F3\U001001F4' # Blit file-disc-classic
-	GL["fpackage"]=$'\U001001FB\U001001FC' # Blit file-package-classic
-	GL["flibrary"]=$'\U00100203\U00100204' # Blit file-library-classic
-	GL["flock"]=$'\U0010020B\U0010020C' # Blit file-lock-classic
-	GL["fdatabase"]=$'\U00100213\U00100214' # Blit file-database-classic
-	GL["fusb"]=$'\U0010021B\U0010021C' # Blit file-usb-classic
-	GL["fshare"]=$'\U00100223\U00100224' # Blit file-share-classic
-	GL["fshare_blue"]=$'\U00100225\U00100226' # Blit file-share-blue
-	GL["fshare_green"]=$'\U00100227\U00100228' # Blit file-share-green
-	GL["fshare_amber"]=$'\U00100229\U0010022A' # Blit file-share-amber
+	dt_bg fgit file-folder-git-classic-left file-folder-git-classic-right
+	dt_bg fgit_blue file-folder-git-blue-left file-folder-git-blue-right
+	dt_bg fgit_green file-folder-git-green-left file-folder-git-green-right
+	dt_bg fgit_amber file-folder-git-amber-left file-folder-git-amber-right
+	dt_bg fconfig file-folder-config-classic-left file-folder-config-classic-right
+	dt_bg fconfig_blue file-folder-config-blue-left file-folder-config-blue-right
+	dt_bg fconfig_green file-folder-config-green-left file-folder-config-green-right
+	dt_bg fconfig_amber file-folder-config-amber-left file-folder-config-amber-right
+	dt_bg flocal file-folder-local-classic-left file-folder-local-classic-right
+	dt_bg flocal_blue file-folder-local-blue-left file-folder-local-blue-right
+	dt_bg flocal_green file-folder-local-green-left file-folder-local-green-right
+	dt_bg flocal_amber file-folder-local-amber-left file-folder-local-amber-right
+	dt_bg fsystem file-folder-system-classic-left file-folder-system-classic-right
+	dt_bg fsystem_blue file-folder-system-blue-left file-folder-system-blue-right
+	dt_bg fsystem_green file-folder-system-green-left file-folder-system-green-right
+	dt_bg fsystem_amber file-folder-system-amber-left file-folder-system-amber-right
+	dt_bg fdesktop file-folder-desktop-classic-left file-folder-desktop-classic-right
+	dt_bg fdesktop_blue file-folder-desktop-blue-left file-folder-desktop-blue-right
+	dt_bg fdesktop_green file-folder-desktop-green-left file-folder-desktop-green-right
+	dt_bg fdesktop_amber file-folder-desktop-amber-left file-folder-desktop-amber-right
+	dt_bg fdownloads file-folder-downloads-classic-left file-folder-downloads-classic-right
+	dt_bg fdownloads_blue file-folder-downloads-blue-left file-folder-downloads-blue-right
+	dt_bg fdownloads_green file-folder-downloads-green-left file-folder-downloads-green-right
+	dt_bg fdownloads_amber file-folder-downloads-amber-left file-folder-downloads-amber-right
+	dt_bg fdocuments file-folder-documents-classic-left file-folder-documents-classic-right
+	dt_bg fdocuments_blue file-folder-documents-blue-left file-folder-documents-blue-right
+	dt_bg fdocuments_green file-folder-documents-green-left file-folder-documents-green-right
+	dt_bg fdocuments_amber file-folder-documents-amber-left file-folder-documents-amber-right
+	dt_bg fmusic file-folder-music-classic-left file-folder-music-classic-right
+	dt_bg fmusic_blue file-folder-music-blue-left file-folder-music-blue-right
+	dt_bg fmusic_green file-folder-music-green-left file-folder-music-green-right
+	dt_bg fmusic_amber file-folder-music-amber-left file-folder-music-amber-right
+	dt_bg fpictures file-folder-pictures-classic-left file-folder-pictures-classic-right
+	dt_bg fpictures_blue file-folder-pictures-blue-left file-folder-pictures-blue-right
+	dt_bg fpictures_green file-folder-pictures-green-left file-folder-pictures-green-right
+	dt_bg fpictures_amber file-folder-pictures-amber-left file-folder-pictures-amber-right
+	dt_bg fvideos file-folder-videos-classic-left file-folder-videos-classic-right
+	dt_bg fvideos_blue file-folder-videos-blue-left file-folder-videos-blue-right
+	dt_bg fvideos_green file-folder-videos-green-left file-folder-videos-green-right
+	dt_bg fvideos_amber file-folder-videos-amber-left file-folder-videos-amber-right
+	dt_bg fapps file-folder-apps-classic-left file-folder-apps-classic-right
+	dt_bg fapps_blue file-folder-apps-blue-left file-folder-apps-blue-right
+	dt_bg fapps_green file-folder-apps-green-left file-folder-apps-green-right
+	dt_bg fapps_amber file-folder-apps-amber-left file-folder-apps-amber-right
+	dt_bg fgames file-folder-games-classic-left file-folder-games-classic-right
+	dt_bg fgames_blue file-folder-games-blue-left file-folder-games-blue-right
+	dt_bg fgames_green file-folder-games-green-left file-folder-games-green-right
+	dt_bg fgames_amber file-folder-games-amber-left file-folder-games-amber-right
+	dt_bg frc file-rc-classic-left file-rc-classic-right
+	dt_bg fhistory file-history-classic-left file-history-classic-right
+	dt_bg fservice file-service-classic-left file-service-classic-right
+	dt_bg fkey file-key-classic-left file-key-classic-right
+	dt_bg fnetwork file-network-classic-left file-network-classic-right
+	dt_bg fcron file-cron-classic-left file-cron-classic-right
+	dt_bg freadme file-readme-classic-left file-readme-classic-right
+	dt_bg flicense file-license-classic-left file-license-classic-right
+	dt_bg flog file-log-classic-left file-log-classic-right
+	dt_bg fkernel file-kernel-classic-left file-kernel-classic-right
+	dt_bg fboot file-boot-classic-left file-boot-classic-right
+	dt_bg fc file-c-classic-left file-c-classic-right
+	dt_bg fasm file-asm-classic-left file-asm-classic-right
+	dt_bg fmake file-makefile-classic-left file-makefile-classic-right
+	dt_bg fpatch file-patch-classic-left file-patch-classic-right
+	dt_bg fjson file-json-classic-left file-json-classic-right
+	dt_bg fvector file-vector-classic-left file-vector-classic-right
+	dt_bg from file-rom-classic-left file-rom-classic-right
+	dt_bg febook file-ebook-classic-left file-ebook-classic-right
+	dt_bg fexe file-exe-classic-left file-exe-classic-right
+	dt_bg fdisc file-disc-classic-left file-disc-classic-right
+	dt_bg fpackage file-package-classic-left file-package-classic-right
+	dt_bg flibrary file-library-classic-left file-library-classic-right
+	dt_bg flock file-lock-classic-left file-lock-classic-right
+	dt_bg fdatabase file-database-classic-left file-database-classic-right
+	dt_bg fusb file-usb-classic-left file-usb-classic-right
+	dt_bg fshare file-share-classic-left file-share-classic-right
+	dt_bg fshare_blue file-share-blue-left file-share-blue-right
+	dt_bg fshare_green file-share-green-left file-share-green-right
+	dt_bg fshare_amber file-share-amber-left file-share-amber-right
 	# Pictures by their format, each one look with a label (0.3.8).
-	GL["fjpg"]=$'\U0010022B\U0010022C' # Blit file-jpg
-	GL["fpng"]=$'\U0010022D\U0010022E' # Blit file-png
-	GL["fgif"]=$'\U0010022F\U00100230' # Blit file-gif
+	dt_bg fjpg file-image-jpg-left file-image-jpg-right
+	dt_bg fpng file-image-png-left file-image-png-right
+	dt_bg fgif file-image-gif-left file-image-gif-right
 }
 dt_glyphs "$DT_GLYPHSET"

@@ -1912,6 +1912,9 @@ or a lightened bar), so a dark scheme -- Pewter Dark -- makes Slate dark.
 They need `DT_GLYPHSET=blit`: with any other glyph set edge, chalk and
 slate are drawn as `single`, `line`, `brackets` and `filled`, and the
 Control Panel shows them dimmed.
+Every Blit glyph is named by its id and read from Blit's own catalogue,
+`/usr/lib/blit/fonts/icons/catalogue.json`, or from `wm/blit-glyphs.json`,
+generated from it by `tools/blitglyphs.py`, where the machine has none.
 **Shade** (the Window menu, a shortcut in Keyboard > Shortcuts, and
 Chalk's and Slate's shade box) rolls a window up to its title bar; its
 app is not drawn while it is, and its `_idle` still runs.

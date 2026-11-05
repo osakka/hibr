@@ -1197,7 +1197,9 @@ for _i, _n in enumerate(GLYPHPARTS):
     GLYPHNAME[0x100254 + _i] = "S:" + _n
 for _i, _n in enumerate(("F:frame-left F:frame-right F:frame-bottom-left F:frame-bottom "
                          "F:frame-bottom-right C:title-end-left C:title-end-right "
-                         "S:title-end-left S:title-end-right").split()):
+                         "S:title-end-left S:title-end-right C:title-end-plain-left "
+                         "C:title-end-plain-right S:title-end-plain-left "
+                         "S:title-end-plain-right").split()):
     GLYPHNAME[0x1002AE + _i] = _n
 
 
@@ -1247,7 +1249,7 @@ check("Slate is one glyph set, coloured by the scheme: the title bar's colour, t
       (front, sc.p[2][3]))
 check("and a window without the focus is the plain bar, its title dim, no boxes",
       "S:close" not in back and back.count("S:title") > 10 and
-      back[0] == "F:frame-left" and back[-1] == "F:frame-right" and
+      back[0] == "S:title-end-plain-left" and back[-1] == "S:title-end-plain-right" and
       ";51:2;" in sc.p[5][30 + back.index("B")], back)
 sc, _ = run('dt_new Notes 6 24 2 2\n', [press(2, 4), release(2, 4)], pre=CHALK)
 check("a press on Chalk's close box closes the window",
@@ -1290,6 +1292,25 @@ check("and between a drawn border's corners, none: the stripes run to them",
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_FRAME=edge", "DT_FRAME=chalk"))
 check("a Frame that is no longer one is drawn single", sc.g[2][2] == "┌" and
       sc.g[3][2] == "│", glyphrow(sc, 3, 2, 3))
+# Blit's glyphs come from its own catalogue where the machine has one, by id,
+# and from the table generated from it where it has not.
+BCAT = scratch("blitcat.json")
+json.dump({"icons": [{"id": "wifi-1", "codepoint": "100003"}], "cell_geometry": [
+    {"id": "frame-left", "codepoint": "1002AF"}, {"id": "chalk-stripe", "codepoint": "100231"}]},
+    open(BCAT, "w"))
+BOUT = scratch("blitout")
+sc, _ = run('printf "%%s" "${GL[wifi1]}" > %s\ndt_new Notes 6 24 2 2\n' % BOUT,
+            pre=CHALK + "DT_BLITCAT=%s\n" % BCAT)
+check("this machine's catalogue says which codepoint a glyph is",
+      open(BOUT, encoding="utf8").read() == "\U00100003", repr(open(BOUT, encoding="utf8").read()))
+check("and a glyph it does not have is not drawn: no bottom corner, no Edge frame's "
+      "bottom, and the nerd set's where there is one", sc.g[7][25] != "\U001002B2", sc.g[7][25])
+open(BCAT, "w").write("{ not a catalogue")
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK + "DT_BLITCAT=%s\n" % BCAT)
+check("a catalogue that cannot be read falls to the generated table",
+      glyphrow(sc, 3, 2, 1) == ["F:frame-left"], glyphrow(sc, 3, 2, 3))
+os.unlink(BCAT)
+os.unlink(BOUT)
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_BTNSTYLE=chalk", "DT_BTNSTYLE=circles"))
 row = glyphrow(sc, 2, 2, 24)
 check("Window Buttons draws the buttons on any title bar: circles on a Chalk bar",
@@ -9104,4 +9125,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(979)
+report(982)

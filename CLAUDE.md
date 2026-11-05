@@ -2182,6 +2182,12 @@ went in the shell.
   bar shows -- a title on the bar, the focused app's name -- has to clear
   `DT_MENUIN` so the next frame rebuilds.
 
+- **A Blit glyph is named by its id, never by its codepoint.** `dt_bg` reads
+  Blit's catalogue, or `wm/blit-glyphs.json` where a machine has none, which
+  `tools/blitglyphs.py` generates and `tests/542-blit-glyphs.t` holds to the
+  newest Blit package: when that test says they disagree, Blit has released
+  glyphs, so regenerate rather than edit. Deprecated ids are left out of the
+  table, so naming one fails there.
 - **A glyph the desktop draws is named, never written.** `wm/glyphs.hibr`
   fills `GL` -- `GL[vline]`, `GL[tl]`, `GL[spark3]` -- from one of four
   sets (`DT_GLYPHSETS`: unicode, `$'\u2502'` with the Unicode name beside
