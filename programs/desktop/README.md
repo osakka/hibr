@@ -468,7 +468,8 @@ inside it, the power symbol for the Power item on a machine with no
 battery, the rounded corners of a curved title bar, and a telephone (a
 modern handset and a rotary desk phone, four states each) for an app that
 asks for one. With it, Control Panel > Menu Bar also offers **Menu Mark**:
-the pen, or the **hui** badge, two cells square, in the hibr menu's corner.
+the pen, the **hui** badge or the **hui Monogram**, each two cells, in the
+hibr menu's corner.
 With the
 nerd and blit sets, the notification icon is the Nerd Font's own for the
 style chosen, rather than a text symbol. Blit's icons are private to its
@@ -2007,8 +2008,8 @@ or edits something of yours, and would make sense on any desktop.**
 So the hibr menu reads: About This Computer, then **Applications** and
 the desktop's own apps in one sorted list -- Catalogue, Clipboard, Control Panel, Modules, Screenshot, Task Manager -- then
 Screen Saver, Lock Screen, Restart Desktop, Detach, Quit. With the blit
-glyph set the menu's mark in the corner can be the hui badge rather than
-the pen (Control Panel > Menu Bar > Menu Mark); either way it is called the
+glyph set the menu's mark in the corner can be the hui badge or monogram
+rather than the pen (Control Panel > Menu Bar > Menu Mark); either way it is called the
 hibr menu here.
 
 Both kinds are the same kind of file: `dt_app` and nothing else. What

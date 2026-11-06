@@ -53,7 +53,7 @@ fn dt_glyphs(set = "unicode") {
 	GL["batchg0"]=; GL["batchg1"]=; GL["batchg2"]=; GL["batchg3"]=
 	GL["batchg4"]=; GL["batfull"]=
 	GL["vol0"]=; GL["vol1"]=; GL["vol2"]=; GL["vol3"]=
-	GL["huil"]=; GL["huir"]=
+	GL["huil"]=; GL["huir"]=; GL["huimarkl"]=; GL["huimarkr"]=
 	# And the window chrome's frame, Chalk and Slate parts.
 	GL["chalk-check-on"]=; GL["chalk-check-off"]=; GL["slate-check-on"]=; GL["slate-check-off"]=
 	GL["capsule-on"]=; GL["capsule-off"]=
@@ -604,6 +604,8 @@ dt_glyphsblit() {
 	# -- the hibr menu's mark where Menu Bar > Menu Mark asks for it.
 	dt_bg huil hui-left
 	dt_bg huir hui-right
+	dt_bg huimarkl hui-mark-left
+	dt_bg huimarkr hui-mark-right
 	# The power symbol, in Blit's colours (0.2.41): the Power item on a
 	# machine with no battery.
 	dt_bg power power

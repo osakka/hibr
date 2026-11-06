@@ -69,6 +69,7 @@ VALUEONLY = {
     '$t: $DT_WHY',  # a location's own name for the folder and its own words
     '${GL[bullet]} ${DT[$id][title]}',  # a glyph and a title already made
     '${GL[huil]}${GL[huir]}',  # the hui mark, two glyphs, no words
+    '${GL[huimarkl]}${GL[huimarkr]}',  # the hui monogram, likewise
     '${DT[$id][title]#${GL[bullet]} }',  # the same title with the glyph taken off
     '${n:0:24}',  # the program's own name, cut to fit
     '${t%% [*}',  # a window title with its bracket part cut

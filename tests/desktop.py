@@ -8316,6 +8316,10 @@ sc, _ = run("", env={"DT_GLYPHSET": "blit", "BLIT_VERSION": None,
                      "DT_MENUMARK": "hui"})
 check("with the blit glyph set Menu Mark hui is the hibr menu's mark",
       sc.row(0).lstrip().startswith("\U00100018\U00100019"), sc.row(0))
+sc, _ = run("", env={"DT_GLYPHSET": "blit", "BLIT_VERSION": None,
+                     "DT_MENUMARK": "mark"})
+check("and Menu Mark mark its monogram",
+      sc.row(0).lstrip().startswith("\U001002C5\U001002C6"), sc.row(0))
 sc, _ = run("", env={"DT_GLYPHSET": "unicode", "DT_MENUMARK": "hui"})
 check("and with another set the mark stays its own",
       sc.row(0).lstrip().startswith("\u270e"), sc.row(0))
@@ -9182,4 +9186,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(991)
+report(992)

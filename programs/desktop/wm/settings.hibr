@@ -214,8 +214,9 @@ DT_BARORDER="${DT_BARORDER-}"
 # Items taken off the bar by the Menu Bar Items list, by name (Gitea
 # #396); one with a switch of its own (dt_bariswitch) is not kept here.
 DT_BARHIDE="${DT_BARHIDE-}"
-# The hibr menu's mark: pen, the glyph set's own, or hui, the badge Blit
-# draws from 0.2.40 (Control Panel > Menu Bar > Menu Mark).
+# The hibr menu's mark: pen, the glyph set's own, hui, the badge Blit draws
+# from 0.2.40, or mark, its monogram from 0.3.51 (Control Panel > Menu Bar >
+# Menu Mark).
 DT_MENUMARK="${DT_MENUMARK-pen}"
 
 # The same, for an open menu -- a separate setting, since a menu is drawn

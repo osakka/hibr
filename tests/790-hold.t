@@ -423,7 +423,17 @@ attached t14
 b := pty spawn -r 10 -c 40 $H -c "$L; export HIBR_GFX=none; hold attach -m -n above t14; echo \"back rc=\$?\""
 attached t14 2
 # What each display's terminal said it draws -- here forced, so neither
-# waits on a question a test pty cannot answer (Gitea #258).
+# waits on a question a test pty cannot answer (Gitea #258). A client is
+# listed as it joins and its answer follows on the same socket, so the
+# answer is waited for rather than read at the first moment it can be.
+i=0
+while [ $i -lt 100 ]; do
+	case "$(hold gfx t14)" in
+	*unknown*) sleep 0.05 ;;
+	*) break ;;
+	esac
+	i=$((i + 1))
+done
 echo "each display says what it draws: $(hold gfx t14 | sort | awk '{printf "%s %s ", $1, $2}')"
 echo "nothing has moved anything yet: $(hold shift t14)"
 hold move t14 above -10 -4

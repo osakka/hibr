@@ -15,7 +15,7 @@
 strict
 
 
-app barset "The Control Panel pane for the menu bar" 1.2
+app barset "The Control Panel pane for the menu bar" 1.3
 command -v cp_pane > /dev/null && cp_pane barset "Menu Bar" "☰"
 
 # How much of a picture wallpaper shows through the menu bar, in tens.
@@ -56,19 +56,26 @@ fn cp_set_menumax(int? id = "", value = "") {
 }
 
 # Menu Mark's choices, as the row shows them and as DT_MENUMARK keeps them.
-# hui is offered with the blit glyph set, the one that draws it: chosen in
-# Appearance > Glyphs, which is what says a Blit font is in use.
-CP_MARKV=(pen hui)
-CP_MARKL=("Pen" "hui")
+# hui and its monogram are offered with the blit glyph set, the one that draws
+# them: chosen in Appearance > Glyphs, which is what says a Blit font is in use.
+CP_MARKV=(pen hui mark)
+CP_MARKL=("Pen" "hui" "hui Monogram")
 DT_MENUMARK="${DT_MENUMARK-pen}"
 
 fn cp_marklabel() {
-	[ "${DT_MENUMARK:-pen}" = hui ] && [ -n "${GL[huil]-}" ] && ret "hui" && return 0
+	case ${DT_MENUMARK:-pen} in
+	hui) [ -n "${GL[huil]-}" ] && ret "hui" ;;
+	mark) [ -n "${GL[huimarkl]-}" ] && ret "hui Monogram" ;;
+	esac
 	ret "Pen"
 }
 
 fn cp_set_menumark(int? id = "", value = "") {
-	case $value in hui) DT_MENUMARK=hui ;; *) DT_MENUMARK=pen ;; esac
+	case $value in
+	hui) DT_MENUMARK=hui ;;
+	"hui Monogram") DT_MENUMARK=mark ;;
+	*) DT_MENUMARK=pen ;;
+	esac
 	DT_MENUIN=
 	DT_BARWAS=
 	cp_save

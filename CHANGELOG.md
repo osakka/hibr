@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.99.453
+
+**The hui Monogram** (owner, Blit 0.3.51). Control Panel > Menu Bar > Menu Mark
+offers Blit's new two-cell monogram beside the pen and the hui badge. The
+glyph table is regenerated from Blit 0.3.52's catalogue, and the badge itself
+is Blit's redrawn one, a solid teal disc with white letters, wherever the
+display has Blit 0.3.51 or later.
+
 ## 0.99.452
 
 **A film from the Camera has sound** (owner). Record takes the microphone

@@ -1,5 +1,5 @@
 {
- "revision": "158568c889635fb9178cd129d4f2320deaa870db7e6876eef13c21911b0746a5",
+ "revision": "ceee54883dcc1f156b23aa8080cac401374253175a07c9e4bc965b0af0587949",
  "glyphs": {
   "bar-corner-left": "100007",
   "bar-corner-right": "100008",
@@ -288,6 +288,8 @@
   "frame-right": "1002AF",
   "hibr-pen": "100001",
   "hui-left": "100018",
+  "hui-mark-left": "1002C5",
+  "hui-mark-right": "1002C6",
   "hui-right": "100019",
   "phone-classic-off": "10001F",
   "phone-classic-on": "100021",
@@ -348,6 +350,10 @@
   "wifi-2": "100003",
   "wifi-3": "100004",
   "wifi-4": "100005",
-  "wired": "21CC"
+  "wired": "21CC",
+  "wiretap-left": "1002C7",
+  "wiretap-off-left": "1002C9",
+  "wiretap-off-right": "1002CA",
+  "wiretap-right": "1002C8"
  }
 }
