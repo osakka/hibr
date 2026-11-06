@@ -1026,7 +1026,7 @@ check("DT_DBLACTION=none turns that off",
 
 # --- window chrome: frame, button side, title alignment, icon style -------
 #
-# DT_FRAME, DT_BTNSIDE, DT_TITLEALIGN and DT_BTNSTYLE are the Windows pane's
+# DT_FRAME, DT_BTNORDER, DT_TITLEALIGN and DT_BTNSTYLE are the Windows pane's
 # pane's own four settings (programs/desktop/control-panel/window-style.hibr);
 # tests/apps.py checks the pane itself, this checks what each value actually
 # draws. Every button style is 5 (fixed) or 7 (movable) characters wide, the
@@ -1064,26 +1064,40 @@ sc, _ = run(ONE, [press(6, 37), release(6, 37)], env={"DT_FRAME": "none"})
 check("and its close button still closes it",
       sc.find("Hello") is None, sc)
 
-sc, _ = run(ONE, env={"DT_BTNSIDE": "left"})
-check("DT_BTNSIDE=left docks the cluster left, mirrored -- close, min, "
-      "max -- so close stays nearest the window's own corner either way",
+BTNLEFT = {"DT_BTNORDER": "close min max title shade"}
+sc, _ = run(ONE, env=BTNLEFT)
+check("buttons above Title in the list sit left of the title, in the list's "
+      "order -- close, min, max",
       sc.g[6][12] == "x" and sc.g[6][14] == "_" and sc.g[6][16] == "□" and
       sc.find("┤ Hello ├") == (6, 18), sc)
-sc, _ = run(ONE, [press(6, 12), release(6, 12)], env={"DT_BTNSIDE": "left"})
+sc, _ = run(ONE, [press(6, 12), release(6, 12)], env=BTNLEFT)
 check("and the close button, now leftmost, still closes it",
       sc.find("Hello") is None, sc)
 sc, _ = run(ONE, [press(6, 14), release(6, 14), press(0, 70)],
-            env={"DT_BTNSIDE": "left"})
+            env=BTNLEFT)
 check("while the one beside it is min, not close",
       sc.find("· Hello") is not None, sc)
 
+sc, _ = run(ONE, env={"DT_BTNORDER": "close title max min shade"})
+check("and Title in the middle of the list splits them either side of it",
+      sc.g[6][12] == "x" and "□ _" in sc.row(6), sc)
+sc, _ = run(ONE, env={"DT_BTNHIDE": "min shade"})
+check("a button switched off is not drawn, and the rest close up",
+      "□ x" in sc.row(6) and "_" not in sc.row(6), sc.row(6))
+sc, _ = run(ONE, env={"DT_BTNHIDE": ""})
+check("and shade has a glyph of its own in the plain styles",
+      "^ □ _ x" in sc.row(6), sc.row(6))
+at = sc.find("^")
+sc, _ = run(ONE, [press(*at), release(*at)], env={"DT_BTNHIDE": ""})
+check("which rolls the window up to its title bar",
+      sc.find("Hello") is not None and "│" not in sc.row(8), sc)
 sc, _ = run(ONE, env={"DT_TITLEALIGN": "center"})
 check("DT_TITLEALIGN=center centres the title on the bar's own full width",
       sc.find("┤ Hello ├") == (6, 20), sc)
 sc, _ = run(ONE, env={"DT_TITLEALIGN": "right"})
 check("and right pins it against the button cluster",
       sc.find("┤ Hello ├") == (6, 23), sc)
-sc, _ = run(ONE, env={"DT_TITLEALIGN": "center", "DT_BTNSIDE": "left"})
+sc, _ = run(ONE, env=dict(BTNLEFT, DT_TITLEALIGN="center"))
 check("and centring lands in the same place regardless of which side the "
       "buttons are docked on -- centring in the room they leave instead "
       "pushed the title away from them by about half their own width, in "
@@ -1220,7 +1234,11 @@ def penbg(p):
     return m.group(0) if m else None
 
 
-CHALK = "DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=chalk; DT_BTNSTYLE=chalk; DT_BTNSIDE=split\n"
+CHALK = ("DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=chalk; DT_BTNSTYLE=chalk; "
+         "DT_BTNORDER='close title shade max min'; DT_BTNHIDE=min\n")
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_BTNHIDE=min", "DT_BTNHIDE="))
+check("and Blit's boxes have a minimise of their own",
+      "\U001002CD" in sc.row(2), sc.row(2))
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK)
 row = glyphrow(sc, 2, 2, 24)
 check("a Chalk title bar with Chalk buttons split is Blit's layout, cell for cell",
@@ -1241,7 +1259,7 @@ sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_GLYPHSET=blit; ", "
 check("without Blit's glyphs, chalk is drawn as the plain styles",
       sc.g[2][2] == "┌" and sc.find("Notes") is not None, glyphrow(sc, 2, 2, 24))
 SLATE = ("DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=slate; DT_BTNSTYLE=slate; "
-         "DT_BTNSIDE=right; DT_TITLE='#3c3c43'\n")
+         "DT_BTNORDER='title close shade max min'; DT_BTNHIDE=min; DT_TITLE='#3c3c43'\n")
 sc, _ = run('dt_new Back 6 24 5 30\ndt_new Front 6 24 2 2\n', pre=SLATE)
 front, back = glyphrow(sc, 2, 2, 24), glyphrow(sc, 5, 30, 24)
 check("Slate is one glyph set, coloured by the scheme: the title bar's colour, the boxes on the right",
@@ -8213,7 +8231,7 @@ check("and a scheme that names its own hot colour gets it",
 sc, _ = run(ONE)
 check("the title bar's buttons read max, min, close on the right",
       "\u2524\u25a1 _ x\u251c" in sc.row(6) or "□ _ x" in sc.row(6), sc.row(6))
-sc, _ = run(ONE, env={"DT_BTNSIDE": "left"})
+sc, _ = run(ONE, env=BTNLEFT)
 check("and close, min, max on the left", "x _ □" in sc.row(6), sc.row(6))
 
 
@@ -9186,4 +9204,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(992)
+report(997)

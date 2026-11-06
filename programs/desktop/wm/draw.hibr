@@ -226,7 +226,7 @@ fn dt_alone(...rest) {
 	# changes them, so there is no list to keep up to date.
 	sig="$DT_FACE|$DT_INK|$DT_ACTIVE|$DT_IDLE|$DT_FRAME|$DT_TITLEBAR"
 	sig="$sig|$DT_SHADOW|$DT_SHADOW_PCT|$DT_GLYPHSET|$DT_LANG|$DT_TITLEALIGN"
-	sig="$sig|$DT_BTNSIDE|$DT_DIM|$DT_SELINK|$DT_ROWS|$DT_COLS "
+	sig="$sig|$DT_BTNORDER|$DT_BTNHIDE|$DT_DIM|$DT_SELINK|$DT_ROWS|$DT_COLS "
 	look=$sig
 	for id in "${rest[@]}"; do
 		id=${id#w}

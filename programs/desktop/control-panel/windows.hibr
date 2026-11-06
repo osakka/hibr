@@ -1,8 +1,9 @@
 #!/usr/bin/env hibr
 #
 # windows -- the Control Panel pane for how a window looks and where a new
-# one goes: its frame, which side its buttons dock to, where its title
-# sits, which glyphs the buttons are drawn with, Placement, what Zoom fills
+# one goes: its frame, where its title sits, which glyphs the buttons are
+# drawn with, the Title Bar Buttons list -- each button on or off, and on
+# which side of the title -- Placement, what Zoom fills
 # -- the window's own display or every display (Gitea #286) -- and how wide
 # a tiled workspace's main window is. How the mouse moves, resizes and double-clicks one is the
 # Mouse pane's. Every value here is read by wm/frame.hibr; this pane only
@@ -11,12 +12,11 @@
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.7
+app windows "The Control Panel pane for how a window looks and where it opens" 1.8
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
 fn cp_set_titlebar(int? id = "", value = "") { DT_TITLEBAR=$value; cp_save; }
-fn cp_set_side(int? id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
 fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
 fn cp_set_btnstyle(int? id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
 fn cp_set_place(int? id = "", value = "") { DT_PLACE=$value; cp_save; }
@@ -42,8 +42,6 @@ fn windows_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Buttons"
 	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=btnstyle
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Placement"
-	CP[$w][$n]["val"]="$DT_BTNSIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"
 	CP[$w][$n]["val"]="$DT_TITLEALIGN"; CP[$w][$n]["key"]=align
 	n=$((n + 1))
@@ -65,7 +63,63 @@ fn windows_rows(int w) {
 	CP[$w][$n]["val"]=$((DT_TILEMAIN / 10)); CP[$w][$n]["min"]=3
 	CP[$w][$n]["max"]=7
 	CP[$w][$n]["key"]=tilemain; n=$((n + 1))
+	n := windows_btnrows "$w" "$n"
 	ret "$n"
+}
+
+# The Title Bar Buttons list, from row n: a switch for each button in
+# DT_BTNORDER's order, and the Title row between them, which is what says
+# left from right.
+fn windows_btnrows(int w, int n) {
+	local k t
+
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Title Bar Buttons"
+	n=$((n + 1))
+	dt_btnlist
+	for k in "${DT_BTNL[@]}"; do
+		CP[$w][$n]["ord"]=btn; CP[$w][$n]["oname"]=$k
+		CP[$w][$n]["key"]="wbtn:$k"
+		if [ "$k" = title ]; then
+			CP[$w][$n]["kind"]=action
+			CP[$w][$n]["text"]="Title (Left Above, Right Below)"
+			CP[$w][$n]["val"]=""
+			n=$((n + 1))
+			continue
+		fi
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["wtype"]=bool
+		case $k in
+		close) CP[$w][$n]["text"]="Close" ;;
+		shade) CP[$w][$n]["text"]="Shade" ;;
+		max) CP[$w][$n]["text"]="Zoom" ;;
+		min) CP[$w][$n]["text"]="Minimise" ;;
+		esac
+		CP[$w][$n]["val"]=on
+		dt_btnhidden "$k" && CP[$w][$n]["val"]=off
+		n=$((n + 1))
+	done
+	CP[$w][$n]["kind"]=info
+	CP[$w][$n]["text"]="Drag, or Shift and an arrow"
+	n=$((n + 1))
+	ret "$n"
+}
+
+# One button of the list on or off.
+fn windows_btntoggle(k) {
+	local x out=
+	local -a a
+
+	read -ra a <<< "$DT_BTNHIDE"
+	for x in "${a[@]}"; do
+		[ "$x" = "$k" ] || out+="${out:+ }$x"
+	done
+	dt_btnhidden "$k" || out+="${out:+ }$k"
+	DT_BTNHIDE=$out
+}
+
+# The list's new order, from a drag or shift and an arrow.
+fn windows_order(int w, g, ...names) {
+	DT_BTNORDER="${names[*]}"
+	cp_save
 }
 
 fn windows_do(int w, k, int dir) {
@@ -83,8 +137,6 @@ fn windows_do(int w, k, int dir) {
 	          read -ra fa <<< "$fl"
 	          v := cp_next "$DT_TITLEBAR" "$dir" "${fa[@]}"
 	          DT_TITLEBAR=$v ;;
-	side) v := cp_next "$DT_BTNSIDE" "$dir" "${WS_SIDES[@]}"
-	      DT_BTNSIDE=$v ;;
 	align) v := cp_next "$DT_TITLEALIGN" "$dir" "${WS_ALIGNS[@]}"
 	       DT_TITLEALIGN=$v ;;
 	btnstyle) fl := dt_chromeavail "${WS_STYLES[@]}"
@@ -96,6 +148,8 @@ fn windows_do(int w, k, int dir) {
 	       DT_PLACE=$v ;;
 	zoomfill) v := cp_next "$DT_ZOOMFILL" "$dir" "${DT_ZOOMFILLS[@]}"
 	          DT_ZOOMFILL=$v ;;
+	wbtn:title) return 0 ;;
+	wbtn:*) windows_btntoggle "${k#wbtn:}" ;;
 	wintrans) cp_wintrans $(((${DT_WINTRANS:-0} + 5) / 10 * 10 + dir * 10))
 		return 0 ;;
 	tilemain)
@@ -135,7 +189,6 @@ fn windows_drop(int w, int r, int c, k) {
 	          dt_droplist "$w" "$r" "$c" cp_set_titlebar "${DT_TITLEBARS[@]}" ;;
 	place) dt_droplist "$w" "$r" "$c" cp_set_place "${DT_PLACES[@]}" ;;
 	zoomfill) dt_droplist "$w" "$r" "$c" cp_set_zoomfill "${DT_ZOOMFILLS[@]}" ;;
-	side) dt_droplist "$w" "$r" "$c" cp_set_side "${WS_SIDES[@]}" ;;
 	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
 	btnstyle) dt_chromeavail "${WS_STYLES[@]}"
 		DT_POPNAMENEXT=dt_chromename

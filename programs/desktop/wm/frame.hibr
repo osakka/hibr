@@ -6,63 +6,73 @@
 
 strict
 
-# The three button-icon styles: which glyph and colour each of max, min
-# and close gets, and what wraps the movable (3-button) or fixed
-# (2-button) cluster. Read left to right on the right of a title bar it is
-# max, min, close, so close is at the window's outer edge; dt_chromebtns
-# turns it round on the left, close, min, max (Gitea #384), and splits it
-# for the split placement. Fills BTN_K/BTN_G/BTN_C/BTN_DL/BTN_DR, so a fourth
-# style is a branch here, never a change to dt_chrome. chalk and slate are
-# Blit's close, shade and zoom boxes (Blit ADR 0210), in that order, drawn
-# in the ink like the brackets and on any title bar; dt_chromecfg has made
-# them brackets wherever Blit's glyphs are not in force.
+# The button-icon styles: which glyph and colour each of close, shade, zoom
+# (max) and min gets, and what wraps a cluster. Fills BTN_K/BTN_G/BTN_C/
+# BTN_DL/BTN_DR with every kind this style can draw, in no order that
+# matters: where one goes is the Title Bar Buttons list's (dt_chromebtns), so
+# a further style is a branch here, never a change to dt_chrome. fixed leaves
+# zoom out. chalk and slate are Blit's boxes (Blit ADR 0210), drawn in the ink
+# like the brackets and on any title bar, and a box Blit has no glyph for is
+# not drawn; dt_chromecfg has made them brackets wherever Blit's glyphs are
+# not in force.
 fn dt_btnspec(style, int? fixed) {
-	if [ "$fixed" = 1 ]; then BTN_K=(min close); else BTN_K=(max min close); fi
+	local g c=${GL[circle]}
+	local -A gl ink
+
 	case $style in
 	chalk | slate)
 		BTN_DL=" "; BTN_DR=" "
-		if [ "$fixed" = 1 ]; then
-			BTN_K=(close shade)
-			BTN_G=("${GL["$style-close"]}" "${GL["$style-shade"]}")
-			BTN_C=("$DT_INK" "$DT_INK")
-		else
-			BTN_K=(close shade max)
-			BTN_G=("${GL["$style-close"]}" "${GL["$style-shade"]}" "${GL["$style-zoom"]}")
-			BTN_C=("$DT_INK" "$DT_INK" "$DT_INK")
-		fi
+		gl=([close]="${GL["$style-close"]-}" [shade]="${GL["$style-shade"]-}"
+		    [max]="${GL["$style-zoom"]-}" [min]="${GL["$style-min"]-}")
+		ink=([close]="$DT_INK" [shade]="$DT_INK" [max]="$DT_INK" [min]="$DT_INK")
 		;;
-	circles)
-		BTN_DL=" "; BTN_DR=" "
-		if [ "$fixed" = 1 ]; then
-			BTN_G=("${GL[circle]}" "${GL[circle]}"); BTN_C=("$DT_WARN" "$DT_BAD")
-		else
-			BTN_G=("${GL[circle]}" "${GL[circle]}" "${GL[circle]}")
-			BTN_C=("$DT_GOOD" "$DT_WARN" "$DT_BAD")
-		fi
-		;;
-	squares | diamonds | dashes)
-		local g=${GL[square]}
-
+	circles | squares | diamonds | dashes)
+		g=$c
+		[ "$style" = squares ] && g=${GL[square]}
 		[ "$style" = diamonds ] && g=${GL[diamond]}
 		[ "$style" = dashes ] && g=${GL[minus]}
 		BTN_DL=" "; BTN_DR=" "
-		if [ "$fixed" = 1 ]; then
-			BTN_G=("$g" "$g"); BTN_C=("$DT_WARN" "$DT_BAD")
-		else
-			BTN_G=("$g" "$g" "$g")
-			BTN_C=("$DT_GOOD" "$DT_WARN" "$DT_BAD")
-		fi
+		gl=([close]="$g" [shade]="$g" [max]="$g" [min]="$g")
+		ink=([close]="$DT_BAD" [shade]="$DT_INFO" [max]="$DT_GOOD" [min]="$DT_WARN")
 		;;
 	*)
 		BTN_DL="${GL[teel]}"; BTN_DR="${GL[teer]}"
-		if [ "$fixed" = 1 ]; then
-			BTN_G=("_" "x"); BTN_C=("$DT_INK" "$DT_BAD")
-		else
-			BTN_G=("${GL[box]}" "_" "x")
-			BTN_C=("$DT_INK" "$DT_INK" "$DT_BAD")
-		fi
+		gl=([close]="x" [shade]="^" [max]="${GL[box]}" [min]="_")
+		ink=([close]="$DT_BAD" [shade]="$DT_INK" [max]="$DT_INK" [min]="$DT_INK")
 		;;
 	esac
+	BTN_K=() BTN_G=() BTN_C=()
+	for g in close shade max min; do
+		[ -n "${gl["$g"]}" ] || continue
+		[ "$fixed" = 1 ] && [ "$g" = max ] && continue
+		BTN_K+=("$g") BTN_G+=("${gl["$g"]}") BTN_C+=("${ink["$g"]}")
+	done
+}
+
+# The Title Bar Buttons list as it stands, into DT_BTNL: the saved order with
+# anything it does not know taken out and anything it lacks put back, so a
+# list saved before a button existed still offers it.
+declare -ga DT_BTNL
+fn dt_btnlist() {
+	local k
+	local -a a
+
+	DT_BTNL=()
+	read -ra a <<< "$DT_BTNORDER"
+	for k in "${a[@]}"; do
+		case " ${DT_BTNS[*]} " in
+		*" $k "*) case " ${DT_BTNL[*]} " in *" $k "*) ;; *) DT_BTNL+=("$k") ;; esac ;;
+		esac
+	done
+	for k in "${DT_BTNS[@]}"; do
+		case " ${DT_BTNL[*]} " in *" $k "*) ;; *) DT_BTNL+=("$k") ;; esac
+	done
+}
+
+# Whether the list has button k switched off.
+fn dt_btnhidden(k) {
+	case " $DT_BTNHIDE " in *" $k "*) return 0 ;; esac
+	return 1
 }
 
 # Draw one window: its face, then its app, then its frame over the top.
@@ -281,10 +291,8 @@ fn dt_wapp(int id) {
 }
 
 # What the chrome's settings come to, worked out again only when one of
-# them changes, since every window drawn asks. DT_CSIDE is the side the
-# buttons sit on (left, right, split with close on the left and the rest on
-# the right, or splitr, split mirrored) and DT_CALIGN how the title is
-# aligned, both mirrored for a right-to-left language. DT_CFRAME, DT_CTB and
+# them changes, since every window drawn asks. DT_CALIGN is how the title is
+# aligned, mirrored for a right-to-left language. DT_CFRAME, DT_CTB and
 # DT_CBTN are Frame, Title Bar and Window Buttons as they can be drawn:
 # edge, chalk and slate need Blit's glyphs (Blit ADR 0210, 0214), and without
 # them are single, line and brackets. DT_CFSET, DT_CTSET and DT_CBSET name the glyph
@@ -294,7 +302,6 @@ fn dt_wapp(int id) {
 # change forces one full frame, so a window the change left undrawn does
 # not keep its old buttons' places.
 DT_CKEY=
-DT_CSIDE=right
 DT_CALIGN=left
 DT_CTS=0
 DT_CFRAME=single
@@ -304,15 +311,13 @@ DT_CFSET=
 DT_CTSET=
 DT_CBSET=
 dt_chromecfg() {
-	local k="$DT_BTNSIDE $DT_TITLEALIGN $DT_MIRRORON $DT_TITLEBAR $DT_FRAME $DT_BTNSTYLE ${GL[frame-left]-}${GL[chalk-stripe]-}${GL[slate-stripe]-}"
+	local k="$DT_BTNORDER|$DT_BTNHIDE $DT_TITLEALIGN $DT_MIRRORON $DT_TITLEBAR $DT_FRAME $DT_BTNSTYLE ${GL[frame-left]-}${GL[chalk-stripe]-}${GL[slate-stripe]-}"
 
 	[ "$k" = "$DT_CKEY" ] && return 0
 	[ -n "$DT_CKEY" ] && DT_FORCEONCE=1
 	DT_CKEY=$k
-	DT_CSIDE=$DT_BTNSIDE
 	DT_CALIGN=$DT_TITLEALIGN
 	if [ "$DT_MIRRORON" = 1 ]; then
-		case $DT_CSIDE in left) DT_CSIDE=right ;; split) DT_CSIDE=splitr ;; *) DT_CSIDE=left ;; esac
 		case $DT_CALIGN in right) DT_CALIGN=left ;; center) ;; *) DT_CALIGN=right ;; esac
 	fi
 	DT_CFSET := dt_chromeset "$DT_FRAME"
@@ -380,8 +385,8 @@ fn dt_chromeavail(...vals) {
 # the row says the shape, since neither is a colour or a theme there.
 fn dt_chromename(v) {
 	case $v in
-	chalk) ret "Flat" ;;
-	slate) ret "Embossed" ;;
+	chalk) ret flat ;;
+	slate) ret embossed ;;
 	esac
 	ret "$v"
 }
@@ -397,51 +402,42 @@ fn dt_chromeface(int r, int c, int h, int w) {
 
 # The buttons a title bar carries, split by where they go, into DT_CBL and
 # DT_CBR (kinds, left to right) with their glyphs and colours beside them
-# in DT_CBLG/DT_CBLC and DT_CBRG/DT_CBRC: Window Buttons decides which
-# buttons and what they look like (dt_btnspec), Button Placement where
-# they go -- split puts close on the left and the rest on the right -- and
-# fixed leaves zoom out. Whatever the title bar is drawn as.
-# Worked out again only when the chrome's settings or the kind of window
-# change, since every window drawn asks.
+# in DT_CBLG/DT_CBLC and DT_CBRG/DT_CBRC: Window Buttons decides what they
+# look like (dt_btnspec), and the Title Bar Buttons list which there are and
+# on which side of the title, in its order, turned round whole for a mirrored
+# layout. Whatever the title bar is drawn as. Worked out again only when the
+# chrome's settings or the kind of window change, since every window drawn
+# asks.
 DT_CBL=() DT_CBR=() DT_CBLG=() DT_CBRG=() DT_CBLC=() DT_CBRC=()
 DT_CBKEY=
 fn dt_chromebtns(int fixed) {
-	local i n k="$DT_CKEY|$fixed"
+	local i n j k="$DT_CKEY|$fixed" right=
+	local -a ord=()
 
 	[ "$k" = "$DT_CBKEY" ] && return 0
 	DT_CBKEY=$k
 	DT_CBL=() DT_CBR=() DT_CBLG=() DT_CBRG=() DT_CBLC=() DT_CBRC=()
 	dt_btnspec "$DT_CBTN" "$fixed"
-	n=${#BTN_K[@]}
-	case $DT_CSIDE in
-	split | splitr)
-		for ((i = 0; i < n; i++)); do
-			k=0
-			[ "${BTN_K[$i]}" = close ] && k=1
-			[ "$DT_CSIDE" = splitr ] && k=$((1 - k))
-			if [ "$k" = 1 ]; then
-				DT_CBL+=("${BTN_K[$i]}") DT_CBLG+=("${BTN_G[$i]}") DT_CBLC+=("${BTN_C[$i]}")
+	dt_btnlist
+	n=${#DT_BTNL[@]}
+	for ((i = 0; i < n; i++)); do
+		if [ "$DT_MIRRORON" = 1 ]; then ord+=("${DT_BTNL[n - 1 - i]}"); else ord+=("${DT_BTNL[$i]}"); fi
+	done
+	for k in "${ord[@]}"; do
+		if [ "$k" = title ]; then
+			right=1
+			continue
+		fi
+		dt_btnhidden "$k" && continue
+		for ((j = 0; j < ${#BTN_K[@]}; j++)); do
+			[ "${BTN_K[$j]}" = "$k" ] || continue
+			if [ -n "$right" ]; then
+				DT_CBR+=("$k") DT_CBRG+=("${BTN_G[$j]}") DT_CBRC+=("${BTN_C[$j]}")
 			else
-				DT_CBR+=("${BTN_K[$i]}") DT_CBRG+=("${BTN_G[$i]}") DT_CBRC+=("${BTN_C[$i]}")
+				DT_CBL+=("$k") DT_CBLG+=("${BTN_G[$j]}") DT_CBLC+=("${BTN_C[$j]}")
 			fi
 		done
-		;;
-	left)
-		# The button nearest the window's outer corner stays nearest it:
-		# a cluster turns round, except Blit's boxes, which read close,
-		# shade, zoom wherever they are.
-		for ((i = 0; i < n; i++)); do
-			if [ -n "$DT_CBSET" ]; then
-				DT_CBL+=("${BTN_K[$i]}") DT_CBLG+=("${BTN_G[$i]}") DT_CBLC+=("${BTN_C[$i]}")
-			else
-				DT_CBL+=("${BTN_K[n - 1 - i]}") DT_CBLG+=("${BTN_G[n - 1 - i]}") DT_CBLC+=("${BTN_C[n - 1 - i]}")
-			fi
-		done
-		;;
-	*)
-		DT_CBR=("${BTN_K[@]}") DT_CBRG=("${BTN_G[@]}") DT_CBRC=("${BTN_C[@]}")
-		;;
-	esac
+	done
 	return 0
 }
 

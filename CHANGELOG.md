@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.455
+
+**Every window button can be placed and switched** (owner). Control Panel >
+Windows has a Title Bar Buttons list: Close, Zoom, Minimise and Shade, each on or
+off, and a Title row among them. What is above Title sits left of the title and
+what is below it sits right, in the list's order, by a drag or shift and an arrow.
+It replaces Button Placement, and a theme says it as `layout`.
+
+- **Every style draws all four.** The plain styles have a shade button, off by
+  default, and Blit 0.3.54's boxes have minimise, a short bar along the bottom.
+- **One order for every style.** Blit's boxes used to read close, shade, zoom
+  whatever the placement. The Chalk theme now says that itself.
+- **A saved Button Placement is not carried over.** A window's buttons go to
+  the default until the list is set. An installed theme with the old `side` key
+  still loads and ignores it, so run `catalogue update` and apply it again.
+- **The lists say flat and embossed in lower case**, like every value beside them.
+
 ## 0.99.454
 
 **Brace expansion reaches every list of words.** `for f in {a,b}`, `select` and

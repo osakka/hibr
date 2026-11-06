@@ -1,5 +1,5 @@
 {
- "revision": "8d66b0353819ddb3eb9044665547ad9772cab574ee1362b2c6e64c00482a3ea7",
+ "revision": "8f228f9fe18765a11540346ca698f7055f2f6451e067f4ea7b2e488ff6340f66",
  "glyphs": {
   "bar-corner-left": "100007",
   "bar-corner-right": "100008",
@@ -45,6 +45,8 @@
   "chalk-frame-top-right": "100246",
   "chalk-grow": "1002BE",
   "chalk-grow-pressed": "1002BF",
+  "chalk-minimise": "1002CD",
+  "chalk-minimise-pressed": "1002CE",
   "chalk-note-close": "100247",
   "chalk-shade": "10023B",
   "chalk-shade-pressed": "1002BC",
@@ -322,6 +324,8 @@
   "slate-light-frame-top-right": "100269",
   "slate-light-grow": "1002C3",
   "slate-light-grow-pressed": "1002C4",
+  "slate-light-minimise": "1002CF",
+  "slate-light-minimise-pressed": "1002D0",
   "slate-light-note-close": "10026A",
   "slate-light-shade": "10025E",
   "slate-light-shade-pressed": "1002C1",

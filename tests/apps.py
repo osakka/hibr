@@ -755,15 +755,45 @@ for pane, extra, i, text, val in DROPS:
             break
     check("%s's %s dropdown chooses a new value" % (TITLE[pane], text),
           now != "" and val not in now, sc)
+# Title Bar Buttons: each button on or off, and the Title row between them
+# says which side. A press switches one, and shift and an arrow moves one,
+# and it is the settings file that says it took.
+wbr = panefull("windows")
+wbk = [x[2] for x in wbr if x[2].startswith("wbtn:")]
+check("Windows lists the title bar's buttons in their order, Title among them",
+      wbk == ["wbtn:title", "wbtn:shade", "wbtn:max", "wbtn:min", "wbtn:close"]
+      and not [x for x in wbr if x[2] == "side"], wbr)
+wbi = [x[2] for x in wbr].index("wbtn:shade")
+wbc = tempfile.mkdtemp(prefix="hibr-wbtn-")
+wbf = os.path.join(wbc, "desktop.json")
+sc = cprun([b"\x1b[B"] * downs("windows") + [lambda s: press(*s.find("Shade")), lambda s: release(*s.find("Shade")), 0.3,
+            lambda s: press(*s.find("Shade")), lambda s: release(*s.find("Shade")), 0.3], geom=PWTALL,
+           env={"DT_CONF": wbf})
+kept = open(wbf).read() if os.path.exists(wbf) else ""
+check("a click on the selected row switches Shade on, and it is kept",
+      '"DT_BTNHIDE": ""' in kept, kept[:300])
+os.unlink(wbf) if os.path.exists(wbf) else None
+sc = cprun([b"\x1b[B"] * downs("windows") + [press(R0 + wbi - 1, VALCOL), release(R0 + wbi - 1, VALCOL), 0.3, b"\x1b[1;2B", 0.3], geom=PWTALL,
+           env={"DT_CONF": wbf})
+kept = open(wbf).read() if os.path.exists(wbf) else ""
+check("and shift and an arrow moves Title down the list, which is kept too",
+      '"DT_BTNORDER": "shade title max min close"' in kept, kept[:300])
+shutil.rmtree(wbc, True)
+out = subprocess.run(
+    [sx.HIBR, "-c", CPLOAD + 'cp_save() { :; }; dt_notep() { :; }\ncp_theme chalk\n'
+     'l := cp_layout\necho "$DT_BTNORDER|$DT_BTNHIDE|$l"\ncp_lookis chalk && echo same'],
+    capture_output=True, text=True).stdout.split()
+check("a theme's layout names what it shows, and the rest go after it, off",
+      " ".join(out) == "close title shade max min|min|close title shade max same", out)
 # A list says Blit's two styles by their shape, and what is kept is the name;
 # the checkboxes offer neither, since a box follows the window.
 slc = tempfile.mkdtemp(prefix="hibr-slate-")
 sc = cprun([b"\x1b[B"] * downs("windows") + [press(R0 + 1, VALCOL), 0.3,
-            lambda s: press(*s.find("Embossed")), 0.3], geom=PWTALL,
+            lambda s: press(*s.find("embossed")), 0.3], geom=PWTALL,
            env={"DT_GLYPHSET": "blit", "DT_CONF": os.path.join(slc, "desktop.json")})
 kept = open(os.path.join(slc, "desktop.json")).read() if os.path.exists(os.path.join(slc, "desktop.json")) else ""
-check("Title Bar lists Embossed, shows it chosen, and keeps slate",
-      "Embossed" in brow(sc, "Title Bar") and '"DT_TITLEBAR": "slate"' in kept, (brow(sc, "Title Bar"), kept[:200]))
+check("Title Bar lists embossed, shows it chosen, and keeps slate",
+      "embossed" in brow(sc, "Title Bar") and '"DT_TITLEBAR": "slate"' in kept, (brow(sc, "Title Bar"), kept[:200]))
 shutil.rmtree(slc, True)
 for i, (kind, text, key, val) in enumerate(panefull("desktop")):
     if key == "swskip":
@@ -2262,7 +2292,7 @@ loginmgr_checks()
 shutil.rmtree(FAKE, True)
 
 # Windows' own rows start with the chrome: Frame, Title Bar, Window Buttons,
-# Button Placement, Title.
+# Title.
 DOWN_WS = [b"\x1b[B"] * downs("windows")
 sc = cprun(DOWN_WS)
 check("Windows' first row is Frame, defaulting to single",
@@ -6195,4 +6225,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(801)
+report(804)

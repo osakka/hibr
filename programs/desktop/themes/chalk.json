@@ -1,13 +1,13 @@
 {
   "title": "Chalk",
   "about": "Blit's Chalk windows: a striped title bar framed in ink, close on the left and shade and zoom on the right, a one-line frame, Blit's capped dialog buttons and a thin shadow. It needs Blit's glyphs (Appearance > Glyphs: Blit); elsewhere the frame, title bar and buttons are drawn as plain lines.",
-  "version": "1.4",
+  "version": "1.5",
   "colours": "chalk",
   "checks": "box",
   "frame": "edge",
   "titlebar": "chalk",
   "buttons": "chalk",
-  "side": "split",
+  "layout": "close title shade max",
   "align": "center",
   "dialog": "chalk",
   "shadowshape": "thin"

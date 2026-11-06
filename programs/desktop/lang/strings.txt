@@ -218,7 +218,6 @@ Browse
 Browser
 Browser Setting
 Bulleted List
-Button Placement
 Button Shadow
 By Kind
 CPU:    %s%%       Memory: %s
@@ -732,6 +731,7 @@ Mines
 Mini Player
 Mini Player Shadow
 Mini Player Sticky
+Minimise
 Minutes Added
 Mirror Layout
 Mode
@@ -1331,7 +1331,9 @@ Time:
 Timeout
 Timeout (seconds)
 Title
+Title (Left Above, Right Below)
 Title Bar
+Title Bar Buttons
 Title Menu Modifier
 Title:
 Titlebar Click

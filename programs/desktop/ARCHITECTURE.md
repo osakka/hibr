@@ -342,7 +342,7 @@ theme, the colours, the glyphs, the trees, the shadows and the controls;
 Wallpaper holds the wallpaper — a glyph, or an image chosen in a picker
 window of its own, for all displays or one; Menu Bar holds the bar's look
 and its Menu Bar Items; Windows holds a window's chrome — frame, title bar,
-see-through, button side, title alignment, button glyphs, read by `dt_win`
+see-through, the title bar's buttons, title alignment, button glyphs, read by `dt_win`
 and `dt_btn` themselves, not by the pane; Mouse holds how a
 window is moved, resized and double-clicked; Keyboard holds how keys reach
 a terminal window -- whether the desktop's shortcuts work while one has

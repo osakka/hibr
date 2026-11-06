@@ -346,7 +346,7 @@ terminal when it is above 0), `buttons` (`brackets`, `circles`, `squares`,
 the marks a collapsible tree wears, so a theme that draws its windows one
 way does not leave every tree looking like the one before it) and
 `treelines` (`true` or `false`, the rules joining a child to its branch),
-`side` (`right`, `left`, `split`), `align` (`left`,
+`layout` (the buttons shown and `title`, in order, as `close title max`), `align` (`left`,
 `center`, `right`), `checks` (`theme`, `box`, `knob`, `block`, `tick`, `capsule`),
 `dialog` (`filled`, `brackets`, `chalk`, `slate`), `shadowshape` (`half`,
 `cols`, `thin`), `glyphs` (`unicode`, `ascii`, `nerd`,
@@ -441,8 +441,8 @@ is for a terminal that reorders them itself (ADR 0031).
 Mirror Layout, on the same pane, turns the desktop round for a right-to-left
 language -- the menu bar from the right edge, a window's buttons on its left,
 dialog buttons the other way -- on its own when the language is one (auto),
-or on or off whatever the language (ADR 0033). Your own button side and
-title alignment keep working inside it.
+or on or off whatever the language (ADR 0033). Your own Title Bar Buttons
+list and title alignment keep working inside it, the list turned round whole.
 
 ## Glyphs
 
@@ -1873,11 +1873,12 @@ the top row alone, any of it going with any frame: `line` (the title in
 the frame's own top line, or on the window's face where there is no
 border), `solid` (a filled bar) or `curved` (that bar with its top corners
 rounded, where the glyph set has the cells for it -- Blit's), `chalk` or
-`slate`; `DT_BTNSIDE` (Button Placement) docks the buttons left or right,
-close always at the window's outer edge (max, min, close on the right;
-close, min, max on the left), or `split`, close on the left and the rest
-on the right; `DT_TITLEALIGN` places the title in whatever room that
-leaves; `DT_BTNSTYLE` (Window Buttons) picks which buttons and their glyphs
+`slate`; `DT_BTNORDER` and `DT_BTNHIDE` (the Title Bar Buttons list) say
+which of close, zoom, minimise and shade there are, in what order and on
+which side of the title: the list reads left to right across the bar, with a
+Title row in it, so what is above Title sits left of the title and what is
+below sits right; `DT_TITLEALIGN` places the title in whatever room that
+leaves; `DT_BTNSTYLE` (Window Buttons) picks their glyphs
 and colours from `dt_btnspec` -- the Windows-style brackets this shipped
 with, coloured circles, squares, diamonds or dashes, or Blit's chalk or
 slate close, shade and zoom boxes. `dt_chrome` draws all of it, for a
@@ -1888,7 +1889,7 @@ beside its button.
 
 **Every setting draws its own part and nothing else.** Frame draws the
 border, Title Bar the title row, Window Buttons the title bar's buttons,
-Button Placement where they sit, Dialog Buttons a dialog's buttons, Shadow
+the Title Bar Buttons list which there are and where, Dialog Buttons a dialog's buttons, Shadow
 Shape every shadow, Notifications > Frame a note's frame and Note Colour a
 note's colours -- and no value of one changes another. 0.99.438 broke
 that, and 0.99.440 put it back: a frame had switched the shadow off and

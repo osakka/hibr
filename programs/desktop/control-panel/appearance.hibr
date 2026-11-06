@@ -12,7 +12,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.14
+app appearance "The Control Panel pane for how the desktop looks" 2.15
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -111,8 +111,8 @@ fn cp_colours(t) {
 # whatever else it sets -- the wallpaper glyph and an image ("wallpaper",
 # "image", "mode"; an image's path relative to the theme's own folder, so
 # a theme can carry its picture), the window frame, title bar, buttons,
-# their side and the title's alignment ("frame", "titlebar", "buttons",
-# "side", "align"), checkboxes, dialog buttons and the glyph set ("checks",
+# which there are and the title's alignment ("frame", "titlebar", "buttons",
+# "layout", "align"), checkboxes, dialog buttons and the glyph set ("checks",
 # "dialog", "glyphs"), the four shadows ("windowshadow", "menushadow",
 # "barshadow", "buttonshadow", true or false) and the shape they are cast
 # in ("shadowshape": half, cols or thin). What it leaves out takes the
@@ -140,7 +140,7 @@ CP_THDEF["frame"]=single; CP_THDEF["titlebar"]=line; CP_THDEF["buttons"]=bracket
 # carries it too: a theme that draws its windows one way and leaves every
 # tree in the desktop looking like the one before it is half a theme.
 CP_THDEF["tree"]=plus; CP_THDEF["treelines"]=1
-CP_THDEF["side"]=right; CP_THDEF["align"]=left; CP_THDEF["checks"]=theme
+CP_THDEF["layout"]="title max min close"; CP_THDEF["align"]=left; CP_THDEF["checks"]=theme
 CP_THDEF["dialog"]=filled; CP_THDEF["glyphs"]=unicode
 CP_THDEF["windowshadow"]=1; CP_THDEF["menushadow"]=1
 CP_THDEF["barshadow"]=1; CP_THDEF["buttonshadow"]=1; CP_THDEF["shadowshape"]=half
@@ -148,6 +148,44 @@ CP_THDEF["wintrans"]=0; CP_THDEF["bartrans"]=0
 CP_THDEF["band"]=frame; CP_THDEF["bandpct"]=30
 
 # Whether a value is one of a list.
+# A theme's "layout" is the buttons shown and the title, in order, so
+# "close title max" is close to its left and zoom to its right.
+fn cp_layoutok(v) {
+	local x t=
+	local -a a
+
+	read -ra a <<< "$v"
+	for x in "${a[@]}"; do
+		cp_oneof "$x" "${DT_BTNS[@]}" || return 1
+		[ "$x" = title ] && t=1
+	done
+	[ -n "$t" ]
+}
+
+# Take a theme's layout: what it does not name goes after it, switched off.
+fn cp_layoutset(v) {
+	local x
+
+	DT_BTNORDER=$v
+	DT_BTNHIDE=
+	for x in "${DT_BTNS[@]}"; do
+		case " $v " in *" $x "*) continue ;; esac
+		DT_BTNORDER+=" $x"
+		DT_BTNHIDE+="${DT_BTNHIDE:+ }$x"
+	done
+}
+
+# The list as a theme says it: the title and the buttons switched on.
+fn cp_layout() {
+	local k out=
+
+	dt_btnlist
+	for k in "${DT_BTNL[@]}"; do
+		dt_btnhidden "$k" || out+="${out:+ }$k"
+	done
+	ret "$out"
+}
+
 fn cp_oneof(v, ...vals) {
 	local x
 
@@ -179,7 +217,7 @@ fn cp_themeread(n, f) {
 		titlebar) cp_oneof "$v" "${DT_TITLEBARS[@]}" || return 1 ;;
 		buttons) cp_oneof "$v" "${WS_STYLES[@]}" || return 1 ;;
 		tree) cp_oneof "$v" "${DT_TREESTYLES[@]}" || return 1 ;;
-		side) cp_oneof "$v" "${WS_SIDES[@]}" || return 1 ;;
+		layout) cp_layoutok "$v" || return 1 ;;
 		align) cp_oneof "$v" "${WS_ALIGNS[@]}" || return 1 ;;
 		checks) cp_oneof "$v" "${CP_CHECKS[@]}" || return 1 ;;
 		dialog) cp_oneof "$v" "${DT_DLGBTNS[@]}" || return 1 ;;
@@ -255,7 +293,7 @@ fn cp_theme(t) {
 	DT_TREESTYLE=${CP_TH["$t"]["tree"]}
 	DT_TREELINES=${CP_TH["$t"]["treelines"]}
 	dt_treespec
-	DT_BTNSIDE=${CP_TH["$t"]["side"]}
+	cp_layoutset "${CP_TH["$t"]["layout"]}"
 	DT_TITLEALIGN=${CP_TH["$t"]["align"]}
 	DT_CHECKS=${CP_TH["$t"]["checks"]}
 	DT_DLGBTN=${CP_TH["$t"]["dialog"]}
@@ -286,13 +324,14 @@ fn cp_jstr(t) {
 # Write the look as it is now as a theme file -- the colour scheme by name,
 # and every other setting a theme carries -- and list it.
 fn cp_themewrite(path) {
-	local n img b vn
+	local n img b vn l
 
 	n=${path##*/}
 	n=${n%.json}
 	[ -n "$n" ] && [ -z "${n//[A-Za-z0-9._ -]/}" ] || { dt_notep high "A theme's name is letters, digits, spaces, dots and dashes"; return 1; }
 	mkdir -p "${path%/*}" 2> /dev/null
 	img := cp_jstr "$DT_WALLIMG"
+	l := cp_layout
 	{
 		printf '{\n'
 		printf '  "colours": "%s",\n' "${CP_COLOURS:-midnight}"
@@ -305,7 +344,7 @@ fn cp_themewrite(path) {
 		printf '  "tree": "%s",\n' "$DT_TREESTYLE"
 		printf '  "treelines": %s,\n' \
 			"$([ "$DT_TREELINES" = 1 ] && echo true || echo false)"
-		printf '  "side": "%s",\n' "$DT_BTNSIDE"
+		printf '  "layout": "%s",\n' "$l"
 		printf '  "align": "%s",\n' "$DT_TITLEALIGN"
 		printf '  "checks": "%s",\n' "$DT_CHECKS"
 		printf '  "dialog": "%s",\n' "$DT_DLGBTN"
@@ -348,7 +387,10 @@ fn cp_set_colours(int id, value) { cp_colours "$value" && cp_save; }
 # Whether the look now is the theme t as it was applied: its colours and
 # every setting it carries.
 fn cp_lookis(t) {
+	local l
+
 	[ -n "${CP_TH["$t"]["colours"]+x}" ] || return 1
+	l := cp_layout
 	[ "$CP_COLOURS" = "${CP_TH["$t"]["colours"]}" ] &&
 	[ "$DT_GLYPH" = "${CP_TH["$t"]["wallpaper"]}" ] &&
 	[ "$DT_WALLIMG" = "${CP_TH["$t"]["image"]}" ] &&
@@ -358,7 +400,7 @@ fn cp_lookis(t) {
 	[ "$DT_BTNSTYLE" = "${CP_TH["$t"]["buttons"]}" ] &&
 	[ "$DT_TREESTYLE" = "${CP_TH["$t"]["tree"]}" ] &&
 	[ "$DT_TREELINES" = "${CP_TH["$t"]["treelines"]}" ] &&
-	[ "$DT_BTNSIDE" = "${CP_TH["$t"]["side"]}" ] &&
+	[ "$l" = "${CP_TH["$t"]["layout"]}" ] &&
 	[ "$DT_TITLEALIGN" = "${CP_TH["$t"]["align"]}" ] &&
 	[ "$DT_CHECKS" = "${CP_TH["$t"]["checks"]}" ] &&
 	[ "$DT_DLGBTN" = "${CP_TH["$t"]["dialog"]}" ] &&
