@@ -489,10 +489,11 @@ fn dt_blitplained(int n, int st) {
 dt_glyphsblit() {
 	dt_blitread
 	dt_bg hibr hibr-pen
-	dt_bg wifi1 wifi-1
-	dt_bg wifi2 wifi-2
-	dt_bg wifi3 wifi-3
-	dt_bg wifi4 wifi-4
+	dt_bg wifi1 wifi-signal-1
+	dt_bg wifi2 wifi-signal-2
+	dt_bg wifi3 wifi-signal-3
+	dt_bg wifi4 wifi-signal-4
+	dt_bg netoff wifi-off
 	dt_bg bt bluetooth
 	dt_bg btoff bluetooth
 	[ -n "${GL[btoff]-}" ] && GL["btoff"]+=$' \uf00d'

@@ -1321,7 +1321,7 @@ check("a Frame that is no longer one is drawn single", sc.g[2][2] == "┌" and
 # Blit's glyphs come from its own catalogue where the machine has one, by id,
 # and from the table generated from it where it has not.
 BCAT = scratch("blitcat.json")
-json.dump({"icons": [{"id": "wifi-1", "codepoint": "100003"}], "cell_geometry": [
+json.dump({"icons": [{"id": "wifi-signal-1", "codepoint": "100003"}], "cell_geometry": [
     {"id": "frame-left", "codepoint": "1002AF"}, {"id": "chalk-stripe", "codepoint": "100231"}]},
     open(BCAT, "w"))
 BOUT = scratch("blitout")
@@ -2405,6 +2405,17 @@ check("an item inside a submenu runs",
 sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[B", b"\r"])
 check("a dimmed item is stepped over, so down twice wraps past it",
       sc.find("count 2") is not None, sc)
+
+# A click on the menu behind a submenu acts on the row it landed on, where it
+# used to close everything (Gitea #481), and one on neither still closes them.
+sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[C",
+                    lambda s: press(*s.find("Bump Twice"))])
+check("a click on the menu behind a submenu runs that row",
+      sc.find("count 2") is not None and sc.find("One") is None, sc)
+sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[C", press(14, 60)])
+check("and a click on neither closes them all, running nothing",
+      sc.find("Bump Twice") is None and sc.find("One") is None and
+      sc.find("count 2") is None, sc)
 
 # --- moving and resizing from the keyboard --------------------------------
 
@@ -9204,4 +9215,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(997)
+report(999)

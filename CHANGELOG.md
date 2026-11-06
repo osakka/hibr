@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.456
+
+**A click on the menu behind a submenu acts on that row** (owner, Gitea #481).
+It closed everything instead, so an item could not be chosen and a second
+submenu could not be opened from the menu behind. A click on no menu at all
+still closes them.
+
+- **Blit's real Wi-Fi symbol** (owner, Blit 0.3.55): the bar shows the new fan,
+  and no network its unlit fan with a cross. The bars are now Blit's mobile
+  signal, which the desktop does not show.
+
 ## 0.99.455
 
 **Every window button can be placed and switched** (owner). Control Panel >

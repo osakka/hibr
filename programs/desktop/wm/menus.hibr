@@ -1494,8 +1494,17 @@ dt_mup() {
 		i=$((i + 1))
 	done
 	MB_OPEN=$p
-	MB_PAR=
+	MB_PAR=${MB[$p]["par"]-}
 	return 0
+}
+
+# Is a click on a menu behind the open one?  Backs out to the first that
+# has it, its row highlighted, as if the ones in front had never opened.
+fn dt_mback(int r, int c) {
+	while dt_mup; do
+		dt_mpick "$r" "$c" && return 0
+	done
+	return 1
 }
 
 # Choose the highlighted item.
