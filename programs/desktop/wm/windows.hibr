@@ -366,10 +366,11 @@ fn dt_move(int id, int r, int c) {
 	DT[$id]["col"]=${p#* }
 	console pane "w$id" "${p% *}" "${p#* }" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
 	# The console sent the move as a rectangle copy, so the window's cells
-	# are already where it is (Gitea #337) -- unless it is a translucent
-	# terminal, whose cells are its picture blended through and are wrong
-	# anywhere else, so it is drawn again like any moved window.
-	if console copied "w$id" &&
+	# are already where it is (Gitea #337) -- unless it is see-through, by
+	# See Through or a terminal's own setting: its cells are the picture
+	# blended in and are wrong anywhere else, so it is drawn again like any
+	# moved window.
+	if console copied "w$id" && [ "${DT_WINTRANS:-0}" = 0 ] &&
 	   ! { [ "${DT[$id]["app"]}" = term ] && [ "${DT_TERMTRANS:-0}" != 0 ]; }; then
 		DT_MOVECOPY["$id"]=1
 	fi

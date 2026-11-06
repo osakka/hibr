@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.99.449
+
+- **Blit's resize corner and pressed boxes** (Blit 0.3.47). A resizable window
+  on the Edge frame has Blit's grow box, and a close, shade or zoom box takes
+  its pressed look when held and under the pointer.
+- A see-through window is always drawn again after a move, never left as a
+  rectangle copy, whose cells hold the picture from where it was.
+
 ## 0.99.448
 
 **A Blit desktop on a display that is not Blit** (Gitea #476). Each display

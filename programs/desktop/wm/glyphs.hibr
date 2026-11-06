@@ -34,7 +34,7 @@ DT_GLYPHSETS=(unicode ascii nerd blit)
 # the dark set Blit once had (U+100277 on) is retired. Only the blit set
 # fills them, and Frame, Title Bar, Window Buttons, Dialog Buttons and a
 # note's Frame draw chalk and slate only while they are filled.
-DT_CHROMEPARTS=(stripe stripe-before-title stripe-after-title title stripe-to-box stripe-from-box stripe-between close shade zoom note-close dialog-top-left dialog-top dialog-top-right dialog-left dialog-right dialog-bottom-left dialog-bottom dialog-bottom-right button-left button-right default-button-left default-button-right title-end-left title-end-right title-end-plain-left title-end-plain-right)
+DT_CHROMEPARTS=(stripe stripe-before-title stripe-after-title title stripe-to-box stripe-from-box stripe-between close shade zoom note-close dialog-top-left dialog-top dialog-top-right dialog-left dialog-right dialog-bottom-left dialog-bottom dialog-bottom-right button-left button-right default-button-left default-button-right title-end-left title-end-right title-end-plain-left title-end-plain-right close-pressed shade-pressed zoom-pressed grow grow-pressed)
 # The set in force, exported so the shells a terminal window starts draw
 # their prompt in it too: the prompt module's PROMPT[glyphs]=auto reads it
 # (Gitea #360), since a program cannot ask a terminal which font it has.
@@ -397,9 +397,10 @@ fn dt_blitpart(part) {
 	frame-bottom-right | dialog-bottom-right) ret "${GL[br]}" ;;
 	title-end*-left | dialog-top-left) ret "${GL[tl]}" ;;
 	title-end*-right | dialog-top-right) ret "${GL[tr]}" ;;
-	close | note-close) ret x ;;
-	shade) ret _ ;;
-	zoom) ret "${GL[square]}" ;;
+	close* | note-close) ret x ;;
+	shade*) ret _ ;;
+	zoom*) ret "${GL[square]}" ;;
+	grow*) ret "${GL[grow]}" ;;
 	*button-left) ret "[" ;;
 	*button-right) ret "]" ;;
 	title | capl | capr) ret " " ;;
@@ -524,6 +525,18 @@ dt_glyphsblit() {
 	dt_bg slate-shade slate-light-shade
 	dt_bg chalk-zoom chalk-zoom
 	dt_bg slate-zoom slate-light-zoom
+	# Pressed boxes, the look under the pointer too, and the resize corner
+	# (Blit 0.3.47).
+	dt_bg chalk-close-pressed chalk-close-pressed
+	dt_bg slate-close-pressed slate-light-close-pressed
+	dt_bg chalk-shade-pressed chalk-shade-pressed
+	dt_bg slate-shade-pressed slate-light-shade-pressed
+	dt_bg chalk-zoom-pressed chalk-zoom-pressed
+	dt_bg slate-zoom-pressed slate-light-zoom-pressed
+	dt_bg chalk-grow chalk-grow
+	dt_bg slate-grow slate-light-grow
+	dt_bg chalk-grow-pressed chalk-grow-pressed
+	dt_bg slate-grow-pressed slate-light-grow-pressed
 	dt_bg chalk-title-end-plain-left chalk-title-end-plain-left
 	dt_bg slate-title-end-plain-left slate-light-title-end-plain-left
 	dt_bg chalk-title-end-plain-right chalk-title-end-plain-right

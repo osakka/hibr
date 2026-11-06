@@ -450,6 +450,7 @@ fn dt_chromebtns(int fixed) {
 # Answers the buttons' columns, "col:kind ...", counted from c0, and leaves
 # the bar's colour in DT_CBARBG for the lighting of a button under the pointer.
 DT_CBARBG=
+DT_CBARLN=
 fn dt_glyphbar(pane, int r, int a, int b, s, title, int act, on, int c0 = 0, int ends = 0) {
 	local -a at=() ln=()
 	local fg bg tfg fr n m ll rl st i x k q= rec= g hl
@@ -467,6 +468,7 @@ fn dt_glyphbar(pane, int r, int a, int b, s, title, int act, on, int c0 = 0, int
 		[ "$act" = 1 ] || tfg=$DT_DIM
 	fi
 	DT_CBARBG=$bg
+	DT_CBARLN=${ln[0]}
 	n=${#title}
 	console pen "$fg" "$bg" "${ln[@]}"
 	if [ "$act" != 1 ]; then
@@ -588,6 +590,27 @@ dt_notecolours() {
 	fi
 }
 
+# A resizable window's corner: Blit's own grow box on the Edge frame, in the
+# title bar's style, where its hatch sits in the frame's two lines.
+fn dt_chromegrow(pane, int r, int c, on) {
+	local -a at=()
+	local s=${DT_CTSET:-chalk} hl
+
+	[ -n "$pane" ] && at=(-p "$pane")
+	if [ -n "$DT_CFSET" ] && [ -n "${GL["$s-grow"]-}" ]; then
+		hl=
+		if [ "$s" = slate ]; then
+			hl=$DT_HIGHLIGHT
+			[ -n "$hl" ] || hl := dt_lighten "$on" 60
+			hl="line=$hl"
+		fi
+		console pen "$DT_INK" "$DT_FACE" $hl
+		console put "${at[@]}" "$r" "$c" "${GL["$s-grow"]}"
+		return 0
+	fi
+	console put "${at[@]}" "$r" "$c" "${GL[grow]}"
+}
+
 # The chrome of everything drawn as a window -- a window, a note that
 # follows the windows, the confirm box -- and the only code that draws it
 # (#102): the border of the theme's frame, or none, the title bar, the
@@ -640,8 +663,7 @@ fn dt_chrome(pane, int r, int c, int h, int w, title, on, int cap = 0, fixed = "
 		# A fixed window keeps the plain corner the border just drew
 		# instead of the grow box: no drag can resize it, so nothing
 		# should invite one.
-		[ "$fixed" = 0 ] &&
-			console put "${at[@]}" $((r + h - 1)) $((c + w - 1)) "${GL[grow]}"
+		[ "$fixed" = 0 ] && dt_chromegrow "$pane" $((r + h - 1)) $((c + w - 1)) "$on"
 	fi
 	[ -n "$fixed" ] && dt_chromebtns "$fixed"
 	# A Chalk or Slate title bar is its own row of glyphs, between the
@@ -761,7 +783,7 @@ fn dt_chrome(pane, int r, int c, int h, int w, title, on, int cap = 0, fixed = "
 # lights the same way, on whatever bar it sits.
 fn dt_chromehot(pane, int r, int c, id, rec, bg) {
 	local -a at=()
-	local want= held=0 e col kind g pc i
+	local want= held=0 e col kind g pc i k
 
 	[ -n "$id" ] && [ -n "$rec" ] || return 0
 	if [ "$DT_BTNID" = "$id" ] && [ "$DT_BTNOVER" = 1 ]; then
@@ -792,6 +814,14 @@ fn dt_chromehot(pane, int r, int c, id, rec, bg) {
 				pc := dt_hotcolour
 			fi
 		done
+		# Blit's boxes have a pressed look of their own, which is also
+		# how one looks under the pointer, drawn in the bar's own pens.
+		k=${kind/#max/zoom}
+		if [ -n "$DT_CBSET" ] && [ -n "${GL["$DT_CBSET-$k-pressed"]-}" ]; then
+			console pen "$DT_INK" "$bg" $DT_CBARLN
+			console put "${at[@]}" "$r" $((c + col)) "${GL["$DT_CBSET-$k-pressed"]}"
+			return 0
+		fi
 		console pen "$pc" "$bg" bold
 		console put "${at[@]}" "$r" $((c + col)) "$g"
 		return 0

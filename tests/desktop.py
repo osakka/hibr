@@ -1199,7 +1199,9 @@ for _i, _n in enumerate(("F:frame-left F:frame-right F:frame-bottom-left F:frame
                          "F:frame-bottom-right C:title-end-left C:title-end-right "
                          "S:title-end-left S:title-end-right C:title-end-plain-left "
                          "C:title-end-plain-right S:title-end-plain-left "
-                         "S:title-end-plain-right").split()):
+                         "S:title-end-plain-right C:close-pressed C:shade-pressed "
+                         "C:zoom-pressed C:grow C:grow-pressed S:close-pressed "
+                         "S:shade-pressed S:zoom-pressed S:grow S:grow-pressed").split()):
     GLYPHNAME[0x1002AE + _i] = _n
 
 
@@ -1272,6 +1274,12 @@ sc, _ = run('fn snp_draw(int id, int h, int w, int row, int col) { console put -
             'dt_app snp Snp 8 30\nid := dt_new Snp 8 30 3 3 snp\ndt_snap "$id" left\n', [0.5])
 check("a snapped window is not a shaded one: its app is still drawn",
       sc.find("body here") is not None, sc)
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK)
+check("a resizable Edge window's corner is the title bar style's grow box",
+      glyphrow(sc, 7, 25, 1) == ["C:grow"], glyphrow(sc, 7, 22, 4))
+sc, _ = run('dt_new Notes 6 24 2 2\n', [press(2, 4)], pre=CHALK)
+check("and a Chalk box held down is drawn pressed", glyphrow(sc, 2, 4, 1) == ["C:close-pressed"],
+      glyphrow(sc, 2, 2, 4))
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK + "DT_SHADOWSHAPE=thin\n")
 check("the Edge frame casts the shadow Shadow Shape says -- Thin, on Blit's glyphs, is "
       "the terminal's own, flush in the cells beyond the frame, inset 0",
@@ -9125,4 +9133,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(982)
+report(984)
