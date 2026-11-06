@@ -514,7 +514,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			if (f->cp == cp && f->fg == fg && f->bg == bg &&
 			    f->attr == at && f->link == lk && f->ul == ul)
 				continue;
-			pa = cn->blit == 2 ? at & ~(DP_FRAME | DP_SHADOW) : at;
+			pa = cn->blit == 2 ? at & ~(DP_FRAME | DP_SHADOW | DP_ICON) : at;
 			/* A run of blank cells in one pen as one erase (Gitea
 			   #353): to the end of the row, or eight or more inside
 			   it -- only where the erase gives the same colour, which

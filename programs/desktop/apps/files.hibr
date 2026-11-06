@@ -21,7 +21,7 @@
 
 strict
 
-app files "A file browser" 3.12
+app files "A file browser" 3.13
 # part: control-panel/filesview.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -1125,6 +1125,13 @@ fn fb_glyph(int id, int i, size = "") {
 }
 
 fn files_draw(int id, int h, int w, int row, int col) {
+	console iconpen "$DT_DESKICON"
+	fb_paint "$id" "$h" "$w" "$row" "$col"
+	console iconpen colour
+}
+
+# The window, with the pen Control Panel > Appearance gave its icons.
+fn fb_paint(int id, int h, int w, int row, int col) {
 	local t n sel pw=$w bw=0 q=${FB[$id]["q"]} on sx px srows bp
 
 	dt_wclear "$id"

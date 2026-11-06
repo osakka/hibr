@@ -17,6 +17,9 @@ a box or a knob wherever Blit's glyphs are not in force.
 
 - **A display let go while it was joining is told so.** A session detached at
   that moment killed the client with SIGPIPE, silently, with its shell.
+- **Blit's icons per place** (Blit 0.3.49): Appearance has Menu Bar Icons and
+  Desktop and Files Icons, each Colour, Auto, Black or White, so the bar can be
+  monochrome beside a colour desktop.
 - **The old blue colour scheme called Slate is now Navy** (owner). It shared the
   name with Blit's grey Slate theme and had nothing to do with it.
 

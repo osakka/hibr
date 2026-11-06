@@ -1348,6 +1348,16 @@ check("and away from Blit's glyphs a switch is a knob",
       sc.find("o)") is not None or sc.find("●)") is not None, sc)
 
 
+# Blit's icon pen (Blit ADR 0221): the menu bar and the desktop are told apart,
+# cell by cell, and hold takes it off for a display that is not Blit.
+sc, raw = run('dt_new Notes 6 24 2 2\n', pre="DT_GLYPHSET=blit; DT_BARICON=auto\n")
+check("Menu Bar Icons auto sends the icon pen, on the bar's cells",
+      b"\x1b[1;1H\x1b[0;68:1;" in bytes(raw), bytes(raw)[:300])
+sc, raw = run('dt_new Notes 6 24 2 2\n', pre="DT_GLYPHSET=blit\n")
+check("and by default nothing asks for it, so a terminal is never sent one",
+      b";68:" not in bytes(raw), bytes(raw)[-200:])
+
+
 def glyphconfirm(pre):
     path = scratch("glyphconfirm.hibr")
     open(path, "w").write("%s. %s\n%s\ndt_open\ndt_confirm 'Delete this?' true desktop\n"
@@ -9162,4 +9172,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(987)
+report(989)

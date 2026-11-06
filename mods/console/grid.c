@@ -358,12 +358,24 @@ void cn_link(const char *uri)
 	cn_plink = (unsigned)++cn_lkn;
 }
 
+/* How Blit's icons are drawn in what follows, whatever pens are set after
+   it, until the next flush: a frame's own part says it once, and the rest
+   of the frame is not told. */
+static unsigned cn_iconat;
+
+/* Set it, as the attribute's own bits. */
+void cn_iconpen(unsigned bits)
+{
+	cn_iconat = bits;
+	cn_penat = (cn_penat & ~DP_ICON) | bits;
+}
+
 /* Set the pen used by later writes. */
 void cn_pen(unsigned fg, unsigned bg, unsigned attr)
 {
 	cn_fg = fg;
 	cn_bg = bg;
-	cn_penat = attr;
+	cn_penat = attr | cn_iconat;
 	cn_ul = DP_DEFAULT;
 	cn_kfb = DP_DEFAULT;
 }
@@ -1356,6 +1368,7 @@ long cn_flush(void)
 	   impossible rather than merely unlikely, which is the difference
 	   between a rule and a list nobody maintains. */
 	cn_translucent(0, DP_DEFAULT);
+	cn_iconpen(0);
 	cn_tfr++;
 	/* A picture whose cells have been drawn through since it was placed is
 	   gone: dropping it here, before the diff, is what makes those cells

@@ -115,6 +115,7 @@ void cn_mouseon(int mode);
 void cn_signals(int on);
 void cn_clip(const char *t);
 void cn_pen(unsigned fg, unsigned bg, unsigned attr);
+void cn_iconpen(unsigned bits);
 void cn_getpen(unsigned *fg, unsigned *bg, unsigned *attr);
 void cn_penul(unsigned ul);
 void cn_keepfb(unsigned fb);

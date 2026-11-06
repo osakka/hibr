@@ -813,7 +813,7 @@ def blitheld(cap2):
     open(sess, "w").write(
         load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
         + "DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=chalk; DT_BTNSTYLE=chalk\n"
-        + "DT_SHADOWSHAPE=thin; DT_BLITCAT=\n"
+        + "DT_SHADOWSHAPE=thin; DT_BLITCAT=; DT_BARICON=auto\n"
         + "dt_open || exit 1\ndt_new Notes 8 30 3 4\n"
         + 'seen() { l := hold blit; printf "%s\\n" "$l" > "' + answer + '"; dt_want 500; }\n'
         + "dt_ticker seen\ndt_run\ndt_close\n")
@@ -845,7 +845,8 @@ check("a Blit display is sent Blit's glyphs and its framed title", b"\xf4\x80\x8
       and b";51" in r1, r1[-300:])
 check("a display that is not Blit is sent none of them", not BLITFONT.search(r2),
       BLITFONT.findall(r2)[:5])
-check("nor the attributes only Blit draws", b"66:" not in r2 and b";51" not in r2, r2[-300:])
+check("nor the attributes only Blit draws", b"66:" not in r2 and b";51" not in r2 and
+      b";68:" not in r2 and b";68:1" in r1, r2[-300:])
 check("and it draws the window plainly, title and all",
       s2.find("Notes") is not None and any(g == "│" for row in s2.g for g in row), s2)
 r1, r2, said, s2 = blitheld(None)

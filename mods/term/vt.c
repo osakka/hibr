@@ -415,6 +415,13 @@ void tm_sgr(tm_t *t)
 			}
 			break;
 		case 67: t->attr &= ~DP_SHADOW; break;
+		case 68:
+			sub = i + 1 < t->pn && t->ps[i + 1] ? t->pv[i + 1] : 0;
+			t->attr &= ~DP_ICON;
+			if (sub >= 1 && sub <= 3)
+				t->attr |= (unsigned)sub << DP_ICSHIFT;
+			break;
+		case 69: t->attr &= ~DP_ICON; break;
 		case 58: t->ul = tm_colour(t, &i); break;
 		case 59: t->ul = DP_DEFAULT; break;
 		default:
@@ -701,6 +708,10 @@ void tm_decrqss(tm_t *t)
 			s_cat(&r, t->attr & DP_SHW1 ? ":1" : ":2");
 			if (t->attr & DP_SHFLUSH)
 				s_cat(&r, ":0");
+		}
+		if (t->attr & DP_ICON) {
+			s_cat(&r, ";68:");
+			s_num(&r, (long)((t->attr & DP_ICON) >> DP_ICSHIFT));
 		}
 		for (v = 0; v < 2; v++) {
 			unsigned c = v ? t->bg : t->fg;

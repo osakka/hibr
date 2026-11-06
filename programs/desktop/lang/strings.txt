@@ -414,6 +414,7 @@ Delete…
 Deleting…
 Desktop
 Desktop Icons
+Desktop and Files Icons
 Detach
 Detect
 Device
@@ -712,6 +713,7 @@ Mark as Unread
 May
 Members of this group are let through without a password
 Menu Bar
+Menu Bar Icons
 Menu Bar Item
 Menu Bar Items
 Menu Mark

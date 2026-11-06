@@ -531,7 +531,9 @@ dt_draw() {
 	[ -n "$DT_STATON" ] && dt_tmark menus
 	# A window with the whole display has no bar or strip over it.
 	if [ -z "$DT_FULL" ]; then
+		console iconpen "$DT_BARICON"
 		dt_bar
+		console iconpen colour
 		dt_stripdraw
 	fi
 	[ -n "$DT_STATON" ] && dt_tmark barstrip

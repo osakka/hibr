@@ -57,6 +57,15 @@
 #define DP_SHADOW (DP_SHKIND | DP_SHW1 | DP_SHFLUSH)
 #endif
 
+/* How Blit draws its colour icons in this cell, SGR 68 (Blit ADR 0221): its
+   own colours when clear, 1 in the cell's foreground, 2 black, 3 white. It
+   touches nothing but plane 16's icons, so a menu bar can be monochrome
+   beside a colour desktop. */
+#ifndef DP_ICON
+#define DP_ICSHIFT 18
+#define DP_ICON (3u << DP_ICSHIFT)
+#endif
+
 #ifndef DP_COLOUR
 #define DP_DEFAULT 0u
 #define DP_PAL 0x1000000u

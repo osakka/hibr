@@ -205,6 +205,13 @@ fn dt_iconpix(int r, int c) {
 }
 
 dt_icondraw() {
+	console iconpen "$DT_DESKICON"
+	dt_iconpaint
+	console iconpen colour
+}
+
+# Every icon, with the pen Control Panel > Appearance gave them.
+dt_iconpaint() {
 	local i=0 r c g l k gw gc bg
 
 	while [ "$i" -lt "$DI_N" ]; do

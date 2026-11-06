@@ -931,6 +931,21 @@ int m_console(sh *s, int ac, char **av)
 		cn_drawn++;
 		return HIBR_OK;
 	}
+	/* console iconpen colour|auto|black|white: how Blit draws its colour
+	   icons in what is written next, SGR 68 (Blit ADR 0221), until this
+	   says otherwise or the frame is flushed. */
+	if (!strcmp(sub, "iconpen")) {
+		const char *m = ac > 2 ? av[2] : "";
+		int v = !strcmp(m, "auto") ? 1 : !strcmp(m, "black") ? 2 :
+			!strcmp(m, "white") ? 3 : 0;
+
+		if (!v && strcmp(m, "colour")) {
+			lg(HIBR_LERR, "usage: console iconpen colour|auto|black|white");
+			return 2;
+		}
+		cn_iconpen((unsigned)v << DP_ICSHIFT);
+		return HIBR_OK;
+	}
 	/* console shadow [-p pane] row col h w kind width inset [colour]: a
 	   shadow the terminal draws itself, SGR 66 (Blit ADR 0211). */
 	if (!strcmp(sub, "shadow")) {
