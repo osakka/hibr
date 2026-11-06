@@ -1267,7 +1267,7 @@ void ex_arrasg(sh *s, node *f)
 		    w->p->t[0] == '[')
 			v_add(el, xone(s, w));
 		else
-			xw(s, w, el, 0);
+			xwb(s, w, el);
 	if (nl > 1 && f->s[nl - 1] == '+') {
 		const char *nm = ar_dup(s->xa, f->s, nl - 1);
 		var *v = v_findr(s, &nm);
@@ -2335,7 +2335,7 @@ int ex_for(sh *s, node *n)
 
 	if (n->f)
 		for (w = n->w; w; w = w->nx)
-			xw(s, w, &o, 0);
+			xwb(s, w, &o);
 	else
 		for (i = 0; i < (size_t)s->ac; i++)
 			v_add(&o, s->av[i]);
@@ -2850,7 +2850,7 @@ int ex_select(sh *s, node *n)
 
 	if (n->f)
 		for (w = n->w; w; w = w->nx)
-			xw(s, w, &o, 0);
+			xwb(s, w, &o);
 	else
 		for (i = 0; i < (size_t)s->ac; i++)
 			v_add(&o, s->av[i]);

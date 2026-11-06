@@ -248,6 +248,7 @@ char **xargv(sh *s, word *w, int *ac, char ***am);
 /* Expand a word into fields, with no interest in which bytes were quoted. */
 #ifndef xw
 #define xw(s_, w_, out_, fl_) xwm((s_), (w_), (out_), (fl_), 0)
+void xwb(sh *s, word *w, vec *out);
 #endif
 
 /* Add one expanded field, keeping the parallel mask vector aligned. */

@@ -3122,6 +3122,18 @@ int w_assign(word *w)
 	return i < n && t[i] == '=';
 }
 
+/* Expand one word of a list that is not a command's, braces first. */
+void xwb(sh *s, word *w, vec *out)
+{
+	vec *bw = vb_get(s);
+	size_t i;
+
+	br_expand(s, w, bw);
+	for (i = 0; i < bw->n; i++)
+		xw(s, (word *)bw->p[i], out, 0);
+	vb_put(s, bw);
+}
+
 /* Build a NULL terminated argv from a word list. */
 char **xargv(sh *s, word *w, int *ac, char ***am)
 {

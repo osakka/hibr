@@ -1,5 +1,5 @@
 {
- "revision": "ceee54883dcc1f156b23aa8080cac401374253175a07c9e4bc965b0af0587949",
+ "revision": "8d66b0353819ddb3eb9044665547ad9772cab574ee1362b2c6e64c00482a3ea7",
  "glyphs": {
   "bar-corner-left": "100007",
   "bar-corner-right": "100008",
@@ -351,6 +351,8 @@
   "wifi-3": "100004",
   "wifi-4": "100005",
   "wired": "21CC",
+  "wiretap-1": "1002CB",
+  "wiretap-1-off": "1002CC",
   "wiretap-left": "1002C7",
   "wiretap-off-left": "1002C9",
   "wiretap-off-right": "1002CA",

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.99.454
+
+**Brace expansion reaches every list of words.** `for f in {a,b}`, `select` and
+`a=({1..3})` kept the braces as text, since only a command's arguments went
+through it, so a loop ran once over the literal `{a,b}`. They now agree with
+bash, which `tests/999-brace-lists.t` compares. A `[key]=value` element stays an
+assignment and is left alone, where bash stores the text `[0]=a`.
+
+- **The glyph table is regenerated from Blit 0.3.53's catalogue.**
+
 ## 0.99.453
 
 **The hui Monogram** (owner, Blit 0.3.51). Control Panel > Menu Bar > Menu Mark
