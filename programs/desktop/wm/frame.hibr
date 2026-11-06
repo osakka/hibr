@@ -358,7 +358,7 @@ fn dt_chromedrawable(v) {
 	edge) [ -n "${GL[frame-left]-}" ] ;;
 	chalk) [ -n "${GL[chalk-stripe]-}" ] ;;
 	slate) [ -n "${GL[slate-stripe]-}" ] ;;
-	chalk-switch | slate-switch | capsule) [ -n "${GL["${v,,}-on"]-}" ] ;;
+	capsule) [ -n "${GL[capsule-on]-}" ] ;;
 	*) return 0 ;;
 	esac
 }
@@ -374,6 +374,16 @@ fn dt_chromeavail(...vals) {
 		if dt_chromedrawable "$f"; then out+=("$f"); else DT_POPDIMNEXT+=("$f"); fi
 	done
 	ret "${out[*]}"
+}
+
+# What a list calls one of Blit's two styles: what is stored is its name, and
+# the row says the shape, since neither is a colour or a theme there.
+fn dt_chromename(v) {
+	case $v in
+	chalk) ret "Flat" ;;
+	slate) ret "Embossed" ;;
+	esac
+	ret "$v"
 }
 
 # The face of a box drawn as a window, see-through as the windows' are, for

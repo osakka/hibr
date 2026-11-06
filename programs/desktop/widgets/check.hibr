@@ -1,22 +1,26 @@
-# widgets/check -- an on/off choice: a box, a knob, a block, a tick, or
-# Blit's own Chalk or Slate checkbox, switch or capsule.
+# widgets/check -- an on/off choice: a box, which is Blit's own under Blit's
+# flat or embossed windows, a knob, a block, a tick, or Blit's capsule.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
 strict
 
 # The style on/off choices are drawn in now: the person's, or with
-# DT_CHECKS=theme what the theme suggests, a box when it says nothing.
+# DT_CHECKS=theme what the theme suggests, a box when it says nothing. A box
+# follows the title bar: Blit's flat one under Chalk, its embossed one under
+# Slate.
 dt_checkstyle() {
 	local st=$DT_CHECKS
 
 	[ "$st" = theme ] && st=${DT_THEMECHECKS:-box}
 	case $st in
 	knob | block | tick) ret "$st" ;;
-	chalk | slate) [ -n "${GL["$st-check-on"]-}" ] && ret "$st"; ret box ;;
-	chalk-switch | slate-switch | capsule) [ -n "${GL["$st-on"]-}" ] && ret "$st"; ret knob ;;
-	*) ret box ;;
+	capsule) [ -n "${GL[capsule-on]-}" ] && ret capsule; ret knob ;;
 	esac
+	case $DT_TITLEBAR in
+	chalk | slate) [ -n "${GL["$DT_TITLEBAR-check-on"]-}" ] && ret "$DT_TITLEBAR" ;;
+	esac
+	ret box
 }
 
 # The mark for an on/off choice in the style chosen: "[x]" or "[ ]", a
@@ -31,10 +35,7 @@ fn dt_checkmark(int on) {
 	block) [ "$on" = 1 ] && ret "[  $b]"; ret "[$b  ]" ;;
 	tick) [ "$on" = 1 ] && ret "[${GL[tick]}]"; ret "[ ]" ;;
 	chalk | slate) [ "$on" = 1 ] && ret "${GL["$st-check-on"]}"; ret "${GL["$st-check-off"]}" ;;
-	chalk-switch | slate-switch | capsule)
-		[ "$on" = 1 ] && ret "${GL["$st-on"]}"
-		ret "${GL["$st-off"]}"
-		;;
+	capsule) [ "$on" = 1 ] && ret "${GL[capsule-on]}"; ret "${GL[capsule-off]}" ;;
 	*) [ "$on" = 1 ] && ret "[x]"; ret "[ ]" ;;
 	esac
 }
@@ -63,8 +64,8 @@ fn dt_check(int id, int r, int c, int on, label, tag = "") {
 		[ -n "$label" ] && console put -p "w$id" "$r" $((c + ${#m} + 1)) "$label"
 		dt_hot "$id" "$tag" && console pen -r
 		case $st in
-		chalk | chalk-switch) console pen "$DT_INK" "$DT_FACE" ;;
-		slate | slate-switch) console pen "$DT_INK" "$DT_FACE" "line=${DT_HIGHLIGHT:-$DT_WELL}" ;;
+		chalk) console pen "$DT_INK" "$DT_FACE" ;;
+		slate) console pen "$DT_INK" "$DT_FACE" "line=${DT_HIGHLIGHT:-$DT_WELL}" ;;
 		capsule)
 			if [ "$on" = 1 ]; then
 				console pen "$DT_ACTIVE" "$DT_FACE" "line=$DT_INK"

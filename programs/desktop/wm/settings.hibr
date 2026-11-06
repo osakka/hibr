@@ -322,7 +322,7 @@ DT_FRAME="${DT_FRAME-single}"
 # 100 the picture. A terminal has its own, which wins inside it.
 DT_WINTRANS="${DT_WINTRANS-0}"
 DT_BARTRANS="${DT_BARTRANS-0}"
-WS_FRAMES=(single double rounded solid none edge)
+WS_FRAMES=(single double rounded solid edge none)
 
 # The title bar: a line, the title sitting in the frame's own top line as
 # it always has (with no border, on the window's face); solid -- the whole
@@ -375,8 +375,8 @@ DT_DESKICON="${DT_DESKICON-colour}"
 # How an on/off choice is drawn, wherever there is one: theme -- what the
 # theme suggests (DT_THEMECHECKS, set when one is applied), a box when it
 # says nothing -- box "[x]", knob "(  o)", block "[  #]", tick "[✓]", or Blit's
-# own: chalk and slate boxes, chalk-switch, slate-switch and capsule, which are
-# a box or a knob wherever Blit's glyphs are not in force.
+# capsule, a knob wherever Blit's glyphs are not in force. A box is Blit's own
+# under a Chalk or Slate title bar: it follows the window, and is not a choice.
 DT_CHECKS="${DT_CHECKS-theme}"
 DT_THEMECHECKS="${DT_THEMECHECKS-}"
 

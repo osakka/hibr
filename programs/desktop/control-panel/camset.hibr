@@ -1,0 +1,73 @@
+#!/usr/bin/env hibr
+#
+# camset -- the Control Panel pane for Camera: the picture size kept, which
+# a camera that does not offer it answers with its largest up to 1080 rows,
+# and whether a film takes the microphone. The sizes listed are the size kept
+# and what an open Camera window's camera offers, since nothing else knows
+# them. Named camset, not camera, which is the app's own prefix.
+
+strict
+
+app camset "The Control Panel pane for Camera" 1.0
+command -v cp_pane > /dev/null && cp_pane camset "Camera" "◉" app
+
+CAM_SIZE="${CAM_SIZE-}"
+CAM_SOUND="${CAM_SOUND-1}"
+command -v dt_keep > /dev/null && dt_keep CAM_SIZE CAM_SOUND
+
+# The sizes the row offers.
+declare -ga CAMS_LIST
+
+fn camset_list() {
+	local z= s
+	local -a a
+
+	CAMS_LIST=(Automatic)
+	[ -n "$CAM_SIZE" ] && CAMS_LIST+=("$CAM_SIZE")
+	dt_has cam_offered && z := cam_offered
+	read -ra a <<< "$z"
+	for s in "${a[@]}"; do
+		[ "$s" = "$CAM_SIZE" ] || CAMS_LIST+=("$s")
+	done
+	return 0
+}
+
+fn cp_set_camsize(int? id = "", value = "") {
+	[ "$value" = Automatic ] && value=
+	CAM_SIZE=$value
+	cp_save
+	dt_has cam_resize && cam_resize
+	return 0
+}
+
+fn camset_rows(int w) {
+	local n=0
+
+	dt_has camera_draw || { cp_absent "$w" Camera; ret 1; }
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture Size"
+	CP[$w][$n]["val"]="${CAM_SIZE:-Automatic}"; CP[$w][$n]["key"]=size
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Record Sound"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$CAM_SOUND" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=CAM_SOUND; n=$((n + 1))
+	ret "$n"
+}
+
+fn camset_do(int? w = "", k = "", int? dir = "") {
+	local v
+
+	case $k in
+	size) camset_list
+		v := cp_next "${CAM_SIZE:-Automatic}" "$dir" "${CAMS_LIST[@]}"
+		cp_set_camsize "" "$v" ;;
+	CAM_SOUND) cp_toggle "$k"; cp_save ;;
+	esac
+}
+
+fn camset_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	size) camset_list
+		dt_droplist "$w" "$r" "$c" cp_set_camsize "${CAMS_LIST[@]}" ;;
+	esac
+}

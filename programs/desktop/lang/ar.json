@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.83",
+ "version": "3.84",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -25,6 +25,9 @@
   "No camera is connected to this computer": "لا توجد كاميرا متصلة بهذا الحاسوب",
   "Starting the camera%s": "جارٍ تشغيل الكاميرا%s",
   "Take Photo": "التقاط صورة",
+  "Picture Size": "حجم الصورة",
+  "Record Sound": "تسجيل الصوت",
+  "This film has no sound: no microphone answered": "هذا الفيلم بلا صوت: لم يستجب أي ميكروفون",
   "Menu Bar Icons": "أيقونات شريط القوائم",
   "Desktop and Files Icons": "أيقونات سطح المكتب والملفات",
   "Record": "تسجيل",

@@ -948,6 +948,7 @@ Pause or Play
 Permissions reset
 Picture
 Picture Detail
+Picture Size
 Picture:
 Pictures
 Pictures: %s
@@ -1007,6 +1008,7 @@ Read It
 Record
 Record %s added
 Record No. %s -- enter after the last field adds it, escape stops
+Record Sound
 Recorded in your calendar
 Recording %s
 Records
@@ -1308,6 +1310,7 @@ This computer has no timedatectl, and hibr's polkit policy is not installed
 This desktop is not the computer's own
 This engine cannot fetch that picture
 This engine cannot save an address
+This film has no sound: no microphone answered
 This links to %s
 This network wants you to sign in -- click to open its page
 This notification has been cleared.

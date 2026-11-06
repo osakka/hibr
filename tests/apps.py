@@ -437,11 +437,11 @@ check("panes register and sort by title within their group, not load order",
                 "control_strip", "desktop", "filetypes", "language", "loginmgr",
                 "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
                 "taskmgr", "versions", "wallset", "windows",
-                "archiveset", "browserset", "pimset", "filesview", "mailset", "prayerset",
+                "archiveset", "browserset", "pimset", "camset", "filesview", "mailset", "prayerset",
                 "sheetset", "notes", "terminal", "vaultset", "webapps", "xscreenset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 8 + ["system"] * 20 + ["app"] * 13, out)
+      ["hardware"] * 8 + ["system"] * 20 + ["app"] * 14, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -484,7 +484,7 @@ TITLE = {"archiveset": "Archives", "aboutme": "About Me", "adminaccess": "Admini
          "windows": "Windows", "abouthibr": "About This",
          "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
          "terminal": "Terminal", "tube": "YouTube", "versions": "Versions",
-         "browserset": "Browser", "wallset": "Wallpaper",
+         "browserset": "Browser", "camset": "Camera", "wallset": "Wallpaper",
          "webapps": "Web Apps", "xscreenset": "X Screen"}
 
 
@@ -596,7 +596,7 @@ check("a pane's name in the picker lights under the pointer",
 # under the frame -- gone, and the border a target for it (Gitea #314). At
 # the top the two cannot be told apart, since the frame is drawn over the
 # bar's last cell either way; the end is where they differ.
-psc = cprun(feed=[wheel(R0 + 5, 10, up=False)] * 8 + [0.3])
+psc = cprun(feed=[wheel(R0 + 5, 10, up=False)] * 12 + [0.3])
 pdv = next((c for c in range(3, 34) for r in range(R0, R0 + 20)
             if psc.at(r, c) == "\u2588"), None)
 pbot = R0 + 20
@@ -731,7 +731,9 @@ for pane in ORDER:
     # Desktop's Not in the Switcher is a list, not a value: choosing adds
     # an app or takes one off, so the old value stays in the new one, and
     # its own check below reads that instead.
-    keys = dropkeys(pane) - {"wdisp", "swskip"}
+    # Camera's Picture Size offers what an open camera offers, and no camera
+    # is open here.
+    keys = dropkeys(pane) - {"wdisp", "swskip"} - ({"size"} if pane == "camset" else set())
     extra = PANE_APPS.get(pane, ())
     for i, (kind, text, key, val) in enumerate(panefull(pane, extra)):
         # Prayer Times' six minute rows are one widget six times: the
@@ -753,6 +755,16 @@ for pane, extra, i, text, val in DROPS:
             break
     check("%s's %s dropdown chooses a new value" % (TITLE[pane], text),
           now != "" and val not in now, sc)
+# A list says Blit's two styles by their shape, and what is kept is the name;
+# the checkboxes offer neither, since a box follows the window.
+slc = tempfile.mkdtemp(prefix="hibr-slate-")
+sc = cprun([b"\x1b[B"] * downs("windows") + [press(R0 + 1, VALCOL), 0.3,
+            lambda s: press(*s.find("Embossed")), 0.3], geom=PWTALL,
+           env={"DT_GLYPHSET": "blit", "DT_CONF": os.path.join(slc, "desktop.json")})
+kept = open(os.path.join(slc, "desktop.json")).read() if os.path.exists(os.path.join(slc, "desktop.json")) else ""
+check("Title Bar lists Embossed, shows it chosen, and keeps slate",
+      "Embossed" in brow(sc, "Title Bar") and '"DT_TITLEBAR": "slate"' in kept, (brow(sc, "Title Bar"), kept[:200]))
+shutil.rmtree(slc, True)
 for i, (kind, text, key, val) in enumerate(panefull("desktop")):
     if key == "swskip":
         sc = cprun([b"\x1b[B"] * downs("desktop") +
@@ -1023,7 +1035,7 @@ out = subprocess.run(
      'cp_themerenamed "" "%s/hibr/themes/ours"\necho "$CP_THEME ${CP_THEMES[*]}"' % TD],
     env=dict(os.environ, XDG_CONFIG_HOME=TD), capture_output=True, text=True).stdout.strip()
 check("Rename moves the file and keeps it chosen",
-      out == "ours chalk charcoal classic construction meadow ours retro_car slate" and
+      out == "ours chalk charcoal classic construction meadow ours retro_car" and
       os.path.exists(os.path.join(TD, "hibr", "themes", "ours.json")), out)
 shutil.rmtree(TD, True)
 
@@ -1576,7 +1588,7 @@ out = subprocess.run(
     capture_output=True, text=True).stdout.split("\n")
 check("the bundled themes and the person's own are listed; a colour file, and "
       "a theme with a value its setting cannot take or no colours, are not",
-      out[0] == "chalk charcoal classic construction dusk meadow retro_car slate", out)
+      out[0] == "chalk charcoal classic construction dusk meadow retro_car", out)
 check("a theme sets its colours and the look with them -- Under Construction "
       "is yellow, double framed, solid barred, with its own picture",
       out[1] == "construction hazard double solid squares block #ffd400 construction.png", out)
@@ -6045,28 +6057,126 @@ if shutil.which("ffmpeg"):
                        capture_output=True, text=True)
     check("a camera's own list gives Motion-JPEG and the largest size up to 1080 rows",
           r.stdout.strip() == "mjpeg|1920x1080| 3840x2160 1920x1080 1280x720 640x480", (r.stdout, r.stderr))
+    r = subprocess.run([sx.HIBR, "-c", 'CAM_SIZE=$2\n. %s\ncam_formats 1 0 "$1"\necho "${CAM[1]["size0"]}"'
+                        % tree("programs/desktop/apps/Accessories/camera.hibr"), "x", t, "1280x720"],
+                       capture_output=True, text=True)
+    r2 = subprocess.run([sx.HIBR, "-c", 'CAM_SIZE=$2\n. %s\ncam_formats 1 0 "$1"\necho "${CAM[1]["size0"]}"'
+                         % tree("programs/desktop/apps/Accessories/camera.hibr"), "x", t, "1024x768"],
+                        capture_output=True, text=True)
+    check("a size kept is used where the camera offers it, and its largest where not",
+          r.stdout.strip() == "1280x720" and r2.stdout.strip() == "1920x1080", (r.stdout, r2.stdout))
+
     # r starts a film and r again finishes it, and the picture goes on after.
     def camfilms():
         d = os.path.join(camh, "Videos", "Camera")
         return [os.path.join(d, f) for f in os.listdir(d)] if os.path.isdir(d) else []
 
-    sc = run("camera", "22 64 2 2",
-             env={"HOME": camh, "HIBR_MEDIA_AUDIO": "none",
-                  "CAMERA_SRC": "-re -f lavfi -i testsrc=size=640x360:rate=30"},
-             feed=[b"r", 3.0, b"r", 2.5], tries=80,
-             ready=lambda s: any("▀" * 20 in s.row(r) for r in range(3, 20)))
-    films = camfilms()
-    dur = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
-                          "csv=p=0", films[0]], capture_output=True, text=True).stdout if films else ""
+    def camfilm(mic, **more):
+        """Record for three seconds with this microphone: the film's streams,
+        its length, and the last screen."""
+        for f in camfilms():
+            os.unlink(f)
+        e = {"HOME": camh, "HIBR_MEDIA_AUDIO": "none", "CAMERA_MIC": mic,
+             "CAMERA_SRC": "-re -f lavfi -i testsrc=size=640x360:rate=30"}
+        s = run("camera", "22 64 2 2", env=dict(e, **more), feed=[b"r", 3.0, b"r", 2.5], tries=80,
+                ready=lambda s: any("▀" * 20 in s.row(r) for r in range(3, 20)))
+        fl = camfilms()
+        p = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
+                            "stream=codec_type:format=duration", "-of", "csv=p=0", fl[0]],
+                           capture_output=True, text=True).stdout.split() if fl else []
+        return fl, p, s
+
+    SINE = "-re -f lavfi -i sine=frequency=440"
+    films, probe, sc = camfilm(SINE)
     check("r records a film in ~/Videos/Camera, whole and playable",
-          len(films) == 1 and films[0].endswith(".mp4") and float(dur or 0) > 0.5, (films, dur))
+          len(films) == 1 and films[0].endswith(".mp4") and float(probe[-1] if probe else 0) > 0.5,
+          (films, probe))
+    check("with the microphone's sound beside the picture",
+          "video" in probe and "audio" in probe, probe)
     check("and the picture goes on after it",
           any("▀" * 20 in sc.row(r) for r in range(3, 20)), sc)
+    films, probe, sc = camfilm("-f lavfi -i nosuchsource")
+    check("a microphone that will not open leaves a film without sound, not no film",
+          len(films) == 1 and "video" in probe and "audio" not in probe, (films, probe))
+    check("and the camera goes on", any("▀" * 20 in sc.row(r) for r in range(3, 20)), sc)
+    films, probe, sc = camfilm(SINE, CAM_SOUND="0")
+    check("Record Sound off keeps the microphone out of the film",
+          len(films) == 1 and "video" in probe and "audio" not in probe, (films, probe))
+
+    # A real camera, as far as the app can tell: a device whose list has sizes,
+    # and which refuses a second reader as video4linux does, so a size chosen
+    # has to wait for ffmpeg to let go of it.
+    def camfake():
+        d = tempfile.mkdtemp(prefix="hibr-camfake-")
+        p = os.path.join(d, "ffmpeg")
+        open(p, "w").write(r'''#!/bin/bash
+echo "$*" >> %(d)s/args
+case " $* " in *" -list_formats "*)
+	echo '[video4linux2,v4l2 @ 0x5] Compressed:  mjpeg :  Motion-JPEG : 1920x1080 1280x720 640x480' >&2
+	exit 1 ;;
+esac
+exec 9> %(d)s/lock
+flock -n 9 || { echo "/dev/videofake: Device or resource busy" >&2; exit 1; }
+a=() z=640x360
+while [ $# -gt 0 ]; do
+	case $1 in
+	-f) [ "$2" = v4l2 ] && { shift 2; continue; } ;;
+	-input_format) shift 2; continue ;;
+	-video_size) z=$2; shift 2; continue ;;
+	-i) [ "$2" = /dev/videofake ] && { a+=(-re -f lavfi -i "testsrc=size=$z:rate=30"); shift 2; continue; } ;;
+	-c:v) [ "$2" = copy ] && { a+=(-c:v mjpeg -q:v 4); shift 2; continue; } ;;
+	esac
+	a+=("$1")
+	shift
+done
+exec %(real)s "${a[@]}"
+''' % {"d": d, "real": shutil.which("ffmpeg")})
+        os.chmod(p, 0o755)
+        return d
+
+    camd = camfake()
+    camcfg = tempfile.mkdtemp(prefix="hibr-camcfg-")
+    campre = 'cam_devs() { ret /dev/videofake; }\n'
+    camenv2 = {"HOME": camh, "HIBR_MEDIA_AUDIO": "none", "PATH": camd + ":" + os.environ["PATH"],
+               "DT_CONF": os.path.join(camcfg, "desktop.json")}
+
+    def camargs():
+        f = os.path.join(camd, "args")
+        return [l for l in open(f).read().split("\n") if l and "-list_formats" not in l] \
+            if os.path.exists(f) else []
+
+    sc = run("camera", "22 64 2 2", pre=campre, env=camenv2, tries=80,
+             feed=[b"\x1b[21~", 0.3, b"\x1b[C", b"\x1b[C", b"\x1b[C", 0.3,
+                   lambda s: press(*s.find("640x480")), 2.5],
+             ready=lambda s: any("▀" * 20 in s.row(r) for r in range(3, 20)))
+    ca = camargs()
+    check("a size chosen on the Camera menu reaches the camera, which was let go of first",
+          len(ca) == 2 and "-video_size 1920x1080" in ca[0] and "-video_size 640x480" in ca[1] and
+          sc.find("busy") is None and any("▀" * 20 in sc.row(r) for r in range(3, 20)), (ca, sc))
+    os.unlink(os.path.join(camd, "args"))
+    sc = run("camera", "22 64 2 2", pre=campre, env=camenv2, tries=80,
+             ready=lambda s: any("▀" * 20 in s.row(r) for r in range(3, 20)))
+    ca = camargs()
+    check("and it is the size the next Camera window opens at",
+          len(ca) == 1 and "-video_size 640x480" in ca[0], ca)
+    shutil.rmtree(camd, True)
+    shutil.rmtree(camcfg, True)
+    rows = panefull("camset", ("camera",))
+    check("Control Panel > Camera has the size and Record Sound",
+          [(x[1], x[3]) for x in rows] == [("Picture Size", "Automatic"), ("Record Sound", "on")], rows)
 else:
     check("and it moves (skipped: no ffmpeg here)", True)
     check("r records a film (skipped: no ffmpeg here)", True)
+    check("with the microphone's sound (skipped: no ffmpeg here)", True)
     check("and the picture goes on after it (skipped: no ffmpeg here)", True)
+    check("a microphone that will not open (skipped: no ffmpeg here)", True)
+    check("and the camera goes on (skipped: no ffmpeg here)", True)
+    check("Record Sound off (skipped: no ffmpeg here)", True)
     check("a camera's own list (skipped: no ffmpeg here)", True)
+    check("a size kept (skipped: no ffmpeg here)", True)
+    check("a size chosen on the Camera menu (skipped: no ffmpeg here)", True)
+    check("and it is the size the next window opens at (skipped: no ffmpeg here)", True)
+    check("Control Panel > Camera (skipped: no ffmpeg here)", True)
 if not any(f.startswith("video") for f in os.listdir("/dev")):
     sc = run("camera", "22 64 2 2", env={"HOME": camh},
              until=lambda s: s.find("No camera") is not None)
@@ -6085,4 +6195,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(792)
+report(801)

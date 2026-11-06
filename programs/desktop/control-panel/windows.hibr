@@ -11,7 +11,7 @@
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.6
+app windows "The Control Panel pane for how a window looks and where it opens" 1.7
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
@@ -31,14 +31,16 @@ fn cp_wintrans(int v) {
 }
 
 fn windows_rows(int w) {
-	local n=0
+	local n=0 v
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"
 	CP[$w][$n]["val"]="$DT_FRAME"; CP[$w][$n]["key"]=frame; n=$((n + 1))
+	v := dt_chromename "$DT_TITLEBAR"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Bar"
-	CP[$w][$n]["val"]="$DT_TITLEBAR"; CP[$w][$n]["key"]=titlebar; n=$((n + 1))
+	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=titlebar; n=$((n + 1))
+	v := dt_chromename "$DT_BTNSTYLE"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Buttons"
-	CP[$w][$n]["val"]="$DT_BTNSTYLE"; CP[$w][$n]["key"]=btnstyle
+	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=btnstyle
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Placement"
 	CP[$w][$n]["val"]="$DT_BTNSIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
@@ -129,12 +131,14 @@ fn windows_drop(int w, int r, int c, k) {
 	frame) dt_chromeavail "${WS_FRAMES[@]}"
 	       dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
 	titlebar) dt_chromeavail "${DT_TITLEBARS[@]}"
+	          DT_POPNAMENEXT=dt_chromename
 	          dt_droplist "$w" "$r" "$c" cp_set_titlebar "${DT_TITLEBARS[@]}" ;;
 	place) dt_droplist "$w" "$r" "$c" cp_set_place "${DT_PLACES[@]}" ;;
 	zoomfill) dt_droplist "$w" "$r" "$c" cp_set_zoomfill "${DT_ZOOMFILLS[@]}" ;;
 	side) dt_droplist "$w" "$r" "$c" cp_set_side "${WS_SIDES[@]}" ;;
 	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
 	btnstyle) dt_chromeavail "${WS_STYLES[@]}"
+		DT_POPNAMENEXT=dt_chromename
 		dt_droplist "$w" "$r" "$c" cp_set_btnstyle "${WS_STYLES[@]}" ;;
 	esac
 }

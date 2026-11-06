@@ -12,7 +12,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.13
+app appearance "The Control Panel pane for how the desktop looks" 2.14
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -20,8 +20,8 @@ CP_COLOURS="${CP_COLOURS-midnight}"
 command -v dt_keep > /dev/null && dt_keep CP_THEME CP_COLOURS
 
 # How an on/off choice is drawn: what the theme suggests, a box, a knob, a
-# block, a tick or one of Blit's own -- see DT_CHECKS in wm/settings.hibr.
-CP_CHECKS=(theme box knob block tick chalk slate chalk-switch slate-switch capsule)
+# block, a tick or Blit's capsule -- see DT_CHECKS in wm/settings.hibr.
+CP_CHECKS=(theme box knob block tick capsule)
 fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
 fn cp_set_baricon(int? id = "", value = "") { DT_BARICON=$value; cp_save; }
 fn cp_set_deskicon(int? id = "", value = "") { DT_DESKICON=$value; DT_FORCEONCE=1; cp_save; }
@@ -447,7 +447,7 @@ fn cp_treelinename() {
 }
 
 fn appearance_rows(int w) {
-	local n=0 g b
+	local n=0 g b v
 
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Look"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"
@@ -490,8 +490,9 @@ fn appearance_rows(int w) {
 	fi
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Checkboxes"
 	CP[$w][$n]["val"]="$DT_CHECKS"; CP[$w][$n]["key"]=checks; n=$((n + 1))
+	v := dt_chromename "$DT_DLGBTN"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Dialog Buttons"
-	CP[$w][$n]["val"]="$DT_DLGBTN"; CP[$w][$n]["key"]=dlgbtn; n=$((n + 1))
+	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=dlgbtn; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Shadow"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BTNSHADOW" = 1 ] && CP[$w][$n]["val"]=on
@@ -571,6 +572,7 @@ fn appearance_drop(int w, int r, int c, k) {
 		"${CP_TREELINES[@]}" ;;
 	glyphset) dt_droplist "$w" "$r" "$c" cp_set_glyphset "${DT_GLYPHSETS[@]}" ;;
 	dlgbtn) dt_chromeavail "${DT_DLGBTNS[@]}"
+		DT_POPNAMENEXT=dt_chromename
 		dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
 	shadowshape) dt_droplist "$w" "$r" "$c" cp_set_shadowshape "${CP_SHADOWL[@]}" ;;
 	esac

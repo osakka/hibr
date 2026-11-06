@@ -187,7 +187,7 @@ the menu bar and the Control Strip.
 - **Thin** (0.99.440) is an eighth of a cell: a line down the left edge of
   the column beside the box, from a row below its top, and one along the
   top of the row under it, from a column in, meeting at the corner -- a
-  shadow that hugs the box. It is what the Chalk and Slate themes choose.
+  shadow that hugs the box. It is what the Chalk theme chooses.
   On Blit's glyphs it is Blit's own shadow attribute (SGR 66), a line the
   terminal draws behind the glyph, on the cells beyond the box. Its colour
   is the scheme's `shadowink`, black where the scheme says nothing.
@@ -347,7 +347,7 @@ the marks a collapsible tree wears, so a theme that draws its windows one
 way does not leave every tree looking like the one before it) and
 `treelines` (`true` or `false`, the rules joining a child to its branch),
 `side` (`right`, `left`, `split`), `align` (`left`,
-`center`, `right`), `checks` (`theme`, `box`, `knob`, `block`, `tick`, `chalk`, `slate`, `chalk-switch`, `slate-switch`, `capsule`),
+`center`, `right`), `checks` (`theme`, `box`, `knob`, `block`, `tick`, `capsule`),
 `dialog` (`filled`, `brackets`, `chalk`, `slate`), `shadowshape` (`half`,
 `cols`, `thin`), `glyphs` (`unicode`, `ascii`, `nerd`,
 `blit`), `band` (`frame`,
@@ -1895,8 +1895,13 @@ redrawn the confirm box and notes, a title bar had decided the buttons, and
 Slate had colours of its own. The confirm box and a note that is Same as
 Windows go through `dt_chrome` like any window.
 
-**Chalk and Slate** are Blit's own window chrome (Blit ADR 0210), drawn
-from Blit's glyphs: a striped (Chalk) or grey (Slate) title bar whose
+**Chalk and Slate** are Blit's own window chrome (Blit ADR 0210), and the
+lists call them by their shape: Flat (chalk) is a one-pixel line, and
+Embossed (slate) is bevelled, light on its top and left and shaded on its
+bottom and right, in the cell's own colours. Slate is not a colour. A
+Checkboxes box follows the title bar, Blit's flat box under Flat and its
+embossed box under Embossed; Capsule is Blit's one switch. They are
+drawn from Blit's glyphs: a striped (Chalk) or grey (Slate) title bar whose
 title is *framed* -- SGR 51, the line drawn by the terminal round the
 cell rather than by a glyph -- close, shade and zoom boxes, and Blit's
 capped dialog buttons. Each is a value of the setting it belongs to --
@@ -1904,7 +1909,7 @@ Title Bar, Window Buttons, Dialog Buttons -- so any one can be mixed with
 any other. Both sit in **Edge**, Blit's one window frame (Blit ADR 0214), a
 value of Frame: a line on the outer edge of each frame cell, the window's
 face running right out to it, and the title bar's own end cells on the title
-row. The Chalk and Slate themes in the catalogue choose them together, with
+row. The Chalk theme in the catalogue chooses Chalk's together, with
 Shadow Shape Thin. Their colours are the scheme's: Chalk
 is the face and the ink, and Slate's bar is the title bar's colour, its
 lines the ink and its highlight the scheme's `highlight` (Pewter's white,

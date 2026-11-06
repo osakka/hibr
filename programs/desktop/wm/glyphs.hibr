@@ -56,7 +56,6 @@ fn dt_glyphs(set = "unicode") {
 	GL["huil"]=; GL["huir"]=
 	# And the window chrome's frame, Chalk and Slate parts.
 	GL["chalk-check-on"]=; GL["chalk-check-off"]=; GL["slate-check-on"]=; GL["slate-check-off"]=
-	GL["chalk-switch-on"]=; GL["chalk-switch-off"]=; GL["slate-switch-on"]=; GL["slate-switch-off"]=
 	GL["capsule-on"]=; GL["capsule-off"]=
 	GL["frame-left"]=; GL["frame-right"]=; GL["frame-bottom-left"]=
 	GL["frame-bottom"]=; GL["frame-bottom-right"]=
@@ -537,10 +536,6 @@ dt_glyphsblit() {
 	dt_bg chalk-check-off chalk-check-off
 	dt_bg slate-check-on slate-check-on
 	dt_bg slate-check-off slate-check-off
-	dt_bg chalk-switch-on chalk-switch-on-left chalk-switch-on-right
-	dt_bg chalk-switch-off chalk-switch-off-left chalk-switch-off-right
-	dt_bg slate-switch-on slate-switch-on-left slate-switch-on-right
-	dt_bg slate-switch-off slate-switch-off-left slate-switch-off-right
 	dt_bg capsule-on capsule-on-left capsule-on-mid capsule-on-right
 	dt_bg capsule-off capsule-off-left capsule-off-mid capsule-off-right
 	dt_bg chalk-close-pressed chalk-close-pressed

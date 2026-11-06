@@ -45,6 +45,11 @@ DT_POPVALS=()
 # opens and leaves the next list with none.
 DT_POPDIM=()
 DT_POPDIMNEXT=()
+# What turns a value into the words on its row, where they differ: a caller
+# sets DT_POPNAMENEXT just before dt_droplist, the same way, and the callback
+# is still handed the value.
+DT_POPNAME=
+DT_POPNAMENEXT=
 
 fn dt_droplist(int id, int r, int c, cb, ...rest) {
 	shift 4
@@ -53,6 +58,8 @@ fn dt_droplist(int id, int r, int c, cb, ...rest) {
 	DT_POPVALS=("$@")
 	DT_POPDIM=("${DT_POPDIMNEXT[@]}")
 	DT_POPDIMNEXT=()
+	DT_POPNAME=$DT_POPNAMENEXT
+	DT_POPNAMENEXT=
 	# r and c come in pane-relative, the same coordinates an app draws and
 	# is clicked in everywhere else, but dt_context_open positions on the
 	# real screen -- add the window's own row and column to convert.
@@ -62,13 +69,15 @@ fn dt_droplist(int id, int r, int c, cb, ...rest) {
 
 # Build the popup opened by dt_droplist, one item per value offered.
 dt_dropcontext() {
-	local v
+	local v l
 
 	dt_menu ""
 	for v in "${DT_POPVALS[@]}"; do
+		l=$v
+		[ -n "$DT_POPNAME" ] && l := "$DT_POPNAME" "$v"
 		case " ${DT_POPDIM[*]} " in
-		*" $v "*) dt_dim "$v" ;;
-		*) dt_item "$v" "" "$DT_POPCB" "$DT_POPID" "$v" ;;
+		*" $v "*) dt_dim "$l" ;;
+		*) dt_item "$l" "" "$DT_POPCB" "$DT_POPID" "$v" ;;
 		esac
 	done
 }

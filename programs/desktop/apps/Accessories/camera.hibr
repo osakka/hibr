@@ -2,7 +2,8 @@
 #
 # camera -- the computer's camera in a window: the live picture, Take Photo
 # (space, or the button) to keep one in ~/Pictures/Camera, and Record (r) to
-# keep the picture as a film in ~/Videos/Camera, without sound. ffmpeg
+# keep the picture as a film in ~/Videos/Camera, with the microphone's sound
+# where one answers and without it where none does. ffmpeg
 # reads the camera -- video4linux on Linux, AVFoundation on a Mac -- and
 # streams it down a pipe into a media player, the path a film takes, so the
 # picture moves at the camera's own rate. Beside that it rewrites one full
@@ -10,12 +11,14 @@
 # that pipe, so it ends with the player, however the desktop ends. A machine
 # with two cameras, or one that lists a metadata node beside its picture, is
 # tried device by device until one gives a frame; the Camera menu chooses
-# among them and among the sizes the camera says it offers.
+# among them and among the sizes the camera says it offers, and the size
+# chosen is kept for next time.
 
 strict
 
-app camera "The computer's camera in a window, and photos taken with it" 2.0
+app camera "The computer's camera in a window, and photos taken with it" 2.1
 # modules: media pty
+# part: control-panel/camset.hibr
 
 command -v dt_app > /dev/null && dt_app camera "Camera" 22 64 "" "◉"
 
@@ -23,6 +26,12 @@ command -v dt_app > /dev/null && dt_app camera "Camera" 22 64 "" "◉"
 # player, the frame it writes, the picture's size, what went wrong, the last
 # photo.
 declare -gA CAM
+
+# What Control Panel > Camera keeps: the size chosen, used wherever a camera
+# offers it, and whether a film takes the microphone.
+CAM_SIZE="${CAM_SIZE-}"
+CAM_SOUND="${CAM_SOUND-1}"
+command -v dt_keep > /dev/null && dt_keep CAM_SIZE CAM_SOUND
 
 # Where the frames are written: one file a window, in the runtime folder.
 CAM_DIR="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
@@ -80,8 +89,9 @@ fn cam_list(dev) {
 
 # Take that list for device i of window id: Motion-JPEG if it has it, which
 # ffmpeg passes on as it is, else its first raw format; the sizes it gives,
-# and the largest up to 1080 rows to start at. One that gives ranges rather
-# than sizes keeps the device's own.
+# and the largest up to 1080 rows, for when none is kept or this camera does
+# not offer it. One that gives ranges rather than sizes keeps the device's
+# own.
 fn cam_formats(int id, int i, text) {
 	local l fmt= sizes= raw= rsizes= z best= bw=0 h w
 	local -a a
@@ -112,8 +122,58 @@ fn cam_formats(int id, int i, text) {
 			best=$z
 		fi
 	done
-	CAM[$id]["size$i"]=$best
+	CAM[$id]["best$i"]=$best
+	cam_fit "$id" "$i"
 	CAM[$id]["listed$i"]=1
+}
+
+# The size device i starts at: the one kept where it offers that, else its
+# best.
+fn cam_fit(int id, int i) {
+	CAM[$id]["size$i"]=${CAM[$id]["best$i"]-}
+	[ -n "$CAM_SIZE" ] || return 0
+	case " ${CAM[$id]["sizes$i"]-} " in
+	*" $CAM_SIZE "*) CAM[$id]["size$i"]=$CAM_SIZE ;;
+	esac
+	return 0
+}
+
+# Every size an open camera offers, for the pane's list.
+fn cam_offered() {
+	local id z out=
+	local -a a
+
+	for id in "${!CAM[@]}"; do
+		read -ra a <<< "${CAM[$id]["sizes${CAM[$id]["at"]:-0}"]-}"
+		for z in "${a[@]}"; do
+			case " $out " in
+			*" $z "*) ;;
+			*) out+="${out:+ }$z" ;;
+			esac
+		done
+	done
+	ret "$out"
+}
+
+# Way number n of hearing, as ffmpeg's input options, or nothing once they
+# have run out: the sound server's default source on Linux and then ALSA's,
+# the first microphone on a Mac.
+fn cam_mic(int id, int n) {
+	local q="-thread_queue_size 1024"
+
+	if [ -n "${CAMERA_MIC-}" ]; then
+		[ "$n" = 0 ] && ret "$CAMERA_MIC"
+		ret ""
+	fi
+	if [ "${CAM[$id]["d0"]-}" = 0 ]; then
+		[ "$n" = 0 ] && ret "$q -f avfoundation -i :0"
+		ret ""
+	fi
+	case $n in
+	0) ret "$q -f pulse -i default" ;;
+	1) ret "$q -f alsa -i default" ;;
+	esac
+	ret ""
 }
 
 # The list has come: go on starting the device it was asked for.
@@ -140,7 +200,7 @@ fn cam_mode() {
 # Start ffmpeg on device number i, after stopping whatever ran before.
 fn cam_start(int id, int i) {
 	local dev=${CAM[$id]["d$i"]} f=${CAM[$id]["file"]} p v z
-	local -a src copy=(-c:v mjpeg -q:v 4) film=()
+	local -a src copy=(-c:v mjpeg -q:v 4) mic=() film=()
 
 	cam_stop "$id"
 	rm -f "$f"
@@ -166,6 +226,7 @@ fn cam_start(int id, int i) {
 		z=${CAM[$id]["fmt$i"]}
 		[ -n "$z" ] && src+=(-input_format "$z")
 		[ "$z" = mjpeg ] && copy=(-c:v copy)
+		cam_fit "$id" "$i"
 		z=${CAM[$id]["size$i"]}
 		[ -n "$z" ] && src+=(-video_size "$z")
 		src+=(-i "$dev")
@@ -182,10 +243,24 @@ fn cam_start(int id, int i) {
 	media fps "$p" 30
 	CAM[$id]["p"]=$p
 	CAM[$id]["sized"]=
-	[ -n "${CAM[$id]["rec"]-}" ] &&
-		film=(-map 0:v -an -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p
-		      -movflags +faststart -y "${CAM[$id]["rec"]}")
-	ffmpeg -nostdin -hide_banner -loglevel error -fflags nobuffer "${src[@]}" \
+	CAM[$id]["mic"]=
+	if [ -n "${CAM[$id]["rec"]-}" ]; then
+		film=(-map 0:v)
+		if [ "$CAM_SOUND" = 1 ]; then
+			z := cam_mic "$id" "${CAM[$id]["mici"]:-0}"
+			if [ -n "$z" ]; then
+				read -ra mic <<< "$z"
+				film+=(-map 1:a -c:a aac -b:a 128k)
+				CAM[$id]["mic"]=1
+			else
+				dt_notep low "This film has no sound: no microphone answered"
+			fi
+		fi
+		[ -n "${CAM[$id]["mic"]}" ] || film+=(-an)
+		film+=(-c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p
+		       -movflags +faststart -y "${CAM[$id]["rec"]}")
+	fi
+	ffmpeg -nostdin -hide_banner -loglevel error -fflags nobuffer "${src[@]}" "${mic[@]}" \
 		-map 0:v -an "${copy[@]}" -flush_packets 1 -f matroska -live 1 pipe:1 \
 		-map 0:v -an -vf fps=2 -q:v 3 -update 1 -atomic_writing 1 -y "$f" \
 		"${film[@]}" >&"$v" 2> "$f.log" &
@@ -215,6 +290,15 @@ fn cam_drain(int id) {
 	CAM[$id]["pid"]=
 	if [ -n "${CAM[$id]["again"]-}" ]; then
 		CAM[$id]["again"]=
+		cam_stop "$id"
+		cam_start "$id" "${CAM[$id]["at"]}"
+		return 0
+	fi
+	# ffmpeg opens its inputs before it writes anything, so a film not begun
+	# is a microphone that would not open: try the next way of hearing, and
+	# at the last a film without sound, rather than lose the camera.
+	if [ -n "${CAM[$id]["mic"]-}" ] && [ ! -e "${CAM[$id]["rec"]}" ]; then
+		CAM[$id]["mici"]=$((${CAM[$id]["mici"]:-0} + 1))
 		cam_stop "$id"
 		cam_start "$id" "${CAM[$id]["at"]}"
 		return 0
@@ -318,16 +402,36 @@ fn camera_draw(int id, int h, int w, int row, int col) {
 	return 0
 }
 
+# Start ffmpeg again as the window now wants it, once the one running has let
+# go of the camera: a device is busy until it has, so starting straight away
+# would fail on a real camera.
+fn cam_again(int id) {
+	if [ -z "${CAM[$id]["pid"]-}" ]; then
+		cam_start "$id" "${CAM[$id]["at"]}"
+		return 0
+	fi
+	CAM[$id]["again"]=1
+	kill "${CAM[$id]["pid"]}" 2> /dev/null
+	dt_want 30
+}
+
+# End the film being kept, if there is one: ffmpeg finishes its file on the
+# way out.
+fn cam_finish(int id) {
+	local nm=${CAM[$id]["rec"]-}
+
+	[ -n "$nm" ] || return 0
+	CAM[$id]["rec"]=
+	dt_notep low "Saved %s" "${nm##*/}"
+}
+
 # Start keeping the picture as a film, or stop. ffmpeg is started again with
-# the film as one more output, once the one before has let go of the camera,
-# and a stopped one finishes its file on the way out.
+# the film as one more output.
 fn cam_rec(int id) {
 	local d="${HOME}/Videos/Camera" nm
 
 	if [ -n "${CAM[$id]["rec"]-}" ]; then
-		nm=${CAM[$id]["rec"]##*/}
-		CAM[$id]["rec"]=
-		dt_notep low "Saved %s" "$nm"
+		cam_finish "$id"
 	else
 		if [ ! -s "${CAM[$id]["file"]}" ]; then
 			dt_notep low "The camera has no picture yet"
@@ -337,11 +441,9 @@ fn cam_rec(int id) {
 		printf -v nm 'Video %(%Y-%m-%d %H.%M.%S)T.mp4' -1
 		CAM[$id]["rec"]="$d/$nm"
 		CAM[$id]["recfrom"]=$EPOCHSECONDS
+		CAM[$id]["mici"]=0
 	fi
-	CAM[$id]["again"]=1
-	[ -n "${CAM[$id]["pid"]-}" ] && kill "${CAM[$id]["pid"]}" 2> /dev/null
-	dt_want 30
-	return 0
+	cam_again "$id"
 }
 
 # Keep the frame there now as a photo, in ~/Pictures/Camera.
@@ -391,20 +493,36 @@ fn camera_close(int id) {
 	unset "CAM[$id]"
 }
 
-# Show the window that has focus at this size.
-fn cam_usesize(size) {
-	local id=$DT_FOCUS at
+# Every open camera whose size that changes goes to it, and a film being kept
+# ends there, since a film has one size.
+fn cam_resize() {
+	local id at was
 
-	[ -n "${CAM[$id]["n"]-}" ] || return 0
-	at=${CAM[$id]["at"]}
-	CAM[$id]["size$at"]=$size
-	cam_start "$id" "$at"
+	for id in "${!CAM[@]}"; do
+		at=${CAM[$id]["at"]:-0}
+		[ -n "${CAM[$id]["listed$at"]-}" ] || continue
+		was=${CAM[$id]["size$at"]}
+		cam_fit "$id" "$at"
+		[ "${CAM[$id]["size$at"]}" != "$was" ] || continue
+		cam_finish "$id"
+		cam_again "$id"
+	done
+	return 0
+}
+
+# Keep this size, and show it.
+fn cam_usesize(size) {
+	CAM_SIZE=$size
+	dt_save
+	cam_resize
 }
 
 # Use camera number i of the window that has focus.
 fn cam_use(int i) {
 	[ -n "${CAM[$DT_FOCUS]["n"]-}" ] || return 0
-	cam_start "$DT_FOCUS" "$i"
+	cam_finish "$DT_FOCUS"
+	CAM[$DT_FOCUS]["at"]=$i
+	cam_again "$DT_FOCUS"
 }
 
 camera_menus() {

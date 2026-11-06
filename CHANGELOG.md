@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.452
+
+**A film from the Camera has sound** (owner). Record takes the microphone
+beside the picture: the sound server's default source on Linux, then ALSA's,
+and the first microphone on a Mac. One that will not open leaves a film without
+sound and a note saying so, and the camera carries on. Control Panel > Camera
+has Record Sound to leave it out.
+
+**The Camera remembers its size** (owner). A size chosen on the Camera menu is
+kept in the settings and used wherever a camera offers it, and a camera that
+does not gets its largest up to 1080 rows. Control Panel > Camera has Picture
+Size, with Automatic to go back.
+
+- **Changing size or camera waits for ffmpeg to let go of the device.** It
+  started the next one at once, which a real camera refuses as busy, and a film
+  being recorded was started again over itself. It now ends there, saved.
+- **The lists say what Blit's two styles look like** (owner). Title Bar, Window
+  Buttons and Dialog Buttons offer Flat and Embossed. What is kept is still
+  chalk or slate.
+- **A checkbox follows the window** (owner). Checkboxes no longer offers Blit's
+  chalk and slate boxes or switches: a box is Blit's flat one under a Flat title
+  bar and its embossed one under Embossed, and Capsule is the one Blit switch.
+- **The Slate theme is gone** (owner). It was Pewter's colours under a name that
+  is also a Blit style. Embossed stays, as a value of each setting.
+- **Frame lists Edge before None** (owner).
+
 ## 0.99.451
 
 **The Camera is live** (Gitea #479). It moved about once a second, because each
