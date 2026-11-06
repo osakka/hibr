@@ -3612,6 +3612,14 @@ went in the shell.
   rather than as the rename having overwritten it. Read the **parent's**
   instead: the shell that started it is not renamed, and that is where
   `TERM=xterm-kitty` and `SSH_CONNECTION` were found while settling #215.
+- **Never attach to a session somebody is using, `-m` or not, until Gitea
+  #482 is understood.** An unplaced `hold attach -m` from a 200x60 display
+  turned the owner's three-display session white for as long as it stayed
+  (2026-11-06): "joins as an extra display" had been read as "passive" and
+  never tested beyond two displays. What a live Blit desktop draws comes
+  from Blit's read-only `GET /v1/surfaces/<id>/cells`. The rest of this
+  entry is how #175 was settled on a single display, at the session's own
+  size, with its owner's say-so.
 - **Diagnose a live session by attaching a second display to it, not by
   building a reproduction -- and `hold attach` without `-m` takes the
   owner's display away.** #175 cost six refuted mechanisms before anything

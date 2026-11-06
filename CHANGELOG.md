@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.99.457
+
+**A menu opens under its title** (owner). A window with fewer menus than the last
+one put a bar menu on the index a submenu had held, and it opened where that
+submenu had been. On the owner's desktop that was Window at row 3, column 41,
+under every app whose menus reached that index, once a submenu of the hibr menu
+had been opened.
+
 ## 0.99.456
 
 **A click on the menu behind a submenu acts on that row** (owner, Gitea #481).

@@ -1977,6 +1977,30 @@ ai = sc.find("Arrange Icons")
 check("and opens at the pointer, not where a submenu held that index",
       ai is not None and ai[0] > 14 and ai[1] > 50, sc)
 
+# And a bar menu inherits one just the same: a window with fewer menus puts its
+# Window menu on the index a submenu of the last window held, and it drew there
+# rather than under its title -- at row 3, column 41 on the owner's desktop,
+# with every app whose menus reached that index.
+STALE = (
+    'big_draw() { console put -p "w$1" 1 2 "big"; }\n'
+    'big_menus() { dt_menu "File"; dt_item One o :; dt_editmenu;\n'
+    '  dt_menu "Beta"; dt_item Pad p :; dt_item Pod d :; dt_sub "FolderB"; dt_item Bi i :; dt_end; }\n'
+    'small_draw() { console put -p "w$1" 1 2 "small"; }\n'
+    'small_menus() { dt_menu "File"; dt_item One o :; dt_editmenu;\n'
+    '  dt_menu "Shell"; dt_item Sh s :; }\n'
+    'dt_new "Big" 6 24 4 4 big\n'
+    'dt_new "Small" 6 24 14 4 small\n')
+sc, _ = run(STALE, [press(4, 10)])
+bc = sc.row(0).find("Beta")
+fb = run(STALE, [press(4, 10), press(0, bc)])[0].find("FolderB")
+sc, _ = run(STALE, [press(4, 10), press(0, bc), press(fb[0], fb[1]), press(22, 5), press(14, 10)])
+wc = sc.row(0).find("Window")
+sc, _ = run(STALE, [press(4, 10), press(0, bc), press(fb[0], fb[1]), press(22, 5), press(14, 10),
+                    press(0, wc)])
+mv = sc.find("Move")
+check("a bar menu opens under its title, not where a submenu held that index",
+      mv is not None and mv[0] == 1 and abs(mv[1] - wc) <= 3, (wc, mv, sc))
+
 TWO = TWO_DEF
 
 sc, _ = run(TWO)
@@ -9215,4 +9239,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(999)
+report(1000)

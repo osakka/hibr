@@ -84,7 +84,8 @@ fn dt_menu(title) {
 	# cleared here: dt_mdown sets them while input is read and the rebuild
 	# runs afterwards, so clearing them would make every open submenu snap
 	# back to its bar title's column on the next frame. dt_ctxbuild clears
-	# them for the one entry that must always draw at the pointer.
+	# them for the one entry that must always draw at the pointer, and
+	# dt_mpx ignores them for a bar menu.
 	MB[$MB_N]["par"]=
 	MB_CUR=$MB_N
 	MB_N=$((MB_N + 1))
@@ -951,7 +952,7 @@ dt_layoutm() {
 
 # Draw the open menu over everything else.
 dt_drop() {
-	local m=$MB_OPEN p
+	local m=$MB_OPEN p x
 	local -a up=()
 
 	[ "$m" = -1 ] && return 0
@@ -968,9 +969,20 @@ dt_drop() {
 		p=${MB[$p]["par"]}
 	done
 	for p in "${up[@]}"; do
-		dt_menu_draw "$p" "${MB[$p]["px"]}" 1
+		x := dt_mpx "$p"
+		dt_menu_draw "$p" "$x" 1
 	done
-	dt_menu_draw "$m" "${MB[$m]["px"]}" 0
+	x := dt_mpx "$m"
+	dt_menu_draw "$m" "$x" 0
+}
+
+# The column menu m was given, which only a submenu has. A bar menu drops from
+# its title whatever its index held before: the table is rebuilt every frame,
+# so a window with fewer menus puts one where a submenu was, and its px is
+# still there.
+fn dt_mpx(int m) {
+	[ "${MB[$m]["bar"]}" = 1 ] && ret ""
+	ret "${MB[$m]["px"]}"
 }
 
 # Draw one menu at its own place.  A submenu is given the column its parent
