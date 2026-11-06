@@ -994,7 +994,7 @@ check("the colour popup offers black, neon, phosphor and amber",
 sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 7, VALCOL + 3)])
 check("and choosing dracula applies it",
       "dracula" in brow(sc, "Colours") and sc.find("midnight") is None, sc)
-sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 17, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 18, VALCOL + 3)])
 check("and phosphor, further down the list",
       "phosphor" in brow(sc, "Colours"), sc)
 
@@ -1521,8 +1521,8 @@ out = subprocess.run(
 shutil.rmtree(TD, True)
 check("every bundled colour scheme is listed, sorted, with a new one of the "
       "person's own among them",
-      out[0] == "amber black chalk charcoal dracula ember forest hazard meadow midnight neon "
-      "paper pewter pewter-dark phosphor slate zinc", out)
+      out[0] == "amber black chalk charcoal dracula ember forest hazard meadow midnight navy "
+      "neon paper pewter pewter-dark phosphor zinc", out)
 check("a scheme of the person's own replaces the bundled one of that name",
       out[1] == "#010203 70", out)
 check("the bundled ones still apply as before", out[2] == "#0d1b2a", out)
@@ -6020,6 +6020,53 @@ if shutil.which("ffmpeg"):
           len(camphotos()) == 1 and camphotos()[0].startswith("Photo "), (camphotos(), sc))
 else:
     check("Camera draws the camera's picture (skipped: no ffmpeg here)", True)
+# The picture is a film's, down a pipe into a media player: it used to be a
+# JPEG redrawn through a cache keyed on the file's time in whole seconds, so
+# it moved about once a second. How many different frames a second go by
+# says it moves at the camera's rate, and what ffmpeg lists says which sizes
+# a real camera offers, with none on the machine that runs this.
+if shutil.which("ffmpeg"):
+    camf = os.path.join(camh, "shown")
+    sc = run("camera", "22 64 2 2",
+             env={"HOME": camh, "HIBR_MEDIA_AUDIO": "none",
+                  "CAMERA_SRC": "-re -f lavfi -i testsrc=size=640x360:rate=30"},
+             pre='ck() { local k p; local -A i; for k in "${!CAM[@]}"; do p=${CAM[$k]["p"]}; '
+                 '[ -n "$p" ] || continue; i := media info "$p"; echo "${i["shown"]}" >> %s; '
+                 'done; dt_want 30; }\ndt_ticker ck' % camf,
+             feed=[4.0], ready=lambda s: any("▀" * 20 in s.row(r) for r in range(3, 20)),
+             tries=80)
+    seen = set(open(camf).read().split()) if os.path.exists(camf) else set()
+    check("and it moves: many different frames in a few seconds, not one a second",
+          len(seen) >= 12, len(seen))
+    t = ("[video4linux2,v4l2 @ 0x5] Raw       :     yuyv422 :           YUYV 4:2:2 : 640x480 320x240\n"
+         "[video4linux2,v4l2 @ 0x5] Compressed:       mjpeg :          Motion-JPEG : 3840x2160 1920x1080 1280x720 640x480\n")
+    r = subprocess.run([sx.HIBR, "-c", '. %s\ncam_formats 1 0 "$1"\necho "${CAM[1]["fmt0"]}|${CAM[1]["size0"]}|${CAM[1]["sizes0"]}"'
+                        % tree("programs/desktop/apps/Accessories/camera.hibr"), "x", t],
+                       capture_output=True, text=True)
+    check("a camera's own list gives Motion-JPEG and the largest size up to 1080 rows",
+          r.stdout.strip() == "mjpeg|1920x1080| 3840x2160 1920x1080 1280x720 640x480", (r.stdout, r.stderr))
+    # r starts a film and r again finishes it, and the picture goes on after.
+    def camfilms():
+        d = os.path.join(camh, "Videos", "Camera")
+        return [os.path.join(d, f) for f in os.listdir(d)] if os.path.isdir(d) else []
+
+    sc = run("camera", "22 64 2 2",
+             env={"HOME": camh, "HIBR_MEDIA_AUDIO": "none",
+                  "CAMERA_SRC": "-re -f lavfi -i testsrc=size=640x360:rate=30"},
+             feed=[b"r", 3.0, b"r", 2.5], tries=80,
+             ready=lambda s: any("▀" * 20 in s.row(r) for r in range(3, 20)))
+    films = camfilms()
+    dur = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
+                          "csv=p=0", films[0]], capture_output=True, text=True).stdout if films else ""
+    check("r records a film in ~/Videos/Camera, whole and playable",
+          len(films) == 1 and films[0].endswith(".mp4") and float(dur or 0) > 0.5, (films, dur))
+    check("and the picture goes on after it",
+          any("▀" * 20 in sc.row(r) for r in range(3, 20)), sc)
+else:
+    check("and it moves (skipped: no ffmpeg here)", True)
+    check("r records a film (skipped: no ffmpeg here)", True)
+    check("and the picture goes on after it (skipped: no ffmpeg here)", True)
+    check("a camera's own list (skipped: no ffmpeg here)", True)
 if not any(f.startswith("video") for f in os.listdir("/dev")):
     sc = run("camera", "22 64 2 2", env={"HOME": camh},
              until=lambda s: s.find("No camera") is not None)
@@ -6038,4 +6085,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(788)
+report(792)

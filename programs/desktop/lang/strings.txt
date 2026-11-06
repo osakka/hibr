@@ -601,7 +601,6 @@ Icons
 Identify
 Image
 Image Viewer
-Image support isn't installed
 Images
 Import CSV…
 Imported %s rows from %s
@@ -1003,9 +1002,11 @@ Rabi' al-Thani
 Rajab
 Ramadan
 Read It
+Record
 Record %s added
 Record No. %s -- enter after the last field adds it, escape stops
 Recorded in your calendar
+Recording %s
 Records
 Redo
 Refresh
@@ -1199,6 +1200,7 @@ Stickies
 Sticky
 Still working
 Stop
+Stop Recording
 Stopped after %s item
 Stopped after %s items
 Stopped; nothing was done
@@ -1372,6 +1374,7 @@ Users: %s
 VERSION
 Vault
 Versions
+Video support isn't installed
 View
 View Details
 View History

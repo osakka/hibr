@@ -12,7 +12,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.12
+app appearance "The Control Panel pane for how the desktop looks" 2.13
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -20,8 +20,8 @@ CP_COLOURS="${CP_COLOURS-midnight}"
 command -v dt_keep > /dev/null && dt_keep CP_THEME CP_COLOURS
 
 # How an on/off choice is drawn: what the theme suggests, a box, a knob, a
-# block or a tick -- see DT_CHECKS in wm/settings.hibr.
-CP_CHECKS=(theme box knob block tick)
+# block, a tick or one of Blit's own -- see DT_CHECKS in wm/settings.hibr.
+CP_CHECKS=(theme box knob block tick chalk slate chalk-switch slate-switch capsule)
 fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
 
 # A colour scheme is a JSON file (lib/colours.hibr says what is in one).
@@ -517,7 +517,11 @@ fn appearance_do(int w, k, int dir) {
 	themesave) cp_themesave; return 0 ;;
 	themerename) cp_themerename; return 0 ;;
 	themedel) cp_themedelask; return 0 ;;
-	checks) v := cp_next "$DT_CHECKS" "$dir" "${CP_CHECKS[@]}"; DT_CHECKS=$v ;;
+	checks) fl := dt_chromeavail "${CP_CHECKS[@]}"
+	        DT_POPDIMNEXT=()
+	        read -ra fa <<< "$fl"
+	        v := cp_next "$DT_CHECKS" "$dir" "${fa[@]}"
+	        DT_CHECKS=$v ;;
 	treestyle) v := cp_next "$DT_TREESTYLE" "$dir" "${DT_TREESTYLES[@]}"
 	           DT_TREESTYLE=$v ;;
 	treelines)
@@ -546,7 +550,8 @@ fn appearance_drop(int w, int r, int c, k) {
 	case $k in
 	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
 	colours) dt_droplist "$w" "$r" "$c" cp_set_colours "${CP_COLOURLIST[@]}" ;;
-	checks) dt_droplist "$w" "$r" "$c" cp_set_checks "${CP_CHECKS[@]}" ;;
+	checks) dt_chromeavail "${CP_CHECKS[@]}"
+	        dt_droplist "$w" "$r" "$c" cp_set_checks "${CP_CHECKS[@]}" ;;
 	treestyle) dt_droplist "$w" "$r" "$c" cp_set_treestyle \
 		"${DT_TREESTYLES[@]}" ;;
 	treelines) dt_droplist "$w" "$r" "$c" cp_set_treelines \

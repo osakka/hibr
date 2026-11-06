@@ -1326,6 +1326,28 @@ check("Window Buttons draws the buttons on any title bar: circles on a Chalk bar
       not row[2].startswith("C:") and row[2].strip() != "", row)
 
 
+# Blit's on/off controls as Control Panel > Appearance > Checkboxes offers them,
+# by their code points, drawn through the one widget every app calls.
+CHKAPP = ('fn chk_draw(int id, int h, int w, int row, int col) { dt_check "$id" 1 1 1 "On"; '
+          'dt_check "$id" 2 1 0 "Off"; }\ndt_app chk Chk 6 24\ndt_new Chk 6 24 2 2 chk\n')
+
+
+def chkcells(style, blit=True):
+    sc, _ = run(CHKAPP, pre=("DT_GLYPHSET=blit; " if blit else "") + "DT_CHECKS=%s\n" % style)
+    return sc, [ord(sc.g[3][c][0]) if sc.g[3][c] else 32 for c in range(3, 8)]
+
+
+sc, on = chkcells("chalk")
+check("Checkboxes chalk is Blit's Chalk box, the label a cell on",
+      on[0] == 0x10029B and sc.find("On") == (3, 5), [hex(x) for x in on])
+sc, on = chkcells("capsule")
+check("and capsule its three-cell switch, side by side, the label after it",
+      on[:3] == [0x1002AB, 0x1002AC, 0x1002AD] and sc.find("On") == (3, 7), [hex(x) for x in on])
+sc, on = chkcells("slate-switch", blit=False)
+check("and away from Blit's glyphs a switch is a knob",
+      sc.find("o)") is not None or sc.find("●)") is not None, sc)
+
+
 def glyphconfirm(pre):
     path = scratch("glyphconfirm.hibr")
     open(path, "w").write("%s. %s\n%s\ndt_open\ndt_confirm 'Delete this?' true desktop\n"
@@ -9140,4 +9162,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(984)
+report(987)

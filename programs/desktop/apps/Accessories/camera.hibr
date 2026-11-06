@@ -1,25 +1,27 @@
 #!/usr/bin/env hibr
 #
-# camera -- the computer's camera in a window: the live picture, and Take
-# Photo (space, or the button) to keep one in ~/Pictures/Camera. ffmpeg
+# camera -- the computer's camera in a window: the live picture, Take Photo
+# (space, or the button) to keep one in ~/Pictures/Camera, and Record (r) to
+# keep the picture as a film in ~/Videos/Camera, without sound. ffmpeg
 # reads the camera -- video4linux on Linux, AVFoundation on a Mac -- and
-# rewrites one small JPEG a few times a second, atomically, so the window
-# never reads half a frame; the window draws it with the img module the way
-# the Image Viewer draws a file. ffmpeg runs on a pty of the desktop's own
-# (dt_watchstart), so it ends with the desktop however the desktop ends,
-# and with the window when it closes. A machine with two cameras, or one
-# that lists a metadata node beside its picture, is tried device by device
-# until one gives a frame; the Camera menu chooses among them.
+# streams it down a pipe into a media player, the path a film takes, so the
+# picture moves at the camera's own rate. Beside that it rewrites one full
+# size JPEG twice a second, which is what a photo copies. ffmpeg writes to
+# that pipe, so it ends with the player, however the desktop ends. A machine
+# with two cameras, or one that lists a metadata node beside its picture, is
+# tried device by device until one gives a frame; the Camera menu chooses
+# among them and among the sizes the camera says it offers.
 
 strict
 
-app camera "The computer's camera in a window, and photos taken with it" 1.0
-# modules: img pty
+app camera "The computer's camera in a window, and photos taken with it" 2.0
+# modules: media pty
 
 command -v dt_app > /dev/null && dt_app camera "Camera" 22 64 "" "◉"
 
-# Per window: the devices, the one in use, ffmpeg's pty and descriptor, the
-# frame it writes, the picture's size, what went wrong, the last photo.
+# Per window: the devices, the one in use, what each offers, ffmpeg's pid, the
+# player, the frame it writes, the picture's size, what went wrong, the last
+# photo.
 declare -gA CAM
 
 # Where the frames are written: one file a window, in the runtime folder.
@@ -69,64 +71,166 @@ fn camera_open(int id, arg = "") {
 	cam_start "$id" 0
 }
 
+# What video4linux says device dev offers, for a job: ffmpeg prints it and
+# ends with a failure, there being nothing to read.
+fn cam_list(dev) {
+	ffmpeg -hide_banner -f v4l2 -list_formats all -i "$dev" 2>&1
+	return 0
+}
+
+# Take that list for device i of window id: Motion-JPEG if it has it, which
+# ffmpeg passes on as it is, else its first raw format; the sizes it gives,
+# and the largest up to 1080 rows to start at. One that gives ranges rather
+# than sizes keeps the device's own.
+fn cam_formats(int id, int i, text) {
+	local l fmt= sizes= raw= rsizes= z best= bw=0 h w
+	local -a a
+
+	while IFS= read -r l; do
+		case $l in
+		*Compressed:*mjpeg*) fmt=mjpeg sizes=${l##*: } ;;
+		*Raw*:*)
+			[ -n "$raw" ] && continue
+			z=${l#*Raw}
+			z=${z#*:}
+			read -r raw _ <<< "$z"
+			rsizes=${l##*: }
+			;;
+		esac
+	done <<< "$text"
+	[ -n "$fmt" ] || { fmt=$raw; sizes=$rsizes; }
+	CAM[$id]["fmt$i"]=$fmt
+	CAM[$id]["sizes$i"]=
+	read -ra a <<< "$sizes"
+	for z in "${a[@]}"; do
+		[[ $z =~ ^[0-9]+x[0-9]+$ ]] || continue
+		CAM[$id]["sizes$i"]+=" $z"
+		w=${z%x*}
+		h=${z#*x}
+		if [ "$h" -le 1080 ] && [ "$w" -gt "$bw" ]; then
+			bw=$w
+			best=$z
+		fi
+	done
+	CAM[$id]["size$i"]=$best
+	CAM[$id]["listed$i"]=1
+}
+
+# The list has come: go on starting the device it was asked for.
+fn cam_listed(int n, int st) {
+	local id=${DTJ[$n]["tag"]} f t
+
+	[ -n "${CAM[$id]["n"]-}" ] || return 0
+	f := dt_jobfile "$n"
+	t=$(< "$f")
+	cam_formats "$id" "${CAM[$id]["at"]}" "$t"
+	cam_start "$id" "${CAM[$id]["at"]}"
+}
+
+# How the picture is drawn: Control Panel > Pictures' answer, as a film's is.
+fn cam_mode() {
+	case ${DT_IMGMODE:-auto} in
+	pixels | sixel) ret pixels ;;
+	half | mono | ascii) ret "$DT_IMGMODE" ;;
+	esac
+	dt_imgpix && ret pixels
+	ret half
+}
+
 # Start ffmpeg on device number i, after stopping whatever ran before.
 fn cam_start(int id, int i) {
-	local dev=${CAM[$id]["d$i"]} f=${CAM[$id]["file"]}
-	local -a src
+	local dev=${CAM[$id]["d$i"]} f=${CAM[$id]["file"]} p v z
+	local -a src copy=(-c:v mjpeg -q:v 4) film=()
 
 	cam_stop "$id"
 	rm -f "$f"
 	CAM[$id]["at"]=$i
 	CAM[$id]["err"]=
 	CAM[$id]["iw"]=
-	CAM[$id]["said"]=
 	if [ -n "${CAMERA_SRC-}" ]; then
 		read -ra src <<< "$CAMERA_SRC"
 	elif [ "$dev" = 0 ] && [ ! -e "$dev" ]; then
 		src=(-f avfoundation -framerate 30 -i 0)
 	else
-		src=(-f v4l2 -i "$dev")
+		src=(-f v4l2)
 	fi
 	if ! command -v ffmpeg > /dev/null; then
 		CAM[$id]["err"] := dt_tr "The camera needs ffmpeg, which is not installed"
 		return 0
 	fi
-	dt_watchstart ffmpeg -nostdin -hide_banner -loglevel error "${src[@]}" \
-		-vf "fps=6,scale=640:-2" -q:v 4 -update 1 -atomic_writing 1 -y "$f"
-	CAM[$id]["fd"]=$DT_WFD
-	CAM[$id]["pty"]=$DT_WPTY
-	[ -n "$DT_WPTY" ] || CAM[$id]["err"] := dt_tr "The camera could not be started"
+	if [ "${src[1]-}" = v4l2 ]; then
+		if [ -z "${CAM[$id]["listed$i"]-}" ]; then
+			dt_job camera "$id" cam_listed cam_list "$dev" > /dev/null
+			return 0
+		fi
+		z=${CAM[$id]["fmt$i"]}
+		[ -n "$z" ] && src+=(-input_format "$z")
+		[ "$z" = mjpeg ] && copy=(-c:v copy)
+		z=${CAM[$id]["size$i"]}
+		[ -n "$z" ] && src+=(-video_size "$z")
+		src+=(-i "$dev")
+	fi
+	need media 2> /dev/null || {
+		CAM[$id]["err"] := dt_tr "Video support isn't installed"
+		return 0
+	}
+	p := media feed 2> /dev/null || {
+		CAM[$id]["err"] := dt_tr "The camera could not be started"
+		return 0
+	}
+	v := media pipe "$p" video
+	media fps "$p" 30
+	CAM[$id]["p"]=$p
+	CAM[$id]["sized"]=
+	[ -n "${CAM[$id]["rec"]-}" ] &&
+		film=(-map 0:v -an -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p
+		      -movflags +faststart -y "${CAM[$id]["rec"]}")
+	ffmpeg -nostdin -hide_banner -loglevel error -fflags nobuffer "${src[@]}" \
+		-map 0:v -an "${copy[@]}" -flush_packets 1 -f matroska -live 1 pipe:1 \
+		-map 0:v -an -vf fps=2 -q:v 3 -update 1 -atomic_writing 1 -y "$f" \
+		"${film[@]}" >&"$v" 2> "$f.log" &
+	CAM[$id]["pid"]=$!
 	return 0
 }
 
 # Stop the window's ffmpeg, if one runs.
 fn cam_stop(int id) {
-	[ -n "${CAM[$id]["pty"]-}" ] || return 0
-	dt_watchstop "${CAM[$id]["fd"]}" "${CAM[$id]["pty"]}"
-	CAM[$id]["pty"]=
-	CAM[$id]["fd"]=
+	if [ -n "${CAM[$id]["pid"]-}" ]; then
+		kill "${CAM[$id]["pid"]}" 2> /dev/null
+		CAM[$id]["pid"]=
+	fi
+	if [ -n "${CAM[$id]["p"]-}" ]; then
+		media close "${CAM[$id]["p"]}" 2> /dev/null
+		CAM[$id]["p"]=
+	fi
 }
 
-# Read what ffmpeg has said, and notice it ending: before a first frame the
-# next device is tried, after one the window says the camera stopped.
+# Notice ffmpeg ending: before a first frame the next device is tried, after
+# one the window says the camera stopped, in ffmpeg's own words if it left any.
 fn cam_drain(int id) {
-	local l n
+	local l n said=
 
-	[ -n "${CAM[$id]["pty"]-}" ] || return 0
-	if dt_watchlines "${CAM[$id]["pty"]}"; then
-		for l in "${DT_WLINES[@]}"; do
-			[ -n "$l" ] && CAM[$id]["said"]=$l
-		done
+	[ -n "${CAM[$id]["pid"]-}" ] || return 0
+	kill -0 "${CAM[$id]["pid"]}" 2> /dev/null && return 0
+	CAM[$id]["pid"]=
+	if [ -n "${CAM[$id]["again"]-}" ]; then
+		CAM[$id]["again"]=
+		cam_stop "$id"
+		cam_start "$id" "${CAM[$id]["at"]}"
 		return 0
 	fi
+	while IFS= read -r l; do
+		[ -n "$l" ] && said=$l
+	done 2> /dev/null < "${CAM[$id]["file"]}.log"
 	cam_stop "$id"
+	CAM[$id]["rec"]=
 	n=$((${CAM[$id]["at"]} + 1))
 	if [ ! -s "${CAM[$id]["file"]}" ] && [ "$n" -lt "${CAM[$id]["n"]}" ]; then
 		cam_start "$id" "$n"
 		return 0
 	fi
-	if [ -n "${CAM[$id]["said"]}" ]; then
-		CAM[$id]["err"]=${CAM[$id]["said"]}
+	if [ -n "$said" ]; then
+		CAM[$id]["err"]=$said
 	else
 		CAM[$id]["err"] := dt_tr "The camera stopped"
 	fi
@@ -146,13 +250,22 @@ fn cam_cell() {
 }
 
 fn camera_draw(int id, int h, int w, int row, int col) {
-	local f=${CAM[$id]["file"]} ph=$((h - 3)) z cell cw ch dr dc bw t
+	local f=${CAM[$id]["file"]} ph=$((h - 3)) cell cw ch dr dc bw t p md ms rl s
+	local -A i
 
 	cam_drain "$id"
-	bw := dt_btnw "Take Photo"
+	rl=Record
+	[ -n "${CAM[$id]["rec"]-}" ] && rl="Stop Recording"
+	bw := dt_btnw "Take Photo" "$rl"
 	console pen "$DT_INK" "$DT_FACE"
-	dt_buttons "$id" $((h - 1)) $(((w - bw) / 2 + 1)) "${CAM[$id]["focus"]}" shot "Take Photo"
-	if [ -n "${CAM[$id]["shot"]}" ]; then
+	dt_buttons "$id" $((h - 1)) $(((w - bw) / 2 + 1)) "${CAM[$id]["focus"]}" shot "Take Photo" rec "$rl"
+	if [ -n "${CAM[$id]["rec"]-}" ]; then
+		s=$((EPOCHSECONDS - ${CAM[$id]["recfrom"]}))
+		printf -v t '%d:%02d' $((s / 60)) $((s % 60))
+		t := dt_tr "Recording %s" "$t"
+		console pen "$DT_BAD" "$DT_FACE"
+		console put -p "w$id" $((h - 1)) 2 "${GL[bullet]} $t"
+	elif [ -n "${CAM[$id]["shot"]}" ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		t := dt_cut "${CAM[$id]["shot"]##*/}" $(((w - bw) / 2 - 2))
 		console put -p "w$id" $((h - 1)) 2 "$t"
@@ -163,23 +276,23 @@ fn camera_draw(int id, int h, int w, int row, int col) {
 		console put -p "w$id" $((ph / 2)) 2 "$t"
 		return 0
 	fi
-	dt_want 160
-	if [ ! -s "$f" ]; then
+	if [ ! -s "$f" ] || [ -z "${CAM[$id]["p"]}" ]; then
+		dt_want 160
 		console pen "$DT_IDLE" "$DT_FACE"
 		t := dt_tr "Starting the camera%s" "${GL[ellipsis]}"
 		console put -p "w$id" $((ph / 2)) $(((w - ${#t}) / 2)) "$t"
 		return 0
 	fi
-	if ! dt_has img; then
-		need img 2> /dev/null || {
-			CAM[$id]["err"] := dt_tr "Image support isn't installed"
-			return 0
-		}
-	fi
+	p=${CAM[$id]["p"]}
 	if [ -z "${CAM[$id]["iw"]}" ]; then
-		z := img size "$f" 2> /dev/null || return 0
-		CAM[$id]["iw"]=${z% *}
-		CAM[$id]["ih"]=${z#* }
+		i := media info "$p"
+		CAM[$id]["iw"]=${i["width"]}
+		CAM[$id]["ih"]=${i["height"]}
+		if [ "${CAM[$id]["iw"]:-0}" = 0 ]; then
+			CAM[$id]["iw"]=
+			dt_want 30
+			return 0
+		fi
 	fi
 	# Fitted at its own shape, centred.
 	cell := cam_cell
@@ -192,9 +305,42 @@ fn camera_draw(int id, int h, int w, int row, int col) {
 	fi
 	[ "$dr" -lt 1 ] && dr=1
 	[ "$dc" -lt 1 ] && dc=1
-	dt_imgm
-	img draw "$f" $((1 + (ph - dr) / 2)) $((1 + (w - dc) / 2)) "$dr" "$dc" \
-		"${DT_IMGARG[@]}" -p "w$id" 2> /dev/null
+	md := cam_mode
+	if [ "${CAM[$id]["sized"]}" != "$dc $dr $md" ]; then
+		media size "$p" "$dc" "$dr" "$md"
+		CAM[$id]["sized"]="$dc $dr $md"
+	fi
+	media frame "$p"
+	media draw "$p" $((1 + (ph - dr) / 2)) $((1 + (w - dc) / 2)) -p "w$id" 2> /dev/null
+	ms := media next "$p"
+	[ "${ms:--1}" -ge 0 ] && [ "$ms" -le 33 ] || ms=33
+	dt_want "$ms"
+	return 0
+}
+
+# Start keeping the picture as a film, or stop. ffmpeg is started again with
+# the film as one more output, once the one before has let go of the camera,
+# and a stopped one finishes its file on the way out.
+fn cam_rec(int id) {
+	local d="${HOME}/Videos/Camera" nm
+
+	if [ -n "${CAM[$id]["rec"]-}" ]; then
+		nm=${CAM[$id]["rec"]##*/}
+		CAM[$id]["rec"]=
+		dt_notep low "Saved %s" "$nm"
+	else
+		if [ ! -s "${CAM[$id]["file"]}" ]; then
+			dt_notep low "The camera has no picture yet"
+			return 0
+		fi
+		mkdir -p "$d" 2> /dev/null
+		printf -v nm 'Video %(%Y-%m-%d %H.%M.%S)T.mp4' -1
+		CAM[$id]["rec"]="$d/$nm"
+		CAM[$id]["recfrom"]=$EPOCHSECONDS
+	fi
+	CAM[$id]["again"]=1
+	[ -n "${CAM[$id]["pid"]-}" ] && kill "${CAM[$id]["pid"]}" 2> /dev/null
+	dt_want 30
 	return 0
 }
 
@@ -219,6 +365,7 @@ fn cam_shot(int id) {
 fn camera_key(int id, key) {
 	case $key in
 	" " | enter) cam_shot "$id" ;;
+	r) cam_rec "$id" ;;
 	*) return 1 ;;
 	esac
 	return 0
@@ -229,18 +376,29 @@ fn camera_click(int id, int r, int c, btn = "") {
 
 	tag := dt_hit "$id" "$r" "$c" || return 0
 	[ "$tag" = shot ] && cam_shot "$id"
+	[ "$tag" = rec ] && cam_rec "$id"
 	return 0
 }
 
-# Read ffmpeg while the window is not drawn, so its pty never fills.
+# Notice ffmpeg ending while the window is not drawn.
 fn camera_idle(int id) {
 	cam_drain "$id"
 }
 
 fn camera_close(int id) {
 	cam_stop "$id"
-	rm -f "${CAM[$id]["file"]}"
+	rm -f "${CAM[$id]["file"]}" "${CAM[$id]["file"]}.log"
 	unset "CAM[$id]"
+}
+
+# Show the window that has focus at this size.
+fn cam_usesize(size) {
+	local id=$DT_FOCUS at
+
+	[ -n "${CAM[$id]["n"]-}" ] || return 0
+	at=${CAM[$id]["at"]}
+	CAM[$id]["size$at"]=$size
+	cam_start "$id" "$at"
 }
 
 # Use camera number i of the window that has focus.
@@ -250,11 +408,18 @@ fn cam_use(int i) {
 }
 
 camera_menus() {
-	local id=$DT_FOCUS i=0 n
+	local id=$DT_FOCUS i=0 n at z
+	local -a a
 
 	dt_menu "File"
 	dt_item "Take Photo" t cam_shot "$id"
 	dt_rowaccel "space"
+	if [ -n "${CAM[$id]["rec"]-}" ]; then
+		dt_item "Stop Recording" r cam_rec "$id"
+	else
+		dt_item "Record" r cam_rec "$id"
+	fi
+	dt_rowaccel "r"
 	dt_sep
 	dt_item "Close" w dt_close_focused
 	dt_editmenu
@@ -267,5 +432,14 @@ camera_menus() {
 	while [ "$i" -lt "$n" ]; do
 		dt_mark "${CAM[$id]["d$i"]}" "" $(( i == ${CAM[$id]["at"]:-0} )) cam_use "$i"
 		i=$((i + 1))
+	done
+	at=${CAM[$id]["at"]:-0}
+	read -ra a <<< "${CAM[$id]["sizes$at"]-}"
+	[ "${#a[@]}" -gt 0 ] || return 0
+	dt_sep
+	for z in "${a[@]}"; do
+		i=0
+		[ "$z" = "${CAM[$id]["size$at"]}" ] && i=1
+		dt_mark "$z" "" "$i" cam_usesize "$z"
 	done
 }

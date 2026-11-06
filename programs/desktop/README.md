@@ -347,7 +347,7 @@ the marks a collapsible tree wears, so a theme that draws its windows one
 way does not leave every tree looking like the one before it) and
 `treelines` (`true` or `false`, the rules joining a child to its branch),
 `side` (`right`, `left`, `split`), `align` (`left`,
-`center`, `right`), `checks` (`theme`, `box`, `knob`, `block`, `tick`),
+`center`, `right`), `checks` (`theme`, `box`, `knob`, `block`, `tick`, `chalk`, `slate`, `chalk-switch`, `slate-switch`, `capsule`),
 `dialog` (`filled`, `brackets`, `chalk`, `slate`), `shadowshape` (`half`,
 `cols`, `thin`), `glyphs` (`unicode`, `ascii`, `nerd`,
 `blit`), `band` (`frame`,

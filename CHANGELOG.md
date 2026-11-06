@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.451
+
+**The Camera is live** (Gitea #479). It moved about once a second, because each
+frame was a JPEG redrawn through an image cache keyed on the file's time in
+whole seconds. It now streams into a media player, the path a film takes, at
+the camera's own rate and size, drawn in pixels where the display can. The
+Camera menu lists the sizes the camera offers, starting at the largest up to
+1080 rows, and photos are taken at full size. Record (r) keeps the picture as
+an MP4 in ~/Videos/Camera, without sound so far.
+
+**Blit's checkboxes and switches** (Blit 0.3.40), which never reached hibr.
+Control Panel > Appearance > Checkboxes now offers chalk, slate, chalk-switch,
+slate-switch and capsule, and the Chalk and Slate themes use theirs. They are
+a box or a knob wherever Blit's glyphs are not in force.
+
+- **A display let go while it was joining is told so.** A session detached at
+  that moment killed the client with SIGPIPE, silently, with its shell.
+- **The old blue colour scheme called Slate is now Navy** (owner). It shared the
+  name with Blit's grey Slate theme and had nothing to do with it.
+
 ## 0.99.450
 
 **See Through is a tint of the theme** (owner). A see-through window, the menu

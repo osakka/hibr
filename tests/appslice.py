@@ -45,7 +45,7 @@ SUITES = {
                      "the terminal window", "glyphs", "what a frame redraws"],
             "more": None,
         },
-        "plan": {"panel": 323, "reach": 75, "office": 37, "write": 39, "core": 136, "more": 183},
+        "plan": {"panel": 323, "reach": 75, "office": 37, "write": 39, "core": 136, "more": 187},
         "tail": "shutil.rmtree(D, True)\nshutil.rmtree(S, True)\n",
     },
     "desktop": {
@@ -66,7 +66,7 @@ SUITES = {
                          "a session older than the desktop inside it (Gitea #174)"],
             "session": None,
         },
-        "plan": {"basics": 261, "windows": 264, "pictures": 215, "session": 247},
+        "plan": {"basics": 264, "windows": 264, "pictures": 215, "session": 247},
         "tail": "",
     },
 }

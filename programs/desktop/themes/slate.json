@@ -1,8 +1,9 @@
 {
   "title": "Slate",
   "about": "Blit's Slate windows: a grey title bar with its boxes together on the right, a bevelled frame, Blit's capped dialog buttons and a thin shadow, coloured by the Pewter scheme -- choose Pewter Dark for the dark look. It needs Blit's glyphs (Appearance > Glyphs: Blit); elsewhere the frame, title bar and buttons are drawn as plain lines.",
-  "version": "1.2",
+  "version": "1.3",
   "colours": "pewter",
+  "checks": "slate",
   "frame": "edge",
   "titlebar": "slate",
   "buttons": "slate",

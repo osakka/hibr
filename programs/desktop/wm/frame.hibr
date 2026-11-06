@@ -358,6 +358,7 @@ fn dt_chromedrawable(v) {
 	edge) [ -n "${GL[frame-left]-}" ] ;;
 	chalk) [ -n "${GL[chalk-stripe]-}" ] ;;
 	slate) [ -n "${GL[slate-stripe]-}" ] ;;
+	chalk-switch | slate-switch | capsule) [ -n "${GL["${v,,}-on"]-}" ] ;;
 	*) return 0 ;;
 	esac
 }

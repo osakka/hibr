@@ -137,13 +137,13 @@ int hd_path(const char *name, str *out)
 }
 
 /* Write all of a buffer, riding out interruptions and a full socket. */
-int hd_wall(int fd, const char *p, size_t n)
+static int hd_wr(int fd, const char *p, size_t n, int sock)
 {
 	struct pollfd q;
 	ssize_t k;
 
 	while (n) {
-		k = write(fd, p, n);
+		k = sock ? send(fd, p, n, MSG_NOSIGNAL) : write(fd, p, n);
 		if (k > 0) {
 			p += k;
 			n -= (size_t)k;
@@ -184,6 +184,12 @@ int hd_rall(int fd, char *p, size_t n)
 }
 
 /* Send one message: a type byte, a length, and that many bytes. */
+/* All of p to a terminal or a descriptor that is not a socket. */
+int hd_wall(int fd, const char *p, size_t n)
+{
+	return hd_wr(fd, p, n, 0);
+}
+
 int hd_send(int fd, int type, const char *p, size_t n)
 {
 	unsigned len = (unsigned)n;
@@ -195,7 +201,10 @@ int hd_send(int fd, int type, const char *p, size_t n)
 	s_add(&b, (const char *)&len, sizeof len);
 	if (n)
 		s_add(&b, p, n);
-	r = hd_wall(fd, b.p, b.n);
+	/* A session may let a client go while it is still saying what it is:
+	   that write must fail, not end the client with SIGPIPE before it can
+	   read why it was let go. */
+	r = hd_wr(fd, b.p, b.n, 1);
 	s_free(&b);
 	return r;
 }

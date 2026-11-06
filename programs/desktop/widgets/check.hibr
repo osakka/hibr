@@ -1,4 +1,5 @@
-# widgets/check -- an on/off choice: a box, a knob, a block or a tick.
+# widgets/check -- an on/off choice: a box, a knob, a block, a tick, or
+# Blit's own Chalk or Slate checkbox, switch or capsule.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
@@ -10,7 +11,12 @@ dt_checkstyle() {
 	local st=$DT_CHECKS
 
 	[ "$st" = theme ] && st=${DT_THEMECHECKS:-box}
-	case $st in knob | block | tick) ret "$st" ;; *) ret box ;; esac
+	case $st in
+	knob | block | tick) ret "$st" ;;
+	chalk | slate) [ -n "${GL["$st-check-on"]-}" ] && ret "$st"; ret box ;;
+	chalk-switch | slate-switch | capsule) [ -n "${GL["$st-on"]-}" ] && ret "$st"; ret knob ;;
+	*) ret box ;;
+	esac
 }
 
 # The mark for an on/off choice in the style chosen: "[x]" or "[ ]", a
@@ -24,6 +30,11 @@ fn dt_checkmark(int on) {
 	knob) [ "$on" = 1 ] && ret "(  $k)"; ret "($k  )" ;;
 	block) [ "$on" = 1 ] && ret "[  $b]"; ret "[$b  ]" ;;
 	tick) [ "$on" = 1 ] && ret "[${GL[tick]}]"; ret "[ ]" ;;
+	chalk | slate) [ "$on" = 1 ] && ret "${GL["$st-check-on"]}"; ret "${GL["$st-check-off"]}" ;;
+	chalk-switch | slate-switch | capsule)
+		[ "$on" = 1 ] && ret "${GL["$st-on"]}"
+		ret "${GL["$st-off"]}"
+		;;
 	*) [ "$on" = 1 ] && ret "[x]"; ret "[ ]" ;;
 	esac
 }
@@ -51,11 +62,24 @@ fn dt_check(int id, int r, int c, int on, label, tag = "") {
 	else
 		[ -n "$label" ] && console put -p "w$id" "$r" $((c + ${#m} + 1)) "$label"
 		dt_hot "$id" "$tag" && console pen -r
-		if [ "$on" = 1 ]; then
-			console pen "$DT_ACTIVE" "$DT_WELL"
-		else
-			console pen "$DT_DIM" "$DT_WELL"
-		fi
+		case $st in
+		chalk | chalk-switch) console pen "$DT_INK" "$DT_FACE" ;;
+		slate | slate-switch) console pen "$DT_INK" "$DT_FACE" "line=${DT_HIGHLIGHT:-$DT_WELL}" ;;
+		capsule)
+			if [ "$on" = 1 ]; then
+				console pen "$DT_ACTIVE" "$DT_FACE" "line=$DT_INK"
+			else
+				console pen "$DT_DIM" "$DT_FACE" "line=$DT_INK"
+			fi
+			;;
+		*)
+			if [ "$on" = 1 ]; then
+				console pen "$DT_ACTIVE" "$DT_WELL"
+			else
+				console pen "$DT_DIM" "$DT_WELL"
+			fi
+			;;
+		esac
 		console put -p "w$id" "$r" "$c" "$m"
 	fi
 	dt_wreg "$id" "$r" "$c" $((${#m} + ${#label} + 1)) "$tag"

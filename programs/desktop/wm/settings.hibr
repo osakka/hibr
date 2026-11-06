@@ -367,7 +367,9 @@ WP_GLYPHS=("·" "░" "▒" "⋅" "+" "╱" "▞")
 
 # How an on/off choice is drawn, wherever there is one: theme -- what the
 # theme suggests (DT_THEMECHECKS, set when one is applied), a box when it
-# says nothing -- box "[x]", knob "(  o)", block "[  #]", tick "[✓]".
+# says nothing -- box "[x]", knob "(  o)", block "[  #]", tick "[✓]", or Blit's
+# own: chalk and slate boxes, chalk-switch, slate-switch and capsule, which are
+# a box or a knob wherever Blit's glyphs are not in force.
 DT_CHECKS="${DT_CHECKS-theme}"
 DT_THEMECHECKS="${DT_THEMECHECKS-}"
 
