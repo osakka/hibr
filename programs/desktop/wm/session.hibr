@@ -247,11 +247,16 @@ DT_IMGFDNOW=
 # or nobody has attached yet (the moment right after `hold new -d` starts
 # this script, before the first `hold attach` lands): primary is the whole
 # screen, at column 0, the same fallback as a lone terminal always was.
+# The size last read: a frame after a change draws everything, the bar too,
+# whose cells a shrinking screen takes and whose own gate sees nothing new.
+DT_SIZEWAS=
 dt_size() {
 	local sz lst nm row col rows cols pri sft gl gnm gv
 	local -A dgfx
 
 	sz := console size
+	[ "$sz" = "$DT_SIZEWAS" ] || DT_FORCEONCE=1
+	DT_SIZEWAS=$sz
 	DT_ROWS=${sz% *}
 	DT_COLS=${sz#* }
 	DT_MENUIN=

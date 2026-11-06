@@ -4954,6 +4954,43 @@ wup.close()
 wlo.close()
 subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill wp"],
                env=dict(os.environ, **WENV), capture_output=True)
+# A display with no wallpaper of its own gets the pattern, and it may overlap
+# one that has a picture: a display joined for a look, unplaced, sits at 0,0.
+# The pattern went on after the pictures, so its cells, with a background of
+# their own, hid every picture they overlapped (Gitea #482). On the owner's
+# three displays that was their wallpapers gone behind Paper's near-white.
+MCFG = tempfile.mkdtemp(prefix="hibr-mirror-")
+os.makedirs(os.path.join(MCFG, "hibr"), exist_ok=True)
+open(os.path.join(MCFG, "hibr", "desktop.json"), "w").write(
+    '{"settings":{"DT_WALLIMG":"","DT_GLYPH":"#"},"displays":{"own":{"img":"%s","mode":"stretch",'
+    '"pic":"follow"}}}' % tree("tests/img-2x2.png"))
+MENV = dict(HENV, XDG_CONFIG_HOME=MCFG, HIBR_GFX="kitty")
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold new -d mp %s %s --session mp"
+                % (screen.HIBR, vheld)],
+               env=dict(os.environ, **MENV), capture_output=True)
+time.sleep(1.5)
+mown = Term("-c", HOLDC + "hold attach -n own mp 0 0", env=MENV, cellw=8, cellh=16, settle=3.0)
+mown.collect(1.5)
+mbefore = mown.screen().text().count("#")
+mpro = Term("-c", HOLDC + "hold attach -m -n probe mp 0 0", env=MENV, rows=30, cols=100, cellw=8, cellh=16, settle=3.0)
+mown.collect(2.5)
+mafter = mown.screen().text().count("#")
+check("a display joined over another leaves its wallpaper uncovered",
+      mbefore == 0 and mafter == 0, (mbefore, mafter))
+mpro.close()
+mown.collect(2.5)
+check("and the menu bar is still there when that display goes and the screen shrinks",
+      mown.screen().find("File") is not None, mown.screen())
+mside = Term("-c", HOLDC + "hold attach -m -n side mp 0 %d" % screen.COLS, env=MENV,
+             cellw=8, cellh=16, settle=3.0)
+mside.collect(2.5)
+check("and a display beside it with no picture of its own still has the pattern",
+      mside.screen().text().count("#") > 100, mside.screen())
+mside.close()
+mown.close()
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill mp"],
+               env=dict(os.environ, **MENV), capture_output=True)
+shutil.rmtree(MCFG, True)
 t.send(b"\x1b[21~", settle=0.4)
 t.send(b"d", settle=0.8)
 check("Detach on the hibr menu detaches too",
@@ -9239,4 +9276,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1000)
+report(1003)

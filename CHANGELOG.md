@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.458
+
+**A display joining no longer hides the wallpapers of those it overlaps** (Gitea
+#482). A display with no wallpaper of its own gets the pattern, which was painted
+after the pictures, and a picture sits below any cell with a background. An
+unplaced `hold attach -m` lands at 0,0, so on the owner's desktop it covered their
+three wallpapers in near-white cells for as long as it stayed.
+
+- **The menu bar comes back when a display leaves.** A shrinking screen took its
+  cells, and the bar saw nothing new to draw until the clock next changed.
+
 ## 0.99.457
 
 **A menu opens under its title** (owner). A window with fewer menus than the last
