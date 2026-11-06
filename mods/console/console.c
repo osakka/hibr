@@ -1365,9 +1365,10 @@ int m_console(sh *s, int ac, char **av)
 	}
 	/* How translucent the writes that follow are, over a picture drawn
 	   under the text: a cell written with no background colour of its own
-	   takes the picture's colour scaled to this percentage, which is what
-	   lets a window show the wallpaper through it (Gitea #184). A cell
-	   has no alpha, so the colour is computed; with no picture under it
+	   takes the picture's colour at this percentage over the colour given
+	   here, a tint of it, or scaled towards black with none given, which
+	   is what lets a window show the wallpaper through it (Gitea #184). A
+	   cell has no alpha, so the colour is computed; with no picture under it
 	   nothing changes, so a caller needs no branch of its own for a glyph
 	   wallpaper or a terminal that cannot place pixels. */
 	if (!strcmp(sub, "translucent")) {

@@ -720,7 +720,8 @@ def laybg(frames):
 # translucent write on, as the desktop's first frame does.
 PRIME = LAYA + LAYB
 under = laybg(PRIME + LAYA + LAYB)
-check("a translucent layer over another shows it, dimmed", under == "#203040", under)
+check("a translucent layer over another shows it, as a tint of its own colour",
+      under == "#283848", under)
 again = laybg(PRIME + LAYA + LAYB + LAYB)
 check("and still does on a frame only it is drawn again", again == under, (again, under))
 moved = laybg(PRIME + LAYA + LAYB + "console layer forget 0 0 3 10\n" + LAYB)

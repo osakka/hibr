@@ -695,8 +695,13 @@ MATCH = ("img draw %s 2 2 10 20 -m pixels -u\n"
          "console put 6 5 \"no\"\n"
          "console flush\n" % FLAT)
 sc = run(MATCH)
-check("a write in the colour translucency was told to match shows the picture",
-      bg(sc, 5, 5) == (8, 150, 8), bg(sc, 5, 5))
+check("a write in the colour translucency was told to match is a tint of it: the "
+      "picture's (10,200,10) at 75% over (32,32,36)",
+      bg(sc, 5, 5) == (16, 158, 17), bg(sc, 5, 5))
+sc = run(MATCH.replace("translucent 75", "translucent 10").replace("#202024", "#f0f0f0"))
+check("and a pale colour stays pale, where it used to fall towards black",
+      bg(sc, 5, 5) == (217, 236, 217), bg(sc, 5, 5))
+sc = run(MATCH)
 check("one in another colour stays itself",
       bg(sc, 5, 8) == (240, 240, 240), bg(sc, 5, 8))
 check("and once translucency is off the colour is the colour again",
@@ -1244,4 +1249,4 @@ check("a cropped picture placed under the text again in the same place is kept",
       "kept the picture already placed" in kl, kl[-600:])
 
 shutil.rmtree(D, True)
-report(115)
+report(116)

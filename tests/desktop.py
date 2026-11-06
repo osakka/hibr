@@ -8890,21 +8890,27 @@ check("a solid frame is a ring of whole cells in its colour, the title on top",
 
 
 # See-through shows what is beneath (0.99.324), not only the wallpaper: a
-# window over another shows that window's face dimmed, and over the
-# wallpaper -- a glyph one here, with no picture to show -- its own face; a
-# menu does the same with the menu bar's own setting. A cell has no alpha,
-# so the colour is computed from what was drawn beneath it this frame, and
-# the computing must not compound: a menu left open is the same colour on
-# every frame, not darker on each.
-def dimmed(rgb, pct):
-    return tuple((v * pct + 50) // 100 for v in rgb)
+# window over another shows that window as a tint of its own face (0.99.450),
+# and over the wallpaper -- a glyph one here, with no picture to show -- its
+# own face; a menu does the same with the menu bar's own setting. A cell has
+# no alpha, so the colour is computed from what was drawn beneath it this
+# frame, and the computing must not compound: a menu left open is the same
+# colour on every frame. The window under is painted a colour of its own,
+# since a face tinted with itself is that face, whatever the sum does.
+def tinted(rgb, base, pct):
+    return tuple((v * pct + b * (100 - pct) + 50) // 100 for v, b in zip(rgb, base))
 
 
-sc, _ = run(TWO_DEF, env={"DT_WINTRANS": "50"})
+PAINT = ('console pen "#c0c0c8" "#406080"; '
+         'console fill -p "w$id" 1 1 "$h" "$w" " "; ')
+PAINTED = ('fn pnt_draw(int id, int h, int w, int row, int col) { ' + PAINT + '}\n'
+           'dt_app pnt Paint 8 30\n')
+sc, _ = run(PAINTED + 'dt_new "Under" 8 30 6 10 pnt\ndt_new "Over" 8 30 9 20\n',
+            env={"DT_WINTRANS": "50"})
 over, open_, under = pbg(sc, 11, 30), pbg(sc, 15, 45), pbg(sc, 8, 15)
-check("a see-through window over another shows that window, dimmed, and over "
-      "the wallpaper its own face", over is not None and open_ is not None and
-      over == dimmed(under, 50) and over != open_, (over, open_, under))
+check("a see-through window over another shows that window as a tint of its own "
+      "face, and over the wallpaper its own face", over is not None and open_ is not None and
+      over == tinted(under, open_, 50) and over != open_, (over, open_, under))
 # And it goes on showing it on a frame the window under it has nothing new
 # for. From 0.99.410 a window under another is left alone when its app says
 # nothing changed, and the one over it drawn alone -- which found nothing
@@ -8913,13 +8919,13 @@ check("a see-through window over another shows that window, dimmed, and over "
 # owner's). With see-through on, windows that overlap are drawn together.
 LAYERS = ('TLZ=1\n'
           'TLN=0\n'
-          'fn tlo_draw(int id, int h, int w, int row, int col) { TLN=$((TLN + 1)); console put -p "w$id" 1 1 "under $TLN"; }\n'
+          'fn tlo_draw(int id, int h, int w, int row, int col) { TLN=$((TLN + 1)); ' + PAINT + 'console put -p "w$id" 1 1 "under $TLN"; }\n'
           'fn tlo_dirty(int id) { [ "$TLZ" = 1 ] || return 1; TLZ=0; }\n'
           'fn thi_draw(int id, int h, int w, int row, int col) { console put -p "w$id" 1 1 over; }\n'
           'fn thi_key(int id, key) { case $key in r) TLZ=1 ;; z) ;; x) dt_del "$TLO" ;; *) return 1 ;; esac; }\n'
           'TLO := dt_new "Under" 8 30 6 10 tlo\ndt_new "Over" 8 30 9 20 thi\n')
 sc, _ = run(LAYERS, [b"r", 0.3], env={"DT_WINTRANS": "50"})
-both, under = pbg(sc, 11, 30), pbg(sc, 8, 15)
+both, under, face = pbg(sc, 11, 30), pbg(sc, 8, 15), pbg(sc, 15, 45)
 # Read before quitting: Quit's box is drawn over everything, so the frame
 # after it is a full one and would draw both windows whatever this did.
 lyp = scratch("desktop-layers.hibr")
@@ -8932,7 +8938,7 @@ lyt.keys([b"x", 0.3, b"z", 0.3])
 gone = lyt.screen()
 lyt.quit(b"qy", 1.0)
 check("a see-through window keeps showing the window under it on a frame that "
-      "one has nothing new for", both == dimmed(under, 50) and alone == both,
+      "one has nothing new for", both == tinted(under, face, 50) and alone == both,
       (both, alone, under))
 check("and once that window has gone, what it showed there goes with it",
       gone.find("under") is None and pbg(gone, 11, 30) == pbg(gone, 15, 45),
@@ -8948,8 +8954,9 @@ lyt.quit(b"qy", 1.0)
 check("and with see-through off the window under is not drawn again for it",
       "under " in n1 and n1 == n2, (n1, n2))
 F10 = b"\x1b[21~"
-sc1, _ = run(ONE, [F10, 0.3], env={"DT_BARTRANS": "50"})
-sc3, _ = run(ONE, [F10, 0.3, b"\x1b[B", 0.2, b"\x1b[A", 0.2, b"\x1b[B", 0.2,
+PAINTONE = PAINTED + 'dt_new "Hello" 8 30 6 10 pnt'
+sc1, _ = run(PAINTONE, [F10, 0.3], env={"DT_BARTRANS": "50"})
+sc3, _ = run(PAINTONE, [F10, 0.3, b"\x1b[B", 0.2, b"\x1b[A", 0.2, b"\x1b[B", 0.2,
                    b"\x1b[A", 0.2], env={"DT_BARTRANS": "50"})
 
 
@@ -8964,8 +8971,8 @@ m3 = menucells(sc3)
 # A glyph wallpaper has no picture to show through, and it never paints
 # under a window, so over it a menu keeps its own face, as a window does.
 check("an open menu is as see-through as the menu bar: over a window it shows "
-      "the window dimmed, and over a glyph wallpaper its own face",
-      None not in m1 and m1[0] == dimmed(m1[1], 50) and m1[2] == m1[1],
+      "the window as a tint of its face, and over a glyph wallpaper its own face",
+      None not in m1 and m1[0] == tinted(m1[1], m1[2], 50) and m1[0] != m1[2],
       (m1, sc1))
 check("and it is the same colour after more frames, not darker on each",
       m1 == m3 and

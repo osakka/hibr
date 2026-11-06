@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.99.450
+
+**See Through is a tint of the theme** (owner). A see-through window, the menu
+bar and a terminal mix the picture with their own colour, where they used to
+scale it towards black. So 10% is the theme with a hint of the picture, 100% is
+the picture, and a pale theme stays pale.
+
 ## 0.99.449
 
 - **Blit's resize corner and pressed boxes** (Blit 0.3.47). A resizable window

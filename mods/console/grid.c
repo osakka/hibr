@@ -454,6 +454,27 @@ unsigned cn_dim1(unsigned v, int pct, unsigned deflt)
 	return DP_RGB | (r << 16) | (g << 8) | b;
 }
 
+/* What shows through a translucent cell, as a tint of the window's own colour:
+   v at the translucent percentage over cn_transfb, so 0 is the window's
+   colour and 100 is v, and a pale theme stays pale. With no colour of its
+   own to be a tint of, a terminal's own cells, v is scaled towards black. */
+static unsigned cn_through(unsigned v)
+{
+	unsigned base = cn_transfb, p = (unsigned)cn_transpct, q = 100 - p, r, g, b;
+
+	if (base & DP_PAL)
+		base = DP_RGB | cn_rgbof(base);
+	if (!(base & DP_RGB))
+		return cn_dim1(v, cn_transpct, 0);
+	v = cn_dim1(v, 100, 0);
+	if (!(v & DP_RGB))
+		return v;
+	r = (((v >> 16) & 0xFF) * p + ((base >> 16) & 0xFF) * q + 50) / 100;
+	g = (((v >> 8) & 0xFF) * p + ((base >> 8) & 0xFF) * q + 50) / 100;
+	b = ((v & 0xFF) * p + (base & 0xFF) * q + 50) / 100;
+	return DP_RGB | (r << 16) | (g << 8) | b;
+}
+
 /* What is beneath each cell, so a translucent write shows whatever was
    drawn under it -- another window, the bar, a picture -- and not only the
    wallpaper's picture: for every cell, the frame and the layer it was last
@@ -559,12 +580,12 @@ unsigned cn_bgtrans(int row, int col, unsigned b)
 	unsigned pic;
 
 	if (b != CN_TNONE && b != DP_DEFAULT)
-		return cn_dim1(b, cn_transpct, 0);
+		return cn_through(b);
 	if (b == DP_DEFAULT && cn_inpane(row, col))
 		return cn_transfb;
 	if (!cn_imgcellat(row, col, &pic))
 		return cn_transfb;
-	return cn_dim1(pic, cn_transpct, 0);
+	return cn_through(pic);
 }
 
 /* The background a write gives a cell that had `old`, noting what it lands

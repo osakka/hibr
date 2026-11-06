@@ -318,8 +318,8 @@ DT_DBLT=0
 # the frame and nothing more: the shadow is Shadow Shape's.
 DT_FRAME="${DT_FRAME-single}"
 # How much of a picture wallpaper shows through a window's own face and
-# through the menu bar, as a percentage of the picture's brightness: 0 is
-# opaque, as everything was. A terminal has its own, which wins inside it.
+# through the menu bar, as a tint of that colour: 0 is the theme's colour and
+# 100 the picture. A terminal has its own, which wins inside it.
 DT_WINTRANS="${DT_WINTRANS-0}"
 DT_BARTRANS="${DT_BARTRANS-0}"
 WS_FRAMES=(single double rounded solid none edge)
