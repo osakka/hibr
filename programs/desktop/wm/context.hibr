@@ -139,7 +139,7 @@ fn dt_titlecontext(int id) {
 		dt_item "Resize" r dt_grab size
 		dt_item "Zoom" z dt_zoom "$id"
 		dt_rowaccel "${DT_KEYS["zoom"]}"
-		if [ "$DT_FULL" = "$id" ]; then
+		if dt_isfull "$id"; then
 			dt_item "Leave Full Screen" f dt_fullscreen "$id" off
 		else
 			dt_item "Full Screen" f dt_fullscreen "$id" on

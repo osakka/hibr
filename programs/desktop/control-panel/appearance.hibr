@@ -167,11 +167,12 @@ fn cp_layoutset(v) {
 	local x
 
 	DT_BTNORDER=$v
-	DT_BTNHIDE=
+	DT_BTNON=
 	for x in "${DT_BTNS[@]}"; do
-		case " $v " in *" $x "*) continue ;; esac
-		DT_BTNORDER+=" $x"
-		DT_BTNHIDE+="${DT_BTNHIDE:+ }$x"
+		case " $v " in
+		*" $x "*) [ "$x" = title ] || DT_BTNON+="${DT_BTNON:+ }$x" ;;
+		*) DT_BTNORDER+=" $x" ;;
+		esac
 	done
 }
 

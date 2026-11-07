@@ -290,6 +290,15 @@ take that key, so a game that hangs cannot keep the screen. It also goes
 back when the focus moves, a menu, the saver or the lock comes up, or the
 window closes.
 
+Each display can have a full-screen window of its own, and a window on a
+display without the bar leaves the bar where it is. Control Panel > Windows >
+**Full Screen Ends** says when one goes back: `click`, the default, ends it
+when the focus leaves the window or any menu opens; `shortcut` ends it only on
+Leave Full Screen, so you can work on another display while it stays. Under
+`shortcut` a menu of the bar's still ends a window covering the bar's display,
+since that is the way back to the bar. The window going, the saver and the
+lock end it either way.
+
 ## Themes and colours
 
 A **theme** is the whole look at once: a colour scheme, and the wallpaper,
@@ -1873,7 +1882,7 @@ the top row alone, any of it going with any frame: `line` (the title in
 the frame's own top line, or on the window's face where there is no
 border), `solid` (a filled bar) or `curved` (that bar with its top corners
 rounded, where the glyph set has the cells for it -- Blit's), `chalk` or
-`slate`; `DT_BTNORDER` and `DT_BTNHIDE` (the Title Bar Buttons list) say
+`slate`; `DT_BTNORDER` and `DT_BTNON` (the Title Bar Buttons list) say
 which of close, zoom, minimise and shade there are, in what order and on
 which side of the title: the list reads left to right across the bar, with a
 Title row in it, so what is above Title sits left of the title and what is

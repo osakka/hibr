@@ -120,7 +120,7 @@ dt_shot_band() {
 	fi
 	console pen "$DT_BAR" "$DT_ACTIVE" bold
 	console put -p bar 0 0 " $t, escape cancels "
-	console pane top bar on
+	[ -n "$DT_FULLBAR" ] || console pane top bar on
 }
 
 # Every key and click goes here while the chooser or the band is up.

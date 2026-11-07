@@ -397,7 +397,7 @@ dt_menus() {
 			dt_item "Resize" r dt_grab size
 			dt_item "Zoom" z dt_zoom_focused
 			dt_rowaccel "${DT_KEYS["zoom"]}"
-			if [ "$DT_FULL" = "$DT_FOCUS" ]; then
+			if dt_isfull "$DT_FOCUS"; then
 				dt_item "Leave Full Screen" f dt_full_focused
 			else
 				dt_item "Full Screen" f dt_full_focused

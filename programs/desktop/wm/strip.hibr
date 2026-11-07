@@ -337,6 +337,7 @@ fn cs_hit(int mr, int mc) {
 
 	[ "${#CS_MOD_LIST[@]}" = 0 ] && return 1
 	[ -z "$mr" ] && return 1
+	[ -n "$DT_FULLBAR" ] && return 1
 	row := cs_y
 	[ "$mr" != "$row" ] && return 1
 	if [ "$CS_COLLAPSED" = 1 ]; then

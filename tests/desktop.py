@@ -1081,14 +1081,14 @@ check("while the one beside it is min, not close",
 sc, _ = run(ONE, env={"DT_BTNORDER": "close title max min shade"})
 check("and Title in the middle of the list splits them either side of it",
       sc.g[6][12] == "x" and "□ _" in sc.row(6), sc)
-sc, _ = run(ONE, env={"DT_BTNHIDE": "min shade"})
+sc, _ = run(ONE, env={"DT_BTNON": "max close"})
 check("a button switched off is not drawn, and the rest close up",
       "□ x" in sc.row(6) and "_" not in sc.row(6), sc.row(6))
-sc, _ = run(ONE, env={"DT_BTNHIDE": ""})
+sc, _ = run(ONE, env={"DT_BTNON": "close shade max min"})
 check("and shade has a glyph of its own in the plain styles",
       "^ □ _ x" in sc.row(6), sc.row(6))
 at = sc.find("^")
-sc, _ = run(ONE, [press(*at), release(*at)], env={"DT_BTNHIDE": ""})
+sc, _ = run(ONE, [press(*at), release(*at)], env={"DT_BTNON": "close shade max min"})
 check("which rolls the window up to its title bar",
       sc.find("Hello") is not None and "│" not in sc.row(8), sc)
 sc, _ = run(ONE, env={"DT_TITLEALIGN": "center"})
@@ -1235,8 +1235,8 @@ def penbg(p):
 
 
 CHALK = ("DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=chalk; DT_BTNSTYLE=chalk; "
-         "DT_BTNORDER='close title shade max min'; DT_BTNHIDE=min\n")
-sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_BTNHIDE=min", "DT_BTNHIDE="))
+         "DT_BTNORDER='close title shade max min'; DT_BTNON='close shade max'\n")
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_BTNON='close shade max'", "DT_BTNON='close shade max min'"))
 check("and Blit's boxes have a minimise of their own",
       "\U001002CD" in sc.row(2), sc.row(2))
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK)
@@ -1259,7 +1259,7 @@ sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_GLYPHSET=blit; ", "
 check("without Blit's glyphs, chalk is drawn as the plain styles",
       sc.g[2][2] == "┌" and sc.find("Notes") is not None, glyphrow(sc, 2, 2, 24))
 SLATE = ("DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=slate; DT_BTNSTYLE=slate; "
-         "DT_BTNORDER='title close shade max min'; DT_BTNHIDE=min; DT_TITLE='#3c3c43'\n")
+         "DT_BTNORDER='title close shade max min'; DT_BTNON='close shade max'; DT_TITLE='#3c3c43'\n")
 sc, _ = run('dt_new Back 6 24 5 30\ndt_new Front 6 24 2 2\n', pre=SLATE)
 front, back = glyphrow(sc, 2, 2, 24), glyphrow(sc, 5, 30, 24)
 check("Slate is one glyph set, coloured by the scheme: the title bar's colour, the boxes on the right",
@@ -8409,7 +8409,7 @@ check("and a mark while it charges", "\u21af\u2584 62%" in sc.row(0), sc.row(0))
 sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="blit", BLIT_VERSION=None),
             pre=PWPRE)
 check("with the blit glyph set a charging battery is one picture",
-      "\U00100010 62%" in sc.row(0) and "\uf0e7" not in sc.row(0), sc.row(0))
+      "\U00100302\U00100303 62%" in sc.row(0) and "\uf0e7" not in sc.row(0), sc.row(0))
 sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="nerd", BLIT_VERSION="0.2.40"),
             pre=PWPRE)
 check("and with nerd it is the bolt and the battery, whatever Blit says",
@@ -9134,7 +9134,7 @@ check("and it is the same colour after more frames, not darker on each",
 FSTOLD = scratch("fs-told.txt")
 
 
-def fsrun(body, feed, rows=20, cols=50):
+def fsrun(body, feed, rows=20, cols=50, pre="", resize=None):
     if os.path.exists(FSTOLD):
         os.unlink(FSTOLD)
     f = scratch("fs.hibr")
@@ -9142,14 +9142,17 @@ def fsrun(body, feed, rows=20, cols=50):
         "%s. %s\n"
         "fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
         "console fill -p \"w$1\" 0 0 \"$2\" \"$3\" '#'; }\n"
-        "fsw_fullscreen() { echo \"told $2\" >> %s; }\n"
+        "fsw_fullscreen() { echo \"told $2\" >> %s; }\n%s\n"
         "dt_app fsw \"Game\" 8 20\ndt_open\nFSID := dt_new Game 8 20 5 10 fsw\n"
         "dt_fullscreen \"$FSID\" on\n%s\ndt_run\ndt_close\n"
-        % (load(MOD), WM, FSTOLD, body))
+        % (load(MOD), WM, FSTOLD, pre, body))
     t = Term(f, rows=rows, cols=cols, settle=1.0)
     t.collect(0.8)
     a = t.screen()
     t.keys(feed)
+    if resize:
+        t.resize(*resize)
+        t.collect(0.8)
     b = t.screen()
     t.quit(b"q", 0.5)
     told = open(FSTOLD).read().split("\n") if os.path.exists(FSTOLD) else []
@@ -9179,6 +9182,115 @@ a, b, told = fsrun("fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
                    "console put 4 2 WORLD; }", [0.3])
 check("and what a module draws at absolute coordinates over it shows",
       a.find("WORLD") == (4, 2), a)
+# Full Screen Ends (Gitea #484): on shortcut it outlasts the focus moving,
+# and only the key, the window going, or a menu of the bar's on its own
+# display ends it.
+a, b, told = fsrun("DT_FULLEND=shortcut\ndt_new Other 6 20 2 30", [0.5])
+check("on shortcut, the focus moving to another window leaves it full screen",
+      told[:1] == ["told on"] and "told off" not in told, told)
+a, b, told = fsrun("DT_FULLEND=shortcut\ndt_new Other 6 20 2 30", [0.5, LEAVE, 0.5])
+check("and the Leave Full Screen key still ends it from that other window",
+      told[:2] == ["told on", "told off"], told)
+a, b, told = fsrun("DT_FULLEND=shortcut", [press(0, 3), release(0, 3), 0.4])
+check("a click on its top row is the window's, where the bar is not drawn",
+      "told off" not in told and b.row(0) == "#" * 50, (b, told))
+a, b, told = fsrun("DT_FULLEND=shortcut\nfsw_context() { dt_menu Act; dt_item \"Say Hello\" h true; }",
+                   [press(8, 10, 2), release(8, 10, 2), 0.4])
+check("a context menu over it ends nothing", "told off" not in told and
+      b.find("Say Hello") is not None, (b, told))
+a, b, told = fsrun("DT_FULLEND=shortcut", [b"\x1b[21~", 0.5])
+check("but opening the bar's menus does, since the bar is on its display",
+      told[:2] == ["told on", "told off"], (b, told))
+a, b, told = fsrun("", [0.3], resize=(20, 60))
+check("a display that changes width keeps the window over the bar's row",
+      b.row(0) == "#" * 60 and b.row(19) == "#" * 60, b)
+a, b, told = fsrun("DT_FULLEND=shortcut\ndt_min \"$FSID\"", [0.5])
+check("hiding it ends full screen on shortcut too, and the bar comes back",
+      "told off" in told and b.row(0) != "#" * 50 and b.find("File") is not None, (b, told))
+a, b, told = fsrun("", [press(0, 3), release(0, 3), 0.4],
+                   pre="fsw_click() { echo \"click $2 $3 $4\" >> %s; }" % FSTOLD)
+check("a press anywhere in it is its app's, the top row included",
+      "click 0 3 left" in told and b.row(0) == "#" * 50, (b, told))
+a, b, told = fsrun('dt_fullscreen "$FSID" off\ndt_shade "$FSID"\ndt_fullscreen "$FSID" on', [0.3])
+check("a shaded window opens out to go full screen", a.row(10) == "#" * 50, a)
+_fsj = scratch("fs-state.json")
+a, b, told = fsrun('dt_rswrite %s 0' % _fsj, [0.3])
+_fsw = next(iter(json.load(open(_fsj))["win"].values())) if os.path.exists(_fsj) else {}
+check("the state a crash leaves has the window as it goes back",
+      str(_fsw.get("row")) == "5" and str(_fsw.get("h")) == "8" and
+      _fsw.get("chrome") != "none", _fsw)
+
+# The title bar's two buttons (Gitea #484): off until asked for, and the
+# Full Screen one does what the key does.
+FSBTN = CHALK.replace("DT_BTNON='close shade max'", "DT_BTNON='close full sticky'")
+sc, _ = run('dt_new Notes 6 24 2 2\n', pre=FSBTN)
+check("Full Screen and Sticky are Blit's own boxes on a Flat title bar",
+      chr(0x10030A) in sc.row(2) and chr(0x10030E) in sc.row(2), sc)
+sc, _ = run('W := dt_new Notes 6 24 2 2\ndt_sticky "$W"\n', pre=FSBTN)
+check("and a sticky window's box says it is",
+      chr(0x100310) in sc.row(2) and chr(0x10030E) not in sc.row(2), sc)
+sc, _ = run('dt_new Notes 6 24 2 2\n', [lambda s: press(*s.find("#")),
+                                       lambda s: release(*s.find("#")), 0.5],
+            env={"DT_BTNON": "close full"})
+check("and a press on the plain Full Screen button takes the whole display",
+      sc.find("┤ Notes ├") is None and sc.find("File") is None, sc)
+# The menu bar's battery is Blit's two-cell one where those glyphs are in
+# force, in each of its three states.
+_pwf = scratch("pw-bar.txt")
+_pws = ('. %s\ndt_baritem() { printf "%%s\\n" "$2" >> %s; }\ndt_bariright() { :; }\n'
+        'DT_PWBAR=1; DT_PWLEVEL=0\nDT_PW["n"]=1; DT_PW["pct"]=50; DT_PW["ac"]=0\n'
+        'DT_PW["state"]=discharging; dt_pwbar\nDT_PW["state"]=charging; dt_pwbar\n'
+        'DT_PW["state"]=full; DT_PW["ac"]=1; dt_pwbar\n'
+        % (tree("programs/desktop/menubar/power.hibr"), _pwf))
+if os.path.exists(_pwf):
+    os.unlink(_pwf)
+run(_pws, env={"DT_GLYPHSET": "blit"})
+_pwl = open(_pwf).read().split("\n") if os.path.exists(_pwf) else []
+check("the bar's battery is Blit's two cells, charging and on mains too",
+      [ord(x[0]) for x in _pwl[:3] if x] == [0x1002F8, 0x100302, 0x100308] and
+      all(len(x) == 2 for x in _pwl[:3]), _pwl)
+
+
+# Two displays side by side, the bar on the left, a window on each, the right
+# one in full screen: what a person working on the left one sees.
+def fsboth(body, feed):
+    if os.path.exists(FSTOLD):
+        os.unlink(FSTOLD)
+    f = scratch("fs2.hibr")
+    open(f, "w").write(
+        "%s. %s\n"
+        "fsw_draw() { console pen \"$DT_INK\" \"$DT_FACE\"; "
+        "console fill -p \"w$1\" 0 0 \"$2\" \"$3\" \"${FSG[$1]:-#}\"; }\n"
+        "fsw_fullscreen() { echo \"told $1 $2\" >> %s; }\n"
+        "dt_app fsw \"Game\" 8 20\ndt_open\n"
+        "DT_DISPLAYS=(\"0 0 24 40 self\" \"0 40 24 40 self\")\n"
+        "DT_DISPNAMES=(a b)\nDT_PRIMARY_COL=0\nDT_PRIMARY_W=40\n"
+        "DT_PRIMARY_ROW=0\nDT_PRIMARY_H=24\nDT_FULLEND=shortcut\n"
+        "declare -gA FSG\n"
+        "L := dt_new Left 6 20 5 5 fsw\nR := dt_new Right 6 20 5 50 fsw\n"
+        "FSG[$L]=L\nFSG[$R]=R\n%s\ndt_run\ndt_close\n"
+        % (load(MOD), WM, FSTOLD, body))
+    t = Term(f, rows=24, cols=80, settle=1.0)
+    t.collect(0.8)
+    t.keys(feed)
+    b = t.screen()
+    t.quit(b"q", 0.5)
+    told = open(FSTOLD).read().split("\n") if os.path.exists(FSTOLD) else []
+    return b, told
+
+
+sc, told = fsboth('dt_fullscreen "$R" on', [press(7, 10), release(7, 10), 0.4])
+check("on another display a click leaves it full screen and the bar stays where "
+      "it is", sc.g[0][40:80] == list("R" * 40) and sc.g[23][79] == "R" and
+      "File" in sc.row(0)[:40] and "told 2 off" not in told, (sc, told))
+sc, told = fsboth('dt_fullscreen "$R" on\ndt_fullscreen "$L" on', [0.4])
+check("each display has a full-screen window of its own at once",
+      sc.g[3][10] == "L" and sc.g[3][60] == "R" and sc.g[0][10] == "L" and
+      not any("off" in x for x in told), (sc, told))
+sc, told = fsboth('Q := dt_new Next 6 20 10 50 fsw\nFSG[$Q]=Q\n'
+                  'dt_fullscreen "$R" on\ndt_fullscreen "$Q" on', [0.4])
+check("and a second one on the same display takes the first one's place",
+      sc.g[3][60] == "Q" and "told 2 off" in told, (sc, told))
 
 # Full Screen as a desktop key (0.99.403, the owner's request on #405): one
 # key for every window that may be zoomed, alt-enter by default, the
@@ -9288,4 +9400,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1005)
+report(1022)

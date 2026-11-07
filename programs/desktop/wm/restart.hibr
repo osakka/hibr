@@ -98,9 +98,9 @@ dt_restart() {
 		dt_notep high "Cannot restart: %s cannot be made" "$DT_RSDIR"
 		return 1
 	}
-	# A full-screen window goes back to its own place first, so the state
-	# keeps where it was and not the whole display.
-	[ -n "$DT_FULL" ] && dt_fullend
+	# Full-screen windows go back to their own places first, so the state
+	# keeps where they were and not the whole display.
+	dt_fullendall
 	if ! dt_rswrite "$f" 1; then
 		dt_notep high "Cannot restart: the state could not be written"
 		return 1
@@ -175,6 +175,16 @@ fn dt_rswrite(f, int carry, why = "restart") {
 		fi
 		j := json get DT ".$id"
 		json parse DT_RS["win"]["$id"] "$j"
+		# A full-screen window is written down as it goes back, so a desktop
+		# that dies with one comes back with its frame and its own size.
+		if dt_isfull "$id"; then
+			json set DT_RS ".win.$id.row" "${DT[$id]["fsr"]}"
+			json set DT_RS ".win.$id.col" "${DT[$id]["fsc"]}"
+			json set DT_RS ".win.$id.h" "${DT[$id]["fsh"]}"
+			json set DT_RS ".win.$id.w" "${DT[$id]["fsw"]}"
+			json set DT_RS ".win.$id.chrome" "${DT[$id]["fschrome"]}" -s
+			json set DT_RS ".win.$id.noshadow" "${DT[$id]["fsshadow"]}" -s
+		fi
 		[ -n "$ap" ] || continue
 		read -ra ms <<< "${DT_KEEPSTATE["$ap"]}"
 		for m in "${ms[@]}"; do

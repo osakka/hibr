@@ -761,7 +761,8 @@ for pane, extra, i, text, val in DROPS:
 wbr = panefull("windows")
 wbk = [x[2] for x in wbr if x[2].startswith("wbtn:")]
 check("Windows lists the title bar's buttons in their order, Title among them",
-      wbk == ["wbtn:title", "wbtn:shade", "wbtn:max", "wbtn:min", "wbtn:close"]
+      wbk == ["wbtn:title", "wbtn:shade", "wbtn:max", "wbtn:min", "wbtn:close",
+              "wbtn:full", "wbtn:sticky"]
       and not [x for x in wbr if x[2] == "side"], wbr)
 wbi = [x[2] for x in wbr].index("wbtn:shade")
 wbc = tempfile.mkdtemp(prefix="hibr-wbtn-")
@@ -771,20 +772,29 @@ sc = cprun([b"\x1b[B"] * downs("windows") + [lambda s: press(*s.find("Shade")), 
            env={"DT_CONF": wbf})
 kept = open(wbf).read() if os.path.exists(wbf) else ""
 check("a click on the selected row switches Shade on, and it is kept",
-      '"DT_BTNHIDE": ""' in kept, kept[:300])
+      '"DT_BTNON": "max min close shade"' in kept, kept[:300])
 os.unlink(wbf) if os.path.exists(wbf) else None
 sc = cprun([b"\x1b[B"] * downs("windows") + [press(R0 + wbi - 1, VALCOL), release(R0 + wbi - 1, VALCOL), 0.3, b"\x1b[1;2B", 0.3], geom=PWTALL,
            env={"DT_CONF": wbf})
 kept = open(wbf).read() if os.path.exists(wbf) else ""
 check("and shift and an arrow moves Title down the list, which is kept too",
-      '"DT_BTNORDER": "shade title max min close"' in kept, kept[:300])
+      '"DT_BTNORDER": "shade title max min close full sticky"' in kept, kept[:300])
 shutil.rmtree(wbc, True)
 out = subprocess.run(
     [sx.HIBR, "-c", CPLOAD + 'cp_save() { :; }; dt_notep() { :; }\ncp_theme chalk\n'
-     'l := cp_layout\necho "$DT_BTNORDER|$DT_BTNHIDE|$l"\ncp_lookis chalk && echo same'],
+     'l := cp_layout\necho "$DT_BTNORDER|$DT_BTNON|$l"\ncp_lookis chalk && echo same'],
     capture_output=True, text=True).stdout.split()
 check("a theme's layout names what it shows, and the rest go after it, off",
-      " ".join(out) == "close title shade max min|min|close title shade max same", out)
+      " ".join(out) == "close title shade max min full sticky|close shade max|close title shade max same", out)
+# Full Screen and Sticky are buttons of the list, off until asked for (Gitea
+# #484), and when full screen ends is a row of the same pane.
+sc = cprun([b"\x1b[B"] * downs("windows") + [0.3], geom=PWTALL)
+check("the Windows pane says when full screen ends, click by default",
+      sc.find("Full Screen Ends") is not None and
+      "click" in sc.row(sc.find("Full Screen Ends")[0]), sc)
+check("and Full Screen and Sticky are in the list, switched off",
+      [x[3] if len(x) > 3 else None for x in wbr if x[2] in ("wbtn:full", "wbtn:sticky")]
+      == ["off", "off"], wbr)
 # A list says Blit's two styles by their shape, and what is kept is the name;
 # the checkboxes offer neither, since a box follows the window.
 slc = tempfile.mkdtemp(prefix="hibr-slate-")
@@ -6225,4 +6235,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(804)
+report(807)

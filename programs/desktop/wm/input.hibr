@@ -171,7 +171,7 @@ dt_mouse() {
 		# No chrome: a right press is the app's context menu, a second
 		# press soon after the first is told to the app as a double click,
 		# and any other press moves the window.
-		if [ "${DT[$id]["chrome"]}" = none ]; then
+		if [ "${DT[$id]["chrome"]}" = none ] && ! dt_isfull "$id"; then
 			if [ "$1" = right ]; then
 				dt_has "${DT[$id]["app"]}_context" &&
 					dt_context_open "${DT[$id]["app"]}" "$id" "$mr" "$mc"
@@ -188,8 +188,10 @@ dt_mouse() {
 			DT_DC=$((mc - wc))
 			return 0
 		fi
-		if [ "$mr" -ne "$wr" ]; then
-			if [ "$DT_DRAGMOD" = 1 ] && [ "$1" != right ]; then
+		# A full-screen window has no title row or frame: every press is
+		# its app's, and it cannot be dragged off its display.
+		if [ "$mr" -ne "$wr" ] || dt_isfull "$id"; then
+			if [ "$DT_DRAGMOD" = 1 ] && [ "$1" != right ] && ! dt_isfull "$id"; then
 				case "-$mods-" in
 				*"-$DT_DRAGKEY-"*)
 					DT_DRAG=$id
@@ -309,6 +311,8 @@ dt_mouse() {
 					min) dt_min "$id" ;;
 					max) dt_zoom "$id" ;;
 					shade) dt_shade "$id" ;;
+					full) dt_fullscreen "$id" on ;;
+					sticky) dt_sticky "$id" ;;
 					esac
 				fi
 				DT_BTNID=
@@ -715,6 +719,8 @@ fn dt_tipfor(t, int r, int c) {
 		min) x=Hide ;;
 		max) x=Zoom ;;
 		shade) x=Shade ;;
+		full) x="Full Screen" ;;
+		sticky) x=Sticky ;;
 		esac
 		;;
 	cs:*)
@@ -1031,8 +1037,8 @@ fn dt_event(k) {
 		dt_ptrunlock
 		return 0
 	fi
-	if [ -n "$DT_FULL" ] && dt_keyis fsleave "$k"; then
-		dt_fullend
+	if [ "${#DT_FULLS[@]}" != 0 ] && dt_keyis fsleave "$k"; then
+		dt_fullleave
 		return 0
 	fi
 	case $k in

@@ -19,7 +19,7 @@
 
 strict
 
-app power "The computer's power on the menu bar, and the battery it watches" 1.4
+app power "The computer's power on the menu bar, and the battery it watches" 1.5
 
 declare -gA DT_PW
 # Where the batteries are: the kernel's folder, a name a test can put a
@@ -197,13 +197,19 @@ dt_pwbar() {
 
 	l=$(( (${DT_PW["pct"]:-0} + 12) / 25 ))
 	[ "$l" -gt 4 ] && l=4
+	g=${GL["batw$l"]:-$g}
 	# On mains it says so, charging or not (Gitea #395): the bolt while
 	# it charges, the plug once it is full or holding -- a full battery on
-	# mains looked like one draining.
+	# mains looked like one draining. The bar has room for Blit's two-cell
+	# battery, where the Control Strip keeps the one-cell glyphs.
 	if [ "${DT_PW["state"]}" = charging ]; then
-		if [ -n "${GL["batchg$l"]}" ]; then g=${GL["batchg$l"]}; else mark=${GL[batchg]}; fi
+		if [ -n "${GL["batchgw$l"]}" ]; then g=${GL["batchgw$l"]}
+		elif [ -n "${GL["batchg$l"]}" ]; then g=${GL["batchg$l"]}
+		else mark=${GL[batchg]}; fi
 	elif [ "${DT_PW["ac"]:-0}" = 1 ]; then
-		if [ -n "${GL[batfull]}" ]; then g=${GL[batfull]}; else mark=${GL[batac]}; fi
+		if [ -n "${GL[batacw]}" ]; then g=${GL[batacw]}
+		elif [ -n "${GL[batfull]}" ]; then g=${GL[batfull]}
+		else mark=${GL[batac]}; fi
 	fi
 	t=$mark$g
 	[ "${DT_PWLEVEL:-1}" = 1 ] && t="$mark$g ${DT_PW["pct"]:-?}%"

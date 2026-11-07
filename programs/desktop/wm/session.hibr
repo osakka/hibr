@@ -206,6 +206,10 @@ fn dt_shiftorigin(shift) {
 		[ -n "${DT["$id"]["oh"]-}" ] && [ -n "${DT["$id"]["or"]-}" ] &&
 			DT["$id"]["or"]=$((DT["$id"]["or"] + dr)) &&
 			DT["$id"]["oc"]=$((DT["$id"]["oc"] + dc))
+		# And so is where a full-screen window goes back to.
+		[ -n "${DT["$id"]["fsr"]-}" ] &&
+			DT["$id"]["fsr"]=$((DT["$id"]["fsr"] + dr)) &&
+			DT["$id"]["fsc"]=$((DT["$id"]["fsc"] + dc))
 		# And its pane moves with it. Only the record moved before, so
 		# a window was drawn where it had been while its title bar's
 		# buttons and drags were tested where it now was -- a window
@@ -695,7 +699,7 @@ dt_run() {
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
 		[ -n "$DT_PTRLOCK" ] && dt_ptrlockcheck
-		[ -n "$DT_FULL" ] && dt_fullcheck
+		[ "${#DT_FULLS[@]}" = 0 ] || dt_fullcheck
 		if [ -n "$DT_SAVING" ] || [ -n "$DT_LOCKED" ]; then
 			# A resize while the saver or the lock is up is still a
 			# resize. This branch continued before the check at the
@@ -888,7 +892,7 @@ dt_run() {
 		pk=
 		[ -n "$k" ] && dt_saverseen && dt_event "$k"
 		[ -n "$DT_PTRLOCK" ] && dt_ptrlockcheck
-		[ -n "$DT_FULL" ] && dt_fullcheck
+		[ "${#DT_FULLS[@]}" = 0 ] || dt_fullcheck
 	done
 }
 

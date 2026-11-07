@@ -49,6 +49,7 @@ fn dt_sticky(int id, on = "") {
 		DT[$id]["sticky"]=
 		DT[$id]["ws"]=$DT_WS
 	fi
+	DT_FORCEONCE=1
 	dt_tile
 	return 0
 }

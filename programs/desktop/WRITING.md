@@ -167,11 +167,13 @@ straight after an on. Call both behind `dt_has`, since a desktop older than
 **A window that wants the whole display** -- a game, a film -- calls
 `dt_fullscreen "$id" on|off|toggle` (Gitea #405): every cell of the
 display the window is on, the bar's row included, with no bar, frame,
-shadow or Control Strip over it. One window at a time. Its app is told
-whenever it changes, by itself or by the desktop, through an optional
-`<app>_fullscreen ID on|off`. It ends when the window loses the focus or
-closes, when a menu, the saver or the lock comes up, and on **Leave Full
-Screen** (`DT_KEYS["fsleave"]`, ctrl-f11 by default, Control Panel >
+shadow or Control Strip over it. A display has one at most, and
+`dt_isfull ID` says whether a window is. Its app is told whenever it changes,
+by itself or by the desktop, through an optional `<app>_fullscreen ID on|off`.
+Every press in it is the app's. It ends when the window closes, hides or
+leaves the workspace, when the saver or the lock comes up, on the window
+losing the focus or a menu opening where Control Panel > Windows > Full Screen
+Ends says `click`, and on **Leave Full Screen** (`DT_KEYS["fsleave"]`, ctrl-f11 by default, Control Panel >
 Shortcuts), which is taken before any app sees a key; Restart Desktop puts
 the window back first, so the restored state is where it was. While it is
 full screen a note of high or urgent priority is one line along the

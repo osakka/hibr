@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.463
+
+**Full screen stays while you work on another display** (owner, Gitea #484).
+Control Panel > Windows has a new row, **Full Screen Ends**: `click`, the default
+and today's behaviour, or `shortcut`, where only Leave Full Screen ends it. A
+window covering the bar's display still goes back when a bar menu opens, since
+that is the way back to the bar, and a window that closes, hides or leaves the
+workspace ends it either way, as do the saver and the lock.
+
+- **Each display can have a full-screen window of its own**, and the bar only goes
+  away for one on its own display. `dt_isfull ID` says whether a window is;
+  `DT_FULL` is gone, and Boxer 1.35 no longer reads it.
+- **Every press in a full-screen window is its app's.** It used to start a window
+  drag, so an app never saw a click.
+- **A full-screen window is written down as it goes back**, so a desktop that dies
+  with one restores it with its frame and its own size.
+- **Full Screen and Sticky are buttons in the Title Bar Buttons list**, off by
+  default, with Blit's boxes on Flat and Embossed (Blit 0.3.59), and the Sticky box
+  says when a window is sticky. The list's setting is `DT_BTNON` now, what is on
+  rather than what is off, so a button added later starts off for everybody;
+  whoever turned Shade on turns it on again.
+- **The menu bar's battery is Blit's two-cell one** (Power bar 1.5, Blit 0.3.58),
+  charging and on mains too.
+
 ## 0.99.462
 
 **Everything that writes a variable treats an array the way an assignment does**

@@ -340,16 +340,16 @@ DT_TITLEBARS=(line solid curved chalk slate)
 
 # Which buttons a title bar has and where (Title Bar Buttons): DT_BTNORDER
 # reads left to right across the bar, title being the title's place, so what
-# comes before it sits left of it and what comes after right, and DT_BTNHIDE
-# names those switched off. Where the title sits in the room that leaves, and
+# comes before it sits left of it and what comes after right, and DT_BTNON
+# names those switched on, so a button added later starts off for everybody. Where the title sits in the room that leaves, and
 # what the buttons look like (Window Buttons): the Windows-style brackets
 # this shipped with, coloured
 # circles, squares, diamonds or dashes, or Blit's chalk or slate close,
 # shade and zoom boxes. dt_btnspec is the table for the third of these, the
 # same shape cp_theme's own case statement already is for a theme.
-DT_BTNS=(title close shade max min)
+DT_BTNS=(title close shade max min full sticky)
 DT_BTNORDER="${DT_BTNORDER-title shade max min close}"
-DT_BTNHIDE="${DT_BTNHIDE-shade}"
+DT_BTNON="${DT_BTNON-max min close}"
 DT_TITLEALIGN="${DT_TITLEALIGN-left}"
 DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
 # chalk and slate buttons are Blit's boxes, on any title bar, and brackets
@@ -362,6 +362,11 @@ WS_STYLES=(brackets circles squares diamonds dashes chalk slate)
 # (Gitea #286). Control Panel > Windows > Zoom Fills.
 DT_ZOOMFILL="${DT_ZOOMFILL-display}"
 DT_ZOOMFILLS=(display every)
+# When a full-screen window goes back (Full Screen Ends): click, on a click
+# anywhere else or any other move of the focus, or shortcut, on the Leave
+# Full Screen key, so a window keeps its display while you work on another.
+DT_FULLEND="${DT_FULLEND-click}"
+DT_FULLENDS=(click shortcut)
 
 # How a wallpaper image is fitted to the screen -- see dt_wallfit.
 WP_MODES=(stretch scale zoom center)
@@ -494,7 +499,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_ICONS DT_DISKS DT_ICONBG DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_YREL
 	CS_COLLAPSED CS_LEN CS_SHADOW CS_SHOW CS_HIDE CS_ORDER
-	DT_BARICON DT_DESKICON DT_FRAME DT_WINTRANS DT_BARTRANS DT_TITLEBAR DT_BTNORDER DT_BTNHIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
+	DT_BARICON DT_DESKICON DT_FRAME DT_WINTRANS DT_BARTRANS DT_TITLEBAR DT_BTNORDER DT_BTNON DT_FULLEND DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_TITLEKEY DT_MOVEMODE DT_DRAWSKIP DT_TERMMS DT_LIVEMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEFRAME DT_NOTECOLOUR DT_NOTEWHERE DT_NOTECOUNT DT_NOTELIST DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BARORDER DT_BARHIDE DT_MENUMARK DT_BTNSHADOW DT_SHADOWSHAPE DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
 	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_MENUMAX DT_SCROLLWHEEL DT_NETKIND DT_NETBAR DT_NETRULE DT_PWBAR DT_PWLEVEL DT_PWLOW DT_PWCRIT DT_PWCRITDO DT_HOVER DT_FOCUSHOVER DT_TIPS DT_TIPMS DT_SWITCHER DT_SWMS DT_SWSKIP DT_BAND DT_BANDPCT DT_BTKIND DT_BTBAR DT_MOD)

@@ -560,6 +560,7 @@ From:
 Full Command Line
 Full Player
 Full Screen
+Full Screen Ends
 GLX
 Game
 Gateway

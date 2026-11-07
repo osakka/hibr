@@ -21,6 +21,7 @@ fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
 fn cp_set_btnstyle(int? id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
 fn cp_set_place(int? id = "", value = "") { DT_PLACE=$value; cp_save; }
 fn cp_set_zoomfill(int? id = "", value = "") { DT_ZOOMFILL=$value; cp_save; }
+fn cp_set_fullend(int? id = "", value = "") { DT_FULLEND=$value; cp_save; }
 # How much of a picture wallpaper shows through a window, in tens.
 fn cp_wintrans(int v) {
 	[ "$v" -lt 0 ] && v=0
@@ -57,6 +58,9 @@ fn windows_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Zoom Fills"
 	CP[$w][$n]["val"]="$DT_ZOOMFILL"; CP[$w][$n]["key"]=zoomfill
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Full Screen Ends"
+	CP[$w][$n]["val"]="$DT_FULLEND"; CP[$w][$n]["key"]=fullend
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tiled Main"
 	CP[$w][$n]["after"]="($DT_TILEMAIN%)"
 	CP[$w][$n]["wtype"]=slider
@@ -92,6 +96,8 @@ fn windows_btnrows(int w, int n) {
 		shade) CP[$w][$n]["text"]="Shade" ;;
 		max) CP[$w][$n]["text"]="Zoom" ;;
 		min) CP[$w][$n]["text"]="Minimise" ;;
+		full) CP[$w][$n]["text"]="Full Screen" ;;
+		sticky) CP[$w][$n]["text"]="Sticky" ;;
 		esac
 		CP[$w][$n]["val"]=on
 		dt_btnhidden "$k" && CP[$w][$n]["val"]=off
@@ -108,12 +114,12 @@ fn windows_btntoggle(k) {
 	local x out=
 	local -a a
 
-	read -ra a <<< "$DT_BTNHIDE"
+	read -ra a <<< "$DT_BTNON"
 	for x in "${a[@]}"; do
 		[ "$x" = "$k" ] || out+="${out:+ }$x"
 	done
-	dt_btnhidden "$k" || out+="${out:+ }$k"
-	DT_BTNHIDE=$out
+	dt_btnhidden "$k" && out+="${out:+ }$k"
+	DT_BTNON=$out
 }
 
 # The list's new order, from a drag or shift and an arrow.
@@ -148,6 +154,8 @@ fn windows_do(int w, k, int dir) {
 	       DT_PLACE=$v ;;
 	zoomfill) v := cp_next "$DT_ZOOMFILL" "$dir" "${DT_ZOOMFILLS[@]}"
 	          DT_ZOOMFILL=$v ;;
+	fullend) v := cp_next "$DT_FULLEND" "$dir" "${DT_FULLENDS[@]}"
+	         DT_FULLEND=$v ;;
 	wbtn:title) return 0 ;;
 	wbtn:*) windows_btntoggle "${k#wbtn:}" ;;
 	wintrans) cp_wintrans $(((${DT_WINTRANS:-0} + 5) / 10 * 10 + dir * 10))
@@ -189,6 +197,7 @@ fn windows_drop(int w, int r, int c, k) {
 	          dt_droplist "$w" "$r" "$c" cp_set_titlebar "${DT_TITLEBARS[@]}" ;;
 	place) dt_droplist "$w" "$r" "$c" cp_set_place "${DT_PLACES[@]}" ;;
 	zoomfill) dt_droplist "$w" "$r" "$c" cp_set_zoomfill "${DT_ZOOMFILLS[@]}" ;;
+	fullend) dt_droplist "$w" "$r" "$c" cp_set_fullend "${DT_FULLENDS[@]}" ;;
 	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
 	btnstyle) dt_chromeavail "${WS_STYLES[@]}"
 		DT_POPNAMENEXT=dt_chromename

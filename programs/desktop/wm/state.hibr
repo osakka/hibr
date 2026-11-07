@@ -176,7 +176,7 @@ fn dt_ptop() {
 # above it, the bar was drawn on the primary and answered on the display
 # above, in the same place (Gitea #240).
 fn dt_onbar(int r, int c) {
-	[ "$r" = "$DT_PRIMARY_ROW" ] && [ "$c" -ge "$DT_PRIMARY_COL" ] &&
+	[ -z "$DT_FULLBAR" ] && [ "$r" = "$DT_PRIMARY_ROW" ] && [ "$c" -ge "$DT_PRIMARY_COL" ] &&
 		[ "$c" -lt $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS})) ]
 }
 

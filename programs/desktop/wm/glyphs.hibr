@@ -55,6 +55,9 @@ fn dt_glyphs(set = "unicode") {
 	GL["batchg4"]=; GL["batfull"]=
 	GL["vol0"]=; GL["vol1"]=; GL["vol2"]=; GL["vol3"]=
 	GL["volw0"]=; GL["volw1"]=; GL["volw2"]=; GL["volw3"]=
+	GL["batw0"]=; GL["batw1"]=; GL["batw2"]=; GL["batw3"]=; GL["batw4"]=
+	GL["batchgw0"]=; GL["batchgw1"]=; GL["batchgw2"]=; GL["batchgw3"]=
+	GL["batchgw4"]=; GL["batacw"]=
 	GL["huil"]=; GL["huir"]=; GL["huimarkl"]=; GL["huimarkr"]=
 	# And the window chrome's frame, Chalk and Slate parts.
 	GL["chalk-check-on"]=; GL["chalk-check-off"]=; GL["slate-check-on"]=; GL["slate-check-off"]=
@@ -537,6 +540,12 @@ dt_glyphsblit() {
 	dt_bg chalk-shade chalk-shade
 	dt_bg slate-shade slate-light-shade
 	dt_bg chalk-zoom chalk-zoom
+	dt_bg chalk-full chalk-fullscreen
+	dt_bg slate-full slate-light-fullscreen
+	dt_bg chalk-sticky chalk-sticky
+	dt_bg slate-sticky slate-light-sticky
+	dt_bg chalk-sticky-on chalk-sticky-on
+	dt_bg slate-sticky-on slate-light-sticky-on
 	dt_bg slate-zoom slate-light-zoom
 	dt_bg chalk-min chalk-minimise
 	dt_bg slate-min slate-light-minimise
@@ -554,6 +563,10 @@ dt_glyphsblit() {
 	dt_bg chalk-shade-pressed chalk-shade-pressed
 	dt_bg slate-shade-pressed slate-light-shade-pressed
 	dt_bg chalk-zoom-pressed chalk-zoom-pressed
+	dt_bg chalk-full-pressed chalk-fullscreen-pressed
+	dt_bg slate-full-pressed slate-light-fullscreen-pressed
+	dt_bg chalk-sticky-pressed chalk-sticky-pressed
+	dt_bg slate-sticky-pressed slate-light-sticky-pressed
 	dt_bg slate-zoom-pressed slate-light-zoom-pressed
 	dt_bg chalk-min-pressed chalk-minimise-pressed
 	dt_bg slate-min-pressed slate-light-minimise-pressed
@@ -616,6 +629,17 @@ dt_glyphsblit() {
 	dt_bg volw1 volume-wide-1-left volume-wide-1-right
 	dt_bg volw2 volume-wide-2-left volume-wide-2-right
 	dt_bg volw3 volume-wide-3-left volume-wide-3-right
+	dt_bg batw0 battery-wide-0-left battery-wide-0-right
+	dt_bg batw1 battery-wide-1-left battery-wide-1-right
+	dt_bg batw2 battery-wide-2-left battery-wide-2-right
+	dt_bg batw3 battery-wide-3-left battery-wide-3-right
+	dt_bg batw4 battery-wide-4-left battery-wide-4-right
+	dt_bg batchgw0 battery-wide-0-charging-left battery-wide-0-charging-right
+	dt_bg batchgw1 battery-wide-1-charging-left battery-wide-1-charging-right
+	dt_bg batchgw2 battery-wide-2-charging-left battery-wide-2-charging-right
+	dt_bg batchgw3 battery-wide-3-charging-left battery-wide-3-charging-right
+	dt_bg batchgw4 battery-wide-4-charging-left battery-wide-4-charging-right
+	dt_bg batacw battery-wide-ac-left battery-wide-ac-right
 	# The hui mark (Blit 0.2.40, ADR 0197 there): one badge two cells
 	# square, drawn as its left and its right half, written side by side
 	# -- the hibr menu's mark where Menu Bar > Menu Mark asks for it.

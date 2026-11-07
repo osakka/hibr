@@ -11,11 +11,12 @@ strict
 # BTN_DL/BTN_DR with every kind this style can draw, in no order that
 # matters: where one goes is the Title Bar Buttons list's (dt_chromebtns), so
 # a further style is a branch here, never a change to dt_chrome. fixed leaves
-# zoom out. chalk and slate are Blit's boxes (Blit ADR 0210), drawn in the ink
+# zoom and full screen out, and stuck is a sticky window, whose Sticky button
+# says so. chalk and slate are Blit's boxes (Blit ADR 0210), drawn in the ink
 # like the brackets and on any title bar, and a box Blit has no glyph for is
 # not drawn; dt_chromecfg has made them brackets wherever Blit's glyphs are
 # not in force.
-fn dt_btnspec(style, int? fixed) {
+fn dt_btnspec(style, int? fixed, int stuck = 0) {
 	local g c=${GL[circle]}
 	local -A gl ink
 
@@ -23,8 +24,11 @@ fn dt_btnspec(style, int? fixed) {
 	chalk | slate)
 		BTN_DL=" "; BTN_DR=" "
 		gl=([close]="${GL["$style-close"]-}" [shade]="${GL["$style-shade"]-}"
-		    [max]="${GL["$style-zoom"]-}" [min]="${GL["$style-min"]-}")
-		ink=([close]="$DT_INK" [shade]="$DT_INK" [max]="$DT_INK" [min]="$DT_INK")
+		    [max]="${GL["$style-zoom"]-}" [min]="${GL["$style-min"]-}"
+		    [full]="${GL["$style-full"]-}" [sticky]="${GL["$style-sticky"]-}")
+		[ "$stuck" = 1 ] && gl["sticky"]="${GL["$style-sticky-on"]-}"
+		ink=([close]="$DT_INK" [shade]="$DT_INK" [max]="$DT_INK" [min]="$DT_INK"
+		     [full]="$DT_INK" [sticky]="$DT_INK")
 		;;
 	circles | squares | diamonds | dashes)
 		g=$c
@@ -32,19 +36,23 @@ fn dt_btnspec(style, int? fixed) {
 		[ "$style" = diamonds ] && g=${GL[diamond]}
 		[ "$style" = dashes ] && g=${GL[minus]}
 		BTN_DL=" "; BTN_DR=" "
-		gl=([close]="$g" [shade]="$g" [max]="$g" [min]="$g")
-		ink=([close]="$DT_BAD" [shade]="$DT_INFO" [max]="$DT_GOOD" [min]="$DT_WARN")
+		gl=([close]="$g" [shade]="$g" [max]="$g" [min]="$g" [full]="$g" [sticky]="$g")
+		ink=([close]="$DT_BAD" [shade]="$DT_INFO" [max]="$DT_GOOD" [min]="$DT_WARN"
+		     [full]="$DT_ACTIVE" [sticky]="$DT_DIM")
+		[ "$stuck" = 1 ] && ink["sticky"]="$DT_INK"
 		;;
 	*)
 		BTN_DL="${GL[teel]}"; BTN_DR="${GL[teer]}"
-		gl=([close]="x" [shade]="^" [max]="${GL[box]}" [min]="_")
-		ink=([close]="$DT_BAD" [shade]="$DT_INK" [max]="$DT_INK" [min]="$DT_INK")
+		gl=([close]="x" [shade]="^" [max]="${GL[box]}" [min]="_" [full]="#" [sticky]=".")
+		[ "$stuck" = 1 ] && gl["sticky"]="*"
+		ink=([close]="$DT_BAD" [shade]="$DT_INK" [max]="$DT_INK" [min]="$DT_INK"
+		     [full]="$DT_INK" [sticky]="$DT_INK")
 		;;
 	esac
 	BTN_K=() BTN_G=() BTN_C=()
-	for g in close shade max min; do
+	for g in close shade max min full sticky; do
 		[ -n "${gl["$g"]}" ] || continue
-		[ "$fixed" = 1 ] && [ "$g" = max ] && continue
+		[ "$fixed" = 1 ] && case $g in max | full) continue ;; esac
 		BTN_K+=("$g") BTN_G+=("${gl["$g"]}") BTN_C+=("${ink["$g"]}")
 	done
 }
@@ -71,8 +79,8 @@ fn dt_btnlist() {
 
 # Whether the list has button k switched off.
 fn dt_btnhidden(k) {
-	case " $DT_BTNHIDE " in *" $k "*) return 0 ;; esac
-	return 1
+	case " title $DT_BTNON " in *" $k "*) return 1 ;; esac
+	return 0
 }
 
 # Draw one window: its face, then its app, then its frame over the top.
@@ -311,7 +319,7 @@ DT_CFSET=
 DT_CTSET=
 DT_CBSET=
 dt_chromecfg() {
-	local k="$DT_BTNORDER|$DT_BTNHIDE $DT_TITLEALIGN $DT_MIRRORON $DT_TITLEBAR $DT_FRAME $DT_BTNSTYLE ${GL[frame-left]-}${GL[chalk-stripe]-}${GL[slate-stripe]-}"
+	local k="$DT_BTNORDER|$DT_BTNON $DT_TITLEALIGN $DT_MIRRORON $DT_TITLEBAR $DT_FRAME $DT_BTNSTYLE ${GL[frame-left]-}${GL[chalk-stripe]-}${GL[slate-stripe]-}"
 
 	[ "$k" = "$DT_CKEY" ] && return 0
 	[ -n "$DT_CKEY" ] && DT_FORCEONCE=1
@@ -410,14 +418,14 @@ fn dt_chromeface(int r, int c, int h, int w) {
 # asks.
 DT_CBL=() DT_CBR=() DT_CBLG=() DT_CBRG=() DT_CBLC=() DT_CBRC=()
 DT_CBKEY=
-fn dt_chromebtns(int fixed) {
-	local i n j k="$DT_CKEY|$fixed" right=
+fn dt_chromebtns(int fixed, int stuck = 0) {
+	local i n j k="$DT_CKEY|$fixed|$stuck" right=
 	local -a ord=()
 
 	[ "$k" = "$DT_CBKEY" ] && return 0
 	DT_CBKEY=$k
 	DT_CBL=() DT_CBR=() DT_CBLG=() DT_CBRG=() DT_CBLC=() DT_CBRC=()
-	dt_btnspec "$DT_CBTN" "$fixed"
+	dt_btnspec "$DT_CBTN" "$fixed" "$stuck"
 	dt_btnlist
 	n=${#DT_BTNL[@]}
 	for ((i = 0; i < n; i++)); do
@@ -672,7 +680,9 @@ fn dt_chrome(pane, int r, int c, int h, int w, title, on, int cap = 0, fixed = "
 		# should invite one.
 		[ "$fixed" = 0 ] && dt_chromegrow "$pane" $((r + h - 1)) $((c + w - 1)) "$on"
 	fi
-	[ -n "$fixed" ] && dt_chromebtns "$fixed"
+	if [ -n "$fixed" ]; then
+		if [ "${DT[${pane#w}]["sticky"]-}" = 1 ]; then dt_chromebtns "$fixed" 1; else dt_chromebtns "$fixed"; fi
+	fi
 	# A Chalk or Slate title bar is its own row of glyphs, between the
 	# frame's two columns when there are any, carrying the buttons Window
 	# Buttons chose.
