@@ -229,6 +229,9 @@ try:
     sc = srun([])
     check("the speaker is on the menu bar with the volume of the output in use",
           "♪ 50%" in bar(sc), bar(sc))
+    sc = srun([], env={"DT_GLYPHSET": "blit"})
+    check("and with Blit's glyphs it is Blit's two-cell speaker",
+          chr(0x1002E8) + chr(0x1002E9) + " 50%" in bar(sc), bar(sc))
 
     # The suites' own desktops have no sound layer at all (tests/screen.py),
     # which is what keeps random input off a real machine's volume.
@@ -643,4 +646,4 @@ finally:
     shutil.rmtree(RT, True)
     shutil.rmtree(RT2, True)
     shutil.rmtree(D, True)
-report(40)
+report(41)

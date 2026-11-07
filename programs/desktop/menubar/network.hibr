@@ -42,7 +42,7 @@
 
 strict
 
-app network "The network on the menu bar and the connection it watches" 1.3
+app network "The network on the menu bar and the connection it watches" 1.4
 
 # The state: kind (nm, ip, none, or gone for a NetworkManager that went;
 # empty until the first frame looks), why (the system asked for that did
@@ -578,15 +578,21 @@ dt_netipread() {
 }
 declare -gA DT_NIPR DT_NIPA
 
+# How many of the four bars a signal of 0 to 100 reaches.
+fn dt_netlevel(int sig) {
+	[ "$sig" -gt 75 ] && ret 4
+	[ "$sig" -gt 50 ] && ret 3
+	[ "$sig" -gt 25 ] && ret 2
+	[ "$sig" -gt 5 ] && ret 1
+	ret 0
+}
+
 # A signal of 0 to 100 as the four bars nmcli itself draws, the ones it
 # does not reach as a low line.
 fn dt_netbars(int sig) {
-	local n=0 b="" i=1
+	local n b="" i=1
 
-	[ "$sig" -gt 5 ] && n=1
-	[ "$sig" -gt 25 ] && n=2
-	[ "$sig" -gt 50 ] && n=3
-	[ "$sig" -gt 75 ] && n=4
+	n := dt_netlevel "$sig"
 	# The blit set has a glyph for each of the four levels, one cell and
 	# in its own colours (Gitea #330): the level the bars would have
 	# drawn, and the lowest for a signal nmcli gives no bar at all, since
@@ -624,10 +630,16 @@ dt_netbar() {
 		t="${GL[wifi]:+${GL[wifi]} }$b"
 		# A Blit level glyph is the Wi-Fi icon and its bars in one.
 		[ -n "${GL["wifi4"]}" ] && t=$b
+		# And on the bar Blit's two-cell fan, where it has one.
+		if [ -n "${GL["wifiw4"]-}" ]; then
+			b := dt_netlevel "${DT_NET["signal"]:-0}"
+			[ "$b" -lt 1 ] && b=1
+			t=${GL["wifiw$b"]}
+		fi
 		;;
 	wired) t=${GL[wired]} ;;
 	connecting) t="${GL[wifi]:+${GL[wifi]} }${GL[ellipsis]}" ;;
-	*) t=${GL[netoff]} ;;
+	*) t=${GL[netoffw]:-${GL[netoff]}} ;;
 	esac
 	[ -n "${DT_NET["busy"]}" ] || [ -z "$DT_NETKNOWN" ] && t="${GL[wifi]:+${GL[wifi]} }${GL[ellipsis]}"
 	dt_baritem net "$t" dt_netpopopen

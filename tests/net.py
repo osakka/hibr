@@ -209,9 +209,9 @@ try:
     # one cell, and the hibr menu as Blit's colour pen. The in-use network
     # here has the signal of four bars, so it is the fourth level.
     sc = srun(n, [], env={"DT_GLYPHSET": "blit"},
-              until=lambda sc: chr(0x1002D4) in bar(sc))
+              until=lambda sc: chr(0x1002E0) in bar(sc))
     check("with the Blit glyphs the Wi-Fi is Blit's level glyph and the menu its pen",
-          chr(0x1002D4) in bar(sc) and BARS[0] not in bar(sc) and
+          chr(0x1002E0) + chr(0x1002E1) in bar(sc) and BARS[0] not in bar(sc) and
           bar(sc).lstrip().startswith(chr(0x100001)), bar(sc))
 
     # A left click lists the networks in reach: the one in use first and

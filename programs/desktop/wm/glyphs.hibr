@@ -48,11 +48,13 @@ fn dt_glyphs(set = "unicode") {
 	# after it does not keep them: dt_netbars draws Blit's four Wi-Fi
 	# levels whenever wifi4 has a glyph.
 	GL["wifi1"]=; GL["wifi2"]=; GL["wifi3"]=; GL["wifi4"]=
+	GL["wifiw1"]=; GL["wifiw2"]=; GL["wifiw3"]=; GL["wifiw4"]=; GL["netoffw"]=
 	# And the battery and the speaker drawn as one picture a state, which
 	# dt_pwbar and dt_sndbar use only when they are set.
 	GL["batchg0"]=; GL["batchg1"]=; GL["batchg2"]=; GL["batchg3"]=
 	GL["batchg4"]=; GL["batfull"]=
 	GL["vol0"]=; GL["vol1"]=; GL["vol2"]=; GL["vol3"]=
+	GL["volw0"]=; GL["volw1"]=; GL["volw2"]=; GL["volw3"]=
 	GL["huil"]=; GL["huir"]=; GL["huimarkl"]=; GL["huimarkr"]=
 	# And the window chrome's frame, Chalk and Slate parts.
 	GL["chalk-check-on"]=; GL["chalk-check-off"]=; GL["slate-check-on"]=; GL["slate-check-off"]=
@@ -494,6 +496,11 @@ dt_glyphsblit() {
 	dt_bg wifi3 wifi-signal-3
 	dt_bg wifi4 wifi-signal-4
 	dt_bg netoff wifi-off
+	dt_bg wifiw1 wifi-signal-wide-1-left wifi-signal-wide-1-right
+	dt_bg wifiw2 wifi-signal-wide-2-left wifi-signal-wide-2-right
+	dt_bg wifiw3 wifi-signal-wide-3-left wifi-signal-wide-3-right
+	dt_bg wifiw4 wifi-signal-wide-4-left wifi-signal-wide-4-right
+	dt_bg netoffw wifi-off-wide-left wifi-off-wide-right
 	dt_bg bt bluetooth
 	dt_bg btoff bluetooth
 	[ -n "${GL[btoff]-}" ] && GL["btoff"]+=$' \uf00d'
@@ -604,6 +611,10 @@ dt_glyphsblit() {
 	dt_bg vol1 volume-1
 	dt_bg vol2 volume-2
 	dt_bg vol3 volume-3
+	dt_bg volw0 volume-wide-0-left volume-wide-0-right
+	dt_bg volw1 volume-wide-1-left volume-wide-1-right
+	dt_bg volw2 volume-wide-2-left volume-wide-2-right
+	dt_bg volw3 volume-wide-3-left volume-wide-3-right
 	# The hui mark (Blit 0.2.40, ADR 0197 there): one badge two cells
 	# square, drawn as its left and its right half, written side by side
 	# -- the hibr menu's mark where Menu Bar > Menu Mark asks for it.

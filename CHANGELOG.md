@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.99.460
+
+**Wi-Fi and sound take two cells on the menu bar under Blit's glyphs** (owner, Blit
+0.3.56). The bar draws Blit's wide fan and speaker where the catalogue has them;
+the one-cell glyphs stay in the lists. The glyph table is regenerated.
+
 ## 0.99.459
 
 **The menu behind a submenu lights under the pointer** (owner). Its rows showed
