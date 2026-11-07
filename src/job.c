@@ -810,6 +810,8 @@ int jc_waitone(sh *s, const char *a)
 				break;
 			if (p < 0 && errno != EINTR) {
 				sigprocmask(SIG_SETMASK, &old, 0);
+				if ((pid_t)atol(a) == xps_pid)
+					return xps_st;
 				lg(HIBR_LERR, "wait: pid %s is not a child of this shell", a);
 				return 127;
 			}
@@ -854,10 +856,24 @@ int b_wait(sh *s, int ac, char **av)
 
 	if (ac > 1 && (!strcmp(av[1], "-n") || !strcmp(av[1], "-p"))) {
 		const char *nm = 0;
-		int k = 1;
-		for (; k < ac && av[k][0] == '-' && av[k][1]; k++)
-			if (!strcmp(av[k], "-p") && k + 1 < ac)
+		int k = 1, any = 0;
+		for (; k < ac && av[k][0] == '-' && av[k][1]; k++) {
+			if (!strcmp(av[k], "-n"))
+				any = 1;
+			else if (!strcmp(av[k], "-p") && k + 1 < ac)
 				nm = av[++k];
+		}
+		if (!any && k < ac) {
+			lg(HIBR_LDBG, "wait -p: every operand, naming the last");
+			for (i = k; i < ac; i++) {
+				st = jc_waitone(s, av[i]);
+				if (st == -2)
+					return s->st = 128 + tr_waitsig(s);
+			}
+			if (nm)
+				hibr_set(s, nm, av[ac - 1], 0);
+			return s->st = st;
+		}
 		p = jc_anyone(s, &w);
 		if (p == -2)
 			return s->st = 128 + tr_waitsig(s);

@@ -1526,6 +1526,9 @@ char *xpsub(sh *s, part *p)
    never merely "not yet"), so the next simple command's own call to this
    same function, whether or not it has a process substitution of its
    own, gets another try. */
+int wstat(int w);
+pid_t xps_pid;
+int xps_st;
 void xpsub_done(sh *s)
 {
 	size_t i, j = 0;
@@ -1540,6 +1543,11 @@ void xpsub_done(sh *s)
 			rec[0] = -1;
 		}
 		r = waitpid((pid_t)rec[1], &w, WNOHANG);
+		if (r > 0) {
+			lg(HIBR_LDBG, "substitution %d ended", rec[1]);
+			xps_pid = rec[1];
+			xps_st = wstat(w);
+		}
 		if (r != 0)
 			free(rec);
 		else

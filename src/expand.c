@@ -3291,6 +3291,28 @@ long ax_sub(struct ax *a, const char *src)
 	return v;
 }
 
+/* A number too big for a long, wrapped as bash's is rather than held at the
+   limit strtol gives: only asked when strtol answers that limit. */
+long ax_big(const char *p, const char *e)
+{
+	unsigned long u = 0, b = 10;
+
+	while (*p == ' ' || *p == '\t' || *p == '\n')
+		p++;
+	if (*p == '+')
+		p++;
+	if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+		b = 16;
+		p += 2;
+	} else if (*p == '0') {
+		b = 8;
+	}
+	for (; p < e; p++)
+		u = u * b + (unsigned long)(isdigit((unsigned char)*p) ?
+					    *p - '0' : (*p | 32) - 'a' + 10);
+	return (long)u;
+}
+
 /* A variable's value is itself an expression, which is what makes
    x="3 * (4 + 5)"; echo $((x)) print 27 rather than 3. */
 long ax_val(struct ax *a, const char *t)
@@ -3301,6 +3323,8 @@ long ax_val(struct ax *a, const char *t)
 	if (!t || !*t)
 		return 0;
 	v = strtol(t, &e, 0);
+	if (v == LONG_MAX)
+		v = ax_big(t, e);
 	while (*e == ' ' || *e == '\t' || *e == '\n')
 		e++;
 	if (!*e)
@@ -3446,6 +3470,8 @@ long ax_prim(struct ax *a)
 			return v;
 		}
 		v = strtol(a->p, &e, 0);
+		if (v == LONG_MAX)
+			v = ax_big(a->p, e);
 		a->p = e;
 		return v;
 	}
@@ -3464,11 +3490,6 @@ long ax_prim(struct ax *a)
 		}
 		sb_put(a->s, nm);
 		return 0;
-	}
-	if (*a->p == '$') {
-		while (*a->p == '$')
-			a->p++;
-		return ax_prim(a);
 	}
 	ax_err(a, "syntax error");
 	return 0;

@@ -975,6 +975,10 @@ int b_ulimit(sh *s, int ac, char **av)
 	} else if (!strcmp(val, "soft")) {
 		nv = rl.rlim_cur;
 	} else if (t_int(val, &n) && n >= 0) {
+		if ((rlim_t)n > RLIM_INFINITY / (rlim_t)ul_scale(c) / 2) {
+			lg(HIBR_LERR, "ulimit: %s: limit out of range", val);
+			return HIBR_FAIL;
+		}
 		nv = (rlim_t)n * (rlim_t)ul_scale(c);
 	} else {
 		lg(HIBR_LERR, "ulimit: %s: invalid number", val);

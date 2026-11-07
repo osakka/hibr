@@ -245,6 +245,8 @@ int xqsafe(int c, int first);
 char *xneg(sh *s, const char *nm, char **ks, int lvl);
 char *xpsub(sh *s, part *p);
 void xpsub_done(sh *s);
+extern pid_t xps_pid;
+extern int xps_st;
 char **xargv(sh *s, word *w, int *ac, char ***am);
 
 /* Expand a word into fields, with no interest in which bytes were quoted. */
@@ -500,6 +502,8 @@ int t_two(const char *a, const char *op, const char *b);
 int t_int(const char *a, long *v);
 int bi_num(const char *who, const char *w, long *v);
 int bi_loops(sh *s, const char *who, int ac, char **av);
+int bi_many(sh *s, const char *who);
+long ax_big(const char *p, const char *e);
 int t_isset(sh *s, const char *w, const char *mk);
 int t_cmp(long x, const char *op, long y);
 int cx_files(const char *a, const char *op, const char *b);

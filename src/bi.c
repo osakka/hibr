@@ -430,14 +430,28 @@ int bi_num(const char *who, const char *w, long *v)
 	return 0;
 }
 
+/* A second operand where one is taken: said, and the rest of the line given
+   up with status 1, as bash's does, so the next line still runs. */
+int bi_many(sh *s, const char *who)
+{
+	lg(HIBR_LERR, "%s: too many arguments", who);
+	s->stop = 1;
+	ex_abline = 1;
+	return s->st = 1;
+}
+
 /* Leave the shell, with the status modulo 256 as the system keeps it. */
 int b_exit(sh *s, int ac, char **av)
 {
 	long v;
 
-	s->quit = 1;
-	if (ac > 1 && !bi_num("exit", av[1], &v))
+	if (ac > 1 && !bi_num("exit", av[1], &v)) {
+		s->quit = 1;
 		return s->st = 2;
+	}
+	if (ac > 2)
+		return bi_many(s, "exit");
+	s->quit = 1;
 	if (ac > 1)
 		s->st = (int)(v & 255);
 	return s->st;
@@ -499,9 +513,13 @@ int b_retf(sh *s, int ac, char **av)
 	}
 	long v;
 
-	s->ret = 1;
-	if (ac > 1 && !bi_num("return", av[1], &v))
+	if (ac > 1 && !bi_num("return", av[1], &v)) {
+		s->ret = 1;
 		return s->st = 2;
+	}
+	if (ac > 2)
+		return bi_many(s, "return");
+	s->ret = 1;
 	if (ac > 1)
 		s->st = (int)(v & 255);
 	return s->st;
@@ -518,6 +536,10 @@ int bi_loops(sh *s, const char *who, int ac, char **av)
 		s->st = 128;
 		if (!s->it)
 			s->quit = 1;
+		return -1;
+	}
+	if (ac > 2) {
+		bi_many(s, who);
 		return -1;
 	}
 	if (v < 1) {
@@ -543,7 +565,7 @@ int b_brk(sh *s, int ac, char **av)
 	}
 	n = bi_loops(s, "break", ac, av);
 	if (n < 0)
-		return 128;
+		return s->st;
 	if (!n) {
 		s->brk = ex_loops;
 		return HIBR_FAIL;
@@ -563,7 +585,7 @@ int b_cont(sh *s, int ac, char **av)
 	}
 	n = bi_loops(s, "continue", ac, av);
 	if (n < 0)
-		return 128;
+		return s->st;
 	if (!n) {
 		s->brk = ex_loops;
 		return HIBR_FAIL;
@@ -580,6 +602,8 @@ int b_shift(sh *s, int ac, char **av)
 
 	if (ac > 1 && !bi_num("shift", av[1], &n))
 		return HIBR_FAIL;
+	if (ac > 2)
+		return bi_many(s, "shift");
 	if (n < 0) {
 		lg(HIBR_LERR, "shift: %ld: shift count out of range", n);
 		return HIBR_FAIL;
@@ -1152,7 +1176,8 @@ int b_read(sh *s, int ac, char **av)
 					char *e3;
 
 					tmo = strtod(ov, &e3);
-					if (!*ov || *e3 || tmo < 0) {
+					if (!*ov || *e3 || tmo < 0 ||
+					    ov[strspn(ov, "0123456789.")]) {
 						lg(HIBR_LERR,
 						   "read: %s: invalid timeout specification",
 						   ov);

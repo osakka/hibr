@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.464
+
+**Argument checks and `wait` follow bash** (Gitea #473, compared in
+`tests/999-arg-checks.t`).
+
+- **A second operand gives up the line.** `exit`, `return`, `break`, `continue` and
+  `shift` with one too many say so and drop the rest of the line with status 1; the
+  next line runs.
+- **`wait -p NAME PID...` waits for every operand** and names the last, where it
+  acted as `wait -n`. `wait $!` after a process substitution answers its status.
+- **A number too big for a long wraps**, as in bash, so `$((9223372036854775808))`
+  is negative and `[[ 9223372036854775808 -gt 0 ]]` is false.
+- **A dollar in a variable's value is no longer arithmetic.** `x='$y'; $((x))` read
+  `y`; it is a syntax error now, as in bash.
+- **`read -t` takes plain decimals only**, and `ulimit` refuses a limit too big to
+  scale.
+
 ## 0.99.463
 
 **Full screen stays while you work on another display** (owner, Gitea #484).
