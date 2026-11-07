@@ -9251,6 +9251,63 @@ check("the bar's battery is Blit's two cells, charging and on mains too",
       all(len(x) == 2 for x in _pwl[:3]), _pwl)
 
 
+# A window that asks for a key's whole life (Gitea #485): the one key event,
+# arriving for press, repeat and release, and for nobody else.
+KPLOG = scratch("kp-log.txt")
+
+
+def kprun(feed, opt=True, caps=("kbd",), body="", app="kp"):
+    if os.path.exists(KPLOG):
+        os.unlink(KPLOG)
+    f = scratch("kp.hibr")
+    open(f, "w").write(
+        "%s. %s\n"
+        "kp_draw() { console put -p \"w$1\" 1 1 here; }\n"
+        "kp_key() { echo \"$DT_KEYPHASE $DT_KEYCODE $DT_KEYBASE $2\" >> %s; }\n"
+        "dt_app kp \"Game\" 8 20\ndt_open\nKP := dt_new Game 8 20 5 10 kp\n"
+        "KPF=%s\nKPT=\n%s\n%s\ndt_run\ndt_close\n"
+        % (load(MOD), WM, KPLOG, KPLOG,
+           'dt_keyphases "$KP" on' if opt else "", body))
+    t = Term(f, rows=20, cols=50, settle=1.0, caps=list(caps) if caps else None)
+    t.collect(0.8)
+    t.keys(feed)
+    t.collect(0.3)
+    t.quit(b"q", 0.5)
+    got = open(KPLOG).read().split("\n")[:-1] if os.path.exists(KPLOG) else []
+    return [x for x in got if not x.endswith(" q")]
+
+
+got = kprun([b"\x1b[97;1:1u", b"\x1b[97;1:2u", b"\x1b[97;1:3u", 0.3])
+check("a window that asked is told a key's press, repeat and release, by one event",
+      got == ["press 97 0 a", "repeat 97 0 a", "release 97 0 a"], got)
+got = kprun([b"\x1b[57441;2:1u", b"\x1b[57441;1:3u", 0.3])
+check("and a modifier on its own is a key to it",
+      got == ["press 57441 0 left-shift", "release 57441 0 left-shift"], got)
+got = kprun([b"\x1b[1041:1041:97;1:1u", 0.3])
+check("and the key's place on a US layout comes with it",
+      len(got) == 1 and got[0].split()[2] == "97", got)
+got = kprun([b"\x1b[97;1:3u", 0.3])
+check("a release of a key it never saw go down is dropped", got == [], got)
+got = kprun([b"\x1b[1;1:1A", b"\x1b[1;1:3A", b"\x1b[15;1:1~", b"\x1b[15;1:3~", 0.3])
+check("and arrows and function keys report theirs in their own form",
+      got == ["press 0 0 up", "release 0 0 up", "press 0 0 f5", "release 0 0 f5"], got)
+got = kprun([b"\x1b[97;1:1u", 0.3], body='kp_tick() { [ -s "$KPF" ] && [ -z "$KPT" ] && { KPT=1; dt_new Other 6 20 2 30; }; return 0; }\ndt_ticker kp_tick')
+check("a window that loses the keys is told what it held went up",
+      got == ["press 97 0 a", "release 97 0 a"], got)
+got = kprun([b"\x1b[97;1:1u", 0.3], body='dt_want 400\nkp_tick() { [ -s "$KPF" ] && [ -z "$KPT" ] && { KPT=1; dt_min "$KP"; }; return 0; }\ndt_ticker kp_tick')
+check("hiding it is the same", got == ["press 97 0 a", "release 97 0 a"], got)
+got = kprun([b"\x1b[97;1:1u", b"\x1b[O", 0.3])
+check("and so is the terminal saying it lost the focus",
+      got == ["press 97 0 a", "release 97 0 a"], got)
+got = kprun([b"\x1b[97;1:1u", b"\x1b[97;1:3u", b"b", 0.3], opt=False)
+check("a window that did not ask sees presses alone",
+      [x.split()[-1] for x in got] == ["a", "b"] and
+      all(x.startswith("press") for x in got), got)
+got = kprun([b"\x1b[97;1:3u", b"a", 0.3], caps=None)
+check("and a terminal with no key events goes on with presses alone",
+      got == ["press 0 0 a"], got)
+
+
 # Two displays side by side, the bar on the left, a window on each, the right
 # one in full screen: what a person working on the left one sees.
 def fsboth(body, feed):
@@ -9400,4 +9457,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1022)
+report(1032)

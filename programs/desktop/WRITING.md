@@ -165,6 +165,16 @@ straight after an on. Call both behind `dt_has`, since a desktop older than
 0.99.365 has neither.
 
 **A window that wants the whole display** -- a game, a film -- calls
+`dt_keyphases "$id" on` (Gitea #485), for a game: the same `_key` then arrives
+for a key's press, while it repeats and for its release, and inside it
+`DT_KEYPHASE` says which (press, repeat or release), `DT_KEYCODE` the key's own
+code (0 for one sent in its legacy form), `DT_KEYBASE` its key on a US layout,
+where the terminal gives one, and `DT_KEYMODS` kitty's modifier bits. A modifier on its own is a key to such a
+window: `left-shift`, `right-ctrl` and so on. It answers status 1 where the
+terminal cannot report them, and a window goes on seeing presses alone. The
+window is told a release for all it holds when it stops having the keys, so a
+game cannot go on walking.
+
 `dt_fullscreen "$id" on|off|toggle` (Gitea #405): every cell of the
 display the window is on, the bar's row included, with no bar, frame,
 shadow or Control Strip over it. A display has one at most, and

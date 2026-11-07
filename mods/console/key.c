@@ -903,6 +903,14 @@ unsigned cn_ushift(unsigned c)
 	return c;
 }
 
+
+/* What a window that asked for phases is told about the key just decoded
+   (Gitea #485): 1 press, 2 repeat, 3 release; the key's own code, 0 for one
+   that came by its legacy form; and the base-layout key where the terminal
+   gives one. */
+int cn_phases, cn_kev = 1;
+unsigned cn_kcode, cn_kbase, cn_kmods;
+
 /* A key in the kitty keyboard protocol's own form, `CSI code ; mods u`,
    named exactly as the bytes a terminal without the protocol would have
    sent for it are named -- so a binding, an app's key handler and a program
@@ -914,11 +922,19 @@ unsigned cn_ushift(unsigned c)
    media key -- and is taken with nothing to report. */
 int cn_csiu(unsigned code, int m, str *o)
 {
+	static const char *const mods[] = { "left-shift", "left-ctrl", "left-alt",
+		"left-super", "left-hyper", "left-meta", "right-shift",
+		"right-ctrl", "right-alt", "right-super", "right-hyper",
+		"right-meta" };
 	int b = m > 0 ? (m - 1) & 15 : 0;
 	char e[8];
 	size_t n = 0, used = 0;
 	unsigned c = code;
 
+	if (cn_phases && code >= 57441 && code <= 57452) {
+		s_cat(o, mods[code - 57441]);
+		return 1;
+	}
 	if ((code >= 57344 && code <= 63743) || code > 0x10FFFF) {
 		lg(HIBR_LDBG, "console: key %u has no name here, dropped", code);
 		return 2;
@@ -983,11 +999,16 @@ int cn_isans(const char *p, size_t n)
 int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 {
 	unsigned cp;
-	int l, np = 0, par[4], i, sub = 0, ev = 0;
+	int l, np = 0, par[4], i, sub = 0, ev = 0, ki = 0;
+	long ks[3] = { 0, 0, 0 };
 	const char *nm;
 
 	if (!n)
 		return 0;
+	cn_kev = 1;
+	cn_kcode = 0;
+	cn_kbase = 0;
+	cn_kmods = 0;
 	if ((unsigned char)p[0] != 27) {
 		if ((unsigned char)p[0] < 32 || (unsigned char)p[0] == 127) {
 			cn_ctrl(o, (unsigned char)p[0]);
@@ -1042,6 +1063,15 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 	}
 	if (p[1] == '[' && n >= 3 && p[2] == '?')
 		return cn_report(p, n, o, used);
+	/* Focus reports, asked for with phases on: the terminal gave the
+	   keyboard away, so what is held has gone up (Gitea #485). */
+	if (p[1] == '[' && n >= 3 && (p[2] == 'I' || p[2] == 'O')) {
+		*used = 3;
+		if (p[2] == 'I' || !cn_phases)
+			return 2;
+		s_cat(o, "focus out");
+		return 1;
+	}
 	if (p[1] == 'O' || p[1] == '[') {
 		for (i = 0; i < 4; i++)
 			par[i] = 0;
@@ -1052,6 +1082,8 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 			if (p[i] >= '0' && p[i] <= '9') {
 				if (sub && np == 1)
 					ev = ev * 10 + (p[i] - '0');
+				else if (sub && np == 0)
+					ks[ki] = ks[ki] * 10 + (p[i] - '0');
 				else if (!sub && np < 4)
 					par[np] = par[np] * 10 + (p[i] - '0');
 				i++;
@@ -1066,6 +1098,8 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 			}
 			if (p[i] == ':') {
 				sub = 1;
+				if (np == 0 && ki < 2)
+					ki++;
 				i++;
 				continue;
 			}
@@ -1075,15 +1109,23 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 			return 0;
 		np++;
 		/* A key's release, which only a terminal asked for event
-		   types sends (kitty flag 2), is nothing to report. */
-		if (ev == 3) {
+		   types sends (kitty flag 2), is nothing to report unless a
+		   window asked for phases (Gitea #485). */
+		if (ev == 3 && !cn_phases) {
 			*used = (size_t)i + 1;
 			return 2;
 		}
 		if (p[1] == '[' && p[i] == 'u') {
 			*used = (size_t)i + 1;
-			return cn_csiu((unsigned)par[0], np > 1 ? par[1] : 0, o);
+			l = cn_csiu((unsigned)par[0], np > 1 ? par[1] : 0, o);
+			cn_kcode = (unsigned)par[0];
+			cn_kbase = (unsigned)ks[2];
+			cn_kev = ev ? ev : 1;
+			cn_kmods = np > 1 && par[1] > 0 ? (unsigned)par[1] - 1 : 0;
+			return l;
 		}
+		cn_kev = ev ? ev : 1;
+		cn_kmods = np > 1 && par[1] > 0 ? (unsigned)par[1] - 1 : 0;
 		if (p[i] == '~') {
 			nm = cn_tilde(par[0]);
 			if (!nm)

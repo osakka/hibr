@@ -1028,6 +1028,14 @@ fn dt_event(k) {
 		return 0
 		;;
 	esac
+	# A window that asked for a key's whole life: its repeats and releases
+	# go straight to it, before any shortcut can read one as a press.
+	if [ -n "$DT_PHASEWIN" ]; then
+		case $k in
+		"mouse "* | "pointer "* | "paste "*) ;;
+		*) dt_keyphase "$k" && return 0 ;;
+		esac
+	fi
 	case $k in
 	" "|"mouse "*press" "*) DT_PTRGEST := dt_ms ;;
 	*" "*) ;;
@@ -1282,8 +1290,10 @@ fn dt_event(k) {
 	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
 		DT_NOTEWIN=$DT_FOCUS
 		if dt_appcall "$DT_FOCUS" "${DT[$DT_FOCUS]["key"]}" "$k"; then
+			[ -n "$DT_KEYHELD" ] && DT_KH[$DT_FOCUS]["$DT_KEYHELD"]=$k
 			return 0
 		fi
+		[ -n "$DT_KEYHELD" ] && DT_KH[$DT_FOCUS]["$DT_KEYHELD"]=$k
 		DT_NOTEWIN=
 	fi
 	if [ -z "$DT_FOCUS" ] && [ "$DT_ICONS" = 1 ] && dt_iconkey "$k"; then

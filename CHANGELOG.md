@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.466
+
+**A window can ask for a key's whole life** (Gitea #315, #485). `dt_keyphases ID on`:
+the same `_key` then arrives for a key's press, while it repeats and for its
+release, and inside it `DT_KEYPHASE`, `DT_KEYCODE`, `DT_KEYBASE` and `DT_KEYMODS` say
+which. Modifiers on their own are keys to such a window. Everything else still sees
+presses alone: the terminal reports events only while that window has the focus.
+
+- **Nothing stays held.** A window is told a release for all it holds when the focus
+  moves, it hides or closes, a menu, the saver or the lock comes up, or the terminal
+  says it lost the focus. `hold` carries focus reports for that (`TM_API_VER` 14), so
+  a held session needs `hold upgrade` or a new start.
+- **The emulator answers `CSI 14 t` and `CSI 16 t`**, the screen's and a cell's size
+  in pixels.
+
 ## 0.99.465
 
 **The last of the audit's signal differences from bash** (Gitea #473).

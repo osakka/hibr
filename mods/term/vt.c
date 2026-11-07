@@ -1143,6 +1143,11 @@ void tm_csi(tm_t *t, int f)
 	case 't':
 		if (tm_par(t, 0, 0) == 18)
 			tm_reply2(t, "\033[8;", (long)t->rows, (long)t->cols, "t");
+		else if (tm_par(t, 0, 0) == 16 && t->cellw > 1 && t->cellh > 1)
+			tm_reply2(t, "\033[6;", (long)t->cellh, (long)t->cellw, "t");
+		else if (tm_par(t, 0, 0) == 14 && t->cellw > 1 && t->cellh > 1)
+			tm_reply2(t, "\033[4;", (long)t->rows * t->cellh,
+				  (long)t->cols * t->cellw, "t");
 		break;
 	case 'u':
 		if (!t->pn)

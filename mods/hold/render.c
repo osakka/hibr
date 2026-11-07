@@ -328,6 +328,11 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 		cn->kset = kf;
 		lg(HIBR_LDBG, "hold: keyboard flags %d put on a display", kf);
 	}
+	kf = hd_tm->focus(tid);
+	if (kf != cn->fset) {
+		s_cat(out, kf ? "\033[?1004h" : "\033[?1004l");
+		cn->fset = kf;
+	}
 	mch = !cn->primed || mmode != cn->mmode;
 	if (mch) {
 		s_cat(out, "\033[?1003l\033[?1002l\033[?1000l\033[?1006l");

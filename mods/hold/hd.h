@@ -354,7 +354,7 @@ struct hd_cli {
 	/* Whether this client's terminal speaks the kitty keyboard protocol,
 	   and the flags last put on it, which hd_modes keeps in step with
 	   what the program asked for. */
-	int kbd, kset;
+	int kbd, kset, fset;
 	/* What its terminal is: 0 it never said, and it gets what it always
 	   did; 1 Blit; 2 not, so Blit's glyphs and SGR extensions stop here
 	   (hd_subst). Never a default read as an answer (Gitea #274). */

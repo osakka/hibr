@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 13u
+#define TM_API_VER 14u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -152,6 +152,9 @@ struct tm_api {
 	   in (SGR 58, Blit ADR 0210), DP_DEFAULT for the foreground -- the one
 	   part of a cell's look at() does not answer, for a relay to send on. */
 	unsigned (*ulat)(int id, int r, int c);
+	/* Version 14: whether the program turned on focus reports (1004), for
+	   a relay to turn them on at the real terminal (Gitea #485). */
+	int (*focus)(int id);
 };
 
 #endif

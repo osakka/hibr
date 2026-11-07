@@ -1507,6 +1507,29 @@ int m_console(sh *s, int ac, char **av)
 		s_free(&k);
 		return r == 1 ? HIBR_OK : HIBR_FAIL;
 	}
+	if (!strcmp(sub, "keyphases")) {
+		if (!cn_need())
+			return HIBR_FAIL;
+		if (ac < 3)
+			return cn_kbdon ? HIBR_OK : HIBR_FAIL;
+		return cn_kphases(!strcmp(av[2], "on")) ? HIBR_OK : HIBR_FAIL;
+	}
+	if (!strcmp(sub, "keyinfo")) {
+		static const char *const ph[] = { "press", "press", "repeat", "release" };
+		s_init(&k);
+		s_cat(&k, ph[cn_kev >= 1 && cn_kev <= 3 ? cn_kev : 1]);
+		s_ch(&k, ' ');
+		s_num(&k, (long)cn_kcode);
+		s_ch(&k, ' ');
+		s_num(&k, (long)cn_kbase);
+		s_ch(&k, ' ');
+		s_num(&k, (long)cn_kmods);
+		hibr_ret(s, k.p);
+		if (!s->bind)
+			printf("%s\n", k.p);
+		s_free(&k);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "watching")) {
 		int *fds;
 		size_t n = cn_wlist(&fds), i;

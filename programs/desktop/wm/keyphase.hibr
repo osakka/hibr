@@ -1,0 +1,129 @@
+# wm/keyphase -- a window that wants a key's whole life (Gitea #485): the same
+# key event as any other window, arriving for its press, while it repeats and
+# for its release. A game needs this; a window that has not asked sees presses
+# alone, as it always has.
+#
+#   dt_keyphases ID on|off      status 1 where the terminal has not said it can
+#
+# Inside its own `_key`, a window that asked reads DT_KEYPHASE (press, repeat
+# or release), DT_KEYCODE (the key's own code, 0 for one that came by its
+# legacy form), DT_KEYBASE (the key on a US layout, where the terminal gives
+# one) and DT_KEYMODS (kitty's modifier bits). `_key` keeps its two arguments. A modifier on its own is a key to such
+# a window: left-shift, right-ctrl and so on.
+#
+# The terminal reports events only while such a window has the focus, so
+# typing anywhere else is what it always was. What the window holds is kept,
+# and it is told each release when it stops being the window keys go to: the
+# focus moved, it was hidden or closed, a menu, the saver or the lock came up,
+# or the terminal itself reported losing the focus.
+# A game must not go on walking. Shortcuts stay the desktop's: a release of a
+# key the window never saw is dropped.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# The window keys carry phases to, or empty; whether any window ever asked,
+# which is what keeps this off an ordinary desktop's loop.
+DT_PHASEWIN=
+DT_PHASEUSED=
+DT_KEYPHASE=press
+DT_KEYCODE=0
+DT_KEYBASE=0
+DT_KEYMODS=0
+# What each window holds: DT_KH[id][code] is the name its press went by.
+declare -gA DT_KH
+DT_KEYHELD=
+
+# Ask for a key's whole life, or stop.
+fn dt_keyphases(int id, on) {
+	if [ "$on" = on ]; then
+		DT[$id]["phases"]=1
+		DT_PHASEUSED=1
+	else
+		DT[$id]["phases"]=
+	fi
+	dt_keyphasecheck
+	[ "$on" != on ] || console keyphases 2> /dev/null
+}
+
+# Tell a window every key it holds has gone up, and forget them.
+fn dt_keyletgo(int id) {
+	local c n fn=${DT[$id]["key"]-}
+	local -a held=()
+
+	held=("${!DT_KH[$id][@]}")
+	for c in "${held[@]}"; do
+		n=${DT_KH[$id]["$c"]}
+		unset DT_KH["$id"]["$c"]
+		[ -n "$fn" ] || continue
+		DT_KEYPHASE=release
+		DT_KEYCODE=$c
+		[[ $c =~ ^[0-9]+$ ]] || DT_KEYCODE=0
+		DT_KEYBASE=0
+		dt_appcall "$id" "$fn" "$n"
+	done
+	DT_KEYPHASE=press
+	DT_KEYCODE=0
+	DT_KEYBASE=0
+	unset DT_KH["$id"]
+	if [ "$DT_MOUSE" = "$id" ]; then
+		DT_MOUSE=
+		[ -n "${DT[$id]["mouse"]-}" ] &&
+			dt_appcall "$id" "${DT[$id]["mouse"]}" release left 0 0 ""
+	fi
+	return 0
+}
+
+# Which window keys carry phases to now, and the terminal told when that
+# changes. Asked once a pass, once any window has asked.
+dt_keyphasecheck() {
+	local w= old=$DT_PHASEWIN
+
+	if [ -n "$DT_FOCUS" ] && [ "${DT[$DT_FOCUS]["phases"]-}" = 1 ] &&
+	   [ "$MB_OPEN" = -1 ] && [ -z "$DT_POP$DT_SAVING$DT_LOCKED" ] &&
+	   ! dt_hidden "$DT_FOCUS"; then
+		w=$DT_FOCUS
+	fi
+	[ "$w" = "$old" ] && return 0
+	# A terminal's answer arrives some time after the display opens, so one
+	# that has not said it can is asked again on the next pass.
+	if [ -n "$w" ] && [ -z "$old" ]; then
+		console keyphases on 2> /dev/null || return 0
+	fi
+	DT_PHASEWIN=$w
+	[ -n "$old" ] && dt_keyletgo "$old"
+	[ -n "$w" ] || console keyphases off 2> /dev/null
+	return 0
+}
+
+# A key while phases are on: what it is, and a repeat or a release handed to
+# the window that holds it. Status 1 is a press, which goes the usual way so
+# the desktop's shortcuts stay the desktop's, and DT_KEYHELD says what to
+# remember if the window takes it.
+fn dt_keyphase(k) {
+	local i id=$DT_PHASEWIN h
+
+	DT_KEYHELD=
+	if [ "$k" = "focus out" ]; then
+		dt_keyletgo "$id"
+		return 0
+	fi
+	i := console keyinfo
+	read -r DT_KEYPHASE DT_KEYCODE DT_KEYBASE DT_KEYMODS <<< "$i"
+	h=$DT_KEYCODE
+	[ "$h" = 0 ] && h=$k
+	if [ "$DT_KEYPHASE" = press ]; then
+		DT_KEYHELD=$h
+		return 1
+	fi
+	if [ -n "${DT_KH[$id]["$h"]+x}" ]; then
+		dt_appcall "$id" "${DT[$id]["key"]}" "${DT_KH[$id]["$h"]}"
+		[ "$DT_KEYPHASE" = release ] && unset DT_KH["$id"]["$h"]
+	fi
+	DT_KEYPHASE=press
+	DT_KEYCODE=0
+	DT_KEYBASE=0
+	return 0
+}

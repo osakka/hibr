@@ -298,6 +298,13 @@ int tm_api_pointer(int id, str *out)
 }
 
 /* The pointer lock the program asked for: 0, or the number of its ask. */
+int tm_api_focus(int id)
+{
+	tm_t *t = tm_find(id);
+
+	return t ? t->focus : 0;
+}
+
 int tm_api_plock(int id)
 {
 	tm_t *t = tm_find(id);
@@ -338,7 +345,7 @@ static const tm_api term_api = {
 	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image,
 	tm_api_save, tm_api_load, tm_api_kbd, tm_api_copyseq, tm_api_copyop,
 	tm_api_syncleft, tm_api_mpix, tm_api_reply, tm_api_pointer,
-	tm_api_plock, tm_api_shift, tm_api_ulat
+	tm_api_plock, tm_api_shift, tm_api_ulat, tm_api_focus
 };
 
 const tm_api *tm_apiget(void)

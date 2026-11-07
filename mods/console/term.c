@@ -218,17 +218,39 @@ int cn_canwhole(void)
    since the question is asked again on every resize. */
 static const char cn_kbdpush[] = "\033[>1u";
 static const char cn_kbdpop[] = "\033[<u";
+static const char cn_kbdall[] = "\033[=15;1u\033[?1004h";
+static const char cn_kbdone[] = "\033[=1;1u\033[?1004l";
 int cn_kbdon;
 
 /* The terminal answered the keyboard protocol's query: push the
    disambiguate flag, once, and only from the process that holds the
    screen. */
+/* Report events and every key, for a window that asked for phases, or back
+   to escapes alone: 1 unless this terminal speaks the protocol. Only the
+   flags change, so what a key is called does not (Gitea #485). */
+int cn_kphases(int on)
+{
+	if (!cn_kbdon)
+		return 0;
+	if (on != cn_phases) {
+		lg(HIBR_LDBG, "console: key phases %s", on ? "on" : "off");
+		if (on)
+			cn_wr(cn_fd, cn_kbdall, sizeof cn_kbdall - 1);
+		else
+			cn_wr(cn_fd, cn_kbdone, sizeof cn_kbdone - 1);
+	}
+	cn_phases = on;
+	return 1;
+}
+
 void cn_gotkbd(void)
 {
 	if (cn_kbdon || !cn_on || cn_fd < 0 || getpid() != cn_pid)
 		return;
 	cn_wr(cn_fd, cn_kbdpush, sizeof cn_kbdpush - 1);
 	cn_kbdon = 1;
+	if (cn_phases)
+		cn_wr(cn_fd, cn_kbdall, sizeof cn_kbdall - 1);
 	lg(HIBR_LDBG, "console: the terminal speaks the kitty keyboard "
 		      "protocol; asked it to tell chords apart");
 }

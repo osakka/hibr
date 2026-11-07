@@ -139,6 +139,8 @@ and the flush cost shown live. Run it and press things.
 | `console watch fd` / `console unwatch fd` | let `console key` also wake when a descriptor is readable; a watched pipe that stays readable for two seconds with nothing reading it is no longer woken for, and the log says which, until it is read again |
 | `console watching` | the watched descriptors, a muted one marked `:muted` |
 | `console consumed` | how many bytes of input have become keys |
+| `console keyphases [on\|off]` | whether this terminal can report key events; on for a key's press, repeat and release (kitty flags 1, 2, 4 and 8), off for escapes alone |
+| `console keyinfo` | the phase, code, base-layout key and modifier bits of the key just read |
 | `console pane name row col h w` | define a region, or move one |
 | `console pane name` | its row, column, height and width |
 | `console pane raise\|lower\|drop name` | restack a pane, or forget it |
