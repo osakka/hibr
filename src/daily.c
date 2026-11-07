@@ -1846,12 +1846,12 @@ int b_getopts(sh *s, int ac, char **av)
 		s->optpos = 0;
 	hibr_set(s, "OPTARG", "", 0);
 	if (idx > n) {
-		hibr_set(s, nm, "?", 0);
+		v_assign(s, nm, "?", 0, 1);
 		return HIBR_FAIL;
 	}
 	cur = args[idx - 1];
 	if (!cur || cur[0] != '-' || !cur[1]) {
-		hibr_set(s, nm, "?", 0);
+		v_assign(s, nm, "?", 0, 1);
 		return HIBR_FAIL;
 	}
 	if (!strcmp(cur, "--")) {
@@ -1861,7 +1861,7 @@ int b_getopts(sh *s, int ac, char **av)
 		s_num(&nx, (long)(idx + 1));
 		hibr_set(s, "OPTIND", nx.p, 0);
 		s_free(&nx);
-		hibr_set(s, nm, "?", 0);
+		v_assign(s, nm, "?", 0, 1);
 		return HIBR_FAIL;
 	}
 	if (!s->optpos)
@@ -1875,14 +1875,14 @@ int b_getopts(sh *s, int ac, char **av)
 	s_init(&one);
 	s_ch(&one, c);
 	if (!hit || c == ':') {
-		hibr_set(s, nm, "?", 0);
+		v_assign(s, nm, "?", 0, 1);
 		if (quiet)
 			hibr_set(s, "OPTARG", one.p, 0);
 		else
 			lg(HIBR_LWRN, "getopts: illegal option -%s", one.p);
 		s_free(&one);
 	} else if (hit[1] == ':') {
-		hibr_set(s, nm, one.p, 0);
+		v_assign(s, nm, one.p, 0, 1);
 		if (s->optpos) {
 			hibr_set(s, "OPTARG", cur + s->optpos, 0);
 			s->optpos = 0;
@@ -1891,16 +1891,16 @@ int b_getopts(sh *s, int ac, char **av)
 			hibr_set(s, "OPTARG", args[idx - 1], 0);
 			idx++;
 		} else if (quiet) {
-			hibr_set(s, nm, ":", 0);
+			v_assign(s, nm, ":", 0, 1);
 			hibr_set(s, "OPTARG", one.p, 0);
 		} else {
-			hibr_set(s, nm, "?", 0);
+			v_assign(s, nm, "?", 0, 1);
 			lg(HIBR_LWRN, "getopts: option -%s needs an argument",
 			   one.p);
 		}
 		s_free(&one);
 	} else {
-		hibr_set(s, nm, one.p, 0);
+		v_assign(s, nm, one.p, 0, 1);
 		s_free(&one);
 	}
 	s->optind = idx;

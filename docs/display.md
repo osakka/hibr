@@ -6,7 +6,7 @@ keys decoded once into names you can compare against.
 
 It is a module, so nothing pays for it until it is loaded. The module is called
 `console` because it is a *text* display; what it offers other modules is the
-**display** interface in `mods/display.h`, which a framebuffer or SDL backend
+**display** interface in `mods/display.h`, which a framebuffer or other backend
 could offer just as well. A tool written against that interface would not have
 to change.
 

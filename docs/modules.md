@@ -207,7 +207,7 @@ lists every one, file by file:
 - **`console`** owns the terminal so other tools do not have to: an alternate
   screen, a cell grid that redraws only what changed, panes, colour and decoded
   keys. It offers the **display** interface in `mods/display.h`, so a
-  framebuffer or SDL backend could replace it without the tools changing. See
+  framebuffer or other backend could replace it without the tools changing. See
   [full-screen programs](display.md).
 - **`http`** registers `/dev/http/host/port/path`: the request is made on open,
   through the `fetch` module, and the descriptor reads the body from its

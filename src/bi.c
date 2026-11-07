@@ -150,6 +150,8 @@ int b_echo(sh *s, int ac, char **av)
 				esc = 0;
 		}
 	}
+	if ((i < ac || nl) && rd_gone("echo"))
+		return HIBR_FAIL;
 	for (; i < ac; i++) {
 		if (esc) {
 			s_init(&o);
@@ -222,7 +224,7 @@ int b_exp(sh *s, int ac, char **av)
 		q = strchr(av[i], '=');
 		if (q) {
 			*q = 0;
-			hibr_set(s, av[i], q + 1, !un);
+			v_assign(s, av[i], q + 1, !un, 1);
 			if (un)
 				b_unexp(s, av[i]);
 			*q = '=';
@@ -1252,7 +1254,7 @@ int b_read(sh *s, int ac, char **av)
 		return rv;
 	}
 	if (exact && i < ac) {
-		hibr_set(s, av[i], b.p ? b.p : "", 0);
+		v_assign(s, av[i], b.p ? b.p : "", 0, 1);
 		for (i++; i < ac; i++)
 			hibr_set(s, av[i], "", 0);
 		s_free(&b);
@@ -1299,7 +1301,7 @@ int b_read(sh *s, int ac, char **av)
 				       b.p ? b.p + st : "");
 				*br = '[';
 			} else {
-				hibr_set(s, av[i], b.p ? b.p + st : "", 0);
+				v_assign(s, av[i], b.p ? b.p + st : "", 0, 1);
 			}
 			vb_put(s, ks);
 			if (b.p)
@@ -2564,7 +2566,7 @@ int b_decl(sh *s, int ac, char **av)
 			lg(HIBR_LDBG, "%s now refers to %s", av[i], q + 1);
 			free(v->v);
 			v->v = xs(q + 1);
-		} else if (q && hibr_set(s, av[i], q + 1, ex) != HIBR_OK)
+		} else if (q && v_assign(s, av[i], q + 1, ex, 1) != HIBR_OK)
 			n = 1;
 		if (ro && (v = v_find(s, av[i])))
 			v->ro = 1;
@@ -2631,7 +2633,7 @@ int b_ro(sh *s, int ac, char **av)
 			n = 1;
 			continue;
 		}
-		if (q && hibr_set(s, av[i], q + 1, 0) != HIBR_OK)
+		if (q && v_assign(s, av[i], q + 1, 0, 1) != HIBR_OK)
 			n = 1;
 		v = v_find(s, av[i]);
 		if (!v) {

@@ -58,6 +58,8 @@ unsigned vh(const char *k);
 var *v_find(sh *s, const char *k);
 var *v_findr(sh *s, const char **nm);
 int v_assign(sh *s, const char *k, const char *v, int ex, int keep);
+extern int rd_shut;
+int rd_gone(const char *who);
 #ifndef HIBR_DEFPATH
 #define HIBR_DEFPATH "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 #endif

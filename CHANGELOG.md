@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.462
+
+**Everything that writes a variable treats an array the way an assignment does**
+(Gitea #473). `for`, `select`, `read`, `getopts`, `printf -v`, `export`, `declare`
+and `readonly` now go through one writer, compared with bash in
+`tests/999-array-writers.t`.
+
+- **A prefix on an array keeps it.** `a=x cmd` lifted only the array's first value
+  and left the rest behind; the whole variable now comes back after the command.
+- **`echo` and `printf` fail when standard output was closed with `>&-`**, with
+  bash's `write error: Bad file descriptor`, rather than reporting success.
+- **`set -u` stops at an unset name in arithmetic.** An array element still reads
+  as 0, as in bash, and a branch not taken is not an error.
+- **Blit 0.3.58's glyphs** are in the table, among them the wide batteries.
+- The documentation no longer names SDL as a coming display backend.
+
 ## 0.99.461
 
 - **Blit's two-cell classic telephone** (Blit 0.3.57) is in the glyph table, for

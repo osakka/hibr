@@ -390,6 +390,8 @@ int rd_do(sh *s, redir *r, vec *sv)
 					}
 					tgt = atoi(cur);
 				}
+				if (tgt == 1)
+					rd_shut = 1;
 				if (sv)
 					rd_save(sv, tgt);
 				close(tgt);
@@ -1211,9 +1213,27 @@ void asg_keep(sh *s, vec *old, const char *k)
 	var *v = v_find(s, k);
 	struct sav *sv = asv_new(k);
 
-	sv->v = v ? xs(v->v) : 0;
+	sv->v = 0;
 	sv->ex = v ? v->ex : 0;
+	if (v && (v->am || v->map) && !v->ro) {
+		lg(HIBR_LDBG, "%s is an array: lifted out while the prefix stands", k);
+		sv->w = v_take(s, k);
+	} else if (v) {
+		sv->v = xs(v->v);
+	}
 	v_add(old, sv);
+}
+
+/* Whether standard output has been closed, said as the write would: only a
+   shell that has run a >&- pays for the asking, since stdio's buffer would
+   otherwise take the write and report nothing. */
+int rd_shut;
+int rd_gone(const char *who)
+{
+	if (!rd_shut || fcntl(1, F_GETFD) >= 0)
+		return 0;
+	lg(HIBR_LERR, "%s: write error: Bad file descriptor", who);
+	return 1;
 }
 
 /* Whether k was declared local by the running function or any function
@@ -2340,7 +2360,7 @@ int ex_for(sh *s, node *n)
 		for (i = 0; i < (size_t)s->ac; i++)
 			v_add(&o, s->av[i]);
 	for (i = 0; i < o.n; i++) {
-		if (hibr_set(s, n->s, (char *)o.p[i], 0) != HIBR_OK) {
+		if (v_assign(s, n->s, (char *)o.p[i], 0, 1) != HIBR_OK) {
 			s->srefuse = 0;
 			st = 1;
 			break;
@@ -2882,7 +2902,7 @@ int ex_select(sh *s, node *n)
 			continue;
 		}
 		k = atol(line.p);
-		hibr_set(s, n->s, k >= 1 && (size_t)k <= o.n ? (char *)o.p[k - 1] : "", 0);
+		v_assign(s, n->s, k >= 1 && (size_t)k <= o.n ? (char *)o.p[k - 1] : "", 0, 1);
 		s_free(&line);
 		st = ex(s, n->r);
 		if (s->brk) {

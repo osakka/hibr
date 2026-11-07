@@ -576,7 +576,7 @@ went in the shell.
   it was not. Check a new module's name against `command -v` before choosing
   it. The module is `console` because it is a text display, and what it
   registers is `"display"` — the interface, not the backend — so a framebuffer
-  or SDL backend could replace it without `most` or the vi changing.
+  or other backend could replace it without `most` or the vi changing.
 - **The `sc_` prefix is `net.c`'s.** The display module is `cn_` now and was
   `scr_` before that, because
   `src/net.c` already exports `sc_find` and `sc_fini` for schemes — and

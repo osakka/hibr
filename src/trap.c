@@ -1010,10 +1010,14 @@ int b_printf(sh *s, int ac, char **av)
 	} while (i < ac && used);
 	hibr_set(s, "RET", o.p ? o.p : "", 0);
 	if (into)
-		hibr_set(s, into, o.p ? o.p : "", 0);
+		v_assign(s, into, o.p ? o.p : "", 0, 1);
 	else if (!s->bind) {
-		fwrite(o.p ? o.p : "", 1, o.n, stdout);
-		fflush(stdout);
+		if (rd_gone("printf")) {
+			bad = 1;
+		} else {
+			fwrite(o.p ? o.p : "", 1, o.n, stdout);
+			fflush(stdout);
+		}
 	}
 	s_free(&o);
 	return bad ? HIBR_FAIL : HIBR_OK;

@@ -3327,6 +3327,10 @@ long ax_get(struct ax *a, const char *nm)
 	t = nm[1] ? hibr_get(a->s, nm) : xval(a->s, nm);
 	if (!t && nm[1])
 		t = xval(a->s, nm);
+	if (!t && a->s->uset && !a->skip) {
+		xunset(a->s, nm);
+		a->bad = 1;
+	}
 	return ax_val(a, t);
 }
 

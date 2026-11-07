@@ -517,7 +517,7 @@ charges the later hops' wait to the earlier ones and a LAN gateway reads
 blocked on it. It was called `screen` until that turned out to shadow
 `/usr/bin/screen` — a module's builtins become commands — and it is the
 *console*, a text display. What it offers other modules is the **display**
-interface in `mods/display.h`, which a framebuffer or SDL backend could offer
+interface in `mods/display.h`, which a framebuffer or other backend could offer
 equally well without the tools noticing. It owns the terminal: alternate screen, a cell grid with two
 buffers and a redraw that emits only the difference, panes, colour, and keys
 decoded into names. 2095 bytes to paint an empty eighty by twenty-four screen,
