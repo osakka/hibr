@@ -247,6 +247,9 @@ char *xpsub(sh *s, part *p);
 void xpsub_done(sh *s);
 extern pid_t xps_pid;
 extern int xps_st;
+extern int jc_gone, tr_inchld;
+void tr_chldmark(void);
+void jc_left(sh *s);
 char **xargv(sh *s, word *w, int *ac, char ***am);
 
 /* Expand a word into fields, with no interest in which bytes were quoted. */

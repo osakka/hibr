@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.465
+
+**The last of the audit's signal differences from bash** (Gitea #473).
+
+- **A CHLD trap runs once for each child.** A burst of children ran it once, since
+  their signals arrive as one; it counts what is reaped now, and it no longer runs
+  inside itself, which lost an increment now and then.
+- **`hibr -i` hands on an ignored INT.** Its own handler stood over the ignore, so its
+  children got the default back.
+- **^C ends an interactive `wait`** and what was left of the line, with status 130.
+- **The cursor alone counts as a selection of one desktop icon** again. Since
+  0.99.370 what acted on the selection found nothing.
+
 ## 0.99.464
 
 **Argument checks and `wait` follow bash** (Gitea #473, compared in

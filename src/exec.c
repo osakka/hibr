@@ -1547,6 +1547,7 @@ void xpsub_done(sh *s)
 			lg(HIBR_LDBG, "substitution %d ended", rec[1]);
 			xps_pid = rec[1];
 			xps_st = wstat(w);
+			jc_left(s);
 		}
 		if (r != 0)
 			free(rec);
@@ -2057,7 +2058,7 @@ out:
 	   noticed until the one after. Nothing is asked of the kernel unless a
 	   child really has exited and this script really has jobs, so a loop
 	   that has neither pays one load of a flag. */
-	if (jc_chld && s->jobs.n) {
+	if (jc_chld && s->jobs.n && !tr_inchld) {
 		jc_chld = 0;
 		jc_poll(s, 0);
 	}

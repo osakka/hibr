@@ -20,6 +20,17 @@ int jc_have;
 
 int wstat(int w);
 
+/* How many children have ended since the CHLD trap last ran: bash runs it
+   once for each, and signals of a burst arrive as one. */
+int jc_gone;
+void jc_left(sh *s)
+{
+	if (s->trap && s->trap[SIGCHLD] && *s->trap[SIGCHLD]) {
+		jc_gone++;
+		tr_chldmark();
+	}
+}
+
 const struct signm jc_sigs[] = {
 	{ "HUP", SIGHUP },   { "INT", SIGINT },   { "QUIT", SIGQUIT },
 	{ "KILL", SIGKILL }, { "TERM", SIGTERM }, { "STOP", SIGSTOP },
@@ -246,6 +257,8 @@ long jc_anyone(sh *s, int *w)
 				p = waitpid((pid_t)j->last, w, WNOHANG | WUNTRACED);
 			if (p > 0) {
 				sigprocmask(SIG_SETMASK, &old, 0);
+				if (!WIFSTOPPED(*w))
+					jc_left(s);
 				return (long)p;
 			}
 			if (p < 0 && errno == ECHILD) {
@@ -318,6 +331,7 @@ int jc_waitjob(sh *s, job *j, int *st)
 		}
 		if (p > 0) {
 			j->ndone++;
+			jc_left(s);
 			if ((long)p == j->last)
 				*st = wstat(w);
 			continue;
@@ -497,6 +511,8 @@ long jc_waitt(sh *s, long wp, long kp, int *w, int fl)
 		   which is also what bash does for a foreground command. */
 		for (;;) {
 			p = waitpid((pid_t)wp, w, fl);
+			if (p > 0 && !WIFSTOPPED(*w))
+				jc_left(s);
 			if (p >= 0 || errno != EINTR)
 				return (long)p;
 			if (g_hup)
@@ -511,6 +527,8 @@ long jc_waitt(sh *s, long wp, long kp, int *w, int fl)
 	alarm((unsigned)t);
 	for (;;) {
 		p = waitpid((pid_t)wp, w, fl);
+		if (p > 0 && !WIFSTOPPED(*w))
+			jc_left(s);
 		if (p >= 0 || errno != EINTR)
 			break;
 		if (g_hup)
@@ -630,6 +648,7 @@ void jc_poll(sh *s, int report)
 			j->st = 128 + WSTOPSIG(w);
 			continue;
 		}
+		jc_left(s);
 		j->ndone++;
 		if (wstat(w) && !j->fail)
 			j->fail = wstat(w);
@@ -806,8 +825,10 @@ int jc_waitone(sh *s, const char *a)
 				return -2;
 			}
 			p = waitpid((pid_t)atol(a), &w, WNOHANG);
-			if (p > 0)
+			if (p > 0) {
+				jc_left(s);
 				break;
+			}
 			if (p < 0 && errno != EINTR) {
 				sigprocmask(SIG_SETMASK, &old, 0);
 				if ((pid_t)atol(a) == xps_pid)

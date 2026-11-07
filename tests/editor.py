@@ -342,5 +342,10 @@ t = session(rc, ["true\n", "zz q\t", 0.3, "\x15echo status=$? alive\n", "exit\n"
 check("a completion hook keeps $? and cannot end the shell",
       "status=0 alive" in t, repr(t[-300:]))
 shutil.rmtree(d, ignore_errors=True)
+# ^C ends an interactive wait and what was left of its line, as bash's does.
+t = session('PS1="> "\n', ["sleep 30 &\n", 0.3, "wait; echo after=$?\n", 0.5, "\x03", 0.5,
+                          "echo ok=$?\n", 0.2, "kill %1\n", "exit\n"])
+check("^C ends an interactive wait and gives up the line",
+      "after=1" not in t and "ok=130" in t, repr(t[-300:]))
 
-report(64)
+report(65)

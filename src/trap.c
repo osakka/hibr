@@ -10,7 +10,7 @@
 
 volatile sig_atomic_t *tr_pend;
 volatile sig_atomic_t tr_any;
-extern volatile sig_atomic_t g_hup;
+extern volatile sig_atomic_t g_hup, g_int;
 int tr_n;
 extern volatile sig_atomic_t jc_chld;
 
@@ -72,8 +72,10 @@ void tr_child(sh *s, int jc)
 
 	for (i = 0; i < n; i++) {
 		g = sigs[i];
-		if (tr_wasign(g))
+		if (tr_wasign(g)) {
+			signal(g, SIG_IGN);
 			continue;
+		}
 		if (s->trap && g < tr_n && s->trap[g] && !*s->trap[g])
 			continue;
 		signal(g, SIG_DFL);
@@ -143,6 +145,12 @@ int tr_waitsig(sh *s)
 
 	if (g_hup)
 		return SIGHUP;
+	if (g_int && s->it) {
+		lg(HIBR_LDBG, "^C ends wait and gives up the line");
+		s->stop = 1;
+		ex_abline = 1;
+		return SIGINT;
+	}
 	if (!tr_any || !s->trap || !tr_pend)
 		return 0;
 	for (i = 1; i < tr_n; i++)
@@ -151,10 +159,22 @@ int tr_waitsig(sh *s)
 	return 0;
 }
 
+/* While the CHLD trap runs, the job reaping waits, so what it counts is the
+   trap's own children and they can be forgotten; a child reaped later asks
+   for the trap itself, since its signal may have gone with those. */
+int tr_inchld;
+void tr_chldmark(void)
+{
+	if (tr_inchld || !tr_pend)
+		return;
+	tr_pend[SIGCHLD] = 1;
+	tr_any = 1;
+}
+
 /* Run the handlers for every signal that has arrived. */
 void tr_run(sh *s)
 {
-	int i, ost = s->st;
+	int i, n, ost = s->st;
 	char *cmd;
 
 	if (g_hup)
@@ -163,23 +183,40 @@ void tr_run(sh *s)
 	if (!s->trap || !tr_pend)
 		return;
 	for (i = 1; i < tr_n; i++) {
-		if (!tr_pend[i])
+		if (!tr_pend[i] || (i == SIGCHLD && tr_inchld))
 			continue;
 		tr_pend[i] = 0;
 		cmd = s->trap[i];
 		if (!cmd || !*cmd)
 			continue;
-		lg(HIBR_LDBG, "running trap for signal %d", i);
-		hibr_run(s, cmd);
-		/* A trap's own failure does not stop the script, which is
-		   what this clear is for -- but a `set -n` inside one means
-		   the script has asked to stop running, so that stop is
-		   kept. */
-		if (!s->noexec)
-			s->stop = 0;
-		if (s->quit) {
-			lg(HIBR_LDBG, "the trap for signal %d exits, with status %d", i, s->st);
-			return;
+		n = 1;
+		if (i == SIGCHLD) {
+			if (s->jobs.n)
+				jc_poll(s, 0);
+			n = jc_gone;
+			jc_gone = 0;
+		}
+		tr_inchld = i == SIGCHLD;
+		while (n-- > 0) {
+			lg(HIBR_LDBG, "running trap for signal %d", i);
+			hibr_run(s, cmd);
+			/* A trap's own failure does not stop the script, which
+			   is what this clear is for -- but a `set -n` inside
+			   one means the script has asked to stop running, so
+			   that stop is kept. */
+			if (!s->noexec)
+				s->stop = 0;
+			if (s->quit) {
+				lg(HIBR_LDBG, "the trap for signal %d exits, with status %d", i, s->st);
+				tr_inchld = 0;
+				return;
+			}
+		}
+		if (i == SIGCHLD) {
+			lg(HIBR_LDBG, "children the CHLD trap ran are not counted");
+			tr_inchld = 0;
+			jc_gone = 0;
+			tr_pend[i] = 0;
 		}
 	}
 	s->st = ost;
