@@ -1327,6 +1327,11 @@ json.dump({"icons": [{"id": "wifi-signal-1", "codepoint": "100003"}], "cell_geom
 BOUT = scratch("blitout")
 sc, _ = run('printf "%%s" "${GL[wifi1]}" > %s\ndt_new Notes 6 24 2 2\n' % BOUT,
             pre=CHALK + "DT_BLITCAT=%s\n" % BCAT)
+BWIDE = scratch("blitwide")
+run('printf "%%s" "${GL[phoneoffcw]}" > %s\ndt_new Notes 6 24 2 2\n' % BWIDE, pre="DT_GLYPHSET=blit\n")
+check("a two-cell glyph is its two halves side by side",
+      open(BWIDE, encoding="utf8").read() == "\U001002EC\U001002ED",
+      repr(open(BWIDE, encoding="utf8").read()))
 check("this machine's catalogue says which codepoint a glyph is",
       open(BOUT, encoding="utf8").read() == "\U00100003", repr(open(BOUT, encoding="utf8").read()))
 check("and a glyph it does not have is not drawn: no bottom corner, no Edge frame's "
@@ -9283,4 +9288,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1004)
+report(1005)

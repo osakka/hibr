@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.99.461
+
+- **Blit's two-cell classic telephone** (Blit 0.3.57) is in the glyph table, for
+  longwire's bar item and strip module.
+
 ## 0.99.460
 
 **Wi-Fi and sound take two cells on the menu bar under Blit's glyphs** (owner, Blit

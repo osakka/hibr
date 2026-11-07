@@ -69,6 +69,7 @@ fn dt_glyphs(set = "unicode") {
 	# it draws with its own characters when these are empty.
 	GL["phoneoff"]=; GL["phonewait"]=; GL["phoneon"]=; GL["phonering"]=
 	GL["phoneoffc"]=; GL["phonewaitc"]=; GL["phoneonc"]=; GL["phoneringc"]=
+	GL["phoneoffcw"]=; GL["phonewaitcw"]=; GL["phoneoncw"]=; GL["phoneringcw"]=
 	# Files' icons two columns wide in four colourways (Blit 0.3.4), each a
 	# left and right pair; Files draws its own when these are empty.
 	GL["ffolder"]=; GL["fdoc"]=; GL["ftext"]=; GL["fpdf"]=;
@@ -636,6 +637,11 @@ dt_glyphsblit() {
 	dt_bg phonewaitc phone-classic-wait
 	dt_bg phoneonc phone-classic-on
 	dt_bg phoneringc phone-classic-ring
+	# And the same phone two columns wide (0.3.57), for its bar item and strip.
+	dt_bg phoneoffcw phone-classic-wide-off-left phone-classic-wide-off-right
+	dt_bg phonewaitcw phone-classic-wide-wait-left phone-classic-wide-wait-right
+	dt_bg phoneoncw phone-classic-wide-on-left phone-classic-wide-on-right
+	dt_bg phoneringcw phone-classic-wide-ring-left phone-classic-wide-ring-right
 	# Files' icons (0.3.4), two columns each, a left then right pair:
 	# classic, blue, green and amber, each kind in the same order.
 	dt_bg ffolder file-folder-classic-left file-folder-classic-right

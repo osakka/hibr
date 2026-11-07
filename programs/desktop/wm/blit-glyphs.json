@@ -1,5 +1,5 @@
 {
- "revision": "e6e8cb8da534c085927c007704b88915f1ca9443b55b62dea83c2c7fcf7eaa5d",
+ "revision": "b6f395d27b429abebf1a1541f45dbf6e190bfc734074e75e21d7e0ac6265feee",
  "glyphs": {
   "bar-corner-left": "100007",
   "bar-corner-right": "100008",
@@ -301,6 +301,14 @@
   "phone-classic-on": "100021",
   "phone-classic-ring": "100022",
   "phone-classic-wait": "100020",
+  "phone-classic-wide-off-left": "1002EC",
+  "phone-classic-wide-off-right": "1002ED",
+  "phone-classic-wide-on-left": "1002F0",
+  "phone-classic-wide-on-right": "1002F1",
+  "phone-classic-wide-ring-left": "1002F2",
+  "phone-classic-wide-ring-right": "1002F3",
+  "phone-classic-wide-wait-left": "1002EE",
+  "phone-classic-wide-wait-right": "1002EF",
   "phone-off": "10001B",
   "phone-on": "10001D",
   "phone-ring": "10001E",
