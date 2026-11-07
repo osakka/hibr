@@ -30,6 +30,14 @@ static const char hd_kbdoff[] = "\033[=0;1u";
    hidden once this client has gone. */
 static const char hd_ptroff[] = "\033]22;\033\\";
 
+/* What this display's Blit said about a frame, for the server to count. */
+static int hd_clis = -1;
+void hd_clians(const char *line)
+{
+	if (hd_clis >= 0)
+		hd_send(hd_clis, HD_FRMANS, line, strlen(line));
+}
+
 void hd_onwinch(int n)
 {
 	(void)n;
@@ -181,9 +189,13 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	   offers a frame socket (Blit ADR 0202): this client's own session,
 	   named by its own environment -- the held program's is frozen from
 	   whatever shell started it, and may name another session or none. */
+	hd_clis = s;
+	bf_answer = hd_clians;
 	bfd = bf_open();
 	if (bfd >= 0)
 		hd_send(s, HD_FDCAP, (const char *)&one, sizeof one);
+	if (bfd >= 0 && bf_dmabuf)
+		hd_send(s, HD_DMABUF, bf_formats, strlen(bf_formats));
 	if (tc.bce == 1)
 		hd_send(s, HD_BCE, (const char *)&one, sizeof one);
 	if (tc.rep == 1)
@@ -289,6 +301,22 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 				}
 				if (mfd >= 0)
 					close(mfd);
+			} else if (t == HD_FRM3) {
+				int fds[BF_MAXFD], nf = hd_takefds(fds);
+
+				if (bfd < 0 || in.n != BF_HDR3 ||
+				    !bf_send3(bfd, (const unsigned char *)in.p, fds, nf)) {
+					str e;
+
+					s_init(&e);
+					s_cat(&e, "ERROR ");
+					s_num(&e, in.n >= 8 ? (long)hd_frmnum((const unsigned char *)in.p + 4, 4) : 0);
+					s_cat(&e, " ENOTSUP");
+					hd_send(s, HD_FRMANS, e.p, e.n);
+					s_free(&e);
+				}
+				while (nf > 0)
+					close(fds[--nf]);
 			} else if (t == HD_STATUS) {
 				if (bfd >= 0 && hud)
 					bf_status(bfd, in.p, in.n);

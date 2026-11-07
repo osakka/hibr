@@ -19,6 +19,13 @@
 #include <sys/syscall.h>
 #include <sys/un.h>
 
+#ifndef BF_FMTMAX
+#define BF_FMTMAX 512
+#endif
+int bf_dmabuf, bf_fence;
+char bf_formats[BF_FMTMAX];
+void (*bf_answer)(const char *line);
+
 #ifndef MFD_CLOEXEC
 #define MFD_CLOEXEC 0x0001U
 #endif
@@ -62,7 +69,7 @@ int bf_hello(const char *sock, const char *tok, int ver, int *inval)
 	struct pollfd q;
 	size_t sl, tl;
 	unsigned char *m;
-	char r[64];
+	char r[1024];
 	ssize_t k;
 	int fd;
 
@@ -99,6 +106,25 @@ int bf_hello(const char *sock, const char *tok, int ver, int *inval)
 	q.fd = fd;
 	q.events = POLLIN;
 	k = poll(&q, 1, 2000) == 1 ? recv(fd, r, sizeof r - 1, 0) : -1;
+	if (k >= 3 && ver >= 3 && !memcmp(r, "OK ", 3)) {
+		char *p;
+
+		r[k] = 0;
+		bf_dmabuf = strstr(r, "dmabuf=1") != 0;
+		bf_fence = strstr(r, "fence=1") != 0;
+		bf_formats[0] = 0;
+		p = strstr(r, "formats=");
+		if (p) {
+			size_t n = strcspn(p + 8, "\n");
+
+			if (n >= BF_FMTMAX)
+				n = BF_FMTMAX - 1;
+			memcpy(bf_formats, p + 8, n);
+			bf_formats[n] = 0;
+		}
+		lg(HIBR_LDBG, "frames: %s open at version 3, dmabuf %d", sock, bf_dmabuf);
+		return fd;
+	}
 	if (k < 3 || memcmp(r, "OK\n", 3)) {
 		if (k > 0) {
 			r[k] = 0;
@@ -121,7 +147,11 @@ int bf_dial(const char *sock, const char *tok)
 
 	if (!sock || !*sock || !tok || !*tok)
 		return -1;
-	fd = bf_hello(sock, tok, 2, &inval);
+	bf_dmabuf = bf_fence = 0;
+	bf_formats[0] = 0;
+	fd = bf_hello(sock, tok, 3, &inval);
+	if (fd < 0 && inval)
+		fd = bf_hello(sock, tok, 2, &inval);
 	if (fd < 0 && inval)
 		fd = bf_hello(sock, tok, 1, &inval);
 	return fd;
@@ -175,6 +205,44 @@ void bf_hdr(unsigned char *h, unsigned id, unsigned long long seq, int w,
 	bf_put32(h + 20, (unsigned long)ht);
 	bf_put32(h + 24, 24);
 	bf_put32(h + 28, (unsigned long)w * 3);
+}
+
+/* One frame by dmabuf, a header and its descriptors, in one message. A full
+   socket drops it, newest wins, as bf_send does. */
+int bf_send3(int fd, const unsigned char *h, const int *fds, int n)
+{
+	struct msghdr m;
+	struct iovec v;
+	struct cmsghdr *c;
+	union {
+		char b[CMSG_SPACE(sizeof(int) * BF_MAXFD)];
+		struct cmsghdr align;
+	} u;
+	ssize_t k;
+
+	if (fd < 0 || n < 1 || n > BF_MAXFD)
+		return 0;
+	memset(&m, 0, sizeof m);
+	memset(&u, 0, sizeof u);
+	v.iov_base = (void *)h;
+	v.iov_len = BF_HDR3;
+	m.msg_iov = &v;
+	m.msg_iovlen = 1;
+	m.msg_control = u.b;
+	m.msg_controllen = CMSG_SPACE(sizeof(int) * (size_t)n);
+	c = CMSG_FIRSTHDR(&m);
+	c->cmsg_level = SOL_SOCKET;
+	c->cmsg_type = SCM_RIGHTS;
+	c->cmsg_len = CMSG_LEN(sizeof(int) * (size_t)n);
+	memcpy(CMSG_DATA(c), fds, sizeof(int) * (size_t)n);
+	do
+		k = sendmsg(fd, &m, MSG_NOSIGNAL | MSG_DONTWAIT);
+	while (k < 0 && errno == EINTR);
+	if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+		lg(HIBR_LDBG, "frames: the socket is full, a dmabuf frame dropped");
+		return 1;
+	}
+	return k == BF_HDR3;
 }
 
 /* One header and one descriptor, in one message. */
@@ -234,6 +302,10 @@ int bf_line(const char *l, int *hud)
 		lg(HIBR_LDBG, "frames: the performance panel %s status",
 		   strcmp(l + 5, "on") ? "no longer wants" : "wants");
 		return 0;
+	}
+	if (bf_answer && (!strncmp(l, "RELEASE ", 8) || !strncmp(l, "ERROR ", 6))) {
+		bf_answer(l);
+		return strstr(l, "EACCES") ? -1 : 0;
 	}
 	lg(HIBR_LDBG, "frames: %s", l);
 	/* The person this connection was opened for has signed out (Blit
@@ -348,6 +420,16 @@ int bf_dial(const char *sock, const char *tok)
 int bf_open(void)
 {
 	return -1;
+}
+
+/* Not Linux: no dmabufs either. */
+int bf_dmabuf, bf_fence;
+char bf_formats[1];
+void (*bf_answer)(const char *line);
+int bf_send3(int fd, const unsigned char *h, const int *fds, int n)
+{
+	(void)fd; (void)h; (void)fds; (void)n;
+	return 0;
 }
 
 /* Not Linux: no memfd. */

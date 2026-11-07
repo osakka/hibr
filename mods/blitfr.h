@@ -34,7 +34,15 @@
    server one frame, which it keeps and passes to each display's client.
    1 when it went. */
 #ifndef HF_API_VER
-#define HF_API_VER 2
+#define HF_API_VER 3
+#endif
+/* The header of a frame by dmabuf (Blit ADR 0223, version 3), and how many
+   descriptors one may carry: four planes and an acquire fence. */
+#ifndef BF_HDR3
+#define BF_HDR3 72
+#endif
+#ifndef BF_MAXFD
+#define BF_MAXFD 5
 #endif
 typedef struct hf_api {
 	int (*frame)(sh *s, const unsigned char *h, int mfd);
@@ -43,6 +51,17 @@ typedef struct hf_api {
 	   whether any display's Blit is asking, 1 or 0. */
 	int (*status)(sh *s, const char *p, size_t n);
 	int (*hud)(sh *s);
+	/* Version 3 (Blit ADR 0223): a connection of its own to the session's
+	   server for frames by dmabuf, or -1, read for what comes back, each
+	   "RELEASE <id> <seq>" or "ERROR <id> <code>" by answer; one frame on
+	   it, its header and n descriptors, which stay the caller's; the next
+	   line that came back into o, 1 with one, 0 with none yet, -1 when the
+	   connection has gone; and whether every display can import, 1 with
+	   the formats they all take in o. */
+	int (*open3)(sh *s);
+	int (*frame3)(int fd, const unsigned char *h, const int *fds, int n);
+	int (*answer)(int fd, str *o);
+	int (*dmabuf)(sh *s, str *o);
 } hf_api;
 
 /* The performance panel's status (Blit ADR 0203): at most this many lines
@@ -62,6 +81,20 @@ int bf_open(void);
 /* The same, for a socket and token given rather than read from the
    environment. */
 int bf_dial(const char *sock, const char *tok);
+
+/* What the last hello was answered about dmabufs: 1 when the far side
+   imports them, with its list of formats in bf_formats, and whether it
+   waits on a fence. */
+extern int bf_dmabuf, bf_fence;
+extern char bf_formats[];
+
+/* What a RELEASE or an ERROR said is handed here when it is set, and
+   otherwise logged. */
+extern void (*bf_answer)(const char *line);
+
+/* One frame by dmabuf: a header of BF_HDR3 and its descriptors. 1 when it
+   went, or was dropped on a full socket. */
+int bf_send3(int fd, const unsigned char *h, const int *fds, int n);
 
 /* A sealed memfd holding n bytes, or -1. */
 int bf_memfd(const unsigned char *p, size_t n);

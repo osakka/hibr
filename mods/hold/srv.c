@@ -105,6 +105,7 @@ void hd_cdrop(vec *cls, int fd)
 		if (cn->fd == fd) {
 			hd_slotkeep(cn);
 			hd_gone = 1;
+			hd_f3client(fd);
 			close(fd);
 			free(cn->front);
 			free(cn->pid);
@@ -117,6 +118,7 @@ void hd_cdrop(vec *cls, int fd)
 			s_free(&cn->name);
 			s_free(&cn->title);
 			s_free(&cn->ptrsh);
+			s_free(&cn->dmafmt);
 			free(cn);
 			cls->p[i] = cls->p[--cls->n];
 			return;
@@ -525,6 +527,72 @@ void hd_lockstray(struct hd_cli *cn, const char *p, size_t n)
    Accepting both means an old client and a new server, or the reverse, still
    attach -- just without a viewport, until whichever side is stale gets
    reinstalled. */
+/* The connections frames by dmabuf come in on. */
+static int *hd_prods;
+static size_t hd_nprod;
+
+/* Whether every display that can take a frame imports dmabufs, and the
+   formats all of them take, each one a whole comma-separated token. */
+void hd_dmaq(int c, vec *cls)
+{
+	struct hd_cli *a = 0, *cn;
+	str o;
+	char *t, *p, *e;
+	size_t i, n;
+	int any = 0, in;
+
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		if (!cn->fdok)
+			continue;
+		if (!cn->dma) {
+			hd_send(c, HD_DMAQ, "0", 1);
+			return;
+		}
+		if (!a)
+			a = cn;
+	}
+	if (!a || !a->dmafmt.p) {
+		hd_send(c, HD_DMAQ, "0", 1);
+		return;
+	}
+	s_init(&o);
+	s_cat(&o, "1 ");
+	t = xs(a->dmafmt.p);
+	for (p = t; p && *p; p = e) {
+		e = strchr(p, ',');
+		if (e)
+			*e++ = 0;
+		n = strlen(p);
+		in = 1;
+		for (i = 0; i < cls->n; i++) {
+			const char *h;
+
+			cn = cls->p[i];
+			if (!cn->fdok || cn == a)
+				continue;
+			h = cn->dmafmt.p ? strstr(cn->dmafmt.p, p) : 0;
+			while (h && !((h == cn->dmafmt.p || h[-1] == ',') &&
+				      (h[n] == ',' || !h[n])))
+				h = strstr(h + 1, p);
+			if (!h)
+				in = 0;
+		}
+		if (in) {
+			if (any)
+				s_ch(&o, ',');
+			s_cat(&o, p);
+			any = 1;
+		}
+	}
+	free(t);
+	if (any)
+		hd_send(c, HD_DMAQ, o.p, o.n);
+	else
+		hd_send(c, HD_DMAQ, "0", 1);
+	s_free(&o);
+}
+
 void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 {
 	struct pollfd q;
@@ -787,6 +855,19 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 	}
 	case HD_FRAMES:
 		hd_send(c, HD_FRAMES, "yes", 3);
+		break;
+	case HD_FRMOPEN:
+		/* A producer of frames by dmabuf: this connection stays, so
+		   what its frames' displays say has somewhere to go. */
+		if (hd_frmpeer(c)) {
+			hd_prods = xr(hd_prods, (hd_nprod + 1) * sizeof *hd_prods);
+			hd_prods[hd_nprod++] = c;
+			s_free(&in);
+			return;
+		}
+		break;
+	case HD_DMAQ:
+		hd_dmaq(c, cls);
 		break;
 	case HD_FRAME: {
 		/* A window picture's newest frame, from the program
@@ -1081,7 +1162,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 	vec cls;
 	int quit = 0, st, fed, upg = 0, owed = 0, due;
 	long left;
-	size_t i, j, nc;
+	size_t i, j, nc, np;
 	ssize_t k;
 	str rb, in, mo, rq;
 
@@ -1094,7 +1175,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 	while (!quit && !hd_term) {
 		fed = 0;
 		nc = cls.n;
-		q = xr(q, sizeof *q * (2 + nc));
+		q = xr(q, sizeof *q * (2 + nc + hd_nprod));
 		q[0].fd = l;
 		q[0].events = POLLIN;
 		q[1].fd = m;
@@ -1103,16 +1184,44 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 			q[2 + i].fd = ((struct hd_cli *)cls.p[i])->fd;
 			q[2 + i].events = POLLIN;
 		}
+		np = hd_nprod;
+		for (i = 0; i < np; i++) {
+			q[2 + nc + i].fd = hd_prods[i];
+			q[2 + nc + i].events = POLLIN;
+		}
 		/* A render held back for an open frame wakes the loop when
 		   that frame's guard runs out, if nothing else does first. */
 		due = hd_gfxdue(&cls, m, tid);
 		if (owed && (left = hd_tm->syncleft(tid)) >= 0 &&
 		    (due < 0 || left + 1 < due))
 			due = (int)left + 1;
-		if (poll(q, (nfds_t)(2 + nc), due) < 0) {
+		if (poll(q, (nfds_t)(2 + nc + np), due) < 0) {
 			if (errno == EINTR)
 				continue;
 			break;
+		}
+		for (i = 0; i < np; i++) {
+			int pf = q[2 + nc + i].fd, nf, fds[BF_MAXFD], t = 0;
+			size_t j;
+
+			if (!q[2 + nc + i].revents)
+				continue;
+			if (hd_recv(pf, &t, &in) <= 0) {
+				lg(HIBR_LDBG, "hold: a frame producer went");
+				hd_f3prod(pf);
+				close(pf);
+				for (j = 0; j < hd_nprod; j++)
+					if (hd_prods[j] == pf)
+						hd_prods[j] = hd_prods[--hd_nprod];
+				continue;
+			}
+			nf = hd_takefds(fds);
+			if (t == HD_FRM3 && in.n == BF_HDR3)
+				hd_f3put(&cls, tid, pf, (const unsigned char *)in.p,
+					 fds, nf);
+			else
+				while (nf > 0)
+					close(fds[--nf]);
 		}
 		if (q[1].revents) {
 			size_t got = 0;
@@ -1286,6 +1395,19 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					cn->front = 0;
 					lg(HIBR_LDBG, "hold: a display takes %d colours", v);
 					hd_rensend1(&cls, cn, tid);
+				}
+			} else if (t == HD_FRMANS) {
+				s_ch(&in, 0);
+				hd_f3ans(fd, in.p);
+			} else if (t == HD_DMABUF) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+
+				if (cn) {
+					cn->dma = 1;
+					s_free(&cn->dmafmt);
+					s_init(&cn->dmafmt);
+					s_add(&cn->dmafmt, in.p, in.n);
+					lg(HIBR_LDBG, "hold: a display imports dmabufs");
 				}
 			} else if (t == HD_FDCAP && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);

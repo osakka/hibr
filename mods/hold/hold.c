@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <poll.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -494,7 +495,66 @@ int hd_hudq(sh *s)
 	return on;
 }
 
-static const hf_api hd_hfapi = { hd_frame, hd_status, hd_hudq };
+/* A connection of its own for frames by dmabuf, or -1. */
+int hd_open3(sh *s)
+{
+	const char *hp = getenv("HIBR_HOLD");
+	int fd;
+
+	(void)s;
+	if (!hp || !*hp)
+		return -1;
+	fd = hd_dial(hp);
+	if (fd < 0)
+		return -1;
+	if (!hd_send(fd, HD_FRMOPEN, "", 0)) {
+		close(fd);
+		return -1;
+	}
+	return fd;
+}
+
+/* One frame by dmabuf on that connection. */
+int hd_frame3(int fd, const unsigned char *h, const int *fds, int n)
+{
+	return hd_sendfds(fd, HD_FRM3, (const char *)h, BF_HDR3, fds, n);
+}
+
+/* The next line a producer's frames came back with: 1 with it in o, 0 with
+   none yet, -1 when the connection has gone. */
+int hd_answer(int fd, str *o)
+{
+	struct pollfd q;
+	int t = 0;
+
+	q.fd = fd;
+	q.events = POLLIN;
+	if (poll(&q, 1, 0) <= 0)
+		return 0;
+	o->n = 0;
+	if (hd_recv(fd, &t, o) <= 0)
+		return -1;
+	return t == HD_FRMANS;
+}
+
+/* Whether every display imports dmabufs: 1 with the formats in o. */
+int hd_dmabuf(sh *s, str *o)
+{
+	const char *hp = getenv("HIBR_HOLD");
+
+	(void)s;
+	if (!hp || !*hp || !hd_askp(hp, HD_DMAQ, 0, 0, o) || !o->p)
+		return 0;
+	if (o->p[0] != '1' || o->n < 3)
+		return 0;
+	memmove(o->p, o->p + 2, o->n - 2);
+	o->n -= 2;
+	o->p[o->n] = 0;
+	return 1;
+}
+
+static const hf_api hd_hfapi = { hd_frame, hd_status, hd_hudq, hd_open3,
+				 hd_frame3, hd_answer, hd_dmabuf };
 
 /* Whether a session's server keeps an edit of a whole picture in place of
    the edits before it, "yes": hold frames [name]. Fails against a server

@@ -83,6 +83,7 @@ SUITE_MODS = {
     "kitgfx": ["console", "img"],
     "pdfapp": ["pdf", "img", "console"],
     "holdpix": ["console", "img", "hold", "term", "pty"],
+    "dmabuf": ["hold", "term", "pty"],
     # inflate.c is not a module of its own: it is shared source, the prompt
     # module's own, which the archive module compiles in as well. Naming it
     # here is what makes a change to it reach this suite.

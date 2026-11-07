@@ -423,9 +423,19 @@ hold asks for `"pty"` (`PY_API_VER` 4) and `"terminal"` (`TM_API_VER` 12)
 with `hibr_require` when it loads, and refuses to load without either. It
 offers two of its own. `"hold"`, version 1, is the one named in its
 descriptor, so a module can find hold before it is loaded. `"holdframes"`
-(`HF_API_VER` 2, `mods/blitfr.h`) is what a program inside a session uses
+(`HF_API_VER` 3, `mods/blitfr.h`) is what a program inside a session uses
 to hand the server a picture's frame (`frame`) and, from version 2, the
-performance panel's status lines (`status`, `hud`; Blit ADR 0203). Since a
+performance panel's status lines (`status`, `hud`; Blit ADR 0203). Version
+3 adds frames by dmabuf (Blit ADR 0223, Gitea #486): `open3` keeps a
+connection of the program's own, `frame3` sends a 72-byte `FRM3` header with
+its plane descriptors and optional fence, `answer` reads back what came of
+them, and `dmabuf` says whether every display imports and which formats all
+of them take. A dmabuf is the producer's buffer, so the server keeps each
+frame until every display it went to has released it, and only then tells
+the producer `RELEASE <id> <seq>`, once. An `ERROR` goes straight back,
+`ENOTSUP` from a display that cannot import among them, and the producer
+then sends memfds for the rest of that connection. Nothing in hold maps a
+descriptor or reads a pixel. Since a
 module's descriptor names only one interface, `"holdframes"` cannot be
 found before hold is loaded, so the console asks for `"hold"` first.
 
@@ -443,7 +453,7 @@ take the session back from the descriptors it kept open and the file
 | `render.c` | one client's own rectangle of the emulator's grid, diffed against a per-client front to send only what changed |
 | `mouse.c` | a client's own SGR mouse report, rewritten by its own offset, put in the session's pixels when the program asked for them (`hd_mpixel`), and re-encoded to legacy if that is what the program asked for |
 | `cli.c` | the client: raw mode, the relay, ctrl-\\, and giving the terminal back |
-| `frames.c` | picture frames by descriptor (Blit ADR 0202): the newest frame of each picture, handed over by the program as a sealed memfd, kept and passed to every client with Blit's frame socket open; a frame whose placement never comes is let go once `HD_FRMMAX` (32) are kept |
+| `frames.c` | picture frames by descriptor (Blit ADR 0202): the newest frame of each picture, handed over by the program as a sealed memfd, kept and passed to every client with Blit's frame socket open; a frame whose placement never comes is let go once `HD_FRMMAX` (32) are kept | Frames by dmabuf (`FRM3`, Blit ADR 0223) are kept as records with the displays that hold each, and released to the producer once they all have.
 | `hold.c` | the builtin, starting a server, and the interfaces it offers |
 
 ## Tests

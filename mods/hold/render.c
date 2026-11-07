@@ -729,6 +729,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		nlen = n > 0 ? xm((size_t)n * sizeof *nlen) : 0;
 		nbase = n > 0 ? xm((size_t)n * sizeof *nbase) : 0;
 		hd_frmsweep(tid);
+		hd_f3sweep(tid);
 		s_init(&pic);
 		for (k = 0; k < n; k++) {
 			unsigned id, h;
@@ -780,6 +781,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			   has them when the placement arrives. */
 			if (id && pic.n > 5 && !memcmp(pic.p, "\033_Ga=p", 6))
 				hd_frmsend(cn, id);
+				hd_f3send(cn, id);
 			if (id) {
 				nid[nn] = id;
 				nhash[nn] = h;

@@ -209,18 +209,31 @@ int hd_send(int fd, int type, const char *p, size_t n)
 	return r;
 }
 
-/* A descriptor that came with the last message received, or -1. The next
-   hd_recv closes one that nobody took, so a message that carries one where
+/* The descriptors that came with the last message received. The next
+   hd_recv closes any that nobody took, so a message that carries one where
    none was wanted cannot leak it. */
-static int hd_rxfd = -1;
+static int hd_rxf[BF_MAXFD], hd_rxn;
 
-/* Take the descriptor the last message carried, or -1: the caller's now. */
+/* Take the first descriptor the last message carried, or -1: the caller's
+   now, and any others are closed. */
 int hd_takefd(void)
 {
-	int f = hd_rxfd;
+	int f[BF_MAXFD], n = hd_takefds(f), i;
 
-	hd_rxfd = -1;
-	return f;
+	for (i = 1; i < n; i++)
+		close(f[i]);
+	return n ? f[0] : -1;
+}
+
+/* Take every descriptor the last message carried: how many, the caller's
+   now. */
+int hd_takefds(int *fds)
+{
+	int n = hd_rxn;
+
+	memcpy(fds, hd_rxf, sizeof(int) * (size_t)n);
+	hd_rxn = 0;
+	return n;
 }
 
 /* Read a message's type byte, and the descriptor that rode on it if there
@@ -233,15 +246,15 @@ int hd_rtype(int fd, char *t)
 	struct iovec v;
 	struct cmsghdr *c;
 	union {
-		char b[CMSG_SPACE(sizeof(int))];
+		char b[CMSG_SPACE(sizeof(int) * BF_MAXFD)];
 		struct cmsghdr align;
 	} u;
 	ssize_t k;
+	int i;
 
-	if (hd_rxfd >= 0) {
-		close(hd_rxfd);
-		hd_rxfd = -1;
-	}
+	for (i = 0; i < hd_rxn; i++)
+		close(hd_rxf[i]);
+	hd_rxn = 0;
 	for (;;) {
 		memset(&m, 0, sizeof m);
 		v.iov_base = t;
@@ -262,9 +275,13 @@ int hd_rtype(int fd, char *t)
 	for (c = CMSG_FIRSTHDR(&m); c; c = CMSG_NXTHDR(&m, c))
 		if (c->cmsg_level == SOL_SOCKET && c->cmsg_type == SCM_RIGHTS &&
 		    c->cmsg_len >= CMSG_LEN(sizeof(int))) {
-			memcpy(&hd_rxfd, CMSG_DATA(c), sizeof hd_rxfd);
+			hd_rxn = (int)((c->cmsg_len - CMSG_LEN(0)) / sizeof(int));
+			if (hd_rxn > BF_MAXFD)
+				hd_rxn = BF_MAXFD;
+			memcpy(hd_rxf, CMSG_DATA(c), sizeof(int) * (size_t)hd_rxn);
 			if (!HD_RXCLOEXEC)
-				hd_cloexec(hd_rxfd);
+				for (i = 0; i < hd_rxn; i++)
+					hd_cloexec(hd_rxf[i]);
 			break;
 		}
 	return 1;
@@ -273,11 +290,17 @@ int hd_rtype(int fd, char *t)
 /* Send one message carrying a descriptor, on its type byte. */
 int hd_sendfd(int fd, int type, const char *p, size_t n, int xfd)
 {
+	return hd_sendfds(fd, type, p, n, &xfd, 1);
+}
+
+/* Send one message carrying several descriptors, on its type byte. */
+int hd_sendfds(int fd, int type, const char *p, size_t n, const int *fds, int nf)
+{
 	struct msghdr m;
 	struct iovec v;
 	struct cmsghdr *c;
 	union {
-		char b[CMSG_SPACE(sizeof(int))];
+		char b[CMSG_SPACE(sizeof(int) * BF_MAXFD)];
 		struct cmsghdr align;
 	} u;
 	unsigned len = (unsigned)n;
@@ -291,12 +314,12 @@ int hd_sendfd(int fd, int type, const char *p, size_t n, int xfd)
 	m.msg_iov = &v;
 	m.msg_iovlen = 1;
 	m.msg_control = u.b;
-	m.msg_controllen = sizeof u.b;
+	m.msg_controllen = CMSG_SPACE(sizeof(int) * (size_t)nf);
 	c = CMSG_FIRSTHDR(&m);
 	c->cmsg_level = SOL_SOCKET;
 	c->cmsg_type = SCM_RIGHTS;
-	c->cmsg_len = CMSG_LEN(sizeof(int));
-	memcpy(CMSG_DATA(c), &xfd, sizeof xfd);
+	c->cmsg_len = CMSG_LEN(sizeof(int) * (size_t)nf);
+	memcpy(CMSG_DATA(c), fds, sizeof(int) * (size_t)nf);
 	for (;;) {
 		k = sendmsg(fd, &m, MSG_NOSIGNAL);
 		if (k < 0 && errno == EINTR)

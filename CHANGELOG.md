@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.467
+
+**hold carries frames by dmabuf** (Gitea #486, Blit ADR 0223), the first step
+towards games in a desktop window. A producer inside a held session hands the
+server a frame's plane descriptors and an optional fence, and each display whose
+Blit imports dmabufs gets it on its frame socket. The producer is told `RELEASE`
+once per frame, after the last display has let it go, and `ERROR ENOTSUP` where a
+display cannot import, so it can send memfds instead. Nothing in hold maps a
+descriptor or reads a pixel. `HF_API_VER` 3; the frame socket's hello is version
+3 where Blit offers it, and version 2 or 1 where it does not.
+
 ## 0.99.466
 
 **A window can ask for a key's whole life** (Gitea #315, #485). `dt_keyphases ID on`:

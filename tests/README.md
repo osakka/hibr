@@ -103,7 +103,7 @@ python3 tests/appmgr.py       the catalogue, against a stand-in index
 
 The stand-ins (`mailserve.py`, `davserve.py`, `fetchserve.py`,
 `bwserve.py`, `ytserve.py`) are servers, not suites, and so is
-`frameserve.py`, Blit's frame socket, which refuses what Blit refuses;
+`frameserve.py`, Blit's frame socket, which refuses what Blit refuses (versions 1 to 3, `v3` and `nodma` for dmabuf frames, checked by size and never mapped);
 `tests/net/` holds the programs that stand in for `nmcli`, `bluetoothctl`,
 `pkexec` and `pkttyagent`, with the output they were captured giving (see
 its [README](net/README.md)). `pdfmake.py` writes the PDF Reader's

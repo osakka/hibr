@@ -155,6 +155,24 @@ enum {
 	   only; the server keeps the newest per image and passes it to each
 	   display that can take one, whose client hands it to Blit. */
 	HD_FRAME = 'I',
+	/* A frame by dmabuf (Blit ADR 0223, version 3): a 72-byte header and
+	   its plane descriptors and optional fence on the type byte. From a
+	   producer on a connection opened with HD_FRMOPEN, and on from the
+	   server to each display that shows it. */
+	HD_FRM3 = 'K',
+	/* A connection a program keeps for frames by dmabuf, so what comes
+	   back has somewhere to go. Its own uid only. */
+	HD_FRMOPEN = 'O',
+	/* A line a display's Blit said about a frame, "RELEASE <id> <seq>" or
+	   "ERROR <id> <code>": from a client to the server, and on to the
+	   producer, once per frame, after the last display has let it go. */
+	HD_FRMANS = 'Q',
+	/* From a client: its Blit imports dmabufs, and the formats it takes.
+	   Text, the hello's list; nothing is sent where it does not. */
+	HD_DMABUF = 'M',
+	/* Whether every display that can show a picture imports dmabufs, "1
+	   <formats>" or "0": what a producer asks before saying dmabuf=1. */
+	HD_DMAQ = 'V',
 	/* From a client: its own Blit session took its hello on the frame
 	   socket, so it can be sent frames (one int, 1), or that connection
 	   has gone (0). A server that does not know it ignores it, and such
@@ -385,6 +403,9 @@ struct hd_cli {
 	   the frames by descriptor it has been sent: an image id and the
 	   sequence it was sent last, a pair each. */
 	int fdok;
+	/* This display's Blit imports dmabufs, and which formats. */
+	int dma;
+	str dmafmt;
 	/* Whether its Blit's performance panel asks for status (HD_HUD). */
 	int hud;
 	unsigned *fsid;
@@ -424,6 +445,14 @@ void hd_frmsend(struct hd_cli *cn, unsigned id);
 int hd_frmplaced(int tid, unsigned id, int *g);
 void hd_frmpush(vec *cls, int tid, const unsigned char *h);
 unsigned long long hd_frmnum(const unsigned char *p, int n);
+void hd_f3put(vec *cls, int tid, int prod, const unsigned char *h,
+	      const int *fds, int n);
+void hd_f3send(struct hd_cli *cn, unsigned id);
+int hd_f3has(unsigned id);
+void hd_f3ans(int cfd, const char *line);
+void hd_f3client(int cfd);
+void hd_f3prod(int fd);
+void hd_f3sweep(int tid);
 unsigned hd_hash(const char *p, size_t n);
 unsigned hd_imgid(const char *p, size_t n);
 size_t hd_imgbase(const char *p, size_t n);
@@ -471,6 +500,8 @@ int hd_recv(int fd, int *type, str *out);
 int hd_takefd(void);
 int hd_rtype(int fd, char *t);
 int hd_sendfd(int fd, int type, const char *p, size_t n, int xfd);
+int hd_sendfds(int fd, int type, const char *p, size_t n, const int *fds, int nf);
+int hd_takefds(int *fds);
 long hd_timeo(long dflt);
 int hd_dial(const char *path);
 int hd_askfd(int fd, int type, const char *p, size_t n, str *reply);

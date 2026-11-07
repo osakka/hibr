@@ -33,6 +33,13 @@ import sys
 
 NAME, TOKEN, LOG = sys.argv[1], sys.argv[2].encode(), sys.argv[3]
 OLD = len(sys.argv) > 4 and sys.argv[4] == "v1"
+# v3 is a Blit with ADR 0223's dmabuf frames, nodma one that says version 3
+# and imports nothing. Without either it refuses a version 3 hello, as Blit
+# before 0.3.60 does. Planes are checked as Blit checks them, by size, and
+# never mapped; a frame's descriptors are held until a newer one of the image
+# comes, then released. LOG.hold makes it hold on to everything.
+V3 = len(sys.argv) > 4 and sys.argv[4] in ("v3", "nodma")
+NODMA = len(sys.argv) > 4 and sys.argv[4] == "nodma"
 F_GET_SEALS = 1034
 SEALS = 0x0002 | 0x0004 | 0x0008
 
@@ -81,6 +88,43 @@ def frame(conn, st, data, fds):
          size=size, first=list(head))
 
 
+def frame3(conn, held, data, fds):
+    if NODMA:
+        for fd in fds:
+            os.close(fd)
+        iid = struct.unpack("<I", data[4:8])[0] if len(data) >= 8 else 0
+        note(kind="refused", why="notsup")
+        conn.send(b"ERROR %d ENOTSUP\n" % iid)
+        return
+    ok = len(data) == 72 and data[:4] == b"FRM3"
+    if ok:
+        iid, seq, w, h, cc, planes, mod = struct.unpack("<IQII4sIQ", data[4:40])
+        ok = iid and 1 <= planes <= 4 and len(fds) in (planes, planes + 1)
+    if not ok:
+        for fd in fds:
+            os.close(fd)
+        note(kind="refused", why="frame3", fds=len(fds))
+        conn.send(b"ERROR 0 EINVAL\n")
+        return
+    pitch = struct.unpack("<I", data[44:48])[0]
+    size = os.lseek(fds[0], 0, os.SEEK_END)
+    if pitch < 4 * w or size < pitch * h:
+        for fd in fds:
+            os.close(fd)
+        note(kind="refused", why="plane", size=size)
+        conn.send(b"ERROR %d EINVAL\n" % iid)
+        return
+    note(kind="frame3", id=iid, seq=seq, fds=len(fds), fourcc=cc.decode())
+    q = held.setdefault(iid, [])
+    q.append((seq, fds))
+    while len(q) > 1 and not os.path.exists(LOG + ".hold"):
+        old = q.pop(0)
+        for fd in old[1]:
+            os.close(fd)
+        conn.send(b"RELEASE %d %d\n" % (iid, old[0]))
+        note(kind="released", id=iid, seq=old[0])
+
+
 def status(data, fds):
     """The lines of a STA1 message, or None where Blit refuses it."""
     if fds or len(data) < 8:
@@ -110,6 +154,7 @@ def main():
     conns = {}
     vers = {}
     images = {}
+    held = {}
     hud = False
     while True:
         r, _, _ = select.select([srv] + list(conns), [], [], 0.1)
@@ -117,7 +162,7 @@ def main():
         if now != hud:
             hud = now
             for c, ok in conns.items():
-                if ok and vers.get(c) == 2:
+                if ok and vers.get(c, 0) >= 2:
                     c.send(b"HUD1 on\n" if hud else b"HUD1 off\n")
                     note(kind="hud", on=hud)
         for s in r:
@@ -126,7 +171,7 @@ def main():
                 conns[c] = False
                 continue
             try:
-                data, fds, _, _ = socket.recv_fds(s, 4096, 4)
+                data, fds, _, _ = socket.recv_fds(s, 4096, 5)
             except OSError:
                 data, fds = b"", []
             if not data:
@@ -139,7 +184,7 @@ def main():
                 for fd in fds:
                     os.close(fd)
                 ver = struct.unpack("<I", data[8:12])[0] if len(data) >= 12 else 0
-                if data[:8] != b"BLITFRM1" or ver not in ((1,) if OLD else (1, 2)):
+                if data[:8] != b"BLITFRM1" or ver not in ((1,) if OLD else (1, 2, 3) if V3 else (1, 2)):
                     note(kind="refused", why="hello-version", version=ver)
                     s.send(b"ERROR 0 EINVAL\n")
                     del conns[s]
@@ -156,13 +201,17 @@ def main():
                 conns[s] = True
                 vers[s] = ver
                 note(kind="hello", version=ver)
-                s.send(b"OK\n")
-                if ver == 2 and hud:
+                if ver == 3:
+                    s.send(b"OK dmabuf=0\n" if NODMA else
+                           b"OK dmabuf=1 fence=0 formats=XR24/0,AR24/0\n")
+                else:
+                    s.send(b"OK\n")
+                if ver >= 2 and hud:
                     s.send(b"HUD1 on\n")
                     note(kind="hud", on=True)
                 continue
             if data[:4] == b"STA1":
-                lines = status(data, fds) if vers.get(s) == 2 else None
+                lines = status(data, fds) if vers.get(s, 0) >= 2 else None
                 for fd in fds:
                     os.close(fd)
                 if lines is None:
@@ -170,6 +219,9 @@ def main():
                     s.send(b"ERROR 0 EINVAL\n")
                 else:
                     note(kind="status", lines=lines)
+                continue
+            if data[:4] == b"FRM3":
+                frame3(s, held, data, fds)
                 continue
             frame(s, images, data, fds)
 

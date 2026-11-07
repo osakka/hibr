@@ -14,6 +14,7 @@
  * whose placement never comes is let go once HD_FRMMAX are kept.
  */
 #include "hd.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -242,4 +243,258 @@ void hd_frmsend(struct hd_cli *cn, unsigned id)
 		cn->fsn++;
 	}
 	cn->fsseq[j] = f->seq;
+}
+
+/* Frames by dmabuf (Blit ADR 0223, version 3). Unlike a memfd, a dmabuf is
+ * the producer's buffer and it wants it back, so each frame is kept as a
+ * record until every display it went to has let it go, and only then is the
+ * producer told, once. The newest of an image keeps its descriptors, for a
+ * display that joins; an older one has only its list of who still holds it.
+ * Nothing here maps a descriptor or reads a pixel.
+ */
+struct hd_f3 {
+	unsigned id;
+	unsigned long long seq;
+	int prod, nfd, nv, old, placed;
+	int fds[BF_MAXFD];
+	int *views;
+	unsigned char h[BF_HDR3];
+};
+
+static struct hd_f3 **hd_f3s;
+static size_t hd_nf3;
+
+/* Close a record's descriptors: the display that wants them has them. */
+static void hd_f3shut(struct hd_f3 *f)
+{
+	int i;
+
+	for (i = 0; i < f->nfd; i++)
+		close(f->fds[i]);
+	f->nfd = 0;
+}
+
+/* Tell the producer a frame is its own again, and forget it. */
+static void hd_f3done(size_t i)
+{
+	struct hd_f3 *f = hd_f3s[i];
+	str o;
+
+	s_init(&o);
+	s_cat(&o, "RELEASE ");
+	s_num(&o, (long)f->id);
+	s_ch(&o, ' ');
+	s_num(&o, (long)f->seq);
+	if (f->prod >= 0)
+		hd_send(f->prod, HD_FRMANS, o.p, o.n);
+	s_free(&o);
+	hd_f3shut(f);
+	free(f->views);
+	free(f);
+	hd_f3s[i] = hd_f3s[--hd_nf3];
+}
+
+/* A record nobody holds is finished once a newer frame has replaced it. */
+static int hd_f3tidy(size_t i)
+{
+	if (hd_f3s[i]->old && !hd_f3s[i]->nv) {
+		hd_f3done(i);
+		return 1;
+	}
+	return 0;
+}
+
+/* Whether a frame by dmabuf is kept for an image. */
+int hd_f3has(unsigned id)
+{
+	size_t i;
+
+	for (i = 0; i < hd_nf3; i++)
+		if (hd_f3s[i]->id == id && !hd_f3s[i]->old)
+			return 1;
+	return 0;
+}
+
+/* Keep a frame a producer sent, the descriptors the store's from here, and
+   pass it to the displays that show its image. What it replaces is let go
+   as the displays say so. */
+void hd_f3put(vec *cls, int tid, int prod, const unsigned char *h,
+	      const int *fds, int n)
+{
+	unsigned id = (unsigned)hd_frmnum(h + 4, 4);
+	unsigned long long seq = hd_frmnum(h + 8, 8);
+	unsigned planes = (unsigned)hd_frmnum(h + 28, 4);
+	struct hd_f3 *f;
+	size_t i, c;
+	int g[4], k;
+
+	if (memcmp(h, "FRM3", 4) || !id || planes < 1 || planes > 4 ||
+	    (unsigned)n < planes || (unsigned)n > planes + 1) {
+		for (k = 0; k < n; k++)
+			close(fds[k]);
+		hd_send(prod, HD_FRMANS, "ERROR 0 EINVAL", 14);
+		return;
+	}
+	for (i = hd_nf3; i--;)
+		if (hd_f3s[i]->id == id && !hd_f3s[i]->old) {
+			hd_f3s[i]->old = 1;
+			hd_f3shut(hd_f3s[i]);
+			hd_f3tidy(i);
+		}
+	f = xm(sizeof *f);
+	memset(f, 0, sizeof *f);
+	f->id = id;
+	f->seq = seq;
+	f->prod = prod;
+	f->nfd = n;
+	memcpy(f->fds, fds, sizeof(int) * (size_t)n);
+	memcpy(f->h, h, BF_HDR3);
+	hd_f3s = xr(hd_f3s, (hd_nf3 + 1) * sizeof *hd_f3s);
+	hd_f3s[hd_nf3++] = f;
+	hd_fgen++;
+	if (!hd_frmplaced(tid, id, g))
+		return;
+	for (c = 0; c < cls->n; c++) {
+		struct hd_cli *cn = cls->p[c];
+
+		if (g[0] < cn->row || g[1] < cn->col ||
+		    g[0] + g[2] > cn->row + cn->rows ||
+		    g[1] + g[3] > cn->col + cn->cols)
+			continue;
+		hd_f3send(cn, id);
+	}
+}
+
+/* Send a display an image's newest frame, unless it has it already. A
+   display that cannot import is the producer's to hear about: it falls back
+   to memfds for the connection. */
+void hd_f3send(struct hd_cli *cn, unsigned id)
+{
+	struct hd_f3 *f = 0;
+	size_t i, j;
+	int k;
+
+	for (i = 0; i < hd_nf3; i++)
+		if (hd_f3s[i]->id == id && !hd_f3s[i]->old)
+			f = hd_f3s[i];
+	if (!f || !f->nfd || !cn->fdok)
+		return;
+	if (!cn->dma) {
+		str o;
+
+		s_init(&o);
+		s_cat(&o, "ERROR ");
+		s_num(&o, (long)id);
+		s_cat(&o, " ENOTSUP");
+		if (f->prod >= 0)
+			hd_send(f->prod, HD_FRMANS, o.p, o.n);
+		s_free(&o);
+		return;
+	}
+	for (k = 0; k < f->nv; k++)
+		if (f->views[k] == cn->fd)
+			return;
+	for (j = 0; j < cn->fsn; j++)
+		if (cn->fsid[j] == id)
+			break;
+	if (!hd_sendfds(cn->fd, HD_FRM3, (const char *)f->h, BF_HDR3, f->fds, f->nfd)) {
+		lg(HIBR_LDBG, "hold: a dmabuf frame did not reach a display");
+		return;
+	}
+	f->views = xr(f->views, sizeof(int) * (size_t)(f->nv + 1));
+	f->views[f->nv++] = cn->fd;
+	if (j == cn->fsn) {
+		cn->fsid = xr(cn->fsid, (cn->fsn + 1) * sizeof *cn->fsid);
+		cn->fsseq = xr(cn->fsseq, (cn->fsn + 1) * sizeof *cn->fsseq);
+		cn->fsid[j] = id;
+		cn->fsn++;
+	}
+	cn->fsseq[j] = f->seq;
+}
+
+/* Take a display out of a record's list. */
+static void hd_f3unview(struct hd_f3 *f, int cfd)
+{
+	int k;
+
+	for (k = 0; k < f->nv; k++)
+		if (f->views[k] == cfd) {
+			f->views[k] = f->views[--f->nv];
+			return;
+		}
+}
+
+/* A display's Blit said something about a frame. An ERROR goes straight to
+   the producer, whose buffer it is again from there. */
+void hd_f3ans(int cfd, const char *line)
+{
+	unsigned long id = 0;
+	unsigned long long seq = 0;
+	size_t i;
+
+	if (sscanf(line, "RELEASE %lu %llu", &id, &seq) == 2) {
+		for (i = hd_nf3; i--;)
+			if (hd_f3s[i]->id == id && hd_f3s[i]->seq == seq) {
+				hd_f3unview(hd_f3s[i], cfd);
+				hd_f3tidy(i);
+			}
+		return;
+	}
+	if (sscanf(line, "ERROR %lu", &id) != 1)
+		return;
+	for (i = hd_nf3; i--;)
+		if (hd_f3s[i]->id == id) {
+			if (hd_f3s[i]->prod >= 0)
+				hd_send(hd_f3s[i]->prod, HD_FRMANS, line, strlen(line));
+			break;
+		}
+	for (i = hd_nf3; i--;)
+		if (hd_f3s[i]->id == id) {
+			hd_f3unview(hd_f3s[i], cfd);
+			hd_f3tidy(i);
+		}
+}
+
+/* A display went: nothing of the producer's is waiting on it any more. */
+void hd_f3client(int cfd)
+{
+	size_t i;
+
+	for (i = hd_nf3; i--;) {
+		hd_f3unview(hd_f3s[i], cfd);
+		hd_f3tidy(i);
+	}
+}
+
+/* A producer went: its frames have nobody to go back to. */
+void hd_f3prod(int fd)
+{
+	size_t i;
+
+	for (i = hd_nf3; i--;)
+		if (hd_f3s[i]->prod == fd) {
+			hd_f3s[i]->prod = -1;
+			hd_f3s[i]->old = 1;
+			hd_f3shut(hd_f3s[i]);
+			hd_f3tidy(i);
+		}
+}
+
+/* An image the emulator no longer holds takes its newest frame with it. */
+void hd_f3sweep(int tid)
+{
+	int g[4];
+	size_t i;
+
+	for (i = hd_nf3; i--;) {
+		struct hd_f3 *f = hd_f3s[i];
+
+		if (hd_frmplaced(tid, f->id, g))
+			f->placed = 1;
+		else if (f->placed && !f->old) {
+			f->old = 1;
+			hd_f3shut(f);
+			hd_f3tidy(i);
+		}
+	}
 }
