@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.99.459
+
+**The menu behind a submenu lights under the pointer** (owner). Its rows showed
+nothing while a submenu was open, though a click on one works since 0.99.456.
+The submenu stays open, so a pointer crossing the parent closes nothing.
+
 ## 0.99.458
 
 **A display joining no longer hides the wallpapers of those it overlaps** (Gitea

@@ -885,9 +885,10 @@ fn dt_hover(int r, int c) {
 				dt_mopen "$b"
 			fi
 		else
-			dt_mpick "$r" "$c" || :
+			MB_HOT=
+			dt_mpick "$r" "$c" || dt_mhotat "$r" "$c"
 		fi
-		t="m:$MB_OPEN:$MB_SEL"
+		t="m:$MB_OPEN:$MB_SEL:$MB_HOT"
 	elif dt_onbar "$r" "$c"; then
 		if b := dt_mhit "$c"; then
 			DT_HOVERMT=$b

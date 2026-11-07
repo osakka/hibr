@@ -2436,6 +2436,13 @@ sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[C",
                     lambda s: press(*s.find("Bump Twice"))])
 check("a click on the menu behind a submenu runs that row",
       sc.find("count 2") is not None and sc.find("One") is None, sc)
+sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[C",
+                    lambda s: b"\x1b[<35;%d;%dM" % (s.find("Bump Twice")[1] + 2, s.find("Bump Twice")[0] + 1)],
+            env={"DT_HOVER": "on"})
+bt = sc.find("Bump Twice")
+check("and the row of that menu under the pointer lights, with the submenu still open",
+      bt is not None and sc.style(bt[0], bt[1]).get("bg") == "#2d3748" and
+      sc.find("One") is not None, sc)
 sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[C", press(14, 60)])
 check("and a click on neither closes them all, running nothing",
       sc.find("Bump Twice") is None and sc.find("One") is None and
@@ -9276,4 +9283,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1003)
+report(1004)

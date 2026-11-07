@@ -1063,6 +1063,8 @@ fn dt_menu_draw(int m, int? px, int parent) {
 		fi
 		if [ "$parent" != 1 ] && [ "$i" = "$MB_SEL" ]; then
 			rowfg=$DT_FACE; rowbg=$DT_ACTIVE; rowbold=1
+		elif [ "$m $i" = "$MB_HOT" ]; then
+			rowfg=$DT_INK; rowbg=$DT_WELL; rowbold=0
 		elif [ "${MI[$m][$i]["dim"]}" = 1 ]; then
 			rowfg=$DT_IDLE; rowbg=$DT_FACE; rowbold=0
 		else
@@ -1313,6 +1315,7 @@ fn dt_mopen(m) {
 }
 
 dt_mclose() {
+	MB_HOT=
 	MB_OPEN=-1
 	MB_PAR=
 	MB_SEL=0
@@ -1497,6 +1500,7 @@ dt_mdown() {
 
 # Back out of a submenu to the one that owns it.
 dt_mup() {
+	MB_HOT=
 	local p=$MB_PAR i=0 n
 
 	[ -z "$p" ] && return 1
@@ -1550,33 +1554,62 @@ dt_mdo() {
 	DT_NOTEWIN=
 }
 
-# Is a click inside the open menu?  Sets the highlight if it is.
-fn dt_mpick(int r, int c) {
-	local n x w dy rel
+# Which row of menu m, of n rows, is at r, c, as a number from 0; a miss, or a
+# rule between rows, is status 1.
+fn dt_mrowat(m, int n, int r, int c) {
+	local x w dy rel
 
-	n := dt_mrows
-	if [ "$MB_OPEN" = app ]; then
+	if [ "$m" = app ]; then
 		x=$MB_ADX
 		w=${MB_ADW:-18}
 		dy=$MB_ADY
 	else
-		x=${MB[$MB_OPEN]["dx"]:-${MB[$MB_OPEN]["x"]}}
+		x=${MB[$m]["dx"]:-${MB[$m]["x"]}}
 		# The width it was *drawn* at, and the same minimum as the
 		# drawing when it has not been: this clamped to 12 where
 		# dt_menu_draw clamps to 14, so the last two columns of a
 		# narrow menu were drawn and did not answer a click.
-		w=${MB[$MB_OPEN]["dw"]:-${MB[$MB_OPEN]["w"]}}
+		w=${MB[$m]["dw"]:-${MB[$m]["w"]}}
 		[ "$w" -lt 14 ] && w=14
 		dy := dt_ptop
-		dy=${MB[$MB_OPEN]["dy"]:-$dy}
+		dy=${MB[$m]["dy"]:-$dy}
 	fi
 	rel=$((r - dy + 1))
 	[ "$rel" -lt 1 ] || [ "$rel" -gt "$n" ] && return 1
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
 	[ "$c" -lt "$x" ] || [ "$c" -ge $((x + w)) ] && return 1
-	[ "$MB_OPEN" != app ] &&
-		[ "${MI[$MB_OPEN][$((rel - 1))]["sep"]}" = 1 ] && return 1
-	MB_SEL=$((rel - 1))
+	[ "$m" != app ] && [ "${MI[$m][$((rel - 1))]["sep"]}" = 1 ] && return 1
+	ret $((rel - 1))
+}
+
+# Is a click inside the open menu?  Sets the highlight if it is.
+fn dt_mpick(int r, int c) {
+	local n i
+
+	n := dt_mrows
+	i := dt_mrowat "$MB_OPEN" "$n" "$r" "$c" || return 1
+	MB_SEL=$i
+	return 0
+}
+
+# The row of a menu behind the open one that the pointer is over, as "menu
+# row", lit there while the submenu stays open, so a pointer crossing the
+# parent on its way into a submenu closes nothing. A click on it acts
+# (dt_mback).
+MB_HOT=
+fn dt_mhotat(int r, int c) {
+	local p i
+
+	MB_HOT=
+	[ "$MB_OPEN" != app ] || return 0
+	p=${MB[$MB_OPEN]["par"]-}
+	while [ -n "$p" ]; do
+		if i := dt_mrowat "$p" "${MB[$p]["n"]:-0}" "$r" "$c"; then
+			MB_HOT="$p $i"
+			return 0
+		fi
+		p=${MB[$p]["par"]-}
+	done
 	return 0
 }
 
