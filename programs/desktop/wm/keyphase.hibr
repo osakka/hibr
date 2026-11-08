@@ -119,9 +119,10 @@ DT_FOCUSWIN=
 DT_FOCUSUSED=
 DT_KEYSALLUSED=
 
-# Give a window every key but Release Pointer and Leave Full Screen, or
-# stop: what a game wants, whose keys are its controls and must not open a
-# menu or switch a workspace under the player's fingers (Gitea #486).
+# Give a window every key but Release Pointer, Full Screen and Leave Full
+# Screen, or stop: what a game wants, whose keys are its controls and must
+# not open a menu or switch a workspace under the player's fingers (Gitea
+# #486).
 fn dt_keysall(int id, on) {
 	if [ "$on" = on ]; then
 		DT[$id]["keysall"]=1

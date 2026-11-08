@@ -9,7 +9,7 @@ bridge's EIS socket becomes an input route at Blit, and the route follows
 the window's focus. Every check reads what crossed a socket or the terminal,
 never the app's own state.
 """
-import json, os, shutil, subprocess, sys, tempfile, time
+import http.server, json, os, shutil, subprocess, sys, tempfile, threading, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -49,6 +49,35 @@ open(wrap, "w").write("#!/bin/sh\nexec %s %s %s \"$@\"\n"
                       % (sys.executable, os.path.join(HERE, "bridgeserve.py"), brlog))
 os.chmod(wrap, 0o755)
 
+# A stand-in for Blit's own API, which the window asks for its display's
+# refresh rate with what Blit gives the desktop's session: two displays, the
+# window's pane on the slower, and a token it refuses to answer without.
+API = {"/v1/topology": {"panes": [{"id": "pane-display-1-1", "display_id": "display-1"},
+                                  {"id": "pane-display-2-1", "display_id": "display-2"}]},
+       "/v1/displays": {"revision": 1, "displays": [
+           {"id": "display-1", "active_mode": {"refresh_hz": 143.9}},
+           {"id": "display-2", "active_mode": {"refresh_hz": 74.6}}]}}
+ASKED = []
+
+
+class Api(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        ok = self.headers.get("Authorization") == "Bearer api-sekrit"
+        ASKED.append((self.path, ok))
+        b = json.dumps(API.get(self.path, {})).encode()
+        self.send_response(200 if ok else 401)
+        self.send_header("Content-Length", str(len(b) if ok else 0))
+        self.end_headers()
+        if ok:
+            self.wfile.write(b)
+
+    def log_message(self, *a):
+        pass
+
+
+api = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Api)
+threading.Thread(target=api.serve_forever, daemon=True).start()
+
 p = sx.scratch("steamwin.hibr")
 open(p, "w").write(
     "%s. %s\n. %s\nSTW_BRIDGE=%s\n"
@@ -57,7 +86,9 @@ open(p, "w").write(
        tree("programs/desktop/apps/Games/steamwin.hibr"), wrap))
 t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "lock"],
          env={"HIBR_GFX": "kitty", "BLIT_FRAME_SOCKET": "@" + nm,
-              "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D})
+              "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D,
+              "BLIT_SERVER_PORT": str(api.server_address[1]),
+              "BLIT_API_TOKEN": "api-sekrit", "BLIT_PANE_ID": "pane-display-2-1"})
 
 
 def blitkind(k, **kw):
@@ -73,6 +104,17 @@ check("the window starts the bridge with no placement of its own, Steam's "
       int(argv[argv.index("-W") + 1]) % 8 == 0 and
       int(argv[argv.index("-H") + 1]) % 16 == 0 and
       argv[-3:] == ["--", "steam", "-gamepadui"], argv)
+check("at the refresh rate of its own pane's display, rounded, not the "
+      "fastest display's", "-r" in argv and argv[argv.index("-r") + 1] == "75" and
+      argv.index("-r") < argv.index("--"), argv)
+check("which it asked Blit for with the session's token, and the token goes "
+      "nowhere near the bridge", ("/v1/topology", True) in ASKED and
+      ("/v1/displays", True) in ASKED and not any("api-sekrit" in a for a in argv),
+      (ASKED, argv))
+lg = argv[argv.index("--log") + 1] if "--log" in argv else ""
+check("and has it write its own log to a file in the state folder, never to "
+      "anything the desktop watches", lg.endswith("/hibr/steam.log") and
+      argv.index("--log") < argv.index("--"), argv)
 check("and gives it the frames module's socket, not Blit's own",
       st and st[0]["sock"].startswith("@hibr-frames-") and st[0]["tok"], st)
 f3 = wait(lambda: blitkind("frame3"))
@@ -140,6 +182,20 @@ check("a click in the window holds the pointer for the game",
 t.keys([b"\x1b[21;5~"])
 t.collect(0.3)
 
+# Full Screen is still the desktop's, and so is leaving it.
+t.keys([b"\x1b\r"])
+t.collect(0.6)
+fs = t.screen()
+t.keys([b"\x1b[23;5~"])
+t.collect(0.6)
+back = t.screen()
+check("with Keys to the Game the desktop's Full Screen key still is the "
+      "desktop's: the game takes the whole display, picture and all, and "
+      "Leave Full Screen brings the menu bar back",
+      fs.find("File") is None and fs.find("Waiting for") is None and
+      fs.find("Starting Steam") is None and back.find("File") is not None,
+      fs.text()[:600] + "\n-----\n" + back.text()[:600])
+
 # Keys to the Game off, from the Steam menu: the desktop's keys work again.
 m = t.screen().find("Steam")
 t.keys([press(*m), release(*m)])
@@ -168,4 +224,5 @@ t.quit(b"q", 0.5)
 blit.terminate()
 blit.wait()
 shutil.rmtree(D, True)
-report(16)
+api.shutdown()
+report(20)

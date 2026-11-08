@@ -115,7 +115,8 @@ its own `_draw` callback fill it in, then the menu bar and whatever floats
 above everything — a menu, a drag, the confirm box. `dt_event` decodes one
 key or mouse line and dispatches it. A held pointer's reports go to the
 window holding it, and Release Pointer and Leave Full Screen are taken
-before anything else; then a confirm box or a rebind capture if one is
+before anything else (and a window taking every key, a game, is given all
+but those two and Full Screen); then a confirm box or a rebind capture if one is
 pending, the open menu if one is, and the keys every window shares --
 Save, Undo, Redo, Copy, Cut, Paste and the Menu Bar key -- before the
 focused window sees them. Then the focused window's own key handler, and

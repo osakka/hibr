@@ -1051,8 +1051,10 @@ fn dt_event(k) {
 	fi
 	# A window that takes every key (a game, Gitea #486) gets them before
 	# any shortcut: only Release Pointer and Leave Full Screen, just
-	# above, stay the desktop's, so there is always a way out under the
-	# hands. A mouse report and a resize go on as ever.
+	# above, and Full Screen itself stay the desktop's, so there is always
+	# a way out and a way in under the hands. Full Screen is done here,
+	# since such a window's own key handler takes everything it is handed.
+	# A mouse report and a resize go on as ever.
 	if [ -n "$DT_KEYSALLUSED" ]; then
 		case $k in
 		"mouse "*|"pointer "*|"paste "*|resize|"focus "*) ;;
@@ -1061,6 +1063,11 @@ fn dt_event(k) {
 			if [ -n "$DT_KEYSWIN" ] &&
 			   [ "${DT[$DT_KEYSWIN]["keysall"]-}" = 1 ] &&
 			   [ -n "${DT[$DT_KEYSWIN]["key"]-}" ]; then
+				if dt_keyis fullscreen "$k"; then
+					[ "${DT_APPS[${DT[$DT_KEYSWIN]["app"]}]["fixed"]}" != 1 ] &&
+						dt_full_focused
+					return 0
+				fi
 				dt_appcall "$DT_KEYSWIN" "${DT[$DT_KEYSWIN]["key"]}" "$k"
 				return 0
 			fi

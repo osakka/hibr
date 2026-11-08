@@ -200,7 +200,7 @@ whenever a replacement writes one.
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys; beside `"display"` it offers `"scroll"` and `"dpframes"` -- a window's picture whose frames another program sends (`stream.c`, Gitea #486), kept under one kitty id and placement for life, with hooks the wait services without waking the script — see `mods/console/README.md` |
-| `mods/frames.c` | `frames`: the socket a window's picture is sent to, speaking Blit's frame wire from the far side (Gitea #486, Blit ADR 0223): a program that draws into buffers -- Blit's gamescope bridge -- is given its name and token in place of Blit's, and its dmabuf or memfd frames go through `"dpframes"` to every display under the picture's id, RELEASEs back in its own ids; its input route (`INPUT eis`) goes up the same way, and `frames input N on|off` from the window's `_focus` says when it is live; `frames place` from a window's drawing; `tests/frames.py` drives it with a stand-in bridge. The Steam window (`apps/Games/steamwin.hibr`, catalogue) is built on it: Big Picture under `blit-gamescope --no-place`, every key but Release Pointer and Leave Full Screen (`dt_keysall`), the pointer held on a click; `tests/steamwin.py` |
+| `mods/frames.c` | `frames`: the socket a window's picture is sent to, speaking Blit's frame wire from the far side (Gitea #486, Blit ADR 0223): a program that draws into buffers -- Blit's gamescope bridge -- is given its name and token in place of Blit's, and its dmabuf or memfd frames go through `"dpframes"` to every display under the picture's id, RELEASEs back in its own ids; its input route (`INPUT eis`) goes up the same way, and `frames input N on|off` from the window's `_focus` says when it is live; `frames place` from a window's drawing; `tests/frames.py` drives it with a stand-in bridge. The Steam window (`apps/Games/steamwin.hibr`, catalogue) is built on it: Big Picture under `blit-gamescope --no-place`, every key but Release Pointer, Full Screen and Leave Full Screen (`dt_keysall`), the pointer held on a click; `tests/steamwin.py` |
 | `mods/gfxask.c`, `mods/gfxask.h` | what a terminal says it can do, asked once and shared by the console and hold's client: the picture protocols, the kitty keyboard, pixel mouse (1016), pointer shapes (OSC 22), pointer lock (7701), XTGETTCAP |
 | `mods/blitfr.c`, `mods/blitfr.h` | picture frames handed to Blit by descriptor (Blit ADR 0202): the one copy of the protocol -- hello with the session's token, a 48-byte header and a sealed memfd over an abstract SOCK_SEQPACKET socket -- shared by the console, which sends straight to Blit when nothing is between, and hold's attaching client, which forwards what the held program's server passes it; `holdframes` is the interface hold offers the console for the held case, and `tests/frameserve.py` is the suites' refusing stand-in. Linux only |
 | `mods/display.h` | the interface a display backend offers; `console` is the only one so far |
@@ -4011,6 +4011,31 @@ went in the shell.
   every display hold serves, and the two must agree; a held check
   (`tests/holdpix.py`'s two pictures at one corner) is the only kind that
   sees both.
+
+- **`hold upgrade` re-execs the server and the desktop, never a display's
+  client.** Each display's `hold attach` runs in that display's own Blit
+  session and keeps the binary it started with, so after an upgrade that
+  changes hold's wire the clients still speak the old one: the owner's
+  first Steam test (0.99.471) had three clients at `/usr/bin/hibr
+  (deleted)`, which dropped `HD_INPUT` and the new frame letter -- no input
+  route, and every frame a memfd, since hold then counted those displays as
+  unable to import. The desktop ran current code the whole time, which is
+  why it looked like the window's fault. Read every client's
+  `/proc/<pid>/exe` before diagnosing a held display after an upgrade.
+- **A full-screen window's body is the whole pane from 0, 0.** Full screen
+  sets the window's chrome to `none`, and a frameless body has no border to
+  start inside, so the app is handed the pane's own height and width and
+  draws from row 0, column 0. A picture placed at 1, 1 with that size runs
+  one cell past the pane and the console refuses it -- the Steam window
+  went to "Waiting for Steam's first picture" in full screen (0.99.471).
+  Anything that places at a fixed 1, 1 asks `${DT[$id]["chrome"]}` first.
+- **A window that takes every key claims every key its handler is given,
+  so a key the desktop keeps is done inside the intercept.** Keys to the
+  Game hands a game's `_key` everything, and that handler answers 0 to all
+  of it -- so letting Full Screen past the intercept was not enough: the
+  ordinary path offers a key to the focused window before the shortcuts,
+  and the game took it again. Release Pointer, Leave Full Screen and Full
+  Screen are each acted on where the intercept is (0.99.471).
 
 ## Testing discipline
 

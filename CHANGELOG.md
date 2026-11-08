@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.99.471
+
+**The Steam window from the owner's first live test** (Gitea #486). Run on
+the mini PC under Blit 0.3.66, it showed no picture after a few moves, took
+no keys and no mouse, and Alt+Enter did nothing. Two of those were not the
+window:
+
+- **No input and no dmabuf were display clients older than 0.99.469.**
+  `hold upgrade` re-execs the server and the desktop and never the
+  `hold attach` client in each display's session, which keeps the binary
+  it started with: all three of the owner's were `(deleted)`. An old
+  client drops `HD_INPUT` and the new frame letter, so no input route was
+  ever made, and hold counted those displays as unable to import, so the
+  bridge was told `dmabuf=0` and sent every frame as a memfd. Logging out
+  and in again gives the displays new clients; making `hold upgrade` reach
+  them is a ticket of its own.
+- **The picture going was the seam between two Blit sessions.** The
+  owner's tall display is two sessions, top and bottom, and hold skips a
+  bitmap that does not fit a display rather than cut it -- so while the
+  window straddled the seam neither half showed it, over cells blanked for
+  it. Reproduced with two stacked displays: wholly inside either, the
+  picture moves across with its frames and placement. Blit honours a
+  kitty source rectangle (its ADR 0060), so hold could give each half its
+  own slice; that is a ticket for the owner to decide.
+
+What changed here:
+
+- **Full Screen is the desktop's under Keys to the Game.** A window that
+  takes every key took Alt+Enter too; it is done in the same place as
+  Release Pointer and Leave Full Screen now, since such a window's own key
+  handler claims everything it is handed. The Steam window's picture also
+  had to learn that a full-screen body is the whole pane from 0, 0 -- it was
+  placed at 1, 1 and refused by one cell.
+
+The Steam window is 1.1 in the catalogue: it passes the bridge `-r`, the
+refresh rate of the display it is on, taken from Blit's own API with the
+port and token Blit gives the desktop's session -- the pane, the pane's
+display, its mode rounded, the fastest display when there is no pane, and
+nothing when Blit does not answer within a second; and `--log`, so the
+bridge's own log is in `~/.local/state/hibr/steam.log` rather than nowhere.
+
 ## 0.99.470
 
 **A module loads from strict code** (Gitea #490). A module whose init sets a
