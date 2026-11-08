@@ -335,7 +335,7 @@ from the catalogue — then **Desktop** — Appearance, Control Strip, Desktop,
 File Types, Menu Bar, Notifications, Shortcuts, Wallpaper, Windows and the
 rest, sorted by name — and **Apps**, one pane per app that has something to choose:
 Files, Terminal and Stickies as shipped, and Mail, Calendar & Contacts,
-Vault, Browser, Web Apps, YouTube, X Screen and Prayer Times once installed. An app's pane is one of the
+Vault, Browser, Web Apps, YouTube, Screens and Prayer Times once installed. An app's pane is one of the
 files the app brings, so it is there exactly when the app is (ADR 0047);
 it says so when its app is installed and not loaded in this session.
 Everything an app keeps across restarts has a row in

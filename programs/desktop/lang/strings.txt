@@ -17,12 +17,15 @@
 %s changed outside Sheet: its formulas run contained until you give it full access again
 %s columns
 %s connected
+%s could not be started
 %s does not take files
 %s edited file(s) not yet saved to a server were kept
+%s ended as it started -- its log is %s
 %s file with it
 %s files with it
 %s follows All Displays again
 %s has a new cover
+%s has ended
 %s has no address book yet -- sync it first
 %s has no shortcut now
 %s in %s h %s min
@@ -196,6 +199,7 @@ Battery critical: the computer will shut down in a minute
 Battery critical: the computer will sleep in a minute
 Battery low: %s%% left
 Blank
+Blit's gamescope bridge, on the GPU: X11 and Wayland programs.
 Block Addresses
 Bluetooth
 Bluetooth Settings%s
@@ -214,6 +218,7 @@ Border
 Bottom
 Boxer could not use that picture as the cover of %s
 Bricks
+Bridge
 Browse
 Browser
 Browser Setting
@@ -251,6 +256,7 @@ Cannot write %s
 Cannot write a rule for the account %s
 Cannot write in %s
 Captions
+Capture on Click:
 Catalogue
 Center
 Change Wallpaper…
@@ -400,7 +406,7 @@ Default View
 Defaults
 Degrees, north and east positive. Empty: the time zone's.
 Delete
-Delete %s from X Screen's programs?
+Delete %s from the programs Screens runs?
 Delete %s from the server? It cannot be undone.
 Delete Column
 Delete Note…
@@ -474,6 +480,7 @@ Empty the Trash? The one item in it is deleted for good.
 End Task
 End Task (force)
 Engine For New Tabs
+Engine:
 Enter fills it; escape cancels
 Enter to go on
 Enter: do it  Esc: back
@@ -594,6 +601,7 @@ Home page, opened by a new window or tab:
 Hostname: %s
 Hover
 How Formulas Work
+How it is reached -- Default is Control Panel > Screens > Defaults:
 ITEM
 Icon Background
 Icon Colours
@@ -625,7 +633,9 @@ It asks for a password (%s).
 It could not be read
 Italic
 Item
+Its log: %s
 Its passkey or PIN:
+Its size is the window's, and its refresh rate the display's.
 Jan
 January
 JavaScript
@@ -646,7 +656,7 @@ Keep the Screen Saver Away While Playing
 Keep the Server Up
 Kept as a favourite: %s
 Keyboard
-Keys to the Game
+Keys to the Program
 Kind:
 Known Networks
 Labelled %s
@@ -767,6 +777,7 @@ Name Servers
 Name:
 Name:   %s
 Narrower Column
+Needs Blit's gamescope bridge: install blit-gamescope.
 Needs a command
 Needs an extension
 Network
@@ -1051,6 +1062,7 @@ Reset Permissions
 Resize
 Restart
 Restart Desktop
+Restart Desktop ended %s -- open it again
 Restart Desktop to Update
 Restart failed: %s would not run
 Restart the computer?
@@ -1199,14 +1211,11 @@ Star
 Starred
 Start After (minutes)
 Start Page:
-Starting Steam
+Starting %s
 Starting the X screen…
 Starting the camera%s
 Stay On:
-Steam
-Steam could not be started
-Steam has ended
-Steam needs Blit's gamescope bridge: install the blit-gamescope package
+Steam Integration:
 Stickies
 Sticky
 Still working
@@ -1284,7 +1293,7 @@ The pdf module is not installed
 The picture for %s did not download: %s
 The record could not be added
 The remote file cache is empty
-The screen -- Default is Control Panel > X Screen > Defaults:
+The screen -- Default is Control Panel > Screens > Defaults:
 The system asks for a password
 The time is HH:MM or HH:MM:SS
 The timeout could not be set
@@ -1402,9 +1411,11 @@ Volume Up
 Volume on Menu Bar
 WHERE
 Wait for the transfers running to finish first
-Waiting for Steam's first picture
+Waiting for %s's first picture
 Wallpaper
 Wallpaper set
+Wayland Screen
+Wayland Screen needs Blit's gamescope bridge: install the blit-gamescope package
 Web App
 Web Apps
 Wed
@@ -1442,7 +1453,6 @@ Workspaces
 Write
 Write an Email
 X Screen
-X Screen Program
 XINERAMA
 XVideo
 YYYY-MM-DD and HH:MM:SS, local time

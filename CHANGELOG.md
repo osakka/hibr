@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.99.474
+
+**Screens: one app for every program in a window** (Gitea #493). X Screen
+and the Steam window are one app now, Screens, with one list of programs,
+one Control Panel pane and one place on the menu, Applications > Screens.
+Each program chooses its engine:
+
+- **X Screen**: Xvfb on the CPU, as before -- X11 programs, the clipboard
+  both ways, a window that fits, is a fixed size or is the program's own,
+  and no GPU needed.
+- **Wayland Screen**: Blit's gamescope bridge on the GPU -- X11 and
+  Wayland programs, frames handed over by descriptor, real key presses and
+  releases through Blit's input route. Its size is the window's and its
+  refresh rate the display's, so it has neither as an option: what it has
+  is Steam Integration, Every Key to the Program, Capture on Click and When
+  It Ends, and the dialog shows its log, `~/.local/state/hibr/screens.log`.
+
+Each engine's dialog shows only its own rows. A new program is on Wayland
+Screen where the bridge is installed and on X Screen where it is not.
+**Steam** is on the list by itself wherever `steam` is installed: Big
+Picture on Wayland Screen with Steam's integration, every key to it, and
+the pointer left free -- with the pointer held, Big Picture's is invisible,
+since gamescope's picture carries no pointer and Blit hides its own. It has
+no Delete, and is written to the list only once it is changed.
+
+Every program X Screen had carries over unchanged as an X Screen program:
+the list is still `xscreen.tsv`, and the engine is one more of a program's
+options, so the file still reads in X Screen. X Screen and the Steam window
+leave the catalogue; where either is installed, `catalogue remove xscreen
+steamwin` takes it away -- until then the two run beside Screens without
+meeting, since nothing in Screens shares a name with them but the settings
+they have in common. A Steam row changed in Screens' pane is written to the
+list, so X Screen, while it is still installed, shows it too.
+
 ## 0.99.473
 
 **A picture across two displays shows on both** (Gitea #492). The owner's

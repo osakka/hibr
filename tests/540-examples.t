@@ -210,9 +210,6 @@ awk '
     NOT["vault"] = "copy cut paste selall undo redo"
     # The Camera shows a live picture, and the clipboard holds text.
     NOT["camera"] = "copy cut paste selall undo redo"
-    # The Steam window is the picture of a game: its keys are the game, and
-    # nothing in it is text the desktop could take or put back.
-    NOT["steamwin"] = "copy cut paste selall undo redo"
     # Shows things and copies what is chosen, and edits nothing in place:
     # an edit is a dialog of its own, with fields that undo for themselves.
     split("about calendar clock contacts imgview mail modman pdfr tasks", a, " ")
@@ -221,7 +218,7 @@ awk '
     NOT["clipboard"] = "selall undo redo"
     # Hand what is pasted to a program or a page, which keeps its own
     # history; the window has none to undo.
-    split("term browser youtube calc xscreen", a, " ")
+    split("term browser youtube calc screens", a, " ")
     for (i in a) NOT[a[i]] = "cut selall undo redo"
     NOT["dbase"] = "copy cut selall undo redo"
   }

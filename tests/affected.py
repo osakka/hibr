@@ -67,7 +67,7 @@ SUITE_MODS = {
     "media": ["media"],
     "youtube": ["web", "media"],
     "sound": ["media"],
-    "xscreen": ["xscr"],
+    "screens": ["xscr"],
     "pim": ["pim", "dav"],
     "contacts": ["pim", "dav", "email", "db"],
     "calapp": ["pim", "dav", "email", "db"],
@@ -87,7 +87,7 @@ SUITE_MODS = {
     "holdpix": ["console", "img", "hold", "term", "pty", "blitfr"],
     "dmabuf": ["hold", "term", "pty", "blitfr"],
     "frames": ["frames", "console", "hold", "term", "pty", "blitfr"],
-    "steamwin": ["frames", "console", "hold", "pty", "blitfr"],
+    "screens_wl": ["frames", "console", "hold", "pty", "blitfr", "dav"],
     "holdrenew": ["frames", "console", "hold", "pty", "term", "blitfr"],
     "holdseam": ["frames", "console", "img", "hold", "pty", "term", "blitfr"],
     # inflate.c is not a module of its own: it is shared source, the prompt

@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
 from screen import Term, check, report, load, tree
 
-D = tempfile.mkdtemp(prefix="hibr-xscreen-")
+D = tempfile.mkdtemp(prefix="hibr-screens-")
 MOD = tree("build/mods/xscr.so")
 ENV = dict(os.environ, HIBR_MODPATH=tree("build/mods"),
            XDG_RUNTIME_DIR=D)
@@ -111,14 +111,14 @@ def progs(*rows):
 def desk(body, pix=False, env=None):
     """A desktop session that opens a program through its menu entry, then
     runs body (session lines) besides."""
-    p = sx.scratch("xscreen.hibr")
+    p = sx.scratch("screens.hibr")
     open(p, "w").write(
         "%s. %s\n. %s\nXS_SIZE=640x400\nXS_MAX=1280x800\n"
-        "dt_open\nXSID := dt_launch \"xscreen:0\"\n%s\ndt_run\ndt_close\n"
+        "dt_open\nXSID := dt_launch \"screens:0\"\n%s\ndt_run\ndt_close\n"
         % (load("console"), tree("programs/desktop/desktop.hibr"),
-           tree("programs/desktop/apps/xscreen.hibr"), body))
+           tree("programs/desktop/apps/screens.hibr"), body))
     kw = dict(cellw=8, cellh=16, caps=["kitty"]) if pix else {}
-    e = {"XDG_RUNTIME_DIR": D, "XS_LIST": LIST}
+    e = {"XDG_RUNTIME_DIR": D, "SCN_LIST": LIST}
     e.update(env or {})
     return Term(p, rows=26, cols=82, settle=1.0, env=e, **kw)
 
@@ -172,18 +172,18 @@ check("a desktop that is killed takes its X screen with it",
 # from the menu with no restart.
 progs(("One", "true", "fit", "follow"), ("Two", "true", "own", "half"))
 out, err = hb(
-    "XS_LIST=%s\n. %s\n. %s\n"
-    "echo \"hidden=${DT_APPS[xscreen][hidden]}\"\n"
-    "for k in xscreen:0 xscreen:1; do echo \"$k=${DT_APPS[$k][title]}|${DT_APPS[$k][dir]}|${DT_APPS[$k][via]}|${DT_APPS[$k][arg]}\"; done\n"
-    "XSP_NAME=(Two); XSP_CMD=(true); XSP_WIN=(own); XSP_PIC=(half); xs_save; xs_reload\n"
-    "echo \"after=${DT_APPS[xscreen:0][title]}|${DT_APPS[xscreen:1][title]}|$(wc -l < %s)\"\n"
+    "SCN_LIST=%s\n. %s\n. %s\n"
+    "echo \"hidden=${DT_APPS[screens][hidden]}\"\n"
+    "for k in screens:0 screens:1; do echo \"$k=${DT_APPS[$k][title]}|${DT_APPS[$k][dir]}|${DT_APPS[$k][via]}|${DT_APPS[$k][arg]}\"; done\n"
+    "SCNP_NAME=(Two); SCNP_CMD=(true); SCNP_WIN=(own); SCNP_PIC=(half); scn_save; scn_reload\n"
+    "echo \"after=${DT_APPS[screens:0][title]}|${DT_APPS[screens:1][title]}|$(wc -l < %s)\"\n"
     % (LIST, tree("programs/desktop/desktop.hibr"),
-       tree("programs/desktop/apps/xscreen.hibr"), LIST))
-check("each program is an entry under Applications > X Screen, and the "
-      "plain X Screen is not",
+       tree("programs/desktop/apps/screens.hibr"), LIST))
+check("each program is an entry under Applications > Screens, and the "
+      "plain Screens app is not",
       "hidden=1" in out and
-      "xscreen:0=One|Applications/X Screen|xscreen|One" in out and
-      "xscreen:1=Two|Applications/X Screen|xscreen|Two" in out, out + err)
+      "screens:0=One|Applications/Screens|screens|One" in out and
+      "screens:1=Two|Applications/Screens|screens|Two" in out, out + err)
 check("and a program taken off the list is off the menu at once",
       "after=Two||1" in out, out + err)
 
@@ -193,16 +193,16 @@ check("and a program taken off the list is off the menu at once",
 # Each program's row carries its own Delete.
 progs(("One", "true", "fit", "follow"), ("Two", "true", "own", "half"))
 out, err = hb(
-    "XS_LIST=%s\n. %s\n. %s\n. %s\n. %s\n"
-    "echo \"pane=${#XSP_NAME[@]}\"\n"
-    "declare -gA CP; xscreenset_rows 40 > /dev/null\n"
+    "SCN_LIST=%s\n. %s\n. %s\n. %s\n. %s\n"
+    "echo \"pane=${#SCNP_NAME[@]}\"\n"
+    "declare -gA CP; screensset_rows 40 > /dev/null\n"
     "echo \"row1=${CP[40][1][text]}|${CP[40][1][btns]}\"\n"
-    "xss_remove 0\n"
-    "echo \"left=${XSP_NAME[*]}|$(cut -f1 %s)|${DT_APPS[xscreen:0][title]}\"\n"
+    "scns_remove 0\n"
+    "echo \"left=${SCNP_NAME[*]}|$(cut -f1 %s)|${DT_APPS[screens:0][title]}\"\n"
     % (LIST, tree("programs/desktop/desktop.hibr"),
-       tree("programs/desktop/apps/xscreen.hibr"),
+       tree("programs/desktop/apps/screens.hibr"),
        tree("programs/desktop/system/panel.hibr"),
-       tree("programs/desktop/control-panel/xscreenset.hibr"), LIST))
+       tree("programs/desktop/control-panel/screensset.hibr"), LIST))
 check("the pane, loaded after the app, still lists every program",
       "pane=2" in out and "row1=One|del0:Delete" in out, out + err)
 check("and a program's own Delete takes it off the list, the file and "
@@ -240,8 +240,8 @@ fitted = shutil.which("xwininfo") is not None
 progs(("Entry", "%s %s %s" % (sys.executable, ENTRY,
                               os.path.join(D, "f.txt")), "fit", "half"))
 t = desk("T0=$EPOCHSECONDS\n"
-         "xsl() { printf '%s|%s|%s|%s' \"${XS[$XSID][n]}\" "
-         "\"${XS[$XSID][w]}\" \"${XS[$XSID][h]}\" \"${DT[$XSID][title]}\" "
+         "xsl() { printf '%s|%s|%s|%s' \"${SCN[$XSID][n]}\" "
+         "\"${SCN[$XSID][w]}\" \"${SCN[$XSID][h]}\" \"${DT[$XSID][title]}\" "
          "> " + STATE + "; [ -z \"$SN\" ] && [ $((EPOCHSECONDS - T0)) -ge 8 ] "
          "&& { SN=1; dt_snap \"$XSID\" left; }; return 0; }\n"
          "dt_ticker xsl")
@@ -286,7 +286,7 @@ check("the window is titled with the program's name and its own title",
 # the size it asks for -- GTK's own 600 by 120 here.
 progs(("Entry", "%s %s %s" % (sys.executable, ENTRY,
                               os.path.join(D, "o.txt")), "own", "half"))
-t = desk("xsl() { printf '%s' \"${XS[$XSID][n]}\" > " + STATE +
+t = desk("xsl() { printf '%s' \"${SCN[$XSID][n]}\" > " + STATE +
          "; return 0; }\ndt_ticker xsl")
 g3 = None
 for _ in range(40):
@@ -400,22 +400,22 @@ check("and the same for a program left to place itself, asked of the X server",
 progs(("Opt", "true", "fixed", "half", "default",
        "fps=30;dpi=120;cursor=0;xvideo=0", "-ac"), ("Old", "true", "fit", "follow"))
 out, err = hb(
-    "XS_LIST=%s\n. %s\n. %s\n. %s\n. %s\n"
-    "xs_args 0; echo \"args0=${XS_ARGS[*]}\"\n"
-    "xs_args 1; echo \"args1=[${XS_ARGS[*]}]\"\n"
-    "XS_GLX=0; XS_EXTRA='-dpi 72'; xs_args 1; echo \"glx=${XS_ARGS[*]}\"\n"
-    "v := xs_optval 0 fps; w := xs_optval 1 fps; echo \"fps=$v/$w\"\n"
-    "xs_setopt 0 dpi default; xs_setopt 0 bg '#336699'; echo \"opt=${XSP_OPT[0]}\"\n"
-    "xs_save; echo \"line=$(sed -n 2p %s)\"\n"
-    "declare -gA XSF; XSF[9][pic]=follow; xsf_preset 9 smooth; a=${XSF[9][o_fps]}\n"
-    "xsf_preset 9 light; echo \"presets=$a/${XSF[9][o_fps]}/${XSF[9][pic]}\"\n"
-    "xsf_preset 9 smooth; echo \"back=${XSF[9][o_fps]}/${XSF[9][pic]}\"\n"
-    "declare -gA CP; n := xscreenset_rows 41; for ((i = 0; i < n; i++)); do t+=\"${CP[41][$i][text]}|\"; done\n"
+    "SCN_LIST=%s\n. %s\n. %s\n. %s\n. %s\n"
+    "scn_args 0; echo \"args0=${SCN_ARGS[*]}\"\n"
+    "scn_args 1; echo \"args1=[${SCN_ARGS[*]}]\"\n"
+    "XS_GLX=0; XS_EXTRA='-dpi 72'; scn_args 1; echo \"glx=${SCN_ARGS[*]}\"\n"
+    "v := scn_optval 0 fps; w := scn_optval 1 fps; echo \"fps=$v/$w\"\n"
+    "scn_setopt 0 dpi default; scn_setopt 0 bg '#336699'; echo \"opt=${SCNP_OPT[0]}\"\n"
+    "scn_save; echo \"line=$(sed -n 2p %s)\"\n"
+    "declare -gA SCNF; SCNF[9][pic]=follow; scnf_preset 9 smooth; a=${SCNF[9][o_fps]}\n"
+    "scnf_preset 9 light; echo \"presets=$a/${SCNF[9][o_fps]}/${SCNF[9][pic]}\"\n"
+    "scnf_preset 9 smooth; echo \"back=${SCNF[9][o_fps]}/${SCNF[9][pic]}\"\n"
+    "declare -gA CP; n := screensset_rows 41; for ((i = 0; i < n; i++)); do t+=\"${CP[41][$i][text]}|\"; done\n"
     "echo \"rows=$t\"\n"
     % (LIST, tree("programs/desktop/desktop.hibr"),
-       tree("programs/desktop/apps/xscreen.hibr"),
+       tree("programs/desktop/apps/screens.hibr"),
        tree("programs/desktop/system/panel.hibr"),
-       tree("programs/desktop/control-panel/xscreenset.hibr"), LIST))
+       tree("programs/desktop/control-panel/screensset.hibr"), LIST))
 check("a program's own options become Xvfb's flags, and the extra ones go last",
       "args0=-nocursor -dpi 120 -extension XVideo -ac" in out and "args1=[]" in out
       and "glx=-extension GLX -dpi 72" in out, out + err)
@@ -438,8 +438,8 @@ SEEN = os.path.join(D, "opts-state.txt")
 
 def optdesk(opts, extra):
     progs(("Opt", "sleep 30", "fixed", "half", "default", opts, extra))
-    t = desk("dt_optprobe() { echo \"ms=${XS[$XSID][ms]} x=${XS[$XSID][x]} "
-             "dir=${XS[$XSID][dir]} ptr=${DT[$XSID][ptr]} err=${XS[$XSID][err]}\" > %s; }\n"
+    t = desk("dt_optprobe() { echo \"ms=${SCN[$XSID][ms]} x=${SCN[$XSID][x]} "
+             "dir=${SCN[$XSID][dir]} ptr=${DT[$XSID][ptr]} err=${SCN[$XSID][err]}\" > %s; }\n"
              "DT_TICKERS+=(dt_optprobe)" % SEEN)
     st = {}
     for _ in range(60):
@@ -486,18 +486,18 @@ check("a flag Xvfb refuses is named in the window, in Xvfb's own words",
 out, err = hb(
     ". %s\n. %s\n"
     "xscr() { echo \"xscr $*\"; }\n"
-    "XS[7][x]=s1; XS[7][r0]=1; XS[7][c0]=1; XS[7][rh]=10; XS[7][rw]=20; XS[7][sw]=200; XS[7][sh]=100\n"
-    "xscreen_hover 7 3 5; xscreen_hover 7 3 5; xscreen_hover 7 -1 -1; echo hovered\n"
+    "SCN[7][x]=s1; SCN[7][r0]=1; SCN[7][c0]=1; SCN[7][rh]=10; SCN[7][rw]=20; SCN[7][sw]=200; SCN[7][sh]=100\n"
+    "screens_hover 7 3 5; screens_hover 7 3 5; screens_hover 7 -1 -1; echo hovered\n"
     "DT_TERMKEEP=1; DT_KEYS[close]=alt-w\n"
-    "xscreen_key 7 alt-w; echo \"plain=$?\"\n"
-    "XS[7][keys]=1; xscreen_key 7 alt-w; echo \"every=$?\"\n"
-    "xscreen_key 7 \"${DT_KEYS[ptrrelease]}\"; echo \"release=$?\"\n"
+    "screens_key 7 alt-w; echo \"plain=$?\"\n"
+    "SCN[7][keys]=1; screens_key 7 alt-w; echo \"every=$?\"\n"
+    "screens_key 7 \"${DT_KEYS[ptrrelease]}\"; echo \"release=$?\"\n"
     "dt_pointerlock() { echo lock $*; return 0; }\n"
-    "XS[7][rel]=1; xscreen_mouse 7 press left 3 5; echo \"held=${XS[7][held]}\"; echo locked-click\n"
-    "xscreen_mouse 7 rel none -4 9; xscreen_mouse 7 press left 0 0; xscreen_mouse 7 release left 0 0\n"
-    "xscreen_hover 7 4 6; echo after-hover\n"
-    "xscreen_mouse 7 unlock none 0 0; echo \"held=[${XS[7][held]}]\"\n"
-    % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/xscreen.hibr")))
+    "SCN[7][rel]=1; screens_mouse 7 press left 3 5; echo \"held=${SCN[7][held]}\"; echo locked-click\n"
+    "screens_mouse 7 rel none -4 9; screens_mouse 7 press left 0 0; screens_mouse 7 release left 0 0\n"
+    "screens_hover 7 4 6; echo after-hover\n"
+    "screens_mouse 7 unlock none 0 0; echo \"held=[${SCN[7][held]}]\"\n"
+    % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/apps/screens.hibr")))
 check("the X pointer follows the mouse with no button held, once per position",
       out.split("hovered")[0].count("xscr move s1 ") == 1 and
       "xscr move s1 45 25" in out.split("hovered")[0], out + err)

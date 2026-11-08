@@ -74,7 +74,7 @@ onto hardware, which comes in the `xvfb` package. Nothing links against X:
 | `xscr draw ID row col h w [-p pane] [-m pixels\|half] [-c]` | the screen scaled to h by w cells, as pixels where the display can place them and half blocks where it cannot or `-m half` says so; with `-c`, only the region `fit` set, which a fitted window shows 1:1 |
 | `xscr key ID NAME` | a key by the console's name for it -- a character, or `enter`, `left`, `f5`..., with `ctrl-`, `alt-` and `shift-` in front |
 | `xscr type ID TEXT` | type text, a character at a time |
-| `xscr move ID X Y` | move the pointer to a pixel of the screen; the X Screen app calls it from its `_hover` too, so with Control Panel > Mouse > Hover on the X pointer follows the mouse with no button held, and a program's own hover, menus and tooltips work |
+| `xscr move ID X Y` | move the pointer to a pixel of the screen; Screens' X Screen calls it from its `_hover` too, so with Control Panel > Mouse > Hover on the X pointer follows the mouse with no button held, and a program's own hover, menus and tooltips work |
 | `xscr button ID press\|release N X Y` | a button pressed or let go at a pixel |
 | `xscr click ID N X Y` | a button pressed and let go |
 | `xscr wheel ID up\|down X Y` | the wheel, as buttons 4 and 5 |

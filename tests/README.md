@@ -69,15 +69,15 @@ python3 tests/media.py      the media module, its sound to a WAV file
 python3 tests/sound.py      the desktop's sound, on a private PipeWire
 python3 tests/bt.py         the desktop's Bluetooth, against a stand-in
 python3 tests/net.py        the desktop's network, against a stand-in
-python3 tests/xscreen.py    X Screen and the xscr module, on Xvfb
+python3 tests/screens.py    Screens' X Screen and the xscr module, on Xvfb
 python3 tests/pdfapp.py     the pdf module and the PDF Reader
 python3 tests/sixel.py      pictures as sixel, the console's image regions
 python3 tests/kitgfx.py     pictures in the kitty graphics protocol
 python3 tests/holdpix.py    pictures, pixels and pointers through hold
 python3 tests/dmabuf.py     frames by dmabuf through hold's server
 python3 tests/frames.py     a program's frames through the frames module's socket
-python3 tests/steamwin.py   the Steam window, against stand-ins for the bridge and Blit
-                            (STW_APP=path runs it against another copy of the app)
+python3 tests/screens_wl.py Screens' Wayland Screen and its Steam row, against
+                            stand-ins for the bridge and Blit
 python3 tests/holdrenew.py  hold upgrade renewing two stacked displays' clients
 python3 tests/holdseam.py   a picture across the seam of two stacked displays, cut for each
 python3 tests/shots.py      tools/screenshot.py's grid and pictures

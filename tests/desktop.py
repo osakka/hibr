@@ -1287,7 +1287,7 @@ check("a window rolled up still has its idle call, so a program in it is read",
 os.path.exists(SHD) and os.unlink(SHD)
 # Shade keeps the full height in a field of its own: snap's "sh" is its
 # saved height, and sharing it made every snapped window read as shaded,
-# its app undrawn (found by xscreen's resize check).
+# its app undrawn (found by X Screen's resize check, now Screens').
 sc, _ = run('fn snp_draw(int id, int h, int w, int row, int col) { console put -p "w$id" 2 2 "body here"; }\n'
             'dt_app snp Snp 8 30\nid := dt_new Snp 8 30 3 3 snp\ndt_snap "$id" left\n', [0.5])
 check("a snapped window is not a shaded one: its app is still drawn",

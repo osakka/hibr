@@ -438,7 +438,7 @@ check("panes register and sort by title within their group, not load order",
                 "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
                 "taskmgr", "versions", "wallset", "windows",
                 "archiveset", "browserset", "pimset", "camset", "filesview", "mailset", "prayerset",
-                "sheetset", "notes", "terminal", "vaultset", "webapps", "xscreenset", "tube"], out)
+                "screensset", "sheetset", "notes", "terminal", "vaultset", "webapps", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
       ["hardware"] * 8 + ["system"] * 20 + ["app"] * 14, out)
@@ -485,7 +485,7 @@ TITLE = {"archiveset": "Archives", "aboutme": "About Me", "adminaccess": "Admini
          "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
          "terminal": "Terminal", "tube": "YouTube", "versions": "Versions",
          "browserset": "Browser", "camset": "Camera", "wallset": "Wallpaper",
-         "webapps": "Web Apps", "xscreenset": "X Screen"}
+         "webapps": "Web Apps", "screensset": "Screens"}
 
 
 def prow(name):
@@ -663,7 +663,7 @@ check("the first pane's own rows show on the right without entering it",
 PANE_APPS = {"abouthibr": ("about",), "filesview": ("files",),
              "taskmgr": ("tasks",), "terminal": ("term",),
              "browserset": ("browser",), "webapps": ("browser",),
-             "xscreenset": ("xscreen",)}
+             "screensset": ("screens",)}
 
 
 PANEHOME = tempfile.mkdtemp(prefix="hibr-pane-conf-")
