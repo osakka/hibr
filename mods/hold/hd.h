@@ -227,7 +227,18 @@ enum {
 	HD_HUD = 'J',
 	/* A request: whether any display's Blit asks for status, "on" or
 	   "off". An older server closes, which reads as off. */
-	HD_HUDQ = 'K'
+	HD_HUDQ = 'K',
+	/* From a client that can renew itself (two ints): 1 at attach, with
+	   the ABI its shell was built for after it, saying it may be told to
+	   put itself on new code; 2 from one that has just done so, on the
+	   connection it carried, before it says again what it can do -- the
+	   server forgets what the old code said first (Gitea #491). An older
+	   server ignores it. */
+	HD_CARRY = 'Y',
+	/* To such a client, after `hold upgrade`: give the terminal back as it
+	   is, keep the connection, and come back on the modules now on disk.
+	   An older client ignores it. */
+	HD_RENEW = 'R'
 };
 
 /* What one pass reads of the program's output: a pty hands over about 4 kB
@@ -430,6 +441,13 @@ struct hd_cli {
 	   whether it repeats a character, and how many colours it takes (0 for
 	   not said: 24-bit). */
 	int bce, rep, depth;
+	/* The ABI of the shell this client runs in, when it said it can renew
+	   itself (HD_CARRY), and 0 when it cannot: it is renewed after an
+	   upgrade only onto modules that shell can load. */
+	int cabi;
+	/* Input-route lines replayed to this display, whose answers are its
+	   own business and not the producer's. */
+	int inrep;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;
@@ -533,8 +551,21 @@ int hd_resume(sh *s);
 int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 	       int l);
 extern str hd_endwhy;
+/* hd_attach's last argument: the caller can renew this client (it loops
+   on HOLD_WHY=renew), and this one carries a connection already made. */
+#ifndef HD_AT_CARRY
+#define HD_AT_CARRY 1
+#endif
+#ifndef HD_AT_RESUME
+#define HD_AT_RESUME 2
+#endif
 int hd_attach(const char *name, const char *path, int multi, int row,
-	      int col, const char *dname);
+	      int col, const char *dname, int fl, int cfd);
+extern str hd_carry;
+extern str hd_carrymods;
+void hd_inreplay(struct hd_cli *cn);
+void hd_crenew(struct hd_cli *cn);
+void hd_renewall(vec *cls);
 
 void hd_lockgone(vec *cls, int tid);
 void hd_lockstray(struct hd_cli *cn, const char *p, size_t n);

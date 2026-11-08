@@ -88,6 +88,7 @@ SUITE_MODS = {
     "dmabuf": ["hold", "term", "pty", "blitfr"],
     "frames": ["frames", "console", "hold", "term", "pty", "blitfr"],
     "steamwin": ["frames", "console", "hold", "pty", "blitfr"],
+    "holdrenew": ["frames", "console", "hold", "pty", "term", "blitfr"],
     # inflate.c is not a module of its own: it is shared source, the prompt
     # module's own, which the archive module compiles in as well. Naming it
     # here is what makes a change to it reach this suite.
@@ -97,7 +98,7 @@ SUITE_MODS = {
 APPS = ("apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more")
 DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session")
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
-                                         "sound", "net", "bt", "archives")
+                                         "sound", "net", "bt", "archives", "holdrenew")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 

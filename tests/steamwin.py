@@ -83,6 +83,7 @@ open(p, "w").write(
     "%s. %s\n. %s\nSTW_BRIDGE=%s\n"
     "dt_open\nstw_play\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"),
+       os.environ.get("STW_APP") or
        tree("programs/desktop/apps/Games/steamwin.hibr"), wrap))
 t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "lock"],
          env={"HIBR_GFX": "kitty", "BLIT_FRAME_SOCKET": "@" + nm,

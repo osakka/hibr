@@ -1424,6 +1424,23 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					cn->fsn = 0;
 					lg(HIBR_LDBG, "hold: a display %s frames by descriptor",
 					   v ? "takes" : "no longer takes");
+					if (v)
+						hd_inreplay(cn);
+				}
+			} else if (t == HD_CARRY && in.n == 2 * sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+				int cv[2];
+
+				memcpy(cv, in.p, sizeof cv);
+				if (cn) {
+					cn->cabi = cv[1];
+					if (cv[0] == 2) {
+						hd_crenew(cn);
+						hd_poke(m);
+					}
+					lg(HIBR_LDBG, "hold: a display %s (abi %d)",
+					   cv[0] == 2 ? "renewed itself" :
+							"can renew itself", cv[1]);
 				}
 			} else if (t == HD_HUD && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
@@ -1681,6 +1698,12 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 		   new picture until each display attached again. */
 		fprintf(f, "more %d %d %d %d\n", cn->fd, cn->editok, cn->lockok,
 			cn->fdok);
+		/* Whether it can be renewed, and onto what: the server that
+		   resumes tells each one whose shell takes its own modules
+		   (Gitea #491). An older reader skips the line, and its
+		   clients simply stay on the code they have. */
+		if (cn->cabi)
+			fprintf(f, "carry %d %d\n", cn->fd, cn->cabi);
 		hd_keepexec(cn->fd);
 	}
 	fclose(f);
@@ -1735,6 +1758,56 @@ out:
 	s_free(&rp);
 	s_free(&mp);
 	return id;
+}
+
+/* A client renewed onto new code says again what it can do: what the old
+   code said is forgotten first, so a capability the new code does not claim
+   is not left on. Its place, size, name and primary stay, and so does what
+   its terminal is showing, since the same session goes on there. */
+void hd_crenew(struct hd_cli *cn)
+{
+	cn->kbd = 0;
+	cn->copy = 0;
+	cn->mpix = 0;
+	cn->bce = 0;
+	cn->rep = 0;
+	cn->ptrask = 0;
+	cn->lockok = 0;
+	cn->editok = 0;
+	cn->fdok = 0;
+	cn->dma = 0;
+	s_free(&cn->dmafmt);
+	s_init(&cn->dmafmt);
+	cn->hud = 0;
+	cn->fsn = 0;
+	cn->inrep = 0;
+}
+
+/* After an upgrade, every display whose client can renew itself onto the
+   modules now on disk is told to (Gitea #491): one whose shell was built
+   for another ABI could not load them, and is left on the code it has, as
+   is one from before this, which never said it could. */
+void hd_renewall(vec *cls)
+{
+	size_t i;
+	int n = 0;
+
+	for (i = 0; i < cls->n; i++) {
+		struct hd_cli *cn = cls->p[i];
+
+		if (cn->cabi != HIBR_ABI) {
+			if (cn->cabi)
+				lg(HIBR_LINF, "hold: %s runs a shell for ABI %d, "
+					      "not %d: left as it is",
+				   cn->name.p ? cn->name.p : "a display",
+				   cn->cabi, HIBR_ABI);
+			continue;
+		}
+		if (hd_send(cn->fd, HD_RENEW, 0, 0))
+			n++;
+	}
+	if (n)
+		lg(HIBR_LDBG, "hold: %d display(s) told to renew", n);
 }
 
 /* The other side of it: a server that has just been exec'd takes the
@@ -1825,6 +1898,13 @@ int hd_resume(sh *s)
 			}
 			continue;
 		}
+		if (sscanf(line, "carry %d %d", &fd, &pa) == 2) {
+			struct hd_cli *cc = hd_cfind(&cls, fd);
+
+			if (cc)
+				cc->cabi = pa;
+			continue;
+		}
 		if (sscanf(line, "gfx %d %d", &fd, &prim) == 2) {
 			struct hd_cli *cg = hd_cfind(&cls, fd);
 
@@ -1901,6 +1981,7 @@ int hd_resume(sh *s)
 	/* Every client is sent the whole screen again rather than a
 	   difference from a front this process never had. */
 	hd_rensend(&cls, tid);
+	hd_renewall(&cls);
 	hd_loop(s, hibr_get(s, "HIBR_HOLD"), l, m, id, tid, &cls);
 	return HIBR_OK;
 }

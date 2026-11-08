@@ -77,6 +77,8 @@ python3 tests/holdpix.py    pictures, pixels and pointers through hold
 python3 tests/dmabuf.py     frames by dmabuf through hold's server
 python3 tests/frames.py     a program's frames through the frames module's socket
 python3 tests/steamwin.py   the Steam window, against stand-ins for the bridge and Blit
+                            (STW_APP=path runs it against another copy of the app)
+python3 tests/holdrenew.py  hold upgrade renewing two stacked displays' clients
 python3 tests/shots.py      tools/screenshot.py's grid and pictures
 ```
 

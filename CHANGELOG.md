@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.99.472
+
+**`hold upgrade` reaches every display** (Gitea #491). Upgrading a session
+re-exec'd its server and left each display's own `hold attach` on the code it
+started with, which on the owner's mini PC meant three displays that could not
+take a game's input route or its dmabuf frames. Now the server tells every
+display that can to renew itself: the client gives the terminal back as it
+is, keeps its connection, and the desktop's attach loop loads hold, term and
+pty again from disk and carries on with the same connection on the new code
+-- same process, the screen not cleared, a fresh hello to its Blit. A standby
+display goes on waiting afterwards as before. A shell that cannot load the new
+modules into itself hands the connection to a new one instead, and says so in
+the desktop's log. Displays attached before this release cannot be renewed:
+attach each once more, and every upgrade after reaches them by itself.
+
+The test for it found two older faults, both fixed:
+
+- **A game lost its keys at every `hold upgrade`.** The input routes lived
+  in the old server, and the console never said them again to the new one.
+  The console now says them again whenever hold's frame connection closes,
+  and the server replays each route to any display whose frame socket opens,
+  so a display joining mid-game has one too.
+- **And its frames.** A game's picture is placed once and moved in place,
+  and the new server's emulator carries no pictures across its exec, so it
+  never learned where the game was and forwarded nothing. The console places
+  every such picture again when hold's frame connection closes.
+
+`STW_APP=path tests/steamwin.py` runs the Steam window's suite against
+another copy of the app; the window and its pane fold into Screens next
+(Gitea #493).
+
 ## 0.99.471
 
 **The Steam window from the owner's first live test** (Gitea #486). Run on

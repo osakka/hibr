@@ -203,6 +203,7 @@ int cn_fdhookrun(fd_set *r);
 int cn_fdhookprune(void);
 size_t cn_fdhookn(void);
 int cn_fdhook(int fd, int (*fn)(void *ctx, int fd), void *ctx);
+void cn_imgdmaresend(void);
 void cn_fdunhook(int fd);
 int cn_dcan(sh *s, str *fmts, int *fence);
 int cn_dplace(sh *s, const char *pane, int row, int col, int h, int w,

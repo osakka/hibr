@@ -2,6 +2,7 @@
 
 #include "hd.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -89,16 +90,67 @@ void hd_sizepx(int *sz)
    after a detach, or the program's own status when it ended. */
 /* Why the last attach ended, for HOLD_WHY: `ended` when the session did. */
 str hd_endwhy;
+/* What a client the server renews carries to the code that takes it over
+   (Gitea #491): its connection and where it is, for `hold attach -R`, and
+   the modules it ran, by the paths they were loaded from, tab-separated,
+   for the script to load again. Set only when HOLD_WHY is renew. */
+str hd_carry;
+str hd_carrymods;
+
+/* Hand this client over to the modules on disk: the terminal goes back to
+   how it was found but keeps what is on it -- none of the resets an ending
+   sends, since the same session is about to be drawn there again -- and the
+   connection stays open for the code that comes next. */
+void hd_handover(int s, const char *path, const char *name, int multi,
+		 int row, int col, const char *dname)
+{
+	static const char *mods[] = { "pty.so", "term.so", "hold.so" };
+	size_t i;
+	str mp;
+
+	hd_carry.n = 0;
+	s_num(&hd_carry, s);
+	s_cat(&hd_carry, "\t");
+	s_num(&hd_carry, multi);
+	s_cat(&hd_carry, "\t");
+	s_num(&hd_carry, row);
+	s_cat(&hd_carry, "\t");
+	s_num(&hd_carry, col);
+	s_cat(&hd_carry, "\t");
+	s_cat(&hd_carry, path);
+	s_cat(&hd_carry, "\t");
+	s_cat(&hd_carry, name);
+	s_cat(&hd_carry, "\t");
+	s_cat(&hd_carry, dname ? dname : "");
+	hd_carrymods.n = 0;
+	s_init(&mp);
+	for (i = 0; i < 3; i++) {
+		mp.n = 0;
+		if (!hd_selfmod(mods[i], &mp))
+			continue;
+		if (hd_carrymods.n)
+			s_cat(&hd_carrymods, "\t");
+		s_cat(&hd_carrymods, mp.p);
+	}
+	s_free(&mp);
+	/* Inheritable, for the one way a renewal goes on in another process:
+	   a shell that could not load the new modules into itself starts a
+	   fresh one on this connection. */
+	fcntl(s, F_SETFD, fcntl(s, F_GETFD) & ~FD_CLOEXEC);
+	lg(HIBR_LDBG, "hold attach: renewing onto %s",
+	   hd_carrymods.p ? hd_carrymods.p : "the module path");
+}
 
 int hd_attach(const char *name, const char *path, int multi, int row,
-	      int col, const char *dname)
+	      int col, const char *dname, int fl, int cfd)
 {
 	struct termios sv, raw;
 	struct sigaction a, oa;
 	struct pollfd q[3];
 	const char *why = "detached";
 	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0, gx, kbd = 0, copy = 0,
-	    mpix = 0, ptr = -1, lock = 0, edit = 0, one = 1, depth, bfd, nq, hud = 0;
+	    mpix = 0, ptr = -1, lock = 0, edit = 0, one = 1, depth, bfd, nq, hud = 0,
+	    renew = 0, cv[2];
 	gx_tcap tc;
 	ssize_t k;
 	char *p;
@@ -116,9 +168,10 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	   also paid on an ordinary reattach to an already-settled terminal,
 	   where it is not needed, since nothing here distinguishes a fresh
 	   attach from that. */
-	usleep(1000000);
+	if (!(fl & HD_AT_RESUME))
+		usleep(1000000);
 #endif
-	s = hd_dial(path);
+	s = fl & HD_AT_RESUME ? cfd : hd_dial(path);
 	if (s < 0) {
 		lg(HIBR_LERR, "hold: %s: %s", name,
 		   errno == ETIMEDOUT ? "there and not answering"
@@ -150,7 +203,12 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	s_add(&pay, (const char *)sz, sizeof sz);
 	if (dname && *dname)
 		s_add(&pay, dname, strlen(dname));
-	if (!hd_send(s, multi ? HD_MATTACH : HD_ATTACH, pay.p, pay.n)) {
+	/* A renewed client is already attached: it says so, and the server
+	   forgets what the code before it could do before hearing it again. */
+	cv[0] = fl & HD_AT_RESUME ? 2 : 1;
+	cv[1] = HIBR_ABI;
+	if (!(fl & HD_AT_RESUME) &&
+	    !hd_send(s, multi ? HD_MATTACH : HD_ATTACH, pay.p, pay.n)) {
 		s_free(&pay);
 		s_free(&early);
 		close(s);
@@ -158,6 +216,13 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 		return 1;
 	}
 	s_free(&pay);
+	if ((fl & (HD_AT_CARRY | HD_AT_RESUME)) &&
+	    !hd_send(s, HD_CARRY, (const char *)cv, sizeof cv)) {
+		s_free(&early);
+		close(s);
+		lg(HIBR_LERR, "hold: %s: the session did not answer", name);
+		return 1;
+	}
 	/* Before the pixel size, which is what makes the server work out the
 	   union and nudge the program: by then it knows what this display
 	   can be sent. */
@@ -337,6 +402,9 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 					bf_status(bfd, in.p, in.n);
 			} else if (t == HD_DATA) {
 				hd_wall(1, in.p, in.n);
+			} else if (t == HD_RENEW && (fl & HD_AT_CARRY)) {
+				renew = 1;
+				break;
 			} else if (t == HD_DETACH) {
 				if (in.n)
 					why = in.p;
@@ -349,10 +417,25 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 			}
 		}
 	}
-	close(s);
+	/* The frame socket is closed either way: a renewed client says a
+	   fresh hello, which is how it gains what the new code can take.
+	   Blit keeps the session's pictures when a connection goes, and
+	   takes a new connection's frames for the same ids. */
 	if (bfd >= 0)
 		close(bfd);
+	hd_clis = -1;
+	bf_answer = 0;
 	sigaction(SIGWINCH, &oa, 0);
+	if (renew) {
+		tcsetattr(0, TCSADRAIN, &sv);
+		hd_handover(s, path, name, multi, row, col, dname);
+		hd_endwhy.n = 0;
+		s_cat(&hd_endwhy, "renew");
+		s_free(&rb);
+		s_free(&in);
+		return 0;
+	}
+	close(s);
 	if (!lost) {
 		/* The keyboard flags the session put on this terminal, taken
 		   off on both screens, since such a terminal keeps a set for

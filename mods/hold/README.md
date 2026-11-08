@@ -13,7 +13,8 @@ nothing has to be saved and restored.
 | | |
 |---|---|
 | `hold new [-d] name cmd args...` | start `cmd` in a session called `name`, and attach unless `-d` |
-| `hold attach [-m] [-n display] name [row col]` | put this terminal on it; `-m` joins alongside whoever is already there instead of taking over, at the given offset (0,0 if not given); `-n` names this client for the control panel -- `client-<fd>` if left unnamed; returns 0 after a detach, the program's status when it ends |
+| `hold attach [-m] [-C] [-n display] name [row col]` | put this terminal on it; `-m` joins alongside whoever is already there instead of taking over, at the given offset (0,0 if not given); `-n` names this client for the control panel -- `client-<fd>` if left unnamed; `-C` says the caller will renew this client when `hold upgrade` asks it to (see below); returns 0 after a detach, the program's status when it ends. `HOLD_WHY` says why it came back |
+| `hold attach -R` | take over a client that came back with `HOLD_WHY=renew`, on the connection it carried (`HOLD_CARRY`), after the script has loaded the modules `HOLD_RENEW` names again |
 | `hold detach [name]` | detach whoever is attached; with no name, the session this shell is running in |
 | `hold list` | each session, attached or detached, the program's pid, and the union's own size (rows x cols) |
 | `hold clients [name]` | one line per attached client of a session (with no name, the one this shell runs in): `name row col rows cols primary` -- what a control panel draws its rectangles from |
@@ -35,7 +36,7 @@ nothing has to be saved and restored.
 | `hold drop name display` | detach a named client, server-side -- "switch off" a display from the panel |
 | `hold primary name display` | make a named client the session's primary; every other client stops being it |
 | `hold kill [name]` | end the program and the session; with no name, the session this shell is running in |
-| `hold upgrade name` | re-exec the server on the hibr that is on disk now and take the session back: the program, every attached display and what is on screen all survive |
+| `hold upgrade name` | re-exec the server on the hibr that is on disk now and take the session back: the program, every attached display and what is on screen all survive; every display whose client was attached with `-C` and whose shell takes the new modules is then renewed onto them too (Gitea #491) |
 
 `hold attach` sets `HOLD_WHY` as it returns: `ended` when the session ended, `lost the session`, or why it was let go, such as `switched off` or `detached`.
 
@@ -454,6 +455,34 @@ session started before 0.99.469 needs `hold upgrade` before dmabuf frames
 reach it. Since a
 module's descriptor names only one interface, `"holdframes"` cannot be
 found before hold is loaded, so the console asks for `"hold"` first.
+
+**A display's client is renewed as well** (Gitea #491). The server's exec
+reaches the server only, and each display's `hold attach` runs in that
+display's own Blit session with the code it started with -- the owner's three
+were `(deleted)` after an upgrade, dropped `HD_INPUT` and the frame letter,
+and took no input and no dmabuf frames. A client attached with `-C` says so
+(`HD_CARRY`, with the ABI of the shell it runs in); after resuming, the server
+sends `HD_RENEW` to each such client whose ABI is its own. The client gives the
+terminal back as it found it but sends none of the resets an ending does, keeps
+its connection, closes its frame socket and returns with `HOLD_WHY=renew`,
+`HOLD_CARRY` (the connection, place and name) and `HOLD_RENEW` (the paths it
+loaded pty, term and hold from). The caller drops those three modules, loads
+them again from the same paths -- new files there by then -- and runs `hold
+attach -R`, which re-asks the terminal, says `HD_CARRY` 2 (the server forgets
+what the old code said it could do) and says it all again, including a fresh
+hello to its Blit. The desktop's `dt_holdgo` (`wm/hold.hibr`) is that caller
+for every way a display attaches. It is not an exec on purpose: a standby
+display's own loop goes on after the attach. The shell stays the one the
+display started with; hold's wire lives in the modules. A client from before
+0.99.472 never said `-C`, so a session needs each display attached once more
+before upgrades reach them. Two things a renewed display needs that the
+server's exec used to lose, both fixed in the same release: the server replays
+each picture's input route (the last `INPUT eis` and whether it is on) to any
+display whose frame socket opens -- a display joining mid-game had none either
+-- and the console, seeing hold's frame connection close, says its routes
+again and places every stream's picture again, since a stream is placed once
+for life and the new server's emulator carries no pictures across its exec.
+`tests/holdrenew.py` is all of it, with two stacked displays.
 
 `hold resume` is not for typing: it is what `hold upgrade`'s exec runs to
 take the session back from the descriptors it kept open and the file

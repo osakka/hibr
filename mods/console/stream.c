@@ -279,10 +279,22 @@ int cn_d3read(void *ctx, int fd)
 	s_init(&o);
 	while (hf && (r = hf->answer(fd, &o)) != 0) {
 		if (r < 0) {
+			size_t i;
+
 			lg(HIBR_LDBG, "frames: hold's frame connection closed");
 			cn_fdunhook(fd);
 			close(fd);
 			cn_d3 = -1;
+			/* The server that goes is what knew every route --
+			   `hold upgrade` closes this on its way to the new
+			   one -- so each is said again once a frame has gone
+			   on the next connection, or every game lost its
+			   keys at an upgrade (Gitea #491). */
+			for (i = 0; i < cn_ndst; i++) {
+				cn_dsts[i].icid = 0;
+				cn_dsts[i].ion = 0;
+			}
+			cn_imgdmaresend();
 			s_free(&o);
 			return 1;
 		}

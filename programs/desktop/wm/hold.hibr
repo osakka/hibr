@@ -123,6 +123,58 @@ fn dt_joinat(base, dn, int cols) {
 	ret "0 $cols"
 }
 
+# A display's client, renewed onto the hibr on disk whenever its session's
+# server is upgraded (Gitea #491). `hold attach -C` says the caller will do
+# this: told to renew, the client gives the terminal back as it is, keeps its
+# connection, and returns with HOLD_WHY=renew; the modules it ran are dropped
+# and loaded again from the paths HOLD_RENEW names, and `hold attach -R`
+# takes the same connection over on the new code. It happens here, after the
+# builtin has returned, because a module cannot be dropped while its own code
+# is running -- and in this process rather than by an exec, because a
+# standby display's own loop goes on after the attach. The shell itself stays
+# the one this display started with; only the modules are renewed, which is
+# where hold's wire lives.
+HOLD_WHY=
+HOLD_CARRY=
+HOLD_RENEW=
+fn dt_holdgo(...args) {
+	local st m ok
+	local -a mods
+
+	hold attach -C "${args[@]}"
+	st=$?
+	while [ "$HOLD_WHY" = renew ]; do
+		IFS=$'\t' read -ra mods <<< "$HOLD_RENEW"
+		mod drop hold 2> /dev/null
+		mod drop term 2> /dev/null
+		mod drop pty 2> /dev/null
+		ok=1
+		for m in "${mods[@]}"; do
+			mod load "$m" 2> /dev/null || ok=0
+		done
+		# A shell that cannot take the new modules -- one built before
+		# an export they use -- hands the connection to a new one,
+		# which loses only what this script would have done after the
+		# attach: a standby display's waiting, never the display.
+		if [ "$ok" != 1 ] || ! command -v hold > /dev/null; then
+			# Said in the desktop's log, not on this terminal, which
+			# is showing the desktop.
+			m=${XDG_STATE_HOME:-$HOME/.local/state}/hibr
+			mkdir -p "$m" 2> /dev/null
+			printf '%s display: renewed in a new shell, this one could not load %s\n' \
+				"$(date -Is)" "${mods[*]}" >> "$m/desktop.log" 2> /dev/null
+			export HOLD_CARRY
+			exec "$HIBR" -c 'need hold && hold attach -R'
+		fi
+		hold attach -R
+		st=$?
+		# A takeover that failed says so in HOLD_WHY; this is the
+		# guard should it ever not, rather than a loop that spins.
+		[ "$st" != 0 ] && [ "$HOLD_WHY" = renew ] && break
+	done
+	return $st
+}
+
 fn dt_autojoin(base, dname) {
 	local line wxh cols dn at
 
@@ -136,7 +188,7 @@ fn dt_autojoin(base, dname) {
 	cols=${wxh#*x}
 	dn := dt_dispfree "$base" "$dname"
 	at := dt_joinat "$base" "$dn" "$cols"
-	hold attach -m -n "$dn" "$base" ${at% *} ${at#* }
+	dt_holdgo -m -n "$dn" "$base" ${at% *} ${at#* }
 	exit $?
 }
 
@@ -154,12 +206,12 @@ fn dt_holdattach(base, dname) {
 	if [ -n "$dname" ]; then
 		if s := hold slot "$base" "$dname" 2> /dev/null && [ -n "$s" ]; then
 			read -r r c _ <<< "$s"
-			hold attach -n "$dname" "$base" "$r" "$c"
+			dt_holdgo -n "$dname" "$base" "$r" "$c"
 		else
-			hold attach -n "$dname" "$base"
+			dt_holdgo -n "$dname" "$base"
 		fi
 	else
-		hold attach "$base"
+		dt_holdgo "$base"
 	fi
 	exit $?
 }

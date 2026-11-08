@@ -123,7 +123,6 @@ dt_sbdraw() {
 # let go on purpose is released, until asked again; the session gone means
 # the next one is waited for. Asking `hold list` afterwards was a guess, and
 # an answer late under load read as gone, so the display rejoined.
-HOLD_WHY=
 fn dt_sbjoin(base) {
 	local line wxh cols dn at
 
@@ -136,7 +135,7 @@ fn dt_sbjoin(base) {
 	dt_sbwrite
 	dn := dt_dispfree "$base" "$DT_SBDISP"
 	at := dt_joinat "$base" "$dn" "$cols"
-	hold attach -m -n "$dn" "$base" ${at% *} ${at#* }
+	dt_holdgo -m -n "$dn" "$base" ${at% *} ${at#* }
 	case $HOLD_WHY in
 	ended | "lost the session") DT_SBSTATE=waiting ;;
 	*) DT_SBSTATE=released ;;

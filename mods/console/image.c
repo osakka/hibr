@@ -445,6 +445,20 @@ int cn_bfdrain(void)
    placement is sent again where it now is, which Blit moves in place, since
    a new id would end a game's input route and let go of every held key. 1
    with the id in *cid; 0 when frames by descriptor cannot go here. */
+/* Every stream's placement sent again at the next flush. A stream's picture
+   is placed once for life and moved in place, so a hold server that has
+   been replaced -- `hold upgrade`, whose emulator does not carry pictures
+   across its exec -- would never learn where any game is, and forwarded
+   none of its frames: the picture froze at the upgrade (Gitea #491). */
+void cn_imgdmaresend(void)
+{
+	size_t i;
+
+	for (i = 0; i < cn_nimg; i++)
+		if (cn_imgs[i].dma)
+			cn_imgs[i].sent = 0;
+}
+
 int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
 	      unsigned sid, unsigned *cid)
 {

@@ -145,7 +145,7 @@ int hd_new(sh *s, int ac, char **av)
 		s_free(&path);
 		return HIBR_OK;
 	}
-	i = hd_attach(name, path.p, 0, 0, 0, 0);
+	i = hd_attach(name, path.p, 0, 0, 0, 0, 0, -1);
 	s_free(&path);
 	return i;
 }
@@ -789,6 +789,82 @@ int hd_primary(sh *s, int ac, char **av)
 	return ret;
 }
 
+/* Why an attach came back, for the script: HOLD_WHY always, and with
+   renew, what the code taking over needs -- HOLD_CARRY for `hold attach
+   -R` and HOLD_RENEW, the modules to load again (Gitea #491). */
+void hd_why(sh *s)
+{
+	int rn = hd_endwhy.p && !strcmp(hd_endwhy.p, "renew");
+
+	hibr_set(s, "HOLD_WHY", hd_endwhy.p ? hd_endwhy.p : "", 0);
+	hibr_set(s, "HOLD_CARRY", rn && hd_carry.p ? hd_carry.p : "", 0);
+	hibr_set(s, "HOLD_RENEW", rn && hd_carrymods.p ? hd_carrymods.p : "", 0);
+}
+
+/* The next field of a tab-separated carry, into o; the rest after it. */
+const char *hd_cfield(const char *p, str *o)
+{
+	size_t n = strcspn(p, "\t");
+
+	o->n = 0;
+	s_add(o, p, n);
+	s_ch(o, 0);
+	o->n = n;
+	return p[n] ? p + n + 1 : p + n;
+}
+
+/* `hold attach -R`: take over a client the server renewed, from what the
+   code before this left in HOLD_CARRY -- the connection still open, where
+   the display is placed and what it is called. Nothing is dialled and
+   nothing attaches again: the server already has this display. */
+int hd_reattach(sh *s)
+{
+	const char *c = hibr_get(s, "HOLD_CARRY");
+	int fd, multi, row, col, r;
+	str f, path, name, dname;
+
+	if (!c || !*c) {
+		lg(HIBR_LERR, "hold attach -R: nothing was carried");
+		hd_endwhy.n = 0;
+		s_cat(&hd_endwhy, "lost the session");
+		hd_why(s);
+		return 2;
+	}
+	s_init(&f);
+	s_init(&path);
+	s_init(&name);
+	s_init(&dname);
+	c = hd_cfield(c, &f);
+	fd = atoi(f.p);
+	c = hd_cfield(c, &f);
+	multi = atoi(f.p);
+	c = hd_cfield(c, &f);
+	row = atoi(f.p);
+	c = hd_cfield(c, &f);
+	col = atoi(f.p);
+	c = hd_cfield(c, &path);
+	c = hd_cfield(c, &name);
+	hd_cfield(c, &dname);
+	hibr_set(s, "HOLD_CARRY", "", 0);
+	if (fd < 0 || fcntl(fd, F_GETFD) < 0 || !path.n) {
+		lg(HIBR_LERR, "hold attach -R: the carried connection is gone");
+		hd_endwhy.n = 0;
+		s_cat(&hd_endwhy, "lost the session");
+		hd_why(s);
+		r = 1;
+	} else {
+		r = hd_attach(name.p ? name.p : "", path.p, multi, row, col,
+			      dname.n ? dname.p : 0,
+			      HD_AT_CARRY | HD_AT_RESUME, fd);
+		hd_why(s);
+	}
+	s_free(&f);
+	s_free(&path);
+	s_free(&name);
+	s_free(&dname);
+	return r;
+}
+
 /* Keep a program running on a terminal nobody has to stay attached to. */
 int m_hold(sh *s, int ac, char **av)
 {
@@ -840,13 +916,19 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_primary(s, ac, av);
 	s_init(&path);
 	if (!strcmp(sub, "attach")) {
-		int multi = 0, ai = 2, row = 0, col = 0;
+		int multi = 0, ai = 2, row = 0, col = 0, fl = 0;
 		const char *nm, *dname = 0;
 
 		while (ai < ac) {
 			if (!strcmp(av[ai], "-m")) {
 				multi = 1;
 				ai++;
+			} else if (!strcmp(av[ai], "-C")) {
+				fl |= HD_AT_CARRY;
+				ai++;
+			} else if (!strcmp(av[ai], "-R")) {
+				s_free(&path);
+				return hd_reattach(s);
 			} else if (!strcmp(av[ai], "-n") && ai + 1 < ac) {
 				dname = av[ai + 1];
 				ai += 2;
@@ -856,8 +938,8 @@ int m_hold(sh *s, int ac, char **av)
 		}
 		if (ai >= ac || !hd_path(av[ai], &path)) {
 			if (ai >= ac)
-				lg(HIBR_LERR, "usage: hold attach [-m] "
-				   "[-n display] name [row col]");
+				lg(HIBR_LERR, "usage: hold attach [-m] [-C] "
+				   "[-n display] name [row col] | hold attach -R");
 			s_free(&path);
 			return 2;
 		}
@@ -866,8 +948,8 @@ int m_hold(sh *s, int ac, char **av)
 			row = atoi(av[ai]);
 			col = atoi(av[ai + 1]);
 		}
-		r = hd_attach(nm, path.p, multi, row, col, dname);
-		hibr_set(s, "HOLD_WHY", hd_endwhy.p ? hd_endwhy.p : "", 0);
+		r = hd_attach(nm, path.p, multi, row, col, dname, fl, -1);
+		hd_why(s);
 		s_free(&path);
 		return r;
 	}

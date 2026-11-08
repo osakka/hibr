@@ -4012,16 +4012,25 @@ went in the shell.
   (`tests/holdpix.py`'s two pictures at one corner) is the only kind that
   sees both.
 
-- **`hold upgrade` re-execs the server and the desktop, never a display's
-  client.** Each display's `hold attach` runs in that display's own Blit
-  session and keeps the binary it started with, so after an upgrade that
-  changes hold's wire the clients still speak the old one: the owner's
-  first Steam test (0.99.471) had three clients at `/usr/bin/hibr
-  (deleted)`, which dropped `HD_INPUT` and the new frame letter -- no input
-  route, and every frame a memfd, since hold then counted those displays as
-  unable to import. The desktop ran current code the whole time, which is
-  why it looked like the window's fault. Read every client's
-  `/proc/<pid>/exe` before diagnosing a held display after an upgrade.
+- **A display's client is a process of its own, and an upgrade has to reach
+  it by name.** Each display's `hold attach` runs in that display's own Blit
+  session; until 0.99.472 `hold upgrade` re-exec'd the server alone, so the
+  owner's first Steam test had three clients at `/usr/bin/hibr (deleted)`
+  dropping `HD_INPUT` and the new frame letter -- no input route, and every
+  frame a memfd -- while the desktop ran current code, which is why it looked
+  like the window's fault. Since 0.99.472 (#491) the server renews every
+  client attached with `-C` (the desktop's `dt_holdgo`): it returns from the
+  builtin, the script drops and reloads pty, term and hold from disk, and
+  `hold attach -R` takes the same connection over. **Not an exec**, because
+  a standby display's loop goes on after the attach; **only the modules are
+  new** -- the shell is still the one the display started with, so a fix in
+  the core does not reach a display until it attaches again, and neither
+  does anything from before 0.99.472. And the exec it does do loses
+  everything the old server kept in memory: input routes and where each
+  stream's picture is placed both had to be said again from the console's
+  side, which never noticed the connection had been replaced -- after any
+  upgrade a game kept neither its keys nor its frames. Read every client's
+  `/proc/<pid>/exe` and `maps` before diagnosing a held display after one.
 - **A full-screen window's body is the whole pane from 0, 0.** Full screen
   sets the window's chrome to `none`, and a frameless body has no border to
   start inside, so the app is handed the pane's own height and width and
