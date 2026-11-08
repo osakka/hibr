@@ -1930,6 +1930,7 @@ int hd_resume(sh *s)
 			cn->primary = prim;
 			cn->xpix = xp;
 			cn->ypix = yp;
+			cn->kwonce = 1;
 			/* Unasked until a gfx line below says otherwise: a file
 			   from a server older than the asking has none, and its
 			   clients go on being sent what they were (Gitea #274). */

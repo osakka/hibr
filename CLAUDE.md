@@ -3056,9 +3056,11 @@ went in the shell.
   renderer re-emits per client after the cells. Three things that look
   like details and are not: a resize to the size it already is happens on
   every attach, so clearing the pictures there takes them from the client
-  about to be sent them; a picture is skipped rather than cut in half when
-  it does not fit a client's own rectangle, because a bitmap cannot be
-  clipped; and an APC is no longer dropped by the parser, so anything new
+  about to be sent them; a picture that does not fit a client's own
+  rectangle was skipped rather than cut in half until 0.99.473, which is
+  what made a window over the seam of a screen split into two Blit
+  sessions show its picture on neither -- a kitty one is cut now (see
+  below); and an APC is no longer dropped by the parser, so anything new
   that arrives as one has to decide for itself whether to be kept.
 - **A redirection on a `console` command used to reach the display.** The
   console drew on, and selected on, whatever number stdout had -- so
@@ -4045,6 +4047,31 @@ went in the shell.
   ordinary path offers a key to the focused window before the shortcuts,
   and the game took it again. Release Pointer, Leave Full Screen and Full
   Screen are each acted on where the intercept is (0.99.471).
+
+- **A picture crossing a display's edge is cut, not skipped, and one
+  leaving a display loses its placement, not its image** (Gitea #492,
+  0.99.473). The owner's tall screen is two Blit sessions, so a window over
+  the seam is a picture neither display holds whole, and hold used to send
+  it to neither. A kitty placement takes a source rectangle (`x=,y=,w=,h=`
+  in the picture's own pixels, `c=,r=` the cells), so each display now gets
+  its slice -- the size from the transmission's `s=,v=` or the newest
+  frame's header; a sixel and a PNG with no stated size still cannot be
+  cut. The other half was worse and older: a picture that left a display
+  was deleted there with `d=I`, and **Blit remembers an image deleted
+  outright and refuses its frames for good**, so a game moved off a
+  display and back stayed black on it -- 2,955 `frame-deleted` refusals on
+  the owner's machine. `d=i` removes only the placements; `d=I` is for
+  the program deleting the picture, and the client's list keeps an unshown
+  picture with a hash of 0 so that later delete still reaches it.
+  `tests/holdseam.py`. **The same rule sank `hold upgrade`**: render's
+  first-frame wipe was `d=A`, which deletes every image, and a client
+  resumed across an upgrade (or re-asked what it draws) gets a first frame
+  again -- so after every upgrade every game on every display was refused
+  for good and lost its input route. Only a client's first wipe ever is
+  `d=A` (`kwonce`, set by `hd_resume`); every later one is `d=a`,
+  placements only. `tests/holdrenew.py` checks the bytes. **Anything that
+  deletes a kitty image on a Blit display is a decision that it never comes
+  back there**; ask whether the session still has it first.
 
 ## Testing discipline
 

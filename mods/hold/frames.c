@@ -162,6 +162,15 @@ int hd_frmpeer(int c)
 #endif
 }
 
+/* Whether a placement at g (row, column, rows, columns) shows on a
+   display at all: in part is enough, since each display is given its own
+   slice of a picture that straddles two (Gitea #492). */
+int hd_onclient(const struct hd_cli *cn, const int *g)
+{
+	return g[0] < cn->row + cn->rows && cn->row < g[0] + g[2] &&
+	       g[1] < cn->col + cn->cols && cn->col < g[1] + g[3];
+}
+
 /* Whether the emulator holds a placement by descriptor for this image --
    an a=p it kept, which is what a window picture sent by frames is -- and
    where: g gets its row, column, rows and columns. */
@@ -208,9 +217,7 @@ void hd_frmpush(vec *cls, int tid, const unsigned char *h)
 		   hd_canshow would not send it the placement either. */
 		if (cn->gfx != GX_KITTY && cn->gfx != GX_UNASKED)
 			continue;
-		if (g[0] < cn->row || g[1] < cn->col ||
-		    g[0] + g[2] > cn->row + cn->rows ||
-		    g[1] + g[3] > cn->col + cn->cols)
+		if (!hd_onclient(cn, g))
 			continue;
 		hd_frmsend(cn, id);
 	}
@@ -369,9 +376,7 @@ void hd_f3put(vec *cls, int tid, int prod, const unsigned char *h,
 	for (c = 0; c < cls->n; c++) {
 		struct hd_cli *cn = cls->p[c];
 
-		if (g[0] < cn->row || g[1] < cn->col ||
-		    g[0] + g[2] > cn->row + cn->rows ||
-		    g[1] + g[3] > cn->col + cn->cols)
+		if (!hd_onclient(cn, g))
 			continue;
 		hd_f3send(cn, id);
 	}
@@ -638,4 +643,26 @@ void hd_f3sweep(int tid)
 			hd_f3tidy(i);
 		}
 	}
+}
+
+/* An image placed by descriptor, its size in pixels from its newest frame:
+   both headers keep the width and height at the same place. */
+int hd_frmpx(unsigned id, int *pw, int *ph)
+{
+	const unsigned char *h = 0;
+	struct hd_frm *f;
+	size_t i;
+
+	for (i = hd_nf3; i--;)
+		if (hd_f3s[i]->id == id && !hd_f3s[i]->old) {
+			h = hd_f3s[i]->h;
+			break;
+		}
+	if (!h && (f = hd_frmget(id)))
+		h = f->h;
+	if (!h)
+		return 0;
+	*pw = (int)hd_frmnum(h + 16, 4);
+	*ph = (int)hd_frmnum(h + 20, 4);
+	return *pw > 0 && *ph > 0;
 }

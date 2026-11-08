@@ -243,6 +243,128 @@ unsigned hd_imgid(const char *p, size_t n)
 	return 0;
 }
 
+/* A picture this display holds and does not show now -- it is on another
+   display, or this one cannot draw it -- loses only its placement there
+   (d=i) and keeps its image, so it can come back: an image deleted outright
+   (d=I) is one Blit remembers and refuses frames for, which is how a game
+   moved off a display and back stayed black there (Gitea #492). It stays on
+   the display's list unplaced (a hash of 0), so the session dropping it
+   later still deletes it there, and a return sends its placement again --
+   with its newest frame first, since an unplaced image is one Blit may
+   free when memory is short, so what this display was last sent of it is
+   forgotten here too. */
+void hd_unshow(struct hd_cli *cn, unsigned id, str *out, unsigned *nid,
+	       unsigned *nhash, size_t *nlen, unsigned *nbase, size_t *nn,
+	       int n)
+{
+	size_t j, m;
+
+	if (!id || *nn >= (size_t)n)
+		return;
+	for (j = 0; j < cn->pn && cn->pid[j] != id; j++)
+		;
+	if (j == cn->pn)
+		return;
+	for (m = 0; m < *nn; m++)
+		if (nid[m] == id)
+			return;
+	if (cn->phash[j]) {
+		s_cat(out, "\033_Ga=d,d=i,q=2,i=");
+		s_num(out, (long)id);
+		s_cat(out, "\033\\");
+	}
+	for (m = 0; m < cn->fsn; m++)
+		if (cn->fsid[m] == id) {
+			cn->fsid[m] = cn->fsid[cn->fsn - 1];
+			cn->fsseq[m] = cn->fsseq[cn->fsn - 1];
+			cn->fsn--;
+			break;
+		}
+	nid[*nn] = id;
+	nhash[*nn] = 0;
+	nlen[*nn] = 0;
+	nbase[*nn] = 0;
+	(*nn)++;
+}
+
+/* A one-letter key of a kitty picture's first control string, into v: 1
+   when it is there. */
+int hd_imgkey(const char *p, size_t n, char key, long *v)
+{
+	size_t i;
+
+	if (n < 4 || p[0] != '\033' || p[1] != '_' || p[2] != 'G')
+		return 0;
+	for (i = 3; i + 1 < n && p[i] != ';' && p[i] != '\033'; i++) {
+		if (p[i] != key || p[i + 1] != '=')
+			continue;
+		if (i > 3 && p[i - 1] != ',')
+			continue;
+		*v = strtol(p + i + 2, 0, 10);
+		return 1;
+	}
+	return 0;
+}
+
+/* A kitty picture's size in its own pixels: what its transmission says (s=,
+   v=), or for one placed by descriptor what its newest frame says. 0 when
+   neither is known -- a PNG names no size -- and then it cannot be cut. */
+int hd_imgpx(const char *p, size_t n, unsigned id, int *pw, int *ph)
+{
+	long s = 0, v = 0;
+
+	if (hd_imgkey(p, n, 's', &s) && hd_imgkey(p, n, 'v', &v) && s > 0 &&
+	    v > 0) {
+		*pw = (int)s;
+		*ph = (int)v;
+		return 1;
+	}
+	return id && hd_frmpx(id, pw, ph);
+}
+
+/* The same picture, showing only part of itself: its first control string
+   has the source rectangle (x, y, w, h, in its own pixels) and the cells it
+   fills (c, r) put in place of any it had, and every byte after that is
+   passed on as it was. Blit honours the rectangle on a placement (its ADR
+   0060), and so does kitty (Gitea #492). */
+void hd_imgcrop(str *o, const char *p, size_t n, int x, int y, int w, int h,
+		int c, int r)
+{
+	size_t i = 3, s, e;
+	int first = 1;
+
+	for (e = 3; e < n && p[e] != ';' && p[e] != '\033'; e++)
+		;
+	s_add(o, p, 3);
+	while (i < e) {
+		for (s = i; s < e && p[s] != ','; s++)
+			;
+		if (!(s - i >= 2 && p[i + 1] == '=' &&
+		      strchr("xywhcr", p[i]))) {
+			if (!first)
+				s_ch(o, ',');
+			s_add(o, p + i, s - i);
+			first = 0;
+		}
+		i = s + 1;
+	}
+	if (!first)
+		s_ch(o, ',');
+	s_cat(o, "x=");
+	s_num(o, x);
+	s_cat(o, ",y=");
+	s_num(o, y);
+	s_cat(o, ",w=");
+	s_num(o, w);
+	s_cat(o, ",h=");
+	s_num(o, h);
+	s_cat(o, ",c=");
+	s_num(o, c);
+	s_cat(o, ",r=");
+	s_num(o, r);
+	s_add(o, p + e, n - e);
+}
+
 /* How many of a kept kitty picture's bytes are its transmission: its
    escapes up to and including the first that is not followed by more (no
    m=1). What comes after is edits. n when there is no end to be found. */
@@ -690,10 +812,9 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	if (llk)
 		s_cat(out, "\033]8;;\a");
 	/* The pictures the program put on the session's grid. A bitmap is not
-	   cells: it cannot be diffed and it cannot be clipped, so each goes
-	   out whole at its own corner, after the text. One that does not fit
-	   inside this client's own rectangle is skipped rather than cut in
-	   half.
+	   cells: it cannot be diffed, so each goes out at its own corner,
+	   after the text -- whole, or as this client's part of it when it
+	   crosses the client's edge (Gitea #492).
 
 	   Only what changed, though. A kitty picture is an object the
 	   terminal keeps, so this client's own list of (id, hash of the bytes
@@ -704,8 +825,15 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	   picture moving re-sent an 860 kB wallpaper with it, which is what
 	   made pixels unusable over a slow link. A sixel carries no id and is
 	   paint: it is simply sent again. */
+	/* Only the first wipe a display is ever sent deletes its images
+	   (d=A): Blit remembers an image deleted outright, refuses its frames
+	   for good and ends its input route, so a display carried across
+	   `hold upgrade`, or asked again what it draws, loses only its
+	   placements (d=a) and has them sent again below (Gitea #492). */
 	if (!cn->kwiped && (cn->gfx == GX_KITTY || cn->gfx == GX_UNASKED)) {
-		s_cat(out, "\033_Ga=d,d=A,q=2\033\\");
+		s_cat(out, cn->kwonce ? "\033_Ga=d,d=a,q=2\033\\" :
+					"\033_Ga=d,d=A,q=2\033\\");
+		cn->kwonce = 1;
 		cn->pn = 0;
 		cn->kwiped = 1;
 		wipe = 1;
@@ -720,9 +848,10 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	}
 	if (hd_tm->images && (clear || wipe || cn->imgen != hd_tm->imgen(tid))) {
 		int ir, ic, irows, icols, k, n = hd_tm->images(tid), sent = 0;
+		int g[4];
 		unsigned *nid, *nhash, *nbase;
 		size_t *nlen, nn = 0, j, from, base;
-		str pic;
+		str pic, cut;
 
 		nid = n > 0 ? xm((size_t)n * sizeof *nid) : 0;
 		nhash = n > 0 ? xm((size_t)n * sizeof *nhash) : 0;
@@ -731,6 +860,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		hd_frmsweep(tid);
 		hd_f3sweep(tid);
 		s_init(&pic);
+		s_init(&cut);
 		for (k = 0; k < n; k++) {
 			unsigned id, h;
 			int had = 0;
@@ -739,10 +869,16 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			if (!hd_tm->image(tid, k, &ir, &ic, &irows, &icols,
 					  &pic))
 				continue;
-			if (ir < cn->row || ic < cn->col ||
-			    ir + irows > cn->row + cn->rows ||
-			    ic + icols > cn->col + cn->cols)
+			id = hd_imgid(pic.p, pic.n);
+			g[0] = ir;
+			g[1] = ic;
+			g[2] = irows;
+			g[3] = icols;
+			if (!hd_onclient(cn, g)) {
+				hd_unshow(cn, id, out, nid, nhash, nlen, nbase,
+					  &nn, n);
 				continue;
+			}
 			/* And only a picture this client's own terminal
 			   said it draws: a kitty transmission to a kitty
 			   terminal, a sixel to a sixel one. A bitmap sent
@@ -752,7 +888,48 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			   #258). */
 			if (!hd_canshow(cn, pic.p, pic.n))
 				continue;
-			id = hd_imgid(pic.p, pic.n);
+			/* A picture across the edge of this display -- one
+			   window over two Blit sessions, as one tall screen
+			   split in two is -- is sent as the part of itself on
+			   this display, with a source rectangle in its own
+			   pixels (Gitea #492). A sixel is paint and cannot be
+			   cut, and a picture whose size is not known cannot
+			   be either: both are left off, as every straddling
+			   picture was before. */
+			if (ir < cn->row || ic < cn->col ||
+			    ir + irows > cn->row + cn->rows ||
+			    ic + icols > cn->col + cn->cols) {
+				int r0 = ir > cn->row ? ir : cn->row;
+				int c0 = ic > cn->col ? ic : cn->col;
+				int r1 = ir + irows < cn->row + cn->rows ?
+						 ir + irows : cn->row + cn->rows;
+				int c1 = ic + icols < cn->col + cn->cols ?
+						 ic + icols : cn->col + cn->cols;
+				int pw, ph, py0, py1, px0, px1;
+
+				if (pic.p[1] != '_' ||
+				    !hd_imgpx(pic.p, pic.n, id, &pw, &ph)) {
+					hd_unshow(cn, id, out, nid, nhash, nlen,
+						  nbase, &nn, n);
+					continue;
+				}
+				py0 = (int)((long)(r0 - ir) * ph / irows);
+				py1 = (int)((long)(r1 - ir) * ph / irows);
+				px0 = (int)((long)(c0 - ic) * pw / icols);
+				px1 = (int)((long)(c1 - ic) * pw / icols);
+				if (py1 <= py0 || px1 <= px0) {
+					hd_unshow(cn, id, out, nid, nhash, nlen,
+						  nbase, &nn, n);
+					continue;
+				}
+				cut.n = 0;
+				hd_imgcrop(&cut, pic.p, pic.n, px0, py0,
+					   px1 - px0, py1 - py0, c1 - c0, r1 - r0);
+				pic.n = 0;
+				s_add(&pic, cut.p, cut.n);
+				ir = r0;
+				ic = c0;
+			}
 			h = hd_hash(pic.p, pic.n);
 			/* A placement by descriptor that moves sends the same
 			   bytes at another cell (Gitea #486, a stream keeps its
@@ -809,6 +986,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			sent++;
 		}
 		s_free(&pic);
+		s_free(&cut);
 		/* Whatever this client was holding that the session no longer
 		   has: a kitty picture stays on a terminal until it is told to
 		   go, and the program's own delete was consumed by the

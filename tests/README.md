@@ -79,6 +79,7 @@ python3 tests/frames.py     a program's frames through the frames module's socke
 python3 tests/steamwin.py   the Steam window, against stand-ins for the bridge and Blit
                             (STW_APP=path runs it against another copy of the app)
 python3 tests/holdrenew.py  hold upgrade renewing two stacked displays' clients
+python3 tests/holdseam.py   a picture across the seam of two stacked displays, cut for each
 python3 tests/shots.py      tools/screenshot.py's grid and pictures
 ```
 

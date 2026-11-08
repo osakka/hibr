@@ -115,10 +115,31 @@ draws cells drops it. Since 0.99.77 the emulator keeps each one as a region
 (`"terminal"` version 4) and hold re-emits them, each at its own corner,
 after the cells of every frame -- only when the set has changed or a client
 is being painted from scratch, so a still picture costs a settled frame
-nothing, and only to a client whose own rectangle holds the whole picture,
-because a bitmap cannot be clipped. A region goes when something writes a
+nothing. A kitty picture that crosses the edge of a client's rectangle --
+a window over the seam between two displays, as one tall screen split into
+two Blit sessions is -- is sent to each client as the part of itself on
+that client, a source rectangle in its own pixels (`x=,y=,w=,h=`) and the
+cells it fills (`c=,r=`), which Blit (ADR 0060) and kitty both honour
+(Gitea #492). Its size comes from its transmission (`s=,v=`) or, for one
+placed by descriptor, from its newest frame; a sixel is paint and cannot be
+cut, and a picture whose size is not said cannot either, so those are still
+sent only to a client that holds them whole. Frames by descriptor go to
+every client a picture overlaps. A region goes when something writes a
 cell inside it, which is how a window that closed or moved takes its
 picture with it.
+
+**A picture that leaves a client keeps its image there.** It is sent
+`a=d,d=i` -- its placements go, its image stays -- and is kept on that
+client's list unplaced, so coming back is one placement and the session
+deleting it later still deletes it there with `d=I`. The uppercase delete is
+only for that: Blit remembers an image deleted outright and refuses its
+frames for good, which is how a game window moved off a display and back
+stayed black on it (2,955 refused frames on the owner's machine, Gitea
+#492). `tests/holdseam.py` is both, with two stacked displays. The wipe a
+client is sent before its first pictures follows the same rule: only its
+first ever is `d=A`, and a client resumed across `hold upgrade` -- or asked
+again what it draws -- gets `d=a`, so a game on it keeps its image and its
+input route (`tests/holdrenew.py`).
 
 ## Where the origin is
 

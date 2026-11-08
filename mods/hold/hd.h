@@ -445,6 +445,10 @@ struct hd_cli {
 	   itself (HD_CARRY), and 0 when it cannot: it is renewed after an
 	   upgrade only onto modules that shell can load. */
 	int cabi;
+	/* Whether this display has had its one wipe that deletes images:
+	   every later one keeps them (render.c). A display resumed across
+	   `hold upgrade` has, from the server before. */
+	int kwonce;
 	/* Input-route lines replayed to this display, whose answers are its
 	   own business and not the producer's. */
 	int inrep;
@@ -470,6 +474,7 @@ void hd_frmclear(void);
 int hd_frmpeer(int c);
 void hd_frmsend(struct hd_cli *cn, unsigned id);
 int hd_frmplaced(int tid, unsigned id, int *g);
+int hd_onclient(const struct hd_cli *cn, const int *g);
 void hd_frmpush(vec *cls, int tid, const unsigned char *h);
 unsigned long long hd_frmnum(const unsigned char *p, int n);
 void hd_f3put(vec *cls, int tid, int prod, const unsigned char *h,
@@ -485,6 +490,14 @@ void hd_f3sweep(int tid);
 unsigned hd_hash(const char *p, size_t n);
 unsigned hd_imgid(const char *p, size_t n);
 size_t hd_imgbase(const char *p, size_t n);
+int hd_imgkey(const char *p, size_t n, char key, long *v);
+void hd_unshow(struct hd_cli *cn, unsigned id, str *out, unsigned *nid,
+	       unsigned *nhash, size_t *nlen, unsigned *nbase, size_t *nn,
+	       int n);
+int hd_imgpx(const char *p, size_t n, unsigned id, int *pw, int *ph);
+void hd_imgcrop(str *o, const char *p, size_t n, int x, int y, int w, int h,
+		int c, int r);
+int hd_frmpx(unsigned id, int *pw, int *ph);
 int hd_canshow(const struct hd_cli *cn, const char *p, size_t n);
 void hd_relay(int tid);
 int hd_gfxdue(vec *cls, int m, int tid);

@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.473
+
+**A picture across two displays shows on both** (Gitea #492). The owner's
+tall screen is two Blit sessions, one above the other, so a window over the
+seam held a picture neither display held whole -- and hold sent it to
+neither, leaving the window's cells blank for a picture nobody drew. Every
+kitty picture is now cut for each display it is on: the part of itself on
+that display, as a source rectangle in its own pixels, which Blit and kitty
+both honour. That is every picture, as the owner chose -- a game window,
+the Browser, YouTube, the Image Viewer -- and frames placed by descriptor go
+to every display the picture is on, so a game keeps moving on both halves.
+A sixel cannot be cut and is still shown only where it fits whole.
+
+And a picture moved off a display no longer dies there. Hold deleted the
+image outright on a display it left, and Blit remembers such an image and
+refuses its frames for good, so a game moved to the other half and back
+stayed black where it had been -- 2,955 refused frames on the owner's
+machine. A picture that leaves a display now loses only its placement there
+and comes back with one, and is deleted only when the program deletes it.
+
+**And `hold upgrade` no longer kills every game on every display.** Hold
+clears a display's pictures the first time it draws to it, with the delete
+that frees images -- and a display carried across an upgrade was cleared that
+way again, while its Blit held the session's own pictures. Blit then refused
+every frame of every picture placed by descriptor on that display for good,
+and ended its input route: after any upgrade, a game window went black and
+its keys were let go, on every display. Only a display's first clearing frees
+anything now; a display carried across an upgrade, or asked again what it
+can draw, loses only its placements and has them sent again.
+
 ## 0.99.472
 
 **`hold upgrade` reaches every display** (Gitea #491). Upgrading a session

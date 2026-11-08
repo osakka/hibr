@@ -179,6 +179,14 @@ check("neither terminal was reset on the way: no alternate screen left, no "
       "keyboard flags taken off",
       b"\x1b[?1049l" not in t0.out[cut0:] and b"\x1b[?1049l" not in t1.out[cut1:]
       and b"\x1b[=0;1u" not in t0.out[cut0:], (t0.out[cut0:][:200],))
+t0.collect(0.3)
+t1.collect(0.3)
+check("and neither display's pictures were deleted by the upgrade: a "
+      "resumed display has its placements taken away (d=a), never its "
+      "images, which Blit would refuse frames for for good (d=A)",
+      b"\x1b_Ga=d,d=A" not in t0.out[cut0:] and b"\x1b_Ga=d,d=A" not in t1.out[cut1:]
+      and b"\x1b_Ga=d,d=a" in t0.out[cut0:],
+      (t0.out[cut0:].count(b"d=A"), t0.out[cut0:].count(b"d=a")))
 check("each display said a fresh hello to its own Blit, which is how it "
       "gains what the new code takes",
       wait(lambda: hellos(lg0) > h0[0] and hellos(lg1) > h0[1], 5),
@@ -226,4 +234,4 @@ for p in (ph, ph2):
     p.terminate()
     p.wait()
 shutil.rmtree(D, True)
-report(14)
+report(15)
