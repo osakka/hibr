@@ -646,6 +646,7 @@ Keep the Screen Saver Away While Playing
 Keep the Server Up
 Kept as a favourite: %s
 Keyboard
+Keys to the Game
 Kind:
 Known Networks
 Labelled %s
@@ -1198,9 +1199,14 @@ Star
 Starred
 Start After (minutes)
 Start Page:
+Starting Steam
 Starting the X screen…
 Starting the camera%s
 Stay On:
+Steam
+Steam could not be started
+Steam has ended
+Steam needs Blit's gamescope bridge: install the blit-gamescope package
 Stickies
 Sticky
 Still working
@@ -1309,6 +1315,7 @@ This Terminal
 This account has no address to answer from
 This computer has no timedatectl, and hibr's polkit policy is not installed
 This desktop is not the computer's own
+This display cannot show another program's frames
 This engine cannot fetch that picture
 This engine cannot save an address
 This film has no sound: no microphone answered
@@ -1395,6 +1402,7 @@ Volume Up
 Volume on Menu Bar
 WHERE
 Wait for the transfers running to finish first
+Waiting for Steam's first picture
 Wallpaper
 Wallpaper set
 Web App

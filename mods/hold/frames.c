@@ -263,6 +263,12 @@ struct hd_f3 {
 
 static struct hd_f3 **hd_f3s;
 static size_t hd_nf3;
+/* Which producer each picture's input route was asked for by. */
+static struct hd_in {
+	unsigned id;
+	int prod;
+} *hd_ins;
+static size_t hd_nin;
 
 /* Close a record's descriptors: the display that wants them has them. */
 static void hd_f3shut(struct hd_f3 *f)
@@ -471,6 +477,9 @@ void hd_f3prod(int fd)
 {
 	size_t i;
 
+	for (i = hd_nin; i--;)
+		if (hd_ins[i].prod == fd)
+			hd_ins[i] = hd_ins[--hd_nin];
 	for (i = hd_nf3; i--;)
 		if (hd_f3s[i]->prod == fd) {
 			hd_f3s[i]->prod = -1;
@@ -478,6 +487,79 @@ void hd_f3prod(int fd)
 			hd_f3shut(hd_f3s[i]);
 			hd_f3tidy(i);
 		}
+}
+
+/* The picture an INPUT line names: its last word. */
+unsigned long hd_inid(const char *line, size_t n)
+{
+	size_t i = n;
+
+	while (i && line[i - 1] != ' ')
+		i--;
+	return strtoul(line + i, 0, 10);
+}
+
+/* An input route's line from a producer (Blit 0.3.64, Gitea #486): who
+   asked is remembered by picture, and the line goes to every display that
+   can be sent frames, each saying it to its own Blit. With none, the
+   producer is told at once, as Blit would tell it. */
+void hd_inputput(vec *cls, int prod, const char *line, size_t n)
+{
+	unsigned long id = hd_inid(line, n);
+	size_t i;
+	int sent = 0;
+	str o;
+
+	if (!id || n < 9 || memcmp(line, "INPUT ", 6))
+		return;
+	for (i = 0; i < hd_nin && hd_ins[i].id != id; i++)
+		;
+	if (i == hd_nin) {
+		hd_ins = xr(hd_ins, (hd_nin + 1) * sizeof *hd_ins);
+		hd_nin++;
+	}
+	hd_ins[i].id = (unsigned)id;
+	hd_ins[i].prod = prod;
+	for (i = 0; i < cls->n; i++) {
+		struct hd_cli *cn = cls->p[i];
+
+		if (cn->fdok && hd_send(cn->fd, HD_INPUT, line, n))
+			sent = 1;
+	}
+	if (sent)
+		return;
+	s_init(&o);
+	s_cat(&o, "ERROR INPUT ");
+	s_num(&o, (long)id);
+	s_cat(&o, " ENOTSUP");
+	hd_send(prod, HD_FRMANS, o.p, o.n);
+	s_free(&o);
+}
+
+/* What a display's Blit said of an input route. 1 when the line was one:
+   the producer is told only the primary display's answer, since every
+   display's Blit answers for its own route and only the focused session's
+   is live; with no primary marked, each goes. */
+int hd_inputans(vec *cls, int cfd, const char *line)
+{
+	struct hd_cli *pc;
+	unsigned long id;
+	size_t i, n = strlen(line);
+
+	if (strncmp(line, "OK input ", 9) && strncmp(line, "ERROR INPUT ", 12))
+		return 0;
+	pc = hd_cprimary(cls);
+	if (pc && pc->fd != cfd) {
+		lg(HIBR_LDBG, "hold: a display's input answer kept back: %s", line);
+		return 1;
+	}
+	id = strtoul(line + (line[0] == 'O' ? 9 : 12), 0, 10);
+	for (i = 0; i < hd_nin; i++)
+		if (hd_ins[i].id == id) {
+			hd_send(hd_ins[i].prod, HD_FRMANS, line, n);
+			break;
+		}
+	return 1;
 }
 
 /* An image the emulator no longer holds takes its newest frame with it. */

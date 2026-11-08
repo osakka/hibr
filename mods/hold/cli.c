@@ -317,6 +317,21 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 				}
 				while (nf > 0)
 					close(fds[--nf]);
+			} else if (t == HD_INPUT) {
+				/* An input route's line for this display's own
+				   Blit; with no frame socket, the answer is ours. */
+				s_ch(&in, 0);
+				if (bfd < 0 || !bf_say(bfd, in.p)) {
+					str e;
+					const char *p = strrchr(in.p, ' ');
+
+					s_init(&e);
+					s_cat(&e, "ERROR INPUT ");
+					s_cat(&e, p ? p + 1 : "0");
+					s_cat(&e, " ENOTSUP");
+					hd_send(s, HD_FRMANS, e.p, e.n);
+					s_free(&e);
+				}
 			} else if (t == HD_STATUS) {
 				if (bfd >= 0 && hud)
 					bf_status(bfd, in.p, in.n);

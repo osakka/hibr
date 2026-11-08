@@ -50,9 +50,11 @@ fn dt_hooks(int id, ap = "") {
 	local f
 
 	for f in draw key click mouse wheel hover open close copy cut paste drop \
-		refresh idle undo redo selall canclose savefile find signin signfill; do
+		refresh idle undo redo selall canclose savefile find signin signfill \
+		focus; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"
+			[ "$f" = focus ] && DT_FOCUSUSED=1
 		else
 			DT[$id]["$f"]=
 		fi

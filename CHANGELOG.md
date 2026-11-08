@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.469
+
+**Steam in a window** (Gitea #486, step 4): Steam's Big Picture, under Blit's
+gamescope bridge, in a desktop window, with its keys and mouse going to the
+game through Blit's input route while the window has them. The window is a
+catalogue app (Games > Steam); it needs Blit 0.3.64 or later and the
+`blit-gamescope` package that comes with the next Blit release.
+
+- **Input routes travel up.** The bridge offers its EIS socket (`INPUT eis`);
+  the frames module, the console (`"dpframes"` version 2, `input`) and hold
+  (`HF_API_VER` 4, a new `HD_INPUT`) carry it to every display's Blit, and
+  bring back only the primary display's answer. An `ERROR INPUT ... EACCES`
+  no longer closes the frame connection, which `bf_line` took any EACCES to
+  mean, so a refused route never costs the picture.
+- **A window can be told it has the keys**: `<app>_focus id on|off`, by the
+  same test as key phases -- focused, shown, no menu, saver or lock -- so the
+  route is on only while the game's window has the keys, and a menu, the
+  saver, the lock or another window lets go of every held key.
+- **`dt_keysall ID on|off`** gives a window every key but Release Pointer and
+  Leave Full Screen, since Blit sends each key to the game *and* the desktop.
+  The Steam window has it on by default (Steam > Keys to the Game).
+- **Frames never sent are released.** A frame the console kept and replaced
+  before any display had it -- the window not placed yet -- went back to
+  nobody, and a producer with a few buffers would have stalled before its
+  first picture. It is released to the producer at once now.
+- **`HD_FRM3` is `'N'`** (was `'K'`, already `HD_HUDQ`'s), and
+  `tests/999-hold-letters.t` refuses a letter used twice. A held session from
+  0.99.467 or 0.99.468 needs `hold upgrade` before dmabuf frames reach it.
+
 ## 0.99.468
 
 **A window can show another program's frames** (Gitea #486, steps 2 and 3,

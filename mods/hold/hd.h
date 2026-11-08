@@ -158,8 +158,17 @@ enum {
 	/* A frame by dmabuf (Blit ADR 0223, version 3): a 72-byte header and
 	   its plane descriptors and optional fence on the type byte. From a
 	   producer on a connection opened with HD_FRMOPEN, and on from the
-	   server to each display that shows it. */
-	HD_FRM3 = 'K',
+	   server to each display that shows it. 'N': it was 'K' in 0.99.467,
+	   which HD_HUDQ already was -- never met, since one is a request of
+	   its own connection, but one letter for two messages is a trap. */
+	HD_FRM3 = 'N',
+	/* An input route's line (Blit 0.3.64, Gitea #486), "INPUT eis <path>
+	   <id>" or "INPUT on|off <id>": from a producer on its frames
+	   connection to the server, and on to every display that can be sent
+	   frames, whose client says it to its own Blit. What comes back, "OK
+	   input <id>" or "ERROR INPUT <id> <code>", rides HD_FRMANS, and the
+	   producer is told the primary display's alone. */
+	HD_INPUT = 'X',
 	/* A connection a program keeps for frames by dmabuf, so what comes
 	   back has somewhere to go. Its own uid only. */
 	HD_FRMOPEN = 'O',
@@ -452,6 +461,8 @@ int hd_f3has(unsigned id);
 void hd_f3ans(int cfd, const char *line);
 void hd_f3client(int cfd);
 void hd_f3prod(int fd);
+void hd_inputput(vec *cls, int prod, const char *line, size_t n);
+int hd_inputans(vec *cls, int cfd, const char *line);
 void hd_f3sweep(int tid);
 unsigned hd_hash(const char *p, size_t n);
 unsigned hd_imgid(const char *p, size_t n);

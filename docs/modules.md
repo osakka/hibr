@@ -266,8 +266,11 @@ lists every one, file by file:
   the picture's own id, its RELEASEs come back in the program's ids, and
   none of it wakes the script: the console's wait reads the socket.
   Where no display takes frames by descriptor a memfd of RGB is drawn as
-  any picture is. `frames info N` says what has passed; `frames stop N`
-  closes it.
+  any picture is. The program's own input route -- the EIS socket it
+  offers (0.99.469) -- reaches every display's Blit the same way, and
+  `frames input N on|off`, from the window's `_focus`, says whether the
+  route is live, so the keys reach the game only while its window has
+  them. `frames info N` says what has passed; `frames stop N` closes it.
 - **`contain`** runs a program that may read and compute but not act on
   the world (0.99.427, ADR 0052): `contain exec DIR -- CMD [ARG...]` closes
   every descriptor above 2, lets the program write only under `DIR`, opens

@@ -11,6 +11,7 @@
  *   frames serve              a socket and token: "N SOCKET TOKEN"
  *   frames place N PANE ROW COL H W
  *                              from the window's drawing: its picture here
+ *   frames input N on|off      from the window: whether it has the keys
  *   frames info N              what has passed, one line of key=value
  *   frames stop N              the socket closed and the picture gone
  *   frames list                every socket, "N SOCKET" a line
@@ -55,6 +56,8 @@ typedef struct fl_srv {
 	int ok, ver;		/* the hello was taken, at this version */
 	char *sock, *tok;
 	unsigned bid;		/* the producer's own id for its picture */
+	unsigned ibid;		/* and the one its input route named */
+	char *input;		/* what Blit said of the route: ok, a code, or null */
 	unsigned long long frames, seq, rel, errs, refused;
 	int dmabuf;		/* what its hello was answered */
 	unsigned char *rgb;	/* the newest frame, where only RGB can go */
@@ -103,6 +106,8 @@ void fl_hangup(fl_srv *f)
 	fl_dpf->drop(f->s, f->n);
 	free(f->rgb);
 	f->rgb = 0;
+	free(f->input);
+	f->input = 0;
 	lg(HIBR_LDBG, "frames %u: the producer hung up", f->n);
 }
 
@@ -114,22 +119,30 @@ void fl_ans(void *ctx, const char *line)
 	char *e;
 	fl_srv *f;
 	str o;
+	int ok = !strncmp(line, "OK input ", 9);
+	int in = ok || !strncmp(line, "ERROR INPUT ", 12);
 
 	(void)ctx;
-	p = strchr(line, ' ');
+	/* An input route's answer names the stream third, after its two
+	   words, and goes back under the id the producer's route named. */
+	p = in ? line + (ok ? 8 : 11) : strchr(line, ' ');
 	if (!p)
 		return;
 	sid = strtoul(p + 1, &e, 10);
 	f = fl_find((unsigned)sid);
 	if (!f || f->cfd < 0)
 		return;
-	if (!strncmp(line, "RELEASE", 7))
+	if (in) {
+		free(f->input);
+		f->input = xs(ok ? "ok" : *e == ' ' ? e + 1 : e);
+	} else if (line[0] == 'R') {
 		f->rel++;
-	else
+	} else {
 		f->errs++;
+	}
 	s_init(&o);
 	s_add(&o, line, (size_t)(p + 1 - line));
-	s_num(&o, (long)f->bid);
+	s_num(&o, (long)(in ? f->ibid : f->bid));
 	s_cat(&o, e);
 	s_ch(&o, '\n');
 	fl_say(f, o.p);
@@ -184,6 +197,51 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 	s_free(&o);
 	s_free(&fm);
 	return 1;
+}
+
+/* An input route's line from the producer (Blit 0.3.64): "INPUT eis
+   <path> <id>" or "INPUT on|off <id>", the id its own. Handed to the
+   console under the stream, which tells every display's Blit once a frame
+   has gone; what Blit says comes back by fl_ans. */
+void fl_input(fl_srv *f, const char *m, size_t k)
+{
+	str l, o;
+	char *sp, *id, *path = 0;
+	const char *verb;
+
+	s_init(&l);
+	s_add(&l, m, k);
+	while (l.n && (l.p[l.n - 1] == '\n' || l.p[l.n - 1] == '\r'))
+		l.p[--l.n] = 0;
+	sp = strrchr(l.p, ' ');
+	id = sp ? sp + 1 : 0;
+	if (sp)
+		*sp = 0;
+	verb = l.p + 6;
+	if (!strncmp(verb, "eis ", 4)) {
+		path = (char *)verb + 4;
+		verb = "eis";
+	} else if (!strcmp(verb, "on") || !strcmp(verb, "off")) {
+		/* Whether the route is on is the window's to say, from its
+		   focus: a producer that turned it on itself would take the
+		   keys before its window had them (Blit 0.3.65). */
+		lg(HIBR_LDBG, "frames %u: the producer's INPUT %s left to the "
+			      "window", f->n, verb);
+		s_free(&l);
+		return;
+	}
+	if (!id || !*id || !fl_dpf->input(f->s, f->n, verb, path)) {
+		s_init(&o);
+		s_cat(&o, "ERROR INPUT ");
+		s_cat(&o, id && *id ? id : "0");
+		s_cat(&o, " EINVAL\n");
+		fl_say(f, o.p);
+		s_free(&o);
+	} else {
+		f->ibid = (unsigned)strtoul(id, 0, 10);
+		lg(HIBR_LDBG, "frames %u: input %s for %s", f->n, verb, id);
+	}
+	s_free(&l);
 }
 
 #ifdef __linux__
@@ -322,11 +380,11 @@ int fl_read(void *ctx, int fd)
 	}
 	for (k = 0; k < nfd; k++)
 		close(fds[k]);
-	if (got > 6 && !memcmp(fl_buf, "INPUT ", 6))
-		fl_say(f, "ERROR INPUT 0 ENOTSUP\n");
-	else if (got >= 4 && !memcmp(fl_buf, "STA1", 4))
-		;
-	else
+	if (got > 6 && !memcmp(fl_buf, "INPUT ", 6)) {
+		fl_input(f, (const char *)fl_buf, (size_t)got);
+		return 0;
+	}
+	if (got < 4 || memcmp(fl_buf, "STA1", 4))
 		fl_say(f, "ERROR 0 EINVAL\n");
 	return 0;
 }
@@ -459,7 +517,7 @@ int m_frames(sh *s, int ac, char **av)
 	size_t i;
 
 	if (ac < 2) {
-		lg(HIBR_LERR, "usage: frames serve|place|info|stop|list ...");
+		lg(HIBR_LERR, "usage: frames serve|place|input|info|stop|list ...");
 		return 2;
 	}
 	if (!fl_need(s))
@@ -528,6 +586,15 @@ int m_frames(sh *s, int ac, char **av)
 		s_free(&o);
 		return ok ? HIBR_OK : HIBR_FAIL;
 	}
+	if (!strcmp(av[1], "input")) {
+		if (ac < 4 || (strcmp(av[3], "on") && strcmp(av[3], "off"))) {
+			lg(HIBR_LERR, "usage: frames input N on|off");
+			s_free(&o);
+			return 2;
+		}
+		s_free(&o);
+		return fl_dpf->input(s, f->n, av[3], 0) ? HIBR_OK : HIBR_FAIL;
+	}
 	if (!strcmp(av[1], "info")) {
 		s_cat(&o, "connected=");
 		s_num(&o, f->cfd >= 0 && f->ok);
@@ -547,6 +614,8 @@ int m_frames(sh *s, int ac, char **av)
 		s_num(&o, (long)f->refused);
 		s_cat(&o, " rgb=");
 		s_num(&o, (long)f->rgen);
+		s_cat(&o, " input=");
+		s_cat(&o, f->input ? f->input : "none");
 		fl_out(s, &o);
 		s_free(&o);
 		return HIBR_OK;

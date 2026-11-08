@@ -26,6 +26,8 @@
 #include <unistd.h>
 
 const hf_api *cn_hold(sh *s);
+struct cn_dst;
+void cn_dinsync(sh *s, struct cn_dst *d);
 
 typedef struct cn_dst {
 	unsigned sid;		/* the caller's number for it */
@@ -35,6 +37,19 @@ typedef struct cn_dst {
 	size_t hn;
 	int fds[BF_MAXFD];	/* and its descriptors, ours to close */
 	int n;
+	/* Its input route (Blit 0.3.64): the EIS socket asked for and
+	   whether it is on, and the id a frame last went under and the id
+	   the route was last told to -- a route needs its picture to exist
+	   at Blit, and a picture placed again under a new id is a new one
+	   there, so the route is asked for again for it. */
+	char *eis;
+	int on;
+	unsigned fcid, icid;
+	/* Whether the newest frame has gone to Blit: one that has not, and
+	   is replaced or dropped, is released to the producer here, since
+	   no display will ever hold it to let go of. */
+	int sent;
+	int ion;
 } cn_dst;
 
 /* Which stream a kitty id belonged to, kept after the picture has gone,
@@ -91,6 +106,28 @@ cn_dst *cn_dget(unsigned sid, int make)
 	memset(d, 0, sizeof *d);
 	d->sid = sid;
 	return d;
+}
+
+/* A dmabuf frame that never went to any display, given back to its
+   producer as if one had let it go: without it the producer's few buffers
+   run out while its window is not yet placed or not shown. */
+void cn_dunsent(cn_dst *d)
+{
+	str o;
+	unsigned long long seq = 0;
+	int k;
+
+	if (!d->n || d->sent || d->hn != BF_HDR3 || !cn_dfn)
+		return;
+	for (k = 15; k >= 8; k--)
+		seq = seq << 8 | d->h[k];
+	s_init(&o);
+	s_cat(&o, "RELEASE ");
+	s_num(&o, (long)d->sid);
+	s_ch(&o, ' ');
+	s_num(&o, (long)seq);
+	cn_dfn(cn_dctx, o.p);
+	s_free(&o);
 }
 
 /* Let go of the descriptors a stream was keeping. */
@@ -183,7 +220,11 @@ void cn_dans(const char *line)
 	unsigned sid;
 	str o;
 
-	if (!strncmp(line, "RELEASE ", 8))
+	if (!strncmp(line, "OK input ", 9))
+		p = line + 9;
+	else if (!strncmp(line, "ERROR INPUT ", 12))
+		p = line + 12;
+	else if (!strncmp(line, "RELEASE ", 8))
 		p = line + 8;
 	else if (!strncmp(line, "ERROR ", 6))
 		p = line + 6;
@@ -303,6 +344,11 @@ int cn_dsend(sh *s, cn_dst *d)
 			   (unsigned long long)d->h[13] << 40 |
 			   (unsigned long long)d->h[14] << 48 |
 			   (unsigned long long)d->h[15] << 56);
+	if (ok) {
+		d->sent = 1;
+		d->fcid = d->cid;
+		cn_dinsync(s, d);
+	}
 	if (!ok)
 		lg(HIBR_LDBG, "frames: stream %u's frame did not go", d->sid);
 	return ok;
@@ -380,6 +426,7 @@ int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
 	if (!cn_fdon(s))
 		return 0;
 	d = cn_dget(sid, 1);
+	cn_dunsent(d);
 	cn_dclose(d);
 	for (k = 0; k < n; k++) {
 		d->fds[k] = fcntl(fds[k], F_DUPFD_CLOEXEC, 3);
@@ -392,6 +439,7 @@ int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
 	d->n = n;
 	memcpy(d->h, h, hn);
 	d->hn = hn;
+	d->sent = 0;
 	/* Only to the picture as it is now: one dropped since (its pane drew
 	   without it) has been deleted from Blit, and a frame under that id
 	   would make an image there nothing deletes. The next place gives it
@@ -400,6 +448,91 @@ int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
 		d->cid = 0;
 	if (d->cid)
 		cn_dsend(s, d);
+	return 1;
+}
+
+/* Say one input route's line to every display's Blit: on the console's own
+   frame socket where nothing is between, or on hold's frames connection,
+   which hold passes to each display. 1 when it went. */
+int cn_dsay(sh *s, const char *line)
+{
+	const hf_api *hf;
+	int fd;
+
+	if (cn_imgfd == 1) {
+		hf = cn_hold(s);
+		if (!hf)
+			return 0;
+		if (cn_d3 < 0) {
+			cn_d3 = hf->open3(s);
+			if (cn_d3 < 0)
+				return 0;
+			cn_fdhook(cn_d3, cn_d3read, s);
+		}
+		return hf->input(cn_d3, line);
+	}
+	fd = cn_bfconn();
+	if (fd < 0)
+		return 0;
+	bf_answer = cn_dans;
+	if (cn_dbfhook != fd) {
+		cn_fdhook(fd, cn_dbfread, s);
+		cn_dbfhook = fd;
+	}
+	return bf_say(fd, line);
+}
+
+/* Tell Blit what a stream's input route is now, once a frame of it has
+   gone under its picture's id: the EIS socket once per id, then whether it
+   is on, whenever that or the id has changed. */
+void cn_dinsync(sh *s, struct cn_dst *d)
+{
+	str o;
+
+	if (!d->eis || !d->fcid || d->fcid != d->cid)
+		return;
+	s_init(&o);
+	if (d->icid != d->cid) {
+		s_cat(&o, "INPUT eis ");
+		s_cat(&o, d->eis);
+		s_ch(&o, ' ');
+		s_num(&o, (long)d->cid);
+		if (!cn_dsay(s, o.p)) {
+			s_free(&o);
+			return;
+		}
+		d->icid = d->cid;
+		d->ion = 0;
+	}
+	if (d->ion != d->on) {
+		o.n = 0;
+		s_cat(&o, d->on ? "INPUT on " : "INPUT off ");
+		s_num(&o, (long)d->cid);
+		if (cn_dsay(s, o.p))
+			d->ion = d->on;
+	}
+	s_free(&o);
+}
+
+/* A stream's input route: "eis" with the socket the producer offers, "on"
+   or "off" as its window gains and loses the keys. 1 when kept; it reaches
+   Blit as soon as a frame of the stream has. */
+int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path)
+{
+	cn_dst *d = cn_dget(sid, 1);
+
+	if (!strcmp(verb, "eis") && path && *path && !strchr(path, '\n')) {
+		free(d->eis);
+		d->eis = xs(path);
+		d->icid = 0;
+	} else if (!strcmp(verb, "on")) {
+		d->on = 1;
+	} else if (!strcmp(verb, "off")) {
+		d->on = 0;
+	} else {
+		return 0;
+	}
+	cn_dinsync(s, d);
 	return 1;
 }
 
@@ -413,7 +546,9 @@ void cn_ddrop(sh *s, unsigned sid)
 	cn_imgdmadrop(sid);
 	if (!d)
 		return;
+	cn_dunsent(d);
 	cn_dclose(d);
+	free(d->eis);
 	i = (size_t)(d - cn_dsts);
 	cn_dsts[i] = cn_dsts[cn_ndst - 1];
 	cn_ndst--;

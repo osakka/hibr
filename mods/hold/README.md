@@ -423,7 +423,7 @@ hold asks for `"pty"` (`PY_API_VER` 4) and `"terminal"` (`TM_API_VER` 12)
 with `hibr_require` when it loads, and refuses to load without either. It
 offers two of its own. `"hold"`, version 1, is the one named in its
 descriptor, so a module can find hold before it is loaded. `"holdframes"`
-(`HF_API_VER` 3, `mods/blitfr.h`) is what a program inside a session uses
+(`HF_API_VER` 4, `mods/blitfr.h`) is what a program inside a session uses
 to hand the server a picture's frame (`frame`) and, from version 2, the
 performance panel's status lines (`status`, `hud`; Blit ADR 0203). Version
 3 adds frames by dmabuf (Blit ADR 0223, Gitea #486): `open3` keeps a
@@ -439,7 +439,19 @@ descriptor or reads a pixel. A picture placed by descriptor counts its
 position in what a display already has: a stream's picture keeps its id and
 placement when its window moves (Gitea #486), so its bytes stay the same and
 only the cell differs, and without the position a moved game picture was
-never placed again on a held display. Since a
+never placed again on a held display. Version 4 adds `input` (Blit 0.3.64):
+an input route's line, `INPUT eis <path> <id>` or `INPUT on|off <id>`, on
+the same connection as the frames (`HD_INPUT`); the server remembers which
+producer asked about each picture and sends the line to every display that
+can be sent frames, each saying it to its own Blit, and passes back only
+the **primary** display's answer, since every display's Blit answers for
+its own route and only the focused session's is live. A display whose Blit
+is on another machine gets an error for the route -- Blit takes an EIS
+socket only from its own machine's user -- and still shows the picture.
+`HD_FRM3` is `'N'` since 0.99.469: it was `'K'`, which `HD_HUDQ` already
+was, and `tests/999-hold-letters.t` now refuses any letter used twice. A
+session started before 0.99.469 needs `hold upgrade` before dmabuf frames
+reach it. Since a
 module's descriptor names only one interface, `"holdframes"` cannot be
 found before hold is loaded, so the console asks for `"hold"` first.
 

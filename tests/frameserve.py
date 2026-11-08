@@ -125,6 +125,44 @@ def frame3(conn, held, data, fds):
         note(kind="released", id=iid, seq=old[0])
 
 
+def inputline(conn, held, routes, data, fds):
+    """An input route's request, as Blit 0.3.64 takes it (docs/api.md): the
+    picture must exist (a frame of it has come), the EIS socket must be the
+    connection's own uid's, and an id has one route. Answered and logged."""
+    for fd in fds:
+        os.close(fd)
+    w = data.decode(errors="replace").strip().split(" ")
+    iid = int(w[-1]) if len(w) >= 3 and w[-1].isdigit() else 0
+    why = None
+    if len(w) == 4 and w[1] == "eis":
+        try:
+            st = os.stat(w[2])
+            own = st.st_uid == os.getuid() and (st.st_mode & 0o170000) == 0o140000
+        except OSError:
+            own = False
+        if not iid or iid not in held:
+            why = "ENOENT"
+        elif not own:
+            why = "EACCES"
+        elif iid in routes.setdefault(conn, {}):
+            why = "EBUSY"
+        else:
+            routes[conn][iid] = "off"
+    elif len(w) == 3 and w[1] in ("on", "off"):
+        if iid not in routes.get(conn, {}):
+            why = "ENOENT"
+        else:
+            routes[conn][iid] = w[1]
+    else:
+        why = "EINVAL"
+    if why:
+        conn.send(b"ERROR INPUT %d %s\n" % (iid, why.encode()))
+        note(kind="input", verb=w[1] if len(w) > 1 else "", id=iid, error=why)
+    else:
+        conn.send(b"OK input %d\n" % iid)
+        note(kind="input", verb=w[1], id=iid, ok=True)
+
+
 def status(data, fds):
     """The lines of a STA1 message, or None where Blit refuses it."""
     if fds or len(data) < 8:
@@ -155,6 +193,7 @@ def main():
     vers = {}
     images = {}
     held = {}
+    routes = {}
     hud = False
     while True:
         r, _, _ = select.select([srv] + list(conns), [], [], 0.1)
@@ -166,6 +205,8 @@ def main():
             gone = [int(x) for x in open(LOG + ".del").read().split()]
             os.unlink(LOG + ".del")
             for iid in gone:
+                for r in routes.values():
+                    r.pop(iid, None)
                 for seq, fds in held.pop(iid, []):
                     for fd in fds:
                         os.close(fd)
@@ -237,6 +278,9 @@ def main():
                 continue
             if data[:4] == b"FRM3":
                 frame3(s, held, data, fds)
+                continue
+            if data[:6] == b"INPUT " and vers.get(s, 0) >= 3:
+                inputline(s, held, routes, data, fds)
                 continue
             frame(s, images, data, fds)
 

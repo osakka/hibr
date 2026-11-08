@@ -211,6 +211,7 @@ int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
 	      const int *fds, int n);
 void cn_ddrop(sh *s, unsigned sid);
 void cn_danswers(void (*fn)(void *ctx, const char *line), void *ctx);
+int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path);
 /* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE, CN_GFX_SIXEL
    or CN_GFX_KITTY. From HIBR_GFX, then from what the terminal itself
    answered (cn_gotcap), and only then from its name -- a name says what a

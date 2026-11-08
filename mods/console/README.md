@@ -347,6 +347,15 @@ script to wake. That is what lets sixty frames a second and their RELEASEs
 pass without the desktop drawing a frame for each. `tests/frames.py` checks
 the program's loop does not turn over while frames flow.
 
+A frame kept as a stream's newest and replaced, or dropped, before it ever
+went to a display -- the window not placed yet, or not shown -- is released
+to its producer at once (`cn_dunsent`), as if a display had let it go: a
+producer has only a few buffers, and one waiting on frames nobody will ever
+hold stops sending. Version 2 of `"dpframes"` (Blit 0.3.64) adds `input`: a
+stream's input route, the EIS socket its producer offered and whether it is
+on, told to every display's Blit once a frame has gone under the picture's
+id, and told again when the picture comes back under a new one.
+
 ## Naming
 
 Everything is `cn_`, not `sc_`. `src/net.c` already uses `sc_` for schemes and

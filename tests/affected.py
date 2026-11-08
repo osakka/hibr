@@ -87,6 +87,7 @@ SUITE_MODS = {
     "holdpix": ["console", "img", "hold", "term", "pty", "blitfr"],
     "dmabuf": ["hold", "term", "pty", "blitfr"],
     "frames": ["frames", "console", "hold", "term", "pty", "blitfr"],
+    "steamwin": ["frames", "console", "hold", "pty", "blitfr"],
     # inflate.c is not a module of its own: it is shared source, the prompt
     # module's own, which the archive module compiles in as well. Naming it
     # here is what makes a change to it reach this suite.

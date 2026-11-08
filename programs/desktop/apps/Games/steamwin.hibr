@@ -1,0 +1,293 @@
+#!/usr/bin/env hibr
+#
+# steamwin -- Steam in a window: Big Picture under Blit's gamescope bridge.
+#
+# The bridge (blit-gamescope) runs gamescope with Steam inside it and sends
+# every picture gamescope makes as a frame by descriptor. In a desktop window
+# it is given the frames module's socket in place of Blit's own, so those
+# frames go through the console onto the picture this window places, and on
+# to every display's Blit (Gitea #486, Blit ADR 0223). Nothing here reads a
+# pixel.
+#
+# Input does not pass through the desktop at all: the bridge asks Blit for
+# an input route to gamescope, and this window turns it on while it has the
+# keys (`_focus`) and off when it loses them, so a menu, the saver, the lock
+# or another window lets go of every held key. Blit sends each key to both
+# the game and the desktop, so the window takes every key the desktop would
+# otherwise act on -- all but Release Pointer and Leave Full Screen (Keys to
+# the Game, on by default) -- and the pointer is held on a click, never on
+# focus alone, with Release Pointer under the hands to give it back.
+#
+# The window's size when it starts is gamescope's for the session: a resize
+# afterwards is Blit scaling the picture into the window, aspect kept, since
+# gamescope is never restarted while a game may be running in it.
+
+strict
+
+app steamwin "Steam's Big Picture in a window, under Blit's gamescope bridge" 1.0
+
+command -v dt_app > /dev/null && dt_app steamwin "Steam" 26 90 once "▶"
+
+declare -gA STW
+
+# The bridge, and what it runs: a session or a test may name another.
+STW_BRIDGE=${STW_BRIDGE:-}
+STW_RUN=${STW_RUN:-steam -gamepadui}
+
+# The bridge to start: the one named, then the one on the path, then where
+# the Blit package keeps it. Empty when there is none.
+stw_bridge() {
+	local b
+
+	if [ -n "$STW_BRIDGE" ]; then
+		ret "$STW_BRIDGE"
+		return 0
+	fi
+	if b := command -v blit-gamescope 2> /dev/null; then
+		ret "$b"
+		return 0
+	fi
+	if [ -x /usr/lib/blit/bin/blit-gamescope ]; then
+		ret /usr/lib/blit/bin/blit-gamescope
+		return 0
+	fi
+	return 1
+}
+
+# A new window: a socket for the bridge's frames, every key but the two
+# that get out, and the bridge itself started at the first drawing, when
+# the window's size is known. arg is a steam:// link to open, from Steamer.
+fn steamwin_open(int id, arg = "") {
+	local x n sock tok b e
+
+	STW[$id]["url"]=$arg
+	STW[$id]["err"]=
+	STW[$id]["pid"]=
+	STW[$id]["drew"]=
+	STW[$id]["seen"]=
+	if ! b := stw_bridge; then
+		e := dt_tr "Steam needs Blit's gamescope bridge: install the blit-gamescope package"
+		STW[$id]["err"]=$e
+		return 0
+	fi
+	STW[$id]["bridge"]=$b
+	if ! need frames 2> /dev/null || ! x := frames serve 2> /dev/null; then
+		e := dt_tr "This display cannot show another program's frames"
+		STW[$id]["err"]=$e
+		return 0
+	fi
+	read -r n sock tok <<< "$x"
+	STW[$id]["n"]=$n
+	STW[$id]["sock"]=$sock
+	STW[$id]["tok"]=$tok
+	dt_keysall "$id" on
+	return 0
+}
+
+# Start the bridge for a content rectangle of h by w cells: gamescope's
+# output is that many pixels, which is also its pointer's coordinate space.
+# Its log goes to a file of its own, never to a descriptor the desktop
+# watches: every line there would wake the desktop and draw a frame, many a
+# second while a game runs. The pty is only so that closing the window hangs
+# the bridge up (-x), and so nothing watches it.
+fn stw_start(int id, int h, int w) {
+	local g cw=0 ch=0 kind p e b=${STW[$id]["bridge"]}
+	local log=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/steam.log
+	local -a run cmd
+
+	g := console gfx 2> /dev/null
+	read -r kind cw ch <<< "$g"
+	[ "${cw:-0}" -gt 0 ] || cw=8
+	[ "${ch:-0}" -gt 0 ] || ch=16
+	read -ra run <<< "$STW_RUN"
+	[ -n "${STW[$id]["url"]}" ] && run+=("${STW[$id]["url"]}")
+	mkdir -p "${log%/*}" 2> /dev/null
+	cmd=("$HIBR" -c 'exec "$@" >> "$0" 2>&1' "$log"
+	     env "BLIT_FRAME_SOCKET=${STW[$id]["sock"]}"
+	     "BLIT_FRAME_TOKEN=${STW[$id]["tok"]}" "$b" --no-place)
+	[ "${run[0]##*/}" = steam ] && cmd+=(--steam)
+	cmd+=(-W $((w * cw)) -H $((h * ch)) -- "${run[@]}")
+	# fork: once, the bridge itself, on the window's first drawing
+	if ! p := pty spawn -x -r "$h" -c "$w" "${cmd[@]}" 2> /dev/null; then
+		e := dt_tr "Steam could not be started"
+		STW[$id]["err"]=$e
+		return 1
+	fi
+	STW[$id]["pid"]=$p
+	return 0
+}
+
+# What the frames have done so far: connected, frames, rgb and input, as
+# the frames module says them.
+fn stw_info(int id) {
+	local i kv
+	local -a f
+
+	STW_I_CONNECTED=0
+	STW_I_FRAMES=0
+	STW_I_RGB=0
+	STW_I_INPUT=none
+	[ -n "${STW[$id]["n"]}" ] || return 0
+	i := frames info "${STW[$id]["n"]}" 2> /dev/null
+	read -ra f <<< "$i"
+	for kv in "${f[@]}"; do
+		case $kv in
+		"connected="*) STW_I_CONNECTED=${kv#*=} ;;
+		"frames="*) STW_I_FRAMES=${kv#*=} ;;
+		"rgb="*) STW_I_RGB=${kv#*=} ;;
+		"input="*) STW_I_INPUT=${kv#*=} ;;
+		esac
+	done
+	return 0
+}
+STW_I_CONNECTED=0
+STW_I_FRAMES=0
+STW_I_RGB=0
+STW_I_INPUT=none
+
+# Draw: the picture where the frames are, or a line saying why not yet.
+fn steamwin_draw(int id, int h, int w, int row, int col) {
+	local t
+
+	if [ -z "${STW[$id]["err"]}" ] && [ -z "${STW[$id]["pid"]}" ]; then
+		stw_start "$id" "$h" "$w"
+	fi
+	stw_drain "$id"
+	stw_info "$id"
+	STW[$id]["seen"]="$STW_I_CONNECTED $((STW_I_FRAMES > 0)) $STW_I_RGB $STW_I_INPUT ${STW[$id]["err"]}"
+	if [ -z "${STW[$id]["err"]}" ] && [ -n "${STW[$id]["n"]}" ] &&
+	   frames place "${STW[$id]["n"]}" "w$id" 1 1 "$h" "$w" 2> /dev/null; then
+		STW[$id]["drew"]="${DT[$id]["h"]} ${DT[$id]["w"]}"
+		return 0
+	fi
+	STW[$id]["drew"]=
+	if [ -n "${STW[$id]["err"]}" ]; then
+		t=${STW[$id]["err"]}
+	elif [ "$STW_I_CONNECTED" = 1 ]; then
+		t := dt_tr "Waiting for Steam's first picture"
+	else
+		t := dt_tr "Starting Steam"
+	fi
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" $(((h + 1) / 2)) $(((w - ${#t}) / 2 + 1)) "$t"
+	return 0
+}
+
+# Drawn again only when what it shows can have changed: the first frame,
+# the bridge connecting or going, a picture it has to draw itself, the
+# input route's state, or the window's size. Frames themselves pass in the
+# console without the desktop drawing anything.
+fn steamwin_dirty(int id) {
+	stw_info "$id"
+	[ "${STW[$id]["seen"]}" = "$STW_I_CONNECTED $((STW_I_FRAMES > 0)) $STW_I_RGB $STW_I_INPUT ${STW[$id]["err"]}" ] || return 0
+	[ "${STW[$id]["drew"]}" = "${DT[$id]["h"]} ${DT[$id]["w"]}" ] && return 1
+	[ -z "${STW[$id]["drew"]}" ] && [ -n "${STW[$id]["seen"]}" ] && return 1
+	return 0
+}
+
+# Whether the bridge is still running, from the drawing and from `_idle`
+# both, since a drawn window is never idle and a hidden one is never drawn;
+# its socket closing is what wakes the desktop to ask. Anything it printed
+# before its own log was open is drained so the pty never fills.
+fn stw_drain(int id) {
+	local p=${STW[$id]["pid"]} out e
+
+	[ -n "$p" ] || return 0
+	out := pty drain "$p" 0 2> /dev/null
+	if ! pty alive "$p" 2> /dev/null; then
+		if [ -z "${STW[$id]["err"]}" ]; then
+			e := dt_tr "Steam has ended"
+			STW[$id]["err"]=$e
+		fi
+		dt_want 30
+	fi
+	return 0
+}
+
+fn steamwin_idle(int id) {
+	stw_drain "$id"
+	return 0
+}
+
+# The keys reach the game through Blit's input route, which follows this.
+fn steamwin_focus(int id, on) {
+	[ -n "${STW[$id]["n"]}" ] || return 0
+	frames input "${STW[$id]["n"]}" "$on" 2> /dev/null
+	return 0
+}
+
+# Every key the desktop hands over is the game's, which Blit has already
+# given it: taken here so no other part of the desktop acts on it.
+fn steamwin_key(int id, k) {
+	return 0
+}
+
+# A click holds the pointer for mouse-look, as Boxer does: never focus
+# alone, and Release Pointer gives it back.
+fn steamwin_mouse(int id, act, btn, int r, int c, mods = "") {
+	case ${act##*-} in
+	press)
+		[ -n "${STW[$id]["drew"]}" ] && dt_has dt_pointerlock &&
+			dt_pointerlock "$id" on
+		;;
+	esac
+	return 0
+}
+
+# Closing the window ends Steam and gamescope with it: the bridge is on a
+# pty only this window holds, which hangs it up.
+fn steamwin_close(int id) {
+	[ -n "${STW[$id]["pid"]}" ] && pty close "${STW[$id]["pid"]}" 2> /dev/null
+	[ -n "${STW[$id]["n"]}" ] && frames stop "${STW[$id]["n"]}" 2> /dev/null
+	unset "STW[$id]"
+	return 0
+}
+
+# Keys to the Game, for the focused window: on, it takes every key but
+# Release Pointer and Leave Full Screen; off, the desktop's shortcuts work
+# over it again.
+stw_keystoggle() {
+	local id=$DT_FOCUS
+
+	[ -n "$id" ] || return 0
+	if [ "${DT[$id]["keysall"]-}" = 1 ]; then
+		dt_keysall "$id" off
+	else
+		dt_keysall "$id" on
+	fi
+	return 0
+}
+
+# Open a steam:// link in Steam: in the Steam window there is, or in a new
+# one. What Steamer's Play calls (Gitea #486), behind `dt_has`; not
+# steamwin_launch, which dt_launch would call for this very window.
+fn stw_play(url = "") {
+	local i
+
+	for i in "${!STW[@]}"; do
+		if [ -n "${STW[$i]["pid"]}" ] && pty alive "${STW[$i]["pid"]}" 2> /dev/null; then
+			dt_raise "$i"
+			[ -n "$url" ] && dt_job steamwin:url "$i" "" stw_open "$url"
+			return 0
+		fi
+	done
+	dt_launch steamwin "$url"
+	return 0
+}
+
+# A job: hand a link to the Steam already running, by Steam's own pipe.
+fn stw_open(url) {
+	steam "$url" > /dev/null 2>&1
+	return 0
+}
+
+steamwin_menus() {
+	local on=0
+
+	[ -n "$DT_FOCUS" ] && [ "${DT[$DT_FOCUS]["keysall"]-}" = 1 ] && on=1
+	dt_menu "File"
+	dt_item "Close Window" w dt_close_focused
+	dt_editmenu
+	dt_menu "Steam"
+	dt_mark "Keys to the Game" k "$on" stw_keystoggle
+}

@@ -219,8 +219,13 @@ typedef struct dps_api {
    when the script should wake after all. This is what lets a frame and
    its RELEASE pass at sixty a second without costing the desktop a frame
    each. */
+/* Version 2 (Blit 0.3.64): input, a stream's input route -- "eis" with the
+   socket the producer offers, "on" or "off" as its window gains and loses
+   the keys -- told to Blit once a frame of it has gone, and again when its
+   picture comes back under a new id; what Blit says of it comes back by
+   answers as "OK input <stream>" or "ERROR INPUT <stream> <code>". */
 #ifndef DPF_API_VER
-#define DPF_API_VER 1u
+#define DPF_API_VER 2u
 #endif
 
 typedef struct dpf_api {
@@ -233,6 +238,7 @@ typedef struct dpf_api {
 	void (*answers)(void (*fn)(void *ctx, const char *line), void *ctx);
 	int (*hook)(int fd, int (*fn)(void *ctx, int fd), void *ctx);
 	void (*unhook)(int fd);
+	int (*input)(sh *s, unsigned sid, const char *verb, const char *path);
 } dpf_api;
 
 #endif

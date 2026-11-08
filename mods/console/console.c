@@ -1686,7 +1686,7 @@ static const dp_api console_api = {
 static const dps_api console_scroll = { cn_vscroll };
 static const dpf_api console_frames = { cn_dcan, cn_dplace, cn_dframe,
 					cn_ddrop, cn_danswers, cn_fdhook,
-					cn_fdunhook };
+					cn_fdunhook, cn_dinput };
 
 /* Offer the drawing table to whatever else wants to draw, and beside it the
    scroll hint a terminal window gives -- which nothing autoloads by name,

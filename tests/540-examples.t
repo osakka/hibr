@@ -127,7 +127,7 @@ awk '
     # declared `op` rather than `op = ""` -- the one of twenty-three
     # that could not take the short call wm/input.hibr was making, so a
     # paste from the host terminal into a terminal window did nothing.
-    W["paste"] = 3; W["copy"] = 1; W["cut"] = 1; W["awake"] = 1; W["fullscreen"] = 2
+    W["paste"] = 3; W["copy"] = 1; W["cut"] = 1; W["awake"] = 1; W["fullscreen"] = 2; W["focus"] = 2
     W["titlemenu"] = 3
     # A sign-in form: what it is for, and the login to put in it.
     W["signin"] = 1; W["signfill"] = 3
@@ -210,6 +210,9 @@ awk '
     NOT["vault"] = "copy cut paste selall undo redo"
     # The Camera shows a live picture, and the clipboard holds text.
     NOT["camera"] = "copy cut paste selall undo redo"
+    # The Steam window is the picture of a game: its keys are the game, and
+    # nothing in it is text the desktop could take or put back.
+    NOT["steamwin"] = "copy cut paste selall undo redo"
     # Shows things and copies what is chosen, and edits nothing in place:
     # an edit is a dialog of its own, with fields that undo for themselves.
     split("about calendar clock contacts imgview mail modman pdfr tasks", a, " ")

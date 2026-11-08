@@ -34,7 +34,7 @@
    server one frame, which it keeps and passes to each display's client.
    1 when it went. */
 #ifndef HF_API_VER
-#define HF_API_VER 3
+#define HF_API_VER 4
 #endif
 /* The header of a frame by dmabuf (Blit ADR 0223, version 3), and how many
    descriptors one may carry: four planes and an acquire fence. */
@@ -62,6 +62,10 @@ typedef struct hf_api {
 	int (*frame3)(int fd, const unsigned char *h, const int *fds, int n);
 	int (*answer)(int fd, str *o);
 	int (*dmabuf)(sh *s, str *o);
+	/* Version 4 (Blit 0.3.64, Gitea #486): an input route's line on the
+	   same connection, to every display's Blit; its answer comes back by
+	   answer, the primary display's alone. */
+	int (*input)(int fd, const char *line);
 } hf_api;
 
 /* The performance panel's status (Blit ADR 0203): at most this many lines
@@ -95,6 +99,10 @@ extern void (*bf_answer)(const char *line);
 /* One frame by dmabuf: a header of BF_HDR3 and its descriptors. 1 when it
    went, or was dropped on a full socket. */
 int bf_send3(int fd, const unsigned char *h, const int *fds, int n);
+
+/* One line of the wire's text, an INPUT request (Blit 0.3.64), as a
+   message of its own. 1 when it went. */
+int bf_say(int fd, const char *line);
 
 /* A 32-bit number into four bytes, little-endian, as every field of the
    wire is. */

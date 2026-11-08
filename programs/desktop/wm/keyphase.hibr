@@ -76,16 +76,28 @@ fn dt_keyletgo(int id) {
 	return 0
 }
 
+# The window keys go to now, in DT_KEYSWIN: the focused window, shown, with
+# no menu, pop-up, saver or lock in front of it; empty when keys go to none.
+# One test for both the key phases and a window's `_focus`, so the two can
+# never disagree about who has the keys.
+DT_KEYSWIN=
+dt_keyswin() {
+	DT_KEYSWIN=
+	if [ -n "$DT_FOCUS" ] && [ "$MB_OPEN" = -1 ] &&
+	   [ -z "$DT_POP$DT_SAVING$DT_LOCKED" ] && ! dt_hidden "$DT_FOCUS"; then
+		DT_KEYSWIN=$DT_FOCUS
+	fi
+	return 0
+}
+
 # Which window keys carry phases to now, and the terminal told when that
 # changes. Asked once a pass, once any window has asked.
 dt_keyphasecheck() {
 	local w= old=$DT_PHASEWIN
 
-	if [ -n "$DT_FOCUS" ] && [ "${DT[$DT_FOCUS]["phases"]-}" = 1 ] &&
-	   [ "$MB_OPEN" = -1 ] && [ -z "$DT_POP$DT_SAVING$DT_LOCKED" ] &&
-	   ! dt_hidden "$DT_FOCUS"; then
-		w=$DT_FOCUS
-	fi
+	dt_keyswin
+	[ -n "$DT_KEYSWIN" ] && [ "${DT[$DT_KEYSWIN]["phases"]-}" = 1 ] &&
+		w=$DT_KEYSWIN
 	[ "$w" = "$old" ] && return 0
 	# A terminal's answer arrives some time after the display opens, so one
 	# that has not said it can is asked again on the next pass.
@@ -95,6 +107,42 @@ dt_keyphasecheck() {
 	DT_PHASEWIN=$w
 	[ -n "$old" ] && dt_keyletgo "$old"
 	[ -n "$w" ] || console keyphases off 2> /dev/null
+	return 0
+}
+
+# A window's `_focus ID on|off` (Gitea #486): told when it starts and stops
+# being the window keys go to, by the same test as the key phases -- so a
+# game's input route follows the keys, and a menu, the saver, the lock, a
+# hidden or closed window all take it away. Asked once a pass, once any
+# window's app has a `_focus`; a window that has gone is not told.
+DT_FOCUSWIN=
+DT_FOCUSUSED=
+DT_KEYSALLUSED=
+
+# Give a window every key but Release Pointer and Leave Full Screen, or
+# stop: what a game wants, whose keys are its controls and must not open a
+# menu or switch a workspace under the player's fingers (Gitea #486).
+fn dt_keysall(int id, on) {
+	if [ "$on" = on ]; then
+		DT[$id]["keysall"]=1
+		DT_KEYSALLUSED=1
+	else
+		DT[$id]["keysall"]=
+	fi
+	return 0
+}
+dt_focuscheck() {
+	local old=$DT_FOCUSWIN w=
+
+	dt_keyswin
+	[ -n "$DT_KEYSWIN" ] && [ -n "${DT[$DT_KEYSWIN]["focus"]-}" ] &&
+		w=$DT_KEYSWIN
+	[ "$w" = "$old" ] && return 0
+	DT_FOCUSWIN=$w
+	if [ -n "$old" ] && [ -n "${DT[$old]["focus"]-}" ]; then
+		dt_appcall "$old" "${DT[$old]["focus"]}" off
+	fi
+	[ -n "$w" ] && dt_appcall "$w" "${DT[$w]["focus"]}" on
 	return 0
 }
 

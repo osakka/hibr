@@ -47,7 +47,7 @@ class Producer:
         self.seq += 1
         h = (b"FRM3" + struct.pack("<IQII", iid, self.seq, 64, 16) + b"XR24" +
              struct.pack("<IQ", 1, 0) + struct.pack("<II", 0, 256) + bytes(24))
-        socket.send_fds(self.s, [b"K"], [self.fd] + list(extra))
+        socket.send_fds(self.s, [b"N"], [self.fd] + list(extra))
         self.s.sendall(struct.pack("<I", len(h)) + h)
         return self.seq
 

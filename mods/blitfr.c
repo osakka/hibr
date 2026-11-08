@@ -304,6 +304,16 @@ int bf_line(const char *l, int *hud)
 		   strcmp(l + 5, "on") ? "no longer wants" : "wants");
 		return 0;
 	}
+	/* What came of an input route (Blit 0.3.64, Gitea #486): an answer
+	   about one picture's route, never about the connection, so an EACCES
+	   here -- an EIS socket somebody else owns -- closes nothing. */
+	if (!strncmp(l, "OK input ", 9) || !strncmp(l, "ERROR INPUT ", 12)) {
+		if (bf_answer)
+			bf_answer(l);
+		else
+			lg(HIBR_LDBG, "frames: %s", l);
+		return 0;
+	}
 	if (bf_answer && (!strncmp(l, "RELEASE ", 8) || !strncmp(l, "ERROR ", 6))) {
 		bf_answer(l);
 		return strstr(l, "EACCES") ? -1 : 0;
@@ -312,6 +322,21 @@ int bf_line(const char *l, int *hud)
 	/* The person this connection was opened for has signed out (Blit
 	   0.3.19): it is closed, and pictures go back on the terminal. */
 	return strstr(l, "EACCES") ? -1 : 0;
+}
+
+/* One line of the wire's text -- an INPUT request (Blit 0.3.64) -- as a
+   message of its own. 1 when it went. */
+int bf_say(int fd, const char *line)
+{
+	size_t n = strlen(line);
+	ssize_t k;
+
+	if (fd < 0 || !n)
+		return 0;
+	do
+		k = send(fd, line, n, MSG_NOSIGNAL | MSG_DONTWAIT);
+	while (k < 0 && errno == EINTR);
+	return k == (ssize_t)n;
 }
 
 /* What the far side has said since: errors into the log, HUD1 into
@@ -458,6 +483,14 @@ int bf_send(int fd, const unsigned char *h, int mfd)
 	(void)fd;
 	(void)h;
 	(void)mfd;
+	return 0;
+}
+
+/* Not Linux: never sent. */
+int bf_say(int fd, const char *line)
+{
+	(void)fd;
+	(void)line;
 	return 0;
 }
 

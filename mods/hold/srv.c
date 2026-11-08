@@ -1222,6 +1222,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 			else
 				while (nf > 0)
 					close(fds[--nf]);
+			if (t == HD_INPUT)
+				hd_inputput(&cls, pf, in.p, in.n);
 		}
 		if (q[1].revents) {
 			size_t got = 0;
@@ -1398,7 +1400,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				}
 			} else if (t == HD_FRMANS) {
 				s_ch(&in, 0);
-				hd_f3ans(fd, in.p);
+				if (!hd_inputans(&cls, fd, in.p))
+					hd_f3ans(fd, in.p);
 			} else if (t == HD_DMABUF) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
 

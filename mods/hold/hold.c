@@ -553,8 +553,14 @@ int hd_dmabuf(sh *s, str *o)
 	return 1;
 }
 
+/* An input route's line, on a producer's own connection to the server. */
+int hd_input(int fd, const char *line)
+{
+	return fd >= 0 && hd_send(fd, HD_INPUT, line, strlen(line));
+}
+
 static const hf_api hd_hfapi = { hd_frame, hd_status, hd_hudq, hd_open3,
-				 hd_frame3, hd_answer, hd_dmabuf };
+				 hd_frame3, hd_answer, hd_dmabuf, hd_input };
 
 /* Whether a session's server keeps an edit of a whole picture in place of
    the edits before it, "yes": hold frames [name]. Fails against a server

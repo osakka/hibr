@@ -69,6 +69,9 @@ class Bridge:
         socket.send_fds(self.s, [h], [self.fd] + list(extra))
         return self.seq
 
+    def say(self, line):
+        self.s.send(line.encode())
+
     def answers(self, t=1.0):
         out = []
         self.s.settimeout(t * SLOW)
@@ -105,6 +108,7 @@ def prog(out):
         "  console pane w1 $r 4 10 30\n"
         "  console put -p w1 0 0 WINDOW\n"
         "  [ -f %(o)s.hide ] || frames place $n w1 1 1 6 20\n"
+        "  if [ -f %(o)s.on ] && [ \"$on\" != 1 ]; then frames input $n on; on=1; fi\n"
         "  console flush\n"
         "  i=$((i + 1))\n"
         "  y := frames info $n\n"
@@ -202,6 +206,34 @@ check("and the producer hears that frame let go once, after both ids have",
       got.count("RELEASE 42 %d" % last) == 1 and
       "RELEASE 42 %d" % last not in early, (early, got))
 cid = nid
+# Input (Blit 0.3.64): the bridge offers its EIS socket, the window says
+# when it has the keys, and every answer comes back in the bridge's id.
+eis = os.path.join(D, "eis.sock")
+es = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+es.bind(eis)
+br.answers(0.3)
+br.say("INPUT eis %s 42" % eis)
+got = br.answers()
+check("an input route asked for after a frame is taken, in the producer's id",
+      "OK input 42" in got and any(x.get("verb") == "eis" and x.get("id") == cid
+                                   and x.get("ok") for x in lines(lgb)), (got, lines(lgb)[-3:]))
+open(out + ".on", "w").close()
+t.keys([b"z"])
+got = br.answers()
+check("the window having the keys turns the route on, at Blit and to the producer",
+      "OK input 42" in got and any(x.get("verb") == "on" and x.get("ok") for x in lines(lgb)),
+      (got, lines(lgb)[-3:]))
+notsock = os.path.join(D, "plain")
+open(notsock, "w").close()
+br2n = len(frames(lgb))
+br.say("INPUT eis %s 42" % notsock)
+got = br.answers()
+br.send()
+wait(lambda: len(frames(lgb)) > br2n)
+check("a route Blit refuses (EACCES) is told to the producer and the frames go on",
+      any(a.startswith("ERROR INPUT 42 E") for a in got) and len(frames(lgb)) > br2n,
+      (got, len(frames(lgb)), br2n))
+es.close()
 br.close()
 t.keys([b"z"])
 wait(lambda: any("a=d" in a and "i=%s" % cid in a for a in apcs(t)))
@@ -238,6 +270,7 @@ pn.wait()
 
 # Held: through hold's server to each display's Blit.
 ph, lgh, eh = blit("h")
+ph2, lgh2, eh2 = blit("h2")
 out = os.path.join(D, "h")
 nm = "frh-%d" % os.getpid()
 f = os.path.join(D, "att-%d.hibr" % os.getpid())
@@ -246,6 +279,11 @@ open(f, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\nsleep 0.6\n'
 t = Term(f, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
          env=dict({"HIBR_GFX": "kitty", "TMPDIR": D}, **eh), caps=["kitty"])
 t.collect(1.0 * SLOW)
+f2 = os.path.join(D, "att2-%d.hibr" % os.getpid())
+open(f2, "w").write(load("hold") + 'hold attach -m -n d1 %s 0 0\n' % nm)
+t2 = Term(f2, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
+          env=dict({"HIBR_GFX": "kitty", "TMPDIR": D}, **eh2), caps=["kitty"])
+t2.collect(1.0 * SLOW)
 so = wait(lambda: sockof(out), 5)
 # The held desktop turns frames by descriptor on once hold says every
 # display can take them; this program has no desktop, so it asks itself.
@@ -276,13 +314,25 @@ if br:
     dl = [a for a in apcs(t) if "a=d" in a and "i=%s" % hid in a]
     check("held, a move reaches the display as the same picture placed again",
           was >= 1 and len(now) > was and not dl, (was, now, dl))
+    eis = os.path.join(D, "eish.sock")
+    es = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    es.bind(eis)
+    br.answers(0.3)
+    br.say("INPUT eis %s 42" % eis)
+    got = br.answers(1.5)
+    asked = [x for lg in (lgh, lgh2) for x in lines(lg) if x["kind"] == "input"]
+    check("held, every display's Blit is asked and the producer hears one answer",
+          len(asked) == 2 and got.count("OK input 42") == 1, (asked, got))
+    es.close()
     br.close()
 open(out + ".stop", "w").close()
 time.sleep(0.5)
+t2.quit(None, 0.3)
 t.quit(None, 0.3)
 subprocess.run([screen.HIBR, "-c", load("hold") + "hold kill %s" % nm],
                env=dict(os.environ, TMPDIR=D), capture_output=True)
-ph.terminate()
-ph.wait()
+for p in (ph, ph2):
+    p.terminate()
+    p.wait()
 shutil.rmtree(D, True)
-report(18)
+report(22)

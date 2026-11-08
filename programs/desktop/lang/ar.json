@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.86",
+ "version": "3.87",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1664,6 +1664,14 @@
   "Run in Terminal": "تشغيل في الطرفية",
   "Text Editor (hvi)": "محرر النصوص (hvi)",
   "That archive is not there": "ذلك الأرشيف غير موجود",
-  "The one there now cannot be put back.": "لا يمكن استعادة الموجود حاليًا."
+  "The one there now cannot be put back.": "لا يمكن استعادة الموجود حاليًا.",
+  "Steam": "ستيم",
+  "Keys to the Game": "المفاتيح للعبة",
+  "Starting Steam": "جارٍ تشغيل ستيم",
+  "Steam has ended": "انتهى ستيم",
+  "Steam could not be started": "تعذّر تشغيل ستيم",
+  "Waiting for Steam's first picture": "بانتظار أول صورة من ستيم",
+  "This display cannot show another program's frames": "لا تستطيع هذه الشاشة عرض إطارات برنامج آخر",
+  "Steam needs Blit's gamescope bridge: install the blit-gamescope package": "يحتاج ستيم إلى جسر gamescope الخاص بـ Blit: ثبّت الحزمة blit-gamescope"
  }
 }
