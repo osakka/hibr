@@ -534,6 +534,7 @@ void sh_proctitle(sh *s);
 extern int m_ldmode;
 int m_ldwhen(sh *s);
 const char *m_bixfind(sh *s, const char *nm);
+int m_bixprov(sh *s, const char *nm);
 int m_ldauto(sh *s, const char *nm);
 int b_title(sh *s, int ac, char **av);
 int b_opt(sh *s, int ac, char **av);

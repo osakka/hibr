@@ -1,0 +1,6 @@
+0
+a bare command loads: provider
+need, with the plain one loaded first: rc=0
+provider
+need, with no provider at all: rc=0
+plain

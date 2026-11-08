@@ -4073,6 +4073,17 @@ went in the shell.
   deletes a kitty image on a Blit display is a decision that it never comes
   back there**; ask whether the session still has it first.
 
+- **A name and an interface are two questions, and `need` asked the first
+  for the second** (0.99.475). hibr's `web.so` is *named* web and offers
+  nothing; hibr-browser's `webkit.so` *offers* web. `m_need`'s shortcut --
+  a loaded module of that name is met -- answered `need web` with Chromium,
+  and the autoload index's bsearch landed anywhere in a run of equal
+  builtin names, so which one a bare `web` loaded moved with whatever else
+  was installed. The index sorts the interface's own provider first now and
+  `m_bixprov` gates the shortcut. A module that declares a builtin another
+  module also declares is the case to test, with the plain one first on the
+  path (`tests/999-mod-twin.t`).
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

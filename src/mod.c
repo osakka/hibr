@@ -929,14 +929,29 @@ int m_ldwhen(sh *s)
 struct bix {
 	char *nm;
 	char *path;
+	int pv;
+	size_t ord;
 };
 
 struct bix *m_bix;
 size_t m_bixn;
 int m_bixok;
 
-/* Order two autoload index entries by builtin name. */
+/* Order two autoload index entries by builtin name, then the module offering the interface of that name first, then path order. */
 int m_bixcmp(const void *a, const void *b)
+{
+	const struct bix *x = a, *y = b;
+	int c = strcmp(x->nm, y->nm);
+
+	if (c)
+		return c;
+	if (x->pv != y->pv)
+		return y->pv - x->pv;
+	return x->ord < y->ord ? -1 : x->ord > y->ord;
+}
+
+/* Compare an autoload index entry by builtin name alone, for a lookup. */
+int m_bixkey(const void *a, const void *b)
 {
 	return strcmp(((const struct bix *)a)->nm, ((const struct bix *)b)->nm);
 }
@@ -959,6 +974,8 @@ void m_bixadd(const char *path)
 			m_bix = g;
 			m_bix[m_bixn].nm = xs(b->nm);
 			m_bix[m_bixn].path = xs(path);
+			m_bix[m_bixn].pv = d->prov && !strcmp(d->prov, b->nm);
+			m_bix[m_bixn].ord = m_bixn;
 			m_bixn++;
 		}
 	dlclose(h);
@@ -1004,8 +1021,8 @@ void m_bixbuild(sh *s)
 	lg(HIBR_LDBG, "indexed %zu builtins on the module path", m_bixn);
 }
 
-/* The object declaring this builtin, or NULL. */
-const char *m_bixfind(sh *s, const char *nm)
+/* The first index entry declaring this builtin, the interface's own provider before any other, or NULL. */
+struct bix *m_bixfirst(sh *s, const char *nm)
 {
 	struct bix k, *g;
 
@@ -1015,8 +1032,26 @@ const char *m_bixfind(sh *s, const char *nm)
 		return 0;
 	k.nm = (char *)nm;
 	k.path = 0;
-	g = bsearch(&k, m_bix, m_bixn, sizeof *m_bix, m_bixcmp);
+	g = bsearch(&k, m_bix, m_bixn, sizeof *m_bix, m_bixkey);
+	while (g && g > m_bix && !strcmp(g[-1].nm, nm))
+		g--;
+	return g;
+}
+
+/* The object declaring this builtin, or NULL. */
+const char *m_bixfind(sh *s, const char *nm)
+{
+	struct bix *g = m_bixfirst(s, nm);
+
 	return g ? g->path : 0;
+}
+
+/* Whether a module on the path both declares this builtin and offers the interface of the same name. */
+int m_bixprov(sh *s, const char *nm)
+{
+	struct bix *g = m_bixfirst(s, nm);
+
+	return g && g->pv;
 }
 
 /* Load whichever module declares this builtin, from the index: `before`'s
@@ -1130,8 +1165,13 @@ int m_need(sh *s, const char *nm)
 	   desktop paid on every frame that asked (the end of this function
 	   always gave the same answer, after the walk). */
 	for (i = 0; i < s->mods.n; i++)
-		if (!strcmp(((mod *)s->mods.p[i])->m->nm, nm))
-			return HIBR_OK;
+		if (!strcmp(((mod *)s->mods.p[i])->m->nm, nm)) {
+			if (!m_bixprov(s, nm))
+				return HIBR_OK;
+			lg(HIBR_LINF, "need %s: a module of that name is loaded, and another on the path offers %s, which is what was asked for",
+			   nm, nm);
+			break;
+		}
 	{
 		struct mwalk w;
 		const char *d;

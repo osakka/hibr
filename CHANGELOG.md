@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.475
+
+**The Browser finds hibr-browser's WebKit again when Chromium's module got
+there first.** Two modules answer to `web`: hibr's own (Chromium) and
+hibr-browser's (WebKit), which also offers the `web` interface the Browser
+asks for. Which one a bare `web` command loaded depended on where a lookup
+happened to land among modules declaring the same name -- so on a machine
+with a different set of modules it could be Chromium's -- and once a
+module *named* web was loaded, `need web` took that as met and never looked
+for WebKit. On a machine without Chromium the Browser then said "install
+hibr-browser" with hibr-browser installed. A command that two modules
+declare now loads the one offering the interface of its name, and `need`
+loads that one even beside a same-named module that offers nothing; with no
+such module, nothing changes. `tests/999-mod-twin.t`.
+
 ## 0.99.474
 
 **Screens: one app for every program in a window** (Gitea #493). X Screen
