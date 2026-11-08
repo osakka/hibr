@@ -2405,7 +2405,7 @@ fn cat_arch() {
 }
 
 fn cat_needs(name) {
-	local abi hv m oldest arch here
+	local abi hv m oldest arch here why
 	local -a mods
 
 	# A module is built for one ABI and one machine, and neither is a
@@ -2451,16 +2451,23 @@ A module's ABI must match exactly, so this app's own module could not load."
 	# nowhere is a broken entry, not a machine that is missing
 	# something, and installing an app that cannot work is worse than
 	# saying so.
+	#
+	# `need`'s own words are kept: a module that is here and would not
+	# load is a different fact from one that is nowhere, and saying the
+	# second for the first hid Gitea #490 for a day.
 	CAT_WANT=()
 	if [ -n "${CAT_ENT["modules"]}" ]; then
 		IFS=', ' read -ra mods <<< "${CAT_ENT["modules"]}"
 		for m in "${mods[@]}"; do
 			[ -n "$m" ] || continue
-			need "$m" 2> /dev/null && continue
+			why=$(need "$m" 2>&1 > /dev/null) && continue
 			if cat_entry "mods/$m" > /dev/null 2>&1; then
 				CAT_WANT+=("mods/$m")
 				continue
 			fi
+			[ -n "$why" ] && cat_die "$name: needs the $m module, and \`need $m\` says:
+${why#hibr: }
+Nothing was installed."
 			cat_die "$name: needs the $m module, which neither hibr
 nor this catalogue provides. Nothing was installed."
 		done
@@ -3117,7 +3124,7 @@ fn cat_partof(id) {
 }
 
 fn cat_update(...names) {
-	local name w n=0 kind where ext moved i np same owner
+	local name w n=0 kind where ext moved i np same owner why
 	local -a want
 
 	cat_load 1
@@ -3204,6 +3211,15 @@ fn cat_update(...names) {
 			cat_say "$name: ${CAT_ENT["version"]} changed in the catalogue; fetched again"
 		else
 			cat_say "$name: ${CAT_ST["installed"]["$name"]["version"]} -> ${CAT_ENT["version"]}"
+		fi
+		# An update of everything says what this hibr cannot install
+		# and goes on to the rest, as it does for an entry the index
+		# dropped (Gitea #271): one entry's need -- a module, a newer
+		# hibr -- must not stop every other entry's update (#490).
+		# Asked in a child, since cat_needs ends with cat_die.
+		if [ "${#names[@]}" = 0 ] && ! why=$(cat_needs "$name" 2>&1); then
+			cat_say "$name: not updated: ${why#catalogue: }"
+			continue
 		fi
 		cat_install "$name"
 		n=$((n + 1))

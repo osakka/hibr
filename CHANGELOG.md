@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.99.470
+
+**A module loads from strict code** (Gitea #490). A module whose init sets a
+variable -- `sys` sets `SYS_MOD` -- could not be loaded by a `strict`
+function: strict vars refused the variable as a global the script created,
+and the refusal failed the command that had loaded the module. `need sys`
+answered 1 for a module it had just loaded. The catalogue, which checks an
+entry's `# modules:` with `need` inside a strict function, then refused
+Steamer 0.5.5 on the owner's mini PC as needing "the sys module, which
+neither hibr nor this catalogue provides". Found from that report and
+reproduced with the real catalogue; `hibr -c 'need sys'` passes everywhere,
+which is why nothing else showed it.
+
+- A module's init runs with strict vars suspended: its variables are its
+  own, and a script cannot declare a name it does not know. A module's
+  builtins, called by the script, stay checked (`DAV_CODE` as before).
+- The catalogue keeps `need`'s own words: a module that is here and would
+  not load says why, where it said "neither hibr nor this catalogue
+  provides" for both.
+- `catalogue update` of everything says of an entry this hibr cannot
+  install that it was not updated, and why, and goes on to the rest; one
+  entry's need stopped every other entry's update.
+
 ## 0.99.469
 
 **Steam in a window** (Gitea #486, step 4): Steam's Big Picture, under Blit's

@@ -316,6 +316,7 @@ int m_load(sh *s, const char *path)
 	mod *m;
 	size_t i;
 	str p;
+	int sfl, ok;
 
 	s_init(&p);
 	h = m_open(s, path, &p);
@@ -351,7 +352,18 @@ int m_load(sh *s, const char *path)
 	m->path = p.p;
 	v_add(&s->mods, m);
 	mx_stale();
-	if (d->ini && d->ini(s) != HIBR_OK) {
+	/* A module's init is the module's own: a variable it sets (SYS_MOD,
+	   a status it starts) is not a global the script created, and the
+	   script cannot declare a name it does not know. Under strict vars it
+	   was refused, and the refusal failed the command that loaded the
+	   module -- `need` from a strict function answered 1 for a module it
+	   had just loaded, and the catalogue called sys missing (Gitea #490).
+	   A module's builtins, called by the script, stay checked. */
+	sfl = s->sfl;
+	s->sfl &= ~SF_VAR;
+	ok = !d->ini || d->ini(s) == HIBR_OK;
+	s->sfl = sfl;
+	if (!ok) {
 		lg(HIBR_LERR, "mod: %s: init failed", d->nm);
 		/* This record goes by identity, never by position: an init
 		   may load a module of its own -- hold asks hibr_require for

@@ -2254,6 +2254,16 @@ went in the shell.
   job. `v_strict` passes any name that is not an identifier. A module that
   sets a status variable (`DAV_CODE`) is still checked: a strict file
   declares it at file level.
+  **A module's init is not checked, since 0.99.470** (Gitea #490): the
+  refusal failed the command that loaded the module, so `need sys` from a
+  strict function answered 1 for a module it had just loaded -- `sys_ini`
+  sets `SYS_MOD` -- and the catalogue, which checks `# modules:` with
+  `need` in a strict function and silenced its stderr, called a shipped
+  module missing. A script cannot declare a name it does not know a module
+  will set, so `m_load` clears `SF_VAR` around the init and puts it back.
+  The lesson past this one: **a check that silences the error it is about
+  to translate must keep the error** -- the catalogue's own message was
+  true of the case it imagined and false of the one that happened.
 - **A remote transfer is a job, never a wait in the loop.** `wm/remote.hibr`
   runs each `dav` transfer through `dt_job "dav:..."` (it was a `( ... ) &`
   subshell polled by `dt_remotepoll`, which now only watches open remote
