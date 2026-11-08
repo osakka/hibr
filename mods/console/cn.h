@@ -4,6 +4,7 @@
 #include "../display.h"
 #include "../gfxask.h"
 #include <termios.h>
+#include <sys/select.h>
 #include <signal.h>
 
 
@@ -145,6 +146,7 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 	       unsigned id, long z, int comp, str *o);
 void kt_del(str *o, unsigned id);
 void kt_place(int cols, int rows, unsigned id, long z, str *o);
+void kt_placep(int cols, int rows, unsigned id, unsigned pid, long z, str *o);
 void kt_edit(const unsigned char *rgb, int iw, int ih, int x, int y,
 	     unsigned id, str *o);
 void kt_delall(str *o);
@@ -185,6 +187,30 @@ int cn_translucent(int pct, unsigned fb);
 void cn_transmatch(unsigned bg);
 int cn_transon(unsigned bg);
 size_t cn_imgn(void);
+/* A stream's picture, whose frames another program sends (Gitea #486):
+   placed and kept by image.c, its frames and answers by stream.c. */
+int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
+	      unsigned sid, unsigned *cid);
+void cn_imgdmadrop(unsigned sid);
+unsigned cn_imgdmaid(unsigned sid);
+long cn_imgz(const char *pane, int lo, unsigned flags);
+void cn_imgblank(int row, int col, int h, int w);
+int cn_bfdrain(void);
+int cn_bfconn(void);
+int cn_fdon(sh *s);
+int cn_fdhookset(fd_set *r, int mx);
+int cn_fdhookrun(fd_set *r);
+int cn_fdhookprune(void);
+size_t cn_fdhookn(void);
+int cn_fdhook(int fd, int (*fn)(void *ctx, int fd), void *ctx);
+void cn_fdunhook(int fd);
+int cn_dcan(sh *s, str *fmts, int *fence);
+int cn_dplace(sh *s, const char *pane, int row, int col, int h, int w,
+	      unsigned sid);
+int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
+	      const int *fds, int n);
+void cn_ddrop(sh *s, unsigned sid);
+void cn_danswers(void (*fn)(void *ctx, const char *line), void *ctx);
 /* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE, CN_GFX_SIXEL
    or CN_GFX_KITTY. From HIBR_GFX, then from what the terminal itself
    answered (cn_gotcap), and only then from its name -- a name says what a

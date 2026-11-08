@@ -46,7 +46,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so $(B)/mods/hcal.so $(B)/mods/salat.so \
        $(B)/mods/vw.so $(B)/mods/archive.so $(B)/mods/mermaid.so \
        $(B)/mods/xscr.so $(B)/mods/pdf.so $(B)/mods/fetch.so $(B)/mods/copy.so \
-       $(B)/mods/proctab.so $(B)/mods/contain.so
+       $(B)/mods/proctab.so $(B)/mods/contain.so $(B)/mods/frames.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
 # Darwin at all, so it is not in MODS above and never built, or even asked
@@ -192,6 +192,9 @@ $(B)/mods/mon.so: $(MON_SRC) include/hibr.h mods/mon/mn.h mods/display.h mods/pr
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(MON_SRC)
 
 # The process table's one reader, shared with mon (mods/procs.c).
+$(B)/mods/frames.so: mods/frames.c include/hibr.h mods/display.h mods/blitfr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -Imods -o $@ mods/frames.c
+
 $(B)/mods/proctab.so: mods/proctab.c mods/procs.c include/hibr.h mods/procs.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/proctab.c mods/procs.c
 

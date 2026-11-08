@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.99.468
+
+**A window can show another program's frames** (Gitea #486, steps 2 and 3,
+Blit ADR 0223): the second and third steps towards games in a desktop window.
+A new module, `frames`, serves a socket that speaks Blit's own frame wire from
+the far side, so a program that draws into buffers -- Blit's gamescope bridge
+-- is given its name and token in place of Blit's and runs unchanged. Its
+frames go through the console onto a picture the window places with `frames
+place`, to every display's Blit under the picture's id, by dmabuf where every
+display imports and by memfd where not; its `RELEASE`s come back in its own
+ids, once a frame. Nothing maps a dmabuf. Where no display takes frames by
+descriptor at all, a memfd of RGB is drawn as any picture is, so the window
+always shows.
+
+- The console offers a third interface, `"dpframes"`, beside `"display"` and
+  `"scroll"`, so `DP_API_VER` does not move. A stream's picture keeps **one
+  kitty id and one placement** for its life: a move, resize or raise sends
+  the same placement again where it now is, since Blit keys a game's input
+  route by the image and a new id would release every held key.
+- The console's wait services descriptors itself (hooks), carrying on with
+  the time left, so frames and their RELEASEs pass without the script
+  running: the suite's program did not turn over while twenty frames went.
+- Hold counts a placement's position in what each display already has.
+  Without it a moved picture sends the same bytes at another cell and a held
+  display was never told; `tests/frames.py` fails against hold without it.
+- `archive extract` takes a tarball whose root entry is `./`, as `tar c .`
+  writes it, where it refused the whole tarball as landing outside (Gitea
+  #487, found by the Boxer session). A `../` member is still refused.
+- `tests/affected.py` names `blitfr.c`, the frame socket's shared source, for
+  the suites that use it; a change to it reached only `run.sh` before.
+
 ## 0.99.467
 
 **hold carries frames by dmabuf** (Gitea #486, Blit ADR 0223), the first step

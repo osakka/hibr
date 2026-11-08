@@ -256,6 +256,18 @@ lists every one, file by file:
 - **`proctab`** prints every process under `/proc` in one call (0.99.399),
   `pid utime stime uid rss name` a line, into `$RET` as well; it fails where
   there is no `/proc`. It shares its reader with `mon`.
+- **`frames`** is the socket a window's picture is sent to, speaking
+  Blit's own frame wire from the far side (0.99.468, Gitea #486): `frames
+  serve` answers `N SOCKET TOKEN`, which a program such as Blit's gamescope
+  bridge is given as `BLIT_FRAME_SOCKET` and `BLIT_FRAME_TOKEN`; `frames
+  place N PANE ROW COL H W`, called from a window's drawing, keeps the
+  stream's picture in that rectangle of the pane. Its frames -- dmabufs or
+  sealed memfds -- go through the console to every display's Blit under
+  the picture's own id, its RELEASEs come back in the program's ids, and
+  none of it wakes the script: the console's wait reads the socket.
+  Where no display takes frames by descriptor a memfd of RGB is drawn as
+  any picture is. `frames info N` says what has passed; `frames stop N`
+  closes it.
 - **`contain`** runs a program that may read and compute but not act on
   the world (0.99.427, ADR 0052): `contain exec DIR -- CMD [ARG...]` closes
   every descriptor above 2, lets the program write only under `DIR`, opens

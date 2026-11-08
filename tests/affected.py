@@ -82,8 +82,11 @@ SUITE_MODS = {
     "sixel": ["console", "img", "media"],
     "kitgfx": ["console", "img"],
     "pdfapp": ["pdf", "img", "console"],
-    "holdpix": ["console", "img", "hold", "term", "pty"],
-    "dmabuf": ["hold", "term", "pty"],
+    # blitfr.c is shared source too, compiled into the console and hold:
+    # the frame socket's one copy of the wire.
+    "holdpix": ["console", "img", "hold", "term", "pty", "blitfr"],
+    "dmabuf": ["hold", "term", "pty", "blitfr"],
+    "frames": ["frames", "console", "hold", "term", "pty", "blitfr"],
     # inflate.c is not a module of its own: it is shared source, the prompt
     # module's own, which the archive module compiles in as well. Naming it
     # here is what makes a change to it reach this suite.

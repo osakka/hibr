@@ -158,6 +158,21 @@ def main():
     hud = False
     while True:
         r, _, _ = select.select([srv] + list(conns), [], [], 0.1)
+        # An image deleted on the terminal (a=d,d=I): Blit's
+        # frame_dmabuf_free lets go of every frame it still holds of it,
+        # each answered. The stand-in cannot see the terminal, so the test
+        # hands it the ids it saw deleted, one a line, in LOG.del.
+        if os.path.exists(LOG + ".del"):
+            gone = [int(x) for x in open(LOG + ".del").read().split()]
+            os.unlink(LOG + ".del")
+            for iid in gone:
+                for seq, fds in held.pop(iid, []):
+                    for fd in fds:
+                        os.close(fd)
+                    for c, ok in conns.items():
+                        if ok and vers.get(c, 0) >= 3:
+                            c.send(b"RELEASE %d %d\n" % (iid, seq))
+                    note(kind="released", id=iid, seq=seq, deleted=True)
         now = os.path.exists(LOG + ".hud")
         if now != hud:
             hud = now

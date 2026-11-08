@@ -229,6 +229,27 @@ void kt_place(int cols, int rows, unsigned id, long z, str *o)
 	s_cat(o, "\033\\");
 }
 
+/* The same with a placement id of its own, so the next one with the same
+   id and placement moves it rather than adding a second: a stream's
+   picture keeps its image for life (Gitea #486), since Blit keys a game's
+   input route by it. */
+void kt_placep(int cols, int rows, unsigned id, unsigned pid, long z, str *o)
+{
+	s_cat(o, "\033_Ga=p,q=2,C=1,i=");
+	s_num(o, id);
+	s_cat(o, ",p=");
+	s_num(o, pid);
+	s_cat(o, ",c=");
+	s_num(o, cols);
+	s_cat(o, ",r=");
+	s_num(o, rows);
+	if (z) {
+		s_cat(o, ",z=");
+		s_num(o, z);
+	}
+	s_cat(o, "\033\\");
+}
+
 /* Delete one image: its placements and the data behind them. */
 void kt_del(str *o, unsigned id)
 {

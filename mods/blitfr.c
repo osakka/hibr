@@ -14,6 +14,15 @@
 #include <string.h>
 #include <unistd.h>
 
+/* Put a 32-bit number into four bytes, little-endian. */
+void bf_put32(unsigned char *p, unsigned long v)
+{
+	p[0] = (unsigned char)(v & 0xff);
+	p[1] = (unsigned char)((v >> 8) & 0xff);
+	p[2] = (unsigned char)((v >> 16) & 0xff);
+	p[3] = (unsigned char)((v >> 24) & 0xff);
+}
+
 #ifdef __linux__
 #include <sys/socket.h>
 #include <sys/syscall.h>
@@ -51,14 +60,6 @@ void (*bf_answer)(const char *line);
 #define MSG_NOSIGNAL 0x4000
 #endif
 
-/* Put a 32-bit number into four bytes, little-endian. */
-void bf_put32(unsigned char *p, unsigned long v)
-{
-	p[0] = (unsigned char)(v & 0xff);
-	p[1] = (unsigned char)((v >> 8) & 0xff);
-	p[2] = (unsigned char)((v >> 16) & 0xff);
-	p[3] = (unsigned char)((v >> 24) & 0xff);
-}
 
 /* Connect to a frame socket and say hello with a token at wire version
    ver. -1 when refused; *inval set when the refusal was EINVAL, which is

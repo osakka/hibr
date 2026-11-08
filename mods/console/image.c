@@ -68,6 +68,10 @@ typedef struct cn_img {
 	   given only the placement: the frame number its last went as. */
 	int fd;
 	unsigned long long seq;
+	/* The stream whose frames another program sends (Gitea #486): its
+	   picture keeps this id for life and is placed again, never
+	   replaced, when it moves. 0 for every other picture. */
+	unsigned dma;
 } cn_img;
 
 static cn_img *cn_imgs;
@@ -417,6 +421,150 @@ int cn_imgfdnext(sh *s, cn_img *im, const unsigned char *rgb, int iw, int ih,
 	im->under = cn_imgunder(im);
 	im->plive = 1;
 	return 1;
+}
+
+/* Read what the console's own frame socket has said, a line each, when
+   nothing is between it and Blit: a RELEASE or an ERROR goes to bf_answer,
+   the panel's request to cn_hud. -1 when the socket has gone, and frames
+   by descriptor stop. */
+int cn_bfdrain(void)
+{
+	if (cn_bfd < 0)
+		return -1;
+	if (bf_drain(cn_bfd, &cn_hud) < 0) {
+		cn_fdfail();
+		return -1;
+	}
+	return 0;
+}
+
+/* Place the picture of a stream whose frames another program sends (Gitea
+   #486) in a pane's rectangle, below its cells as any window's picture on
+   kitty is. A stream keeps one kitty id and one placement for as long as
+   the region lasts: where the rectangle or the layer has changed the same
+   placement is sent again where it now is, which Blit moves in place, since
+   a new id would end a game's input route and let go of every held key. 1
+   with the id in *cid; 0 when frames by descriptor cannot go here. */
+int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
+	      unsigned sid, unsigned *cid)
+{
+	int prow = 0, pcol = 0, ph = 0, pw = 0;
+	size_t i, j;
+	cn_pane *pp;
+	cn_img *im;
+	long z;
+
+	cn_wrote++;
+	if (!cn_isopen() || !sid || !pane || h < 1 || w < 1)
+		return 0;
+	if (cn_gfx(s) != CN_GFX_KITTY || !cn_gfxsure(s) || !cn_fdon(s))
+		return 0;
+	if (!cn_prect(pane, &prow, &pcol, &ph, &pw))
+		return 0;
+	if (row < 0 || col < 0 || row + h > ph || col + w > pw)
+		return 0;
+	row += prow;
+	col += pcol;
+	if (row < 0 || col < 0 || row + h > cn_back.rows ||
+	    col + w > cn_back.cols)
+		return 0;
+	if ((pp = cn_pfind(pane)))
+		pp->drawn = 1;
+	z = cn_imgz(pane, 1, 0);
+	cn_imgblank(row, col, h, w);
+	for (i = 0; i < cn_nimg; i++)
+		if (cn_imgs[i].dma == sid)
+			break;
+	if (i < cn_nimg) {
+		im = &cn_imgs[i];
+		im->plive = 1;
+		*cid = im->id;
+		if (im->row == row && im->col == col && im->h == h &&
+		    im->w == w && im->z == z && im->pane &&
+		    !strcmp(im->pane, pane))
+			return 1;
+		lg(HIBR_LDBG, "image: stream %u moved to %d,%d %dx%d", sid,
+		   row, col, w, h);
+		cn_imgforget(im);
+		free(im->pane);
+		im->pane = xs(pane);
+		im->row = im->wrow = row;
+		im->col = im->wcol = col;
+		im->h = im->wh = h;
+		im->w = im->ww = w;
+		im->z = z;
+		im->data.n = 0;
+		kt_placep(w, h, im->id, 1, z, &im->data);
+		im->sent = 0;
+		return 1;
+	}
+	j = 0;
+	while (j < cn_nimg) {
+		cn_img *o = &cn_imgs[j];
+
+		if (!o->over && !o->lo && o->row < row + h &&
+		    row < o->row + o->h && o->col < col + w &&
+		    col < o->col + o->w) {
+			lg(HIBR_LDBG, "image: dropped, a stream was placed "
+				      "over it");
+			cn_imgdrop(j);
+			continue;
+		}
+		j++;
+	}
+	if (cn_nimg == cn_imgcap) {
+		size_t nc = cn_imgcap ? cn_imgcap * 2 : 4;
+		cn_img *na = xm(nc * sizeof *na);
+
+		memset(na, 0, nc * sizeof *na);
+		if (cn_nimg)
+			memcpy(na, cn_imgs, cn_nimg * sizeof *na);
+		free(cn_imgs);
+		cn_imgs = na;
+		cn_imgcap = nc;
+	}
+	im = &cn_imgs[cn_nimg++];
+	memset(im, 0, sizeof *im);
+	im->row = im->wrow = row;
+	im->col = im->wcol = col;
+	im->h = im->wh = h;
+	im->w = im->ww = w;
+	im->lo = 1;
+	im->z = z;
+	im->pane = xs(pane);
+	im->plive = 1;
+	im->fd = 1;
+	im->dma = sid;
+	im->id = kt_id();
+	s_init(&im->data);
+	kt_placep(w, h, im->id, 1, z, &im->data);
+	*cid = im->id;
+	lg(HIBR_LDBG, "image: stream %u placed as %u at %d,%d %dx%d", sid,
+	   im->id, row, col, w, h);
+	return 1;
+}
+
+/* The kitty id a stream's picture has now, or 0 when it has none. */
+unsigned cn_imgdmaid(unsigned sid)
+{
+	size_t i;
+
+	for (i = 0; i < cn_nimg; i++)
+		if (cn_imgs[i].dma == sid)
+			return cn_imgs[i].id;
+	return 0;
+}
+
+/* Drop a stream's picture, if it has one. */
+void cn_imgdmadrop(unsigned sid)
+{
+	size_t i;
+
+	for (i = 0; i < cn_nimg; i++)
+		if (cn_imgs[i].dma == sid) {
+			cn_imgdrop(i);
+			return;
+		}
 }
 
 /* Drop every region: the screen is being left, or cleared outright. */
@@ -858,8 +1006,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	sum = cn_hash(&flags, sizeof flags, sum);
 	for (i = 0; i < cn_nimg; i++) {
 		im = &cn_imgs[i];
-		if (im->wrow != wrow || im->wcol != wcol || im->wh != wh ||
-		    im->ww != ww)
+		if (im->dma || im->wrow != wrow || im->wcol != wcol ||
+		    im->wh != wh || im->ww != ww)
 			continue;
 		/* The same rectangle is not the same region when one is the
 		   wallpaper under the text and the other a window's picture:

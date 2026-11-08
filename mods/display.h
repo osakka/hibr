@@ -182,4 +182,57 @@ typedef struct dps_api {
 	int (*scroll)(int row, int col, int h, int w, int n);
 } dps_api;
 
+/* A third, under the name "dpframes" (Gitea #486, Blit ADR 0223): a
+   window's picture whose frames arrive by descriptor from another program
+   -- a dmabuf, or a sealed memfd of RGB -- and are passed on to Blit
+   without the console ever holding a pixel. A stream is a number its
+   caller chooses. Its picture keeps one kitty id and one placement for
+   its whole life, and a move, a resize or a raise places that placement
+   again where it now is, because Blit keys a game's input route by the
+   image: a new id would end the route and let go of every held key.
+
+   can: whether frames by descriptor can go now. 2 with dmabufs, the
+   formats every display imports in fmts and whether every one waits on a
+   fence in *fence; 1 with memfds only; 0 with neither, when the caller has
+   to hand RGB to `image` itself.
+
+   place: from the window's own drawing, every time it draws. The stream's
+   picture stays in this rectangle of the pane, below the cells as any
+   window's picture is, and goes when the pane draws without placing it,
+   as any does. 1 when placed, 0 when it cannot be.
+
+   frame: from the caller's own reading, whenever a frame arrives. h is
+   the producer's header (BF_HDR for a memfd of RGB, BF_HDR3 for a
+   dmabuf), with its own id and sequence; the descriptors stay the
+   caller's. Kept as the stream's newest, and passed on at once under the
+   console's id when the picture is placed. 1 when taken, 0 when frames by
+   descriptor cannot go, which the caller answers as ENOTSUP.
+
+   drop: the stream has ended; its picture goes.
+
+   answers: what each display's Blit says of a stream's frames, handed to
+   fn as "RELEASE <stream> <seq>" or "ERROR <stream> <code>": one RELEASE
+   per frame however many displays showed it.
+
+   hook, unhook: a descriptor the console's own wait services without
+   waking the script, fn being called when it is readable; fn answers 1
+   when the script should wake after all. This is what lets a frame and
+   its RELEASE pass at sixty a second without costing the desktop a frame
+   each. */
+#ifndef DPF_API_VER
+#define DPF_API_VER 1u
+#endif
+
+typedef struct dpf_api {
+	int (*can)(sh *s, str *fmts, int *fence);
+	int (*place)(sh *s, const char *pane, int row, int col, int h, int w,
+		     unsigned sid);
+	int (*frame)(sh *s, unsigned sid, const unsigned char *h, size_t hn,
+		     const int *fds, int n);
+	void (*drop)(sh *s, unsigned sid);
+	void (*answers)(void (*fn)(void *ctx, const char *line), void *ctx);
+	int (*hook)(int fd, int (*fn)(void *ctx, int fd), void *ctx);
+	void (*unhook)(int fd);
+} dpf_api;
+
 #endif

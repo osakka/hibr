@@ -15,6 +15,7 @@ system monitor, and anything else full-screen. Building it once is the point.
 | `../deflate.c`, `../png.c` | the encoder behind that, and the PNG it writes with it -- deflate as RFC 1951 defines it (hash-chain LZ77, dynamic Huffman per block, a stored block when a compressed one would be no smaller) and a PNG of filtered scanlines around it, with nothing linked. `../inftab.c` holds the tables this and `../inflate.c` both read |
 | `image.c` | pictures as regions of the grid the console owns -- placed, kept, dropped when their cells are drawn through, and for the kitty protocol deleted from the terminal when they are (ADR 0037) |
 | `../gfxask.c` | asking the terminal which pictures it draws (the kitty query, then primary device attributes) and reading the answers out of the key stream; shared with hold's client (Gitea #258) |
+| `stream.c` | a window's picture whose frames another program sends (Gitea #486, the `"dpframes"` interface the frames module uses): the stream's newest frame kept as dup'd descriptors, passed on under the picture's own kitty id on the console's frame socket or hold's dmabuf connection, and Blit's RELEASE and ERROR put back in the stream's terms; and the hooks, descriptors the wait services itself without returning to the script |
 | `term.c` | taking and giving back the terminal, and the signals that guarantee it |
 | `grid.c` | the front and back buffers, placement, and the diffing flush |
 | `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste, the kitty keyboard protocol's `CSI u` named as the old form of each key with `super-` in front (Gitea #326); the wait, with the descriptors it watches and the guard that stops waking for a watched pipe nobody reads (Gitea #323) |
@@ -317,6 +318,34 @@ the picture of every window whose place in that order moved. And `console
 clear` takes every picture with it, each deleted on the terminal in the
 same frame (0.99.346): a picture below the cells would otherwise show
 through every cell the clear left at the terminal's own background.
+
+## Pictures another program sends
+
+The `"dpframes"` interface (`DPF_API_VER` 1, `mods/display.h`), offered beside
+`"display"` and `"scroll"`, is a window's picture whose frames arrive by
+descriptor from another program: a game, through Blit's gamescope bridge and
+the frames module's socket (Gitea #486, Blit ADR 0223). A stream's picture
+keeps **one kitty id and one placement (`p=1`) for its whole life**. A move,
+a resize or a raise sends that same placement again where it now is, and Blit
+moves it in place, because Blit keys a game's input route by the image: a new
+id would end the route and let go of every held key. That is the one place a
+picture here is not replaced by a new id when its rectangle changes (RGB
+pictures are, since their pixels are cut to the rectangle). The picture
+follows the pane rule like any window's picture: the pane drawing without
+placing it takes it away, and so does `drop`.
+
+Frames go under the picture's id with the producer's own sequence: on the
+console's frame socket where nothing is between, or on a connection of their
+own to hold's server (`hf_api`'s `open3`) when held. The newest frame's
+descriptors are kept, so a picture that has to be placed again (its pane
+came back) is sent it at once. What comes back is put back in the stream's
+number, one RELEASE a frame.
+
+The wait services **hooks**: descriptors whose function it calls when they
+are readable, carrying on with the time left unless the function asks for the
+script to wake. That is what lets sixty frames a second and their RELEASEs
+pass without the desktop drawing a frame for each. `tests/frames.py` checks
+the program's loop does not turn over while frames flow.
 
 ## Naming
 

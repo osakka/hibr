@@ -1684,6 +1684,9 @@ static const dp_api console_api = {
 };
 
 static const dps_api console_scroll = { cn_vscroll };
+static const dpf_api console_frames = { cn_dcan, cn_dplace, cn_dframe,
+					cn_ddrop, cn_danswers, cn_fdhook,
+					cn_fdunhook };
 
 /* Offer the drawing table to whatever else wants to draw, and beside it the
    scroll hint a terminal window gives -- which nothing autoloads by name,
@@ -1693,8 +1696,11 @@ int cn_ini(sh *s)
 {
 	int r = hibr_provide(s, "display", DP_API_VER, (void *)&console_api);
 
-	if (r == HIBR_OK)
+	if (r == HIBR_OK) {
 		hibr_provide(s, "scroll", DPS_API_VER, (void *)&console_scroll);
+		hibr_provide(s, "dpframes", DPF_API_VER,
+			     (void *)&console_frames);
+	}
 	return r;
 }
 
@@ -1710,6 +1716,7 @@ void cn_fini(sh *s)
 	}
 	s_free(&cn_pend);
 	cn_pendo = 0;
+	hibr_unprovide(s, "dpframes");
 	hibr_unprovide(s, "scroll");
 	hibr_unprovide(s, "display");
 }

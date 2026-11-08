@@ -244,12 +244,42 @@ size_t cn_wlist(int **fds)
 	return cn_wn;
 }
 
+int cn_wait1(int ms);
+
+/* Wait, servicing hooked descriptors (Gitea #486) on the way without
+   returning: a frame or a RELEASE passing through is no reason to wake the
+   script, so the wait carries on with whatever time is left. */
 int cn_wait(int ms)
+{
+	struct timespec t0, t1;
+	long left = ms;
+	int r;
+
+	if (!cn_fdhookn())
+		return cn_wait1(ms);
+	clock_gettime(CLOCK_MONOTONIC, &t0);
+	for (;;) {
+		r = cn_wait1((int)left);
+		if (r != 3)
+			return r;
+		if (ms < 0)
+			continue;
+		clock_gettime(CLOCK_MONOTONIC, &t1);
+		left = ms - ((t1.tv_sec - t0.tv_sec) * 1000L +
+			     (t1.tv_nsec - t0.tv_nsec) / 1000000L);
+		if (left <= 0)
+			return 0;
+	}
+}
+
+/* One wait: as cn_wait, and 3 when only a hook was readable and none of
+   them asked for the script to wake. */
+int cn_wait1(int ms)
 {
 	fd_set r;
 	struct timespec ts;
 	sigset_t blk, old;
-	int k, mx, i, e;
+	int k, mx, i, e, w;
 
 	sigemptyset(&blk);
 	sigaddset(&blk, SIGWINCH);
@@ -272,6 +302,7 @@ int cn_wait(int ms)
 		if (cn_wfd[i] > mx)
 			mx = cn_wfd[i];
 	}
+	mx = cn_fdhookset(&r, mx);
 	ts.tv_sec = ms / 1000;
 	ts.tv_nsec = (long)(ms % 1000) * 1000000L;
 	k = pselect(mx + 1, &r, 0, 0, ms < 0 ? 0 : &ts, &old);
@@ -279,12 +310,21 @@ int cn_wait(int ms)
 	cn_wseen = cn_wgen;
 	sigprocmask(SIG_SETMASK, &old, 0);
 	errno = e;
-	if (k > 0)
-		return FD_ISSET(cn_fd, &r) ? 1 : 2;
+	if (k > 0) {
+		w = cn_fdhookrun(&r);
+		if (FD_ISSET(cn_fd, &r))
+			return 1;
+		for (i = 0; !cn_quiet && i < (int)cn_wn; i++)
+			if (!cn_ws[i].mute && FD_ISSET(cn_wfd[i], &r))
+				return 2;
+		return w ? 2 : 3;
+	}
 	if (k == 0)
 		return 0;
-	if (errno == EBADF)
-		return cn_watchprune() ? 0 : -1;
+	if (errno == EBADF) {
+		e = cn_fdhookprune();
+		return (cn_watchprune() || e) ? 0 : -1;
+	}
 	if (errno == EINTR) {
 		lg(HIBR_LDBG, "console: wait interrupted, probably a resize");
 		return 0;

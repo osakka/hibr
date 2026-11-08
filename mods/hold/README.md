@@ -435,7 +435,11 @@ frame until every display it went to has released it, and only then tells
 the producer `RELEASE <id> <seq>`, once. An `ERROR` goes straight back,
 `ENOTSUP` from a display that cannot import among them, and the producer
 then sends memfds for the rest of that connection. Nothing in hold maps a
-descriptor or reads a pixel. Since a
+descriptor or reads a pixel. A picture placed by descriptor counts its
+position in what a display already has: a stream's picture keeps its id and
+placement when its window moves (Gitea #486), so its bytes stay the same and
+only the cell differs, and without the position a moved game picture was
+never placed again on a held display. Since a
 module's descriptor names only one interface, `"holdframes"` cannot be
 found before hold is loaded, so the console asks for `"hold"` first.
 

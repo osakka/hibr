@@ -793,7 +793,10 @@ int arc_extract(sh *s, arcf *a, const char *dest, const char *path)
 		const char *r = arc_landing(m->name, want.p ? want.p : "", want.n);
 		struct stat t;
 
-		if (!r)
+		/* A folder whose name is nothing is the archive's own root --
+		   `./` as `tar c .` writes it, tidied when indexed -- which is
+		   DEST itself and has nothing to write (Gitea #487). */
+		if (!r || (!*r && m->kind == 'd'))
 			continue;
 		if (!arc_safe(r)) {
 			lg(HIBR_LERR, "archive extract: %s would land outside %s, so nothing was written", m->name, dest);
@@ -834,7 +837,8 @@ int arc_extract(sh *s, arcf *a, const char *dest, const char *path)
 			arcm *m = a->mem.p[i];
 			const char *r = arc_landing(m->name, want.p ? want.p : "", want.n);
 
-			if (!r || (pass == 0) == (m->kind == 'l'))
+			if (!r || (!*r && m->kind == 'd') ||
+			    (pass == 0) == (m->kind == 'l'))
 				continue;
 			if (!arc_mkparents(dfd, r)) {
 				lg(HIBR_LERR, "archive extract: cannot make the folders above %s", r);

@@ -96,6 +96,10 @@ extern void (*bf_answer)(const char *line);
    went, or was dropped on a full socket. */
 int bf_send3(int fd, const unsigned char *h, const int *fds, int n);
 
+/* A 32-bit number into four bytes, little-endian, as every field of the
+   wire is. */
+void bf_put32(unsigned char *p, unsigned long v);
+
 /* A sealed memfd holding n bytes, or -1. */
 int bf_memfd(const unsigned char *p, size_t n);
 

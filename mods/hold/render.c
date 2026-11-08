@@ -754,6 +754,14 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				continue;
 			id = hd_imgid(pic.p, pic.n);
 			h = hd_hash(pic.p, pic.n);
+			/* A placement by descriptor that moves sends the same
+			   bytes at another cell (Gitea #486, a stream keeps its
+			   image and placement for life), so where it is is part
+			   of what a display already has. Never edited, so the
+			   prefix checks below lose nothing by it. */
+			if (id && pic.n > 5 && !memcmp(pic.p, "\033_Ga=p", 6))
+				h ^= (unsigned)ir * 2654435761u ^
+				     (unsigned)ic * 40503u;
 			base = id ? hd_imgbase(pic.p, pic.n) : pic.n;
 			from = 0;
 			if (id && !clear)
@@ -779,9 +787,10 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			/* A picture placed by descriptor: its pixels go to the
 			   display's client first, on hold's own socket, so Blit
 			   has them when the placement arrives. */
-			if (id && pic.n > 5 && !memcmp(pic.p, "\033_Ga=p", 6))
+			if (id && pic.n > 5 && !memcmp(pic.p, "\033_Ga=p", 6)) {
 				hd_frmsend(cn, id);
 				hd_f3send(cn, id);
+			}
 			if (id) {
 				nid[nn] = id;
 				nhash[nn] = h;

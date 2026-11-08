@@ -74,6 +74,8 @@ python3 tests/pdfapp.py     the pdf module and the PDF Reader
 python3 tests/sixel.py      pictures as sixel, the console's image regions
 python3 tests/kitgfx.py     pictures in the kitty graphics protocol
 python3 tests/holdpix.py    pictures, pixels and pointers through hold
+python3 tests/dmabuf.py     frames by dmabuf through hold's server
+python3 tests/frames.py     a program's frames through the frames module's socket
 python3 tests/shots.py      tools/screenshot.py's grid and pictures
 ```
 

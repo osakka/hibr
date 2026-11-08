@@ -258,6 +258,21 @@ for name, entries, why in (
     check("an archive whose %s refuses the whole of it, nothing written anywhere"
           % entries[1][0], rc != 0 and why in err and os.listdir(inner) == [] and
           os.listdir(box) == ["inner"], (out, err, os.listdir(inner)))
+dot = os.path.join(D, "dot.tar")
+t = tarfile.open(dot, "w", format=tarfile.GNU_FORMAT)
+i = tarfile.TarInfo("./")
+i.type = tarfile.DIRTYPE
+t.addfile(i)
+b = b"dot"
+i = tarfile.TarInfo("./in.txt")
+i.size = len(b)
+t.addfile(i, io.BytesIO(b))
+t.close()
+box = os.path.join(D, "box-dot")
+os.makedirs(box)
+out, err, rc = hb("archive open a %s\narchive extract a %s" % (dot, box))
+check("a ./ root entry, as tar c . writes it, is the folder itself (Gitea #487)",
+      rc == 0 and os.listdir(box) == ["in.txt"], (out, err, os.listdir(box)))
 box = os.path.join(D, "box-abs")
 os.makedirs(box)
 out, err, rc = hb("archive open a %s\narchive extract a %s" % (
@@ -279,4 +294,4 @@ check("an archive written into the folder it holds leaves itself out",
       (out, err))
 
 shutil.rmtree(D, True)
-report(34)
+report(35)
