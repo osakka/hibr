@@ -1271,6 +1271,15 @@ check("and a window without the focus is the plain bar, its title dim, no boxes"
       "S:close" not in back and back.count("S:title") > 10 and
       back[0] == "S:title-end-plain-left" and back[-1] == "S:title-end-plain-right" and
       ";51:2;" in sc.p[5][30 + back.index("B")], back)
+# The menu bar's shadow falls on the desktop, never on a window touching
+# the bar: an Embossed title bar went dark and its boxes black when zoomed,
+# since a zoomed window's title bar is on the shadow's row (0.99.480).
+sc, _ = run('dt_new Notes 6 24 1 4\n', pre=SLATE)
+nosh, _ = run('dt_new Notes 6 24 1 4\n', pre=SLATE + "DT_BARSHADOW=0\n")
+check("a window on the row under the menu bar keeps its own colours, and "
+      "the bar's shadow still falls on the desktop beside it",
+      sc.p[1][6:26] == nosh.p[1][6:26] and sc.p[1][60] != nosh.p[1][60],
+      (sc.p[1][6], nosh.p[1][6], sc.p[1][60], nosh.p[1][60]))
 sc, _ = run('dt_new Notes 6 24 2 2\n', [press(2, 4), release(2, 4)], pre=CHALK)
 check("a press on Chalk's close box closes the window",
       sc.find("Notes") is None, sc)
@@ -9457,4 +9466,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1032)
+report(1033)

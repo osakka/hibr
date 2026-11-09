@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.99.480
+
+**A window touching the menu bar keeps its own colours.** The bar casts its
+shadow across the whole row below it, and a zoomed window's title bar is on
+exactly that row -- so an Embossed title bar went dark the moment its window
+was zoomed, its boxes nearly black. The shadow is cast behind the windows
+now, as the wallpaper is painted: it falls on the desktop beside a window
+and never on the window itself.
+
 ## 0.99.479
 
 **A held pointer goes to the display showing the window** -- the fix for

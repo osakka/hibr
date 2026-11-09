@@ -762,8 +762,13 @@ dt_bar() {
 	# each time. Pairing it to "a frame that painted the wallpaper"
 	# instead made this very strip pulse once a second.
 	# Across the whole width, so with no offset; Half Block makes it half
-	# a row (Gitea #340).
+	# a row (Gitea #340). Cast behind the windows: a window touching the
+	# bar -- a zoomed one's title bar is on exactly that row -- is not the
+	# desktop the bar stands on, and its own colours stay its own (an
+	# Embossed title bar went dark, its boxes black, the moment it was
+	# zoomed, 0.99.480).
 	if [ "$DT_BARSHADOW" = 1 ]; then
+		console behind on
 		if dt_shadowattr; then
 			console shadow $((DT_PRIMARY_ROW + 1)) "$DT_PRIMARY_COL" 1 "$w" 3 1 0 "$DT_SHADOWINK"
 		elif [ "$DT_SHADOWSHAPE" = thin ] && [ "$DT_GLYPHSET" != ascii ]; then
@@ -776,6 +781,7 @@ dt_bar() {
 			console darken -s $((DT_PRIMARY_ROW + 1)) "$DT_PRIMARY_COL" \
 				1 "$w" "$DT_SHADOW_PCT"
 		fi
+		console behind off
 	fi
 	# The items whose text follows the desktop's own state bring it up to
 	# date first -- the clock's minute is part of the key through
