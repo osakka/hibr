@@ -67,7 +67,7 @@ def held(pid):
                for m in ("pty.so", "term.so", "hold.so"))
 
 
-ph, lg0, e0 = blit("r0")
+ph, lg0, e0 = blit("r0", "v3", "hold")
 ph2, lg1, e1 = blit("r1")
 out = os.path.join(D, "r")
 nm = "hrn-%d" % os.getpid()
@@ -148,6 +148,9 @@ if br:
     br.answers(1.0)
     open(out + ".on", "w").close()
     wait(lambda: len([x for x in routes(lg0) if x.get("verb") == "on"]), 5)
+    open(out + ".hold", "w").close()
+    wait(lambda: [x for x in lines(lg0) if x["kind"] == "hold"], 5)
+h0n = len([x for x in lines(lg0) if x["kind"] == "hold"])
 r0 = len(routes(lg0))
 seq0 = max([x["seq"] for x in frames(lg0)] or [0])
 nf0 = len(frames(lg0))
@@ -202,6 +205,11 @@ if br:
     check("the game's input route is set up again at the renewed display's "
           "Blit, on as it was", rep and {x["verb"] for x in rep} >= {"eis", "on"},
           (r0, [x for x in lines(lg0) if x["kind"] != "frame3"][-12:]))
+    hrep = wait(lambda: [x for x in lines(lg0) if x["kind"] == "hold"][h0n:], 5)
+    check("and its hold is said again with it, still confined, so a held "
+          "pointer stays shown across an upgrade",
+          h0n >= 1 and hrep and hrep[-1].get("mode") == "confine",
+          (h0n, [x for x in lines(lg0) if x["kind"] == "hold"]))
     late = [x for x in frames(lg0)[nf0:]]
     check("frames go on reaching the renewed display's Blit, numbered on "
           "from before -- the console numbers them, not the client -- so "
@@ -234,4 +242,4 @@ for p in (ph, ph2):
     p.terminate()
     p.wait()
 shutil.rmtree(D, True)
-report(15)
+report(16)

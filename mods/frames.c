@@ -12,6 +12,7 @@
  *   frames place N PANE ROW COL H W
  *                              from the window's drawing: its picture here
  *   frames input N on|off      from the window: whether it has the keys
+ *   frames input N hold confine|relative   how a held pointer behaves (Blit 0.3.70)
  *   frames info N              what has passed, one line of key=value
  *   frames stop N              the socket closed and the picture gone
  *   frames list                every socket, "N SOCKET" a line
@@ -587,8 +588,13 @@ int m_frames(sh *s, int ac, char **av)
 		return ok ? HIBR_OK : HIBR_FAIL;
 	}
 	if (!strcmp(av[1], "input")) {
+		if (ac == 5 && !strcmp(av[3], "hold") &&
+		    (!strcmp(av[4], "confine") || !strcmp(av[4], "relative"))) {
+			s_free(&o);
+			return fl_dpf->input(s, f->n, "hold", av[4]) ? HIBR_OK : HIBR_FAIL;
+		}
 		if (ac < 4 || (strcmp(av[3], "on") && strcmp(av[3], "off"))) {
-			lg(HIBR_LERR, "usage: frames input N on|off");
+			lg(HIBR_LERR, "usage: frames input N on|off|hold confine|relative");
 			s_free(&o);
 			return 2;
 		}

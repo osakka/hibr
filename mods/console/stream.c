@@ -50,6 +50,7 @@ typedef struct cn_dst {
 	   no display will ever hold it to let go of. */
 	int sent;
 	int ion;
+	int hold, ihold;
 } cn_dst;
 
 /* Which stream a kitty id belonged to, kept after the picture has gone,
@@ -293,6 +294,7 @@ int cn_d3read(void *ctx, int fd)
 			for (i = 0; i < cn_ndst; i++) {
 				cn_dsts[i].icid = 0;
 				cn_dsts[i].ion = 0;
+				cn_dsts[i].ihold = 0;
 			}
 			cn_imgdmaresend();
 			s_free(&o);
@@ -515,6 +517,7 @@ void cn_dinsync(sh *s, struct cn_dst *d)
 		}
 		d->icid = d->cid;
 		d->ion = 0;
+		d->ihold = 0;
 	}
 	if (d->ion != d->on) {
 		o.n = 0;
@@ -523,12 +526,21 @@ void cn_dinsync(sh *s, struct cn_dst *d)
 		if (cn_dsay(s, o.p))
 			d->ion = d->on;
 	}
+	if (d->hold && d->ihold != d->hold) {
+		o.n = 0;
+		s_cat(&o, "INPUT hold ");
+		s_num(&o, (long)d->cid);
+		s_cat(&o, d->hold == 2 ? " confine" : " relative");
+		if (cn_dsay(s, o.p))
+			d->ihold = d->hold;
+	}
 	s_free(&o);
 }
 
 /* A stream's input route: "eis" with the socket the producer offers, "on"
-   or "off" as its window gains and loses the keys. 1 when kept; it reaches
-   Blit as soon as a frame of the stream has. */
+   or "off" as its window gains and loses the keys, "hold" with confine or
+   relative for how a held pointer behaves (Blit 0.3.70). 1 when kept; it
+   reaches Blit as soon as a frame of the stream has. */
 int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path)
 {
 	cn_dst *d = cn_dget(sid, 1);
@@ -541,6 +553,9 @@ int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path)
 		d->on = 1;
 	} else if (!strcmp(verb, "off")) {
 		d->on = 0;
+	} else if (!strcmp(verb, "hold") && path &&
+		   (!strcmp(path, "confine") || !strcmp(path, "relative"))) {
+		d->hold = !strcmp(path, "confine") ? 2 : 1;
 	} else {
 		return 0;
 	}

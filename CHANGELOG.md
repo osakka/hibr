@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.478
+
+**Steam holds the mouse on a click again, and the pointer stays shown**
+(Screens 0.7.2, with Blit 0.3.70). Blit now holds the pointer one of two
+ways, asked per picture: **confine**, its pointer kept shown and inside the
+picture with the program told exactly where it is, and **relative**, the
+pointer hidden and only motion sent, for mouse-look. Steam holds on a click,
+confined, so Big Picture keeps a pointer that is where Steam thinks it is;
+Release Pointer lets go as always. A program's dialog in Control Panel >
+Screens says which it is (Hold As), and the Program menu changes it for the
+window: Hold Mouse, Hold with the Pointer Shown, Hold for Mouse-look. On a
+Blit older than 0.3.70 every hold is relative, with no pointer, as before.
+
+Underneath, `frames input N hold confine|relative` is the frames module's
+new verb; the console says it to Blit beside the route's `eis` and `on`, and
+says it again whenever the route is set up afresh, and `hold` remembers it
+for every display and tells each again when it reconnects -- so a held
+pointer stays shown across `hold upgrade`. `tests/screens_wl.py`,
+`tests/holdrenew.py`.
+
 ## 0.99.477
 
 **Steam's pointer stays visible; Hold Mouse is a choice** (Screens 0.7.1).

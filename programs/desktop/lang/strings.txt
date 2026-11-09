@@ -596,7 +596,10 @@ Hijri
 History
 History Size
 History cleared
+Hold As:
 Hold Mouse
+Hold for Mouse-look
+Hold with the Pointer Shown
 Home
 Home Page
 Home page, opened by a new window or tab:
@@ -757,6 +760,7 @@ Mon
 Monday
 Month
 Mouse
+Mouse-look: no pointer, only motion.
 Mouse: %s
 Move
 Move to Display
@@ -1293,6 +1297,7 @@ The password of %s, for %s
 The password was not accepted
 The pdf module is not installed
 The picture for %s did not download: %s
+The pointer shown, kept inside the picture.
 The record could not be added
 The remote file cache is empty
 The screen -- Default is Control Panel > Screens > Defaults:

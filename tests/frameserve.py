@@ -40,6 +40,10 @@ OLD = len(sys.argv) > 4 and sys.argv[4] == "v1"
 # comes, then released. LOG.hold makes it hold on to everything.
 V3 = len(sys.argv) > 4 and sys.argv[4] in ("v3", "nodma")
 NODMA = len(sys.argv) > 4 and sys.argv[4] == "nodma"
+# A fifth word, hold, is Blit 0.3.70, which takes `INPUT hold ID confine|
+# relative`; without it the line is refused as an older Blit refuses it,
+# ERROR INPUT 0 EINVAL, since that Blit reads the id from its last word.
+HOLD = len(sys.argv) > 5 and sys.argv[5] == "hold"
 F_GET_SEALS = 1034
 SEALS = 0x0002 | 0x0004 | 0x0008
 
@@ -148,6 +152,13 @@ def inputline(conn, held, routes, data, fds):
             why = "EBUSY"
         else:
             routes[conn][iid] = "off"
+    elif len(w) == 4 and w[1] == "hold" and HOLD and w[2].isdigit() and \
+            w[3] in ("confine", "relative"):
+        iid = int(w[2])
+        if iid not in routes.get(conn, {}):
+            why = "ENOENT"
+        else:
+            note(kind="hold", id=iid, mode=w[3])
     elif len(w) == 3 and w[1] in ("on", "off"):
         if iid not in routes.get(conn, {}):
             why = "ENOENT"

@@ -14,10 +14,13 @@
 #
 # Steam is on the list by itself wherever `steam` is installed: Big Picture
 # on Wayland Screen with Steam's integration, every key to it, and the
-# pointer left free, seamless and visible. Program > Hold Mouse holds it
-# for a game that wants mouse-look, until Release Pointer -- while held no
-# pointer shows, since gamescope's picture carries none and Blit hides its
-# own. Changed in the pane, it is kept as any other program is.
+# pointer held on a click, confined: Blit keeps its pointer shown and inside
+# the picture and sends gamescope where it is, since gamescope's picture
+# carries no pointer of its own (Blit 0.3.70). A program's hold is confined
+# or relative -- mouse-look, the pointer hidden and only motion sent -- in
+# its dialog and on the Program menu; Release Pointer always lets go. On an
+# older Blit a hold is relative whatever it asks for. Changed in the pane,
+# Steam's row is kept as any other program is.
 #
 # X Screen runs Firefox, GTK and Qt programs, and anything else that speaks
 # X11. Each window starts an Xvfb of its own, a virtual X server that draws
@@ -76,7 +79,7 @@
 strict
 
 
-app screens "Programs in windows of their own, on X Screen or Wayland Screen" 0.7.1
+app screens "Programs in windows of their own, on X Screen or Wayland Screen" 0.7.2
 # modules: xscr
 # part: control-panel/screensset.hibr
 command -v dt_app > /dev/null &&
@@ -197,7 +200,8 @@ scn_read() {
 # Steam's row, last, where steam is installed and no program is already
 # Steam -- called so, or running what this row runs, so the row changed and
 # renamed in the pane does not bring it back beside itself: Wayland Screen
-# with Steam's integration, every key to it, and the pointer free.
+# with Steam's integration, every key to it, and the pointer held on a
+# click, confined.
 scn_steamrow() {
 	local i
 
@@ -211,7 +215,7 @@ scn_steamrow() {
 	SCNP_WIN+=(fit)
 	SCNP_PIC+=(follow)
 	SCNP_END+=(default)
-	SCNP_OPT+=("engine=wayland;steam=1;keys=1;rel=0")
+	SCNP_OPT+=("engine=wayland;steam=1;keys=1;rel=1;holdas=confine")
 	SCNP_EXTRA+=("")
 	SCNP_VIRT+=(1)
 	return 0
@@ -416,6 +420,9 @@ fn scn_wopen(int id, int k) {
 	SCN[$id]["sock"]=$sock
 	SCN[$id]["tok"]=$tok
 	[ "${SCN[$id]["keys"]}" = 1 ] && dt_keysall "$id" on
+	v := scn_popt "$k" holdas
+	[ "$v" = confine ] || v=relative
+	scn_holdas "$id" "$v"
 	return 0
 }
 
@@ -683,6 +690,26 @@ fn scn_whold(int id) {
 	dt_has dt_pointerlock && dt_pointerlock "$id" on || return 1
 	dt_notep low "%s has the mouse: %s lets go" "${SCN[$id]["name"]}" \
 		"${DT_KEYS["ptrrelease"]-ctrl-f10}"
+	return 0
+}
+
+# How a window's hold takes the pointer: confine, Blit's pointer shown and
+# kept inside the picture, or relative, hidden and only motion sent. Told
+# to the route now, and kept by it for every display and reconnection.
+fn scn_holdas(int id, how) {
+	SCN[$id]["holdas"]=$how
+	[ -n "${SCN[$id]["fn"]}" ] &&
+		frames input "${SCN[$id]["fn"]}" hold "$how" 2> /dev/null
+	return 0
+}
+
+# The Program menu's two ways to hold, for the focused window.
+scn_holdconfine() {
+	[ -n "$DT_FOCUS" ] && scn_holdas "$DT_FOCUS" confine
+	return 0
+}
+scn_holdrelative() {
+	[ -n "$DT_FOCUS" ] && scn_holdas "$DT_FOCUS" relative
 	return 0
 }
 
@@ -1279,4 +1306,11 @@ screens_menus() {
 	on=0
 	[ "${DT_PTRLOCK-}" = "$id" ] && on=1
 	dt_mark "Hold Mouse" h "$on" scn_holdtoggle
+	dt_sep
+	on=0
+	[ "${SCN[$id]["holdas"]-}" = confine ] && on=1
+	dt_mark "Hold with the Pointer Shown" s "$on" scn_holdconfine
+	on=0
+	[ "${SCN[$id]["holdas"]-}" = confine ] || on=1
+	dt_mark "Hold for Mouse-look" l "$on" scn_holdrelative
 }

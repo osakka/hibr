@@ -280,6 +280,7 @@ static struct hd_in {
 	int prod;
 	str eis;
 	int on;
+	int hold;
 } *hd_ins;
 static size_t hd_nin;
 
@@ -523,6 +524,8 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	int sent = 0;
 	str o;
 
+	if (n > 11 && !memcmp(line, "INPUT hold ", 11))
+		id = strtoul(line + 11, 0, 10);
 	if (!id || n < 9 || memcmp(line, "INPUT ", 6))
 		return;
 	/* A producer's own line comes after any replay, so whatever a
@@ -547,6 +550,8 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 		hd_ins[i].on = 1;
 	} else if (n > 10 && !memcmp(line, "INPUT off ", 10)) {
 		hd_ins[i].on = 0;
+	} else if (n > 11 && !memcmp(line, "INPUT hold ", 11)) {
+		hd_ins[i].hold = n >= 7 && !memcmp(line + n - 7, "confine", 7) ? 2 : 1;
 	}
 	for (i = 0; i < cls->n; i++) {
 		struct hd_cli *cn = cls->p[i];
@@ -585,6 +590,16 @@ void hd_inreplay(struct hd_cli *cn)
 		o.n = 0;
 		s_cat(&o, "INPUT on ");
 		s_num(&o, (long)hd_ins[i].id);
+		if (hd_send(cn->fd, HD_INPUT, o.p, o.n))
+			cn->inrep++;
+	}
+	for (i = 0; i < hd_nin; i++) {
+		if (!hd_ins[i].eis.n || !hd_ins[i].hold)
+			continue;
+		o.n = 0;
+		s_cat(&o, "INPUT hold ");
+		s_num(&o, (long)hd_ins[i].id);
+		s_cat(&o, hd_ins[i].hold == 2 ? " confine" : " relative");
 		if (hd_send(cn->fd, HD_INPUT, o.p, o.n))
 			cn->inrep++;
 	}

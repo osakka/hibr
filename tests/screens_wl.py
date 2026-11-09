@@ -42,7 +42,7 @@ nm = "hibr-stw-%d" % os.getpid()
 blitlog = os.path.join(D, "blit.log")
 open(blitlog, "w").close()
 blit = subprocess.Popen([sys.executable, os.path.join(HERE, "frameserve.py"),
-                         nm, "tok", blitlog, "v3"])
+                         nm, "tok", blitlog, "v3", "hold"])
 wait(lambda: "listening" in open(blitlog).read())
 brlog = os.path.join(D, "bridge.log")
 wrap = os.path.join(D, "blit-gamescope")
@@ -194,22 +194,35 @@ back = wait(lambda: len(blitkind("input", verb="on")) > ons)
 check("and closing it turns the route back on", back,
       [x for x in lines(blitlog) if x["kind"] == "input"])
 
-# A click leaves the pointer free and visible: Steam's row does not hold
-# it, since gamescope's picture carries no pointer and Blit hides its own
-# while held. Program > Hold Mouse holds it for a game that wants it.
+# Steam's route is told its hold confines the pointer -- shown, inside the
+# picture -- so a click can hold it without Big Picture losing its pointer.
+check("Steam's input route is told a hold keeps the pointer shown and inside "
+      "the picture", wait(lambda: blitkind("hold", id=cid, mode="confine")),
+      [x for x in lines(blitlog) if x["kind"] in ("input", "hold")])
 t.keys([press(10, 40), release(10, 40)])
 t.collect(0.4)
-check("a click in Steam's window leaves the pointer free",
-      b"\x1b[?7701h" not in t.out, t.out[-200:])
+check("and a click in Steam's window holds the pointer, saying which key "
+      "lets go", b"\x1b[?7701h" in t.out and
+      t.screen().find("has the mouse") is not None, (t.out[-200:], t.screen()))
+t.keys([b"\x1b[21;5~"])
+t.collect(0.3)
+m = t.screen().find("Program")
+t.keys([press(*m), release(*m)] if m and m[0] == 0 else [])
+t.collect(0.4)
+k = t.screen().find("Hold for Mouse-look")
+t.keys([press(*k), release(*k)] if k else [])
+check("Program > Hold for Mouse-look tells the route a hold is relative",
+      wait(lambda: blitkind("hold", id=cid, mode="relative")),
+      [x for x in lines(blitlog) if x["kind"] == "hold"])
 m = t.screen().find("Program")
 t.keys([press(*m), release(*m)] if m and m[0] == 0 else [])
 t.collect(0.4)
 k = t.screen().find("Hold Mouse")
+c0 = len(t.out)
 t.keys([press(*k), release(*k)] if k else [])
 t.collect(0.6)
-check("and Program > Hold Mouse holds it for the game, saying which key "
-      "lets go", b"\x1b[?7701h" in t.out and
-      t.screen().find("has the mouse") is not None, (t.out[-200:], t.screen()))
+check("and Program > Hold Mouse holds it there and then",
+      b"\x1b[?7701h" in t.out[c0:], (t.out[c0:][-200:], t.screen()))
 t.keys([b"\x1b[21;5~"])
 t.collect(0.3)
 
@@ -310,8 +323,8 @@ out, err = hb(
     % (LIST, LIST))
 check("where Steam is installed it is on the list after X Screen's own "
       "programs, on Wayland Screen with Steam's integration, every key and "
-      "the pointer free, and the pane gives it no Delete",
-      "names=Old Steam|0 1|engine=wayland;steam=1;keys=1;rel=0" in out and
+      "the pointer held on a click, confined, and the pane gives it no Delete",
+      "names=Old Steam|0 1|engine=wayland;steam=1;keys=1;rel=1;holdas=confine" in out and
       "|Old=del0:Delete|Steam=|" in out, out + err)
 check("the pane says where the bridge is", "|Bridge=|" in out and
       "Wayland Screen=|Bridge=|X Screen=|" in out, out + err)
@@ -335,9 +348,9 @@ out, err = hb(
     'scnf_bridge && echo bridge=yes || echo bridge=no\n')
 check("a Wayland Screen program's dialog has only its own rows: no window, "
       "picture, Xvfb or size, and a built-in row no Delete",
-      "word=name cmd o_steam end eng o_keys o_rel ok cancel" in out and
+      "word=name cmd o_steam end eng o_keys o_rel o_holdas ok cancel" in out and
       "xord=name cmd win pic end eng o_fps" in out and
-      "virt=name cmd o_steam end eng o_keys o_rel ok cancel" in out, out + err)
+      "virt=name cmd o_steam end eng o_keys o_rel o_holdas ok cancel" in out, out + err)
 check("its engine is kept as one more option, and an X Screen program's "
       "line says nothing of an engine, as every line X Screen wrote",
       "opts=engine=wayland;rel=1" in out and "xopts=rel=1" in out, out + err)
@@ -348,4 +361,4 @@ check("a new program is on Wayland Screen where the bridge is installed, "
       "bridge=yes" in out and "bridge=no" in o2, (out, o2, err, e2))
 shutil.rmtree(D, True)
 api.shutdown()
-report(31)
+report(33)

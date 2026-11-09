@@ -23,7 +23,7 @@
 
 strict
 
-app screensset "The Control Panel pane for Screens" 0.7.1
+app screensset "The Control Panel pane for Screens" 0.7.2
 command -v cp_pane > /dev/null && cp_pane screensset "Screens" "▣" app
 command -v dt_app > /dev/null &&
 	dt_app scnfield "Program" 26 70 "" "" fixed hidden
@@ -65,6 +65,7 @@ SCNS_PICS=(follow half pixels)
 SCNS_ENDS=(default close keep)
 SCNS_ENGS=("X Screen" "Wayland Screen")
 SCNS_ONOFF=(on off)
+SCNS_HOLDAS=(confine relative)
 SCNS_FPSS=(follow 5 10 14 20 30 60)
 SCNS_BGS=(default black white grey desktop)
 SCNS_DPIS=(default 72 96 120 144 192)
@@ -78,7 +79,7 @@ SCNS_EXTLABEL=([xinerama]=XINERAMA [render]=RENDER [composite]=Composite
 SCNS_EXTVAR=([xinerama]=XS_XINERAMA [render]=XS_RENDER [composite]=XS_COMPOSITE
 	[dbe]=XS_DBE [xvideo]=XS_XVIDEO [glx]=XS_GLX)
 # The keys a program's dialog sets, in the order its rows are drawn.
-SCNS_OKEYS=(fps size bg dpi cursor noreset keys rel ownptr xinerama render composite dbe xvideo glx steam)
+SCNS_OKEYS=(fps size bg dpi cursor noreset keys rel ownptr xinerama render composite dbe xvideo glx steam holdas)
 declare -gA SCNF
 
 fn cp_set_scnsize(int? id = "", value = "") { XS_SIZE=$value; cp_save; }
@@ -223,6 +224,7 @@ fn scns_dialog(int k) {
 	SCNF[$rid]["extra"]=
 	[ "$k" -ge 0 ] && SCNF[$rid]["extra"]=${SCNP_EXTRA[$k]}
 	[ "${SCNF[$rid]["o_steam"]}" = on ] || SCNF[$rid]["o_steam"]=off
+	[ "${SCNF[$rid]["o_holdas"]}" = confine ] || SCNF[$rid]["o_holdas"]=relative
 	SCNF[$rid]["virt"]=0
 	if [ "$k" -ge 0 ]; then
 		SCNF[$rid]["virt"]=${SCNP_VIRT[$k]:-0}
@@ -258,7 +260,7 @@ fn scnf_order(int id) {
 	local o
 
 	if [ "${SCNF[$id]["eng"]}" = "Wayland Screen" ]; then
-		o="name cmd o_steam end eng o_keys o_rel"
+		o="name cmd o_steam end eng o_keys o_rel o_holdas"
 	else
 		o="name cmd win pic end eng o_fps o_size o_bg o_dpi o_cursor o_noreset"
 		o="$o o_keys o_rel o_ownptr o_xinerama o_render o_composite o_dbe o_xvideo o_glx extra smooth light"
@@ -325,6 +327,13 @@ fn scnf_wdraw(int id, int h, int w, f) {
 	dt_tput "$id" 10 2 "How it is reached -- Default is Control Panel > Screens > Defaults:"
 	scnf_drop "$id" 11 2 "Every Key:" 9 o_keys "$f"
 	scnf_drop "$id" 11 30 "Capture on Click:" 9 o_rel "$f"
+	scnf_drop "$id" 12 2 "Hold As:" 9 o_holdas "$f"
+	console pen "$DT_DIM" "$DT_FACE"
+	if [ "${SCNF[$id]["o_holdas"]}" = confine ]; then
+		dt_tput "$id" 12 24 "The pointer shown, kept inside the picture."
+	else
+		dt_tput "$id" 12 24 "Mouse-look: no pointer, only motion."
+	fi
 	console pen "$DT_DIM" "$DT_FACE"
 	dt_tput "$id" 13 2 "Its size is the window's, and its refresh rate the display's."
 	if dt_has scn_wlog; then
@@ -427,6 +436,7 @@ fn scnf_choices(field) {
 	end) SCNF_LIST=("${SCNS_ENDS[@]}") ;;
 	eng) SCNF_LIST=("${SCNS_ENGS[@]}") ;;
 	o_steam) SCNF_LIST=("${SCNS_ONOFF[@]}") ;;
+	o_holdas) SCNF_LIST=("${SCNS_HOLDAS[@]}") ;;
 	o_fps) SCNF_LIST=(default "${SCNS_FPSS[@]}") ;;
 	o_size) SCNF_LIST=(default "${SCNS_SIZES[@]}") ;;
 	o_bg) SCNF_LIST=("${SCNS_BGS[@]}") ;;

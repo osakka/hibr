@@ -18,11 +18,11 @@ FRAMESRV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frameserve.
 SLOW = 4 if "ASAN_OPTIONS" in os.environ else 1
 
 
-def blit(tag, mode="v3"):
+def blit(tag, mode="v3", *more):
     nm = "hibr-frames-%s-%d" % (tag, os.getpid())
     lg = os.path.join(D, "fs-%s.log" % tag)
     open(lg, "w").close()
-    p = subprocess.Popen([sys.executable, FRAMESRV, nm, "tok", lg, mode])
+    p = subprocess.Popen([sys.executable, FRAMESRV, nm, "tok", lg, mode] + list(more))
     for _ in range(50):
         if "listening" in open(lg).read():
             break
@@ -109,6 +109,7 @@ def prog(out):
         "  console put -p w1 0 0 WINDOW\n"
         "  [ -f %(o)s.hide ] || frames place $n w1 1 1 6 20\n"
         "  if [ -f %(o)s.on ] && [ \"$on\" != 1 ]; then frames input $n on; on=1; fi\n"
+        "  if [ -f %(o)s.hold ] && [ \"$hd\" != 1 ]; then frames input $n hold confine; hd=1; fi\n"
         "  console flush\n"
         "  i=$((i + 1))\n"
         "  y := frames info $n\n"

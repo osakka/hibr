@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.90",
+ "version": "3.91",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1684,6 +1684,11 @@
   "Wayland Screen": "شاشة Wayland",
   "Wayland Screen needs Blit's gamescope bridge: install the blit-gamescope package": "تحتاج شاشة Wayland إلى جسر gamescope الخاص بـ Blit: ثبّت الحزمة blit-gamescope",
   "%s has the mouse: %s lets go": "%s يمسك الفأرة: %s يحرّرها",
-  "Hold Mouse": "إمساك الفأرة"
+  "Hold Mouse": "إمساك الفأرة",
+  "Hold As:": "الإمساك:",
+  "Hold for Mouse-look": "الإمساك للتصويب بالفأرة",
+  "Hold with the Pointer Shown": "الإمساك مع إظهار المؤشر",
+  "Mouse-look: no pointer, only motion.": "التصويب بالفأرة: لا مؤشر، الحركة فقط.",
+  "The pointer shown, kept inside the picture.": "المؤشر ظاهر، ويبقى داخل الصورة."
  }
 }
