@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.476
+
+**Steam holds the mouse on a click, as Boxer does** (Screens 3.1). A click
+in Steam's window gives the pointer to the game until Release Pointer, with
+a note saying which key that is -- the owner's choice, made knowing that
+while it is held Big Picture shows no pointer, since gamescope's picture
+carries none and Blit hides its own. Capture on Click in a program's dialog
+still turns it off, for Steam as for any program; a Steam row already
+changed in the pane keeps what it says.
+
+**And in full screen the picture keeps its shape.** gamescope's size is the
+window's when it starts and is never changed under a running game, so a
+window made larger -- Full Screen above all -- stretched the picture to the
+display's shape. It is placed now as the largest box of its own shape the
+window holds, centred, the window's face around it.
+
 ## 0.99.475
 
 **The Browser finds hibr-browser's WebKit again when Chromium's module got

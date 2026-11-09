@@ -10,7 +10,7 @@ bridge's EIS socket becomes an input route at Blit, and the route follows
 the window's focus. Every check reads what crossed a socket or the terminal,
 never the app's own state.
 """
-import http.server, json, os, shutil, subprocess, sys, tempfile, threading, time
+import http.server, json, os, re, shutil, subprocess, sys, tempfile, threading, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -194,19 +194,23 @@ back = wait(lambda: len(blitkind("input", verb="on")) > ons)
 check("and closing it turns the route back on", back,
       [x for x in lines(blitlog) if x["kind"] == "input"])
 
-# A click leaves the pointer free: Steam's row does not capture it, since
-# gamescope's picture carries no pointer and Blit hides its own while held.
+# A click holds the pointer for the game, as Boxer does, and says how to
+# get it back.
 t.keys([press(10, 40), release(10, 40)])
 t.collect(0.4)
-check("a click in Steam's window leaves the pointer free",
-      b"\x1b[?7701h" not in t.out, t.out[-200:])
+check("a click in Steam's window holds the pointer for the game, and says "
+      "which key lets go", b"\x1b[?7701h" in t.out and
+      t.screen().find("has the mouse") is not None, (t.out[-200:], t.screen()))
 t.keys([b"\x1b[21;5~"])
 t.collect(0.3)
 
 # Full Screen is still the desktop's, and so is leaving it.
+c_fs = len(t.out)
 t.keys([b"\x1b\r"])
 t.collect(0.6)
 fs = t.screen()
+fsp = [m.group(1) for m in re.finditer(r"\x1b_G([^;\x1b]*)",
+                                       t.out[c_fs:].decode("latin-1")) if "a=p" in m.group(1)]
 t.keys([b"\x1b[23;5~"])
 t.collect(0.6)
 back = t.screen()
@@ -216,6 +220,9 @@ check("with every key to the program the desktop's Full Screen key still is the 
       fs.find("File") is None and fs.find("Waiting for") is None and
       fs.find("Starting Steam") is None and back.find("File") is not None,
       fs.text()[:600] + "\n-----\n" + back.text()[:600])
+check("and in full screen the picture keeps gamescope's own shape, as wide "
+      "as the display and centred, rather than stretched to the display's",
+      fsp and ",c=82," in fsp[-1] + "," and ",r=23," in fsp[-1] + ",", fsp)
 
 # Keys to the Program off, from the Program menu: the desktop's keys work
 # again.
@@ -294,8 +301,8 @@ out, err = hb(
     % (LIST, LIST))
 check("where Steam is installed it is on the list after X Screen's own "
       "programs, on Wayland Screen with Steam's integration, every key and "
-      "the pointer free, and the pane gives it no Delete",
-      "names=Old Steam|0 1|engine=wayland;steam=1;keys=1;rel=0" in out and
+      "the pointer held on a click, and the pane gives it no Delete",
+      "names=Old Steam|0 1|engine=wayland;steam=1;keys=1;rel=1" in out and
       "|Old=del0:Delete|Steam=|" in out, out + err)
 check("the pane says where the bridge is", "|Bridge=|" in out and
       "Wayland Screen=|Bridge=|X Screen=|" in out, out + err)
@@ -332,4 +339,4 @@ check("a new program is on Wayland Screen where the bridge is installed, "
       "bridge=yes" in out and "bridge=no" in o2, (out, o2, err, e2))
 shutil.rmtree(D, True)
 api.shutdown()
-report(29)
+report(30)

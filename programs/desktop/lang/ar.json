@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.88",
+ "version": "3.89",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1682,6 +1682,7 @@
   "The screen -- Default is Control Panel > Screens > Defaults:": "الشاشة — «افتراضي» يعني لوحة التحكم > الشاشات > الافتراضيات:",
   "Waiting for %s's first picture": "بانتظار أول صورة من %s",
   "Wayland Screen": "شاشة Wayland",
-  "Wayland Screen needs Blit's gamescope bridge: install the blit-gamescope package": "تحتاج شاشة Wayland إلى جسر gamescope الخاص بـ Blit: ثبّت الحزمة blit-gamescope"
+  "Wayland Screen needs Blit's gamescope bridge: install the blit-gamescope package": "تحتاج شاشة Wayland إلى جسر gamescope الخاص بـ Blit: ثبّت الحزمة blit-gamescope",
+  "%s has the mouse: %s lets go": "%s يمسك الفأرة: %s يحرّرها"
  }
 }

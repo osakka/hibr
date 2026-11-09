@@ -14,9 +14,10 @@
 #
 # Steam is on the list by itself wherever `steam` is installed: Big Picture
 # on Wayland Screen with Steam's integration, every key to it, and the
-# pointer left free, since gamescope's picture carries no pointer and Blit
-# hides its own while it is held. Changed in the pane, it is kept as any
-# other program is.
+# pointer held on a click, as Boxer holds it, until Release Pointer --
+# while held Big Picture shows no pointer, since gamescope's picture
+# carries none and Blit hides its own. Changed in the pane, it is kept as
+# any other program is.
 #
 # X Screen runs Firefox, GTK and Qt programs, and anything else that speaks
 # X11. Each window starts an Xvfb of its own, a virtual X server that draws
@@ -75,7 +76,7 @@
 strict
 
 
-app screens "Programs in windows of their own, on X Screen or Wayland Screen" 3.0
+app screens "Programs in windows of their own, on X Screen or Wayland Screen" 3.1
 # modules: xscr
 # part: control-panel/screensset.hibr
 command -v dt_app > /dev/null &&
@@ -196,7 +197,7 @@ scn_read() {
 # Steam's row, last, where steam is installed and no program is already
 # Steam -- called so, or running what this row runs, so the row changed and
 # renamed in the pane does not bring it back beside itself: Wayland Screen
-# with Steam's integration, every key to it, and the pointer free.
+# with Steam's integration, every key to it, and the pointer held on a click.
 scn_steamrow() {
 	local i
 
@@ -210,7 +211,7 @@ scn_steamrow() {
 	SCNP_WIN+=(fit)
 	SCNP_PIC+=(follow)
 	SCNP_END+=(default)
-	SCNP_OPT+=("engine=wayland;steam=1;keys=1;rel=0")
+	SCNP_OPT+=("engine=wayland;steam=1;keys=1;rel=1")
 	SCNP_EXTRA+=("")
 	SCNP_VIRT+=(1)
 	return 0
@@ -515,6 +516,8 @@ fn scn_wstart(int id, int h, int w) {
 	     "BLIT_FRAME_TOKEN=${SCN[$id]["tok"]}" "$b" --no-place)
 	[ "${SCN[$id]["steam"]}" = 1 ] && cmd+=(--steam)
 	cmd+=(-W $((w * cw)) -H $((h * ch)))
+	SCN[$id]["sw"]=$((w * cw))
+	SCN[$id]["sh"]=$((h * ch))
 	if hz := scn_hz; then
 		cmd+=(-r "$hz")
 	fi
@@ -560,9 +563,47 @@ fn scn_winfo(int id) {
 	return 0
 }
 
+# Where the picture goes in a body of h by w cells: the largest whole-cell
+# box of the stream's own shape, centred, into SCN_PR SCN_PC SCN_PH SCN_PW.
+# gamescope's size is the window's when it started and is never changed,
+# so a window made larger -- full screen above all -- would otherwise
+# stretch the picture out of its shape.
+SCN_PR=0
+SCN_PC=0
+SCN_PH=0
+SCN_PW=0
+fn scn_wbox(int id, int h, int w) {
+	local sw=${SCN[$id]["sw"]:-0} sh=${SCN[$id]["sh"]:-0} g kind cw=0 ch=0 c r
+
+	SCN_PR=0
+	SCN_PC=0
+	SCN_PH=$h
+	SCN_PW=$w
+	[ "$sw" -gt 0 ] && [ "$sh" -gt 0 ] || return 0
+	g := console gfx 2> /dev/null
+	read -r kind cw ch <<< "$g"
+	[ "${cw:-0}" -gt 0 ] || cw=8
+	[ "${ch:-0}" -gt 0 ] || ch=16
+	if [ $((w * cw * sh)) -le $((h * ch * sw)) ]; then
+		c=$w
+		r=$(((w * cw * sh + sw * ch / 2) / (sw * ch)))
+	else
+		r=$h
+		c=$(((h * ch * sw + sh * cw / 2) / (sh * cw)))
+	fi
+	[ "$r" -ge 1 ] && [ "$r" -le "$h" ] || r=$h
+	[ "$c" -ge 1 ] && [ "$c" -le "$w" ] || c=$w
+	SCN_PR=$(((h - r) / 2))
+	SCN_PC=$(((w - c) / 2))
+	SCN_PH=$r
+	SCN_PW=$c
+	return 0
+}
+
 # Draw: the picture where the frames are, or a line saying why not yet.
 # The body starts at row 1, column 1 inside the frame, and at 0, 0 when the
-# window has none -- in full screen, whose body is the whole pane.
+# window has none -- in full screen, whose body is the whole pane; what the
+# picture leaves of the body is the window's face, cleared before each draw.
 fn scn_wdraw(int id, int h, int w) {
 	local t o=1
 
@@ -573,8 +614,9 @@ fn scn_wdraw(int id, int h, int w) {
 	scn_wdrain "$id"
 	scn_winfo "$id"
 	SCN[$id]["seen"]="$SCN_I_CONNECTED $((SCN_I_FRAMES > 0)) $SCN_I_RGB $SCN_I_INPUT ${SCN[$id]["err"]}"
+	scn_wbox "$id" "$h" "$w"
 	if [ -z "${SCN[$id]["err"]}" ] && [ -n "${SCN[$id]["fn"]}" ] &&
-	   frames place "${SCN[$id]["fn"]}" "w$id" "$o" "$o" "$h" "$w" 2> /dev/null; then
+	   frames place "${SCN[$id]["fn"]}" "w$id" $((o + SCN_PR)) $((o + SCN_PC)) "$SCN_PH" "$SCN_PW" 2> /dev/null; then
 		SCN[$id]["drew"]="${DT[$id]["h"]} ${DT[$id]["w"]}"
 		return 0
 	fi
@@ -1058,8 +1100,10 @@ fn screens_mouse(int id, act, btn, int r, int c, mods = "") {
 	# back. Everything else reaches the program through Blit's own route.
 	if [ "${SCN[$id]["eng"]}" = wayland ]; then
 		[ "${act##*-}" = press ] && [ "${SCN[$id]["rel"]}" = 1 ] &&
-			[ -n "${SCN[$id]["drew"]}" ] && dt_has dt_pointerlock &&
-			dt_pointerlock "$id" on
+			[ -n "${SCN[$id]["drew"]}" ] && [ "${DT_PTRLOCK-}" != "$id" ] &&
+			dt_has dt_pointerlock && dt_pointerlock "$id" on &&
+			dt_notep low "%s has the mouse: %s lets go" "${SCN[$id]["name"]}" \
+				"${DT_KEYS["ptrrelease"]-ctrl-f10}"
 		return 0
 	fi
 	[ -n "$x" ] || return 0

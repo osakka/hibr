@@ -28,6 +28,7 @@
 %s has ended
 %s has no address book yet -- sync it first
 %s has no shortcut now
+%s has the mouse: %s lets go
 %s in %s h %s min
 %s in %s min
 %s in %s minutes
