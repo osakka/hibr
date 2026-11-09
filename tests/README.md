@@ -76,6 +76,7 @@ python3 tests/kitgfx.py     pictures in the kitty graphics protocol
 python3 tests/holdpix.py    pictures, pixels and pointers through hold
 python3 tests/dmabuf.py     frames by dmabuf through hold's server
 python3 tests/frames.py     a program's frames through the frames module's socket
+python3 tests/holdlock.py   the pointer lock going to the display showing the window
 python3 tests/screens_wl.py Screens' Wayland Screen and its Steam row, against
                             stand-ins for the bridge and Blit
 python3 tests/holdrenew.py  hold upgrade renewing two stacked displays' clients

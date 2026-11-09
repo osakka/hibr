@@ -606,6 +606,11 @@ void tm_decmode(tm_t *t, int on)
 			   time it is asked for, so a display that gave it back
 			   is not handed it again until the program asks again. */
 			t->plock = on ? ++t->plockn : 0;
+			if (on) {
+				t->plockr = t->cr;
+				t->plockc = t->cc;
+				t->plockpos = 1;
+			}
 			break;
 		default:
 			lg(HIBR_LTRC, "terminal %d ignored private mode %ld",

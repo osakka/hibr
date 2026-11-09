@@ -648,7 +648,10 @@ fn dt_pointerlock(int id, on) {
 			return 1
 		fi
 		[ -n "$DT_PTRLOCK" ] && dt_ptrunlock
-		console pointer lock on 2> /dev/null || return 1
+		# Asked from the window's middle, so a held desktop gives the
+		# lock to the display showing the window (0.99.479).
+		console pointer lock on $((${DT[$id]["row"]:-0} + ${DT[$id]["h"]:-0} / 2)) \
+			$((${DT[$id]["col"]:-0} + ${DT[$id]["w"]:-0} / 2)) 2> /dev/null || return 1
 		DT_PTRLOCK=$id
 		;;
 	off) [ "$DT_PTRLOCK" = "$id" ] && dt_ptrunlock ;;

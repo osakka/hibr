@@ -293,6 +293,8 @@ extern int hd_fdepth;
 extern int hd_scw, hd_sch;
 extern unsigned long hd_inseq;
 extern int hd_lockfd;
+extern vec *hd_rencls;
+int hd_locktgt(vec *cls, int tid);
 int hd_focusin(const char *p, size_t n);
 
 /* One cell as this client was last sent it -- hold's own copy, not term's:

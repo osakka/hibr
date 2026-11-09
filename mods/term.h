@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 14u
+#define TM_API_VER 15u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -155,6 +155,11 @@ struct tm_api {
 	/* Version 14: whether the program turned on focus reports (1004), for
 	   a relay to turn them on at the real terminal (Gitea #485). */
 	int (*focus)(int id);
+	/* Version 15: the cell the cursor was on when the program last asked
+	   to hold the pointer -- the desktop puts it on the window that asks
+	   -- so a relay gives the lock to the display showing that window
+	   rather than to whichever spoke last. 1 with *r and *c, 0 with none. */
+	int (*plockat)(int id, int *r, int *c);
 };
 
 #endif

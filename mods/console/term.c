@@ -535,14 +535,30 @@ int cn_gotlock(int state)
 	return 0;
 }
 
-/* Hold the pointer, or give it back. Sent whatever the terminal said, since
-   inside hold it is the display that answers and the desktop asks hold. */
-void cn_lock(int on)
+/* Hold the pointer, or give it back, asked from row r column c where r is
+   not negative: the cursor is put there for the ask and back after, so a
+   relay knows which of its displays shows the window that wants it. Sent
+   whatever the terminal said, since inside hold it is the display that
+   answers and the desktop asks hold. */
+void cn_lock(int on, int r, int c)
 {
+	str o;
+
 	if (cn_fd < 0 || on == cn_locked)
 		return;
 	cn_locked = on;
-	if (on)
+	if (on && r >= 0 && c >= 0) {
+		s_init(&o);
+		s_cat(&o, "\0337\033[");
+		s_num(&o, (long)r + 1);
+		s_ch(&o, ';');
+		s_num(&o, (long)c + 1);
+		s_ch(&o, 'H');
+		s_add(&o, cn_lockon, sizeof cn_lockon - 1);
+		s_cat(&o, "\0338");
+		cn_wr(cn_fd, o.p, o.n);
+		s_free(&o);
+	} else if (on)
 		cn_wr(cn_fd, cn_lockon, sizeof cn_lockon - 1);
 	else
 		cn_wr(cn_fd, cn_lockoff, sizeof cn_lockoff - 1);

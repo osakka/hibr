@@ -330,6 +330,18 @@ int tm_api_reply(int id, str *out)
 	return 1;
 }
 
+/* Where the cursor was when the pointer lock was last asked for; see tm_api in term.h. */
+int tm_api_plockat(int id, int *r, int *c)
+{
+	tm_t *t = tm_find(id);
+
+	if (!t || !t->plock || !t->plockpos)
+		return 0;
+	*r = t->plockr;
+	*c = t->plockc;
+	return 1;
+}
+
 /* Move the screen's content down and right; see tm_api in term.h. */
 int tm_api_shift(int id, int dr, int dc)
 {
@@ -345,7 +357,7 @@ static const tm_api term_api = {
 	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image,
 	tm_api_save, tm_api_load, tm_api_kbd, tm_api_copyseq, tm_api_copyop,
 	tm_api_syncleft, tm_api_mpix, tm_api_reply, tm_api_pointer,
-	tm_api_plock, tm_api_shift, tm_api_ulat, tm_api_focus
+	tm_api_plock, tm_api_shift, tm_api_ulat, tm_api_focus, tm_api_plockat
 };
 
 const tm_api *tm_apiget(void)

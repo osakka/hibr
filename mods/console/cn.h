@@ -314,7 +314,7 @@ extern str cn_ptrnm;
 void cn_gotptr(int yes);
 void cn_pointer(const char *nm);
 int cn_gotlock(int state);
-void cn_lock(int on);
+void cn_lock(int on, int r, int c);
 void cn_gotmpix(int yes);
 void cn_pixapply(void);
 extern int cn_kbdon, cn_phases, cn_kev;

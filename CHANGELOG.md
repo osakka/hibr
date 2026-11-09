@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.479
+
+**A held pointer goes to the display showing the window** -- the fix for
+Steam's pointer vanishing on a click in 0.99.478. The owner's main screen is
+two Blit sessions, one above the other; `hold` gave the pointer lock to the
+display it had heard from last, which was the bottom one, the primary, the
+last to join -- so Steam on the top half asked for a confined pointer, the
+bottom session took it with no picture of Steam's in it, and Blit fell back
+to hiding the pointer (read live by the Blit side: the picture in session 2,
+the lock in session 1). The desktop now asks for the lock from the window's
+middle, `console pointer lock on ROW COL`, which the console says by putting
+the cursor there for the ask and back after; the emulator keeps that cell
+(terminal interface version 15, `plockat`), and `hold` gives the lock to the
+display whose part of the screen holds it -- the one last used where two
+show it, and as before where nothing said. `tests/holdlock.py` fails against
+0.99.478 and passes now.
+
 ## 0.99.478
 
 **Steam holds the mouse on a click again, and the pointer stays shown**

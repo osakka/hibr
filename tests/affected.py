@@ -89,6 +89,7 @@ SUITE_MODS = {
     "frames": ["frames", "console", "hold", "term", "pty", "blitfr"],
     "screens_wl": ["frames", "console", "hold", "pty", "blitfr", "dav"],
     "holdrenew": ["frames", "console", "hold", "pty", "term", "blitfr"],
+    "holdlock": ["console", "hold", "pty", "term"],
     "holdseam": ["frames", "console", "img", "hold", "pty", "term", "blitfr"],
     # inflate.c is not a module of its own: it is shared source, the prompt
     # module's own, which the archive module compiles in as well. Naming it

@@ -4084,6 +4084,17 @@ went in the shell.
   module also declares is the case to test, with the plain one first on the
   path (`tests/999-mod-twin.t`).
 
+- **The display that hears the click is not the display that shows the
+  window** (0.99.479). `hold` gave the pointer lock to the display it had
+  heard from last -- right for one display, and for stacked Blit sessions it
+  was whichever joined last, the primary, which held a lock over a picture
+  it did not show, so Blit's confined hold fell back to a hidden pointer.
+  The ask now carries a place: the desktop asks from the window's middle,
+  the emulator keeps that cell (`plockat`, terminal interface 15), and
+  `hd_locktgt` picks the display whose rectangle holds it. Anything else a
+  relay hands to *one* display wants the same question: which display
+  shows the thing it is for, not which spoke last.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

@@ -583,10 +583,11 @@ int m_console(sh *s, int ac, char **av)
 				return HIBR_OK;
 			}
 			if (strcmp(w, "on") && strcmp(w, "off")) {
-				lg(HIBR_LERR, "usage: console pointer lock [on|off]");
+				lg(HIBR_LERR, "usage: console pointer lock [on [ROW COL]|off]");
 				return 2;
 			}
-			cn_lock(!strcmp(w, "on"));
+			cn_lock(!strcmp(w, "on"), ac > 5 ? atoi(av[4]) : -1,
+				ac > 5 ? atoi(av[5]) : -1);
 			return HIBR_OK;
 		}
 		if (!*m || !strcmp(m, "can")) {

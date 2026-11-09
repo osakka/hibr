@@ -530,7 +530,8 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 	{
 		int g = hd_tm->plock ? hd_tm->plock(tid) : 0;
 
-		if (g && g != cn->lockgen && cn->lockok && cn->fd == hd_lockfd) {
+		if (g && g != cn->lockgen && cn->lockok &&
+		    cn->fd == hd_locktgt(hd_rencls, tid)) {
 			s_cat(out, "\033[?7701h");
 			cn->lockgen = g;
 			cn->plock = 1;
@@ -573,6 +574,35 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
    frees it on a resize -- both cases fall straight out of front being
    NULL here, so this frame is a full repaint by construction, not a diff
    against stale or wrongly-sized content. */
+vec *hd_rencls;
+
+/* The display the pointer lock goes to: one that can hold it and shows the
+   cell the program asked from -- the desktop puts the cursor on the window
+   that wants the pointer -- the last used of them where two show it, and the
+   last used of all where none does or nothing said where. */
+int hd_locktgt(vec *cls, int tid)
+{
+	int r, c, got = -1;
+	size_t i;
+
+	if (!cls || !hd_tm->plockat || !hd_tm->plockat(tid, &r, &c))
+		return hd_lockfd;
+	for (i = 0; i < cls->n; i++) {
+		struct hd_cli *k = cls->p[i];
+
+		if (!k->lockok || r < k->row || r >= k->row + k->rows ||
+		    c < k->col || c >= k->col + k->cols)
+			continue;
+		if (k->fd == hd_lockfd)
+			return k->fd;
+		if (got < 0)
+			got = k->fd;
+	}
+	if (got >= 0 && got != hd_lockfd)
+		lg(HIBR_LDBG, "hold: the pointer lock goes to the display showing %d,%d", r, c);
+	return got >= 0 ? got : hd_lockfd;
+}
+
 void hd_render(int tid, struct hd_cli *cn, str *out)
 {
 	int r, c, lr, lc, have, cr, cc, cvis, clear, wipe = 0;
@@ -1076,6 +1106,7 @@ void hd_rensend1(vec *cls, struct hd_cli *cn, int tid)
 {
 	str out;
 
+	hd_rencls = cls;
 	/* Nothing until it has said what it draws, which comes at once from
 	   any client that will: its first frame must already be the right
 	   one for its terminal (Gitea #476). */

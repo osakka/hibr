@@ -39,7 +39,7 @@ for _v in ("HIBR_MODPATH", "HIBR_MODULES", "HIBR_HOLD", "HIBR_HOLDCOPY",
 SUITES = ["run.sh", "desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session", "apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars", "deps", "scopes",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "fetch", "media", "youtube", "sound", "net", "bt",
-          "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "dmabuf", "frames", "screens_wl", "holdrenew", "holdseam", "archive", "mermaid", "pdfapp",
+          "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "dmabuf", "frames", "screens_wl", "holdrenew", "holdseam", "holdlock", "archive", "mermaid", "pdfapp",
           "appmgr", "screens", "shots", "contain", "archives"]
 
 
