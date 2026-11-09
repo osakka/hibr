@@ -194,12 +194,21 @@ back = wait(lambda: len(blitkind("input", verb="on")) > ons)
 check("and closing it turns the route back on", back,
       [x for x in lines(blitlog) if x["kind"] == "input"])
 
-# A click holds the pointer for the game, as Boxer does, and says how to
-# get it back.
+# A click leaves the pointer free and visible: Steam's row does not hold
+# it, since gamescope's picture carries no pointer and Blit hides its own
+# while held. Program > Hold Mouse holds it for a game that wants it.
 t.keys([press(10, 40), release(10, 40)])
 t.collect(0.4)
-check("a click in Steam's window holds the pointer for the game, and says "
-      "which key lets go", b"\x1b[?7701h" in t.out and
+check("a click in Steam's window leaves the pointer free",
+      b"\x1b[?7701h" not in t.out, t.out[-200:])
+m = t.screen().find("Program")
+t.keys([press(*m), release(*m)] if m and m[0] == 0 else [])
+t.collect(0.4)
+k = t.screen().find("Hold Mouse")
+t.keys([press(*k), release(*k)] if k else [])
+t.collect(0.6)
+check("and Program > Hold Mouse holds it for the game, saying which key "
+      "lets go", b"\x1b[?7701h" in t.out and
       t.screen().find("has the mouse") is not None, (t.out[-200:], t.screen()))
 t.keys([b"\x1b[21;5~"])
 t.collect(0.3)
@@ -301,8 +310,8 @@ out, err = hb(
     % (LIST, LIST))
 check("where Steam is installed it is on the list after X Screen's own "
       "programs, on Wayland Screen with Steam's integration, every key and "
-      "the pointer held on a click, and the pane gives it no Delete",
-      "names=Old Steam|0 1|engine=wayland;steam=1;keys=1;rel=1" in out and
+      "the pointer free, and the pane gives it no Delete",
+      "names=Old Steam|0 1|engine=wayland;steam=1;keys=1;rel=0" in out and
       "|Old=del0:Delete|Steam=|" in out, out + err)
 check("the pane says where the bridge is", "|Bridge=|" in out and
       "Wayland Screen=|Bridge=|X Screen=|" in out, out + err)
@@ -339,4 +348,4 @@ check("a new program is on Wayland Screen where the bridge is installed, "
       "bridge=yes" in out and "bridge=no" in o2, (out, o2, err, e2))
 shutil.rmtree(D, True)
 api.shutdown()
-report(30)
+report(31)

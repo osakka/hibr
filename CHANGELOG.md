@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.477
+
+**Steam's pointer stays visible; Hold Mouse is a choice** (Screens 0.7.1).
+Holding the mouse on a click left Big Picture with no pointer at all --
+gamescope's picture carries none, and Blit hides its own while the mouse is
+held -- so Steam no longer holds it on a click: the pointer is free,
+seamless and visible, as before. Program > Hold Mouse holds it, until
+Release Pointer, for a game that wants mouse-look. Blit is adding a held
+pointer that stays visible and inside the picture; Steam will hold on a
+click again once it has that. Screens goes back to its own numbering, 0.7.1,
+continuing the Steam window's 0.6 -- the 3.0 and 3.1 it was published as
+were a mistake.
+
 ## 0.99.476
 
 **Steam holds the mouse on a click, as Boxer does** (Screens 3.1). A click

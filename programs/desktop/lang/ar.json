@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.89",
+ "version": "3.90",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1683,6 +1683,7 @@
   "Waiting for %s's first picture": "بانتظار أول صورة من %s",
   "Wayland Screen": "شاشة Wayland",
   "Wayland Screen needs Blit's gamescope bridge: install the blit-gamescope package": "تحتاج شاشة Wayland إلى جسر gamescope الخاص بـ Blit: ثبّت الحزمة blit-gamescope",
-  "%s has the mouse: %s lets go": "%s يمسك الفأرة: %s يحرّرها"
+  "%s has the mouse: %s lets go": "%s يمسك الفأرة: %s يحرّرها",
+  "Hold Mouse": "إمساك الفأرة"
  }
 }

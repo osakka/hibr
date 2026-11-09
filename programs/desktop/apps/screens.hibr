@@ -14,10 +14,10 @@
 #
 # Steam is on the list by itself wherever `steam` is installed: Big Picture
 # on Wayland Screen with Steam's integration, every key to it, and the
-# pointer held on a click, as Boxer holds it, until Release Pointer --
-# while held Big Picture shows no pointer, since gamescope's picture
-# carries none and Blit hides its own. Changed in the pane, it is kept as
-# any other program is.
+# pointer left free, seamless and visible. Program > Hold Mouse holds it
+# for a game that wants mouse-look, until Release Pointer -- while held no
+# pointer shows, since gamescope's picture carries none and Blit hides its
+# own. Changed in the pane, it is kept as any other program is.
 #
 # X Screen runs Firefox, GTK and Qt programs, and anything else that speaks
 # X11. Each window starts an Xvfb of its own, a virtual X server that draws
@@ -76,7 +76,7 @@
 strict
 
 
-app screens "Programs in windows of their own, on X Screen or Wayland Screen" 3.1
+app screens "Programs in windows of their own, on X Screen or Wayland Screen" 0.7.1
 # modules: xscr
 # part: control-panel/screensset.hibr
 command -v dt_app > /dev/null &&
@@ -197,7 +197,7 @@ scn_read() {
 # Steam's row, last, where steam is installed and no program is already
 # Steam -- called so, or running what this row runs, so the row changed and
 # renamed in the pane does not bring it back beside itself: Wayland Screen
-# with Steam's integration, every key to it, and the pointer held on a click.
+# with Steam's integration, every key to it, and the pointer free.
 scn_steamrow() {
 	local i
 
@@ -211,7 +211,7 @@ scn_steamrow() {
 	SCNP_WIN+=(fit)
 	SCNP_PIC+=(follow)
 	SCNP_END+=(default)
-	SCNP_OPT+=("engine=wayland;steam=1;keys=1;rel=1")
+	SCNP_OPT+=("engine=wayland;steam=1;keys=1;rel=0")
 	SCNP_EXTRA+=("")
 	SCNP_VIRT+=(1)
 	return 0
@@ -675,6 +675,30 @@ fn scn_wdrain(int id) {
 	return 0
 }
 
+# Hold the pointer for a Wayland Screen window's program, as a game with
+# mouse-look wants it, and say which key lets go; status 1 when it was not
+# taken -- no picture yet, held already, or the desktop refused.
+fn scn_whold(int id) {
+	[ -n "${SCN[$id]["drew"]}" ] && [ "${DT_PTRLOCK-}" != "$id" ] || return 1
+	dt_has dt_pointerlock && dt_pointerlock "$id" on || return 1
+	dt_notep low "%s has the mouse: %s lets go" "${SCN[$id]["name"]}" \
+		"${DT_KEYS["ptrrelease"]-ctrl-f10}"
+	return 0
+}
+
+# Hold Mouse, for the focused window: hold the pointer, or let it go.
+scn_holdtoggle() {
+	local id=$DT_FOCUS
+
+	[ -n "$id" ] || return 0
+	if [ "${DT_PTRLOCK-}" = "$id" ]; then
+		dt_pointerlock "$id" off
+	else
+		scn_whold "$id"
+	fi
+	return 0
+}
+
 # Keys to the Program, for the focused window: on, it takes every key but
 # Release Pointer, Full Screen and Leave Full Screen; off, the desktop's
 # shortcuts work over it again.
@@ -1100,10 +1124,7 @@ fn screens_mouse(int id, act, btn, int r, int c, mods = "") {
 	# back. Everything else reaches the program through Blit's own route.
 	if [ "${SCN[$id]["eng"]}" = wayland ]; then
 		[ "${act##*-}" = press ] && [ "${SCN[$id]["rel"]}" = 1 ] &&
-			[ -n "${SCN[$id]["drew"]}" ] && [ "${DT_PTRLOCK-}" != "$id" ] &&
-			dt_has dt_pointerlock && dt_pointerlock "$id" on &&
-			dt_notep low "%s has the mouse: %s lets go" "${SCN[$id]["name"]}" \
-				"${DT_KEYS["ptrrelease"]-ctrl-f10}"
+			scn_whold "$id"
 		return 0
 	fi
 	[ -n "$x" ] || return 0
@@ -1255,4 +1276,7 @@ screens_menus() {
 	[ "${DT[$id]["keysall"]-}" = 1 ] && on=1
 	dt_menu "Program"
 	dt_mark "Keys to the Program" k "$on" scn_keystoggle
+	on=0
+	[ "${DT_PTRLOCK-}" = "$id" ] && on=1
+	dt_mark "Hold Mouse" h "$on" scn_holdtoggle
 }

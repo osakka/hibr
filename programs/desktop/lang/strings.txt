@@ -596,6 +596,7 @@ Hijri
 History
 History Size
 History cleared
+Hold Mouse
 Home
 Home Page
 Home page, opened by a new window or tab:

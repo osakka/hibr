@@ -23,7 +23,7 @@
 
 strict
 
-app screensset "The Control Panel pane for Screens" 3.0
+app screensset "The Control Panel pane for Screens" 0.7.1
 command -v cp_pane > /dev/null && cp_pane screensset "Screens" "▣" app
 command -v dt_app > /dev/null &&
 	dt_app scnfield "Program" 26 70 "" "" fixed hidden
