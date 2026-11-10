@@ -1,9 +1,10 @@
 /* frames -- the socket a window's picture is sent to, as Blit's own.
  *
  * Gitea #486, Blit ADR 0223. A program that draws its pictures into
- * buffers -- a game, through Blit's gamescope bridge -- speaks Blit's frame
- * wire to whatever BLIT_FRAME_SOCKET and BLIT_FRAME_TOKEN name. In a hibr
- * window those name this module's socket instead of Blit's, and its frames
+ * buffers -- Blit's compositor for programs' windows (-w), and any other
+ * producer of Blit's frame wire -- speaks it to whatever BLIT_FRAME_SOCKET
+ * and BLIT_FRAME_TOKEN name. In a hibr window those name this module's
+ * socket instead of Blit's, and its frames
  * go through the console (the "dpframes" interface) onto the picture the
  * window places, so a window over it, a move or a close behaves as for any
  * picture, and every display of a held desktop is sent them:
@@ -419,8 +420,9 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 }
 
 /* An input route's line from the producer (Blit 0.3.64, version 5): "INPUT
-   eis <id> <path>", "INPUT sock <id> <path>" (blit-compositor, which Blit
-   writes the input to itself) or "INPUT on|off <id>", the id its own --
+   sock <id> <path>" (blit-compositor's, which Blit writes the input to
+   itself; the gamescope bridge's "INPUT eis" went with it in 0.99.483) or
+   "INPUT on|off <id>", the id its own --
    a window's, from a compositor. Handed to the console under the stream,
    which tells every display's Blit once a frame has gone; what Blit says
    comes back by fl_ans. Whether the route is on is the window's to say,
@@ -445,7 +447,7 @@ void fl_input(fl_srv *f, const char *m, size_t k)
 		if (f->win)
 			t = fl_win(f, id);
 		if (t && r.n && !strchr(r.p, '\n') &&
-		    (!strcmp(v.p, "eis") || !strcmp(v.p, "sock")) &&
+		    !strcmp(v.p, "sock") &&
 		    fl_dpf->input(f->s, t->n, v.p, r.p)) {
 			t->ibid = (unsigned)id;
 			ok = 1;

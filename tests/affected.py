@@ -87,7 +87,6 @@ SUITE_MODS = {
     "holdpix": ["console", "img", "hold", "term", "pty", "blitfr"],
     "dmabuf": ["hold", "term", "pty", "blitfr"],
     "frames": ["frames", "console", "hold", "term", "pty", "blitfr"],
-    "screens_wl": ["frames", "console", "hold", "pty", "blitfr", "dav"],
     "holdrenew": ["frames", "console", "hold", "pty", "term", "blitfr"],
     "native": ["frames", "console", "hold", "pty", "blitfr"],
     "holdlock": ["console", "hold", "pty", "term"],

@@ -466,7 +466,7 @@ position in what a display already has: a stream's picture keeps its id and
 placement when its window moves (Gitea #486), so its bytes stay the same and
 only the cell differs, and without the position a moved game picture was
 never placed again on a held display. Version 4 adds `input` (Blit 0.3.64):
-an input route's line, `INPUT eis <id> <path>` or `INPUT on|off <id>`, on
+an input route's line, `INPUT sock <id> <path>` or `INPUT on|off <id>`, on
 the same connection as the frames (`HD_INPUT`); the server remembers which
 producer asked about each picture and sends the line to every display that
 can be sent frames, each saying it to its own Blit, and passes back only
@@ -502,7 +502,7 @@ display started with; hold's wire lives in the modules. A client from before
 0.99.472 never said `-C`, so a session needs each display attached once more
 before upgrades reach them. Two things a renewed display needs that the
 server's exec used to lose, both fixed in the same release: the server replays
-each picture's input route (the last `INPUT eis` and whether it is on) to any
+each picture's input route (the last `INPUT sock` and whether it is on) to any
 display whose frame socket opens -- a display joining mid-game had none either
 -- and the console, seeing hold's frame connection close, says its routes
 again and places every stream's picture again, since a stream is placed once

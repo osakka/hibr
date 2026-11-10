@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """A window's picture sent as Blit's frames (Gitea #486, steps 2 and 3).
 
-A producer speaking Blit's own client wire -- a stand-in for the gamescope
-bridge -- connects to the frames module's socket in a program that has the
+A producer speaking Blit's own client wire -- any program drawing into
+buffers, the shape Blit's compositor speaks too -- connects to the frames module's socket in a program that has the
 console open, and its frames reach a stand-in Blit (frameserve.py) under the
 console's id: straight there when nothing is between, and through hold's
 server when the program is held. This box has no GPU, so a plane is a memfd:
@@ -49,7 +49,7 @@ def wait(cond, t=3.0):
 
 
 class Bridge:
-    """The producer's side of Blit's frame wire, as the bridge speaks it."""
+    """The producer's side of Blit's frame wire."""
 
     def __init__(self, sock, tok, ver=5):
         self.s = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -207,16 +207,22 @@ check("and the producer hears that frame let go once, after both ids have",
       got.count("FRAME release 42 %d" % last) == 1 and
       "FRAME release 42 %d" % last not in early, (early, got))
 cid = nid
-# Input (Blit 0.3.64): the bridge offers its EIS socket, the window says
-# when it has the keys, and every answer comes back in the bridge's id.
-eis = os.path.join(D, "eis.sock")
+# Input (Blit 0.3.64): the producer offers its input socket, the window
+# says when it has the keys, and every answer comes back in its own id. An
+# EIS route went with Blit's gamescope bridge (0.99.483): refused here.
+eis = os.path.join(D, "in.sock")
 es = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 es.bind(eis)
 br.answers(0.3)
 br.say("INPUT eis 42 %s" % eis)
 got = br.answers()
+check("an EIS route, the gamescope bridge's, is refused by the module itself",
+      "INPUT error 42 EINVAL" in got and not any(x.get("verb") == "eis" for x in lines(lgb)),
+      (got, lines(lgb)[-3:]))
+br.say("INPUT sock 42 %s" % eis)
+got = br.answers()
 check("an input route asked for after a frame is taken, in the producer's id",
-      "INPUT ok 42" in got and any(x.get("verb") == "eis" and x.get("id") == cid
+      "INPUT ok 42" in got and any(x.get("verb") == "sock" and x.get("id") == cid
                                    and x.get("ok") for x in lines(lgb)), (got, lines(lgb)[-3:]))
 open(out + ".on", "w").close()
 t.keys([b"z"])
@@ -227,7 +233,7 @@ check("the window having the keys turns the route on, at Blit and to the produce
 notsock = os.path.join(D, "plain")
 open(notsock, "w").close()
 br2n = len(frames(lgb))
-br.say("INPUT eis 42 %s" % notsock)
+br.say("INPUT sock 42 %s" % notsock)
 got = br.answers()
 br.send()
 wait(lambda: len(frames(lgb)) > br2n)
@@ -315,11 +321,11 @@ if br:
     dl = [a for a in apcs(t) if "a=d" in a and "i=%s" % hid in a]
     check("held, a move reaches the display as the same picture placed again",
           was >= 1 and len(now) > was and not dl, (was, now, dl))
-    eis = os.path.join(D, "eish.sock")
+    eis = os.path.join(D, "inh.sock")
     es = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     es.bind(eis)
     br.answers(0.3)
-    br.say("INPUT eis 42 %s" % eis)
+    br.say("INPUT sock 42 %s" % eis)
     got = br.answers(1.5)
     asked = [x for lg in (lgh, lgh2) for x in lines(lg) if x["kind"] == "input"]
     check("held, every display's Blit is asked and the producer hears one answer",
@@ -336,4 +342,4 @@ for p in (ph, ph2):
     p.terminate()
     p.wait()
 shutil.rmtree(D, True)
-report(22)
+report(23)

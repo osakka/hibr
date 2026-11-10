@@ -162,7 +162,7 @@ enum {
 	   which HD_HUDQ already was -- never met, since one is a request of
 	   its own connection, but one letter for two messages is a trap. */
 	HD_FRM3 = 'N',
-	/* An input route's line (Blit 0.3.64, Gitea #486), "INPUT eis <id>
+	/* An input route's line (Blit 0.3.64, Gitea #486), "INPUT sock <id>
 	   <path>" or "INPUT on|off <id>": from a producer on its frames
 	   connection to the server, and on to every display that can be sent
 	   frames, whose client says it to its own Blit. What comes back, "INPUT

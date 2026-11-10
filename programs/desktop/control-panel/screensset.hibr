@@ -3,14 +3,12 @@
 # screensset -- the Control Panel pane for Screens (Gitea #493, and X
 # Screen's #290, #291 before it): the programs it runs, each an entry under
 # Applications > Screens, and the sizes of the X screens they run on. A
-# program is a name, a command and its engine -- X Screen or Wayland Screen
-# -- and then only what that engine has: for X Screen how its window
-# behaves (fit the window, a fixed size, or the program's own for a window
-# manager), how it is drawn and its Xvfb; for Wayland Screen Steam's
-# integration, its keys and whether a click holds the pointer, its size and
-# refresh being the window's and the display's. A row opens it to change
-# or delete, and Add Program makes another, on Wayland Screen where Blit's
-# gamescope bridge is installed and on X Screen otherwise. Named
+# program is a name and a command, how its window behaves (fit the window,
+# a fixed size, or the program's own for a window manager), how it is drawn
+# and its Xvfb. A row opens it to change or delete, and Add Program makes
+# another. The Wayland Screen engine went with Blit's gamescope bridge in
+# 0.99.483 (owner, 2026-11-10): a Wayland program opens in a window of the
+# desktop's own. Named
 # screensset, not screens, because the app owns the screens_ prefix; the
 # dialog is scnfield.
 #
@@ -23,7 +21,7 @@
 
 strict
 
-app screensset "The Control Panel pane for Screens" 0.7.2
+app screensset "The Control Panel pane for Screens" 0.7.3
 command -v cp_pane > /dev/null && cp_pane screensset "Screens" "▣" app
 command -v dt_app > /dev/null &&
 	dt_app scnfield "Program" 26 70 "" "" fixed hidden
@@ -55,7 +53,7 @@ command -v dt_keep > /dev/null && dt_keep XS_FPS XS_BG XS_CURSOR XS_DPI \
 # Declared, never emptied: the app has read the list into them before any
 # pane loads, and emptying them here showed no programs after every new
 # session -- and the next one added saved over the rest (Gitea #300).
-declare -ga SCNP_NAME SCNP_CMD SCNP_WIN SCNP_PIC SCNP_END SCNP_OPT SCNP_EXTRA SCNP_VIRT
+declare -ga SCNP_NAME SCNP_CMD SCNP_WIN SCNP_PIC SCNP_END SCNP_OPT SCNP_EXTRA
 
 SCNS_SIZES=(1024x768 1280x800 1366x768 1600x900 1920x1080)
 SCNS_MAXES=(1280x800 1600x900 1920x1080 2560x1440)
@@ -63,9 +61,6 @@ SCNS_WINS=(fit fixed own)
 # follow is Control Panel > Pictures, as YouTube's and the wallpaper's are.
 SCNS_PICS=(follow half pixels)
 SCNS_ENDS=(default close keep)
-SCNS_ENGS=("X Screen" "Wayland Screen")
-SCNS_ONOFF=(on off)
-SCNS_HOLDAS=(confine relative)
 SCNS_FPSS=(follow 5 10 14 20 30 60)
 SCNS_BGS=(default black white grey desktop)
 SCNS_DPIS=(default 72 96 120 144 192)
@@ -79,7 +74,7 @@ SCNS_EXTLABEL=([xinerama]=XINERAMA [render]=RENDER [composite]=Composite
 SCNS_EXTVAR=([xinerama]=XS_XINERAMA [render]=XS_RENDER [composite]=XS_COMPOSITE
 	[dbe]=XS_DBE [xvideo]=XS_XVIDEO [glx]=XS_GLX)
 # The keys a program's dialog sets, in the order its rows are drawn.
-SCNS_OKEYS=(fps size bg dpi cursor noreset keys rel ownptr xinerama render composite dbe xvideo glx steam holdas)
+SCNS_OKEYS=(fps size bg dpi cursor noreset keys rel ownptr xinerama render composite dbe xvideo glx)
 declare -gA SCNF
 
 fn cp_set_scnsize(int? id = "", value = "") { XS_SIZE=$value; cp_save; }
@@ -93,14 +88,14 @@ fn cp_set_scnextra(value, int? id = "") {
 }
 
 fn screensset_rows(int w) {
-	local n=0 i k b
+	local n=0 i k
 
 	dt_has screens_draw || { cp_absent "$w" "X Screen"; ret 1; }
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Programs"; n=$((n + 1))
 	for i in "${!SCNP_NAME[@]}"; do
 		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="${SCNP_NAME[$i]}"
 		CP[$w][$n]["val"]="${SCNP_CMD[$i]}"; CP[$w][$n]["key"]="prog:$i"
-		[ "${SCNP_VIRT[$i]:-0}" = 1 ] || CP[$w][$n]["btns"]="del$i:Delete"
+		CP[$w][$n]["btns"]="del$i:Delete"
 		n=$((n + 1))
 	done
 	CP[$w][$n]["kind"]=action
@@ -111,14 +106,6 @@ fn screensset_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$XS_CLOSEEND" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=XS_CLOSEEND; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Wayland Screen"; n=$((n + 1))
-	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Bridge"
-	if dt_has scn_bridge && b := scn_bridge; then
-		CP[$w][$n]["val"]=$b
-	else
-		CP[$w][$n]["val"]="not installed: install blit-gamescope"
-	fi
-	n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="X Screen"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Largest Screen"
 	CP[$w][$n]["val"]="$XS_MAX"; CP[$w][$n]["key"]=max
@@ -197,10 +184,9 @@ fn screensset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 # --- the program dialog -------------------------------------------------------
 
 # A program to add (k is -1) or to change: its name and command typed, its
-# engine, window and picture chosen with left and right or a click. A new
-# one is on Wayland Screen where the bridge is installed.
+# window and picture chosen with left and right or a click.
 fn scns_dialog(int k) {
-	local h=26 w=70 r c rid o e="X Screen"
+	local h=26 w=70 r c rid o
 
 	dt_dlgat "$h" "$w"
 	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
@@ -223,49 +209,18 @@ fn scns_dialog(int k) {
 	done
 	SCNF[$rid]["extra"]=
 	[ "$k" -ge 0 ] && SCNF[$rid]["extra"]=${SCNP_EXTRA[$k]}
-	[ "${SCNF[$rid]["o_steam"]}" = on ] || SCNF[$rid]["o_steam"]=off
-	[ "${SCNF[$rid]["o_holdas"]}" = confine ] || SCNF[$rid]["o_holdas"]=relative
-	SCNF[$rid]["virt"]=0
-	if [ "$k" -ge 0 ]; then
-		SCNF[$rid]["virt"]=${SCNP_VIRT[$k]:-0}
-		o := scnf_raw "$k" engine
-		[ "$o" = wayland ] && e="Wayland Screen"
-	elif scnf_bridge; then
-		e="Wayland Screen"
-	fi
-	SCNF[$rid]["eng"]=$e
 	SCNF[$rid]["cur"]=${#SCNF[$rid]["name"]}
 	SCNF[$rid]["focus"]=name
 }
 
-# Whether Blit's gamescope bridge is installed, as the app finds it.
-scnf_bridge() {
-	dt_has scn_bridge || return 1
-	scn_bridge > /dev/null
-}
-
-# A program's own value for a key as the list keeps it, default when none.
-fn scnf_raw(int k, key) {
-	local o=";${SCNP_OPT[$k]};" v
-
-	case $o in
-	*";$key="*) v=${o#*";$key="}; ret "${v%%;*}" ;;
-	*) ret default ;;
-	esac
-}
-
-# The places tab moves through, in order, which are the engine's own:
-# Delete only for a program that is there to delete and is not built in.
+# The places tab moves through, in order: Delete only for a program that is
+# there to delete.
 fn scnf_order(int id) {
 	local o
 
-	if [ "${SCNF[$id]["eng"]}" = "Wayland Screen" ]; then
-		o="name cmd o_steam end eng o_keys o_rel o_holdas"
-	else
-		o="name cmd win pic end eng o_fps o_size o_bg o_dpi o_cursor o_noreset"
-		o="$o o_keys o_rel o_ownptr o_xinerama o_render o_composite o_dbe o_xvideo o_glx extra smooth light"
-	fi
-	if [ "${SCNF[$id]["k"]}" -ge 0 ] && [ "${SCNF[$id]["virt"]}" != 1 ]; then
+	o="name cmd win pic end o_fps o_size o_bg o_dpi o_cursor o_noreset"
+	o="$o o_keys o_rel o_ownptr o_xinerama o_render o_composite o_dbe o_xvideo o_glx extra smooth light"
+	if [ "${SCNF[$id]["k"]}" -ge 0 ]; then
 		ret "$o ok del cancel"
 	else
 		ret "$o ok cancel"
@@ -274,15 +229,14 @@ fn scnf_order(int id) {
 
 # The dialog's buttons: Delete only for a program there to delete.
 fn scnf_btns(int id, int h, int w, f) {
-	if [ "${SCNF[$id]["k"]}" -ge 0 ] && [ "${SCNF[$id]["virt"]}" != 1 ]; then
+	if [ "${SCNF[$id]["k"]}" -ge 0 ]; then
 		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Delete cancel Cancel
 	else
 		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 	fi
 }
 
-# The rows every program has: its name, its command, when it ends and its
-# engine.
+# The rows every program has: its name, its command and when it ends.
 fn scnf_common(int id, int w, f) {
 	local on cur
 
@@ -303,54 +257,13 @@ fn scnf_common(int id, int w, f) {
 	[ "$f" = end ] && console pen "$DT_SELINK" "$DT_ACTIVE"
 	dt_wdrop "$id" 7 16 12 "${SCNF[$id]["end"]}" end
 	console pen "$DT_INK" "$DT_FACE"
-	dt_tput "$id" 7 32 "Engine:"
-	[ "$f" = eng ] && console pen "$DT_SELINK" "$DT_ACTIVE"
-	dt_wdrop "$id" 7 40 16 "${SCNF[$id]["eng"]}" eng
-	console pen "$DT_INK" "$DT_FACE"
 	return 0
-}
-
-# Wayland Screen's own rows: Steam's integration, the keys, the pointer,
-# and what decides its size and where its log is.
-fn scnf_wdraw(int id, int h, int w, f) {
-	local log
-
-	scnf_common "$id" "$w" "$f"
-	scnf_drop "$id" 5 2 "Steam Integration:" 6 o_steam "$f"
-	console pen "$DT_DIM" "$DT_FACE"
-	if scnf_bridge; then
-		dt_tput "$id" 8 2 "Blit's gamescope bridge, on the GPU: X11 and Wayland programs."
-	else
-		dt_tput "$id" 8 2 "Needs Blit's gamescope bridge: install blit-gamescope."
-	fi
-	console pen "$DT_INK" "$DT_FACE"
-	dt_tput "$id" 10 2 "How it is reached -- Default is Control Panel > Screens > Defaults:"
-	scnf_drop "$id" 11 2 "Every Key:" 9 o_keys "$f"
-	scnf_drop "$id" 11 30 "Capture on Click:" 9 o_rel "$f"
-	scnf_drop "$id" 12 2 "Hold As:" 9 o_holdas "$f"
-	console pen "$DT_DIM" "$DT_FACE"
-	if [ "${SCNF[$id]["o_holdas"]}" = confine ]; then
-		dt_tput "$id" 12 24 "The pointer shown, kept inside the picture."
-	else
-		dt_tput "$id" 12 24 "Mouse-look: no pointer, only motion."
-	fi
-	console pen "$DT_DIM" "$DT_FACE"
-	dt_tput "$id" 13 2 "Its size is the window's, and its refresh rate the display's."
-	if dt_has scn_wlog; then
-		log := scn_wlog
-		dt_tput "$id" 14 2 "Its log: %s" "${log/#"$HOME"/"~"}"
-	fi
-	scnf_btns "$id" "$h" "$w" "$f"
 }
 
 fn scnfield_draw(int id, int h, int w, int row, int col) {
 	local f=${SCNF[$id]["focus"]} on cur
 
 	dt_wclear "$id"
-	if [ "${SCNF[$id]["eng"]}" = "Wayland Screen" ]; then
-		scnf_wdraw "$id" "$h" "$w" "$f"
-		return 0
-	fi
 	scnf_common "$id" "$w" "$f"
 	dt_tput "$id" 5 2 "Window:"
 	[ "$f" = win ] && console pen "$DT_SELINK" "$DT_ACTIVE"
@@ -420,7 +333,7 @@ fn scnf_popt(int k, key) {
 	*) ret default; return 0 ;;
 	esac
 	case $key in
-	cursor | noreset | keys | rel | ownptr | xinerama | render | composite | dbe | xvideo | glx | steam)
+	cursor | noreset | keys | rel | ownptr | xinerama | render | composite | dbe | xvideo | glx)
 		[ "$v" = 1 ] && v=on
 		[ "$v" = 0 ] && v=off
 		;;
@@ -434,9 +347,6 @@ fn scnf_choices(field) {
 	win) SCNF_LIST=("${SCNS_WINS[@]}") ;;
 	pic) SCNF_LIST=("${SCNS_PICS[@]}") ;;
 	end) SCNF_LIST=("${SCNS_ENDS[@]}") ;;
-	eng) SCNF_LIST=("${SCNS_ENGS[@]}") ;;
-	o_steam) SCNF_LIST=("${SCNS_ONOFF[@]}") ;;
-	o_holdas) SCNF_LIST=("${SCNS_HOLDAS[@]}") ;;
 	o_fps) SCNF_LIST=(default "${SCNS_FPSS[@]}") ;;
 	o_size) SCNF_LIST=(default "${SCNS_SIZES[@]}") ;;
 	o_bg) SCNF_LIST=("${SCNS_BGS[@]}") ;;
@@ -477,11 +387,6 @@ fn scnf_preset(int id, which) {
 fn scnf_setwin(int id, value = "") { SCNF[$id]["win"]=$value; }
 fn scnf_setpic(int id, value = "") { SCNF[$id]["pic"]=$value; }
 fn scnf_setend(int id, value = "") { SCNF[$id]["end"]=$value; }
-# A new engine changes which rows there are, so the focus goes back to it.
-fn scnf_seteng(int id, value = "") {
-	SCNF[$id]["eng"]=$value
-	SCNF[$id]["focus"]=eng
-}
 # The choice a screen row's list was opened for, set to what was chosen.
 fn scnf_setdrop(int id, value = "") {
 	local f=${SCNF[$id]["drop"]}
@@ -519,22 +424,18 @@ fn scnfield_ok(int id) {
 	SCNP_OPT[$k] := scnf_opts "$id"
 	cm=${SCNF[$id]["extra"]}
 	SCNP_EXTRA[$k]=${cm//[$'\t\n']/ }
-	SCNP_VIRT[$k]=0
 	scnf_store
 	dt_del "$id"
 }
 
-# The dialog's choices as the list keeps them: only what is not default,
-# and the engine only when it is not X Screen, which every line without one
-# is.
+# The dialog's choices as the list keeps them: only what is not default. A
+# Wayland Screen program's engine and its options are not kept again.
 fn scnf_opts(int id) {
 	local o v out=
 
-	[ "${SCNF[$id]["eng"]}" = "Wayland Screen" ] && out=";engine=wayland"
 	for o in "${SCNS_OKEYS[@]}"; do
 		v=${SCNF[$id]["o_$o"]}
 		[ "$v" = default ] && continue
-		[ "$o" = steam ] && [ "$v" = off ] && continue
 		[ "$v" = on ] && v=1
 		[ "$v" = off ] && v=0
 		out="$out;$o=$v"
@@ -546,7 +447,7 @@ fn scnf_opts(int id) {
 fn scnfield_del(int id) {
 	local k=${SCNF[$id]["k"]} t
 
-	[ "$k" -ge 0 ] && [ "${SCNF[$id]["virt"]}" != 1 ] || return 0
+	[ "$k" -ge 0 ] || return 0
 	SCNF_DEL=$id
 	t := dt_tr "Delete %s from the programs Screens runs?" "${SCNP_NAME[$k]}"
 	dt_confirm "$t" scnf_delok
@@ -566,7 +467,7 @@ SCNS_DEL=
 fn scns_delask(int k) {
 	local t
 
-	[ -n "${SCNP_NAME[$k]+x}" ] && [ "${SCNP_VIRT[$k]:-0}" != 1 ] || return 0
+	[ -n "${SCNP_NAME[$k]+x}" ] || return 0
 	SCNS_DEL=$k
 	t := dt_tr "Delete %s from the programs Screens runs?" "${SCNP_NAME[$k]}"
 	dt_confirm "$t" scns_delok
@@ -580,11 +481,10 @@ scns_delok() {
 # Take program k off the list, then save it and put the menu right.
 fn scns_remove(int k) {
 	local i
-	local -a n c w p e o x v
+	local -a n c w p e o x
 
 	for i in "${!SCNP_NAME[@]}"; do
 		[ "$i" = "$k" ] && continue
-		v+=("${SCNP_VIRT[$i]:-0}")
 		n+=("${SCNP_NAME[$i]}")
 		c+=("${SCNP_CMD[$i]}")
 		w+=("${SCNP_WIN[$i]}")
@@ -600,7 +500,6 @@ fn scns_remove(int k) {
 	SCNP_END=("${e[@]}")
 	SCNP_OPT=("${o[@]}")
 	SCNP_EXTRA=("${x[@]}")
-	SCNP_VIRT=("${v[@]}")
 	scnf_store
 }
 
@@ -633,8 +532,6 @@ fn scnfield_click(int id, int r, int c, btn = "") {
 		dt_droplist "$id" "$r" "$c" scnf_setpic "${SCNS_PICS[@]}" ;;
 	end) SCNF[$id]["focus"]=end
 		dt_droplist "$id" "$r" "$c" scnf_setend "${SCNS_ENDS[@]}" ;;
-	eng) SCNF[$id]["focus"]=eng
-		dt_droplist "$id" "$r" "$c" scnf_seteng "${SCNS_ENGS[@]}" ;;
 	ok) scnfield_ok "$id" ;;
 	del) scnfield_del "$id" ;;
 	cancel) dt_del "$id" ;;
@@ -661,7 +558,7 @@ fn scnfield_key(int id, key) {
 		case $f in
 		cancel) dt_del "$id" ;;
 		del) scnfield_del "$id" ;;
-		win | pic | end | eng | o_*) scnf_cycle "$id" "$f" 1 ;;
+		win | pic | end | o_*) scnf_cycle "$id" "$f" 1 ;;
 		smooth | light) scnf_preset "$id" "$f" ;;
 		*) scnfield_ok "$id" ;;
 		esac
@@ -669,7 +566,7 @@ fn scnfield_key(int id, key) {
 		;;
 	esac
 	case $f in
-	win | pic | end | eng | o_*)
+	win | pic | end | o_*)
 		case $key in
 		left) scnf_cycle "$id" "$f" -1 ;;
 		right | " ") scnf_cycle "$id" "$f" 1 ;;

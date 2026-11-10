@@ -8,8 +8,7 @@
 # the keys and closed by the desktop. The compositor tells the desktop what
 # a program asks for (a title, a size it will not go below, full screen),
 # and the desktop tells it the size in pixels it is to draw at, which is
-# the window's own: a resize is 1:1 at any shape, which gamescope could not
-# do. The keys and the pointer go from Blit to the compositor directly; the
+# the window's own: a resize is 1:1 at any shape. The keys and the pointer go from Blit to the compositor directly; the
 # desktop only says which window has them (INPUT on/off, from `_focus`).
 #
 # It is started once a desktop, as the desktop opens, when it is
@@ -490,9 +489,8 @@ fn dt_natseen(int n) {
 }
 
 # The refresh rate of the display the desktop is shown on, in millihertz,
-# from Blit's own API with what Blit gives the desktop's session (as
-# Screens' Wayland Screen asks it: the pane, then the pane's display, then
-# its mode), asked once a desktop and each request bounded to a second, so
+# from Blit's own API with what Blit gives the desktop's session (the
+# pane, then the pane's display, then its mode), asked once a desktop and each request bounded to a second, so
 # a Blit that does not answer costs one second and never a frozen desktop.
 # 60000 when there is no answer. DAV_CODE is the dav module's own.
 DT_NATHZ=

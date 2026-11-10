@@ -78,8 +78,6 @@ python3 tests/dmabuf.py     frames by dmabuf through hold's server
 python3 tests/frames.py     a program's frames through the frames module's socket
 python3 tests/native.py     programs' own windows through Blit's compositor, against stand-ins
 python3 tests/holdlock.py   the pointer lock going to the display showing the window
-python3 tests/screens_wl.py Screens' Wayland Screen and its Steam row, against
-                            stand-ins for the bridge and Blit
 python3 tests/holdrenew.py  hold upgrade renewing two stacked displays' clients
 python3 tests/holdseam.py   a picture across the seam of two stacked displays, cut for each
 python3 tests/shots.py      tools/screenshot.py's grid and pictures
@@ -112,7 +110,6 @@ python3 tests/appmgr.py       the catalogue, against a stand-in index
 The stand-ins (`mailserve.py`, `davserve.py`, `fetchserve.py`,
 `bwserve.py`, `ytserve.py`) are servers, not suites, and so is
 `frameserve.py`, Blit's frame socket, which refuses what Blit refuses (versions 1 to 3, `v3` and `nodma` for dmabuf frames, checked by size and never mapped; an `INPUT` route refused ENOENT for a picture it has no frame of, EACCES for a socket the uid does not own, EBUSY for a second);
-`bridgeserve.py`, Blit's gamescope bridge as the Steam window starts it: it records its command line, speaks Blit's frame wire to whatever socket it is given, offers an EIS socket and sends a frame every 50 ms;
 `tests/net/` holds the programs that stand in for `nmcli`, `bluetoothctl`,
 `pkexec` and `pkttyagent`, with the output they were captured giving (see
 its [README](net/README.md)). `pdfmake.py` writes the PDF Reader's

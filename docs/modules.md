@@ -258,8 +258,8 @@ lists every one, file by file:
   there is no `/proc`. It shares its reader with `mon`.
 - **`frames`** is the socket a window's picture is sent to, speaking
   Blit's own frame wire from the far side (0.99.468, Gitea #486): `frames
-  serve` answers `N SOCKET TOKEN`, which a program such as Blit's gamescope
-  bridge is given as `BLIT_FRAME_SOCKET` and `BLIT_FRAME_TOKEN`; `frames
+  serve` answers `N SOCKET TOKEN`, which a producer -- Blit's compositor for
+  programs' windows, with `serve -w` -- is given as `BLIT_FRAME_SOCKET` and `BLIT_FRAME_TOKEN`; `frames
   place N PANE ROW COL H W`, called from a window's drawing, keeps the
   stream's picture in that rectangle of the pane. Its frames -- dmabufs or
   sealed memfds -- go through the console to every display's Blit under

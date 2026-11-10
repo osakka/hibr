@@ -323,7 +323,7 @@ through every cell the clear left at the terminal's own background.
 
 The `"dpframes"` interface (`DPF_API_VER` 1, `mods/display.h`), offered beside
 `"display"` and `"scroll"`, is a window's picture whose frames arrive by
-descriptor from another program: a game, through Blit's gamescope bridge and
+descriptor from another program: a window of Blit's compositor, through
 the frames module's socket (Gitea #486, Blit ADR 0223). A stream's picture
 keeps **one kitty id and one placement (`p=1`) for its whole life**. A move,
 a resize or a raise sends that same placement again where it now is, and Blit

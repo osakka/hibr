@@ -219,8 +219,9 @@ typedef struct dps_api {
    when the script should wake after all. This is what lets a frame and
    its RELEASE pass at sixty a second without costing the desktop a frame
    each. */
-/* Version 2 (Blit 0.3.64): input, a stream's input route -- "eis" with the
-   socket the producer offers, "on" or "off" as its window gains and loses
+/* Version 2 (Blit 0.3.64): input, a stream's input route -- "sock" with the
+   socket blit-compositor offers (an "eis" route went with Blit's gamescope
+   bridge in 0.99.483), "on" or "off" as its window gains and loses
    the keys -- told to Blit once a frame of it has gone, and again when its
    picture comes back under a new id; what Blit says of it comes back by
    answers as "OK input <stream>" or "ERROR INPUT <stream> <code>". */

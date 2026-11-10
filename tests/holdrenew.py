@@ -140,11 +140,11 @@ pids = (t0.pid, t1.pid)
 if br:
     br.send()
     wait(lambda: frames(lg0), 5)
-    eis = os.path.join(D, "eis.sock")
+    eis = os.path.join(D, "in.sock")
     es = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     es.bind(eis)
     br.answers(0.3)
-    br.say("INPUT eis 42 %s" % eis)
+    br.say("INPUT sock 42 %s" % eis)
     br.answers(1.0)
     open(out + ".on", "w").close()
     wait(lambda: len([x for x in routes(lg0) if x.get("verb") == "on"]), 5)
@@ -201,9 +201,9 @@ if br:
         br.send()
         time.sleep(0.3 * SLOW)
     rep = wait(lambda: [x for x in routes(lg0)[r0:]
-                        if x.get("verb") in ("eis", "on")], 5)
+                        if x.get("verb") in ("sock", "on")], 5)
     check("the game's input route is set up again at the renewed display's "
-          "Blit, on as it was", rep and {x["verb"] for x in rep} >= {"eis", "on"},
+          "Blit, on as it was", rep and {x["verb"] for x in rep} >= {"sock", "on"},
           (r0, [x for x in lines(lg0) if x["kind"] != "frame3"][-12:]))
     hrep = wait(lambda: [x for x in lines(lg0) if x["kind"] == "hold"][h0n:], 5)
     check("and its hold is said again with it, still confined, so a held "

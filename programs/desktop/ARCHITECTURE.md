@@ -193,7 +193,7 @@ drawing in the wrong place. The calls:
 | `_dirty` | `id` -- asked before a window is left undrawn; succeed when it has changed (an app without one is drawn every frame) |
 | `_paintsall` | `id` -- succeed when this window's draw repaints every cell inside its frame, so a changed window whose frame is unchanged is drawn content only, without its face cleared or its frame drawn again (`dt_contentonly`); the Terminal does while its program runs |
 | `_fullscreen` | `id on\|off` -- the window has gone full screen or come back, by its own `dt_fullscreen` or the desktop's Full Screen key |
-| `_focus` | `id on\|off` -- the window has started or stopped being the one keys go to: focused, shown, and no menu, pop-up, saver or lock in front of it. The same test as the key phases (`DT_KEYSWIN`), asked once a pass while any window has a `_focus`; a closed window is not told. The Steam window turns its game's input route on and off with it (Gitea #486) |
+| `_focus` | `id on\|off` -- the window has started or stopped being the one keys go to: focused, shown, and no menu, pop-up, saver or lock in front of it. The same test as the key phases (`DT_KEYSWIN`), asked once a pass while any window has a `_focus`; a closed window is not told. A program's window of Blit's compositor turns its input route on and off with it (Gitea #494) |
 | `_about` | nothing -- the hibr menu's About for the front app, in place of the desktop's card |
 | `_drop` | `id r c op paths...` |
 | `_menus` | nothing -- the menus are built for whichever window has focus, `$DT_FOCUS` |

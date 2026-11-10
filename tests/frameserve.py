@@ -139,7 +139,9 @@ def inputline(conn, held, routes, data, fds):
     w = data.decode(errors="replace").strip().split(" ")
     iid = int(w[2]) if len(w) >= 3 and w[2].isdigit() else 0
     why = None
-    if len(w) == 4 and w[1] in ("eis", "sock"):
+    # `INPUT eis` went with Blit's gamescope bridge in 0.3.75: an unknown
+    # line now, refused as one.
+    if len(w) == 4 and w[1] == "sock":
         # As Blit's api.md has it: the image need not have a frame yet;
         # ENOENT is no such socket, EACCES one that is not the client's.
         try:

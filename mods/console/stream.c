@@ -1,7 +1,7 @@
 /* stream -- a window's picture whose frames another program sends.
  *
  * Gitea #486, Blit ADR 0223. A program on the far side of the frames
- * module's listener (a game, through Blit's gamescope bridge) sends a
+ * module's listener (a window of Blit's compositor's, Gitea #494) sends a
  * frame by descriptor -- a dmabuf, or a sealed memfd of RGB -- and the
  * console passes it on to Blit under the kitty id of the picture it placed
  * for that stream, without ever holding a pixel. What comes back, a
@@ -38,12 +38,12 @@ typedef struct cn_dst {
 	size_t hn;
 	int fds[BF_MAXFD];	/* and its descriptors, ours to close */
 	int n;
-	/* Its input route (Blit 0.3.64): the EIS socket asked for and
-	   whether it is on, and the id a frame last went under and the id
+	/* Its input route (Blit ADR 0228): the socket Blit writes its input
+	   to and whether it is on, and the id a frame last went under and the id
 	   the route was last told to -- a route needs its picture to exist
 	   at Blit, and a picture placed again under a new id is a new one
 	   there, so the route is asked for again for it. */
-	char *eis;
+	char *sock;
 	int on;
 	unsigned fcid, icid;
 	/* Whether the newest frame has gone to Blit: one that has not, and
@@ -52,7 +52,6 @@ typedef struct cn_dst {
 	int sent;
 	int ion;
 	int hold, ihold;
-	int sock;
 	unsigned mpar, imcid, impcid;
 	int mx, my;
 } cn_dst;
@@ -552,7 +551,7 @@ int cn_dsay(sh *s, const char *line)
 }
 
 /* Tell Blit what a stream's input route is now, once a frame of it has
-   gone under its picture's id: the EIS socket once per id, then whether it
+   gone under its picture's id: the socket once per id, then whether it
    is on, whenever that or the id has changed. */
 void cn_dinsync(sh *s, struct cn_dst *d)
 {
@@ -577,14 +576,14 @@ void cn_dinsync(sh *s, struct cn_dst *d)
 		}
 		s_free(&o);
 	}
-	if (!d->eis || !d->fcid || d->fcid != d->cid)
+	if (!d->sock || !d->fcid || d->fcid != d->cid)
 		return;
 	s_init(&o);
 	if (d->icid != d->cid) {
-		s_cat(&o, d->sock ? "INPUT sock " : "INPUT eis ");
+		s_cat(&o, "INPUT sock ");
 		s_num(&o, (long)d->cid);
 		s_ch(&o, ' ');
-		s_cat(&o, d->eis);
+		s_cat(&o, d->sock);
 		if (!cn_dsay(s, o.p)) {
 			s_free(&o);
 			return;
@@ -611,8 +610,8 @@ void cn_dinsync(sh *s, struct cn_dst *d)
 	s_free(&o);
 }
 
-/* A stream's input route: "eis" with the socket the producer offers ("sock"
-   for blit-compositor's, which Blit writes the input to itself), "on"
+/* A stream's input route: "sock" with the socket blit-compositor offers,
+   which Blit writes the input to itself, "on"
    or "off" as its window gains and loses the keys, "hold" with confine or
    relative for how a held pointer behaves (Blit 0.3.70). 1 when kept; it
    reaches Blit as soon as a frame of the stream has. */
@@ -620,11 +619,9 @@ int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path)
 {
 	cn_dst *d = cn_dget(sid, 1);
 
-	if ((!strcmp(verb, "eis") || !strcmp(verb, "sock")) && path && *path &&
-	    !strchr(path, '\n')) {
-		free(d->eis);
-		d->eis = xs(path);
-		d->sock = !strcmp(verb, "sock");
+	if (!strcmp(verb, "sock") && path && *path && !strchr(path, '\n')) {
+		free(d->sock);
+		d->sock = xs(path);
 		d->icid = 0;
 	} else if (!strcmp(verb, "on")) {
 		d->on = 1;
@@ -655,7 +652,7 @@ void cn_ddrop(sh *s, unsigned sid)
 		return;
 	cn_dunsent(d);
 	cn_dclose(d);
-	free(d->eis);
+	free(d->sock);
 	i = (size_t)(d - cn_dsts);
 	cn_dsts[i] = cn_dsts[cn_ndst - 1];
 	cn_ndst--;

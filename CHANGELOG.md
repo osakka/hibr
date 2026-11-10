@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.483
+
+**Blit's gamescope bridge is gone, and everything that served it**
+(owner, 2026-11-10, with Blit 0.3.75, which removes the bridge and its
+package). A Wayland program opens in a window of the desktop's own
+(Programs in Windows, 0.99.481); X11 programs run on an X Screen. Steam and
+other games that needed gamescope run in no desktop window until Blit's
+Xwayland (its phase 2).
+
+- **Screens** is X Screen alone again (catalogue screens 0.7.3): the Wayland
+  Screen engine, its built-in Steam program and their rows in Control Panel
+  > Screens are taken out. A program the list still marks `engine=wayland`
+  runs on an X Screen, and is saved without the mark when next changed.
+- **The frames module** refuses `INPUT eis`, the bridge's input route; a
+  route is a socket Blit writes to (`INPUT sock`), which the console and
+  `hold` carry and replay as before.
+- `tests/screens_wl.py` and its stand-in bridge are gone; `tests/frames.py`
+  checks an EIS route is refused.
+
 ## 0.99.482
 
 **Wayland programs as everyday windows** (Gitea #496, Blit ADR 0229, with
