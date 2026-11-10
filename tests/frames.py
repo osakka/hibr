@@ -187,26 +187,23 @@ t.keys([b"z"])
 wait(lambda: int(info(out).get("loops", 0)) > l0)
 t.collect(0.5)
 dl = [a for a in apcs(t) if "a=d" in a and "i=%s" % cid in a]
-open(lgb + ".del", "w").write("%s\n" % cid if dl else "")
 os.unlink(out + ".hide")
-n4 = len(frames(lgb))
+n4 = len(apcs(t))
 t.keys([b"z"])
-wait(lambda: len(frames(lgb)) > n4)
 t.collect(0.5)
-f4 = frames(lgb)[n4:]
-nid = f4[0]["id"] if f4 else None
-check("a picture whose pane drew without it goes, and placed again it is a new "
-      "id sent the newest frame at once",
-      dl and nid and nid != cid and f4[0]["seq"] == last and
-      any("i=%s," % nid in a for a in apcs(t) if "a=p" in a), (dl, f4))
+back = [a for a in apcs(t)[n4:] if "a=p" in a and "i=%s," % cid in a]
+check("a picture whose pane drew without it loses only its placement (d=i), "
+      "and placed again it is the same picture under the same id -- its input "
+      "route at Blit is keyed by that id (Gitea #499)",
+      dl and all("d=i" in a for a in dl) and back, (dl, back))
 early = br.answers(0.5)
+n5 = len(frames(lgb))
 br.send()
-wait(lambda: len(frames(lgb)) > n4 + 1)
+wait(lambda: len(frames(lgb)) > n5)
 got = early + br.answers()
-check("and the producer hears that frame let go once, after both ids have",
-      got.count("FRAME release 42 %d" % last) == 1 and
+check("and the producer hears its last frame let go once, when the next one "
+      "replaces it", got.count("FRAME release 42 %d" % last) == 1 and
       "FRAME release 42 %d" % last not in early, (early, got))
-cid = nid
 # Input (Blit 0.3.64): the producer offers its input socket, the window
 # says when it has the keys, and every answer comes back in its own id. An
 # EIS route went with Blit's gamescope bridge (0.99.483): refused here.

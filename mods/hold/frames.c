@@ -518,6 +518,46 @@ unsigned long hd_inid(const char *line, size_t n)
 	return i < n ? strtoul(line + i, 0, 10) : 0;
 }
 
+/* The socket an `INPUT sock <id> <path>` line names: what follows its third
+   word, and its length. */
+const char *hd_inpath(const char *line, size_t n, size_t *len)
+{
+	size_t i = 0;
+	int sp = 0;
+
+	while (i < n && sp < 3)
+		if (line[i++] == ' ')
+			sp++;
+	*len = n - i;
+	return line + i;
+}
+
+/* A route asked for again under a new picture id -- a window's picture
+   placed again after it was hidden -- takes the place of the one its
+   socket had: the old record goes, or every display joining after would
+   be told the route on an id nothing draws (Gitea #499). */
+void hd_insame(size_t k)
+{
+	size_t i, pn, qn;
+	const char *p, *q;
+
+	p = hd_inpath(hd_ins[k].sock.p, hd_ins[k].sock.n, &pn);
+	for (i = hd_nin; i--;) {
+		if (i == k || !hd_ins[i].sock.n || hd_ins[i].prod != hd_ins[k].prod)
+			continue;
+		q = hd_inpath(hd_ins[i].sock.p, hd_ins[i].sock.n, &qn);
+		if (qn != pn || memcmp(p, q, pn))
+			continue;
+		lg(HIBR_LDBG, "hold: route %u moved to %u", hd_ins[i].id,
+		   hd_ins[k].id);
+		s_free(&hd_ins[i].sock);
+		s_free(&hd_ins[i].mem);
+		hd_ins[i] = hd_ins[--hd_nin];
+		if (k == hd_nin)
+			k = i;
+	}
+}
+
 /* An input route's line from a producer (Blit 0.3.64, Gitea #486): who
    asked is remembered by picture, and the line goes to every display that
    can be sent frames, each saying it to its own Blit. With none, the
@@ -550,6 +590,7 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	if (n > 11 && !memcmp(line, "INPUT sock ", 11)) {
 		hd_ins[i].sock.n = 0;
 		s_add(&hd_ins[i].sock, line, n);
+		hd_insame(i);
 	} else if (n > 9 && !memcmp(line, "INPUT on ", 9)) {
 		hd_ins[i].on = 1;
 	} else if (n > 10 && !memcmp(line, "INPUT off ", 10)) {

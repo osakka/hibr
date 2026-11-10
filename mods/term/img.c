@@ -250,6 +250,18 @@ void tm_apcend(tm_t *t)
 			long id = tm_imgkey(s, 'i');
 
 			if (id > 0 && t->img[i].id == (unsigned)id) {
+				/* Its placements alone (d=i) of a picture by
+				   descriptor -- a program window's, out of view
+				   -- keep the image: kept here covering no
+				   cells, so every display loses the placement
+				   and keeps the image, its input route still on
+				   the id it comes back under (Gitea #499). */
+				if (d == 'i' && tm_imgisplace(t->img[i].data.p,
+							      t->img[i].data.n)) {
+					t->img[i].rows = 0;
+					t->img[i].cols = 0;
+					break;
+				}
 				tm_imgdrop(t, i);
 				break;
 			}

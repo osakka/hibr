@@ -154,6 +154,7 @@ void kt_idsave(sh *s);
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 	       unsigned id, long z, int comp, str *o);
 void kt_del(str *o, unsigned id);
+void kt_delp(str *o, unsigned id);
 void kt_place(int cols, int rows, unsigned id, long z, str *o);
 void kt_placep(int cols, int rows, unsigned id, unsigned pid, long z, str *o);
 void kt_placesub(unsigned id, unsigned pid, int sx, int sy, int sw, int sh,

@@ -41,8 +41,9 @@ typedef struct cn_dst {
 	/* Its input route (Blit ADR 0228): the socket Blit writes its input
 	   to and whether it is on, and the id a frame last went under and the id
 	   the route was last told to -- a route needs its picture to exist
-	   at Blit, and a picture placed again under a new id is a new one
-	   there, so the route is asked for again for it. */
+	   at Blit. A picture keeps its id while out of view (Gitea #499), so
+	   the route is asked once; were the id ever new, it would be asked
+	   again for it. */
 	char *sock;
 	int on;
 	unsigned fcid, icid;
@@ -327,15 +328,22 @@ int cn_dsend(sh *s, cn_dst *d)
 		hf = cn_hold(s);
 		if (!hf)
 			return 0;
-		if (d->hn == BF_HDR)
-			return hf->frame(s, h, d->fds[0]);
-		if (cn_d3 < 0) {
-			cn_d3 = hf->open3(s);
-			if (cn_d3 < 0)
-				return 0;
-			cn_fdhook(cn_d3, cn_d3read, s);
+		/* A memfd frame (FRM1, a program drawing in shared memory --
+		   Firefox's own frame round its page) goes on as a dmabuf
+		   one does, and is recorded the same way: it returned here
+		   once, so a held window drawn that way never had its input
+		   route asked for, and took no keys or clicks (Gitea #499). */
+		if (d->hn == BF_HDR) {
+			ok = hf->frame(s, h, d->fds[0]);
+		} else {
+			if (cn_d3 < 0) {
+				cn_d3 = hf->open3(s);
+				if (cn_d3 < 0)
+					return 0;
+				cn_fdhook(cn_d3, cn_d3read, s);
+			}
+			ok = hf->frame3(cn_d3, h, d->fds, d->n);
 		}
-		ok = hf->frame3(cn_d3, h, d->fds, d->n);
 	} else {
 		fd = cn_bfconn();
 		if (fd < 0)
@@ -508,10 +516,9 @@ int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
 	memcpy(d->h, h, hn);
 	d->hn = hn;
 	d->sent = 0;
-	/* Only to the picture as it is now: one dropped since (its pane drew
-	   without it) has been deleted from Blit, and a frame under that id
-	   would make an image there nothing deletes. The next place gives it
-	   a new id and sends this frame then. */
+	/* Only to the picture as it is now: one out of view (its pane drew
+	   without it) keeps its image and id at Blit but no placement, and is
+	   sent this frame when it is placed again, under the same id. */
 	if (d->cid && cn_imgdmaid(sid) != d->cid)
 		d->cid = 0;
 	if (d->cid)

@@ -22,11 +22,12 @@ geometry; LOG.move, LOG.resize (holding an edge) and LOG.menu (holding X Y)
 each ask once, as its own title bar would; LOG.copy (a line of text, and
 `secret` on the next) offers that as its clipboard. The desktop's own
 clipboard offers are read at once, as a program pasting would read them.
-When the desktop goes it dials again for sixty seconds and announces every
+LOG.shm, there from the start, draws 7 in shared memory (FRM1), its subs
+by dmabuf, as Firefox does. When the desktop goes it dials again for sixty seconds and announces every
 window again under the same ids, as blit-compositor does across a Restart
 Desktop. Everything it is told is a JSON line in LOG.
 """
-import json, os, signal, socket, struct, sys, time
+import fcntl, json, os, signal, socket, struct, sys, time
 
 LOG = sys.argv[1]
 
@@ -136,6 +137,9 @@ def reconnect():
     sys.exit(0)
 
 
+SHM = os.path.exists(LOG + ".shm")
+
+
 def frame(wid):
     w, h = size[wid]
     if wid == 7 and geom:
@@ -143,6 +147,20 @@ def frame(wid):
         # its own frame has: its geometry says where the window is.
         w, h = w + 20, h + 20
     if w <= 0 or h <= 0:
+        return
+    if wid == 7 and SHM:
+        # Drawn in shared memory, as GTK draws Firefox's own frame round
+        # its page: an FRM1 copy, a sealed memfd a frame (Gitea #499).
+        seq[wid] = seq.get(wid, 0) + 1
+        fd = os.memfd_create("shm", os.MFD_ALLOW_SEALING)
+        os.ftruncate(fd, w * h * 4)
+        fcntl.fcntl(fd, 1033, 0x2 | 0x4 | 0x8)
+        hd = b"FRM1" + struct.pack("<IQIIIIIIII", wid, seq[wid], w, h, 32, w * 4, 0, 0, 0, 0)
+        try:
+            socket.send_fds(s, [hd], [fd])
+        except OSError:
+            pass
+        os.close(fd)
         return
     if fds.get(wid, (0, 0, -1))[:2] != (w, h):
         fd = os.memfd_create("plane")

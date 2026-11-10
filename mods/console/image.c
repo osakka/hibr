@@ -233,13 +233,64 @@ void cn_imgforget(const cn_img *im)
 			cn_front.c[r * cn_front.cols + c].cp = 0xFFFFFFFFu;
 }
 
+/* A stream's picture out of view keeps its id for when it comes back
+   (Gitea #499): its input route at Blit is keyed by that id, and a picture
+   placed again under a new one left the route on an id nothing drew -- a
+   Firefox minimized and raised, or seen from another workspace, took no
+   keys and no clicks. Only the placements go meanwhile; the stream ending
+   deletes the image (cn_imgdmadrop). */
+static unsigned *cn_parksid, *cn_parkid;
+static size_t cn_nparked, cn_parkcap;
+static int cn_imgending;
+
+/* Remember a stream's id while its picture is out of view. */
+void cn_imgpark(unsigned sid, unsigned id)
+{
+	size_t i;
+
+	for (i = 0; i < cn_nparked; i++)
+		if (cn_parksid[i] == sid) {
+			cn_parkid[i] = id;
+			return;
+		}
+	if (cn_nparked == cn_parkcap) {
+		cn_parkcap = cn_parkcap ? cn_parkcap * 2 : 8;
+		cn_parksid = xr(cn_parksid, cn_parkcap * sizeof *cn_parksid);
+		cn_parkid = xr(cn_parkid, cn_parkcap * sizeof *cn_parkid);
+	}
+	cn_parksid[cn_nparked] = sid;
+	cn_parkid[cn_nparked++] = id;
+}
+
+/* The id a stream's picture had before it went out of view, taken back:
+   0 when it had none. */
+unsigned cn_imgunpark(unsigned sid)
+{
+	size_t i;
+	unsigned id;
+
+	for (i = 0; i < cn_nparked; i++)
+		if (cn_parksid[i] == sid) {
+			id = cn_parkid[i];
+			cn_parksid[i] = cn_parksid[--cn_nparked];
+			cn_parkid[i] = cn_parkid[cn_nparked];
+			return id;
+		}
+	return 0;
+}
+
 /* Drop region i. */
 void cn_imgdrop(size_t i)
 {
 	if (i >= cn_nimg)
 		return;
 	cn_imgforget(&cn_imgs[i]);
-	cn_imgowe(cn_imgs[i].id);
+	if (cn_imgs[i].dma && !cn_imgending) {
+		kt_delp(&cn_kdel, cn_imgs[i].id);
+		cn_imgpark(cn_imgs[i].dma, cn_imgs[i].id);
+	} else {
+		cn_imgowe(cn_imgs[i].id);
+	}
 	free(cn_imgs[i].cell);
 	free(cn_imgs[i].pane);
 	free(cn_imgs[i].prev);
@@ -596,7 +647,11 @@ int cn_imgdmas(sh *s, const char *pane, int row, int col, int h, int w,
 	im->plive = 1;
 	im->fd = 1;
 	im->dma = sid;
-	im->id = kt_id();
+	im->id = cn_imgunpark(sid);
+	if (!im->id)
+		im->id = kt_id();
+	else
+		lg(HIBR_LDBG, "image: stream %u back in view under %u", sid, im->id);
 	im->sub = sr ? (sr->crop ? 2 : 1) : 0;
 	im->sx = sx;
 	im->sy = sy;
@@ -627,12 +682,17 @@ unsigned cn_imgdmaid(unsigned sid)
 void cn_imgdmadrop(unsigned sid)
 {
 	size_t i;
+	unsigned id = cn_imgunpark(sid);
 
 	for (i = 0; i < cn_nimg; i++)
 		if (cn_imgs[i].dma == sid) {
+			cn_imgending = 1;
 			cn_imgdrop(i);
+			cn_imgending = 0;
 			return;
 		}
+	if (id)
+		cn_imgowe(id);
 }
 
 /* Drop every region: the screen is being left, or cleared outright. */

@@ -312,6 +312,17 @@ void kt_placesub(unsigned id, unsigned pid, int sx, int sy, int sw, int sh,
 	s_cat(o, "\033\\");
 }
 
+/* Delete an image's placements and keep the image: a program window's
+   picture while its window is out of view, coming back under the same id
+   (Gitea #499) -- deleted outright, Blit would refuse its frames for good
+   and its input route would be left on an id nothing draws. */
+void kt_delp(str *o, unsigned id)
+{
+	s_cat(o, "\033_Ga=d,d=i,q=2,i=");
+	s_num(o, id);
+	s_cat(o, "\033\\");
+}
+
 /* Delete one image: its placements and the data behind them. */
 void kt_del(str *o, unsigned id)
 {

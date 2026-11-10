@@ -358,6 +358,10 @@ blit2 = subprocess.Popen([sys.executable, os.path.join(HERE, "frameserve.py"),
                           nm2, "tok2", blitlog2, "v3", "hold"])
 wait(lambda: "listening" in open(blitlog2).read())
 complog2 = os.path.join(D, "comp2.log")
+# Its window drawn in shared memory (FRM1), its subsurfaces by dmabuf, as
+# Firefox draws its own frame round its page: held, a memfd frame once went
+# without being recorded and the window's route was never asked (#499).
+open(complog2 + ".shm", "w").close()
 wrap2 = os.path.join(D, "blit-compositor2")
 open(wrap2, "w").write("#!/bin/sh\nexec %s %s %s \"$@\"\n"
                        % (sys.executable, os.path.join(HERE, "natserve.py"), complog2))
@@ -394,7 +398,8 @@ def hk(k, **kw):
 hw = wait(lambda: hscr().find("Stand-in"), 8)
 hsock = wait(lambda: hk("input", verb="sock", ok=True), 6)
 check("held, the compositor's window reaches the display, and its route by "
-      "socket reaches the display's Blit through hold",
+      "socket reaches the display's Blit through hold -- the window drawn "
+      "in shared memory, as Firefox's own frame is",
       hw and hsock, (bool(hw), bool(hsock), [x for x in lines(blitlog2) if x["kind"] in ("input", "member", "hello")][-8:], hscr().text()[:900]))
 open(complog2 + ".popup", "w").close()
 ht.keys([b"x"])

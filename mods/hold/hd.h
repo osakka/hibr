@@ -488,6 +488,8 @@ void hd_f3ans(int cfd, const char *line);
 void hd_f3client(int cfd);
 void hd_f3prod(int fd);
 unsigned long hd_inid(const char *line, size_t n);
+const char *hd_inpath(const char *line, size_t n, size_t *len);
+void hd_insame(size_t k);
 void hd_inputput(vec *cls, int prod, const char *line, size_t n);
 int hd_inputans(vec *cls, int cfd, const char *line);
 void hd_f3sweep(int tid);

@@ -222,8 +222,8 @@ typedef struct dps_api {
 /* Version 2 (Blit 0.3.64): input, a stream's input route -- "sock" with the
    socket blit-compositor offers (an "eis" route went with Blit's gamescope
    bridge in 0.99.483), "on" or "off" as its window gains and loses
-   the keys -- told to Blit once a frame of it has gone, and again when its
-   picture comes back under a new id; what Blit says of it comes back by
+   the keys -- told to Blit once a frame of it has gone; a picture out of
+   view keeps its id (Gitea #499), so the route stays; what Blit says of it comes back by
    answers as "OK input <stream>" or "ERROR INPUT <stream> <code>". */
 /* Version 3 (Gitea #496, Blit 0.3.74): sub, a program window's subsurface
    -- a picture of its own over or under its window's (Firefox draws its

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.484
+
+**Firefox takes keys and clicks in a held desktop** (Gitea #499). A program
+window drawn in shared memory -- Firefox's own frame round its page, as GTK
+draws it -- never had its input route asked for in a held desktop: a memfd
+frame went to `hold` without being recorded as sent under the window's
+picture, so the console never asked Blit for the window's route. Its page,
+a subsurface drawn by dmabuf, did ask to join that route, and Blit refused
+it for want of one. vkcube, all dmabuf, was unaffected.
+
+**A program window's picture keeps its id while out of view.** Minimised,
+on another workspace or on a display that stops taking pictures, it loses
+only its placement (`d=i`, the image kept) and comes back under the same
+id, so its input route at Blit -- keyed by that id -- stays where it was;
+before, it came back under a new one and the route was left behind.
+`hold`'s emulator keeps such a placement as a record covering no cells, so
+every display keeps the image too, and `hold` drops a route superseded by
+the same socket under a new id rather than replaying the old one.
+
+The suites' stand-in compositor can draw its window in shared memory, and
+the held check of a window's route fails against 0.99.483.
+
 ## 0.99.483
 
 **Blit's gamescope bridge is gone, and everything that served it**
