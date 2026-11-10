@@ -457,8 +457,9 @@ frame until every display it went to has released it, and only then tells
 the producer `FRAME release <id> <seq>`, once. A placement with no cells of
 its own -- a program window's subsurface, drawn at its own pixels (Gitea
 #496) -- is kept by the cells its source rectangle covers from its offset,
-which the emulator works out from the session's cell size, and goes whole
-to the display holding its top-left cell: it is not cut at a seam. A `FRAME error` goes straight back,
+which the emulator works out from the session's cell size; across a seam
+it is cut by its pixels, each display sent its slice with its own source
+rectangle and offset (0.99.485). A `FRAME error` goes straight back,
 `ENOTSUP` from a display that cannot import among them, and the producer
 then sends memfds for the rest of that connection. Nothing in hold maps a
 descriptor or reads a pixel. A picture placed by descriptor counts its

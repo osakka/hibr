@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.485
+
+**Full Screen and Zoom over a program window tell the program** (Firefox's
+own full screen, F11, Alt-Enter, Alt-Up). The desktop did act on them, but
+the line telling the program its new size and state had its states in an
+order Blit's compositor (0.3.75) refuses whole, so the program was never
+told and kept its old size. They go in the compositor's order now --
+fullscreen, maximized, activated, then the tiled four -- and the suites'
+stand-in compositor refuses a line out of that order, as Blit does (Blit
+0.3.76 takes any order).
+
+**A program window over the seam of two stacked displays shows on both.**
+Its subsurface -- Firefox's page -- is cut at the seam by its pixels, each
+display sent its own slice; it went whole to the display holding its
+top-left corner and the other showed nothing of the page.
+
 ## 0.99.484
 
 **Firefox takes keys and clicks in a held desktop** (Gitea #499). A program

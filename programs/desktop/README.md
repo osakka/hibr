@@ -1691,9 +1691,8 @@ placed, moved, sized, raised and closed by the desktop:
   its window -- Firefox's page, a video -- is a picture of its own at its
   own pixels, over the window's or under it as the program stacks it, cut
   to the window, and the pointer over it reaches it. Not drawn where the
-  display takes no pictures by descriptor; and on a screen made of two
-  displays, one straddling their seam shows whole on the display holding
-  its top-left corner.
+  display takes no pictures by descriptor. On a screen made of two
+  displays, one straddling their seam shows on both, each its own part.
 - **The clipboard:** a program's copy is the desktop's clipboard -- in its
   history, and the real terminal's -- and the desktop's copy is what a
   program pastes, text either way and up to a megabyte. A password

@@ -27,7 +27,7 @@ by dmabuf, as Firefox does. When the desktop goes it dials again for sixty secon
 window again under the same ids, as blit-compositor does across a Restart
 Desktop. Everything it is told is a JSON line in LOG.
 """
-import fcntl, json, os, signal, socket, struct, sys, time
+import fcntl, json, os, re, signal, socket, struct, sys, time
 
 LOG = sys.argv[1]
 
@@ -175,6 +175,10 @@ def frame(wid):
         pass
 
 
+# A WINDOW size line as blit-compositor reads it: the states in this order,
+# each at most once (src/blit_compositor_wire.h).
+SIZEOK = re.compile(r"^WINDOW size \d+ \d+ \d+( fullscreen)?( maximized)?( activated)?"
+                    r"( tiled-left)?( tiled-right)?( tiled-top)?( tiled-bottom)?$")
 CLIPS = {}
 clipn = 100
 
@@ -226,6 +230,10 @@ while True:
                 if w[:1] == ["CLIP"] and len(w) >= 3:
                     clipline(w, rfds)
                     rfds = []
+                elif w[:2] == ["WINDOW", "size"] and not SIZEOK.match(l):
+                    # Refused whole, as blit-compositor refuses a line
+                    # whose states are out of its order.
+                    note(kind="unknown", line=l)
                 elif w[:2] == ["WINDOW", "size"] and len(w) >= 5:
                     size[int(w[2])] = (int(w[3]), int(w[4]))
                     if w[2] == "7" and geom:

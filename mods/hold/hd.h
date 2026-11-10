@@ -502,6 +502,9 @@ void hd_unshow(struct hd_cli *cn, unsigned id, str *out, unsigned *nid,
 	       int n);
 int hd_imgpx(const char *p, size_t n, unsigned id, int *pw, int *ph);
 int hd_imgnat(const char *p, size_t n);
+int hd_imgnatcut(struct hd_cli *cn, str *pic, str *cut, int *r, int *c);
+void hd_imgcutnat(str *o, const char *p, size_t n, int x, int y, int w,
+		  int h, int ox, int oy);
 void hd_imgcrop(str *o, const char *p, size_t n, int x, int y, int w, int h,
 		int c, int r);
 int hd_frmpx(unsigned id, int *pw, int *ph);

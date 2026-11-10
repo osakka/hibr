@@ -458,10 +458,15 @@ dt_natcell() {
 fn dt_natsize(int id, int h, int w) {
 	local n=${NW[$id]["n"]} st=
 
+	# In the order the compositor reads them, each at most once --
+	# fullscreen, maximized, activated, then the tiled four: in any other
+	# Blit refuses the whole line, and a window made full screen or
+	# zoomed was never told its new size (Firefox's own full screen,
+	# Full Screen and Zoom over a program window, 0.99.485).
 	dt_natcell
-	[ "$DT_FOCUS" = "$id" ] && st="$st activated"
 	dt_isfull "$id" && st="$st fullscreen"
 	[ -n "${DT[$id]["oh"]-}" ] && st="$st maximized"
+	[ "$DT_FOCUS" = "$id" ] && st="$st activated"
 	dt_has dt_intile && dt_intile "$id" &&
 		st="$st tiled-left tiled-right tiled-top tiled-bottom"
 	st="$((w * DT_NATCW)) $((h * DT_NATCH))$st"

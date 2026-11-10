@@ -79,6 +79,10 @@ def scr():
     return t.screen()
 
 
+def comp_of(lg, kind=None):
+    return [x for x in lines(lg) if kind is None or x["kind"] == kind]
+
+
 def comp(kind=None):
     return [x for x in lines(complog) if kind is None or x["kind"] == kind]
 
@@ -136,6 +140,9 @@ t.keys([b"x"])
 fs = wait(lambda: [l for l in told("WINDOW size 7 ")[n1:] if "fullscreen" in l.split()])
 check("a program that asks for full screen is given it, and told so",
       fs and scr().find("File") is None, (told("WINDOW size 7 ")[n1:], scr()))
+check("and every size line, zoomed or full screen, is one the compositor "
+      "reads: its states in its order, or it refuses the line whole",
+      not comp("unknown"), comp("unknown")[:3])
 t.keys([b"\x1b[23;5~"])
 t.collect(0.6)
 
@@ -429,6 +436,73 @@ subprocess.run([sx.HIBR, "-c", load("hold") + "hold kill %s" % hn],
 blit2.terminate()
 blit2.wait()
 
+# Two stacked displays, as the owner's tall screen is: a window over their
+# seam, with a subsurface across it (Firefox's page), shows on both -- the
+# window's own picture cut by its cells, the subsurface by its pixels, each
+# display sent its own slice; it went whole to the top-left one's display
+# and the other showed nothing of it.
+def blitd(tag):
+    nmx = "hibr-nat2%s-%d" % (tag, os.getpid())
+    lg = os.path.join(D, "blit2%s.log" % tag)
+    open(lg, "w").close()
+    pr = subprocess.Popen([sys.executable, os.path.join(HERE, "frameserve.py"),
+                           nmx, "tok" + tag, lg, "v3"])
+    wait(lambda: "listening" in open(lg).read())
+    return pr, {"BLIT_FRAME_SOCKET": "@" + nmx, "BLIT_FRAME_TOKEN": "tok" + tag}
+
+
+pa, ea = blitd("a")
+pb, eb = blitd("b")
+complog3 = os.path.join(D, "comp3.log")
+open(complog3 + ".sub", "w").close()
+wrap3 = os.path.join(D, "blit-compositor3")
+open(wrap3, "w").write("#!/bin/sh\nexec %s %s %s \"$@\"\n"
+                       % (sys.executable, os.path.join(HERE, "natserve.py"), complog3))
+os.chmod(wrap3, 0o755)
+MV = os.path.join(D, "mv")
+p3 = sx.scratch("native-seam.hibr")
+open(p3, "w").write(
+    "%s. %s\nDT_NATBIN=%s\nDT_SUPERVISE=off\n"
+    "tst_mv() { [ -f %s ] || return 0; rm -f %s; local n; "
+    "for n in \"${!NWN[@]}\"; do dt_move \"${NWN[$n]}\" 19 4; done; dt_want 30; }\n"
+    "dt_ticker tst_mv\ndt_open\ndt_run\ndt_close\n"
+    % (load("console"), tree("programs/desktop/desktop.hibr"), wrap3, MV, MV))
+hn3 = "nat3-%d" % os.getpid()
+subprocess.run([sx.HIBR, "-c", load("hold") + 'hold new -d %s "$HIBR" %s' % (hn3, p3)],
+               env=dict({k: v for k, v in os.environ.items()
+                         if k not in ("WAYLAND_DISPLAY", "HIBR_HOLD")}, **henv),
+               capture_output=True, timeout=20)
+at = os.path.join(D, "at3.hibr")
+open(at, "w").write(load("hold") + "hold attach -m -n top %s 0 0\n" % hn3)
+st0 = Term(at, rows=24, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty"],
+           env=dict(henv, **ea))
+st0.collect(2.0 * SLOW)
+ab = os.path.join(D, "ab3.hibr")
+open(ab, "w").write(load("hold") + "hold attach -m -n bottom %s 24 0\n" % hn3)
+st1 = Term(ab, rows=24, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty"],
+           env=dict(henv, **eb))
+wait(lambda: comp_of(complog3, "hello"), 6)
+open(MV, "w").close()
+
+
+def subcut(tt):
+    tt.collect(0.2)
+    return [m for m in re.findall(rb"\x1b_G(a=p[^;\x1b]*)", tt.out)
+            if b"w=96,h=24" in m and b",c=" not in m]
+
+
+top = wait(lambda: subcut(st0) and subcut(st0), 8)
+bot = wait(lambda: subcut(st1) and subcut(st1), 8)
+check("a window over the seam of two stacked displays shows its subsurface on "
+      "both, each its own slice of it by its pixels",
+      top and bot and b"Y=8" in top[-1] and b"y=24" in bot[-1], (top[-2:], bot[-2:]))
+st0.quit(None, 0.3)
+st1.quit(None, 0.3)
+subprocess.run([sx.HIBR, "-c", load("hold") + "hold kill %s" % hn3],
+               env=dict(os.environ, **henv), capture_output=True, timeout=20)
+pa.terminate()
+pb.terminate()
+
 # With no compositor, nothing about Wayland is put in what the desktop
 # starts: an empty WAYLAND_DISPLAY sends Wayland programs to a display
 # called "" and makes GTK and Qt give up on X11.
@@ -439,4 +513,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(36)
+report(38)

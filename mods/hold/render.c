@@ -322,6 +322,47 @@ int hd_imgpx(const char *p, size_t n, unsigned id, int *pw, int *ph)
 	return id && hd_frmpx(id, pw, ph);
 }
 
+/* A picture drawn at its own size across this display's edge -- Firefox's
+   page in a window over the seam of two stacked displays -- cut to the
+   part of it on this display, by its pixels: its rectangle on the screen
+   (its cell, its X/Y offset into it, its source size) met with the
+   display's, the source rectangle and the offset worked out again for the
+   cell the part starts in, which goes back in *r, *c. 0 when none of it is
+   here, or the display's cell size is not known. */
+int hd_imgnatcut(struct hd_cli *cn, str *pic, str *cut, int *r, int *c)
+{
+	long x = 0, y = 0, w = 0, h = 0, ox = 0, oy = 0;
+	long cw, ch, top, left, t, l, b, rt;
+
+	if (!cn->cols || !cn->rows || cn->xpix < cn->cols || cn->ypix < cn->rows)
+		return 0;
+	cw = cn->xpix / cn->cols;
+	ch = cn->ypix / cn->rows;
+	if (!hd_imgkey(pic->p, pic->n, 'w', &w) || !hd_imgkey(pic->p, pic->n, 'h', &h) ||
+	    w <= 0 || h <= 0)
+		return 0;
+	hd_imgkey(pic->p, pic->n, 'x', &x);
+	hd_imgkey(pic->p, pic->n, 'y', &y);
+	hd_imgkey(pic->p, pic->n, 'X', &ox);
+	hd_imgkey(pic->p, pic->n, 'Y', &oy);
+	top = *r * ch + oy;
+	left = *c * cw + ox;
+	t = top > cn->row * ch ? top : cn->row * ch;
+	l = left > cn->col * cw ? left : cn->col * cw;
+	b = top + h < (cn->row + cn->rows) * ch ? top + h : (cn->row + cn->rows) * ch;
+	rt = left + w < (cn->col + cn->cols) * cw ? left + w : (cn->col + cn->cols) * cw;
+	if (b <= t || rt <= l)
+		return 0;
+	cut->n = 0;
+	hd_imgcutnat(cut, pic->p, pic->n, (int)(x + l - left), (int)(y + t - top),
+		     (int)(rt - l), (int)(b - t), (int)(l % cw), (int)(t % ch));
+	pic->n = 0;
+	s_add(pic, cut->p, cut->n);
+	*r = (int)(t / ch);
+	*c = (int)(l / cw);
+	return 1;
+}
+
 /* Whether a placement is drawn at its own size: an a=p with neither c= nor
    r=, as a program window's subsurface is (Gitea #496). */
 int hd_imgnat(const char *p, size_t n)
@@ -330,6 +371,52 @@ int hd_imgnat(const char *p, size_t n)
 
 	return n > 6 && !memcmp(p, "\033_Ga=p", 6) &&
 	       !hd_imgkey(p, n, 'c', &v) && !hd_imgkey(p, n, 'r', &v);
+}
+
+/* A picture drawn at its own size (no c= or r=: a program window's
+   subsurface, Gitea #496) showing only part of itself: the source
+   rectangle x, y, w by h of it, offset ox, oy into the cell it is placed
+   at -- every key but those passed on as they were. */
+void hd_imgcutnat(str *o, const char *p, size_t n, int x, int y, int w,
+		  int h, int ox, int oy)
+{
+	size_t i = 3, s, e;
+	int first = 1;
+
+	for (e = 3; e < n && p[e] != ';' && p[e] != '\033'; e++)
+		;
+	s_add(o, p, 3);
+	while (i < e) {
+		for (s = i; s < e && p[s] != ','; s++)
+			;
+		if (!(s - i >= 2 && p[i + 1] == '=' &&
+		      strchr("xywhXY", p[i]))) {
+			if (!first)
+				s_ch(o, ',');
+			s_add(o, p + i, s - i);
+			first = 0;
+		}
+		i = s + 1;
+	}
+	if (!first)
+		s_ch(o, ',');
+	s_cat(o, "x=");
+	s_num(o, x);
+	s_cat(o, ",y=");
+	s_num(o, y);
+	s_cat(o, ",w=");
+	s_num(o, w);
+	s_cat(o, ",h=");
+	s_num(o, h);
+	if (ox) {
+		s_cat(o, ",X=");
+		s_num(o, ox);
+	}
+	if (oy) {
+		s_cat(o, ",Y=");
+		s_num(o, oy);
+	}
+	s_add(o, p + e, n - e);
 }
 
 /* The same picture, showing only part of itself: its first control string
@@ -944,9 +1031,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			    (ir < cn->row || ic < cn->col ||
 			     ir + irows > cn->row + cn->rows ||
 			     ic + icols > cn->col + cn->cols)) {
-				if (ir < cn->row || ic < cn->col ||
-				    ir >= cn->row + cn->rows ||
-				    ic >= cn->col + cn->cols) {
+				if (!hd_imgnatcut(cn, &pic, &cut, &ir, &ic)) {
 					hd_unshow(cn, id, out, nid, nhash, nlen,
 						  nbase, &nn, n);
 					continue;
