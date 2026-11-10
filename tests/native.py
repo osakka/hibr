@@ -12,11 +12,11 @@ first, closing a window asks the program and the window goes when it has,
 and quitting the desktop ends the compositor. Every check reads what
 crossed a socket or the terminal.
 """
-import json, os, re, shutil, subprocess, sys, tempfile, time
+import base64, json, os, re, shutil, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, load, tree, press, release
+from screen import Term, check, report, load, tree, press, release, drag
 
 D = tempfile.mkdtemp(prefix="hibr-native-")
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -59,10 +59,14 @@ open(p, "w").write(
     "tst_zoom() { [ -f %s ] || return 0; rm -f %s; local n; "
     "for n in \"${!NWN[@]}\"; do dt_zoom \"${NWN[$n]}\"; done; dt_want 30; }\n"
     "tst_quit() { [ -f %s ] && dt_quit; return 0; }\n"
-    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_open\n"
+    "tst_rs() { [ -f %s ] || return 0; rm -f %s; dt_restart; }\n"
+    "tst_copy() { [ -f %s ] || return 0; local t k; { read -r t; read -r k; } < %s; rm -f %s; "
+    "if [ \"$k\" = clear ]; then dt_natclipclear; else dt_clipset \"$t\" copy \"${k:-text}\"; fi; }\n"
+    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
-       MARK + ".quit", MARK + ".env"))
+       MARK + ".quit", MARK + ".rs", MARK + ".rs", MARK + ".copy", MARK + ".copy",
+       MARK + ".copy", MARK + ".env"))
 t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "lock"],
          env={"HIBR_GFX": "kitty", "BLIT_FRAME_SOCKET": "@" + nm,
               "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D,
@@ -90,7 +94,7 @@ def blitkind(k, **kw):
 
 hel = wait(lambda: comp("hello"))
 check("the desktop starts the compositor on a socket of its own and answers "
-      "its version 4 hello with window=1 and the display's dmabuf formats",
+      "its version 5 hello with window=1 and the display's dmabuf formats",
       hel and "window=1" in hel[0]["answer"].split() and
       "dmabuf=1" in hel[0]["answer"].split(), hel)
 env0 = wait(lambda: os.path.exists(MARK + ".env") and open(MARK + ".env").read())
@@ -198,6 +202,136 @@ t.keys([press(24, 1), release(24, 1)])
 dis = wait(lambda: told("WINDOW close 9"))
 check("a click elsewhere dismisses it: the program is told, and it goes",
       dis, told("WINDOW close"))
+# Subsurfaces (Gitea #496: Firefox draws its page into one): each its own
+# picture in its window's pane, at its own pixel size -- no c= or r=, so
+# nothing scales -- offset into its first cell, cut to the window's body,
+# and at a layer of its own under the window's picture or over it.
+def aps():
+    return [m.decode() for m in re.findall(rb"\x1b_G(a=p[^;\x1b]*)", t.out)]
+
+
+def akey(a, k):
+    m = re.search(r"(?:^|,)%s=(-?\d+)" % k, a)
+    return int(m.group(1)) if m else None
+
+
+open(complog + ".sub", "w").close()
+t.keys([b"x"])
+sb = wait(lambda: scr() and [a for a in aps() if "w=96,h=48" in a] and
+          [a for a in aps() if "x=8,y=8,w=56,h=24" in a])
+above = [a for a in aps() if "w=96,h=48" in a][-1:]
+below = [a for a in aps() if "x=8,y=8,w=56,h=24" in a][-1:]
+top = [a for a in aps() if "i=%s," % cid in a and akey(a, "c")][-1:]
+check("a program window's subsurfaces are pictures of their own at their "
+      "own size, offset into a cell, the one past the window's corner cut "
+      "to the body",
+      above and below and akey(above[0], "c") is None and akey(above[0], "r") is None and
+      akey(above[0], "Y") == 40 % 16 and akey(above[0], "X") is None and
+      akey(below[0], "c") is None,
+      (above, below))
+check("and layered: the one below under the window's picture, the one above "
+      "over it", above and below and top and
+      akey(below[0], "z") < akey(top[0], "z") < akey(above[0], "z"),
+      (below, top, above))
+mb = wait(lambda: [x for x in blitkind("member", top=cid) if (x["x"], x["y"]) in ((24, 40), (-8, -8))])
+check("and each joins its window's input route at its place, so the pointer "
+      "over it reaches the program",
+      mb and {(x["x"], x["y"]) for x in mb} == {(24, 40), (-8, -8)},
+      [x for x in lines(blitlog) if x["kind"] == "member"][-4:])
+nsub = len([a for a in aps() if "w=96,h=48" in a])
+
+# A program that draws its own shadow says where its window is in its
+# buffer (Wayland's window geometry): its picture is cut to that, the
+# shadow never shown, and still scaled into the window's body.
+open(complog + ".geom", "w").close()
+t.keys([b"x"])
+gp = wait(lambda: scr() and [a for a in aps() if "i=%s," % cid in a and "x=10,y=10," in a and ",c=" in a])
+check("a window drawing its own shadow is cut to its geometry, the shadow "
+      "never shown", gp, [a for a in aps() if "i=%s," % cid in a][-2:])
+
+# Its own title bar asking to move it, a button down: the desktop's own
+# drag takes over from that press, the program's route off until the
+# button comes up and on again after.
+# The program no longer wants the pointer held, or the press below would
+# take the hold again rather than start a drag.
+nlo = len(told("WINDOW lock 7 off"))
+open(complog + ".unlock", "w").close()
+t.keys([b"x"])
+wait(lambda: len(told("WINDOW lock 7 off")) > nlo)
+sc = scr()
+st = sc.find("Stand-in")
+r0, c0 = (st[0] + 3, st[1]) if st else (6, 10)
+noff = len(blitkind("input", verb="off", id=cid))
+non = len(blitkind("input", verb="on", id=cid))
+t.keys([press(r0 + 1, c0 + 1)])
+open(complog + ".move", "w").close()
+off = wait(lambda: len(blitkind("input", verb="off", id=cid)) > noff)
+t.keys([drag(r0 + 4, c0 + 11), release(r0 + 4, c0 + 11)])
+mv = wait(lambda: scr().find("Stand-in") == (st[0] + 3, st[1] + 10) if st else None)
+on = wait(lambda: len(blitkind("input", verb="on", id=cid)) > non)
+check("a program's own title bar moving its window hands the press to the "
+      "desktop's drag: the window moves with the pointer, the program's "
+      "route off meanwhile and on again after", off and mv and on,
+      (bool(off), scr().find("Stand-in"), st, bool(on)))
+
+# The clipboard, both ways (Blit ADR 0229).
+def osc52():
+    return [base64.b64decode(m).decode(errors="replace")
+            for m in re.findall(rb"\x1b\]52;c;([A-Za-z0-9+/=]*)", t.out)]
+
+
+npaste = len(comp("pasted"))
+open(complog + ".copy", "w").write("copied in a program\n")
+cp = wait(lambda: scr() and "copied in a program" in osc52())
+check("a program's copy is the desktop's clipboard -- and the terminal's -- "
+      "and is not offered back to the programs, which have it",
+      cp and not [x for x in comp("pasted")[npaste:] if x["text"] == "copied in a program"],
+      (osc52()[-2:], comp("pasted")[npaste:]))
+open(MARK + ".copy", "w").write("copied on the desktop\n")
+t.keys([b"x"])
+pd = wait(lambda: [x for x in comp("pasted") if x["text"] == "copied on the desktop"])
+check("the desktop's copy is offered to the programs, and pastes as its text",
+      pd and pd[0]["sel"] == "clipboard" and not pd[0]["secret"], comp("pasted")[-2:])
+open(MARK + ".copy", "w").write("hunter2\nsecret\n")
+t.keys([b"x"])
+ps = wait(lambda: [x for x in comp("pasted") if x["text"] == "hunter2"])
+open(MARK + ".copy", "w").write("\nclear\n")
+t.keys([b"x"])
+pc = wait(lambda: comp("clipclear"))
+check("a secret goes marked as one, and its clear takes it back from the "
+      "programs too", ps and ps[0]["secret"] and pc, (comp("pasted")[-2:], comp("clipclear")))
+
+# Restart Desktop: the compositor is in a session of its own and outlives
+# the exec, the restarted desktop serves the same socket and token, and the
+# compositor dials it again and announces its window under the same id --
+# which the window that came back with the restart takes, rather than a
+# second one opening beside it.
+h0 = len(comp("hello"))
+nr = len(told("WINDOW size 7 "))
+nf0 = len(blitkind("frame3"))
+ni0 = len(blitkind("input", verb="sock", ok=True))
+no0 = len(blitkind("input", verb="on", ok=True))
+open(MARK + ".rs", "w").close()
+t.keys([b"x"])
+again = wait(lambda: len(comp("hello")) > h0 and told("WINDOW size 7 ")[nr:], 8)
+sc = wait(lambda: scr().find("Stand-in") and
+          scr().find("Waiting for the program") is None and scr(), 4)
+check("after Restart Desktop the compositor is the same process, says hello "
+      "again, and its window is the one that came back, told its size again",
+      again and len(set(x["pid"] for x in comp("start"))) == 1 and sc and
+      len(re.findall("Stand-in", sc.text())) == 1,
+      (comp("hello")[h0:], told("WINDOW size 7 ")[nr:], sc or scr()))
+f3b = wait(lambda: blitkind("frame3")[nf0:])
+cid = f3b[-1]["id"] if f3b else cid
+okb = wait(lambda: blitkind("input", verb="sock", ok=True)[ni0:] and
+           blitkind("input", verb="on", ok=True)[no0:])
+sb2 = wait(lambda: scr() and len([a for a in aps() if "w=96,h=48" in a]) > nsub)
+check("and its subsurfaces come back with it, placed again",
+      sb2, [a for a in aps() if "w=" in a][-3:])
+check("and its frames and its input route reach the display's Blit again, "
+      "the route on, since the window still has the keys",
+      f3b and okb, [x for x in lines(blitlog) if x["kind"] in ("input", "hello")][-6:])
+
 n3 = len(told("WINDOW size 7 "))
 open(complog + ".csd", "w").close()
 t.keys([b"x"])
@@ -267,6 +401,13 @@ ht.keys([b"x"])
 hmem = wait(lambda: hk("member"), 6)
 check("and a popup's membership of its window's route goes the same way",
       hmem, [x for x in lines(blitlog2) if x["kind"] != "frame3"][-6:])
+open(complog2 + ".sub", "w").close()
+ht.keys([b"x"])
+hsb = wait(lambda: hscr() and [m for m in re.findall(rb"\x1b_G(a=p[^;\x1b]*)", ht.out)
+                               if b"w=96,h=48" in m and b",c=" not in m], 8)
+check("and a subsurface drawn at its own size reaches the display through "
+      "hold, which keeps it by the cells its pixels cover",
+      hsb, [m[:90] for m in re.findall(rb"\x1b_G(a=p[^;\x1b]*)", ht.out)][-5:])
 ns, nmb = len(hk("input", verb="sock")), len(hk("member"))
 up = subprocess.run([sx.HIBR, "-c", load("hold") + "hold upgrade %s" % hn],
                     env=dict(os.environ, **henv), capture_output=True, text=True, timeout=30)
@@ -293,4 +434,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(24)
+report(36)

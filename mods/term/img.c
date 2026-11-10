@@ -288,6 +288,19 @@ void tm_apcend(tm_t *t)
 
 		rows = tm_imgkey(s, 'r');
 		cols = tm_imgkey(s, 'c');
+		/* One drawn at its own size -- a program window's subsurface
+		   (Gitea #496), no c= or r= -- covers the cells its source
+		   rectangle reaches from its offset into the first: kept by
+		   that box, which is what every display is sent it by. */
+		if (rows < 1 && cols < 1 && t->cellw > 1 && t->cellh > 1 &&
+		    tm_imgkey(s, 'w') > 0 && tm_imgkey(s, 'h') > 0) {
+			long ox = tm_imgkey(s, 'X'), oy = tm_imgkey(s, 'Y');
+
+			ox = ox > 0 ? ox : 0;
+			oy = oy > 0 ? oy : 0;
+			cols = (ox + tm_imgkey(s, 'w') + t->cellw - 1) / t->cellw;
+			rows = (oy + tm_imgkey(s, 'h') + t->cellh - 1) / t->cellh;
+		}
 		if (id <= 0 || rows < 1 || cols < 1)
 			return;
 		for (i = 0; i < t->imgn; i++)

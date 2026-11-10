@@ -53,6 +53,12 @@ DT_SIZE=
 DT_SIZECORNER=
 DT_SIZE_AR=0
 DT_SIZE_AC=0
+# How far the press was from the edge it moves, rows and columns: 0 for a
+# grip of the desktop's own, which is that edge, and the distance for a
+# program's own frame asking from inside it (Gitea #496), so the edge
+# keeps that distance from the pointer rather than jumping to it.
+DT_SIZE_DR=0
+DT_SIZE_DC=0
 
 # A title-bar button pressed but not yet released -- close, min or max --
 # shown inverted while held, and only acted on if the release lands back

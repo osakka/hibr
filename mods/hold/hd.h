@@ -162,18 +162,19 @@ enum {
 	   which HD_HUDQ already was -- never met, since one is a request of
 	   its own connection, but one letter for two messages is a trap. */
 	HD_FRM3 = 'N',
-	/* An input route's line (Blit 0.3.64, Gitea #486), "INPUT eis <path>
-	   <id>" or "INPUT on|off <id>": from a producer on its frames
+	/* An input route's line (Blit 0.3.64, Gitea #486), "INPUT eis <id>
+	   <path>" or "INPUT on|off <id>": from a producer on its frames
 	   connection to the server, and on to every display that can be sent
-	   frames, whose client says it to its own Blit. What comes back, "OK
-	   input <id>" or "ERROR INPUT <id> <code>", rides HD_FRMANS, and the
-	   producer is told the primary display's alone. */
+	   frames, whose client says it to its own Blit. What comes back, "INPUT
+	   ok <id>" or "INPUT error <id> <code>", rides HD_FRMANS, and the
+	   producer is told the primary display's alone. Version 5: the id is
+	   always the third word (hd_inid). */
 	HD_INPUT = 'X',
 	/* A connection a program keeps for frames by dmabuf, so what comes
 	   back has somewhere to go. Its own uid only. */
 	HD_FRMOPEN = 'O',
-	/* A line a display's Blit said about a frame, "RELEASE <id> <seq>" or
-	   "ERROR <id> <code>": from a client to the server, and on to the
+	/* A line a display's Blit said about a frame, "FRAME release <id>
+	   <seq>" or "FRAME error <id> <code>": from a client to the server, and on to the
 	   producer, once per frame, after the last display has let it go. */
 	HD_FRMANS = 'Q',
 	/* From a client: its Blit imports dmabufs, and the formats it takes.
@@ -486,6 +487,7 @@ int hd_f3has(unsigned id);
 void hd_f3ans(int cfd, const char *line);
 void hd_f3client(int cfd);
 void hd_f3prod(int fd);
+unsigned long hd_inid(const char *line, size_t n);
 void hd_inputput(vec *cls, int prod, const char *line, size_t n);
 int hd_inputans(vec *cls, int cfd, const char *line);
 void hd_f3sweep(int tid);
@@ -497,6 +499,7 @@ void hd_unshow(struct hd_cli *cn, unsigned id, str *out, unsigned *nid,
 	       unsigned *nhash, size_t *nlen, unsigned *nbase, size_t *nn,
 	       int n);
 int hd_imgpx(const char *p, size_t n, unsigned id, int *pw, int *ph);
+int hd_imgnat(const char *p, size_t n);
 void hd_imgcrop(str *o, const char *p, size_t n, int x, int y, int w, int h,
 		int c, int r);
 int hd_frmpx(unsigned id, int *pw, int *ph);

@@ -454,7 +454,11 @@ its plane descriptors and optional fence, `answer` reads back what came of
 them, and `dmabuf` says whether every display imports and which formats all
 of them take. A dmabuf is the producer's buffer, so the server keeps each
 frame until every display it went to has released it, and only then tells
-the producer `RELEASE <id> <seq>`, once. An `ERROR` goes straight back,
+the producer `FRAME release <id> <seq>`, once. A placement with no cells of
+its own -- a program window's subsurface, drawn at its own pixels (Gitea
+#496) -- is kept by the cells its source rectangle covers from its offset,
+which the emulator works out from the session's cell size, and goes whole
+to the display holding its top-left cell: it is not cut at a seam. A `FRAME error` goes straight back,
 `ENOTSUP` from a display that cannot import among them, and the producer
 then sends memfds for the rest of that connection. Nothing in hold maps a
 descriptor or reads a pixel. A picture placed by descriptor counts its
@@ -462,7 +466,7 @@ position in what a display already has: a stream's picture keeps its id and
 placement when its window moves (Gitea #486), so its bytes stay the same and
 only the cell differs, and without the position a moved game picture was
 never placed again on a held display. Version 4 adds `input` (Blit 0.3.64):
-an input route's line, `INPUT eis <path> <id>` or `INPUT on|off <id>`, on
+an input route's line, `INPUT eis <id> <path>` or `INPUT on|off <id>`, on
 the same connection as the frames (`HD_INPUT`); the server remembers which
 producer asked about each picture and sends the line to every display that
 can be sent frames, each saying it to its own Blit, and passes back only

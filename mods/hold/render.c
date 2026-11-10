@@ -322,6 +322,16 @@ int hd_imgpx(const char *p, size_t n, unsigned id, int *pw, int *ph)
 	return id && hd_frmpx(id, pw, ph);
 }
 
+/* Whether a placement is drawn at its own size: an a=p with neither c= nor
+   r=, as a program window's subsurface is (Gitea #496). */
+int hd_imgnat(const char *p, size_t n)
+{
+	long v;
+
+	return n > 6 && !memcmp(p, "\033_Ga=p", 6) &&
+	       !hd_imgkey(p, n, 'c', &v) && !hd_imgkey(p, n, 'r', &v);
+}
+
 /* The same picture, showing only part of itself: its first control string
    has the source rectangle (x, y, w, h, in its own pixels) and the cells it
    fills (c, r) put in place of any it had, and every byte after that is
@@ -926,7 +936,22 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			   cut, and a picture whose size is not known cannot
 			   be either: both are left off, as every straddling
 			   picture was before. */
-			if (ir < cn->row || ic < cn->col ||
+			/* One drawn at its own size (a program window's
+			   subsurface, Gitea #496) has no cells to cut by: it
+			   goes whole to the display holding its top-left cell,
+			   which clips it at its own edge, and to no other. */
+			if (pic.p[1] == '_' && hd_imgnat(pic.p, pic.n) &&
+			    (ir < cn->row || ic < cn->col ||
+			     ir + irows > cn->row + cn->rows ||
+			     ic + icols > cn->col + cn->cols)) {
+				if (ir < cn->row || ic < cn->col ||
+				    ir >= cn->row + cn->rows ||
+				    ic >= cn->col + cn->cols) {
+					hd_unshow(cn, id, out, nid, nhash, nlen,
+						  nbase, &nn, n);
+					continue;
+				}
+			} else if (ir < cn->row || ic < cn->col ||
 			    ir + irows > cn->row + cn->rows ||
 			    ic + icols > cn->col + cn->cols) {
 				int r0 = ir > cn->row ? ir : cn->row;
@@ -943,10 +968,26 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 						  nbase, &nn, n);
 					continue;
 				}
-				py0 = (int)((long)(r0 - ir) * ph / irows);
-				py1 = (int)((long)(r1 - ir) * ph / irows);
-				px0 = (int)((long)(c0 - ic) * pw / icols);
-				px1 = (int)((long)(c1 - ic) * pw / icols);
+				/* A placement already showing part of its
+				   picture -- a program window cut to its
+				   geometry (Gitea #496) -- is cut within that
+				   part. */
+				{
+					long bx = 0, by = 0, bw = 0, bh = 0;
+
+					if (hd_imgkey(pic.p, pic.n, 'w', &bw) &&
+					    hd_imgkey(pic.p, pic.n, 'h', &bh) &&
+					    bw > 0 && bh > 0) {
+						hd_imgkey(pic.p, pic.n, 'x', &bx);
+						hd_imgkey(pic.p, pic.n, 'y', &by);
+						pw = (int)bw;
+						ph = (int)bh;
+					}
+					py0 = (int)by + (int)((long)(r0 - ir) * ph / irows);
+					py1 = (int)by + (int)((long)(r1 - ir) * ph / irows);
+					px0 = (int)bx + (int)((long)(c0 - ic) * pw / icols);
+					px1 = (int)bx + (int)((long)(c1 - ic) * pw / icols);
+				}
 				if (py1 <= py0 || px1 <= px0) {
 					hd_unshow(cn, id, out, nid, nhash, nlen,
 						  nbase, &nn, n);

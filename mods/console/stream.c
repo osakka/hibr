@@ -127,7 +127,7 @@ void cn_dunsent(cn_dst *d)
 	for (k = 15; k >= 8; k--)
 		seq = seq << 8 | d->h[k];
 	s_init(&o);
-	s_cat(&o, "RELEASE ");
+	s_cat(&o, "FRAME release ");
 	s_num(&o, (long)d->sid);
 	s_ch(&o, ' ');
 	s_num(&o, (long)seq);
@@ -224,17 +224,14 @@ void cn_dans(const char *line)
 	char *e;
 	unsigned long cid;
 	unsigned sid;
+	int rel = !strncmp(line, "FRAME release ", 14);
 	str o;
 
-	if (!strncmp(line, "OK input ", 9))
-		p = line + 9;
-	else if (!strncmp(line, "ERROR INPUT ", 12))
-		p = line + 12;
-	else if (!strncmp(line, "RELEASE ", 8))
-		p = line + 8;
-	else if (!strncmp(line, "ERROR ", 6))
-		p = line + 6;
-	else
+	if (!rel && strncmp(line, "FRAME error ", 12) &&
+	    strncmp(line, "INPUT ok ", 9) && strncmp(line, "INPUT error ", 12))
+		return;
+	p = bf_idat(line);
+	if (!p)
 		return;
 	cid = strtoul(p, &e, 10);
 	rest = e;
@@ -243,8 +240,7 @@ void cn_dans(const char *line)
 		lg(HIBR_LDBG, "frames: an answer for no stream: %s", line);
 		return;
 	}
-	if (p == line + 8 &&
-	    !cn_doutrel(sid, strtoull(rest, 0, 10))) {
+	if (rel && !cn_doutrel(sid, strtoull(rest, 0, 10))) {
 		lg(HIBR_LDBG, "frames: %s, still out under another id", line);
 		return;
 	}
@@ -429,6 +425,59 @@ int cn_dplace(sh *s, const char *pane, int row, int col, int h, int w,
 	return 1;
 }
 
+/* A program window's subsurface (Gitea #496): its own stream, placed at its
+   own pixels within its window's body and at its slot of the window's
+   layers, and otherwise as any stream's picture. */
+int cn_dsub(sh *s, const char *pane, int row, int col, int h, int w,
+	    unsigned sid, int px, int py, int pw, int ph, int slot)
+{
+	cn_dsubr sr;
+	unsigned cid = 0;
+	cn_dst *d;
+
+	sr.px = px;
+	sr.py = py;
+	sr.pw = pw;
+	sr.ph = ph;
+	sr.slot = slot;
+	sr.crop = 0;
+	if (!cn_imgdmas(s, pane, row, col, h, w, sid, &cid, &sr))
+		return 0;
+	d = cn_dget(sid, 1);
+	if (d->cid != cid) {
+		d->cid = cid;
+		cn_dmapadd(cid, sid);
+		cn_dsend(s, d);
+	}
+	return 1;
+}
+
+/* A stream's picture placed as cn_dplace's, showing only part of itself:
+   a program window cut to its geometry (Gitea #496). */
+int cn_dcrop(sh *s, const char *pane, int row, int col, int h, int w,
+	     unsigned sid, int sx, int sy, int sw, int sh)
+{
+	cn_dsubr sr;
+	unsigned cid = 0;
+	cn_dst *d;
+
+	sr.px = sx;
+	sr.py = sy;
+	sr.pw = sw;
+	sr.ph = sh;
+	sr.slot = 0;
+	sr.crop = 1;
+	if (!cn_imgdmas(s, pane, row, col, h, w, sid, &cid, &sr))
+		return 0;
+	d = cn_dget(sid, 1);
+	if (d->cid != cid) {
+		d->cid = cid;
+		cn_dmapadd(cid, sid);
+		cn_dsend(s, d);
+	}
+	return 1;
+}
+
 /* Take a frame for a stream: kept as its newest, and sent at once when its
    picture is placed. 0 when frames by descriptor cannot go. */
 int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
@@ -533,9 +582,9 @@ void cn_dinsync(sh *s, struct cn_dst *d)
 	s_init(&o);
 	if (d->icid != d->cid) {
 		s_cat(&o, d->sock ? "INPUT sock " : "INPUT eis ");
-		s_cat(&o, d->eis);
-		s_ch(&o, ' ');
 		s_num(&o, (long)d->cid);
+		s_ch(&o, ' ');
+		s_cat(&o, d->eis);
 		if (!cn_dsay(s, o.p)) {
 			s_free(&o);
 			return;

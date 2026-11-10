@@ -224,8 +224,23 @@ typedef struct dps_api {
    the keys -- told to Blit once a frame of it has gone, and again when its
    picture comes back under a new id; what Blit says of it comes back by
    answers as "OK input <stream>" or "ERROR INPUT <stream> <code>". */
+/* Version 3 (Gitea #496, Blit 0.3.74): sub, a program window's subsurface
+   -- a picture of its own over or under its window's (Firefox draws its
+   page into one) -- from the window's own drawing, as place. The window's
+   body is the h by w rectangle at row, col of the pane, as given to place;
+   the sub is the pw by ph pixels at px, py of that body's own pixels, drawn
+   at its own size, offset within its first cell and cut to the body, never
+   scaled; slot is its place in the window's layers, below the window's
+   picture when negative and above it when positive, the further from 0
+   the further from it. 1 when placed, 0 when it cannot be or nothing of it
+   is in the body.
+
+   crop: place, showing only the sw by sh pixels at sx, sy of the stream's
+   picture, scaled into the rectangle as place's whole picture is: a program
+   window whose buffer holds a shadow round it (Wayland's window geometry,
+   Gitea #496) is shown as its window alone. */
 #ifndef DPF_API_VER
-#define DPF_API_VER 2u
+#define DPF_API_VER 3u
 #endif
 
 typedef struct dpf_api {
@@ -239,6 +254,10 @@ typedef struct dpf_api {
 	int (*hook)(int fd, int (*fn)(void *ctx, int fd), void *ctx);
 	void (*unhook)(int fd);
 	int (*input)(sh *s, unsigned sid, const char *verb, const char *path);
+	int (*sub)(sh *s, const char *pane, int row, int col, int h, int w,
+		   unsigned sid, int px, int py, int pw, int ph, int slot);
+	int (*crop)(sh *s, const char *pane, int row, int col, int h, int w,
+		    unsigned sid, int sx, int sy, int sw, int sh);
 } dpf_api;
 
 #endif

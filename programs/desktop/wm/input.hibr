@@ -161,6 +161,8 @@ dt_mouse() {
 		if g := dt_grip "$id" "$mr" "$mc"; then
 			DT_SIZE=$id
 			DT_SIZECORNER=$g
+			DT_SIZE_DR=0
+			DT_SIZE_DC=0
 			case $g in
 			br) DT_SIZE_AR=$wr; DT_SIZE_AC=$wc ;;
 			tl) DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$((wc + ww - 1)) ;;
@@ -407,6 +409,8 @@ dt_mouse() {
 			return 0
 		fi
 		if [ -n "$DT_SIZE" ]; then
+			mr=$((mr + DT_SIZE_DR))
+			mc=$((mc + DT_SIZE_DC))
 			# A tiled window's size is the layout's; say so once.
 			if dt_intile "$DT_SIZE"; then
 				[ "$DT_SIZENOTE" = "$DT_SIZE" ] ||
@@ -510,6 +514,8 @@ dt_mouse() {
 		DT_DRAG=
 		DT_SIZE=
 		DT_SIZECORNER=
+		DT_SIZE_DR=0
+		DT_SIZE_DC=0
 		;;
 	wheelup | wheeldown | wheelleft | wheelright)
 		if dt_pophit "$mr" "$mc"; then

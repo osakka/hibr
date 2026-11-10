@@ -290,6 +290,14 @@ fn dt_cornerwhere(int id, corner, int ar, int ac, int mr, int mc) {
 		# top one (ar) does not.
 		s := dt_fitsize "$r" "$c" $((mr - ar + 1)) "$w"
 		;;
+	t)
+		# The top edge moves and the bottom one (ar) does not: no grip
+		# asks it of a framed window, whose top row is its title bar, and
+		# a program drawing its own frame does (Gitea #496).
+		r := dt_toprow "$mr" "$c" $((ar - mr + 1)) "$w"
+		[ "$r" -gt $((ar - DT_MINH + 1)) ] && r=$((ar - DT_MINH + 1))
+		h=$((ar - r + 1))
+		;;
 	*)
 		s := dt_fitsize "$r" "$c" $((mr - ar + 1)) $((mc - ac + 1))
 		;;

@@ -19,7 +19,10 @@
 # Restart Desktop keeps it: it is in a session of its own, owned by init,
 # and the restarted desktop serves the same socket name and token, which it
 # reconnects to with its windows (Blit's api.md, "Programs survive a desktop
-# restart"). Quitting the desktop ends it and its programs.
+# restart"). Each window that came back with the restart is found again by
+# the compositor's own id, which it keeps (NW's bid), so a program's window
+# stays where it was rather than a second opening; one the compositor does
+# not announce again is closed. Quitting the desktop ends it and its programs.
 #
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
@@ -41,6 +44,15 @@ command -v dt_keep > /dev/null && dt_keep DT_NATIVE
 # pid) starts its own.
 DT_NATSRV=
 declare -gx DT_NATSOCK="${DT_NATSOCK-}" DT_NATTOK="${DT_NATTOK-}" DT_NATPID="${DT_NATPID-}"
+# 1 when this desktop serves the socket a desktop before it served, so the
+# compositor reconnects with its windows; each window that comes back with
+# a restart waits for its own (NWB, by the compositor's id) until then.
+DT_NATAGAIN=
+DT_NATBY=
+# Set while a program's selection is being made the desktop's clipboard.
+DT_NATCLIPIN=
+declare -gA NWB
+command -v dt_keepstate > /dev/null && dt_keepstate native NW
 # Exported only once the compositor has named its display: an empty
 # WAYLAND_DISPLAY in every child's environment would send Wayland programs
 # to a display called "" and make GTK and Qt give up on X11's.
@@ -50,8 +62,13 @@ DT_NATDONE=
 # popup's (a menu, a list, a tooltip): its parent's desktop window and its
 # place in the parent's surface pixels, "ID X Y". A popup is no window of
 # the desktop's but a pane of its own above its parent, kept there when the
-# parent moves (pop<n>, which the window list leaves out).
-declare -gA NW NWN NWP
+# parent moves (pop<n>, which the window list leaves out). And each
+# subsurface's (Gitea #496: Firefox draws its page into one), by frames
+# number: its window and its place in that window's pixels, "ID X Y W H
+# above|below" -- no pane of its own, but a picture of its own placed in
+# its window's pane from the window's own drawing, under the window's
+# picture or over it.
+declare -gA NW NWN NWP NWS
 
 # The compositor's program: the one on the path, then where Blit's
 # package keeps it. A session or a test may name another.
@@ -95,6 +112,7 @@ dt_natstart() {
 	DT_NATSOCK=$sock
 	DT_NATTOK=$tok
 	DT_NATPID=$$
+	DT_NATAGAIN=$again
 	[ "$again" = 1 ] && return 0
 	log=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/compositor.log
 	mkdir -p "${log%/*}" 2> /dev/null
@@ -116,6 +134,31 @@ dt_natstart() {
 dt_nattick() {
 	[ -n "$DT_NATDONE" ] || dt_natstart
 	dt_natevents
+	dt_natunclaimed
+	dt_nathandend
+}
+
+# Windows that came back with a restart and that the compositor has not
+# announced again by now -- three seconds after it named its display, which
+# it does first on reconnecting, or seventy after the restart if it never
+# comes (Blit's own limit is sixty) -- had programs that did not survive it.
+dt_natunclaimed() {
+	local b id now=${EPOCHREALTIME%.*}
+
+	[ "${#NWB[@]}" -gt 0 ] || return 0
+	if [ "$now" -lt "$DT_NATBY" ]; then
+		dt_want $(((DT_NATBY - now) * 1000))
+		return 0
+	fi
+	for b in "${!NWB[@]}"; do
+		id=${NWB["$b"]}
+		unset NWB["$b"]
+		[ -n "${DT[$id]["title"]-}" ] || continue
+		dt_log "programs' windows: window $id (the compositor's $b) did not come back"
+		NW[$id]["gone"]=1
+		dt_wantclose "$id"
+	done
+	return 0
 }
 command -v dt_ticker > /dev/null && dt_ticker dt_nattick
 
@@ -128,10 +171,22 @@ dt_natevents() {
 	[ -n "$e" ] || return 0
 	while read -r verb n rest; do
 		case $verb in
-		display) export WAYLAND_DISPLAY=$n; continue ;;
+		display)
+			export WAYLAND_DISPLAY=$n
+			[ "${#NWB[@]}" -gt 0 ] && DT_NATBY=$((${EPOCHREALTIME%.*} + 3))
+			# The desktop's clipboard lapsed with the last channel.
+			[ -n "${DT_CLIP-}" ] && dt_natclipoffer "$DT_CLIP" "${DT_CLIPKIND:-text}"
+			continue
+			;;
+		clip) dt_natclip "$n $rest"; continue ;;
 		new) dt_natnew "$n" "$verb" "$rest"; continue ;;
 		popup) dt_natpopup "$n" "$rest"; continue ;;
+		sub) dt_natsub "$n" "$rest"; continue ;;
 		esac
+		if [ -n "${NWS["$n"]-}" ]; then
+			[ "$verb" = gone ] && dt_natsubgone "$n"
+			continue
+		fi
 		if [ -n "${NWP["$n"]-}" ]; then
 			[ "$verb" = gone ] && dt_natpopgone "$n"
 			continue
@@ -162,6 +217,13 @@ dt_natevents() {
 			dt_pointer "$id" "$rest" ;;
 		limits) NW[$id]["limits"]=$rest ;;
 		lock) dt_natlockask "$id" "$rest" ;;
+		geometry)
+			read -r NW[$id]["gx"] NW[$id]["gy"] _ _ <<< "$rest"
+			NW[$id]["popkey"]=
+			dt_want 30
+			;;
+		move | resize) dt_nathandoff "$id" "$verb" "$rest" ;;
+		menu) dt_natmenu "$id" "$rest" ;;
 		appid | parent | hide) NW[$id]["$verb"]=$rest ;;
 		esac
 	done <<< "$e"
@@ -172,12 +234,26 @@ dt_natevents() {
 # A window the compositor has opened: one of the desktop's, placed as a new
 # window is, the title the program gives it when it gives one.
 fn dt_natnew(int n, kind, rest = "") {
-	local pl r c h w id
+	local pl r c h w id p b
 
 	[ -z "${NWN["$n"]-}" ] || return 0
+	read -r p b <<< "$rest"
+	id=${NWB["${b:-none}"]-}
+	if [ -n "$id" ] && [ -n "${DT[$id]["title"]-}" ]; then
+		unset NWB["$b"]
+		native_open "$id" "$n"
+		NW[$id]["bid"]=$b
+		NWN["$n"]=$id
+		dt_log "programs' windows: window $id is the compositor's $b again"
+		# Its focus came back with it before it had a number to say it
+		# with, so the route is turned on here or the keys go nowhere.
+		[ "$DT_FOCUS" = "$id" ] && native_focus "$id" on
+		return 0
+	fi
 	pl := dt_place 20 72
 	read -r r c h w <<< "$pl"
 	id := dt_new "Program" "${h:-20}" "${w:-72}" "${r:-2}" "${c:-4}" native "$n"
+	NW[$id]["bid"]=$b
 	NWN["$n"]=$id
 	return 0
 }
@@ -194,6 +270,46 @@ fn dt_natpopup(int n, rest = "") {
 	NWP["$n"]="$pid ${x:-0} ${y:-0}"
 	NW[$pid]["popkey"]=
 	frames input "$n" member "$p" "${x:-0}" "${y:-0}" 2> /dev/null
+	return 0
+}
+
+# A subsurface said, or said again with a new place, size or stacking: kept
+# under its window, and its picture joined to the window's input route at
+# its place, as a popup's is, so the pointer over it reaches the program as
+# a point of the window's. One of a popup is not shown in this release.
+fn dt_natsub(int n, rest = "") {
+	local p x y w h ab pid
+
+	read -r p x y w h ab <<< "$rest"
+	pid=${NWN["$p"]-}
+	[ -n "$pid" ] || return 0
+	NWS["$n"]="$pid ${x:-0} ${y:-0} ${w:-0} ${h:-0} ${ab:-above}"
+	NW[$pid]["popkey"]=
+	frames input "$n" member "$p" "${x:-0}" "${y:-0}" 2> /dev/null
+	dt_want 30
+	return 0
+}
+
+# A subsurface gone: its record, and its window drawn again without it.
+fn dt_natsubgone(int n) {
+	local pid=${NWS["$n"]%% *}
+
+	unset NWS["$n"]
+	[ -n "${NW[$pid]+x}" ] && NW[$pid]["popkey"]=
+	dt_want 30
+	return 0
+}
+
+# A window's subsurfaces placed in its pane, from its own drawing: the
+# frames module knows where each is in the window's pixels and its layer,
+# so each is given the window's body as the window's own picture is.
+fn dt_natsubs(int id, int o, int h, int w) {
+	local n
+
+	for n in "${!NWS[@]}"; do
+		[ "${NWS["$n"]%% *}" = "$id" ] || continue
+		frames place "$n" "w$id" "$o" "$o" "$h" "$w" 2> /dev/null
+	done
 	return 0
 }
 
@@ -226,8 +342,12 @@ fn dt_natpopkey(int id) {
 	local n pid x y i kv fw fh key=
 	local -a a
 
-	for n in "${!NWP[@]}"; do
-		read -r pid x y <<< "${NWP["$n"]}"
+	for n in "${!NWP[@]}" "${!NWS[@]}"; do
+		if [ -n "${NWS["$n"]-}" ]; then
+			pid=${NWS["$n"]%% *}
+		else
+			read -r pid x y <<< "${NWP["$n"]}"
+		fi
 		[ "$pid" = "$id" ] || continue
 		i := frames info "$n" 2> /dev/null
 		read -ra a <<< "$i"
@@ -238,7 +358,7 @@ fn dt_natpopkey(int id) {
 			"height="*) fh=${kv#*=} ;;
 			esac
 		done
-		key="$key $n:$fw:$fh"
+		key="$key $n:$fw:$fh:${NWS["$n"]// /,}"
 	done
 	ret "$key"
 }
@@ -251,9 +371,12 @@ fn dt_natpops(int id, int o, key = "") {
 
 	read -ra a <<< "$key"
 	for k in "${a[@]}"; do
-		IFS=: read -r n fw fh <<< "$k"
+		IFS=: read -r n fw fh _ <<< "$k"
+		[ -n "${NWP["$n"]-}" ] || continue
 		read -r pid x y <<< "${NWP["$n"]}"
 		[ "$fw" -gt 0 ] && [ "$fh" -gt 0 ] || continue
+		x=$((x - ${NW[$id]["gx"]:-0}))
+		y=$((y - ${NW[$id]["gy"]:-0}))
 		r=$((${DT[$id]["row"]} + o + y / DT_NATCH))
 		c=$((${DT[$id]["col"]} + o + x / DT_NATCW))
 		ph=$(((fh + DT_NATCH - 1) / DT_NATCH))
@@ -286,6 +409,30 @@ fn native_open(int id, arg = "") {
 	NW[$id]["drew"]=
 	NW[$id]["seen"]=
 	NW[$id]["gone"]=
+	NW[$id]["popkey"]=
+	NW[$id]["gx"]=0
+	NW[$id]["gy"]=0
+	NW[$id]["down"]=
+	NW[$id]["handoff"]=
+	return 0
+}
+
+# Back with a Restart Desktop: its number here is gone with the frames
+# module, so it waits, empty, for the compositor -- which reconnects to the
+# same socket -- to announce its window again under the same id of its own.
+# A desktop that started a compositor of its own (another process: after a
+# crash) has nothing that will come back, and closes it.
+fn native_resume(int id) {
+	local b=${NW[$id]["bid"]-}
+
+	native_open "$id" ""
+	if [ "$DT_NATAGAIN" = 1 ] && [ -n "$b" ]; then
+		NWB["$b"]=$id
+		[ -n "$DT_NATBY" ] || DT_NATBY=$((${EPOCHREALTIME%.*} + 70))
+		return 0
+	fi
+	NW[$id]["gone"]=1
+	dt_wantclose "$id"
 	return 0
 }
 
@@ -316,6 +463,8 @@ fn dt_natsize(int id, int h, int w) {
 	[ "$DT_FOCUS" = "$id" ] && st="$st activated"
 	dt_isfull "$id" && st="$st fullscreen"
 	[ -n "${DT[$id]["oh"]-}" ] && st="$st maximized"
+	dt_has dt_intile && dt_intile "$id" &&
+		st="$st tiled-left tiled-right tiled-top tiled-bottom"
 	st="$((w * DT_NATCW)) $((h * DT_NATCH))$st"
 	[ "${NW[$id]["sent"]}" = "$st" ] && return 0
 	NW[$id]["sent"]=$st
@@ -407,12 +556,19 @@ fn dt_natoutput(int id) {
 fn native_draw(int id, int h, int w, int row, int col) {
 	local n=${NW[$id]["n"]} o=1 t k
 
-	[ -n "$n" ] || return 0
 	[ "${DT[$id]["chrome"]-}" = none ] && o=0
+	if [ -z "$n" ]; then
+		NW[$id]["drew"]="wait $h $w"
+		t := dt_tr "Waiting for the program's first picture"
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" $(((h + 1) / 2)) $(((w - ${#t}) / 2 + 1)) "$t"
+		return 0
+	fi
 	dt_natsize "$id" "$h" "$w"
 	dt_natoutput "$id"
 	NW[$id]["seen"] := dt_natseen "$n"
 	if frames place "$n" "w$id" "$o" "$o" "$h" "$w" 2> /dev/null; then
+		dt_natsubs "$id" "$o" "$h" "$w"
 		NW[$id]["drew"]="$h $w ${DT[$id]["row"]} ${DT[$id]["col"]}"
 		k := dt_natpopkey "$id"
 		NW[$id]["popkey"]=$k
@@ -431,11 +587,15 @@ fn native_draw(int id, int h, int w, int row, int col) {
 fn native_dirty(int id) {
 	local n=${NW[$id]["n"]} s b=2
 
-	[ -n "$n" ] || return 0
+	[ "${DT[$id]["chrome"]-}" = none ] && b=0
+	if [ -z "$n" ]; then
+		[ "${NW[$id]["drew"]}" = "wait $((${DT[$id]["h"]} - b)) $((${DT[$id]["w"]} - b))" ] ||
+			return 0
+		return 1
+	fi
 	s := dt_natseen "$n"
 	[ "$s" = "${NW[$id]["seen"]}" ] || return 0
 	[ -n "${NW[$id]["drew"]}" ] || return 0
-	[ "${DT[$id]["chrome"]-}" = none ] && b=0
 	[ "${NW[$id]["drew"]}" = "$((${DT[$id]["h"]} - b)) $((${DT[$id]["w"]} - b)) ${DT[$id]["row"]} ${DT[$id]["col"]}" ] ||
 		return 0
 	s := dt_natpopkey "$id"
@@ -489,8 +649,137 @@ fn native_mouse(int id, act, btn, int r, int c, mods = "") {
 	[ -n "$n" ] || return 0
 	case ${act##*-} in
 	unlock) frames window "$n" lock off 2> /dev/null ;;
-	press) [ -n "${NW[$id]["lockwant"]-}" ] && dt_natlock "$id" ;;
+	press)
+		NW[$id]["down"]="$((${DT[$id]["row"]} + r)) $((${DT[$id]["col"]} + c))"
+		[ -n "${NW[$id]["lockwant"]-}" ] && dt_natlock "$id"
+		;;
+	release) NW[$id]["down"]= ;;
 	esac
+	return 0
+}
+
+# A program's own title bar asking to move or resize its window (Gitea #496,
+# Blit ADR 0229), only while the press that asked is down: the desktop's own
+# drag takes over from that press's cell, as from its own frame, and the
+# program's route is off until the button comes up, so the program sees its
+# press end and no motion while the window moves.
+fn dt_nathandoff(int id, verb, edge = "") {
+	local n=${NW[$id]["n"]} pr pc wr=${DT[$id]["row"]} wc=${DT[$id]["col"]}
+	local wh=${DT[$id]["h"]} ww=${DT[$id]["w"]} g
+
+	read -r pr pc <<< "${NW[$id]["down"]-}"
+	[ -n "$pr" ] && [ -n "$n" ] && ! dt_isfull "$id" || return 0
+	if [ "$verb" = move ]; then
+		DT_DRAG=$id
+		DT_DRAGR0=$wr
+		DT_DRAGC0=$wc
+		DT_DR=$((pr - wr))
+		DT_DC=$((pc - wc))
+	else
+		case $edge in
+		top) g=t ;; bottom) g=b ;; left) g=l ;; right) g=r ;;
+		top-left) g=tl ;; top-right) g=tr ;;
+		bottom-left) g=bl ;; bottom-right) g=br ;;
+		*) return 0 ;;
+		esac
+		DT_SIZE=$id
+		DT_SIZECORNER=$g
+		DT_SIZE_DR=0
+		DT_SIZE_DC=0
+		case $g in
+		t | tl | tr) DT_SIZE_DR=$((wr - pr)) ;;
+		b | bl | br) DT_SIZE_DR=$((wr + wh - 1 - pr)) ;;
+		esac
+		case $g in
+		l | tl | bl) DT_SIZE_DC=$((wc - pc)) ;;
+		r | tr | br) DT_SIZE_DC=$((wc + ww - 1 - pc)) ;;
+		esac
+		case $g in
+		br) DT_SIZE_AR=$wr; DT_SIZE_AC=$wc ;;
+		tl) DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$((wc + ww - 1)) ;;
+		tr) DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$wc ;;
+		bl) DT_SIZE_AR=$wr; DT_SIZE_AC=$((wc + ww - 1)) ;;
+		l) DT_SIZE_AC=$((wc + ww - 1)) ;;
+		r) DT_SIZE_AC=$wc ;;
+		b) DT_SIZE_AR=$wr ;;
+		t) DT_SIZE_AR=$((wr + wh - 1)) ;;
+		esac
+	fi
+	# The press was the window's (_mouse), which would be told the rest
+	# of it: the rest is the desktop's now.
+	[ "$DT_MOUSE" = "$id" ] && DT_MOUSE=
+	NW[$id]["handoff"]=1
+	NW[$id]["down"]=
+	frames input "$n" off 2> /dev/null
+	return 0
+}
+
+# A move or resize handed over has ended when the desktop's own has: the
+# route is on again where the window still has the keys.
+dt_nathandend() {
+	local id
+
+	for id in "${!NW[@]}"; do
+		[ "${NW[$id]["handoff"]-}" = 1 ] || continue
+		[ "$DT_DRAG" = "$id" ] || [ "$DT_SIZE" = "$id" ] && continue
+		NW[$id]["handoff"]=
+		[ "$DT_FOCUS" = "$id" ] && [ -n "${NW[$id]["n"]}" ] &&
+			frames input "${NW[$id]["n"]}" on 2> /dev/null
+	done
+	return 0
+}
+
+# A program's own title bar asking for the window menu at x, y of its
+# surface: the menu a title bar's right click opens, at that cell.
+fn dt_natmenu(int id, rest = "") {
+	local x y o=1 mr mc
+
+	read -r x y <<< "$rest"
+	[ "${DT[$id]["chrome"]-}" = none ] && o=0
+	dt_natcell
+	mr=$((${DT[$id]["row"]} + o + (${y:-0} - ${NW[$id]["gy"]:-0}) / DT_NATCH))
+	mc=$((${DT[$id]["col"]} + o + (${x:-0} - ${NW[$id]["gx"]:-0}) / DT_NATCW))
+	dt_context_open titlebar "$id" "$mr" "$mc"
+	dt_want 30
+	return 0
+}
+
+# A program's selection said: its text is the desktop's clipboard -- kept
+# in the history unless the program marked it a secret -- and is not
+# offered back to the programs, which have it already. One that is not
+# text leaves the desktop's clipboard as it was.
+fn dt_natclip(rest = "") {
+	local sel kind t
+
+	read -r sel kind <<< "$rest"
+	[ "$sel" = clipboard ] || return 0
+	case $kind in
+	text | secret) ;;
+	*) return 0 ;;
+	esac
+	t := frames clip "$DT_NATSRV" get clipboard 2> /dev/null || return 0
+	DT_NATCLIPIN=1
+	dt_clipset "$t" copy "$kind"
+	DT_NATCLIPIN=
+	return 0
+}
+
+# The desktop's clipboard changed: offered to the compositor's programs,
+# unless it came from them.
+fn dt_natclipoffer(text, kind = text) {
+	[ -n "$DT_NATSRV" ] && [ -z "$DT_NATCLIPIN" ] || return 0
+	if [ "$kind" = secret ]; then
+		frames clip "$DT_NATSRV" offer clipboard -s "$text" 2> /dev/null
+	else
+		frames clip "$DT_NATSRV" offer clipboard "$text" 2> /dev/null
+	fi
+	return 0
+}
+
+# The Vault's secret timed out: taken back from the programs too.
+dt_natclipclear() {
+	[ -n "$DT_NATSRV" ] || return 0
+	frames clip "$DT_NATSRV" clear clipboard 2> /dev/null
 	return 0
 }
 
@@ -530,6 +819,9 @@ fn native_close(int id) {
 	for p in "${!NWP[@]}"; do
 		read -r pid x y <<< "${NWP["$p"]}"
 		[ "$pid" = "$id" ] && dt_natpopgone "$p"
+	done
+	for p in "${!NWS[@]}"; do
+		[ "${NWS["$p"]%% *}" = "$id" ] && unset NWS["$p"]
 	done
 	unset "NW[$id]"
 	return 0

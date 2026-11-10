@@ -374,7 +374,7 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 					str e;
 
 					s_init(&e);
-					s_cat(&e, "ERROR ");
+					s_cat(&e, "FRAME error ");
 					s_num(&e, in.n >= 8 ? (long)hd_frmnum((const unsigned char *)in.p + 4, 4) : 0);
 					s_cat(&e, " ENOTSUP");
 					hd_send(s, HD_FRMANS, e.p, e.n);
@@ -388,11 +388,10 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 				s_ch(&in, 0);
 				if (bfd < 0 || !bf_say(bfd, in.p)) {
 					str e;
-					const char *p = strrchr(in.p, ' ');
 
 					s_init(&e);
-					s_cat(&e, "ERROR INPUT ");
-					s_cat(&e, p ? p + 1 : "0");
+					s_cat(&e, "INPUT error ");
+					s_num(&e, (long)hd_inid(in.p, strlen(in.p)));
 					s_cat(&e, " ENOTSUP");
 					hd_send(s, HD_FRMANS, e.p, e.n);
 					s_free(&e);

@@ -5,8 +5,8 @@ window starts it (Gitea #486).
     bridgeserve.py LOG [bridge arguments...]
 
 Records how it was started, connects to BLIT_FRAME_SOCKET with
-BLIT_FRAME_TOKEN as the real bridge does, says hello at version 3, offers an
-EIS socket of its own as soon as it is connected (`INPUT eis <path> 7`, as
+BLIT_FRAME_TOKEN as the real bridge does, says hello at version 5, offers an
+EIS socket of its own as soon as it is connected (`INPUT eis 7 <path>`, as
 the bridge does when gamescope's libei is up), and sends a dmabuf frame of
 image 7 every 50 ms -- a memfd as the plane, since this box has no GPU. It
 never sends `INPUT on`/`off`: under --no-place that is the window's.
@@ -30,12 +30,12 @@ note(kind="start", argv=sys.argv[2:], pid=os.getpid(),
 s = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
 s.connect("\0" + os.environ["BLIT_FRAME_SOCKET"].lstrip("@"))
 t = os.environ["BLIT_FRAME_TOKEN"].encode()
-s.send(b"BLITFRM1" + struct.pack("<II", 3, len(t)) + t)
+s.send(b"BLITFRM1" + struct.pack("<II", 5, len(t)) + t)
 note(kind="hello", answer=s.recv(1024).decode().strip())
 eis = os.path.join(os.path.dirname(LOG), "eis-%d.sock" % os.getpid())
 es = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 es.bind(eis)
-s.send(("INPUT eis %s 7" % eis).encode())
+s.send(("INPUT eis 7 %s" % eis).encode())
 fd = os.memfd_create("plane")
 os.ftruncate(fd, 64 * 16 * 4)
 s.setblocking(False)

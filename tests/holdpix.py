@@ -1819,15 +1819,16 @@ def hudrun(mode, wait_on):
 hl, fl = hudrun(None, 60)
 st = [x for x in fl if x["kind"] == "status"]
 check("a held program is told Blit's performance panel asks for its status",
-      "hud on" in hl and {"kind": "hello", "version": 2} in fl, (hl, fl))
+      "hud on" in hl and {"kind": "hello", "version": 5} in fl, (hl, fl))
 check("and its status reaches that Blit through hold as STA1, line for line",
       "sent 0" in hl and len(st) == 1 and st[0]["lines"] == ["fps=12 wakes=3", "held=0"]
       and not [x for x in fl if x.get("why") == "status"], (hl, fl))
 check("and when the panel goes it is told so, and a status goes nowhere",
       "after off 1" in hl and len(st) == 1, (hl, fl))
-hl, fl = hudrun("v1", 15)
-check("a Blit that speaks only version 1 is still opened, and is never sent a status",
-      "hud off" in hl and "sent 1" in hl and {"kind": "hello", "version": 1} in fl
+hl, fl = hudrun("old", 15)
+check("a Blit older than version 5 refuses the hello, and is never sent a status",
+      "hud off" in hl and "sent 1" in hl
+      and [x for x in fl if x.get("why") == "hello-version" and x.get("version") == 5]
       and not [x for x in fl if x["kind"] == "status" or x.get("why") == "status"],
       (hl, fl))
 

@@ -624,6 +624,7 @@ dt_vwtick() {
 			DT_CLIPKIND=text
 			DT_CLIPSECRET=0
 			console clip ""
+			dt_has dt_natclipclear && dt_natclipclear
 		else
 			dt_want $(((DT_CLIPSECRET - now) * 1000 + 50))
 		fi

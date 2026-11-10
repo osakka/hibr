@@ -263,7 +263,7 @@ lists every one, file by file:
   place N PANE ROW COL H W`, called from a window's drawing, keeps the
   stream's picture in that rectangle of the pane. Its frames -- dmabufs or
   sealed memfds -- go through the console to every display's Blit under
-  the picture's own id, its RELEASEs come back in the program's ids, and
+  the picture's own id, Blit's `FRAME release`s come back in the program's ids, and
   none of it wakes the script: the console's wait reads the socket.
   Where no display takes frames by descriptor a memfd of RGB is drawn as
   any picture is. The program's own input route -- the EIS socket it

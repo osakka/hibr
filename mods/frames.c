@@ -18,32 +18,47 @@
  *   frames list                every socket, "N SOCKET" a line
  *
  * And a program's windows (Gitea #494, Blit ADR 0228): a socket served with
- * -w is one a compositor speaks to, blit-compositor, at version 4, and it
+ * -w is one a compositor speaks to, blit-compositor, at version 5, and it
  * is answered window=1. Each window it opens is a number of its own, as a
  * single picture's server is, so place, input and info take it the same
  * way, and the desktop never sees the compositor's ids:
  *
  *   frames serve -w [-n NAME -t TOKEN]   NAME and TOKEN kept across a restart
  *   frames events N            the compositor's news since last asked, a
- *                              line each: display NAME, new W PARENT|0,
+ *                              line each: display NAME, new W PARENT|0 ID
+ *                              (ID the compositor's own, the same across a
+ *                              desktop restart: how a window is found again),
  *                              title W TEXT, appid W TEXT, limits W ...,
  *                              decor W server|client, fullscreen W on|off,
  *                              maximize W on|off, minimize W, hide W,
  *                              parent W P|0, popup W PARENT X Y,
- *                              cursor W NAME, gone W -- W a window's number
+ *                              cursor W NAME, sub W PARENT X Y PW PH
+ *                              above|below (a subsurface of PARENT, at X Y
+ *                              in its pixels, placed by `frames place W`
+ *                              with PARENT's body), geometry W X Y PW PH
+ *                              (the window within its buffer; its picture
+ *                              is cut to it), move W, resize W EDGE, menu W
+ *                              X Y (its own title bar asking, a button
+ *                              down), gone W -- W a window's number
  *   frames window W size PW PH [fullscreen] [activated] [maximized]
  *   frames window W close|output PW PH MHZ   said to the compositor
  *   frames quit N              the person quit: the compositor ends
  *   frames wait N MS           until the compositor has named its display,
  *                              no longer than MS: what the desktop starts
  *                              before its first frame needs the name
+ *   frames clip N offer|clear|get clipboard|primary [-s] [TEXT]
+ *                              the desktop's side of the clipboard with the
+ *                              compositor's programs; news `clip SEL
+ *                              text|secret|none|clear` when a program's
+ *                              selection changes
  *   frames input W member P X Y   a popup's picture joins its top-level's
  *                              input route, at X Y in P's surface pixels
  *
  * The wire is Blit's, from the producer's side unchanged: a hello with the
- * token at version 1 to 3, answered with what every display can import;
- * FRM3 frames by dmabuf and FRM1 frames by sealed memfd; RELEASE and ERROR
- * back in the producer's own ids. Nothing here maps a dmabuf. A memfd of
+ * token at version 5, the only one (Blit 0.3.74), answered with what every
+ * display can import; FRM3 frames by dmabuf and FRM1 frames by sealed
+ * memfd; FRAME release and FRAME error back in the producer's own ids,
+ * which are always a line's third word. Nothing here maps a dmabuf. A memfd of
  * RGB is mapped only where frames by descriptor cannot go at all -- a
  * plain terminal -- and is then drawn as any picture is, so the window
  * always shows something.
@@ -69,6 +84,7 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #endif
 
 #ifndef FL_MSGMAX
@@ -94,10 +110,37 @@ typedef struct fl_srv {
 	struct fl_srv *par;	/* a window's server; null for a server */
 	str ev;			/* a server's news for the desktop */
 	char *fixn, *fixt;	/* a name and token asked for (-n, -t) */
+	/* A window's subsurface (Gitea #496): the compositor's id for its
+	   top-level, where it is and how big in that top-level's pixels,
+	   above (1) or below (-1) it, and when it was last said, which
+	   orders the subs of one side bottom to top. */
+	int sub, sx, sy, sw, sh, sab;
+	unsigned spar;
+	unsigned long sord;
+	/* Where the window is in its own buffer, round which a program draws
+	   its shadow (Wayland's window geometry, Gitea #496): gset once said. */
+	int gset, gx, gy, gw, gh;
+	/* A server's clipboard with its programs (Gitea #496, Blit ADR 0229),
+	   [0] the clipboard and [1] the primary selection: the desktop's own
+	   offers, each its text, whether a secret, and the number it went
+	   under; a program's selection being read, and the last one read. */
+	char *ctext[2];
+	int csec[2];
+	unsigned long cseq[2];
+	struct fl_clipin *cin[2];
+	char *ptext[2];
+	int psec[2];
+	unsigned long pseq[2];
+	unsigned long clipn;
 } fl_srv;
+
+void fl_clipreset(fl_srv *f);
+void fl_clipline(fl_srv *f, const char *m, size_t k, int fd);
+int fl_clipverb(sh *s, fl_srv *f, int ac, char **av);
 
 static vec fl_srvs;
 static unsigned fl_next;
+static unsigned long fl_subn;
 static const dp_api *fl_dp;
 static const dpf_api *fl_dpf;
 static unsigned char *fl_buf;
@@ -119,11 +162,10 @@ int fl_cfd(fl_srv *f)
 	return f->par ? f->par->cfd : f->cfd;
 }
 
-/* The words of a line on the frame channel, at version 4: its word, its
-   verb, the id it is about and the rest. The id is the third word, except
-   in an input route's socket line, where the path comes first and the id
-   last. 1 when there are all three. Every reader of a word's place goes
-   through this, so version 5's one grammar changes it alone. */
+/* The words of a line on the frame channel, at version 5: its word, its
+   verb, the id it is about -- always the third word -- and the rest; a
+   compositor's WINDOW display names no id and is all rest. 1 when there
+   are all three. Every reader of a word's place goes through this. */
 int fl_wsplit(const char *line, size_t n, str *word, str *verb,
 	      unsigned long *id, str *rest)
 {
@@ -148,16 +190,6 @@ int fl_wsplit(const char *line, size_t n, str *word, str *verb,
 		s_add(rest, p, (size_t)(e - p));
 		return rest->n > 0;
 	}
-	if (!strcmp(word->p, "INPUT") &&
-	    (!strcmp(verb->p, "eis") || !strcmp(verb->p, "sock"))) {
-		for (q = e; q > p && q[-1] != ' '; q--)
-			;
-		if (q <= p)
-			return 0;
-		*id = strtoul(q, 0, 10);
-		s_add(rest, p, (size_t)(q - 1 - p));
-		return 1;
-	}
 	*id = strtoul(p, (char **)&q, 10);
 	if (q == p)
 		return 0;
@@ -167,8 +199,8 @@ int fl_wsplit(const char *line, size_t n, str *word, str *verb,
 	return 1;
 }
 
-/* A line for the frame channel, at version 4, the other half of fl_wsplit:
-   WORD VERB ID REST, or for an input route's socket WORD VERB REST ID. */
+/* A line for the frame channel, at version 5, the other half of fl_wsplit:
+   WORD VERB ID REST. */
 void fl_wfmt(str *o, const char *word, const char *verb, unsigned long id,
 	     const char *rest)
 {
@@ -176,19 +208,10 @@ void fl_wfmt(str *o, const char *word, const char *verb, unsigned long id,
 	s_ch(o, ' ');
 	s_cat(o, verb);
 	s_ch(o, ' ');
-	if (!strcmp(word, "INPUT") &&
-	    (!strcmp(verb, "eis") || !strcmp(verb, "sock"))) {
-		if (rest && *rest) {
-			s_cat(o, rest);
-			s_ch(o, ' ');
-		}
-		s_num(o, (long)id);
-	} else {
-		s_num(o, (long)id);
-		if (rest && *rest) {
-			s_ch(o, ' ');
-			s_cat(o, rest);
-		}
+	s_num(o, (long)id);
+	if (rest && *rest) {
+		s_ch(o, ' ');
+		s_cat(o, rest);
 	}
 	s_ch(o, '\n');
 }
@@ -300,6 +323,7 @@ void fl_hangup(fl_srv *f)
 	}
 	f->cfd = -1;
 	f->ok = 0;
+	fl_clipreset(f);
 	fl_winsall(f);
 	fl_dpf->drop(f->s, f->n);
 	free(f->rgb);
@@ -312,39 +336,39 @@ void fl_hangup(fl_srv *f)
 /* What a display's Blit said of a stream's frame, in the producer's id. */
 void fl_ans(void *ctx, const char *line)
 {
-	const char *p;
 	unsigned long sid;
-	char *e;
 	fl_srv *f;
-	str o;
-	int ok = !strncmp(line, "OK input ", 9);
-	int in = ok || !strncmp(line, "ERROR INPUT ", 12);
+	str w, v, r, o;
+	int in;
 
 	(void)ctx;
-	/* An input route's answer names the stream third, after its two
-	   words, and goes back under the id the producer's route named. */
-	p = in ? line + (ok ? 8 : 11) : strchr(line, ' ');
-	if (!p)
-		return;
-	sid = strtoul(p + 1, &e, 10);
+	s_init(&w);
+	s_init(&v);
+	s_init(&r);
+	s_init(&o);
+	/* The stream is the third word, as on every picture line, and goes
+	   back under the id the producer named: its route's or its frames'. */
+	if (!fl_wsplit(line, strlen(line), &w, &v, &sid, &r))
+		goto out;
 	f = fl_find((unsigned)sid);
 	if (!f || fl_cfd(f) < 0)
-		return;
+		goto out;
+	in = !strcmp(w.p, "INPUT");
 	if (in) {
 		free(f->input);
-		f->input = xs(ok ? "ok" : *e == ' ' ? e + 1 : e);
-	} else if (line[0] == 'R') {
+		f->input = xs(!strcmp(v.p, "ok") ? "ok" : r.p);
+	} else if (!strcmp(v.p, "release")) {
 		f->rel++;
 	} else {
 		f->errs++;
 	}
-	s_init(&o);
-	s_add(&o, line, (size_t)(p + 1 - line));
-	s_num(&o, (long)(in ? f->ibid : f->bid));
-	s_cat(&o, e);
-	s_ch(&o, '\n');
+	fl_wfmt(&o, w.p, v.p, in ? f->ibid : f->bid, r.p);
 	fl_say(f, o.p);
+out:
 	s_free(&o);
+	s_free(&r);
+	s_free(&v);
+	s_free(&w);
 }
 
 /* A 32-bit field of the wire. */
@@ -364,7 +388,7 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 
 	ver = k >= 16 ? fl_u32(m + 8) : 0;
 	tl = k >= 16 ? fl_u32(m + 12) : 0;
-	if (k < 16 || memcmp(m, "BLITFRM1", 8) || ver < 1 || ver > 4) {
+	if (k < 16 || memcmp(m, "BLITFRM1", 8) || ver != 5) {
 		fl_say(f, "ERROR 0 EINVAL\n");
 		return 0;
 	}
@@ -373,10 +397,6 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 		return 0;
 	}
 	f->ver = (int)ver;
-	if (ver < 3) {
-		fl_say(f, "OK\n");
-		return 1;
-	}
 	s_init(&fm);
 	s_init(&o);
 	can = fl_dpf->can(f->s, &fm, &fence);
@@ -389,8 +409,7 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 	} else {
 		s_cat(&o, "OK dmabuf=0");
 	}
-	if (ver >= 4)
-		s_cat(&o, f->win ? " window=1" : " window=0");
+	s_cat(&o, f->win ? " window=1" : " window=0");
 	s_ch(&o, '\n');
 	fl_say(f, o.p);
 	lg(HIBR_LDBG, "frames %u: hello at version %lu, %s", f->n, ver, o.p);
@@ -399,8 +418,8 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 	return 1;
 }
 
-/* An input route's line from the producer (Blit 0.3.64): "INPUT eis
-   <path> <id>", "INPUT sock <path> <id>" (blit-compositor, which Blit
+/* An input route's line from the producer (Blit 0.3.64, version 5): "INPUT
+   eis <id> <path>", "INPUT sock <id> <path>" (blit-compositor, which Blit
    writes the input to itself) or "INPUT on|off <id>", the id its own --
    a window's, from a compositor. Handed to the console under the stream,
    which tells every display's Blit once a frame has gone; what Blit says
@@ -435,7 +454,7 @@ void fl_input(fl_srv *f, const char *m, size_t k)
 	}
 	if (!ok) {
 		s_init(&o);
-		fl_wfmt(&o, "ERROR", "INPUT", id, "EINVAL");
+		fl_wfmt(&o, "INPUT", "error", id, "EINVAL");
 		fl_say(f, o.p);
 		s_free(&o);
 	}
@@ -450,6 +469,67 @@ void fl_wnum(fl_srv *f, const char *idtext, str *o)
 	fl_srv *w = fl_win(f, strtoul(idtext, 0, 10));
 
 	s_num(o, w ? (long)w->n : 0L);
+}
+
+/* A subsurface said (Gitea #496): "PARENT X Y W H above|below" after its
+   own id, again whenever any of it changes; a window of its own here, and
+   news for the desktop in its numbers. */
+void fl_wsub(fl_srv *f, unsigned long id, const char *rest, str *o)
+{
+	unsigned long par;
+	int x, y, w, h;
+	char ab[8];
+	fl_srv *t;
+
+	if (sscanf(rest, "%lu %d %d %d %d %7s", &par, &x, &y, &w, &h, ab) != 6 ||
+	    (strcmp(ab, "above") && strcmp(ab, "below"))) {
+		lg(HIBR_LWRN, "frames %u: a WINDOW sub not understood", f->n);
+		return;
+	}
+	t = fl_win(f, id);
+	if (!t)
+		t = fl_newwin(f, id);
+	t->sub = 1;
+	t->spar = (unsigned)par;
+	t->sx = x;
+	t->sy = y;
+	t->sw = w;
+	t->sh = h;
+	t->sab = ab[0] == 'a' ? 1 : -1;
+	t->sord = ++fl_subn;
+	o->n = 0;
+	s_num(o, (long)(fl_win(f, par) ? fl_win(f, par)->n : 0));
+	s_ch(o, ' ');
+	s_num(o, x);
+	s_ch(o, ' ');
+	s_num(o, y);
+	s_ch(o, ' ');
+	s_num(o, w);
+	s_ch(o, ' ');
+	s_num(o, h);
+	s_ch(o, ' ');
+	s_cat(o, ab);
+	fl_ev(f, "sub", t->n, o->p);
+}
+
+/* A subsurface's slot in its top-level's layers: its place among the subs
+   of its side, the nearest the top-level's own picture last. */
+int fl_subslot(const fl_srv *t)
+{
+	size_t i;
+	int n = 0, k = 0;
+	const fl_srv *u;
+
+	for (i = 0; i < fl_srvs.n; i++) {
+		u = fl_srvs.p[i];
+		if (u->par != t->par || !u->sub || u->spar != t->spar ||
+		    u->sab != t->sab)
+			continue;
+		n++;
+		if (u->sord < t->sord)
+			k++;
+	}
+	return t->sab > 0 ? k + 1 : k - n;
 }
 
 /* A WINDOW line from a compositor (Blit ADR 0228): kept as news for the
@@ -482,13 +562,25 @@ int fl_window(fl_srv *f, const char *m, size_t k)
 			s_ch(&o, ' ');
 			s_cat(&o, sp + 1);
 		}
+		if (!strcmp(v.p, "new")) {
+			s_ch(&o, ' ');
+			s_num(&o, (long)id);
+		}
 		fl_ev(f, v.p, t->n, o.p);
+	} else if (!strcmp(v.p, "sub")) {
+		fl_wsub(f, id, r.p, &o);
 	} else if ((t = fl_win(f, id)) == 0) {
 		lg(HIBR_LDBG, "frames %u: WINDOW %s for %lu, which is not here",
 		   f->n, v.p, id);
 	} else if (!strcmp(v.p, "gone")) {
 		fl_ev(f, "gone", t->n, 0);
 		fl_winfree(t);
+	} else if (!strcmp(v.p, "geometry")) {
+		if (sscanf(r.p, "%d %d %d %d", &t->gx, &t->gy, &t->gw, &t->gh) == 4 &&
+		    t->gw > 0 && t->gh > 0) {
+			t->gset = 1;
+			fl_ev(f, "geometry", t->n, r.p);
+		}
 	} else if (!strcmp(v.p, "parent")) {
 		fl_wnum(f, r.p, &o);
 		fl_ev(f, "parent", t->n, o.p);
@@ -496,7 +588,9 @@ int fl_window(fl_srv *f, const char *m, size_t k)
 		   !strcmp(v.p, "limits") || !strcmp(v.p, "decor") ||
 		   !strcmp(v.p, "fullscreen") || !strcmp(v.p, "maximize") ||
 		   !strcmp(v.p, "minimize") || !strcmp(v.p, "hide") ||
-		   !strcmp(v.p, "cursor") || !strcmp(v.p, "lock")) {
+		   !strcmp(v.p, "cursor") || !strcmp(v.p, "lock") ||
+		   !strcmp(v.p, "move") || !strcmp(v.p, "resize") ||
+		   !strcmp(v.p, "menu")) {
 		fl_ev(f, v.p, t->n, r.p);
 	} else {
 		lg(HIBR_LDBG, "frames %u: WINDOW %s not known here", f->n, v.p);
@@ -627,7 +721,7 @@ int fl_read(void *ctx, int fd)
 		if (!t) {
 			f->refused++;
 			s_init(&o);
-			s_cat(&o, "ERROR ");
+			s_cat(&o, "FRAME error ");
 			s_num(&o, (long)b);
 			s_cat(&o, " ENOENT\n");
 			fl_say(f, o.p);
@@ -653,7 +747,7 @@ int fl_read(void *ctx, int fd)
 		} else {
 			t->refused++;
 			s_init(&o);
-			s_cat(&o, "ERROR ");
+			s_cat(&o, "FRAME error ");
 			s_num(&o, (long)t->bid);
 			s_cat(&o, got == BF_HDR3 ? " ENOTSUP\n" : " EINVAL\n");
 			fl_say(f, o.p);
@@ -662,6 +756,13 @@ int fl_read(void *ctx, int fd)
 		for (k = 0; k < nfd; k++)
 			close(fds[k]);
 		return wake;
+	}
+	if (f->win && got > 5 && !memcmp(fl_buf, "CLIP ", 5)) {
+		fl_clipline(f, (const char *)fl_buf, (size_t)got,
+			    nfd ? fds[0] : -1);
+		for (k = 1; k < nfd; k++)
+			close(fds[k]);
+		return 1;
 	}
 	for (k = 0; k < nfd; k++)
 		close(fds[k]);
@@ -678,7 +779,7 @@ int fl_read(void *ctx, int fd)
 		return 0;
 	}
 	if (got < 4 || memcmp(fl_buf, "STA1", 4))
-		fl_say(f, "ERROR 0 EINVAL\n");
+		fl_say(f, "FRAME error 0 EINVAL\n");
 	return 0;
 }
 
@@ -755,12 +856,371 @@ int fl_listen(fl_srv *f)
 	fl_dpf->hook(f->lfd, fl_accept, f);
 	return 1;
 }
+
+/* The clipboard between programs and the desktop (Gitea #496, Blit ADR
+   0229). Blit's compositor stores nothing: a selection is offered with a
+   number, and whoever wants it asks for it with a pipe the owner writes
+   into and closes. The desktop keeps the clipboard (wm/clip.hibr) and
+   reads a program's at once, text alone and at most FL_CLIPMAX bytes, so
+   it can keep it in its history -- or not, a password manager's marked
+   secret. */
+#ifndef FL_CLIPMAX
+#define FL_CLIPMAX (1024 * 1024)
+#endif
+#ifndef FL_CLIPTEXT
+#define FL_CLIPTEXT "text/plain;charset=utf-8"
+#endif
+#ifndef FL_CLIPSEC
+#define FL_CLIPSEC "x-kde-passwordManagerHint"
+#endif
+
+typedef struct fl_clipin {
+	fl_srv *f;
+	int sel, fd;
+	str buf;
+} fl_clipin;
+
+/* 0 for the clipboard, 1 for the primary selection, -1 for neither. */
+int fl_clipsel(const char *w)
+{
+	if (!strcmp(w, "clipboard"))
+		return 0;
+	if (!strcmp(w, "primary"))
+		return 1;
+	return -1;
+}
+
+/* A read of a program's selection over: kept and said to the desktop when
+   whole, dropped otherwise. */
+void fl_clipdone(fl_clipin *ci, int ok)
+{
+	fl_srv *f = ci->f;
+	const char *nm = ci->sel ? "primary" : "clipboard";
+	str o;
+
+	fl_dpf->unhook(ci->fd);
+	close(ci->fd);
+	f->cin[ci->sel] = 0;
+	s_init(&o);
+	s_cat(&o, nm);
+	if (ok) {
+		free(f->ptext[ci->sel]);
+		f->ptext[ci->sel] = xs(ci->buf.p ? ci->buf.p : "");
+		s_cat(&o, f->psec[ci->sel] ? " secret" : " text");
+	} else {
+		s_cat(&o, " none");
+	}
+	fl_ev(f, "clip", 0, o.p);
+	lg(HIBR_LDBG, "frames %u: a program's %s, %zu bytes%s", f->n, nm,
+	   ci->buf.n, ok ? "" : ", not kept");
+	s_free(&o);
+	s_free(&ci->buf);
+	free(ci);
+}
+
+/* Readable: a program's selection arriving down the pipe asked for. */
+int fl_clipread(void *ctx, int fd)
+{
+	fl_clipin *ci = ctx;
+	char b[4096];
+	ssize_t k;
+
+	for (;;) {
+		k = read(fd, b, sizeof b);
+		if (k < 0 && errno == EINTR)
+			continue;
+		if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+			return 0;
+		if (k <= 0) {
+			fl_clipdone(ci, k == 0);
+			return 1;
+		}
+		if (ci->buf.n + (size_t)k > FL_CLIPMAX) {
+			fl_clipdone(ci, 0);
+			return 1;
+		}
+		s_add(&ci->buf, b, (size_t)k);
+	}
+}
+
+/* Stop a read of a selection, if one is going. */
+void fl_clipstop(fl_srv *f, int sel)
+{
+	if (!f->cin[sel])
+		return;
+	fl_dpf->unhook(f->cin[sel]->fd);
+	close(f->cin[sel]->fd);
+	s_free(&f->cin[sel]->buf);
+	free(f->cin[sel]);
+	f->cin[sel] = 0;
+}
+
+/* Everything a server's clipboard holds, gone with its compositor: its
+   offers lapse with the channel, and a program's is offered again. */
+void fl_clipreset(fl_srv *f)
+{
+	int i;
+
+	for (i = 0; i < 2; i++) {
+		fl_clipstop(f, i);
+		free(f->ctext[i]);
+		f->ctext[i] = 0;
+		f->cseq[i] = 0;
+		f->pseq[i] = 0;
+	}
+}
+
+/* Send a line with a descriptor beside it, one packet. */
+int fl_sayfd(fl_srv *f, const char *line, int fd)
+{
+	struct msghdr mh;
+	struct iovec v;
+	union {
+		char b[CMSG_SPACE(sizeof(int))];
+		struct cmsghdr align;
+	} u;
+	struct cmsghdr *c;
+	int cfd = fl_cfd(f);
+
+	if (cfd < 0)
+		return 0;
+	memset(&mh, 0, sizeof mh);
+	memset(&u, 0, sizeof u);
+	v.iov_base = (void *)line;
+	v.iov_len = strlen(line);
+	mh.msg_iov = &v;
+	mh.msg_iovlen = 1;
+	mh.msg_control = u.b;
+	mh.msg_controllen = sizeof u.b;
+	c = CMSG_FIRSTHDR(&mh);
+	c->cmsg_level = SOL_SOCKET;
+	c->cmsg_type = SCM_RIGHTS;
+	c->cmsg_len = CMSG_LEN(sizeof(int));
+	memcpy(CMSG_DATA(c), &fd, sizeof fd);
+	return sendmsg(cfd, &mh, MSG_NOSIGNAL | MSG_DONTWAIT) == (ssize_t)v.iov_len;
+}
+
+/* Ask for a program's selection, offered under seq, as text. */
+void fl_clipask(fl_srv *f, int sel, unsigned long seq)
+{
+	int p[2];
+	fl_clipin *ci;
+	str o;
+
+	fl_clipstop(f, sel);
+	if (pipe(p) < 0)
+		return;
+	fcntl(p[0], F_SETFD, FD_CLOEXEC);
+	fcntl(p[1], F_SETFD, FD_CLOEXEC);
+	s_init(&o);
+	s_cat(&o, "CLIP read ");
+	s_num(&o, (long)seq);
+	s_cat(&o, " " FL_CLIPTEXT "\n");
+	if (!fl_sayfd(f, o.p, p[1])) {
+		close(p[0]);
+		close(p[1]);
+		s_free(&o);
+		return;
+	}
+	close(p[1]);
+	s_free(&o);
+	fcntl(p[0], F_SETFL, fcntl(p[0], F_GETFL) | O_NONBLOCK);
+	ci = xm(sizeof *ci);
+	memset(ci, 0, sizeof *ci);
+	ci->f = f;
+	ci->sel = sel;
+	ci->fd = p[0];
+	s_init(&ci->buf);
+	f->cin[sel] = ci;
+	fl_dpf->hook(p[0], fl_clipread, ci);
+}
+
+/* Write the desktop's text to a program's pipe and close it: what does not
+   go at once goes from a child of a child -- init's, so nobody here waits
+   for it beyond the middle one -- so a slow reader cannot stop the
+   desktop. */
+void fl_clipwrite(int fd, const char *t)
+{
+	size_t n = strlen(t), o = 0;
+	ssize_t k;
+	pid_t pid;
+
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+	while (o < n) {
+		k = write(fd, t + o, n - o);
+		if (k < 0 && errno == EINTR)
+			continue;
+		if (k <= 0)
+			break;
+		o += (size_t)k;
+	}
+	if (o < n && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+		fflush(0);
+		pid = fork();
+		if (pid == 0) {
+			if (fork() == 0) {
+				fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
+				while (o < n) {
+					k = write(fd, t + o, n - o);
+					if (k < 0 && errno == EINTR)
+						continue;
+					if (k <= 0)
+						break;
+					o += (size_t)k;
+				}
+			}
+			_exit(0);
+		}
+		if (pid > 0)
+			while (waitpid(pid, 0, 0) < 0 && errno == EINTR)
+				;
+	}
+	close(fd);
+}
+
+/* A CLIP line from the compositor: a program's selection offered (read at
+   once when it is text), a program pasting what the desktop offered (fd
+   the pipe to write it into), or a program's selection gone. */
+void fl_clipline(fl_srv *f, const char *m, size_t k, int fd)
+{
+	str w, v, r;
+	unsigned long seq;
+	char sel[16];
+	int i, n;
+
+	s_init(&w);
+	s_init(&v);
+	s_init(&r);
+	if (!fl_wsplit(m, k, &w, &v, &seq, &r)) {
+		if (fd >= 0)
+			close(fd);
+		goto out;
+	}
+	if (!strcmp(v.p, "offer") && sscanf(r.p, "%15s%n", sel, &n) == 1 &&
+	    (i = fl_clipsel(sel)) >= 0) {
+		f->pseq[i] = seq;
+		f->psec[i] = strstr(r.p + n, FL_CLIPSEC) != 0;
+		if (strstr(r.p + n, FL_CLIPTEXT)) {
+			fl_clipask(f, i, seq);
+		} else {
+			fl_clipstop(f, i);
+			fl_ev(f, "clip", 0, i ? "primary none" : "clipboard none");
+		}
+	} else if (!strcmp(v.p, "read")) {
+		for (i = 0; i < 2; i++)
+			if (f->cseq[i] == seq && f->ctext[i])
+				break;
+		if (fd >= 0 && i < 2)
+			fl_clipwrite(fd, f->ctext[i]);
+		else if (fd >= 0)
+			close(fd);
+		fd = -1;
+	} else if (!strcmp(v.p, "clear")) {
+		for (i = 0; i < 2; i++)
+			if (f->pseq[i] == seq) {
+				fl_clipstop(f, i);
+				f->pseq[i] = 0;
+				fl_ev(f, "clip", 0,
+				      i ? "primary clear" : "clipboard clear");
+			}
+	}
+	if (fd >= 0)
+		close(fd);
+out:
+	s_free(&w);
+	s_free(&v);
+	s_free(&r);
+}
+
+/* frames clip N offer|clear|get clipboard|primary [-s] [TEXT]: the
+   desktop's side of the clipboard. offer makes TEXT the desktop's selection
+   for the server's programs, a secret with -s; clear takes it back; get
+   answers the last text a program's selection was read as. */
+int fl_clipverb(sh *s, fl_srv *f, int ac, char **av)
+{
+	int i, sec = 0, a = 5;
+	str o;
+
+	if (ac < 5 || (i = fl_clipsel(av[4])) < 0) {
+		lg(HIBR_LERR, "usage: frames clip N offer|clear|get clipboard|primary [-s] [TEXT]");
+		return 2;
+	}
+	s_init(&o);
+	if (!strcmp(av[3], "get")) {
+		if (!f->ptext[i]) {
+			s_free(&o);
+			return HIBR_FAIL;
+		}
+		s_cat(&o, f->ptext[i]);
+		hibr_ret(s, o.p ? o.p : "");
+		if (!s->bind)
+			fputs(o.p ? o.p : "", stdout);
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(av[3], "clear")) {
+		if (f->cseq[i]) {
+			s_cat(&o, "CLIP clear ");
+			s_num(&o, (long)f->cseq[i]);
+			s_ch(&o, '\n');
+			fl_say(f, o.p);
+		}
+		free(f->ctext[i]);
+		f->ctext[i] = 0;
+		f->cseq[i] = 0;
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (strcmp(av[3], "offer")) {
+		s_free(&o);
+		lg(HIBR_LERR, "frames clip: %s: no such verb", av[3]);
+		return 2;
+	}
+	if (a < ac && !strcmp(av[a], "-s")) {
+		sec = 1;
+		a++;
+	}
+	if (a >= ac || strlen(av[a]) > FL_CLIPMAX) {
+		s_free(&o);
+		return HIBR_FAIL;
+	}
+	free(f->ctext[i]);
+	f->ctext[i] = xs(av[a]);
+	f->csec[i] = sec;
+	f->cseq[i] = ++f->clipn;
+	s_cat(&o, "CLIP offer ");
+	s_num(&o, (long)f->cseq[i]);
+	s_cat(&o, i ? " primary " : " clipboard ");
+	s_cat(&o, FL_CLIPTEXT);
+	if (sec)
+		s_cat(&o, " " FL_CLIPSEC);
+	s_ch(&o, '\n');
+	fl_say(f, o.p);
+	s_free(&o);
+	return fl_cfd(f) >= 0 ? HIBR_OK : HIBR_FAIL;
+}
 #else
 /* Not Linux: no sockets of this kind. */
 int fl_listen(fl_srv *f)
 {
 	(void)f;
 	return 0;
+}
+
+/* Nothing to reset where nothing is served. */
+void fl_clipreset(fl_srv *f)
+{
+	(void)f;
+}
+
+/* Nor any clipboard to share. */
+int fl_clipverb(sh *s, fl_srv *f, int ac, char **av)
+{
+	(void)s;
+	(void)f;
+	(void)ac;
+	(void)av;
+	return HIBR_FAIL;
 }
 #endif
 
@@ -769,6 +1229,7 @@ void fl_free(fl_srv *f)
 {
 	if (f->cfd >= 0)
 		fl_hangup(f);
+	fl_clipreset(f);
 	fl_winsall(f);
 	s_free(&f->ev);
 	free(f->fixn);
@@ -959,8 +1420,15 @@ int m_frames(sh *s, int ac, char **av)
 		s_free(&o);
 		return fl_cfd(f) >= 0 ? HIBR_OK : HIBR_FAIL;
 	}
+	if (!strcmp(av[1], "clip")) {
+		int r = fl_clipverb(s, f, ac, av);
+
+		s_free(&o);
+		return r;
+	}
 	if (!strcmp(av[1], "place")) {
-		int r, c, h, w, ok = 0;
+		int r, c, h, w, ok = 0, gx, gy;
+		fl_srv *pt;
 
 		if (ac < 8) {
 			lg(HIBR_LERR, "usage: frames place N PANE ROW COL H W");
@@ -971,9 +1439,23 @@ int m_frames(sh *s, int ac, char **av)
 		c = atoi(av[5]);
 		h = atoi(av[6]);
 		w = atoi(av[7]);
-		if (f->frames)
+		/* A sub's place is in its top-level's surface pixels, and the
+		   body shows the top-level's geometry: one cut to it is moved
+		   by its origin. */
+		pt = f->sub && f->par ? fl_win(f->par, f->spar) : 0;
+		gx = pt && pt->gset ? pt->gx : 0;
+		gy = pt && pt->gset ? pt->gy : 0;
+		if (f->frames && f->sub)
+			ok = fl_dpf->sub(s, av[3], r, c, h, w, f->n, f->sx - gx,
+					 f->sy - gy, f->sw, f->sh, fl_subslot(f));
+		else if (f->frames && f->gset)
+			ok = fl_dpf->crop(s, av[3], r, c, h, w, f->n, f->gx, f->gy,
+					  f->gw, f->gh);
+		else if (f->frames)
 			ok = fl_dpf->place(s, av[3], r, c, h, w, f->n);
-		if (!ok && f->rgb)
+		/* Where frames cannot go by descriptor a window is drawn from
+		   its RGB, and its subsurfaces are not drawn at all. */
+		if (!ok && f->rgb && !f->sub)
 			ok = fl_dp->image(s, av[3], r, c, h, w, f->rgb, f->iw,
 					  f->ih, 0);
 		s_free(&o);

@@ -51,7 +51,7 @@ def wait(cond, t=3.0):
 class Bridge:
     """The producer's side of Blit's frame wire, as the bridge speaks it."""
 
-    def __init__(self, sock, tok, ver=3):
+    def __init__(self, sock, tok, ver=5):
         self.s = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         self.s.connect("\0" + sock.lstrip("@"))
         t = tok.encode()
@@ -147,7 +147,7 @@ t = Term(prog(out), rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
 so = wait(lambda: sockof(out))
 br = Bridge(*so)
 check("the hello is answered with what the display imports",
-      br.hello.startswith("OK dmabuf=1 fence=0 formats=XR24/0,AR24/0"), br.hello)
+      br.hello.strip() == "OK dmabuf=1 fence=0 formats=XR24/0,AR24/0 window=0", br.hello)
 s1 = br.send()
 got = wait(lambda: frames(lgb))
 t.collect(0.5)
@@ -161,8 +161,8 @@ before = int(info(out).get("loops", 0))
 seqs = [br.send() for _ in range(20)]
 wait(lambda: len(frames(lgb)) >= 21)
 got = br.answers()
-check("each frame Blit lets go comes back as one RELEASE in the producer's id",
-      "RELEASE 42 %d" % s1 in got and all(a.startswith("RELEASE 42 ") for a in got)
+check("each frame Blit lets go comes back as one FRAME release in the producer's id",
+      "FRAME release 42 %d" % s1 in got and all(a.startswith("FRAME release 42 ") for a in got)
       and len(got) == len(set(got)), got)
 after = int(info(out).get("loops", 0))
 check("frames passing do not wake the program", after - before <= 2,
@@ -204,8 +204,8 @@ br.send()
 wait(lambda: len(frames(lgb)) > n4 + 1)
 got = early + br.answers()
 check("and the producer hears that frame let go once, after both ids have",
-      got.count("RELEASE 42 %d" % last) == 1 and
-      "RELEASE 42 %d" % last not in early, (early, got))
+      got.count("FRAME release 42 %d" % last) == 1 and
+      "FRAME release 42 %d" % last not in early, (early, got))
 cid = nid
 # Input (Blit 0.3.64): the bridge offers its EIS socket, the window says
 # when it has the keys, and every answer comes back in the bridge's id.
@@ -213,26 +213,26 @@ eis = os.path.join(D, "eis.sock")
 es = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 es.bind(eis)
 br.answers(0.3)
-br.say("INPUT eis %s 42" % eis)
+br.say("INPUT eis 42 %s" % eis)
 got = br.answers()
 check("an input route asked for after a frame is taken, in the producer's id",
-      "OK input 42" in got and any(x.get("verb") == "eis" and x.get("id") == cid
+      "INPUT ok 42" in got and any(x.get("verb") == "eis" and x.get("id") == cid
                                    and x.get("ok") for x in lines(lgb)), (got, lines(lgb)[-3:]))
 open(out + ".on", "w").close()
 t.keys([b"z"])
 got = br.answers()
 check("the window having the keys turns the route on, at Blit and to the producer",
-      "OK input 42" in got and any(x.get("verb") == "on" and x.get("ok") for x in lines(lgb)),
+      "INPUT ok 42" in got and any(x.get("verb") == "on" and x.get("ok") for x in lines(lgb)),
       (got, lines(lgb)[-3:]))
 notsock = os.path.join(D, "plain")
 open(notsock, "w").close()
 br2n = len(frames(lgb))
-br.say("INPUT eis %s 42" % notsock)
+br.say("INPUT eis 42 %s" % notsock)
 got = br.answers()
 br.send()
 wait(lambda: len(frames(lgb)) > br2n)
 check("a route Blit refuses (EACCES) is told to the producer and the frames go on",
-      any(a.startswith("ERROR INPUT 42 E") for a in got) and len(frames(lgb)) > br2n,
+      any(a.startswith("INPUT error 42 E") for a in got) and len(frames(lgb)) > br2n,
       (got, len(frames(lgb)), br2n))
 es.close()
 br.close()
@@ -253,11 +253,11 @@ t = Term(prog(out), rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
 so = wait(lambda: sockof(out))
 br = Bridge(*so)
 check("a display that imports nothing makes the answer no",
-      br.hello.strip() == "OK dmabuf=0", br.hello)
+      br.hello.strip() == "OK dmabuf=0 window=0", br.hello)
 br.send()
 got = br.answers()
 check("and a dmabuf frame anyway is refused ENOTSUP in the producer's id",
-      "ERROR 42 ENOTSUP" in got, got)
+      "FRAME error 42 ENOTSUP" in got, got)
 br.close()
 time.sleep(0.3)
 bad = Bridge(so[0], "x" * 32)
@@ -299,8 +299,8 @@ if br:
     br.send()
     br.send()
     got = br.answers()
-    check("held, the producer hears one RELEASE per frame in its own id",
-          "RELEASE 42 %d" % s1 in got and got.count("RELEASE 42 %d" % s1) == 1, got)
+    check("held, the producer hears one FRAME release per frame in its own id",
+          "FRAME release 42 %d" % s1 in got and got.count("FRAME release 42 %d" % s1) == 1, got)
     hid = frames(lgh)[0]["id"]
     n3 = len(frames(lgh))
     t.collect(0.5)
@@ -319,11 +319,11 @@ if br:
     es = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     es.bind(eis)
     br.answers(0.3)
-    br.say("INPUT eis %s 42" % eis)
+    br.say("INPUT eis 42 %s" % eis)
     got = br.answers(1.5)
     asked = [x for lg in (lgh, lgh2) for x in lines(lg) if x["kind"] == "input"]
     check("held, every display's Blit is asked and the producer hears one answer",
-          len(asked) == 2 and got.count("OK input 42") == 1, (asked, got))
+          len(asked) == 2 and got.count("INPUT ok 42") == 1, (asked, got))
     es.close()
     br.close()
 open(out + ".stop", "w").close()

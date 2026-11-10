@@ -72,6 +72,9 @@ typedef struct cn_img {
 	   picture keeps this id for life and is placed again, never
 	   replaced, when it moves. 0 for every other picture. */
 	unsigned dma;
+	/* A program window's subsurface (Gitea #496): drawn at its own size,
+	   the sw by sh pixels at sx, sy of it, ox, oy into its first cell. */
+	int sub, sx, sy, sw, sh, ox, oy;
 } cn_img;
 
 static cn_img *cn_imgs;
@@ -462,7 +465,30 @@ void cn_imgdmaresend(void)
 int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
 	      unsigned sid, unsigned *cid)
 {
+	return cn_imgdmas(s, pane, row, col, h, w, sid, cid, 0);
+}
+
+/* The placement a stream's picture goes out as: its whole box, or a
+   subsurface's own pixels. */
+void cn_imgdmaput(cn_img *im)
+{
+	if (im->sub == 2)
+		kt_placepc(im->w, im->h, im->id, 1, im->z, im->sx, im->sy,
+			   im->sw, im->sh, &im->data);
+	else if (im->sub)
+		kt_placesub(im->id, 1, im->sx, im->sy, im->sw, im->sh, im->ox,
+			    im->oy, im->z, &im->data);
+	else
+		kt_placep(im->w, im->h, im->id, 1, im->z, &im->data);
+}
+
+/* cn_imgdma, or a subsurface's picture placed within its window's body
+   (Gitea #496) when sr is given. */
+int cn_imgdmas(sh *s, const char *pane, int row, int col, int h, int w,
+	       unsigned sid, unsigned *cid, const cn_dsubr *sr)
+{
 	int prow = 0, pcol = 0, ph = 0, pw = 0;
+	int sx = 0, sy = 0, sw = 0, sh = 0, ox = 0, oy = 0;
 	size_t i, j;
 	cn_pane *pp;
 	cn_img *im;
@@ -477,6 +503,18 @@ int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
 		return 0;
 	if (row < 0 || col < 0 || row + h > ph || col + w > pw)
 		return 0;
+	z = cn_imgz(pane, 1, 0);
+	if (sr && sr->crop) {
+		if (sr->pw < 1 || sr->ph < 1)
+			return 0;
+		sx = sr->px;
+		sy = sr->py;
+		sw = sr->pw;
+		sh = sr->ph;
+	} else if (sr && !cn_imgsubbox(sr, &row, &col, &h, &w, &sx, &sy, &sw,
+				       &sh, &ox, &oy, &z)) {
+		return 0;
+	}
 	row += prow;
 	col += pcol;
 	if (row < 0 || col < 0 || row + h > cn_back.rows ||
@@ -484,7 +522,6 @@ int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
 		return 0;
 	if ((pp = cn_pfind(pane)))
 		pp->drawn = 1;
-	z = cn_imgz(pane, 1, 0);
 	cn_imgblank(row, col, h, w);
 	for (i = 0; i < cn_nimg; i++)
 		if (cn_imgs[i].dma == sid)
@@ -495,7 +532,10 @@ int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
 		*cid = im->id;
 		if (im->row == row && im->col == col && im->h == h &&
 		    im->w == w && im->z == z && im->pane &&
-		    !strcmp(im->pane, pane))
+		    !strcmp(im->pane, pane) &&
+		    im->sub == (sr ? (sr->crop ? 2 : 1) : 0) &&
+		    (!sr || (im->sx == sx && im->sy == sy && im->sw == sw &&
+			     im->sh == sh && im->ox == ox && im->oy == oy)))
 			return 1;
 		lg(HIBR_LDBG, "image: stream %u moved to %d,%d %dx%d", sid,
 		   row, col, w, h);
@@ -507,8 +547,15 @@ int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
 		im->h = im->wh = h;
 		im->w = im->ww = w;
 		im->z = z;
+		im->sub = sr ? (sr->crop ? 2 : 1) : 0;
+		im->sx = sx;
+		im->sy = sy;
+		im->sw = sw;
+		im->sh = sh;
+		im->ox = ox;
+		im->oy = oy;
 		im->data.n = 0;
-		kt_placep(w, h, im->id, 1, z, &im->data);
+		cn_imgdmaput(im);
 		im->sent = 0;
 		return 1;
 	}
@@ -550,8 +597,15 @@ int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
 	im->fd = 1;
 	im->dma = sid;
 	im->id = kt_id();
+	im->sub = sr ? (sr->crop ? 2 : 1) : 0;
+	im->sx = sx;
+	im->sy = sy;
+	im->sw = sw;
+	im->sh = sh;
+	im->ox = ox;
+	im->oy = oy;
 	s_init(&im->data);
-	kt_placep(w, h, im->id, 1, z, &im->data);
+	cn_imgdmaput(im);
 	*cid = im->id;
 	lg(HIBR_LDBG, "image: stream %u placed as %u at %d,%d %dx%d", sid,
 	   im->id, row, col, w, h);
@@ -757,9 +811,47 @@ long cn_imgz(const char *pane, int lo, unsigned flags)
 	for (i = 0; i < cn_panes.n; i++)
 		if (!strcmp(((cn_pane *)cn_panes.p[i])->nm, pane))
 			break;
-	if ((long)CN_ZWALL + 1 + (long)i > (long)CN_ZUNDER)
-		return CN_ZUNDER;
-	return (long)CN_ZWALL + 1 + (long)i;
+	if ((long)CN_ZWALL + 1 + ((long)i + 1) * CN_ZBAND > (long)CN_ZUNDER)
+		return (long)CN_ZUNDER - CN_ZBAND / 2;
+	return (long)CN_ZWALL + 1 + (long)i * CN_ZBAND + CN_ZBAND / 2;
+}
+
+/* Where a subsurface goes (Gitea #496): from its window body's h by w cells
+   at *row, *col of the pane and its place in the body's own pixels, the
+   cells it covers -- into *row, *col, *h, *w -- the part of it inside the
+   body as a source rectangle, its offset into the first of those cells, and
+   its layer, its slot from the window's own. 0 when none of it is in the
+   body, or a cell's size is not known. */
+int cn_imgsubbox(const cn_dsubr *sr, int *row, int *col, int *h, int *w,
+		 int *sx, int *sy, int *sw, int *sh, int *ox, int *oy, long *z)
+{
+	int cw = 0, ch = 0, x0, y0, x1, y1, slot = sr->slot;
+
+	cn_cellpx(&cw, &ch);
+	if (cw < 2 || ch < 2 || sr->pw < 1 || sr->ph < 1)
+		return 0;
+	x0 = sr->px > 0 ? sr->px : 0;
+	y0 = sr->py > 0 ? sr->py : 0;
+	x1 = sr->px + sr->pw < *w * cw ? sr->px + sr->pw : *w * cw;
+	y1 = sr->py + sr->ph < *h * ch ? sr->py + sr->ph : *h * ch;
+	if (x1 <= x0 || y1 <= y0)
+		return 0;
+	*sx = x0 - sr->px;
+	*sy = y0 - sr->py;
+	*sw = x1 - x0;
+	*sh = y1 - y0;
+	*ox = x0 % cw;
+	*oy = y0 % ch;
+	*row += y0 / ch;
+	*col += x0 / cw;
+	*w = (*ox + *sw + cw - 1) / cw;
+	*h = (*oy + *sh + ch - 1) / ch;
+	if (slot >= CN_ZBAND / 2)
+		slot = CN_ZBAND / 2 - 1;
+	if (slot <= -CN_ZBAND / 2)
+		slot = -(CN_ZBAND / 2 - 1);
+	*z += slot;
+	return 1;
 }
 
 /* The pixels a kitty picture goes out as: the sx, sy, sw by sh of the iw by

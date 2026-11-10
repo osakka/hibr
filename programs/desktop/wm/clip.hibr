@@ -30,6 +30,9 @@ fn dt_clipset(text, op = copy, kind = text, send = 1) {
 	DT_CLIPOP=$op
 	DT_CLIPKIND=$kind
 	[ "$send" = 1 ] && console clip "$text"
+	# And programs in windows of their own (Gitea #496), a secret marked
+	# as one so none of them keeps it either.
+	dt_has dt_natclipoffer && dt_natclipoffer "$text" "$kind"
 	[ "$kind" = secret ] && return 0
 	dt_clipkeep "$text" "$kind"
 }

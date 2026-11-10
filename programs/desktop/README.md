@@ -1681,16 +1681,49 @@ placed, moved, sized, raised and closed by the desktop:
   A click elsewhere closes them.
 - **Frames:** a program that draws its own title bar gets a window with no
   frame of the desktop's; every press in it is the program's, and the drag
-  key still moves it.
+  key still moves it. Its own title bar moves and resizes it: the program
+  asks, a button down, and the desktop's own drag takes over from that
+  press -- the edge keeping its distance from the pointer -- with the
+  program's input held off until the button comes up; its window menu
+  is the desktop's title-bar menu. The shadow such a program draws round
+  its window is never shown: the window shows its geometry alone.
+- **Subsurfaces:** what a program draws into a surface of its own inside
+  its window -- Firefox's page, a video -- is a picture of its own at its
+  own pixels, over the window's or under it as the program stacks it, cut
+  to the window, and the pointer over it reaches it. Not drawn where the
+  display takes no pictures by descriptor; and on a screen made of two
+  displays, one straddling their seam shows whole on the display holding
+  its top-left corner.
+- **The clipboard:** a program's copy is the desktop's clipboard -- in its
+  history, and the real terminal's -- and the desktop's copy is what a
+  program pastes, text either way and up to a megabyte. A password
+  manager's copy is kept out of the history as the Vault's is, and the
+  Vault's own copies reach programs marked as secrets and are taken back
+  from them when its timeout clears them. A copy that is not text (a
+  picture) passes between programs but leaves the desktop's clipboard as
+  it was. The primary selection passes between programs alone.
+- **Tiling:** a window in a tiled layout tells its program so, which takes
+  a program's rounded corners and shadow off.
 - **Display:** the program is told the size and refresh rate of the display
   its window is on (the rate from Blit's API, 60 Hz where Blit does not
   say), again when the window moves to another.
 
 Control Panel > Windows > **Programs in Windows** switches it, from the next
-start. A Restart Desktop leaves the compositor running, on the same socket,
-so its programs come back with it once Blit's side of that is in. Quitting
+start. A Restart Desktop leaves the compositor running, on the same socket:
+it dials the restarted desktop and announces its windows again (Blit
+0.3.74), and each program's window comes back as itself, where it was, not
+as a second beside it. A window whose program did not survive is closed.
+After a crash the supervisor's new desktop starts a compositor of its own,
+and the old one's programs end with it. Quitting
 the desktop ends it and its programs. Its log is
 `~/.local/state/hibr/compositor.log`.
+
+A program finds the compositor through `WAYLAND_DISPLAY`, which only what
+the desktop starts *after* the compositor is given: a shell's environment
+cannot be changed from outside, so a terminal window opened before it --
+before Programs in Windows was turned on, or one a held session kept from
+before an upgrade -- says "cannot connect to wayland". Open a new terminal
+window.
 
 ## Light or dark, for programs
 

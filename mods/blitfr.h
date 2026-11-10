@@ -4,8 +4,8 @@
 #include "hibr.h"
 
 /* Picture frames handed to Blit by descriptor rather than written through
-   the terminal (Blit ADR 0202, wire version 2 where Blit speaks it, 1
-   where it does not). One copy of the protocol,
+   the terminal (Blit ADR 0202; the channel's version 5 since Blit 0.3.74,
+   one grammar for its lines). One copy of the protocol,
    for the two places that speak it: the console, when it draws straight
    onto a Blit session, and hold's attaching client, which forwards the
    frames a held desktop gives its server.
@@ -53,7 +53,7 @@ typedef struct hf_api {
 	int (*hud)(sh *s);
 	/* Version 3 (Blit ADR 0223): a connection of its own to the session's
 	   server for frames by dmabuf, or -1, read for what comes back, each
-	   "RELEASE <id> <seq>" or "ERROR <id> <code>" by answer; one frame on
+	   "FRAME release <id> <seq>" or "FRAME error <id> <code>" by answer; one frame on
 	   it, its header and n descriptors, which stay the caller's; the next
 	   line that came back into o, 1 with one, 0 with none yet, -1 when the
 	   connection has gone; and whether every display can import, 1 with
@@ -86,13 +86,16 @@ int bf_open(void);
    environment. */
 int bf_dial(const char *sock, const char *tok);
 
+/* Where a picture's line names its picture: its third word, or null. */
+const char *bf_idat(const char *l);
+
 /* What the last hello was answered about dmabufs: 1 when the far side
    imports them, with its list of formats in bf_formats, and whether it
    waits on a fence. */
 extern int bf_dmabuf, bf_fence;
 extern char bf_formats[];
 
-/* What a RELEASE or an ERROR said is handed here when it is set, and
+/* What a FRAME release or error said is handed here when it is set, and
    otherwise logged. */
 extern void (*bf_answer)(const char *line);
 

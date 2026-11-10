@@ -146,12 +146,12 @@ check("its EIS socket becomes an input route there, on while the window "
       "has the keys", ok, [x for x in lines(blitlog) if x["kind"] == "input"])
 ans = wait(lambda: [x["line"] for x in lines(brlog)
                     if x["kind"] == "answer" and "input" in x["line"].lower()])
-check("and the bridge hears Blit's answers in its own id", ans and "OK input 7" in ans, ans)
+check("and the bridge hears Blit's answers in its own id", ans and "INPUT ok 7" in ans, ans)
 
 
 def released():
-    return sorted(int(x["line"].split()[2]) for x in lines(brlog)
-                  if x["kind"] == "answer" and x["line"].startswith("RELEASE 7 "))
+    return sorted(int(x["line"].split()[3]) for x in lines(brlog)
+                  if x["kind"] == "answer" and x["line"].startswith("FRAME release 7 "))
 
 
 rel = wait(lambda: len(released()) > 20 and released()) or []

@@ -302,7 +302,7 @@ static void hd_f3done(size_t i)
 	str o;
 
 	s_init(&o);
-	s_cat(&o, "RELEASE ");
+	s_cat(&o, "FRAME release ");
 	s_num(&o, (long)f->id);
 	s_ch(&o, ' ');
 	s_num(&o, (long)f->seq);
@@ -353,7 +353,7 @@ void hd_f3put(vec *cls, int tid, int prod, const unsigned char *h,
 	    (unsigned)n < planes || (unsigned)n > planes + 1) {
 		for (k = 0; k < n; k++)
 			close(fds[k]);
-		hd_send(prod, HD_FRMANS, "ERROR 0 EINVAL", 14);
+		hd_send(prod, HD_FRMANS, "FRAME error 0 EINVAL", 20);
 		return;
 	}
 	for (i = hd_nf3; i--;)
@@ -402,7 +402,7 @@ void hd_f3send(struct hd_cli *cn, unsigned id)
 		str o;
 
 		s_init(&o);
-		s_cat(&o, "ERROR ");
+		s_cat(&o, "FRAME error ");
 		s_num(&o, (long)id);
 		s_cat(&o, " ENOTSUP");
 		if (f->prod >= 0)
@@ -451,7 +451,7 @@ void hd_f3ans(int cfd, const char *line)
 	unsigned long long seq = 0;
 	size_t i;
 
-	if (sscanf(line, "RELEASE %lu %llu", &id, &seq) == 2) {
+	if (sscanf(line, "FRAME release %lu %llu", &id, &seq) == 2) {
 		for (i = hd_nf3; i--;)
 			if (hd_f3s[i]->id == id && hd_f3s[i]->seq == seq) {
 				hd_f3unview(hd_f3s[i], cfd);
@@ -459,7 +459,7 @@ void hd_f3ans(int cfd, const char *line)
 			}
 		return;
 	}
-	if (sscanf(line, "ERROR %lu", &id) != 1)
+	if (sscanf(line, "FRAME error %lu", &id) != 1)
 		return;
 	for (i = hd_nf3; i--;)
 		if (hd_f3s[i]->id == id) {
@@ -505,14 +505,17 @@ void hd_f3prod(int fd)
 		}
 }
 
-/* The picture an INPUT line names: its last word. */
+/* The picture a line names: its third word, on every picture line of
+   version 5. */
 unsigned long hd_inid(const char *line, size_t n)
 {
-	size_t i = n;
+	size_t i = 0;
+	int sp = 0;
 
-	while (i && line[i - 1] != ' ')
-		i--;
-	return strtoul(line + i, 0, 10);
+	while (i < n && sp < 2)
+		if (line[i++] == ' ')
+			sp++;
+	return i < n ? strtoul(line + i, 0, 10) : 0;
 }
 
 /* An input route's line from a producer (Blit 0.3.64, Gitea #486): who
@@ -526,10 +529,6 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	int sent = 0;
 	str o;
 
-	if (n > 11 && !memcmp(line, "INPUT hold ", 11))
-		id = strtoul(line + 11, 0, 10);
-	if (n > 13 && !memcmp(line, "INPUT member ", 13))
-		id = strtoul(line + 13, 0, 10);
 	if (!id || n < 9 || memcmp(line, "INPUT ", 6))
 		return;
 	/* A producer's own line comes after any replay, so whatever a
@@ -571,7 +570,7 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	if (sent)
 		return;
 	s_init(&o);
-	s_cat(&o, "ERROR INPUT ");
+	s_cat(&o, "INPUT error ");
 	s_num(&o, (long)id);
 	s_cat(&o, " ENOTSUP");
 	hd_send(prod, HD_FRMANS, o.p, o.n);
@@ -634,7 +633,7 @@ int hd_inputans(vec *cls, int cfd, const char *line)
 	unsigned long id;
 	size_t i, n = strlen(line);
 
-	if (strncmp(line, "OK input ", 9) && strncmp(line, "ERROR INPUT ", 12))
+	if (strncmp(line, "INPUT ok ", 9) && strncmp(line, "INPUT error ", 12))
 		return 0;
 	pc = hd_cfind(cls, cfd);
 	if (pc && pc->inrep > 0) {
@@ -647,7 +646,7 @@ int hd_inputans(vec *cls, int cfd, const char *line)
 		lg(HIBR_LDBG, "hold: a display's input answer kept back: %s", line);
 		return 1;
 	}
-	id = strtoul(line + (line[0] == 'O' ? 9 : 12), 0, 10);
+	id = hd_inid(line, n);
 	for (i = 0; i < hd_nin; i++)
 		if (hd_ins[i].id == id) {
 			hd_send(hd_ins[i].prod, HD_FRMANS, line, n);

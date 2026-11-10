@@ -116,14 +116,14 @@ int bf_hello(const char *sock, const char *tok, int ver, int *inval)
 		bf_formats[0] = 0;
 		p = strstr(r, "formats=");
 		if (p) {
-			size_t n = strcspn(p + 8, "\n");
+			size_t n = strcspn(p + 8, " \n");
 
 			if (n >= BF_FMTMAX)
 				n = BF_FMTMAX - 1;
 			memcpy(bf_formats, p + 8, n);
 			bf_formats[n] = 0;
 		}
-		lg(HIBR_LDBG, "frames: %s open at version 3, dmabuf %d", sock, bf_dmabuf);
+		lg(HIBR_LDBG, "frames: %s open at version %d, dmabuf %d", sock, ver, bf_dmabuf);
 		return fd;
 	}
 	if (k < 3 || memcmp(r, "OK\n", 3)) {
@@ -139,23 +139,37 @@ int bf_hello(const char *sock, const char *tok, int ver, int *inval)
 	return fd;
 }
 
-/* Connect to a frame socket and say hello with a token: version 2, which
-   is what lets Blit's performance panel ask for status (ADR 0203), and
-   version 1 again where that is refused as unknown. */
+/* Connect to a frame socket and say hello with a token at version 5, the
+   channel's one version since Blit 0.3.74 (one grammar: a picture's line
+   is WORD VERB ID ..., its id the third word), which this hibr and that
+   Blit only ever speak together -- each package Breaks the other's older
+   one -- so nothing older is tried. */
 int bf_dial(const char *sock, const char *tok)
 {
-	int fd, inval;
+	int inval;
 
 	if (!sock || !*sock || !tok || !*tok)
 		return -1;
 	bf_dmabuf = bf_fence = 0;
 	bf_formats[0] = 0;
-	fd = bf_hello(sock, tok, 3, &inval);
-	if (fd < 0 && inval)
-		fd = bf_hello(sock, tok, 2, &inval);
-	if (fd < 0 && inval)
-		fd = bf_hello(sock, tok, 1, &inval);
-	return fd;
+	return bf_hello(sock, tok, 5, &inval);
+}
+
+/* Where a picture's line names its picture: the third word, the one rule
+   of the channel's version 5 grammar, or null when it has none. */
+const char *bf_idat(const char *l)
+{
+	const char *p = l;
+	int w;
+
+	for (w = 0; w < 2; w++) {
+		p = strchr(p, ' ');
+		if (!p)
+			return 0;
+		while (*p == ' ')
+			p++;
+	}
+	return *p >= '0' && *p <= '9' ? p : 0;
 }
 
 /* Connect to the frame socket this environment names. */
@@ -307,14 +321,15 @@ int bf_line(const char *l, int *hud)
 	/* What came of an input route (Blit 0.3.64, Gitea #486): an answer
 	   about one picture's route, never about the connection, so an EACCES
 	   here -- an EIS socket somebody else owns -- closes nothing. */
-	if (!strncmp(l, "OK input ", 9) || !strncmp(l, "ERROR INPUT ", 12)) {
+	if (!strncmp(l, "INPUT ok ", 9) || !strncmp(l, "INPUT error ", 12)) {
 		if (bf_answer)
 			bf_answer(l);
 		else
 			lg(HIBR_LDBG, "frames: %s", l);
 		return 0;
 	}
-	if (bf_answer && (!strncmp(l, "RELEASE ", 8) || !strncmp(l, "ERROR ", 6))) {
+	if (bf_answer && (!strncmp(l, "FRAME release ", 14) ||
+			  !strncmp(l, "FRAME error ", 12))) {
 		bf_answer(l);
 		return strstr(l, "EACCES") ? -1 : 0;
 	}

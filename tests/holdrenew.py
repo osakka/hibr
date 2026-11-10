@@ -144,7 +144,7 @@ if br:
     es = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     es.bind(eis)
     br.answers(0.3)
-    br.say("INPUT eis %s 42" % eis)
+    br.say("INPUT eis 42 %s" % eis)
     br.answers(1.0)
     open(out + ".on", "w").close()
     wait(lambda: len([x for x in routes(lg0) if x.get("verb") == "on"]), 5)
@@ -217,7 +217,7 @@ if br:
           (seq0, [x["seq"] for x in late][:6]))
     got = br.answers(1.0)
     check("and the producer hears no error about its route",
-          not [g for g in got if g.startswith("ERROR")], got)
+          not [g for g in got if " error " in g or g.startswith("ERROR")], got)
 check("the loop is still waiting on the display, not returned",
       not os.path.exists(after0) and not os.path.exists(after1),
       (os.path.exists(after0), os.path.exists(after1)))

@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.99.482
+
+**Wayland programs as everyday windows** (Gitea #496, Blit ADR 0229, with
+Blit 0.3.74 -- install both together). What 0.99.481 opened, this makes
+usable:
+
+- **Keys and the pointer reach the program.** Blit 0.3.74 fixes its side,
+  where every key and pointer line for a window was dropped.
+- **Firefox shows its page**: what a program draws into a surface of its
+  own inside its window (a subsurface) is a picture of its own at its own
+  pixels, over or under the window's as the program stacks it, cut to the
+  window, its input reaching it.
+- **A program's own title bar** moves and resizes its window through the
+  desktop's own drag, and opens the desktop's window menu; the shadow it
+  draws round itself is cut away (its window geometry).
+- **The clipboard, both ways**: a program's copy is the desktop's clipboard
+  and history, the desktop's copy is what a program pastes; a password
+  manager's copy stays out of the history, and the Vault's copies reach
+  programs marked as secrets and are taken back on its timeout.
+- **Tiled windows** say so to their programs.
+
+**Programs keep their windows across a Restart Desktop** (Gitea #496, with
+Blit 0.3.74). Blit's compositor outlives the restart, dials the restarted
+desktop on the same socket and announces its windows again under the ids it
+had; the desktop finds each window that came back with the restart by that
+id, so a program's window is still where it was, as itself, rather than a
+second opening beside it. A window whose program did not survive is closed
+three seconds after the compositor reconnects, or seventy seconds after the
+restart if it never does.
+
+**Frame channel version 5.** hibr and Blit 0.3.74 speak one grammar on the
+frame channel: every line about a picture is `<WORD> <verb> <id> ...`, the
+id always the third word -- `FRAME release`, `FRAME error`, `INPUT ok`,
+`INPUT error`, and the producer's `INPUT eis|sock <id> <path>` -- so a relay
+(the console, `hold`, the frames module) rewrites ids by one rule. Only
+version 5 is spoken or taken, by the console, `hold` and the frames module
+alike. The two ship together: hibr's package Breaks `blit (<< 0.3.74)`, and
+Blit's Breaks `hibr (<< 0.99.482)`; install both at once.
+
 ## 0.99.481
 
 **Programs in windows of the desktop's own, through Blit's compositor**

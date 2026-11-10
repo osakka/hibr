@@ -48,6 +48,15 @@
 #define CN_ZWALL (-1610612736)
 #endif
 
+/* Each pane's pictures have a band of layers this wide above the
+   wallpaper, its window's own picture in the middle of it, so a program
+   window's subsurfaces (Gitea #496) can go under its picture and over it,
+   each at a layer of its own -- Blit orders equal layers by image id, which
+   is not the stacking meant. */
+#ifndef CN_ZBAND
+#define CN_ZBAND 64
+#endif
+
 #ifndef CN_GFX_NONE
 #define CN_GFX_NONE 0
 #define CN_GFX_SIXEL 1
@@ -147,6 +156,10 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 void kt_del(str *o, unsigned id);
 void kt_place(int cols, int rows, unsigned id, long z, str *o);
 void kt_placep(int cols, int rows, unsigned id, unsigned pid, long z, str *o);
+void kt_placesub(unsigned id, unsigned pid, int sx, int sy, int sw, int sh,
+		 int ox, int oy, long z, str *o);
+void kt_placepc(int cols, int rows, unsigned id, unsigned pid, long z, int sx,
+		int sy, int sw, int sh, str *o);
 void kt_edit(const unsigned char *rgb, int iw, int ih, int x, int y,
 	     unsigned id, str *o);
 void kt_delall(str *o);
@@ -191,6 +204,16 @@ size_t cn_imgn(void);
    placed and kept by image.c, its frames and answers by stream.c. */
 int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
 	      unsigned sid, unsigned *cid);
+/* A subsurface's place (Gitea #496): px, py, pw by ph in its window body's
+   own pixels, and its slot in the window's layers (dpf_api's sub). */
+typedef struct cn_dsubr {
+	int px, py, pw, ph, slot;
+	int crop;		/* the whole box, showing only px, py, pw by ph */
+} cn_dsubr;
+int cn_imgdmas(sh *s, const char *pane, int row, int col, int h, int w,
+	       unsigned sid, unsigned *cid, const cn_dsubr *sr);
+int cn_imgsubbox(const cn_dsubr *sr, int *row, int *col, int *h, int *w,
+		 int *sx, int *sy, int *sw, int *sh, int *ox, int *oy, long *z);
 void cn_imgdmadrop(unsigned sid);
 unsigned cn_imgdmaid(unsigned sid);
 long cn_imgz(const char *pane, int lo, unsigned flags);
@@ -208,6 +231,10 @@ void cn_fdunhook(int fd);
 int cn_dcan(sh *s, str *fmts, int *fence);
 int cn_dplace(sh *s, const char *pane, int row, int col, int h, int w,
 	      unsigned sid);
+int cn_dsub(sh *s, const char *pane, int row, int col, int h, int w,
+	    unsigned sid, int px, int py, int pw, int ph, int slot);
+int cn_dcrop(sh *s, const char *pane, int row, int col, int h, int w,
+	     unsigned sid, int sx, int sy, int sw, int sh);
 int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
 	      const int *fds, int n);
 void cn_ddrop(sh *s, unsigned sid);

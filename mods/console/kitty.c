@@ -250,6 +250,68 @@ void kt_placep(int cols, int rows, unsigned id, unsigned pid, long z, str *o)
 	s_cat(o, "\033\\");
 }
 
+/* kt_placep showing only the sw by sh pixels at sx, sy of the picture, still
+   scaled to the cells: a program window cut to its geometry (Gitea #496). */
+void kt_placepc(int cols, int rows, unsigned id, unsigned pid, long z, int sx,
+		int sy, int sw, int sh, str *o)
+{
+	s_cat(o, "\033_Ga=p,q=2,C=1,i=");
+	s_num(o, id);
+	s_cat(o, ",p=");
+	s_num(o, pid);
+	s_cat(o, ",x=");
+	s_num(o, sx);
+	s_cat(o, ",y=");
+	s_num(o, sy);
+	s_cat(o, ",w=");
+	s_num(o, sw);
+	s_cat(o, ",h=");
+	s_num(o, sh);
+	s_cat(o, ",c=");
+	s_num(o, cols);
+	s_cat(o, ",r=");
+	s_num(o, rows);
+	if (z) {
+		s_cat(o, ",z=");
+		s_num(o, z);
+	}
+	s_cat(o, "\033\\");
+}
+
+/* A subsurface's picture by descriptor (Gitea #496): the sw by sh pixels
+   at sx, sy of it, at their own size -- no c= or r=, so nothing scales --
+   ox, oy pixels into the cell at the cursor. Blit takes X and Y within a
+   cell; the size it draws at is the source rectangle's. */
+void kt_placesub(unsigned id, unsigned pid, int sx, int sy, int sw, int sh,
+		 int ox, int oy, long z, str *o)
+{
+	s_cat(o, "\033_Ga=p,q=2,C=1,i=");
+	s_num(o, id);
+	s_cat(o, ",p=");
+	s_num(o, pid);
+	s_cat(o, ",x=");
+	s_num(o, sx);
+	s_cat(o, ",y=");
+	s_num(o, sy);
+	s_cat(o, ",w=");
+	s_num(o, sw);
+	s_cat(o, ",h=");
+	s_num(o, sh);
+	if (ox) {
+		s_cat(o, ",X=");
+		s_num(o, ox);
+	}
+	if (oy) {
+		s_cat(o, ",Y=");
+		s_num(o, oy);
+	}
+	if (z) {
+		s_cat(o, ",z=");
+		s_num(o, z);
+	}
+	s_cat(o, "\033\\");
+}
+
 /* Delete one image: its placements and the data behind them. */
 void kt_del(str *o, unsigned id)
 {
