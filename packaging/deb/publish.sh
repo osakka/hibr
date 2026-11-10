@@ -2,6 +2,7 @@
 # Add a built package to the apt repository and publish it.
 #
 #   packaging/deb/publish.sh build/deb/hibr_0.71-1_amd64.deb [...]
+#   packaging/deb/publish.sh --prune      # only keep the newest, and publish
 #
 # The repository is a checkout of itdlabs/hibr-apt (APT_REPO, default
 # ~/hibr-apt), which mirrors itself to github.com/osakka/hibr-apt, where
@@ -10,14 +11,26 @@
 #
 #   deb [signed-by=/usr/share/keyrings/hibr.gpg] <url> stable main
 #
-# Every package ever published stays in pool/, so an older version can
-# still be installed by naming it. The index is signed with the repository
+# pool/ keeps the newest APT_KEEP (3) versions of each package for each
+# architecture -- the current one and two to go back to -- and the older
+# ones are taken out of it on every publish: GitHub Pages serves about a
+# gigabyte at most, and with every version kept (5.26 GB by 0.99.481) its
+# builds stalled and apt saw nothing new for hours (owner, 2026-11-10).
+# Git's history still has every one. The index is signed with the repository
 # key in APT_GNUPGHOME (default ~/.local/share/hibr-apt/gnupg), both as
 # Release.gpg beside Release and as InRelease, since apt reads either.
 
 set -eu
 
-[ $# -ge 1 ] || { echo "usage: publish.sh package.deb..." >&2; exit 2; }
+[ $# -ge 1 ] || { echo "usage: publish.sh package.deb... | --prune" >&2; exit 2; }
+KEEP=${APT_KEEP:-3}
+if [ "$1" = --prune ]; then
+	shift
+	[ $# -eq 0 ] || { echo "usage: publish.sh --prune" >&2; exit 2; }
+	what="Prune pool/ to the newest $KEEP of each package"
+else
+	what="Publish $(for deb in "$@"; do basename "$deb" .deb; done | tr '\n' ' ')"
+fi
 REPO=${APT_REPO:-$HOME/hibr-apt}
 GNUPGHOME=${APT_GNUPGHOME:-$HOME/.local/share/hibr-apt/gnupg}
 export GNUPGHOME
@@ -43,6 +56,18 @@ for deb in "$@"; do
 done
 
 cd "$REPO"
+# The newest KEEP versions of each package for each architecture stay,
+# counted by the package each file names -- <pkg>_<version>_<arch>.deb --
+# wherever in pool/ it is, not by its folder: a folder can hold a stray of
+# another package's.
+find pool -name '*.deb' |
+	sed -n 's|^\(.*/\)\([^/_]*\)_\([^_/]*\)_\([^_/]*\)\.deb$|\2 \4 \3 \1|p' |
+	sort -k1,1 -k2,2 -k3,3Vr |
+	awk -v keep="$KEEP" '{ k = $1 " " $2; if (++n[k] > keep) print $4 $1 "_" $3 "_" $2 ".deb" }' |
+	while read -r f; do
+		rm -f "$f"
+		echo "== pruned ${f##*/}"
+	done
 archs=$(find pool -name '*.deb' | sed 's/.*_\([^_]*\)\.deb$/\1/' | sort -u)
 for a in $archs; do
 	d=dists/$SUITE/main/binary-$a
@@ -69,7 +94,7 @@ gpg --export "$KEY" > hibr.gpg
 gpg --armor --export "$KEY" > hibr.asc
 
 git add -A
-git commit -q -m "Publish $(for deb in "$@"; do basename "$deb" .deb; done | tr '\n' ' ')"
+git commit -q -m "$what"
 if ! timeout 120 git push -q origin HEAD 2> push.err; then
 	cat push.err >&2
 	rm -f push.err
