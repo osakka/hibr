@@ -3,6 +3,8 @@
 #
 #   packaging/deb/publish.sh build/deb/hibr_0.71-1_amd64.deb [...]
 #   packaging/deb/publish.sh --prune      # only keep the newest, and publish
+#   packaging/deb/publish.sh --remove blit-gamescope steamer [package.deb...]
+#                                         # every version of those taken out
 #
 # The repository is a checkout of itdlabs/hibr-apt (APT_REPO, default
 # ~/hibr-apt), which mirrors itself to github.com/osakka/hibr-apt, where
@@ -19,12 +21,34 @@
 # Git's history still has every one. The index is signed with the repository
 # key in APT_GNUPGHOME (default ~/.local/share/hibr-apt/gnupg), both as
 # Release.gpg beside Release and as InRelease, since apt reads either.
+#
+# --remove takes every version of the packages it names out of pool/, so
+# nothing can install them from here again (owner, 2026-11-10: Blit's
+# gamescope bridge, which 0.3.75 replaced); whatever follows it ending in
+# .deb is added in the same publish. A package that pool/ does not have is
+# said and passed over. Git's history still has every file.
 
 set -eu
 
-[ $# -ge 1 ] || { echo "usage: publish.sh package.deb... | --prune" >&2; exit 2; }
+[ $# -ge 1 ] || { echo "usage: publish.sh package.deb... | --prune | --remove name... [package.deb...]" >&2; exit 2; }
 KEEP=${APT_KEEP:-3}
-if [ "$1" = --prune ]; then
+REMOVE=
+if [ "$1" = --remove ]; then
+	shift
+	debs=
+	for a in "$@"; do
+		case $a in
+		*.deb) debs="$debs $a" ;;
+		*_* | */* | -* | '') echo "publish: $a is not a package name" >&2; exit 2 ;;
+		*) REMOVE="$REMOVE $a" ;;
+		esac
+	done
+	[ -n "$REMOVE" ] || { echo "usage: publish.sh --remove name... [package.deb...]" >&2; exit 2; }
+	# shellcheck disable=SC2086
+	set -- $debs
+	what="Remove$REMOVE from pool/"
+	[ $# -gt 0 ] && what="$what; publish $(for deb in "$@"; do basename "$deb" .deb; done | tr '\n' ' ')"
+elif [ "$1" = --prune ]; then
 	shift
 	[ $# -eq 0 ] || { echo "usage: publish.sh --prune" >&2; exit 2; }
 	what="Prune pool/ to the newest $KEEP of each package"
@@ -56,6 +80,19 @@ for deb in "$@"; do
 done
 
 cd "$REPO"
+# Every version of each package named to --remove, wherever in pool/ it is.
+for name in $REMOVE; do
+	found=$(find pool -name "${name}_*.deb")
+	if [ -z "$found" ]; then
+		echo "== nothing of $name in pool/"
+		continue
+	fi
+	echo "$found" | while read -r f; do
+		rm -f "$f"
+		echo "== removed ${f##*/}"
+	done
+	find pool -depth -type d -empty -delete
+done
 # The newest KEEP versions of each package for each architecture stay,
 # counted by the package each file names -- <pkg>_<version>_<arch>.deb --
 # wherever in pool/ it is, not by its folder: a folder can hold a stray of
