@@ -800,9 +800,13 @@ class Term:
         os.write(self.fd, s.encode())
 
     def collect(self, t=0.3):
+        # Waits at most what is left of t: a fixed 0.05 made every short
+        # poll sleep 50 ms when nothing was ready, which read as a 52 ms
+        # floor under every latency measured through this (Gitea #498).
         end = time.time() + t
         while time.time() < end:
-            if not select.select([self.fd], [], [], 0.05)[0]:
+            if not select.select([self.fd], [], [],
+                                 max(0.0, min(0.05, end - time.time())))[0]:
                 continue
             try:
                 d = os.read(self.fd, 65536)

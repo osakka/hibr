@@ -43,6 +43,11 @@ def run(session, feed=(), wait=1.2, env=None, pre="", cell=(0, 0), caps=None):
                           % (load(MOD), WM, pre, session))
     t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
              cols=COLS, settle=0.5, cellw=cell[0], cellh=cell[1], caps=caps)
+    # A session loading every app under a full run's load is not up in the
+    # 0.9 s Term waits, and keys sent before its first frame are lost: the
+    # check then reads a blank screen (twice, in two full runs). Wait for it.
+    if not t.idle:
+        t.idle = t.until_idle(8 * (4 if os.environ.get("ASAN_OPTIONS") else 1))
     t.keys(feed)
     t.quit(b"qy", wait)
     os.unlink(path)
