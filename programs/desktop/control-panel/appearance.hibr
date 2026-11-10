@@ -540,7 +540,34 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BTNSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_BTNSHADOW; n=$((n + 1))
+	# Whether programs are told the desktop is light or dark (wm/appmode).
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Programs"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Light or Dark"
+	CP[$w][$n]["val"] := cp_appmodelabel
+	CP[$w][$n]["key"]=appmode; n=$((n + 1))
 	ret "$n"
+}
+
+# Light or Dark's choices, as the row shows them and as DT_APPMODE keeps
+# them.
+CP_APPMODEL=("Follow the Desktop" "Light" "Dark")
+
+fn cp_appmodelabel() {
+	case $DT_APPMODE in
+	light) ret "Light" ;;
+	dark) ret "Dark" ;;
+	*) ret "Follow the Desktop" ;;
+	esac
+}
+
+fn cp_set_appmode(int? id = "", value = "") {
+	case $value in
+	Light) DT_APPMODE=light ;;
+	Dark) DT_APPMODE=dark ;;
+	*) DT_APPMODE=follow ;;
+	esac
+	cp_save
+	dt_want 30
 }
 
 # Save, Rename and Delete from the keyboard, on the Theme row: s, r, d.
@@ -591,6 +618,12 @@ fn appearance_do(int w, k, int dir) {
 		v := cp_next "$DT_DLGBTN" "$dir" "${fa[@]}"
 		DT_DLGBTN=$v ;;
 	DT_SHADOW | DT_MSHADOW | DT_BTNSHADOW) cp_toggle "$k" ;;
+	appmode)
+		v := cp_appmodelabel
+		v := cp_next "$v" "$dir" "${CP_APPMODEL[@]}"
+		cp_set_appmode "" "$v"
+		return 0
+		;;
 	shadowshape)
 		v := cp_shadowlabel
 		v := cp_next "$v" "$dir" "${CP_SHADOWL[@]}"
@@ -618,6 +651,7 @@ fn appearance_drop(int w, int r, int c, k) {
 		DT_POPNAMENEXT=dt_chromename
 		dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
 	shadowshape) dt_droplist "$w" "$r" "$c" cp_set_shadowshape "${CP_SHADOWL[@]}" ;;
+	appmode) dt_droplist "$w" "$r" "$c" cp_set_appmode "${CP_APPMODEL[@]}" ;;
 	esac
 }
 

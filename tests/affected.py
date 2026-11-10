@@ -89,6 +89,7 @@ SUITE_MODS = {
     "frames": ["frames", "console", "hold", "term", "pty", "blitfr"],
     "screens_wl": ["frames", "console", "hold", "pty", "blitfr", "dav"],
     "holdrenew": ["frames", "console", "hold", "pty", "term", "blitfr"],
+    "native": ["frames", "console", "hold", "pty", "blitfr"],
     "holdlock": ["console", "hold", "pty", "term"],
     "holdseam": ["frames", "console", "img", "hold", "pty", "term", "blitfr"],
     # inflate.c is not a module of its own: it is shared source, the prompt
@@ -100,7 +101,7 @@ SUITE_MODS = {
 APPS = ("apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more")
 DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session")
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
-                                         "sound", "net", "bt", "archives", "holdrenew")
+                                         "sound", "net", "bt", "archives", "holdrenew", "native")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 

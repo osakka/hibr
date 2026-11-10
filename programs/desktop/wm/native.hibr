@@ -1,0 +1,543 @@
+# wm/native -- programs' own windows, Wayland's and later X11's, through
+# Blit's compositor (Gitea #494, Blit ADR 0228).
+#
+# blit-compositor is Blit's Wayland compositor for programs. It composites
+# nothing: each window a program opens is one picture, sent as frames to a
+# socket the desktop serves (the frames module, `frames serve -w`), and each
+# is a window here like any other -- placed, moved, sized, raised, given
+# the keys and closed by the desktop. The compositor tells the desktop what
+# a program asks for (a title, a size it will not go below, full screen),
+# and the desktop tells it the size in pixels it is to draw at, which is
+# the window's own: a resize is 1:1 at any shape, which gamescope could not
+# do. The keys and the pointer go from Blit to the compositor directly; the
+# desktop only says which window has them (INPUT on/off, from `_focus`).
+#
+# It is started once a desktop, as the desktop opens, when it is
+# installed and Control Panel > Windows > Programs in Windows is on, and
+# its Wayland display is given to everything the desktop starts after it
+# (WAYLAND_DISPLAY), so a program run from a terminal window opens here. A
+# Restart Desktop keeps it: it is in a session of its own, owned by init,
+# and the restarted desktop serves the same socket name and token, which it
+# reconnects to with its windows (Blit's api.md, "Programs survive a desktop
+# restart"). Quitting the desktop ends it and its programs.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+command -v dt_app > /dev/null &&
+	dt_app native "Program" 20 72 many "▢" "" hidden
+
+# Whether programs' windows open here at all; the compositor is started
+# only when this is on and it is installed.
+DT_NATIVE="${DT_NATIVE-1}"
+command -v dt_keep > /dev/null && dt_keep DT_NATIVE
+
+# The compositor's server here, the frames number, and its display: kept
+# in the environment with the desktop's pid, so a Restart Desktop -- the
+# same process, exec'd -- serves the same socket and token and starts no
+# second compositor, while a desktop started from inside this one (another
+# pid) starts its own.
+DT_NATSRV=
+declare -gx DT_NATSOCK="${DT_NATSOCK-}" DT_NATTOK="${DT_NATTOK-}" DT_NATPID="${DT_NATPID-}"
+# Exported only once the compositor has named its display: an empty
+# WAYLAND_DISPLAY in every child's environment would send Wayland programs
+# to a display called "" and make GTK and Qt give up on X11's.
+declare -g WAYLAND_DISPLAY="${WAYLAND_DISPLAY-}"
+DT_NATDONE=
+# A program window's frames number by desktop window, and back; and each
+# popup's (a menu, a list, a tooltip): its parent's desktop window and its
+# place in the parent's surface pixels, "ID X Y". A popup is no window of
+# the desktop's but a pane of its own above its parent, kept there when the
+# parent moves (pop<n>, which the window list leaves out).
+declare -gA NW NWN NWP
+
+# The compositor's program: the one on the path, then where Blit's
+# package keeps it. A session or a test may name another.
+DT_NATBIN=${DT_NATBIN:-}
+dt_natbin() {
+	local b
+
+	if [ -n "$DT_NATBIN" ]; then
+		ret "$DT_NATBIN"
+		return 0
+	fi
+	if b := command -v blit-compositor 2> /dev/null; then
+		ret "$b"
+		return 0
+	fi
+	if [ -x /usr/lib/blit/bin/blit-compositor ]; then
+		ret /usr/lib/blit/bin/blit-compositor
+		return 0
+	fi
+	return 1
+}
+
+# Serve the compositor's socket, and start the compositor unless one this
+# desktop started before a restart is still there. Once a desktop.
+dt_natstart() {
+	local b x n sock tok again=0 log
+
+	DT_NATDONE=1
+	[ "$DT_NATIVE" = 1 ] || return 0
+	b := dt_natbin || return 0
+	need frames 2> /dev/null || return 0
+	[ "$DT_NATPID" = "$$" ] && [ -n "$DT_NATSOCK" ] && [ -n "$DT_NATTOK" ] && again=1
+	if [ "$again" = 1 ]; then
+		x := frames serve -w -n "$DT_NATSOCK" -t "$DT_NATTOK" 2> /dev/null || again=0
+	fi
+	if [ "$again" = 0 ]; then
+		x := frames serve -w 2> /dev/null || return 0
+	fi
+	read -r n sock tok <<< "$x"
+	DT_NATSRV=$n
+	DT_NATSOCK=$sock
+	DT_NATTOK=$tok
+	DT_NATPID=$$
+	[ "$again" = 1 ] && return 0
+	log=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/compositor.log
+	mkdir -p "${log%/*}" 2> /dev/null
+	# fork: once a desktop, detached (setsid -f): a session of its own,
+	# owned by init, so a Restart Desktop's exec takes nothing of it.
+	setsid -f env "BLIT_FRAME_SOCKET=$sock" "BLIT_FRAME_TOKEN=$tok" "$b" --log "$log" \
+		< /dev/null > /dev/null 2>&1
+	dt_log "programs' windows: blit-compositor started on $sock"
+	# Its display named before the first frame, whose windows -- a session's
+	# terminal starts its shell as it is first drawn -- inherit it. A second
+	# at most; a compositor slower than that is named by the ticker.
+	frames wait "$n" 1000 2> /dev/null || dt_log "programs' windows: no display named within a second"
+	dt_natevents
+	return 0
+}
+
+# What the compositor has said since last asked, acted on: a ticker, so it
+# is read between frames, and the first quiet frame starts it.
+dt_nattick() {
+	[ -n "$DT_NATDONE" ] || dt_natstart
+	dt_natevents
+}
+command -v dt_ticker > /dev/null && dt_ticker dt_nattick
+
+# The compositor's news, acted on.
+dt_natevents() {
+	local e verb n rest id
+
+	[ -n "$DT_NATSRV" ] || return 0
+	e := frames events "$DT_NATSRV" 2> /dev/null || return 0
+	[ -n "$e" ] || return 0
+	while read -r verb n rest; do
+		case $verb in
+		display) export WAYLAND_DISPLAY=$n; continue ;;
+		new) dt_natnew "$n" "$verb" "$rest"; continue ;;
+		popup) dt_natpopup "$n" "$rest"; continue ;;
+		esac
+		if [ -n "${NWP["$n"]-}" ]; then
+			[ "$verb" = gone ] && dt_natpopgone "$n"
+			continue
+		fi
+		id=${NWN["$n"]-}
+		[ -n "$id" ] || continue
+		case $verb in
+		title) dt_retitle "$id" "$rest" ;;
+		gone)
+			unset NWN["$n"]
+			NW[$id]["gone"]=1
+			dt_wantclose "$id"
+			;;
+		decor) dt_natdecor "$id" "$rest" ;;
+		fullscreen)
+			if [ "$rest" = on ]; then
+				dt_isfull "$id" || dt_fullscreen "$id" on
+			else
+				dt_isfull "$id" && dt_fullscreen "$id" off
+			fi
+			;;
+		maximize)
+			if [ "$rest" = on ] && [ -z "${DT[$id]["oh"]-}" ]; then dt_zoom "$id"
+			elif [ "$rest" = off ] && [ -n "${DT[$id]["oh"]-}" ]; then dt_zoom "$id"; fi
+			;;
+		minimize) dt_min "$id" ;;
+		cursor) [ "$rest" = default ] && rest=
+			dt_pointer "$id" "$rest" ;;
+		limits) NW[$id]["limits"]=$rest ;;
+		lock) dt_natlockask "$id" "$rest" ;;
+		appid | parent | hide) NW[$id]["$verb"]=$rest ;;
+		esac
+	done <<< "$e"
+	dt_want 30
+	return 0
+}
+
+# A window the compositor has opened: one of the desktop's, placed as a new
+# window is, the title the program gives it when it gives one.
+fn dt_natnew(int n, kind, rest = "") {
+	local pl r c h w id
+
+	[ -z "${NWN["$n"]-}" ] || return 0
+	pl := dt_place 20 72
+	read -r r c h w <<< "$pl"
+	id := dt_new "Program" "${h:-20}" "${w:-72}" "${r:-2}" "${c:-4}" native "$n"
+	NWN["$n"]=$id
+	return 0
+}
+
+# A popup the compositor has opened: a pane above its parent at its place,
+# and its picture joined to the parent's input route, so the pointer over
+# it reaches the program as a point of the parent's.
+fn dt_natpopup(int n, rest = "") {
+	local p x y pid
+
+	read -r p x y <<< "$rest"
+	pid=${NWN["$p"]-}
+	[ -n "$pid" ] || return 0
+	NWP["$n"]="$pid ${x:-0} ${y:-0}"
+	NW[$pid]["popkey"]=
+	frames input "$n" member "$p" "${x:-0}" "${y:-0}" 2> /dev/null
+	return 0
+}
+
+# A popup gone: its pane and its record, and its parent drawn again.
+fn dt_natpopgone(int n) {
+	local pid x y
+
+	read -r pid x y <<< "${NWP["$n"]}"
+	console pane drop "pop$n" 2> /dev/null
+	unset NWP["$n"]
+	[ -n "${NW[$pid]+x}" ] && NW[$pid]["popkey"]=
+	return 0
+}
+
+# Every popup of a window asked to close: the person went elsewhere, which
+# for a menu is choosing nothing (xdg_popup's popup_done).
+fn dt_natpopclose(int id) {
+	local n pid x y
+
+	for n in "${!NWP[@]}"; do
+		read -r pid x y <<< "${NWP["$n"]}"
+		[ "$pid" = "$id" ] && frames window "$n" close 2> /dev/null
+	done
+	return 0
+}
+
+# A window's popups, each with the size of its newest frame in pixels:
+# "N:W:H ...", what _dirty compares and the drawing works from.
+fn dt_natpopkey(int id) {
+	local n pid x y i kv fw fh key=
+	local -a a
+
+	for n in "${!NWP[@]}"; do
+		read -r pid x y <<< "${NWP["$n"]}"
+		[ "$pid" = "$id" ] || continue
+		i := frames info "$n" 2> /dev/null
+		read -ra a <<< "$i"
+		fw=0 fh=0
+		for kv in "${a[@]}"; do
+			case $kv in
+			"width="*) fw=${kv#*=} ;;
+			"height="*) fh=${kv#*=} ;;
+			esac
+		done
+		key="$key $n:$fw:$fh"
+	done
+	ret "$key"
+}
+
+# A window's popups put where they belong, over its body at their places,
+# each the size of its newest frame in whole cells.
+fn dt_natpops(int id, int o, key = "") {
+	local n pid x y fw fh r c ph pw k
+	local -a a
+
+	read -ra a <<< "$key"
+	for k in "${a[@]}"; do
+		IFS=: read -r n fw fh <<< "$k"
+		read -r pid x y <<< "${NWP["$n"]}"
+		[ "$fw" -gt 0 ] && [ "$fh" -gt 0 ] || continue
+		r=$((${DT[$id]["row"]} + o + y / DT_NATCH))
+		c=$((${DT[$id]["col"]} + o + x / DT_NATCW))
+		ph=$(((fh + DT_NATCH - 1) / DT_NATCH))
+		pw=$(((fw + DT_NATCW - 1) / DT_NATCW))
+		console pane "pop$n" "$r" "$c" "$ph" "$pw" 2> /dev/null
+		console pane raise "pop$n" 2> /dev/null
+		frames place "$n" "pop$n" 0 0 "$ph" "$pw" 2> /dev/null
+	done
+	return 0
+}
+
+# What a window's frame is: the desktop's, or none for a program that draws
+# its own (client-side decorations). With none every press in it is the
+# program's, as in full screen, and the drag key still moves it.
+fn dt_natdecor(int id, how) {
+	if [ "$how" = client ]; then
+		DT[$id]["chrome"]=none
+		DT[$id]["csd"]=1
+	else
+		DT[$id]["chrome"]=
+		DT[$id]["csd"]=
+	fi
+	NW[$id]["sent"]=
+	return 0
+}
+
+fn native_open(int id, arg = "") {
+	NW[$id]["n"]=$arg
+	NW[$id]["sent"]=
+	NW[$id]["drew"]=
+	NW[$id]["seen"]=
+	NW[$id]["gone"]=
+	return 0
+}
+
+# What a cell measures in pixels: the terminal's own when it says, 8 by 16
+# otherwise, so a window's size in pixels follows its size in cells.
+DT_NATCW=8
+DT_NATCH=16
+dt_natcell() {
+	local g kind cw=0 ch=0
+
+	g := console gfx 2> /dev/null
+	read -r kind cw ch <<< "$g"
+	DT_NATCW=8
+	DT_NATCH=16
+	[ "${cw:-0}" -gt 1 ] && DT_NATCW=$cw
+	[ "${ch:-0}" -gt 1 ] && DT_NATCH=$ch
+	return 0
+}
+
+# Tell the program the size to draw at -- the body's, in pixels -- and its
+# states, when any of it has changed. activated is the keyboard focus to
+# the program (xdg's activated state), so it goes with the window that has
+# the keys and only with it.
+fn dt_natsize(int id, int h, int w) {
+	local n=${NW[$id]["n"]} st=
+
+	dt_natcell
+	[ "$DT_FOCUS" = "$id" ] && st="$st activated"
+	dt_isfull "$id" && st="$st fullscreen"
+	[ -n "${DT[$id]["oh"]-}" ] && st="$st maximized"
+	st="$((w * DT_NATCW)) $((h * DT_NATCH))$st"
+	[ "${NW[$id]["sent"]}" = "$st" ] && return 0
+	NW[$id]["sent"]=$st
+	frames window "$n" size $st 2> /dev/null
+	return 0
+}
+
+# What of a window's frames can change what it shows: whether one has come,
+# and a picture it has to draw itself.
+fn dt_natseen(int n) {
+	local i kv f=0 r=0
+	local -a a
+
+	i := frames info "$n" 2> /dev/null
+	read -ra a <<< "$i"
+	for kv in "${a[@]}"; do
+		case $kv in
+		"frames="*) f=${kv#*=} ;;
+		"rgb="*) r=${kv#*=} ;;
+		esac
+	done
+	ret "$((f > 0)) $r"
+}
+
+# The refresh rate of the display the desktop is shown on, in millihertz,
+# from Blit's own API with what Blit gives the desktop's session (as
+# Screens' Wayland Screen asks it: the pane, then the pane's display, then
+# its mode), asked once a desktop and each request bounded to a second, so
+# a Blit that does not answer costs one second and never a frozen desktop.
+# 60000 when there is no answer. DAV_CODE is the dav module's own.
+DT_NATHZ=
+DAV_CODE=${DAV_CODE-}
+dt_nathz() {
+	local port=${BLIT_SERVER_PORT:-} tok=${BLIT_API_TOKEN:-} pane=${BLIT_PANE_ID:-}
+	local HIBR_DAV_TIMEOUT=1 r disp= i v best=0
+	local -A top dsp
+
+	[ -n "$DT_NATHZ" ] && { ret "$DT_NATHZ"; return 0; }
+	DT_NATHZ=60000
+	[[ $port =~ ^[0-9]+$ ]] && [ -n "$tok" ] || { ret "$DT_NATHZ"; return 0; }
+	need dav 2> /dev/null && need math 2> /dev/null || { ret "$DT_NATHZ"; return 0; }
+	if [ -n "$pane" ]; then
+		r := dav request -H "Authorization: Bearer $tok" GET "http://127.0.0.1:$port/v1/topology" 2> /dev/null || r=
+		if [ -n "$r" ] && json parse top "$r" 2> /dev/null; then
+			i=0
+			while [ -n "${top["panes"][$i]["id"]-}" ]; do
+				[ "${top["panes"][$i]["id"]}" = "$pane" ] &&
+					{ disp=${top["panes"][$i]["display_id"]-}; break; }
+				i=$((i + 1))
+			done
+		fi
+	fi
+	r := dav request -H "Authorization: Bearer $tok" GET "http://127.0.0.1:$port/v1/displays" 2> /dev/null || r=
+	if [ -n "$r" ] && json parse dsp "$r" 2> /dev/null; then
+		i=0
+		while [ -n "${dsp["displays"][$i]["id"]-}" ]; do
+			v=${dsp["displays"][$i]["active_mode"]["refresh_hz"]-}
+			if [[ $v =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+				v := math "$v * 1000" 2> /dev/null || v=0
+				v=${v%%.*}
+				if [ -n "$disp" ] && [ "${dsp["displays"][$i]["id"]}" = "$disp" ]; then
+					best=$v
+					break
+				fi
+				[ -z "$disp" ] && [ "${v:-0}" -gt "$best" ] && best=$v
+			fi
+			i=$((i + 1))
+		done
+	fi
+	[ "${best:-0}" -gt 0 ] && DT_NATHZ=$best
+	ret "$DT_NATHZ"
+}
+
+# Tell the program the display its window is on -- its size in pixels and
+# its rate -- when it opens and whenever it moves to another (wl_output's
+# mode, Blit's WINDOW output).
+fn dt_natoutput(int id) {
+	local n=${NW[$id]["n"]} hz o
+
+	dt_fullrect "$id"
+	hz := dt_nathz
+	o="$((DTW_W * DT_NATCW)) $((DTW_H * DT_NATCH)) $hz"
+	[ "${NW[$id]["out"]-}" = "$o" ] && return 0
+	NW[$id]["out"]=$o
+	frames window "$n" output $o 2> /dev/null
+	return 0
+}
+
+fn native_draw(int id, int h, int w, int row, int col) {
+	local n=${NW[$id]["n"]} o=1 t k
+
+	[ -n "$n" ] || return 0
+	[ "${DT[$id]["chrome"]-}" = none ] && o=0
+	dt_natsize "$id" "$h" "$w"
+	dt_natoutput "$id"
+	NW[$id]["seen"] := dt_natseen "$n"
+	if frames place "$n" "w$id" "$o" "$o" "$h" "$w" 2> /dev/null; then
+		NW[$id]["drew"]="$h $w ${DT[$id]["row"]} ${DT[$id]["col"]}"
+		k := dt_natpopkey "$id"
+		NW[$id]["popkey"]=$k
+		dt_natpops "$id" "$o" "$k"
+		return 0
+	fi
+	NW[$id]["drew"]=
+	t := dt_tr "Waiting for the program's first picture"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" $(((h + 1) / 2)) $(((w - ${#t}) / 2 + 1)) "$t"
+	return 0
+}
+
+# Drawn again only when something it shows can have changed: its first
+# frame, its size or its states. Frames themselves pass in the console.
+fn native_dirty(int id) {
+	local n=${NW[$id]["n"]} s b=2
+
+	[ -n "$n" ] || return 0
+	s := dt_natseen "$n"
+	[ "$s" = "${NW[$id]["seen"]}" ] || return 0
+	[ -n "${NW[$id]["drew"]}" ] || return 0
+	[ "${DT[$id]["chrome"]-}" = none ] && b=0
+	[ "${NW[$id]["drew"]}" = "$((${DT[$id]["h"]} - b)) $((${DT[$id]["w"]} - b)) ${DT[$id]["row"]} ${DT[$id]["col"]}" ] ||
+		return 0
+	s := dt_natpopkey "$id"
+	[ "$s" = "${NW[$id]["popkey"]}" ] || return 0
+	return 1
+}
+
+# A program asking to hold the pointer (Blit's WINDOW lock, from a Wayland
+# program's pointer constraints): relative, hidden and only motion sent, as
+# mouse-look wants; confine, shown and kept inside the window; off, given
+# back. The hold is the desktop's to take, as every hold is (ADR 0198): on
+# the display showing the window, and only within a click or a key of the
+# person's in it -- a program cannot take the pointer on its own, and one
+# that asks with none is told off until the person clicks in its window.
+fn dt_natlockask(int id, how) {
+	local n=${NW[$id]["n"]}
+
+	if [ "$how" = off ]; then
+		NW[$id]["lockwant"]=
+		if [ "${DT_PTRLOCK-}" = "$id" ]; then
+			dt_pointerlock "$id" off
+		else
+			frames window "$n" lock off 2> /dev/null
+		fi
+		return 0
+	fi
+	case $how in relative | confine) ;; *) return 0 ;; esac
+	NW[$id]["lockwant"]=$how
+	dt_natlock "$id" || frames window "$n" lock off 2> /dev/null
+	return 0
+}
+
+# Take the hold a window's program asked for, if the person has just
+# clicked or typed in it: status 1 when not taken.
+fn dt_natlock(int id) {
+	local n=${NW[$id]["n"]} how=${NW[$id]["lockwant"]-}
+
+	[ -n "$how" ] && [ "${DT_PTRLOCK-}" != "$id" ] || return 1
+	frames input "$n" hold "$how" 2> /dev/null
+	dt_has dt_pointerlock && dt_pointerlock "$id" on || return 1
+	frames window "$n" lock on 2> /dev/null
+	return 0
+}
+
+# A press in a window whose program wants the pointer takes the hold (its
+# gesture), and Release Pointer, focus going or a menu ending it tells the
+# program it is given back. Every press is the program's anyway, by Blit.
+fn native_mouse(int id, act, btn, int r, int c, mods = "") {
+	local n=${NW[$id]["n"]}
+
+	[ -n "$n" ] || return 0
+	case ${act##*-} in
+	unlock) frames window "$n" lock off 2> /dev/null ;;
+	press) [ -n "${NW[$id]["lockwant"]-}" ] && dt_natlock "$id" ;;
+	esac
+	return 0
+}
+
+# The keys go to the program through Blit's route, which follows this; and
+# the program is told it has the keyboard, or has lost it.
+fn native_focus(int id, on) {
+	local n=${NW[$id]["n"]}
+
+	[ -n "$n" ] || return 0
+	frames input "$n" "$on" 2> /dev/null
+	[ "$on" = off ] && dt_natpopclose "$id"
+	NW[$id]["sent"]=
+	dt_want 30
+	return 0
+}
+
+fn native_fullscreen(int id, how) {
+	NW[$id]["sent"]=
+	dt_want 30
+	return 0
+}
+
+# Closing a program's window asks the program, which may ask its own
+# questions first; the window goes when the program says it has gone.
+fn native_canclose(int id) {
+	local n=${NW[$id]["n"]}
+
+	[ -n "$n" ] && [ -z "${NW[$id]["gone"]}" ] || return 0
+	frames window "$n" close 2> /dev/null || return 0
+	return 1
+}
+
+fn native_close(int id) {
+	local n=${NW[$id]["n"]} p pid x y
+
+	[ -n "$n" ] && unset NWN["$n"]
+	for p in "${!NWP[@]}"; do
+		read -r pid x y <<< "${NWP["$p"]}"
+		[ "$pid" = "$id" ] && dt_natpopgone "$p"
+	done
+	unset "NW[$id]"
+	return 0
+}
+
+# The person quit the desktop: the compositor ends its programs at once
+# rather than waiting for a desktop that will not come back.
+dt_natquit() {
+	[ -n "$DT_NATSRV" ] && frames quit "$DT_NATSRV" 2> /dev/null
+	return 0
+}

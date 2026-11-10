@@ -1280,6 +1280,27 @@ check("a window on the row under the menu bar keeps its own colours, and "
       "the bar's shadow still falls on the desktop beside it",
       sc.p[1][6:26] == nosh.p[1][6:26] and sc.p[1][60] != nosh.p[1][60],
       (sc.p[1][6], nosh.p[1][6], sc.p[1][60], nosh.p[1][60]))
+# Programs told light or dark (wm/appmode): from the scheme's own face, or
+# the Appearance setting, to GTK through GTK_THEME and to anything that
+# asked through dt_modehook -- never over a GTK_THEME the person set.
+r = subprocess.run([screen.HIBR, "-c", ". %s\n"
+                    "seen=; hk() { seen=\"$seen $1\"; }; dt_modehook hk\n"
+                    "g() { sh -c 'printf \"%%s|\" \"${GTK_THEME-unset}\"'; }\n"
+                    "DT_FACE='#101820'; dt_modetick; g\n"
+                    "DT_FACE='#f5f2ea'; dt_modetick; g\n"
+                    "DT_APPMODE=dark; dt_modetick; g\n"
+                    "echo \"hooks=$seen\"\n" % WM],
+                   env=dict((k, v) for k, v in os.environ.items() if k != "GTK_THEME"),
+                   capture_output=True, text=True, timeout=30)
+r2 = subprocess.run([screen.HIBR, "-c", ". %s\nDT_FACE='#101820'; dt_modetick; "
+                     "sh -c 'printf %%s \"$GTK_THEME\"'\n" % WM],
+                    env=dict(os.environ, GTK_THEME="Mine"), capture_output=True, text=True, timeout=30)
+check("programs are told the desktop is dark on a dark scheme and nothing on a "
+      "light one, Light or Dark in Appearance overrides the scheme, a hook hears "
+      "each change, and a GTK_THEME of the person's own is left alone",
+      r.stdout.startswith("Adwaita:dark|unset|Adwaita:dark|") and
+      "hooks= dark dark light dark" in r.stdout and r2.stdout == "Mine",
+      (r.stdout, r.stderr, r2.stdout))
 sc, _ = run('dt_new Notes 6 24 2 2\n', [press(2, 4), release(2, 4)], pre=CHALK)
 check("a press on Chalk's close box closes the window",
       sc.find("Notes") is None, sc)
@@ -9466,4 +9487,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1033)
+report(1034)

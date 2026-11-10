@@ -1,0 +1,99 @@
+# wm/appmode -- whether programs are told the desktop is light or dark.
+#
+# One fact, worked out in one place: the colour scheme's own window face is
+# light when its brightness is over half, and dark otherwise -- derived, not
+# declared, so it cannot disagree with the colours (every scheme shipped is
+# far from the line: the dark ones at 52 of 255 or below, the light ones at
+# 205 or above). Control Panel > Appearance > Light or Dark is Follow the
+# Desktop by default, and Light or Dark to tell programs one regardless.
+#
+# Who is told, and how: the Browser (and anything else) through
+# dt_modehook, called whenever the answer changes, which it turns into a
+# page's prefers-color-scheme; GTK programs the desktop starts from then on
+# through GTK_THEME, Adwaita's dark variant, which GTK 3 and 4 both honour
+# -- exported only when dark, so a light desktop leaves GTK as it was, and
+# never over a GTK_THEME the person set before the desktop started; and
+# terminal programs, which ask the terminal for its background (OSC 11)
+# and need nothing from here. A program already running keeps what it was
+# started with until Blit's compositor carries the portal's live setting
+# (planned, Blit ADR 0228: WINDOW scheme).
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_APPMODE="${DT_APPMODE-follow}"
+DT_APPMODES=(follow light dark)
+command -v dt_keep > /dev/null && dt_keep DT_APPMODE
+
+# GTK_THEME as the desktop found it: the person's own, which is left alone.
+declare -g GTK_THEME="${GTK_THEME-}"
+DT_GTKTHEME0=$GTK_THEME
+# What was last worked out, light or dark, and what it was worked out from.
+DT_MODE=
+DT_MODEKEY=
+DT_MODEHOOKS=()
+
+# Whether a colour is light: over half bright, by the eye's own weights.
+fn dt_islight(c) {
+	local r g b
+
+	[[ $c =~ ^#[0-9a-fA-F]{6}$ ]] || return 1
+	r=$((16#${c:1:2}))
+	g=$((16#${c:3:2}))
+	b=$((16#${c:5:2}))
+	[ $(((2126 * r + 7152 * g + 722 * b) / 10000)) -gt 127 ]
+}
+
+# light or dark, as programs are to be told: the setting, or the scheme's.
+dt_modename() {
+	case $DT_APPMODE in
+	light | dark) ret "$DT_APPMODE"; return 0 ;;
+	esac
+	if dt_islight "${DT_FACE:-}"; then ret light; else ret dark; fi
+}
+
+# Whether programs are told the desktop is dark: status 0 when they are.
+dt_isdark() {
+	local m
+
+	m := dt_modename
+	[ "$m" = dark ]
+}
+
+# Call fn MODE whenever the answer changes, and once now.
+fn dt_modehook(fn) {
+	local m
+
+	DT_MODEHOOKS+=("$fn")
+	m := dt_modename
+	"$fn" "$m"
+	return 0
+}
+
+# Asked once a frame: when the answer has changed, every program the desktop
+# starts from now on is told it, and every hook is called.
+dt_modetick() {
+	local m f
+
+	[ "$DT_MODEKEY" = "$DT_APPMODE ${DT_FACE:-}" ] && return 0
+	DT_MODEKEY="$DT_APPMODE ${DT_FACE:-}"
+	m := dt_modename
+	[ "$m" = "$DT_MODE" ] && return 0
+	DT_MODE=$m
+	if [ -z "$DT_GTKTHEME0" ]; then
+		if [ "$m" = dark ]; then
+			export GTK_THEME=Adwaita:dark
+		else
+			GTK_THEME=
+			export -n GTK_THEME
+		fi
+	fi
+	for f in "${DT_MODEHOOKS[@]}"; do
+		dt_has "$f" && "$f" "$m"
+	done
+	dt_log "programs are told the desktop is $m"
+	return 0
+}
+command -v dt_ticker > /dev/null && dt_ticker dt_modetick

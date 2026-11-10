@@ -281,6 +281,7 @@ static struct hd_in {
 	str eis;
 	int on;
 	int hold;
+	str mem;
 } *hd_ins;
 static size_t hd_nin;
 
@@ -492,6 +493,7 @@ void hd_f3prod(int fd)
 	for (i = hd_nin; i--;)
 		if (hd_ins[i].prod == fd) {
 			s_free(&hd_ins[i].eis);
+			s_free(&hd_ins[i].mem);
 			hd_ins[i] = hd_ins[--hd_nin];
 		}
 	for (i = hd_nf3; i--;)
@@ -526,6 +528,8 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 
 	if (n > 11 && !memcmp(line, "INPUT hold ", 11))
 		id = strtoul(line + 11, 0, 10);
+	if (n > 13 && !memcmp(line, "INPUT member ", 13))
+		id = strtoul(line + 13, 0, 10);
 	if (!id || n < 9 || memcmp(line, "INPUT ", 6))
 		return;
 	/* A producer's own line comes after any replay, so whatever a
@@ -539,17 +543,22 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 		hd_ins = xr(hd_ins, (hd_nin + 1) * sizeof *hd_ins);
 		memset(&hd_ins[i], 0, sizeof hd_ins[i]);
 		s_init(&hd_ins[i].eis);
+		s_init(&hd_ins[i].mem);
 		hd_nin++;
 	}
 	hd_ins[i].id = (unsigned)id;
 	hd_ins[i].prod = prod;
-	if (n > 10 && !memcmp(line, "INPUT eis ", 10)) {
+	if ((n > 10 && !memcmp(line, "INPUT eis ", 10)) ||
+	    (n > 11 && !memcmp(line, "INPUT sock ", 11))) {
 		hd_ins[i].eis.n = 0;
 		s_add(&hd_ins[i].eis, line, n);
 	} else if (n > 9 && !memcmp(line, "INPUT on ", 9)) {
 		hd_ins[i].on = 1;
 	} else if (n > 10 && !memcmp(line, "INPUT off ", 10)) {
 		hd_ins[i].on = 0;
+	} else if (n > 13 && !memcmp(line, "INPUT member ", 13)) {
+		hd_ins[i].mem.n = 0;
+		s_add(&hd_ins[i].mem, line, n);
 	} else if (n > 11 && !memcmp(line, "INPUT hold ", 11)) {
 		hd_ins[i].hold = n >= 7 && !memcmp(line + n - 7, "confine", 7) ? 2 : 1;
 	}
@@ -591,6 +600,12 @@ void hd_inreplay(struct hd_cli *cn)
 		s_cat(&o, "INPUT on ");
 		s_num(&o, (long)hd_ins[i].id);
 		if (hd_send(cn->fd, HD_INPUT, o.p, o.n))
+			cn->inrep++;
+	}
+	for (i = 0; i < hd_nin; i++) {
+		if (!hd_ins[i].mem.n)
+			continue;
+		if (hd_send(cn->fd, HD_INPUT, hd_ins[i].mem.p, hd_ins[i].mem.n))
 			cn->inrep++;
 	}
 	for (i = 0; i < hd_nin; i++) {

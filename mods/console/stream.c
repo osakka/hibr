@@ -21,6 +21,7 @@
 #include "../blitfr.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -51,6 +52,9 @@ typedef struct cn_dst {
 	int sent;
 	int ion;
 	int hold, ihold;
+	int sock;
+	unsigned mpar, imcid, impcid;
+	int mx, my;
 } cn_dst;
 
 /* Which stream a kitty id belonged to, kept after the picture has gone,
@@ -211,6 +215,7 @@ int cn_doutrel(unsigned sid, unsigned long long seq)
 	return 1;
 }
 
+
 /* One answer from a display's Blit, put in the stream's terms: the id is
    the console's and becomes the caller's, everything after it stays. */
 void cn_dans(const char *line)
@@ -295,6 +300,7 @@ int cn_d3read(void *ctx, int fd)
 				cn_dsts[i].icid = 0;
 				cn_dsts[i].ion = 0;
 				cn_dsts[i].ihold = 0;
+				cn_dsts[i].imcid = 0;
 			}
 			cn_imgdmaresend();
 			s_free(&o);
@@ -502,12 +508,31 @@ int cn_dsay(sh *s, const char *line)
 void cn_dinsync(sh *s, struct cn_dst *d)
 {
 	str o;
+	cn_dst *p;
 
+	if (d->mpar && d->fcid && d->fcid == d->cid &&
+	    (p = cn_dget(d->mpar, 0)) != 0 && p->cid &&
+	    (d->imcid != d->cid || d->impcid != p->cid)) {
+		s_init(&o);
+		s_cat(&o, "INPUT member ");
+		s_num(&o, (long)d->cid);
+		s_ch(&o, ' ');
+		s_num(&o, (long)p->cid);
+		s_ch(&o, ' ');
+		s_num(&o, (long)d->mx);
+		s_ch(&o, ' ');
+		s_num(&o, (long)d->my);
+		if (cn_dsay(s, o.p)) {
+			d->imcid = d->cid;
+			d->impcid = p->cid;
+		}
+		s_free(&o);
+	}
 	if (!d->eis || !d->fcid || d->fcid != d->cid)
 		return;
 	s_init(&o);
 	if (d->icid != d->cid) {
-		s_cat(&o, "INPUT eis ");
+		s_cat(&o, d->sock ? "INPUT sock " : "INPUT eis ");
 		s_cat(&o, d->eis);
 		s_ch(&o, ' ');
 		s_num(&o, (long)d->cid);
@@ -537,7 +562,8 @@ void cn_dinsync(sh *s, struct cn_dst *d)
 	s_free(&o);
 }
 
-/* A stream's input route: "eis" with the socket the producer offers, "on"
+/* A stream's input route: "eis" with the socket the producer offers ("sock"
+   for blit-compositor's, which Blit writes the input to itself), "on"
    or "off" as its window gains and loses the keys, "hold" with confine or
    relative for how a held pointer behaves (Blit 0.3.70). 1 when kept; it
    reaches Blit as soon as a frame of the stream has. */
@@ -545,14 +571,19 @@ int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path)
 {
 	cn_dst *d = cn_dget(sid, 1);
 
-	if (!strcmp(verb, "eis") && path && *path && !strchr(path, '\n')) {
+	if ((!strcmp(verb, "eis") || !strcmp(verb, "sock")) && path && *path &&
+	    !strchr(path, '\n')) {
 		free(d->eis);
 		d->eis = xs(path);
+		d->sock = !strcmp(verb, "sock");
 		d->icid = 0;
 	} else if (!strcmp(verb, "on")) {
 		d->on = 1;
 	} else if (!strcmp(verb, "off")) {
 		d->on = 0;
+	} else if (!strcmp(verb, "member") && path &&
+		   sscanf(path, "%u %d %d", &d->mpar, &d->mx, &d->my) == 3) {
+		d->imcid = 0;
 	} else if (!strcmp(verb, "hold") && path &&
 		   (!strcmp(path, "confine") || !strcmp(path, "relative"))) {
 		d->hold = !strcmp(path, "confine") ? 2 : 1;

@@ -1657,6 +1657,55 @@ stays dimmed and the desktop opens in this terminal as it always did. See
 works, and `hold attach desk`/`hold new desk ...` directly if you would
 rather manage that yourself, under a name of your own.
 
+## Programs in windows
+
+Where Blit's compositor is installed (`blit-compositor`, from Blit's own
+package), a Wayland program started from the desktop -- from a terminal
+window, a launcher, anything the desktop starts -- opens in a window of the
+desktop's, as any app's does (Gitea #494, Blit ADR 0228). The desktop starts
+the compositor once, as it opens, and gives its display to
+everything it starts after (`WAYLAND_DISPLAY`). Each window it opens is
+placed, moved, sized, raised and closed by the desktop:
+
+- **Size:** the program is told the window's body in pixels -- its cells
+  times the terminal's cell size -- and draws at exactly that, so a resize
+  is 1:1 at any shape. Zoom says it is maximized, and full screen works
+  either way round: the desktop's Full Screen, or the program asking for it.
+- **Keys and pointer:** they go from Blit to the compositor directly. The
+  desktop says which window has them, and the program is told when it has
+  the keyboard and when it has lost it.
+- **Closing:** closing a window asks the program, which may ask its own
+  questions first; the window goes when the program has gone.
+- **Popups:** a program's menus, lists and tooltips sit over its window as
+  panes of their own, at the place the program asked for, and move with it.
+  A click elsewhere closes them.
+- **Frames:** a program that draws its own title bar gets a window with no
+  frame of the desktop's; every press in it is the program's, and the drag
+  key still moves it.
+- **Display:** the program is told the size and refresh rate of the display
+  its window is on (the rate from Blit's API, 60 Hz where Blit does not
+  say), again when the window moves to another.
+
+Control Panel > Windows > **Programs in Windows** switches it, from the next
+start. A Restart Desktop leaves the compositor running, on the same socket,
+so its programs come back with it once Blit's side of that is in. Quitting
+the desktop ends it and its programs. Its log is
+`~/.local/state/hibr/compositor.log`.
+
+## Light or dark, for programs
+
+Programs are told whether the desktop is light or dark, and follow it:
+from the colour scheme's own window colour (Paper, Chalk, Pewter, Meadow and
+Hazard are light, the rest dark), or as Control Panel > Appearance >
+Programs > **Light or Dark** says -- Follow the Desktop, the default, or
+Light or Dark whatever the scheme. GTK programs the desktop starts from then
+on are told through `GTK_THEME` (Adwaita's dark variant), unless you set
+`GTK_THEME` yourself; the Browser's pages follow at once, where the Browser
+asks (`dt_modehook`); terminal programs ask the terminal its background, as
+they always have. A program already running keeps what it was started with,
+and Qt programs are not told yet: both wait on Blit's compositor carrying
+the desktop's setting to them live (Blit ADR 0228, planned).
+
 ## More than one screen
 
 A second terminal joins the same desktop instead of starting its own:

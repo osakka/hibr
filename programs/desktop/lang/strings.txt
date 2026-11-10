@@ -681,6 +681,7 @@ Leave Full Screen
 Left
 Left %s
 Level on Menu Bar
+Light or Dark
 Lightest
 Line Under It
 Link
@@ -1006,6 +1007,7 @@ Program
 Program to run as the browser:
 Programs
 Programs Set Clipboard
+Programs in Windows
 Put back
 Puzzle
 Quality %s
@@ -1419,6 +1421,7 @@ Volume on Menu Bar
 WHERE
 Wait for the transfers running to finish first
 Waiting for %s's first picture
+Waiting for the program's first picture
 Wallpaper
 Wallpaper set
 Wayland Screen

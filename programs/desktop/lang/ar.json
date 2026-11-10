@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.91",
+ "version": "3.93",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1689,6 +1689,9 @@
   "Hold for Mouse-look": "الإمساك للتصويب بالفأرة",
   "Hold with the Pointer Shown": "الإمساك مع إظهار المؤشر",
   "Mouse-look: no pointer, only motion.": "التصويب بالفأرة: لا مؤشر، الحركة فقط.",
-  "The pointer shown, kept inside the picture.": "المؤشر ظاهر، ويبقى داخل الصورة."
+  "The pointer shown, kept inside the picture.": "المؤشر ظاهر، ويبقى داخل الصورة.",
+  "Programs in Windows": "البرامج في نوافذ",
+  "Waiting for the program's first picture": "بانتظار أول صورة من البرنامج",
+  "Light or Dark": "فاتح أم داكن"
  }
 }

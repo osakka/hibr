@@ -166,6 +166,8 @@ dt_open() {
 	dt_deskscan
 	dt_clipload
 	dt_snaptake
+	dt_has dt_natstart && [ -z "$DT_NATDONE" ] && dt_natstart
+	dt_has dt_modetick && dt_modetick
 	dt_restore
 	dt_ctlopen
 	dt_tstamp "open"
@@ -414,6 +416,7 @@ fn dt_hwdone(int n, int st) {
 # Give the terminal back.
 dt_close() {
 	dt_ctlclose
+	dt_has dt_natquit && dt_natquit
 	dt_hwstop
 	dt_snapdrop
 	if [ -n "$DT_ERR" ]; then

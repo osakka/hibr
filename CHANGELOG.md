@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.481
+
+**Programs in windows of the desktop's own, through Blit's compositor**
+(Gitea #494, Blit ADR 0228). Where Blit's compositor is installed
+(`blit-compositor` 0.3.72 or later, from Blit's package), a Wayland program
+started from the desktop -- a terminal window, a launcher, anything the
+desktop starts -- opens in a window of the desktop's, placed, moved, sized,
+raised and closed as any app's is. No gamescope and no X server between: the
+program draws each window into buffers, and the window shows them.
+
+- **Size:** the program is told the window's body in pixels -- its cells
+  times the terminal's cell size -- and draws exactly that, so a resize is
+  1:1 at any shape. Zoom says it is maximized; full screen works either way
+  round.
+- **Keys and pointer** go from Blit to the compositor directly; the desktop
+  says which window has them, and the program is told when it has the
+  keyboard. Programs may hold the pointer (Blit's own hold, after a click).
+- **Closing** a window asks the program, which may ask its own questions;
+  the window goes when the program has.
+- **Popups** -- menus, lists, tooltips -- sit over their window as panes of
+  their own, move with it, and close on a click elsewhere.
+- **A program's own frame** gives a window with none of the desktop's,
+  every press in it the program's; the drag key still moves it.
+- **The display:** the program is told the size and refresh rate of the
+  display its window is on.
+- It works the same in a held desktop, and after `hold upgrade`.
+
+The compositor is started as the desktop opens and its display is given to
+everything the desktop starts (`WAYLAND_DISPLAY`, exported only once it is
+named). Control Panel > Windows > **Programs in Windows** switches it, from
+the next start. Its log is `~/.local/state/hibr/compositor.log`. A Restart
+Desktop keeps it running on the same socket; its programs coming back with
+the restarted desktop waits on Blit's side of that.
+
+Underneath: the frames module serves a compositor's windows (`frames serve
+-w`, `events`, `window`, `wait`, `quit`, `input W member`), each window a
+number of its own; the console and `hold` carry its input route by socket
+and a popup's membership of its window's route, replayed on reconnect.
+`tests/native.py`, against a stand-in compositor.
+
+**Programs follow the desktop's light or dark look.** Whether the desktop is
+light or dark is worked out from the colour scheme's own window colour --
+Paper, Chalk, Pewter, Meadow and Hazard are light, the rest dark -- or set
+in Control Panel > Appearance > Programs > **Light or Dark** (Follow the
+Desktop, Light, Dark). GTK programs the desktop starts are told through
+`GTK_THEME` (Adwaita's dark variant, never over one of your own); the
+Browser's pages follow at once from its next release, through the new
+`dt_modehook`; terminal programs ask the terminal its background, as they
+always have. A program already running keeps its look until restarted, and
+Qt programs are not told yet: both wait on Blit's compositor carrying the
+setting live (Blit ADR 0228, planned).
+
 ## 0.99.480
 
 **A window touching the menu bar keeps its own colours.** The bar casts its

@@ -68,6 +68,14 @@ fn windows_rows(int w) {
 	CP[$w][$n]["max"]=7
 	CP[$w][$n]["key"]=tilemain; n=$((n + 1))
 	n := windows_btnrows "$w" "$n"
+	# Programs' own windows through Blit's compositor (wm/native.hibr,
+	# Gitea #494): from the next start, since the compositor is started
+	# once a desktop.
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Programs in Windows"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_NATIVE:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["after"]="(next start)"
+	CP[$w][$n]["key"]=DT_NATIVE; n=$((n + 1))
 	ret "$n"
 }
 
@@ -156,6 +164,7 @@ fn windows_do(int w, k, int dir) {
 	          DT_ZOOMFILL=$v ;;
 	fullend) v := cp_next "$DT_FULLEND" "$dir" "${DT_FULLENDS[@]}"
 	         DT_FULLEND=$v ;;
+	DT_NATIVE) cp_toggle DT_NATIVE ;;
 	wbtn:title) return 0 ;;
 	wbtn:*) windows_btntoggle "${k#wbtn:}" ;;
 	wintrans) cp_wintrans $(((${DT_WINTRANS:-0} + 5) / 10 * 10 + dir * 10))

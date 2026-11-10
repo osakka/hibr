@@ -17,6 +17,29 @@
  *   frames stop N              the socket closed and the picture gone
  *   frames list                every socket, "N SOCKET" a line
  *
+ * And a program's windows (Gitea #494, Blit ADR 0228): a socket served with
+ * -w is one a compositor speaks to, blit-compositor, at version 4, and it
+ * is answered window=1. Each window it opens is a number of its own, as a
+ * single picture's server is, so place, input and info take it the same
+ * way, and the desktop never sees the compositor's ids:
+ *
+ *   frames serve -w [-n NAME -t TOKEN]   NAME and TOKEN kept across a restart
+ *   frames events N            the compositor's news since last asked, a
+ *                              line each: display NAME, new W PARENT|0,
+ *                              title W TEXT, appid W TEXT, limits W ...,
+ *                              decor W server|client, fullscreen W on|off,
+ *                              maximize W on|off, minimize W, hide W,
+ *                              parent W P|0, popup W PARENT X Y,
+ *                              cursor W NAME, gone W -- W a window's number
+ *   frames window W size PW PH [fullscreen] [activated] [maximized]
+ *   frames window W close|output PW PH MHZ   said to the compositor
+ *   frames quit N              the person quit: the compositor ends
+ *   frames wait N MS           until the compositor has named its display,
+ *                              no longer than MS: what the desktop starts
+ *                              before its first frame needs the name
+ *   frames input W member P X Y   a popup's picture joins its top-level's
+ *                              input route, at X Y in P's surface pixels
+ *
  * The wire is Blit's, from the producer's side unchanged: a hello with the
  * token at version 1 to 3, answered with what every display can import;
  * FRM3 frames by dmabuf and FRM1 frames by sealed memfd; RELEASE and ERROR
@@ -42,7 +65,9 @@
 
 #ifdef __linux__
 #include <sys/mman.h>
+#include <poll.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <sys/un.h>
 #endif
 
@@ -64,6 +89,11 @@ typedef struct fl_srv {
 	unsigned char *rgb;	/* the newest frame, where only RGB can go */
 	int iw, ih;
 	unsigned long long rgen;
+	unsigned long fw, fh;	/* the newest frame's size in pixels */
+	int win;		/* serves a compositor's windows (-w) */
+	struct fl_srv *par;	/* a window's server; null for a server */
+	str ev;			/* a server's news for the desktop */
+	char *fixn, *fixt;	/* a name and token asked for (-n, -t) */
 } fl_srv;
 
 static vec fl_srvs;
@@ -83,16 +113,182 @@ fl_srv *fl_find(unsigned n)
 	return 0;
 }
 
+/* The descriptor a record's producer speaks on: a window's is its server's. */
+int fl_cfd(fl_srv *f)
+{
+	return f->par ? f->par->cfd : f->cfd;
+}
+
+/* The words of a line on the frame channel, at version 4: its word, its
+   verb, the id it is about and the rest. The id is the third word, except
+   in an input route's socket line, where the path comes first and the id
+   last. 1 when there are all three. Every reader of a word's place goes
+   through this, so version 5's one grammar changes it alone. */
+int fl_wsplit(const char *line, size_t n, str *word, str *verb,
+	      unsigned long *id, str *rest)
+{
+	const char *p = line, *e = line + n, *q;
+
+	while (e > p && (e[-1] == '\n' || e[-1] == '\r'))
+		e--;
+	word->n = verb->n = rest->n = 0;
+	*id = 0;
+	for (q = p; q < e && *q != ' '; q++)
+		;
+	s_add(word, p, (size_t)(q - p));
+	if (q >= e)
+		return 0;
+	for (p = ++q; q < e && *q != ' '; q++)
+		;
+	s_add(verb, p, (size_t)(q - p));
+	if (q >= e)
+		return 0;
+	p = q + 1;
+	if (!strcmp(word->p, "WINDOW") && !strcmp(verb->p, "display")) {
+		s_add(rest, p, (size_t)(e - p));
+		return rest->n > 0;
+	}
+	if (!strcmp(word->p, "INPUT") &&
+	    (!strcmp(verb->p, "eis") || !strcmp(verb->p, "sock"))) {
+		for (q = e; q > p && q[-1] != ' '; q--)
+			;
+		if (q <= p)
+			return 0;
+		*id = strtoul(q, 0, 10);
+		s_add(rest, p, (size_t)(q - 1 - p));
+		return 1;
+	}
+	*id = strtoul(p, (char **)&q, 10);
+	if (q == p)
+		return 0;
+	if (q < e && *q == ' ')
+		q++;
+	s_add(rest, q, (size_t)(e - q));
+	return 1;
+}
+
+/* A line for the frame channel, at version 4, the other half of fl_wsplit:
+   WORD VERB ID REST, or for an input route's socket WORD VERB REST ID. */
+void fl_wfmt(str *o, const char *word, const char *verb, unsigned long id,
+	     const char *rest)
+{
+	s_cat(o, word);
+	s_ch(o, ' ');
+	s_cat(o, verb);
+	s_ch(o, ' ');
+	if (!strcmp(word, "INPUT") &&
+	    (!strcmp(verb, "eis") || !strcmp(verb, "sock"))) {
+		if (rest && *rest) {
+			s_cat(o, rest);
+			s_ch(o, ' ');
+		}
+		s_num(o, (long)id);
+	} else {
+		s_num(o, (long)id);
+		if (rest && *rest) {
+			s_ch(o, ' ');
+			s_cat(o, rest);
+		}
+	}
+	s_ch(o, '\n');
+}
+
 /* Say a line to the producer. */
 void fl_say(fl_srv *f, const char *line)
 {
 #ifdef __linux__
-	if (f->cfd >= 0)
-		send(f->cfd, line, strlen(line), MSG_NOSIGNAL | MSG_DONTWAIT);
+	int fd = fl_cfd(f);
+
+	if (fd >= 0)
+		send(fd, line, strlen(line), MSG_NOSIGNAL | MSG_DONTWAIT);
 #else
 	(void)f;
 	(void)line;
 #endif
+}
+
+/* A line of news for the desktop, from a compositor's server; waking it is
+   the reader's to ask. */
+void fl_ev(fl_srv *f, const char *verb, unsigned n, const char *rest)
+{
+	s_cat(&f->ev, verb);
+	if (n) {
+		s_ch(&f->ev, ' ');
+		s_num(&f->ev, (long)n);
+	}
+	if (rest && *rest) {
+		s_ch(&f->ev, ' ');
+		s_cat(&f->ev, rest);
+	}
+	s_ch(&f->ev, '\n');
+}
+
+/* A server's window with the compositor's id bid, or null. */
+fl_srv *fl_win(fl_srv *f, unsigned long bid)
+{
+	size_t i;
+	fl_srv *w;
+
+	for (i = 0; i < fl_srvs.n; i++) {
+		w = fl_srvs.p[i];
+		if (w->par == f && w->bid == bid)
+			return w;
+	}
+	return 0;
+}
+
+/* A new window under a server, numbered as any stream is. */
+fl_srv *fl_newwin(fl_srv *f, unsigned long bid)
+{
+	fl_srv *w = xm(sizeof *w);
+
+	memset(w, 0, sizeof *w);
+	w->s = f->s;
+	w->n = ++fl_next;
+	w->lfd = w->cfd = -1;
+	w->par = f;
+	w->ok = 1;
+	w->ver = f->ver;
+	w->dmabuf = f->dmabuf;
+	w->bid = w->ibid = (unsigned)bid;
+	s_init(&w->ev);
+	v_add(&fl_srvs, w);
+	lg(HIBR_LDBG, "frames %u: window %lu is %u", f->n, bid, w->n);
+	return w;
+}
+
+/* A window gone: its picture and its record, out of the list by identity. */
+void fl_winfree(fl_srv *w)
+{
+	size_t i;
+
+	for (i = 0; i < fl_srvs.n; i++)
+		if (fl_srvs.p[i] == w) {
+			fl_srvs.p[i] = fl_srvs.p[--fl_srvs.n];
+			break;
+		}
+	fl_dpf->drop(w->s, w->n);
+	free(w->rgb);
+	free(w->input);
+	s_free(&w->ev);
+	free(w);
+}
+
+/* Every window of a server gone, each said to the desktop. */
+void fl_winsall(fl_srv *f)
+{
+	size_t i;
+	fl_srv *w;
+
+	for (i = fl_srvs.n; i-- > 0;) {
+		if (i >= fl_srvs.n)
+			continue;
+		w = fl_srvs.p[i];
+		if (w->par != f)
+			continue;
+		fl_ev(f, "gone", w->n, 0);
+		fl_winfree(w);
+	}
 }
 
 /* The producer has gone: its picture goes with it. */
@@ -104,6 +300,7 @@ void fl_hangup(fl_srv *f)
 	}
 	f->cfd = -1;
 	f->ok = 0;
+	fl_winsall(f);
 	fl_dpf->drop(f->s, f->n);
 	free(f->rgb);
 	f->rgb = 0;
@@ -131,7 +328,7 @@ void fl_ans(void *ctx, const char *line)
 		return;
 	sid = strtoul(p + 1, &e, 10);
 	f = fl_find((unsigned)sid);
-	if (!f || f->cfd < 0)
+	if (!f || fl_cfd(f) < 0)
 		return;
 	if (in) {
 		free(f->input);
@@ -167,7 +364,7 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 
 	ver = k >= 16 ? fl_u32(m + 8) : 0;
 	tl = k >= 16 ? fl_u32(m + 12) : 0;
-	if (k < 16 || memcmp(m, "BLITFRM1", 8) || ver < 1 || ver > 3) {
+	if (k < 16 || memcmp(m, "BLITFRM1", 8) || ver < 1 || ver > 4) {
 		fl_say(f, "ERROR 0 EINVAL\n");
 		return 0;
 	}
@@ -189,10 +386,12 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 		s_num(&o, fence ? 1 : 0);
 		s_cat(&o, " formats=");
 		s_add(&o, fm.p, fm.n);
-		s_ch(&o, '\n');
 	} else {
-		s_cat(&o, "OK dmabuf=0\n");
+		s_cat(&o, "OK dmabuf=0");
 	}
+	if (ver >= 4)
+		s_cat(&o, f->win ? " window=1" : " window=0");
+	s_ch(&o, '\n');
 	fl_say(f, o.p);
 	lg(HIBR_LDBG, "frames %u: hello at version %lu, %s", f->n, ver, o.p);
 	s_free(&o);
@@ -201,48 +400,112 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 }
 
 /* An input route's line from the producer (Blit 0.3.64): "INPUT eis
-   <path> <id>" or "INPUT on|off <id>", the id its own. Handed to the
-   console under the stream, which tells every display's Blit once a frame
-   has gone; what Blit says comes back by fl_ans. */
+   <path> <id>", "INPUT sock <path> <id>" (blit-compositor, which Blit
+   writes the input to itself) or "INPUT on|off <id>", the id its own --
+   a window's, from a compositor. Handed to the console under the stream,
+   which tells every display's Blit once a frame has gone; what Blit says
+   comes back by fl_ans. Whether the route is on is the window's to say,
+   from its focus: a producer that turned it on itself would take the keys
+   before its window had them (Blit 0.3.65). */
 void fl_input(fl_srv *f, const char *m, size_t k)
 {
-	str l, o;
-	char *sp, *id, *path = 0;
-	const char *verb;
+	str w, v, r, o;
+	unsigned long id = 0;
+	fl_srv *t = f;
+	int ok = 0, split;
 
-	s_init(&l);
-	s_add(&l, m, k);
-	while (l.n && (l.p[l.n - 1] == '\n' || l.p[l.n - 1] == '\r'))
-		l.p[--l.n] = 0;
-	sp = strrchr(l.p, ' ');
-	id = sp ? sp + 1 : 0;
-	if (sp)
-		*sp = 0;
-	verb = l.p + 6;
-	if (!strncmp(verb, "eis ", 4)) {
-		path = (char *)verb + 4;
-		verb = "eis";
-	} else if (!strcmp(verb, "on") || !strcmp(verb, "off")) {
-		/* Whether the route is on is the window's to say, from its
-		   focus: a producer that turned it on itself would take the
-		   keys before its window had them (Blit 0.3.65). */
+	s_init(&w);
+	s_init(&v);
+	s_init(&r);
+	split = fl_wsplit(m, k, &w, &v, &id, &r);
+	if (split && (!strcmp(v.p, "on") || !strcmp(v.p, "off"))) {
 		lg(HIBR_LDBG, "frames %u: the producer's INPUT %s left to the "
-			      "window", f->n, verb);
-		s_free(&l);
-		return;
+			      "window", f->n, v.p);
+		ok = 1;
+	} else if (split) {
+		if (f->win)
+			t = fl_win(f, id);
+		if (t && r.n && !strchr(r.p, '\n') &&
+		    (!strcmp(v.p, "eis") || !strcmp(v.p, "sock")) &&
+		    fl_dpf->input(f->s, t->n, v.p, r.p)) {
+			t->ibid = (unsigned)id;
+			ok = 1;
+			lg(HIBR_LDBG, "frames %u: input %s for %lu", t->n, v.p, id);
+		}
 	}
-	if (!id || !*id || !fl_dpf->input(f->s, f->n, verb, path)) {
+	if (!ok) {
 		s_init(&o);
-		s_cat(&o, "ERROR INPUT ");
-		s_cat(&o, id && *id ? id : "0");
-		s_cat(&o, " EINVAL\n");
+		fl_wfmt(&o, "ERROR", "INPUT", id, "EINVAL");
 		fl_say(f, o.p);
 		s_free(&o);
-	} else {
-		f->ibid = (unsigned)strtoul(id, 0, 10);
-		lg(HIBR_LDBG, "frames %u: input %s for %s", f->n, verb, id);
 	}
-	s_free(&l);
+	s_free(&w);
+	s_free(&v);
+	s_free(&r);
+}
+
+/* The number a compositor's window id is under here, as text: 0 for none. */
+void fl_wnum(fl_srv *f, const char *idtext, str *o)
+{
+	fl_srv *w = fl_win(f, strtoul(idtext, 0, 10));
+
+	s_num(o, w ? (long)w->n : 0L);
+}
+
+/* A WINDOW line from a compositor (Blit ADR 0228): kept as news for the
+   desktop in its own numbers, a window made for a new one or a popup and
+   taken away for a gone one. 1: the desktop wakes to read it. */
+int fl_window(fl_srv *f, const char *m, size_t k)
+{
+	str w, v, r, o;
+	unsigned long id;
+	fl_srv *t;
+	char *sp;
+
+	s_init(&w);
+	s_init(&v);
+	s_init(&r);
+	s_init(&o);
+	if (!fl_wsplit(m, k, &w, &v, &id, &r)) {
+		lg(HIBR_LWRN, "frames %u: a WINDOW line not understood", f->n);
+	} else if (!strcmp(v.p, "display")) {
+		fl_ev(f, "display", 0, r.p);
+	} else if (!strcmp(v.p, "new") || !strcmp(v.p, "popup")) {
+		t = fl_win(f, id);
+		if (!t)
+			t = fl_newwin(f, id);
+		sp = strchr(r.p, ' ');
+		if (sp)
+			*sp = 0;
+		fl_wnum(f, r.p, &o);
+		if (sp) {
+			s_ch(&o, ' ');
+			s_cat(&o, sp + 1);
+		}
+		fl_ev(f, v.p, t->n, o.p);
+	} else if ((t = fl_win(f, id)) == 0) {
+		lg(HIBR_LDBG, "frames %u: WINDOW %s for %lu, which is not here",
+		   f->n, v.p, id);
+	} else if (!strcmp(v.p, "gone")) {
+		fl_ev(f, "gone", t->n, 0);
+		fl_winfree(t);
+	} else if (!strcmp(v.p, "parent")) {
+		fl_wnum(f, r.p, &o);
+		fl_ev(f, "parent", t->n, o.p);
+	} else if (!strcmp(v.p, "title") || !strcmp(v.p, "appid") ||
+		   !strcmp(v.p, "limits") || !strcmp(v.p, "decor") ||
+		   !strcmp(v.p, "fullscreen") || !strcmp(v.p, "maximize") ||
+		   !strcmp(v.p, "minimize") || !strcmp(v.p, "hide") ||
+		   !strcmp(v.p, "cursor") || !strcmp(v.p, "lock")) {
+		fl_ev(f, v.p, t->n, r.p);
+	} else {
+		lg(HIBR_LDBG, "frames %u: WINDOW %s not known here", f->n, v.p);
+	}
+	s_free(&w);
+	s_free(&v);
+	s_free(&r);
+	s_free(&o);
+	return 1;
 }
 
 #ifdef __linux__
@@ -356,21 +619,42 @@ int fl_read(void *ctx, int fd)
 	}
 	if ((got == BF_HDR3 && !memcmp(fl_buf, "FRM3", 4)) ||
 	    (got == BF_HDR && !memcmp(fl_buf, "FRM1", 4) && nfd == 1)) {
-		f->bid = (unsigned)fl_u32(fl_buf + 4);
-		f->seq = (unsigned long long)fl_u32(fl_buf + 8) |
-			 (unsigned long long)fl_u32(fl_buf + 12) << 32;
-		if (!f->frames && !f->rgen)
-			wake = 1;
-		ok = fl_dpf->frame(f->s, f->n, fl_buf, (size_t)got, fds, nfd);
-		if (ok) {
-			f->frames++;
-		} else if (got == BF_HDR && fl_rgb(f, fl_buf, fds[0])) {
-			wake = 1;
-		} else {
+		fl_srv *t = f;
+		unsigned long b = fl_u32(fl_buf + 4);
+
+		if (f->win)
+			t = fl_win(f, b);
+		if (!t) {
 			f->refused++;
 			s_init(&o);
 			s_cat(&o, "ERROR ");
-			s_num(&o, (long)f->bid);
+			s_num(&o, (long)b);
+			s_cat(&o, " ENOENT\n");
+			fl_say(f, o.p);
+			s_free(&o);
+			for (k = 0; k < nfd; k++)
+				close(fds[k]);
+			return 0;
+		}
+		t->bid = (unsigned)b;
+		t->seq = (unsigned long long)fl_u32(fl_buf + 8) |
+			 (unsigned long long)fl_u32(fl_buf + 12) << 32;
+		if (t->fw != fl_u32(fl_buf + 16) || t->fh != fl_u32(fl_buf + 20))
+			wake = 1;
+		t->fw = fl_u32(fl_buf + 16);
+		t->fh = fl_u32(fl_buf + 20);
+		if (!t->frames && !t->rgen)
+			wake = 1;
+		ok = fl_dpf->frame(f->s, t->n, fl_buf, (size_t)got, fds, nfd);
+		if (ok) {
+			t->frames++;
+		} else if (got == BF_HDR && fl_rgb(t, fl_buf, fds[0])) {
+			wake = 1;
+		} else {
+			t->refused++;
+			s_init(&o);
+			s_cat(&o, "ERROR ");
+			s_num(&o, (long)t->bid);
 			s_cat(&o, got == BF_HDR3 ? " ENOTSUP\n" : " EINVAL\n");
 			fl_say(f, o.p);
 			s_free(&o);
@@ -383,6 +667,14 @@ int fl_read(void *ctx, int fd)
 		close(fds[k]);
 	if (got > 6 && !memcmp(fl_buf, "INPUT ", 6)) {
 		fl_input(f, (const char *)fl_buf, (size_t)got);
+		return 0;
+	}
+	if (f->win && got > 7 && !memcmp(fl_buf, "WINDOW ", 7))
+		return fl_window(f, (const char *)fl_buf, (size_t)got);
+	if ((got > 3 && !memcmp(fl_buf, "OK ", 3)) ||
+	    (got > 6 && !memcmp(fl_buf, "ERROR ", 6))) {
+		lg(HIBR_LDBG, "frames %u: the compositor said %.*s", f->n,
+		   (int)got, (const char *)fl_buf);
 		return 0;
 	}
 	if (got < 4 || memcmp(fl_buf, "STA1", 4))
@@ -432,14 +724,18 @@ int fl_listen(fl_srv *f)
 		s_ch(&o, "0123456789abcdef"[r[i] >> 4]);
 		s_ch(&o, "0123456789abcdef"[r[i] & 15]);
 	}
-	f->tok = xs(o.p);
+	f->tok = xs(f->fixt ? f->fixt : o.p);
 	o.n = 0;
 	s_cat(&o, "@hibr-frames-");
 	s_num(&o, (long)getpid());
 	s_ch(&o, '-');
 	s_num(&o, (long)f->n);
-	f->sock = xs(o.p);
+	f->sock = xs(f->fixn ? f->fixn : o.p);
 	s_free(&o);
+	if (f->sock[0] != '@') {
+		lg(HIBR_LERR, "frames: %s: a name begins with @", f->sock);
+		return 0;
+	}
 	sl = strlen(f->sock);
 	f->lfd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
 	if (f->lfd < 0 || sl >= sizeof a.sun_path)
@@ -468,11 +764,15 @@ int fl_listen(fl_srv *f)
 }
 #endif
 
-/* Free a server and everything it holds. */
+/* Free a server and everything it holds, its windows too. */
 void fl_free(fl_srv *f)
 {
 	if (f->cfd >= 0)
 		fl_hangup(f);
+	fl_winsall(f);
+	s_free(&f->ev);
+	free(f->fixn);
+	free(f->fixt);
 	if (f->lfd >= 0) {
 		fl_dpf->unhook(f->lfd);
 		close(f->lfd);
@@ -530,10 +830,21 @@ int m_frames(sh *s, int ac, char **av)
 		f->s = s;
 		f->n = ++fl_next;
 		f->lfd = f->cfd = -1;
+		s_init(&f->ev);
+		for (i = 2; i < (size_t)ac; i++) {
+			if (!strcmp(av[i], "-w"))
+				f->win = 1;
+			else if (!strcmp(av[i], "-n") && i + 1 < (size_t)ac)
+				f->fixn = xs(av[++i]);
+			else if (!strcmp(av[i], "-t") && i + 1 < (size_t)ac)
+				f->fixt = xs(av[++i]);
+		}
 		if (!fl_listen(f)) {
 			lg(HIBR_LERR, "frames: cannot listen");
 			free(f->sock);
 			free(f->tok);
+			free(f->fixn);
+			free(f->fixt);
 			free(f);
 			return HIBR_FAIL;
 		}
@@ -550,6 +861,8 @@ int m_frames(sh *s, int ac, char **av)
 	if (!strcmp(av[1], "list")) {
 		for (i = 0; i < fl_srvs.n; i++) {
 			f = fl_srvs.p[i];
+			if (f->par)
+				continue;
 			if (o.n)
 				s_ch(&o, '\n');
 			s_num(&o, (long)f->n);
@@ -567,6 +880,85 @@ int m_frames(sh *s, int ac, char **av)
 		return HIBR_FAIL;
 	}
 	f->s = s;
+	if (!strcmp(av[1], "events")) {
+		if (f->ev.n && f->ev.p[f->ev.n - 1] == '\n')
+			f->ev.p[--f->ev.n] = 0;
+		fl_out(s, &f->ev);
+		f->ev.n = 0;
+		if (f->ev.p)
+			f->ev.p[0] = 0;
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(av[1], "wait")) {
+#ifdef __linux__
+		struct pollfd pf[2];
+		struct timespec t0, t1;
+		long ms = ac > 3 ? atol(av[3]) : 1000, el = 0;
+		int np;
+
+		clock_gettime(CLOCK_MONOTONIC, &t0);
+		while (!strstr(f->ev.p ? f->ev.p : "", "display ") && el < ms) {
+			np = 0;
+			if (f->cfd >= 0) {
+				pf[np].fd = f->cfd;
+				pf[np++].events = POLLIN;
+			} else if (f->lfd >= 0) {
+				pf[np].fd = f->lfd;
+				pf[np++].events = POLLIN;
+			}
+			if (!np || poll(pf, (nfds_t)np, (int)(ms - el)) < 0) {
+				if (errno != EINTR)
+					break;
+			} else if (np && (pf[0].revents & (POLLIN | POLLHUP))) {
+				if (f->cfd >= 0)
+					fl_read(f, f->cfd);
+				else
+					fl_accept(f, f->lfd);
+			}
+			clock_gettime(CLOCK_MONOTONIC, &t1);
+			el = (t1.tv_sec - t0.tv_sec) * 1000 +
+			     (t1.tv_nsec - t0.tv_nsec) / 1000000;
+		}
+		s_free(&o);
+		return strstr(f->ev.p ? f->ev.p : "", "display ") ? HIBR_OK : HIBR_FAIL;
+#else
+		s_free(&o);
+		return HIBR_FAIL;
+#endif
+	}
+	if (!strcmp(av[1], "window") || !strcmp(av[1], "quit")) {
+		str rest;
+		int a;
+
+		if (!strcmp(av[1], "quit")) {
+			if (f->par) {
+				lg(HIBR_LERR, "frames quit: %s is a window, not a server", av[2]);
+				s_free(&o);
+				return 2;
+			}
+			fl_wfmt(&o, "WINDOW", "quit", 0, "");
+			fl_say(f, o.p);
+			s_free(&o);
+			return HIBR_OK;
+		}
+		if (!f->par || ac < 4) {
+			lg(HIBR_LERR, "usage: frames window W size|close|output ...");
+			s_free(&o);
+			return 2;
+		}
+		s_init(&rest);
+		for (a = 4; a < ac; a++) {
+			if (rest.n)
+				s_ch(&rest, ' ');
+			s_cat(&rest, av[a]);
+		}
+		fl_wfmt(&o, "WINDOW", av[3], f->bid, rest.p ? rest.p : "");
+		fl_say(f, o.p);
+		s_free(&rest);
+		s_free(&o);
+		return fl_cfd(f) >= 0 ? HIBR_OK : HIBR_FAIL;
+	}
 	if (!strcmp(av[1], "place")) {
 		int r, c, h, w, ok = 0;
 
@@ -593,6 +985,16 @@ int m_frames(sh *s, int ac, char **av)
 			s_free(&o);
 			return fl_dpf->input(s, f->n, "hold", av[4]) ? HIBR_OK : HIBR_FAIL;
 		}
+		if (ac == 7 && !strcmp(av[3], "member")) {
+			s_cat(&o, av[4]);
+			s_ch(&o, ' ');
+			s_cat(&o, av[5]);
+			s_ch(&o, ' ');
+			s_cat(&o, av[6]);
+			i = (size_t)fl_dpf->input(s, f->n, "member", o.p);
+			s_free(&o);
+			return i ? HIBR_OK : HIBR_FAIL;
+		}
 		if (ac < 4 || (strcmp(av[3], "on") && strcmp(av[3], "off"))) {
 			lg(HIBR_LERR, "usage: frames input N on|off|hold confine|relative");
 			s_free(&o);
@@ -603,7 +1005,7 @@ int m_frames(sh *s, int ac, char **av)
 	}
 	if (!strcmp(av[1], "info")) {
 		s_cat(&o, "connected=");
-		s_num(&o, f->cfd >= 0 && f->ok);
+		s_num(&o, fl_cfd(f) >= 0 && f->ok);
 		s_cat(&o, " version=");
 		s_num(&o, f->ver);
 		s_cat(&o, " dmabuf=");
@@ -622,11 +1024,20 @@ int m_frames(sh *s, int ac, char **av)
 		s_num(&o, (long)f->rgen);
 		s_cat(&o, " input=");
 		s_cat(&o, f->input ? f->input : "none");
+		s_cat(&o, " width=");
+		s_num(&o, (long)f->fw);
+		s_cat(&o, " height=");
+		s_num(&o, (long)f->fh);
 		fl_out(s, &o);
 		s_free(&o);
 		return HIBR_OK;
 	}
 	if (!strcmp(av[1], "stop")) {
+		if (f->par) {
+			lg(HIBR_LERR, "frames stop: %s is a window; close it with frames window", av[2]);
+			s_free(&o);
+			return 2;
+		}
 		for (i = 0; i < fl_srvs.n; i++)
 			if (fl_srvs.p[i] == f) {
 				fl_srvs.p[i] = fl_srvs.p[fl_srvs.n - 1];

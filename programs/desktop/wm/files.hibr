@@ -45,6 +45,7 @@ fn dt_ondrop(int mr, int mc, mods) {
 	case $mods in *ctrl*) op=copy ;; esac
 	dt_onbar "$mr" "$mc" && return 0
 	id := console hit "$mr" "$mc"
+	case $id in pop[0-9]*) return 0 ;; esac
 	if [ -n "$id" ]; then
 		id=${id#w}
 		DT_DNDICON=

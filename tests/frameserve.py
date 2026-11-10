@@ -131,20 +131,25 @@ def frame3(conn, held, data, fds):
 
 def inputline(conn, held, routes, data, fds):
     """An input route's request, as Blit 0.3.64 takes it (docs/api.md): the
-    picture must exist (a frame of it has come), the EIS socket must be the
-    connection's own uid's, and an id has one route. Answered and logged."""
+    socket must be there and the connection's own uid's, the picture need
+    not have a frame yet, and an id has one route. Answered and logged."""
     for fd in fds:
         os.close(fd)
     w = data.decode(errors="replace").strip().split(" ")
     iid = int(w[-1]) if len(w) >= 3 and w[-1].isdigit() else 0
     why = None
-    if len(w) == 4 and w[1] == "eis":
+    if len(w) == 4 and w[1] in ("eis", "sock"):
+        # As Blit's api.md has it: the image need not have a frame yet;
+        # ENOENT is no such socket, EACCES one that is not the client's.
         try:
             st = os.stat(w[2])
-            own = st.st_uid == os.getuid() and (st.st_mode & 0o170000) == 0o140000
+            here = (st.st_mode & 0o170000) == 0o140000
+            own = here and st.st_uid == os.getuid()
         except OSError:
-            own = False
-        if not iid or iid not in held:
+            here = own = False
+        if not iid:
+            why = "EINVAL"
+        elif not here:
             why = "ENOENT"
         elif not own:
             why = "EACCES"
@@ -159,6 +164,14 @@ def inputline(conn, held, routes, data, fds):
             why = "ENOENT"
         else:
             note(kind="hold", id=iid, mode=w[3])
+    elif len(w) == 6 and w[1] == "member" and HOLD and all(x.lstrip("-").isdigit() for x in w[2:]):
+        # As Blit 0.3.72's api.md has it: the popup need not have a frame;
+        # the top-level must have a route on this connection.
+        iid = int(w[2])
+        if int(w[3]) not in routes.get(conn, {}) or iid == int(w[3]):
+            why = "EINVAL"
+        else:
+            note(kind="member", id=iid, top=int(w[3]), x=int(w[4]), y=int(w[5]))
     elif len(w) == 3 and w[1] in ("on", "off"):
         if iid not in routes.get(conn, {}):
             why = "ENOENT"

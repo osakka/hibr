@@ -127,6 +127,10 @@ dt_mouse() {
 		id := dt_note_hit "$mr" "$mc" && { dt_note_click "$id" "$mr"; return 0; }
 		cs_press "$mr" "$mc" && return 0
 		id := console hit "$mr" "$mc"
+		# A program's popup (pop<n>, wm/native.hibr): the press is the
+		# program's, through Blit, and its window keeps the focus --
+		# moving it would dismiss the very menu being clicked.
+		case $id in pop[0-9]*) return 0 ;; esac
 		if [ -z "$id" ]; then
 			if [ "$1" = right ]; then
 				dt_context_open desktop "" "$mr" "$mc"
@@ -170,8 +174,12 @@ dt_mouse() {
 		fi
 		# No chrome: a right press is the app's context menu, a second
 		# press soon after the first is told to the app as a double click,
-		# and any other press moves the window.
-		if [ "${DT[$id]["chrome"]}" = none ] && ! dt_isfull "$id"; then
+		# and any other press moves the window -- unless the window's
+		# program draws its own frame (csd, a program's window through
+		# Blit's compositor), whose every press is the program's, as in
+		# full screen, the drag key still moving it.
+		if [ "${DT[$id]["chrome"]}" = none ] && ! dt_isfull "$id" &&
+		   [ -z "${DT[$id]["csd"]-}" ]; then
 			if [ "$1" = right ]; then
 				dt_has "${DT[$id]["app"]}_context" &&
 					dt_context_open "${DT[$id]["app"]}" "$id" "$mr" "$mc"
@@ -190,7 +198,7 @@ dt_mouse() {
 		fi
 		# A full-screen window has no title row or frame: every press is
 		# its app's, and it cannot be dragged off its display.
-		if [ "$mr" -ne "$wr" ] || dt_isfull "$id"; then
+		if [ "$mr" -ne "$wr" ] || dt_isfull "$id" || [ -n "${DT[$id]["csd"]-}" ]; then
 			if [ "$DT_DRAGMOD" = 1 ] && [ "$1" != right ] && ! dt_isfull "$id"; then
 				case "-$mods-" in
 				*"-$DT_DRAGKEY-"*)
@@ -526,6 +534,7 @@ dt_mouse() {
 			return 0
 		fi
 		id := console hit "$mr" "$mc"
+		case $id in pop[0-9]*) return 0 ;; esac
 		if [ -z "$id" ]; then
 			dt_wswheel "$act"
 			return 0
