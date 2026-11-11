@@ -90,6 +90,17 @@ no picture of Files shows the home of whoever ran it. A glyph DejaVu Sans
 Mono lacks is drawn from Noto Sans Symbols, as a terminal would fall back,
 where it used to be drawn as the missing-glyph box.
 
+## tccld
+
+What the Makefile calls in place of tcc on Linux (ADR 0055): tcc compiles
+every file, and the system's C driver links the result with `-z
+noexecstack` and RELRO, which tcc's own linker cannot write, after turning
+tcc's `.stab` sections into ordinary debug sections. For now it links the
+modules only; the shell follows once the modules other packages install
+(hibr-browser's, wiretap's) are built the same way, and `TCCLD_SHELL=1`
+tries it before then. With no `cc`/`gcc` or no `objcopy` it is tcc itself,
+and `tests/999-stack.t` says so. `TCCLD_LD` names another C driver.
+
 ## measure.py
 
 The README's Measurements table, measured: hibr against dash and bash,

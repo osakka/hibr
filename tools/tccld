@@ -1,0 +1,69 @@
+#!/bin/sh
+# tccld -- tcc compiles, the system linker links (ADR 0055).
+#
+# Called by the Makefile in place of tcc, with the same arguments. Every C
+# file is compiled by tcc, as always; the objects are then linked by the
+# system's C driver with -z noexecstack and RELRO, which tcc's own linker
+# cannot write: a file tcc links has no PT_GNU_STACK, so glibc gives a
+# thread it starts an executable stack, and glibc 2.41 refuses to load such
+# a module into a process whose own stack is not executable. tcc's .stab
+# sections become ordinary debug sections first, so addr2line still finds a
+# line. With no system linker -- no cc or gcc, or no objcopy -- this is tcc
+# itself, today's build; tests/999-stack.t says so.
+
+ld=
+for c in "${TCCLD_LD:-}" cc gcc; do
+	[ -n "$c" ] && command -v "$c" > /dev/null 2>&1 && { ld=$c; break; }
+done
+if [ -z "$ld" ] || ! command -v objcopy > /dev/null 2>&1; then
+	exec tcc "$@"
+fi
+shared=
+for a in "$@"; do
+	case $a in
+	-c | -E | -S | -M | -MM | -fsyntax-only) exec tcc "$@" ;;
+	-shared) shared=1 ;;
+	esac
+done
+# For now a module only (ADR 0055's first step): a shell linked this way
+# refuses a module built the old way -- hibr-browser's webkit.so, wiretap's
+# -- under glibc 2.41, so the shell follows once those are rebuilt, and
+# TCCLD_SHELL=1 tries it before then.
+[ -n "$shared" ] || [ "${TCCLD_SHELL:-0}" = 1 ] || exec tcc "$@"
+
+lib=$(tcc -print-search-dirs 2>/dev/null | sed -n 's/^install: *//p')/libtcc1.a
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/tccld.XXXXXX") || exit 1
+trap 'rm -rf "$tmp"' EXIT INT TERM
+
+cflags=
+lflags=
+objs=
+out=a.out
+n=0
+want=
+for a in "$@"; do
+	if [ -n "$want" ]; then
+		[ "$want" = o ] && out=$a
+		want=
+		continue
+	fi
+	case $a in
+	-o) want=o ;;
+	-shared) lflags="$lflags $a" ;;
+	-I* | -D* | -U* | -W[!l]* | -w | -O* | -g | -std=* | -f*) cflags="$cflags '$a'" ;;
+	-Wl,* | -l* | -L* | -rdynamic | -pthread) lflags="$lflags '$a'" ;;
+	*.c)
+		n=$((n + 1))
+		eval "tcc $cflags -c -o \"\$tmp/\$n.o\" \"\$a\"" || exit 1
+		objcopy --set-section-flags .stab=contents,readonly,debug \
+			--set-section-flags .stabstr=contents,readonly,debug "$tmp/$n.o" || exit 1
+		objs="$objs '$tmp/$n.o'"
+		;;
+	*) objs="$objs '$a'" ;;
+	esac
+done
+
+pie=-no-pie
+[ -n "$shared" ] && pie=
+[ -f "$lib" ] || lib=
+eval "\"\$ld\" $pie -Wl,-z,noexecstack -Wl,-z,relro -o \"\$out\" $objs ${lib:+\"\$lib\"} $lflags -lm"

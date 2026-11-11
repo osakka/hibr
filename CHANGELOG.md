@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.493
+
+**Every module hibr builds says its stack is not executable** (ADR 0055).
+tcc's own linker writes no `PT_GNU_STACK`, which glibc reads as an
+executable stack -- a thread a module starts got an `rwx` one -- and glibc
+2.41 refuses to load such a module into a process whose own stack is not
+executable: the sanitizer build, a distribution's gcc-built hibr, or
+anything else that loads one. tcc still compiles every file;
+`tools/tccld`, which the Makefile calls in place of tcc on Linux, links the
+modules with the system linker (`-z noexecstack`, RELRO), and is tcc itself
+where there is none. `tests/999-stack.t` fails on a module without the
+header, and the sanitizer build's `-z execstack` is gone.
+
+The shell itself is still linked by tcc, for now: linked the new way it
+would refuse a module built the old way, and two are installed from other
+packages (hibr-browser's `webkit.so`, wiretap's `wiretap.so`). It follows
+once those are rebuilt -- `patchelf --clear-execstack` on the `.so`, or
+`tools/tccld` -- and a module built so loads into this shell too.
+
 ## 0.99.492
 
 **A key with a program window in front is the program's alone.** Blit

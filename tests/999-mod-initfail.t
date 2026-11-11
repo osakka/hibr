@@ -11,7 +11,7 @@
 # is nobody's to unload.
 d=/tmp/hibr-modfail-$$
 mkdir -p "$d"
-if (tcc -shared -fPIC -Iinclude -o "$d/modfail.so" tests/modfail.c ||
+if (tools/tccld -shared -fPIC -Iinclude -o "$d/modfail.so" tests/modfail.c ||
 	gcc -shared -fPIC -Iinclude -o "$d/modfail.so" tests/modfail.c) 2> /dev/null
 then
 	export HIBR_MODPATH="$d:${HIBR_MODPATH:-./build/mods}"

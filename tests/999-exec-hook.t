@@ -9,7 +9,7 @@
 d=/tmp/hibr-exechook-$$
 mkdir -p "$d"
 self=$(readlink /proc/$$/exe)
-if [ "$(uname)" = Linux ] && (tcc -shared -fPIC -Iinclude -o "$d/exechook.so" tests/exechook.c ||
+if [ "$(uname)" = Linux ] && (tools/tccld -shared -fPIC -Iinclude -o "$d/exechook.so" tests/exechook.c ||
 	gcc -shared -fPIC -Iinclude -o "$d/exechook.so" tests/exechook.c) 2> /dev/null
 then
 	cat > "$d/run.hibr" <<'S'

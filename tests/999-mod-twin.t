@@ -10,8 +10,8 @@
 # that picked it before.
 d=/tmp/hibr-modtwin-$$
 mkdir -p "$d/two" "$d/one"
-if { tcc -shared -fPIC -Iinclude -o "$d/two/a.so" tests/modtwin.c '-DTW_WHO="plain"' &&
-	tcc -shared -fPIC -Iinclude -DTW_PROV -o "$d/two/b.so" tests/modtwin.c '-DTW_WHO="provider"'; } 2> /dev/null ||
+if { tools/tccld -shared -fPIC -Iinclude -o "$d/two/a.so" tests/modtwin.c '-DTW_WHO="plain"' &&
+	tools/tccld -shared -fPIC -Iinclude -DTW_PROV -o "$d/two/b.so" tests/modtwin.c '-DTW_WHO="provider"'; } 2> /dev/null ||
    { gcc -shared -fPIC -Iinclude -o "$d/two/a.so" tests/modtwin.c '-DTW_WHO="plain"' &&
 	gcc -shared -fPIC -Iinclude -DTW_PROV -o "$d/two/b.so" tests/modtwin.c '-DTW_WHO="provider"'; } 2> /dev/null
 then

@@ -190,7 +190,7 @@ try:
 
     # The C interface, as a module asks for it: streamed, then cancelled.
     so = os.path.join(D, "fqtest.so")
-    cc = os.environ.get("CC", "tcc")
+    cc = os.environ.get("CC", tree("tools/tccld"))
     subprocess.run([cc, "-I" + tree("include"), "-shared", "-fPIC", "-o", so,
                     tree("tests/fetchapi.c")], capture_output=True)
     out, err, _ = hb("mod load %s; fqtest %s/big?n=500000" % (so, a))

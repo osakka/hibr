@@ -16,7 +16,11 @@ ifeq ($(origin CC),default)
 ifeq ($(UNAME),Darwin)
 CC = cc
 else
-CC = tcc
+# tcc compiles every file; tools/tccld links the modules with the system
+# linker, which writes the non-executable stack header tcc's own cannot,
+# and is tcc itself where there is none -- the shell follows once every
+# module installed beside it is built so (ADR 0055).
+CC = $(CURDIR)/tools/tccld
 endif
 endif
 
@@ -314,11 +318,7 @@ check: all
 
 # The shell and every module under AddressSanitizer and UBSan, in
 # build/asan; for tests/asan.py, which runs every suite against it.
-# -z execstack: the tests load this tree's tcc-built modules into the
-# sanitizer shell, and tcc writes no PT_GNU_STACK, which glibc 2.41 refuses
-# to dlopen into a process whose own stack is not executable ("cannot enable
-# executable stack"). The tcc-built shell has one, the gcc-built one did not.
-ASAN = -g -O1 -w -fPIC -fsanitize=address,undefined -fno-sanitize-recover=undefined -Wl,-z,execstack
+ASAN = -g -O1 -w -fPIC -fsanitize=address,undefined -fno-sanitize-recover=undefined
 asan:
 	$(MAKE) B=$(B)/asan CC=gcc OPT="$(ASAN)" all
 
