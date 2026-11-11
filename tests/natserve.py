@@ -298,6 +298,11 @@ while True:
         CLIPS[str(clipn)] = arg[0]
         say("CLIP offer %d clipboard text/plain;charset=utf-8%s"
             % (clipn, " x-kde-passwordManagerHint" if arg[1:2] == ["secret"] else ""))
+    if os.path.exists(LOG + ".redecor"):
+        # The decoration said again, unchanged, as a program may on every
+        # configure: nothing about the window's size has changed.
+        os.unlink(LOG + ".redecor")
+        say("WINDOW decor 7 %s" % ("client" if csd else "server"))
     if not csd and os.path.exists(LOG + ".csd"):
         csd = True
         say("WINDOW decor 7 client")

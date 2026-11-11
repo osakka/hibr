@@ -259,7 +259,10 @@ dt_natevents() {
 		id=${NWN["$n"]-}
 		[ -n "$id" ] || continue
 		case $verb in
-		title) dt_retitle "$id" "$rest" ;;
+		title)
+			dt_retitle "$id" "$rest"
+			[ "$DT_FOCUS" = "$id" ] && DT_MENUIN=
+			;;
 		gone)
 			unset NWN["$n"]
 			NW[$id]["gone"]=1
@@ -289,7 +292,11 @@ dt_natevents() {
 			;;
 		move | resize) dt_nathandoff "$id" "$verb" "$rest" ;;
 		menu) dt_natmenu "$id" "$rest" ;;
-		appid | parent | hide) NW[$id]["$verb"]=$rest ;;
+		appid)
+			NW[$id]["appid"]=$rest
+			[ "$DT_FOCUS" = "$id" ] && DT_MENUIN=
+			;;
+		parent | hide) NW[$id]["$verb"]=$rest ;;
 		esac
 	done <<< "$e"
 	dt_want 30
@@ -497,7 +504,7 @@ fn dt_natdecor(int id, how) {
 		DT[$id]["$k"]=
 		DT[$id]["csd"]=
 	fi
-	NW[$id]["sent"]=
+	dt_want 30
 	return 0
 }
 
@@ -885,6 +892,40 @@ dt_natclipclear() {
 	return 0
 }
 
+# What the bar calls a program window: the installed program's
+# own name from its desktop entry, found by the window's app id -- a
+# Wayland app_id is the entry's name (firefox-esr), an X one WM_CLASS's
+# class (XTerm), matched as it is, in lower case, or by an entry's
+# StartupWMClass -- then the app id itself, then the window's title (Steam's
+# first window says no app id), then nothing, which leaves "Program".
+fn native_appname(id = "") {
+	local a k lo al
+
+	[ -n "$id" ] && [ -n "${NW[$id]["n"]-}" ] || return 0
+	a=${NW[$id]["appid"]-}
+	if [ -n "$a" ]; then
+		al := str lower "$a"
+		for k in "$a" "$al"; do
+			if [ -n "${PM["$k.desktop"]["name"]-}" ]; then
+				ret "${PM["$k.desktop"]["name"]}"
+				return 0
+			fi
+		done
+		for k in "${!PM[@]}"; do
+			[ -n "${PM["$k"]["wmclass"]-}" ] || continue
+			lo := str lower "${PM["$k"]["wmclass"]}"
+			if [ "${PM["$k"]["wmclass"]}" = "$a" ] || [ "$lo" = "$al" ]; then
+				ret "${PM["$k"]["name"]}"
+				return 0
+			fi
+		done
+		ret "$a"
+		return 0
+	fi
+	[ -n "${DT[$id]["title"]-}" ] && ret "${DT[$id]["title"]}"
+	return 0
+}
+
 # The keys go to the program through Blit's route, which follows this; and
 # the program is told it has the keyboard, or has lost it.
 fn native_focus(int id, on) {
@@ -893,13 +934,13 @@ fn native_focus(int id, on) {
 	[ -n "$n" ] || return 0
 	frames input "$n" "$on" 2> /dev/null
 	[ "$on" = off ] && dt_natpopclose "$id"
-	NW[$id]["sent"]=
 	dt_want 30
 	return 0
 }
 
+# The size line says fullscreen and activated itself, so a change of either
+# is a different line and is sent; one that changes nothing is not.
 fn native_fullscreen(int id, how) {
-	NW[$id]["sent"]=
 	dt_want 30
 	return 0
 }

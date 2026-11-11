@@ -104,6 +104,7 @@ fn dt_progtake(id = "") {
 	PM["$id"]["term"]=0
 	[ "${PMK["Terminal"]-}" = true ] && PM["$id"]["term"]=1
 	PM["$id"]["from"]=installed
+	PM["$id"]["wmclass"]=${PMK["StartupWMClass"]-}
 	PM["$id"]["hidden"]=
 	return 0
 }
@@ -137,7 +138,7 @@ dt_progscan() {
 			[ -r "$f" ] && files+=("$f")
 		done
 		[ "${#files[@]}" -gt 0 ] || continue
-		out := grep -HE '^(\[|(Type|Name|Exec|TryExec|Terminal|NoDisplay|Hidden|OnlyShowIn|NotShowIn|Categories)=)' "${files[@]}" 2> /dev/null
+		out := grep -HE '^(\[|(Type|Name|Exec|TryExec|Terminal|NoDisplay|Hidden|OnlyShowIn|NotShowIn|Categories|StartupWMClass)=)' "${files[@]}" 2> /dev/null
 		mapfile -t lines <<< "$out"
 		cur=
 		for l in "${lines[@]}"; do

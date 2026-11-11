@@ -950,8 +950,15 @@ fn dt_clocktext(fmt, int when) {
 
 # What to call the active application on the right of the bar.
 dt_appname() {
+	local n
+
 	if [ -z "$MB_APP" ]; then
 		ret "Desktop"
+	elif dt_has "${MB_APP}_appname" && n := "${MB_APP}_appname" "$DT_FOCUS" && [ -n "$n" ]; then
+		# An app whose windows are each a program of their own -- a
+		# program window through Blit's compositor -- names the one in
+		# front.
+		ret "$n"
 	elif [ -n "${DT_APPS[$MB_APP]["title"]}" ]; then
 		ret "${DT_APPS[$MB_APP]["title"]}"
 	else

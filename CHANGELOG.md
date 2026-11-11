@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.490
+
+**The menu bar names a program window by its own name, not "Program".**
+The name comes from the installed program's desktop entry, found by the
+window's app id -- a Wayland program's app_id (Firefox ESR), or an X
+program's WM_CLASS, matched as it is, in lower case or by the entry's
+StartupWMClass (XTerm). Without an entry it is the app id itself, without
+an app id the window's title (Steam's first window says none), and
+"Program" only with none of them. It changes as soon as the program says
+its app id or title.
+
+**A program window is no longer told the same size twice.** A program
+saying its decoration again, as Firefox may on every configure, and the
+window taking the focus each cleared what had last been sent, so an
+unchanged size and state went to the program again -- a dozen identical
+lines in a row on the owner's machine. The line says the full-screen and
+focus states itself, so a change of either is still sent.
+
 ## 0.99.489
 
 **The programs installed on the machine are on the Applications menu**

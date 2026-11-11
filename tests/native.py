@@ -64,17 +64,25 @@ open(p, "w").write(
     "for n in \"${!NWN[@]}\"; do dt_zoom \"${NWN[$n]}\"; done; dt_want 30; }\n"
     "tst_quit() { [ -f %s ] && dt_quit; return 0; }\n"
     "tst_rs() { [ -f %s ] || return 0; rm -f %s; dt_restart; }\n"
+    "tst_mn() { local a n; for a in min raise; do [ -f %s.$a ] || continue; rm -f %s.$a; "
+    "for n in \"${!NWN[@]}\"; do if [ $a = min ]; then dt_min \"${NWN[$n]}\"; "
+    "else dt_raise \"${NWN[$n]}\"; fi; done; dt_want 30; done; return 0; }\n"
     "tst_copy() { [ -f %s ] || return 0; local t k; { read -r t; read -r k; } < %s; rm -f %s; "
     "if [ \"$k\" = clear ]; then dt_natclipclear; else dt_clipset \"$t\" copy \"${k:-text}\"; fi; }\n"
-    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_open\n"
+    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_ticker tst_mn\ndt_progload\ndt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
-       MARK + ".quit", MARK + ".rs", MARK + ".rs", MARK + ".copy", MARK + ".copy",
+       MARK + ".quit", MARK + ".rs", MARK + ".rs", MARK, MARK, MARK + ".copy", MARK + ".copy",
        MARK + ".copy", MARK + ".env"))
+# The stand-in's app id has a desktop entry of its own, for the bar's name.
+os.makedirs(os.path.join(D, "share", "applications"))
+open(os.path.join(D, "share", "applications", "hibr.natserve.desktop"), "w").write(
+    "[Desktop Entry]\nType=Application\nName=Natserve App\nExec=true\n")
 t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "lock"],
          env={"HIBR_GFX": "kitty", "BLIT_FRAME_SOCKET": "@" + nm,
               "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D,
-              "WAYLAND_DISPLAY": None, "DISPLAY": None})
+              "WAYLAND_DISPLAY": None, "DISPLAY": None,
+              "DT_PROGAUTO": "1", "XDG_DATA_DIRS": os.path.join(D, "share")})
 
 
 def scr():
@@ -114,6 +122,21 @@ sc = wait(lambda: scr().find("Stand-in") and scr())
 check("the compositor's window opens as one of the desktop's, titled as the "
       "program titled it", sc and sc.find("Stand-in") is not None,
       sc or scr())
+# The bar names the program in front by its own name: its app id's desktop
+# entry, the app id itself without one, its title without an app id, and
+# "Program" only with none of them.
+bar = wait(lambda: "Natserve Ap" in scr().row(0) and scr().row(0))
+check("the menu bar names a program window by its desktop entry's name, "
+      "not \"Program\"", bar, scr().row(0))
+r = subprocess.run([sx.HIBR, "-c", ". %s\ndeclare -gA NW\n"
+                    "NW[5][n]=1 NW[5][appid]=XTerm DT[5][title]=t\n"
+                    "a := native_appname 5\nNW[5][appid]=\nb := native_appname 5\n"
+                    "DT[5][title]=\nc := native_appname 5\necho \"$a|$b|$c|\"\n"
+                    % tree("programs/desktop/desktop.hibr")],
+                   env=dict(os.environ, DT_PROGAUTO="0"), capture_output=True, text=True,
+                   timeout=30)
+check("with no entry it is the app id, with no app id the title, then nothing",
+      r.stdout.strip() == "XTerm|t||", (r.stdout, r.stderr))
 sz = wait(lambda: told("WINDOW size 7 "))
 w0 = sz[0].split() if sz else []
 check("and is told to draw at its body's size in pixels -- whole cells of 8 "
@@ -313,6 +336,24 @@ t.keys([b"x"])
 pc = wait(lambda: comp("clipclear"))
 check("a secret goes marked as one, and its clear takes it back from the "
       "programs too", ps and ps[0]["secret"] and pc, (comp("pasted")[-2:], comp("clipclear")))
+
+# A size line is sent when it says something new: the same size and state
+# twice in a row -- a decoration said again, a focus change -- before any restart (which tells a reconnected
+# compositor again, rightly), was a focus change clearing what had been sent, seen as a
+# dozen identical lines on the owner's machine.
+for a in ("min", "raise"):
+    open(MARK + "." + a, "w").close()
+    t.keys([b"x"])
+    wait(lambda: not os.path.exists(MARK + "." + a) and scr(), 4)
+    t.keys([b"x"])
+for _ in range(2):
+    open(complog + ".redecor", "w").close()
+    wait(lambda: not os.path.exists(complog + ".redecor"), 4)
+    t.keys([b"x"])
+szs = told("WINDOW size 7 ")
+dup = [a for a, b in zip(szs, szs[1:]) if a == b]
+check("a program window is never told the same size and state twice running",
+      szs and not dup, (len(szs), dup[:3]))
 
 # Restart Desktop: the compositor is in a session of its own and outlives
 # the exec, the restarted desktop serves the same socket and token, and the
@@ -622,4 +663,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(44)
+report(47)
