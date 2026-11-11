@@ -69,7 +69,7 @@ python3 tests/media.py      the media module, its sound to a WAV file
 python3 tests/sound.py      the desktop's sound, on a private PipeWire
 python3 tests/bt.py         the desktop's Bluetooth, against a stand-in
 python3 tests/net.py        the desktop's network, against a stand-in
-python3 tests/screens.py    Screens' X Screen and the xscr module, on Xvfb
+python3 tests/menuedit.py   the Applications menu's programs and its editor
 python3 tests/pdfapp.py     the pdf module and the PDF Reader
 python3 tests/sixel.py      pictures as sixel, the console's image regions
 python3 tests/kitgfx.py     pictures in the kitty graphics protocol

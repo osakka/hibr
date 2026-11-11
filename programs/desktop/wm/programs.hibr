@@ -1,0 +1,274 @@
+# wm/programs -- the programs installed on the machine, and the person's
+# own shortcuts, on the Applications menu (Gitea #502).
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+#
+# Two sources. The machine's own list of programs -- the desktop entries
+# every Linux desktop reads, $XDG_DATA_HOME/applications and then each of
+# $XDG_DATA_DIRS, the first found of a name winning -- read at load and on
+# every rescan, so a program installed later appears; and the person's own
+# entries, made or changed in Control Panel > Applications Menu, kept as
+# data (ADR 0054) in $XDG_DATA_HOME/hibr/menu.json, which win over the
+# machine's of the same name and can hide one of them. Each becomes an
+# entry under Applications (dt_appvia), in the folder its categories say,
+# which the hidden app `prog` launches: a program detached from the desktop
+# -- in a window of its own through Blit's compositor when it is a Wayland
+# or X program -- or a terminal program in a Terminal window.
+
+strict
+
+# Whether the machine's installed programs are listed at all: Control
+# Panel > Applications Menu > Show Installed Programs.
+DT_PROGAUTO="${DT_PROGAUTO-1}"
+command -v dt_keep > /dev/null && dt_keep DT_PROGAUTO
+
+# Every entry by its name -- a desktop entry's file id (firefox.desktop),
+# or own-N for one the person made: name, command, folder, whether it
+# runs in a terminal, where it came from (installed or own) and whether
+# it is hidden.
+declare -gA PM
+# The person's own file, and what was read of it.
+DT_PROGFILE=${XDG_DATA_HOME:-$HOME/.local/share}/hibr/menu.json
+declare -gA PMOWN
+
+command -v dt_app > /dev/null &&
+	dt_app prog "Program" 20 72 many "▢" "" hidden
+
+# A desktop entry's main category, as the folder under Applications its
+# program goes in: the four the desktop's own apps use where one fits.
+fn dt_progcat(cats = "") {
+	case ";$cats;" in
+	*";Game;"*) ret "Games" ;;
+	*";Office;"*) ret "Office" ;;
+	*";Network;"*) ret "Internet" ;;
+	*";AudioVideo;"* | *";Audio;"* | *";Video;"*) ret "Sound & Video" ;;
+	*";Graphics;"*) ret "Graphics" ;;
+	*";Development;"*) ret "Development" ;;
+	*";Education;"* | *";Science;"*) ret "Education" ;;
+	*";Settings;"*) ret "Settings" ;;
+	*";System;"*) ret "System" ;;
+	*";Utility;"*) ret "Accessories" ;;
+	*) ret "Other" ;;
+	esac
+}
+
+# A desktop entry's Exec as a command line: its field codes taken out (a
+# menu passes no file or address), and %% left as one %.
+fn dt_progexec(e = "") {
+	e=${e//\%\%/$'\x01'}
+	e=${e//\%[fFuUickdDnNvm]/}
+	e=${e//$'\x01'/%}
+	while [ "${e% }" != "$e" ]; do e=${e% }; done
+	ret "$e"
+}
+
+# Whether a desktop entry, its keys in PMK, is one to list: an application
+# with a name and a command, not marked hidden or not for display, shown
+# by a desktop like this one, and whose TryExec program is there.
+dt_progok() {
+	local x
+
+	[ "${PMK["Type"]-}" = Application ] || return 1
+	[ -n "${PMK["Name"]-}" ] && [ -n "${PMK["Exec"]-}" ] || return 1
+	[ "${PMK["NoDisplay"]-}" = true ] && return 1
+	[ "${PMK["Hidden"]-}" = true ] && return 1
+	x=${PMK["OnlyShowIn"]-}
+	[ -n "$x" ] && case ";$x;" in *";hibr;"*) ;; *) return 1 ;; esac
+	case ";${PMK["NotShowIn"]-};" in *";hibr;"*) return 1 ;; esac
+	x=${PMK["TryExec"]-}
+	if [ -n "$x" ]; then
+		case $x in
+		/*) [ -x "$x" ] || return 1 ;;
+		*) command -v "$x" > /dev/null 2>&1 || return 1 ;;
+		esac
+	fi
+	return 0
+}
+
+# The desktop entry just read, PMK, kept under its id unless a folder read
+# earlier already gave one of that id -- even one hidden, which is how a
+# person's own copy takes a program off the menu.
+declare -gA PMK PMSEEN
+fn dt_progtake(id = "") {
+	local c x
+
+	[ -n "$id" ] && [ -z "${PMSEEN["$id"]-}" ] || return 0
+	PMSEEN["$id"]=1
+	dt_progok || return 0
+	c := dt_progcat "${PMK["Categories"]-}"
+	x := dt_progexec "${PMK["Exec"]}"
+	PM["$id"]["name"]=${PMK["Name"]}
+	PM["$id"]["cmd"]=$x
+	PM["$id"]["dir"]=$c
+	PM["$id"]["term"]=0
+	[ "${PMK["Terminal"]-}" = true ] && PM["$id"]["term"]=1
+	PM["$id"]["from"]=installed
+	PM["$id"]["hidden"]=
+	return 0
+}
+
+# Where desktop entries are, the person's own folder first.
+dt_progdirs() {
+	local d out
+	local -a dd
+
+	out="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+	IFS=: read -ra dd <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+	for d in "${dd[@]}"; do
+		[ -n "$d" ] && out="$out	${d%/}/applications"
+	done
+	ret "$out"
+}
+
+# Read every desktop entry: one grep for the keys that matter, over every
+# file, rather than a read of every line of every file -- 13 ms for 150
+# large entries, against 134.
+dt_progscan() {
+	local d f id cur= grp= l k v out
+	local -a dirs files lines
+
+	PMSEEN=()
+	out := dt_progdirs
+	IFS=$'\t' read -ra dirs <<< "$out"
+	for d in "${dirs[@]}"; do
+		files=()
+		for f in "$d"/**/*.desktop; do
+			[ -r "$f" ] && files+=("$f")
+		done
+		[ "${#files[@]}" -gt 0 ] || continue
+		out := grep -HE '^(\[|(Type|Name|Exec|TryExec|Terminal|NoDisplay|Hidden|OnlyShowIn|NotShowIn|Categories)=)' "${files[@]}" 2> /dev/null
+		mapfile -t lines <<< "$out"
+		cur=
+		for l in "${lines[@]}"; do
+			f=${l%%:*}
+			if [ "$f" != "$cur" ]; then
+				[ -n "$cur" ] && dt_progtake "$id"
+				cur=$f
+				id=${f#"$d"/}
+				id=${id//\//-}
+				grp=
+				PMK=()
+			fi
+			l=${l#*:}
+			case $l in
+			"["*) grp=$l; continue ;;
+			esac
+			[ "$grp" = "[Desktop Entry]" ] || continue
+			k=${l%%=*}
+			v=${l#*=}
+			[ -n "${PMK["$k"]+x}" ] || PMK["$k"]=$v
+		done
+		[ -n "$cur" ] && dt_progtake "$id"
+	done
+	PMK=()
+	return 0
+}
+
+# The person's own entries over what was read: an entry of theirs replaces
+# the machine's of the same name, and a hidden one stays listed in the
+# editor and off the menu.
+dt_progown() {
+	local k f
+
+	PMOWN=()
+	[ -e "$DT_PROGFILE" ] || dt_progxscreen
+	[ -s "$DT_PROGFILE" ] || return 0
+	json parse PMOWN < "$DT_PROGFILE" 2> /dev/null || { PMOWN=(); return 0; }
+	for k in "${!PMOWN[@]}"; do
+		# Only hidden: one of the machine's taken off the menu, the rest
+		# still its own entry's.
+		if [ -z "${PMOWN["$k"]["name"]-}" ]; then
+			[ -n "${PM["$k"]["name"]-}" ] && PM["$k"]["hidden"]=${PMOWN["$k"]["hidden"]-}
+			continue
+		fi
+		for f in name cmd dir term hidden; do
+			PM["$k"]["$f"]=${PMOWN["$k"]["$f"]-}
+		done
+		[ -n "${PM["$k"]["dir"]}" ] || PM["$k"]["dir"]=Other
+		[ -n "${PM["$k"]["from"]-}" ] || PM["$k"]["from"]=own
+	done
+	return 0
+}
+
+# The programs Screens ran, which went in 0.99.489 (Gitea #502), become
+# the person's own entries the first time there is no menu.json: with Blit
+# running Xwayland an X program opens in a window of the desktop's like any
+# other. Its file is left where it is.
+dt_progxscreen() {
+	local f=${XDG_DATA_HOME:-$HOME/.local/share}/hibr/xscreen.tsv n c _ i=0
+
+	[ -r "$f" ] || return 0
+	while IFS=$'\t' read -r n c _; do
+		[ -n "$n" ] && [ -n "$c" ] || continue
+		PMOWN["own-$i"]["name"]=$n
+		PMOWN["own-$i"]["cmd"]=$c
+		PMOWN["own-$i"]["dir"]=Other
+		PMOWN["own-$i"]["term"]=0
+		PMOWN["own-$i"]["hidden"]=
+		i=$((i + 1))
+	done < "$f"
+	[ "$i" -gt 0 ] || return 0
+	dt_log "programs: the $i programs Screens ran are on the Applications menu now"
+	dt_progsave
+	PMOWN=()
+	return 0
+}
+
+# Read both and put every entry not hidden on the menu: at load, on every
+# rescan, and when the editor or its switch changes something.
+dt_progload() {
+	local k
+
+	dt_has dt_appunvia && dt_appunvia prog
+	PM=()
+	[ "$DT_PROGAUTO" = 1 ] && dt_progscan
+	dt_progown
+	dt_has dt_appvia || return 0
+	for k in "${!PM[@]}"; do
+		[ "${PM["$k"]["hidden"]-}" = 1 ] && continue
+		dt_appvia "prog:$k" "${PM["$k"]["name"]}" prog "$k" "Applications/${PM["$k"]["dir"]}"
+	done
+	return 0
+}
+
+# Write the person's own entries back.
+dt_progsave() {
+	local d=${DT_PROGFILE%/*}
+
+	[ -d "$d" ] || mkdir -p "$d" 2> /dev/null || return 1
+	if [ "${#PMOWN[@]}" = 0 ]; then
+		echo "{}" > "$DT_PROGFILE"
+	else
+		json emit PMOWN > "$DT_PROGFILE" 2> /dev/null || return 1
+	fi
+	return 0
+}
+
+# Start an entry's program: detached from the desktop, so it outlives it
+# and opens where Wayland and X programs started from here open -- a window
+# of the desktop's through Blit's compositor -- or in a Terminal window
+# when it is a terminal program. Its output goes to programs.log in the
+# state folder.
+fn prog_launch(arg = "") {
+	local cmd=${PM["$arg"]["cmd"]-} nm=${PM["$arg"]["name"]-} log
+
+	[ -n "$cmd" ] || return 0
+	if [ "${PM["$arg"]["term"]-}" = 1 ]; then
+		DT_OPENCMD=("$HIBR" -c "exec $cmd")
+		DT_OPENSELF=1
+		dt_launch term && return 0
+		DT_OPENCMD=()
+		DT_OPENSELF=
+		return 0
+	fi
+	if [ -z "${WAYLAND_DISPLAY-}" ] && [ -z "${DISPLAY-}" ]; then
+		dt_notep high "%s needs Programs in Windows, in Control Panel > Windows" "$nm"
+		return 0
+	fi
+	log=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/programs.log
+	mkdir -p "${log%/*}" 2> /dev/null
+	setsid -f "$HIBR" -c "exec $cmd" < /dev/null >> "$log" 2>&1
+	dt_log "programs: started $nm ($cmd)"
+	return 0
+}

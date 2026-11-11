@@ -1,0 +1,347 @@
+#!/usr/bin/env hibr
+#
+# menuedit -- Control Panel > Applications Menu (Gitea #502): what the
+# Applications menu holds besides the desktop's own apps. The programs
+# installed on the machine are listed by themselves (wm/programs.hibr),
+# each a row here that opens to change it, or Hide to take it off the menu;
+# Add Program makes one of the person's own -- a name, a command, the
+# folder under Applications it goes in, and whether it runs in a window of
+# its own or in a Terminal window. What is changed here is the person's,
+# kept as data in $XDG_DATA_HOME/hibr/menu.json, and wins over the
+# machine's. Replaces Screens and its pane (owner, 2026-11-10). The dialog
+# is pmfield.
+
+strict
+
+app menuedit "The Control Panel pane for what the Applications menu holds" 1.0
+command -v cp_pane > /dev/null && cp_pane menuedit "Applications Menu" "☰"
+command -v dt_app > /dev/null &&
+	dt_app pmfield "Program" 14 70 "" "" fixed hidden
+
+# Declared, never emptied: wm/programs.hibr reads them; repeated so the
+# pane can be loaded without it.
+DT_PROGAUTO="${DT_PROGAUTO-1}"
+command -v dt_keep > /dev/null && dt_keep DT_PROGAUTO
+declare -gA PM PMOWN PMF
+# The entries in the order the pane lists them, by name.
+declare -ga PME_IDS
+PME_RUNS=(window terminal)
+
+# The entries by name, for the rows and their buttons.
+pme_order() {
+	local k l
+	local -a all
+
+	PME_IDS=()
+	for k in "${!PM[@]}"; do
+		l := str lower "${PM["$k"]["name"]}"
+		all+=("$l	$k")
+	done
+	[ "${#all[@]}" -gt 0 ] || return 0
+	arr sort all
+	for l in "${all[@]}"; do PME_IDS+=("${l#*	}"); done
+	return 0
+}
+
+fn menuedit_rows(int w) {
+	local n=0 i k v
+
+	pme_order
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Installed Programs"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_PROGAUTO" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_PROGAUTO; n=$((n + 1))
+	CP[$w][$n]["kind"]=action
+	CP[$w][$n]["text"]="Add Program${GL[ellipsis]}"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=add
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Programs"; n=$((n + 1))
+	for i in "${!PME_IDS[@]}"; do
+		k=${PME_IDS[$i]}
+		v=${PM["$k"]["dir"]}
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="${PM["$k"]["name"]}"
+		if [ "${PM["$k"]["hidden"]-}" = 1 ]; then
+			CP[$w][$n]["val"]="$v, hidden"
+			CP[$w][$n]["btns"]="show$i:Show"
+		else
+			CP[$w][$n]["val"]="$v"
+			CP[$w][$n]["btns"]="hide$i:Hide"
+		fi
+		[ "${PM["$k"]["from"]}" = own ] && CP[$w][$n]["btns"]="del$i:Delete"
+		CP[$w][$n]["key"]="ent$i"
+		n=$((n + 1))
+	done
+	ret "$n"
+}
+
+fn menuedit_do(int? w = "", k = "", int? dir = "") {
+	case $k in
+	DT_PROGAUTO) cp_toggle "$k"; cp_save; dt_progload ;;
+	add) pme_dialog "" ;;
+	ent[0-9]*) pme_dialog "${PME_IDS[${k#ent}]}" ;;
+	hide[0-9]*) pme_hide "${PME_IDS[${k#hide}]}" 1 ;;
+	show[0-9]*) pme_hide "${PME_IDS[${k#show}]}" "" ;;
+	del[0-9]*) pme_delask "${PME_IDS[${k#del}]}" ;;
+	esac
+	return 0
+}
+
+# Take one off the menu, or put it back: for one of the machine's, only
+# that is kept, so the program's own entry still says the rest.
+fn pme_hide(id = "", on = "") {
+	[ -n "$id" ] && [ -n "${PM["$id"]["name"]-}" ] || return 0
+	if [ "${PM["$id"]["from"]}" = own ] || [ -n "${PMOWN["$id"]["name"]-}" ]; then
+		PMOWN["$id"]["hidden"]=$on
+	elif [ -n "$on" ]; then
+		PMOWN["$id"]["hidden"]=1
+	else
+		unset PMOWN["$id"]
+	fi
+	pme_store
+}
+
+# Save the person's entries and put the menu right.
+pme_store() {
+	dt_has dt_progsave && dt_progsave
+	dt_has dt_progload && dt_progload
+	return 0
+}
+
+# --- the program dialog -------------------------------------------------------
+
+# A program to add (id empty) or to change.
+fn pme_dialog(id = "") {
+	local h=14 w=70 r c rid
+
+	dt_dlgat "$h" "$w"
+	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
+	rid := dt_new "Program" "$h" "$w" "$r" "$c" pmfield
+	PMF[$rid]["id"]=$id
+	PMF[$rid]["name"]=
+	PMF[$rid]["cmd"]=
+	PMF[$rid]["dir"]=Other
+	PMF[$rid]["run"]=window
+	if [ -n "$id" ]; then
+		PMF[$rid]["name"]=${PM["$id"]["name"]}
+		PMF[$rid]["cmd"]=${PM["$id"]["cmd"]}
+		PMF[$rid]["dir"]=${PM["$id"]["dir"]}
+		[ "${PM["$id"]["term"]-}" = 1 ] && PMF[$rid]["run"]=terminal
+	fi
+	PMF[$rid]["cur"]=${#PMF[$rid]["name"]}
+	PMF[$rid]["focus"]=name
+}
+
+# What the dialog's last button does: Delete one of the person's own, and
+# Put Back one of the machine's they changed -- which forgets the change.
+fn pmf_extra(int id) {
+	local k=${PMF[$id]["id"]}
+
+	[ -n "$k" ] || return 1
+	if [ "${PM["$k"]["from"]-}" = own ]; then
+		ret del
+	elif [ -n "${PMOWN["$k"]["name"]-}" ]; then
+		ret back
+	else
+		return 1
+	fi
+}
+
+fn pmf_order(int id) {
+	local x
+
+	if x := pmf_extra "$id"; then
+		ret "name cmd dir run ok $x cancel"
+	else
+		ret "name cmd dir run ok cancel"
+	fi
+}
+
+fn pmfield_draw(int id, int h, int w, int row, int col) {
+	local f=${PMF[$id]["focus"]} x
+
+	dt_wclear "$id"
+	pmf_field "$id" 1 "Name:" name "$w" "$f"
+	pmf_field "$id" 3 "Command:" cmd "$w" "$f"
+	pmf_field "$id" 5 "Folder:" dir "$w" "$f"
+	console pen "$DT_DIM" "$DT_FACE"
+	dt_tput "$id" 6 13 "Under Applications; a / makes a folder inside one."
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 8 2 "Runs in:"
+	[ "$f" = run ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+	dt_wdrop "$id" 8 13 12 "${PMF[$id]["run"]}" run
+	console pen "$DT_DIM" "$DT_FACE"
+	if [ "${PMF[$id]["run"]}" = terminal ]; then
+		dt_tput "$id" 9 2 "A Terminal window, for a program that runs in one."
+	else
+		dt_tput "$id" 9 2 "A window of its own, through Programs in Windows."
+	fi
+	console pen "$DT_INK" "$DT_FACE"
+	if x := pmf_extra "$id"; then
+		if [ "$x" = del ]; then
+			dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Delete cancel Cancel
+		else
+			dt_dlgbtns "$id" "$h" "$w" "$f" ok Save back "Put Back" cancel Cancel
+		fi
+	else
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+	fi
+}
+
+# One labelled text field.
+fn pmf_field(int id, int r, label, tag, int w, f) {
+	local on=0 cur=0
+
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" "$r" 2 "$label"
+	[ "$f" = "$tag" ] && { on=1; cur=${PMF[$id]["cur"]}; }
+	dt_textdraw "$id" "$r" 13 $((w - 15)) "${PMF[$id]["$tag"]}" "$cur" "$on"
+	dt_wreg "$id" "$r" 13 $((w - 15)) "$tag"
+	console pen "$DT_INK" "$DT_FACE"
+	return 0
+}
+
+fn pmf_setrun(int id, value = "") { PMF[$id]["run"]=$value; }
+# Runs in, the other of its two.
+fn pmf_flip(int id) {
+	if [ "${PMF[$id]["run"]}" = terminal ]; then
+		PMF[$id]["run"]=window
+	else
+		PMF[$id]["run"]=terminal
+	fi
+}
+
+# Keep it: a name and a command; a folder of nothing but slashes and
+# blanks is Other.
+fn pmfield_ok(int id) {
+	local k=${PMF[$id]["id"]} nm=${PMF[$id]["name"]} cm=${PMF[$id]["cmd"]} d=${PMF[$id]["dir"]} n=0 i
+
+	nm=${nm//[$'\t\n']/ }
+	cm=${cm//[$'\t\n']/ }
+	d=${d//[$'\t\n']/ }
+	while [ "${d#/}" != "$d" ]; do d=${d#/}; done
+	while [ "${d%/}" != "$d" ]; do d=${d%/}; done
+	if [ -z "${nm// /}" ] || [ -z "${cm// /}" ]; then
+		dt_notep high "A program needs a name and a command"
+		return 0
+	fi
+	[ -n "${d// /}" ] || d=Other
+	if [ -z "$k" ]; then
+		for i in "${!PMOWN[@]}"; do
+			case $i in own-*) [ "${i#own-}" -ge "$n" ] && n=$((${i#own-} + 1)) ;; esac
+		done
+		k=own-$n
+	fi
+	PMOWN["$k"]["name"]=$nm
+	PMOWN["$k"]["cmd"]=$cm
+	PMOWN["$k"]["dir"]=$d
+	PMOWN["$k"]["term"]=0
+	[ "${PMF[$id]["run"]}" = terminal ] && PMOWN["$k"]["term"]=1
+	PMOWN["$k"]["hidden"]=${PM["$k"]["hidden"]-}
+	pme_store
+	dt_del "$id"
+}
+
+# Delete one of the person's own, or put one of the machine's back as
+# installed, after asking for the first.
+PMF_DEL=
+fn pmfield_extra(int id, x) {
+	local k=${PMF[$id]["id"]} t
+
+	if [ "$x" = back ]; then
+		unset PMOWN["$k"]
+		pme_store
+		dt_del "$id"
+		return 0
+	fi
+	PMF_DEL=$id
+	t := dt_tr "Delete %s from the Applications menu?" "${PM["$k"]["name"]}"
+	dt_confirm "$t" pmf_delok
+}
+pmf_delok() {
+	local id=$PMF_DEL
+
+	[ -n "$id" ] || return 0
+	unset PMOWN["${PMF[$id]["id"]}"]
+	PMF_DEL=
+	pme_store
+	dt_del "$id"
+}
+
+# The Delete button on a row of the person's own, after asking.
+PME_DEL=
+fn pme_delask(id = "") {
+	local t
+
+	[ -n "$id" ] && [ -n "${PMOWN["$id"]["name"]-}" ] || return 0
+	PME_DEL=$id
+	t := dt_tr "Delete %s from the Applications menu?" "${PM["$id"]["name"]}"
+	dt_confirm "$t" pme_delok
+}
+pme_delok() {
+	[ -n "$PME_DEL" ] || return 0
+	unset PMOWN["$PME_DEL"]
+	PME_DEL=
+	pme_store
+}
+
+fn pmfield_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	name | cmd | dir)
+		PMF[$id]["focus"]=$tag
+		PMF[$id]["cur"]=${#PMF[$id]["$tag"]}
+		;;
+	run) PMF[$id]["focus"]=run
+		dt_droplist "$id" "$r" "$c" pmf_setrun "${PME_RUNS[@]}" ;;
+	ok) pmfield_ok "$id" ;;
+	del | back) pmfield_extra "$id" "$tag" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn pmfield_key(int id, key) {
+	local res f=${PMF[$id]["focus"]} d onb=1 ord
+	local -a o
+
+	case $f in name | cmd | dir | run) onb=0 ;; esac
+	ord := pmf_order "$id"
+	read -ra o <<< "$ord"
+	if d := dt_focuskey "$key" "$onb"; then
+		PMF[$id]["focus"] := dt_focus "$f" "$d" "${o[@]}"
+		f=${PMF[$id]["focus"]}
+		case $f in name | cmd | dir) PMF[$id]["cur"]=${#PMF[$id]["$f"]} ;; esac
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		case $f in
+		cancel) dt_del "$id" ;;
+		del | back) pmfield_extra "$id" "$f" ;;
+		run) pmf_flip "$id" ;;
+		*) pmfield_ok "$id" ;;
+		esac
+		return 0
+		;;
+	esac
+	case $f in
+	run)
+		case $key in left | right | " ") pmf_flip "$id" ;; esac
+		return 0
+		;;
+	name | cmd | dir) ;;
+	*) return 0 ;;
+	esac
+	res := dt_textkey "${PMF[$id]["$f"]}" "${PMF[$id]["cur"]}" "$key" ||
+		return 1
+	PMF[$id]["$f"]=${res% *}
+	PMF[$id]["cur"]=${res##* }
+	return 0
+}
+
+fn pmfield_close(int id) {
+	unset "PMF[$id]"
+}

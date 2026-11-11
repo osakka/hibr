@@ -131,7 +131,7 @@ menu row, which already say what they do.
 in the cell `r c` the pointer was, as `x y`
 in a cell of `cw` by `ch` -- the app's own measure, which need not be the
 terminal's -- and the middle of the cell when there is no pixel. The PDF
-Reader starts a selection there, and X Screen hands it to the X program.
+Reader starts a selection there.
 
 **A window that draws its own pointer** -- a game -- asks for the terminal's
 to be hidden over it with `dt_pointer "$id" none` (Gitea #373), and gives it

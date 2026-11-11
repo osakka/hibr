@@ -45,7 +45,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so $(B)/mods/pim.so $(B)/mods/html.so $(B)/mods/email.so $(B)/mods/math.so $(B)/mods/web.so \
        $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so $(B)/mods/hcal.so $(B)/mods/salat.so \
        $(B)/mods/vw.so $(B)/mods/archive.so $(B)/mods/mermaid.so \
-       $(B)/mods/xscr.so $(B)/mods/pdf.so $(B)/mods/fetch.so $(B)/mods/copy.so \
+       $(B)/mods/pdf.so $(B)/mods/fetch.so $(B)/mods/copy.so \
        $(B)/mods/proctab.so $(B)/mods/contain.so $(B)/mods/frames.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
@@ -239,11 +239,6 @@ $(B)/mods/mermaid.so: $(MERMAID_SRC) include/hibr.h mods/mermaid/mm.h | $(B)/mod
 $(B)/mods/math.so: mods/math.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/math.c -lm
 
-XSCR_SRC = $(wildcard mods/xscr/*.c)
-
-$(B)/mods/xscr.so: $(XSCR_SRC) include/hibr.h mods/display.h | $(B)/mods
-	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(XSCR_SRC)
-
 MEDIA_SRC = $(wildcard mods/media/*.c)
 
 $(B)/mods/media.so: $(MEDIA_SRC) include/hibr.h mods/media/mv.h mods/display.h | $(B)/mods
@@ -319,7 +314,11 @@ check: all
 
 # The shell and every module under AddressSanitizer and UBSan, in
 # build/asan; for tests/asan.py, which runs every suite against it.
-ASAN = -g -O1 -w -fPIC -fsanitize=address,undefined -fno-sanitize-recover=undefined
+# -z execstack: the tests load this tree's tcc-built modules into the
+# sanitizer shell, and tcc writes no PT_GNU_STACK, which glibc 2.41 refuses
+# to dlopen into a process whose own stack is not executable ("cannot enable
+# executable stack"). The tcc-built shell has one, the gcc-built one did not.
+ASAN = -g -O1 -w -fPIC -fsanitize=address,undefined -fno-sanitize-recover=undefined -Wl,-z,execstack
 asan:
 	$(MAKE) B=$(B)/asan CC=gcc OPT="$(ASAN)" all
 

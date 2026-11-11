@@ -493,7 +493,6 @@ inside a function or a `try` it returns 2 —
 | `pty spawn\|read\|drain\|write\|resize\|size\|alive\|wait\|signal\|fd\|pid\|close\|adopt\|release\|list ...` | **[module]** run a program on a pseudo terminal of its own and drive it — see [mods/pty](../mods/pty/README.md) |
 | `term open\|new\|poll\|draw\|key\|write\|feed\|size\|...` | **[module]** a terminal emulator: a program's screen kept as cells and drawn into a window — see [mods/term](../mods/term/README.md) |
 | `hold new\|attach\|detach\|list\|kill\|clients\|...` | **[module]** sessions that outlive their terminal: detach, log off, attach again — see [mods/hold](../mods/hold/README.md) |
-| `xscr start\|stop\|open\|draw\|key\|type\|...` | **[module]** an X screen in a window, drawn from Xvfb's own framebuffer — see [mods/xscr](../mods/xscr/README.md) |
 | `mermaid parse\|render [-a] [-w n] [-t text \| file]` | **[module]** Mermaid diagrams as cells: flowcharts, sequences, pies — see [mods/mermaid](../mods/mermaid/README.md) |
 | `pdf open\|close\|pages\|size\|title\|view\|zoom\|text\|find\|link\|outline ...` | **[module]** PDF documents through Poppler, loaded at run time: pages as a picture, their text, links and outline — see [mods/pdf](../mods/pdf/README.md) |
 | `csv read\|split\|line\|open\|row\|close ...` | **[module]** CSV as RFC 4180 says, read whole into a map or a row at a time |

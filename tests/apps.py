@@ -433,15 +433,15 @@ ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "power", "sound",
-                "aboutme", "abouthibr", "adminaccess", "appearance", "cliphist",
+                "aboutme", "abouthibr", "adminaccess", "appearance", "menuedit", "cliphist",
                 "control_strip", "desktop", "filetypes", "language", "loginmgr",
                 "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
                 "taskmgr", "versions", "wallset", "windows",
                 "archiveset", "browserset", "pimset", "camset", "filesview", "mailset", "prayerset",
-                "screensset", "sheetset", "notes", "terminal", "vaultset", "webapps", "tube"], out)
+                "sheetset", "notes", "terminal", "vaultset", "webapps", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 8 + ["system"] * 20 + ["app"] * 14, out)
+      ["hardware"] * 8 + ["system"] * 21 + ["app"] * 13, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -485,7 +485,7 @@ TITLE = {"archiveset": "Archives", "aboutme": "About Me", "adminaccess": "Admini
          "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
          "terminal": "Terminal", "tube": "YouTube", "versions": "Versions",
          "browserset": "Browser", "camset": "Camera", "wallset": "Wallpaper",
-         "webapps": "Web Apps", "screensset": "Screens"}
+         "webapps": "Web Apps", "menuedit": "Applications"}
 
 
 def prow(name):
@@ -662,8 +662,7 @@ check("the first pane's own rows show on the right without entering it",
 # its own _rows. Date & Time is left out: its dialogs ask for a password.
 PANE_APPS = {"abouthibr": ("about",), "filesview": ("files",),
              "taskmgr": ("tasks",), "terminal": ("term",),
-             "browserset": ("browser",), "webapps": ("browser",),
-             "screensset": ("screens",)}
+             "browserset": ("browser",), "webapps": ("browser",)}
 
 
 PANEHOME = tempfile.mkdtemp(prefix="hibr-pane-conf-")
@@ -6235,4 +6234,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(808)
+report(803)

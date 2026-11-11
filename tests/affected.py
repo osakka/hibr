@@ -67,7 +67,6 @@ SUITE_MODS = {
     "media": ["media"],
     "youtube": ["web", "media"],
     "sound": ["media"],
-    "screens": ["xscr"],
     "pim": ["pim", "dav"],
     "contacts": ["pim", "dav", "email", "db"],
     "calapp": ["pim", "dav", "email", "db"],

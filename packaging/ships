@@ -36,6 +36,7 @@ apps/Accessories/imgview.hibr
 control-panel/aboutme.hibr
 control-panel/adminaccess.hibr
 control-panel/appearance.hibr
+control-panel/menuedit.hibr
 control-panel/menubar.hibr
 control-panel/control-strip.hibr
 control-panel/datetime.hibr

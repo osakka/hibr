@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.99.489
+
+**The programs installed on the machine are on the Applications menu**
+(Gitea #502). They are read from the desktop entries every Linux desktop
+reads -- `~/.local/share/applications`, then `applications` in each folder
+of `$XDG_DATA_DIRS` -- at start and on every rescan, so one installed later
+appears, each in the folder its categories give it (Internet, Office,
+Games, Accessories, Sound & Video, Graphics, Development, Education,
+Settings, System, Other). An entry marked not for display, shown only by
+another desktop, or whose `TryExec` program is missing is left out.
+Choosing one starts it detached: a Wayland or X program in a window of
+the desktop's through Blit's compositor, a terminal program in a Terminal
+window; with no display to open on, a note says so.
+
+**Control Panel > Applications Menu** edits it: Show Installed Programs,
+Add Program (a name, a command, a folder under Applications -- a `/`
+makes one inside another -- and whether it runs in a window of its own or
+in a Terminal window), a row to change any entry, Hide and Show for the
+machine's, Delete for your own, and Put Back for one of the machine's you
+changed. What you change is kept as data in
+`~/.local/share/hibr/menu.json` and wins over the machine's.
+
+**Screens, its pane, X Screen and the xscr module are gone.** With Blit
+running Xwayland an X program opens in a window like any other; the
+programs Screens ran are put on the menu, under Other, the first time the
+desktop starts without a `menu.json`.
+
+The sanitizer build links with an executable stack: glibc 2.41 refuses to
+load this tree's tcc-built modules, which carry no PT_GNU_STACK, into a
+process whose own stack is not executable.
+
 ## 0.99.488
 
 **A program window moved to another display keeps updating there.** A

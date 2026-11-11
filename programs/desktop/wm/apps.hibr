@@ -195,6 +195,8 @@ dt_apps() {
 	dt_libs
 	dt_scanstamp
 	dt_appscan
+	dt_has dt_progload && dt_progload
+	return 0
 }
 
 # The scan itself, which a rescan runs again without the libraries: a
@@ -461,6 +463,9 @@ dt_rescan() {
 	before=${#DT_SRC[@]}
 	dt_appscan
 	dt_sysapps
+	# The machine's programs again: one installed or removed since shows
+	# or goes.
+	dt_has dt_progload && dt_progload
 	added=$((${#DT_SRC[@]} - before))
 	# The Control Panel's panes and the Control Strip's modules, each read
 	# by its own owner, which answers the same three counts.
@@ -695,6 +700,13 @@ fn dt_launch(n, arg = "") {
 	# An entry that opens another app with an argument (dt_appvia): a
 	# window of that app, titled for the entry.
 	if [ -n "${DT_APPS[$n]["via"]}" ]; then
+		# One whose app starts something rather than opening a window
+		# -- a program on the Applications menu (wm/programs) -- is
+		# that app's _launch with the entry's argument.
+		if dt_has "${DT_APPS[$n]["via"]}_launch"; then
+			"${DT_APPS[$n]["via"]}_launch" "${arg:-${DT_APPS[$n]["arg"]}}"
+			return 0
+		fi
 		h=${DT_APPS[$n]["h"]}
 		w=${DT_APPS[$n]["w"]}
 		pl := dt_place "$h" "$w"

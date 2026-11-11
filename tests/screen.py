@@ -500,6 +500,10 @@ for _v, _d in (("XDG_CONFIG_HOME", "config"), ("XDG_STATE_HOME", "state"),
                ("XDG_DATA_HOME", "data"), ("XDG_CACHE_HOME", "cache")):
     os.environ[_v] = os.path.join(HOME, "suite", _d)
     os.makedirs(os.environ[_v], exist_ok=True)
+# Nor the machine's own installed programs on the Applications menu (Gitea
+# #502): every menu a suite reads would hold whatever this box has. A suite
+# about them sets DT_PROGAUTO=1 and XDG_DATA_DIRS of its own.
+os.environ["DT_PROGAUTO"] = "0"
 # Nor the machine's own sound: a desktop's volume keys, its speaker and its
 # mute act on whatever sound server or ALSA mixer it finds, and random
 # input presses keys (Gitea #306). HIBR_SOUND=none turns the desktop's
