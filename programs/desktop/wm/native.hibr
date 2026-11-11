@@ -43,6 +43,10 @@ command -v dt_keep > /dev/null && dt_keep DT_NATIVE
 # pid) starts its own.
 DT_NATSRV=
 declare -gx DT_NATSOCK="${DT_NATSOCK-}" DT_NATTOK="${DT_NATTOK-}" DT_NATPID="${DT_NATPID-}"
+# And the compositor's own pid and program, once it has connected: what a
+# Restart Desktop reads to tell a compositor still there from one that has
+# gone, and one running the installed program from one an upgrade replaced.
+declare -gx DT_NATCPID="${DT_NATCPID-}" DT_NATCEXE="${DT_NATCEXE-}"
 # 1 when this desktop serves the socket a desktop before it served, so the
 # compositor reconnects with its windows; each window that comes back with
 # a restart waits for its own (NWB, by the compositor's id) until then.
@@ -111,7 +115,15 @@ dt_natstart() {
 	if [ "$again" = 1 ]; then
 		x := frames serve -w -n "$DT_NATSOCK" -t "$DT_NATTOK" 2> /dev/null || again=0
 	fi
-	if [ "$again" = 0 ]; then
+	# A compositor kept across a Restart Desktop is kept only while it is
+	# there and runs the installed program: one that has gone is started
+	# again, and one an upgrade replaced on disk is ended and started again
+	# -- its programs' windows close -- so the restart takes the new one,
+	# as it takes a new hibr (the owner's choice, 2026-11-11).
+	if [ "$again" = 1 ] && ! dt_natkept; then
+		again=0
+	fi
+	if [ -z "$x" ]; then
 		x := frames serve -w 2> /dev/null || return 0
 	fi
 	read -r n sock tok <<< "$x"
@@ -134,6 +146,50 @@ dt_natstart() {
 	frames wait "$n" 1000 2> /dev/null || dt_log "programs' windows: no display named within a second"
 	dt_natevents
 	return 0
+}
+
+# The compositor's pid and the program it runs, noted when it names its
+# display -- the first thing it says on connecting -- for dt_natkept.
+dt_natwho() {
+	local i kv p= x=
+	local -a a
+
+	i := frames info "$DT_NATSRV" 2> /dev/null
+	read -ra a <<< "$i"
+	for kv in "${a[@]}"; do
+		case $kv in "pid="*) p=${kv#*=} ;; esac
+	done
+	[ "${p:-0}" -gt 0 ] || return 0
+	x := readlink "/proc/$p/exe" 2> /dev/null
+	DT_NATCPID=$p
+	DT_NATCEXE=${x% (deleted)}
+	return 0
+}
+
+# Whether the compositor a desktop before this restart started is still to
+# be kept: 1 when it has gone -- nothing there, or another program now has
+# its pid -- or when its program was replaced on disk, in which case it is
+# ended first. One that never connected says nothing and is kept.
+dt_natkept() {
+	local p=$DT_NATCPID x i
+
+	[ -n "$p" ] || return 0
+	x := readlink "/proc/$p/exe" 2> /dev/null
+	if [ -z "$x" ] || [ "${x% (deleted)}" != "$DT_NATCEXE" ]; then
+		dt_log "programs' windows: the compositor ($p) has gone; starting another"
+		DT_NATCPID=
+		return 1
+	fi
+	[ "$x" != "$DT_NATCEXE" ] || return 0
+	dt_log "programs' windows: the compositor ($p) was replaced on disk; starting the new one"
+	kill -TERM "$p" 2> /dev/null
+	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+		[ -e "/proc/$p" ] || break
+		sleep 0.1
+	done
+	[ -e "/proc/$p" ] && kill -KILL "$p" 2> /dev/null
+	DT_NATCPID=
+	return 1
 }
 
 # What the compositor has said since last asked, acted on: a ticker, so it
@@ -181,6 +237,7 @@ dt_natevents() {
 		display)
 			export WAYLAND_DISPLAY=$n
 			dt_natx "$rest"
+			dt_natwho
 			[ "${#NWB[@]}" -gt 0 ] && DT_NATBY=$((${EPOCHREALTIME%.*} + 3))
 			# The desktop's clipboard lapsed with the last channel.
 			[ -n "${DT_CLIP-}" ] && dt_natclipoffer "$DT_CLIP" "${DT_CLIPKIND:-text}"

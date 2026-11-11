@@ -14,7 +14,8 @@
  *                              from the window's drawing: its picture here
  *   frames input N on|off      from the window: whether it has the keys
  *   frames input N hold confine|relative   how a held pointer behaves (Blit 0.3.70)
- *   frames info N              what has passed, one line of key=value
+ *   frames info N              what has passed, one line of key=value;
+ *                              pid= the process connected, 0 for none
  *   frames stop N              the socket closed and the picture gone
  *   frames list                every socket, "N SOCKET" a line
  *
@@ -68,6 +69,9 @@
  * RELEASE pass without the script running; it wakes for a hello, a hang
  * up, a first frame and a frame it has to draw itself.
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include "hibr.h"
 #include "display.h"
 #include "blitfr.h"
@@ -161,6 +165,25 @@ fl_srv *fl_find(unsigned n)
 int fl_cfd(fl_srv *f)
 {
 	return f->par ? f->par->cfd : f->cfd;
+}
+
+/* The process at the far end of a server's connection -- the compositor,
+   which the desktop starts detached and so never learns the pid of -- or
+   0 where none is connected or the system cannot say. */
+long fl_peerpid(fl_srv *f)
+{
+#if defined(__linux__) && defined(SO_PEERCRED)
+	struct ucred u;
+	socklen_t l = sizeof u;
+	int c = fl_cfd(f);
+
+	if (c < 0 || getsockopt(c, SOL_SOCKET, SO_PEERCRED, &u, &l) < 0)
+		return 0;
+	return (long)u.pid;
+#else
+	(void)f;
+	return 0;
+#endif
 }
 
 /* The words of a line on the frame channel, at version 5: its word, its
@@ -1512,6 +1535,8 @@ int m_frames(sh *s, int ac, char **av)
 		s_num(&o, (long)f->fw);
 		s_cat(&o, " height=");
 		s_num(&o, (long)f->fh);
+		s_cat(&o, " pid=");
+		s_num(&o, fl_peerpid(f));
 		fl_out(s, &o);
 		s_free(&o);
 		return HIBR_OK;

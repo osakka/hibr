@@ -12,7 +12,7 @@ first, closing a window asks the program and the window goes when it has,
 and quitting the desktop ends the compositor. Every check reads what
 crossed a socket or the terminal.
 """
-import base64, json, os, re, shutil, subprocess, sys, tempfile, time
+import base64, json, os, re, shutil, signal, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -48,8 +48,12 @@ blit = subprocess.Popen([sys.executable, os.path.join(HERE, "frameserve.py"),
 wait(lambda: "listening" in open(blitlog).read())
 complog = os.path.join(D, "comp.log")
 wrap = os.path.join(D, "blit-compositor")
+# Run by a copy of the interpreter, so the suite can replace the program a
+# running compositor was started from, as an upgrade does.
+PYC = os.path.join(D, "pyc")
+shutil.copy(os.path.realpath(sys.executable), PYC)
 open(wrap, "w").write("#!/bin/sh\nexec %s %s %s \"$@\"\n"
-                      % (sys.executable, os.path.join(HERE, "natserve.py"), complog))
+                      % (PYC, os.path.join(HERE, "natserve.py"), complog))
 os.chmod(wrap, 0o755)
 MARK = os.path.join(D, "zoom")
 
@@ -349,6 +353,46 @@ check("a program that draws its own frame gets a window with none, and is "
       "told the whole of it", nf and max(int(l.split()[3]) for l in told("WINDOW size 7 ")[n3:]) >
       int(told("WINDOW size 7 ")[n3 - 1].split()[3]), (told("WINDOW size 7 ")[n3 - 1:], scr()))
 
+# A compositor an upgrade replaced on disk is ended at Restart Desktop and
+# the new one started on the same socket, its program's windows closing; and
+# one that has gone is started again, where the restart used to serve the
+# socket and wait for a compositor that would never come.
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def rsfresh():
+    s0, h0 = len(comp("start")), len(comp("hello"))
+    old = comp("start")[-1]
+    open(MARK + ".rs", "w").close()
+    t.keys([b"x"])
+    new = wait(lambda: comp("start")[s0:], 8)
+    # Its windows are the new compositor's: the old one's, waiting for a
+    # program that will not come back, are closed once it has said hello.
+    sc = wait(lambda: not alive(old["pid"]) and comp("hello")[h0:] and
+              scr().find("Waiting for the program") is None and
+              scr().find("│") and scr(), 10)
+    return old, new, sc
+
+
+shutil.copy(PYC, PYC + ".new")
+os.rename(PYC + ".new", PYC)
+old, new, sc = rsfresh()
+check("after an upgrade replaced the compositor's program, Restart Desktop "
+      "ends it and starts the new one on the same socket, its windows the new one's",
+      new and new[0]["pid"] != old["pid"] and new[0]["sock"] == old["sock"] and
+      not alive(old["pid"]) and sc, (old, new, alive(old["pid"]), open("/proc/%d/stat" % old["pid"]).read()[:60] if alive(old["pid"]) else "", (sc or scr()).text()[:1500]))
+wait(lambda: told("WINDOW size ")[-1:] and comp("hello")[-1:], 4)
+gone = comp("start")[-1]["pid"]
+os.kill(gone, signal.SIGKILL)
+wait(lambda: not alive(gone), 4)
+old, new, sc = rsfresh()
+check("and one that has gone is started again", new and sc, (new, sc or scr()))
+
 open(MARK + ".quit", "w").close()
 t.keys([b"x"])
 q = wait(lambda: comp("quit"))
@@ -541,4 +585,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(40)
+report(42)

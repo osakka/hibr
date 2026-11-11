@@ -1712,7 +1712,10 @@ start. A Restart Desktop leaves the compositor running, on the same socket:
 it dials the restarted desktop and announces its windows again (Blit
 0.3.74), and each program's window comes back as itself, where it was, not
 as a second beside it. A window whose program did not survive is closed.
-After a crash the supervisor's new desktop starts a compositor of its own,
+Except after an upgrade: a compositor whose program the upgrade replaced
+on disk is ended and the new one started -- its programs' windows close --
+so the restart takes the new compositor as it takes the new hibr, and one
+that has gone is started again. After a crash the supervisor's new desktop starts a compositor of its own,
 and the old one's programs end with it. Quitting
 the desktop ends it and its programs. Its log is
 `~/.local/state/hibr/compositor.log`.

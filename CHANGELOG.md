@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.487
+
+**Restart Desktop takes a new Blit compositor after an upgrade.** It keeps
+the compositor running so programs' windows survive, and kept the old one
+after Blit was upgraded too, so Blit 0.3.78's X programs never started
+until the desktop was quit. A compositor whose program an upgrade replaced
+on disk is now ended and the installed one started on the same socket; its
+programs' windows close, as the owner chose (Gitea #499). A compositor
+that has gone -- ended by hand, or crashed -- is started again, where the
+restart used to wait for one that would never come. The desktop learns the
+compositor's process from its connection (`frames info` gives `pid=`).
+
 ## 0.99.486
 
 **A minimised program window goes, and comes back answering.** Minimising
