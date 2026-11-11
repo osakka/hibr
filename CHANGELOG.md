@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.488
+
+**A program window moved to another display keeps updating there.** A
+window's frames go only to the displays it is on, and `hold` gives a frame
+back to the program once every display it went to has let it go. A
+display the window left kept its last frame, since nothing newer came to
+replace it, so that frame never came back. Blit gives a program its next
+frame only once its last has come back, so Steam, Firefox or any program
+window moved to another display stopped updating there until it was moved
+back. A display a picture leaves is no longer waited on; when the picture
+returns it is sent the newest frame first, as on a first showing.
+
+**A program's decoration said again while its window is full screen**
+(an X program changing its Motif hints, which Blit 0.3.80 passes on)
+changes the frame the window gets back on leaving full screen, rather
+than putting a frame on the full-screen window.
+
 ## 0.99.487
 
 **Restart Desktop takes a new Blit compositor after an upgrade.** It keeps

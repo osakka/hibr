@@ -484,11 +484,17 @@ fn dt_natpops(int id, int o, key = "") {
 # its own (client-side decorations). With none every press in it is the
 # program's, as in full screen, and the drag key still moves it.
 fn dt_natdecor(int id, how) {
+	local k=chrome
+
+	# Said again while the window is full screen -- an X program changing
+	# its _MOTIF_WM_HINTS (Blit 0.3.80) -- it is the frame the window gets
+	# back on leaving full screen that changes, not the none it has now.
+	dt_isfull "$id" && k=fschrome
 	if [ "$how" = client ]; then
-		DT[$id]["chrome"]=none
+		DT[$id]["$k"]=none
 		DT[$id]["csd"]=1
 	else
-		DT[$id]["chrome"]=
+		DT[$id]["$k"]=
 		DT[$id]["csd"]=
 	fi
 	NW[$id]["sent"]=

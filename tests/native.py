@@ -535,10 +535,10 @@ MV = os.path.join(D, "mv")
 p3 = sx.scratch("native-seam.hibr")
 open(p3, "w").write(
     "%s. %s\nDT_NATBIN=%s\nDT_SUPERVISE=off\n"
-    "tst_mv() { [ -f %s ] || return 0; rm -f %s; local n; "
-    "for n in \"${!NWN[@]}\"; do dt_move \"${NWN[$n]}\" 19 4; done; dt_want 30; }\n"
+    "tst_mv() { [ -f %s ] || return 0; local r; read -r r < %s; rm -f %s; local n; "
+    "for n in \"${!NWN[@]}\"; do dt_move \"${NWN[$n]}\" \"${r:-19}\" 4; done; dt_want 30; }\n"
     "dt_ticker tst_mv\ndt_open\ndt_run\ndt_close\n"
-    % (load("console"), tree("programs/desktop/desktop.hibr"), wrap3, MV, MV))
+    % (load("console"), tree("programs/desktop/desktop.hibr"), wrap3, MV, MV, MV))
 hn3 = "nat3-%d" % os.getpid()
 subprocess.run([sx.HIBR, "-c", load("hold") + 'hold new -d %s "$HIBR" %s' % (hn3, p3)],
                env=dict({k: v for k, v in os.environ.items()
@@ -568,12 +568,49 @@ bot = wait(lambda: subcut(st1) and subcut(st1), 8)
 check("a window over the seam of two stacked displays shows its subsurface on "
       "both, each its own slice of it by its pixels",
       top and bot and b"Y=8" in top[-1] and b"y=24" in bot[-1], (top[-2:], bot[-2:]))
+# Moved wholly onto the lower display, its frames go there alone, and the
+# last ones the upper display had -- which it keeps, since nothing newer of
+# them comes there -- are given back to the program all the same: before,
+# hold waited for the upper display to let them go, the compositor waited
+# for them, and a program window moved to another display stopped updating
+# there until it came back.
+def unreleased():
+    got = {}
+    for x in comp_of(complog3, "line"):
+        w = x["line"].split()
+        if w[:2] == ["FRAME", "release"] and len(w) == 4:
+            got.setdefault(w[2], set()).add(int(w[3]))
+    return {k: sorted(set(range(min(v), max(v) - 3)) - v) for k, v in got.items() if v}
+
+
+open(MV, "w").write("30\n")
+# A key wakes the desktop, whose ticker moves the window: frames alone
+# pass without waking it.
+st1.keys([b"x"])
+wait(lambda: False, 2.0 * SLOW)
+gap = wait(lambda: not any(unreleased().values()) and unreleased(), 6)
+check("moved wholly onto the other display, its frames still come back to "
+      "the program, the ones the first display kept included",
+      gap, unreleased())
 st0.quit(None, 0.3)
 st1.quit(None, 0.3)
 subprocess.run([sx.HIBR, "-c", load("hold") + "hold kill %s" % hn3],
                env=dict(os.environ, **henv), capture_output=True, timeout=20)
 pa.terminate()
 pb.terminate()
+
+# A program that says its decoration again while full screen -- an X
+# program changing _MOTIF_WM_HINTS -- changes the frame its window gets back
+# on leaving full screen, not the none it has meanwhile.
+r = subprocess.run([sx.HIBR, "-c", load("console") +
+                    ". %s\ndeclare -gA NW\nid := dt_new P 10 30 3 3\n"
+                    "dt_fullscreen \"$id\" on\ndt_natdecor \"$id\" client\n"
+                    "a=\"${DT[$id][\"chrome\"]}/${DT[$id][\"fschrome\"]}\"\n"
+                    "dt_fullscreen \"$id\" off\necho \"$a ${DT[$id][\"chrome\"]}\"\n"
+                    % tree("programs/desktop/desktop.hibr")],
+                   capture_output=True, text=True, timeout=30)
+check("a program window's frameless decoration said while full screen stays "
+      "frameless after it", r.stdout.strip() == "none/none none", (r.stdout, r.stderr))
 
 # With no compositor, nothing about Wayland is put in what the desktop
 # starts: an empty WAYLAND_DISPLAY sends Wayland programs to a display
@@ -585,4 +622,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(42)
+report(44)

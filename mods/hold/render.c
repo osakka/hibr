@@ -280,6 +280,7 @@ void hd_unshow(struct hd_cli *cn, unsigned id, str *out, unsigned *nid,
 			cn->fsn--;
 			break;
 		}
+	hd_f3away(cn->fd, id);
 	nid[*nn] = id;
 	nhash[*nn] = 0;
 	nlen[*nn] = 0;

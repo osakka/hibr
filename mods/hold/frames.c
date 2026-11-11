@@ -474,6 +474,26 @@ void hd_f3ans(int cfd, const char *line)
 		}
 }
 
+/* A picture taken off a display -- its window moved to another, minimised,
+   or on another workspace -- is no longer drawn there, and that display's
+   Blit keeps its last frame until a newer one of that image replaces it,
+   which a display not showing the picture is never sent: so the producer
+   waited for ever for that frame back, and a program window moved to
+   another display stopped updating there (Blit's frame pacing gives a
+   program its next frame only when its last comes back). Nothing waits on
+   that display any more; when the picture comes back it is sent the newest
+   frame before its placement, as on a first showing. */
+void hd_f3away(int cfd, unsigned id)
+{
+	size_t i;
+
+	for (i = hd_nf3; i--;)
+		if (hd_f3s[i]->id == id) {
+			hd_f3unview(hd_f3s[i], cfd);
+			hd_f3tidy(i);
+		}
+}
+
 /* A display went: nothing of the producer's is waiting on it any more. */
 void hd_f3client(int cfd)
 {
