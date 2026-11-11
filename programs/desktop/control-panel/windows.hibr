@@ -12,7 +12,7 @@
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.10
+app windows "The Control Panel pane for how a window looks and where it opens" 1.11
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
@@ -76,6 +76,16 @@ fn windows_rows(int w) {
 	CP[$w][$n]["val"]=off; [ "${DT_NATIVE:-1}" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["after"]="(next start)"
 	CP[$w][$n]["key"]=DT_NATIVE; n=$((n + 1))
+	# And whether X programs open through it too (Xwayland, Gitea #504): a
+	# row only while programs' windows are on at all, applied by Restart
+	# Desktop, which starts the compositor again with it.
+	if [ "${DT_NATIVE:-1}" = 1 ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="X11 Programs"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "${DT_NATX11:-1}" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["after"]="(Restart Desktop)"
+		CP[$w][$n]["key"]=DT_NATX11; n=$((n + 1))
+	fi
 	ret "$n"
 }
 
@@ -165,6 +175,7 @@ fn windows_do(int w, k, int dir) {
 	fullend) v := cp_next "$DT_FULLEND" "$dir" "${DT_FULLENDS[@]}"
 	         DT_FULLEND=$v ;;
 	DT_NATIVE) cp_toggle DT_NATIVE ;;
+	DT_NATX11) cp_toggle DT_NATX11 ;;
 	wbtn:title) return 0 ;;
 	wbtn:*) windows_btntoggle "${k#wbtn:}" ;;
 	wintrans) cp_wintrans $(((${DT_WINTRANS:-0} + 5) / 10 * 10 + dir * 10))

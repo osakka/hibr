@@ -47,6 +47,15 @@ declare -gx DT_NATSOCK="${DT_NATSOCK-}" DT_NATTOK="${DT_NATTOK-}" DT_NATPID="${D
 # Restart Desktop reads to tell a compositor still there from one that has
 # gone, and one running the installed program from one an upgrade replaced.
 declare -gx DT_NATCPID="${DT_NATCPID-}" DT_NATCEXE="${DT_NATCEXE-}"
+# Whether the compositor runs X programs (Xwayland): Control Panel >
+# Windows > X11 Programs, from the next Restart Desktop (Gitea #504). It
+# is said to a compositor that takes --x11 (Blit 0.3.81 and later); an
+# older one runs X whenever Xwayland is installed. DT_NATCX11 is what the
+# running compositor was started with, on or off, or empty when it was
+# never told -- which is on.
+DT_NATX11="${DT_NATX11-1}"
+command -v dt_keep > /dev/null && dt_keep DT_NATX11
+declare -gx DT_NATCX11="${DT_NATCX11-}"
 # 1 when this desktop serves the socket a desktop before it served, so the
 # compositor reconnects with its windows; each window that comes back with
 # a restart waits for its own (NWB, by the compositor's id) until then.
@@ -105,7 +114,8 @@ dt_natbin() {
 # Serve the compositor's socket, and start the compositor unless one this
 # desktop started before a restart is still there. Once a desktop.
 dt_natstart() {
-	local b x n sock tok again=0 log
+	local b x n sock tok again=0 log x11
+	local -a xa
 
 	DT_NATDONE=1
 	[ "$DT_NATIVE" = 1 ] || return 0
@@ -120,7 +130,7 @@ dt_natstart() {
 	# again, and one an upgrade replaced on disk is ended and started again
 	# -- its programs' windows close -- so the restart takes the new one,
 	# as it takes a new hibr (the owner's choice, 2026-11-11).
-	if [ "$again" = 1 ] && ! dt_natkept; then
+	if [ "$again" = 1 ] && ! dt_natkept "$b"; then
 		again=0
 	fi
 	if [ -z "$x" ]; then
@@ -137,7 +147,13 @@ dt_natstart() {
 	mkdir -p "${log%/*}" 2> /dev/null
 	# fork: once a desktop, detached (setsid -f): a session of its own,
 	# owned by init, so a Restart Desktop's exec takes nothing of it.
-	setsid -f env "BLIT_FRAME_SOCKET=$sock" "BLIT_FRAME_TOKEN=$tok" "$b" --log "$log" \
+	xa=()
+	DT_NATCX11=
+	if x11 := dt_natx11 "$b"; then
+		xa=(--x11 "$x11")
+		DT_NATCX11=$x11
+	fi
+	setsid -f env "BLIT_FRAME_SOCKET=$sock" "BLIT_FRAME_TOKEN=$tok" "$b" "${xa[@]}" --log "$log" \
 		< /dev/null > /dev/null 2>&1
 	dt_log "programs' windows: blit-compositor started on $sock"
 	# Its display named before the first frame, whose windows -- a session's
@@ -170,8 +186,8 @@ dt_natwho() {
 # be kept: 1 when it has gone -- nothing there, or another program now has
 # its pid -- or when its program was replaced on disk, in which case it is
 # ended first. One that never connected says nothing and is kept.
-dt_natkept() {
-	local p=$DT_NATCPID x i
+fn dt_natkept(b = "") {
+	local p=$DT_NATCPID x want
 
 	[ -n "$p" ] || return 0
 	x := readlink "/proc/$p/exe" 2> /dev/null
@@ -180,8 +196,26 @@ dt_natkept() {
 		DT_NATCPID=
 		return 1
 	fi
-	[ "$x" != "$DT_NATCEXE" ] || return 0
-	dt_log "programs' windows: the compositor ($p) was replaced on disk; starting the new one"
+	if [ "$x" != "$DT_NATCEXE" ]; then
+		dt_log "programs' windows: the compositor ($p) was replaced on disk; starting the new one"
+		dt_natend "$p"
+		return 1
+	fi
+	# X11 Programs changed since it started: one that takes --x11 is
+	# started again with the setting.
+	if [ -n "$b" ] && want := dt_natx11 "$b" && [ "$want" != "${DT_NATCX11:-on}" ]; then
+		dt_log "programs' windows: X11 Programs is $want; starting the compositor again"
+		dt_natend "$p"
+		return 1
+	fi
+	return 0
+}
+
+# End a compositor: SIGTERM runs its whole shutdown (its programs lose their
+# display and end), SIGKILL two seconds on.
+fn dt_natend(int p) {
+	local i
+
 	kill -TERM "$p" 2> /dev/null
 	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
 		[ -e "/proc/$p" ] || break
@@ -189,7 +223,22 @@ dt_natkept() {
 	done
 	[ -e "/proc/$p" ] && kill -KILL "$p" 2> /dev/null
 	DT_NATCPID=
-	return 1
+	return 0
+}
+
+# What to tell the compositor for X11 Programs -- on or off -- when it takes
+# --x11: its --version (`blit-compositor X.Y.Z`, every one since 0.3.71) at
+# 0.3.81 or later. Status 1 for an older one, which refuses an option it
+# does not know and would not start.
+fn dt_natx11(b) {
+	local v x y z
+
+	v := "$b" --version 2> /dev/null
+	v=${v##* }
+	IFS=. read -r x y z _ <<< "$v"
+	case $x$y$z in *[!0-9]* | "") return 1 ;; esac
+	(( x * 1000000 + y * 1000 + z >= 3081 )) || return 1
+	if [ "$DT_NATX11" = 1 ]; then ret on; else ret off; fi
 }
 
 # What the compositor has said since last asked, acted on: a ticker, so it

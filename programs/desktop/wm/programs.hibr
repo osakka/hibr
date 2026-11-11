@@ -256,11 +256,13 @@ fn prog_launch(arg = "") {
 
 	[ -n "$cmd" ] || return 0
 	if [ "${PM["$arg"]["term"]-}" = 1 ]; then
+		# Not DT_OPENSELF, which keeps the window to show what a file run
+		# from Files printed: a program from the menu does what Control
+		# Panel > Terminal > Close When a Program Ends says -- by default,
+		# closed on success and kept to show why it failed.
 		DT_OPENCMD=("$HIBR" -c "exec $cmd")
-		DT_OPENSELF=1
 		dt_launch term && return 0
 		DT_OPENCMD=()
-		DT_OPENSELF=
 		return 0
 	fi
 	if [ -z "${WAYLAND_DISPLAY-}" ] && [ -z "${DISPLAY-}" ]; then

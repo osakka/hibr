@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.95",
+ "version": "3.96",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1630,6 +1630,7 @@
   "Under Applications; a / makes a folder inside one.": "تحت التطبيقات؛ الشرطة / تصنع مجلدًا داخل مجلد.",
   "Applications Menu": "قائمة التطبيقات",
   "A window of its own, through Programs in Windows.": "نافذة خاصة به، عبر «البرامج في نوافذ».",
-  "Put Back": "إرجاع"
+  "Put Back": "إرجاع",
+  "X11 Programs": "برامج X11"
  }
 }

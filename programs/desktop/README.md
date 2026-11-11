@@ -1730,7 +1730,12 @@ window.
 X programs go the same way when the compositor runs Xwayland: it names
 the X display beside its own, and the desktop gives everything it starts
 `DISPLAY` with it. When the compositor says X is off, the `DISPLAY` the
-desktop was started with -- or none -- comes back.
+desktop was started with -- or none -- comes back. Control Panel >
+Windows > **X11 Programs**, shown while Programs in Windows is on and on
+by default, turns Xwayland on or off: Restart Desktop starts the
+compositor again with the setting, which ends any X programs running. It
+is said to a compositor of Blit 0.3.81 or later; an older one runs X
+whenever Xwayland is installed.
 
 ## Programs on the Applications menu
 

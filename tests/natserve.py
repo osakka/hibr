@@ -31,6 +31,20 @@ import fcntl, json, os, re, signal, socket, struct, sys, time
 
 LOG = sys.argv[1]
 
+# --version as blit-compositor answers it, one line and status 0; the
+# version a test wants in LOG.version (0.3.81 by default: --x11 known).
+# And as an older one would, an option it does not know refused with
+# status 2 before anything starts.
+if "--version" in sys.argv[2:]:
+    v = open(LOG + ".version").read().strip() if os.path.exists(LOG + ".version") else "0.3.81"
+    print("blit-compositor %s" % v)
+    sys.exit(0)
+if "--x11" in sys.argv[2:]:
+    v = open(LOG + ".version").read().strip() if os.path.exists(LOG + ".version") else "0.3.81"
+    if tuple(int(x) for x in v.split(".")) < (0, 3, 81):
+        sys.stderr.write("usage: blit-compositor [--log FILE]\n")
+        sys.exit(2)
+
 
 def note(**kw):
     with open(LOG, "a") as f:
@@ -271,6 +285,13 @@ while True:
         popup = True
         say("WINDOW popup 9 7 12 63")
         size[9] = (80, 60)
+    if popup and os.path.exists(LOG + ".popmove"):
+        # The program moving its popup after it is shown (xdg_popup
+        # reposition, or an X menu moved): the same line again, the same
+        # id, the new offset (Blit 0.3.82).
+        xy = open(LOG + ".popmove").read().split() or ["52", "79"]
+        os.unlink(LOG + ".popmove")
+        say("WINDOW popup 9 7 %s %s" % (xy[0], xy[1]))
     if not lock and os.path.exists(LOG + ".lock"):
         lock = True
         say("WINDOW lock 7 confine")

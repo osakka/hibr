@@ -178,5 +178,26 @@ check("a terminal program opens in a Terminal window",
 check("and a program with no display to open on says what it needs",
       note, t.screen().text()[:1500])
 
+# One that ends well closes its window, as Control Panel > Terminal > Close
+# When a Program Ends says by default -- btop and htop quit with q and stayed
+# open showing "exited 0" when the menu started them as a file from Files.
+QUICK = os.path.join(D, "quick")
+open(QUICK, "w").write("#!/bin/sh\necho QUICK-RAN; sleep 1; exit 0\n")
+os.chmod(QUICK, 0o755)
+entry(os.path.join(A, "quick.desktop"), Name="Quick", Exec=QUICK, Terminal="true")
+p = sx.scratch("menuedit-q.hibr")
+open(p, "w").write("%s. %s\nDT_APPDIRS=(%s)\ndt_apps\ndt_open\n"
+                   "dt_launch prog:quick.desktop\ndt_run\ndt_close\n"
+                   % (load("console", "pty", "term"), tree("programs/desktop/desktop.hibr"),
+                      tree("programs/desktop/apps")))
+t = Term(p, env=ENV, settle=1.0)
+ran = t.until("QUICK-RAN", 60 * SLOW)
+shut = t.until(lambda sc: sc.find("QUICK-RAN") is None and sc, 40 * SLOW)
+t.quit(b"q", 1.0)
+os.unlink(p)
+check("and a terminal program from the menu that ends well takes its window "
+      "with it", ran and shut and t.screen().find("exited") is None,
+      t.screen().text()[:1500])
+
 shutil.rmtree(D, True)
-report(13)
+report(14)

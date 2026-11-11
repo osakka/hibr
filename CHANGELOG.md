@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.491
+
+**Control Panel > Windows > X11 Programs** (Gitea #504), shown while
+Programs in Windows is on and on by default, turns Xwayland on or off. The
+compositor is started with `--x11 on|off` when it takes the option (Blit
+0.3.81 and later, read from its `--version`; an older one refuses an
+option it does not know and would not start, so it is told nothing), and
+Restart Desktop starts it again when the setting has changed since --
+which ends any X programs running.
+
+**A terminal program started from the Applications menu closes its window
+when it ends well**, as Control Panel > Terminal > Close When a Program
+Ends says: btop and htop stayed open showing "exited 0" after `q`,
+because the menu started them the way Files runs a program file, which
+keeps the window to show its output.
+
+A popup its program moves after it is shown (Blit 0.3.82: the same
+`WINDOW popup` line again) is placed at the new place, its input route
+offset following; the suites now check it.
+
 ## 0.99.490
 
 **The menu bar names a program window by its own name, not "Program".**

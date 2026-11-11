@@ -64,15 +64,16 @@ open(p, "w").write(
     "for n in \"${!NWN[@]}\"; do dt_zoom \"${NWN[$n]}\"; done; dt_want 30; }\n"
     "tst_quit() { [ -f %s ] && dt_quit; return 0; }\n"
     "tst_rs() { [ -f %s ] || return 0; rm -f %s; dt_restart; }\n"
+    "tst_x11() { [ -f %s.x11 ] || return 0; local v; read -r v < %s.x11; rm -f %s.x11; DT_NATX11=$v; dt_save; }\n"
     "tst_mn() { local a n; for a in min raise; do [ -f %s.$a ] || continue; rm -f %s.$a; "
     "for n in \"${!NWN[@]}\"; do if [ $a = min ]; then dt_min \"${NWN[$n]}\"; "
     "else dt_raise \"${NWN[$n]}\"; fi; done; dt_want 30; done; return 0; }\n"
     "tst_copy() { [ -f %s ] || return 0; local t k; { read -r t; read -r k; } < %s; rm -f %s; "
     "if [ \"$k\" = clear ]; then dt_natclipclear; else dt_clipset \"$t\" copy \"${k:-text}\"; fi; }\n"
-    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_ticker tst_mn\ndt_progload\ndt_open\n"
+    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_ticker tst_mn\ndt_ticker tst_x11\ndt_progload\ndt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
-       MARK + ".quit", MARK + ".rs", MARK + ".rs", MARK, MARK, MARK + ".copy", MARK + ".copy",
+       MARK + ".quit", MARK + ".rs", MARK + ".rs", MARK, MARK, MARK, MARK, MARK, MARK + ".copy", MARK + ".copy",
        MARK + ".copy", MARK + ".env"))
 # The stand-in's app id has a desktop entry of its own, for the bar's name.
 os.makedirs(os.path.join(D, "share", "applications"))
@@ -221,6 +222,23 @@ placed = wait(lambda: pid9 and scr() and ("i=%d," % pid9).encode() in t.out and
 check("and is placed as a pane of its own above the window, the size of its "
       "frames in whole cells", placed,
       (pid9, [m for m in re.findall(rb"\x1b_G([^;\x1b]*)", t.out) if b"a=p" in m][-4:]))
+def popat():
+    """Where on the screen the popup's picture was last placed, as a cell."""
+    w = [(r, c) for r, c, ctrl in scr().kplace if pid9 and ("i=%d," % pid9) in ctrl]
+    return w[-1] if w else None
+
+
+at0 = popat()
+open(complog + ".popmove", "w").close()
+t.keys([b"x"])
+mv = wait(lambda: [x for x in blitkind("member", top=cid) if x["x"] == 52 and x["y"] == 79])
+at1 = wait(lambda: popat() != at0 and popat())
+check("a popup its program moves is placed again at the new place, and its "
+      "route offset follows", mv and at0 and at1 and at1 != at0, (mv, at0, at1))
+# And back where it was, for the clicks below.
+open(complog + ".popmove", "w").write("12 63\n")
+t.keys([b"x"])
+wait(lambda: popat() == at0 and popat())
 sc = scr()
 st = sc.find("Stand-in")
 wr = st[0] if st else 0
@@ -433,6 +451,30 @@ os.kill(gone, signal.SIGKILL)
 wait(lambda: not alive(gone), 4)
 old, new, sc = rsfresh()
 check("and one that has gone is started again", new and sc, (new, sc or scr()))
+
+# X11 Programs (Gitea #504): a compositor that takes --x11 is told the
+# setting, and Restart Desktop starts it again when the setting has changed
+# since -- and only then.
+check("the compositor is started with --x11 on, the setting's default",
+      comp("start")[-1]["argv"][:2] == ["--x11", "on"], comp("start")[-1])
+open(MARK + ".x11", "w").write("0\n")
+t.keys([b"x"])
+wait(lambda: not os.path.exists(MARK + ".x11"), 4)
+old, new, sc = rsfresh()
+check("and X11 Programs turned off is a compositor started again with --x11 off "
+      "at Restart Desktop", new and new[0]["argv"][:2] == ["--x11", "off"] and
+      not alive(old["pid"]) and sc, (old, new, sc or scr()))
+fake = os.path.join(D, "fakecomp")
+r = []
+for ver in ("0.3.80", "0.3.81", "0.4.0", "garbage"):
+    open(fake, "w").write("#!/bin/sh\necho 'blit-compositor %s'\n" % ver)
+    os.chmod(fake, 0o755)
+    r.append(subprocess.run([sx.HIBR, "-c", ". %s\nDT_NATX11=0\nx := dt_natx11 %s && "
+                             "echo \"$x\" || echo none\n"
+                             % (tree("programs/desktop/desktop.hibr"), fake)],
+                            capture_output=True, text=True, timeout=30).stdout.strip())
+check("and only one at 0.3.81 or later is told: an older compositor refuses "
+      "an option it does not know", r == ["none", "off", "off", "none"], r)
 
 open(MARK + ".quit", "w").close()
 t.keys([b"x"])
@@ -663,4 +705,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(47)
+report(51)

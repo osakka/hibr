@@ -1403,6 +1403,7 @@ Workspace: %s of %s
 Workspaces
 Write
 Write an Email
+X11 Programs
 YYYY-MM-DD and HH:MM:SS, local time
 YouTube
 YouTube did not answer -- trying again
