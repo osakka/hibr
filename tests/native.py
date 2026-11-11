@@ -138,6 +138,13 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\ndeclare -gA NW\n"
                    timeout=30)
 check("with no entry it is the app id, with no app id the title, then nothing",
       r.stdout.strip() == "XTerm|t||", (r.stdout, r.stderr))
+# A key with a program window in front is the program's alone (Blit hands
+# it over; the desktop sees it too): Escape in a game opened the desktop's
+# menu bar, which is Menu Bar Also.
+t.keys([b"\x1b"], settle=0.6)
+check("Escape with a program window in front does not open the desktop's menu",
+      scr().find("Restart Desktop") is None and scr().find("About This") is None,
+      scr().text()[:1200])
 sz = wait(lambda: told("WINDOW size 7 "))
 w0 = sz[0].split() if sz else []
 check("and is told to draw at its body's size in pixels -- whole cells of 8 "
@@ -705,4 +712,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(51)
+report(52)

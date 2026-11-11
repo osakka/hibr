@@ -8689,6 +8689,22 @@ check("the focused window's answer to a key draws at once, read first; not "
       "when it has nothing new, the key was a second ago, or the output is "
       "a window with no app", got == ["yes:read", "no", "no", "no"], got)
 
+# And only a key, a press, a release or the wheel is that input: a drag is
+# sixty reports a second, and counted, it let every frame a dragged window's
+# output woke draw at once -- the drag lagged and hold rendered each frame
+# for every display (0.99.486 to 0.99.491).
+ansk = scratch("answer-kinds.txt")
+run('r=\nfor k in a "mouse press left 5 5" "mouse release left 5 5" "mouse wheelup 5 5" '
+    '"mouse drag left 6 7" "mouse alt-drag left 6 7" "mouse drag none 6 7" '
+    '"mouse rel none 1 2 rel"; do dt_answerable "$k" && r+=" y" || r+=" n"; done\n'
+    'printf "%s\\n" "$r" > ' + ansk + '\n')
+got = open(ansk).read().split() if os.path.exists(ansk) else None
+if os.path.exists(ansk):
+    os.unlink(ansk)
+check("a key, a press, a release and the wheel are answered at once; a drag "
+      "is not", got == ["y", "y", "y", "y", "n", "n", "n", "n"], got)
+
+
 # The Control Strip is off unless chosen (Gitea #393): with its modules
 # there and Show Control Strip off, there is no strip; a desktop whose
 # settings predate the change had one and keeps it, and is told where the
@@ -9515,4 +9531,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1035)
+report(1036)

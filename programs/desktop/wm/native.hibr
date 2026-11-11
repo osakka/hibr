@@ -975,6 +975,18 @@ fn native_appname(id = "") {
 	return 0
 }
 
+# A key with a program window in front is the program's: Blit hands it to
+# the program through the window's route, and the desktop sees it too (its
+# shortcuts must keep working), so the desktop claims it here and does
+# nothing with it -- or a plain Escape in a game also opened the desktop's
+# menu bar, which is Menu Bar Also. The desktop's own shortcuts still run:
+# the chords and function keys it holds, the rule a Terminal window keeps
+# (dt_keyassigned).
+fn native_key(int id, key) {
+	dt_has dt_keyassigned && dt_keyassigned "$key" && return 1
+	return 0
+}
+
 # The keys go to the program through Blit's route, which follows this; and
 # the program is told it has the keyboard, or has lost it.
 fn native_focus(int id, on) {

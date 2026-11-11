@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.492
+
+**A key with a program window in front is the program's alone.** Blit
+hands a key to the program through its window's route and lets the desktop
+see it too, so its shortcuts keep working; a program window had no key
+handler, so the key fell through to the desktop's own bindings, and a
+plain Escape in a game also opened the desktop's menu bar (Menu Bar Also).
+A program window now claims every key but the chords and function keys
+the desktop holds -- the rule a Terminal window keeps.
+
+**Dragging a window no longer makes the desktop draw more.** Since
+0.99.486 a frame woken by the focused window's output skipped the output
+hold for a moment after the person's input, and a drag report counted as
+input -- so for as long as a window was dragged, every frame its output
+woke was drawn at once, the drag lagged behind them and `hold` rendered
+each one for every display. Only a key, a press, a release and the wheel
+count now (`dt_answerable`).
+
 ## 0.99.491
 
 **Control Panel > Windows > X11 Programs** (Gitea #504), shown while

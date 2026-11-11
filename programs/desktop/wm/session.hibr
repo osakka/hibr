@@ -564,6 +564,14 @@ fn dt_live(int id, on = "") {
 # window stays held.
 DT_ANSWERMS="${DT_ANSWERMS-300}"
 DT_INAT=
+# Whether what the wait returned is input whose answer is not held: a key,
+# a press, a release or the wheel, never the pointer moving.
+fn dt_answerable(k = "") {
+	case $k in
+	"" | "mouse "*drag* | "mouse rel "*) return 1 ;;
+	esac
+	return 0
+}
 fn dt_answering(int now) {
 	[ -n "$DT_INAT" ] && [ $((now - DT_INAT)) -lt "$DT_ANSWERMS" ] && [ -n "$DT_FOCUS" ]
 }
@@ -893,12 +901,14 @@ dt_run() {
 		read -r DT_SCHON DT_SCHWAIT _ 2> /dev/null < "/proc/$$/schedstat" ||
 			{ DT_SCHON=0; DT_SCHWAIT=0; }
 		DT_QWAIT=
-		# The person's input, for dt_answer: not a pointer only moving,
-		# which is sixty reports a second while it does.
-		case $k in
-		"" | "mouse "*"drag none "* | "mouse rel "*) ;;
-		*) DT_INAT := dt_ms ;;
-		esac
+		# The person's input, for dt_answer: a key, a press, a release or
+		# the wheel -- never the pointer moving, with a button held or
+		# not. A drag is sixty reports a second, and counted as input it
+		# let every frame the focused window's output woke draw at once
+		# for as long as a window was dragged: more frames, the drag
+		# lagging behind them and hold rendering each for every display
+		# (0.99.486 to 0.99.491).
+		dt_answerable "$k" && DT_INAT := dt_ms
 		DT_STAT["wakes"]=$((${DT_STAT["wakes"]:-0} + 1))
 		[ -n "$k" ] && DT_STAT["events"]=$((${DT_STAT["events"]:-0} + 1))
 		# Why it woke: a key or report, a timer -- named for whoever
