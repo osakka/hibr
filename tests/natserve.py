@@ -79,7 +79,8 @@ def announce():
     """Every window, as on a first connection and again on each reconnect
     (Blit's api.md, "Programs survive a desktop restart"): the display,
     each top-level with its last state, then each popup; ids unchanged."""
-    say("WINDOW display stand-%d" % os.getpid())
+    # Blit ADR 0228 phase 2: the X display Xwayland is on, second.
+    say("WINDOW display stand-%d :47" % os.getpid())
     for l in ("WINDOW new 7 0", "WINDOW title 7 Stand-in", "WINDOW appid 7 hibr.natserve",
               "WINDOW limits 7 64 48 0 0", "WINDOW decor 7 %s" % ("client" if csd else "server")):
         say(l)

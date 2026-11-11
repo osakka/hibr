@@ -260,6 +260,10 @@ void tm_apcend(tm_t *t)
 							      t->img[i].data.n)) {
 					t->img[i].rows = 0;
 					t->img[i].cols = 0;
+					/* And said, or a held display keeps
+					   showing it: hold re-sends pictures
+					   only when this moves. */
+					t->imgen++;
 					break;
 				}
 				tm_imgdrop(t, i);

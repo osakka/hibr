@@ -56,6 +56,14 @@ command -v dt_keepstate > /dev/null && dt_keepstate native NW
 # WAYLAND_DISPLAY in every child's environment would send Wayland programs
 # to a display called "" and make GTK and Qt give up on X11's.
 declare -g WAYLAND_DISPLAY="${WAYLAND_DISPLAY-}"
+# And the X display Blit's compositor runs Xwayland on (Blit ADR 0228 phase
+# 2), when it says one: given to everything the desktop starts as DISPLAY,
+# so an X11 program opens in a window of the desktop's as a Wayland one
+# does, over any DISPLAY inherited from before, as WAYLAND_DISPLAY is; one
+# that was there comes back when the compositor says X is off.
+declare -g DISPLAY="${DISPLAY-}"
+DT_DISPLAY0=$DISPLAY
+DT_NATX=
 DT_NATDONE=
 # A program window's frames number by desktop window, and back; and each
 # popup's (a menu, a list, a tooltip): its parent's desktop window and its
@@ -172,6 +180,7 @@ dt_natevents() {
 		case $verb in
 		display)
 			export WAYLAND_DISPLAY=$n
+			dt_natx "$rest"
 			[ "${#NWB[@]}" -gt 0 ] && DT_NATBY=$((${EPOCHREALTIME%.*} + 3))
 			# The desktop's clipboard lapsed with the last channel.
 			[ -n "${DT_CLIP-}" ] && dt_natclipoffer "$DT_CLIP" "${DT_CLIPKIND:-text}"
@@ -227,6 +236,33 @@ dt_natevents() {
 		esac
 	done <<< "$e"
 	dt_want 30
+	return 0
+}
+
+# The compositor's X display, the second word of its display line: DISPLAY
+# for what the desktop starts from now on, or taken back with `-`. A
+# compositor that says no second word (one before Xwayland) leaves DISPLAY
+# as it is.
+fn dt_natx(x = "") {
+	case $x in
+	"") return 0 ;;
+	-)
+		[ -n "$DT_NATX" ] || return 0
+		DT_NATX=
+		if [ -n "$DT_DISPLAY0" ]; then
+			export DISPLAY=$DT_DISPLAY0
+		else
+			DISPLAY=
+			export -n DISPLAY
+		fi
+		dt_log "programs' windows: X is off"
+		;;
+	:*)
+		DT_NATX=$x
+		export DISPLAY=$x
+		dt_log "programs' windows: X programs on $x"
+		;;
+	esac
 	return 0
 }
 

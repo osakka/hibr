@@ -1724,6 +1724,11 @@ before Programs in Windows was turned on, or one a held session kept from
 before an upgrade -- says "cannot connect to wayland". Open a new terminal
 window.
 
+X programs go the same way when the compositor runs Xwayland: it names
+the X display beside its own, and the desktop gives everything it starts
+`DISPLAY` with it. When the compositor says X is off, the `DISPLAY` the
+desktop was started with -- or none -- comes back.
+
 ## Light or dark, for programs
 
 Programs are told whether the desktop is light or dark, and follow it:

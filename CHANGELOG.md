@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.486
+
+**A minimised program window goes, and comes back answering.** Minimising
+Firefox in a held desktop left its picture on every display, and the window
+under it no longer took keys or clicks. Taking a picture out of view
+removes its placement and keeps the image (0.99.484), and `hold`'s
+emulator kept that record without saying anything had changed, so `hold`
+never told a display to take the placement away; and a record left with no
+cells to cover still counted as on a display. The emulator now marks the
+change and `hold` takes off any picture that covers no cells; raising the
+window places the same picture again.
+
+**The answer to a key is drawn at once** (Gitea #501). A frame woken by a
+program's output is held to Frames For Output (70 ms) apart, and that
+included the program's answer to what the person had just typed: a key in
+the Browser reached the screen in 165 ms. For 300 ms after a key or a click
+(`DT_ANSWERMS`), output from the window that has the focus draws at once
+when that window says it has something new; any other window's output is
+still held. A terminal program answering 20 ms after a key showed in 77 ms
+before and 29 ms now.
+
+**X programs reach Blit's Xwayland.** When the compositor names an X
+display (`WINDOW display <wayland> <x>`), the desktop exports `DISPLAY` to
+everything it starts, beside `WAYLAND_DISPLAY`; when it says X is off, the
+`DISPLAY` the desktop was started with comes back.
+
 ## 0.99.485
 
 **Full Screen and Zoom over a program window tell the program** (Firefox's

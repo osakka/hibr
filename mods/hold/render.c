@@ -1001,7 +1001,11 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			g[1] = ic;
 			g[2] = irows;
 			g[3] = icols;
-			if (!hd_onclient(cn, g)) {
+			/* A picture out of view -- a program window minimised,
+			   on another workspace (Gitea #499): kept by the
+			   emulator covering no cells, so it loses its placement
+			   on every display and keeps its image there. */
+			if (irows < 1 || icols < 1 || !hd_onclient(cn, g)) {
 				hd_unshow(cn, id, out, nid, nhash, nlen, nbase,
 					  &nn, n);
 				continue;

@@ -63,14 +63,14 @@ open(p, "w").write(
     "tst_copy() { [ -f %s ] || return 0; local t k; { read -r t; read -r k; } < %s; rm -f %s; "
     "if [ \"$k\" = clear ]; then dt_natclipclear; else dt_clipset \"$t\" copy \"${k:-text}\"; fi; }\n"
     "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_open\n"
-    "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
+    "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
        MARK + ".quit", MARK + ".rs", MARK + ".rs", MARK + ".copy", MARK + ".copy",
        MARK + ".copy", MARK + ".env"))
 t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "lock"],
          env={"HIBR_GFX": "kitty", "BLIT_FRAME_SOCKET": "@" + nm,
               "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D,
-              "WAYLAND_DISPLAY": None})
+              "WAYLAND_DISPLAY": None, "DISPLAY": None})
 
 
 def scr():
@@ -104,6 +104,8 @@ check("the desktop starts the compositor on a socket of its own and answers "
 env0 = wait(lambda: os.path.exists(MARK + ".env") and open(MARK + ".env").read())
 check("its display is named before the desktop's first frame, so a program "
       "the desktop starts as it opens is given it", env0 and env0.startswith("stand-"), env0)
+check("and the X display it runs Xwayland on, as DISPLAY, for X11 programs "
+      "(Blit ADR 0228 phase 2)", env0 and env0.split()[-1:] == [":47"], env0)
 sc = wait(lambda: scr().find("Stand-in") and scr())
 check("the compositor's window opens as one of the desktop's, titled as the "
       "program titled it", sc and sc.find("Stand-in") is not None,
@@ -378,8 +380,12 @@ p2 = sx.scratch("native-held.hibr")
 open(p2, "w").write(
     "%s. %s\nDT_NATBIN=%s\nDT_SUPERVISE=off\n"
     "tst_quit() { [ -f %s ] && dt_quit; return 0; }\n"
-    "dt_ticker tst_quit\ndt_open\ndt_run\ndt_close\n"
-    % (load("console"), tree("programs/desktop/desktop.hibr"), wrap2, MARK2 + ".quit"))
+    "tst_mn() { local a n; for a in min raise; do [ -f %s.$a ] || continue; rm -f %s.$a; "
+    "for n in \"${!NWN[@]}\"; do if [ $a = min ]; then dt_min \"${NWN[$n]}\"; "
+    "else dt_raise \"${NWN[$n]}\"; fi; done; dt_want 30; done; return 0; }\n"
+    "dt_ticker tst_quit\ndt_ticker tst_mn\ndt_open\ndt_run\ndt_close\n"
+    % (load("console"), tree("programs/desktop/desktop.hibr"), wrap2, MARK2 + ".quit",
+       MARK2, MARK2))
 hn = "nath-%d" % os.getpid()
 henv = {"HIBR_GFX": "kitty", "TMPDIR": D, "XDG_RUNTIME_DIR": D}
 subprocess.run([sx.HIBR, "-c", load("hold") + 'hold new -d %s "$HIBR" %s' % (hn, p2)],
@@ -420,6 +426,28 @@ hsb = wait(lambda: hscr() and [m for m in re.findall(rb"\x1b_G(a=p[^;\x1b]*)", h
 check("and a subsurface drawn at its own size reaches the display through "
       "hold, which keeps it by the cells its pixels cover",
       hsb, [m[:90] for m in re.findall(rb"\x1b_G(a=p[^;\x1b]*)", ht.out)][-5:])
+# Minimised, the window's pictures lose their placements on the display and
+# keep their images and ids; raised, they are placed again under the same
+# ids, so the input route at Blit still names them. A held display was
+# never told before, and the window stayed on it unresponsive (#499).
+def hapc(c0):
+    return [m for m in re.findall(rb"\x1b_G(a=[pd][^;\x1b]*)", ht.out[c0:])]
+
+
+c0 = len(ht.out)
+open(MARK2 + ".min", "w").close()
+ht.keys([b"x"])
+gone = wait(lambda: hscr() and [m for m in hapc(c0) if m.startswith(b"a=d,d=i")], 6)
+c1 = len(ht.out)
+open(MARK2 + ".raise", "w").close()
+ht.keys([b"x"])
+back = wait(lambda: hscr() and [m for m in hapc(c1) if m.startswith(b"a=p")], 6)
+ids = lambda ms: {re.search(rb"i=(\d+)", m).group(1) for m in ms}
+check("held, a minimised program window leaves the display and keeps its "
+      "pictures, and raised it comes back under the same ids",
+      gone and back and ids(gone) <= ids(back) and
+      not [m for m in hapc(c0) if b"d=I" in m and ids([m]) <= ids(gone)],
+      (gone, back, [m for m in hapc(c0) if b"d=I" in m]))
 ns, nmb = len(hk("input", verb="sock")), len(hk("member"))
 up = subprocess.run([sx.HIBR, "-c", load("hold") + "hold upgrade %s" % hn],
                     env=dict(os.environ, **henv), capture_output=True, text=True, timeout=30)
@@ -513,4 +541,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(38)
+report(40)

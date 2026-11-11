@@ -552,6 +552,32 @@ fn dt_live(int id, on = "") {
 	return 0
 }
 
+# The answer to the person's own input is never held (Gitea #501): for
+# DT_ANSWERMS after a key or a click, a frame woken by output from the
+# window that has the focus -- the one the input went to -- draws at once,
+# where any other output is held to DT_TERMMS as ever. A typed key in the
+# Browser waited for the hold every time (165 ms to the screen, 2.5 ms of
+# it the desktop's own), and so did a terminal's echo. Which window's output
+# woke the frame is asked of the window itself: it reads what is waiting
+# (_idle) and says whether it has anything new (_dirty); one with no _dirty
+# counts as having something, for at most DT_ANSWERMS. A spinner in another
+# window stays held.
+DT_ANSWERMS="${DT_ANSWERMS-300}"
+DT_INAT=
+fn dt_answering(int now) {
+	[ -n "$DT_INAT" ] && [ $((now - DT_INAT)) -lt "$DT_ANSWERMS" ] && [ -n "$DT_FOCUS" ]
+}
+fn dt_answer(int now) {
+	local id=$DT_FOCUS ap
+
+	dt_answering "$now" || return 1
+	ap=${DT[$id]["app"]-}
+	[ -n "$ap" ] || return 1
+	dt_has "${ap}_idle" && "${ap}_idle" "$id"
+	dt_has "${ap}_dirty" || return 0
+	"${ap}_dirty" "$id"
+}
+
 # How far apart frames woken by output are held now: DT_TERMMS, or
 # DT_LIVEMS -- Control Panel > Desktop > Frames For Video -- while a live
 # window is on show, on this workspace and not hidden, since a video nobody
@@ -777,7 +803,8 @@ dt_run() {
 				[ "${#DT_LIVE[@]}" -gt 0 ] && hold := dt_holdms
 				if [ -z "$k" ] && [ "$frames" -gt 0 ] &&
 				   [ "$hold" -gt 0 ] &&
-				   [ $((now - lastdraw)) -lt "$hold" ]; then
+				   [ $((now - lastdraw)) -lt "$hold" ] &&
+				   ! dt_answer "$now"; then
 					dt_drain
 					# The wait is the hold's remainder and
 					# nothing shorter: no frame woken without
@@ -798,8 +825,12 @@ dt_run() {
 					# bytes keep in the pty's own buffer
 					# and the next drain takes the lot. A
 					# key, a click or a resize still ends
-					# the wait at once.
+					# the wait at once. Not while an answer
+					# to the person's own input may still
+					# come (dt_answer): then the wait listens,
+					# so that answer ends it.
 					DT_QWAIT=1
+					dt_answering "$now" && DT_QWAIT=
 				else
 					t0=${EPOCHREALTIME/./}
 					dt_draw
@@ -862,6 +893,12 @@ dt_run() {
 		read -r DT_SCHON DT_SCHWAIT _ 2> /dev/null < "/proc/$$/schedstat" ||
 			{ DT_SCHON=0; DT_SCHWAIT=0; }
 		DT_QWAIT=
+		# The person's input, for dt_answer: not a pointer only moving,
+		# which is sixty reports a second while it does.
+		case $k in
+		"" | "mouse "*"drag none "* | "mouse rel "*) ;;
+		*) DT_INAT := dt_ms ;;
+		esac
 		DT_STAT["wakes"]=$((${DT_STAT["wakes"]:-0} + 1))
 		[ -n "$k" ] && DT_STAT["events"]=$((${DT_STAT["events"]:-0} + 1))
 		# Why it woke: a key or report, a timer -- named for whoever

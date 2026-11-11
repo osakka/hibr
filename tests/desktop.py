@@ -8666,6 +8666,29 @@ check("a playing window on show holds output frames 33 ms apart, and hidden, "
       "set to 0 or stopped it is 70 again", got == ["70", "33", "70", "70", "70"],
       got)
 
+# The answer to a key is not held (Gitea #501): for DT_ANSWERMS after the
+# person's input, output from the focused window draws at once when that
+# window says it has something new, and not when it has nothing, when the
+# input was long ago, or when the output is another window's.
+ansf = scratch("answer-hold.txt")
+run('declare -gA ANS\n'
+    'ans_draw() { :; }\nans_idle() { ANS[$1]=read; }\n'
+    'ans_dirty() { [ "${ANS["new"]-}" = 1 ]; }\n'
+    'dt_new "Ans" 8 30 6 10 ans\ndt_new "Other" 8 30 6 50\n'
+    'n := dt_ms\nr=\n'
+    'DT_FOCUS=1 DT_INAT=$n ANS["new"]=1\n'
+    'dt_answer "$n" && r+=" yes" || r+=" no"; r+=":${ANS[1]-}"\n'
+    'ANS["new"]=0\ndt_answer "$n" && r+=" yes" || r+=" no"\n'
+    'ANS["new"]=1 DT_INAT=$((n - 1000))\ndt_answer "$n" && r+=" yes" || r+=" no"\n'
+    'DT_INAT=$n DT_FOCUS=2\ndt_answer "$n" && r+=" yes" || r+=" no"\n'
+    'printf "%s\\n" "$r" > ' + ansf + '\n')
+got = open(ansf).read().split() if os.path.exists(ansf) else None
+if os.path.exists(ansf):
+    os.unlink(ansf)
+check("the focused window's answer to a key draws at once, read first; not "
+      "when it has nothing new, the key was a second ago, or the output is "
+      "a window with no app", got == ["yes:read", "no", "no", "no"], got)
+
 # The Control Strip is off unless chosen (Gitea #393): with its modules
 # there and Show Control Strip off, there is no strip; a desktop whose
 # settings predate the change had one and keeps it, and is told where the
@@ -9492,4 +9515,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1034)
+report(1035)
