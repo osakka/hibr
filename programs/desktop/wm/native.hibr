@@ -72,6 +72,20 @@ command -v dt_keep > /dev/null && dt_keep DT_NATREMEMBER
 DT_NATPLFILE=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/places.json
 DT_NATPLREAD=
 declare -gA NPL
+# Which program windows may take the focus by themselves (Gitea #507):
+# expected, a new or asking window only when it is the focused window's own
+# program (the same app id), when nothing has the focus, or when you started
+# something in the last DT_NATLAUNCHS seconds -- from the menu, Files, a
+# file or a link, or enter in a terminal; always; or never, only by your
+# click. One refused is left where it is, with a note that brings it.
+# Control Panel > Windows > Programs Take Focus.
+DT_NATFOCUS="${DT_NATFOCUS-expected}"
+DT_NATFOCUSES=(expected always never)
+command -v dt_keep > /dev/null && dt_keep DT_NATFOCUS
+DT_NATLAUNCHS=5
+# When you last started something, in seconds: dt_launched sets it.
+DT_LAUNCHAT=0
+
 # A new window looks for the program's first picture often for this many
 # seconds, and once a second after: a frame arriving does not wake the
 # desktop, and a game can take far longer than this to draw.
@@ -417,9 +431,86 @@ dt_natevents() {
 			[ "$DT_FOCUS" = "$id" ] && DT_MENUIN=
 			;;
 		parent | hide) NW[$id]["$verb"]=$rest ;;
+		# A program asking for the focus (Blit 0.3.86): x-focus, x-active
+		# or xdg-activation; granted by raising it, refused by saying
+		# nothing, which Blit answers by keeping X's focus where it is.
+		activate) dt_natask "$id" "$DT_FOCUS" "$rest" ;;
 		esac
 	done <<< "$e"
+	dt_natnewfocus
 	dt_want 30
+	return 0
+}
+
+# You started something just now: from the menu, Files, a file or a link,
+# or enter in a terminal. A program window that opens or asks soon after is
+# taken to be what you started (Gitea #507).
+dt_launched() {
+	DT_LAUNCHAT=${EPOCHSECONDS:-0}
+}
+
+# Whether window id may take the focus from window pf by itself, as
+# Programs Take Focus says.
+fn dt_natmay(int id, pf = "") {
+	local ap p pid
+
+	case $DT_NATFOCUS in
+	always) return 0 ;;
+	never) return 1 ;;
+	esac
+	[ -z "$pf" ] || [ -z "${DT[$pf]["title"]-}" ] && return 0
+	[ $((${EPOCHSECONDS:-0} - DT_LAUNCHAT)) -le "$DT_NATLAUNCHS" ] && return 0
+	ap=${NW[$id]["appid"]-}
+	[ -n "$ap" ] && [ "${NW[$pf]["appid"]-}" = "$ap" ] && return 0
+	# A dialog of the focused program: its parent is the focused window,
+	# or a window of the same program -- an X transient often says no app
+	# id of its own.
+	p=${NW[$id]["parent"]:-${NW[$id]["par"]-}}
+	pid=
+	[ -n "$p" ] && [ "$p" != 0 ] && pid=${NWN["$p"]-}
+	if [ -n "$pid" ]; then
+		[ "$pid" = "$pf" ] && return 0
+		ap=${NW[$pid]["appid"]-}
+		[ -n "$ap" ] && [ "${NW[$pf]["appid"]-}" = "$ap" ] && return 0
+	fi
+	return 1
+}
+
+# A program window asking for the focus: raised when it may, or else a note
+# that brings it -- one a window every ten seconds, so a program asking over
+# and over is not a stream of them.
+fn dt_natask(int id, pf = "", why = "") {
+	local t now=${EPOCHSECONDS:-0}
+
+	[ "$id" = "$pf" ] && return 0
+	if dt_natmay "$id" "$pf"; then
+		dt_log "programs' windows: window $id takes the focus (${why:-asked})"
+		dt_raise "$id"
+		return 0
+	fi
+	dt_log "programs' windows: window $id asked for the focus (${why:-asked}); not given"
+	[ $((now - ${NW[$id]["attn"]:-0})) -lt 10 ] && return 0
+	NW[$id]["attn"]=$now
+	t := dt_tr "%s wants your attention" "${DT[$id]["title"]:-Program}"
+	dt_notifyp normal "$t" dt_raise "$id"
+	return 0
+}
+
+# New windows of this batch that may not keep the focus dt_new gave them:
+# the window that had it gets it back, and the new one a note.
+dt_natnewfocus() {
+	local id a pf
+
+	for id in "${!NW[@]}"; do
+		[ -n "${NW[$id]["askfocus"]-}" ] || continue
+		read -r a pf <<< "${NW[$id]["askfocus"]}"
+		NW[$id]["askfocus"]=
+		[ -n "${DT[$id]["title"]-}" ] || continue
+		dt_natmay "$id" "$pf" && continue
+		dt_log "programs' windows: window $id opened without the focus, which stays with $pf"
+		[ -n "${DT[$pf]["title"]-}" ] && dt_raise "$pf"
+		dt_natask "$id" "$pf" opened
+	done
 	return 0
 }
 
@@ -453,7 +544,7 @@ fn dt_natx(x = "") {
 # A window the compositor has opened: one of the desktop's, placed as a new
 # window is, the title the program gives it when it gives one.
 fn dt_natnew(int n, kind, rest = "") {
-	local pl r c h w id p b
+	local pl r c h w id p b pf
 
 	[ -z "${NWN["$n"]-}" ] || return 0
 	read -r p b <<< "$rest"
@@ -471,9 +562,13 @@ fn dt_natnew(int n, kind, rest = "") {
 	fi
 	pl := dt_place 20 72
 	read -r r c h w <<< "$pl"
+	pf=$DT_FOCUS
 	id := dt_new "Program" "${h:-20}" "${w:-72}" "${r:-2}" "${c:-4}" native "$n"
 	NW[$id]["bid"]=$b
 	NWN["$n"]=$id
+	# Whether it keeps the focus dt_new gave it is decided once its app id
+	# and title have come, at the end of this batch of news (Gitea #507).
+	NW[$id]["askfocus"]="1 $pf"
 	# Its size is the program's own (Gitea #508): it is told none until its
 	# first picture says what it chose, and the window is fitted to that.
 	# Only a window new to the desktop: one that comes back with a restart

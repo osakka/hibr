@@ -109,6 +109,7 @@ dt_openfile_confirmed() {
 fn dt_openfile(path) {
 	local ext
 
+	dt_has dt_launched && dt_launched
 	if [ -d "$path" ]; then
 		if dt_isbundle "$path"; then
 			dt_openwith "${DT_OWLIST[0]}" "$path"

@@ -651,6 +651,7 @@ fn dt_needs(app, f) {
 fn dt_openlink(u) {
 	local a
 
+	dt_has dt_launched && dt_launched
 	case $u in
 	mailto:*)
 		a=${u#mailto:}
@@ -676,6 +677,7 @@ fn dt_openlink(u) {
 fn dt_launch(n, arg = "") {
 	local h w sz id pl r c
 
+	dt_has dt_launched && dt_launched
 	# An app that is not here. Since 0.99.194 the package ships none,
 	# so this is the ordinary state of a fresh desktop rather than a
 	# corner -- and the window manager itself names **ten** apps by

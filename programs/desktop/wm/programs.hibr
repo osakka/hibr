@@ -255,6 +255,7 @@ fn prog_launch(arg = "") {
 	local cmd=${PM["$arg"]["cmd"]-} nm=${PM["$arg"]["name"]-} log
 
 	[ -n "$cmd" ] || return 0
+	dt_has dt_launched && dt_launched
 	if [ "${PM["$arg"]["term"]-}" = 1 ]; then
 		# Not DT_OPENSELF, which keeps the window to show what a file run
 		# from Files printed: a program from the menu does what Control

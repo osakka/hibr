@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.98",
+ "version": "3.99",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1633,6 +1633,8 @@
   "Put Back": "إرجاع",
   "X11 Programs": "برامج X11",
   "Show all of %s": "عرض كل %s",
-  "Remember Program Windows": "تذكّر نوافذ البرامج"
+  "Remember Program Windows": "تذكّر نوافذ البرامج",
+  "Programs Take Focus": "البرامج تأخذ التركيز",
+  "%s wants your attention": "%s يطلب انتباهك"
  }
 }

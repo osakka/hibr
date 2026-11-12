@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.503
+
+**Programs no longer take the keyboard from each other** (Gitea #507).
+Steam took the keys from a running game 2.8 seconds after the game had
+them. Control Panel > Windows > **Programs Take Focus**: *expected*, the
+default, gives a program's window the keys -- when it opens, or when it
+asks (Blit's `WINDOW activate`) -- only when it belongs to the program that
+has them (the same app id, or a dialog of it), when nothing has them, or
+when you started something in the last five seconds: from the menu, Files,
+a file or a link, or enter in a terminal. Otherwise it opens where it
+opens, the keys stay where they were, and a note says it wants your
+attention, which brings it when clicked. *always* and *never* are the other
+two. The frames module passes `activate` to the desktop, which it had
+dropped.
+
+**A confirm box over a program window answers its keys alone.** The
+program behind a confirm box or the screenshot chooser kept its input
+route and had every key typed into the box as well; it loses the route
+while one is up, as it already did under a menu.
+
 ## 0.99.502
 
 **The desktop starts on a Mac** (Gitea #503). With 0.99.500's message the

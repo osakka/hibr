@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.8
+app term "A shell in a window" 1.8.1
 # part: control-panel/terminal.hibr
 # modules: pty term
 
@@ -451,6 +451,9 @@ fn term_scroll(int id, key, int top) {
 fn term_key(int id, key) {
 	local t=${TW[$id]["t"]} h=${TW[$id]["h"]}
 
+	# Enter in a terminal may start a program, whose window may then take
+	# the focus (Programs Take Focus, Gitea #507).
+	[ "$key" = enter ] && dt_has dt_launched && dt_launched
 	if dt_has dt_keyis; then
 		if dt_keyis scrollup "$key"; then
 			term scroll "$t" $((h - 1))

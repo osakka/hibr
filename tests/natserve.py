@@ -291,6 +291,21 @@ while True:
         child = True
         for l in ("WINDOW new 8 7", "WINDOW title 8 Child", "WINDOW decor 8 server"):
             say(l)
+    if os.path.exists(LOG + ".other"):
+        # Another program's window: an app id of its own (Gitea #507).
+        os.unlink(LOG + ".other")
+        for l in ("WINDOW new 12 0", "WINDOW title 12 Other", "WINDOW appid 12 other.app",
+                  "WINDOW decor 12 server"):
+            say(l)
+    if os.path.exists(LOG + ".othergone"):
+        os.unlink(LOG + ".othergone")
+        size.pop(12, None)
+        say("WINDOW gone 12")
+    if os.path.exists(LOG + ".activate"):
+        # A program asking for the focus (Blit 0.3.86): "ID REASON".
+        w2 = open(LOG + ".activate").read().split()
+        os.unlink(LOG + ".activate")
+        say("WINDOW activate %s %s" % (w2[0], w2[1] if len(w2) > 1 else "x-active"))
     if not popup and os.path.exists(LOG + ".popup"):
         popup = True
         say("WINDOW popup 9 7 12 63")

@@ -1724,6 +1724,18 @@ placed, moved, sized, raised and closed by the desktop:
   only when you changed it; a program of one size only keeps its own, and
   a second window of a program is not stacked exactly on the first. What
   is remembered is `~/.local/state/hibr/places.json`.
+- **Focus:** a program's window does not take the keyboard from another
+  program by itself (Gitea #507). Control Panel > Windows > **Programs
+  Take Focus**, shown while Programs in Windows is on: *expected*, the
+  default, gives a window that opens or asks for the focus (Blit's
+  `WINDOW activate`) the keys only when it belongs to the program that has
+  them -- the same app id, or a dialog of it -- when nothing has them, or
+  when you started something in the last five seconds: from the menu,
+  Files, a file or a link, or enter in a terminal. Otherwise it stays
+  where it is, the keys stay where they were, and a note says it wants
+  your attention -- click it to bring it. *always* gives every window the
+  keys, *never* only your click. And while a menu, a bar pop-up, a confirm
+  box or the screenshot chooser is up the program behind it has no keys.
 
 Control Panel > Windows > **Programs in Windows** switches it, from the next
 start. A Restart Desktop leaves the compositor running, on the same socket:

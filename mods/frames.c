@@ -615,7 +615,9 @@ int fl_window(fl_srv *f, const char *m, size_t k)
 		   !strcmp(v.p, "minimize") || !strcmp(v.p, "hide") ||
 		   !strcmp(v.p, "cursor") || !strcmp(v.p, "lock") ||
 		   !strcmp(v.p, "move") || !strcmp(v.p, "resize") ||
-		   !strcmp(v.p, "menu")) {
+		   !strcmp(v.p, "menu") || !strcmp(v.p, "activate")) {
+		/* activate: a program asking for the focus (Blit 0.3.86), which
+		   the desktop grants or not (Gitea #507). */
 		fl_ev(f, v.p, t->n, r.p);
 	} else {
 		lg(HIBR_LDBG, "frames %u: WINDOW %s not known here", f->n, v.p);

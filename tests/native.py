@@ -70,11 +70,15 @@ open(p, "w").write(
     "else dt_raise \"${NWN[$n]}\"; fi; done; dt_want 30; done; return 0; }\n"
     "tst_copy() { [ -f %s ] || return 0; local t k; { read -r t; read -r k; } < %s; rm -f %s; "
     "if [ \"$k\" = clear ]; then dt_natclipclear; else dt_clipset \"$t\" copy \"${k:-text}\"; fi; }\n"
-    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_ticker tst_mn\ndt_ticker tst_x11\ndt_progload\ndt_open\n"
+    "tst_nf() { [ -f %s ] || return 0; local v; read -r v < %s; rm -f %s; DT_NATFOCUS=$v; "
+    "[ \"$v\" = launch ] && { DT_NATFOCUS=expected; dt_launched; }; return 0; }\n"
+    "tst_cf() { [ -f %s ] || return 0; rm -f %s; dt_confirm \"Sure?\" true; dt_want 30; }\n"
+    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_ticker tst_mn\ndt_ticker tst_x11\ndt_ticker tst_nf\ndt_ticker tst_cf\ndt_progload\ndt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
        MARK + ".quit", MARK + ".rs", MARK + ".rs", MARK, MARK, MARK, MARK, MARK, MARK + ".copy", MARK + ".copy",
-       MARK + ".copy", MARK + ".env"))
+       MARK + ".copy", MARK + ".nf", MARK + ".nf", MARK + ".nf", MARK + ".cf", MARK + ".cf",
+       MARK + ".env"))
 # The stand-in's app id has a desktop entry of its own, for the bar's name.
 os.makedirs(os.path.join(D, "share", "applications"))
 open(os.path.join(D, "share", "applications", "hibr.natserve.desktop"), "w").write(
@@ -234,6 +238,52 @@ gone = wait(lambda: scr().find("Child") is None)
 check("closing it asks the program, and the window goes when the program "
       "says it has", cl and gone and scr().find("Stand-in") is not None,
       (cl, scr()))
+
+# Programs Take Focus (Gitea #507). Steam took the keys from a running game
+# 2.8 s after the game had them. Another program's window that opens while
+# this one has the keys, with nothing started by the person just now, opens
+# without them and says so; asking for them later is the same; with Always,
+# or just after the person started something, it is given them.
+def lastsize(w):
+    ls = told("WINDOW size %d " % w)
+    return ls[-1].split() if ls else []
+
+
+open(complog + ".other", "w").close()
+t.keys([b"x"])
+oth = wait(lambda: told("WINDOW size 12 ") and scr().find("wants your attention") and scr())
+check("another program's window opening while one has the keys opens without "
+      "them, with a note that brings it, and the first keeps them",
+      oth and "activated" not in lastsize(12) and "activated" in lastsize(7),
+      (told("WINDOW size 12 "), lastsize(7), oth or scr()))
+open(complog + ".activate", "w").write("12 x-active\n")
+t.keys([b"x"])
+t.collect(0.6)
+check("and asking for them is refused the same way, X's focus left where it is",
+      "activated" not in lastsize(12) and "activated" in lastsize(7),
+      (lastsize(12), lastsize(7)))
+open(MARK + ".nf", "w").write("launch\n")
+t.keys([b"x"])
+wait(lambda: not os.path.exists(MARK + ".nf"), 4)
+open(complog + ".activate", "w").write("12 x-active\n")
+t.keys([b"x"])
+got = wait(lambda: "activated" in lastsize(12))
+check("just after the person started something it is given them",
+      got and "activated" not in lastsize(7), (lastsize(12), lastsize(7)))
+open(complog + ".othergone", "w").close()
+t.keys([b"x"])
+wait(lambda: scr().find("Other") is None)
+# A confirm box over a program window answers its keys itself: the window's
+# route goes off while it is up and comes back after (Blit's layer 2).
+noff = len(blitkind("input", verb="off"))
+non = len(blitkind("input", verb="on"))
+open(MARK + ".cf", "w").close()
+t.keys([b"x"])
+cfoff = wait(lambda: scr().find("Sure?") and len(blitkind("input", verb="off")) > noff)
+t.keys([b"n"])
+cfon = wait(lambda: scr().find("Sure?") is None and len(blitkind("input", verb="on")) > non)
+check("a confirm box over a program window takes its keys, and gives them back",
+      cfoff and cfon, (bool(cfoff), bool(cfon), scr()))
 
 c0 = len(t.out)
 open(complog + ".lock", "w").close()
@@ -791,4 +841,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(57)
+report(61)

@@ -12,7 +12,7 @@
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.11.1
+app windows "The Control Panel pane for how a window looks and where it opens" 1.11.2
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
@@ -20,6 +20,7 @@ fn cp_set_titlebar(int? id = "", value = "") { DT_TITLEBAR=$value; cp_save; }
 fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
 fn cp_set_btnstyle(int? id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
 fn cp_set_place(int? id = "", value = "") { DT_PLACE=$value; cp_save; }
+fn cp_set_natfocus(int? id = "", value = "") { DT_NATFOCUS=$value; cp_save; }
 fn cp_set_zoomfill(int? id = "", value = "") { DT_ZOOMFILL=$value; cp_save; }
 fn cp_set_fullend(int? id = "", value = "") { DT_FULLEND=$value; cp_save; }
 # How much of a picture wallpaper shows through a window, in tens.
@@ -91,6 +92,10 @@ fn windows_rows(int w) {
 		CP[$w][$n]["wtype"]=bool
 		CP[$w][$n]["val"]=off; [ "${DT_NATREMEMBER:-1}" = 1 ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=DT_NATREMEMBER; n=$((n + 1))
+		# Which program windows take the focus by themselves (Gitea #507).
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Programs Take Focus"
+		CP[$w][$n]["val"]="${DT_NATFOCUS:-expected}"; CP[$w][$n]["key"]=natfocus
+		n=$((n + 1))
 	fi
 	ret "$n"
 }
@@ -176,6 +181,8 @@ fn windows_do(int w, k, int dir) {
 	          DT_BTNSTYLE=$v ;;
 	place) v := cp_next "$DT_PLACE" "$dir" "${DT_PLACES[@]}"
 	       DT_PLACE=$v ;;
+	natfocus) v := cp_next "${DT_NATFOCUS:-expected}" "$dir" "${DT_NATFOCUSES[@]}"
+	          DT_NATFOCUS=$v ;;
 	zoomfill) v := cp_next "$DT_ZOOMFILL" "$dir" "${DT_ZOOMFILLS[@]}"
 	          DT_ZOOMFILL=$v ;;
 	fullend) v := cp_next "$DT_FULLEND" "$dir" "${DT_FULLENDS[@]}"
@@ -223,6 +230,7 @@ fn windows_drop(int w, int r, int c, k) {
 	          DT_POPNAMENEXT=dt_chromename
 	          dt_droplist "$w" "$r" "$c" cp_set_titlebar "${DT_TITLEBARS[@]}" ;;
 	place) dt_droplist "$w" "$r" "$c" cp_set_place "${DT_PLACES[@]}" ;;
+	natfocus) dt_droplist "$w" "$r" "$c" cp_set_natfocus "${DT_NATFOCUSES[@]}" ;;
 	zoomfill) dt_droplist "$w" "$r" "$c" cp_set_zoomfill "${DT_ZOOMFILLS[@]}" ;;
 	fullend) dt_droplist "$w" "$r" "$c" cp_set_fullend "${DT_FULLENDS[@]}" ;;
 	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
