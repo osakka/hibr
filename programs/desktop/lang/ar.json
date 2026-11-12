@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.1",
+ "version": "3.99.2",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -586,7 +586,6 @@
   "Keep it after the vault locks": "الاحتفاظ به بعد قفل الخزنة",
   "Keep the Screen Saver Away While Playing": "أبعد شاشة التوقف أثناء التشغيل",
   "Kept as a favourite: %s": "حُفظ في المفضلة: %s",
-  "Keyboard": "لوحة المفاتيح",
   "Kind:": "النوع:",
   "Known Networks": "الشبكات المعروفة",
   "Labelled %s": "صُنّف %s",
@@ -1636,6 +1635,8 @@
   "Remember Program Windows": "تذكّر نوافذ البرامج",
   "Programs Take Focus": "البرامج تأخذ التركيز",
   "%s wants your attention": "%s يطلب انتباهك",
-  "This window keeps its size": "تحافظ هذه النافذة على حجمها"
+  "This window keeps its size": "تحافظ هذه النافذة على حجمها",
+  "Terminals": "الطرفيات",
+  "What a key is and types: Blit Keyboard": "ما هو المفتاح وما يكتبه: لوحة مفاتيح Blit"
  }
 }

@@ -784,13 +784,17 @@ check("held, a minimised program window leaves the display and keeps its "
       gone and back and ids(gone) <= ids(back) and
       not [m for m in hapc(c0) if b"d=I" in m and ids([m]) <= ids(gone)],
       (gone, back, [m for m in hapc(c0) if b"d=I" in m]))
-ns, nmb = len(hk("input", verb="sock")), len(hk("member"))
+ns, nmb, nkp = len(hk("input", verb="sock")), len(hk("member")), len(hk("keep"))
 up = subprocess.run([sx.HIBR, "-c", load("hold") + "hold upgrade %s" % hn],
                     env=dict(os.environ, **henv), capture_output=True, text=True, timeout=30)
-again = wait(lambda: len(hk("input", verb="sock")) > ns and len(hk("member")) > nmb, 10)
-check("after `hold upgrade` both are said to the display's Blit again",
-      up.returncode == 0 and again, (up.stderr, len(hk("input", verb="sock")), ns,
-                                     len(hk("member")), nmb))
+again = wait(lambda: len(hk("input", verb="sock")) > ns and len(hk("member")) > nmb
+             and len(hk("keep")) > nkp, 10)
+# And the chords the desktop keeps (Gitea #530), which the old server held
+# in memory and the desktop says only when they change.
+check("after `hold upgrade` both are said to the display's Blit again, and "
+      "the chords the desktop keeps", up.returncode == 0 and again,
+      (up.stderr, len(hk("input", verb="sock")), ns, len(hk("member")), nmb,
+       len(hk("keep")), nkp))
 open(MARK2 + ".quit", "w").close()
 ht.keys([b"x"])
 wait(lambda: [x for x in lines(complog2) if x["kind"] == "quit"], 6)

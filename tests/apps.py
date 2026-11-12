@@ -432,7 +432,7 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + 'for p in "${CP_PANE_LIST[@]}"; '
 ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
-      ORDER == ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "power", "sound",
+      ORDER == ["bluetooth", "datetime", "displays", "mouse", "networks", "power", "sound",
                 "aboutme", "abouthibr", "adminaccess", "appearance", "menuedit", "cliphist",
                 "control_strip", "desktop", "filetypes", "language", "loginmgr",
                 "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
@@ -441,7 +441,7 @@ check("panes register and sort by title within their group, not load order",
                 "sheetset", "notes", "terminal", "vaultset", "webapps", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 8 + ["system"] * 21 + ["app"] * 13, out)
+      ["hardware"] * 7 + ["system"] * 21 + ["app"] * 13, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -479,7 +479,7 @@ TITLE = {"archiveset": "Archives", "aboutme": "About Me", "adminaccess": "Admini
          "network": "Servers", "networks": "Network", "power": "Power", "bluetooth": "Bluetooth", "prayerset": "Prayer Times", "vaultset": "Vault",
          "pictures": "Pictures",
          "screensaver": "Screen Saver",
-         "keyboard": "Keyboard", "mouse": "Mouse", "sound": "Sound",
+         "mouse": "Mouse", "sound": "Sound",
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About This",
          "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
@@ -1543,15 +1543,16 @@ sc = cprun(reach("mouse", "Titlebar Click") + [b"\x1b[C"])
 check("and it cycles through the other actions",
       "min" in brow(sc, "Titlebar Click"), sc)
 
-# Keyboard is the hardware pane: how keys reach a terminal window. Which
-# key does what is all in Shortcuts.
-sc = cprun(reach("keyboard", "Shortcuts in Terminals"))
-check("Keyboard holds Shortcuts in Terminals and Terminals Keep Ctrl+A-Z, "
-      "both on, and nothing to read but settings",
+# How keys reach a terminal window is Shortcuts' since hibr's Keyboard pane
+# was folded into it (Gitea #531): one Keyboard, Blit's, says what a key is,
+# and Shortcuts what combinations do.
+sc = cprun(reach("shortcuts", "Shortcuts in Terminals"))
+check("Shortcuts holds Shortcuts in Terminals and Terminals Keep Ctrl+A-Z, "
+      "both on, under a heading of their own",
       "[x]" in brow(sc, "Shortcuts in Terminals") and
       "[x]" in brow(sc, "Terminals Keep Ctrl+A-Z") and
-      sc.find("menu bar") is None, sc)
-sc = cprun(reach("keyboard", "Shortcuts in Terminals") + [b"\r"])
+      brow(sc, "Terminals") != "", sc)
+sc = cprun(reach("shortcuts", "Shortcuts in Terminals") + [b"\r"])
 check("and each can be switched off",
       "[ ]" in brow(sc, "Shortcuts in Terminals"), sc)
 check("the Terminal pane no longer has it",

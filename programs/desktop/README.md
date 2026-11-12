@@ -1531,7 +1531,7 @@ Right-click opens the terminal's own menu (Copy, Paste, Send Interrupt);
 shift-right-click opens it even when the program has the mouse.
 
 **A terminal gives the desktop its shortcuts back.** With Control Panel >
-Keyboard > Shortcuts in Terminals on, as it is by default, a shortcut the
+Shortcuts > Shortcuts in Terminals on, as it is by default, a shortcut the
 desktop or an app launcher has been given goes to the desktop even while a
 terminal has focus, so alt-tab cycles windows from inside one -- if it is a
 chord (ctrl or alt with a key) or a function key. A plain key -- `q`, `tab`,
@@ -2150,7 +2150,7 @@ Control Panel shows them dimmed.
 Every Blit glyph is named by its id and read from Blit's own catalogue,
 `/usr/lib/blit/fonts/icons/catalogue.json`, or from `wm/blit-glyphs.json`,
 generated from it by `tools/blitglyphs.py`, where the machine has none.
-**Shade** (the Window menu, a shortcut in Keyboard > Shortcuts, and
+**Shade** (the Window menu, a shortcut in Control Panel > Shortcuts, and
 Chalk's and Slate's shade box) rolls a window up to its title bar; its
 app is not drawn while it is, and its `_idle` still runs.
 
@@ -2391,7 +2391,7 @@ rather than piggybacking on either.
 A focused terminal gets every key except the Menu Bar key (`f10` unless
 changed), so a program inside can have `escape`; that key is the way back to
 the menu bar. Copy, Cut and Paste also stay the desktop's, and with Control
-Panel > Keyboard > Shortcuts in Terminals on, so do the other shortcuts --
+Panel > Shortcuts > Shortcuts in Terminals on, so do the other shortcuts --
 except ctrl with a letter while Terminals Keep Ctrl+A-Z is on.
 
 A new terminal's cursor is a block until the program inside sets its own with

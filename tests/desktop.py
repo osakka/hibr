@@ -4601,7 +4601,7 @@ PANEL = ('. %s/panel.hibr\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANE
 # what 0.99.126's regrouping made necessary: About This Computer and Task
 # Manager became the desktop's, Vault and Prayer Times the apps', and PIM
 # became Calendar & Contacts, so it sorts first among them now.
-ORDER = ["bluetooth", "datetime", "displays", "keyboard", "mouse", "networks", "power", "sound",
+ORDER = ["bluetooth", "datetime", "displays", "mouse", "networks", "power", "sound",
          "aboutme", "abouthibr", "adminaccess", "appearance", "menuedit", "cliphist", "control_strip",
          "desktop", "filetypes", "language", "loginmgr", "barset", "notify", "pictures",
          "screensaver", "network", "shortcuts", "taskmgr", "windows",
@@ -4934,16 +4934,18 @@ check("and it is set aside rather than overwritten",
 shutil.rmtree(CONFD, True)
 
 # ORDER.index("shortcuts") downs on the picker reaches Shortcuts; entering it
-# lands on its first row that is not a heading, Shortcut Key, and one down
-# from there, past the Desktop heading, is Menu Bar. The rows follow
-# DT_KEYORDER, read from wm/keys.hibr rather than counted here.
+# lands on its first row that is not a heading, Shortcut Key; the two
+# Terminals rows come next (Gitea #531), and the one after those, past the
+# Desktop heading, is Menu Bar. The rows follow DT_KEYORDER, read from
+# wm/keys.hibr rather than counted here.
+SCSKIP = 2
 KEYORDER = re.search(r"DT_KEYORDER=\(([^)]*)\)",
                      open(tree("programs/desktop/wm/keys.hibr")).read()
                      ).group(1).split()
 NKEYS = len(KEYORDER)
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
 sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
-              feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (KEYORDER.index("close") + 1)
+              feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (KEYORDER.index("close") + 1 + SCSKIP)
               + [b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
@@ -4962,12 +4964,12 @@ shutil.rmtree(CONF2, True)
 CALCSRC = '. %s/calc.hibr' % tree("programs/desktop/apps/Accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
 sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
-            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1),
+            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1 + SCSKIP),
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a registered app is listed with no shortcut by default",
       sc.find("Calculator") is not None, sc)
 sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
-            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1) + [b"\r", b"g"],
+            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1 + SCSKIP) + [b"\r", b"g"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a shortcut can be assigned to any app, not only the two defaults",
       sc.find("Calculator") is not None and

@@ -630,7 +630,6 @@ Keep in the List
 Keep it after the vault locks
 Keep the Screen Saver Away While Playing
 Kept as a favourite: %s
-Keyboard
 Kind:
 Known Networks
 Labelled %s
@@ -1211,6 +1210,7 @@ Task Manager
 Terminal
 Terminal Here Runs
 Terminal Here in Menu
+Terminals
 Terminals Keep Ctrl+A-Z
 Test
 Text
@@ -1380,6 +1380,7 @@ Wed
 Wednesday
 Week
 What a Page May Have
+What a key is and types: Blit Keyboard
 What it prints is the cell's value:
 Wheel Scrolls
 When the Engine Next Starts

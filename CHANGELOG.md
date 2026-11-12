@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.506
+
+**Keypad Enter and the keypad's arrows work again.** 0.99.504 asked the
+terminal for every key, and under that the keypad's Enter, its arrows with
+Num Lock off and F13 to F24 come as codes with no text, which the console
+dropped with the private-use ones: on Blit, keypad Enter did nothing. They
+are named as the keys they stand for now, modifiers and all.
+
+**One Keyboard, one Shortcuts** (Gitea #531, the owner's choice). hibr's
+Keyboard pane, which held only the two terminal switches, is folded into
+Shortcuts, under Terminals; Blit's Keyboard pane says what a key is and
+types, Shortcuts what combinations do, and under Blit Shortcuts' first line
+says so.
+
+**The chords kept from programs stay kept** (Gitea #530): after `hold
+upgrade` the console says them again on its new connection, since the
+server that held them is gone; and a binding Blit cannot spell -- a shifted
+symbol, a letter beyond US -- is left out of the set, where Blit would have
+refused the whole of it.
+
+
+**Two decisions written down for the owner's yes**, neither built yet:
+ADR 0056, an `inspect` module through which the language explains itself
+to tools such as hui-assistant (Gitea #532), and ADR 0057, a shortcut as
+the chords it is written as -- no Shortcut Key, no `mod-` placeholder, and
+Blit's own chords shown and refused.
+
 ## 0.99.505
 
 **Dragging a program window no longer drags the program along** (owner's

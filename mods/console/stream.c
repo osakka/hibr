@@ -341,6 +341,8 @@ int cn_dsend(sh *s, cn_dst *d)
 				if (cn_d3 < 0)
 					return 0;
 				cn_fdhook(cn_d3, cn_d3read, s);
+				if (cn_keepl)
+					hf->input(cn_d3, cn_keepl);
 			}
 			ok = hf->frame3(cn_d3, h, d->fds, d->n);
 		}
@@ -526,6 +528,12 @@ int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
 	return 1;
 }
 
+/* The chords the desktop keeps from programs, as last said (`INPUT keep`,
+   Gitea #530): said again on a new connection to hold, since the server
+   that knew them is gone after `hold upgrade` and the desktop says them
+   only when they change. */
+char *cn_keepl;
+
 /* Say one input route's line to every display's Blit: on the console's own
    frame socket where nothing is between, or on hold's frames connection,
    which hold passes to each display. 1 when it went. */
@@ -534,6 +542,10 @@ int cn_dsay(sh *s, const char *line)
 	const hf_api *hf;
 	int fd;
 
+	if (!strncmp(line, "INPUT keep", 10) && (line[10] == ' ' || !line[10])) {
+		free(cn_keepl);
+		cn_keepl = xs(line);
+	}
 	if (cn_imgfd == 1) {
 		hf = cn_hold(s);
 		if (!hf)
@@ -543,6 +555,8 @@ int cn_dsay(sh *s, const char *line)
 			if (cn_d3 < 0)
 				return 0;
 			cn_fdhook(cn_d3, cn_d3read, s);
+			if (cn_keepl && line != cn_keepl && strcmp(line, cn_keepl))
+				hf->input(cn_d3, cn_keepl);
 		}
 		return hf->input(cn_d3, line);
 	}

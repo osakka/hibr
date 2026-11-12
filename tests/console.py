@@ -452,8 +452,9 @@ KEYS2 = [b"\x1b[57444;9u", b"\x1b[57444;1:3u",
          b"\x1b[223;1;92u", b"\x1b[49;2;33u", b"\x1b[97;1;97u", b"\x1b[97;1:3u",
          b"\x1b[57400;1;49u", b"\x1b[97;5u",
          b"\x1b[57444;137u", b"\x1b[57444;129:3u", b"\x1b[99;133u",
-         b"\x1b[1572::99;5u", b"\x1b[1572;1;1572u", b"x"]
-K2SCRIPT = ('console open\nconsole flush\no=\nfor i in 1 2 3 4 5 6 7 8 9 10 11 12; do '
+         b"\x1b[1572::99;5u", b"\x1b[1572;1;1572u",
+         b"\x1b[57414;1u", b"\x1b[57417;5u", b"x"]
+K2SCRIPT = ('console open\nconsole flush\no=\nfor i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do '
             'k := console key 3000; o+="[$k]"; done\nconsole close\necho "K $o"\n')
 o, _ = run(K2SCRIPT, after=lambda t: [(t.collect(0.3), os.write(t.fd, k),
                                        t.collect(0.06)) for k in KEYS2],
@@ -474,7 +475,12 @@ check("num lock in the modifiers changes nothing: a Super tap, ctrl-c",
 # and only the base key (flag 4) says it is the C key: a chord is named by
 # its base key, and the letter typed alone is the letter.
 check("a chord is named by its base key on any layout, and the key alone "
-      "types its own letter", keys2.endswith("[ctrl-c][\u0624][x]"), keys2)
+      "types its own letter", "[ctrl-c][\u0624]" in keys2, keys2)
+# Keypad Enter and the keypad's arrows carry no text under report-all-keys,
+# and were dropped with the private-use codes (0.99.504): they are the keys
+# they stand for, modifiers and all.
+check("keypad Enter is enter and a keypad arrow an arrow",
+      keys2.endswith("[enter][ctrl-left][x]"), keys2)
 
 # An escape in the protocol's own form is an escape at once: the 50 ms the
 # decoder waits to tell a lone ESC from an alt chord is for the old form.
@@ -1053,4 +1059,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 130)
+report(len(WANT) + len(MWANT) + 131)

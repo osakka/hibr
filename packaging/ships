@@ -43,7 +43,6 @@ control-panel/datetime.hibr
 control-panel/desktop.hibr
 control-panel/displays.hibr
 control-panel/filetypes.hibr
-control-panel/keyboard.hibr
 control-panel/language.hibr
 control-panel/mouse.hibr
 control-panel/network.hibr

@@ -325,6 +325,16 @@ fn dt_keepchord(k) {
 	*-*) base=${n##*-}; mods=${n%-"$base"} ;;
 	esac
 	[ "$base" = menukey ] && base=menu
+	# Only a key Blit can spell: one it cannot -- a shifted symbol, a
+	# letter beyond US -- would have the whole set refused, so it is left
+	# out, and kept only from terminal windows.
+	case $base in
+	[a-z0-9] | "\`" | "-" | "=" | "[" | "]" | "\\" | ";" | "'" | "," | "." | "/") ;;
+	f[1-9] | f1[0-9] | f2[0-4]) ;;
+	up | down | left | right | home | end | pageup | pagedown | insert) ;;
+	delete | tab | enter | space | escape | backspace | print | menu) ;;
+	*) ret ""; return 0 ;;
+	esac
 	c=0 a=0 s=0 u=0 m=0
 	case $mods in *ctrl*) c=1 ;; esac
 	case $mods in *alt*) a=1 ;; esac

@@ -994,6 +994,25 @@ int cn_csiu(unsigned code, int m, str *o)
 		s_cat(o, mods[code - 57441]);
 		return 1;
 	}
+	/* The keypad's keys with no text, and F13 to F24, as kitty's report-all
+	   sends them: named as the keys they stand for. Dropped with the rest of
+	   the private-use codes, keypad Enter and the keypad's arrows did
+	   nothing once the console asked for every key (0.99.504). */
+	if (code >= 57414 && code <= 57426 && code != 57415 && code != 57416) {
+		static const char *const kp[] = { "enter", "", "", "left", "right",
+			"up", "down", "pageup", "pagedown", "home", "end", "insert",
+			"delete" };
+
+		cn_mods(o, m);
+		s_cat(o, kp[code - 57414]);
+		return 1;
+	}
+	if (code >= 57376 && code <= 57387) {
+		cn_mods(o, m);
+		s_cat(o, "f");
+		s_num(o, (long)(code - 57376 + 13));
+		return 1;
+	}
 	/* The Menu key, which only the kitty protocol can say (Gitea #520). */
 	if (code == 57363) {
 		if (b & 8)

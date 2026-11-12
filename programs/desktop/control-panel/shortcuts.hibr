@@ -14,7 +14,7 @@
 strict
 
 
-app shortcuts "The Control Panel pane for every shortcut in one list" 1.3
+app shortcuts "The Control Panel pane for every shortcut in one list" 1.3.1
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌘"
 
 # Shortcut Key's three choices, as the pane shows them and as DT_MOD
@@ -48,6 +48,16 @@ fn cp_set_dtmod(int? id = "", value = "") {
 fn shortcuts_do(int w, k, int dir) {
 	local v
 
+	# How keys reach a terminal window, folded in from the Keyboard pane
+	# there was (Gitea #531): the desktop's shortcuts there or not, and
+	# ctrl with a letter always the program's.
+	case $k in
+	DT_TERMKEEP | DT_TERMCTRL)
+		cp_toggle "$k"
+		cp_save
+		return 0
+		;;
+	esac
 	[ "$k" = DT_MOD ] || return 0
 	v := shortcuts_modlabel
 	v := cp_next "$v" "$dir" "${SC_MODLABELS[@]}"
@@ -130,9 +140,25 @@ fn shortcuts_rows(int w) {
 	local n=0 a names nl last
 
 	shortcuts_owners
+	# What a key is and types -- a role, a layout, the repeat -- is Blit's
+	# Keyboard pane's; this one is what combinations do (Gitea #531).
+	if [ -n "${BLIT_SERVER_PORT-}" ]; then
+		CP[$w][$n]["kind"]=head
+		CP[$w][$n]["text"]="What a key is and types: Blit Keyboard"
+		n=$((n + 1))
+	fi
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shortcut Key"
 	CP[$w][$n]["val"] := shortcuts_modlabel
 	CP[$w][$n]["key"]=DT_MOD; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Terminals"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shortcuts in Terminals"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMKEEP" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMKEEP; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Terminals Keep Ctrl+A-Z"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMCTRL" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMCTRL; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Desktop"; n=$((n + 1))
 	for a in "${DT_KEYORDER[@]}"; do
 		shortcuts_row "$w" "$n" "$a"
