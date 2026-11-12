@@ -111,6 +111,8 @@ fi
 /usr/include/hibr
 /usr/share/man/man1/hibr.1.gz
 /usr/share/man/man1/desktop.1.gz
+/usr/share/applications/hibr-open.desktop
+/usr/share/applications/hibr-mimeapps.list
 /usr/share/doc/hibr
 /usr/lib/systemd/system/hibr-login@.service
 /usr/share/polkit-1/actions/org.hibr.policy
