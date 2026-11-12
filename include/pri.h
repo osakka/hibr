@@ -194,6 +194,8 @@ struct mwalk {
 	int bix;
 	str d;
 };
+extern str m_ldwhy;
+int m_ldexe(str *out);
 void m_wstart(sh *s, struct mwalk *w, int bix);
 const char *m_wnext(struct mwalk *w);
 void m_wend(struct mwalk *w);

@@ -34,7 +34,14 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 A name containing a `/` is a path and is opened directly. Everything else is
 searched for: the current directory, then each entry of `HIBR_MODPATH`, then
 `$XDG_DATA_HOME/hibr/mods` (`~/.local/share/hibr/mods` when that is unset),
-then the system scope, `$HIBR_SYSDIR/mods`, then the install directory.
+then the system scope, `$HIBR_SYSDIR/mods`, then the install directory,
+and last `lib/hibr` beside the running shell's own `bin/hibr`, with links
+followed, when that is another folder -- so a Homebrew keg or a moved
+prefix still finds its own modules (Gitea #503). A module file that is
+found and will not load says why (`found and not loaded: ...`, the
+system's reason), rather than that it is not on the path, and `need`
+names a module on the path that would not load when nothing offers what
+it asked for.
 
 The system scope is where `catalogue --system` installs a module for every
 user of the machine ([0045](adr/0045-a-thing-has-a-scope.md)), so a person's

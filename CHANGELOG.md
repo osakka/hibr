@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.500
+
+**A module installed beside the shell is found, and one that will not load
+says why** (Gitea #503). On a Mac every module read "not found on the
+module path", the desktop's `need display` with it, although the module
+folder held them. The shell now also looks in `lib/hibr` beside its own
+`bin/hibr`, links followed, after the folder it was built for -- so a
+Homebrew keg or a moved prefix finds its own modules. And a module file
+that is there and will not load is no longer reported as missing: `mod
+load` says `found and not loaded` with the system's own reason, and `need`,
+when nothing offers what it asked for, names the module on the path that
+would not load -- which on the Mac had been the real answer all along,
+dropped on the way.
+
 ## 0.99.499
 
 **Program windows open at the program's own size** (Gitea #508). Every

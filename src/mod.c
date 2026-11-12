@@ -91,9 +91,15 @@ int m_hasso(const char *p)
 }
 
 /* Try one candidate path, reporting a miss at debug level. */
+/* Why a module file that is there would not load, from the walk last made
+   for `mod load`: a file found and refused is not a file missing, and
+   saying "not found" for both hid a Mac's real reason (Gitea #503). */
+str m_ldwhy;
+
 void *m_try(str *p, const char *dir, const char *nm, int addso)
 {
 	void *h;
+	const char *e;
 
 	p->n = 0;
 	if (p->p)
@@ -107,9 +113,59 @@ void *m_try(str *p, const char *dir, const char *nm, int addso)
 	if (addso)
 		s_cat(p, ".so");
 	h = dlopen(p->p, RTLD_NOW | RTLD_LOCAL);
-	if (!h)
-		lg(HIBR_LDBG, "mod: %s: %s", p->p, dlerror());
+	if (!h) {
+		e = dlerror();
+		lg(HIBR_LDBG, "mod: %s: %s", p->p, e ? e : "?");
+		if (!m_ldwhy.n && access(p->p, F_OK) == 0) {
+			if (e) {
+				s_cat(&m_ldwhy, e);
+			} else {
+				s_cat(&m_ldwhy, p->p);
+				s_cat(&m_ldwhy, ": cannot be loaded");
+			}
+		}
+	}
 	return h;
+}
+
+/* The module folder of the installed shell, worked out from where it is
+   running rather than where it was built for: `bin/hibr` beside
+   `lib/hibr`, symbolic links followed, so a Homebrew keg or a moved
+   prefix still finds its own modules (Gitea #503). Into out, status 1
+   when there is such a folder and it is not HIBR_MODDIR itself. */
+int m_ldexe(str *out)
+{
+	char *exe = sh_exe(), *real, *a, *b;
+	struct stat st;
+	int ok = 0;
+
+	if (!exe)
+		return 0;
+	real = realpath(exe, 0);
+	free(exe);
+	if (!real)
+		return 0;
+	a = strrchr(real, '/');
+	if (a) {
+		*a = 0;
+		b = strrchr(real, '/');
+		if (b) {
+			*b = 0;
+			s_cat(out, *real ? real : "/");
+			s_cat(out, "/lib/hibr");
+			ok = stat(out->p, &st) == 0 && S_ISDIR(st.st_mode);
+		}
+	}
+	free(real);
+	if (ok) {
+		real = realpath(HIBR_MODDIR, 0);
+		a = realpath(out->p, 0);
+		if (real && a && !strcmp(real, a))
+			ok = 0;
+		free(real);
+		free(a);
+	}
+	return ok;
 }
 
 /* Whether the current directory is left out of the module search: for
@@ -209,8 +265,9 @@ int m_sysdir(sh *s, str *out)
 
 /* One walk of the module search path, so the five places that search it
    cannot drift apart: the current directory unless root or planning,
-   each entry of $HIBR_MODPATH, the folder above, then HIBR_MODDIR. The
-   directory returned is valid until the next call.
+   each entry of $HIBR_MODPATH, the folder above, then HIBR_MODDIR, and
+   last the folder beside the running shell when that is another
+   (m_ldexe). The directory returned is valid until the next call.
 
    `bix` leaves the user's own folder out, and that asymmetry is the whole
    of ADR 0044: the autoload index is built by **any** command that is not
@@ -271,6 +328,11 @@ const char *m_wnext(struct mwalk *w)
 	case 4:
 		w->step = 5;
 		return HIBR_MODDIR;
+	case 5:
+		w->step = 6;
+		w->d.n = 0;
+		if (geteuid() != 0 && m_ldexe(&w->d))
+			return w->d.p;
 	}
 	return 0;
 }
@@ -319,9 +381,13 @@ int m_load(sh *s, const char *path)
 	int sfl, ok;
 
 	s_init(&p);
+	m_ldwhy.n = 0;
 	h = m_open(s, path, &p);
 	if (!h) {
-		lg(HIBR_LERR, "mod: %s: not found on the module path", path);
+		if (m_ldwhy.n)
+			lg(HIBR_LERR, "mod: %s: found and not loaded: %s", path, m_ldwhy.p);
+		else
+			lg(HIBR_LERR, "mod: %s: not found on the module path", path);
 		s_free(&p);
 		return HIBR_FAIL;
 	}
@@ -733,8 +799,18 @@ void m_pathin(str *o, const char *dir, const char *nm)
 void *m_descopen(const char *path, const hibr_mod **d)
 {
 	void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+	const char *e;
 
 	*d = h ? (const hibr_mod *)dlsym(h, "hibr_module") : 0;
+	if (!h && !m_ldwhy.n) {
+		e = dlerror();
+		if (e) {
+			s_cat(&m_ldwhy, e);
+		} else {
+			s_cat(&m_ldwhy, path);
+			s_cat(&m_ldwhy, ": cannot be loaded");
+		}
+	}
 	return h;
 }
 
@@ -1177,6 +1253,7 @@ int m_need(sh *s, const char *nm)
 		const char *d;
 
 		lg(HIBR_LDBG, "need %s walks the folders hibr_require walks", nm);
+		m_ldwhy.n = 0;
 		m_wstart(s, &w, 0);
 		while ((d = m_wnext(&w)))
 			if (m_seek(s, d, nm, 0)) {
@@ -1184,6 +1261,10 @@ int m_need(sh *s, const char *nm)
 				return HIBR_OK;
 			}
 		m_wend(&w);
+		/* A module that may have offered it and would not load is the
+		   likelier answer than none being there (Gitea #503). */
+		if (m_ldwhy.n)
+			lg(HIBR_LERR, "need %s: a module on the path would not load: %s", nm, m_ldwhy.p);
 	}
 	/* Not an interface anyone offers; it may simply be a module. */
 	return m_load(s, nm);
