@@ -1341,6 +1341,14 @@ fn dt_event(k) {
 		dt_mopen 0
 		return 0
 	fi
+	# The Start Menu key, a Super tap by default: the hibr menu with its
+	# search open (Gitea #516). Before the window, as Menu Bar is, so a
+	# terminal or a program cannot keep it.
+	if dt_keyis start "$k"; then
+		CS_ATTN=0
+		dt_startmenu
+		return 0
+	fi
 	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
 		DT_NOTEWIN=$DT_FOCUS
 		if dt_appcall "$DT_FOCUS" "${DT[$DT_FOCUS]["key"]}" "$k"; then

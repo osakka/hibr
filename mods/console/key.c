@@ -950,6 +950,15 @@ unsigned cn_ushift(unsigned c)
    gives one. */
 int cn_phases, cn_kev = 1;
 unsigned cn_kcode, cn_kbase, cn_kmods;
+/* A Super key pressed with nothing after it yet, by its code (left 57444,
+   right 57450): its release with nothing in between is a tap, `super`,
+   which the desktop opens its menu on (Gitea #516). Any other key or a
+   click in between makes it a chord's modifier instead. */
+unsigned cn_suptap;
+/* The text a key's event carries, kitty's flag 16: what it types on this
+   layout, AltGr's characters, a capital under caps lock, a keypad digit. */
+unsigned cn_ktext[4];
+int cn_ktn;
 
 /* A key in the kitty keyboard protocol's own form, `CSI code ; mods u`,
    named exactly as the bytes a terminal without the protocol would have
@@ -970,7 +979,17 @@ int cn_csiu(unsigned code, int m, str *o)
 	char e[8];
 	size_t n = 0, used = 0;
 	unsigned c = code;
+	int k;
 
+	/* The key's own text (flag 16), with no ctrl, alt or super held: what
+	   it types is what the layout says, not a guess from a US table. */
+	if (cn_ktn > 0 && !(b & 14)) {
+		for (k = 0; k < cn_ktn; k++) {
+			n = cn_u8put(e, cn_ktext[k]);
+			s_add(o, e, n);
+		}
+		return 1;
+	}
 	if (cn_phases && code >= 57441 && code <= 57452) {
 		s_cat(o, mods[code - 57441]);
 		return 1;
@@ -1040,6 +1059,7 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 {
 	unsigned cp;
 	int l, np = 0, par[4], i, sub = 0, ev = 0, ki = 0;
+	unsigned kc;
 	long ks[3] = { 0, 0, 0 };
 	const char *nm;
 
@@ -1049,6 +1069,7 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 	cn_kcode = 0;
 	cn_kbase = 0;
 	cn_kmods = 0;
+	cn_ktn = 0;
 	if ((unsigned char)p[0] != 27) {
 		if ((unsigned char)p[0] < 32 || (unsigned char)p[0] == 127) {
 			cn_ctrl(o, (unsigned char)p[0]);
@@ -1124,7 +1145,7 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 					ev = ev * 10 + (p[i] - '0');
 				else if (sub && np == 0)
 					ks[ki] = ks[ki] * 10 + (p[i] - '0');
-				else if (!sub && np < 4)
+				else if ((!sub || np == 2) && np < 4)
 					par[np] = par[np] * 10 + (p[i] - '0');
 				i++;
 				continue;
@@ -1140,6 +1161,10 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 				sub = 1;
 				if (np == 0 && ki < 2)
 					ki++;
+				if (np == 2 && cn_ktn < 4)
+					cn_ktext[cn_ktn++] = (unsigned)par[2];
+				if (np == 2)
+					par[2] = 0;
 				i++;
 				continue;
 			}
@@ -1148,6 +1173,27 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		if (i >= (int)n)
 			return 0;
 		np++;
+		/* Super pressed and let go with nothing between: a tap. Its
+		   press and a repeat are held, its release says `super`. */
+		if (!cn_phases && p[1] == '[' && p[i] == 'u' &&
+		    (par[0] == 57444 || par[0] == 57450)) {
+			*used = (size_t)i + 1;
+			if (ev == 3) {
+				if (cn_suptap == (unsigned)par[0]) {
+					cn_suptap = 0;
+					s_cat(o, "super");
+					return 1;
+				}
+				return 2;
+			}
+			if (ev != 2)
+				cn_suptap = (unsigned)par[0];
+			return 2;
+		}
+		/* Another modifier pressed with it: a chord, not a tap. */
+		if (p[1] == '[' && p[i] == 'u' && par[0] >= 57441 &&
+		    par[0] <= 57452 && ev != 3)
+			cn_suptap = 0;
 		/* A key's release, which only a terminal asked for event
 		   types sends (kitty flag 2), is nothing to report unless a
 		   window asked for phases (Gitea #485). */
@@ -1157,7 +1203,18 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		}
 		if (p[1] == '[' && p[i] == 'u') {
 			*used = (size_t)i + 1;
-			l = cn_csiu((unsigned)par[0], np > 1 ? par[1] : 0, o);
+			if (np > 2 && par[2] > 0 && cn_ktn < 4)
+				cn_ktext[cn_ktn++] = (unsigned)par[2];
+			/* A chord is named by its base key (kitty flag 4) where
+			   the terminal gives one: on an Arabic layout Ctrl+C
+			   arrives as the layout's own letter, and only the base
+			   says it is the C key, so a shortcut is the same in
+			   every layout. Text is still the key's own. */
+			kc = (unsigned)par[0];
+			if (np > 1 && par[1] > 0 && ((par[1] - 1) & 14) && ks[2] > 0)
+				kc = (unsigned)ks[2];
+			l = cn_csiu(kc, np > 1 ? par[1] : 0, o);
+			cn_ktn = 0;
 			cn_kcode = (unsigned)par[0];
 			cn_kbase = (unsigned)ks[2];
 			cn_kev = ev ? ev : 1;
@@ -1232,12 +1289,15 @@ static int cn_hovernext(void)
 	str nx;
 	size_t used = 0;
 	int r, h;
+	unsigned tap;
 
 	if (cn_pend.n <= (size_t)cn_pendo)
 		return 0;
 	s_init(&nx);
+	tap = cn_suptap;
 	r = cn_dec(cn_pend.p + cn_pendo, cn_pend.n - (size_t)cn_pendo, &nx,
 		   &used, 0);
+	cn_suptap = tap;
 	h = r == 1 && cn_ishover(nx.p, nx.n);
 	s_free(&nx);
 	return h;
@@ -1288,6 +1348,11 @@ int cn_key(int ms, str *out)
 				   waited);
 			if (r == 1) {
 				cn_eat(used);
+				/* A key or a click after a Super press makes it a
+				   chord's; the pointer only moving does not. */
+				if (cn_suptap && !cn_ishover(out->p, out->n) &&
+				    !(out->n == 5 && !memcmp(out->p, "super", 5)))
+					cn_suptap = 0;
 				/* A run of hovers already read is one: only where
 				   the pointer ends up is news, and a terminal that
 				   reports in pixels sends one for every pixel

@@ -254,6 +254,33 @@ void fl_say(fl_srv *f, const char *line)
 #endif
 }
 
+/* Say a line that must arrive, waiting up to ms for room on the socket: the
+   compositor's quit, which dropped on a full buffer left it waiting a
+   minute for a desktop that had gone, with its programs open. */
+void fl_sayw(fl_srv *f, const char *line, int ms)
+{
+#ifdef __linux__
+	int fd = fl_cfd(f);
+	struct pollfd pf;
+
+	if (fd < 0) {
+		lg(HIBR_LWRN, "frames %u: no compositor connected to say: %s", f->n, line);
+		return;
+	}
+	pf.fd = fd;
+	pf.events = POLLOUT;
+	pf.revents = 0;
+	while (poll(&pf, 1, ms) < 0 && errno == EINTR)
+		;
+	if (send(fd, line, strlen(line), MSG_NOSIGNAL | MSG_DONTWAIT) < 0)
+		lg(HIBR_LWRN, "frames %u: could not say %s", f->n, strerror(errno));
+#else
+	(void)f;
+	(void)line;
+	(void)ms;
+#endif
+}
+
 /* A line of news for the desktop, from a compositor's server; waking it is
    the reader's to ask. */
 void fl_ev(fl_srv *f, const char *verb, unsigned n, const char *rest)
@@ -1457,7 +1484,7 @@ int m_frames(sh *s, int ac, char **av)
 				return 2;
 			}
 			fl_wfmt(&o, "WINDOW", "quit", 0, "");
-			fl_say(f, o.p);
+			fl_sayw(f, o.p, 1000);
 			s_free(&o);
 			return HIBR_OK;
 		}

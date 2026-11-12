@@ -217,7 +217,11 @@ def framebox(sc, title):
 pbox = framebox(scr(), "Stand-in")
 open(complog + ".child", "w").close()
 t.keys([b"x"])
-ch = wait(lambda: scr().find("Child") and scr())
+# The whole frame, both corners: a screen read while the dialog's title row
+# was still being drawn found no right corner, and a width of -21 failed a
+# dialog that was centred (Gitea #527).
+ch = wait(lambda: scr().find("Child") and (framebox(scr(), "Child") or (0, 0, 0, 0))[3] > 0
+          and scr())
 # A window with a parent -- a dialog -- opens centred on it (Gitea #508).
 cbox = framebox(ch, "Child")
 check("a program's dialog opens centred on its parent window",
@@ -275,6 +279,12 @@ t.keys([b"x"])
 wait(lambda: scr().find("Other") is None)
 # A confirm box over a program window answers its keys itself: the window's
 # route goes off while it is up and comes back after (Blit's layer 2).
+# The stand-in's window is given the keys first: which window has them once
+# the other program's has gone depends on timing, and with none there is no
+# route to take.
+open(MARK + ".raise", "w").close()
+t.keys([b"x"])
+wait(lambda: not os.path.exists(MARK + ".raise") and "activated" in lastsize(7))
 noff = len(blitkind("input", verb="off"))
 non = len(blitkind("input", verb="on"))
 open(MARK + ".cf", "w").close()
@@ -331,6 +341,27 @@ check("a popup its program moves is placed again at the new place, and its "
 open(complog + ".popmove", "w").write("12 63\n")
 t.keys([b"x"])
 wait(lambda: popat() == at0 and popat())
+# A popup's own sub -- what Firefox draws a menu's contents into -- and a
+# popup of a popup, a submenu (Gitea #528): each is a member of the
+# window's route at its offset added down to the window, and each is drawn,
+# the sub in its popup's pane and the submenu as a pane of its own.
+open(complog + ".popsub", "w").close()
+t.keys([b"x"])
+m13 = wait(lambda: [x for x in blitkind("member", top=cid) if x["x"] == 16 and x["y"] == 67])
+m14 = wait(lambda: [x for x in blitkind("member", top=cid) if x["x"] == 32 and x["y"] == 73])
+check("a popup's sub and a popup of a popup join the window's route at their "
+      "places added down to the window", m13 and m14,
+      [x for x in lines(blitlog) if x["kind"] == "member"][-5:])
+i13 = m13[-1]["id"] if m13 else None
+i14 = m14[-1]["id"] if m14 else None
+drawn = wait(lambda: i13 and i14 and scr() and ("i=%d," % i13).encode() in t.out and
+             [1 for r, c, ctrl in scr().kplace if ("i=%d," % i14) in ctrl])
+check("and both are drawn: the sub in its popup, the submenu over it",
+      drawn, (i13, i14, [m for m in re.findall(rb"\x1b_G([^;\x1b]*)", t.out) if b"a=p" in m][-5:]))
+open(complog + ".popsubgone", "w").close()
+t.keys([b"x"])
+wait(lambda: told("WINDOW size 7 ") and not [1 for r, c, ctrl in scr().kplace
+                                             if i14 and ("i=%d," % i14) in ctrl][-1:])
 sc = scr()
 st = sc.find("Stand-in")
 wr = st[0] if st else 0
@@ -596,7 +627,10 @@ open(MARK + ".quit", "w").close()
 t.keys([b"x"])
 q = wait(lambda: comp("quit"))
 t.quit(None, 0.5)
-check("quitting the desktop ends the compositor at once", q, comp()[-3:])
+check("quitting the desktop ends the compositor at once", q,
+      (comp()[-3:], [l for l in open(t.log).read().split("\n")
+                     if "compositor" in l or "frames" in l][-6:]
+       if os.path.exists(t.log) else "no desktop.log"))
 blit.terminate()
 blit.wait()
 
@@ -841,4 +875,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(61)
+report(63)

@@ -205,11 +205,18 @@ Modifiers prefix the name in a fixed order — `ctrl-`, then `alt-`, then
 front of all of them, `super-c` or `super-ctrl-up`: only a terminal that
 speaks the kitty keyboard protocol can send it. The console asks
 (`CSI ? u`) when it opens, and a terminal that answers is asked to tell
-chords apart (`CSI > 1 u`) and given its own flags back at `console
-close`. Every key such a terminal sends is named exactly as the old form
-of the same key would be, so a program reading names sees no difference
-but `super-`; caps lock and num lock never change a name, and a key's
-release is not reported. A printable character
+chords apart, report every key with its release, its base key and its text
+(`CSI > 31 u`: flags 1, 2, 4, 8 and 16), and given its own flags back at
+`console close`. Every key such a terminal sends is named exactly as the
+old form of the same key would be, so a program reading names sees no
+difference but `super-`; a key that carries text with no ctrl, alt or
+super held is that text, so AltGr's characters, a capital under caps lock
+and a keypad digit are what the layout says rather than a guess from a US
+table; caps lock and num lock never change a name, and a key's release is
+not reported. A chord is named by its base key where the terminal gives one,
+so Ctrl+C is `ctrl-c` on any layout. A Super pressed and let go with nothing between is a key of
+its own, `super` (Gitea #516); with a key or another modifier between it is
+that chord's. A printable character
 comes back as itself, including multi-byte ones: `é` is one key, and the
 space bar is `" "`, not `space`.
 

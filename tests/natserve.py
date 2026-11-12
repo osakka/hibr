@@ -310,6 +310,19 @@ while True:
         popup = True
         say("WINDOW popup 9 7 12 63")
         size[9] = (80, 60)
+    if popup and os.path.exists(LOG + ".popsub"):
+        # A popup's own sub, as Firefox draws a menu's contents, and a popup
+        # of the popup, a submenu (Gitea #528, Blit 0.3.92).
+        os.unlink(LOG + ".popsub")
+        say("WINDOW sub 13 9 4 4 40 32 above")
+        say("WINDOW popup 14 9 20 10")
+        size[13] = (40, 32)
+        size[14] = (48, 40)
+    if os.path.exists(LOG + ".popsubgone"):
+        os.unlink(LOG + ".popsubgone")
+        for wid in (13, 14):
+            size.pop(wid, None)
+            say("WINDOW gone %d" % wid)
     if popup and os.path.exists(LOG + ".popmove"):
         # The program moving its popup after it is shown (xdg_popup
         # reposition, or an X menu moved): the same line again, the same

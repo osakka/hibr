@@ -3302,6 +3302,18 @@ shutil.rmtree(d, True)
 
 # --- breaks, saved settings, and a session that outlives its terminal ----
 
+# A Super (a Chromebook's Search) tapped alone is the Start Menu key: the
+# hibr menu, its search taking what is typed, and the tap again shuts it
+# (Gitea #516). Sent as the kitty protocol's report-all-keys says it.
+TAP = b"\x1b[57444;9u\x1b[57444;1:3u"
+sc, raw = run(ONE, feed=[TAP, b"s", b"c", b"r", 0.4])
+# The last frame is after the harness's own quit keys, which the search
+# takes as well, so the line is read from its start.
+check("a Super tap opens the hibr menu with its search, which takes what is "
+      "typed", sc.find("/ scr") is not None, sc)
+sc, raw = run(ONE, feed=[TAP, 0.3, TAP, 0.4])
+check("and a second tap shuts it", sc.find("Screen Saver") is None and
+      sc.find("Restart Desktop") is None, sc)
 sc, raw = run(ONE, feed=[b"\x03", b"\x1c", b"\x1a", b"\x1b[21~"])
 check("ctrl-c, ctrl-\\ and ctrl-z are keys, not the end of the desktop",
       sc.find("Screen Saver") is not None and sc.status == 0, sc)
@@ -9690,4 +9702,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1052)
+report(1054)

@@ -432,13 +432,50 @@ check("kitty keyboard keys are named as before, super in front, caps lock "
       keys == "[super-c][ctrl-c][ctrl-c][escape][alt-c][alt-A][super-up]"
               "[shift-tab][alt-enter][x]", keys)
 check("a terminal that answers the keyboard query is asked to tell chords "
-      "apart, once, and given its flags back at close",
-      o.count(b"\x1b[>1u") == 1 and o.count(b"\x1b[<u") == 1
-      and o.index(b"\x1b[>1u") < o.index(b"\x1b[<u"), o[-200:])
+      "apart and report every key with its base key and text (flags 1, 2, 4, 8 and 16), "
+      "once, and given its flags back at close",
+      o.count(b"\x1b[>31u") == 1 and o.count(b"\x1b[<u") == 1
+      and o.index(b"\x1b[>31u") < o.index(b"\x1b[<u"), o[-200:])
 o, keys = keyrun([])
 check("one that does not answer is never sent the push, and still reads "
-      "such keys if they come", b"\x1b[>1u" not in o and b"\x1b[<u" not in o
+      "such keys if they come", b"\x1b[>31u" not in o and b"\x1b[<u" not in o
       and keys.startswith("[super-c][ctrl-c]"), (keys, o[-120:]))
+# With report-all-keys (flag 8) and associated text (flag 16), which the
+# console asks for since #516 (Blit 0.3.89 speaks both): a Super pressed and
+# let go with nothing between is a key of its own, `super`; with a key or
+# another modifier between it is that chord's, and its release says nothing.
+# A key's text is what it types -- AltGr's backslash, Shift+1's `!` on this
+# layout, a keypad digit -- and a chord carries none, so it is named as ever.
+KEYS2 = [b"\x1b[57444;9u", b"\x1b[57444;1:3u",
+         b"\x1b[57444;9u", b"\x1b[97;9u", b"\x1b[57444;1:3u",
+         b"\x1b[57444;9u", b"\x1b[57441;10u", b"\x1b[57441;9:3u", b"\x1b[57444;1:3u",
+         b"\x1b[223;1;92u", b"\x1b[49;2;33u", b"\x1b[97;1;97u", b"\x1b[97;1:3u",
+         b"\x1b[57400;1;49u", b"\x1b[97;5u",
+         b"\x1b[57444;137u", b"\x1b[57444;129:3u", b"\x1b[99;133u",
+         b"\x1b[1572::99;5u", b"\x1b[1572;1;1572u", b"x"]
+K2SCRIPT = ('console open\nconsole flush\no=\nfor i in 1 2 3 4 5 6 7 8 9 10 11 12; do '
+            'k := console key 3000; o+="[$k]"; done\nconsole close\necho "K $o"\n')
+o, _ = run(K2SCRIPT, after=lambda t: [(t.collect(0.3), os.write(t.fd, k),
+                                       t.collect(0.06)) for k in KEYS2],
+           wait=3.0, caps=["kbd"])
+m = re.search(rb"K (\S*)", o)
+keys2 = m.group(1).decode() if m else ""
+check("a Super tapped alone is a key of its own, and pressed with a key or "
+      "another modifier it is that chord's", keys2.startswith("[super][super-a][\\]"),
+      keys2)
+check("a key's own text is what it types: AltGr's backslash, Shift+1's !, a "
+      "letter, a keypad digit; a chord, with none, is named as ever",
+      keys2.startswith("[super][super-a][\\][!][a][1][ctrl-a]"), keys2)
+# Num lock (128) and caps lock (64) ride in the modifiers under flag 8:
+# with num lock on a tap is still a tap and ctrl+c still ctrl-c.
+check("num lock in the modifiers changes nothing: a Super tap, ctrl-c",
+      "[super][ctrl-c][ctrl-c]" in keys2, keys2)
+# On an Arabic layout Ctrl+C arrives as the layout's own letter (U+0624),
+# and only the base key (flag 4) says it is the C key: a chord is named by
+# its base key, and the letter typed alone is the letter.
+check("a chord is named by its base key on any layout, and the key alone "
+      "types its own letter", keys2.endswith("[ctrl-c][\u0624][x]"), keys2)
+
 # An escape in the protocol's own form is an escape at once: the 50 ms the
 # decoder waits to tell a lone ESC from an alt chord is for the old form.
 o, _ = run('console open\nconsole flush\na=${EPOCHREALTIME/./}\n'
@@ -1016,4 +1053,4 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 126)
+report(len(WANT) + len(MWANT) + 130)

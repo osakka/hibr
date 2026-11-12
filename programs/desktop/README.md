@@ -82,6 +82,14 @@ keeps it. Super reaches the desktop only from a terminal that speaks the
 kitty keyboard protocol, which the console asks for and `hold` passes on
 to each display that answers.
 
+**A Super tap is the start menu** (Gitea #516): Super -- a Chromebook's
+Search key -- pressed and let go alone opens the hibr menu with its search
+ready, so typing finds an application, and a second tap shuts it. It is
+Start Menu in Control Panel > Shortcuts, `super` by default, and works over
+a terminal or a program window as Menu Bar does. A terminal says a lone
+tap only where it speaks the kitty keyboard protocol's report-all-keys --
+Blit 0.3.89 and later, kitty, foot, WezTerm; anywhere else F10 is the way.
+
 **Where a new window goes** is Control Panel > Windows > Placement, on
 the display the mouse was last on (Gitea #509) -- the primary before the
 mouse has been seen. **smart**, the default, puts it in the spot nearest
@@ -1693,8 +1701,11 @@ placed, moved, sized, raised and closed by the desktop:
 - **Subsurfaces:** what a program draws into a surface of its own inside
   its window -- Firefox's page, a video -- is a picture of its own at its
   own pixels, over the window's or under it as the program stacks it, cut
-  to the window, and the pointer over it reaches it. Not drawn where the
-  display takes no pictures by descriptor. On a screen made of two
+  to the window, and the pointer over it reaches it. A popup's own
+  surfaces are drawn in the popup, and a popup of a popup -- a submenu --
+  over it (Gitea #528): Firefox draws its menus' contents that way, and
+  they were empty until Blit 0.3.92 sent them and this drew them. Not
+  drawn where the display takes no pictures by descriptor. On a screen made of two
   displays, one straddling their seam shows on both, each its own part.
 - **The clipboard:** a program's copy is the desktop's clipboard -- in its
   history, and the real terminal's -- and the desktop's copy is what a

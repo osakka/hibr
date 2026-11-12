@@ -742,14 +742,25 @@ fn dt_natkeep(int id) {
 # and its picture joined to the parent's input route, so the pointer over
 # it reaches the program as a point of the parent's.
 fn dt_natpopup(int n, rest = "") {
-	local p x y pid
+	local p x y pid d=0 qx qy qd
 
 	read -r p x y <<< "$rest"
+	x=${x:-0}
+	y=${y:-0}
 	pid=${NWN["$p"]-}
+	# A popup of a popup -- a submenu (Gitea #528): its place is in the
+	# parent popup's pixels, so it is kept in the top-level's, the
+	# parent's own offset added, one deeper so it stacks above it.
+	if [ -z "$pid" ] && [ -n "${NWP["$p"]-}" ]; then
+		read -r pid qx qy qd <<< "${NWP["$p"]}"
+		x=$((qx + x))
+		y=$((qy + y))
+		d=$((${qd:-0} + 1))
+	fi
 	[ -n "$pid" ] || return 0
-	NWP["$n"]="$pid ${x:-0} ${y:-0}"
+	NWP["$n"]="$pid $x $y $d"
 	NW[$pid]["popkey"]=
-	frames input "$n" member "$p" "${x:-0}" "${y:-0}" 2> /dev/null
+	frames input "$n" member "${NW[$pid]["n"]}" "$x" "$y" 2> /dev/null
 	return 0
 }
 
@@ -758,14 +769,21 @@ fn dt_natpopup(int n, rest = "") {
 # its place, as a popup's is, so the pointer over it reaches the program as
 # a point of the window's. One of a popup is not shown in this release.
 fn dt_natsub(int n, rest = "") {
-	local p x y w h ab pid
+	local p x y w h ab pid pop= qx=0 qy=0 qd
 
 	read -r p x y w h ab <<< "$rest"
 	pid=${NWN["$p"]-}
+	# A popup's own sub -- what Firefox draws a menu's contents into
+	# (Gitea #528): placed in the popup's pane, and a member of the
+	# top-level's route at the popup's offset and its own together.
+	if [ -z "$pid" ] && [ -n "${NWP["$p"]-}" ]; then
+		read -r pid qx qy qd <<< "${NWP["$p"]}"
+		pop=$p
+	fi
 	[ -n "$pid" ] || return 0
-	NWS["$n"]="$pid ${x:-0} ${y:-0} ${w:-0} ${h:-0} ${ab:-above}"
+	NWS["$n"]="$pid ${x:-0} ${y:-0} ${w:-0} ${h:-0} ${ab:-above} $pop"
 	NW[$pid]["popkey"]=
-	frames input "$n" member "$p" "${x:-0}" "${y:-0}" 2> /dev/null
+	frames input "$n" member "${NW[$pid]["n"]}" $((qx + ${x:-0})) $((qy + ${y:-0})) 2> /dev/null
 	dt_want 30
 	return 0
 }
@@ -785,9 +803,11 @@ fn dt_natsubgone(int n) {
 # so each is given the window's body as the window's own picture is.
 fn dt_natsubs(int id, int o, int h, int w) {
 	local n
+	local -a f
 
 	for n in "${!NWS[@]}"; do
-		[ "${NWS["$n"]%% *}" = "$id" ] || continue
+		read -ra f <<< "${NWS["$n"]}"
+		[ "${f[0]}" = "$id" ] && [ -z "${f[6]-}" ] || continue
 		frames place "$n" "w$id" "$o" "$o" "$h" "$w" 2> /dev/null
 	done
 	return 0
@@ -795,9 +815,16 @@ fn dt_natsubs(int id, int o, int h, int w) {
 
 # A popup gone: its pane and its record, and its parent drawn again.
 fn dt_natpopgone(int n) {
-	local pid x y
+	local pid x y s
+	local -a f
 
 	read -r pid x y <<< "${NWP["$n"]}"
+	# What hung off it goes with it, where the compositor did not say so
+	# first: its own subs, and popups of it.
+	for s in "${!NWS[@]}"; do
+		read -ra f <<< "${NWS["$s"]}"
+		[ "${f[6]-}" = "$n" ] && unset NWS["$s"]
+	done
 	console pane drop "pop$n" 2> /dev/null
 	unset NWP["$n"]
 	[ -n "${NW[$pid]+x}" ] && NW[$pid]["popkey"]=
@@ -846,24 +873,34 @@ fn dt_natpopkey(int id) {
 # A window's popups put where they belong, over its body at their places,
 # each the size of its newest frame in whole cells.
 fn dt_natpops(int id, int o, key = "") {
-	local n pid x y fw fh r c ph pw k
-	local -a a
+	local n pid x y fw fh r c ph pw k d dd s
+	local -a a f
 
 	read -ra a <<< "$key"
-	for k in "${a[@]}"; do
-		IFS=: read -r n fw fh _ <<< "$k"
-		[ -n "${NWP["$n"]-}" ] || continue
-		read -r pid x y <<< "${NWP["$n"]}"
-		[ "$fw" -gt 0 ] && [ "$fh" -gt 0 ] || continue
-		x=$((x - ${NW[$id]["gx"]:-0}))
-		y=$((y - ${NW[$id]["gy"]:-0}))
-		r=$((${DT[$id]["row"]} + o + y / DT_NATCH))
-		c=$((${DT[$id]["col"]} + o + x / DT_NATCW))
-		ph=$(((fh + DT_NATCH - 1) / DT_NATCH))
-		pw=$(((fw + DT_NATCW - 1) / DT_NATCW))
-		console pane "pop$n" "$r" "$c" "$ph" "$pw" 2> /dev/null
-		console pane raise "pop$n" 2> /dev/null
-		frames place "$n" "pop$n" 0 0 "$ph" "$pw" 2> /dev/null
+	# A depth at a time, so a popup of a popup is raised above its parent
+	# (Gitea #528); a popup's own subs go in its pane, each with it.
+	for dd in 0 1 2 3 4 5 6 7; do
+		for k in "${a[@]}"; do
+			IFS=: read -r n fw fh _ <<< "$k"
+			[ -n "${NWP["$n"]-}" ] || continue
+			read -r pid x y d <<< "${NWP["$n"]}"
+			[ "${d:-0}" = "$dd" ] || continue
+			[ "$fw" -gt 0 ] && [ "$fh" -gt 0 ] || continue
+			x=$((x - ${NW[$id]["gx"]:-0}))
+			y=$((y - ${NW[$id]["gy"]:-0}))
+			r=$((${DT[$id]["row"]} + o + y / DT_NATCH))
+			c=$((${DT[$id]["col"]} + o + x / DT_NATCW))
+			ph=$(((fh + DT_NATCH - 1) / DT_NATCH))
+			pw=$(((fw + DT_NATCW - 1) / DT_NATCW))
+			console pane "pop$n" "$r" "$c" "$ph" "$pw" 2> /dev/null
+			console pane raise "pop$n" 2> /dev/null
+			frames place "$n" "pop$n" 0 0 "$ph" "$pw" 2> /dev/null
+			for s in "${!NWS[@]}"; do
+				read -ra f <<< "${NWS["$s"]}"
+				[ "${f[6]-}" = "$n" ] || continue
+				frames place "$s" "pop$n" 0 0 "$ph" "$pw" 2> /dev/null
+			done
+		done
 	done
 	return 0
 }
@@ -1399,6 +1436,12 @@ fn native_close(int id) {
 # The person quit the desktop: the compositor ends its programs at once
 # rather than waiting for a desktop that will not come back.
 dt_natquit() {
-	[ -n "$DT_NATSRV" ] && frames quit "$DT_NATSRV" 2> /dev/null
+	local i
+
+	[ -n "$DT_NATSRV" ] || return 0
+	i := frames info "$DT_NATSRV" 2> /dev/null
+	dt_log "programs' windows: telling the compositor to quit (${i%% *})"
+	frames quit "$DT_NATSRV" 2> /dev/null ||
+		dt_log "programs' windows: the compositor could not be told to quit"
 	return 0
 }

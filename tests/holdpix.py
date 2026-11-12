@@ -896,7 +896,7 @@ def kbdrun(caps):
              caps=caps)
     for _ in range(int(24 * SLOW)):
         t.collect(0.25)
-        if b"\x1b[=1;1u" in t.raw:
+        if b"\x1b[=31;1u" in t.raw:
             break
     t.collect(0.5)
     os.write(t.fd, b"\x1b[99;9u")
@@ -911,15 +911,19 @@ def kbdrun(caps):
 
 
 raw, log = kbdrun(["kbd", "sixel"])
+# The flags since #516 are 31 -- tell chords apart, report releases, give
+# each key's base key, report every key, and each key's text -- and hold hands them to every display
+# whole, which is how a Super tap reaches the desktop from Blit.
 check("a client whose terminal speaks the keyboard protocol is given the "
-      "flags the held program asked for", b"\x1b[=1;1u" in raw, raw[-300:])
+      "flags the held program asked for, every key and its text included",
+      b"\x1b[=31;1u" in raw, raw[-300:])
 check("and a super chord typed there reaches the program by name",
       "key super-c" in log, log)
 check("and leaving takes the flags off that terminal",
       raw.count(b"\x1b[=0;1u") >= 2, raw[-200:])
 raw, log = kbdrun(["sixel"])
 check("a client whose terminal does not speak it is given no flags at all",
-      b"\x1b[=" not in raw and b"\x1b[>1u" not in raw, raw[-300:])
+      b"\x1b[=" not in raw and b"\x1b[>31u" not in raw, raw[-300:])
 
 # A window moved whole, through hold (Gitea #337). The held program's own
 # terminal is hold's emulator, which says it copies rectangles itself, so the

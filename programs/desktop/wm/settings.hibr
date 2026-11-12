@@ -24,6 +24,11 @@ declare -gA DT_KEYS
 DT_MOD="${DT_MOD-alt}"
 [ -n "${DT_KEYS["menu"]+x}" ] || DT_KEYS["menu"]="f10"
 [ -n "${DT_KEYS["menu2"]+x}" ] || DT_KEYS["menu2"]="escape"
+# A Super (or a Chromebook's Search) key tapped alone opens the hibr menu
+# with its search ready, as a start menu does (Gitea #516). The terminal
+# says a lone tap only where it speaks the kitty keyboard protocol's
+# report-all-keys (Blit 0.3.89 does); anywhere else F10 is the way.
+[ -n "${DT_KEYS["start"]+x}" ] || DT_KEYS["start"]="super"
 [ -n "${DT_KEYS["copy"]+x}" ] || DT_KEYS["copy"]="mod-c"
 [ -n "${DT_KEYS["cut"]+x}" ] || DT_KEYS["cut"]="mod-x"
 [ -n "${DT_KEYS["paste"]+x}" ] || DT_KEYS["paste"]="mod-v"

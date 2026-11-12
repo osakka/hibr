@@ -1658,9 +1658,36 @@ fn dt_mbar(int i, int dir) {
 }
 
 # Keys while the bar has the keyboard.  Returns 1 for a key it does not use.
+# The hibr menu's own search, opened: `/` in the open menu, and the Start
+# Menu key, which opens the menu first.
+dt_msearch() {
+	MB_SON=1
+	MB_SQ=
+	MB_SCUR=0
+	MB_SEL=0
+	MB_PAR=
+	dt_mfind
+	return 0
+}
+
+# The Start Menu key (a Super tap by default, Gitea #516): the hibr menu,
+# open with its search ready, so typing finds an application. Pressed
+# again while a menu is open it closes it, in dt_mkey, as a start menu does.
+dt_startmenu() {
+	dt_mopen 0
+	dt_mhibr || return 0
+	dt_msearch
+	return 0
+}
+
 fn dt_mkey(k) {
 	local n i=0 lb r
 
+	# The Start Menu key again closes what it opened, the search too.
+	if dt_keyis start "$k"; then
+		dt_mclose
+		return 0
+	fi
 	# The search has the keyboard ahead of the menu's own keys: space,
 	# left and right are text and the cursor in it, and a letter is part
 	# of the name rather than an item's own letter. Every key reaches
@@ -1688,12 +1715,7 @@ fn dt_mkey(k) {
 		return 0
 	fi
 	if [ "$k" = "/" ] && dt_mhibr; then
-		MB_SON=1
-		MB_SQ=
-		MB_SCUR=0
-		MB_SEL=0
-		MB_PAR=
-		dt_mfind
+		dt_msearch
 		return 0
 	fi
 	case $k in

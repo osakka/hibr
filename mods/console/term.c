@@ -216,10 +216,10 @@ int cn_canwhole(void)
    is that escape, alt and ctrl chords arrive as `CSI ... u` -- which is the
    only way a terminal can say super at all. Pushed at most once a display,
    since the question is asked again on every resize. */
-static const char cn_kbdpush[] = "\033[>1u";
+static const char cn_kbdpush[] = "\033[>31u";
 static const char cn_kbdpop[] = "\033[<u";
-static const char cn_kbdall[] = "\033[=15;1u\033[?1004h";
-static const char cn_kbdone[] = "\033[=1;1u\033[?1004l";
+static const char cn_kbdall[] = "\033[=31;1u\033[?1004h";
+static const char cn_kbdone[] = "\033[=31;1u\033[?1004l";
 int cn_kbdon;
 
 /* The terminal answered the keyboard protocol's query: push the

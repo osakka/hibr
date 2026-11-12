@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.99.504
+
+**A Super tap opens the start menu** (Gitea #516). Super -- a Chromebook's
+Search key -- pressed and let go alone opens the hibr menu with its search
+ready, so typing finds an application; a second tap shuts it. It is Start
+Menu in Control Panel > Shortcuts (`super` by default), and it works over a
+terminal or a program window as Menu Bar does. With a key or another
+modifier between the press and the release, Super is that chord's, as
+before.
+
+The console now asks a terminal that speaks the kitty keyboard protocol to
+report every key, its release, its base key and its text (`CSI > 31 u`),
+where it asked only to tell chords apart: a lone Super can only be said
+that way. A key's own text is used when it carries one with no ctrl, alt or
+super held, so AltGr's characters on other layouts, a capital under caps
+lock and a keypad digit are what the layout says rather than a guess from a
+US table; and a chord is named by its base key, so Ctrl+C is ctrl-c on an
+Arabic layout too. Caps lock and num lock still never change a key's name.
+Blit 0.3.89 speaks all of it, and `hold` hands the flags to every display.
+
+**Firefox's menus and permission popups show their contents** (Gitea
+#528, with Blit 0.3.92). Firefox draws a menu's contents into a surface of
+the popup, and a submenu is a popup of the popup; the desktop placed
+neither, so the menu opened empty. A popup's own surfaces are now drawn in
+its pane and a popup of a popup over its parent, each joining the window's
+input route at its offset down to the window. It needs Blit 0.3.92, which
+sends them.
+
+**Quitting the desktop ends Blit's compositor at once.** Its quit line was
+sent without waiting, so on a full socket it was dropped, and the
+compositor waited a minute for a desktop that had gone, its programs open.
+It waits up to a second for room now, and says in the log when it cannot
+say it. Seen under the sanitizer build only.
+
 ## 0.99.503
 
 **Programs no longer take the keyboard from each other** (Gitea #507).
