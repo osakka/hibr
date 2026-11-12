@@ -550,9 +550,18 @@ def dragsteps(force):
 d0 = dragsteps("0")
 d1 = dragsteps("1")
 bad = [i for i, (a, b) in enumerate(zip(d0, d1)) if a != b]
+# What differs is kept with the failure: a gate runs unattended, and "every
+# step" said nothing of where.
+def dragdiff(a, b):
+    return [(r, c, a[0][r][c], b[0][r][c], a[1][r][c], b[1][r][c])
+            for r in range(len(a[0])) for c in range(len(a[0][r]))
+            if a[0][r][c] != b[0][r][c] or a[1][r][c] != b[1][r][c]][:10]
+
+
 check("every frame of a drag is what a full redraw would have drawn",
       len(d0) == len(d1) and not bad,
-      "steps differing: %s of %d" % (bad, len(d0)))
+      "steps differing: %s of %d; first step's cells (row, col, glyphs, pens): %s"
+      % (bad, len(d0), dragdiff(d0[bad[0]], d1[bad[0]]) if bad else []))
 check("including the shadows, which is what flickered while a window moved",
       all(a[1] == b[1] for a, b in zip(d0, d1)),
       [i for i, (a, b) in enumerate(zip(d0, d1)) if a[1] != b[1]])
@@ -5768,7 +5777,7 @@ check("dragging the primary display's own rectangle is a no-op",
 t1.collect(0.5)
 sc = t1.screen()
 prim = sc.find("Primary:")
-t1.send(press(prim[0], prim[1] + len("Primary: ")))
+t1.send(press(prim[0], prim[1] + len("Full Screen On: ")))
 sc = t1.screen()
 check("the dropdown opens with a choice for each attached display",
       sc.find_from(joined, prim[0]) is not None, sc)
@@ -9515,6 +9524,23 @@ sc, told = fsboth('Q := dt_new Next 6 20 10 50 fsw\nFSG[$Q]=Q\n'
 check("and a second one on the same display takes the first one's place",
       sc.g[3][60] == "Q" and "told 2 off" in told, (sc, told))
 
+# Full Screen On (Gitea #514): where a window going full screen goes -- the
+# display it is on, the one under the mouse, or one named in Control Panel
+# > Displays. Steam's games all went to one display.
+sc, told = fsboth('DT_FULLON=b\ndt_fullscreen "$L" on', [0.4])
+check("Full Screen On a named display puts the window there, whichever "
+      "display it was on", sc.g[3][60] == "L" and sc.g[23][79] == "L" and
+      sc.g[3][10] != "L" and "File" in sc.row(0)[:40], (sc, told))
+sc, told = fsboth('DT_FULLON=gone\ndt_fullscreen "$L" on', [0.4])
+check("a named display that is not attached leaves it on its own",
+      sc.g[3][10] == "L" and sc.g[3][60] != "L", (sc, told))
+sc, told = fsboth('DT_FULLON=pointer\nFSDONE=\nfsgo() { [ -n "$DT_MOUSEAT" ] '
+                  '&& [ -z "$FSDONE" ] || return 0; FSDONE=1; '
+                  'dt_fullscreen "$L" on; }\ndt_ticker fsgo',
+                  [press(20, 70), release(20, 70), 0.6])
+check("and the display under the mouse is the one the mouse was last on",
+      sc.g[3][60] == "L" and sc.g[3][10] != "L", (sc, told))
+
 # Full Screen as a desktop key (0.99.403, the owner's request on #405): one
 # key for every window that may be zoomed, alt-enter by default, the
 # focused app's own first as every window key is; and a row beside Zoom on
@@ -9623,4 +9649,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1045)
+report(1048)

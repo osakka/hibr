@@ -1871,6 +1871,16 @@ not drag -- the dropdown is the one way to change it); right-click a
 display for **Detach** (switch it off) or **Identify** (flash its name on
 its own screen).
 
+**Full Screen On:** below it says where a window going full screen goes,
+for every program alike (Gitea #514): **Window's Display**, the display it
+is on (the default); **Display Under Mouse**, the one the mouse was last
+on; or a display by name -- the window's own display when that one is not
+attached. Programs' windows are told the same: where Blit's compositor is
+0.3.88 or later the desktop tells it each display in pixels and which one
+is primary -- the one named here, or else the desktop's own primary -- and
+X's primary output follows that, so an X game sizes itself to the display
+it is going to.
+
 ## Keys that would be signals
 
 ctrl-c, ctrl-\\ and ctrl-z are keys on the desktop, not signals: the

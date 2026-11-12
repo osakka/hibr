@@ -57,6 +57,8 @@ dt_mouse() {
 	wheelup | wheeldown | wheelleft | wheelright) mr=$1; mc=$2 ;;
 	*) mr=$2; mc=$3 ;;
 	esac
+	# Where the mouse was last, for Full Screen On's display under it.
+	DT_MOUSEAT="$mr $mc"
 	# A wheel with shift held scrolls sideways, which is the convention
 	# everywhere else and the only way to reach a horizontal bar on a
 	# mouse with no sideways wheel of its own.
@@ -889,6 +891,8 @@ fn dt_ptrfor(r = "", c = "") {
 
 # Where the pointer last was, so a frame can ask again whether its shape
 # still holds when nothing has moved -- focus taken by a key, a menu opened.
+# The cell of the last mouse report, any kind: "row col", or empty.
+DT_MOUSEAT=
 DT_PTRR=
 DT_PTRC=
 
@@ -977,6 +981,7 @@ fn dt_hover(int r, int c) {
 	[ "$t" != "$was" ] && dt_tipfor "$t" "$r" "$c"
 	DT_PTRR=$r
 	DT_PTRC=$c
+	DT_MOUSEAT="$r $c"
 	b := dt_ptrfor "$r" "$c"
 	dt_ptrput "$b"
 	[ "$t" = "$was" ] && DT_HOVERQUIET=1

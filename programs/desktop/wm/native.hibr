@@ -56,6 +56,11 @@ declare -gx DT_NATCPID="${DT_NATCPID-}" DT_NATCEXE="${DT_NATCEXE-}"
 DT_NATX11="${DT_NATX11-1}"
 command -v dt_keep > /dev/null && dt_keep DT_NATX11
 declare -gx DT_NATCX11="${DT_NATCX11-}"
+# The compositor's version as one number (0.3.88 is 3088), kept across a
+# restart with its pid; and the displays last told it (Gitea #514), so it
+# is told again only when they change.
+declare -gx DT_NATCVER="${DT_NATCVER-}"
+DT_NATLAYOUT=
 # 1 when this desktop serves the socket a desktop before it served, so the
 # compositor reconnects with its windows; each window that comes back with
 # a restart waits for its own (NWB, by the compositor's id) until then.
@@ -231,14 +236,58 @@ fn dt_natend(int p) {
 # 0.3.81 or later. Status 1 for an older one, which refuses an option it
 # does not know and would not start.
 fn dt_natx11(b) {
+	local v
+
+	v := dt_natver "$b"
+	DT_NATCVER=$v
+	[ "$v" -ge 3081 ] || return 1
+	if [ "$DT_NATX11" = 1 ]; then ret on; else ret off; fi
+}
+
+# A compositor's --version as one number, 0.3.88 as 3088; 0 for one that
+# says none it can be read from.
+fn dt_natver(b) {
 	local v x y z
 
 	v := "$b" --version 2> /dev/null
 	v=${v##* }
 	IFS=. read -r x y z _ <<< "$v"
-	case $x$y$z in *[!0-9]* | "") return 1 ;; esac
-	(( x * 1000000 + y * 1000 + z >= 3081 )) || return 1
-	if [ "$DT_NATX11" = 1 ]; then ret on; else ret off; fi
+	case $x$y$z in *[!0-9]* | "") ret 0; return 0 ;; esac
+	ret $((x * 1000000 + y * 1000 + z))
+}
+
+# Tell the compositor where the displays are and which is primary (Gitea
+# #514): each display in pixels of the desktop's grid, then which one X's
+# primary output is -- the one Full Screen On names, or else the desktop's
+# own primary, since an X game sizes itself to that. Said when it connects
+# and whenever a display joins, leaves or moves; a compositor before 0.3.88
+# is told nothing, since it would not know the lines.
+dt_natlayout() {
+	local i dr dc drows dcols dgx nm pri= hz out=
+	local -a lines=() a
+
+	[ -n "$DT_NATSRV" ] && [ "${DT_NATCVER:-0}" -ge 3088 ] || return 0
+	hz := dt_nathz
+	for i in "${!DT_DISPLAYS[@]}"; do
+		nm=${DT_DISPNAMES[$i]-}
+		[ -n "$nm" ] || continue
+		IFS=' ' read -r dr dc drows dcols dgx <<< "${DT_DISPLAYS[$i]}"
+		lines+=("$nm $((dc * DT_NATCW)) $((dr * DT_NATCH)) $((dcols * DT_NATCW)) $((drows * DT_NATCH)) $hz")
+		[ "$nm" = "$DT_FULLON" ] && pri=$nm
+		[ -z "$pri" ] && [ "$dr $dc" = "${DT_PRIMARY_ROW:-0} ${DT_PRIMARY_COL:-0}" ] && pri=$nm
+	done
+	[ "${#lines[@]}" -gt 0 ] || return 0
+	out="${lines[*]} / $pri"
+	[ "$out" = "$DT_NATLAYOUT" ] && return 0
+	DT_NATLAYOUT=$out
+	for i in "${!lines[@]}"; do
+		read -ra a <<< "${lines[$i]}"
+		frames layout "$DT_NATSRV" "${a[@]}" 2> /dev/null || { DT_NATLAYOUT=; return 0; }
+	done
+	frames layout "$DT_NATSRV" end 2> /dev/null
+	[ -n "$pri" ] && frames primary "$DT_NATSRV" "$pri" 2> /dev/null
+	dt_log "programs' windows: told the compositor ${#lines[@]} displays, primary ${pri:-none}"
+	return 0
 }
 
 # What the compositor has said since last asked, acted on: a ticker, so it
@@ -287,6 +336,9 @@ dt_natevents() {
 			export WAYLAND_DISPLAY=$n
 			dt_natx "$rest"
 			dt_natwho
+			# A compositor connecting has been told nothing yet.
+			DT_NATLAYOUT=
+			dt_natlayout
 			[ "${#NWB[@]}" -gt 0 ] && DT_NATBY=$((${EPOCHREALTIME%.*} + 3))
 			# The desktop's clipboard lapsed with the last channel.
 			[ -n "${DT_CLIP-}" ] && dt_natclipoffer "$DT_CLIP" "${DT_CLIPKIND:-text}"
@@ -700,11 +752,21 @@ dt_nathz() {
 # its rate -- when it opens and whenever it moves to another (wl_output's
 # mode, Blit's WINDOW output).
 fn dt_natoutput(int id) {
-	local n=${NW[$id]["n"]} hz o
+	local n=${NW[$id]["n"]} hz o i
 
 	dt_fullrect "$id"
 	hz := dt_nathz
 	o="$((DTW_W * DT_NATCW)) $((DTW_H * DT_NATCH)) $hz"
+	# And which display, by its name in the layout (Blit 0.3.88): two of
+	# one mode are otherwise the same line, and a window moved from one
+	# to the other was never told.
+	if [ "${DT_NATCVER:-0}" -ge 3088 ]; then
+		for i in "${!DT_DISPLAYS[@]}"; do
+			[[ ${DT_DISPLAYS[$i]} == "$DTW_R $DTW_C "* ]] || continue
+			[ -n "${DT_DISPNAMES[$i]-}" ] && o="$o ${DT_DISPNAMES[$i]}"
+			break
+		done
+	fi
 	[ "${NW[$id]["out"]-}" = "$o" ] && return 0
 	NW[$id]["out"]=$o
 	frames window "$n" output $o 2> /dev/null

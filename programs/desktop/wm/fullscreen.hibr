@@ -98,6 +98,40 @@ fn dt_fullrect(int id) {
 	return 0
 }
 
+# The display a window going full screen goes to, into DTW_R, DTW_C, DTW_H
+# and DTW_W, as Full Screen On says (Gitea #514): the one it is on, the one
+# under the mouse, or the display named -- the one it is on when the mouse
+# has not been seen or the named display is not attached.
+fn dt_fulldisp(int id) {
+	local i dr dc drows dcols dgx mr= mc=
+
+	dt_fullrect "$id"
+	case $DT_FULLON in
+	window | "") return 0 ;;
+	pointer)
+		read -r mr mc <<< "${DT_MOUSEAT-}"
+		[ -n "$mc" ] || return 0
+		for i in "${!DT_DISPLAYS[@]}"; do
+			IFS=' ' read -r dr dc drows dcols dgx <<< "${DT_DISPLAYS[$i]}"
+			if [ "$mr" -ge "$dr" ] && [ "$mr" -lt $((dr + drows)) ] &&
+			   [ "$mc" -ge "$dc" ] && [ "$mc" -lt $((dc + dcols)) ]; then
+				DTW_R=$dr DTW_C=$dc DTW_H=$drows DTW_W=$dcols
+				return 0
+			fi
+		done
+		;;
+	*)
+		for i in "${!DT_DISPNAMES[@]}"; do
+			[ "${DT_DISPNAMES[$i]}" = "$DT_FULLON" ] || continue
+			IFS=' ' read -r dr dc drows dcols dgx <<< "${DT_DISPLAYS[$i]}"
+			DTW_R=$dr DTW_C=$dc DTW_H=$drows DTW_W=$dcols
+			return 0
+		done
+		;;
+	esac
+	return 0
+}
+
 # Tell the window's app, when it asks to be told.
 fn dt_fulltell(int id, how) {
 	local ap=${DT[$id]["app"]}
@@ -122,7 +156,7 @@ fn dt_fullscreen(int id, how) {
 	fi
 	dt_isfull "$id" && return 0
 	[ -n "${DT[$id]["shaded"]-}" ] && dt_shade "$id"
-	dt_fullrect "$id"
+	dt_fulldisp "$id"
 	for x in "${DT_FULLS[@]}"; do
 		if [ "$DT_FULLEND" != shortcut ] ||
 		   [ "${DT[$x]["row"]} ${DT[$x]["col"]}" = "$DTW_R $DTW_C" ]; then
@@ -136,6 +170,11 @@ fn dt_fullscreen(int id, how) {
 	DT[$id]["fschrome"]=${DT[$id]["chrome"]}
 	DT[$id]["fsshadow"]=${DT[$id]["noshadow"]}
 	DT_FULLS+=("$id")
+	# On the display chosen, which dt_fullfit then finds by the middle.
+	DT[$id]["row"]=$DTW_R
+	DT[$id]["col"]=$DTW_C
+	DT[$id]["h"]=$DTW_H
+	DT[$id]["w"]=$DTW_W
 	DT[$id]["chrome"]=none
 	DT[$id]["noshadow"]=1
 	DT_FOCUS=$id

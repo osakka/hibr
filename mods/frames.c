@@ -1297,6 +1297,35 @@ void fl_out(sh *s, str *o)
 }
 
 /* frames: serve, place, info, stop, list. */
+/* The displays and the primary, told to the compositor (Gitea #514):
+ * WINDOW layout NAME X Y W H MHZ a display, WINDOW layout end, WINDOW
+ * primary NAME. No window id: they are about the screens, not a window. */
+int fl_layout(fl_srv *f, int ac, char **av, str *o)
+{
+	int a, want = 4;
+
+	if (f->par || ac < want) {
+		lg(HIBR_LERR, "usage: frames layout N NAME X Y W H MHZ | end; frames primary N NAME");
+		s_free(o);
+		return 2;
+	}
+	s_cat(o, "WINDOW ");
+	s_cat(o, av[1]);
+	for (a = 3; a < ac; a++) {
+		if (!*av[a] || strpbrk(av[a], " \t\r\n")) {
+			lg(HIBR_LERR, "frames %s: a word with a blank in it", av[1]);
+			s_free(o);
+			return 2;
+		}
+		s_ch(o, ' ');
+		s_cat(o, av[a]);
+	}
+	s_ch(o, '\n');
+	fl_say(f, o->p);
+	s_free(o);
+	return fl_cfd(f) >= 0 ? HIBR_OK : HIBR_FAIL;
+}
+
 int m_frames(sh *s, int ac, char **av)
 {
 	fl_srv *f;
@@ -1413,6 +1442,8 @@ int m_frames(sh *s, int ac, char **av)
 		return HIBR_FAIL;
 #endif
 	}
+	if (!strcmp(av[1], "layout") || !strcmp(av[1], "primary"))
+		return fl_layout(f, ac, av, &o);
 	if (!strcmp(av[1], "window") || !strcmp(av[1], "quit")) {
 		str rest;
 		int a;

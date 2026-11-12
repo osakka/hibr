@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.497
+
+**Full-screen programs open on the display you choose** (Gitea #514).
+Steam's games all went full screen on one display. Control Panel >
+Displays has **Full Screen On:**, one setting for every window and
+program: **Window's Display** (the one it is on, the default), **Display
+Under Mouse** (the one the mouse was last on), or a display by name -- the
+window's own when that one is not attached.
+
+Programs' windows follow it, X ones included. Where Blit's compositor is
+0.3.88 or later the desktop tells it each display, in pixels, and which
+one is primary -- the one named in Full Screen On, or else the desktop's
+own primary -- on connecting and whenever a display joins, leaves or
+moves; X's primary output follows that, so an X game sizes itself to the
+display it is going to. A window's output now names its display too, so a
+window moved between two displays of the same mode is told. An older
+compositor is sent nothing new. `frames layout` and `frames primary` are
+the frames module's verbs for it.
+
 ## 0.99.496
 
 **The Control Panel's search shows only the rows that hold it** (Gitea

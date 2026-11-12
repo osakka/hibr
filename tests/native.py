@@ -505,6 +505,8 @@ complog2 = os.path.join(D, "comp2.log")
 # Firefox draws its own frame round its page: held, a memfd frame once went
 # without being recorded and the window's route was never asked (#499).
 open(complog2 + ".shm", "w").close()
+# A compositor that takes the displays' layout (Blit 0.3.88, Gitea #514).
+open(complog2 + ".version", "w").write("0.3.88\n")
 wrap2 = os.path.join(D, "blit-compositor2")
 open(wrap2, "w").write("#!/bin/sh\nexec %s %s %s \"$@\"\n"
                        % (sys.executable, os.path.join(HERE, "natserve.py"), complog2))
@@ -548,6 +550,21 @@ check("held, the compositor's window reaches the display, and its route by "
       "socket reaches the display's Blit through hold -- the window drawn "
       "in shared memory, as Firefox's own frame is",
       hw and hsock, (bool(hw), bool(hsock), [x for x in lines(blitlog2) if x["kind"] in ("input", "member", "hello")][-8:], hscr().text()[:900]))
+
+
+def hlay():
+    return [x["line"] for x in comp_of(complog2, "line")
+            if x["line"].split()[:2] in (["WINDOW", "layout"], ["WINDOW", "primary"])]
+
+
+lay = wait(lambda: "WINDOW primary top" in hlay() and hlay(), 6)
+check("held, the compositor is told each display in pixels, then which one is "
+      "primary -- what X's own outputs follow (Gitea #514)",
+      lay and lay[0].startswith("WINDOW layout top 0 0 656 ") and
+      lay[-2:] == ["WINDOW layout end", "WINDOW primary top"], lay or hlay())
+hout = [x["line"] for x in comp_of(complog2, "line") if x["line"].startswith("WINDOW output ")]
+check("and a window's output names its display, so two of one mode are told apart",
+      hout and hout[-1].split()[-1] == "top", hout)
 open(complog2 + ".popup", "w").close()
 ht.keys([b"x"])
 hmem = wait(lambda: hk("member"), 6)
@@ -712,4 +729,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(52)
+report(54)

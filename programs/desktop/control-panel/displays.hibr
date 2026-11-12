@@ -22,7 +22,7 @@
 strict
 
 
-app displays "Control Panel's own picture of a multi-monitor arrangement" 1.2
+app displays "Control Panel's own picture of a multi-monitor arrangement" 1.2.1
 command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦" hardware
 
 declare -gA DPY
@@ -58,6 +58,28 @@ fn displays_setprimary(int id, value) {
 
 	sess := displays_sess
 	[ -n "$sess" ] && hold primary "$sess" "$value"
+}
+
+# Full Screen On as the dropdown says it (Gitea #514).
+displays_fullname() {
+	case $DT_FULLON in
+	window | "") ret "Window's Display" ;;
+	pointer) ret "Display Under Mouse" ;;
+	*) ret "$DT_FULLON" ;;
+	esac
+}
+
+# The dropdown's callback: where a window going full screen goes, for every
+# program; the compositor is told, since X's primary output follows it.
+fn displays_setfull(int? id = "", value = "") {
+	case $value in
+	"Window's Display") DT_FULLON=window ;;
+	"Display Under Mouse") DT_FULLON=pointer ;;
+	?*) DT_FULLON=$value ;;
+	esac
+	command -v dt_save > /dev/null && dt_save
+	dt_has dt_natlayout && dt_natlayout
+	return 0
 }
 
 # Right-click on a rectangle: detach it, or flash its own name where it
@@ -168,12 +190,16 @@ fn displays_draw(int id, int h, int w, int bx) {
 		i=$((i + 1))
 	done
 
-	t="Primary:"
+	# Two rows of choices, their dropdowns lined up after the longer label.
+	t="Full Screen On:"
 	dropw=$((w - ${#t} - 3))
 	[ "$dropw" -lt 12 ] && dropw=12
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 "$bx" "$t"
+	console put -p "w$id" 1 "$bx" "Primary:"
 	dt_wdrop "$id" 1 $((bx + ${#t} + 1)) "$dropw" "$pname" primary
+	console put -p "w$id" 2 "$bx" "$t"
+	t := displays_fullname
+	dt_wdrop "$id" 2 $((bx + 16)) "$dropw" "$t" fullon
 
 	# Every display's own row/col relative to the primary's, which can
 	# be negative (a display positioned "before" the primary in hold's
@@ -211,7 +237,7 @@ fn displays_draw(int id, int h, int w, int bx) {
 	done
 	[ "$urows" -lt 1 ] && urows=1
 	[ "$ucols" -lt 1 ] && ucols=1
-	s := displays_scale $((h - 4)) "$w" "$urows" "$ucols"
+	s := displays_scale $((h - 5)) "$w" "$urows" "$ucols"
 	DPY[$id]["s"]=$s
 
 	i=0
@@ -222,7 +248,7 @@ fn displays_draw(int id, int h, int w, int bx) {
 		cols=${DPY[$id][$i]["cols"]}
 		nm=${DPY[$id][$i]["name"]}
 		pri=${DPY[$id][$i]["primary"]}
-		br=$((rr * s / 100 + 3))
+		br=$((rr * s / 100 + 4))
 		bc=$((rc * s / 100 + bx))
 		# One cell shaved off each box's own scaled size, a gap between
 		# two adjacent displays rather than their borders sharing (and
@@ -333,6 +359,17 @@ fn displays_mouse(int id, act, button, int r, int c) {
 			return 0
 			;;
 		esac
+		if [ "$tag" = fullon ]; then
+			wc := dt_wcol "$id" "$r" fullon
+			vals=("Window's Display" "Display Under Mouse")
+			i=0
+			while [ "$i" -lt "$n" ]; do
+				vals+=("${DPY[$id][$i]["name"]}")
+				i=$((i + 1))
+			done
+			dt_droplist "$id" "$r" "$wc" displays_setfull "${vals[@]}"
+			return 0
+		fi
 		if [ "$tag" = primary ]; then
 			wc := dt_wcol "$id" "$r" primary
 			vals=()
