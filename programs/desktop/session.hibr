@@ -36,6 +36,12 @@ if [ "$1" = ctl ]; then
 	shift
 	exec "$HIBR" "${0%/*}/lib/ctl.hibr" "$@"
 fi
+# desktop open PATH|ADDRESS -- the running desktop opens it, as a program's
+# xdg-open does through hibr-open.desktop (Gitea #512); quiet on success.
+if [ "$1" = open ]; then
+	shift
+	exec "$HIBR" "${0%/*}/lib/ctl.hibr" open "$@" > /dev/null
+fi
 
 opt .            "hibr's desktop, held so it can always be detached from"
 opt -r --resume  resume         "Reattach to it if it is already running"

@@ -383,6 +383,11 @@ endif
 	sed 's|@DESKDIR@|$(DESKDIR)|' tools/desktop-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/desktop
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/desktop
+	install -d $(DESTDIR)$(PREFIX)/share/applications
+	sed 's|@BINDIR@|$(PREFIX)/bin|' packaging/xdg/hibr-open.desktop.in \
+		> $(DESTDIR)$(PREFIX)/share/applications/hibr-open.desktop
+	install -m 644 packaging/xdg/hibr-mimeapps.list \
+		$(DESTDIR)$(PREFIX)/share/applications/hibr-mimeapps.list
 	install -m 644 programs/vw.hibr $(DESTDIR)$(SHAREDIR)/vw.hibr
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/vw-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/vw
@@ -443,7 +448,9 @@ uninstall:
 		$(DESTDIR)$(SHAREDIR)/catalogue.hibr \
 		$(DESTDIR)$(PREFIX)/bin/apps $(DESTDIR)$(SHAREDIR)/apps.hibr \
 		$(DESTDIR)$(MANDIR)/man1/hibr.1 \
-		$(DESTDIR)$(MANDIR)/man1/desktop.1
+		$(DESTDIR)$(MANDIR)/man1/desktop.1 \
+		$(DESTDIR)$(PREFIX)/share/applications/hibr-open.desktop \
+		$(DESTDIR)$(PREFIX)/share/applications/hibr-mimeapps.list
 ifneq ($(POLKITDIR),)
 	rm -f $(DESTDIR)$(HELPDIR)/hibr-access $(DESTDIR)$(HELPDIR)/hibr-settime \
 		$(DESTDIR)$(HELPDIR)/hibr-run $(DESTDIR)$(HELPDIR)/hibr-catalogue \

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.494
+
+**Programs open folders, files and links through the desktop** (Gitea
+#512). Programs started from the desktop are told it is hibr
+(`XDG_CURRENT_DESKTOP=hibr`), and the package installs `hibr-open.desktop`
+and `hibr-mimeapps.list` in `share/applications`, so in a hibr session
+`xdg-open` -- Steam's "Browse local files", GTK and Qt programs -- sends a
+folder to the running desktop, which opens it in Files rather than in what
+the system lists (on Debian, Firefox). Other desktops on the machine are
+not touched, and a person's own `~/.config/mimeapps.list` still wins.
+
+`desktop open PATH|ADDRESS` (and the control socket's `open` request) is
+the way in: a folder opens in Files, a `file://` address decoded first; a
+file opens with its handler or opener; an address goes to the browser or
+Mail. A file with nothing to open it, or one that is a program, opens its
+folder instead -- never run, since the one asking is a program and not the
+person.
+
 ## 0.99.493
 
 **Every module hibr builds says its stack is not executable** (ADR 0055).

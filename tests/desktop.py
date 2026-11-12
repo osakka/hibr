@@ -2718,6 +2718,63 @@ tc.quit(b"qy", 1.2)
 check("and its socket is gone after Quit", not os.path.exists(CTS), os.listdir(CTD))
 shutil.rmtree(CTD, True)
 
+# What a program hands the system to open reaches the desktop (Gitea #512):
+# programs it starts are told they are in hibr, and `desktop open` -- which
+# xdg-open reaches through hibr-open.desktop -- opens a folder in Files, a
+# file:// address decoded; a file it cannot open, or one that is a program,
+# opens its folder instead and is never run, since the one asking is a
+# program and not the person.
+CTD = tempfile.mkdtemp(prefix="hibr-open-")
+CTS = os.path.join(CTD, "d.ctl")
+OPENED = os.path.join(CTD, "opened")
+RAN = os.path.join(CTD, "ran")
+FOLD = os.path.join(CTD, "a folder")
+os.makedirs(FOLD)
+prog = os.path.join(FOLD, "prog")
+open(prog, "w").write("#!/bin/sh\ntouch %s\n" % RAN)
+os.chmod(prog, 0o755)
+cpath = os.path.join(CTD, "s.hibr")
+open(cpath, "w").write("%s. %s\nDT_CTL=1\nDT_CTLPATH=%s\n"
+                       "dt_app files Files 8 30\n"
+                       "files_open() { printf '%%s\\n' \"$2\" >> %s; }\nfiles_draw() { :; }\n"
+                       "dt_open\nsh -c 'printf %%s \"$XDG_CURRENT_DESKTOP\"' > %s.env\ndt_run\ndt_close\n"
+                       % (load(MOD), WM, CTS, OPENED, OPENED))
+tc = Term(cpath, rows=ROWS, cols=COLS, settle=1.0)
+check("programs the desktop starts are told it is hibr (XDG_CURRENT_DESKTOP)",
+      open(OPENED + ".env").read() == "hibr" if os.path.exists(OPENED + ".env") else False,
+      open(OPENED + ".env").read() if os.path.exists(OPENED + ".env") else None)
+
+
+def opened():
+    tc.collect(0.3)
+    return open(OPENED).read().splitlines() if os.path.exists(OPENED) else []
+
+
+rc, j = uctl("open", FOLD)
+end = time.time() + 4
+while time.time() < end and FOLD not in opened():
+    time.sleep(0.1)
+check("desktop open on a folder opens it in Files", rc == 0 and j.get("how") == "folder"
+      and opened()[-1:] == [FOLD], (j, opened()))
+rc, j = uctl("open", "file://" + FOLD.replace(" ", "%20"))
+end = time.time() + 4
+while time.time() < end and len(opened()) < 2:
+    time.sleep(0.1)
+check("and a file:// address, decoded", j.get("how") == "folder" and opened()[-1:] == [FOLD],
+      (j, opened()))
+rc, j = uctl("open", prog)
+end = time.time() + 4
+while time.time() < end and len(opened()) < 3:
+    time.sleep(0.1)
+time.sleep(0.5)
+check("a program asked to be opened is never run: its folder opens instead",
+      j.get("how") == "its folder" and opened()[-1:] == [FOLD] and not os.path.exists(RAN),
+      (j, opened(), os.path.exists(RAN)))
+rc, j = uctl("open", os.path.join(CTD, "nothing here"))
+check("and something that is not there is said so", rc != 0 and j.get("error") == "not-found", j)
+tc.quit(b"qy", 1.2)
+shutil.rmtree(CTD, True)
+
 # A sticky window is on every workspace; taken off them, it stays on the
 # one it is seen on; sent to another, it is no longer on every one.
 sc, _ = run(WS2 + "dt_sticky 2 1\n", [b"\x1b2"])
@@ -9531,4 +9588,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1036)
+report(1041)

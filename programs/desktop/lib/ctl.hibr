@@ -68,8 +68,18 @@ if [ -z "$req" ]; then
 		i := ctl_num "$2"
 		req="{\"op\":\"$op\",\"id\":$i}"
 		;;
+	open)
+		# A path or an address, opened by the running desktop (Gitea
+		# #512): a relative path is the caller's, so it is made whole
+		# here, where the caller's directory is known.
+		[ $# -eq 2 ] || { echo "usage: desktop open PATH|ADDRESS" >&2; exit 2; }
+		o=$2
+		case $o in /* | *://* | mailto:*) ;; *) o=$PWD/$o ;; esac
+		o := ctl_str "$o"
+		req="{\"op\":\"open\",\"target\":$o}"
+		;;
 	*)
-		echo "usage: desktop ctl displays|windows|session|rescan|state|signedin|stats [reset|stop]|move|resize|focus ..." >&2
+		echo "usage: desktop ctl displays|windows|session|rescan|state|signedin|stats [reset|stop]|move|resize|focus|open ..." >&2
 		exit 2
 		;;
 	esac

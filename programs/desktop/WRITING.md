@@ -887,6 +887,15 @@ $ desktop ctl move 3 nowhere
 {"ok":false,"error":"no-display","detail":"no display called nowhere"}
 ```
 
+`open` hands the desktop something to open, as a program's `xdg-open` does
+through `hibr-open.desktop` (Gitea #512): `desktop open PATH|ADDRESS`, or
+`desktop ctl open ...` for the answer. A folder opens in Files (`"how":
+"folder"`), a `file://` address decoded first; a file opens with its
+handler or opener (`"file"`); an address goes where `dt_openlink` sends it
+(`"link"`); and a file with nothing to open it -- or one that is a program
+-- opens its folder instead (`"its folder"`). A file is never run that way,
+whatever its mode, since the one asking is a program and not the person.
+
 `displays` says, for each display, what the desktop has recorded its
 terminal draws (`gfx`: `kitty`, `sixel`, `none`, `unknown` for one that
 did not answer, `unasked` for one from before displays were asked, `self`

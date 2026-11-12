@@ -222,6 +222,7 @@ fn dt_ctlserve(int c) {
 		state) out := dt_ctlstate ;;
 		stats) out := dt_ctlstats "${q["reset"]}" "${q["stop"]}" ;;
 		signedin) out := dt_ctlsignedin ;;
+		open) out := dt_ctlhand "${q["target"]-}" ;;
 		"") out := dt_ctlerr bad-request "no op" ;;
 		*) out := dt_ctlerr unknown-op "$op" ;;
 		esac
@@ -247,6 +248,57 @@ dt_ctldlist() {
 # something (Gitea #267): `catalogue` sends this after any verb that
 # changed a file. The answer counts what arrived, what went, and what
 # changed and waits for a restart.
+# Something a program hands the system to open -- `desktop open`, which
+# xdg-open reaches through hibr-open.desktop (Gitea #512) -- opened by the
+# desktop itself: a folder in Files, a file by its handler or opener, an
+# address by dt_openlink. A file is never run, whatever its mode, since the
+# one asking is a program and not the person: an executable, or a file with
+# nothing to open it, opens its folder in Files instead.
+fn dt_ctlhand(t = "") {
+	local p h ext
+
+	case $t in
+	"") dt_ctlerr bad-request "nothing to open"; ret -k ;;
+	file://*)
+		p=${t#file://}
+		p=${p#localhost}
+		p=${p//%/\\x}
+		printf -v p '%b' "$p"
+		;;
+	/*) p=$t ;;
+	*://* | mailto:*)
+		dt_openlink "$t"
+		ret '{"ok":true,"how":"link"}'
+		return 0
+		;;
+	*) dt_ctlerr bad-request "a path must be absolute: $t"; ret -k ;;
+	esac
+	if [ -d "$p" ]; then
+		dt_launch files "$p"
+		ret '{"ok":true,"how":"folder"}'
+		return 0
+	fi
+	if [ ! -e "$p" ]; then
+		dt_ctlerr not-found "$p"
+		ret -k
+	fi
+	h=
+	if [ -f "$p" ] && [ ! -x "$p" ]; then
+		dt_openers "$p"
+		[ "${#DT_OWLIST[@]}" -gt 0 ] && h=1
+		ext := dt_ext "$p"
+		[ -n "$ext" ] && [ -n "${DT_HANDLERS["$ext"]["n"]-}" ] && h=1
+	fi
+	if [ -n "$h" ]; then
+		dt_openfile "$p"
+		ret '{"ok":true,"how":"file"}'
+	else
+		dt_launch files "${p%/*}"
+		ret '{"ok":true,"how":"its folder"}'
+	fi
+	return 0
+}
+
 dt_ctlrescan() {
 	local a g c
 

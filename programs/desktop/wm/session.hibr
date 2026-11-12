@@ -86,6 +86,11 @@ dt_open() {
 
 	dt_tstamp "apps"
 	dt_supervise
+	# Which desktop programs started from here are in, by the standard
+	# names (Gitea #512): xdg-open, GIO and Qt then read hibr-mimeapps.list
+	# first, so a folder a program opens goes to Files rather than to
+	# whatever the system lists, and an entry's OnlyShowIn=hibr shows here.
+	export XDG_CURRENT_DESKTOP=hibr XDG_SESSION_DESKTOP=hibr
 	# One app's arithmetic slip, or one function nesting too deep, fails
 	# that command and is written to the log -- it does not end the
 	# desktop and every window in it, as it would end another script.

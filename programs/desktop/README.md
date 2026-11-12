@@ -1737,6 +1737,20 @@ compositor again with the setting, which ends any X programs running. It
 is said to a compositor of Blit 0.3.81 or later; an older one runs X
 whenever Xwayland is installed.
 
+## Programs open things through the desktop
+
+Programs started from the desktop are told it is hibr
+(`XDG_CURRENT_DESKTOP=hibr`), and the package installs
+`hibr-open.desktop` and `hibr-mimeapps.list` in `share/applications`. So
+in a hibr session `xdg-open` -- which Steam's "Browse local files", GTK and
+Qt programs all use -- sends a folder to `desktop open`, and the running
+desktop opens it in Files rather than in whatever the system lists (on
+Debian, Firefox). Other desktops on the same machine are not touched: the
+file is read only where the session says it is hibr, and your own
+`~/.config/mimeapps.list` still wins. A file a program asks to open goes to
+its handler, or opens its folder when nothing opens it; it is never run
+(Gitea #512).
+
 ## Programs on the Applications menu
 
 The programs installed on the machine are on the Applications menu, in the

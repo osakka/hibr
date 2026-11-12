@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=hibr Desktop
+Comment=Open a folder, file or address in the running hibr desktop
+Exec=@BINDIR@/desktop open %u
+NoDisplay=true
+OnlyShowIn=hibr;
+MimeType=inode/directory;

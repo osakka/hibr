@@ -258,6 +258,15 @@ Resize a window, in cells.
 Raise a window and give it focus.
 .B raise
 is the same.
+.TP
+.BI "open " "path" \fR|\fPaddress
+Open it in the desktop, as a program's
+.B xdg\-open
+does in a hibr session: a folder in Files, a file with its handler, an
+address in the browser; a file with nothing to open it, or one that is a
+program, opens its folder instead and is never run.
+.B desktop open
+is the same, and says nothing when it works.
 .SH EXIT STATUS
 .B desktop
 exits 1 when the session is already running and
