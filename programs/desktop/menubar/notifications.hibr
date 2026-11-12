@@ -11,7 +11,7 @@
 
 strict
 
-app notifications "The notification icon on the menu bar" 1.0
+app notifications "The notification icon on the menu bar" 1.0.1
 
 # Everything the text is made from, so it is made only when that changes.
 DT_BELLIKEY=
@@ -19,6 +19,9 @@ DT_BELLIKEY=
 dt_baritem bell ""
 dt_baripin bell 3
 dt_barilabel bell "Notifications"
+# Its pop-up is a step from the menu bar's keyboard (Gitea #519); a desktop
+# before that has no such call.
+command -v dt_barikbd > /dev/null && dt_barikbd bell
 dt_baridraw bell dt_belldraw
 dt_baripress bell dt_bellpress
 dt_barhook dt_bellhook

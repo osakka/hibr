@@ -389,12 +389,14 @@ dt_menus() {
 		dt_dim "Close"
 	else
 		dt_item "Move" m dt_grab move
+		dt_rowaccel "${DT_KEYS["move"]}"
 		if [ "${DT_APPS[${DT[$DT_FOCUS]["app"]}]["fixed"]}" = 1 ]; then
 			dt_dim "Resize"
 			dt_dim "Zoom"
 			dt_dim "Full Screen"
 		else
 			dt_item "Resize" r dt_grab size
+			dt_rowaccel "${DT_KEYS["resize"]}"
 			dt_item "Zoom" z dt_zoom_focused
 			dt_rowaccel "${DT_KEYS["zoom"]}"
 			if dt_isfull "$DT_FOCUS"; then
@@ -452,8 +454,10 @@ dt_menus() {
 		# shortcut while a menu is open, so Quit Application on q
 		# would take the key from anyone who binds Quit to it -- which
 		# the test harness does, since the desktop ships without one.
-		# u is what dt_akey would reach for with q taken.
-		dt_item "Quit Application" u dt_quitapp
+		# Not u either, which Shade/Unshade above already has: dt_mkey
+		# takes the first row with a letter, so u never reached this
+		# one (Gitea #522). a is the first of its letters free here.
+		dt_item "Quit Application" a dt_quitapp
 	fi
 	dt_sep
 	local tv=0
@@ -1727,7 +1731,12 @@ fn dt_mkey(k) {
 		else
 			n := dt_mbar "$MB_OPEN" -1
 		fi
-		if [ "$n" -ge 0 ]; then
+		if [ "$MB_OPEN" = app ] && lb := dt_barkeys && [ -n "$lb" ]; then
+			# Left of the window list, the bar's items, as the bar
+			# draws them: the last of them first (Gitea #519).
+			dt_mclose
+			dt_barikey "${lb##* }"
+		elif [ "$n" -ge 0 ]; then
 			dt_mopen "$n"
 		else
 			dt_mopen app
@@ -1742,6 +1751,12 @@ fn dt_mkey(k) {
 			n := dt_mbar "$MB_OPEN" 1
 			if [ "$n" -lt "$MB_N" ]; then
 				dt_mopen "$n"
+			elif lb := dt_barkeys && [ -n "$lb" ]; then
+				# Past the last menu, the bar's items, in the
+				# order the bar draws them, the window list after
+				# them (Gitea #519).
+				dt_mclose
+				dt_barikey "${lb%% *}"
 			else
 				dt_mopen app
 			fi

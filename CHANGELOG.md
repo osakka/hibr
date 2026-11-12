@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.99.505
+
+**Dragging a program window no longer drags the program along** (owner's
+report, "clunky again"). A program window kept its input route for the
+whole of a drag by the desktop's frame, so whenever the pointer ran ahead
+of the window over its picture the program was sent the pointer and
+repainted its hover on every move. Moving or sizing any window now turns
+the focused program window's route off until the button comes up. A test
+fails if a drag sends the program its route, its size or its output, or
+draws more than a frame a move.
+
+**A desktop shortcut acts once, not in the program as well** (Gitea
+#530, with Blit 0.3.95). Blit gave a program window's key to the program
+and to the desktop, so F10 opened hibr's menu and Firefox's menu bar, and
+Alt+W, Alt+C or Alt+Tab reached the program too. The desktop now tells
+Blit every chord and function key it keeps -- as Shortcuts has them, with
+the Shortcut Key expanded -- at startup and whenever one changes, and Blit
+withholds those from programs. With Alt as the Shortcut Key a program still
+sees Alt go down and up alone, so Firefox may show its menu bar on that
+release; Super as the Shortcut Key avoids it.
+
+**Move and Resize from the keyboard** (Gitea #521): Alt+F7 and Alt+F8, as
+on Windows and GNOME, in Control Panel > Shortcuts.
+
+**The bar's items and context menus by keyboard** (Gitea #519, #520).
+With the menu bar open (F10), Right past the last menu, or Left from the
+window list, reaches the bar's items that open a pop-up -- notifications,
+sound, network, Bluetooth -- in the order the bar draws them, and opens
+it; Tab and Shift-Tab go along them, and past either end you are back in
+the menus. An item whose press starts
+an app or opens a menu is not a step, so arriving at it never sets it off.
+Shift+F10, or the Menu key, opens the focused window's context menu (its
+window menu where its app has none, the desktop's with nothing focused),
+and Alt+Space the window menu, where Move to Display is. All in Control
+Panel > Shortcuts.
+
+**Pass Every Key passes every key** (Gitea #523): a terminal told to gives
+its program Copy, Cut, Paste, Undo, Redo, Select All and Save too, which
+the desktop took first. F10 and the Start Menu key stay the desktop's, the
+way back.
+
+**Quit Application in the Window menu answers its letter** (Gitea #522).
+It shared `u` with Shade, which always won; it is `a` now, and a check
+fails on any menu with two rows on one letter.
+
 ## 0.99.504
 
 **A Super tap opens the start menu** (Gitea #516). Super -- a Chromebook's

@@ -42,7 +42,7 @@
 
 strict
 
-app network "The network on the menu bar and the connection it watches" 1.4
+app network "The network on the menu bar and the connection it watches" 1.4.1
 
 # The state: kind (nm, ip, none, or gone for a NetworkManager that went;
 # empty until the first frame looks), why (the system asked for that did
@@ -1531,5 +1531,8 @@ command -v dt_app > /dev/null && dt_app netpw "Wi-Fi" 11 52 "" "" fixed hidden
 dt_baritem net ""
 dt_bariswitch net DT_NETBAR dt_netbar
 dt_barilabel net "Network"
+# Its pop-up is a step from the menu bar's keyboard (Gitea #519); a desktop
+# before that has no such call.
+command -v dt_barikbd > /dev/null && dt_barikbd net
 dt_baristop net dt_netstop
 dt_ticker dt_nettick

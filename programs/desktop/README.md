@@ -82,6 +82,23 @@ keeps it. Super reaches the desktop only from a terminal that speaks the
 kitty keyboard protocol, which the console asks for and `hold` passes on
 to each display that answers.
 
+**The rest of the bar and every context menu, by keyboard** (Gitea #519,
+#520). With the menu bar open (F10), Right past the last menu, or Left from
+the window list, reaches the bar's items that open a pop-up --
+notifications, sound, network, Bluetooth -- in the order the bar draws
+them, and opens it; Tab and Shift-Tab
+go along them, as do Left and Right where the pop-up has no use for them,
+and past either end you are back in the menus. Shift+F10, or the Menu key
+where the terminal can say it, opens the focused window's own context menu,
+or its window menu where its app has none, or the desktop's with nothing
+focused; Alt+Space opens the window menu, Move to Display among it; Alt+F7
+and Alt+F8 move and size the focused window with the arrows. Each is in
+Control Panel > Shortcuts. The desktop's chords and function keys are its
+own: under Blit 0.3.95 and later it tells Blit which they are, and a
+program window is not sent them (Gitea #530). A terminal told to Pass Every Key (its Window
+menu) gives its program Copy, Cut, Paste, Undo, Redo and Select All too
+(Gitea #523); F10 and the Start Menu key stay the desktop's, the way back.
+
 **A Super tap is the start menu** (Gitea #516): Super -- a Chromebook's
 Search key -- pressed and let go alone opens the hibr menu with its search
 ready, so typing finds an application, and a second tap shuts it. It is

@@ -123,6 +123,8 @@ dt_open() {
 	dt_load
 	console open || return 1
 	dt_tstamp "console"
+	# The chords kept from programs' windows, told to Blit (Gitea #530).
+	dt_has dt_keepsend && dt_keepsend
 	trap 'dt_onstop HUP' HUP
 	trap 'dt_onstop TERM' TERM
 	# What a cell left at the terminal's own default colour should darken
@@ -397,6 +399,9 @@ dt_size() {
 	dt_has dt_blankregions && dt_blankregions
 	# The compositor is told where the displays are now (Gitea #514).
 	dt_has dt_natlayout && dt_natlayout
+	# And Blit the chords kept from programs, once there is a way to it
+	# (Gitea #530).
+	dt_has dt_keepsend && dt_keepsend
 	dt_iconlay
 	dt_has dt_tile && dt_tile
 	return 0

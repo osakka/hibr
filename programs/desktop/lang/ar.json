@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99",
+ "version": "3.99.1",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1635,6 +1635,7 @@
   "Show all of %s": "عرض كل %s",
   "Remember Program Windows": "تذكّر نوافذ البرامج",
   "Programs Take Focus": "البرامج تأخذ التركيز",
-  "%s wants your attention": "%s يطلب انتباهك"
+  "%s wants your attention": "%s يطلب انتباهك",
+  "This window keeps its size": "تحافظ هذه النافذة على حجمها"
  }
 }

@@ -3314,6 +3314,66 @@ check("a Super tap opens the hibr menu with its search, which takes what is "
 sc, raw = run(ONE, feed=[TAP, 0.3, TAP, 0.4])
 check("and a second tap shuts it", sc.find("Screen Saver") is None and
       sc.find("Restart Desktop") is None, sc)
+
+# A context menu from the keyboard (Gitea #520): Shift+F10 opens the focused
+# window's -- its window menu where its app has none, as here -- and Alt+Space
+# the window menu, Move to Display among it. Escape shuts either.
+sc, raw = run(ONE, feed=[b"\x1b[21;2~", 0.4])
+check("Shift+F10 opens the focused window's menu", sc.find("Sticky") is not None, sc)
+sc, raw = run(ONE, feed=[b"\x1b ", 0.4])
+check("and Alt+Space its window menu", sc.find("Sticky") is not None, sc)
+# Move and Resize straight from the keyboard (Gitea #521): Alt+F7 takes the
+# arrows for moving the focused window, Alt+F8 for sizing it.
+sc, raw = run(ONE, feed=[b"\x1b[18;3~", 0.4])
+check("Alt+F7 moves the focused window from the keyboard",
+      b"moving" in raw, sc)
+sc, raw = run(ONE, feed=[b"\x1b[19;3~", 0.4])
+check("and Alt+F8 sizes it", b"resizing" in raw, sc)
+
+# No menu has two rows on one letter: dt_mkey takes the first, so the second
+# is unreachable by its letter -- Quit Application shared u with Shade and
+# never answered it (Gitea #522). Every menu the bar builds with a window
+# focused, the Window menu among them, is read for repeats.
+DUPF = scratch("desktop-mdup.txt")
+if os.path.exists(DUPF):
+    os.unlink(DUPF)
+path = scratch("desktop-mdup.hibr")
+open(path, "w").write(
+    "%s. %s\ndt_open\n%s\n" % (load(MOD), WM, ONE)
+    + "dt_menus\nfor ((m = 0; m < MB_N; m++)); do declare -A seen=()\n"
+    + "for ((i = 0; i < ${MB[$m][\"n\"]:-0}; i++)); do k=${MI[$m][$i][\"key\"]}\n"
+    + "[ -n \"$k\" ] && [ \"${MI[$m][$i][\"sep\"]}\" != 1 ] || continue\n"
+    + "[ -n \"${seen[\"$k\"]+x}\" ] && echo \"${MB[$m][\"title\"]}: $k ${seen[\"$k\"]} / ${MI[$m][$i][\"label\"]}\" >> %s\n" % DUPF
+    + "seen[\"$k\"]=${MI[$m][$i][\"label\"]}; done; unset seen; done\n"
+    + "echo done >> %s\ndt_run\ndt_close\n" % DUPF)
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+t.collect(0.6)
+t.quit(None, 0.5)
+dup = open(DUPF).read().split("\n") if os.path.exists(DUPF) else []
+check("no menu has two rows on one letter", dup[:1] == ["done"], dup)
+os.unlink(path)
+
+# The bar's items that open a pop-up are steps of the menu bar's keyboard
+# (Gitea #519), in the order the bar draws them, between the menus and the
+# window list: left of the window list the last of them opens; Shift-Tab and
+# Tab go along them. An item whose press starts an app -- the
+# clock -- is not one, so arriving at it never sets it off.
+BARI = ("zz_open() { dt_baripop zz zzp 4 20; }\n"
+        "zzp_popdraw() { console put \"$DT_POPR\" \"$DT_POPC\" ZZPOP; }\n"
+        "dt_baritem zz ZZ zz_open\ndt_barikbd zz\n")
+path = scratch("desktop-barkbd.hibr")
+open(path, "w").write("%s. %s\n%sdt_open\n%s\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, BARI, ONE))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+t.keys([b"\x1b[21~", 0.3, b"\x1b[D", 0.3, b"\x1b[D", 0.4])
+sc1 = t.screen()
+t.keys([b"\x1b[Z", 0.4])
+sc2 = t.screen()
+t.quit(None, 0.5)
+os.unlink(path)
+check("left of the window list the keyboard reaches the bar's items, the "
+      "notifications' pop-up first, and Shift-Tab goes on to the next",
+      sc1.find("ZZPOP") is None and sc2.find("ZZPOP") is not None, (sc1, sc2))
 sc, raw = run(ONE, feed=[b"\x03", b"\x1c", b"\x1a", b"\x1b[21~"])
 check("ctrl-c, ctrl-\\ and ctrl-z are keys, not the end of the desktop",
       sc.find("Screen Saver") is not None and sc.status == 0, sc)
@@ -4491,8 +4551,10 @@ check("its Wallpaper module applies the glyph chosen from its list",
       re.search(r"DT_GLYPH=.?░", saved) is not None, sc)
 
 # The same three from the menu bar's own Window menu, the last one: F10,
-# then left past the application menu to reach it.
-WMENU = [b"\x1b[21~", b"\x1b[D", b"\x1b[D"]
+# then right through File and Edit. Left goes the other way round the bar,
+# through the window list and then the bar's items that open a pop-up
+# (Gitea #519), however many are installed.
+WMENU = [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C"]
 sc, _ = run(ONE, WMENU + [b"z"])
 top = sc.find("┤ Hello ├")
 check("the menu bar's Window menu zooms the focused window",
@@ -9702,4 +9764,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1054)
+report(1060)

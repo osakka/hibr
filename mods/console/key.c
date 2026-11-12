@@ -994,6 +994,13 @@ int cn_csiu(unsigned code, int m, str *o)
 		s_cat(o, mods[code - 57441]);
 		return 1;
 	}
+	/* The Menu key, which only the kitty protocol can say (Gitea #520). */
+	if (code == 57363) {
+		if (b & 8)
+			s_cat(o, "super-");
+		s_cat(o, "menukey");
+		return 1;
+	}
 	if ((code >= 57344 && code <= 63743) || code > 0x10FFFF) {
 		lg(HIBR_LDBG, "console: key %u has no name here, dropped", code);
 		return 2;

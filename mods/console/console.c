@@ -1508,6 +1508,29 @@ int m_console(sh *s, int ac, char **av)
 		s_free(&k);
 		return r == 1 ? HIBR_OK : HIBR_FAIL;
 	}
+	/* The chords the desktop keeps from programs' windows (Gitea #530):
+	   `INPUT keep` to every display's Blit, the whole set each time,
+	   which withholds them from every program's route. Status 1 where
+	   no Blit is there to tell. */
+	if (!strcmp(sub, "keep")) {
+		int a, okk;
+
+		s_init(&k);
+		s_cat(&k, "INPUT keep");
+		for (a = 2; a < ac; a++) {
+			if (!*av[a] || strpbrk(av[a], " \t\r\n")) {
+				lg(HIBR_LERR, "console keep: a chord with a blank in it");
+				s_free(&k);
+				return 2;
+			}
+			s_ch(&k, ' ');
+			s_cat(&k, av[a]);
+		}
+		okk = cn_dsay(s, k.p);
+		lg(HIBR_LDBG, "console: %s %s", k.p, okk ? "said" : "not said, no Blit");
+		s_free(&k);
+		return okk ? HIBR_OK : HIBR_FAIL;
+	}
 	if (!strcmp(sub, "keyphases")) {
 		if (!cn_need())
 			return HIBR_FAIL;

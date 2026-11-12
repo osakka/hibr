@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.8.1
+app term "A shell in a window" 1.8.2
 # part: control-panel/terminal.hibr
 # modules: pty term
 
@@ -575,6 +575,12 @@ fn term_selcopy(int id) {
 
 # The Window menu's tick for one terminal window: pass it every key, the
 # desktop's own chords included, whatever DT_TERMKEEP says.
+# Whether a terminal window passes every key to its program (Pass Every
+# Key): the window manager asks before taking Copy, Paste and the rest.
+fn term_passing(int id) {
+	[ "${TW[$id]["passall"]-}" = 1 ]
+}
+
 fn term_passall(int id) {
 	if [ "${TW[$id]["passall"]}" = 1 ]; then
 		TW[$id]["passall"]=

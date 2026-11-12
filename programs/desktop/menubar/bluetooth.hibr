@@ -32,7 +32,7 @@
 
 strict
 
-app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.2
+app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.2.1
 
 # The state: kind (bluez, none, or gone for a bluetoothd that went; empty
 # until the first frame looks), why (asked for and not answering), addr and
@@ -852,5 +852,8 @@ command -v dt_app > /dev/null && dt_app btpair "Bluetooth" 11 52 "" "" fixed hid
 dt_baritem bt ""
 dt_bariswitch bt DT_BTBAR dt_btbar
 dt_barilabel bt "Bluetooth"
+# Its pop-up is a step from the menu bar's keyboard (Gitea #519); a desktop
+# before that has no such call.
+command -v dt_barikbd > /dev/null && dt_barikbd bt
 dt_baristop bt dt_btstop
 dt_ticker dt_bttick

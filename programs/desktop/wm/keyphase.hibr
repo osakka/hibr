@@ -78,15 +78,19 @@ fn dt_keyletgo(int id) {
 
 # The window keys go to now, in DT_KEYSWIN: the focused window, shown, with
 # no menu, pop-up, confirm box, screenshot chooser, saver or lock in front
-# of it; empty when keys go to none. A program window loses its route with
-# it, so a box over a game is answered by the box alone.
+# of it, and no window being moved or sized; empty when keys go to none. A
+# program window loses its route with it, so a box over a game is answered
+# by the box alone -- and a program window being dragged is sent no pointer
+# while the pointer runs ahead of it over its picture, which made it repaint
+# its hover on every move and the drag crawl.
 # One test for both the key phases and a window's `_focus`, so the two can
 # never disagree about who has the keys.
 DT_KEYSWIN=
 dt_keyswin() {
 	DT_KEYSWIN=
 	if [ -n "$DT_FOCUS" ] && [ "$MB_OPEN" = -1 ] &&
-	   [ -z "$DT_POP$DT_SAVING$DT_LOCKED$DT_CONFIRM$DT_SHOT" ] && ! dt_hidden "$DT_FOCUS"; then
+	   [ -z "$DT_POP$DT_SAVING$DT_LOCKED$DT_CONFIRM$DT_SHOT$DT_DRAG$DT_SIZE" ] &&
+	   ! dt_hidden "$DT_FOCUS"; then
 		DT_KEYSWIN=$DT_FOCUS
 	fi
 	return 0

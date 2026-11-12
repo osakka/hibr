@@ -1291,6 +1291,7 @@ This network wants you to sign in -- click to open its page
 This notification has been cleared.
 This page could not be drawn
 This site and its sister hosts. Any other site opens in the Browser.
+This window keeps its size
 This window: desktop shortcuts work again
 This window: every key goes to the program
 Thu

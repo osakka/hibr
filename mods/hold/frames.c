@@ -284,6 +284,10 @@ static struct hd_in {
 	str mem;
 } *hd_ins;
 static size_t hd_nin;
+/* The chords the desktop keeps from programs (`INPUT keep`, Gitea #530):
+   the last line, said to each display that can be sent frames and again to
+   one that joins. Blit answers it only when it refuses it. */
+static str hd_keep;
 
 /* Close a record's descriptors: the display that wants them has them. */
 static void hd_f3shut(struct hd_f3 *f)
@@ -589,6 +593,17 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	int sent = 0;
 	str o;
 
+	if (n >= 10 && !memcmp(line, "INPUT keep", 10) && (n == 10 || line[10] == ' ')) {
+		hd_keep.n = 0;
+		s_add(&hd_keep, line, n);
+		for (i = 0; i < cls->n; i++) {
+			struct hd_cli *cn = cls->p[i];
+
+			if (cn->fdok)
+				hd_send(cn->fd, HD_INPUT, line, n);
+		}
+		return;
+	}
 	if (!id || n < 9 || memcmp(line, "INPUT ", 6))
 		return;
 	/* A producer's own line comes after any replay, so whatever a
@@ -647,6 +662,8 @@ void hd_inreplay(struct hd_cli *cn)
 
 	if (!cn->fdok)
 		return;
+	if (hd_keep.n)
+		hd_send(cn->fd, HD_INPUT, hd_keep.p, hd_keep.n);
 	s_init(&o);
 	for (i = 0; i < hd_nin; i++) {
 		if (!hd_ins[i].sock.n)

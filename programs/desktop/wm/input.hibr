@@ -1041,7 +1041,7 @@ fn dt_cellpx(int id, int r, int c, int cw, int ch) {
 # for pixels; it is taken off here, so everything after reads the four or
 # five fields it always has.
 fn dt_event(k) {
-	local an knorm qn cn cln qan dn sn ev px
+	local an knorm qn cn cln qan dn sn ev px pa
 
 	# The pointer lock (Gitea #379) first: a held pointer's reports are
 	# its window's alone, the display giving the pointer back is the end
@@ -1271,9 +1271,24 @@ fn dt_event(k) {
 			dt_popclose
 			return 0
 		fi
+		# A pop-up the keyboard opened from the menu bar: Tab goes on to
+		# the next item, Shift-Tab back (Gitea #519).
+		if [ -n "$DT_POPKBD" ] && [ "$DT_POPITEM" = "$DT_POPKBD" ]; then
+			case $k in
+			tab) dt_baristep 1; return 0 ;;
+			shift-tab) dt_baristep -1; return 0 ;;
+			esac
+		fi
 		if dt_has "${DT_POP}_popkey" && "${DT_POP}_popkey" "$k"; then
 			dt_want 10
 			return 0
+		fi
+		# Left and right the pop-up has no use for go along the bar too.
+		if [ -n "$DT_POPKBD" ] && [ "$DT_POPITEM" = "$DT_POPKBD" ]; then
+			case $k in
+			right) dt_baristep 1; return 0 ;;
+			left) dt_baristep -1; return 0 ;;
+			esac
 		fi
 		dt_popclose
 	fi
@@ -1296,7 +1311,11 @@ fn dt_event(k) {
 	# again in any window and on any display joined to this one.
 	# Save goes only to a window that saves -- anywhere else the key is the
 	# window's, so a terminal still gets ctrl-s.
-	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["savefile"]}" ] &&
+	# A terminal told to Pass Every Key gets these too (Gitea #523); Menu
+	# Bar and Start Menu below stay the desktop's, the way back out.
+	pa=
+	[ -n "$DT_FOCUS" ] && dt_has term_passing && term_passing "$DT_FOCUS" && pa=1
+	if [ -z "$pa" ] && [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["savefile"]}" ] &&
 	   dt_keyis save "$k"; then
 		DT_NOTEWIN=$DT_FOCUS
 		${DT[$DT_FOCUS]["savefile"]} "$DT_FOCUS"
@@ -1304,19 +1323,21 @@ fn dt_event(k) {
 	fi
 	# Fill Sign-In, the same way: only a window with a sign-in form of its
 	# own takes it, so the Browser's own fill on the same key still works.
-	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["signin"]}" ] &&
+	if [ -z "$pa" ] && [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["signin"]}" ] &&
 	   dt_keyis signin "$k" && dt_vwfill; then
 		return 0
 	fi
-	if dt_keyis undo "$k"; then dt_editdo undo; return 0; fi
-	if dt_keyis redo "$k"; then dt_editdo redo; return 0; fi
-	if dt_keyis copy "$k"; then dt_edit copy; return 0; fi
-	if dt_keyis cut "$k"; then dt_edit cut; return 0; fi
-	if dt_keyis paste "$k"; then dt_edit paste; return 0; fi
+	if [ -z "$pa" ]; then
+		if dt_keyis undo "$k"; then dt_editdo undo; return 0; fi
+		if dt_keyis redo "$k"; then dt_editdo redo; return 0; fi
+		if dt_keyis copy "$k"; then dt_edit copy; return 0; fi
+		if dt_keyis cut "$k"; then dt_edit cut; return 0; fi
+		if dt_keyis paste "$k"; then dt_edit paste; return 0; fi
+	fi
 	# Select All is one key everywhere (0.99.422): the focused field's,
 	# the window's own when its app has one, and with no window focused
 	# the desktop's icons, further down. A window with neither keeps it.
-	if [ -n "$DT_FOCUS" ] && dt_keyis selectall "$k" &&
+	if [ -z "$pa" ] && [ -n "$DT_FOCUS" ] && dt_keyis selectall "$k" &&
 	   { dt_fieldlive || [ -n "${DT[$DT_FOCUS]["selall"]}" ]; }; then
 		dt_editdo selall
 		return 0
@@ -1392,6 +1413,19 @@ fn dt_event(k) {
 		dt_detach
 	elif dt_wskey "$k"; then
 		:
+	elif dt_keyis move "$k"; then
+		dt_grab move
+	elif dt_keyis resize "$k"; then
+		if [ -n "$DT_FOCUS" ] &&
+		   [ "${DT_APPS[${DT[$DT_FOCUS]["app"]:-none}]["fixed"]-}" = 1 ]; then
+			dt_notep low "This window keeps its size"
+		else
+			dt_grab size
+		fi
+	elif dt_keyis context "$k" || dt_keyis context2 "$k"; then
+		dt_ctxkey context
+	elif dt_keyis winmenu "$k"; then
+		dt_ctxkey window
 	elif dt_keyis shot "$k"; then
 		dt_shot
 	elif dt_keyis refresh "$k"; then

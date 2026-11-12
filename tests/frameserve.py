@@ -48,6 +48,23 @@ F_GET_SEALS = 1034
 SEALS = 0x0002 | 0x0004 | 0x0008
 
 
+KEEPNAMED = {"up", "down", "left", "right", "home", "end", "pageup", "pagedown",
+             "insert", "delete", "tab", "enter", "space", "escape", "backspace",
+             "print", "menu"} | {"f%d" % i for i in range(1, 25)}
+
+
+def keepok(c):
+    """A chord as Blit's INPUT keep spells it: ctrl-, alt-, shift-, super-
+    in that order, then a key -- a letter, a digit, US unshifted punctuation
+    or a named key; super alone is the tap."""
+    if c == "super":
+        return True
+    for m in ("ctrl-", "alt-", "shift-", "super-"):
+        if c.startswith(m) and len(c) > len(m):
+            c = c[len(m):]
+    return (len(c) == 1 and (c.isalnum() or c in "`-=[]\;',./")) or c in KEEPNAMED
+
+
 def note(**kw):
     with open(LOG, "a") as f:
         f.write(json.dumps(kw) + "\n")
@@ -175,6 +192,14 @@ def inputline(conn, held, routes, data, fds):
             why = "EINVAL"
         else:
             note(kind="member", id=iid, top=int(w[3]), x=int(w[4]), y=int(w[5]))
+    elif len(w) >= 2 and w[1] == "keep":
+        # Blit 0.3.95 (Gitea #530): the chords the desktop keeps, the whole
+        # set each time, not answered; a chord out of its one spelling
+        # refuses the whole line with INPUT error 0 EINVAL.
+        if all(keepok(c) for c in w[2:]):
+            note(kind="keep", chords=w[2:])
+            return
+        why = "EINVAL"
     elif len(w) == 3 and w[1] in ("on", "off"):
         if iid not in routes.get(conn, {}):
             why = "ENOENT"

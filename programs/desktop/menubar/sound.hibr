@@ -39,7 +39,7 @@
 
 strict
 
-app sound "The speaker on the menu bar and the sound it watches" 1.5
+app sound "The speaker on the menu bar and the sound it watches" 1.5.1
 
 # The state: kind (pulse, pw, alsa, none, or gone for a server that went;
 # empty until the first frame looks), server (what the server calls
@@ -942,5 +942,8 @@ fn snd_context(id = "") {
 dt_baritem sound ""
 dt_bariswitch sound DT_SNDBAR dt_sndbar
 dt_barilabel sound "Volume"
+# Its pop-up is a step from the menu bar's keyboard (Gitea #519); a desktop
+# before that has no such call.
+command -v dt_barikbd > /dev/null && dt_barikbd sound
 dt_baristop sound dt_sndstop
 dt_ticker dt_sndtick

@@ -459,6 +459,83 @@ fn dt_popat(name, who, int c, int h, int w) {
 	dt_want 10
 }
 
+# An item that opens a pop-up of its own says so, and is then one the
+# keyboard steps through from the menu bar (Gitea #519). An item whose press
+# starts an app or opens a menu is not: arriving at it would set it off.
+fn dt_barikbd(name) {
+	DT_BARI["$name"]["kbd"]=1
+}
+
+# The bar's items a keyboard steps through (Gitea #519), in their order on
+# the bar: those drawn that open a pop-up (dt_barikbd).
+dt_barkeys() {
+	local nm out= i j t
+	local -a ns=() cs=()
+
+	for nm in "${DT_BARIN[@]}"; do
+		[ "${DT_BARI["$nm"]["kbd"]-}" = 1 ] || continue
+		[ "${DT_BARI["$nm"]["w"]:-0}" -gt 0 ] || continue
+		ns+=("$nm")
+		cs+=("${DT_BARI["$nm"]["c"]:-0}")
+	done
+	# A handful at most: sorted by column in place, no fork.
+	for ((i = 1; i < ${#ns[@]}; i++)); do
+		for ((j = i; j > 0 && cs[j-1] > cs[j]; j--)); do
+			t=${cs[j]}; cs[j]=${cs[j-1]}; cs[j-1]=$t
+			t=${ns[j]}; ns[j]=${ns[j-1]}; ns[j-1]=$t
+		done
+	done
+	for nm in "${ns[@]}"; do
+		out="$out $nm"
+	done
+	ret "${out# }"
+}
+
+# The item a keyboard has open, so its pop-up's Tab goes on to the next.
+DT_POPKBD=
+
+# Open a bar item from the keyboard, as a press on it would.
+fn dt_barikey(name) {
+	local b r=${DT_PRIMARY_ROW:-0} c=${DT_BARI["$name"]["c"]:-0}
+
+	DT_POPKBD=$name
+	b=${DT_BARI["$name"]["press"]-}
+	if [ -n "$b" ]; then
+		"$b" left "$r" "$c" || dt_barido "$name" left
+	else
+		dt_barido "$name" left
+	fi
+	dt_want 10
+	return 0
+}
+
+# The next bar item from the keyboard, or past either end back into the
+# menu bar, in the order the bar draws: the window list after the last,
+# the last menu before the first.
+fn dt_baristep(int dir) {
+	local cur=$DT_POPKBD nm i=-1 j=0 l n
+	local -a a
+
+	l := dt_barkeys
+	read -ra a <<< "$l"
+	for nm in "${a[@]}"; do
+		[ "$nm" = "$cur" ] && i=$j
+		j=$((j + 1))
+	done
+	dt_popclose
+	DT_POPKBD=
+	i=$((i + dir))
+	if [ "$i" -ge 0 ] && [ "$i" -lt "${#a[@]}" ]; then
+		dt_barikey "${a[$i]}"
+	elif [ "$dir" -gt 0 ]; then
+		dt_mopen app
+	else
+		n := dt_mbar "$MB_N" -1
+		dt_mopen "$n"
+	fi
+	return 0
+}
+
 fn dt_popclose() {
 	[ -n "$DT_POP" ] || return 0
 	DT_POP=

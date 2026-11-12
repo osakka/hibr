@@ -10,6 +10,28 @@ strict
 # "desktop" for the hibr menu, or an app's prefix for its own <app>_context.
 # The menu itself does not exist until the next frame builds it -- dt_mouse
 # only records where and for whom, the same lag any other request has.
+# A context menu from the keyboard (Gitea #520): `context` the focused
+# window's own, or its window menu where its app has none, or the desktop's
+# with nothing focused; `window` the window menu, Move to Display among it.
+# Opened at the window's top left, where a press would have put it.
+fn dt_ctxkey(what) {
+	local id=$DT_FOCUS r c ap
+
+	if [ -z "$id" ] || [ -z "${DT[$id]["title"]-}" ]; then
+		dt_context_open desktop "" $((${DT_PRIMARY_ROW:-0} + 2)) $((${DT_PRIMARY_COL:-0} + 2))
+		return 0
+	fi
+	r=${DT[$id]["row"]}
+	c=$((${DT[$id]["col"]} + 2))
+	ap=${DT[$id]["app"]-}
+	if [ "$what" = context ] && [ -n "$ap" ] && dt_has "${ap}_context"; then
+		dt_context_open "$ap" "$id" $((r + 1)) "$c"
+		return 0
+	fi
+	dt_context_open titlebar "$id" "$r" "$c"
+	return 0
+}
+
 fn dt_context_open(who, id, int r, int c) {
 	MB_CTXWHO=$who
 	MB_CTXID=$id

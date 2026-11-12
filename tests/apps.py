@@ -918,7 +918,7 @@ check("escape cancels it -- the next key is ordinary again, not captured",
 sc = cprun(reach("shortcuts", "Control Panel"))
 check("Shortcuts lists the desktop's actions, the Control Strip's among "
       "them, then each app's under a heading of its own",
-      all(brow(sc, t) != "" for t in ("Close Window", "Detach", "Quit",
+      all(brow(sc, t) != "" for t in ("Quit Application", "Detach", "Quit",
                                         "Cycle Windows", "Control Strip",
                                         "Control Panel")) and
       "alt-s" in brow(sc, "Control Strip") and brow(sc, "Apps") != "", sc)
@@ -2947,6 +2947,16 @@ sc = run("term", "10 36 2 2", feed=[b"\x1b\t", 0.5], wait=1.6, end=None,
          also=CLOCKW)
 check("and a window told to pass every key passes it too",
       "033" in sc.text(), sc)
+# Pass Every Key passes the keys the desktop takes before any window too --
+# Copy, Cut, Paste, Undo, Redo, Select All (Gitea #523): alt-c, Copy by
+# default, reaches the program, where without it the desktop copies.
+sc = run("term", "10 36 2 2", feed=[b"\x1bc", 0.5], wait=1.6, end=None,
+         pre=OD + "\nDT_TERMKEEP=1" + '\nTW[1]["passall"]=1')
+check("a window told to pass every key passes Copy's key to its program",
+      "033" in sc.text(), sc)
+sc = run("term", "10 36 2 2", feed=[b"\x1bc", 0.5], wait=1.6, end=None,
+         pre=OD + "\nDT_TERMKEEP=1")
+check("and without it the desktop keeps it", "033" not in sc.text(), sc)
 # Close Window is on alt-w since 0.99.90, so this binds it to a ctrl+letter of
 # its own to go on testing the thing that matters -- whether a terminal yields a
 # chord the desktop holds. ctrl-p rather than ctrl-w for two reasons: settings
@@ -6274,4 +6284,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(809)
+report(811)

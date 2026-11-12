@@ -171,6 +171,16 @@ out = wait(lambda: told("WINDOW output 7 "))
 check("and told the display it is on: its size in pixels, and its rate, "
       "60 Hz where Blit's API does not say",
       out and out[0].split()[3:] == [str(82 * 8), str(26 * 16), "60000"], out)
+# The chords the desktop keeps from programs' windows reach Blit (Gitea
+# #530): F10, the Shortcut Key's chords spelled with alt, Lock's ctrl-alt-l
+# -- and not Escape, a plain key, which a program window keeps.
+kp = wait(lambda: blitkind("keep"))
+kc = kp[-1]["chords"] if kp else []
+check("the desktop tells Blit the chords it keeps from programs, spelled as "
+      "Blit reads them, and no plain key among them",
+      "f10" in kc and "alt-w" in kc and "alt-tab" in kc and "ctrl-alt-l" in kc
+      and "escape" not in kc and not [x for x in lines(blitlog) if x.get("kind") == "input"
+                                      and x.get("verb") == "keep"], kc)
 f3 = wait(lambda: blitkind("frame3"))
 cid = f3[0]["id"] if f3 else None
 check("its frames reach the display's Blit under the console's id, not the "
@@ -453,6 +463,31 @@ check("a program's own title bar moving its window hands the press to the "
       "route off meanwhile and on again after", off and mv and on,
       (bool(off), scr().find("Stand-in"), st, bool(on)))
 
+# Dragging a program window by the desktop's own title bar must cost the
+# program nothing (0.99.492, and the owner's "fixed for good"): its size is
+# not said again, its route is not turned off and on, and the desktop draws
+# about a frame a move, not one for every frame the program sends meanwhile.
+t.collect(0.6)
+sc = scr()
+tt = sc.find("\u2524 Stand-in")
+dr0, dc0 = (tt[0], tt[1] + 4) if tt else (2, 10)
+ns7 = len(told("WINDOW size 7 "))
+nio = len([x for x in blitkind("input") if x.get("verb") in ("on", "off")])
+nout = len(told("WINDOW output 7 "))
+fr0 = t.frames()
+t.keys([press(dr0, dc0)] + [drag(dr0 + (k + 1) // 4, dc0 + k) for k in range(1, 11)]
+       + [release(dr0 + 2, dc0 + 10), 0.6])
+moved = wait(lambda: scr().find("\u2524 Stand-in") not in (None, tt) and scr())
+fr1 = t.frames()
+io = [x["verb"] for x in blitkind("input") if x.get("verb") in ("on", "off")][nio:]
+check("dragging a program window by the desktop's frame turns its route off "
+      "for the drag and on after, so no pointer reaches it meanwhile, and "
+      "says nothing else to it: no size, no output",
+      moved and len(told("WINDOW size 7 ")) == ns7 and io == ["off", "on"] and
+      len(told("WINDOW output 7 ")) == nout and fr1 - fr0 <= 16,
+      (bool(moved), told("WINDOW size 7 ")[ns7:], len(told("WINDOW output 7 ")) - nout,
+       [x for x in blitkind("input") if x.get("verb") in ("on", "off")][nio:], fr1 - fr0))
+
 # The clipboard, both ways (Blit ADR 0229).
 def osc52():
     return [base64.b64decode(m).decode(errors="replace")
@@ -688,6 +723,10 @@ def hk(k, **kw):
 
 
 hw = wait(lambda: hscr().find("Stand-in"), 8)
+hkeep = wait(lambda: hk("keep"), 6)
+check("held, the chords the desktop keeps reach the display's Blit through "
+      "hold (Gitea #530)", hkeep and "f10" in hkeep[-1]["chords"],
+      [x for x in lines(blitlog2) if x["kind"] in ("keep", "input")][-4:])
 hsock = wait(lambda: hk("input", verb="sock", ok=True), 6)
 check("held, the compositor's window reaches the display, and its route by "
       "socket reaches the display's Blit through hold -- the window drawn "
@@ -875,4 +914,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(63)
+report(66)

@@ -18,9 +18,9 @@ DT_KEYPEND_FROM=
 # launch shortcut is DT_APPKEY, keyed by the app's name. Nothing the
 # desktop does is on a key that is not in one of the two.
 DT_KEYORDER=(menu menu2 start save undo redo copy cut paste selectall signin scrollup scrolldown
-	zoom fullscreen hide shade snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
+	move resize zoom fullscreen hide shade snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
 	ws7 ws8 ws9 wsnext wsprev tile tilemain close quitapp cycle cycleback strip shot
-	refresh lock volup voldown mute
+	refresh lock context context2 winmenu volup voldown mute
 	ptrrelease fsleave detach quit)
 declare -gA DT_KEYNAME
 DT_KEYNAME["menu"]="Menu Bar"
@@ -93,6 +93,11 @@ DT_KEYNAME["strip"]="Control Strip"
 DT_KEYNAME["shot"]="Screenshot"
 DT_KEYNAME["refresh"]="Refresh Desktop"
 DT_KEYNAME["lock"]="Lock Screen"
+DT_KEYNAME["move"]="Move Window"
+DT_KEYNAME["resize"]="Resize Window"
+DT_KEYNAME["context"]="Context Menu"
+DT_KEYNAME["context2"]="Context Menu, Also"
+DT_KEYNAME["winmenu"]="Window Menu"
 
 # A shortcut in one canonical modifier order, ctrl then alt then shift,
 # whatever order it named them in -- an alt combination arrives as ESC
@@ -122,6 +127,9 @@ fn dt_keynorm(k) {
 	*-) base=-; mods=${k%-}; mods=${mods%-} ;;
 	*-*) base=${k##*-}; mods=${k%-"$base"} ;;
 	esac
+	# The space bar arrives as itself, " ", and is written `space` in a
+	# binding (Window Menu's mod-space): one name for both.
+	[ "$base" = " " ] && base=space
 	case $mods in *ctrl*) c=1 ;; esac
 	case $mods in *alt*) a=1 ;; esac
 	case $mods in *shift*) s=1 ;; esac
@@ -291,6 +299,91 @@ fn dt_keyis(what, key) {
 	a := dt_keynorm "${DT_KEYS["$what"]}"
 	b := dt_keynorm "$key"
 	[ "$a" = "$b" ]
+}
+
+# A bound key as Blit's `INPUT keep` spells it, once for each modifier the
+# Shortcut Key stands for: ctrl, alt, shift, super in that order, then the
+# key (Gitea #530). Nothing for a key the desktop does not keep from a
+# program -- the same test native_key asks, dt_keyassigned's.
+fn dt_keepchord(k) {
+	local n base mods c a s u m out= x
+	local -a ms
+
+	case $k in
+	ctrl-* | alt-* | super-* | mod-* | shift-f[0-9]* | f[0-9]*) ;;
+	super) ret super; return 0 ;;
+	*) ret ""; return 0 ;;
+	esac
+	if [ "$DT_TERMCTRL" = 1 ]; then
+		case $k in ctrl-[a-z]) ret ""; return 0 ;; esac
+	fi
+	n := dt_keynorm "$k"
+	base=$n
+	mods=
+	case $n in
+	*-) base=-; mods=${n%-}; mods=${mods%-} ;;
+	*-*) base=${n##*-}; mods=${n%-"$base"} ;;
+	esac
+	[ "$base" = menukey ] && base=menu
+	c=0 a=0 s=0 u=0 m=0
+	case $mods in *ctrl*) c=1 ;; esac
+	case $mods in *alt*) a=1 ;; esac
+	case $mods in *shift*) s=1 ;; esac
+	case $mods in *super*) u=1 ;; esac
+	case $mods in *mod*) m=1 ;; esac
+	ms=(-)
+	[ "$m" = 1 ] && read -ra ms <<< "$DT_MOD"
+	for x in "${ms[@]}"; do
+		k=
+		[ "$c" = 1 ] && k="${k}ctrl-"
+		{ [ "$a" = 1 ] || [ "$x" = alt ]; } && k="${k}alt-"
+		[ "$s" = 1 ] && k="${k}shift-"
+		{ [ "$u" = 1 ] || [ "$x" = super ]; } && k="${k}super-"
+		out="$out $k$base"
+	done
+	ret "${out# }"
+}
+
+# Tell Blit the chords the desktop keeps from programs' windows (Gitea
+# #530): every bound action and app key that is a chord or a function key,
+# so F10 or Alt+W act once, on the desktop, and not in Firefox as well.
+# The whole set each time; said only when it changed. Where there is no
+# Blit the console says so and nothing comes of it.
+DT_KEEPSENT=
+dt_keepsend() {
+	local an k ch out=
+	local -A seen=()
+	local -a w
+
+	for an in "${!DT_KEYS[@]}"; do
+		k=${DT_KEYS["$an"]}
+		[ -n "$k" ] || continue
+		ch := dt_keepchord "$k"
+		read -ra w <<< "$ch"
+		for k in "${w[@]}"; do
+			[ -n "${seen["$k"]+x}" ] && continue
+			seen["$k"]=1
+			out="$out $k"
+		done
+	done
+	for an in "${!DT_APPKEY[@]}"; do
+		k=${DT_APPKEY["$an"]}
+		[ -n "$k" ] || continue
+		ch := dt_keepchord "$k"
+		read -ra w <<< "$ch"
+		for k in "${w[@]}"; do
+			[ -n "${seen["$k"]+x}" ] && continue
+			seen["$k"]=1
+			out="$out $k"
+		done
+	done
+	out=${out# }
+	[ "$out" = "$DT_KEEPSENT" ] && return 0
+	read -ra w <<< "$out"
+	# Kept as said only once it went: at startup the way to a held
+	# session's displays is not open yet, and dt_size asks again.
+	console keep "${w[@]}" 2> /dev/null && DT_KEEPSENT=$out
+	return 0
 }
 
 # The key an action has now, empty for none.

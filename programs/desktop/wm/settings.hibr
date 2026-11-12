@@ -86,6 +86,18 @@ done
 # menu's own name rather than a second one for the same act.
 [ -n "${DT_KEYS["refresh"]+x}" ] || DT_KEYS["refresh"]="ctrl-alt-r"
 [ -n "${DT_KEYS["lock"]+x}" ] || DT_KEYS["lock"]="ctrl-alt-l"
+# A context menu from the keyboard (Gitea #520): Shift+F10 and the Menu key
+# open the focused window's own, or its window menu where it has none, or
+# the desktop's with nothing focused; Alt+Space -- the Windows habit --
+# opens the window menu, where Move to Display is.
+# Move and Resize straight from the keyboard (Gitea #521): Alt+F7 and
+# Alt+F8, as Windows and GNOME have them; the arrows then move or size the
+# focused window, as Window > Move and Resize do.
+[ -n "${DT_KEYS["move"]+x}" ] || DT_KEYS["move"]="mod-f7"
+[ -n "${DT_KEYS["resize"]+x}" ] || DT_KEYS["resize"]="mod-f8"
+[ -n "${DT_KEYS["context"]+x}" ] || DT_KEYS["context"]="shift-f10"
+[ -n "${DT_KEYS["context2"]+x}" ] || DT_KEYS["context2"]="menukey"
+[ -n "${DT_KEYS["winmenu"]+x}" ] || DT_KEYS["winmenu"]="mod-space"
 [ -n "${DT_KEYS["undo"]+x}" ] || DT_KEYS["undo"]="mod-z"
 [ -n "${DT_KEYS["save"]+x}" ] || DT_KEYS["save"]="ctrl-s"
 [ -n "${DT_KEYS["redo"]+x}" ] || DT_KEYS["redo"]="mod-y"
@@ -595,6 +607,9 @@ dt_load() {
 dt_save() {
 	local v k n i s tmp=$DT_CONF.$$
 
+	# A rebind or a new Shortcut Key is saved as it is made: Blit is told
+	# the chords kept from programs then (Gitea #530).
+	dt_has dt_keepsend && dt_keepsend
 	mkdir -p "${DT_CONF%/*}" 2> /dev/null || return 1
 	unset DT_CONFOUT
 	declare -gA DT_CONFOUT
