@@ -1376,6 +1376,46 @@ check("escape clears it, and every pane is back",
       sc.find("/wall") is None and sc.find("Date & Time") is not None,
       sc)
 
+# A search shows only a pane's matching rows, each under its own heading,
+# with the rest one link away (Gitea #513): "restart" found Blit, Power and
+# Login Manager, and opening one showed the whole pane with the row buried.
+# The check that matters acts on the row it shows -- a part whose indices
+# had come apart from the pane's would change some other setting.
+def cprow(sc, label):
+    """The rest of the row holding label, or None."""
+    for row in sc.text().split("\n"):
+        at = row.find(label)
+        if at >= 0:
+            return row[at + len(label):].strip(" │")
+    return None
+
+
+TS = [b"/"] + [c.encode() for c in "tree s"] + [b"\r", 0.3]
+sc = cprun(TS + [b"\r", 0.4])
+before = cprow(sc, "Tree Style")
+check("a search shows only the rows of a pane that hold it, under their "
+      "heading, and a link to the rest",
+      before is not None and sc.find("Look") is not None and
+      sc.find("Theme") is None and sc.find("Tree Rules") is None and
+      sc.find("Show all of Appearance") is not None, sc)
+sc = cprun(TS + [b"\r", 0.3, b"\r", 0.5])
+after = cprow(sc, "Tree Style")
+check("and Enter on the row it shows changes that row's own setting",
+      after is not None and after != before and
+      sc.find("Theme") is None, sc)
+sc = cprun(TS + [b"\r", 0.3, b"\x1b[B", 0.3, b"\r", 0.5])
+check("Show all of the pane shows the whole of it, the search still on",
+      sc.find("Theme") is not None and sc.find("Tree Rules") is not None and
+      sc.find("Show all of") is None and "/tree s" in sc.text(), sc)
+sc = cprun([b"/"] + [c.encode() for c in "tree s"] + [0.3, b"\x1b", 0.5])
+check("clearing the search shows the whole pane again",
+      sc.find("Theme") is not None and sc.find("Tree Rules") is not None and
+      sc.find("Show all of") is None, sc)
+sc = cprun([b"/"] + [c.encode() for c in "appear"] + [b"\r", 0.5])
+check("a pane found by its own title is shown whole",
+      sc.find("Theme") is not None and sc.find("Tree Style") is not None and
+      sc.find("Show all of") is None, sc)
+
 # Copy, cut and paste in a one-line field whose own window offers no
 # clipboard at all (Gitea #214). The three keys are taken by dt_event
 # before any app's _key is called and act through the focused window's own
@@ -6234,4 +6274,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(803)
+report(808)

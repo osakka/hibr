@@ -104,6 +104,9 @@ fn dt_khint(id, int r, int c, text, ...pairs) {
 	local t i=0 w k at
 
 	dt_tput "$id" "$r" "$c" "$text"
+	# Right-to-left text is put in display order, so a word's place in
+	# the string is not its column: no buttons there rather than wrong ones.
+	[ -n "${DT_LANGRTL-}" ] && return 0
 	t := dt_tr "$text"
 	while [ "$i" -lt "${#pairs[@]}" ]; do
 		w=${pairs[$i]}

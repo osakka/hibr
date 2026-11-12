@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.96",
+ "version": "3.97",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1631,6 +1631,7 @@
   "Applications Menu": "قائمة التطبيقات",
   "A window of its own, through Programs in Windows.": "نافذة خاصة به، عبر «البرامج في نوافذ».",
   "Put Back": "إرجاع",
-  "X11 Programs": "برامج X11"
+  "X11 Programs": "برامج X11",
+  "Show all of %s": "عرض كل %s"
  }
 }

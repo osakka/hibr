@@ -1976,6 +1976,13 @@ says what is missing rather than run anything. Who may do it is
 Administrative Access's to say.
 How a pane is written is in [WRITING.md](WRITING.md#control-panel-panes).
 
+`/` searches every pane: the list keeps the panes whose title, or one of
+whose rows, holds the text -- a row's label or its value. Open one and it
+shows only the rows that hold it, each under its own heading, with the
+text marked and **Show all of** the pane as its last row (Gitea #513); a
+pane found by its own title is shown whole. Clearing the search shows the
+whole pane again, at the row that was selected.
+
 **Pictures** is how every picture the desktop draws is drawn -- the Image
 Viewer, the wallpaper, Mail's pictures, a film, a page. **Draw Pictures
 As** is Automatic, Half Blocks, Grey Blocks, Characters or Pixels, and the

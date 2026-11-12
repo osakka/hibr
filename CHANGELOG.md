@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.496
+
+**The Control Panel's search shows only the rows that hold it** (Gitea
+#513). Searching "restart" listed the right panes and then showed each
+whole, the row it found buried. A pane opened during a search now shows
+only its rows whose label or value holds the text, each under its own
+heading, the text marked, and **Show all of** the pane as its last row,
+which shows the rest with the search still on. A pane found by its own
+title is shown whole, so a found pane never draws empty. Clearing the
+search shows the whole pane again at the row that was selected. Row
+reordering is off while a pane is narrowed. The pane list finds a pane by
+a row's value as well as its label now, the same test as the rows.
+
+A key named in a hint is not made a button in a right-to-left language,
+where its place in the string is not its column (0.99.495's `dt_khint`).
+
 ## 0.99.495
 
 **The login screen's Power is reached from the keyboard** (Gitea #510).

@@ -270,6 +270,7 @@ fn panel_filter(int id) {
 	q=${q,,}
 	[ "${PW[$id]["mq"]}" = "$q" ] && [ -n "${PW[$id]["mq"]+x}" ] && return 0
 	PW[$id]["mq"]=$q
+	PW[$id]["all"]=
 	for n in "${CP_PANE_LIST[@]}"; do
 		hit=0
 		if [ -z "$q" ]; then
@@ -283,8 +284,7 @@ fn panel_filter(int id) {
 				k := "${n}_rows" "$scratch"
 				while [ "$k" -gt 0 ]; do
 					k=$((k - 1))
-					t=${CP[$scratch][$k]["text"]}
-					[[ ${t,,} == *"$q"* ]] && { hit=1; break; }
+					cp_rowhas "$scratch" "$k" "$q" && { hit=1; break; }
 				done
 				unset "CP[$scratch]"
 			fi
@@ -293,6 +293,95 @@ fn panel_filter(int id) {
 		i=$((i + 1))
 	done
 	PW[$id]["m"]=${out# }
+}
+
+# Whether row i of the rows built under id holds the search text q, in
+# lower case: its label as drawn, what follows the label, or its value. The
+# one test, for which panes a search finds and which of their rows it shows.
+fn cp_rowhas(int id, int i, q) {
+	local t
+
+	t=${CP[$id][$i]["text"]}
+	case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
+	t="$t ${CP[$id][$i]["after"]-} ${CP[$id][$i]["val"]-}"
+	[[ ${t,,} == *"$q"* ]]
+}
+
+# Row i of the rows under from, as row j under to -- every field but the
+# place in a group that can be reordered, which means nothing in a part.
+fn cp_rowcopy(int from, int i, int to, int j) {
+	local f
+
+	for f in "${!CP[$from][$i][@]}"; do
+		[ "$f" = ord ] && continue
+		CP[$to][$j]["$f"]=${CP[$from][$i]["$f"]}
+	done
+}
+
+# A pane's rows, built under id; while a search is on, only the rows that
+# hold its text, each under its own heading, and a last row that shows the
+# rest (Gitea #513). A pane found by its title, or one no row of which
+# holds the text, is shown whole, so a pane the search found never draws
+# empty; so is one whose rest was asked for. Each row kept says where it
+# was in the whole pane (["oi"]), so the selection follows when the search
+# is cleared. Answers the number of rows.
+fn cp_rowsbuild(int id, pane) {
+	local n q t i=0 j=0 h=-1 hd=-1 first= s=999998
+
+	unset "CP[$id]"
+	n := "${pane}_rows" "$id"
+	PW[$id]["narrow"]=
+	q := dt_searchq "$id"
+	q=${q,,}
+	if [ -z "$q" ] || [ "${PW[$id]["all"]-}" = "$pane $q" ]; then
+		ret "$n"
+		return 0
+	fi
+	t=${CP_PANES[$pane]["title"]}
+	case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
+	if [[ ${t,,} == *"$q"* ]]; then
+		ret "$n"
+		return 0
+	fi
+	unset "CP[$s]"
+	while [ "$i" -lt "$n" ]; do
+		if [ "${CP[$id][$i]["kind"]}" = head ]; then
+			h=$i
+		elif cp_rowhas "$id" "$i" "$q"; then
+			if [ "$h" -ge 0 ] && [ "$hd" != "$h" ]; then
+				cp_rowcopy "$id" "$h" "$s" "$j"
+				j=$((j + 1))
+				hd=$h
+			fi
+			cp_rowcopy "$id" "$i" "$s" "$j"
+			CP[$s][$j]["oi"]=$i
+			[ -n "$first" ] || first=$i
+			j=$((j + 1))
+		fi
+		i=$((i + 1))
+	done
+	if [ "$j" = 0 ]; then
+		unset "CP[$s]"
+		ret "$n"
+		return 0
+	fi
+	unset "CP[$id]"
+	i=0
+	while [ "$i" -lt "$j" ]; do
+		cp_rowcopy "$s" "$i" "$id" "$i"
+		i=$((i + 1))
+	done
+	unset "CP[$s]"
+	CP[$id][$j]["kind"]=head
+	CP[$id][$j]["text"]=""
+	j=$((j + 1))
+	t := dt_tr "Show all of %s" "$t"
+	CP[$id][$j]["kind"]=action
+	CP[$id][$j]["text"]=$t
+	CP[$id][$j]["key"]=cp:showall
+	CP[$id][$j]["oi"]=$first
+	PW[$id]["narrow"]=1
+	ret $((j + 1))
 }
 
 # Whether pane index i is among what the search found.
@@ -455,11 +544,37 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 # of widget, not what key a click reaches, which is what made it look
 # like a rendering glitch rather than the stale field it was.
 fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
-	local i r t v n top sel kind wtype on kv vw wc xc
+	local i r t v n top sel kind wtype on kv vw wc xc poi rk at aw hq
 	local sb=$((bx + w))
 
-	unset "CP[$id]"
-	n := "${pane}_rows" "$id"
+	# Where the selected row was in the whole pane, before the rows are
+	# built again -- the search may have hidden the others.
+	sel=${PW[$id]["sel"]:-0}
+	poi=${CP[$id][$sel]["oi"]-}
+	n := cp_rowsbuild "$id" "$pane"
+	hq=
+	if [ -n "${PW[$id]["narrow"]}" ]; then
+		hq := dt_searchq "$id"
+		hq=${hq,,}
+	fi
+	# The rows changed under the selection: a search narrowed the pane, or
+	# was cleared, or its rest was asked for. A narrowed pane starts at its
+	# first row; a whole one at the row that was selected in the part.
+	rk="$pane ${PW[$id]["narrow"]} $hq"
+	if [ "${PW[$id]["rk"]-}" != "$rk" ]; then
+		if [ "${PW[$id]["rk"]%% *}" = "$pane" ]; then
+			if [ -n "$hq" ]; then
+				PW[$id]["sel"]=0
+				PW[$id]["top"]=0
+			elif [ -n "$poi" ]; then
+				PW[$id]["sel"]=$poi
+				at := dt_scrollfit 0 "$n" "$h" "$poi"
+				PW[$id]["top"]=$at
+			fi
+			PW[$id]["last"]=-1
+		fi
+		PW[$id]["rk"]=$rk
+	fi
 	vw := cp_valw "$id" "$n" "$w"
 	wc=$((bx + w - 1 - vw))
 	xc=$((bx + w - 4))
@@ -542,7 +657,28 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 				fi
 			fi
 		fi
+		# The rest of a narrowed pane is a link, drawn as one.
+		if [ "$i" -lt "$n" ] && [ "${CP[$id][$i]["key"]-}" = cp:showall ] &&
+		   ! { [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; }; then
+			dt_hotpen "$id" "row:$i" "$DT_ACTIVE" "$DT_FACE" underline
+		fi
 		console put -p "w$id" "$r" "$bx" "$t"
+		# What the search found, marked where the row says it (#513).
+		# Not in a mirrored pane, whose text is put in display order.
+		if [ -n "$hq" ] && [ "$i" -lt "$n" ] && [ "$kind" != head ] &&
+		   [ "${CP[$id][$i]["key"]-}" != cp:showall ] &&
+		   [ "$DT_MIRRORON" != 1 ]; then
+			at := str index "${t,,}" "$hq"
+			if [ "$at" -ge 0 ]; then
+				aw := str width "${t:0:$at}"
+				if [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; then
+					console pen "$DT_SELINK" "$DT_ACTIVE" bold underline
+				else
+					dt_hotpen "$id" "row:$i" "$DT_ACTIVE" "$DT_FACE" bold underline
+				fi
+				console put -p "w$id" "$r" $((bx + aw)) "${t:$at:${#hq}}"
+			fi
+		fi
 		# A row that can be dragged into another place says so with a
 		# grip in its margin (Gitea #396).
 		if [ "$i" -lt "$n" ] && [ -n "${CP[$id][$i]["ord"]-}" ]; then
@@ -760,6 +896,12 @@ fn cp_do(int w, int dir) {
 	[ -z "$pane" ] && return 0
 	sel=${PW[$w]["sel"]}
 	k=${CP[$w][$sel]["key"]}
+	# The last row of a pane a search narrowed shows the rest of it.
+	if [ "$k" = cp:showall ]; then
+		k := dt_searchq "$w"
+		PW[$w]["all"]="$pane ${k,,}"
+		return 0
+	fi
 	case ${CP[$w][$sel]["kind"]} in
 	# action is a plain button: no value of its own to cycle, so the
 	# pane's own _do sees whatever dir a click or a key happened to
@@ -936,7 +1078,9 @@ fn panel_click(int w, int r, int c, btn = "") {
 			return 0
 		fi
 	fi
-	if [ "$i" = "${PW[$w]["sel"]}" ] && [ "$i" = "${PW[$w]["last"]}" ]; then
+	if [ "$i" = "${PW[$w]["sel"]}" ] && [ "$i" = "${PW[$w]["last"]}" ] ||
+	   [ "${CP[$w][$i]["key"]-}" = cp:showall ]; then
+		PW[$w]["sel"]=$i
 		cp_do "$w" 1
 		return 0
 	fi

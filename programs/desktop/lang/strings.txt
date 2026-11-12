@@ -1132,6 +1132,7 @@ Show Installed Programs
 Show Notifications
 Show On
 Show Pictures
+Show all of %s
 Show the password
 Shown As
 Shown on the login screen, with your picture.
