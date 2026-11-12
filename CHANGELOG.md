@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.499
+
+**Program windows open at the program's own size** (Gitea #508). Every
+program's window opened at the same size, and a game asking for 1920 by
+1080 was resized three times. A new window is now told no size until the
+program's first picture says what it chose -- however long that takes --
+and is then fitted round it, the program told its own size back, which is
+not a resize. It goes on being told its own pixels while the window is
+that size; zoomed, tiled, full screen or resized by you, whole cells. A
+program larger than its display is shrunk to the display. A window with a
+parent -- a dialog -- opens centred on it.
+
+**Remember Program Windows** (Control Panel > Windows, on by default, shown
+while Programs in Windows is on): a program's next window opens where you
+last moved one and as large as you last made one, by its app id -- the
+place and the size each remembered only when you changed it, so moving a
+window alone keeps the program's own size. A program of one size only
+keeps it, and a second window of a program is not stacked exactly on the
+first. What is remembered is `~/.local/state/hibr/places.json`.
+
 ## 0.99.498
 
 **The compositor is told the displays in their real pixels.** 0.99.497

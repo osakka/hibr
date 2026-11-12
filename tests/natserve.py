@@ -153,6 +153,10 @@ def reconnect():
 
 
 SHM = os.path.exists(LOG + ".shm")
+# The size a window draws at when it is left to choose, from LOG.own as
+# "W H", 300 by 200 otherwise.
+OWN = tuple(int(x) for x in open(LOG + ".own").read().split()[:2]) \
+    if os.path.exists(LOG + ".own") else (300, 200)
 
 
 def frame(wid):
@@ -250,7 +254,13 @@ while True:
                     # whose states are out of its order.
                     note(kind="unknown", line=l)
                 elif w[:2] == ["WINDOW", "size"] and len(w) >= 5:
-                    size[int(w[2])] = (int(w[3]), int(w[4]))
+                    # 0 0 is the program's to choose, as xdg_toplevel's
+                    # configure 0,0: it draws at its own size, OWN, which is
+                    # no whole number of cells (Gitea #508).
+                    if (int(w[3]), int(w[4])) == (0, 0):
+                        size[int(w[2])] = OWN
+                    else:
+                        size[int(w[2])] = (int(w[3]), int(w[4]))
                     if w[2] == "7" and geom:
                         say("WINDOW geometry 7 10 10 %s %s" % (w[3], w[4]))
                     if w[2] == "7" and full:

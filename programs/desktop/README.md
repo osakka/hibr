@@ -1706,6 +1706,21 @@ placed, moved, sized, raised and closed by the desktop:
 - **Display:** the program is told the size and refresh rate of the display
   its window is on (the rate from Blit's API, 60 Hz where Blit does not
   say), again when the window moves to another.
+- **Size and place:** a program's window opens at the program's own size
+  (Gitea #508). It is told no size until its first picture says what it
+  chose, however long that takes -- a game may take many seconds -- and
+  the window is then fitted round it, the program told its own size back,
+  which is not a resize. It goes on being told its own pixels while the
+  window is that size; zoomed, tiled, full screen or resized by you it is
+  told whole cells. A program larger than its display is shrunk to the
+  display, which does resize it. A window with a parent -- a dialog --
+  opens centred on it. With Control Panel > Windows > **Remember Program
+  Windows** (on by default, shown while Programs in Windows is on) a
+  program's next window opens where you last moved one and as large as you
+  last made one, by its app id, the place and the size each remembered
+  only when you changed it; a program of one size only keeps its own, and
+  a second window of a program is not stacked exactly on the first. What
+  is remembered is `~/.local/state/hibr/places.json`.
 
 Control Panel > Windows > **Programs in Windows** switches it, from the next
 start. A Restart Desktop leaves the compositor running, on the same socket:

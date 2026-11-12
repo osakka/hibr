@@ -145,12 +145,24 @@ t.keys([b"\x1b"], settle=0.6)
 check("Escape with a program window in front does not open the desktop's menu",
       scr().find("Restart Desktop") is None and scr().find("About This") is None,
       scr().text()[:1200])
-sz = wait(lambda: told("WINDOW size 7 "))
+# A new window is told no size until the program's first picture says what
+# it chose, and is then fitted round it, the program told its own size back
+# -- 300 by 200, no whole number of cells -- with the keyboard, since it has
+# the focus (Gitea #508). A game sized itself 1920 by 1080 and was resized
+# three times before this.
+sz = wait(lambda: [l for l in told("WINDOW size 7 ") if l.split()[3:5] == ["300", "200"]]
+          and told("WINDOW size 7 "))
 w0 = sz[0].split() if sz else []
-check("and is told to draw at its body's size in pixels -- whole cells of 8 "
-      "by 16 -- with the keyboard, since it has the focus",
-      len(w0) >= 6 and int(w0[3]) % 8 == 0 and int(w0[4]) % 16 == 0 and
-      int(w0[3]) > 64 and "activated" in w0, sz)
+check("a new program window is told no size until its first picture, then its "
+      "own size, with the keyboard, since it has the focus",
+      len(sz) >= 2 and w0[3:5] == ["0", "0"] and
+      sz[1].split()[3:5] == ["300", "200"] and "activated" in sz[1].split(), sz)
+fit = wait(lambda: scr().find("Stand-in") and scr())
+check("and its window is fitted round that picture: 38 by 13 cells of body "
+      "in a frame", fit and re.search(r"Stand-in", fit.text()) and
+      [m for m in re.finditer(r"\u250c[^\n]*Stand-in[^\n]*\u2510", fit.text())
+       if len(m.group(0)) == 40], fit or scr())
+w0 = ["", "", "", "300", "200"]
 out = wait(lambda: told("WINDOW output 7 "))
 check("and told the display it is on: its size in pixels, and its rate, "
       "60 Hz where Blit's API does not say",
@@ -183,9 +195,32 @@ check("and every size line, zoomed or full screen, is one the compositor "
 t.keys([b"\x1b[23;5~"])
 t.collect(0.6)
 
+def framebox(sc, title):
+    """A window's frame on screen, found by its title: (top, left, height,
+    width), or None."""
+    at = sc.find("\u2524 %s \u251c" % title) if sc else None
+    if not at:
+        return None
+    rows = sc.text().split("\n")
+    r = at[0]
+    c0 = rows[r].rfind("\u250c", 0, at[1])
+    c1 = rows[r].find("\u2510", at[1])
+    b = next((i for i in range(r + 1, len(rows))
+              if len(rows[i]) > c0 and rows[i][c0] == "\u2514"), len(rows) - 1)
+    return (r, c0, b - r + 1, c1 - c0 + 1)
+
+
+pbox = framebox(scr(), "Stand-in")
 open(complog + ".child", "w").close()
 t.keys([b"x"])
 ch = wait(lambda: scr().find("Child") and scr())
+# A window with a parent -- a dialog -- opens centred on it (Gitea #508).
+cbox = framebox(ch, "Child")
+check("a program's dialog opens centred on its parent window",
+      pbox and cbox and
+      abs((cbox[0] + cbox[2] / 2) - (pbox[0] + pbox[2] / 2)) <= 1 and
+      abs((cbox[1] + cbox[3] / 2) - (pbox[1] + pbox[3] / 2)) <= 1,
+      (pbox, cbox, ch.text()[:1600] if ch else scr()))
 n2 = len(told("WINDOW size 7 "))
 lost = wait(lambda: [l for l in told("WINDOW size 7 ")[n2 - 1:] if "activated" not in l.split()])
 check("a second window of the program opens titled as it says, takes the "
@@ -327,8 +362,10 @@ non = len(blitkind("input", verb="on", id=cid))
 t.keys([press(r0 + 1, c0 + 1)])
 open(complog + ".move", "w").close()
 off = wait(lambda: len(blitkind("input", verb="off", id=cid)) > noff)
-t.keys([drag(r0 + 4, c0 + 11), release(r0 + 4, c0 + 11)])
-mv = wait(lambda: scr().find("Stand-in") == (st[0] + 3, st[1] + 10) if st else None)
+# Up and to the left: the window is fitted to the program's own size and may
+# sit at the screen's foot, where a move down would be held at the edge.
+t.keys([drag(r0 - 2, c0 - 9), release(r0 - 2, c0 - 9)])
+mv = wait(lambda: scr().find("Stand-in") == (st[0] - 3, st[1] - 10) if st else None)
 on = wait(lambda: len(blitkind("input", verb="on", id=cid)) > non)
 check("a program's own title bar moving its window hands the press to the "
       "desktop's drag: the window moves with the pointer, the program's "
@@ -482,6 +519,28 @@ for ver in ("0.3.80", "0.3.81", "0.4.0", "garbage"):
                             capture_output=True, text=True, timeout=30).stdout.strip())
 check("and only one at 0.3.81 or later is told: an older compositor refuses "
       "an option it does not know", r == ["none", "off", "off", "none"], r)
+
+# Remember Program Windows (Gitea #508): on closing, a move the person made
+# is kept as the program's place and a resize as its size, apart; the next
+# window of that program opens there -- not its size where the program is of
+# one size only, and not at all with the setting off.
+pls = os.path.join(D, "plstate")
+plr = subprocess.run([sx.HIBR, "-c", """. %s
+DT_ROWS=40; DT_COLS=120; DT_DISPLAYS=("0 0 40 120 self"); DT_DISPNAMES=("")
+pl5() { DT[5]["row"]=$1; DT[5]["col"]=$2; DT[5]["h"]=$3; DT[5]["w"]=$4
+NW[5]["appid"]=org.x; NW[5]["par"]=0; NW[5]["own"]="300 200 13 38"
+NW[5]["fit"]="2 4 15 40"; dt_natkeep 5; unset "NW[5]"; }
+NW[6]["appid"]=org.x
+pl5 10 30 15 40; x := dt_natrecall 6 15 40; echo "$x"
+pl5 10 30 20 50; x := dt_natrecall 6 15 40; echo "$x"
+NW[6]["limits"]="64 48 64 48"; x := dt_natrecall 6 15 40; echo "$x"
+DT_NATREMEMBER=0; dt_natrecall 6 15 40 || echo none
+""" % tree("programs/desktop/desktop.hibr")],
+    env=dict(os.environ, XDG_STATE_HOME=pls), capture_output=True, text=True, timeout=30)
+check("a program window is put back where the person moved it and as large as "
+      "they made it, its size only where it may be resized, and not with the "
+      "setting off", plr.stdout.split("\n")[:4] ==
+      ["10 30 15 40", "10 30 20 50", "10 30 15 40", "none"], (plr.stdout, plr.stderr))
 
 open(MARK + ".quit", "w").close()
 t.keys([b"x"])
@@ -732,4 +791,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(54)
+report(57)

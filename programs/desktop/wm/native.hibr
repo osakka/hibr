@@ -62,6 +62,20 @@ declare -gx DT_NATCX11="${DT_NATCX11-}"
 declare -gx DT_NATCVER="${DT_NATCVER-}"
 DT_NATLAYOUT=
 DT_NATLCELL=
+# Whether a program's window opens where and as large as the person last
+# left it, by its app id (Gitea #508): Control Panel > Windows > Remember
+# Program Windows. What is remembered is data (ADR 0054), in the state
+# folder, read once: NPL["appid"]["r"/"c"] where the person moved it to,
+# ["h"/"w"] what they sized it to, each only when they did.
+DT_NATREMEMBER="${DT_NATREMEMBER-1}"
+command -v dt_keep > /dev/null && dt_keep DT_NATREMEMBER
+DT_NATPLFILE=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/places.json
+DT_NATPLREAD=
+declare -gA NPL
+# A new window looks for the program's first picture often for this many
+# seconds, and once a second after: a frame arriving does not wake the
+# desktop, and a game can take far longer than this to draw.
+DT_NATFIRSTS=3
 # 1 when this desktop serves the socket a desktop before it served, so the
 # compositor reconnects with its windows; each window that comes back with
 # a restart waits for its own (NWB, by the compositor's id) until then.
@@ -460,6 +474,172 @@ fn dt_natnew(int n, kind, rest = "") {
 	id := dt_new "Program" "${h:-20}" "${w:-72}" "${r:-2}" "${c:-4}" native "$n"
 	NW[$id]["bid"]=$b
 	NWN["$n"]=$id
+	# Its size is the program's own (Gitea #508): it is told none until its
+	# first picture says what it chose, and the window is fitted to that.
+	# Only a window new to the desktop: one that comes back with a restart
+	# keeps the size it has.
+	NW[$id]["own"]=wait
+	NW[$id]["since"]=${EPOCHREALTIME%.*}
+	NW[$id]["par"]=$p
+	return 0
+}
+
+# The program's first picture: the window fitted round it, centred on its
+# parent when it has one, or put back where and as large as the person
+# left this program last, or else placed as any new window is (Gitea #508).
+# A program that has drawn nothing yet is told no size and waited for, as
+# long as it takes: telling it one would resize the game this is for.
+# Status 0 once the window has its size.
+fn dt_natfirst(int id, int n) {
+	local i kv fw=0 fh=0 o=1 bh bw h w r c pl p pid
+	local -a a
+
+	i := frames info "$n" 2> /dev/null
+	read -ra a <<< "$i"
+	for kv in "${a[@]}"; do
+		case $kv in
+		"width="*) fw=${kv#*=} ;;
+		"height="*) fh=${kv#*=} ;;
+		esac
+	done
+	if [ "${fw:-0}" -le 0 ] || [ "${fh:-0}" -le 0 ]; then
+		if [ $((${EPOCHREALTIME%.*} - ${NW[$id]["since"]:-0})) -ge "$DT_NATFIRSTS" ]; then
+			dt_want 1000
+		else
+			dt_want 100
+		fi
+		return 1
+	fi
+	dt_natcell
+	[ "${DT[$id]["chrome"]-}" = none ] && o=0
+	bh=$(((fh + DT_NATCH - 1) / DT_NATCH))
+	bw=$(((fw + DT_NATCW - 1) / DT_NATCW))
+	h=$((bh + 2 * o))
+	w=$((bw + 2 * o))
+	p=${NW[$id]["parent"]:-${NW[$id]["par"]-}}
+	pid=
+	[ -n "$p" ] && [ "$p" != 0 ] && pid=${NWN["$p"]-}
+	if [ -n "$pid" ] && [ -n "${DT[$pid]["row"]-}" ]; then
+		r=$((${DT[$pid]["row"]} + (${DT[$pid]["h"]} - h) / 2))
+		c=$((${DT[$pid]["col"]} + (${DT[$pid]["w"]} - w) / 2))
+		pl := dt_natclamp "$r" "$c" "$h" "$w"
+	elif ! pl := dt_natrecall "$id" "$h" "$w"; then
+		pl := dt_place "$h" "$w"
+	fi
+	read -r r c h w <<< "$pl"
+	dt_setgeom "$id" "$r" "$c" "$h" "$w"
+	NW[$id]["own"]="$fw $fh $bh $bw"
+	NW[$id]["fit"]="$r $c $h $w"
+	dt_log "programs' windows: window $id is the program's own ${fw}x${fh}, ${h}x${w} cells at $r,$c"
+	DT_FORCEONCE=1
+	dt_want 30
+	return 0
+}
+
+# A rectangle kept on the display its top left is on -- or the primary,
+# when that is on none -- shrunk to fit it, as "r c h w".
+fn dt_natclamp(int r, int c, int h, int w) {
+	local i dr=${DT_PRIMARY_ROW:-0} dc=${DT_PRIMARY_COL:-0} drows=${DT_PRIMARY_H:-$DT_ROWS}
+	local dcols=${DT_PRIMARY_W:-$DT_COLS} x0 y0 x1 y1 g top
+
+	for i in "${!DT_DISPLAYS[@]}"; do
+		IFS=' ' read -r y0 x0 y1 x1 g <<< "${DT_DISPLAYS[$i]}"
+		if [ "$r" -ge "$y0" ] && [ "$r" -lt $((y0 + y1)) ] &&
+		   [ "$c" -ge "$x0" ] && [ "$c" -lt $((x0 + x1)) ]; then
+			dr=$y0 dc=$x0 drows=$y1 dcols=$x1
+			break
+		fi
+	done
+	top=$dr
+	[ "$dr $dc" = "${DT_PRIMARY_ROW:-0} ${DT_PRIMARY_COL:-0}" ] && top=$((dr + 1))
+	[ "$h" -gt $((dr + drows - top)) ] && h=$((dr + drows - top))
+	[ "$w" -gt "$dcols" ] && w=$dcols
+	[ $((r + h)) -gt $((dr + drows)) ] && r=$((dr + drows - h))
+	[ $((c + w)) -gt $((dc + dcols)) ] && c=$((dc + dcols - w))
+	[ "$r" -lt "$top" ] && r=$top
+	[ "$c" -lt "$dc" ] && c=$dc
+	ret "$r $c $h $w"
+}
+
+# Read what is remembered, once a desktop.
+dt_natplread() {
+	DT_NATPLREAD=1
+	NPL=()
+	[ -s "$DT_NATPLFILE" ] || return 0
+	json parse NPL < "$DT_NATPLFILE" 2> /dev/null || NPL=()
+	return 0
+}
+
+# Where and how large this program was left last, fitted to the displays
+# there are now, as "r c h w"; status 1 when nothing is remembered, the
+# setting is off, or it has no app id. A remembered size is used only where
+# the program may be resized (its limits are not one size), and a place
+# that another window of the same program already has is not, so two do
+# not stack exactly.
+fn dt_natrecall(int id, int h, int w) {
+	local ap=${NW[$id]["appid"]-} r c x lim mnw mnh mxw mxh
+
+	[ "$DT_NATREMEMBER" = 1 ] && [ -n "$ap" ] || return 1
+	[ -n "$DT_NATPLREAD" ] || dt_natplread
+	[ -n "${NPL["$ap"]["r"]-}${NPL["$ap"]["h"]-}" ] || return 1
+	lim=${NW[$id]["limits"]-}
+	read -r mnw mnh mxw mxh <<< "$lim"
+	if [ -n "${NPL["$ap"]["h"]-}" ] && ! { [ "${mxw:-0}" -gt 0 ] && [ "$mnw" = "$mxw" ] && [ "$mnh" = "$mxh" ]; }; then
+		h=${NPL["$ap"]["h"]}
+		w=${NPL["$ap"]["w"]}
+	fi
+	r=${NPL["$ap"]["r"]-}
+	c=${NPL["$ap"]["c"]-}
+	if [ -n "$r" ]; then
+		for x in "${!NW[@]}"; do
+			[ "$x" != "$id" ] && [ "${NW[$x]["appid"]-}" = "$ap" ] &&
+				[ "${DT[$x]["row"]-} ${DT[$x]["col"]-}" = "$r $c" ] && r=
+		done
+	fi
+	if [ -z "$r" ]; then
+		x := dt_place "$h" "$w"
+		ret "$x"
+		return 0
+	fi
+	x := dt_natclamp "$r" "$c" "$h" "$w"
+	ret "$x"
+}
+
+# On closing, what the person did to this program's window since the
+# desktop fitted it: a move is remembered as its place and a resize as its
+# size, each apart, so moving a window alone does not make a program's own
+# size into whole cells next time. Not a window with a parent, nor one
+# full screen, zoomed or tiled, whose size is the desktop's.
+fn dt_natkeep(int id) {
+	local ap=${NW[$id]["appid"]-} fr fc fh fw r c h w ch=
+
+	[ "$DT_NATREMEMBER" = 1 ] && [ -n "$ap" ] && [ -n "${NW[$id]["fit"]-}" ] || return 0
+	case ${NW[$id]["own"]-} in wait) return 0 ;; esac
+	[ -n "${NW[$id]["parent"]-}" ] && [ "${NW[$id]["parent"]}" != 0 ] && return 0
+	[ -n "${NW[$id]["par"]-}" ] && [ "${NW[$id]["par"]}" != 0 ] && return 0
+	dt_isfull "$id" && return 0
+	[ -n "${DT[$id]["oh"]-}" ] && return 0
+	dt_has dt_intile && dt_intile "$id" && return 0
+	read -r fr fc fh fw <<< "${NW[$id]["fit"]}"
+	r=${DT[$id]["row"]-}
+	c=${DT[$id]["col"]-}
+	h=${DT[$id]["h"]-}
+	w=${DT[$id]["w"]-}
+	[ -n "$h" ] || return 0
+	[ -n "$DT_NATPLREAD" ] || dt_natplread
+	if [ "$r $c" != "$fr $fc" ]; then
+		NPL["$ap"]["r"]=$r
+		NPL["$ap"]["c"]=$c
+		ch=1
+	fi
+	if [ "$h $w" != "$fh $fw" ]; then
+		NPL["$ap"]["h"]=$h
+		NPL["$ap"]["w"]=$w
+		ch=1
+	fi
+	[ -n "$ch" ] || return 0
+	mkdir -p "${DT_NATPLFILE%/*}" 2> /dev/null
+	json emit NPL > "$DT_NATPLFILE" 2> /dev/null
 	return 0
 }
 
@@ -668,7 +848,7 @@ dt_natcell() {
 # the program (xdg's activated state), so it goes with the window that has
 # the keys and only with it.
 fn dt_natsize(int id, int h, int w) {
-	local n=${NW[$id]["n"]} st=
+	local n=${NW[$id]["n"]} st= fw fh bh bw
 
 	# In the order the compositor reads them, each at most once --
 	# fullscreen, maximized, activated, then the tiled four: in any other
@@ -683,7 +863,23 @@ fn dt_natsize(int id, int h, int w) {
 	[ "$DT_FOCUS" = "$id" ] && st="$st activated"
 	dt_has dt_intile && dt_intile "$id" &&
 		st="$st tiled-left tiled-right tiled-top tiled-bottom"
-	st="$((w * DT_NATCW)) $((h * DT_NATCH))$st"
+	# The program's own size while it is the one it chose (Gitea #508):
+	# none at all until its first picture says, then its own pixels for as
+	# long as the window is the cells fitted round them -- not full screen,
+	# zoomed, tiled or resized by the person -- and whole cells after.
+	case ${NW[$id]["own"]-} in
+	wait) st="0 0$st" ;;
+	"") st="$((w * DT_NATCW)) $((h * DT_NATCH))$st" ;;
+	*)
+		read -r fw fh bh bw <<< "${NW[$id]["own"]}"
+		if [ "$h $w" = "$bh $bw" ] && [ "$st" = "${st#* fullscreen}" ] &&
+		   [ "$st" = "${st#* maximized}" ] && [ "$st" = "${st#* tiled}" ]; then
+			st="$fw $fh$st"
+		else
+			st="$((w * DT_NATCW)) $((h * DT_NATCH))$st"
+		fi
+		;;
+	esac
 	[ "${NW[$id]["sent"]}" = "$st" ] && return 0
 	NW[$id]["sent"]=$st
 	frames window "$n" size $st 2> /dev/null
@@ -789,6 +985,10 @@ fn native_draw(int id, int h, int w, int row, int col) {
 		t := dt_tr "Waiting for the program's first picture"
 		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" $(((h + 1) / 2)) $(((w - ${#t}) / 2 + 1)) "$t"
+		return 0
+	fi
+	# A new window waits for the program's first picture to know its size.
+	if [ "${NW[$id]["own"]-}" = wait ] && dt_natfirst "$id" "$n"; then
 		return 0
 	fi
 	dt_natsize "$id" "$h" "$w"
@@ -1088,6 +1288,7 @@ fn native_canclose(int id) {
 fn native_close(int id) {
 	local n=${NW[$id]["n"]} p pid x y
 
+	dt_natkeep "$id"
 	[ -n "$n" ] && unset NWN["$n"]
 	for p in "${!NWP[@]}"; do
 		read -r pid x y <<< "${NWP["$p"]}"

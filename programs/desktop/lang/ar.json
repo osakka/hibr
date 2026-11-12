@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.97",
+ "version": "3.98",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1632,6 +1632,7 @@
   "A window of its own, through Programs in Windows.": "نافذة خاصة به، عبر «البرامج في نوافذ».",
   "Put Back": "إرجاع",
   "X11 Programs": "برامج X11",
-  "Show all of %s": "عرض كل %s"
+  "Show all of %s": "عرض كل %s",
+  "Remember Program Windows": "تذكّر نوافذ البرامج"
  }
 }
