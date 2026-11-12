@@ -530,7 +530,7 @@ subprocess.run([sx.HIBR, "-c", load("hold") + 'hold new -d %s "$HIBR" %s' % (hn,
                capture_output=True, timeout=20)
 a0 = os.path.join(D, "att.hibr")
 open(a0, "w").write(load("hold") + "hold attach -m -n top %s 0 0\n" % hn)
-ht = Term(a0, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty"],
+ht = Term(a0, rows=26, cols=82, settle=1.0, cellw=10, cellh=20, caps=["kitty"],
           env=dict(henv, BLIT_FRAME_SOCKET="@" + nm2, BLIT_FRAME_TOKEN="tok2"))
 
 
@@ -558,9 +558,12 @@ def hlay():
 
 
 lay = wait(lambda: "WINDOW primary top" in hlay() and hlay(), 6)
+# The held display's cell is 10 by 20, not the 8 by 16 the desktop assumes
+# before it has asked: the layout goes out as the compositor connects, before
+# any window has, and was once in the default's pixels.
 check("held, the compositor is told each display in pixels, then which one is "
       "primary -- what X's own outputs follow (Gitea #514)",
-      lay and lay[0].startswith("WINDOW layout top 0 0 656 ") and
+      lay and lay[0].startswith("WINDOW layout top 0 0 820 ") and
       lay[-2:] == ["WINDOW layout end", "WINDOW primary top"], lay or hlay())
 hout = [x["line"] for x in comp_of(complog2, "line") if x["line"].startswith("WINDOW output ")]
 check("and a window's output names its display, so two of one mode are told apart",

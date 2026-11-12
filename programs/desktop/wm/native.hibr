@@ -61,6 +61,7 @@ declare -gx DT_NATCX11="${DT_NATCX11-}"
 # is told again only when they change.
 declare -gx DT_NATCVER="${DT_NATCVER-}"
 DT_NATLAYOUT=
+DT_NATLCELL=
 # 1 when this desktop serves the socket a desktop before it served, so the
 # compositor reconnects with its windows; each window that comes back with
 # a restart waits for its own (NWB, by the compositor's id) until then.
@@ -267,6 +268,10 @@ dt_natlayout() {
 	local -a lines=() a
 
 	[ -n "$DT_NATSRV" ] && [ "${DT_NATCVER:-0}" -ge 3088 ] || return 0
+	# In pixels of the cell the display has now, not the default: the
+	# layout goes out on connecting, before any window has asked.
+	dt_natcell
+	DT_NATLCELL="$DT_NATCW $DT_NATCH"
 	hz := dt_nathz
 	for i in "${!DT_DISPLAYS[@]}"; do
 		nm=${DT_DISPNAMES[$i]-}
@@ -671,6 +676,8 @@ fn dt_natsize(int id, int h, int w) {
 	# zoomed was never told its new size (Firefox's own full screen,
 	# Full Screen and Zoom over a program window, 0.99.485).
 	dt_natcell
+	# A cell that changed since the layout was said changes every pixel in it.
+	[ "$DT_NATCW $DT_NATCH" = "$DT_NATLCELL" ] || dt_natlayout
 	dt_isfull "$id" && st="$st fullscreen"
 	[ -n "${DT[$id]["oh"]-}" ] && st="$st maximized"
 	[ "$DT_FOCUS" = "$id" ] && st="$st activated"

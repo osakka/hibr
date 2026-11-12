@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.498
+
+**The compositor is told the displays in their real pixels.** 0.99.497
+sent the display layout (Gitea #514) in the pixels of an 8 by 16 cell,
+the desktop's guess before it has asked the terminal: the layout goes out
+as the compositor connects, before any window has read the real cell. On
+a display with a 12 by 24 cell every display was two-thirds of its size to
+X. The cell is read first now, and the layout said again when it changes.
+
+The catalogue's entries say the hibr they need: Calendar 1.9.1 0.99.495,
+Displays 1.2.1 0.99.497, Windows 1.11 0.99.491 and the Applications Menu
+pane 0.99.489, so an older desktop refuses them with a reason rather than
+failing on a name it does not have.
+
 ## 0.99.497
 
 **Full-screen programs open on the display you choose** (Gitea #514).
