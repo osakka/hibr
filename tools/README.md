@@ -101,6 +101,19 @@ modules only; the shell follows once the modules other packages install
 tries it before then. With no `cc`/`gcc` or no `objcopy` it is tcc itself,
 and `tests/999-stack.t` says so. `TCCLD_LD` names another C driver.
 
+## linuxonly.py
+
+Lists every call, from code built on every platform, of a function defined
+only under `#ifdef __linux__`. On Linux such a call links; on a Mac a
+module is linked with `-undefined dynamic_lookup`, so it builds and then
+refuses to load ("symbol not found in flat namespace") -- the console's
+call of `bf_idat` did that to every Mac desktop (Gitea #503). Prints
+nothing and exits 0 when there is none; `tests/999-linuxonly.t` holds the
+tree to that. It reads `#if` nesting by text, so a guard spelled some other
+way than `__linux__` is not seen.
+
+    python3 tools/linuxonly.py
+
 ## measure.py
 
 The README's Measurements table, measured: hibr against dash and bash,

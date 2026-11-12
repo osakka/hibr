@@ -3327,6 +3327,20 @@ t.quit(b"qy", 1.0)
 check("and q then y still quits", t.exited, t.raw)
 os.unlink(path)
 
+# Quit has no key as the desktop ships, and a key that is itself a minus once
+# normalised to no key at all, which matched it: `-` on the desktop opened
+# "Quit hibr?" with Yes focused, so `-` and enter ended the session.
+path = scratch("desktop-minus.hibr")
+open(path, "w").write("%s. %s\nDT_KEYS[\"quit\"]=\ndt_open\n%s\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, ONE))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+t.send(b"-", settle=0.4)
+sc = t.screen()
+check("a minus is a key of its own, not every action left without one: no "
+      "Quit box", sc.find("Quit hibr?") is None and not t.exited, sc)
+t.quit(None, 0.5)
+os.unlink(path)
+
 # Yes and No on the confirm box are buttons: clickable, not just typeable.
 path = scratch("desktop-confirmclick.hibr")
 open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
@@ -9676,4 +9690,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1051)
+report(1052)

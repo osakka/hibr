@@ -1368,17 +1368,19 @@ fn dt_event(k) {
 	qan := dt_keynorm "${DT_KEYS[quitapp]}"
 	dn := dt_keynorm "${DT_KEYS[detach]}"
 	sn := dt_keynorm "${DT_KEYS[strip]}"
-	if [ "$knorm" = "$qn" ]; then
+	# Each compared only when it has a key: an unbound action is empty,
+	# and an empty name once matched a key (Quit opened on `-`).
+	if [ -n "$qn" ] && [ "$knorm" = "$qn" ]; then
 		dt_quitconfirm
-	elif [ "$knorm" = "$cn" ]; then
+	elif [ -n "$cn" ] && [ "$knorm" = "$cn" ]; then
 		dt_swstart 1
 	elif dt_keyis cycleback "$k"; then
 		dt_swstart -1
-	elif [ "$knorm" = "$cln" ]; then
+	elif [ -n "$cln" ] && [ "$knorm" = "$cln" ]; then
 		dt_close_focused
 	elif [ -n "$qan" ] && [ "$knorm" = "$qan" ]; then
 		dt_quitapp
-	elif [ "$knorm" = "$dn" ]; then
+	elif [ -n "$dn" ] && [ "$knorm" = "$dn" ]; then
 		dt_detach
 	elif dt_wskey "$k"; then
 		:
@@ -1422,7 +1424,7 @@ fn dt_event(k) {
 		dt_has dt_sndstep && dt_sndstep -1
 	elif dt_keyis mute "$k"; then
 		dt_has dt_sndmutekey && dt_sndmutekey
-	elif [ "$knorm" = "$sn" ]; then
+	elif [ -n "$sn" ] && [ "$knorm" = "$sn" ]; then
 		if [ "$CS_ATTN" = 1 ]; then
 			CS_ATTN=0
 			dt_notep low "Control Strip: released"

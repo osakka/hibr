@@ -23,6 +23,25 @@ void bf_put32(unsigned char *p, unsigned long v)
 	p[3] = (unsigned char)((v >> 24) & 0xff);
 }
 
+/* Where a picture's line names its picture: the third word, the one rule
+   of the channel's version 5 grammar, or null when it has none. Plain text,
+   so on every platform: the console asks it of every answer, and kept in
+   the Linux part a Mac's console.so would not load (Gitea #503). */
+const char *bf_idat(const char *l)
+{
+	const char *p = l;
+	int w;
+
+	for (w = 0; w < 2; w++) {
+		p = strchr(p, ' ');
+		if (!p)
+			return 0;
+		while (*p == ' ')
+			p++;
+	}
+	return *p >= '0' && *p <= '9' ? p : 0;
+}
+
 #ifdef __linux__
 #include <sys/socket.h>
 #include <sys/syscall.h>
@@ -155,22 +174,6 @@ int bf_dial(const char *sock, const char *tok)
 	return bf_hello(sock, tok, 5, &inval);
 }
 
-/* Where a picture's line names its picture: the third word, the one rule
-   of the channel's version 5 grammar, or null when it has none. */
-const char *bf_idat(const char *l)
-{
-	const char *p = l;
-	int w;
-
-	for (w = 0; w < 2; w++) {
-		p = strchr(p, ' ');
-		if (!p)
-			return 0;
-		while (*p == ' ')
-			p++;
-	}
-	return *p >= '0' && *p <= '9' ? p : 0;
-}
 
 /* Connect to the frame socket this environment names. */
 int bf_open(void)

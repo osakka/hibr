@@ -114,7 +114,13 @@ DT_KEYNAME["lock"]="Lock Screen"
 fn dt_keynorm(k) {
 	local base=$k mods= out= c=0 a=0 s=0 u=0 m=0
 
-	case $k in *-*) base=${k##*-}; mods=${k%-"$base"} ;; esac
+	# A key that is itself a minus -- `-`, Volume Down's `mod--` -- ends
+	# in one: taking what follows the last dash made it no key at all,
+	# which matched every action left unbound, Quit among them.
+	case $k in
+	*-) base=-; mods=${k%-}; mods=${mods%-} ;;
+	*-*) base=${k##*-}; mods=${k%-"$base"} ;;
+	esac
 	case $mods in *ctrl*) c=1 ;; esac
 	case $mods in *alt*) a=1 ;; esac
 	case $mods in *shift*) s=1 ;; esac

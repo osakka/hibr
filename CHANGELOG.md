@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.502
+
+**The desktop starts on a Mac** (Gitea #503). With 0.99.500's message the
+Mac said why the console would not load: `symbol not found in flat
+namespace '_bf_idat'`. The console calls `bf_idat`, which reads a frame
+line's picture id, and it had been written inside the Linux-only part of
+`mods/blitfr.c` -- so on a Mac, where a module is linked to find its
+symbols when loaded, `console.so` built and then could not load, and with
+it nothing that draws. It is outside that part now. `tools/linuxonly.py`
+lists any function only Linux has that code every platform builds calls,
+and `tests/999-linuxonly.t` fails on one, so the next such slip shows here
+rather than on a Mac; it found no other.
+
+**A minus is a key again, not every unbound action.** A key that is itself
+a minus (`-`, and Volume Down's `mod--`) was normalised to no key at all,
+which matched any action left without one -- Quit, as the desktop ships.
+So `-` in Files, the Control Panel or on the bare desktop opened "Quit
+hibr?" with Yes focused, and enter ended the session. Found by the
+shortcut audit for Blit; an unbound action is never compared now.
+
 ## 0.99.501
 
 **A new window opens on the display the mouse is on, near it** (Gitea
