@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.495
+
+**The login screen's Power is reached from the keyboard** (Gitea #510).
+Tab from the name goes to Power, which is drawn highlighted while it has
+the focus, and Enter on it lists the actions; Tab and Shift-Tab (and the
+arrows) then go round them, wrapping. From the password, Tab goes from the
+desktop session to the shell and then to Power. Tab or Esc leaves Power,
+and anything typed goes back to the field it was meant for.
+
+**A key a hint names is a button for that key** (Gitea #511). Where a line
+says "Enter fills it; escape cancels", a click on *Enter* is Enter. The
+login screen's message line, the Vault's fill prompt and the Calendar's
+empty day do it now; `dt_khint` draws such a line for any window and the
+window manager hands the click to the window's own `_key`. A word a
+translation does not keep is simply not a button.
+
 ## 0.99.494
 
 **Programs open folders, files and links through the desktop** (Gitea

@@ -47,7 +47,7 @@ SINKS = {
     # dt_ask's title, label and hint: the question asked, what is typed
     # beside, and the line of help under it (wm/ask.hibr, Gitea #357).
     "dt_ask": [1, 2, 5],
-    "console": "put", "dt_tr": [1], "dt_trn": [2, 3], "dt_tally": [3], "dt_tput": [4],
+    "console": "put", "dt_tr": [1], "dt_trn": [2, 3], "dt_tally": [3], "dt_tput": [4], "dt_khint": [4],
     # The Applications Menu pane's dialog labels its fields through a
     # helper of its own, which draws with dt_tput (Gitea #502).
     "pmf_field": [3],

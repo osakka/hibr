@@ -492,7 +492,7 @@ fn cv_drawday(int id, int r0, int vis, int w) {
 	[ "${CVW[$id]["li"]:-0}" -ge "${#mine[@]}" ] && CVW[$id]["li"]=0
 	if [ "${#mine[@]}" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		dt_tput "$id" "$r" 3 "Nothing on this day. Enter makes an event."
+		dt_khint "$id" "$r" 3 "Nothing on this day. Enter makes an event." Enter enter
 		return 0
 	fi
 	for i in "${mine[@]}"; do

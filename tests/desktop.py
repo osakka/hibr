@@ -1481,6 +1481,21 @@ check("Note Colour is every note's: a single-framed note in yellow",
       n is not None and penbg(sc.p[n[0]][n[1]]) == "48;2;255;250;175", n and sc.p[n[0]][n[1]])
 
 # --- widgets -----------------------------------------------------------
+
+# A key a hint names is a button for that key (dt_khint, Gitea #511): the
+# click reaches the window's own _key as the key.
+khf = scratch("khint.txt")
+KH = ('kh_draw() { dt_khint "$1" 2 2 "Press Enter now or escape" Enter enter escape escape; }\n'
+      'kh_key() { case $2 in enter | escape) printf "%s\\n" "$2" >> ' + khf + '; return 0 ;; esac; return 1; }\n'
+      'dt_new "Hint" 8 40 4 10 kh\n')
+if os.path.exists(khf):
+    os.unlink(khf)
+sc, _ = run(KH, [1.0, press(6, 19), release(6, 19), press(6, 32), release(6, 32), 0.3])
+got = open(khf).read().split() if os.path.exists(khf) else []
+if os.path.exists(khf):
+    os.unlink(khf)
+check("a click on a key named in a hint is that key, handed to the window",
+      got == ["enter", "escape"], (got, sc))
 #
 # dt_check and dt_wdrop are draw helpers plus a per-window hit registry
 # (WG); an app's own _click asks dt_hit which one, if any, was clicked and
@@ -7289,6 +7304,26 @@ def loginlook():
     s, _ = loginrun([0.3, b"x", b"\x1b[21~", b"\r"], dict(conf(), LDFAIL="1"))
     check("and when logind refuses, the box says so rather than going quiet",
           s[3].find("logind refused") is not None, s[3])
+    # Tab reaches Power and Enter opens it; Tab goes round the actions
+    # inside, and Enter does the one it is on (Gitea #510).
+    if os.path.exists(asked):
+        os.unlink(asked)
+    s, _ = loginrun([0.3, b"x", b"\t", b"\r"], conf())
+    check("Tab from the name reaches Power, and Enter on it lists the actions",
+          s[3].find("Shut Down") is not None and s[3].find("Hibernate") is not None, s[3])
+    s, _ = loginrun([0.3, b"x", b"\x1b[21~", b"\t", b"\t", b"\t", b"\r", b"\r"], conf())
+    a = open(asked).read().split() if os.path.exists(asked) else []
+    check("and Tab goes round them: three on is Shut Down, which Enter asks "
+          "about and Enter again does", a == ["PowerOff", "b", "false"], (a, s[6]))
+    # A key the message line names is a button for it (Gitea #511).
+    s, _ = loginrun([0.3, b"x"], conf())
+    at = s[1].find("Enter to go on")
+    s2 = None
+    if at:
+        s2, _ = loginrun([0.3, b"x", press(at[0], at[1] + 1), release(at[0], at[1] + 1)], conf())
+    check("a click on Enter in the hint is Enter: on to the password",
+          s2 is not None and s2[3].find("Tab: session") is not None,
+          (at, s2[3] if s2 else None))
     # Its own words in a language (cut 2 of #389): Arabic, from the shipped
     # catalogue, the labels against the right of the box and Power under its
     # left. Arabic reaches the screen shaped and in display order, so the
@@ -9588,4 +9623,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1041)
+report(1045)

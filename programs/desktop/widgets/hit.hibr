@@ -95,6 +95,28 @@ fn dt_wrows(id, int i, int r) {
 # Which widget, if any, sits at a pane-relative row/col -- ret's its tag,
 # empty for none.  An app's _click asks this before falling back to its
 # own per-row logic.
+# A hint line naming keys -- "Enter fills it; escape cancels" -- drawn as
+# dt_tput draws it, with each named key a button for that key (Gitea #511):
+# word key, word key, ... A click on one is the key, handed to the window's
+# own _key by the window manager (a region tagged key:<name>). A word the
+# translation does not keep is simply not a button.
+fn dt_khint(id, int r, int c, text, ...pairs) {
+	local t i=0 w k at
+
+	dt_tput "$id" "$r" "$c" "$text"
+	t := dt_tr "$text"
+	while [ "$i" -lt "${#pairs[@]}" ]; do
+		w=${pairs[$i]}
+		k=${pairs[$((i + 1))]-}
+		i=$((i + 2))
+		[ -n "$k" ] || continue
+		at := str index "$t" "$w" 2> /dev/null || continue
+		[ "${at:--1}" -ge 0 ] 2> /dev/null || continue
+		dt_wreg "$id" "$r" $((c + at)) "${#w}" "key:$k"
+	done
+	return 0
+}
+
 fn dt_hit(id, int r, int c) {
 	local n i=0 wr wc ww
 

@@ -464,7 +464,7 @@ fn vwp_draw(int id, int h, int w, int row, int col) {
 	done
 	console pen "$DT_DIM" "$DT_FACE"
 	r=$((h - 1))
-	dt_tput "$id" "$r" 2 "Enter fills it; escape cancels"
+	dt_khint "$id" "$r" 2 "Enter fills it; escape cancels" Enter enter escape escape
 }
 
 fn vwp_key(int id, k) {

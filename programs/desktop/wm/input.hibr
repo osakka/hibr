@@ -47,7 +47,7 @@ fn dt_altclick(int id, btn, int mr, int mc, mods = "") {
 
 dt_mouse() {
 	local act=${1##*-} mr mc mods
-	local id b bi wr wc wa wh ww ap mo now dr dc wsn p g ai ab ar ac
+	local id b bi wr wc wa wh ww ap mo now dr dc wsn p g ai ab ar ac kt
 	local -a gv
 
 	mods=${1%"$act"}
@@ -243,6 +243,12 @@ dt_mouse() {
 			   dt_has "${DT[$id]["app"]}_context"; then
 				dt_context_open "${DT[$id]["app"]}" "$id" \
 					"$mr" "$mc"
+				return 0
+			fi
+			# A key named in a hint is a button for it (dt_khint).
+			if [ "$1" = left ] && [ -n "${DT[$id]["key"]-}" ] &&
+			   kt := dt_hit "$id" $((mr - wr)) $((mc - wa)) && [[ $kt == key:* ]]; then
+				dt_appcall "$id" "${DT[$id]["key"]}" "${kt#key:}"
 				return 0
 			fi
 			[ -n "$ap" ] && dt_appcall "$id" "$ap" $((mr - wr)) $((mc - wa)) "$1"

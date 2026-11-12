@@ -74,6 +74,9 @@ LG_RTL=
 declare -ga LG_PWACTS
 LG_PWACTS=()
 LG_PWSEL=0
+# Power under the box has the focus (Gitea #510): Tab reaches it from the
+# name, and from the password after the two sessions, and Enter opens it.
+LG_PWFOC=
 LG_PWFROM=
 LG_PWASK=
 LG_PWROW=
@@ -504,7 +507,11 @@ fn lg_pwlabel(int r, int c, int w) {
 	tw := str width "$t"
 	x=$((c + w - tw - 1))
 	[ -n "$LG_RTL" ] && x=$((c + 1))
-	console pen "$DT_INK" "$DT_FACE"
+	if [ -n "$LG_PWFOC" ]; then
+		console pen "$DT_SELINK" "$DT_ACTIVE" bold
+	else
+		console pen "$DT_INK" "$DT_FACE"
+	fi
 	console put "$r" "$x" "$t"
 	LG_PWLAB="$r $x $tw"
 }
@@ -552,6 +559,41 @@ fn lg_msg(int r, int c, int w) {
 		fi
 	fi
 	lg_text "$r" "$c" "$w" "$t"
+	lg_hints "$r" "$c" "$t"
+}
+
+# The keys the message line names, each a button for its key (Gitea #511):
+# "r col width key" a line, for lg_key. Found by the words, so a translation
+# that keeps none of them has none.
+LG_HINTS=()
+fn lg_hints(int r, int c, t) {
+	local w k at
+
+	LG_HINTS=()
+	[ -n "$LG_BAD" ] && [ -z "$LG_MSG" ] && return 0
+	for w in Enter Esc Tab; do
+		case $w in Enter) k=enter ;; Esc) k=escape ;; Tab) k=tab ;; esac
+		at := str index "$t" "$w" 2> /dev/null || continue
+		[ "${at:--1}" -ge 0 ] 2> /dev/null || continue
+		[ -n "$LG_RTL" ] && continue
+		LG_HINTS+=("$r $((c + at)) ${#w} $k")
+	done
+	return 0
+}
+
+# The key a click on the message line names, if it named one.
+fn lg_hintat(int r, int c) {
+	local h
+	local -a f
+
+	for h in "${LG_HINTS[@]}"; do
+		read -ra f <<< "$h"
+		if [ "$r" = "${f[0]}" ] && [ "$c" -ge "${f[1]}" ] && [ "$c" -lt $((f[1] + f[2])) ]; then
+			ret "${f[3]}"
+			return 0
+		fi
+	done
+	return 1
 }
 
 # Back to the saver, everything typed forgotten.
@@ -694,6 +736,7 @@ lg_pwopen() {
 	LG_PWFROM=$LG_STATE
 	[ "$LG_PWFROM" = saver ] && LG_PWFROM=name
 	LG_STATE=power
+	LG_PWFOC=
 	LG_PWSEL=0
 	LG_PWASK=
 	LG_MSG=
@@ -808,6 +851,9 @@ fn lg_pwkey(k) {
 	case $k in
 	up) [ "$LG_PWSEL" -gt 0 ] && LG_PWSEL=$((LG_PWSEL - 1)); LG_PWASK=; LG_MSG= ;;
 	down) [ "$LG_PWSEL" -lt $((n - 1)) ] && LG_PWSEL=$((LG_PWSEL + 1)); LG_PWASK=; LG_MSG= ;;
+	# Tab and Shift-Tab go round the actions, as in any dialog (#510).
+	tab | right) LG_PWSEL=$(((LG_PWSEL + 1) % n)); LG_PWASK=; LG_MSG= ;;
+	shift-tab | left) LG_PWSEL=$(((LG_PWSEL + n - 1) % n)); LG_PWASK=; LG_MSG= ;;
 	enter) lg_pwchoose ;;
 	escape)
 		if [ -n "$LG_PWASK" ]; then
@@ -832,11 +878,21 @@ fn lg_pwkey(k) {
 
 # A key or a click.
 fn lg_key(k) {
-	local now
+	local now hk
+	local -a hev
 
 	now := lg_ms
 	[ "$now" -lt "$LG_HOLD" ] && return 0
 	LG_SEEN=$EPOCHSECONDS
+	# A click on a key the message line names is that key.
+	case $k in
+	"mouse press "*)
+		read -ra hev <<< "$k"
+		if [ "$LG_STATE" != saver ] && hk := lg_hintat "${hev[3]}" "${hev[4]}"; then
+			k=$hk
+		fi
+		;;
+	esac
 	if [ "$k" = f10 ]; then
 		lg_pwopen
 		return 0
@@ -857,6 +913,19 @@ fn lg_key(k) {
 		LG_STATE=name
 		[ "${#k}" = 1 ] || return 0
 	fi
+	# Power with the focus: Enter opens it, Tab and Esc leave it, and
+	# anything typed goes back to the field it was meant for.
+	if [ -n "$LG_PWFOC" ]; then
+		case $k in
+		enter) lg_pwopen; return 0 ;;
+		tab | shift-tab | escape)
+			LG_PWFOC=
+			[ "$LG_STATE" = pass ] && LG_SESS=desktop
+			return 0
+			;;
+		esac
+		LG_PWFOC=
+	fi
 	if [ "$LG_STATE" = name ]; then
 		case $k in
 		escape) lg_rest ;;
@@ -871,6 +940,7 @@ fn lg_key(k) {
 			;;
 		backspace) LG_USER=${LG_USER%?} ;;
 		ctrl-u) LG_USER= ;;
+		tab | shift-tab) [ "${#LG_PWACTS[@]}" -gt 0 ] && LG_PWFOC=1 ;;
 		*) [ "${#k}" = 1 ] && [ "${#LG_USER}" -lt 32 ] && LG_USER+=$k ;;
 		esac
 		return 0
@@ -878,8 +948,19 @@ fn lg_key(k) {
 	case $k in
 	escape) lg_back ;;
 	enter) [ -n "$LG_PASS" ] && lg_login ;;
-	tab|left|right)
+	left | right)
 		if [ "$LG_SESS" = desktop ]; then LG_SESS=shell; else LG_SESS=desktop; fi
+		;;
+	# Tab goes on from the sessions to Power, where one is offered, and
+	# round again to the first session.
+	tab | shift-tab)
+		if [ "$LG_SESS" = desktop ]; then
+			LG_SESS=shell
+		elif [ "${#LG_PWACTS[@]}" -gt 0 ]; then
+			LG_PWFOC=1
+		else
+			LG_SESS=desktop
+		fi
 		;;
 	# Backspace with nothing typed goes back to the name, which is the way
 	# back anybody tries first when the name was the mistake.

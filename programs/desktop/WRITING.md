@@ -127,6 +127,13 @@ modules, the bar's items. An app gives one of its own regions a tooltip with
 Give one to a glyph with no word beside it, not to a labelled button or a
 menu row, which already say what they do.
 
+**A key a hint names is a button for that key** (Gitea #511). Draw a line
+such as "Enter fills it; escape cancels" with
+`dt_khint id r c text word key [word key...]` in place of `dt_tput`: it
+draws the same, translated, and a left click on a named word reaches the
+window's own `_key` as that key. A word the translation does not keep is
+simply not a button.
+
 `dt_cellpx id r c cw ch` works out a window's own pixel for a click: where
 in the cell `r c` the pointer was, as `x y`
 in a cell of `cw` by `ch` -- the app's own measure, which need not be the
