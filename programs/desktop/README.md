@@ -82,14 +82,17 @@ keeps it. Super reaches the desktop only from a terminal that speaks the
 kitty keyboard protocol, which the console asks for and `hold` passes on
 to each display that answers.
 
-**Where a new window goes** is Control Panel > Windows > Placement.
-**smart**, the default, puts it in the first spot on the display that
-overlaps nothing -- scanning from the top left, below the menu bar, clear
-of the Control Strip, with room left for each window's shadow -- and where
-there is no such spot, where it covers least. **cascade** steps each new
-one down and across, as the desktop always did; **center** puts it in the
-middle. A window bigger than the display is shrunk to fit. A session's own
-`dt_new` with a position is left where it says.
+**Where a new window goes** is Control Panel > Windows > Placement, on
+the display the mouse was last on (Gitea #509) -- the primary before the
+mouse has been seen. **smart**, the default, puts it in the spot nearest
+the mouse that overlaps nothing -- below the menu bar, clear of the Control
+Strip, with room left for each window's shadow -- or, before the mouse has
+been seen, the first such spot from the top left; and where there is no
+such spot, where it covers least. **cascade** steps each new one down and
+across, as the desktop always did; **center** puts it in the middle. A
+window bigger than the display is shrunk to fit. A session's own `dt_new`
+with a position is left where it says, and a program put back where it was
+left (Remember Program Windows) goes there.
 
 **Snapping** puts the focused window on a half of the display: alt-left,
 alt-right, ctrl-alt-up and ctrl-alt-down -- or Window > Snap, which also

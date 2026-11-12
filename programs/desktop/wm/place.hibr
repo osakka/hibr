@@ -5,13 +5,15 @@
 # alone.
 #
 # DT_PLACE (Control Panel > Windows > Placement) is smart, cascade or
-# center. Smart takes the first spot on the primary display, scanning from
-# the top left, where the window overlaps no visible window and not the
-# Control Strip, below the menu bar and clear of its shadow, so a window does
-# not open in the shade (it can still be moved there); with no such spot, the
-# one where it overlaps least. Cascade is the step down and across the desktop always
-# did; center is the middle of the display. Every way, a window larger than
-# the display is shrunk to fit it.
+# center, on the display the mouse was last on (Gitea #509), or the primary
+# before the mouse has been seen. Smart takes the spot nearest the mouse --
+# outward from the window centred on it -- where the window overlaps no
+# visible window and not the Control Strip, below the menu bar and clear of
+# its shadow, so a window does not open in the shade (it can still be moved
+# there); with the mouse not seen, the first such spot from the top left;
+# with no such spot, the one where it overlaps least. Cascade is the step
+# down and across the desktop always did; center is the middle of the
+# display. Every way, a window larger than the display is shrunk to fit it.
 #
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
@@ -29,10 +31,29 @@ fn dt_place(int h, int w) {
 	# starts at the top of the union (Gitea #240).
 	top := dt_ptop
 	local ph=$((${DT_PRIMARY_H:-$DT_ROWS} - 1)) n=0 i r c ov best=-1 br bc id x0 x1 y0 y1
-	local sr sw scol dr=0 dc=0
+	local sr sw scol dr=0 dc=0 mr= mc= onp=1 ar ac d g rr cc
 	local -a R C H W
 
-	if [ "$DT_BARSHADOW" = 1 ]; then
+	# The display the mouse was last on (Gitea #509), its whole height when
+	# it is not the primary, which alone has the bar; the primary when the
+	# mouse has not been seen.
+	read -r mr mc <<< "${DT_MOUSEAT-}"
+	if [ -n "$mc" ]; then
+		for i in "${!DT_DISPLAYS[@]}"; do
+			IFS=' ' read -r y0 x0 y1 x1 g <<< "${DT_DISPLAYS[$i]}"
+			[ "$mr" -ge "$y0" ] && [ "$mr" -lt $((y0 + y1)) ] &&
+				[ "$mc" -ge "$x0" ] && [ "$mc" -lt $((x0 + x1)) ] || continue
+			if [ "$y0 $x0" != "${DT_PRIMARY_ROW:-0} ${DT_PRIMARY_COL:-0}" ]; then
+				onp=
+				top=$y0
+				left=$x0
+				ph=$y1
+				pw=$x1
+			fi
+			break
+		done
+	fi
+	if [ -n "$onp" ] && [ "$DT_BARSHADOW" = 1 ]; then
 		top=$((top + 1))
 		ph=$((ph - 1))
 	fi
@@ -45,6 +66,7 @@ fn dt_place(int h, int w) {
 		;;
 	cascade)
 		r=$((2 + (DT_NEXT * 2) % 6))
+		[ -n "$onp" ] || r=$((top + 1 + (DT_NEXT * 2) % 6))
 		c=$((left + 4 + (DT_NEXT * 4) % 16))
 		[ $((r + h)) -gt $((top + ph)) ] && r=$((top + ph - h))
 		[ $((c + w)) -gt $((left + pw)) ] && c=$((left + pw - w))
@@ -68,7 +90,7 @@ fn dt_place(int h, int w) {
 		W[n]=${DT[$id]["w"]}
 		n=$((n + 1))
 	done
-	if [ "${#CS_MOD_LIST[@]}" -gt 0 ] && [ "$CS_COLLAPSED" != 1 ]; then
+	if [ -n "$onp" ] && [ "${#CS_MOD_LIST[@]}" -gt 0 ] && [ "$CS_COLLAPSED" != 1 ]; then
 		sr := cs_y
 		sw := cs_width
 		scol=$left
@@ -78,6 +100,56 @@ fn dt_place(int h, int w) {
 		H[n]=1
 		W[n]=$sw
 		n=$((n + 1))
+	fi
+	# Near the mouse (Gitea #509): the free spots worth trying are the one
+	# centred on it and those against an edge of a window already there --
+	# beside it, above or below it -- and the one nearest the mouse is
+	# taken. Trying every spot outward from the mouse, as first written,
+	# was 212 ms on a crowded 62 by 220 display; this is a few.
+	if [ -n "$mc" ]; then
+		ar=$((mr - h / 2))
+		ac=$((mc - w / 2))
+		local -a RS=("$ar" "$top") CS=("$ac" "$left")
+		i=0
+		while [ "$i" -lt "$n" ]; do
+			RS+=($((R[i] + H[i] + dr)) $((R[i] - h - dr)))
+			CS+=($((C[i] + W[i] + dc)) $((C[i] - w - dc)))
+			i=$((i + 1))
+		done
+		best=-1
+		for rr in "${RS[@]}"; do
+			[ $((rr + h)) -gt $((top + ph)) ] && rr=$((top + ph - h))
+			[ "$rr" -lt "$top" ] && rr=$top
+			for cc in "${CS[@]}"; do
+				[ $((cc + w)) -gt $((left + pw)) ] && cc=$((left + pw - w))
+				[ "$cc" -lt "$left" ] && cc=$left
+				d=$(((rr > ar ? rr - ar : ar - rr) * 2 + (cc > ac ? cc - ac : ac - cc)))
+				[ "$best" -ge 0 ] && [ "$d" -ge "$best" ] && continue
+				ov=0
+				i=0
+				while [ "$i" -lt "$n" ] && [ "$ov" = 0 ]; do
+					y0=$((rr > R[i] ? rr : R[i]))
+					y1=$((rr + h + dr < R[i] + H[i] + dr ?
+						rr + h + dr : R[i] + H[i] + dr))
+					x0=$((cc > C[i] ? cc : C[i]))
+					x1=$((cc + w + dc < C[i] + W[i] + dc ?
+						cc + w + dc : C[i] + W[i] + dc))
+					[ "$y1" -gt "$y0" ] && [ "$x1" -gt "$x0" ] && ov=1
+					i=$((i + 1))
+				done
+				[ "$ov" = 0 ] || continue
+				best=$d
+				br=$rr
+				bc=$cc
+			done
+		done
+		if [ "$best" -ge 0 ]; then
+			ret "$br $bc $h $w"
+			return 0
+		fi
+		best=-1
+		br=
+		bc=
 	fi
 	r=$top
 	while [ $((r + h)) -le $((top + ph)) ]; do

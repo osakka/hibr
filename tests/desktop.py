@@ -9541,6 +9541,33 @@ sc, told = fsboth('DT_FULLON=pointer\nFSDONE=\nfsgo() { [ -n "$DT_MOUSEAT" ] '
 check("and the display under the mouse is the one the mouse was last on",
       sc.g[3][60] == "L" and sc.g[3][10] != "L", (sc, told))
 
+# A new window opens on the display the mouse is on, near it (Gitea #509);
+# before the mouse has been seen, on the primary from its top left, as ever.
+def placed(told):
+    p = [x.split()[1:] for x in told if x.startswith("place ")]
+    return [int(v) for v in p[-1]] if p else None
+
+
+sc, told = fsboth('DT_MOUSEAT="12 60"\nP := dt_place 6 20\n'
+                  'echo "place $P" >> %s' % FSTOLD, [0.3])
+pl = placed(told)
+check("a new window opens on the display the mouse is on, near it, clear of "
+      "the window already there", pl and pl[1] >= 40 and pl[1] + pl[3] <= 80 and
+      abs(pl[0] - 9) + abs(pl[1] - 50) <= 12 and
+      (pl[0] >= 11 or pl[0] + pl[2] <= 5 or pl[1] >= 70 or pl[1] + pl[3] <= 50),
+      (pl, told))
+sc, told = fsboth('P := dt_place 6 20\necho "place $P" >> %s' % FSTOLD, [0.3])
+pl = placed(told)
+check("and before the mouse has been seen, on the primary as before",
+      pl and pl[1] + pl[3] <= 40, (pl, told))
+sc, told = fsboth('PLDONE=\nplgo() { [ -n "$DT_MOUSEAT" ] && [ -z "$PLDONE" ] || '
+                  'return 0; PLDONE=1; P := dt_place 6 20; echo "place $P" >> %s; }\n'
+                  'dt_ticker plgo' % FSTOLD,
+                  [press(20, 70), release(20, 70), 0.6])
+pl = placed(told)
+check("and a click on the other display is what moves it there",
+      pl and pl[1] >= 40, (pl, told))
+
 # Full Screen as a desktop key (0.99.403, the owner's request on #405): one
 # key for every window that may be zoomed, alt-enter by default, the
 # focused app's own first as every window key is; and a row beside Zoom on
@@ -9649,4 +9676,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1048)
+report(1051)

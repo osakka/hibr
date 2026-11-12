@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.501
+
+**A new window opens on the display the mouse is on, near it** (Gitea
+#509). Every new window -- the desktop's own apps and programs' windows
+alike -- went to the primary display from its top left. Placement now
+works on the display the mouse was last on, and Smart takes the free spot
+nearest the mouse there, below the menu bar and clear of the Control
+Strip only on the display that has them. Before the mouse has been seen
+it is the primary from the top left, as before; a program put back where
+it was left goes there. Choosing a spot is a few milliseconds on a
+crowded two-display desktop.
+
 ## 0.99.500
 
 **A module installed beside the shell is found, and one that will not load
