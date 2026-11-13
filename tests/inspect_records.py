@@ -24,6 +24,10 @@ with tempfile.TemporaryDirectory() as d:
     assert [f['name'] for f in x['functions']] == ['example']
     assert x['functions'][0]['params'][0]['type'] == 'int'
     assert query(path) == x
+    plain = subprocess.run([binary, '-c', 'need inspect; inspect functions "$1"', '_', str(path)],
+                           env=env, capture_output=True, text=True, timeout=5)
+    assert plain.returncode == 0 and not plain.stderr
+    assert 'example(int value)' in plain.stdout and 'functions (ok)' in plain.stdout
     assert not marker.exists()
     path.write_text('if then\n')
     assert query(path)['state'] == 'invalid'
@@ -73,7 +77,7 @@ with tempfile.TemporaryDirectory() as d:
     assert query(path)['state'] == 'unreadable'
     module = Path(d) / 'state.so'
     subprocess.run([str(root / 'tools/tccld'), '-I' + str(root / 'include'), '-shared', '-fPIC', '-o', str(module), str(root / 'tests/inspect_state.c')], check=True, cwd=root)
-    for source in ['fn valid() { ret ok; }\n', 'if then\n', 'fn unfinished(']:
+    for source in ['need email; email accounts\nfn valid() { ret ok; }\n', 'if then\n', 'fn unfinished(']:
         path.write_text(source)
         proc = subprocess.run([binary, '-c', 'mod load "$1"; r := ixstate "$2"; echo "$r"', '_', str(module), str(path)], env=env, capture_output=True, text=True, timeout=5)
         assert proc.returncode == 0 and proc.stdout.strip() == 'preserved' and not proc.stderr, proc

@@ -335,6 +335,7 @@ $(B)/hibr.census: $(SRC) include/hibr.h include/pri.h $(B)/.moddir | $(B)/mods
 check-inspect: $(BIN) $(B)/mods/inspect.so $(B)/mods/lint.so
 	HIBR=$(abspath $(BIN)) HIBR_TESTMODS=$(abspath $(B)/mods) python3 tests/inspect_records.py
 	python3 tests/inspect_tree.py
+	python3 tests/inspect_roundtrip.py
 	HIBR=$(abspath $(BIN)) HIBR_TESTMODS=$(abspath $(B)/mods) python3 tests/inspect_spans.py
 
 .PHONY: check-inspect

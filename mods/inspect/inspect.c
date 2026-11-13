@@ -12,6 +12,13 @@ const char *p_param(lex *, node *, const char *, const char *);
 #include <fcntl.h>
 #include <sys/stat.h>
 
+typedef struct ix_pos ix_pos;
+struct ix_pos {
+	const void *object;
+	size_t start, end;
+	ix_pos *next;
+};
+
 typedef struct {
 	str *out;
 	sh *rules;
@@ -20,6 +27,9 @@ typedef struct {
 	const char *identity;
 	const char *src, *path, *request, *filter, *owner;
 	vec names;
+	ix_pos **positions;
+	const char *input;
+	size_t inputsize, origin;
 	size_t start, end, cursor, fncursor, unitstart, unitend;
 	size_t *lines, nlines;
 	int count, subdepth, partial;
@@ -29,6 +39,40 @@ typedef struct {
 	node *tree;
 	size_t start, end;
 } ix_unit;
+
+/* Hash a private parser object without exposing it to consumers. */
+static size_t ix_bucket(const void *object)
+{
+	return ((uintptr_t)object >> 3) % 8191;
+}
+
+/* Capture original byte positions before parser storage loses provenance. */
+static void ix_observe(void *data, const void *object, const char *begin, const char *end)
+{
+	ix_ctx *c = data;
+	ix_pos *p;
+	size_t bucket = ix_bucket(object);
+
+	if ((uintptr_t)begin < (uintptr_t)c->input || (uintptr_t)end < (uintptr_t)begin ||
+	    (uintptr_t)end > (uintptr_t)c->input + c->inputsize) return;
+	for (p = c->positions[bucket]; p && p->object != object; p = p->next) {}
+	if (!p) {
+		p = xm(sizeof *p); p->object = object;
+		p->next = c->positions[bucket]; c->positions[bucket] = p;
+	}
+	p->start = c->origin + (size_t)(begin - c->input);
+	p->end = c->origin + (size_t)(end - c->input);
+}
+
+/* Read evidence recorded by the parser rather than matching source text. */
+static int ix_position(ix_ctx *c, const void *object, size_t *start, size_t *end)
+{
+	ix_pos *p;
+
+	for (p = c->positions[ix_bucket(object)]; p; p = p->next)
+		if (p->object == object) { *start = p->start; *end = p->end; return 1; }
+	return 0;
+}
 
 /* Append a JSON string. */
 static void ix_quote(str *out, const char *text)
@@ -68,13 +112,12 @@ static void ix_span(ix_ctx *c, size_t start, size_t end)
 {
 	size_t line, eline;
 
-	if (c->unitend > c->unitstart) { start = c->unitstart; end = c->unitend; }
 	line = ix_line(c, start); eline = ix_line(c, end);
 
 	s_fmt(c->out, "\"span\":{\"start\":%lu,\"end\":%lu,\"line\":%lu,\"col\":%lu,\"endline\":%lu}",
 	      (unsigned long)start, (unsigned long)end, (unsigned long)(line + 1),
 	      (unsigned long)(start - c->lines[line] + 1), (unsigned long)(eline + 1));
-	if (c->unitend > c->unitstart) s_cat(c->out, ",\"span_precision\":\"containing-unit\"");
+
 }
 
 /* Read a literal command word without expanding it. */
@@ -103,14 +146,13 @@ static int ix_named(ix_ctx *c, const char *name)
 	return 0;
 }
 
-/* Locate retained parser text within its containing input unit. */
+/* Locate a node from private parser evidence. */
 static size_t ix_start(ix_ctx *c, node *n)
 {
-	const char *at;
-	size_t pos = n->ln && n->ln <= c->nlines ? c->lines[n->ln - 1] : 0;
-	if (n->k == N_FUNC && c->fncursor > pos) pos = c->fncursor;
-	at = n->tx ? strstr(c->src + pos, n->tx) : 0;
-	return at && (size_t)(at - c->src) < c->end ? (size_t)(at - c->src) : pos;
+	size_t start, end;
+
+	if (ix_position(c, n, &start, &end)) return start;
+	return n->ln && n->ln <= c->nlines ? c->lines[n->ln - 1] : 0;
 }
 
 /* Start one evidence record with its source identity and location. */
@@ -242,46 +284,10 @@ static void ix_expression(ix_ctx *c, node *n)
 	s_free(&text); v_free(&l.hq); ar_free(own.ar);
 }
 
-/* Compare word parts without expanding or evaluating either word. */
-static int ix_same(word *a, word *b)
-{
-	part *p = a ? a->p : 0, *q = b ? b->p : 0;
-
-	while (p && q) {
-		if (p->k != q->k || strcmp(p->t ? p->t : "", q->t ? q->t : "")) return 0;
-		p = p->nx; q = q->nx;
-	}
-	return !p && !q;
-}
-
-/* Locate a command word with the lexer when its tree node keeps no text. */
+/* Locate the original command word from lexer evidence. */
 static int ix_callspan(ix_ctx *c, node *n, size_t *start, size_t *end)
 {
-	sh own;
-	lex l;
-	size_t base = n->ln && n->ln <= c->nlines ? c->lines[n->ln - 1] : 0;
-	int attempt, found = 0;
-
-	memset(&own, 0, sizeof own); own.ar = ar_new(4096);
-	for (attempt = 0; attempt < 2 && !found; attempt++) {
-		if (attempt) {
-			if (c->cursor >= base) break;
-			base = c->cursor;
-		}
-		lx_init(&l, &own, c->src + base);
-		lx_next(&l);
-		while (l.tk != T_EOF && l.tk != T_NL && !l.err && !l.more) {
-		if (l.w && ix_same(l.w, n->w) && l.tkb && (size_t)(l.tkb - c->src) >= c->cursor) {
-			*start = (size_t)(l.tkb - c->src); *end = (size_t)(l.p - c->src);
-			c->cursor = *end; found = 1;
-			break;
-		}
-		lx_next(&l);
-	}
-		v_free(&l.hq);
-	}
-	ar_free(own.ar);
-	return found;
+	return ix_position(c, n->w, start, end);
 }
 
 /* Interpret registration argument positions from the supplied convention data. */
@@ -327,7 +333,7 @@ static void ix_registration_record(ix_ctx *c, node *n)
 /* Infer callback edges only from an explicitly supplied desktop rule file. */
 static void ix_convention(ix_ctx *c, node *n, size_t start, size_t end)
 {
-	const char *prefix, *role = 0;
+	const char *prefix, *role = 0, *id;
 	vec suffixes = {0};
 	char **keys;
 	str target, rule;
@@ -336,13 +342,16 @@ static void ix_convention(ix_ctx *c, node *n, size_t start, size_t end)
 	if (!c->rules || strcmp(c->request, "calls")) return;
 	prefix = ix_registration(c, n, &role);
 	if (!prefix) return;
-	keys = xm(4 * sizeof *keys);
+	keys = xm(5 * sizeof *keys);
 	keys[0] = "roles"; keys[1] = (char *)role; keys[2] = "callbacks";
 	hibr_list(c->rules, "RULES", keys, 3, &suffixes, 1);
 	for (i = 0; i < suffixes.n; i++) {
 		s_init(&target); s_init(&rule);
 		s_fmt(&target, "%s_%s", prefix, (char *)suffixes.p[i]);
-		s_fmt(&rule, "%s.%s", role, (char *)suffixes.p[i]);
+		keys[3] = suffixes.p[i]; keys[4] = "id";
+		id = hibr_getp(c->rules, "RULES", keys, 5);
+		if (id && *id) s_cat(&rule, id);
+		else s_fmt(&rule, "%s.%s", role, (char *)suffixes.p[i]);
 		if (ix_named(c, target.p)) {
 			ix_record(c, start, end, "inferred");
 			s_cat(c->out, ",\"name\":"); ix_quote(c->out, target.p);
@@ -358,38 +367,44 @@ static void ix_convention(ix_ctx *c, node *n, size_t start, size_t end)
 
 static void ix_walk(ix_ctx *, node *);
 
-/* Parse substitution fragments as code, while leaving their execution unknown. */
+/* Parse unmodified substitution bytes with their original source coordinates. */
 static void ix_words(ix_ctx *c, word *w, size_t *search)
 {
 	part *p;
-	const char *at;
 	sh own;
+	lex l;
 	node *tree;
-	size_t saved, savedfn, names;
-	int more, lv;
+	const char *input;
+	size_t start, end, names, origin, inputsize;
+	int lv;
 
 	for (; w; w = w->nx) for (p = w->p; p; p = p->nx) {
 		if ((p->k == P_CMD || p->k == P_PSUB) && p->t && *p->t) {
-			at = strstr(c->src + *search, p->t);
-			if (!at || (size_t)(at - c->src) + strlen(p->t) > c->end) { c->partial = 1; continue; }
-			saved = c->cursor; savedfn = c->fncursor; names = c->names.n;
-			c->cursor = (size_t)(at - c->src);
+			if (!ix_position(c, p, &start, &end)) { c->partial = 1; continue; }
+			if (end - start != strlen(p->t) || memcmp(c->src + start, p->t, end - start) || c->subdepth >= 32) {
+				c->partial = 1;
+				ix_record(c, start, end, "syntax");
+				s_cat(c->out, ",\"name\":null,\"dynamic\":true,\"resolution\":\"unresolved\",\"reason\":\"transformed-or-deep-substitution\"}");
+				continue;
+			}
+			names = c->names.n; input = c->input; origin = c->origin; inputsize = c->inputsize;
+			c->input = p->t; c->origin = start; c->inputsize = end - start;
 			memset(&own, 0, sizeof own); own.ar = ar_new(4096);
-			own.ln = (unsigned)(ix_line(c, c->cursor) + 1);
+			own.ln = (unsigned)(ix_line(c, start) + 1);
+			lx_init(&l, &own, p->t); l.observe = ix_observe; l.observer = c;
 			lv = hibr_lv; hibr_lv = -1;
-			more = 0;
-			tree = c->subdepth < 32 ? hibr_parse(&own, p->t, &more) : 0;
+			lx_next(&l); tree = p_list(&l);
 			c->subdepth++;
-			if (tree && own.st != 2 && !more) { ix_names(c, tree); ix_walk(c, tree); }
+			if (tree && !l.err && !l.more) { ix_names(c, tree); ix_walk(c, tree); }
 			else {
 				c->partial = 1;
-				ix_record(c, (size_t)(at - c->src), (size_t)(at - c->src) + strlen(p->t), "syntax");
+				ix_record(c, start, end, "syntax");
 				s_cat(c->out, ",\"name\":null,\"dynamic\":true,\"resolution\":\"unresolved\",\"reason\":\"substitution-not-analysed\"}");
 			}
-			c->subdepth--; c->names.n = names; c->fncursor = savedfn;
-			if (saved > c->cursor) c->cursor = saved;
-			hibr_lv = lv; ar_free(own.ar);
-			*search = (size_t)(at - c->src) + strlen(p->t);
+			c->subdepth--; c->names.n = names;
+			c->input = input; c->origin = origin; c->inputsize = inputsize;
+			hibr_lv = lv; v_free(&l.hq); ar_free(own.ar);
+			*search = end;
 		}
 		ix_words(c, p->arg, search); ix_words(c, p->idx, search);
 	}
@@ -422,6 +437,7 @@ static void ix_walk(ix_ctx *c, node *n)
 	if (!n) return;
 	start = ix_start(c, n);
 	end = n->tx ? start + strlen(n->tx) : start;
+	ix_position(c, n, &start, &end);
 	if (end > c->end) end = c->end;
 	if (n->k == N_FUNC) {
 		c->fncursor = start + 1;
@@ -480,6 +496,7 @@ static void ix_walk(ix_ctx *c, node *n)
 		if (!strcmp(c->request, "refs"))
 			for (w = n->w->nx; w; w = w->nx)
 				if ((name = ix_literal(w)) && ix_named(c, name)) {
+					ix_position(c, w, &start, &end);
 					ix_record(c, start, end, "syntax");
 					s_cat(c->out, ",\"name\":"); ix_quote(c->out, name);
 			if (!c->subdepth) s_fmt(c->out, ",\"line\":%u", n->ln);
@@ -651,7 +668,10 @@ static int ix_query(sh *caller, const char *request, const char *path, const cha
 	}
 	if (strcmp(state, "unreadable")) {
 		own.ar = ar_new(4096);
+		c.positions = xm(8191 * sizeof *c.positions);
+		memset(c.positions, 0, 8191 * sizeof *c.positions); c.input = c.src; c.inputsize = src.n;
 		lx_init(&l, &own, c.src);
+		l.observe = ix_observe; l.observer = &c;
 		lv = hibr_lv; hibr_lv = -1;
 		lx_next(&l);
 		while (l.tk != T_EOF || l.err || l.more) {
@@ -699,6 +719,11 @@ static int ix_query(sh *caller, const char *request, const char *path, const cha
 			ix_lint->records(&own, all, c.src, ix_finding, &c);
 			hibr_lv = lv;
 		}
+			for (i = 0; i < 8191; i++) {
+			ix_pos *p = c.positions[i], *next;
+			while (p) { next = p->next; free(p); p = next; }
+		}
+		free(c.positions);
 		v_free(&units); v_free(&c.names); v_free(&l.hq); ar_free(own.ar);
 		if (!bad && !src.n) state = "empty";
 	}
@@ -714,16 +739,59 @@ static int ix_query(sh *caller, const char *request, const char *path, const cha
 	return bad || !strcmp(state, "unreadable");
 }
 
+/* Render the same typed records for a person without parsing Hibr again. */
+static void ix_plain(sh *s, const char *request, const char *path)
+{
+	char **keys = xm(4 * sizeof *keys);
+	vec rows = {0}, params = {0};
+	const char *state, *name, *line, *message, *known, *value;
+	size_t i, j;
+
+	keys[0] = "state"; state = hibr_getp(s, "RET", keys, 1);
+	printf("%s: %s (%s)\n", path, request, state ? state : "unknown");
+	keys[0] = !strcmp(request, "check") ? "findings" : (char *)request;
+	hibr_list(s, "RET", keys, 1, &rows, 1);
+	for (i = 0; i < rows.n; i++) {
+		keys[1] = rows.p[i]; keys[2] = "name";
+		name = hibr_getp(s, "RET", keys, 3);
+		keys[2] = "message"; message = hibr_getp(s, "RET", keys, 3);
+		keys[2] = "known"; known = hibr_getp(s, "RET", keys, 3);
+		keys[2] = "span"; keys[3] = "line"; line = hibr_getp(s, "RET", keys, 4);
+		printf("  %s: %s", line ? line : "?", name && *name ? name : message ? message : "unresolved command");
+		if (!strcmp(request, "functions")) {
+			keys[2] = "params"; hibr_list(s, "RET", keys, 3, &params, 1);
+			printf("(");
+			for (j = 0; j < params.n; j++) {
+				char **pk = xm(5 * sizeof *pk);
+				pk[0] = keys[0]; pk[1] = keys[1]; pk[2] = "params"; pk[3] = params.p[j]; pk[4] = "type";
+				value = hibr_getp(s, "RET", pk, 5); printf("%s%s ", j ? ", " : "", value ? value : "str");
+				pk[4] = "name"; value = hibr_getp(s, "RET", pk, 5); printf("%s", value ? value : "?");
+				free(pk);
+			}
+			printf(")"); v_free(&params); memset(&params, 0, sizeof params);
+		}
+		printf(" [%s]\n", known ? known : "unknown");
+	}
+	v_free(&rows); memset(&rows, 0, sizeof rows);
+	keys[0] = "diagnostics"; hibr_list(s, "RET", keys, 1, &rows, 1);
+	for (i = 0; i < rows.n; i++) {
+		keys[1] = rows.p[i]; keys[2] = "message"; message = hibr_getp(s, "RET", keys, 3);
+		keys[2] = "span"; keys[3] = "line"; line = hibr_getp(s, "RET", keys, 4);
+		printf("  %s: %s\n", line ? line : "?", message ? message : "diagnostic");
+	}
+	v_free(&rows); free(keys);
+}
+
 /* Render the preliminary JSON records without exposing parser nodes. */
 static int ix_builtin(sh *s, int ac, char **av)
 {
 	str out, options;
-	int status, i;
+	int status, i, json = 0;
 
 	if (ac < 3) return 2;
 	s_init(&out); s_init(&options); s_ch(&options, '{');
 	for (i = 3; i < ac; i++) {
-		if (!strcmp(av[i], "-j")) continue;
+		if (!strcmp(av[i], "-j")) { json = 1; continue; }
 		if (options.n > 1) s_ch(&options, ',');
 		if (!strcmp(av[i], "--rules")) {
 			if (++i >= ac) { s_free(&out); s_free(&options); return 2; }
@@ -739,7 +807,10 @@ static int ix_builtin(sh *s, int ac, char **av)
 		b_json(s, 4, args);
 		free(args);
 	}
-	if (!s->bind) printf("%s\n", out.p);
+	if (!s->bind) {
+		if (json) printf("%s\n", out.p);
+		else ix_plain(s, av[1], av[2]);
+	}
 	s_free(&out);
 	return status;
 }

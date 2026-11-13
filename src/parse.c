@@ -878,6 +878,7 @@ node *p_case(lex *l)
 node *p_cmd(lex *l)
 {
 	node *n = 0;
+	const char *begin = l->tkb, *end;
 
 	if (++l->depth > HIBR_DEPTH) {
 		perr(l, "input nested too deeply");
@@ -885,6 +886,11 @@ node *p_cmd(lex *l)
 		return 0;
 	}
 	n = p_cmd2(l);
+	if (n && l->observe) {
+		end = l->tkb ? l->tkb : l->p;
+		while (end > begin && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\n' || end[-1] == '\r')) end--;
+		l->observe(l->observer, n, begin, end);
+	}
 	l->depth--;
 	return n;
 }

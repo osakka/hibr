@@ -8,17 +8,15 @@ This in-tree producer implements the record approach in ADR 0056 for hui-assista
 - `inspect calls FILE [FUNCTION] [--rules FILE] [-j]`: literal and dynamic commands, explicit substitution scopes and convention-derived callback relationships.
 - `inspect refs FILE [-j]`: literal arguments naming inspected functions.
 - `inspect check FILE [-j]`: structured parse diagnostics and findings from the same implementation as `--explain`.
-- Typed result maps under `:=`; JSON output when unbound. Plain-text rendering remains to be added.
+- Typed result maps under `:=`; JSON output with `-j`, otherwise a plain-text rendering of those same records.
 - An isolated parser arena and variable table, bounded 4 MiB UTF-8 input, registered local schemes only, partial recovery, source/rule identities, and explicit provenance labels.
 - C consumers ask for `"inspect"`, version 1, using `inspect.h`. `query` appends JSON to an initialized caller-owned `str`; its options argument is JSON with optional `function` and `rules` fields. It does not transfer parser pointers. The caller owns the output and must free it. The builtin places its result in the usual result slot; the C query itself preserves the caller's status, result and line state.
 
-## Release blocker: exact spans
+## Source positions and review
 
-The current module deliberately labels evidence spans `containing-unit`: those ranges are captured at parser entry/exit and enclose the relevant source unit. They are not exact token, parameter or body spans. Direct parser line metadata is reported where available. Substitution locations are not guessed.
+The private lexer observer captures node, word and substitution ranges before text is copied or unescaped. Inspection stores those positions in its own side table; normal parsing has no observer, no source table and no public AST changes. Calls and references point to their original words. Function ranges pass extraction/reinspection across all 3,289 definitions in the tracked tree.
 
-`tests/inspect_spans.py` is a failing release regression. Identical command text can occur first in quoted data and later in executable substitution syntax. Finding retained text in the source is not sufficient to distinguish them. The earlier search-based prototype demonstrated this failure and must not be released with exact-location claims.
-
-Hibr #532 needs a decision on additional private parser/lexer provenance capture before more core changes. No public AST fields or node structures are proposed. Until that is resolved, the exact-span and round-trip requirements in ADR 0056 are not met, even though function discovery, scope facts, parsing, typed results and the app work.
+`tests/inspect_spans.py` covers identical data/code text, repeated arguments, nested and process substitutions, references, parameter defaults and function bodies. Backtick substitutions whose unescaping changes the bytes are explicitly unresolved and mark analysis partial: they are never assigned guessed locations. Public ABI 17 is unchanged. This is a review proposal in PR #535, not a released contract.
 
 ## Verification
 
