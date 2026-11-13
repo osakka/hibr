@@ -94,12 +94,23 @@ fn dt_scrollmove(k, int top, int total, int vis, int? step = "") {
 declare -gA DT_SB
 DT_SBDRAG=
 
+# Where a vertical bar's thumb goes: the row, from row0 over h rows, for a
+# view at pos of total with shown visible. One arithmetic for a window's
+# bar and a menu's (Gitea #538), so the two cannot disagree.
+fn dt_scrollthumb(int row0, int h, int total, int shown, int pos) {
+	local thumb
+
+	[ "$total" -gt "$shown" ] || { ret "$row0"; return 0; }
+	thumb=$((row0 + pos * (h - 1) / (total - shown)))
+	[ "$thumb" -ge $((row0 + h)) ] && thumb=$((row0 + h - 1))
+	ret "$thumb"
+}
+
 fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos, key = "", thumb1 = "") {
 	local thumb r tg=${GL[block]} kg=${GL[vline]}
 
 	[ "$total" -gt "$shown" ] || return 0
-	thumb=$((row0 + pos * (h - 1) / (total - shown)))
-	[ "$thumb" -ge $((row0 + h)) ] && thumb=$((row0 + h - 1))
+	thumb := dt_scrollthumb "$row0" "$h" "$total" "$shown" "$pos"
 	if [ -n "$key" ]; then
 		DT_SB["$id:$key"]="v $row0 $col $h $total $shown"
 		if [ "$thumb1" = 1 ]; then

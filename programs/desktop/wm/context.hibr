@@ -33,6 +33,7 @@ fn dt_ctxkey(what) {
 }
 
 fn dt_context_open(who, id, int r, int c) {
+	dt_mscrollreset
 	MB_CTXWHO=$who
 	MB_CTXID=$id
 	MB_CY=$r

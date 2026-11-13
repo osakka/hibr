@@ -119,6 +119,7 @@ dt_mouse() {
 		fi
 		if [ "$MB_OPEN" != -1 ]; then
 			dt_mfoot "$mr" "$mc" && return 0
+			dt_mbarpress "$mr" "$mc" && return 0
 			if dt_mpick "$mr" "$mc" || dt_mback "$mr" "$mc"; then
 				dt_mdo
 			else
@@ -526,6 +527,13 @@ dt_mouse() {
 		DT_SIZE_DC=0
 		;;
 	wheelup | wheeldown | wheelleft | wheelright)
+		# An open menu takes the wheel over itself and scrolls (Gitea
+		# #538).
+		if [ "$MB_OPEN" != -1 ]; then
+			case $act in
+			wheelup | wheeldown) dt_mwheel "${act#wheel}" "$mr" "$mc" && return 0 ;;
+			esac
+		fi
 		if dt_pophit "$mr" "$mc"; then
 			case $act in
 			wheelup | wheeldown) dt_popmouse "${act#wheel}" "$mr" "$mc" ;;

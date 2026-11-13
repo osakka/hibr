@@ -1972,6 +1972,58 @@ sc, _ = run(CTX, [press(9, 15, 2), press(9, 17)])
 check("choosing its item runs the item's own command",
       sc.find("hits=10") is not None, sc)
 
+# A menu taller or wider than its display (Gitea #538): Blit Keyboard's Add
+# Layout list ran off the screen. One rule for every menu, dropdown and
+# context menu: bounded to the display, scrolled with the highlight, the
+# keys and the wheel, a scroll bar in its last column, and a row wider than
+# the display cut with an ellipsis. 120 values and one 300 columns wide, on
+# the suite's 24-row screen.
+LPICK = scratch("menu-long-pick")
+LONG = ('lng_draw() { :; }\n'
+        'lng_context() { local i; dt_menu "Long"; '
+        'for ((i = 1; i <= 120; i++)); do dt_item "Value $i" "" lng_pick "$i"; done; '
+        'dt_item "%s" "" lng_pick wide; }\n'
+        'lng_pick() { echo "$1" > %s; }\n'
+        'dt_new "Lng" 8 30 6 10 lng\n' % ("W" * 300, LPICK))
+
+
+def lrow(sc, label):
+    """The screen row a menu row of that exact label is drawn on, or None."""
+    for r in range(sc.rows):
+        if re.search(r"(^|\s)%s\s" % re.escape(label), sc.row(r)):
+            return r
+    return None
+
+
+sc, _ = run(LONG, [press(9, 15, 2)])
+bar = [r for r in range(1, sc.rows) if "█" in sc.row(r)]
+check("a menu taller than its display stays inside it, with a scroll bar",
+      lrow(sc, "Value 1") is not None and lrow(sc, "Value 60") is None and
+      lrow(sc, "Value 1") >= 1 and bar, sc)
+sc, _ = run(LONG, [press(9, 15, 2)] + [b"\x1b[B"] * 30)
+check("Down past the last row shown scrolls the menu with the highlight",
+      lrow(sc, "Value 31") is not None and lrow(sc, "Value 1") is None, sc)
+sc, _ = run(LONG, [press(9, 15, 2), b"\x1b[F"])
+wide = [r for r in range(sc.rows) if "WWWW" in sc.row(r)]
+check("End shows the last row, and a row wider than the display is cut "
+      "inside it with an ellipsis",
+      lrow(sc, "Value 120") is not None and wide and
+      "\u2026" in sc.row(wide[0]) and sc.row(wide[0]).count("W") < 80, sc)
+WHEEL3 = [press(9, 15, 2)] + [wheel(12, 18, up=False)] * 3
+sc, _ = run(LONG, WHEEL3)
+r15 = lrow(sc, "Value 15")
+check("the wheel over a menu scrolls it",
+      lrow(sc, "Value 1") is None and r15 is not None, sc)
+if os.path.exists(LPICK):
+    os.unlink(LPICK)
+c15 = sc.row(r15).find("Value 15") if r15 is not None else 0
+sc, _ = run(LONG, WHEEL3 + [press(r15 or 0, c15 + 2)])
+picked = open(LPICK).read().strip() if os.path.exists(LPICK) else ""
+check("and a click on a row after scrolling picks that row's value",
+      picked == "15", (picked, sc))
+if os.path.exists(LPICK):
+    os.unlink(LPICK)
+
 sc, _ = run(CTX, [press(9, 15, 2), press(0, 40)])
 check("clicking away from it closes it, same as any other menu",
       sc.find("Bump") is None, sc)
@@ -9848,4 +9900,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1066)
+report(1071)

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.514
+
+**A menu never runs off its display, and scrolls** (Gitea #538, reported by
+the owner: Blit Keyboard's Add Layout list of about a hundred layouts ran
+off the screen). One rule in the menu machinery, so every menu, dropdown
+and context menu has it:
+- **Height:** a menu shows as many rows as its display has room for; the
+  rest scroll.
+- **Following the highlight:** the arrows, Page Up/Down, Home and End move
+  the highlight, and the view follows it.
+- **The wheel** over a menu scrolls it without dragging the highlight back.
+- **A scroll bar** sits in the menu's last column, drawn in the desktop's
+  own scroll-bar glyphs with the thumb placed by the same arithmetic as
+  every window's (`dt_scrollthumb`). A press on it puts the view there.
+- **Width:** a menu is never wider than its display, Menu Width or not; a
+  longer row is cut with an ellipsis.
+- **Search:** the hibr menu's search results scroll too, where they were
+  cut at the bottom of the display.
+- **Submenus** open beside the row that owns them, wherever their parent is
+  scrolled.
+
 ## 0.99.513
 
 **Language & Region keeps `LANGUAGE`** (Gitea #526). A system's locale

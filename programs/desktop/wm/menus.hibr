@@ -993,7 +993,7 @@ fn dt_mpx(int m) {
 # occupies so it can sit beside it rather than on top of it.
 fn dt_menu_draw(int m, int? px, int parent) {
 	local i=0 r x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
-	local ac aw ptop pbot dl=0 dr=$DT_COLS at= room lw
+	local ac aw ptop pbot dl=0 dr=$DT_COLS at= room lw vis top e th
 
 	# Each menu a layer: a submenu over its parent shows the parent.
 	console layer
@@ -1043,20 +1043,46 @@ fn dt_menu_draw(int m, int? px, int parent) {
 		dl=$DTW_C
 		dr=$((DTW_C + DTW_W))
 	fi
+	# Never wider than its display, Menu Width or not (Gitea #538): a
+	# row longer than that is cut below, with an ellipsis, as for Menu
+	# Width.
+	[ "$w" -gt $((dr - dl)) ] && w=$((dr - dl))
 	[ "$x" -lt "$dl" ] && x=$dl
 	[ $((x + w)) -gt "$dr" ] && x=$((dr - w))
 	[ "$x" -lt 0 ] && x=0
-	[ $((r + n + 1)) -gt "$pbot" ] && r=$((pbot - n - 1))
+	# And never taller (Gitea #538): as many rows as the display has room
+	# for under the menu's own top, the rest scrolled. The first row shown
+	# follows the highlight only when the highlight has moved, so the
+	# wheel and the scroll bar, which move the view, are not pulled back
+	# (dt_scrollview). The offsets live in MB_TOPS, not in MB, which is
+	# built afresh every frame.
+	vis=$n
+	[ "$vis" -gt $((pbot - ptop - 1)) ] && vis=$((pbot - ptop - 1))
+	[ "$vis" -lt 1 ] && vis=1
+	top=${MB_TOPS["$m"]:-0}
+	if [ "$parent" != 1 ] && [ "$m" = "$MB_OPEN" ]; then
+		top := dt_scrollview "$top" "$n" "$vis" "$MB_SEL" "${MB_SEENS["$m"]-}"
+		MB_SEENS["$m"]=$MB_SEL
+	else
+		top := dt_scrollfit "$top" "$n" "$vis"
+	fi
+	MB_TOPS["$m"]=$top
+	[ $((r + vis + 1)) -gt "$pbot" ] && r=$((pbot - vis - 1))
 	[ "$r" -lt "$ptop" ] && r=$ptop
 	MB[$m]["dy"]=$r
 	MB[$m]["dx"]=$x
 	MB[$m]["dw"]=$w
+	MB[$m]["top"]=$top
+	MB[$m]["vis"]=$vis
 	# -s, so drawing the open menu on every frame it stays open cannot
 	# make its shadow darker each time. Clipped at the display's edge as
 	# well: a shadow is part of the menu, and one falling on the next
 	# monitor is still a spill (Gitea #324).
-	[ "$DT_MSHADOW" = 1 ] && dt_castshadow "$r" "$x" $((n + 1)) "$w" "$dr"
-	while [ "$i" -lt "$n" ]; do
+	[ "$DT_MSHADOW" = 1 ] && dt_castshadow "$r" "$x" $((vis + 1)) "$w" "$dr"
+	i=$top
+	e=$((top + vis))
+	[ "$e" -gt "$n" ] && e=$n
+	while [ "$i" -lt "$e" ]; do
 		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
 			console pen "$DT_IDLE" "$DT_FACE"
 			lb := dt_rep "$w" "${GL[hline]}"
@@ -1177,6 +1203,96 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	lb := dt_rep "$w" " "
 	console put "$r" "$x" "$lb"
 	[ "$MB_SON" = 1 ] && [ "$m" = "$MB_SRES" ] && dt_mfootdraw "$r" "$x" "$w"
+	# The scroll bar, in the menu's last column -- after the three the
+	# key letter owns, which ends in a blank -- with the thumb where the
+	# desktop's other bars put theirs (dt_scrollthumb), in their glyphs.
+	if [ "$vis" -lt "$n" ]; then
+		console pen "$DT_IDLE" "$DT_FACE"
+		console fill "${MB[$m]["dy"]}" $((x + w - 1)) "$vis" 1 "${GL[vline]}"
+		th := dt_scrollthumb "${MB[$m]["dy"]}" "$vis" "$n" "$vis" "$top"
+		console pen "$DT_ACTIVE" "$DT_FACE"
+		console put "$th" $((x + w - 1)) "${GL[block]}"
+		console pen "$DT_INK" "$DT_FACE"
+	fi
+	return 0
+}
+
+# Where each open menu's view starts (Gitea #538): its first row shown, and
+# the highlight it was last brought to. Forgotten whenever a menu opens or
+# closes.
+declare -gA MB_TOPS MB_SEENS
+
+dt_mscrollreset() {
+	MB_TOPS=()
+	MB_SEENS=()
+}
+
+# The wheel over the open menu scrolls it, DT_SCROLLWHEEL rows a notch, and
+# is taken there either way so it reaches nothing under the menu. Status 1
+# off the menu.
+fn dt_mwheel(dir, int r, int c) {
+	local m=$MB_OPEN n vis top dy x w
+
+	[ "$m" != -1 ] && [ "$m" != app ] || return 1
+	n=${MB[$m]["n"]:-0}
+	vis=${MB[$m]["vis"]:-$n}
+	dy=${MB[$m]["dy"]:-0}
+	x=${MB[$m]["dx"]:-0}
+	w=${MB[$m]["dw"]:-0}
+	[ "$r" -ge "$dy" ] && [ "$r" -le $((dy + vis)) ] &&
+		[ "$c" -ge "$x" ] && [ "$c" -lt $((x + w)) ] || return 1
+	[ "$vis" -lt "$n" ] || return 0
+	top := dt_scrollmove "$dir" "${MB_TOPS["$m"]:-0}" "$n" "$vis" "$DT_SCROLLWHEEL"
+	MB_TOPS["$m"]=$top
+	MB[$m]["top"]=$top
+	return 0
+}
+
+# A press on the open menu's scroll bar puts the view where it lands, as on
+# any other bar (dt_scrollpos). Status 1 anywhere else.
+fn dt_mbarpress(int r, int c) {
+	local m=$MB_OPEN n vis dy x w top
+
+	[ "$m" != -1 ] && [ "$m" != app ] || return 1
+	n=${MB[$m]["n"]:-0}
+	vis=${MB[$m]["vis"]:-$n}
+	[ "$vis" -lt "$n" ] || return 1
+	dy=${MB[$m]["dy"]:-0}
+	x=${MB[$m]["dx"]:-0}
+	w=${MB[$m]["dw"]:-0}
+	[ "$c" = $((x + w - 1)) ] && [ "$r" -ge "$dy" ] && [ "$r" -lt $((dy + vis)) ] || return 1
+	top := dt_scrollpos "$r" "$dy" "$vis" "$n" "$vis"
+	MB_TOPS["$m"]=$top
+	MB[$m]["top"]=$top
+	return 0
+}
+
+# Page Up and Down move the highlight a view's worth, Home and End to the
+# first and last row that can be chosen; the view follows the highlight.
+fn dt_mpage(k) {
+	local n vis t
+
+	[ "$MB_OPEN" != app ] || return 1
+	n=${MB[$MB_OPEN]["n"]:-0}
+	[ "$n" -gt 0 ] || return 0
+	vis=${MB[$MB_OPEN]["vis"]:-$n}
+	case $k in
+	home) MB_SEL=$((n - 1)); dt_mmove 1 ;;
+	end) MB_SEL=0; dt_mmove -1 ;;
+	pageup)
+		t=$((MB_SEL - vis))
+		[ "$t" -lt 0 ] && t=0
+		MB_SEL=$((t + 1))
+		dt_mmove -1
+		;;
+	pagedown)
+		t=$((MB_SEL + vis))
+		[ "$t" -ge "$n" ] && t=$((n - 1))
+		MB_SEL=$((t - 1))
+		dt_mmove 1
+		;;
+	*) return 1 ;;
+	esac
 	return 0
 }
 
@@ -1302,6 +1418,7 @@ fn dt_mmove(int d) {
 
 # Open a menu, closing whatever was open.
 fn dt_mopen(m) {
+	dt_mscrollreset
 	MB_OPEN=$m
 	MB_PAR=
 	MB_SEL=0
@@ -1319,6 +1436,7 @@ fn dt_mopen(m) {
 }
 
 dt_mclose() {
+	dt_mscrollreset
 	MB_HOT=
 	MB_OPEN=-1
 	MB_PAR=
@@ -1407,10 +1525,10 @@ fn dt_mfrow(int s, int m, int i, dir) {
 
 # Build the menu of results, at index `at` when it is being rebuilt for a
 # changed query and at the end of MB when it is new this frame -- which is
-# every frame, since the bar is rebuilt from 0 each one. As many rows as
-# the display has room for; typing more narrows it.
+# every frame, since the bar is rebuilt from 0 each one. Every match, which
+# scroll as any long menu does (Gitea #538); typing more narrows them.
 fn dt_mfind(at = "") {
-	local s q k max ptop pbot e
+	local s q k e
 
 	[ "$MB_SON" = 1 ] || return 0
 	if [ -n "$at" ]; then
@@ -1435,17 +1553,14 @@ fn dt_mfind(at = "") {
 	MB_FHIT2=()
 	MB_FDIR2=()
 	dt_mfwalk 0 "" "$q"
-	ptop := dt_ptop
-	pbot := dt_pbot
-	max=$((pbot - ptop - 1))
 	k=0
-	while [ "$k" -lt "${#MB_FHIT[@]}" ] && [ "${MB[$s]["n"]}" -lt "$max" ]; do
+	while [ "$k" -lt "${#MB_FHIT[@]}" ]; do
 		e=${MB_FHIT[$k]}
 		dt_mfrow "$s" "${e%:*}" "${e#*:}" "${MB_FDIR[$k]}"
 		k=$((k + 1))
 	done
 	k=0
-	while [ "$k" -lt "${#MB_FHIT2[@]}" ] && [ "${MB[$s]["n"]}" -lt "$max" ]; do
+	while [ "$k" -lt "${#MB_FHIT2[@]}" ]; do
 		e=${MB_FHIT2[$k]}
 		dt_mfrow "$s" "${e%:*}" "${e#*:}" "${MB_FDIR2[$k]}"
 		k=$((k + 1))
@@ -1468,7 +1583,7 @@ fn dt_mfoot(int r, int c) {
 	local m=$MB_SRES
 
 	[ "$MB_SON" = 1 ] && [ -n "$m" ] || return 1
-	[ "$r" = $((${MB[$m]["dy"]:-0} + ${MB[$m]["n"]:-0})) ] || return 1
+	[ "$r" = $((${MB[$m]["dy"]:-0} + ${MB[$m]["vis"]:-${MB[$m]["n"]:-0}})) ] || return 1
 	[ "$c" -ge "${MB[$m]["dx"]:-0}" ] &&
 		[ "$c" -lt $((${MB[$m]["dx"]:-0} + ${MB[$m]["dw"]:-0})) ]
 }
@@ -1495,7 +1610,7 @@ dt_mdown() {
 	esac
 	local ptop
 	ptop := dt_ptop
-	MB[$sub]["py"]=$((${MB[$MB_OPEN]["dy"]:-$ptop} + MB_SEL))
+	MB[$sub]["py"]=$((${MB[$MB_OPEN]["dy"]:-$ptop} + MB_SEL - ${MB[$MB_OPEN]["top"]:-0}))
 	MB_PAR=$MB_OPEN
 	MB_OPEN=$sub
 	MB_SEL=0
@@ -1561,7 +1676,7 @@ dt_mdo() {
 # Which row of menu m, of n rows, is at r, c, as a number from 0; a miss, or a
 # rule between rows, is status 1.
 fn dt_mrowat(m, int n, int r, int c) {
-	local x w dy rel
+	local x w dy rel vis top
 
 	if [ "$m" = app ]; then
 		x=$MB_ADX
@@ -1578,10 +1693,23 @@ fn dt_mrowat(m, int n, int r, int c) {
 		dy := dt_ptop
 		dy=${MB[$m]["dy"]:-$dy}
 	fi
+	# Through the menu's view (Gitea #538): the row on screen is a row
+	# counted from the first one shown, and the last column of a menu
+	# that scrolls is its bar.
+	if [ "$m" = app ]; then
+		vis=$n
+		top=0
+	else
+		vis=${MB[$m]["vis"]:-$n}
+		top=${MB[$m]["top"]:-0}
+	fi
 	rel=$((r - dy + 1))
-	[ "$rel" -lt 1 ] || [ "$rel" -gt "$n" ] && return 1
+	[ "$rel" -lt 1 ] || [ "$rel" -gt "$vis" ] && return 1
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
 	[ "$c" -lt "$x" ] || [ "$c" -ge $((x + w)) ] && return 1
+	[ "$vis" -lt "$n" ] && [ "$c" = $((x + w - 1)) ] && return 1
+	rel=$((rel + top))
+	[ "$rel" -gt "$n" ] && return 1
 	[ "$m" != app ] && [ "${MI[$m][$((rel - 1))]["sep"]}" = 1 ] && return 1
 	ret $((rel - 1))
 }
@@ -1710,6 +1838,7 @@ fn dt_mkey(k) {
 			;;
 		up) dt_mmove -1; return 0 ;;
 		down) dt_mmove 1; return 0 ;;
+		pageup | pagedown) dt_mpage "$k"; return 0 ;;
 		esac
 		r := dt_textkey "$MB_SQ" "$MB_SCUR" "$k" || return 0
 		[ "${r% *}" != "$MB_SQ" ] && MB_SEL=0
@@ -1765,6 +1894,7 @@ fn dt_mkey(k) {
 		;;
 	up) dt_mmove -1; return 0 ;;
 	down) dt_mmove 1; return 0 ;;
+	pageup | pagedown | home | end) dt_mpage "$k"; return 0 ;;
 	enter | " ") dt_mdo; return 0 ;;
 	esac
 	if [ "$MB_OPEN" != app ] && [ ${#k} = 1 ]; then

@@ -66,7 +66,7 @@ SUITES = {
                          "a session older than the desktop inside it (Gitea #174)"],
             "session": None,
         },
-        "plan": {"basics": 279, "windows": 284, "pictures": 220, "session": 286},
+        "plan": {"basics": 284, "windows": 284, "pictures": 220, "session": 286},
         "tail": "",
     },
 }
