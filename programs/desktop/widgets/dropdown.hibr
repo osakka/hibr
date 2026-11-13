@@ -10,7 +10,7 @@ strict
 # never cover its own caret or run past what is beside it (Gitea #282).
 # tag is what dt_hit answers for a click on it.
 fn dt_wdrop(int id, int r, int c, int w, value, tag = "") {
-	local tag=${tag:-$value} lb=$value
+	local tag=${tag:-$value} lb=$value bl
 	local -i vw
 
 	vw := str width "$value"
@@ -18,14 +18,20 @@ fn dt_wdrop(int id, int r, int c, int w, value, tag = "") {
 		lb := dt_cut "$value" $((w - 3))
 		lb="$lb${GL[ellipsis]}"
 	fi
-	lb := str pad "$lb" $((w - 2))
+	# The field and its caret first, then the value over its start, each
+	# a write of its own: as one, a right-to-left value -- an Arabic
+	# language's name, an Arabizi reading -- was reordered with the caret
+	# and its padding, and drew to the caret's right (Gitea #543).
+	bl := str pad "" $((w - 2))
 	if dt_hot "$id" "$tag"; then
 		console pen -s
 		console pen "$DT_INK" "$DT_WELL"
-		console put -p "w$id" "$r" "$c" "$lb ${GL[sdown]}"
+		console put -p "w$id" "$r" "$c" "$bl ${GL[sdown]}"
+		console put -p "w$id" "$r" "$c" "$lb"
 		console pen -r
 	else
-		console put -p "w$id" "$r" "$c" "$lb ${GL[sdown]}"
+		console put -p "w$id" "$r" "$c" "$bl ${GL[sdown]}"
+		console put -p "w$id" "$r" "$c" "$lb"
 	fi
 	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }

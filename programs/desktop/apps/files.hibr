@@ -194,9 +194,12 @@ fn fb_scan(int id) {
 
 	d=${FB[$id]["dir"]}
 	if x := dt_locof "$d"; then
+		FB[$id]["stamp"]=
+		fb_unwatch "$id"
 		fb_lscan "$id" "$d" "$x"
 		return
 	fi
+	fb_watchdir "$id"
 	if [ "$d" != / ] && [ "$FB_SHOWUP" = 1 ]; then
 		FL[$id][$n]["name"]=".."
 		FL[$id][$n]["dir"]=1
@@ -1064,6 +1067,8 @@ fn fb_geomsave(int id) {
 
 fn files_close(int id) {
 	fb_geomsave "$id"
+	[ -n "${FB[$id]["stamp"]-}" ] && rm -f "${FB[$id]["stamp"]}"
+	fb_unwatch "$id"
 	return 0
 }
 
@@ -2573,10 +2578,21 @@ files_menus() {
 # The title's own menu, on a modified click (Control Panel > Mouse > Title
 # Menu Modifier): the folders above this one, nearest first, the way the
 # path line used to offer them.
+# The folders above this one, from the title (Control Panel > Mouse > Title
+# Menu Modifier): the nearest first, as a folder's own parent is the one
+# most often wanted, and not this folder itself, which is where the window
+# already is. At the top there is nothing above, so nothing opens.
 fn files_titlemenu(int id, int r, int c) {
+	local i
+	local -a up=()
+
 	dt_searchshut "$id"
 	fb_crumbs "${FB[$id]["dir"]}"
-	dt_droplist "$id" "$r" "$c" fb_go "${FB_CRUMBS[@]}"
+	for ((i = ${#FB_CRUMBS[@]} - 2; i >= 0; i--)); do
+		up+=("${FB_CRUMBS[$i]}")
+	done
+	[ "${#up[@]}" -gt 0 ] || return 0
+	dt_droplist "$id" "$r" "$c" fb_go "${up[@]}"
 	return 0
 }
 
@@ -2984,6 +3000,122 @@ fn fb_pastetext(int id, text) {
 	else
 		dt_notep high "Cannot write in %s" "${dir##*/}"
 	fi
+}
+
+# Noticing a change made to the folder shown -- by another window, a
+# terminal, a program. With the dirwatch module the kernel says so, and
+# the desktop wakes the moment it does and at no other time (FB_DW 1); on a
+# system it does not reach yet (macOS), once a second the folder is compared
+# with a file touched just before it was read (FB_DW 0), so nothing can be
+# missed between the two.
+FB_DW=
+FB_STAMPDIR="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
+
+# Watch window id's folder, the way this system allows.
+fn fb_watchdir(int id) {
+	local w fd
+
+	if [ -z "$FB_DW" ]; then
+		FB_DW=0
+		if need dirwatch 2> /dev/null && fd := dirwatch fd 2> /dev/null &&
+		   console watch "$fd" 2> /dev/null; then
+			FB_DW=1
+			dt_log "files: folders are watched by the kernel"
+		fi
+	fi
+	if [ "$FB_DW" = 1 ]; then
+		fb_unwatch "$id"
+		w := dirwatch add "${FB[$id]["dir"]}" 2> /dev/null && FB[$id]["wd"]=$w
+		return 0
+	fi
+	fb_stamp "$id"
+}
+
+# Let go of window id's watch, unless another window shows the same folder:
+# the kernel gives one folder one watch, whoever asks.
+fn fb_unwatch(int id) {
+	local wd=${FB[$id]["wd"]-} o l
+	local -a ids
+
+	FB[$id]["wd"]=
+	[ -n "$wd" ] || return 0
+	l := dt_ids
+	read -ra ids <<< "$l"
+	for o in "${ids[@]}"; do
+		[ "$o" != "$id" ] && [ "${DT[$o]["app"]-}" = files ] &&
+			[ "${FB[$o]["wd"]-}" = "$wd" ] && return 0
+	done
+	dirwatch drop "$wd" 2> /dev/null
+	return 0
+}
+
+# A file touched just before a local folder is read, where the kernel
+# does not watch it: the folder newer than it has changed since.
+fn fb_stamp(int id) {
+	local f="$FB_STAMPDIR/hibr-files-$$-$id"
+
+	if : > "$f" 2> /dev/null; then
+		FB[$id]["stamp"]=$f
+	else
+		FB[$id]["stamp"]=
+	fi
+}
+
+# Between frames: a window whose folder changed is read again -- at once
+# when it is on the screen, and the moment it is when it is not -- keeping
+# the selection, the scroll and the marks. Not during a drag.
+fb_watch() {
+	local id any= st l ch= r
+	local -a ids
+
+	if [ "$FB_DW" = 1 ] && r := dirwatch read 2> /dev/null; then
+		ch=" ${RET[*]} "
+	fi
+	l := dt_ids
+	read -ra ids <<< "$l"
+	for id in "${ids[@]}"; do
+		[ "${DT[$id]["app"]-}" = files ] || continue
+		any=1
+		if [ "$FB_DW" = 1 ]; then
+			[ -n "${FB[$id]["wd"]-}" ] && [[ $ch == *" ${FB[$id]["wd"]} "* ]] &&
+				FB[$id]["stale"]=1
+		else
+			st=${FB[$id]["stamp"]-}
+			[ -n "$st" ] && [ "${FB[$id]["dir"]}" -nt "$st" ] && FB[$id]["stale"]=1
+		fi
+		[ -n "${FB[$id]["stale"]-}" ] && [ -z "${DT_DND-}" ] || continue
+		dt_hidden "$id" && continue
+		dt_has dt_away && dt_away "$id" && continue
+		FB[$id]["stale"]=
+		dt_log "files: ${FB[$id]["dir"]} changed, read again"
+		fb_autorefresh "$id"
+	done
+	[ -n "$any" ] && [ "$FB_DW" != 1 ] && dt_want 1000
+	return 0
+}
+command -v dt_ticker > /dev/null && dt_ticker fb_watch
+
+# Read the folder again for fb_watch: the selection on the same name, the
+# view where it was, and every name that was marked still marked.
+fn fb_autorefresh(int id) {
+	local top=${FB[$id]["top"]} i n m=0
+	local -A was
+
+	for ((i = 0; i < ${FB[$id]["n"]}; i++)); do
+		[ "${FL[$id][$i]["m"]-}" = 1 ] && was["${FL[$id][$i]["name"]}"]=1
+	done
+	files_refresh "$id"
+	n=${FB[$id]["n"]}
+	for ((i = 0; i < n; i++)); do
+		if [ -n "${was["${FL[$id][$i]["name"]}"]-}" ]; then
+			FL[$id][$i]["m"]=1
+			m=$((m + 1))
+		fi
+	done
+	FB[$id]["marks"]=$m
+	FB[$id]["top"]=$top
+	fb_clamp "$id"
+	dt_want 10
 }
 
 # Something changed on disk: read the folder again, keeping the selection

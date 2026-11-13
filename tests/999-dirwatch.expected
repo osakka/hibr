@@ -1,0 +1,11 @@
+0
+a watch is a number: yes
+nothing has happened: status 1
+a file made is seen: 1 == 1
+and read once: status 1
+a rename and a removal are seen, as one: 1
+the same folder twice is the same watch: yes
+a dropped watch says nothing, its own end included: status 1
+dropping it again fails: status 1
+the descriptor is not a standard one: yes
+a folder that is not there is refused: status 1

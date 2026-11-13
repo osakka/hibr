@@ -23,6 +23,21 @@ for c in 80 50 36; do
 		awk -v c="$c" 'length($0) > m { m = length($0) }
 			END { print c " columns: " (m > 0 && m < c ? "fits" : "TOO WIDE " m) }'
 done
+# mod avail the same, on a terminal (Gitea #545): it printed two lines a
+# module -- the second its builtins, its own name again nine times in ten --
+# with the ABI and the full path on every row. Each module is one line now,
+# none starting with blanks, and each fits.
+for c in 80 50 36; do
+	i := pty spawn -r 24 -c "$c" /usr/bin/env HIBR_MODPATH="$PWD/build/mods" \
+		"$PWD/build/hibr" -c 'mod avail'
+	o := pty drain $i 3000
+	pty close $i
+	printf '%s' "$o" | tr -d '\r' |
+		awk -v c="$c" 'length($0) > m { m = length($0) }
+			/^ / { cont++ }
+			END { print "mod avail at " c " columns: " (m > 0 && m < c ? "fits" : "TOO WIDE " m) \
+				", " (cont ? cont " continued lines" : "one line a module") }'
+done
 
 mod drop sys
 upper should now fail

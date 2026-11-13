@@ -285,12 +285,11 @@ check("backspace goes back up", sc.find(" alpha/") == (3, 3) and
       sc.find("1 of %d" % ENTRIES) is not None, sc)
 
 # The path is a list dropped from the title on an alt-click (Control Panel
-# > Mouse > Title Menu Modifier): every folder above, root first, D among
-# them since the window opens one level below it -- and choosing one goes
-# there. The row D lands on depends on how many segments its path has, so
-# it is computed rather than guessed; the list opens at the column clicked.
-# 8 in a mouse report's button is alt.
-DROW = 3 + len([s for s in D.strip("/").split("/") if s])
+# > Mouse > Title Menu Modifier): every folder above, the nearest first and
+# not the folder itself (the owner, 2026-11-13) -- so D, the window's
+# parent, is the first row -- and choosing one goes there; the list opens
+# at the column clicked. 8 in a mouse report's button is alt.
+DROW = 3
 sc = run("files", FW, [press(2, 8, 8), press(DROW, 12)],
          pre="FB_DIR=%s" % os.path.join(D, "alpha"))
 check("an alt-click on the title drops the folders above, and choosing one "
@@ -301,8 +300,27 @@ check("an alt-click on the title drops the folders above, and choosing one "
 # the folders above read / / //home //home/osakka from a doubled slash.
 sc = run("files", FW, [b"\x1b[F", b"\x1b[H"] + [press(2, 8, 8), 0.4], pre="FB_DIR=/tmp", end=None)
 rows = [(sc.row(r)[8:30].split() or [""])[0] for r in range(3, 6)]
-check("the folders above /tmp are / then /tmp, each once, and no doubled slash",
-      rows[:2] == ["/", "/tmp"] and "//" not in sc.text(), rows)
+check("the folder above /tmp is /, once, not /tmp itself, and no doubled slash",
+      rows[0] == "/" and "/tmp" not in rows and "//" not in sc.text(), rows)
+# A folder changed from outside -- a file written by a terminal, another
+# window, a program -- shows the change by itself, within a second or so,
+# where it used to wait for the window to be opened again (the owner,
+# 2026-11-13). The selection stays on its row.
+WATCH = tempfile.mkdtemp(prefix="hibr-files-watch-")
+for nm in ("a.txt", "b.txt"):
+    open(os.path.join(WATCH, nm), "w").close()
+sc = run("files", FW, [b"\x1b[B", 3.0],
+         pre="FB_DIR=%s\n( sleep 1.2; : > %s/c-new.txt ) &" % (WATCH, WATCH))
+check("a file written from outside appears by itself, the selection kept",
+      sc.find("c-new.txt") is not None and sc.find("2 of 3") is not None, sc)
+# And where the kernel does not watch folders -- macOS, until dirwatch has
+# kqueue -- the once-a-second comparison does the same.
+os.remove(os.path.join(WATCH, "c-new.txt"))
+sc = run("files", FW, [b"\x1b[B", 3.5],
+         pre="FB_DIR=%s\nFB_DW=0\n( sleep 1.2; : > %s/c-new.txt ) &" % (WATCH, WATCH))
+check("and without the kernel's watch, the once-a-second check finds it",
+      sc.find("c-new.txt") is not None and sc.find("2 of 3") is not None, sc)
+shutil.rmtree(WATCH, True)
 sc = run("files", FW, pre=PRE)
 check("a folder never given a background follows the theme, and opens as a list",
       sc.style(5, 10).get("bg") == sc.style(12, 10).get("bg") != "#ffffff"
@@ -6435,4 +6453,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(821)
+report(823)

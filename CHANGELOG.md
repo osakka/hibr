@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.99.520
+
+**Files sees a folder change by itself** (the owner's: "it's not the 80s").
+A file written in a terminal, made by another window or removed by a
+program appeared only when the window was opened again. Files now watches
+the folder it shows and reads it again the moment something in it changes,
+keeping the selection, the scroll and every marked file -- not during a
+drag, and for a window not on the screen the moment it is. The watching is
+the kernel's, through a new module, **`dirwatch`** (`add`, `drop`, `fd`,
+`read`, `list`; inotify): its one descriptor is watched like a terminal's,
+so the desktop wakes when a folder changes and at no other time. Where
+there is no inotify yet -- macOS, until kqueue is in -- Files compares the
+folder with a file touched when it was read, once a second.
+
+**The folders above, nearest first.** An alt-click on a Files title listed
+every folder from / down, the one the window is already in among them. It
+lists the folders above it now, the nearest first, and nothing at the top.
+
+**`mod avail` on a terminal is one line a module** (Gitea #545): MODULE,
+VERSION, STATE, OFFERS and the description, sorted and fitted to the
+terminal, with the folder and the module ABI said once below. It printed
+two lines a module -- the second its builtins, its own name again nine times
+in ten -- with `abi 17` and the whole path repeated on every row, and never
+said what a module is for. A narrow terminal loses OFFERS first and then
+the description, never a row to wrapping; a shared object with no module
+descriptor in the current directory is just another file, and is no longer
+listed. The tab-separated form a script reads is as it was.
+
+**A dropdown's value is drawn where it belongs when it is Arabic.** The
+field, its caret and the value were one write, so a right-to-left value --
+an Arabic language's name, an Arabizi reading -- was reordered with the
+caret and drew to its right. They are three writes now.
+
+Gate: 64 of 67 under full load. `sound` is #546 (this box's PipeWire 1.4);
+YouTube failed one timing check under load and passed 49 of 49 alone. The
+sanitizer pass: 37 suites, 0 reports.
+
 ## 0.99.519
 
 **An input method away from Blit, chosen the way Blit chooses one** (Gitea

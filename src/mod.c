@@ -638,6 +638,165 @@ void m_list(sh *s)
 	free(srt);
 }
 
+/* Print d cut to w columns, ending the line: a UTF-8 continuation byte is
+   backed off rather than a character cut in half, and what was cut ends in
+   an ellipsis. */
+void m_avfit(const char *d, int w)
+{
+	int n = (int)strlen(d), k;
+
+	if (n <= w) {
+		printf("%s\n", d);
+		return;
+	}
+	k = w - 1;
+	while (k > 0 && ((unsigned char)d[k] & 0xC0) == 0x80)
+		k--;
+	printf("%.*s\xe2\x80\xa6\n", k, d);
+}
+
+/* One row of `mod avail` on a terminal, kept until every folder has been
+   walked so the table can be laid out once, as `mod list` is. */
+typedef struct m_avrow {
+	char *nm, *ver, *state, *prov, *dsc, *dir;
+} m_avrow;
+vec m_avrows;
+
+/* Keep one row for the table. */
+void m_avadd(const char *nm, const char *ver, const char *state,
+	      const char *prov, const char *dsc, const char *dir)
+{
+	m_avrow *r = xm(sizeof *r);
+
+	memset(r, 0, sizeof *r);
+	r->nm = xs(nm);
+	r->ver = xs(ver ? ver : "-");
+	r->state = xs(state);
+	r->prov = xs(prov ? prov : "");
+	r->dsc = xs(dsc ? dsc : "");
+	r->dir = xs(dir);
+	v_add(&m_avrows, r);
+}
+
+/* Compare two rows by name. */
+int m_avcmp(const void *a, const void *b)
+{
+	return strcmp((*(m_avrow *const *)a)->nm, (*(m_avrow *const *)b)->nm);
+}
+
+/* The table `mod avail` draws on a terminal (Gitea #545): one line a
+   module, sorted by name, each column as wide as what is in it, and the
+   description cut to the terminal. Two lines a module -- the second its
+   builtins, which are its own name nine times in ten -- and an ABI and a
+   path repeated on every row made the old one hard to read. The folder
+   most modules are in, and the ABI, are said once below; a module from
+   another folder says which, in its description's place. */
+void m_avshow(void)
+{
+	size_t i, j, best = 0, cnt;
+	m_avrow *r;
+	const char *home = "";
+	int nw = 6, vw = 7, sw = 5, pw = 0, cols, dw, elsewhere = 0;
+	str d;
+
+	if (!m_avrows.n) {
+		printf("no modules found on the module path\n");
+		return;
+	}
+	for (i = 0; i < m_avrows.n; i++) {
+		r = m_avrows.p[i];
+		for (cnt = 0, j = 0; j < m_avrows.n; j++)
+			cnt += !strcmp(((m_avrow *)m_avrows.p[j])->dir, r->dir);
+		if (cnt > best) {
+			best = cnt;
+			home = r->dir;
+		}
+		if ((int)strlen(r->nm) > nw)
+			nw = (int)strlen(r->nm);
+		if ((int)strlen(r->ver) > vw)
+			vw = (int)strlen(r->ver);
+		if ((int)strlen(r->state) > sw)
+			sw = (int)strlen(r->state);
+		if ((int)strlen(r->prov) > pw)
+			pw = (int)strlen(r->prov);
+	}
+	if (pw && pw < 6)
+		pw = 6;
+	qsort(m_avrows.p, m_avrows.n, sizeof *m_avrows.p, m_avcmp);
+	/* On a narrow terminal OFFERS goes first, then the description: a
+	   row that wraps is what this table is here to stop. One column is
+	   left unwritten, as mod list leaves it. */
+	cols = ed_cols();
+	dw = cols - nw - vw - sw - 7 - (pw ? pw + 2 : 0);
+	if (dw < 12 && pw) {
+		pw = 0;
+		dw = cols - nw - vw - sw - 7;
+	}
+	printf("%-*s  %-*s  %-*s", nw, "MODULE", vw, "VERSION", sw, "STATE");
+	if (pw)
+		printf("  %-*s", pw, "OFFERS");
+	printf(dw >= 8 ? "  DESCRIPTION\n" : "\n");
+	s_init(&d);
+	for (i = 0; i < m_avrows.n; i++) {
+		r = m_avrows.p[i];
+		printf("%-*s  %-*s  %-*s", nw, r->nm, vw, r->ver, sw, r->state);
+		if (pw)
+			printf("  %-*s", pw, r->prov);
+		if (dw < 8) {
+			printf("\n");
+			continue;
+		}
+		printf("  ");
+		d.n = 0;
+		if (d.p)
+			d.p[0] = 0;
+		if (strcmp(r->dir, home)) {
+			s_cat(&d, "in ");
+			s_cat(&d, r->dir);
+			if (*r->dsc)
+				s_cat(&d, ": ");
+			elsewhere++;
+		}
+		s_cat(&d, r->dsc);
+		m_avfit(d.p ? d.p : "", dw);
+	}
+	d.n = 0;
+	if (d.p)
+		d.p[0] = 0;
+	s_fmt(&d, "%zu modules", m_avrows.n);
+	if (elsewhere)
+		s_fmt(&d, ", %zu in %s and %d elsewhere",
+		      m_avrows.n - (size_t)elsewhere, home, elsewhere);
+	else
+		s_fmt(&d, " in %s", home);
+	s_fmt(&d, "; this shell takes module ABI %u", (unsigned)HIBR_ABI);
+	if ((int)strlen(d.p) < cols) {
+		printf("%s\n", d.p);
+	} else {
+		/* Too long for the terminal: the count and the ABI, then the
+		   folder on a line of its own, cut to fit. */
+		printf("%zu modules; module ABI %u\n", m_avrows.n, (unsigned)HIBR_ABI);
+		d.n = 0;
+		d.p[0] = 0;
+		s_fmt(&d, "in %s", home);
+		if (elsewhere)
+			s_fmt(&d, ", %d elsewhere", elsewhere);
+		m_avfit(d.p, cols - 1);
+	}
+	s_free(&d);
+	for (i = 0; i < m_avrows.n; i++) {
+		r = m_avrows.p[i];
+		free(r->nm);
+		free(r->ver);
+		free(r->state);
+		free(r->prov);
+		free(r->dsc);
+		free(r->dir);
+		free(r);
+	}
+	v_free(&m_avrows);
+}
+
 /* Whether this candidate is loaded: 2 from this very file, 1 by name only. */
 int m_isload(sh *s, const char *nm, const char *path)
 {
@@ -675,13 +834,15 @@ void m_probe(sh *s, const char *path, const char *file, str *out)
 
 	s_init(&ab);
 	s_init(&bl);
+	/* The folder, for the terminal's table. */
+	s_add(&ab, path, strrchr(path, '/') ? (size_t)(strrchr(path, '/') - path) : 1);
+	if (!ab.n)
+		s_cat(&ab, "/");
 	h = m_descopen(path, &d);
 	if (!h) {
 		lg(HIBR_LDBG, "mod avail: %s: %s", path, dlerror());
-		s_cat(&ab, "-");
 		if (tty)
-			m_putln(out, "%-12s %-8s %-8s %-10s %s\n", file, "-",
-				ab.p, "unreadable", path);
+			m_avadd(file, "-", "unreadable", "", "it cannot be opened", ab.p);
 		else
 			m_putln(out, "%s\t-\t-\tunreadable\t%s\t-\t-\t-\n",
 				file, path);
@@ -690,11 +851,12 @@ void m_probe(sh *s, const char *path, const char *file, str *out)
 		return;
 	}
 	if (!d) {
-		s_cat(&ab, "-");
-		if (tty)
-			m_putln(out, "%-12s %-8s %-8s %-10s %s\n", file, "-",
-				ab.p, "no descr", path);
-		else
+		/* A shared object with no module descriptor is not a module:
+		   in a module folder that is a broken install, said; in the
+		   current directory it is only some other file. */
+		if (tty && strcmp(ab.p, "."))
+			m_avadd(file, "-", "not a module", "", "it has no hibr module descriptor", ab.p);
+		else if (!tty)
 			m_putln(out, "%s\t-\t-\tno descr\t%s\t-\t-\t-\n",
 				file, path);
 		dlclose(h);
@@ -702,8 +864,6 @@ void m_probe(sh *s, const char *path, const char *file, str *out)
 		s_free(&bl);
 		return;
 	}
-	s_cat(&ab, "abi ");
-	s_num(&ab, (long)d->abi);
 	i = m_isload(s, d->nm, path);
 	if (i == 2)
 		state = "loaded";
@@ -731,16 +891,16 @@ void m_probe(sh *s, const char *path, const char *file, str *out)
 		s_free(&bl);
 		return;
 	}
-	if (d->prov) {
-		if (bl.n)
-			s_cat(&bl, "   ");
-		s_cat(&bl, "offers ");
-		s_cat(&bl, d->prov);
+	bl.n = 0;
+	if (bl.p)
+		bl.p[0] = 0;
+	if (d->abi != HIBR_ABI) {
+		s_cat(&bl, "built for module ABI ");
+		s_num(&bl, (long)d->abi);
+		s_cat(&bl, ": ");
 	}
-	m_putln(out, "%-12s %-8s %-8s %-10s %s\n", d->nm,
-		d->ver ? d->ver : "-", ab.p, state, path);
-	if (bl.n)
-		m_putln(out, "             %s\n", bl.p);
+	s_cat(&bl, d->dsc ? d->dsc : "");
+	m_avadd(d->nm, d->ver, state, d->prov, bl.p, ab.p);
 	dlclose(h);
 	s_free(&ab);
 	s_free(&bl);
@@ -858,11 +1018,6 @@ void m_avail(sh *s)
 	seen.p = 0;
 	seen.n = 0;
 	seen.cap = 0;
-	/* No heading in the bound form, which is the tab-separated one a
-	   script reads field by field. */
-	if (!out && isatty(1))
-		printf("%-12s %-8s %-8s %-10s %s\n", "NAME", "VERSION", "ABI",
-		       "STATE", "PATH");
 	if (geteuid() == 0)
 		lg(HIBR_LDBG, "root: listing only %s", HIBR_MODDIR);
 	m_wstart(s, &w, 0);
@@ -872,6 +1027,10 @@ void m_avail(sh *s)
 	for (i = 0; i < seen.n; i++)
 		free(seen.p[i]);
 	v_free(&seen);
+	/* The terminal's table is drawn once every folder has been walked;
+	   the bound form and a pipe have had their lines as they went. */
+	if (!out && isatty(1))
+		m_avshow();
 	if (out)
 		m_bound(s, &o);
 	s_free(&o);

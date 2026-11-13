@@ -6,4 +6,7 @@ upper is a module builtin
 80 columns: fits
 50 columns: fits
 36 columns: fits
+mod avail at 80 columns: fits, one line a module
+mod avail at 50 columns: fits, one line a module
+mod avail at 36 columns: fits, one line a module
 hibr: upper: command not found
