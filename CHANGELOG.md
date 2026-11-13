@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.509
+
+**A shortcut is the chords it is written as** (ADR 0057, the owner's
+choice). The Shortcut Key row and its `mod-` placeholder are gone: every
+shortcut is stored as you press it, and a shortcut can have more than one
+key -- the **+** beside a row, or `+` on it, adds the next key pressed
+beside the ones it has, and Close Window can be Alt+W and Super+W both.
+**Use Super Instead of Alt**, at the top of Control Panel > Shortcuts,
+moves every chord whose modifier is Alt alone to Super once, leaving Alt
+to the programs in your windows, and **Use Alt Instead of Super** moves
+them back; what changed is in the list, not in a switch. Menu Bar Also
+and Context Menu Also are folded into Menu Bar (`f10 escape`) and Context
+Menu (`shift-f10 menukey`): a plain key such as Escape is still looked at
+only once the focused window declines it, so vi keeps it. Under Blit the
+chords Blit keeps for itself -- Ctrl+Alt+F1 to F12, its stop chord -- are
+listed last and refused. Next Keyboard (0.99.508) is Super+Space. Files'
+own keys are Alt+O, Alt+I and Alt+N, the Browser's Fill Sign-In Alt+L.
+
+**Settings saved before this release keep `mod-` keys, which now match
+nothing** -- ADR 0054 allows no migration in the desktop. A one-off
+script outside the package converts a machine's `desktop.json` (Alt
+gives `alt-`, Super or Alt both chords) and folds the two Also rows in;
+run it after installing, then Restart Desktop.
+
 ## 0.99.508
 
 **The keyboard you type with, on the menu bar** (Gitea #529, Blit ADR 0231).

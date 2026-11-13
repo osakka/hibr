@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.3",
+ "version": "3.99.4",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -970,8 +970,6 @@
   "Sheet": "الجدول",
   "Sheet needs the db module": "الجدول يحتاج إلى وحدة db",
   "Shell": "الصدفة",
-  "Shortcut Key": "مفتاح الاختصارات",
-  "%s or %s": "%s أو %s",
   "Show Contents": "إظهار المحتويات",
   "Menu Width": "عرض القائمة",
   "Shadow Shape": "شكل الظل",
@@ -1638,6 +1636,14 @@
   "This window keeps its size": "تحافظ هذه النافذة على حجمها",
   "Terminals": "الطرفيات",
   "What a key is and types: Blit Keyboard": "ما هو المفتاح وما يكتبه: لوحة مفاتيح Blit",
-  "Keyboard": "لوحة المفاتيح"
+  "Keyboard": "لوحة المفاتيح",
+  "%d shortcuts changed": "تغيّر %d من الاختصارات",
+  "Blit Keeps These": "يحتفظ بها Blit",
+  "Blit keeps %s for itself, so it cannot be a shortcut": "يحتفظ Blit بـ %s لنفسه، فلا يمكن أن يكون اختصارًا",
+  "Press another key for %s…": "اضغط مفتاحًا آخر لـ %s…",
+  "Switch Console": "تبديل وحدة التحكم",
+  "Use Super Instead of Alt": "استخدم Super بدل Alt",
+  "Use Alt Instead of Super": "استخدم Alt بدل Super",
+  "Kept by Blit": "يحتفظ به Blit"
  }
 }

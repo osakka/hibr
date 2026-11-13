@@ -1527,11 +1527,11 @@ fn browser_key(int id, key) {
 		bw_textmove "$id" "$key" && return 0
 		[ "$key" = " " ] && bw_textmove "$id" pagedown && return 0
 	fi
-	# A desktop shortcut goes back to the desktop. Its keys are written with
-	# the Shortcut Key (`mod-enter`) and arrive as what it is (`alt-enter`), so
-	# they are compared through the desktop's own normaliser (dt_keyassigned,
-	# which also knows the app launchers); compared as strings, Zoom and Full
-	# Screen went to the page.
+	# A desktop shortcut goes back to the desktop. Its chords may be written
+	# in another order than they arrive (`ctrl-alt-t` as `alt-ctrl-t`), and a
+	# shortcut may have several, so they are compared through the desktop's
+	# own (dt_keyassigned, which also knows the app launchers); compared as
+	# strings, Zoom and Full Screen went to the page.
 	if dt_has dt_keyassigned; then
 		dt_keyassigned "$key" && return 1
 	else

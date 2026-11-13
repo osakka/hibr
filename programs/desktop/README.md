@@ -74,13 +74,15 @@ behind it.
 focused one, `escape` or `F10` opens the menu bar, and Quit on its hibr
 menu ends the desktop and gives the terminal back -- it has no key of its
 own by default, so no stray keystroke ends everything. Each of these keys
-can be changed, or Quit given one, in Control Panel > Shortcuts. The alt
-in every one of the desktop's own is a single setting there, **Shortcut
-Key** -- Alt, Super or Alt, or Super -- stored as `mod-` in `DT_KEYS` and
-read in one place, `dt_keynorm`; a key you chose with a literal modifier
-keeps it. Super reaches the desktop only from a terminal that speaks the
-kitty keyboard protocol, which the console asks for and `hold` passes on
-to each display that answers.
+can be changed, or Quit given one, in Control Panel > Shortcuts. A
+shortcut is the chords it is written as, one or several (ADR 0057):
+`DT_KEYS["close"]` is `alt-w`, or `alt-w super-w` once a second key is
+added with the row's +. **Use Super Instead of Alt** on that pane rewrites
+every chord whose modifier is Alt alone, once, and its opposite puts them
+back. Super reaches the desktop only from a terminal that speaks the kitty
+keyboard protocol, which the console asks for and `hold` passes on to each
+display that answers. The chords Blit keeps for itself (its console switch
+and its stop chord) are listed last in the pane and cannot be taken.
 
 **The rest of the bar and every context menu, by keyboard** (Gitea #519,
 #520). With the menu bar open (F10), Right past the last menu, or Left from
@@ -828,7 +830,7 @@ of file, folders in Classic, Blue, Green or Amber. Alt with a double click
 or enter opens a folder the other way: a new window where folders open in
 this one, and with Open Folders in New Windows on, the folder's own window
 with this one closed behind it, as System 7's option-double-click did.
-mod-i is Get Info and mod-n New Folder. There is no ".." row (Control
+alt-i is Get Info and alt-n New Folder. There is no ".." row (Control
 Panel > Files > Show ".." in Folders) and no path line: the window's title
 says where it is -- the folder's name by default, or the path, its end or
 its start showing (Window Title) -- and an **alt-click on the title** drops
@@ -2014,7 +2016,7 @@ does not parse is set aside as `desktop.json.bad`.
 ```text
 {
   "settings": { "DT_WALL": "#1a202c", "DT_ICONS": "1", "CP_THEME": "classic" },
-  "keys": { "close": "mod-w" },
+  "keys": { "close": "alt-w super-w" },
   "icons": { "home": "15 21" }
 }
 ```
@@ -2297,7 +2299,7 @@ too; Lock, or the timeout, ends it everywhere. The vault is kept here
 encrypted, so everything but a sync works with no network.
 
 A **sign-in form** fills from it: the Browser's pages, and the desktop's
-own Server and Mail Account dialogs. **Fill Sign-In** (mod-l, on the Edit
+own Server and Mail Account dialogs. **Fill Sign-In** (alt-l, on the Edit
 menu of such a window) or a click on the key mark beside the password
 offers the vault's logins for the address, the same host first, and puts
 the chosen one in -- the username, and the password, never shown. A locked

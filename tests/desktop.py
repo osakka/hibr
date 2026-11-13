@@ -257,21 +257,22 @@ check("and the shell's own errors carry the time too",
       re.search(r"(?m)^" + STAMP + r"hibr: .*nosuch_329", lg) is not None,
       lg[:400])
 shutil.rmtree(LOGST, True)
-# Shortcut Key (Gitea #326): the desktop's own chords are written with
-# `mod`, and DT_MOD says which modifiers that is. Super arrives only as the
-# kitty keyboard protocol's CSI u, which the console decodes whatever the
-# terminal said it speaks -- so a check can send it on any pty.
+# A shortcut is the chords it is written as, one or several (ADR 0057).
+# Super arrives only as the kitty keyboard protocol's CSI u, which the
+# console decodes whatever the terminal said it speaks -- so a check can
+# send it on any pty.
 SUPERW = b"\x1b[119;9u"
 sc, _ = run(ONE, [SUPERW])
-check("with Shortcut Key on Alt, super-w closes nothing", sc.find("Hello"), sc)
-sc, _ = run(ONE, [SUPERW], pre='DT_MOD="super alt"')
-check("on Super or Alt, super-w closes the focused window",
+check("by default Close Window is alt-w, and super-w closes nothing",
+      sc.find("Hello"), sc)
+sc, _ = run(ONE, [SUPERW], pre='DT_KEYS["close"]="alt-w super-w"')
+check("a shortcut with two chords: super-w closes the focused window",
       sc.find("Hello") is None, sc)
-sc, _ = run(ONE, [b"\x1bw"], pre='DT_MOD="super alt"')
+sc, _ = run(ONE, [b"\x1bw"], pre='DT_KEYS["close"]="alt-w super-w"')
 check("and alt-w still does", sc.find("Hello") is None, sc)
-sc, _ = run(ONE, [b"\x1bw"], pre='DT_MOD="super"')
-check("on Super alone, alt-w is no longer the desktop's",
-      sc.find("Hello") is not None, sc)
+sc, _ = run(ONE, [b"\x1bw", b"w"], pre='DT_KEYS["close"]="mod-w"')
+check("a chord saved with mod- from before 0.99.509 matches nothing, alt-w "
+      "and a plain w included", sc.find("Hello") is not None, sc)
 # alt-q is Quit Application: every window of the focused app, not only the one
 # in front, which is what Quit means where one app may have several. Each goes
 # through dt_closereq, so an app that asks before closing still asks -- once
@@ -399,13 +400,28 @@ check("and in Half Block, the default, it is half a row of upper half blocks",
 # A plain terminal sends alt-shift-l as ESC L, read as alt with a capital:
 # the same key, so it has to compare as the same name.
 KN = scratch("keynorm")
-sc, _ = run('for k in alt-L ctrl-alt-L mod-shift-l alt-l L ctrl-L; do n := dt_keynorm "$k"; '
+sc, _ = run('for k in alt-L ctrl-alt-L super-alt-x alt-l L ctrl-L mod-l; do n := dt_keynorm "$k"; '
             'echo "$n" >> "%s"; done\n' % KN, [0.3])
 got = open(KN).read().split() if os.path.exists(KN) else []
 os.path.exists(KN) and os.unlink(KN)
-check("alt with a capital is alt-shift with the small letter, and nothing else folds",
-      got == ["mod-shift-l", "ctrl-shift-mod-l", "shift-mod-l", "mod-l", "L", "ctrl-L"]
-      or got == ["shift-mod-l", "ctrl-shift-mod-l", "shift-mod-l", "mod-l", "L", "ctrl-L"], got)
+check("alt with a capital is alt-shift with the small letter, modifiers come "
+      "in one order, nothing else folds, and an unknown modifier is marked",
+      got == ["alt-shift-l", "ctrl-alt-shift-l", "alt-super-x", "alt-l", "L",
+              "ctrl-L", "?mod-l"], got)
+# A chord Blit keeps for itself (KEYBOARD reserved: its console switch, its
+# stop chord) reaches no desktop, so it cannot be taken; a second chord is
+# added beside the first, and taking one another action holds leaves that
+# action its others (ADR 0057).
+KB = scratch("keyblit")
+sc, _ = run('DT_KBRES="ctrl-alt-f3 ctrl-alt-backspace"\n'
+            'dt_keytake close ctrl-alt-f3\necho "1 ${DT_KEYS[close]}" >> "%s"\n'
+            'DT_KEYCAPADD=1; dt_keytake close super-w\necho "2 ${DT_KEYS[close]}" >> "%s"\n'
+            'dt_keydrop close alt-w\necho "3 ${DT_KEYS[close]}" >> "%s"\n'
+            % (KB, KB, KB), [0.3])
+got = open(KB).read().splitlines() if os.path.exists(KB) else []
+os.path.exists(KB) and os.unlink(KB)
+check("a chord Blit keeps is refused, + adds a chord, and one can be taken "
+      "away leaving the rest", got == ["1 alt-w", "2 alt-w super-w", "3 super-w"], got)
 # Thin on Blit's glyphs is a line the terminal draws (SGR 66, Blit ADR 0211);
 # anywhere else it stays an eighth block.
 raw_barattr = barshadow_run(env={"DT_SHADOWSHAPE": "thin", "DT_GLYPHSET": "blit"})
@@ -4934,11 +4950,12 @@ check("and it is set aside rather than overwritten",
 shutil.rmtree(CONFD, True)
 
 # ORDER.index("shortcuts") downs on the picker reaches Shortcuts; entering it
-# lands on its first row that is not a heading, Shortcut Key; the two
-# Terminals rows come next (Gitea #531), and the one after those, past the
-# Desktop heading, is Menu Bar. The rows follow DT_KEYORDER, read from
-# wm/keys.hibr rather than counted here.
-SCSKIP = 2
+# lands on its first row that is not a heading, Use Super Instead of Alt;
+# Use Alt Instead of Super and the two Terminals rows (Gitea #531) come
+# next, and the one after those, past the Desktop heading, is Menu Bar
+# (ADR 0057). The rows follow DT_KEYORDER, read from wm/keys.hibr rather
+# than counted here.
+SCSKIP = 3
 KEYORDER = re.search(r"DT_KEYORDER=\(([^)]*)\)",
                      open(tree("programs/desktop/wm/keys.hibr")).read()
                      ).group(1).split()
@@ -4967,13 +4984,13 @@ sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
             feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1 + SCSKIP),
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a registered app is listed with no shortcut by default",
-      sc.find("Calculator") is not None, sc)
+      sc.find("Calculat") is not None, sc)
 sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
             feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1 + SCSKIP) + [b"\r", b"g"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a shortcut can be assigned to any app, not only the two defaults",
-      sc.find("Calculator") is not None and
-      "g" in sc.row(sc.find("Calculator")[0]), sc)
+      sc.find("Calculat") is not None and
+      "g" in sc.row(sc.find("Calculat")[0]), sc)
 saved3 = os.path.join(CONF3, "hibr", "desktop.json")
 text3 = screen.conftext(saved3)
 check("and it is saved as DT_APPKEY, not DT_KEYS",
@@ -5001,7 +5018,7 @@ sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
             feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1 + SCSKIP),
             env={"XDG_DATA_HOME": os.path.join(AOE, "data"), "DT_PROGAUTO": "1",
                  "XDG_DATA_DIRS": os.path.join(AOE, "sys")}, pre=AOEPRE)
-aoe = sc.find("Age of Empir")
+aoe = sc.find("Age of")
 words = [r for r in range(sc.rows)
          if re.search(r"│\s+(of|Empires|II\.desktop|prog:Age)\s", sc.row(r))]
 check("a program whose name has spaces is one row in Shortcuts, not one a word",
@@ -9794,4 +9811,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1062)
+report(1063)

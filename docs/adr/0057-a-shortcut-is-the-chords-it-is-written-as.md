@@ -66,7 +66,13 @@ nothing else decides what it means.**
   `desktop.json`'s shape does not change.
 - **`mod` goes.** No placeholder, no `DT_MOD`, no Shortcut Key row.
   `dt_keynorm` only puts a chord's modifiers in one order.
-- **Menu Bar Also goes**: Menu Bar is `f10 escape`.
+- **Menu Bar Also goes**: Menu Bar is `f10 escape`. A plain key in a
+  shortcut's list is looked at only once the focused window has declined
+  it, a chord or function key before any window -- which is what Menu Bar
+  Also was for: F10 is the way back from a window that takes everything
+  else, and vi keeps Escape (found while building it, 0.99.509).
+  **Context Menu Also goes** the same way: Context Menu is `shift-f10
+  menukey`.
 - **Defaults are today's keys under today's default**, Alt: Copy is
   `alt-c`, Close Window `alt-w`, Window Menu `alt-space`. Nothing a person
   presses changes on the day this ships. Next Keyboard (#529) is

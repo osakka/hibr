@@ -889,14 +889,17 @@ check("the tiled main pane's share is clickable too, in its own units",
 # transient "Press a key…"/"X is now Y" notes, which by the time the
 # screen is captured may already have been overwritten by whatever the
 # trailing "qy" went on to do.
-# Shortcut Key, the pane's first row (Gitea #326): the desktop's own chords
-# are stored as mod-..., and every row shows what to press for the choice
-# made -- one step along from Alt is Super or Alt.
-sc = cprun(reach("shortcuts", "Shortcut Key") + [b"\x1b[C"])
-check("Shortcut Key is the Shortcuts pane's first row, and stepping it "
-      "chooses Super or Alt", "Super or Alt" in brow(sc, "Shortcut Key"), sc)
-check("and every desktop shortcut then shows both keys to press",
-      "super-c or alt-c" in brow(sc, "Copy"), sc)
+# A shortcut is the chords it is written as (ADR 0057): Use Super Instead
+# of Alt rewrites every chord whose modifier is Alt alone, once, and a +
+# beside a key adds another rather than replacing it.
+sc = cprun(reach("shortcuts", "Use Super Instead of Alt") + [b"\r"])
+check("Use Super Instead of Alt rewrites Alt's chords as Super's, and leaves "
+      "every other chord as it was", "super-c" in brow(sc, "Copy") and
+      "alt-c" not in brow(sc, "Copy") and "ctrl-s" in brow(sc, "Save") and
+      "f10 escape" in brow(sc, "Menu Bar"), sc)
+sc = cprun(reach("shortcuts", "Copy") + [b"+", b"\x1bk"])
+check("and + on a row adds the next key beside the one it has",
+      "alt-c alt-k" in brow(sc, "Copy"), sc)
 
 KB_CP = reach("shortcuts", "Control Panel")
 sc = cprun(KB_CP + [b"\r", b"z"])
@@ -1582,7 +1585,7 @@ sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"',
          feed=[b"\x1b[20~"], end=None)
 check("the Menu Bar key can move too: f9 opens the menu bar",
       sc.find("Screen Saver") is not None, sc)
-sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"\nDT_KEYS["menu2"]=',
+sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"',
          feed=[b"\x1b[21~", b"\x1b"], end=None)
 check("and f10 and escape then do nothing of the menu bar's",
       sc.find("Screen Saver") is None, sc)

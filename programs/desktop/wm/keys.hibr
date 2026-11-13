@@ -17,14 +17,13 @@ DT_KEYPEND_FROM=
 # wm/settings.hibr, and every one can be changed or cleared; an app's
 # launch shortcut is DT_APPKEY, keyed by the app's name. Nothing the
 # desktop does is on a key that is not in one of the two.
-DT_KEYORDER=(menu menu2 start save undo redo copy cut paste selectall signin scrollup scrolldown
+DT_KEYORDER=(menu start save undo redo copy cut paste selectall signin scrollup scrolldown
 	move resize zoom fullscreen hide shade snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
 	ws7 ws8 ws9 wsnext wsprev tile tilemain close quitapp cycle cycleback strip shot
-	refresh lock context context2 winmenu volup voldown mute kbdnext
+	refresh lock context winmenu volup voldown mute kbdnext
 	ptrrelease fsleave detach quit)
 declare -gA DT_KEYNAME
 DT_KEYNAME["menu"]="Menu Bar"
-DT_KEYNAME["menu2"]="Menu Bar, Also"
 DT_KEYNAME["start"]="Start Menu"
 DT_KEYNAME["save"]="Save"
 DT_KEYNAME["undo"]="Undo"
@@ -97,10 +96,10 @@ DT_KEYNAME["lock"]="Lock Screen"
 DT_KEYNAME["move"]="Move Window"
 DT_KEYNAME["resize"]="Resize Window"
 DT_KEYNAME["context"]="Context Menu"
-DT_KEYNAME["context2"]="Context Menu, Also"
+
 DT_KEYNAME["winmenu"]="Window Menu"
 
-# A shortcut in one canonical modifier order, ctrl then alt then shift,
+# A chord in one canonical modifier order, ctrl then alt then shift,
 # whatever order it named them in -- an alt combination arrives as ESC
 # followed by the plain control byte, and is named "alt-" then whatever
 # that byte is, in that order; a CSI-encoded one (some terminals report
@@ -111,15 +110,13 @@ DT_KEYNAME["winmenu"]="Window Menu"
 # -- a user typing what looks like the natural chord should not have to
 # know or care which one their own terminal uses.
 #
-# It is also the one place `mod` is read (Gitea #326): a key carrying any
-# modifier Shortcut Key names (DT_MOD -- alt, super, or either) has that
-# modifier written as mod, so a shortcut stored as mod-c matches alt-c or
-# super-c as the setting says, and one stored with a literal modifier still
-# matches itself. Super is looked for before alt, so super-alt-c is
-# mod-alt-c under either-one; every caller compares two results of this, so
-# the order only has to be the same each time.
+# A shortcut is the chords it is written as (ADR 0057): there is no
+# placeholder modifier. A chord naming a modifier this does not know --
+# `mod-c`, from before 0.99.509 -- comes back as itself after a `?`, which
+# no key pressed ever is, so it matches nothing rather than a plain c.
 fn dt_keynorm(k) {
-	local base=$k mods= out= c=0 a=0 s=0 u=0 m=0
+	local base=$k mods= out= c=0 a=0 s=0 u=0 w
+	local -a ws
 
 	# A key that is itself a minus -- `-`, Volume Down's `mod--` -- ends
 	# in one: taking what follows the last dash made it no key at all,
@@ -129,53 +126,54 @@ fn dt_keynorm(k) {
 	*-*) base=${k##*-}; mods=${k%-"$base"} ;;
 	esac
 	# The space bar arrives as itself, " ", and is written `space` in a
-	# binding (Window Menu's mod-space): one name for both.
+	# binding (Window Menu's alt-space): one name for both.
 	[ "$base" = " " ] && base=space
-	case $mods in *ctrl*) c=1 ;; esac
-	case $mods in *alt*) a=1 ;; esac
-	case $mods in *shift*) s=1 ;; esac
-	case $mods in *super*) u=1 ;; esac
-	case $mods in *mod*) m=1 ;; esac
+	IFS=- read -ra ws <<< "$mods"
+	for w in "${ws[@]}"; do
+		case $w in
+		ctrl) c=1 ;;
+		alt) a=1 ;;
+		shift) s=1 ;;
+		super) u=1 ;;
+		"") ;;
+		*) ret "?$k"; return 0 ;;
+		esac
+	done
 	# A terminal with no kitty keyboard sends alt-shift-l as ESC L, which
 	# reads as alt with a capital: the same key, so the same name.
-	if [ "$a$m" != 00 ]; then
+	if [ "$a" = 1 ]; then
 		case $base in [A-Z]) s=1; base=${base,,} ;; esac
-	fi
-	if [ "$m" = 0 ]; then
-		case " $DT_MOD " in *" super "*) [ "$u" = 1 ] && u=0 m=1 ;; esac
-	fi
-	if [ "$m" = 0 ]; then
-		case " $DT_MOD " in *" alt "*) [ "$a" = 1 ] && a=0 m=1 ;; esac
 	fi
 	[ "$c" = 1 ] && out="${out}ctrl-"
 	[ "$a" = 1 ] && out="${out}alt-"
 	[ "$s" = 1 ] && out="${out}shift-"
 	[ "$u" = 1 ] && out="${out}super-"
-	[ "$m" = 1 ] && out="${out}mod-"
 	ret "$out$base"
 }
 
-# A shortcut as a person presses it: mod written out as what Shortcut Key
-# names, "super-c or alt-c" for either-one -- or, short, the first of them
-# alone, which is what a menu has room for. Anything else is shown as it is.
-fn dt_keyshow(k, short = "") {
-	local first= rest= su=0 al=0
+# Whether a key, already through dt_keynorm, is one of a shortcut's chords
+# -- a shortcut being one chord or several, space-separated (ADR 0057).
+fn dt_keyin(list, knorm) {
+	local c n
+	local -a cs
 
-	case $k in *mod-*) ;; *) ret "$k"; return 0 ;; esac
-	case " $DT_MOD " in *" super "*) su=1 ;; esac
-	case " $DT_MOD " in *" alt "*) al=1 ;; esac
-	if [ "$su" = 1 ]; then
-		first=${k/mod-/super-}
-		[ "$al" = 1 ] && rest=${k/mod-/alt-}
-	else
-		first=${k/mod-/alt-}
-	fi
-	if [ -n "$short" ] || [ -z "$rest" ]; then
-		ret "$first"
-	else
-		DT_T := dt_tr "%s or %s" "$first" "$rest"
-		ret "$DT_T"
-	fi
+	[ -n "$list" ] && [ -n "$knorm" ] || return 1
+	read -ra cs <<< "$list"
+	for c in "${cs[@]}"; do
+		n := dt_keynorm "$c"
+		[ "$n" = "$knorm" ] && return 0
+	done
+	return 1
+}
+
+# A shortcut as a person presses it: its chords, or, short, the first of
+# them alone, which is what a menu has room for.
+fn dt_keyshow(k, short = "") {
+	local -a cs
+
+	[ -n "$short" ] || { ret "$k"; return 0; }
+	read -ra cs <<< "$k"
+	ret "${cs[0]-}"
 }
 
 # Whether a key is one of the desktop's own shortcuts -- an action's, or an
@@ -190,7 +188,7 @@ fn dt_keyassigned(key) {
 	local knorm an v
 
 	case $key in
-	ctrl-* | alt-* | super-* | mod-* | shift-f[0-9]* | f[0-9]*) ;;
+	ctrl-* | alt-* | super-* | shift-f[0-9]* | f[0-9]*) ;;
 	*) return 1 ;;
 	esac
 	if [ "$DT_TERMCTRL" = 1 ]; then
@@ -198,14 +196,10 @@ fn dt_keyassigned(key) {
 	fi
 	knorm := dt_keynorm "$key"
 	for an in "${!DT_KEYS[@]}"; do
-		[ -n "${DT_KEYS["$an"]}" ] || continue
-		v := dt_keynorm "${DT_KEYS["$an"]}"
-		[ "$v" = "$knorm" ] && return 0
+		dt_keyin "${DT_KEYS["$an"]}" "$knorm" && return 0
 	done
 	for an in "${!DT_APPKEY[@]}"; do
-		[ -n "${DT_APPKEY["$an"]}" ] || continue
-		v := dt_keynorm "${DT_APPKEY["$an"]}"
-		[ "$v" = "$knorm" ] && return 0
+		dt_keyin "${DT_APPKEY["$an"]}" "$knorm" && return 0
 	done
 	return 1
 }
@@ -235,12 +229,11 @@ fn dt_appaction(app, act, name, key = "") {
 
 # Whether key is what an app's action is on.
 fn dt_akeyis(app, act, key) {
-	local a b k="$app:$act"
+	local b
 
-	[ -n "${DT_AKEY["$k"]}" ] || return 1
-	a := dt_keynorm "${DT_AKEY["$k"]}"
+	[ -n "${DT_AKEY["$app:$act"]}" ] || return 1
 	b := dt_keynorm "$key"
-	[ "$a" = "$b" ]
+	dt_keyin "${DT_AKEY["$app:$act"]}" "$b"
 }
 
 # The key an app's action is on, empty for none; dt_rowaccel shows it.
@@ -252,13 +245,11 @@ fn dt_akeyof(app, act) {
 # form the desktop's fixed actions are not: any number of apps, not a few
 # of them by name in a case statement.
 fn dt_appkeyed(key) {
-	local an knorm anorm
+	local an knorm
 
 	knorm := dt_keynorm "$key"
 	for an in "${!DT_APPKEY[@]}"; do
-		[ -n "${DT_APPKEY["$an"]}" ] || continue
-		anorm := dt_keynorm "${DT_APPKEY["$an"]}"
-		if [ "$anorm" = "$knorm" ]; then
+		if dt_keyin "${DT_APPKEY["$an"]}" "$knorm"; then
 			dt_launch "$an"
 			return 0
 		fi
@@ -273,6 +264,16 @@ fn dt_keylabel(what) {
 	act:*) ret "${DT_AKEYNAME["${what#act:}"]:-${what#act:}}" ;;
 	*) ret "${DT_KEYNAME["$what"]:-$what}" ;;
 	esac
+}
+
+# Whether a key is plain: no modifier and not a function key. A plain key
+# of a shortcut's is never taken before the focused window has declined it
+# (Menu Bar's Escape), as a terminal is never denied one (dt_keyassigned).
+fn dt_keyplain(key) {
+	case $key in
+	ctrl-* | alt-* | super-* | shift-* | f[0-9]* | super) return 1 ;;
+	esac
+	return 0
 }
 
 # Whether a key is one that moves around the Control Panel and answers a
@@ -291,27 +292,25 @@ fn dt_keynav(key) {
 	return 1
 }
 
-# Whether key is what action is set to, compared in canonical order; an
+# Whether key is one of action's chords, compared in canonical order; an
 # action with no key matches nothing.
 fn dt_keyis(what, key) {
-	local a b
+	local b
 
 	[ -n "${DT_KEYS["$what"]}" ] || return 1
-	a := dt_keynorm "${DT_KEYS["$what"]}"
 	b := dt_keynorm "$key"
-	[ "$a" = "$b" ]
+	dt_keyin "${DT_KEYS["$what"]}" "$b"
 }
 
-# A bound key as Blit's `INPUT keep` spells it, once for each modifier the
-# Shortcut Key stands for: ctrl, alt, shift, super in that order, then the
-# key (Gitea #530). Nothing for a key the desktop does not keep from a
-# program -- the same test native_key asks, dt_keyassigned's.
+# A bound chord as Blit's `INPUT keep` spells it: ctrl, alt, shift, super
+# in that order, then the key (Gitea #530). Nothing for a key the desktop
+# does not keep from a program -- the same test native_key asks,
+# dt_keyassigned's -- nor for one the desktop cannot read (`?`).
 fn dt_keepchord(k) {
-	local n base mods c a s u m out= x
-	local -a ms
+	local n base mods c a s u out=
 
 	case $k in
-	ctrl-* | alt-* | super-* | mod-* | shift-f[0-9]* | f[0-9]*) ;;
+	ctrl-* | alt-* | super-* | shift-f[0-9]* | f[0-9]*) ;;
 	super) ret super; return 0 ;;
 	*) ret ""; return 0 ;;
 	esac
@@ -319,6 +318,7 @@ fn dt_keepchord(k) {
 		case $k in ctrl-[a-z]) ret ""; return 0 ;; esac
 	fi
 	n := dt_keynorm "$k"
+	case $n in "?"*) ret ""; return 0 ;; esac
 	base=$n
 	mods=
 	case $n in
@@ -336,23 +336,9 @@ fn dt_keepchord(k) {
 	delete | tab | enter | space | escape | backspace | print | menu) ;;
 	*) ret ""; return 0 ;;
 	esac
-	c=0 a=0 s=0 u=0 m=0
-	case $mods in *ctrl*) c=1 ;; esac
-	case $mods in *alt*) a=1 ;; esac
-	case $mods in *shift*) s=1 ;; esac
-	case $mods in *super*) u=1 ;; esac
-	case $mods in *mod*) m=1 ;; esac
-	ms=(-)
-	[ "$m" = 1 ] && read -ra ms <<< "$DT_MOD"
-	for x in "${ms[@]}"; do
-		k=
-		[ "$c" = 1 ] && k="${k}ctrl-"
-		{ [ "$a" = 1 ] || [ "$x" = alt ]; } && k="${k}alt-"
-		[ "$s" = 1 ] && k="${k}shift-"
-		{ [ "$u" = 1 ] || [ "$x" = super ]; } && k="${k}super-"
-		out="$out $k$base"
-	done
-	ret "${out# }"
+	# dt_keynorm already writes the modifiers in Blit's order.
+	[ -n "$mods" ] && out="$mods-"
+	ret "$out$base"
 }
 
 # Tell Blit the chords the desktop keeps from programs' windows (Gitea
@@ -366,26 +352,24 @@ dt_keepsend() {
 	local -A seen=()
 	local -a w
 
+	# Each of a shortcut's chords, which a list may have several of
+	# (ADR 0057).
 	for an in "${!DT_KEYS[@]}"; do
-		k=${DT_KEYS["$an"]}
-		[ -n "$k" ] || continue
-		ch := dt_keepchord "$k"
-		read -ra w <<< "$ch"
+		read -ra w <<< "${DT_KEYS["$an"]}"
 		for k in "${w[@]}"; do
-			[ -n "${seen["$k"]+x}" ] && continue
-			seen["$k"]=1
-			out="$out $k"
+			ch := dt_keepchord "$k"
+			[ -n "$ch" ] && [ -z "${seen["$ch"]+x}" ] || continue
+			seen["$ch"]=1
+			out="$out $ch"
 		done
 	done
 	for an in "${!DT_APPKEY[@]}"; do
-		k=${DT_APPKEY["$an"]}
-		[ -n "$k" ] || continue
-		ch := dt_keepchord "$k"
-		read -ra w <<< "$ch"
+		read -ra w <<< "${DT_APPKEY["$an"]}"
 		for k in "${w[@]}"; do
-			[ -n "${seen["$k"]+x}" ] && continue
-			seen["$k"]=1
-			out="$out $k"
+			ch := dt_keepchord "$k"
+			[ -n "$ch" ] && [ -z "${seen["$ch"]+x}" ] || continue
+			seen["$ch"]=1
+			out="$out $ch"
 		done
 	done
 	out=${out# }
@@ -406,70 +390,119 @@ fn dt_keyof(what) {
 	esac
 }
 
-# Give an action a key, or with an empty one take its key away, and keep
-# it. An empty one is saved as empty, not left out, so a shortcut that ships
-# with a default stays cleared across a restart.
+# Give an action a key, its only one, or with an empty one take its keys
+# away, and keep it. An empty one is saved as empty, not left out, so a
+# shortcut that ships with a default stays cleared across a restart.
 fn dt_keyset(what, key) {
 	[ -n "$key" ] && key := dt_keynorm "$key"
+	dt_keyput "$what" "$key"
+}
+
+# Store what's whole list of chords and keep it.
+fn dt_keyput(what, list) {
 	case $what in
-	app:*) DT_APPKEY["${what#app:}"]=$key ;;
-	act:*) DT_AKEY["${what#act:}"]=$key ;;
-	*) DT_KEYS["$what"]=$key ;;
+	app:*) DT_APPKEY["${what#app:}"]=$list ;;
+	act:*) DT_AKEY["${what#act:}"]=$list ;;
+	*) DT_KEYS["$what"]=$list ;;
 	esac
 	dt_save
 }
 
-# Which other action already holds key, if any.
+# Give an action one more chord beside those it has (ADR 0057).
+fn dt_keyadd(what, key) {
+	local cur n
+
+	n := dt_keynorm "$key"
+	cur := dt_keyof "$what"
+	dt_keyin "$cur" "$n" && return 0
+	dt_keyput "$what" "${cur:+$cur }$n"
+}
+
+# Take one chord away from an action, leaving its others.
+fn dt_keydrop(what, key) {
+	local cur c n out=
+	local -a cs
+
+	n := dt_keynorm "$key"
+	cur := dt_keyof "$what"
+	read -ra cs <<< "$cur"
+	for c in "${cs[@]}"; do
+		dt_keyin "$c" "$n" || out="$out $c"
+	done
+	dt_keyput "$what" "${out# }"
+}
+
+# Which other action already holds key among its chords, if any.
 fn dt_keyowner(key, except = "") {
-	local knorm a k e
+	local knorm a e
 
 	[ -n "$key" ] || return 1
 	knorm := dt_keynorm "$key"
 	for a in "${DT_KEYORDER[@]}"; do
-		[ "$a" = "$except" ] || [ -z "${DT_KEYS["$a"]}" ] && continue
-		k := dt_keynorm "${DT_KEYS["$a"]}"
-		[ "$k" = "$knorm" ] && ret "$a"
+		[ "$a" = "$except" ] && continue
+		dt_keyin "${DT_KEYS["$a"]-}" "$knorm" && ret "$a"
 	done
 	for a in "${!DT_APPKEY[@]}"; do
-		[ "app:$a" = "$except" ] || [ -z "${DT_APPKEY["$a"]}" ] && continue
-		k := dt_keynorm "${DT_APPKEY["$a"]}"
-		[ "$k" = "$knorm" ] && ret "app:$a"
+		[ "app:$a" = "$except" ] && continue
+		dt_keyin "${DT_APPKEY["$a"]}" "$knorm" && ret "app:$a"
 	done
 	# Two apps' own actions may share a key, since only the focused app's
 	# acts; one app's two may not.
 	for a in "${DT_AKEYORDER[@]}"; do
-		[ "act:$a" = "$except" ] || [ -z "${DT_AKEY["$a"]}" ] && continue
+		[ "act:$a" = "$except" ] && continue
 		case $except in act:*) e=${except#act:}; [ "${e%%:*}" = "${a%%:*}" ] || continue ;; esac
-		k := dt_keynorm "${DT_AKEY["$a"]}"
-		[ "$k" = "$knorm" ] && ret "act:$a"
+		dt_keyin "${DT_AKEY["$a"]}" "$knorm" && ret "act:$a"
 	done
 	return 1
 }
 
-# Whether what shares its key with another action -- which only a settings
-# file edited by hand can arrange, since taking a key moves it.
+# Whether any of what's chords is held by another action as well -- which
+# only a settings file edited by hand can arrange, since taking a key
+# moves it.
 fn dt_keyshared(what) {
-	local k
+	local k c
+	local -a cs
 
 	k := dt_keyof "$what"
-	dt_keyowner "$k" "$what"
+	read -ra cs <<< "$k"
+	for c in "${cs[@]}"; do
+		dt_keyowner "$c" "$what" && return 0
+	done
+	return 1
 }
 
-# Start capturing the next key as an action's shortcut -- the Keyboard pane
-# calls this when a row is activated; dt_event's own DT_KEYCAP check takes
-# the very next key, of any kind, and hands it to dt_keytake.
-fn dt_keycap(what) {
+# Whether Blit keeps a chord for itself (`KEYBOARD reserved`, DT_KBRES):
+# its console switch and its stop chord reach no program and no desktop.
+fn dt_keyblit(key) {
+	local n
+
+	[ -n "${DT_KBRES-}" ] || return 1
+	n := dt_keynorm "$key"
+	dt_keyin "$DT_KBRES" "$n"
+}
+
+# Start capturing the next key as an action's shortcut -- Shortcuts calls
+# this when a row is activated, with add when its + was: the key then joins
+# the row's others rather than replacing them. dt_event's own DT_KEYCAP
+# check takes the very next key, of any kind, and hands it to dt_keytake.
+DT_KEYCAPADD=
+fn dt_keycap(what, add = "") {
 	local l
 
 	DT_KEYCAP=$what
+	DT_KEYCAPADD=$add
 	l := dt_keylabel "$what"
-	dt_notep low "Press a key for %s…" "$l"
+	if [ -n "$add" ]; then
+		dt_notep low "Press another key for %s…" "$l"
+	else
+		dt_notep low "Press a key for %s…" "$l"
+	fi
 }
 
 # The key captured for what: asked about if another action holds it --
 # answering yes moves it, so a key never has two owners -- and otherwise
-# taken. No key is refused: the menu bar, copy and paste are actions like
-# any other, so taking one of theirs asks the same question.
+# taken, as what's only key or, after +, one more. Refused: a key that moves
+# around the panel, and one Blit keeps for itself.
 fn dt_keytake(what, key) {
 	local owner l ol
 
@@ -478,29 +511,93 @@ fn dt_keytake(what, key) {
 		dt_notep low "%s moves around the Control Panel, so it cannot be a shortcut" "$key"
 		return 0
 	fi
+	if dt_keyblit "$key"; then
+		dt_notep low "Blit keeps %s for itself, so it cannot be a shortcut" "$key"
+		return 0
+	fi
 	if owner := dt_keyowner "$key" "$what"; then
 		ol := dt_keylabel "$owner"
 		DT_KEYPEND_WHAT=$what
 		DT_KEYPEND_KEY=$key
 		DT_KEYPEND_FROM=$owner
+		DT_KEYPEND_ADD=$DT_KEYCAPADD
 		DT_T := dt_tr "%s is %s's: give it to %s?" "$key" "$ol" "$l"
 		dt_confirm "$DT_T" dt_keymove
 		return 0
 	fi
-	dt_keyset "$what" "$key"
+	if [ -n "$DT_KEYCAPADD" ]; then
+		dt_keyadd "$what" "$key"
+	else
+		dt_keyset "$what" "$key"
+	fi
 	DT_T := dt_tr "%s is now %s" "$l" "$key"
 	dt_notify "$DT_T" dt_launch panel
 }
 
-# Yes to dt_keytake's question: the key leaves the action that had it.
+# Yes to dt_keytake's question: the key leaves the action that had it, and
+# that action keeps its other chords.
+DT_KEYPEND_ADD=
 dt_keymove() {
 	local l
 
-	dt_keyset "$DT_KEYPEND_FROM" ""
-	dt_keyset "$DT_KEYPEND_WHAT" "$DT_KEYPEND_KEY"
+	dt_keydrop "$DT_KEYPEND_FROM" "$DT_KEYPEND_KEY"
+	if [ -n "$DT_KEYPEND_ADD" ]; then
+		dt_keyadd "$DT_KEYPEND_WHAT" "$DT_KEYPEND_KEY"
+	else
+		dt_keyset "$DT_KEYPEND_WHAT" "$DT_KEYPEND_KEY"
+	fi
 	l := dt_keylabel "$DT_KEYPEND_WHAT"
 	DT_T := dt_tr "%s is now %s" "$l" "$DT_KEYPEND_KEY"
 	dt_notify "$DT_T" dt_launch panel
+}
+
+# Use Super Instead of Alt, and back (ADR 0057): once, every chord whose
+# modifier is the one alone -- shift aside, no ctrl, not both -- is
+# rewritten with the other, in the desktop's own shortcuts, the apps'
+# launches and their actions. An action, not a setting: what it did is in
+# the list afterwards, and a key changed by hand later is the person's.
+fn dt_keyswap(from, to) {
+	local a v n=0
+
+	for a in "${DT_KEYORDER[@]}"; do
+		v := dt_keyswap1 "${DT_KEYS["$a"]-}" "$from" "$to"
+		[ "$v" = "${DT_KEYS["$a"]-}" ] && continue
+		DT_KEYS["$a"]=$v
+		n=$((n + 1))
+	done
+	for a in "${!DT_APPKEY[@]}"; do
+		v := dt_keyswap1 "${DT_APPKEY["$a"]}" "$from" "$to"
+		[ "$v" = "${DT_APPKEY["$a"]}" ] && continue
+		DT_APPKEY["$a"]=$v
+		n=$((n + 1))
+	done
+	for a in "${DT_AKEYORDER[@]}"; do
+		v := dt_keyswap1 "${DT_AKEY["$a"]}" "$from" "$to"
+		[ "$v" = "${DT_AKEY["$a"]}" ] && continue
+		DT_AKEY["$a"]=$v
+		n=$((n + 1))
+	done
+	[ "$n" -gt 0 ] && dt_save
+	dt_notep low "%d shortcuts changed" "$n"
+}
+
+# One shortcut's chords with from swapped for to, where from is the only
+# modifier besides shift.
+fn dt_keyswap1(list, from, to) {
+	local c n m out=
+	local -a cs
+
+	read -ra cs <<< "$list"
+	for c in "${cs[@]}"; do
+		n := dt_keynorm "$c"
+		m=${n%-*}
+		case $n in *--) m=${n%--} ;; esac
+		case $m in
+		"$from" | "$from-shift" | "shift-$from") n := dt_keynorm "${n/"$from-"/"$to-"}" ;;
+		esac
+		case " $out " in *" $n "*) ;; *) out="$out $n" ;; esac
+	done
+	ret "${out# }"
 }
 
 # Take an action's shortcut away: the Keyboard pane's clear button, and

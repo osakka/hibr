@@ -23,6 +23,9 @@ DT_KBGEN=
 # exists, then never again -- Blit answers every change by itself.
 DT_KBASKED=
 DT_KBTRIED=0
+# The chords Blit keeps for itself, as its list says them (KEYBOARD
+# reserved): Shortcuts shows them and refuses them (ADR 0057).
+DT_KBRES=
 
 # Read the list the console holds.
 dt_kbread() {
@@ -35,7 +38,11 @@ dt_kbread() {
 	mapfile -t lines <<< "$l"
 	for w in "${lines[@]}"; do
 		case $w in
-		"gen "* | "reserved"*) ;;
+		"gen "*) ;;
+		"reserved"*)
+			DT_KBRES=${w#reserved}
+			DT_KBRES=${DT_KBRES# }
+			;;
 		"current "*) DT_KBCUR=${w#current } ;;
 		[0-9]*)
 			read -r n lay var nm <<< "$w"

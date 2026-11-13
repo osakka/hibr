@@ -935,8 +935,10 @@ went in the shell.
   in `DT_KEYS` with a name in `DT_KEYNAME` and a place in `DT_KEYORDER`,
   and is tested with `dt_keyis`; never a literal key in a `case`. Direct
   modifier shortcuts were first considered and rejected, and then arrived
-  through the Shortcut Key (`DT_MOD`, alt by default, Gitea #326): the
-  defaults are `mod-c`, `mod-w`, `mod-tab` and so on, and a terminal keeps
+  through the Shortcut Key (`DT_MOD`, Gitea #326), a `mod-` placeholder
+  that ADR 0057 removed in 0.99.509: a shortcut is the chords it is
+  written as, one or several space-separated (`alt-c`, `f10 escape`),
+  compared through `dt_keyin`, and a terminal keeps
   ctrl with one letter (`DT_TERMCTRL`, on by
   default) -- ctrl collides with everything a terminal window will need. A desktop that
   eats ctrl-c is a desktop nothing can run in. The one exception
@@ -2069,10 +2071,17 @@ went in the shell.
   matches the day caps lock is on; and a shifted punctuation key arrives as
   its *unshifted* code (the shifted one needs flag 4, which Blit does not
   offer), so `cn_ushift` guesses a US layout and says so. And the shortcut
-  side has one rule: **`mod` is expanded in `dt_keynorm` only**, which
-  every comparison already went through -- `dt_keyis`, `dt_keyassigned`
-  (the terminal's Desktop Shortcuts Win), `dt_keyowner`, `dt_appkeyed`.
-  Two expanders would be the one-rule-in-two-places trap again.
+  side has one rule: **a chord is put in one order by `dt_keynorm` and a
+  shortcut's chords are matched by `dt_keyin` only**, which every
+  comparison goes through -- `dt_keyis`, `dt_keyassigned` (the terminal's
+  Desktop Shortcuts Win), `dt_keyowner`, `dt_appkeyed`. The `mod-`
+  placeholder was translated in three places before ADR 0057 removed it,
+  which is the one-rule-in-two-places trap; a `mod-` chord still saved
+  somewhere matches nothing (`dt_keynorm` answers `?mod-...`), never a
+  plain key. **A plain key in a shortcut's list is looked at only after
+  the focused window declines it** (`dt_keyplain`): Menu Bar is `f10
+  escape`, F10 before any window and Escape after, so vi keeps Escape --
+  the reason Menu Bar Also existed, and why folding it needed the rule.
 - **A drain reads with a bound, because a program on the other end of a
   pipe may print half a line and stop** (0.99.272). The Bluetooth watcher
   ran an interactive `bluetoothctl`, which reprints its prompt after every

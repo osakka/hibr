@@ -1041,7 +1041,7 @@ fn dt_cellpx(int id, int r, int c, int cw, int ch) {
 # for pixels; it is taken off here, so everything after reads the four or
 # five fields it always has.
 fn dt_event(k) {
-	local an knorm qn cn cln qan dn sn ev px pa
+	local an knorm ev px pa
 
 	# The pointer lock (Gitea #379) first: a held pointer's reports are
 	# its window's alone, the display giving the pointer back is the end
@@ -1353,11 +1353,12 @@ fn dt_event(k) {
 		return 0
 		;;
 	esac
-	# The Menu Bar key (f10 unless changed) is looked at before any window
-	# sees the key, because it has to be the way back to the menu bar from
-	# a window that wants everything else. Its second key (escape) comes
-	# after, so a terminal running vi still gets escape.
-	if dt_keyis menu "$k"; then
+	# Menu Bar's chords and function keys (F10 unless changed) are looked
+	# at before any window sees the key, because they have to be the way
+	# back to the menu bar from a window that wants everything else. A
+	# plain key of its (Escape) comes after, so a terminal running vi
+	# still gets escape (ADR 0057).
+	if ! dt_keyplain "$k" && dt_keyis menu "$k"; then
 		CS_ATTN=0
 		dt_mopen 0
 		return 0
@@ -1382,7 +1383,7 @@ fn dt_event(k) {
 	if [ -z "$DT_FOCUS" ] && [ "$DT_ICONS" = 1 ] && dt_iconkey "$k"; then
 		return 0
 	fi
-	if dt_keyis menu2 "$k"; then
+	if dt_keyis menu "$k"; then
 		CS_ATTN=0
 		dt_mopen 0
 		return 0
@@ -1390,26 +1391,21 @@ fn dt_event(k) {
 	# Compared by dt_keynorm, not as the literal string: a rebound
 	# DT_KEYS entry combining ctrl and alt would have exactly the same
 	# either-order ambiguity dt_appkeyed's own shortcuts do.
+	# Each action is one chord or several (ADR 0057); an unbound one is
+	# empty and matches nothing -- an empty name once matched a key (Quit
+	# opened on `-`).
 	knorm := dt_keynorm "$k"
-	qn := dt_keynorm "${DT_KEYS[quit]}"
-	cn := dt_keynorm "${DT_KEYS[cycle]}"
-	cln := dt_keynorm "${DT_KEYS[close]}"
-	qan := dt_keynorm "${DT_KEYS[quitapp]}"
-	dn := dt_keynorm "${DT_KEYS[detach]}"
-	sn := dt_keynorm "${DT_KEYS[strip]}"
-	# Each compared only when it has a key: an unbound action is empty,
-	# and an empty name once matched a key (Quit opened on `-`).
-	if [ -n "$qn" ] && [ "$knorm" = "$qn" ]; then
+	if dt_keyin "${DT_KEYS[quit]}" "$knorm"; then
 		dt_quitconfirm
-	elif [ -n "$cn" ] && [ "$knorm" = "$cn" ]; then
+	elif dt_keyin "${DT_KEYS[cycle]}" "$knorm"; then
 		dt_swstart 1
 	elif dt_keyis cycleback "$k"; then
 		dt_swstart -1
-	elif [ -n "$cln" ] && [ "$knorm" = "$cln" ]; then
+	elif dt_keyin "${DT_KEYS[close]}" "$knorm"; then
 		dt_close_focused
-	elif [ -n "$qan" ] && [ "$knorm" = "$qan" ]; then
+	elif dt_keyin "${DT_KEYS[quitapp]}" "$knorm"; then
 		dt_quitapp
-	elif [ -n "$dn" ] && [ "$knorm" = "$dn" ]; then
+	elif dt_keyin "${DT_KEYS[detach]}" "$knorm"; then
 		dt_detach
 	elif dt_wskey "$k"; then
 		:
@@ -1422,7 +1418,7 @@ fn dt_event(k) {
 		else
 			dt_grab size
 		fi
-	elif dt_keyis context "$k" || dt_keyis context2 "$k"; then
+	elif dt_keyis context "$k"; then
 		dt_ctxkey context
 	elif dt_keyis winmenu "$k"; then
 		dt_ctxkey window
@@ -1468,7 +1464,7 @@ fn dt_event(k) {
 		dt_has dt_sndmutekey && dt_sndmutekey
 	elif dt_keyis kbdnext "$k"; then
 		dt_has dt_kbnext && dt_kbnext
-	elif [ -n "$sn" ] && [ "$knorm" = "$sn" ]; then
+	elif dt_keyin "${DT_KEYS[strip]}" "$knorm"; then
 		if [ "$CS_ATTN" = 1 ]; then
 			CS_ATTN=0
 			dt_notep low "Control Strip: released"

@@ -1,53 +1,24 @@
 #!/usr/bin/env hibr
 #
 # shortcuts -- the Control Panel pane for every shortcut in one list: the
-# desktop's own actions, then a launch shortcut for any app. Activating a
-# row captures its next key; the ✕ beside a key, or delete or backspace on
-# its row, clears it. wm/keys.hibr does all of it -- including asking
-# before taking a key another action has. Every key the desktop acts on is
-# here, the menu bar's, Copy's, Cut's and Paste's included.
-# A key two actions share, which only a settings file edited by hand can
-# arrange, is marked ⚠ on both. Above them all, Shortcut Key: which
-# modifiers the desktop's own chords use (DT_MOD, Gitea #326) -- Alt,
-# Super or Alt, or Super -- every row then showing what to press.
+# desktop's own actions, then a launch shortcut for any app, then each
+# app's own actions. A shortcut is the chords it is written as (ADR 0057):
+# activating a row captures its next key as its only one; its + captures
+# one more beside those it has; the ✕ beside a key, or delete or backspace
+# on its row, clears them. wm/keys.hibr does all of it -- including asking
+# before taking a key another action has, and refusing one Blit keeps for
+# itself, which are listed last. Every key the desktop acts on is here, the
+# menu bar's, Copy's, Cut's and Paste's included. A key two actions share,
+# which only a settings file edited by hand can arrange, is marked ⚠ on
+# both. Use Super Instead of Alt, and back, rewrite the list once.
 
 strict
 
 
-app shortcuts "The Control Panel pane for every shortcut in one list" 1.3.2
+app shortcuts "The Control Panel pane for every shortcut in one list" 1.3.3
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌘"
 
-# Shortcut Key's three choices, as the pane shows them and as DT_MOD
-# keeps them. Ctrl+Alt is not one: the desktop already has chords on
-# ctrl-alt, and those would land on the same keys as the mod ones.
-SC_MODLABELS=("Alt" "Super or Alt" "Super")
-SC_MODVALS=("alt" "super alt" "super")
-
-# What DT_MOD is called in the pane.
-fn shortcuts_modlabel() {
-	local i=0
-
-	while [ "$i" -lt "${#SC_MODVALS[@]}" ]; do
-		[ "${SC_MODVALS[$i]}" = "${DT_MOD:-alt}" ] && ret "${SC_MODLABELS[$i]}" && return 0
-		i=$((i + 1))
-	done
-	ret "Alt"
-}
-
-fn cp_set_dtmod(int? id = "", value = "") {
-	local i=0
-
-	while [ "$i" -lt "${#SC_MODLABELS[@]}" ]; do
-		[ "${SC_MODLABELS[$i]}" = "$value" ] && DT_MOD=${SC_MODVALS[$i]}
-		i=$((i + 1))
-	done
-	DT_MENUIN=
-	cp_save
-}
-
 fn shortcuts_do(int w, k, int dir) {
-	local v
-
 	# How keys reach a terminal window, folded in from the Keyboard pane
 	# there was (Gitea #531): the desktop's shortcuts there or not, and
 	# ctrl with a letter always the program's.
@@ -55,79 +26,82 @@ fn shortcuts_do(int w, k, int dir) {
 	DT_TERMKEEP | DT_TERMCTRL)
 		cp_toggle "$k"
 		cp_save
-		return 0
 		;;
+	sc:super) dt_keyswap alt super ;;
+	sc:alt) dt_keyswap super alt ;;
 	esac
-	[ "$k" = DT_MOD ] || return 0
-	v := shortcuts_modlabel
-	v := cp_next "$v" "$dir" "${SC_MODLABELS[@]}"
-	cp_set_dtmod "" "$v"
+	DT_MENUIN=
+	return 0
 }
 
-fn shortcuts_drop(int w, int r, int c, k) {
-	[ "$k" = DT_MOD ] || return 0
-	dt_droplist "$w" "$r" "$c" cp_set_dtmod "${SC_MODLABELS[@]}"
-}
-
-# Every key in use, normalised once, and who holds it: each owner after a
+# Every chord in use, normalised once, and who holds it: each owner after a
 # tab, since a program's name may have spaces in it (Gitea #533).
 # Asking dt_keyshared row by row compared each key with every other, 46 by
 # 46, normalising both each time -- 35 of the pane's 39 ms on every frame
 # it was open, which under load was a stall (ADR 0049).
 declare -gA SC_OWN
 
+# Add each of a shortcut's chords to SC_OWN under who.
+fn shortcuts_own(list, who) {
+	local c k
+	local -a cs
+
+	read -ra cs <<< "$list"
+	for c in "${cs[@]}"; do
+		k := dt_keynorm "$c"
+		SC_OWN["$k"]+="	$who"
+	done
+}
+
 # Fill SC_OWN from every desktop action, app key and app action.
 shortcuts_owners() {
-	local a k
+	local a
 
 	SC_OWN=()
 	for a in "${DT_KEYORDER[@]}"; do
-		[ -n "${DT_KEYS["$a"]}" ] || continue
-		k := dt_keynorm "${DT_KEYS["$a"]}"
-		SC_OWN["$k"]+="	$a"
+		shortcuts_own "${DT_KEYS["$a"]-}" "$a"
 	done
 	# A key saved for an app that is not here -- removed, or a row the
 	# pane once made from part of a name -- has no row, and holds nothing.
 	for a in "${!DT_APPKEY[@]}"; do
-		[ -n "${DT_APPKEY["$a"]}" ] || continue
 		[ -n "${DT_APPS["$a"]["title"]-}" ] || continue
-		k := dt_keynorm "${DT_APPKEY["$a"]}"
-		SC_OWN["$k"]+="	app:$a"
+		shortcuts_own "${DT_APPKEY["$a"]}" "app:$a"
 	done
 	for a in "${DT_AKEYORDER[@]}"; do
-		[ -n "${DT_AKEY["$a"]}" ] || continue
-		k := dt_keynorm "${DT_AKEY["$a"]}"
-		SC_OWN["$k"]+="	act:$a"
+		shortcuts_own "${DT_AKEY["$a"]}" "act:$a"
 	done
 	return 0
 }
 
-# Whether what shares its key with another action, by dt_keyowner's own
-# rule: two apps' own actions may share a key, since only the focused
+# Whether any of what's chords is held by another action, by dt_keyowner's
+# own rule: two apps' own actions may share a key, since only the focused
 # app's acts, and one app's two may not.
 fn shortcuts_shared(what) {
-	local k o e
-	local -a os
+	local k c o e
+	local -a cs os
 
 	k := dt_keyof "$what"
-	[ -n "$k" ] || return 1
-	k := dt_keynorm "$k"
-	IFS=$'\t' read -ra os <<< "${SC_OWN["$k"]#	}"
-	for o in "${os[@]}"; do
-		[ "$o" = "$what" ] && continue
-		case $what:$o in
-		act:*:act:*)
-			e=${what#act:}
-			o=${o#act:}
-			[ "${e%%:*}" = "${o%%:*}" ] && return 0
-			;;
-		*) return 0 ;;
-		esac
+	read -ra cs <<< "$k"
+	for c in "${cs[@]}"; do
+		k := dt_keynorm "$c"
+		IFS=$'\t' read -ra os <<< "${SC_OWN["$k"]-}"
+		for o in "${os[@]}"; do
+			[ "$o" = "$what" ] && continue
+			case $what:$o in
+			act:*:act:*)
+				e=${what#act:}
+				o=${o#act:}
+				[ "${e%%:*}" = "${o%%:*}" ] && return 0
+				;;
+			*) return 0 ;;
+			esac
+		done
 	done
 	return 1
 }
 
-# One row for an action: its label, marked if its key is shared.
+# One row for an action: its label, marked if a key of its is shared, and
+# its chords.
 fn shortcuts_row(int w, int n, what) {
 	local l
 
@@ -136,8 +110,35 @@ fn shortcuts_row(int w, int n, what) {
 	CP[$w][$n]["kind"]=key
 	CP[$w][$n]["text"]=$l
 	CP[$w][$n]["val"] := dt_keyof "$what"
-	CP[$w][$n]["val"] := dt_keyshow "${CP[$w][$n]["val"]}"
 	CP[$w][$n]["key"]=$what
+}
+
+# The chords Blit keeps for itself, as it said them (KEYBOARD reserved):
+# the console switch on one row, anything else -- the stop chord -- on its
+# own. Shown so a person knows why such a key cannot be taken.
+fn shortcuts_blit(int w, int n) {
+	local c f=0 rest=
+	local -a cs
+
+	read -ra cs <<< "${DT_KBRES-}"
+	[ "${#cs[@]}" -gt 0 ] || ret "$n"
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Blit Keeps These"; n=$((n + 1))
+	for c in "${cs[@]}"; do
+		case $c in
+		ctrl-alt-f[0-9] | ctrl-alt-f1[0-2]) f=1 ;;
+		*) rest="$rest $c" ;;
+		esac
+	done
+	if [ "$f" = 1 ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Switch Console"
+		CP[$w][$n]["val"]="ctrl-alt-f1…f12"; n=$((n + 1))
+	fi
+	read -ra cs <<< "$rest"
+	for c in "${cs[@]}"; do
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Kept by Blit"
+		CP[$w][$n]["val"]=$c; n=$((n + 1))
+	done
+	ret "$n"
 }
 
 fn shortcuts_rows(int w) {
@@ -151,9 +152,10 @@ fn shortcuts_rows(int w) {
 		CP[$w][$n]["text"]="What a key is and types: Blit Keyboard"
 		n=$((n + 1))
 	fi
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shortcut Key"
-	CP[$w][$n]["val"] := shortcuts_modlabel
-	CP[$w][$n]["key"]=DT_MOD; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Use Super Instead of Alt"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=sc:super; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Use Alt Instead of Super"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=sc:alt; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Terminals"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shortcuts in Terminals"
 	CP[$w][$n]["wtype"]=bool
@@ -179,8 +181,6 @@ fn shortcuts_rows(int w) {
 	# Each app's own actions, under the app's name: they act only while
 	# its window has the focus.
 	last=
-	# A desktop older than 0.99.371 has no app actions to list.
-	command -v dt_appaction > /dev/null || ret "$n"
 	for a in "${DT_AKEYORDER[@]}"; do
 		if [ "${a%%:*}" != "$last" ]; then
 			last=${a%%:*}
@@ -191,5 +191,6 @@ fn shortcuts_rows(int w) {
 		shortcuts_row "$w" "$n" "act:$a"
 		n=$((n + 1))
 	done
+	n := shortcuts_blit "$w" "$n"
 	ret "$n"
 }

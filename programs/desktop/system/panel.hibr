@@ -544,7 +544,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 # of widget, not what key a click reaches, which is what made it look
 # like a rendering glitch rather than the stale field it was.
 fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
-	local i r t v n top sel kind wtype on kv vw wc xc poi rk at aw hq
+	local i r t v n top sel kind wtype on kv vw wc xc xa poi rk at aw hq
 	local sb=$((bx + w))
 
 	# Where the selected row was in the whole pane, before the rows are
@@ -639,11 +639,12 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			# A "set" row's value is drawn as a widget below, in the
 			# same pen, rather than appended to this string -- a real
 			# checkbox or a dropdown caret instead of on/off text. A
-			# shortcut's leaves room for the ✕ that clears it.
+			# shortcut's leaves room for the + that adds a key and the
+			# ✕ that clears them (ADR 0057).
 			if [ "$kind" = key ]; then
 				kv=$v
-				t := cp_fit "  $t" $((w - vw - 6))
-				t := str pad "$t" $((w - vw - 4))
+				t := cp_fit "  $t" $((w - vw - 9))
+				t := str pad "$t" $((w - vw - 7))
 				v := cp_fit "$v" "$vw"
 				v := str pad "$v" "$vw"
 				t="$t$v"
@@ -696,10 +697,18 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			*) cp_rowbtns "$id" "$i" "$r" $((bx + ${#CP[$id][$i]["text"]} + 4)) "$wc" ;;
 			esac
 		fi
-		if [ "$kind" = key ] && [ -n "$kv" ]; then
+		if [ "$kind" = key ]; then
 			console pen "$DT_INK" "$DT_IDLE"
-			console put -p "w$id" "$r" "$xc" " ${GL[cross]} "
-			dt_wreg "$id" "$r" "$xc" 3 "clear:$i"
+			case $DT_MIRRORON in
+			1) xa=$((xc + 3)) ;;
+			*) xa=$((xc - 3)) ;;
+			esac
+			console put -p "w$id" "$r" "$xa" " ${GL[plus]} "
+			dt_wreg "$id" "$r" "$xa" 3 "add:$i"
+			if [ -n "$kv" ]; then
+				console put -p "w$id" "$r" "$xc" " ${GL[cross]} "
+				dt_wreg "$id" "$r" "$xc" 3 "clear:$i"
+			fi
 		fi
 		if [ "$kind" = set ]; then
 			if [ "$wtype" = bool ]; then
@@ -785,10 +794,10 @@ fn cp_rowm(t, kind, v, int w, int vw = 11) {
 	case $kind in
 	head) n=$w ;;
 	key)
-		n=$((w - vw - 4))
+		n=$((w - vw - 7))
 		v := cp_fit "$v" "$vw"
 		v := str pad "$v" "$vw"
-		lead="   $v"
+		lead="      $v"
 		;;
 	set) lead := str repeat " " $((vw + 1)) ;;
 	*) v := cp_fit "$v" "$vw"; v := str pad "$v" "$vw"; lead="$v " ;;
@@ -980,6 +989,11 @@ fn panel_key(int w, key) {
 		[ "${CP[$w][$k]["kind"]}" = key ] || return 1
 		dt_keyclear "${CP[$w][$k]["key"]}"
 		;;
+	+ | insert)
+		k=${PW[$w]["sel"]}
+		[ "${CP[$w][$k]["kind"]}" = key ] || return 1
+		dt_keycap "${CP[$w][$k]["key"]}" add
+		;;
 	*)
 		if [ -n "$pane" ] && dt_has "${pane}_key"; then
 			"${pane}_key" "$w" "$key"
@@ -1055,6 +1069,12 @@ fn panel_click(int w, int r, int c, btn = "") {
 	clear:*)
 		dt_keyclear "${CP[$w][${tag#clear:}]["key"]}"
 		PW[$w]["sel"]=${tag#clear:}
+		return 0
+		;;
+	add:*)
+		PW[$w]["sel"]=${tag#add:}
+		command -v dt_keycap > /dev/null &&
+			dt_keycap "${CP[$w][${tag#add:}]["key"]}" add
 		return 0
 		;;
 	rbtn:*)

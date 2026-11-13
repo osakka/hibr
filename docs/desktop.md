@@ -131,13 +131,18 @@ it. A few keys are worth learning early:
 
 Every one of them can be changed in Control Panel > Shortcuts, and a
 terminal window passes ctrl keys through to its program, so ctrl-c still
-interrupts what is running in it. The alt in all of them is one setting,
-**Shortcut Key** at the top of that pane: Alt, Super or Alt, or Super. On
-Super or Alt, super-w closes a window as well as alt-w does, on a terminal
-that can send super; a terminal that cannot still has alt. Only a terminal
-that speaks the kitty keyboard protocol can send super at all -- kitty,
-foot, WezTerm, Ghostty, Blit -- and the operating system may keep the key
-for itself before any terminal sees it. Everything an app can do is also in
+interrupts what is running in it. A shortcut can have more than one key:
+the + beside a row adds another, so Close Window can be alt-w and super-w
+both, and a terminal that cannot send super still has alt. **Use Super
+Instead of Alt**, at the top of that pane, moves every Alt shortcut to
+Super at once -- leaving Alt to the programs in your windows -- and **Use
+Alt Instead of Super** moves them back. Only a terminal that speaks the
+kitty keyboard protocol can send super at all -- kitty, foot, WezTerm,
+Ghostty, Blit -- and the operating system may keep the key for itself
+before any terminal sees it. Under Blit, the keys Blit keeps for itself
+(Ctrl+Alt+F1 to F12, its stop chord) are listed last and cannot be taken.
+Which physical key is Super or Alt -- Caps Lock as Super, say -- is Blit's
+Keyboard pane's. Everything an app can do is also in
 its menus, which follow the window that has focus: File, Edit, the app's
 own, and Window.
 

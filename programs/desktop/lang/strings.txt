@@ -2,6 +2,7 @@
  %s wants %s 
 "%s" is not here
 %H %M %S %l %p %a %d %b %Y, as strftime
+%d shortcuts changed
 %d step failed
 %d step failed -- r tests again
 %d steps failed
@@ -63,7 +64,6 @@
 %s needs a username and a certificate -- set it up with nmcli
 %s of %s
 %s of %s rows
-%s or %s
 %s pixels, a cell is %s by %s
 %s rows
 %s runs with full access
@@ -198,6 +198,8 @@ Battery critical: the computer will shut down in a minute
 Battery critical: the computer will sleep in a minute
 Battery low: %s%% left
 Blank
+Blit Keeps These
+Blit keeps %s for itself, so it cannot be a shortcut
 Block Addresses
 Bluetooth
 Bluetooth Settings%s
@@ -630,6 +632,7 @@ Keep in the List
 Keep it after the vault locks
 Keep the Screen Saver Away While Playing
 Kept as a favourite: %s
+Kept by Blit
 Keyboard
 Kind:
 Known Networks
@@ -954,6 +957,7 @@ Prayer Times needs the salat module, which is not installed.
 Preparing to copy %s item
 Preparing to copy %s items
 Press a key for %s…
+Press another key for %s…
 Preview
 Previous
 Previous Month
@@ -1121,7 +1125,6 @@ Sheet
 Sheet could not contain its formulas (%s): they run as a dry run instead
 Sheet needs the db module
 Shell
-Shortcut Key
 Shortcuts
 Shortcuts in Terminals
 Show
@@ -1193,6 +1196,7 @@ Sum
 Sun
 Sunday
 Sunrise
+Switch Console
 Switcher Pause
 Sync Every
 Sync Now
@@ -1348,8 +1352,10 @@ Update
 Upload Edits on Save
 Uptime: %s
 Use
+Use Alt Instead of Super
 Use Answer
 Use Covers
+Use Super Instead of Alt
 Use as Cover for a Game…
 User Agent
 User agent the pages are told:
