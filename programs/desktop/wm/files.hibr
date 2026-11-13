@@ -467,6 +467,8 @@ fn dt_fieldundo(op) {
 		done
 	fi
 	dt_appcall "$DT_FOCUS" "$cb" home || true
+	# The cursor goes back a cluster to an arrow, as the field moves it.
+	n := dt_clcount "$t" 0 "$n"
 	i=0
 	while [ "$i" -lt "$n" ]; do
 		dt_appcall "$DT_FOCUS" "$cb" right || true

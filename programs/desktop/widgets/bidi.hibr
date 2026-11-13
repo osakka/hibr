@@ -57,18 +57,36 @@ fn bd_at(int c) {
 	ret $((${#BD_MAP[@]} - 1))
 }
 
-# The drawn character at column c of the row, or a space.
+# What is drawn at column c of the row -- a letter with the marks that share
+# its column (Gitea #542) -- or a space.
 fn bd_glyph(int c) {
-	local j=0
+	local j=0 g=
 
 	while [ "$j" -lt "${#BD_COL[@]}" ]; do
-		if [ "${BD_COL[$j]}" = "$c" ]; then
-			ret "${BD_VIS:$j:1}"
-			return 0
-		fi
+		[ "${BD_COL[$j]}" = "$c" ] && g+=${BD_VIS:$j:1}
 		j=$((j + 1))
 	done
-	ret " "
+	ret "${g:- }"
+}
+
+# Draw, in the pen already set, what of the row laid out last comes from
+# characters x0 to x1 of its line, the row starting at character a of it:
+# each column whole, a letter and its marks together (Gitea #542).
+fn bd_sel(int id, int r, int c, int a, int x0, int x1) {
+	local j=0 k n=${#BD_COL[@]} m g
+
+	while [ "$j" -lt "$n" ]; do
+		g=${BD_VIS:$j:1}
+		k=$((a + BD_SRC[j]))
+		m=$((j + 1))
+		while [ "$m" -lt "$n" ] && [ "${BD_COL[$m]}" = "${BD_COL[$j]}" ]; do
+			g+=${BD_VIS:$m:1}
+			m=$((m + 1))
+		done
+		[ "$k" -ge "$x0" ] && [ "$k" -lt "$x1" ] &&
+			console put -r -p "w$id" "$r" $((c + BD_COL[j])) "$g"
+		j=$m
+	done
 }
 
 # Draw the row laid out last at row r, column c of window id, already in display
@@ -86,7 +104,8 @@ fn bd_put(int id, int r, int c, sty = "", pen = "") {
 		col=${BD_COL[$j]}
 		t=${BD_VIS:$j:1}
 		k=$((j + 1))
-		while [ "$k" -lt "$n" ] && [ "${sty:${BD_SRC[$k]}:1}" = "$y" ]; do
+		while [ "$k" -lt "$n" ] && { [ "${sty:${BD_SRC[$k]}:1}" = "$y" ] ||
+		      [ "${BD_COL[$k]}" = "${BD_COL[$((k - 1))]}" ]; }; do
 			t+=${BD_VIS:$k:1}
 			k=$((k + 1))
 		done

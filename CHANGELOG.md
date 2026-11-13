@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.516
+
+**Tashkeel in the desktop's text** (Gitea #542). A letter and every
+zero-width character after it -- a fatha, a shadda, a combining accent, a
+joiner -- are one cluster now, in one-line fields, in the textarea that
+Stickies and the diagram editor use, and in Write. The arrows, Delete, a
+click, a double click and a selection step over a cluster whole, and the
+cursor is drawn on the letter and its marks together: the cursor cell used
+to be drawn with the letter alone, so a fatha vanished whenever the cursor
+was on its letter. Backspace still takes one character, so a mistyped mark
+goes alone, as Arabic editors do. Undo walks the cursor back the same way.
+The cluster rules live in one widget, `widgets/cluster.hibr`, built on `str
+width`; text that is all printable ASCII skips them (a focused field draws
+within a few microseconds of before).
+
+**A one-line field of Arabic is drawn right to left.** The console reorders
+an Arabic write on its own, and a field drew its text and then its cursor
+by logical position, so in an Arabic field the cursor overwrote the wrong
+cell -- before this release too. Fields now lay right-to-left text out the
+way the textarea always has (`bd_row`), so the cursor, the selection and a
+click land where their characters are drawn. A letter and the marks that
+share its column are drawn together there as well (`bd_glyph`, and the new
+`bd_sel` for a selection).
+
+**The suites' terminal model attaches a mark to its letter.** `tests/screen.py`
+gave every zero-width character a cell of its own, which put each column
+after a mark one out and could not show a mark lost from its letter; and
+`find` now answers a column, not an index into the row's text. Seven new
+checks, each failing on 0.99.515.
+
 ## 0.99.515
 
 **The window list scrolls too** (Gitea #538). The menu of every window,

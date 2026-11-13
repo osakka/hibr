@@ -1,0 +1,119 @@
+# widgets/cluster -- where a character and the marks after it begin and end,
+# and which column a place in text is at (Gitea #542).
+#
+# A letter and every zero-width character after it -- Arabic's harakat and
+# shadda, a combining accent, a joiner -- are one cluster: the cursor steps
+# over a cluster whole and a field never draws half of one, since a mark
+# drawn at the start of its own write has no letter to sit on and is lost.
+# A place in text stays a character index everywhere; these answer the two
+# questions a character index cannot -- where the next cluster starts, and
+# what column a place is at, by str width, the shell's one width table.
+# Text that is all printable ASCII skips all of it (dt_clplain), where a
+# character, a cluster and a column are the same thing.
+#
+# Part of the widget library apps draw with -- see widgets/README.md.
+
+strict
+
+# Whether text is printable ASCII and nothing else.
+fn dt_clplain(text) {
+	[[ $text != *[!\ -~]* ]]
+}
+
+# Where the cluster after index i of text starts: past the character at i
+# and every zero-width one after it; the end of text when i is at it.
+fn dt_clnext(text, int i) {
+	local n=${#text} w
+
+	if [ "$i" -lt "$n" ]; then
+		i=$((i + 1))
+		while [ "$i" -lt "$n" ]; do
+			w := str width "${text:$i:1}"
+			[ "$w" = 0 ] || break
+			i=$((i + 1))
+		done
+	fi
+	ret "$i"
+}
+
+# Where the cluster before index i of text starts; 0 at the start.
+fn dt_clprev(text, int i) {
+	local w
+
+	if [ "$i" -gt 0 ]; then
+		i=$((i - 1))
+		while [ "$i" -gt 0 ]; do
+			w := str width "${text:$i:1}"
+			[ "$w" = 0 ] || break
+			i=$((i - 1))
+		done
+	fi
+	ret "$i"
+}
+
+# Index i of text moved back to the start of the cluster it is inside, or
+# left where it is when it is already at one.
+fn dt_clsnap(text, int i) {
+	local n=${#text} w
+
+	while [ "$i" -gt 0 ] && [ "$i" -lt "$n" ]; do
+		w := str width "${text:$i:1}"
+		[ "$w" = 0 ] || break
+		i=$((i - 1))
+	done
+	ret "$i"
+}
+
+# Index i of text moved on past any zero-width characters at it, so a cut
+# there keeps every mark with the letter before it.
+fn dt_clfwd(text, int i) {
+	local n=${#text} w
+
+	while [ "$i" -lt "$n" ]; do
+		w := str width "${text:$i:1}"
+		[ "$w" = 0 ] || break
+		i=$((i + 1))
+	done
+	ret "$i"
+}
+
+# The column index i of text is at, counted from the start of text.
+fn dt_clcol(text, int i) {
+	local w
+
+	w := str width "${text:0:$i}"
+	ret "$w"
+}
+
+# The index of the cluster that covers column col of text, counted from
+# its start: a column past the end gives the end.
+fn dt_clidx(text, int col) {
+	local n=${#text} i=0 j c=0 w
+
+	if dt_clplain "$text"; then
+		[ "$col" -lt "$n" ] && n=$col
+		ret "$n"
+	fi
+	while [ "$i" -lt "$n" ]; do
+		j := dt_clnext "$text" "$i"
+		w := str width "${text:$i:$((j - i))}"
+		[ $((c + w)) -gt "$col" ] && break
+		c=$((c + w))
+		i=$j
+	done
+	ret "$i"
+}
+
+# How many clusters lie between indexes a and b of text, a before b.
+fn dt_clcount(text, int a, int b) {
+	local k=0
+
+	if dt_clplain "${text:$a:$((b - a))}"; then
+		ret $((b - a))
+	fi
+	while [ "$a" -lt "$b" ]; do
+		a := dt_clnext "$text" "$a"
+		k=$((k + 1))
+	done
+	ret "$k"
+}

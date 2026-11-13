@@ -159,8 +159,9 @@ dt_fieldlive() {
 }
 
 fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = "") {
-	local shown t ch lo hi off=0 most
+	local shown t ch lo hi off=0 most plain=1 end lc cc j
 
+	[[ $text != *[!\ -~]* ]] || plain=0
 	DT_TEXTAT["$id"]+="$r $c $w|"
 	if [ "$focused" = 1 ]; then
 		if [ "${DT_FIELD["at"]}" = "$id $r $c" ]; then
@@ -176,6 +177,7 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 		most=$((${#text} + 1 - w))
 		[ "$most" -lt 0 ] && most=0
 		[ "$off" -gt "$most" ] && off=$most
+		[ "$plain" = 1 ] || off := dt_clsnap "$text" "$off"
 		DT_FIELD["off"]=$off
 		DT_FIELD["at"]="$id $r $c"
 		DT_FIELD["rect"]="$r $c $w"
@@ -195,6 +197,18 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 		DT_FIELD["off"]=0
 	fi
 	shown="${text:$off:$w}"
+	# A field never draws half a cluster: the marks after the last letter
+	# shown are shown with it.
+	if [ "$plain" = 0 ]; then
+		end := dt_clfwd "$text" $((off + ${#shown}))
+		shown="${text:$off:$((end - off))}"
+		# Right-to-left text is laid out as the textarea's is, so the
+		# cursor and the selection land where their characters were drawn.
+		if bd_row "$text" "$off" "$end"; then
+			dt_textbd "$id" "$r" "$c" "$w" "$cur" "$off" "$focused"
+			return 0
+		fi
+	fi
 	console pen "$DT_INK" "$DT_FACE"
 	t := str pad "$shown" "$w"
 	console put -p "w$id" "$r" "$c" "$t"
@@ -205,17 +219,61 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 		[ "$lo" -lt 0 ] && lo=0
 		[ "$hi" -gt "${#shown}" ] && hi=${#shown}
 		if [ "$lo" -lt "$hi" ]; then
+			lc=$lo
+			if [ "$plain" = 0 ]; then
+				lo := dt_clsnap "$shown" "$lo"
+				hi := dt_clfwd "$shown" "$hi"
+				lc := dt_clcol "$shown" "$lo"
+			fi
 			console pen "$DT_SELINK" "$DT_ACTIVE"
-			console put -p "w$id" "$r" $((c + lo)) "${shown:$lo:$((hi - lo))}"
+			console put -p "w$id" "$r" $((c + lc)) "${shown:$lo:$((hi - lo))}"
 		fi
 	fi
 	cur=$((cur - off))
-	if [ "$focused" = 1 ] && [ "$cur" -ge 0 ] && [ "$cur" -lt "$w" ]; then
-		ch=" "
-		[ "$cur" -lt "${#shown}" ] && ch="${shown:$cur:1}"
-		console pen "$DT_FACE" "$DT_INK" bold
-		console put -p "w$id" "$r" $((c + cur)) "$ch"
+	[ "$focused" = 1 ] && [ "$cur" -ge 0 ] || return 0
+	cc=$cur
+	j=$((cur + 1))
+	if [ "$plain" = 0 ]; then
+		cc := dt_clcol "$shown" "$cur"
+		j := dt_clnext "$shown" "$cur"
 	fi
+	[ "$cc" -lt "$w" ] || return 0
+	# The cursor is the whole cluster under it, letter and marks inverted
+	# together; marks with no letter of their own sit on a blank.
+	ch=" "
+	if [ "$cur" -lt "${#shown}" ]; then
+		ch="${shown:$cur:$((j - cur))}"
+		if [ "$plain" = 0 ]; then
+			t := str width "$ch"
+			[ "$t" = 0 ] && ch=" $ch"
+		fi
+	fi
+	console pen "$DT_FACE" "$DT_INK" bold
+	console put -p "w$id" "$r" $((c + cc)) "$ch"
+}
+
+# Draw a field of right-to-left text that bd_row has laid out: the row in
+# display order, then the selection and the cursor at the columns their
+# characters went to, each letter with its marks.
+fn dt_textbd(int id, int r, int c, int w, int cur, int off, int focused) {
+	local t lo hi col g
+
+	console pen "$DT_INK" "$DT_FACE"
+	t := str repeat " " "$w"
+	console put -p "w$id" "$r" "$c" "$t"
+	bd_put "$id" "$r" "$c"
+	[ "$focused" = 1 ] || return 0
+	if lo := dt_fieldrange; then
+		hi=${lo#* }
+		lo=${lo% *}
+		console pen "$DT_SELINK" "$DT_ACTIVE"
+		bd_sel "$id" "$r" "$c" "$off" "$lo" "$hi"
+	fi
+	col := bd_col $((cur - off))
+	[ "$col" -lt "$w" ] || return 0
+	g := bd_glyph "$col"
+	console pen "$DT_FACE" "$DT_INK" bold
+	console put -r -p "w$id" "$r" $((c + col)) "$g"
 }
 
 # Apply one key to a text field's own (text, cursor) pair, returned as
@@ -251,8 +309,8 @@ fn dt_textkey(text, int cur, key) {
 	shift-left | shift-right | shift-home | shift-end)
 		[ -n "$anc" ] || anc=$cur
 		case $key in
-		shift-left) [ "$cur" -gt 0 ] && cur=$((cur - 1)) ;;
-		shift-right) [ "$cur" -lt "${#text}" ] && cur=$((cur + 1)) ;;
+		shift-left) cur := dt_clprev "$text" "$cur" ;;
+		shift-right) cur := dt_clnext "$text" "$cur" ;;
 		shift-home) cur=0 ;;
 		shift-end) cur=${#text} ;;
 		esac
@@ -264,6 +322,8 @@ fn dt_textkey(text, int cur, key) {
 	# Something selected, and a key that acts on it: it goes, and a
 	# character typed takes its place.
 	if [ "$lo" != "$hi" ]; then
+		lo := dt_clsnap "$text" "$lo"
+		hi := dt_clfwd "$text" "$hi"
 		case $key in
 		left) cur=$lo ;;
 		right) cur=$hi ;;
@@ -287,8 +347,8 @@ fn dt_textkey(text, int cur, key) {
 		fi
 	fi
 	case $key in
-	left) [ "$cur" -gt 0 ] && cur=$((cur - 1)) ;;
-	right) [ "$cur" -lt "${#text}" ] && cur=$((cur + 1)) ;;
+	left) cur := dt_clprev "$text" "$cur" ;;
+	right) cur := dt_clnext "$text" "$cur" ;;
 	home) cur=0 ;;
 	end) cur=${#text} ;;
 	ctrl-u)
@@ -302,9 +362,11 @@ fn dt_textkey(text, int cur, key) {
 			cur=$((cur - 1))
 		fi
 		;;
+	# Backspace takes the last character, so a mistyped mark goes alone;
+	# delete takes the whole cluster after the cursor.
 	delete)
-		[ "$cur" -lt "${#text}" ] &&
-			text="${text:0:$cur}${text:$((cur + 1))}"
+		lo := dt_clnext "$text" "$cur"
+		text="${text:0:$cur}${text:$lo}"
 		;;
 	*)
 		if [ ${#key} = 1 ]; then
@@ -431,27 +493,62 @@ fn dt_fdtype(id, key, int k) {
 	done
 }
 
+# The index in window id's focused field of the cluster at column c of its
+# pane.
+fn dt_fdidx(id, int c) {
+	local fr fc fw t x off=${DT_FIELD["off"]:-0}
+
+	read -r fr fc fw <<< "${DT_FIELD["rect"]}"
+	t=$((c - fc))
+	[ "$t" -lt 0 ] && t=0
+	x=${DT_FIELD["text"]}
+	if ! dt_clplain "$x" && bd_row "$x" "$off" "${#x}"; then
+		t := bd_at "$t"
+	else
+		t := dt_clidx "${x:$off}" "$t"
+	fi
+	ret $((t + off))
+}
+
 # Move window id's focused field's cursor to column c of its pane, as a
 # selection's far end when ext is 1.
 fn dt_fdmove(id, int c, int ext) {
-	local fr fc fw t cur=${DT_FIELD["cur"]:-0} n=${#DT_FIELD["text"]} p=
+	local t
 
-	read -r fr fc fw <<< "${DT_FIELD["rect"]}"
-	t=$((c - fc + ${DT_FIELD["off"]:-0}))
+	t := dt_fdidx "$id" "$c"
+	dt_fdto "$id" "$t" "$ext"
+}
+
+# Move window id's focused field's cursor to index t, as a selection's far
+# end when ext is 1: typed into the app as arrows, one a cluster.
+fn dt_fdto(id, int t, int ext) {
+	local cur=${DT_FIELD["cur"]:-0} x=${DT_FIELD["text"]} p= k h
+
 	[ "$t" -lt 0 ] && t=0
-	[ "$t" -gt "$n" ] && t=$n
+	[ "$t" -gt "${#x}" ] && t=${#x}
+	t := dt_clsnap "$x" "$t"
 	# A plain move lets any selection go first: left over one goes to its
 	# start rather than one character back, which would land the cursor
 	# short of the press.
 	[ "$ext" = 1 ] && p=shift- || DT_FIELD["anc"]=
-	if [ -z "$p" ] && [ "$t" -lt $((cur > t ? cur - t : t - cur)) ]; then
-		dt_fdtype "$id" home 1
-		cur=0
+	if [ -z "$p" ]; then
+		h := dt_clcount "$x" 0 "$t"
+		if [ "$t" -gt "$cur" ]; then
+			k := dt_clcount "$x" "$cur" "$t"
+		else
+			k := dt_clcount "$x" "$t" "$cur"
+		fi
+		if [ "$h" -lt "$k" ]; then
+			dt_fdtype "$id" home 1
+			cur=0
+		fi
 	fi
 	if [ "$t" -gt "$cur" ]; then
-		dt_fdtype "$id" "${p}right" $((t - cur))
+		k := dt_clcount "$x" "$cur" "$t"
+		dt_fdtype "$id" "${p}right" "$k"
 	elif [ "$t" -lt "$cur" ]; then
-		dt_fdtype "$id" "${p}left" $((cur - t))
+		k := dt_clcount "$x" "$t" "$cur"
+		dt_fdtype "$id" "${p}left" "$k"
 	fi
 	dt_want 10
 }
@@ -512,10 +609,9 @@ fn dt_fdwordch(ch) {
 # Select the word at pane column c of window id's focused field; on a blank
 # or a punctuation mark, that one character.
 fn dt_fdword(id, int c) {
-	local fr fc fw t=${DT_FIELD["text"]} i lo hi off=${DT_FIELD["off"]:-0}
+	local t=${DT_FIELD["text"]} i lo hi
 
-	read -r fr fc fw <<< "${DT_FIELD["rect"]}"
-	i=$((c - fc + off))
+	i := dt_fdidx "$id" "$c"
 	[ "$i" -ge "${#t}" ] && i=$((${#t} - 1))
 	[ "$i" -ge 0 ] || return 0
 	lo=$i
@@ -528,8 +624,10 @@ fn dt_fdword(id, int c) {
 			hi=$((hi + 1))
 		done
 	fi
-	dt_fdmove "$id" $((fc + lo - off)) 0
-	dt_fdmove "$id" $((fc + hi - off)) 1
+	lo := dt_clsnap "$t" "$lo"
+	hi := dt_clfwd "$t" "$hi"
+	dt_fdto "$id" "$lo" 0
+	dt_fdto "$id" "$hi" 1
 }
 
 # Select the whole of window id's focused field.

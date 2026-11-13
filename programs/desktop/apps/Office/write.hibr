@@ -633,6 +633,10 @@ fn write_draw(int id, int h, int w, int row, int col) {
 	   [ "$ccol" -lt "$w" ]; then
 		line=${TB[$id][$cr]}
 		t=${line:$cc:1}
+		if ! dt_clplain "$line"; then
+			b := dt_clnext "$line" "$cc"
+			t=${line:$cc:$((b - cc))}
+		fi
 		st := wr_rows "$id" "$cr" 1 "$w"
 		read -ra ss <<< "$st"
 		b=${#WR_S}
@@ -681,9 +685,16 @@ fn wr_selection(int id, int w, int bh) {
 					u=$((a + BD_SRC[j]))
 					v=$u
 					[ "$i" != "${TB[$id]["cr"]}" ] && v := wr_rawcol "$id" "$i" "$u"
+					# A letter goes with the marks that share its column.
+					g=${BD_VIS:$j:1}
+					k=$((j + 1))
+					while [ "$k" -lt "${#BD_COL[@]}" ] && [ "${BD_COL[$k]}" = "${BD_COL[$j]}" ]; do
+						g+=${BD_VIS:$k:1}
+						k=$((k + 1))
+					done
 					[ "$v" -ge "$x0" ] && [ "$v" -lt "$x1" ] &&
-						console put -r -p "w$id" $((r + 2)) $((BD_COL[j] + 1)) "${BD_VIS:$j:1}"
-					j=$((j + 1))
+						console put -r -p "w$id" $((r + 2)) $((BD_COL[j] + 1)) "$g"
+					j=$k
 				done
 				r=$((r + 1))
 				continue

@@ -156,6 +156,7 @@ class Screen:
         # not a shape, so it is left out; a screen clear keeps the list.
         self.ptr = []
         self.last = ""
+        self.lastrc = (-1, -1)
         # Every APC control string since the start, through any clear: what
         # order they were sent in, which `apc` cannot say once a clear lands
         # between a display's wipe and its first picture.
@@ -326,11 +327,24 @@ class Screen:
             if ch == "\n":
                 i += 1
                 continue
+            # A zero-width character -- a mark, a joiner -- joins the cell
+            # drawn before it and moves nothing, as on a real terminal
+            # (Gitea #542): a model that gave a fatha a cell of its own put
+            # every column after it one out, and could not show a mark
+            # lost from its letter.
+            if unicodedata.category(ch) in ("Mn", "Me", "Cf"):
+                lr, lc = self.lastrc
+                if lr == self.r and 0 <= lc < self.c and \
+                        0 <= lr < self.rows and lc < self.cols:
+                    self.g[lr][lc] += ch
+                i += 1
+                continue
             self.last = ch
             wide = unicodedata.east_asian_width(ch) in ("W", "F")
             if 0 <= self.r < self.rows and 0 <= self.c < self.cols:
                 self.g[self.r][self.c] = ch
                 self.p[self.r][self.c] = self.pen
+                self.lastrc = (self.r, self.c)
                 # A wide character covers the next cell too, as it does on
                 # a real terminal -- whatever was there is gone, and a
                 # damage-based renderer never resends it.
@@ -450,12 +464,23 @@ class Screen:
     def at(self, r, c):
         return self.g[r][c]
 
+    def col(self, r, i):
+        """The column that index i of row r's joined text is in: a cell
+        holding a letter and its marks is several characters of the text
+        and one column."""
+        n = 0
+        for c, cell in enumerate(self.g[r]):
+            n += len(cell)
+            if n > i:
+                return c
+        return self.cols
+
     def find(self, s):
         """Where a string starts, as (row, col), or None."""
         for r in range(self.rows):
             c = "".join(self.g[r]).find(s)
             if c >= 0:
-                return r, c
+                return r, self.col(r, c)
         return None
 
     def find_from(self, s, minrow):
@@ -465,7 +490,7 @@ class Screen:
         for r in range(minrow, self.rows):
             c = "".join(self.g[r]).find(s)
             if c >= 0:
-                return r, c
+                return r, self.col(r, c)
         return None
 
     def text(self):

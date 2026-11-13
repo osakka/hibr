@@ -6706,6 +6706,64 @@ check("a click inside a selection puts the cursor there and lets it go",
 sc, _ = run(FX, feed=[b"\x1ba", b"Z"])
 check("Select All selects the whole field, wherever it is",
       sc.row(4)[6:9] == "Z  " and "hello" not in sc.row(4), sc.row(4))
+# A letter and the marks after it are one cluster in a field (Gitea #542):
+# the cursor steps over it whole, delete takes it whole, a click lands on
+# a cluster, and the cursor drawn on one shows the letter and its marks
+# together -- the cursor cell used to be drawn with the letter alone, so a
+# fatha vanished whenever the cursor was on its letter. The Latin text
+# keeps the columns free of right-to-left reordering; the Arabic one is
+# beh, fatha, shadda, teh, laid out right to left, so beh is the second
+# column.
+def fxc(text, cur):
+    return ('declare -gA FXC\n'
+            'FXCT=' + text + '\n'
+            'fn fxc_draw(int id, int h, int w, int row, int col) {\n'
+            '    dt_textdraw "$id" 2 2 30 "${FXC[$id]["t"]-$FXCT}" "${FXC[$id]["c"]:-' + cur + '}" 1\n'
+            '}\n'
+            'fn fxc_key(int id, key) {\n'
+            '    local r\n'
+            '    case $key in q | y) return 1 ;; esac\n'
+            '    r := dt_textkey "${FXC[$id]["t"]-$FXCT}" "${FXC[$id]["c"]:-' + cur + '}" "$key" || return 1\n'
+            '    FXC[$id]["t"]=${r% *}; FXC[$id]["c"]=${r##* }\n'
+            '}\n'
+            'dt_new "FXC" 8 40 2 4 fxc')
+ACUTE = r"$'xe\u0301y'"
+RIGHT, DEL = b"\x1b[C", b"\x1b[3~"
+sc, _ = run(fxc(ACUTE, "1"), feed=[b"\x1b[A"])
+check("the cursor on a letter with a mark draws the mark with it",
+      sc.g[4][7] == "e\u0301" and sc.g[4][8] == "y" and
+      sc.p[4][7] != sc.p[4][6], [sc.g[4][5:10]])
+sc, _ = run(fxc(ACUTE, "0"), feed=[RIGHT, RIGHT, b"Z"])
+check("an arrow steps over a letter and its mark at once",
+      "xe\u0301Zy" in "".join(sc.g[4]), [sc.g[4][5:10]])
+sc, _ = run(fxc(ACUTE, "1"), feed=[DEL])
+check("delete takes a letter and its mark together",
+      "".join(sc.g[4][6:9]) == "xy ", [sc.g[4][5:10]])
+sc, _ = run(fxc(ACUTE, "0"), feed=[press(4, 8), release(4, 8), b"Z"])
+check("a click after a letter with a mark lands after the mark",
+      "xe\u0301Zy" in "".join(sc.g[4]), [sc.g[4][5:10]])
+sc, _ = run(fxc(r"$'\u0628\u064e\u0651\u062a'", "0"), feed=[b"\x1b[A"])
+check("the cursor on beh keeps its fatha and shadda on it, where beh is drawn",
+      sc.g[4][7][1:] == "\u064e\u0651" and sc.g[4][6].strip() != "" and
+      sc.p[4][7] != sc.p[4][6], [sc.g[4][5:9]])
+# The textarea the same way: Stickies and the diagram editor step over a
+# letter and its mark at once, and draw the cursor on the two together.
+TBX = ('TBXT=' + ACUTE + '\n'
+       'fn tbx_draw(int id, int h, int w, int row, int col) {\n'
+       '    [ -n "${TB[$id]["n"]+x}" ] || tb_set "$id" "$TBXT"\n'
+       '    tb_draw "$id" 1 1 3 30 "$DT_INK" "$DT_FACE"\n'
+       '}\n'
+       'fn tbx_key(int id, key) {\n'
+       '    case $key in q | y) return 1 ;; esac\n'
+       '    tb_key "$id" "$key"\n'
+       '}\n'
+       'dt_new "TBX" 8 40 2 4 tbx')
+sc, _ = run(TBX, feed=[RIGHT])
+check("the textarea's cursor on a letter with a mark draws the mark with it",
+      sc.g[3][6] == "e\u0301" and sc.p[3][6] != sc.p[3][5], [sc.g[3][4:9]])
+sc, _ = run(TBX, feed=[RIGHT, RIGHT, b"Z"])
+check("and its arrow steps over the letter and its mark at once",
+      "xe\u0301Zy" in "".join(sc.g[3]), [sc.g[3][4:9]])
 UF = ('declare -gA UF\n'
       'fn uf_draw(int id, int h, int w, int row, int col) {\n'
       '    local f=${UF[$id]["f"]:-0}\n'
@@ -9912,4 +9970,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1073)
+report(1080)

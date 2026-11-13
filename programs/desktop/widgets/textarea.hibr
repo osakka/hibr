@@ -352,7 +352,7 @@ fn tb_key(int id, key) {
 		case $key in
 		left)
 			if [ "$cc" -gt 0 ]; then
-				cc=$((cc - 1))
+				cc := dt_clprev "$line" "$cc"
 			elif [ "$cr" -gt 0 ]; then
 				cr=$((cr - 1))
 				cc=${#TB[$id][$cr]}
@@ -360,7 +360,7 @@ fn tb_key(int id, key) {
 			;;
 		right)
 			if [ "$cc" -lt "${#line}" ]; then
-				cc=$((cc + 1))
+				cc := dt_clnext "$line" "$cc"
 			elif [ "$cr" -lt $((n - 1)) ]; then
 				cr=$((cr + 1))
 				cc=0
@@ -430,7 +430,8 @@ fn tb_key(int id, key) {
 		[ "$cc" -lt "${#line}" ] || [ "$cr" -lt $((n - 1)) ] || return 0
 		tb_snap "$id" del
 		if [ "$cc" -lt "${#line}" ]; then
-			TB[$id][$cr]="${line:0:$cc}${line:$((cc + 1))}"
+			rest := dt_clnext "$line" "$cc"
+			TB[$id][$cr]="${line:0:$cc}${line:$rest}"
 		else
 			TB[$id][$cr]="$line${TB[$id][$((cr + 1))]}"
 			tb_delline "$id" $((cr + 1))
@@ -486,7 +487,11 @@ fn tb_wrap(line, int w) {
 		seg=${line:$s:$w}
 		cut=${seg% *}
 		if [ "$cut" = "$seg" ] || [ -z "${cut// /}" ]; then
-			s=$((s + w))
+			# A word longer than a row is cut between clusters, never
+			# between a letter and its marks.
+			cut := dt_clsnap "$line" $((s + w))
+			[ "$cut" -gt "$s" ] || cut=$((s + w))
+			s=$cut
 		else
 			s=$((s + ${#cut} + 1))
 		fi
@@ -571,6 +576,7 @@ fn tb_vmove(int id, int d) {
 	if [ "$col" = "${v[2]}" ] && [ "${v[2]}" != "${#TB[$id][${v[0]}]}" ]; then
 		col=$((v[2] - 1))
 	fi
+	col := dt_clsnap "${TB[$id][${v[0]}]}" "$col"
 	TB[$id]["cr"]=${v[0]}
 	TB[$id]["cc"]=$col
 	TB[$id]["goal"]=$goal
@@ -625,10 +631,15 @@ fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "
 				[ "${v[0]}" != "$TB_ER" ] && [ "$b" = "${#TB[$id][${v[0]}]}" ] &&
 					b=$((b + 1))
 				if [ "$b" -gt "$a" ]; then
+					a := dt_clsnap "${TB[$id][${v[0]}]}" "$a"
+					b := dt_clfwd "${TB[$id][${v[0]}]}" "$b"
 					s=${TB[$id][${v[0]}]:$a:$((b - a))}
 					[ ${#s} -lt $((b - a)) ] && s="$s "
+					e=$((a - v[1]))
+					dt_clplain "${TB[$id][${v[0]}]}" ||
+						e := dt_clcol "${TB[$id][${v[0]}]:${v[1]}}" "$e"
 					console pen "$selink" "$act"
-					console put -p "w$id" $((r0 + r)) $((c0 + a - v[1])) "$s"
+					console put -p "w$id" $((r0 + r)) $((c0 + e)) "$s"
 				fi
 			fi
 		else
@@ -637,9 +648,20 @@ fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "
 		fi
 		r=$((r + 1))
 	done
+	read -ra v <<< "${TB[$id]["v$k"]}"
+	line=${TB[$id][${TB[$id]["cr"]}]}
+	if ! dt_clplain "$line"; then
+		col := dt_clcol "${line:${v[1]}}" "$col"
+	fi
 	if [ "$k" -ge "$top" ] && [ "$k" -lt $((top + h)) ] && [ "$col" -lt "$w" ]; then
-		e=${TB[$id][${TB[$id]["cr"]}]:${TB[$id]["cc"]}:1}
-		read -ra v <<< "${TB[$id]["v$k"]}"
+		# The cursor is the cluster under it, a letter with its marks.
+		e=${line:${TB[$id]["cc"]}:1}
+		if ! dt_clplain "$line"; then
+			s := dt_clnext "$line" "${TB[$id]["cc"]}"
+			e=${line:${TB[$id]["cc"]}:$((s - TB[$id]["cc"]))}
+			s := str width "$e"
+			[ "$s" = 0 ] && e=" $e"
+		fi
 		if bd_row "${TB[$id][${v[0]}]}" "${v[1]}" "${v[2]}"; then
 			col := bd_col $((TB[$id]["cc"] - v[1]))
 			e := bd_glyph "$col"
@@ -658,19 +680,14 @@ fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "
 # The selection over a right-to-left row laid out by bd_row: each drawn character
 # whose source is selected, at its column.
 fn tb_bdsel(int id, int r, int c0, int ln, int a, selink, act) {
-	local j=0 k x0=0 x1
+	local x0=0 x1
 
 	[ "$ln" -ge "$TB_SR" ] && [ "$ln" -le "$TB_ER" ] || return 0
 	x1=$((${#TB[$id][$ln]} + 1))
 	[ "$ln" = "$TB_SR" ] && x0=$TB_SC
 	[ "$ln" = "$TB_ER" ] && x1=$TB_EC
 	console pen "$selink" "$act"
-	while [ "$j" -lt "${#BD_COL[@]}" ]; do
-		k=$((a + BD_SRC[j]))
-		[ "$k" -ge "$x0" ] && [ "$k" -lt "$x1" ] &&
-			console put -r -p "w$id" "$r" $((c0 + BD_COL[j])) "${BD_VIS:$j:1}"
-		j=$((j + 1))
-	done
+	bd_sel "$id" "$r" "$c0" "$a" "$x0" "$x1"
 }
 
 # Where a point in the drawn text is, as "line col".
@@ -687,10 +704,13 @@ fn tb_at(int id, int mr, int mc) {
 		ret "${v[0]} $((v[1] + c))"
 		return 0
 	fi
-	c=$((v[1] + mc - ${TB[$id]["ocol"]:-1}))
-	[ "$c" -lt "${v[1]}" ] && c=${v[1]}
+	c=$((mc - ${TB[$id]["ocol"]:-1}))
+	[ "$c" -lt 0 ] && c=0
+	c := dt_clidx "${TB[$id][${v[0]}]:${v[1]}:$((v[2] - v[1]))}" "$c"
+	c=$((v[1] + c))
 	[ "$c" -gt "${v[2]}" ] && c=${v[2]}
 	[ "$c" = "${v[2]}" ] && [ "${v[2]}" != "${#TB[$id][${v[0]}]}" ] && c=$((c - 1))
+	c := dt_clsnap "${TB[$id][${v[0]}]}" "$c"
 	ret "${v[0]} $c"
 }
 
