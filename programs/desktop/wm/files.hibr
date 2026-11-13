@@ -380,6 +380,8 @@ fn dt_fieldedit(op) {
 
 	[ -n "$cb" ] || return 1
 	dt_fieldlive || return 1
+	# Text an input method holds is committed first, where it was typed.
+	dt_imedone
 	case $op in
 	copy | cut)
 		if ! t := dt_fieldsel || [ -z "$t" ]; then
@@ -413,12 +415,15 @@ fn dt_fieldedit(op) {
 			dt_notep low "Pasted the first %s characters of %s" \
 				"$DT_FIELDMAX" "$n"
 		fi
+		# Typed past any input method: a paste is text already.
+		DT_IMEBY=1
 		i=0
 		while [ "$i" -lt "${#t}" ]; do
 			c=${t:$i:1}
 			dt_appcall "$DT_FOCUS" "$cb" "$c" || true
 			i=$((i + 1))
 		done
+		DT_IMEBY=
 		return 0
 		;;
 	esac
@@ -454,6 +459,8 @@ fn dt_fieldundo(op) {
 	fi
 	t=${e#*$'\t'}
 	n=${e%%$'\t'*}
+	dt_imedone
+	DT_IMEBY=1
 	DT_FWANT=1
 	dt_appcall "$DT_FOCUS" "$cb" end || true
 	[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
@@ -474,6 +481,7 @@ fn dt_fieldundo(op) {
 		dt_appcall "$DT_FOCUS" "$cb" right || true
 		i=$((i + 1))
 	done
+	DT_IMEBY=
 	dt_want 10
 	return 0
 }

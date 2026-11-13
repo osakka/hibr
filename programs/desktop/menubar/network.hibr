@@ -42,7 +42,7 @@
 
 strict
 
-app network "The network on the menu bar and the connection it watches" 1.4.1
+app network "The network on the menu bar and the connection it watches" 1.4.2
 
 # The state: kind (nm, ip, none, or gone for a NetworkManager that went;
 # empty until the first frame looks), why (the system asked for that did
@@ -1466,7 +1466,7 @@ fn netpw_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 4 2 "$t"
 	t=${NPW[$id]["pass"]}
 	[ "${NPW[$id]["show"]}" = 1 ] || t := str repeat "*" "${#t}"
-	dt_textdraw "$id" 4 13 "$fw" "$t" "${NPW[$id]["passcur"]}" 1
+	dt_textdraw "$id" 4 13 "$fw" "$t" "${NPW[$id]["passcur"]}" 1 "" 1
 	dt_wreg "$id" 4 13 "$fw" pass
 	dt_check "$id" 6 13 "${NPW[$id]["show"]}" "Show the password" show
 	dt_button "$id" 8 $((w - 22)) "Cancel" 0 cancel

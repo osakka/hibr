@@ -746,7 +746,9 @@ fn dsv_draw(int id, int h, int w, int row, int col) {
 			t := str repeat "*" "${#t}"
 			dt_signmark "$id" "$r" $((13 + fw - 1)) && x=$((fw - 2))
 		fi
-		dt_textdraw "$id" "$r" 13 "$x" "$t" "${DSV[$id]["${k}cur"]}" "$on"
+		local sec=
+		[ "$k" = pass ] && sec=1
+		dt_textdraw "$id" "$r" 13 "$x" "$t" "${DSV[$id]["${k}cur"]}" "$on" "" "$sec"
 		if [ "$k" = pass ] && [ -z "${DSV[$id]["pass"]}" ] &&
 		   [ "${DSV[$id]["haspass"]}" = 1 ] && [ "$on" = 0 ]; then
 			console pen "$DT_DIM" "$DT_FACE"

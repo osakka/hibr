@@ -192,7 +192,7 @@ fn pkauth_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" "$r" 2 "$t"
 	t=${PKA[$id]["pass"]}
 	t := str repeat "*" "${#t}"
-	dt_textdraw "$id" "$r" 13 "$fw" "$t" "${PKA[$id]["passcur"]}" 1
+	dt_textdraw "$id" "$r" 13 "$fw" "$t" "${PKA[$id]["passcur"]}" 1 "" 1
 	dt_wreg "$id" "$r" 13 "$fw" pass
 	r=$((r + 2))
 	dt_button "$id" "$r" $((w - 28)) "Cancel" 0 cancel

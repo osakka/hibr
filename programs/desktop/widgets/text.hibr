@@ -158,8 +158,8 @@ dt_fieldlive() {
 		[ "${DT_FIELD["live"]}" = 1 ]
 }
 
-fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = "") {
-	local shown t ch lo hi off=0 most plain=1 end lc cc j
+fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = "", secret = "") {
+	local shown t ch lo hi off=0 most plain=1 end lc cc j pre= plo=0
 
 	[[ $text != *[!\ -~]* ]] || plain=0
 	DT_TEXTAT["$id"]+="$r $c $w|"
@@ -186,6 +186,7 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 		DT_FIELD["cur"]=$cur
 		DT_FIELD["live"]=1
 		DT_FIELD["paste"]=$paste
+		DT_FIELD["secret"]=$secret
 		[ -n "${DT_FIELD["anc"]}" ] && [ "${DT_FIELD["anc"]}" -gt "${#text}" ] &&
 			DT_FIELD["anc"]=${#text}
 		[ -z "$DT_FDPEND" ] || dt_fdtake "$id" "$r" "$c" "$w"
@@ -196,6 +197,17 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 		# the next draw with the keys must agree with what was clicked.
 		DT_FIELD["off"]=0
 	fi
+	# Text an input method holds is drawn where it will go, underlined, the
+	# cursor after it; the field's own text and cursor are left as they are.
+	if [ "$focused" = 1 ] && [ -n "${DT_IMEPRE-}" ] && [ "$secret" != 1 ] &&
+	   pre := dt_imepre "$id" "$id $r $c"; then
+		plo=$cur
+		text="${text:0:$cur}$pre${text:$cur}"
+		cur=$((cur + ${#pre}))
+		[[ $text != *[!\ -~]* ]] || plain=0
+		[ "$w" -gt 0 ] && [ "$cur" -gt $((off + w - 1)) ] && off=$((cur - w + 1))
+		[ "$plain" = 1 ] || off := dt_clsnap "$text" "$off"
+	fi
 	shown="${text:$off:$w}"
 	# A field never draws half a cluster: the marks after the last letter
 	# shown are shown with it.
@@ -205,7 +217,7 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 		# Right-to-left text is laid out as the textarea's is, so the
 		# cursor and the selection land where their characters were drawn.
 		if bd_row "$text" "$off" "$end"; then
-			dt_textbd "$id" "$r" "$c" "$w" "$cur" "$off" "$focused"
+			dt_textbd "$id" "$r" "$c" "$w" "$cur" "$off" "$focused" "$plo" "${#pre}"
 			return 0
 		fi
 	fi
@@ -228,6 +240,13 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 			console put -p "w$id" "$r" $((c + lc)) "${shown:$lo:$((hi - lo))}"
 		fi
+	fi
+	if [ -n "$pre" ] && [ "$plo" -ge "$off" ]; then
+		lo=$((plo - off))
+		lc=$lo
+		[ "$plain" = 1 ] || lc := dt_clcol "$shown" "$lo"
+		console pen "$DT_INK" "$DT_FACE" underline
+		console put -p "w$id" "$r" $((c + lc)) "${shown:$lo:${#pre}}"
 	fi
 	cur=$((cur - off))
 	[ "$focused" = 1 ] && [ "$cur" -ge 0 ] || return 0
@@ -255,7 +274,7 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = 
 # Draw a field of right-to-left text that bd_row has laid out: the row in
 # display order, then the selection and the cursor at the columns their
 # characters went to, each letter with its marks.
-fn dt_textbd(int id, int r, int c, int w, int cur, int off, int focused) {
+fn dt_textbd(int id, int r, int c, int w, int cur, int off, int focused, int plo = 0, int pn = 0) {
 	local t lo hi col g
 
 	console pen "$DT_INK" "$DT_FACE"
@@ -268,6 +287,10 @@ fn dt_textbd(int id, int r, int c, int w, int cur, int off, int focused) {
 		lo=${lo% *}
 		console pen "$DT_SELINK" "$DT_ACTIVE"
 		bd_sel "$id" "$r" "$c" "$off" "$lo" "$hi"
+	fi
+	if [ "$pn" -gt 0 ]; then
+		console pen "$DT_INK" "$DT_FACE" underline
+		bd_sel "$id" "$r" "$c" "$off" "$plo" $((plo + pn))
 	fi
 	col := bd_col $((cur - off))
 	[ "$col" -lt "$w" ] || return 0
@@ -304,6 +327,33 @@ fn dt_textkey(text, int cur, key) {
 		lo=$anc
 		hi=$cur
 		[ "$lo" -gt "$hi" ] && { lo=$cur; hi=$anc; }
+	fi
+	# An input method takes the key first (Gitea #543), in the focused field
+	# and never in a secret one; what it commits replaces a selection, as
+	# typing does, and a key it passes then does what it always did.
+	if [ -n "${DT_IME-}" ] && [ "$own" = 1 ] && [ "${DT_FIELD["secret"]}" != 1 ] &&
+	   dt_imekey "$key" "${DT_FIELD["at"]}"; then
+		if [ "$DT_IMEP" != 1 ]; then
+			if [ -n "$DT_IMEC" ] || [ "$lo" != "$hi" ]; then
+				text="${text:0:$lo}$DT_IMEC${text:$hi}"
+				cur=$((lo + ${#DT_IMEC}))
+			fi
+			dt_textown "$own" "$text" "$cur" ""
+			ret "$text $cur"
+			return 0
+		fi
+		# The key goes on, and the caller may not take an answer for a key
+		# it does its own thing with -- enter, tab -- so what was committed
+		# is typed into the window first, as a paste is, and the key then
+		# acts on the field as it now stands.
+		if [ -n "$DT_IMEC" ]; then
+			dt_imetype "${DT_FIELD["id"]}" "${DT[${DT_FIELD["id"]}]["key"]}" "$DT_IMEC"
+			text="${text:0:$lo}$DT_IMEC${text:$hi}"
+			cur=$((lo + ${#DT_IMEC}))
+			anc=
+			lo=$cur
+			hi=$cur
+		fi
 	fi
 	case $key in
 	shift-left | shift-right | shift-home | shift-end)
@@ -487,6 +537,8 @@ fn dt_fdtype(id, key, int k) {
 	local cb=${DT[$id]["key"]}
 
 	[ -n "$cb" ] || return 0
+	# A press commits what an input method holds before the cursor moves.
+	[ -z "${DT_IMEPRE-}" ] || dt_imedone
 	while [ "$k" -gt 0 ]; do
 		dt_appcall "$id" "$cb" "$key" || true
 		k=$((k - 1))

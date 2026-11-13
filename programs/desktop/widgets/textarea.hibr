@@ -305,6 +305,12 @@ fn tb_insert(int id, text) {
 # One key. The arrows move by what is on screen: up and down go to the row
 # above or below as wrapped, keeping the column they set out from.
 fn tb_key(int id, key) {
+	# An input method takes the key first (Gitea #543): what it commits goes
+	# in as typing does, and a key it passes then does what it always did.
+	if [ -n "${DT_IME-}" ] && dt_imekey "$key" "tb $id"; then
+		[ -n "$DT_IMEC" ] && tb_insert "$id" "$DT_IMEC"
+		[ "$DT_IMEP" = 1 ] || return 0
+	fi
 	local n=${TB[$id]["n"]} cr=${TB[$id]["cr"]} cc=${TB[$id]["cc"]}
 	local line=${TB[$id][$cr]} rest shift=0 vis=${TB[$id]["vis"]:-10}
 
@@ -584,6 +590,38 @@ fn tb_vmove(int id, int d) {
 
 # --- drawing and the mouse --------------------------------------------------
 
+# What an input method holds for textarea id is put into its line at the
+# cursor for one draw, the cursor after it, and taken out again after
+# (tb_preoff): the buffer, its undo and its version never see it.
+TB_PRE=
+TB_PRECR=
+TB_PRELINE=
+TB_PRECC=
+
+# Put what an input method holds into textarea id's line for this draw.
+fn tb_preon(int id) {
+	local p
+
+	TB_PRE=
+	[ -n "${DT_IMEPRE-}" ] && p := dt_imepre "$id" "tb $id" || return 0
+	TB_PRE=$p
+	TB_PRECR=${TB[$id]["cr"]}
+	TB_PRECC=${TB[$id]["cc"]}
+	TB_PRELINE=${TB[$id][$TB_PRECR]}
+	TB[$id][$TB_PRECR]="${TB_PRELINE:0:$TB_PRECC}$p${TB_PRELINE:$TB_PRECC}"
+	TB[$id]["cc"]=$((TB_PRECC + ${#p}))
+	TB[$id]["lv"]=
+}
+
+# Take it out again.
+fn tb_preoff(int id) {
+	[ -n "$TB_PRE" ] || return 0
+	TB[$id][$TB_PRECR]=$TB_PRELINE
+	TB[$id]["cc"]=$TB_PRECC
+	TB[$id]["lv"]=
+	TB_PRE=
+}
+
 # Draw h rows of w columns at r0 c0 of the window's pane: the text wrapped,
 # the selection over it, the cursor on top.
 fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "") {
@@ -592,6 +630,7 @@ fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "
 
 	selink=${selink:-$DT_SELINK}
 	act=${act:-$DT_ACTIVE}
+	tb_preon "$id"
 	tb_layout "$id" "$w"
 	TB[$id]["vis"]=$h
 	vn=${TB[$id]["vn"]}
@@ -675,6 +714,7 @@ fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "
 	# so a Redo after an Undo put a row number where the text had been.
 	TB[$id]["orow"]=$r0
 	TB[$id]["ocol"]=$c0
+	tb_preoff "$id"
 }
 
 # The selection over a right-to-left row laid out by bd_row: each drawn character

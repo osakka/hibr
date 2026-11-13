@@ -6764,6 +6764,47 @@ check("the textarea's cursor on a letter with a mark draws the mark with it",
 sc, _ = run(TBX, feed=[RIGHT, RIGHT, b"Z"])
 check("and its arrow steps over the letter and its mark at once",
       "xe\u0301Zy" in "".join(sc.g[3]), [sc.g[3][4:9]])
+# An input method types in the desktop's own text (Gitea #543), through the
+# harness's stand-in for hibr-ime: a field shows what it holds at the
+# cursor, underlined, and the field's own text is untouched until it is
+# committed; a key it has no use for commits it and then does its own job;
+# Escape drops it; a password field never asks it; and what was held when
+# the keys moved to another window is committed in the window it was typed
+# in, not the one that has the keys now.
+IME = screen.IME_STANDIN
+FXI = ('declare -gA FXI\n'
+       'fn fxi_draw(int id, int h, int w, int row, int col) {\n'
+       '    dt_textdraw "$id" 2 2 30 "${FXI[$id]["t"]-}" "${FXI[$id]["c"]:-0}" '
+       '"$([ "$DT_FOCUS" = "$id" ] && echo 1 || echo 0)" "" "${FXI[$id]["s"]-}"\n'
+       '}\n'
+       'fn fxi_key(int id, key) {\n'
+       '    local r\n'
+       '    case $key in q | y) return 1 ;; esac\n'
+       '    r := dt_textkey "${FXI[$id]["t"]-}" "${FXI[$id]["c"]:-0}" "$key" || return 1\n'
+       '    FXI[$id]["t"]=${r% *}; FXI[$id]["c"]=${r##* }\n'
+       '}\n')
+UP = b"\x1b[A"
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi', feed=[b"s", b"a"], pre=IME)
+check("a field shows what an input method holds at its cursor, underlined",
+      sc.row(4)[6:10] == "<sa>" and sc.p[4][6] != sc.p[4][5], sc.row(4))
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi', feed=[b"s", b"a", b" ", b"x", UP], pre=IME)
+check("a key it has no use for commits what it holds and then does its own job",
+      sc.row(4)[6:15] == "<sa> <x> ", sc.row(4))
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi', feed=[b"s", b"a", b"\x1b", UP, b"b", UP],
+            pre=IME)
+check("and Escape drops what it holds",
+      sc.row(4)[6:10] == "<b> ", sc.row(4))
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi\nFXI[$DT_FOCUS]["s"]=1',
+            feed=[b"s", b"a", UP], pre=IME)
+check("a password field never asks it",
+      sc.row(4)[6:9] == "sa " and "<" not in sc.row(4), sc.row(4))
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi\ndt_new "FXI" 8 40 12 4 fxi',
+            feed=[b"s", b"a", press(5, 30), release(5, 30), UP], pre=IME)
+check("what it held goes to the window it was typed in when the keys move",
+      sc.row(14)[6:10] == "<sa>" and "<" not in sc.row(4), [sc.row(4), sc.row(14)])
+sc, _ = run(TBX, feed=[b"s", b"a", b" ", UP], pre=IME)
+check("and the textarea takes it as typing",
+      "<sa> xéy" in "".join(sc.g[3]), [sc.g[3][4:14]])
 UF = ('declare -gA UF\n'
       'fn uf_draw(int id, int h, int w, int row, int col) {\n'
       '    local f=${UF[$id]["f"]:-0}\n'
@@ -9970,4 +10011,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1080)
+report(1086)

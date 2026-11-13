@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.8.2
+app term "A shell in a window" 1.8.3
 # part: control-panel/terminal.hibr
 # modules: pty term
 
@@ -285,7 +285,7 @@ fn tw_fit(int id, int h, int w) {
 }
 
 fn term_draw(int id, int h, int w, int row, int col) {
-	local t st sb cur=0 ms tw view stored n want rgb c note ttl
+	local t st sb cur=0 ms tw view stored n want rgb c note ttl pre at
 
 	tw=$w
 	# A visible scrollbar costs the program inside a real column, not just
@@ -427,6 +427,16 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	[ "$DT_TERMBAR" = 1 ] &&
 		dt_scrollbar "$id" 1 "$w" "$h" $((stored + h)) "$h" \
 			$((stored - view)) back
+	# Text an input method holds is drawn at the program's cursor,
+	# underlined, until it is committed to the program (Gitea #543).
+	TW[$id]["drawnpre"]=
+	if [ -n "${DT_IMEPRE-}" ] && pre := dt_imepre "$id" term &&
+	   at := term cursor "$t"; then
+		read -r view stored n <<< "$at"
+		console pen "$DT_INK" "$DT_FACE" underline
+		console put -p "w$id" $((view + 1)) $((stored + 1)) "$pre"
+		TW[$id]["drawnpre"]=$pre
+	fi
 	return 0
 }
 
@@ -472,6 +482,12 @@ fn term_key(int id, key) {
 		TW[$id]["held"]=
 		term select "$t" none
 		return 0
+	fi
+	# An input method takes the key first (Gitea #543): what it commits
+	# goes to the program as typed text, and a key it passes goes on.
+	if [ -n "${DT_IME-}" ] && dt_imekey "$key" term; then
+		[ -n "$DT_IMEC" ] && term write "$t" "$DT_IMEC"
+		[ "$DT_IMEP" = 1 ] || return 0
 	fi
 	term key "$t" "$key"
 }
@@ -746,7 +762,7 @@ fn term_paintsall(int id) {
 }
 
 fn term_dirty(int id) {
-	local t=${TW[$id]["t"]} g v foc=0
+	local t=${TW[$id]["t"]} g v foc=0 p=
 
 	# No program yet: tw_fit is in _draw and is what starts one.
 	[ -n "$t" ] || return 0
@@ -780,6 +796,9 @@ fn term_dirty(int id) {
 	# clean here kept drawing the old shape until something else dirtied
 	# it -- the frame that change asked for came and skipped it (#261).
 	[ "${TW[$id]["drawncur"]}" = "$DT_CURSOR" ] || return 0
+	# And what an input method holds at its cursor, which no byte brings.
+	[ -n "${DT_IMEPRE-}" ] && p := dt_imepre "$id" term
+	[ "${TW[$id]["drawnpre"]-}" = "$p" ] || return 0
 	return 1
 }
 

@@ -1,0 +1,180 @@
+#!/usr/bin/env hibr
+#
+# wm/ime -- typing through an input method in the desktop's own text (Gitea
+# #543). The methods are hibr-ime's (`ime`, a module of its own package):
+# keys go in, and out come the text held under the caret, the preedit, and
+# the text committed. Which method types is the keyboard's choice: the
+# current keyboard's variant, when the ime module has a method of that
+# name. Blit names Arabic (Arabizi) `arabizi`, and converts in program
+# windows itself; the desktop converts in its own one-line fields, its
+# textareas and its terminal windows. No method is named in this tree.
+#
+# A key reaches the method only where it is about to become text: the field
+# widget, the textarea and the terminal window ask dt_imekey, never the
+# desktop's key dispatch, so a game's letters, a menu's and a dialog's
+# answers are never held. A field drawn as a secret (a password) never
+# asks. One engine is enough, since one place has the keys; what it holds
+# belongs to the window it was typed in, and is committed there -- typed
+# into that window's _key -- when the keys move away or the keyboard
+# changes, before anything else is drawn.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# The method typing now, its engine, and the keyboard it was chosen for.
+DT_IME=
+DT_IMEH=
+DT_IMEKB=
+# What the last key left: the preedit, the text it committed and whether
+# the key itself then passes to the caller.
+DT_IMEPRE=
+DT_IMEC=
+DT_IMEP=
+# The window and the place in it the held text belongs to: a field's
+# "id row col", "tb ID" for a textarea, "term" for a terminal window.
+DT_IMEWIN=
+DT_IMEAT=
+# Set while the desktop types into a window for itself -- committing held
+# text, an undo, a paste -- so those keys go straight to the text.
+DT_IMEBY=
+# Whether the ime module is there (1, 0, or not yet asked), and the methods
+# that would not open, so neither is asked again every frame.
+DT_IMEMOD=
+DT_IMEBAD=
+
+# The method the current keyboard names, or status 1: its variant, when the
+# ime module has a method of that name that opens.
+fn dt_imemethod() {
+	local v
+
+	[ "${DT_KBCUR:--1}" -ge 0 ] || return 1
+	v=${DT_KB[$DT_KBCUR]["variant"]-}
+	[ -n "$v" ] || return 1
+	case " $DT_IMEBAD " in *" $v "*) return 1 ;; esac
+	if [ -z "$DT_IMEMOD" ]; then
+		DT_IMEMOD=0
+		need ime 2> /dev/null && DT_IMEMOD=1
+	fi
+	[ "$DT_IMEMOD" = 1 ] || return 1
+	ret "$v"
+}
+
+# Once a frame, before anything is drawn: the method follows the keyboard,
+# and text held for a window that no longer has the keys is committed there.
+dt_imecheck() {
+	local m= h k=
+
+	# The keyboard as it stands; nothing to do while it has not moved and
+	# nothing is held for a window that lost the keys.
+	[ "${DT_KBCUR:--1}" -ge 0 ] && k="$DT_KBCUR ${DT_KB[$DT_KBCUR]["variant"]-}"
+	if [ "$k" = "$DT_IMEKB" ]; then
+		[ -n "$DT_IMEPRE" ] && [ "$DT_FOCUS" != "$DT_IMEWIN" ] && dt_imedone
+		return 0
+	fi
+	DT_IMEKB=$k
+	m := dt_imemethod || m=
+	if [ "$m" != "$DT_IME" ]; then
+		dt_imedone
+		[ -n "$DT_IMEH" ] && dt_imeclose
+		DT_IME=
+		DT_IMEH=
+		if [ -n "$m" ]; then
+			if h := dt_imeopen "$m"; then
+				DT_IME=$m
+				DT_IMEH=$h
+				dt_log "ime: typing through $m"
+			else
+				DT_IMEBAD+=" $m"
+				dt_notep low "The %s input method is not installed" "$m"
+			fi
+		fi
+	fi
+	[ -n "$DT_IMEPRE" ] && [ "$DT_FOCUS" != "$DT_IMEWIN" ] && dt_imedone
+	return 0
+}
+
+# Commit whatever is held into the window it was typed in, as typing, and
+# hold nothing; a window that has gone loses it.
+dt_imedone() {
+	local c win=$DT_IMEWIN cb
+
+	[ -n "$DT_IMEPRE" ] && [ -n "$DT_IMEH" ] || { DT_IMEPRE=; return 0; }
+	DT_IMEPRE=
+	c := dt_imeflush || return 0
+	[ -n "$c" ] && [ -n "$win" ] && cb=${DT[$win]["key"]-} || return 0
+	[ -n "$cb" ] || return 0
+	dt_imetype "$win" "$cb" "$c"
+}
+
+# Type text into window id's _key cb a character at a time, past the method.
+fn dt_imetype(id, cb, text) {
+	local i=0
+
+	DT_IMEBY=1
+	while [ "$i" -lt "${#text}" ]; do
+		dt_appcall "$id" "$cb" "${text:$i:1}" || true
+		i=$((i + 1))
+	done
+	DT_IMEBY=
+	dt_want 10
+}
+
+# Hand a key typed into the focused window's text to the method, from at,
+# the place it is typed in. Status 1 when no method takes it, and the caller
+# does what it always did; otherwise DT_IMEC is the text to put in first and
+# DT_IMEP is 1 when the caller then acts on the key itself. A key with no
+# character of its own is the caller's while nothing is held.
+fn dt_imekey(key, at) {
+	[ -n "$DT_IME" ] && [ -z "$DT_IMEBY" ] && [ -n "$DT_FOCUS" ] || return 1
+	[ "${#key}" = 1 ] || [ -n "$DT_IMEPRE" ] || return 1
+	if [ -n "$DT_IMEPRE" ] && [ "$DT_IMEAT" != "$at" ]; then
+		dt_imedone
+		[ "${#key}" = 1 ] || return 1
+	fi
+	dt_imefeed "$key" || return 1
+	DT_IMEWIN=$DT_FOCUS
+	DT_IMEAT=$at
+	dt_want 10
+	return 0
+}
+
+# The module itself, in four calls and nowhere else, so a test can stand in
+# for hibr-ime: an engine opened for method m, its handle the answer.
+fn dt_imeopen(m) {
+	local h
+
+	h := ime open "$m" 2> /dev/null || return 1
+	ret "$h"
+}
+
+# The engine closed.
+dt_imeclose() {
+	ime close "$DT_IMEH" 2> /dev/null
+	return 0
+}
+
+# Everything the engine holds, committed.
+dt_imeflush() {
+	local c
+
+	c := ime flush "$DT_IMEH" 2> /dev/null || return 1
+	ret "$c"
+}
+
+# One key fed to the engine: DT_IMEC, DT_IMEP and DT_IMEPRE as it answers.
+fn dt_imefeed(key) {
+	local r
+
+	r := ime feed "$DT_IMEH" "$key" 2> /dev/null || return 1
+	DT_IMEC=${RET[0]}
+	DT_IMEP=${RET[1]}
+	DT_IMEPRE=${RET[2]}
+}
+
+# The preedit held for place at of window id, or status 1.
+fn dt_imepre(int id, at) {
+	[ -n "$DT_IMEPRE" ] && [ "$DT_IMEWIN" = "$id" ] && [ "$DT_IMEAT" = "$at" ] || return 1
+	ret "$DT_IMEPRE"
+}

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.517
+
+**Typing through an input method in the desktop's own text** (Gitea #543).
+With hibr-ime installed -- a package of its own, not part of hibr -- the
+desktop types through the method the current keyboard names: Blit's
+"Arabic (Arabizi)" keyboard is `arabizi`, so `salam` becomes سلام in a
+desktop field just as it already did in a program window, which Blit
+converts itself. What the method holds is drawn where it will go,
+underlined: inside a one-line field (right to left where it is Arabic), in
+the textarea of Stickies, the diagram editor and Write's plain text, at
+the cursor in Write's markdown view, and at the program's cursor in a
+terminal window. A key the method has no use for commits what it holds and
+then does its own job; Escape drops it. A key reaches the method only where
+it is about to become text -- the field widget, the textarea and the
+terminal ask, never the desktop's key dispatch -- so a game's letters, a
+menu's and a dialog's answers are never held. Password fields never ask it:
+`dt_textdraw` takes a `secret` argument, and the six masked fields (polkit,
+Network, Mail's account, network servers, the Vault and `dt_ask` with
+`masked`) pass it. What was held when the keys moved to another window is
+committed in the window it was typed in, before the next frame; a click in
+a field, Undo, Cut and Paste commit it first. No method is named in hibr's
+tree, and the module is reached through four calls (`wm/ime.hibr`), which
+the suites replace with a stand-in (`screen.IME_STANDIN`); hibr-ime's own
+tests drive the real one. Eight checks.
+
+Catalogue: Write 1.7.2, Terminal 1.8.3, the Mail pane 1.4.1 and Network
+1.4.2, each needing 0.99.517.
+
 ## 0.99.516
 
 **Tashkeel in the desktop's text** (Gitea #542). A letter and every

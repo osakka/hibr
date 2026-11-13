@@ -419,6 +419,9 @@ dt_draw() {
 	local l id n0 n1 t0
 	local -a ls
 
+	# Before the frame: held text whose window lost the keys is typed into
+	# it, which is a call into the app and must not be inside a frame.
+	dt_imecheck
 	DT_INDRAW=1
 	[ -n "$DT_STATON" ] && DT_TMARK=${EPOCHREALTIME/./}
 	DT_WANT=

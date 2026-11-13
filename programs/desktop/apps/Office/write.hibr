@@ -19,7 +19,7 @@
 
 strict
 
-app write "A word processor for markdown, shown as it reads" 1.7.1
+app write "A word processor for markdown, shown as it reads" 1.7.2
 # modules: md mermaid
 
 command -v dt_app > /dev/null && dt_app write "Write" 22 78 many "¶"
@@ -651,6 +651,12 @@ fn write_draw(int id, int h, int w, int row, int col) {
 		fi
 		console pen "$DT_FACE" "$DT_INK"
 		console put -r -p "w$id" $((crow - top + 2)) $((ccol + 1)) "${t:- }"
+		# What an input method holds, at the cursor and underlined, until
+		# it is committed (Gitea #543).
+		if [ -n "${DT_IMEPRE-}" ] && t := dt_imepre "$id" "tb $id"; then
+			console pen "$DT_INK" "$DT_FACE" underline
+			console put -p "w$id" $((crow - top + 2)) $((ccol + 1)) "$t"
+		fi
 	fi
 	wr_status "$id" "$h" "$w"
 	wr_retitle "$id"

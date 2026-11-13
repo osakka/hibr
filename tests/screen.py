@@ -27,6 +27,36 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HIBR = os.environ.get("HIBR") or os.path.join(ROOT, "build/hibr")
 ROWS, COLS = 24, 80
 
+# A stand-in for hibr-ime's module, which these suites cannot depend on
+# (Gitea #543): a session that adds this has a second keyboard, current,
+# naming the method "shout", whose engine holds letters and commits them in
+# angle brackets -- "sa" then a space is "<sa>" and the space. It answers
+# in the module's own shape: what is held as the preedit, Escape dropping
+# it, and every other key committing what is held and passing. It replaces
+# wm/ime.hibr's four calls into the module, so everything above them is the
+# desktop's own code. hibr-ime's own tests drive the real module.
+IME_STANDIN = r"""DT_IMEMOD=1
+DT_KB[0]["layout"]=us; DT_KB[0]["variant"]=; DT_KB[0]["name"]=US
+DT_KB[1]["layout"]=xx; DT_KB[1]["variant"]=shout; DT_KB[1]["name"]=Shout
+DT_KBN=2; DT_KBCUR=1
+IMEH=
+fn dt_imeopen(m) { IMEH=; ret 1; }
+dt_imeclose() { return 0; }
+dt_imeflush() { local t=; [ -n "$IMEH" ] && t="<$IMEH>"; IMEH=; ret "$t"; }
+fn dt_imefeed(key) {
+	DT_IMEC= DT_IMEP=0
+	case $key in
+	[a-z]) IMEH+=$key ;;
+	backspace) if [ -n "$IMEH" ]; then IMEH=${IMEH%?}; else DT_IMEP=1; fi ;;
+	escape) if [ -n "$IMEH" ]; then IMEH=; else DT_IMEP=1; fi ;;
+	*) [ -n "$IMEH" ] && DT_IMEC="<$IMEH>"; IMEH=; DT_IMEP=1 ;;
+	esac
+	DT_IMEPRE=
+	[ -n "$IMEH" ] && DT_IMEPRE="<$IMEH>"
+	return 0
+}
+"""
+
 # Somewhere of each run's own for anything a program under test saves --
 # the desktop's settings above all.  Without it a test that changes the
 # theme changes the owner's theme, and the next test starts from it.  A

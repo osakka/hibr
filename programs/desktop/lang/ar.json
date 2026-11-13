@@ -103,6 +103,7 @@
   "%s is loaded already": "%s محمَّلة بالفعل",
   "%s is not answering": "%s لا يستجيب",
   "%s is not installed. Find it in the Catalogue.": "%s غير مثبّت. ابحث عنه في الفهرس.",
+  "The %s input method is not installed": "طريقة الإدخال %s غير مثبّتة",
   "%s is not loaded": "%s غير محمَّلة",
   "%s is now %s": "أصبح %s الآن %s",
   "%s is on every workspace": "%s على كل مساحات العمل",

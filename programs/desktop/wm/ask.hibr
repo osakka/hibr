@@ -77,7 +77,7 @@ fn dtask_draw(int id, int h, int w, int row, int col) {
 	x := dt_askx "$id"
 	v=${DTA[$id]["buf"]}
 	[ "${DTA[$id]["masked"]}" = 1 ] && v := str repeat '*' "${#v}"
-	dt_textdraw "$id" 1 "$x" $((w - x - 2)) "$v" "${DTA[$id]["cur"]}" "$on"
+	dt_textdraw "$id" 1 "$x" $((w - x - 2)) "$v" "${DTA[$id]["cur"]}" "$on" "" "${DTA[$id]["masked"]}"
 	dt_wreg "$id" 1 "$x" $((w - x - 2)) text
 	console pen "$DT_DIM" "$DT_FACE"
 	while [ "$i" -lt "${DTA[$id]["hn"]:-0}" ] && [ $((3 + i)) -lt $((h - 2)) ]; do

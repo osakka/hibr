@@ -753,7 +753,9 @@ fn vwd_draw(int id, int h, int w, int row, int col) {
 		# secret worth hiding, and a YubiKey types forty-four characters
 		# that a person needs to see go in.
 		[ "$k" = pass ] && t := str repeat "*" "${#t}"
-		dt_textdraw "$id" "$r" 13 "$fw" "$t" "${VWD[$id]["${k}cur"]}" "$on"
+		local sec=
+		[ "$k" = pass ] && sec=1
+		dt_textdraw "$id" "$r" 13 "$fw" "$t" "${VWD[$id]["${k}cur"]}" "$on" "" "$sec"
 		dt_wreg "$id" "$r" 13 "$fw" "$k"
 		r=$((r + 2))
 	done

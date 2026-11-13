@@ -10,7 +10,7 @@
 strict
 
 
-app mailset "The Control Panel pane for Mail" 1.4
+app mailset "The Control Panel pane for Mail" 1.4.1
 # modules: email
 command -v cp_pane > /dev/null && cp_pane mailset "Mail" "✉" app
 command -v dt_app > /dev/null && dt_app mlad "Mail Account" 20 66 "" "" fixed hidden
@@ -645,7 +645,9 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 				t := str repeat "*" "${#t}"
 				dt_has dt_signmark && dt_signmark "$id" "$r" $((20 + fw - 1)) && x=$((fw - 2))
 			fi
-			dt_textdraw "$id" "$r" 20 "$x" "$t" "${MLAD[$id]["${k}cur"]}" "$on"
+			local sec=
+			[ "$k" = pass ] && sec=1
+			dt_textdraw "$id" "$r" 20 "$x" "$t" "${MLAD[$id]["${k}cur"]}" "$on" "" "$sec"
 			if [ "$k" = pass ] && [ -z "${MLAD[$id]["pass"]}" ] && [ "${MLAD[$id]["haspass"]}" = 1 ] && [ "$on" = 0 ]; then
 				console pen "$DT_DIM" "$DT_FACE"
 				dt_tput "$id" "$r" 20 "(unchanged)"

@@ -2942,6 +2942,19 @@ sc = run(*TERM, feed=[b"\x1b[200~echo pasted\x1b[201~", b"\r"], pre=SH,
          wait=1.6, until=lambda sc: "│pasted " in sc.row(4))
 check("and a paste from the host terminal reaches it as well as typing does",
       sc.find("echo pasted") is not None and "│pasted " in sc.row(4), sc)
+# An input method in a terminal window (Gitea #543), through the harness's
+# stand-in: what it holds is drawn at the program's cursor, and what it
+# commits reaches the program as typed text -- cat echoes the committed
+# word, brackets and all.
+CAT = "TW_CMD=(/bin/cat)\n" + sx.IME_STANDIN
+sc = run(*TERM, feed=[b"s", b"a"], pre=CAT, wait=1.6, end=None,
+         until=lambda sc: "<sa>" in sc.text())
+check("a terminal window shows what an input method holds at the cursor",
+      "<sa>" in sc.row(3), sc)
+sc = run(*TERM, feed=[b"s", b"a", b"\r"], pre=CAT, wait=1.6, end=None,
+         until=lambda sc: sc.text().count("<sa>") >= 2)
+check("and its program is sent what it commits",
+      "<sa>" in sc.row(3) and "<sa>" in sc.row(4), sc)
 
 # A terminal window's own shell says which window it is, in ps: four shells
 # in four windows all read a bare `hibr` before 0.99.110, so there was no
@@ -6422,4 +6435,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(819)
+report(821)
