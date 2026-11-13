@@ -7,6 +7,8 @@
  */
 #include "blitfr.h"
 #include <errno.h>
+#include <limits.h>
+#include <stdio.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <stddef.h>
@@ -332,8 +334,10 @@ int bf_line(const char *l, int *hud)
 		return 0;
 	}
 	/* The keyboards Blit has and which is current (Blit 0.3.94, Gitea
-	   #529), on a connection that asked with `KEYBOARD list`. */
-	if (!strncmp(l, "KEYBOARD ", 9)) {
+	   #529), on a connection that asked with `KEYBOARD list`; and the
+	   display's refresh rate (Blit 0.3.98, Gitea #534), on one that asked
+	   with `DISPLAY rate`. */
+	if (!strncmp(l, "KEYBOARD ", 9) || !strncmp(l, "DISPLAY ", 8)) {
 		if (bf_answer)
 			bf_answer(l);
 		else
@@ -353,6 +357,25 @@ int bf_line(const char *l, int *hud)
 
 /* One line of the wire's text -- an INPUT request (Blit 0.3.64) -- as a
    message of its own. 1 when it went. */
+/* Blit's version, as BLIT_VERSION says in every session Blit starts (Blit
+   0.2.39), as one number: 3098 for 0.3.98. A process Blit did not start
+   is taken to talk to a current one. */
+long bf_blitver(void)
+{
+	static long v = -1;
+	const char *e;
+	long a = 0, b = 0, c = 0;
+
+	if (v >= 0)
+		return v;
+	e = getenv("BLIT_VERSION");
+	if (!e || sscanf(e, "%ld.%ld.%ld", &a, &b, &c) != 3)
+		v = LONG_MAX;
+	else
+		v = a * 1000000 + b * 1000 + c;
+	return v;
+}
+
 int bf_say(int fd, const char *line)
 {
 	size_t n = strlen(line);
@@ -360,6 +383,14 @@ int bf_say(int fd, const char *line)
 
 	if (fd < 0 || !n)
 		return 0;
+	/* A line an older Blit does not know is read by it as a malformed
+	   frame and counted as one refused: `KEYBOARD` before 0.3.94,
+	   `DISPLAY` before 0.3.98. Not sent, and taken as said. */
+	if ((!strncmp(line, "KEYBOARD ", 9) && bf_blitver() < 3094) ||
+	    (!strncmp(line, "DISPLAY ", 8) && bf_blitver() < 3098)) {
+		lg(HIBR_LDBG, "frames: Blit %ld does not know \"%s\"", bf_blitver(), line);
+		return 1;
+	}
 	do
 		k = send(fd, line, n, MSG_NOSIGNAL | MSG_DONTWAIT);
 	while (k < 0 && errno == EINTR);

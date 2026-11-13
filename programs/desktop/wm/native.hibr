@@ -300,11 +300,11 @@ dt_natlayout() {
 	# layout goes out on connecting, before any window has asked.
 	dt_natcell
 	DT_NATLCELL="$DT_NATCW $DT_NATCH"
-	hz := dt_nathz
 	for i in "${!DT_DISPLAYS[@]}"; do
 		nm=${DT_DISPNAMES[$i]-}
 		[ -n "$nm" ] || continue
 		IFS=' ' read -r dr dc drows dcols dgx <<< "${DT_DISPLAYS[$i]}"
+		hz := dt_nathz "$dr" "$dc"
 		lines+=("$nm $((dc * DT_NATCW)) $((dr * DT_NATCH)) $((dcols * DT_NATCW)) $((drows * DT_NATCH)) $hz")
 		[ "$nm" = "$DT_FULLON" ] && pri=$nm
 		[ -z "$pri" ] && [ "$dr $dc" = "${DT_PRIMARY_ROW:-0} ${DT_PRIMARY_COL:-0}" ] && pri=$nm
@@ -330,6 +330,35 @@ dt_nattick() {
 	dt_natevents
 	dt_natunclaimed
 	dt_nathandend
+	dt_natrate
+}
+
+# Each display's refresh rate from Blit (0.3.98, Gitea #534): asked once
+# on the frame channel -- once a second until there is a channel to ask
+# on -- and said again by Blit whenever it changes, which re-tells the
+# compositor the displays and every program window its own.
+DT_NATRASK=
+DT_NATRTRY=0
+DT_NATRGEN=
+dt_natrate() {
+	local g n now
+
+	[ -n "$DT_NATSRV" ] || return 0
+	if [ -z "$DT_NATRASK" ]; then
+		now=${EPOCHSECONDS:-0}
+		[ "$now" != "$DT_NATRTRY" ] || return 0
+		DT_NATRTRY=$now
+		console rate ask 2> /dev/null && DT_NATRASK=1
+		return 0
+	fi
+	g := console rate gen 2> /dev/null || return 0
+	[ "$g" = "$DT_NATRGEN" ] && return 0
+	DT_NATRGEN=$g
+	dt_natlayout
+	for n in "${!NWN[@]}"; do
+		[ -n "${DT[${NWN["$n"]}]["title"]-}" ] && dt_natoutput "${NWN["$n"]}"
+	done
+	return 0
 }
 
 # Windows that came back with a restart and that the compositor has not
@@ -1035,25 +1064,39 @@ fn dt_natseen(int n) {
 	ret "$((f > 0)) $r"
 }
 
-# The refresh rate of the display the desktop is shown on, in millihertz,
-# from Blit's own API with what Blit gives the desktop's session (the
-# pane, then the pane's display, then its mode), asked once a desktop and each request bounded to a second, so
-# a Blit that does not answer costs one second and never a frozen desktop.
+# The refresh rate of a display, in millihertz: the one at row and column
+# r c of the session, as Blit says it on that display's own frame channel
+# (`console rate`, Blit 0.3.98, Gitea #534) -- a desktop the login manager
+# started has no API token and this is the only way it can know. Before
+# that, or where Blit has not said, from Blit's own API with what Blit
+# gives the desktop's session (the pane, then the pane's display, then its
+# mode), asked once a desktop and each request bounded to a second, so a
+# Blit that does not answer costs one second and never a frozen desktop.
 # 60000 when there is no answer. DAV_CODE is the dav module's own.
 DT_NATHZ=
 DAV_CODE=${DAV_CODE-}
-dt_nathz() {
+fn dt_nathz(r = "", c = "") {
 	local port=${BLIT_SERVER_PORT:-} tok=${BLIT_API_TOKEN:-} pane=${BLIT_PANE_ID:-}
-	local HIBR_DAV_TIMEOUT=1 r disp= i v best=0
+	local HIBR_DAV_TIMEOUT=1 disp= i v best=0 l rr cc star=
+	local -a ls
 	local -A top dsp
 
+	if [ -n "$DT_NATRASK" ] && l := console rate 2> /dev/null; then
+		mapfile -t ls <<< "$l"
+		for l in "${ls[@]}"; do
+			read -r rr cc v <<< "$l"
+			[ "$rr $cc" = "$r $c" ] && { ret "$v"; return 0; }
+			[ "$rr" = "*" ] && star=$v
+		done
+		[ -n "$star" ] && { ret "$star"; return 0; }
+	fi
 	[ -n "$DT_NATHZ" ] && { ret "$DT_NATHZ"; return 0; }
 	DT_NATHZ=60000
 	[[ $port =~ ^[0-9]+$ ]] && [ -n "$tok" ] || { ret "$DT_NATHZ"; return 0; }
 	need dav 2> /dev/null && need math 2> /dev/null || { ret "$DT_NATHZ"; return 0; }
 	if [ -n "$pane" ]; then
-		r := dav request -H "Authorization: Bearer $tok" GET "http://127.0.0.1:$port/v1/topology" 2> /dev/null || r=
-		if [ -n "$r" ] && json parse top "$r" 2> /dev/null; then
+		l := dav request -H "Authorization: Bearer $tok" GET "http://127.0.0.1:$port/v1/topology" 2> /dev/null || l=
+		if [ -n "$l" ] && json parse top "$l" 2> /dev/null; then
 			i=0
 			while [ -n "${top["panes"][$i]["id"]-}" ]; do
 				[ "${top["panes"][$i]["id"]}" = "$pane" ] &&
@@ -1062,8 +1105,8 @@ dt_nathz() {
 			done
 		fi
 	fi
-	r := dav request -H "Authorization: Bearer $tok" GET "http://127.0.0.1:$port/v1/displays" 2> /dev/null || r=
-	if [ -n "$r" ] && json parse dsp "$r" 2> /dev/null; then
+	l := dav request -H "Authorization: Bearer $tok" GET "http://127.0.0.1:$port/v1/displays" 2> /dev/null || l=
+	if [ -n "$l" ] && json parse dsp "$l" 2> /dev/null; then
 		i=0
 		while [ -n "${dsp["displays"][$i]["id"]-}" ]; do
 			v=${dsp["displays"][$i]["active_mode"]["refresh_hz"]-}
@@ -1090,7 +1133,7 @@ fn dt_natoutput(int id) {
 	local n=${NW[$id]["n"]} hz o i
 
 	dt_fullrect "$id"
-	hz := dt_nathz
+	hz := dt_nathz "$DTW_R" "$DTW_C"
 	o="$((DTW_W * DT_NATCW)) $((DTW_H * DT_NATCH)) $hz"
 	# And which display, by its name in the layout (Blit 0.3.88): two of
 	# one mode are otherwise the same line, and a window moved from one

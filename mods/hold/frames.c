@@ -292,6 +292,11 @@ static str hd_keep;
    answers go to it, from the primary display only, since every display's
    Blit is the same machine's; and a display that joins is asked too. */
 static int hd_kbprod = -1;
+/* And who asked for the displays' refresh rates (`DISPLAY rate`, Gitea
+   #534): every display's Blit is asked, since each may be another display
+   at another rate, and each answer goes back with where that display
+   sits in the session. */
+static int hd_rateprod = -1;
 
 /* Close a record's descriptors: the display that wants them has them. */
 static void hd_f3shut(struct hd_f3 *f)
@@ -597,6 +602,16 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	int sent = 0;
 	str o;
 
+	if (n == 12 && !memcmp(line, "DISPLAY rate", 12)) {
+		hd_rateprod = prod;
+		for (i = 0; i < cls->n; i++) {
+			struct hd_cli *cn = cls->p[i];
+
+			if (cn->fdok)
+				hd_send(cn->fd, HD_INPUT, line, n);
+		}
+		return;
+	}
 	if (n > 9 && !memcmp(line, "KEYBOARD ", 9)) {
 		struct hd_cli *pc = hd_cprimary(cls);
 
@@ -692,6 +707,8 @@ void hd_inreplay(struct hd_cli *cn)
 		hd_send(cn->fd, HD_INPUT, hd_keep.p, hd_keep.n);
 	if (hd_kbprod >= 0)
 		hd_send(cn->fd, HD_INPUT, "KEYBOARD list", 13);
+	if (hd_rateprod >= 0)
+		hd_send(cn->fd, HD_INPUT, "DISPLAY rate", 12);
 	s_init(&o);
 	for (i = 0; i < hd_nin; i++) {
 		if (!hd_ins[i].sock.n)
@@ -738,6 +755,24 @@ int hd_inputans(vec *cls, int cfd, const char *line)
 	unsigned long id;
 	size_t i, n = strlen(line);
 
+	if (!strncmp(line, "DISPLAY ", 8)) {
+		str o;
+
+		pc = hd_cfind(cls, cfd);
+		if (hd_rateprod < 0 || !pc)
+			return 1;
+		s_init(&o);
+		s_add(&o, line, n);
+		if (!strncmp(line, "DISPLAY rate ", 13)) {
+			s_ch(&o, ' ');
+			s_num(&o, pc->row);
+			s_ch(&o, ' ');
+			s_num(&o, pc->col);
+		}
+		hd_send(hd_rateprod, HD_FRMANS, o.p, o.n);
+		s_free(&o);
+		return 1;
+	}
 	if (!strncmp(line, "KEYBOARD ", 9)) {
 		pc = hd_cprimary(cls);
 		if (pc && pc->fd != cfd)

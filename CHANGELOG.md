@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.510
+
+**A program window is told its own display's refresh rate, by Blit
+itself** (Gitea #534, Blit 0.3.98). The desktop used to read the rate once,
+through Blit's HTTP API, which a desktop the login manager started cannot
+use, having no API token, so such a desktop told every program 60 Hz. It
+now asks on the frame channel (`console rate`), and Blit says the rate
+again at every mode set. Held on several displays, hold asks each display's
+Blit and tags each answer with that display's place, so the compositor
+learns every display at its own rate and each window the rate of the
+display it is on, told again when it changes. The API stays the fallback
+for a Blit older than 0.3.98.
+
+**An older Blit is not sent lines it does not know.** Blit reads an
+unknown line as a malformed frame and counts it refused, so `KEYBOARD`
+(0.99.508) goes only to Blit 0.3.94 or newer and `DISPLAY` only to 0.3.98
+or newer, going by the `BLIT_VERSION` Blit puts in every session.
+
 ## 0.99.509
 
 **A shortcut is the chords it is written as** (ADR 0057, the owner's

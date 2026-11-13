@@ -246,6 +246,9 @@ extern char *cn_keepl;
 extern str cn_kbls, cn_kbres;
 extern long cn_kbcur, cn_kbgen;
 extern int cn_kbasked;
+extern str cn_rates;
+extern long cn_rategen;
+extern int cn_rateasked;
 int cn_kbwoke(void);
 /* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE, CN_GFX_SIXEL
    or CN_GFX_KITTY. From HIBR_GFX, then from what the terminal itself

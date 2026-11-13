@@ -241,6 +241,27 @@ def kbdlist(conn):
         conn.send(l.encode())
 
 
+# The display's refresh rate (Blit 0.3.98, api.md): a channel that sends
+# `DISPLAY rate` is answered `DISPLAY rate <mHz>` and sent it again when it
+# changes; any other DISPLAY line is `DISPLAY error EINVAL`. LOG.rate, one
+# number, is a mode set: the new rate goes to every channel that asked.
+RATE = [60000]
+RATEASK = set()
+
+
+def rateline(conn, data, fds):
+    for fd in fds:
+        os.close(fd)
+    w = data.decode(errors="replace").strip().split(" ")
+    if w == ["DISPLAY", "rate"]:
+        RATEASK.add(conn)
+        note(kind="rate", verb="ask")
+        conn.send(b"DISPLAY rate %d\n" % RATE[0])
+        return
+    note(kind="rate", verb=w[1] if len(w) > 1 else "", error="EINVAL")
+    conn.send(b"DISPLAY error EINVAL\n")
+
+
 def kbdline(conn, data, fds):
     for fd in fds:
         os.close(fd)
@@ -349,6 +370,12 @@ def main():
                         if ok:
                             c.send(b"FRAME release %d %d\n" % (iid, seq))
                     note(kind="released", id=iid, seq=seq, deleted=True)
+        if os.path.exists(LOG + ".rate"):
+            RATE[0] = int(open(LOG + ".rate").read().strip() or 60000)
+            os.unlink(LOG + ".rate")
+            note(kind="rate", verb="changed", mhz=RATE[0])
+            for c in list(RATEASK):
+                c.send(b"DISPLAY rate %d\n" % RATE[0])
         if os.path.exists(LOG + ".kbd"):
             KBD[:] = [l.split(" ", 2) for l in
                       open(LOG + ".kbd").read().splitlines() if l.strip()]
@@ -383,6 +410,7 @@ def main():
                 # Blit forgets a connection's routes with it.
                 routes.pop(s, None)
                 KBDASK.discard(s)
+                RATEASK.discard(s)
                 for key in [k for k in SOCKS if k[0] is s]:
                     del SOCKS[key]
                 s.close()
@@ -433,6 +461,9 @@ def main():
                 continue
             if data[:9] == b"KEYBOARD ":
                 kbdline(s, data, fds)
+                continue
+            if data[:8] == b"DISPLAY ":
+                rateline(s, data, fds)
                 continue
             frame(s, images, data, fds)
 

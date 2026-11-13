@@ -107,6 +107,10 @@ int bf_send3(int fd, const unsigned char *h, const int *fds, int n);
    message of its own. 1 when it went. */
 int bf_say(int fd, const char *line);
 
+/* Blit's version from BLIT_VERSION, 3098 for 0.3.98; LONG_MAX where Blit
+   did not say. */
+long bf_blitver(void);
+
 /* A 32-bit number into four bytes, little-endian, as every field of the
    wire is. */
 void bf_put32(unsigned char *p, unsigned long v);

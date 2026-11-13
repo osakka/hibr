@@ -172,6 +172,18 @@ out = wait(lambda: told("WINDOW output 7 "))
 check("and told the display it is on: its size in pixels, and its rate, "
       "60 Hz where Blit's API does not say",
       out and out[0].split()[3:] == [str(82 * 8), str(26 * 16), "60000"], out)
+# The rate from the display's own frame channel (Blit 0.3.98, Gitea #534):
+# asked once, said again by Blit at every mode set, and passed on to the
+# program's window then -- where the API path read it once for good.
+rask = wait(lambda: blitkind("rate", verb="ask"), 6)
+check("the desktop asks Blit for its display's refresh rate on the frame "
+      "channel", rask, blitkind("rate"))
+open(blitlog + ".rate", "w").write("74973\n")
+r75 = wait(lambda: [l for l in told("WINDOW output 7 ") if l.split()[5:6] == ["74973"]], 6)
+check("and a mode set in Blit reaches the program's window as its new rate",
+      r75, told("WINDOW output 7 "))
+open(blitlog + ".rate", "w").write("60000\n")
+wait(lambda: told("WINDOW output 7 ")[-1].split()[5:6] == ["60000"], 6)
 # The chords the desktop keeps from programs' windows reach Blit (Gitea
 # #530): F10, the Shortcut Key's chords spelled with alt, Lock's ctrl-alt-l
 # -- and not Escape, a plain key, which a program window keeps.
@@ -787,6 +799,14 @@ check("held, the compositor is told each display in pixels, then which one is "
 hout = [x["line"] for x in comp_of(complog2, "line") if x["line"].startswith("WINDOW output ")]
 check("and a window's output names its display, so two of one mode are told apart",
       hout and hout[-1].split()[-1] == "top", hout)
+open(blitlog2 + ".rate", "w").write("144000\n")
+h144 = wait(lambda: [x["line"] for x in comp_of(complog2, "line")
+                     if x["line"].startswith("WINDOW output ") and
+                     x["line"].split()[5:6] == ["144000"]], 8)
+check("held, a display's own rate comes back through hold with its place, and "
+      "reaches the window on it", h144,
+      ([x for x in lines(blitlog2) if x["kind"] == "rate"],
+       [x["line"] for x in comp_of(complog2, "line") if x["line"].startswith("WINDOW output ")][-3:]))
 open(complog2 + ".popup", "w").close()
 ht.keys([b"x"])
 hmem = wait(lambda: hk("member"), 6)
@@ -932,6 +952,28 @@ gap = wait(lambda: not any(unreleased().values()) and unreleased(), 6)
 check("moved wholly onto the other display, its frames still come back to "
       "the program, the ones the first display kept included",
       gap, unreleased())
+# Each display's own rate (Gitea #534): the lower display set to 144 Hz
+# and then the upper to 75, the window -- on the lower now -- stays at the
+# lower's. Untagged, the answers would be one rate for the session, and the
+# upper's, said last, would win.
+open(os.path.join(D, "blit2b.log.rate"), "w").write("144000\n")
+st1.keys([b"x"])
+
+
+def out3():
+    return [x["line"].split()[5] for x in comp_of(complog3, "line")
+            if x["line"].startswith("WINDOW output ") and len(x["line"].split()) > 5]
+
+
+wait(lambda: out3()[-1:] == ["144000"], 8)
+open(os.path.join(D, "blit2a.log.rate"), "w").write("75000\n")
+st0.keys([b"x"])
+wait(lambda: [x for x in lines(os.path.join(D, "blit2a.log"))
+              if x.get("kind") == "rate" and x.get("verb") == "changed"], 6)
+wait(lambda: False, 1.0 * SLOW)
+check("held on two displays, each display's rate is its own: the window on "
+      "the lower one is told the lower's, and the upper's changing does not "
+      "reach it", out3()[-1:] == ["144000"] and "75000" not in out3(), out3()[-6:])
 st0.quit(None, 0.3)
 st1.quit(None, 0.3)
 subprocess.run([sx.HIBR, "-c", load("hold") + "hold kill %s" % hn3],
@@ -961,5 +1003,22 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
                    capture_output=True, text=True, timeout=30)
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
+
+# An older Blit reads a line it does not know as a malformed frame and
+# counts it refused (Gitea #534): a desktop whose Blit says it is 0.3.93
+# (BLIT_VERSION, in every session Blit starts) uses its frame channel and
+# asks neither for the keyboards (0.3.94) nor for the rate (0.3.98).
+pv, ev = blitd("v")
+vg = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty"],
+          env=dict(ev, HIBR_GFX="kitty", XDG_RUNTIME_DIR=D, WAYLAND_DISPLAY=None,
+                   DISPLAY=None, BLIT_VERSION="0.3.93"))
+vlog = os.path.join(D, "blit2v.log")
+used = wait(lambda: [x for x in lines(vlog) if x["kind"] in ("hello", "keep")], 8)
+wait(lambda: False, 1.5 * SLOW)
+asked = [x for x in lines(vlog) if x["kind"] in ("kbd", "rate")]
+check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
+      "frame channel used all the same", used and not asked, (used, asked))
+vg.quit(None, 0.3)
+pv.terminate()
 shutil.rmtree(D, True)
-report(73)
+report(78)

@@ -1508,6 +1508,32 @@ int m_console(sh *s, int ac, char **av)
 		s_free(&k);
 		return r == 1 ? HIBR_OK : HIBR_FAIL;
 	}
+	/* The refresh rate of each display (Gitea #534, Blit 0.3.98): `ask`
+	   asks once a connection, and Blit says it again whenever it changes;
+	   `gen` is a count that moves with every answer; alone, a line a
+	   display, "row col mhz" in a held session or "* * mhz", or status 1
+	   when none has come. */
+	if (!strcmp(sub, "rate")) {
+		if (ac >= 3 && !strcmp(av[2], "ask")) {
+			cn_rateasked = 1;
+			return cn_dsay(s, "DISPLAY rate") ? HIBR_OK : HIBR_FAIL;
+		}
+		s_init(&k);
+		if (ac >= 3 && !strcmp(av[2], "gen")) {
+			s_num(&k, cn_rategen);
+		} else {
+			if (!cn_rates.n) {
+				s_free(&k);
+				return HIBR_FAIL;
+			}
+			s_add(&k, cn_rates.p, cn_rates.n - 1);
+		}
+		hibr_ret(s, k.p);
+		if (!s->bind)
+			printf("%s\n", k.p);
+		s_free(&k);
+		return HIBR_OK;
+	}
 	/* Blit's keyboards (Gitea #529): `list` asks for them once a
 	   connection and is answered with the list and after every change;
 	   `current N` switches; alone, the list as last received -- "gen G",

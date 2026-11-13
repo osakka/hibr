@@ -371,6 +371,18 @@ The same channel carries two things that concern no picture.
   so the desktop's bar follows a switch made in Blit at once. Held, hold
   passes `list` to every display, takes answers from the primary only, and
   asks a display that joins.
+- **`console rate`** is each display's refresh rate (Gitea #534, Blit
+  0.3.98). `ask` asks once a connection, and Blit says it again at every
+  mode set; `gen` moves with every answer. With no word it answers a line a
+  display, `row col mhz`: held, hold asks every display and tags each
+  answer with where that display sits in the session, and alone the one
+  display is `* * mhz`. An answer wakes the wait.
+
+Blit reads a line it does not know as a malformed frame and counts it
+refused, so `bf_say` sends `KEYBOARD` only to a Blit of 0.3.94 or newer and
+`DISPLAY` only to 0.3.98 or newer. It goes by `BLIT_VERSION`, which Blit
+sets in every session it starts, read in the process that talks to Blit,
+which under hold is each display's own client.
 
 ## Naming
 
