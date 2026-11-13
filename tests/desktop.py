@@ -6845,7 +6845,25 @@ check("what it held goes to the window it was typed in when the keys move",
       sc.row(14)[6:10] == "<sa>" and "<" not in sc.row(4), [sc.row(4), sc.row(14)])
 sc, _ = run(TBX, feed=[b"s", b"a", b" ", UP], pre=IME)
 check("and the textarea takes it as typing",
-      "<sa> xéy" in "".join(sc.g[3]), [sc.g[3][4:14]])
+      "<sa> xe\u0301y" in "".join(sc.g[3]), [sc.g[3][4:14]])
+# Away from Blit the desktop keeps its own list -- the terminal's keyboard
+# and each installed method -- so Next Keyboard and the bar's label work the
+# same as on Blit: typing is plain until it is switched, the bar then says
+# the method's label, and the choice is kept for the next start.
+LOCAL = (IME + 'DT_KBLOC=1; DT_KBCUR=0; DT_KB[0]["label"]=EN; DT_KB[1]["label"]=SH\n'
+         'DT_KEYS["kbdnext"]=f9\ndt_kbbar\n')
+F9 = b"\x1b[20~"
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi', feed=[b"s", b"a", UP], pre=LOCAL)
+check("away from Blit, typing is plain until a method is chosen, and the bar says so",
+      sc.row(4)[6:9] == "sa " and " EN " in sc.row(0), [sc.row(0), sc.row(4)])
+d = tempfile.mkdtemp(prefix="hibr-kbloc-")
+kenv = {"XDG_CONFIG_HOME": d}
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi', feed=[F9, b"s", b"a"], pre=LOCAL, env=kenv)
+conf = screen.conftext(os.path.join(d, "hibr", "desktop.json"))
+check("and Next Keyboard switches to it: the bar says its label, and it types",
+      sc.row(4)[6:10] == "<sa>" and " SH " in sc.row(0) and "shout" in conf,
+      [sc.row(0), sc.row(4), conf[-200:]])
+shutil.rmtree(d, True)
 UF = ('declare -gA UF\n'
       'fn uf_draw(int id, int h, int w, int row, int col) {\n'
       '    local f=${UF[$id]["f"]:-0}\n'
@@ -10052,4 +10070,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1088)
+report(1090)

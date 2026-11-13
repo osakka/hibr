@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.99.519
+
+**An input method away from Blit, chosen the way Blit chooses one** (Gitea
+#543, the owner's). Where no Blit gives the desktop its keyboard list -- a
+Mac, ssh, any terminal -- the desktop keeps its own: the terminal's
+keyboard, labelled by the language it is set to (EN), then each method
+hibr-ime has installed, labelled as the method names itself (AR, from its
+data's `info`). Next Keyboard moves through it, the bar shows the current
+label and lists them in its menu, and Control Panel > Language & Region has
+a Typing heading with an Input Method row: one setting, `DT_KBLOCAL`, which
+all three change and the desktop keeps. Blit's own list replaces it the
+moment Blit answers. On Blit, the bar now shows a method's own label too,
+so Arabic (Arabizi) reads AR rather than ARA. Two checks.
+
+**A field-only app says so in its own file** (Gitea #544). The desktop gives
+every focused one-line field all six Edit rows itself, so an app whose only
+text to edit or copy is in its fields writes none of the callbacks. A
+catalogue app cannot be named in `540-examples.t`'s table, so it declares
+`# edit: fields` instead, and the check holds it to that: it must draw a
+field with `dt_textdraw` and define none of the six.
+
+**`750-pty` drains its first size read** to the program's end, as the read
+below it already did: under load one read could hold `12 34` without its
+line ending, and the next line ran on from it.
+
+The gate ran 65 of 67 suites green; `sound` did not start, because this
+build box moved to Debian 13 the same day and its private PipeWire 1.4 and
+WirePlumber 0.5 servers come up more slowly than the suite's fixed waits
+allow -- nothing in this release touches sound, and the port of that suite
+(and a check of the sound layer itself on PipeWire 1.4) is Gitea #546.
+
+Catalogue: Language & Region 1.0.3, Arabic 3.99.8.
+
 ## 0.99.518
 
 **`inspect`: the language explains itself** (ADR 0056, Gitea #532, #535,

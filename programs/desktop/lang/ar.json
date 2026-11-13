@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.7",
+ "version": "3.99.8",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -104,6 +104,8 @@
   "%s is not answering": "%s لا يستجيب",
   "%s is not installed. Find it in the Catalogue.": "%s غير مثبّت. ابحث عنه في الفهرس.",
   "The %s input method is not installed": "طريقة الإدخال %s غير مثبّتة",
+  "Input Method": "طريقة الإدخال",
+  "Typing": "الكتابة",
   "%s is not loaded": "%s غير محمَّلة",
   "%s is now %s": "أصبح %s الآن %s",
   "%s is on every workspace": "%s على كل مساحات العمل",

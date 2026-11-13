@@ -607,6 +607,7 @@ In:
 Inbox
 Info
 Input
+Input Method
 Insert Column Left
 Insert Column Right
 Insert Row Above
@@ -1355,6 +1356,7 @@ Turns off automatic time (NTP) first
 Type this on it, then Enter:
 Type what to look for, or a playlist's or a channel's address, and enter.
 Type: %s
+Typing
 Under Applications; a / makes a folder inside one.
 Undo
 Unfreeze

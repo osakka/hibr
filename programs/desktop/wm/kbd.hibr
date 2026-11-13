@@ -26,6 +26,18 @@ DT_KBTRIED=0
 # The chords Blit keeps for itself, as its list says them (KEYBOARD
 # reserved): Shortcuts shows them and refuses them (ADR 0057).
 DT_KBRES=
+# The desktop's own list, where Blit has none to give -- on a Mac, over
+# ssh, in any terminal (Gitea #543): the terminal's own keyboard, then each
+# input method hibr-ime has installed, so Next Keyboard and the bar work the
+# same everywhere. DT_KBLOC is 1 while the list is this one, DT_KBLOCAL the
+# method left chosen in it ("" for none), kept and shown in Control Panel >
+# Language & Region > Input Method, and DT_KBLABEL a method's
+# short label for the bar, as hibr-ime gives it.
+DT_KBLOC=
+DT_KBLOCAL=
+DT_KBLOCTRY=
+declare -gA DT_KBLABEL
+dt_keep DT_KBLOCAL
 
 # Read the list the console holds.
 dt_kbread() {
@@ -35,6 +47,7 @@ dt_kbread() {
 	l := console keyboard 2> /dev/null || return 1
 	DT_KB=()
 	DT_KBN=0
+	DT_KBLOC=
 	mapfile -t lines <<< "$l"
 	for w in "${lines[@]}"; do
 		case $w in
@@ -67,7 +80,7 @@ dt_kbbar() {
 		[ -n "${DT_BARI["kbd"]["text"]-}" ] && dt_baritem kbd ""
 		return 0
 	fi
-	t=${DT_KB[$DT_KBCUR]["layout"]^^}
+	t := dt_kblabel "$DT_KBCUR"
 	dt_barilabel kbd "Keyboard"
 	dt_baritem kbd "$t" dt_kbmenu
 	dt_bariright kbd dt_kbmenu
@@ -89,10 +102,81 @@ fn kbd_context(id = "") {
 	done
 }
 
-# Make keyboard n the one typing; Blit answers with the list, which moves
-# the bar.
+# What the bar says for keyboard n: the label an input method gives itself
+# (AR), else its layout in capitals.
+fn dt_kblabel(int n) {
+	local v=${DT_KB[$n]["variant"]-} r
+
+	if [ -n "${DT_KB[$n]["label"]-}" ]; then
+		ret "${DT_KB[$n]["label"]}"
+		return 0
+	fi
+	if [ -n "$v" ] && [ -z "${DT_KBLABEL["$v"]+x}" ]; then
+		DT_KBLABEL["$v"]=
+		[ "$DT_IMEMOD" = 1 ] && r := ime info "$v" 2> /dev/null &&
+			DT_KBLABEL["$v"]=${RET[0]}
+	fi
+	[ -n "$v" ] && [ -n "${DT_KBLABEL["$v"]}" ] && { ret "${DT_KBLABEL["$v"]}"; return 0; }
+	ret "${DT_KB[$n]["layout"]^^}"
+}
+
+# Make keyboard n the one typing: in the desktop's own list it is chosen
+# here and kept; in Blit's, Blit answers with the list, which moves the bar.
 fn dt_kbset(int n) {
+	if [ "$DT_KBLOC" = 1 ]; then
+		DT_KBCUR=$n
+		DT_KBLOCAL=${DT_KB[$n]["variant"]-}
+		dt_kbbar
+		DT_MENUIN=
+		dt_save
+		dt_want 10
+		return 0
+	fi
 	console keyboard current "$n" 2> /dev/null
+	return 0
+}
+
+# Build the desktop's own list: the terminal's keyboard, labelled by the
+# language it is set to, then each method whose data is installed. Status 1
+# with nothing changed when the ime module is not there or has no method.
+dt_kblocal() {
+	local m n=1 r t i
+	local -a ms
+
+	if [ -z "$DT_IMEMOD" ]; then
+		DT_IMEMOD=0
+		need ime 2> /dev/null && DT_IMEMOD=1
+	fi
+	[ "$DT_IMEMOD" = 1 ] || return 1
+	r := ime methods 2> /dev/null || return 1
+	ms=("${RET[@]}")
+	DT_KB=()
+	t=${LANG:-}
+	t=${t%%[_.@]*}
+	case $t in [a-z][a-z] | [a-z][a-z][a-z]) t=${t^^} ;; *) t=ABC ;; esac
+	DT_KB[0]["layout"]=$t
+	DT_KB[0]["variant"]=
+	DT_KB[0]["name"]=Keyboard
+	DT_KB[0]["label"]=$t
+	for m in "${ms[@]}"; do
+		r := ime info "$m" 2> /dev/null || continue
+		DT_KB[$n]["layout"]=$m
+		DT_KB[$n]["variant"]=$m
+		DT_KB[$n]["label"]=${RET[0]}
+		DT_KB[$n]["name"]=${RET[1]}
+		n=$((n + 1))
+	done
+	[ "$n" -ge 2 ] || { DT_KB=(); return 1; }
+	DT_KBN=$n
+	DT_KBLOC=1
+	DT_KBCUR=0
+	for ((i = 1; i < n; i++)); do
+		[ "${DT_KB[$i]["variant"]}" = "$DT_KBLOCAL" ] && DT_KBCUR=$i
+	done
+	dt_log "keyboards: the desktop's own list, $n"
+	dt_kbbar
+	DT_MENUIN=
+	dt_want 10
 	return 0
 }
 
@@ -111,7 +195,14 @@ dt_kbtick() {
 		now=${EPOCHSECONDS:-0}
 		[ "$now" != "$DT_KBTRIED" ] || return 0
 		DT_KBTRIED=$now
-		console keyboard list 2> /dev/null && DT_KBASKED=1
+		if console keyboard list 2> /dev/null; then
+			DT_KBASKED=1
+		elif [ -z "$DT_KBLOCTRY" ]; then
+			# No Blit to ask, so far: the desktop's own list, once,
+			# replaced the moment Blit answers.
+			DT_KBLOCTRY=1
+			dt_kblocal
+		fi
 		return 0
 	fi
 	g := console keyboard gen 2> /dev/null || return 0

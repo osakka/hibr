@@ -12,7 +12,7 @@
 strict
 
 
-app language "The system's language and region, and how the desktop shows them" 1.0.2
+app language "The system's language and region, and how the desktop shows them" 1.0.3
 command -v cp_pane > /dev/null && cp_pane language "Language & Region" "A"
 # The pane's own dialog, named so the application menu reads "Add a
 # Language" rather than its prefix.
@@ -182,7 +182,54 @@ fn language_rows(int w) {
 	[ "$DT_DIGITS" = arabic ] && nm=Arabic-Indic
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Digits"
 	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=digits; n=$((n + 1))
+	# Typing through an input method away from Blit (Gitea #543): the same
+	# choice the bar's item and Next Keyboard make, one variable for all
+	# three. On Blit the list is Blit's, chosen in its own Keyboard pane.
+	if [ "${DT_KBLOC-}" = 1 ]; then
+		CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Typing"; n=$((n + 1))
+		nm := cp_imename
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Input Method"
+		CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=imekb; n=$((n + 1))
+	fi
 	ret "$n"
+}
+
+# The keyboard the desktop's own list is on, by name: the one whose method
+# is DT_KBLOCAL, the first (the terminal's own) when none is.
+cp_imename() {
+	local i
+
+	for ((i = 1; i < DT_KBN; i++)); do
+		if [ "${DT_KB[$i]["variant"]-}" = "$DT_KBLOCAL" ]; then
+			ret "${DT_KB[$i]["name"]}"
+			return 0
+		fi
+	done
+	ret "${DT_KB[0]["name"]-}"
+}
+
+# Every keyboard in the desktop's own list, by name, into CP_IMEN.
+declare -ga CP_IMEN=()
+cp_imenames() {
+	local i
+
+	CP_IMEN=()
+	for ((i = 0; i < DT_KBN; i++)); do
+		CP_IMEN+=("${DT_KB[$i]["name"]}")
+	done
+}
+
+# Choose a keyboard of the desktop's own list by its name.
+fn cp_set_imekb(int? id = "", value = "") {
+	local i
+
+	for ((i = 0; i < DT_KBN; i++)); do
+		if [ "${DT_KB[$i]["name"]}" = "$value" ]; then
+			dt_kbset "$i"
+			return 0
+		fi
+	done
+	return 0
 }
 
 fn language_do(int? w = "", k = "", int? dir = "") {
@@ -230,6 +277,13 @@ fn language_do(int? w = "", k = "", int? dir = "") {
 		cp_set_digits "" "$v"
 		return 0
 		;;
+	imekb)
+		cp_imenames
+		nm := cp_imename
+		v := cp_next "$nm" "$dir" "${CP_IMEN[@]}"
+		cp_set_imekb "" "$v"
+		return 0
+		;;
 	esac
 	cp_save
 }
@@ -251,6 +305,10 @@ fn language_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	bidi) dt_droplist "$w" "$r" "$c" cp_set_bidi "${CP_BIDIS[@]}" ;;
 	mirror) dt_droplist "$w" "$r" "$c" cp_set_mirror "${CP_MIRRORS[@]}" ;;
 	digits) dt_droplist "$w" "$r" "$c" cp_set_digits "${CP_DIGITS[@]}" ;;
+	imekb)
+		cp_imenames
+		dt_droplist "$w" "$r" "$c" cp_set_imekb "${CP_IMEN[@]}"
+		;;
 	esac
 }
 

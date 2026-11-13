@@ -150,6 +150,13 @@ echo "every app's bar begins File, then Edit"
 # group says why; an app missing a row not named here fails, and so does
 # a row named here that the app has since grown. An app is a file with an
 # `app` line and a _draw.
+#
+# An app whose only text to edit or copy is in its one-line fields says so
+# in its own file, `# edit: fields`, rather than here (Gitea #544): the
+# desktop's own field path gives every focused field all six rows, so such
+# an app writes none of the callbacks -- and one from the catalogue cannot
+# be named in this table at all. The claim is checked, not taken: the file
+# must draw a field with dt_textdraw, and may define none of the six.
 awk '
   BEGIN {
     # Nothing in the window is text to take or put back: games, and the
@@ -173,6 +180,8 @@ awk '
     NOT["dbase"] = "copy cut selall undo redo"
   }
   FNR == 1 { pre = ""; drew = 0 }
+  /^# edit: fields$/ { fields[FILENAME] = 1 }
+  /dt_textdraw / { textdraw[FILENAME] = 1 }
   /^app [a-z]+ "/ && pre == "" { pre = $2 }
   /^(fn )?[a-z_]+\(/ {
     nm = $0; sub(/^fn /, "", nm); sub(/\(.*/, "", nm)
@@ -184,6 +193,14 @@ awk '
     for (f in file) {
       pre = file[f]
       if (pre == "" || !((f, pre "_draw") in have)) continue
+      if (f in fields) {
+        if (!(f in textdraw))
+          print f ": " pre " says edit: fields and draws no field with dt_textdraw"
+        for (k = 1; k <= 6; k++)
+          if ((f, pre "_" ops[k]) in have)
+            print f ": " pre " says edit: fields and has its own _" ops[k]
+        continue
+      }
       for (k = 1; k <= 6; k++) {
         op = ops[k]
         on = ((f, pre "_" op) in have)
