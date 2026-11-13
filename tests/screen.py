@@ -643,7 +643,16 @@ class Term:
             for v in ("KITTY_WINDOW_ID", "VTE_VERSION", "TERM_PROGRAM",
                       "TERM_PROGRAM_VERSION"):
                 os.environ.pop(v, None)
+            # The terminal the harness models is a true-colour one, and says
+            # so as hibr's own terminal says it to its programs (tm_spawn):
+            # TERM and COLORTERM both. A suite run from a session without
+            # COLORTERM -- ssh drops it -- had the console step down to 256
+            # colours and failed every true-colour check (Gitea #535). The
+            # colour override goes too; a test that wants another depth sets
+            # one itself.
             os.environ["TERM"] = "xterm-256color"
+            os.environ["COLORTERM"] = "truecolor"
+            os.environ.pop("HIBR_COLOURS", None)
             os.environ["HIBR_TESTIDLE"] = "1"
             own = os.path.join(HOME, str(os.getpid()))
             os.environ["XDG_CONFIG_HOME"] = os.path.join(own, "config")

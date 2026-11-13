@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.513
+
+**Language & Region keeps `LANGUAGE`** (Gitea #526). A system's locale
+often carries `LANGUAGE` beside `LANG` -- gettext's list of languages to
+try, `en_GB:en` -- and the pane read only `LANG` and the formats, so
+changing a single format through `localectl`, which drops whatever it is
+not given, took the list away. It is kept now when a format changes, and
+dropped when Language itself changes, since it would otherwise go on
+speaking the old language over the new `LANG`. Programs the desktop
+starts are given it as the system has it.
+
+**The suites no longer depend on the session they are run from**
+(Gitea #535). The harness models a true-colour terminal and set `TERM`
+for it, but not `COLORTERM`, so the console stepped down to 256 colours
+wherever the runner had none -- every session over ssh -- and console,
+kitgfx and mermaid failed there while passing elsewhere. It now says both,
+as hibr's own terminal says them to its programs, and drops a
+`HIBR_COLOURS` override; the three pass in a bare environment.
+
 ## 0.99.512
 
 **Add a Language** (Gitea #526, part two). Control Panel > Language &

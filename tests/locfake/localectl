@@ -12,6 +12,7 @@ set-locale)
 	[ "$#" -gt 0 ] || { echo "Failed to set locale: nothing given" >&2; exit 1; }
 	for a in "$@"; do
 		v=${a#*=}
+		case $a in LANGUAGE=*) continue ;; esac
 		case $v in
 		en_GB.UTF-8 | en_US.UTF-8 | ar_SA.UTF-8) ;;
 		*) echo "Failed to issue method call: Locale $v not installed, refusing." >&2; exit 1 ;;

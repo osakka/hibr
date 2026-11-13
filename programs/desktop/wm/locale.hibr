@@ -60,7 +60,7 @@ dt_locread() {
 			v=${l#*=}
 			v=${v#\"}
 			v=${v%\"}
-			case $k in LANG | LC_[A-Z]*) DT_LOC["$k"]=$v ;; esac
+			case $k in LANG | LANGUAGE | LC_[A-Z]*) DT_LOC["$k"]=$v ;; esac
 		done < "$f"
 		return 0
 	done
@@ -75,7 +75,9 @@ dt_locexport() {
 
 	[ "${#DT_LOC[@]}" -gt 0 ] || return 0
 	[ -n "${DT_LOC["LANG"]-}" ] && declare -gx LANG="${DT_LOC["LANG"]}"
-	for v in "${DT_LOCFMT[@]}"; do
+	# LANGUAGE, gettext's list of languages to try, speaks over LANG for
+	# messages: given as the system has it, and taken away where it has none.
+	for v in LANGUAGE "${DT_LOCFMT[@]}"; do
 		if [ -n "${DT_LOC["$v"]-}" ]; then
 			declare -gx "$v=${DT_LOC["$v"]}"
 		else
@@ -352,6 +354,11 @@ fn dt_locset(...pairs) {
 	fi
 	for k in "${!DT_LOC[@]}"; do
 		want["$k"]=${DT_LOC["$k"]}
+	done
+	# A new language drops LANGUAGE, gettext's list, which would otherwise
+	# go on speaking the old one over it; a format changed keeps it.
+	for p in "${pairs[@]}"; do
+		[ "${p%%=*}" = LANG ] && unset want["LANGUAGE"]
 	done
 	for p in "${pairs[@]}"; do
 		k=${p%%=*}

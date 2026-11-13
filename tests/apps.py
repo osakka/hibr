@@ -973,7 +973,8 @@ check("choosing a region sets every format through localectl, the whole set "
       all("%s=en_US.UTF-8" % c in loclog for c in LOCLC) and
       "US" in brow(sc, "Measurement") and "Letter" in brow(sc, "Paper"),
       (loclog, sc))
-locf, locenv = locsys("LANG=en_GB.UTF-8\nLC_TIME=ar_SA.UTF-8\nLC_PAPER=en_US.UTF-8\n")
+locf, locenv = locsys("LANG=en_GB.UTF-8\nLANGUAGE=en_GB:en\nLC_TIME=ar_SA.UTF-8\n"
+                      "LC_PAPER=en_US.UTF-8\n")
 sc = cprun(reach("language", "Dates & Times") + [2.0, b"\x1b[C", 3.0], env=locenv)
 loclog = open(locf + ".log").read() if os.path.exists(locf + ".log") else ""
 # Adding a language the system does not have (part two of #526): the dialog
@@ -1010,7 +1011,16 @@ shutil.rmtree(LSRC, True)
 check("and a format set on its own changes that one, the others as they were",
       loclog.strip().split() and
       sorted(loclog.strip().split()[1:]) ==
-      ["LANG=en_GB.UTF-8", "LC_PAPER=en_US.UTF-8", "LC_TIME=en_GB.UTF-8"], loclog)
+      ["LANG=en_GB.UTF-8", "LANGUAGE=en_GB:en", "LC_PAPER=en_US.UTF-8",
+       "LC_TIME=en_GB.UTF-8"], loclog)
+# A new language drops LANGUAGE, gettext's list of languages to try, which
+# would otherwise go on speaking the old one over LANG; a format changed
+# kept it, above.
+locf, locenv = locsys("LANG=en_GB.UTF-8\nLANGUAGE=en_GB:en\n")
+sc = cprun(reach("language", "Language") + [2.0, b"\x1b[C", 3.0], env=locenv)
+loclog = open(locf + ".log").read() if os.path.exists(locf + ".log") else ""
+check("choosing a language sets LANG and drops LANGUAGE, so programs speak "
+      "the new one", loclog.strip().split()[1:] == ["LANG=en_US.UTF-8"], loclog)
 sc = cprun(reach("shortcuts", "Control Panel"))
 
 # Clearing one: a ✕ beside every key that is set, and delete or backspace
@@ -6411,4 +6421,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(818)
+report(819)
