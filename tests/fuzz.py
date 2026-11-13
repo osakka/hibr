@@ -26,6 +26,9 @@ if inspect:
     ready = subprocess.run([nsh, '-c', 'need inspect'], env=runenv, capture_output=True)
     if ready.returncode or ready.stderr:
         sys.exit('inspection fuzzer cannot load producer: ' + ready.stderr.decode(errors='replace'))
+if inspect:
+    from inspect_symbols import exercise
+    print("%d symbol limit fuzz cases passed" % exercise(nsh, runenv))
 found = 0; hangs = 0
 for n in range(rounds):
     data = mutate(random.choice(seeds))

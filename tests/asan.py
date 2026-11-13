@@ -47,7 +47,7 @@ ADIR = os.path.join(ROOT, "build", "asan")
 LOGS = os.path.join(ROOT, "build", "asan-logs")
 BIN = os.path.join(ADIR, "bin")
 WRAP = os.path.join(BIN, "hibr")
-QUICK = ["inspect_spans", "inspect_records", "run.sh", "cat", "console", "term_diff", "md_spec", "html_tree",
+QUICK = ["inspect_symbols", "inspect_spans", "inspect_records", "run.sh", "cat", "console", "term_diff", "md_spec", "html_tree",
          "mail", "pim", "pim_rrule", "dav", "fetch", "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "sixel", "kitgfx", "holdpix", "dmabuf", "frames", "holdrenew", "holdseam", "holdlock", "native", "archive", "mermaid", "pdfapp"]
 FUZZ = 300
 # Past this many suites a quick run is a full one in all but name; see quick().

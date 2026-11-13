@@ -883,6 +883,39 @@ static void ix_settingsfree(sh *s)
 	free(s->tab);
 }
 
+/* Validate and collect a bounded caller-supplied reference whitelist. */
+static const char *ix_symbols(sh *settings, ix_ctx *c)
+{
+	char **keys = xm(sizeof *keys);
+	ent *list, *e;
+	var *options = v_find(settings, "OPTIONS");
+	size_t count = 0;
+
+	if (!options || options->ty != J_OBJ) {
+		free(keys);
+		return "inspection options must be an object";
+	}
+	keys[0] = "symbols";
+	list = v_path(settings, "OPTIONS", keys, 1, 0);
+	free(keys);
+	if (!list)
+		return 0;
+	if (list->ty != J_ARR)
+		return "symbols must be an array of identifier strings";
+	for (e = list->map; e; e = e->nx) {
+		if (++count > 4096)
+			return "symbols exceeds 4096 names";
+		if (e->ty != J_STR || !e->s)
+			return "symbols must be an array of identifier strings";
+		if (strlen(e->s) > 128)
+			return "symbol exceeds 128 bytes";
+		if (!isname(e->s))
+			return "symbols must be an array of identifier strings";
+		v_add(&c->symbols, e->s);
+	}
+	return 0;
+}
+
 /* Produce preliminary records in private parser storage, without execution. */
 static int ix_query(sh *caller, const char *request, const char *path,
 		    const char *options, str *out)
@@ -899,7 +932,7 @@ static int ix_query(sh *caller, const char *request, const char *path,
 	int lv, bad = 0, ndiag = 0, sourcebad;
 	unsigned oldln = lg_ln, oldcol = lg_col;
 	size_t i;
-	const char *state = "ok";
+	const char *state = "ok", *optionerror = 0;
 
 	memset(&own, 0, sizeof own);
 	memset(&c, 0, sizeof c);
@@ -916,12 +949,15 @@ static int ix_query(sh *caller, const char *request, const char *path,
 		      "{\"inspect\":1,\"state\":\"unsupported\",\"diagnostics\":[]}");
 		return 1;
 	}
-	if (options && ix_json(&settings, "OPTIONS", options))
+	if (options && strlen(options) > 1048576)
+		optionerror = "inspection options exceed 1 MiB";
+	if (optionerror || (options && ix_json(&settings, "OPTIONS", options)))
 		state = "unreadable";
-	if (options) {
+	if (options && strcmp(state, "unreadable")) {
 		char **keys = xm(sizeof *keys);
-		keys[0] = "symbols";
-		hibr_list(&settings, "OPTIONS", keys, 1, &c.symbols, 0);
+		optionerror = ix_symbols(&settings, &c);
+		if (optionerror)
+			state = "unreadable";
 		keys[0] = "function";
 		filter = hibr_getp(&settings, "OPTIONS", keys, 1);
 		keys[0] = "rules";
@@ -965,7 +1001,7 @@ static int ix_query(sh *caller, const char *request, const char *path,
 		c.out = &diagnostics;
 		ix_record(&c, 0, 0, "syntax");
 		s_cat(&diagnostics, ",\"rule\":\"input\",\"message\":");
-		ix_quote(&diagnostics, ix_read_error(sourcebad));
+		ix_quote(&diagnostics, optionerror ? optionerror : ix_read_error(sourcebad));
 		s_ch(&diagnostics, '}');
 		c.out = &records;
 		c.count = 0;
