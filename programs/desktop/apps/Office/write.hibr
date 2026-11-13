@@ -19,7 +19,7 @@
 
 strict
 
-app write "A word processor for markdown, shown as it reads" 1.7
+app write "A word processor for markdown, shown as it reads" 1.7.1
 # modules: md mermaid
 
 command -v dt_app > /dev/null && dt_app write "Write" 22 78 many "¶"
