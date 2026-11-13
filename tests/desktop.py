@@ -2021,6 +2021,18 @@ sc, _ = run(LONG, WHEEL3 + [press(r15 or 0, c15 + 2)])
 picked = open(LPICK).read().strip() if os.path.exists(LPICK) else ""
 check("and a click on a row after scrolling picks that row's value",
       picked == "15", (picked, sc))
+# The window list is a menu of its own drawing, and follows the same rule:
+# thirty windows on a 24-row screen fit, with a scroll bar, and End shows
+# the last.
+MANY = "".join('dt_new "Win %d" 5 20 2 2\n' % i for i in range(1, 31)) + "dt_mopen app\n"
+sc, _ = run(MANY, [0.5])
+check("the window list with more windows than rows stays inside the display, "
+      "with a scroll bar",
+      lrow(sc, "Win 1") is not None and lrow(sc, "Win 23") is None and
+      [r for r in range(1, sc.rows) if "█" in sc.row(r)], sc)
+sc, _ = run(MANY, [0.5, b"\x1b[F"])
+check("and End scrolls it to the last window",
+      lrow(sc, "Win 30") is not None and lrow(sc, "Win 1") is None, sc)
 if os.path.exists(LPICK):
     os.unlink(LPICK)
 
@@ -9900,4 +9912,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1071)
+report(1073)

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.515
+
+**The window list scrolls too** (Gitea #538). The menu of every window,
+opened from the bar's window list, has a drawing of its own, and thirty
+windows ran it off the display. It follows the same rule as every other
+menu now: bounded, scrolled with the highlight, the keys, the wheel and its
+scroll bar. And a submenu entered again, or the hibr menu's search with a
+changed query, opens at its top rather than where a wheel last left that
+place.
+
+**Adding a language survives the next locale-gen** (Gitea #526).
+`hibr-locale` was run for real, in a Debian 13 root with its own `locales`
+package, rather than only as a copy. It made the locale, but where it was
+handed a PATH without `/usr/sbin` it took `localedef` and left the line
+commented in `/etc/locale.gen`, so the next `locale-gen` -- which a glibc
+upgrade runs -- would have taken the language away. The helper now sets its
+own PATH, and enables the line in `locale.gen` wherever there is one,
+whichever program then makes the locale. Run again for real: both lines
+enabled, and both locales still there after a later `locale-gen`.
+
 ## 0.99.514
 
 **A menu never runs off its display, and scrolls** (Gitea #538, reported by

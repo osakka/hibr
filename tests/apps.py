@@ -2262,6 +2262,7 @@ def localehelper_checks():
     src = src.replace("#!@HIBR@", "#!" + sx.HIBR, 1)
     src = src.replace("LC_SUPPORTED=/usr/share/i18n/SUPPORTED", "LC_SUPPORTED=" + sup, 1)
     src = src.replace("LC_GEN=/etc/locale.gen", "LC_GEN=" + gen, 1)
+    src = src.replace("PATH=/usr/sbin:/usr/bin:/sbin:/bin", "PATH=%s:/usr/bin:/bin" % bin_, 1)
     helper = os.path.join(LH, "hibr-locale")
     open(helper, "w").write(src)
     os.chmod(helper, 0o755)

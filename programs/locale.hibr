@@ -19,6 +19,9 @@ strict
 
 LC_SUPPORTED=/usr/share/i18n/SUPPORTED
 LC_GEN=/etc/locale.gen
+# Root trusts no PATH it was handed: pkexec gives one, anything else may
+# not, and a missing /usr/sbin once made locale-gen look absent.
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
 fn lc_die(msg) {
 	echo "hibr-locale: $msg" >&2
@@ -65,8 +68,11 @@ gen)
 	n=${2-}
 	[[ $n =~ ^[a-z]{2,3}(_[A-Z]{2})?(\.[A-Za-z0-9-]+)?(@[a-z]+)?$ ]] || lc_die "not a locale name: $n"
 	line := lc_line "$n" || lc_die "not a locale this system can make: $n"
+	# Enabled in locale.gen wherever there is one, whichever program then
+	# makes it: a locale made behind it is undone the next time anything
+	# runs locale-gen, which a glibc upgrade does.
+	[ -f "$LC_GEN" ] && lc_enable "$line"
 	if [ -f "$LC_GEN" ] && command -v locale-gen > /dev/null; then
-		lc_enable "$line"
 		locale-gen || lc_die "locale-gen failed"
 	elif command -v localedef > /dev/null; then
 		cs=${line#* }
