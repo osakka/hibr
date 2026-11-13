@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 2.5
+app mail "Email, offline, labels and conversations as Gmail has them" 2.5.1
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
