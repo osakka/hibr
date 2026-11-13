@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.512
+
+**Add a Language** (Gitea #526, part two). Control Panel > Language &
+Region now offers a language the system does not have yet. Add a Language…
+lists every UTF-8 locale glibc can make on this computer and has not, by
+its own name, and narrows the list as you type. Choosing one makes it
+through hibr's new helper, `hibr-locale gen NAME`, under its own polkit
+action `org.hibr.locale`, which Administrative Access governs like every
+other.
+
+- It runs with `pkexec` in a terminal window, as Date & Time sets the
+  clock, so the password is asked there and `locale-gen`'s progress stays on
+  screen.
+- The helper takes only a name from glibc's own list,
+  `/usr/share/i18n/SUPPORTED`. It enables that one line in
+  `/etc/locale.gen`, uncommenting it or adding it once through a new copy
+  renamed into place, and runs `locale-gen`; or it uses `localedef` where
+  there is no `locale-gen`.
+- When the language is made, the pane sees glibc's folder change and offers
+  it under Language and Region.
+
+Nothing else is ever run as root. The helper is tested as a copy against
+files of its own, never this machine's `/etc`.
+
 ## 0.99.511
 
 **Language & Region: the system's language and formats, one source of

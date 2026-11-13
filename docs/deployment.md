@@ -171,9 +171,10 @@ files differ, using each system's own `login` rules -- and each has a
 hibr is never setuid ([ADR 0016](adr/0016-privileges-are-dropped-never-gained.md)).
 Everything the desktop or a person needs done as root -- running a
 command for `please`, changing who is an administrator, setting the
-clock, installing for every user, changing the login screen -- is a small
-hibr script in `/usr/lib/hibr`, run through `pkexec` under an action of
-its own: `org.hibr.run`, `org.hibr.access.apply`, `org.hibr.settime`,
+clock, installing a language, installing for every user, changing the
+login screen -- is a small hibr script in `/usr/lib/hibr`, run through
+`pkexec` under an action of its own: `org.hibr.run`,
+`org.hibr.access.apply`, `org.hibr.settime`, `org.hibr.locale`,
 `org.hibr.catalogue` and `org.hibr.loginscreen`. Who may use each, and
 with whose password, is set in Control Panel > Administrative Access;
 [please.md](please.md) has the details. An install anywhere but `/usr`

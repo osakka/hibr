@@ -976,6 +976,37 @@ check("choosing a region sets every format through localectl, the whole set "
 locf, locenv = locsys("LANG=en_GB.UTF-8\nLC_TIME=ar_SA.UTF-8\nLC_PAPER=en_US.UTF-8\n")
 sc = cprun(reach("language", "Dates & Times") + [2.0, b"\x1b[C", 3.0], env=locenv)
 loclog = open(locf + ".log").read() if os.path.exists(locf + ".log") else ""
+# Adding a language the system does not have (part two of #526): the dialog
+# lists every UTF-8 locale glibc can make here and the system has not, by
+# its own source's name, narrows as it is typed, and hands the one chosen
+# to hibr's helper under pkexec -- here only recorded, never run.
+LSRC = tempfile.mkdtemp(prefix="hibr-locsrc-")
+os.makedirs(os.path.join(LSRC, "locales"))
+open(os.path.join(LSRC, "SUPPORTED"), "w").write(
+    "en_GB.UTF-8 UTF-8\nen_GB ISO-8859-1\nfr_FR.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\n")
+for lb, lg, tr in (("fr_FR", "French", "France"), ("de_DE", "German", "Germany")):
+    open(os.path.join(LSRC, "locales", lb), "w").write(
+        'LC_IDENTIFICATION\ntitle      "x"\nlanguage   "%s"\nterritory  "%s"\n'
+        'END LC_IDENTIFICATION\n' % (lg, tr))
+LREC = os.path.join(LSRC, "ran")
+locf2, locenv2 = locsys("LANG=en_GB.UTF-8\n")
+locenv2["DT_LOCSRC"] = LSRC
+sc = cprun(reach("language", "Add a Language") + [2.0, b"\r", 2.0, b"f", b"r"],
+           env=locenv2, end=None,
+           post='dt_lochelper() { ret /h/hibr-locale; }\n'
+                'fn dt_locrun(...cmd) { echo "${cmd[*]}" > %s; }\n' % LREC)
+check("Add a Language lists what the system can make and has not, by name, "
+      "narrowed as it is typed",
+      sc.find("French (France) (fr_FR.UTF-8)") is not None and
+      sc.find("German") is None and sc.find("English (United Kingdom) (") is None, sc)
+sc = cprun(reach("language", "Add a Language") + [2.0, b"\r", 2.0, b"f", b"r", b"\r", 1.0],
+           env=locenv2,
+           post='dt_lochelper() { ret /h/hibr-locale; }\n'
+                'fn dt_locrun(...cmd) { echo "${cmd[*]}" > %s; }\n' % LREC)
+lran = open(LREC).read().strip() if os.path.exists(LREC) else ""
+check("and the one chosen goes to hibr's helper under pkexec, nothing else run",
+      lran == "pkexec /h/hibr-locale gen fr_FR.UTF-8", lran)
+shutil.rmtree(LSRC, True)
 check("and a format set on its own changes that one, the others as they were",
       loclog.strip().split() and
       sorted(loclog.strip().split()[1:]) ==
@@ -2200,6 +2231,59 @@ def notd_checks():
 
 
 notd_checks()
+
+# hibr-locale (Gitea #526), the one thing Language & Region asks root for:
+# making a locale the system does not have. Run here as a copy with its two
+# paths pointed at files of its own and a locale-gen that only records it
+# was run -- never the machine's /etc, and never through pkexec.
+def localehelper_checks():
+    LH = tempfile.mkdtemp(prefix="hibr-lochelp-")
+    sup = os.path.join(LH, "SUPPORTED")
+    gen = os.path.join(LH, "locale.gen")
+    open(sup, "w").write("en_GB.UTF-8 UTF-8\nen_GB ISO-8859-1\nar_SA.UTF-8 UTF-8\n"
+                         "fr_FR.UTF-8 UTF-8\n")
+    open(gen, "w").write("# Locales to make\n# en_GB.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\n")
+    bin_ = os.path.join(LH, "bin")
+    os.makedirs(bin_)
+    open(os.path.join(bin_, "locale-gen"), "w").write(
+        "#!/bin/sh\necho ran >> %s\n" % os.path.join(LH, "ran"))
+    os.chmod(os.path.join(bin_, "locale-gen"), 0o755)
+    src = open(tree("programs/locale.hibr")).read()
+    src = src.replace("#!@HIBR@", "#!" + sx.HIBR, 1)
+    src = src.replace("LC_SUPPORTED=/usr/share/i18n/SUPPORTED", "LC_SUPPORTED=" + sup, 1)
+    src = src.replace("LC_GEN=/etc/locale.gen", "LC_GEN=" + gen, 1)
+    helper = os.path.join(LH, "hibr-locale")
+    open(helper, "w").write(src)
+    os.chmod(helper, 0o755)
+    env = dict(os.environ, PATH=bin_ + ":" + os.environ["PATH"])
+
+    def h(*a):
+        return subprocess.run([helper] + list(a), capture_output=True, text=True, env=env)
+
+    r1 = h("gen", "en_GB.UTF-8")
+    after1 = open(gen).read()
+    r2 = h("gen", "fr_FR.UTF-8")
+    after2 = open(gen).read()
+    r3 = h("gen", "en_GB.UTF-8")
+    after3 = open(gen).read()
+    ran = open(os.path.join(LH, "ran")).read().count("ran") if os.path.exists(os.path.join(LH, "ran")) else 0
+    check("hibr-locale enables a supported locale in locale.gen -- uncommented "
+          "where it was commented, added where it was not, never twice -- and "
+          "runs locale-gen",
+          r1.returncode == 0 and r2.returncode == 0 and r3.returncode == 0 and
+          "\nen_GB.UTF-8 UTF-8\n" in after1 and "# en_GB.UTF-8" not in after1 and
+          after2.endswith("fr_FR.UTF-8 UTF-8\n") and after3 == after2 and
+          after2.count("en_GB.UTF-8 UTF-8") == 1 and ran == 3,
+          (r1.stderr, r2.stderr, after1, after2, ran))
+    bad = [h("gen", n) for n in ("../../etc/passwd", "en_GB.UTF-8; rm -rf /", "xx_YY.UTF-8", "")]
+    check("and refuses a name that is not a supported locale, changing nothing",
+          all(r.returncode != 0 for r in bad) and open(gen).read() == after3 and
+          (open(os.path.join(LH, "ran")).read().count("ran") == 3),
+          [(r.returncode, r.stderr) for r in bad])
+    shutil.rmtree(LH, True)
+
+
+localehelper_checks()
 
 # Control Panel > Administrative Access (Gitea #406), on a polkit that is
 # three fake programs: pkaction lists two actions, pkcheck says the first
@@ -6327,4 +6411,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(814)
+report(818)

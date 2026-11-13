@@ -130,12 +130,15 @@ Add 5 Columns
 Add Bookmark
 Add File Type…
 Add Sender to Contacts
+Add a Language
 Add a Mail Account
 Add a server in Control Panel > Servers
 Added %s to Contacts
 Added to your calendar
+Adding a language needs hibr's polkit policy, which is not installed here
 Address
 Addresses never fetched, * for anything:
+Add…
 Adjust
 Administrative Access
 Administrative access changed
@@ -812,6 +815,7 @@ No file type registered for this -- open in hvi anyway?
 No folder can be made here
 No folders to move to
 No labels to choose from
+No language to add matches
 No more in this list
 No networks in reach
 No notifications
@@ -1002,6 +1006,7 @@ Rabi' al-Thani
 Rajab
 Ramadan
 Read It
+Reading the languages this computer can add…
 Record
 Record %s added
 Record No. %s -- enter after the last field adds it, escape stops

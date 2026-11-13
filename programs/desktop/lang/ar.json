@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.5",
+ "version": "3.99.6",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1660,6 +1660,11 @@
   "Region": "المنطقة",
   "Right-to-Left": "من اليمين إلى اليسار",
   "The language was not changed: %s": "لم تتغير اللغة: %s",
-  "This computer has no localectl, so its language cannot be changed from here": "لا يوجد localectl على هذا الحاسوب، فلا يمكن تغيير لغته من هنا"
+  "This computer has no localectl, so its language cannot be changed from here": "لا يوجد localectl على هذا الحاسوب، فلا يمكن تغيير لغته من هنا",
+  "Add a Language": "إضافة لغة",
+  "Adding a language needs hibr's polkit policy, which is not installed here": "تحتاج إضافة لغة إلى سياسة polkit الخاصة بـ hibr، وهي غير مثبّتة هنا",
+  "Add…": "إضافة…",
+  "No language to add matches": "لا لغة مطابقة للإضافة",
+  "Reading the languages this computer can add…": "قراءة اللغات التي يمكن لهذا الحاسوب إضافتها…"
  }
 }

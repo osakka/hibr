@@ -32,6 +32,14 @@ declare -gA DT_LOCNAMES DT_LOCEX
 DT_LOCINFO=
 DT_LOCPK=
 DT_LOCWHY=
+# Locales the system can make and has not (part two of #526): glibc's own
+# list and sources, where every made locale goes, and what was read of it.
+DT_LOCSRC="${DT_LOCSRC-/usr/share/i18n}"
+DT_LOCDIR="${DT_LOCDIR-/usr/lib/locale}"
+declare -ga DT_LOCSUP
+declare -gA DT_LOCSUPN
+DT_LOCSUPRD=
+DT_LOCHELP=
 # LANG itself, which a login screen's bare environment may not have at all,
 # declared here so dt_locexport sets it rather than creating it.
 declare -g LANG="${LANG-}"
@@ -199,12 +207,21 @@ dt_locinfo() {
 	return 0
 }
 
-# Read what the pane shows, once, and again after a change.
+# Read what the pane shows, once, again after a change, and again when a
+# locale has been made since -- glibc's own folder newer than the last read,
+# a test with no program behind it, so asking every frame costs nothing.
 dt_locinfostart() {
 	local n
 
+	if [ "$DT_LOCINFO" = ok ] && [ -n "${DTJ_DIR-}" ] && [ -e "$DTJ_DIR/locread" ] &&
+	   { [ "$DT_LOCDIR" -nt "$DTJ_DIR/locread" ] ||
+	     [ "$DT_LOCDIR/locale-archive" -nt "$DTJ_DIR/locread" ]; }; then
+		DT_LOCINFO=
+		DT_LOCSUPRD=
+	fi
 	[ -z "$DT_LOCINFO" ] || return 0
 	DT_LOCINFO=run
+	dt_jobdir && : > "$DTJ_DIR/locread"
 	n := dt_jobvars loc:info "" dt_locinfodone dt_locinfo DT_LOCLIST DT_LOCNAMES DT_LOCEX || { DT_LOCINFO=; return 0; }
 	return 0
 }
@@ -213,6 +230,108 @@ fn dt_locinfodone(int n, int st) {
 	DT_LOCINFO=ok
 	dt_want 10
 	return 0
+}
+
+# hibr's own helper for making a locale, where polkit names it: the program
+# org.hibr.locale runs, as pkaction says, or status 1 when the policy is
+# not installed. Asked once a desktop.
+dt_lochelper() {
+	local l p=
+
+	if [ -z "$DT_LOCHELP" ]; then
+		DT_LOCHELP=-
+		if command -v pkaction > /dev/null; then
+			while IFS= read -r l; do # fork: once a desktop, the answer kept in DT_LOCHELP
+				case $l in *"exec.path -> "*) p=${l##*-> } ;; esac
+			done < <(pkaction --action-id org.hibr.locale --verbose 2> /dev/null)
+			[ -n "$p" ] && [ -x "$p" ] && DT_LOCHELP=$p
+		fi
+	fi
+	[ "$DT_LOCHELP" != - ] || return 1
+	ret "$DT_LOCHELP"
+}
+
+# A locale's name for comparing: en_GB.utf8 and en_GB.UTF-8 are one.
+fn dt_lockey(l) {
+	ret "${l/.utf8/.UTF-8}"
+}
+
+# Every UTF-8 locale glibc can make here and the system does not have, by
+# name: its own list, and each one's language and territory from its source
+# -- several hundred files, so a job (dt_jobvars), read when asked for.
+dt_locsupread() {
+	local l a b k base f lang terr nm
+	local -A have
+
+	DT_LOCSUP=()
+	DT_LOCSUPN=()
+	for l in "${DT_LOCLIST[@]}"; do
+		k := dt_lockey "$l"
+		have["$k"]=1
+	done
+	[ -r "$DT_LOCSRC/SUPPORTED" ] || return 0
+	while IFS= read -r l || [ -n "$l" ]; do
+		read -r a b <<< "$l"
+		[ "$b" = UTF-8 ] || continue
+		[ -z "${have["$a"]+x}" ] || continue
+		base=${a/.UTF-8/}
+		f=$DT_LOCSRC/locales/$base
+		lang=
+		terr=
+		if [ -r "$f" ]; then
+			while IFS= read -r l; do
+				case $l in
+				"language "*) [ -n "$lang" ] || { lang=${l#*\"}; lang=${lang%\"*}; } ;;
+				"territory "*) [ -n "$terr" ] || { terr=${l#*\"}; terr=${terr%\"*}; } ;;
+				"END LC_IDENTIFICATION"*) break ;;
+				esac
+			done < "$f"
+		fi
+		nm=${lang:-$base}
+		[ -n "$terr" ] && nm="$nm ($terr)"
+		DT_LOCSUP+=("$a")
+		DT_LOCSUPN["$a"]="$nm ($a)"
+	done < "$DT_LOCSRC/SUPPORTED"
+	return 0
+}
+
+# Read them, once a desktop and after anything is made.
+dt_locsupstart() {
+	[ -z "$DT_LOCSUPRD" ] || return 0
+	DT_LOCSUPRD=run
+	dt_jobvars loc:sup "" dt_locsupdone dt_locsupread DT_LOCSUP DT_LOCSUPN > /dev/null || DT_LOCSUPRD=
+	return 0
+}
+
+fn dt_locsupdone(int n, int st) {
+	DT_LOCSUPRD=ok
+	dt_want 10
+	return 0
+}
+
+# Make a locale the system does not have, through hibr's helper under
+# pkexec, in a terminal window of its own, where polkit asks for the
+# password and locale-gen's progress stays on screen -- as Date & Time
+# sets the clock. When it is made the pane sees glibc's folder change and
+# offers it.
+fn dt_locinstall(name) {
+	local h
+
+	if ! h := dt_lochelper; then
+		dt_notep normal "Adding a language needs hibr's polkit policy, which is not installed here"
+		return 1
+	fi
+	dt_locrun pkexec "$h" gen "$name"
+}
+
+# Run a command that asks for an administrator in a terminal window.
+fn dt_locrun(...cmd) {
+	DT_OPENCMD=("${cmd[@]}")
+	DT_OPENSELF=1
+	dt_launch term && return 0
+	DT_OPENCMD=()
+	DT_OPENSELF=
+	return 1
 }
 
 # Change the system's locale: name=value pairs over what it has now, the

@@ -1,0 +1,83 @@
+#!@HIBR@
+#
+# hibr-locale -- install a locale the system does not have yet (Gitea
+# #526). Control Panel > Language & Region runs it through pkexec, under
+# hibr's action org.hibr.locale, which Administrative Access governs like
+# any other: setting the system's locale is localectl's own business, and
+# polkit's; making a locale exist is not.
+#
+#   hibr-locale gen NAME        e.g. en_GB.UTF-8
+#
+# NAME must be a line of the system's own list of the locales glibc can
+# make, /usr/share/i18n/SUPPORTED, and nothing else is ever handed on. On a
+# system with /etc/locale.gen and locale-gen (Debian, Arch) it is enabled
+# there -- a new copy written and renamed into place, the line uncommented
+# or added -- and locale-gen makes it; elsewhere localedef makes it from
+# glibc's own source. Each argument is checked before anything is changed.
+
+strict
+
+LC_SUPPORTED=/usr/share/i18n/SUPPORTED
+LC_GEN=/etc/locale.gen
+
+fn lc_die(msg) {
+	echo "hibr-locale: $msg" >&2
+	exit 1
+}
+
+# The SUPPORTED line for a name, "NAME CHARSET", or status 1.
+fn lc_line(n) {
+	local l a b
+
+	[ -r "$LC_SUPPORTED" ] || return 1
+	while IFS= read -r l || [ -n "$l" ]; do
+		read -r a b <<< "$l"
+		[ "$a" = "$n" ] && { ret "$a $b"; return 0; }
+	done < "$LC_SUPPORTED"
+	return 1
+}
+
+# Enable a line in locale.gen: uncommented where it is there commented out,
+# added where it is not there at all, left alone where it is already on.
+fn lc_enable(line) {
+	local l t=$LC_GEN.hibr-new on=0 s
+	local -a out
+
+	while IFS= read -r l || [ -n "$l" ]; do
+		s=${l#"#"}
+		s=${s# }
+		if [ "$l" = "$line" ]; then
+			on=1
+		elif [ "$s" = "$line" ] && [ "$on" = 0 ]; then
+			l=$line
+			on=1
+		fi
+		out+=("$l")
+	done < "$LC_GEN"
+	[ "$on" = 1 ] || out+=("$line")
+	printf '%s\n' "${out[@]}" > "$t" || lc_die "cannot write $t"
+	chmod 644 "$t"
+	mv -f "$t" "$LC_GEN" || lc_die "cannot replace $LC_GEN"
+}
+
+case ${1-} in
+gen)
+	n=${2-}
+	[[ $n =~ ^[a-z]{2,3}(_[A-Z]{2})?(\.[A-Za-z0-9-]+)?(@[a-z]+)?$ ]] || lc_die "not a locale name: $n"
+	line := lc_line "$n" || lc_die "not a locale this system can make: $n"
+	if [ -f "$LC_GEN" ] && command -v locale-gen > /dev/null; then
+		lc_enable "$line"
+		locale-gen || lc_die "locale-gen failed"
+	elif command -v localedef > /dev/null; then
+		cs=${line#* }
+		localedef -i "${n%%.*}" -f "$cs" "$n" || lc_die "localedef failed for $n"
+	else
+		lc_die "this system has neither locale-gen nor localedef"
+	fi
+	;;
+*)
+	echo "usage: hibr-locale gen NAME" >&2
+	exit 2
+	;;
+esac
+exit 0

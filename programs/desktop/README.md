@@ -465,7 +465,14 @@ administrator, in the desktop's own dialog), and kept nowhere in
   example as the system writes it, and may be set on its own, or back to
   Same as Region.
 
-Only locales the system has are offered. The desktop reads the system's
+Only locales the system has are offered. **Add a Language…** lists every
+one glibc can make here and the system has not, by its own name, and makes
+the one chosen through hibr's helper (`hibr-locale gen`, polkit action
+`org.hibr.locale`, governed by Administrative Access), run with `pkexec` in
+a terminal window where the password is asked and `locale-gen` shows its
+progress. The helper takes only a name from `/usr/share/i18n/SUPPORTED`.
+When it is made, the pane sees glibc's folder change and offers it. The
+desktop reads the system's
 locale when it starts and after every change, and gives it to everything it
 starts from then on: a held desktop keeps the environment its session began
 with, so waiting for the next login would never bring it.
