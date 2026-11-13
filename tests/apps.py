@@ -937,10 +937,49 @@ check("a shortcut's row has no ellipsis before its key",
 # fit it, and every dropdown in the pane keeps its caret on one column,
 # inside the window.
 sc = cprun([b"\x1b[B"] * downs("language"))
-lgcar = [sc.row(r).find("▾", BODYCOL) for r in range(R0, R0 + 4)]
+lgrows = [r for r in range(R0, R0 + 14) if "▾" in sc.row(r)[BODYCOL:]]
+lgcar = [sc.row(r).find("▾", BODYCOL) for r in lgrows]
 check("a long value widens the pane's column and stays inside the window",
-      "Automatic (hibr) ▾" in sc.row(R0 + 1) and len(set(lgcar)) == 1 and
-      0 < lgcar[0] < 71, sc)
+      "Automatic (hibr) ▾" in brow(sc, "Order Right-to-Left Text") and
+      len(lgrows) >= 4 and len(set(lgcar)) == 1 and 0 < lgcar[0] < 71, sc)
+
+# Language & Region (Gitea #526): the system's locale, the one source of
+# truth, read from its file and changed through localectl, which drops
+# whatever it is not given -- so the whole set is always handed over.
+# tests/locfake stands in for localectl and locale(1), refusing a locale
+# that is not installed as the real localectl does.
+def locsys(text):
+    d = tempfile.mkdtemp(prefix="hibr-loc-")
+    f = os.path.join(d, "locale.conf")
+    open(f, "w").write(text)
+    return f, {"PATH": tree("tests/locfake") + ":" + os.environ["PATH"],
+               "DT_LOCFILES": f, "LOCFAKE_FILE": f}
+
+
+LOCLC = ("LC_TIME", "LC_NUMERIC", "LC_MONETARY", "LC_MEASUREMENT", "LC_PAPER")
+locf, locenv = locsys("LANG=en_GB.UTF-8\nLC_TIME=ar_SA.UTF-8\n")
+sc = cprun([b"\x1b[B"] * downs("language") + [2.0], env=locenv)
+check("Language & Region shows the system's language and region by name, and "
+      "each format as the system writes it",
+      "English (United" in brow(sc, "Language") and
+      "English (United" in brow(sc, "Region") and
+      "(GBP)" in brow(sc, "Currency") and "A4" in brow(sc, "Paper"), sc)
+locf, locenv = locsys("LANG=en_GB.UTF-8\nLC_TIME=ar_SA.UTF-8\n")
+sc = cprun(reach("language", "Region") + [2.0, b"\x1b[C", 3.0], env=locenv)
+loclog = open(locf + ".log").read() if os.path.exists(locf + ".log") else ""
+check("choosing a region sets every format through localectl, the whole set "
+      "given and the language kept",
+      "LANG=en_GB.UTF-8" in loclog and
+      all("%s=en_US.UTF-8" % c in loclog for c in LOCLC) and
+      "US" in brow(sc, "Measurement") and "Letter" in brow(sc, "Paper"),
+      (loclog, sc))
+locf, locenv = locsys("LANG=en_GB.UTF-8\nLC_TIME=ar_SA.UTF-8\nLC_PAPER=en_US.UTF-8\n")
+sc = cprun(reach("language", "Dates & Times") + [2.0, b"\x1b[C", 3.0], env=locenv)
+loclog = open(locf + ".log").read() if os.path.exists(locf + ".log") else ""
+check("and a format set on its own changes that one, the others as they were",
+      loclog.strip().split() and
+      sorted(loclog.strip().split()[1:]) ==
+      ["LANG=en_GB.UTF-8", "LC_PAPER=en_US.UTF-8", "LC_TIME=en_GB.UTF-8"], loclog)
 sc = cprun(reach("shortcuts", "Control Panel"))
 
 # Clearing one: a ✕ beside every key that is set, and delete or backspace
@@ -6288,4 +6327,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(811)
+report(814)

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.4",
+ "version": "3.99.5",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1644,6 +1644,22 @@
   "Switch Console": "تبديل وحدة التحكم",
   "Use Super Instead of Alt": "استخدم Super بدل Alt",
   "Use Alt Instead of Super": "استخدم Alt بدل Super",
-  "Kept by Blit": "يحتفظ به Blit"
+  "Kept by Blit": "يحتفظ به Blit",
+  "A change of language is already being made": "يجري الآن تغيير اللغة",
+  "Currency": "العملة",
+  "Dates & Times": "التواريخ والأوقات",
+  "Formats": "التنسيقات",
+  "LC_ALL Overrides These": "LC_ALL يتجاوز هذه الإعدادات",
+  "Language & Region": "اللغة والمنطقة",
+  "Language & Region changed; programs started from now on use it": "تغيّرت اللغة والمنطقة؛ تستخدمها البرامج التي تبدأ من الآن",
+  "Measurement": "القياس",
+  "No Other Languages Installed": "لا لغات أخرى مثبّتة",
+  "No other languages are installed on this computer": "لا لغات أخرى مثبّتة على هذا الحاسوب",
+  "Numbers": "الأرقام",
+  "Paper": "الورق",
+  "Region": "المنطقة",
+  "Right-to-Left": "من اليمين إلى اليسار",
+  "The language was not changed: %s": "لم تتغير اللغة: %s",
+  "This computer has no localectl, so its language cannot be changed from here": "لا يوجد localectl على هذا الحاسوب، فلا يمكن تغيير لغته من هنا"
  }
 }

@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.99.511
+
+**Language & Region: the system's language and formats, one source of
+truth** (Gitea #526, the owner's choices). Control Panel > Language is now
+Language & Region:
+- **Language** is the system's `LANG`, the language programs speak.
+- **Region** sets every format at once: dates and times, numbers, currency,
+  measurement and paper (`LC_TIME`, `LC_NUMERIC`, `LC_MONETARY`,
+  `LC_MEASUREMENT`, `LC_PAPER`). So English with Saudi Arabia's formats
+  can be said.
+- Each format shows an example as the system writes it, and may be set on
+  its own.
+
+It is read from the system's own file and changed through `localectl`,
+which asks for an administrator in the desktop's own dialog. The whole set
+is always given, since localectl drops whatever it is not handed. Nothing of
+it is kept in `desktop.json`. The desktop reads it when it starts and
+after every change, and gives it to everything it starts from then on: a
+held desktop keeps its session's environment, so the next login would never
+have brought it. The desktop's own words follow Language wherever hibr has
+a catalogue for it; a session that sets `DT_LANG` itself keeps its own.
+
+Only installed locales are offered for now. Installing another, through a
+small privileged helper, comes in a later release.
+
+**A display that moves in a held session keeps its own refresh rate**
+(Gitea #534). Hold tagged each display's rate with where the display sat
+when Blit answered, so a display moved in the session (`hold move`) had its
+rate filed under the place it had left, and the windows on it fell back to
+the API's reading or 60 Hz. Hold now tells the desktop when a display
+leaves or moves (`DISPLAY gone`), and asks a moved display again, so its
+answer is filed under where it is now.
+
+**Hold forgets who asked for the keyboards and the rates when that
+connection closes**, as it already did for pictures and input routes:
+an answer could otherwise have gone to whatever connection was next given
+the same descriptor.
+
 ## 0.99.510
 
 **A program window is told its own display's refresh rate, by Blit

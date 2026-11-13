@@ -256,6 +256,22 @@ str cn_rates;
 long cn_rategen;
 int cn_rateasked;
 
+/* Take the line whose place is key ("row col ") out of the rates. */
+void cn_ratedrop(const char *key, size_t kn)
+{
+	size_t i, j;
+
+	for (i = 0; cn_rates.p && i < cn_rates.n; i = j + 1) {
+		for (j = i; j < cn_rates.n && cn_rates.p[j] != '\n'; j++)
+			;
+		if (kn <= j - i && !memcmp(cn_rates.p + i, key, kn)) {
+			memmove(cn_rates.p + i, cn_rates.p + j + 1, cn_rates.n - j - 1);
+			cn_rates.n -= j + 1 - i;
+			return;
+		}
+	}
+}
+
 /* One DISPLAY line from Blit, or from hold with the display's place. */
 void cn_rateline(const char *line)
 {
@@ -263,8 +279,23 @@ void cn_rateline(const char *line)
 	long mhz, r = -1, c = -1;
 	const char *p;
 	str o;
-	size_t i, j;
 
+	/* A display that left or moved, from hold: its old place's line goes,
+	   and a moved one's new answer files it again. */
+	if (!strncmp(line, "DISPLAY gone ", 13)) {
+		s_init(&o);
+		r = strtol(line + 13, &e, 10);
+		c = *e == ' ' ? strtol(e + 1, 0, 10) : -1;
+		s_num(&o, r);
+		s_ch(&o, ' ');
+		s_num(&o, c);
+		s_ch(&o, ' ');
+		cn_ratedrop(o.p, o.n);
+		s_free(&o);
+		cn_rategen++;
+		cn_kbwake = 1;
+		return;
+	}
 	if (strncmp(line, "DISPLAY rate ", 13)) {
 		lg(HIBR_LDBG, "console: %s", line);
 		return;
@@ -287,15 +318,7 @@ void cn_rateline(const char *line)
 	}
 	s_ch(&o, ' ');
 	/* Replace this display's line, or add it. */
-	for (i = 0; cn_rates.p && i < cn_rates.n; i = j + 1) {
-		for (j = i; j < cn_rates.n && cn_rates.p[j] != '\n'; j++)
-			;
-		if ((size_t)o.n <= j - i && !memcmp(cn_rates.p + i, o.p, o.n)) {
-			memmove(cn_rates.p + i, cn_rates.p + j + 1, cn_rates.n - j - 1);
-			cn_rates.n -= j + 1 - i;
-			break;
-		}
-	}
+	cn_ratedrop(o.p, o.n);
 	p = o.p;
 	s_cat(&cn_rates, p);
 	s_num(&cn_rates, mhz);

@@ -25,6 +25,9 @@
 
 strict
 
+# The desktop's own language follows the system's (wm/locale, Gitea #526);
+# a session -- or a suite -- that sets DT_LANG itself keeps it.
+DT_LANGENV=${DT_LANG+1}
 DT_LANG="${DT_LANG-}"
 DT_BIDI="${DT_BIDI-auto}"
 # Whether the layout mirrors for a right-to-left language: auto follows the
@@ -39,7 +42,7 @@ DT_LANGON=
 DT_LANGRTL=
 # Scratch for a translated label built from a template, before it is handed on.
 DT_T=
-dt_keep DT_LANG DT_BIDI DT_MIRROR
+dt_keep DT_BIDI DT_MIRROR
 # Dates as a region writes them (ADR 0034): the Hijri date shown beside
 # the Gregorian one, in which calendar and moved by how many days for local
 # sighting; Western or Arabic-Indic digits; the day a week starts, auto

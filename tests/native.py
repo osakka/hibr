@@ -974,6 +974,18 @@ wait(lambda: False, 1.0 * SLOW)
 check("held on two displays, each display's rate is its own: the window on "
       "the lower one is told the lower's, and the upper's changing does not "
       "reach it", out3()[-1:] == ["144000"] and "75000" not in out3(), out3()[-6:])
+# A display that moves in the session takes its rate with it: the lower
+# one moved further down and the window put on it there is still told the
+# lower's 144 Hz, where its rate was filed under the place it had left.
+mv = subprocess.run([sx.HIBR, "-c", load("hold") + "hold move %s bottom 48 0" % hn3],
+                    env=dict(os.environ, **henv), capture_output=True, text=True, timeout=20)
+wait(lambda: False, 1.0 * SLOW)
+n3 = len(out3())
+open(MV, "w").write("52\n")
+st1.keys([b"x"])
+moved = wait(lambda: len(out3()) > n3 and out3()[-1:] == ["144000"], 8)
+check("a display moved in the session keeps its own rate for the windows on it",
+      mv.returncode == 0 and moved, (mv.stderr, out3()[-6:]))
 st0.quit(None, 0.3)
 st1.quit(None, 0.3)
 subprocess.run([sx.HIBR, "-c", load("hold") + "hold kill %s" % hn3],
@@ -1021,4 +1033,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(78)
+report(79)

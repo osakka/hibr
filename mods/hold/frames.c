@@ -518,11 +518,38 @@ void hd_f3client(int cfd)
 	}
 }
 
-/* A producer went: its frames have nobody to go back to. */
+/* A display that left, or moved in the session, is told to whoever asked
+   for the rates: its old place is gone, and one that moved is asked again,
+   so its answer is filed under where it is now (Gitea #534). cn is the
+   display still here after a move, or 0 when it left. */
+void hd_ratemoved(struct hd_cli *cn, int orow, int ocol)
+{
+	str o;
+
+	if (hd_rateprod < 0)
+		return;
+	s_init(&o);
+	s_cat(&o, "DISPLAY gone ");
+	s_num(&o, orow);
+	s_ch(&o, ' ');
+	s_num(&o, ocol);
+	hd_send(hd_rateprod, HD_FRMANS, o.p, o.n);
+	s_free(&o);
+	if (cn && cn->fdok)
+		hd_send(cn->fd, HD_INPUT, "DISPLAY rate", 12);
+}
+
+/* A producer went: its frames have nobody to go back to, and nobody is
+   waiting for the keyboards or the rates on its descriptor, which the
+   next connection may be given. */
 void hd_f3prod(int fd)
 {
 	size_t i;
 
+	if (hd_kbprod == fd)
+		hd_kbprod = -1;
+	if (hd_rateprod == fd)
+		hd_rateprod = -1;
 	for (i = hd_nin; i--;)
 		if (hd_ins[i].prod == fd) {
 			s_free(&hd_ins[i].sock);

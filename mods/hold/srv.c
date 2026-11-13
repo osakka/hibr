@@ -106,6 +106,7 @@ void hd_cdrop(vec *cls, int fd)
 			hd_slotkeep(cn);
 			hd_gone = 1;
 			hd_f3client(fd);
+			hd_ratemoved(0, cn->row, cn->col);
 			close(fd);
 			free(cn->front);
 			free(cn->pid);
@@ -979,6 +980,7 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		}
 		if (cn2) {
 			struct hd_cli *pc = hd_cprimary(cls);
+			int orow = cn2->row, ocol = cn2->col;
 
 			if (pc) {
 				nrow += pc->row;
@@ -986,6 +988,8 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			}
 			cn2->row = nrow;
 			cn2->col = ncol;
+			if (orow != nrow || ocol != ncol)
+				hd_ratemoved(cn2, orow, ocol);
 			free(cn2->front);
 			cn2->front = 0;
 			if (hd_union(cls, id, tid))

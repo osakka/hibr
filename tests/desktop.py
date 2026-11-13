@@ -6330,6 +6330,35 @@ sc, raw = run(ONE)
 check("and English is not mirrored by default",
       sc.row(0).lstrip().startswith("\u270e"), sc.row(0))
 
+# The desktop's own words follow the system's language (Gitea #526): with
+# no DT_LANG of its own, a system in Arabic is a desktop in Arabic; and
+# what the desktop starts is given the system's locale -- LANG and the
+# formats it sets, and a format it does not set taken away, so an inherited
+# one cannot speak over it -- while desktop.json keeps none of it.
+LOCD = tempfile.mkdtemp(prefix="hibr-loc-")
+LOCF = os.path.join(LOCD, "locale.conf")
+open(LOCF, "w").write('LANG="ar_SA.UTF-8"\n')
+sc, _ = run(ONE, env={"DT_LOCFILES": LOCF, "DT_LANG": None})
+bar = sc.row(0).rstrip()
+check("with no language of its own, the desktop speaks the system's",
+      re.search(r"[\u0600-\u06ff\ufb50-\ufeff]", bar) is not None and
+      "File" not in bar, bar)
+open(LOCF, "w").write("LANG=en_GB.UTF-8\nLC_TIME=ar_SA.UTF-8\n")
+LOCOUT = os.path.join(LOCD, "env")
+LOCCONF = os.path.join(LOCD, "conf")
+sc, _ = run('sh -c \'echo "${LANG-} ${LC_TIME-} ${LC_NUMERIC-unset}"\' > %s\n'
+            'dt_save\n%s' % (LOCOUT, ONE),
+            env={"DT_LOCFILES": LOCF, "LC_NUMERIC": "fr_FR.UTF-8",
+                 "XDG_CONFIG_HOME": LOCCONF})
+got = open(LOCOUT).read().split() if os.path.exists(LOCOUT) else []
+check("what the desktop starts has the system's locale, and a format the "
+      "system does not set is taken away",
+      got == ["en_GB.UTF-8", "ar_SA.UTF-8", "unset"], got)
+lconf = screen.conftext(os.path.join(LOCCONF, "hibr", "desktop.json"))
+check("and desktop.json keeps no copy of it",
+      bool(lconf) and "LANG" not in lconf and "LC_" not in lconf and
+      "DT_LANG" not in lconf, lconf)
+shutil.rmtree(LOCD, True)
 # The one shipped translation (#68, ADR 0032): Arabic is a real catalogue,
 # not a pseudo-language, and it is right to left, so choosing it both
 # translates the desktop and mirrors it with no other setting.
@@ -6408,16 +6437,24 @@ sc, _ = run(XYPANEL, feed=[press(disp[0], disp[1]), release(disp[0], disp[1])],
 check("and a click on a pane in it opens that pane",
       sc.find("Displays") is not None and
       re.search(r"\d\d:\d\d:\d\d", sc.row(2)) is None, sc)
-sc, _ = run(XYPANEL + " language", env=XY, pre=CPAN)
+# The language row shows the system's (Gitea #526): a system of its own
+# here, with tests/locfake standing in for localectl and locale(1).
+XYLOCD = tempfile.mkdtemp(prefix="hibr-xyloc-")
+XYLOCF = os.path.join(XYLOCD, "locale.conf")
+open(XYLOCF, "w").write("LANG=en_GB.UTF-8\n")
+XYLOC = dict(XY, PATH=tree("tests/locfake") + ":" + os.environ["PATH"],
+             DT_LOCFILES=XYLOCF, LOCFAKE_FILE=XYLOCF)
+sc, _ = run(XYPANEL + " language", feed=[2.0], env=XYLOC, pre=CPAN)
 row = sc.row(2)
 check("a pane's rows put the value at the left and the label at the right",
-      re.match(r"\S*\u2502 xy +\u25be +\S", row) is not None and
+      re.match(r"\S*\u2502 .*English.* +\u25be +\S", row) is not None and
       row.rstrip().find("Language") > row.find("\u25be"), row)
-drop = row.index("\u25be")
-sc, _ = run(XYPANEL + " language", env=XY, pre=CPAN,
-            feed=[press(2, drop), release(2, drop)])
+drop = row.index("\u25be") if "\u25be" in row else 0
+sc, _ = run(XYPANEL + " language", env=XYLOC, pre=CPAN,
+            feed=[2.0, press(2, drop), release(2, drop)])
 check("and its dropdown opens from where it is drawn",
-      sc.find("English") is not None, sc)
+      sc.find("Arabic (Saudi Arabia)") is not None, sc)
+shutil.rmtree(XYLOCD, True)
 sc, _ = run(XYPANEL, feed=[press(5, bar), drag(5, bar - 8), release(5, bar - 8)],
             env=XY, pre=CPAN)
 check("dragging its divider left widens the list, as it is on the right",
@@ -9811,4 +9848,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1063)
+report(1066)

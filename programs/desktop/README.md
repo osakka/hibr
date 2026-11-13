@@ -451,10 +451,28 @@ start. Why JSON and not a script is
 [decision 0028](../../docs/adr/0028-a-theme-is-data.md): a file you were
 given can only ever be colours and settings.
 
-## Language
+## Language & Region
 
-Control Panel > Language chooses the language the desktop speaks. English is
-the source, and every other language is a catalogue: `lang/<code>.json`,
+Control Panel > Language & Region is the **system's** locale, the one source
+of truth (Gitea #526): it is read from `/etc/locale.conf` or
+`/etc/default/locale`, changed through `localectl` (polkit asks for an
+administrator, in the desktop's own dialog), and kept nowhere in
+`desktop.json`.
+
+- **Language** is `LANG`: the language programs speak, and UTF-8.
+- **Region** sets the formats together: `LC_TIME`, `LC_NUMERIC`,
+  `LC_MONETARY`, `LC_MEASUREMENT` and `LC_PAPER`. Each format's row shows an
+  example as the system writes it, and may be set on its own, or back to
+  Same as Region.
+
+Only locales the system has are offered. The desktop reads the system's
+locale when it starts and after every change, and gives it to everything it
+starts from then on: a held desktop keeps the environment its session began
+with, so waiting for the next login would never bring it.
+
+The desktop's own words follow Language wherever there is a catalogue for
+it. English is the source, and every other language is a catalogue:
+`lang/<code>.json`,
 in `~/.config/hibr/lang/` or bundled, mapping each English string to its
 translation (ADR 0032):
 

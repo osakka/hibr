@@ -1,48 +1,25 @@
 #!/usr/bin/env hibr
 #
-# language -- the Control Panel pane for the language the desktop speaks
-# and whether it orders right-to-left text itself (#68, ADR 0032). The
-# languages listed are the catalogues there are, lang/<code>.json in the
-# person's own folder or bundled; English is the source and always there.
+# language -- the Control Panel pane for Language & Region (Gitea #526): the
+# system's language, which programs speak and the desktop's own words follow
+# wherever hibr has a catalogue (#68, ADR 0032), and its region, the formats
+# programs write dates, numbers, money, measures and paper in, each of which
+# may be set on its own. They are the system's, one source of truth: read
+# from it and changed through localectl, which asks for an administrator
+# (wm/locale.hibr). Below them, how the desktop itself shows right-to-left
+# text and digits.
 
 strict
 
 
-app language "The language the desktop speaks, and right-to-left ordering" 1.0
-command -v cp_pane > /dev/null && cp_pane language "Language" "A"
+app language "The system's language and region, and how the desktop shows them" 1.0.1
+command -v cp_pane > /dev/null && cp_pane language "Language & Region" "A"
 
-declare -ga CP_LANGCODES CP_LANGNAMES CP_BIDIS
+declare -ga CP_BIDIS CP_LOCN
 CP_MIRRORS=(auto on off)
 CP_DIGITS=(Western Arabic-Indic)
-
-# Read the catalogues there are into CP_LANGCODES and CP_LANGNAMES, English first.
-cp_langlist() {
-	local all c n
-
-	CP_LANGCODES=("")
-	CP_LANGNAMES=("English")
-	all := dt_langs
-	while IFS=$'\t' read -r c n; do
-		[ -n "$c" ] || continue
-		CP_LANGCODES+=("$c")
-		CP_LANGNAMES+=("$n")
-	done <<< "$all"
-}
-
-# The name of the language in use.
-cp_langname() {
-	local i=0
-
-	cp_langlist
-	while [ "$i" -lt "${#CP_LANGCODES[@]}" ]; do
-		if [ "${CP_LANGCODES[$i]}" = "$DT_LANG" ]; then
-			ret "${CP_LANGNAMES[$i]}"
-			return 0
-		fi
-		i=$((i + 1))
-	done
-	ret "$DT_LANG"
-}
+# The formats a region sets.
+CP_LOCCATS=(LC_TIME LC_NUMERIC LC_MONETARY LC_MEASUREMENT LC_PAPER)
 
 # Ordering right-to-left text: who does it (ADR 0031). Automatic asks the
 # terminal and says in brackets what it settled on, since the wrong one
@@ -73,22 +50,6 @@ fn cp_set_bidi(int? id = "", value = "") {
 	cp_save
 }
 
-# Choose a language by its name, as the dropdown hands it over.
-fn cp_set_lang(int? id = "", value = "") {
-	local i=0
-
-	cp_langlist
-	while [ "$i" -lt "${#CP_LANGNAMES[@]}" ]; do
-		if [ "${CP_LANGNAMES[$i]}" = "$value" ]; then
-			DT_LANG=${CP_LANGCODES[$i]}
-			break
-		fi
-		i=$((i + 1))
-	done
-	dt_langapply
-	cp_save
-}
-
 # Mirror the layout: auto (with the language), on or off.
 fn cp_set_mirror(int? id = "", value = "") {
 	DT_MIRROR=$value
@@ -103,12 +64,106 @@ fn cp_set_digits(int? id = "", value = "") {
 	cp_save
 }
 
-fn language_rows(int w) {
-	local n=0 nm
+# Every locale this system has, by name, into CP_LOCN.
+cp_locnames() {
+	local l
 
-	nm := cp_langname
+	CP_LOCN=()
+	for l in "${DT_LOCLIST[@]}"; do
+		CP_LOCN+=("${DT_LOCNAMES["$l"]}")
+	done
+}
+
+# The region: the locale most of the formats are in, a format the system
+# does not set being LANG's.
+cp_locregion() {
+	local c v best= bn=0 n
+	local -A cnt
+
+	for c in "${CP_LOCCATS[@]}"; do
+		v=${DT_LOC["$c"]:-${DT_LOC["LANG"]:-${LANG-}}}
+		cnt["$v"]=$((${cnt["$v"]:-0} + 1))
+	done
+	for c in "${CP_LOCCATS[@]}"; do
+		v=${DT_LOC["$c"]:-${DT_LOC["LANG"]:-${LANG-}}}
+		n=${cnt["$v"]}
+		[ "$n" -gt "$bn" ] && { best=$v; bn=$n; }
+	done
+	ret "$best"
+}
+
+# Choose the language by its name: LANG.
+fn cp_set_loclang(int? id = "", value = "") {
+	local l
+
+	l := dt_locbyname "$value"
+	dt_locset "LANG=$l"
+}
+
+# Choose the region by its name: every format at once.
+fn cp_set_locregion(int? id = "", value = "") {
+	local l c
+	local -a a
+
+	l := dt_locbyname "$value"
+	for c in "${CP_LOCCATS[@]}"; do
+		a+=("$c=$l")
+	done
+	dt_locset "${a[@]}"
+}
+
+# One format on its own, or back to the region's.
+fn cp_locfmt(cat, value) {
+	local l
+
+	if [ "$value" = "Same as Region" ]; then
+		l := cp_locregion
+	else
+		l := dt_locbyname "$value"
+	fi
+	dt_locset "$cat=$l"
+}
+fn cp_set_loc_LC_TIME(int? id = "", value = "") { cp_locfmt LC_TIME "$value"; }
+fn cp_set_loc_LC_NUMERIC(int? id = "", value = "") { cp_locfmt LC_NUMERIC "$value"; }
+fn cp_set_loc_LC_MONETARY(int? id = "", value = "") { cp_locfmt LC_MONETARY "$value"; }
+fn cp_set_loc_LC_MEASUREMENT(int? id = "", value = "") { cp_locfmt LC_MEASUREMENT "$value"; }
+fn cp_set_loc_LC_PAPER(int? id = "", value = "") { cp_locfmt LC_PAPER "$value"; }
+
+fn language_rows(int w) {
+	local n=0 nm c v r
+
+	command -v dt_locinfostart > /dev/null && dt_locinfostart
+	if [ -n "${LC_ALL-}" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="LC_ALL Overrides These"
+		CP[$w][$n]["val"]=$LC_ALL; n=$((n + 1))
+	fi
+	nm := dt_locname "${DT_LOC["LANG"]:-${LANG-}}"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Language"
-	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=lang; n=$((n + 1))
+	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=loclang; n=$((n + 1))
+	r := cp_locregion
+	nm := dt_locname "$r"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Region"
+	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=locregion; n=$((n + 1))
+	if [ "${DT_LOCINFO-}" = ok ] && [ "${#DT_LOCLIST[@]}" = 0 ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="No Other Languages Installed"
+		CP[$w][$n]["val"]=""; n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Formats"; n=$((n + 1))
+	# Each format's row, its label written out so the catalogue has it.
+	for c in "${CP_LOCCATS[@]}"; do
+		v=${DT_LOCEX["$c"]-}
+		[ -n "$v" ] || v := dt_locname "${DT_LOC["$c"]:-$r}"
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]="loc:$c"
+		case $c in
+		LC_TIME) CP[$w][$n]["text"]="Dates & Times" ;;
+		LC_NUMERIC) CP[$w][$n]["text"]="Numbers" ;;
+		LC_MONETARY) CP[$w][$n]["text"]="Currency" ;;
+		LC_MEASUREMENT) CP[$w][$n]["text"]="Measurement" ;;
+		LC_PAPER) CP[$w][$n]["text"]="Paper" ;;
+		esac
+		n=$((n + 1))
+	done
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Right-to-Left"; n=$((n + 1))
 	nm := cp_bidiname
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Order Right-to-Left Text"
 	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=bidi; n=$((n + 1))
@@ -122,14 +177,25 @@ fn language_rows(int w) {
 }
 
 fn language_do(int? w = "", k = "", int? dir = "") {
-	local v nm
+	local v nm r
 
 	case $k in
-	lang)
-		cp_langlist
-		nm := cp_langname
-		v := cp_next "$nm" "$dir" "${CP_LANGNAMES[@]}"
-		cp_set_lang "" "$v"
+	loclang | locregion | loc:*)
+		cp_locnames
+		[ "${#CP_LOCN[@]}" -gt 0 ] || {
+			dt_notep low "No other languages are installed on this computer"
+			return 0
+		}
+		case $k in
+		loclang) nm := dt_locname "${DT_LOC["LANG"]:-${LANG-}}" ;;
+		*) r := cp_locregion; nm := dt_locname "${DT_LOC["${k#loc:}"]:-$r}" ;;
+		esac
+		v := cp_next "$nm" "$dir" "${CP_LOCN[@]}"
+		case $k in
+		loclang) cp_set_loclang "" "$v" ;;
+		locregion) cp_set_locregion "" "$v" ;;
+		*) cp_locfmt "${k#loc:}" "$v" ;;
+		esac
 		return 0
 		;;
 	bidi)
@@ -157,9 +223,17 @@ fn language_do(int? w = "", k = "", int? dir = "") {
 
 fn language_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
-	lang)
-		cp_langlist
-		dt_droplist "$w" "$r" "$c" cp_set_lang "${CP_LANGNAMES[@]}"
+	loclang)
+		cp_locnames
+		dt_droplist "$w" "$r" "$c" cp_set_loclang "${CP_LOCN[@]}"
+		;;
+	locregion)
+		cp_locnames
+		dt_droplist "$w" "$r" "$c" cp_set_locregion "${CP_LOCN[@]}"
+		;;
+	loc:*)
+		cp_locnames
+		dt_droplist "$w" "$r" "$c" "cp_set_loc_${k#loc:}" "Same as Region" "${CP_LOCN[@]}"
 		;;
 	bidi) dt_droplist "$w" "$r" "$c" cp_set_bidi "${CP_BIDIS[@]}" ;;
 	mirror) dt_droplist "$w" "$r" "$c" cp_set_mirror "${CP_MIRRORS[@]}" ;;

@@ -488,6 +488,7 @@ void hd_f3ans(int cfd, const char *line);
 void hd_f3client(int cfd);
 void hd_f3away(int cfd, unsigned id);
 void hd_f3prod(int fd);
+void hd_ratemoved(struct hd_cli *cn, int orow, int ocol);
 unsigned long hd_inid(const char *line, size_t n);
 const char *hd_inpath(const char *line, size_t n, size_t *len);
 void hd_insame(size_t k);

@@ -1,0 +1,25 @@
+#!/bin/sh
+# A stand-in for localectl (Gitea #526): list-locales, and set-locale, which
+# replaces the whole set as systemd's does ("all old system locale settings
+# will be dropped", org.freedesktop.locale1(5)) and refuses a locale that is
+# not installed. The set is written to $LOCFAKE_FILE, where the desktop
+# reads the system's locale in the suites, and each call is logged beside it.
+F=${LOCFAKE_FILE:?}
+case $1 in
+list-locales) printf '%s\n' en_GB.UTF-8 en_US.UTF-8 ar_SA.UTF-8 ;;
+set-locale)
+	shift
+	[ "$#" -gt 0 ] || { echo "Failed to set locale: nothing given" >&2; exit 1; }
+	for a in "$@"; do
+		v=${a#*=}
+		case $v in
+		en_GB.UTF-8 | en_US.UTF-8 | ar_SA.UTF-8) ;;
+		*) echo "Failed to issue method call: Locale $v not installed, refusing." >&2; exit 1 ;;
+		esac
+	done
+	: > "$F"
+	for a in "$@"; do echo "$a" >> "$F"; done
+	echo "set-locale $*" >> "$F.log"
+	;;
+*) exit 1 ;;
+esac

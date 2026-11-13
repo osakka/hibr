@@ -95,6 +95,7 @@ A Terminal window, for a program that runs in one.
 A Wi-Fi password is at least 8 characters
 A cell a formula names is a variable of that name, and a
 A cell holds at most 4096 bytes
+A change of language is already being made
 A command is needed
 A contact needs a name or an email
 A folder is needed
@@ -383,6 +384,7 @@ Count From
 Count on the Bar
 Cover Size
 Critical Battery
+Currency
 Cursor
 Cursor Blink
 Cut
@@ -393,6 +395,7 @@ Databases
 Date & Time
 Date/time
 Date:
+Dates & Times
 Dec
 December
 Default Session
@@ -533,6 +536,7 @@ Forget a Device
 Forgot %s
 Format
 Format:
+Formats
 Formulas in a New Sheet
 Formulas run contained: one that would write or connect
 Forward
@@ -636,9 +640,12 @@ Kept by Blit
 Keyboard
 Kind:
 Known Networks
+LC_ALL Overrides These
 Labelled %s
 Label…
 Language
+Language & Region
+Language & Region changed; programs started from now on use it
 Languages
 Languages pages are asked for, first wanted most:
 Large
@@ -698,6 +705,7 @@ March
 Mark as Read
 Mark as Unread
 May
+Measurement
 Members of this group are let through without a password
 Menu Bar
 Menu Bar Icons
@@ -788,6 +796,7 @@ Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER
 No Control Strip modules are installed -- the Catalogue has them
 No Network Password
+No Other Languages Installed
 No Password for a Group
 No Picture
 No Rule
@@ -807,6 +816,7 @@ No more in this list
 No networks in reach
 No notifications
 No one matches "%s"
+No other languages are installed on this computer
 No picture open to set as wallpaper
 No records.
 No server chosen for calendars yet.
@@ -857,6 +867,7 @@ Nov
 November
 Number
 Numbered List
+Numbers
 OFFERS, BUILTINS
 OK
 Oct
@@ -919,6 +930,7 @@ Paired with %s
 Paired with %s; it did not connect
 Pairing cancelled
 Pairing with %s
+Paper
 Partial Updates
 Pass Every Key
 Password
@@ -1001,6 +1013,7 @@ Redo
 Refresh
 Refresh Desktop
 Refreshed
+Region
 Reload
 Remember Program Windows
 Remove
@@ -1042,6 +1055,7 @@ Restarted: hibr %s
 Restart…
 Reversed
 Right
+Right-to-Left
 Rows
 Rubber Band
 Rule
@@ -1246,6 +1260,7 @@ The desktop stopped soon after putting its windows back, twice -- started withou
 The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)
 The download of %s did not finish: %s
 The end is a time, HH:MM
+The language was not changed: %s
 The login screen changes at the next logout
 The mermaid module is not loaded
 The one there now cannot be put back.
@@ -1286,6 +1301,7 @@ This Desktop
 This Session
 This Terminal
 This account has no address to answer from
+This computer has no localectl, so its language cannot be changed from here
 This computer has no timedatectl, and hibr's polkit policy is not installed
 This desktop is not the computer's own
 This engine cannot fetch that picture

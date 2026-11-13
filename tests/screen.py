@@ -504,6 +504,10 @@ for _v, _d in (("XDG_CONFIG_HOME", "config"), ("XDG_STATE_HOME", "state"),
 # #502): every menu a suite reads would hold whatever this box has. A suite
 # about them sets DT_PROGAUTO=1 and XDG_DATA_DIRS of its own.
 os.environ["DT_PROGAUTO"] = "0"
+# Nor the machine's own locale (Gitea #526): the desktop reads the system's
+# from /etc, and would give it to everything it starts and take its own
+# language from it. A suite about it gives a file of its own.
+os.environ["DT_LOCFILES"] = ""
 # Nor the machine's own sound: a desktop's volume keys, its speaker and its
 # mute act on whatever sound server or ALSA mixer it finds, and random
 # input presses keys (Gitea #306). HIBR_SOUND=none turns the desktop's

@@ -1,0 +1,23 @@
+#!/bin/sh
+# A stand-in for locale(1) (Gitea #526): what each of three locales says of
+# itself, asked as `LC_ALL=x locale ...`, and `locale -a`.
+l=${LC_ALL:-C}
+case "$* $l" in
+"-k LC_IDENTIFICATION en_GB.UTF-8") printf 'title="English locale for Britain"\nlanguage="English"\nterritory="United Kingdom"\n' ;;
+"-k LC_IDENTIFICATION en_US.UTF-8") printf 'language="English"\nterritory="United States"\n' ;;
+"-k LC_IDENTIFICATION ar_SA.UTF-8") printf 'language="Arabic"\nterritory="Saudi Arabia"\n' ;;
+"currency_symbol en_GB.UTF-8") echo "£" ;;
+"int_curr_symbol en_GB.UTF-8") echo "GBP " ;;
+"currency_symbol en_US.UTF-8") echo '$' ;;
+"int_curr_symbol en_US.UTF-8") echo "USD " ;;
+"currency_symbol ar_SA.UTF-8") echo "SR" ;;
+"int_curr_symbol ar_SA.UTF-8") echo "SAR " ;;
+"measurement en_US.UTF-8") echo 2 ;;
+"measurement "*) echo 1 ;;
+"height en_US.UTF-8") echo 279 ;;
+"width en_US.UTF-8") echo 216 ;;
+"height "*) echo 297 ;;
+"width "*) echo 210 ;;
+"-a "*) printf 'C\nC.utf8\nPOSIX\nen_GB.utf8\nen_US.utf8\nar_SA.utf8\n' ;;
+*) exit 1 ;;
+esac

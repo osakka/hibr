@@ -1,0 +1,285 @@
+#!/usr/bin/env hibr
+#
+# wm/locale -- the system's locale, which is the one source of truth for
+# the language programs speak and the formats they write (Gitea #526, the
+# owner's choice). Nothing of it is kept in desktop.json: it is read from
+# the system's own file when the desktop starts and after every change,
+# given to everything the desktop starts from then on -- a held desktop's
+# environment is the one its session began with, so the next login would
+# never bring it -- and changed through localectl, which asks polkit, the
+# desktop's own agent answering.
+#
+# Language is LANG: the language programs speak, and the character set.
+# Region is the formats, LC_TIME, LC_NUMERIC, LC_MONETARY, LC_MEASUREMENT
+# and LC_PAPER, each of which may be its own. The desktop's own words follow
+# LANG's language wherever hibr has a catalogue for it, unless a session
+# says otherwise with DT_LANG.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# Where the system keeps its locale: systemd's file, then Debian's. The
+# suites point this at a file of their own, or at none.
+DT_LOCFILES="${DT_LOCFILES-/etc/locale.conf /etc/default/locale}"
+declare -gA DT_LOC
+DT_LOCFMT=(LC_TIME LC_NUMERIC LC_MONETARY LC_MEASUREMENT LC_PAPER)
+# What the pane shows, read in a job (dt_locinfo): every UTF-8 locale this
+# system has, its name, and an example of each format as the system has it.
+declare -ga DT_LOCLIST
+declare -gA DT_LOCNAMES DT_LOCEX
+DT_LOCINFO=
+DT_LOCPK=
+DT_LOCWHY=
+# LANG itself, which a login screen's bare environment may not have at all,
+# declared here so dt_locexport sets it rather than creating it.
+declare -g LANG="${LANG-}"
+
+# The system's locale into DT_LOC, from the first of DT_LOCFILES there is.
+# Status 1 when there is none, and DT_LOC is then empty.
+dt_locread() {
+	local f l k v
+	local -a fs
+
+	DT_LOC=()
+	read -ra fs <<< "$DT_LOCFILES"
+	for f in "${fs[@]}"; do
+		[ -r "$f" ] || continue
+		while IFS= read -r l || [ -n "$l" ]; do
+			case $l in "#"* | "") continue ;; esac
+			k=${l%%=*}
+			v=${l#*=}
+			v=${v#\"}
+			v=${v%\"}
+			case $k in LANG | LC_[A-Z]*) DT_LOC["$k"]=$v ;; esac
+		done < "$f"
+		return 0
+	done
+	return 1
+}
+
+# Give programs the desktop starts the system's locale: LANG and each format
+# as the system has them, a format it does not set taken away so LANG
+# speaks for it. Nothing changes where there is no system file to go by.
+dt_locexport() {
+	local v
+
+	[ "${#DT_LOC[@]}" -gt 0 ] || return 0
+	[ -n "${DT_LOC["LANG"]-}" ] && declare -gx LANG="${DT_LOC["LANG"]}"
+	for v in "${DT_LOCFMT[@]}"; do
+		if [ -n "${DT_LOC["$v"]-}" ]; then
+			declare -gx "$v=${DT_LOC["$v"]}"
+		else
+			unset "$v"
+		fi
+	done
+	return 0
+}
+
+# The desktop's own language, from LANG's: its two or three letters where
+# hibr has a catalogue for them, and English otherwise.
+dt_loclang() {
+	local l=${DT_LOC["LANG"]-${LANG-}} f
+
+	l=${l%%[_.@]*}
+	case $l in "" | C | POSIX | en) ret ""; return 0 ;; esac
+	f := dt_langfile "$l" 2> /dev/null || { ret ""; return 0; }
+	ret "$l"
+}
+
+# Read the system's and put it into effect: the environment, the desktop's
+# own language unless a session chose one, and the formats the desktop
+# draws itself.
+dt_locload() {
+	dt_locread || return 0
+	dt_locexport
+	if [ -z "${DT_LANGENV-}" ]; then
+		DT_LANG := dt_loclang
+	fi
+	return 0
+}
+
+# What a locale is called: "English (United Kingdom)" from what the system
+# says of it, or the locale itself before that has been read.
+fn dt_locname(l) {
+	case $l in "" | C | C.* | POSIX) ret "C"; return 0 ;; esac
+	ret "${DT_LOCNAMES["$l"]:-$l}"
+}
+
+# The locale a name stands for, from the list read.
+fn dt_locbyname(name) {
+	local l
+
+	for l in "${DT_LOCLIST[@]}"; do
+		[ "${DT_LOCNAMES["$l"]-}" = "$name" ] && { ret "$l"; return 0; }
+	done
+	ret "$name"
+}
+
+# What a format looks like in a locale, as the system writes it.
+fn dt_locex1(cat, l) {
+	local a b
+
+	case $cat in
+	LC_TIME)
+		a := env LC_ALL="$l" date "+%x %X" 2> /dev/null
+		ret "$a"
+		;;
+	LC_NUMERIC)
+		a := env LC_ALL="$l" printf "%'.2f" 1234567.89 2> /dev/null
+		ret "$a"
+		;;
+	LC_MONETARY)
+		a := env LC_ALL="$l" locale currency_symbol 2> /dev/null
+		b := env LC_ALL="$l" locale int_curr_symbol 2> /dev/null
+		b=${b% }
+		ret "${a:-$b}${b:+ ($b)}"
+		;;
+	LC_MEASUREMENT)
+		a := env LC_ALL="$l" locale measurement 2> /dev/null
+		case $a in 2) ret "US" ;; *) ret "Metric" ;; esac
+		;;
+	LC_PAPER)
+		a := env LC_ALL="$l" locale height 2> /dev/null
+		b := env LC_ALL="$l" locale width 2> /dev/null
+		case "$a $b" in
+		"297 210") ret "A4" ;;
+		"279 216") ret "Letter" ;;
+		*) ret "$b x $a mm" ;;
+		esac
+		;;
+	esac
+}
+
+# Every UTF-8 locale this system has, with its name, and an example of each
+# format as the system has it now: run as a job (dt_jobvars), since it
+# starts a program or two a locale.
+dt_locinfo() {
+	local out l k v lang terr nm c
+	local -a all ids
+
+	DT_LOCLIST=()
+	DT_LOCNAMES=()
+	DT_LOCEX=()
+	out=
+	command -v localectl > /dev/null && out := localectl list-locales 2> /dev/null
+	[ -n "$out" ] || out := locale -a 2> /dev/null
+	mapfile -t all <<< "$out"
+	for l in "${all[@]}"; do
+		case $l in C.* | POSIX | "") continue ;; *.UTF-8 | *.utf8) ;; *) continue ;; esac
+		lang=
+		terr=
+		out := env LC_ALL="$l" locale -k LC_IDENTIFICATION 2> /dev/null
+		mapfile -t ids <<< "$out"
+		for k in "${ids[@]}"; do
+			v=${k#*=}
+			v=${v#\"}
+			v=${v%\"}
+			case $k in
+			"language="*) lang=$v ;;
+			"territory="*) terr=$v ;;
+			esac
+		done
+		nm=${lang:-$l}
+		[ -n "$terr" ] && nm="$nm ($terr)"
+		# One name a locale: en_GB.UTF-8 and en_GB.utf8 are one.
+		for c in "${DT_LOCLIST[@]}"; do
+			[ "${DT_LOCNAMES["$c"]}" = "$nm" ] && { nm=; break; }
+		done
+		[ -n "$nm" ] || continue
+		DT_LOCLIST+=("$l")
+		DT_LOCNAMES["$l"]=$nm
+	done
+	for c in "${DT_LOCFMT[@]}"; do
+		v=${DT_LOC["$c"]:-${DT_LOC["LANG"]-}}
+		[ -n "$v" ] || continue
+		DT_LOCEX["$c"] := dt_locex1 "$c" "$v"
+	done
+	return 0
+}
+
+# Read what the pane shows, once, and again after a change.
+dt_locinfostart() {
+	local n
+
+	[ -z "$DT_LOCINFO" ] || return 0
+	DT_LOCINFO=run
+	n := dt_jobvars loc:info "" dt_locinfodone dt_locinfo DT_LOCLIST DT_LOCNAMES DT_LOCEX || { DT_LOCINFO=; return 0; }
+	return 0
+}
+
+fn dt_locinfodone(int n, int st) {
+	DT_LOCINFO=ok
+	dt_want 10
+	return 0
+}
+
+# Change the system's locale: name=value pairs over what it has now, the
+# whole of it handed to localectl, which drops whatever it is not given.
+# localectl asks polkit, and the desktop's own agent asks for the password.
+fn dt_locset(...pairs) {
+	local p k v n
+	local -A want
+	local -a a
+
+	if ! command -v localectl > /dev/null; then
+		dt_notep normal "This computer has no localectl, so its language cannot be changed from here"
+		return 1
+	fi
+	if dt_jobrunning loc:set > /dev/null; then
+		dt_notep low "A change of language is already being made"
+		return 1
+	fi
+	for k in "${!DT_LOC[@]}"; do
+		want["$k"]=${DT_LOC["$k"]}
+	done
+	for p in "${pairs[@]}"; do
+		k=${p%%=*}
+		v=${p#*=}
+		if [ -n "$v" ]; then
+			want["$k"]=$v
+		else
+			unset want["$k"]
+		fi
+	done
+	for k in "${!want[@]}"; do
+		a+=("$k=${want["$k"]}")
+	done
+	[ "${#a[@]}" -gt 0 ] || return 1
+	dt_pkstart && DT_LOCPK=1
+	n := dt_job loc:set "" dt_locsetdone dt_jobmerge localectl set-locale "${a[@]}" || {
+		[ "$DT_LOCPK" = 1 ] && dt_pkstop
+		DT_LOCPK=
+		return 1
+	}
+	dt_log "locale: localectl set-locale ${a[*]}"
+	return 0
+}
+
+fn dt_locsetdone(int n, int st) {
+	local f l why=
+
+	[ "$DT_LOCPK" = 1 ] && dt_pkstop
+	DT_LOCPK=
+	if [ "$st" != 0 ]; then
+		f := dt_jobfile "$n"
+		while IFS= read -r l; do
+			[ -n "$l" ] && why=$l
+		done < "$f"
+		DT_LOCWHY=$why
+		dt_log "locale: localectl said $st: $why"
+		dt_notep high "The language was not changed: %s" "${why:-status $st}"
+		return 0
+	fi
+	DT_LOCWHY=
+	dt_locload
+	dt_has dt_langapply && dt_langapply
+	DT_LOCINFO=
+	DT_MENUIN=
+	dt_want 10
+	dt_notep low "Language & Region changed; programs started from now on use it"
+	return 0
+}
+
+dt_locload
