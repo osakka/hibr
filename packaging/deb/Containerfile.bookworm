@@ -1,0 +1,11 @@
+# The environment hibr's Debian package is built in: Debian 12, so the binary
+# and its modules link against glibc 2.36 and run on every Debian and Ubuntu
+# hibr-apt serves. Built on a newer host, glibc's own headers send strtol and
+# its kin to C23 versions (__isoc23_*, GLIBC_2.38), and the package then needs
+# glibc 2.38 -- which is what 0.99.518 to 0.99.520-1 shipped by accident.
+FROM docker.io/library/debian:bookworm
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tcc make gcc libc6-dev \
+      dpkg-dev fakeroot binutils file ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
