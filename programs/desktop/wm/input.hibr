@@ -1466,6 +1466,8 @@ fn dt_event(k) {
 		dt_has dt_sndstep && dt_sndstep -1
 	elif dt_keyis mute "$k"; then
 		dt_has dt_sndmutekey && dt_sndmutekey
+	elif dt_keyis kbdnext "$k"; then
+		dt_has dt_kbnext && dt_kbnext
 	elif [ -n "$sn" ] && [ "$knorm" = "$sn" ]; then
 		if [ "$CS_ATTN" = 1 ]; then
 			CS_ATTN=0

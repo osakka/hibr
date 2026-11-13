@@ -243,6 +243,10 @@ void cn_danswers(void (*fn)(void *ctx, const char *line), void *ctx);
 int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path);
 int cn_dsay(sh *s, const char *line);
 extern char *cn_keepl;
+extern str cn_kbls, cn_kbres;
+extern long cn_kbcur, cn_kbgen;
+extern int cn_kbasked;
+int cn_kbwoke(void);
 /* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE, CN_GFX_SIXEL
    or CN_GFX_KITTY. From HIBR_GFX, then from what the terminal itself
    answered (cn_gotcap), and only then from its name -- a name says what a

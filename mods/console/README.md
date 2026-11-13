@@ -357,6 +357,21 @@ stream's input route, the EIS socket its producer offered and whether it is
 on, told to every display's Blit once a frame has gone under the picture's
 id, and told again when the picture comes back under a new one.
 
+The same channel carries two things that concern no picture.
+- **`console keep CHORD...`** tells Blit the chords the desktop keeps from
+  programs' windows (`INPUT keep`, Gitea #530). The set is said again on a
+  new connection after `hold upgrade`.
+- **`console keyboard`** reads Blit's keyboards (Gitea #529, Blit ADR 0231).
+  `list` asks for them once a connection. Blit answers with the list,
+  `KEYBOARD item`s, `KEYBOARD reserved` and `KEYBOARD current` last, and
+  sends it again after every change, whoever made it. `current N` switches.
+  `gen` is a count that moves with each list finished. With no word, it
+  answers the list as last received: `gen`, `current`, a line a keyboard
+  (`n layout variant name`) and `reserved`. A finished list wakes the wait,
+  so the desktop's bar follows a switch made in Blit at once. Held, hold
+  passes `list` to every display, takes answers from the primary only, and
+  asks a display that joins.
+
 ## Naming
 
 Everything is `cn_`, not `sc_`. `src/net.c` already uses `sc_` for schemes and

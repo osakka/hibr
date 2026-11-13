@@ -73,7 +73,8 @@ open(p, "w").write(
     "tst_nf() { [ -f %s ] || return 0; local v; read -r v < %s; rm -f %s; DT_NATFOCUS=$v; "
     "[ \"$v\" = launch ] && { DT_NATFOCUS=expected; dt_launched; }; return 0; }\n"
     "tst_cf() { [ -f %s ] || return 0; rm -f %s; dt_confirm \"Sure?\" true; dt_want 30; }\n"
-    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_ticker tst_mn\ndt_ticker tst_x11\ndt_ticker tst_nf\ndt_ticker tst_cf\ndt_progload\ndt_open\n"
+    "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_ticker tst_mn\ndt_ticker tst_x11\ndt_ticker tst_nf\ndt_ticker tst_cf\ndt_progload\n"
+    "DT_KEYS[\"kbdnext\"]=ctrl-alt-k\ndt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
        MARK + ".quit", MARK + ".rs", MARK + ".rs", MARK, MARK, MARK, MARK, MARK, MARK + ".copy", MARK + ".copy",
@@ -189,6 +190,42 @@ ok = wait(lambda: blitkind("input", verb="sock", id=cid, ok=True) and
           blitkind("input", verb="on", id=cid, ok=True))
 check("its input route is asked for by socket and is on while its window "
       "has the keys", ok, [x for x in lines(blitlog) if x["kind"] == "input"])
+
+# The keyboards Blit has (Gitea #529): the desktop asks for the list on its
+# frame channel, shows the one typing on the bar while there are two or
+# more, switches from the item's menu and on Next Keyboard, and follows a
+# list changed elsewhere -- Blit's own pane, here LOG.kbd.
+def barrow():
+    return scr().row(0)
+
+
+asked = wait(lambda: blitkind("kbd", verb="list"), 6)
+us = wait(lambda: " US " in barrow(), 6)
+check("the desktop asks Blit for its keyboards and shows the one typing on "
+      "the bar", asked and us, (barrow(), blitkind("kbd")))
+at = scr().find(" US ")
+if at:
+    t.keys([b"\x1b[<0;%d;1M" % (at[1] + 2), b"\x1b[<0;%d;1m" % (at[1] + 2)])
+menu = wait(lambda: scr().find("Arabic (phonetic)") and scr().find("English (US)"), 4)
+check("its menu lists every keyboard by name", menu, scr())
+ar = scr().find("Arabic (phonetic)")
+if ar:
+    t.keys([b"\x1b[<0;%d;%dM" % (ar[1] + 2, ar[0] + 1),
+            b"\x1b[<0;%d;%dm" % (ar[1] + 2, ar[0] + 1)])
+sw = wait(lambda: blitkind("kbd", verb="current", n=1) and " ARA " in barrow(), 4)
+check("choosing one switches Blit to it, and the bar follows Blit's answer",
+      sw, (barrow(), blitkind("kbd")))
+t.keys([b"\x1b\x0b"])
+nx = wait(lambda: blitkind("kbd", verb="current", n=0) and " US " in barrow(), 4)
+check("Next Keyboard goes on to the next, round to the first", nx,
+      (barrow(), blitkind("kbd")))
+open(blitlog + ".kbd", "w").write("us - English (US)\n")
+one = wait(lambda: blitkind("kbd", verb="changed") and " US " not in barrow()
+           and " ARA " not in barrow(), 4)
+check("a list changed in Blit reaches the bar, and one keyboard shows none",
+      one, barrow())
+open(blitlog + ".kbd", "w").write("us - English (US)\nara phonetic Arabic (phonetic)\n")
+wait(lambda: " US " in barrow(), 4)
 
 n0 = len(told("WINDOW size 7 "))
 open(MARK, "w").close()
@@ -784,6 +821,10 @@ check("held, a minimised program window leaves the display and keeps its "
       gone and back and ids(gone) <= ids(back) and
       not [m for m in hapc(c0) if b"d=I" in m and ids([m]) <= ids(gone)],
       (gone, back, [m for m in hapc(c0) if b"d=I" in m]))
+check("held, the keyboards reach the bar through hold (Gitea #529)",
+      wait(lambda: hk("kbd", verb="list") and " US " in hscr().row(0), 6),
+      (hscr().row(0), hk("kbd")))
+nkb = len(hk("kbd", verb="list"))
 ns, nmb, nkp = len(hk("input", verb="sock")), len(hk("member")), len(hk("keep"))
 up = subprocess.run([sx.HIBR, "-c", load("hold") + "hold upgrade %s" % hn],
                     env=dict(os.environ, **henv), capture_output=True, text=True, timeout=30)
@@ -795,6 +836,9 @@ check("after `hold upgrade` both are said to the display's Blit again, and "
       "the chords the desktop keeps", up.returncode == 0 and again,
       (up.stderr, len(hk("input", verb="sock")), ns, len(hk("member")), nmb,
        len(hk("keep")), nkp))
+check("and the keyboards are asked for again (Gitea #529)",
+      wait(lambda: len(hk("kbd", verb="list")) > nkb, 6),
+      (len(hk("kbd", verb="list")), nkb))
 open(MARK2 + ".quit", "w").close()
 ht.keys([b"x"])
 wait(lambda: [x for x in lines(complog2) if x["kind"] == "quit"], 6)
@@ -918,4 +962,4 @@ r = subprocess.run([sx.HIBR, "-c", ". %s\nenv | grep -c '^WAYLAND_DISPLAY=' || t
 check("a desktop with no compositor exports no WAYLAND_DISPLAY at all",
       r.stdout.strip() == "0", (r.stdout, r.stderr))
 shutil.rmtree(D, True)
-report(66)
+report(73)

@@ -918,7 +918,7 @@ check("escape cancels it -- the next key is ordinary again, not captured",
 sc = cprun(reach("shortcuts", "Control Panel"))
 check("Shortcuts lists the desktop's actions, the Control Strip's among "
       "them, then each app's under a heading of its own",
-      all(brow(sc, t) != "" for t in ("Quit Application", "Detach", "Quit",
+      all(brow(sc, t) != "" for t in ("Next Keyboard", "Detach", "Quit",
                                         "Cycle Windows", "Control Strip",
                                         "Control Panel")) and
       "alt-s" in brow(sc, "Control Strip") and brow(sc, "Apps") != "", sc)

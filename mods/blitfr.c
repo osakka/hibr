@@ -331,6 +331,15 @@ int bf_line(const char *l, int *hud)
 			lg(HIBR_LDBG, "frames: %s", l);
 		return 0;
 	}
+	/* The keyboards Blit has and which is current (Blit 0.3.94, Gitea
+	   #529), on a connection that asked with `KEYBOARD list`. */
+	if (!strncmp(l, "KEYBOARD ", 9)) {
+		if (bf_answer)
+			bf_answer(l);
+		else
+			lg(HIBR_LDBG, "frames: %s", l);
+		return 0;
+	}
 	if (bf_answer && (!strncmp(l, "FRAME release ", 14) ||
 			  !strncmp(l, "FRAME error ", 12))) {
 		bf_answer(l);

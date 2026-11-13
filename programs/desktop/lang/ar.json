@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.2",
+ "version": "3.99.3",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1637,6 +1637,7 @@
   "%s wants your attention": "%s يطلب انتباهك",
   "This window keeps its size": "تحافظ هذه النافذة على حجمها",
   "Terminals": "الطرفيات",
-  "What a key is and types: Blit Keyboard": "ما هو المفتاح وما يكتبه: لوحة مفاتيح Blit"
+  "What a key is and types: Blit Keyboard": "ما هو المفتاح وما يكتبه: لوحة مفاتيح Blit",
+  "Keyboard": "لوحة المفاتيح"
  }
 }

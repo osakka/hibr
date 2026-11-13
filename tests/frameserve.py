@@ -217,6 +217,49 @@ def inputline(conn, held, routes, data, fds):
 
 SOCKS = {}
 
+# The keyboards (Blit ADR 0231, api.md "Keyboards (layouts)", 0.3.94): a
+# channel that sends `KEYBOARD list` is answered with an item a keyboard,
+# `KEYBOARD reserved` (0.3.95) and `KEYBOARD current` last, and is sent the
+# whole list again on every change, whoever made it; `KEYBOARD current N`
+# switches; anything else, or an N that is not one of them, is answered
+# `KEYBOARD error EINVAL`. LOG.kbd, one "layout variant name" a line,
+# replaces the list as Blit's own pane would, and is sent to every channel
+# that asked.
+KBD = [["us", "-", "English (US)"], ["ara", "phonetic", "Arabic (phonetic)"]]
+KBDCUR = [0]
+KBDASK = set()
+KBDRES = "ctrl-alt-f1 ctrl-alt-f2 ctrl-alt-f3 ctrl-alt-f4 ctrl-alt-f5 " \
+         "ctrl-alt-f6 ctrl-alt-f7 ctrl-alt-f8 ctrl-alt-f9 ctrl-alt-f10 " \
+         "ctrl-alt-f11 ctrl-alt-f12 ctrl-alt-backspace"
+
+
+def kbdlist(conn):
+    out = "".join("KEYBOARD item %d %s %s %s\n" % (i, k[0], k[1], k[2])
+                  for i, k in enumerate(KBD))
+    out += "KEYBOARD reserved %s\nKEYBOARD current %d\n" % (KBDRES, KBDCUR[0])
+    for l in out.splitlines(True):
+        conn.send(l.encode())
+
+
+def kbdline(conn, data, fds):
+    for fd in fds:
+        os.close(fd)
+    w = data.decode(errors="replace").strip().split(" ")
+    if w == ["KEYBOARD", "list"]:
+        KBDASK.add(conn)
+        note(kind="kbd", verb="list")
+        kbdlist(conn)
+        return
+    if len(w) == 3 and w[1] == "current" and w[2].isdigit() and \
+            int(w[2]) < len(KBD):
+        KBDCUR[0] = int(w[2])
+        note(kind="kbd", verb="current", n=KBDCUR[0])
+        for c in list(KBDASK):
+            kbdlist(c)
+        return
+    note(kind="kbd", verb=w[1] if len(w) > 1 else "", error="EINVAL")
+    conn.send(b"KEYBOARD error EINVAL\n")
+
 
 def sendkeys(routes, at="10.00 10.00"):
     """LOG.keys: as Blit does down a live `INPUT sock` route (docs/api.md,
@@ -306,6 +349,14 @@ def main():
                         if ok:
                             c.send(b"FRAME release %d %d\n" % (iid, seq))
                     note(kind="released", id=iid, seq=seq, deleted=True)
+        if os.path.exists(LOG + ".kbd"):
+            KBD[:] = [l.split(" ", 2) for l in
+                      open(LOG + ".kbd").read().splitlines() if l.strip()]
+            os.unlink(LOG + ".kbd")
+            KBDCUR[0] = 0
+            note(kind="kbd", verb="changed", n=len(KBD))
+            for c in list(KBDASK):
+                kbdlist(c)
         if os.path.exists(LOG + ".keys"):
             at = open(LOG + ".keys").read().strip()
             os.unlink(LOG + ".keys")
@@ -331,6 +382,7 @@ def main():
                 vers.pop(s, None)
                 # Blit forgets a connection's routes with it.
                 routes.pop(s, None)
+                KBDASK.discard(s)
                 for key in [k for k in SOCKS if k[0] is s]:
                     del SOCKS[key]
                 s.close()
@@ -378,6 +430,9 @@ def main():
                 continue
             if data[:6] == b"INPUT ":
                 inputline(s, held, routes, data, fds)
+                continue
+            if data[:9] == b"KEYBOARD ":
+                kbdline(s, data, fds)
                 continue
             frame(s, images, data, fds)
 

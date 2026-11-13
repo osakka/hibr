@@ -71,6 +71,7 @@ VALUEONLY = {
     '${GL[huimarkl]}${GL[huimarkr]}',  # the hui monogram, likewise
     '${DT[$id][title]#${GL[bullet]} }',  # the same title with the glyph taken off
     '${n:0:24}',  # the program's own name, cut to fit
+    '${DT_KB[$i][name]:-${DT_KB[$i][layout]}}',  # a keyboard's own name, Blit's
     '${t%% [*}',  # a window title with its bracket part cut
     '$a [$detail]',  # dt_wintitle's own brackets: the app name above is the key
     '$what $last',  # a word already translated, and a filename

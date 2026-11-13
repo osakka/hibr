@@ -218,6 +218,35 @@ int cn_doutrel(unsigned sid, unsigned long long seq)
 
 /* One answer from a display's Blit, put in the stream's terms: the id is
    the console's and becomes the caller's, everything after it stays. */
+/* The keyboards Blit has (Gitea #529): the list being received, the list
+   as last finished -- one line a keyboard, "n layout variant name" -- the
+   current one, Blit's own reserved chords, and a count that moves each
+   time a list is finished, which is what the desktop watches. */
+str cn_kbnew, cn_kbls, cn_kbres;
+long cn_kbcur = -1, cn_kbgen;
+int cn_kbasked, cn_kbwake;
+
+/* One KEYBOARD line from Blit. */
+void cn_kbline(const char *line)
+{
+	if (!strncmp(line, "KEYBOARD item ", 14)) {
+		s_cat(&cn_kbnew, line + 14);
+		s_ch(&cn_kbnew, '\n');
+	} else if (!strncmp(line, "KEYBOARD reserved", 17)) {
+		cn_kbres.n = 0;
+		s_cat(&cn_kbres, line[17] == ' ' ? line + 18 : "");
+	} else if (!strncmp(line, "KEYBOARD current ", 17)) {
+		cn_kbcur = strtol(line + 17, 0, 10);
+		cn_kbls.n = 0;
+		s_add(&cn_kbls, cn_kbnew.p ? cn_kbnew.p : "", cn_kbnew.n);
+		cn_kbnew.n = 0;
+		cn_kbgen++;
+		cn_kbwake = 1;
+	} else {
+		lg(HIBR_LDBG, "console: %s", line);
+	}
+}
+
 void cn_dans(const char *line)
 {
 	const char *p, *rest;
@@ -227,6 +256,10 @@ void cn_dans(const char *line)
 	int rel = !strncmp(line, "FRAME release ", 14);
 	str o;
 
+	if (!strncmp(line, "KEYBOARD ", 9)) {
+		cn_kbline(line);
+		return;
+	}
 	if (!rel && strncmp(line, "FRAME error ", 12) &&
 	    strncmp(line, "INPUT ok ", 9) && strncmp(line, "INPUT error ", 12))
 		return;
@@ -267,7 +300,18 @@ int cn_dbfread(void *ctx, int fd)
 		cn_dbfhook = -1;
 		return 1;
 	}
-	return 0;
+	return cn_kbwoke();
+}
+
+/* Whether a list of keyboards was finished since last asked: the wait
+   ends for it, so the desktop reads it now rather than at its next key
+   or tick (Gitea #529). */
+int cn_kbwoke(void)
+{
+	int w = cn_kbwake;
+
+	cn_kbwake = 0;
+	return w;
 }
 
 /* Readable: the connection to hold's server that frames by dmabuf go on. */
@@ -309,7 +353,7 @@ int cn_d3read(void *ctx, int fd)
 		o.n = 0;
 	}
 	s_free(&o);
-	return 0;
+	return cn_kbwoke();
 }
 
 /* Send a stream's newest frame under its picture's id. 1 when it went. */
@@ -343,6 +387,8 @@ int cn_dsend(sh *s, cn_dst *d)
 				cn_fdhook(cn_d3, cn_d3read, s);
 				if (cn_keepl)
 					hf->input(cn_d3, cn_keepl);
+				if (cn_kbasked)
+					hf->input(cn_d3, "KEYBOARD list");
 			}
 			ok = hf->frame3(cn_d3, h, d->fds, d->n);
 		}
@@ -557,6 +603,8 @@ int cn_dsay(sh *s, const char *line)
 			cn_fdhook(cn_d3, cn_d3read, s);
 			if (cn_keepl && line != cn_keepl && strcmp(line, cn_keepl))
 				hf->input(cn_d3, cn_keepl);
+			if (cn_kbasked && strcmp(line, "KEYBOARD list"))
+				hf->input(cn_d3, "KEYBOARD list");
 		}
 		return hf->input(cn_d3, line);
 	}

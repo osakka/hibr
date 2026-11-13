@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.508
+
+**The keyboard you type with, on the menu bar** (Gitea #529, Blit ADR 0231).
+Where Blit has more than one keyboard -- its Keyboard pane adds them -- the
+bar shows the one typing, by its layout (`US`, `ARA`), and its menu lists
+every keyboard by name, the current one marked; choosing one switches Blit,
+for terminals and programs alike. A switch made anywhere else, in Blit's
+pane or through its API, reaches the bar at once. Next Keyboard is a
+shortcut row in Control Panel > Shortcuts, unbound until 0.99.509 makes it
+Super+Space. The desktop asks with `console keyboard list` on its frame
+channel; a held desktop asks through hold, which takes the answers from the
+primary display and asks a display that joins, and again after `hold
+upgrade`. With one keyboard, nothing is shown.
+
 ## 0.99.507
 
 **A program whose name has spaces is one row in Shortcuts** (Gitea #533,

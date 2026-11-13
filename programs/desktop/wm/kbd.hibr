@@ -1,0 +1,118 @@
+#!/usr/bin/env hibr
+#
+# wm/kbd -- the keyboards Blit has, and which one is typing (Gitea #529,
+# Blit ADR 0231). Blit keeps the list (its Keyboard pane adds and removes
+# them) and switches them for terminals and programs alike; the desktop asks
+# for the list on its frame channel (`console keyboard list`), shows the
+# current one on the menu bar when there is more than one, lists them in
+# that item's menu, and moves to the next on the Next Keyboard key.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# The list as last read: DT_KB[n]["layout"], ["variant"], ["name"]; how many,
+# which is current, and the count the console moves whenever Blit says the
+# list again, which is the only thing asked each frame.
+declare -gA DT_KB
+DT_KBN=0
+DT_KBCUR=-1
+DT_KBGEN=
+# When the list was last asked for: once a second until a way to Blit
+# exists, then never again -- Blit answers every change by itself.
+DT_KBASKED=
+DT_KBTRIED=0
+
+# Read the list the console holds.
+dt_kbread() {
+	local l w n lay var nm
+	local -a lines
+
+	l := console keyboard 2> /dev/null || return 1
+	DT_KB=()
+	DT_KBN=0
+	mapfile -t lines <<< "$l"
+	for w in "${lines[@]}"; do
+		case $w in
+		"gen "* | "reserved"*) ;;
+		"current "*) DT_KBCUR=${w#current } ;;
+		[0-9]*)
+			read -r n lay var nm <<< "$w"
+			DT_KB[$n]["layout"]=$lay
+			DT_KB[$n]["variant"]=${var/#-/}
+			DT_KB[$n]["name"]=$nm
+			DT_KBN=$((DT_KBN + 1))
+			;;
+		esac
+	done
+	return 0
+}
+
+# The item on the bar: the current keyboard's short name, its layout in
+# capitals; nothing with one keyboard or none.
+dt_kbbar() {
+	local t
+
+	if [ "$DT_KBN" -lt 2 ] || [ -z "${DT_KB[$DT_KBCUR]["layout"]-}" ]; then
+		# Taken off only if it was put on: an item never shown is not on
+		# the bar's list of items at all.
+		[ -n "${DT_BARI["kbd"]["text"]-}" ] && dt_baritem kbd ""
+		return 0
+	fi
+	t=${DT_KB[$DT_KBCUR]["layout"]^^}
+	dt_barilabel kbd "Keyboard"
+	dt_baritem kbd "$t" dt_kbmenu
+	dt_bariright kbd dt_kbmenu
+}
+
+dt_kbmenu() {
+	dt_barmenu kbd kbd
+}
+
+# Its menu: every keyboard by its full name, the current one marked.
+fn kbd_context(id = "") {
+	local i on
+
+	dt_menu "Keyboard"
+	for ((i = 0; i < DT_KBN; i++)); do
+		on=0
+		[ "$i" = "$DT_KBCUR" ] && on=1
+		dt_mark "${DT_KB[$i]["name"]:-${DT_KB[$i]["layout"]}}" "" "$on" dt_kbset "$i"
+	done
+}
+
+# Make keyboard n the one typing; Blit answers with the list, which moves
+# the bar.
+fn dt_kbset(int n) {
+	console keyboard current "$n" 2> /dev/null
+	return 0
+}
+
+# The Next Keyboard key: the one after the current, round to the first.
+dt_kbnext() {
+	[ "$DT_KBN" -ge 2 ] || return 0
+	dt_kbset $(((DT_KBCUR + 1) % DT_KBN))
+}
+
+# Once a frame: ask for the list until it could be asked, then read it
+# whenever Blit has said it again.
+dt_kbtick() {
+	local g now
+
+	if [ -z "$DT_KBASKED" ]; then
+		now=${EPOCHSECONDS:-0}
+		[ "$now" != "$DT_KBTRIED" ] || return 0
+		DT_KBTRIED=$now
+		console keyboard list 2> /dev/null && DT_KBASKED=1
+		return 0
+	fi
+	g := console keyboard gen 2> /dev/null || return 0
+	[ "$g" = "$DT_KBGEN" ] && return 0
+	DT_KBGEN=$g
+	dt_kbread && dt_kbbar
+	DT_MENUIN=
+	dt_want 10
+	return 0
+}
+command -v dt_ticker > /dev/null && dt_ticker dt_kbtick

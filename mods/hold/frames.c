@@ -288,6 +288,10 @@ static size_t hd_nin;
    the last line, said to each display that can be sent frames and again to
    one that joins. Blit answers it only when it refuses it. */
 static str hd_keep;
+/* Who asked for the keyboards (`KEYBOARD list`, Gitea #529): Blit's
+   answers go to it, from the primary display only, since every display's
+   Blit is the same machine's; and a display that joins is asked too. */
+static int hd_kbprod = -1;
 
 /* Close a record's descriptors: the display that wants them has them. */
 static void hd_f3shut(struct hd_f3 *f)
@@ -593,6 +597,28 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	int sent = 0;
 	str o;
 
+	if (n > 9 && !memcmp(line, "KEYBOARD ", 9)) {
+		struct hd_cli *pc = hd_cprimary(cls);
+
+		if (n == 13 && !memcmp(line + 9, "list", 4)) {
+			hd_kbprod = prod;
+			for (i = 0; i < cls->n; i++) {
+				struct hd_cli *cn = cls->p[i];
+
+				if (cn->fdok)
+					hd_send(cn->fd, HD_INPUT, line, n);
+			}
+			return;
+		}
+		/* A switch, once: on the primary display's channel, or the
+		   first that can be sent anything. */
+		for (i = 0; !pc && i < cls->n; i++)
+			if (((struct hd_cli *)cls->p[i])->fdok)
+				pc = cls->p[i];
+		if (pc && pc->fdok)
+			hd_send(pc->fd, HD_INPUT, line, n);
+		return;
+	}
 	if (n >= 10 && !memcmp(line, "INPUT keep", 10) && (n == 10 || line[10] == ' ')) {
 		hd_keep.n = 0;
 		s_add(&hd_keep, line, n);
@@ -664,6 +690,8 @@ void hd_inreplay(struct hd_cli *cn)
 		return;
 	if (hd_keep.n)
 		hd_send(cn->fd, HD_INPUT, hd_keep.p, hd_keep.n);
+	if (hd_kbprod >= 0)
+		hd_send(cn->fd, HD_INPUT, "KEYBOARD list", 13);
 	s_init(&o);
 	for (i = 0; i < hd_nin; i++) {
 		if (!hd_ins[i].sock.n)
@@ -710,6 +738,14 @@ int hd_inputans(vec *cls, int cfd, const char *line)
 	unsigned long id;
 	size_t i, n = strlen(line);
 
+	if (!strncmp(line, "KEYBOARD ", 9)) {
+		pc = hd_cprimary(cls);
+		if (pc && pc->fd != cfd)
+			return 1;
+		if (hd_kbprod >= 0)
+			hd_send(hd_kbprod, HD_FRMANS, line, n);
+		return 1;
+	}
 	if (strncmp(line, "INPUT ok ", 9) && strncmp(line, "INPUT error ", 12))
 		return 0;
 	pc = hd_cfind(cls, cfd);

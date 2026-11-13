@@ -1508,6 +1508,52 @@ int m_console(sh *s, int ac, char **av)
 		s_free(&k);
 		return r == 1 ? HIBR_OK : HIBR_FAIL;
 	}
+	/* Blit's keyboards (Gitea #529): `list` asks for them once a
+	   connection and is answered with the list and after every change;
+	   `current N` switches; alone, the list as last received -- "gen G",
+	   "current N", a line a keyboard ("n layout variant name") and
+	   "reserved ..." -- or status 1 when none has come. */
+	if (!strcmp(sub, "keyboard")) {
+		int r;
+
+		if (ac >= 3 && !strcmp(av[2], "list")) {
+			cn_kbasked = 1;
+			return cn_dsay(s, "KEYBOARD list") ? HIBR_OK : HIBR_FAIL;
+		}
+		if (ac >= 4 && !strcmp(av[2], "current")) {
+			s_init(&k);
+			s_cat(&k, "KEYBOARD current ");
+			s_num(&k, strtol(av[3], 0, 10));
+			r = cn_dsay(s, k.p);
+			s_free(&k);
+			return r ? HIBR_OK : HIBR_FAIL;
+		}
+		if (ac >= 3 && !strcmp(av[2], "gen")) {
+			s_init(&k);
+			s_num(&k, cn_kbgen);
+			hibr_ret(s, k.p);
+			if (!s->bind)
+				printf("%s\n", k.p);
+			s_free(&k);
+			return HIBR_OK;
+		}
+		if (cn_kbcur < 0)
+			return HIBR_FAIL;
+		s_init(&k);
+		s_cat(&k, "gen ");
+		s_num(&k, cn_kbgen);
+		s_cat(&k, "\ncurrent ");
+		s_num(&k, cn_kbcur);
+		s_ch(&k, '\n');
+		s_add(&k, cn_kbls.p ? cn_kbls.p : "", cn_kbls.n);
+		s_cat(&k, "reserved ");
+		s_add(&k, cn_kbres.p ? cn_kbres.p : "", cn_kbres.n);
+		hibr_ret(s, k.p);
+		if (!s->bind)
+			printf("%s\n", k.p);
+		s_free(&k);
+		return HIBR_OK;
+	}
 	/* The chords the desktop keeps from programs' windows (Gitea #530):
 	   `INPUT keep` to every display's Blit, the whole set each time,
 	   which withholds them from every program's route. Status 1 where
