@@ -50,7 +50,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so $(B)/mods/hcal.so $(B)/mods/salat.so \
        $(B)/mods/vw.so $(B)/mods/archive.so $(B)/mods/mermaid.so \
        $(B)/mods/pdf.so $(B)/mods/fetch.so $(B)/mods/copy.so \
-       $(B)/mods/proctab.so $(B)/mods/contain.so $(B)/mods/frames.so
+       $(B)/mods/proctab.so $(B)/mods/contain.so $(B)/mods/frames.so $(B)/mods/inspect.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
 # Darwin at all, so it is not in MODS above and never built, or even asked
@@ -213,6 +213,9 @@ TRACE_SRC = $(wildcard mods/trace/*.c)
 $(B)/mods/trace.so: $(TRACE_SRC) include/hibr.h mods/trace/tr.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(TRACE_SRC)
 
+$(B)/mods/inspect.so: mods/inspect/inspect.c mods/inspect/inspect.h include/pri.h include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/inspect/inspect.c
+
 LINT_SRC = $(wildcard mods/lint/*.c)
 
 $(B)/mods/lint.so: $(LINT_SRC) include/hibr.h mods/lint.h $(B)/.moddir | $(B)/mods
@@ -329,6 +332,13 @@ census: $(B)/hibr.census $(MODS)
 $(B)/hibr.census: $(SRC) include/hibr.h include/pri.h $(B)/.moddir | $(B)/mods
 	$(CC) $(SHCFLAGS) -DHIBR_CENSUS $(LDFLAGS) -o $@ $(SRC)
 
+check-inspect: $(BIN) $(B)/mods/inspect.so $(B)/mods/lint.so
+	HIBR=$(abspath $(BIN)) HIBR_TESTMODS=$(abspath $(B)/mods) python3 tests/inspect_records.py
+	python3 tests/inspect_tree.py
+	HIBR=$(abspath $(BIN)) HIBR_TESTMODS=$(abspath $(B)/mods) python3 tests/inspect_spans.py
+
+.PHONY: check-inspect
+
 # Every suite, the pty ones included, side by side: about 21 minutes on four cores.
 check-all: all
 	python3 tests/all.py
@@ -357,6 +367,7 @@ install: all
 	install -m 644 $(MODS) $(DESTDIR)$(MODDIR)
 	install -m 644 include/hibr.h $(DESTDIR)$(PREFIX)/include/hibr/hibr.h
 	install -m 644 mods/fetch.h $(DESTDIR)$(PREFIX)/include/hibr/fetch.h
+	install -m 644 mods/inspect/inspect.h $(DESTDIR)$(PREFIX)/include/hibr/inspect.h
 	install -d $(DESTDIR)$(MANDIR)/man1
 	install -m 644 $(B)/hibr.1 $(DESTDIR)$(MANDIR)/man1/hibr.1
 	install -m 644 $(B)/desktop.1 $(DESTDIR)$(MANDIR)/man1/desktop.1

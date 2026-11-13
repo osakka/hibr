@@ -42,6 +42,7 @@ names any function of a file covers calls to every function of that file,
 since it has asked whether that file is loaded.
 """
 import glob
+from inspectlib import functions
 import os
 import re
 import sys
@@ -50,7 +51,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DESK = os.path.join(ROOT, "programs", "desktop")
 
-DEF = re.compile(r"^(?:fn\s+)?([a-z][a-z0-9]*_[a-z0-9_]+)\s*\(")
 TOK = re.compile(r"\b([a-z][a-z0-9]*_[a-z0-9_]+)\b")
 GUARD = re.compile(r'(?:command -v|dt_has|dt_needs [a-z]+)\s+"?\$?\{?([a-z][a-z0-9_]*)')
 OWNPATH = re.compile(r"\$\{BASH_SOURCE%/\*\}/\.\.|\$\{0%/\*\}")
@@ -74,8 +74,8 @@ def code(line):
 
 
 def defs(path):
-    return {m.group(1) for l in open(path, errors="replace")
-            for m in [DEF.match(l)] if m}
+    return {f['name'] for f in functions(path)
+            if re.fullmatch(r"[a-z][a-z0-9]*_[a-z0-9_]+", f['name'])}
 
 
 def platform(path):
@@ -127,8 +127,9 @@ def main():
     checked = 0
     for g in inst:
         guards = set()
+        starts = {f['span']['line'] for f in functions(g)}
         for n, line in enumerate(open(g, errors="replace"), 1):
-            if DEF.match(line):
+            if n in starts:
                 guards = set()
                 continue
             s = code(line)

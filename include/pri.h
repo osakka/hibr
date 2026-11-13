@@ -45,6 +45,8 @@ struct lex {
 	word *w;
 	int tk, fd, nb, more, err, dash, both, clob, depth;
 	char *fdvar;
+	const char *errmsg, *errat;
+	unsigned errln, errcol;
 	vec hq;
 	const char *lnp, *bol;
 	unsigned ln;

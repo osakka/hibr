@@ -4,7 +4,7 @@
 #include "hibr.h"
 
 #ifndef LI_API_VER
-#define LI_API_VER 2u
+#define LI_API_VER 3u
 #endif
 
 /* What the lint module offers under "lint": explain reads a parsed script
@@ -13,6 +13,7 @@
    on a line that excuses it (`# fork: reason`). */
 typedef struct li_api {
 	int (*explain)(sh *s, node *n, const char *src);
+	int (*records)(sh *, node *, const char *, void (*)(void *, unsigned, const char *, const char *), void *);
 } li_api;
 
 #endif

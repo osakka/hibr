@@ -29,6 +29,7 @@ import re
 import subprocess
 import sys
 from collections import Counter, defaultdict
+from inspectlib import functions
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -36,8 +37,6 @@ DESK = os.path.join(ROOT, "programs", "desktop")
 BIN = os.path.join(ROOT, "build", "hibr.census")
 LAST = os.path.join(ROOT, "build", "census.last")
 LOGS = os.path.join(ROOT, "build", "census-logs")
-DEFS = [re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{"),
-        re.compile(r"^\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(")]
 
 
 def defined():
@@ -48,11 +47,8 @@ def defined():
             if not f.endswith(".hibr"):
                 continue
             p = os.path.join(d, f)
-            for line in open(p, errors="replace"):
-                for r in DEFS:
-                    m = r.match(line)
-                    if m:
-                        out.setdefault(m.group(1), os.path.relpath(p, DESK))
+            for record in functions(p):
+                out.setdefault(record['name'], os.path.relpath(p, DESK))
     return out
 
 
@@ -128,7 +124,6 @@ def expansion(log, prefixes):
     return len(sites)
 
 
-SIG = re.compile(r"^\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
 
 
 def signatures():
@@ -139,20 +134,12 @@ def signatures():
             if not f.endswith(".hibr"):
                 continue
             p = os.path.join(d, f)
-            for line in open(p, errors="replace"):
-                m = SIG.match(line)
-                if not m:
+            for record in functions(p):
+                if not record['declared_signature']:
                     continue
-                ps = []
-                for a in m.group(2).split(","):
-                    a = a.strip()
-                    if not a or a.startswith("..."):
-                        continue
-                    opt = "=" in a
-                    words = a.split("=")[0].split()
-                    ty = words[0] if len(words) > 1 else ""
-                    ps.append((words[-1], ty, opt))
-                out.setdefault(m.group(1), (os.path.relpath(p, DESK), ps))
+                ps = [(a['name'], a['type'], a['has_default'])
+                      for a in record['params'] if not a['rest']]
+                out.setdefault(record['name'], (os.path.relpath(p, DESK), ps))
     return out
 
 

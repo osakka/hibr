@@ -47,7 +47,7 @@ ADIR = os.path.join(ROOT, "build", "asan")
 LOGS = os.path.join(ROOT, "build", "asan-logs")
 BIN = os.path.join(ADIR, "bin")
 WRAP = os.path.join(BIN, "hibr")
-QUICK = ["run.sh", "cat", "console", "term_diff", "md_spec", "html_tree",
+QUICK = ["inspect_spans", "inspect_records", "run.sh", "cat", "console", "term_diff", "md_spec", "html_tree",
          "mail", "pim", "pim_rrule", "dav", "fetch", "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "sixel", "kitgfx", "holdpix", "dmabuf", "frames", "holdrenew", "holdseam", "holdlock", "native", "archive", "mermaid", "pdfapp"]
 FUZZ = 300
 # Past this many suites a quick run is a full one in all but name; see quick().
@@ -117,6 +117,8 @@ def extra(env):
     cmds = [([WRAP, os.path.join(HERE, "self.hibr")], env),
             ([sys.executable, os.path.join(HERE, "fuzz.py"), WRAP, str(FUZZ)],
              env),
+            ([sys.executable, os.path.join(HERE, "fuzz.py"), WRAP, str(FUZZ)],
+             dict(env, HIBR_FUZZ_INSPECT="1")),
             # Not 541-ships: it runs `make install` into this tree, and
             # all.py's own run.sh runs it at the same moment -- two installs
             # into one build/ can catch each other mid-write (Gitea #380,
@@ -130,7 +132,7 @@ def extra(env):
             c[0], cwd=ROOT, env=dict(c[1], SEED="7"), capture_output=True,
             text=True), cmds))
     ok = True
-    for name, r in zip(("self.hibr", "fuzz", "leaks"), res):
+    for name, r in zip(("self.hibr", "fuzz", "inspect-fuzz", "leaks"), res):
         last = (r.stdout.strip() or r.stderr.strip()).splitlines()
         found = sorted(glob.glob(leak + ".*")) if name == "leaks" else []
         good = r.returncode == 0 and not found

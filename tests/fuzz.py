@@ -19,23 +19,25 @@ def mutate(b):
         elif op < 0.8: b[i:i] = random.choice(tokens)
         else: b[i:i] = b[random.randrange(len(b)):][:random.randint(1,40)]
     return bytes(b)
+inspect = os.environ.get("HIBR_FUZZ_INSPECT") == "1"
 found = 0; hangs = 0
 for n in range(rounds):
     data = mutate(random.choice(seeds))
     path = '/tmp/nsh-fuzz-%d-%d.t' % (os.getpid(), n)
     open(path,'wb').write(data)
     try:
-        r = subprocess.run([nsh,'-n',path], capture_output=True, timeout=3)
+        args = [nsh, '-c', 'need inspect; inspect check "$1" -j', '_', path] if inspect else [nsh, '-n', path]
+        r = subprocess.run(args, capture_output=True, timeout=3)
         crash = r.returncode < 0 or r.returncode >= 128 or b'AddressSanitizer' in r.stderr or b'runtime error' in r.stderr
         if crash:
             found += 1
-            keep = 'tests/fuzz-crash-%d.t' % found
+            keep = ('tests/fuzz-inspect-crash-%d.t' if inspect else 'tests/fuzz-crash-%d.t') % found
             os.rename(path, keep)
             print('CRASH rc=%d saved %s' % (r.returncode, keep)); print(r.stderr.decode(errors='replace')[:600])
             continue
     except subprocess.TimeoutExpired:
         hangs += 1
-        keep = 'tests/fuzz-hang-%d.t' % hangs
+        keep = ('tests/fuzz-inspect-hang-%d.t' if inspect else 'tests/fuzz-hang-%d.t') % hangs
         os.rename(path, keep)
         print('HANG saved', keep)
         continue

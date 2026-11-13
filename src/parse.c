@@ -95,6 +95,10 @@ void perr(lex *l, const char *m)
 		return;
 	if (!l->more) {
 		p_where(l);
+		l->errmsg = ar_dup(l->a, m, strlen(m));
+		l->errat = l->tkb ? l->tkb : l->p;
+		l->errln = lg_ln;
+		l->errcol = lg_col;
 		lg(HIBR_LERR, "syntax error: %s", m);
 		lg_ln = lg_col = 0;
 	}
@@ -123,6 +127,18 @@ void perr_near(lex *l)
 		if (b && e > b && e[-1] == '\n')
 			e--;
 		p_where(l);
+		{
+			str msg;
+
+			s_init(&msg);
+			s_fmt(&msg, "syntax error near unexpected token `%.*s'",
+			      b ? (int)(e - b) : 0, b ? b : "");
+			l->errmsg = ar_dup(l->a, msg.p, msg.n);
+			s_free(&msg);
+		}
+		l->errat = l->tkb ? l->tkb : l->p;
+		l->errln = lg_ln;
+		l->errcol = lg_col;
 		lg(HIBR_LERR, "syntax error near unexpected token `%.*s'",
 		   b ? (int)(e - b) : 0, b ? b : "");
 		lg_ln = lg_col = 0;
