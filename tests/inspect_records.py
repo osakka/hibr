@@ -82,3 +82,25 @@ with tempfile.TemporaryDirectory() as d:
         proc = subprocess.run([binary, '-c', 'mod load "$1"; r := ixstate "$2"; echo "$r"', '_', str(module), str(path)], env=env, capture_output=True, text=True, timeout=5)
         assert proc.returncode == 0 and proc.stdout.strip() == 'preserved' and not proc.stderr, proc
 print('non-execution, privacy, rules, limits, recovery and caller-state tests passed')
+
+with tempfile.TemporaryDirectory() as d:
+    path = Path(d) / 'external.hibr'
+    path.write_text('fn local_fn() { :; }\nfn start() { top := external_call; dt_ticker external_callback; echo "external_call other"; }\n')
+    command = 'need inspect; inspect refs "$1" --symbols "$2" -j'
+    proc = subprocess.run([binary, '-c', command, '_', str(path), json.dumps(['external_callback', 'external_call'])],
+                          env=env, capture_output=True, text=True, timeout=5)
+    assert proc.returncode == 0 and not proc.stderr, proc
+    refs = json.loads(proc.stdout)['refs']
+    assert [r['name'] for r in refs] == ['external_callback'], refs
+    assert refs[0]['resolution'] == 'unresolved' and refs[0]['lookup'] == 'supplied-symbol'
+    assert not query(path, 'refs')['refs'], 'external candidate names must be explicitly supplied'
+    calls = query(path, 'calls')['calls']
+    bound = next(r for r in calls if r['name'] == 'external_call')
+    assert bound['bound'] and bound['binding'] == 'top'
+    plain = subprocess.run([binary, '-c', 'need inspect; inspect calls "$1"', '_', str(path)],
+                           env=env, capture_output=True, text=True, timeout=5)
+    assert plain.returncode == 0 and not plain.stderr, plain
+    assert 'external_call unresolved bound (top :=)' in plain.stdout
+    assert 'resolution: "unresolved"' in plain.stdout
+    assert 'binding: "top"' in plain.stdout and 'partial: false' in plain.stdout
+print('external reference candidates and lossless plain rendering passed')

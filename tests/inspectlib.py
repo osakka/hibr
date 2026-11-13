@@ -9,23 +9,28 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def records(path, request='functions', rules=None):
+def records(path, request='functions', rules=None, symbols=()):
     """Read facts from the producer, caching by exact input content identity."""
     path = str(Path(path).resolve())
     digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
     rulepath = str(Path(rules).resolve()) if rules else ''
     ruleid = hashlib.sha256(Path(rulepath).read_bytes()).hexdigest() if rulepath else ''
-    return _records(path, request, digest, rulepath, ruleid)
+    return _records(path, request, digest, rulepath, ruleid, tuple(sorted(symbols)))
 
 
 @functools.lru_cache(maxsize=1024)
-def _records(path, request, digest, rules, ruleid):
+def _records(path, request, digest, rules, ruleid, symbols):
     """Reject a changed source rather than attaching facts to earlier bytes."""
     binary = os.environ.get('HIBR', str(ROOT / 'build/hibr'))
     env = dict(os.environ, HIBR_MODPATH=os.environ.get('HIBR_TESTMODS', str(ROOT / 'build/mods')))
     args = [binary, '-c', 'need inspect; inspect "$1" "$2" -j', '_', request, path]
     if rules:
         args = [binary, '-c', 'need inspect; inspect "$1" "$2" --rules "$3" -j', '_', request, path, rules]
+    if symbols:
+        args[2] = args[2].replace(' -j', ' --symbols "$4" -j')
+        if not rules:
+            args.append('')
+        args.append(json.dumps(symbols))
     proc = subprocess.run(args,
                           cwd=ROOT, env=env, capture_output=True, text=True, timeout=10)
     if proc.stderr or proc.returncode:

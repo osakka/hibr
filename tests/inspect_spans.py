@@ -55,6 +55,26 @@ class SourceSpans(unittest.TestCase):
         refs = self.inspect(source, 'refs')
         self.assertEqual([self.text(source, c) for c in refs], ['callback', '"callback"'])
 
+    def test_endline_is_last_covered_line(self):
+        source = '# author intent\nfn example() {\n :;\n}\n'
+        function = self.inspect(source, 'functions')[0]
+        summary = function['summary']['span']
+        self.assertEqual(summary['end'], source.index('fn'))
+        self.assertEqual(summary['endline'], 1)
+        self.assertEqual(function['body']['span']['endline'], 4)
+        self.assertEqual(function['span']['endline'], 4)
+
+    def test_parameter_defaults_are_declared_unevaluated_evidence(self):
+        source = 'fn example(int n=3, str label="hello", value=$(echo secret), ...args) { :; }\n'
+        parameters = self.inspect(source, 'functions')[0]['params']
+        self.assertEqual([p['default']['text'] if p['default'] else None for p in parameters],
+                         ['3', '"hello"', '$(echo secret)', None])
+        for p in parameters[:-1]:
+            self.assertFalse(p['default']['evaluated'])
+            self.assertEqual(p['default']['known'], 'declared')
+            self.assertEqual(self.text(source, p['default']), p['default']['text'])
+        self.assertTrue(parameters[-1]['rest'])
+
     def test_function_extraction_round_trip(self):
         source = '# author intent\nfn first(int n=3, str value="hello") { echo "$n"; }\nfn second() { first 4; }\n'
         for function in self.inspect(source, 'functions'):
@@ -67,7 +87,7 @@ class SourceSpans(unittest.TestCase):
             for before, after in zip(function['params'], other['params']):
                 self.assertEqual(before['name'], after['name'])
                 self.assertEqual(self.text(source, before), self.text(fragment, after))
-                if 'default' in before:
+                if before.get('default') is not None:
                     self.assertEqual(self.text(source, before['default']), before['default']['text'])
             self.assertTrue(self.text(source, function['body']).startswith('{'))
 
