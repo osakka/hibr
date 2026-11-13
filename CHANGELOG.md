@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.507
+
+**A program whose name has spaces is one row in Shortcuts** (Gitea #533,
+reported by the owner). A program found on the machine is named after its
+`.desktop` file, and Steam names those after the game, so Age of Empires II
+was listed as four rows, `prog:Age`, `of`, `Empires` and `II.desktop`, each
+with a key of its own. `dt_appnames` now also gives the list one name to an
+element (`DT_APPNAMEV`), and Shortcuts 1.3.2 reads that; the table of who
+holds which key, behind the ⚠ marks, is kept with tabs for the same reason.
+A key saved for one of those word rows stays in the settings file, has no
+row, and no longer counts as holding its key. With a hundred programs the
+pane builds its 162 rows in 10 ms.
+
+**ADR 0056 and ADR 0057 are accepted** (the owner, 2026-11-12). The `inspect`
+module is built by hui-assistant against this tree (itdlabs/hui-assistant#1);
+shortcuts as literal chords come in 0.99.509.
+
 ## 0.99.506
 
 **Keypad Enter and the keypad's arrows work again.** 0.99.504 asked the

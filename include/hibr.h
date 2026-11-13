@@ -8,7 +8,7 @@
 #define HIBR_ABI 17u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.506"
+#define HIBR_VER "0.99.507"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0

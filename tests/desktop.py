@@ -4983,6 +4983,34 @@ check("and takes effect: g now opens the calculator",
       sc.find("Calculator") is not None, sc)
 shutil.rmtree(CONF3, True)
 
+# A program found on the machine is named after its .desktop file, and
+# Steam names those after the game, spaces and all (Gitea #533): the pane
+# listed "Age of Empires II.desktop" as four rows, a word to a row. A key
+# saved for one of those word rows is in settings files now; it has no
+# row and must not mark the program's own key as shared.
+AOE = tempfile.mkdtemp(prefix="hibr-aoe-")
+os.makedirs(os.path.join(AOE, "data", "applications"))
+os.makedirs(os.path.join(AOE, "sys"))
+open(os.path.join(AOE, "data", "applications", "Age of Empires II.desktop"),
+     "w").write("[Desktop Entry]\nType=Application\nName=Age of Empires II\n"
+                "Exec=true\nCategories=Game;\n")
+AOEPRE = (PANEL + '\ndt_progload\n'
+          'DT_APPKEY["prog:Age of Empires II.desktop"]=ctrl-alt-e\n'
+          'DT_APPKEY["Empires"]=ctrl-alt-e\n')
+sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
+            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * (NKEYS + 1 + SCSKIP),
+            env={"XDG_DATA_HOME": os.path.join(AOE, "data"), "DT_PROGAUTO": "1",
+                 "XDG_DATA_DIRS": os.path.join(AOE, "sys")}, pre=AOEPRE)
+aoe = sc.find("Age of Empir")
+words = [r for r in range(sc.rows)
+         if re.search(r"│\s+(of|Empires|II\.desktop|prog:Age)\s", sc.row(r))]
+check("a program whose name has spaces is one row in Shortcuts, not one a word",
+      aoe is not None and not words, sc)
+check("and a key saved for a word row it once had does not mark its own as shared",
+      aoe is not None and "ctrl-alt-e" in sc.row(aoe[0]) and
+      "⚠" not in sc.row(aoe[0]), sc)
+shutil.rmtree(AOE, True)
+
 # #56: ctrl-alt-t and alt-ctrl-t name the same physical chord -- which
 # one a real keypress produces depends on whether the terminal encoded
 # it as an ESC-prefixed alt combination (always "alt-" first) or a
@@ -9766,4 +9794,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1060)
+report(1062)

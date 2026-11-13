@@ -505,18 +505,27 @@ dt_rescan() {
 
 # Every registered app, sorted by title without regard to case, as names --
 # for anything that wants every app in one flat list rather than the hibr
-# menu's own folder-grouped one below (Settings' App Shortcuts rows do).
+# menu's own folder-grouped one below (Shortcuts' Apps rows do). The list
+# is DT_APPNAMEV, one name an element: a program found on the machine is
+# named after its .desktop file, and Steam names those after the game, so
+# "Age of Empires II.desktop" is one name with spaces in it (Gitea #533).
+# The space-joined form it also answers is for a pane older than 0.99.507.
+declare -ga DT_APPNAMEV=()
 dt_appnames() {
 	local n l out=
 	local -a all
 
+	DT_APPNAMEV=()
 	for n in "${!DT_APPS[@]}"; do
 		[ "${DT_APPS[$n]["hidden"]}" = 1 ] && continue
 		l := str lower "${DT_APPS[$n]["title"]}"
 		all+=("$l	$n")
 	done
 	arr sort all
-	for l in "${all[@]}"; do out="$out ${l#*	}"; done
+	for l in "${all[@]}"; do
+		DT_APPNAMEV+=("${l#*	}")
+		out="$out ${l#*	}"
+	done
 	ret "${out# }"
 }
 

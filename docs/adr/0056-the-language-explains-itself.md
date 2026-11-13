@@ -1,7 +1,8 @@
 # ADR 0056: the language explains itself -- an `inspect` module
 
-Status: proposed (Gitea #532), for the owner's yes on this page before any
-code.
+Status: accepted (0.99.507, the owner, 2026-11-12). Built by hui-assistant
+(itdlabs/hui-assistant#1) as a branch against this tree; hibr reviews,
+gates and releases it (Gitea #532).
 
 ## Context
 

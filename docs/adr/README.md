@@ -65,8 +65,8 @@ downside is usually a decision nobody had to make.
 | [0053](0053-files-reaches-anywhere-through-locations.md) | Files reaches anywhere through locations | accepted |
 | [0054](0054-what-the-desktop-writes-is-data.md) | What the desktop writes for itself is data | accepted |
 | [0055](0055-tcc-compiles-the-system-linker-links.md) | tcc compiles, the system linker links | accepted |
-| [0056](0056-the-language-explains-itself.md) | The language explains itself -- an `inspect` module | proposed |
-| [0057](0057-a-shortcut-is-the-chords-it-is-written-as.md) | A shortcut is the chords it is written as | proposed |
+| [0056](0056-the-language-explains-itself.md) | The language explains itself -- an `inspect` module | accepted |
+| [0057](0057-a-shortcut-is-the-chords-it-is-written-as.md) | A shortcut is the chords it is written as | accepted |
 
 ---
 

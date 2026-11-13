@@ -1,7 +1,6 @@
 # ADR 0057: a shortcut is the chords it is written as
 
-Status: proposed, for the owner's yes on this page before any code
-(2026-11-12).
+Status: accepted (0.99.507, the owner, 2026-11-12); built in 0.99.509.
 
 ## Context
 

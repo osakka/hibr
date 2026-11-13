@@ -14,7 +14,7 @@
 strict
 
 
-app shortcuts "The Control Panel pane for every shortcut in one list" 1.3.1
+app shortcuts "The Control Panel pane for every shortcut in one list" 1.3.2
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌘"
 
 # Shortcut Key's three choices, as the pane shows them and as DT_MOD
@@ -69,7 +69,8 @@ fn shortcuts_drop(int w, int r, int c, k) {
 	dt_droplist "$w" "$r" "$c" cp_set_dtmod "${SC_MODLABELS[@]}"
 }
 
-# Every key in use, normalised once, and who holds it: " owner owner ".
+# Every key in use, normalised once, and who holds it: each owner after a
+# tab, since a program's name may have spaces in it (Gitea #533).
 # Asking dt_keyshared row by row compared each key with every other, 46 by
 # 46, normalising both each time -- 35 of the pane's 39 ms on every frame
 # it was open, which under load was a stall (ADR 0049).
@@ -83,17 +84,20 @@ shortcuts_owners() {
 	for a in "${DT_KEYORDER[@]}"; do
 		[ -n "${DT_KEYS["$a"]}" ] || continue
 		k := dt_keynorm "${DT_KEYS["$a"]}"
-		SC_OWN["$k"]+=" $a"
+		SC_OWN["$k"]+="	$a"
 	done
+	# A key saved for an app that is not here -- removed, or a row the
+	# pane once made from part of a name -- has no row, and holds nothing.
 	for a in "${!DT_APPKEY[@]}"; do
 		[ -n "${DT_APPKEY["$a"]}" ] || continue
+		[ -n "${DT_APPS["$a"]["title"]-}" ] || continue
 		k := dt_keynorm "${DT_APPKEY["$a"]}"
-		SC_OWN["$k"]+=" app:$a"
+		SC_OWN["$k"]+="	app:$a"
 	done
 	for a in "${DT_AKEYORDER[@]}"; do
 		[ -n "${DT_AKEY["$a"]}" ] || continue
 		k := dt_keynorm "${DT_AKEY["$a"]}"
-		SC_OWN["$k"]+=" act:$a"
+		SC_OWN["$k"]+="	act:$a"
 	done
 	return 0
 }
@@ -108,7 +112,7 @@ fn shortcuts_shared(what) {
 	k := dt_keyof "$what"
 	[ -n "$k" ] || return 1
 	k := dt_keynorm "$k"
-	read -ra os <<< "${SC_OWN["$k"]}"
+	IFS=$'\t' read -ra os <<< "${SC_OWN["$k"]#	}"
 	for o in "${os[@]}"; do
 		[ "$o" = "$what" ] && continue
 		case $what:$o in
@@ -137,7 +141,7 @@ fn shortcuts_row(int w, int n, what) {
 }
 
 fn shortcuts_rows(int w) {
-	local n=0 a names nl last
+	local n=0 a names last
 
 	shortcuts_owners
 	# What a key is and types -- a role, a layout, the repeat -- is Blit's
@@ -167,8 +171,7 @@ fn shortcuts_rows(int w) {
 	names := dt_appnames
 	if [ -n "$names" ]; then
 		CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Apps"; n=$((n + 1))
-		read -ra nl <<< "$names"
-		for a in "${nl[@]}"; do
+		for a in "${DT_APPNAMEV[@]}"; do
 			shortcuts_row "$w" "$n" "app:$a"
 			n=$((n + 1))
 		done
