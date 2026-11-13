@@ -3243,6 +3243,47 @@ sc, raw = run("", feed=HOLD, env=dict(env, DT_BAND="translucent"), pre=pre)
 check("translucent tints what it covers and leaves it readable",
       sc.style(5, 62).get("bg") != sc0.style(5, 62).get("bg") and
       sc.at(5, 62) == sc0.at(5, 62), (sc0.style(5, 62), sc.style(5, 62)))
+# And it follows the pointer: the band is drawn with the wallpaper, which
+# was repainted only when its own signature changed or once a second, and
+# the band was not in it -- so a band stretched with a real mouse, whose
+# reports arrive in bursts, was not drawn at all until some later frame
+# fell past the second (the owner, 2026-11-13). One burst, as a mouse sends
+# it: the corner is where it ended, at once.
+# Read before quitting: Quit's box is a full frame, which paints the band
+# wherever it was and hid both of these from run().
+BURST = press(3, 5) + b"".join(drag(3 + i // 4, 5 + i * 2) for i in range(1, 30))
+STILL = ('fn still_draw(int id, int h, int w, int row, int col) {\n'
+         '    console pen "$DT_INK" "$DT_FACE"; console put -p "w$id" 2 2 "left alone"\n'
+         '}\n'
+         'fn still_dirty(int id) { return 1; }\n'
+         'dt_new "W" 8 30 6 40 still\n')
+def bandat(session, band, feed):
+    path = scratch("band.hibr")
+    open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, session))
+    bt = Term(path, env={"DT_TICK": "60", "DT_BAND": band}, rows=ROWS,
+              cols=COLS, settle=0.6)
+    for f in feed:
+        if isinstance(f, float):
+            time.sleep(f)
+        else:
+            bt.send(f, settle=0.3)
+    bsc = bt.screen()
+    bt.quit(b"qy", 1.0)
+    return bsc
+sc = bandat("", "frame", [BURST])
+check("a band stretched in one burst is drawn where it ended, at once",
+      sc.at(10, 63) == "\u2518", (sc.at(10, 63), sc.row(10)))
+# And it is the desktop's: a window over it is left alone. Solid and
+# translucent tint with `console tint`, which painted every cell it was
+# given, so a window that was itself left alone that frame -- a terminal at
+# rest -- wore the band; the frame look's `console put` already kept off.
+sc0 = bandat(STILL, "solid", [])
+sc = bandat(STILL, "solid", [BURST, 1.2, drag(10, 64)])
+check("a band over a window leaves the window as it was",
+      sc.style(9, 45).get("bg") == sc0.style(9, 45).get("bg") and
+      sc.style(5, 10).get("bg") != sc0.style(5, 10).get("bg"),
+      (sc0.style(9, 45), sc.style(9, 45), sc.style(5, 10)))
 shutil.rmtree(d, True)
 
 # A saved position is a preference, not a promise: dt_iconlay clamps it to
@@ -10011,4 +10052,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1086)
+report(1088)

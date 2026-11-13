@@ -95,6 +95,10 @@ void perr(lex *l, const char *m)
 		return;
 	if (!l->more) {
 		p_where(l);
+		l->errmsg = ar_dup(l->a, m, strlen(m));
+		l->errat = l->tkb ? l->tkb : l->p;
+		l->errln = lg_ln;
+		l->errcol = lg_col;
 		lg(HIBR_LERR, "syntax error: %s", m);
 		lg_ln = lg_col = 0;
 	}
@@ -123,6 +127,18 @@ void perr_near(lex *l)
 		if (b && e > b && e[-1] == '\n')
 			e--;
 		p_where(l);
+		{
+			str msg;
+
+			s_init(&msg);
+			s_fmt(&msg, "syntax error near unexpected token `%.*s'",
+			      b ? (int)(e - b) : 0, b ? b : "");
+			l->errmsg = ar_dup(l->a, msg.p, msg.n);
+			s_free(&msg);
+		}
+		l->errat = l->tkb ? l->tkb : l->p;
+		l->errln = lg_ln;
+		l->errcol = lg_col;
 		lg(HIBR_LERR, "syntax error near unexpected token `%.*s'",
 		   b ? (int)(e - b) : 0, b ? b : "");
 		lg_ln = lg_col = 0;
@@ -862,6 +878,7 @@ node *p_case(lex *l)
 node *p_cmd(lex *l)
 {
 	node *n = 0;
+	const char *begin = l->tkb, *end;
 
 	if (++l->depth > HIBR_DEPTH) {
 		perr(l, "input nested too deeply");
@@ -869,6 +886,11 @@ node *p_cmd(lex *l)
 		return 0;
 	}
 	n = p_cmd2(l);
+	if (n && l->observe) {
+		end = l->tkb ? l->tkb : l->p;
+		while (end > begin && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\n' || end[-1] == '\r')) end--;
+		l->observe(l->observer, n, begin, end);
+	}
 	l->depth--;
 	return n;
 }

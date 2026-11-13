@@ -35,13 +35,14 @@ something that is there in every scope. Three rules, each a check here:
 
 Which kinds are installable is read from the catalogue's own CAT_KEXT --
 every kind whose files end in .hibr -- so a kind added later is covered
-without an edit here. It reads, it does not parse: a function begins at a
-`name(` in column 0 and a guard covers the calls after it in that
-function, which is how every file in the desktop is written. A guard that
+without an edit here. Language facts come from inspect functions, calls and refs. Guard argument
+and resource-path checks still read text because version 1 does not expose
+command arguments or path expressions. A guard that
 names any function of a file covers calls to every function of that file,
 since it has asked whether that file is loaded.
 """
 import glob
+from inspectlib import functions, records
 import os
 import re
 import sys
@@ -50,8 +51,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DESK = os.path.join(ROOT, "programs", "desktop")
 
-DEF = re.compile(r"^(?:fn\s+)?([a-z][a-z0-9]*_[a-z0-9_]+)\s*\(")
-TOK = re.compile(r"\b([a-z][a-z0-9]*_[a-z0-9_]+)\b")
 GUARD = re.compile(r'(?:command -v|dt_has|dt_needs [a-z]+)\s+"?\$?\{?([a-z][a-z0-9_]*)')
 OWNPATH = re.compile(r"\$\{BASH_SOURCE%/\*\}/\.\.|\$\{0%/\*\}")
 LIBSRC = re.compile(r'(?:^|[\s;&|])\.\s+"\$DT_HERE/lib/([a-z][a-z0-9]*)\.hibr"')
@@ -74,8 +73,8 @@ def code(line):
 
 
 def defs(path):
-    return {m.group(1) for l in open(path, errors="replace")
-            for m in [DEF.match(l)] if m}
+    return {f['name'] for f in functions(path)
+            if re.fullmatch(r"[a-z][a-z0-9]*_[a-z0-9_]+", f['name'])}
 
 
 def platform(path):
@@ -126,13 +125,18 @@ def main():
     fails = []
     checked = 0
     for g in inst:
-        guards = set()
+        declarations = functions(g)
+        evidence = records(g, 'calls')['calls'] + records(g, 'refs', symbols=owner)['refs']
+        byline = {}
+        for fact in evidence:
+            if fact['known'] == 'syntax' and fact.get('name') in owner:
+                byline.setdefault(fact['span']['line'], []).append(fact)
+        guards = {}
+        offset = 0
         for n, line in enumerate(open(g, errors="replace"), 1):
-            if DEF.match(line):
-                guards = set()
-                continue
             s = code(line)
             if not s.strip():
+                offset += len(line.encode())
                 continue
             checked += 1
             if OWNPATH.search(s):
@@ -144,17 +148,30 @@ def main():
                     fails.append("%s:%d: sources lib/%s.hibr, which has no "
                                  "*_LIBDONE=1 line, so the desktop does not load it"
                                  % (rel(g), n, lib))
+            inline = set()
             for gm in GUARD.finditer(s):
-                guards.add(gm.group(1))
-            covered = set().union(*[owner.get(x, set()) for x in guards]) if guards else set()
-            inline = ("command -v" in s or "dt_has" in s or "dt_needs" in s)
-            for tok in sorted(set(TOK.findall(s))):
-                fs = owner.get(tok)
-                if not fs or fs & unit[g] or inline or fs & covered:
+                position = offset + len(s[:gm.start()].encode())
+                containing = [f for f in declarations
+                              if f['span']['start'] <= position < f['span']['end']]
+                containing.sort(key=lambda f: f['span']['end'] - f['span']['start'])
+                scope = containing[0]['name'] if containing else ''
+                guards.setdefault(scope, set()).add(gm.group(1))
+                inline.add(scope)
+            seen = set()
+            for fact in sorted(byline.get(n, []), key=lambda f: f['span']['start']):
+                tok = fact['name']
+                scope = fact.get('owner') or ''
+                if (scope, tok) in seen:
+                    continue
+                seen.add((scope, tok))
+                fs = owner[tok]
+                covered = set().union(*(owner.get(x, set()) for x in guards.get(scope, set())))
+                if fs & unit[g] or scope in inline or fs & covered:
                     continue
                 fails.append("%s:%d: calls %s, from %s, with no guard in this "
                              "function -- dt_has, dt_needs or command -v"
                              % (rel(g), n, tok, ", ".join(sorted(rel(x) for x in fs))))
+            offset += len(line.encode())
     for f in fails:
         print("FAIL " + f)
     print("%d installable files in %s, %d of them platform; %d lines read"

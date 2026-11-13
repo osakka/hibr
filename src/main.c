@@ -718,7 +718,7 @@ int main(int ac, char **av)
 	memset(&s, 0, sizeof s);
 	lg_sh = &s;
 	mem_tune();
-	ex_stkinit(&s);
+	ex_stkinit(__builtin_frame_address(0));
 	s.ar = ar_new(HIBR_ARCH);
 	s.xa = ar_new(HIBR_ARCH);
 	s.arg0 = xs(av[0]);

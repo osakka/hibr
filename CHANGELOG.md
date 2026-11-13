@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.99.518
+
+**`inspect`: the language explains itself** (ADR 0056, Gitea #532, #535,
+built by hui-assistant and reviewed here). A module that reads a script
+without running a byte of it and answers what it defines, what it calls and
+what it names, as records: `inspect functions|calls|refs|check FILE`, a
+typed map when bound and JSON with `-j`. Every record carries the exact
+source span, the file's identity and how it is known -- seen in the code,
+declared by its author, or inferred by a named rule -- so a tool built on it
+can cite its evidence and never claims more than the source says. The
+parser gives it its own view through a private observer, which costs one
+load a word parsed (0.45% to parse the whole desktop, nothing to run a
+loop: per function, every hibr function of a 50,000-iteration loop costs
+the same). `--symbols` takes at most 4,096 names of 128 bytes, refused
+beyond with a reason and no facts; options are capped at 1 MiB. The
+contract is `docs/inspect.md`, every example in it run by the documentation
+check; `programs/desktop/conventions.json` holds the desktop's own
+registration rules. The assistant's Hibr Coding experience reads it
+directly, with no forwarding module of its own.
+
+**The desktop's rubber band follows the pointer, and stays off windows**
+(the owner, 2026-11-13). The band is drawn with the wallpaper, which is
+repainted only when its signature changes, or once a second when some
+frame comes -- and the band was not in the signature. A band stretched with
+a real mouse, whose reports arrive in bursts, was therefore not drawn at
+all until a later frame fell past that second, which is "updates once a
+second or two". The band's rectangle and the icons it selects are in the
+signature now. And the solid and translucent looks tint with `console
+tint`, which painted every cell it was given, windows' included: a window
+left alone that frame -- a terminal at rest -- wore the band. `cn_tint`
+skips a window's cells while the wallpaper paints behind them, as `put`
+always did. Two checks, each failing on 0.99.517.
+
+**Runaway recursion is refused under any sanitizer runtime.** `ex_deep`
+measures how far the stack has grown, and took its two ends from the
+address of a local variable -- which a sanitizer's fake stack (on by default
+in GCC 14's runtime, which this build box now has) puts on the heap, so the
+measurement meant nothing and `996-nesting` and `998-keepgoing` overflowed
+the real stack instead of being refused. Both ends are the frame address now
+(`__builtin_frame_address`), which is the stack whatever the runtime does.
+
 ## 0.99.517
 
 **Typing through an input method in the desktop's own text** (Gitea #543).

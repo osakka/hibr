@@ -539,6 +539,7 @@ part *lx_dol(lex *l, int q)
 			p->n = u.n;
 			s_free(&u);
 		}
+		if (l->observe) l->observe(l->observer, p, b, e);
 		l->p = e + 1;
 		return p;
 	}
@@ -574,6 +575,7 @@ part *lx_dol(lex *l, int q)
 		p->k = P_CMD;
 		p->t = ar_dup(l->a, b, (size_t)(e - b));
 		p->n = (size_t)(e - b);
+		if (l->observe) l->observe(l->observer, p, b, e);
 		return p;
 	}
 	if (c == '[') {
@@ -662,6 +664,7 @@ void lx_uni(lex *l, str *b, part ***t, int *cq, int max)
    keeps it: "${x:-a\zb}" is a\zb, and only \} is a brace. */
 word *lx_word(lex *l, int lit)
 {
+	const char *begin = l->p;
 	str b;
 	part *h = 0, **t = &h, *x;
 	word *w;
@@ -685,6 +688,7 @@ word *lx_word(lex *l, int lit)
 			x->q = 1;
 			x->t = ar_dup(l->a, bb, (size_t)(ee - bb));
 			x->n = (size_t)(ee - bb);
+			if (l->observe) l->observe(l->observer, x, bb, ee);
 			l->p = ee + 1;
 			*t = x;
 			t = &x->nx;
@@ -870,6 +874,7 @@ word *lx_word(lex *l, int lit)
 	}
 	w = ar_alloc(l->a, sizeof *w);
 	w->p = h;
+	if (l->observe) l->observe(l->observer, w, begin, l->p);
 	return w;
 }
 

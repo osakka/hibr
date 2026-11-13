@@ -21,20 +21,11 @@ echo "every example parses"
 # how the desktop's drag and drop once took over the function that draws the
 # open menu. No example, and no app, defines one name twice.
 # Both ways of defining one count: name() { and fn name(...) {.
-defs='s/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p; s/^fn \([A-Za-z_][A-Za-z0-9_]*\)(.*/\1/p'
-for e in examples/*.hibr programs/*.hibr programs/desktop/*.hibr programs/desktop/apps/*.hibr \
+python3 tests/inspect_checks.py duplicates examples/*.hibr programs/*.hibr programs/desktop/*.hibr programs/desktop/apps/*.hibr \
          programs/desktop/apps/*/*.hibr programs/desktop/control-panel/*.hibr \
-         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr programs/desktop/menubar/*.hibr; do
-  sed -n "$defs" "$e" | sort | uniq -d |
-    while read -r f; do echo "defined twice in $e: $f"; done
-done
-# The desktop is desktop.hibr and every file it sources, so a name must be
-# unique across all of them together, not only within each: two parts that
-# each define it once still leave only the second one standing.
-cat programs/desktop/desktop.hibr programs/desktop/wm/*.hibr \
-    programs/desktop/widgets/*.hibr |
-  sed -n "$defs" | sort | uniq -d |
-  while read -r f; do echo "defined twice across the desktop's parts: $f"; done
+         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr programs/desktop/menubar/*.hibr
+python3 tests/inspect_checks.py combined programs/desktop/desktop.hibr programs/desktop/wm/*.hibr \
+    programs/desktop/widgets/*.hibr
 echo "no function is defined twice"
 
 # The catalogue command and its window share one prefix, cat_ and CAT_.
@@ -96,48 +87,7 @@ echo "no local reads a name assigned earlier in the same statement"
 # strip module is read from the desktop's own dt_app, dt_new, cp_pane and
 # cs_module calls.
 desk=$(find programs/desktop -name '*.hibr' | sort)
-awk '
-  FNR == 1 { if (!first) first = FILENAME; if (FILENAME == first) pass++ }
-  pass == 1 && !/^[[:space:]]*#/ {
-    if (match($0, /dt_app [a-z_]+/)) win[substr($0, RSTART + 7, RLENGTH - 7)] = 1
-    if (match($0, /cp_pane [a-z_]+/)) pane[substr($0, RSTART + 8, RLENGTH - 8)] = 1
-    if (match($0, /cs_module [a-z_]+/)) strip[substr($0, RSTART + 10, RLENGTH - 10)] = 1
-    if ($1 ~ /dt_new$/ || / := dt_new /) { w = $NF; gsub(/"/, "", w); win[w] = 1 }
-    next
-  }
-  pass == 2 && /^fn [a-z_]+_[a-z]+\(/ {
-    name = $2; sub(/\(.*/, "", name)
-    suf = name; sub(/.*_/, "", suf); pre = substr(name, 1, length(name) - length(suf) - 1)
-    params = $0; sub(/^[^(]*\(/, "", params); sub(/\) \{.*/, "", params)
-    if (params ~ /\.\.\./) next
-    n = (params == "") ? 0 : split(params, a, ",")
-    need = ""
-    if (pre in win) need = W[suf]
-    else if (pre in pane) need = P[suf]
-    else if (pre in strip) need = S[suf]
-    if (need != "" && n < need)
-      print FILENAME ": " name " names " n " of the " need " arguments it is called with"
-  }
-  BEGIN {
-    W["open"] = 2; W["close"] = 1; W["draw"] = 5; W["key"] = 2; W["click"] = 4
-    W["mouse"] = 6; W["wheel"] = 4; W["drop"] = 5; W["context"] = 1
-    W["stash"] = 2; W["resume"] = 1; W["idle"] = 1; W["hover"] = 3
-    # Copy, Cut and Paste, which had no entry here until Gitea #250: a
-    # paste is the text and, third, cut or copy, and `term_paste` was
-    # declared `op` rather than `op = ""` -- the one of twenty-three
-    # that could not take the short call wm/input.hibr was making, so a
-    # paste from the host terminal into a terminal window did nothing.
-    W["paste"] = 3; W["copy"] = 1; W["cut"] = 1; W["awake"] = 1; W["fullscreen"] = 2; W["focus"] = 2
-    W["titlemenu"] = 3
-    # A sign-in form: what it is for, and the login to put in it.
-    W["signin"] = 1; W["signfill"] = 3
-    # The new top of a scrollbar being held, from the window manager
-    # (Gitea #298).
-    W["scroll"] = 3
-    P["draw"] = 4; P["key"] = 2; P["click"] = 3; P["drop"] = 4; P["wheel"] = 2
-    P["slide"] = 3
-    S["draw"] = 2; S["click"] = 2
-  }' $desk $desk
+python3 tests/inspect_checks.py arity $desk
 echo "every callback names what it is called with"
 
 # dt_new calls the new window's <prefix>_open, so a function of that name

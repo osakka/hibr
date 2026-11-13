@@ -22,7 +22,10 @@ pty close $i
 
 echo "--- the size is what was asked for, and resize is seen"
 i := pty spawn -r 12 -c 34 /bin/sh -c 'stty size'
-o := pty read $i 900
+# Drained to the program's end, as the block below is: one read can hold
+# "12 34" without its line ending under load, and the next line then ran
+# on from it.
+o := pty drain $i 900
 printf '%s' "$o" | tr -d '\r'
 pty close $i
 

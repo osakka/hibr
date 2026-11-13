@@ -90,10 +90,12 @@ shots, dav) that draw through the desktop, which the hand-written
 
 Sanitizers come in two tiers. `tests/asan.py --quick` is the gate a release
 that changes C waits for (minutes): run.sh, self.hibr, the parser fuzzer,
-the quick C module suites (`QUICK` in `tests/asan.py`, 22 of them: cat,
-console, term_diff, md_spec, html_tree, mail, pim, pim_rrule, dav, fetch,
-uni_bidi, uni_shape, hcal_icu, salat_adhan, vw_crypto, vw, sixel, kitgfx,
-holdpix, archive, mermaid, pdfapp), and the suites a
+the quick C module suites (`QUICK` in `tests/asan.py`, 31 of them:
+inspect_symbols, inspect_spans, inspect_records, cat, console, term_diff,
+md_spec, html_tree, mail, pim, pim_rrule, dav, fetch, uni_bidi, uni_shape,
+hcal_icu, salat_adhan, vw_crypto, vw, sixel, kitgfx, holdpix, dmabuf,
+frames, holdrenew, holdseam, holdlock, native, archive, mermaid, pdfapp),
+and the suites a
 module changed since the last tag reaches -- the desktop's pty suites only
 when that module is one they draw through (console, term, pty, hold): a
 module the desktop merely loads is checked by its own suites, and the
@@ -221,6 +223,7 @@ whenever a replacement writes one.
 | `mods/media/` | video and sound: libavformat/libavcodec dlopen'd (59-62, FFmpeg 5.1-8), the few struct fields it reads located per release by `tools/mvoffsets.sh`; decode and sound threads, ALSA/AudioQueue/none/wav out, frames as half blocks or ASCII -- see `mods/media/README.md` |
 | `mods/md/` | markdown: CommonMark and GFM, every spec example passing byte for byte (`tests/md_spec.py`); `md html` and `md lines`, the per-character styles Write draws from -- see `mods/md/README.md` |
 | `mods/auth.c` | password checks through PAM, libpam `dlopen`ed: `auth check [-s svc] [-c confdir] user pw`, run as the user with no privilege (PAM's own `unix_chkpwd` is setgid, hibr never is); the desktop's lock (`wm/lock.hibr`) is built on it; `auth open`/`run`/`close` are a PAM session and a command run in it as the user, for the login screen (`programs/desktop/login/`, root under systemd, `hibr-login@.service` shipped off); the Debian package installs `/etc/pam.d/hibr` and `hibr-login` |
+| `mods/inspect/` | `inspect functions\|calls\|refs\|check`: what a script defines, calls and names, as records with the exact source span, the parser's own view through a private observer, never running anything (ADR 0056, Gitea #532/#535, built by hui-assistant); `docs/inspect.md` is the contract, `programs/desktop/conventions.json` the desktop's registration rules |
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 | `mods/html/` | HTML as the WHATWG standard parses it, our own tokenizer and tree builder, all 1792 html5lib tree-construction cases passing (`tests/html_tree.py`); CSS selectors, and `html lines`, the layout Mail reads messages through -- see `mods/html/README.md` |
 | `mods/pim/` | calendars and contacts: iCalendar and vCard parse and build, RRULE expansion checked rule by rule against python-dateutil on RFC 5545's examples (`tests/pim_rrule.py`, its answers kept in `tests/pim/rrule.txt`), zones through zoneinfo with TZ put back, iTIP replies -- see `mods/pim/README.md`; the dav module carries them (`propfind`, `report`, `sync`) |

@@ -943,7 +943,7 @@ void ex_stkinit(void *base)
 /* Whether going a level deeper is refused: past FUNCNEST, or with most of the stack used. Said, and the script ended as an arithmetic error ends it. */
 int ex_deep(sh *s, const char *what, int fn)
 {
-	char here;
+	char *here = __builtin_frame_address(0);
 	size_t used;
 	const char *v;
 
@@ -958,7 +958,7 @@ int ex_deep(sh *s, const char *what, int fn)
 	}
 	if (!ex_stk0)
 		return 0;
-	used = ex_stk0 > &here ? (size_t)(ex_stk0 - &here) : (size_t)(&here - ex_stk0);
+	used = ex_stk0 > here ? (size_t)(ex_stk0 - here) : (size_t)(here - ex_stk0);
 	if (used < ex_stkmax)
 		return 0;
 	if (fn)

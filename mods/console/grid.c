@@ -887,7 +887,7 @@ void cn_tint(int row, int col, int h, int w, unsigned colour, int pct, int r0,
 		for (c = col; c < col + w; c++) {
 			if (c < 0 || c >= cn_back.cols || c < c0 || c > c1)
 				continue;
-			if (g && cn_ptopat(r, c))
+			if (cn_skip(r, c) || (g && cn_ptopat(r, c)))
 				continue;
 			k = &cn_back.c[r * cn_back.cols + c];
 			if (k->bg == DP_DEFAULT && cn_imgcellat(r, c, &pic))

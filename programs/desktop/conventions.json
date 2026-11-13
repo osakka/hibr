@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "roles": {
+    "window": {
+      "callbacks": {
+        "open": {
+          "arity": 2,
+          "id": "window.open"
+        },
+        "close": {
+          "arity": 1,
+          "id": "window.close"
+        },
+        "draw": {
+          "arity": 5,
+          "id": "window.draw"
+        },
+        "key": {
+          "arity": 2,
+          "id": "window.key"
+        },
+        "click": {
+          "arity": 4,
+          "id": "window.click"
+        },
+        "mouse": {
+          "arity": 6,
+          "id": "window.mouse"
+        },
+        "wheel": {
+          "arity": 4,
+          "id": "window.wheel"
+        },
+        "drop": {
+          "arity": 5,
+          "id": "window.drop"
+        },
+        "context": {
+          "arity": 1,
+          "id": "window.context"
+        },
+        "stash": {
+          "arity": 2,
+          "id": "window.stash"
+        },
+        "resume": {
+          "arity": 1,
+          "id": "window.resume"
+        },
+        "idle": {
+          "arity": 1,
+          "id": "window.idle"
+        },
+        "hover": {
+          "arity": 3,
+          "id": "window.hover"
+        },
+        "paste": {
+          "arity": 3,
+          "id": "window.paste"
+        },
+        "copy": {
+          "arity": 1,
+          "id": "window.copy"
+        },
+        "cut": {
+          "arity": 1,
+          "id": "window.cut"
+        },
+        "awake": {
+          "arity": 1,
+          "id": "window.awake"
+        },
+        "fullscreen": {
+          "arity": 2,
+          "id": "window.fullscreen"
+        },
+        "focus": {
+          "arity": 2,
+          "id": "window.focus"
+        },
+        "titlemenu": {
+          "arity": 3,
+          "id": "window.titlemenu"
+        },
+        "signin": {
+          "arity": 1,
+          "id": "window.signin"
+        },
+        "signfill": {
+          "arity": 3,
+          "id": "window.signfill"
+        },
+        "scroll": {
+          "arity": 3,
+          "id": "window.scroll"
+        }
+      },
+      "registrations": {
+        "dt_app": 1,
+        "dt_new": 6
+      }
+    },
+    "pane": {
+      "callbacks": {
+        "draw": {
+          "arity": 4,
+          "id": "pane.draw"
+        },
+        "key": {
+          "arity": 2,
+          "id": "pane.key"
+        },
+        "click": {
+          "arity": 3,
+          "id": "pane.click"
+        },
+        "drop": {
+          "arity": 4,
+          "id": "pane.drop"
+        },
+        "wheel": {
+          "arity": 2,
+          "id": "pane.wheel"
+        },
+        "slide": {
+          "arity": 3,
+          "id": "pane.slide"
+        }
+      },
+      "registrations": {
+        "cp_pane": 1
+      }
+    },
+    "strip": {
+      "callbacks": {
+        "draw": {
+          "arity": 2,
+          "id": "strip.draw"
+        },
+        "click": {
+          "arity": 2,
+          "id": "strip.click"
+        }
+      },
+      "registrations": {
+        "cs_module": 1
+      }
+    }
+  }
+}

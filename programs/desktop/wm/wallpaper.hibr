@@ -314,6 +314,10 @@ fn dt_wallsig() {
 	# to the primary one, so a display joining or leaving, or the primary
 	# moving between them, changes every cell of it.
 	s="$s|$DT_ICONS|$DI_SCANT|$DT_ROWS|$DT_COLS|$DT_WS|$DT_MIRRORON"
+	# The desktop's rubber band and the icons it selects are drawn here
+	# too, so they are part of what it paints: left out, a band being
+	# stretched moved once a second, on the ceiling below.
+	s="$s|$DI_BANDR|$DI_CUR|${!DI_MARK[*]}"
 	s="$s|$DT_PRIMARY_COL|$DT_PRIMARY_W|$DT_PRIMARY_ROW|$DT_PRIMARY_H"
 	# And every display with what it draws, so one whose terminal's
 	# answer arrives, or changes, is painted the right way at once --

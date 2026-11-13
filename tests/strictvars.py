@@ -19,6 +19,7 @@ function in the desktop is written. A name assigned only as a caller's local
 (which strict allows) would be reported here, and none is -- keep it so.
 """
 import os
+from inspectlib import functions
 import re
 import sys
 
@@ -36,8 +37,6 @@ PRV = re.compile(r"\bprintf\s+-v\s+(%s)" % NAME)
 ARIX = re.compile(r"\(\((.*?)\)\)")
 ARI = re.compile(r"(?:\(\(|[,(]|\b)\s*(%s)\s*(?:\+\+|--|[-+*/%%&|^]=|=(?!=))"
                  % NAME)
-FN = re.compile(r"^(?:fn\s+(%s)\s*\(([^)]*)\)|(%s)\s*\(\))\s*\{?\s*$"
-                % (NAME, NAME))
 DECL = re.compile(r"^\s*(local|declare|typeset|readonly|export)\b(.*)$")
 
 
@@ -130,36 +129,33 @@ def declared(s):
 
 
 def read_all():
-    """Every desktop file's functions, and every name set at a top level."""
+    """Use inspection spans for functions; retain legacy variable analysis."""
     tops, funcs, strict = set(), [], set()
     for d, _, fs in os.walk(DESK):
         for f in sorted(fs):
             if not f.endswith(".hibr"):
                 continue
             p = os.path.join(d, f)
-            text = open(p, errors="replace").read()
+            source = open(p, 'rb').read()
+            text = source.decode(errors="replace")
             if re.search(r"^strict\b", text, re.M):
                 strict.add(p)
-            cur = None
-            for n, raw in enumerate(text.split("\n"), 1):
-                m = FN.match(raw.rstrip())
-                if cur is None and m:
-                    params = set()
-                    for a in (m.group(2) or "").split(","):
-                        a = a.strip().lstrip(".").split("=")[0].strip()
-                        if a:
-                            params.add(a.split()[-1])
-                    cur = (p, m.group(1) or m.group(3), params, [])
-                    continue
-                s = strip(raw)
-                if cur is not None:
-                    if raw.startswith("}"):
-                        funcs.append(cur)
-                        cur = None
-                    else:
-                        cur[3].append((n, s))
-                    continue
-                tops |= assigned(s) | declared(s)[1]
+            covered = set()
+            for record in functions(p):
+                span = record['span']
+                covered.update(range(span['line'], span['endline'] + 1))
+                bodyspan = record.get('body', {}).get('span', span)
+                body = source[bodyspan['start']:bodyspan['end']].decode(errors='replace')
+                if body.startswith('{') and body.endswith('}'):
+                    body = body[1:-1]
+                lines = [(bodyspan['line'] + i, strip(raw))
+                         for i, raw in enumerate(body.split('\n'))]
+                params = {a['name'] for a in record['params']}
+                funcs.append((p, record['name'], params, lines))
+            for n, raw in enumerate(text.split('\n'), 1):
+                if n not in covered:
+                    statement = strip(raw)
+                    tops |= assigned(statement) | declared(statement)[1]
     return tops, funcs, strict
 
 

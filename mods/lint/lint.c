@@ -23,6 +23,8 @@ typedef struct li {
 	   function the scan is in, and every function a callback reaches. */
 	vec calls, reach;
 	const char *scanfn;
+	void (*sink)(void *, unsigned, const char *, const char *);
+	void *sinkdata;
 } li;
 
 typedef struct lif {
@@ -134,7 +136,9 @@ void li_emit(li *c)
 	for (i = 0; i < c->out.n; i++) {
 		r = c->out.p[i];
 		lg_ln = r->ln;
-		if (c->s->sopt & O_AGENT)
+		if (c->sink)
+			c->sink(c->sinkdata, r->ln, r->rule, r->m);
+		else if (c->s->sopt & O_AGENT)
 			lg(HIBR_LWRN, "%s: %s", r->rule, r->m);
 		else
 			lg(HIBR_LWRN, "%s:%u: %s: %s", c->s->src ? c->s->src : "command line",
@@ -177,6 +181,10 @@ int li_hasret(node *n)
 {
 	const char *cmd;
 
+	while (n && n->k == N_SEQ) {
+		if (li_hasret(n->l)) return 1;
+		n = n->r;
+	}
 	if (!n)
 		return 0;
 	if (n->k == N_CMD && (cmd = li_cmd(n)) && !strcmp(cmd, "ret"))
@@ -195,6 +203,7 @@ void li_scan(li *c, node *n)
 	node *pm;
 	int assoc;
 
+	while (n && n->k == N_SEQ) { li_scan(c, n->l); n = n->r; }
 	if (!n)
 		return;
 	if (n->k == N_FUNC && n->s) {
@@ -601,6 +610,7 @@ void li_walk(li *c, node *n, int cond)
 	const char *cmd;
 	word *w;
 
+again:
 	if (!n)
 		return;
 	/* A redirection's word starts a process too: `done <<< "$(cmd)"` on
@@ -656,8 +666,8 @@ void li_walk(li *c, node *n, int cond)
 			       "function with status 0, so this failing return "
 			       "never runs; for a failure, return without ret");
 		li_walk(c, n->l, cond);
-		li_walk(c, n->r, cond);
-		return;
+		n = n->r;
+		goto again;
 	}
 	case N_PIPE:
 		li_bindchild(c, n);
@@ -721,7 +731,7 @@ void li_walk(li *c, node *n, int cond)
 }
 
 /* Explain a parsed script: every finding reported, and how many there were. */
-int li_explain(sh *s, node *n, const char *src)
+int li_collect(sh *s, node *n, const char *src, void (*sink)(void *, unsigned, const char *, const char *), void *data)
 {
 	li c;
 	size_t i;
@@ -729,6 +739,7 @@ int li_explain(sh *s, node *n, const char *src)
 	memset(&c, 0, sizeof c);
 	c.s = s;
 	c.src = src;
+	c.sink = sink; c.sinkdata = data;
 	li_scan(&c, n);
 	li_reach(&c);
 	li_walk(&c, n, 0);
@@ -757,7 +768,19 @@ int li_explain(sh *s, node *n, const char *src)
 	return c.found;
 }
 
-static const li_api li_tab = { li_explain };
+/* Explain through the ordinary diagnostic renderer. */
+int li_explain(sh *s, node *n, const char *src)
+{
+	return li_collect(s, n, src, 0, 0);
+}
+
+/* Return findings to an inspection consumer without logging them. */
+int li_records(sh *s, node *n, const char *src, void (*sink)(void *, unsigned, const char *, const char *), void *data)
+{
+	return li_collect(s, n, src, sink, data);
+}
+
+static const li_api li_tab = { li_explain, li_records };
 
 const hibr_bi li_bi[] = { HIBR_BI_END };
 
