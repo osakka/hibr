@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.521
+
+**A checkbox in the Control Panel switches on one click.** A click on a
+row only selected it and a second click switched it, so a single click on
+a checkbox looked like a box that did nothing -- Arabizi's Write Tashkeel
+was where it was noticed. A click on the box itself now switches it at
+once, in every pane; a click elsewhere on the row still only selects it.
+
+**An older copy of an app running in place of a newer one says so.** A
+Terminal 1.0 left in the machine's own scope (`/var/lib/hibr/apps`) ran
+for a month in place of the 1.8.3 the package shipped, and nothing said a
+word. Where a copy wins its name over a newer one in a later scope, the
+desktop now names it, its version, where it is and the newer version, in
+a note at start: remove it, or update it in the Catalogue.
+
+**Copy in Files copies the file the search found.** With the search bar
+open and nothing selected in it, Copy and Cut said "Nothing is selected"
+with the file plain to see; the window's own selection is what they mean
+there. And a file copied or cut is named in the note ("Copied
+song.mp3", "Cut 3 files"), not counted in characters.
+
+**The keyboard on the menu bar is a menu bar item of its own**
+(`menubar/keyboard`): a keyboard glyph and the current keyboard's short
+label, its menu every keyboard there is. It is installed and removed
+from the catalogue like the speaker or the network; Next Keyboard works
+with or without it.
+
+The Arabic catalogue has the new strings.
+
 ## 0.99.520
 
 **Files sees a folder change by itself** (the owner's: "it's not the 80s").

@@ -199,6 +199,82 @@ dt_apps() {
 	return 0
 }
 
+# A copy of an app that won its name over a newer one further down the
+# scopes, as "name|its version|its folder|the newer version": a copy left in
+# the machine's scope by hand once ran for a month in place of the one the
+# package ships, and nothing said so (the owner's Terminal, 2026-11-13).
+declare -ga DT_SHADOWED=()
+
+# The version an app file declares on its `app` line, read without a fork;
+# nothing when it has none in its first lines.
+fn dt_appver(f) {
+	local l v n=0
+
+	while IFS= read -r l && [ "$n" -lt 60 ]; do
+		n=$((n + 1))
+		case $l in
+		"app "*\"*\"*)
+			v=${l##*\"}
+			read -r v <<< "$v"
+			ret "$v"
+			return 0
+			;;
+		esac
+	done < "$f"
+	return 1
+}
+
+# Whether dotted version a is older than b; anything that is not numbers is
+# no answer, and so not older.
+fn dt_verolder(a, b) {
+	local i n x y
+	local -a xs ys
+
+	IFS=. read -ra xs <<< "$a"
+	IFS=. read -ra ys <<< "$b"
+	n=${#xs[@]}
+	[ "${#ys[@]}" -gt "$n" ] && n=${#ys[@]}
+	for ((i = 0; i < n; i++)); do
+		x=${xs[$i]:-0}
+		y=${ys[$i]:-0}
+		[[ $x =~ ^[0-9]+$ ]] && [[ $y =~ ^[0-9]+$ ]] || return 1
+		[ $((10#$x)) -lt $((10#$y)) ] && return 0
+		[ $((10#$x)) -gt $((10#$y)) ] && return 1
+	done
+	return 1
+}
+
+# A later copy of an app whose name an earlier scope already took: kept in
+# DT_SHADOWED when it is the newer of the two.
+fn dt_shadowcheck(b, f) {
+	local w=${DT_SRC["$b"]} vw vf
+
+	vw := dt_appver "$w" || return 0
+	vf := dt_appver "$f" || return 0
+	dt_verolder "$vw" "$vf" || return 0
+	DT_SHADOWED+=("$b|$vw|${w%/*}|$vf")
+	dt_log "apps: $w ($vw) is running in place of the newer $f ($vf)"
+}
+
+# Say each one, between frames once the screen is up -- a note raised while
+# the apps are first loaded comes before there is a screen to show it on,
+# and went straight to the history: which copy runs, where it is, and that
+# a newer one is there.
+dt_shadownote() {
+	local e nm v d nv
+
+	[ "${#DT_SHADOWED[@]}" -gt 0 ] || return 0
+	for e in "${DT_SHADOWED[@]}"; do
+		IFS='|' read -r nm v d nv <<< "$e"
+		dt_notep high "%s %s, in %s, runs in place of the newer %s: remove it, or update it in the Catalogue" \
+			"$nm" "$v" "$d" "$nv"
+	done
+	DT_SHADOWED=()
+	dt_want 30
+	return 0
+}
+command -v dt_ticker > /dev/null && dt_ticker dt_shadownote
+
 # The scan itself, which a rescan runs again without the libraries: a
 # file already in DT_SRC is skipped, so a second pass sources only what
 # has arrived since.
@@ -210,7 +286,10 @@ dt_appscan() {
 			[ -r "$f" ] || continue
 			b=${f##*/}
 			b=${b%.hibr}
-			[ -n "${DT_SRC["$b"]}" ] && continue
+			if [ -n "${DT_SRC["$b"]}" ]; then
+				dt_shadowcheck "$b" "$f"
+				continue
+			fi
 			DT_SRC["$b"]=$f
 			rel=${f#"$d"/}
 			case $rel in

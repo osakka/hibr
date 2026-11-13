@@ -162,6 +162,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["power"]="pwr"
 		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"; GL["tick"]="v"
 		GL["sound"]="vol"; GL["soundoff"]="vol x"
+		GL["keyboard"]="kb"
 		GL["wifi"]="wifi"; GL["wired"]="lan"; GL["netoff"]="net x"
 		GL["bar1"]="."; GL["bar2"]=":"; GL["bar3"]="i"; GL["bar4"]="I"; GL["baroff"]="_"
 		GL["secure"]="*"
@@ -244,6 +245,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["check"]=$'✓'     # CHECK MARK
 		GL["tick"]=$'✓'      # CHECK MARK, a checkbox's tick
 		GL["sound"]=$'♪'     # EIGHTH NOTE, the speaker on the bar
+		GL["keyboard"]=$'⌨'  # KEYBOARD, the keyboard typing now on the bar
 		GL["soundoff"]=$'♪ ✕' # EIGHTH NOTE, MULTIPLICATION X: muted
 		GL["wifi"]=""         # Wi-Fi is its signal bars alone, as nmcli draws it
 		GL["wired"]=$'⇌'     # RIGHTWARDS HARPOON OVER LEFTWARDS HARPOON
@@ -308,6 +310,7 @@ fn dt_glyphs(set = "unicode") {
 # keeps every icon one cell wide.
 dt_glyphsnerd() {
 	GL["sound"]=$'\uf028'     # nf-fa-volume_up
+	GL["keyboard"]=$'\uf11c'  # nf-fa-keyboard_o
 	GL["soundoff"]=$'\uf026'  # nf-fa-volume_off
 	GL["wifi"]=$'\uf1eb'      # nf-fa-wifi
 	GL["wired"]=$'\uf1e6'     # nf-fa-plug

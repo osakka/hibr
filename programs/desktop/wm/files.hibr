@@ -385,6 +385,11 @@ fn dt_fieldedit(op) {
 	case $op in
 	copy | cut)
 		if ! t := dt_fieldsel || [ -z "$t" ]; then
+			# Nothing selected in the field: the window's own selection,
+			# where it has one, is what Copy and Cut mean -- the file a
+			# search found in Files, not the search's own empty text
+			# (the owner, 2026-11-13: "it says Nothing is selected").
+			[ -n "${DT[$DT_FOCUS]["$op"]-}" ] && return 1
 			dt_notep low "Nothing is selected"
 			return 0
 		fi
@@ -533,9 +538,39 @@ fn dt_edit(op) {
 		return 0
 	fi
 	dt_clipset "$t" "$op" "$DT_CLIPKIND"
-	if [ "$op" = cut ]; then
+	# Files say which, not how many characters their paths came to: a
+	# file copied reported "Copied 24 characters", which reads as nothing
+	# a person meant to copy (the owner, 2026-11-13).
+	if [ "$DT_CLIPKIND" = paths ]; then
+		dt_notefiles "$op" "$t"
+	elif [ "$op" = cut ]; then
 		dt_notep low "Cut %s characters" "${#t}"
 	else
 		dt_notep low "Copied %s characters" "${#t}"
+	fi
+}
+
+# The note for files copied or cut, from their paths one to a line: the
+# name of one, or how many there are. Short, since a note sits over the
+# windows and a long one covered the folder a person was about to paste
+# into.
+fn dt_notefiles(op, paths) {
+	local n=0 one= l
+	local -a ps
+
+	mapfile -t ps <<< "$paths"
+	for l in "${ps[@]}"; do
+		[ -n "$l" ] || continue
+		n=$((n + 1))
+		one=${l##*/}
+	done
+	if [ "$n" = 1 ] && [ "$op" = cut ]; then
+		dt_notep low "Cut %s" "$one"
+	elif [ "$n" = 1 ]; then
+		dt_notep low "Copied %s" "$one"
+	elif [ "$op" = cut ]; then
+		dt_notep low "Cut %s files" "$n"
+	else
+		dt_notep low "Copied %s files" "$n"
 	fi
 }

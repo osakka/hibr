@@ -38,6 +38,10 @@ control-panel/adminaccess.hibr
 control-panel/appearance.hibr
 control-panel/menuedit.hibr
 control-panel/menubar.hibr
+# The keyboard typing now, on the bar: an item of its own since 0.99.521,
+# so it can be taken off or updated from the catalogue like the others, and
+# shipped because every desktop on Blit has keyboards to choose between.
+menubar/keyboard.hibr
 control-panel/control-strip.hibr
 control-panel/datetime.hibr
 control-panel/desktop.hibr

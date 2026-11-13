@@ -8,6 +8,7 @@
 %d steps failed
 %d steps failed -- r tests again
 %s %s items%s
+%s %s, in %s, runs in place of the newer %s: remove it, or update it in the Catalogue
 %s %s; %s
 %s already has a %s
 %s at %s
@@ -334,6 +335,7 @@ Cookies cleared
 Copied
 Copied %s
 Copied %s characters
+Copied %s files
 Copied the paths of what is selected
 Copied to %s
 Copied; the clipboard clears in %s seconds
@@ -392,6 +394,8 @@ Cursor
 Cursor Blink
 Cut
 Cut %s characters
+Cut %s files
+Cut %s
 Cycle
 Cycle Windows On
 Databases

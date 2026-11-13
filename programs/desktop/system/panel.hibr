@@ -1084,6 +1084,18 @@ fn panel_click(int w, int r, int c, btn = "") {
 		;;
 	esac
 	[ "${CP[$w][$i]["kind"]}" = head ] && return 0
+	# A click on a checkbox switches it, as a checkbox does anywhere: it
+	# took a click to select its row and a second to switch it, so one
+	# click looked like a box that did nothing (the owner, 2026-11-13,
+	# Write Tashkeel). A click elsewhere on the row still only selects it.
+	if [ "${CP[$w][$i]["kind"]}" = set ] &&
+	   [ "${CP[$w][$i]["wtype"]}" = bool ] && [ -n "$tag" ] &&
+	   [ "$tag" = "${CP[$w][$i]["key"]}" ]; then
+		PW[$w]["sel"]=$i
+		PW[$w]["last"]=$i
+		cp_do "$w" 1
+		return 0
+	fi
 	if [ "${CP[$w][$i]["kind"]}" = set ] &&
 	   [ "${CP[$w][$i]["wtype"]}" != bool ] &&
 	   [ "${CP[$w][$i]["wtype"]}" != slider ] &&

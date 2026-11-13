@@ -74,6 +74,7 @@ open(p, "w").write(
     "[ \"$v\" = launch ] && { DT_NATFOCUS=expected; dt_launched; }; return 0; }\n"
     "tst_cf() { [ -f %s ] || return 0; rm -f %s; dt_confirm \"Sure?\" true; dt_want 30; }\n"
     "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_ticker tst_mn\ndt_ticker tst_x11\ndt_ticker tst_nf\ndt_ticker tst_cf\ndt_progload\n"
+    "DT_BARDIRS+=(\"$DT_HERE/menubar\")\ndt_menubar\n"
     "DT_KEYS[\"kbdnext\"]=ctrl-alt-k\ndt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
@@ -746,7 +747,8 @@ open(p2, "w").write(
     "tst_mn() { local a n; for a in min raise; do [ -f %s.$a ] || continue; rm -f %s.$a; "
     "for n in \"${!NWN[@]}\"; do if [ $a = min ]; then dt_min \"${NWN[$n]}\"; "
     "else dt_raise \"${NWN[$n]}\"; fi; done; dt_want 30; done; return 0; }\n"
-    "dt_ticker tst_quit\ndt_ticker tst_mn\ndt_open\ndt_run\ndt_close\n"
+    "dt_ticker tst_quit\ndt_ticker tst_mn\nDT_BARDIRS+=(\"$DT_HERE/menubar\")\ndt_menubar\n"
+    "dt_open\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap2, MARK2 + ".quit",
        MARK2, MARK2))
 hn = "nath-%d" % os.getpid()

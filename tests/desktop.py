@@ -3634,6 +3634,29 @@ MENU = [b"\x1b[21~", b"\x1b[B"]
 # menu itself -- changing that one sent `c` into Applications and picked
 # Calendar.
 APPMENU = [b"\x1b[21~", b"\x1b[B", b"\x1b[C"]
+# An older copy that wins its name over a newer one says so: a Terminal 1.0
+# left in the machine's own scope ran for a month in place of the 1.8.3 the
+# package shipped, and nothing said a word (the owner, 2026-11-13).
+def shadowcheck():
+    """One function, so a part can copy it whole (appslice)."""
+    SHADOW = tempfile.mkdtemp(prefix="hibr-shadow-")
+    os.makedirs(os.path.join(SHADOW, "hibr", "apps", "Accessories"))
+    calc = open(tree("programs/desktop/apps/Accessories/calc.hibr")).read()
+    calc = re.sub(r'^(app calc ".*") [0-9.]+$', r"\1 0.9", calc, count=1, flags=re.M)
+    open(os.path.join(SHADOW, "hibr", "apps", "Accessories", "calc.hibr"), "w").write(calc)
+    # Read before quitting: Quit's box clears the notes.
+    shp = scratch("shadow.hibr")
+    open(shp, "w").write("%s. %s\n%s\ndt_open\ndt_run\ndt_close\n" % (load(MOD), WM, APPS + SYSAPPS))
+    st = Term(shp, env={"DT_TICK": "60", "XDG_CONFIG_HOME": SHADOW, "DT_NOTEMS": "60000"},
+              rows=ROWS, cols=COLS, settle=0.8)
+    sc = st.until("calc 0.9")
+    st.quit(b"qy", 1.0)
+    check("an older copy of an app running in place of a newer one is named, with where it is",
+          "calc 0.9" in sc.text() and "newer 1.0" in sc.text(), sc)
+    shutil.rmtree(SHADOW, True)
+
+
+shadowcheck()
 sc, raw = run("", feed=APPMENU, env={"XDG_CONFIG_HOME": UCONF},
               pre=APPS + SYSAPPS)
 menu = [sc.row(r)[:46] for r in range(2, 18)]
@@ -6851,7 +6874,7 @@ check("and the textarea takes it as typing",
 # same as on Blit: typing is plain until it is switched, the bar then says
 # the method's label, and the choice is kept for the next start.
 LOCAL = (IME + 'DT_KBLOC=1; DT_KBCUR=0; DT_KB[0]["label"]=EN; DT_KB[1]["label"]=SH\n'
-         'DT_KEYS["kbdnext"]=f9\ndt_kbbar\n')
+         'DT_KEYS["kbdnext"]=f9\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\n')
 F9 = b"\x1b[20~"
 sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi', feed=[b"s", b"a", UP], pre=LOCAL)
 check("away from Blit, typing is plain until a method is chosen, and the bar says so",
@@ -10070,4 +10093,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1090)
+report(1091)

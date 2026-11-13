@@ -321,6 +321,17 @@ sc = run("files", FW, [b"\x1b[B", 3.5],
 check("and without the kernel's watch, the once-a-second check finds it",
       sc.find("c-new.txt") is not None and sc.find("2 of 3") is not None, sc)
 shutil.rmtree(WATCH, True)
+# Copy with the search bar open copies the file it found, and says which:
+# the empty search box took Copy for itself and said "Nothing is selected"
+# with the file plain to see (the owner, 2026-11-13, an Arabic name found by
+# typing).
+FOUND = tempfile.mkdtemp(prefix="hibr-files-found-")
+open(os.path.join(FOUND, "Kun ma'a Allah (\u0643\u0646).mp3"), "w").close()
+sc = run("files", FW, [b"/", b"K", b"\x1bc"], pre="FB_DIR=%s\nDT_NOTEMS=60000" % FOUND,
+         ready="Kun ma", until="Copied Kun", end=None)
+check("Copy with the search open copies the file it found, and names it",
+      sc.find("Copied Kun ma'a") is not None and "Nothing is selected" not in sc.text(), sc)
+shutil.rmtree(FOUND, True)
 sc = run("files", FW, pre=PRE)
 check("a folder never given a background follows the theme, and opens as a list",
       sc.style(5, 10).get("bg") == sc.style(12, 10).get("bg") != "#ffffff"
@@ -1149,6 +1160,24 @@ check("and choosing dracula applies it",
 sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 18, VALCOL + 3)])
 check("and phosphor, further down the list",
       "phosphor" in brow(sc, "Colours"), sc)
+# One click on a checkbox switches it: it took one to select the row and a
+# second to switch it, so a single click read as a box that did nothing
+# (the owner, 2026-11-13, Arabizi's Write Tashkeel).
+ckc = tempfile.mkdtemp(prefix="hibr-cpcheck-")
+def ckbox(s, label):
+    """Where a row's checkbox is: the first glyph after its label."""
+    r = browi(s, label) or 0
+    row = s.row(r)
+    at = row.find(label, BODYCOL) + len(label)
+    return r, next((c for c in range(at, len(row)) if row[c] != " "), VALCOL)
+
+
+sc = cprun(DOWN_APP + [lambda s: press(*ckbox(s, "Windows")), 0.3], geom=PWTALL,
+           env={"DT_CONF": os.path.join(ckc, "desktop.json")})
+ckt = sx.conftext(os.path.join(ckc, "desktop.json"))
+check("one click on a checkbox switches it, and the setting is kept",
+      "DT_SHADOW=0" in ckt, (ckt[:300], sc.text()))
+shutil.rmtree(ckc, True)
 
 # The Theme row's own buttons: Save once the look is no longer the theme's,
 # Rename and Delete for a theme of the person's own -- d deletes, asked.
@@ -6453,4 +6482,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(823)
+report(825)

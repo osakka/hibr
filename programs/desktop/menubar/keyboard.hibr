@@ -1,0 +1,51 @@
+# menubar/keyboard -- the keyboard typing now, on the menu bar: a keyboard
+# and the current one's short label beside it (US, AR), when there is more
+# than one to choose between, with every one listed in its menu.
+#
+# The list is the window manager's (wm/kbd.hibr): Blit's keyboards, or the
+# desktop's own away from Blit -- the terminal's keyboard and each input
+# method hibr-ime has installed -- and Next Keyboard moves through it
+# whether this item is there or not. This is only how it is shown, an item
+# of its own so it can be taken off the bar or put back from the catalogue
+# like the speaker or the network (the owner, 2026-11-13). The window
+# manager reaches it only through dt_has.
+
+strict
+
+app keyboard "The keyboard typing now, on the menu bar" 1.0
+
+# The item: a keyboard and the current one's label; nothing with one
+# keyboard or none.
+dt_kbbar() {
+	local t
+
+	if [ "$DT_KBN" -lt 2 ] || [ -z "${DT_KB[$DT_KBCUR]["layout"]-}" ]; then
+		# Taken off only if it was put on: an item never shown is not on
+		# the bar's list of items at all.
+		[ -n "${DT_BARI["kbd"]["text"]-}" ] && dt_baritem kbd ""
+		return 0
+	fi
+	t := dt_kblabel "$DT_KBCUR"
+	dt_barilabel kbd "Keyboard"
+	dt_baritem kbd "${GL[keyboard]} $t" dt_kbmenu
+	dt_bariright kbd dt_kbmenu
+}
+
+dt_kbmenu() {
+	dt_barmenu kbd kbd
+}
+
+# Its menu: every keyboard by its full name, the current one marked.
+fn kbd_context(id = "") {
+	local i on
+
+	dt_menu "Keyboard"
+	for ((i = 0; i < DT_KBN; i++)); do
+		on=0
+		[ "$i" = "$DT_KBCUR" ] && on=1
+		dt_mark "${DT_KB[$i]["name"]:-${DT_KB[$i]["layout"]}}" "" "$on" dt_kbset "$i"
+	done
+}
+
+# Put up what the list says now, the moment this is loaded.
+dt_kbbar
