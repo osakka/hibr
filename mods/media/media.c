@@ -101,6 +101,33 @@ int mv_info(sh *s, mv_pl *p)
 		hibr_set(s, "RET", "", 0);
 	}
 	pthread_mutex_lock(&p->mu);
+	/* Still connecting: what is known is the state asked for, nothing of
+	   the streams, which its thread is filling in. */
+	if (p->opening) {
+		mv_fnum(&b, c < 0 ? 0 : c);
+		mv_field(s, "pos", b.p);
+		mv_field(s, "dur", "0");
+		mv_field(s, "shown", "0");
+		mv_field(s, "paused", p->paused ? "1" : "0");
+		mv_field(s, "ended", "0");
+		mv_field(s, "loading", "1");
+		mv_field(s, "width", "0");
+		mv_field(s, "height", "0");
+		b.n = 0;
+		s_num(&b, p->vol);
+		mv_field(s, "volume", b.p);
+		mv_field(s, "video", "");
+		mv_field(s, "audio", "");
+		mv_field(s, "output", "");
+		mv_field(s, "mode", p->mode == 1 ? "ascii" : p->mode == 2 ? "mono" :
+			 p->mode == 3 ? "sixel" : "half");
+		mv_field(s, "drawn", "cells");
+		mv_field(s, "error", "");
+		pthread_mutex_unlock(&p->mu);
+		s_free(&b);
+		return HIBR_OK;
+	}
+	mv_field(s, "loading", "0");
 	if (p->dur > 0 && c > p->dur)
 		c = p->dur;
 	mv_fnum(&b, c < 0 ? 0 : c);
@@ -122,7 +149,7 @@ int mv_info(sh *s, mv_pl *p)
 	mv_field(s, "volume", b.p);
 	mv_field(s, "video", p->vi >= 0 ? p->vcodec : "");
 	mv_field(s, "audio", p->ai >= 0 ? p->acodec : "");
-	mv_field(s, "output", p->ai >= 0 ? p->ao.name : "");
+	mv_field(s, "output", p->ai >= 0 && p->ao.name ? p->ao.name : "");
 	mv_field(s, "mode", p->mode == 1 ? "ascii" : p->mode == 2 ? "mono" :
 		 p->mode == 3 ? "sixel" : "half");
 	/* What the last draw actually did, which is not the same question
@@ -255,6 +282,19 @@ int m_media(sh *s, int ac, char **av)
 	p = mv_get(av[2]);
 	if (!p)
 		return HIBR_FAIL;
+	if (strcmp(sub, "close"))
+		mv_aready(p);
+	/* Still opening: no frame to show or draw, no stream to pipe yet. */
+	if (mv_opening(p)) {
+		if (!strcmp(sub, "frame"))
+			return HIBR_FAIL;
+		if (!strcmp(sub, "draw"))
+			return HIBR_OK;
+		if (!strcmp(sub, "pipe")) {
+			lg(HIBR_LERR, "media pipe: %s is still opening", av[2]);
+			return HIBR_FAIL;
+		}
+	}
 	if (!strcmp(sub, "close")) {
 		mv_forget(p);
 		return HIBR_OK;

@@ -18,6 +18,16 @@
 #endif
 
 /* The fastest frames are drawn by default, a second. */
+/* How long, in microseconds, a network source may stay silent before its
+   open or a read gives up: ffmpeg's own default is for ever. */
+#ifndef MV_RWTIMEOUT
+#define MV_RWTIMEOUT "15000000"
+#endif
+/* How long, in seconds, a close lets a player opened by address finish
+   before leaving it to free itself. */
+#ifndef MV_CLOSEWAIT
+#define MV_CLOSEWAIT 0.25
+#endif
 #ifndef MV_FPS
 #define MV_FPS 24
 #endif
@@ -162,6 +172,19 @@ struct mv_pl {
 	pthread_mutex_t mu;
 	pthread_cond_t cv;
 	int quit, paused, eof, seekreq, ended, failed;
+	/* A source by address is opened in the player's own thread, never
+	   the caller's: opening while it connects and probes, during which
+	   nothing that thread sets may be read; orphan when it was closed
+	   meanwhile, and frees itself. */
+	int opening, orphan;
+	/* Opened by address, its streams known, waiting for the caller's
+	   thread to open the sound device: decoding needs its rate. */
+	int aowait;
+	/* Opened by address: its own thread frees it, so no close ever
+	   waits on a read the network has stalled. */
+	int own;
+	/* Its thread has finished, for a close to join it. */
+	int dexit;
 	double seekto, skipto;
 	int tcols, trows, mode, detail, gen, sgen, sw, sh, sfw, sfh, vfmt;
 	/* What the last draw actually put on screen: 1 a bitmap, 0 cells.
@@ -209,6 +232,15 @@ int mv_aopen(mv_ao *a, int rate, int ch, char **why);
 
 mv_pl *mv_open(sh *s, const char *src, int paused);
 void mv_close(mv_pl *p);
+mv_pl *mv_new(const char *src, int paused);
+int mv_probe(const char *src, void **fc, char **why);
+int mv_setup(mv_pl *p, char **why, char **note, int sound);
+void mv_aready(mv_pl *p);
+void mv_pin(void);
+void *mv_opener(void *a);
+int mv_opening(mv_pl *p);
+void mv_free(mv_pl *p);
+void mv_done(mv_pl *p);
 mv_pl *mv_feed(int paused);
 int mv_pipe(mv_pl *p, int kind);
 void mv_feedseek(mv_pl *p);

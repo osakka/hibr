@@ -29,7 +29,7 @@ media close $p
 
 | command | does |
 |---|---|
-| `media open SRC [-p]` | open a file or address and start playing, or paused; gives the player's number |
+| `media open SRC [-p]` | open a file or address and start playing, or paused; gives the player's number. A file is opened at once, and one that cannot be is refused; an address (anything with `://`) is never waited for: the player connects and probes in its own thread, `info` says `loading 1` meanwhile, and one that cannot be opened ends with `ended 1` and its `error` |
 | `media play ID`, `media pause ID`, `media toggle ID` | |
 | `media seek ID SECONDS [-r]` | go to a time; `-r`, or a leading `+` or `-`, from where it is |
 | `media volume ID [0-100]` | set the volume; says what it is |
@@ -40,7 +40,7 @@ media close $p
 | `media frame ID` | bring the shown frame up to the clock: status 0 when it changed |
 | `media draw ID ROW COL [-p PANE]` | draw the shown frame, into a pane when named; in pixels a paned picture is placed below the cells, so a window over part of it hides only that part (Gitea #382) |
 | `media next ID` | milliseconds until the next frame is due, -1 when nothing will change by itself -- for a caller that sleeps between frames |
-| `media info ID` | `pos`, `dur`, `shown` (the time of the frame shown), `paused`, `ended`, `width`, `height`, `volume`, `video`, `audio` (codecs), `output` (where the sound goes), `mode` (what was asked for: `half`, `ascii`, `mono`, or `sixel` for pixels), `drawn` (what the last draw did: `pixels`, or `cells` when the picture fell back to cells -- the terminal draws no pictures, has not said yet, or the frame did not fit), `error`; a map with `:=` |
+| `media info ID` | `pos`, `dur`, `shown` (the time of the frame shown), `paused`, `ended`, `loading` (1 while an address is still connecting, and nothing of its streams is known yet), `width`, `height`, `volume`, `video`, `audio` (codecs), `output` (where the sound goes), `mode` (what was asked for: `half`, `ascii`, `mono`, or `sixel` for pixels), `drawn` (what the last draw did: `pixels`, or `cells` when the picture fell back to cells -- the terminal draws no pictures, has not said yet, or the frame did not fit), `error`; a map with `:=` |
 | `media feed [-p]` | a player with no source of its own: its picture and sound arrive on pipes |
 | `media pipe ID video\|audio` | a fed player's pipe for one stream, the end to write to as the result; each stream is a container of its own (fragmented MP4, WebM), from its init segment on -- what `web take` writes |
 | `media close ID`, `media close all`, `media list` | |

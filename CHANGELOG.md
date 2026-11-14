@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.99.529
+
+**A media open never holds the caller** (the owner's freezes, 2026-11-14).
+Blit's reading of the owner's desktop log found the desktop held for 0.6
+to 1.4 seconds, fifteen times in two minutes, while the Quran app recited:
+each ayah is an MP3 over https, and `media open` connected, downloaded and
+probed it in the desktop's own thread. Timed on a real ayah's address,
+0.99.528's open took 1112 and 1319 ms; this one takes 0 to 43.
+
+The fix is the module's, so no app can do it again. An address (anything
+with `://`) is opened in the player's own thread: `media open` answers at
+once, `media info` says `loading 1` until the streams are known, and one
+that cannot be opened ends with `ended 1` and its `error`. A seek asked
+meanwhile is taken up when it has opened, and play, pause and volume
+are kept. The sound device is still opened on the caller's thread, by
+the first verb after the open, because it reads the environment, which
+the shell may be changing; decoding waits for it. A close never waits on the
+network: one still connecting is left to its thread, and one whose read
+the network has stalled is waited for a quarter of a second and then left
+to finish and free itself. The module stays mapped once such a thread can
+outlive its player (`mod drop media` would otherwise unmap the code it is
+running), and a network source that stays silent gives up after 15
+seconds (`rw_timeout`), where FFmpeg's own default is never. A file is
+opened at once, as before, so one that cannot be is still refused by
+`media open`.
+
+The Quran app (catalogue, 1.0.1) stops and says why when an ayah cannot
+be opened, rather than running on through the sura. Six checks in
+`tests/media.py` drive a server that answers late, refuses, or stalls
+halfway through. Each was run against the code without the change it
+checks and failed there: the blocking open, the unbounded close, and
+the module unmapped. 300 opens closed at random moments against a
+refusing address are clean under the sanitizers.
+
+One thing remains in the thread, and it is not ours to move: libavformat's
+http reads `no_proxy` and `http_proxy` from the environment while it
+connects. A script exporting a variable at that same moment -- the desktop
+does when the primary display changes (`DISPLAY`), with dark mode
+(`GTK_THEME`) and for the vault -- is a `setenv` racing that `getenv`.
+glibc 2.40 and later make the two safe together; on an older one, a
+variable exported for the first time can replace the environment's array
+while it is being read.
+
 ## 0.99.528
 
 **Cycle, or teach** (hibr-ime #1). Arabizi reads 70% of the owner's own

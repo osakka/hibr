@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "mv.h"
+#include <dlfcn.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -456,6 +457,8 @@ void *mv_aud(void *arg)
    pulls it back; and the wall's when there is no sound at all. */
 double mv_clocklk(mv_pl *p)
 {
+	if (p->opening)
+		return p->paused ? p->pausedat : p->wbase;
 	if (p->paused)
 		return p->pausedat;
 	if (p->ai >= 0)
@@ -483,7 +486,7 @@ void mv_pause(mv_pl *p, int on)
 	if (on && !p->paused) {
 		p->pausedat = mv_clocklk(p);
 		p->paused = 1;
-		if (p->ai >= 0)
+		if (!p->opening && p->ai >= 0)
 			p->aflush = 1;
 	} else if (!on && p->paused) {
 		p->paused = 0;
@@ -501,9 +504,19 @@ void mv_seek(mv_pl *p, double t)
 {
 	if (t < 0)
 		t = 0;
+	pthread_mutex_lock(&p->mu);
+	/* Still opening: kept as a request, which the decoding takes up the
+	   moment it starts. */
+	if (p->opening) {
+		p->seekreq = 1;
+		p->seekto = t;
+		p->pausedat = t;
+		p->wbase = t;
+		pthread_mutex_unlock(&p->mu);
+		return;
+	}
 	if (p->dur > 0 && t > p->dur)
 		t = p->dur;
-	pthread_mutex_lock(&p->mu);
 	if (p->feed) {
 		mv_feedseek(p);
 		mv_drain(p);
@@ -590,6 +603,10 @@ long mv_next(mv_pl *p)
 	long r;
 
 	pthread_mutex_lock(&p->mu);
+	if (p->opening) {
+		pthread_mutex_unlock(&p->mu);
+		return 50;
+	}
 	if (p->paused || p->ended) {
 		r = !p->cur.rgb && !p->failed ? 50 : -1;
 		pthread_mutex_unlock(&p->mu);
@@ -641,39 +658,61 @@ void *mv_codec(void *st, const void *dec, char **why)
 	return cc;
 }
 
-/* Open a source -- a file, or anything libav reads, http included -- and
-   start decoding it, paused or playing. */
-mv_pl *mv_open(sh *s, const char *src, int paused)
+/* A new player for src, nothing opened yet. */
+mv_pl *mv_new(const char *src, int paused)
 {
-	mv_pl *p;
-	void *fc = 0, **sts, *st, *par;
-	const void *vd = 0, *ad = 0;
-	char *why = 0;
-	int r, nst;
+	mv_pl *p = xm(sizeof *p);
 
-	(void)s;
-	if (mv_load() != HIBR_OK)
-		return 0;
-	r = mv.open_input(&fc, src, 0, 0);
-	if (r < 0) {
-		why = mv_averr(r);
-		lg(HIBR_LERR, "media: %s: %s", src, why);
-		free(why);
-		return 0;
-	}
-	if (mv.find_info(fc, 0) < 0) {
-		lg(HIBR_LERR, "media: %s: cannot read its streams", src);
-		mv.close_input(&fc);
-		return 0;
-	}
-	p = xm(sizeof *p);
 	memset(p, 0, sizeof *p);
-	p->fc = fc;
 	p->src = xs(src);
 	p->vol = 100;
 	p->detail = 2;
 	p->fpsmax = MV_FPS;
 	p->paused = paused;
+	p->vi = p->ai = -1;
+	pthread_mutex_init(&p->mu, 0);
+	pthread_cond_init(&p->cv, 0);
+	return p;
+}
+
+/* Open and probe src into *fc: 1, or 0 with *why. Bounded on a network
+   source by rw_timeout, so a server that stops answering ends it rather
+   than holding the thread for ever. */
+int mv_probe(const char *src, void **fc, char **why)
+{
+	void *opts = 0;
+	int r;
+
+	*fc = 0;
+	if (strstr(src, "://"))
+		mv.dict_set(&opts, "rw_timeout", MV_RWTIMEOUT, 0);
+	r = mv.open_input(fc, src, 0, &opts);
+	mv.dict_free(&opts);
+	if (r < 0) {
+		*why = mv_averr(r);
+		*fc = 0;
+		return 0;
+	}
+	if (mv.find_info(*fc, 0) < 0) {
+		*why = xs("cannot read its streams");
+		mv.close_input(fc);
+		return 0;
+	}
+	return 1;
+}
+
+/* Choose the streams of an opened p->fc and open their decoders, and the
+   sound device when sound is 1: 1, or 0 with *why. Logs nothing, since a
+   thread may run it; a problem with one stream that leaves the other is
+   put in *note. The device is never opened off the caller's thread: it
+   reads the environment, which the shell may be changing. */
+int mv_setup(mv_pl *p, char **why, char **note, int sound)
+{
+	void **sts, *st, *par, *fc = p->fc;
+	const void *vd = 0, *ad = 0;
+	char *w = 0;
+	int nst;
+
 	p->vi = mv.best(fc, MV_VIDEO, -1, -1, &vd, 0);
 	p->ai = mv.best(fc, MV_AUDIO, -1, p->vi, &ad, 0);
 	if (p->vi < 0)
@@ -683,14 +722,10 @@ mv_pl *mv_open(sh *s, const char *src, int paused)
 	nst = mv_rd32(fc, mv.fc_nb);
 	sts = mv_rdp(fc, mv.fc_streams);
 	if (p->vi >= nst || p->ai >= nst || (p->vi < 0 && p->ai < 0)) {
-		lg(HIBR_LERR, "media: %s: no picture and no sound in it", src);
-		mv.close_input(&fc);
-		free(p->src);
-		free(p);
+		p->vi = p->ai = -1;
+		*why = xs("no picture and no sound in it");
 		return 0;
 	}
-	pthread_mutex_init(&p->mu, 0);
-	pthread_cond_init(&p->cv, 0);
 	if (p->vi >= 0) {
 		st = sts[p->vi];
 		par = mv_rdp(st, mv.st_par);
@@ -698,12 +733,11 @@ mv_pl *mv_open(sh *s, const char *src, int paused)
 		p->vw = mv_rd32(par, mv.cp_w);
 		p->vh = mv_rd32(par, mv.cp_h);
 		p->vcodec = xs(mv.codec_name(mv_rd32(par, mv.cp_id)));
-		p->vc = mv_codec(st, vd, &why);
+		p->vc = mv_codec(st, vd, &w);
 		if (!p->vc) {
-			lg(HIBR_LERR, "media: %s: the picture (%s): %s", src,
-			   p->vcodec, why);
-			free(why);
-			why = 0;
+			free(*note);
+			*note = w;
+			w = 0;
 			p->vi = -1;
 		}
 	}
@@ -714,28 +748,195 @@ mv_pl *mv_open(sh *s, const char *src, int paused)
 		p->arate = mv_rd32(par, mv.cp_rate);
 		p->ach = mv_rd32(par, mv.cp_chl + 4);
 		p->acodec = xs(mv.codec_name(mv_rd32(par, mv.cp_id)));
-		p->ac = mv_codec(st, ad, &why);
+		p->ac = mv_codec(st, ad, &w);
 		if (!p->ac) {
-			lg(HIBR_LERR, "media: %s: the sound (%s): %s", src,
-			   p->acodec, why);
-			free(why);
-			why = 0;
+			free(*note);
+			*note = w;
+			w = 0;
 			p->ai = -1;
 		}
 	}
 	if (p->vi < 0 && p->ai < 0) {
-		mv_close(p);
+		*why = *note ? *note : xs("no stream in it can be decoded");
+		*note = 0;
 		return 0;
 	}
 	if (mv_rd64(fc, mv.fc_dur) != MV_NOPTS)
 		p->dur = (double)mv_rd64(fc, mv.fc_dur) / MV_TB;
-	if (p->ai >= 0) {
+	if (sound && p->ai >= 0) {
 		mv_aopen(&p->ao, p->arate > 0 ? p->arate : 48000,
-			 p->ach >= 2 ? 2 : 1, &why);
-		if (why) {
-			p->err = why;
-			why = 0;
+			 p->ach >= 2 ? 2 : 1, &w);
+		if (w)
+			p->err = w;
+	}
+	return 1;
+}
+
+/* On the caller's thread, from any verb: a player opened by address whose
+   streams are known gets its sound device, its waiting decoder the word to
+   go, and its sound thread. */
+void mv_aready(mv_pl *p)
+{
+	char *w = 0;
+	int want;
+
+	pthread_mutex_lock(&p->mu);
+	want = !p->opening && p->aowait;
+	pthread_mutex_unlock(&p->mu);
+	if (!want)
+		return;
+	mv_aopen(&p->ao, p->arate > 0 ? p->arate : 48000, p->ach >= 2 ? 2 : 1, &w);
+	pthread_mutex_lock(&p->mu);
+	if (w) {
+		free(p->err);
+		p->err = w;
+	}
+	p->aowait = 0;
+	mv_wake(p);
+	pthread_mutex_unlock(&p->mu);
+	if (pthread_create(&p->ath, 0, mv_aud, p) == 0)
+		p->astarted = 1;
+}
+
+/* Keep this module mapped for good once a thread of its own may outlive a
+   player's close: `mod drop media` must not unmap code still running. */
+static int mv_pinned;
+void mv_pin(void)
+{
+	Dl_info di;
+
+	if (mv_pinned || !dladdr((void *)mv_pin, &di) || !di.dli_fname)
+		return;
+	if (dlopen(di.dli_fname, RTLD_NOW | RTLD_NOLOAD | RTLD_NODELETE))
+		mv_pinned = 1;
+}
+
+/* The end of a player's own thread after a close: said, for the close to
+   join it -- or, when the close could not wait (a read the network had
+   stalled), the player freed here. */
+void mv_done(mv_pl *p)
+{
+	pthread_mutex_lock(&p->mu);
+	if (p->orphan) {
+		pthread_mutex_unlock(&p->mu);
+		p->dstarted = 0;
+		mv_free(p);
+		return;
+	}
+	p->dexit = 1;
+	mv_wake(p);
+	pthread_mutex_unlock(&p->mu);
+}
+
+/* A player opened by address: the connect, the probe and the decoders
+   here, off the caller's thread, then the decoding in the same thread. A
+   close meanwhile is an orphan's, and this frees it. */
+void *mv_opener(void *a)
+{
+	mv_pl *p = a;
+	void *fc = 0;
+	char *why = 0, *note = 0;
+	int ok, orphan;
+
+	ok = mv_probe(p->src, &fc, &why);
+	pthread_mutex_lock(&p->mu);
+	orphan = p->orphan;
+	pthread_mutex_unlock(&p->mu);
+	if (orphan) {
+		if (fc)
+			mv.close_input(&fc);
+		free(why);
+		p->dstarted = 0;
+		mv_free(p);
+		return 0;
+	}
+	p->fc = fc;
+	if (ok)
+		ok = mv_setup(p, &why, &note, 0);
+	free(note);
+	pthread_mutex_lock(&p->mu);
+	if (p->orphan) {
+		pthread_mutex_unlock(&p->mu);
+		p->dstarted = 0;
+		free(why);
+		mv_free(p);
+		return 0;
+	}
+	p->opening = 0;
+	p->wstart = mv_now();
+	if (!ok) {
+		p->failed = 1;
+		p->ended = 1;
+		free(p->err);
+		p->err = why ? why : xs("it could not be opened");
+		pthread_mutex_unlock(&p->mu);
+		return 0;
+	}
+	free(why);
+	/* Sound: decoding waits for the caller's thread to open the device
+	   (mv_aready), since it converts to the device's rate. */
+	p->aowait = p->ai >= 0;
+	while (p->aowait && !p->quit)
+		pthread_cond_wait(&p->cv, &p->mu);
+	if (p->quit) {
+		pthread_mutex_unlock(&p->mu);
+		mv_done(p);
+		return 0;
+	}
+	pthread_mutex_unlock(&p->mu);
+	/* Decoding ends only on a close. */
+	mv_dec(p);
+	if (p->astarted)
+		pthread_join(p->ath, 0);
+	p->astarted = 0;
+	mv_done(p);
+	return 0;
+}
+
+/* Open a source -- a file, or anything libav reads, http included -- and
+   start decoding it, paused or playing. A file is opened here, so one that
+   cannot be is refused at once; an address never is: it connects and
+   probes in the player's own thread, `media info` saying `loading` until
+   it has, and `ended` with the `error` if it could not (the Quran's
+   recitations held the desktop for a second an ayah, 2026-11-14). */
+mv_pl *mv_open(sh *s, const char *src, int paused)
+{
+	mv_pl *p;
+	void *fc = 0;
+	char *why = 0, *note = 0;
+
+	(void)s;
+	if (mv_load() != HIBR_OK)
+		return 0;
+	if (strstr(src, "://")) {
+		p = mv_new(src, paused);
+		p->opening = 1;
+		p->own = 1;
+		mv_pin();
+		if (pthread_create(&p->dth, 0, mv_opener, p) != 0) {
+			lg(HIBR_LERR, "media: %s: no thread to open it in", src);
+			mv_free(p);
+			return 0;
 		}
+		p->dstarted = 1;
+		return p;
+	}
+	if (!mv_probe(src, &fc, &why)) {
+		lg(HIBR_LERR, "media: %s: %s", src, why);
+		free(why);
+		return 0;
+	}
+	p = mv_new(src, paused);
+	p->fc = fc;
+	if (!mv_setup(p, &why, &note, 1)) {
+		lg(HIBR_LERR, "media: %s: %s", src, why);
+		free(why);
+		mv_free(p);
+		return 0;
+	}
+	if (note) {
+		lg(HIBR_LERR, "media: %s: %s", src, note);
+		free(note);
 	}
 	p->wstart = mv_now();
 	if (pthread_create(&p->dth, 0, mv_dec, p) == 0)
@@ -745,10 +946,41 @@ mv_pl *mv_open(sh *s, const char *src, int paused)
 	return p;
 }
 
-/* Stop both threads and free everything a player holds. */
+/* Whether a player is still opening its source. */
+int mv_opening(mv_pl *p)
+{
+	int o;
+
+	pthread_mutex_lock(&p->mu);
+	o = p->opening;
+	pthread_mutex_unlock(&p->mu);
+	return o;
+}
+
+/* Stop both threads and free everything a player holds -- or, for one
+   opened by address that has not failed, tell its thread so and go: that
+   thread frees it once its open or its read returns, so a close never
+   waits on the network. */
 void mv_close(mv_pl *p)
 {
+	double until = mv_now() + MV_CLOSEWAIT;
+
 	pthread_mutex_lock(&p->mu);
+	p->quit = 1;
+	mv_wake(p);
+	/* Its own thread, which a healthy stream lets finish at once: waited
+	   for a moment, and if a read the network has stalled holds it, left
+	   to free the player itself. Never while it is still connecting. */
+	while (!p->opening && p->own && !p->failed && !p->dexit && mv_now() < until)
+		mv_wait(p, 20);
+	if (p->opening || (p->own && !p->failed && !p->dexit)) {
+		p->orphan = 1;
+		/* Before the lock goes: once it has, the thread may see the
+		   orphan and free p, thread id and all. */
+		pthread_detach(p->dth);
+		pthread_mutex_unlock(&p->mu);
+		return;
+	}
 	p->quit = 1;
 	mv_wake(p);
 	pthread_mutex_unlock(&p->mu);
@@ -758,6 +990,12 @@ void mv_close(mv_pl *p)
 		pthread_join(p->dth, 0);
 	if (p->astarted)
 		pthread_join(p->ath, 0);
+	mv_free(p);
+}
+
+/* Free what a player holds, its threads already gone. */
+void mv_free(mv_pl *p)
+{
 	mv_drain(p);
 	free(p->cur.rgb);
 	if (p->ao.close)

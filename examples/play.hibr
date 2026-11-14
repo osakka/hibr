@@ -67,6 +67,8 @@ while true; do
   st="playing"
   [ "${info["paused"]}" = 1 ] && st="paused"
   [ "${info["ended"]}" = 1 ] && st="ended"
+  # An address connects in the player's own thread: says so meanwhile.
+  [ "${info["loading"]-}" = 1 ] && st="loading"
   line=" $pos / $dur  $st  vol ${info["volume"]}  $mode  ${info["error"]}"
   console pen white black
   t := str pad "$line" "$cols"

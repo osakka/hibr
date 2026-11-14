@@ -249,10 +249,109 @@ check("a film's frame is sent whole by default, and at half each way with "
       abs(full[0] - 2 * half[0]) <= 1 and abs(full[1] - 2 * half[1]) <= 1,
       (full, half))
 
+# A source by address is opened in the player's own thread (2026-11-14):
+# the Quran's recitations, each ayah an MP3 over https, held the desktop for
+# a second at every ayah while libavformat connected and probed in the
+# caller. Against a server that waits two seconds before it answers: open
+# returns at once and says loading, then the sound plays; a close while it
+# connects returns at once; a seek asked meanwhile is taken up; and an
+# address that refuses ends, with its error, rather than blocking anyone.
+import http.server, socket, socketserver, threading, time as _time
+
+
+class Slow(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *a, **k):
+        super().__init__(*a, directory=D, **k)
+
+    def do_GET(self):
+        if self.path == "/stall.mp3":
+            # Most of a long file, then nothing: a read the network has
+            # stalled, well after the player has opened and is playing.
+            body = open(os.path.join(D, "long.mp3"), "rb").read()
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body[:len(body) // 10])
+                self.wfile.flush()
+                _time.sleep(20)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
+        _time.sleep(2)
+        try:
+            super().do_GET()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def log_message(self, *a):
+        pass
+
+
+class Srv(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+
+
+ff("-f", "lavfi", "-i", "sine=frequency=660:duration=30", "long.mp3")
+srv = Srv(("127.0.0.1", 0), Slow)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+URL = "http://127.0.0.1:%d/a.mp3" % srv.server_address[1]
+TIMED = ('t0=$EPOCHREALTIME; p := media open "%s"; t1=$EPOCHREALTIME; '
+         'i := media info $p; echo "took $(( (${t1/./} - ${t0/./}) / 1000 )) loading ${i["loading"]}"; ')
+out, err = hb(TIMED % URL +
+              'for n in $(seq 100); do i := media info $p; [ "${i["loading"]}" = 0 ] && break; sleep 0.1; done; '
+              'echo "then ${i["loading"]} ${i["audio"]}"; sleep 1; media close $p', wav=W)
+took = int(out.split()[1]) if out.startswith("took ") else 9999
+f, peak, secs = tone(W) if os.path.exists(W) else (0, 0, 0)
+check("an address opens at once, saying it is loading, and its sound then plays",
+      took < 1500 and " loading 1\n" in out and "then 0 mp3" in out and abs(f - 880) < 4,
+      (out, err, took, f))
+out, err = hb(TIMED % URL + 't2=$EPOCHREALTIME; media close $p; t3=$EPOCHREALTIME; '
+              'echo "closed $(( (${t3/./} - ${t2/./}) / 1000 ))"; media list; echo listed')
+cl = [int(l.split()[1]) for l in out.split("\n") if l.startswith("closed ")]
+check("a close while it connects returns at once, and the player is gone",
+      out.startswith("took ") and int(out.split()[1]) < 1500 and
+      cl and cl[0] < 1000 and out.endswith("\nlisted\n") and "\n\nlisted" in out, (out, err))
+out, err = hb(TIMED % URL + 'media seek $p 1.2; '
+              'for n in $(seq 100); do i := media info $p; [ "${i["loading"]}" = 0 ] && break; sleep 0.1; done; '
+              'sleep 0.3; i := media info $p; echo "pos ${i["pos"]}"; media close $p')
+pos = [float(l.split()[1]) for l in out.split("\n") if l.startswith("pos ")]
+check("a seek asked while it connects is taken up once it has",
+      out.startswith("took ") and int(out.split()[1]) < 1500 and
+      pos and 1.1 <= pos[0] < 1.2 + 0.7 * SLOW, (out, err))
+sk = socket.socket()
+sk.bind(("127.0.0.1", 0))
+dead = sk.getsockname()[1]
+sk.close()
+out, err = hb(TIMED % ("http://127.0.0.1:%d/a.mp3" % dead) +
+              'for n in $(seq 100); do i := media info $p; [ "${i["ended"]}" = 1 ] && break; sleep 0.1; done; '
+              'echo "ended ${i["ended"]} [${i["error"]}]"; media close $p')
+check("an address that refuses ends with its error, and blocks nobody",
+      out.startswith("took ") and int(out.split()[1]) < 1500 and "ended 1 [" in out
+      and "ended 1 []" not in out, (out, err))
+# A close of one playing whose read the network has stalled returns at once
+# too: its thread is left to finish the read and free it.
+STALL = "http://127.0.0.1:%d/stall.mp3" % srv.server_address[1]
+out, err = hb('p := media open "%s"; for n in $(seq 100); do i := media info $p; '
+              '[ "${i["loading"]}" = 0 ] && break; sleep 0.1; done; echo "loaded ${i["loading"]}"; '
+              'sleep 2.5; t2=$EPOCHREALTIME; media close $p; t3=$EPOCHREALTIME; '
+              'echo "closed $(( (${t3/./} - ${t2/./}) / 1000 ))"' % STALL)
+cl = [int(l.split()[1]) for l in out.split("\n") if l.startswith("closed ")]
+check("a close while the network has stalled its read returns at once",
+      "loaded 0" in out and cl and cl[0] < 1000, (out, err))
+# And the module may be dropped while one is still connecting: its thread
+# outlives the player, so the module stays mapped until it has finished,
+# rather than the thread waking in code that is gone.
+out, err = hb(TIMED % URL + 'mod drop media; sleep 3; echo alive')
+check("dropping the module while an address is still connecting is safe",
+      out.rstrip().endswith("alive"), (out, err))
+srv.shutdown()
+
 out, err = subprocess.run([sx.HIBR, tree("examples/play.hibr"), "--help"],
                           capture_output=True, text=True).stdout, ""
 check("play.hibr's --help comes from its declarations",
       "--mode" in out and "--start" in out and "--paused" in out, out)
 
 shutil.rmtree(D, True)
-report(21)
+report(27)
