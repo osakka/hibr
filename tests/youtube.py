@@ -13,7 +13,7 @@ import os, re, shutil, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, tree, load, press, release, bundle
+from screen import Term, check, report, tree, load, press, release, bundle, bundle_libs
 
 
 if len(sys.argv) > 1:
@@ -97,10 +97,10 @@ def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False,
     its end in the middle of a check about something else."""
     sess = os.path.join(D, "session.hibr")
     open(sess, "w").write(
-        "%s. %s\n. %s\n%s\ndt_open\ndt_new \"YouTube\" 24 80 1 2 youtube \"%s\"\n"
+        "%s. %s\n%s. %s\n%s\ndt_open\ndt_new \"YouTube\" 24 80 1 2 youtube \"%s\"\n"
         "dt_run\ndt_close\n"
         % (load("console", "web", "media"), tree("programs/desktop/desktop.hibr"),
-           bundle("apps/Internet/youtube.hibr"), extra, arg))
+           bundle_libs(), bundle("apps/Internet/youtube.hibr"), extra, arg))
     t = Term(sess, rows=rows, cols=cols, settle=2.0, caps=caps,
              cellw=cell[0] if cell else 0, cellh=cell[1] if cell else 0,
              env=dict({"YT_BASE": BASE, "HIBR_WEB_PROFILE": PROF, "HIBR_MEDIA_AUDIO": "none",
@@ -467,10 +467,10 @@ try:
 
     sess = os.path.join(D, "s2.hibr")
     open(sess, "w").write(
-        "%s. %s\n. %s\n. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
+        "%s. %s\n%s. %s\n. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
         "dt_new \"Control Panel\" 24 76 1 1 panel tube\ndt_run\ndt_close\n"
         % (load("console"), tree("programs/desktop/desktop.hibr"),
-           bundle("apps/Internet/youtube.hibr"),
+           bundle_libs(), bundle("apps/Internet/youtube.hibr"),
            tree("programs/desktop/system/panel.hibr"), bundle("control-panel/tube.hibr"),
            tree("programs/desktop/control-panel")))
     t = Term(sess, rows=28, cols=90, settle=1.5)

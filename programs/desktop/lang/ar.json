@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.11",
+ "version": "3.99.12",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1520,6 +1520,7 @@
   "%s Settings…": "إعدادات %s…",
   "Keyboard Settings…": "إعدادات لوحة المفاتيح…",
   "Show Keyboard Name": "إظهار اسم لوحة المفاتيح",
-  "Keyboard Name on Menu Bar": "اسم لوحة المفاتيح في شريط القوائم"
+  "Keyboard Name on Menu Bar": "اسم لوحة المفاتيح في شريط القوائم",
+  "a library": "مكتبة"
  }
 }

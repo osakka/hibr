@@ -241,6 +241,7 @@ fn cat_kindname(k) {
 	lang) ret "Languages" ;;
 	mods) ret "Modules" ;;
 	cli) ret "Commands" ;;
+	lib) ret "Libraries" ;;
 	*) ret "$k" ;;
 	esac
 }
@@ -367,6 +368,7 @@ fn cat_kindone(k) {
 	lang) t := dt_tr "a language" ;;
 	mods) t := dt_tr "a module" ;;
 	cli) t := dt_tr "a command" ;;
+	lib) t := dt_tr "a library" ;;
 	*) t=$k ;;
 	esac
 	ret "$t"

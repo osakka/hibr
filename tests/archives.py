@@ -120,11 +120,14 @@ def browse(name, env=None, why=""):
         os.unlink(OPENED)
     t = session(files(), env=env, pre=STUB)
     into(t, name)
-    sc = t.until("proj")
+    # The listing is a program's answer (bsdtar, unzip, 7z), and under a
+    # gate's load a zip's took longer than until's four seconds: the
+    # folder was still empty and the check failed only there (0.99.526).
+    sc = t.until("proj", 150)
     check("%s opens as a folder%s" % (name, why),
           sc.find(name + ":/") is not None and sc.find("proj") is not None, sc)
     t.keys([b"\r"], settle=0.3)
-    sc = t.until("README.md")
+    sc = t.until("README.md", 150)
     check("%s: its folders go in" % name,
           sc.find("sub") is not None and sc.find("README.md") is not None, sc)
     down = [b"\x1b[B"] if sc.find("sub")[0] < sc.find("README.md")[0] else []

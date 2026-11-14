@@ -161,6 +161,18 @@ def bundle(p):
     return f
 
 
+def bundle_libs():
+    """A source line for every library the catalogue carries (kind lib,
+    0.99.526), for a session that loads a catalogue app on its own: the
+    desktop reads them before the apps (dt_libs), and an app that names one
+    in `# needs:` refuses to open without it. Empty while there is none."""
+    root = os.environ.get("HIBR_APPS") or os.path.expanduser("~/hibr-apps")
+    d = os.path.join(root, "bundles", "lib")
+    if not os.path.isdir(d):
+        return ""
+    return "".join(". %s\n" % os.path.join(d, f) for f in sorted(os.listdir(d)) if f.endswith(".hibr"))
+
+
 def scratch(nm):
     """A scratch path under /tmp that no other process shares.
 

@@ -1032,6 +1032,7 @@ try:
     hp_app = put("bundles/ixparts.hibr", APP.replace(b"demo", b"ixparts"))
     hp_pane = put("bundles/ixpane.hibr", PANEBYTES)
     hp_lapp = put("bundles/ixlang.hibr", APP.replace(b"demo", b"ixlang"))
+    hp_core = put("bundles/ixcore.hibr", b"IXCORE_LIBDONE=1\nixcore_hi() { echo hi; }\n")
     hp_lang = put("bundles/ixlang.ar.json",
                   '{"language": "ar", "strings": {"Index Lang": "\u0644\u063a\u0629"}}\n'.encode())
     E5 = {"entries": {
@@ -1053,6 +1054,11 @@ try:
         # An app's own translations are a part of kind lang named
         # <app>.<code>.json, which the desktop adds to its language and
         # never lists as one (0.99.523).
+        # A library several apps share, in a kind of its own (0.99.526).
+        "lib/ixcore": {
+            "title": "Index Core", "version": "1.0", "kind": "lib",
+            "name": "ixcore", "about": "code apps share",
+            "bundle": "bundles/ixcore.hibr", "sha256": hp_core},
         "apps/ixlang": {
             "title": "Index Lang", "version": "1.0", "kind": "apps",
             "name": "ixlang", "about": "an app that carries its own words",
@@ -1078,6 +1084,12 @@ try:
           and not os.path.exists(os.path.join(d5, "apps", "ixbad.hibr")),
           (rc, err, sorted(os.listdir(os.path.join(d5, "apps")))
            if os.path.isdir(os.path.join(d5, "apps")) else "no apps folder"))
+    rc, out, err = apps("install", "lib/ixcore", env=E5ENV)
+    check("a library lands in lib/, where the desktop reads the ones it does not ship",
+          rc == 0 and os.path.exists(os.path.join(d5, "lib", "ixcore.hibr")), (rc, out, err))
+    rc, out, err = apps("remove", "ixcore", env=E5ENV)
+    check("and goes when it is removed",
+          rc == 0 and not os.path.exists(os.path.join(d5, "lib", "ixcore.hibr")), (rc, out, err))
     rc, out, err = apps("install", "apps/ixlang", env=E5ENV)
     check("an app's own translations, a part of kind lang, land beside the languages",
           rc == 0 and os.path.exists(os.path.join(d5, "lang", "ixlang.ar.json")), (rc, out, err))
@@ -1869,4 +1881,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(156)
+report(158)

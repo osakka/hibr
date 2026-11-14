@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.526
+
+**A library is a catalogue kind** (the owner's choice, for the video apps'
+shared core). YouTube, Tubi and the Video Library share code none of them
+owns, written and released by hibr-browser with them. "A library has one
+home, hibr's `lib/`" would have tied every change of theirs to a hibr
+release and to a gate that does not run them, so the catalogue has a
+thirteenth kind, `lib`: installed to `<scope>/lib/`, named by the apps
+that use it in `# needs:`, and checked by them against an interface number
+of their own when they open it.
+
+The desktop reads the shipped `lib/` first and then the person's own
+folder, the machine's and their data folder, the first copy of a name
+winning. A rescan reads new libraries before the apps, so an app and its
+library installed together need no restart. What "one home" protected is
+kept: a library hibr ships is always hibr's, and a copy of it elsewhere is
+not read at all. ADR 0046 carries the amendment. `addapp` and `mkindex`
+know the kind.
+
+The archives suite waits fifteen seconds rather than four for an archive's
+listing, which under a gate's load a zip's once took. `tests/youtube.py`
+sources the catalogue's libraries before the app, so it keeps passing once
+YouTube needs its core.
+
 ## 0.99.525
 
 **A window left alone still reads what it watches.** A window whose own

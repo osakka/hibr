@@ -3709,6 +3709,30 @@ def appowncheck():
 
 
 appowncheck()
+# A library the catalogue installs (kind lib, 0.99.526) is read from the
+# person's own folder like any other kind, before the apps that use it; and
+# a file there named like one hibr ships is never read, which is what "a
+# library has one home" protected (ADR 0045).
+def libcheck():
+    """One function, so a part can copy it whole (appslice)."""
+    conf = tempfile.mkdtemp(prefix="hibr-lib-")
+    os.makedirs(os.path.join(conf, "hibr", "lib"))
+    open(os.path.join(conf, "hibr", "lib", "zzcore.hibr"), "w").write(
+        "ZZCORE_LIBDONE=1\nzzcore_said() { ret \"ZZCORE-LOADED\"; }\n")
+    open(os.path.join(conf, "hibr", "lib", "pim.hibr"), "w").write(
+        "PE_LIBDONE=1\nZZ_SHADOWED=1\n")
+    sc, _ = run('t=no; dt_has zzcore_said && t := zzcore_said\n'
+                '[ -n "${ZZ_SHADOWED-}" ] && t="$t SHADOWED"\n'
+                'dt_new "$t" 6 40 4 4\n', env={"XDG_CONFIG_HOME": conf},
+                pre=APPS)
+    check("a library in the person's own folder is read, before the apps",
+          sc.find("ZZCORE-LOADED") is not None, sc)
+    check("and one named like a library hibr ships is not: hibr's own wins",
+          sc.find("SHADOWED") is None and sc.find("ZZCORE-LOADED") is not None, sc)
+    shutil.rmtree(conf, True)
+
+
+libcheck()
 sc, raw = run("", feed=APPMENU, env={"XDG_CONFIG_HOME": UCONF},
               pre=APPS + SYSAPPS)
 menu = [sc.row(r)[:46] for r in range(2, 18)]
@@ -10159,4 +10183,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1098)
+report(1100)

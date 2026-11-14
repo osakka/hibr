@@ -139,3 +139,31 @@ reading.
 - The wallpaper picker is built on the Files app's folder model, so it is
   guarded and says it needs Files. Rebasing it on the core file dialog, so
   it needs nothing, is its own piece of work.
+
+## Amended in 0.99.526: a library may be a catalogue kind
+
+"A library is not a kind and has one home" was written when every library
+was hibr's own. The video apps -- YouTube, Tubi, the Video Library -- then
+grew a core they share and none of them owns. It is written and released by
+hibr-browser with those apps, not by hibr, and putting it in hibr's `lib/`
+would have tied every change of theirs to a hibr release and to a gate that
+does not run them. That is the split 0.99.523 had just undone for the
+Browser. The owner chose a catalogue kind (2026-11-14).
+
+So `lib` is a kind. The catalogue installs one to `<scope>/lib/`, and an app
+names it in `# needs:`. `dt_libs` reads the shipped `lib/` first, as before,
+then the person's own folder, the machine's, and their data folder, the
+first copy of a name winning. What "one home" protected is kept:
+
+- **A name hibr ships is always hibr's.** A copy of it elsewhere is not read
+  at all, and neither is a file that claims a shipped library's
+  `*_LIBDONE` under another name.
+- **Only a file marked with its `*_LIBDONE=1` line is sourced**, in every
+  scope, so a job program never is.
+
+A rescan reads new libraries before the apps, so an app and its library
+installed together while the desktop runs need no restart.
+
+`# needs:` still names entries and never versions. A library that changes
+its interface says so with a number of its own, which its apps check when
+they open it and refuse loudly on a mismatch (the video core's `VC_API`).

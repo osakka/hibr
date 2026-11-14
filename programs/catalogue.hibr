@@ -188,13 +188,20 @@ CAT_URL=
 # version, being current when its members are, and its ledger entry
 # remembers the members it was installed with, so that an update can tell
 # a member the catalogue has added since from one somebody took away.
+#
+# `lib` is code several apps share and none of them owns -- the video apps'
+# core (YouTube, Tubi, the Video Library) -- installed to `<scope>/lib/` and
+# named by the apps that use it in their `# needs:` (0.99.526, ADR 0045's
+# amendment). The desktop sources it before the apps, as it does the
+# libraries hibr ships, and a name hibr ships is always hibr's: a copy
+# elsewhere cannot shadow it.
 CAT_KINDS=(apps system control-panel control-strip menubar savers themes
-	  colours lang mods cli bundles)
+	  colours lang mods cli lib bundles)
 declare -gA CAT_KEXT=(
 	[apps]=.hibr [system]=.hibr [control-panel]=.hibr
 	[control-strip]=.hibr [menubar]=.hibr [savers]=.hibr
 	[themes]=.json [colours]=.json [lang]=.json
-	[mods]=.so [cli]=.hibr [bundles]=.json
+	[mods]=.so [cli]=.hibr [lib]=.hibr [bundles]=.json
 )
 # What signs the catalogue. The apt repository's own key: one key for the
 # two things this project publishes, rather than a second to lose. The
@@ -1251,6 +1258,7 @@ fn cat_kindone(k) {
 	lang) ret "a language" ;;
 	mods) ret "a module" ;;
 	cli) ret "a command" ;;
+	lib) ret "a library" ;;
 	*) ret "$k" ;;
 	esac
 }

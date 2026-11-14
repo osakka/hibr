@@ -174,19 +174,36 @@ declare -gA DT_SRC
 # Read in the shell rather than with grep, which would be a fork per file
 # on every start; and the source happens after the read loop, never inside
 # it, or the library would run with its own file as standard input.
+#
+# Since 0.99.526 a library is also a catalogue kind, `lib`: code several
+# apps share and none of them owns -- the video apps' core -- installed to
+# <scope>/lib/. Those are read after the shipped ones, from the person's
+# own folder, then the machine's, then their data folder, the first copy
+# of a name winning as everywhere -- and a name hibr ships is always
+# hibr's, which is the drift "one home" was there to prevent: a stray copy
+# of a shipped library in someone's own folder is not read at all.
 dt_libs() {
-	local f l lib
+	local f l lib d b sysl
+	local -A seen=()
 
-	for f in "$DT_HERE"/lib/*.hibr; do
-		[ -r "$f" ] || continue
-		lib=
-		while IFS= read -r l; do
-			case $l in [A-Z]*_LIBDONE=1) lib=${l%%=*}; break ;; esac
-		done < "$f"
-		# One the window manager already loaded (wm/machine.hibr takes
-		# lib/logind.hibr) is not loaded twice: a strict file refuses a
-		# function defined again from the same file.
-		[ -n "$lib" ] && [ -z "${!lib-}" ] && . "$f"
+	sysl := dt_sysdir lib
+	for d in "$DT_HERE/lib" "${XDG_CONFIG_HOME:-$HOME/.config}/hibr/lib" \
+		 ${sysl:+"$sysl"} "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/lib"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			[ -z "${seen["$b"]+x}" ] || continue
+			seen["$b"]=1
+			lib=
+			while IFS= read -r l; do
+				case $l in [A-Z]*_LIBDONE=1) lib=${l%%=*}; break ;; esac
+			done < "$f"
+			# One the window manager already loaded (wm/machine.hibr
+			# takes lib/logind.hibr), or a rescan loaded before, is
+			# not loaded twice: a strict file refuses a function
+			# defined again from the same file.
+			[ -n "$lib" ] && [ -z "${!lib-}" ] && . "$f"
+		done
 	done
 	return 0
 }
@@ -484,6 +501,8 @@ dt_rescan() {
 	local -A win
 
 	DT_RESCANS=$((DT_RESCANS + 1))
+	# A library the catalogue just installed, before the apps that need it.
+	dt_libs
 	DT_STALENEW=()
 	dt_scanstamp
 	DT_SCANPREV=
