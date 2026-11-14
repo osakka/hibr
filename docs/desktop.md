@@ -146,6 +146,15 @@ Keyboard pane's. Everything an app can do is also in
 its menus, which follow the window that has focus: File, Edit, the app's
 own, and Window.
 
+Typing through an input method -- Arabizi, from the Catalogue's hibr-ime,
+writes Arabic as you type it in Latin letters -- has two keys of its own,
+which act only while a word is still being typed: **ctrl-space** moves the
+word to the next thing it could be, round to where it began, and what is
+showing is what goes in, remembered from then on; **alt-t** asks what the
+word should read as, for one that none of those fits. Both work in the
+desktop's own text and in programs' windows under Blit. With no word being
+typed, the keys are the window's as ever.
+
 ## 5. Make it yours
 
 Open the **Control Panel** from the hibr menu and choose **Appearance**.

@@ -43,6 +43,19 @@ DT_IMEBY=
 # that would not open, so neither is asked again every frame.
 DT_IMEMOD=
 DT_IMEBAD=
+# Teaching a word (hibr-ime #1): the box asking what it reads as, the word
+# as typed and its method, and -- since the box's own field types through
+# an engine of its own -- the engine that holds the word, with its preedit,
+# window and place, set aside until the box is answered.
+DT_IMETBOX=
+DT_IMETLAT=
+DT_IMETM=
+DT_IMETH=
+DT_IMETPRE=
+DT_IMETWIN=
+DT_IMETAT=
+# The chords last told to Blit as an input method's (dt_imekeysend).
+DT_IMEKSENT=-
 
 # The method the current keyboard names, or status 1: its variant, when the
 # ime module has a method of that name that opens.
@@ -76,6 +89,10 @@ dt_imecheck() {
 	DT_IMEKB=$k
 	m := dt_imemethod || m=
 	if [ "$m" != "$DT_IME" ]; then
+		# A word being taught goes back to its own engine first, which is
+		# the one committed and closed below; the box, answered later,
+		# still teaches the method it was asked for.
+		dt_imeback
 		dt_imedone
 		[ -n "$DT_IMEH" ] && dt_imeclose
 		DT_IME=
@@ -140,7 +157,125 @@ fn dt_imekey(key, at) {
 	return 0
 }
 
-# The module itself, in four calls and nowhere else, so a test can stand in
+# Next Spelling, Previous Spelling and Teach Word, while a word is held for
+# the focused window; status 1 for any other key and whenever nothing is
+# held, so the key goes on to the window as it always did.
+fn dt_imeaction(k) {
+	[ -n "$DT_IMEPRE" ] && [ -n "$DT_IMEH" ] && [ -z "$DT_IMEBY" ] &&
+		[ -n "$DT_FOCUS" ] && [ "$DT_FOCUS" = "$DT_IMEWIN" ] || return 1
+	if dt_keyis imecycle "$k"; then
+		dt_imespell 1
+	elif dt_keyis imeback "$k"; then
+		dt_imespell -1
+	elif dt_keyis imeteach "$k"; then
+		dt_imeteach
+	else
+		return 1
+	fi
+	dt_want 10
+	return 0
+}
+
+# Teach Word: ask what the word being typed reads as, in a box whose field
+# types through an engine of its own, the word's own set aside meanwhile.
+dt_imeteach() {
+	local lat pre h t
+
+	[ -z "$DT_IMETBOX" ] || return 0
+	lat := dt_imeword || lat=
+	if [ -z "$lat" ]; then
+		dt_notep low "Teach Word teaches the word being typed"
+		return 0
+	fi
+	pre := dt_imeread "$lat" || pre=
+	if ! h := dt_imeopen "$DT_IME"; then
+		dt_notep low "The %s input method would not open" "$DT_IME"
+		return 0
+	fi
+	DT_IMETLAT=$lat
+	DT_IMETM=$DT_IME
+	DT_IMETH=$DT_IMEH
+	DT_IMETPRE=$DT_IMEPRE
+	DT_IMETWIN=$DT_IMEWIN
+	DT_IMETAT=$DT_IMEAT
+	DT_IMEH=$h
+	DT_IMEPRE=
+	DT_IMEWIN=
+	DT_IMEAT=
+	t := dt_tr "%s reads as" "$lat"
+	DT_IMETBOX := dt_ask "Teach Word" "$t" "$pre" dt_imetaught \
+		"From now on, wherever you type it." "" 54 dt_imeuntaught
+}
+
+# The box answered: teach the word, then commit it where it was typed, now
+# reading as taught. Status 1 keeps the box open, saying why.
+fn dt_imetaught(text, int id) {
+	local c lat=$DT_IMETLAT
+
+	# Whatever the box's own engine still holds belongs to the answer.
+	if [ -n "$DT_IMEPRE" ] && [ -n "$DT_IMETH" ]; then
+		c := dt_imeflush || c=
+		text=$text$c
+		DT_IMEPRE=
+	fi
+	if [ -z "$text" ] || ! dt_imelearn "$DT_IMETM" "$lat" "$text"; then
+		dt_notep low "A word is taught as one word, with no spaces"
+		return 1
+	fi
+	DT_IMETBOX=
+	dt_imeback
+	if [ -n "$DT_IMEPRE" ]; then
+		DT_IMEPRE := dt_imepreedit || DT_IMEPRE=
+		dt_imedone
+	fi
+	dt_notep low "%s is %s from now on" "$lat" "$text"
+	return 0
+}
+
+# The box closed unanswered: the word is held as it was.
+fn dt_imeuntaught(int id) {
+	DT_IMETBOX=
+	dt_imeback
+}
+
+# The word's own engine back, the box's closed; nothing when none is aside.
+dt_imeback() {
+	[ -n "$DT_IMETH" ] || return 0
+	dt_imeclose
+	DT_IMEH=$DT_IMETH
+	DT_IMEPRE=$DT_IMETPRE
+	DT_IMEWIN=$DT_IMETWIN
+	DT_IMEAT=$DT_IMETAT
+	DT_IMETH=
+	DT_IMETPRE=
+	DT_IMETWIN=
+	DT_IMETAT=
+	return 0
+}
+
+# Tell Blit which chords are an input method's in programs' windows: the
+# first of each action's that Blit can spell. Said when it changed, and
+# again until a Blit has heard it.
+dt_imekeysend() {
+	local an ch k out
+	local -a w ow=()
+
+	for an in imecycle imeback imeteach; do
+		read -ra w <<< "${DT_KEYS["$an"]-}"
+		for k in "${w[@]}"; do
+			ch := dt_keepchord "$k"
+			[ -n "$ch" ] || continue
+			ow+=("${an#ime}=$ch")
+			break
+		done
+	done
+	out="${ow[*]}"
+	[ "$out" = "$DT_IMEKSENT" ] && return 0
+	console imekeys "${ow[@]}" 2> /dev/null && DT_IMEKSENT=$out
+	return 0
+}
+
+# The module itself, in these calls and nowhere else, so a test can stand in
 # for hibr-ime: an engine opened for method m, its handle the answer.
 fn dt_imeopen(m) {
 	local h
@@ -171,6 +306,43 @@ fn dt_imefeed(key) {
 	DT_IMEC=${RET[0]}
 	DT_IMEP=${RET[1]}
 	DT_IMEPRE=${RET[2]}
+}
+
+# The word moved to its next spelling (step 1) or the one before (-1).
+fn dt_imespell(int step) {
+	local r
+
+	r := ime cycle "$DT_IMEH" "$step" 2> /dev/null || return 1
+	DT_IMEPRE=${RET[0]}
+}
+
+# The word being typed, as typed.
+dt_imeword() {
+	local w
+
+	w := ime word "$DT_IMEH" 2> /dev/null || return 1
+	ret "$w"
+}
+
+# What latin reads as on its own, to start the box from.
+fn dt_imeread(lat) {
+	local t
+
+	t := ime convert "$DT_IME" "$lat" 2> /dev/null || return 1
+	ret "$t"
+}
+
+# What the engine holds, as it would commit it now.
+dt_imepreedit() {
+	local t
+
+	t := ime preedit "$DT_IMEH" 2> /dev/null || return 1
+	ret "$t"
+}
+
+# Teach method m that lat reads as text, in the person's own layer.
+fn dt_imelearn(m, lat, text) {
+	ime teach "$m" "$lat" "$text" 2> /dev/null
 }
 
 # The preedit held for place at of window id, or status 1.

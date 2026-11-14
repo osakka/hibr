@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.528
+
+**Cycle, or teach** (hibr-ime #1). Arabizi reads 70% of the owner's own
+typing right, and more than half of what it misses are words no list
+offers, so a word is now put right where it is typed. **Next Spelling**
+(ctrl-space) moves the word being typed to the next thing it could be --
+the method's own reading, then the other spellings it found, then the
+word as typed -- round to where it began, and what is showing is what
+goes in and is remembered from then on (hibr-ime 0.1.5 writes it to the
+person's own words). **Previous Spelling** goes the other way, unset by
+default. **Teach Word** (alt-t) asks what the word should read as, in a
+box whose field types through an engine of its own while the word's is
+set aside, and the word then goes in as taught. All three are in Keyboard
+> Shortcuts, and act only while a word is held for the focused window:
+otherwise the key is the window's, so a terminal keeps ctrl-space.
+
+In programs' windows under Blit the keys are Blit's to route, so a word is
+never cycled out of turn with the letters typed after it. The desktop
+tells Blit the chords (`console imekeys`, `INPUT imekeys`, said again on a
+new connection, and by hold to every display and to one that joins), and
+keeps them out of the set it keeps from programs. Blit's compositor asks
+`WINDOW teach`, the desktop's box answers, and `WINDOW teachdone commit`
+or `cancel` goes back. Blit 0.3.109 has its half.
+
+The checks drive both through stand-ins -- the suites' input method grew
+spellings, teaching and an engine per handle, and the stand-in compositor
+asks `WINDOW teach` -- and each of the eight fails against 0.99.527.
+
 ## 0.99.527
 
 **A standby display let go stays let go** (Gitea #551). Now and then a

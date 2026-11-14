@@ -642,7 +642,10 @@ int fl_window(fl_srv *f, const char *m, size_t k)
 		   !strcmp(v.p, "minimize") || !strcmp(v.p, "hide") ||
 		   !strcmp(v.p, "cursor") || !strcmp(v.p, "lock") ||
 		   !strcmp(v.p, "move") || !strcmp(v.p, "resize") ||
-		   !strcmp(v.p, "menu") || !strcmp(v.p, "activate")) {
+		   !strcmp(v.p, "menu") || !strcmp(v.p, "activate") ||
+		   !strcmp(v.p, "teach")) {
+		/* teach: the compositor's input method asking what a word reads
+		   as, the word held until the desktop answers (hibr-ime #1). */
 		/* activate: a program asking for the focus (Blit 0.3.86), which
 		   the desktop grants or not (Gitea #507). */
 		fl_ev(f, v.p, t->n, r.p);

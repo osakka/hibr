@@ -513,6 +513,7 @@ dt_natevents() {
 			dt_pointer "$id" "$rest" ;;
 		limits) NW[$id]["limits"]=$rest ;;
 		lock) dt_natlockask "$id" "$rest" ;;
+		teach) dt_natteach "$id" "$rest" ;;
 		geometry)
 			read -r NW[$id]["gx"] NW[$id]["gy"] _ _ <<< "$rest"
 			NW[$id]["popkey"]=
@@ -1268,6 +1269,59 @@ fn native_dirty(int id) {
 	s := dt_natpopkey "$id"
 	[ "$s" = "${NW[$id]["popkey"]}" ] || return 0
 	return 1
+}
+
+# Teach Word in a program's window (hibr-ime #1): Blit's compositor holds
+# the word and asks, `WINDOW teach ID LATIN ARABIC`; the desktop asks the
+# person in the same box as its own text does, teaches the word in their
+# layer, and answers `teachdone commit`, the compositor then committing the
+# word as taught -- or `cancel`, the word held as it was.
+declare -gA DT_NATTEACH
+fn dt_natteach(int id, rest) {
+	local lat ar m t box
+
+	read -r lat ar <<< "$rest"
+	[ -n "$lat" ] || return 0
+	m=$DT_IME
+	if [ -z "$m" ] && ! m := dt_imemethod; then
+		frames window "${NW[$id]["n"]}" teachdone cancel 2> /dev/null
+		dt_notep low "Teach Word needs hibr-ime's module"
+		return 0
+	fi
+	t := dt_tr "%s reads as" "$lat"
+	box := dt_ask "Teach Word" "$t" "$ar" dt_natteachok \
+		"From now on, wherever you type it." "" 54 dt_natteachno
+	DT_NATTEACH["$box"]="$id $m $lat"
+	# Asked for between frames, by the compositor: drawn, and given the
+	# keys, now -- the person pressed Teach Word a moment ago.
+	dt_raise "$box"
+	dt_want 30
+}
+
+# The box answered: taught, and the compositor told to commit it.
+fn dt_natteachok(text, int box) {
+	local id m lat
+
+	read -r id m lat <<< "${DT_NATTEACH["$box"]-}"
+	[ -n "$lat" ] || return 0
+	if [ -z "$text" ] || ! dt_imelearn "$m" "$lat" "$text"; then
+		dt_notep low "A word is taught as one word, with no spaces"
+		return 1
+	fi
+	unset DT_NATTEACH["$box"]
+	[ -n "${NW[$id]["n"]-}" ] && frames window "${NW[$id]["n"]}" teachdone commit 2> /dev/null
+	dt_notep low "%s is %s from now on" "$lat" "$text"
+	return 0
+}
+
+# The box closed unanswered: the word stays as the compositor holds it.
+fn dt_natteachno(int box) {
+	local id
+
+	read -r id _ <<< "${DT_NATTEACH["$box"]-}"
+	unset DT_NATTEACH["$box"]
+	[ -n "$id" ] && [ -n "${NW[$id]["n"]-}" ] && frames window "${NW[$id]["n"]}" teachdone cancel 2> /dev/null
+	return 0
 }
 
 # A program asking to hold the pointer (Blit's WINDOW lock, from a Wayland

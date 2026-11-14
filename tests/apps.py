@@ -965,9 +965,8 @@ check("a mouse's extra button is recorded as a shortcut, with its modifier",
 sc = cprun(reach("shortcuts", "Control Panel"))
 check("Shortcuts lists the desktop's actions, the Control Strip's among "
       "them, then each app's under a heading of its own",
-      all(brow(sc, t) != "" for t in ("Next Keyboard", "Detach", "Quit",
-                                        "Cycle Windows", "Control Strip",
-                                        "Control Panel")) and
+      all(brow(sc, t) != "" for t in ("Next Keyboard", "Teach Word", "Detach", "Quit",
+                                        "Control Strip", "Control Panel")) and
       "alt-s" in brow(sc, "Control Strip") and brow(sc, "Apps") != "", sc)
 # A shortcut's label was given its indent twice, so it always read as too
 # long and every row showed an ellipsis before its key (Gitea #282).

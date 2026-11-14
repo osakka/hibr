@@ -30,6 +30,7 @@
 %s in %s min
 %s in %s minutes
 %s in the catalogue
+%s is %s from now on
 %s is %s's: give it to %s?
 %s is a database, not a sheet
 %s is a number
@@ -65,6 +66,7 @@
 %s of %s
 %s of %s rows
 %s pixels, a cell is %s by %s
+%s reads as
 %s rows
 %s runs with full access
 %s selected
@@ -106,6 +108,7 @@ A rule is an operator, a number and a colour: < 0 bad
 A terminal cannot start in a folder on a server
 A theme's name is letters, digits, spaces, dots and dashes
 A window of its own, through Programs in Windows.
+A word is taught as one word, with no spaces
 About %s
 About %s minute remaining
 About %s minutes remaining
@@ -507,6 +510,7 @@ Freeze Top Row
 Fri
 Friday
 From %s
+From now on, wherever you type it.
 From:
 Full Command Line
 Full Screen
@@ -1112,6 +1116,9 @@ Take Photo
 Task
 Task List
 Task Manager
+Teach Word
+Teach Word needs hibr-ime's module
+Teach Word teaches the word being typed
 Terminal
 Terminal Here Runs
 Terminal Here in Menu
@@ -1124,6 +1131,7 @@ Text Editor (hvi)
 That archive is not there
 That event is not kept here any more; syncing
 The %s input method is not installed
+The %s input method would not open
 The Control Strip is off -- Control Panel > Control Strip shows it
 The PIN is cleared
 The PIN is set

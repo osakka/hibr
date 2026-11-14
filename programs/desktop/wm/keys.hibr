@@ -20,7 +20,7 @@ DT_KEYPEND_FROM=
 DT_KEYORDER=(menu start save undo redo copy cut paste selectall signin scrollup scrolldown
 	move resize zoom fullscreen hide shade snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
 	ws7 ws8 ws9 wsnext wsprev tile tilemain close quitapp cycle cycleback strip shot
-	refresh lock context winmenu volup voldown mute kbdnext
+	refresh lock context winmenu volup voldown mute kbdnext imecycle imeback imeteach
 	ptrrelease fsleave detach quit)
 declare -gA DT_KEYNAME
 DT_KEYNAME["menu"]="Menu Bar"
@@ -56,6 +56,9 @@ DT_KEYNAME["volup"]="Volume Up"
 DT_KEYNAME["voldown"]="Volume Down"
 DT_KEYNAME["mute"]="Mute"
 DT_KEYNAME["kbdnext"]="Next Keyboard"
+DT_KEYNAME["imecycle"]="Next Spelling"
+DT_KEYNAME["imeback"]="Previous Spelling"
+DT_KEYNAME["imeteach"]="Teach Word"
 
 # Two actions on one chord is silent: dt_keyed asks about each in a fixed
 # order, so the first of them fires and the other simply never does. A saved
@@ -196,6 +199,10 @@ fn dt_keyassigned(key) {
 	fi
 	knorm := dt_keynorm "$key"
 	for an in "${!DT_KEYS[@]}"; do
+		# An input method's keys are taken only while a word is held
+		# (dt_imeaction, before the window): otherwise a terminal keeps
+		# them, ctrl-space for emacs among them.
+		case $an in ime*) continue ;; esac
 		dt_keyin "${DT_KEYS["$an"]}" "$knorm" && return 0
 	done
 	for an in "${!DT_APPKEY[@]}"; do
@@ -364,6 +371,10 @@ dt_keepsend() {
 	# Each of a shortcut's chords, which a list may have several of
 	# (ADR 0057).
 	for an in "${!DT_KEYS[@]}"; do
+		# An input method's keys are not kept from a program: Blit hands
+		# them to the input method, in order with the letters, and the
+		# program gets one when no word is held (dt_imekeysend).
+		case $an in ime*) continue ;; esac
 		read -ra w <<< "${DT_KEYS["$an"]}"
 		for k in "${w[@]}"; do
 			ch := dt_keepchord "$k"
@@ -382,6 +393,7 @@ dt_keepsend() {
 		done
 	done
 	out=${out# }
+	dt_has dt_imekeysend && dt_imekeysend
 	[ "$out" = "$DT_KEEPSENT" ] && return 0
 	read -ra w <<< "$out"
 	# Kept as said only once it went: at startup the way to a held

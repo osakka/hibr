@@ -192,6 +192,15 @@ def inputline(conn, held, routes, data, fds):
             why = "EINVAL"
         else:
             note(kind="member", id=iid, top=int(w[3]), x=int(w[4]), y=int(w[5]))
+    elif len(w) >= 2 and w[1] == "imekeys":
+        # Blit 0.3.109 (hibr-ime #1): which chords are an input method's
+        # actions, action=chord, the whole set each time, not answered; a
+        # word out of that shape refuses the line with EINVAL.
+        acts = [x.partition("=") for x in w[2:]]
+        if all(a in ("cycle", "back", "teach") and e and keepok(c) for a, e, c in acts):
+            note(kind="imekeys", keys={a: c for a, e, c in acts})
+            return
+        why = "EINVAL"
     elif len(w) >= 2 and w[1] == "keep":
         # Blit 0.3.95 (Gitea #530): the chords the desktop keeps, the whole
         # set each time, not answered; a chord out of its one spelling

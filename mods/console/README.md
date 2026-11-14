@@ -357,10 +357,16 @@ stream's input route, the EIS socket its producer offered and whether it is
 on, told to every display's Blit once a frame has gone under the picture's
 id, and told again when the picture comes back under a new one.
 
-The same channel carries two things that concern no picture.
+The same channel carries things that concern no picture.
 - **`console keep CHORD...`** tells Blit the chords the desktop keeps from
   programs' windows (`INPUT keep`, Gitea #530). The set is said again on a
   new connection after `hold upgrade`.
+- **`console imekeys ACTION=CHORD...`** tells Blit which chords are an input
+  method's actions in programs' windows (`INPUT imekeys`, hibr-ime #1):
+  `cycle`, `back` and `teach`, the whole set each time, any absent and none
+  clearing it. Blit hands such a key to the compositor in order with the
+  letters typed, so a word is never cycled out of turn. Kept, said again on
+  a new connection, and by hold to every display and to one that joins.
 - **`console keyboard`** reads Blit's keyboards (Gitea #529, Blit ADR 0231).
   `list` asks for them once a connection. Blit answers with the list,
   `KEYBOARD item`s, `KEYBOARD reserved` and `KEYBOARD current` last, and

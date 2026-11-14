@@ -1521,6 +1521,14 @@
   "Keyboard Settings…": "إعدادات لوحة المفاتيح…",
   "Show Keyboard Name": "إظهار اسم لوحة المفاتيح",
   "Keyboard Name on Menu Bar": "اسم لوحة المفاتيح في شريط القوائم",
-  "a library": "مكتبة"
+  "a library": "مكتبة",
+  "%s is %s from now on": "‏%s هي %s من الآن",
+  "%s reads as": "‏%s تُقرأ",
+  "A word is taught as one word, with no spaces": "تُعلَّم الكلمة كلمةً واحدة، بلا مسافات",
+  "From now on, wherever you type it.": "من الآن، أينما كتبتها.",
+  "Teach Word": "تعليم كلمة",
+  "Teach Word needs hibr-ime's module": "تعليم كلمة يحتاج وحدة hibr-ime",
+  "Teach Word teaches the word being typed": "تعليم كلمة يُعلِّم الكلمة التي تُكتب الآن",
+  "The %s input method would not open": "تعذّر فتح طريقة الإدخال %s"
  }
 }

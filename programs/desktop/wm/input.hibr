@@ -1373,6 +1373,13 @@ fn dt_event(k) {
 	# window's, so a terminal still gets ctrl-s.
 	# A terminal told to Pass Every Key gets these too (Gitea #523); Menu
 	# Bar and Start Menu below stay the desktop's, the way back out.
+	# An input method's own keys while a word is held for this window --
+	# Next Spelling, Previous Spelling, Teach Word (hibr-ime #1) -- ahead
+	# of the window, which would only type them; with nothing held they
+	# go on as any key does.
+	if [ -n "${DT_IMEPRE-}" ] && dt_imeaction "$k"; then
+		return 0
+	fi
 	pa=
 	[ -n "$DT_FOCUS" ] && dt_has term_passing && term_passing "$DT_FOCUS" && pa=1
 	if [ -z "$pa" ] && [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["savefile"]}" ] &&

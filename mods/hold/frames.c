@@ -288,6 +288,11 @@ static size_t hd_nin;
    the last line, said to each display that can be sent frames and again to
    one that joins. Blit answers it only when it refuses it. */
 static str hd_keep;
+/* And which of them type through an input method rather than reach
+   anything (`INPUT imekeys`, hibr-ime #1): Blit hands them to the
+   compositor, in key order, as actions on the word being typed. Kept and
+   said the same way as the keep set. */
+static str hd_imek;
 /* Who asked for the keyboards (`KEYBOARD list`, Gitea #529): Blit's
    answers go to it, from the primary display only, since every display's
    Blit is the same machine's; and a display that joins is asked too. */
@@ -661,6 +666,14 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 			hd_send(pc->fd, HD_INPUT, line, n);
 		return;
 	}
+	if (n >= 13 && !memcmp(line, "INPUT imekeys", 13) && (n == 13 || line[13] == ' ')) {
+		hd_imek.n = 0;
+		s_add(&hd_imek, line, n);
+		for (i = 0; i < cls->n; i++)
+			if (((struct hd_cli *)cls->p[i])->fdok)
+				hd_send(((struct hd_cli *)cls->p[i])->fd, HD_INPUT, hd_imek.p, hd_imek.n);
+		return;
+	}
 	if (n >= 10 && !memcmp(line, "INPUT keep", 10) && (n == 10 || line[10] == ' ')) {
 		hd_keep.n = 0;
 		s_add(&hd_keep, line, n);
@@ -734,6 +747,8 @@ void hd_keepto(struct hd_cli *cn)
 	str o;
 	size_t i, j;
 
+	if (cn->fdok && hd_imek.n)
+		hd_send(cn->fd, HD_INPUT, hd_imek.p, hd_imek.n);
 	if (!cn->fdok || !hd_keep.n)
 		return;
 	if (!cn->nobtn) {

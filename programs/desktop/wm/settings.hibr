@@ -104,6 +104,14 @@ done
 # Next Keyboard (Gitea #529): Blit's keyboards in turn, on Super+Space as
 # GNOME and Windows have it.
 [ -n "${DT_KEYS["kbdnext"]+x}" ] || DT_KEYS["kbdnext"]="super-space"
+# An input method's word (hibr-ime #1): Next Spelling and Previous
+# Spelling move the word being typed through what else it could be, and
+# Teach Word asks what it should read as. Each acts only while a word is
+# held, so with nothing held the key is the window's as ever -- a terminal
+# keeps ctrl-space. Previous is unset: Next wraps round.
+[ -n "${DT_KEYS["imecycle"]+x}" ] || DT_KEYS["imecycle"]="ctrl-space"
+[ -n "${DT_KEYS["imeback"]+x}" ] || DT_KEYS["imeback"]=
+[ -n "${DT_KEYS["imeteach"]+x}" ] || DT_KEYS["imeteach"]="alt-t"
 
 # The defaults above, kept, so dt_load can put one back.
 declare -gA DT_KEYDEF

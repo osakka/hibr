@@ -6953,6 +6953,40 @@ check("what it held goes to the window it was typed in when the keys move",
 sc, _ = run(TBX, feed=[b"s", b"a", b" ", UP], pre=IME)
 check("and the textarea takes it as typing",
       "<sa> xe\u0301y" in "".join(sc.g[3]), [sc.g[3][4:14]])
+# Cycle, or teach (hibr-ime #1). Next Spelling moves the word being typed
+# through what else it could be and wraps round, and what shows is what
+# commits; Previous Spelling goes the other way. With nothing held the key
+# is the window's, so a terminal keeps ctrl-space. Teach Word asks what the
+# word reads as, in a box typing through an engine of its own, and the word
+# commits as taught and reads so from then on; Escape there leaves the word
+# held as it was.
+CSP, F8, ALTT = b"\x00", b"\x1b[19~", b"\x1bt"
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi',
+            feed=[b"s", b"a", CSP, b" ", b"s", b"a", CSP, CSP, CSP, b" ", UP], pre=IME)
+check("Next Spelling moves the word to another spelling, wraps round, and what shows commits",
+      sc.row(4)[6:16] == "[sa] <sa> ", sc.row(4))
+sc, _ = run(FXI + 'DT_KEYS["imeback"]=f8\ndt_new "FXI" 8 40 2 4 fxi',
+            feed=[b"s", b"a", F8, b" ", UP], pre=IME)
+check("and Previous Spelling goes the other way", sc.row(4)[6:11] == "{sa} ", sc.row(4))
+FXK = FXI.replace('case $key in q | y) return 1 ;; esac',
+                  'case $key in q | y) return 1 ;; ctrl-space) FXI[$id]["t"]+=N; '
+                  'FXI[$id]["c"]=$(( ${FXI[$id]["c"]:-0} + 1 )); return 0 ;; esac')
+sc, _ = run(FXK + 'dt_new "FXI" 8 40 2 4 fxi', feed=[CSP, b"s", b"a", CSP, b" ", UP], pre=IME)
+check("with no word held the key is the window's own",
+      sc.row(4)[6:12] == "N[sa] ", sc.row(4))
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi', feed=[b"s", b"a", ALTT], pre=IME)
+check("Teach Word asks what the word reads as, starting from what it reads as now",
+      sc.find("sa reads as") is not None and sc.find("<sa>") is not None, sc)
+BS = b"\x7f"
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi',
+            feed=[b"s", b"a", ALTT, BS, BS, BS, BS, b"z", b"z", b"\r", b" ", b"s", b"a", b" ", UP],
+            pre=IME)
+check("and the word commits as taught, and reads so from then on",
+      sc.row(4)[6:16] == "<zz> <zz> ", sc.row(4))
+sc, _ = run(FXI + 'dt_new "FXI" 8 40 2 4 fxi',
+            feed=[b"s", b"a", ALTT, b"z", b"\x1b", b" ", UP], pre=IME)
+check("Escape in the box teaches nothing and leaves the word held as it was",
+      sc.row(4)[6:11] == "<sa> " and sc.find("reads as") is None, sc)
 # Away from Blit the desktop keeps its own list -- the terminal's keyboard
 # and each installed method -- so Next Keyboard and the bar's label work the
 # same as on Blit: typing is plain until it is switched, the bar then says
@@ -10188,4 +10222,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1100)
+report(1106)

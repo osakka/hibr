@@ -1615,6 +1615,32 @@ int m_console(sh *s, int ac, char **av)
 		s_free(&k);
 		return okk ? HIBR_OK : HIBR_FAIL;
 	}
+	/* Which chords are an input method's actions in programs' windows
+	   (hibr-ime #1): `INPUT imekeys cycle=C back=C teach=C`, the whole set
+	   each time, any absent and none clearing it. Blit hands such a key,
+	   in order with the rest, to the compositor's input method rather
+	   than to the program. Status 1 where no Blit is there to tell. */
+	if (!strcmp(sub, "imekeys")) {
+		int a, okk;
+
+		s_init(&k);
+		s_cat(&k, "INPUT imekeys");
+		for (a = 2; a < ac; a++) {
+			const char *eq = strchr(av[a], '=');
+
+			if (!eq || eq == av[a] || !eq[1] || strpbrk(av[a], " \t\r\n")) {
+				lg(HIBR_LERR, "console imekeys: %s is not action=chord", av[a]);
+				s_free(&k);
+				return 2;
+			}
+			s_ch(&k, ' ');
+			s_cat(&k, av[a]);
+		}
+		okk = cn_dsay(s, k.p);
+		lg(HIBR_LDBG, "console: %s %s", k.p, okk ? "said" : "not said, no Blit");
+		s_free(&k);
+		return okk ? HIBR_OK : HIBR_FAIL;
+	}
 	if (!strcmp(sub, "keyphases")) {
 		if (!cn_need())
 			return HIBR_FAIL;

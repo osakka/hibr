@@ -98,6 +98,9 @@ static int cn_d3 = -1, cn_dbfhook = -1;
    that knew them is gone after `hold upgrade` and the desktop says them
    only when they change. */
 char *cn_keepl;
+/* And which of them are an input method's actions (`INPUT imekeys`,
+   hibr-ime #1), kept and said again the same way. */
+char *cn_imekl;
 /* The Blit this console speaks to directly refused mouse buttons in a keep
    set (Gitea #540): it is told the set without them until it is another. */
 int cn_keepnobtn;
@@ -520,6 +523,8 @@ int cn_dsend(sh *s, cn_dst *d)
 				cn_fdhook(cn_d3, cn_d3read, s);
 				if (cn_keepl)
 					hf->input(cn_d3, cn_keepl);
+				if (cn_imekl)
+					hf->input(cn_d3, cn_imekl);
 				if (cn_kbasked)
 					hf->input(cn_d3, "KEYBOARD list");
 				if (cn_rateasked)
@@ -721,6 +726,10 @@ int cn_dsay(sh *s, const char *line)
 		free(cn_keepl);
 		cn_keepl = xs(line);
 	}
+	if (!strncmp(line, "INPUT imekeys", 13) && (line[13] == ' ' || !line[13])) {
+		free(cn_imekl);
+		cn_imekl = xs(line);
+	}
 	if (cn_imgfd == 1) {
 		hf = cn_hold(s);
 		if (!hf)
@@ -732,6 +741,8 @@ int cn_dsay(sh *s, const char *line)
 			cn_fdhook(cn_d3, cn_d3read, s);
 			if (cn_keepl && line != cn_keepl && strcmp(line, cn_keepl))
 				hf->input(cn_d3, cn_keepl);
+			if (cn_imekl && line != cn_imekl && strcmp(line, cn_imekl))
+				hf->input(cn_d3, cn_imekl);
 			if (cn_kbasked && strcmp(line, "KEYBOARD list"))
 				hf->input(cn_d3, "KEYBOARD list");
 			if (cn_rateasked && strcmp(line, "DISPLAY rate"))

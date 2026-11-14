@@ -32,28 +32,56 @@ ROWS, COLS = 24, 80
 # naming the method "shout", whose engine holds letters and commits them in
 # angle brackets -- "sa" then a space is "<sa>" and the space. It answers
 # in the module's own shape: what is held as the preedit, Escape dropping
-# it, and every other key committing what is held and passing. It replaces
-# wm/ime.hibr's four calls into the module, so everything above them is the
-# desktop's own code. hibr-ime's own tests drive the real module.
+# it, and every other key committing what is held and passing. A word has
+# three spellings to cycle through, <sa> [sa] {sa}, and a word taught reads
+# as taught (hibr-ime #1); each engine is its own, as the module's are. It
+# replaces wm/ime.hibr's calls into the module, so everything above them is
+# the desktop's own code. hibr-ime's own tests drive the real module.
 IME_STANDIN = r"""DT_IMEMOD=1
 DT_KB[0]["layout"]=us; DT_KB[0]["variant"]=; DT_KB[0]["name"]=US
 DT_KB[1]["layout"]=xx; DT_KB[1]["variant"]=shout; DT_KB[1]["name"]=Shout
 DT_KBN=2; DT_KBCUR=1
-IMEH=
-fn dt_imeopen(m) { IMEH=; ret 1; }
+declare -gA IMEW IMEY IMEL
+IMEN=0
+fn imeform(w, y = 0) {
+	[ -n "$w" ] || { ret ""; return 0; }
+	case $y in
+	1) ret "[$w]" ;;
+	2) ret "{$w}" ;;
+	*) if [ -n "${IMEL["$w"]+x}" ]; then ret "${IMEL["$w"]}"; else ret "<$w>"; fi ;;
+	esac
+}
+fn dt_imeopen(m) { IMEN=$((IMEN + 1)); IMEW[$IMEN]=; IMEY[$IMEN]=0; ret "$IMEN"; }
 dt_imeclose() { return 0; }
-dt_imeflush() { local t=; [ -n "$IMEH" ] && t="<$IMEH>"; IMEH=; ret "$t"; }
+dt_imeflush() {
+	local t
+	t := imeform "${IMEW[$DT_IMEH]}" "${IMEY[$DT_IMEH]}"
+	IMEW[$DT_IMEH]=; IMEY[$DT_IMEH]=0
+	ret "$t"
+}
 fn dt_imefeed(key) {
+	local w=${IMEW[$DT_IMEH]}
 	DT_IMEC= DT_IMEP=0
 	case $key in
-	[a-z]) IMEH+=$key ;;
-	backspace) if [ -n "$IMEH" ]; then IMEH=${IMEH%?}; else DT_IMEP=1; fi ;;
-	escape) if [ -n "$IMEH" ]; then IMEH=; else DT_IMEP=1; fi ;;
-	*) [ -n "$IMEH" ] && DT_IMEC="<$IMEH>"; IMEH=; DT_IMEP=1 ;;
+	[a-z]) w+=$key; IMEY[$DT_IMEH]=0 ;;
+	backspace) if [ -n "$w" ]; then w=${w%?}; IMEY[$DT_IMEH]=0; else DT_IMEP=1; fi ;;
+	escape) if [ -n "$w" ]; then w=; else DT_IMEP=1; fi ;;
+	*) DT_IMEC := imeform "$w" "${IMEY[$DT_IMEH]}"; w=; IMEY[$DT_IMEH]=0; DT_IMEP=1 ;;
 	esac
-	DT_IMEPRE=
-	[ -n "$IMEH" ] && DT_IMEPRE="<$IMEH>"
+	IMEW[$DT_IMEH]=$w
+	DT_IMEPRE := imeform "$w" "${IMEY[$DT_IMEH]}"
 	return 0
+}
+fn dt_imespell(int step) {
+	IMEY[$DT_IMEH]=$(( (IMEY[$DT_IMEH] + step + 3) % 3 ))
+	DT_IMEPRE := imeform "${IMEW[$DT_IMEH]}" "${IMEY[$DT_IMEH]}"
+}
+dt_imeword() { ret "${IMEW[$DT_IMEH]}"; }
+fn dt_imeread(lat) { imeform "$lat"; ret -k; }
+dt_imepreedit() { imeform "${IMEW[$DT_IMEH]}" "${IMEY[$DT_IMEH]}"; ret -k; }
+fn dt_imelearn(m, lat, text) {
+	case $text in *" "*) return 1 ;; esac
+	IMEL["$lat"]=$text
 }
 """
 

@@ -15,7 +15,8 @@ LOG.full makes it ask for full screen once; LOG.child opens a second window,
 8, whose parent is 7; LOG.popup opens a popup, 9, of 80 by 60 at 12,63 of
 7, which a WINDOW close dismisses; LOG.csd says 7 draws its own frame;
 LOG.lock asks for the pointer held, confined, over 7, and LOG.unlock no
-longer wants it; LOG.sub gives 7 two
+longer wants it; LOG.teach (LATIN ARABIC) asks the desktop what a word
+held in 7 reads as, each time it appears; LOG.sub gives 7 two
 subsurfaces, 11 below it hanging past its top left and 10 above it.
 LOG.geom draws 7 with a shadow of ten pixels round it and says its WINDOW
 geometry; LOG.move, LOG.resize (holding an edge) and LOG.menu (holding X Y)
@@ -330,6 +331,11 @@ while True:
         xy = open(LOG + ".popmove").read().split() or ["52", "79"]
         os.unlink(LOG + ".popmove")
         say("WINDOW popup 9 7 %s %s" % (xy[0], xy[1]))
+    if os.path.exists(LOG + ".teach"):
+        # hibr-ime #1: the input method holding a word in 7 asks.
+        w = open(LOG + ".teach").read().split()
+        os.unlink(LOG + ".teach")
+        say("WINDOW teach 7 %s %s" % (w[0], w[1]))
     if not lock and os.path.exists(LOG + ".lock"):
         lock = True
         say("WINDOW lock 7 confine")

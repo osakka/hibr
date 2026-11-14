@@ -75,7 +75,9 @@ open(p, "w").write(
     "tst_cf() { [ -f %s ] || return 0; rm -f %s; dt_confirm \"Sure?\" true; dt_want 30; }\n"
     "dt_ticker tst_zoom\ndt_ticker tst_quit\ndt_ticker tst_rs\ndt_ticker tst_copy\ndt_ticker tst_mn\ndt_ticker tst_x11\ndt_ticker tst_nf\ndt_ticker tst_cf\ndt_progload\n"
     "DT_BARDIRS+=(\"$DT_HERE/menubar\")\ndt_menubar\n"
-    "DT_KEYS[\"kbdnext\"]=ctrl-alt-k\ndt_open\n"
+    "DT_KEYS[\"kbdnext\"]=ctrl-alt-k\n"
+    "fn dt_imemethod() { ret shout; }\nfn dt_imeopen(m) { ret 1; }\ndt_imeclose() { return 0; }\nfn dt_imelearn(m, lat, text) { echo \"$m $lat $text\" > \"$NTAUGHT\"; }\n"
+    "dt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
        MARK + ".quit", MARK + ".rs", MARK + ".rs", MARK, MARK, MARK, MARK, MARK, MARK + ".copy", MARK + ".copy",
@@ -89,7 +91,8 @@ t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "loc
          env={"HIBR_GFX": "kitty", "BLIT_FRAME_SOCKET": "@" + nm,
               "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D,
               "WAYLAND_DISPLAY": None, "DISPLAY": None,
-              "DT_PROGAUTO": "1", "XDG_DATA_DIRS": os.path.join(D, "share")})
+              "DT_PROGAUTO": "1", "XDG_DATA_DIRS": os.path.join(D, "share"),
+              "NTAUGHT": MARK + ".taught"})
 
 
 def scr():
@@ -392,6 +395,30 @@ check("a program asking to hold the pointer, just after a key in its window, "
 t.keys([b"\x1b[21;5~"])
 lo = wait(lambda: told("WINDOW lock 7 off"))
 check("and Release Pointer gives it back and tells the program", lo, told("WINDOW lock"))
+
+# Cycle, or teach (hibr-ime #1): the chords that act on a word go to Blit as
+# the input method's, never kept from programs, and a program window's
+# Teach Word -- the compositor holding the word and asking -- is the
+# desktop's box, taught and answered commit, or answered cancel.
+ik = wait(lambda: blitkind("imekeys"))
+check("the desktop tells Blit which chords are the input method's, and keeps none of them",
+      ik and ik[-1]["keys"] == {"cycle": "ctrl-space", "teach": "alt-t"}
+      and "ctrl-space" not in (blitkind("keep") or [{}])[-1].get("chords", []),
+      (ik[-1:], blitkind("keep")[-1:]))
+open(complog + ".teach", "w").write("sa sha\n")
+wait(lambda: scr().find("sa reads as"))
+t.keys([b"\r"])
+tc = wait(lambda: told("WINDOW teachdone 7 commit"))
+check("Teach Word in a program's window asks in the desktop's box, teaches the word "
+      "and tells the compositor to commit it",
+      tc and os.path.exists(MARK + ".taught") and open(MARK + ".taught").read() == "shout sa sha\n",
+      (told("WINDOW teach"), scr()))
+open(complog + ".teach", "w").write("ba ab\n")
+wait(lambda: scr().find("ba reads as"))
+t.keys([b"\x1b"])
+tn = wait(lambda: told("WINDOW teachdone 7 cancel"))
+check("and the box closed unanswered tells it the word stays as it holds it",
+      tn and scr().find("reads as") is None, (told("WINDOW teach"), scr()))
 
 # Zoomed back, so there is desktop beside it to click on.
 open(MARK, "w").close()
@@ -804,6 +831,9 @@ hkeep = wait(lambda: hk("keep"), 6)
 check("held, the chords the desktop keeps reach the display's Blit through "
       "hold (Gitea #530)", hkeep and "f10" in hkeep[-1]["chords"],
       [x for x in lines(blitlog2) if x["kind"] in ("keep", "input")][-4:])
+hime = wait(lambda: hk("imekeys"), 6)
+check("held, the input method's chords reach the display's Blit through hold too",
+      hime and hime[-1]["keys"] == {"cycle": "ctrl-space", "teach": "alt-t"}, hk("imekeys"))
 hsock = wait(lambda: hk("input", verb="sock", ok=True), 6)
 check("held, the compositor's window reaches the display, and its route by "
       "socket reaches the display's Blit through hold -- the window drawn "
@@ -874,6 +904,7 @@ check("held, the keyboards reach the bar through hold (Gitea #529)",
       (hscr().row(0), hk("kbd")))
 nkb = len(hk("kbd", verb="list"))
 ns, nmb, nkp = len(hk("input", verb="sock")), len(hk("member")), len(hk("keep"))
+nik = len(hk("imekeys"))
 up = subprocess.run([sx.HIBR, "-c", load("hold") + "hold upgrade %s" % hn],
                     env=dict(os.environ, **henv), capture_output=True, text=True, timeout=30)
 again = wait(lambda: len(hk("input", verb="sock")) > ns and len(hk("member")) > nmb
@@ -884,6 +915,8 @@ check("after `hold upgrade` both are said to the display's Blit again, and "
       "the chords the desktop keeps", up.returncode == 0 and again,
       (up.stderr, len(hk("input", verb="sock")), ns, len(hk("member")), nmb,
        len(hk("keep")), nkp))
+check("and so are the input method's chords",
+      wait(lambda: len(hk("imekeys")) > nik, 6), hk("imekeys")[-2:])
 check("and the keyboards are asked for again (Gitea #529)",
       wait(lambda: len(hk("kbd", verb="list")) > nkb, 6),
       (len(hk("kbd", verb="list")), nkb))
@@ -1072,4 +1105,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(83)
+report(88)
