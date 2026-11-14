@@ -285,6 +285,70 @@ fn dt_natver(b) {
 	ret $((x * 1000000 + y * 1000 + z))
 }
 
+# The display programs open on now, by name -- the one X makes its primary
+# (Control Panel > Displays > New Programs Open On, DT_NEWON): the focused
+# window's display, or the one under the mouse when nothing is focused, for
+# working; otherwise the main one, which is the display Full Screen On
+# names, or else the desktop's own primary, as it always was. A game that
+# opened on one display and was moved to another before its first frame
+# never drew (Planetbase, 2026-11-14): opening where the person is means
+# it is born at the right size there.
+dt_natpri() {
+	local i dr dc drows dcols dgx nm mr= mc= pri=
+
+	if [ "${DT_NEWON:-working}" = working ]; then
+		if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["row"]+x}" ]; then
+			dt_fullrect "$DT_FOCUS"
+			mr=$DTW_R
+			mc=$DTW_C
+		else
+			read -r mr mc <<< "${DT_MOUSEAT-}"
+		fi
+	fi
+	for i in "${!DT_DISPLAYS[@]}"; do
+		nm=${DT_DISPNAMES[$i]-}
+		[ -n "$nm" ] || continue
+		IFS=' ' read -r dr dc drows dcols dgx <<< "${DT_DISPLAYS[$i]}"
+		if [ -n "$mc" ] && [ "$mr" -ge "$dr" ] && [ "$mr" -lt $((dr + drows)) ] &&
+		   [ "$mc" -ge "$dc" ] && [ "$mc" -lt $((dc + dcols)) ]; then
+			ret "$nm"
+			return 0
+		fi
+		[ "$nm" = "$DT_FULLON" ] && pri=$nm
+		[ -z "$pri" ] && [ "$dr $dc" = "${DT_PRIMARY_ROW:-0} ${DT_PRIMARY_COL:-0}" ] && pri=$nm
+	done
+	ret "$pri"
+}
+
+# A program asking for its window full screen: where Full Screen On says,
+# or with Where the Program Asks (DT_NEWON=program) on the display X opened
+# it on -- its primary -- and never moved to another first.
+fn dt_natfull(int id) {
+	if [ "${DT_NEWON:-working}" = program ] && [ -n "$DT_NATPRI" ]; then
+		local DT_FULLON=$DT_NATPRI
+		dt_fullscreen "$id" on
+		return 0
+	fi
+	dt_fullscreen "$id" on
+}
+
+# Every frame while programs' windows are served: when the display programs
+# open on has changed -- the focus moved to another display -- X's primary
+# follows it. Only the one line, and only on a change.
+DT_NATPRI=
+dt_natprimary() {
+	local pri
+
+	[ -n "$DT_NATSRV" ] && [ "${DT_NATCVER:-0}" -ge 3088 ] || return 0
+	[ "${DT_NEWON:-working}" = working ] || return 0
+	pri := dt_natpri
+	[ -n "$pri" ] && [ "$pri" != "$DT_NATPRI" ] || return 0
+	frames primary "$DT_NATSRV" "$pri" 2> /dev/null || return 0
+	DT_NATPRI=$pri
+	dt_log "programs' windows: X's primary is now $pri, where you are working"
+	return 0
+}
+
 # Tell the compositor where the displays are and which is primary (Gitea
 # #514): each display in pixels of the desktop's grid, then which one X's
 # primary output is -- the one Full Screen On names, or else the desktop's
@@ -306,10 +370,9 @@ dt_natlayout() {
 		IFS=' ' read -r dr dc drows dcols dgx <<< "${DT_DISPLAYS[$i]}"
 		hz := dt_nathz "$dr" "$dc"
 		lines+=("$nm $((dc * DT_NATCW)) $((dr * DT_NATCH)) $((dcols * DT_NATCW)) $((drows * DT_NATCH)) $hz")
-		[ "$nm" = "$DT_FULLON" ] && pri=$nm
-		[ -z "$pri" ] && [ "$dr $dc" = "${DT_PRIMARY_ROW:-0} ${DT_PRIMARY_COL:-0}" ] && pri=$nm
 	done
 	[ "${#lines[@]}" -gt 0 ] || return 0
+	pri := dt_natpri
 	out="${lines[*]} / $pri"
 	[ "$out" = "$DT_NATLAYOUT" ] && return 0
 	DT_NATLAYOUT=$out
@@ -319,6 +382,7 @@ dt_natlayout() {
 	done
 	frames layout "$DT_NATSRV" end 2> /dev/null
 	[ -n "$pri" ] && frames primary "$DT_NATSRV" "$pri" 2> /dev/null
+	DT_NATPRI=$pri
 	dt_log "programs' windows: told the compositor ${#lines[@]} displays, primary ${pri:-none}"
 	return 0
 }
@@ -331,6 +395,7 @@ dt_nattick() {
 	dt_natunclaimed
 	dt_nathandend
 	dt_natrate
+	dt_natprimary
 }
 
 # Each display's refresh rate from Blit (0.3.98, Gitea #534): asked once
@@ -434,7 +499,7 @@ dt_natevents() {
 		decor) dt_natdecor "$id" "$rest" ;;
 		fullscreen)
 			if [ "$rest" = on ]; then
-				dt_isfull "$id" || dt_fullscreen "$id" on
+				dt_isfull "$id" || dt_natfull "$id"
 			else
 				dt_isfull "$id" && dt_fullscreen "$id" off
 			fi

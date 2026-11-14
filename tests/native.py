@@ -915,6 +915,7 @@ pa, ea = blitd("a")
 pb, eb = blitd("b")
 complog3 = os.path.join(D, "comp3.log")
 open(complog3 + ".sub", "w").close()
+open(complog3 + ".version", "w").write("0.3.88\n")
 wrap3 = os.path.join(D, "blit-compositor3")
 open(wrap3, "w").write("#!/bin/sh\nexec %s %s %s \"$@\"\n"
                        % (sys.executable, os.path.join(HERE, "natserve.py"), complog3))
@@ -980,6 +981,16 @@ gap = wait(lambda: not any(unreleased().values()) and unreleased(), 6)
 check("moved wholly onto the other display, its frames still come back to "
       "the program, the ones the first display kept included",
       gap, unreleased())
+# And X's primary follows it (New Programs Open On, the display you are
+# working on, the default): a program started now opens on the lower
+# display, at its size, rather than on the upper and moved (Planetbase,
+# 2026-11-14).
+def pri3():
+    return [x["line"] for x in comp_of(complog3, "line") if x["line"].startswith("WINDOW primary ")]
+
+
+check("X's primary follows the focused window to the display it is on now",
+      wait(lambda: pri3()[-1:] == ["WINDOW primary bottom"], 6), pri3())
 # Each display's own rate (Gitea #534): the lower display set to 144 Hz
 # and then the upper to 75, the window -- on the lower now -- stays at the
 # lower's. Untagged, the answers would be one rate for the session, and the
@@ -1061,4 +1072,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(82)
+report(83)

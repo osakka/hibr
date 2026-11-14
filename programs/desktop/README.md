@@ -1962,9 +1962,19 @@ is on (the default); **Display Under Mouse**, the one the mouse was last
 on; or a display by name -- the window's own display when that one is not
 attached. Programs' windows are told the same: where Blit's compositor is
 0.3.88 or later the desktop tells it each display in pixels and which one
-is primary -- the one named here, or else the desktop's own primary -- and
-X's primary output follows that, so an X game sizes itself to the display
-it is going to.
+is primary, and X's primary output follows that, so an X game sizes itself
+to the display it is going to.
+
+**New Programs Open On:** the third row says which display that is, so
+which display a program opens on (0.99.524): **The Display I'm Working
+On**, the default -- the focused window's display, or the one under the
+mouse when nothing is focused, followed as you move between them;
+**Where the Program Asks**, the main display, and a program asking for
+full screen left on the display it opened on rather than moved; or **The
+Main Display**, the one Full Screen On names, or else the desktop's own
+primary, as before. A game opened on one display and moved to another
+before its first frame never drew; opening where you are means it is born
+at the right size there.
 
 ## Keys that would be signals
 

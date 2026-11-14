@@ -6009,6 +6009,11 @@ prim = sc.find("Primary:")
 check("the Primary: dropdown sits on the same row as its label",
       prim is not None and sc.find_from("▾", prim[0]) is not None and
       sc.find_from("▾", prim[0])[0] == prim[0], sc)
+newon = sc.find("New Programs Open On:")
+check("and New Programs Open On has a row of its own, the display you work on by default",
+      newon is not None and sc.find_from("▾", newon[0]) is not None and
+      sc.find_from("▾", newon[0])[0] == newon[0] and
+      "The Display I'm Work" in sc.row(newon[0]), sc)
 
 # The pane list stays clickable while Displays is showing: the pane's own
 # draw used to clear every hit region in the window, the list's included,
@@ -6078,7 +6083,10 @@ check("dragging the primary display's own rectangle is a no-op",
 t1.collect(0.5)
 sc = t1.screen()
 prim = sc.find("Primary:")
-t1.send(press(prim[0], prim[1] + len("Full Screen On: ")))
+# Where its own mark is drawn: the dropdowns line up after the longest
+# label, which is not a width to write down here.
+pdrop = sc.find_from("\u25be", prim[0]) if prim else None
+t1.send(press(prim[0], (pdrop or prim)[1]))
 sc = t1.screen()
 check("the dropdown opens with a choice for each attached display",
       sc.find_from(joined, prim[0]) is not None, sc)
@@ -10137,4 +10145,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1096)
+report(1097)

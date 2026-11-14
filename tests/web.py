@@ -282,175 +282,8 @@ check("drawing needs a display, and says so", "st 1" in out and
       "no display" in err, out + err)
 
 
-def brun(feed, arg=A, env=None, wait=1.5, until=None, gone=None, ready=None,
-         click=None, cell=(0, 0)):
-    s = tempfile.mkdtemp(prefix="hibr-web-s-")
-    p = os.path.join(s, "session.hibr")
-    open(p, "w").write("%s\n. %s\n. %s\ndt_open\n"
-                       'dt_new Browser 22 76 1 2 browser %s\ndt_run\ndt_close\n'
-                       % (load("console"), tree("programs/desktop/desktop.hibr"),
-                          bundle("apps/Internet/browser.hibr"), arg))
-    e = {"HIBR_WEB_PROFILE": PROF, "XDG_DATA_HOME": os.path.join(D, "data"),
-         "BW_HOME": ""}
-    e.update(env or {})
-    t = Term(p, env=e, settle=3.0, rows=26, cols=80, cellw=cell[0], cellh=cell[1])
-    # Chromium's own start-up is what a fixed settle cannot bound: under a
-    # full parallel run it has taken longer than three seconds, and a click
-    # at a tab's own coordinates then lands on a bar that is not drawn yet.
-    # ready is the text the feed needs on screen before a key is sent; until
-    # and gone are what the feed is waited on for afterwards.
-    if ready is not None:
-        for _ in range(140):
-            if ready in t.screen().text():
-                break
-            t.collect(0.3)
-        if ready not in t.screen().text():
-            print("   (brun: %r never appeared -- Chromium is still loading)" % ready)
-    # A tab's own close box moves with the title's width: "New Tab" until
-    # the page's title arrives, "Test page" after, two columns apart. So a
-    # click is aimed at the glyph where it actually is, never at a column
-    # worked out from the title the test expects to be there by then.
-    if click is not None:
-        txt, off = click
-        pos = t.screen().find(txt)
-        if pos is None:
-            print("   (brun: %r is not on screen to click)" % txt)
-        else:
-            t.keys([press(pos[0], pos[1] + off), release(pos[0], pos[1] + off)],
-                   settle=0.5)
-    t.keys(list(feed) + [wait], settle=0.5)
-    for _ in range(60):
-        seen = t.screen().text()
-        if (until is None or until in seen) and (gone is None or gone not in seen):
-            break
-        t.collect(0.3)
-    sc = t.screen()
-    t.quit(None, 0.5)
-    shutil.rmtree(s, True)
-    return sc
-
-
-sc = brun([], until="Hello hibr")
-check("Browser draws the page: its text, colours, the title on the tab",
-      sc.find("Hello hibr") is not None and
-      sc.find("A red paragraph with a link to b.") is not None and
-      sc.find("Test page") is not None and
-      sc.find("┤ Browser [Test page] ├") is not None, sc)
-r = sc.find("A red paragraph")
-check("the paragraph is drawn in the page's red",
-      r is not None and sc.style(r[0], r[1] + 2)["fg"] == "#cc0000",
-      sc.style(r[0], r[1] + 2) if r else sc)
-lk = sc.find("link to b")
-sc = brun([press(lk[0], lk[1] + 2), release(lk[0], lk[1] + 2), 1.5],
-          until="This is page B.") if lk else sc
-check("a click on a link in the window follows it",
-      lk is not None and sc.find("This is page B.") is not None, sc)
-# alt-b, not alt-left: a window's own key is looked at before the desktop's,
-# so the Browser taking the arrows made them mean something different here
-# from everywhere else. alt-[ and alt-] cannot be bound at all -- ESC [ and
-# ESC ] are the CSI and OSC introducers, and the decoder consumes them.
-sc = brun([press(lk[0], lk[1] + 2), release(lk[0], lk[1] + 2), 2.5,
-           b"\x1bb", 1.5], until="Hello hibr", ready="Hello hibr")
-check("alt-b goes back", sc.find("Hello hibr") is not None and
-      sc.find("This is page B.") is None, sc)
-# A lone tab has no tab strip, so the address is the window's first row
-# and the page starts on its second; a second tab brings the strip back
-# (Gitea #292). ctrl-t is New Tab, with the keyboard in the address.
-sc = brun([1.0], ready="Test page")
-check("one tab: no tab strip, the address on the first row",
-      sc.find("Test page ✕") is None and "file://" in sc.row(2), sc)
-sc = brun([1.0, b"\x14"] + [c.encode() for c in B] + [b"\r", 2.0],
-          ready="Test page", until="This is page B.")
-check("ctrl-t opens a tab with the keyboard in the address; enter goes "
-      "there, and the strip is back for two",
-      sc.find("Test page ✕") is not None and sc.find("Page B ✕") is not None
-      and sc.find("This is page B.") is not None, sc)
-# Bookmarks is the fifth menu from the hibr menu: File, Edit, View, Go,
-# Bookmarks (View since the Browser's 2.47).
-sc = brun([b"\x1b[21~"] + [b"\x1b[C"] * 5 + [b"\r", 0.8])
-marks = os.path.join(D, "data", "hibr", "bookmarks.tsv")
-text = open(marks).read() if os.path.exists(marks) else ""
-check("Bookmarks > Add Bookmark keeps the page in a file of its own",
-      text == "Test page\t%s\n" % A, repr(text))
-sc = brun([b"\x1b[21~"] + [b"\x1b[C"] * 5 + [0.5])
-check("and the Bookmarks menu lists it, and offers to remove it",
-      sc.find("Remove Bookmark") is not None and sc.find("Test page") is not None,
-      sc)
-sc = brun([1.0, b"\x17"], ready="Test page", gone="\u2524 Browser")
-check("ctrl-w on the last tab closes the window",
-      sc.find("┤ Browser") is None, sc)
-# A terminal that can paint pixels gets the page as a picture and no text
-# layer at all: a text cell paints its own background, so anything drawn over
-# the bitmap would box itself out of it (ADR 0037). The window's own chrome
-# -- the tabs, the address -- is text as it always was, above the picture.
-sc = brun([2.0], ready="Test page", cell=(8, 16),
-          env={"HIBR_GFX": "sixel", "DT_IMGMODE": "sixel"})
-check("where the terminal can paint pixels the page is a picture, the chrome text",
-      len(sc.images) == 1 and sc.images[0][0] >= 3 and
-      sc.find("Test page") is not None and sc.find("Hello hibr") is None,
-      (sc.images, sc))
-sc = brun([2.0], ready="Hello hibr", cell=(8, 16), env={"DT_IMGMODE": "half"})
-check("and asked for blocks it is text over colours, with no picture sent",
-      not sc.images and sc.find("Hello hibr") is not None, (sc.images, sc))
-# And the words are *in* that picture. The screenshot is deliberately taken
-# with the page's text made transparent, because the cells path draws it
-# again over the top -- and until 0.99.173 that happened for the pixels
-# path too, which draws nothing over it: a page of backgrounds and images
-# with no words anywhere in it (Gitea #210). The check above asserts the
-# text is not in the *cells*, which is right, stays right, and is satisfied
-# just as well by a picture with no text in it at all -- so this one reads
-# the picture itself. Black words on white: 7602 of its 161024 pixels are
-# dark with the fix and **0** without, which is the whole bug as a number.
-#
-# kitty rather than sixel, because the harness keeps the payload only for
-# an APC -- a DCS's bytes are counted and dropped. The page is sent raw
-# (`f=24`), since cn_image compresses the wallpaper alone, but the inflate
-# is attempted anyway so a change of that gate cannot quietly blind this.
-sc = brun([2.0], arg=W, ready="Words page", cell=(8, 16),
-          env={"HIBR_GFX": "kitty", "DT_IMGMODE": "pixels"})
-dark = 0
-for d in sc.imgdata:
-    raw = base64.b64decode(d + "=" * (-len(d) % 4))
-    try:
-        raw = zlib.decompress(raw)
-    except zlib.error:
-        pass
-    for i in range(0, len(raw) - 2, 3):
-        if raw[i] < 110 and raw[i + 1] < 110 and raw[i + 2] < 110:
-            dark += 1
-check("and the page's own words are in the picture, not made transparent",
-      len(sc.images) == 1 and dark > 500, (dark, len(sc.imgdata), sc.apc[:1]))
-# Placed through its window's pane, so below the cells (Gitea #382): placed
-# without it the page owned its cells, and any window over the Browser drew
-# through them and had the console delete it -- a blank page while covered.
-z = [f[2:] for a in sc.apc if "a=T" in a for f in a.lstrip("G").split(",")
-     if f.startswith("z=")]
-check("and it goes below the cells, where a window over it covers only its part",
-      z and -1610612736 < int(z[0]) < -1073741824, (z, sc.apc[:1]))
-
-# A page drawn as pixels is laid out at the terminal's own cell size, one
-# CSS pixel to a screen pixel (Gitea #342). It was laid out at 8 by 16 a
-# cell whatever the font: a larger font gave the same window fewer cells, a
-# narrower page laid out larger, and a screenshot the display then stretched
-# -- bigger and jagged. The same terminal with cells half as wide again must
-# lay the same window's page out half as wide again; as blocks it stays 8.
-def laidout(cell, mode="pixels"):
-    sc = brun([2.0], arg=IW, ready="IW", cell=cell, wait=3.0,
-              env={"HIBR_GFX": "kitty", "DT_IMGMODE": mode})
-    m = re.search(r"IW(\d{3,})", sc.text())
-    return int(m.group(1)) if m else 0
-w8, w12 = laidout((8, 16)), laidout((12, 24))
-check("as pixels, a page is laid out at the terminal's own cell, so a larger "
-      "font leaves it the same and sharp", w8 > 0 and w12 * 2 == w8 * 3, (w8, w12))
-check("and as blocks it is laid out at 8 a cell whatever the font",
-      laidout((12, 24), "half") == w8, w8)
-
-# The module says why in the desktop's log, which the Browser no longer
-# throws away (Gitea #327): a provoked error, so not one to fail over.
-expect("no Chromium or Chrome found")
-sc = brun([], env={"HIBR_WEB_BROWSER": "/nonexistent/chromium"})
-check("without a browser to drive, the window says what is missing",
-      sc.find("No browser engine") is not None, sc)
+# The Browser app's own checks live with it, in hibr-browser's suites
+# (0.99.524): what is here is the web module's.
 
 # A browser that will not start says why in the log, and a page the browser
 # refuses to load says so too (Gitea #327): Chromium's own output went to
@@ -473,93 +306,8 @@ out, err = hb("t := web open http://nosuch.invalid/; web wait $t 8000")
 check("a page the browser refuses to load is named in the log with the "
       "browser's reason", "web: http://nosuch.invalid/: net::ERR_" in err, err)
 
-# --- Control Panel > Browser (Gitea #276) --------------------------------------
+# --- the module's settings, each asked of a tab directly ---------------------
 
-J = "file://" + os.path.join(D, "j.html")
-IM = "file://" + os.path.join(D, "i.html")
-open(os.path.join(D, "tick.html"), "w").write(
-    "<html><head><title>Tick</title></head><body><p>TICK <span id=n>0</span>"
-    "</p><script>let i=0;setInterval(()=>{document.getElementById('n')"
-    ".textContent=++i},200)</script></body></html>")
-TK = "file://" + os.path.join(D, "tick.html")
-open(os.path.join(D, "long.html"), "w").write(
-    "<html><head><title>Long</title></head><body style='margin:0'>"
-    + "".join("<div style='height:16px'>line %d</div>" % i for i in range(300))
-    + "</body></html>")
-LG = "file://" + os.path.join(D, "long.html")
-K = "file://" + os.path.join(D, "k.html")
-Z = "file://" + os.path.join(D, "z.html")
-
-sc = brun([], arg="", env={"BW_HOME": B}, until="This is page B.")
-check("a new window opens at the home page",
-      sc.find("This is page B.") is not None, sc)
-on = brun([], arg=J, until="SCRIPTEDLINE")
-off = brun([], arg=J, env={"BW_JS": "0"}, until="STATICLINE")
-check("JavaScript off: the page's own script does not run",
-      on.find("SCRIPTEDLINE") is not None and
-      off.find("STATICLINE") is not None and off.find("SCRIPTEDLINE") is None,
-      (on, off))
-
-
-def darkcells(sc):
-    n = 0
-    for r in range(3, 24):
-        for c in range(1, 79):
-            bg = sc.style(r, c).get("bg") or ""
-            if bg.startswith("#") and len(bg) == 7 and \
-               max(int(bg[1:3], 16), int(bg[3:5], 16), int(bg[5:7], 16)) < 0x10:
-                n += 1
-    return n
-
-
-# An async render (Browser 2.17 turns it on where web.so offers it) hides
-# the page's text for the screenshot, waits for the hide to be answered,
-# and only then asks for the picture: a word drawn into the picture as well
-# as over it would put black under every letter of a large black word on a
-# white page. Three runs, since an ordering is what is being checked.
-open(os.path.join(D, "hw.html"), "w").write(
-    "<html><head><title>Heavy</title></head><body style='background:#fff'>"
-    "<h1 style='font-size:72px;color:#000;margin:0'>HEAVYWORD</h1></body></html>")
-HW = "file://" + os.path.join(D, "hw.html")
-hw = [darkcells(brun([2.0], arg=HW, until="HEAVYWORD",
-                     env={"DT_IMGMODE": "half"})) for _ in range(3)]
-check("an async render never draws the page's own text into its picture",
-      hw == [0, 0, 0], hw)
-on = brun([2.0], arg=IM, until="IMGPAGE", env={"DT_IMGMODE": "half"})
-off = brun([2.0], arg=IM, until="IMGPAGE",
-           env={"DT_IMGMODE": "half", "BW_IMAGES": "0"})
-check("Images off: the page lays out without its pictures",
-      darkcells(on) > 50 and darkcells(off) == 0,
-      (darkcells(on), darkcells(off)))
-# And the light one says never: the default follows the desktop, whose
-# theme here is dark.
-light = brun([1.0], arg=K, until="DARKTEST",
-             env={"DT_IMGMODE": "half", "BW_DARKMODE": "never"})
-# BW_DARKMODE decides on a desktop with dt_modehook (0.99.481 on);
-# BW_DARK is only an older desktop's.
-dark = brun([1.0], arg=K, until="DARKTEST",
-            env={"DT_IMGMODE": "half", "BW_DARKMODE": "always"})
-pl, pd = light.find("DARKTEST"), dark.find("DARKTEST")
-check("Ask Sites for Dark Pages: a page's dark scheme is what is drawn",
-      pl is not None and pd is not None and
-      light.style(pl[0], pl[1])["bg"] == "#ffffff" and
-      dark.style(pd[0], pd[1])["bg"] == "#000000",
-      (light.style(*pl) if pl else light, dark.style(*pd) if pd else dark))
-z1 = brun([1.0], arg=Z, until="ZMARK", env={"DT_IMGMODE": "half"})
-z2 = brun([1.0], arg=Z, until="ZMARK",
-          env={"DT_IMGMODE": "half", "BW_ZOOM": "200"})
-p1, p2 = z1.find("ZMARK"), z2.find("ZMARK")
-check("Page Zoom: the page is laid out larger, its words further in",
-      p1 is not None and p2 is not None and p2[1] - p1[1] >= 15,
-      (p1, p2))
-sc = brun([], arg=A, env={"BW_MODE": "text"}, until="link to b[1]")
-check("Text only: the page's words, each link numbered, and no picture",
-      sc.find("Hello hibr") is not None and sc.find("link to b[1]") is not None
-      and not sc.images, sc)
-sc = brun([1.0], arg=A, env={"BW_MODE": "text"}, ready="link to b[1]",
-          click=("[1]", 1), until="This is page B.")
-check("and a click on a link's number follows it",
-      sc.find("This is page B.") is not None, sc)
 out, err = hb("t := web open; web set $t ua hibr-test/1; web go $t %s;"
               " web wait $t 10000; web eval $t navigator.userAgent" % A)
 check("a tab's user agent is the one it is told",
@@ -637,44 +385,6 @@ check("Downloads: none until a folder is given; then the file lands there "
       out.split("\n")[0].strip() == "0" and
       ("[done\t%s/got.txt]" % DLD) in out and "hello download" in out,
       out + err)
-# And through the Browser, from its settings: what a tab is told, and a
-# download told in a note as it lands.
-sc = brun([], arg=HTTP + "/echo", until="DNT=1",
-          env={"DT_IMGMODE": "half", "BW_LANG": "de-DE", "BW_DNT": "1"})
-check("the Browser sends a tab the languages and Do Not Track it is set to",
-      sc.find("LANG=de-DE DNT=1 GPC=1") is not None, sc)
-DLD2 = os.path.join(D, "dl2")
-sc = brun([], arg=HTTP + "/dl", until="Downloaded got.txt",
-          env={"DT_IMGMODE": "half", "BW_DL": "1", "BW_DLDIR": DLD2})
-check("and with downloads on, a file lands in the folder and a note says so",
-      sc.find("Downloaded got.txt") is not None and
-      os.path.exists(os.path.join(DLD2, "got.txt")), sc)
-# A page that changes on its own is drawn as it changes, with nothing
-# typed (#289): the browser says when the page repaints, and the window
-# reads it again, no more often than DT_TERMMS.
-import re as _re
-
-
-def ticked(sc):
-    m = _re.search(r"TICK (\d+)", sc.text())
-    return int(m.group(1)) if m else -1
-
-
-sc1 = brun([1.0], arg=TK, until="TICK", env={"DT_IMGMODE": "half"})
-sc2 = brun([3.0], arg=TK, until="TICK", env={"DT_IMGMODE": "half"})
-check("a page that changes on its own is drawn again with nothing typed",
-      ticked(sc2) >= 8, (ticked(sc1), ticked(sc2), sc2))
-# A scroll bar in the page's last column (#292), and a click low on it
-# scrolls the page down there.
-sc = brun([1.0], arg=LG, until="line 3", env={"DT_IMGMODE": "half"})
-bar = [r for r in range(3, 24) if sc.at(r, 76) in ("\u2588", "\u2502")]
-check("a long page has a scroll bar beside it", len(bar) >= 10,
-      ([sc.at(r, 76) for r in range(3, 24)], sc))
-sc = brun([1.0, press(20, 76), release(20, 76), 1.5], arg=LG,
-          ready="line 3", until="line 2", env={"DT_IMGMODE": "half"})
-check("and a click low on it scrolls the page down there",
-      sc.find("line 0") is None and
-      _re.search(r"line 2[0-9][0-9]", sc.text()) is not None, sc)
 pdf = os.path.join(D, "page.pdf")
 out, err = hb("t := web open %s; web wait $t 10000; web pdf $t %s;"
               " echo \"st $?\"" % (A, pdf))
@@ -682,16 +392,6 @@ check("Print to PDF writes the page as a PDF",
       "st 0" in out and os.path.exists(pdf) and
       open(pdf, "rb").read(5) == b"%PDF-", out + err)
 
-# The line of key hints under the page went to the menus, each key beside
-# its item, and the page has that row now.
-sc = brun([], until="Hello hibr", ready="Hello hibr")
-check("no line of key hints under the page", "alt-b back" not in sc.text() and
-      "f6 address" not in sc.text(), sc)
-sc = brun([], until="Reload", ready="Hello hibr", click=("Go", 0))
-gb = sc.find("Back")
-check("the Go menu shows each key beside its item",
-      gb is not None and "alt-b" in sc.row(gb[0]) and
-      sc.find("Reload") is not None and "f5" in sc.row(sc.find("Reload")[0]), sc)
 # A page's sound plays through hibr's own media module (Gitea #305): the
 # browser records the tab -- the only way that reaches sound from another
 # origin, which is where every site's media lives -- and the Browser feeds
@@ -714,44 +414,6 @@ open(os.path.join(D, "snd.html"), "w").write(
     "<audio id=a src='%s' loop></audio>"
     "<button style='width:100%%;height:200px' onclick='a.play()'>PLAYBUTTON</button>"
     "</body></html>" % TONEURL)
-open(os.path.join(D, "auto.html"), "w").write(
-    "<html><head><title>Auto</title></head><body>"
-    "<audio id=a src='%s' loop autoplay></audio><p>AUTOPAGE</p>"
-    "</body></html>" % TONEURL)
-
-
-def heard(path):
-    """The level of what reached the player's file, in dB below full scale;
-    -200 for no file or silence. The samples after the header, whatever it
-    says: a desktop the suite ends never closes its player, so the header
-    still holds the length it had when the file was opened."""
-    try:
-        raw = open(path, "rb").read()[44:]
-    except OSError:
-        return -200
-    if len(raw) < 2:
-        return -200
-    xs = struct.unpack("<%dh" % (len(raw) // 2), raw[:len(raw) // 2 * 2])
-    rms = math.sqrt(sum(x * x for x in xs) / len(xs))
-    return 20 * math.log10(rms / 32768) if rms > 0 else -200
-
-
-out = os.path.join(D, "snd1.wav")
-sc = brun([3.0], arg=HTTP + "/snd.html", ready="PLAYBUTTON", click=("PLAYBUTTON", 2),
-          env={"DT_IMGMODE": "half", "HIBR_MEDIA_AUDIO": "wav:" + out})
-check("a click on a page plays its sound, from another origin, through the media module",
-      heard(out) > -30, (heard(out), sc))
-out = os.path.join(D, "snd2.wav")
-sc = brun([3.0], arg=HTTP + "/auto.html", until="AUTOPAGE",
-          env={"DT_IMGMODE": "half", "HIBR_MEDIA_AUDIO": "wav:" + out})
-check("a page that plays on its own is not heard until it is pressed, by default",
-      heard(out) < -60, (heard(out), sc))
-out = os.path.join(D, "snd3.wav")
-sc = brun([4.0], arg=HTTP + "/auto.html", until="AUTOPAGE",
-          env={"DT_IMGMODE": "half", "HIBR_MEDIA_AUDIO": "wav:" + out,
-               "BW_AUTOPLAY": "1"})
-check("and with Pages May Play Sound On Their Own, it is heard as it loads",
-      heard(out) > -30, (heard(out), sc))
 # The browser takes a tab's capture of itself without asking, so a page's
 # own call is refused -- in a frame it makes as well -- or any page could
 # read the pixels of whatever it frames.
@@ -803,4 +465,4 @@ check("a page with no root element renders and zooms without a script error",
 SRV2.shutdown()
 SRV.shutdown()
 shutil.rmtree(D, True)
-report(61)
+report(26)

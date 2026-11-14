@@ -82,6 +82,29 @@ fn displays_setfull(int? id = "", value = "") {
 	return 0
 }
 
+# New Programs Open On as the dropdown says it: the display X makes its
+# primary, so the one a program opens on (the owner, 2026-11-14, a game that
+# opened on one display, was moved to another and never drew).
+displays_newname() {
+	case ${DT_NEWON:-working} in
+	program) ret "Where the Program Asks" ;;
+	main) ret "The Main Display" ;;
+	*) ret "The Display I'm Working On" ;;
+	esac
+}
+
+# Its callback: which display programs open on; the compositor is told.
+fn displays_setnew(int? id = "", value = "") {
+	case $value in
+	"Where the Program Asks") DT_NEWON=program ;;
+	"The Main Display") DT_NEWON=main ;;
+	*) DT_NEWON=working ;;
+	esac
+	command -v dt_save > /dev/null && dt_save
+	dt_has dt_natlayout && { DT_NATLAYOUT=; dt_natlayout; }
+	return 0
+}
+
 # Right-click on a rectangle: detach it, or flash its own name where it
 # actually is.
 fn displays_context(nm) {
@@ -129,7 +152,7 @@ fn displays_identify(nm) {
 }
 
 fn displays_draw(int id, int h, int w, int bx) {
-	local sess lst nm row col rows cols pri i n s dropw pname
+	local sess lst nm row col rows cols pri i n s dropw pname v
 	local br bc bh bw namew t r mr mc dragi prow pcol
 	local rr rc minr minc urows ucols
 
@@ -190,16 +213,20 @@ fn displays_draw(int id, int h, int w, int bx) {
 		i=$((i + 1))
 	done
 
-	# Two rows of choices, their dropdowns lined up after the longer label.
-	t="Full Screen On:"
+	# Three rows of choices, their dropdowns lined up after the longest
+	# label.
+	t="New Programs Open On:"
 	dropw=$((w - ${#t} - 3))
 	[ "$dropw" -lt 12 ] && dropw=12
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 1 "$bx" "Primary:"
 	dt_wdrop "$id" 1 $((bx + ${#t} + 1)) "$dropw" "$pname" primary
-	console put -p "w$id" 2 "$bx" "$t"
-	t := displays_fullname
-	dt_wdrop "$id" 2 $((bx + 16)) "$dropw" "$t" fullon
+	console put -p "w$id" 2 "$bx" "Full Screen On:"
+	console put -p "w$id" 3 "$bx" "$t"
+	v := displays_fullname
+	dt_wdrop "$id" 2 $((bx + ${#t} + 1)) "$dropw" "$v" fullon
+	v := displays_newname
+	dt_wdrop "$id" 3 $((bx + ${#t} + 1)) "$dropw" "$v" newon
 
 	# Every display's own row/col relative to the primary's, which can
 	# be negative (a display positioned "before" the primary in hold's
@@ -237,7 +264,7 @@ fn displays_draw(int id, int h, int w, int bx) {
 	done
 	[ "$urows" -lt 1 ] && urows=1
 	[ "$ucols" -lt 1 ] && ucols=1
-	s := displays_scale $((h - 5)) "$w" "$urows" "$ucols"
+	s := displays_scale $((h - 6)) "$w" "$urows" "$ucols"
 	DPY[$id]["s"]=$s
 
 	i=0
@@ -248,7 +275,7 @@ fn displays_draw(int id, int h, int w, int bx) {
 		cols=${DPY[$id][$i]["cols"]}
 		nm=${DPY[$id][$i]["name"]}
 		pri=${DPY[$id][$i]["primary"]}
-		br=$((rr * s / 100 + 4))
+		br=$((rr * s / 100 + 5))
 		bc=$((rc * s / 100 + bx))
 		# One cell shaved off each box's own scaled size, a gap between
 		# two adjacent displays rather than their borders sharing (and
@@ -368,6 +395,12 @@ fn displays_mouse(int id, act, button, int r, int c) {
 				i=$((i + 1))
 			done
 			dt_droplist "$id" "$r" "$wc" displays_setfull "${vals[@]}"
+			return 0
+		fi
+		if [ "$tag" = newon ]; then
+			wc := dt_wcol "$id" "$r" newon
+			dt_droplist "$id" "$r" "$wc" displays_setnew \
+				"The Display I'm Working On" "Where the Program Asks" "The Main Display"
 			return 0
 		fi
 		if [ "$tag" = primary ]; then

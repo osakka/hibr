@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.524
+
+**New programs open on the display you are working on** (the owner's
+Planetbase report, settled with Blit). X's primary display was the main
+one whatever you were doing, so a game started from the other display
+opened on the main one at its size, was moved and resized to where you
+were, and Planetbase -- Unity under Proton -- never drew after that move.
+Control Panel > Displays has a third row, **New Programs Open On**: **The
+Display I'm Working On** (the default), whose X primary follows the
+focused window's display, or the one under the mouse, as you move between
+them, so a program is born there at the right size; **Where the Program
+Asks**, the main display, with a program asking for full screen left on
+the display it opened on rather than moved; or **The Main Display**, as
+before. Blit's compositor already took `WINDOW primary` at any time;
+nothing was needed of it.
+
+**The Browser's checks live with the Browser.** `tests/web.py` kept 34
+checks that drove the Browser app, three of them stale against the
+Browser people run; they are in hibr-browser's own suites now, beside the
+app they test, and `web.py` keeps the `web` module's 26.
+
 ## 0.99.523
 
 **The Browser and YouTube have one copy, the catalogue's** (the owner:
