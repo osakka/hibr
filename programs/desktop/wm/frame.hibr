@@ -174,6 +174,8 @@ fn dt_btnat(int id, int c) {
 # cell for cell. An app with no _dirty is always redrawn, so this can only
 # ever be wrong for an app that went out of its way to say otherwise.
 DT_WHY=
+# How often, at most, a window left alone has its _idle (dt_win), in ms.
+DT_IDLEGAP=100
 # DT_WHY says which answer it gave, for `desktop ctl stats` (drawn_why):
 # the reason every window was drawn rather than left, counted per app.
 fn dt_clean(int id) {
@@ -920,6 +922,20 @@ fn dt_win(int id) {
 		console behind on
 		dt_shadow "$id"
 		console behind off
+		# And what it watches is read all the same: its _draw is what
+		# reads it while it is drawn, and _idle only ran for a window
+		# away or hidden -- so a Browser left alone on a quiet page left
+		# the web module's pipe unread, and the console's guard fired
+		# after two seconds of it (hibr-browser's alt-b check, 2026-11-14).
+		# At most every DT_IDLEGAP ms: a quiet terminal's _idle is 23 us,
+		# and per frame four of them were a seventh of a frame's budget.
+		if [ -n "${DT[$id]["idle"]-}" ]; then
+			local nu=${EPOCHREALTIME/./}
+			if [ $((nu - ${DT[$id]["lidle"]:-0})) -ge $((DT_IDLEGAP * 1000)) ]; then
+				DT[$id]["lidle"]=$nu
+				dt_idlecall "$id"
+			fi
+		fi
 		return 0
 	fi
 	if dt_contentonly "$id"; then

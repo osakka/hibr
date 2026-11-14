@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.525
+
+**A window left alone still reads what it watches.** A window whose own
+`_dirty` says nothing changed is not drawn, and `_idle` ran only for a
+window away, hidden or rolled up, so neither callback ran for it. A
+Browser on a quiet page after going back left the web module's pipe
+unread, and the console's guard fired after two seconds of it ("watched
+descriptor 5 has been ready for 2038 ms with nothing reading it"), now and
+then, because a frame held back to keep the rate down drains every window
+anyway. Such a window has its `_idle` now, at most every 100 ms: a quiet
+terminal's costs 23 us, and on every frame four of them were a seventh of
+a frame's budget. hibr-browser's own suites pass against it (the Browser,
+YouTube, the Video Library), and the Browser's idle on a quiet page is
+0.17 ms. The check runs with no frame held back, which is what covered the
+hole, and fails against 0.99.524.
+
 ## 0.99.524
 
 **New programs open on the display you are working on** (the owner's

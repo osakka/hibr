@@ -1345,6 +1345,20 @@ sc, _ = run('fn tk_draw(int id, int h, int w, int row, int col) { :; }\n'
 check("a window rolled up still has its idle call, so a program in it is read",
       os.path.exists(SHD) and os.path.getsize(SHD) > 0, sc)
 os.path.exists(SHD) and os.unlink(SHD)
+# And one on the screen that its _dirty leaves alone: its _draw is what
+# reads what it watches while it is drawn, so left alone it has its idle
+# call instead -- a Browser on a quiet page left the web module's pipe
+# unread, and the console's guard fired (hibr-browser, 2026-11-14). No
+# frame is held back (DT_TERMMS=0): a held frame drains every window
+# anyway, which is why the hole showed only now and then.
+LID = scratch("leftidle")
+sc, _ = run('fn tk_draw(int id, int h, int w, int row, int col) { :; }\n'
+            'fn tk_dirty(int id) { return 1; }\n'
+            'fn tk_idle(int id) { echo x >> "%s"; dt_want 100; }\n'
+            'dt_app tk Tk 6 24\nid := dt_new Tk 6 24 2 2 tk\n' % LID, [1.0], pre=CHALK + "DT_TERMMS=0\n")
+check("a window left alone by its own _dirty still has its idle call, so what it watches is read",
+      os.path.exists(LID) and os.path.getsize(LID) > 0, sc)
+os.path.exists(LID) and os.unlink(LID)
 # Shade keeps the full height in a field of its own: snap's "sh" is its
 # saved height, and sharing it made every snapped window read as shaded,
 # its app undrawn (found by X Screen's resize check, now Screens').
@@ -10145,4 +10159,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1097)
+report(1098)
