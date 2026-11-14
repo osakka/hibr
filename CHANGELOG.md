@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.99.522
+
+**A line keeps the desktop's direction, whatever its first letter**
+(Gitea #548). The console laid out any line holding Arabic in the
+direction of its first strong letter, padding and all, so a file named in
+Arabic went to the right edge of Files with its extension in front
+(`mp3.كن`), and a Control Panel pane whose icon was an Arabic letter
+turned its whole row round. `console bidi ltr|rtl|auto` now sets the base
+direction; the desktop and the login screen set it from their language
+and mirroring -- right to left in Arabic, left to right otherwise -- and
+`auto` stays the default for a script of its own. Arabic inside a line is
+still put in display order. In an Arabic login box the hint now reads
+Enter first, from the right, as a sentence there does. The pane list and
+an app's About card also draw an icon apart from its name.
+
+**A mouse's extra buttons are shortcuts** (Gitea #540). Back, forward
+and the rest -- buttons 8 to 11 as xterm numbers them, and the middle
+button with a modifier -- are recorded in Control Panel > Shortcuts as a
+key is (`button8`, `ctrl-alt-button9`), and run what they are bound to. A
+button bound to nothing is never a click: the console read button 8 as a
+left press, and the terminal window sent an unknown button to its
+program as one, so a back button clicked wherever the pointer was. Now
+an unbound one goes only to a program in a terminal window, as
+`ESC[<128;...` and the rest. Under Blit a bound button is kept from
+programs (`INPUT keep`, Blit 0.3.107); a Blit older than that refuses a
+keep set holding a button, and hold and the console say it again without
+them for that display, so no key it kept is lost.
+
+**The keyboard on the menu bar has a right-click menu**: whether it
+names the keyboard beside its glyph (Show Keyboard Name; also Control
+Panel > Language & Region > Keyboard Name on Menu Bar), Keyboard
+Settings, and the settings of every input method that has a pane of its
+own -- Arabizi Settings, with hibr-ime. A left click lists the keyboards,
+as before.
+
 ## 0.99.521
 
 **A checkbox in the Control Panel switches on one click.** A click on a

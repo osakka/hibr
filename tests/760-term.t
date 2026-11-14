@@ -305,6 +305,18 @@ i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
 show $t 2
 term close $t
 
+echo "--- a mouse's extra buttons reach a program as xterm numbers them"
+# Back and forward are 128 and 129 on the wire; a name no program knows is
+# sent as nothing -- it went out as a left press (Gitea #540).
+t := term open -r 4 -c 70 /bin/sh -c 'stty raw -echo; printf "\033[?1000h\033[?1006h"; head -c 22 | cat -v'
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+term mouse $t press bogus 1 2 && echo "sent" || echo "an unknown button sends nothing"
+term mouse $t press button8 1 2
+term mouse $t release button9 1 2
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+show $t 2
+term close $t
+
 echo "--- in the old encoding, and only what was asked for"
 t := term open -r 4 -c 40 /bin/sh -c 'stty raw -echo; printf "\033[?1000h"; head -c 12 | cat -v'
 i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done

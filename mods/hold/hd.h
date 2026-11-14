@@ -455,6 +455,9 @@ struct hd_cli {
 	/* Input-route lines replayed to this display, whose answers are its
 	   own business and not the producer's. */
 	int inrep;
+	/* Its Blit refused mouse buttons in a keep set (Gitea #540): it is
+	   told the set without them from then on. */
+	int nobtn;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;
@@ -589,6 +592,8 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 extern str hd_carry;
 extern str hd_carrymods;
 void hd_inreplay(struct hd_cli *cn);
+int hd_memstr(const char *s, size_t n, const char *w);
+void hd_keepto(struct hd_cli *cn);
 void hd_crenew(struct hd_cli *cn);
 void hd_renewall(vec *cls);
 

@@ -390,7 +390,7 @@ fn panel_shown(int id, int i) {
 }
 
 fn panel_draw(int id, int h, int w, int row, int col) {
-	local i n r t lw side pane bx bw g sel at=0 lt vis on lx=0 dv srows
+	local i n r t lw side pane bx bw g sel at=0 lt vis on lx=0 dv srows ic iw
 	local -a lines m
 
 	dt_wclear "$id"
@@ -486,10 +486,17 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 			fi
 			t=${CP_PANES[$n]["title"]}
 			case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
-			t := str pad " ${CP_PANES[$n]["icon"]} $t" \
-				$((lw - 3))
-			t=${t:0:$((lw - 3))}
-			console put -p "w$id" "$r" $((lx + 2)) "$t"
+			# The icon a cell of its own and the name after it, so an
+			# icon that is a letter of a right-to-left script cannot
+			# turn the row round (Gitea #548).
+			ic=${CP_PANES[$n]["icon"]}
+			iw := str width "$ic"
+			[ "$iw" -gt 0 ] || iw=1
+			t := str pad "$t" $((lw - 5 - iw))
+			t=${t:0:$((lw - 5 - iw))}
+			console put -p "w$id" "$r" $((lx + 2)) " "
+			console put -p "w$id" "$r" $((lx + 3)) "$ic"
+			console put -p "w$id" "$r" $((lx + 3 + iw)) " $t"
 			dt_wreg "$id" "$r" $((lx + 1)) $((lw - 1)) "pane:$i"
 			;;
 		*)

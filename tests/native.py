@@ -232,6 +232,32 @@ t.keys([b"\x1b\x0b"])
 nx = wait(lambda: blitkind("kbd", verb="current", n=0) and " US " in barrow(), 4)
 check("Next Keyboard goes on to the next, round to the first", nx,
       (barrow(), blitkind("kbd")))
+# A right click on it adds whether the keyboard's name shows and the way
+# to its settings; the name hides and comes back from there (the owner,
+# 2026-11-13).
+def kbclick(at, button):
+    t.keys([b"\x1b[<%d;%d;%dM" % (button, at[1] + 2, at[0] + 1),
+            b"\x1b[<%d;%d;%dm" % (button, at[1] + 2, at[0] + 1)])
+
+
+at = scr().find(" US ")
+if at:
+    kbclick(at, 2)
+more = wait(lambda: scr().find("Show Keyboard Name"), 4)
+check("a right click on the keyboard adds Show Keyboard Name to its menu", more, scr())
+sk = scr().find("Show Keyboard Name")
+if sk:
+    kbclick(sk, 0)
+hid = wait(lambda: " US " not in barrow() and "\u2328" in barrow(), 4)
+check("and choosing it leaves the keyboard's glyph alone on the bar", hid, barrow())
+gl = scr().find("\u2328")
+if gl and gl[0] == 0:
+    kbclick((gl[0], gl[1] - 1), 2)
+    sk = wait(lambda: scr().find("Show Keyboard Name"), 4)
+    if sk:
+        kbclick(sk, 0)
+back = wait(lambda: " US " in barrow(), 4)
+check("and choosing it again puts the name back", back, barrow())
 open(blitlog + ".kbd", "w").write("us - English (US)\n")
 one = wait(lambda: blitkind("kbd", verb="changed") and " US " not in barrow()
            and " ARA " not in barrow(), 4)
@@ -1035,4 +1061,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(79)
+report(82)

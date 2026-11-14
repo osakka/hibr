@@ -160,13 +160,15 @@ dt_langapply() {
 			console bidi off
 		fi
 	fi
-	[ -n "$DT_LANG" ] || { command -v lang > /dev/null && lang off; dt_datenames; return 0; }
+	[ -n "$DT_LANG" ] || { command -v lang > /dev/null && lang off; dt_datenames; dt_bidibase; return 0; }
 	if ! f := dt_langfile "$DT_LANG"; then
 		dt_rslog "language: no catalogue for $DT_LANG; English it is"
+		dt_bidibase
 		return 0
 	fi
 	if ! need lang 2> /dev/null || ! lang load "$f" 2>> "$DT_LOG"; then
 		dt_rslog "language: $f could not be loaded; English it is"
+		dt_bidibase
 		return 0
 	fi
 	DT_LANGON=1
@@ -176,6 +178,23 @@ dt_langapply() {
 	[ "$DT_MIRROR" = auto ] && DT_MIRRORON=$DT_LANGRTL
 	DT_MENUIN=
 	dt_datenames
+	dt_bidibase
+	return 0
+}
+
+# Lay a line out in the desktop's own direction, never in the direction of
+# its first letter: right to left in a language that reads that way or a
+# mirrored desktop, left to right otherwise. A file named in Arabic went to
+# the right edge with its extension first, and a pane whose icon was an
+# Arabic letter moved its whole row (Gitea #548). A console from before
+# 0.99.522 says no, and draws as it did.
+dt_bidibase() {
+	command -v console > /dev/null || return 0
+	if [ -n "$DT_MIRRORON" ] || [ -n "$DT_LANGRTL" ]; then
+		console bidi rtl 2> /dev/null || true
+	else
+		console bidi ltr 2> /dev/null || true
+	fi
 	return 0
 }
 

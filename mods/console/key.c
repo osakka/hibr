@@ -482,6 +482,21 @@ long cn_signed(const char *p, int n, int *i, int *ok)
 	return neg ? -v : v;
 }
 
+/* Append which button a report's number names: left, middle, right, none, or
+   with 128 set a mouse's own extra buttons, button8 to button11, as xterm
+   numbers them -- 128 read as left before, so a back button clicked. */
+void cn_mbtn(str *o, int b)
+{
+	static const char *const base[] = { " left", " middle", " right", " none" };
+
+	if (b & 128) {
+		s_cat(o, " button");
+		s_num(o, 8 + (b & 3));
+		return;
+	}
+	s_cat(o, base[b & 3]);
+}
+
 /* One report while the pointer is held (Gitea #379, Blit's ?7701): the
    same SGR form with the position replaced by the movement since the last
    report, signed, in the terminal's raw counts. Every one of them reads
@@ -530,11 +545,10 @@ int cn_mrel(const char *p, size_t n, str *o, size_t *used)
 		if (done)
 			s_cat(o, "release");
 		else if (b & 32)
-			s_cat(o, (b & 3) == 3 ? "move" : "drag");
+			s_cat(o, (b & 3) == 3 && !(b & 128) ? "move" : "drag");
 		else
 			s_cat(o, "press");
-		s_cat(o, (b & 3) == 0 ? " left" : (b & 3) == 1 ? " middle" :
-			  (b & 3) == 2 ? " right" : " none");
+		cn_mbtn(o, b);
 	}
 	s_ch(o, ' ');
 	s_num(o, dx);
@@ -618,20 +632,7 @@ int cn_mouse(const char *p, size_t n, str *o, size_t *used)
 		}
 	} else {
 		s_cat(o, rel ? "release" : (b & 32 ? "drag" : "press"));
-		s_ch(o, ' ');
-		switch (b & 3) {
-		case 0:
-			s_cat(o, "left");
-			break;
-		case 1:
-			s_cat(o, "middle");
-			break;
-		case 2:
-			s_cat(o, "right");
-			break;
-		default:
-			s_cat(o, "none");
-		}
+		cn_mbtn(o, b);
 	}
 	/* Row then column, both counted from zero like everything else here.
 	   In pixels (1016) the report's own position is the pixel, and the

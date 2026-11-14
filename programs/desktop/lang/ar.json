@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.9",
+ "version": "3.99.10",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1672,6 +1672,10 @@
   "Adding a language needs hibr's polkit policy, which is not installed here": "تحتاج إضافة لغة إلى سياسة polkit الخاصة بـ hibr، وهي غير مثبّتة هنا",
   "Add…": "إضافة…",
   "No language to add matches": "لا لغة مطابقة للإضافة",
-  "Reading the languages this computer can add…": "قراءة اللغات التي يمكن لهذا الحاسوب إضافتها…"
+  "Reading the languages this computer can add…": "قراءة اللغات التي يمكن لهذا الحاسوب إضافتها…",
+  "%s Settings…": "إعدادات %s…",
+  "Keyboard Settings…": "إعدادات لوحة المفاتيح…",
+  "Show Keyboard Name": "إظهار اسم لوحة المفاتيح",
+  "Keyboard Name on Menu Bar": "اسم لوحة المفاتيح في شريط القوائم"
  }
 }

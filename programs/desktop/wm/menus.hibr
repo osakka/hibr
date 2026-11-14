@@ -681,7 +681,7 @@ fn dt_aboutapp(ap) {
 # it came from, and the shell it runs on.
 declare -gA DTAB
 fn dtabout_draw(int id, int h, int w, int row, int col) {
-	local ap=${DTAB[$id]["app"]} t d f line r=4 head ver
+	local ap=${DTAB[$id]["app"]} t d f line r=4 head ver hw
 	local -a words
 
 	dt_wclear "$id"
@@ -691,7 +691,11 @@ fn dtabout_draw(int id, int h, int w, int row, int col) {
 	ver=${DT_ABOUT["$ap"]["version"]}
 	head="${DT_ABOUT["$ap"]["icon"]}  $t"
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	console put -p "w$id" 1 2 "$head"
+	# The icon and the name drawn apart, so an icon in a right-to-left
+	# script cannot turn the line round (Gitea #548).
+	hw := str width "${DT_ABOUT["$ap"]["icon"]}"
+	console put -p "w$id" 1 2 "${DT_ABOUT["$ap"]["icon"]}"
+	console put -p "w$id" 1 $((2 + hw)) "  $t"
 	# The app's own version, after its name and dimmed, so it reads as a
 	# fact about the app rather than as part of what it is called. An app
 	# that declares none shows none: this says what the app says, and a
@@ -699,7 +703,6 @@ fn dtabout_draw(int id, int h, int w, int row, int col) {
 	# Placed by display columns, since an icon is one character and two
 	# columns wide.
 	if [ -n "$ver" ]; then
-		local hw
 		hw := str width "$head"
 		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" 1 $((2 + hw + 2)) "$ver"

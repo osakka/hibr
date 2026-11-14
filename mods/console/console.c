@@ -244,6 +244,12 @@ cn_pane *cn_phit(int row, int col)
 }
 
 int cn_bidi = -1;
+/* The direction a line is laid out in when it holds right-to-left text: 2
+   auto, from its first strong letter, for a script of its own; 0 or 1 as
+   the desktop sets it, its own direction -- a list row's direction is the
+   desktop's, or a file named in Arabic went to the right edge with its
+   extension first (Gitea #548). */
+int cn_bdir = 2;
 
 /* The pen `console pen -s` keeps for `console pen -r`: one slot, so a widget
    can draw itself lit and leave the caller's pen as it found it (Gitea #370).
@@ -264,7 +270,7 @@ const char *cn_vis(sh *s, const char *t, str *o)
 	u = hibr_require(s, "uni", UNI_VER);
 	if (!u || !u->rtl(t, strlen(t)))
 		return t;
-	u->vis(t, strlen(t), 2, o);
+	u->vis(t, strlen(t), cn_bdir, o);
 	return o->p ? o->p : "";
 }
 
@@ -800,8 +806,14 @@ int m_console(sh *s, int ac, char **av)
 			cn_bidi = !strcmp(av[2], "on");
 			return HIBR_OK;
 		}
+		if (ac > 2 && (!strcmp(av[2], "ltr") || !strcmp(av[2], "rtl") ||
+			       !strcmp(av[2], "auto"))) {
+			cn_bdir = !strcmp(av[2], "ltr") ? 0 : !strcmp(av[2], "rtl") ? 1 : 2;
+			lg(HIBR_LDBG, "console: lines laid out %s", av[2]);
+			return HIBR_OK;
+		}
 		if (ac > 2) {
-			lg(HIBR_LERR, "usage: console bidi [on|off]");
+			lg(HIBR_LERR, "usage: console bidi [on|off|ltr|rtl|auto]");
 			return 2;
 		}
 		if (cn_bidi < 0) {

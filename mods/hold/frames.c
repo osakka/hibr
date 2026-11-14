@@ -664,12 +664,8 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	if (n >= 10 && !memcmp(line, "INPUT keep", 10) && (n == 10 || line[10] == ' ')) {
 		hd_keep.n = 0;
 		s_add(&hd_keep, line, n);
-		for (i = 0; i < cls->n; i++) {
-			struct hd_cli *cn = cls->p[i];
-
-			if (cn->fdok)
-				hd_send(cn->fd, HD_INPUT, line, n);
-		}
+		for (i = 0; i < cls->n; i++)
+			hd_keepto(cls->p[i]);
 		return;
 	}
 	if (!id || n < 9 || memcmp(line, "INPUT ", 6))
@@ -720,6 +716,46 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	s_free(&o);
 }
 
+/* Whether s, n bytes long, holds w. */
+int hd_memstr(const char *s, size_t n, const char *w)
+{
+	size_t l = strlen(w), i;
+
+	for (i = 0; i + l <= n; i++)
+		if (!memcmp(s + i, w, l))
+			return 1;
+	return 0;
+}
+
+/* Tell one display the chords the desktop keeps: the set as said, or, to a
+   display whose Blit refused mouse buttons, the set without them. */
+void hd_keepto(struct hd_cli *cn)
+{
+	str o;
+	size_t i, j;
+
+	if (!cn->fdok || !hd_keep.n)
+		return;
+	if (!cn->nobtn) {
+		hd_send(cn->fd, HD_INPUT, hd_keep.p, hd_keep.n);
+		return;
+	}
+	s_init(&o);
+	s_cat(&o, "INPUT keep");
+	for (i = 10; i < hd_keep.n; i = j) {
+		while (i < hd_keep.n && hd_keep.p[i] == ' ')
+			i++;
+		for (j = i; j < hd_keep.n && hd_keep.p[j] != ' '; j++)
+			;
+		if (j == i || hd_memstr(hd_keep.p + i, j - i, "button"))
+			continue;
+		s_ch(&o, ' ');
+		s_add(&o, hd_keep.p + i, j - i);
+	}
+	hd_send(cn->fd, HD_INPUT, o.p, o.n);
+	s_free(&o);
+}
+
 /* A display that can now be sent frames is told every route there is: the
    socket, and on where the producer turned it on. Its Blit's answers to
    these are its own and go nowhere. */
@@ -730,8 +766,7 @@ void hd_inreplay(struct hd_cli *cn)
 
 	if (!cn->fdok)
 		return;
-	if (hd_keep.n)
-		hd_send(cn->fd, HD_INPUT, hd_keep.p, hd_keep.n);
+	hd_keepto(cn);
 	if (hd_kbprod >= 0)
 		hd_send(cn->fd, HD_INPUT, "KEYBOARD list", 13);
 	if (hd_rateprod >= 0)
@@ -811,6 +846,17 @@ int hd_inputans(vec *cls, int cfd, const char *line)
 	if (strncmp(line, "INPUT ok ", 9) && strncmp(line, "INPUT error ", 12))
 		return 0;
 	pc = hd_cfind(cls, cfd);
+	/* A Blit from before mouse buttons refuses a keep set holding one and
+	   keeps the set it had: said again without them, and without them to
+	   this display from now on (Gitea #540). */
+	if (pc && !pc->nobtn && n > 14 && !memcmp(line, "INPUT error 0 ", 14) &&
+	    hd_memstr(line, n, "EINVAL") && hd_keep.n &&
+	    hd_memstr(hd_keep.p, hd_keep.n, "button")) {
+		pc->nobtn = 1;
+		lg(HIBR_LDBG, "hold: a display's Blit reads no mouse buttons; its keep set is said without them");
+		hd_keepto(pc);
+		return 1;
+	}
 	if (pc && pc->inrep > 0) {
 		pc->inrep--;
 		lg(HIBR_LDBG, "hold: a replayed route's answer: %s", line);

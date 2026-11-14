@@ -188,7 +188,7 @@ fn dt_keyassigned(key) {
 	local knorm an v
 
 	case $key in
-	ctrl-* | alt-* | super-* | shift-f[0-9]* | f[0-9]*) ;;
+	ctrl-* | alt-* | super-* | shift-f[0-9]* | f[0-9]* | button[0-9]* | shift-button[0-9]*) ;;
 	*) return 1 ;;
 	esac
 	if [ "$DT_TERMCTRL" = 1 ]; then
@@ -271,7 +271,7 @@ fn dt_keylabel(what) {
 # (Menu Bar's Escape), as a terminal is never denied one (dt_keyassigned).
 fn dt_keyplain(key) {
 	case $key in
-	ctrl-* | alt-* | super-* | shift-* | f[0-9]* | super) return 1 ;;
+	ctrl-* | alt-* | super-* | shift-* | f[0-9]* | super | button[0-9]*) return 1 ;;
 	esac
 	return 0
 }
@@ -311,6 +311,12 @@ fn dt_keepchord(k) {
 
 	case $k in
 	ctrl-* | alt-* | super-* | shift-f[0-9]* | f[0-9]*) ;;
+	# A mouse's own buttons, back, forward and the rest (Gitea #540),
+	# bound with or without a modifier: kept, Blit sends them to the
+	# desktop and to no program. A Blit that cannot read them refuses the
+	# set and keeps its last, and the console or hold says it again
+	# without them.
+	button[89] | button1[01] | shift-button*) ;;
 	super) ret super; return 0 ;;
 	*) ret ""; return 0 ;;
 	esac
@@ -332,6 +338,9 @@ fn dt_keepchord(k) {
 	case $base in
 	[a-z0-9] | "\`" | "-" | "=" | "[" | "]" | "\\" | ";" | "'" | "," | "." | "/") ;;
 	f[1-9] | f1[0-9] | f2[0-4]) ;;
+	# Buttons as X numbers them; 4 to 7 are the wheel and never kept, and
+	# left and right only with a modifier.
+	button[1-3] | button[89] | button1[01]) ;;
 	up | down | left | right | home | end | pageup | pagedown | insert) ;;
 	delete | tab | enter | space | escape | backspace | print | menu) ;;
 	*) ret ""; return 0 ;;

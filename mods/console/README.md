@@ -406,9 +406,16 @@ the display interface untouched, since the program decides their order.
     console bidi off    # for a terminal that reorders right-to-left itself
     console bidi on
     console bidi        # status 0 when on
+    console bidi ltr    # every line laid out left to right
+    console bidi rtl    # every line right to left
+    console bidi auto   # each line from its first strong letter (the default)
 
 Until a script says, it follows `HIBR_BIDI`: on unless that is `off`, the
-same setting the line editor reads.
+same setting the line editor reads. The direction a line is laid out in is
+its first strong letter's until a script names one, which suits a script of
+its own; a desktop names its own (Gitea #548), since a list row's direction
+is the desktop's -- a file named in Arabic otherwise went to the right
+edge, padding first, with its extension in front.
 
 ## The mouse
 

@@ -3657,6 +3657,22 @@ def shadowcheck():
 
 
 shadowcheck()
+# A mouse's own extra buttons are shortcuts like any chord (Gitea #540):
+# bound, back opens what it is bound to; unbound, it is never a click --
+# it read as a left press before, so the back button clicked.
+sc, _ = run("", feed=[press(10, 40, 128), release(10, 40, 128)],
+            pre='DT_KEYS["menu"]="button8"')
+check("a mouse's back button bound to a shortcut runs it",
+      sc.find("About This Computer") is not None, sc)
+sc, _ = run("", feed=[press(10, 40, 128 + 16 + 8 + 1), release(10, 40, 128 + 16 + 8 + 1)],
+            pre='DT_KEYS["menu"]="ctrl-alt-button9"')
+check("and forward with modifiers, as ctrl-alt-button9",
+      sc.find("About This Computer") is not None, sc)
+sc, _ = run("", feed=[press(0, 2, 128), release(0, 2, 128)])
+sc2, _ = run("", feed=[press(0, 2), release(0, 2)])
+check("an extra button bound to nothing is not a click: on the hibr menu's title it opens nothing",
+      sc.find("About This Computer") is None and sc2.find("About This Computer") is not None,
+      (sc, sc2))
 sc, raw = run("", feed=APPMENU, env={"XDG_CONFIG_HOME": UCONF},
               pre=APPS + SYSAPPS)
 menu = [sc.row(r)[:46] for r in range(2, 18)]
@@ -7758,13 +7774,19 @@ def loginlook():
     sc = s[1]
     arab = [(r, sc.row(r)) for r in range(ROWS)
             if re.search("[\u0600-\u06ff\ufb50-\ufeff]", sc.row(r))]
-    right = [r for r, t in arab if "\u2502" in t and
-             re.search("[\u0600-\u06ff\ufb50-\ufeff]  \u2502", t)]
+    # Each line ends against the box's right side, and a line that mixes
+    # in a word in Latin letters reads from the right as Arabic does: the
+    # hint is "Enter" then "to go on", so Enter is the word at the right.
+    # It drew left to right, from its first letter's direction, until
+    # 0.99.522 (Gitea #548), and read "to go on Enter".
+    right = [r for r, t in arab if "\u2502" in t and re.search("\\S  \u2502", t)]
+    enter = [t for r, t in arab if "Enter" in t]
     f10 = sc.find("F10")
     box = sc.find("\u2514")
     check("in Arabic the box's words are Arabic, against its right side, and "
           "Power is under its left",
           len(right) >= 2 and sc.find("User name") is None and f10 is not None
+          and all("Enter  \u2502" in t for t in enter)
           and box is not None and f10[1] < box[1] + 20, sc)
     # And its buttons are where they are drawn: a click on Shell, found where
     # the mirrored row put it, starts a shell.
@@ -10093,4 +10115,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1091)
+report(1094)

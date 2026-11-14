@@ -12,7 +12,7 @@
 
 strict
 
-app keyboard "The keyboard typing now, on the menu bar" 1.0
+app keyboard "The keyboard typing now, on the menu bar" 1.0.1
 
 # The item: a keyboard and the current one's label; nothing with one
 # keyboard or none.
@@ -25,25 +25,66 @@ dt_kbbar() {
 		[ -n "${DT_BARI["kbd"]["text"]-}" ] && dt_baritem kbd ""
 		return 0
 	fi
-	t := dt_kblabel "$DT_KBCUR"
+	t=${GL[keyboard]}
+	if [ "${DT_KBNAME:-1}" = 1 ]; then
+		t := dt_kblabel "$DT_KBCUR"
+		t="${GL[keyboard]} $t"
+	fi
 	dt_barilabel kbd "Keyboard"
-	dt_baritem kbd "${GL[keyboard]} $t" dt_kbmenu
-	dt_bariright kbd dt_kbmenu
+	dt_baritem kbd "$t" dt_kbmenu
+	dt_bariright kbd dt_kbmore
 }
 
+# A left click: the keyboards to choose between.
 dt_kbmenu() {
+	KBD_MORE=
 	dt_barmenu kbd kbd
 }
 
-# Its menu: every keyboard by its full name, the current one marked.
+# A right click: the same, and the settings behind them.
+dt_kbmore() {
+	KBD_MORE=1
+	dt_barmenu kbd kbd
+}
+
+# Show or hide the keyboard's name beside the glyph.
+dt_kbnameflip() {
+	if [ "${DT_KBNAME:-1}" = 1 ]; then DT_KBNAME=0; else DT_KBNAME=1; fi
+	dt_has dt_save && dt_save
+	dt_kbbar
+}
+
+# Its menu: every keyboard by its full name, the current one marked; on a
+# right click, whether the name shows on the bar, and the way to the
+# settings -- Language & Region, and an input method's own pane where one
+# is installed (Arabizi's, from hibr-ime), found by the method's name.
+KBD_MORE=
 fn kbd_context(id = "") {
-	local i on
+	local i on v nm
+	local -A seen=()
 
 	dt_menu "Keyboard"
 	for ((i = 0; i < DT_KBN; i++)); do
 		on=0
 		[ "$i" = "$DT_KBCUR" ] && on=1
 		dt_mark "${DT_KB[$i]["name"]:-${DT_KB[$i]["layout"]}}" "" "$on" dt_kbset "$i"
+	done
+	[ "$KBD_MORE" = 1 ] || return 0
+	dt_sep
+	on=0
+	[ "${DT_KBNAME:-1}" = 1 ] && on=1
+	dt_mark "Show Keyboard Name" "" "$on" dt_kbnameflip
+	dt_has panel_goto || return 0
+	dt_sep
+	dt_item "Keyboard Settings${GL[ellipsis]}" "" dt_panelpane language
+	for ((i = 0; i < DT_KBN; i++)); do
+		v=${DT_KB[$i]["variant"]-}
+		[ -n "$v" ] && [ -z "${seen["$v"]+x}" ] || continue
+		seen["$v"]=1
+		[ -n "${CP_PANES["$v"]["title"]+x}" ] || continue
+		nm := dt_tr "${CP_PANES["$v"]["title"]}"
+		nm := dt_tr "%s Settings${GL[ellipsis]}" "$nm"
+		dt_item "$nm" "" dt_panelpane "$v"
 	done
 }
 

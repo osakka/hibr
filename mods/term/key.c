@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "tm.h"
+#include <stdlib.h>
 #include <string.h>
 
 struct tm_kn { const char *nm; const char *seq; };
@@ -137,7 +138,12 @@ int tm_mouse(tm_t *t, const char *act, const char *btn, int r, int c,
 		b = 2;
 	else if (!strcmp(btn, "none"))
 		b = 3;
-	else
+	else if (!strncmp(btn, "button", 6) && atoi(btn + 6) >= 8 && atoi(btn + 6) <= 11)
+		b = 128 + atoi(btn + 6) - 8;
+	else if (strcmp(btn, "left") && strncmp(act, "wheel", 5)) {
+		lg(HIBR_LDBG, "term: mouse button %s is none a program knows", btn);
+		return 0;
+	} else
 		b = 0;
 	if (!strcmp(act, "wheelup") || !strcmp(act, "wheeldown")) {
 		if (t->mmode == 9)

@@ -39,6 +39,11 @@ DT_KBLOCAL=
 DT_KBLOCTRY=
 declare -gA DT_KBLABEL
 dt_keep DT_KBLOCAL
+# Whether the bar's keyboard item says which keyboard beside its glyph (US,
+# AR), or shows the glyph alone: Control Panel > Language & Region >
+# Keyboard Name on Menu Bar, and the item's own menu (the owner, 2026-11-13).
+DT_KBNAME="${DT_KBNAME-1}"
+dt_keep DT_KBNAME
 
 # Read the list the console holds.
 dt_kbread() {

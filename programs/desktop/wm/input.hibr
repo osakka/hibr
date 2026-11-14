@@ -1048,6 +1048,50 @@ fn dt_cellpx(int id, int r, int c, int cw, int ch) {
 # A mouse line carries the pixel last, `x,y` or `-`, since the desktop asks
 # for pixels; it is taken off here, so everything after reads the four or
 # five fields it always has.
+# A report from a mouse's extra buttons (button8 to button11), or the middle
+# one pressed with a modifier, as a shortcut: recorded by a capture in
+# Shortcuts, run when bound, as `ctrl-alt-button8` and the rest. An extra
+# button nothing holds goes to a terminal window under the pointer, whose
+# program may know it, and nowhere else. Status 1 for a middle press that
+# is not a shortcut, which is an ordinary click.
+fn dt_mbtnev(k) {
+	local act mods b n ch id an wr wa
+	local -a ev
+
+	read -ra ev <<< "$k"
+	act=${ev[1]##*-}
+	mods=${ev[1]%"$act"}
+	b=${ev[2]}
+	case $b in
+	middle) n=2 ;;
+	button[0-9]*) n=${b#button} ;;
+	*) return 1 ;;
+	esac
+	ch := dt_keynorm "${mods}button$n"
+	if [ "$act" = press ] && [ -n "$DT_KEYCAP" ]; then
+		an=$DT_KEYCAP
+		DT_KEYCAP=
+		dt_keytake "$an" "$ch"
+		return 0
+	fi
+	if dt_keyassigned "$ch"; then
+		[ "$act" = press ] && dt_event "$ch"
+		return 0
+	fi
+	[ "$n" = 2 ] && return 1
+	id := console hit "${ev[3]}" "${ev[4]}"
+	id=${id#w}
+	if [ -n "$id" ] && [ -n "${DT[$id]["app"]+x}" ] &&
+	   [ "${DT[$id]["app"]}" = term ] && [ -n "${DT[$id]["mouse"]-}" ]; then
+		wr=${DT[$id]["row"]}
+		wa=${DT[$id]["col"]}
+		dt_capped "$id" && wa=$((wa - 1))
+		dt_appcall "$id" "${DT[$id]["mouse"]}" "$act" "$b" \
+			$((${ev[3]} - wr)) $((${ev[4]} - wa)) "${mods%-}"
+	fi
+	return 0
+}
+
 fn dt_event(k) {
 	local an knorm ev px pa
 
@@ -1122,6 +1166,14 @@ fn dt_event(k) {
 		DT_PX=${px%,*}
 		DT_PY=${px#*,}
 		k=${k% *}
+		;;
+	esac
+	# A mouse's own extra buttons, and the middle one with a modifier, are
+	# shortcuts like any chord (Gitea #540); an extra button nothing holds
+	# is never a click (it read as one, the back button selecting).
+	case $k in
+	"mouse "*" button"[0-9]*" "* | "mouse "*-press" middle "*)
+		dt_mbtnev "$k" && return 0
 		;;
 	esac
 	# The pointer moving with no button held is a hover, never a drag:

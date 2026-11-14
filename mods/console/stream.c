@@ -92,6 +92,37 @@ static size_t cn_ndout;
 static void (*cn_dfn)(void *ctx, const char *line);
 static void *cn_dctx;
 static int cn_d3 = -1, cn_dbfhook = -1;
+
+/* The chords the desktop keeps from programs, as last said (`INPUT keep`,
+   Gitea #530): said again on a new connection to hold, since the server
+   that knew them is gone after `hold upgrade` and the desktop says them
+   only when they change. */
+char *cn_keepl;
+/* The Blit this console speaks to directly refused mouse buttons in a keep
+   set (Gitea #540): it is told the set without them until it is another. */
+int cn_keepnobtn;
+
+/* A keep line without its mouse buttons, into o. */
+void cn_keepbare(const char *line, str *o)
+{
+	const char *p = line + 10, *e;
+
+	s_cat(o, "INPUT keep");
+	for (;;) {
+		while (*p == ' ')
+			p++;
+		if (!*p)
+			break;
+		for (e = p; *e && *e != ' '; e++)
+			;
+		if (!memmem(p, (size_t)(e - p), "button", 6)) {
+			s_ch(o, ' ');
+			s_add(o, p, (size_t)(e - p));
+		}
+		p = e;
+	}
+}
+
 static cn_hk *cn_hks;
 static size_t cn_nhk;
 
@@ -338,6 +369,22 @@ void cn_dans(const char *line)
 	int rel = !strncmp(line, "FRAME release ", 14);
 	str o;
 
+	/* A Blit from before mouse buttons refuses a keep set holding one and
+	   keeps the set it had: said again without them (Gitea #540). Only on
+	   the console's own connection; hold does this for each display. */
+	if (cn_imgfd != 1 && !cn_keepnobtn && !strncmp(line, "INPUT error 0 ", 14) &&
+	    strstr(line, "EINVAL") && cn_keepl && strstr(cn_keepl, "button") &&
+	    cn_dbfhook >= 0) {
+		str o;
+
+		cn_keepnobtn = 1;
+		lg(HIBR_LDBG, "console: Blit reads no mouse buttons; the keep set is said without them");
+		s_init(&o);
+		cn_keepbare(cn_keepl, &o);
+		bf_say(cn_dbfhook, o.p);
+		s_free(&o);
+		return;
+	}
 	if (!strncmp(line, "KEYBOARD ", 9)) {
 		cn_kbline(line);
 		return;
@@ -662,12 +709,6 @@ int cn_dframe(sh *s, unsigned sid, const unsigned char *h, size_t hn,
 	return 1;
 }
 
-/* The chords the desktop keeps from programs, as last said (`INPUT keep`,
-   Gitea #530): said again on a new connection to hold, since the server
-   that knew them is gone after `hold upgrade` and the desktop says them
-   only when they change. */
-char *cn_keepl;
-
 /* Say one input route's line to every display's Blit: on the console's own
    frame socket where nothing is between, or on hold's frames connection,
    which hold passes to each display. 1 when it went. */
@@ -705,12 +746,23 @@ int cn_dsay(sh *s, const char *line)
 	if (cn_dbfhook != fd) {
 		cn_fdhook(fd, cn_dbfread, s);
 		cn_dbfhook = fd;
+		cn_keepnobtn = 0;
 		/* A new connection to Blit: what was asked on the last one is
 		   asked again, since that one's answers stopped with it. */
 		if (cn_kbasked && strcmp(line, "KEYBOARD list"))
 			bf_say(fd, "KEYBOARD list");
 		if (cn_rateasked && strcmp(line, "DISPLAY rate"))
 			bf_say(fd, "DISPLAY rate");
+	}
+	if (cn_keepnobtn && !strncmp(line, "INPUT keep", 10)) {
+		str o;
+		int ok;
+
+		s_init(&o);
+		cn_keepbare(line, &o);
+		ok = bf_say(fd, o.p);
+		s_free(&o);
+		return ok;
 	}
 	return bf_say(fd, line);
 }

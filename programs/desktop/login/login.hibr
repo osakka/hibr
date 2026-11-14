@@ -207,6 +207,12 @@ lg_lang() {
 # language that reads that way -- unless DT_BIDI says the terminal does it.
 lg_bidi() {
 	[ -n "$LG_RTL" ] && [ "${DT_BIDI:-auto}" != off ] && console bidi on
+	# Its lines in the language's own direction (Gitea #548).
+	if [ -n "$LG_RTL" ]; then
+		console bidi rtl 2> /dev/null || true
+	else
+		console bidi ltr 2> /dev/null || true
+	fi
 	return 0
 }
 

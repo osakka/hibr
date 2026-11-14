@@ -332,6 +332,17 @@ sc = run("files", FW, [b"/", b"K", b"\x1bc"], pre="FB_DIR=%s\nDT_NOTEMS=60000" %
 check("Copy with the search open copies the file it found, and names it",
       sc.find("Copied Kun ma'a") is not None and "Nothing is selected" not in sc.text(), sc)
 shutil.rmtree(FOUND, True)
+# A name written in Arabic is listed where every other is, its extension at
+# its end: a row took its direction from its first letter, so كن.mp3 went
+# to the right edge as mp3.كن (Gitea #548).
+ARN = tempfile.mkdtemp(prefix="hibr-files-ar-")
+open(os.path.join(ARN, "\u0643\u0646.mp3"), "w").close()
+open(os.path.join(ARN, "hello.txt"), "w").close()
+sc = run("files", FW, pre="FB_DIR=%s" % ARN, ready="hello")
+arr = next((sc.row(r) for r in range(sc.rows) if ".mp3" in sc.row(r)), "")
+check("a file named in Arabic is listed left-aligned, with its extension at its end",
+      arr.find("hello") < 0 and 0 <= arr.find(".mp3") < 12 and arr.find(".mp3") > arr.find("\ufee6"), arr)
+shutil.rmtree(ARN, True)
 sc = run("files", FW, pre=PRE)
 check("a folder never given a background follows the theme, and opens as a list",
       sc.style(5, 10).get("bg") == sc.style(12, 10).get("bg") != "#ffffff"
@@ -944,6 +955,11 @@ sc = cprun(KB_CP + [b"\r", b"\x1b", b"z"])
 check("escape cancels it -- the next key is ordinary again, not captured",
       brow(sc, "Control Panel") != "" and
       "z" not in brow(sc, "Control Panel"), sc)
+# A mouse's extra button is recorded as a shortcut, as a key is (Gitea #540):
+# back with ctrl held is ctrl-button8.
+sc = cprun(KB_CP + [b"\r", press(R0, VALCOL, 128 + 16)])
+check("a mouse's extra button is recorded as a shortcut, with its modifier",
+      "button8" in brow(sc, "Control Panel"), sc)
 
 # Shortcuts is longer than the pane, so the apps' rows are checked with the
 # list moved down to them.
@@ -1178,6 +1194,12 @@ ckt = sx.conftext(os.path.join(ckc, "desktop.json"))
 check("one click on a checkbox switches it, and the setting is kept",
       "DT_SHADOW=0" in ckt, (ckt[:300], sc.text()))
 shutil.rmtree(ckc, True)
+# A pane's icon cannot turn its row round: an Arabic letter as an icon
+# made the row right-to-left, pushed right with the icon last (Gitea #548).
+sc = cprun(pre='cp_pane aardvark "Aardvark" "\u0639"\nfn aardvark_rows(int w) { ret 0; }\n')
+arow = next((sc.row(r) for r in range(sc.rows) if "Aardvark" in sc.row(r)), "")
+check("a pane whose icon is an Arabic letter is listed icon first, left-aligned",
+      0 <= arow.find("\ufec9") < arow.find("Aardvark") < 14, arow)
 
 # The Theme row's own buttons: Save once the look is no longer the theme's,
 # Rename and Delete for a theme of the person's own -- d deletes, asked.
@@ -6482,4 +6504,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(825)
+report(828)

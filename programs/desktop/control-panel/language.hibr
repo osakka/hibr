@@ -185,11 +185,21 @@ fn language_rows(int w) {
 	# Typing through an input method away from Blit (Gitea #543): the same
 	# choice the bar's item and Next Keyboard make, one variable for all
 	# three. On Blit the list is Blit's, chosen in its own Keyboard pane.
-	if [ "${DT_KBLOC-}" = 1 ]; then
+	# And whether the bar's keyboard item names the keyboard beside its
+	# glyph, where that item is installed.
+	if [ "${DT_KBLOC-}" = 1 ] || dt_has dt_kbbar; then
 		CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Typing"; n=$((n + 1))
+	fi
+	if [ "${DT_KBLOC-}" = 1 ]; then
 		nm := cp_imename
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Input Method"
 		CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=imekb; n=$((n + 1))
+	fi
+	if dt_has dt_kbbar; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keyboard Name on Menu Bar"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "${DT_KBNAME:-1}" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=DT_KBNAME; n=$((n + 1))
 	fi
 	ret "$n"
 }
@@ -268,6 +278,11 @@ fn language_do(int? w = "", k = "", int? dir = "") {
 	mirror)
 		v := cp_next "$DT_MIRROR" "$dir" "${CP_MIRRORS[@]}"
 		cp_set_mirror "" "$v"
+		return 0
+		;;
+	DT_KBNAME)
+		cp_toggle DT_KBNAME
+		dt_kbshow
 		return 0
 		;;
 	digits)
