@@ -7296,6 +7296,11 @@ check("when the desktop starts, a waiting display joins it on its own",
 # failed the three checks below together with the spare display still
 # showing the desktop -- never let go -- and the drop's answer had been
 # thrown away, so nothing said whether the drop itself had failed.
+# A join asked of it while it was joining, as the desktop's start and its
+# first scan both did a moment apart: the window the trio failed in, now
+# and then, made certain (Gitea #551). Let go, it must not take this as
+# asked again.
+open(os.path.join(SBDIR, "spare.join"), "w").close()
 for _ in range(3):
     dr = subprocess.run([screen.HIBR, "-c", HOLDC + "hold drop desktop spare"],
                         env=dict(os.environ, **SBENV), capture_output=True,

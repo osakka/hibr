@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.527
+
+**A standby display let go stays let go** (Gitea #551). Now and then a
+display the desktop let go joined again a moment later, which three
+checks of the standby section caught together in about one run in six.
+It was not hold: thirty drops under a flood of input were each read as
+"switched off". It was a stale request. The desktop asks every waiting
+display to join, at its start and again at its first scan a moment later,
+and a display that took the first was still reading as waiting when the
+second came, since it marked itself joined only after asking hold for the
+session. That second request then waited until the display was let go,
+and joined it again at once. A display now marks itself joined the
+moment it takes a request, and throws away any request made while it was
+joined. The check leaves such a request in place before the drop, so the
+window is certain: it fails every time against 0.99.526.
+
 ## 0.99.526
 
 **A library is a catalogue kind** (the owner's choice, for the video apps'

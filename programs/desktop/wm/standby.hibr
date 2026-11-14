@@ -126,16 +126,27 @@ dt_sbdraw() {
 fn dt_sbjoin(base) {
 	local line wxh cols dn at
 
+	# Joining from the moment it is asked, before the slow part: a desktop
+	# that scanned meanwhile read "waiting" and asked again, and that
+	# second ask, left waiting while this one was joined, joined it again
+	# the moment it was let go (Gitea #551).
+	DT_SBSTATE=joined
+	dt_sbwrite
 	line := dt_holdline "$base"
-	[ -n "$line" ] || return 1
+	if [ -z "$line" ]; then
+		DT_SBSTATE=waiting
+		dt_sbwrite
+		return 1
+	fi
 	wxh=${line##* }
 	cols=${wxh#*x}
 	console close
-	DT_SBSTATE=joined
-	dt_sbwrite
 	dn := dt_dispfree "$base" "$DT_SBDISP"
 	at := dt_joinat "$base" "$dn" "$cols"
 	dt_holdgo -m -n "$dn" "$base" ${at% *} ${at#* }
+	# And an ask made while it was joined is stale: it answered a state
+	# that is over.
+	rm -f "$DT_STANDBYDIR/$DT_SBNAME.join" 2> /dev/null
 	case $HOLD_WHY in
 	ended | "lost the session") DT_SBSTATE=waiting ;;
 	*) DT_SBSTATE=released ;;
