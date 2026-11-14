@@ -1031,6 +1031,9 @@ try:
     PANEBYTES = PANE
     hp_app = put("bundles/ixparts.hibr", APP.replace(b"demo", b"ixparts"))
     hp_pane = put("bundles/ixpane.hibr", PANEBYTES)
+    hp_lapp = put("bundles/ixlang.hibr", APP.replace(b"demo", b"ixlang"))
+    hp_lang = put("bundles/ixlang.ar.json",
+                  '{"language": "ar", "strings": {"Index Lang": "\u0644\u063a\u0629"}}\n'.encode())
     E5 = {"entries": {
         "apps/ixparts": {
             "title": "Index Parts", "version": "2.1", "kind": "apps",
@@ -1047,6 +1050,15 @@ try:
             "bundle": "bundles/ixparts.hibr", "sha256": hp_app,
             "parts": [{"kind": "control-panel", "as": "ixpane.hibr",
                        "path": "bundles/ixpane.hibr", "sha256": "0" * 64}]},
+        # An app's own translations are a part of kind lang named
+        # <app>.<code>.json, which the desktop adds to its language and
+        # never lists as one (0.99.523).
+        "apps/ixlang": {
+            "title": "Index Lang", "version": "1.0", "kind": "apps",
+            "name": "ixlang", "about": "an app that carries its own words",
+            "bundle": "bundles/ixlang.hibr", "sha256": hp_lapp,
+            "parts": [{"kind": "lang", "as": "ixlang.ar.json",
+                       "path": "bundles/ixlang.ar.json", "sha256": hp_lang}]},
     }}
     put("index5.json", json.dumps(E5, indent=1))
     E5ENV = {"HIBR_APPS_URL": "http://127.0.0.1:%d/index5.json" % PORT,
@@ -1066,6 +1078,12 @@ try:
           and not os.path.exists(os.path.join(d5, "apps", "ixbad.hibr")),
           (rc, err, sorted(os.listdir(os.path.join(d5, "apps")))
            if os.path.isdir(os.path.join(d5, "apps")) else "no apps folder"))
+    rc, out, err = apps("install", "apps/ixlang", env=E5ENV)
+    check("an app's own translations, a part of kind lang, land beside the languages",
+          rc == 0 and os.path.exists(os.path.join(d5, "lang", "ixlang.ar.json")), (rc, out, err))
+    rc, out, err = apps("remove", "ixlang", env=E5ENV)
+    check("and go when the app goes",
+          rc == 0 and not os.path.exists(os.path.join(d5, "lang", "ixlang.ar.json")), (rc, out, err))
     # A part that changes while its app's version does not still reaches
     # whoever installed the app. `update` asked only whether the version
     # had moved, so the Notes pane changing under Stickies 1.0 reached
@@ -1851,4 +1869,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(154)
+report(156)

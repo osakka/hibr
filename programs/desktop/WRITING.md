@@ -631,6 +631,15 @@ translation; `tools/strings.py --check` fails on one. The catalogues are
 JSON files under `lang/`, and `lang/strings.txt` is the list of every key
 (ADR 0032).
 
+An app the catalogue carries, rather than hibr's own tree, brings its own
+words: a part of kind `lang` named `<app>.<code>.json` -- `browser.ar.json`
+-- with `language` and `strings` as a catalogue has them. The desktop adds
+every `lang/*.<code>.json` to its language (`lang add`); a key the desktop
+already has is never replaced, so an app cannot relabel its words, and a
+broken file is refused whole and named in the log. `tools/strings.py --app
+CATALOGUE FILE...` makes one from what the app's files draw, and
+`--check-app` keeps it in step (0.99.523).
+
 ## Managing other windows
 
 Most apps mind their own business. One that manages *other* windows — a

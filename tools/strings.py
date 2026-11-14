@@ -4,6 +4,17 @@
     python3 tools/strings.py            # a census: counts per kind, per file
     python3 tools/strings.py --list     # every string, file:line kind text
     python3 tools/strings.py --keys     # the sorted catalogue keys
+    python3 tools/strings.py --app CATALOGUE FILE...
+                                        # an app's own catalogue, as JSON: every
+                                        # key FILE draws, translated from CATALOGUE
+    python3 tools/strings.py --check-app CATALOGUE FILE...
+                                        # whether an app's catalogue has every key
+                                        # its files draw, and nothing they do not
+
+An app the catalogue carries and hibr's tree does not (the Browser, YouTube)
+ships its own translations as a part, lang/<app>.<code>.json, which the
+desktop adds to its own with `lang add` (0.99.523);
+--app makes one and --check-app keeps it.
 
 Reads programs/desktop/**/*.hibr as the shell would: quote state is carried
 across lines (a quoted string may span several), commands are split at
@@ -195,10 +206,12 @@ def texts(cmd):
 ROWTEXT = re.compile(r'\["text"\]="([^"$`\\]*[A-Za-z][^"$`\\]*)"')
 
 
-def collect():
+def collect(files=None):
     rows = []
-    for f in sorted(glob.glob(os.path.join(ROOT, "programs/desktop/**/*.hibr"),
-                              recursive=True)):
+    if files is None:
+        files = sorted(glob.glob(os.path.join(ROOT, "programs/desktop/**/*.hibr"),
+                                 recursive=True))
+    for f in files:
         rel = os.path.relpath(f, ROOT)
         src = open(f, encoding="utf-8").read()
         for ln, line in enumerate(src.split("\n"), 1):
@@ -222,7 +235,40 @@ def keys(rows):
     return sorted({r[3] for r in rows if r[2] == "literal"})
 
 
+def appmode(flag):
+    """--app and --check-app: CATALOGUE then the app's files."""
+    import json
+    i = sys.argv.index(flag)
+    if len(sys.argv) < i + 3:
+        sys.exit("usage: tools/strings.py %s CATALOGUE FILE..." % flag)
+    cat, files = sys.argv[i + 1], sys.argv[i + 2:]
+    want = keys(collect(files))
+    have = json.load(open(cat, encoding="utf-8"))
+    tr = have.get("strings", {})
+    if flag == "--app":
+        out = {"language": have["language"],
+               "strings": dict((k, tr[k]) for k in want if k in tr)}
+        for k in want:
+            if k not in tr:
+                print("not translated in %s: %s" % (cat, k), file=sys.stderr)
+        print(json.dumps(out, ensure_ascii=False, indent=1, sort_keys=True))
+        sys.exit(0)
+    miss = [k for k in want if k not in tr]
+    left = sorted(k for k in tr if k not in want)
+    for k in miss:
+        print("drawn, not translated: %s" % k)
+    for k in left:
+        print("translated, no longer drawn: %s" % k)
+    if miss or left:
+        sys.exit(1)
+    print("every string drawn is translated (%d)" % len(want))
+    sys.exit(0)
+
+
 if __name__ == "__main__":
+    for flag in ("--app", "--check-app"):
+        if flag in sys.argv:
+            appmode(flag)
     rows = collect()
     lang = os.path.join(ROOT, "programs/desktop/lang")
     if "--write" in sys.argv:

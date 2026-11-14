@@ -146,6 +146,21 @@ def tree(p):
     return p if os.path.isabs(p) else os.path.join(ROOT, p)
 
 
+def bundle(p):
+    """The catalogue's copy of something it carries and hibr's tree does not:
+    the Browser, YouTube and their panes live in hibr-apps alone, so a suite
+    that drives them drives what a person installs (0.99.523; the tree kept
+    copies that had fallen 28 releases behind). From HIBR_APPS, or
+    ~/hibr-apps; a checkout that is not there stops the suite saying so,
+    rather than testing nothing.
+    """
+    root = os.environ.get("HIBR_APPS") or os.path.expanduser("~/hibr-apps")
+    f = os.path.join(root, "bundles", p)
+    if not os.path.exists(f):
+        sys.exit("%s: no catalogue checkout with %s (set HIBR_APPS)" % (sys.argv[0], p))
+    return f
+
+
 def scratch(nm):
     """A scratch path under /tmp that no other process shares.
 

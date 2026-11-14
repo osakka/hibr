@@ -567,6 +567,9 @@ dt_rescan() {
 	[ -z "$DT_SAVING" ] && DT_SAVERREADY=
 	dt_has cp_themes && cp_themes
 	dt_has cp_colourlist && cp_colourlist
+	# An app's own translations come and go with it: the language is
+	# loaded again, its adds with it.
+	[ -n "${DT_LANGON-}" ] && dt_langapply
 	DT_APPPLANK=
 	DT_MENUIN=
 	# Clickable: the note restarts the desktop, the one thing that loads

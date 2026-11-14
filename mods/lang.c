@@ -213,6 +213,77 @@ out:
 	return HIBR_OK;
 }
 
+/* Add another catalogue's strings to the one loaded: an app's own
+   translations, shipped with it (lang/<code>/<app>.json). It must be in the
+   language loaded and is refused whole if it is broken or is not -- read
+   into a table of its own first, so a refusal leaves the loaded one as it
+   was -- and a key already there is never replaced: one table serves every
+   window, so an app's file must not relabel the desktop's own words. */
+int la_add(const char *path)
+{
+	la_ent *mt = la_tab, *at, *e;
+	size_t mcap = la_cap, mn = la_n, acap, i;
+	char *mcode = la_code, *mname = la_name, *mdir = la_dir, *mrule = la_rule;
+	int ok, j, kept = 0;
+
+	if (!mcode) {
+		lg(HIBR_LERR, "lang add: %s: no catalogue is loaded to add to", path);
+		return HIBR_FAIL;
+	}
+	la_tab = 0;
+	la_cap = la_n = 0;
+	la_code = la_name = la_dir = la_rule = 0;
+	ok = la_load(path) == HIBR_OK;
+	if (ok && strcmp(la_code, mcode)) {
+		lg(HIBR_LERR, "lang add: %s: is %s, not %s", path, la_code, mcode);
+		ok = 0;
+	}
+	if (!ok) {
+		la_clear();
+		la_tab = mt;
+		la_cap = mcap;
+		la_n = mn;
+		la_code = mcode;
+		la_name = mname;
+		la_dir = mdir;
+		la_rule = mrule;
+		return HIBR_FAIL;
+	}
+	at = la_tab;
+	acap = la_cap;
+	free(la_code);
+	free(la_name);
+	free(la_dir);
+	free(la_rule);
+	la_tab = mt;
+	la_cap = mcap;
+	la_n = mn;
+	la_code = mcode;
+	la_name = mname;
+	la_dir = mdir;
+	la_rule = mrule;
+	for (i = 0; i < acap; i++) {
+		if (!at[i].k)
+			continue;
+		la_grow();
+		e = la_slot(at[i].k);
+		if (e->k) {
+			lg(HIBR_LDBG, "lang add: %s: %s is the loaded catalogue's already", path, at[i].k);
+			free(at[i].k);
+			free(at[i].v);
+			for (j = 0; j < 6; j++)
+				free(at[i].pf[j]);
+			kept++;
+			continue;
+		}
+		*e = at[i];
+		la_n++;
+	}
+	free(at);
+	lg(HIBR_LDBG, "lang add: %s: %d of its keys were already there", path, kept);
+	return HIBR_OK;
+}
+
 /* The CLDR cardinal category of a whole number n under a language's rule. */
 int la_cat(const char *rule, long n)
 {
@@ -285,7 +356,7 @@ const char *la_look(const char *k)
 	return e->k && e->v ? e->v : k;
 }
 
-/* lang load|get|plural|has|info|keys|off ... */
+/* lang load|add|get|plural|has|info|keys|off ... */
 int la_bi(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "", *t;
@@ -297,6 +368,8 @@ int la_bi(sh *s, int ac, char **av)
 
 	if (!strcmp(sub, "load") && ac == 3)
 		return la_load(av[2]);
+	if (!strcmp(sub, "add") && ac == 3)
+		return la_add(av[2]);
 	if (!strcmp(sub, "off")) {
 		la_clear();
 		return HIBR_OK;
@@ -330,7 +403,7 @@ int la_bi(sh *s, int ac, char **av)
 		return HIBR_OK;
 	} else {
 		s_free(&o);
-		lg(HIBR_LERR, "usage: lang load file | get key [arg...] | plural n key [arg...] | has key | info | keys | off");
+		lg(HIBR_LERR, "usage: lang load file | add file | get key [arg...] | plural n key [arg...] | has key | info | keys | off");
 		return 2;
 	}
 	s_grow(&o, 1);
@@ -348,7 +421,7 @@ void la_fini(sh *s)
 }
 
 const hibr_bi la_bis[] = {
-	{ "lang", la_bi, "a translation catalogue: lang load|get|plural|has|info|keys|off" },
+	{ "lang", la_bi, "a translation catalogue: lang load|add|get|plural|has|info|keys|off" },
 	HIBR_BI_END
 };
 

@@ -13,7 +13,7 @@ import os, re, shutil, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, tree, load, press, release
+from screen import Term, check, report, tree, load, press, release, bundle
 
 
 if len(sys.argv) > 1:
@@ -100,7 +100,7 @@ def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False,
         "%s. %s\n. %s\n%s\ndt_open\ndt_new \"YouTube\" 24 80 1 2 youtube \"%s\"\n"
         "dt_run\ndt_close\n"
         % (load("console", "web", "media"), tree("programs/desktop/desktop.hibr"),
-           tree("programs/desktop/apps/Internet/youtube.hibr"), extra, arg))
+           bundle("apps/Internet/youtube.hibr"), extra, arg))
     t = Term(sess, rows=rows, cols=cols, settle=2.0, caps=caps,
              cellw=cell[0] if cell else 0, cellh=cell[1] if cell else 0,
              env=dict({"YT_BASE": BASE, "HIBR_WEB_PROFILE": PROF, "HIBR_MEDIA_AUDIO": "none",
@@ -338,7 +338,7 @@ try:
           "720p" in s[-1].text() and "hd720" not in s[-1].text(), s[-1].text()[-300:])
     s = yrun([([], "A test pattern"), ([b"\r"], playing), ([], lambda sc: at(sc) >= 1)], env={"YT_QUALITY": "2160p"})
     check("the list goes up to 4K: 2160p is offered and said so", "2160p 4K" in s[-1].text(), s[-1].text()[-300:])
-    pane = open(tree("programs/desktop/control-panel/tube.hibr")).read()
+    pane = open(bundle("control-panel/tube.hibr")).read()
     check("Control Panel > YouTube has no list of qualities of its own: the app's is the one", "TB_QUALITY" not in pane
           and "YT_QUALITIES" in pane, "")
 
@@ -467,11 +467,12 @@ try:
 
     sess = os.path.join(D, "s2.hibr")
     open(sess, "w").write(
-        "%s. %s\n. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
+        "%s. %s\n. %s\n. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
         "dt_new \"Control Panel\" 24 76 1 1 panel tube\ndt_run\ndt_close\n"
         % (load("console"), tree("programs/desktop/desktop.hibr"),
-           tree("programs/desktop/apps/Internet/youtube.hibr"),
-           tree("programs/desktop/system/panel.hibr"), tree("programs/desktop/control-panel")))
+           bundle("apps/Internet/youtube.hibr"),
+           tree("programs/desktop/system/panel.hibr"), bundle("control-panel/tube.hibr"),
+           tree("programs/desktop/control-panel")))
     t = Term(sess, rows=28, cols=90, settle=1.5)
     sc = t.screen()
     # Every check above runs on a terminal that reports no cell size, so the

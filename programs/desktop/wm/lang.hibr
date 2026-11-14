@@ -110,6 +110,32 @@ fn dt_langfile(code) {
 	return 1
 }
 
+# Add the translations each app carries for code to the catalogue just
+# loaded: lang/<app>.<code>.json, a part of the app the catalogue places and
+# removes with it, so the words of an app the catalogue alone carries -- the
+# Browser, YouTube -- are never one more place to keep in step (0.99.523).
+# A language's own code never holds a dot, so dt_langs never lists one. The
+# first copy of a name in the scopes wins, as everywhere (ADR 0045); an
+# app's file never relabels the desktop's own words -- `lang add` keeps a
+# key already there -- and one that is broken is refused whole and named.
+fn dt_langadds(code) {
+	local f b sysl
+	local -A seen=()
+
+	sysl := dt_sysdir lang
+	for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/hibr/lang/*."$code".json \
+		 ${sysl:+"$sysl"/*."$code".json} \
+		 "${XDG_DATA_HOME:-$HOME/.local/share}"/hibr/lang/*."$code".json \
+		 "$DT_HERE"/lang/*."$code".json; do
+		[ -r "$f" ] || continue
+		b=${f##*/}
+		[ -z "${seen["$b"]+x}" ] || continue
+		seen["$b"]=1
+		lang add "$f" 2>> "$DT_LOG" || dt_rslog "language: $f was refused"
+	done
+	return 0
+}
+
 # Whether this terminal puts right-to-left text in display order itself, so
 # hibr must not: named terminals only, from what they say they are. A
 # version that cannot be read counts as old, which leaves the ordering here.
@@ -172,6 +198,7 @@ dt_langapply() {
 		return 0
 	fi
 	DT_LANGON=1
+	dt_langadds "$DT_LANG"
 	DT_LANGRTL=
 	f := lang info
 	[[ $f == *$'\t'rtl$'\t'* ]] && DT_LANGRTL=1
@@ -338,6 +365,8 @@ dt_langs() {
 		c=${f##*/}
 		c=${c%.json}
 		[ "$c" = xx ] || [ "$c" = xy ] && continue
+		# An app's own translations, <app>.<code>.json, are not a language.
+		[[ $c == *.* ]] && continue
 		[[ $seen == *" $c "* ]] && continue
 		seen+="$c "
 		n=$c

@@ -1,5 +1,4 @@
  %s Compose 
- %s wants %s 
 "%s" is not here
 %H %M %S %l %p %a %d %b %Y, as strftime
 %d shortcuts changed
@@ -25,7 +24,6 @@
 %s file with it
 %s files with it
 %s follows All Displays again
-%s has a new cover
 %s has no address book yet -- sync it first
 %s has no shortcut now
 %s in %s h %s min
@@ -103,13 +101,10 @@ A contact needs a name or an email
 A folder is needed
 A formula is = and then hibr.
 A message was not sent: %s
-A page tried to open a window of its own, and was refused: %s
 A program needs a name and a command
 A rule is an operator, a number and a colour: < 0 bad
 A terminal cannot start in a folder on a server
 A theme's name is letters, digits, spaces, dots and dashes
-A web app needs a name
-A web app's start page is a web address
 A window of its own, through Programs in Windows.
 About %s
 About %s minute remaining
@@ -129,7 +124,6 @@ Actual Size
 Adapter
 Add 10 Rows
 Add 5 Columns
-Add Bookmark
 Add File Type…
 Add Sender to Contacts
 Add a Language
@@ -139,7 +133,6 @@ Added %s to Contacts
 Added to your calendar
 Adding a language needs hibr's polkit policy, which is not installed here
 Address
-Addresses never fetched, * for anything:
 Add…
 Adjust
 Administrative Access
@@ -148,8 +141,6 @@ Agenda
 Align
 All Displays
 All Mail
-Allow Calls and Meetings (Shares the Network)
-Allow Downloads
 Almost done
 Already joining %s
 Already on %s
@@ -174,7 +165,6 @@ Arrange Icons
 As It Is
 As Its Priority Says
 Ask Before Closing
-Ask Sites for Dark Pages
 Asked %s to join
 Asking %s what it keeps…
 Asr
@@ -188,10 +178,6 @@ Authenticating as %s
 Authentication
 Automatic Means
 Average
-Back
-Back 10 Seconds
-Back 30 Seconds
-Back 5 Seconds
 Background
 Backspace
 Band Intensity
@@ -206,7 +192,6 @@ Battery low: %s%% left
 Blank
 Blit Keeps These
 Blit keeps %s for itself, so it cannot be a shortcut
-Block Addresses
 Bluetooth
 Bluetooth Settings%s
 Bluetooth Settings…
@@ -217,30 +202,21 @@ Bluetooth on Menu Bar
 Bluetooth said: %s
 Bold
 Bold Menu Titles
-Bookmark removed
-Bookmarked %s
-Bookmarks
 Border
 Bottom
-Boxer could not use that picture as the cover of %s
 Bricks
 Browse
-Browser
-Browser Setting
 Bulleted List
 Button Shadow
 By Kind
 CPU:    %s%%       Memory: %s
-Cache cleared
 Calc
 Calculator
 Calendar
 Calendar & Contacts
 Calendar needs the pim and db modules, which are not installed.
 Camera
-Camera:
 Cancel
-Cancel Download
 Cancelled
 Cannot hold the pasted text to send it
 Cannot keep a copy to read
@@ -260,7 +236,6 @@ Cannot show the wallpaper picture %s
 Cannot write %s
 Cannot write a rule for the account %s
 Cannot write in %s
-Captions
 Catalogue
 Center
 Change Wallpaper…
@@ -278,7 +253,6 @@ Clean Up Desktop
 Clear
 Clear All
 Clear Cache
-Clear Cookies
 Clear History
 Clear Low
 Clear Selected
@@ -291,13 +265,11 @@ Clock
 Clock Format
 Close
 Close Database
-Close Tab
 Close When a Program Ends
 Close Window
 Close without saving? The changes are lost.
 Code
 Color
-Colour Detail
 Colour Scheme
 Colour a number when it is:
 Colour by Value
@@ -332,7 +304,6 @@ Conversation archived
 Conversation marked as spam
 Conversation moved to %s
 Conversation moved to Trash
-Cookies cleared
 Copied
 Copied %s
 Copied %s characters
@@ -342,9 +313,7 @@ Copied to %s
 Copied; the clipboard clears in %s seconds
 Copy
 Copy Code
-Copy Image Address
 Copy Link
-Copy Link Address
 Copy Password
 Copy Username
 Copy it to this machine first, then from there
@@ -427,7 +396,6 @@ Desktop and Files Icons
 Detach
 Detect
 Device
-Devices
 Dhu al-Hijjah
 Dhu al-Qa'dah
 Dhuhr
@@ -444,14 +412,10 @@ Disk Icons
 Display
 Display Structure
 Displays
-Do Not Track
 Do the same for the %s other
 Do the same for the %s others
 Does it show this number?
 Download Whole Messages
-Download of %s stopped
-Downloaded %s
-Downloads
 Draft saved
 Drafts
 Drag Modifier
@@ -473,16 +437,10 @@ Edit…
 Email
 Empty
 Empty Trash…
-Empty finds Chromium or Chrome. Used at the next start.
-Empty is hibr's own. Used at the next start.
-Empty is what the browser says it is.
-Empty makes words typed in the address an address.
-Empty opens a blank page, ready to type in.
 Empty the Trash? The %d items in it are deleted for good.
 Empty the Trash? The one item in it is deleted for good.
 End Task
 End Task (force)
-Engine For New Tabs
 Enter fills it; escape cancels
 Enter to go on
 Enter: do it  Esc: back
@@ -495,15 +453,11 @@ Exported %s
 Exporting CSV needs the csv module
 Export…
 Extension:
-Extra Flags
-Extra flags for the browser:
 Extract Here
 Extract Here Makes
 Extract To...
 Extracted %s
 Fajr
-Favourite
-Favourites
 Feb
 February
 Fetching %s…
@@ -528,10 +482,6 @@ Fit Page
 Fit Width
 Flowchart
 Focus Follows Mouse
-Folder
-Folder downloads are saved in:
-Folder downloads go to, and the Save dialog starts in:
-Folder for cookies, the cache and history:
 Folder, %s items
 Folder:
 Follow Program Title
@@ -550,7 +500,6 @@ Formulas run contained: one that would write or connect
 Forward
 Frame
 Frames For Video (as output)
-Frames a Second
 Frames to Blit
 Freeze Above and Left
 Freeze First Column
@@ -560,7 +509,6 @@ Friday
 From %s
 From:
 Full Command Line
-Full Player
 Full Screen
 Full Screen Ends
 Game
@@ -590,8 +538,6 @@ History
 History Size
 History cleared
 Home
-Home Page
-Home page, opened by a new window or tab:
 Hostname: %s
 Hover
 How Formulas Work
@@ -603,7 +549,6 @@ Icons
 Identify
 Image
 Image Viewer
-Images
 Import CSV…
 Imported %s rows from %s
 Importing CSV needs the csv module
@@ -618,8 +563,6 @@ Insert Column Right
 Insert Row Above
 Insert Row Below
 Install
-Install as App…
-Installed %s. It is in Applications > Web Apps.
 Installed from the Catalogue
 Inviting people needs a mail account to send from
 Isha
@@ -630,7 +573,6 @@ Item
 Its passkey or PIN:
 Jan
 January
-JavaScript
 Join %s
 Joined %s
 Jul
@@ -643,8 +585,6 @@ Keep History on Disk
 Keep Messages
 Keep in the List
 Keep it after the vault locks
-Keep the Screen Saver Away While Playing
-Kept as a favourite: %s
 Kept by Blit
 Keyboard
 Keyboard Name on Menu Bar
@@ -657,8 +597,6 @@ Label…
 Language
 Language & Region
 Language & Region changed; programs started from now on use it
-Languages
-Languages pages are asked for, first wanted most:
 Large
 Largest Height
 Largest Width
@@ -677,9 +615,7 @@ List
 List From
 Load
 Loaded %s
-Loading…
 Location
-Location:
 Lock
 Lock After (minutes)
 Lock After Unused
@@ -697,12 +633,9 @@ Look Again
 Look for Devices
 Looking for devices
 Looking for networks
-Louder
 Low Battery Note
 MODULE
 Made %s
-Made if it is not there. Off, the Save dialog asks every time.
-Made if it is not there. Used once downloads are on.
 Made if it is not there; ~ is your home.
 Maghrib
 Mail
@@ -730,14 +663,9 @@ Message
 Message sent
 Message:
 Method
-Microphone
-Microphone:
 Midnight
 Mine
 Mines
-Mini Player
-Mini Player Shadow
-Mini Player Sticky
 Minimise
 Minutes Added
 Mirror Layout
@@ -791,18 +719,13 @@ New Game
 New Message
 New Note
 New Notes Are
-New Tab
 New Terminal
 New Window
 New name:
-Next
 Next Month
 Next Page
-Next Picture
 Next Prayer
 Next Prayer in the Menu Bar
-Next Quality
-Next Tab
 Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER
 No Control Strip modules are installed -- the Catalogue has them
@@ -811,7 +734,6 @@ No Other Languages Installed
 No Password for a Group
 No Picture
 No Rule
-No browser engine to clear
 No calendar yet: choose a server in Control Panel > PIM, then sync
 No camera
 No camera is connected to this computer
@@ -824,7 +746,6 @@ No folder can be made here
 No folders to move to
 No labels to choose from
 No language to add matches
-No more in this list
 No networks in reach
 No notifications
 No one matches "%s"
@@ -837,7 +758,6 @@ No vault yet. Log in to a Bitwarden or Vaultwarden
 No zone matches
 None
 None yet -- add one in Servers
-None yet -- in the Browser, File > Install as App
 Not a place: latitude -90 to 90, longitude -180 to 180
 Not a valid name
 Not changed
@@ -874,7 +794,6 @@ Notification
 Notification Icon
 Notification Settings…
 Notifications
-Notifications:
 Nov
 November
 Number
@@ -887,27 +806,19 @@ October
 Off
 Offline
 On
-On 10 Seconds
-On 30 Seconds
-On 5 Seconds
 On Critical Battery
 On a server: no owner or permissions here.
 On the clipboard: %s characters
 One line under the title; empty for none.
 One that begins with an expansion is that expansion:
-Only a web page can be made an app
 Only files can be dropped on a window
-Only this host. A link to any other site opens in the Browser.
 Open
 Open %s with:
 Open Clipboard
 Open Database…
 Open Folder Afterwards
 Open Folders in New Windows
-Open Image in New Tab
 Open Link
-Open Link in New Tab
-Open Location…
 Open Notes at Start
 Open Screenshots
 Open Terminal Here
@@ -932,11 +843,7 @@ PDF Reader
 PDFs need Poppler: apt install libpoppler-glib8, or brew install poppler
 PID:    %s
 PIN
-Page
 Page %s of %s
-Page Zoom
-Pages
-Pages May Play Sound On Their Own
 Pair
 Paired with %s
 Paired with %s; it did not connect
@@ -953,8 +860,6 @@ Pasted as %s
 Pasted the first %s characters of %s
 Pattern
 Pause
-Pause or Play
-Permissions reset
 Picture
 Picture Detail
 Picture Size
@@ -965,12 +870,8 @@ Pinned
 Placement
 Plain
 Plain text
-Play
-Play Next Automatically
-Player
 Pop Up
 Position
-Position Given
 Power
 Power Settings…
 Power on Menu Bar
@@ -983,15 +884,10 @@ Preparing to copy %s items
 Press a key for %s…
 Press another key for %s…
 Preview
-Previous
 Previous Month
 Previous Page
-Previous Tab
-Privacy
 Process Details
-Profile Folder
 Program
-Program to run as the browser:
 Programs
 Programs Set Clipboard
 Programs Take Focus
@@ -999,11 +895,8 @@ Programs in Windows
 Put Back
 Put back
 Puzzle
-Quality %s
-Quality Fetched
 Query
 Question
-Quieter
 Quit
 Quit Application
 Quit dBASE
@@ -1027,14 +920,11 @@ Refresh
 Refresh Desktop
 Refreshed
 Region
-Reload
 Remember Program Windows
 Remove
-Remove %s and its sign-in?
 Remove %s from your address book?
 Remove %s, every time it repeats?
 Remove %s?
-Remove Bookmark
 Remove This Note
 Remove it, with the parts nothing else needs?
 Remove the account %s? Its offline mail is kept.
@@ -1055,7 +945,6 @@ Report Spam
 Rescan
 Reset
 Reset All Views
-Reset Permissions
 Resize
 Restart
 Restart Desktop
@@ -1086,13 +975,8 @@ Sat
 Saturday
 Save
 Save As…
-Save Downloads Without Asking
 Save Drafts Every (seconds)
-Save Image As…
-Save Link As…
-Save Page As…
 Save as Draft
-Save as PDF…
 Saved %s
 Saved %s to %s
 Saved as %s
@@ -1111,8 +995,6 @@ Screenshot…
 Scroll To Bottom
 Scroll To Top
 Scrollbar
-Search With
-Search address; what is searched for goes at the end:
 Search…
 See Through
 See Through, Menus Too
@@ -1123,8 +1005,6 @@ Send Interrupt
 Sending…
 Sent
 Sep
-Separated by spaces, such as *doubleclick.net*
-Separated by spaces. Used at the next start.
 September
 Sequence
 Server
@@ -1157,7 +1037,6 @@ Shortcuts in Terminals
 Show
 Show All Notes
 Show All%s
-Show Captions
 Show Contents
 Show Control Strip
 Show Hidden Files
@@ -1168,7 +1047,6 @@ Show On
 Show Pictures
 Show all of %s
 Show the password
-Shown As
 Shown on the login screen, with your picture.
 Shows:
 Shut Down
@@ -1179,7 +1057,6 @@ Sign In to This Network%s
 Sign In to This Network…
 Signature
 Signature, put under every message you write:
-Sites Answered For Always
 Size: %s
 Skip
 Sleep
@@ -1206,9 +1083,7 @@ Standby displays join on their own
 Star
 Starred
 Start After (minutes)
-Start Page:
 Starting the camera%s
-Stay On:
 Stickies
 Sticky
 Still working
@@ -1219,7 +1094,6 @@ Stopped after %s items
 Stopped; nothing was done
 Stopping…
 Strikethrough
-Such as fr-FR, fr, en. Empty is the browser's own.
 Sum
 Sun
 Sunday
@@ -1235,8 +1109,6 @@ Syncing calendars…
 Syncing contacts…
 Tab: session  Enter: log in  Esc: name
 Take Photo
-Taken out of the favourites: %s
-Taken up at %s, where it was left
 Task
 Task List
 Task Manager
@@ -1257,7 +1129,6 @@ The PIN is cleared
 The PIN is set
 The Trash is empty: %d items deleted
 The Trash is empty: 1 item deleted
-The YouTube history is empty
 The administrator's (root) password, for %s
 The administrator's (root) password, to manage networks without one
 The administrator's (root) password, to remove the rule
@@ -1273,20 +1144,15 @@ The date is YYYY-MM-DD, the time HH:MM
 The desktop is drawn through %s
 The desktop stopped soon after putting its windows back, twice -- started without them
 The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)
-The download of %s did not finish: %s
 The end is a time, HH:MM
 The language was not changed: %s
 The login screen changes at the next logout
 The mermaid module is not loaded
 The one there now cannot be put back.
 The one there now goes to the trash.
-The page could not be saved
-The page could not be saved as a PDF
-The page's source could not be read
 The password of %s, for %s
 The password was not accepted
 The pdf module is not installed
-The picture for %s did not download: %s
 The record could not be added
 The remote file cache is empty
 The system asks for a password
@@ -1302,9 +1168,7 @@ The vault is synced
 The vault is unlocked
 The vault was locked meanwhile
 The vw command is not installed.
-The web module is not installed
 Theme
-There are no games in Boxer's games folder to give a cover to
 There is a theme called %s already
 There is no file %s
 There is no folder %s
@@ -1319,14 +1183,11 @@ This account has no address to answer from
 This computer has no localectl, so its language cannot be changed from here
 This computer has no timedatectl, and hibr's polkit policy is not installed
 This desktop is not the computer's own
-This engine cannot fetch that picture
-This engine cannot save an address
 This film has no sound: no microphone answered
 This links to %s
 This network wants you to sign in -- click to open its page
 This notification has been cleared.
 This page could not be drawn
-This site and its sister hosts. Any other site opens in the Browser.
 This window keeps its size
 This window: desktop shortcuts work again
 This window: every key goes to the program
@@ -1362,7 +1223,6 @@ Tue
 Tuesday
 Turns off automatic time (NTP) first
 Type this on it, then Enter:
-Type what to look for, or a playlist's or a channel's address, and enter.
 Type: %s
 Typing
 Under Applications; a / makes a folder inside one.
@@ -1388,9 +1248,6 @@ Use Alt Instead of Super
 Use Answer
 Use Covers
 Use Super Instead of Alt
-Use as Cover for a Game…
-User Agent
-User agent the pages are told:
 User name
 Username
 Users: %s
@@ -1401,7 +1258,6 @@ Video support isn't installed
 View
 View Details
 View History
-View Source
 Visible to Others
 Volume
 Volume %s%%
@@ -1413,16 +1269,12 @@ Wait for the transfers running to finish first
 Waiting for the program's first picture
 Wallpaper
 Wallpaper set
-Web App
-Web Apps
 Wed
 Wednesday
 Week
-What a Page May Have
 What a key is and types: Blit Keyboard
 What it prints is the cell's value:
 Wheel Scrolls
-When the Engine Next Starts
 Where are you? Control Panel > Prayer Times
 Where:
 Wi-Fi
@@ -1435,7 +1287,6 @@ Window Buttons
 Window Switcher
 Window Title
 Windows
-Windows Pages Open on Their Own
 Windows: %s open
 Windows: %s open, %s hidden
 Work Out Again
@@ -1450,15 +1301,11 @@ Write
 Write an Email
 X11 Programs
 YYYY-MM-DD and HH:MM:SS, local time
-YouTube
-YouTube did not answer -- trying again
-YouTube stopped -- picking up again at %s
 Your answer is sent to %s
 Zoom
 Zoom Fills
 Zoom In
 Zoom Out
-Zoom:
 [exited %s — close this window]
 a Control Panel pane
 a Control Strip module
@@ -1497,7 +1344,6 @@ connecting%s
 current
 dBASE
 dBASE Help
-desktop notes
 email
 escape closes
 every movement
@@ -1526,9 +1372,7 @@ moving — arrows, then enter
 nmcli asked something the desktop cannot answer
 no
 no reason given
-none
 none found
-none here
 not allowed from this session
 not charging
 not connected

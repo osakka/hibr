@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.523
+
+**The Browser and YouTube have one copy, the catalogue's** (the owner:
+"one source of truth"). hibr's tree still held a Browser 2.23, a YouTube
+3.26 and their three panes (browserset, webapps, tube) from before they
+moved to the catalogue, where they are 2.51 and 3.27: shipped by nothing,
+and still what `tests/web.py` and `tests/youtube.py` drove, so a gate
+passed or failed on code nobody runs. The five files are gone; the two
+suites drive the catalogue's copies through `screen.bundle()` (from
+`HIBR_APPS`, or `~/hibr-apps`, and a suite stops, saying so, when there is
+none), and the Control Panel's checks no longer count three panes hibr
+does not have.
+
+**An app carries its own words.** The Browser's and YouTube's Arabic was
+in hibr's own catalogue, which keeps only what hibr's tree draws -- so it
+would have gone with the copies, and nothing ever asked for the strings
+the Browser had grown since (56 of them were never translated). An app
+the catalogue carries now brings a part of kind `lang` named
+`<app>.<code>.json`, which the desktop adds to its language with the new
+`lang add` -- the same language only, refused whole when broken, and
+never replacing a word the desktop already has, so an app cannot relabel
+its Delete. The language list skips such a name, and a rescan loads them
+again, so an app installed or removed while the desktop runs brings or
+takes its words with it. `tools/strings.py --app` makes one from what an
+app's files draw and `--check-app` keeps it in step. hibr's Arabic is
+3.99.11 without those apps' 156 strings; the Browser's and YouTube's
+own files carry them, and the 56 new ones.
+
 ## 0.99.522
 
 **A line keeps the desktop's direction, whatever its first letter**

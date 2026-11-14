@@ -11,7 +11,7 @@ import re, sys, tempfile, threading, zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, press, release, load, tree, expect
+from screen import Term, check, report, press, release, load, tree, expect, bundle
 
 
 if len(sys.argv) > 1:
@@ -289,7 +289,7 @@ def brun(feed, arg=A, env=None, wait=1.5, until=None, gone=None, ready=None,
     open(p, "w").write("%s\n. %s\n. %s\ndt_open\n"
                        'dt_new Browser 22 76 1 2 browser %s\ndt_run\ndt_close\n'
                        % (load("console"), tree("programs/desktop/desktop.hibr"),
-                          tree("programs/desktop/apps/Internet/browser.hibr"), arg))
+                          bundle("apps/Internet/browser.hibr"), arg))
     e = {"HIBR_WEB_PROFILE": PROF, "XDG_DATA_HOME": os.path.join(D, "data"),
          "BW_HOME": ""}
     e.update(env or {})
@@ -365,12 +365,14 @@ check("ctrl-t opens a tab with the keyboard in the address; enter goes "
       "there, and the strip is back for two",
       sc.find("Test page ✕") is not None and sc.find("Page B ✕") is not None
       and sc.find("This is page B.") is not None, sc)
-sc = brun([b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\r", 0.8])
+# Bookmarks is the fifth menu from the hibr menu: File, Edit, View, Go,
+# Bookmarks (View since the Browser's 2.47).
+sc = brun([b"\x1b[21~"] + [b"\x1b[C"] * 5 + [b"\r", 0.8])
 marks = os.path.join(D, "data", "hibr", "bookmarks.tsv")
 text = open(marks).read() if os.path.exists(marks) else ""
 check("Bookmarks > Add Bookmark keeps the page in a file of its own",
       text == "Test page\t%s\n" % A, repr(text))
-sc = brun([b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C", 0.5])
+sc = brun([b"\x1b[21~"] + [b"\x1b[C"] * 5 + [0.5])
 check("and the Bookmarks menu lists it, and offers to remove it",
       sc.find("Remove Bookmark") is not None and sc.find("Test page") is not None,
       sc)
@@ -529,9 +531,14 @@ off = brun([2.0], arg=IM, until="IMGPAGE",
 check("Images off: the page lays out without its pictures",
       darkcells(on) > 50 and darkcells(off) == 0,
       (darkcells(on), darkcells(off)))
-light = brun([1.0], arg=K, until="DARKTEST", env={"DT_IMGMODE": "half"})
+# And the light one says never: the default follows the desktop, whose
+# theme here is dark.
+light = brun([1.0], arg=K, until="DARKTEST",
+             env={"DT_IMGMODE": "half", "BW_DARKMODE": "never"})
+# BW_DARKMODE decides on a desktop with dt_modehook (0.99.481 on);
+# BW_DARK is only an older desktop's.
 dark = brun([1.0], arg=K, until="DARKTEST",
-            env={"DT_IMGMODE": "half", "BW_DARK": "1"})
+            env={"DT_IMGMODE": "half", "BW_DARKMODE": "always"})
 pl, pd = light.find("DARKTEST"), dark.find("DARKTEST")
 check("Ask Sites for Dark Pages: a page's dark scheme is what is drawn",
       pl is not None and pd is not None and

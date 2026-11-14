@@ -3673,6 +3673,28 @@ sc2, _ = run("", feed=[press(0, 2), release(0, 2)])
 check("an extra button bound to nothing is not a click: on the hibr menu's title it opens nothing",
       sc.find("About This Computer") is None and sc2.find("About This Computer") is not None,
       (sc, sc2))
+# An app the catalogue installs carries its own translations as a part,
+# lang/<app>.<code>.json, added to the desktop's own (0.99.523): its name is
+# translated, its file cannot relabel one of the desktop's words, and it is
+# never listed as a language.
+def appowncheck():
+    """One function, so a part can copy it whole (appslice)."""
+    conf = tempfile.mkdtemp(prefix="hibr-applang-")
+    os.makedirs(os.path.join(conf, "hibr", "apps"))
+    os.makedirs(os.path.join(conf, "hibr", "lang"))
+    open(os.path.join(conf, "hibr", "apps", "zz.hibr"), "w").write(
+        'dt_app zz "Zebra Stripes" 6 20 once "Z"\n')
+    open(os.path.join(conf, "hibr", "lang", "zz.xx.json"), "w").write(
+        '{"language": "xx", "strings": {"Zebra Stripes": "ZEBRA-XX", "Quit": "QUIT-XX"}}\n')
+    sc, _ = run("", feed=APPMENU, env={"XDG_CONFIG_HOME": conf, "DT_LANG": "xx"}, pre=APPS)
+    check("an app's own translations, beside it, translate its name",
+          sc.find("ZEBRA-XX") is not None, sc)
+    check("and cannot relabel a word of the desktop's own",
+          sc.find("QUIT-XX") is None and sc.find("\u27e6Quit") is not None, sc)
+    shutil.rmtree(conf, True)
+
+
+appowncheck()
 sc, raw = run("", feed=APPMENU, env={"XDG_CONFIG_HOME": UCONF},
               pre=APPS + SYSAPPS)
 menu = [sc.row(r)[:46] for r in range(2, 18)]
@@ -10115,4 +10137,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1094)
+report(1096)
