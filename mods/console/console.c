@@ -1841,6 +1841,7 @@ static const dp_api console_api = {
 };
 
 static const dps_api console_scroll = { cn_vscroll };
+static const dpo_api console_over = { cn_over };
 static const dpf_api console_frames = { cn_dcan, cn_dplace, cn_dframe,
 					cn_ddrop, cn_danswers, cn_fdhook,
 					cn_fdunhook, cn_dinput, cn_dsub, cn_dcrop };
@@ -1855,6 +1856,7 @@ int cn_ini(sh *s)
 
 	if (r == HIBR_OK) {
 		hibr_provide(s, "scroll", DPS_API_VER, (void *)&console_scroll);
+		hibr_provide(s, "dpover", DPO_API_VER, (void *)&console_over);
 		hibr_provide(s, "dpframes", DPF_API_VER,
 			     (void *)&console_frames);
 	}
@@ -1874,6 +1876,7 @@ void cn_fini(sh *s)
 	s_free(&cn_pend);
 	cn_pendo = 0;
 	hibr_unprovide(s, "dpframes");
+	hibr_unprovide(s, "dpover");
 	hibr_unprovide(s, "scroll");
 	hibr_unprovide(s, "display");
 }

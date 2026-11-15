@@ -47,6 +47,7 @@ typedef struct cn_img {
 	int sent;		/* 0 until its bytes have gone out */
 	int over;		/* text is drawn over this one, so it owns no cells */
 	int lo;			/* a window's picture below the cells (Gitea #374) */
+	int al;			/* RGBA over the cells, which keep their own colours */
 	long z;			/* its kitty layer, 0 over the text */
 	int live;		/* placed again this frame (an `over` one only) */
 	unsigned above;		/* of the cells over it, as they were when sent */
@@ -764,7 +765,7 @@ int cn_imgunderat(int row, int col)
 	for (i = 0; i < cn_nimg; i++) {
 		cn_img *im = &cn_imgs[i];
 
-		if (!im->over && !im->lo)
+		if ((!im->over && !im->lo) || im->al)
 			continue;
 		if (row >= im->row && row < im->row + im->h &&
 		    col >= im->col && col < im->col + im->w)
@@ -835,6 +836,47 @@ int cn_imgat(int row, int col)
 		    col >= cn_imgs[i].col && col < cn_imgs[i].col + cn_imgs[i].w)
 			return 1;
 	return 0;
+}
+
+/* Box-filter a rectangle of an RGBA bitmap into w by h pixels, as
+   cn_imgscalesrc does RGB: each colour weighted by its own alpha, so a
+   transparent pixel's colour -- whatever the file left there -- never
+   darkens or tints the edge it is averaged into. */
+void cn_imgscalea(const unsigned char *in, int iw, int rx, int ry, int rw,
+		  int rh, unsigned char *out, int w, int h)
+{
+	int x, y, sx, sy, x0, x1, y0, y1;
+
+	for (y = 0; y < h; y++) {
+		y0 = ry + (int)((long long)y * rh / h);
+		y1 = ry + (int)((long long)(y + 1) * rh / h);
+		if (y1 <= y0)
+			y1 = y0 + 1;
+		for (x = 0; x < w; x++) {
+			unsigned long long r = 0, g = 0, b = 0, a = 0, n = 0;
+			unsigned char *o = out + ((size_t)y * w + x) * 4;
+
+			x0 = rx + (int)((long long)x * rw / w);
+			x1 = rx + (int)((long long)(x + 1) * rw / w);
+			if (x1 <= x0)
+				x1 = x0 + 1;
+			for (sy = y0; sy < y1; sy++)
+				for (sx = x0; sx < x1; sx++) {
+					const unsigned char *p =
+						in + ((size_t)sy * iw + sx) * 4;
+
+					r += (unsigned long long)p[0] * p[3];
+					g += (unsigned long long)p[1] * p[3];
+					b += (unsigned long long)p[2] * p[3];
+					a += p[3];
+					n++;
+				}
+			o[0] = a ? (unsigned char)(r / a) : 0;
+			o[1] = a ? (unsigned char)(g / a) : 0;
+			o[2] = a ? (unsigned char)(b / a) : 0;
+			o[3] = (unsigned char)(a / n);
+		}
+	}
 }
 
 /* Box-filter a rectangle of a bitmap into w by h pixels. iw is the whole
@@ -1033,7 +1075,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags)
 {
 	int prow = 0, pcol = 0, ph = 0, pw = 0, cw = 0, chh = 0, tw, th, k;
-	int wrow, wcol, wh, ww, vr0, vc0, vr1, vc1, sx, sy, sw, sh, comp, lo;
+	int wrow, wcol, wh, ww, vr0, vc0, vr1, vc1, sx, sy, sw, sh, comp, lo, al, bpp;
 	long z;
 	unsigned char *px = 0;
 	unsigned sum, reuse = 0;
@@ -1054,13 +1096,21 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   two until the terminal has answered, which costs nothing. */
 	if (!cn_gfxsure(s))
 		return 0;
+	/* A picture with its own transparency is laid over a pane's cells and
+	   blended onto them by the terminal, which only one that keeps
+	   pictures as objects can do: a sixel is paint and has no alpha, so
+	   the caller lays it over a colour of its own instead. */
+	al = (flags & CN_IMG_ALPHA) ? 1 : 0;
+	if (al && (k != CN_GFX_KITTY || !pane))
+		return 0;
+	bpp = al ? 4 : 3;
 	/* A window's picture on a terminal that keeps pictures as objects goes
 	   below the cells (Gitea #374), where a window over part of it covers
 	   that part. Over the text, as before, it had to be dropped whole the
 	   moment anything was drawn inside it -- every frame, while anything
 	   overlapped it -- which is a blank window. A sixel is paint and has no
 	   layers, so it stays over the text. */
-	lo = pane && k == CN_GFX_KITTY && !(flags & DP_IMG_UNDER);
+	lo = (pane && k == CN_GFX_KITTY && !(flags & DP_IMG_UNDER)) || al;
 	cn_cellpx(&cw, &chh);
 	if (cw < 2 || chh < 2)
 		return 0;
@@ -1165,10 +1215,13 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	col = vc0;
 	h = vr1 - vr0;
 	w = vc1 - vc0;
-	if (lo)
+	/* A window's picture shows through blanked cells from below; one with
+	   its own transparency is over the cells as they are, which is the
+	   whole of what it is for. */
+	if (lo && !al)
 		cn_imgblank(row, col, h, w);
-	z = cn_imgz(pane, lo, flags);
-	sum = cn_hash(rgb, (size_t)iw * ih * 3, 2166136261u);
+	z = al ? CN_ZOVER : cn_imgz(pane, lo, flags);
+	sum = cn_hash(rgb, (size_t)iw * ih * bpp, 2166136261u);
 	sum = cn_hash(&flags, sizeof flags, sum);
 	for (i = 0; i < cn_nimg; i++) {
 		im = &cn_imgs[i];
@@ -1182,7 +1235,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		   each took the other for its own older self and dropped it
 		   -- the wallpaper placed whole again on every repaint, and
 		   never kept between (Gitea #418). */
-		if (im->over != ((flags & DP_IMG_UNDER) ? 1 : 0) || im->lo != lo)
+		if (im->over != ((flags & DP_IMG_UNDER) ? 1 : 0) || im->lo != lo ||
+		    im->al != al)
 			continue;
 		/* Its window moved in the stack: the same picture at another
 		   layer, which the terminal takes as a new placement. */
@@ -1211,9 +1265,9 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		   Placing first and deleting behind leaves no such gap. */
 		/* Or the part of it that changed, where the terminal can
 		   edit a picture in place (Gitea #404). */
-		if (im->z == z && cn_imgfdnext(s, im, rgb, iw, ih, sum))
+		if (!al && im->z == z && cn_imgfdnext(s, im, rgb, iw, ih, sum))
 			return 1;
-		if (im->z == z && cn_imgtry(im, rgb, iw, ih, sum))
+		if (!al && im->z == z && cn_imgtry(im, rgb, iw, ih, sum))
 			return 1;
 		reuse = im->id;
 		im->id = 0;
@@ -1247,7 +1301,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	 * The placed rectangle, not the requested one: the request can be
 	 * clipped to the screen, and what overlaps is what is on it.
 	 */
-	if (!(flags & DP_IMG_UNDER)) {
+	if (!(flags & DP_IMG_UNDER) && !al) {
 		size_t j = 0;
 
 		while (j < cn_nimg) {
@@ -1288,6 +1342,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	im->sum = sum;
 	im->over = (flags & DP_IMG_UNDER) ? 1 : 0;
 	im->lo = lo;
+	im->al = al;
 	im->z = z;
 	im->live = im->over;
 	if (pane && !im->over) {
@@ -1324,7 +1379,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   its rectangle has to be exactly the cells it covers. */
 	tw = w * cw;
 	th = h * chh;
-	if (im->id && tw > 2 && th > 2 &&
+	if (im->id && !al && tw > 2 && th > 2 &&
 	    (cn_imghalf == CN_DETAIL_HALF ||
 	     (cn_imghalf == CN_DETAIL_AUTO && im->over) ||
 	     (cn_filmhalf && (flags & DP_IMG_FILM)))) {
@@ -1352,7 +1407,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 			th = sh;
 	}
 	if (sx || sy || sw != iw || sh != ih || tw != sw || th != sh) {
-		px = xm((size_t)tw * th * 3);
+		px = xm((size_t)tw * th * bpp);
 		if (tw == sw && th == sh) {
 			/* A crop that lands on a cell boundary -- which is
 			   every picture img hands over, having already scaled
@@ -1365,9 +1420,11 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 			int y;
 
 			for (y = 0; y < th; y++)
-				memcpy(px + (size_t)y * tw * 3,
-				       rgb + ((size_t)(sy + y) * iw + sx) * 3,
-				       (size_t)tw * 3);
+				memcpy(px + (size_t)y * tw * bpp,
+				       rgb + ((size_t)(sy + y) * iw + sx) * bpp,
+				       (size_t)tw * bpp);
+		} else if (al) {
+			cn_imgscalea(rgb, iw, sx, sy, sw, sh, px, tw, th);
 		} else {
 			cn_imgscalesrc(rgb, iw, ih, sx, sy, sw, sh,
 				       px, tw, th);
@@ -1398,7 +1455,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	comp = im->over ? cn_imgcomp : CN_COMP_NONE;
 	/* A window's picture by descriptor where it can go that way: the
 	   frame now, the placement with the cells. */
-	if (im->id && !im->over && cn_fdon(s) &&
+	if (im->id && !im->over && !al && cn_fdon(s) &&
 	    cn_frsend(s, im->id, 1, px ? px : rgb, tw, th)) {
 		im->fd = 1;
 		im->seq = 1;
@@ -1413,13 +1470,13 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		im->pth = th;
 		im->pgen = (unsigned)cn_wgen;
 	} else if (im->id)
-		kt_encode(px ? px : rgb, tw, th, w, h, im->id, im->z, comp,
+		kt_encode(px ? px : rgb, tw, th, w, h, im->id, im->z, comp, al,
 			  &im->data);
 	else
 		six_encode(px ? px : rgb, tw, th,
 			   (flags & DP_IMG_CHOSEN) ? 1 : 0, &im->data);
 	/* Kept for the next frame's edit, where one can be made. */
-	if (im->id && !im->over && !im->fd && cn_canedit()) {
+	if (im->id && !im->over && !al && !im->fd && cn_canedit()) {
 		im->prev = px ? px : cn_imgbuild(rgb, iw, ih, sx, sy, sw, sh,
 						 tw, th);
 		px = 0;
@@ -1442,9 +1499,17 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   "pixels, %zu bytes%s%s%s", cn_gfxname(k), w, h, row, col, sw, sh,
 	   iw, ih, im->data.n,
 	   (flags & DP_IMG_CHOSEN) ? ", chosen palette" : "",
-	   im->over ? ", under text" : "",
+	   im->over ? ", under text" : al ? ", over the cells, with alpha" : "",
 	   (wh != h || ww != w) ? ", cropped to the screen" : "");
 	return 1;
+}
+
+/* A picture with its own transparency over a pane's cells: dpover's one
+   entry. 0 where the terminal cannot blend one (cn_image says why). */
+int cn_over(sh *s, const char *pane, int row, int col, int h, int w,
+	    const unsigned char *rgba, int iw, int ih)
+{
+	return cn_image(s, pane, row, col, h, w, rgba, iw, ih, CN_IMG_ALPHA);
 }
 
 /* An under-text picture already placed at exactly this rectangle is still

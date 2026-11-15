@@ -182,6 +182,31 @@ typedef struct dps_api {
 	int (*scroll)(int row, int col, int h, int w, int n);
 } dps_api;
 
+/* A fourth, under the name "dpover": a picture with its own transparency,
+   laid over the cells and blended onto whatever they show -- a tray icon
+   over a see-through menu bar, whose cells differ one from the next, so no
+   one colour a picture is flattened onto can stand in for them. Like
+   "scroll", it is offered beside "display" so that one does not change
+   version.
+
+   over: h by w cells at row, col of pane, which it needs, since a pane's
+   drawing is what keeps it -- from iw by ih pixels of RGBA, any size; 0
+   with no pane. The cells under it are drawn as
+   they are, with their own colours, and the picture goes above them; it
+   lasts as a window's picture does, for as long as its pane places it
+   again whenever the pane is drawn. 1 once the display has it; 0 where it
+   cannot blend a picture over cells (a sixel terminal, one that has not
+   said what it draws), which is the caller's cue to lay the picture over a
+   colour of its own and place that through "display" instead. */
+#ifndef DPO_API_VER
+#define DPO_API_VER 1u
+#endif
+
+typedef struct dpo_api {
+	int (*over)(sh *s, const char *pane, int row, int col, int h, int w,
+		    const unsigned char *rgba, int iw, int ih);
+} dpo_api;
+
 /* A third, under the name "dpframes" (Gitea #486, Blit ADR 0223): a
    window's picture whose frames arrive by descriptor from another program
    -- a dmabuf, or a sealed memfd of RGB -- and are passed on to Blit

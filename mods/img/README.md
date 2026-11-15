@@ -88,6 +88,21 @@ drawn in that colour: a mono icon made for a dark panel then reads on a
 light bar too. Written to `out.part` and renamed, so a reader never sees
 half of it.
 
+## A picture with its own transparency
+
+`img draw file row col h w -a [-i #ink] -p pane` keeps the picture's alpha
+and asks the display to blend it **over the pane's cells as they are**,
+through the `"dpover"` interface (`mods/display.h`): for a tray icon on a
+see-through menu bar, where every cell is a different colour and no one
+colour could stand behind it. A PNG keeps its alpha, any other picture is
+opaque, and an ink makes every colour that ink with the shape kept, as
+`flatten` does. Only a terminal that keeps pictures as objects can blend
+one (kitty's protocol, `f=32`): a sixel is paint and has no alpha, so the
+call fails there, places nothing, and the caller falls back to `flatten`.
+`-p` is required, since such a picture lives as long as its pane places
+it. What was decoded is kept by file, ink and the file's time, sixteen at
+most (`IM_ACAP`), so an icon drawn on every frame is decoded once.
+
 ## Two render paths, one decode and resample
 
 Both `img file` and `img draw` share `im_resample`, a box filter -- every
@@ -104,9 +119,10 @@ separately, so the colour renderer can show both at once.
   whatever the terminal's own foreground colour already is -- jp2a's own
   classic, uncoloured look.
 
-Alpha is not kept. A terminal cell has no sensible way to blend a
-transparent pixel against whatever is meant to show through it, so every
-pixel is treated as opaque.
+Alpha is not kept on these paths. A terminal cell has no sensible way to
+blend a transparent pixel against whatever is meant to show through it, so
+every pixel is treated as opaque; `-a` above is the one way to keep it, and
+it goes to the terminal as pixels, never as cells.
 
 ## The two entry points
 
@@ -115,7 +131,7 @@ all -- terminal size comes from `TIOCGWINSZ` directly when neither `-w` nor
 `-h` is given and stdout is a terminal, `80x24` otherwise. This is the
 testable path: deterministic ANSI bytes, no pty required.
 
-`img draw file row col h w [-g] [-m mode] [-p pane] [-u] [-c x y w h]` requires `"display"`
+`img draw file row col h w [-g] [-m mode] [-p pane] [-u] [-a [-i #ink]] [-c x y w h]` requires `"display"`
 (`hibr_require`) only inside this one subcommand, so printing an image in a
 plain pipe never loads the console module. There is no bulk cell-write
 primitive in `dp_api` -- drawing means one `pen`+`put` pair per cell, the

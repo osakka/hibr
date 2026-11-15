@@ -319,6 +319,26 @@ clear` takes every picture with it, each deleted on the terminal in the
 same frame (0.99.346): a picture below the cells would otherwise show
 through every cell the clear left at the terminal's own background.
 
+## Pictures over the cells
+
+The `"dpover"` interface (`DPO_API_VER` 1, `mods/display.h`) places an RGBA
+picture **above** a pane's cells: `over(s, pane, row, col, h, w, rgba, iw,
+ih)`. Every other picture here is under the text or owns its cells, and
+both of those blank the cells or ask the caller to leave them without a
+colour; this one leaves them exactly as drawn, and the terminal blends the
+picture over them with its own alpha. That is what a tray icon on a
+see-through menu bar needs, since the cells behind it are the wallpaper
+darkened, a different colour in every one. On kitty it goes as `f=32` at
+`CN_ZOVER` (`z=1`), uncompressed; it follows the pane rule a window's
+picture follows -- kept while the pane places it again, taken away the
+first frame it does not and with the pane -- and cells drawn under it do
+not drop it. Scaling weights each colour by its alpha (`cn_imgscalea`),
+or a clear pixel's colour would bleed into the edge of the shape. A sixel
+is paint with no alpha, so on a sixel terminal, or outside a pane, `over`
+returns 0 and places nothing, which is the caller's sign to lay the
+picture over a colour of its own instead (`img flatten`). Hold's emulator
+keeps such a picture until it is deleted, as it keeps one under the text.
+
 ## Pictures another program sends
 
 The `"dpframes"` interface (`DPF_API_VER` 1, `mods/display.h`), offered beside

@@ -25,6 +25,10 @@
    1 always: there is nothing a caller could do about a failure to
    compress, and nothing here can fail otherwise. */
 int pw_write(const unsigned char *rgb, int w, int h, str *out);
+/* The same with bpp bytes a pixel, 3 or 4: four is RGBA, a PNG with its
+   alpha, which a tray icon handed over as pixels is written as so the
+   display can blend it over the bar's own cells. */
+int pw_writen(const unsigned char *rgb, int w, int h, int bpp, str *out);
 
 /* The CRC-32 the format puts after every chunk, exposed because a test
    wants to check one without writing a whole file. */

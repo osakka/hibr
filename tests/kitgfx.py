@@ -1248,5 +1248,49 @@ kl = open(KEPTLOG).read() if os.path.exists(KEPTLOG) else ""
 check("a cropped picture placed under the text again in the same place is kept",
       "kept the picture already placed" in kl, kl[-600:])
 
+# A picture with its own transparency (dpover, 0.99.535): a tray icon over
+# a see-through bar, where no one colour can stand behind it. It goes as
+# RGBA (f=32) above the cells (z=1), and the cells under it keep their own
+# colours -- a window's picture blanks them, this one must not. A sixel
+# terminal cannot blend, so the call fails and the caller flattens instead.
+ALPHA = os.path.join(D, "alpha.png")
+
+
+def _chunk(tag, data):
+    body = tag + data
+    return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+
+open(ALPHA, "wb").write(
+    b"\x89PNG\r\n\x1a\n"
+    + _chunk(b"IHDR", struct.pack(">IIBBBBB", 16, 16, 8, 6, 0, 0, 0))
+    + _chunk(b"IDAT", zlib.compress(b"".join(
+        b"\x00" + bytes(v for x in range(16) for v in (250, 250, 250, 255 if (x + y) % 2 else 0))
+        for y in range(16))))
+    + _chunk(b"IEND", b""))
+AST = os.path.join(D, "alpha.st")
+ABAR = ('console pane bar 0 0 1 40\nconsole pen "#ffffff" "#204060"\n'
+        'console put -p bar 0 0 "%s"\n' % (" " * 40))
+sc = run(ABAR + 'img draw %s 0 4 1 2 -m pixels -p bar -a; echo "st=$?" > %s\n'
+         'console flush\nconsole key 300\n' % (ALPHA, AST))
+pl = places(sc)
+check("a picture with its own transparency goes as RGBA, above the cells",
+      len(pl) == 1 and key(pl[0], "f") == "32" and key(pl[0], "z") == "1"
+      and len(payload(sc)) == 16 * 16 * 4 and "st=0" in open(AST).read(), (pl, open(AST).read()))
+check("and the cells under it keep their own colour, where a window's picture blanks them",
+      bg(sc, 0, 4) == (32, 64, 96) and bg(sc, 0, 5) == (32, 64, 96), (bg(sc, 0, 4), bg(sc, 0, 5)))
+sc = run(ABAR + 'img draw %s 0 4 1 2 -m pixels -p bar -a; echo "st=$?" > %s\n'
+         'console flush\nconsole key 300\n' % (ALPHA, AST), gfx="sixel")
+check("a sixel terminal cannot blend one: the call fails, and nothing is placed",
+      "st=1" in open(AST).read() and not places(sc) and not sc.images, open(AST).read())
+sc = run(ABAR + 'img draw %s 0 4 1 2 -m pixels -p bar -a\nconsole flush\nconsole key 200\n'
+         'console put -p bar 0 4 "  "\nimg draw %s 0 4 1 2 -m pixels -p bar -a\n'
+         'console flush\nconsole key 200\n'
+         'console put -p bar 0 0 "%s"\nconsole flush\nconsole key 200\n'
+         % (ALPHA, ALPHA, " " * 40))
+# Its own delete is d=I; the d=A every console sends as it closes is not it.
+dl = [x for x in deletes(sc) if "d=I" in x]
+check("cells drawn under it while it is placed keep it; the pane drawn without it takes it away",
+      len(places(sc)) == 1 and len(dl) == 1, (places(sc), dl))
 shutil.rmtree(D, True)
-report(116)
+report(120)

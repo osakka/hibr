@@ -10,7 +10,7 @@ waiting on it -- writing every event it sees to a file, while the suite
 starts the stand-in and reads what it was sent. Without dbus-daemon, or
 without libdbus, every check is skipped and the suite says so.
 """
-import json, os, re, shutil, signal, subprocess, sys, tempfile, time
+import atexit, json, os, re, shutil, signal, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -32,6 +32,9 @@ if not shutil.which("dbus-daemon"):
 daemon = subprocess.Popen(["dbus-daemon", "--session", "--nofork",
                            "--address=unix:path=" + BUS],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+# Ended however the suite ends: a check that raises partway left this bus
+# running for hours, under nobody.
+atexit.register(daemon.kill)
 for _ in range(100):
     if os.path.exists(BUS):
         break
@@ -502,6 +505,29 @@ def placed():
 sc = until(placed, 10)
 check("where the terminal shows pixels, an icon is the program's own picture, not its letter",
       bool(sc), t.screen().row(0))
+# With its own transparency (0.99.535): RGBA laid over the bar's cells,
+# which keep the bar's own colour, so a see-through bar shows through the
+# icon's clear pixels rather than one colour boxing it in.
+kp = [x for x in (sc.kplace if sc else []) if "a=T" in x[2]]
+last = kp[-1] if kp else None
+under = [sc.style(last[0], last[1] + i)["bg"] for i in (0, 1)] if last else []
+barbg = sc.style(0, 0)["bg"] if sc else None
+check("the icon goes with its transparency, over the bar's cells, which keep the bar's colour",
+      last is not None and "f=32" in last[2] and "z=1" in last[2]
+      and barbg is not None and under == [barbg, barbg], (last, under, barbg))
+# A program that sends its picture as pixels over the bus, with no file,
+# is drawn the same way: the pixels written as a PNG with their alpha.
+def alphas():
+    t.collect(0.1)
+    return len([x for x in t.screen().kplace if "f=32" in x[2]])
+
+
+n0 = alphas()
+pp, plog = item(d, "--pixmap-only", "--title", "Pix", "--id", "pix", name="pix")
+sc = until(lambda: alphas() > n0 and t.screen(), 10)
+check("an icon sent as pixels goes with its transparency too",
+      bool(sc), t.screen().row(0))
+open(plog + ".quit", "w").close()
 open(log + ".quit", "w").close()
 t.quit()
 t.close()
@@ -694,4 +720,4 @@ fresh = startup(new_home, 3)
 check("a desktop that had the keyboard and the tray from the package is told once where they went",
       first and not again, (first, again))
 check("and a new desktop is told nothing", not fresh, fresh)
-report(42)
+report(44)

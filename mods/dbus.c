@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "hibr.h"
+#include "png.h"
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -141,6 +142,8 @@ typedef struct {
 	bu_row *rows;
 	int nrows;
 } bu_item;
+
+int bu_pnga(bu_item *t, const char *path);
 
 enum { K_HELLO = 1, K_WATCH, K_HOST, K_IGNORE, K_GETALL, K_OWNER, K_LAYOUT, K_WITEMS, K_ACTIVATE, K_NOTES };
 
@@ -1600,6 +1603,8 @@ int bu_ppm(bu_item *t, const char *path, const char *bg)
 
 	if (!t->px)
 		return 0;
+	if (!bg)
+		return bu_pnga(t, path);
 	if (bg && bg[0] == '#' && strlen(bg) == 7)
 		sscanf(bg + 1, "%2x%2x%2x", &br, &bgc, &bb);
 	s_init(&tmp);
@@ -1629,6 +1634,45 @@ int bu_ppm(bu_item *t, const char *path, const char *bg)
 	}
 	s_free(&tmp);
 	return 1;
+}
+
+/* An item's picture as a PNG with its alpha, for the display to blend over
+   the bar's own cells (`img draw -a`): the bus hands it ARGB in network
+   order, a PNG wants RGBA. */
+int bu_pnga(bu_item *t, const char *path)
+{
+	unsigned char *rgba;
+	long i, n = (long)t->pw * t->ph;
+	FILE *f;
+	str tmp, png;
+	int ok;
+
+	rgba = xm((size_t)n * 4);
+	for (i = 0; i < n; i++) {
+		const unsigned char *p = t->px + i * 4;
+
+		rgba[i * 4 + 0] = p[1];
+		rgba[i * 4 + 1] = p[2];
+		rgba[i * 4 + 2] = p[3];
+		rgba[i * 4 + 3] = p[0];
+	}
+	s_init(&png);
+	pw_writen(rgba, t->pw, t->ph, 4, &png);
+	free(rgba);
+	s_init(&tmp);
+	s_cat(&tmp, path);
+	s_cat(&tmp, ".part");
+	f = fopen(tmp.p, "wb");
+	ok = f && fwrite(png.p, 1, png.n, f) == png.n;
+	if (f && fclose(f) != 0)
+		ok = 0;
+	if (ok && rename(tmp.p, path) != 0)
+		ok = 0;
+	if (!ok)
+		unlink(tmp.p);
+	s_free(&tmp);
+	s_free(&png);
+	return ok;
 }
 
 /* Say text as the answer, or print it. */

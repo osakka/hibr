@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.99.535
+
+**A program's tray icon has no box behind it** (owner, 2026-11-15). An icon
+like Steam's was laid over one colour, the bar's, before it was drawn, and
+a see-through bar (`DT_BARTRANS`) is a different colour in every cell -- so
+the icon sat in a solid box of the bar's own face, over a bar that showed
+the wallpaper everywhere else. There is no one colour that can stand behind
+it, so the picture now goes to the terminal with its own transparency and
+the terminal blends it over whatever the cells show.
+
+- **`"dpover"`** (`DPO_API_VER` 1, `mods/display.h`), offered by the console
+  beside `"display"`: `over()` places an RGBA picture **above** a pane's
+  cells, which keep their own colours. On kitty it is `f=32` at `z=1`, the
+  cells left as they are, kept and taken away by the pane rule a window's
+  picture follows. A sixel is paint and has no alpha, so a display that
+  speaks only sixel refuses it, and so does a placement outside a pane.
+  Scaling weights each colour by its alpha, so a clear pixel's colour does
+  not bleed into its neighbours' edges.
+- **`img draw -a [-i #ink]`** draws a picture that way: a PNG with its
+  alpha, any other picture opaque, and with an ink every colour that ink
+  with the shape kept, for an icon made for a dark panel. What it decoded
+  is kept by file, ink and the file's time (sixteen at most), so an icon
+  drawn every time its bar is drawn is decoded once.
+- **`dbus pixmap N FILE`** with no colour writes the picture a program sent
+  as a PNG with its alpha; with one, the PPM laid over it, as before.
+- **The tray draws through them** (`menubar/tray.hibr` 1.0.4): the program's
+  own PNG, or its pixels written as one, with their transparency; where the
+  display cannot, the picture laid over the bar's colour as before; where
+  neither, the item's letter.
+- **`hold` keeps such a picture across its cells being drawn again.** The
+  emulator took any picture with a nonzero `z` other than a negative one
+  for a picture that owns its cells, so the first cell the bar drew under
+  the icon dropped it on every held display, which is every desktop. A
+  picture with any explicit nonzero `z` is kept until it is deleted.
+
+Checked: `tests/kitgfx.py` places an RGBA picture and reads `f=32`, `z=1`,
+the cells untouched and the alpha in the payload, and that sixel refuses it;
+`tests/traymod.py` checks a program's PNG and its pixels go out with their
+transparency; `tests/holdpix.py` checks such a picture reaches a held client
+and is still there after the cells under it are drawn again, and fails
+against the emulator before this release.
+
 ## 0.99.534
 
 **Every dropdown is one list, and it opens on what is chosen** (Gitea #558).

@@ -115,6 +115,43 @@ fn dt_traypicfor(int n) {
 	ret "$f"
 }
 
+# An item's picture with its own transparency, for the display to blend over
+# the bar's cells whatever they show -- a see-through bar is a different
+# colour in every cell, so no one colour can stand behind it: the
+# program's PNG as it is, or the pixels it sent written as one.
+fn dt_trayalphafor(int n) {
+	local d="${XDG_CACHE_HOME:-$HOME/.cache}/hibr/tray" src=${TRAY_SRC["$n"]-} id f
+
+	[ -n "$src" ] || return 1
+	if [ "$src" != pixmap ]; then
+		ret "$src"
+		return 0
+	fi
+	id=${TRAY_ID["$n"]//[!A-Za-z0-9._-]/_}
+	f="$d/$id.png"
+	if [ ! -f "$f" ]; then
+		mkdir -p "$d" 2> /dev/null || return 1
+		dbus pixmap "$n" "$f" 2> /dev/null || return 1
+	fi
+	ret "$f"
+}
+
+# One item's picture at column c of the bar: with its transparency over the
+# bar's own cells where the display blends one, else laid over the bar's
+# colour, else nothing (the caller draws its letter).
+fn dt_traypic(int n, int c) {
+	local pic ink=
+
+	[ -n "${TRAY_MONO["$n"]-}" ] && ink=$DT_INK
+	{ dt_has img || need img 2> /dev/null; } || return 1
+	if pic := dt_trayalphafor "$n" &&
+	   img draw "$pic" 0 $((c - ${DT_PRIMARY_COL:-0})) 1 2 -m pixels -p bar -a ${ink:+-i "$ink"} 2> /dev/null; then
+		return 0
+	fi
+	pic := dt_traypicfor "$n" || return 1
+	img draw "$pic" 0 $((c - ${DT_PRIMARY_COL:-0})) 1 2 -m pixels -p bar 2> /dev/null
+}
+
 # What an item says about itself, read again: its letter, where its picture
 # comes from, and its state. Said in the log, so what a program sends can
 # be seen.
@@ -369,7 +406,7 @@ fn dt_traywheel(dir) {
 # program gave one, else its letter, in the warning colour while it asks
 # for attention; then the arrow for the rest.
 fn dt_traydraw(int c, int hover) {
-	local cells pic
+	local cells
 	local -a w
 
 	cells := dt_traycells "$c"
@@ -378,10 +415,10 @@ fn dt_traydraw(int c, int hover) {
 		if [ "${w[0]}" = rest ]; then
 			console pen "$DT_INK" "$DT_BAR"
 			dt_barput "${w[1]}" "${GL[sright]:->}"
-		elif [ "${w[2]}" = 2 ] && pic := dt_traypicfor "${w[0]}"; then
+		elif [ "${w[2]}" = 2 ] && [ -n "${TRAY_SRC["${w[0]}"]-}" ]; then
 			console pen "$DT_INK" "$DT_BAR"
 			dt_barput "${w[1]}" "  "
-			img draw "$pic" 0 $((w[1] - ${DT_PRIMARY_COL:-0})) 1 2 -m pixels -p bar 2> /dev/null ||
+			dt_traypic "${w[0]}" "${w[1]}" ||
 				dt_barput "${w[1]}" "${TRAY_GL["${w[0]}"]} "
 		else
 			if [ -n "${TRAY_ATT["${w[0]}"]-}" ]; then

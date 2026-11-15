@@ -306,6 +306,11 @@ $(B)/mods/img.so: $(IMG_SRC) include/hibr.h mods/img/im.h mods/display.h mods/pn
 
 $(B)/mods/http.so: mods/fetch.h
 
+# The bus writes a tray icon handed over as pixels as a PNG with its alpha,
+# through the one PNG writer (mods/png.c) and our deflate.
+$(B)/mods/dbus.so: mods/dbus.c mods/png.c mods/deflate.c mods/inftab.c mods/png.h include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/dbus.c mods/png.c mods/deflate.c mods/inftab.c
+
 $(B)/mods/%.so: mods/%.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $<
 

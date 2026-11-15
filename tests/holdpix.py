@@ -288,6 +288,36 @@ sc, log = run(UNDER, gfx="sixel", until="OVER")
 check("a sixel under the text is paint, so the text over it still reads",
       "OVER" in sc.row(3), (sc.row(3), [a[:40] for a in sc.apc], log))
 
+# A picture with its own transparency over a pane's cells (0.99.535) -- a
+# tray icon on a see-through bar, whose cells are written again under it on
+# every frame the bar is drawn. Its layer is above the text (z=1), and the
+# emulator used to keep only a picture *below* the text through a cell
+# written inside it, so the icon would have been dropped the first time the
+# bar was drawn again. It is kept until the console deletes it, as the
+# wallpaper is.
+ALPHA = os.path.join(D, "alpha.png")
+open(ALPHA, "wb").write(
+    b"\x89PNG\r\n\x1a\n"
+    + struct.pack(">I", 13) + b"IHDR" + struct.pack(">IIBBBBB", 16, 16, 8, 6, 0, 0, 0)
+    + struct.pack(">I", zlib.crc32(b"IHDR" + struct.pack(">IIBBBBB", 16, 16, 8, 6, 0, 0, 0)))
+    + (lambda z: struct.pack(">I", len(z)) + b"IDAT" + z + struct.pack(">I", zlib.crc32(b"IDAT" + z)))(
+        zlib.compress(b"".join(b"\x00" + bytes([250, 250, 250, 128] * 16) for _ in range(16))))
+    + struct.pack(">I", 0) + b"IEND" + struct.pack(">I", zlib.crc32(b"IEND")))
+OVERBAR = ("console put 0 0 'HELD PICTURE HERE'\n"
+           "console pane bar 1 0 1 40\n"
+           "console put -p bar 0 0 '%s'\n"
+           "img draw %s 0 4 1 2 -m pixels -p bar -a\n"
+           "console flush\nconsole key 200 > /dev/null\n"
+           "console put -p bar 0 4 'ab'\n"
+           "img draw %s 0 4 1 2 -m pixels -p bar -a\n"
+           "console put 3 3 'REDRAWN'\n"
+           "console flush\n" % (" " * 40, ALPHA, ALPHA))
+sc, log = run(OVERBAR, until="REDRAWN")
+check("a picture with its own transparency reaches the client, and survives its cells being drawn again",
+      [a for a in sc.apc if "a=T" in a and "f=32" in a]
+      and not [a for a in sc.apc if "a=d" in a and ("d=I" in a or "d=i" in a)],
+      ([a[:60] for a in sc.apc], log))
+
 # A picture the text is then drawn through must never be left behind on a
 # client's screen. Which of the two a client sees depends on timing that is
 # not ours: hold renders snapshots of its emulator rather than the program's
@@ -1911,4 +1941,4 @@ check("a shadow attribute crosses hold with its kind, width and inset",
       "66:2:1:0" in pens and "66:3:1:1" in pens, pens[:300])
 
 shutil.rmtree(D, True)
-report(106)
+report(107)

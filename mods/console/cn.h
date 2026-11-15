@@ -57,6 +57,17 @@
 #define CN_ZBAND 64
 #endif
 
+/* A picture with its own transparency goes above the cells (z > 0), where
+   the terminal blends it onto whatever each cell shows: a tray icon over a
+   see-through bar. CN_IMG_ALPHA marks it through cn_image, a bit above
+   every DP_IMG_ flag; its pixels are RGBA. */
+#ifndef CN_ZOVER
+#define CN_ZOVER 1
+#endif
+#ifndef CN_IMG_ALPHA
+#define CN_IMG_ALPHA 0x100u
+#endif
+
 #ifndef CN_GFX_NONE
 #define CN_GFX_NONE 0
 #define CN_GFX_SIXEL 1
@@ -152,7 +163,7 @@ unsigned kt_id(void);
 void kt_idload(sh *s);
 void kt_idsave(sh *s);
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
-	       unsigned id, long z, int comp, str *o);
+	       unsigned id, long z, int comp, int alpha, str *o);
 void kt_del(str *o, unsigned id);
 void kt_delp(str *o, unsigned id);
 void kt_place(int cols, int rows, unsigned id, long z, str *o);
@@ -171,9 +182,13 @@ extern size_t cn_wrote;
 /* image.c: a picture the console keeps as a region of the grid. */
 int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags);
+int cn_over(sh *s, const char *pane, int row, int col, int h, int w,
+	    const unsigned char *rgba, int iw, int ih);
 void cn_imgscalesrc(const unsigned char *in, int iw, int ih,
 		    int rx, int ry, int rw, int rh,
 		    unsigned char *out, int w, int h);
+void cn_imgscalea(const unsigned char *in, int iw, int rx, int ry, int rw,
+		  int rh, unsigned char *out, int w, int h);
 void cn_imgcheck(int again);
 int cn_imgkeep(sh *s, int row, int col, int h, int w);
 size_t cn_imgsend(str *b, int over);

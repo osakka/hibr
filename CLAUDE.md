@@ -201,7 +201,7 @@ whenever a replacement writes one.
 | `programs/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/`, every **application**, listed under one Applications submenu with a folder inside it becoming a submenu of its own (file browser, terminal, Vault, Calendar, Contacts; `Accessories/` for the calculator, clock, image viewer, prayer times, sliding puzzle and stickies, and `Office/`, `Internet/` and `Games/`; the programs installed on the machine, and the person's own shortcuts, are listed there by `wm/programs.hibr`, edited in Control Panel > Applications Menu), `system/`, the desktop's **own** apps, listed on the hibr menu itself because they manage or report on the desktop rather than opening anything of yours (About This Computer, Control Panel, Task Manager, Modules, Notifications, Clipboard, Screenshot, Catalogue), `control-panel/` panes, `control-strip/` modules — see `programs/desktop/README.md` for how to use it and `programs/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
-| `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys; beside `"display"` it offers `"scroll"` and `"dpframes"` -- a window's picture whose frames another program sends (`stream.c`, Gitea #486), kept under one kitty id and placement for life, with hooks the wait services without waking the script — see `mods/console/README.md` |
+| `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys; beside `"display"` it offers `"scroll"`, `"dpover"` (an RGBA picture blended over a pane's cells, kitty only) and `"dpframes"` -- a window's picture whose frames another program sends (`stream.c`, Gitea #486), kept under one kitty id and placement for life, with hooks the wait services without waking the script — see `mods/console/README.md` |
 | `mods/frames.c` | `frames`: the socket a window's picture is sent to, speaking Blit's frame wire from the far side (Gitea #486, Blit ADR 0223): a program drawing into buffers is given its name and token in place of Blit's, and its dmabuf or memfd frames go through `"dpframes"` to every display under the picture's id, `FRAME release`s back in its own ids (frame channel version 5, Blit 0.3.74: every picture line's id is its third word); `serve -w` is Blit's compositor's, each program window a number of its own (`wm/native.hibr`, Gitea #494); its input route (`INPUT sock`) goes up the same way, `frames input N on\|off` from the window's `_focus` says when it is live, `frames input N hold confine\|relative` how a held pointer behaves; `frames place` from a window's drawing; `tests/frames.py` and `tests/native.py` drive it with stand-ins. The gamescope bridge, Screens' Wayland Screen and Steam with them went in 0.99.483 (owner, 2026-11-10), and `INPUT eis` is refused |
 | `mods/gfxask.c`, `mods/gfxask.h` | what a terminal says it can do, asked once and shared by the console and hold's client: the picture protocols, the kitty keyboard, pixel mouse (1016), pointer shapes (OSC 22), pointer lock (7701), XTGETTCAP |
 | `mods/blitfr.c`, `mods/blitfr.h` | picture frames handed to Blit by descriptor (Blit ADR 0202): the one copy of the protocol -- hello with the session's token, a 48-byte header and a sealed memfd over an abstract SOCK_SEQPACKET socket -- shared by the console, which sends straight to Blit when nothing is between, and hold's attaching client, which forwards what the held program's server passes it; `holdframes` is the interface hold offers the console for the held case, and `tests/frameserve.py` is the suites' refusing stand-in. Linux only |
@@ -4126,6 +4126,17 @@ went in the shell.
   the value in force and ticks it (`DT_POPCURNEXT`), and every list opens
   through `dt_dropat`. **Never draw a caret by hand**: a field that cycles
   on a click under a `▾` promises a list it never opens -- `dt_wdrop`.
+- **A picture with its own transparency goes above the cells, and the
+  emulator took a positive `z` for a picture that owns them** (0.99.535).
+  A tray icon on a see-through bar cannot be laid over one colour, so
+  `"dpover"` sends it as `f=32` at `z=1` with the cells left as drawn.
+  Hold's `tm_imghit` drops whatever a cell is written inside unless the
+  picture is under the text, and "under" was read as a negative `z` -- so
+  the first bar frame dropped the icon on every held display. Any explicit
+  nonzero `z` is kept until deleted now. A fourth kind of picture is a
+  fourth answer to "does a cell written inside it mean it has gone", in
+  the console **and** in the emulator; `tests/holdpix.py` is where both
+  are seen.
 - **The display that hears the click is not the display that shows the
   window** (0.99.479). `hold` gave the pointer lock to the display it had
   heard from last -- right for one display, and for stacked Blit sessions it

@@ -284,9 +284,17 @@ void tm_apcend(tm_t *t)
 		t->imgid = (unsigned)tm_imgkey(s, 'i');
 		/* tm_imgkeyc, never tm_imgkey: that answers -1 both for a
 		   key that is absent and for z=-1, which are the two cases
-		   this has to tell apart. The first character of the value
-		   is enough -- any negative z is below the text. */
-		t->imgunder = tm_imgkeyc(s, 'z') == '-';
+		   this has to tell apart. Any explicit layer is a picture the
+		   console keeps until it deletes it: below the text (z < 0),
+		   or a picture with its own transparency over cells that are
+		   redrawn under it every frame -- a tray icon on a
+		   see-through bar (z > 0). A cell written inside either is
+		   not evidence it has gone. */
+		{
+			int zc = tm_imgkeyc(s, 'z');
+
+			t->imgunder = zc && zc != '0';
+		}
 		t->imgb.n = 0;
 		if (t->imgb.p)
 			t->imgb.p[0] = 0;

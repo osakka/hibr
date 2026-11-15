@@ -24,6 +24,7 @@ int jp_orient(const unsigned char *b, size_t n);
 int im_pngload(const char *path, image *out, str *err);
 extern int im_pngbg;
 extern int im_pngink;
+extern int im_pngrgba;
 int im_pngmem(const unsigned char *b, size_t n, image *out, str *err);
 int im_jpegload(const char *path, image *out, str *err);
 int im_jpegmem(const unsigned char *b, size_t n, image *out, str *err);

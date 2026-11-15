@@ -111,15 +111,19 @@ unsigned kt_id(void)
    wallpaper, and a window's above it in the windows' own order.
    comp is CN_COMP_NONE, CN_COMP_ZLIB or CN_COMP_PNG -- what image.c decided
    from what kind of picture this is, since compressing a film's frame costs
-   more than its bytes save. */
+   more than its bytes save. With alpha the pixels are RGBA and go as f=32,
+   uncompressed: a picture with its own transparency is a tray icon, small,
+   and blended over the cells by the terminal. */
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
-	       unsigned id, long z, int comp, str *o)
+	       unsigned id, long z, int comp, int alpha, str *o)
 {
 	str b, c;
 	size_t i, n, k;
 	const unsigned char *pay = rgb;
-	size_t payn = (size_t)iw * ih * 3;
+	size_t payn = (size_t)iw * ih * (alpha ? 4 : 3);
 
+	if (alpha)
+		comp = CN_COMP_NONE;
 	s_init(&c);
 	if (comp == CN_COMP_PNG)
 		pw_write(rgb, iw, ih, &c);
@@ -144,7 +148,8 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 		s_cat(o, "\033_G");
 		if (!i) {
 			s_cat(o, comp == CN_COMP_PNG ? "a=T,f=100,q=2,C=1,i="
-						     : "a=T,f=24,q=2,C=1,i=");
+				 : alpha ? "a=T,f=32,q=2,C=1,i="
+					 : "a=T,f=24,q=2,C=1,i=");
 			s_num(o, id);
 			if (comp == CN_COMP_ZLIB)
 				s_cat(o, ",o=z");

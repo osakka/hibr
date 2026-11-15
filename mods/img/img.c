@@ -838,11 +838,144 @@ static int im_draw2(sh *s, const dp_api *dp, const char *path, const char *key,
 		    int gray, int mode, int under, const char *pane, int prow,
 		    int pcol, int ph, int pw);
 
+/* The pictures `img draw -a` has decoded with their alpha, kept by file,
+   ink and the file's own time, so an icon drawn every time its bar is drawn
+   is decoded once. A handful at most -- a tray's icons -- and the oldest
+   goes first past IM_ACAP. */
+#ifndef IM_ACAP
+#define IM_ACAP 16
+#endif
+typedef struct im_aent {
+	char *path;
+	int ink, w, h;
+	long long mt;
+	unsigned char *px;
+} im_aent;
+static im_aent *im_acache;
+static int im_acn;
+
+/* A file as RGBA: its own alpha from a PNG, every pixel opaque from a
+   picture that has none, and with ink >= 0 every colour that ink, the
+   shape kept. Null on a failure, said in err. */
+static unsigned char *im_rgbaget(const char *path, int ink, int *w, int *h,
+				 str *err)
+{
+	struct stat st;
+	long long mt;
+	unsigned char m[8];
+	image im;
+	FILE *f;
+	size_t n, i;
+	int k, png;
+	im_aent *e;
+
+	if (stat(path, &st) != 0) {
+		s_cat(err, "cannot open ");
+		s_cat(err, path);
+		return 0;
+	}
+	mt = (long long)st.st_mtim.tv_sec * 1000000000LL + st.st_mtim.tv_nsec;
+	for (k = 0; k < im_acn; k++) {
+		e = &im_acache[k];
+		if (e->ink == ink && e->mt == mt && !strcmp(e->path, path)) {
+			*w = e->w;
+			*h = e->h;
+			return e->px;
+		}
+	}
+	f = fopen(path, "rb");
+	n = f ? fread(m, 1, sizeof m, f) : 0;
+	if (f)
+		fclose(f);
+	png = n >= 8 && !memcmp(m, "\x89PNG\r\n\x1a\n", 8);
+	memset(&im, 0, sizeof im);
+	if (png) {
+		im_pngrgba = 1;
+		im_pngink = ink;
+		k = im_pngload(path, &im, err);
+		im_pngrgba = 0;
+		im_pngink = -1;
+	} else {
+		k = im_load(path, &im, err);
+		if (k == HIBR_OK) {
+			unsigned char *a = xm((size_t)im.w * im.h * 4);
+
+			for (i = 0; i < (size_t)im.w * im.h; i++) {
+				a[i * 4 + 0] = ink >= 0 ? (unsigned char)(ink >> 16) : im.px[i * 3 + 0];
+				a[i * 4 + 1] = ink >= 0 ? (unsigned char)(ink >> 8) : im.px[i * 3 + 1];
+				a[i * 4 + 2] = ink >= 0 ? (unsigned char)ink : im.px[i * 3 + 2];
+				a[i * 4 + 3] = 255;
+			}
+			free(im.px);
+			im.px = a;
+		}
+	}
+	if (k != HIBR_OK)
+		return 0;
+	if (im_acn == IM_ACAP) {
+		free(im_acache[0].path);
+		free(im_acache[0].px);
+		memmove(im_acache, im_acache + 1, (size_t)(im_acn - 1) * sizeof *im_acache);
+		im_acn--;
+	}
+	im_acache = xr(im_acache, (size_t)(im_acn + 1) * sizeof *im_acache);
+	e = &im_acache[im_acn++];
+	memset(e, 0, sizeof *e);
+	e->path = xs(path);
+	e->ink = ink;
+	e->mt = mt;
+	e->w = im.w;
+	e->h = im.h;
+	e->px = im.px;
+	*w = e->w;
+	*h = e->h;
+	return e->px;
+}
+
+/* img draw -a: a picture with its own transparency over a pane's cells,
+   blended onto them by the display (dpover). Fails, quietly, where the
+   display cannot blend one -- a sixel terminal, one that has not said what
+   it draws -- which is the caller's cue to lay it over a colour of its own
+   (`img flatten`) and draw that. */
+static int im_drawa(sh *s, const char *path, int row, int col, int rows,
+		    int cols, const char *pane, int ink)
+{
+	const dpo_api *dpo;
+	unsigned char *px;
+	int w = 0, h = 0;
+	str err;
+
+	if (!pane) {
+		lg(HIBR_LERR, "img draw: -a draws into a pane, and needs -p");
+		return 2;
+	}
+	dpo = (const dpo_api *)hibr_require(s, "dpover", DPO_API_VER);
+	if (!dpo) {
+		lg(HIBR_LDBG, "img draw -a: no display here blends a picture over cells");
+		return HIBR_FAIL;
+	}
+	s_init(&err);
+	px = im_rgbaget(path, ink, &w, &h, &err);
+	if (!px) {
+		lg(HIBR_LERR, "img draw: %s", err.p ? err.p : path);
+		s_free(&err);
+		return HIBR_FAIL;
+	}
+	s_free(&err);
+	if (!dpo->over(s, pane, row, col, rows, cols, px, w, h)) {
+		lg(HIBR_LDBG, "img draw -a: the display cannot blend %s here", path);
+		return HIBR_FAIL;
+	}
+	return HIBR_OK;
+}
+
 static int im_draw(sh *s, int ac, char **av)
 {
 	const dp_api *dp;
 	const char *path, *pane = 0;
 	int row, col, rows, cols, gray = 0, mode = IM_AUTO, under = 0;
+	int alpha = 0, ink = -1;
+	unsigned ir, ig, ib;
 	int prow = 0, pcol = 0, ph = 0, pw = 0;
 	int cropv[4], *crop = 0;
 	str keys;
@@ -851,7 +984,7 @@ static int im_draw(sh *s, int ac, char **av)
 
 	if (ac < 7) {
 		lg(HIBR_LERR, "usage: img draw file row col h w [-g] [-m mode] "
-			      "[-p pane] [-u] [-c x y w h]");
+			      "[-p pane] [-u] [-c x y w h] [-a [-i #ink]]");
 		return 2;
 	}
 	path = av[2];
@@ -868,6 +1001,17 @@ static int im_draw(sh *s, int ac, char **av)
 			pane = av[++i];
 		else if (!strcmp(av[i], "-u"))
 			under = 1;
+		else if (!strcmp(av[i], "-a"))
+			alpha = 1;
+		else if (!strcmp(av[i], "-i") && i + 1 < ac) {
+			i++;
+			if (av[i][0] != '#' || strlen(av[i]) != 7 ||
+			    sscanf(av[i] + 1, "%2x%2x%2x", &ir, &ig, &ib) != 3) {
+				lg(HIBR_LERR, "img draw: %s is not a colour", av[i]);
+				return 2;
+			}
+			ink = (int)((ir << 16) | (ig << 8) | ib);
+		}
 		else if (!strcmp(av[i], "-c") && i + 4 < ac) {
 			cropv[0] = atoi(av[++i]);
 			cropv[1] = atoi(av[++i]);
@@ -887,6 +1031,8 @@ static int im_draw(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "img draw: no display is open");
 		return HIBR_FAIL;
 	}
+	if (alpha)
+		return im_drawa(s, path, row, col, rows, cols, pane, ink);
 	/* What the caches know this picture by: its path, or with -c its
 	   path and the rectangle, so a zoomed view and the whole picture are
 	   two entries and neither is mistaken for the other. Drawing a file
@@ -1340,6 +1486,13 @@ void im_fini(sh *s)
 
 	(void)s;
 	im_srcdrop();
+	for (i = 0; i < (size_t)im_acn; i++) {
+		free(im_acache[i].path);
+		free(im_acache[i].px);
+	}
+	free(im_acache);
+	im_acache = 0;
+	im_acn = 0;
 	for (i = 0; i < IM_CACHEN; i++) {
 		free(im_cache[i].path);
 		free(im_cache[i].grid);

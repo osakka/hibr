@@ -112,6 +112,10 @@ int im_pngbg = -1;
    dark panel, white on nothing, drawn in the bar's own ink, so it reads on
    a light bar as well. -1 keeps the picture's colours. */
 int im_pngink = -1;
+/* 1 while `img draw -a` decodes: out->px is then RGBA, four bytes a pixel,
+   the picture's own alpha kept (255 where it has none) and not laid over
+   anything, since the display blends it over the cells itself. */
+int im_pngrgba = 0;
 
 /* Decode a PNG from an open stream into 8-bit RGB, dropping any alpha;
    name is what an error calls it. user_png_ver is asked of the library
@@ -167,7 +171,28 @@ int im_pngfile(FILE *fp, const char *name, image *out, str *err)
 	}
 	out->w = (int)w;
 	out->h = (int)h;
-	out->px = xm((size_t)w * (size_t)h * 3);
+	out->px = xm((size_t)w * (size_t)h * (im_pngrgba ? 4 : 3));
+	if (im_pngrgba) {
+		for (r = 0; r < h; r++) {
+			unsigned char *src = rows[r];
+			unsigned char *dst = out->px + (size_t)r * w * 4;
+
+			for (c = 0; c < w; c++) {
+				if (im_pngink >= 0) {
+					dst[c * 4 + 0] = (unsigned char)(im_pngink >> 16);
+					dst[c * 4 + 1] = (unsigned char)(im_pngink >> 8);
+					dst[c * 4 + 2] = (unsigned char)im_pngink;
+				} else {
+					dst[c * 4 + 0] = src[c * ch + 0];
+					dst[c * 4 + 1] = src[c * ch + 1];
+					dst[c * 4 + 2] = src[c * ch + 2];
+				}
+				dst[c * 4 + 3] = ch == 4 ? src[c * ch + 3] : 255;
+			}
+		}
+		png.destroy_read(&p, &info, 0);
+		return HIBR_OK;
+	}
 	for (r = 0; r < h; r++) {
 		unsigned char *src = rows[r];
 		unsigned char *dst = out->px + (size_t)r * w * 3;

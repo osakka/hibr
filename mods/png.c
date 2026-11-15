@@ -71,15 +71,15 @@ int pw_paeth(int a, int b, int c)
    for the first). Answers the sum of absolute residuals, read as a signed
    byte, which is what chooses between the five. */
 unsigned long pw_filter(const unsigned char *row, const unsigned char *up,
-			int n, int f, unsigned char *dst)
+			int n, int f, unsigned char *dst, int bpp)
 {
 	unsigned long sum = 0;
 	int i, v;
 
 	for (i = 0; i < n; i++) {
-		int a = i >= PW_BPP ? row[i - PW_BPP] : 0;
+		int a = i >= bpp ? row[i - bpp] : 0;
 		int b = up ? up[i] : 0;
-		int c = (up && i >= PW_BPP) ? up[i - PW_BPP] : 0;
+		int c = (up && i >= bpp) ? up[i - bpp] : 0;
 
 		switch (f) {
 		case 1: v = row[i] - a; break;
@@ -97,11 +97,17 @@ unsigned long pw_filter(const unsigned char *row, const unsigned char *up,
 
 int pw_write(const unsigned char *rgb, int w, int h, str *out)
 {
+	return pw_writen(rgb, w, h, PW_BPP, out);
+}
+
+/* The same with bpp bytes a pixel: 3 for RGB, 4 for RGBA. */
+int pw_writen(const unsigned char *rgb, int w, int h, int bpp, str *out)
+{
 	unsigned char ihdr[13];
 	unsigned char *raw, *try, *best, *up = 0;
 	str z;
 	size_t rawn, at = 0;
-	int y, f, bw = w * PW_BPP;
+	int y, f, bw = w * bpp;
 
 	s_add(out, "\211PNG\r\n\032\n", 8);
 	ihdr[0] = (unsigned char)((unsigned)w >> 24);
@@ -113,7 +119,7 @@ int pw_write(const unsigned char *rgb, int w, int h, str *out)
 	ihdr[6] = (unsigned char)(((unsigned)h >> 8) & 0xff);
 	ihdr[7] = (unsigned char)((unsigned)h & 0xff);
 	ihdr[8] = 8;			/* eight bits a channel */
-	ihdr[9] = 2;			/* truecolour, no alpha */
+	ihdr[9] = bpp == 4 ? 6 : 2;	/* truecolour, with alpha or without */
 	ihdr[10] = 0;			/* deflate, the only method there is */
 	ihdr[11] = 0;			/* the adaptive filtering above */
 	ihdr[12] = 0;			/* not interlaced */
@@ -129,7 +135,7 @@ int pw_write(const unsigned char *rgb, int w, int h, str *out)
 		int bestf = 0;
 
 		for (f = 0; f < 5; f++) {
-			unsigned long s = pw_filter(row, up, bw, f, try);
+			unsigned long s = pw_filter(row, up, bw, f, try, bpp);
 
 			if (!f || s < bestsum) {
 				bestsum = s;
