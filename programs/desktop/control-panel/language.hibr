@@ -12,7 +12,7 @@
 strict
 
 
-app language "The system's language and region, and how the desktop shows them" 1.0.6
+app language "The system's language and region, and how the desktop shows them" 1.0.7
 command -v cp_pane > /dev/null && cp_pane language "Language & Region" "A"
 # The pane's own dialog, named so the application menu reads "Add a
 # Language" rather than its prefix.
@@ -195,7 +195,9 @@ fn language_rows(int w) {
 	# choice the bar's item and Next Keyboard make, one variable for all
 	# three. On Blit the list is Blit's, chosen in its own Keyboard pane.
 	# And whether the bar's keyboard item names the keyboard beside its
-	# glyph, where that item is installed.
+	# glyph, while the catalogue's keyboard item is installed: its one
+	# setting, here rather than in a pane of its own (the owner,
+	# 2026-11-15).
 	if [ "${DT_KBLOC-}" = 1 ] || dt_has dt_kbbar; then
 		CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Typing"; n=$((n + 1))
 	fi
@@ -204,6 +206,13 @@ fn language_rows(int w) {
 		cp_imenames
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Input Method"; CP[$w][$n]["key"]=imekb
 		cp_choice "$w" "$n" "$nm" cp_set_imekb "${CP_IMEN[@]}"; n=$((n + 1))
+	fi
+	if dt_has dt_kbbar; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Keyboard Name"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "${DT_KBNAME:-1}" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=kbname
+		n=$((n + 1))
 	fi
 	ret "$n"
 }
@@ -251,6 +260,11 @@ fn language_do(int? w = "", k = "", int? dir = "") {
 	locadd)
 		locadd_dialog
 		return 0
+		;;
+	kbname)
+		dt_has dt_kbbar || return 0
+		if [ "${DT_KBNAME:-1}" = 1 ]; then DT_KBNAME=0; else DT_KBNAME=1; fi
+		dt_kbbar
 		;;
 	esac
 	cp_save

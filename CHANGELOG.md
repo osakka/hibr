@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.99.538
+
+**The keyboard item's one setting is a row of Language & Region, not a
+pane of its own** (owner, 2026-11-15). 0.99.531 gave the catalogue's
+keyboard bar item a Control Panel pane, "Keyboard on Menu Bar", holding a
+single switch: Keyboard Name on Menu Bar. It came from a question whose
+recommended answer never showed that the result would be a whole pane for
+one switch -- the same mistake as Program Notifications, undone in
+0.99.536. The switch is now a row under **Language & Region > Typing**,
+called **Show Keyboard Name** as the item's own menu calls it,
+there while the keyboard item (`menubar/keyboard` 1.0.3) is installed, and
+the pane is gone; `catalogue update` removes its file, as it does any part
+an entry no longer brings. The setting keeps its name, so nothing chosen
+is lost, and the item's own menu still switches it too.
+
+That also fixes a leftover of 0.99.531: on Blit, with the keyboard item
+installed, Language & Region showed a **Typing** heading with nothing
+under it, since its Input Method row is shown only away from Blit.
+
+**Restart Desktop keeps the screen until the new desktop has drawn**
+(Gitea #559). Blit's graphics recorder caught every display without its
+wallpaper for about a second on each restart: the console's close deleted
+every picture and left the alternate screen, and the new desktop placed
+its wallpaper a second later. `console close -k` keeps the screen and its
+pictures for the process the exec starts, and that console takes them away
+in its first frame that can draw its own -- the clear, the delete and the
+new pictures whole in one synchronized update, which Blit holds a deleted
+picture through. `tests/kitgfx.py` reads the bytes across an exec: no
+delete and no leaving the alternate screen until the new process's frame,
+and its delete inside that frame's update; it fails against 0.99.537.
+
+**Mail's Label and Move lists tick what is already so** (Mail 2.5.3,
+Gitea #558's rule): the labels the conversation carries and the folders
+its messages are in, where both lists used to open with nothing ticked.
+They were the last lists in hibr's own desktop that did not; an audit of
+every list opener found the rest either ticking or, like Files' list of
+the folders above this one, a list of places with nothing current in it.
+
+Checked: `tests/traymod.py` finds the switch under Language & Region,
+checks there is no pane of its own, and switches the keyboard's name off
+the bar through it; `tests/mailapp.py` gives a conversation a label and
+finds it ticked the next time the list opens, which fails against Mail
+2.5.2.
+
 ## 0.99.537
 
 **A window's picture moves with the window, and is never sent again for

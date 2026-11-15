@@ -594,9 +594,7 @@ Keep in the List
 Keep it after the vault locks
 Kept by Blit
 Keyboard
-Keyboard Name on Menu Bar
 Keyboard Settings…
-Keyboard on Menu Bar
 Kind:
 Known Networks
 LC_ALL Overrides These

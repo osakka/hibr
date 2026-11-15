@@ -47,6 +47,10 @@ DT_UPNOTED=
 # Set while the hibr on disk is not the one running, cleared only by a
 # restart -- which is a new process, so it starts empty by construction.
 DT_UPNEW=
+# console close -k exports this for the process the exec starts, which reads
+# it on opening; declared keeping what came across the exec, never cleared
+# here, since this file is read before the new console opens (Gitea #559).
+declare -g HIBR_CNKEPT="${HIBR_CNKEPT-}"
 declare -gA DT_KEEPSTATE
 declare -gA DT_RS
 # Each program a restart carries across the exec on a pty, as fd:pid -- what
@@ -112,7 +116,11 @@ dt_restart() {
 	dt_upsession || true
 	dt_ctlclose
 	dt_hwstop
-	console close
+	# The screen and its pictures stay for the desktop the exec starts,
+	# which takes them away in its first frame inside one synchronized
+	# update: closed, every display showed no wallpaper for a second
+	# (Gitea #559).
+	console close -k
 	if [ -n "$DT_ERR" ]; then
 		exec 2>&"$DT_ERR"
 		exec {DT_ERR}>&-

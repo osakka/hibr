@@ -163,6 +163,13 @@ check("l offers the account's labels", sc.find("Work") and sc.find("Promotions")
 t.keys([b"\r"])
 check("and the one chosen is put on the conversation on the server",
       until(lambda: "Work" in zoe.labels), zoe.labels)
+# The list ticks what is already so, as every list does (Gitea #558): the
+# label just given is ticked the next time it opens.
+t.keys([b"l"])
+sc = look(t)
+check("l's list ticks the labels the conversation already has",
+      sc.find("✓ Work") or sc.find("✔ Work"), sc)
+t.keys([b"\x1b"])
 t.keys([b"r"])
 sc = waitfor(t, "Re: Lunch on Friday?")
 check("r answers the newest message someone else sent, not the account's own reply",
@@ -565,4 +572,4 @@ check("the Detect answers with a notification, not a line over the buttons",
       note is not None and bool(btn) and note[0] < btn[0], sc)
 t.quit(b"qy", 1.5)
 
-report(70)
+report(71)

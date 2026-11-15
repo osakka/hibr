@@ -4870,7 +4870,7 @@ PANEL = ('. %s/panel.hibr\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANE
 # became Calendar & Contacts, so it sorts first among them now.
 ORDER = ["bluetooth", "datetime", "displays", "mouse", "networks", "power", "sound",
          "aboutme", "abouthibr", "adminaccess", "appearance", "menuedit", "cliphist", "control_strip",
-         "desktop", "filetypes", "kbdbar", "language", "loginmgr", "barset", "notify", "pictures",
+         "desktop", "filetypes", "language", "loginmgr", "barset", "notify", "pictures",
          "screensaver", "network", "shortcuts", "taskmgr", "trayset", "windows",
          "pimset", "filesview", "mailset", "prayerset", "notes", "terminal",
          "vaultset"]

@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 2.5.2
+app mail "Email, offline, labels and conversations as Gmail has them" 2.5.3
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -572,10 +572,37 @@ fn ml_dests(int id) {
 	ML_TOP=("${out[@]}")
 }
 
+# The folders the selected conversation's messages are in, and the labels
+# they carry, into ML_HAS: what its Label and Move lists tick, as every
+# list ticks what is already so.
+declare -ga ML_HAS=()
+fn ml_has(int id) {
+	local acct=${MW[$id]["acct"]} t i l
+	local -a rows labs got
+	local -A seen
+
+	ML_HAS=()
+	t := ml_at "$id" "${MW[$id]["sel"]:-0}" || return 0
+	read -ra rows <<< "${MLT[$id][$t]["rows"]}"
+	for i in "${rows[@]}"; do
+		labs=("${ML["$acct"][$i]["fold"]}")
+		IFS=$'\t' read -ra got <<< "${ML["$acct"][$i]["labels"]}"
+		labs+=("${got[@]}")
+		for l in "${labs[@]}"; do
+			[ -n "$l" ] && [ -z "${seen["$l"]-}" ] || continue
+			seen["$l"]=1
+			ML_HAS+=("$l")
+		done
+	done
+	return 0
+}
+
 # l: give the conversation a label (Gmail) or copy it to a folder.
 fn ml_labelask(int id) {
 	ml_dests "$id"
 	[ "${#ML_TOP[@]}" -gt 0 ] || { dt_notep low "No labels to choose from"; return 0; }
+	ml_has "$id"
+	DT_POPONNEXT=("${ML_HAS[@]}")
 	dt_droplist "$id" 3 20 ml_labelto "${ML_TOP[@]}"
 }
 fn ml_labelto(int? id = "", value = "") {
@@ -587,6 +614,8 @@ fn ml_labelto(int? id = "", value = "") {
 fn ml_moveask(int id) {
 	ml_dests "$id"
 	[ "${#ML_TOP[@]}" -gt 0 ] || { dt_notep low "No folders to move to"; return 0; }
+	ml_has "$id"
+	DT_POPONNEXT=("${ML_HAS[@]}")
 	dt_droplist "$id" 3 20 ml_moveto "${ML_TOP[@]}"
 }
 fn ml_moveto(int? id = "", value = "") {

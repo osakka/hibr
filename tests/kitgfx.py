@@ -1235,6 +1235,35 @@ t.quit(None, 0.5)
 check("a picture drawn after an exec in place has an id of its own",
       len(ids) == 2 and ids[0] != ids[1], (ids, pl))
 
+# Restart Desktop closes with -k (Gitea #559): the screen and its pictures
+# stay for the process the exec starts, which deletes them in its own first
+# frame, inside the one synchronized update that sends its pictures whole.
+# Closed outright, every picture went and the alternate screen was left a
+# second before the new desktop drew: every display without its wallpaper.
+EX1K = os.path.join(D, "ex1k.hibr")
+open(EX1K, "w").write(exbody.replace("console close\n", "console close -k\n")
+                      + 'exec "$HIBR" %s\n' % EX2)
+t = Term(EX1K, rows=24, cols=60, settle=1.5, cellw=8, cellh=16,
+         env={"HIBR_GFX": "kitty"})
+for _ in range(40):
+    if len(rawplaces(t.out)) >= 2:
+        break
+    t.collect(0.25)
+out = t.out
+t.quit(None, 0.5)
+tx = [m.start() for m in re.finditer(rb"\x1b_G[^;\x1b]*a=T", out)]
+if len(tx) >= 2:
+    mid = out[tx[0]:tx[1]]
+    wipe = mid.rfind(b"a=d,d=A")
+    frame = mid.rfind(b"\x1b[?2026h")
+    check("a restart's close keeps the screen and its pictures, and the next "
+          "process deletes them inside the frame that draws its own",
+          b"\x1b[?1049l" not in mid and mid.count(b"a=d") == 1 and wipe > frame >= 0
+          and b"\x1b[?2026l" not in mid[frame:], mid[-400:])
+else:
+    check("a restart's close keeps the screen and its pictures, and the next "
+          "process deletes them inside the frame that draws its own", False, out[-400:])
+
 # A wallpaper under the text and a window's picture with the same rectangle
 # are two regions (Gitea #418, 0.99.415). A full-screen window's picture has
 # exactly the display's rectangle, and so does a wallpaper that fills it --
@@ -1312,4 +1341,4 @@ dl = [x for x in deletes(sc) if "d=I" in x]
 check("cells drawn under it while it is placed keep it; the pane drawn without it takes it away",
       len(places(sc)) == 1 and len(dl) == 1, (places(sc), dl))
 shutil.rmtree(D, True)
-report(121)
+report(122)

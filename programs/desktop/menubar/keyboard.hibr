@@ -9,17 +9,17 @@
 # of its own so it can be taken off the bar or put back from the catalogue
 # like the speaker or the network (the owner, 2026-11-13). The window
 # manager reaches it only through dt_has. A catalogue entry, not part of
-# the package (the owner, 2026-11-15), and it brings its own pane.
-#
-# part: control-panel/kbdbar.hibr
+# the package (the owner, 2026-11-15). Its one setting is a row of
+# Language & Region, there while this is installed, not a pane of its own
+# (the owner, 2026-11-15, 0.99.538).
 
 strict
 
-app keyboard "The keyboard typing now, on the menu bar" 1.0.2
+app keyboard "The keyboard typing now, on the menu bar" 1.0.3
 
 # Whether the item says which keyboard beside its glyph (US, AR), or shows
-# the glyph alone: Control Panel > Keyboard on Menu Bar, and the item's own
-# menu (the owner, 2026-11-13).
+# the glyph alone: Control Panel > Language & Region > Typing, and the
+# item's own menu (the owner, 2026-11-13).
 DT_KBNAME="${DT_KBNAME-1}"
 command -v dt_keep > /dev/null && dt_keep DT_KBNAME
 

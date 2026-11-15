@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.15",
+ "version": "3.99.16",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1519,7 +1519,6 @@
   "%s Settings…": "إعدادات %s…",
   "Keyboard Settings…": "إعدادات لوحة المفاتيح…",
   "Show Keyboard Name": "إظهار اسم لوحة المفاتيح",
-  "Keyboard Name on Menu Bar": "اسم لوحة المفاتيح في شريط القوائم",
   "a library": "مكتبة",
   "%s is %s from now on": "‏%s هي %s من الآن",
   "%s reads as": "‏%s تُقرأ",
@@ -1535,7 +1534,6 @@
   "A program is listed here once it has put up an icon": "يظهر البرنامج هنا بعد أن يضع أيقونته",
   "Icons Before the Arrow": "الأيقونات قبل السهم",
   "Installing from the Catalogue": "يجري التثبيت من الكتالوج",
-  "Keyboard on Menu Bar": "لوحة المفاتيح في شريط القوائم",
   "Left Click": "النقر الأيسر",
   "The Catalogue could not install them -- open the Catalogue to try again": "تعذّر على الكتالوج تثبيتها -- افتح الكتالوج لتحاول مجددًا",
   "The keyboard and Tray Icons are now in the Catalogue -- click to install them": "لوحة المفاتيح وأيقونات منطقة الإشعارات الآن في الكتالوج -- انقر لتثبيتها",

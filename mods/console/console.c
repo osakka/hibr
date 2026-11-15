@@ -483,6 +483,9 @@ int m_console(sh *s, int ac, char **av)
 	if (!strcmp(sub, "open"))
 		return cn_open(s);
 	if (!strcmp(sub, "close")) {
+		/* -k: an exec follows that opens the console again, and the
+		   screen and its pictures stay for it (Gitea #559). */
+		cn_keep = ac > 2 && !strcmp(av[2], "-k");
 		cn_close(s);
 		return HIBR_OK;
 	}

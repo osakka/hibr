@@ -207,6 +207,8 @@ void cn_imgowelate(unsigned id);
 void cn_imgclear(void);
 void cn_imgunedit(void);
 extern int cn_reenter;
+extern int cn_keep;
+int cn_wipedue(void);
 void cn_enterseq(str *b);
 int cn_imgat(int row, int col);
 int cn_imgcellat(int row, int col, unsigned *out);

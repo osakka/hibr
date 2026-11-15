@@ -334,6 +334,10 @@ unsigned cn_rgbof(unsigned v)
 
 static const char cn_leave[] = "\033[?25h\033[0m\033[?1016l\033[?1002l\033[?1006l"
 			       "\033[?2004l\033[?1049l";
+/* Restart Desktop's close (`console close -k`, an exec to follow): the modes
+   go back, the alternate screen and every picture stay. */
+static const char cn_leavek[] = "\033[0m\033[?1016l\033[?1002l\033[?1006l"
+				"\033[?2004l";
 /* The pen goes back to the terminal's own before the clear: a terminal that
    erases in the pen's background (bce) would otherwise clear the screen in
    whatever colour the last program there left, and this console's front grid
@@ -639,6 +643,35 @@ int cn_pending(void)
    that is rare anyway. */
 /* Owed by cn_reassert, sent by cn_flush at the head of its frame. */
 int cn_reenter;
+
+/* A restart keeps the screen and its pictures for the process the exec
+   starts (`console close -k`), which takes them away in its first frame
+   that can draw its own: the clear, the deletes and the new pictures whole
+   in one synchronized update, so a terminal that holds a deleted picture
+   until the update ends never shows the screen without one. Closing
+   deleted every picture and left the alternate screen a second before the
+   new desktop drew, which showed every display without its wallpaper
+   (Gitea #559). */
+int cn_keep;
+static int cn_wipe;
+static long long cn_wipeby;
+
+/* Whether a restart's leftover pictures go in this frame: once this
+   console knows what the terminal draws, or two seconds after it opened. */
+int cn_wipedue(void)
+{
+	struct timespec t;
+
+	if (!cn_wipe)
+		return 0;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	if (cn_wipe == 2 || cn_capkit == 1 || cn_capsix == 1 ||
+	    (long long)t.tv_sec * 1000 + t.tv_nsec / 1000000 >= cn_wipeby) {
+		cn_wipe = 0;
+		return 1;
+	}
+	return 0;
+}
 
 /* The sequence that sets the screen up, cleared, for cn_flush to put inside
    the frame that repaints it. */
@@ -1018,7 +1051,25 @@ int cn_open(sh *s)
 	   this has never been reported. */
 	usleep(1000000);
 #endif
-	cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
+	{
+		const char *v = hibr_get(s, "HIBR_CNKEPT");
+
+		if (v && *v && atol(v) == (long)getpid()) {
+			struct timespec t;
+
+			clock_gettime(CLOCK_MONOTONIC, &t);
+			cn_reenter = 1;
+			cn_wipe = cn_gfxsure(s) ? 2 : 1;
+			cn_wipeby = (long long)t.tv_sec * 1000 +
+				    t.tv_nsec / 1000000 + 2000;
+			lg(HIBR_LDBG, "console: the screen a restart kept goes in "
+				      "the first frame");
+		} else {
+			cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
+		}
+		if (v)
+			hibr_set(s, "HIBR_CNKEPT", "", 1);
+	}
 	cn_pid = getpid();
 	cn_hook();
 	cn_on = 1;
@@ -1041,6 +1092,8 @@ int cn_open(sh *s)
    process still drawing on it. */
 void cn_close(sh *s)
 {
+	int keep;
+
 	if (!cn_on)
 		return;
 	if (getpid() != cn_pid) {
@@ -1053,10 +1106,12 @@ void cn_close(sh *s)
 		cn_on = 0;
 		return;
 	}
+	keep = cn_keep;
+	cn_keep = 0;
 	cn_olay.on = 0;
 	cn_imgclear();
 	kt_idsave(s);
-	if (cn_gfx(s) == CN_GFX_KITTY) {
+	if (cn_gfx(s) == CN_GFX_KITTY && !keep) {
 		str o;
 
 		s_init(&o);
@@ -1077,7 +1132,17 @@ void cn_close(sh *s)
 	cn_ptrnm.n = 0;
 	if (cn_ptrnm.p)
 		cn_ptrnm.p[0] = 0;
-	cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
+	if (keep) {
+		str b;
+
+		cn_wr(cn_fd, cn_leavek, sizeof cn_leavek - 1);
+		s_init(&b);
+		s_fmt(&b, "%ld", (long)getpid());
+		hibr_set(s, "HIBR_CNKEPT", b.p, 1);
+		s_free(&b);
+	} else {
+		cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
+	}
 	tcsetattr(cn_fd, TCSADRAIN, &cn_sv);
 	cn_unhook();
 	if (cn_own)

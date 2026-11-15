@@ -1393,6 +1393,11 @@ long cn_flush(void)
 		cn_enterseq(&b);
 		cn_reenter = 0;
 	}
+	/* A restart's pictures, kept for this frame: deleted inside it, ahead
+	   of everything drawn again, so the terminal shows the old until the
+	   new is whole (Gitea #559). */
+	if (cn_wipedue())
+		kt_delall(&b);
 	/* Then the deletes those drops owe the terminal, for a protocol that
 	   keeps a picture rather than painting it: they go before the diff, so
 	   the text that was underneath is painted in the same frame. */

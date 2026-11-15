@@ -664,12 +664,23 @@ if at:
 back = until(lambda: owned("org.kde.StatusNotifierWatcher"), 10)
 check("Tray Icons on the Menu Bar: off lets the tray's name and icons go, on takes them again",
       off and back, (off, back, scr().row(0)))
+# The keyboard item's one setting is a row of Language & Region, under
+# Typing, while the item is installed -- not a pane of its own (the owner,
+# 2026-11-15).
 named = " EN " in scr().row(0)
-at = scr().find("Keyboard on")
+nokbpane = scr().find("Keyboard on") is None
+at = scr().find("Language")
 if at:
-    t.keys([press(*at), release(*at), 0.3, b"\t", 0.2, b"\r"])
+    t.keys([press(*at), release(*at), 0.3, b"\t", 0.2])
+for _ in range(30):
+    if rowat("Show Keyboard Name"):
+        break
+    t.keys([b"\x1b[B", 0.1])
+check("Show Keyboard Name is a row of Language & Region, not a pane of its own",
+      nokbpane and bool(rowat("Show Keyboard Name")), scr().text())
+twice("Show Keyboard Name")
 bare = until(lambda: " EN " not in scr().row(0) and scr(), 5)
-check("Keyboard on Menu Bar: switching the name off leaves the keyboard's glyph without it",
+check("Show Keyboard Name: switching it off leaves the keyboard's glyph without it",
       named and bool(bare), scr().row(0))
 # Programs' notifications have no pane of their own: a second place beside
 # Notifications for the same notes (the owner, 2026-11-15). Their switch is
@@ -733,4 +744,4 @@ fresh = startup(new_home, 3)
 check("a desktop that had the keyboard and the tray from the package is told once where they went",
       first and not again, (first, again))
 check("and a new desktop is told nothing", not fresh, fresh)
-report(45)
+report(46)
