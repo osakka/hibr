@@ -24,3 +24,4 @@ every kind apps declares has a name in the Catalogue
 every dialog is placed with dt_dlgat
 window chrome is drawn by dt_chrome alone
 every _wheel matches what it is handed
+every dropdown is the one list

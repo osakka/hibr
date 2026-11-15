@@ -627,6 +627,22 @@ def twice(label):
 
 ALL = ["Q", "X", "J", "K"]
 pictured = until(lambda: on_bar(ALL) == [] and [x for x in scr().apc if "a=T" in x], 10)
+# Icon Size: a picture drawn at that part of the bar's height, its shape
+# kept and centred in its two cells, never cut or stretched to fill them
+# (the owner, 2026-11-15). Smaller is fewer opaque pixels in the newest
+# picture, with its corner clear.
+def opaque():
+    import base64
+    s = scr()
+    d = base64.b64decode(s.imgdata[-1]) if s.imgdata and s.imgdata[-1] else b""
+    return sum(1 for i in range(3, len(d), 4) if d[i]), (d[3] if len(d) > 3 else None)
+was, _ = opaque()
+nimg = len(scr().imgdata)
+pick("Icon Size", "50%")
+sc = until(lambda: len(scr().imgdata) > nimg and scr(), 10)
+now, corner = opaque()
+check("Icon Size: choosing 50% draws each picture smaller, its corner clear",
+      bool(sc) and 0 < now < was and corner == 0, (was, now, corner))
 pick("Icons", "letter")
 got = until(lambda: len(on_bar(ALL)) == 4 and on_bar(ALL), 10)
 check("Icons: choosing letter from its list puts each program's letter where its picture was",
@@ -744,4 +760,4 @@ fresh = startup(new_home, 3)
 check("a desktop that had the keyboard and the tray from the package is told once where they went",
       first and not again, (first, again))
 check("and a new desktop is told nothing", not fresh, fresh)
-report(46)
+report(47)

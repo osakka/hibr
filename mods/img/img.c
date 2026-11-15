@@ -937,12 +937,75 @@ static unsigned char *im_rgbaget(const char *path, int ink, int *w, int *h,
    display cannot blend one -- a sixel terminal, one that has not said what
    it draws -- which is the caller's cue to lay it over a colour of its own
    (`img flatten`) and draw that. */
+/* An RGBA picture fitted into pct percent of a W by H canvas, its own shape
+   kept and centred, the rest clear: what `img draw -a -s` sends, so an icon
+   is drawn at a size of its own inside its cells rather than stretched to
+   fill them, and nothing of it is cut. Each pixel averages what it covers,
+   weighted by alpha, so a clear pixel's colour never tints an edge. */
+static unsigned char *im_fita(const unsigned char *px, int w, int h, int W,
+			      int H, int pct)
+{
+	unsigned char *o = xm((size_t)W * H * 4);
+	double sc;
+	int ow, oh, ox, oy, x, y, sx0, sx1, sy0, sy1, i, j;
+
+	memset(o, 0, (size_t)W * H * 4);
+	sc = (double)W * pct / 100.0 / w;
+	if ((double)H * pct / 100.0 / h < sc)
+		sc = (double)H * pct / 100.0 / h;
+	ow = (int)(w * sc + 0.5);
+	oh = (int)(h * sc + 0.5);
+	if (ow < 1)
+		ow = 1;
+	if (oh < 1)
+		oh = 1;
+	if (ow > W)
+		ow = W;
+	if (oh > H)
+		oh = H;
+	ox = (W - ow) / 2;
+	oy = (H - oh) / 2;
+	for (y = 0; y < oh; y++) {
+		sy0 = (int)((long long)y * h / oh);
+		sy1 = (int)((long long)(y + 1) * h / oh);
+		if (sy1 <= sy0)
+			sy1 = sy0 + 1;
+		for (x = 0; x < ow; x++) {
+			unsigned long long r = 0, g = 0, b = 0, a = 0, n = 0;
+			unsigned char *d = o + ((size_t)(oy + y) * W + ox + x) * 4;
+
+			sx0 = (int)((long long)x * w / ow);
+			sx1 = (int)((long long)(x + 1) * w / ow);
+			if (sx1 <= sx0)
+				sx1 = sx0 + 1;
+			for (j = sy0; j < sy1 && j < h; j++)
+				for (i = sx0; i < sx1 && i < w; i++) {
+					const unsigned char *p = px + ((size_t)j * w + i) * 4;
+
+					r += (unsigned long long)p[0] * p[3];
+					g += (unsigned long long)p[1] * p[3];
+					b += (unsigned long long)p[2] * p[3];
+					a += p[3];
+					n++;
+				}
+			if (a) {
+				d[0] = (unsigned char)(r / a);
+				d[1] = (unsigned char)(g / a);
+				d[2] = (unsigned char)(b / a);
+			}
+			d[3] = (unsigned char)(n ? a / n : 0);
+		}
+	}
+	return o;
+}
+
 static int im_drawa(sh *s, const char *path, int row, int col, int rows,
-		    int cols, const char *pane, int ink)
+		    int cols, const char *pane, int ink, int pct)
 {
 	const dpo_api *dpo;
-	unsigned char *px;
-	int w = 0, h = 0;
+	const dp_api *dp;
+	unsigned char *px, *fit = 0;
+	int w = 0, h = 0, cw = 0, chh = 0, ok;
 	str err;
 
 	if (!pane) {
@@ -962,7 +1025,22 @@ static int im_drawa(sh *s, const char *path, int row, int col, int rows,
 		return HIBR_FAIL;
 	}
 	s_free(&err);
-	if (!dpo->over(s, pane, row, col, rows, cols, px, w, h)) {
+	if (pct > 0) {
+		dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
+		if (dp && dp->cellpx)
+			dp->cellpx(&cw, &chh);
+		if (cw < 2 || chh < 2) {
+			cw = 8;
+			chh = 16;
+		}
+		fit = im_fita(px, w, h, cols * cw, rows * chh, pct);
+		w = cols * cw;
+		h = rows * chh;
+		px = fit;
+	}
+	ok = dpo->over(s, pane, row, col, rows, cols, px, w, h);
+	free(fit);
+	if (!ok) {
 		lg(HIBR_LDBG, "img draw -a: the display cannot blend %s here", path);
 		return HIBR_FAIL;
 	}
@@ -974,7 +1052,7 @@ static int im_draw(sh *s, int ac, char **av)
 	const dp_api *dp;
 	const char *path, *pane = 0;
 	int row, col, rows, cols, gray = 0, mode = IM_AUTO, under = 0;
-	int alpha = 0, ink = -1;
+	int alpha = 0, ink = -1, pct = 0;
 	unsigned ir, ig, ib;
 	int prow = 0, pcol = 0, ph = 0, pw = 0;
 	int cropv[4], *crop = 0;
@@ -984,7 +1062,7 @@ static int im_draw(sh *s, int ac, char **av)
 
 	if (ac < 7) {
 		lg(HIBR_LERR, "usage: img draw file row col h w [-g] [-m mode] "
-			      "[-p pane] [-u] [-c x y w h] [-a [-i #ink]]");
+			      "[-p pane] [-u] [-c x y w h] [-a [-i #ink] [-s pct]]");
 		return 2;
 	}
 	path = av[2];
@@ -1003,6 +1081,13 @@ static int im_draw(sh *s, int ac, char **av)
 			under = 1;
 		else if (!strcmp(av[i], "-a"))
 			alpha = 1;
+		else if (!strcmp(av[i], "-s") && i + 1 < ac) {
+			pct = atoi(av[++i]);
+			if (pct < 1 || pct > 100) {
+				lg(HIBR_LERR, "img draw: -s takes a size from 1 to 100");
+				return 2;
+			}
+		}
 		else if (!strcmp(av[i], "-i") && i + 1 < ac) {
 			i++;
 			if (av[i][0] != '#' || strlen(av[i]) != 7 ||
@@ -1032,7 +1117,7 @@ static int im_draw(sh *s, int ac, char **av)
 		return HIBR_FAIL;
 	}
 	if (alpha)
-		return im_drawa(s, path, row, col, rows, cols, pane, ink);
+		return im_drawa(s, path, row, col, rows, cols, pane, ink, pct);
 	/* What the caches know this picture by: its path, or with -c its
 	   path and the rectangle, so a zoomed view and the whole picture are
 	   two entries and neither is mistaken for the other. Drawing a file

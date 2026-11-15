@@ -445,3 +445,21 @@ grep -rnE --include=*.hibr '^[[:space:]]*wheel(up|down|left|right)[ |)]' \
 	programs/desktop | grep -v '^programs/desktop/wm/\(input\|workspaces\)\.hibr:' |
 	sed 's/^/a _wheel matching the raw action, which it is never handed: /'
 echo "every _wheel matches what it is handed"
+
+# Every dropdown is one list (Gitea #558, the owner: "every single one, one
+# source of truth, no parallels"). A Control Panel row declares its list
+# with cp_choice and the panel opens and steps it; any other window's field
+# is dt_wdrop and opens through dt_droplist. So outside the widget library,
+# the window manager and the panel, nothing draws a dropdown's caret, steps
+# a list itself with cp_next, or keeps a pane's list in a _drop of its own --
+# each of those was once a second copy that drifted from the first.
+grep -rnE --include=*.hibr 'GL\["?sdown"?\]' programs/desktop/apps programs/desktop/system \
+	programs/desktop/control-panel programs/desktop/control-strip |
+	sed 's/^/draws a dropdown caret of its own, not through dt_wdrop: /'
+grep -rnE --include=*.hibr '(:=|\$\() *cp_next ' programs/desktop/apps programs/desktop/system \
+	programs/desktop/control-panel programs/desktop/control-strip |
+	grep -v '^programs/desktop/system/panel\.hibr:' |
+	sed 's/^/steps a list of its own, not through the row'"'"'s cp_choice: /'
+grep -rnE --include=*.hibr '^fn [a-z0-9_]+_drop\(int\? w' programs/desktop/control-panel |
+	sed 's/^/keeps a list of its own, not through cp_choice: /'
+echo "every dropdown is the one list"

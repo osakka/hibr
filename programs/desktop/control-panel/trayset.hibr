@@ -11,10 +11,13 @@
 
 strict
 
-app trayset "The Control Panel pane for programs' tray icons" 1.0
+app trayset "The Control Panel pane for programs' tray icons" 1.1
 command -v cp_pane > /dev/null && cp_pane trayset "Tray Icons" "▤"
 
 CP_TRAYSIZES=(picture letter)
+# How large a program's picture is drawn, as a part of the bar's height: its
+# own shape kept and centred in its two cells, never cut or stretched.
+CP_TRAYICONS=(50 60 70 80 90 100)
 CP_TRAYCLICKS=(activate menu)
 CP_TRAYMAXES=(0 3 5 8 12)
 CP_TRAYSHOWS=(shown hidden always)
@@ -76,6 +79,10 @@ fn trayset_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"; CP[$w][$n]["key"]=size
 	cp_choice "$w" "$n" "${DT_TRAYSIZE:-picture}" trayset_setsize "${CP_TRAYSIZES[@]}"
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icon Size"; CP[$w][$n]["key"]=icon
+	cp_choice "$w" "$n" "${DT_TRAYICON:-70}" trayset_seticon "${CP_TRAYICONS[@]}"
+	CP[$w][$n]["vname"]=trayset_iconname
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Left Click"; CP[$w][$n]["key"]=click
 	cp_choice "$w" "$n" "${DT_TRAYCLICK:-activate}" trayset_setclick "${CP_TRAYCLICKS[@]}"
 	n=$((n + 1))
@@ -134,6 +141,10 @@ trayset_apply() {
 fn trayset_setsize(int w, v) { DT_TRAYSIZE=$v; trayset_apply; }
 fn trayset_setclick(int w, v) { DT_TRAYCLICK=$v; trayset_apply; }
 fn trayset_setmax(int w, v) { DT_TRAYMAX=$v; trayset_apply; }
+fn trayset_seticon(int w, v) { DT_TRAYICON=$v; trayset_apply; }
+
+# A picture's size as the part of the bar's height it takes.
+fn trayset_iconname(v) { ret "$v%"; }
 
 # How many icons before the arrow, in words: none held back is "all".
 fn trayset_maxname(v) {

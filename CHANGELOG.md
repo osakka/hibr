@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.539
+
+**A tray icon has a size of its own, and sits in the bar rather than
+filling it** (owner, 2026-11-15). A program's icon was stretched to fill
+its two cells edge to edge -- on Blit a 24 by 24 pixel square the full
+height of the bar, beside text that takes about two thirds of it -- so it
+looked too large and pressed against the bar's edges.
+
+- **Control Panel > Tray Icons > Icon Size**: 50% to 100% of the bar's
+  height, 70% by default (`DT_TRAYICON`, `menubar/tray` 1.0.5).
+- **`img draw -a -s PCT`** draws a picture with its own transparency at
+  that part of its box: fitted with its own shape kept, centred, the rest
+  clear, on a canvas exactly the box's pixels, so the terminal scales
+  nothing and nothing is cut or stretched. Each pixel averages what it
+  covers weighted by alpha, as the console's own scaling does.
+
+**Every dropdown is the one list, with a guard that fails on a second**
+(owner: "every single one, one source of truth, no parallels"). The last
+one in hibr's own tree was Mail's compose From field, which drew its own
+caret; it is `dt_wdrop` now, the one dropdown field (Mail 2.5.4).
+`tests/540-examples.t` now fails on any parallel in an app, pane, system
+app or strip module: a caret drawn by hand rather than through `dt_wdrop`,
+a list stepped with `cp_next` outside the panel, or a pane keeping a list
+in a `_drop` of its own. It failed against the old From field. The same
+rules run over the catalogue's bundles find Browser settings, Web Apps and
+Longwire, each being converted by the session that keeps it.
+
+Checked: `tests/kitgfx.py` draws a picture at 50% into two cells and reads
+the payload: the box's 16 by 16 pixels, an 8 by 8 picture at 4, 4, every
+pixel around it clear; `tests/traymod.py` chooses 50% in the pane and finds
+each icon drawn smaller, its corner clear.
+
 ## 0.99.538
 
 **The keyboard item's one setting is a row of Language & Region, not a

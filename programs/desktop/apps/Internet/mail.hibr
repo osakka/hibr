@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 2.5.3
+app mail "Email, offline, labels and conversations as Gmail has them" 2.5.4
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -1775,15 +1775,14 @@ fn mailc_draw(int id, int h, int w, int row, int col) {
 	console pen "$DT_DIM" "$DT_FACE"
 	dt_tput "$id" 0 1 "From:"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 0 10 "${MC[$id]["from"]:0:$fw}"
 	# An account with more than one address of its own can be written from
-	# any of them, and the row says so rather than hiding it: a click or
-	# enter on From opens the list. An account with one address draws
-	# exactly what it drew before.
+	# any of them, and the row is the desktop's one dropdown field: a click
+	# or enter on From opens the list. An account with one address draws
+	# its address alone.
 	if [[ ${MLADDR["${MC[$id]["acct"]}"]} == *$'\t'* ]]; then
-		console pen "$DT_ACTIVE" "$DT_FACE"
-		console put -p "w$id" 0 $((10 + ${#MC[$id]["from"]} + 1)) "${GL[sdown]}"
-		dt_wreg "$id" 0 10 "$fw" from
+		dt_wdrop "$id" 0 10 "$fw" "${MC[$id]["from"]}" from
+	else
+		console put -p "w$id" 0 10 "${MC[$id]["from"]:0:$fw}"
 	fi
 	r=1
 	for k in to cc bcc subj; do

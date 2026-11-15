@@ -1325,6 +1325,21 @@ pl = places(sc)
 check("a picture with its own transparency goes as RGBA, above the cells",
       len(pl) == 1 and key(pl[0], "f") == "32" and key(pl[0], "z") == "1"
       and len(payload(sc)) == 16 * 16 * 4 and "st=0" in open(AST).read(), (pl, open(AST).read()))
+# -s draws it at a size of its own inside its cells: fitted into that part
+# of the box, its shape kept, centred, the rest clear -- a tray icon sat
+# edge to edge in its row, stretched to the box (the owner, 2026-11-15).
+# The box here is two cells of 8 by 16 pixels, so 50 is an 8 by 8 icon at
+# 4, 4 of a 16 by 16 canvas.
+sc = run(ABAR + 'img draw %s 0 4 1 2 -m pixels -p bar -a -s 50\nconsole flush\nconsole key 300\n'
+         % ALPHA)
+pa = payload(sc)
+alphas = [pa[i * 4 + 3] for i in range(len(pa) // 4)] if len(pa) == 16 * 16 * 4 else []
+inside = [alphas[y * 16 + x] for y in range(4, 12) for x in range(4, 12)] if alphas else []
+outside = [alphas[y * 16 + x] for y in range(16) for x in range(16)
+           if not (4 <= x < 12 and 4 <= y < 12)] if alphas else []
+check("-s fits a picture into that part of its cells, its shape kept and centred, the rest clear",
+      len(pa) == 16 * 16 * 4 and inside and min(inside) > 0 and max(outside) == 0,
+      (len(pa), inside[:8], max(outside) if outside else None))
 check("and the cells under it keep their own colour, where a window's picture blanks them",
       bg(sc, 0, 4) == (32, 64, 96) and bg(sc, 0, 5) == (32, 64, 96), (bg(sc, 0, 4), bg(sc, 0, 5)))
 sc = run(ABAR + 'img draw %s 0 4 1 2 -m pixels -p bar -a; echo "st=$?" > %s\n'
@@ -1341,4 +1356,4 @@ dl = [x for x in deletes(sc) if "d=I" in x]
 check("cells drawn under it while it is placed keep it; the pane drawn without it takes it away",
       len(places(sc)) == 1 and len(dl) == 1, (places(sc), dl))
 shutil.rmtree(D, True)
-report(122)
+report(123)

@@ -16,7 +16,7 @@
 
 strict
 
-app tray "Programs' tray icons on the menu bar" 1.0.4
+app tray "Programs' tray icons on the menu bar" 1.0.5
 
 # The settings, Control Panel > Tray Icons (control-panel/trayset.hibr):
 # whether the desktop is the tray at all; a picture two cells wide where
@@ -27,13 +27,17 @@ app tray "Programs' tray icons on the menu bar" 1.0.4
 # is the program's own word and may hold anything but a tab.
 DT_TRAY="${DT_TRAY-1}"
 DT_TRAYSIZE="${DT_TRAYSIZE-picture}"
+# How large a picture is, as a part of the bar's height (Control Panel >
+# Tray Icons > Icon Size): its own shape kept and centred in its two cells,
+# so it sits beside the bar's text rather than filling the row edge to edge.
+DT_TRAYICON="${DT_TRAYICON-70}"
 DT_TRAYCLICK="${DT_TRAYCLICK-activate}"
 DT_TRAYMAX="${DT_TRAYMAX-0}"
 DT_TRAYHIDE="${DT_TRAYHIDE-}"
 DT_TRAYALWAYS="${DT_TRAYALWAYS-}"
 DT_TRAYORDER="${DT_TRAYORDER-}"
 command -v dt_keep > /dev/null &&
-	dt_keep DT_TRAY DT_TRAYSIZE DT_TRAYCLICK DT_TRAYMAX DT_TRAYHIDE DT_TRAYALWAYS DT_TRAYORDER
+	dt_keep DT_TRAY DT_TRAYSIZE DT_TRAYICON DT_TRAYCLICK DT_TRAYMAX DT_TRAYHIDE DT_TRAYALWAYS DT_TRAYORDER
 
 # The items in the order they came, and what each is: its program's id,
 # title, letter, where its picture comes from and its state. TRAY_SEEN is
@@ -145,7 +149,7 @@ fn dt_traypic(int n, int c) {
 	[ -n "${TRAY_MONO["$n"]-}" ] && ink=$DT_INK
 	{ dt_has img || need img 2> /dev/null; } || return 1
 	if pic := dt_trayalphafor "$n" &&
-	   img draw "$pic" 0 $((c - ${DT_PRIMARY_COL:-0})) 1 2 -m pixels -p bar -a ${ink:+-i "$ink"} 2> /dev/null; then
+	   img draw "$pic" 0 $((c - ${DT_PRIMARY_COL:-0})) 1 2 -m pixels -p bar -a -s "${DT_TRAYICON:-70}" ${ink:+-i "$ink"} 2> /dev/null; then
 		return 0
 	fi
 	pic := dt_traypicfor "$n" || return 1
