@@ -132,6 +132,7 @@ cn_pane *cn_pset(const char *nm, int row, int col, int h, int w)
 	} else if (p->h == h && p->w == w && (p->row != row || p->col != col)) {
 		p->copied = cn_copyok() &&
 			    cn_copyrect(p->row, p->col, h, w, row, col, 1);
+		cn_imgmove(nm, row - p->row, col - p->col);
 	} else {
 		p->copied = 0;
 	}

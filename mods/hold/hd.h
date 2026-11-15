@@ -362,6 +362,10 @@ struct hd_cli {
 	   keeps, so a display that has the transmission is sent only what
 	   follows it, never the picture again. */
 	unsigned *pbase;
+	/* And where it was placed on the session's grid, row * 65536 + col,
+	   or -1: a transmission whose bytes this display has, placed at
+	   another cell, is sent its placement alone (Gitea #559). */
+	long *ppos;
 	size_t pn;
 	/* Whether this client's terminal has been told to drop every picture
 	   it held before the list above began. The list starts empty for a

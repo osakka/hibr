@@ -4126,6 +4126,18 @@ went in the shell.
   the value in force and ticks it (`DT_POPCURNEXT`), and every list opens
   through `dt_dropat`. **Never draw a caret by hand**: a field that cycles
   on a click under a `▾` promises a list it never opens -- `dt_wdrop`.
+- **A moved window's picture is moved, never replaced** (0.99.537, Gitea
+  #559). The console matched a picture to its region by rectangle, so a
+  window that moved had a "new" picture: a new id, the whole image again
+  (a megabyte a step for a page), the old one deleted -- forwarded by hold
+  to every display. The terminal dropping the old before the new had
+  arrived is the transparent flash during a drag, and the bytes were the
+  drag's lag. Now every transmission carries `p=1` and `cn_pset` moves a
+  pane's pictures with it (`cn_imgmove`), sent as that placement alone;
+  the emulator and hold each carry the move. Three places had to learn
+  it, and a check of any one of them alone passes against the others'
+  old behaviour: `tests/kitgfx.py` reads the console, `tests/holdpix.py`
+  the client.
 - **A picture with its own transparency goes above the cells, and the
   emulator took a positive `z` for a picture that owns them** (0.99.535).
   A tray icon on a see-through bar cannot be laid over one colour, so

@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.99.537
+
+**A window's picture moves with the window, and is never sent again for
+it** (Gitea #559). The owner: moving a window that shows a picture -- the
+video player, the browser, Steam, a game -- made its content go
+transparent, then fill again, and drags lagged. A moved window's picture
+had a new rectangle, so the console took it for a new picture: a new
+kitty id, the whole picture transmitted again (up to about a megabyte for
+a page), the old one deleted. Hold forwarded that to every display on
+every step of a drag. Blit draws a deleted picture until the frame's
+synchronized update ends; a new one still arriving in chunks then has
+nothing to show yet, so the window showed the desktop through it until
+the transmission completed, or until the app placed its picture again.
+
+- **Every transmission carries placement 1** (`p=1`), and a pane that
+  moves with its size kept takes its pictures with it (`cn_imgmove`): each
+  is placed again at the new cell under its own image and placement, which
+  the terminal moves in place. Nothing is deleted and nothing is sent
+  again, and a window the desktop leaves undrawn on the frame it moves
+  keeps its picture too. A picture cut to the screen or around the bar,
+  and one whose size changes, go as before.
+- **Hold's emulator moves its kept copy** on such a placement, and **hold
+  sends each display the move** -- a placement of about forty bytes -- for
+  a picture it already has, where it re-sent the picture.
+- Streams (Steam, games) already kept one image and placement; Blit
+  confirmed it moves one in place with nothing dropped.
+
+Checked: `tests/kitgfx.py` moves a pane twice, with and without the window
+drawing again, and reads one transmission, placements at each new cell
+under its id and placement 1, and no delete; `tests/holdpix.py` drags a
+held window's picture and reads the client: sent once, never deleted, last
+placed where the window went. All three checks fail against 0.99.536.
+
 ## 0.99.536
 
 **Programs' notifications have no pane of their own** (owner,

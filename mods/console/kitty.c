@@ -151,6 +151,8 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 				 : alpha ? "a=T,f=32,q=2,C=1,i="
 					 : "a=T,f=24,q=2,C=1,i=");
 			s_num(o, id);
+			s_cat(o, ",p=");
+			s_num(o, CN_KPLACE);
 			if (comp == CN_COMP_ZLIB)
 				s_cat(o, ",o=z");
 			if (comp != CN_COMP_PNG) {

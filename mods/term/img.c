@@ -327,10 +327,31 @@ void tm_apcend(tm_t *t)
 		}
 		if (id <= 0 || rows < 1 || cols < 1)
 			return;
+		/* A picture kept from its own transmission, placed again under
+		   the same placement: it moved, as a window it is in does
+		   (Gitea #559). Its kept copy moves, and a display is sent the
+		   move rather than the picture again. Under another placement
+		   it is a second placement, which nothing here keeps. */
 		for (i = 0; i < t->imgn; i++)
 			if (t->img[i].id == (unsigned)id &&
-			    !tm_imgisplace(t->img[i].data.p, t->img[i].data.n))
+			    !tm_imgisplace(t->img[i].data.p, t->img[i].data.n)) {
+				long kp = t->img[i].data.n > 3 ?
+						  tm_imgkey(t->img[i].data.p + 3, 'p') : -1;
+
+				if (kp > 0 && kp == tm_imgkey(s, 'p') &&
+				    (t->img[i].r != t->cr || t->img[i].c != t->cc ||
+				     t->img[i].rows != (int)rows ||
+				     t->img[i].cols != (int)cols)) {
+					t->img[i].r = t->cr;
+					t->img[i].c = t->cc;
+					t->img[i].rows = (int)rows;
+					t->img[i].cols = (int)cols;
+					t->imgen++;
+					lg(HIBR_LDBG, "terminal %d: picture %ld moved to %d,%d",
+					   t->id, id, t->cr, t->cc);
+				}
 				return;
+			}
 		s_init(&r);
 		tm_apcraw(t, &r);
 		tm_imgkeep(t, t->cr, t->cc, (int)rows, (int)cols, (unsigned)id,

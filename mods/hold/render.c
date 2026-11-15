@@ -978,6 +978,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		int ir, ic, irows, icols, k, n = hd_tm->images(tid), sent = 0;
 		int g[4];
 		unsigned *nid, *nhash, *nbase;
+		long *npos;
 		size_t *nlen, nn = 0, j, from, base;
 		str pic, cut;
 
@@ -985,13 +986,17 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		nhash = n > 0 ? xm((size_t)n * sizeof *nhash) : 0;
 		nlen = n > 0 ? xm((size_t)n * sizeof *nlen) : 0;
 		nbase = n > 0 ? xm((size_t)n * sizeof *nbase) : 0;
+		npos = n > 0 ? xm((size_t)n * sizeof *npos) : 0;
+		for (k = 0; k < n; k++)
+			npos[k] = -1;
 		hd_frmsweep(tid);
 		hd_f3sweep(tid);
 		s_init(&pic);
 		s_init(&cut);
 		for (k = 0; k < n; k++) {
 			unsigned id, h;
-			int had = 0;
+			int had = 0, moved = 0, trans;
+			long pos, pv = 0, zv = 0;
 
 			pic.n = 0;
 			if (!hd_tm->image(tid, k, &ir, &ic, &irows, &icols,
@@ -1102,12 +1107,28 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				     (unsigned)ic * 40503u;
 			base = id ? hd_imgbase(pic.p, pic.n) : pic.n;
 			from = 0;
+			pos = (long)ir * 65536 + ic;
+			/* A transmission this display already has, placed at
+			   another cell -- its window moved -- is moved there by
+			   its placement alone, when it carries one: the bytes
+			   again were up to a megabyte a step of a drag, and a
+			   terminal deleting the old picture before the new had
+			   arrived showed the desktop through the window
+			   (Gitea #559). */
+			trans = id && pic.n > 6 && !memcmp(pic.p, "\033_Ga=T", 6) &&
+				hd_imgkey(pic.p, pic.n, 'p', &pv) && pv > 0;
 			if (id && !clear)
 				for (j = 0; j < cn->pn; j++) {
 					if (cn->pid[j] != id)
 						continue;
 					if (cn->phash[j] == h) {
-						had = 1;
+						if (cn->ppos && cn->ppos[j] >= 0 &&
+						    cn->ppos[j] != pos) {
+							if (trans)
+								moved = 1;
+						} else {
+							had = 1;
+						}
 						break;
 					}
 					/* Edited since: what it has, then more. */
@@ -1134,10 +1155,29 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				nhash[nn] = h;
 				nlen[nn] = pic.n;
 				nbase[nn] = hd_hash(pic.p, base);
+				npos[nn] = pos;
 				nn++;
 			}
 			if (had)
 				continue;
+			if (moved) {
+				hd_goto(out, ir - cn->row, ic - cn->col);
+				s_cat(out, "\033_Ga=p,q=2,C=1,i=");
+				s_num(out, (long)id);
+				s_cat(out, ",p=");
+				s_num(out, pv);
+				s_cat(out, ",c=");
+				s_num(out, icols);
+				s_cat(out, ",r=");
+				s_num(out, irows);
+				if (hd_imgkey(pic.p, pic.n, 'z', &zv) && zv) {
+					s_cat(out, ",z=");
+					s_num(out, zv);
+				}
+				s_cat(out, "\033\\");
+				sent++;
+				continue;
+			}
 			if (from) {
 				s_add(out, pic.p + from, pic.n - from);
 			} else {
@@ -1204,10 +1244,12 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		free(cn->phash);
 		free(cn->plen);
 		free(cn->pbase);
+		free(cn->ppos);
 		cn->pid = nid;
 		cn->phash = nhash;
 		cn->plen = nlen;
 		cn->pbase = nbase;
+		cn->ppos = npos;
 		cn->pn = nn;
 		cn->imgen = hd_tm->imgen(tid);
 		if (sent)

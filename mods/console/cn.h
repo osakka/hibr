@@ -61,6 +61,12 @@
    the terminal blends it onto whatever each cell shows: a tray icon over a
    see-through bar. CN_IMG_ALPHA marks it through cn_image, a bit above
    every DP_IMG_ flag; its pixels are RGBA. */
+/* The placement id every picture the console transmits carries, so placing
+   it again at another cell moves it rather than adding a second
+   (Gitea #559). */
+#ifndef CN_KPLACE
+#define CN_KPLACE 1u
+#endif
 #ifndef CN_ZOVER
 #define CN_ZOVER 1
 #endif
@@ -124,6 +130,7 @@ extern const cn_pane *cn_wpane;
 void cn_tband(void);
 int cn_ptopat(int row, int col);
 cn_pane *cn_ptopin(int row, int col, int h, int w);
+void cn_imgmove(const char *pane, int dr, int dc);
 
 int cn_open(sh *s);
 void cn_close(sh *s);

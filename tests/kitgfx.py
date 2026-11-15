@@ -1171,10 +1171,15 @@ sc = run(FRAMES, caps=["kitty"], env={"BLIT_FRAME_SOCKET": "@hibr-kitgfx-none-%d
 check("and so does one whose frame socket is not there",
       len(places(sc)) == 2 and not [a for a in sc.apc if "a=p" in a], places(sc))
 
-# A pane that moves takes its picture with it: placed again at the new
-# place, the old placement is deleted. A full-screen game draws its picture
-# and no cells, and the old one used to stay on the first display for good
-# once the window moved to the other (hibr-boxer's report, 0.99.392).
+# A pane that moves takes its picture with it: the same image and
+# placement, placed again where the pane now is, which the terminal moves
+# in place -- nothing deleted, nothing sent again (Gitea #559). Sent again,
+# a window's picture was a new image of up to a megabyte on every step of
+# a drag, and a terminal that dropped the old one before the new one had
+# arrived showed the desktop through the window. A full-screen game draws
+# its picture and no cells, and the old one used to stay on the first
+# display for good once the window moved to the other (hibr-boxer's
+# report, 0.99.392): it is the one picture, moved, so it cannot.
 QUAD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img-quad.jpg")
 MOVED = ("console pane w1 0 0 10 20\n"
          "img draw %s 0 0 8 16 -m pixels -p w1\nconsole flush\nconsole key 200\n"
@@ -1183,10 +1188,24 @@ MOVED = ("console pane w1 0 0 10 20\n"
          % (QUAD, QUAD))
 sc = run(MOVED, rows=30, cols=80)
 pl = places(sc)
-dl = [a for a in deletes(sc) if "d=I" in a]
-check("a pane that moves takes its picture with it, though it draws no cells",
-      len(pl) == 2 and len(dl) == 1 and key(dl[0], "i") == key(pl[0], "i")
-      and key(pl[1], "i") != key(pl[0], "i"), (pl, deletes(sc)))
+mv = [(r, c, a) for r, c, a in sc.kplace if "a=p" in a]
+check("a pane that moves takes its picture with it: placed again under its own "
+      "image and placement, never deleted or sent again",
+      len(pl) == 1 and key(pl[0], "p") == "1" and not [a for a in deletes(sc) if "d=A" not in a]
+      and len(mv) == 1 and mv[0][:2] == (12, 30)
+      and key(mv[0][2], "i") == key(pl[0], "i") and key(mv[0][2], "p") == "1",
+      (pl, mv, deletes(sc)))
+# And a window left undrawn on the frame it moves -- the desktop leaves a
+# window alone that has not changed -- keeps its picture all the same.
+sc = run("console pane w1 0 0 10 20\n"
+         "img draw %s 0 0 8 16 -m pixels -p w1\nconsole flush\nconsole key 200\n"
+         "console pane w1 12 30 10 20\nconsole flush\nconsole key 200\n"
+         "console pane w1 3 40 10 20\nconsole flush\nconsole key 200\n" % QUAD,
+         rows=30, cols=80)
+mv = [(r, c) for r, c, a in sc.kplace if "a=p" in a]
+check("and one its window does not draw again as it moves goes with it too",
+      len(places(sc)) == 1 and not [a for a in deletes(sc) if "d=A" not in a] and mv == [(12, 30), (3, 40)],
+      (places(sc), mv, deletes(sc)))
 
 # Restart Desktop is an exec: the same process, so the same pid and the
 # same band of picture ids. Counting from the start again handed the new
@@ -1293,4 +1312,4 @@ dl = [x for x in deletes(sc) if "d=I" in x]
 check("cells drawn under it while it is placed keep it; the pane drawn without it takes it away",
       len(places(sc)) == 1 and len(dl) == 1, (places(sc), dl))
 shutil.rmtree(D, True)
-report(120)
+report(121)

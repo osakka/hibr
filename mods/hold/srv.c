@@ -113,6 +113,7 @@ void hd_cdrop(vec *cls, int fd)
 			free(cn->phash);
 			free(cn->plen);
 			free(cn->pbase);
+			free(cn->ppos);
 			free(cn->fsid);
 			free(cn->fsseq);
 			s_free(&cn->mbuf);
@@ -457,6 +458,7 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		free(cn->phash);
 		free(cn->plen);
 		free(cn->pbase);
+		free(cn->ppos);
 		free(cn->fsid);
 		free(cn->fsseq);
 		s_free(&cn->mbuf);
@@ -1551,6 +1553,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 		free(cn->phash);
 		free(cn->plen);
 		free(cn->pbase);
+		free(cn->ppos);
 		free(cn->fsid);
 		free(cn->fsseq);
 		s_free(&cn->mbuf);

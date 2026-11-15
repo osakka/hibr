@@ -56,6 +56,7 @@ typedef struct cn_img {
 	unsigned *cell;		/* one averaged colour per cell, under-text only */
 	char *pane;		/* the pane it was placed through, or null */
 	int plive;		/* placed again since the last check */
+	int moved;		/* on the terminal, and its pane moved since */
 	/* A window's kitty picture keeps the pixels it was last sent as, at
 	   the size they went out, so the next frame in the same rectangle can
 	   be sent as the part that changed (Gitea #404). */
@@ -1646,6 +1647,23 @@ size_t cn_imgsend(str *b, int over)
 			n += cn_imgs[i].edit.n;
 			cn_imgs[i].edit.n = 0;
 		}
+		/* One already on the terminal whose pane moved goes as its
+		   placement alone, at the new place: the same image and
+		   placement, which the terminal moves in place (Gitea #559). */
+		if (cn_imgs[i].sent && cn_imgs[i].moved &&
+		    !cn_imgs[i].over == !over) {
+			size_t was = b->n;
+
+			s_cat(b, "\033[");
+			s_num(b, cn_imgs[i].row + 1);
+			s_ch(b, ';');
+			s_num(b, cn_imgs[i].col + 1);
+			s_ch(b, 'H');
+			kt_placep(cn_imgs[i].w, cn_imgs[i].h, cn_imgs[i].id,
+				  CN_KPLACE, cn_imgs[i].z, b);
+			cn_imgs[i].moved = 0;
+			n += b->n - was;
+		}
 		if (cn_imgs[i].sent || !cn_imgs[i].data.n)
 			continue;
 		if (!cn_imgs[i].over != !over)
@@ -1662,6 +1680,47 @@ size_t cn_imgsend(str *b, int over)
 		n += cn_imgs[i].data.n;
 	}
 	return n;
+}
+
+/* A pane that moved with its size kept takes its pictures with it: each
+   it placed that fits where it now is moves by dr rows and dc columns and
+   is placed again there under its own image and placement, so nothing is
+   deleted and nothing is sent again (Gitea #559). Re-sent, a window's
+   picture was a new image of up to a megabyte on every step of a drag, to
+   every display, and a terminal that had deleted the old one before the
+   new one had arrived showed the desktop through the window. A picture cut
+   to the screen or around the bar, a stream's and one by descriptor are
+   left to go as before, unless placed again. */
+void cn_imgmove(const char *pane, int dr, int dc)
+{
+	size_t i;
+	cn_img *im;
+
+	if (!dr && !dc)
+		return;
+	for (i = 0; i < cn_nimg; i++) {
+		im = &cn_imgs[i];
+		if (!im->pane || strcmp(im->pane, pane) || !im->id || im->over ||
+		    im->dma || im->sub || im->fd)
+			continue;
+		if (im->row != im->wrow || im->col != im->wcol ||
+		    im->h != im->wh || im->w != im->ww)
+			continue;
+		if (im->row + dr < 0 || im->col + dc < 0 ||
+		    im->row + dr + im->h > cn_back.rows ||
+		    im->col + dc + im->w > cn_back.cols ||
+		    cn_ptopin(im->row + dr, im->col + dc, im->h, im->w))
+			continue;
+		im->row += dr;
+		im->col += dc;
+		im->wrow += dr;
+		im->wcol += dc;
+		im->plive = 1;
+		if (im->sent)
+			im->moved = 1;
+		lg(HIBR_LDBG, "console: picture %u moved with pane %s to %d,%d",
+		   im->id, pane, im->row, im->col);
+	}
 }
 
 /* Whether any region is being kept, for `console gfx`. */

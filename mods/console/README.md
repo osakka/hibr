@@ -348,10 +348,18 @@ the frames module's socket (Gitea #486, Blit ADR 0223). A stream's picture
 keeps **one kitty id and one placement (`p=1`) for its whole life**. A move,
 a resize or a raise sends that same placement again where it now is, and Blit
 moves it in place, because Blit keys a game's input route by the image: a new
-id would end the route and let go of every held key. That is the one place a
-picture here is not replaced by a new id when its rectangle changes (RGB
-pictures are, since their pixels are cut to the rectangle). The picture
-follows the pane rule like any window's picture: the pane drawing without
+id would end the route and let go of every held key. An RGB window picture
+keeps its id too when its pane **moves** with its size kept (Gitea #559):
+every transmission carries placement 1, and a moved pane's pictures move
+with it and go out as that placement alone at the new cell, nothing
+deleted and nothing sent again -- re-sent, a window's picture was a new
+image of up to a megabyte on every step of a drag, to every display, and a
+terminal that dropped the old one before the new one had arrived showed
+the desktop through the window. A picture cut to the screen or around the
+bar is not moved that way; one whose rectangle changes size is replaced by
+a new id, since its pixels are cut to the rectangle. Hold's emulator moves
+its kept copy on that placement, and hold sends each display the move. The
+picture follows the pane rule like any window's picture: the pane drawing without
 placing it takes it away, and so does `drop`.
 
 Frames go under the picture's id with the producer's own sequence: on the

@@ -318,6 +318,41 @@ check("a picture with its own transparency reaches the client, and survives its 
       and not [a for a in sc.apc if "a=d" in a and ("d=I" in a or "d=i" in a)],
       ([a[:60] for a in sc.apc], log))
 
+# A window's picture moved with its window reaches every client as that
+# move (Gitea #559): the picture transmitted once, then placed again where
+# the pane went, and never deleted or sent again -- each step of a drag used
+# to be a new image of up to a megabyte to every display, and a terminal
+# that dropped the old one before the new one had arrived showed the
+# desktop through the window. Hold may merge two flushes into one snapshot,
+# so what is asked holds either way: one transmission, no delete, and the
+# picture last placed where the pane ended. The window draws nothing after
+# the first frame, as one the desktop leaves alone does not.
+DRAG = ("console pane w1 1 1 8 16\n"
+        "img draw %s 0 0 6 12 -m pixels -p w1\n"
+        "console put 0 0 'DRAG A'\nconsole flush\nconsole key 300 > /dev/null\n"
+        "console pane w1 10 30 8 16\nconsole put 0 0 'DRAG B'\n"
+        "console flush\nconsole key 300 > /dev/null\n"
+        "console pane w1 4 40 8 16\nconsole put 0 0 'DRAGGED'\nconsole flush\n"
+        % sx.tree("tests/img-quad.jpg"))
+sc, log = run(DRAG, until="DRAGGED")
+
+
+def key(ctrl, k):
+    """One key's value out of a kitty control string."""
+    for f in ctrl.lstrip("G").split(","):
+        if f.startswith(k + "="):
+            return f[len(k) + 1:]
+    return None
+
+
+sent = [a for a in sc.apc if "a=T" in a]
+gone = [a for a in sc.apc if "a=d" in a and ("d=I" in a or "d=i" in a)]
+check("a window's picture moved with it reaches the client as a move: sent once, "
+      "never deleted, last placed where the window went",
+      len(sent) == 1 and not gone and sc.kplace and sc.kplace[-1][:2] == (4, 40)
+      and key(sc.kplace[-1][2], "i") == key(sent[0], "i"),
+      ([a[:70] for a in sc.apc], sc.kplace[-2:], log))
+
 # A picture the text is then drawn through must never be left behind on a
 # client's screen. Which of the two a client sees depends on timing that is
 # not ours: hold renders snapshots of its emulator rather than the program's
@@ -1941,4 +1976,4 @@ check("a shadow attribute crosses hold with its kind, width and inset",
       "66:2:1:0" in pens and "66:3:1:1" in pens, pens[:300])
 
 shutil.rmtree(D, True)
-report(107)
+report(108)
