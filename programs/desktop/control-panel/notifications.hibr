@@ -35,29 +35,33 @@ fn cp_set_notepos(int? id = "", value = "") { DT_NOTEPOS=$value; cp_save; }
 # keeps it: Same as Windows by default.
 CP_NOTEFRAMEV=(windows single double rounded solid solidrev)
 CP_NOTEFRAMEL=("Same as Windows" "Single" "Double" "Curved" "Solid" "Solid Reversed")
-fn cp_noteframelabel() {
+fn cp_noteframename(v) {
 	local i=0
 
 	while [ "$i" -lt "${#CP_NOTEFRAMEV[@]}" ]; do
-		[ "${CP_NOTEFRAMEV[$i]}" = "${DT_NOTEFRAME:-windows}" ] &&
-			{ ret "${CP_NOTEFRAMEL[$i]}"; return 0; }
+		[ "${CP_NOTEFRAMEV[$i]}" = "$v" ] && { ret "${CP_NOTEFRAMEL[$i]}"; return 0; }
 		i=$((i + 1))
 	done
 	ret "Same as Windows"
+}
+# A note's size in words.
+fn cp_notecols(v) {
+	local t
+
+	t := dt_tr "%s columns" "$v"
+	ret "$t"
+}
+fn cp_noterows(v) {
+	local t
+
+	t := dt_tr "%s rows" "$v"
+	ret "$t"
 }
 # Note Colour: every note's face and ink, the scheme's own (theme) or one
 # of a note's own colours.
 fn cp_set_notecolour(int? id = "", value = "") { DT_NOTECOLOUR=$value; cp_save; }
 
-fn cp_set_noteframe(int? id = "", value = "") {
-	local i=0
-
-	while [ "$i" -lt "${#CP_NOTEFRAMEL[@]}" ]; do
-		[ "${CP_NOTEFRAMEL[$i]}" = "$value" ] && DT_NOTEFRAME=${CP_NOTEFRAMEV[$i]}
-		i=$((i + 1))
-	done
-	cp_save
-}
+fn cp_set_noteframe(int? id = "", value = "") { DT_NOTEFRAME=$value; cp_save; }
 fn cp_set_notewhere(int? id = "", value = "") { DT_NOTEWHERE=$value; cp_save; }
 fn cp_set_notems(int? id = "", int? value = "") { DT_NOTEMS=$value; cp_save; }
 fn cp_set_notecount(int? id = "", value = "") { DT_NOTECOUNT=$value; cp_save; }
@@ -90,11 +94,10 @@ fn cp_set_noteapp(from, v) {
 	esac
 	cp_save
 }
-# A dropdown's callback is handed the id and the value, so the sender it
-# was opened for waits here.
-CP_NOTEPICK=
-fn cp_set_noteapp1(int? id = "", value = "") {
-	[ -n "$CP_NOTEPICK" ] && cp_set_noteapp "$CP_NOTEPICK" "$value"
+# One sender's row, the row naming the sender.
+fn cp_set_noteappof(int? id = "", value = "", from = "") {
+	[ -n "$from" ] && cp_set_noteapp "$from" "$value"
+	return 0
 }
 # The senders a row is shown for: every one with a choice of its own, and
 # every one in the history, the desktop's own first.
@@ -147,44 +150,46 @@ cp_clearhist() {
 }
 
 fn notify_rows(int w) {
-	local n=0 i
+	local n=0 i v
 
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Position"
-	CP[$w][$n]["val"]="$DT_NOTEPOS"; CP[$w][$n]["key"]=notepos
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Position"; CP[$w][$n]["key"]=notepos
+	cp_choice "$w" "$n" "$DT_NOTEPOS" cp_set_notepos "${CP_NOTEPOS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"
-	CP[$w][$n]["val"] := cp_noteframelabel; CP[$w][$n]["key"]=noteframe
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"; CP[$w][$n]["key"]=noteframe
+	cp_choice "$w" "$n" "${DT_NOTEFRAME:-windows}" cp_set_noteframe "${CP_NOTEFRAMEV[@]}"
+	CP[$w][$n]["vname"]=cp_noteframename
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Note Colour"
-	CP[$w][$n]["val"]="$DT_NOTECOLOUR"; CP[$w][$n]["key"]=notecolour
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Note Colour"; CP[$w][$n]["key"]=notecolour
+	cp_choice "$w" "$n" "$DT_NOTECOLOUR" cp_set_notecolour "${DT_NOTECOLOURS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show On"
-	CP[$w][$n]["val"]="$DT_NOTEWHERE"; CP[$w][$n]["key"]=notewhere
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show On"; CP[$w][$n]["key"]=notewhere
+	cp_choice "$w" "$n" "$DT_NOTEWHERE" cp_set_notewhere "${CP_NOTEWHERE[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Timeout"
-	CP[$w][$n]["val"]="$DT_NOTEMS ms"; CP[$w][$n]["key"]=notems
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Timeout"; CP[$w][$n]["key"]=notems
+	cp_choice "$w" "$n" "$DT_NOTEMS" cp_set_notems "${CP_NOTETICKS[@]}"
+	CP[$w][$n]["vname"]=cp_ms
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Count From"
-	CP[$w][$n]["val"]="$DT_NOTECOUNT"; CP[$w][$n]["key"]=notecount
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Count From"; CP[$w][$n]["key"]=notecount
+	cp_choice "$w" "$n" "$DT_NOTECOUNT" cp_set_notecount "${DT_NOTELEVELS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="List From"
-	CP[$w][$n]["val"]="$DT_NOTELIST"; CP[$w][$n]["key"]=notelist
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="List From"; CP[$w][$n]["key"]=notelist
+	cp_choice "$w" "$n" "$DT_NOTELIST" cp_set_notelist "${DT_NOTELEVELS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Smallest Width"
-	CP[$w][$n]["val"] := dt_tr "%s columns" "$DT_NOTEWMIN"
-	CP[$w][$n]["key"]=notewmin
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Smallest Width"; CP[$w][$n]["key"]=notewmin
+	cp_choice "$w" "$n" "$DT_NOTEWMIN" cp_set_notewmin "${CP_NOTEWIDTHS[@]}"
+	CP[$w][$n]["vname"]=cp_notecols
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Largest Width"
-	CP[$w][$n]["val"] := dt_tr "%s columns" "$DT_NOTEWMAX"
-	CP[$w][$n]["key"]=notewmax
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Largest Width"; CP[$w][$n]["key"]=notewmax
+	cp_choice "$w" "$n" "$DT_NOTEWMAX" cp_set_notewmax "${CP_NOTEWIDTHS[@]}"
+	CP[$w][$n]["vname"]=cp_notecols
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Smallest Height"
-	CP[$w][$n]["val"] := dt_tr "%s rows" "$DT_NOTEHMIN"
-	CP[$w][$n]["key"]=notehmin
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Smallest Height"; CP[$w][$n]["key"]=notehmin
+	cp_choice "$w" "$n" "$DT_NOTEHMIN" cp_set_notehmin "${CP_NOTEHEIGHTS[@]}"
+	CP[$w][$n]["vname"]=cp_noterows
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Largest Height"
-	CP[$w][$n]["val"] := dt_tr "%s rows" "$DT_NOTEHMAX"
-	CP[$w][$n]["key"]=notehmax
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Largest Height"; CP[$w][$n]["key"]=notehmax
+	cp_choice "$w" "$n" "$DT_NOTEHMAX" cp_set_notehmax "${CP_NOTEHEIGHTS[@]}"
+	CP[$w][$n]["vname"]=cp_noterows
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="View History"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=history
@@ -196,7 +201,9 @@ fn notify_rows(int w) {
 	for i in "${!CP_NOTEFROM[@]}"; do
 		CP[$w][$n]["kind"]=set
 		CP[$w][$n]["text"] := dt_tr "From %s" "${CP_NOTEFROM[$i]}"
-		CP[$w][$n]["val"] := cp_noteapp "${CP_NOTEFROM[$i]}"
+		v := cp_noteapp "${CP_NOTEFROM[$i]}"
+		cp_choice "$w" "$n" "$v" cp_set_noteappof "${CP_NOTEAPPS[@]}"
+		CP[$w][$n]["sarg"]=${CP_NOTEFROM[$i]}
 		CP[$w][$n]["key"]=app$i
 		n=$((n + 1))
 	done
@@ -204,64 +211,10 @@ fn notify_rows(int w) {
 }
 
 fn notify_do(int? w = "", k = "", int? dir = "") {
-	local v f
-
 	case $k in
-	notepos) v := cp_next "$DT_NOTEPOS" "$dir" "${CP_NOTEPOS[@]}"
-	         DT_NOTEPOS=$v ;;
-	noteframe) v := cp_noteframelabel
-	         v := cp_next "$v" "$dir" "${CP_NOTEFRAMEL[@]}"
-	         cp_set_noteframe "" "$v"; return 0 ;;
-	notewhere) v := cp_next "$DT_NOTEWHERE" "$dir" "${CP_NOTEWHERE[@]}"
-	         DT_NOTEWHERE=$v ;;
-	notecolour) v := cp_next "$DT_NOTECOLOUR" "$dir" "${DT_NOTECOLOURS[@]}"
-	         DT_NOTECOLOUR=$v ;;
-	notems) v := cp_next "$DT_NOTEMS" "$dir" "${CP_NOTETICKS[@]}"
-	        DT_NOTEMS=$v ;;
-	notecount) v := cp_next "$DT_NOTECOUNT" "$dir" "${DT_NOTELEVELS[@]}"
-	        DT_NOTECOUNT=$v ;;
-	notelist) v := cp_next "$DT_NOTELIST" "$dir" "${DT_NOTELEVELS[@]}"
-	        DT_NOTELIST=$v ;;
-	app[0-9]*)
-		f=${CP_NOTEFROM[${k#app}]-}
-		[ -n "$f" ] || return 0
-		v := cp_noteapp "$f"
-		v := cp_next "$v" "$dir" "${CP_NOTEAPPS[@]}"
-		cp_set_noteapp "$f" "$v"
-		;;
-	notewmin) v := cp_next "$DT_NOTEWMIN" "$dir" "${CP_NOTEWIDTHS[@]}"
-	        cp_set_notesize notewmin "$v" ;;
-	notewmax) v := cp_next "$DT_NOTEWMAX" "$dir" "${CP_NOTEWIDTHS[@]}"
-	        cp_set_notesize notewmax "$v" ;;
-	notehmin) v := cp_next "$DT_NOTEHMIN" "$dir" "${CP_NOTEHEIGHTS[@]}"
-	        cp_set_notesize notehmin "$v" ;;
-	notehmax) v := cp_next "$DT_NOTEHMAX" "$dir" "${CP_NOTEHEIGHTS[@]}"
-	        cp_set_notesize notehmax "$v" ;;
 	history) dt_has notifications_draw && dt_launch notifications ;;
 	clearhist) cp_clearhist ;;
 	esac
 	cp_save
 }
 
-fn notify_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	notepos) dt_droplist "$w" "$r" "$c" cp_set_notepos "${CP_NOTEPOS[@]}" ;;
-	noteframe) dt_droplist "$w" "$r" "$c" cp_set_noteframe "${CP_NOTEFRAMEL[@]}" ;;
-	notecolour) dt_droplist "$w" "$r" "$c" cp_set_notecolour "${DT_NOTECOLOURS[@]}" ;;
-	notewhere) dt_droplist "$w" "$r" "$c" cp_set_notewhere "${CP_NOTEWHERE[@]}" ;;
-	notems) dt_droplist "$w" "$r" "$c" cp_set_notems "${CP_NOTETICKS[@]}" ;;
-	notecount) dt_droplist "$w" "$r" "$c" cp_set_notecount \
-		"${DT_NOTELEVELS[@]}" ;;
-	notelist) dt_droplist "$w" "$r" "$c" cp_set_notelist \
-		"${DT_NOTELEVELS[@]}" ;;
-	app[0-9]*)
-		[ -n "${CP_NOTEFROM[${k#app}]-}" ] || return 0
-		dt_droplist "$w" "$r" "$c" cp_set_noteapp1 "${CP_NOTEAPPS[@]}"
-		CP_NOTEPICK=${CP_NOTEFROM[${k#app}]}
-		;;
-	notewmin) dt_droplist "$w" "$r" "$c" cp_set_notewmin "${CP_NOTEWIDTHS[@]}" ;;
-	notewmax) dt_droplist "$w" "$r" "$c" cp_set_notewmax "${CP_NOTEWIDTHS[@]}" ;;
-	notehmin) dt_droplist "$w" "$r" "$c" cp_set_notehmin "${CP_NOTEHEIGHTS[@]}" ;;
-	notehmax) dt_droplist "$w" "$r" "$c" cp_set_notehmax "${CP_NOTEHEIGHTS[@]}" ;;
-	esac
-}

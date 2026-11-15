@@ -10,7 +10,7 @@
 strict
 
 
-app aboutme "The Control Panel pane for About Me" 1.1
+app aboutme "The Control Panel pane for About Me" 1.1.1
 command -v cp_pane > /dev/null && cp_pane aboutme "About Me" "☺"
 command -v dt_app > /dev/null && dt_app abm "About Me" 11 60 "" "" fixed hidden
 
@@ -74,8 +74,8 @@ fn aboutme_rows(int w) {
 		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="No Picture"
 		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=nopic; n=$((n + 1))
 	fi
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Session at Login"
-	CP[$w][$n]["val"]="${AB_ME["session"]:-desktop}"; CP[$w][$n]["key"]=session
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Session at Login"; CP[$w][$n]["key"]=session
+	cp_choice "$w" "$n" "${AB_ME["session"]:-desktop}" cp_set_mesession "${AB_SESSIONS[@]}"
 	n=$((n + 1))
 	ret "$n"
 }
@@ -94,17 +94,6 @@ fn aboutme_do(int? w = "", k = "", int? dir = "") {
 			ab_picked ""
 		;;
 	nopic) ab_load; unset AB_ME["picture"]; ab_store ;;
-	session)
-		ab_load
-		v := cp_next "${AB_ME["session"]:-desktop}" "$dir" "${AB_SESSIONS[@]}"
-		ab_set session "$v"
-		;;
-	esac
-}
-
-fn aboutme_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	session) dt_droplist "$w" "$r" "$c" cp_set_mesession "${AB_SESSIONS[@]}" ;;
 	esac
 }
 

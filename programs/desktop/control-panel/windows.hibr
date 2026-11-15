@@ -12,7 +12,7 @@
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.11.2
+app windows "The Control Panel pane for how a window looks and where it opens" 1.11.3
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
@@ -35,17 +35,20 @@ fn cp_wintrans(int v) {
 fn windows_rows(int w) {
 	local n=0 v
 
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"
-	CP[$w][$n]["val"]="$DT_FRAME"; CP[$w][$n]["key"]=frame; n=$((n + 1))
-	v := dt_chromename "$DT_TITLEBAR"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Bar"
-	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=titlebar; n=$((n + 1))
-	v := dt_chromename "$DT_BTNSTYLE"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Buttons"
-	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=btnstyle
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"; CP[$w][$n]["key"]=frame
+	cp_choice "$w" "$n" "$DT_FRAME" cp_set_frame "${WS_FRAMES[@]}"
+	CP[$w][$n]["dims"] := dt_chromeoff "${WS_FRAMES[@]}"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Bar"; CP[$w][$n]["key"]=titlebar
+	cp_choice "$w" "$n" "$DT_TITLEBAR" cp_set_titlebar "${DT_TITLEBARS[@]}"
+	CP[$w][$n]["dims"] := dt_chromeoff "${DT_TITLEBARS[@]}"
+	CP[$w][$n]["vname"]=dt_chromename; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Buttons"; CP[$w][$n]["key"]=btnstyle
+	cp_choice "$w" "$n" "$DT_BTNSTYLE" cp_set_btnstyle "${WS_STYLES[@]}"
+	CP[$w][$n]["dims"] := dt_chromeoff "${WS_STYLES[@]}"
+	CP[$w][$n]["vname"]=dt_chromename
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"
-	CP[$w][$n]["val"]="$DT_TITLEALIGN"; CP[$w][$n]["key"]=align
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"; CP[$w][$n]["key"]=align
+	cp_choice "$w" "$n" "$DT_TITLEALIGN" cp_set_align "${WS_ALIGNS[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="See Through"
 	CP[$w][$n]["wtype"]=slider
@@ -53,14 +56,14 @@ fn windows_rows(int w) {
 	CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
 	CP[$w][$n]["after"]="(${DT_WINTRANS:-0}%)"
 	CP[$w][$n]["key"]=wintrans; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Placement"
-	CP[$w][$n]["val"]="$DT_PLACE"; CP[$w][$n]["key"]=place
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Placement"; CP[$w][$n]["key"]=place
+	cp_choice "$w" "$n" "$DT_PLACE" cp_set_place "${DT_PLACES[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Zoom Fills"
-	CP[$w][$n]["val"]="$DT_ZOOMFILL"; CP[$w][$n]["key"]=zoomfill
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Zoom Fills"; CP[$w][$n]["key"]=zoomfill
+	cp_choice "$w" "$n" "$DT_ZOOMFILL" cp_set_zoomfill "${DT_ZOOMFILLS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Full Screen Ends"
-	CP[$w][$n]["val"]="$DT_FULLEND"; CP[$w][$n]["key"]=fullend
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Full Screen Ends"; CP[$w][$n]["key"]=fullend
+	cp_choice "$w" "$n" "$DT_FULLEND" cp_set_fullend "${DT_FULLENDS[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tiled Main"
 	CP[$w][$n]["after"]="($DT_TILEMAIN%)"
@@ -93,8 +96,8 @@ fn windows_rows(int w) {
 		CP[$w][$n]["val"]=off; [ "${DT_NATREMEMBER:-1}" = 1 ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=DT_NATREMEMBER; n=$((n + 1))
 		# Which program windows take the focus by themselves (Gitea #507).
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Programs Take Focus"
-		CP[$w][$n]["val"]="${DT_NATFOCUS:-expected}"; CP[$w][$n]["key"]=natfocus
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Programs Take Focus"; CP[$w][$n]["key"]=natfocus
+		cp_choice "$w" "$n" "${DT_NATFOCUS:-expected}" cp_set_natfocus "${DT_NATFOCUSES[@]}"
 		n=$((n + 1))
 	fi
 	ret "$n"
@@ -158,35 +161,9 @@ fn windows_order(int w, g, ...names) {
 }
 
 fn windows_do(int w, k, int dir) {
-	local v fl
-	local -a fa
+	local v
 
 	case $k in
-	frame) fl := dt_chromeavail "${WS_FRAMES[@]}"
-	       DT_POPDIMNEXT=()
-	       read -ra fa <<< "$fl"
-	       v := cp_next "$DT_FRAME" "$dir" "${fa[@]}"
-	       DT_FRAME=$v ;;
-	titlebar) fl := dt_chromeavail "${DT_TITLEBARS[@]}"
-	          DT_POPDIMNEXT=()
-	          read -ra fa <<< "$fl"
-	          v := cp_next "$DT_TITLEBAR" "$dir" "${fa[@]}"
-	          DT_TITLEBAR=$v ;;
-	align) v := cp_next "$DT_TITLEALIGN" "$dir" "${WS_ALIGNS[@]}"
-	       DT_TITLEALIGN=$v ;;
-	btnstyle) fl := dt_chromeavail "${WS_STYLES[@]}"
-	          DT_POPDIMNEXT=()
-	          read -ra fa <<< "$fl"
-	          v := cp_next "$DT_BTNSTYLE" "$dir" "${fa[@]}"
-	          DT_BTNSTYLE=$v ;;
-	place) v := cp_next "$DT_PLACE" "$dir" "${DT_PLACES[@]}"
-	       DT_PLACE=$v ;;
-	natfocus) v := cp_next "${DT_NATFOCUS:-expected}" "$dir" "${DT_NATFOCUSES[@]}"
-	          DT_NATFOCUS=$v ;;
-	zoomfill) v := cp_next "$DT_ZOOMFILL" "$dir" "${DT_ZOOMFILLS[@]}"
-	          DT_ZOOMFILL=$v ;;
-	fullend) v := cp_next "$DT_FULLEND" "$dir" "${DT_FULLENDS[@]}"
-	         DT_FULLEND=$v ;;
 	DT_NATIVE) cp_toggle DT_NATIVE ;;
 	DT_NATX11) cp_toggle DT_NATX11 ;;
 	DT_NATREMEMBER) cp_toggle DT_NATREMEMBER ;;
@@ -222,20 +199,3 @@ fn windows_slide(int w, k, int value) {
 	return 0
 }
 
-fn windows_drop(int w, int r, int c, k) {
-	case $k in
-	frame) dt_chromeavail "${WS_FRAMES[@]}"
-	       dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
-	titlebar) dt_chromeavail "${DT_TITLEBARS[@]}"
-	          DT_POPNAMENEXT=dt_chromename
-	          dt_droplist "$w" "$r" "$c" cp_set_titlebar "${DT_TITLEBARS[@]}" ;;
-	place) dt_droplist "$w" "$r" "$c" cp_set_place "${DT_PLACES[@]}" ;;
-	natfocus) dt_droplist "$w" "$r" "$c" cp_set_natfocus "${DT_NATFOCUSES[@]}" ;;
-	zoomfill) dt_droplist "$w" "$r" "$c" cp_set_zoomfill "${DT_ZOOMFILLS[@]}" ;;
-	fullend) dt_droplist "$w" "$r" "$c" cp_set_fullend "${DT_FULLENDS[@]}" ;;
-	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
-	btnstyle) dt_chromeavail "${WS_STYLES[@]}"
-		DT_POPNAMENEXT=dt_chromename
-		dt_droplist "$w" "$r" "$c" cp_set_btnstyle "${WS_STYLES[@]}" ;;
-	esac
-}

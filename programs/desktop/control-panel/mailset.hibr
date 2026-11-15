@@ -450,19 +450,19 @@ fn mailset_rows(int w) {
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=add; n=$((n + 1))
 	n := ms_testrows "$w" "$n"
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Offline"; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keep Messages"
-	CP[$w][$n]["val"]="${DT_MAILMAX:-1000}"; CP[$w][$n]["key"]=max; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keep Messages"; CP[$w][$n]["key"]=max
+	cp_choice "$w" "$n" "${DT_MAILMAX:-1000}" cp_set_mailmax "${MS_KEEPS[@]}"; n=$((n + 1))
 	v=${DT_MAILBODIES:-500}
 	[ "$v" -ge 1000000 ] 2> /dev/null && v=all
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Download Whole Messages"
-	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=bodies; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Check Every (minutes)"
-	CP[$w][$n]["val"]="${DT_MAILEVERY:-5}"; CP[$w][$n]["key"]=every; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Save Drafts Every (seconds)"
-	CP[$w][$n]["val"]="${DT_MAILDRAFT:-30}"; CP[$w][$n]["key"]=draft
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Download Whole Messages"; CP[$w][$n]["key"]=bodies
+	cp_choice "$w" "$n" "$v" cp_set_mailbodies "${MS_BODIESL[@]}"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Check Every (minutes)"; CP[$w][$n]["key"]=every
+	cp_choice "$w" "$n" "${DT_MAILEVERY:-5}" cp_set_mailevery "${MS_EVERYL[@]}"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Save Drafts Every (seconds)"; CP[$w][$n]["key"]=draft
+	cp_choice "$w" "$n" "${DT_MAILDRAFT:-30}" cp_set_maildraft "${MS_DRAFTL[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Pictures"
-	CP[$w][$n]["val"]="${DT_MAILIMAGES:-attached}"; CP[$w][$n]["key"]=images; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Pictures"; CP[$w][$n]["key"]=images
+	cp_choice "$w" "$n" "${DT_MAILIMAGES:-attached}" cp_set_mailimages "${MS_IMAGESL[@]}"; n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Signature${GL[ellipsis]}"
 	CP[$w][$n]["val"]="${DT_MAILSIG:0:20}"; CP[$w][$n]["key"]=sig; n=$((n + 1))
 	ret "$n"
@@ -515,37 +515,15 @@ fn ms_testrows(int w, int n) {
 }
 
 fn mailset_do(int? w = "", k = "", int? dir = "") {
-	local v cur
-
 	case $k in
 	test) ms_testshow ;;
 	acct:*) mlad_show "${k#acct:}" ;;
 	add) mlad_show ;;
-	max) v := cp_next "${DT_MAILMAX:-1000}" "$dir" "${MS_KEEPS[@]}"; DT_MAILMAX=$v ;;
-	bodies)
-		cur=${DT_MAILBODIES:-500}
-		[ "$cur" -ge 1000000 ] 2> /dev/null && cur=all
-		v := cp_next "$cur" "$dir" "${MS_BODIESL[@]}"
-		[ "$v" = all ] && v=1000000
-		DT_MAILBODIES=$v
-		;;
-	every) v := cp_next "${DT_MAILEVERY:-5}" "$dir" "${MS_EVERYL[@]}"; DT_MAILEVERY=$v ;;
-	draft) v := cp_next "${DT_MAILDRAFT:-30}" "$dir" "${MS_DRAFTL[@]}"; DT_MAILDRAFT=$v ;;
-	images) v := cp_next "${DT_MAILIMAGES:-attached}" "$dir" "${MS_IMAGESL[@]}"; DT_MAILIMAGES=$v ;;
 	sig) mlad_show "" sig ;;
 	esac
 	cp_save
 }
 
-fn mailset_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	max) dt_droplist "$w" "$r" "$c" cp_set_mailmax "${MS_KEEPS[@]}" ;;
-	bodies) dt_droplist "$w" "$r" "$c" cp_set_mailbodies "${MS_BODIESL[@]}" ;;
-	every) dt_droplist "$w" "$r" "$c" cp_set_mailevery "${MS_EVERYL[@]}" ;;
-	draft) dt_droplist "$w" "$r" "$c" cp_set_maildraft "${MS_DRAFTL[@]}" ;;
-	images) dt_droplist "$w" "$r" "$c" cp_set_mailimages "${MS_IMAGESL[@]}" ;;
-	esac
-}
 
 # --- the account dialog ---------------------------------------------------
 
@@ -635,8 +613,7 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 			t=${MLAD[$id]["$k"]}
 			[ "$k" = kind ] && t=${t^^}
 			if [ "$on" = 1 ]; then console pen "$DT_SELINK" "$DT_ACTIVE"; else console pen "$DT_INK" "$DT_WELL"; fi
-			console put -p "w$id" "$r" 20 " $t ${GL[sdown]} "
-			dt_wreg "$id" "$r" 20 $(( ${#t} + 4 )) "$k"
+			dt_wdrop "$id" "$r" 20 12 "$t" "$k"
 			;;
 		*)
 			t=${MLAD[$id]["$k"]}
@@ -768,20 +745,38 @@ fn mlad_signfill(int id, user, pass) {
 	MLAD[$id]["focus"]=pass
 }
 
+# The account's kind and its two securities, each a list under its field
+# with the value it has ticked, opened by a click or enter.
+MLAD_KINDS=(imap pop)
+MLAD_SECS=(tls starttls plain)
+fn mlad_kindname(v) { ret "${v^^}"; }
+fn mlad_setkind(int? id = "", value = "") { [ -n "$id" ] && MLAD[$id]["kind"]=$value; return 0; }
+fn mlad_setsec(int? id = "", value = "") { [ -n "$id" ] && MLAD[$id]["sec"]=$value; return 0; }
+fn mlad_setssec(int? id = "", value = "") { [ -n "$id" ] && MLAD[$id]["ssec"]=$value; return 0; }
+fn mlad_list(int id, what) {
+	local at r c
+
+	at := dt_wwhere "$id" "$what" || return 0
+	read -r r c <<< "$at"
+	DT_POPCURNEXT=${MLAD[$id]["$what"]}
+	case $what in
+	kind)
+		DT_POPNAMENEXT=mlad_kindname
+		dt_droplist "$id" "$r" "$c" mlad_setkind "${MLAD_KINDS[@]}"
+		;;
+	sec) dt_droplist "$id" "$r" "$c" mlad_setsec "${MLAD_SECS[@]}" ;;
+	ssec) dt_droplist "$id" "$r" "$c" mlad_setssec "${MLAD_SECS[@]}" ;;
+	esac
+	return 0
+}
+
 # What enter, a click or space does to what has focus.
 fn mlad_do(int id, what) {
 	local -a args
 	local k
 
 	case $what in
-	kind) [ "${MLAD[$id]["kind"]}" = imap ] && MLAD[$id]["kind"]=pop || MLAD[$id]["kind"]=imap ;;
-	sec | ssec)
-		case ${MLAD[$id]["$what"]} in
-		tls) MLAD[$id]["$what"]=starttls ;;
-		starttls) MLAD[$id]["$what"]=plain ;;
-		*) MLAD[$id]["$what"]=tls ;;
-		esac
-		;;
+	kind | sec | ssec) mlad_list "$id" "$what" ;;
 	detect) ms_detect "$id" ;;
 	cancel) dt_del "$id" ;;
 	del)

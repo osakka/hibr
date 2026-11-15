@@ -4794,9 +4794,13 @@ check("Close from it closes the window",
 # The strip's Theme and Wallpaper modules each open a list of choices and
 # apply the one taken, saved like any other setting. Theme needs the
 # Appearance pane loaded, since the themes are its.
-def stripdrop(col, downs=1):
+def stripdrop(col, pick):
+    """Open a strip module's list and choose pick from it by name: the list
+    opens on what is in force (Gitea #558), so counting rows down from its
+    top would land on whatever followed that."""
     d = tempfile.mkdtemp(prefix="hibr-strip-")
-    sc, _ = run("", feed=[press(striprow(), col)] + [b"\x1b[B"] * downs + [b"\r"],
+    sc, _ = run("", feed=[press(striprow(), col), 0.3,
+                          lambda s: press(*s.find_from(pick, 1)) + release(*s.find_from(pick, 1))],
                 env={"XDG_CONFIG_HOME": d},
                 pre=CSSRC + "\n. %s\n" % tree(
                     "programs/desktop/control-panel/appearance.hibr"))
@@ -4806,12 +4810,10 @@ def stripdrop(col, downs=1):
     return sc, text
 
 
-# Three down: Chalk and Charcoal sort before Classic, so Under
-# Construction is three away.
-sc, saved = stripdrop(17, 3)
+sc, saved = stripdrop(17, "construction")
 check("the strip's Theme module applies the theme chosen from its list",
       "CP_THEME=construction" in saved, sc)
-sc, saved = stripdrop(25)
+sc, saved = stripdrop(25, "░")
 check("its Wallpaper module applies the glyph chosen from its list",
       re.search(r"DT_GLYPH=.?░", saved) is not None, sc)
 

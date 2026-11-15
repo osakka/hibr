@@ -15,7 +15,7 @@
 
 strict
 
-app networks "The Control Panel pane for the machine's network and Wi-Fi" 3.0
+app networks "The Control Panel pane for the machine's network and Wi-Fi" 3.0.1
 command -v cp_pane > /dev/null && cp_pane networks "Network" "⇌" hardware
 
 NT_KINDS=(Auto NetworkManager None)
@@ -40,8 +40,8 @@ fn networks_rows(int w) {
 	local n=0 i b t lk s
 
 	[ -n "${DT_NET["kind"]}" ] || dt_netstart
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Network System"
-	CP[$w][$n]["val"]=${DT_NETKIND:-Auto}; CP[$w][$n]["key"]=kind
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Network System"; CP[$w][$n]["key"]=kind
+	cp_choice "$w" "$n" "${DT_NETKIND:-Auto}" cp_set_netkind "${NT_KINDS[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Managed By"
 	case ${DT_NET["kind"]} in
@@ -165,14 +165,9 @@ fn networks_rows(int w) {
 
 fn networks_do(int w, k, int dir) {
 	dt_has dt_nettick || return 0
-	local v i nm
+	local i nm
 
 	case $k in
-	kind)
-		v := cp_next "${DT_NETKIND:-Auto}" "$dir" "${NT_KINDS[@]}"
-		cp_set_netkind "" "$v"
-		return 0
-		;;
 	radio) dt_netradio ;;
 	leave) dt_netleave ;;
 	rescan) dt_netrescan asked; dt_notep low "Looking for networks" ;;
@@ -205,8 +200,3 @@ networks_forget() {
 	NT_FORGET=
 }
 
-fn networks_drop(int w, int r, int c, k) {
-	case $k in
-	kind) dt_droplist "$w" "$r" "$c" cp_set_netkind "${NT_KINDS[@]}" ;;
-	esac
-}

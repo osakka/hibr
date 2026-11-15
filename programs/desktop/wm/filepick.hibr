@@ -640,6 +640,7 @@ fn fpick_click(int id, int r, int c, btn = "") {
 		FP[$id]["focus"]=type
 		lab := fp_labels "$id"
 		IFS='|' read -ra labs <<< "$lab"
+		DT_POPCURNEXT=${labs[${FP[$id]["ti"]:-0}]-}
 		dt_droplist "$id" "$r" "$c" fp_settype "${labs[@]}"
 		;;
 	ok) fp_choose "$id" ;;

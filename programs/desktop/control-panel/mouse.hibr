@@ -12,7 +12,7 @@
 strict
 
 
-app mouse "The Control Panel pane for what the mouse does to a window" 1.7
+app mouse "The Control Panel pane for what the mouse does to a window" 1.7.1
 command -v cp_pane > /dev/null && cp_pane mouse "Mouse" "◎" hardware
 
 MS_DRAGKEYS=(alt ctrl shift)
@@ -39,47 +39,30 @@ fn cp_set_movemode(int? id = "", value = "") { DT_MOVEMODE=$value; cp_save; }
 fn cp_set_dblaction(int? id = "", value = "") { DT_DBLACTION=$value; cp_save; }
 fn cp_set_hover(int? id = "", value = "") { DT_HOVER=$value; cp_save; }
 
-# Wheel Scrolls as the row shows it.
-fn ms_wheellabel() {
+# A number of rows a wheel notch scrolls, in words.
+fn ms_wheelname(v) {
 	local i=0
 
 	while [ "$i" -lt "${#MS_WHEELV[@]}" ]; do
-		[ "${MS_WHEELV[$i]}" = "${DT_SCROLLWHEEL:-3}" ] && ret "${MS_WHEELL[$i]}" && return 0
+		[ "${MS_WHEELV[$i]}" = "$v" ] && { ret "${MS_WHEELL[$i]}"; return 0; }
 		i=$((i + 1))
 	done
-	ret "${DT_SCROLLWHEEL:-3} rows"
+	ret "$v rows"
 }
 
-# Tooltip Delay as the row shows it.
-fn ms_tiplabel() {
+# A tooltip's delay, in words.
+fn ms_tipname(v) {
 	local i=0
 
 	while [ "$i" -lt "${#MS_TIPV[@]}" ]; do
-		[ "${MS_TIPV[$i]}" = "${DT_TIPMS:-600}" ] && ret "${MS_TIPL[$i]}" && return 0
+		[ "${MS_TIPV[$i]}" = "$v" ] && { ret "${MS_TIPL[$i]}"; return 0; }
 		i=$((i + 1))
 	done
-	ret "${DT_TIPMS:-600} ms"
+	ret "$v ms"
 }
 
-fn cp_set_tipms(int? id = "", value = "") {
-	local i=0
-
-	while [ "$i" -lt "${#MS_TIPL[@]}" ]; do
-		[ "${MS_TIPL[$i]}" = "$value" ] && DT_TIPMS=${MS_TIPV[$i]}
-		i=$((i + 1))
-	done
-	cp_save
-}
-
-fn cp_set_wheel(int? id = "", value = "") {
-	local i=0
-
-	while [ "$i" -lt "${#MS_WHEELL[@]}" ]; do
-		[ "${MS_WHEELL[$i]}" = "$value" ] && DT_SCROLLWHEEL=${MS_WHEELV[$i]}
-		i=$((i + 1))
-	done
-	cp_save
-}
+fn cp_set_tipms(int? id = "", int value = 600) { DT_TIPMS=$value; cp_save; }
+fn cp_set_wheel(int? id = "", int value = 3) { DT_SCROLLWHEEL=$value; cp_save; }
 
 fn mouse_rows(int w) {
 	local n=0
@@ -92,26 +75,26 @@ fn mouse_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_DRAGMOD" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_DRAGMOD; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Drag Modifier"
-	CP[$w][$n]["val"]="$DT_DRAGKEY"; CP[$w][$n]["key"]=dragkey
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Drag Modifier"; CP[$w][$n]["key"]=dragkey
+	cp_choice "$w" "$n" "$DT_DRAGKEY" cp_set_dragkey "${MS_DRAGKEYS[@]}"
 	n=$((n + 1))
 	# Held with a click on a window's title, its own menu -- Files' path.
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Menu Modifier"
-	CP[$w][$n]["val"]="$DT_TITLEKEY"; CP[$w][$n]["key"]=titlekey
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Menu Modifier"; CP[$w][$n]["key"]=titlekey
+	cp_choice "$w" "$n" "$DT_TITLEKEY" cp_set_titlekey "${MS_DRAGKEYS[@]}"
 	n=$((n + 1))
 	# How a window follows the mouse when it is moved or resized: by its
 	# outline until it is let go, or whole at every step.
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Drag Windows"
-	CP[$w][$n]["val"]="${DT_MOVEMODE:-outline}"; CP[$w][$n]["key"]=movemode
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Drag Windows"; CP[$w][$n]["key"]=movemode
+	cp_choice "$w" "$n" "${DT_MOVEMODE:-outline}" cp_set_movemode "${MS_MOVEMODES[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Titlebar Click"
-	CP[$w][$n]["val"]="$DT_DBLACTION"; CP[$w][$n]["key"]=dblaction
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Titlebar Click"; CP[$w][$n]["key"]=dblaction
+	cp_choice "$w" "$n" "$DT_DBLACTION" cp_set_dblaction "${MS_DBLACTIONS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wheel Scrolls"
-	CP[$w][$n]["val"] := ms_wheellabel
-	CP[$w][$n]["key"]=wheel; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Hover"
-	CP[$w][$n]["val"]="${DT_HOVER:-auto}"; CP[$w][$n]["key"]=hover
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wheel Scrolls"; CP[$w][$n]["key"]=wheel
+	cp_choice "$w" "$n" "${DT_SCROLLWHEEL:-3}" cp_set_wheel "${MS_WHEELV[@]}"
+	CP[$w][$n]["vname"]=ms_wheelname; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Hover"; CP[$w][$n]["key"]=hover
+	cp_choice "$w" "$n" "${DT_HOVER:-auto}" cp_set_hover "${MS_HOVERS[@]}"
 	n=$((n + 1))
 	# Focus follows the pointer, without raising, where hovering is on.
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Focus Follows Mouse"
@@ -124,53 +107,16 @@ fn mouse_rows(int w) {
 	CP[$w][$n]["val"]=off; [ "$DT_TIPS" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_TIPS; n=$((n + 1))
 	# How long the pointer rests before a tooltip shows.
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tooltip Delay"
-	CP[$w][$n]["val"] := ms_tiplabel
-	CP[$w][$n]["key"]=tipms; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tooltip Delay"; CP[$w][$n]["key"]=tipms
+	cp_choice "$w" "$n" "${DT_TIPMS:-600}" cp_set_tipms "${MS_TIPV[@]}"
+	CP[$w][$n]["vname"]=ms_tipname; n=$((n + 1))
 	ret "$n"
 }
 
 fn mouse_do(int w, k, int dir) {
-	local v
-
 	case $k in
 	DT_EDGERESIZE | DT_DRAGMOD | DT_FOCUSHOVER | DT_TIPS) cp_toggle "$k" ;;
-	dragkey) v := cp_next "$DT_DRAGKEY" "$dir" "${MS_DRAGKEYS[@]}"
-	         DT_DRAGKEY=$v ;;
-	titlekey) v := cp_next "$DT_TITLEKEY" "$dir" "${MS_DRAGKEYS[@]}"
-	         DT_TITLEKEY=$v ;;
-	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${MS_DBLACTIONS[@]}"
-		DT_DBLACTION=$v ;;
-	movemode) v := cp_next "${DT_MOVEMODE:-outline}" "$dir" "${MS_MOVEMODES[@]}"
-		DT_MOVEMODE=$v ;;
-	hover) v := cp_next "${DT_HOVER:-auto}" "$dir" "${MS_HOVERS[@]}"
-		DT_HOVER=$v ;;
-	wheel)
-		v := ms_wheellabel
-		v := cp_next "$v" "$dir" "${MS_WHEELL[@]}"
-		cp_set_wheel "" "$v"
-		return 0
-		;;
-	tipms)
-		v := ms_tiplabel
-		v := cp_next "$v" "$dir" "${MS_TIPL[@]}"
-		cp_set_tipms "" "$v"
-		return 0
-		;;
 	esac
 	cp_save
 }
 
-fn mouse_drop(int w, int r, int c, k) {
-	case $k in
-	dragkey) dt_droplist "$w" "$r" "$c" cp_set_dragkey "${MS_DRAGKEYS[@]}" ;;
-	titlekey) dt_droplist "$w" "$r" "$c" cp_set_titlekey "${MS_DRAGKEYS[@]}" ;;
-	dblaction) dt_droplist "$w" "$r" "$c" cp_set_dblaction \
-		"${MS_DBLACTIONS[@]}" ;;
-	movemode) dt_droplist "$w" "$r" "$c" cp_set_movemode \
-		"${MS_MOVEMODES[@]}" ;;
-	wheel) dt_droplist "$w" "$r" "$c" cp_set_wheel "${MS_WHEELL[@]}" ;;
-	hover) dt_droplist "$w" "$r" "$c" cp_set_hover "${MS_HOVERS[@]}" ;;
-	tipms) dt_droplist "$w" "$r" "$c" cp_set_tipms "${MS_TIPL[@]}" ;;
-	esac
-}

@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.99.534
+
+**Every dropdown is one list, and it opens on what is chosen** (Gitea #558).
+The owner found Tray Icons' "Icons Before the Arrow" would not drop down.
+Every Control Panel dropdown was written twice in its pane: a `_drop` that
+opened a list for a click, and a `cp_next` list in `_do` for the arrows.
+Tray Icons had the second and not the first, and no check pulled a single
+one of its levers. The two copies had drifted elsewhere too:
+- Language's formats offered "Same as Region" to a click and not to the
+  arrows;
+- Appearance's Dialog Buttons left its dimmed values set for whatever list
+  opened next;
+- Notifications passed the sender a list was for through a global set
+  after the list had opened;
+- About This Computer, Task Manager and Notifications showed "1000 ms" on
+  the row and "1000" in the list, and Pictures' detail one set of words on
+  the row and another in the list;
+- Not in the Switcher matched apps by title, so of two apps both called
+  "Program", choosing the second switched the first.
+
+What changed:
+- **A row declares its list once**: `cp_choice` with the value in force, a
+  setter and the values, and optionally `vname` (the words, row and list
+  alike), `dims` (shown, not offered), `sarg` (which of many rows), `ons`
+  (several ticked) and `menu` (a list of things to do, opened and never
+  stepped). The panel opens it on a click or enter, steps it on the
+  arrows, and shows the row's value from the same list. Values are what is
+  stored -- `0`, `half`, `pathend` -- and words are the namer's, never
+  translated back by a setter. A row that declares an empty list shows its
+  value with no caret.
+- **Every pane in this tree is converted**, and none keeps a list of its
+  own: 38 panes, about 170 rows. A pane installed from elsewhere that has
+  a `_drop` keeps working through it.
+- **A list opens on the value in force and ticks it**, as a menu ticks its
+  choice: `DT_POPCURNEXT` for any caller, `DT_POPONNEXT` for a list of
+  things each on or off. Files, Mail, the file dialog, Displays, Date &
+  Time, the wallpaper picker, the menu editor and the Control Strip's lists
+  all say what is current.
+- **One opener**: `dt_dropat`, which `dt_droplist` (a window's coordinates)
+  and the Control Strip's `cs_dropopen` (the screen's) both go through.
+  The strip had its own copy, which left a previous list's dimmed values
+  and words in place.
+- **Fields that drew a caret and cycled on a click are lists now**:
+  Calendar's Repeats, Reminder and Calendar, Mail's account Kind and
+  Security, the wallpaper picker's Mode (its `m` key opens it too), and
+  Mail's From, which opened through the strip's opener with its window in
+  a global. Calendar's All Day is a checkbox.
+- `dt_wwhere` says where a registered widget is, to open its list from the
+  keyboard.
+
+Checked: `tests/apps.py` drives every dropdown row through the panel's own
+path -- a click opens exactly the row's list, and a step lands where a
+click on the same entry lands -- fails on a pane keeping a list of its own,
+and checks a list opens on its value; its end-to-end loop now finds rows by
+what they declare, which is what had skipped Tray Icons.
+`tests/traymod.py` pulls every lever of Tray Icons, Keyboard on Menu Bar
+and Program Notifications through its pane. A recording of every dropdown
+row before the change -- what a click offers, what each choice then shows,
+where the arrows go -- matched afterwards except where a list now carries
+the row's words or units, or holds the stored value where it held words.
+
 ## 0.99.533
 
 **A window that closes mid-drag is let go of, and nothing that is not a

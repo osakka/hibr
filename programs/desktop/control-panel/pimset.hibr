@@ -137,8 +137,8 @@ fn pimset_rows(int w) {
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Add Server${GL[ellipsis]}"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=addsrv; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Syncing"; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Every (minutes)"
-	CP[$w][$n]["val"]="$DT_PIMEVERY"; CP[$w][$n]["key"]=every; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Every (minutes)"; CP[$w][$n]["key"]=every
+	cp_choice "$w" "$n" "$DT_PIMEVERY" cp_set_pimevery "${PS_EVERYL[@]}"; n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Sync Now"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=now; n=$((n + 1))
 	ret "$n"
@@ -149,10 +149,6 @@ fn pimset_do(int w, k, int dir) {
 
 	case $k in
 	srv:*) pims_toggle "${k#srv:}" ;;
-	every)
-		v := cp_next "$DT_PIMEVERY" "$dir" "${PS_EVERYL[@]}"
-		DT_PIMEVERY=$v
-		;;
 	now)
 		for v in "${!PIMS_ASKED[@]}"; do
 			local pd
@@ -178,8 +174,3 @@ fn pimset_do(int w, k, int dir) {
 	cp_save
 }
 
-fn pimset_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	every) dt_droplist "$w" "$r" "$c" cp_set_pimevery "${PS_EVERYL[@]}" ;;
-	esac
-}

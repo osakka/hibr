@@ -470,7 +470,13 @@ and a right-click's context menu both already have, choosing a value calls
 nowhere on the desktop it belongs to, which is exactly what a dropdown is --
 it reuses the same context-menu machinery a right-click already builds on,
 rather than a second popup system
-of its own.
+of its own: the menus' keys, wheel, scrolling, width and highlight are its.
+Say what is chosen now first and the list opens on it, ticked:
+`DT_POPCURNEXT=value`, beside `DT_POPNAMENEXT=namer` for its words and
+`DT_POPDIMNEXT=(...)` for what is shown and not offered, each taken by the
+next list alone. Draw the field with `dt_wdrop`, never a caret of your own:
+a field that cycles on a click under a caret promises a list it never opens.
+`dt_wwhere id tag` says where a field is, to open its list from the keyboard.
 
 ## Menus for an app
 
@@ -709,10 +715,36 @@ decide what the picker shows first.
 
 A pane calls `cp_pane name title icon` to register, then is one of two
 shapes. Most are a **row list**: `name_rows id` fills `CP[$id]` the same way
-an app fills its own state and returns the count with `ret`; a `set` row
-gets `name_do id key dir` to change it and, for a dropdown rather than a
-checkbox, `name_drop id row col key` to open one with `dt_droplist`. A
-`key`-kind row (a shortcut) needs no callback at all -- the host handles it
+an app fills its own state and returns the count with `ret`. A checkbox
+(`wtype=bool`) or an action row gets `name_do id key dir` to do it.
+
+A dropdown row declares its list **once**, where the row is built, and the
+panel does everything else from that (Gitea #558):
+
+```text
+cp_choice "$w" "$n" "$current" setter value1 value2 ...
+CP[$w][$n]["vname"]=namer      # optional: a value in words, row and list alike
+CP[$w][$n]["dims"]=...         # optional: values shown, not offered (cp_join, dt_chromeoff)
+CP[$w][$n]["sarg"]=$id         # optional: which of many rows this is
+CP[$w][$n]["ons"]=...          # optional: the values ticked, where that is not the current one
+CP[$w][$n]["menu"]=1           # a list of things to do: opened, never stepped
+```
+
+A click on its value or enter opens the list on the current value, ticked as
+a menu ticks its choice; left and right step through the same list, skipping
+what is dimmed; the row shows the current value through the same namer. The
+setter is called `setter id value`, or `setter id value sarg` when the row
+has one. Keep the value as what is stored -- `0`, `half`, `pathend` -- and
+the words in the namer: a list of words that the setter translates back is
+how one panel came to show "1000 ms" on the row and "1000" in its list. No
+pane writes a list of its own for the click (`name_drop`) or for the arrows
+(`cp_next`); `tests/apps.py` fails on either, and on any dropdown row whose
+click and arrows do not reach the same entries. A pane installed from
+elsewhere that still has a `name_drop` keeps working: a row with no
+declared list falls back to it. A row that declares an empty list shows its
+value with no caret, since there is nothing to open.
+
+A `key`-kind row (a shortcut) needs no callback at all -- the host handles it
 generically, the same rows Shortcuts already uses.
 
 A pane that needs a body of its own -- a world map does not fit two columns
@@ -839,11 +871,11 @@ to match the strip's. An empty text takes the item off, which is one call
 rather than two. `wm/vault.hibr` is the first user: a key on the bar for as
 long as the vault is unlocked, and nothing while it is shut.
 
-The dropdown reuses `dt_droplist`'s own widget/`dt_dropcontext` machinery
--- the same one a Control Panel row's own dropdown opens -- through
-`cs_dropopen row col cb values...`, which reaches `dt_context_open`'s
-absolute screen coordinates directly rather than translating a widget's
-row/col through a window the strip does not have. It opens below the
+The dropdown is the one every list is: `cs_dropopen row col cb values...`
+opens it through `dt_dropat`, at the screen's own row and column, since the
+strip has no window to translate a widget's row/col through. Set
+`DT_POPCURNEXT` to the value in force first, and the list opens on it,
+ticked. It opens below the
 module's own row if the choices fit on the screen there, above it
 otherwise -- there is no reason to prefer one over the other beyond what
 actually fits, and the strip's own default position, most of the way down

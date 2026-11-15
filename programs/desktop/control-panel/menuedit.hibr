@@ -13,7 +13,7 @@
 
 strict
 
-app menuedit "The Control Panel pane for what the Applications menu holds" 1.0
+app menuedit "The Control Panel pane for what the Applications menu holds" 1.0.1
 command -v cp_pane > /dev/null && cp_pane menuedit "Applications Menu" "☰"
 command -v dt_app > /dev/null &&
 	dt_app pmfield "Program" 14 70 "" "" fixed hidden
@@ -294,6 +294,7 @@ fn pmfield_click(int id, int r, int c, btn = "") {
 		PMF[$id]["cur"]=${#PMF[$id]["$tag"]}
 		;;
 	run) PMF[$id]["focus"]=run
+		DT_POPCURNEXT=${PMF[$id]["run"]}
 		dt_droplist "$id" "$r" "$c" pmf_setrun "${PME_RUNS[@]}" ;;
 	ok) pmfield_ok "$id" ;;
 	del | back) pmfield_extra "$id" "$tag" ;;

@@ -246,8 +246,19 @@ fn adminaccess_rows(int w) {
 			v="Default: $v"
 		fi
 		[ -n "${AA_PEND["$id"]+x}" ] && v="* $v"
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]=$t
-		CP[$w][$n]["val"]="$v, $mine"; CP[$w][$n]["key"]="a$i"; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]=$t; CP[$w][$n]["key"]="a$i"
+		# What it says is more than the entry -- a default, a change
+		# waiting, what it does for you -- so the entry is the one ticked,
+		# and choosing one is a change to apply, never a step.
+		if [ -n "$AA_HELPER" ]; then
+			cp_choice "$w" "$n" "$v, $mine" aa_choose "${AA_LABELS[@]}"
+			CP[$w][$n]["sarg"]=$id
+			CP[$w][$n]["ons"] := aa_entry "$set"
+			CP[$w][$n]["menu"]=1
+		else
+			CP[$w][$n]["val"]="$v, $mine"
+		fi
+		n=$((n + 1))
 		i=$((i + 1))
 	done
 	ret "$n"
@@ -287,11 +298,31 @@ fn aa_done(int st) {
 	return 0
 }
 
-# A choice from an action's list.
-fn aa_choose(int? id = "", value = "") {
-	local act=$AA_DROP i
+# The list entry a setting is, as AA_LABELS words it: what the action's row
+# ticks.
+fn aa_entry(set) {
+	local ch grp keep k i
+
+	read -r ch grp keep <<< "$set"
+	case $ch in
+	admin | self) k=$ch; [ "$keep" = keep ] && k="$ch keep" ;;
+	user) k=user; [ "$grp" = "${USER-}" ] || k=group ;;
+	group | never) k=$ch ;;
+	*) k= ;;
+	esac
+	for i in "${!AA_CHOICES[@]}"; do
+		[ "${AA_CHOICES[$i]}" = "$k" ] && { ret "${AA_LABELS[$i]}"; return 0; }
+	done
+	ret "${AA_LABELS[0]}"
+}
+
+# A choice from an action's list, the row naming the action. A group asks
+# for its name first, so the action waits in AA_DROP for the answer.
+fn aa_choose(int? id = "", value = "", act = "") {
+	local i
 
 	[ -n "$act" ] || return 0
+	AA_DROP=$act
 	for i in "${!AA_LABELS[@]}"; do
 		[ "${AA_LABELS[$i]}" = "$value" ] || continue
 		case ${AA_CHOICES[$i]} in
@@ -343,17 +374,3 @@ fn adminaccess_do(int? w = "", k = "", int? dir = "") {
 	return 0
 }
 
-fn adminaccess_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	local i
-
-	case $k in
-	a*)
-		[ -n "$AA_HELPER" ] || return 0
-		i=${k#a}
-		[ -n "${AA_IDS[$i]+x}" ] || return 0
-		AA_DROP=${AA_IDS[$i]}
-		dt_droplist "$w" "$r" "$c" aa_choose "${AA_LABELS[@]}"
-		;;
-	esac
-	return 0
-}

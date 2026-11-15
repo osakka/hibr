@@ -10,7 +10,7 @@
 strict
 
 
-app theme "A Control Strip module cycling the desktop's colour theme" 1.1
+app theme "A Control Strip module cycling the desktop's colour theme" 1.1.1
 command -v cs_module > /dev/null && cs_module theme Theme
 
 fn theme_draw(int row, int col) {
@@ -21,6 +21,7 @@ fn theme_draw(int row, int col) {
 fn theme_click(int? row = "", int? col = "") {
 	command -v cp_theme > /dev/null || return 0
 	command -v cs_dropopen > /dev/null || return 0
+	DT_POPCURNEXT=${CP_THEME-}
 	cs_dropopen "$row" "$col" theme_pick "${CP_THEMES[@]}"
 }
 

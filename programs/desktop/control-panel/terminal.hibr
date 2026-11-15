@@ -87,18 +87,18 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMLINKS" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_TERMLINKS; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Close When a Program Ends"
-	CP[$w][$n]["val"]="$DT_TERMEND"; CP[$w][$n]["key"]=termend
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Close When a Program Ends"; CP[$w][$n]["key"]=termend
+	cp_choice "$w" "$n" "$DT_TERMEND" cp_set_termend "${CP_TERMENDS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Rows"
-	CP[$w][$n]["val"]="$DT_TERMROWS"; CP[$w][$n]["key"]=termrows
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Rows"; CP[$w][$n]["key"]=termrows
+	cp_choice "$w" "$n" "$DT_TERMROWS" cp_set_termrows "${CP_TERMROWS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Columns"
-	CP[$w][$n]["val"]="$DT_TERMCOLS"; CP[$w][$n]["key"]=termcols
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Columns"; CP[$w][$n]["key"]=termcols
+	cp_choice "$w" "$n" "$DT_TERMCOLS" cp_set_termcols "${CP_TERMCOLS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
-	CP[$w][$n]["val"]="$DT_TERMCOLOURS"
-	CP[$w][$n]["key"]=termcolours; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"; CP[$w][$n]["key"]=termcolours
+	cp_choice "$w" "$n" "$DT_TERMCOLOURS" cp_set_termcolours "${CP_TERMCOLOURS[@]}"
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="See Through"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]="${DT_TERMTRANS:-0}"
@@ -108,8 +108,8 @@ fn terminal_rows(int w) {
 	# "off" was: nothing shows through.
 	CP[$w][$n]["after"]="(${DT_TERMTRANS:-0}%)"
 	CP[$w][$n]["key"]=termtrans; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor"
-	CP[$w][$n]["val"]="$DT_CURSOR"; CP[$w][$n]["key"]=cursor; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor"; CP[$w][$n]["key"]=cursor
+	cp_choice "$w" "$n" "$DT_CURSOR" cp_set_cursor "${CP_CURSORS[@]}"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor Blink"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_CURSOR_BLINK" = 1 ] && CP[$w][$n]["val"]=on
@@ -118,42 +118,17 @@ fn terminal_rows(int w) {
 }
 
 fn terminal_do(int w, k, int dir) {
-	local v
-
 	case $k in
 	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_TERMSELCOPY | DT_TERMASK | DT_TERMLINKS) cp_toggle "$k" ;;
 	# Blink is read every frame, but turning it on asks for none, so on a
 	# settled desktop it waited for something else to wake it (#261).
 	DT_CURSOR_BLINK) cp_toggle "$k"
 		dt_has term_cursorapply && term_cursorapply ;;
-	termcolours)
-		v := cp_next "$DT_TERMCOLOURS" "$dir" "${CP_TERMCOLOURS[@]}"
-		DT_TERMCOLOURS=$v
-		;;
-	cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"
-		DT_CURSOR=$v
-		dt_has term_cursorapply && term_cursorapply ;;
-	termend) v := cp_next "$DT_TERMEND" "$dir" "${CP_TERMENDS[@]}"
-		DT_TERMEND=$v ;;
 	termtrans) cp_termtrans $(((${DT_TERMTRANS:-0} + 5) / 10 * 10 + dir * 10)) ;;
-	termrows) v := cp_next "$DT_TERMROWS" "$dir" "${CP_TERMROWS[@]}"
-		DT_TERMROWS=$v ;;
-	termcols) v := cp_next "$DT_TERMCOLS" "$dir" "${CP_TERMCOLS[@]}"
-		DT_TERMCOLS=$v ;;
 	esac
 	cp_save
 }
 
-fn terminal_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	termcolours) dt_droplist "$w" "$r" "$c" cp_set_termcolours \
-		"${CP_TERMCOLOURS[@]}" ;;
-	cursor) dt_droplist "$w" "$r" "$c" cp_set_cursor "${CP_CURSORS[@]}" ;;
-	termend) dt_droplist "$w" "$r" "$c" cp_set_termend "${CP_TERMENDS[@]}" ;;
-	termrows) dt_droplist "$w" "$r" "$c" cp_set_termrows "${CP_TERMROWS[@]}" ;;
-	termcols) dt_droplist "$w" "$r" "$c" cp_set_termcols "${CP_TERMCOLS[@]}" ;;
-	esac
-}
 
 # Where a click on the shade's track lands, which panel_click works out
 # from the column and hands over: the pane keeps the value, the track only

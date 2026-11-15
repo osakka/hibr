@@ -4113,6 +4113,19 @@ went in the shell.
   is cleared in `dt_winforget`.** A check of it drags solid as well as
   outlined: the outline path never wrote, so a check driving only the
   default passed against the bug.
+- **A dropdown row declares its list once, and a pane writes no list of its
+  own** (Gitea #558, 0.99.534). Every Control Panel dropdown was two lists,
+  a `_drop` for the click and a `cp_next` one for the arrows, and Tray Icons
+  shipped with the second alone -- unseen, because the suite's end-to-end
+  check found its rows by reading `_drop` source. `cp_choice w n current
+  setter values...` is the row's one list (with `vname`, `dims`, `sarg`,
+  `ons`, `menu`); the panel opens it, steps it and names the value from it.
+  Keep the stored value as the value and the words in the namer: a list of
+  words a setter translates back is how rows said "1000 ms" over a list of
+  "1000", and how two apps called "Program" became one. Every list opens on
+  the value in force and ticks it (`DT_POPCURNEXT`), and every list opens
+  through `dt_dropat`. **Never draw a caret by hand**: a field that cycles
+  on a click under a `▾` promises a list it never opens -- `dt_wdrop`.
 - **The display that hears the click is not the display that shows the
   window** (0.99.479). `hold` gave the pointer lock to the display it had
   heard from last -- right for one display, and for stacked Blit sessions it

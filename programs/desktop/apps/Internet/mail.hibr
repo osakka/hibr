@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 2.5.1
+app mail "Email, offline, labels and conversations as Gmail has them" 2.5.2
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -58,7 +58,6 @@ declare -gA MLADDR
 declare -gA MLMINE
 # Which compose window the From dropdown belongs to: the widget calls back
 # with the value alone, so the window has to be remembered beside it.
-MLC_FROMID=
 ML_ACCTS=()
 ML_TOP=()
 
@@ -1422,6 +1421,7 @@ fn mail_wheel(int id, dir, int r = 0, int c = 0) {
 # The accounts, to switch to, from the name in the bar.
 fn ml_acctmenu(int id, int r, int c) {
 	ml_accounts || return 0
+	DT_POPCURNEXT=${MW[$id]["acct"]-}
 	dt_droplist "$id" "$r" "$c" ml_acctpick "${ML_ACCTS[@]}"
 }
 fn ml_acctpick(int? id = "", value = "") { [ -n "$value" ] && ml_use "$id" "$value"; }
@@ -1563,21 +1563,20 @@ fn mlc_suggest(int id) {
 # row is drawn. An account with one address never gets here: the row is not
 # registered as something to click.
 fn mlc_frompick(int id) {
-	local acct=${MC[$id]["acct"]} r c
+	local acct=${MC[$id]["acct"]} cur=${MC[$id]["from"]}
 	local -a addr
 
-	command -v cs_dropopen > /dev/null || return 0
 	IFS=$'\t' read -ra addr <<< "${MLADDR["$acct"]}"
 	[ "${#addr[@]}" -gt 1 ] || return 0
-	MLC_FROMID=$id
-	r=$(( ${DT[$id]["row"]} + 1 ))
-	c=$(( ${DT[$id]["col"]} + 11 ))
-	cs_dropopen "$r" "$c" mlc_fromset "${addr[@]}"
+	# The address in use is the one ticked: From may be "Name <address>".
+	case $cur in *'<'*'>') cur=${cur##*<}; cur=${cur%>} ;; esac
+	DT_POPCURNEXT=$cur
+	dt_droplist "$id" 0 11 mlc_fromset "${addr[@]}"
 }
 
 # One of them chosen: the name stays, the address changes.
-fn mlc_fromset(addr = "") {
-	local id=$MLC_FROMID full
+fn mlc_fromset(int? id = "", addr = "") {
+	local full
 
 	[ -n "$addr" ] || return 0
 	[ -n "$id" ] || return 0

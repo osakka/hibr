@@ -15,7 +15,7 @@ DT_ARCFOLDER="${DT_ARCFOLDER-smart}"
 DT_ARCOPEN="${DT_ARCOPEN-0}"
 command -v dt_keep > /dev/null && dt_keep DT_ARCFORMAT DT_ARCFOLDER DT_ARCOPEN
 
-AS_FOLDERS=("Smart Folder" "New Folder")
+AS_FOLDERS=(smart always)
 
 fn as_foldername(v) {
 	case $v in always) ret "New Folder" ;; *) ret "Smart Folder" ;; esac
@@ -24,7 +24,7 @@ fn as_foldername(v) {
 fn cp_set_arcformat(int? id = "", value = "") { DT_ARCFORMAT=$value; cp_save; }
 fn cp_set_arcfolder(int? id = "", value = "") {
 	DT_ARCFOLDER=smart
-	[ "$value" = "New Folder" ] && DT_ARCFOLDER=always
+	[ "$value" = always ] && DT_ARCFOLDER=always
 	cp_save
 }
 
@@ -32,12 +32,15 @@ fn archiveset_rows(int w) {
 	local n=0 v
 
 	dt_has arc_formats || { cp_absent "$w" Archives; ret 1; }
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Compress To"
-	CP[$w][$n]["val"]="$DT_ARCFORMAT"; CP[$w][$n]["key"]=arcformat
+	dt_needs archives arc_formats && arc_formats
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Compress To"; CP[$w][$n]["key"]=arcformat
+	cp_choice "$w" "$n" "$DT_ARCFORMAT" cp_set_arcformat "${ARC_FORMATS[@]}"
 	n=$((n + 1))
-	v := as_foldername "$DT_ARCFOLDER"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Extract Here Makes"
-	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=arcfolder
+	v=smart
+	[ "$DT_ARCFOLDER" = always ] && v=always
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Extract Here Makes"; CP[$w][$n]["key"]=arcfolder
+	cp_choice "$w" "$n" "$v" cp_set_arcfolder "${AS_FOLDERS[@]}"
+	CP[$w][$n]["vname"]=as_foldername
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Open Folder Afterwards"
 	CP[$w][$n]["wtype"]=bool
@@ -47,31 +50,10 @@ fn archiveset_rows(int w) {
 }
 
 fn archiveset_do(int? w = "", k = "", int? dir = "") {
-	local v
-
 	case $k in
-	arcformat)
-		dt_needs archives arc_formats && arc_formats
-		v := cp_next "$DT_ARCFORMAT" "$dir" "${ARC_FORMATS[@]}"
-		DT_ARCFORMAT=$v
-		;;
-	arcfolder)
-		v := as_foldername "$DT_ARCFOLDER"
-		v := cp_next "$v" "$dir" "${AS_FOLDERS[@]}"
-		cp_set_arcfolder "" "$v"
-		return 0
-		;;
 	DT_ARCOPEN) cp_toggle "$k" ;;
 	esac
 	cp_save
 }
 
-fn archiveset_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	arcformat)
-		dt_needs archives arc_formats && arc_formats
-		dt_droplist "$w" "$r" "$c" cp_set_arcformat "${ARC_FORMATS[@]}"
-		;;
-	arcfolder) dt_droplist "$w" "$r" "$c" cp_set_arcfolder "${AS_FOLDERS[@]}" ;;
-	esac
-}
+

@@ -20,17 +20,23 @@ CP_VWN=0
 CP_VWCH["locktime"]="1 Minute=1|5 Minutes=5|15 Minutes=15|30 Minutes=30|1 Hour=60|4 Hours=240|Never=0"
 CP_VWCH["syncevery"]="Never=0|15 Minutes=15|1 Hour=60|4 Hours=240"
 CP_VWCH["clear"]="10 Seconds=10|30 Seconds=30|1 Minute=60|2 Minutes=120|Never=0"
-CP_VWNAMES=()
 
-# A setting's choices' names, in CP_VWNAMES.
-fn cp_vwnames(k) {
+
+# A setting's choices' numbers, in CP_VWNUMS.
+CP_VWNUMS=()
+fn cp_vwnums(k) {
 	local p
 	local -a ps
 
-	CP_VWNAMES=()
+	CP_VWNUMS=()
 	IFS='|' read -ra ps <<< "${CP_VWCH["$k"]}"
-	for p in "${ps[@]}"; do CP_VWNAMES+=("${p%=*}"); done
+	for p in "${ps[@]}"; do CP_VWNUMS+=("${p##*=}"); done
 }
+
+# Each row's numbers in words, for the panel to show and list.
+fn cp_vwlockname(n) { cp_vwname locktime "$n"; ret -k; }
+fn cp_vwsyncname(n) { cp_vwname syncevery "$n"; ret -k; }
+fn cp_vwclearname(n) { cp_vwname clear "$n"; ret -k; }
 
 # The name a setting's number has among its choices.
 fn cp_vwname(k, n) {
@@ -44,23 +50,9 @@ fn cp_vwname(k, n) {
 	ret "$n"
 }
 
-# The number a choice's name stands for.
-fn cp_vwnum(k, v) {
-	local p
-	local -a ps
 
-	IFS='|' read -ra ps <<< "${CP_VWCH["$k"]}"
-	for p in "${ps[@]}"; do
-		[ "${p%=*}" = "$v" ] && ret "${p##*=}"
-	done
-	ret 0
-}
-
-fn cp_set_vwlock(int? id = "", value = "") {
-	local n
-
-	n := cp_vwnum locktime "$value"
-	CP_VWN=$n
+fn cp_set_vwlock(int? id = "", int value = 0) {
+	CP_VWN=$value
 	dt_vwjob timeout cp_vwlockdone cp_vwlockjob
 }
 
@@ -83,12 +75,12 @@ fn cp_vwpindone(int n, int st) {
 	[ "$st" = 0 ] && dt_notep low "The PIN is cleared"
 	return 0
 }
-fn cp_set_vwsyncevery(int? id = "", value = "") {
-	DT_VWSYNC := cp_vwnum syncevery "$value"
+fn cp_set_vwsyncevery(int? id = "", int value = 0) {
+	DT_VWSYNC=$value
 	cp_save
 }
-fn cp_set_vwclear(int? id = "", value = "") {
-	DT_VWCLEAR := cp_vwnum clear "$value"
+fn cp_set_vwclear(int? id = "", int value = 0) {
+	DT_VWCLEAR=$value
 	cp_save
 }
 
@@ -128,9 +120,10 @@ fn vaultset_rows(int w) {
 	CP[$w][$n]["val"]=$v; n=$((n + 1))
 	[ "$st" = none ] && { ret "$n"; }
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Locking"; n=$((n + 1))
-	v := cp_vwname locktime "${DT_VWA["timeout"]}"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Lock After Unused"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=locktime; n=$((n + 1))
+	cp_vwnums locktime
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Lock After Unused"; CP[$w][$n]["key"]=locktime
+	cp_choice "$w" "$n" "${DT_VWA["timeout"]}" cp_set_vwlock "${CP_VWNUMS[@]}"
+	CP[$w][$n]["vname"]=cp_vwlockname; n=$((n + 1))
 	v="None"
 	if [ "${DT_VWA["pin"]}" = 1 ]; then
 		v="Set, until the vault locks"
@@ -152,18 +145,20 @@ fn vaultset_rows(int w) {
 	fi
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Last Synced"; CP[$w][$n]["val"]=$v
 	CP[$w][$n]["btns"]="syncnow:Sync Now"; n=$((n + 1))
-	v := cp_vwname syncevery "$DT_VWSYNC"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sync Every"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=syncevery; n=$((n + 1))
+	cp_vwnums syncevery
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sync Every"; CP[$w][$n]["key"]=syncevery
+	cp_choice "$w" "$n" "$DT_VWSYNC" cp_set_vwsyncevery "${CP_VWNUMS[@]}"
+	CP[$w][$n]["vname"]=cp_vwsyncname; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Copying"; n=$((n + 1))
-	v := cp_vwname clear "$DT_VWCLEAR"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Clear the Clipboard After"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=clear; n=$((n + 1))
+	cp_vwnums clear
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Clear the Clipboard After"; CP[$w][$n]["key"]=clear
+	cp_choice "$w" "$n" "$DT_VWCLEAR" cp_set_vwclear "${CP_VWNUMS[@]}"
+	CP[$w][$n]["vname"]=cp_vwclearname; n=$((n + 1))
 	ret "$n"
 }
 
 fn vaultset_do(int? w = "", k = "", int? dir = "") {
-	local v nm st
+	local st
 
 	case $k in
 	login) dt_vwdialog login > /dev/null ;;
@@ -185,23 +180,7 @@ fn vaultset_do(int? w = "", k = "", int? dir = "") {
 		fi
 		dt_vwsyncnow 1
 		;;
-	locktime | syncevery | clear)
-		dt_vwacct
-		case $k in
-		locktime) nm := cp_vwname locktime "${DT_VWA["timeout"]}" ;;
-		syncevery) nm := cp_vwname syncevery "$DT_VWSYNC" ;;
-		*) nm := cp_vwname clear "$DT_VWCLEAR" ;;
-		esac
-		cp_vwnames "$k"
-		v := cp_next "$nm" "$dir" "${CP_VWNAMES[@]}"
-		"cp_set_vw${k%time}" "" "$v"
-		;;
 	esac
 	return 0
 }
 
-fn vaultset_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in locktime | syncevery | clear) ;; *) return 0 ;; esac
-	cp_vwnames "$k"
-	dt_droplist "$w" "$r" "$c" "cp_set_vw${k%time}" "${CP_VWNAMES[@]}"
-}

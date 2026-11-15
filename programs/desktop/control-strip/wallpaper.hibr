@@ -8,7 +8,7 @@
 strict
 
 
-app wallpaper "A Control Strip module cycling the desktop's own wallpaper glyph" 1.0
+app wallpaper "A Control Strip module cycling the desktop's own wallpaper glyph" 1.0.1
 command -v cs_module > /dev/null && cs_module wallpaper Wallpaper
 
 WALL_GLYPHS=("·" "░" "▒" "⋅" "+")
@@ -20,6 +20,9 @@ fn wallpaper_draw(int row, int col) {
 
 fn wallpaper_click(int? row = "", int? col = "") {
 	command -v cs_dropopen > /dev/null || return 0
+	# A picture in force is no pattern, so none is ticked.
+	DT_POPCURNEXT=
+	[ -n "${DT_WALLIMG-}" ] || DT_POPCURNEXT=${DT_GLYPH-}
 	cs_dropopen "$row" "$col" wallpaper_pick "${WALL_GLYPHS[@]}"
 }
 

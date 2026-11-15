@@ -759,7 +759,6 @@ No language to add matches
 No networks in reach
 No notifications
 No one matches "%s"
-No other languages are installed on this computer
 No picture open to set as wallpaper
 No records.
 No server chosen for calendars yet.

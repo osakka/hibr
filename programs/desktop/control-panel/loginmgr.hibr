@@ -20,7 +20,7 @@
 strict
 
 
-app loginmgr "The Control Panel pane for the login screen" 1.2
+app loginmgr "The Control Panel pane for the login screen" 1.2.1
 command -v cp_pane > /dev/null && cp_pane loginmgr "Login Manager" "⊡"
 [ -n "${PK_LIBDONE-}" ] || . "$DT_HERE/lib/pkrun.hibr"
 
@@ -305,13 +305,19 @@ fn lm_blitdone(int n, int st) {
 
 # A row choosing from a list: the value in force as its list says it,
 # marked when it is waiting.
+# A setting's row: what it says, with a change waiting marked, its list,
+# and the entry it is ticked.
 fn lm_row(int w, int n, k) {
-	local v
+	local v l
 
 	v := lm_get "$k"
-	v := lm_label "$k" "$v"
-	v := lm_show "$k" "$v"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=$k
+	l := lm_label "$k" "$v"
+	v := lm_show "$k" "$l"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["key"]=$k
+	lm_choices "$k"
+	cp_choice "$w" "$n" "$v" lm_pickrow "${LM_LIST[@]}"
+	CP[$w][$n]["sarg"]=$k
+	CP[$w][$n]["ons"]=$l
 }
 
 fn loginmgr_rows(int w) {
@@ -345,11 +351,11 @@ fn loginmgr_rows(int w) {
 	CP[$w][$n]["key"]=power; n=$((n + 1))
 	v := lm_get title
 	v := lm_show title "${v:-the computer's name}"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Title"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=title; n=$((n + 1))
 	v := lm_get message
 	v := lm_show message "${v:-none}"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Message"
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Message"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=message; n=$((n + 1))
 	if [ "$LM_BLIT" = yes ]; then
 		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Runs On"
@@ -360,8 +366,11 @@ fn loginmgr_rows(int w) {
 	elif command -v systemctl > /dev/null; then
 		v=$LM_TTY
 		[ -n "${LM_PEND["tty"]+x}" ] && v="* ${LM_PEND["tty"]}"
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Runs On"
-		CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=tty; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Runs On"; CP[$w][$n]["key"]=tty
+		cp_choice "$w" "$n" "$v" lm_pickrow "${LM_TTYS[@]}"
+		CP[$w][$n]["sarg"]=tty
+		CP[$w][$n]["ons"]=${LM_PEND["tty"]-$LM_TTY}
+		n=$((n + 1))
 	fi
 	if [ -n "$LM_HELPER" ] && ! pk_busy; then
 		if [ "${#LM_PEND[@]}" -gt 0 ]; then
@@ -390,13 +399,8 @@ fn lm_pick(k, label) {
 	lm_set "$k" "$v"
 }
 
-fn cp_set_lmtheme(int? id = "", value = "") { lm_pick theme "$value"; }
-fn cp_set_lmcolours(int? id = "", value = "") { lm_pick colours "$value"; }
-fn cp_set_lmsaver(int? id = "", value = "") { lm_pick saver "$value"; }
-fn cp_set_lmglyphs(int? id = "", value = "") { lm_pick glyphs "$value"; }
-fn cp_set_lmlanguage(int? id = "", value = "") { lm_pick language "$value"; }
-fn cp_set_lmsession(int? id = "", value = "") { lm_pick session "$value"; }
-fn cp_set_lmtty(int? id = "", value = "") { lm_pick tty "$value"; }
+# A choice from a setting's list, the row naming the setting.
+fn lm_pickrow(int? id = "", value = "", k = "") { [ -n "$k" ] && lm_pick "$k" "$value"; return 0; }
 
 # The title or the message, typed: the desktop's one-line question.
 fn lm_ask(k) {
@@ -430,21 +434,9 @@ fn lm_typed(k, v) {
 }
 
 fn loginmgr_do(int w, k, int dir) {
-	local v cur
+	local v
 
 	case $k in
-	theme | colours | saver | language | glyphs | session)
-		lm_choices "$k"
-		cur := lm_get "$k"
-		cur := lm_label "$k" "$cur"
-		v := cp_next "$cur" "$dir" "${LM_LIST[@]}"
-		lm_pick "$k" "$v"
-		;;
-	tty)
-		v=${LM_PEND["tty"]-$LM_TTY}
-		v := cp_next "$v" "$dir" "${LM_TTYS[@]}"
-		lm_pick tty "$v"
-		;;
 	power)
 		v := lm_get power
 		if [ "$v" = off ]; then lm_set power on; else lm_set power off; fi
@@ -456,15 +448,6 @@ fn loginmgr_do(int w, k, int dir) {
 	return 0
 }
 
-fn loginmgr_drop(int w, int r, int c, k) {
-	case $k in
-	theme | colours | saver | language | glyphs | session | tty)
-		lm_choices "$k"
-		dt_droplist "$w" "$r" "$c" "cp_set_lm$k" "${LM_LIST[@]}"
-		;;
-	title | message) lm_ask "$k" ;;
-	esac
-}
 
 # Apply Changes: the settings in one call to the helper, then each change
 # of terminal, one after the other; a refusal stops the rest.

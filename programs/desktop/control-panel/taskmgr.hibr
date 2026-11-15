@@ -52,53 +52,34 @@ fn taskmgr_rows(int w) {
 
 	[ -n "$TK_SCANMS" ] || { cp_absent "$w" "Task Manager"; ret 1; }
 	if [ -n "$TK_SCANMS" ]; then
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Refresh"
-		CP[$w][$n]["val"]="$TK_SCANMS ms"; CP[$w][$n]["key"]=tasksrefresh
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Refresh"; CP[$w][$n]["key"]=tasksrefresh
+		cp_choice "$w" "$n" "$TK_SCANMS" cp_set_tasks "${CP_TKTICKS[@]}"
+		CP[$w][$n]["vname"]=cp_ms
 		n=$((n + 1))
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Scrollbar"
 		CP[$w][$n]["wtype"]=bool
 		CP[$w][$n]["val"]=off; [ "$TK_BAR" = 1 ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=tkbar; n=$((n + 1))
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sort By"
-		CP[$w][$n]["val"]="$TK_SORTBY"; CP[$w][$n]["key"]=tksort
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sort By"; CP[$w][$n]["key"]=tksort
+		cp_choice "$w" "$n" "$TK_SORTBY" cp_set_tksort "${TK_COLS[@]}"
 		n=$((n + 1))
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Order"
-		CP[$w][$n]["val"]="$TK_SORTDIR"; CP[$w][$n]["key"]=tkdir
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Order"; CP[$w][$n]["key"]=tkdir
+		cp_choice "$w" "$n" "$TK_SORTDIR" cp_set_tkdir "${CP_TKDIRS[@]}"
 		n=$((n + 1))
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show"
-		CP[$w][$n]["val"] := cp_tkfiltername "$TK_FILTER"
-		CP[$w][$n]["key"]=tkfilter
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show"; CP[$w][$n]["key"]=tkfilter
+		cp_choice "$w" "$n" "${TK_FILTER:-everyone}" cp_set_tkfilter "${TK_FILTERS[@]}"
+		CP[$w][$n]["vname"]=cp_tkfiltername
 		n=$((n + 1))
 	fi
 	ret "$n"
 }
 
 fn taskmgr_do(int w, k, int dir) {
-	local v
-
 	case $k in
-	tasksrefresh) v := cp_next "$TK_SCANMS" "$dir" "${CP_TKTICKS[@]}"
-		TK_SCANMS=$v ;;
 	tkbar)
 		if [ "$TK_BAR" = 1 ]; then TK_BAR=0; else TK_BAR=1; fi
 		;;
-	tksort) v := cp_next "$TK_SORTBY" "$dir" "${TK_COLS[@]}"
-		TK_SORTBY=$v ;;
-	tkdir) v := cp_next "$TK_SORTDIR" "$dir" "${CP_TKDIRS[@]}"
-		TK_SORTDIR=$v ;;
-	tkfilter) v := cp_next "$TK_FILTER" "$dir" "${TK_FILTERS[@]}"
-		cp_set_tkfilter "" "$v"
-		return 0 ;;
 	esac
 	cp_save
 }
 
-fn taskmgr_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	tasksrefresh) dt_droplist "$w" "$r" "$c" cp_set_tasks "${CP_TKTICKS[@]}" ;;
-	tksort) dt_droplist "$w" "$r" "$c" cp_set_tksort "${TK_COLS[@]}" ;;
-	tkdir) dt_droplist "$w" "$r" "$c" cp_set_tkdir "${CP_TKDIRS[@]}" ;;
-	tkfilter) dt_droplist "$w" "$r" "$c" cp_set_tkfilter "Everyone" "Mine" \
-		"This Desktop" ;;
-	esac
-}

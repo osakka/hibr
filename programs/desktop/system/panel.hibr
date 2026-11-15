@@ -299,11 +299,12 @@ fn panel_filter(int id) {
 # lower case: its label as drawn, what follows the label, or its value. The
 # one test, for which panes a search finds and which of their rows it shows.
 fn cp_rowhas(int id, int i, q) {
-	local t
+	local t v
 
 	t=${CP[$id][$i]["text"]}
 	case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
-	t="$t ${CP[$id][$i]["after"]-} ${CP[$id][$i]["val"]-}"
+	v := cp_rowval "$id" "$i"
+	t="$t ${CP[$id][$i]["after"]-} $v"
 	[[ ${t,,} == *"$q"* ]]
 }
 
@@ -617,6 +618,7 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			?*) t="$t ${CP[$id][$i]["after"]}" ;;
 			esac
 			v=${CP[$id][$i]["val"]}
+			[ -n "${CP[$id][$i]["vname"]-}" ] && v := cp_rowval "$id" "$i"
 			kind=${CP[$id][$i]["kind"]}
 			wtype=${CP[$id][$i]["wtype"]}
 		fi
@@ -728,9 +730,14 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 					"${CP[$id][$i]["min"]:-0}" \
 					"${CP[$id][$i]["max"]:-10}" \
 					"${CP[$id][$i]["key"]}"
-			else
+			elif cp_isdrop "$id" "$i" "$pane"; then
 				dt_wdrop "$id" "$r" "$wc" "$vw" "$v" \
 					"${CP[$id][$i]["key"]}"
+			else
+				# A value with no list to choose from is shown, and
+				# offers no caret that would open nothing.
+				v := cp_fit "$v" "$vw"
+				console put -p "w$id" "$r" "$wc" "$v"
 			fi
 		fi
 		r=$((r + 1))
@@ -770,7 +777,12 @@ fn cp_valw(int id, int n, int w) {
 			# every other row's buttons are drawn in (Gitea #341).
 			case ${CP[$id][$i]["wtype"]}:${CP[$id][$i]["vcut"]} in
 			bool:* | slider:* | *:1) ;;
-			*) x := str width "${CP[$id][$i]["val"]}"; x=$((x + 2)) ;;
+			*)
+				x=${CP[$id][$i]["val"]}
+				[ -n "${CP[$id][$i]["vname"]-}" ] && x := cp_rowval "$id" "$i"
+				x := str width "$x"
+				x=$((x + 2))
+				;;
 			esac
 			;;
 		*) x := str width "${CP[$id][$i]["val"]}" ;;
@@ -895,6 +907,153 @@ fn cp_next(cur, int dir, ...rest) {
 	done
 }
 
+# A dropdown row's choices, declared once where the row is built: the value
+# chosen now, the function that sets one, and every value it may take. The
+# panel opens them on a click or enter, steps them on the arrows and draws
+# the chosen one's name, all from this, so no pane keeps a second list
+# (the Tray Icons rows had arrows and no list, 0.99.532). The setter is
+# called "set w value", or "set w value arg" when CP[..]["sarg"] is set --
+# the one row of many it is, a program's in Tray Icons. CP[..]["vname"]
+# turns a value into its words and CP[..]["dims"], joined the same way,
+# lists those shown and not offered; CP[..]["ons"], joined the same way,
+# the values ticked where that is more than the one chosen -- a list of
+# things each on or off. CP[..]["menu"] marks a list of things
+# to do rather than values to hold -- Forget a Device -- which a click or
+# enter opens and the arrows never step, since each step would do one.
+fn cp_choice(int w, int n, cur, set, ...vals) {
+	local IFS=$'\x1f'
+
+	CP[$w][$n]["val"]=$cur
+	CP[$w][$n]["set"]=$set
+	CP[$w][$n]["choices"]="${vals[*]}"
+}
+
+# A value in milliseconds, in words, for CP[..]["vname"].
+fn cp_ms(v) {
+	ret "$v ms"
+}
+
+# The values of a list a pane builds, joined for CP[..]["dims"].
+fn cp_join(...vals) {
+	local IFS=$'\x1f'
+
+	ret "${vals[*]}"
+}
+
+# What row i shows for its value: its own words where it names them --
+# asked of an empty value too, which a list of things on or off has when
+# none is.
+fn cp_rowval(int w, int i) {
+	local v=${CP[$w][$i]["val"]-} f=${CP[$w][$i]["vname"]-}
+
+	[ -n "$f" ] && v := "$f" "$v"
+	ret "$v"
+}
+
+# Row i's choices into CP_CHV, and those it does not offer into CP_CHD.
+declare -ga CP_CHV CP_CHD
+fn cp_rowchoices(int w, int i) {
+	CP_CHV=()
+	CP_CHD=()
+	[ -n "${CP[$w][$i]["choices"]-}" ] &&
+		IFS=$'\x1f' read -ra CP_CHV <<< "${CP[$w][$i]["choices"]}"
+	[ -n "${CP[$w][$i]["dims"]-}" ] &&
+		IFS=$'\x1f' read -ra CP_CHD <<< "${CP[$w][$i]["dims"]}"
+	return 0
+}
+
+# Whether row i is a dropdown: one that declares choices and has some, or,
+# in a pane written before they could be declared (one installed from
+# elsewhere), whose pane has a <pane>_drop. A row that declares an empty
+# list is shown as its value with no caret, since there is nothing to open.
+fn cp_isdrop(int w, int i, pane = "") {
+	[ "${CP[$w][$i]["kind"]}" = set ] || return 1
+	case ${CP[$w][$i]["wtype"]-} in bool | slider) return 1 ;; esac
+	[ -n "${CP[$w][$i]["set"]-}" ] && { [ -n "${CP[$w][$i]["choices"]-}" ]; return; }
+	[ -n "$pane" ] && dt_has "${pane}_drop"
+}
+
+# Open row i's list under its value, at r and c of the window.
+declare -gA CP_PICKKEY
+fn cp_droprow(int w, int i, int r, int c) {
+	local pane
+
+	if [ -n "${CP[$w][$i]["set"]-}" ]; then
+		cp_rowchoices "$w" "$i"
+		CP_PICKKEY[$w]=${CP[$w][$i]["key"]}
+		DT_POPDIMNEXT=("${CP_CHD[@]}")
+		DT_POPNAMENEXT=${CP[$w][$i]["vname"]-}
+		DT_POPCURNEXT=${CP[$w][$i]["val"]-}
+		DT_POPONNEXT=()
+		[ -n "${CP[$w][$i]["ons"]-}" ] &&
+			IFS=$'\x1f' read -ra DT_POPONNEXT <<< "${CP[$w][$i]["ons"]}"
+		dt_droplist "$w" "$r" "$c" cp_pick "${CP_CHV[@]}"
+		return 0
+	fi
+	pane := panel_pane "$w"
+	dt_has "${pane}_drop" && "${pane}_drop" "$w" "$r" "$c" "${CP[$w][$i]["key"]}"
+	return 0
+}
+
+# A value chosen from a row's list: the row is found again by its key, as
+# the rows are built again every frame and the list may have moved them.
+fn cp_pick(int w, v) {
+	local i=0 n=${PW[$w]["n"]:-0} k=${CP_PICKKEY[$w]-}
+
+	while [ "$i" -lt "$n" ]; do
+		if [ "${CP[$w][$i]["key"]}" = "$k" ]; then
+			cp_rowset "$w" "$i" "$v"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	return 0
+}
+
+# Set row i to v through its own setter, the one way a choice is made.
+fn cp_rowset(int w, int i, v) {
+	local f=${CP[$w][$i]["set"]}
+
+	if [ -n "${CP[$w][$i]["sarg"]-}" ]; then
+		"$f" "$w" "$v" "${CP[$w][$i]["sarg"]}"
+	else
+		"$f" "$w" "$v"
+	fi
+}
+
+# The next or previous value of row i that is offered, set.
+fn cp_rowstep(int w, int i, int dir) {
+	local v d
+	local -a can=()
+
+	local cur=${CP[$w][$i]["val"]-}
+
+	[ -z "${CP[$w][$i]["menu"]-}" ] || return 0
+	# A row that says more than its value -- a change waiting -- ticks the
+	# entry it is, and that is where a step starts from.
+	[ -n "${CP[$w][$i]["ons"]-}" ] && cur=${CP[$w][$i]["ons"]%%$'\x1f'*}
+	cp_rowchoices "$w" "$i"
+	for v in "${CP_CHV[@]}"; do
+		for d in "${CP_CHD[@]}"; do
+			[ "$d" = "$v" ] && continue 2
+		done
+		can+=("$v")
+	done
+	[ "${#can[@]}" -gt 0 ] || return 0
+	v := cp_next "$cur" "$dir" "${can[@]}"
+	cp_rowset "$w" "$i" "$v"
+}
+
+# Open the selected row's list from the keyboard, where a click would.
+fn cp_dropkey(int w) {
+	local i=${PW[$w]["sel"]} top=${PW[$w]["top"]:-0} r c
+
+	r=$((i - top + 1))
+	c := dt_wcol "$w" "$r" "${CP[$w][$i]["key"]}"
+	[ -n "$c" ] || return 1
+	cp_droprow "$w" "$i" "$r" "$c"
+}
+
 # Flip an on/off setting, named by var -- shared by every pane's checkboxes.
 fn cp_toggle(var) {
 	if [ "${!var}" = 1 ]; then
@@ -916,6 +1075,11 @@ fn cp_do(int w, int dir) {
 	if [ "$k" = cp:showall ]; then
 		k := dt_searchq "$w"
 		PW[$w]["all"]="$pane ${k,,}"
+		return 0
+	fi
+	# A row that declares its choices is stepped through them, by the panel.
+	if [ "${CP[$w][$sel]["kind"]}" = set ] && [ -n "${CP[$w][$sel]["set"]-}" ]; then
+		cp_rowstep "$w" "$sel" "$dir"
 		return 0
 	fi
 	case ${CP[$w][$sel]["kind"]} in
@@ -989,7 +1153,17 @@ fn panel_key(int w, key) {
 	down) panel_move "$w" 1 ;;
 	shift-up) cp_ordkey "$w" -1 || return 1 ;;
 	shift-down) cp_ordkey "$w" 1 || return 1 ;;
-	right | enter | " ") cp_do "$w" 1 ;;
+	# Enter and space open a dropdown's list, as a click does; the arrows
+	# step it in place. Anything else they do what they always did.
+	enter | " ")
+		k=${PW[$w]["sel"]}
+		if cp_isdrop "$w" "$k" "$pane" && cp_dropkey "$w"; then
+			:
+		else
+			cp_do "$w" 1
+		fi
+		;;
+	right) cp_do "$w" 1 ;;
 	left) cp_do "$w" -1 ;;
 	delete | backspace)
 		k=${PW[$w]["sel"]}
@@ -1103,17 +1277,13 @@ fn panel_click(int w, int r, int c, btn = "") {
 		cp_do "$w" 1
 		return 0
 	fi
-	if [ "${CP[$w][$i]["kind"]}" = set ] &&
-	   [ "${CP[$w][$i]["wtype"]}" != bool ] &&
-	   [ "${CP[$w][$i]["wtype"]}" != slider ] &&
-	   dt_has "${pane}_drop"; then
+	if cp_isdrop "$w" "$i" "$pane"; then
 		tag := dt_hit "$w" "$r" "$c"
 		if [ -n "$tag" ]; then
-			k=${CP[$w][$i]["key"]}
 			wc := dt_wcol "$w" "$r" "$tag"
-			"${pane}_drop" "$w" "$r" "$wc" "$k"
 			PW[$w]["sel"]=$i
 			PW[$w]["last"]=$i
+			cp_droprow "$w" "$i" "$r" "$wc"
 			return 0
 		fi
 	fi

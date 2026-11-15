@@ -15,7 +15,7 @@ strict
 # CPU and memory, worked out the same way in every window that shows them.
 [ -n "${SY_LIBDONE-}" ] || . "$DT_HERE/lib/sysstat.hibr"
 
-app about "About this computer: the machine, and the desktop running on it" 1.5
+app about "About this computer: the machine, and the desktop running on it" 1.5.1
 # part: control-panel/abouthibr.hibr
 
 # 20 by 52, the same as about_size, which is what dt_launch actually asks

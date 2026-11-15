@@ -10,7 +10,7 @@ waiting on it -- writing every event it sees to a file, while the suite
 starts the stand-in and reads what it was sent. Without dbus-daemon, or
 without libdbus, every check is skipped and the suite says so.
 """
-import json, os, shutil, signal, subprocess, sys, tempfile, time
+import json, os, re, shutil, signal, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -400,7 +400,7 @@ for x in (np, np2):
 # letter on the bar, a left click activating it, a right click its own menu
 # in its own words, a row chosen sent back as its Event, and the letter
 # gone with the program.
-from screen import Term, load, press, release
+from screen import Term, load, press, release, IME_STANDIN
 
 d = scratch()
 sess = os.path.join(d, "tray.hibr")
@@ -521,6 +521,144 @@ check("with Tray Icons switched off the desktop holds no tray name, and notifica
 t.quit()
 t.close()
 
+# --- every lever, pulled in its pane (Gitea #558) --------------------------
+# The three panes these entries bring, each lever pulled through the Control
+# Panel the way a person pulls it -- a value chosen from its list, a
+# checkbox switched, a program moved -- and what it does read back from the
+# bar and the bus. The first lever the owner pulled in 0.99.531, Icons
+# Before the Arrow, had no list at all, and no check had pulled one.
+d = scratch()
+open(os.path.join(d, "standin-icon.png"), "wb").write(png)
+sess4 = os.path.join(d, "levers.hibr")
+open(sess4, "w").write(
+    '%s. %s\n. "$DT_HERE/system/panel.hibr"\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\n'
+    'CP_PANEDIRS+=("$DT_HERE/control-panel")\ncp_panes\n%s'
+    'DT_KBLOC=1; DT_KBCUR=0; DT_KB[0]["label"]=EN; DT_KB[1]["label"]=SH\n'
+    'dt_open\ndt_kbshow\nCPW := dt_new "Control Panel" 30 70 2 2 panel\npanel_goto "$CPW" trayset\n'
+    'dt_run\ndt_close\n' % (load("console", "img"), tree("programs/desktop/desktop.hibr"),
+                            IME_STANDIN))
+t = Term(sess4, rows=34, cols=100, settle=1.0, cellw=8, cellh=16,
+         env={"DBUS_SESSION_BUS_ADDRESS": "unix:path=" + BUS, "HIBR_GFX": "kitty"})
+until(watcher, 15)
+def scr():
+    t.collect(0.1)
+    return t.screen()
+
+
+logs = {}
+for title, ident in (("Quill", "quill"), ("Xenon", "xenon"), ("Juno", "juno"), ("Kilo", "kilo")):
+    logs[title[0]] = item(d, "--title", title, "--id", ident, name=ident)[1]
+# The pane is drawn, every program listed in it and the window focused,
+# before the first lever is pulled: a click sent sooner reaches a desktop
+# still drawing its first frames.
+until(lambda: scr().find("Kilo"), 15)
+t.keys([press(2, 30), release(2, 30)])
+until(lambda: "Control Pan" in scr().row(0), 10)
+
+
+
+
+def on_bar(letters):
+    """The letters among these the bar shows, in the bar's order."""
+    r0 = scr().row(0)
+    return sorted([x for x in letters if x in r0], key=r0.index)
+
+
+def rowat(label):
+    """Where a row's label is, matched whole: Icons is not Tray Icons."""
+    sc = scr()
+    for r in range(sc.rows):
+        m = re.search(r"(?<= )" + re.escape(label) + r"(?=  )", sc.row(r))
+        if m:
+            return r, m.start()
+    return None
+
+
+def pick(label, value):
+    """Choose value from the list under label's row, as a click does."""
+    sc = scr()
+    at = rowat(label)
+    if not at:
+        return False
+    r = at[0]
+    c = sc.row(r).rfind("▾")
+    t.keys([press(r, c), release(r, c)])
+    sc = until(lambda: scr().find_from(value, r + 1) and scr(), 5)
+    if not sc:
+        return False
+    vr, vc = sc.find_from(value, r + 1)
+    t.keys([press(vr, vc), release(vr, vc)])
+    return True
+
+
+def twice(label):
+    """Two clicks on a row's label: select it, then do it."""
+    at = rowat(label)
+    if at:
+        t.keys([press(*at), release(*at), 0.2, press(*at), release(*at)])
+    return bool(at)
+
+
+ALL = ["Q", "X", "J", "K"]
+pictured = until(lambda: on_bar(ALL) == [] and [x for x in scr().apc if "a=T" in x], 10)
+pick("Icons", "letter")
+got = until(lambda: len(on_bar(ALL)) == 4 and on_bar(ALL), 10)
+check("Icons: choosing letter from its list puts each program's letter where its picture was",
+      bool(pictured) and got, (bool(pictured), scr().row(0)))
+pick("Icons Before the Arrow", "3")
+got = until(lambda: len(on_bar(ALL)) == 3 and "▸" in scr().row(0) and on_bar(ALL), 10)
+check("Icons Before the Arrow: choosing 3 keeps three on the bar and the rest under the arrow",
+      bool(got), scr().row(0))
+pick("Quill", "hidden")
+got = until(lambda: "Q" not in on_bar(ALL) and on_bar(ALL), 10)
+check("a program's row: choosing hidden takes it off the bar", bool(got), scr().row(0))
+before = on_bar(ALL)
+at = rowat("Xenon")
+if at:
+    t.keys([press(*at), release(*at), 0.2, b"\x1b[1;2B"])
+got = until(lambda: on_bar(ALL) != before and on_bar(ALL), 10)
+check("shift and an arrow on a program's row moves it along the bar",
+      bool(got) and got.index("X") > got.index("J"), (before, got))
+pick("Left Click", "menu")
+first = (on_bar(ALL) or ["?"])[0]
+k = scr().row(0).find(first)
+if k >= 0:
+    t.keys([press(0, k), release(0, k)])
+sc = until(lambda: scr().find("Show Hidden") and scr(), 5)
+check("Left Click: choosing menu makes a left click open the program's menu, not activate it",
+      bool(sc) and first in logs and not said(logs[first], "Activate"),
+      (first, scr().row(0), said(logs.get(first, os.devnull), "Activate")))
+t.keys([b"\x1b", 0.3])
+twice("Tray Icons on the Menu Bar")
+off = until(lambda: not owned("org.kde.StatusNotifierWatcher") and on_bar(ALL) == [], 10)
+# The row is selected now, so one more click on it switches it back.
+at = rowat("Tray Icons on the Menu Bar")
+if at:
+    t.keys([press(*at), release(*at)])
+back = until(lambda: owned("org.kde.StatusNotifierWatcher"), 10)
+check("Tray Icons on the Menu Bar: off lets the tray's name and icons go, on takes them again",
+      off and back, (off, back, scr().row(0)))
+named = " EN " in scr().row(0)
+at = scr().find("Keyboard on")
+if at:
+    t.keys([press(*at), release(*at), 0.3, b"\t", 0.2, b"\r"])
+bare = until(lambda: " EN " not in scr().row(0) and scr(), 5)
+check("Keyboard on Menu Bar: switching the name off leaves the keyboard's glyph without it",
+      named and bool(bare), scr().row(0))
+was = owned("org.freedesktop.Notifications")
+at = scr().find("Program Noti")
+if at:
+    t.keys([press(*at), release(*at), 0.3, b"\t", 0.2, b"\r"])
+gone = until(lambda: not owned("org.freedesktop.Notifications"), 10)
+t.keys([b"\r"])
+again = until(lambda: owned("org.freedesktop.Notifications"), 10)
+check("Program Notifications: off lets the notification name go, on takes it again",
+      was and gone and again, (was, gone, again))
+for x in logs:
+    open(logs[x] + ".quit", "w").close()
+t.quit()
+t.close()
+
 for p in procs:
     if p.poll() is None:
         p.kill()
@@ -556,4 +694,4 @@ fresh = startup(new_home, 3)
 check("a desktop that had the keyboard and the tray from the package is told once where they went",
       first and not again, (first, again))
 check("and a new desktop is told nothing", not fresh, fresh)
-report(34)
+report(42)

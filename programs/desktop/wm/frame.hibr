@@ -378,6 +378,18 @@ fn dt_chromedrawable(v) {
 	esac
 }
 
+# The values of a list that cannot be drawn with these glyphs, joined for a
+# Control Panel row's CP[..]["dims"]: shown in its list, never offered.
+fn dt_chromeoff(...vals) {
+	local f IFS=$'\x1f'
+	local -a off=()
+
+	for f in "${vals[@]}"; do
+		dt_chromedrawable "$f" || off+=("$f")
+	done
+	ret "${off[*]}"
+}
+
 # The values of a list that can be drawn, as words, and in DT_POPDIMNEXT
 # the ones that cannot, for a dropdown to show dimmed.
 fn dt_chromeavail(...vals) {

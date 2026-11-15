@@ -20,7 +20,7 @@
 strict
 
 
-app wallset "The Control Panel pane for the wallpaper of each display" 1.1
+app wallset "The Control Panel pane for the wallpaper of each display" 1.1.1
 command -v cp_pane > /dev/null && cp_pane wallset "Wallpaper" "▧"
 
 # Declared again because a pane is loaded without the window manager's
@@ -114,25 +114,19 @@ cp_wddel() {
 	dt_notep low "%s follows All Displays again" "$CP_WDISP"
 }
 
-# The Display row's value as a person reads it, and back.
-cp_wdlabel() {
+# The Display row's values: * for every display, or one display's name.
+fn cp_wdname(v) {
 	local t
 
-	if [ -z "$CP_WDISP" ]; then
+	if [ "$v" = "*" ]; then
 		t := dt_tr "All Displays"
 		ret "$t"
 	fi
-	ret "$CP_WDISP"
+	ret "$v"
 }
 fn cp_set_wdisp(int? id = "", value = "") {
-	local all
-
-	all := dt_tr "All Displays"
-	if [ "$value" = "$all" ]; then
-		CP_WDISP=
-	else
-		CP_WDISP=$value
-	fi
+	CP_WDISP=
+	[ "$value" = "*" ] || CP_WDISP=$value
 	return 0
 }
 
@@ -152,29 +146,31 @@ fn wallset_rows(int w) {
 		CP_WDISP=
 	img := cp_wdget img
 	pic := cp_wdget pic
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Display"
-	CP[$w][$n]["val"] := cp_wdlabel
-	CP[$w][$n]["key"]=wdisp
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Display"; CP[$w][$n]["key"]=wdisp
+	cp_choice "$w" "$n" "${CP_WDISP:-*}" cp_set_wdisp "*" "${CP_WDLIST[@]}"
+	CP[$w][$n]["vname"]=cp_wdname
 	cp_wdown && CP[$w][$n]["btns"]="wdispdel:Delete"
 	n=$((n + 1))
 	if [ -z "$CP_WDISP" ]; then
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Pattern"
+		# A picture in force is no pattern: none of them is ticked, and
+		# choosing one gives the picture up for it.
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Pattern"; CP[$w][$n]["key"]=glyph
 		if [ -n "$DT_WALLIMG" ]; then
-			CP[$w][$n]["val"]="(image)"
+			cp_choice "$w" "$n" "(image)" cp_set_glyph "${WP_GLYPHS[@]}"
 		else
-			CP[$w][$n]["val"]="$DT_GLYPH"
+			cp_choice "$w" "$n" "$DT_GLYPH" cp_set_glyph "${WP_GLYPHS[@]}"
 		fi
-		CP[$w][$n]["key"]=glyph; n=$((n + 1))
+		n=$((n + 1))
 	fi
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Image${GL[ellipsis]}"
 	CP[$w][$n]["val"]="${img##*/}"; CP[$w][$n]["key"]=wallimg
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mode"
-	CP[$w][$n]["val"] := cp_wdget mode
-	CP[$w][$n]["key"]=wallmode
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mode"; CP[$w][$n]["key"]=wallmode
+	img := cp_wdget mode
+	cp_choice "$w" "$n" "$img" cp_set_wallmode "${WP_MODES[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
-	CP[$w][$n]["val"]="$pic"; CP[$w][$n]["key"]=wallpic
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"; CP[$w][$n]["key"]=wallpic
+	cp_choice "$w" "$n" "$pic" cp_set_wallpic "${CP_WALLPICS[@]}"
 	n=$((n + 1))
 	if [ "$pic" = follow ] && dt_has dt_walldrawn; then
 		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Drawn Now"
@@ -197,47 +193,10 @@ fn wallset_key(int w, key) {
 }
 
 fn wallset_do(int w, k, int dir) {
-	local v all
-
 	case $k in
-	wdisp)
-		cp_wdnames
-		all := dt_tr "All Displays"
-		v := cp_wdlabel
-		v := cp_next "$v" "$dir" "$all" "${CP_WDLIST[@]}"
-		cp_set_wdisp "" "$v"
-		return 0
-		;;
-	wdispdel) cp_wddel; return 0 ;;
-	glyph) v := cp_next "$DT_GLYPH" "$dir" "${WP_GLYPHS[@]}"
-	       DT_GLYPH=$v; DT_WALLIMG= ;;
-	wallimg) dt_has wp_dialog && wp_dialog
-		return 0 ;;
-	wallmode)
-		v := cp_wdget mode
-		v := cp_next "$v" "$dir" "${WP_MODES[@]}"
-		cp_wdset mode "$v"
-		;;
-	wallpic)
-		v := cp_wdget pic
-		v := cp_next "$v" "$dir" "${CP_WALLPICS[@]}"
-		cp_wdset pic "$v"
-		;;
+	wdispdel) cp_wddel ;;
+	wallimg) dt_has wp_dialog && wp_dialog ;;
 	esac
-	cp_save
+	return 0
 }
 
-fn wallset_drop(int w, int r, int c, k) {
-	local all
-
-	case $k in
-	wdisp)
-		cp_wdnames
-		all := dt_tr "All Displays"
-		dt_droplist "$w" "$r" "$c" cp_set_wdisp "$all" "${CP_WDLIST[@]}"
-		;;
-	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${WP_GLYPHS[@]}" ;;
-	wallmode) dt_droplist "$w" "$r" "$c" cp_set_wallmode "${WP_MODES[@]}" ;;
-	wallpic) dt_droplist "$w" "$r" "$c" cp_set_wallpic "${CP_WALLPICS[@]}" ;;
-	esac
-}

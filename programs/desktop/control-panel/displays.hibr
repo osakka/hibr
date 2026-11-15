@@ -22,7 +22,7 @@
 strict
 
 
-app displays "Control Panel's own picture of a multi-monitor arrangement" 1.2.1
+app displays "Control Panel's own picture of a multi-monitor arrangement" 1.2.2
 command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦" hardware
 
 declare -gA DPY
@@ -394,11 +394,13 @@ fn displays_mouse(int id, act, button, int r, int c) {
 				vals+=("${DPY[$id][$i]["name"]}")
 				i=$((i + 1))
 			done
+			DT_POPCURNEXT := displays_fullname
 			dt_droplist "$id" "$r" "$wc" displays_setfull "${vals[@]}"
 			return 0
 		fi
 		if [ "$tag" = newon ]; then
 			wc := dt_wcol "$id" "$r" newon
+			DT_POPCURNEXT := displays_newname
 			dt_droplist "$id" "$r" "$wc" displays_setnew \
 				"The Display I'm Working On" "Where the Program Asks" "The Main Display"
 			return 0
@@ -409,6 +411,7 @@ fn displays_mouse(int id, act, button, int r, int c) {
 			i=0
 			while [ "$i" -lt "$n" ]; do
 				vals+=("${DPY[$id][$i]["name"]}")
+				[ "${DPY[$id][$i]["primary"]}" = 1 ] && DT_POPCURNEXT=${DPY[$id][$i]["name"]}
 				i=$((i + 1))
 			done
 			dt_droplist "$id" "$r" "$wc" displays_setprimary "${vals[@]}"

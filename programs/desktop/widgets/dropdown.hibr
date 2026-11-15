@@ -56,8 +56,34 @@ DT_POPDIMNEXT=()
 # is still handed the value.
 DT_POPNAME=
 DT_POPNAMENEXT=
+# The value chosen now, which the list opens on and ticks: a caller sets
+# DT_POPCURNEXT just before dt_droplist, the same way. DT_POPSELONCE is the
+# row to start on, taken by the first build alone, so the arrows are not
+# put back there every frame.
+DT_POPCUR=
+DT_POPCURNEXT=
+DT_POPSELONCE=
+# Every value ticked, for a list of things each on or off -- Not in the
+# Switcher: set as DT_POPONNEXT the same way. Without it the value chosen
+# now is the one ticked.
+DT_POPON=()
+DT_POPONNEXT=()
 
+# Open a list of choices under a window's dropdown: r and c are the
+# window's own, the coordinates an app draws and is clicked in, made the
+# screen's for dt_dropat.
 fn dt_droplist(int id, int r, int c, cb, ...rest) {
+	shift 4
+	dt_dropat $((DT[$id]["row"] + r + 1)) $((DT[$id]["col"] + c)) "$id" "$cb" "$@"
+}
+
+# Open a list of choices at a place on the screen, for id (a window, or
+# none for what has no window -- the Control Strip): the one way a list is
+# opened, so every list takes what its caller set and leaves nothing for
+# the next.
+fn dt_dropat(int r, int c, id, cb, ...rest) {
+	local v i=0
+
 	shift 4
 	DT_POPID=$id
 	DT_POPCB=$cb
@@ -66,24 +92,40 @@ fn dt_droplist(int id, int r, int c, cb, ...rest) {
 	DT_POPDIMNEXT=()
 	DT_POPNAME=$DT_POPNAMENEXT
 	DT_POPNAMENEXT=
-	# r and c come in pane-relative, the same coordinates an app draws and
-	# is clicked in everywhere else, but dt_context_open positions on the
-	# real screen -- add the window's own row and column to convert.
-	dt_context_open widget "$id" $((DT[$id]["row"] + r + 1)) \
-		$((DT[$id]["col"] + c))
+	DT_POPCUR=$DT_POPCURNEXT
+	DT_POPCURNEXT=
+	DT_POPON=("${DT_POPONNEXT[@]}")
+	DT_POPONNEXT=()
+	[ "${#DT_POPON[@]}" -gt 0 ] || [ -z "$DT_POPCUR" ] || DT_POPON=("$DT_POPCUR")
+	DT_POPSELONCE=0
+	for v in "${DT_POPVALS[@]}"; do
+		[ "$v" = "$DT_POPCUR" ] || [ "$v" = "${DT_POPON[0]-}" ] && { DT_POPSELONCE=$i; break; }
+		i=$((i + 1))
+	done
+	dt_context_open widget "$id" "$r" "$c"
 }
 
-# Build the popup opened by dt_droplist, one item per value offered.
+# Build the popup opened by dt_droplist, one item per value offered, the
+# value chosen now ticked as a menu ticks its choice, and the first build
+# starting on it.
 dt_dropcontext() {
-	local v l
+	local v l d on
 
 	dt_menu ""
 	for v in "${DT_POPVALS[@]}"; do
 		l=$v
 		[ -n "$DT_POPNAME" ] && l := "$DT_POPNAME" "$v"
-		case " ${DT_POPDIM[*]} " in
-		*" $v "*) dt_dim "$l" ;;
-		*) dt_item "$l" "" "$DT_POPCB" "$DT_POPID" "$v" ;;
-		esac
+		on=0
+		for d in "${DT_POPON[@]}"; do
+			[ "$d" = "$v" ] && { on=1; break; }
+		done
+		for d in "${DT_POPDIM[@]}"; do
+			[ "$d" = "$v" ] && { dt_dim "$l"; continue 2; }
+		done
+		dt_mark "$l" "" "$on" "$DT_POPCB" "$DT_POPID" "$v"
 	done
+	if [ -n "$DT_POPSELONCE" ]; then
+		MB_SEL=$DT_POPSELONCE
+		DT_POPSELONCE=
+	fi
 }

@@ -19,7 +19,7 @@
 
 strict
 
-app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.9.1
+app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.9.2
 # part: control-panel/pimset.hibr
 # modules: dav db email pim
 
@@ -1036,30 +1036,28 @@ fn cedit_draw(int id, int h, int w, int row, int col) {
 		on=0
 		[ "$f" = "$k" ] && on=1
 		case $k in
-		allday | repeat | remind | cal)
+		allday)
+			# Yes or no is a checkbox, which a click switches.
+			if [ "$on" = 1 ]; then console pen "$DT_SELINK" "$DT_ACTIVE"; else console pen "$DT_INK" "$DT_FACE"; fi
+			dt_check "$id" "$r" 14 "${CED[$id]["allday"]:-0}" "" allday
+			;;
+		repeat | remind | cal)
+			# A list of choices, opened by a click or enter as every
+			# dropdown is; the calendar an event is in is shown, not
+			# offered, once the event is saved in it.
 			case $k in
-			allday)
-				t=no
-				[ "${CED[$id]["allday"]}" = 1 ] && t=yes
-				;;
 			repeat) t=${CED[$id]["repeat"]} ;;
-			remind)
-				t=${CED[$id]["remind"]}
-				case $t in
-				none) ;;
-				1440) t="a day before" ;;
-				*) t="$t minutes before" ;;
-				esac
-				;;
-			cal)
-				q=${CED[$id]["cal"]}
-				t="${CVK[$q]["name"]} (${CVK[$q]["srv"]})"
-				;;
+			remind) t := cv_remindname "${CED[$id]["remind"]}" ;;
+			cal) t := cv_calname "${CED[$id]["cal"]}" ;;
 			esac
 			if [ "$on" = 1 ]; then console pen "$DT_SELINK" "$DT_ACTIVE"; else console pen "$DT_INK" "$DT_WELL"; fi
-			t=" ${t:0:$((fw - 4))} ${GL[sdown]} "
-			console put -p "w$id" "$r" 14 "$t"
-			dt_wreg "$id" "$r" 14 "${#t}" "$k"
+			if [ "$k" = cal ] && [ -n "${CED[$id]["href"]}" ]; then
+				t := str pad " $t" "$fw"
+				console put -p "w$id" "$r" 14 "$t"
+				dt_wreg "$id" "$r" 14 "$fw" "$k"
+			else
+				dt_wdrop "$id" "$r" 14 "$fw" "$t" "$k"
+			fi
 			;;
 		*)
 			dt_textdraw "$id" "$r" 14 "$fw" "${CED[$id]["$k"]}" "${CED[$id]["${k}cur"]}" "$on"
@@ -1142,17 +1140,51 @@ fn cedit_close(int id) {
 	return 0
 }
 
-# The value after another in a list, round to the first.
-fn cv_next(cur, ...vals) {
-	local i
 
-	for ((i = 0; i < ${#vals[@]}; i++)); do
-		if [ "${vals[$i]}" = "$cur" ]; then
-			ret "${vals[$(((i + 1) % ${#vals[@]}))]}"
-			return 0
-		fi
-	done
-	ret "${vals[0]}"
+# A reminder in words.
+fn cv_remindname(v) {
+	case $v in
+	none) ret none ;;
+	1440) ret "a day before" ;;
+	*) ret "$v minutes before" ;;
+	esac
+}
+
+# A calendar, by its place in the list, in words.
+fn cv_calname(q) {
+	ret "${CVK[$q]["name"]} (${CVK[$q]["srv"]})"
+}
+
+# A choice from one of the event's lists.
+fn cedit_setrepeat(int? id = "", value = "") { [ -n "$id" ] && CED[$id]["repeat"]=$value; return 0; }
+fn cedit_setremind(int? id = "", value = "") { [ -n "$id" ] && CED[$id]["remind"]=$value; return 0; }
+fn cedit_setcal(int? id = "", value = "") { [ -n "$id" ] && CED[$id]["cal"]=$value; return 0; }
+
+# Open one of the event's lists under its field, the value it has ticked.
+fn cedit_list(int id, what) {
+	local at r c q
+	local -a vals
+
+	at := dt_wwhere "$id" "$what" || return 0
+	read -r r c <<< "$at"
+	case $what in
+	repeat)
+		DT_POPCURNEXT=${CED[$id]["repeat"]}
+		dt_droplist "$id" "$r" "$c" cedit_setrepeat "${CV_REPEATS[@]}"
+		;;
+	remind)
+		DT_POPCURNEXT=${CED[$id]["remind"]}
+		DT_POPNAMENEXT=cv_remindname
+		dt_droplist "$id" "$r" "$c" cedit_setremind "${CV_REMINDS[@]}"
+		;;
+	cal)
+		for ((q = 0; q < ${CVK["n"]:-0}; q++)); do vals+=("$q"); done
+		DT_POPCURNEXT=${CED[$id]["cal"]}
+		DT_POPNAMENEXT=cv_calname
+		dt_droplist "$id" "$r" "$c" cedit_setcal "${vals[@]}"
+		;;
+	esac
+	return 0
 }
 
 # What enter, space or a click does to what has the focus.
@@ -1161,19 +1193,12 @@ fn cedit_do(int id, what) {
 
 	case $what in
 	allday) CED[$id]["allday"]=$((1 - ${CED[$id]["allday"]:-0})) ;;
-	repeat)
-		v := cv_next "${CED[$id]["repeat"]}" "${CV_REPEATS[@]}"
-		CED[$id]["repeat"]=$v
-		;;
-	remind)
-		v := cv_next "${CED[$id]["remind"]}" "${CV_REMINDS[@]}"
-		CED[$id]["remind"]=$v
-		;;
+	repeat | remind) cedit_list "$id" "$what" ;;
 	cal)
 		if [ -n "${CED[$id]["href"]}" ]; then
 			dt_notep low "An event stays in its calendar; make a new one in the other"
 		else
-			CED[$id]["cal"]=$(((${CED[$id]["cal"]} + 1) % CVK["n"]))
+			cedit_list "$id" cal
 		fi
 		;;
 	cancel) dt_del "$id" ;;

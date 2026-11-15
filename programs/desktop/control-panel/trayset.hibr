@@ -73,16 +73,15 @@ fn trayset_rows(int w) {
 	CP[$w][$n]["val"]=off; [ "${DT_TRAY:-1}" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=on
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
-	CP[$w][$n]["val"]=${DT_TRAYSIZE:-picture}; CP[$w][$n]["key"]=size
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"; CP[$w][$n]["key"]=size
+	cp_choice "$w" "$n" "${DT_TRAYSIZE:-picture}" trayset_setsize "${CP_TRAYSIZES[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Left Click"
-	CP[$w][$n]["val"]=${DT_TRAYCLICK:-activate}; CP[$w][$n]["key"]=click
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Left Click"; CP[$w][$n]["key"]=click
+	cp_choice "$w" "$n" "${DT_TRAYCLICK:-activate}" trayset_setclick "${CP_TRAYCLICKS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons Before the Arrow"
-	v=${DT_TRAYMAX:-0}
-	[ "$v" = 0 ] && v=all
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=max
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons Before the Arrow"; CP[$w][$n]["key"]=max
+	cp_choice "$w" "$n" "${DT_TRAYMAX:-0}" trayset_setmax "${CP_TRAYMAXES[@]}"
+	CP[$w][$n]["vname"]=trayset_maxname
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Programs"
 	n=$((n + 1))
@@ -97,7 +96,9 @@ fn trayset_rows(int w) {
 	for id in "${TRAYSET_IDS[@]}"; do
 		CP[$w][$n]["kind"]=set
 		CP[$w][$n]["text"]=${TRAY_SEEN["$id"]:-$id}
-		CP[$w][$n]["val"] := trayset_show "$id"
+		v := trayset_show "$id"
+		cp_choice "$w" "$n" "$v" trayset_setprog "${CP_TRAYSHOWS[@]}"
+		CP[$w][$n]["sarg"]=$id
 		CP[$w][$n]["key"]="prog:$id"
 		CP[$w][$n]["ord"]=tray; CP[$w][$n]["oname"]=$id
 		n=$((n + 1))
@@ -120,36 +121,46 @@ fn trayset_order(int w, g, ...names) {
 	dt_has dt_traybar && dt_traybar
 }
 
+# The bar shows what was just chosen at once, and it is kept.
+trayset_apply() {
+	cp_save
+	dt_has dt_traybar && dt_traybar
+	return 0
+}
+
+# What each row's choice sets: the panel calls these from the row's list,
+# for a click and for the arrows alike. Named set-, since trayset_click
+# would be the pane's own click callback.
+fn trayset_setsize(int w, v) { DT_TRAYSIZE=$v; trayset_apply; }
+fn trayset_setclick(int w, v) { DT_TRAYCLICK=$v; trayset_apply; }
+fn trayset_setmax(int w, v) { DT_TRAYMAX=$v; trayset_apply; }
+
+# How many icons before the arrow, in words: none held back is "all".
+fn trayset_maxname(v) {
+	[ "$v" = 0 ] && { ret all; return 0; }
+	ret "$v"
+}
+
+# One program shown, hidden, or shown even while it says it is idle.
+fn trayset_setprog(int w, v, id) {
+	local hid=0 alw=0
+
+	[ "$v" = hidden ] && hid=1
+	[ "$v" = always ] && alw=1
+	DT_TRAYHIDE := trayset_list "${DT_TRAYHIDE-}" "$id" "$hid"
+	DT_TRAYALWAYS := trayset_list "${DT_TRAYALWAYS-}" "$id" "$alw"
+	trayset_apply
+}
+
 fn trayset_do(int? w = "", k = "", int? dir = "") {
-	local v id hid alw
+	local v
 
 	case $k in
 	on)
 		v=1
 		[ "${DT_TRAY:-1}" = 1 ] && v=0
 		dt_has dt_trayset && dt_trayset "$v"
-		return 0
 		;;
-	size) v := cp_next "${DT_TRAYSIZE:-picture}" "${dir:-1}" "${CP_TRAYSIZES[@]}"
-	      DT_TRAYSIZE=$v ;;
-	click) v := cp_next "${DT_TRAYCLICK:-activate}" "${dir:-1}" "${CP_TRAYCLICKS[@]}"
-	       DT_TRAYCLICK=$v ;;
-	max) v := cp_next "${DT_TRAYMAX:-0}" "${dir:-1}" "${CP_TRAYMAXES[@]}"
-	     DT_TRAYMAX=$v ;;
-	prog:*)
-		id=${k#prog:}
-		v := trayset_show "$id"
-		v := cp_next "$v" "${dir:-1}" "${CP_TRAYSHOWS[@]}"
-		hid=0
-		alw=0
-		[ "$v" = hidden ] && hid=1
-		[ "$v" = always ] && alw=1
-		DT_TRAYHIDE := trayset_list "${DT_TRAYHIDE-}" "$id" "$hid"
-		DT_TRAYALWAYS := trayset_list "${DT_TRAYALWAYS-}" "$id" "$alw"
-		;;
-	*) return 0 ;;
 	esac
-	cp_save
-	dt_has dt_traybar && dt_traybar
 	return 0
 }

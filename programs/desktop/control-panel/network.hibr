@@ -10,7 +10,7 @@
 strict
 
 
-app network "The Control Panel pane for WebDAV servers" 1.1
+app network "The Control Panel pane for WebDAV servers" 1.1.1
 command -v cp_pane > /dev/null && cp_pane network "Servers" "⇅"
 
 NW_TIMEOUTS=(5 10 15 30 60 120)
@@ -44,8 +44,8 @@ fn network_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_DAVSAVE" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_DAVSAVE; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Timeout (seconds)"
-	CP[$w][$n]["val"]="$DT_DAVTIMEOUT"; CP[$w][$n]["key"]=timeout
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Timeout (seconds)"; CP[$w][$n]["key"]=timeout
+	cp_choice "$w" "$n" "$DT_DAVTIMEOUT" cp_set_davtimeout "${NW_TIMEOUTS[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear Cache"
 	CP[$w][$n]["val"]="${#DRW[@]} open"; CP[$w][$n]["key"]=clear
@@ -54,21 +54,13 @@ fn network_rows(int w) {
 }
 
 fn network_do(int? w = "", k = "", int? dir = "") {
-	local v
-
 	case $k in
 	srv:*) dt_davserver "${k#srv:}" ;;
 	add) dt_davserver ;;
 	DT_DAVSAVE) cp_toggle "$k" ;;
-	timeout) v := cp_next "$DT_DAVTIMEOUT" "$dir" "${NW_TIMEOUTS[@]}"
-		DT_DAVTIMEOUT=$v ;;
+
 	clear) dt_davclear ;;
 	esac
 	cp_save
 }
 
-fn network_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	timeout) dt_droplist "$w" "$r" "$c" cp_set_davtimeout "${NW_TIMEOUTS[@]}" ;;
-	esac
-}

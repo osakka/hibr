@@ -8,7 +8,7 @@
 strict
 
 
-app desktop "The Control Panel pane for the bare desktop" 1.5
+app desktop "The Control Panel pane for the bare desktop" 1.5.1
 command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
 
 DK_CYCLES=(workspace all)
@@ -20,76 +20,50 @@ fn cp_set_cycle(int? id = "", value = "") { DT_CYCLE=$value; cp_save; }
 DK_SWV=(400 700 1000 1500)
 DK_SWL=("400 ms" "700 ms" "1 second" "1.5 seconds")
 
-# Switcher Pause as the row shows it.
-fn dk_swlabel() {
+# A switcher pause in words.
+fn dk_swname(v) {
 	local i=0
 
 	while [ "$i" -lt "${#DK_SWV[@]}" ]; do
-		[ "${DK_SWV[$i]}" = "${DT_SWMS:-700}" ] && ret "${DK_SWL[$i]}" && return 0
+		[ "${DK_SWV[$i]}" = "$v" ] && { ret "${DK_SWL[$i]}"; return 0; }
 		i=$((i + 1))
 	done
-	ret "${DT_SWMS:-700} ms"
+	ret "$v ms"
 }
 
-fn cp_set_swms(int? id = "", value = "") {
-	local i=0
+fn cp_set_swms(int? id = "", int value = 700) { DT_SWMS=$value; cp_save; }
 
-	while [ "$i" -lt "${#DK_SWL[@]}" ]; do
-		[ "${DK_SWL[$i]}" = "$value" ] && DT_SWMS=${DK_SWV[$i]}
-		i=$((i + 1))
-	done
-	cp_save
-}
-
-# Not in the Switcher as the row shows it: the apps' own names, or none.
-fn dk_skiplabel() {
+# Apps by their own names: one in the list, and the row's whole list --
+# the switcher passes them over -- joined, or none.
+fn dk_skipname(v) {
 	local a out=
 	local -a l
 
-	read -ra l <<< "$DT_SWSKIP"
+	read -ra l <<< "$v"
 	for a in "${l[@]}"; do
 		out="${out:+$out, }${DT_APPS[$a]["title"]:-$a}"
 	done
 	ret "${out:-none}"
 }
 
-# Every app, a bullet beside the ones the switcher passes over; choosing
-# one puts it on the list or takes it off.
-fn dk_skipdrop(int w, int r, int c) {
-	local a m
-	local -a v
-
-	DK_SKIPOF=()
-	for a in "${!DT_APPS[@]}"; do
-		[ -n "${DT_APPS[$a]["title"]}" ] || continue
-		m=" "
-		case " $DT_SWSKIP " in *" $a "*) m=${GL[bullet]} ;; esac
-		v+=("$m ${DT_APPS[$a]["title"]}")
-		DK_SKIPOF+=("$a")
-	done
-	dt_droplist "$w" "$r" "$c" cp_set_skip "${v[@]}"
-}
-declare -ga DK_SKIPOF
-
+# An app put on the switcher's list of those it passes over, or taken off.
 fn cp_set_skip(int? id = "", value = "") {
-	local a t=${value:2} out= x
+	local out= x
 	local -a l
 
-	for a in "${DK_SKIPOF[@]}"; do
-		[ "${DT_APPS[$a]["title"]}" = "$t" ] || continue
-		read -ra l <<< "$DT_SWSKIP"
-		case " $DT_SWSKIP " in
-		*" $a "*) for x in "${l[@]}"; do [ "$x" = "$a" ] || out="$out $x"; done ;;
-		*) out="$DT_SWSKIP $a" ;;
-		esac
-		DT_SWSKIP=${out# }
-		break
-	done
+	[ -n "$value" ] || return 0
+	read -ra l <<< "$DT_SWSKIP"
+	case " $DT_SWSKIP " in
+	*" $value "*) for x in "${l[@]}"; do [ "$x" = "$value" ] || out="$out $x"; done ;;
+	*) out="$DT_SWSKIP $value" ;;
+	esac
+	DT_SWSKIP=${out# }
 	cp_save
 }
 
 fn desktop_rows(int w) {
-	local n=0 d=$DT_SHOTDIR sk
+	local n=0 d=$DT_SHOTDIR sk v a
+	local -a apps skip
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
 	CP[$w][$n]["wtype"]=bool
@@ -99,13 +73,15 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_DISKS" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_DISKS; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icon Background"
-	CP[$w][$n]["val"] := cp_iconbglabel
-	CP[$w][$n]["key"]=iconbg; n=$((n + 1))
+	v=transparent
+	[ "$DT_ICONBG" = solid ] && v=solid
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icon Background"; CP[$w][$n]["key"]=iconbg
+	cp_choice "$w" "$n" "$v" cp_set_iconbg "${CP_ICONBGV[@]}"
+	CP[$w][$n]["vname"]=cp_iconbgname; n=$((n + 1))
 	# The rubber band a drag across empty space draws (Gitea #383).
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Rubber Band"
-	CP[$w][$n]["val"] := cp_bandlabel
-	CP[$w][$n]["key"]=band; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Rubber Band"; CP[$w][$n]["key"]=band
+	cp_choice "$w" "$n" "${DT_BAND:-frame}" cp_set_band "${CP_BANDV[@]}"
+	CP[$w][$n]["vname"]=cp_bandname; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Band Intensity"
 	CP[$w][$n]["after"]="(${DT_BANDPCT:-30}%)"
 	CP[$w][$n]["wtype"]=slider
@@ -115,20 +91,29 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_WSN; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=9
 	CP[$w][$n]["key"]=wsn; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cycle Windows On"
-	CP[$w][$n]["val"]="$DT_CYCLE"; CP[$w][$n]["key"]=cycle
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cycle Windows On"; CP[$w][$n]["key"]=cycle
+	cp_choice "$w" "$n" "$DT_CYCLE" cp_set_cycle "${DK_CYCLES[@]}"
 	n=$((n + 1))
 	# Cycle opens the window list and steps through it (Gitea #391).
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Switcher"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "${DT_SWITCHER:-1}" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_SWITCHER; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Switcher Pause"
-	CP[$w][$n]["val"] := dk_swlabel
-	CP[$w][$n]["key"]=swms; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Not in the Switcher"
-	CP[$w][$n]["val"] := dk_skiplabel
-	CP[$w][$n]["key"]=swskip; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Switcher Pause"; CP[$w][$n]["key"]=swms
+	cp_choice "$w" "$n" "${DT_SWMS:-700}" cp_set_swms "${DK_SWV[@]}"
+	CP[$w][$n]["vname"]=dk_swname; n=$((n + 1))
+	# Every app, each on the list or off it: choosing one switches it,
+	# and the arrows leave it alone.
+	apps=()
+	for a in "${!DT_APPS[@]}"; do
+		[ -n "${DT_APPS[$a]["title"]}" ] && apps+=("$a")
+	done
+	read -ra skip <<< "$DT_SWSKIP"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Not in the Switcher"; CP[$w][$n]["key"]=swskip
+	cp_choice "$w" "$n" "$DT_SWSKIP" cp_set_skip "${apps[@]}"
+	CP[$w][$n]["vname"]=dk_skipname
+	CP[$w][$n]["ons"] := cp_join "${skip[@]}"
+	CP[$w][$n]["menu"]=1; n=$((n + 1))
 	# The number with what it counts, the same as Frames For Output's own
 	# `(70ms)` on the next row. `Redraw Skip (1)` cannot be read: 1 could
 	# be a count of frames skipped or a mode, and that is not a small
@@ -161,11 +146,14 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["val"]=${DT_LIVEMS:-0}; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
 	CP[$w][$n]["key"]=livems; n=$((n + 1))
 	[ "${d#"$HOME"/}" != "$d" ] && d="~/${d#"$HOME"/}"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screenshot Format"
-	CP[$w][$n]["val"]="$DT_SHOTFMT"; CP[$w][$n]["key"]=shotfmt
+	# Screenshots' own two lists, offered where Screenshots is loaded.
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screenshot Format"; CP[$w][$n]["key"]=shotfmt
+	CP[$w][$n]["val"]=$DT_SHOTFMT
+	dt_has cp_set_shotfmt && cp_choice "$w" "$n" "$DT_SHOTFMT" cp_set_shotfmt "${SH_FMTS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screenshot Starts On"
-	CP[$w][$n]["val"]="$DT_SHOTLAST"; CP[$w][$n]["key"]=shotlast
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screenshot Starts On"; CP[$w][$n]["key"]=shotlast
+	CP[$w][$n]["val"]=$DT_SHOTLAST
+	dt_has cp_set_shotlast && cp_choice "$w" "$n" "$DT_SHOTLAST" cp_set_shotlast "${SH_STARTS[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Screenshots In: $d"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=shotdir
@@ -185,32 +173,7 @@ fn desktop_do(int w, k, int dir) {
 		command -v dt_deskscan > /dev/null && dt_deskscan
 		;;
 	wsn) dt_wsset $((DT_WSN + dir)) ;;
-	iconbg)
-		v := cp_iconbglabel
-		v := cp_next "$v" "$dir" "${CP_ICONBGL[@]}"
-		cp_set_iconbg "" "$v"
-		return 0
-		;;
-	cycle) v := cp_next "$DT_CYCLE" "$dir" "${DK_CYCLES[@]}"
-		DT_CYCLE=$v ;;
-	swms)
-		v := dk_swlabel
-		v := cp_next "$v" "$dir" "${DK_SWL[@]}"
-		cp_set_swms "" "$v"
-		return 0
-		;;
-	swskip) return 0 ;;
-	band)
-		v := cp_bandlabel
-		v := cp_next "$v" "$dir" "${CP_BANDL[@]}"
-		cp_set_band "" "$v"
-		return 0
-		;;
 	bandpct) cp_bandpct $((${DT_BANDPCT:-30} + dir * 10)) ;;
-	shotfmt) v := cp_next "$DT_SHOTFMT" "$dir" "${SH_FMTS[@]}"
-		DT_SHOTFMT=$v ;;
-	shotlast) v := cp_next "$DT_SHOTLAST" "$dir" "${SH_STARTS[@]}"
-		DT_SHOTLAST=$v ;;
 	shotdir) dt_has shd_dialog && shd_dialog ;;
 	shotopen)
 		[ -d "$DT_SHOTDIR" ] || mkdir -p "$DT_SHOTDIR" 2> /dev/null
@@ -242,25 +205,17 @@ fn desktop_do(int w, k, int dir) {
 CP_BANDV=(frame dashed solid translucent)
 CP_BANDL=("Single Frame" "Dashed" "Solid" "Translucent")
 
-fn cp_bandlabel() {
+fn cp_bandname(v) {
 	local i=0
 
 	while [ "$i" -lt "${#CP_BANDV[@]}" ]; do
-		[ "${CP_BANDV[$i]}" = "${DT_BAND:-frame}" ] && ret "${CP_BANDL[$i]}" && return 0
+		[ "${CP_BANDV[$i]}" = "$v" ] && { ret "${CP_BANDL[$i]}"; return 0; }
 		i=$((i + 1))
 	done
 	ret "${CP_BANDL[0]}"
 }
 
-fn cp_set_band(int? id = "", value = "") {
-	local i=0
-
-	while [ "$i" -lt "${#CP_BANDL[@]}" ]; do
-		[ "${CP_BANDL[$i]}" = "$value" ] && DT_BAND=${CP_BANDV[$i]}
-		i=$((i + 1))
-	done
-	cp_save
-}
+fn cp_set_band(int? id = "", value = "") { DT_BAND=$value; cp_save; }
 
 fn cp_bandpct(int v) {
 	[ "$v" -lt 0 ] && v=0
@@ -283,34 +238,17 @@ fn desktop_slide(int w, k, int value) {
 # Icon Background's choices, as the row shows them and as DT_ICONBG keeps
 # them (Gitea #349).
 CP_ICONBGV=(transparent solid)
-CP_ICONBGL=("Transparent" "Solid")
 
-fn cp_iconbglabel() {
-	[ "$DT_ICONBG" = solid ] && ret "Solid" && return 0
+
+fn cp_iconbgname(v) {
+	[ "$v" = solid ] && { ret "Solid"; return 0; }
 	ret "Transparent"
 }
 
 fn cp_set_iconbg(int? id = "", value = "") {
-	local i=0
-
-	while [ "$i" -lt "${#CP_ICONBGL[@]}" ]; do
-		[ "${CP_ICONBGL[$i]}" = "$value" ] && DT_ICONBG=${CP_ICONBGV[$i]}
-		i=$((i + 1))
-	done
+	DT_ICONBG=transparent
+	[ "$value" = solid ] && DT_ICONBG=solid
 	DT_FORCEONCE=1
 	cp_save
 }
 
-fn desktop_drop(int w, int r, int c, k) {
-	case $k in
-	cycle) dt_droplist "$w" "$r" "$c" cp_set_cycle "${DK_CYCLES[@]}" ;;
-	swms) dt_droplist "$w" "$r" "$c" cp_set_swms "${DK_SWL[@]}" ;;
-	swskip) dk_skipdrop "$w" "$r" "$c" ;;
-	iconbg) dt_droplist "$w" "$r" "$c" cp_set_iconbg "${CP_ICONBGL[@]}" ;;
-	band) dt_droplist "$w" "$r" "$c" cp_set_band "${CP_BANDL[@]}" ;;
-	shotfmt) dt_has cp_set_shotfmt &&
-		dt_droplist "$w" "$r" "$c" cp_set_shotfmt "${SH_FMTS[@]}" ;;
-	shotlast) dt_has cp_set_shotlast &&
-		dt_droplist "$w" "$r" "$c" cp_set_shotlast "${SH_STARTS[@]}" ;;
-	esac
-}

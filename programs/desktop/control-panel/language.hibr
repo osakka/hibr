@@ -12,7 +12,7 @@
 strict
 
 
-app language "The system's language and region, and how the desktop shows them" 1.0.5
+app language "The system's language and region, and how the desktop shows them" 1.0.6
 command -v cp_pane > /dev/null && cp_pane language "Language & Region" "A"
 # The pane's own dialog, named so the application menu reads "Add a
 # Language" rather than its prefix.
@@ -20,20 +20,21 @@ command -v dt_app > /dev/null && dt_app locadd "Add a Language" 16 56 "" "" fixe
 
 declare -ga CP_BIDIS CP_LOCN
 CP_MIRRORS=(auto on off)
-CP_DIGITS=(Western Arabic-Indic)
+CP_DIGITS=(western arabic)
 # The formats a region sets.
 CP_LOCCATS=(LC_TIME LC_NUMERIC LC_MONETARY LC_MEASUREMENT LC_PAPER)
 
 # Ordering right-to-left text: who does it (ADR 0031). Automatic asks the
 # terminal and says in brackets what it settled on, since the wrong one
 # makes Arabic read left to right rather than fail outright.
-CP_BIDIS=("Automatic" "hibr" "The Terminal")
+CP_BIDIS=(auto on off)
 
-# What the ordering setting shows, with what automatic settled on.
-cp_bidiname() {
+# Who orders right-to-left text, in words, automatic saying what it
+# settled on.
+fn cp_bidiname(v) {
 	local on
 
-	case $DT_BIDI in
+	case $v in
 	on) ret "hibr" ;;
 	off) ret "The Terminal" ;;
 	esac
@@ -45,8 +46,7 @@ cp_bidiname() {
 # Choose who orders right-to-left text.
 fn cp_set_bidi(int? id = "", value = "") {
 	case $value in
-	hibr) DT_BIDI=on ;;
-	"The Terminal") DT_BIDI=off ;;
+	on | off) DT_BIDI=$value ;;
 	*) DT_BIDI=auto ;;
 	esac
 	dt_langapply
@@ -63,8 +63,12 @@ fn cp_set_mirror(int? id = "", value = "") {
 # Western or Arabic-Indic digits.
 fn cp_set_digits(int? id = "", value = "") {
 	DT_DIGITS=western
-	[ "$value" = Arabic-Indic ] && DT_DIGITS=arabic
+	[ "$value" = arabic ] && DT_DIGITS=arabic
 	cp_save
+}
+fn cp_digitsname(v) {
+	[ "$v" = arabic ] && { ret Arabic-Indic; return 0; }
+	ret Western
 }
 
 # Every locale this system has, by name, into CP_LOCN.
@@ -126,11 +130,8 @@ fn cp_locfmt(cat, value) {
 	fi
 	dt_locset "$cat=$l"
 }
-fn cp_set_loc_LC_TIME(int? id = "", value = "") { cp_locfmt LC_TIME "$value"; }
-fn cp_set_loc_LC_NUMERIC(int? id = "", value = "") { cp_locfmt LC_NUMERIC "$value"; }
-fn cp_set_loc_LC_MONETARY(int? id = "", value = "") { cp_locfmt LC_MONETARY "$value"; }
-fn cp_set_loc_LC_MEASUREMENT(int? id = "", value = "") { cp_locfmt LC_MEASUREMENT "$value"; }
-fn cp_set_loc_LC_PAPER(int? id = "", value = "") { cp_locfmt LC_PAPER "$value"; }
+# One format's row, the row naming the format.
+fn cp_set_locfmt(int? id = "", value = "", cat = "") { [ -n "$cat" ] && cp_locfmt "$cat" "$value"; return 0; }
 
 fn language_rows(int w) {
 	local n=0 nm c v r
@@ -140,13 +141,16 @@ fn language_rows(int w) {
 		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="LC_ALL Overrides These"
 		CP[$w][$n]["val"]=$LC_ALL; n=$((n + 1))
 	fi
+	# A locale is chosen by its name, the way the list shows it, since
+	# one locale has several spellings and its name has one.
+	cp_locnames
 	nm := dt_locname "${DT_LOC["LANG"]:-${LANG-}}"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Language"
-	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=loclang; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Language"; CP[$w][$n]["key"]=loclang
+	cp_choice "$w" "$n" "$nm" cp_set_loclang "${CP_LOCN[@]}"; n=$((n + 1))
 	r := cp_locregion
 	nm := dt_locname "$r"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Region"
-	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=locregion; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Region"; CP[$w][$n]["key"]=locregion
+	cp_choice "$w" "$n" "$nm" cp_set_locregion "${CP_LOCN[@]}"; n=$((n + 1))
 	if [ "${DT_LOCINFO-}" = ok ] && [ "${#DT_LOCLIST[@]}" = 0 ]; then
 		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="No Other Languages Installed"
 		CP[$w][$n]["val"]=""; n=$((n + 1))
@@ -162,7 +166,9 @@ fn language_rows(int w) {
 	for c in "${CP_LOCCATS[@]}"; do
 		v=${DT_LOCEX["$c"]-}
 		[ -n "$v" ] || v := dt_locname "${DT_LOC["$c"]:-$r}"
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]="loc:$c"
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["key"]="loc:$c"
+		cp_choice "$w" "$n" "$v" cp_set_locfmt "Same as Region" "${CP_LOCN[@]}"
+		CP[$w][$n]["sarg"]=$c
 		case $c in
 		LC_TIME) CP[$w][$n]["text"]="Dates & Times" ;;
 		LC_NUMERIC) CP[$w][$n]["text"]="Numbers" ;;
@@ -173,15 +179,18 @@ fn language_rows(int w) {
 		n=$((n + 1))
 	done
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Right-to-Left"; n=$((n + 1))
-	nm := cp_bidiname
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Order Right-to-Left Text"
-	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=bidi; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mirror Layout"
-	CP[$w][$n]["val"]="$DT_MIRROR"; CP[$w][$n]["key"]=mirror; n=$((n + 1))
-	nm=Western
-	[ "$DT_DIGITS" = arabic ] && nm=Arabic-Indic
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Digits"
-	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=digits; n=$((n + 1))
+	v=auto
+	case $DT_BIDI in on | off) v=$DT_BIDI ;; esac
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Order Right-to-Left Text"; CP[$w][$n]["key"]=bidi
+	cp_choice "$w" "$n" "$v" cp_set_bidi "${CP_BIDIS[@]}"
+	CP[$w][$n]["vname"]=cp_bidiname; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mirror Layout"; CP[$w][$n]["key"]=mirror
+	cp_choice "$w" "$n" "$DT_MIRROR" cp_set_mirror "${CP_MIRRORS[@]}"; n=$((n + 1))
+	v=western
+	[ "$DT_DIGITS" = arabic ] && v=arabic
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Digits"; CP[$w][$n]["key"]=digits
+	cp_choice "$w" "$n" "$v" cp_set_digits "${CP_DIGITS[@]}"
+	CP[$w][$n]["vname"]=cp_digitsname; n=$((n + 1))
 	# Typing through an input method away from Blit (Gitea #543): the same
 	# choice the bar's item and Next Keyboard make, one variable for all
 	# three. On Blit the list is Blit's, chosen in its own Keyboard pane.
@@ -192,8 +201,9 @@ fn language_rows(int w) {
 	fi
 	if [ "${DT_KBLOC-}" = 1 ]; then
 		nm := cp_imename
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Input Method"
-		CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=imekb; n=$((n + 1))
+		cp_imenames
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Input Method"; CP[$w][$n]["key"]=imekb
+		cp_choice "$w" "$n" "$nm" cp_set_imekb "${CP_IMEN[@]}"; n=$((n + 1))
 	fi
 	ret "$n"
 }
@@ -237,84 +247,15 @@ fn cp_set_imekb(int? id = "", value = "") {
 }
 
 fn language_do(int? w = "", k = "", int? dir = "") {
-	local v nm r
-
 	case $k in
 	locadd)
 		locadd_dialog
-		return 0
-		;;
-	loclang | locregion | loc:*)
-		cp_locnames
-		[ "${#CP_LOCN[@]}" -gt 0 ] || {
-			dt_notep low "No other languages are installed on this computer"
-			return 0
-		}
-		case $k in
-		loclang) nm := dt_locname "${DT_LOC["LANG"]:-${LANG-}}" ;;
-		*) r := cp_locregion; nm := dt_locname "${DT_LOC["${k#loc:}"]:-$r}" ;;
-		esac
-		v := cp_next "$nm" "$dir" "${CP_LOCN[@]}"
-		case $k in
-		loclang) cp_set_loclang "" "$v" ;;
-		locregion) cp_set_locregion "" "$v" ;;
-		*) cp_locfmt "${k#loc:}" "$v" ;;
-		esac
-		return 0
-		;;
-	bidi)
-		nm := cp_bidiname
-		case $nm in Automatic*) nm=Automatic ;; esac
-		v := cp_next "$nm" "$dir" "${CP_BIDIS[@]}"
-		cp_set_bidi "" "$v"
-		return 0
-		;;
-	mirror)
-		v := cp_next "$DT_MIRROR" "$dir" "${CP_MIRRORS[@]}"
-		cp_set_mirror "" "$v"
-		return 0
-		;;
-	digits)
-		nm=Western
-		[ "$DT_DIGITS" = arabic ] && nm=Arabic-Indic
-		v := cp_next "$nm" "$dir" "${CP_DIGITS[@]}"
-		cp_set_digits "" "$v"
-		return 0
-		;;
-	imekb)
-		cp_imenames
-		nm := cp_imename
-		v := cp_next "$nm" "$dir" "${CP_IMEN[@]}"
-		cp_set_imekb "" "$v"
 		return 0
 		;;
 	esac
 	cp_save
 }
 
-fn language_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	loclang)
-		cp_locnames
-		dt_droplist "$w" "$r" "$c" cp_set_loclang "${CP_LOCN[@]}"
-		;;
-	locregion)
-		cp_locnames
-		dt_droplist "$w" "$r" "$c" cp_set_locregion "${CP_LOCN[@]}"
-		;;
-	loc:*)
-		cp_locnames
-		dt_droplist "$w" "$r" "$c" "cp_set_loc_${k#loc:}" "Same as Region" "${CP_LOCN[@]}"
-		;;
-	bidi) dt_droplist "$w" "$r" "$c" cp_set_bidi "${CP_BIDIS[@]}" ;;
-	mirror) dt_droplist "$w" "$r" "$c" cp_set_mirror "${CP_MIRRORS[@]}" ;;
-	digits) dt_droplist "$w" "$r" "$c" cp_set_digits "${CP_DIGITS[@]}" ;;
-	imekb)
-		cp_imenames
-		dt_droplist "$w" "$r" "$c" cp_set_imekb "${CP_IMEN[@]}"
-		;;
-	esac
-}
 
 # --- Add a Language: every locale the system can make and has not ---------
 

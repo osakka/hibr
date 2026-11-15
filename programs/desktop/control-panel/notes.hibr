@@ -18,8 +18,8 @@ fn notes_rows(int w) {
 	local n=0
 
 	[ "${#ST_COLORS[@]}" -gt 0 ] || { cp_absent "$w" Stickies; ret 1; }
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="New Notes Are"
-	CP[$w][$n]["val"]="$DT_STICKYCOLOR"; CP[$w][$n]["key"]=stickycolor
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="New Notes Are"; CP[$w][$n]["key"]=stickycolor
+	cp_choice "$w" "$n" "$DT_STICKYCOLOR" cp_set_stickycolor "${ST_COLORS[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Open Notes at Start"
 	CP[$w][$n]["wtype"]=bool
@@ -39,11 +39,8 @@ fn notes_rows(int w) {
 }
 
 fn notes_do(int? w = "", k = "", int? dir = "") {
-	local v
-
 	case $k in
-	stickycolor) v := cp_next "$DT_STICKYCOLOR" "$dir" "${ST_COLORS[@]}"
-		DT_STICKYCOLOR=$v ;;
+
 	DT_STICKYSTART) cp_toggle "$k" ;;
 	DT_STICKYALL) dt_needs stickies st_allws &&
 		st_allws $((1 - ${DT_STICKYALL:-0})) ;;
@@ -53,8 +50,3 @@ fn notes_do(int? w = "", k = "", int? dir = "") {
 	cp_save
 }
 
-fn notes_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	stickycolor) dt_droplist "$w" "$r" "$c" cp_set_stickycolor "${ST_COLORS[@]}" ;;
-	esac
-}

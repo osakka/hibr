@@ -10,7 +10,7 @@
 
 strict
 
-app bluetooth "The Control Panel pane for Bluetooth" 3.0
+app bluetooth "The Control Panel pane for Bluetooth" 3.0.1
 command -v cp_pane > /dev/null && cp_pane bluetooth "Bluetooth" "ᛒ" hardware
 
 BT_KINDS=(Auto BlueZ None)
@@ -53,10 +53,11 @@ fn bluetooth_rows(int w) {
 		ret 1
 	fi
 	local n=0 i v others=0
+	local -a paired
 
 	[ -n "${DT_BT["kind"]}" ] || dt_btstart
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bluetooth System"
-	CP[$w][$n]["val"]=${DT_BTKIND:-Auto}; CP[$w][$n]["key"]=kind
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bluetooth System"; CP[$w][$n]["key"]=kind
+	cp_choice "$w" "$n" "${DT_BTKIND:-Auto}" cp_set_btkind "${BT_KINDS[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Adapter"
 	if [ "${DT_BT["kind"]}" = bluez ]; then
@@ -106,9 +107,18 @@ fn bluetooth_rows(int w) {
 		fi
 		i=$((i + 1))
 	done
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Forget a Device"
-	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=forget
-	n=$((n + 1))
+	paired=()
+	i=0
+	while [ "$i" -lt "${#DT_BTM[@]}" ]; do
+		[ "${DT_BTP[$i]}" = 1 ] && paired+=("${DT_BTN[$i]}")
+		i=$((i + 1))
+	done
+	if [ "${#paired[@]}" -gt 0 ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Forget a Device"; CP[$w][$n]["key"]=forget
+		cp_choice "$w" "$n" "" cp_set_btforget "${paired[@]}"
+		CP[$w][$n]["menu"]=1
+		n=$((n + 1))
+	fi
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Other Devices"; n=$((n + 1))
 	i=0
 	while [ "$i" -lt "${#DT_BTM[@]}" ]; do
@@ -137,14 +147,8 @@ fn bluetooth_rows(int w) {
 
 fn bluetooth_do(int w, k, int dir) {
 	dt_has dt_bttick || return 0
-	local v
 
 	case $k in
-	kind)
-		v := cp_next "${DT_BTKIND:-Auto}" "$dir" "${BT_KINDS[@]}"
-		cp_set_btkind "" "$v"
-		return 0
-		;;
 	power) dt_btpower ;;
 	visible) dt_btvisible ;;
 	scan) dt_btscan ;;
@@ -154,18 +158,3 @@ fn bluetooth_do(int w, k, int dir) {
 	cp_save
 }
 
-fn bluetooth_drop(int w, int r, int c, k) {
-	local i=0
-	local -a names
-
-	case $k in
-	kind) dt_droplist "$w" "$r" "$c" cp_set_btkind "${BT_KINDS[@]}" ;;
-	forget)
-		while [ "$i" -lt "${#DT_BTM[@]}" ]; do
-			[ "${DT_BTP[$i]}" = 1 ] && names+=("${DT_BTN[$i]}")
-			i=$((i + 1))
-		done
-		[ "${#names[@]}" -gt 0 ] && dt_droplist "$w" "$r" "$c" cp_set_btforget "${names[@]}"
-		;;
-	esac
-}

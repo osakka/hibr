@@ -12,7 +12,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.17
+app appearance "The Control Panel pane for how the desktop looks" 2.17.1
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -481,35 +481,38 @@ cp_themedel() {
 # carries the window buttons.
 fn cp_set_treestyle(int? id = "", value = "") { DT_TREESTYLE=$value; cp_save; }
 fn cp_set_treelines(int? id = "", value = "") {
-	case $value in Off) DT_TREELINES=0 ;; *) DT_TREELINES=1 ;; esac
+	case $value in 0) DT_TREELINES=0 ;; *) DT_TREELINES=1 ;; esac
 	cp_save
 }
-CP_TREELINES=(On Off)
-fn cp_treelinename() {
-	case $DT_TREELINES in 0) ret "Off" ;; *) ret "On" ;; esac
+CP_TREELINES=(1 0)
+fn cp_treelinename(v) {
+	case $v in 0) ret "Off" ;; *) ret "On" ;; esac
 }
 
 fn appearance_rows(int w) {
 	local n=0 g b v
 
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Look"; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"
-	CP[$w][$n]["val"]="${CP_THEME:-(your own)}"; CP[$w][$n]["key"]=theme
+	# A look that is no theme's is "(your own)", which no theme is called,
+	# so none in the list is ticked.
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"; CP[$w][$n]["key"]=theme
+	cp_choice "$w" "$n" "${CP_THEME:-(your own)}" cp_set_theme "${CP_THEMES[@]}"
 	b := cp_themebtns
 	CP[$w][$n]["btns"]=$b
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
-	CP[$w][$n]["val"]="$CP_COLOURS"; CP[$w][$n]["key"]=colours; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Glyphs"
-	CP[$w][$n]["val"]="$DT_GLYPHSET"; CP[$w][$n]["key"]=glyphset
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"; CP[$w][$n]["key"]=colours
+	cp_choice "$w" "$n" "$CP_COLOURS" cp_set_colours "${CP_COLOURLIST[@]}"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Glyphs"; CP[$w][$n]["key"]=glyphset
+	cp_choice "$w" "$n" "$DT_GLYPHSET" cp_set_glyphset "${DT_GLYPHSETS[@]}"
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tree Style"
-	CP[$w][$n]["val"]="$DT_TREESTYLE"; CP[$w][$n]["key"]=treestyle
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tree Style"; CP[$w][$n]["key"]=treestyle
+	cp_choice "$w" "$n" "$DT_TREESTYLE" cp_set_treestyle "${DT_TREESTYLES[@]}"
 	n=$((n + 1))
-	local tl
-	tl := cp_treelinename
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tree Rules"
-	CP[$w][$n]["val"]=$tl; CP[$w][$n]["key"]=treelines
+	v=1
+	[ "$DT_TREELINES" = 0 ] && v=0
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tree Rules"; CP[$w][$n]["key"]=treelines
+	cp_choice "$w" "$n" "$v" cp_set_treelines "${CP_TREELINES[@]}"
+	CP[$w][$n]["vname"]=cp_treelinename
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Shadows"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Windows"
@@ -520,40 +523,46 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_MSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_MSHADOW; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shadow Shape"
-	CP[$w][$n]["val"] := cp_shadowlabel
-	CP[$w][$n]["key"]=shadowshape; n=$((n + 1))
+	v=half
+	case $DT_SHADOWSHAPE in cols | thin) v=$DT_SHADOWSHAPE ;; esac
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shadow Shape"; CP[$w][$n]["key"]=shadowshape
+	cp_choice "$w" "$n" "$v" cp_set_shadowshape "${CP_SHADOWV[@]}"
+	CP[$w][$n]["vname"]=cp_shadowname; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Controls"; n=$((n + 1))
 	# Blit's icons, wherever Blit's glyph set is what draws them.
 	if [ "$DT_GLYPHSET" = blit ]; then
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Menu Bar Icons"
-		CP[$w][$n]["val"]="$DT_BARICON"; CP[$w][$n]["key"]=baricon; n=$((n + 1))
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Desktop and Files Icons"
-		CP[$w][$n]["val"]="$DT_DESKICON"; CP[$w][$n]["key"]=deskicon; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Menu Bar Icons"; CP[$w][$n]["key"]=baricon
+		cp_choice "$w" "$n" "$DT_BARICON" cp_set_baricon "${DT_ICONPENS[@]}"; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Desktop and Files Icons"; CP[$w][$n]["key"]=deskicon
+		cp_choice "$w" "$n" "$DT_DESKICON" cp_set_deskicon "${DT_ICONPENS[@]}"; n=$((n + 1))
 	fi
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Checkboxes"
-	CP[$w][$n]["val"]="$DT_CHECKS"; CP[$w][$n]["key"]=checks; n=$((n + 1))
-	v := dt_chromename "$DT_DLGBTN"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Dialog Buttons"
-	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=dlgbtn; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Checkboxes"; CP[$w][$n]["key"]=checks
+	cp_choice "$w" "$n" "$DT_CHECKS" cp_set_checks "${CP_CHECKS[@]}"
+	CP[$w][$n]["dims"] := dt_chromeoff "${CP_CHECKS[@]}"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Dialog Buttons"; CP[$w][$n]["key"]=dlgbtn
+	cp_choice "$w" "$n" "$DT_DLGBTN" cp_set_dlgbtn "${DT_DLGBTNS[@]}"
+	CP[$w][$n]["dims"] := dt_chromeoff "${DT_DLGBTNS[@]}"
+	CP[$w][$n]["vname"]=dt_chromename; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Shadow"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BTNSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_BTNSHADOW; n=$((n + 1))
 	# Whether programs are told the desktop is light or dark (wm/appmode).
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Programs"; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Light or Dark"
-	CP[$w][$n]["val"] := cp_appmodelabel
-	CP[$w][$n]["key"]=appmode; n=$((n + 1))
+	v=follow
+	case $DT_APPMODE in light | dark) v=$DT_APPMODE ;; esac
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Light or Dark"; CP[$w][$n]["key"]=appmode
+	cp_choice "$w" "$n" "$v" cp_set_appmode "${CP_APPMODEV[@]}"
+	CP[$w][$n]["vname"]=cp_appmodename; n=$((n + 1))
 	ret "$n"
 }
 
 # Light or Dark's choices, as the row shows them and as DT_APPMODE keeps
 # them.
-CP_APPMODEL=("Follow the Desktop" "Light" "Dark")
+CP_APPMODEV=(follow light dark)
 
-fn cp_appmodelabel() {
-	case $DT_APPMODE in
+fn cp_appmodename(v) {
+	case $v in
 	light) ret "Light" ;;
 	dark) ret "Dark" ;;
 	*) ret "Follow the Desktop" ;;
@@ -562,8 +571,7 @@ fn cp_appmodelabel() {
 
 fn cp_set_appmode(int? id = "", value = "") {
 	case $value in
-	Light) DT_APPMODE=light ;;
-	Dark) DT_APPMODE=dark ;;
+	light | dark) DT_APPMODE=$value ;;
 	*) DT_APPMODE=follow ;;
 	esac
 	cp_save
@@ -586,95 +594,29 @@ fn appearance_key(int w, key) {
 }
 
 fn appearance_do(int w, k, int dir) {
-	local v fl
-	local -a fa
-
 	case $k in
-	theme) v := cp_next "$CP_THEME" "$dir" "${CP_THEMES[@]}"
-	       cp_theme "$v" ;;
-	colours) v := cp_next "$CP_COLOURS" "$dir" "${CP_COLOURLIST[@]}"
-	         cp_colours "$v" ;;
 	themesave) cp_themesave; return 0 ;;
 	themerename) cp_themerename; return 0 ;;
 	themedel) cp_themedelask; return 0 ;;
-	baricon) v := cp_next "$DT_BARICON" "$dir" "${DT_ICONPENS[@]}"; DT_BARICON=$v ;;
-	deskicon) v := cp_next "$DT_DESKICON" "$dir" "${DT_ICONPENS[@]}"; DT_DESKICON=$v; DT_FORCEONCE=1 ;;
-	checks) fl := dt_chromeavail "${CP_CHECKS[@]}"
-	        DT_POPDIMNEXT=()
-	        read -ra fa <<< "$fl"
-	        v := cp_next "$DT_CHECKS" "$dir" "${fa[@]}"
-	        DT_CHECKS=$v ;;
-	treestyle) v := cp_next "$DT_TREESTYLE" "$dir" "${DT_TREESTYLES[@]}"
-	           DT_TREESTYLE=$v ;;
-	treelines)
-		v := cp_treelinename
-		v := cp_next "$v" "$dir" "${CP_TREELINES[@]}"
-		cp_set_treelines "" "$v"
-		;;
-	glyphset) v := cp_next "$DT_GLYPHSET" "$dir" "${DT_GLYPHSETS[@]}"
-		cp_set_glyphset "" "$v"; return 0 ;;
-	dlgbtn) fl := dt_chromeavail "${DT_DLGBTNS[@]}"
-		read -ra fa <<< "$fl"
-		v := cp_next "$DT_DLGBTN" "$dir" "${fa[@]}"
-		DT_DLGBTN=$v ;;
 	DT_SHADOW | DT_MSHADOW | DT_BTNSHADOW) cp_toggle "$k" ;;
-	appmode)
-		v := cp_appmodelabel
-		v := cp_next "$v" "$dir" "${CP_APPMODEL[@]}"
-		cp_set_appmode "" "$v"
-		return 0
-		;;
-	shadowshape)
-		v := cp_shadowlabel
-		v := cp_next "$v" "$dir" "${CP_SHADOWL[@]}"
-		cp_set_shadowshape "" "$v"
-		return 0
-		;;
 	esac
 	cp_save
 }
 
-fn appearance_drop(int w, int r, int c, k) {
-	case $k in
-	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
-	colours) dt_droplist "$w" "$r" "$c" cp_set_colours "${CP_COLOURLIST[@]}" ;;
-	baricon) dt_droplist "$w" "$r" "$c" cp_set_baricon "${DT_ICONPENS[@]}" ;;
-	deskicon) dt_droplist "$w" "$r" "$c" cp_set_deskicon "${DT_ICONPENS[@]}" ;;
-	checks) dt_chromeavail "${CP_CHECKS[@]}"
-	        dt_droplist "$w" "$r" "$c" cp_set_checks "${CP_CHECKS[@]}" ;;
-	treestyle) dt_droplist "$w" "$r" "$c" cp_set_treestyle \
-		"${DT_TREESTYLES[@]}" ;;
-	treelines) dt_droplist "$w" "$r" "$c" cp_set_treelines \
-		"${CP_TREELINES[@]}" ;;
-	glyphset) dt_droplist "$w" "$r" "$c" cp_set_glyphset "${DT_GLYPHSETS[@]}" ;;
-	dlgbtn) dt_chromeavail "${DT_DLGBTNS[@]}"
-		DT_POPNAMENEXT=dt_chromename
-		dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
-	shadowshape) dt_droplist "$w" "$r" "$c" cp_set_shadowshape "${CP_SHADOWL[@]}" ;;
-	appmode) dt_droplist "$w" "$r" "$c" cp_set_appmode "${CP_APPMODEL[@]}" ;;
-	esac
-}
 
 fn cp_set_dlgbtn(int? id = "", value = "") { DT_DLGBTN=$value; cp_save; }
 
 # Shadow Shape's choices, as the row shows them and as DT_SHADOWSHAPE keeps
 # them (Gitea #340).
 CP_SHADOWV=("${DT_SHADOWSHAPES[@]}")
-CP_SHADOWL=("Half Block" "Two Columns" "Thin")
-
-fn cp_shadowlabel() {
-	[ "$DT_SHADOWSHAPE" = cols ] && ret "Two Columns" && return 0
-	[ "$DT_SHADOWSHAPE" = thin ] && ret "Thin" && return 0
+fn cp_shadowname(v) {
+	[ "$v" = cols ] && { ret "Two Columns"; return 0; }
+	[ "$v" = thin ] && { ret "Thin"; return 0; }
 	ret "Half Block"
 }
 
 fn cp_set_shadowshape(int? id = "", value = "") {
-	local i=0
-
-	while [ "$i" -lt "${#CP_SHADOWL[@]}" ]; do
-		[ "${CP_SHADOWL[$i]}" = "$value" ] && DT_SHADOWSHAPE=${CP_SHADOWV[$i]}
-		i=$((i + 1))
-	done
+	DT_SHADOWSHAPE=$value
 	DT_FORCEONCE=1
 	cp_save
 }

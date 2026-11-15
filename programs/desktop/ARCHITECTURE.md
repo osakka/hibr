@@ -204,9 +204,11 @@ drawing in the wrong place. The calls:
 | `_resume` | `id` -- after a restart, once the maps named by `dt_keepstate` are back |
 
 A Control Panel pane is called with its own set -- `_rows id` and
-`_do id key dir` for a pane of rows, `_draw id h w x` for one with a body
+`_do id key dir` for a pane of rows (a dropdown row's list is declared in
+the row with `cp_choice`, and the panel opens, steps and names it: there
+is no callback for it), `_draw id h w x` for one with a body
 of its own, `_key id key`, `_click id r c`, `_mouse id act btn r c`,
-`_drop id r c key`, `_wheel id dir`, `_slide id key value` and
+`_wheel id dir`, `_slide id key value` and
 `_order id group name...` -- and a Control Strip module with `_draw row col`
 and `_click row col`. `_slide` is a `wtype=slider` row being set where its
 track was clicked or dragged: the value is already in the row's own

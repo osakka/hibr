@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.13",
+ "version": "3.99.14",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1505,7 +1505,6 @@
   "Language & Region changed; programs started from now on use it": "تغيّرت اللغة والمنطقة؛ تستخدمها البرامج التي تبدأ من الآن",
   "Measurement": "القياس",
   "No Other Languages Installed": "لا لغات أخرى مثبّتة",
-  "No other languages are installed on this computer": "لا لغات أخرى مثبّتة على هذا الحاسوب",
   "Numbers": "الأرقام",
   "Paper": "الورق",
   "Region": "المنطقة",

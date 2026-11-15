@@ -725,22 +725,84 @@ def panefull(pane, extra=()):
     return [tuple(l.split("|", 3)) for l in out.splitlines() if l.count("|") >= 3]
 
 
-def dropkeys(pane):
-    """The row keys a pane's _drop opens a popup for, read from its source."""
-    src = ""
-    for f in sorted(os.listdir(CP)):
-        s = open(os.path.join(CP, f)).read()
-        if re.search(r"cp_pane %s " % pane, s):
-            src = s
-            break
-    m = re.search(r"^fn %s_drop\(.*?^}" % pane, src, re.M | re.S)
-    if not m:
-        return set()
-    keys = set()
-    for lab in re.findall(r"^\s*([A-Za-z_][A-Za-z0-9_ |]*)\)", m.group(0),
-                          re.M):
-        keys.update(k.strip() for k in lab.split("|"))
-    return keys
+def dropdecl(pane, extra=()):
+    """The dropdown rows a pane declares, from its own _rows: index, label,
+    key, value as it reads, and whether it is a list of things to do (menu)
+    rather than a value -- every set row that is not a checkbox or a
+    slider and has a list (Gitea #558)."""
+    src = "".join(". %s/%s.hibr\n" % (appdir(a), a) for a in extra)
+    out = subprocess.run(
+        [sx.HIBR, "-c", CPLOAD + src +
+         'n := %s_rows 1; i=0; while [ "$i" -lt "$n" ]; do '
+         'if cp_isdrop 1 "$i" %s; then v := cp_rowval 1 "$i"; '
+         'echo "$i|${CP[1][$i]["text"]}|${CP[1][$i]["key"]}|$v|${CP[1][$i]["menu"]-}"; fi; '
+         'i=$((i + 1)); done' % (pane, pane)], capture_output=True, text=True,
+        env=dict(os.environ, XDG_CONFIG_HOME=PANEHOME,
+                 HIBR_DAV_CONF=os.path.join(PANEHOME, "dav"))).stdout
+    return [tuple(l.split("|", 4)) for l in out.splitlines() if l.count("|") >= 4]
+
+
+# One list per dropdown row (Gitea #558): what a click opens, what the
+# arrows step through and what the row shows all come from the one list the
+# row declares, so a pane can no more have arrows with no list -- Tray
+# Icons in 0.99.532, which no check drove -- than a list with no arrows.
+# Asked of the panel's own path, per pane: the list a click hands to the
+# popup, and where one step each way lands. A program the setters might
+# reach is a stand-in that only says so.
+DROPSTUB = tempfile.mkdtemp(prefix="hibr-dropstub-")
+for prog in ("sudo", "pkexec", "systemctl", "timedatectl", "nmcli", "bluetoothctl",
+             "pactl", "wpctl", "brightnessctl", "loginctl", "amixer", "rfkill"):
+    open(os.path.join(DROPSTUB, prog), "w").write("#!/bin/sh\nexit 1\n")
+    os.chmod(os.path.join(DROPSTUB, prog), 0o755)
+DROPRUN = r"""cp_save() { :; }; dt_save() { :; }
+dt_droplist() { DR_OPEN=1; shift 4; DR_VALS=("$@"); }
+DR_SEP=$'\x1f'
+dr_rows() { unset CP[1]; DR_N := ${DR_P}_rows 1; PW[1]["n"]=$DR_N; }
+dr_find() { local i=0; DR_I=-1; while [ "$i" -lt "$DR_N" ]; do [ "${CP[1][$i]["key"]}" = "$1" ] && { DR_I=$i; return 0; }; i=$((i + 1)); done; }
+dr_cur() { DR_C=${CP[1][$DR_I]["val"]-}; [ -n "${CP[1][$DR_I]["ons"]-}" ] && DR_C=${CP[1][$DR_I]["ons"]%%$DR_SEP*}; return 0; }
+dr_rows
+for ((j = 0; j < DR_N; j++)); do
+	[ "${CP[1][$j]["kind"]}" = set ] || continue
+	case ${CP[1][$j]["wtype"]-} in bool | slider) continue ;; esac
+	k=${CP[1][$j]["key"]}
+	if [ -z "${CP[1][$j]["set"]-}" ]; then echo "nolist|$k"; continue; fi
+	cp_isdrop 1 "$j" "$DR_P" || continue
+	cp_rowchoices 1 "$j"
+	DR_OPEN=0; DR_VALS=()
+	cp_droprow 1 "$j" 0 0
+	ch=$(IFS=$DR_SEP; echo "${CP_CHV[*]}")
+	op=$(IFS=$DR_SEP; echo "${DR_VALS[*]}")
+	off=$(IFS=$DR_SEP; echo "${CP_CHD[*]}")
+	menu=${CP[1][$j]["menu"]-}
+	dr_find "$k"; dr_cur; before=$DR_C
+	after=; back=; want=; chose=
+	if [ -z "$menu" ]; then
+		DR_CAN=()
+		for v in "${CP_CHV[@]}"; do
+			case "$DR_SEP$off$DR_SEP" in *"$DR_SEP$v$DR_SEP"*) ;; *) DR_CAN+=("$v") ;; esac
+		done
+		want := cp_next "$before" 1 "${DR_CAN[@]}"
+		PW[1]["sel"]=$DR_I; cp_do 1 1; dr_rows; dr_find "$k"; dr_cur; after=$DR_C
+		PW[1]["sel"]=$DR_I; cp_do 1 -1; dr_rows; dr_find "$k"; dr_cur; back=$DR_C
+		CP_PICKKEY[1]=$k; cp_pick 1 "$want"; dr_rows; dr_find "$k"; dr_cur; chose=$DR_C
+	fi
+	echo "row|$k|$DR_OPEN|$ch|$op|$off|$menu|$before|$after|$back|$want|$chose"
+done
+"""
+
+
+def dropcheck(pane, extra=()):
+    """Each dropdown row of a pane, through the panel's own path."""
+    src = "".join(". %s/%s.hibr\n" % (appdir(a), a) for a in extra)
+    conf = tempfile.mkdtemp(prefix="hibr-dropconf-")
+    out = subprocess.run(
+        [sx.HIBR, "-c", CPLOAD + src + 'PW[1]["pane"]=%d; DR_P=%s\n' % (ORDER.index(pane), pane) + DROPRUN],
+        capture_output=True, text=True,
+        env=dict(os.environ, XDG_CONFIG_HOME=conf, XDG_STATE_HOME=conf, HOME=conf,
+                 HIBR_DAV_CONF=os.path.join(conf, "dav"), DBUS_SESSION_BUS_ADDRESS="",
+                 PATH=DROPSTUB + ":" + os.environ["PATH"])).stdout
+    shutil.rmtree(conf, True)
+    return [l.split("|") for l in out.splitlines() if l.startswith(("row|", "nolist|"))]
 
 
 # The Mail pane offers its Test, which is the row a person reaches for when
@@ -757,30 +819,68 @@ check("the Mail pane offers a connection test",
 # Language is not in this loop: choosing another language translates every
 # label the generic check then reads back, including the row's own name.
 # tests/desktop.py drives the bundled Arabic catalogue instead.
+def dropbad():
+    """Every dropdown row the panes declare that a click and the arrows do
+    not treat as one list, as (pane, key, what is wrong)."""
+    bad = []
+    for pane in ORDER:
+        for r in dropcheck(pane, PANE_APPS.get(pane, ())):
+            if r[0] == "nolist":
+                bad.append((pane, r[1], "declares no list"))
+                continue
+            k, opened, ch, op, off, menu, before, after, back, want, chose = r[1:]
+            offered = [v for v in (ch.split("\x1f") if ch else [])
+                       if v not in (off.split("\x1f") if off else [])]
+            if opened != "1" or op != ch:
+                bad.append((pane, k, "a click opens %r, the row declares %r" % (op, ch)))
+            elif not menu and offered:
+                # A step lands on the entry after the current one, and shows
+                # what choosing that entry from the list shows -- the same
+                # entry by the same setter, whichever way it was reached.
+                if want not in offered or after != chose:
+                    bad.append((pane, k, "from %r the arrows went to %r, a click on %r to %r"
+                                % (before, after, want, chose)))
+    return bad
+
+
 DROPS = []
+DROPBAD = dropbad()
+check("every Control Panel dropdown is one list: a click opens exactly it, the arrows walk exactly it",
+      DROPBAD == [], DROPBAD)
+# And nothing in this tree keeps a second one: a pane's own list for the
+# click (<pane>_drop) or for the arrows (cp_next) is how Tray Icons had one
+# and not the other.
+SECOND = [f for f in sorted(os.listdir(CP)) if f.endswith(".hibr") and
+          (re.search(r"^fn [a-z_]+_drop\(", open(os.path.join(CP, f)).read(), re.M)
+           or "cp_next" in open(os.path.join(CP, f)).read())]
+check("no pane keeps a list of its own for a click or for the arrows", SECOND == [], SECOND)
+# Language is not in the end-to-end loop below: choosing another language
+# translates every label the generic check then reads back, including the
+# row's own name. tests/desktop.py drives the bundled Arabic catalogue.
 for pane in ORDER:
     # Login Manager reads the machine's own /etc/hibr/login.json and asks
     # systemctl, so its values are this box's; its own checks drive it on
     # stand-ins.
     if pane in ("datetime", "language", "loginmgr"):
         continue
-    # Wallpaper's Display offers the displays attached and saved, and
-    # this session has neither, so it has one value and nothing to step
-    # to; its own checks give it a display to choose.
-    # Desktop's Not in the Switcher is a list, not a value: choosing adds
-    # an app or takes one off, so the old value stays in the new one, and
-    # its own check below reads that instead.
-    # Camera's Picture Size offers what an open camera offers, and no camera
-    # is open here.
-    keys = dropkeys(pane) - {"wdisp", "swskip"} - ({"size"} if pane == "camset" else set())
     extra = PANE_APPS.get(pane, ())
-    for i, (kind, text, key, val) in enumerate(panefull(pane, extra)):
+    for i, text, key, val, dmenu in dropdecl(pane, extra):
+        # A list of things to do, not a value -- Not in the Switcher,
+        # Forget a Device -- has its own checks.
+        if dmenu:
+            continue
+        # Wallpaper's Display offers the displays attached and saved, and
+        # this session has neither, so it has one value and nothing to step
+        # to; its own checks give it a display to choose.
+        # Camera's Picture Size offers what an open camera offers, and no
+        # camera is open here.
+        if key == "wdisp" or (pane == "camset" and key == "size"):
+            continue
         # Prayer Times' six minute rows are one widget six times: the
         # first stands for them all.
         if pane == "prayerset" and key[:3] == "adj" and key != "adj0":
             continue
-        if kind == "set" and key in keys:
-            DROPS.append((pane, extra, i, text, val))
+        DROPS.append((pane, extra, int(i), text, val))
 for pane, extra, i, text, val in DROPS:
     for step in (1, 2):
         # Tall enough for the longest pane: this drives every dropdown
@@ -794,6 +894,20 @@ for pane, extra, i, text, val in DROPS:
             break
     check("%s's %s dropdown chooses a new value" % (TITLE[pane], text),
           now != "" and val not in now, sc)
+# A list opens on the value in force, ticked as a menu ticks its choice:
+# enter the moment it opens keeps that value, and the tick is beside it
+# (Gitea #558). It used to open on its first row, unticked, whatever was set.
+plrow = [x for x in dropdecl("windows") if x[2] == "place"]
+if plrow:
+    pli, pltext, plkey, plval, plmenu = plrow[0]
+    sc = cprun([b"\x1b[B"] * downs("windows") + [press(R0 + int(pli), VALCOL), 0.3], geom=PWTALL)
+    pltick = (sc.find_from("✓ " + plval, R0 + int(pli) + 1)
+              or sc.find_from("✔ " + plval, R0 + int(pli) + 1))
+    plsc = cprun([b"\x1b[B"] * downs("windows") + [press(R0 + int(pli), VALCOL), 0.3, b"\r"], geom=PWTALL)
+    check("a dropdown opens on its value, ticked, and enter at once keeps it",
+          pltick is not None and plval in brow(plsc, pltext), (plval, sc, brow(plsc, pltext)))
+else:
+    check("a dropdown opens on its value, ticked, and enter at once keeps it", False, "no Placement row")
 # Title Bar Buttons: each button on or off, and the Title row between them
 # says which side. A press switches one, and shift and an arrow moves one,
 # and it is the settings file that says it took.
@@ -1549,9 +1663,11 @@ check("a search shows only the rows of a pane that hold it, under their "
       before is not None and sc.find("Look") is not None and
       sc.find("Theme") is None and sc.find("Tree Rules") is None and
       sc.find("Show all of Appearance") is not None, sc)
-sc = cprun(TS + [b"\r", 0.3, b"\r", 0.5])
+# Enter opens the row's own list, as a click does, on the value in force:
+# down and Enter again choose the next.
+sc = cprun(TS + [b"\r", 0.3, b"\r", 0.3, b"\x1b[B", b"\r", 0.5])
 after = cprow(sc, "Tree Style")
-check("and Enter on the row it shows changes that row's own setting",
+check("and Enter on the row it shows opens its list, and choosing from it changes that row's own setting",
       after is not None and after != before and
       sc.find("Theme") is None, sc)
 sc = cprun(TS + [b"\r", 0.3, b"\x1b[B", 0.3, b"\r", 0.5])
@@ -2394,7 +2510,7 @@ def adminaccess_checks():
         'echo "${CP[41][$i][kind]}|${CP[41][$i][text]}|${CP[41][$i][val]}"; done; }\n'
         'tick() { for i in 1 2 3 4 5 6 7 8 9 10; do dt_jobtick; [ "$AA_LOADED" = 1 ] && [ -z "$AA_CHECK$PK_JOB" ] && break; sleep 0.2; done; }\n'
         'aa_load; tick; rows; echo ==\n'
-        'AA_DROP=org.test.one; aa_choose 0 "Your Own, Remembered"; rows; echo ==\n'
+        'aa_choose 0 "Your Own, Remembered" org.test.one; rows; echo ==\n'
         'aa_group no_such_group_zz; adminaccess_do 41 apply; tick; echo "pend=${#AA_PEND[@]}"\n'
         % (tree("programs/desktop/desktop.hibr"), tree("programs/desktop/system/panel.hibr"),
            CP, os.path.join(FAKEPK, "set")))
@@ -2456,7 +2572,9 @@ def loginmgr_checks():
         'lmwait() { for i in $(seq 50); do dt_jobtick; [ "$LM_LOADED" = 1 ] && break; sleep 0.1; done; }\n'
         'rows > /dev/null; lmwait\n'
         'rows; echo ==\n'
-        'loginmgr_do 41 colours 1; loginmgr_do 41 power 1; loginmgr_do 41 tty 1\n'
+        'step() { local i n; n := loginmgr_rows 41; for ((i = 0; i < n; i++)); do '
+        '[ "${CP[41][$i][key]}" = "$1" ] && cp_rowstep 41 "$i" 1; done; return 0; }\n'
+        'step colours; loginmgr_do 41 power 1; step tty\n'
         'lm_typed title "The Lab"; lm_typed message "$(printf "x\\033y")" || echo refused\n'
         'rows; echo ==\n'
         'loginmgr_do 41 apply 1; tick; tick; tick; echo ==\n'
@@ -2480,7 +2598,7 @@ def loginmgr_checks():
           and "action|Apply Changes" not in before, out)
     check("a change waits, marked, until Apply Changes, and a message with a "
           "control character is refused",
-          "set|Colour Scheme|* amber" in chose and "set|Title|* The Lab" in chose
+          "set|Colour Scheme|* amber" in chose and "action|Title|* The Lab" in chose
           and "set|Runs On|* tty3" in chose and "action|Apply Changes" in chose
           and "refused" in chose, out)
     check("Apply Changes sets everything in one call under pkexec, its password asked "
@@ -6503,4 +6621,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(821)
+report(829)

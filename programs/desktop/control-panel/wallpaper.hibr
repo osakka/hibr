@@ -315,10 +315,8 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 
 	console pen "$DT_INK" "$DT_FACE"
 	t := wp_cur mode
-	t="Mode: ${t^} ${GL[sdown]}"
-	t := str pad "$t" "$prevw"
-	console put -p "w$id" "$moderow" "$prevx" "$t"
-	dt_wreg "$id" "$moderow" "$prevx" "$prevw" mode
+	console put -p "w$id" "$moderow" "$prevx" "Mode: "
+	dt_wdrop "$id" "$moderow" $((prevx + 6)) $((prevw - 6)) "${t^}" mode
 	dt_dlgbtns "$id" "$wh" "$w" "${WPK[$id]["focus"]}" ok Apply cancel Close
 }
 
@@ -349,12 +347,7 @@ fn wallpick_key(int id, key) {
 	up) sel=$((sel - 1)) ;;
 	down) sel=$((sel + 1)) ;;
 	m)
-		local i cm
-		cm := wp_cur mode
-		for i in "${!WP_MODES[@]}"; do
-			[ "${WP_MODES[$i]}" = "$cm" ] && break
-		done
-		wp_setmode "$id" "${WP_MODES[$(((i + 1) % ${#WP_MODES[@]}))]}"
+		wp_modelist "$id"
 		return 0
 		;;
 	backspace)
@@ -403,6 +396,20 @@ fn wallpick_wheel(int id, dir, r = "", c = "") {
 # Called by dt_droplist's own popup with (id, value) -- id is unused, the
 # same "cb id value" shape every dropdown here uses, since the value alone
 # is enough to set a desktop-wide mode.
+# A mode in words, as the field shows it.
+fn wp_modename(v) { ret "${v^}"; }
+
+# The mode's list, under its field, from a click on it or the m key.
+fn wp_modelist(int id) {
+	local at r c
+
+	at := dt_wwhere "$id" mode || return 0
+	read -r r c <<< "$at"
+	DT_POPCURNEXT := wp_cur mode
+	DT_POPNAMENEXT=wp_modename
+	dt_droplist "$id" "$r" "$c" wp_setmode "${WP_MODES[@]}"
+}
+
 fn wp_setmode(int? id = "", value = "") {
 	wp_put mode "$value"
 	command -v dt_save > /dev/null && dt_save
@@ -431,7 +438,7 @@ fn wallpick_click(int id, int r, int c, btn = "") {
 	ok) wp_apply "$id"; return 0 ;;
 	cancel) dt_del "$id"; return 0 ;;
 	mode)
-		dt_droplist "$id" "$r" "$c" wp_setmode "${WP_MODES[@]}"
+		wp_modelist "$id"
 		return 0
 		;;
 	esac

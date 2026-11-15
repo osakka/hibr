@@ -15,23 +15,8 @@ fn cp_set_about(int? id = "", int? value = "") { AB_SLOWMS=$value; cp_save; }
 
 fn abouthibr_rows(int w) {
 	[ -n "$AB_SLOWMS" ] || { cp_absent "$w" "About This Computer"; ret 1; }
-	CP[$w][0]["kind"]=set; CP[$w][0]["text"]="Refresh"
-	CP[$w][0]["val"]="$AB_SLOWMS ms"; CP[$w][0]["key"]=about
+	CP[$w][0]["kind"]=set; CP[$w][0]["text"]="Refresh"; CP[$w][0]["key"]=about
+	cp_choice "$w" 0 "$AB_SLOWMS" cp_set_about "${CP_ABTICKS[@]}"
+	CP[$w][0]["vname"]=cp_ms
 	ret 1
-}
-
-fn abouthibr_do(int w, k, int dir) {
-	local v
-
-	case $k in
-	about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
-	       AB_SLOWMS=$v ;;
-	esac
-	cp_save
-}
-
-fn abouthibr_drop(int w, int r, int c, k) {
-	case $k in
-	about) dt_droplist "$w" "$r" "$c" cp_set_about "${CP_ABTICKS[@]}" ;;
-	esac
 }

@@ -11,7 +11,7 @@
 
 strict
 
-app sound "The Control Panel pane for the machine's sound" 3.0
+app sound "The Control Panel pane for the machine's sound" 3.0.1
 command -v cp_pane > /dev/null && cp_pane sound "Sound" "♪" hardware
 
 SN_KINDS=(Auto PulseAudio PipeWire ALSA None)
@@ -50,8 +50,8 @@ fn sound_rows(int w) {
 	local n=0 d v
 
 	[ -n "${DT_SND["kind"]}" ] || dt_sndstart
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sound System"
-	CP[$w][$n]["val"]=${DT_SNDKIND:-Auto}; CP[$w][$n]["key"]=kind
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sound System"; CP[$w][$n]["key"]=kind
+	cp_choice "$w" "$n" "${DT_SNDKIND:-Auto}" cp_set_sndkind "${SN_KINDS[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Sound Server"
 	case ${DT_SND["kind"]} in
@@ -71,8 +71,8 @@ fn sound_rows(int w) {
 	esac
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Output"; n=$((n + 1))
 	d := dt_snddesc out "${DT_SND["out"]}"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Device"
-	CP[$w][$n]["val"]=$d; CP[$w][$n]["key"]=out; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Device"; CP[$w][$n]["key"]=out
+	cp_choice "$w" "$n" "$d" cp_set_sndout "${DT_SNDOD[@]}"; n=$((n + 1))
 	v=${DT_SND["vol"]:-0}
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Volume ($v%)"
 	CP[$w][$n]["wtype"]=slider
@@ -84,8 +84,8 @@ fn sound_rows(int w) {
 	CP[$w][$n]["key"]=mute; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Input"; n=$((n + 1))
 	d := dt_snddesc in "${DT_SND["in"]}"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Device"
-	CP[$w][$n]["val"]=$d; CP[$w][$n]["key"]=in; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Device"; CP[$w][$n]["key"]=in
+	cp_choice "$w" "$n" "$d" cp_set_sndin "${DT_SNDID[@]}"; n=$((n + 1))
 	v=${DT_SND["ivol"]:-0}
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Level ($v%)"
 	CP[$w][$n]["wtype"]=slider
@@ -114,14 +114,9 @@ fn sound_rows(int w) {
 
 fn sound_do(int w, k, int dir) {
 	dt_has dt_sndtick || return 0
-	local v i=0 cur
+	local v i=0
 
 	case $k in
-	kind)
-		v := cp_next "${DT_SNDKIND:-Auto}" "$dir" "${SN_KINDS[@]}"
-		cp_set_sndkind "" "$v"
-		return 0
-		;;
 	vol) dt_sndvol $((${DT_SND["vol"]:-0} + dir * ${DT_SNDSTEP:-5})) ;;
 	ivol) dt_sndivol $((${DT_SND["ivol"]:-0} + dir * ${DT_SNDSTEP:-5})) ;;
 	mute) dt_sndmute ;;
@@ -132,16 +127,6 @@ fn sound_do(int w, k, int dir) {
 		[ "$v" -lt 1 ] && v=1
 		[ "$v" -gt 20 ] && v=20
 		DT_SNDSTEP=$v
-		;;
-	out | in)
-		cur := dt_snddesc "$k" "${DT_SND["$k"]}"
-		if [ "$k" = out ]; then
-			v := cp_next "$cur" "$dir" "${DT_SNDOD[@]}"
-			cp_set_sndout "" "$v"
-		else
-			v := cp_next "$cur" "$dir" "${DT_SNDID[@]}"
-			cp_set_sndin "" "$v"
-		fi
 		;;
 	esac
 	cp_save
@@ -156,10 +141,3 @@ fn sound_slide(int w, k, int value) {
 	esac
 }
 
-fn sound_drop(int w, int r, int c, k) {
-	case $k in
-	kind) dt_droplist "$w" "$r" "$c" cp_set_sndkind "${SN_KINDS[@]}" ;;
-	out) dt_droplist "$w" "$r" "$c" cp_set_sndout "${DT_SNDOD[@]}" ;;
-	in) dt_droplist "$w" "$r" "$c" cp_set_sndin "${DT_SNDID[@]}" ;;
-	esac
-}

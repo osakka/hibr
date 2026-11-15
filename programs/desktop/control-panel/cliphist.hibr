@@ -28,8 +28,8 @@ fn cliphist_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_CLIPKEEP" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_CLIPKEEP; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="History Size"
-	CP[$w][$n]["val"]="$DT_CLIPMAX"; CP[$w][$n]["key"]=clipmax
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="History Size"; CP[$w][$n]["key"]=clipmax
+	cp_choice "$w" "$n" "$DT_CLIPMAX" cp_set_clipmax "${CH_SIZES[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Open Clipboard"
 	CP[$w][$n]["val"]="${#DT_CHORDER[@]} kept"; CP[$w][$n]["key"]=clipopen
@@ -41,22 +41,12 @@ fn cliphist_rows(int w) {
 }
 
 fn cliphist_do(int? w = "", k = "", int? dir = "") {
-	local v
-
 	case $k in
 	DT_CLIPKEEP) cp_toggle "$k"; dt_clipsave ;;
-	clipmax) v := cp_next "$DT_CLIPMAX" "$dir" "${CH_SIZES[@]}"
-		DT_CLIPMAX=$v
-		dt_cliptrim
-		dt_clipsave ;;
+
 	clipopen) dt_has clipboard_draw && dt_launch clipboard ;;
 	clipclear) dt_clipclear; dt_notep low "Clipboard history cleared, pins kept" ;;
 	esac
 	cp_save
 }
 
-fn cliphist_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	clipmax) dt_droplist "$w" "$r" "$c" cp_set_clipmax "${CH_SIZES[@]}" ;;
-	esac
-}

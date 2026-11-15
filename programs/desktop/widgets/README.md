@@ -7,9 +7,9 @@ file here, in no particular order, before any app is loaded.
 
 | file | what it offers |
 |---|---|
-| `hit.hibr` | `dt_wclear`, `dt_wreg`, `dt_hit`, `dt_wcol`: the regions widgets register as they draw (`dt_wreg` takes an optional height), and which one a point is in; `dt_hotreg`, `dt_hot` and `dt_hotpen` for a region that lights under the pointer, and `dt_tip` for its tooltip |
+| `hit.hibr` | `dt_wclear`, `dt_wreg`, `dt_hit`, `dt_wcol`, `dt_wwhere`: the regions widgets register as they draw (`dt_wreg` takes an optional height), and which one a point is in; `dt_hotreg`, `dt_hot` and `dt_hotpen` for a region that lights under the pointer, and `dt_tip` for its tooltip |
 | `check.hibr` | `dt_check`: an on/off choice and its label, as a box `[x]`, a knob, a block or a tick, by `DT_CHECKS` |
-| `dropdown.hibr` | `dt_wdrop`, `dt_droplist`, `dt_dropcontext`: a value with a `▾`, and the popup of choices under it |
+| `dropdown.hibr` | `dt_wdrop`, `dt_droplist`, `dt_dropat`, `dt_dropcontext`: a value with a `▾`, and the one popup of choices under it, opened on the value in force and ticking it |
 | `slider.hibr` | `dt_slider`: a track with a marker, changed with the arrows or by clicking and dragging on the track (`dt_slidepos`) |
 | `text.hibr` | `dt_textdraw`, `dt_textkey`, `dt_textpaste`, `dt_pastefold`: a one-line text field, one key applied to it, a paste into it, and how a paste's lines fold (a space, or `url` for an address field). A field typed through an input method (`wm/ime.hibr`, Gitea #543) shows what the method holds at its cursor, underlined; a password field passes `dt_textdraw` its ninth argument, `secret`, as 1, and is never given to one |
 | `omnibox.hibr` | `dt_omnidraw`, `dt_omnilist`, `dt_omnikey`, `dt_omnihit`, `dt_omniselect`, `dt_omnisig`, `dt_omnifree`: an address field with a list of suggestions under it, as a browser's has -- the field is `dt_textdraw`'s and its text the app's own; a callback the app names answers the rows for what is typed, up and down move through them, escape puts back what was typed, a press takes a row, and the top row completes the field, selected. It keeps the list under the window id, freed by `dt_omnifree` |

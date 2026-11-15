@@ -17,24 +17,24 @@
 strict
 
 
-app pictures "The Control Panel pane for how a picture is drawn" 1.5
+app pictures "The Control Panel pane for how a picture is drawn" 1.5.1
 command -v cp_pane > /dev/null && cp_pane pictures "Pictures" "▦"
 
-CP_IMGMODES=("Automatic" "Half Blocks" "Grey Blocks" "Characters" "Pixels")
+CP_IMGMODES=(auto half mono ascii pixels)
 # Three states, because the two kinds of picture want opposite answers: a
 # wallpaper sits behind text and is re-sent to every client that attaches,
 # where a film's frame and a page are the thing being looked at. Automatic
 # is each kind's own answer; the other two are one rule for everything, for
 # a link that cannot carry full frames (Gitea #228).
-CP_IMGDETAILS=("Automatic" "Full" "Half")
+CP_IMGDETAILS=(auto full half)
 # A film's frames on their own (0.99.403): Full by default, the owner's
 # choice, since a film is what is being looked at; Half is a quarter of the
 # bytes a frame, for a link that cannot carry it.
-CP_FILMDETAILS=("Full" "Half")
-CP_IMGCOMPS=("Zlib" "PNG" "Off")
-CP_IMGEDITS=("Automatic" "Off")
+CP_FILMDETAILS=(full half)
+CP_IMGCOMPS=(zlib png off)
+CP_IMGEDITS=(auto off)
 # Colours: how many every display is sent (Gitea #353).
-CP_DEPTHS=("Automatic" "24-bit" "256" "16")
+CP_DEPTHS=(auto 24 256 16)
 
 # Repeated here because a pane is loaded without its own app under the panel
 # tests, and a strict file may not create a global it has not declared.
@@ -53,8 +53,7 @@ command -v dt_keep > /dev/null && dt_keep DT_COLOURS
 
 fn cp_set_imgdetail(int? id = "", value = "") {
 	case $value in
-	Full) DT_IMGDETAIL=full ;;
-	Half) DT_IMGDETAIL=half ;;
+	full | half) DT_IMGDETAIL=$value ;;
 	*) DT_IMGDETAIL=auto ;;
 	esac
 	command -v console > /dev/null && console imgdetail "$DT_IMGDETAIL"
@@ -63,7 +62,7 @@ fn cp_set_imgdetail(int? id = "", value = "") {
 
 fn cp_set_filmdetail(int? id = "", value = "") {
 	DT_FILMDETAIL=full
-	[ "$value" = Half ] && DT_FILMDETAIL=half
+	[ "$value" = half ] && DT_FILMDETAIL=half
 	command -v console > /dev/null && console filmdetail "$DT_FILMDETAIL"
 	cp_save
 }
@@ -79,6 +78,15 @@ fn cp_detailname(m) {
 	*) ret "Automatic (wallpaper half, the rest full)" ;;
 	esac
 }
+fn cp_filmname(m) {
+	[ "$m" = half ] && { ret "Half"; return 0; }
+	ret "Full"
+}
+# Automatic or off, in words.
+fn cp_autoname(m) {
+	[ "$m" = off ] && { ret "Off"; return 0; }
+	ret "Automatic"
+}
 
 # How a still picture's payload is compressed before it is sent (Gitea
 # #129). Zlib is the default and PNG is smaller again -- see the note in
@@ -86,8 +94,7 @@ fn cp_detailname(m) {
 # that takes f=24 and not f=100 draws nothing and cannot say so.
 fn cp_set_imgcomp(int? id = "", value = "") {
 	case $value in
-	PNG) DT_IMGCOMP=png ;;
-	Off) DT_IMGCOMP=off ;;
+	png | off) DT_IMGCOMP=$value ;;
 	*) DT_IMGCOMP=zlib ;;
 	esac
 	command -v console > /dev/null && console imgcomp "$DT_IMGCOMP"
@@ -99,7 +106,7 @@ fn cp_set_imgcomp(int? id = "", value = "") {
 # display says it can, Off for a whole picture every time it changes.
 fn cp_set_imgedits(int? id = "", value = "") {
 	case $value in
-	Off) DT_IMGEDITS=off ;;
+	off) DT_IMGEDITS=off ;;
 	*) DT_IMGEDITS=auto ;;
 	esac
 	if command -v console > /dev/null; then
@@ -124,7 +131,7 @@ fn cp_set_imgedits(int? id = "", value = "") {
 # terminal every time.
 fn cp_set_imgfd(int? id = "", value = "") {
 	case $value in
-	Off) DT_IMGFD=off ;;
+	off) DT_IMGFD=off ;;
 	*) DT_IMGFD=auto ;;
 	esac
 	if command -v console > /dev/null; then
@@ -145,9 +152,7 @@ fn cp_set_imgfd(int? id = "", value = "") {
 
 fn cp_set_depth(int? id = "", value = "") {
 	case $value in
-	24-bit) DT_COLOURS=24 ;;
-	256) DT_COLOURS=256 ;;
-	16) DT_COLOURS=16 ;;
+	24 | 256 | 16) DT_COLOURS=$value ;;
 	*) DT_COLOURS=auto ;;
 	esac
 	dt_has dt_colours && dt_colours
@@ -185,10 +190,7 @@ fn cp_imgname(m) {
 
 fn cp_set_imgmode(int? id = "", value = "") {
 	case $value in
-	"Half Blocks") DT_IMGMODE=half ;;
-	"Grey Blocks") DT_IMGMODE=mono ;;
-	Characters) DT_IMGMODE=ascii ;;
-	Pixels) DT_IMGMODE=pixels ;;
+	half | mono | ascii | pixels) DT_IMGMODE=$value ;;
 	*) DT_IMGMODE=auto ;;
 	esac
 	cp_save
@@ -197,9 +199,14 @@ fn cp_set_imgmode(int? id = "", value = "") {
 fn pictures_rows(int w) {
 	local n=0 v term g kind cw ch
 
-	v := cp_imgname "$DT_IMGMODE"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Draw Pictures As"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=mode; n=$((n + 1))
+	case $DT_IMGMODE in
+	half | mono | ascii | pixels) v=$DT_IMGMODE ;;
+	sixel) v=pixels ;;
+	*) v=auto ;;
+	esac
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Draw Pictures As"; CP[$w][$n]["key"]=mode
+	cp_choice "$w" "$n" "$v" cp_set_imgmode "${CP_IMGMODES[@]}"
+	CP[$w][$n]["vname"]=cp_imgname; n=$((n + 1))
 	g := dt_imggfx
 	read -r kind cw ch <<< "$g"
 	# In its own variable, not in v: it used to be worked out into v and
@@ -213,27 +220,36 @@ fn pictures_rows(int w) {
 	else
 		term := dt_tr "blocks only: it does not draw pixels"
 	fi
-	v := cp_detailname "$DT_IMGDETAIL"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture Detail"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgdetail; n=$((n + 1))
-	v=Full
-	[ "$DT_FILMDETAIL" = half ] && v=Half
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Film Detail"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=filmdetail; n=$((n + 1))
-	v := cp_compname "$DT_IMGCOMP"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Compress Pictures"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgcomp; n=$((n + 1))
-	v=Automatic
-	[ "$DT_IMGEDITS" = off ] && v=Off
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Partial Updates"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgedits; n=$((n + 1))
-	v=Automatic
-	[ "$DT_IMGFD" = off ] && v=Off
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frames to Blit"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgfd; n=$((n + 1))
-	v := cp_depthname "${DT_COLOURS:-auto}"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=depth; n=$((n + 1))
+	v=auto
+	case $DT_IMGDETAIL in full | half) v=$DT_IMGDETAIL ;; esac
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture Detail"; CP[$w][$n]["key"]=imgdetail
+	cp_choice "$w" "$n" "$v" cp_set_imgdetail "${CP_IMGDETAILS[@]}"
+	CP[$w][$n]["vname"]=cp_detailname; n=$((n + 1))
+	v=full
+	[ "$DT_FILMDETAIL" = half ] && v=half
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Film Detail"; CP[$w][$n]["key"]=filmdetail
+	cp_choice "$w" "$n" "$v" cp_set_filmdetail "${CP_FILMDETAILS[@]}"
+	CP[$w][$n]["vname"]=cp_filmname; n=$((n + 1))
+	v=zlib
+	case $DT_IMGCOMP in png | off) v=$DT_IMGCOMP ;; esac
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Compress Pictures"; CP[$w][$n]["key"]=imgcomp
+	cp_choice "$w" "$n" "$v" cp_set_imgcomp "${CP_IMGCOMPS[@]}"
+	CP[$w][$n]["vname"]=cp_compname; n=$((n + 1))
+	v=auto
+	[ "$DT_IMGEDITS" = off ] && v=off
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Partial Updates"; CP[$w][$n]["key"]=imgedits
+	cp_choice "$w" "$n" "$v" cp_set_imgedits "${CP_IMGEDITS[@]}"
+	CP[$w][$n]["vname"]=cp_autoname; n=$((n + 1))
+	v=auto
+	[ "$DT_IMGFD" = off ] && v=off
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frames to Blit"; CP[$w][$n]["key"]=imgfd
+	cp_choice "$w" "$n" "$v" cp_set_imgfd "${CP_IMGEDITS[@]}"
+	CP[$w][$n]["vname"]=cp_autoname; n=$((n + 1))
+	v=auto
+	case ${DT_COLOURS:-auto} in 24 | 256 | 16) v=$DT_COLOURS ;; esac
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"; CP[$w][$n]["key"]=depth
+	cp_choice "$w" "$n" "$v" cp_set_depth "${CP_DEPTHS[@]}"
+	CP[$w][$n]["vname"]=cp_depthname; n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="This Terminal"
 	CP[$w][$n]["val"]=$term; n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Automatic Means"
@@ -243,70 +259,5 @@ fn pictures_rows(int w) {
 	ret "$n"
 }
 
-fn pictures_do(int? w = "", k = "", int? dir = "") {
-	local v nm
 
-	case $k in
-	mode)
-		nm := cp_imgname "$DT_IMGMODE"
-		v := cp_next "$nm" "$dir" "${CP_IMGMODES[@]}"
-		cp_set_imgmode "" "$v"
-		;;
-	imgdetail)
-		case $DT_IMGDETAIL in
-		full) nm=Full ;;
-		half) nm=Half ;;
-		*) nm=Automatic ;;
-		esac
-		v := cp_next "$nm" "$dir" "${CP_IMGDETAILS[@]}"
-		cp_set_imgdetail "" "$v"
-		;;
-	filmdetail)
-		nm=Full
-		[ "$DT_FILMDETAIL" = half ] && nm=Half
-		v := cp_next "$nm" "$dir" "${CP_FILMDETAILS[@]}"
-		cp_set_filmdetail "" "$v"
-		;;
-	imgcomp)
-		nm := cp_compname "$DT_IMGCOMP"
-		v := cp_next "$nm" "$dir" "${CP_IMGCOMPS[@]}"
-		cp_set_imgcomp "" "$v"
-		;;
-	imgedits)
-		nm=Automatic
-		[ "$DT_IMGEDITS" = off ] && nm=Off
-		v := cp_next "$nm" "$dir" "${CP_IMGEDITS[@]}"
-		cp_set_imgedits "" "$v"
-		;;
-	imgfd)
-		nm=Automatic
-		[ "$DT_IMGFD" = off ] && nm=Off
-		v := cp_next "$nm" "$dir" "${CP_IMGEDITS[@]}"
-		cp_set_imgfd "" "$v"
-		;;
-	depth)
-		nm := cp_depthname "${DT_COLOURS:-auto}"
-		v := cp_next "$nm" "$dir" "${CP_DEPTHS[@]}"
-		cp_set_depth "" "$v"
-		;;
-	esac
-	return 0
-}
 
-fn pictures_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	mode) dt_droplist "$w" "$r" "$c" cp_set_imgmode "${CP_IMGMODES[@]}" ;;
-	imgdetail) dt_droplist "$w" "$r" "$c" cp_set_imgdetail \
-		"${CP_IMGDETAILS[@]}" ;;
-	filmdetail) dt_droplist "$w" "$r" "$c" cp_set_filmdetail \
-		"${CP_FILMDETAILS[@]}" ;;
-	imgcomp) dt_droplist "$w" "$r" "$c" cp_set_imgcomp \
-		"${CP_IMGCOMPS[@]}" ;;
-	imgedits) dt_droplist "$w" "$r" "$c" cp_set_imgedits \
-		"${CP_IMGEDITS[@]}" ;;
-	imgfd) dt_droplist "$w" "$r" "$c" cp_set_imgfd \
-		"${CP_IMGEDITS[@]}" ;;
-	depth) dt_droplist "$w" "$r" "$c" cp_set_depth \
-		"${CP_DEPTHS[@]}" ;;
-	esac
-}

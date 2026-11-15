@@ -45,7 +45,7 @@ SUITES = {
                      "the terminal window", "glyphs", "what a frame redraws"],
             "more": None,
         },
-        "plan": {"panel": 336, "reach": 75, "office": 37, "write": 39, "core": 144, "more": 195},
+        "plan": {"panel": 344, "reach": 75, "office": 37, "write": 39, "core": 144, "more": 195},
         "tail": "shutil.rmtree(D, True)\nshutil.rmtree(S, True)\n",
     },
     "desktop": {

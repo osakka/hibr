@@ -518,12 +518,11 @@ fn cs_press(int prow, int pcol) {
 }
 
 # Open a dropdown of choices for a strip module, below its own row if that
-# fits on the screen, above it otherwise -- the strip has no window to
-# translate a widget's own row/col through the way dt_droplist does for a
-# Control Panel pane, so it reaches dt_context_open's absolute coordinates
-# directly. Reuses the same widget/dt_dropcontext machinery, and the same
-# "" DT_POPID a window-less caller already gets away with there, since
-# dt_row drops an empty word rather than handing it to the callback.
+# fits on the screen, above it otherwise -- the strip has no window, so it
+# opens at the screen's own row and column through dt_dropat, the one
+# opener, with no window id: dt_row drops the empty word rather than
+# handing it to the callback. A module says what is chosen now with
+# DT_POPCURNEXT first, as any caller does.
 fn cs_dropopen(int r, int c, cb, ...rest) {
 	local n
 
@@ -535,8 +534,5 @@ fn cs_dropopen(int r, int c, cb, ...rest) {
 	else
 		r=$((r + 1))
 	fi
-	DT_POPID=
-	DT_POPCB=$cb
-	DT_POPVALS=("$@")
-	dt_context_open widget "" "$r" "$c"
+	dt_dropat "$r" "$c" "" "$cb" "$@"
 }

@@ -26,8 +26,7 @@ fn sheetset_label(v) {
 
 fn cp_set_sstrust(int? id = "", value = "") {
 	case $value in
-	"Ask When Opened") SS_NEWTRUST=ask ;;
-	"Full Access") SS_NEWTRUST=full ;;
+	ask | full) SS_NEWTRUST=$value ;;
 	*) SS_NEWTRUST=contained ;;
 	esac
 	cp_save
@@ -37,26 +36,11 @@ fn sheetset_rows(int w) {
 	local n=0 v
 
 	dt_has ss_load || { cp_absent "$w" Sheet; ret 1; }
-	v := sheetset_label "$SS_NEWTRUST"
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Formulas in a New Sheet"
-	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=sstrust
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Formulas in a New Sheet"; CP[$w][$n]["key"]=sstrust
+	cp_choice "$w" "$n" "${SS_NEWTRUST:-contained}" cp_set_sstrust "${SS_NEWTRUSTS[@]}"
+	CP[$w][$n]["vname"]=sheetset_label
 	n=$((n + 1))
 	ret "$n"
 }
 
-fn sheetset_do(int? w = "", k = "", int? dir = "") {
-	local v
 
-	case $k in
-	sstrust) v := cp_next "$SS_NEWTRUST" "$dir" "${SS_NEWTRUSTS[@]}"
-		SS_NEWTRUST=$v ;;
-	esac
-	cp_save
-}
-
-fn sheetset_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	sstrust) dt_droplist "$w" "$r" "$c" cp_set_sstrust "Contained" \
-		"Ask When Opened" "Full Access" ;;
-	esac
-}

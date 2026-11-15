@@ -2,7 +2,7 @@
 """A stand-in for a program's tray item (StatusNotifierItem) and its menu
 (com.canonical.dbusmenu), for tests/traymod.py and the desktop's tray.
 
-    trayitem.py LOG [--path] [--late MS] [--pixmap-only] [--title T]
+    trayitem.py LOG [--path] [--late MS] [--pixmap-only] [--title T] [--id ID]
     trayitem.py LOG --notify SUMMARY BODY
 
 With --notify it is a program sending a notification instead: Notify with
@@ -36,6 +36,7 @@ BYPATH = "--path" in ARGS
 PIXONLY = "--pixmap-only" in ARGS
 LATE = int(ARGS[ARGS.index("--late") + 1]) if "--late" in ARGS else 0
 TITLE = ARGS[ARGS.index("--title") + 1] if "--title" in ARGS else "Stand-in"
+ID = ARGS[ARGS.index("--id") + 1] if "--id" in ARGS else "standin"
 
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 bus = dbus.SessionBus()
@@ -55,7 +56,7 @@ def note(**kw):
 def props():
     p = {
         "Category": "ApplicationStatus",
-        "Id": "standin",
+        "Id": ID,
         "Title": state["title"],
         "Status": "Active",
         "ItemIsMenu": dbus.Boolean(False),

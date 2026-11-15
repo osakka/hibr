@@ -189,6 +189,23 @@ fn dt_hotmoved(int id) {
 	[ "${DT[$id]["hotdrawn"]-}" != "$now" ]
 }
 
+# Where a registered widget is, as "row col": for opening its list from the
+# keyboard where a click on it would, in a window that is not a pane of rows.
+# Status 1 for a tag nothing registered.
+fn dt_wwhere(int id, tag) {
+	local n i=0
+
+	n=${WG[$id]["n"]:-0}
+	while [ "$i" -lt "$n" ]; do
+		if [ "${WG[$id][$i]["tag"]}" = "$tag" ]; then
+			ret "${WG[$id][$i]["r"]} ${WG[$id][$i]["c"]}"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	return 1
+}
+
 # The column a registered widget's own region starts at, for opening
 # something (a dropdown's popup) aligned to the widget itself rather than
 # to wherever inside it happened to be clicked -- id and row the same as

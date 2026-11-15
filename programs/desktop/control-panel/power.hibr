@@ -11,7 +11,7 @@
 
 strict
 
-app power "The Control Panel pane for the battery and the computer's power" 3.2
+app power "The Control Panel pane for the battery and the computer's power" 3.2.1
 command -v cp_pane > /dev/null && cp_pane power "Power" "↯" hardware
 
 PW_LOWS=(off 5 10 15 20 25)
@@ -25,6 +25,11 @@ DT_PWCRITDO="${DT_PWCRITDO-nothing}"
 fn cp_set_pwlow(int? id = "", value = "") { DT_PWLOW=$value; cp_save; }
 fn cp_set_pwcrit(int? id = "", value = "") { DT_PWCRIT=$value; cp_save; }
 fn cp_set_pwcritdo(int? id = "", value = "") { DT_PWCRITDO=$value; cp_save; }
+# A battery level in words.
+fn cp_pwpct(v) {
+	[ "$v" = off ] && { ret off; return 0; }
+	ret "$v%"
+}
 
 fn power_rows(int w) {
 	local n=0 v
@@ -77,15 +82,14 @@ fn power_rows(int w) {
 		CP[$w][$n]["val"]=off; [ "${DT_PWLEVEL:-1}" = 1 ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=DT_PWLEVEL; n=$((n + 1))
 		CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Battery"; n=$((n + 1))
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Low Battery Note"
-		v=${DT_PWLOW:-10}
-		[ "$v" != off ] && v="$v%"
-		CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=low; n=$((n + 1))
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Critical Battery"
-		CP[$w][$n]["val"]="${DT_PWCRIT:-5}%"; CP[$w][$n]["key"]=crit
-		n=$((n + 1))
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="On Critical Battery"
-		CP[$w][$n]["val"]=${DT_PWCRITDO:-nothing}; CP[$w][$n]["key"]=critdo
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Low Battery Note"; CP[$w][$n]["key"]=low
+		cp_choice "$w" "$n" "${DT_PWLOW:-10}" cp_set_pwlow "${PW_LOWS[@]}"
+		CP[$w][$n]["vname"]=cp_pwpct; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Critical Battery"; CP[$w][$n]["key"]=crit
+		cp_choice "$w" "$n" "${DT_PWCRIT:-5}" cp_set_pwcrit "${PW_CRITS[@]}"
+		CP[$w][$n]["vname"]=cp_pwpct; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="On Critical Battery"; CP[$w][$n]["key"]=critdo
+		cp_choice "$w" "$n" "${DT_PWCRITDO:-nothing}" cp_set_pwcritdo "${PW_CRITDOS[@]}"
 		n=$((n + 1))
 	fi
 	n := cp_pwmachine "$w" "$n"
@@ -116,8 +120,6 @@ fn cp_pwmachine(int w, int n) {
 }
 
 fn power_do(int w, k, int dir) {
-	local v
-
 	case $k in
 	suspend | hibernate | reboot | poweroff)
 		dt_pwdo "$k"
@@ -127,18 +129,7 @@ fn power_do(int w, k, int dir) {
 	dt_has dt_pwtick || return 0
 	case $k in
 	DT_PWBAR | DT_PWLEVEL) cp_toggle "$k"; dt_pwbar ;;
-	low) v := cp_next "${DT_PWLOW:-10}" "$dir" "${PW_LOWS[@]}"; DT_PWLOW=$v ;;
-	crit) v := cp_next "${DT_PWCRIT:-5}" "$dir" "${PW_CRITS[@]}"; DT_PWCRIT=$v ;;
-	critdo) v := cp_next "${DT_PWCRITDO:-nothing}" "$dir" "${PW_CRITDOS[@]}"
-		DT_PWCRITDO=$v ;;
 	esac
 	cp_save
 }
 
-fn power_drop(int w, int r, int c, k) {
-	case $k in
-	low) dt_droplist "$w" "$r" "$c" cp_set_pwlow "${PW_LOWS[@]}" ;;
-	crit) dt_droplist "$w" "$r" "$c" cp_set_pwcrit "${PW_CRITS[@]}" ;;
-	critdo) dt_droplist "$w" "$r" "$c" cp_set_pwcritdo "${PW_CRITDOS[@]}" ;;
-	esac
-}

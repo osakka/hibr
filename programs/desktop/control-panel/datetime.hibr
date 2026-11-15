@@ -15,7 +15,7 @@
 strict
 
 
-app datetime "The Control Panel pane for the time, the date and the time zone" 1.8
+app datetime "The Control Panel pane for the time, the date and the time zone" 1.8.1
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷" hardware
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"
@@ -942,6 +942,7 @@ fn datetime_click(int id, int r, int c) {
 		done
 		vals+=("$DTP_CUSTOM")
 		wc := dt_wcol "$id" "$r" barfmt
+		DT_POPCURNEXT := dtp_fmtlabel
 		dt_droplist "$id" "$r" "$wc" dtp_pickfmt "${vals[@]}"
 		;;
 	zone) dtz_dialog ;;
@@ -949,14 +950,17 @@ fn datetime_click(int id, int r, int c) {
 	hcal)
 		cp_hcallist
 		wc := dt_wcol "$id" "$r" hcal
+		DT_POPCURNEXT := cp_hcalname
 		dt_droplist "$id" "$r" "$wc" cp_set_hcal "${CP_HCALNAMES[@]}"
 		;;
 	hadj)
 		wc := dt_wcol "$id" "$r" hadj
+		DT_POPCURNEXT := cp_dateval hadj
 		dt_droplist "$id" "$r" "$wc" cp_set_hadj "${CP_HADJS[@]}"
 		;;
 	week)
 		wc := dt_wcol "$id" "$r" week
+		DT_POPCURNEXT := cp_dateval week
 		dt_droplist "$id" "$r" "$wc" cp_set_week "${CP_WEEKS[@]}"
 		;;
 	esac

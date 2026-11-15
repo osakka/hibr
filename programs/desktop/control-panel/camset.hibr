@@ -44,8 +44,9 @@ fn camset_rows(int w) {
 	local n=0
 
 	dt_has camera_draw || { cp_absent "$w" Camera; ret 1; }
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture Size"
-	CP[$w][$n]["val"]="${CAM_SIZE:-Automatic}"; CP[$w][$n]["key"]=size
+	camset_list
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture Size"; CP[$w][$n]["key"]=size
+	cp_choice "$w" "$n" "${CAM_SIZE:-Automatic}" cp_set_camsize "${CAMS_LIST[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Record Sound"
 	CP[$w][$n]["wtype"]=bool
@@ -55,19 +56,8 @@ fn camset_rows(int w) {
 }
 
 fn camset_do(int? w = "", k = "", int? dir = "") {
-	local v
-
 	case $k in
-	size) camset_list
-		v := cp_next "${CAM_SIZE:-Automatic}" "$dir" "${CAMS_LIST[@]}"
-		cp_set_camsize "" "$v" ;;
 	CAM_SOUND) cp_toggle "$k"; cp_save ;;
 	esac
 }
 
-fn camset_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	size) camset_list
-		dt_droplist "$w" "$r" "$c" cp_set_camsize "${CAMS_LIST[@]}" ;;
-	esac
-}
