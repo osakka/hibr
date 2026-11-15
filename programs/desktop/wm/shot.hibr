@@ -167,7 +167,7 @@ fn dt_shot_pick(what) {
 	case $what in
 	screen) dt_shot_take 0 0 "$DT_ROWS" "$DT_COLS" ;;
 	window)
-		if [ -n "$id" ] && [ -n "${DT[$id]["title"]}" ] &&
+		if [ -n "$id" ] && dt_iswin "$id" &&
 		   ! dt_away "$id" && ! dt_hidden "$id"; then
 			dt_shot_take "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
 				"${DT[$id]["h"]}" "${DT[$id]["w"]}"

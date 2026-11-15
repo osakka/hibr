@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.99.533
+
+**A window that closes mid-drag is let go of, and nothing that is not a
+window is ever drawn as one** (Gitea #552, #553). The owner's desktop
+logged `dt_chrome: h expects int` twenty times a second for an hour and
+a half, through a restart: 31,000 lines. How it happened:
+- a program's window (Steam's, 392) closed while it was being dragged;
+- the drag still held its number, so every mouse report after that moved
+  a record that had gone, and with solid dragging that wrote the column
+  back into it;
+- `console pane` read the empty rest as 0 and made a pane, so the desktop
+  drew a window with no size every frame;
+- a restart saved the record and brought it back.
+
+The same blank record fed the `/ 2` errors when another program window
+opened centred on it. Blit's session found all of it from the log and
+the restart file, read-only.
+
+What changed:
+- **One question, one answer.** `dt_iswin` says whether an id is a
+  window: a record with a size. A title, an app and a row had each
+  answered it somewhere (thirteen places by title alone), and the copy
+  dialog, which has no title, failed half of them.
+- **One list of windows.** `dt_wins`; `dt_ids` and all seventeen loops
+  that walked every record now walk it. A record or pane with no window
+  behind it is taken away there, or where a frame would draw it, and
+  said once in the log.
+- **Closing lets go.** `dt_winforget` drops the drag, the outline, the
+  resize, an alt-press, the hover and the keyboard move held on a window
+  as it closes.
+- **The writers ask first.** Every function that places, sizes,
+  minimises, raises, retitles or closes a window refuses one that has
+  gone, and names the caller once in the log.
+- **A restart leaves out** a saved record with no size, so a ghost in a
+  snapshot from an earlier release goes on the first restart.
+- **`console pane` refuses** a place or size that is not a number, where
+  it read it as 0.
+
+Three checks in `tests/desktop.py` (a window closed mid-drag, dragged
+solid and outlined; a stray record and pane; a snapshot holding one)
+fail against 0.99.532, and `tests/640-console.t` records the refusal.
+
 ## 0.99.532
 
 **An entry can replace others, and `catalogue update` acts on it** (the

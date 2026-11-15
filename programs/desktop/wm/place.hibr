@@ -81,7 +81,8 @@ fn dt_place(int h, int w) {
 		dr=1
 		dc=2
 	fi
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		dt_hidden "$id" && continue
 		dt_away "$id" && continue
 		R[n]=${DT[$id]["row"]}

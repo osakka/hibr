@@ -370,7 +370,8 @@ fn dt_movedonly(...ids) {
 dt_idle() {
 	local id
 
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		[ -n "${DT[$id]["idle"]}" ] || continue
 		dt_away "$id" || dt_hidden "$id" || [ -n "${DT[$id]["shaded"]-}" ] || continue
 		DT_NOTEWIN=$id
@@ -403,7 +404,8 @@ fn dt_idlecall(int id) {
 dt_drain() {
 	local id
 
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		[ -n "${DT[$id]["idle"]}" ] || continue
 		DT_NOTEWIN=$id
 		dt_idlecall "$id"
@@ -595,6 +597,12 @@ fn dt_wintimed(...ids) {
 
 	for id in "${ids[@]}"; do
 		id=${id#w}
+		# A window's pane with no window behind it is taken away rather
+		# than drawn from an empty record every frame (Gitea #552).
+		if ! dt_iswin "$id"; then
+			dt_ghostgone "$id"
+			continue
+		fi
 		ap=${DT[$id]["app"]}
 		DT_WHO="win:${ap:-bare}"
 		DT_WHY=

@@ -17,7 +17,7 @@ strict
 fn dt_ctxkey(what) {
 	local id=$DT_FOCUS r c ap
 
-	if [ -z "$id" ] || [ -z "${DT[$id]["title"]-}" ]; then
+	if [ -z "$id" ] || ! dt_iswin "$id"; then
 		dt_context_open desktop "" $((${DT_PRIMARY_ROW:-0} + 2)) $((${DT_PRIMARY_COL:-0} + 2))
 		return 0
 	fi

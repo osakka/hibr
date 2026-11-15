@@ -27,6 +27,11 @@ console pane 2>/dev/null; echo "pane with no arguments rc=$?"
 
 # panes are bookkeeping and need no terminal
 console pane a 1 2 3 4; echo "pane defined rc=$?"
+# a place or size that is not a number is refused, and makes no pane (#552)
+console pane g "" 2 3 4 2>/dev/null; echo "empty row refused rc=$?"
+console pane g 1 2 x 4 2>/dev/null; echo "word for a height refused rc=$?"
+console pane g -2 0 3 4; echo "negative place taken rc=$?"
+console pane list
 console put -p nosuchpane 0 0 x 2>/dev/null; echo "unknown pane rc=$?"
 console pane clear; echo "panes cleared rc=$?"
 

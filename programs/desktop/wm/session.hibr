@@ -206,7 +206,8 @@ fn dt_shiftorigin(shift) {
 	dr=$((${shift%% *} - ${was%% *}))
 	dc=$((${shift##* } - ${was##* }))
 	[ "$dr" = 0 ] && [ "$dc" = 0 ] && return 0
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		r=${DT["$id"]["row"]}
 		c=${DT["$id"]["col"]}
 		[ -n "$r" ] && DT["$id"]["row"]=$((r + dr))

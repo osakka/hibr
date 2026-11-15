@@ -144,7 +144,7 @@ fn dt_fulltell(int id, how) {
 fn dt_fullscreen(int id, how) {
 	local x
 
-	[ -n "${DT[$id]["app"]+x}" ] || return 1
+	dt_winok "$id" dt_fullscreen || return 1
 	case $how in
 	toggle) if dt_isfull "$id"; then how=off; else how=on; fi ;;
 	on | off) ;;
@@ -191,6 +191,7 @@ dt_full_focused() { [ -n "$DT_FOCUS" ] && dt_fullscreen "$DT_FOCUS" toggle; }
 
 # Size the full-screen window to its display again, as the display is now.
 fn dt_fullfit(int id) {
+	dt_winok "$id" dt_fullfit || return 1
 	dt_fullrect "$id"
 	DT[$id]["row"]=$DTW_R
 	DT[$id]["col"]=$DTW_C
@@ -207,7 +208,7 @@ fn dt_fullend(int id) {
 	dt_fulltake "$id"
 	DT_FORCEONCE=1
 	DT_MENUIN=
-	[ -n "${DT[$id]["app"]+x}" ] || { dt_fullbar; return 0; }
+	dt_iswin "$id" || { dt_fullbar; return 0; }
 	DT[$id]["row"]=${DT[$id]["fsr"]}
 	DT[$id]["col"]=${DT[$id]["fsc"]}
 	DT[$id]["h"]=${DT[$id]["fsh"]}
@@ -258,7 +259,7 @@ dt_fullcheck() {
 	local id
 
 	for id in "${DT_FULLS[@]}"; do
-		if [ -z "${DT[$id]["app"]+x}" ]; then
+		if ! dt_iswin "$id"; then
 			dt_fulltake "$id"
 			DT_FORCEONCE=1
 			continue

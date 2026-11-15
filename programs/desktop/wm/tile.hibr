@@ -51,12 +51,13 @@ fn dt_tilelist(int n) {
 
 	read -ra ids <<< "${DT_TORD["$n"]}"
 	for id in "${ids[@]}"; do
-		[ -n "${DT[$id]["title"]}" ] || continue
+		dt_iswin "$id" || continue
 		[ "${DT[$id]["ws"]:-1}" = "$n" ] || continue
 		dt_intile "$id" || continue
 		out="$out $id"
 	done
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		[ "${DT[$id]["ws"]:-1}" = "$n" ] || continue
 		dt_intile "$id" || continue
 		case " $out " in *" $id "*) continue ;; esac
@@ -114,6 +115,7 @@ fn dt_tile(int? n = "") {
 # Put one window at its place in the layout, and its pane with it when it
 # is on screen.
 fn dt_tileput(int id, int r, int c, int h, int w) {
+	dt_winok "$id" dt_tileput || return 1
 	DT[$id]["row"]=$r
 	DT[$id]["col"]=$c
 	DT[$id]["h"]=$h

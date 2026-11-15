@@ -168,7 +168,8 @@ fn dt_rswrite(f, int carry, why = "restart") {
 	# comes back counted from somewhere else.
 	json set DT_RS .shift "${DT_SHIFTWAS:-}" -s
 	json set DT_RS .why "$why" -s
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		ap=${DT[$id]["app"]}
 		if [ "$carry" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
 			${ap}_stash "$id" "$DT_RSDIR"
@@ -251,6 +252,13 @@ dt_restore() {
 		fi
 		j := json get DT_RS ".win.$id"
 		json parse DT["$id"] "$j"
+		# A record with no size was never a window -- one saved before
+		# 0.99.533 could carry such a ghost forward (Gitea #552).
+		if ! dt_iswin "$id"; then
+			dt_rslog "window $id: saved with no size, not a window, left out"
+			unset "DT[$id]"
+			continue
+		fi
 		dt_hooks "$id" "$ap"
 		DT[$id]["autoclose"]=
 		if [ "${DT_RS["fresh"]}" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
@@ -285,12 +293,12 @@ dt_restore() {
 	fi
 	read -ra ps <<< "${DT_RS["stack"]}"
 	for p in "${ps[@]}"; do
-		[ -n "${DT[${p#w}]["title"]}" ] || continue
+		dt_iswin "${p#w}" || continue
 		dt_away "${p#w}" || dt_hidden "${p#w}" || console pane raise "$p"
 	done
 	DT_NEXT=${DT_RS["next"]:-$DT_NEXT}
 	id=${DT_RS["focus"]}
-	if [ -n "$id" ] && [ -n "${DT[$id]["title"]}" ]; then
+	if dt_iswin "$id"; then
 		DT_FOCUS=$id
 	else
 		# The topmost *window* pane. Not simply the last of every

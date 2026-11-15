@@ -649,6 +649,7 @@ manager's own table:
 | call | gives |
 |---|---|
 | `dt_ids` | every window id, hidden ones included, in the order they were opened |
+| `dt_iswin <id>` | status: is it still a window -- an id kept past a close is not |
 | `dt_title <id>` | its title |
 | `dt_hidden <id>` | status: is it minimised |
 | `dt_raise <id>` | put it on top and give it the keyboard; un-minimises first |

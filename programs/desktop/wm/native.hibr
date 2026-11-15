@@ -421,7 +421,7 @@ dt_natrate() {
 	DT_NATRGEN=$g
 	dt_natlayout
 	for n in "${!NWN[@]}"; do
-		[ -n "${DT[${NWN["$n"]}]["title"]-}" ] && dt_natoutput "${NWN["$n"]}"
+		dt_iswin "${NWN["$n"]}" && dt_natoutput "${NWN["$n"]}"
 	done
 	return 0
 }
@@ -441,7 +441,7 @@ dt_natunclaimed() {
 	for b in "${!NWB[@]}"; do
 		id=${NWB["$b"]}
 		unset NWB["$b"]
-		[ -n "${DT[$id]["title"]-}" ] || continue
+		dt_iswin "$id" || continue
 		dt_log "programs' windows: window $id (the compositor's $b) did not come back"
 		NW[$id]["gone"]=1
 		dt_wantclose "$id"
@@ -553,7 +553,7 @@ fn dt_natmay(int id, pf = "") {
 	always) return 0 ;;
 	never) return 1 ;;
 	esac
-	[ -z "$pf" ] || [ -z "${DT[$pf]["title"]-}" ] && return 0
+	dt_iswin "$pf" || return 0
 	[ $((${EPOCHSECONDS:-0} - DT_LAUNCHAT)) -le "$DT_NATLAUNCHS" ] && return 0
 	ap=${NW[$id]["appid"]-}
 	[ -n "$ap" ] && [ "${NW[$pf]["appid"]-}" = "$ap" ] && return 0
@@ -600,10 +600,10 @@ dt_natnewfocus() {
 		[ -n "${NW[$id]["askfocus"]-}" ] || continue
 		read -r a pf <<< "${NW[$id]["askfocus"]}"
 		NW[$id]["askfocus"]=
-		[ -n "${DT[$id]["title"]-}" ] || continue
+		dt_iswin "$id" || continue
 		dt_natmay "$id" "$pf" && continue
 		dt_log "programs' windows: window $id opened without the focus, which stays with $pf"
-		[ -n "${DT[$pf]["title"]-}" ] && dt_raise "$pf"
+		dt_iswin "$pf" && dt_raise "$pf"
 		dt_natask "$id" "$pf" opened
 	done
 	return 0
@@ -644,7 +644,7 @@ fn dt_natnew(int n, kind, rest = "") {
 	[ -z "${NWN["$n"]-}" ] || return 0
 	read -r p b <<< "$rest"
 	id=${NWB["${b:-none}"]-}
-	if [ -n "$id" ] && [ -n "${DT[$id]["title"]-}" ]; then
+	if dt_iswin "$id"; then
 		unset NWB["$b"]
 		native_open "$id" "$n"
 		NW[$id]["bid"]=$b
@@ -709,7 +709,7 @@ fn dt_natfirst(int id, int n) {
 	p=${NW[$id]["parent"]:-${NW[$id]["par"]-}}
 	pid=
 	[ -n "$p" ] && [ "$p" != 0 ] && pid=${NWN["$p"]-}
-	if [ -n "$pid" ] && [ -n "${DT[$pid]["row"]-}" ]; then
+	if dt_iswin "$pid"; then
 		r=$((${DT[$pid]["row"]} + (${DT[$pid]["h"]} - h) / 2))
 		c=$((${DT[$pid]["col"]} + (${DT[$pid]["w"]} - w) / 2))
 		pl := dt_natclamp "$r" "$c" "$h" "$w"

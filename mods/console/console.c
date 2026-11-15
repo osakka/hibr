@@ -194,6 +194,19 @@ void cn_plower(cn_pane *p)
 	lg(HIBR_LDBG, "pane %s lowered", p->nm);
 }
 
+/* Whether a word is a whole number, as a pane's place and size must be. */
+int cn_isint(const char *t)
+{
+	if (*t == '-')
+		t++;
+	if (!*t)
+		return 0;
+	for (; *t; t++)
+		if (*t < '0' || *t > '9')
+			return 0;
+	return 1;
+}
+
 /* Forget one pane. */
 int cn_pdrop(const char *nm)
 {
@@ -1785,6 +1798,16 @@ int m_console(sh *s, int ac, char **av)
 				      "or pane list|clear");
 			return 2;
 		}
+		/* A place or size that is not a number is refused: read as 0
+		   it made a pane of nothing for a window that had gone, drawn
+		   every frame (Gitea #552). */
+		for (i = 3; i < 7; i++)
+			if (!cn_isint(av[i])) {
+				lg(HIBR_LERR, "console pane %s: %s is not a "
+					      "number", av[2], av[i][0] ?
+					      av[i] : "''");
+				return HIBR_FAIL;
+			}
 		cn_pset(av[2], atoi(av[3]), atoi(av[4]), atoi(av[5]),
 			atoi(av[6]));
 		return HIBR_OK;

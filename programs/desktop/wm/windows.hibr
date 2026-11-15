@@ -61,6 +61,44 @@ fn dt_hooks(int id, ap = "") {
 	done
 }
 
+# Whether id is a window: a record with a size, which dt_new and a restart
+# give every window and nothing else may (Gitea #552). The one question --
+# a title, an app or a row each answered it somewhere once, and a record a
+# late write had brought back with a column and nothing else passed some of
+# them and was drawn as a window every frame, through two restarts.
+fn dt_iswin(id = "") {
+	[ -n "$id" ] && [ -n "${DT[$id]["h"]-}" ] && [ -n "${DT[$id]["w"]-}" ]
+}
+
+# The same, for something about to place or size a window: one that has
+# gone is refused, and said once in the log with what asked, since the
+# asking is a reference somebody kept past the close.
+declare -gA DT_WINGONE
+fn dt_winok(id, who) {
+	dt_iswin "$id" && return 0
+	if [ -z "${DT_WINGONE["$id $who"]-}" ]; then
+		DT_WINGONE["$id $who"]=1
+		dt_log "window $id: $who asked for it, and it has gone"
+	fi
+	return 1
+}
+
+# Every reference the desktop keeps to a window, let go when it closes, so
+# nothing goes on moving, sizing or hovering a window that is not there: a
+# drag still holding a closed window wrote its column back into a record
+# that had gone (Gitea #552).
+fn dt_winforget(id) {
+	[ "${DT_DRAG-}" = "$id" ] && { DT_DRAG=; dt_oloff; }
+	[ "${DT_OLON-}" = "$id" ] && dt_oloff
+	[ "${DT_SIZE-}" = "$id" ] && DT_SIZE=
+	[ "${DT_ALTPRESS%% *}" = "$id" ] && DT_ALTPRESS=
+	[ "${DT_HOVERWIN-}" = "$id" ] && DT_HOVERWIN=
+	[ "${DT_HOTWIN-}" = "$id" ] && { DT_HOTWIN=; DT_HOTTAG=; }
+	[ -n "${DT_GRAB-}" ] && [ "${DT_FOCUS-}" = "$id" ] && DT_GRAB=
+	dt_has dt_fulltake && dt_fulltake "$id"
+	return 0
+}
+
 # Close a window and forget it.
 fn dt_del(int id) {
 	local ws=${DT[$id]["ws"]:-1}
@@ -84,6 +122,7 @@ fn dt_del(int id) {
 	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"
 	DT_NOTEWIN=
 	console pane drop "w$id"
+	dt_winforget "$id"
 	unset "DT[$id]"
 	if [ "$DT_FOCUS" = "$id" ]; then
 		local l
@@ -99,6 +138,7 @@ fn dt_del(int id) {
 # than calling dt_del there itself, which would pull the pane out from under
 # the border dt_win still has left to draw over it.
 fn dt_wantclose(int id) {
+	dt_winok "$id" dt_wantclose || return 1
 	DT[$id]["autoclose"]=1
 }
 
@@ -108,7 +148,8 @@ fn dt_wantclose(int id) {
 dt_autoclose() {
 	local id
 
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		if [ -n "${DT[$id]["autoclose"]}" ]; then
 			dt_del "$id"
 			dt_want 1
@@ -120,6 +161,7 @@ dt_autoclose() {
 # pane, so nothing draws it and nothing can hit it; its only remaining handle
 # is the label dt_wall puts on the bar, which is why that label exists.
 fn dt_min(int id) {
+	dt_winok "$id" dt_min || return 1
 	local l
 
 	if [ "${DT[$id]["min"]}" = 1 ]; then
@@ -172,10 +214,39 @@ dt_wpanes() {
 # raised is unusable as a list, and raising things is exactly what a window
 # list is for. Anything that wants the stack can ask console pane list.
 dt_ids() {
-	local id out=
+	local IFS=' '
 
-	for id in "${!DT[@]}"; do out="$out $id"; done
-	ret "${out# }"
+	dt_wins
+	ret "${DT_WINS[*]}"
+}
+
+# Every window into DT_WINS, in the order they were opened: the one list of
+# them everything walks. A record that is not a window -- written after its
+# window closed, by something still holding the id -- is taken away here,
+# with its pane, and said once, so it is never drawn, moved, saved or
+# brought back by a restart (Gitea #552).
+declare -ga DT_WINS
+dt_wins() {
+	local id
+
+	DT_WINS=()
+	for id in "${!DT[@]}"; do
+		if dt_iswin "$id"; then
+			DT_WINS+=("$id")
+			continue
+		fi
+		dt_ghostgone "$id"
+	done
+	return 0
+}
+
+# Take away what is left of a window that is not one -- its record and its
+# pane, either of which may be all there is -- and say so once.
+fn dt_ghostgone(id) {
+	dt_log "window $id: a record or pane with no window behind it, kept by something after the window closed, taken away"
+	console pane drop "w$id" 2> /dev/null
+	unset "DT[$id]"
+	return 0
 }
 
 # What a window is called.
@@ -190,6 +261,7 @@ fn dt_hidden(int id) {
 
 # Put a window on top and give it the keyboard.
 fn dt_raise(int id) {
+	dt_winok "$id" dt_raise || return 1
 	dt_away "$id" && dt_wsgo "${DT[$id]["ws"]}"
 	dt_hidden "$id" && { dt_min "$id"; return 0; }
 	console pane raise "w$id"
@@ -216,6 +288,7 @@ fn dt_fitsize(int r, int c, int h, int w) {
 
 # Put a window at a size, clamped to what is sensible and what fits.
 fn dt_resize(int id, int h, int w) {
+	dt_winok "$id" dt_resize || return 1
 	local s
 
 	[ -n "${DT[$id]["shaded"]-}" ] && dt_shade "$id"
@@ -241,6 +314,7 @@ fn dt_resize(int id, int h, int w) {
 # row/col change) to dt_resize, which clamps it against the screen's own
 # far edge exactly as it always has.
 fn dt_cornerwhere(int id, corner, int ar, int ac, int mr, int mc) {
+	dt_winok "$id" dt_cornerwhere || return 1
 	local r=${DT[$id]["row"]} c=${DT[$id]["col"]} h=${DT[$id]["h"]} w=${DT[$id]["w"]} s=
 
 	case $corner in
@@ -321,6 +395,7 @@ fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
 # Put a window at a place and a size already worked out, which is what
 # the end of an outline drag does once.
 fn dt_setgeom(int id, int r, int c, int h, int w) {
+	dt_winok "$id" dt_setgeom || return 1
 	DT[$id]["row"]=$r
 	DT[$id]["col"]=$c
 	DT[$id]["h"]=$h
@@ -351,6 +426,7 @@ fn dt_toprow(int r, int c, int h, int w) {
 }
 
 fn dt_movewhere(int id, int r, int c) {
+	dt_winok "$id" dt_movewhere || return 1
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]}
 
 	if [ "$h" -le "$DT_ROWS" ]; then
@@ -370,6 +446,7 @@ fn dt_movewhere(int id, int r, int c) {
 
 # Move a window to where dt_movewhere says it may stand.
 fn dt_move(int id, int r, int c) {
+	dt_winok "$id" dt_move || return 1
 	local p
 
 	p := dt_movewhere "$id" "$r" "$c"
@@ -445,6 +522,7 @@ dt_oloff() {
 # On the display the window is on, not the primary (Gitea #286): it was the
 # primary's rectangle whatever display the window stood on.
 fn dt_snap(int id, dir) {
+	dt_winok "$id" dt_snap || return 1
 	local top left pw ph r c h w
 
 	dt_windisp "$id"
@@ -600,6 +678,7 @@ fn dt_dlgfor(f, int h, int w, int? m = "") {
 # Windows > Zoom Fills says so (Gitea #286) -- or go back to where the
 # window was.
 fn dt_zoom(int id) {
+	dt_winok "$id" dt_zoom || return 1
 	[ -n "${DT[$id]["shaded"]-}" ] && dt_shade "$id"
 	if [ -n "${DT[$id]["oh"]}" ]; then
 		DT[$id]["row"]=${DT[$id]["or"]}
@@ -632,6 +711,7 @@ fn dt_zoom(int id) {
 # Give a window a new title; an app knows what it is showing better than
 # the menu that opened it does.
 fn dt_retitle(int id, title) {
+	dt_winok "$id" dt_retitle || return 1
 	DT[$id]["title"]="$title"
 }
 
@@ -674,7 +754,8 @@ fn dt_quitapp() {
 	[ -n "$DT_FOCUS" ] || return 0
 	ap=${DT[$DT_FOCUS]["app"]}
 	[ -n "$ap" ] || return 0
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		[ "${DT[$id]["app"]}" = "$ap" ] && ids+=("$id")
 	done
 	for id in "${ids[@]}"; do
@@ -709,6 +790,7 @@ dt_zoom_focused() { [ -n "$DT_FOCUS" ] && dt_zoom "$DT_FOCUS"; }
 # _idle, so a terminal's program is read and cannot leave the desktop
 # spinning on it.
 fn dt_shade(int id) {
+	dt_winok "$id" dt_shade || return 1
 	local rows=2
 
 	if [ -n "${DT[$id]["shaded"]-}" ]; then
@@ -742,7 +824,8 @@ dt_cycle() {
 	# on this workspace alone.
 	while [ "$i" -lt "$DT_WSN" ]; do
 		ws=$(((DT_WS - 1 + i) % DT_WSN + 1))
-		for id in "${!DT[@]}"; do
+		dt_wins
+		for id in "${DT_WINS[@]}"; do
 			[ "${DT[$id]["ws"]:-1}" = "$ws" ] || continue
 			dt_hidden "$id" && continue
 			[ "$id" = "$DT_FOCUS" ] && f=${#ids[@]}
@@ -859,6 +942,7 @@ dt_ticker dt_swtick
 # drag to the whole screen with, just against one display's box instead of
 # the whole union.
 fn dt_movewin(int id, int drow, int dcol, int drows, int dcols) {
+	dt_winok "$id" dt_movewin || return 1
 	local r c
 
 	r=$drow

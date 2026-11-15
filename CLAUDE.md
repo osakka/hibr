@@ -4098,6 +4098,21 @@ went in the shell.
   module also declares is the case to test, with the plain one first on the
   path (`tests/999-mod-twin.t`).
 
+- **A window is a record with a size, and a closed window's number is a
+  loaded gun** (Gitea #552, 0.99.533). A program's window closed while it
+  was dragged; the drag still held its id, a solid drag's `dt_move`
+  wrote `row=""` and a column back into the record that had gone,
+  `console pane` read the empty rest as 0, and the desktop drew a window
+  with no size every frame -- 31,000 log lines, carried through a
+  restart. "Is this a window" had four answers (a title, `app` set, `row`
+  set, or nobody asking) and the copy dialog has no title. `dt_iswin` is
+  the one answer, `dt_wins` the one list of windows (and where a ghost is
+  taken away), `dt_winforget` lets go of every reference on close, and
+  every writer asks `dt_winok` first. **A new loop over windows walks
+  `DT_WINS`, never `${!DT[@]}`, and a new global that holds a window id
+  is cleared in `dt_winforget`.** A check of it drags solid as well as
+  outlined: the outline path never wrote, so a check driving only the
+  default passed against the bug.
 - **The display that hears the click is not the display that shows the
   window** (0.99.479). `hold` gave the pointer lock to the display it had
   heard from last -- right for one display, and for stacked Blit sessions it

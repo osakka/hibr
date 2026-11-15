@@ -18,6 +18,10 @@ out of range rc=1
 put with no arguments rc=1
 pane with no arguments rc=2
 pane defined rc=0
+empty row refused rc=1
+word for a height refused rc=1
+negative place taken rc=0
+a g
 unknown pane rc=1
 panes cleared rc=0
 dropped

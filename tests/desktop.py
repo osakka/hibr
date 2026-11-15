@@ -2545,6 +2545,51 @@ sc, _ = run(FIXED_TL, [press(8, 29), drag(8, 40), release(8, 40)])
 check("a fixed window's edges do not resize it either",
       sc.g[6][10] == "┌" and sc.g[6][29] == "┐", sc)
 
+# A window that closes while it is being dragged -- a program's splash
+# going as it was moved -- is let go of (Gitea #552). The drag held its
+# number, every report after moved a record that had gone, writing a
+# column back into it, and that record was drawn as a window with no size
+# every frame, through restarts: 31,000 errors in an owner's log. The
+# fixture closes the window from a ticker the moment a drag holds it, then
+# goes on dragging; what is left is read from the desktop itself.
+gx = scratch("desktop-ghost")
+GHOST = ('GX := dt_new "Gone" 8 30 6 10\n'
+         'tk_gone() { [ -n "$DT_DRAG" ] && [ -n "${DT[$GX]["h"]-}" ] && dt_del "$GX"; return 0; }\n'
+         'dt_ticker tk_gone\n'
+         'tk_gx() { local p; p := console pane list; printf "%%s|%%s|%%s\\n" "$GX" "${!DT[*]}" "$p" > %s; return 0; }\n'
+         'dt_ticker tk_gx\n' % gx)
+# Both ways of dragging: a solid drag moves the window itself, which is
+# what wrote the column back; an outline drag only asked where it would go.
+gls = []
+for mode in ("solid", "outline"):
+    sc, raw = run(GHOST, [press(6, 20), 0.3, drag(8, 24), 0.2, drag(10, 28), 0.2,
+                          drag(12, 32), 0.2, release(12, 32), 0.4, b"x", 0.3],
+                  env={"DT_MOVEMODE": mode})
+    gl = open(gx).read().strip().split("|") if os.path.exists(gx) else ["", "", ""]
+    gls.append((mode, gl, sc.find("┌")))
+check("a window closed mid-drag is let go of: no record, no pane, nothing drawn",
+      all(len(gl) == 3 and gl[0] != "" and gl[0] not in gl[1].split()
+          and "w" + gl[0] not in gl[2].split() and at is None for _, gl, at in gls), gls)
+os.unlink(gx) if os.path.exists(gx) else None
+# And a record with no size that does turn up -- however it was written --
+# is taken away with its pane at the next frame, said once in the log,
+# rather than drawn from nothing every frame.
+gx = scratch("desktop-ghost2")
+path = scratch("desktop-ghost2.hibr")
+open(path, "w").write("%s. %s\ndt_open\nDT[77][\"col\"]=5\nconsole pane w77 2 2 4 10\n"
+                      "tk_gx() { local p; p := console pane list; printf \"%%s|%%s\\n\" \"${!DT[*]}\" \"$p\" > %s; return 0; }\n"
+                      "dt_ticker tk_gx\ndt_run\ndt_close\n" % (load(MOD), WM, gx))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+t.keys([b"x", 0.3, b"x", 0.3])
+t.quit(b"qy", 1.2)
+gl = open(gx).read().strip().split("|") if os.path.exists(gx) else ["77", "w77"]
+log = open(t.log).read() if os.path.exists(t.log) else ""
+check("a record with no size and its pane are taken away, and the log says so once",
+      "77" not in gl[0].split() and "w77" not in gl[1].split()
+      and log.count("window 77:") == 1, (gl, log[-600:]))
+os.unlink(gx) if os.path.exists(gx) else None
+os.unlink(path)
+
 # --- the window menu, and items that cannot be chosen ---------------------
 
 # Where Window sits on the bar: after the app's two menus and Edit when the
@@ -6411,7 +6456,11 @@ shutil.rmtree(BL, True)
 # the 128 columns and every resize there refused. Here the display list is
 # given, so a horizontal pair as Blit has, a vertical one and two panes
 # can each be tried without hold.
+# The window manager's own idea of a window (dt_iswin, dt_wins) comes from
+# windows.hibr, read first so the stubs below still stand in for the rest.
 GEO = """declare -gA DT
+dt_ticker() { :; }
+. %s
 DT_MINH=4 DT_MINW=12 DT_FOCUS= DT_WS=1 DT_WSN=1 HIBR_HOLD=
 dt_ticker() { :; }; dt_want() { :; }; dt_rslog() { :; }; dt_hidden() { return 1; }
 console() { :; }
@@ -6433,7 +6482,7 @@ LAYOUT=$'left 0 0 40 60 1\\nright 0 60 40 60 0'
 DT[1]["row"]=2 DT[1]["col"]=61
 x := dt_ctlresize 1 38 59; echo "$x"
 x := dt_ctlresize 1 38 60; echo "$x"
-""" % tree("programs/desktop/wm/ctl.hibr")
+""" % (tree("programs/desktop/wm/windows.hibr"), tree("programs/desktop/wm/ctl.hibr"))
 geo = [json.loads(l) for l in subprocess.run([screen.HIBR, "-c", GEO], capture_output=True,
                                               text=True, timeout=20).stdout.splitlines()]
 check("a window moved to a display joined beside a 128-column primary resizes there",
@@ -8072,6 +8121,31 @@ t.collect(2.0)
 sc = t.screen()
 check("a Quit leaves nothing to reopen", sc.find("┤ Kept ├") is None, sc)
 t.quit(b"qy", 3)
+# A snapshot saved before 0.99.533 could hold a record with no size -- a
+# window gone, its column written back by a drag (Gitea #552) -- and every
+# restart brought it back and drew it. Such a record is left out, and the
+# windows beside it come back as they were.
+GS = os.path.join(RD, "gstate")
+t = Term(recsess("ga.hibr", '[ "$DT_RESTORED" = 1 ] || dt_new "Kept" 8 30 6 10\n( sleep 2; kill -TERM $$ ) &'),
+         env={"XDG_STATE_HOME": GS}, rows=ROWS, cols=COLS, settle=1.0)
+t.collect(4.0)
+t.wait(3)
+snaps = [os.path.join(dp, f) for dp, _, fs in os.walk(GS) for f in fs
+         if f.endswith(".json") and os.sep + "restart" + os.sep in os.path.join(dp, f)]
+for sp in snaps:
+    sj = json.load(open(sp))
+    if "win" in sj:
+        sj["win"]["392"] = {"row": "", "col": "221", "draw": "", "key": ""}
+        sj["stack"] = ("w392 " + sj.get("stack", "")).strip()
+        json.dump(sj, open(sp, "w"))
+t = Term(recsess("gb.hibr", ""), env={"XDG_STATE_HOME": GS}, rows=ROWS, cols=COLS, settle=1.5)
+t.collect(2.0)
+sc = t.screen()
+t.quit(b"qy", 3)
+log = open(t.log).read() if os.path.exists(t.log) else ""
+check("a saved record with no size is left out on restore, the windows beside it back",
+      snaps != [] and sc.find("┤ Kept ├") == (6, 12) and "window 392: saved with no size" in log
+      and "dt_chrome" not in log, (snaps, log[-800:], sc))
 
 # Restart Desktop carries a terminal's program across the exec as this
 # process's child, so a restart that carries one -- here from a desktop
@@ -10222,4 +10296,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1106)
+report(1109)

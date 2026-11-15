@@ -294,8 +294,9 @@ fn dt_blank(nm) {
 				dt_notep low "%s is the primary display -- make another primary first" "$nm"
 				return 1
 			fi
-			for id in "${!DT[@]}"; do
-				[ -n "${DT[$id]["title"]}" ] || continue
+			dt_wins
+			for id in "${DT_WINS[@]}"; do
+				dt_iswin "$id" || continue
 				if [ "${DT[$id]["col"]}" -ge "$col" ] &&
 				   [ "${DT[$id]["col"]}" -lt $((col + cols)) ]; then
 					# Onto the primary's own rectangle,

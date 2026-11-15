@@ -738,7 +738,8 @@ fn dt_appmenu(prefix, used = "") {
 fn dt_appwin(app) {
 	local id
 
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		if [ "${DT[$id]["app"]}" = "$app" ]; then
 			ret "$id"
 			return 0

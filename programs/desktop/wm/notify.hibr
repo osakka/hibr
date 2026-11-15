@@ -90,7 +90,7 @@ dt_notefrom() {
 		ret "$DT_NOTEFROM"
 		return 0
 	fi
-	if [ -n "$w" ] && [ -n "${DT[$w]["title"]}" ]; then
+	if dt_iswin "$w"; then
 		ap=${DT[$w]["app"]}
 		if [ -n "$ap" ] && [ -n "${DT_APPS[$ap]["title"]}" ]; then
 			ret "${DT_APPS[$ap]["title"]}"

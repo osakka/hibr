@@ -234,7 +234,8 @@ fn dt_fopundo(op) {
 dt_changed() {
 	local id cb
 
-	for id in "${!DT[@]}"; do
+	dt_wins
+	for id in "${DT_WINS[@]}"; do
 		cb=${DT[$id]["refresh"]}
 		[ -n "$cb" ] && DT_NOTEWIN=$id && dt_appcall "$id" "$cb"
 	done

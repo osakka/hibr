@@ -616,6 +616,7 @@ DT_PTRNOW=
 # display that cannot hide is given its own pointer by hold, so asking is
 # harmless anywhere. dt_ptrcan says whether any display can.
 fn dt_pointer(int id, shape = "") {
+	dt_winok "$id" dt_pointer || return 1
 	DT[$id]["ptr"]=$shape
 	return 0
 }
