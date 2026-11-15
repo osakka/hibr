@@ -1,0 +1,186 @@
+# control-panel/pnotes -- programs' notifications as the desktop's own
+# (Gitea #505): a catalogue entry, not part of the package (the owner,
+# 2026-11-15), its pane and the listener behind it in one file. Installed
+# and switched on, the desktop is the session's
+# org.freedesktop.Notifications, through the dbus module and wm/bus.hibr:
+# what a program says becomes one of the desktop's notes -- the same stack,
+# history, per-app rules and Do Not Disturb -- under the program's own name,
+# at a priority from its urgency. A click runs the program's default
+# action (or its first); a note the program replaces is replaced; one it
+# closes goes; and the program is told when each has gone, by a click or
+# its time running out. Another program already the session's
+# notification server keeps the name, and the log says so.
+#
+# Removed while the desktop runs, it lets the name go (dt_onunload), so the
+# notifications go back to whatever else the session has.
+
+strict
+
+app pnotes "Programs' notifications as the desktop's own, and their pane" 1.0
+command -v cp_pane > /dev/null && cp_pane pnotes "Program Notifications" "◉"
+
+# The setting, Control Panel > Notifications > Program Notifications.
+DT_PNOTES="${DT_PNOTES-1}"
+command -v dt_keep > /dev/null && dt_keep DT_PNOTES
+# Each program note's number on the bus, to the desktop note showing it.
+declare -gA DT_PNOTE
+
+# An event from the bus about notifications.
+fn dt_pnoteev(e) {
+	local w n k
+
+	read -r w n <<< "$e"
+	case $w in
+	up) [ "$DT_PNOTES" = 1 ] && dbus notes on 2> /dev/null ;;
+	notes)
+		if [ "$n" = on ]; then
+			dt_log "notifications: programs' notifications are the desktop's"
+		else
+			dt_log "notifications: another program shows the session's notifications"
+		fi
+		;;
+	note) dt_pnoteshow "$n" ;;
+	noteclose) dt_pnotedrop "$n" ;;
+	down)
+		for k in "${!DT_PNOTE[@]}"; do
+			unset DT_PNOTE["$k"]
+		done
+		;;
+	esac
+	return 0
+}
+
+# Take a desktop note off the screen, history left as it was.
+fn dt_pnoteunshow(int id) {
+	local k
+	local -a keep=()
+
+	unset DT_NOTEQ["$id"]
+	for k in "${DT_NOTEQ_ORDER[@]}"; do
+		[ "$k" = "$id" ] || keep+=("$k")
+	done
+	DT_NOTEQ_ORDER=("${keep[@]}")
+}
+
+# A program's note shown: its summary and body as the program wrote them,
+# never looked up in the desktop's catalogue.
+fn dt_pnoteshow(int n) {
+	local -A i
+	local text prio=normal key= k id
+
+	i := dbus note "$n" 2> /dev/null || return 0
+	text=${i["summary"]}
+	[ -n "${i["body"]}" ] && text="${text:+$text: }${i["body"]}"
+	[ -n "$text" ] || text=${i["app"]}
+	case ${i["urgency"]} in
+	0) prio=low ;;
+	2) prio=urgent ;;
+	esac
+	for ((k = 0; k < ${i["actions"]:-0}; k++)); do
+		[ "${i[$k]["key"]}" = default ] && key=default
+	done
+	[ -n "$key" ] || [ "${i["actions"]:-0}" = 0 ] || key=${i[0]["key"]}
+	[ -n "${DT_PNOTE["$n"]+x}" ] && dt_pnoteunshow "${DT_PNOTE["$n"]}"
+	id=$DT_NOTE_NEXT
+	DT_NOTEFROM=${i["app"]:-A Program}
+	dt_noteq "$prio" "$text" dt_pnoteact "$n" "$key"
+	DT_PNOTE["$n"]=$id
+	dt_want 10
+}
+
+# The program closed its own note.
+fn dt_pnotedrop(int n) {
+	[ -n "${DT_PNOTE["$n"]+x}" ] || return 0
+	dt_pnoteunshow "${DT_PNOTE["$n"]}"
+	unset DT_PNOTE["$n"]
+	dt_want 10
+}
+
+# A note clicked: its action, or only dismissed when it has none.
+fn dt_pnoteact(int n, key = "") {
+	unset DT_PNOTE["$n"]
+	if [ -n "$key" ]; then
+		dbus noteact "$n" "$key" 2> /dev/null
+	else
+		dbus noteclose "$n" 2 2> /dev/null
+	fi
+	return 0
+}
+
+# Each pass: a note whose time ran out, or that a rule never let show, is
+# said to its program as expired.
+dt_pnotetick() {
+	local n
+
+	[ "${#DT_PNOTE[@]}" -gt 0 ] || return 0
+	for n in "${!DT_PNOTE[@]}"; do
+		[ -n "${DT_NOTEQ[${DT_PNOTE["$n"]}]["text"]+x}" ] && continue
+		unset DT_PNOTE["$n"]
+		dbus noteclose "$n" 1 2> /dev/null
+	done
+	return 0
+}
+
+# The Control Panel row: on, the desktop asks for the name; off, it lets it go.
+fn dt_pnoteset(v) {
+	DT_PNOTES=$v
+	dt_has dt_save && dt_save
+	[ -n "${DT_BUSFD-}" ] || return 0
+	if [ "$v" = 1 ]; then
+		dbus notes on 2> /dev/null
+	else
+		dbus notes off 2> /dev/null
+	fi
+	return 0
+}
+
+# The pane: on or off, and where each program's own rule is.
+fn pnotes_rows(int w) {
+	local n=0
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Program Notifications"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_PNOTES:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=on
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=info
+	CP[$w][$n]["text"]="Each program's own rule is in Notifications"
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn pnotes_do(int? w = "", k = "", int? dir = "") {
+	case $k in
+	on) if [ "${DT_PNOTES:-1}" = 1 ]; then dt_pnoteset 0; else dt_pnoteset 1; fi ;;
+	esac
+	return 0
+}
+
+# Taken off by a rescan: the name let go, the bus left to whoever else asks.
+dt_pnotestop() {
+	local w
+
+	[ -n "${DT_BUSFD-}" ] && dbus notes off 2> /dev/null
+	for w in up notes note noteclose down; do
+		dt_has dt_busoff && dt_busoff "$w" dt_pnoteev
+	done
+	return 0
+}
+
+# Put back by a rescan: asking again.
+dt_pnotestart() {
+	local w
+
+	for w in up notes note noteclose down; do
+		dt_has dt_buson && dt_buson "$w" dt_pnoteev
+	done
+	[ -n "${DT_BUSFD-}" ] && [ "$DT_PNOTES" = 1 ] && dbus notes on 2> /dev/null
+	return 0
+}
+
+for pnotes_w in up notes note noteclose down; do
+	dt_has dt_buson && dt_buson "$pnotes_w" dt_pnoteev
+done
+unset pnotes_w
+command -v dt_ticker > /dev/null && dt_ticker dt_pnotetick
+dt_has dt_onunload && dt_onunload dt_pnotestop dt_pnotestart

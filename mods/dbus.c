@@ -142,7 +142,7 @@ typedef struct {
 	int nrows;
 } bu_item;
 
-enum { K_HELLO = 1, K_WATCH, K_HOST, K_IGNORE, K_GETALL, K_OWNER, K_LAYOUT, K_WITEMS, K_ACTIVATE };
+enum { K_HELLO = 1, K_WATCH, K_HOST, K_IGNORE, K_GETALL, K_OWNER, K_LAYOUT, K_WITEMS, K_ACTIVATE, K_NOTES };
 
 typedef struct {
 	unsigned int serial;
@@ -159,6 +159,30 @@ static vec bu_items;
 static vec bu_evs;
 static vec bu_waits;
 static char *bu_hostname;
+
+/* Programs' notifications (org.freedesktop.Notifications), once the
+   desktop has asked for the name: each kept until the desktop says it was
+   clicked, closed or timed out, at most BU_MAXNOTES of them. */
+typedef struct {
+	unsigned id;
+	char *app, *summary, *body, *icon;
+	int urgency, timeout, nacts;
+	char **acts;
+} bu_note;
+
+#ifndef BU_MAXNOTES
+#define BU_MAXNOTES 64
+#endif
+#define BU_NNAME "org.freedesktop.Notifications"
+#define BU_NPATH "/org/freedesktop/Notifications"
+
+static vec bu_notes;
+static unsigned bu_nextnote;
+static int bu_noterole;
+/* Whether the desktop has asked to be the tray (`tray on`): the names are
+   taken only then, so a desktop without the tray installed is no tray a
+   program could register with and hide in. */
+static int bu_trayon;
 
 #define BU_BUS "org.freedesktop.DBus"
 #define BU_BUSPATH "/org/freedesktop/DBus"
@@ -784,6 +808,12 @@ void bu_reply(bu_msg *m)
 		}
 		break;
 	case K_WATCH:
+		/* Switched off while the daemon was answering: let it go again. */
+		if (!bu_trayon) {
+			if (!err && bu.iinit(m, &it) && bu_getn(&it, 0) == 1)
+				bu_callw(BU_BUS, BU_BUSPATH, BU_BUS, "ReleaseName", K_IGNORE, 0, BU_WNAME, 0);
+			break;
+		}
 		if (!err && bu.iinit(m, &it) && bu_getn(&it, 0) == 1) {
 			bu_role = 2;
 			bu_ev("role watcher", -1);
@@ -839,6 +869,17 @@ void bu_reply(bu_msg *m)
 	case K_ACTIVATE:
 		if (t && err)
 			bu_ev("noactivate", t->n);
+		break;
+	case K_NOTES:
+		if (!err && bu.iinit(m, &it) && bu_getn(&it, 0) == 1) {
+			bu_noterole = 2;
+			bu_ev("notes on", -1);
+			lg(HIBR_LDBG, "dbus: this desktop shows programs' notifications");
+		} else {
+			bu_noterole = 0;
+			bu_ev("notes taken", -1);
+			lg(HIBR_LDBG, "dbus: another program shows the session's notifications");
+		}
 		break;
 	}
 	free(w);
@@ -914,6 +955,230 @@ void bu_wprops(bu_msg *r, const char *only)
 	bu.iclose(&it, &arr);
 }
 
+/* Free one note. */
+void bu_notefree(bu_note *n)
+{
+	int i;
+
+	free(n->app);
+	free(n->summary);
+	free(n->body);
+	free(n->icon);
+	for (i = 0; i < n->nacts; i++)
+		free(n->acts[i]);
+	free(n->acts);
+	free(n);
+}
+
+/* The note numbered id, and its place, or 0. */
+bu_note *bu_notefind(unsigned id, size_t *at)
+{
+	size_t i;
+
+	for (i = 0; i < bu_notes.n; i++)
+		if (((bu_note *)bu_notes.p[i])->id == id) {
+			if (at)
+				*at = i;
+			return bu_notes.p[i];
+		}
+	return 0;
+}
+
+/* Say a note has gone, and why (1 expired, 2 dismissed, 3 closed by its
+   program), and forget it. */
+void bu_noteclosed(unsigned id, unsigned why)
+{
+	size_t at;
+	bu_note *n = bu_notefind(id, &at);
+	bu_msg *sg;
+	bu_it it;
+
+	if (!n)
+		return;
+	if ((sg = bu.msignal(BU_NPATH, BU_NNAME, "NotificationClosed"))) {
+		bu.iappinit(sg, &it);
+		bu.iappend(&it, 'u', &id);
+		bu.iappend(&it, 'u', &why);
+		bu_sendw(sg, K_IGNORE, 0);
+	}
+	memmove(bu_notes.p + at, bu_notes.p + at + 1, (bu_notes.n - at - 1) * sizeof *bu_notes.p);
+	bu_notes.n--;
+	bu_notefree(n);
+}
+
+/* A body as plain text: the spec's few tags gone and its five entities
+   read, and control bytes but a newline stripped. */
+char *bu_plain(const char *t)
+{
+	static const char *ent[][2] = { { "&amp;", "&" }, { "&lt;", "<" }, { "&gt;", ">" },
+					{ "&quot;", "\"" }, { "&apos;", "'" }, { 0, 0 } };
+	str o;
+	size_t i;
+	int k;
+
+	s_init(&o);
+	s_cat(&o, "");
+	for (i = 0; t && t[i] && o.n < BU_MAXTEXT * 4; i++) {
+		unsigned char c = (unsigned char)t[i];
+
+		if (c == '<') {
+			const char *e = strchr(t + i, '>');
+
+			if (e) {
+				i = (size_t)(e - t);
+				continue;
+			}
+		}
+		if (c == '&') {
+			for (k = 0; ent[k][0]; k++)
+				if (!strncmp(t + i, ent[k][0], strlen(ent[k][0]))) {
+					s_cat(&o, ent[k][1]);
+					i += strlen(ent[k][0]) - 1;
+					break;
+				}
+			if (ent[k][0])
+				continue;
+		}
+		if ((c < 0x20 && c != '\n') || c == 0x7f)
+			continue;
+		s_ch(&o, (char)c);
+	}
+	return o.p;
+}
+
+/* Notify(susssasa{sv}i): a note kept, replacing the one it names if that
+   is still here, and its number answered. */
+void bu_notify(bu_msg *m)
+{
+	bu_it it, arr, de, var;
+	const char *app = 0, *icon = 0, *sum = 0, *body = 0, *k;
+	unsigned rep = 0, id;
+	int timeout = -1, urg = 1;
+	bu_note *n, *old;
+	vec acts;
+	size_t at, i;
+	bu_msg *r;
+
+	memset(&acts, 0, sizeof acts);
+	if (bu.iinit(m, &it)) {
+		app = bu_gets(&it);
+		bu.inext(&it);
+		rep = (unsigned)bu_getn(&it, 0);
+		bu.inext(&it);
+		icon = bu_gets(&it);
+		bu.inext(&it);
+		sum = bu_gets(&it);
+		bu.inext(&it);
+		body = bu_gets(&it);
+		bu.inext(&it);
+		if (bu.itype(&it) == 'a') {
+			bu.irecurse(&it, &arr);
+			while ((k = bu_gets(&arr)) && acts.n < 32) {
+				v_add(&acts, bu_clean(k));
+				bu.inext(&arr);
+			}
+		}
+		bu.inext(&it);
+		if (bu.itype(&it) == 'a') {
+			bu.irecurse(&it, &arr);
+			while (bu.itype(&arr) == 'e') {
+				bu.irecurse(&arr, &de);
+				k = bu_gets(&de);
+				bu.inext(&de);
+				/* A variant as the spec has it, or the value itself from a
+				   program that sent a{sy}. */
+				if (k && !strcmp(k, "urgency")) {
+					if (bu.itype(&de) == 'v') {
+						bu.irecurse(&de, &var);
+						urg = (int)bu_getn(&var, 1);
+					} else {
+						urg = (int)bu_getn(&de, 1);
+					}
+				}
+				bu.inext(&arr);
+			}
+		}
+		bu.inext(&it);
+		timeout = (int)bu_getn(&it, -1);
+	}
+	old = rep ? bu_notefind(rep, &at) : 0;
+	id = old ? rep : ++bu_nextnote;
+	if (!id)
+		id = ++bu_nextnote;
+	n = xm(sizeof *n);
+	memset(n, 0, sizeof *n);
+	n->id = id;
+	n->app = bu_clean(app);
+	n->icon = bu_clean(icon);
+	n->summary = bu_clean(sum);
+	n->body = bu_plain(body);
+	n->urgency = urg < 0 ? 0 : urg > 2 ? 2 : urg;
+	n->timeout = timeout;
+	n->nacts = (int)(acts.n & ~(size_t)1);
+	n->acts = (char **)acts.p;
+	for (i = (size_t)n->nacts; i < acts.n; i++)
+		free(acts.p[i]);
+	if (old) {
+		bu_notefree(old);
+		bu_notes.p[at] = n;
+	} else {
+		if (bu_notes.n >= BU_MAXNOTES)
+			bu_noteclosed(((bu_note *)bu_notes.p[0])->id, 1);
+		v_add(&bu_notes, n);
+	}
+	if ((r = bu.mreturn(m))) {
+		bu.iappinit(r, &it);
+		bu.iappend(&it, 'u', &id);
+		bu_sendw(r, K_IGNORE, 0);
+	}
+	bu_ev("note", (int)id);
+}
+
+/* A call to the notification server: 1 when it was one. */
+int bu_notecall(bu_msg *m, const char *ifc, const char *mem)
+{
+	bu_msg *r;
+	bu_it it, arr;
+	unsigned id;
+	const char *caps[] = { "body", "actions", 0 }, *info[] = { "hibr", "hibr", HIBR_VER, "1.2", 0 };
+	int i;
+
+	if (!ifc || strcmp(ifc, BU_NNAME))
+		return 0;
+	if (!strcmp(mem, "Notify")) {
+		bu_notify(m);
+		return 1;
+	}
+	if (!strcmp(mem, "CloseNotification")) {
+		id = 0;
+		if (bu.iinit(m, &it))
+			id = (unsigned)bu_getn(&it, 0);
+		if (bu_notefind(id, 0)) {
+			bu_ev("noteclose", (int)id);
+			bu_noteclosed(id, 3);
+		}
+		bu_answer(m, 1);
+		return 1;
+	}
+	if (!strcmp(mem, "GetCapabilities") && (r = bu.mreturn(m))) {
+		bu.iappinit(r, &it);
+		bu.iopen(&it, 'a', "s", &arr);
+		for (i = 0; caps[i]; i++)
+			bu_putstr(&arr, caps[i]);
+		bu.iclose(&it, &arr);
+		bu_sendw(r, K_IGNORE, 0);
+		return 1;
+	}
+	if (!strcmp(mem, "GetServerInformation") && (r = bu.mreturn(m))) {
+		bu.iappinit(r, &it);
+		for (i = 0; info[i]; i++)
+			bu_putstr(&it, info[i]);
+		bu_sendw(r, K_IGNORE, 0);
+		return 1;
+	}
+	return 0;
+}
+
 /* A method call to this desktop. */
 void bu_call(bu_msg *m)
 {
@@ -927,6 +1192,8 @@ void bu_call(bu_msg *m)
 		bu_answer(m, 0);
 		return;
 	}
+	if (bu_noterole == 2 && path && !strcmp(path, BU_NPATH) && bu_notecall(m, ifc, mem))
+		return;
 	if (bu.iinit(m, &it)) {
 		a = bu_gets(&it);
 		if (bu.inext(&it))
@@ -1141,6 +1408,11 @@ void bu_shut(void)
 	for (i = 0; i < bu_waits.n; i++)
 		free(bu_waits.p[i]);
 	bu_waits.n = 0;
+	for (i = 0; i < bu_notes.n; i++)
+		bu_notefree(bu_notes.p[i]);
+	bu_notes.n = 0;
+	bu_noterole = 0;
+	bu_trayon = 0;
 	if (bu_c) {
 		bu.close(bu_c);
 		bu.unref(bu_c);
@@ -1197,9 +1469,6 @@ int bu_open(void)
 	s_num(&nm, (long)getpid());
 	free(bu_hostname);
 	bu_hostname = nm.p;
-	bu_request(bu_hostname, K_IGNORE);
-	bu_request(BU_WNAME, K_WATCH);
-	bu_role = 1;
 	bu.rw(bu_c, 0);
 	lg(HIBR_LDBG, "dbus: connected, descriptor %d", bu_fd);
 	return 1;
@@ -1485,6 +1754,37 @@ int bu_bi(sh *s, int ac, char **av)
 		bu_evs.n = 0;
 		return r;
 	}
+	if (!strcmp(sub, "tray")) {
+		if (ac < 3)
+			return bu_say(s, bu_trayon ? "on" : "off");
+		if (!bu_c)
+			return HIBR_FAIL;
+		if (!strcmp(av[2], "on")) {
+			if (!bu_trayon) {
+				bu_trayon = 1;
+				bu_request(bu_hostname, K_IGNORE);
+				bu_request(BU_WNAME, K_WATCH);
+				bu.rw(bu_c, 0);
+			}
+			return HIBR_OK;
+		}
+		if (!strcmp(av[2], "off")) {
+			if (!bu_trayon)
+				return HIBR_OK;
+			while (bu_items.n)
+				bu_dropitem(bu_items.p[bu_items.n - 1]);
+			if (bu_role == 2)
+				bu_callw(BU_BUS, BU_BUSPATH, BU_BUS, "ReleaseName", K_IGNORE, 0, BU_WNAME, 0);
+			bu_callw(BU_BUS, BU_BUSPATH, BU_BUS, "ReleaseName", K_IGNORE, 0, bu_hostname, 0);
+			bu_trayon = 0;
+			bu_role = 0;
+			bu_ev("role none", -1);
+			bu.rw(bu_c, 0);
+			return HIBR_OK;
+		}
+		lg(HIBR_LERR, "usage: dbus tray on|off");
+		return 2;
+	}
 	if (!strcmp(sub, "role"))
 		return bu_say(s, bu_role == 2 ? "watcher" : bu_role == 1 ? "host" : "none");
 	if (!strcmp(sub, "items")) {
@@ -1507,8 +1807,82 @@ int bu_bi(sh *s, int ac, char **av)
 		bu_shut();
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "notes")) {
+		if (ac < 3)
+			return bu_say(s, bu_noterole == 2 ? "on" : bu_noterole == 1 ? "asking" : "off");
+		if (!bu_c)
+			return HIBR_FAIL;
+		if (!strcmp(av[2], "on")) {
+			if (!bu_noterole) {
+				bu_noterole = 1;
+				bu_request(BU_NNAME, K_NOTES);
+				bu.rw(bu_c, 0);
+			}
+			return HIBR_OK;
+		}
+		if (!strcmp(av[2], "off")) {
+			if (bu_noterole)
+				bu_callw(BU_BUS, BU_BUSPATH, BU_BUS, "ReleaseName", K_IGNORE, 0, BU_NNAME, 0);
+			while (bu_notes.n)
+				bu_noteclosed(((bu_note *)bu_notes.p[0])->id, 2);
+			bu_noterole = 0;
+			bu.rw(bu_c, 0);
+			return HIBR_OK;
+		}
+		return bu_say(s, bu_noterole == 2 ? "on" : bu_noterole == 1 ? "asking" : "off");
+	}
+	if (!strcmp(sub, "note") || !strcmp(sub, "noteact") || !strcmp(sub, "noteclose")) {
+		bu_note *nt = ac > 2 ? bu_notefind((unsigned)strtoul(av[2], 0, 10), 0) : 0;
+		int i;
+
+		if (!nt) {
+			lg(HIBR_LERR, "dbus: no such notification: %s", ac > 2 ? av[2] : "");
+			return HIBR_FAIL;
+		}
+		if (!strcmp(sub, "note")) {
+			bu_mapstart(s);
+			bu_field(s, "app", 0, nt->app);
+			bu_field(s, "summary", 0, nt->summary);
+			bu_field(s, "body", 0, nt->body);
+			bu_field(s, "icon", 0, nt->icon);
+			s_init(&o);
+			s_num(&o, nt->urgency);
+			bu_field(s, "urgency", 0, o.p);
+			o.n = 0;
+			s_num(&o, nt->timeout);
+			bu_field(s, "timeout", 0, o.p);
+			o.n = 0;
+			s_num(&o, nt->nacts / 2);
+			bu_field(s, "actions", 0, o.p);
+			for (i = 0; i + 1 < nt->nacts; i += 2) {
+				bu_tfield(s, i / 2, "key", nt->acts[i]);
+				bu_tfield(s, i / 2, "label", nt->acts[i + 1]);
+			}
+			s_free(&o);
+			return HIBR_OK;
+		}
+		if (!strcmp(sub, "noteact")) {
+			bu_msg *sg;
+			bu_it it;
+			const char *key = ac > 3 ? av[3] : "default";
+			unsigned id = nt->id;
+
+			if ((sg = bu.msignal(BU_NPATH, BU_NNAME, "ActionInvoked"))) {
+				bu.iappinit(sg, &it);
+				bu.iappend(&it, 'u', &id);
+				bu_putstr(&it, key);
+				bu_sendw(sg, K_IGNORE, 0);
+			}
+			bu_noteclosed(id, 2);
+			bu.rw(bu_c, 0);
+			return HIBR_OK;
+		}
+		bu_noteclosed(nt->id, ac > 3 ? (unsigned)atoi(av[3]) : 2);
+		bu.rw(bu_c, 0);
+		return HIBR_OK;
+	}
 	if (ac < 3) {
-		lg(HIBR_LERR, "usage: dbus open|fd|pump|role|items|close | item|menu|activate|secondary|context N [X Y] | scroll N DELTA vertical|horizontal | click N ID | pixmap N FILE [#rrggbb]");
+		lg(HIBR_LERR, "usage: dbus open|fd|pump|role|items|close | item|menu|activate|secondary|context N [X Y] | scroll N DELTA vertical|horizontal | click N ID | pixmap N FILE [#rrggbb] | tray on|off | notes on|off | note|noteact|noteclose N [KEY|REASON]");
 		return 2;
 	}
 	if (!(t = bu_arg(av[2])))
@@ -1606,6 +1980,8 @@ void bu_fini(sh *s)
 	free(bu_evs.p);
 	free(bu_items.p);
 	free(bu_waits.p);
+	free(bu_notes.p);
+	memset(&bu_notes, 0, sizeof bu_notes);
 	memset(&bu_evs, 0, sizeof bu_evs);
 	memset(&bu_items, 0, sizeof bu_items);
 	memset(&bu_waits, 0, sizeof bu_waits);

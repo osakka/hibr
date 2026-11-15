@@ -77,6 +77,17 @@ bytes there are -- and turns or mirrors the decoded picture to match, all
 eight orientations. A JPEG over 64 million pixels, or a file over 256 MB,
 is refused rather than decoded.
 
+## A picture laid over a colour
+
+`img flatten file out [#bg [#ink]]` decodes a picture, lays its
+transparency over a colour (black unless given), and writes a binary PPM:
+for a picture drawn where its own background would be wrong, a program's
+tray icon over the menu bar's colour (Gitea #505). Everywhere else a PNG's
+alpha is dropped as it decodes. With an ink, the picture is only a shape,
+drawn in that colour: a mono icon made for a dark panel then reads on a
+light bar too. Written to `out.part` and renamed, so a reader never sees
+half of it.
+
 ## Two render paths, one decode and resample
 
 Both `img file` and `img draw` share `im_resample`, a box filter -- every

@@ -8,11 +8,20 @@
 # whether this item is there or not. This is only how it is shown, an item
 # of its own so it can be taken off the bar or put back from the catalogue
 # like the speaker or the network (the owner, 2026-11-13). The window
-# manager reaches it only through dt_has.
+# manager reaches it only through dt_has. A catalogue entry, not part of
+# the package (the owner, 2026-11-15), and it brings its own pane.
+#
+# part: control-panel/kbdbar.hibr
 
 strict
 
-app keyboard "The keyboard typing now, on the menu bar" 1.0.1
+app keyboard "The keyboard typing now, on the menu bar" 1.0.2
+
+# Whether the item says which keyboard beside its glyph (US, AR), or shows
+# the glyph alone: Control Panel > Keyboard on Menu Bar, and the item's own
+# menu (the owner, 2026-11-13).
+DT_KBNAME="${DT_KBNAME-1}"
+command -v dt_keep > /dev/null && dt_keep DT_KBNAME
 
 # The item: a keyboard and the current one's label; nothing with one
 # keyboard or none.

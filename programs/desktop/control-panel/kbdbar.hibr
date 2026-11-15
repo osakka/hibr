@@ -1,0 +1,35 @@
+# control-panel/kbdbar -- Control Panel > Keyboard on Menu Bar: the keyboard
+# item's own levers, a part of menubar/keyboard, so they come and go with
+# it (the owner, 2026-11-15). Which keyboards there are and which types is
+# Blit's Keyboard pane on Blit, and Language & Region away from it; this
+# is only how the bar shows them.
+#
+# Its name is not the bar item's: a pane named after an app's prefix would
+# find that app's own callbacks.
+
+strict
+
+app kbdbar "The Control Panel pane for the keyboard on the menu bar" 1.0
+command -v cp_pane > /dev/null && cp_pane kbdbar "Keyboard on Menu Bar" "⌨"
+
+fn kbdbar_rows(int w) {
+	local n=0
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keyboard Name on Menu Bar"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_KBNAME:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=name
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn kbdbar_do(int? w = "", k = "", int? dir = "") {
+	case $k in
+	name)
+		if [ "${DT_KBNAME:-1}" = 1 ]; then DT_KBNAME=0; else DT_KBNAME=1; fi
+		cp_save
+		dt_has dt_kbbar && dt_kbbar
+		;;
+	esac
+	return 0
+}

@@ -1,0 +1,155 @@
+# control-panel/trayset -- Control Panel > Tray Icons: the tray's levers
+# (Gitea #505), a part of menubar/tray, so it comes and goes with it.
+# Whether the desktop is the tray at all, how an icon is drawn, what a left
+# click does, how many icons before the rest go under an arrow, and, for
+# every program that has put up an icon, whether it is shown, hidden, or
+# shown even while it says it is idle -- in the order the bar shows them,
+# moved by a drag or by Shift and an arrow.
+#
+# Its name is not the bar item's: a pane named after an app's prefix would
+# find that app's own callbacks.
+
+strict
+
+app trayset "The Control Panel pane for programs' tray icons" 1.0
+command -v cp_pane > /dev/null && cp_pane trayset "Tray Icons" "▤"
+
+CP_TRAYSIZES=(picture letter)
+CP_TRAYCLICKS=(activate menu)
+CP_TRAYMAXES=(0 3 5 8 12)
+CP_TRAYSHOWS=(shown hidden always)
+
+# The programs the pane lists: the bar's own order first, then every other
+# program seen this session or named in a setting.
+fn trayset_progs() {
+	local id
+	local -a out=() ids
+	local -A had=()
+
+	IFS=$'\t' read -ra ids <<< "${DT_TRAYORDER-}"
+	for id in "${ids[@]}"; do
+		[ -n "$id" ] && [ -z "${had["$id"]+x}" ] && { out+=("$id"); had["$id"]=1; }
+	done
+	for id in "${!TRAY_SEEN[@]}"; do
+		[ -z "${had["$id"]+x}" ] && { out+=("$id"); had["$id"]=1; }
+	done
+	IFS=$'\t' read -ra ids <<< "${DT_TRAYHIDE-}${DT_TRAYHIDE:+$'\t'}${DT_TRAYALWAYS-}"
+	for id in "${ids[@]}"; do
+		[ -n "$id" ] && [ -z "${had["$id"]+x}" ] && { out+=("$id"); had["$id"]=1; }
+	done
+	TRAYSET_IDS=("${out[@]}")
+}
+TRAYSET_IDS=()
+
+# Whether a program is shown, hidden or always shown.
+fn trayset_show(id) {
+	if dt_trayin "${DT_TRAYHIDE-}" "$id"; then
+		ret hidden
+	elif dt_trayin "${DT_TRAYALWAYS-}" "$id"; then
+		ret always
+	else
+		ret shown
+	fi
+}
+
+# A tab-separated list without a word, or with it added.
+fn trayset_list(list, word, int add) {
+	local x out=
+	local -a w
+
+	IFS=$'\t' read -ra w <<< "$list"
+	for x in "${w[@]}"; do
+		[ -n "$x" ] && [ "$x" != "$word" ] && out+="${out:+$'\t'}$x"
+	done
+	[ "$add" = 1 ] && out+="${out:+$'\t'}$word"
+	ret "$out"
+}
+
+fn trayset_rows(int w) {
+	local n=0 id v
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tray Icons on the Menu Bar"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_TRAY:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=on
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
+	CP[$w][$n]["val"]=${DT_TRAYSIZE:-picture}; CP[$w][$n]["key"]=size
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Left Click"
+	CP[$w][$n]["val"]=${DT_TRAYCLICK:-activate}; CP[$w][$n]["key"]=click
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons Before the Arrow"
+	v=${DT_TRAYMAX:-0}
+	[ "$v" = 0 ] && v=all
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=max
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Programs"
+	n=$((n + 1))
+	trayset_progs
+	if [ "${#TRAYSET_IDS[@]}" = 0 ]; then
+		CP[$w][$n]["kind"]=info
+		CP[$w][$n]["text"]="A program is listed here once it has put up an icon"
+		n=$((n + 1))
+		ret "$n"
+		return 0
+	fi
+	for id in "${TRAYSET_IDS[@]}"; do
+		CP[$w][$n]["kind"]=set
+		CP[$w][$n]["text"]=${TRAY_SEEN["$id"]:-$id}
+		CP[$w][$n]["val"] := trayset_show "$id"
+		CP[$w][$n]["key"]="prog:$id"
+		CP[$w][$n]["ord"]=tray; CP[$w][$n]["oname"]=$id
+		n=$((n + 1))
+	done
+	CP[$w][$n]["kind"]=info
+	CP[$w][$n]["text"]="Drag, or Shift and an arrow"
+	n=$((n + 1))
+	ret "$n"
+}
+
+# The programs in a new order, as the bar shows them from now on.
+fn trayset_order(int w, g, ...names) {
+	local id out=
+
+	for id in "${names[@]}"; do
+		out+="${out:+$'\t'}$id"
+	done
+	DT_TRAYORDER=$out
+	cp_save
+	dt_has dt_traybar && dt_traybar
+}
+
+fn trayset_do(int? w = "", k = "", int? dir = "") {
+	local v id hid alw
+
+	case $k in
+	on)
+		v=1
+		[ "${DT_TRAY:-1}" = 1 ] && v=0
+		dt_has dt_trayset && dt_trayset "$v"
+		return 0
+		;;
+	size) v := cp_next "${DT_TRAYSIZE:-picture}" "${dir:-1}" "${CP_TRAYSIZES[@]}"
+	      DT_TRAYSIZE=$v ;;
+	click) v := cp_next "${DT_TRAYCLICK:-activate}" "${dir:-1}" "${CP_TRAYCLICKS[@]}"
+	       DT_TRAYCLICK=$v ;;
+	max) v := cp_next "${DT_TRAYMAX:-0}" "${dir:-1}" "${CP_TRAYMAXES[@]}"
+	     DT_TRAYMAX=$v ;;
+	prog:*)
+		id=${k#prog:}
+		v := trayset_show "$id"
+		v := cp_next "$v" "${dir:-1}" "${CP_TRAYSHOWS[@]}"
+		hid=0
+		alw=0
+		[ "$v" = hidden ] && hid=1
+		[ "$v" = always ] && alw=1
+		DT_TRAYHIDE := trayset_list "${DT_TRAYHIDE-}" "$id" "$hid"
+		DT_TRAYALWAYS := trayset_list "${DT_TRAYALWAYS-}" "$id" "$alw"
+		;;
+	*) return 0 ;;
+	esac
+	cp_save
+	dt_has dt_traybar && dt_traybar
+	return 0
+}

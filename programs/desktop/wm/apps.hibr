@@ -463,9 +463,23 @@ fn dt_srctitles(f) {
 # Take off the menus every app a file registered, keeping what each said.
 # A pane or a strip module it registered is the panel's and the strip's to
 # take back.
+# What a file's own code needs done when a rescan finds the file gone, and
+# when it comes back -- a listener on the bus letting its name go and asking
+# for it again (programs' notifications): registered while the file loads,
+# for that file. A rescan never sources a file twice, so the coming back is
+# this, not the file's top level running again.
+declare -gA DT_UNLOADFN DT_RELOADFN
+fn dt_onunload(stop, start = "") {
+	[ -n "${DT_LOADING-}" ] || return 0
+	DT_UNLOADFN["$DT_LOADING"]=$stop
+	DT_RELOADFN["$DT_LOADING"]=$start
+	return 0
+}
+
 fn dt_unload(f) {
 	local n k
 
+	[ -n "${DT_UNLOADFN["$f"]-}" ] && dt_has "${DT_UNLOADFN["$f"]}" && "${DT_UNLOADFN["$f"]}"
 	for n in "${!DT_APPS[@]}"; do
 		[ "${DT_APPS[$n]["src"]}" = "$f" ] || continue
 		for k in "${!DT_APPS[$n][@]}"; do
@@ -482,6 +496,7 @@ fn dt_unload(f) {
 fn dt_reinstate(f) {
 	local n k
 
+	[ -n "${DT_RELOADFN["$f"]-}" ] && dt_has "${DT_RELOADFN["$f"]}" && "${DT_RELOADFN["$f"]}"
 	for n in "${!DT_GONE[@]}"; do
 		[ "${DT_GONE[$n]["src"]}" = "$f" ] || continue
 		for k in "${!DT_GONE[$n][@]}"; do
@@ -857,3 +872,53 @@ dt_about() {
 	dt_has about_draw && { dt_launch about; return 0; }
 	dt_notep low "hibr %s — a desktop written in the shell it runs on" "$HIBR_VERSION"
 }
+
+# The keyboard and the tray icons left the package for the catalogue (the
+# owner, 2026-11-15): a desktop that had them is told so once, on its first
+# start after the upgrade, with a click to install them; a desktop with no
+# settings yet is new, had neither, and is told nothing. Nothing is
+# installed without the click. Once is a marker in the state folder.
+DT_MOVEDSEEN=
+dt_movednote() {
+	local f="${XDG_STATE_HOME:-$HOME/.local/state}/hibr/moved-0.99.531"
+	local -a want=()
+
+	[ -z "$DT_MOVEDSEEN" ] || return 0
+	DT_MOVEDSEEN=1
+	[ -e "$f" ] && return 0
+	mkdir -p "${f%/*}" 2> /dev/null && : > "$f"
+	[ "${#DT_CONFJ["settings"][@]}" -gt 0 ] || return 0
+	dt_has dt_kbbar || want+=(menubar/keyboard)
+	dt_has dt_traybar || want+=(menubar/tray)
+	case ${#want[@]} in
+	0) return 0 ;;
+	1)
+		if [ "${want[0]}" = menubar/keyboard ]; then
+			dt_notifyp high "The keyboard on the menu bar is now in the Catalogue -- click to install it" dt_movedget "${want[@]}"
+		else
+			dt_notifyp high "Tray Icons are now in the Catalogue -- click to install them" dt_movedget "${want[@]}"
+		fi
+		;;
+	*) dt_notifyp high "The keyboard and Tray Icons are now in the Catalogue -- click to install them" dt_movedget "${want[@]}" ;;
+	esac
+	dt_log "catalogue: told of ${want[*]}, which left the package"
+	return 0
+}
+
+# The note clicked: the catalogue installs them, as a job.
+fn dt_movedget(...ids) {
+	dt_job "apps:moved" "" dt_moveddone catalogue install "${ids[@]}" > /dev/null || return 0
+	dt_notep low "Installing from the Catalogue"
+}
+
+# What came of it.
+fn dt_moveddone(int n, int st) {
+	if [ "$st" = 0 ]; then
+		dt_rescan > /dev/null
+		dt_notep low "Installed from the Catalogue"
+	else
+		dt_notep high "The Catalogue could not install them -- open the Catalogue to try again"
+	fi
+	return 0
+}
+command -v dt_ticker > /dev/null && dt_ticker dt_movednote

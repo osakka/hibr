@@ -3,6 +3,13 @@
 (com.canonical.dbusmenu), for tests/traymod.py and the desktop's tray.
 
     trayitem.py LOG [--path] [--late MS] [--pixmap-only] [--title T]
+    trayitem.py LOG --notify SUMMARY BODY
+
+With --notify it is a program sending a notification instead: Notify with
+actions (default, Open; later, Later), urgency 2 and markup in its body,
+the id it was given logged, and every ActionInvoked and
+NotificationClosed for it after; LOG.renotify (new summary) replaces it,
+LOG.close closes it, LOG.quit ends.
 
 Registers with the session bus's StatusNotifierWatcher: by its own bus name,
 as Qt does, or with --path by its object path alone, as libappindicator
@@ -64,6 +71,9 @@ def props():
                                      signature="(iiay)")
     else:
         p["IconName"] = "standin-icon"
+        # Where a program keeps its own icons, as Steam does: the suite
+        # writes standin-icon.png beside the log.
+        p["IconThemePath"] = os.path.dirname(os.path.abspath(LOG))
     return p
 
 
@@ -142,6 +152,53 @@ class Menu(dbus.service.Object):
     def LayoutUpdated(self, rev, parent):
         pass
 
+
+if "--notify" in ARGS:
+    i = ARGS.index("--notify")
+    summary, body = ARGS[i + 1], ARGS[i + 2]
+    nt = dbus.Interface(bus.get_object("org.freedesktop.Notifications",
+                                       "/org/freedesktop/Notifications"),
+                        "org.freedesktop.Notifications")
+    mine = {}
+
+    def notify(summary, rep=0):
+        hints = {"urgency": dbus.Byte(2)}
+        n = nt.Notify("Standin App", dbus.UInt32(rep), "standin-icon", summary, body,
+                      ["default", "Open", "later", "Later"], hints, dbus.Int32(-1),
+                      signature="susssasa{sv}i")
+        mine["id"] = int(n)
+        note(kind="notified", id=int(n), summary=summary)
+
+    def acted(i, key):
+        if int(i) == mine.get("id"):
+            note(kind="ActionInvoked", id=int(i), key=str(key))
+
+    def closed(i, why):
+        if int(i) == mine.get("id"):
+            note(kind="NotificationClosed", id=int(i), why=int(why))
+
+    bus.add_signal_receiver(acted, "ActionInvoked", "org.freedesktop.Notifications")
+    bus.add_signal_receiver(closed, "NotificationClosed", "org.freedesktop.Notifications")
+
+    def ntick():
+        if os.path.exists(LOG + ".renotify"):
+            t = open(LOG + ".renotify").read().strip()
+            os.unlink(LOG + ".renotify")
+            notify(t, mine.get("id", 0))
+        if os.path.exists(LOG + ".close"):
+            os.unlink(LOG + ".close")
+            nt.CloseNotification(dbus.UInt32(mine["id"]))
+        if os.path.exists(LOG + ".quit"):
+            os._exit(0)
+        return True
+
+    try:
+        notify(summary)
+    except dbus.DBusException as e:
+        note(kind="nonotify", why=str(e))
+    GLib.timeout_add(50, ntick)
+    GLib.MainLoop().run()
+    sys.exit(0)
 
 item = Item(bus, ITEM)
 menu = Menu(bus, MENU)

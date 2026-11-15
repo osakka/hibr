@@ -48,6 +48,18 @@ for f in apps/Internet/youtube.hibr control-panel/tube.hibr control-strip/nextpr
 	[ -f "$desk/$f" ] || echo "leaves out $f"
 done
 echo "no empty folder is left behind: $(find "$desk/apps" -type d -empty | wc -l)"
+# The menu bar's one rule (the owner, 2026-11-15): the package's bar items
+# are the desktop's own four, each saying `# platform:` of itself, and every
+# other -- the keyboard, the tray -- comes only from the catalogue. The
+# keyboard shipped in the package and the catalogue at once, so the
+# catalogue never offered it and it could not be taken off like the network.
+bad=
+for f in "$desk"/menubar/*.hibr; do
+	grep -q '^# platform:' "$f" || bad="$bad ${f##*/}"
+done
+echo "every bar item the package ships is the platform's own:${bad:- yes}"
+grep -q '^menubar/' packaging/ships && echo "and packaging/ships lists a bar item" ||
+	echo "and packaging/ships lists none"
 
 make -s install-extras DESTDIR="$d/ext" > /dev/null 2>&1
 edesk=$(find "$d/ext" -type d -path '*/share/hibr/desktop' | head -1)

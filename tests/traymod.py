@@ -61,6 +61,7 @@ fn quiet(int n = 10) {
 	for ((i = 0; i < n; i++)); do e := dbus pump; sleep 0.05; done
 }
 dbus open > /dev/null || { echo nobus; exit 1; }
+dbus tray on
 pu "role *" || { echo norole; exit 1; }
 r := dbus role
 echo "role $r"
@@ -271,6 +272,46 @@ check("a desktop that finds a watcher already there is a host, and is given its 
       "role host" in out and "seen Shared" in out, (out, err))
 open(log + ".quit", "w").close()
 
+# --- the tray's names only while asked for ----------------------------------
+# A desktop without the tray -- notifications alone, or the tray switched off
+# -- must be no tray a program could register with and hide in: the names
+# are taken by `tray on` and let go at once by `tray off`, its items with them.
+def owned(name):
+    r = subprocess.run(["dbus-send", "--session", "--print-reply", "--reply-timeout=1000",
+                        "--dest=org.freedesktop.DBus", "/org/freedesktop/DBus",
+                        "org.freedesktop.DBus.GetNameOwner", "string:" + name],
+                       env=ENV, capture_output=True, text=True)
+    return r.returncode == 0
+
+
+d = scratch()
+e = dict(ENV, EV=os.path.join(d, "ev"))
+p = subprocess.Popen([sx.HIBR, "-c", PRE.split("dbus tray on")[0] + r"""
+for ((j = 0; j < 20; j++)); do e := dbus pump; sleep 0.05; done
+: > "$PWD/opened"
+until [ -e "$PWD/on" ]; do e := dbus pump; sleep 0.05; done
+dbus tray on
+until [ -e "$PWD/off" ]; do e := dbus pump; sleep 0.05; done
+dbus tray off
+for ((j = 0; j < 20; j++)); do e := dbus pump; sleep 0.05; done
+: > "$PWD/done"
+until [ -e "$PWD/stop" ]; do e := dbus pump; sleep 0.05; done
+"""], env=e, cwd=d, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+procs.append(p)
+until(lambda: os.path.exists(os.path.join(d, "opened")), 10)
+before = owned("org.kde.StatusNotifierWatcher")
+open(os.path.join(d, "on"), "w").close()
+during = until(lambda: owned("org.kde.StatusNotifierWatcher"), 10)
+ip, log = item(d, "--title", "Brief")
+open(os.path.join(d, "off"), "w").close()
+until(lambda: os.path.exists(os.path.join(d, "done")), 10)
+after = owned("org.kde.StatusNotifierWatcher")
+open(os.path.join(d, "stop"), "w").close()
+done(p)
+check("the bus opened is no tray until asked; asked, it is; switched off, it lets the name go",
+      not before and during and not after, (before, during, after))
+open(log + ".quit", "w").close()
+
 # --- what it answers on the bus ---------------------------------------------
 d = scratch()
 first = hb(r'''
@@ -297,6 +338,63 @@ check("the watcher says what it is, and that a host is there",
 check("a call it does not know is answered with an error at once, never left waiting",
       "UnknownMethod" in odd.stderr, (odd.stdout, odd.stderr))
 
+# --- programs' notifications ----------------------------------------------
+def notifier(d, summary, body, name="note"):
+    """A program sending a notification, once it has its id or was refused."""
+    log = os.path.join(d, name)
+    p = subprocess.Popen([sys.executable, ITEM, log, "--notify", summary, body], env=ENV,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    procs.append(p)
+    until(lambda: said(log, "notified") or said(log, "nonotify"), 10)
+    return p, log
+
+
+d = scratch()
+p = hb(r"""
+dbus notes on
+pu "notes *" || { echo nonotes; exit 1; }
+n := dbus notes
+echo "notes $n"
+: > "$READY.2"
+pu "note *" || { echo nonote; exit 1; }
+k := dbus pump
+i := dbus note 1
+echo "note ${i["app"]}|${i["summary"]}|${i["body"]}|${i["urgency"]}|${i["actions"]}|${i[0]["key"]}:${i[0]["label"]}|${i[1]["key"]}"
+: > "$READY.3"
+pu "note 1" || echo noreplace
+i := dbus note 1
+echo "replaced ${i["summary"]}"
+dbus noteact 1 default
+quiet 10
+: > "$READY.4"
+pu "noteclose *" || echo noclose
+echo "closed"
+""", d, wait=True)
+until(lambda: os.path.exists(os.path.join(d, "ready.2")), 10)
+np, nlog = notifier(d, "Hello", "<b>Bold</b> &amp; plain")
+until(lambda: os.path.exists(os.path.join(d, "ready.3")), 10)
+open(nlog + ".renotify", "w").write("Hello again")
+until(lambda: os.path.exists(os.path.join(d, "ready.4")), 10)
+np2, nlog2 = notifier(d, "Second", "body", name="note2")
+open(nlog2 + ".close", "w").close()
+out, err = done(p)
+lines = out.split("\n")
+nt = said(nlog, "notified")
+check("asked to, the desktop is the session's notification server",
+      "notes on" in lines and nt and nt[0]["id"] == 1, (out, err, nt))
+check("a notification is read: its program, summary, body as plain text, urgency and actions",
+      "note Standin App|Hello|Bold & plain|2|2|default:Open|later" in lines, (out, err))
+check("one its program replaces keeps its number and has the new text",
+      "replaced Hello again" in lines and [x["id"] for x in nt] == [1, 1], (out, nt))
+ai, cl = said(nlog, "ActionInvoked"), said(nlog, "NotificationClosed")
+check("its action is sent to the program, and the note said closed by the person",
+      ai and ai[-1]["key"] == "default" and cl and cl[-1]["why"] == 2, (ai, cl))
+cl2 = said(nlog2, "NotificationClosed")
+check("one its program closes goes, and the program is told so",
+      "closed" in lines and cl2 and cl2[-1]["why"] == 3, (out, cl2))
+for x in (np, np2):
+    x.kill()
+
 # --- the desktop: the item on the menu bar ----------------------------------
 # A real desktop through the pty harness, with this suite's bus: the item's
 # letter on the bar, a left click activating it, a right click its own menu
@@ -306,8 +404,10 @@ from screen import Term, load, press, release
 
 d = scratch()
 sess = os.path.join(d, "tray.hibr")
-open(sess, "w").write('%s. %s\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\ndt_open\ndt_run\ndt_close\n'
-                      % (load("console"), tree("programs/desktop/desktop.hibr")))
+SESS = ('%s. %s\n%%s\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\n'
+        '. "$DT_HERE/control-panel/pnotes.hibr"\ndt_open\ndt_run\ndt_close\n'
+        % (load("console", "img"), tree("programs/desktop/desktop.hibr")))
+open(sess, "w").write(SESS % "")
 t = Term(sess, rows=24, cols=100, settle=1.0,
          env={"DBUS_SESSION_BUS_ADDRESS": "unix:path=" + BUS})
 
@@ -351,6 +451,73 @@ if zc is not None:
     open(log + ".quit", "w").close()
     sc = until(lambda: "Z" not in bar().row(0) and bar(), 10)
     check("and the letter goes when the program does", bool(sc), bar().row(0))
+
+
+check("the desktop shows programs' notifications by default",
+      until(lambda: owned("org.freedesktop.Notifications"), 10), None)
+np, nlog = notifier(d, "Ping", "from the stand-in")
+sc = until(lambda: bar().find("Ping: from the stand-in") and bar(), 10)
+check("a program's notification is one of the desktop's notes, in its own words",
+      bool(sc), bar())
+if sc:
+    r, c = sc.find("Ping: from the stand-in")
+    t.keys([press(r, c), release(r, c)])
+ai = until(lambda: said(nlog, "ActionInvoked"), 5)
+check("a click on it sends the program its default action",
+      ai and ai[-1]["key"] == "default", (ai, said(nlog, "NotificationClosed")))
+np2, nlog2 = notifier(d, "Pong", "left alone", name="note2")
+cl = until(lambda: said(nlog2, "NotificationClosed"), 15)
+check("one left alone goes when its time is up, and the program is told it expired",
+      cl and cl[-1]["why"] == 1, cl)
+for x in (np, np2):
+    x.kill()
+t.quit()
+t.close()
+
+# Where the terminal shows pixels, an icon is the program's own picture:
+# its PNG, from the folder the program names, placed over the bar's cells.
+import struct, zlib
+d = scratch()
+row = b"\0" + bytes([255, 255, 255, 255] * 16)
+png = (b"\x89PNG\r\n\x1a\n" + b"".join(
+    struct.pack(">I", len(c)) + t + c + struct.pack(">I", zlib.crc32(t + c) & 0xffffffff)
+    for t, c in ((b"IHDR", struct.pack(">IIBBBBB", 16, 16, 8, 6, 0, 0, 0)),
+                 (b"IDAT", zlib.compress(row * 16)), (b"IEND", b""))))
+open(os.path.join(d, "standin-icon.png"), "wb").write(png)
+sess2 = os.path.join(d, "tray.hibr")
+open(sess2, "w").write(SESS % "")
+t = Term(sess2, rows=24, cols=100, settle=1.0, cellw=8, cellh=16,
+         env={"DBUS_SESSION_BUS_ADDRESS": "unix:path=" + BUS, "HIBR_GFX": "kitty"})
+until(watcher, 15)
+c0 = len([x for x in t.screen().apc if "a=T" in x])
+ip, log = item(d, "--title", "Quill")
+
+
+def placed():
+    t.collect(0.1)
+    sc = t.screen()
+    return [x for x in sc.apc if "a=T" in x][c0:] and "Q" not in sc.row(0) and sc
+
+
+sc = until(placed, 10)
+check("where the terminal shows pixels, an icon is the program's own picture, not its letter",
+      bool(sc), t.screen().row(0))
+open(log + ".quit", "w").close()
+t.quit()
+t.close()
+
+# Switched off, the desktop is no tray -- a program finds nobody to
+# register with -- and programs' notifications are still the desktop's:
+# each is its own.
+d = scratch()
+sess3 = os.path.join(d, "tray.hibr")
+open(sess3, "w").write(SESS % "DT_TRAY=0")
+t = Term(sess3, rows=24, cols=100, settle=1.0,
+         env={"DBUS_SESSION_BUS_ADDRESS": "unix:path=" + BUS})
+notes = until(lambda: owned("org.freedesktop.Notifications"), 15)
+time.sleep(1.5 * SLOW)
+check("with Tray Icons switched off the desktop holds no tray name, and notifications still work",
+      notes and not owned("org.kde.StatusNotifierWatcher"), notes)
 t.quit()
 t.close()
 
@@ -360,4 +527,33 @@ for p in procs:
 daemon.kill()
 daemon.wait()
 shutil.rmtree(D, True)
-report(20)
+# --- the keyboard and the tray left the package (the owner, 2026-11-15) ----
+# A desktop that had them is told once, after the upgrade, with a click to
+# install them; the next start says nothing; a new desktop is told nothing.
+plain = ('%s. %s\ndt_open\ndt_run\ndt_close\n'
+         % (load("console"), tree("programs/desktop/desktop.hibr")))
+
+
+def startup(home, secs=4):
+    f = os.path.join(home, "s.hibr")
+    open(f, "w").write(plain)
+    t = Term(f, rows=24, cols=100, settle=1.0,
+             env={"XDG_CONFIG_HOME": os.path.join(home, "config"),
+                  "XDG_STATE_HOME": os.path.join(home, "state")})
+    seen = until(lambda: (t.collect(0.1), t.screen().find("click to install"))[1], secs)
+    t.quit()
+    t.close()
+    return bool(seen)
+
+
+old_home = scratch()
+os.makedirs(os.path.join(old_home, "config", "hibr"))
+open(os.path.join(old_home, "config", "hibr", "desktop.json"), "w").write(
+    '{"settings": {"DT_NOTEMS": "8000"}}')
+first, again = startup(old_home), startup(old_home, 3)
+new_home = scratch()
+fresh = startup(new_home, 3)
+check("a desktop that had the keyboard and the tray from the package is told once where they went",
+      first and not again, (first, again))
+check("and a new desktop is told nothing", not fresh, fresh)
+report(34)

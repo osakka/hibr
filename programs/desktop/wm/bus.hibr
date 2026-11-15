@@ -1,0 +1,111 @@
+# wm/bus -- the session bus, read in one place (Gitea #505). The dbus
+# module answers what happened on the bus as events, and whoever asked for
+# an event's first word is handed it: the tray for its items, programs'
+# notifications for theirs. Only this pumps the bus, since two readers
+# would each take the other's events.
+#
+# Opened at the first pass once anything has asked, its descriptor watched
+# so the bus wakes the desktop, never waited on; with no bus it is tried
+# again every thirty seconds and says nothing but the log.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_BUSFD=
+DT_BUSTRY=0
+declare -gA DT_BUSH
+
+# Hand fn every event whose first word is w, as fn "the whole event". `up`
+# is said once the bus is open and `down` when it went away.
+fn dt_buson(w, fn) {
+	case " ${DT_BUSH["$w"]-} " in *" $fn "*) return 0 ;; esac
+	DT_BUSH["$w"]="${DT_BUSH["$w"]-} $fn"
+	return 0
+}
+
+# Stop handing fn the events whose first word is w: what an item removed
+# while the desktop runs says on its way out. With nobody left asking, the
+# bus is closed.
+fn dt_busoff(w, fn) {
+	local k f out
+	local -a fs
+
+	read -ra fs <<< "${DT_BUSH["$w"]-}"
+	out=
+	for f in "${fs[@]}"; do
+		[ "$f" = "$fn" ] || out+=" $f"
+	done
+	if [ -n "$out" ]; then
+		DT_BUSH["$w"]=$out
+	else
+		unset DT_BUSH["$w"]
+	fi
+	for k in "${!DT_BUSH[@]}"; do
+		return 0
+	done
+	if [ -n "$DT_BUSFD" ]; then
+		console unwatch "$DT_BUSFD" 2> /dev/null
+		dbus close 2> /dev/null
+		DT_BUSFD=
+		dt_log "bus: nothing asks for the session bus; closed"
+	fi
+	return 0
+}
+
+# Hand an event to whoever asked for its first word.
+fn dt_busgive(e) {
+	local w=${e%% *} f
+	local -a fs
+
+	read -ra fs <<< "${DT_BUSH["$w"]-}"
+	for f in "${fs[@]}"; do
+		dt_has "$f" && "$f" "$e"
+	done
+	return 0
+}
+
+# Open the bus, at most once every thirty seconds while it will not open.
+dt_busopen() {
+	local fd
+
+	[ "${EPOCHSECONDS:-0}" -ge "$DT_BUSTRY" ] || return 0
+	DT_BUSTRY=$((${EPOCHSECONDS:-0} + 30))
+	need dbus 2> /dev/null || return 0
+	fd := dbus open 2> /dev/null || return 0
+	DT_BUSFD=$fd
+	console watch "$fd" 2> /dev/null
+	dt_log "bus: on the session bus"
+	dt_busgive up
+	dt_want 20
+}
+
+# Each pass: open the bus if anybody wants it, and hand on what it said.
+dt_bustick() {
+	local e
+	local -a ev
+
+	[ "${#DT_BUSH[@]}" -gt 0 ] || return 0
+	if [ -z "$DT_BUSFD" ]; then
+		dt_busopen
+		return 0
+	fi
+	ev := dbus pump 2> /dev/null || return 0
+	for e in "${ev[@]}"; do
+		case $e in
+		more)
+			dt_want 20
+			continue
+			;;
+		down)
+			console unwatch "$DT_BUSFD" 2> /dev/null
+			DT_BUSFD=
+			dt_log "bus: the session bus went away"
+			;;
+		esac
+		dt_busgive "$e"
+	done
+	return 0
+}
+command -v dt_ticker > /dev/null && dt_ticker dt_bustick

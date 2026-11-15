@@ -242,6 +242,69 @@ static int im_load(const char *path, image *out, str *err)
 	return HIBR_FAIL;
 }
 
+/* img flatten FILE OUT [#bg [#ink]]: a picture's transparency laid over a
+   colour -- black unless given -- and written as a binary PPM, for a
+   picture drawn where its own background would be wrong: a program's tray
+   icon, one colour on nothing, over the menu bar's own colour (Gitea #505).
+   With an ink, the picture is a shape only, drawn in that colour: a mono
+   icon made for a dark panel reads on a light bar too. Written to OUT.part
+   and renamed, so a reader never sees half of it. */
+int im_flatten(sh *s, int ac, char **av)
+{
+	image im;
+	str err, tmp;
+	FILE *f;
+	unsigned r = 0, g = 0, b = 0, ir, ig, ib;
+	int ok, ink = -1;
+
+	(void)s;
+	if (ac < 4) {
+		lg(HIBR_LERR, "usage: img flatten file out [#bg [#ink]]");
+		return 2;
+	}
+	if (ac > 5) {
+		if (av[5][0] != '#' || strlen(av[5]) != 7 ||
+		    sscanf(av[5] + 1, "%2x%2x%2x", &ir, &ig, &ib) != 3) {
+			lg(HIBR_LERR, "img flatten: %s is not a colour", av[5]);
+			return 2;
+		}
+		ink = (int)((ir << 16) | (ig << 8) | ib);
+	}
+	if (ac > 4 && (av[4][0] != '#' || strlen(av[4]) != 7 ||
+		       sscanf(av[4] + 1, "%2x%2x%2x", &r, &g, &b) != 3)) {
+		lg(HIBR_LERR, "img flatten: %s is not a colour", av[4]);
+		return 2;
+	}
+	memset(&im, 0, sizeof im);
+	s_init(&err);
+	im_pngbg = (int)((r << 16) | (g << 8) | b);
+	im_pngink = ink;
+	ok = im_load(av[2], &im, &err) == HIBR_OK;
+	im_pngbg = -1;
+	im_pngink = -1;
+	if (!ok) {
+		lg(HIBR_LERR, "img flatten: %s", err.p ? err.p : av[2]);
+		s_free(&err);
+		return HIBR_FAIL;
+	}
+	s_free(&err);
+	s_init(&tmp);
+	s_cat(&tmp, av[3]);
+	s_cat(&tmp, ".part");
+	f = fopen(tmp.p, "wb");
+	ok = f && fprintf(f, "P6\n%d %d\n255\n", im.w, im.h) > 0 &&
+	     fwrite(im.px, 3, (size_t)im.w * im.h, f) == (size_t)im.w * im.h;
+	if (f && fclose(f) != 0)
+		ok = 0;
+	if (ok && rename(tmp.p, av[3]) != 0)
+		ok = 0;
+	if (!ok)
+		unlink(tmp.p);
+	s_free(&tmp);
+	free(im.px);
+	return ok ? HIBR_OK : HIBR_FAIL;
+}
+
 /* Write a resampled grid as a binary PPM, a cell's two halves as two
    pixels one above the other: the picture at exactly the size it will be
    drawn, for `img draw` to read back without a library. */
@@ -1256,6 +1319,8 @@ static int m_img(sh *s, int ac, char **av)
 		return im_keep(s, ac, av);
 	if (ac > 1 && !strcmp(av[1], "size"))
 		return im_size(s, ac, av);
+	if (ac > 1 && !strcmp(av[1], "flatten"))
+		return im_flatten(s, ac, av);
 	return im_cat(s, ac, av);
 }
 

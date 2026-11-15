@@ -103,6 +103,7 @@ A contact needs a name or an email
 A folder is needed
 A formula is = and then hibr.
 A message was not sent: %s
+A program is listed here once it has put up an icon
 A program needs a name and a command
 A rule is an operator, a number and a colour: < 0 bad
 A terminal cannot start in a folder on a server
@@ -428,6 +429,7 @@ Draw Pictures As
 Drawn Now
 Drop onto Home, a disk, or the trash
 ETag: %s
+Each program's own rule is in Notifications
 Edge Resize
 Edit
 Edit Contact
@@ -550,6 +552,7 @@ Icon Background
 Icon Colours
 Icon Size
 Icons
+Icons Before the Arrow
 Identify
 Image
 Image Viewer
@@ -568,6 +571,7 @@ Insert Row Above
 Insert Row Below
 Install
 Installed from the Catalogue
+Installing from the Catalogue
 Inviting people needs a mail account to send from
 Isha
 It asks for a password (%s).
@@ -593,6 +597,7 @@ Kept by Blit
 Keyboard
 Keyboard Name on Menu Bar
 Keyboard Settings…
+Keyboard on Menu Bar
 Kind:
 Known Networks
 LC_ALL Overrides These
@@ -611,6 +616,7 @@ Last Synced
 Leave Full Screen
 Left
 Left %s
+Left Click
 Level on Menu Bar
 Light or Dark
 Line Under It
@@ -892,6 +898,7 @@ Previous Month
 Previous Page
 Process Details
 Program
+Program Notifications
 Programs
 Programs Set Clipboard
 Programs Take Focus
@@ -1132,6 +1139,7 @@ That archive is not there
 That event is not kept here any more; syncing
 The %s input method is not installed
 The %s input method would not open
+The Catalogue could not install them -- open the Catalogue to try again
 The Control Strip is off -- Control Panel > Control Strip shows it
 The PIN is cleared
 The PIN is set
@@ -1153,6 +1161,8 @@ The desktop is drawn through %s
 The desktop stopped soon after putting its windows back, twice -- started without them
 The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)
 The end is a time, HH:MM
+The keyboard and Tray Icons are now in the Catalogue -- click to install them
+The keyboard on the menu bar is now in the Catalogue -- click to install it
 The language was not changed: %s
 The login screen changes at the next logout
 The mermaid module is not loaded
@@ -1227,6 +1237,8 @@ Tour
 Trash
 Tray
 Tray Icons
+Tray Icons are now in the Catalogue -- click to install them
+Tray Icons on the Menu Bar
 Tree Rules
 Tree Style
 Tue

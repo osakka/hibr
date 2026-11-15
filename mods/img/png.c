@@ -104,6 +104,15 @@ static int png_load(void)
 	return HIBR_OK;
 }
 
+/* The colour a PNG's transparency is laid over, 0xRRGGBB, while `img
+   flatten` decodes; -1, alpha dropped, otherwise. */
+int im_pngbg = -1;
+/* And the one colour a mono icon is drawn in, 0xRRGGBB, its own colours
+   ignored and only its shape -- the alpha -- kept: a tray icon made for a
+   dark panel, white on nothing, drawn in the bar's own ink, so it reads on
+   a light bar as well. -1 keeps the picture's colours. */
+int im_pngink = -1;
+
 /* Decode a PNG from an open stream into 8-bit RGB, dropping any alpha;
    name is what an error calls it. user_png_ver is asked of the library
    itself rather than assumed, since there is no compile-time png.h here to
@@ -164,9 +173,19 @@ int im_pngfile(FILE *fp, const char *name, image *out, str *err)
 		unsigned char *dst = out->px + (size_t)r * w * 3;
 
 		for (c = 0; c < w; c++) {
-			dst[c * 3 + 0] = src[c * ch + 0];
-			dst[c * 3 + 1] = src[c * ch + 1];
-			dst[c * 3 + 2] = src[c * ch + 2];
+			unsigned a = ch == 4 && im_pngbg >= 0 ? src[c * ch + 3] : 255;
+			unsigned bgr = (unsigned)(im_pngbg >> 16) & 255, bgg = (unsigned)(im_pngbg >> 8) & 255,
+				 bgb = (unsigned)im_pngbg & 255;
+			unsigned fr = src[c * ch + 0], fg = src[c * ch + 1], fb = src[c * ch + 2];
+
+			if (im_pngink >= 0) {
+				fr = (unsigned)(im_pngink >> 16) & 255;
+				fg = (unsigned)(im_pngink >> 8) & 255;
+				fb = (unsigned)im_pngink & 255;
+			}
+			dst[c * 3 + 0] = (unsigned char)((fr * a + bgr * (255 - a)) / 255);
+			dst[c * 3 + 1] = (unsigned char)((fg * a + bgg * (255 - a)) / 255);
+			dst[c * 3 + 2] = (unsigned char)((fb * a + bgb * (255 - a)) / 255);
 		}
 	}
 	png.destroy_read(&p, &info, 0);

@@ -12,7 +12,7 @@
 strict
 
 
-app language "The system's language and region, and how the desktop shows them" 1.0.4
+app language "The system's language and region, and how the desktop shows them" 1.0.5
 command -v cp_pane > /dev/null && cp_pane language "Language & Region" "A"
 # The pane's own dialog, named so the application menu reads "Add a
 # Language" rather than its prefix.
@@ -195,12 +195,6 @@ fn language_rows(int w) {
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Input Method"
 		CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=imekb; n=$((n + 1))
 	fi
-	if dt_has dt_kbbar; then
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keyboard Name on Menu Bar"
-		CP[$w][$n]["wtype"]=bool
-		CP[$w][$n]["val"]=off; [ "${DT_KBNAME:-1}" = 1 ] && CP[$w][$n]["val"]=on
-		CP[$w][$n]["key"]=DT_KBNAME; n=$((n + 1))
-	fi
 	ret "$n"
 }
 
@@ -278,11 +272,6 @@ fn language_do(int? w = "", k = "", int? dir = "") {
 	mirror)
 		v := cp_next "$DT_MIRROR" "$dir" "${CP_MIRRORS[@]}"
 		cp_set_mirror "" "$v"
-		return 0
-		;;
-	DT_KBNAME)
-		cp_toggle DT_KBNAME
-		dt_kbshow
 		return 0
 		;;
 	digits)

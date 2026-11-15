@@ -1,5 +1,68 @@
 # Changelog
 
+## 0.99.531
+
+**The menu bar has one rule, and the tray and the keyboard follow it** (the
+owner, 2026-11-15). 0.99.530 put the tray in the package with no switch, and
+the keyboard item had shipped in the package and the catalogue at once, so
+the catalogue never offered it and it could not be taken off like the
+network. Now the package's bar items are the desktop's own four -- the
+clock, notifications, workspaces and the application menu, each saying
+`# platform:` of itself -- and every other comes only from the Catalogue,
+with its own Control Panel pane as a part. `tests/541-ships.t` fails the
+build if anything else enters the package.
+
+- **Tray Icons** (`menubar/tray`, Gitea #505) is a catalogue entry with its
+  own pane: on or off, icons as pictures or letters, what a left click does
+  (activate, or open the menu), how many icons before the rest go under an
+  arrow, and every program that has put up an icon, shown, hidden or shown
+  even while idle, in the order the bar shows them (drag, or Shift and an
+  arrow). Icons are the program's own picture now, where the terminal shows
+  pixels: Steam's `steam_tray_mono`, found where Steam says it keeps its
+  icons, then in the icon themes and `/usr/share/pixmaps`. A one-colour icon
+  (`*mono*`, `*-symbolic`) is drawn in the bar's own ink, so it reads on a
+  light bar too. The letter is only the fallback.
+- **The bus is no tray unless the tray asks.** `dbus open` takes no name
+  now: `dbus tray on` asks for the watcher's and the host's, and `off` lets
+  both go at once, with the items. Switched off or removed, the desktop is
+  no tray a program could register with and hide in.
+- **The keyboard on the menu bar** is catalogue-only, with its own pane,
+  Keyboard on Menu Bar, which holds Keyboard Name on Menu Bar. That row has
+  left Language & Region.
+- **Programs' notifications are the desktop's own** (#505's second half,
+  never released before this): a catalogue entry, Program Notifications,
+  which makes the desktop the session's org.freedesktop.Notifications. What
+  a program says becomes one of the desktop's notes:
+  - the same stack, history, per-app rules and Do Not Disturb;
+  - under its own name, at a priority from its urgency, in its own words;
+  - a click runs its default action;
+  - a note it replaces is replaced, one it closes goes;
+  - it is told when each has gone.
+  Removed, the desktop lets the name go.
+- **A desktop that had the keyboard or the tray from the package is told
+  once**, on its first start after the upgrade, with a click that installs
+  them from the Catalogue. A new desktop is told nothing; nothing is
+  installed without the click.
+- The bus is read in one place, `wm/bus.hibr`, which hands each event to
+  whoever registered for its first word and closes the bus when nobody is
+  left. `dt_onunload` lets a file stop what it runs when a rescan finds it
+  gone, and start it again when it comes back.
+- `img flatten FILE OUT [#bg [#ink]]` lays a picture's transparency over a
+  colour, or draws it in one ink, and writes a PPM. img dropped a PNG's
+  alpha, so a transparent icon would have been a solid block.
+
+`tests/traymod.py` has 34 checks:
+- the names held only while the tray asks;
+- icons drawn as pictures where pixels can be shown;
+- a desktop with the tray off holding no tray name, with notifications still
+  working;
+- the upgrade note once and never on a new desktop;
+- notifications sent, replaced, clicked, closed and expired, against a
+  stand-in program.
+
+A scratch catalogue served locally confirmed that a bar item installs its
+pane as a part and removes both.
+
 ## 0.99.530
 
 **A tray for programs' icons** (Gitea #505, the owner's, after Steam stayed

@@ -1531,6 +1531,18 @@
   "Teach Word teaches the word being typed": "تعليم كلمة يُعلِّم الكلمة التي تُكتب الآن",
   "The %s input method would not open": "تعذّر فتح طريقة الإدخال %s",
   "Tray": "منطقة الإشعارات",
-  "Tray Icons": "أيقونات منطقة الإشعارات"
+  "Tray Icons": "أيقونات منطقة الإشعارات",
+  "Program Notifications": "إشعارات البرامج",
+  "A program is listed here once it has put up an icon": "يظهر البرنامج هنا بعد أن يضع أيقونته",
+  "Each program's own rule is in Notifications": "قاعدة كل برنامج في الإشعارات",
+  "Icons Before the Arrow": "الأيقونات قبل السهم",
+  "Installing from the Catalogue": "يجري التثبيت من الكتالوج",
+  "Keyboard on Menu Bar": "لوحة المفاتيح في شريط القوائم",
+  "Left Click": "النقر الأيسر",
+  "The Catalogue could not install them -- open the Catalogue to try again": "تعذّر على الكتالوج تثبيتها -- افتح الكتالوج لتحاول مجددًا",
+  "The keyboard and Tray Icons are now in the Catalogue -- click to install them": "لوحة المفاتيح وأيقونات منطقة الإشعارات الآن في الكتالوج -- انقر لتثبيتها",
+  "The keyboard on the menu bar is now in the Catalogue -- click to install it": "لوحة المفاتيح في شريط القوائم الآن في الكتالوج -- انقر لتثبيتها",
+  "Tray Icons are now in the Catalogue -- click to install them": "أيقونات منطقة الإشعارات الآن في الكتالوج -- انقر لتثبيتها",
+  "Tray Icons on the Menu Bar": "أيقونات منطقة الإشعارات في شريط القوائم"
  }
 }

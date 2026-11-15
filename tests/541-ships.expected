@@ -19,5 +19,7 @@ leaves out colours/dracula.json
 leaves out savers/matrix.hibr
 leaves out lang/ar.json
 no empty folder is left behind: 0
+every bar item the package ships is the platform's own: yes
+and packaging/ships lists none
 install-extras places exactly the rest
 the default plus the extras is the whole desktop
