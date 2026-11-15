@@ -475,13 +475,13 @@ check("panes register and sort by title within their group, not load order",
       ORDER == ["bluetooth", "datetime", "displays", "mouse", "networks", "power", "sound",
                 "aboutme", "abouthibr", "adminaccess", "appearance", "menuedit", "cliphist",
                 "control_strip", "desktop", "filetypes", "kbdbar", "language", "loginmgr",
-                "barset", "notify", "pictures", "pnotes", "screensaver", "network", "shortcuts",
+                "barset", "notify", "pictures", "screensaver", "network", "shortcuts",
                 "taskmgr", "trayset", "versions", "wallset", "windows",
                 "archiveset", "pimset", "camset", "filesview", "mailset", "prayerset",
                 "sheetset", "notes", "terminal", "vaultset"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 7 + ["system"] * 24 + ["app"] * 10, out)
+      ["hardware"] * 7 + ["system"] * 23 + ["app"] * 10, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -525,7 +525,7 @@ TITLE = {"archiveset": "Archives", "aboutme": "About Me", "adminaccess": "Admini
          "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
          "terminal": "Terminal", "versions": "Versions",
          "camset": "Camera", "wallset": "Wallpaper",
-         "menuedit": "Applications", "kbdbar": "Keyboard on", "pnotes": "Program Noti",
+         "menuedit": "Applications", "kbdbar": "Keyboard on",
          "trayset": "Tray Icons"}
 
 

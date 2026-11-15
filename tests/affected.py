@@ -65,7 +65,6 @@ SUITE_MODS = {
     "fetch": ["fetch", "inflate"],
     "web": ["web"],
     "media": ["media"],
-    "youtube": ["web", "media"],
     "sound": ["media"],
     "pim": ["pim", "dav"],
     "contacts": ["pim", "dav", "email", "db"],

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.14",
+ "version": "3.99.15",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1533,7 +1533,6 @@
   "Tray Icons": "أيقونات منطقة الإشعارات",
   "Program Notifications": "إشعارات البرامج",
   "A program is listed here once it has put up an icon": "يظهر البرنامج هنا بعد أن يضع أيقونته",
-  "Each program's own rule is in Notifications": "قاعدة كل برنامج في الإشعارات",
   "Icons Before the Arrow": "الأيقونات قبل السهم",
   "Installing from the Catalogue": "يجري التثبيت من الكتالوج",
   "Keyboard on Menu Bar": "لوحة المفاتيح في شريط القوائم",

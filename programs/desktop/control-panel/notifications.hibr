@@ -197,6 +197,16 @@ fn notify_rows(int w) {
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear History"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=clearhist
 	n=$((n + 1))
+	# Programs' own notifications, while the catalogue's listener for them
+	# (control-panel/pnotes) is installed: its one switch, beside the
+	# per-program rules below that decide what each one's notes do.
+	if dt_has dt_pnoteset; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Program Notifications"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "${DT_PNOTES:-1}" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=pnotes
+		n=$((n + 1))
+	fi
 	cp_notefrom
 	for i in "${!CP_NOTEFROM[@]}"; do
 		CP[$w][$n]["kind"]=set
@@ -214,6 +224,8 @@ fn notify_do(int? w = "", k = "", int? dir = "") {
 	case $k in
 	history) dt_has notifications_draw && dt_launch notifications ;;
 	clearhist) cp_clearhist ;;
+	pnotes) dt_has dt_pnoteset || return 0
+		if [ "${DT_PNOTES:-1}" = 1 ]; then dt_pnoteset 0; else dt_pnoteset 1; fi ;;
 	esac
 	cp_save
 }

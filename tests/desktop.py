@@ -4871,9 +4871,9 @@ PANEL = ('. %s/panel.hibr\nDT_BARDIRS+=("$DT_HERE/menubar")\ndt_menubar\nCP_PANE
 ORDER = ["bluetooth", "datetime", "displays", "mouse", "networks", "power", "sound",
          "aboutme", "abouthibr", "adminaccess", "appearance", "menuedit", "cliphist", "control_strip",
          "desktop", "filetypes", "kbdbar", "language", "loginmgr", "barset", "notify", "pictures",
-         "pnotes", "screensaver", "network", "shortcuts", "taskmgr", "trayset", "windows",
+         "screensaver", "network", "shortcuts", "taskmgr", "trayset", "windows",
          "pimset", "filesview", "mailset", "prayerset", "notes", "terminal",
-         "vaultset", "tube"]
+         "vaultset"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
 

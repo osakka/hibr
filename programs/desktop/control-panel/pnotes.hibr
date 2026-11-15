@@ -1,7 +1,9 @@
 # control-panel/pnotes -- programs' notifications as the desktop's own
 # (Gitea #505): a catalogue entry, not part of the package (the owner,
-# 2026-11-15), its pane and the listener behind it in one file. Installed
-# and switched on, the desktop is the session's
+# 2026-11-15). The listener alone: its switch is a row of Notifications,
+# which shows it while this is installed, since a pane of its own beside
+# Notifications was a second place for the same notes (the owner,
+# 2026-11-15, 0.99.536). Installed and switched on, the desktop is the session's
 # org.freedesktop.Notifications, through the dbus module and wm/bus.hibr:
 # what a program says becomes one of the desktop's notes -- the same stack,
 # history, per-app rules and Do Not Disturb -- under the program's own name,
@@ -14,10 +16,11 @@
 # Removed while the desktop runs, it lets the name go (dt_onunload), so the
 # notifications go back to whatever else the session has.
 
+# title: Program Notifications
+
 strict
 
-app pnotes "Programs' notifications as the desktop's own, and their pane" 1.0
-command -v cp_pane > /dev/null && cp_pane pnotes "Program Notifications" "◉"
+app pnotes "Programs' notifications as the desktop's own, switched in Notifications" 1.0.1
 
 # The setting, Control Panel > Notifications > Program Notifications.
 DT_PNOTES="${DT_PNOTES-1}"
@@ -134,27 +137,6 @@ fn dt_pnoteset(v) {
 	return 0
 }
 
-# The pane: on or off, and where each program's own rule is.
-fn pnotes_rows(int w) {
-	local n=0
-
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Program Notifications"
-	CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=off; [ "${DT_PNOTES:-1}" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=on
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=info
-	CP[$w][$n]["text"]="Each program's own rule is in Notifications"
-	n=$((n + 1))
-	ret "$n"
-}
-
-fn pnotes_do(int? w = "", k = "", int? dir = "") {
-	case $k in
-	on) if [ "${DT_PNOTES:-1}" = 1 ]; then dt_pnoteset 0; else dt_pnoteset 1; fi ;;
-	esac
-	return 0
-}
 
 # Taken off by a rescan: the name let go, the bus left to whoever else asks.
 dt_pnotestop() {

@@ -175,7 +175,7 @@ awk '
     NOT["clipboard"] = "selall undo redo"
     # Hand what is pasted to a program or a page, which keeps its own
     # history; the window has none to undo.
-    split("term browser youtube calc screens", a, " ")
+    split("term browser calc screens", a, " ")
     for (i in a) NOT[a[i]] = "cut selall undo redo"
     NOT["dbase"] = "copy cut selall undo redo"
   }

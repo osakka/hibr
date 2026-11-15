@@ -64,7 +64,6 @@ python3 tests/contacts.py   Contacts, against tests/davserve.py --pim
 python3 tests/calapp.py     Calendar, against the same
 python3 tests/vault.py      the Vault accessory and the desktop's vault
 python3 tests/web.py        the web module and the Browser, on local pages
-python3 tests/youtube.py    the YouTube app, against tests/ytserve.py
 python3 tests/media.py      the media module, its sound to a WAV file
 python3 tests/sound.py      the desktop's sound, on a private PipeWire
 python3 tests/bt.py         the desktop's Bluetooth, against a stand-in
@@ -108,7 +107,7 @@ python3 tests/appmgr.py       the catalogue, against a stand-in index
 ```
 
 The stand-ins (`mailserve.py`, `davserve.py`, `fetchserve.py`,
-`bwserve.py`, `ytserve.py`) are servers, not suites, and so is
+`bwserve.py`) are servers, not suites, and so is
 `frameserve.py`, Blit's frame socket, which refuses what Blit refuses (versions 1 to 3, `v3` and `nodma` for dmabuf frames, checked by size and never mapped; an `INPUT` route refused ENOENT for a picture it has no frame of, EACCES for a socket the uid does not own, EBUSY for a second);
 `tests/net/` holds the programs that stand in for `nmcli`, `bluetoothctl`,
 `pkexec` and `pkttyagent`, with the output they were captured giving (see

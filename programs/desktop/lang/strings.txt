@@ -429,7 +429,6 @@ Draw Pictures As
 Drawn Now
 Drop onto Home, a disk, or the trash
 ETag: %s
-Each program's own rule is in Notifications
 Edge Resize
 Edit
 Edit Contact

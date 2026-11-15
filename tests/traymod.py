@@ -671,12 +671,25 @@ if at:
 bare = until(lambda: " EN " not in scr().row(0) and scr(), 5)
 check("Keyboard on Menu Bar: switching the name off leaves the keyboard's glyph without it",
       named and bool(bare), scr().row(0))
+# Programs' notifications have no pane of their own: a second place beside
+# Notifications for the same notes (the owner, 2026-11-15). Their switch is
+# a row of Notifications, there while the listener is installed.
+nopane = scr().find("Program Noti") is None
 was = owned("org.freedesktop.Notifications")
-at = scr().find("Program Noti")
+at = scr().find("Notifications")
 if at:
-    t.keys([press(*at), release(*at), 0.3, b"\t", 0.2, b"\r"])
+    t.keys([press(*at), release(*at), 0.3, b"\t", 0.2])
+for _ in range(30):
+    if rowat("Program Notifications"):
+        break
+    t.keys([b"\x1b[B", 0.1])
+check("Program Notifications is a row of Notifications, not a pane beside it",
+      nopane and bool(rowat("Program Notifications")), scr().text())
+twice("Program Notifications")
 gone = until(lambda: not owned("org.freedesktop.Notifications"), 10)
-t.keys([b"\r"])
+at = rowat("Program Notifications")
+if at:
+    t.keys([press(*at), release(*at)])
 again = until(lambda: owned("org.freedesktop.Notifications"), 10)
 check("Program Notifications: off lets the notification name go, on takes it again",
       was and gone and again, (was, gone, again))
@@ -720,4 +733,4 @@ fresh = startup(new_home, 3)
 check("a desktop that had the keyboard and the tray from the package is told once where they went",
       first and not again, (first, again))
 check("and a new desktop is told nothing", not fresh, fresh)
-report(44)
+report(45)

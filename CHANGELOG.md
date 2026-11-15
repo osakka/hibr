@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.536
+
+**Programs' notifications have no pane of their own** (owner,
+2026-11-15). 0.99.531 put "Program Notifications" in the Control Panel
+beside "Notifications", with the same icon: a pane holding one switch and
+a line saying every program's own rule was in the other one. A program's
+notes are the desktop's own notes -- one stack, one history, one set of
+rules, one Do Not Disturb -- so a second pane for them was a second place
+for the same thing. Its switch is now a row of **Notifications**,
+**Program Notifications**, beside the per-program "From" rules, and it is
+there only while the catalogue's listener (`control-panel/pnotes` 1.0.1)
+is installed. The listener is what it was, and the setting keeps its
+name, so nothing chosen is lost. `system/notifications` 1.6.2 carries the
+row; the catalogue lists the listener by a `# title:` line, which
+`mkindex` now reads for a file that registers nothing by name.
+
+**The YouTube app's suite is gone with the app.** The catalogue's Video
+app replaced YouTube, Tubi and Bilibili, which `catalogue update` removes
+(`replaces`, 0.99.532). `tests/youtube.py` drove only the YouTube app, so
+it is removed, with `tests/ytserve.py`, its rows in the coverage map and
+its place in `tests/all.py` and `tests/affected.py`. A cost, stated: it
+was the only suite that reached the web module's own media tap (`web tap`,
+`take`, `tapseek`), which nothing in the catalogue uses now -- Video plays
+through WebKit -- and which has no check of its own.
+
+Checked: `tests/traymod.py` finds the switch as a row of Notifications,
+checks no pane of its own is listed, and pulls it off and on again; the
+Control Panel's pane order in `tests/apps.py` and `tests/desktop.py` no
+longer has it.
+
 ## 0.99.535
 
 **A program's tray icon has no box behind it** (owner, 2026-11-15). An icon
