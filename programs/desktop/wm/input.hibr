@@ -544,6 +544,8 @@ dt_mouse() {
 		# speaker does, for the volume (Gitea #306).
 		if dt_onbar "$mr" "$mc" && bi := dt_barihit "$mc"; then
 			if [ -n "${DT_BARI["$bi"]["wheel"]-}" ]; then
+				DT_BARWROW=$mr
+				DT_BARWCOL=$mc
 				"${DT_BARI["$bi"]["wheel"]}" "${act#wheel}"
 				return 0
 			fi

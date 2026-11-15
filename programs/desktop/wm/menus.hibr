@@ -264,6 +264,34 @@ fn dt_rowaccel(text) {
 	return 0
 }
 
+# The row just added, labelled exactly as given: another program's own
+# words -- a tray item's menu -- are never looked up in the desktop's
+# catalogue, where a program's "Quit" would become the desktop's.
+fn dt_rowtext(text) {
+	local m n
+
+	m=${MB_CUR:-$((MB_N - 1))}
+	n=$((${MB[$m]["n"]} - 1))
+	[ "$n" -ge 0 ] || return 0
+	MI[$m][$n]["label"]=$text
+	dt_wide "$m" $((${#text} + 8))
+	return 0
+}
+
+# The submenu just started, titled exactly as given, in its own row of the
+# menu that owns it and at its own top: the same, for dt_sub.
+fn dt_subtext(text) {
+	local p=${MB[$MB_CUR]["par"]-} n
+
+	MB[$MB_CUR]["title"]=$text
+	[ -n "$p" ] || return 0
+	n=$((${MB[$p]["n"]} - 1))
+	[ "$n" -ge 0 ] || return 0
+	MI[$p][$n]["label"]=$text
+	dt_wide "$p" $((${#text} + 8))
+	return 0
+}
+
 # Add a dividing line.
 dt_sep() {
 	local m=${MB_CUR:-$((MB_N - 1))} n

@@ -95,11 +95,13 @@ SUITE_MODS = {
     # here is what makes a change to it reach this suite.
     "archive": ["archive", "inflate"],
     "appmgr": ["dav", "archive", "inflate"],
+    "traymod": ["dbus", "console"],
 }
 APPS = ("apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more")
 DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session")
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
-                                         "sound", "net", "bt", "archives", "holdrenew", "native")
+                                         "sound", "net", "bt", "archives", "holdrenew", "native",
+                                         "traymod")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 

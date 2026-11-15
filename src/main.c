@@ -663,6 +663,24 @@ void sh_self(sh *s, const char *a0)
 	free(p);
 }
 
+/* PWD at startup as bash has it: the inherited one only when it names this directory, a path through a symlink kept; else the real one, exported either way. */
+void sh_pwd(sh *s)
+{
+	const char *p = hibr_get(s, "PWD");
+	struct stat a, b;
+	char *cwd;
+
+	if (p && p[0] == '/' && stat(p, &a) == 0 && stat(".", &b) == 0 &&
+	    a.st_dev == b.st_dev && a.st_ino == b.st_ino)
+		return;
+	cwd = getcwd(0, 0);
+	if (!cwd)
+		return;
+	lg(HIBR_LDBG, "PWD %s is not this directory; it is %s", p ? p : "(unset)", cwd);
+	hibr_set(s, "PWD", cwd, 1);
+	free(cwd);
+}
+
 /* Set OSTYPE, HOSTTYPE and MACHTYPE, the way bash does, from uname(). */
 void sh_machine(sh *s)
 {
@@ -725,6 +743,7 @@ int main(int ac, char **av)
 	s.pid = (long)getpid();
 	pt_init(ac, av);
 	v_env(&s);
+	sh_pwd(&s);
 	hibr_set(&s, "IFS", " \t\n", 0);
 	if (!hibr_get(&s, "PATH")) {
 		lg(HIBR_LDBG, "no PATH was given; the default is set, not exported, as bash's is");

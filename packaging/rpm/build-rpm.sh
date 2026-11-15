@@ -71,6 +71,7 @@ BuildArch:      $ARCH
 Recommends:     libpng16.so.16()(64bit)
 Recommends:     libturbojpeg.so.0()(64bit)
 Recommends:     /usr/bin/pkexec
+Recommends:     libdbus-1.so.3()(64bit)
 Conflicts:      pleaser
 Suggests:       libssl.so.3()(64bit)
 Suggests:       libargon2.so.1()(64bit)

@@ -632,6 +632,12 @@ os.environ["PULSE_SERVER"] = "unix:/nonexistent/hibr-test"
 os.environ["HIBR_NET"] = "none"
 # Nor its Bluetooth (Gitea #312); tests/bt.py gives its own a stand-in.
 os.environ["HIBR_BT"] = "none"
+# Nor its session bus (Gitea #505): a test desktop is the tray's watcher on
+# whatever bus it finds, and on this machine's own that is the name the
+# person's real desktop holds. Empty is "no bus" to the dbus module, which
+# then does not look in the runtime folder either; tests/traymod.py and
+# sound.py give theirs a dbus-daemon of their own.
+os.environ["DBUS_SESSION_BUS_ADDRESS"] = ""
 
 # What the desktop prints, when HIBR_TESTIDLE is set, each time a frame is on
 # screen and it is about to wait for input -- an OSC a terminal ignores,

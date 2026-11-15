@@ -392,7 +392,11 @@ fn dt_barmenu(name, who, id = "") {
 }
 
 # What the wheel over an item runs, given up or down; an item with none
-# lets the wheel go on to whatever is under the bar.
+# lets the wheel go on to whatever is under the bar. Where on the bar it
+# turned is in DT_BARWROW and DT_BARWCOL, for an item whose parts are
+# several things (the tray's icons).
+DT_BARWROW=0
+DT_BARWCOL=0
 fn dt_bariwheel(name, fn) {
 	DT_BARI["$name"]["wheel"]=$fn
 }

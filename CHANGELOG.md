@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.99.530
+
+**A tray for programs' icons** (Gitea #505, the owner's, after Steam stayed
+running with nowhere to show its icon). The desktop is the session bus's
+StatusNotifierWatcher when nobody else is, and its host either way, so a
+program that puts up a tray item -- Steam, chat programs, anything on Qt
+or libappindicator -- has somewhere to put it. Each item is a letter on
+the menu bar, drawn in the warning colour while it asks for attention. A
+left click activates it; an item that is only a menu, or will not be
+activated, opens its menu instead. A right click opens its menu, read
+from the program (com.canonical.dbusmenu), in the program's own words
+and never the desktop's catalogue's. The wheel scrolls it. The item goes
+when the program does, crash included. Menu Bar Items takes it off the
+bar like any other item. The desktop logs each item's properties, which
+is how we will learn whether Steam gives an icon name or only a picture
+before the letters become pictures.
+
+The bus is the new `dbus` module, libdbus-1 dlopen'd, and it never waits:
+every exchange with the daemon -- Hello, RequestName, AddMatch, each
+property read and each menu -- is a message whose reply the desktop picks
+up when the bus's descriptor wakes it, as 0.99.529 made the media module.
+The connection leaves the process alone: no exit when the bus goes away
+(the tray empties and is said in the log), SIGPIPE as it was, the
+descriptor close-on-exec, and never an autolaunch. Each was checked
+against a private daemon. A daemon that stops reading answers nothing,
+and nothing waits for it. Another program already the watcher (a second
+desktop in the same login) makes this one a host, given the items that
+watcher knows. The checks drive it against `tests/trayitem.py`, a
+stand-in that registers as Qt does and as libappindicator does, answers
+late, offers only a picture, changes its menu and dies without a word.
+`tests/traymod.py` has 20 checks, five of them a real desktop through
+the pty.
+
+- **PWD at startup is bash's.** An inherited `PWD` that names another
+  folder is replaced by the real one, as bash does, and a missing one is
+  set and exported. hibr kept whatever it was given, so a script started
+  by a program with that program's `PWD` wrote its files in the wrong
+  folder, which is how the tray's own check found it
+  (`tests/999-pwd-start.t`).
+- **The suites are off the machine's session bus**: `tests/screen.py` sets
+  `DBUS_SESSION_BUS_ADDRESS` empty, which the module reads as no bus, so
+  no test desktop takes the tray's name from the person's own.
+- `dt_rowtext` and `dt_subtext` label the row or submenu just added
+  exactly as given, for another program's words. A bar item's wheel
+  handler is told where it turned, in `DT_BARWROW` and `DT_BARWCOL`.
+
 ## 0.99.529
 
 **A media open never holds the caller** (the owner's freezes, 2026-11-14).

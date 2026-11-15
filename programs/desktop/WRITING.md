@@ -775,7 +775,9 @@ to declare.
 The menu bar takes items too, since 0.99.129: `dt_baritem name text
 [cmd...]`, drawn left of the notification icon, and clicked it runs the
 words it was given; `dt_bariwheel name fn` has the wheel over it call `fn
-up` or `fn down`, which is how the speaker turns the volume (Gitea #306);
+up` or `fn down`, which is how the speaker turns the volume (Gitea #306),
+with where it turned in `DT_BARWROW` and `DT_BARWCOL` for an item whose
+parts are several things, as the tray's icons are (Gitea #505);
 and `dt_bariright name cmd...` gives a right click words of its own, so the
 speaker's left click can be the slider and its right click the menu
 (Gitea #310). An item's menu opens with `dt_barmenu name who`, built by

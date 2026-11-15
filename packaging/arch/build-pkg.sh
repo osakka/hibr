@@ -80,7 +80,8 @@ optdepends=('libpng: PNG pictures'
             'ffmpeg: video and sound'
             'poppler-glib: the PDF Reader'
             'xorg-server-xvfb: X programs in desktop windows'
-            'polkit: pkexec, for Administrative Access and Date & Time')
+            'polkit: pkexec, for Administrative Access and Date & Time'
+            'dbus: the tray, for tray icons on the menu bar')
 conflicts=('please' 'pleaser')
 backup=('etc/pam.d/hibr' 'etc/pam.d/hibr-login')
 install=hibr.install

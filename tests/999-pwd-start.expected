@@ -1,0 +1,5 @@
+0
+a PWD naming another folder is replaced
+a missing PWD is set
+and exported: 1
+one through a symlink to this folder is kept

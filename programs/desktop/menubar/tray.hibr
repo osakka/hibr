@@ -1,0 +1,277 @@
+# menubar/tray -- programs' tray icons on the menu bar (Gitea #505): Steam,
+# a chat program, anything that puts up a StatusNotifierItem. The dbus
+# module is the session's watcher and host; this draws each item the module
+# knows as a letter on the bar, the item's own colour when it asks for
+# attention, and hands clicks back: a left click activates the item (or
+# opens its menu, for one that is only a menu or will not be activated), a
+# right click opens its menu, and the wheel scrolls it.
+#
+# The bus is never waited on. Its descriptor is watched, so anything an item
+# says wakes the desktop, and the ticker pumps it: the module answers what
+# happened (an item added, changed or gone, a menu read) and this acts on
+# it. With no session bus -- a desktop away from a login session, or the
+# suites, which take theirs away -- there is no item and nothing is said
+# beyond the log.
+
+strict
+
+app tray "Programs' tray icons on the menu bar" 1.0
+
+# The bus's descriptor while it is open; when it was last tried; the items
+# in the order they came; the item whose menu a press asked for, until the
+# menu has been read.
+TRAY_FD=
+TRAY_TRIED=0
+TRAY_ORDER=()
+TRAY_WANT=
+TRAY_WANTAT=0
+declare -gA TRAY_GL TRAY_ATT TRAY_ISMENU TRAY_HASMENU
+
+# Open the bus, at most once every thirty seconds while it will not open.
+dt_trayopen() {
+	local fd
+
+	[ -z "$TRAY_FD" ] || return 0
+	[ "${EPOCHSECONDS:-0}" -ge "$TRAY_TRIED" ] || return 0
+	TRAY_TRIED=$((${EPOCHSECONDS:-0} + 30))
+	need dbus 2> /dev/null || return 0
+	fd := dbus open 2> /dev/null || return 0
+	TRAY_FD=$fd
+	console watch "$fd" 2> /dev/null
+	dt_log "tray: on the session bus"
+	dt_want 20
+}
+
+# An item's letter: the first of its title, else its id, else its icon's
+# name, as a capital.
+fn dt_trayglyph(int n) {
+	local -A i
+	local t
+
+	i := dbus item "$n" 2> /dev/null || { ret "?"; return 0; }
+	t=${i["title"]:-${i["id"]:-${i["icon"]:-?}}}
+	t=${t:0:1}
+	t := str upper "$t"
+	TRAY_ATT["$n"]=
+	[ "${i["status"]}" = NeedsAttention ] && TRAY_ATT["$n"]=1
+	TRAY_ISMENU["$n"]=${i["ismenu"]}
+	TRAY_HASMENU["$n"]=
+	[ -n "${i["menu"]}" ] && TRAY_HASMENU["$n"]=1
+	TRAY_GL["$n"]=$t
+	[ "${i["status"]}" = Passive ] && TRAY_GL["$n"]=
+	dt_log "tray: item $n: title [${i["title"]}] id [${i["id"]}] icon [${i["icon"]}] pixmap [${i["pixmap"]}] status [${i["status"]}] menu [${i["menu"]}] ismenu [${i["ismenu"]}]"
+}
+
+# The bar's text: every item shown, a letter and a space each.
+dt_traybar() {
+	local n t=
+
+	for n in "${TRAY_ORDER[@]}"; do
+		[ -n "${TRAY_GL["$n"]-}" ] && t+="${TRAY_GL["$n"]} "
+	done
+	t=${t% }
+	if [ -z "$t" ]; then
+		[ -n "${DT_BARI["tray"]["text"]-}" ] && dt_baritem tray ""
+		return 0
+	fi
+	dt_barilabel tray "Tray Icons"
+	dt_baritem tray "$t" :
+}
+
+# Take an item out of the order.
+fn dt_traydrop(int n) {
+	local k
+	local -a keep=()
+
+	for k in "${TRAY_ORDER[@]}"; do
+		[ "$k" = "$n" ] || keep+=("$k")
+	done
+	TRAY_ORDER=("${keep[@]}")
+	unset TRAY_GL["$n"] TRAY_ATT["$n"] TRAY_ISMENU["$n"] TRAY_HASMENU["$n"]
+}
+
+# Each pass: what the bus has said, acted on.
+dt_traytick() {
+	local -a ev
+	local e w n k changed=
+
+	if [ -z "$TRAY_FD" ]; then
+		dt_trayopen
+		return 0
+	fi
+	ev := dbus pump 2> /dev/null || return 0
+	for e in "${ev[@]}"; do
+		read -r w n <<< "$e"
+		case $w in
+		add)
+			TRAY_ORDER+=("$n")
+			dt_trayglyph "$n"
+			changed=1
+			;;
+		change)
+			dt_trayglyph "$n"
+			changed=1
+			;;
+		gone)
+			dt_traydrop "$n"
+			[ "$TRAY_WANT" = "$n" ] && TRAY_WANT=
+			changed=1
+			;;
+		menu)
+			if [ "$TRAY_WANT" = "$n" ]; then
+				TRAY_WANT=
+				dt_barmenu tray tray "$n"
+			fi
+			;;
+		menustale)
+			[ "${MB_CTXWHO-}" = tray ] && [ "${MB_CTXID-}" = "$n" ] &&
+				dbus menu "$n" fetch 2> /dev/null
+			;;
+		nomenu)
+			[ "$TRAY_WANT" = "$n" ] && TRAY_WANT=
+			;;
+		noactivate)
+			dt_traymenu "$n"
+			;;
+		more)
+			dt_want 20
+			;;
+		down)
+			console unwatch "$TRAY_FD" 2> /dev/null
+			TRAY_FD=
+			for k in "${TRAY_ORDER[@]}"; do dt_traydrop "$k"; done
+			dt_log "tray: the session bus went away"
+			changed=1
+			;;
+		esac
+	done
+	# A menu asked for and never read is forgotten, so a later press asks again.
+	[ -n "$TRAY_WANT" ] && [ "${EPOCHSECONDS:-0}" -gt "$TRAY_WANTAT" ] && TRAY_WANT=
+	if [ -n "$changed" ]; then
+		dt_traybar
+		dt_want 10
+	fi
+	return 0
+}
+
+# Open an item's menu: read it now, shown when it has been. One with no
+# menu of its own is asked to show its own.
+fn dt_traymenu(int n) {
+	if [ -z "${TRAY_HASMENU["$n"]-}" ]; then
+		dbus context "$n" 0 0 2> /dev/null
+		return 0
+	fi
+	dbus menu "$n" fetch 2> /dev/null || return 0
+	TRAY_WANT=$n
+	TRAY_WANTAT=$((${EPOCHSECONDS:-0} + 5))
+	dt_want 20
+}
+
+# Which item is at column c of the bar, or status 1.
+fn dt_trayat(int c) {
+	local start=${DT_BARI["tray"]["c"]:-0} i=0 n x
+
+	x=$start
+	for n in "${TRAY_ORDER[@]}"; do
+		[ -n "${TRAY_GL["$n"]-}" ] || continue
+		if [ "$c" -ge "$x" ] && [ "$c" -le $((x + 1)) ]; then
+			ret "$n"
+			return 0
+		fi
+		x=$((x + 2))
+		i=$((i + 1))
+	done
+	return 1
+}
+
+# A press on the bar's item: which icon, then what that button does to it.
+fn dt_traypress(btn, int r, int c) {
+	local n
+
+	n := dt_trayat "$c" || return 0
+	case $btn in
+	right) dt_traymenu "$n" ;;
+	*)
+		if [ "${TRAY_ISMENU["$n"]-}" = 1 ]; then
+			dt_traymenu "$n"
+		else
+			dbus activate "$n" "$c" "$r" 2> /dev/null
+		fi
+		;;
+	esac
+	dt_want 20
+	return 0
+}
+
+# The wheel over the item scrolls whichever icon is under the pointer.
+fn dt_traywheel(dir) {
+	local n d=1
+
+	[ "$dir" = up ] && d=-1
+	n := dt_trayat "$DT_BARWCOL" || return 0
+	dbus scroll "$n" "$d" vertical 2> /dev/null
+	return 0
+}
+
+# Each icon in the bar's pen, one asking for attention in the warning colour.
+fn dt_traydraw(int c, int hover) {
+	local n x=$c
+
+	for n in "${TRAY_ORDER[@]}"; do
+		[ -n "${TRAY_GL["$n"]-}" ] || continue
+		if [ -n "${TRAY_ATT["$n"]-}" ]; then
+			console pen "$DT_WARN" "$DT_BAR" bold
+		else
+			console pen "$DT_INK" "$DT_BAR"
+		fi
+		dt_barput "$x" "${TRAY_GL["$n"]}"
+		x=$((x + 2))
+	done
+	console pen "$DT_INK" "$DT_BAR"
+}
+
+# An item's menu, as the program says it: its own words, never the
+# desktop's catalogue's; a row with a mark ticked, one that cannot be
+# chosen dimmed, a submenu with its rows.
+fn tray_context(id = "") {
+	local -A m
+	local k n d prev=0 t
+
+	[ -n "$id" ] || return 0
+	m := dbus menu "$id" 2> /dev/null || return 0
+	n=${m["n"]:-0}
+	dt_menu "Tray"
+	for ((k = 0; k < n; k++)); do
+		d=${m[$k]["depth"]}
+		while [ "$prev" -gt "$d" ]; do
+			dt_end
+			prev=$((prev - 1))
+		done
+		t=${m[$k]["label"]}
+		if [ "${m[$k]["sep"]}" = 1 ]; then
+			dt_sep
+		elif [ "${m[$k]["sub"]}" = 1 ]; then
+			dt_sub "$t"
+			dt_subtext "$t"
+			prev=$((prev + 1))
+		elif [ "${m[$k]["enabled"]}" != 1 ]; then
+			dt_dim "$t"
+			dt_rowtext "$t"
+		elif [ -n "${m[$k]["toggle"]}" ]; then
+			dt_mark "$t" "" "${m[$k]["on"]}" dbus click "$id" "${m[$k]["id"]}"
+			dt_rowtext "$t"
+		else
+			dt_item "$t" "" dbus click "$id" "${m[$k]["id"]}"
+			dt_rowtext "$t"
+		fi
+	done
+	while [ "$prev" -gt 0 ]; do
+		dt_end
+		prev=$((prev - 1))
+	done
+}
+
+dt_baridraw tray dt_traydraw
+dt_baripress tray dt_traypress
+dt_bariwheel tray dt_traywheel
+command -v dt_ticker > /dev/null && dt_ticker dt_traytick

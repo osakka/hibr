@@ -1529,6 +1529,8 @@
   "Teach Word": "تعليم كلمة",
   "Teach Word needs hibr-ime's module": "تعليم كلمة يحتاج وحدة hibr-ime",
   "Teach Word teaches the word being typed": "تعليم كلمة يُعلِّم الكلمة التي تُكتب الآن",
-  "The %s input method would not open": "تعذّر فتح طريقة الإدخال %s"
+  "The %s input method would not open": "تعذّر فتح طريقة الإدخال %s",
+  "Tray": "منطقة الإشعارات",
+  "Tray Icons": "أيقونات منطقة الإشعارات"
  }
 }

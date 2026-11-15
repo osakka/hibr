@@ -1225,6 +1225,8 @@ Tooltips
 Top
 Tour
 Trash
+Tray
+Tray Icons
 Tree Rules
 Tree Style
 Tue

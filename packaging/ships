@@ -42,6 +42,9 @@ control-panel/menubar.hibr
 # so it can be taken off or updated from the catalogue like the others, and
 # shipped because every desktop on Blit has keyboards to choose between.
 menubar/keyboard.hibr
+# Programs' tray icons (Gitea #505): the desktop is the session's tray, so a
+# program with an icon there -- Steam -- has somewhere to put it.
+menubar/tray.hibr
 control-panel/control-strip.hibr
 control-panel/datetime.hibr
 control-panel/desktop.hibr
