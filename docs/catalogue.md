@@ -492,6 +492,22 @@ Unlike a part, what an entry needs is an entry of its own: the speaker on
 the menu bar is useful without its pane, and installing it alone is
 allowed. The state remembers which entry pulled it in.
 
+An entry can also **replace** others, with `# replaces:` -- the single
+Video app taking the place of YouTube, Tubi and Bilibili:
+
+```text
+# replaces: apps/youtube apps/tubi apps/bilibili
+```
+
+`catalogue update` (and the Catalogue window's Update) then acts on it
+without asking (the owner's choice, 2026-11-15), and says each step. For
+every replaced entry this person installed, it installs the replacement
+and removes the old one. A replacement this hibr cannot run yet leaves
+the old one where it is and says why. One whose windows are open is kept
+until they are closed and the next update. Only what the person's own
+ledger placed is touched: a shipped copy, or an administrator's, never.
+`catalogue info` shows what an entry replaces.
+
 ### A bundle
 
 A bundle is a list of entries that make one thing between them, installed

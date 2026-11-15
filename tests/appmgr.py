@@ -460,6 +460,43 @@ try:
           and not os.path.exists(os.path.join(DATA, "hibr", "apps", "multi")),
           (rc, out, err))
 
+    # An entry another replaces (the owner, 2026-11-15: the single Video app
+    # for YouTube, Tubi and Bilibili): `update` installs the replacement and
+    # removes the old one, saying each, asking nothing; the next update has
+    # nothing left to do; and a replacement this hibr cannot run yet leaves
+    # the old one where it is, saying why.
+    h_old = put("bundles/oldapp.hibr", APP.replace(b"demo", b"oldapp"))
+    h_new = put("bundles/newapp.hibr", APP.replace(b"demo", b"newapp"))
+    INDEX["apps"]["oldapp"] = {"title": "Old", "version": "1.0", "kind": "apps",
+                               "bundle": "bundles/oldapp.hibr", "sha256": h_old}
+    put("index.json", json.dumps(INDEX, indent=1))
+    rc, out, err = apps("install", "oldapp")
+    oldf = os.path.join(DATA, "hibr", "apps", "oldapp.hibr")
+    newf = os.path.join(DATA, "hibr", "apps", "newapp.hibr")
+    INDEX["apps"]["newapp"] = {"title": "New", "version": "1.0", "kind": "apps",
+                               "bundle": "bundles/newapp.hibr", "sha256": h_new,
+                               "replaces": "apps/oldapp", "hibr": "99.0"}
+    put("index.json", json.dumps(INDEX, indent=1))
+    rc, out, err = apps("update")
+    check("a replacement this hibr cannot run yet leaves the old one, and says why",
+          rc == 0 and "cannot install yet" in out and os.path.exists(oldf)
+          and not os.path.exists(newf), (rc, out, err))
+    del INDEX["apps"]["newapp"]["hibr"]
+    put("index.json", json.dumps(INDEX, indent=1))
+    rc, out, err = apps("update")
+    rc2, inst, err2 = apps("installed")
+    check("update installs what replaces an installed entry and removes the old one, saying each",
+          rc == 0 and "apps/oldapp is replaced by apps/newapp; installing it" in out
+          and "apps/oldapp: replaced by apps/newapp" in out
+          and os.path.exists(newf) and not os.path.exists(oldf)
+          and " newapp " in inst and "oldapp" not in inst, (rc, out, err, inst))
+    rc, out, err = apps("update")
+    check("and the next update has nothing left to replace",
+          rc == 0 and "replaced" not in out and "up to date" in out, (rc, out, err))
+    rc, out, err = apps("info", "newapp")
+    check("info says what an entry replaces", "replaces  apps/oldapp" in out, out + err)
+    apps("remove", "newapp")
+
     # The index's own address, and what it refuses to be.
     rc, out, err = apps("index")
     check("index with no argument says which one is in force", rc == 0
@@ -1881,4 +1918,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(158)
+report(162)

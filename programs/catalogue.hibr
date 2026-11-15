@@ -621,7 +621,7 @@ fn cat_entry(id) {
 	# string and let a darwin-arm64 module install on linux-x86_64 --
 	# measured, not reasoned about. Anything added to the index that a
 	# verb reads goes here too.
-	for k in title version about author licence hibr abi arch bundle sha256 kind modules name dir needs members; do
+	for k in title version about author licence hibr abi arch bundle sha256 kind modules name dir needs replaces members; do
 		CAT_ENT["$k"]=${CAT_IX["$CAT_SECT"]["$key"]["$k"]}
 	done
 	# The *name* is what a file is called where it lands; the **id** is
@@ -1902,6 +1902,8 @@ fn cat_info(want, int j = 0) {
 	fi
 	[ -n "${CAT_ENT["needs"]}" ] &&
 		printf 'needs     %s\n' "${CAT_ENT["needs"]//,/ }"
+	[ -n "${CAT_ENT["replaces"]}" ] &&
+		printf 'replaces  %s\n' "${CAT_ENT["replaces"]//,/ }"
 	# What it places besides itself (Gitea #237). Two places know, and
 	# which one does depends on how the bundle is served: a catalogue of
 	# plain files -- what `addapp` makes -- names every part in the
@@ -3131,11 +3133,67 @@ fn cat_partof(id) {
 	return 1
 }
 
+# Entries a newer one replaces (the index's `replaces`, the owner,
+# 2026-11-15): for each installed here that some entry replaces, that entry
+# is installed -- when this hibr can run it -- and the old one removed, each
+# said in a line, nothing asked. Only what this ledger placed is acted on:
+# the shipped copy and an administrator's are never removed from here. One
+# with windows open is kept and said, for the next update, since removing it
+# would leave the desktop calling functions with nothing behind them. With
+# names given, only those are looked at. The count of what changed is the
+# answer.
+declare -gA CAT_REPLACED
+fn cat_replace(...names) {
+	local k r rid w why n=0 base wn
+	local -a rs
+	local -A only=()
+
+	for w in "${names[@]}"; do
+		only["$w"]=1
+	done
+	for k in "${!CAT_IX["$CAT_SECT"][@]}"; do
+		cat_entry "$k" > /dev/null 2>&1 || continue
+		[ -n "${CAT_ENT["replaces"]}" ] || continue
+		rid=${CAT_ENT["id"]}
+		IFS=', ' read -ra rs <<< "${CAT_ENT["replaces"]}"
+		for r in "${rs[@]}"; do
+			[ -n "$r" ] && [ -n "${CAT_ST["installed"]["$r"]["kind"]-}" ] || continue
+			[ "${#only[@]}" = 0 ] || [ -n "${only["$r"]+x}" ] || [ -n "${only["${r##*/}"]+x}" ] ||
+				continue
+			if [ -z "${CAT_ST["installed"]["$rid"]["kind"]-}" ]; then
+				if ! why=$(cat_needs "$rid" 2>&1); then
+					cat_say "$r is replaced by $rid, which this hibr cannot install yet: ${why#catalogue: }; $r stays"
+					continue 2
+				fi
+				cat_say "$r is replaced by $rid; installing it"
+				cat_install "$rid"
+				cat_state
+				n=$((n + 1))
+			fi
+			base=${r##*/}
+			wn := cat_windows "$base"
+			if [ "${wn:-0}" -gt 0 ]; then
+				cat_say "$r is replaced by $rid; close its window(s) ($CAT_WINS) and update again to remove it"
+				continue
+			fi
+			cat_remove -f "$r"
+			CAT_REPLACED["$r"]=1
+			CAT_REPLACED["${r##*/}"]=1
+			cat_say "$r: replaced by $rid"
+			n=$((n + 1))
+		done
+		cat_entry "$k" > /dev/null 2>&1
+	done
+	ret "$n"
+}
+
 fn cat_update(...names) {
 	local name w n=0 kind where ext moved i np same owner why
 	local -a want
 
 	cat_load 1
+	cat_state
+	n := cat_replace "${names[@]}"
 	cat_state
 	if [ "${#names[@]}" -gt 0 ]; then
 		want=("${names[@]}")
@@ -3143,6 +3201,8 @@ fn cat_update(...names) {
 		for name in "${!CAT_ST["installed"][@]}"; do want+=("$name"); done
 	fi
 	for w in "${want[@]}"; do
+		# Removed by the replacement pass above.
+		[ -n "${CAT_REPLACED["$w"]+x}" ] && continue
 		# Either an id from the state or a name somebody typed:
 		# cat_entry takes both, and cat_resolve is for the ambiguous
 		# bare name it cannot.

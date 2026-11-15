@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.532
+
+**An entry can replace others, and `catalogue update` acts on it** (the
+owner, 2026-11-15). hibr-browser is replacing the YouTube, Tubi and
+Bilibili apps with one Video app. Without this, anyone who had the old
+ones would keep them for ever: an update only said they were no longer
+in the catalogue and left them. An entry now says `# replaces:
+apps/youtube apps/tubi apps/bilibili` (mkindex writes it into the
+index), and `catalogue update`, the Catalogue window's included, acts on
+it without asking (the owner's choice), saying each step:
+- it installs the replacement and removes each replaced entry the person
+  has installed;
+- a replacement this hibr cannot run yet leaves the old one and says why;
+- one with windows open is kept until the next update;
+- only what the person's own ledger placed is ever removed.
+
+`catalogue info` shows what an entry replaces. Four checks in
+`tests/appmgr.py` cover each case, and three of them fail against
+0.99.531 (the fourth, nothing left to replace, holds there trivially).
+An older client ignores the field, so an entry that replaces others
+should be floored at 0.99.532.
+
 ## 0.99.531
 
 **The menu bar has one rule, and the tray and the keyboard follow it** (the
