@@ -432,6 +432,14 @@ int b_arr1(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "usage: arr len|push|pop|sort|uniq|reverse|contains|map|filter var ...");
 		return 2;
 	}
+	/* The array's name comes first and no name starts with a dash: `arr
+	   sort -n b` sorted an array named -n and left b as it was, and said
+	   nothing, so a script that wrote its flags first never sorted. */
+	if (*nm == '-') {
+		lg(HIBR_LERR, "arr %s: %s is not an array's name -- the name comes "
+			      "first: arr %s NAME %s", sub, nm, sub, nm);
+		return 2;
+	}
 	if (!strcmp(sub, "len")) {
 		vals = vb_get(s);
 		v_list(s, nm, 0, 0, vals, 0);

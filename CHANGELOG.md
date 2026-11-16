@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.99.541
+
+**Opening a program window no longer stalls the desktop.** 0.99.540's
+breakdown named it on the owner's mini PC within minutes: `held: dt_nattick
+held the desktop 252 ms -- ... events 252 ms (new 8 251 ms)`, the whole of
+it the compositor's `new`. A new window is placed with `dt_place`, which
+tried a few spots near the mouse and, when every one overlapped a window,
+tried every row and every second column of the display for the least
+overlap: 165 ms for one window on a crowded 45 by 160 display, measured.
+Overlap is a sum of rows shared times columns shared, which changes slope
+only where an edge of the new window meets an edge of one already there or
+of the display, so only those rows and columns are tried now
+(`dt_placespot`), each window's shared rows worked out once a row; and the
+spots near the mouse are tried once each with the same shortcut. 165 ms is
+5 ms on the same layout. The answer is the same as an exhaustive search of
+every row and column -- checked on 2,000 random layouts, and the whole of
+`dt_place` against the previous one on 600 random desktops -- and columns
+are exact now, where every second one was tried before. A slow `new` also
+says how its time split, `[place N ms, window N ms]`, in case anything is
+left.
+
+**Quitting the desktop tells the compositor so, every time** (Gitea #560).
+The quit was sent and the compositor recorded the connection lost: a
+SOCK_SEQPACKET socket closed with unread data in its own queue resets the
+connection, and the peer's next read fails with that before it reaches the
+quit waiting there -- so a real compositor took an orderly quit for a
+desktop that had died, intermittently, more often the busier it was.
+`frames quit` now stops writing after the quit and reads and lets go what
+the compositor still says until it closes its end, at most half a second.
+`tests/native.py` makes the stand-in compositor talk every 5 ms
+(`LOG.chatter`) before the quit, which fails the old module every run.
+
+**`set -x` uses `PS4` as bash does.** It is expanded for each line --
+escapes, parameters, command substitution, arithmetic -- with tracing off
+meanwhile, starts as `+ `, and an unset or empty one is no prefix; an
+argument that would not read back as one word is quoted (`'b c'`), where
+hibr printed `b c`, which reads as two. `tests/199-ps4.t` compares it with
+bash.
+
+**`arr` refuses a flag where the array's name goes.** `arr sort -n b`
+sorted an array called `-n`, left `b` as it was and succeeded; it now says
+the name comes first, status 2. Found by writing it that way.
+
 ## 0.99.540
 
 **A stall says where it went.** The compositor's ticker held the owner's

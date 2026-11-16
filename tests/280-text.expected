@@ -28,3 +28,6 @@ has 17
 no 5
 map=8 34 60 400
 filter=60 400
+hibr: arr sort: -n is not an array's name -- the name comes first: arr sort NAME -n
+st=2 10 2 33
+st=0 2 10 33

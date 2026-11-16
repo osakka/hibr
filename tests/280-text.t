@@ -31,3 +31,8 @@ fn double(int n) -> int { ret $((n * 2)); }
 arr map nums double; echo "map=${nums[@]}"
 fn big(int n) { [ "$n" -gt 50 ]; }
 arr filter nums big; echo "filter=${nums[@]}"
+# The array's name comes first: flags before it are refused, never taken for
+# a name -- `arr sort -n b` sorted an array called -n and left b unsorted.
+fl=(10 2 33)
+arr sort -n fl 2>&1; echo "st=$? ${fl[*]}"
+arr sort fl -n; echo "st=$? ${fl[*]}"

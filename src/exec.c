@@ -1647,14 +1647,35 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 	return s->stop || ro ? HIBR_FAIL : HIBR_OK;
 }
 
-/* Print an execution trace line. */
-void ex_trace(char **av, int ac)
+/* Print an execution trace line, after PS4 expanded as bash expands it:
+   escapes, then parameters, command substitution and arithmetic, with the
+   tracing off meanwhile so a $( ) in it does not trace itself. It starts
+   as "+ ", as bash's does; unset or empty, there is no prefix. An argument
+   that needs quoting to read back as one word is quoted, as bash does. */
+void ex_trace(sh *s, char **av, int ac)
 {
+	const char *ps = hibr_get(s, "PS4");
 	int i;
 
-	fputs("+ ", stderr);
+	if (ps && *ps) {
+		char *p;
+		int was = s->xtr;
+
+		s->xtr = 0;
+		p = pr_make(s, ps);
+		s->xtr = was;
+		if (p) {
+			fputs(p, stderr);
+			free(p);
+		}
+	}
 	for (i = 0; i < ac; i++) {
-		fputs(av[i], stderr);
+		const char *p = av[i];
+		int bare = *p != 0;
+
+		for (; *p && bare; p++)
+			bare = xqsafe((unsigned char)*p, p == av[i]);
+		fputs(bare ? av[i] : xquote(s, av[i], 0), stderr);
 		if (i + 1 < ac)
 			fputc(' ', stderr);
 	}
@@ -1847,7 +1868,7 @@ int ex_cmd(sh *s, node *n)
 		goto out;
 	}
 	if (s->xtr)
-		ex_trace(av, ac);
+		ex_trace(s, av, ac);
 	if (n->f == 2) {
 		hibr_set(s, "RET", "", 0);
 		s->bind = 1;

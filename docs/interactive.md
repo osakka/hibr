@@ -109,7 +109,9 @@ $ 0 jobs
 
 bash's `PROMPT_COMMAND` is not read: a function named by `PROMPT_FN` is the
 hook, and its result is the prompt -- see [the prompt module](prompt.md).
-Nor is `PS4`; `set -x` marks each line with `+ `.
+`set -x` marks each line with `PS4`, expanded as bash expands it (escapes,
+parameters, command substitution and arithmetic), `+ ` until set, and
+quotes an argument that would not read back as one word, as bash does.
 
 | escape | gives | escape | gives |
 |---|---|---|---|

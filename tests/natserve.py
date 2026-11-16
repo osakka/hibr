@@ -23,7 +23,8 @@ geometry; LOG.move, LOG.resize (holding an edge) and LOG.menu (holding X Y)
 each ask once, as its own title bar would; LOG.copy (a line of text, and
 `secret` on the next) offers that as its clipboard. The desktop's own
 clipboard offers are read at once, as a program pasting would read them.
-LOG.shm, there from the start, draws 7 in shared memory (FRM1), its subs
+LOG.chatter says a title every 5 ms, so the desktop always has something
+unread from it. LOG.shm, there from the start, draws 7 in shared memory (FRM1), its subs
 by dmabuf, as Firefox does. When the desktop goes it dials again for sixty seconds and announces every
 window again under the same ids, as blit-compositor does across a Restart
 Desktop. Everything it is told is a JSON line in LOG.
@@ -285,6 +286,13 @@ while True:
         pass
     except OSError:
         reconnect()
+    # Something the desktop has yet to read at every moment, as a busy
+    # program's compositor has: a title said every 5 ms (Gitea #560).
+    if os.path.exists(LOG + ".chatter"):
+        try:
+            say("WINDOW title 7 Chatter")
+        except OSError:
+            pass
     if not full and os.path.exists(LOG + ".full"):
         full = fs7 = True
         say("WINDOW fullscreen 7 on")
@@ -373,4 +381,4 @@ while True:
         say("WINDOW decor 7 client")
     for wid in list(size):
         frame(wid)
-    time.sleep(0.1)
+    time.sleep(0.005 if os.path.exists(LOG + ".chatter") else 0.1)

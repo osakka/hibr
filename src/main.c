@@ -745,6 +745,8 @@ int main(int ac, char **av)
 	v_env(&s);
 	sh_pwd(&s);
 	hibr_set(&s, "IFS", " \t\n", 0);
+	if (!hibr_get(&s, "PS4"))
+		hibr_set(&s, "PS4", "+ ", 0);
 	if (!hibr_get(&s, "PATH")) {
 		lg(HIBR_LDBG, "no PATH was given; the default is set, not exported, as bash's is");
 		hibr_set(&s, "PATH", HIBR_DEFPATH, 0);

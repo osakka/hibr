@@ -281,6 +281,52 @@ void fl_sayw(fl_srv *f, const char *line, int ms)
 #endif
 }
 
+/* After the quit: nothing more is said, and what the compositor still sends
+   is read and let go -- a packet at a time, which one byte takes whole on a
+   SOCK_SEQPACKET -- until it closes its end, for at most ms. A socket of
+   this kind closed with unread data in its own queue resets the
+   connection, and the peer's next read fails with that before it reaches
+   the quit still waiting there: the compositor took an orderly quit for a
+   desktop that had died (Gitea #560). */
+void fl_quitwait(fl_srv *f, int ms)
+{
+#ifdef __linux__
+	int fd = fl_cfd(f), left = ms;
+	struct pollfd pf;
+	struct timespec t0, t1;
+	unsigned char c;
+	ssize_t r;
+
+	if (fd < 0)
+		return;
+	shutdown(fd, SHUT_WR);
+	clock_gettime(CLOCK_MONOTONIC, &t0);
+	for (;;) {
+		pf.fd = fd;
+		pf.events = POLLIN;
+		pf.revents = 0;
+		if (poll(&pf, 1, left) < 0 && errno != EINTR)
+			break;
+		if (pf.revents) {
+			r = recv(fd, &c, 1, MSG_DONTWAIT);
+			if (r == 0 || (r < 0 && errno != EAGAIN && errno != EINTR))
+				break;
+		}
+		clock_gettime(CLOCK_MONOTONIC, &t1);
+		left = ms - (int)((t1.tv_sec - t0.tv_sec) * 1000 +
+				  (t1.tv_nsec - t0.tv_nsec) / 1000000);
+		if (left <= 0) {
+			lg(HIBR_LDBG, "frames %u: the compositor had not closed %d ms after the quit",
+			   f->n, ms);
+			break;
+		}
+	}
+#else
+	(void)f;
+	(void)ms;
+#endif
+}
+
 /* A line of news for the desktop, from a compositor's server; waking it is
    the reader's to ask. */
 void fl_ev(fl_srv *f, const char *verb, unsigned n, const char *rest)
@@ -1488,6 +1534,7 @@ int m_frames(sh *s, int ac, char **av)
 			}
 			fl_wfmt(&o, "WINDOW", "quit", 0, "");
 			fl_sayw(f, o.p, 1000);
+			fl_quitwait(f, 500);
 			s_free(&o);
 			return HIBR_OK;
 		}

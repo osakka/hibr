@@ -761,6 +761,13 @@ check("a program window is put back where the person moved it and as large as "
       "setting off", plr.stdout.split("\n")[:4] ==
       ["10 30 15 40", "10 30 20 50", "10 30 15 40", "none"], (plr.stdout, plr.stderr))
 
+# With the compositor saying something every 5 ms, so the desktop always
+# has some of it unread as it goes: a socket of this kind closed so resets
+# the connection, and the compositor's read failed with that before it
+# reached the quit waiting behind it -- one run in three under the
+# sanitizers, every run with this (Gitea #560).
+open(complog + ".chatter", "w").close()
+time.sleep(0.6)
 open(MARK + ".quit", "w").close()
 t.keys([b"x"])
 q = wait(lambda: comp("quit"))

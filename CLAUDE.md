@@ -4126,6 +4126,17 @@ went in the shell.
   the value in force and ticks it (`DT_POPCURNEXT`), and every list opens
   through `dt_dropat`. **Never draw a caret by hand**: a field that cycles
   on a click under a `▾` promises a list it never opens -- `dt_wdrop`.
+- **A SOCK_SEQPACKET socket closed with unread data resets the peer, and
+  the peer's read fails before it reaches what is still queued** (0.99.541,
+  Gitea #560). Linux's datagram-style receive checks the socket's error
+  before dequeuing, so the compositor lost the desktop's last message --
+  the quit -- whenever the compositor had said something the desktop had
+  not read yet as it exited: an orderly quit read as a crash, more often the
+  busier the program. Anything that says a last thing on such a socket and
+  then closes it says it, `shutdown(SHUT_WR)`, and drains until the peer
+  closes, bounded (`fl_quitwait`). A stand-in that only talks now and then
+  makes this a flake rather than a failure: `natserve.py`'s `LOG.chatter`
+  is what makes it certain.
 - **A moved window's picture is moved, never replaced** (0.99.537, Gitea
   #559). The console matched a picture to its region by rectangle, so a
   window that moved had a "new" picture: a new id, the whole image again

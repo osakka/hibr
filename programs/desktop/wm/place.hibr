@@ -118,25 +118,43 @@ fn dt_place(int h, int w) {
 			i=$((i + 1))
 		done
 		best=-1
+		# Each candidate row once, with the windows that share its rows
+		# worked out once for it, and each column once: the same spots
+		# as before, and a few hundred overlap tests fewer (26 ms of a
+		# crowded display's placement were these).
+		local -A seenr=() seenc=()
+		local -a CU=() act
+		local j
+		for cc in "${CS[@]}"; do
+			[ $((cc + w)) -gt $((left + pw)) ] && cc=$((left + pw - w))
+			[ "$cc" -lt "$left" ] && cc=$left
+			[ -n "${seenc["$cc"]-}" ] && continue
+			seenc["$cc"]=1
+			CU+=("$cc")
+		done
 		for rr in "${RS[@]}"; do
 			[ $((rr + h)) -gt $((top + ph)) ] && rr=$((top + ph - h))
 			[ "$rr" -lt "$top" ] && rr=$top
-			for cc in "${CS[@]}"; do
-				[ $((cc + w)) -gt $((left + pw)) ] && cc=$((left + pw - w))
-				[ "$cc" -lt "$left" ] && cc=$left
+			[ -n "${seenr["$rr"]-}" ] && continue
+			seenr["$rr"]=1
+			act=()
+			i=0
+			while [ "$i" -lt "$n" ]; do
+				y0=$((rr > R[i] ? rr : R[i]))
+				y1=$((rr + h + dr < R[i] + H[i] + dr ?
+					rr + h + dr : R[i] + H[i] + dr))
+				[ "$y1" -gt "$y0" ] && act+=("$i")
+				i=$((i + 1))
+			done
+			for cc in "${CU[@]}"; do
 				d=$(((rr > ar ? rr - ar : ar - rr) * 2 + (cc > ac ? cc - ac : ac - cc)))
 				[ "$best" -ge 0 ] && [ "$d" -ge "$best" ] && continue
 				ov=0
-				i=0
-				while [ "$i" -lt "$n" ] && [ "$ov" = 0 ]; do
-					y0=$((rr > R[i] ? rr : R[i]))
-					y1=$((rr + h + dr < R[i] + H[i] + dr ?
-						rr + h + dr : R[i] + H[i] + dr))
-					x0=$((cc > C[i] ? cc : C[i]))
-					x1=$((cc + w + dc < C[i] + W[i] + dc ?
-						cc + w + dc : C[i] + W[i] + dc))
-					[ "$y1" -gt "$y0" ] && [ "$x1" -gt "$x0" ] && ov=1
-					i=$((i + 1))
+				for j in "${act[@]}"; do
+					x0=$((cc > C[j] ? cc : C[j]))
+					x1=$((cc + w + dc < C[j] + W[j] + dc ?
+						cc + w + dc : C[j] + W[j] + dc))
+					[ "$x1" -gt "$x0" ] && { ov=1; break; }
 				done
 				[ "$ov" = 0 ] || continue
 				best=$d
@@ -152,25 +170,85 @@ fn dt_place(int h, int w) {
 		br=
 		bc=
 	fi
-	r=$top
-	while [ $((r + h)) -le $((top + ph)) ]; do
-		c=$left
-		while [ $((c + w)) -le $((left + pw)) ]; do
+	# The least overlap with what is already there, the first such spot
+	# reading down and then across. Overlap is a sum over the windows of
+	# rows shared times columns shared, which changes slope only where an
+	# edge of the new window meets an edge of one already there or of the
+	# display -- so those rows and columns are the only ones that can hold
+	# the answer, and they are all that is tried. Every row and every
+	# second column was tried before: 165 ms a window on a crowded 45 by
+	# 160 display, which held the owner's desktop as a program opened.
+	dt_placespot "$top" "$left" "$ph" "$pw" "$h" "$w" "$dr" "$dc" "$n" \
+		"${R[*]}" "${C[*]}" "${H[*]}" "${W[*]}"
+	ret "$DT_PLACEAT $h $w"
+}
+
+# The spot for dt_place's least overlap: top, left, the room's height and
+# width, the window's, the shadow's rows and columns, and the n windows'
+# rows, columns, heights and widths. Into DT_PLACEAT, "row col".
+declare -g DT_PLACEAT=""
+fn dt_placespot(int top, int left, int ph, int pw, int h, int w, int dr, int dc,
+		int n, rs = "", cs = "", hs = "", ws = "") {
+	local -a R C H W RC CC RY act
+	local -A seen
+	local i r c v ov best=-1 br=$top bc=$left y0 y1 x0 x1 j m
+	local rmax=$((top + ph - h))
+	local cmax=$((left + pw - w))
+
+	read -ra R <<< "$rs"
+	read -ra C <<< "$cs"
+	read -ra H <<< "$hs"
+	read -ra W <<< "$ws"
+	[ "$rmax" -lt "$top" ] && rmax=$top
+	[ "$cmax" -lt "$left" ] && cmax=$left
+	for v in "$top" "$rmax"; do
+		[ -z "${seen["r$v"]-}" ] && { seen["r$v"]=1; RC+=("$v"); }
+	done
+	for v in "$left" "$cmax"; do
+		[ -z "${seen["c$v"]-}" ] && { seen["c$v"]=1; CC+=("$v"); }
+	done
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		for v in $((R[i] - h - dr)) "${R[i]}" $((R[i] + H[i] - h)) $((R[i] + H[i] + dr)); do
+			[ "$v" -ge "$top" ] && [ "$v" -le "$rmax" ] && [ -z "${seen["r$v"]-}" ] &&
+				{ seen["r$v"]=1; RC+=("$v"); }
+		done
+		for v in $((C[i] - w - dc)) "${C[i]}" $((C[i] + W[i] - w)) $((C[i] + W[i] + dc)); do
+			[ "$v" -ge "$left" ] && [ "$v" -le "$cmax" ] && [ -z "${seen["c$v"]-}" ] &&
+				{ seen["c$v"]=1; CC+=("$v"); }
+		done
+		i=$((i + 1))
+	done
+	arr sort RC -n
+	arr sort CC -n
+	for r in "${RC[@]}"; do
+		# Each window's rows shared with this row's spot, once, and only
+		# the windows that share any are looked at across the columns.
+		act=()
+		i=0
+		while [ "$i" -lt "$n" ]; do
+			y0=$((r > R[i] ? r : R[i]))
+			y1=$((r + h + dr < R[i] + H[i] + dr ? r + h + dr : R[i] + H[i] + dr))
+			if [ "$y1" -gt "$y0" ]; then
+				act+=("$i")
+				RY[i]=$((y1 - y0))
+			fi
+			i=$((i + 1))
+		done
+		if [ "${#act[@]}" = 0 ]; then
+			DT_PLACEAT="$r ${CC[0]}"
+			return 0
+		fi
+		for c in "${CC[@]}"; do
 			ov=0
-			i=0
-			while [ "$i" -lt "$n" ]; do
-				y0=$((r > R[i] ? r : R[i]))
-				y1=$((r + h + dr < R[i] + H[i] + dr ?
-					r + h + dr : R[i] + H[i] + dr))
-				x0=$((c > C[i] ? c : C[i]))
-				x1=$((c + w + dc < C[i] + W[i] + dc ?
-					c + w + dc : C[i] + W[i] + dc))
-				[ "$y1" -gt "$y0" ] && [ "$x1" -gt "$x0" ] &&
-					ov=$((ov + (y1 - y0) * (x1 - x0)))
-				i=$((i + 1))
+			for j in "${act[@]}"; do
+				x0=$((c > C[j] ? c : C[j]))
+				x1=$((c + w + dc < C[j] + W[j] + dc ? c + w + dc : C[j] + W[j] + dc))
+				[ "$x1" -gt "$x0" ] && ov=$((ov + RY[j] * (x1 - x0)))
+				[ "$best" -ge 0 ] && [ "$ov" -ge "$best" ] && break
 			done
 			if [ "$ov" = 0 ]; then
-				ret "$r $c $h $w"
+				DT_PLACEAT="$r $c"
 				return 0
 			fi
 			if [ "$best" -lt 0 ] || [ "$ov" -lt "$best" ]; then
@@ -178,9 +256,8 @@ fn dt_place(int h, int w) {
 				br=$r
 				bc=$c
 			fi
-			c=$((c + 2))
 		done
-		r=$((r + 1))
 	done
-	ret "${br:-$top} ${bc:-$left} $h $w"
+	DT_PLACEAT="$br $bc"
+	return 0
 }
