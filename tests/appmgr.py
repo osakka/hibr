@@ -1265,6 +1265,24 @@ try:
         "mods/oldabi": {"title": "oldabi", "version": "1.0", "kind": "mods",
                         "name": "oldabi", "arch": ARCH, "abi": "1",
                         "bundle": "bundles/greet.so", "sha256": h_mod},
+        # The shape the real `mkindex` writes: a module's bundle, hash,
+        # machine and ABI under one build per machine, none at the top.
+        # Nothing read it until Gitea #563, so every module mkindex ever
+        # indexed was refused for want of a sha256.
+        "mods/built": {"title": "built", "version": "1.0", "kind": "mods",
+                       "name": "built", "builds": {
+                           ARCH: {"bundle": "bundles/greet.so",
+                                  "sha256": h_mod, "arch": ARCH, "abi": ABI},
+                           "darwin-arm64": {"bundle": "bundles/nope.so",
+                                            "sha256": "0" * 64,
+                                            "arch": "darwin-arm64",
+                                            "abi": ABI}}},
+        "mods/builtaway": {"title": "builtaway", "version": "1.0",
+                           "kind": "mods", "name": "builtaway", "builds": {
+                               "darwin-arm64": {"bundle": "bundles/greet.so",
+                                                "sha256": h_mod,
+                                                "arch": "darwin-arm64",
+                                                "abi": ABI}}},
         "apps/demo": {"title": "Demo", "version": "1.0", "kind": "apps",
                       "name": "demo", "bundle": "bundles/demo.hibr",
                       "sha256": h_one},
@@ -1345,6 +1363,18 @@ try:
         rc, out, err = apps("install", "mods/oldabi", env=E221S)
         check("and one built for another module ABI as well",
               rc != 0 and "ABI 1 " in err.replace("\n", " "), (rc, err))
+        rc, out, err = apps("install", "mods/built", env=E221S)
+        check("a module indexed as mkindex writes it, a build per machine, "
+              "installs this machine's build (Gitea #563)",
+              rc == 0 and open(os.path.join(D221, "hibr", "mods", "built.so"),
+                               "rb").read() == SOBYTES, (rc, out, err))
+        rc, out, err = apps("install", "mods/builtaway", env=E221S)
+        check("and one with no build for this machine is declined before "
+              "the fetch, naming the machine it was built for",
+              rc != 0 and "darwin-arm64" in err and ARCH in err
+              and not os.path.exists(
+                  os.path.join(D221, "hibr", "mods", "builtaway.so")),
+              (rc, err))
         # A signature made by somebody else's key is not this key's.
         rc, out, err = apps("install", "mods/greet",
                             env=dict(E221S, HIBR_APPS_KEYFP="0" * 40))
@@ -1918,4 +1948,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(162)
+report(164)

@@ -238,6 +238,9 @@ CAT_PARTS=()
 # index may name any host, and saying so once is a warning; saying it per
 # bundle is a wall of text nobody reads (Gitea #247).
 CAT_SAIDHOST=0
+# This machine, as a build in an index names it, asked once: cat_entry
+# runs for every entry a listing walks.
+CAT_HERE=
 # The state is one file that two catalogues can want at once, so a verb
 # that writes it holds a lock across read-modify-write (Gitea #242). The
 # mutex is a **directory**: `mkdir` is one syscall that either creates or
@@ -624,6 +627,7 @@ fn cat_entry(id) {
 	for k in title version about author licence hibr abi arch bundle sha256 kind modules name dir needs replaces members; do
 		CAT_ENT["$k"]=${CAT_IX["$CAT_SECT"]["$key"]["$k"]}
 	done
+	cat_build "$key"
 	# The *name* is what a file is called where it lands; the **id** is
 	# always `kind/name`, computed rather than taken from the key, so the
 	# state is keyed the same way whichever catalogue this read -- without
@@ -654,6 +658,37 @@ fn cat_entry(id) {
 	# *nested* fields -- its parts -- can reach them: CAT_ENT holds the
 	# scalars only.
 	CAT_ENT["key"]=$key
+	return 0
+}
+
+# A native entry's bundle, hash, machine and ABI belong to one **build** of
+# it, and `mkindex` writes them under `builds.<machine>` -- one entry, a
+# build per machine it was built for (ADR 0045). Nothing read them until
+# 0.99.543: the entry arrived with no sha256 and every module the real
+# `mkindex` had ever indexed was refused before it was fetched (Gitea
+# #563), while the suite passed on a hand-written index with the fields at
+# the top. The build for this machine wins over any top-level field; with
+# none, `arch` becomes the machines offered, so `cat_needs` refuses before
+# the fetch, naming them, and a listing hides it as another machine's.
+fn cat_build(key) {
+	local m f
+	local -a offered
+
+	[ "${#CAT_IX["$CAT_SECT"]["$key"]["builds"][@]}" -gt 0 ] || return 0
+	[ -n "$CAT_HERE" ] || CAT_HERE := cat_arch
+	if [ "${#CAT_IX["$CAT_SECT"]["$key"]["builds"]["$CAT_HERE"][@]}" -gt 0 ]; then
+		for f in bundle sha256 arch abi; do
+			CAT_ENT["$f"]=${CAT_IX["$CAT_SECT"]["$key"]["builds"]["$CAT_HERE"]["$f"]}
+		done
+		[ -n "${CAT_ENT["arch"]}" ] || CAT_ENT["arch"]=$CAT_HERE
+		return 0
+	fi
+	[ -n "${CAT_ENT["sha256"]}" ] && return 0
+	for m in "${!CAT_IX["$CAT_SECT"]["$key"]["builds"][@]}"; do
+		offered+=("$m")
+	done
+	CAT_ENT["arch"]=${offered[*]}
+	CAT_ENT["bundle"]=
 	return 0
 }
 

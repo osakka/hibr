@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.99.543
+
+**A module the catalogue indexes can be installed** (Gitea #563). `mkindex`
+writes a native entry as one entry with a build per machine -- its bundle,
+hash, machine and ABI under `builds.<machine>` (ADR 0045) -- and the
+client copied only the fields at the top of an entry, so every module the
+real `mkindex` had indexed reached the fetch with no sha256 and was
+refused: "the index gives no sha256, so the bundle cannot be verified". No
+module had ever been published, and the suite served a hand-written index
+with the fields at the top, so nothing saw it until hibr-intelligence
+asked how to publish one.
+
+- **The catalogue takes this machine's build.** It wins over any field at
+  the top of the entry.
+- **An entry with no build for this machine** is refused before anything
+  is fetched, naming the machines it was built for, and is left out of
+  `catalogue list`, as a module for another machine always was.
+
+Checked: `tests/appmgr.py` installs a module indexed in `mkindex`'s shape,
+signed with the suite's key, and gets this machine's build byte for byte;
+and declines one built only for another machine before the fetch. Both
+fail against 0.99.542. And end to end: the real `mkindex` over a copy of
+hibr-apps with `csv.so` added, signed with a throwaway key -- 0.99.542
+answers "no sha256", this release installs it.
+
 ## 0.99.542
 
 **A display layout change no longer blinks the wallpaper and the tray**

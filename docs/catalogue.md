@@ -156,7 +156,12 @@ shell searches when something asks for a module by name — `need NAME`,
 three things differ for it, each a refusal rather than a note: it is not
 installed at all from a catalogue whose signature does not check out, and
 its `arch` and `abi` are compared with this machine's before the bundle is
-fetched. A module installed there is never loaded by a *mistyped command*,
+fetched. An index carries a module as one entry with a **build per
+machine** (`builds`, each with its own bundle, hash, machine and ABI), and
+the catalogue takes the build for the machine it is running on; an entry
+with none for it is refused, naming the machines it was built for, and is
+left out of `list`. A module installed there is never loaded by a
+*mistyped command*,
 which is deliberate and is the subject of
 [ADR 0044](adr/0044-a-module-can-be-installed.md).
 
