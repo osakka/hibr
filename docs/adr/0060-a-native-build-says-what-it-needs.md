@@ -47,7 +47,7 @@ on the **machine**:
      (`LC_BUILD_VERSION`), `needed` -- its `LC_LOAD_DYLIB` list, and `cpu`.
 
 2. **Every fact is read from the object, never typed.** The publishing tool
-   (`catalogue publish`, [ADR 0058](0058-the-catalogue-has-sources.md) 8)
+   (`catalogue publish`, [ADR 0058](0058-the-catalogue-has-sources.md) 12)
    records a build **on the machine that built it, by loading it there** --
    which is how today's `mkindex` reads the ABI, and is a real check that
    the build loads at all -- and reads the rest from the object's headers.

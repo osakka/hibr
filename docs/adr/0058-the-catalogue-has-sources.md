@@ -1,167 +1,258 @@
 # ADR 0058: the catalogue has sources
 
-Status: proposed (the owner chose the direction, 2026-11-16; this design,
-with [ADR 0059](0059-an-entry-has-versions.md) and
+Status: proposed (the owner chose a distributed catalogue, 2026-11-16, and
+then chose that it has **no central index**: "one source of truth, no
+parallels ... free to pick the best of what everyone else does"). This
+design, with [ADR 0059](0059-an-entry-has-versions.md) and
 [ADR 0060](0060-a-native-build-says-what-it-needs.md), waits for the
-owner's approval before anything is built). Epic: Gitea #561.
+owner's approval before anything is built. Epic: Gitea #561.
 
 ## Context
 
 The catalogue is one index, `https://osakka.github.io/hibr-apps/index.json`,
-signed by one key (the apt repository's, `A1E3…4431`, pinned in
-`keyring.gpg` beside the shell and compared by fingerprint in
-`cat_verify`) and refused for a module under any other (ADR 0044, Gitea
-#221). Every entry in it was put there by a session holding that key: an
-app, a pane, a theme, a language -- and, since ADR 0044, a native module.
+signed by one key (the apt repository's, `A1E3…4431`) and refused for a
+module under any other (ADR 0044, Gitea #221). Every entry in it was put
+there by a session holding that key.
 
-Two things now press on that.
+Where that index is and who signs it is said **five ways** today, which is
+itself the first thing this decision removes:
+
+- the address: `CAT_URL_DEFAULT` in `catalogue.hibr`, the `url` that
+  `catalogue index URL` writes to the config, and `HIBR_APPS_URL`;
+- the key: `keyring.gpg`, which the Makefile installs beside the shell from
+  `packaging/hibr-apps.gpg`, and the fingerprint `CAT_KEYFP` (overridable
+  with `HIBR_APPS_KEYFP`) that `cat_verify` compares the signature with.
+
+Two things now press on the one index.
 
 **Other projects publish.** hibr-ime, Blit's own pane, Longwire, hibr-browser
-and hibr-intelligence are each maintained outside hibr's tree, by their own
-sessions, and each reaches people through the one catalogue -- whose key it
-does not hold, so every publish is a hand-off -- and four of them through
-apt, rpm or Arch as well, beside it. That is two routes for one thing.
+and hibr-intelligence are each maintained outside hibr's tree, and each
+reaches people through the one catalogue -- whose key it does not hold, so
+every publish is a hand-off -- and four of them through apt, rpm or Arch as
+well. Two routes for one thing.
 
-**The first native module.** hibr-intelligence (#43) asked how to publish a
-`.so`. No module has ever been published, and reading the code to answer it
+**The first native module.** hibr-intelligence (its #43) asked how to
+publish a `.so`. No module has ever been published, and reading the code
 found that **none could have been installed**: `mkindex` writes a module's
 bundle, hash, machine and ABI under `builds.<machine>`, and `cat_entry`
-copies only top-level fields, so a module entry reaches `cat_getbundle`
-with no `sha256` and is refused -- reproduced: the real `mkindex` over a
-copy of hibr-apps with `csv.so` added, served locally, and `catalogue
-install mods/csv` answers "the index gives no sha256". `tests/appmgr.py`
-passes because it serves a hand-written index with the fields at the top.
-Answering #43 also showed
-what one key cannot do well:
+copies only top-level fields -- reproduced: the real `mkindex` over a copy
+of hibr-apps with `csv.so` added, served locally, and `catalogue install
+mods/csv` answers "the index gives no sha256". `tests/appmgr.py` passes
+because it serves a hand-written index with the fields at the top. And one
+key cannot sign other people's binaries honestly, `mkindex` can index only
+its own machine, and what a native build needs to load is not in the index
+at all ([ADR 0060](0060-a-native-build-says-what-it-needs.md)).
 
-- the owner's key would sign a binary nobody on the owner's side built;
-- `mkindex` reads a module's ABI by `dlopen`ing it, so it can index only its
-  own machine, and the key lives on one x86 machine;
-- what a native build needs to load (the C library, the CPU) is not in the
-  index at all -- [ADR 0060](0060-a-native-build-says-what-it-needs.md).
+## What was taken from whom
 
-The owner, choosing between "one catalogue plus debs" and this: each project
-builds its own, in its own repository, and the catalogue fetches from them.
+Each borrowing removes a mechanism or closes a named hole; nothing is here
+for resemblance.
+
+- **apt:** a repository is a file naming an address and a key, added by
+  whoever administers the machine -- so there is no central list. **Not
+  taken:** apt lets any repository ship any package name, which is why
+  pinning exists; here a name belongs to its source.
+- **TUF:** serials against replay, expiry against a frozen mirror, and a
+  key that announces its own successor -- which removes the need for
+  anybody above a source to rotate it.
+- **Debian's `extrepo`:** a trusted party may *offer* a third party's
+  repository file without signing its packages -- which is how hibr vouches
+  for a project without holding its key.
+- **Go's checksum database:** a version, once seen, has one hash for ever.
+  Here the client remembers it, so a source cannot quietly republish a
+  version with different bytes.
+- **Nix, Flatpak:** atomic changes and rollback ([ADR 0059](0059-an-entry-has-versions.md)),
+  and refs named by their remote.
 
 ## Decision
 
-**The catalogue has sources.** A source is a project's own signed index of
-its own entries, hosted where the project hosts it.
+1. **A source is a file, and that file is the only place a source is
+   said.** `sources/<name>.json` holds the source's address and its
+   **public key** -- the key itself, not a fingerprint pointing at a
+   keyring. hibr ships `sources/hibr.json`, which **replaces** all five of
+   the mechanisms above: `CAT_URL_DEFAULT`, the config `url`,
+   `HIBR_APPS_URL`, `keyring.gpg` and `CAT_KEYFP`/`HIBR_APPS_KEYFP` go, and
+   `catalogue index URL` becomes the way to *add a source*, not to replace
+   the only one. There is no central index and no list of sources anywhere
+   else; the files present are the sources.
 
-1. **hibr's index is the root, and lists the sources.** A source entry names
-   its short name (`intelligence`), its index address, and one or more key
-   fingerprints. hibr's own signature covers that list, so the owner's key
-   stays the root of trust and signs no binary it did not build. A source is
-   trusted for its own entries and nothing else. A person may add a source
-   of their own (Control Panel, and `catalogue source add`), pinned the same
-   way; adding one says plainly that it is trusting that publisher to run
-   code as you -- the same trust as adding an apt repository -- and
-   everything from it is labelled with its source wherever it is listed.
+2. **A source's identity is its key; its name is a label bound to it.**
+   Without a central list nobody assigns names, so the name is bound to the
+   key's fingerprint the first time a source file brings it, and a file
+   that brings the same name with a different key is **refused** with both
+   fingerprints. Two publishers who both call themselves `intelligence`
+   cannot both be added under that name.
 
-2. **An entry belongs to its source.** Its id is `SOURCE/KIND/NAME`
-   (`intelligence/mods/hibr-intelligence`). hibr's own source is `hibr`, and
-   a bare `KIND/NAME` keeps meaning hibr's, on the command line and in the
-   installed record, so nothing written today breaks. **`replaces` and
-   `needs` act within their own source** unless they name another source's
-   entry in full -- a source can depend on another's entry, never remove,
-   replace or shadow it. Two sources offering the same `KIND/NAME` are two
-   entries; a typed bare name that is ambiguous is refused with both ids, as
-   `cat_resolve` refuses an ambiguous name today, and installing the second
-   is refused because both would land on the same path.
+3. **Where a source file lives decides what it may do -- and the order is
+   the reverse of every other kind's.** For an app, `~/.config/hibr` wins
+   over the shipped copy (ADR 0045), which is right for a script a person
+   patches and wrong for a key: `cat_keyring` already keeps the key out of
+   anything writable for this reason. So for sources:
+   - a name is **bound** by the most trusted scope that brings it --
+     shipped, then system, then the person's -- and no less trusted scope
+     can rebind it to another key;
+   - the **address** may still be overridden the ordinary way, since an
+     address is a location and not a trust: an administrator may point
+     `hibr` at an internal mirror, and what arrives is still checked
+     against hibr's key.
 
-3. **One source down stops nothing else.** Each index is fetched, verified
-   and cached on its own; a source that does not answer, or whose signature
-   or serial fails, is named once, left out, and its cached copy is used for
-   listing only. `update` goes on with the rest.
+   So `hibr` cannot be replaced by a file in a person's folder, and an
+   administrator's sources serve every user of the machine.
 
-4. **An index cannot be replayed.** Every index carries a `serial` (an
-   integer that only grows, written by the publishing tool) and an
-   `expires` date. The client keeps the highest serial it has accepted from
-   each source and refuses a lower one -- the attack that becomes possible
-   the moment going back a version is a feature
-   ([ADR 0059](0059-an-entry-has-versions.md)) is serving an old, validly
-   signed index whose versions were withdrawn for a reason. Past `expires`
-   a source's scripts are installed with a warning and its native builds
-   are refused, which is the line ADR 0044 already draws between the two.
+4. **A source is added only on purpose, three ways, all of which place the
+   same file:**
+   - by hand: `catalogue source add NAME URL KEYFILE` (and Control Panel >
+     Catalogue), which says plainly that it trusts that publisher to run
+     code as you -- the trust of adding an apt repository;
+   - from another source: hibr's source **offers** source files for the
+     projects it vouches for (`hibr/sources/intelligence`), installed like
+     any entry and signed by hibr -- hibr vouches for *where and who*, and
+     signs none of that project's code;
+   - by a package: Blit's deb may place its own source file in the shipped
+     or system scope, as an apt repository ships its keyring.
 
-5. **Keys and sources have a life.**
-   - *Rotation:* a source lists several fingerprints; a publisher adds the
-     new key to hibr's list, signs with it, and the old one is dropped a
-     release later. hibr's own root key rotates the same way, through
-     `keyring.gpg` holding both for a release.
-   - *Revocation:* hibr's list marks a source `revoked` with a reason. Its
-     index is no longer fetched, nothing more is installed from it, and its
-     installed entries are named on every `update` and in the Catalogue
-     window with `catalogue remove` offered -- **never removed for the
-     person**.
-   - *A source dropped* from the list without revocation: its installed
-     entries stay, said once per `update` as no longer offered, exactly as
-     an entry the index dropped is said today (Gitea #271).
-   - *A version withdrawn:* [ADR 0059](0059-an-entry-has-versions.md).
+   A source file is **never** pulled in by `needs`: adding a publisher
+   allowed to run code as you is never a side effect.
 
-6. **An entry may move between sources, and only the root says so.**
-   hibr's index carries `moves` (`"apps/longwire": "longwire/apps/longwire"`).
-   `update` follows a move when the destination source is listed and
-   verified and offers the entry: the installed copy is re-recorded under
-   its new id, updated from there, and the move is said. A source cannot
-   declare a move into itself; only the root can, since only the root
-   decides which source is trusted for what.
+5. **An entry belongs to its source.** Its id is `SOURCE/KIND/NAME`;
+   `hibr`'s is `hibr`, and a bare `KIND/NAME` keeps meaning hibr's, on the
+   command line and in the installed record, so nothing written today
+   breaks. **`replaces` and `needs` act within their own source** unless
+   they name another source's entry in full. Two sources offering the same
+   `KIND/NAME` are two entries; a typed bare name matching both is refused
+   with both ids, and installing the second is refused because both would
+   land on the same path.
 
-7. **An older client keeps working.** The index at today's address stays
-   readable by every 0.99.x `catalogue`: hibr's own entries are still under
-   `entries` and `apps` in today's shape, and `sources`, `moves`, `serial`
-   and `expires` are new fields an older client ignores. hibr's entries stay
-   **bare** in the installed record, so an older client reads the record
-   as it does today; an entry from another source is keyed
-   `SOURCE/KIND/NAME`, which an older client finds no index entry for and
-   leaves alone with its existing "not in the catalogue any more" line.
+6. **Every source is signed; there is no unverified index.** Today a script
+   installs from an unsigned catalogue with a warning (ADR 0044). A source
+   *is* its key (2), so an index without a valid signature by it is not a
+   source's index and is refused for scripts and modules alike. A person's
+   own unsigned scripts have always had their place: `~/.config/hibr`, by
+   hand.
 
-8. **The publishing tools ship with hibr.** `addapp`, `mkindex` and `stale`
-   become `catalogue publish` and its checks, so any project makes and signs
-   its own index exactly as hibr-apps does; hibr-apps is the first source,
-   `hibr`, published with the same tool.
+7. **One source down stops nothing else.** Each index is fetched, verified
+   and cached on its own (`~/.cache/hibr/catalogue/<source>/`), each fetch
+   bounded by `HIBR_CONNTIMEO`; a source that does not answer, or fails its
+   signature, serial or expiry, is named once and left out, its cached copy
+   used for listing only, and `update` goes on with the rest.
 
-9. **Debs stay only for what the catalogue cannot do:** something run as
-   root or installed system-wide, and system libraries -- Blit's root parts,
-   hibr-browser's WPE WebKit engine. Everything else a project makes goes
-   through its source, and the deb-plus-catalogue parallel ends.
+8. **An index cannot be replayed, and a version cannot be rewritten.**
+   - Every index carries a `serial` that only grows; the client keeps the
+     highest accepted per source and refuses a lower one.
+   - An index may carry `expires`. The window is the source's own setting,
+     **including never** (the owner, 2026-11-16). Past it a source's scripts
+     install with a warning and its native builds are refused. A source
+     with no expiry is still protected against replay by its serial, and is
+     not protected against a mirror that stops updating and serves its last
+     index for ever; the publishing tool says so where the window is set.
+   - The client remembers the `sha256` of every version it has seen from a
+     source, and refuses a later index giving the same version a different
+     one -- naming it as the source having rewritten a published version.
+
+9. **A key announces its successor; revocation is a version.**
+   - *Rotation:* a source's index, signed by its current key, may name the
+     next one; the client follows the chain and rewrites the source file.
+     The cost is stated: a stolen key can announce the thief's key, and a
+     lost key has no recovery -- the publisher starts a new source and asks
+     people to add it, and hibr's source can offer the new file.
+   - *Revocation:* a source file is an entry with versions (ADR 0059); its
+     publisher -- or, for a vouched source, hibr -- publishes a version
+     saying `revoked` with a reason. `update` installs it like any other
+     version, stops fetching that source, and names its installed entries
+     on every `update` and in the Catalogue window with `catalogue remove`
+     offered. **They are never removed for the person.**
+   - *A source file removed* by the person: its entries stay and are said
+     once per `update` as no longer offered, exactly as an entry the index
+     dropped is said today (Gitea #271).
+
+10. **An entry moves when its old source says so.** A source's index may
+    carry `moves` (`"apps/longwire": "longwire/apps/longwire"`), signed by
+    the **old** key, so a publisher hands off only what is its own. `update`
+    follows a move into a source that is present: the installed copy is
+    re-recorded under its new id, updated from there, and the move said. A
+    held entry ([ADR 0059](0059-an-entry-has-versions.md)) is not moved. A
+    move into a source that is **not** present is the owner's open choice
+    below.
+
+11. **An older client keeps working.** hibr's index stays at today's
+    address in today's shape: hibr's own entries under `entries` and `apps`,
+    signed by today's key, with the new fields beside them, which an older
+    client ignores. hibr's entries stay **bare** in the installed record, so
+    an older client reads it as today; an entry from another source is keyed
+    `SOURCE/KIND/NAME`, which an older client finds no index entry for and
+    leaves alone with its existing "not in the catalogue any more" line.
+
+12. **The publishing tools ship with hibr.** `addapp`, `mkindex` and
+    `stale` become `catalogue publish`, so any project makes and signs its
+    own index exactly as hibr-apps does; hibr-apps publishes as `hibr` with
+    the same tool.
+
+13. **Debs stay only for what the catalogue cannot do:** something run as
+    root or installed system-wide, and system libraries -- Blit's root
+    parts, hibr-browser's WPE WebKit engine. Everything else a project
+    makes goes through its source, and the deb-plus-catalogue parallel
+    ends.
+
+## Open choice (the owner's)
+
+**A move into a source that is not present.** The other projects' moves
+(#581) take hibr-ime, Longwire and Blit's pane into sources of their own,
+and everybody who has one installed has none of those sources yet. Either:
+
+- **hibr's source vouches and `update` adds it** -- when the old source
+  declares the move *and* a source already present offers the destination's
+  file, `update` installs that file and follows, saying both. This is how
+  `replaces` already works (the owner, 2026-11-14: update installs the
+  replacement and says so); or
+- **`update` stops and asks** -- the installed copy stays where it is,
+  named, until the person adds the source.
+
+The first keeps "update" meaning *up to date* across the move; the second
+never adds a publisher without a person asking.
 
 ## Phases
 
-Each a release with checks that fail against the one before; the tickets
-under #561 are the plan, and nothing starts ahead of the one before it.
+The tickets under #561 are the plan; each is a release with checks that
+fail against the one before, and nothing starts ahead of the one before.
 
-1. **The client reads `builds`** (the bug above), and **`catalogue
-   publish`** ships, equal to today's `mkindex`, so every later change to
-   the publisher is written once, in the tool that ships.
-2. **Ids and the record:** `SOURCE/` in ids, bare meaning `hibr`,
-   `replaces` and `needs` scoped.
-3. **Trust:** the root lists sources; each is fetched, verified, cached and
-   isolated; serial, expiry, rotation, revocation.
+1. **The client reads `builds`**, and **`catalogue publish`** ships, equal
+   to today's `mkindex`, so every later change to the publisher is written
+   once, in the tool that ships.
+2. **Ids and the record:** `SOURCE/` in ids, bare meaning `hibr`, scoped
+   `replaces` and `needs`.
+3. **Sources:** the file, its binding and scopes, the five mechanisms
+   removed, isolation; then serials, expiry and seen hashes; then rotation,
+   revocation and moves.
 4. **Versions and rollback:** [ADR 0059](0059-an-entry-has-versions.md).
 5. **Native builds:** [ADR 0060](0060-a-native-build-says-what-it-needs.md).
-6. **A person's own source, moves, and the surfaces:** sources, versions,
-   holds and rollback in the Catalogue window and the Control Panel.
-7. **The first other source:** hibr-intelligence (its #43) publishes its
-   own, and the deb route ends where 9 says.
+6. **Surfaces:** sources, versions, holds and rollback in the Catalogue
+   window and the Control Panel.
+7. **The first other source:** hibr-intelligence publishes its own, and
+   the deb route ends where 13 says; then the other projects.
 
 ## Consequences
 
 - **Adding a source is trusting its publisher to run native code as you**,
-  and it reads as such where a person adds one.
-- More keys, and more sites that must be up; the isolation of 3 is what
-  keeps that from becoming more outages.
+  and it reads as such wherever a person adds one.
+- More keys, and more sites that must be up; the isolation of 7 keeps that
+  from becoming more outages.
+- **No central off-switch.** Revoking a source reaches a person when they
+  next update hibr's source -- the same reach apt has, and the price of no
+  central index.
+- **Expiry makes publishing periodic** for a source that sets one: it must
+  re-sign before `expires` even when nothing changed.
+- Scripts from an unsigned catalogue stop installing (6). Nobody publishes
+  one today; `catalogue index` pointed at one is refused with the reason.
 - hibr-apps stops being the only place an entry can be published, and the
   owner stops being the only person who can publish one.
-- The root index grows a small list, and the client one more cache per
-  source: `~/.cache/hibr/catalogue/<source>/`.
-- **Expiry makes publishing periodic.** Every source, hibr's included,
-  must re-sign its index before `expires` even when nothing changed, or
-  its native builds stop installing. The window is the owner's choice
-  (#561); a long one weakens the protection against a frozen mirror, a
-  short one makes a missed re-sign an outage.
 
 ## Alternatives
+
+**A root index listing every source** -- this ADR's first draft: hibr's
+index lists the sources, pins their keys, declares moves and revokes.
+Refused by the owner (2026-11-16) for a design with no centre. What it did
+is done here by the source files themselves (1, 4), by vouching (4), by the
+old key (10) and by a version (9).
 
 **One catalogue, the owner's key over everything, each project's own debs
 for the rest.** Simpler to run, and it is today. It leaves the owner's key
@@ -172,10 +263,9 @@ and the two-route parallel in place. Not chosen (the owner, 2026-11-16).
 `bundle` may be an absolute address, checked against the `sha256` in the
 signed index (`cat_bundleurl`, `cat_hostwarn`; docs/catalogue.md,
 *Publishing an app*). It moves the hosting, not the building or the
-signing, so it answers none of the above.
+signing.
 
 **A full update framework (TUF) imported whole.** Its roles, thresholds and
-delegations answer more than this needs; the four things taken from it --
-a root that delegates to per-source keys, serials against replay, expiry
-against a frozen mirror, and rotation -- are the ones a single-owner
-catalogue can run without a key ceremony.
+delegations answer more than one-key-per-project needs; the three things
+taken from it are the ones a single publisher can run without a key
+ceremony.

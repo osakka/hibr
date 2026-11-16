@@ -37,7 +37,7 @@ a catalogue that is "100% working".
    ([ADR 0060](0060-a-native-build-says-what-it-needs.md)), when it was
    published, and optionally `withdrawn` with a reason. The top-level
    fields today's clients read stay, filled from the newest version that
-   is not withdrawn ([ADR 0058](0058-the-catalogue-has-sources.md), 7).
+   is not withdrawn ([ADR 0058](0058-the-catalogue-has-sources.md), 11).
 
 2. **A published version is immutable.** Its bundle lives at a path that
    names the version (`bundles/apps/Office/sheet/2.3.1/sheet.hibr`), and
@@ -46,15 +46,18 @@ a catalogue that is "100% working".
    last (compared as `sort -V` compares, as `cat_needs` compares floors).
    The cache mismatch above stops being possible rather than explained.
 
-3. **A source keeps a window of versions; the client keeps the last.**
+3. **A source keeps a window of versions, and so does the client; both
+   are settings, three by default** (the owner, 2026-11-16).
    - The publishing tool keeps the newest **three** versions of each entry
      in the index and on the host, and prunes older ones -- the same
-     window the apt pool keeps, for the same 1 GB Pages limit.
-   - The client keeps the **one** version an install or update replaced,
-     with its record, under `$CAT_DATA/.prev/<id>/<version>/`. So going
-     back one step works offline and after the source has pruned it;
-     going back further fetches from the source's window.
-   - Both numbers are the owner's to change (see *Open choices*).
+     window the apt pool keeps, for the same 1 GB Pages limit. It is the
+     publisher's setting, in the source's own config.
+   - The client keeps the last **three** versions an install or update
+     replaced, each with its record, under `$CAT_DATA/.prev/<id>/<version>/`,
+     and drops the oldest past that. So going back works offline and after
+     the source has pruned a version; going back further than the client
+     kept fetches from the source's window. It is a Control Panel row
+     (Catalogue > Versions Kept), and 0 keeps none.
 
 4. **The verbs.**
    - `catalogue install ID@VERSION` installs a version the source offers.
@@ -69,12 +72,13 @@ a catalogue that is "100% working".
    - `catalogue info ID` lists the versions offered, marking the installed,
      the kept and the withdrawn ones.
 
-5. **A withdrawn version is left, never stayed on silently.** `update`
-   moves an installed withdrawn version to the newest offered even without
-   names, and says why. A held entry on a withdrawn version is not moved --
-   the hold is the person's decision -- but the reason is said on every
-   `update` and in the Catalogue window. `install` and `rollback` refuse a
-   withdrawn version with its reason.
+5. **A withdrawn version is always left.** `update` moves an installed
+   withdrawn version to the newest offered even without names, **and even
+   when the entry is held** (the owner, 2026-11-16): a publisher withdraws a
+   version because it is wrong, and a hold is a choice between good
+   versions. The move keeps the hold on the version it lands on and says
+   why, with the publisher's reason. `install` and `rollback` refuse a
+   withdrawn version with its reason, and a kept copy of one is dropped.
 
 6. **Every change is a transaction.** `install`, `update`, `rollback`,
    `remove` and a followed move each:
@@ -116,23 +120,21 @@ a catalogue that is "100% working".
   bundles are 4.6 MB in all; a native module is megabytes per machine per
   version, which is where the Pages limit will be felt first, and why the
   window is a setting of the publishing tool.
-- The client carries one previous copy of everything it installed.
+- The client carries up to three previous copies of everything it
+  installed, by default; the Control Panel row is where that is traded
+  against disk.
 - The record grows a `history` per entry and a `hold` flag. Both are new
   fields an older client ignores.
 - `cat_getbundle`'s cache paragraph can go, once every source is on
   versioned paths.
 
-## Open choices (the owner's)
-
-- Three versions at the source, one kept locally -- or other numbers.
-- Whether `update` should move a held entry off a withdrawn version
-  anyway (this ADR says no: it says so every time instead).
 
 ## Alternatives
 
 **The client keeps everything it ever installed.** Rolls back anywhere,
-offline, and grows without bound; one kept copy plus the source's window
-covers the case that matters -- "the update I just took broke it".
+offline, and grows without bound; a bounded number kept, plus the
+source's window, covers the case that matters -- "the update I just took
+broke it" -- and the bound is the person's to move.
 
 **Snapshots of the whole data folder.** Rolls back everything at once,
 including what the person did not want rolled back, and needs a copy of
