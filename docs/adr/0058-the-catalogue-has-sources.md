@@ -92,6 +92,15 @@ for resemblance.
    fingerprints. Two publishers who both call themselves `intelligence`
    cannot both be added under that name.
 
+   **Between sources, a name is checked against its key too.** A label is
+   local, so an index that names another source -- a `needs` on its entry
+   (ADR 0061), a `moves` into it -- also declares that source's
+   fingerprint (`foreign: {"intelligence": "<fingerprint>"}`), and the
+   client resolves by the fingerprint: a source present here under that
+   label with another key is not the one meant, and the need or the move is
+   refused with both fingerprints rather than followed to whoever holds the
+   name on this machine.
+
 3. **Where a source file lives decides what it may do -- and the order is
    the reverse of every other kind's.** For an app, `~/.config/hibr` wins
    over the shipped copy (ADR 0045), which is right for a script a person
@@ -158,8 +167,13 @@ for resemblance.
    changed, `BAD signature`). So a fetched index that fails its signature,
    or carries a lower serial than one already accepted, is **set aside**
    and fetched again next time, and **the last verified index stays in
-   force**, installs included. A source is named as failing only when it
-   has no verified index at all, or the one it has has expired.
+   force**, installs included. But set aside is **bounded by time**: a
+   source whose fetches have not verified for a day -- far past any host's
+   cache -- is named on every `update` and in the Catalogue window, with
+   when it last verified, because with expiry allowed to be never a source
+   could otherwise freeze on its last good index for ever and say nothing.
+   It is named as failing at once when it has no verified index at all, or
+   the one it has has expired.
 
 8. **An index cannot be replayed, and a version cannot be rewritten.**
    - Every index carries a `serial` that only grows; the client keeps the
@@ -183,7 +197,11 @@ for resemblance.
 
 9. **A key announces its successor; revocation is a version.**
    - *Rotation:* a source's index, signed by its current key, may name the
-     next one. The client **never rewrites the bound file** -- it cannot
+     next one -- and **carries every handover for good**: each one a
+     statement "key N+1 follows key N", signed by key N, so a client that
+     slept through any number of rotations, holding only the key its file
+     binds, walks the chain to the newest. The client **never rewrites the
+     bound file** -- it cannot
      write a shipped or system one, and writing the successor into a
      person's folder would be the rebind 3 refuses. It records the chain in
      its trust state instead: the key the file binds, then each successor

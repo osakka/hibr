@@ -44,7 +44,9 @@ a catalogue that is "100% working".
    names the version (`bundles/apps/Office/sheet/2.3.1/sheet.hibr`), and
    the publishing tool refuses to publish a version with different bytes
    under a number already used, and refuses a number not greater than the
-   last (compared as `sort -V` compares, as `cat_needs` compares floors).
+   last -- compared by the version grammar of
+   [ADR 0062](0062-the-catalogue-has-a-native-half.md) (dotted integers,
+   which every version in today's index already is).
    The cache mismatch above stops being possible rather than explained.
    **And a path that works today ends:** `update` now fetches again an
    entry whose bytes changed under an unchanged version ("changed in the

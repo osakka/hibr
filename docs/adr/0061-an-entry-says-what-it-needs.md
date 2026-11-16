@@ -63,6 +63,11 @@ that run arbitrary code as root during an install.
    this is 0.99.542". So **the publishing tool gives every entry that uses a
    new form the floor of the release that reads it**, and refuses to publish
    one without; `needs` keeps its name and no second field is needed.
+   **Today's grammar is written unchanged**: a `needs` of plain `kind/name`
+   words, and `# modules:` names, are published exactly as now -- a module
+   name is never rewritten as `iface/NAME` -- so an entry gains a floor only
+   by using a new form, and every entry 0.99.x installs today it goes on
+   installing. The index 0.99.x clients read daily is the check.
 
    **`iface` and `hibr` are reserved**: neither may be a kind or a source's
    name, so `iface/terminal` and `hibr >= X` can never mean an entry.

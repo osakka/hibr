@@ -47,13 +47,22 @@ on the **machine**:
    - macOS: `macos` -- the object's minimum OS version
      (`LC_BUILD_VERSION`), `needed` -- its `LC_LOAD_DYLIB` list, and `cpu`.
 
-2. **Every fact is read from the object, never typed.** The publishing tool
-   (`catalogue publish`, [ADR 0058](0058-the-catalogue-has-sources.md) 12)
-   records a build **on the machine that built it, by loading it there** --
-   which is how today's `mkindex` reads the ABI, and is a real check that
-   the build loads at all -- and reads the rest from the object's headers
-   with `pkg obj` ([ADR 0062](0062-the-catalogue-has-a-native-half.md)).
-   The index is assembled and signed wherever the source's key is.
+2. **Every fact is read from the object, never typed -- and without
+   loading it, so one machine indexes every architecture.** Today's
+   `mkindex` reads a module's descriptor by `dlopen`ing it, which works only
+   on the machine it was built for. It need not: measured on
+   `build/mods/csv.so`, `hibr_module` is a 64-byte object in the dynamic
+   symbol table, the ABI is its first field, and its name, version and
+   description pointers are `R_X86_64_RELATIVE` relocations whose addends
+   are the strings' own offsets. So `pkg obj`
+   ([ADR 0062](0062-the-catalogue-has-a-native-half.md)) reads the
+   descriptor -- and glibc floor, `NEEDED` and symbols -- from the file,
+   for any ELF machine (each names its own relative relocation type);
+   Mach-O's fixups are to be measured the same way before macOS builds are
+   indexed. Loading a build where it was made stays a check a publisher
+   *may* run, never the only way to learn what it is. The index is
+   assembled and signed wherever the source's key is, from builds made
+   anywhere, cross-compiled ones included.
 
    **The CPU level is the one fact that cannot always be read.** The x86
    ISA property note would say it, and nothing here writes one: no module

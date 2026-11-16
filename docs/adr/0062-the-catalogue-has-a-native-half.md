@@ -34,8 +34,14 @@ operating system's thousands later.
    is free (`command -v pkg` finds nothing here) and says what it is for.
    It offers:
    - `pkg sha256 FILE` -- the hash, streamed, for a file of any size;
-   - `pkg vercmp A B` -- versions compared the way `sort -V` orders them,
-     so every index written today compares the same;
+   - `pkg vercmp A B` -- versions compared by **a grammar of our own**, not
+     an emulation of `sort -V`: a version is dotted non-negative integers
+     (`1`, `2.5.4`, `0.99.542`), compared field by field with a missing
+     field as 0, and anything else is refused by the publishing tool.
+     Measured: every one of the 117 versions in today's index is already
+     that shape (the six bundles carry none, by design, Gitea #392), so the
+     grammar breaks nothing and leaves nothing for `sort -V`'s many edge
+     cases to decide;
    - `pkg verify SIG DATA KEY` -- an OpenPGP detached signature checked
      against an armored public key, answering the **primary** key's
      fingerprint whether the primary or one of its signing subkeys made it,
@@ -59,7 +65,13 @@ operating system's thousands later.
    verify` reads exactly that much of OpenPGP's version 4 format -- signature
    and public-key packets and subkeys, RSA and EdDSA (Ed25519), SHA-256 and
    SHA-512, the hashed subpackets and trailer -- and refuses anything else
-   by name. **Measured before it was proposed:** a Python script of about
+   by name. Three rules make it safe rather than merely working: an RSA
+   signature is checked by **building the expected PKCS#1 v1.5 encoding and
+   comparing it whole**, never by parsing the padding it decrypts to (the
+   parser is where RSA signature forgeries have lived); only signature
+   type 0x00, a signature over a binary document, is accepted; and an
+   unknown subpacket marked **critical** refuses the signature, as the
+   format requires. **Measured before it was proposed:** a Python script of about
    sixty lines, using nothing but `hashlib` and integer arithmetic, verifies
    hibr-apps' real `index.json.asc` against `/usr/share/hibr/keyring.gpg`
    (GOOD, by `A1E3…4431`) and refuses the same index with one byte added. A
