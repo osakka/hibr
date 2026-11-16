@@ -70,6 +70,8 @@ downside is usually a decision nobody had to make.
 | [0058](0058-the-catalogue-has-sources.md) | The catalogue has sources | proposed |
 | [0059](0059-an-entry-has-versions.md) | An entry has versions, and going back is a verb | proposed |
 | [0060](0060-a-native-build-says-what-it-needs.md) | A native build says what it needs to load | proposed |
+| [0061](0061-an-entry-says-what-it-needs.md) | An entry says what it needs, and one resolver answers | proposed |
+| [0062](0062-the-catalogue-has-a-native-half.md) | The catalogue has a native half, the `pkg` module | proposed |
 
 ---
 

@@ -69,8 +69,13 @@ for resemblance.
 
 1. **A source is a file, and that file is the only place a source is
    said.** `sources/<name>.json` holds the source's address and its
-   **public key** -- the key itself, not a fingerprint pointing at a
-   keyring. hibr ships `sources/hibr.json`, which **replaces** all six of
+   **public key** -- the key itself, an armored OpenPGP key, not a
+   fingerprint pointing at a keyring -- checked by the `pkg` module without
+   `gpg` ([ADR 0062](0062-the-catalogue-has-a-native-half.md)). The format
+   is the one every source and every older client already speaks: hibr's
+   own key is RSA-4096, its signatures OpenPGP version 4 over SHA-512, and
+   the same `.asc` serves an older client's `gpg` and a new client's `pkg`.
+   hibr ships `sources/hibr.json`, which **replaces** all six of
    the mechanisms above: `CAT_URL_DEFAULT`, the config `url`,
    `HIBR_APPS_URL`, `keyring.gpg`, `HIBR_APPS_KEYRING` and
    `CAT_KEYFP`/`HIBR_APPS_KEYFP` go, and
@@ -127,13 +132,19 @@ for resemblance.
    with both ids, and installing the second is refused because both would
    land on the same path.
 
-6. **Every source is signed; there is no unverified index** -- proposed,
-   and the owner's call, since it takes away something that works today:
-   a script installs from an unsigned catalogue with a warning (ADR 0044),
-   and `tests/appmgr.py` checks that it does. A source *is* its key (2), so
-   an index without a valid signature by it is not a source's index and
-   would be refused for scripts and modules alike. A person's own unsigned
-   scripts have always had their place: `~/.config/hibr`, by hand.
+6. **An unsigned source is a setting, and says so everywhere** (the owner,
+   2026-11-16: warn and install, as a setting). Control Panel > Catalogue >
+   Unsigned Catalogues is *Warn and Install* by default, or *Refuse*. An
+   unsigned source is a source file with an address and **no key**, and so:
+   - its scripts install with the warning ADR 0044 gives today, once per
+     run, and its name is labelled *unsigned* in every listing;
+   - its native builds are refused whatever the setting -- a module is
+     native code and runs as you (ADR 0044);
+   - it is refused in the system scope whatever the setting, as an
+     unverified install is today (ADR 0045);
+   - it can never bind or shadow a name a keyed source holds, and it has no
+     serial, expiry, seen hashes or moves, since each of those is only as
+     good as the signature over it.
 
 7. **One source down stops nothing else, and a bad fetch is not a bad
    source.** Each index is fetched, verified and cached on its own
@@ -201,9 +212,13 @@ for resemblance.
     the **old** key, so a publisher hands off only what is its own. `update`
     follows a move into a source that is present: the installed copy is
     re-recorded under its new id, updated from there, and the move said. A
-    held entry ([ADR 0059](0059-an-entry-has-versions.md)) is not moved. A
-    move into a source that is **not** present is the owner's open choice
-    below.
+    held entry ([ADR 0059](0059-an-entry-has-versions.md)) is not moved.
+    **A move into a source that is not present stops and asks** (the owner,
+    2026-11-16): the installed copy stays where it is, still updated from
+    its old source for as long as that offers it, and `update` and the
+    Catalogue window name the source to add -- with the file to add it from
+    when a present source offers one. Adding a publisher allowed to run code
+    as you is never something `update` does on its own.
 
 11. **An older client keeps working.** hibr's index stays at today's
     address in today's shape: hibr's own entries under `entries` and `apps`,
@@ -228,25 +243,6 @@ for resemblance.
     makes goes through its source, and the deb-plus-catalogue parallel
     ends.
 
-## Open choices (the owner's)
-
-**Unsigned indexes (6).** Refuse them for scripts too, as proposed, or keep
-today's warn-and-install for scripts.
-
-**A move into a source that is not present.** The other projects' moves
-(#581) take hibr-ime, Longwire and Blit's pane into sources of their own,
-and everybody who has one installed has none of those sources yet. Either:
-
-- **hibr's source vouches and `update` adds it** -- when the old source
-  declares the move *and* a source already present offers the destination's
-  file, `update` installs that file and follows, saying both. This is how
-  `replaces` already works (the owner, 2026-11-14: update installs the
-  replacement and says so); or
-- **`update` stops and asks** -- the installed copy stays where it is,
-  named, until the person adds the source.
-
-The first keeps "update" meaning *up to date* across the move; the second
-never adds a publisher without a person asking.
 
 ## Phases
 
@@ -279,9 +275,10 @@ fail against the one before, and nothing starts ahead of the one before.
   central index.
 - **Expiry makes publishing periodic** for a source that sets one: it must
   re-sign before `expires` even when nothing changed.
-- If 6 is taken, scripts from an unsigned catalogue stop installing.
-  Nobody publishes one today; `catalogue index` pointed at one is refused
-  with the reason.
+- A move to a new source reaches a person only when they add it: until
+  then their copy stays on the old source, named on every `update`. For
+  hibr-ime, Longwire and Blit's pane (#581) that is every current user, so
+  each move keeps the entry offered from hibr's source for a release.
 - hibr-apps stops being the only place an entry can be published, and the
   owner stops being the only person who can publish one.
 
