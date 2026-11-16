@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.540
+
+**A stall says where it went.** The compositor's ticker held the owner's
+desktop 266 to 397 ms at a time on the mini PC, and the log line said only
+that it had: `held: dt_nattick held the desktop 312 ms`. Nothing in the
+suites reproduces it -- against the stand-in compositor the whole ticker
+is under 4 ms at worst, measured part by part -- so the answer has to come
+from the machine it happens on.
+
+- A callback may say what its time went on in `DT_SPENTWHY`, and its
+  `slow:` or `held:` line carries it after `--`. Cleared before every
+  ticker, so it never describes somebody else's time.
+- `dt_nattick` times its parts -- starting the compositor, the events, the
+  rest, telling X its primary -- and each event over 10 ms by its verb and
+  window, and says so only on a tick that was slow: a quick tick costs a
+  few clock readings. The event loop's body is a function of its own,
+  `dt_natevent`, so each event is one call to time.
+
+Checked: `tests/desktop.py` runs a ticker that names its parts and takes
+0.2 s, and finds them on its line; it fails against 0.99.539.
+`tests/native.py` passes unchanged through the restructured event loop.
+
 ## 0.99.539
 
 **A tray icon has a size of its own, and sits in the bar rather than

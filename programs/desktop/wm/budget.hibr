@@ -71,6 +71,11 @@ DT_SCHON=0
 declare -gA DT_MAX
 # When each callback was last named slow in the log.
 declare -gA DT_SLOWAT
+# What a callback says its time went on, for the slow: and held: lines: a
+# ticker that does several things names each part's share, so a stall on
+# somebody else's machine says which part it was rather than only that it
+# happened. Cleared before every ticker and after every timing.
+declare -g DT_SPENTWHY=""
 # Which app each ticker belongs to, worked out once from the file that
 # registered it; "-" for one that is the desktop's own.
 declare -gA DT_TICKAPP
@@ -93,6 +98,7 @@ fn dt_spent(name, int us, app = "") {
 	# slow frame is a slow callback inside it, which says so itself.
 	case $name in draw | flush | part:*) return 0 ;; esac
 	[ "$us" -ge $((DT_SLOWMS * 1000)) ] && dt_slow "$name" "$us" "$app"
+	DT_SPENTWHY=
 	# Under the cpu rule each callback is charged only its own slice.
 	[ "$DT_HOLDBY" = cpu ] &&
 		{ read -r DT_SCHON _ _ 2> /dev/null < "/proc/$$/schedstat" || DT_SCHON=0; }
@@ -128,9 +134,9 @@ fn dt_slow(name, int us, app = "") {
 	if { [ -n "$held" ] && [ "$t" -ge 10000 ]; } || [ "$t" -ge 60000 ]; then
 		DT_SLOWAT["$name"]=$now
 		if [ -n "$held" ]; then
-			dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)"
+			dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
 		else
-			dt_log "slow: $name took $ms ms$waited (a frame is $DT_SLOWMS ms)"
+			dt_log "slow: $name took $ms ms$waited (a frame is $DT_SLOWMS ms)${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
 		fi
 	fi
 	return 0

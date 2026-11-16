@@ -515,6 +515,7 @@ dt_tickers() {
 		ap := dt_tickowner "$f"
 		[ "$ap" = - ] && ap=
 		DT_WHO=$f
+		DT_SPENTWHY=
 		t0=${EPOCHREALTIME/./}
 		"$f"
 		t=$((${EPOCHREALTIME/./} - t0))

@@ -7150,6 +7150,23 @@ check("and the log names the stall, for whoever wrote it", len(held) >= 1, held)
 for fn in (SLWMARK, slwp):
     if os.path.exists(fn):
         os.unlink(fn)
+# And a ticker that says what its time went on has it in that line: the
+# compositor's ticker held the owner's desktop 266 to 397 ms at a time, and
+# the line said only that it had (0.99.540). dt_nattick names its parts
+# this way.
+expect(r"(held|slow): slwtk")
+swp = scratch("desktop-slwtk.hibr")
+open(swp, "w").write("%s. %s\ndt_open\n"
+                     "slwtk() { DT_SPENTWHY=\"events 180 ms (new 7 180 ms)\"; sleep 0.2; return 0; }\n"
+                     "dt_ticker slwtk\ndt_run\ndt_close\n" % (load(MOD), WM))
+swt = Term(swp, env={"DT_HOLDMS": "100", "DT_HOLDBY": "wall"}, rows=ROWS, cols=COLS, settle=0.6)
+swt.collect(1.5)
+why = [l for l in open(swt.log, errors="replace")
+       if ("held: slwtk" in l or "slow: slwtk" in l) and "-- events 180 ms (new 7 180 ms)" in l]
+swt.quit(b"q", 1.0)
+check("a slow ticker's line says what its time went on, as the ticker said it", len(why) >= 1, why)
+if os.path.exists(swp):
+    os.unlink(swp)
 
 # A field the window has stopped drawing is not a field any more: a press
 # where it was goes to the app. The desktop kept the last focused field's
@@ -10298,4 +10315,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1109)
+report(1110)
