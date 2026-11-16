@@ -15,9 +15,11 @@ on the **machine**:
 - **The C library.** A module cannot carry its own; it uses the one hibr
   was started with, and its floor is whatever the build machine had. This
   box is glibc 2.41 (Debian 13); hibr's packages are built on Debian 12
-  (2.36, `packaging/deb/build-bookworm.sh`) so that they install there. A
-  module built here installs on Debian 12 and fails at `need`, with a
-  dynamic linker message about a symbol version.
+  (2.36, `packaging/deb/build-bookworm.sh`) so that they install there.
+  Measured: `build/mods/csv.so` built here references `GLIBC_2.38`, for
+  `__isoc23_strtol`, which the C23 headers redirect `strtol` to -- so a
+  module built on this box installs on Debian 12 and fails at `need` with
+  a symbol-version message from the dynamic linker.
 - **The CPU.** An engine built with `-march=native` or for x86-64-v3 dies
   with SIGILL on an older processor -- not at `need`, but in the middle of
   the first call that uses the instruction.
@@ -49,18 +51,28 @@ on the **machine**:
    records a build **on the machine that built it, by loading it there** --
    which is how today's `mkindex` reads the ABI, and is a real check that
    the build loads at all -- and reads the rest from the object's headers.
-   The index is assembled and signed wherever the source's key is. The ISA
-   level is read from the object's GNU property note; a build without one
-   is refused with the flag that adds it, since a level that cannot be read
-   is a level that was guessed.
+   The index is assembled and signed wherever the source's key is.
+
+   **The CPU level is the one fact that cannot always be read.** The x86
+   ISA property note would say it, and nothing here writes one: no module
+   tcc builds carries it, and neither does an object from this box's gcc
+   (measured with `readelf -n`). And an engine that dispatches at run time
+   holds v3 instructions it never executes on an older processor, so
+   scanning the code over-states it. So: the note is used when present;
+   without one the tool scans the code (`objdump -d`) and records `x86-64`
+   when nothing above it is found; when something is, the build is refused
+   unless the publisher declares the level it **starts** on, and the index
+   says that one fact was declared (`cpu_declared`) rather than read.
 
 3. **The publishing tool refuses a build that cannot travel:**
    - `needed` beyond the C library family (`libc`, `libm`, `libdl`,
      `libpthread`, `librt`, the dynamic linker; `libSystem` on macOS) --
      anything else is `dlopen`ed at run time, as hibr's own modules do;
-   - a global symbol that collides with the shell's or a shipped module's
-     (`tests/999-symbols.t`'s check, run against the build) -- the
-     preemption trap CLAUDE.md records twice;
+   - a global symbol that collides with the shell's (`tests/999-symbols.t`'s
+     check, run against the build) -- the preemption trap CLAUDE.md
+     records twice. Modules are opened `RTLD_LOCAL`, so one module's
+     symbols never meet another's, and two modules offering the same
+     builtin (`web.so` and hibr-browser's `webkit.so`) are allowed;
    - a `glibc` floor above the baseline the source declares (Debian 12's
      2.36 for hibr's own), or a `cpu` above `x86-64` with no baseline build
      beside it.
@@ -113,4 +125,9 @@ index.
 
 **Publishers declare their own facts.** Simpler, and wrong in exactly the
 way #43 would have been: the facts that break a load are the ones a
-publisher does not know they have.
+publisher does not know they have. The CPU level is the exception, taken
+from the publisher only when the code shows more than the baseline, and
+marked as declared.
+
+**Refusing a build with no ISA note.** The first draft of this ADR. It
+would refuse every module hibr and Blit build, since tcc writes no note.

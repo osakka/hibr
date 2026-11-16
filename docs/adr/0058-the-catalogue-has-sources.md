@@ -27,8 +27,11 @@ apt, rpm or Arch as well, beside it. That is two routes for one thing.
 found that **none could have been installed**: `mkindex` writes a module's
 bundle, hash, machine and ABI under `builds.<machine>`, and `cat_entry`
 copies only top-level fields, so a module entry reaches `cat_getbundle`
-with no `sha256` and is refused. `tests/appmgr.py` passes because it serves
-a hand-written index with the fields at the top. Answering #43 also showed
+with no `sha256` and is refused -- reproduced: the real `mkindex` over a
+copy of hibr-apps with `csv.so` added, served locally, and `catalogue
+install mods/csv` answers "the index gives no sha256". `tests/appmgr.py`
+passes because it serves a hand-written index with the fields at the top.
+Answering #43 also showed
 what one key cannot do well:
 
 - the owner's key would sign a binary nobody on the owner's side built;
@@ -128,17 +131,19 @@ its own entries, hosted where the project hosts it.
 Each a release with checks that fail against the one before; the tickets
 under #561 are the plan, and nothing starts ahead of the one before it.
 
-1. **Ids and the record:** `SOURCE/` in ids, bare meaning `hibr`, `replaces`
-   and `needs` scoped; the client reads `builds` (the bug above).
-2. **Trust:** the root lists sources; each is fetched, verified, cached and
-   isolated; serial, expiry, rotation, revocation, moves.
-3. **Versions and rollback:** [ADR 0059](0059-an-entry-has-versions.md).
-4. **Native builds:** [ADR 0060](0060-a-native-build-says-what-it-needs.md).
-5. **`catalogue publish`:** hibr-apps publishes with it.
-6. **Surfaces:** sources, versions, holds and rollback in the Catalogue
-   window and the Control Panel.
-7. **The first other source:** hibr-intelligence (#43) publishes its own,
-   and the deb route ends where 9 says.
+1. **The client reads `builds`** (the bug above), and **`catalogue
+   publish`** ships, equal to today's `mkindex`, so every later change to
+   the publisher is written once, in the tool that ships.
+2. **Ids and the record:** `SOURCE/` in ids, bare meaning `hibr`,
+   `replaces` and `needs` scoped.
+3. **Trust:** the root lists sources; each is fetched, verified, cached and
+   isolated; serial, expiry, rotation, revocation.
+4. **Versions and rollback:** [ADR 0059](0059-an-entry-has-versions.md).
+5. **Native builds:** [ADR 0060](0060-a-native-build-says-what-it-needs.md).
+6. **A person's own source, moves, and the surfaces:** sources, versions,
+   holds and rollback in the Catalogue window and the Control Panel.
+7. **The first other source:** hibr-intelligence (its #43) publishes its
+   own, and the deb route ends where 9 says.
 
 ## Consequences
 
@@ -150,6 +155,11 @@ under #561 are the plan, and nothing starts ahead of the one before it.
   owner stops being the only person who can publish one.
 - The root index grows a small list, and the client one more cache per
   source: `~/.cache/hibr/catalogue/<source>/`.
+- **Expiry makes publishing periodic.** Every source, hibr's included,
+  must re-sign its index before `expires` even when nothing changed, or
+  its native builds stop installing. The window is the owner's choice
+  (#561); a long one weakens the protection against a frozen mirror, a
+  short one makes a missed re-sign an outage.
 
 ## Alternatives
 
