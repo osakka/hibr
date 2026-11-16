@@ -67,6 +67,7 @@ downside is usually a decision nobody had to make.
 | [0055](0055-tcc-compiles-the-system-linker-links.md) | tcc compiles, the system linker links | accepted |
 | [0056](0056-the-language-explains-itself.md) | The language explains itself -- an `inspect` module | accepted |
 | [0057](0057-a-shortcut-is-the-chords-it-is-written-as.md) | A shortcut is the chords it is written as | accepted |
+| [0058](0058-the-catalogue-has-sources.md) | The catalogue has sources | proposed |
 
 ---
 
