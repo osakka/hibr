@@ -68,6 +68,8 @@ downside is usually a decision nobody had to make.
 | [0056](0056-the-language-explains-itself.md) | The language explains itself -- an `inspect` module | accepted |
 | [0057](0057-a-shortcut-is-the-chords-it-is-written-as.md) | A shortcut is the chords it is written as | accepted |
 | [0058](0058-the-catalogue-has-sources.md) | The catalogue has sources | proposed |
+| [0059](0059-an-entry-has-versions.md) | An entry has versions, and going back is a verb | proposed |
+| [0060](0060-a-native-build-says-what-it-needs.md) | A native build says what it needs to load | proposed |
 
 ---
 
