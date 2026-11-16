@@ -27,6 +27,14 @@ if not all(shutil.which(n) for n in NEED):
     report(0)
     sys.exit(0)
 
+# No system bus for anything this suite starts -- servers, clients and the
+# desktop under test alike. A container's RTKit fails, and since PipeWire
+# 1.4 (this box, 2026-11-13) every client -- pw-cli, wpctl, pw-mon -- loads
+# module-rt and asks it over the system bus too, then hangs on its way out
+# joining its own thread loop: measured as 5 and 7 of 8 `wpctl status`
+# hung with the real system bus, none of 8 without (Gitea #588). The
+# servers have been kept off it since the suite was written.
+os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:path=/nonexistent/hibr-sys"
 RT = tempfile.mkdtemp(prefix="hibr-snd-rt-")
 os.chmod(RT, 0o700)
 D = tempfile.mkdtemp(prefix="hibr-snd-")
@@ -98,6 +106,7 @@ def started2():
         subprocess.run(["pw-cli", "create-node", "adapter",
                         "{ factory.name=support.null-audio-sink node.name=%s "
                         "node.description=\"%s\" media.class=%s object.linger=true "
+                        "node.always-process=true "
                         "audio.position=[FL FR] }" % (nm, ds, cl)],
                        env=WENV, capture_output=True, timeout=10)
     for _ in range(50):
@@ -156,12 +165,18 @@ if not started():
     shutil.rmtree(RT, True)
     report(0)
     sys.exit(0)
+# Every device here is kept running (`node.always-process`). A null sink
+# nothing plays to stays suspended, and since PipeWire 1.4 a suspended one
+# takes a volume and goes on reporting 100%: `set-sink-volume spk 50%`
+# answered 0 and read back 100%, and 50% the moment a stream ran into it
+# (Gitea #588). A real device is woken by what plays to it; these
+# stand-ins never are.
 pa("load-module", "module-null-sink", "sink_name=spk",
-   "sink_properties=device.description=Speakers")
+   "sink_properties=device.description=Speakers node.always-process=true")
 pa("load-module", "module-null-sink", "sink_name=hp",
-   "sink_properties=device.description=Headphones")
+   "sink_properties=device.description=Headphones node.always-process=true")
 pa("load-module", "module-null-sink", "media.class=Audio/Source/Virtual",
-   "sink_name=mic", "sink_properties=device.description=Microphone")
+   "sink_name=mic", "sink_properties=device.description=Microphone node.always-process=true")
 time.sleep(0.5)
 
 CPD = tree("programs/desktop/control-panel")
