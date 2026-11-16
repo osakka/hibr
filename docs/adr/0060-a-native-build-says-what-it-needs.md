@@ -1,7 +1,8 @@
 # ADR 0060: a native build says what it needs to load
 
-Status: proposed, with [ADR 0058](0058-the-catalogue-has-sources.md);
-waits for the owner's approval. Epic: Gitea #561.
+Status: proposed, with ADRs [0058](0058-the-catalogue-has-sources.md) to
+[0062](0062-the-catalogue-has-a-native-half.md); waits for the owner's
+approval. Epic: Gitea #561.
 
 ## Context
 
@@ -50,7 +51,8 @@ on the **machine**:
    (`catalogue publish`, [ADR 0058](0058-the-catalogue-has-sources.md) 12)
    records a build **on the machine that built it, by loading it there** --
    which is how today's `mkindex` reads the ABI, and is a real check that
-   the build loads at all -- and reads the rest from the object's headers.
+   the build loads at all -- and reads the rest from the object's headers
+   with `pkg obj` ([ADR 0062](0062-the-catalogue-has-a-native-half.md)).
    The index is assembled and signed wherever the source's key is.
 
    **The CPU level is the one fact that cannot always be read.** The x86
@@ -77,9 +79,10 @@ on the **machine**:
      2.36 recommended), or a `cpu` above `x86-64` with no baseline build
      beside it.
 
-4. **The client checks before it fetches.** Machine, ABI, `glibc` (from
-   `getconf GNU_LIBC_VERSION`), `macos`, and `cpu` (from the processor's
-   own flags) are compared before a byte is downloaded, and the size is
+4. **The client checks before it fetches.** Machine, ABI, `glibc`,
+   `macos` and `cpu` -- this machine's own answered by `pkg host`
+   ([ADR 0062](0062-the-catalogue-has-a-native-half.md)), never by another
+   program -- are compared before a byte is downloaded, and the size is
    said. No build for this machine is a refusal that names what is offered.
    An engine that wants v3 ships a baseline build that dispatches at run
    time; the index carries one build per machine and ABI, not one per CPU

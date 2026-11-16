@@ -37,7 +37,12 @@ operating system's thousands later.
    - `pkg vercmp A B` -- versions compared the way `sort -V` orders them,
      so every index written today compares the same;
    - `pkg verify SIG DATA KEY` -- an OpenPGP detached signature checked
-     against an armored public key, answering the signer's fingerprint;
+     against an armored public key, answering the **primary** key's
+     fingerprint whether the primary or one of its signing subkeys made it,
+     as `cat_verify` accepts today;
+   - `pkg host` -- this machine's own answers to what a build needs: its
+     machine, glibc version (`gnu_get_libc_version`), macOS version and CPU
+     level (from `cpuid`, or `sysctl` on macOS), so no program is asked;
    - `pkg obj FILE` -- what a native build needs to load, from its own
      headers: machine, glibc floor, `NEEDED`, the ISA note when present,
      exported symbols; for Mach-O, the minimum macOS and `LC_LOAD_DYLIB`s;
@@ -51,9 +56,13 @@ operating system's thousands later.
    hibr's key is RSA-4096 and its signatures are OpenPGP version 4 over
    SHA-512, and the same `.asc` must go on serving an older client's
    `gpg` ([ADR 0058](0058-the-catalogue-has-sources.md), 11). So `pkg
-   verify` reads exactly that much of RFC 9580 -- version 4 signature and
-   public-key packets, RSA and EdDSA (Ed25519), SHA-256 and SHA-512, the
-   hashed subpackets and trailer -- and refuses anything else by name. A
+   verify` reads exactly that much of OpenPGP's version 4 format -- signature
+   and public-key packets and subkeys, RSA and EdDSA (Ed25519), SHA-256 and
+   SHA-512, the hashed subpackets and trailer -- and refuses anything else
+   by name. **Measured before it was proposed:** a Python script of about
+   sixty lines, using nothing but `hashlib` and integer arithmetic, verifies
+   hibr-apps' real `index.json.asc` against `/usr/share/hibr/keyring.gpg`
+   (GOOD, by `A1E3…4431`) and refuses the same index with one byte added. A
    key format of our own was weighed and refused: it would mean a second
    signature beside the `.asc` for every older client, which is two
    signatures for one index.
@@ -84,9 +93,13 @@ operating system's thousands later.
 
 ## Consequences
 
-- The client needs no `gpg`, `sha256sum` or `sort`. With libcrypto absent
+- The client needs no `gpg`, `sha256sum`, `sort` or `getconf`. With
+  libcrypto absent
   -- no TLS either -- `pkg` says so, and the client fails as it does today
   without `dav`.
+- **The cost, named:** an OpenPGP reader of our own, which is
+  security-critical code; and a resolver in C, justified by the operating
+  system the owner means to build rather than by today's 124 entries.
 - One more module, built and shipped with hibr like every other
   ([ADR 0045](0045-a-thing-has-a-scope.md)). Its OpenPGP reader is
   security-critical code of our own, so it is fuzzed (`tests/fuzz.py`'s

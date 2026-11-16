@@ -53,6 +53,20 @@ that run arbitrary code as root during an install.
    publishing tool in their old places too, for an older client
    ([ADR 0058](0058-the-catalogue-has-sources.md), 11). A part stays a part.
 
+   **An older client meets the new forms safely, but says nonsense unless
+   given a floor.** Run against the installed 0.99.542 over a served index:
+   `iface/terminal`, `hibr >= 0.99.540`, `menubar/clock >= 1.2, < 2` and
+   `intelligence/mods/x` each refuse the install and place nothing -- with
+   "needs >=, which is not in this catalogue" for the range, since
+   `cat_needin` splits on blanks and commas. With a `hibr` floor on the
+   entry, each is refused instead with "needs hibr 0.99.600 or newer, and
+   this is 0.99.542". So **the publishing tool gives every entry that uses a
+   new form the floor of the release that reads it**, and refuses to publish
+   one without; `needs` keeps its name and no second field is needed.
+
+   **`iface` and `hibr` are reserved**: neither may be a kind or a source's
+   name, so `iface/terminal` and `hibr >= X` can never mean an entry.
+
 2. **A need may name versions.** `needs: intelligence/mods/x >= 1.2, < 2`
    -- the operators `=`, `>=`, `>`, `<=`, `<`, compared as versions
    ([ADR 0062](0062-the-catalogue-has-a-native-half.md)). No range means any
@@ -76,8 +90,8 @@ that run arbitrary code as root during an install.
      version, and keeps every hold
      ([ADR 0059](0059-an-entry-has-versions.md));
    - it is conflict-driven and **explains a failure** -- the method of
-     PubGrub (Dart's `pub`, Natalie Weizenbaum, 2018), which derives a
-     chain of reasons as it learns: *"mail 3.0 needs pim >= 2, and pim 2
+     PubGrub, the resolver of Dart's `pub`, which derives a chain of
+     reasons as it learns: *"mail 3.0 needs pim >= 2, and pim 2
      is offered only for ABI 18; this hibr is ABI 17, so mail 3.0 cannot be
      installed here; mail 2.5.4 can."*
    - it is deterministic: the same sources and request give the same
@@ -89,12 +103,16 @@ that run arbitrary code as root during an install.
    the same way, so a rollback that would break a dependent is refused
    with the reason, never half done.
 
-7. **Removal protects what depends.** `remove` resolves too: an entry
-   another installed entry needs is refused, naming the dependents, unless
-   asked to take them with it (`remove --with-dependents`), which lists them
-   first. What was pulled in only because something needed it is taken away
-   once nothing does -- today's `purge`, made general and done by every
-   `remove` and `update`.
+7. **Removal protects what depends, and takes nothing away unasked.**
+   `remove` resolves too: an entry another installed entry needs is
+   refused, naming the dependents, unless asked to take them with it
+   (`remove --with-dependents`), which lists them first. What was pulled in
+   only because something needed it is **named** once nothing does -- by
+   every `remove` and `update`, as apt names what `autoremove` would take --
+   and taken away only by `purge`, which stays the verb you ask for. The
+   reason is docs/catalogue.md's (*Taking a module away again*): the
+   catalogue cannot see a script's own `need pim`, and deleting native code
+   behind it is worse than a megabyte left on disk.
 
 8. **Across sources, and never adding one.** A need may name another
    source's entry in full. A need whose source is not present fails to
@@ -131,7 +149,7 @@ that run arbitrary code as root during an install.
    versions exist ([ADR 0059](0059-an-entry-has-versions.md)).
 3. **The resolver**, with its explanations, resolving every verb inside
    one transaction.
-4. **Removal** protects dependents and takes away what nothing needs.
+4. **Removal** protects dependents, and names what nothing needs.
 5. **Across sources**, after sources exist
    ([ADR 0058](0058-the-catalogue-has-sources.md)).
 
@@ -147,6 +165,11 @@ that run arbitrary code as root during an install.
   written by the tool from `needs`; nobody writes them by hand again.
 
 ## Alternatives
+
+**Removing what nothing needs automatically.** apt's `autoremove` done by
+every verb. Refused: the catalogue cannot see what a person's own scripts
+`need`, so "nothing needs it" is only "nothing the catalogue placed needs
+it".
 
 **A SAT solver (libsolv, as zypper and dnf use).** Complete and fast, and
 its failures are a list of clauses, not a reason a person can read. The

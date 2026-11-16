@@ -3,9 +3,11 @@
 Status: proposed (the owner chose a distributed catalogue, 2026-11-16, and
 then chose that it has **no central index**: "one source of truth, no
 parallels ... free to pick the best of what everyone else does"). This
-design, with [ADR 0059](0059-an-entry-has-versions.md) and
-[ADR 0060](0060-a-native-build-says-what-it-needs.md), waits for the
-owner's approval before anything is built. Epic: Gitea #561.
+design, with ADRs [0059](0059-an-entry-has-versions.md),
+[0060](0060-a-native-build-says-what-it-needs.md),
+[0061](0061-an-entry-says-what-it-needs.md) and
+[0062](0062-the-catalogue-has-a-native-half.md), waits for the owner's
+approval before anything is built. Epic: Gitea #561.
 
 ## Context
 
@@ -251,13 +253,16 @@ fail against the one before, and nothing starts ahead of the one before.
 
 1. **The client reads `builds`**, and **`catalogue publish`** ships, equal
    to today's `mkindex`, so every later change to the publisher is written
-   once, in the tool that ships.
+   once, in the tool that ships; then **the `pkg` module**
+   ([ADR 0062](0062-the-catalogue-has-a-native-half.md)), which the
+   source files' keys are checked with.
 2. **Ids and the record:** `SOURCE/` in ids, bare meaning `hibr`, scoped
    `replaces` and `needs`.
 3. **Sources:** the file, its binding and scopes, the five mechanisms
    removed, isolation; then serials and expiry; then, after versions, seen
    hashes, rotation, revocation and moves.
-4. **Versions and rollback:** [ADR 0059](0059-an-entry-has-versions.md).
+4. **Versions and rollback:** [ADR 0059](0059-an-entry-has-versions.md);
+   then **dependencies**: [ADR 0061](0061-an-entry-says-what-it-needs.md).
 5. **Native builds:** [ADR 0060](0060-a-native-build-says-what-it-needs.md).
 6. **Surfaces:** sources, versions, holds and rollback in the Catalogue
    window and the Control Panel.

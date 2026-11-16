@@ -1,7 +1,8 @@
 # ADR 0059: an entry has versions, and going back is a verb
 
-Status: proposed, with [ADR 0058](0058-the-catalogue-has-sources.md);
-waits for the owner's approval. Epic: Gitea #561.
+Status: proposed, with ADRs [0058](0058-the-catalogue-has-sources.md) to
+[0062](0062-the-catalogue-has-a-native-half.md); waits for the owner's
+approval. Epic: Gitea #561.
 
 ## Context
 
@@ -112,9 +113,9 @@ a catalogue that is "100% working".
    - *Parts:* belong to their version. Going back places that version's
      parts and takes away what only the newer one placed (`cat_stale`'s
      rule, unchanged).
-   - *`needs`:* says that an entry is present, not which version, and that
-     stays so. Going back is never refused for a `needs`; version
-     constraints between entries are not part of this decision.
+   - *`needs`:* going back is resolved like any other change
+     ([ADR 0061](0061-an-entry-says-what-it-needs.md), 6): a rollback that
+     would leave a dependent's need unmet is refused, with the reason.
    - *A bundle:* has no version (Gitea #392); `rollback` on one is
      refused, naming its members, which roll back as the entries they are.
    - *hibr itself* is apt's, not the catalogue's. After hibr is
