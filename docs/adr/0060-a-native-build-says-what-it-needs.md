@@ -74,7 +74,7 @@ on the **machine**:
      symbols never meet another's, and two modules offering the same
      builtin (`web.so` and hibr-browser's `webkit.so`) are allowed;
    - a `glibc` floor above the baseline the source declares (Debian 12's
-     2.36 for hibr's own), or a `cpu` above `x86-64` with no baseline build
+     2.36 recommended), or a `cpu` above `x86-64` with no baseline build
      beside it.
 
 4. **The client checks before it fetches.** Machine, ABI, `glibc` (from
@@ -96,10 +96,12 @@ on the **machine**:
    core audit's ABI release does not wait on this; the first source to
    publish a module does.
 
-6. **The baseline is the oldest supported system.** hibr's own source
-   builds native entries on Debian 12, x86-64 baseline, the way its
-   packages are built; a source states its own and the tool holds it to
-   it. **macOS builds are in the format and out of the first release**:
+6. **The baseline is the oldest supported system.** A source declares its
+   own baseline and the tool holds it to it; the one recommended is hibr's
+   packages' own, Debian 12 and x86-64. hibr's source itself carries no
+   native entry -- hibr ships every module it builds (ADR 0045) -- so the
+   first source to publish one is another project's. **macOS builds are in
+   the format and out of the first release**:
    no source publishes one until a Mac build machine records them, which
    is the owner's choice to make.
 

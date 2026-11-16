@@ -45,6 +45,13 @@ a catalogue that is "100% working".
    under a number already used, and refuses a number not greater than the
    last (compared as `sort -V` compares, as `cat_needs` compares floors).
    The cache mismatch above stops being possible rather than explained.
+   **And a path that works today ends:** `update` now fetches again an
+   entry whose bytes changed under an unchanged version ("changed in the
+   catalogue; fetched again"), and hibr-apps relies on it whenever a part
+   changes and its owner's version does not. From this release on, every
+   change to a part needs its owner's version raised, and the publishing
+   tool refuses changed bytes without one. The client's memory of seen
+   hashes ([ADR 0058](0058-the-catalogue-has-sources.md), 8) starts here.
 
 3. **A source keeps a window of versions, and so does the client; both
    are settings, three by default** (the owner, 2026-11-16).
