@@ -130,6 +130,13 @@ extern const cn_pane *cn_wpane;
 void cn_tband(void);
 int cn_ptopat(int row, int col);
 cn_pane *cn_ptopin(int row, int col, int h, int w);
+cn_pane *cn_ptopinx(int row, int col, int h, int w, const cn_pane *own);
+long long cn_wms(void);
+/* How long a picture under the text nobody placed is kept, waiting for its
+   replacement to be sent whole before it goes (Gitea #559). */
+#ifndef CN_ORPHMS
+#define CN_ORPHMS 1000
+#endif
 void cn_imgmove(const char *pane, int dr, int dc);
 
 int cn_open(sh *s);

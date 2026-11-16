@@ -74,6 +74,15 @@ int cn_ptopat(int row, int col)
    around, since a bitmap cannot leave a hole for one. */
 cn_pane *cn_ptopin(int row, int col, int h, int w)
 {
+	return cn_ptopinx(row, col, h, w, 0);
+}
+
+/* The same, leaving out own: a picture of the bar's own -- a tray icon --
+   is inside the bar, which is a top pane, and the bar is not in its way.
+   Counted, the icon was never moved with its bar and was deleted and sent
+   again whenever the bar moved (Gitea #559). */
+cn_pane *cn_ptopinx(int row, int col, int h, int w, const cn_pane *own)
+{
 	size_t i;
 	cn_pane *p;
 
@@ -83,7 +92,7 @@ cn_pane *cn_ptopin(int row, int col, int h, int w)
 		return 0;
 	for (i = 0; i < cn_panes.n; i++) {
 		p = (cn_pane *)cn_panes.p[i];
-		if (p->top && p->row < row + h && row < p->row + p->h &&
+		if (p != own && p->top && p->row < row + h && row < p->row + p->h &&
 		    p->col < col + w && col < p->col + p->w)
 			return p;
 	}

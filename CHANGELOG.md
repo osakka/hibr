@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.542
+
+**A display layout change no longer blinks the wallpaper and the tray**
+(Gitea #559). Blit's graphics recorder, left running after the restart
+fix, caught the same blink on another path: when one of the owner's Blit
+sessions on DP-1 ended, every display's wallpaper and the tray icon went
+for three frames. The console deleted a picture under the text on the
+first frame nobody placed it, and a layout change redraws the wallpaper a
+frame or more later -- about 0.4 s there -- so the delete and the
+replacement landed in two synchronized updates with nothing between.
+
+- **A wallpaper nobody placed this frame is kept**, and goes behind the
+  first new picture under the text, after it in the frame that sends it
+  whole; with none, it goes after a second (`CN_ORPHMS`). Placed again in
+  the meantime, it simply stays.
+- **A picture in a top pane moves with it.** 0.99.537's move refused any
+  spot inside a top pane, and the bar is one, so a tray icon was deleted
+  and sent again whenever the bar moved along its row -- as it does when
+  the primary display changes.
+
+Checked: `tests/kitgfx.py` stops placing a wallpaper for two frames, then
+places another, and reads the bytes: one delete, after the new
+transmission and inside its update; with nothing replacing it, it goes
+after a second; and a tray icon moved with its bar is one transmission and
+a placement. Both new checks fail against 0.99.541.
+
 ## 0.99.541
 
 **Opening a program window no longer stalls the desktop.** 0.99.540's

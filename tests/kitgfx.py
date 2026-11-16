@@ -312,9 +312,12 @@ sc = run(TEXT + UPIC + "console flush\n"
          + UPIC + "console put 1 0 'AGAIN'\nconsole flush\nconsole key 400\n")
 check("placed again each frame it is sent once, whatever moves above it",
       len(places(sc)) == 1 and "AGAIN" in sc.row(1), (places(sc), sc.row(1)))
+# Not at once since 0.99.542: it waits up to a second for a replacement to
+# go behind (Gitea #559), and with none it goes then.
 sc = run(TEXT + UPIC + "console flush\n"
-         "console put 1 0 'GONE'\nconsole flush\nconsole key 400\n")
-check("and the frame that stops placing it is what takes it away",
+         "console put 1 0 'GONE'\nconsole flush\nconsole key 1300\n"
+         "console put 1 6 '.'\nconsole flush\nconsole key 300\n", settle=2.0)
+check("and with nothing placing it again it is taken away, within a second",
       len(places(sc)) == 1 and any("a=d" in a and "d=I" in a
                                    for a in sc.apc), sc.apc)
 # A window dragged by its outline draws nothing until it is let go: each step
@@ -1207,6 +1210,30 @@ check("and one its window does not draw again as it moves goes with it too",
       len(places(sc)) == 1 and not [a for a in deletes(sc) if "d=A" not in a] and mv == [(12, 30), (3, 40)],
       (places(sc), mv, deletes(sc)))
 
+# A picture under the text that nobody placed this frame -- a display's
+# wallpaper while the layout changes -- stays on the terminal, and goes
+# behind the first new one, after it in the frame that sends it whole: a
+# display left without a wallpaper for the frames between was Blit's
+# recorder's catch (Gitea #559). Kept a second at most when none comes.
+ORPH = ("img draw %s 0 0 8 20 -m pixels -u\nconsole flush\nconsole key 200\n"
+        "console put 20 0 x\nconsole flush\nconsole key 200\n"
+        "console put 20 1 y\nconsole flush\nconsole key 200\n"
+        "img draw %s 0 30 8 20 -m pixels -u\nconsole flush\nconsole key 200\n"
+        % (GRAD, GRAD3))
+sc, out = run(ORPH, rows=24, cols=60, raw=True)
+tx = [m.start() for m in re.finditer(rb"\x1b_G[^;\x1b]*a=T", out)]
+dl = [m.start() for m in re.finditer(rb"\x1b_Ga=d,d=I", out)]
+fr = [m.start() for m in re.finditer(rb"\x1b\[\?2026h", out)]
+same = (len(tx) == 2 and len(dl) == 1 and tx[1] < dl[0]
+        and not [f for f in fr if tx[1] < f < dl[0]])
+check("a wallpaper nobody placed stays until its replacement is sent, and goes behind it in the same frame",
+      same, (len(tx), len(dl), out[-300:] if not same else ""))
+sc, out = run("img draw %s 0 0 8 20 -m pixels -u\nconsole flush\nconsole key 200\n"
+              "console put 20 0 x\nconsole flush\nconsole key 1500\n"
+              "console put 20 1 y\nconsole flush\nconsole key 200\n" % GRAD,
+              rows=24, cols=60, raw=True, settle=2.5)
+check("and one with no replacement goes after a second",
+      len(re.findall(rb"\x1b_Ga=d,d=I", out)) == 1, out[-200:])
 # Restart Desktop is an exec: the same process, so the same pid and the
 # same band of picture ids. Counting from the start again handed the new
 # desktop the old one's ids -- which hold and Blit had just deleted, and
@@ -1355,5 +1382,21 @@ sc = run(ABAR + 'img draw %s 0 4 1 2 -m pixels -p bar -a\nconsole flush\nconsole
 dl = [x for x in deletes(sc) if "d=I" in x]
 check("cells drawn under it while it is placed keep it; the pane drawn without it takes it away",
       len(places(sc)) == 1 and len(dl) == 1, (places(sc), dl))
+# A tray icon is a picture of the bar's own, and the bar is a top pane: it
+# moves with its bar as a placement, never deleted and sent again -- the
+# bar's own top-ness counted against it, so moved along its own row -- as
+# the bar does when the primary display changes -- it never moved (Gitea #559).
+TRAYMV = ('console pane bar 0 0 1 40\nconsole pane top bar\n'
+          'console put -p bar 0 0 "%s"\n'
+          'img draw %s 0 4 1 2 -m pixels -p bar -a\nconsole flush\nconsole key 200\n'
+          'console pane bar 0 6 1 40\nconsole put -p bar 0 0 "%s"\n'
+          'img draw %s 0 4 1 2 -m pixels -p bar -a\nconsole flush\nconsole key 200\n'
+          % (" " * 40, ALPHA, " " * 40, ALPHA))
+sc = run(TRAYMV, rows=24, cols=60)
+mv = [(r, c) for r, c, a in sc.kplace if "a=p" in a]
+check("a picture in a top pane moves with it as a placement, never deleted or sent again",
+      len(places(sc)) == 1 and mv == [(0, 10)]
+      and not [a for a in deletes(sc) if "d=A" not in a], (places(sc), mv, deletes(sc)))
 shutil.rmtree(D, True)
-report(123)
+
+report(126)

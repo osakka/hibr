@@ -50,6 +50,7 @@ typedef struct cn_img {
 	int al;			/* RGBA over the cells, which keep their own colours */
 	long z;			/* its kitty layer, 0 over the text */
 	int live;		/* placed again this frame (an `over` one only) */
+	long long orph;		/* when it stopped being placed, kept until a new one is sent */
 	unsigned above;		/* of the cells over it, as they were when sent */
 	unsigned id;		/* the kitty image's own id; 0 for a sixel */
 	str data;		/* the encoded picture */
@@ -1250,6 +1251,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 			   go). */
 			if (im->over) {
 				im->live = 1;
+				im->orph = 0;
 			} else {
 				im->under = cn_imgunder(im);
 				im->plive = 1;
@@ -1532,6 +1534,7 @@ int cn_imgkeep(sh *s, int row, int col, int h, int w)
 		    cn_imgs[i].ww != w)
 			continue;
 		cn_imgs[i].live = 1;
+		cn_imgs[i].orph = 0;
 		return 1;
 	}
 	return 0;
@@ -1567,6 +1570,21 @@ void cn_imgcheck(int again)
 		   the whole cost of a wallpaper: one escape when it changes,
 		   against the bitmap again whenever anything above it moves. */
 		if (cn_imgs[i].over) {
+			/* Not placed this frame: kept on the terminal for now, and
+			   deleted behind the first new picture under the text, in
+			   the frame that sends it whole (cn_imgsend) -- or after
+			   CN_ORPHMS when none comes, the wallpaper turned off. A
+			   layout change redraws the wallpaper a frame or more after
+			   the frame that stopped placing the old one, and deleting
+			   that at once left every display without a wallpaper for
+			   the frames between (Gitea #559, Blit's recorder). */
+			if (!cn_imgs[i].live && cn_imgs[i].sent && cn_imgs[i].id &&
+			    (!cn_imgs[i].orph || cn_wms() - cn_imgs[i].orph < CN_ORPHMS)) {
+				if (!cn_imgs[i].orph)
+					cn_imgs[i].orph = cn_wms();
+				i++;
+				continue;
+			}
 			if (!cn_imgs[i].live) {
 				cn_imgowe(cn_imgs[i].id);
 				free(cn_imgs[i].cell);
@@ -1679,6 +1697,23 @@ size_t cn_imgsend(str *b, int over)
 			cn_imgs[i].above = cn_imgunder(&cn_imgs[i]);
 		n += cn_imgs[i].data.n;
 	}
+	/* A new picture under the text has gone out whole: the ones no longer
+	   placed go now, behind it, with the deletes owed after everything
+	   this frame sent (cn_imgdlate) -- so there is no frame between with
+	   neither on the terminal. */
+	if (over && n)
+		for (i = 0; i < cn_nimg;) {
+			if (cn_imgs[i].over && cn_imgs[i].orph) {
+				cn_imgowelate(cn_imgs[i].id);
+				free(cn_imgs[i].cell);
+				free(cn_imgs[i].pane);
+				s_free(&cn_imgs[i].data);
+				cn_imgs[i] = cn_imgs[cn_nimg - 1];
+				cn_nimg--;
+				continue;
+			}
+			i++;
+		}
 	return n;
 }
 
@@ -1709,7 +1744,7 @@ void cn_imgmove(const char *pane, int dr, int dc)
 		if (im->row + dr < 0 || im->col + dc < 0 ||
 		    im->row + dr + im->h > cn_back.rows ||
 		    im->col + dc + im->w > cn_back.cols ||
-		    cn_ptopin(im->row + dr, im->col + dc, im->h, im->w))
+		    cn_ptopinx(im->row + dr, im->col + dc, im->h, im->w, cn_pfind(pane)))
 			continue;
 		im->row += dr;
 		im->col += dc;
