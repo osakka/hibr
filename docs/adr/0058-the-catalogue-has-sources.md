@@ -1,5 +1,9 @@
 # ADR 0058: the catalogue has sources
 
+**Parked by the owner (2026-11-16): nothing here is built until the owner
+says so.** hibr-intelligence ships as its own apt package instead
+(hibr-intelligence#43).
+
 Status: proposed (the owner chose a distributed catalogue, 2026-11-16, and
 then chose that it has **no central index**: "one source of truth, no
 parallels ... free to pick the best of what everyone else does"). This

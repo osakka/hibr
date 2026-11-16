@@ -1,5 +1,9 @@
 # ADR 0059: an entry has versions, and going back is a verb
 
+**Parked by the owner (2026-11-16): nothing here is built until the owner
+says so.** hibr-intelligence ships as its own apt package instead
+(hibr-intelligence#43).
+
 Status: proposed, with ADRs [0058](0058-the-catalogue-has-sources.md) to
 [0062](0062-the-catalogue-has-a-native-half.md); waits for the owner's
 approval. Epic: Gitea #561.

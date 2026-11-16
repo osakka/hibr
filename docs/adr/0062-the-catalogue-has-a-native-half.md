@@ -1,5 +1,9 @@
 # ADR 0062: the catalogue has a native half, the `pkg` module
 
+**Parked by the owner (2026-11-16): nothing here is built until the owner
+says so.** hibr-intelligence ships as its own apt package instead
+(hibr-intelligence#43).
+
 Status: proposed, with [ADR 0058](0058-the-catalogue-has-sources.md) to
 [ADR 0061](0061-an-entry-says-what-it-needs.md); waits for the owner's
 approval. Epic: Gitea #561.
