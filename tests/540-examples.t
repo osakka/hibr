@@ -64,7 +64,7 @@ for e in examples/*.hibr programs/*.hibr programs/desktop/*.hibr programs/deskto
       w = words[i]
       if (w == "") continue
       eq = index(w, "=")
-      if (eq == 0) { seen[w] = 1; continue }
+      if (eq == 0) { if (w ~ /^[A-Za-z_][A-Za-z0-9_]*$/) seen[w] = 1; continue }
       name = substr(w, 1, eq - 1)
       val = substr(w, eq + 1)
       for (nm in seen) {
@@ -86,8 +86,10 @@ echo "no local reads a name assigned earlier in the same statement"
 # on paths the suites never reached. Which prefix is a window, a pane or a
 # strip module is read from the desktop's own dt_app, dt_new, cp_pane and
 # cs_module calls.
-desk=$(find programs/desktop -name '*.hibr' | sort)
-python3 tests/inspect_checks.py arity $desk
+# A list, not a string: a catalogue folder may have a space in it (Sound &
+# Video, 0.99.548), and an unquoted string splits it in two.
+mapfile -t desk < <(find programs/desktop -name '*.hibr' | sort)
+python3 tests/inspect_checks.py arity "${desk[@]}"
 echo "every callback names what it is called with"
 
 # dt_new calls the new window's <prefix>_open, so a function of that name
@@ -110,7 +112,7 @@ awk '
   pass == 2 && cur != "" && /dt_new / {
     w = $NF; gsub(/"/, "", w)
     if (w == cur) print FILENAME ": " cur "_open opens a " cur " window, which calls " cur "_open again"
-  }' $desk $desk
+  }' "${desk[@]}" "${desk[@]}"
 echo "no window's _open opens another of itself"
 
 # Every app's bar reads File, Edit, then whatever that app adds, so the two
@@ -140,7 +142,7 @@ awk '
       print FILENAME ": " pre "_menus opens with " t ", not File"
     if (nm == 2 && !edited)
       print FILENAME ": " pre "_menus declares " t " before it calls dt_editmenu"
-  }' $desk $desk
+  }' "${desk[@]}" "${desk[@]}"
 echo "every app's bar begins File, then Edit"
 
 # Every row of the Edit menu works in every app or is dimmed there, since
@@ -157,6 +159,7 @@ echo "every app's bar begins File, then Edit"
 # an app writes none of the callbacks -- and one from the catalogue cannot
 # be named in this table at all. The claim is checked, not taken: the file
 # must draw a field with dt_textdraw, and may define none of the six.
+mapfile -t appfiles < <(find programs/desktop/apps programs/desktop/system -name '*.hibr' | sort)
 awk '
   BEGIN {
     # Nothing in the window is text to take or put back: games, and the
@@ -181,6 +184,7 @@ awk '
     # A playlist: copies a track and takes pasted files and addresses,
     # and keeps no history of its own to undo.
     NOT["huiamp"] = "selall undo redo"
+    NOT["audio"] = "selall undo redo"
   }
   FNR == 1 { pre = ""; drew = 0 }
   /^# edit: fields$/ { fields[FILENAME] = 1 }
@@ -212,7 +216,7 @@ awk '
         if (on && meant) print f ": " pre "_" op " exists, so the table is out of date"
       }
     }
-  }' $(find programs/desktop/apps programs/desktop/system -name '*.hibr' | sort)
+  }' "${appfiles[@]}"
 echo "every Edit row an app leaves out is one it means to"
 
 # Every setting kept across restarts -- the desktop's own DT_KEEP, and every
