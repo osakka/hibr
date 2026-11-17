@@ -178,6 +178,9 @@ awk '
     split("term browser calc screens", a, " ")
     for (i in a) NOT[a[i]] = "cut selall undo redo"
     NOT["dbase"] = "copy cut selall undo redo"
+    # A playlist: copies a track and takes pasted files and addresses,
+    # and keeps no history of its own to undo.
+    NOT["huiamp"] = "selall undo redo"
   }
   FNR == 1 { pre = ""; drew = 0 }
   /^# edit: fields$/ { fields[FILENAME] = 1 }
