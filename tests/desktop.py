@@ -494,6 +494,12 @@ ORACLE = ORCFN + ('dt_new "Under" 9 34 6 10 orc\n'
 # this check fail about one run in three inside the suite and never once in
 # eight runs on its own: under load the timer frame falls in a different
 # place.
+# A screen taken at the limit is not a settled one, and a comparison of it
+# says nothing: each such snapshot is counted in ORUNSETTLED, so a check that
+# fails on one says so rather than reading as a redraw bug (Gitea #589).
+ORUNSETTLED = []
+
+
 def orsettled(t, quiet=0.35, limit=4.0):
     was, spent = t.frames(), 0.0
     while spent < limit:
@@ -503,6 +509,7 @@ def orsettled(t, quiet=0.35, limit=4.0):
         if now == was:
             return t.screen()
         was = now
+    ORUNSETTLED.append(now)
     return t.screen()
 
 
@@ -576,8 +583,9 @@ def dragdiff(a, b):
 
 check("every frame of a drag is what a full redraw would have drawn",
       len(d0) == len(d1) and not bad,
-      "steps differing: %s of %d; first step's cells (row, col, glyphs, pens): %s"
-      % (bad, len(d0), dragdiff(d0[bad[0]], d1[bad[0]]) if bad else []))
+      "steps differing: %s of %d; snapshots never settled: %d; first step's "
+      "cells (row, col, glyphs, pens): %s"
+      % (bad, len(d0), len(ORUNSETTLED), dragdiff(d0[bad[0]], d1[bad[0]]) if bad else []))
 check("including the shadows, which is what flickered while a window moved",
       all(a[1] == b[1] for a, b in zip(d0, d1)),
       [i for i, (a, b) in enumerate(zip(d0, d1)) if a[1] != b[1]])
