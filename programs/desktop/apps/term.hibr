@@ -910,6 +910,14 @@ fn tw_busy(int id) {
 # a menu, the Close Window key -- and takes a refusal as "the app has it",
 # so the box below is what closes the window if told to.
 fn term_canclose(int id) {
+	# A hosted app answers its own close (its _canclose: a document with
+	# changes asks first); a second close while it has not, ends it.
+	if [ -n "${TW[$id]["iso"]-}" ]; then
+		[ -n "${TW[$id]["isoclose"]-}" ] && return 0
+		TW[$id]["isoclose"]=1
+		dt_isosend "$id" close
+		return 1
+	fi
 	[ "$DT_TERMASK" = 1 ] || return 0
 	tw_busy "$id" || return 0
 	TW_CLOSEID=$id

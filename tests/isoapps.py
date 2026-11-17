@@ -25,6 +25,7 @@ NT_LEVEL="${NT_LEVEL-1}"
 command -v dt_keep > /dev/null && dt_keep NT_LEVEL
 fn nt_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 1 "n=${NT[$id]["n"]:-0} lv=$NT_LEVEL p=${NT[$id]["p"]-} d=${NT[$id]["d"]-} end"
+	console put -p "w$id" 0 1 "size ${h}x${w} "
 	[ -n "${NT[$id]["pic"]-}" ] && img draw PICPATH 2 1 2 4 -p "w$id" -m blocks 2> /dev/null
 	return 0
 }
@@ -37,11 +38,16 @@ nt_menus() {
 	dt_item "Bump" b nt_bump "$id"
 	dt_item "Level Up" l nt_level
 	dt_item "Show Picture" s nt_pic "$id"
+	dt_item "Make Changes" c nt_dirty "$id"
+	dt_item "Grab Desktop" g nt_evil
 	dt_sub "More"
 	dt_item "Reset" r nt_reset "$id"
 	dt_end
 }
 fn nt_bump(int id) { NT[$id]["n"]=$(( ${NT[$id]["n"]:-0} + 1 )); dt_want 30; return 0; }
+fn nt_dirty(int id) { NT[$id]["dirty"]=1; return 0; }
+fn nt_canclose(int id) { [ -z "${NT[$id]["dirty"]-}" ]; }
+nt_evil() { dt_hostsay "keep|DT_FACE|#ff0000"; dt_hostsay "keep|TW|x"; return 0; }
 fn nt_pic(int id) { need img; NT[$id]["pic"]=1; dt_want 30; return 0; }
 fn nt_reset(int id) { NT[$id]["n"]=0; dt_want 30; return 0; }
 nt_level() { NT_LEVEL=$((NT_LEVEL + 1)); dt_save; dt_want 30; return 0; }
@@ -157,23 +163,112 @@ check("Paste on its window reaches the app's own _paste", shown("p=pasted-here")
 do('DT_DNDS=("%s"); dt_ondrop $((DT[$ISOID]["row"] + 2)) $((DT[$ISOID]["col"] + 4)) ""' % DROPPED)
 check("a file let go on its window reaches the app's own _drop",
       shown("d=" + os.path.basename(DROPPED)[:12]), t.screen())
+def ask(expr, want=None, secs=6):
+    """What a shell expression says in the desktop, waited for until it is
+    want (when given) or simply answered."""
+    got = None
+    deadline = time.time() + secs
+    while time.time() < deadline:
+        if os.path.exists(OUT):
+            os.unlink(OUT)
+        do('{ %s; } > %s 2>&1' % (expr, OUT))
+        time.sleep(0.2)
+        try:
+            got = open(OUT).read().strip()
+        except OSError:
+            got = None
+        if want is None and got is not None or got == want:
+            break
+    return got
+
+
+def kids(pid):
+    out = []
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                st = open("/proc/%s/stat" % d).read().rsplit(")", 1)[1].split()
+                if int(st[1]) == pid:
+                    out.append(int(d))
+            except (OSError, IndexError):
+                pass
+    return out
+
+
+def zygote():
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                if b"--zygote" in open("/proc/%s/cmdline" % d, "rb").read() and \
+                        str(t.pid).encode() in open("/proc/%s/cmdline" % d, "rb").read():
+                    return int(d)
+            except OSError:
+                pass
+    return None
+
+
+# What it may keep is what its own file keeps: a hosted app that sends the
+# desktop's own names is refused, and the desktop's colours stay as they are.
+face = ask('printf "%s\\n" "$DT_FACE"')
+do("tst_menu 'Grab Desktop'")
+time.sleep(1.0)
+face2 = ask('printf "%s\\n" "$DT_FACE"')
+logl = open(os.path.join(screen.HOME, str(t.pid), "state", "hibr", "desktop.log"), errors="replace").read()
+check("a hosted app cannot keep the desktop's own settings: refused, and named in the log",
+      face == face2 and face and logl.count("asked to keep a setting it may not") >= 2, (face, face2))
+
+# Its window resized: the app is told its new size (the fork route's resize
+# reaches it only through the stub, which passes the signal on).
+s0 = t.until("size ", tries=20, step=0.1)
+was = [l for l in s0.text().split("\n") if "size " in l]
+do('dt_resize "$ISOID" 14 76')
+grown = t.until(lambda sc: [l for l in sc.text().split("\n") if "size " in l] != was, tries=60, step=0.1)
+now = [l for l in grown.text().split("\n") if "size " in l]
+check("a hosted app's window resized: the app draws at its new size", now != was and now, (was, now))
+
+# Closed from the desktop's side: the app is asked, and one with changes
+# says no; asked again, it is ended, process and all.
+z = zygote()
+app0 = kids(z) if z else []
+do("tst_menu 'Make Changes'")
+do('dt_closereq "$ISOID"')
+time.sleep(1.5)
+still = ask('dt_iswin "$ISOID" && echo yes || echo no')
+do('dt_closereq "$ISOID"')
+gone = ask('dt_iswin "$ISOID" && echo yes || echo no', "no")
+deadline = time.time() + 5
+while time.time() < deadline and [p for p in app0 if p in kids(z)]:
+    time.sleep(0.2)
+check("closed from the desktop, an app with changes is asked first and stays; closed again, "
+      "it ends, its process too", still == "yes" and gone == "no" and z and app0 and
+      not [p for p in app0 if p in kids(z)], (still, gone, z, app0, kids(z) if z else None))
+
+# Its stub killed outright -- what a desktop that dies takes with it: the
+# app notices the stub has gone and ends, rather than running on with no
+# terminal.
+do('ISOID := dt_isonew nt %s Notes 6 60 3 3' % app)
+shown("n=0 lv=", tries=80)
+app1 = [p for p in kids(z)] if z else []
+stub = ask('term pid "${TW[$ISOID]["t"]}"')
+if stub and stub.isdigit():
+    os.kill(int(stub), 9)
+deadline = time.time() + 5
+while time.time() < deadline and [p for p in app1 if p in kids(z)]:
+    time.sleep(0.2)
+check("its stub killed outright, the hosted app ends within seconds",
+      stub and stub.isdigit() and app1 and not [p for p in app1 if p in kids(z)],
+      (stub, app1, kids(z) if z else None))
+
+# And Close on its own File menu ends it, and its window goes with it.
+do('ISOID := dt_isonew nt %s Notes 6 60 3 3' % app)
+shown("n=0 lv=", tries=80)
 do("tst_menu Close")
-gone = False
-deadline = time.time() + 6
-while time.time() < deadline:
-    do('dt_iswin "$ISOID" || echo gone > %s' % OUT)
-    time.sleep(0.4)
-    try:
-        gone = open(OUT).read().strip() == "gone"
-    except OSError:
-        pass
-    if gone:
-        break
-check("Close on its own File menu ends it, and its window goes with it", gone, t.screen())
+gone = ask('dt_iswin "$ISOID" && echo yes || echo no', "no")
+check("Close on its own File menu ends it, and its window goes with it", gone == "no", t.screen())
 if os.environ.get("DUMPLOG"):
     print(open(os.path.join(screen.HOME, str(t.pid), "state", "hibr", "desktop.log"), errors="replace").read())
 t.quit(b"q", 1.0)
 for f in (app, p, MARK, OUT, DROPPED):
     if os.path.exists(f):
         os.unlink(f)
-report(10)
+report(14)

@@ -164,7 +164,13 @@ fn dt_slow(name, int us, app = "", rd = "") {
 			fi
 		fi
 		if [ -n "$held" ]; then
-			dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
+			# A hosted app held only its own window: its process is its
+			# own, and the desktop showing it went on (ADR 0050).
+			if [ -n "${DT_HOSTED-}" ]; then
+				dt_log "slow: $name held its own window $ms ms, in a process of its own; the desktop went on$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
+			else
+				dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
+			fi
 		else
 			dt_log "slow: $name took $ms ms$waited (a frame is $DT_SLOWMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
 		fi

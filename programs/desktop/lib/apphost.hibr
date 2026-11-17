@@ -62,6 +62,7 @@ hs_child() {
 	read -r HS_PID _ < /proc/self/stat
 	printf '%s\n' "$HS_PID" >&$fd
 	exec 0<> "$tty" 1>&0
+	DT_HOSTCONN=$fd
 	hs_run "$file" "$prefix" "$title" "$ack"
 	exit 0
 }
@@ -71,13 +72,14 @@ if [ "$1" = --zygote ]; then
 	hs_parent=$3
 	rm -f "$hs_sock" 2> /dev/null
 	listen -b "$hs_sock" HS_LFD || exit 1
+	printf '%s\n' "$$" > "$hs_sock.pid"
 	dt_log "isolated: app host ready, pid $$, the window manager parsed once"
 	while kill -0 "$hs_parent" 2> /dev/null; do
 		accept -t 2 "$HS_LFD" HS_C || continue
 		( exec {HS_LFD}>&-; hs_child "$HS_C" ) &
 		exec {HS_C}>&-
 	done
-	rm -f "$hs_sock" 2> /dev/null
+	rm -f "$hs_sock" "$hs_sock.pid" 2> /dev/null
 	exit 0
 fi
 hs_run "$1" "$2" "$3" "$4"

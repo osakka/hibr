@@ -45,6 +45,20 @@ fn dt_isonew(prefix, file, title, int h, int w, int r = 2, int c = 4) {
 	TW[$id]["isotitle"]=$title
 	TW[$id]["isoin"]=
 	TW[$id]["isomark"]=
+	TW[$id]["isoclose"]=
+	# The settings it may keep: the names its own file gives dt_keep,
+	# read, never run (what the desktop runs is the app, elsewhere).
+	local l k keeps=""
+	local -a ws
+	while IFS= read -r l; do
+		case $l in *dt_keep\ *) ;; *) continue ;; esac
+		# A strict file does not split: the words are read apart.
+		read -ra ws <<< "${l#*dt_keep }"
+		for k in "${ws[@]}"; do
+			[[ $k =~ ^[A-Z][A-Z0-9_]*$ ]] && keeps+=" $k"
+		done
+	done < "$file"
+	TW[$id]["isokeeps"]=$keeps
 	dt_log "isolated: $prefix opened as window $id, a process of its own"
 	ret "$id"
 }
@@ -61,9 +75,20 @@ declare -g DT_ISOSOCK="" DT_ISOZPID=""
 # Asked by its pid, not by its socket: the socket appears only once the
 # window manager is parsed, and a second window opened before then started a
 # second host, which took the socket from the first (measured: 14 MB more).
+#
+# A Restart Desktop keeps this process's pid and loses its variables, so the
+# host is found again by the pid it wrote beside its socket: starting a
+# second would leave the first waiting for ever on a desktop that is still
+# there.
 dt_isozygote() {
-	[ -n "$DT_ISOZPID" ] && kill -0 "$DT_ISOZPID" 2> /dev/null && return 0
+	local zp=
+
 	DT_ISOSOCK="${XDG_RUNTIME_DIR:-/tmp}/hibr-apphost-$$.sock"
+	if [ -z "$DT_ISOZPID" ] && [ -r "$DT_ISOSOCK.pid" ]; then
+		read -r zp 2> /dev/null < "$DT_ISOSOCK.pid"
+		[ -n "$zp" ] && kill -0 "$zp" 2> /dev/null && DT_ISOZPID=$zp
+	fi
+	[ -n "$DT_ISOZPID" ] && kill -0 "$DT_ISOZPID" 2> /dev/null && return 0
 	"$HIBR" "$DT_HERE/lib/apphost.hibr" --zygote "$DT_ISOSOCK" "$$" < /dev/null > /dev/null &
 	DT_ISOZPID=$!
 	dt_log "isolated: app host started, pid $!"
@@ -80,10 +105,20 @@ fn dt_isosent(int id) {
 
 # For each hosted app with input outstanding: answered, late, or not yet
 # late. Reads one small file a window, and only while something is owed.
+# And what it has said is taken here too, drawn or not: a minimised app's
+# menus and settings would otherwise wait until it was shown.
 dt_isotick() {
-	local id a in now ms
+	local id a in now ms t note ttl
 
 	for id in "${DT_WINS[@]}"; do
+		[ -n "${TW[$id]["iso"]-}" ] || continue
+		t=${TW[$id]["t"]-}
+		if [ -n "$t" ]; then
+			while note := term note "$t"; do
+				ttl=${note%%$'\t'*}
+				[ "$ttl" = "$DT_HOSTMARK" ] && dt_isomsg "$id" "${note#*$'\t'}"
+			done
+		fi
 		in=${TW[$id]["isoin"]-}
 		[ -n "$in" ] || continue
 		a=
@@ -246,11 +281,22 @@ dt_hostkeep() {
 	return 0
 }
 
-# Its window gone, a hosted desktop has nothing left to do.
+# Its window gone, a hosted desktop has nothing left to do -- nor when the
+# stub on its terminal has gone, which is how the desktop showing it ending
+# it, or ending itself, reaches it: the connection the stub held is closed.
+declare -g DT_HOSTCONN=""
 dt_hostgone() {
+	local l
+
 	[ -n "$DT_HOSTED" ] && [ -n "$DT_HOSTWIN" ] || return 0
-	dt_iswin "$DT_HOSTWIN" && return 0
-	DT_QUIT=1
+	if ! dt_iswin "$DT_HOSTWIN"; then
+		DT_QUIT=1
+		return 0
+	fi
+	if [ -n "$DT_HOSTCONN" ] && read -t 0 -u "$DT_HOSTCONN" 2> /dev/null; then
+		read -r -t 0.01 -u "$DT_HOSTCONN" l 2> /dev/null
+		[ "$?" = 1 ] && DT_QUIT=1
+	fi
 	return 0
 }
 command -v dt_ticker > /dev/null && dt_ticker dt_hostmenus && dt_ticker dt_hostgone
@@ -271,7 +317,13 @@ fn dt_hostcmd(cmd) {
 		MB_SEL=$i
 		dt_mdo
 		;;
+	close)
+		# Its window's close, asked here, so the app's own _canclose
+		# answers: a document with changes asks first.
+		dt_closereq "$DT_HOSTWIN"
+		;;
 	edit)
+		# The desktop's own Edit, done here, to the app.
 		dt_edit "$rest"
 		;;
 	drop)
@@ -310,12 +362,18 @@ fn dt_isomsg(int id, msg) {
 		case $name in
 		DT_* | CS_* | HIBR* | BASH* | PATH | HOME | IFS | PS[0-9] | LD_* | XDG_*) name= ;;
 		esac
-		if ! [[ $name =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+		# And only a name its own file keeps with dt_keep, read from
+		# the file when its window opened -- not merely any name the
+		# desktop happens not to use (TW, MB_N, RET, TZ, LANG...).
+		if ! [[ $name =~ ^[A-Z][A-Z0-9_]*$ ]] ||
+		   [[ " ${TW[$id]["isokeeps"]-} " != *" $name "* ]]; then
 			dt_log "isolated: ${TW[$id]["isoapp"]} asked to keep a setting it may not: ${f[1]-}"
 			return 0
 		fi
-		declare -g "$name=$v"
+		# Kept first, then set: dt_keep loads a saved value, which
+		# must not put back the one this replaces.
 		dt_keep "$name"
+		declare -g "$name=$v"
 		dt_save
 		;;
 	esac
