@@ -623,7 +623,10 @@ DT_HOSTED=
 dt_save() {
 	local v k n i s
 
-	[ -z "$DT_HOSTED" ] || return 0
+	if [ -n "$DT_HOSTED" ]; then
+		dt_hostkeep
+		return 0
+	fi
 	# A rebind or Use Super Instead of Alt is saved as it is made: Blit is told
 	# the chords kept from programs then (Gitea #530).
 	dt_has dt_keepsend && dt_keepsend

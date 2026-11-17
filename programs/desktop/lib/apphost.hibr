@@ -23,14 +23,28 @@ DT_HOSTED=1
 # Run one app on this process's standard input and output, which are its
 # terminal, until it ends.
 hs_run() {
-	local file=$1 prefix=$2 title=$3 ack=$4 id
+	local hs_file=$1 hs_prefix=$2 hs_title=$3 hs_ack=$4 hs_id hs_k hs_b
+	local -a hs_before=("${DT_KEEP[@]}")
 
-	DT_HOSTACK=$ack
-	. "$file"
+	# The app is sourced in here, so every name this function holds has
+	# the hs_ prefix: an app's own top level would otherwise write into it.
+	DT_HOSTACK=$hs_ack
+	DT_HOSTTOK=${hs_ack##*/}
+	. "$hs_file"
+	# What the app keeps is what dt_keep added while it loaded: those go
+	# up to the desktop showing it when it saves.
+	for hs_k in "${DT_KEEP[@]}"; do
+		for hs_b in "${hs_before[@]}"; do
+			[ "$hs_b" = "$hs_k" ] && continue 2
+		done
+		DT_HOSTKEEPS+=("$hs_k")
+		DT_HOSTKSENT["$hs_k"]=${!hs_k-}
+	done
 	dt_hostopen || return 1
-	dt_log "isolated: hosting $prefix, pid ${HS_PID:-$$}"
-	id := dt_new "$title" 10 40 1 1 "$prefix"
-	dt_fullscreen "$id" on
+	dt_log "isolated: hosting $hs_prefix, pid ${HS_PID:-$$}"
+	hs_id := dt_new "$hs_title" 10 40 1 1 "$hs_prefix"
+	DT_HOSTWIN=$hs_id
+	dt_fullscreen "$hs_id" on
 	dt_run
 	console close
 	return 0

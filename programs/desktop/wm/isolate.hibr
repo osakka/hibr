@@ -133,3 +133,243 @@ dt_hostopen() {
 	dt_size
 	return 0
 }
+
+# ---- The word between the two desktops -------------------------------------
+#
+# In-band both ways, so each arrives in order with the keys and the cells
+# around it and nothing is polled. Up, the hosted desktop sends an OSC 777
+# note titled DT_HOSTMARK, which the terminal emulator keeps for the window
+# (term note); down, the showing desktop writes a bracketed paste that
+# begins with DT_HOSTMARK and the window's own token (its stamp file's
+# name, which only these two know), which the hosted desktop's input takes
+# for a command and never for a paste. Everything is printable -- the
+# emulator's parser drops a control byte inside an OSC string, which lost
+# the first version's separators and its mark -- so a field is
+# percent-encoded for %, | and ~, fields are split by | and records by ~.
+DT_HOSTMARK=hibr-host
+declare -g DT_HOSTWIN="" DT_HOSTMAT="" DT_HOSTMSENT="" DT_HOSTSER="" DT_HOSTTOK=""
+declare -ga DT_HOSTKEEPS
+declare -gA DT_HOSTKSENT
+
+# A field made safe to carry, and back.
+fn dt_henc(v) {
+	v=${v//%/%25}
+	v=${v//|/%7C}
+	v=${v//\~/%7E}
+	ret "$v"
+}
+fn dt_hdec(v) {
+	v=${v//%7C/|}
+	v=${v//%7E/\~}
+	v=${v//%25/%}
+	ret "$v"
+}
+
+# Up: one message to the desktop showing this one.
+fn dt_hostsay(msg) {
+	msg=${msg//[$'\a\e\n\r']/ }
+	printf '\e]777;notify;%s;%s\a' "$DT_HOSTMARK" "$msg"
+	return 0
+}
+
+# Down: one command to a hosted app, in among its keys.
+fn dt_isosend(int id, cmd) {
+	local t=${TW[$id]["t"]-} tok=${TW[$id]["iso"]##*/}
+
+	[ -n "$t" ] || return 1
+	term write "$t" $'\e[200~'"$DT_HOSTMARK:$tok $cmd"$'\e[201~' 2> /dev/null
+	dt_isosent "$id"
+	return 0
+}
+
+# One menu of the hosted desktop's, item by item, into DT_HOSTSER: a row is
+# its tick, dimness, label, key, shortcut text and where it lives there; a
+# submenu opens and closes around its own rows.
+fn dt_hostser(int m) {
+	local i n=${MB[$m]["n"]:-0} lb k tk ac
+
+	for ((i = 0; i < n; i++)); do
+		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
+			DT_HOSTSER+="~S"
+			continue
+		fi
+		lb := dt_henc "${MI[$m][$i]["label"]}"
+		k := dt_henc "${MI[$m][$i]["key"]}"
+		if [ -n "${MI[$m][$i]["sub"]}" ]; then
+			DT_HOSTSER+="~U|$lb|$k"
+			dt_hostser "${MI[$m][$i]["sub"]}"
+			DT_HOSTSER+="~E"
+		else
+			tk := dt_henc "${MI[$m][$i]["tick"]}"
+			ac := dt_henc "${MI[$m][$i]["accel"]}"
+			DT_HOSTSER+="~I|$tk|${MI[$m][$i]["dim"]:-0}|$lb|$k|$ac|$m|$i"
+		fi
+	done
+	return 0
+}
+
+# The hosted app's menus, sent up each time they are built again and say
+# something new -- the bar showing them is the other desktop's.
+dt_hostmenus() {
+	local m t
+
+	[ -n "$DT_HOSTED" ] && [ -n "$DT_HOSTWIN" ] || return 0
+	[ "${DT_MENUAT-}" != "$DT_HOSTMAT" ] || return 0
+	DT_HOSTMAT=${DT_MENUAT-}
+	DT_HOSTSER=
+	for ((m = 0; m < MB_N; m++)); do
+		[ "${MB[$m]["own"]}" = "$DT_HOSTWIN" ] && [ "${MB[$m]["bar"]}" = 1 ] || continue
+		t := dt_henc "${MB[$m]["title"]}"
+		DT_HOSTSER+="~M|$t"
+		dt_hostser "$m"
+	done
+	[ "$DT_HOSTSER" != "$DT_HOSTMSENT" ] || return 0
+	DT_HOSTMSENT=$DT_HOSTSER
+	dt_hostsay "menus$DT_HOSTSER"
+	return 0
+}
+
+# The app's own settings, sent up when it saves: the desktop showing it owns
+# desktop.json, so it keeps them and writes the file; this desktop read them
+# from there when it started. Only what changed is sent.
+dt_hostkeep() {
+	local v e
+
+
+	for v in "${DT_HOSTKEEPS[@]}"; do
+		[ -n "${!v+x}" ] || continue
+		[ -n "${DT_HOSTKSENT["$v"]+x}" ] && [ "${DT_HOSTKSENT["$v"]}" = "${!v}" ] && continue
+		DT_HOSTKSENT["$v"]=${!v}
+		e := dt_henc "${!v}"
+		dt_hostsay "keep|$v|$e"
+	done
+	return 0
+}
+
+# Its window gone, a hosted desktop has nothing left to do.
+dt_hostgone() {
+	[ -n "$DT_HOSTED" ] && [ -n "$DT_HOSTWIN" ] || return 0
+	dt_iswin "$DT_HOSTWIN" && return 0
+	DT_QUIT=1
+	return 0
+}
+command -v dt_ticker > /dev/null && dt_ticker dt_hostmenus && dt_ticker dt_hostgone
+
+# A command from the desktop showing this one: a menu item chosen there, an
+# Edit operation, or files let go on the window.
+fn dt_hostcmd(cmd) {
+	local verb rest m i mods="" p
+	local -a a
+
+	verb=${cmd%% *}
+	rest=${cmd#* }
+	case $verb in
+	menu)
+		read -r m i <<< "$rest"
+		[ -n "${MI[$m][$i]["label"]+x}" ] || return 0
+		MB_OPEN=$m
+		MB_SEL=$i
+		dt_mdo
+		;;
+	edit)
+		dt_edit "$rest"
+		;;
+	drop)
+		IFS='|' read -ra a <<< "$rest"
+		[ "${a[2]-}" = copy ] && mods=ctrl
+		DT_DNDS=()
+		for p in "${a[@]:3}"; do
+			p := dt_hdec "$p"
+			DT_DNDS+=("$p")
+		done
+		dt_ondrop "${a[0]}" "${a[1]}" "$mods"
+		;;
+	esac
+	dt_want 30
+	return 0
+}
+
+# A message from a hosted app's desktop.
+fn dt_isomsg(int id, msg) {
+	local -a f
+	local name v
+
+
+	case $msg in
+	menus*)
+		TW[$id]["isomenus"]=${msg#menus}
+		DT_MENUIN=
+		dt_want 30
+		;;
+	keep\|*)
+		IFS='|' read -ra f <<< "$msg"
+		name=${f[1]-}
+		v := dt_hdec "${f[2]-}"
+		# A hosted app may keep its own settings and nothing of the
+		# desktop's: no DT_ or CS_ name, nothing the shell itself reads.
+		case $name in
+		DT_* | CS_* | HIBR* | BASH* | PATH | HOME | IFS | PS[0-9] | LD_* | XDG_*) name= ;;
+		esac
+		if ! [[ $name =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+			dt_log "isolated: ${TW[$id]["isoapp"]} asked to keep a setting it may not: ${f[1]-}"
+			return 0
+		fi
+		declare -g "$name=$v"
+		dt_keep "$name"
+		dt_save
+		;;
+	esac
+	return 0
+}
+
+# A hosted app's menus on this desktop's bar, built from what it last sent:
+# each row runs back there.
+fn dt_isomenus(int id) {
+	local -a recs f
+	local r a b c d e
+
+	IFS='~' read -ra recs <<< "${TW[$id]["isomenus"]-}"
+	for r in "${recs[@]}"; do
+		[ -n "$r" ] || continue
+		IFS='|' read -ra f <<< "$r"
+		case ${f[0]} in
+		M) a := dt_hdec "${f[1]-}"; dt_menu "$a" ;;
+		S) dt_sep ;;
+		U) a := dt_hdec "${f[1]-}"; b := dt_hdec "${f[2]-}"; dt_sub "$a" "$b" ;;
+		E) dt_end ;;
+		I)
+			a := dt_hdec "${f[1]-}"
+			c := dt_hdec "${f[3]-}"
+			d := dt_hdec "${f[4]-}"
+			e := dt_hdec "${f[5]-}"
+			dt_row "$a" "${f[2]:-0}" "$c" "$d" dt_isomenu "$id" "${f[6]}" "${f[7]}"
+			[ -z "$e" ] || dt_rowaccel "$e"
+			;;
+		esac
+	done
+	MB_EDITED=1
+	return 0
+}
+
+# Whether a window is a hosted app's.
+fn dt_isowin(id) {
+	[ -n "$id" ] && [ -n "${TW[$id]["iso"]-}" ]
+}
+
+fn dt_isomenu(int id, int m, int i) {
+	dt_isosend "$id" "menu $m $i"
+	return 0
+}
+
+# Files let go on a hosted app's window, handed on at the same place in its
+# own screen: the window's border is this desktop's, not the app's.
+fn dt_isodrop(int id, int r, int c, op, ...paths) {
+	local p e s="$((r - 1))|$((c - 1))|$op"
+
+	for p in "${paths[@]}"; do
+		e := dt_henc "$p"
+		s+="|$e"
+	done
+	dt_isosend "$id" "drop $s"
+	return 0
+}

@@ -321,7 +321,9 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		# A program does what DT_TERMEND says: by default it closes on
 		# success and stays to show why it failed.
 		st := term status "$t"
-		if term_isshell "$id" || [ "$DT_TERMEND" = always ] ||
+		# A hosted app's window is the app: when its process ends, so does
+		# the window, however it ended.
+		if [ -n "${TW[$id]["iso"]-}" ] || term_isshell "$id" || [ "$DT_TERMEND" = always ] ||
 		   { [ "$DT_TERMEND" != never ] && [ "$st" = 0 ] &&
 		     [ "${TW[$id]["selfrun"]}" != 1 ]; }; then
 			dt_wantclose "$id"
@@ -331,7 +333,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		dt_tput "$id" 1 2 "[exited %s — close this window]" "$st"
 		return 0
 	fi
-	if [ "$DT_TERMTITLE" = 1 ]; then
+	if [ "$DT_TERMTITLE" = 1 ] && [ -z "${TW[$id]["iso"]-}" ]; then
 		n := term title "$t"
 		if [ -n "$n" ] && [ "$n" != "${TW[$id]["ptitle"]}" ]; then
 			TW[$id]["ptitle"]="$n"
@@ -342,7 +344,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 			fi
 		fi
 	fi
-	if c := term clip "$t" && [ "$DT_TERMCLIP" = 1 ]; then
+	if c := term clip "$t" && { [ "$DT_TERMCLIP" = 1 ] || [ -n "${TW[$id]["iso"]-}" ]; }; then
 		if command -v dt_clipset > /dev/null; then
 			dt_clipset "$c"
 		else
@@ -370,6 +372,11 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	while note := term note "$t"; do
 		ttl=${note%%$'\t'*}
 		note=${note#*$'\t'}
+		# A hosted app's own word to the desktop: its menus, a setting.
+		if [ "$ttl" = "$DT_HOSTMARK" ] && [ -n "${TW[$id]["iso"]-}" ]; then
+			dt_isomsg "$id" "$note"
+			continue
+		fi
 		[ -n "$ttl" ] || ttl=${DT[$id]["title"]#${GL[bullet]} }
 		DT_NOTEFROM=$ttl
 		dt_notify "$note" dt_raise "$id"
@@ -727,6 +734,10 @@ fn term_drop(int id, int r, int c, op, ...paths) {
 	local t=${TW[$id]["t"]} q p out=
 
 	[ -n "$t" ] || return 0
+	if [ -n "${TW[$id]["iso"]-}" ]; then
+		dt_isodrop "$id" "$r" "$c" "$op" "${paths[@]}"
+		return 0
+	fi
 	for p in "${paths[@]}"; do
 		printf -v q '%q' "$p"
 		out="$out$q "
@@ -959,6 +970,10 @@ fn term_resume(int id) {
 term_menus() {
 	local t n
 
+	if [ -n "${TW[$DT_FOCUS]["iso"]-}" ]; then
+		dt_isomenus "$DT_FOCUS"
+		return 0
+	fi
 	t=${TW[$DT_FOCUS]["t"]}
 	dt_menu "File"
 	dt_item "New Window" n dt_launch term
