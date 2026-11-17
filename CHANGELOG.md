@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.545
+
+**The Mac builds again.** 0.99.535's tray-icon cache in `mods/img/img.c`
+read a file's time as `st.st_mtim`, which is Linux's name; macOS calls it
+`st_mtimespec`, so `brew upgrade hibr` failed in `img.c` from 0.99.535 to
+0.99.544. It uses `HIBR_MTNS` from `include/hibr.h` now, as the rest of
+the tree does, and `tests/999-stat-portable.t` names any source file that
+reads a file's time without saying what macOS calls it -- nothing here
+compiles for macOS before a person does, so only a check catches it. It
+names `img.c` against 0.99.544.
+
+**A file dropped on a window reaches its app, asked at the drop.** The
+owner's WhatsApp web-app window -- app `browser`, whose `browser_drop`
+exists -- answered "WhatsApp does not take files". A window recorded its
+app's `_drop` once, when it opened, and nothing asked again; an app updated
+since keeps its window's old answer. The drop now asks the window's app
+itself when nothing was recorded, and every refused drop is a line in the
+log saying which window and app, which no refusal was before. Dropping a
+file on a program's own window (mpv, through Blit's compositor) is still
+refused: the compositor has no drag and drop yet.
+
+Checked: `tests/desktop.py` drops a file on an app that gained its `_drop`
+after its window opened, and on one with none; both fail against 0.99.544.
+
 ## 0.99.544
 
 **A stall names the call that caused it.** The owner's Video Player froze

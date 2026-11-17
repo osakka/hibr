@@ -874,7 +874,7 @@ static unsigned char *im_rgbaget(const char *path, int ink, int *w, int *h,
 		s_cat(err, path);
 		return 0;
 	}
-	mt = (long long)st.st_mtim.tv_sec * 1000000000LL + st.st_mtim.tv_nsec;
+	mt = (long long)st.st_mtime * 1000000000LL + HIBR_MTNS(st);
 	for (k = 0; k < im_acn; k++) {
 		e = &im_acache[k];
 		if (e->ink == ink && e->mt == mt && !strcmp(e->path, path)) {

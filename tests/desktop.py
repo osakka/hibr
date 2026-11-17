@@ -7195,6 +7195,39 @@ check("and no argument of the call reaches the log",
 if os.path.exists(psp):
     os.unlink(psp)
 
+# A file dropped on a window goes to its app's _drop, asked at the drop: the
+# owner's WhatsApp web-app window (app browser, whose browser_drop exists)
+# said "WhatsApp does not take files", which a handler recorded only when
+# the window opened allows -- an app updated since keeps its window's old
+# answer. One app gains its _drop after its window is made; one never has
+# one, and is refused with the reason in the log (0.99.545).
+DRMARK = scratch("desktop-drop-got")
+if os.path.exists(DRMARK):
+    os.unlink(DRMARK)
+drp = scratch("desktop-drop.hibr")
+open(drp, "w").write(
+    "%s. %s\ndt_open\n"
+    "fn dra_draw(int id, int h, int w, int row, int col) { console put -p \"w$id\" 1 1 A; }\n"
+    "fn drb_draw(int id, int h, int w, int row, int col) { console put -p \"w$id\" 1 1 B; }\n"
+    "dt_app dra \"Takes\" 6 20\ndt_app drb \"Refuses\" 6 20\n"
+    "dt_new \"Takes\" 6 20 3 2 dra\ndt_new \"Refuses\" 6 20 3 40 drb\n"
+    "fn dra_drop(int id, int r, int c, op, ...paths) { printf '%%s %%s\\n' \"$op\" \"${paths[*]}\" > %s; }\n"
+    "DT_DNDS=(/tmp/a-file.txt); dt_ondrop 5 8 \"\"\n"
+    "DT_DNDS=(/tmp/b-file.txt); dt_ondrop 5 46 \"\"\n"
+    "dt_run\ndt_close\n" % (load(MOD), WM, DRMARK))
+drt = Term(drp, rows=ROWS, cols=COLS, settle=0.8)
+drt.collect(0.5)
+got = open(DRMARK).read().strip() if os.path.exists(DRMARK) else ""
+drl = [l for l in open(drt.log, errors="replace") if "drop:" in l]
+drt.quit(b"q", 1.0)
+check("a file dropped on a window reaches its app's _drop even when the app "
+      "gained it after the window opened", got == "move /tmp/a-file.txt", (got, drl))
+check("and a window whose app has no _drop refuses it, saying why in the log",
+      any("(drb) has no _drop; refused" in l for l in drl), drl)
+for f in (drp, DRMARK):
+    if os.path.exists(f):
+        os.unlink(f)
+
 # A field the window has stopped drawing is not a field any more: a press
 # where it was goes to the app. The desktop kept the last focused field's
 # rectangle after the window stopped drawing it, and took every left press
@@ -10342,4 +10375,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1113)
+report(1115)

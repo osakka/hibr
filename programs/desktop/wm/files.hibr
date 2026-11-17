@@ -49,12 +49,23 @@ fn dt_ondrop(int mr, int mc, mods) {
 	if [ -n "$id" ]; then
 		id=${id#w}
 		DT_DNDICON=
+		# Asked of the app now, not only remembered from when the
+		# window opened: a WhatsApp web-app window -- app browser,
+		# whose browser_drop exists -- answered "does not take files"
+		# on the owner's desktop, and a hook recorded once can be
+		# older than the app it names. The log says which it was.
 		ap=${DT[$id]["drop"]}
+		if [ -z "$ap" ] && [ -n "${DT[$id]["app"]}" ] && dt_has "${DT[$id]["app"]}_drop"; then
+			ap=${DT[$id]["app"]}_drop
+			DT[$id]["drop"]=$ap
+			dt_log "drop: window $id (${DT[$id]["app"]}) had no drop handler recorded and has $ap now"
+		fi
 		if [ "${#src[@]}" = 0 ]; then
 			dt_notep low "Only files can be dropped on a window"
 			return 0
 		fi
 		if [ -z "$ap" ]; then
+			dt_log "drop: window $id (${DT[$id]["app"]:-no app}) has no _drop; refused"
 			dt_notep low "%s does not take files" "${DT[$id]["title"]}"
 			return 0
 		fi
