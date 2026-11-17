@@ -51,6 +51,29 @@ def children(pid):
     return out
 
 
+def isoprocs(root):
+    """Under the fork route: the zygote (its command line names it), the
+    app (the zygote's child) and the stub (the terminal window's program):
+    their private kB."""
+    me = os.path.realpath("/proc/%d/exe" % root)
+    z = app = stub = None
+    for p in children(root):
+        try:
+            if os.path.realpath("/proc/%d/exe" % p) != me:
+                continue
+            cmd = open("/proc/%d/cmdline" % p, "rb").read()
+            ppid = int(open("/proc/%d/stat" % p).read().rsplit(")", 1)[1].split()[1])
+        except OSError:
+            continue
+        if b"--zygote" in cmd:
+            z = p
+        elif z and ppid == z:
+            app = p
+        elif ppid == root and b"--zygote" not in cmd:
+            stub = p
+    return z, app, stub
+
+
 def hostpid(root):
     """The hosted desktop: the one hibr below the session's own. Found by
     its executable, since a terminal's program is renamed (its argv is
@@ -63,6 +86,13 @@ def hostpid(root):
         except OSError:
             pass
     return None
+
+
+def pss_kb(pid):
+    try:
+        return int(re.search(r"^Pss:\s+(\d+)", open("/proc/%d/smaps_rollup" % pid).read(), re.M).group(1))
+    except (OSError, AttributeError):
+        return 0
 
 
 def private_kb(pid):
@@ -109,6 +139,11 @@ def run_echo(iso):
     idlep = (cpu(root) - c0p) / 5 * 100
     idleh = ((cpu(hp) - c0h) / 5 * 100) if hp else 0.0
     mem = private_kb(hp) if hp else 0
+    if iso:
+        # Everything isolation added, by PSS, which divides a page shared
+        # copy-on-write between the processes sharing it: the host (or the
+        # zygote and its fork) and the stub, every process below the desktop.
+        mem = sum(pss_kb(c) for c in children(root))
     t.quit(b"q", 1.0)
     for x in (p, f):
         os.unlink(x)
@@ -139,7 +174,7 @@ for iso in (0, 1):
     rows.append((("isolated" if iso else "in-process"), o, med, mx, ip, ih, mem, bp, bh))
 
 print("%-11s %8s %9s %8s %10s %10s %9s %11s %11s" % (
-    "", "open s", "key ms", "max ms", "idle cpu%", "host idle%", "host kB",
+    "", "open s", "key ms", "max ms", "idle cpu%", "host idle%", "added kB",
     "anim cpu%", "host anim%"))
 for r in rows:
     print("%-11s %8.2f %9.1f %8.1f %10.2f %10.2f %9d %11.2f %11.2f" % r)

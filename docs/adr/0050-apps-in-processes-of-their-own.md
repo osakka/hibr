@@ -85,7 +85,21 @@ answers in-process, as before. Measured (`tools/isomeasure.py`, three runs,
 | host's private memory | -- | 14.1 MB |
 
 The 2 MB this ADR guessed is 14 MB measured: the host parses the whole
-window manager again. Forking it from the desktop, so the parsed tree is
-shared copy-on-write, is the next thing to measure. Not covered: the app's
+window manager again. So (owner, 2026-11-17: "continue with the
+shared-memory start") the default is now a **zygote**: `apphost.hibr
+--zygote` parses it once and waits on a socket, and each app is a fork of
+it, asked for by `lib/appstub.hibr`, the terminal window's own program,
+which parses almost nothing and passes the app its resizes. Measured by PSS
+(a page shared copy-on-write counted once between the processes sharing
+it), everything below the desktop:
+
+| apps isolated | a desktop each (`DT_ISOFORK=0`) | forks of one host (default) |
+|---|---|---|
+| 1 | 14.6 MB | 15.9 MB |
+| 3 | 43.2 MB | 18.3 MB |
+| each further app | +14.4 MB | +1.1 MB (its own 0.97 MB, its stub's 0.16 MB) |
+
+Two windows opened before the host had bound its socket started two hosts
+at first; the desktop knows its host by pid, not by its socket, since. Not covered: the app's
 menus (its own desktop's, drawn in its window), its settings (read at
 start, not saved), the clipboard, drops and pictures.

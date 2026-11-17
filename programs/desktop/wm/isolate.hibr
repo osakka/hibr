@@ -32,7 +32,12 @@ fn dt_isonew(prefix, file, title, int h, int w, int r = 2, int c = 4) {
 	dt_has term_draw || . "$DT_HERE/apps/term.hibr"
 	ack="${XDG_RUNTIME_DIR:-/tmp}/hibr-host-$$-$prefix-$RANDOM"
 	: > "$ack" || return 1
-	DT_OPENCMD=("$HIBR" "$DT_HERE/lib/apphost.hibr" "$file" "$prefix" "$title" "$ack")
+	if [ "$DT_ISOFORK" = 1 ]; then
+		dt_isozygote || return 1
+		DT_OPENCMD=("$HIBR" "$DT_HERE/lib/appstub.hibr" "$DT_ISOSOCK" "$file" "$prefix" "$title" "$ack")
+	else
+		DT_OPENCMD=("$HIBR" "$DT_HERE/lib/apphost.hibr" "$file" "$prefix" "$title" "$ack")
+	fi
 	DT_OPENSELF=1
 	id := dt_new "$title" "$h" "$w" "$r" "$c" term
 	TW[$id]["iso"]=$ack
@@ -42,6 +47,27 @@ fn dt_isonew(prefix, file, title, int h, int w, int r = 2, int c = 4) {
 	TW[$id]["isomark"]=
 	dt_log "isolated: $prefix opened as window $id, a process of its own"
 	ret "$id"
+}
+
+# Whether hosted apps are forks of one prepared host (1, the default), which
+# shares the parsed window manager between them, or each a desktop started
+# afresh (0), which parses it again: 14 MB each, measured.
+DT_ISOFORK=${DT_ISOFORK-1}
+declare -g DT_ISOSOCK="" DT_ISOZPID=""
+
+# The prepared host, started the first time an app is hosted: the window
+# manager parsed once, waiting on a socket for apps to fork for. It ends by
+# itself when this desktop has gone.
+# Asked by its pid, not by its socket: the socket appears only once the
+# window manager is parsed, and a second window opened before then started a
+# second host, which took the socket from the first (measured: 14 MB more).
+dt_isozygote() {
+	[ -n "$DT_ISOZPID" ] && kill -0 "$DT_ISOZPID" 2> /dev/null && return 0
+	DT_ISOSOCK="${XDG_RUNTIME_DIR:-/tmp}/hibr-apphost-$$.sock"
+	"$HIBR" "$DT_HERE/lib/apphost.hibr" --zygote "$DT_ISOSOCK" "$$" < /dev/null > /dev/null &
+	DT_ISOZPID=$!
+	dt_log "isolated: app host started, pid $!"
+	return 0
 }
 
 # Input just went to a hosted app: the moment it went is kept until a stamp
