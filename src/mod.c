@@ -451,6 +451,19 @@ int m_load(sh *s, const char *path)
 		free(m);
 		return HIBR_FAIL;
 	}
+	/* Whatever its init loaded for itself is in the list after it now,
+	   and the list is dropped from the end at exit -- so term's finaliser
+	   ran after pty's object was unmapped, and a script that left a
+	   terminal open died on SIGSEGV at exit (2026-11-17). A module goes
+	   after what it loaded, by identity, as the failure path above. */
+	for (i = 0; i + 1 < s->mods.n; i++)
+		if (s->mods.p[i] == m) {
+			memmove(s->mods.p + i, s->mods.p + i + 1,
+				(s->mods.n - i - 1) * sizeof *s->mods.p);
+			s->mods.p[s->mods.n - 1] = m;
+			mx_stale();
+			break;
+		}
 	lg(HIBR_LINF, "loaded module %s %s", d->nm, d->ver ? d->ver : "");
 	return HIBR_OK;
 }

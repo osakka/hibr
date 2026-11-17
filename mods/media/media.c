@@ -137,6 +137,8 @@ int mv_info(sh *s, mv_pl *p)
 	mv_fnum(&b, p->cur.rgb ? p->cur.pts : 0);
 	mv_field(s, "shown", b.p);
 	mv_field(s, "paused", p->paused ? "1" : "0");
+	if (p->eof && !p->vqn && !p->aq && !p->seekreq)
+		p->ended = 1;
 	mv_field(s, "ended", p->ended ? "1" : "0");
 	b.n = 0;
 	s_num(&b, p->vw);

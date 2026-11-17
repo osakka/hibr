@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.549
+
+**A script that left a terminal open crashed on its way out.** `term`
+loads `pty` from inside its own init, which put pty after term in the list
+of loaded modules -- and that list is dropped from the end at exit, so
+pty's object was unmapped before term's finaliser called it: SIGSEGV at
+every such exit, three runs of three, and the script's last buffered
+output lost with it. A module now goes after whatever its init loaded,
+taken by identity (`tests/999-mod-order.t`, which fails on 0.99.548). Any
+module that asks for another in its init had the same order; term was
+where it showed.
+
+**`media info` says a track has ended without anyone asking for frames.**
+Only `media frame` noticed the end of a stream, so a player that only
+polls `info` -- every audio-only one -- never saw its track end, and the
+Audio Player's tracks did not advance by themselves. `info` notices it now
+(`tests/media.py`, which fails on 0.99.548).
+
+Also: WRITING.md says that an item with `dt_baripress` is handed every
+button, so `dt_bariright` never sees its right click (found by the Audio
+Player); and the examples check reads file lists as lists, so a folder
+called Sound & Video is not split in two, and no longer takes the `+` of
+`$((x + 2))` for a variable name.
+
 ## 0.99.548
 
 **A catalogue folder may have an ampersand in it.** The owner chose to call

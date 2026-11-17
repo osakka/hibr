@@ -833,7 +833,10 @@ with where it turned in `DT_BARWROW` and `DT_BARWCOL` for an item whose
 parts are several things, as the tray's icons are (Gitea #505);
 and `dt_bariright name cmd...` gives a right click words of its own, so the
 speaker's left click can be the slider and its right click the menu
-(Gitea #310). An item's menu opens with `dt_barmenu name who`, built by
+(Gitea #310) -- for an item with no `dt_baripress`: one with a press handler
+is handed every button, and a right click it declines goes to the bar's own
+menu, never to `dt_bariright`, so such an item opens its menu itself on
+`right` (the Audio Player's bar item, 2026-11-17). An item's menu opens with `dt_barmenu name who`, built by
 `<who>_context`; a small panel of its own -- the slider -- with
 `dt_baripop name who h w`, placed the same way and drawn over the frame
 like a menu, through `<who>_popdraw row col h w`, `<who>_popmouse act row

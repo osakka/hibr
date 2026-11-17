@@ -116,6 +116,16 @@ check("while a 1 kHz tone plays, the strongest of sixteen spectrum bands is the 
 check("and wave says its level, both sides, and its shape",
       len(lv) == 4 and abs(lv[0] - kpeak * 255 / 32768) < 25 and lv[0] == lv[1] and
       len(lines) > 2 and len(lines[2].split()) == 32, (lv, kpeak, lines[:3]))
+# A sound-only player that only ever asks `info` -- as a music player's poll
+# does -- is told when its track has ended: only `media frame` noticed the
+# end before, so an audio app never advanced (huiamp, 2026-11-17).
+ff("-f", "lavfi", "-i", "sine=frequency=440:duration=1:sample_rate=48000", "-ac", "2", "k1.wav")
+out, err = hb("p := media open k1.wav; n=0; while [ $n -lt 40 ]; do i := media info $p; "
+              '[ "${i["ended"]}" = 1 ] && break; sleep 0.1; n=$((n + 1)); done; '
+              'echo "${i["ended"]} $n"; media close $p', wav=W)
+ew = out.split()
+check("a sound-only track that is only asked `info` says it has ended, at its end",
+      len(ew) == 2 and ew[0] == "1" and 8 <= int(ew[1]) <= 25, (out, err))
 out, err = hb("p := media open t.webm; i := media info $p; "
               'echo "${i["video"]} ${i["audio"]}"; sleep 0.6; media frame $p; echo $?')
 check("WebM with VP9 and Opus plays too", out == "vp9 opus\n0\n", out + err)
@@ -387,4 +397,4 @@ check("play.hibr's --help comes from its declarations",
       "--mode" in out and "--start" in out and "--paused" in out, out)
 
 shutil.rmtree(D, True)
-report(31)
+report(32)
