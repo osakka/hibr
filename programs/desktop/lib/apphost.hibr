@@ -55,10 +55,16 @@ hs_run() {
 # resize. The connection stays open for the app's life, so the stub ends
 # when it does.
 hs_child() {
-	local fd=$1 line tty file prefix title ack
+	local fd=$1 line tty file prefix title ack fs ft
 
 	read -r line <&$fd || exit 1
-	IFS=$'\t' read -r tty file prefix title ack <<< "$line"
+	IFS=$'\t' read -r tty file prefix title ack fs ft <<< "$line"
+	# Pictures by descriptor to the desktop showing it, when it gave a
+	# frame socket: kitty is then certain, and the console sends the
+	# pixels there and only the placement down the terminal.
+	if [ -n "$fs" ]; then
+		export BLIT_FRAME_SOCKET=$fs BLIT_FRAME_TOKEN=$ft HIBR_GFX=kitty
+	fi
 	read -r HS_PID _ < /proc/self/stat
 	printf '%s\n' "$HS_PID" >&$fd
 	exec 0<> "$tty" 1>&0

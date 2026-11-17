@@ -113,5 +113,16 @@ its body starts at row 1, column 1 as every app assumes. Not yet, each
 found by the run: an app's retitle (Files [folder]), its second windows and
 dialogs (they open inside its own screen), its menu bar item and its
 Control Panel pane (both its own desktop's, unseen), a fixed-size app's
-window (it is resizable, as a terminal is), and pixels (pictures come
-through as half blocks).
+window (it is resizable, as a terminal is).
+
+Pixels, the same day: where the desktop shows pixels, a hosted window gets
+a frame socket of its own (`frames serve`), handed to the app's console with
+kitty made certain and its pty told what a cell measures (`term size ...
+CW CH`). The console then does what it does on Blit -- the picture's pixels
+go to that socket as a sealed memfd and only an `a=p` placement goes down
+its terminal -- and the desktop's emulator keeps the placement (`term
+images`), where the window places the socket's frames (`frames place`) on
+each draw. The pixels never pass through the desktop's frame, which is the
+point: decoding them there would have put every frame of a film in it.
+One picture a window for now (`frames serve` gives a socket one picture);
+`tests/isopix.py` checks it from both ends.

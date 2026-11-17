@@ -32,9 +32,18 @@ fn dt_isonew(prefix, file, title, int h, int w, int r = 2, int c = 4) {
 	dt_has term_draw || . "$DT_HERE/apps/term.hibr"
 	ack="${XDG_RUNTIME_DIR:-/tmp}/hibr-host-$$-$prefix-$RANDOM"
 	: > "$ack" || return 1
+	# Its pictures as pixels where this desktop shows pixels: a frame
+	# socket of its own (frames serve), whose frames go on the picture the
+	# window places from what the app's console placed -- the pixels never
+	# pass through this desktop's frame, only their descriptor does. One
+	# picture a window, for now. Elsewhere it draws them as half blocks.
+	local fr fn= fs= ft=
+	if dt_has dt_imgpix && dt_imgpix && need frames 2> /dev/null && fr := frames serve 2> /dev/null; then
+		read -r fn fs ft <<< "$fr"
+	fi
 	if [ "$DT_ISOFORK" = 1 ]; then
 		dt_isozygote || return 1
-		DT_OPENCMD=("$HIBR" "$DT_HERE/lib/appstub.hibr" "$DT_ISOSOCK" "$file" "$prefix" "$title" "$ack")
+		DT_OPENCMD=("$HIBR" "$DT_HERE/lib/appstub.hibr" "$DT_ISOSOCK" "$file" "$prefix" "$title" "$ack" "$fs" "$ft")
 	else
 		DT_OPENCMD=("$HIBR" "$DT_HERE/lib/apphost.hibr" "$file" "$prefix" "$title" "$ack")
 	fi
@@ -46,6 +55,7 @@ fn dt_isonew(prefix, file, title, int h, int w, int r = 2, int c = 4) {
 	TW[$id]["isoin"]=
 	TW[$id]["isomark"]=
 	TW[$id]["isoclose"]=
+	TW[$id]["isofn"]=$fn
 	# The settings it may keep: the names its own file gives dt_keep,
 	# read, never run (what the desktop runs is the app, elsewhere).
 	local l k keeps=""

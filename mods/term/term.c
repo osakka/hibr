@@ -566,6 +566,33 @@ int m_term(sh *s, int ac, char **av)
 		r = tm_pump(m, ac > 3 ? atoi(av[3]) : 0);
 		return r < 0 ? HIBR_FAIL : HIBR_OK;
 	}
+	/* The pictures this terminal keeps that cover cells, a line each,
+	   "ID ROW COL ROWS COLS": where a program placed them, for whoever
+	   shows its screen to put them there (a hosted app's, ADR 0050). */
+	if (!strcmp(sub, "images")) {
+		int i, had;
+
+		s_init(&o);
+		for (i = 0; i < m->imgn; i++) {
+			if (m->img[i].rows < 1 || m->img[i].cols < 1)
+				continue;
+			if (o.n)
+				s_ch(&o, '\n');
+			s_num(&o, (long)m->img[i].id);
+			s_ch(&o, ' ');
+			s_num(&o, (long)m->img[i].r);
+			s_ch(&o, ' ');
+			s_num(&o, (long)m->img[i].c);
+			s_ch(&o, ' ');
+			s_num(&o, (long)m->img[i].rows);
+			s_ch(&o, ' ');
+			s_num(&o, (long)m->img[i].cols);
+		}
+		had = o.n > 0;
+		tm_ret(s, o.p ? o.p : "");
+		s_free(&o);
+		return had ? HIBR_OK : HIBR_FAIL;
+	}
 	/* How many times this terminal has been given something to read: the
 	   same answer twice running means nothing it draws can have changed,
 	   so there is no reason to draw it again. */
@@ -670,7 +697,10 @@ int m_term(sh *s, int ac, char **av)
 			cols = atoi(av[4]);
 			if (!tm_size(m, rows, cols))
 				return HIBR_FAIL;
-			if (tm_pty)
+			if (tm_pty && ac >= 7 && atoi(av[5]) > 1 && atoi(av[6]) > 1)
+				tm_pty->resizepx(m->pty, rows, cols, cols * atoi(av[5]),
+						 rows * atoi(av[6]));
+			else if (tm_pty)
 				tm_pty->resize(m->pty, rows, cols);
 			return HIBR_OK;
 		}

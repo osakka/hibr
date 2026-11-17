@@ -259,6 +259,11 @@ fn tw_fit(int id, int h, int w) {
 				-c "$w" "${TW_CMD[@]}" || return 1
 		fi
 		[ -n "$DT_CURSOR" ] && term cursor "${TW[$id]["t"]}" "$DT_CURSOR"
+		# A hosted app that draws pixels is told what a cell measures.
+		if [ -n "${TW[$id]["isofn"]-}" ] && dt_has dt_natcell; then
+			dt_natcell
+			term size "${TW[$id]["t"]}" "$h" "$w" "$DT_NATCW" "$DT_NATCH"
+		fi
 		TW[$id]["h"]=$h
 		TW[$id]["w"]=$w
 		# console key's own wait now watches this pty's master fd
@@ -277,7 +282,12 @@ fn tw_fit(int id, int h, int w) {
 		return 0
 	fi
 	if [ "$h" != "${TW[$id]["h"]}" ] || [ "$w" != "${TW[$id]["w"]}" ]; then
-		term size "${TW[$id]["t"]}" "$h" "$w"
+		if [ -n "${TW[$id]["isofn"]-}" ] && dt_has dt_natcell; then
+			dt_natcell
+			term size "${TW[$id]["t"]}" "$h" "$w" "$DT_NATCW" "$DT_NATCH"
+		else
+			term size "${TW[$id]["t"]}" "$h" "$w"
+		fi
 		TW[$id]["h"]=$h
 		TW[$id]["w"]=$w
 	fi
@@ -285,7 +295,7 @@ fn tw_fit(int id, int h, int w) {
 }
 
 fn term_draw(int id, int h, int w, int row, int col) {
-	local t st sb cur=0 ms tw view stored n want rgb c note ttl pre at
+	local t st sb cur=0 ms tw view stored n want rgb c note ttl pre at pl pid pr pc prs pcs
 
 	tw=$w
 	# A visible scrollbar costs the program inside a real column, not just
@@ -409,6 +419,12 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		fi
 	fi
 	term draw "$t" 1 1 "$h" "$tw" "$cur" -p "w$id"
+	# A hosted app's picture, its pixels by descriptor: where its console
+	# placed it, in this window's body.
+	if [ -n "${TW[$id]["isofn"]-}" ] && pl := term images "$t"; then
+		read -r pid pr pc prs pcs <<< "${pl%%$'\n'*}"
+		frames place "${TW[$id]["isofn"]}" "w$id" $((pr + 1)) $((pc + 1)) "$prs" "$pcs" 2> /dev/null
+	fi
 	console translucent off
 	# What this frame drew, for term_dirty to compare next time.
 	TW[$id]["gen"] := term gen "$t"
@@ -752,6 +768,10 @@ fn term_close(int id) {
 	[ -n "${TW[$id]["t"]}" ] && term close "${TW[$id]["t"]}"
 	TW[$id]["t"]=
 	TW[$id]["fd"]=
+	if [ -n "${TW[$id]["isofn"]-}" ]; then
+		frames stop "${TW[$id]["isofn"]}" 2> /dev/null
+		TW[$id]["isofn"]=
+	fi
 	if [ -n "${TW[$id]["iso"]-}" ]; then
 		rm -f "${TW[$id]["iso"]}" 2> /dev/null
 		TW[$id]["iso"]=
