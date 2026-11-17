@@ -635,7 +635,7 @@ want = "file://" + DPATH.replace(" ", "%20") + "\r\n"
 check("a file let go on a program's window is offered to it, read early and "
       "at the drop, as a percent-encoded file:// uri-list, text/plain the same",
       dr and dr[0]["reads"] == [want, want] and "text/uri-list" in dr[0]["types"] and
-      int(dr[0]["x"]) >= 0 and int(dr[0]["y"]) >= 0, comp("drop"))
+      dr[0]["win"] == "7" and dr[0]["inside"], comp("drop"))
 check("and a program that takes it gets no note that it does not",
       dr and dr[0]["taken"] and not scr().find("does not take files"), (comp("drop"), scr()))
 open(complog + ".droprefuse", "w").close()

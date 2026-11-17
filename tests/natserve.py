@@ -243,8 +243,12 @@ def clipline(w, fds):
             os.close(r)
             reads.append(got.decode(errors="replace"))
         refuse = os.path.exists(LOG + ".droprefuse")
+        # Where it landed, as the compositor would judge it: a window it
+        # knows, and a point inside that window's own pixels.
+        sz = size.get(int(w[3])) if w[3].isdigit() else None
+        inside = bool(sz) and 0 <= int(w[4]) < sz[0] and 0 <= int(w[5]) < sz[1]
         note(kind="drop", seq=w[2], win=w[3], x=w[4], y=w[5], types=w[6:], reads=reads,
-             taken=not refuse)
+             taken=not refuse, inside=inside, size=sz)
         say("CLIP dropped %s %s" % (w[2], "refused" if refuse else "taken"))
     elif w[1] == "read" and fds:
         t = CLIPS.get(w[2])
