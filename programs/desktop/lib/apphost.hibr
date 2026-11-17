@@ -1,0 +1,28 @@
+#!/usr/bin/env hibr
+#
+# apphost -- one app, run by a desktop of its own in a process of its own,
+# for another desktop to show in a window (wm/isolate.hibr, ADR 0050's
+# prototype). Started by dt_isonew on a pty; nothing here is for a person
+# to run.
+#
+#   hibr apphost.hibr APPFILE PREFIX TITLE ACKFILE
+
+hs_file=$1
+hs_prefix=$2
+hs_title=$3
+hs_ack=$4
+# Everything that says this process is the real desktop, or is being
+# watched by a harness, belongs to the desktop showing it.
+unset HIBR_HOLD DT_SUPERVISED DT_RESTORE HIBR_TESTIDLE
+DT_SUPERVISE=off
+need console || exit 1
+. "${BASH_SOURCE%/*}/../desktop.hibr"
+DT_HOSTED=1
+DT_HOSTACK=$hs_ack
+. "$hs_file"
+dt_hostopen || exit 1
+dt_log "isolated: hosting $hs_prefix, pid $$"
+hs_id := dt_new "$hs_title" 10 40 1 1 "$hs_prefix"
+dt_fullscreen "$hs_id" on
+dt_run
+console close

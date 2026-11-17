@@ -617,9 +617,13 @@ dt_load() {
 # Write every kept variable back, through a temporary file and a rename,
 # so a crash halfway through never leaves half a settings file. A setting
 # nothing has kept yet this session, a pane not loaded, goes back as it came.
+# A desktop hosting one app for another saves nothing: desktop.json is the
+# other desktop's, and two writers would each undo the other.
+DT_HOSTED=
 dt_save() {
 	local v k n i s
 
+	[ -z "$DT_HOSTED" ] || return 0
 	# A rebind or Use Super Instead of Alt is saved as it is made: Blit is told
 	# the chords kept from programs then (Gitea #530).
 	dt_has dt_keepsend && dt_keepsend

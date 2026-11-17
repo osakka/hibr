@@ -1,0 +1,109 @@
+# wm/isolate -- an app in a process of its own (ADR 0050's prototype, owner's
+# go-ahead 2026-11-17: "nothing should be able to ever affect the stability
+# of the desktop").
+#
+# The app runs in a desktop of its own, lib/apphost.hibr, started on a pty
+# like any terminal window's program, and is shown here through the
+# terminal emulator: its cells come back as a program's output does, and
+# its keys, clicks and wheel go to it down the pty. Nothing here ever waits
+# on it -- a pty is read when it is ready, and written without blocking --
+# so an app that sleeps, spins or blocks in a call stops its own window and
+# nothing else.
+#
+# What stands in for an answer: the hosted desktop stamps a file with the
+# time each pass goes idle (DT_HOSTACK). Input sent here and not answered
+# by a stamp within DT_HOLDMS marks the window "not responding" and writes
+# a held: line naming the app -- the desktop's own log, never a wait. Keys
+# go on being sent: a window is never paused and its keys never withheld.
+#
+# The prototype's limits, said plainly: the app's menus are its own desktop's
+# (drawn in its window, not on this bar); its settings are read at start and
+# not saved; the clipboard, drops and pictures do not cross yet.
+
+strict
+
+# Open a hosted app's window: prefix is the app's, file the script that
+# defines it. Answers the window's id.
+fn dt_isonew(prefix, file, title, int h, int w, int r = 2, int c = 4) {
+	local ack id
+
+	# Shown through the terminal window, which a session that loads no
+	# apps does not have yet.
+	dt_has term_draw || . "$DT_HERE/apps/term.hibr"
+	ack="${XDG_RUNTIME_DIR:-/tmp}/hibr-host-$$-$prefix-$RANDOM"
+	: > "$ack" || return 1
+	DT_OPENCMD=("$HIBR" "$DT_HERE/lib/apphost.hibr" "$file" "$prefix" "$title" "$ack")
+	DT_OPENSELF=1
+	id := dt_new "$title" "$h" "$w" "$r" "$c" term
+	TW[$id]["iso"]=$ack
+	TW[$id]["isoapp"]=$prefix
+	TW[$id]["isotitle"]=$title
+	TW[$id]["isoin"]=
+	TW[$id]["isomark"]=
+	dt_log "isolated: $prefix opened as window $id, a process of its own"
+	ret "$id"
+}
+
+# Input just went to a hosted app: the moment it went is kept until a stamp
+# newer than it says the app has answered.
+fn dt_isosent(int id) {
+	[ -n "${TW[$id]["isoin"]-}" ] || TW[$id]["isoin"]=${EPOCHREALTIME/./}
+	dt_want 50
+	return 0
+}
+
+# For each hosted app with input outstanding: answered, late, or not yet
+# late. Reads one small file a window, and only while something is owed.
+dt_isotick() {
+	local id a in now ms
+
+	for id in "${DT_WINS[@]}"; do
+		in=${TW[$id]["isoin"]-}
+		[ -n "$in" ] || continue
+		a=
+		read -r a 2> /dev/null < "${TW[$id]["iso"]}"
+		a=${a/./}
+		if [ -n "$a" ] && [ "$a" -ge "$in" ]; then
+			TW[$id]["isoin"]=
+			if [ -n "${TW[$id]["isomark"]}" ]; then
+				TW[$id]["isomark"]=
+				dt_retitle "$id" "${TW[$id]["isotitle"]}"
+				dt_log "isolated: ${TW[$id]["isoapp"]} answered after $(((a - in) / 1000)) ms"
+			fi
+			continue
+		fi
+		now=${EPOCHREALTIME/./}
+		ms=$(((now - in) / 1000))
+		if [ "$ms" -ge "${DT_HOLDMS:-150}" ] && [ -z "${TW[$id]["isomark"]}" ]; then
+			TW[$id]["isomark"]=1
+			dt_retitle "$id" "${TW[$id]["isotitle"]} (not responding)"
+			dt_log "held: isolated:${TW[$id]["isoapp"]} $ms ms: its input is not answered; the desktop goes on"
+		fi
+		dt_want 100
+	done
+	return 0
+}
+command -v dt_ticker > /dev/null && dt_ticker dt_isotick
+
+# A hosted desktop's own start: dt_open's, less everything that belongs to
+# the desktop showing it -- the supervisor, hold, the control socket, the
+# crash snapshot, the log's rotation, programs' windows and the saver.
+dt_hostopen() {
+	export XDG_CURRENT_DESKTOP=hibr XDG_SESSION_DESKTOP=hibr
+	shopt -s keepgoing
+	dt_load
+	DT_SAVERIDLE=0
+	DT_SAVERSECS=
+	console open || return 1
+	console darkdefault "$DT_INK" "$DT_FACE"
+	console signals off
+	dt_mouseset drag
+	console cursor off
+	if [ -d "${DT_LOG%/*}" ]; then
+		exec 2>> "$DT_LOG"
+		shopt -s logtime
+	fi
+	dt_langapply
+	dt_size
+	return 0
+}

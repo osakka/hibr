@@ -63,3 +63,29 @@ for a bad app?": this is it, since every other layer (lint, the budget's
 diagnostics, jobs and asynchronous verbs) protects only against an app
 whose author can be asked to change it. Pausing, hiding or withholding
 keys from an app is not an answer and does not come back (0.99.401).
+
+Prototype (owner's go-ahead 2026-11-17, branch `iso-proto`, in no release):
+the route that needs no step 1. An app runs in a desktop of its own
+(`lib/apphost.hibr`) on a pty and is shown through the terminal window, so
+its cells come back as a program's output does and its input goes down the
+pty, never waited on; a hosted desktop stamps a file each time it goes
+idle, and input left unanswered past `DT_HOLDMS` marks the window "not
+responding" and writes `held: isolated:<app>` (`wm/isolate.hibr`).
+`tests/isolation.py` passes all ten with `ISO=1` and fails all three
+answers in-process, as before. Measured (`tools/isomeasure.py`, three runs,
+24x80):
+
+| | in-process | isolated |
+|---|---|---|
+| window open | 0.09 s | 0.25 s |
+| key to screen, median | ~12 ms | ~12 ms |
+| key to screen, worst | 13-15 ms | 21-26 ms |
+| idle CPU, desktop + host | ~0.2% | ~0.2% + 0% |
+| a window redrawn 10 times a second | 3.2-3.8% | 3.2-4.2% + host 2.6-4.0% |
+| host's private memory | -- | 14.1 MB |
+
+The 2 MB this ADR guessed is 14 MB measured: the host parses the whole
+window manager again. Forking it from the desktop, so the parsed tree is
+shared copy-on-write, is the next thing to measure. Not covered: the app's
+menus (its own desktop's, drawn in its window), its settings (read at
+start, not saved), the clipboard, drops and pictures.

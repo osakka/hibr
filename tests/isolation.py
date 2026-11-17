@@ -67,15 +67,26 @@ def case(name):
         os.mkfifo(fifo)
     body = BAD[name] % fifo if name == "block" else BAD[name]
     p = scratch("isolation-%s.hibr" % name)
-    open(p, "w").write("%s. %s\ndt_open\n%s%sdt_app bd \"Bad\" 6 30\n"
-                       "dt_new \"Bad\" 6 30 2 2 bd\ndt_new \"Good\" 6 30 2 40 gd\n"
-                       "dt_run\ndt_close\n" % (load(MOD), WM, GOOD, body))
-    expect(r"(held|slow): (win|input):bd")
+    # The bad app is a file of its own, so that ISO=1 can run it in a
+    # process of its own (wm/isolate.hibr, the prototype) -- the same app,
+    # the same checks; ISO unset runs it in the desktop as before.
+    bf = scratch("isolation-bad-%s.hibr" % name)
+    open(bf, "w").write("%sdt_app bd \"Bad\" 6 30\n" % body)
+    if os.environ.get("ISO") == "1":
+        opener = "dt_isonew bd %s Bad 6 30 2 2 > /dev/null\n" % bf
+    else:
+        opener = ". %s\ndt_new \"Bad\" 6 30 2 2 bd\n" % bf
+    open(p, "w").write("%s. %s\ndt_open\n%s%sdt_new \"Good\" 6 30 2 40 gd\n"
+                       "dt_run\ndt_close\n" % (load(MOD), WM, GOOD, opener))
+    expect(r"(held|slow): (win|input|isolated):bd")
     t = Term(p, env={"DT_HOLDMS": "150", "DT_HOLDBY": "wall"}, rows=24, cols=80, settle=1.0)
     if name == "spin":
         # The bad app has the focus first and is handed a key, which is
         # what starts its spin; the good one is clicked straight after.
-        bad = t.screen().find("bad")
+        # Waited for, not looked for once: an app in a process of its own
+        # takes a moment to start, and a key sent before its window is
+        # there goes to whatever has the focus instead -- the good app.
+        bad = t.until("bad", tries=60, step=0.1).find("bad")
         if bad:
             t.send(press(bad[0], bad[1]) + release(bad[0], bad[1]), settle=0, collect=0)
         t.send(b"s", settle=0, collect=0)
@@ -89,10 +100,16 @@ def case(name):
     shown = sc.find("got: x") is not None
     time.sleep(3.5)
     t.collect(0.3)
+    # The bad app has to have run at all, or every check above passes for
+    # nothing: an isolated window with no app behind it is an empty box
+    # that stops nobody (the prototype's first run was exactly that).
+    drew = t.screen().find("bad") is not None
+    if os.environ.get("DUMPLOG"):
+        print("".join(l for l in open(t.log, errors="replace") if "bd" in l or "isolated" in l or "held" in l or "slow" in l))
     named = [l for l in open(t.log, errors="replace")
              if ":bd" in l and ("held:" in l or "slow:" in l)]
     t.quit(b"q", 1.0)
-    for f in (p, fifo):
+    for f in (p, fifo, bf):
         if os.path.exists(f):
             os.unlink(f)
     check("%s: beside an app that %s, another window answers a key within "
@@ -101,8 +118,9 @@ def case(name):
                                     "block": "blocks in a builtin"}[name]),
           shown and took < 0.5, (round(took, 2), sc))
     check("%s: and the log still names the bad app" % name, len(named) >= 1, named)
+    check("%s: and the bad app ran -- its window drew" % name, drew, t.screen())
 
 
-for n in ("sleep", "spin", "block"):
+for n in os.environ.get("CASES", "sleep spin block").split():
     case(n)
-report(7)
+report(10)
