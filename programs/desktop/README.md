@@ -523,6 +523,12 @@ icons, and everything it has no icon for stays unicode. No terminal can be
 asked what font it uses, so this one is chosen, never guessed; with an
 ordinary font its icons draw as empty boxes. The icon each app and pane
 chooses for itself stays as its own `dt_app` or `cp_pane` line writes it.
+
+A player has its own names since 0.99.548 -- `play`, `pause`, `stop`,
+`prev`, `next`, `rewind`, `ffwd`, `eject`, `record`, `repeat`, `repeat1`
+and `shuffle`, one cell each in every set -- and `dt_lcd TEXT` answers
+digits, `:` and `-` as an LCD shows them, two cells a character: fullwidth
+forms in unicode and nerd, the character and a space in ascii.
 **blit** is for Blit's own Retro and Modern fonts (Gitea #330). Those carry
 the whole Nerd catalogue, so it is the nerd set, plus the colour icons Blit
 drew for hibr, one cell each: the hibr menu's pen, Bluetooth, Wi-Fi as

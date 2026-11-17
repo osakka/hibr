@@ -728,8 +728,9 @@ fn cat_kext(kind) {
 #
 # It decides a **destination**, so it is checked here rather than
 # trusted, exactly as a part's own path is: a segment is letters,
-# digits, dashes, underscores and spaces -- `Desk Accessories` is a real
-# folder -- and nothing else, so there is no climbing out, no absolute
+# digits, dashes, underscores, spaces and ampersands -- `Desk Accessories`
+# and `Sound & Video` are real folders, the second since 0.99.548 -- and
+# nothing else, so there is no climbing out, no absolute
 # path and no empty segment. An index that says otherwise has the dir
 # dropped rather than the install refused: the entry is still a perfectly
 # good app and the worst that happens is the flat placement everybody had
@@ -744,7 +745,7 @@ fn cat_dirok(dir) {
 	for seg in $dir; do
 		case $seg in
 		"" | . | ..) return 1 ;;
-		*[!a-zA-Z0-9_\ -]*) return 1 ;;
+		*[!a-zA-Z0-9_\ \&-]*) return 1 ;;
 		esac
 	done
 	return 0

@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.548
+
+**A catalogue folder may have an ampersand in it.** The owner chose to call
+a menu folder "Sound & Video", for the Video Player and the new Audio
+Player; the catalogue's check on an entry's folder accepted letters,
+digits, `_`, `-` and spaces only, and dropped the folder of anything else,
+so 0.99.547 would have installed both at the top of Applications. `&` is
+accepted now; climbing out, an absolute path and anything else are still
+refused. The two entries ask for this release, so an older desktop keeps
+them where they were. (The catalogue's index now percent-encodes a bundle's
+path, so the space and the ampersand reach the server as an address can
+carry them.)
+
+**A player's glyphs.** `GL[play]`, `pause`, `stop`, `prev`, `next`,
+`rewind`, `ffwd`, `eject`, `record`, `repeat`, `repeat1` and `shuffle`, one
+cell each in the ascii, unicode and nerd sets, and `dt_lcd TEXT`, digits,
+`:` and `-` as an LCD shows them, two cells a character (for the Audio
+Player).
+
+**The coverage map can be taken again.** No map could be taken since
+2026-11-13: the three inspect suites end in their own words rather than
+with a count, which covmap read as not having run to the end. all.py
+writes each suite's exit status beside its log and covmap trusts a clean
+exit; the map is new, taken at 5512451.
+
+Also: the drag oracle's failure says how many of its snapshots never
+settled (Gitea #589, which did not reproduce in 32 runs, 20 of them four at
+a time under load), and a drop on a program's window is checked to name
+the compositor's own window and a point inside it.
+
 ## 0.99.547
 
 **`media` has an equaliser, a spectrum and levels** (Gitea #590, for huiamp,

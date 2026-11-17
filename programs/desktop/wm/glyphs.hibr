@@ -155,6 +155,15 @@ fn dt_glyphs(set = "unicode") {
 		GL["square"]="#"; GL["box"]="o"; GL["ring"]="@"
 		GL["up"]="^"; GL["down"]="v"; GL["right"]=">"
 		GL["sright"]=">"; GL["sleft"]="<"; GL["sdown"]="v"; GL["sup"]="^"
+		# A player's transport, one cell each (huiamp, 2026-11-17).
+		GL["play"]=">"; GL["pause"]="="; GL["stop"]="#"
+		GL["prev"]="["; GL["next"]="]"; GL["rewind"]="{"; GL["ffwd"]="}"
+		GL["eject"]="^"; GL["record"]="o"
+		GL["repeat"]="@"; GL["repeat1"]="1"; GL["shuffle"]="%"
+		# And an LCD's characters, two cells each: dt_lcd reads them.
+		GL["lcd0"]="0 "; GL["lcd1"]="1 "; GL["lcd2"]="2 "; GL["lcd3"]="3 "; GL["lcd4"]="4 "
+		GL["lcd5"]="5 "; GL["lcd6"]="6 "; GL["lcd7"]="7 "; GL["lcd8"]="8 "; GL["lcd9"]="9 "
+		GL["lcdcolon"]=": "; GL["lcdminus"]="- "; GL["lcdblank"]="  "
 		GL["reload"]="@"; GL["plus"]="+"; GL["larr"]="<"; GL["rarr"]=">"
 		GL["arrowup"]="^"; GL["hook"]=">"
 		GL["file"]="-"; GL["folder"]="+"; GL["bundle"]="#"
@@ -224,6 +233,26 @@ fn dt_glyphs(set = "unicode") {
 		GL["right"]=$'▶'     # BLACK RIGHT-POINTING TRIANGLE
 		GL["sright"]=$'▸'    # BLACK RIGHT-POINTING SMALL TRIANGLE
 		GL["sleft"]=$'◂'     # BLACK LEFT-POINTING SMALL TRIANGLE
+		# A player's transport, each one cell wide by the width table.
+		GL["play"]=$'▶'    # BLACK RIGHT-POINTING TRIANGLE
+		GL["pause"]=$'⏸'   # DOUBLE VERTICAL BAR
+		GL["stop"]=$'⏹'    # BLACK SQUARE FOR STOP
+		GL["prev"]=$'⏮'    # BLACK LEFT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR
+		GL["next"]=$'⏭'    # BLACK RIGHT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR
+		GL["rewind"]=$'«'  # LEFT-POINTING DOUBLE ANGLE QUOTATION MARK: U+23EA is two cells
+		GL["ffwd"]=$'»'    # RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK: U+23E9 is two cells
+		GL["eject"]=$'⏏'   # EJECT SYMBOL
+		GL["record"]=$'⏺'  # BLACK CIRCLE FOR RECORD
+		GL["repeat"]=$'↻'  # CLOCKWISE OPEN CIRCLE ARROW
+		GL["repeat1"]=$'①' # CIRCLED DIGIT ONE
+		GL["shuffle"]=$'⇄' # RIGHTWARDS ARROW OVER LEFTWARDS ARROW
+		# An LCD's characters, two cells each, the fullwidth forms.
+		GL["lcd0"]=$'０'; GL["lcd1"]=$'１'; GL["lcd2"]=$'２'; GL["lcd3"]=$'３'
+		GL["lcd4"]=$'４'; GL["lcd5"]=$'５'; GL["lcd6"]=$'６'; GL["lcd7"]=$'７'
+		GL["lcd8"]=$'８'; GL["lcd9"]=$'９'
+		GL["lcdcolon"]=$'：'  # FULLWIDTH COLON
+		GL["lcdminus"]=$'－'  # FULLWIDTH HYPHEN-MINUS
+		GL["lcdblank"]=$'　'  # IDEOGRAPHIC SPACE
 		GL["reload"]=$'\u21bb'  # CLOCKWISE OPEN CIRCLE ARROW
 		GL["plus"]="+"
 		GL["larr"]=$'\u2190'    # LEFTWARDS ARROW
@@ -350,7 +379,36 @@ dt_glyphsnerd() {
 	GL["pin"]=$'\uf08d'       # nf-fa-thumb_tack
 	GL["task"]=$'\uf096'      # nf-fa-square_o
 	GL["taskdone"]=$'\uf046'  # nf-fa-check_square_o
+	GL["play"]=$'\uf04b'      # nf-fa-play
+	GL["pause"]=$'\uf04c'     # nf-fa-pause
+	GL["stop"]=$'\uf04d'      # nf-fa-stop
+	GL["prev"]=$'\uf048'      # nf-fa-step_backward
+	GL["next"]=$'\uf051'      # nf-fa-step_forward
+	GL["rewind"]=$'\uf04a'    # nf-fa-backward
+	GL["ffwd"]=$'\uf04e'      # nf-fa-forward
+	GL["eject"]=$'\uf052'     # nf-fa-eject
+	GL["record"]=$'\uf111'    # nf-fa-circle
+	GL["repeat"]=$'\uf01e'    # nf-fa-repeat
+	GL["shuffle"]=$'\uf074'   # nf-fa-random
 	GL["fx"]=$''       # nf-fa-calculator
+}
+
+# Text as an LCD shows it: each digit, colon, minus and blank its two-cell
+# glyph from the set in force (GL["lcd0"] ... GL["lcdblank"]); anything else
+# is a blank. The answer is twice as many cells as the text has characters.
+fn dt_lcd(text) {
+	local o="" c i
+
+	for ((i = 0; i < ${#text}; i++)); do
+		c=${text:i:1}
+		case $c in
+		[0-9]) o+=${GL["lcd$c"]} ;;
+		:) o+=${GL["lcdcolon"]} ;;
+		-) o+=${GL["lcdminus"]} ;;
+		*) o+=${GL["lcdblank"]} ;;
+		esac
+	done
+	ret "$o"
 }
 
 # Blit's glyphs by id: its own catalogue where this machine has one (Gitea
