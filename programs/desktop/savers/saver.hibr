@@ -139,6 +139,7 @@ fn sv_main(name = "random") {
 		ms := sv_frame
 		console flush
 		k := console key "$ms"
+		command -v dt_passmark > /dev/null && dt_passmark
 		[ -n "$k" ] && break
 	done
 	console mouse off

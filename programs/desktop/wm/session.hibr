@@ -516,6 +516,7 @@ dt_tickers() {
 		[ "$ap" = - ] && ap=
 		DT_WHO=$f
 		DT_SPENTWHY=
+		slowest on "$DT_SLOWMS"
 		t0=${EPOCHREALTIME/./}
 		"$f"
 		t=$((${EPOCHREALTIME/./} - t0))
@@ -890,6 +891,7 @@ dt_run() {
 			dt_tickers
 			dt_saverwait
 		fi
+		dt_passcheck
 		if [ -n "$DT_TESTIDLE" ]; then
 			k := console consumed
 			k=$((k + DT_INBASE))
@@ -914,6 +916,11 @@ dt_run() {
 		# taken for one that stalled the desktop (wm/budget.hibr).
 		read -r DT_SCHON DT_SCHWAIT _ 2> /dev/null < "/proc/$$/schedstat" ||
 			{ DT_SCHON=0; DT_SCHWAIT=0; }
+		slowest start "$DT_SLOWMS"
+		DT_PASSON=$DT_SCHON
+		DT_PASSWAIT=$DT_SCHWAIT
+		DT_PASS0=${EPOCHREALTIME/./}
+		DT_PASSHELD=
 		DT_QWAIT=
 		# The person's input, for dt_answer: a key, a press, a release or
 		# the wheel -- never the pointer moving, with a button held or

@@ -37,7 +37,10 @@ what a window shows is faked or simulated for the picture.
 Every app runs inside the window manager's own process, between frames, so a
 callback that takes long stops every display while it runs. Each one is
 timed (`wm/budget.hibr`, ADR 0049): past 50 ms it is a `slow:` note in the
-log, past 150 ms a `held:` stall, which the suites fail on; the app itself
+log, past 150 ms a `held:` stall, which the suites fail on. Each line names
+the slowest call inside and its file and line, from the shell's `slowest`
+watch, and a pass of the loop that held the desktop with no callback to
+blame is `held: pass`, named the same way; the app itself
 is never stopped or paused for it (0.99.401): a stall is for whoever wrote
 the code to find, never for the person at the screen to pay for. Slow work
 is a job (`dt_job`, or `dt_jobvars` for a load that sets variables); the

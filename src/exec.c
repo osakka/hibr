@@ -9,6 +9,7 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 extern volatile sig_atomic_t jc_chld;
@@ -1743,6 +1744,72 @@ void ex_retnone(sh *s, const char *fn, int st)
 }
 
 /* Execute a simple command, builtin, function or external program; exec in place only if the fork was made for this command. */
+int ex_slon;
+long long ex_slacc, ex_slbud, ex_slmax[2];
+unsigned ex_slgen, ex_slover[2];
+str ex_slwhat[2], ex_slwhere[2];
+
+/* Milliseconds on a clock nobody sets, the cheapest one the platform has: `slowest` needs a frame's resolution, not a nanosecond's. */
+long long ex_slms(void)
+{
+	struct timespec t;
+
+#ifdef CLOCK_MONOTONIC_COARSE
+	clock_gettime(CLOCK_MONOTONIC_COARSE, &t);
+#else
+	clock_gettime(CLOCK_MONOTONIC, &t);
+#endif
+	return (long long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
+/* Whether a word may be written into a log: a verb -- lowercase letters and dashes, short -- never an argument that could be a secret. */
+int ex_slplain(const char *w)
+{
+	size_t i;
+
+	if (!w || !islower((unsigned char)*w))
+		return 0;
+	for (i = 0; w[i]; i++)
+		if (i >= 16 || !(islower((unsigned char)w[i]) || w[i] == '-'))
+			return 0;
+	return 1;
+}
+
+/* One timed command ended: its own time, less the timed commands inside it, kept in each record -- since `slowest start` and since `slowest on` -- where it is the slowest yet. */
+void ex_slnote(sh *s, long long t0, long long a0, int ac, char **av)
+{
+	long long el = ex_slms() - t0, self = el - (ex_slacc - a0);
+	int i;
+
+	ex_slacc = a0 + el;
+	if (self <= 0)
+		return;
+	for (i = 0; i < 2; i++) {
+		if (ex_slbud > 0 && self >= ex_slbud)
+			ex_slover[i]++;
+		if (self <= ex_slmax[i])
+			continue;
+		ex_slmax[i] = self;
+		ex_slwhat[i].n = 0;
+		s_cat(&ex_slwhat[i], ac && av[0] ? av[0] : "an assignment");
+		if (ac > 1 && ex_slplain(av[1])) {
+			s_ch(&ex_slwhat[i], ' ');
+			s_cat(&ex_slwhat[i], av[1]);
+		}
+		ex_slwhere[i].n = 0;
+		s_fmt(&ex_slwhere[i], "%s:%u", sh_where(s), s->ln);
+	}
+}
+
+/* Forget one record of `slowest`: 0 is the one since `start`, 1 the one since `on`. */
+void ex_slreset(int i)
+{
+	ex_slmax[i] = 0;
+	ex_slover[i] = 0;
+	ex_slwhat[i].n = 0;
+	ex_slwhere[i].n = 0;
+}
+
 int ex_cmd(sh *s, node *n)
 {
 	amark m = ar_mark(s->xa);
@@ -1752,15 +1819,21 @@ int ex_cmd(sh *s, node *n)
 	char **av, **env, **am = 0;
 	char *path = 0;
 	job *jb = 0;
-	node *f;
+	node *f = 0;
 	const hibr_bi *b = 0;
 	word *w;
 	int ac = 0, st = 0, w2, nofork = s->nofork, abad = 0;
-	int cf[2], cap = 0;
-	unsigned ncap0 = s->ncap;
+	int cf[2], cap = 0, slw = ex_slon;
+	unsigned ncap0 = s->ncap, slg;
+	long long sl0, sla;
 	pid_t pid;
 
 	s->nofork = 0;
+	if (slw) {
+		sl0 = ex_slms();
+		sla = ex_slacc;
+		slg = ex_slgen;
+	}
 	s->ln = n->ln;
 	if (s->dtrap)
 		tr_debug(s, n->tx);
@@ -2099,6 +2172,8 @@ out:
 		vb_put(s, asg);
 		vb_put(s, asgm);
 	}
+	if (slw && ex_slon && !f && slg == ex_slgen)
+		ex_slnote(s, sl0, sla, ac, av);
 	if (s->psub.n)
 		xpsub_done(s);
 	ar_rel(s->xa, m);

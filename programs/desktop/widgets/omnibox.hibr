@@ -72,6 +72,7 @@ fn dt_omniask(int id, cb, text) {
 	dt_omnishut "$id"
 	DT_OMNI["$id"]["typed"]=$text
 	[ -n "$text" ] && [ -n "$cb" ] && dt_has "$cb" || return 0
+	slowest on "${DT_SLOWMS-50}"
 	t0=${EPOCHREALTIME/./}
 	out := "$cb" "$id" "$text" || out=
 	t=$((${EPOCHREALTIME/./} - t0))

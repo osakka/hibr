@@ -71,6 +71,14 @@ DT_SCHON=0
 declare -gA DT_MAX
 # When each callback was last named slow in the log.
 declare -gA DT_SLOWAT
+# The longest stall logged for each callback inside its ten seconds, so a
+# longer one that follows a shorter is logged rather than dropped.
+declare -gA DT_SLOWBIG
+# When this pass of the frame loop began, and whether a callback in it was
+# already named as holding the desktop -- so a stall nothing claimed, in a
+# bar item, a menu or the frame's own parts, is named once and a claimed
+# one is not named twice.
+declare -g DT_PASS0=0 DT_PASSHELD= DT_PASSON=0 DT_PASSWAIT=0
 # What a callback says its time went on, for the slow: and held: lines: a
 # ticker that does several things names each part's share, so a stall on
 # somebody else's machine says which part it was rather than only that it
@@ -107,8 +115,8 @@ fn dt_spent(name, int us, app = "") {
 
 # A callback took longer than a frame: a note in the log, at most once a
 # minute for each -- and past DT_HOLDMS a stall, said as one.
-fn dt_slow(name, int us, app = "") {
-	local now ms=$((us / 1000)) t held= waited=
+fn dt_slow(name, int us, app = "", rd = "") {
+	local now ms=$((us / 1000)) t held= waited= sw sms scnt swhere swhat named=
 
 	now := dt_ms
 	if [ "$ms" -ge "$DT_HOLDMS" ] && [ "$DT_HOLDBY" = cpu ]; then
@@ -129,16 +137,57 @@ fn dt_slow(name, int us, app = "") {
 			waited=", $t of it waiting for a processor"
 		fi
 	fi
+	[ -n "$held" ] && DT_PASSHELD=1
 	[ -n "$held" ] && [ -n "$DT_HUDON" ] && DT_HELDT+=("$now")
 	t=$((now - ${DT_SLOWAT["$name"]:-0}))
-	if { [ -n "$held" ] && [ "$t" -ge 10000 ]; } || [ "$t" -ge 60000 ]; then
+	if { [ -n "$held" ] && [ "$t" -ge 10000 ]; } || [ "$t" -ge 60000 ] ||
+	   { [ -n "$held" ] && [ "$ms" -gt "${DT_SLOWBIG["$name"]:-0}" ]; }; then
+		[ "$t" -ge 10000 ] && DT_SLOWBIG["$name"]=0
 		DT_SLOWAT["$name"]=$now
-		if [ -n "$held" ]; then
-			dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
+		[ -n "$held" ] && [ "$ms" -gt "${DT_SLOWBIG["$name"]:-0}" ] && DT_SLOWBIG["$name"]=$ms
+		if [ "$rd" = all ]; then
+			sw := slowest all
 		else
-			dt_log "slow: $name took $ms ms$waited (a frame is $DT_SLOWMS ms)${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
+			sw := slowest
+		fi
+		if [ -n "$sw" ]; then
+			IFS=$'\t' read -r sms scnt swhere swhat <<< "$sw"
+			named="; slowest call $swhat, $sms ms at $swhere"
+			[ "$scnt" -gt 1 ] && named+=" ($scnt calls over $DT_SLOWMS ms)"
+		fi
+		if [ -n "$held" ]; then
+			dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
+		else
+			dt_log "slow: $name took $ms ms$waited (a frame is $DT_SLOWMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
 		fi
 	fi
+	return 0
+}
+
+# A pass of the frame loop that held the desktop with no callback in it
+# named for it: the frame's own parts, a menu bar item, the menus, a
+# Control Strip module. Named as the pass, with its slowest call, which is
+# what says whose it was.
+fn dt_passcheck() {
+	local t=$((${EPOCHREALTIME/./} - DT_PASS0))
+
+	[ "$DT_PASS0" -gt 0 ] && [ -z "$DT_PASSHELD" ] &&
+		[ "$t" -ge $((DT_HOLDMS * 1000)) ] || return 0
+	DT_SCHON=$DT_PASSON
+	DT_SCHWAIT=$DT_PASSWAIT
+	dt_slow pass "$t" "" all
+	return 0
+}
+
+# A pass begins again: after the frame loop's own wait, and after any wait
+# nested inside a pass -- the screen saver's, standby's -- or a pass that
+# held a saver up for ten minutes would be logged as a ten-minute stall.
+fn dt_passmark() {
+	read -r DT_PASSON DT_PASSWAIT _ 2> /dev/null < "/proc/$$/schedstat" ||
+		{ DT_PASSON=0; DT_PASSWAIT=0; }
+	slowest start "${DT_SLOWMS-50}"
+	DT_PASS0=${EPOCHREALTIME/./}
+	DT_PASSHELD=
 	return 0
 }
 
@@ -149,6 +198,7 @@ fn dt_appcall(int id, cb, ...args) {
 
 	[ -n "$cb" ] || return 1
 	DT_WHO="input:${ap:-bare}"
+	slowest on "$DT_SLOWMS"
 	t0=${EPOCHREALTIME/./}
 	"$cb" "$id" "${args[@]}"
 	st=$?
@@ -166,6 +216,7 @@ fn dt_appget(int id, cb, ...args) {
 
 	[ -n "$cb" ] || return 1
 	DT_WHO="input:${ap:-bare}"
+	slowest on "$DT_SLOWMS"
 	t0=${EPOCHREALTIME/./}
 	"$cb" "$id" "${args[@]}"
 	rv=$RET

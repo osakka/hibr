@@ -188,6 +188,7 @@ fn dt_standby(base, dname = "") {
 		fi
 		dt_sbdraw
 		k := console key 1000
+		command -v dt_passmark > /dev/null && dt_passmark
 		case $k in
 		q | Q | escape | ctrl-c) break ;;
 		enter | j) dt_sbjoin "$base" ;;

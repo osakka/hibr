@@ -3012,6 +3012,7 @@ const hibr_bi bitab[] = {
 	{ "set", b_set, "set options and parameters" },
 	{ "shift", b_shift, "drop positional parameters" },
 	{ "shopt", b_shopt, "read or set shell options" },
+	{ "slowest", b_slowest, "the slowest command since it was armed, for naming a stall" },
 	{ "source", b_src, "run a file in this shell" },
 	{ "str", b_str, "text operations" },
 	{ "strict", b_strict, "refuse, in this file, what is usually a mistake" },

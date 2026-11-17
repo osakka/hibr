@@ -288,6 +288,13 @@ than a frame, 50 ms, is a note in the log -- `slow: win:files took 70 ms`
 -- for whoever wrote it. One that takes longer than 150 ms has stalled
 every display, which a person sees: it is `held: win:files held the
 desktop 230 ms`, and the suites fail on that line, so it cannot ship.
+Each line also names **the call inside that took the time**, and where:
+`held: win:slw held the desktop 304 ms (a stall is 100 ms); slowest call
+env, 303 ms at /tmp/.../slowapp.hibr:6`, from an app whose `_draw` ran
+`env TOKEN=s3cret sleep 0.3` -- the command and its verb, never an argument, and
+its own time, so an `eval` or a function names what ran inside it. A stall
+in no callback at all -- a menu bar item, the menus, the frame's own parts
+-- is `held: pass ...`, named the same way (`slowest`, 0.99.544).
 Nothing is done to the app itself: a stall is for whoever wrote it to
 find, never for the person using it to pay for. `desktop ctl stats` shows each
 callback's total and its longest single run, `max_ms`; read the second,

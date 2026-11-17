@@ -7147,6 +7147,12 @@ check("an app that keeps holding the desktop keeps its window, still drawn",
       s2.find("Paused") is None, (s1, s2))
 check("and it is still handed its keys", keyed, keyed)
 check("and the log names the stall, for whoever wrote it", len(held) >= 1, held)
+# And names the call inside it that took the time, and where it is: the
+# owner's 8-second stalls said `held: win:video` and nothing more, and
+# nobody could say which engine call had waited (0.99.544).
+named = [l for l in held if "slowest call sleep, " in l and (slwp + ":") in l]
+check("and the line names the slowest call inside the callback, and its file and line",
+      len(named) >= 1, held)
 for fn in (SLWMARK, slwp):
     if os.path.exists(fn):
         os.unlink(fn)
@@ -7167,6 +7173,27 @@ swt.quit(b"q", 1.0)
 check("a slow ticker's line says what its time went on, as the ticker said it", len(why) >= 1, why)
 if os.path.exists(swp):
     os.unlink(swp)
+# A stall in no callback at all -- a bar item's hook, the menus, the
+# frame's own parts -- is named as the pass of the frame loop, with its
+# slowest call: before 0.99.544 the parts were timed and never named, so a
+# menu bar item from the catalogue could hold every display unseen. And an
+# argument never reaches the log: a call that carries a password is named
+# by its command and verb alone.
+expect(r"held: pass")
+psp = scratch("desktop-pass.hibr")
+open(psp, "w").write("%s. %s\ndt_open\n"
+                     "slowbar() { env PASS=hunter2 sleep 0.2; return 0; }\n"
+                     "dt_barhook slowbar\ndt_run\ndt_close\n" % (load(MOD), WM))
+pst = Term(psp, env={"DT_HOLDMS": "100", "DT_HOLDBY": "wall"}, rows=ROWS, cols=COLS, settle=0.6)
+pst.keys([b"z", 0.5, b"z", 0.5])
+pls = [l for l in open(pst.log, errors="replace") if "held: pass" in l]
+pst.quit(b"q", 1.0)
+check("a stall in no callback, a bar item's hook, is named as the frame loop's pass "
+      "with its slowest call", any("slowest call env, " in l for l in pls), pls)
+check("and no argument of the call reaches the log",
+      pls and not any("hunter2" in l for l in pls), pls)
+if os.path.exists(psp):
+    os.unlink(psp)
 
 # A field the window has stopped drawing is not a field any more: a press
 # where it was goes to the app. The desktop kept the last focused field's
@@ -10315,4 +10342,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1110)
+report(1113)

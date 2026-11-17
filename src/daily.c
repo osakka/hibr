@@ -1821,6 +1821,42 @@ int b_times(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* A watch on every command's own time, for naming the call that held a script: `slowest start [MS]` arms it and forgets both records, `slowest on [MS]` forgets only the inner one, `off` disarms it, and `slowest` answers the slowest command since `on` -- `slowest all` since `start` -- as `MS COUNT WHERE WHAT`, tab-separated, COUNT those that took MS or more, WHAT the command and its verb and never an argument. */
+int b_slowest(sh *s, int ac, char **av)
+{
+	str o;
+	int i = 1;
+
+	if (ac > 1 && (!strcmp(av[1], "on") || !strcmp(av[1], "start"))) {
+		ex_slgen++;
+		ex_slon = 1;
+		ex_slbud = ac > 2 ? atoll(av[2]) : 50;
+		ex_slreset(1);
+		if (av[1][0] == 's')
+			ex_slreset(0);
+		return HIBR_OK;
+	}
+	if (ac > 1 && !strcmp(av[1], "off")) {
+		ex_slgen++;
+		ex_slon = 0;
+		return HIBR_OK;
+	}
+	if (ac > 1 && !strcmp(av[1], "all"))
+		i = 0;
+	else if (ac > 1) {
+		lg(HIBR_LERR, "slowest: start [MS], on [MS], off, all, or nothing to read it");
+		return 2;
+	}
+	s_init(&o);
+	if (ex_slmax[i] > 0)
+		s_fmt(&o, "%lld\t%u\t%s\t%s", ex_slmax[i], ex_slover[i], ex_slwhere[i].p, ex_slwhat[i].p);
+	hibr_ret(s, o.p ? o.p : "");
+	if (!s->bind && o.n)
+		printf("%s\n", o.p);
+	s_free(&o);
+	return HIBR_OK;
+}
+
 /* Parse option letters out of the positional parameters. */
 int b_getopts(sh *s, int ac, char **av)
 {

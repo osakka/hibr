@@ -387,6 +387,7 @@ fn dt_idlecall(int id) {
 	local ap=${DT[$id]["app"]} t0 t
 
 	DT_WHO="idle:${ap:-bare}"
+	slowest on "$DT_SLOWMS"
 	t0=${EPOCHREALTIME/./}
 	${DT[$id]["idle"]} "$id"
 	t=$((${EPOCHREALTIME/./} - t0))
@@ -606,6 +607,7 @@ fn dt_wintimed(...ids) {
 		ap=${DT[$id]["app"]}
 		DT_WHO="win:${ap:-bare}"
 		DT_WHY=
+		slowest on "$DT_SLOWMS"
 		t0=${EPOCHREALTIME/./}
 		dt_win "$id"
 		[ "$DT_WHY" = left ] ||

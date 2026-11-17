@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.99.544
+
+**A stall names the call that caused it.** The owner's Video Player froze
+the desktop for 8 seconds, then a Browser idle for 22, and the log said
+only `held: win:video held the desktop 8003 ms` -- not which call inside
+had waited, so nobody could say, and the engine module's own warnings were
+filtered out before they reached the log. Every `held:` and `slow:` line
+now ends with the slowest call inside the callback, its own time, and
+where it is:
+
+    held: win:slw held the desktop 304 ms (a stall is 100 ms); slowest
+    call env, 303 ms at /tmp/.../slowapp.hibr:6
+
+(a test app whose `_draw` runs `env TOKEN=s3cret sleep 0.3` -- the
+secret is not in the line)
+
+- **`slowest`, a new builtin, is the shell's half.** Armed, the shell
+  times each command -- a builtin, a module's verb, a program -- by its
+  own time, less what ran inside it, so `eval`, `command` and a function
+  name what they ran rather than themselves. It keeps the slowest and a
+  count of those over the budget, and writes the command and its verb
+  only: an argument never reaches the log, since a slow call is often one
+  carrying a password or a URL. Unarmed it costs 11 instructions a command
+  (`ex_cmd` over 100,000 commands, against the same commit without it);
+  armed about 135, which the wall clock does not see (100,000 commands in
+  79.3 ms armed, 79.7 off). A forced frame of three windows went 3.33 ms
+  to 3.36 ms (medians of 12 interleaved runs, inside their spread).
+- **A stall in no callback is named too.** A menu bar item's hook, the
+  menus and the frame's own parts were timed and never named, so a
+  catalogue bar item could hold every display unseen. A pass of the frame
+  loop that held the desktop with no callback to blame is now
+  `held: pass ...`, with its slowest call.
+- **A longer stall is never dropped for a shorter one.** A callback named
+  held is said at most once in ten seconds, and a longer one inside those
+  ten seconds was lost; it is said now.
+
+Checked: `tests/998-slowest.t` (own time, functions and `eval` naming what
+they ran, the count, both records, no argument logged), and
+`tests/desktop.py` -- a slow app's line names `sleep` and its file and
+line, and a bar hook's stall is `held: pass` naming `env` and never its
+`PASS=hunter2`. The three desktop checks fail against 0.99.543.
+
+**`tests/sound.py` runs again** on PipeWire 1.4 (this box, since
+2026-11-13): its clients stay off the system bus, where a container's RTKit
+made them hang on exit, and its stand-in devices are kept running, since a
+suspended one ignores a volume. 40 of 41 pass; the last is Gitea #588.
+
 ## 0.99.543
 
 **A module the catalogue indexes can be installed** (Gitea #563). `mkindex`

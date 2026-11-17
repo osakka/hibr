@@ -103,6 +103,7 @@ fn dt_saverkey(int ms) {
 	due=$((now + ms))
 	while :; do
 		k := console key $((due - now))
+		dt_passmark
 		[ -n "$k" ] && break
 		dt_wins
 		for id in "${DT_WINS[@]}"; do

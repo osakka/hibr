@@ -49,7 +49,14 @@ notices: the sweep that set these numbers found the Control Panel's
 heavier panes at 54 to 133 ms under a loaded gate and 2.8 ms alone. The
 frame's own parts -- the whole frame, its flush, the wallpaper, the menus
 -- are timed and never named, since a slow frame is a slow callback inside
-it, which names itself.
+it, which names itself. **Since 0.99.544 that is no longer the whole
+answer:** a menu bar item's hook or a catalogue pane drawn into the menus
+is not a callback, so a pass of the frame loop that held the desktop with
+no callback named for it is logged as `held: pass`. And every line names
+the call inside that took the time, with its file and line, from the
+shell's `slowest` watch -- the owner's 8-second Video Player stalls said
+only `held: win:video`, and nothing could say which engine call had
+waited.
 
 **A busy machine is not a stalled desktop.** A stall is a callback's time
 less what the kernel kept the desktop waiting for a processor meanwhile,
