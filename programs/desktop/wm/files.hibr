@@ -64,6 +64,12 @@ fn dt_ondrop(int mr, int mc, mods) {
 			dt_notep low "Only files can be dropped on a window"
 			return 0
 		fi
+		# A program's own window: the program is asked, through the
+		# compositor, and says itself whether it takes them.
+		if [ "${DT[$id]["app"]}" = native ] && [ -n "${NW[$id]["bid"]-}" ] && dt_has dt_natdrop; then
+			dt_natdrop "$id" "$mr" "$mc" "${src[@]}"
+			return 0
+		fi
 		if [ -z "$ap" ]; then
 			dt_log "drop: window $id (${DT[$id]["app"]:-no app}) has no _drop; refused"
 			dt_notep low "%s does not take files" "${DT[$id]["title"]}"

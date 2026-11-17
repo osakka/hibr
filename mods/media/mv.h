@@ -217,9 +217,42 @@ struct mv_pl {
 	int fpsmax;
 	int feed;
 	mv_in *in[2];
+	/* The EQ: what the verb sets, under mu -- on, the preamp and ten
+	   bands in dB, a ten-band graphic equaliser's -- and a generation the
+	   sound thread compares against the one it last made coefficients
+	   for; the coefficients and each channel's history are the thread's. */
+	int eqon, eqgen, eqdone, eqrate, eqch;
+	double eqpre, eqdb[10], eqmul;
+	double eqc[10][5];
+	double *eqz;
+	/* The newest sound written to the device, as stereo frames in a
+	   ring, under mu: what spectrum and wave read. */
+	int16_t *ring;
+	int ringn, ringw;
+	/* The sound thread's newest spectrum, each bin's squared magnitude,
+	   under mu, and when it was made. */
+	double *spec, specat;
 };
 
+#ifndef MV_RINGN
+#define MV_RINGN 2048
+#endif
+#ifndef MV_FFTN
+#define MV_FFTN 1024
+#endif
+#ifndef MV_SPECMS
+#define MV_SPECMS 30
+#endif
+void mv_specupdate(mv_pl *p);
+int mv_eqsync(mv_pl *p, int ch);
+void mv_eqrun(mv_pl *p, int16_t *s, int n, int ch);
+void mv_ringpush(mv_pl *p, const int16_t *s, int n, int ch);
+int mv_ringcopy(mv_pl *p, double *l, double *r, int n);
+void mv_spectrum(mv_pl *p, int bands, str *o);
+void mv_wave(mv_pl *p, int points, str *o);
+
 int mv_load(void);
+void *mv_warm(void *arg);
 void *mv_sym(void *h, const char *nm, int *bad);
 int mv_rd32(void *p, size_t off);
 int64_t mv_rd64(void *p, size_t off);

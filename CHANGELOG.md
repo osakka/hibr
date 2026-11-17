@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.547
+
+**`media` has an equaliser, a spectrum and levels** (Gitea #590, for huiamp,
+a music player built on it). `media eq ID on|off|reset|preamp DB|band N DB`
+is a ten-band equaliser in the player's own sound thread -- a low shelf at
+60 Hz, peaks at 170 Hz to 14 kHz, a high shelf at 16 kHz, RBJ biquads, each
+±12 dB -- changed live between blocks. `media spectrum ID [BANDS]` gives the
+newest sound as log-spaced bars from 40 Hz to 16 kHz, 0-255, and `media wave
+ID [POINTS]` its peak and RMS levels and its shape. The transform is the
+sound thread's work, about every 30 ms, so a call only bands what it made:
+**6 us**, where doing it in the call was 185 us -- cheap enough for an
+`_idle` every frame.
+
+Checked: `tests/media.py` plays a 1 kHz tone through band 4 cut by 12 dB and
+gets a quarter of its level; a cut far away and an equaliser left off
+change nothing; while it plays the strongest of sixteen bars is the band
+1 kHz is in, and `wave`'s peak is the tone's.
+
+**The first player opens without waiting for FFmpeg.** Loading the
+libraries was about 41 ms inside whatever callback opened the first player
+(huiamp's `slow: input:huiamp`). They load in a thread of the module's own
+when it is loaded, and a first open by address a moment later costs 0 ms.
+
+**Files let go on a program's window reach the program** (Blit 0.3.114's
+CLIP drop). The desktop hands them to the compositor with `frames clip N
+drop WIN X Y PATH...`, as a percent-encoded `file://` uri-list the program
+may read as often as it asks -- Firefox reads once to decide and again at
+the drop -- and says "does not take files" only when the program refused
+them. mpv opens dropped files with Blit 0.3.115, which gives it its own
+Wayland output. Checked in `tests/native.py` against a stand-in that reads
+early and at the drop, then takes or refuses.
+
 ## 0.99.546
 
 **The Mac builds past the dbus module.** 0.99.545 fixed the first error a

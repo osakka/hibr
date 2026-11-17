@@ -1495,14 +1495,43 @@ fn dt_natmenu(int id, rest = "") {
 	return 0
 }
 
+# Files let go on a program's window, handed to the program through the
+# compositor (Blit 0.3.114's CLIP drop): at the cell's own pixels, as a
+# uri-list it may read as often as it asks. The desktop says "does not take
+# files" only when the program refused them -- its own answer, not a guess.
+declare -gA DT_NATDROP
+
+fn dt_natdrop(int id, int mr, int mc, ...paths) {
+	local o=1 x y seq
+
+	[ "${DT[$id]["chrome"]-}" = none ] && o=0
+	dt_natcell
+	y=$(((mr - ${DT[$id]["row"]} - o) * DT_NATCH + ${NW[$id]["gy"]:-0}))
+	x=$(((mc - ${DT[$id]["col"]} - o) * DT_NATCW + ${NW[$id]["gx"]:-0}))
+	[ "$x" -ge 0 ] || x=0
+	[ "$y" -ge 0 ] || y=0
+	if ! seq := frames clip "$DT_NATSRV" drop "${NW[$id]["bid"]}" "$x" "$y" "${paths[@]}" 2> /dev/null; then
+		dt_notep low "%s does not take files" "${DT[$id]["title"]}"
+		return 0
+	fi
+	DT_NATDROP["$seq"]=${DT[$id]["title"]}
+	return 0
+}
+
 # A program's selection said: its text is the desktop's clipboard -- kept
 # in the history unless the program marked it a secret -- and is not
 # offered back to the programs, which have it already. One that is not
 # text leaves the desktop's clipboard as it was.
 fn dt_natclip(rest = "") {
-	local sel kind t
+	local sel kind t more
 
-	read -r sel kind <<< "$rest"
+	read -r sel kind more <<< "$rest"
+	if [ "$sel" = drop ]; then
+		[ "$more" = refused ] && [ -n "${DT_NATDROP["$kind"]-}" ] &&
+			dt_notep low "%s does not take files" "${DT_NATDROP["$kind"]}"
+		unset DT_NATDROP["$kind"]
+		return 0
+	fi
 	[ "$sel" = clipboard ] || return 0
 	case $kind in
 	text | secret) ;;

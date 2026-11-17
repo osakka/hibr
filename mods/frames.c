@@ -48,6 +48,10 @@
  *   frames wait N MS           until the compositor has named its display,
  *                              no longer than MS: what the desktop starts
  *                              before its first frame needs the name
+ *   frames clip N drop WIN X Y PATH...
+ *                              files let go on program window WIN at its
+ *                              pixels X, Y, offered as a uri-list; news
+ *                              `clip drop SEQ taken|refused`
  *   frames clip N offer|clear|get clipboard|primary [-s] [TEXT]
  *                              the desktop's side of the clipboard with the
  *                              compositor's programs; news `clip SEL
@@ -75,6 +79,7 @@
 #include "hibr.h"
 #include "display.h"
 #include "blitfr.h"
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stddef.h>
@@ -137,6 +142,12 @@ typedef struct fl_srv {
 	int psec[2];
 	unsigned long pseq[2];
 	unsigned long clipn;
+	/* A drop of files on one of its programs' windows (Blit 0.3.114): the
+	   uri-list held for the program's reads, as often as it asks, under
+	   the number it went under, until the compositor says it was taken
+	   or refused. */
+	char *dtext;
+	unsigned long dseq;
 } fl_srv;
 
 void fl_clipreset(fl_srv *f);
@@ -1071,6 +1082,9 @@ void fl_clipreset(fl_srv *f)
 		f->cseq[i] = 0;
 		f->pseq[i] = 0;
 	}
+	free(f->dtext);
+	f->dtext = 0;
+	f->dseq = 0;
 }
 
 /* Send a line with a descriptor beside it, one packet. */
@@ -1215,9 +1229,23 @@ void fl_clipline(fl_srv *f, const char *m, size_t k, int fd)
 				break;
 		if (fd >= 0 && i < 2)
 			fl_clipwrite(fd, f->ctext[i]);
+		else if (fd >= 0 && f->dtext && seq == f->dseq)
+			fl_clipwrite(fd, f->dtext);
 		else if (fd >= 0)
 			close(fd);
 		fd = -1;
+	} else if (!strcmp(v.p, "dropped") && seq == f->dseq) {
+		str d;
+
+		s_init(&d);
+		s_cat(&d, "drop ");
+		s_num(&d, (long)seq);
+		s_cat(&d, strncmp(r.p, "taken", 5) ? " refused" : " taken");
+		fl_ev(f, "clip", 0, d.p);
+		s_free(&d);
+		free(f->dtext);
+		f->dtext = 0;
+		f->dseq = 0;
 	} else if (!strcmp(v.p, "clear")) {
 		for (i = 0; i < 2; i++)
 			if (f->pseq[i] == seq) {
@@ -1235,6 +1263,45 @@ out:
 	s_free(&r);
 }
 
+/* frames clip N drop WIN X Y PATH...: files let go on a program's window WIN at its own pixels X, Y, offered to it as a uri-list -- each path a file:// address, percent-encoded, a line ending CRLF -- answering every read the program makes of it until the compositor says taken or refused, which comes up as `clip drop SEQ taken|refused`; answers SEQ. */
+int fl_dropverb(sh *s, fl_srv *f, int ac, char **av)
+{
+	const char *p;
+	str u, o;
+	int i;
+
+	if (ac < 8) {
+		lg(HIBR_LERR, "usage: frames clip N drop WIN X Y PATH...");
+		return 2;
+	}
+	s_init(&u);
+	for (i = 7; i < ac; i++) {
+		s_cat(&u, "file://");
+		for (p = av[i]; *p; p++) {
+			if (isalnum((unsigned char)*p) || strchr("/-._~", *p))
+				s_ch(&u, *p);
+			else
+				s_fmt(&u, "%%%02X", (unsigned char)*p);
+		}
+		s_cat(&u, "\r\n");
+	}
+	free(f->dtext);
+	f->dtext = xs(u.p);
+	f->dseq = ++f->clipn;
+	s_free(&u);
+	s_init(&o);
+	s_fmt(&o, "CLIP drop %lu %s %s %s text/uri-list " FL_CLIPTEXT "\n",
+	      f->dseq, av[4], av[5], av[6]);
+	fl_say(f, o.p);
+	o.n = 0;
+	s_num(&o, (long)f->dseq);
+	hibr_ret(s, o.p);
+	if (!s->bind)
+		printf("%s\n", o.p);
+	s_free(&o);
+	return fl_cfd(f) >= 0 ? HIBR_OK : HIBR_FAIL;
+}
+
 /* frames clip N offer|clear|get clipboard|primary [-s] [TEXT]: the
    desktop's side of the clipboard. offer makes TEXT the desktop's selection
    for the server's programs, a secret with -s; clear takes it back; get
@@ -1244,6 +1311,8 @@ int fl_clipverb(sh *s, fl_srv *f, int ac, char **av)
 	int i, sec = 0, a = 5;
 	str o;
 
+	if (ac > 3 && !strcmp(av[3], "drop"))
+		return fl_dropverb(s, f, ac, av);
 	if (ac < 5 || (i = fl_clipsel(av[4])) < 0) {
 		lg(HIBR_LERR, "usage: frames clip N offer|clear|get clipboard|primary [-s] [TEXT]");
 		return 2;

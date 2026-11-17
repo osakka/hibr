@@ -396,7 +396,7 @@ void *mv_aud(void *arg)
 	mv_pl *p = arg;
 	int16_t *tmp = xm(1024 * 8 * sizeof *tmp);
 	mv_af *a;
-	int n, i, gen, ch = p->ao.ch, vol;
+	int n, i, gen, ch = p->ao.ch, vol, eq;
 	double pts, d;
 
 	for (;;) {
@@ -425,6 +425,7 @@ void *mv_aud(void *arg)
 		vol = p->vol;
 		for (i = 0; i < n * ch; i++)
 			tmp[i] = (int16_t)(a->s[a->off * ch + i] * vol / 100);
+		eq = mv_eqsync(p, ch);
 		gen = p->agen;
 		a->off += n;
 		p->aqd -= (double)n / p->ao.rate;
@@ -437,8 +438,14 @@ void *mv_aud(void *arg)
 		}
 		mv_wake(p);
 		pthread_mutex_unlock(&p->mu);
+		if (eq)
+			mv_eqrun(p, tmp, n, ch);
 		p->ao.write(&p->ao, tmp, n);
 		d = p->ao.delay(&p->ao);
+		pthread_mutex_lock(&p->mu);
+		mv_ringpush(p, tmp, n, ch);
+		pthread_mutex_unlock(&p->mu);
+		mv_specupdate(p);
 		pthread_mutex_lock(&p->mu);
 		if (gen == p->agen && !p->paused) {
 			p->aclock = pts + (double)n / p->ao.rate - d;
@@ -1016,5 +1023,8 @@ void mv_free(mv_pl *p)
 	free(p->vcodec);
 	free(p->acodec);
 	free(p->err);
+	free(p->eqz);
+	free(p->ring);
+	free(p->spec);
 	free(p);
 }

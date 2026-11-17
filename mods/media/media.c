@@ -218,7 +218,46 @@ void mv_usage(void)
 		      "next|info|close id | seek id seconds [-r] | volume id "
 		      "[0-100] | size id cols rows [half|ascii|mono|sixel] | mode id "
 		      "half|ascii|mono|sixel | detail id 0-3 | fps id n | draw id row "
-		      "col [-p pane] | list");
+		      "col [-p pane] | eq id [on|off|reset|preamp db|band n db] | "
+		      "spectrum id [bands] | wave id [points] | list");
+}
+
+/* media eq ID [on|off|reset|preamp DB|band N DB]: the player's equaliser, changed live; answers on|off, the preamp and the ten bands. */
+int mv_eqcmd(sh *s, mv_pl *p, int ac, char **av)
+{
+	const char *v = ac > 3 ? av[3] : "";
+	double db;
+	int b;
+	str o;
+
+	pthread_mutex_lock(&p->mu);
+	if (!strcmp(v, "on") || !strcmp(v, "off")) {
+		p->eqon = v[1] == 'n';
+	} else if (!strcmp(v, "reset")) {
+		p->eqpre = 0;
+		for (b = 0; b < 10; b++)
+			p->eqdb[b] = 0;
+	} else if (!strcmp(v, "preamp") && ac > 4) {
+		db = atof(av[4]);
+		p->eqpre = db < -12 ? -12 : db > 12 ? 12 : db;
+	} else if (!strcmp(v, "band") && ac > 5 && (b = atoi(av[4])) >= 0 && b < 10) {
+		db = atof(av[5]);
+		p->eqdb[b] = db < -12 ? -12 : db > 12 ? 12 : db;
+	} else if (*v) {
+		pthread_mutex_unlock(&p->mu);
+		mv_usage();
+		return 2;
+	}
+	p->eqgen++;
+	s_init(&o);
+	s_cat(&o, p->eqon ? "on" : "off");
+	s_fmt(&o, " %g", p->eqpre);
+	for (b = 0; b < 10; b++)
+		s_fmt(&o, " %g", p->eqdb[b]);
+	pthread_mutex_unlock(&p->mu);
+	mv_say(s, o.p);
+	s_free(&o);
+	return HIBR_OK;
 }
 
 /* media: play video and sound, drawing the picture as cells. */
@@ -391,6 +430,23 @@ int m_media(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "info"))
 		return mv_info(s, p);
+	if (!strcmp(sub, "eq"))
+		return mv_eqcmd(s, p, ac, av);
+	if (!strcmp(sub, "spectrum") || !strcmp(sub, "wave")) {
+		m = ac > 3 ? atoi(av[3]) : sub[0] == 's' ? 16 : 64;
+		if (m < 1)
+			m = 1;
+		if (m > (sub[0] == 's' ? 64 : 256))
+			m = sub[0] == 's' ? 64 : 256;
+		s_init(&b);
+		if (sub[0] == 's')
+			mv_spectrum(p, m, &b);
+		else
+			mv_wave(p, m, &b);
+		mv_say(s, b.p ? b.p : "");
+		s_free(&b);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "draw"))
 		return mv_drawcmd(s, p, ac, av);
 	lg(HIBR_LERR, "media: no subcommand %s", sub);
@@ -398,16 +454,25 @@ int m_media(sh *s, int ac, char **av)
 }
 
 /* Nothing to set up until something is opened. */
+pthread_t mv_warmth;
+int mv_warming;
+
+/* The module loaded: FFmpeg's libraries start loading in a thread of their own, so the first player opens without waiting for them. */
 int mv_ini(sh *s)
 {
 	(void)s;
+	mv_warming = pthread_create(&mv_warmth, 0, mv_warm, 0) == 0;
 	return HIBR_OK;
 }
 
-/* Close every player when the module goes. */
+/* Close every player when the module goes, after the loading thread has finished, since its code goes with the module. */
 void mv_fini(sh *s)
 {
 	(void)s;
+	if (mv_warming) {
+		pthread_join(mv_warmth, 0);
+		mv_warming = 0;
+	}
 	while (mv_pls.n)
 		mv_forget(mv_pls.p[mv_pls.n - 1]);
 	v_free(&mv_pls);

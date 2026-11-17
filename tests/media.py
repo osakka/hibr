@@ -7,7 +7,7 @@ tone -- so the suite knows exactly what it should see and hear. Without
 ffmpeg, or without the libraries, every check is skipped and the suite
 says so.
 """
-import os, shutil, struct, subprocess, sys, tempfile, wave
+import math, os, shutil, struct, subprocess, sys, tempfile, wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -83,6 +83,39 @@ f, peak2, secs = tone(W)
 check("volume scales the sound, and is kept between 0 and 100",
       abs(f - 440) < 3 and abs(peak2 - peak / 4) < 250 and out == "100\n0\n",
       (peak, peak2, out, err))
+# The equaliser and the spectrum (Gitea #590, for huiamp): a 1 kHz tone
+# through band 4 (1 kHz) cut by 12 dB comes out a quarter as loud; the
+# same cut on a band far away leaves it; and while it plays, the strongest
+# spectrum band is the one 1 kHz falls in, and wave's peak follows it.
+ff("-f", "lavfi", "-i", "sine=frequency=1000:duration=3:sample_rate=48000", "-ac", "2", "k.wav")
+out, err = hb("p := media open k.wav; sleep 1.2; media close $p", wav=W)
+f0, kpeak, secs = tone(W)
+out, err = hb("p := media open k.wav -p; media eq $p on > /dev/null; "
+              "e := media eq $p band 4 -12; echo \"$e\"; media play $p; sleep 1.2; media close $p", wav=W)
+f, cut, secs = tone(W)
+check("the equaliser cuts the band a tone is in: a 1 kHz tone 12 dB down is a "
+      "quarter as loud, and the eq says what it holds",
+      abs(f - 1000) < 5 and 0.18 < cut / kpeak < 0.33 and
+      out.strip() == "on 0 0 0 0 0 -12 0 0 0 0 0", (kpeak, cut, out, err))
+out, err = hb("p := media open k.wav -p; media eq $p on > /dev/null; media eq $p band 9 -12 > /dev/null; "
+              "media play $p; sleep 1.2; media close $p", wav=W)
+f, far, secs = tone(W)
+out, err = hb("p := media open k.wav -p; media eq $p band 4 -12 > /dev/null; "
+              "media play $p; sleep 1.2; media close $p", wav=W)
+f, off, secs = tone(W)
+check("a cut far from the tone leaves it, and an eq that is off changes nothing",
+      0.9 < far / kpeak < 1.1 and 0.95 < off / kpeak < 1.05, (kpeak, far, off, err))
+out, err = hb("p := media open k.wav; sleep 0.8; s := media spectrum $p 16; echo \"$s\"; "
+              "w := media wave $p 32; echo \"$w\"; media close $p", wav=W)
+lines = out.split("\n")
+bars = [int(x) for x in lines[0].split()] if lines and lines[0] else []
+want = int(16 * math.log(1000 / 40.0) / math.log(16000 / 40.0))
+lv = [int(x) for x in lines[1].split()] if len(lines) > 1 and lines[1] else []
+check("while a 1 kHz tone plays, the strongest of sixteen spectrum bands is the one 1 kHz is in",
+      len(bars) == 16 and bars.index(max(bars)) == want and max(bars) > 150, (bars, want, err))
+check("and wave says its level, both sides, and its shape",
+      len(lv) == 4 and abs(lv[0] - kpeak * 255 / 32768) < 25 and lv[0] == lv[1] and
+      len(lines) > 2 and len(lines[2].split()) == 32, (lv, kpeak, lines[:3]))
 out, err = hb("p := media open t.webm; i := media info $p; "
               'echo "${i["video"]} ${i["audio"]}"; sleep 0.6; media frame $p; echo $?')
 check("WebM with VP9 and Opus plays too", out == "vp9 opus\n0\n", out + err)
@@ -354,4 +387,4 @@ check("play.hibr's --help comes from its declarations",
       "--mode" in out and "--start" in out and "--paused" in out, out)
 
 shutil.rmtree(D, True)
-report(27)
+report(31)

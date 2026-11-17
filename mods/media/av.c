@@ -77,6 +77,26 @@ void *mv_dlopen(const char *nm, int maj)
 	return h;
 }
 
+/* Open FFmpeg's libraries ahead of the first player, in a thread of the module's own, and keep them open: loading them was about 51 ms inside whatever callback opened the first player (huiamp, 2026-11-17). It decides and reports nothing -- mv_load still does, at the first open, finding them already in memory. */
+void *mv_warm(void *arg)
+{
+	const mv_tab *t;
+	void *f;
+
+	(void)arg;
+	for (t = mv_tabs; t->maj; t++) {
+		f = mv_dlopen("avformat", t->maj);
+		if (!f)
+			continue;
+		mv_dlopen("avcodec", t->maj);
+		mv_dlopen("avutil", t->umaj);
+		mv_dlopen("swscale", t->smaj);
+		mv_dlopen("swresample", t->rmaj);
+		break;
+	}
+	return 0;
+}
+
 /* Look up one symbol, counting what is missing. */
 void *mv_sym(void *h, const char *nm, int *bad)
 {

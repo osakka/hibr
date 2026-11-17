@@ -77,6 +77,10 @@ open(p, "w").write(
     "DT_BARDIRS+=(\"$DT_HERE/menubar\")\ndt_menubar\n"
     "DT_KEYS[\"kbdnext\"]=ctrl-alt-k\n"
     "fn dt_imemethod() { ret shout; }\nfn dt_imeopen(m) { ret 1; }\ndt_imeclose() { return 0; }\nfn dt_imelearn(m, lat, text) { echo \"$m $lat $text\" > \"$NTAUGHT\"; }\n"
+    "tst_drop() { [ -f \"$NTDROP\" ] || return 0; local f n id; read -r f < \"$NTDROP\"; rm -f \"$NTDROP\"; "
+    "for n in \"${!NWN[@]}\"; do id=${NWN[$n]}; DT_DNDS=(\"$f\"); "
+    "dt_ondrop $((DT[$id][\"row\"] + 3)) $((DT[$id][\"col\"] + 3)) \"\"; done; dt_want 30; }\n"
+    "dt_ticker tst_drop\n"
     "dt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
@@ -92,7 +96,7 @@ t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "loc
               "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D,
               "WAYLAND_DISPLAY": None, "DISPLAY": None,
               "DT_PROGAUTO": "1", "XDG_DATA_DIRS": os.path.join(D, "share"),
-              "NTAUGHT": MARK + ".taught"})
+              "NTAUGHT": MARK + ".taught", "NTDROP": MARK + ".drop"})
 
 
 def scr():
@@ -618,6 +622,30 @@ pc = wait(lambda: comp("clipclear"))
 check("a secret goes marked as one, and its clear takes it back from the "
       "programs too", ps and ps[0]["secret"] and pc, (comp("pasted")[-2:], comp("clipclear")))
 
+# Files let go on a program's window reach the program (Blit 0.3.114's CLIP
+# drop): offered as a uri-list it may read as often as it asks, each path a
+# percent-encoded file:// address, and text/plain the same; the desktop
+# says "does not take files" only when the program refused them.
+DPATH = os.path.join(D, "a dropped file.txt")
+open(DPATH, "w").write("x\n")
+open(MARK + ".drop", "w").write(DPATH + "\n")
+t.keys([b"x"])
+dr = wait(lambda: comp("drop"))
+want = "file://" + DPATH.replace(" ", "%20") + "\r\n"
+check("a file let go on a program's window is offered to it, read early and "
+      "at the drop, as a percent-encoded file:// uri-list, text/plain the same",
+      dr and dr[0]["reads"] == [want, want] and "text/uri-list" in dr[0]["types"] and
+      int(dr[0]["x"]) >= 0 and int(dr[0]["y"]) >= 0, comp("drop"))
+check("and a program that takes it gets no note that it does not",
+      dr and dr[0]["taken"] and not scr().find("does not take files"), (comp("drop"), scr()))
+open(complog + ".droprefuse", "w").close()
+open(MARK + ".drop", "w").write(DPATH + "\n")
+t.keys([b"x"])
+dr2 = wait(lambda: len(comp("drop")) >= 2 and scr().find("does not take files"))
+check("and one that refuses it is named as not taking files, its own answer",
+      dr2 and not comp("drop")[1]["taken"], (comp("drop"), scr()))
+os.unlink(complog + ".droprefuse")
+
 # A size line is sent when it says something new: the same size and state
 # twice in a row -- a decoration said again, a focus change -- before any restart (which tells a reconnected
 # compositor again, rightly), was a focus change clearing what had been sent, seen as a
@@ -1112,4 +1140,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(88)
+report(91)

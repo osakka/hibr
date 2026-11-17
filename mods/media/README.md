@@ -43,6 +43,9 @@ media close $p
 | `media info ID` | `pos`, `dur`, `shown` (the time of the frame shown), `paused`, `ended`, `loading` (1 while an address is still connecting, and nothing of its streams is known yet), `width`, `height`, `volume`, `video`, `audio` (codecs), `output` (where the sound goes), `mode` (what was asked for: `half`, `ascii`, `mono`, or `sixel` for pixels), `drawn` (what the last draw did: `pixels`, or `cells` when the picture fell back to cells -- the terminal draws no pictures, has not said yet, or the frame did not fit), `error`; a map with `:=` |
 | `media feed [-p]` | a player with no source of its own: its picture and sound arrive on pipes |
 | `media pipe ID video\|audio` | a fed player's pipe for one stream, the end to write to as the result; each stream is a container of its own (fragmented MP4, WebM), from its init segment on -- what `web take` writes |
+| `media eq ID [on\|off\|reset\|preamp DB\|band N DB]` | the player's ten-band equaliser, changed live between blocks of sound: a low shelf at 60 Hz, peaks at 170, 310, 600, 1k, 3k, 6k, 12k and 14k (Q 1) and a high shelf at 16 kHz, RBJ biquads in the sound thread, each band and the preamp ±12 dB; off by default. Answers `on\|off PREAMP B0 ... B9` (Gitea #590) |
+| `media spectrum ID [BANDS]` | the newest sound as BANDS bars (default 16, at most 64), log-spaced from 40 Hz to 16 kHz, each the strongest bin from -70 to 0 dBFS onto 0-255; all zeros before any sound has played. The sound thread transforms the newest 1024 frames about every 30 ms, so a call only bands what it made: 6 us, cheap enough for an `_idle` every frame |
+| `media wave ID [POINTS]` | the newest sound's `PEAKL PEAKR RMSL RMSR` (0-255) on one line, and POINTS samples of it mixed to mono (default 64, at most 256), -128 to 127, on the next; 27 us a call |
 | `media close ID`, `media close all`, `media list` | |
 
 ## How it plays

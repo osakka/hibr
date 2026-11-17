@@ -223,6 +223,29 @@ def clipline(w, fds):
         os.close(r)
         note(kind="pasted", sel=w[3], text=got.decode(errors="replace"),
              secret="x-kde-passwordManagerHint" in w[4:])
+    elif w[1] == "drop" and len(w) >= 6:
+        # Files let go on a program's window (Blit 0.3.114): read as a
+        # real program does -- Firefox reads the list once to decide and
+        # again at the drop, and GTK reads text/plain -- then taken, or
+        # refused when the suite says so.
+        reads = []
+        for typ in ("text/uri-list", "text/plain;charset=utf-8"):
+            r, wr = os.pipe()
+            socket.send_fds(s, [("CLIP read %s %s" % (w[2], typ)).encode()], [wr])
+            os.close(wr)
+            got = b""
+            end = time.time() + 3
+            while time.time() < end:
+                b = os.read(r, 65536)
+                if not b:
+                    break
+                got += b
+            os.close(r)
+            reads.append(got.decode(errors="replace"))
+        refuse = os.path.exists(LOG + ".droprefuse")
+        note(kind="drop", seq=w[2], win=w[3], x=w[4], y=w[5], types=w[6:], reads=reads,
+             taken=not refuse)
+        say("CLIP dropped %s %s" % (w[2], "refused" if refuse else "taken"))
     elif w[1] == "read" and fds:
         t = CLIPS.get(w[2])
         if t is not None:
