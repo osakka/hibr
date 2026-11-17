@@ -25,6 +25,8 @@ NT_LEVEL="${NT_LEVEL-1}"
 command -v dt_keep > /dev/null && dt_keep NT_LEVEL
 fn nt_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 1 "n=${NT[$id]["n"]:-0} lv=$NT_LEVEL p=${NT[$id]["p"]-} d=${NT[$id]["d"]-} end"
+	[ -n "${NT[$id]["pic"]-}" ] && img draw PICPATH 2 1 2 4 -p "w$id" -m blocks 2> /dev/null
+	return 0
 }
 nt_menus() {
 	local id=$DT_FOCUS
@@ -34,11 +36,13 @@ nt_menus() {
 	dt_menu "Thing"
 	dt_item "Bump" b nt_bump "$id"
 	dt_item "Level Up" l nt_level
+	dt_item "Show Picture" s nt_pic "$id"
 	dt_sub "More"
 	dt_item "Reset" r nt_reset "$id"
 	dt_end
 }
 fn nt_bump(int id) { NT[$id]["n"]=$(( ${NT[$id]["n"]:-0} + 1 )); dt_want 30; return 0; }
+fn nt_pic(int id) { need img; NT[$id]["pic"]=1; dt_want 30; return 0; }
 fn nt_reset(int id) { NT[$id]["n"]=0; dt_want 30; return 0; }
 nt_level() { NT_LEVEL=$((NT_LEVEL + 1)); dt_save; dt_want 30; return 0; }
 fn nt_copy(int id) { ret "copied-${NT[$id]["n"]:-0}"; }
@@ -78,7 +82,7 @@ dt_close
 '''
 
 app = scratch("isoapps-nt.hibr")
-open(app, "w").write(APP)
+open(app, "w").write(APP.replace("PICPATH", tree("tests/img-2x2.png")))
 p = scratch("isoapps.hibr")
 open(p, "w").write(SESSION % (load(MOD), WM, OUT, MARK, MARK, MARK, app))
 open(DROPPED, "w").write("x\n")
@@ -125,6 +129,15 @@ if os.environ.get("DUMPLOG"):
     print("conf:", open(conf).read().replace("\n"," ")[:600] if os.path.exists(conf) else "none", conf)
 check("a setting the app changes is saved in the desktop's own file",
       ok and str(saved) == "2", (saved, t.screen()))
+def halves(sc):
+    return sum(sc.text().count(ch) for ch in "\u2580\u2584")
+
+
+before = halves(t.screen())
+do("tst_menu 'Show Picture'")
+pic = t.until(lambda sc: halves(sc) >= before + 2, tries=60, step=0.1)
+check("a picture the app draws comes through as its cells (half blocks: pixels do not cross yet)",
+      halves(pic) >= before + 2, (before, halves(pic), pic))
 do("dt_edit copy")
 got = None
 deadline = time.time() + 5
@@ -163,4 +176,4 @@ t.quit(b"q", 1.0)
 for f in (app, p, MARK, OUT, DROPPED):
     if os.path.exists(f):
         os.unlink(f)
-report(9)
+report(10)
