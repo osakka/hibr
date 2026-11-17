@@ -103,3 +103,15 @@ Two windows opened before the host had bound its socket started two hosts
 at first; the desktop knows its host by pid, not by its socket, since. Not covered: the app's
 menus (its own desktop's, drawn in its window), its settings (read at
 start, not saved), the clipboard, drops and pictures.
+
+Dry run with real apps, hosted (2026-11-17): Calculator, Files and the
+Audio Player each open, draw, take keys and put their menus on the bar --
+7 + 8 = 15 in a calculator in a process of its own. A hosted window now
+looks like the same app's ordinary one: the app is named as itself on the
+bar, and its window covers its own screen from one cell past each edge, so
+its body starts at row 1, column 1 as every app assumes. Not yet, each
+found by the run: an app's retitle (Files [folder]), its second windows and
+dialogs (they open inside its own screen), its menu bar item and its
+Control Panel pane (both its own desktop's, unseen), a fixed-size app's
+window (it is resizable, as a terminal is), and pixels (pictures come
+through as half blocks).

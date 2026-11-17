@@ -25,7 +25,7 @@ NT_LEVEL="${NT_LEVEL-1}"
 command -v dt_keep > /dev/null && dt_keep NT_LEVEL
 fn nt_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 1 "n=${NT[$id]["n"]:-0} lv=$NT_LEVEL p=${NT[$id]["p"]-} d=${NT[$id]["d"]-} end"
-	console put -p "w$id" 0 1 "size ${h}x${w} "
+	console put -p "w$id" 4 1 "size ${h}x${w} "
 	[ -n "${NT[$id]["pic"]-}" ] && img draw PICPATH 2 1 2 4 -p "w$id" -m blocks 2> /dev/null
 	return 0
 }
