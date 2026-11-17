@@ -55,6 +55,10 @@ def one(name):
     p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=env)
     out = p.stdout + p.stderr
     open(os.path.join(LOGS, name + ".log"), "w").write(out)
+    # Its exit status beside it: a suite that exits 0 ran to the end
+    # whatever its last line says, which is what covmap asks (the inspect
+    # suites end "9 symbol limit cases passed" and "OK", not a count).
+    open(os.path.join(LOGS, name + ".exit"), "w").write("%d\n" % p.returncode)
     lines = out.splitlines()
     summary = next((l for l in reversed(lines) if "passed" in l), "no summary")
     bad = [l for l in lines if l.startswith("FAIL") or l.startswith("failed:")
