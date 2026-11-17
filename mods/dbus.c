@@ -1392,9 +1392,11 @@ int bu_reachable(const char *addr)
 	memset(&sa, 0, sizeof sa);
 	sa.sun_family = AF_UNIX;
 	memcpy(sa.sun_path, p, n);
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0)
 		return 0;
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+	fcntl(fd, F_SETFD, FD_CLOEXEC);
 	ok = connect(fd, (struct sockaddr *)&sa, sizeof sa) == 0 || errno == EINPROGRESS;
 	close(fd);
 	return ok;

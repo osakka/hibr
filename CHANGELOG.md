@@ -1,5 +1,69 @@
 # Changelog
 
+## 0.99.546
+
+**The Mac builds past the dbus module.** 0.99.545 fixed the first error a
+Mac build stopped at, and the second was behind it: `mods/dbus.c` opened a
+socket with `SOCK_NONBLOCK | SOCK_CLOEXEC`, which only Linux has. It sets
+both with `fcntl` now, which every system has. And `tests/999-linux-only.t`
+names any source file that uses a Linux-only name -- `accept4`, `pipe2`,
+`SOCK_CLOEXEC`, `memfd_create`, `prctl`, inotify and kin -- without an
+`__linux__` or `__APPLE__` branch or a fallback for the name, which it
+does for `dbus.c` against 0.99.545. A Mac has not built since 0.99.502, so
+this is the second error found and not proven the last.
+
+**A slow disk no longer holds a frame for the desktop's three regular
+writes.** The owner's root volume
+spans a SanDisk USB stick, and Blit's sampler caught it: single writes of
+8 to 10 seconds, the kernel's io-full stall at 73-93% of every second, and
+the desktop waiting in the block layer's write throttling (`rq_qos_wait`)
+with `held: pass ... slowest call mv ... restart.hibr:209` -- the crash
+snapshot's rename, made from inside the frame loop. The desktop's own
+settings, its crash snapshot and its clipboard history are now made in the
+loop and written by a child (`dt_writelater`): beside the file, then renamed
+over, one writer a file with only the newest waiting text written next, and
+every waiting write finished before the desktop ends or restarts. A
+restart's own state is still written at once, since the next desktop reads
+it the moment this one has gone. Apps may use `dt_writelater` too
+(`programs/desktop/WRITING.md`).
+
+**A read sees the desktop's own last write.** Before the desktop reads back
+a file it writes in the background -- its settings at `dt_load`, the
+clipboard's history at start -- it finishes that file's waiting write
+(`dt_writesettle`). The first gate found both: two copies saved a moment
+before start were read back as the first alone, and a save then a load read
+the settings from before the save.
+
+What this does not cover, said plainly: the log's own lines are still
+appended in the loop (a pipe to a logger could end the desktop with
+SIGPIPE and lose the last lines before a crash); a few rare single writes
+-- the menus' and programs' lists, the locale, the language, the control
+socket, the Vault, Stickies' notes -- still write where they are; and
+every read waits on the same disk. A save changed during a slow write is
+lost if the desktop dies before the next one, quitting waits for the disk,
+and each save forks the desktop. On the owner's machine the volume itself
+is the rest of the fix.
+
+Checked: `tests/slowrename.c`, preloaded, makes every rename under a
+session's own folders take two seconds. Against 0.99.545 the key that saves
+the settings is drawn 2.02 s late and one after a snapshot 0.84 s late;
+now every key is drawn within half a second, and the save is on the disk
+when the desktop has ended.
+
+**A stall says how much of it was the process's own work.** Under the
+wall-clock rule every `held:` and `slow:` line now carries the processor
+time the process had over it: a stall with almost none was the system
+holding the process -- a disk, the kernel -- and not code. `slowest`
+answers a fifth field for it, and answers while armed even when no single
+command was slow, since a spin is many fast commands; read with `:=`, as a
+forked `$( )` starts its own clock again and says `-`.
+
+**The sound suite passes again, all 41** (Gitea #588). Its last failing
+check clicked Volume on Menu Bar's checkbox twice, from when a row took a
+click to select and a second to act; since 2026-11-13 one click switches a
+checkbox, so two turned it off and back on. Nobody saw it, because PipeWire
+1.4 stopped the suite from running that same day.
+
 ## 0.99.545
 
 **The Mac builds again.** 0.99.535's tray-icon cache in `mods/img/img.c`

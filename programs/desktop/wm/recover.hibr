@@ -199,6 +199,7 @@ fn dt_onstop(sig) {
 	dt_hwstop
 	f := dt_snapfile
 	[ -d "$DT_RSDIR" ] || mkdir -p "$DT_RSDIR" 2> /dev/null
+	dt_has dt_writedrop && dt_writedrop "$f"
 	if dt_rswrite "$f" 0 stop; then
 		dt_rslog "stopped by SIG$sig: ${#DT[@]} windows written to $f"
 	else
@@ -215,6 +216,7 @@ dt_snapdrop() {
 
 	[ -z "$DT_STOPPING" ] || return 0
 	f := dt_snapfile
+	dt_has dt_writedrop && dt_writedrop "$f"
 	rm -f "$f" "$f.new" "$f.$$.new" "$f.taken" "$f.loop" 2> /dev/null
 	return 0
 }

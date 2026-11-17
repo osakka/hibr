@@ -116,7 +116,7 @@ fn dt_spent(name, int us, app = "") {
 # A callback took longer than a frame: a note in the log, at most once a
 # minute for each -- and past DT_HOLDMS a stall, said as one.
 fn dt_slow(name, int us, app = "", rd = "") {
-	local now ms=$((us / 1000)) t held= waited= sw sms scnt swhere swhat named=
+	local now ms=$((us / 1000)) t held= waited= sw sms scnt scpu swhere swhat named=
 
 	now := dt_ms
 	if [ "$ms" -ge "$DT_HOLDMS" ] && [ "$DT_HOLDBY" = cpu ]; then
@@ -151,9 +151,17 @@ fn dt_slow(name, int us, app = "", rd = "") {
 			sw := slowest
 		fi
 		if [ -n "$sw" ]; then
-			IFS=$'\t' read -r sms scnt swhere swhat <<< "$sw"
-			named="; slowest call $swhat, $sms ms at $swhere"
-			[ "$scnt" -gt 1 ] && named+=" ($scnt calls over $DT_SLOWMS ms)"
+			IFS=$'\t' read -r sms scnt scpu swhere swhat <<< "$sw"
+			# How much of it the process was on the processor: a
+			# long stall with almost none was the system holding
+			# the process -- a disk, the kernel -- and not its own
+			# work. The owner's 4.3 s in a one-entry `unset` was
+			# the case this tells apart (0.99.546).
+			[ "$DT_HOLDBY" = cpu ] || named="; ${scpu} ms of it on the processor"
+			if [ "$sms" -gt 0 ]; then
+				named+="; slowest call $swhat, $sms ms at $swhere"
+				[ "$scnt" -gt 1 ] && named+=" ($scnt calls over $DT_SLOWMS ms)"
+			fi
 		fi
 		if [ -n "$held" ]; then
 			dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"

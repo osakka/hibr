@@ -105,6 +105,14 @@ dt_restart() {
 	# Full-screen windows go back to their own places first, so the state
 	# keeps where they were and not the whole display.
 	dt_fullendall
+	# A crash snapshot still waiting is not worth a wait on a slow disk:
+	# the restart's own state, written below, is what comes back.
+	if dt_has dt_writedrop; then
+		local snap
+		snap := dt_snapfile
+		dt_writedrop "$snap"
+		dt_writeflush
+	fi
 	if ! dt_rswrite "$f" 1; then
 		dt_notep high "Cannot restart: the state could not be written"
 		return 1
@@ -206,6 +214,16 @@ fn dt_rswrite(f, int carry, why = "restart") {
 	# its supervisor stopped by one signal both write, and with one
 	# name for both, one renamed it from under the other ("mv: cannot
 	# stat ... .new"), and the windows were not written down at all.
+	# The crash snapshot is written by a child, every DT_SNAPMS from the
+	# frame loop, so a slow disk delays it and never a frame (0.99.546).
+	# A restart or a stop is written here and now: the next desktop
+	# reads it the moment this one has gone.
+	if [ "$why" = crash ]; then
+		local j
+		j := json emit DT_RS 2> /dev/null || return 1
+		dt_writelater "$f" "$j"$'\n'
+		return 0
+	fi
 	json emit DT_RS > "$f.$$.new" 2> /dev/null && mv -f "$f.$$.new" "$f"
 }
 

@@ -482,10 +482,11 @@ try:
     r = sc.find("Volume on Menu Bar")
     box = sc.row(r[0]).find("[x]") if r else -1
     if r and box > 0:
-        # The first click on a row selects it, the second acts: the
-        # Control Panel's own rule, for every row.
-        sc = srun([press(r[0], box + 1), release(r[0], box + 1), 0.3,
-                   press(r[0], box + 1), release(r[0], box + 1)], panel=True,
+        # One click on a checkbox switches it, since 2026-11-13 (a row
+        # took a click to select and a second to act before then): two
+        # clicks here turned it off and straight back on, which nobody saw
+        # while PipeWire 1.4 kept the suite from running at all (#588).
+        sc = srun([press(r[0], box + 1), release(r[0], box + 1)], panel=True,
                   until=lambda sc: "♪" not in sc.row(0))
     check("and Volume on Menu Bar off takes the speaker off the bar",
           r is not None and "♪" not in bar(sc), (bar(sc), sc))

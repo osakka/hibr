@@ -7153,6 +7153,12 @@ check("and the log names the stall, for whoever wrote it", len(held) >= 1, held)
 named = [l for l in held if "slowest call sleep, " in l and (slwp + ":") in l]
 check("and the line names the slowest call inside the callback, and its file and line",
       len(named) >= 1, held)
+# And says how much of it was the shell's own work: the app slept, so
+# almost none -- the reading that told the owner's 4.3 s `unset` was the
+# disk and not code (0.99.546).
+cpus = [int(m.group(1)) for l in held for m in [re.search(r"; (\d+) ms of it on the processor", l)] if m]
+check("and how little of it was on the processor, for an app that slept",
+      cpus and min(cpus) < 100, held)
 for fn in (SLWMARK, slwp):
     if os.path.exists(fn):
         os.unlink(fn)
@@ -7171,6 +7177,21 @@ why = [l for l in open(swt.log, errors="replace")
        if ("held: slwtk" in l or "slow: slwtk" in l) and "-- events 180 ms (new 7 180 ms)" in l]
 swt.quit(b"q", 1.0)
 check("a slow ticker's line says what its time went on, as the ticker said it", len(why) >= 1, why)
+# A ticker that spins instead is on the processor for most of it.
+expect(r"(held|slow): spintk")
+spp = scratch("desktop-spintk.hibr")
+open(spp, "w").write("%s. %s\ndt_open\n"
+                     "spintk() { local i; for ((i = 0; i < 300000; i++)); do :; done; return 0; }\n"
+                     "dt_ticker spintk\ndt_run\ndt_close\n" % (load(MOD), WM))
+spt = Term(spp, env={"DT_HOLDMS": "100", "DT_HOLDBY": "wall"}, rows=ROWS, cols=COLS, settle=0.6)
+spt.collect(1.5)
+spl = [l for l in open(spt.log, errors="replace") if "held: spintk" in l or "slow: spintk" in l]
+spt.quit(b"q", 1.0)
+spc = [int(m.group(1)) for l in spl for m in [re.search(r"; (\d+) ms of it on the processor", l)] if m]
+check("and a ticker that spins was on the processor for most of its stall",
+      spc and max(spc) >= 100, spl)
+if os.path.exists(spp):
+    os.unlink(spp)
 if os.path.exists(swp):
     os.unlink(swp)
 # A stall in no callback at all -- a bar item's hook, the menus, the
@@ -7227,6 +7248,65 @@ check("and a window whose app has no _drop refuses it, saying why in the log",
 for f in (drp, DRMARK):
     if os.path.exists(f):
         os.unlink(f)
+
+# A slow disk delays a save and never a frame (0.99.546). The owner's root
+# volume spans a USB stick at 24 ms a write, and the crash snapshot's
+# rename held their desktop 2.7 s from inside the frame loop. Here every
+# rename under this session's own folders waits two seconds
+# (tests/slowrename.c, preloaded), and a key typed just after a snapshot
+# falls due, and one typed just after a settings save, must each be drawn
+# within half a second.
+SLD = scratch("desktop-slowdisk")
+shutil.rmtree(SLD, True)
+os.makedirs(SLD)
+SLSO = os.path.join(SLD, "slowrename.so")
+# The stand-in is a Linux preload; elsewhere the checks below say so and pass.
+built = sys.platform.startswith("linux") and subprocess.run(
+    ["cc", "-shared", "-fPIC", "-o", SLSO, tree("tests/slowrename.c"), "-ldl"],
+    capture_output=True).returncode == 0
+NOSLOW = not sys.platform.startswith("linux")
+slp = os.path.join(SLD, "session.hibr")
+open(slp, "w").write(
+    "%s. %s\ndt_open\n"
+    "declare -gA SLW\n"
+    "fn slw_draw(int id, int h, int w, int row, int col) { console put -p \"w$id\" 1 1 \"got: ${SLW[$id]:-none}\"; }\n"
+    "fn slw_key(int id, key) { SLW[$id]=$key; [ \"$key\" = s ] && dt_save\n"
+    "  if [ \"$key\" = k ]; then dt_clipset kept-text copy; DT_CLIPKEEP=0; dt_clipsave; fi; return 0; }\n"
+    "dt_app slw \"Slow Disk\" 6 30\ndt_new \"Slow Disk\" 6 30 3 4 slw\n"
+    "dt_run\ndt_close\n" % (load(MOD), WM))
+slt = Term(slp, env={"LD_PRELOAD": SLSO if built else "", "HIBR_SLOWDIR": SLD,
+                     "XDG_CONFIG_HOME": os.path.join(SLD, "config"),
+                     "XDG_STATE_HOME": os.path.join(SLD, "state"),
+                     "DT_SUPERVISED": "1", "DT_SNAPMS": "200"},
+           rows=ROWS, cols=COLS, settle=0.8)
+slt.until("got: none", tries=60, step=0.05)
+# Every key is timed, the one that saves included: a save made in the
+# loop holds the very key that asked for it (2.02 s against 0.99.545),
+# and a snapshot falling due holds the key after it (0.84 s).
+waits = {}
+for k in "abscdk":
+    t0 = time.time()
+    slt.send(k.encode(), settle=0, collect=0)
+    sc = slt.until("got: " + k, tries=200, step=0.02)
+    waits[k] = round(time.time() - t0, 2) if sc.find("got: " + k) else None
+    time.sleep(0.4)
+slt.quit(b"q", 4.0)
+snapf = [f for f in os.listdir(os.path.join(SLD, "state", "hibr", "restart"))] \
+    if os.path.isdir(os.path.join(SLD, "state", "hibr", "restart")) else []
+check("with crash snapshots falling due on a disk whose renames take two "
+      "seconds, every key is drawn within half a second",
+      NOSLOW or built and snapf and all(waits[k] is not None and waits[k] < 0.5 for k in "abcd"),
+      (built, waits, snapf))
+check("and so is the key that saves the settings",
+      NOSLOW or built and waits["s"] is not None and waits["s"] < 0.5, (built, waits))
+check("and the save still reaches the disk by the time the desktop has ended",
+      os.path.exists(os.path.join(SLD, "config", "hibr", "desktop.json")), os.listdir(SLD))
+# Keeping the clipboard's history turned off while its write is still
+# going: the write waiting and the one in flight must not put it back.
+clipf = os.path.join(SLD, "state", "hibr", "clipboard.json")
+check("and a history whose keeping is turned off mid-write is not left on the disk",
+      NOSLOW or built and not os.path.exists(clipf), (built, waits))
+shutil.rmtree(SLD, True)
 
 # A field the window has stopped drawing is not a field any more: a press
 # where it was goes to the app. The desktop kept the last focused field's
@@ -10375,4 +10455,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1115)
+report(1121)

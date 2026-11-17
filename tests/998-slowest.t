@@ -8,22 +8,34 @@ slowest on 200
 f
 eval "true"
 env PASS=hunter2 true
-IFS=$'\t' read -r ms n where what <<< "$(slowest)"
+IFS=$'\t' read -r ms n cpu where what <<< "$(slowest)"
 [ "$ms" -ge 250 ] && [ "$ms" -lt 500 ] && echo "inner: the sleep inside f, not f and not the earlier one"
 [ "$n" -ge 1 ] && echo "inner: at least one call over the budget"
 echo "inner: $what"
 case $where in *998-slowest.t:6) echo "inner: at the line of the sleep inside f" ;; *) echo "inner at $where" ;; esac
-IFS=$'\t' read -r ms n where what <<< "$(slowest all)"
+IFS=$'\t' read -r ms n cpu where what <<< "$(slowest all)"
 [ "$ms" -ge 450 ] && echo "all: the longer sleep, since start"
 [ "$n" -ge 2 ] && echo "all: both sleeps over the budget"
 slowest all | grep -c hunter2
 slowest start 0
 env PASS=hunter2 sleep 0.25
 slowest all | grep -c hunter2
-slowest all | cut -f4
+slowest all | cut -f5
 slowest off
 sleep 0.3
-IFS=$'\t' read -r ms n where what <<< "$(slowest all)"
+IFS=$'\t' read -r ms n cpu where what <<< "$(slowest all)"
 [ "$ms" -lt 300 ] && echo "off: nothing more is recorded"
+slowest on 200
+sleep 0.3
+x := slowest
+IFS=$'\t' read -r ms n cpu where what <<< "$x"
+[ "$cpu" -lt $((ms / 4)) ] && echo "cpu: a sleep spends almost nothing on the processor"
+slowest on 200
+for ((i = 0; i < 300000; i++)); do :; done
+x := slowest
+IFS=$'\t' read -r ms n cpu where what <<< "$x"
+[ "$cpu" -ge 50 ] && echo "cpu: a spin is on the processor"
+echo "cpu from a forked read: $(slowest | cut -f3)"
+slowest off
 slowest nonsense 2> /dev/null
 echo "a bad verb: $?"

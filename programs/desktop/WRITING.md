@@ -300,6 +300,19 @@ find, never for the person using it to pay for. `desktop ctl stats` shows each
 callback's total and its longest single run, `max_ms`; read the second,
 since a callback that is slow once a second is invisible in an average.
 
+**A file you write from a callback is written later, by a child.** A disk
+can be slow -- the owner's root volume spans a USB stick whose writes took
+8 to 10 seconds -- and a write or a rename made in a callback holds every
+display while it waits. `dt_writelater FILE TEXT [600]` makes the text now
+and has a child write it beside the file and rename it over, whole or not
+at all; a second save of the same file while the first is still going
+waits, and only the newest is written, so the last save wins; and the
+desktop finishes every waiting write before it ends or restarts. The
+desktop's own settings, crash snapshot and clipboard history are written
+this way (0.99.546). `600` makes the file readable by its owner alone. A
+file you only read is not covered: reading waits on the disk too, so read
+what you need once, when the window opens, rather than every frame.
+
 **A window that is expensive to draw says when it has changed.** The desktop
 asks `<app>_dirty id` before it draws a window: succeed when something in it
 has changed, fail when it is exactly as last drawn, and the window is left

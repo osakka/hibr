@@ -139,25 +139,24 @@ dt_clipsave() {
 	local -a order
 
 	if [ "$DT_CLIPKEEP" != 1 ]; then
+		dt_has dt_writedrop && dt_writedrop "$DT_CLIPFILE"
 		[ -e "$DT_CLIPFILE" ] && rm -f "$DT_CLIPFILE" 2> /dev/null
 		return 0
 	fi
 	[ -d "$d" ] || mkdir -p "$d" 2> /dev/null || return 0
-	if [ ! -e "$DT_CLIPFILE" ]; then
-		: > "$DT_CLIPFILE" 2> /dev/null || return 0
-		chmod 600 "$DT_CLIPFILE" 2> /dev/null
-	fi
 	if [ "${#DT_CHORDER[@]}" = 0 ]; then
-		echo "{}" > "$DT_CLIPFILE"
+		dt_writelater "$DT_CLIPFILE" "{}"$'\n' 600
 		return 0
 	fi
-	json emit DT_CH > "$DT_CLIPFILE" 2> /dev/null
+	id := json emit DT_CH 2> /dev/null || return 0
+	dt_writelater "$DT_CLIPFILE" "$id"$'\n' 600
 }
 
 # Read the history back at start, in the order it was kept.
 dt_clipload() {
 	local id
 
+	dt_has dt_writesettle && dt_writesettle "$DT_CLIPFILE"
 	[ "$DT_CLIPKEEP" = 1 ] && [ -s "$DT_CLIPFILE" ] || return 0
 	json parse DT_CH < "$DT_CLIPFILE" 2> /dev/null || return 0
 	DT_CHORDER=()

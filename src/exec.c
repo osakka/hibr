@@ -1747,6 +1747,8 @@ void ex_retnone(sh *s, const char *fn, int st)
 int ex_slon;
 long long ex_slacc, ex_slbud, ex_slmax[2];
 unsigned ex_slgen, ex_slover[2];
+long long ex_slcpu[2];
+pid_t ex_slpid;
 str ex_slwhat[2], ex_slwhere[2];
 
 /* Milliseconds on a clock nobody sets, the cheapest one the platform has: `slowest` needs a frame's resolution, not a nanosecond's. */
@@ -1801,9 +1803,21 @@ void ex_slnote(sh *s, long long t0, long long a0, int ac, char **av)
 	}
 }
 
+/* The processor time this thread -- the shell's own, not a module's decoder -- has had, in milliseconds: a stall that had almost none of it was the system holding the process, not its own work. */
+long long ex_slcpums(void)
+{
+	struct timespec t;
+
+	if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t) != 0)
+		return 0;
+	return (long long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
 /* Forget one record of `slowest`: 0 is the one since `start`, 1 the one since `on`. */
 void ex_slreset(int i)
 {
+	ex_slcpu[i] = ex_slcpums();
+	ex_slpid = getpid();
 	ex_slmax[i] = 0;
 	ex_slover[i] = 0;
 	ex_slwhat[i].n = 0;

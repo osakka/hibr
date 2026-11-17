@@ -569,6 +569,7 @@ dt_load() {
 	local v k i ext
 	local -a argv
 
+	dt_has dt_writesettle && dt_writesettle "$DT_CONF"
 	unset DT_CONFJ
 	declare -gA DT_CONFJ
 	if [ -r "$DT_CONF" ] && ! json parse DT_CONFJ < "$DT_CONF" 2> /dev/null; then
@@ -617,7 +618,7 @@ dt_load() {
 # so a crash halfway through never leaves half a settings file. A setting
 # nothing has kept yet this session, a pane not loaded, goes back as it came.
 dt_save() {
-	local v k n i s tmp=$DT_CONF.$$
+	local v k n i s
 
 	# A rebind or Use Super Instead of Alt is saved as it is made: Blit is told
 	# the chords kept from programs then (Gitea #530).
@@ -659,5 +660,5 @@ dt_save() {
 		done
 	done
 	s := json emit DT_CONFOUT -p
-	printf '%s\n' "$s" > "$tmp" && mv -f "$tmp" "$DT_CONF"
+	dt_writelater "$DT_CONF" "$s"$'\n'
 }

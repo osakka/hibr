@@ -1821,10 +1821,10 @@ int b_times(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* A watch on every command's own time, for naming the call that held a script: `slowest start [MS]` arms it and forgets both records, `slowest on [MS]` forgets only the inner one, `off` disarms it, and `slowest` answers the slowest command since `on` -- `slowest all` since `start` -- as `MS COUNT WHERE WHAT`, tab-separated, COUNT those that took MS or more, WHAT the command and its verb and never an argument. */
+/* A watch on every command's own time, for naming the call that held a script: `slowest start [MS]` arms it and forgets both records, `slowest on [MS]` forgets only the inner one, `off` disarms it, and `slowest` answers the slowest command since `on` -- `slowest all` since `start` -- as `MS COUNT CPU WHERE WHAT`, tab-separated, COUNT those that took MS or more, CPU the processor time the shell's own thread had since then (`-` when read from a forked child, whose clock starts again), WHAT the command and its verb and never an argument. */
 int b_slowest(sh *s, int ac, char **av)
 {
-	str o;
+	str o, cpu;
 	int i = 1;
 
 	if (ac > 1 && (!strcmp(av[1], "on") || !strcmp(av[1], "start"))) {
@@ -1848,8 +1848,17 @@ int b_slowest(sh *s, int ac, char **av)
 		return 2;
 	}
 	s_init(&o);
+	s_init(&cpu);
+	if (getpid() == ex_slpid)
+		s_fmt(&cpu, "%lld", ex_slcpums() - ex_slcpu[i]);
+	else
+		s_cat(&cpu, "-");
 	if (ex_slmax[i] > 0)
-		s_fmt(&o, "%lld\t%u\t%s\t%s", ex_slmax[i], ex_slover[i], ex_slwhere[i].p, ex_slwhat[i].p);
+		s_fmt(&o, "%lld\t%u\t%s\t%s\t%s", ex_slmax[i], ex_slover[i],
+		      cpu.p, ex_slwhere[i].p, ex_slwhat[i].p);
+	else if (ex_slon)
+		s_fmt(&o, "0\t0\t%s\t\t", cpu.p);
+	s_free(&cpu);
 	hibr_ret(s, o.p ? o.p : "");
 	if (!s->bind && o.n)
 		printf("%s\n", o.p);

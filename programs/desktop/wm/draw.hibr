@@ -386,8 +386,10 @@ dt_idle() {
 fn dt_idlecall(int id) {
 	local ap=${DT[$id]["app"]} t0 t
 
+	# Not again inside a window's draw, which is already timed: its own
+	# record would be reset half-way and name only what came after.
+	[ -n "$DT_WHO" ] || slowest on "$DT_SLOWMS"
 	DT_WHO="idle:${ap:-bare}"
-	slowest on "$DT_SLOWMS"
 	t0=${EPOCHREALTIME/./}
 	${DT[$id]["idle"]} "$id"
 	t=$((${EPOCHREALTIME/./} - t0))

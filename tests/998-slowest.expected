@@ -9,4 +9,7 @@ all: both sleeps over the budget
 0
 env
 off: nothing more is recorded
+cpu: a sleep spends almost nothing on the processor
+cpu: a spin is on the processor
+cpu from a forked read: -
 a bad verb: 2
