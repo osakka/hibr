@@ -131,7 +131,16 @@ today, measured from both sides:
    `dt_tput`, `dt_want`, `dt_del`, `dt_sep`, `dt_wreg`, `dt_keep`, `dt_new`.
    That table, generated and checked by a tool, is this design's centre; a
    new platform function an installable calls fails the gate until it is
-   classified.
+   classified. **Done (2026-11-18):** `tools/appcalls.py` reads every
+   installable -- 216, the catalogue's and the shipped tree's, none
+   unreadable -- and classes the **373** platform functions they call:
+   **207 local** (the widgets, translation, glyphs, jobs, regions, timers,
+   pure helpers, and facts about the display pushed to the app), **112
+   requests** (windows, notes, dialogs, the clipboard, openers, file undo,
+   chrome, the input method, the saver, the wallpaper, the app registry),
+   **47 declarations** (menus, bar and strip items, kept settings) and **7
+   gone** (the prototype's own plumbing). The table is
+   `docs/adr/0050-calls.tsv`, rewritten by `tools/appcalls.py --write`.
 2. **The desktop holds each hosted window's cells.** A move, an uncovering,
    a workspace switch or a restart repaints a hosted window without asking
    the app -- or the desktop would wait on it. So the console keeps a hosted
@@ -153,7 +162,14 @@ today, measured from both sides:
    whichever process loads them; command-line programs (3) are processes
    already; `lib` (5) is code sourced by installables, so it runs in theirs
    -- it is not platform, as the Decision first said; bundles (6) only
-   group. **The unit is the installable, not the `dt_app` name**: a part
+   group. **Panes, counted (2026-11-18):** of 90 pane files, the
+   catalogue's and the shipped tree's, **70 set the desktop's own settings**
+   (`DT_*`, `CS_*`) and only **19 draw for themselves**; the rest declare
+   rows the Control Panel draws. So a pane is not an app: it is a
+   declaration of the desktop's own settings, which the desktop draws and
+   applies -- a hosted process that could set `DT_*` is exactly what the keep
+   rule refuses -- and only the 19 that draw need a process, drawing into a
+   region of the Control Panel's window. **The unit is the installable, not the `dt_app` name**: a part
    shares its owner's state (Audio Player's pane reads the app's names), and
    one file registers several apps (Files: `rn`, `gi`, `ow`).
 4. **A declined key is not an answer to cache.** `_key` returning 1 is what
