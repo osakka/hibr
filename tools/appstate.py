@@ -116,6 +116,11 @@ for _n in "DT_FORCEONCE DT_MENUIN DT_BARWAS DT_ISON".split():
     BYNAME[_n] = "gone"
 for _n in "DT_IMEPRE DT_IMEBY".split():
     BYNAME[_n] = "local"
+# A helper's answer handed back through a global (a watcher's descriptors
+# and lines, a reason, an image's arguments), and a process's own cache or
+# readings: each process keeps its own.
+for _n in "DT_APPNAMEV DT_WHY DT_IMGARG DT_WLINES DT_WFD DT_WPTY DT_BUSFD DT_PW DT_PKEY".split():
+    BYNAME[_n] = "local"
 
 
 def klass(name, wr, where):

@@ -52,6 +52,12 @@ for _n in """dt_log dt_cut dt_rep dt_isdbl dt_dblclear dt_shortname dt_procfull
         dt_isdark dt_hoveron dt_natcell dt_kblabel dt_keyphases dt_appnames
         dt_stale dt_passmark""".split():
     OVERRIDE[_n] = "local"
+# The vault is the desktop's: one lock state, one child running `vw`, so
+# unlocking in Vault unlocks the Browser's fill too. Its state is pushed
+# to read (dt_vwstate, dt_vwuntil); everything else is asked of it.
+for _n in """dt_vwstate dt_vwcopy dt_vwlock dt_vwacct dt_vwuntil dt_vwjob dt_vw dt_vwget
+        dt_vwpick dt_vwhost dt_vwmatch dt_vwsyncnow dt_vwfill dt_blank""".split():
+    OVERRIDE[_n] = "request"
 # What changes the desktop itself: asked of it, never done in the app.
 for _n in """dt_changed dt_fopsave dt_fopundo dt_trash dt_fileop dt_locof dt_loccan
         dt_location dt_context_open dt_panelpane dt_vwdialog dt_chromeoff
@@ -65,6 +71,16 @@ for _n in """dt_changed dt_fopsave dt_fopundo dt_trash dt_fileop dt_locof dt_loc
     OVERRIDE[_n] = "request"
 for _n in "dt_wintitle dt_ext dt_chromeoff".split():
     OVERRIDE[_n] = "local"
+# The desktop laying itself out again, its Copy/Cut/Paste dispatcher, and a
+# display's cell size: each traced from the manifest pulling in the window
+# list, the bar's pane and the icons (tools/appcalls.py --why).
+for _n in "dt_size dt_edit dt_natcell".split():
+    OVERRIDE[_n] = "request"
+# Asking for a window's key releases and rebinding a shortcut change the
+# desktop's key path; an app's own shortcuts are declared to it.
+for _n in "dt_keyphases dt_keyswap".split():
+    OVERRIDE[_n] = "request"
+OVERRIDE["dt_appaction"] = "declare"
 OVERRIDE["dt_atstart"] = "declare"
 OVERRIDE["dt_identify"] = "request"
 OVERRIDE["dt_sbscan"] = "request"
@@ -159,6 +175,83 @@ def asked(files, names):
     return hit
 
 
+def defsall():
+    """Every platform function and its file, all of them (defs keeps the first)."""
+    where = {}
+    for f in sorted(glob.glob(os.path.join(ROOT, "programs/desktop/wm/*.hibr")) +
+                    glob.glob(os.path.join(ROOT, "programs/desktop/widgets/*.hibr")) +
+                    glob.glob(os.path.join(ROOT, "programs/desktop/lib/*.hibr"))):
+        rel = os.path.relpath(f, os.path.join(ROOT, "programs/desktop"))
+        for line in open(f, errors="replace"):
+            m = re.match(r"(?:fn\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(.*\)\s*\{?\s*$", line)
+            if m:
+                where.setdefault(m.group(1), rel)
+    return where
+
+
+def manifest(cls):
+    """What the app runtime sources and what it stubs (ADR 0050): every file
+    whose functions the local ones reach, and, in a file that also holds
+    requests or declarations, the functions that have to move out of it so
+    the runtime can source the rest whole. A local function that reaches a
+    request through the platform's own calls stays: the request is a stub."""
+    body = bodies()
+    where = defsall()
+    calls = {n: set(w for w in re.findall(r"\b([a-z][a-z0-9]*_[a-z0-9_]+)\b", b) if w in body and w != n)
+             for n, b in body.items()}
+    need, stack, why = set(), [n for n, c in cls.items() if c == "local"], {}
+    while stack:
+        x = stack.pop()
+        if x in need or cls.get(x) in ("request", "declare", "gone"):
+            continue
+        need.add(x)
+        for y in calls.get(x, ()):
+            why.setdefault(y, x)
+            stack.append(y)
+    manifest.why = why
+    byfile = collections.defaultdict(set)
+    for n in need:
+        if n in where:
+            byfile[where[n]].add(n)
+    files = sorted(byfile)
+    stubs = sorted(n for n, c in cls.items() if c in ("request", "declare"))
+    mixed = {}
+    for f in files:
+        other = sorted(n for n, w in where.items() if w == f and cls.get(n) in ("request", "declare"))
+        loads = toplevel(f, cls)
+        if other or loads:
+            mixed[f] = (sorted(byfile[f]), other, loads)
+    return files, stubs, mixed, need
+
+
+REGISTRARS = ("dt_ticker", "dt_keep", "dt_app", "dt_opener", "dt_location", "dt_barhook",
+              "dt_atstart", "dt_locload", "dt_glyphs")
+
+
+def toplevel(rel, cls=None):
+    """What a platform file registers when it is sourced: a ticker, a kept
+    setting, a dialog as an app, an opener, a location -- or a call to
+    anything the desktop alone does. The desktop alone may register; the
+    app runtime's own machinery aside, a shared file registers nothing."""
+    out, depth = [], 0
+    for line in open(os.path.join(ROOT, "programs/desktop", rel), errors="replace"):
+        if re.match(r"(?:fn\s+)?[A-Za-z_][A-Za-z0-9_]*\s*\(.*\)\s*\{?\s*$", line):
+            depth = 1
+            continue
+        if line.startswith("}"):
+            depth = 0
+            continue
+        t = line.strip()
+        if depth or not t or t.startswith("#") or line[0] in " \t":
+            continue
+        if re.match(r"(?:fn\s+)?[A-Za-z_][A-Za-z0-9_]*\s*\(.*\)\s*\{.*\}\s*$", t):
+            continue
+        words = set(re.findall(r"\b[a-z][a-z0-9]*_[a-z0-9_]+\b", t))
+        if words & set(REGISTRARS) or any((cls or {}).get(w) in ("request", "declare") for w in words):
+            out.append(t)
+    return out
+
+
 def classify(name, rel):
     if name in OVERRIDE:
         return OVERRIDE[name]
@@ -177,7 +270,14 @@ def main():
         except Exception as e:
             bad.append(f)
             continue
-        for c in r.get("calls", []):
+        facts = r.get("calls", [])
+        # A platform function named as an argument -- a menu item's command,
+        # a job's callback, a ticker, a hook -- is used as much as one called.
+        try:
+            facts = facts + records(f, "refs", symbols=sorted(where)).get("refs", [])
+        except Exception:
+            bad.append(f)
+        for c in facts:
             n = c.get("name") or c.get("command") or c.get("word")
             if isinstance(n, dict):
                 n = n.get("text")
@@ -212,6 +312,48 @@ def main():
         print("wrote", os.path.relpath(OUT, ROOT))
     for f in bad:
         print("unreadable:", f)
+    if "--manifest" in sys.argv:
+        files, stubs, mixed, need = manifest(cls)
+        print("the runtime reaches %d platform functions in %d files, and stubs %d requests "
+              "and declarations" % (len(need), len(files), len(stubs)))
+        print("%d whole, %d mixed" % (len(files) - len(mixed), len(mixed)))
+        for f in files:
+            if f in mixed:
+                keep, other, loads = mixed[f]
+                print("  mixed  %-24s %3d needed beside %2d requests or declarations, %d run at load: %s" % (
+                      f, len(keep), len(other), len(loads), " ".join(keep)[:70]))
+                for t in loads:
+                    print("           at load: %s" % t[:90])
+            else:
+                print("  whole  %s" % f)
+    if "--writes" in sys.argv:
+        files, stubs, mixed, need = manifest(cls)
+        state = {}
+        for l in open(os.path.join(ROOT, "docs/adr/0050-state.tsv")):
+            if not l.startswith("#"):
+                c = l.rstrip("\n").split("\t")
+                state[c[0]] = c[4]
+        body = bodies()
+        bad = 0
+        for n in sorted(need):
+            hits = set()
+            for m in re.finditer(r"(?:^|[\s;(&|])([A-Z][A-Z0-9_]*)(?:\[[^\]]*\])*\+?=", body.get(n, ""), re.M):
+                if state.get(m.group(1)) in ("mirror", "setting", "request"):
+                    hits.add("%s(%s)" % (m.group(1), state[m.group(1)]))
+            if hits:
+                bad += 1
+                print("  %-24s writes %s" % (n, " ".join(sorted(hits))))
+        print("%d needed functions write desktop state" % bad)
+        return
+    if "--why" in sys.argv:
+        files, stubs, mixed, need = manifest(cls)
+        for a in sys.argv[sys.argv.index("--why") + 1:]:
+            path, x = [a], a
+            while x in manifest.why and len(path) < 20:
+                x = manifest.why[x]
+                path.append(x)
+            print("%s: %s" % (a, " < ".join(path) if a in need else "not needed"))
+        return
     if "--check" in sys.argv:
         undecided = [r[1] for r in rows if r[0] == "decide"]
         for n in undecided:

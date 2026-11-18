@@ -61,7 +61,7 @@ DT_DESKICON	4	2	wm/settings.hibr	setting
 DT_HADJ	4	2	wm/lang.hibr	local
 DT_HCAL	4	2	wm/lang.hibr	local
 DT_IMEPRE	5	1	wm/ime.hibr	local
-DT_IMGARG	6	0	wm/wallpaper.hibr	mirror
+DT_IMGARG	6	0	wm/wallpaper.hibr	local
 DT_MENUIN	0	6	wm/draw.hibr	gone
 DT_NETKIND	4	2	wm/settings.hibr	setting
 DT_NOTEHIST_ORDER	4	2	wm/notify.hibr	request
@@ -80,9 +80,9 @@ DT_SNDKIND	4	2	wm/settings.hibr	setting
 DT_SNDSTEP	4	2	wm/settings.hibr	setting
 DT_TERMBAR	4	2	wm/settings.hibr	setting
 DT_TERMMS	4	2	wm/settings.hibr	setting
-DT_WFD	6	0	wm/state.hibr	mirror
-DT_WLINES	6	0	wm/state.hibr	mirror
-DT_WPTY	6	0	wm/state.hibr	mirror
+DT_WFD	6	0	wm/state.hibr	local
+DT_WLINES	6	0	wm/state.hibr	local
+DT_WPTY	6	0	wm/state.hibr	local
 DT_WRAPLINES	4	2	widgets/textfit.hibr	local
 DT_WSN	6	0	wm/workspaces.hibr	setting
 DT_COLS	5	0	wm/bar.hibr	mirror
@@ -109,7 +109,7 @@ DT_BTNL	4	0	wm/frame.hibr	mirror
 DT_BTNORDER	0	4	wm/settings.hibr	setting
 DT_BTNSHADOW	2	2	wm/settings.hibr	setting
 DT_BUNDLEEXT	4	0	wm/handlers.hibr	mirror
-DT_BUSFD	4	0	wm/bus.hibr	mirror
+DT_BUSFD	4	0	wm/bus.hibr	local
 DT_CHECKS	2	2	wm/settings.hibr	setting
 DT_CHORDER	4	0	wm/clip.hibr	mirror
 DT_CLIPMAX	2	2	wm/clip.hibr	setting
@@ -170,7 +170,7 @@ DT_PBEFORE	2	2	wm/prayer.hibr	setting
 DT_PLACE	2	2	wm/place.hibr	setting
 DT_PNOTE	2	2	wm/prayer.hibr	setting
 DT_PROGAUTO	2	2	wm/programs.hibr	setting
-DT_PW	4	0	wm/machine.hibr	mirror
+DT_PW	4	0	wm/machine.hibr	local
 DT_PWLEVEL	4	0	wm/settings.hibr	setting
 DT_SAVER	2	2	wm/saver.hibr	setting
 DT_SAVERIDLE	2	2	wm/saver.hibr	setting
@@ -197,7 +197,7 @@ DT_WALLDMODE	2	2	wm/wallpaper.hibr	request
 DT_WALLDPIC	2	2	wm/wallpaper.hibr	request
 DT_WALLIMGMODE	2	2	wm/wallpaper.hibr	setting
 DT_WEEKSTART	2	2	wm/lang.hibr	local
-DT_WHY	4	0	wm/frame.hibr	mirror
+DT_WHY	4	0	wm/frame.hibr	local
 DT_WS	4	0	wm/workspaces.hibr	mirror
 DT_ZOOMFILL	2	2	wm/settings.hibr	setting
 LANG	4	0	wm/locale.hibr	local
@@ -227,7 +227,7 @@ DTJ_N	2	0	wm/jobs.hibr	local
 DT_AKEY	2	0	wm/keys.hibr	mirror
 DT_AKEYORDER	2	0	wm/keys.hibr	mirror
 DT_APPKEY	2	0	wm/settings.hibr	setting
-DT_APPNAMEV	2	0	wm/apps.hibr	mirror
+DT_APPNAMEV	2	0	wm/apps.hibr	local
 DT_BANDS	2	0	wm/settings.hibr	setting
 DT_BARORDER	0	2	wm/settings.hibr	setting
 DT_BARREAD	2	0	wm/bar.hibr	mirror
@@ -288,7 +288,7 @@ DT_OPENERORDER	2	0	wm/handlers.hibr	mirror
 DT_OPENERS	2	0	wm/handlers.hibr	mirror
 DT_OPENVERBS	2	0	wm/handlers.hibr	mirror
 DT_OVLIST	2	0	wm/handlers.hibr	mirror
-DT_PKEY	0	2	wm/prayer.hibr	request
+DT_PKEY	0	2	wm/prayer.hibr	local
 DT_PKRES	2	0	wm/polkit.hibr	mirror
 DT_PLACES	2	0	wm/place.hibr	mirror
 DT_POPONNEXT	0	2	widgets/dropdown.hibr	local
