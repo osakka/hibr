@@ -43,7 +43,7 @@ export GPGKEY
 gpg --list-secret-keys "$KEY" > /dev/null 2>&1 ||
 	{ echo "publish: no secret key $KEY in $GNUPGHOME" >&2; exit 1; }
 
-git -C "$REPO" pull -q --ff-only 2> /dev/null || true
+keep_sync "$REPO" || exit 1
 for pkg in "$@"; do
 	arch=$(bsdtar -xOf "$pkg" .PKGINFO | sed -n 's/^arch = //p')
 	[ -n "$arch" ] || { echo "publish: $pkg has no .PKGINFO arch" >&2; exit 1; }

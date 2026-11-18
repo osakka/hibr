@@ -46,7 +46,7 @@ gpg --armor --export "$KEY" > "$DB/key.asc"
 rpm --dbpath "$DB" --initdb
 rpm --dbpath "$DB" --import "$DB/key.asc"
 
-git -C "$REPO" pull -q --ff-only 2> /dev/null || true
+keep_sync "$REPO" || exit 1
 for rpm in "$@"; do
 	arch=$(rpm -qp --qf '%{ARCH}' "$rpm")
 	mkdir -p "$REPO/packages/$arch"

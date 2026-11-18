@@ -67,7 +67,7 @@ SUITE=stable
 gpg --list-secret-keys "$KEY" > /dev/null 2>&1 ||
 	{ echo "publish: no secret key $KEY in $GNUPGHOME" >&2; exit 1; }
 
-git -C "$REPO" pull -q --ff-only 2> /dev/null || true
+keep_sync "$REPO" || exit 1
 # Each package in its own pool folder, by Debian's usual layout:
 # pool/main/h/hibr for hibr, pool/main/b/blit for Blit, which this
 # repository has carried as well since 0.99.297.
