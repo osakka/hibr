@@ -1384,6 +1384,7 @@
   "hibr %s — a desktop written in the shell it runs on": "⟦hibr %s — a desktop written in the shell it runs on⟧",
   "hibr user interface, hybrid user interface": "⟦hibr user interface, hybrid user interface⟧",
   "hibr v%s, module ABI %s": "⟦hibr v%s, module ABI %s⟧",
+  "hibr was updated: click to restart the desktop and open %s": "⟦hibr was updated: click to restart the desktop and open %s⟧",
   "hui v%s": "⟦hui v%s⟧",
   "incoming": "⟦incoming⟧",
   "installed %s": "⟦installed %s⟧",

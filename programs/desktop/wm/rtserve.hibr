@@ -1,0 +1,124 @@
+# wm/rtserve -- the desktop's end of the app runtime's socket (ADR 0050):
+# where an app's own process connects, says hello, and sends what it asks
+# of the desktop. Listening starts when the first app process is about to
+# be started, never at load: an idle desktop with none pays nothing, which
+# tests/999-idle-tickers.t holds. A process speaking another protocol or
+# another hibr version is refused and the person told hibr was updated,
+# with Restart Desktop one click away (owner, 2026-11-18): nothing runs half
+# old and half new. Only a told request named in interface.tsv is carried;
+# anything else is refused by name in the log.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# The socket app processes reach, its descriptor, and every connection by
+# descriptor: the app it said it was, or - before its hello.
+DT_RTPATH=
+DT_RTLFD=
+declare -gA DT_RTC
+# The told requests interface.tsv names, which alone are carried.
+declare -gA DT_RTALLOW
+
+# Start listening for app processes, once: the socket beside the control
+# socket's, its path exported for what the desktop starts to inherit.
+dt_rtlisten() {
+	local p c f n a
+
+	[ -n "$DT_RTLFD" ] && return 0
+	p := dt_ctlwhere
+	p=${p%.ctl}.rt
+	if ! [ -d "${p%/*}" ]; then
+		mkdir -p -m 700 "${p%/*}" 2> /dev/null || { dt_log "app runtime: cannot make ${p%/*}"; return 1; }
+	fi
+	if ! listen -b "$p" DT_RTLFD 2> /dev/null; then
+		DT_RTLFD=
+		dt_log "app runtime: cannot listen at $p"
+		return 1
+	fi
+	DT_RTPATH=$p
+	export DT_RTSOCK=$p
+	while IFS=$'\t' read -r c f _ _ _ a _; do
+		[ "$c" = request ] && [ "$a" = told ] && DT_RTALLOW["$f"]=1
+	done < "$DT_HERE/interface.tsv"
+	n=${#DT_RTALLOW[@]}
+	command -v console > /dev/null && console watch "$DT_RTLFD" 2> /dev/null
+	dt_ticker dt_rttick
+	dt_log "app runtime: listening at $p, $n told requests carried"
+	return 0
+}
+
+# Every pass while listening: take new connections, and every whole line
+# each has sent. A line is read with a bound, never waited for.
+dt_rttick() {
+	local c l
+
+	[ -n "$DT_RTLFD" ] || return 0
+	while accept -t 0 "$DT_RTLFD" c 2> /dev/null; do
+		DT_RTC["$c"]=-
+		command -v console > /dev/null && console watch "$c" 2> /dev/null
+	done
+	for c in "${!DT_RTC[@]}"; do
+		while read -t 0 -u "$c" 2> /dev/null; do
+			if ! read -r -t 1 -u "$c" l 2> /dev/null; then
+				dt_rtdrop "$c"
+				break
+			fi
+			dt_rtmsg "$c" "$l" || break
+		done
+	done
+	return 0
+}
+
+# Let a connection go.
+fn dt_rtdrop(int c) {
+	command -v console > /dev/null && console unwatch "$c" 2> /dev/null
+	exec {c}>&-
+	unset DT_RTC["$c"]
+	return 0
+}
+
+# One message from a connection; status 1 when it was let go.
+fn dt_rtmsg(int c, line) {
+	local i x who=${DT_RTC["$c"]-} t
+	local -a w a
+
+	read -ra w <<< "$line"
+	for i in "${!w[@]}"; do
+		x := dt_rtdec "${w[$i]}"
+		a+=("$x")
+	done
+	if [ "$who" = - ]; then
+		if [ "${a[0]-}" != hello ]; then
+			printf 'refused %s\n' "said%20nothing%20first" >&"$c" 2> /dev/null
+			dt_rtdrop "$c"
+			return 1
+		fi
+		if [ "${a[1]-}" != "$DT_RTPROTO" ] || [ "${a[2]-}" != "$HIBR_VERSION" ]; then
+			x := dt_rtline refused "hibr $HIBR_VERSION protocol $DT_RTPROTO here, ${a[2]-?} protocol ${a[1]-?} there"
+			printf '%s\n' "$x" >&"$c" 2> /dev/null
+			dt_log "app runtime: refused ${a[3]-an app}: hibr ${a[2]-?} protocol ${a[1]-?}, this desktop runs $HIBR_VERSION protocol $DT_RTPROTO"
+			t := dt_tr "hibr was updated: click to restart the desktop and open %s" "${a[3]-the app}"
+			dt_notifyp high "$t" dt_restart
+			dt_rtdrop "$c"
+			return 1
+		fi
+		DT_RTC["$c"]=${a[3]:-app}
+		printf 'ok %s\n' "$DT_RTPROTO" >&"$c" 2> /dev/null
+		return 0
+	fi
+	case ${a[0]-} in
+	tell)
+		if [ -z "${DT_RTALLOW["${a[1]-}"]+x}" ]; then
+			dt_log "app runtime: $who asked for ${a[1]-nothing}, which is not a told request in interface.tsv"
+			return 0
+		fi
+		"${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
+		;;
+	*)
+		dt_log "app runtime: $who sent ${a[0]-nothing}, which is not carried yet"
+		;;
+	esac
+	return 0
+}

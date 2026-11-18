@@ -472,8 +472,8 @@ fn dt_tickon(f) {
 # per ticker per frame, and there are a handful.
 # Each is timed (wm/budget.hibr), and one whose app is paused is skipped.
 dt_tickers() {
-	local f t0 t ap
-	local -a keep=()
+	local f t0 t ap g
+	local -a gone=() keep=()
 
 	# The processor-wait baseline again (wm/budget.hibr): the saver's and
 	# the lock's waits call this and not the loop's own read, and a
@@ -484,9 +484,9 @@ dt_tickers() {
 	for f in "${DT_TICKERS[@]}"; do
 		if ! dt_has "$f"; then
 			dt_log "ticker $f is not defined; taken off the list"
+			gone+=("$f")
 			continue
 		fi
-		keep+=("$f")
 		ap := dt_tickowner "$f"
 		[ "$ap" = - ] && ap=
 		DT_WHO=$f
@@ -498,7 +498,18 @@ dt_tickers() {
 		DT_WHO=
 		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "$f" "$t" "$ap"
 	done
-	[ "${#keep[@]}" = "${#DT_TICKERS[@]}" ] || DT_TICKERS=("${keep[@]}")
+	# Only what is not defined is taken off: a ticker registered while the
+	# list ran -- one started on demand from another ticker, a timer or a
+	# control request -- stays on it (it was dropped until 0.99.553, which
+	# is how the app runtime's first socket never served a connection).
+	[ "${#gone[@]}" = 0 ] && return 0
+	for f in "${DT_TICKERS[@]}"; do
+		for g in "${gone[@]}"; do
+			[ "$f" = "$g" ] && continue 2
+		done
+		keep+=("$f")
+	done
+	DT_TICKERS=("${keep[@]}")
 	return 0
 }
 

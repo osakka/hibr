@@ -7,12 +7,12 @@
 # `# interface: shared` in its header, and acts on nothing the desktop alone
 # owns: requests, declarations and registrations stay in the window
 # manager's other files. Owned, versioned and shipped by hibr, read from
-# $DT_HERE only; docs/adr/0050-calls.tsv is the contract.
+# $DT_HERE only; interface.tsv beside it is the contract.
 
 strict
 
 for dt_part in loop names glyphs state lang locale budget draw jobs keymatch chrome \
-	servers picmode prayertimes powerlist ime; do
+	servers picmode prayertimes powerlist ime rtwire; do
 	. "$DT_HERE/wm/$dt_part.hibr"
 done
 for dt_part in "$DT_HERE"/widgets/*.hibr; do

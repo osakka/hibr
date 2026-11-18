@@ -217,6 +217,14 @@ More tools sit around it:
   not load, and a call into another installable with no `dt_has`,
   `dt_needs` or `command -v` in its function (ADR 0046). A suite in
   `all.py`; under a second.
+- **`tests/rtchan.py`** -- the app runtime's socket (ADR 0050) through a
+  pty: an app process sourcing only `runtime.hibr` says hello and what it
+  tells the desktop happens there, its words whole (blanks, a percent, an
+  empty word); a name `interface.tsv` does not carry as a told request is
+  refused by name; another protocol is refused and the person told hibr was
+  updated, with Restart Desktop on the note; and nothing listens until an
+  app process is started. Fails against a ticker loop that drops a ticker
+  registered during its pass.
 - **`tests/appcalls.py`** -- every platform function an installable in this
   tree calls is classed for an app's own process (ADR 0050), and fails on
   one that is not: `tools/appcalls.py --check`, read by the inspect module,

@@ -29,6 +29,10 @@ The app interface's own files, beside `state`, `glyphs`, `lang`, `locale`,
 | `picmode.hibr` | how a picture is drawn here: pixels, half blocks or characters |
 | `prayertimes.hibr` | prayer times worked out by the salat module; `prayer.hibr` keeps the bar's segment and the notes |
 | `powerlist.hibr` | the power actions this machine offers; `machine.hibr` runs them |
+| `rtwire.hibr` | the wire to an app's own process: a line a message, each word percent-encoded, and the protocol's number the hello carries |
+
+`../runtime.hibr` is the app side: the interface, the generated requests,
+and the socket they go through; `rtserve.hibr` below is the desktop's end.
 
 The rest:
 
@@ -63,6 +67,7 @@ The rest:
 | `recover.hibr` | the supervisor of a held desktop, which starts it again from its last snapshot when it dies |
 | `locations.hibr` | somewhere Files goes that is not a folder here: `dt_location scheme prefix`, `dt_locof`, `dt_loccan`, and the list of functions a location answers -- Files names no scheme (ADR 0053) |
 | `remote.hibr` | folders on WebDAV servers, the first location (`rdav_`): `dav://` paths moved, copied and deleted in background jobs, remote files opened from a cache and put back when saved, the server dialog |
+| `rtserve.hibr` | the desktop's end of the app runtime's socket: listening from the first app process on, a hello checked against the protocol and the hibr version (refused, with a note offering Restart Desktop), and only the told requests `interface.tsv` names carried |
 | `handlers.hibr` | `dt_handler`: what opens a file, by its extension |
 | `filepick.hibr` | `dt_filepick`: the Open and Save dialog any app can use, with a preview of what is selected |
 | `shot.hibr` | screenshots: the whole screen, the focused window or an area |

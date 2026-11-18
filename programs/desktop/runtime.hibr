@@ -1,0 +1,61 @@
+#!/usr/bin/env hibr
+#
+# runtime -- the app runtime (ADR 0050): what an app's own process sources
+# in place of the desktop. The app interface (interface.hibr: the widgets
+# and the window manager's shared files), then every request and
+# declaration as a function that sends itself to the desktop
+# (requests.hibr, generated from interface.tsv), then the socket those go
+# through: opened with a hello carrying the protocol and the hibr version,
+# which the desktop checks before it carries anything.
+#
+# DT_HERE is where the desktop's files are, and DT_RTSOCK the desktop's
+# socket for app processes; both are given by whatever started this one.
+
+strict
+
+. "$DT_HERE/interface.hibr"
+. "$DT_HERE/requests.hibr"
+
+# The connection to the desktop, and what it said to the hello.
+DT_RTFD=
+DT_RTSAID=
+
+# Open the connection and say hello: the protocol, the hibr version and
+# the app's name. A desktop that refuses says why, which is kept in
+# DT_RTSAID and is status 1; so is no desktop answering within two seconds.
+fn dt_rtopen(app) {
+	local l w
+
+	[ -n "${DT_RTSOCK-}" ] || { DT_RTSAID="no desktop socket was given"; return 1; }
+	exec {DT_RTFD}<> "/dev/unix/$DT_RTSOCK" 2> /dev/null ||
+		{ DT_RTFD=; DT_RTSAID="cannot reach the desktop at $DT_RTSOCK"; return 1; }
+	l := dt_rtline hello "$DT_RTPROTO" "$HIBR_VERSION" "$app"
+	printf '%s\n' "$l" >&"$DT_RTFD"
+	if ! read -r -t 2 -u "$DT_RTFD" l; then
+		DT_RTSAID="the desktop did not answer the hello"
+		return 1
+	fi
+	read -ra w <<< "$l"
+	DT_RTSAID := dt_rtdec "${w[1]-}"
+	[ "${w[0]-}" = ok ]
+}
+
+# One message to the desktop: tell, ask or declare, the function, and its
+# words. A told request is sent and never waited for. What is asked and
+# what is declared are not carried yet, and say so rather than seem to work.
+fn dt_rtsend(verb, name, ...args) {
+	local l
+
+	[ -n "$DT_RTFD" ] || { dt_log "app runtime: $name with no desktop connected"; return 1; }
+	case $verb in
+	tell) ;;
+	*)
+		dt_log "app runtime: $name is $verb, which is not carried yet (ADR 0050)"
+		return 1
+		;;
+	esac
+	l := dt_rtline "$verb" "$name" "${args[@]}"
+	printf '%s\n' "$l" >&"$DT_RTFD" 2> /dev/null ||
+		{ dt_log "app runtime: the desktop has gone"; return 1; }
+	return 0
+}

@@ -4171,6 +4171,16 @@ went in the shell.
   relay hands to *one* display wants the same question: which display
   shows the thing it is for, not which spoke last.
 
+- **A ticker registered while the tickers run was dropped** (0.99.553).
+  `dt_tickers` kept the names it ran and, when the list's length had
+  changed, put back only those -- meant for taking off a ticker no longer
+  defined, it equally took off one appended during the pass, so anything
+  started on demand from a ticker, a timer or a control request silently
+  never ticked. Found because the app runtime's socket listened and never
+  served a connection (`tests/rtchan.py`). Only what is not defined comes
+  off now. **A list rebuilt after a loop over it must keep what the loop
+  added**, which a length comparison cannot tell from what it removed.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

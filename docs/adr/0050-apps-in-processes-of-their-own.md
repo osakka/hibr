@@ -168,7 +168,7 @@ running desktop does not. So:
 - **Owned and versioned by hibr**, shipped in the hibr package, and read
   from `$DT_HERE` only -- never from a scope a person or the catalogue can
   write.
-- **The calls table is the contract** (`docs/adr/0050-calls.tsv`, shipped
+- **The calls table is the contract** (`programs/desktop/interface.tsv`, shipped
   beside `conventions.json` so other repositories check against the
   installed copy, not a checkout). Each row carries the function's
   signature and the release it first appeared in. A release may add rows;
@@ -230,7 +230,7 @@ running desktop does not. So:
    saver, the wallpaper, the app registry, the displays' layout), **43
    declarations** (menus, bar and strip items, kept settings) and **5 gone**
    (the prototype's hooks in `apps/term.hibr`, which go with it). The table
-   is `docs/adr/0050-calls.tsv`, rewritten by `tools/appcalls.py --write`.
+   is `programs/desktop/interface.tsv`, rewritten by `tools/appcalls.py --write`.
    **The platform's state, surveyed (2026-11-18):** `tools/appstate.py`
    (`docs/adr/0050-state.tsv`) finds installables touching **343** of the
    platform's 1,023 globals and writing **186** -- a word match, so a lower

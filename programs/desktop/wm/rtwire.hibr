@@ -1,0 +1,49 @@
+# wm/rtwire -- the wire between the desktop and an app's own process (ADR
+# 0050): one line a message, its words separated by spaces, each word with
+# %, space, tab, newline and carriage return written as %25, %20, %09, %0A
+# and %0D, so any value crosses as one word; and the protocol's number,
+# which the hello carries beside the hibr version.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+# The protocol's number: a change to what crosses the wire changes it, and
+# a process speaking another is refused at its hello.
+DT_RTPROTO=1
+
+# A word as it crosses the wire.
+fn dt_rtenc(v) {
+	v=${v//%/%25}
+	v=${v// /%20}
+	v=${v//$'\t'/%09}
+	v=${v//$'\n'/%0A}
+	v=${v//$'\r'/%0D}
+	ret "$v"
+}
+
+# A word as it arrived; a lone % is the empty word, which no value can
+# otherwise be written as, since % itself is %25.
+fn dt_rtdec(v) {
+	[ "$v" = % ] && { ret ""; return 0; }
+	v=${v//%20/ }
+	v=${v//%09/$'\t'}
+	v=${v//%0A/$'\n'}
+	v=${v//%0D/$'\r'}
+	v=${v//%25/%}
+	ret "$v"
+}
+
+# A message's words, every one encoded, as the line that carries them.
+fn dt_rtline(...w) {
+	local x e line=
+
+	for x in "${w[@]}"; do
+		e := dt_rtenc "$x"
+		line+="${line:+ }${e:-%}"
+	done
+	ret "$line"
+}

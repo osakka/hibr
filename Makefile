@@ -386,7 +386,6 @@ install: all
 	rm -rf $(DESTDIR)$(DESKDIR)
 	install -d $(DESTDIR)$(DESKDIR)
 	cp -R programs/desktop/. $(DESTDIR)$(DESKDIR)/
-	install -m 644 docs/adr/0050-calls.tsv $(DESTDIR)$(DESKDIR)/interface.tsv
 # The default takes out what packaging/ships does not list and no listed
 # file brings -- the applications that come from the catalogue, their
 # panes and strip modules, and every theme and colour scheme but Classic,

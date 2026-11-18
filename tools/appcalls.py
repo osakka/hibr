@@ -11,7 +11,7 @@ Every call is read by the inspect module (ADR 0056), never run, from every
 installable the catalogue checkout holds (~/hibr-apps/bundles, or $HIBR_APPS)
 and every one shipped in programs/desktop. A function is classed by the file
 that defines it, unless OVERRIDE names it; --write puts the table at
-docs/adr/0050-calls.tsv, which the ADR points at.
+programs/desktop/interface.tsv, which the ADR points at.
 """
 import collections, glob, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 from inspectlib import records
 
 APPS = os.environ.get("HIBR_APPS", os.path.expanduser("~/hibr-apps"))
-OUT = os.path.join(ROOT, "docs", "adr", "0050-calls.tsv")
+OUT = os.path.join(ROOT, "programs", "desktop", "interface.tsv")
 
 # By the defining file: what the app runtime carries itself (local), what goes
 # to the desktop (request), what is built in the app and pushed (declare).
@@ -231,7 +231,7 @@ def contract(ref):
     signature: a row removed or changed is a breaking change to every app
     that calls it, which no suite here may run (ADR 0050)."""
     import subprocess
-    got = subprocess.run(["git", "show", "%s:docs/adr/0050-calls.tsv" % ref], cwd=ROOT,
+    got = subprocess.run(["git", "show", "%s:programs/desktop/interface.tsv" % ref], cwd=ROOT,
                          capture_output=True, text=True)
     if got.returncode:
         return None
@@ -418,7 +418,7 @@ def stubtext(rows):
            "# platform's own signature that sends itself to the desktop over the",
            "# app's socket (dt_rtsend, runtime.hibr). The app runtime sources it after",
            "# interface.hibr; the desktop never does. Generated from",
-           "# docs/adr/0050-calls.tsv by `tools/appcalls.py --stubs`: never edit it by",
+           "# programs/desktop/interface.tsv by `tools/appcalls.py --stubs`: never edit it by",
            "# hand, and tests/appcalls.py fails when it is not what the table says.",
            "", "strict", ""]
     for r in sorted(rows, key=lambda r: r[1]):

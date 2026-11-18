@@ -5,7 +5,7 @@
 # platform's own signature that sends itself to the desktop over the
 # app's socket (dt_rtsend, runtime.hibr). The app runtime sources it after
 # interface.hibr; the desktop never does. Generated from
-# docs/adr/0050-calls.tsv by `tools/appcalls.py --stubs`: never edit it by
+# programs/desktop/interface.tsv by `tools/appcalls.py --stubs`: never edit it by
 # hand, and tests/appcalls.py fails when it is not what the table says.
 
 strict
