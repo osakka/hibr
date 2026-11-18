@@ -1,9 +1,9 @@
 0
 waiting: [one
-tw] status 0
+tw]
 nothing waiting: [] status 0, waited: no
 the rest: [o
-] status 0
+]
 at the end: status 1
 hibr: usage: recv [-a|-p|-n bytes] fd [var]
 no descriptor: status 2
