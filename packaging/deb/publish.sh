@@ -18,7 +18,9 @@
 # ones are taken out of it on every publish: GitHub Pages serves about a
 # gigabyte at most, and with every version kept (5.26 GB by 0.99.481) its
 # builds stalled and apt saw nothing new for hours (owner, 2026-11-10).
-# Git's history still has every one. The index is signed with the repository
+# And the history is one commit, force-pushed on every publish
+# (packaging/keep.sh, owner 2026-11-18): it had grown to every package ever
+# published, 5.8 GB under 195 MB of files. The index is signed with the repository
 # key in APT_GNUPGHOME (default ~/.local/share/hibr-apt/gnupg), both as
 # Release.gpg beside Release and as InRelease, since apt reads either.
 #
@@ -26,12 +28,12 @@
 # nothing can install them from here again (owner, 2026-11-10: Blit's
 # gamescope bridge, which 0.3.75 replaced); whatever follows it ending in
 # .deb is added in the same publish. A package that pool/ does not have is
-# said and passed over. Git's history still has every file.
+# said and passed over.
 
 set -eu
 
 [ $# -ge 1 ] || { echo "usage: publish.sh package.deb... | --prune | --remove name... [package.deb...]" >&2; exit 2; }
-KEEP=${APT_KEEP:-3}
+. "$(dirname "$0")/../keep.sh"
 REMOVE=
 if [ "$1" = --remove ]; then
 	shift
@@ -98,13 +100,8 @@ done
 # wherever in pool/ it is, not by its folder: a folder can hold a stray of
 # another package's.
 find pool -name '*.deb' |
-	sed -n 's|^\(.*/\)\([^/_]*\)_\([^_/]*\)_\([^_/]*\)\.deb$|\2 \4 \3 \1|p' |
-	sort -k1,1 -k2,2 -k3,3Vr |
-	awk -v keep="$KEEP" '{ k = $1 " " $2; if (++n[k] > keep) print $4 $1 "_" $3 "_" $2 ".deb" }' |
-	while read -r f; do
-		rm -f "$f"
-		echo "== pruned ${f##*/}"
-	done
+	sed -n 's|^\(.*/\)\([^/_]*\)_\([^_/]*\)_\([^_/]*\)\.deb$|\2 \4 \3 \1\2_\3_\4.deb|p' |
+	keep_prune
 archs=$(find pool -name '*.deb' | sed 's/.*_\([^_]*\)\.deb$/\1/' | sort -u)
 for a in $archs; do
 	d=dists/$SUITE/main/binary-$a
@@ -130,13 +127,5 @@ gpg --batch --yes --local-user "$KEY" --clearsign \
 gpg --export "$KEY" > hibr.gpg
 gpg --armor --export "$KEY" > hibr.asc
 
-git add -A
-git commit -q -m "$what"
-if ! timeout 120 git push -q origin HEAD 2> push.err; then
-	cat push.err >&2
-	rm -f push.err
-	echo "publish: committed in $REPO, not pushed" >&2
-	exit 1
-fi
-rm -f push.err
+keep_publish "$what" || exit 1
 echo "== published $SUITE: $(echo $archs)"

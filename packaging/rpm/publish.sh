@@ -1,6 +1,7 @@
 #!/bin/sh
 # Add built RPMs to the dnf repository and publish it.
 #
+#   packaging/rpm/publish.sh --prune    # keep the newest three, nothing added
 #   packaging/rpm/publish.sh build/rpm/hibr-<ver>-1.x86_64.rpm [...]
 #
 # The repository is a checkout of itdlabs/hibr-rpm (RPM_REPO, default
@@ -14,11 +15,21 @@
 #        https://osakka.github.io/hibr-rpm/hibr.repo
 #   sudo dnf install hibr
 #
-# Every package ever published stays, so an older version can be named.
+# The newest three versions of each package for each architecture stay and
+# nothing older, and the history is one commit, force-pushed on every
+# publish (packaging/keep.sh, owner 2026-11-18): every package ever
+# published had been kept, half a gigabyte and growing.
 
 set -eu
+. "$(dirname "$0")/../keep.sh"
 
-[ $# -ge 1 ] || { echo "usage: publish.sh package.rpm..." >&2; exit 2; }
+[ $# -ge 1 ] || { echo "usage: publish.sh package.rpm... | --prune" >&2; exit 2; }
+# --prune publishes what is there, keeping the newest three of each and
+# making the history one commit, with nothing new added.
+if [ "$1" = --prune ]; then
+	[ $# -eq 1 ] || { echo "usage: publish.sh --prune" >&2; exit 2; }
+	shift
+fi
 REPO=${RPM_REPO:-$HOME/hibr-rpm}
 GNUPGHOME=${APT_GNUPGHOME:-$HOME/.local/share/hibr-apt/gnupg}
 export GNUPGHOME
@@ -49,6 +60,10 @@ for rpm in "$@"; do
 done
 
 cd "$REPO"
+for f in packages/*/*.rpm; do
+	[ -e "$f" ] || continue
+	printf '%s %s\n' "$(rpm -qp --qf '%{NAME} %{ARCH} %{VERSION}-%{RELEASE}' "$f" 2> /dev/null)" "$f"
+done | keep_prune
 createrepo_c -q --update --general-compress-type=gz .
 rm -f repodata/repomd.xml.asc
 gpg --batch --yes --local-user "$KEY" --armor --detach-sign \
@@ -65,13 +80,7 @@ gpgkey=$URL/hibr.asc
 EOF
 touch .nojekyll
 
-git add -A
-git commit -q -m "Publish $(for rpm in "$@"; do basename "$rpm" .rpm; done | tr '\n' ' ')"
-if ! timeout 120 git push -q origin HEAD 2> push.err; then
-	cat push.err >&2
-	rm -f push.err
-	echo "publish: committed in $REPO, not pushed" >&2
-	exit 1
-fi
-rm -f push.err
+what="Publish $(for rpm in "$@"; do basename "$rpm" .rpm; done | tr '\n' ' ')"
+[ $# -eq 0 ] && what="Keep the newest $KEEP of each package"
+keep_publish "$what" || exit 1
 echo "== published $URL"

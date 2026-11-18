@@ -1,6 +1,7 @@
 #!/bin/sh
 # Add built packages to the pacman repository and publish it.
 #
+#   packaging/arch/publish.sh --prune    # keep the newest three, nothing added
 #   packaging/arch/publish.sh build/arch/hibr-<ver>-1-x86_64.pkg.tar.zst [...]
 #
 # The repository is a checkout of itdlabs/hibr-arch (ARCH_REPO, default
@@ -16,11 +17,21 @@
 # and the key, once: pacman-key --add hibr.asc; pacman-key --lsign-key KEY.
 # repo-add writes hibr.db and hibr.files as symbolic links to their
 # .tar.gz; GitHub Pages serves a link as the link's own text, so they are
-# replaced by copies.
+# replaced by copies. The newest three versions of each package for each
+# architecture stay and nothing older (the database lists the newest
+# alone), and the history is one commit, force-pushed on every publish
+# (packaging/keep.sh, owner 2026-11-18).
 
 set -eu
+. "$(dirname "$0")/../keep.sh"
 
-[ $# -ge 1 ] || { echo "usage: publish.sh package.pkg.tar.zst..." >&2; exit 2; }
+[ $# -ge 1 ] || { echo "usage: publish.sh package.pkg.tar.zst... | --prune" >&2; exit 2; }
+# --prune publishes what is there, keeping the newest three of each and
+# making the history one commit, with nothing new added.
+if [ "$1" = --prune ]; then
+	[ $# -eq 1 ] || { echo "usage: publish.sh --prune" >&2; exit 2; }
+	shift
+fi
 REPO=${ARCH_REPO:-$HOME/hibr-arch}
 GNUPGHOME=${APT_GNUPGHOME:-$HOME/.local/share/hibr-apt/gnupg}
 export GNUPGHOME
@@ -57,16 +68,13 @@ for pkg in "$@"; do
 done
 
 cd "$REPO"
+find . -path ./.git -prune -o -name '*.pkg.tar.zst' -print |
+	sed -n 's|^\(.*/\)\([^/]*\)-\([^-/]*-[^-/]*\)-\([^-/]*\)\.pkg\.tar\.zst$|\2 \4 \3 &|p' |
+	keep_prune
 gpg --armor --export "$KEY" > hibr.asc
 touch .nojekyll
 
-git add -A
-git commit -q -m "Publish $(for pkg in "$@"; do basename "$pkg" .pkg.tar.zst; done | tr '\n' ' ')"
-if ! timeout 120 git push -q origin HEAD 2> push.err; then
-	cat push.err >&2
-	rm -f push.err
-	echo "publish: committed in $REPO, not pushed" >&2
-	exit 1
-fi
-rm -f push.err
+what="Publish $(for pkg in "$@"; do basename "$pkg" .pkg.tar.zst; done | tr '\n' ' ')"
+[ $# -eq 0 ] && what="Keep the newest $KEEP of each package"
+keep_publish "$what" || exit 1
 echo "== published https://osakka.github.io/hibr-arch"
