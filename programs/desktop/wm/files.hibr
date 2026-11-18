@@ -29,8 +29,19 @@ dt_dnd() {
 }
 
 dt_dnddraw() {
+	local b=""
+
+	# Over a program's window, the compositor is told, and what the
+	# program answered is a mark on the drag: it would take them, or not.
+	if [ "${#DT_DNDS[@]}" -gt 0 ] && dt_has dt_natdragat && [ -n "${DT_NATSRV-}" ]; then
+		dt_natdragat "$DT_DNDR" "$DT_DNDC"
+		case ${DT_NATHOVER-} in
+		copy) b=" ${GL[plus]}" ;;
+		none) b=" ${GL[cross]}" ;;
+		esac
+	fi
 	console pen "$DT_FACE" "$DT_ACTIVE" bold
-	console put "$DT_DNDR" $((DT_DNDC + 1)) " $DT_DNDG $DT_DNDN "
+	console put "$DT_DNDR" $((DT_DNDC + 1)) " $DT_DNDG $DT_DNDN$b "
 }
 
 # Hand what was dropped to whatever is under the pointer.  Not dt_drop,
@@ -70,6 +81,7 @@ fn dt_ondrop(int mr, int mc, mods) {
 			dt_natdrop "$id" "$mr" "$mc" "${src[@]}"
 			return 0
 		fi
+		dt_has dt_natleave && dt_natleave
 		if [ -z "$ap" ]; then
 			dt_log "drop: window $id (${DT[$id]["app"]:-no app}) has no _drop; refused"
 			dt_notep low "%s does not take files" "${DT[$id]["title"]}"
@@ -81,6 +93,7 @@ fn dt_ondrop(int mr, int mc, mods) {
 		dt_appcall "$id" "$ap" $((mr - wr)) $((mc - wc)) "$op" "${src[@]}"
 		return 0
 	fi
+	dt_has dt_natleave && dt_natleave
 	dt_has dt_deskdrop && dt_deskdrop "$mr" "$mc" "$op" "${src[@]}"
 	return 0
 }

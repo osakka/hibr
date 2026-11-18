@@ -17,6 +17,7 @@ import base64, json, os, re, shutil, signal, subprocess, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
 from screen import Term, check, report, load, tree, press, release, drag
+from screen import drag as mousedrag
 
 D = tempfile.mkdtemp(prefix="hibr-native-")
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -81,6 +82,13 @@ open(p, "w").write(
     "for n in \"${!NWN[@]}\"; do id=${NWN[$n]}; DT_DNDS=(\"$f\"); "
     "dt_ondrop $((DT[$id][\"row\"] + 3)) $((DT[$id][\"col\"] + 3)) \"\"; done; dt_want 30; }\n"
     "dt_ticker tst_drop\n"
+    "tst_drag() { [ -f \"$NTDRAG\" ] || return 0; local v f n id; read -r v f < \"$NTDRAG\"; rm -f \"$NTDRAG\"; "
+    "for n in \"${!NWN[@]}\"; do id=${NWN[$n]}; done; "
+    "case $v in on) dt_dnd \"a.txt\" \"${GL[file]}\" \"$f\"; DT_DNDR=$((DT[$id][\"row\"] + 3)); DT_DNDC=$((DT[$id][\"col\"] + 3)); "
+    "echo \"$DT_DNDR $DT_DNDC $((DT[$id][\"row\"] + DT[$id][\"h\"] + 2))\" > \"$NTDRAG.at\" ;; "
+    "move) DT_DNDC=$((DT[$id][\"col\"] + 6)) ;; off) DT_DNDR=$((DT[$id][\"row\"] + DT[$id][\"h\"] + 2)) ;; "
+    "drop) dt_ondrop \"$DT_DNDR\" \"$DT_DNDC\" \"\" ;; esac; dt_want 30; }\n"
+    "dt_ticker tst_drag\n"
     "dt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
@@ -96,7 +104,7 @@ t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "loc
               "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D,
               "WAYLAND_DISPLAY": None, "DISPLAY": None,
               "DT_PROGAUTO": "1", "XDG_DATA_DIRS": os.path.join(D, "share"),
-              "NTAUGHT": MARK + ".taught", "NTDROP": MARK + ".drop"})
+              "NTAUGHT": MARK + ".taught", "NTDROP": MARK + ".drop", "NTDRAG": MARK + ".drag"})
 
 
 def scr():
@@ -646,6 +654,50 @@ check("and one that refuses it is named as not taking files, its own answer",
       dr2 and not comp("drop")[1]["taken"], (comp("drop"), scr()))
 os.unlink(complog + ".droprefuse")
 
+# While files are dragged over a program's window the compositor is told
+# where (Blit 0.3.118, #160 row 1): the first motion enters, the program's
+# answer comes back as a hover and shows on the drag, the drop reuses the
+# drag's number, and a drag that leaves the programs' windows, or is
+# cancelled, says so.
+def dragcmd(v, f=""):
+    open(MARK + ".drag", "w").write(("%s %s" % (v, f)).strip() + "\n")
+    t.keys([b"x"])
+
+
+ndrag, nleave, ndrop = len(comp("drag")), len(comp("leave")), len(comp("drop"))
+dragcmd("on", DPATH)
+dg = wait(lambda: comp("drag")[ndrag:])
+hov = wait(lambda: "a.txt +" in scr().text())
+check("files dragged over a program's window: the compositor is told where, and "
+      "the program's yes shows on the drag",
+      dg and dg[0]["win"] == "7" and dg[0]["first"] and hov, (comp("drag")[ndrag:], scr()))
+at = [int(x) for x in open(MARK + ".drag.at").read().split()]
+# The pointer moves, as a person's does: a drag report, then a release.
+t.send(mousedrag(at[0], at[1] + 3), settle=0.4)
+mv = wait(lambda: len(comp("drag")) >= ndrag + 2)
+t.send(release(at[0], at[1] + 3), settle=0.4)
+dd = wait(lambda: len(comp("drop")) > ndrop)
+check("a move is told as motion, and the drop comes under the drag's own number",
+      mv and not comp("drag")[ndrag + 1]["first"] and dd and
+      comp("drop")[ndrop]["seq"] == comp("drag")[ndrag]["seq"],
+      (comp("drag")[ndrag:], comp("drop")[ndrop:]))
+open(complog + ".droprefuse", "w").close()
+dragcmd("on", DPATH)
+no = wait(lambda: ("a.txt " + "\u2715") in scr().text() or ("a.txt x") in scr().text() or
+          any(("a.txt " + ch) in scr().text() for ch in ("\u2717", "\u2718", "\u00d7")))
+t.send(mousedrag(at[2], at[1]), settle=0.4)
+lv = wait(lambda: len(comp("leave")) > nleave)
+check("a program that would not take them shows so on the drag; dragged off its "
+      "window, the compositor is told it left",
+      no and lv, (scr(), comp("leave")[nleave:]))
+dragcmd("on", DPATH)
+wait(lambda: len(comp("drag")) > ndrag + 3)
+nleave2 = len(comp("leave"))
+t.keys([b"\x1b", 0.5])
+lv2 = wait(lambda: len(comp("leave")) > nleave2)
+check("and a drag cancelled with escape over it says it left too", lv2, comp("leave")[nleave2:])
+os.unlink(complog + ".droprefuse")
+
 # A size line is sent when it says something new: the same size and state
 # twice in a row -- a decoration said again, a focus change -- before any restart (which tells a reconnected
 # compositor again, rightly), was a focus change clearing what had been sent, seen as a
@@ -1140,4 +1192,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(91)
+report(95)

@@ -201,6 +201,7 @@ def frame(wid):
 SIZEOK = re.compile(r"^WINDOW size \d+ \d+ \d+( fullscreen)?( maximized)?( activated)?"
                     r"( tiled-left)?( tiled-right)?( tiled-top)?( tiled-bottom)?$")
 CLIPS = {}
+DRAGS = set()
 clipn = 100
 
 
@@ -223,6 +224,18 @@ def clipline(w, fds):
         os.close(r)
         note(kind="pasted", sel=w[3], text=got.decode(errors="replace"),
              secret="x-kde-passwordManagerHint" in w[4:])
+    elif w[1] == "drag" and len(w) >= 6:
+        # A drag over a window (Blit 0.3.118): the first of a seq on a
+        # window is its enter, answered with what the program would do;
+        # the rest are motion, answered only if that changed.
+        refuse = os.path.exists(LOG + ".droprefuse")
+        first = (w[2], w[3]) not in DRAGS
+        DRAGS.add((w[2], w[3]))
+        note(kind="drag", seq=w[2], win=w[3], x=w[4], y=w[5], first=first)
+        if first:
+            say("CLIP hover %s %s" % (w[2], "none" if refuse else "copy"))
+    elif w[1] == "leave":
+        note(kind="leave", seq=w[2])
     elif w[1] == "drop" and len(w) >= 6:
         # Files let go on a program's window (Blit 0.3.114): read as a
         # real program does -- Firefox reads the list once to decide and

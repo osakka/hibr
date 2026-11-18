@@ -1303,6 +1303,7 @@ fn dt_event(k) {
 	if [ -n "$DT_DND" ]; then
 		DT_DND=
 		DT_MOUSE=
+		dt_has dt_natleave && dt_natleave
 		[ "$k" = escape ] && return 0
 	fi
 	# The window switcher (Gitea #391) takes Cycle, Cycle Back and

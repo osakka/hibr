@@ -1518,6 +1518,44 @@ fn dt_natdrop(int id, int mr, int mc, ...paths) {
 	return 0
 }
 
+# Files being dragged, drawn this frame at row r, column c: over a program's
+# window the compositor is told where, so the program can say whether it
+# would take them (Blit 0.3.118, #160 row 1) -- only when the place
+# changed, and a leave when the drag goes from the programs' windows.
+declare -g DT_NATDRAG="" DT_NATDRAGAT="" DT_NATHOVER=""
+fn dt_natdragat(int r, int c) {
+	local id o=1 x y
+
+	id := console hit "$r" "$c" 2> /dev/null
+	id=${id#w}
+	if ! dt_iswin "$id" || [ "${DT[$id]["app"]}" != native ] || [ -z "${NW[$id]["bid"]-}" ]; then
+		dt_natleave
+		return 0
+	fi
+	[ "${DT[$id]["chrome"]-}" = none ] && o=0
+	dt_natcell
+	y=$(((r - ${DT[$id]["row"]} - o) * DT_NATCH + ${NW[$id]["gy"]:-0}))
+	x=$(((c - ${DT[$id]["col"]} - o) * DT_NATCW + ${NW[$id]["gx"]:-0}))
+	[ "$x" -ge 0 ] || x=0
+	[ "$y" -ge 0 ] || y=0
+	[ "$DT_NATDRAGAT" = "$id $x $y" ] && return 0
+	[ -n "$DT_NATDRAG" ] && [ "$DT_NATDRAG" != "$id" ] && DT_NATHOVER=
+	DT_NATDRAG=$id
+	DT_NATDRAGAT="$id $x $y"
+	frames clip "$DT_NATSRV" drag "${NW[$id]["bid"]}" "$x" "$y" "${DT_DNDS[@]}" > /dev/null 2>&1
+	return 0
+}
+
+# The drag gone from the programs' windows, or ended without a drop on one.
+dt_natleave() {
+	[ -n "$DT_NATDRAG" ] || return 0
+	frames clip "$DT_NATSRV" leave 2> /dev/null
+	DT_NATDRAG=
+	DT_NATDRAGAT=
+	DT_NATHOVER=
+	return 0
+}
+
 # A program's selection said: its text is the desktop's clipboard -- kept
 # in the history unless the program marked it a secret -- and is not
 # offered back to the programs, which have it already. One that is not
@@ -1526,7 +1564,15 @@ fn dt_natclip(rest = "") {
 	local sel kind t more
 
 	read -r sel kind more <<< "$rest"
+	if [ "$sel" = hover ]; then
+		DT_NATHOVER=$more
+		dt_want 30
+		return 0
+	fi
 	if [ "$sel" = drop ]; then
+		DT_NATDRAG=
+		DT_NATDRAGAT=
+		DT_NATHOVER=
 		[ "$more" = refused ] && [ -n "${DT_NATDROP["$kind"]-}" ] &&
 			dt_notep low "%s does not take files" "${DT_NATDROP["$kind"]}"
 		unset DT_NATDROP["$kind"]

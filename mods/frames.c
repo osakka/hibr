@@ -48,10 +48,11 @@
  *   frames wait N MS           until the compositor has named its display,
  *                              no longer than MS: what the desktop starts
  *                              before its first frame needs the name
- *   frames clip N drop WIN X Y PATH...
- *                              files let go on program window WIN at its
- *                              pixels X, Y, offered as a uri-list; news
- *                              `clip drop SEQ taken|refused`
+ *   frames clip N drag|drop WIN X Y PATH..., frames clip N leave
+ *                              files dragged over, or let go on, program
+ *                              window WIN at its pixels X, Y, offered as a
+ *                              uri-list; news `clip hover SEQ copy|none`
+ *                              and `clip drop SEQ taken|refused`
  *   frames clip N offer|clear|get clipboard|primary [-s] [TEXT]
  *                              the desktop's side of the clipboard with the
  *                              compositor's programs; news `clip SEL
@@ -1234,6 +1235,15 @@ void fl_clipline(fl_srv *f, const char *m, size_t k, int fd)
 		else if (fd >= 0)
 			close(fd);
 		fd = -1;
+	} else if (!strcmp(v.p, "hover") && seq == f->dseq) {
+		str d;
+
+		s_init(&d);
+		s_cat(&d, "hover ");
+		s_num(&d, (long)seq);
+		s_cat(&d, strncmp(r.p, "copy", 4) ? " none" : " copy");
+		fl_ev(f, "clip", 0, d.p);
+		s_free(&d);
 	} else if (!strcmp(v.p, "dropped") && seq == f->dseq) {
 		str d;
 
@@ -1263,15 +1273,27 @@ out:
 	s_free(&r);
 }
 
-/* frames clip N drop WIN X Y PATH...: files let go on a program's window WIN at its own pixels X, Y, offered to it as a uri-list -- each path a file:// address, percent-encoded, a line ending CRLF -- answering every read the program makes of it until the compositor says taken or refused, which comes up as `clip drop SEQ taken|refused`; answers SEQ. */
+/* frames clip N drag|drop WIN X Y PATH... and frames clip N leave: files the desktop is dragging, over a program's window WIN at its own pixels X, Y, and let go there (Blit 0.3.118, #160 row 1). The first drag of a list says it entering and the rest its moves, under one number the drop then reuses, so the compositor drops where the program already said it takes them; the program's answer comes up as `clip hover SEQ copy|none` and the drop's as `clip drop SEQ taken|refused`. Every read of the uri-list -- each path a percent-encoded file:// address, a line ending CRLF -- is answered from it, during the hover too. leave says the drag has gone from the programs' windows, or ended; answers SEQ. */
 int fl_dropverb(sh *s, fl_srv *f, int ac, char **av)
 {
 	const char *p;
 	str u, o;
-	int i;
+	int i, drag = !strcmp(av[3], "drag");
 
+	if (!strcmp(av[3], "leave")) {
+		if (f->dseq) {
+			s_init(&o);
+			s_fmt(&o, "CLIP leave %lu\n", f->dseq);
+			fl_say(f, o.p);
+			s_free(&o);
+			free(f->dtext);
+			f->dtext = 0;
+			f->dseq = 0;
+		}
+		return HIBR_OK;
+	}
 	if (ac < 8) {
-		lg(HIBR_LERR, "usage: frames clip N drop WIN X Y PATH...");
+		lg(HIBR_LERR, "usage: frames clip N drag|drop WIN X Y PATH..., or frames clip N leave");
 		return 2;
 	}
 	s_init(&u);
@@ -1285,13 +1307,15 @@ int fl_dropverb(sh *s, fl_srv *f, int ac, char **av)
 		}
 		s_cat(&u, "\r\n");
 	}
-	free(f->dtext);
-	f->dtext = xs(u.p);
-	f->dseq = ++f->clipn;
+	if (!f->dseq || !f->dtext || strcmp(f->dtext, u.p)) {
+		free(f->dtext);
+		f->dtext = xs(u.p);
+		f->dseq = ++f->clipn;
+	}
 	s_free(&u);
 	s_init(&o);
-	s_fmt(&o, "CLIP drop %lu %s %s %s text/uri-list " FL_CLIPTEXT "\n",
-	      f->dseq, av[4], av[5], av[6]);
+	s_fmt(&o, "CLIP %s %lu %s %s %s text/uri-list " FL_CLIPTEXT "\n",
+	      drag ? "drag" : "drop", f->dseq, av[4], av[5], av[6]);
 	fl_say(f, o.p);
 	o.n = 0;
 	s_num(&o, (long)f->dseq);
@@ -1311,7 +1335,8 @@ int fl_clipverb(sh *s, fl_srv *f, int ac, char **av)
 	int i, sec = 0, a = 5;
 	str o;
 
-	if (ac > 3 && !strcmp(av[3], "drop"))
+	if (ac > 3 && (!strcmp(av[3], "drop") || !strcmp(av[3], "drag") ||
+		       !strcmp(av[3], "leave")))
 		return fl_dropverb(s, f, ac, av);
 	if (ac < 5 || (i = fl_clipsel(av[4])) < 0) {
 		lg(HIBR_LERR, "usage: frames clip N offer|clear|get clipboard|primary [-s] [TEXT]");
