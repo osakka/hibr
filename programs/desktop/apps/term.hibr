@@ -773,6 +773,7 @@ fn term_close(int id) {
 		TW[$id]["isofn"]=
 	fi
 	if [ -n "${TW[$id]["iso"]-}" ]; then
+		[ "${DT_ISON:-0}" -gt 0 ] && DT_ISON=$((DT_ISON - 1))
 		rm -f "${TW[$id]["iso"]}" 2> /dev/null
 		TW[$id]["iso"]=
 		TW[$id]["isoin"]=

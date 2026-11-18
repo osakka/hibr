@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.552
+
+**A desktop that hosts no app pays nothing for the isolation prototype.**
+0.99.550 registered three tickers for it at load, and `dt_tickers` times
+each ticker it runs: about 45 us each, so every desktop paid 120 to 170 us a
+pass -- a fifth of the frame budget -- for a feature nothing switches on
+yet. They are registered when they are needed now: the desktop's with its
+first hosted window, the hosted side's when a hosted desktop opens.
+Measured as 2,000 passes of every ticker, against 0.99.549: 578 us and
+580, 606 and 589.
+
+ADR 0050 is decided: every installable will run in a process of its own,
+by one path, with no switch.
+
 ## 0.99.551
 
 **Dragging out of a program** (Blit 0.3.120, #160 row 3). A program that

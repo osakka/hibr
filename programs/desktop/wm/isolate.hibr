@@ -69,6 +69,11 @@ fn dt_isonew(prefix, file, title, int h, int w, int r = 2, int c = 4) {
 		done
 	done < "$file"
 	TW[$id]["isokeeps"]=$keeps
+	DT_ISON=$((DT_ISON + 1))
+	# Registered with the first hosted window, never at load: each ticker
+	# costs every pass its own timing, measured at 45 us, and a desktop
+	# that hosts nothing must pay nothing for this.
+	dt_ticker dt_isotick
 	dt_log "isolated: $prefix opened as window $id, a process of its own"
 	ret "$id"
 }
@@ -117,9 +122,12 @@ fn dt_isosent(int id) {
 # late. Reads one small file a window, and only while something is owed.
 # And what it has said is taken here too, drawn or not: a minimised app's
 # menus and settings would otherwise wait until it was shown.
+# How many hosted windows are open: with none, a pass costs this one test.
+declare -g DT_ISON=0
 dt_isotick() {
 	local id a in now ms t note ttl
 
+	[ "$DT_ISON" -gt 0 ] || return 0
 	for id in "${DT_WINS[@]}"; do
 		[ -n "${TW[$id]["iso"]-}" ] || continue
 		t=${TW[$id]["t"]-}
@@ -156,12 +164,13 @@ dt_isotick() {
 	done
 	return 0
 }
-command -v dt_ticker > /dev/null && dt_ticker dt_isotick
 
 # A hosted desktop's own start: dt_open's, less everything that belongs to
 # the desktop showing it -- the supervisor, hold, the control socket, the
 # crash snapshot, the log's rotation, programs' windows and the saver.
 dt_hostopen() {
+	dt_ticker dt_hostmenus
+	dt_ticker dt_hostgone
 	export XDG_CURRENT_DESKTOP=hibr XDG_SESSION_DESKTOP=hibr
 	shopt -s keepgoing
 	dt_load
@@ -311,7 +320,6 @@ dt_hostgone() {
 	fi
 	return 0
 }
-command -v dt_ticker > /dev/null && dt_ticker dt_hostmenus && dt_ticker dt_hostgone
 
 # A command from the desktop showing this one: a menu item chosen there, an
 # Edit operation, or files let go on the window.
