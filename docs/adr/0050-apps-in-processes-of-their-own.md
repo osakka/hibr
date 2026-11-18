@@ -96,6 +96,28 @@ carry over; its route does not.
    notes, `term_menus`, `term_drop`, `term_canclose`, `term_paste`'s mark
    and the rest) are removed in the same change: the terminal window is a
    terminal again.
+   **Done means, all of it, before that release ships:**
+   - every catalogue bundle runs unmodified, or is listed with the change it
+     needed and an `hibr:` floor at the release, so an older desktop keeps
+     the version it can run;
+   - `tests/isolation.py` is in `all.py` and passes with no switch, and the
+     prototype's hooks and every `DT_HOSTED` branch grep to zero;
+   - the budgets -- idle, a key's echo, a full window redrawn ten times a
+     second, the Terminal's three writers -- are measured against 0.99.549,
+     the last release with no isolation code on main;
+   - a gate check holds what an idle pass of `dt_run` costs, since inert
+     prototype code once cost 135 us a pass and nothing noticed;
+   - the sensitivity checks fail against a build with detection taken out;
+   - the owner is offered a trial of the candidate before it ships, as a
+     second session on the mini PC beside the live one, never attached to it;
+   - hibr-browser and huiamp are sent the calls table before the flip, since
+     their apps live in their own repositories.
+   **Updates, settled before the flip:** an app process meeting a new
+   runtime either re-executes itself, keeping its descriptors (losing its
+   script state and the zygote's shared pages), or the new zygote forks a
+   fresh one and is handed the old one's descriptors; both are measured --
+   memory, time to the first frame, what a terminal's programs see -- and
+   the cheaper that keeps a terminal's programs running is taken.
 
 ## Requirement: we stay as sensitive to a slow app as we are now (owner, 2026-11-18)
 
