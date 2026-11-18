@@ -51,8 +51,22 @@ SV_COLS=0
 
 # Name a saver: what it is called in lists, and how many milliseconds go
 # between its frames.
+# Inside a desktop a saver's code is called through its seam (wm/seam.hibr,
+# ADR 0050) as the saver's own; run on its own (sv_main) there is no
+# desktop, and the saver is called directly. Decided once, when this loads.
+SV_SEAM=
+command -v dt_prefixfn > /dev/null && SV_SEAM=1
+fn sv_call(name, what, ...rest) {
+	if [ -n "$SV_SEAM" ]; then
+		dt_prefixfn "$name" "$what" "${rest[@]}"
+	else
+		"${name}_$what" "${rest[@]}"
+	fi
+}
+
 fn sv_saver(name, title, int ms) {
 	[ -n "${SV[$name]["ms"]}" ] || SV_LIST+=("$name")
+	[ -n "$SV_SEAM" ] && dt_hookown "${name}_"
 	SV_LAST=$name
 	SV[$name]["title"]=$title
 	SV[$name]["ms"]=$ms
@@ -88,7 +102,7 @@ fn sv_begin(name = "random") {
 	sv_size
 	console pen white black
 	console clear
-	"${name}_start" "$SV_ROWS" "$SV_COLS"
+	sv_call "$name" start "$SV_ROWS" "$SV_COLS"
 	return 0
 }
 
@@ -114,7 +128,7 @@ sv_frame() {
 	if console resized; then
 		sv_begin "$SV_NAME"
 	fi
-	"${SV_NAME}_frame" "$SV_ROWS" "$SV_COLS"
+	sv_call "$SV_NAME" frame "$SV_ROWS" "$SV_COLS"
 	ret "${SV[$SV_NAME]["ms"]}"
 }
 

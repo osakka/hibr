@@ -4191,6 +4191,16 @@ went in the shell.
   preloads adds `verify_asan_link_order=0` to `ASAN_OPTIONS` when that is
   set, and widens its own timing bound there.
 
+- **A function copied with `declare -f name | sed 1d` has no body when it
+  is one line.** hibr prints `f() { ...; }` on a single line, so cutting
+  the first line cuts all of it, and `eval "copy() $(...)"` defines an
+  empty function that succeeds and answers nothing. A probe built that way
+  reported every Control Panel pane's rows empty (2026-11-18) and sent an
+  hour after a fault that was elsewhere (`panel_pane` asked about a scratch
+  id); a count made the same way said 8 seam calls a frame where there were
+  16. Copy a function by renaming it: `eval "$(declare -f f | sed
+  's/^f()/copy()/')"`, and print the copy before trusting what it reports.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

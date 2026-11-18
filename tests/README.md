@@ -225,7 +225,8 @@ More tools sit around it:
   stays the desktop's; and an installable's hooks -- a bar hook, a mode
   hook, a bar item's command, a location's question, a ticker -- registered
   while its file loaded, run as that file's, and a ticker an app registers
-  from its own code runs as the app's. Fails against the desktop before the
+  from its own code runs as the app's; a Control Panel pane's owner is its
+  file, and a saver started by the framework runs as its file's. Fails against the desktop before the
   owners were recorded.
 - **`tests/rtchan.py`** -- the app runtime's socket (ADR 0050) through a
   pty: an app process sourcing only `runtime.hibr` says hello and what it

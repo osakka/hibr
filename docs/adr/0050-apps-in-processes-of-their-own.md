@@ -368,17 +368,29 @@ from the name) or `dt_appfn` with it. The seam has a file of its own,
 `wm/seam.hibr`, loaded first of the desktop's own so a file registering a
 hook while it loads finds it there. Its cost, counted rather than timed
 (the machine's clock was too noisy that day): a forced frame of three
-windows with the shipped bar items and strip modules makes 8 calls through
-the seam, 5 of them hooks -- about 26 us, 0.6% of that frame and about 4%
-of the 0.7 ms a frame the owner's CPU bar allows; an unforced frame makes
-fewer. **Tickers too** (found by the advisor after the hooks were called
+windows with the shipped bar items and strip modules makes 16 calls through
+the seam -- about 11 callbacks, 5 of them hooks, each hook entering it
+twice -- about 46 us, 1% of that frame and about 6.5% of the 0.7 ms a frame
+the owner's CPU bar allows; an unforced frame makes fewer. (A first count
+said 8: it copied the seam with `declare -f ... | sed 1d`, and hibr prints
+a one-line function on one line, so the copy had no body and nothing it
+should have called was counted. Copy a function by renaming its first
+line, never by cutting lines from it.) **Tickers too** (found by the advisor after the hooks were called
 done, since the check classed the ticker loop as the desktop's own): a
 ticker records its owner when registered (`DT_TICKOWN`: the loading file,
 or the app whose code registered it at run time), and the loop runs one
 that has an owner through the seam and calls the desktop's own directly,
 so a pass pays the seam only for what has one -- 10 of a full desktop's
 25 tickers, about 25 us a pass, beside the 45 us a ticker's timing already
-costs each. What is left of the platform's 94
+costs each. **And the platform's own installable-shaped files** (also the
+advisor's catch: the census read `wm/` and the widgets only): the Control
+Panel's window calls into panes in 18 places -- a pane's `_rows`, `_draw`,
+`_key`, `_click`, `_mouse`, `_wheel`, `_do`, `_drop`, `_order`, `_slide`,
+a row's setter and its namer -- and the saver framework into savers in 2.
+`cp_pane` and `sv_saver` record their owner, and every one of the 20 goes
+through `dt_prefixfn` or `dt_appfn`; the saver framework run on its own,
+with no desktop (`sv_main`), calls its saver directly, which is local by
+definition. The census now reads every `# platform:` file too. What is left of the platform's 94
 calls by a name is 26: the seam itself, 12 of the desktop's own (a program
 it starts, its own tickers) and 13 in shared code, which runs in whichever
 process called it. `tests/appcalls.py` fails on a site no rule classes, and on any difference from the committed table -- keyed on the

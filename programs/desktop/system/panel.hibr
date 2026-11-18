@@ -61,12 +61,18 @@ declare -gA CPSRC
 # it -- panel_mouse then falls through to <name>_click for that same
 # press, exactly as if _mouse did not exist; only a press it actually
 # accepts (return 0) ever sees the drag or the release that follows it.
+# Whose the rows built under an id are -- the pane that built them, its
+# file's (dt_hookown) -- so a row's setter and namer run as that pane's
+# through the seam (ADR 0050), whichever id the rows were built under: a
+# panel window's, or the search's scratch one.
+declare -gA CP_ROWOWNER
 fn cp_pane(pane, title, icon, group = "system") {
 	CP_PANES[$pane]["title"]="$title"
 	CP_PANES[$pane]["icon"]="${icon:-◆}"
 	CP_PANES[$pane]["group"]=$group
 	CP_PANES[$pane]["src"]="${DT_LOADING-}"
 	CP_PANE_LIST+=("$pane")
+	dt_hookown "${pane}_"
 }
 
 # Load every pane in the folders, then sort the list -- the desktop's own
@@ -281,7 +287,8 @@ fn panel_filter(int id) {
 			[[ ${t,,} == *"$q"* ]] && hit=1
 			if [ "$hit" = 0 ] && ! dt_has "${n}_draw" && dt_has "${n}_rows"; then
 				unset "CP[$scratch]"
-				k := "${n}_rows" "$scratch"
+				k := dt_prefixfn "$n" rows "$scratch"
+				CP_ROWOWNER[$scratch]=${DT_HOOKOWNER["${n}_"]-}
 				while [ "$k" -gt 0 ]; do
 					k=$((k - 1))
 					cp_rowhas "$scratch" "$k" "$q" && { hit=1; break; }
@@ -330,7 +337,8 @@ fn cp_rowsbuild(int id, pane) {
 	local n q t i=0 j=0 h=-1 hd=-1 first= s=999998
 
 	unset "CP[$id]"
-	n := "${pane}_rows" "$id"
+	n := dt_prefixfn "$pane" rows "$id"
+	CP_ROWOWNER[$id]=${DT_HOOKOWNER["${pane}_"]-}
 	PW[$id]["narrow"]=
 	q := dt_searchq "$id"
 	q=${q,,}
@@ -531,7 +539,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	bw=$((w - lw - 2))
 	case $DT_MIRRORON in 1) bx=2 ;; esac
 	if dt_has "${pane}_draw"; then
-		"${pane}_draw" "$id" $((h - 1 - srows)) "$bw" "$bx"
+		dt_prefixfn "$pane" draw "$id" $((h - 1 - srows)) "$bw" "$bx"
 	else
 		cp_rowsdraw "$id" "$pane" $((h - 1 - srows)) "$bw" "$bx"
 	fi
@@ -946,7 +954,7 @@ fn cp_join(...vals) {
 fn cp_rowval(int w, int i) {
 	local v=${CP[$w][$i]["val"]-} f=${CP[$w][$i]["vname"]-}
 
-	[ -n "$f" ] && v := "$f" "$v"
+	[ -n "$f" ] && v := dt_appfn "${CP_ROWOWNER[$w]-}" "$f" "$v"
 	ret "$v"
 }
 
@@ -991,7 +999,7 @@ fn cp_droprow(int w, int i, int r, int c) {
 		return 0
 	fi
 	pane := panel_pane "$w"
-	dt_has "${pane}_drop" && "${pane}_drop" "$w" "$r" "$c" "${CP[$w][$i]["key"]}"
+	dt_has "${pane}_drop" && dt_prefixfn "$pane" drop "$w" "$r" "$c" "${CP[$w][$i]["key"]}"
 	return 0
 }
 
@@ -1012,12 +1020,12 @@ fn cp_pick(int w, v) {
 
 # Set row i to v through its own setter, the one way a choice is made.
 fn cp_rowset(int w, int i, v) {
-	local f=${CP[$w][$i]["set"]}
+	local f=${CP[$w][$i]["set"]} o=${CP_ROWOWNER[$w]-}
 
 	if [ -n "${CP[$w][$i]["sarg"]-}" ]; then
-		"$f" "$w" "$v" "${CP[$w][$i]["sarg"]}"
+		dt_appfn "$o" "$f" "$w" "$v" "${CP[$w][$i]["sarg"]}"
 	else
-		"$f" "$w" "$v"
+		dt_appfn "$o" "$f" "$w" "$v"
 	fi
 }
 
@@ -1086,7 +1094,7 @@ fn cp_do(int w, int dir) {
 	# action is a plain button: no value of its own to cycle, so the
 	# pane's own _do sees whatever dir a click or a key happened to
 	# give it, and ignores it -- the same call "set" already makes.
-	set | action) dt_has "${pane}_do" && "${pane}_do" "$w" "$k" "$dir" ;;
+	set | action) dt_has "${pane}_do" && dt_prefixfn "$pane" do "$w" "$k" "$dir" ;;
 	key) command -v dt_keycap > /dev/null && dt_keycap "$k" ;;
 	esac
 }
@@ -1142,7 +1150,7 @@ fn panel_key(int w, key) {
 	pane := panel_pane "$w"
 	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
 		if dt_has "${pane}_key"; then
-			"${pane}_key" "$w" "$key"
+			dt_prefixfn "$pane" key "$w" "$key"
 			return $?
 		fi
 		return 1
@@ -1177,7 +1185,7 @@ fn panel_key(int w, key) {
 		;;
 	*)
 		if [ -n "$pane" ] && dt_has "${pane}_key"; then
-			"${pane}_key" "$w" "$key"
+			dt_prefixfn "$pane" key "$w" "$key"
 			return $?
 		fi
 		return 1
@@ -1223,7 +1231,7 @@ fn panel_click(int w, int r, int c, btn = "") {
 	[ -z "$pane" ] && return 0
 	PW[$w]["side"]=pane
 	if dt_has "${pane}_draw"; then
-		dt_has "${pane}_click" && "${pane}_click" "$w" "$r" "$c"
+		dt_has "${pane}_click" && dt_prefixfn "$pane" click "$w" "$r" "$c"
 		return 0
 	fi
 	n=${PW[$w]["n"]}
@@ -1260,7 +1268,7 @@ fn panel_click(int w, int r, int c, btn = "") {
 		;;
 	rbtn:*)
 		PW[$w]["sel"]=$i
-		dt_has "${pane}_do" && "${pane}_do" "$w" "${tag#rbtn:}" 1
+		dt_has "${pane}_do" && dt_prefixfn "$pane" do "$w" "${tag#rbtn:}" 1
 		return 0
 		;;
 	esac
@@ -1351,11 +1359,12 @@ fn cp_ordmove(int w, int from, int to) {
 		[ "$i" = "$pt" ] && [ "$pt" -gt "$pf" ] && new+=("$m")
 		i=$((i + 1))
 	done
-	"${pane}_order" "$w" "$g" "${new[@]}"
+	dt_prefixfn "$pane" order "$w" "$g" "${new[@]}"
 	# The rows again at once, so a second move before the next frame
 	# starts from this one's order rather than the last frame's.
 	unset "CP[$w]"
-	n := "${pane}_rows" "$w"
+	n := dt_prefixfn "$pane" rows "$w"
+	CP_ROWOWNER[$w]=${DT_HOOKOWNER["${pane}_"]-}
 	PW[$w]["n"]=$n
 	PW[$w]["sel"]=${rows[$pt]}
 	PW[$w]["last"]=${rows[$pt]}
@@ -1422,7 +1431,7 @@ fn cp_slide(int w, int c, int r = 0) {
 	fx=${o%% *}
 	v := dt_slidepos "$c" "$wc" "$CP_SLIDEW" "${CP[$w][$i]["min"]:-0}" \
 		"${CP[$w][$i]["max"]:-10}" "$fx"
-	"${pane}_slide" "$w" "${CP[$w][$i]["key"]}" "$v"
+	dt_prefixfn "$pane" slide "$w" "${CP[$w][$i]["key"]}" "$v"
 	return 0
 }
 
@@ -1461,7 +1470,7 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 		pane := panel_pane "$id"
 		if ! panel_inlist "$id" "$c" && [ -n "$pane" ] &&
 		   dt_has "${pane}_mouse" &&
-		   "${pane}_mouse" "$id" press "$button" "$r" "$c"; then
+		   dt_prefixfn "$pane" mouse "$id" press "$button" "$r" "$c"; then
 			CP_MDRAG[$id]=$pane
 			return 0
 		fi
@@ -1481,7 +1490,7 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 		return 0
 	fi
 	pane=${CP_MDRAG[$id]}
-	[ -n "$pane" ] && "${pane}_mouse" "$id" "$act" "$button" "$r" "$c"
+	[ -n "$pane" ] && dt_prefixfn "$pane" mouse "$id" "$act" "$button" "$r" "$c"
 	[ "$act" = release ] && CP_MDRAG[$id]=
 }
 
@@ -1498,7 +1507,7 @@ fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 	fi
 	pane := panel_pane "$w"
 	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
-		dt_has "${pane}_wheel" && "${pane}_wheel" "$w" "$dir"
+		dt_has "${pane}_wheel" && dt_prefixfn "$pane" wheel "$w" "$dir"
 		return 0
 	fi
 	top=${PW[$w]["top"]}

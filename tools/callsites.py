@@ -20,7 +20,8 @@ processes of their own (ADR 0050). Read by the inspect module, never run.
   desktop  the desktop's own: a program it starts, its own tickers, its own
            dispatch
   local    shared code (the app interface) calling a name in its own
-           process: a widget calling the app that drew it
+           process: a widget calling the app that drew it; and the saver
+           framework run on its own, with no desktop, calling its saver
 
 --write puts programs/desktop/callsites.tsv; --check fails on a site no rule
 classes, so a new one cannot go unsorted.
@@ -41,7 +42,7 @@ BYOWNER = {
     "hook": """dt_copylocated dt_openverbs dt_openverb dt_modehook dt_modetick dt_runatstart dt_unload dt_reinstate dt_barrescan
                dt_baritoggle dt_barikey dt_popmouse dt_popdraw dt_barido dt_barilay dt_bar
                dt_busgive dt_loccan cs_relist dt_stripdraw cs_press""",
-    "local": """bd_put dt_dropcontext dt_omniask dt_sbto""",
+    "local": """bd_put dt_dropcontext dt_omniask dt_sbto sv_call""",
     "desktop": """dt_tickers dt_job dt_jobmerge dt_jobvarsrun dt_runhandler dt_autohold
                   dt_isozygote dt_natver dt_pwlocal dt_supervise dt_updcheck dt_rtmsg dt_vw
                   dt_vwget dt_vwmatch""",
@@ -65,11 +66,25 @@ def owners():
     return out
 
 
+def platform():
+    """The installable kinds' files that say `# platform:` of themselves
+    (ADR 0046): the Control Panel's window, the saver framework, the bar
+    items the package ships -- the desktop's own, calling panes, savers and
+    the like, so their calls into those are the desktop's too."""
+    out = []
+    for d in ("apps", "system", "control-panel", "control-strip", "menubar", "savers"):
+        for f in glob.glob(os.path.join(ROOT, "programs/desktop", d, "**", "*.hibr"), recursive=True):
+            if any(l.startswith("# platform:") for l in open(f, errors="replace")):
+                out.append(f)
+    return sorted(out)
+
+
 def sites():
     """Every dynamic call in the platform's files: (file, line, owner, text)."""
     out = []
     files = (glob.glob(os.path.join(ROOT, "programs/desktop/wm/*.hibr")) +
-             glob.glob(os.path.join(ROOT, "programs/desktop/widgets/*.hibr")))
+             glob.glob(os.path.join(ROOT, "programs/desktop/widgets/*.hibr")) +
+             platform())
     for f in sorted(files):
         lines = open(f, errors="replace").read().split("\n")
         rel = os.path.relpath(f, os.path.join(ROOT, "programs/desktop"))

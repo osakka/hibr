@@ -46,6 +46,10 @@ fn ow_ask() { dt_ask "Name" "Name:" "" ow_answer; return 0; }
 fn ow_answer(text, int id) { ow_said ask; return 0; }
 dt_app ow "Owner" 6 30
 OWID := dt_new "Owner" 6 30 3 3 ow
+. "$DT_HERE/system/panel.hibr"
+. "$DT_HERE/savers/saver.hibr"
+fn aafirst_rows(int w) { ret 0; }
+cp_pane aafirst "A First Pane" "x"
 DT_LOADING=%s
 . "$DT_LOADING"
 DT_LOADING=
@@ -85,6 +89,19 @@ fn in_item() { in_said item; }
 fn inst_draw(int row, int col) { [ -n "${IN_DREW-}" ] && return 0; IN_DREW=1; in_said strip; }
 fn inloc_can(op, p) { in_said location; }
 fn inloc_ls(...a) { return 0; }
+fn insv_start(int r, int c) { in_said saver; return 0; }
+fn insv_frame(int r, int c) { return 0; }
+cp_pane inpane "Inst" "x"
+fn inpane_rows(int w) {
+	CP[$w][0]["kind"]=set
+	CP[$w][0]["text"]="Seam Row"
+	CP[$w][0]["key"]=seamrow
+	CP[$w][0]["val"]=plain
+	CP[$w][0]["vname"]=in_namer
+	ret 1
+}
+fn in_namer(v) { in_said namer; ret "$v"; }
+sv_saver insv "Inst saver" 100
 in_tick() { [ -n "${IN_TICKED-}" ] && return 0; IN_TICKED=1; in_said ticker; }
 dt_ticker in_tick
 dt_barhook in_barhook
@@ -165,12 +182,28 @@ do('dt_appfn ow ow_regtick')
 time.sleep(0.5)
 check("a ticker an app registers from its own code runs as the app's", "rtick ow" in said(), said())
 mine = [l for l in said() if l.split(" ")[-1:] == [INST]]
-for how in ("barhook", "mode", "item", "location", "ticker"):
+do('echo "${DT_HOOKOWNER[inpane_]-none}" > %s.pane; sv_begin insv; dt_saverstop 2> /dev/null; true' % OUT)
+time.sleep(0.5)
+pane = open(OUT + ".pane").read().strip() if os.path.exists(OUT + ".pane") else ""
+check("a Control Panel pane's owner is the file that registered it", pane == INST, pane)
+mine = [l for l in said() if l.split(" ")[-1:] == [INST]]
+for how in ("barhook", "mode", "item", "location", "ticker", "saver"):
     check("an installable's %s runs as the file that registered it" % how,
           any(l.startswith(how + " ") for l in mine), said())
 
+# A pane's row is named through its namer as the pane's own, whichever id
+# the rows were built under: here the search's, typed into the Control
+# Panel, which builds every pane's rows under a scratch id of its own.
+do('PNL := dt_new "Control Panel" 22 70 2 2 panel; dt_raise "$PNL"')
+time.sleep(0.5)
+for ch in b"/zzqx":
+    t.send(bytes([ch]), settle=0.3, collect=0.3)
+time.sleep(0.5)
+check("a pane's row reached by a typed search is named as the pane's",
+      ("namer " + INST) in said(), said())
+
 t.quit(b"q", 1.0)
-for f in (p, OUT, MARK, INST):
+for f in (p, OUT, MARK, INST, OUT + ".pane"):
     if os.path.exists(f):
         os.unlink(f)
-report(12)
+report(15)
