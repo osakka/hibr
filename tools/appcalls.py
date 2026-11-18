@@ -81,6 +81,12 @@ for _n in "dt_size dt_edit dt_natcell".split():
 for _n in "dt_keyphases dt_keyswap".split():
     OVERRIDE[_n] = "request"
 OVERRIDE["dt_appaction"] = "declare"
+# The vault's sign-in mark is the desktop's key path; whether a display is
+# blank and the apps' names are the desktop's facts, pushed; the bus is one
+# connection, the desktop's, so an app subscribes to it by asking.
+for _n in "dt_signmark dt_isblank dt_buson dt_busoff dt_appnames".split():
+    OVERRIDE[_n] = "request"
+OVERRIDE["dt_keepstate"] = "declare"
 # The input method runs in every app process, its data shared from the
 # zygote (owner, 2026-11-18): what a text field asks of it is local. The
 # teach box and the chords told to Blit stay the desktop's.
