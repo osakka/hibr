@@ -156,6 +156,45 @@ today, measured from both sides:
   budget is shown to the person as well as logged, in a form the owner
   chooses.
 
+## The app interface: who owns it, how it ships, how it stays one (2026-11-18)
+
+The functions an app process takes from the desktop's own files (the
+manifest, `tools/appcalls.py --manifest`: 269 functions in about 50 files)
+are **not libraries**. `lib` is catalogue code several apps share, updated
+by the catalogue on its own schedule; these are what an app may call of
+the desktop, and updated apart from it an app would speak a protocol the
+running desktop does not. So:
+
+- **Owned and versioned by hibr**, shipped in the hibr package, and read
+  from `$DT_HERE` only -- never from a scope a person or the catalogue can
+  write.
+- **The calls table is the contract** (`docs/adr/0050-calls.tsv`, shipped
+  beside `conventions.json` so other repositories check against the
+  installed copy, not a checkout). Each row carries the function's
+  signature and the release it first appeared in. A release may add rows;
+  a row removed or changed is a breaking change, and the gate fails on one
+  against the last tag's table. A catalogue entry's `hibr:` floor is at
+  least the newest row it uses, checked rather than written by hand.
+- **One load order.** The shared files are laid out by concern (owner,
+  2026-11-18: a few files, each named for what it does) and loaded by one
+  loader file: `desktop.hibr` sources it first, the app runtime sources only
+  it. A header line on each shared file is a check, not a second list.
+  `tests/999-idle-tickers.t` must come out byte-identical across the move,
+  since a ticker registered before `dt_ticker` exists is silently dropped.
+- **One version per session.** The zygote is loaded when the desktop
+  starts and every app process forks from it, so an app runs the code the
+  running desktop was started with, even after an upgrade on disk; a
+  zygote needed later is forked from the old one, never read from disk.
+  The hello carries `HIBR_VERSION` and a protocol number, and a process
+  started any other way that disagrees is refused, and said so. (An
+  edited development tree with the same version is not caught; that is
+  said, not hidden.)
+- **Libraries are a second tier.** Loaded once, into the zygote, in
+  `dt_libs`' order -- as today, "sourced once per desktop" -- so Calendar
+  and Contacts never run two copies of `lib/pim` against one store after a
+  `catalogue update`; a new copy reaches apps at the next Restart Desktop.
+  The manifest separates them from the platform's files.
+
 ## Review (advisor, 2026-11-18): what the design must settle
 
 1. **An app runtime, not a whole desktop in a hosted mode.** The prototype's
