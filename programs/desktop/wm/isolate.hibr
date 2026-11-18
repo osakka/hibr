@@ -147,7 +147,9 @@ dt_isotick() {
 		ms=$(((now - in) / 1000))
 		if [ "$ms" -ge "${DT_HOLDMS:-150}" ] && [ -z "${TW[$id]["isomark"]}" ]; then
 			TW[$id]["isomark"]=1
-			dt_retitle "$id" "${TW[$id]["isotitle"]} (not responding)"
+			local nr
+			nr := dt_tr "%s (not responding)" "${TW[$id]["isotitle"]}"
+			dt_retitle "$id" "$nr"
 			dt_log "held: isolated:${TW[$id]["isoapp"]} $ms ms: its input is not answered; the desktop goes on"
 		fi
 		dt_want 100

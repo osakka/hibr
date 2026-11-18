@@ -9,6 +9,8 @@
 #
 #   hibr appstub.hibr SOCKET APPFILE PREFIX TITLE ACKFILE [FRAMESOCK FRAMETOKEN]
 
+strict
+
 as_sock=$1
 as_file=$2
 as_prefix=$3

@@ -12,6 +12,9 @@
 #       parsed is shared by every app rather than parsed again for each;
 #       gone when the desktop PARENTPID is
 
+strict
+
+declare -g HS_PID="" hs_sock="" hs_parent="" HS_LFD="" HS_C=""
 # Everything that says this process is the real desktop, or is being
 # watched by a harness, belongs to the desktop showing it.
 unset HIBR_HOLD DT_SUPERVISED DT_RESTORE HIBR_TESTIDLE
