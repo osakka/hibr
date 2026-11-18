@@ -233,13 +233,24 @@ today, measured from both sides:
    (`dt_textdraw`, `dt_textkey`, the text area, search, the start menu's
    field) ask it for every key and every draw, and `wm/ime.hibr` keeps one
    engine in the desktop, the words a person teaches it with it. Proposed:
-   the engine runs in each app process, the method chosen pushed like the
-   theme, and a word taught is a request whose result the desktop pushes to
-   every process -- so typing never crosses a process, and learning crosses
-   it once. The alternative, every key to the desktop's engine and the
-   preedit back, is a round trip per key and is what the key protocol
-   exists to avoid. To be checked with hibr-ime's own state before it is
-   decided. Still owed before runtime code: each of the 343 globals classed
+   an engine runs in each app process **as well as** the desktop's own (for
+   its own fields: the start menu, its dialogs, the Control Panel's window),
+   the method chosen pushed like the theme. A word taught needs no request
+   and no push: hibr-ime appends it to the person's own file, and every
+   engine sees the file change and reloads its rules itself (`im_fresh`,
+   0.15 ms) -- hibr and Blit already teach side by side this way. What it
+   costs, measured 2026-11-18: an Arabizi engine takes **100 ms** to open
+   and **14.5 MB** (PSS), nearly all of it word lists -- so ten typing apps
+   would be 145 MB unless the zygote loads the data while a keyboard names
+   a method and every app shares its pages; that sharing is measured before
+   this is decided. The cycle and teach chords are taken in the desktop's
+   key path before the window, and only while the desktop's engine holds a
+   word (`dt_imeaction`); with the word held in the app, the app tells the
+   desktop it holds one, and those chords go down to it. A held word is
+   committed by the app when its window loses the keys, so a hung app keeps
+   its word uncommitted. The alternative -- every key to the desktop's
+   engine and the preedit back -- is a round trip per key while a method is
+   on. Still owed before runtime code: each of the 343 globals classed
    in its table as the functions are.
 2. **The desktop holds each hosted window's cells.** A move, an uncovering,
    a workspace switch or a restart repaints a hosted window without asking
@@ -323,6 +334,33 @@ today, measured from both sides:
    Video Player's engine no longer stops the Browser. Two processes, not one
    installable. Calendar, Contacts and Mail share `lib/pim.hibr`'s sync
    state the same way, and are settled the same way before the move.
+6a. **Cross-cutting is not a shared process (2026-11-18).** Installables
+   call into each other in **283** places counted by reading (the logic of
+   `tests/deps.py`, over the shipped tree and the catalogue): **66** calls
+   in 44 places stay within one entry and its parts, which share a process
+   and are measured and blamed as one; **157** calls in 79 places are
+   between the members of one catalogue bundle -- the Sound pane driving
+   the Sound bar item, and Bluetooth, Network, Power, Longwire and Wiretap
+   the same; **25** in 16 places are a library calling the app that sources
+   it, which is one process already; and only **35** calls in **28** places
+   link separate features -- Mail drawing Calendar's invitation card and
+   adding to Contacts, Calendar and Contacts reading Mail's accounts, the
+   Browser and Boxer, Archives asking Files to list again, the cursor
+   module and the Terminal, the theme module and Appearance. Every one of
+   these sits behind a `dt_has` guard (ADR 0046), which in a process of its
+   own is false: **the feature goes quiet with no error**, so each is
+   converted, never left. Shared code moves into a library each process
+   sources (Calendar's card for Mail); an action becomes a request the
+   desktop routes to the other app's process (add a contact, list a folder
+   again), as the clipboard and open-with already are. Two entries are
+   never put in one process: from outside they could not be told apart,
+   which the sensitivity requirement forbids. **Whether a bundle's members
+   are one process is the owner's to decide** -- one feature split by kind,
+   or 157 calls converted. Library state does fork: each process has its
+   own job table, so Calendar and Contacts could each start a sync of one
+   server; both sync scripts already take a lock folder on disk and the
+   second answers "Another sync is running", so the store is safe and only
+   the queueing changes.
 6b. **The owner's desktop, counted (Blit, 2026-11-18, read only):** 87
    installed entries -- 28 panes, 20 apps, 8 bar items, 7 system apps, 5
    libraries, 2 savers, 2 strip modules, and data -- and the desktop's own
