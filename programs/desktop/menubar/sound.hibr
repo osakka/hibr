@@ -39,7 +39,7 @@
 
 strict
 
-app sound "The speaker on the menu bar and the sound it watches" 1.5.2
+app sound "The speaker on the menu bar and the sound it watches" 1.5.3
 
 # The state: kind (pulse, pw, alsa, none, or gone for a server that went;
 # empty until the first frame looks), server (what the server calls
@@ -81,7 +81,10 @@ fn dt_snpa(...a) {
 # slowest call pactl set-sink-volume", 2026-11-18). One command a setting is
 # in flight at a time; a newer one waits behind it and replaces any older
 # one waiting, so a slider dragged over a stuck server queues one command,
-# not a hundred. key names the setting: out, outmute, in, inmute, default.
+# not a hundred. key names the setting: out, outmute, in, inmute, defout,
+# defin. Reading the server (dt_sndread) is a job already; what still asks
+# it in the frame is the first look at which server answers (dt_sndhas), at
+# start and every half minute while none does.
 declare -gA DT_SNDBUSY DT_SNDNEXT DT_SNDNEXTN
 fn dt_sndbg(key, ...cmd) {
 	local p=${DT_SNDBUSY["$key"]-} i
@@ -669,18 +672,19 @@ dt_sndnote() {
 }
 
 # Mute the chosen output, or let it be heard again.
+# The state wanted is sent, never "toggle": a newer change replaces one
+# still waiting (dt_sndbg), so three toggles would have become two.
 dt_sndmute() {
+	local m=1 a=mute
+
+	[ "${DT_SND["mute"]}" = 1 ] && { m=0; a=unmute; }
 	case ${DT_SND["kind"]} in
-	pulse) dt_sndbg outmute pactl set-sink-mute "${DT_SND["out"]}" toggle ;;
-	pw) dt_sndbg outmute wpctl set-mute "${DT_SND["out"]}" toggle ;;
-	alsa) dt_sndbg outmute amixer -q -c "${DT_SND["out"]:-0}" sset "${DT_SND["octl"]:-Master}" toggle ;;
+	pulse) dt_sndbg outmute pactl set-sink-mute "${DT_SND["out"]}" "$m" ;;
+	pw) dt_sndbg outmute wpctl set-mute "${DT_SND["out"]}" "$m" ;;
+	alsa) dt_sndbg outmute amixer -q -c "${DT_SND["out"]:-0}" sset "${DT_SND["octl"]:-Master}" "$a" ;;
 	*) return 0 ;;
 	esac
-	if [ "${DT_SND["mute"]}" = 1 ]; then
-		DT_SND["mute"]=0
-	else
-		DT_SND["mute"]=1
-	fi
+	DT_SND["mute"]=$m
 	dt_sndbar
 }
 
@@ -704,17 +708,16 @@ fn dt_sndivol(int v) {
 }
 
 dt_sndimute() {
+	local m=1 a=nocap
+
+	[ "${DT_SND["imute"]}" = 1 ] && { m=0; a=cap; }
 	case ${DT_SND["kind"]} in
-	pulse) dt_sndbg inmute pactl set-source-mute "${DT_SND["in"]}" toggle ;;
-	pw) dt_sndbg inmute wpctl set-mute "${DT_SND["in"]}" toggle ;;
-	alsa) dt_sndbg inmute amixer -q -c "${DT_SND["in"]:-0}" sset "${DT_SND["ictl"]:-Capture}" toggle ;;
+	pulse) dt_sndbg inmute pactl set-source-mute "${DT_SND["in"]}" "$m" ;;
+	pw) dt_sndbg inmute wpctl set-mute "${DT_SND["in"]}" "$m" ;;
+	alsa) dt_sndbg inmute amixer -q -c "${DT_SND["in"]:-0}" sset "${DT_SND["ictl"]:-Capture}" "$a" ;;
 	*) return 0 ;;
 	esac
-	if [ "${DT_SND["imute"]}" = 1 ]; then
-		DT_SND["imute"]=0
-	else
-		DT_SND["imute"]=1
-	fi
+	DT_SND["imute"]=$m
 }
 
 # Make an output the one used. With PulseAudio, what is already playing
@@ -726,9 +729,13 @@ dt_sndimute() {
 # is what reads the new state back, as for a change made anywhere else.
 fn dt_sndout(nm) {
 	case ${DT_SND["kind"]} in
-	pulse) dt_sndbg default dt_sndmoveall "$nm" ;;
-	pw) dt_sndbg default wpctl set-default "$nm" ;;
-	alsa) dt_sndrcwrite "$nm" "${DT_SND["in"]:-$nm}" || return 1 ;;
+	pulse) dt_sndbg defout dt_sndmoveall "$nm" ;;
+	pw) dt_sndbg defout wpctl set-default "$nm" ;;
+	alsa)
+		dt_sndrcwrite "$nm" "${DT_SND["in"]:-$nm}" || return 1
+		DT_SND["out"]=$nm
+		dt_sndread
+		;;
 	*) return 0 ;;
 	esac
 	DT_SND["out"]=$nm
@@ -752,9 +759,13 @@ fn dt_sndmoveall(nm) {
 # Make an input the one used, the output left where it was.
 fn dt_sndin(nm) {
 	case ${DT_SND["kind"]} in
-	pulse) dt_sndbg default pactl set-default-source "$nm" ;;
-	pw) dt_sndbg default wpctl set-default "$nm" ;;
-	alsa) dt_sndrcwrite "${DT_SND["out"]:-$nm}" "$nm" || return 1 ;;
+	pulse) dt_sndbg defin pactl set-default-source "$nm" ;;
+	pw) dt_sndbg defin wpctl set-default "$nm" ;;
+	alsa)
+		dt_sndrcwrite "${DT_SND["out"]:-$nm}" "$nm" || return 1
+		DT_SND["in"]=$nm
+		dt_sndread
+		;;
 	*) return 0 ;;
 	esac
 	DT_SND["in"]=$nm

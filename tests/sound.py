@@ -635,6 +635,8 @@ try:
         "if verb == 'sset':\n"
         "    w = a[2]\n"
         "    if w == 'toggle': on = 'off' if on == 'on' else 'on'\n"
+        "    elif w in ('mute', 'nocap'): on = 'off'\n"
+        "    elif w in ('unmute', 'cap'): on = 'on'\n"
         "    elif w.endswith('%%'): v = str(max(0, min(100, int(w[:-1]))))\n"
         "    st[ctl] = [v, on]\n"
         "    open(S, 'w').write(''.join('%%s %%s %%s\\n' %% (k, x[0], x[1]) for k, x in st.items()))\n"
@@ -649,12 +651,22 @@ try:
     os.chmod(os.path.join(bindir, "amixer"), 0o755)
     aenv = {"HIBR_SOUND": "alsa", "PATH": bindir + os.pathsep + os.environ["PATH"],
             "DT_SNDRC": os.path.join(D, "asoundrc")}
+    def mixer(want, secs=10):
+        # A change is sent in the background since Sound 1.5.2, so the
+        # mixer's own state is waited for, not read the moment the bar moves.
+        end = time.time() + secs
+        while True:
+            lvl = open(state).read().split()
+            if want(lvl) or time.time() > end:
+                return lvl
+            time.sleep(0.1)
+
     sc = srun([b"\x1b="], env=aenv, until=lambda sc: "55%" in bar(sc))
-    lvl = open(state).read().split()
+    lvl = mixer(lambda l: l[:3] == ["Master", "55", "on"])
     check("with ALSA's mixer and no server, the speaker shows Master and alt-= turns it up",
           "♪ 55%" in bar(sc) and lvl[:3] == ["Master", "55", "on"], (bar(sc), lvl))
     sc = srun([b"\x1b0"], env=aenv, until=lambda sc: "✕" in bar(sc))
-    lvl = open(state).read().split()
+    lvl = mixer(lambda l: l[2] == "off")
     check("and alt-0 mutes Master", "♪ ✕" in bar(sc) and lvl[2] == "off",
           (bar(sc), lvl))
     # A sound server that hangs on a change holds nothing: a volume step is
@@ -668,15 +680,41 @@ try:
         "#!/bin/sh\ncase \" $* \" in *\" sset \"*) sleep 5 ;; esac\nexec %s \"$@\"\n"
         % os.path.join(bindir, "amixer"))
     os.chmod(os.path.join(slow, "amixer"), 0o755)
-    senv = dict(aenv, PATH=slow + os.pathsep + aenv["PATH"])
-    t0 = time.time()
+    # By the wall clock, which is what a person feels: the harness counts a
+    # stall in processor time by default so load cannot trip it, and a
+    # desktop waiting on a program spends none. Two seconds is past what a
+    # loaded gate costs a frame and well short of the mixer's five.
+    senv = dict(aenv, PATH=slow + os.pathsep + aenv["PATH"],
+                DT_HOLDBY="wall", DT_HOLDMS="2000")
+    # Asked of the desktop's own budget, not a stopwatch: a stall is a held:
+    # line in its log (wm/budget.hibr), and a session's wall time under a
+    # loaded gate is mostly starting up.
+    h0 = sum("held:" in e for e in sx.ERRS)
     sc = srun([b"\x1b="], env=senv, until=lambda sc: "♪ 60%" in bar(sc) or "♪ 55%" in bar(sc))
-    took = time.time() - t0
-    check("a sound server that hangs on a change holds nothing: the level shows at once",
-          ("♪ 60%" in bar(sc) or "♪ 55%" in bar(sc)) and took < 4.5, (bar(sc), round(took, 2)))
+    held = [e for e in sx.ERRS if "held:" in e][h0:]
+    check("a sound server that hangs on a change holds nothing: the level shows, and no stall is logged",
+          ("♪ 60%" in bar(sc) or "♪ 55%" in bar(sc)) and not held, (bar(sc), held))
+    # And a desktop that stays up past the slow mixer sees it land; one that
+    # quits first loses what was in flight, as a quit should.
+    mixer(lambda l: False, 6)
+    before = open(state).read().split()[1]
+    sc = srun([b"\x1b=", 7.0], env=senv)
+    lvl = mixer(lambda l: l[1] != before, 4)
+    check("and the change reaches the slow mixer while the desktop runs",
+          lvl[1] != before, (before, lvl))
+    # Three mutes pressed over that slow mixer: one in flight, the next two
+    # queued and the last replacing the one before -- so the state, not a
+    # toggle, is what is sent, or the mixer ends unmuted under a bar saying
+    # muted.
+    mixer(lambda l: False, 6)
+    open(state, "w").write("Master 50 on\nCapture 80 on\n")
+    sc = srun([b"\x1b0", b"\x1b0", b"\x1b0", 12.5], env=senv, until=lambda sc: "✕" in bar(sc))
+    lvl = mixer(lambda l: l[2] == "off", 8)
+    check("three mutes over a slow mixer end muted, as the bar says",
+          "♪ ✕" in bar(sc) and lvl[2] == "off", (bar(sc), lvl))
 finally:
     stop()
     shutil.rmtree(RT, True)
     shutil.rmtree(RT2, True)
     shutil.rmtree(D, True)
-report(42)
+report(44)
