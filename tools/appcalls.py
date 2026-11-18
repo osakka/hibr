@@ -180,6 +180,83 @@ def asked(files, names):
     return hit
 
 
+def sigs():
+    """Every platform function's signature as its definition line writes it."""
+    out = {}
+    for f in sorted(glob.glob(os.path.join(ROOT, "programs/desktop/wm/*.hibr")) +
+                    glob.glob(os.path.join(ROOT, "programs/desktop/widgets/*.hibr")) +
+                    glob.glob(os.path.join(ROOT, "programs/desktop/lib/*.hibr"))):
+        for line in open(f, errors="replace"):
+            m = re.match(r"(?:fn\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*\{?", line)
+            if m and m.group(1) not in out:
+                out[m.group(1)] = "%s(%s)" % (m.group(1), " ".join(m.group(2).split()))
+    return out
+
+
+def nextver():
+    """The release a row added now first ships in: the one after HIBR_VER."""
+    v = re.search(r'#define HIBR_VER "([^"]+)"', open(os.path.join(ROOT, "include/hibr.h")).read()).group(1)
+    a = v.split(".")
+    a[-1] = str(int(a[-1]) + 1)
+    return ".".join(a)
+
+
+def readtable(text):
+    """A calls table's rows by function: (class, signature, since)."""
+    rows = {}
+    for l in text.splitlines():
+        if l.startswith("#") or not l.strip():
+            continue
+        c = l.split("\t")
+        rows[c[1]] = (c[0], c[7] if len(c) > 7 else "", c[8] if len(c) > 8 else "-")
+    return rows
+
+
+def contract(ref):
+    """Every row of the table at ref still a platform function with the same
+    signature: a row removed or changed is a breaking change to every app
+    that calls it, which no suite here may run (ADR 0050)."""
+    import subprocess
+    got = subprocess.run(["git", "show", "%s:docs/adr/0050-calls.tsv" % ref], cwd=ROOT,
+                         capture_output=True, text=True)
+    if got.returncode:
+        return None
+    sig, fails = sigs(), []
+    for n, (c, sg, since) in readtable(got.stdout).items():
+        if n not in sig:
+            fails.append("%s was in the app interface at %s and is gone" % (n, ref))
+        elif sg and sg != sig[n]:
+            fails.append("%s changed from %s at %s to %s" % (n, sg, ref, sig[n]))
+    return fails
+
+
+def floors(rows):
+    """A catalogue entry's hibr floor below the newest row it uses."""
+    import json
+    idx = os.path.join(APPS, "index.json")
+    if not os.path.exists(idx):
+        return []
+    ents = json.load(open(idx)).get("entries", {})
+    since = {r[1]: r[8] for r in rows}
+    vk = lambda v: tuple(int(x) for x in re.findall(r"\d+", v))
+    out = []
+    for f in installables():
+        if "/bundles/" not in f:
+            continue
+        key = os.path.relpath(f, os.path.join(APPS, "bundles"))[:-5]
+        floor = ents.get(key, {}).get("hibr")
+        if not floor:
+            continue
+        r = records(f, "calls")
+        used = {c.get("name") for c in r.get("calls", [])}
+        need = [(since[n], n) for n in used if since.get(n, "-") not in ("-", "")]
+        if need:
+            top = max(need, key=lambda x: vk(x[0]))
+            if vk(top[0]) > vk(floor):
+                out.append("%s asks for hibr %s but calls %s, new in %s" % (key, floor, top[1], top[0]))
+    return out
+
+
 def defsall():
     """Every platform function and its file, all of them (defs keeps the first)."""
     where = {}
@@ -295,6 +372,11 @@ def main():
                   key=lambda r: (r[0], -r[3]))
     cls = {r[1]: r[0] for r in rows}
     far = reaches(cls)
+    sig = sigs()
+    old = readtable(open(OUT).read()) if os.path.exists(OUT) else {}
+    nv = nextver()
+    rows = [r + (far.get(r[1], ""), sig.get(r[1], ""),
+                 old[r[1]][2] if r[1] in old else (nv if old else "-")) for r in rows]
     kinds = collections.Counter(r[0] for r in rows)
     print("installables read: %d, unreadable: %d" % (len(installables()), len(bad)))
     print("platform functions called: %d -- %s" % (len(rows), ", ".join(
@@ -311,9 +393,11 @@ def main():
             print("  decide  %-26s %-24s %4d calls in %d files" % (r[1], r[2], r[3], r[4]))
     if "--write" in sys.argv:
         with open(OUT, "w") as o:
-            o.write("# class\tfunction\tdefined in\tcalls\tfiles\tanswer\treaches -- tools/appcalls.py --write\n")
+            o.write("# class\tfunction\tdefined in\tcalls\tfiles\tanswer\treaches\tsignature\tsince"
+                    " -- tools/appcalls.py --write; since is the release a row first shipped in, - before"
+                    " the contract (ADR 0050)\n")
             for r in rows:
-                o.write("%s\t%s\t%s\t%d\t%d\t%s\t%s\n" % (r + (far.get(r[1], ""),)))
+                o.write("%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\n" % r)
         print("wrote", os.path.relpath(OUT, ROOT))
     for f in bad:
         print("unreadable:", f)
@@ -367,6 +451,19 @@ def main():
         for f in bad:
             print("FAIL %s could not be read by the inspect module" % f)
         fails = len(undecided) + len(bad)
+        import subprocess
+        ref = os.environ.get("APPCALLS_AGAINST") or subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        broken = contract(ref) if ref else None
+        if broken is None:
+            print("note: no calls table at %s yet, so no contract to hold it to" % (ref or "a tag"))
+        else:
+            for b in broken:
+                print("FAIL %s: a breaking change to the app interface (ADR 0050)" % b)
+            fails += len(broken)
+        for b in floors(rows):
+            print("FAIL %s: raise its floor" % b)
+            fails += 1
         print("\n%d passed, %d failed" % (len(rows) - len(undecided), fails))
         sys.exit(1 if fails else 0)
 
