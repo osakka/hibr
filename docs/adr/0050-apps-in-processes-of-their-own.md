@@ -254,8 +254,22 @@ today, measured from both sides:
    committed by the app when its window loses the keys, so a hung app keeps
    its word uncommitted. The alternative -- every key to the desktop's
    engine and the preedit back -- is a round trip per key while a method is
-   on. Still owed before runtime code: each of the 343 globals classed
-   in its table as the functions are.
+   on. **The 343 globals, classed (2026-11-18)** in
+   `docs/adr/0050-state.tsv` by `tools/appstate.py`: **173 settings** (a
+   `DT_KEEP` name, as the desktop lists them: pushed to read, changed only
+   by a request the desktop accepts against a pane's declared rows), **87
+   mirrors** (desktop state pushed read-only: the theme's colours, the
+   focus, the screen, the dialog geometry, the window table), **50 local**
+   (widget and translation state, glyphs, jobs, a module's own status
+   variable, the input method's state), **4 declarations** (a pane's rows),
+   **9 arguments** (a value handed to a request through a global -- what
+   to open, the clipboard's kind, a note's sender -- which becomes the
+   request's argument), **4 gone** (hints to redraw, and the prototype's
+   counter), and **16 requests**: desktop state an app changes today --
+   the notification history's order, queue and unseen count, the Control
+   Strip's modules, the menu editor's own entries, a display's wallpaper,
+   the vault's state, the power action in progress, the displays' layout,
+   the file picker -- each a named request.
 2. **The desktop holds each hosted window's cells.** A move, an uncovering,
    a workspace switch or a restart repaints a hosted window without asking
    the app -- or the desktop would wait on it. So the console keeps a hosted

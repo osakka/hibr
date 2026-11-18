@@ -48,9 +48,13 @@ DECL = re.compile(r"^\s*(?:declare\s+-g\w*\s+|export\s+)?([A-Z][A-Z0-9_]*)(?:\[[
 DECLG = re.compile(r"^(?:declare|typeset)\s+-\w+\s+(.*)")
 
 
+WHERE = {}
+
+
 def globals_():
     names = set()
     for f in platfiles():
+        rel = os.path.relpath(f, DESK)
         for line in open(f, errors="replace"):
             if line.startswith("\t") or line.startswith("  "):
                 continue
@@ -60,11 +64,67 @@ def globals_():
                     w = w.split("=")[0]
                     if re.match(r"^[A-Z][A-Z0-9_]*$", w):
                         names.add(w)
+                        WHERE.setdefault(w, rel)
                 continue
             m = DECL.match(line)
             if m:
                 names.add(m.group(1))
+                WHERE.setdefault(m.group(1), rel)
     return names
+
+
+# What a global becomes in an app's own process, by where it is declared:
+# local (the app runtime keeps its own: widgets, translation, glyphs, jobs),
+# setting (a desktop setting: pushed to read, changed by a request the
+# desktop accepts only against a pane's declared rows), declare (built in
+# the app and pushed up), mirror (desktop state, pushed, read only) or
+# request (desktop state an app writes today: a request, or refused).
+LOCAL = ("widgets/", "wm/lang.hibr", "wm/locale.hibr", "wm/glyphs.hibr",
+         "wm/jobs.hibr", "wm/remote.hibr")
+SETTING = ("wm/settings.hibr",)
+DECLARE = ("system/panel.hibr",)
+
+
+def kept():
+    """The desktop's saved settings, as the desktop itself lists them."""
+    import subprocess
+    hibr = os.environ.get("HIBR", os.path.join(ROOT, "build", "hibr"))
+    env = dict(os.environ, HIBR_MODPATH=os.path.join(ROOT, "build", "mods"))
+    out = subprocess.run([hibr, "-c", '. "$1"; printf "%s\\n" "${DT_KEEP[@]}"', "x",
+                          os.path.join(DESK, "desktop.hibr")],
+                         capture_output=True, text=True, env=env).stdout
+    return set(out.split())
+
+
+KEPT = kept()
+# A module's own status variable, set in whichever process called it.
+MODVARS = ("DAV_CODE",)
+
+
+# Desktop state an app writes today, one name at a time: a value handed to
+# a request through a global becomes the request's argument (arg); a hint
+# to redraw goes, since a declaration or setting arriving is the redraw
+# (gone); the input method's own state is the app's (local).
+BYNAME = {}
+for _n in """DT_OPENCMD DT_OPENSELF DT_OPENSHELL DT_CLIPKIND DT_CLIP DT_CLIPOP
+        DT_NOTEFROM DT_NOTEWIN DT_NOTEAPP""".split():
+    BYNAME[_n] = "arg"
+for _n in "DT_FORCEONCE DT_MENUIN DT_BARWAS DT_ISON".split():
+    BYNAME[_n] = "gone"
+for _n in "DT_IMEPRE DT_IMEBY".split():
+    BYNAME[_n] = "local"
+
+
+def klass(name, wr, where):
+    if name in BYNAME:
+        return BYNAME[name]
+    if where.startswith(LOCAL) or name in MODVARS:
+        return "local"
+    if where.startswith(SETTING) or name in KEPT:
+        return "setting"
+    if where.startswith(DECLARE):
+        return "declare"
+    return "request" if wr else "mirror"
 
 
 def main():
@@ -81,17 +141,22 @@ def main():
                 reads[n].add(f)
             if re.search(r"(^|[\s;(&|])%s(\[[^\]]*\])*\+?=|\b(unset|read\b[^\n]*)\s+%s\b" % (n, n), text, re.M):
                 writes[n].add(f)
-    rows = sorted(((n, len(reads[n]), len(writes[n])) for n in names if reads[n] or writes[n]),
+    rows = sorted(((n, len(reads[n]), len(writes[n]), WHERE.get(n, "?"),
+                    klass(n, writes[n], WHERE.get(n, "?"))) for n in names if reads[n] or writes[n]),
                   key=lambda r: (-(r[1] + r[2]), r[0]))
     print("installables: %d; platform globals: %d; touched by installables: %d (written by %d)" % (
         len(files), len(names), len(rows), sum(1 for r in rows if r[2])))
-    for n, r, w in rows[:40]:
-        print("  %-24s read in %3d, written in %3d" % (n, r, w))
+    kinds = collections.Counter(r[4] for r in rows)
+    print("  " + ", ".join("%s %d" % (k, kinds[k]) for k in ("local", "setting", "declare", "mirror", "arg", "gone", "request")))
+    for n, r, w, wh, k in rows:
+        if k == "request":
+            print("  request  %-22s written in %3d  %-22s %s" % (n, w, wh,
+                  " ".join(sorted(os.path.basename(f) for f in writes[n]))[:60]))
     if "--write" in sys.argv:
         with open(OUT, "w") as o:
-            o.write("# name\tread in\twritten in -- tools/appstate.py --write (a word match, not a parse)\n")
+            o.write("# name\tread in\twritten in\tdeclared in\tclass -- tools/appstate.py --write (a word match, not a parse)\n")
             for row in rows:
-                o.write("%s\t%d\t%d\n" % row)
+                o.write("%s\t%d\t%d\t%s\t%s\n" % row)
         print("wrote", os.path.relpath(OUT, ROOT))
 
 

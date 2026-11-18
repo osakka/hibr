@@ -1,344 +1,344 @@
-# name	read in	written in -- tools/appstate.py --write (a word match, not a parse)
-GL	115	0
-DT_FACE	106	2
-CP	23	82
-DT_INK	100	2
-DT_DIM	78	2
-DT_ACTIVE	71	2
-DT_SELINK	59	2
-DT_FOCUS	56	0
-DT_SCROLLWHEEL	39	2
-DT_DLGC	38	0
-DT_DLGH	38	0
-DT_DLGR	38	0
-DT_DLGW	38	0
-DT_BAD	33	2
-DT_ROWS	35	0
-DT_WELL	33	2
-DT_WARN	32	2
-DTJ	21	12
-DT	27	3
-DT_IDLE	27	2
-DT_GOOD	24	2
-DT_HERE	25	0
-DT_INFO	19	2
-DT_POPCURNEXT	0	20
-DT_MIRRORON	19	0
-DT_WALLIMG	9	9
-DT_T	16	0
-DT_GLYPHSET	13	2
-DT_GLYPH	6	6
-TB	6	6
-DAV_CODE	4	6
-DT_CURSOR	6	4
-DT_WALLMODE	5	5
-DT_IMGMODE	7	2
-DT_BAND	4	4
-DT_BANDPCT	4	4
-DT_BARTRANS	4	4
-DT_BTNON	4	4
-DT_BTNSTYLE	4	4
-DT_CLIPKIND	2	6
-DT_FORCEONCE	0	8
-DT_FRAME	4	4
-DT_KEYS	8	0
-DT_PLAT	6	2
-DT_PLON	6	2
-DT_PMETHOD	6	2
-DT_SHADOW	4	4
-DT_TITLEALIGN	4	4
-DT_TITLEBAR	4	4
-DT_WINTRANS	4	4
-DT_LANG	7	0
-DT_WALLBAD	0	7
-CS_MODS	4	2
-DT_APPS	6	0
-DT_BARI	6	0
-DT_BARSHADOW	4	2
-DT_BTKIND	4	2
-DT_CLIP	4	2
-DT_DESKICON	4	2
-DT_HADJ	4	2
-DT_HCAL	4	2
-DT_IMEPRE	5	1
-DT_IMGARG	6	0
-DT_MENUIN	0	6
-DT_NETKIND	4	2
-DT_NOTEHIST_ORDER	4	2
-DT_OPENCMD	2	4
-DT_OPENSELF	2	4
-DT_PADJ	4	2
-DT_PASR	4	2
-DT_PBAR	4	2
-DT_PRULE	4	2
-DT_PSTRIP	4	2
-DT_PWBAR	4	2
-DT_PWCRIT	4	2
-DT_PWCRITDO	4	2
-DT_PWLOW	4	2
-DT_SNDKIND	4	2
-DT_SNDSTEP	4	2
-DT_TERMBAR	4	2
-DT_TERMMS	4	2
-DT_WFD	6	0
-DT_WLINES	6	0
-DT_WPTY	6	0
-DT_WRAPLINES	4	2
-DT_WSN	6	0
-DT_COLS	5	0
-DT_HOVER	3	2
-DT_POPNAMENEXT	0	5
-DT_TERMKEEP	5	0
-WP_MODES	5	0
-CS_HIDE	2	2
-CS_ORDER	2	2
-CS_SHADOW	2	2
-CS_SHOW	2	2
-CS_SIDE	2	2
-DTJ_DIR	4	0
-DT_APPMODE	2	2
-DT_BAR	2	2
-DT_BARGAP	2	2
-DT_BARICON	2	2
-DT_BARTIME	2	2
-DT_BARWAS	0	4
-DT_BELLICON	2	2
-DT_BIDI	2	2
-DT_BTBAR	4	0
-DT_BTNL	4	0
-DT_BTNORDER	0	4
-DT_BTNSHADOW	2	2
-DT_BUNDLEEXT	4	0
-DT_BUSFD	4	0
-DT_CHECKS	2	2
-DT_CHORDER	4	0
-DT_CLIPMAX	2	2
-DT_COLOURS	2	2
-DT_CURSOR_BLINK	4	0
-DT_CYCLE	2	2
-DT_DAVTIMEOUT	2	2
-DT_DBLACTION	2	2
-DT_DIGITS	2	2
-DT_DLGBTN	2	2
-DT_DRAGKEY	2	2
-DT_DRAWSKIP	2	2
-DT_FILMDETAIL	2	2
-DT_FULLEND	2	2
-DT_FULLON	2	2
-DT_ICONBG	2	2
-DT_IMGCOMP	2	2
-DT_IMGDETAIL	2	2
-DT_IMGEDITS	2	2
-DT_IMGFD	2	2
-DT_KB	4	0
-DT_LIVEMS	2	2
-DT_LOCKAFTER	2	2
-DT_LOCKWHERE	2	2
-DT_LOG	4	0
-DT_MENUMARK	2	2
-DT_MENUMAX	2	2
-DT_MIRROR	2	2
-DT_MOVEMODE	2	2
-DT_MSHADOW	2	2
-DT_NATFOCUS	2	2
-DT_NETBAR	4	0
-DT_NETRULE	2	2
-DT_NEWON	2	2
-DT_NOTEAPP	2	2
-DT_NOTECOLOUR	2	2
-DT_NOTECOUNT	2	2
-DT_NOTEFRAME	2	2
-DT_NOTEFROM	0	4
-DT_NOTEHIST	4	0
-DT_NOTEHMAX	2	2
-DT_NOTEHMIN	2	2
-DT_NOTELIST	2	2
-DT_NOTEMS	2	2
-DT_NOTEPOS	2	2
-DT_NOTEQ	2	2
-DT_NOTEQ_ORDER	2	2
-DT_NOTEUNSEEN	0	4
-DT_NOTEWHERE	2	2
-DT_NOTEWMAX	2	2
-DT_NOTEWMIN	2	2
-DT_OPENSHELL	2	2
-DT_OPENWITH	2	2
-DT_OWLIST	4	0
-DT_PATHAN	2	2
-DT_PATHANF	2	2
-DT_PBEFORE	2	2
-DT_PLACE	2	2
-DT_PNOTE	2	2
-DT_PROGAUTO	2	2
-DT_PW	4	0
-DT_PWLEVEL	4	0
-DT_SAVER	2	2
-DT_SAVERIDLE	2	2
-DT_SHADOWSHAPE	2	2
-DT_SHOTDIR	3	1
-DT_SNDBAR	4	0
-DT_SNDLEVEL	4	0
-DT_STANDBYAUTO	2	2
-DT_SWMS	2	2
-DT_SWSKIP	2	2
-DT_TERMHERE	2	2
-DT_TILEMAIN	2	2
-DT_TIPMS	2	2
-DT_TITLEBARS	4	0
-DT_TITLEKEY	2	2
-DT_TREELINES	2	2
-DT_TREESTYLE	2	2
-DT_VER	4	0
-DT_VWA	4	0
-DT_VWCLEAR	2	2
-DT_VWJOB	4	0
-DT_VWSYNC	2	2
-DT_WALLDMODE	2	2
-DT_WALLDPIC	2	2
-DT_WALLIMGMODE	2	2
-DT_WEEKSTART	2	2
-DT_WHY	4	0
-DT_WS	4	0
-DT_ZOOMFILL	2	2
-LANG	4	0
-PMOWN	2	2
-PW	4	0
-WP_GLYPHS	4	0
-WS_ALIGNS	4	0
-WS_FRAMES	4	0
-WS_STYLES	4	0
-DT_IME	3	0
-DT_IMEC	3	0
-DT_IMEP	3	0
-DT_PX	3	0
-DT_SHOTFMT	2	1
-DT_SHOTLAST	2	1
-HIBR_DAV_TIMEOUT	0	3
-MB_CY	3	0
-BD_COL	2	0
-BD_SRC	2	0
-BD_VIS	2	0
-CP_PANES	2	0
-CS_CLICKC	2	0
-CS_MOD_ALL	2	0
-CS_MOD_ORD	2	0
-DRW	2	0
-DTJ_N	2	0
-DT_AKEY	2	0
-DT_AKEYORDER	2	0
-DT_APPKEY	2	0
-DT_APPNAMEV	2	0
-DT_BANDS	2	0
-DT_BARORDER	0	2
-DT_BARREAD	2	0
-DT_BARWCOL	2	0
-DT_BELLICONS	2	0
-DT_BTNS	2	0
-DT_CH	2	0
-DT_CLIPKEEP	2	0
-DT_CLIPOP	0	2
-DT_CONFJ	2	0
-DT_DAVSAVE	2	0
-DT_DISKS	2	0
-DT_DISPNAMES	2	0
-DT_DLGBTNS	2	0
-DT_DND	2	0
-DT_DOT	0	2
-DT_DRAGMOD	2	0
-DT_EDGERESIZE	2	0
-DT_FIELD	1	1
-DT_FOCUSHOVER	2	0
-DT_FULLENDS	2	0
-DT_GLYPHSETS	2	0
-DT_HANDLERS	2	0
-DT_HIGHLIGHT	0	2
-DT_HOT	0	2
-DT_ICONPENS	2	0
-DT_ICONS	2	0
-DT_IMEBY	1	1
-DT_IMGEDIT	0	2
-DT_IMGFDNOW	0	2
-DT_ISON	1	1
-DT_KBCUR	2	0
-DT_KBLOC	2	0
-DT_KBLOCAL	2	0
-DT_KBN	2	0
-DT_KBRES	2	0
-DT_KEYORDER	2	0
-DT_LOC	2	0
-DT_LOCEX	2	0
-DT_LOCINFO	2	0
-DT_LOCLIST	2	0
-DT_LOCNAMES	2	0
-DT_LOCSUP	2	0
-DT_LOCSUPN	2	0
-DT_LOCSUPRD	2	0
-DT_MENUBOLD	2	0
-DT_MONTHS	2	0
-DT_NATFOCUSES	2	0
-DT_NATIVE	2	0
-DT_NATLAYOUT	0	2
-DT_NATREMEMBER	2	0
-DT_NATX11	2	0
-DT_NOTECOLOURS	2	0
-DT_NOTELEVELS	2	0
-DT_NOTEWIN	1	1
-DT_NOTE_NEXT	2	0
-DT_OPENERORDER	2	0
-DT_OPENERS	2	0
-DT_OPENVERBS	2	0
-DT_OVLIST	2	0
-DT_PKEY	0	2
-DT_PKRES	2	0
-DT_PLACES	2	0
-DT_POPONNEXT	0	2
-DT_PRIMARY_COL	2	0
-DT_PRIMARY_H	2	0
-DT_PRIMARY_W	2	0
-DT_PWDOING	0	2
-DT_RESTORED	2	0
-DT_SBLIST	2	0
-DT_SHADOWINK	0	2
-DT_SHADOWSHAPES	2	0
-DT_SHADOW_PCT	0	2
-DT_SWITCHER	2	0
-DT_TERMCTRL	2	0
-DT_THEMECHECKS	0	2
-DT_TIPS	2	0
-DT_TITLE	0	2
-DT_TITLEINK	0	2
-DT_TRASH	2	0
-DT_TRASHN	2	0
-DT_TREESTYLES	2	0
-DT_UPNEW	2	0
-DT_UPSESSION	2	0
-DT_VWERR	2	0
-DT_VWITEMS	2	0
-DT_VWOUT	1	1
-DT_VWST	0	2
-DT_VWSYNCED	2	0
-DT_WALL	0	2
-DT_WALLTRIED	0	2
-DT_WDAYS	2	0
-DT_ZOOMFILLS	2	0
-FP	1	1
-MB_CTXID	2	0
-MB_CTXWHO	2	0
-SV_LIST	2	0
-TB_EC	2	0
-TB_ER	2	0
-TB_SC	2	0
-TB_SR	2	0
-VW_SESSION	2	0
-CP_MSLIDE	1	0
-DT_HOSTMARK	1	0
-DT_IMEAT	1	0
-DT_KEYBASE	1	0
-DT_KEYCODE	1	0
-DT_KEYMODS	1	0
-DT_KEYPHASE	1	0
-DT_NATCH	1	0
-DT_NATCW	1	0
-DT_PHASEWIN	1	0
-DT_PY	1	0
-MB_CX	1	0
+# name	read in	written in	declared in	class -- tools/appstate.py --write (a word match, not a parse)
+GL	115	0	wm/glyphs.hibr	local
+DT_FACE	106	2	wm/settings.hibr	setting
+CP	23	82	system/panel.hibr	declare
+DT_INK	100	2	wm/settings.hibr	setting
+DT_DIM	78	2	wm/settings.hibr	setting
+DT_ACTIVE	71	2	wm/settings.hibr	setting
+DT_SELINK	59	2	wm/settings.hibr	setting
+DT_FOCUS	56	0	wm/state.hibr	mirror
+DT_SCROLLWHEEL	39	2	widgets/scrollbar.hibr	local
+DT_DLGC	38	0	wm/windows.hibr	mirror
+DT_DLGH	38	0	wm/windows.hibr	mirror
+DT_DLGR	38	0	wm/windows.hibr	mirror
+DT_DLGW	38	0	wm/windows.hibr	mirror
+DT_BAD	33	2	wm/settings.hibr	setting
+DT_ROWS	35	0	wm/bar.hibr	mirror
+DT_WELL	33	2	wm/settings.hibr	setting
+DT_WARN	32	2	wm/settings.hibr	setting
+DTJ	21	12	wm/jobs.hibr	local
+DT	27	3	wm/settings.hibr	setting
+DT_IDLE	27	2	wm/settings.hibr	setting
+DT_GOOD	24	2	wm/settings.hibr	setting
+DT_HERE	25	0	desktop.hibr	mirror
+DT_INFO	19	2	wm/settings.hibr	setting
+DT_POPCURNEXT	0	20	widgets/dropdown.hibr	local
+DT_MIRRORON	19	0	wm/lang.hibr	local
+DT_WALLIMG	9	9	wm/settings.hibr	setting
+DT_T	16	0	wm/lang.hibr	local
+DT_GLYPHSET	13	2	wm/glyphs.hibr	local
+DT_GLYPH	6	6	wm/settings.hibr	setting
+TB	6	6	widgets/textarea.hibr	local
+DAV_CODE	4	6	wm/native.hibr	local
+DT_CURSOR	6	4	wm/settings.hibr	setting
+DT_WALLMODE	5	5	wm/settings.hibr	setting
+DT_IMGMODE	7	2	wm/wallpaper.hibr	setting
+DT_BAND	4	4	wm/settings.hibr	setting
+DT_BANDPCT	4	4	wm/settings.hibr	setting
+DT_BARTRANS	4	4	wm/settings.hibr	setting
+DT_BTNON	4	4	wm/settings.hibr	setting
+DT_BTNSTYLE	4	4	wm/settings.hibr	setting
+DT_CLIPKIND	2	6	wm/state.hibr	arg
+DT_FORCEONCE	0	8	wm/draw.hibr	gone
+DT_FRAME	4	4	wm/settings.hibr	setting
+DT_KEYS	8	0	wm/settings.hibr	setting
+DT_PLAT	6	2	wm/prayer.hibr	setting
+DT_PLON	6	2	wm/prayer.hibr	setting
+DT_PMETHOD	6	2	wm/prayer.hibr	setting
+DT_SHADOW	4	4	wm/settings.hibr	setting
+DT_TITLEALIGN	4	4	wm/settings.hibr	setting
+DT_TITLEBAR	4	4	wm/settings.hibr	setting
+DT_WINTRANS	4	4	wm/settings.hibr	setting
+DT_LANG	7	0	wm/lang.hibr	local
+DT_WALLBAD	0	7	wm/settings.hibr	setting
+CS_MODS	4	2	wm/strip.hibr	request
+DT_APPS	6	0	wm/menus.hibr	mirror
+DT_BARI	6	0	wm/bar.hibr	mirror
+DT_BARSHADOW	4	2	wm/settings.hibr	setting
+DT_BTKIND	4	2	wm/settings.hibr	setting
+DT_CLIP	4	2	wm/state.hibr	arg
+DT_DESKICON	4	2	wm/settings.hibr	setting
+DT_HADJ	4	2	wm/lang.hibr	local
+DT_HCAL	4	2	wm/lang.hibr	local
+DT_IMEPRE	5	1	wm/ime.hibr	local
+DT_IMGARG	6	0	wm/wallpaper.hibr	mirror
+DT_MENUIN	0	6	wm/draw.hibr	gone
+DT_NETKIND	4	2	wm/settings.hibr	setting
+DT_NOTEHIST_ORDER	4	2	wm/notify.hibr	request
+DT_OPENCMD	2	4	wm/handlers.hibr	arg
+DT_OPENSELF	2	4	wm/handlers.hibr	arg
+DT_PADJ	4	2	wm/prayer.hibr	setting
+DT_PASR	4	2	wm/prayer.hibr	setting
+DT_PBAR	4	2	wm/prayer.hibr	setting
+DT_PRULE	4	2	wm/prayer.hibr	setting
+DT_PSTRIP	4	2	wm/prayer.hibr	setting
+DT_PWBAR	4	2	wm/settings.hibr	setting
+DT_PWCRIT	4	2	wm/settings.hibr	setting
+DT_PWCRITDO	4	2	wm/settings.hibr	setting
+DT_PWLOW	4	2	wm/settings.hibr	setting
+DT_SNDKIND	4	2	wm/settings.hibr	setting
+DT_SNDSTEP	4	2	wm/settings.hibr	setting
+DT_TERMBAR	4	2	wm/settings.hibr	setting
+DT_TERMMS	4	2	wm/settings.hibr	setting
+DT_WFD	6	0	wm/state.hibr	mirror
+DT_WLINES	6	0	wm/state.hibr	mirror
+DT_WPTY	6	0	wm/state.hibr	mirror
+DT_WRAPLINES	4	2	widgets/textfit.hibr	local
+DT_WSN	6	0	wm/workspaces.hibr	setting
+DT_COLS	5	0	wm/bar.hibr	mirror
+DT_HOVER	3	2	wm/settings.hibr	setting
+DT_POPNAMENEXT	0	5	widgets/dropdown.hibr	local
+DT_TERMKEEP	5	0	wm/settings.hibr	setting
+WP_MODES	5	0	wm/settings.hibr	setting
+CS_HIDE	2	2	wm/strip.hibr	setting
+CS_ORDER	2	2	wm/strip.hibr	setting
+CS_SHADOW	2	2	wm/strip.hibr	setting
+CS_SHOW	2	2	wm/strip.hibr	setting
+CS_SIDE	2	2	wm/strip.hibr	setting
+DTJ_DIR	4	0	wm/jobs.hibr	local
+DT_APPMODE	2	2	wm/appmode.hibr	setting
+DT_BAR	2	2	wm/settings.hibr	setting
+DT_BARGAP	2	2	wm/bar.hibr	setting
+DT_BARICON	2	2	wm/settings.hibr	setting
+DT_BARTIME	2	2	wm/bar.hibr	setting
+DT_BARWAS	0	4	wm/bar.hibr	gone
+DT_BELLICON	2	2	wm/bar.hibr	setting
+DT_BIDI	2	2	wm/lang.hibr	local
+DT_BTBAR	4	0	wm/settings.hibr	setting
+DT_BTNL	4	0	wm/frame.hibr	mirror
+DT_BTNORDER	0	4	wm/settings.hibr	setting
+DT_BTNSHADOW	2	2	wm/settings.hibr	setting
+DT_BUNDLEEXT	4	0	wm/handlers.hibr	mirror
+DT_BUSFD	4	0	wm/bus.hibr	mirror
+DT_CHECKS	2	2	wm/settings.hibr	setting
+DT_CHORDER	4	0	wm/clip.hibr	mirror
+DT_CLIPMAX	2	2	wm/clip.hibr	setting
+DT_COLOURS	2	2	wm/wallpaper.hibr	setting
+DT_CURSOR_BLINK	4	0	wm/settings.hibr	setting
+DT_CYCLE	2	2	wm/settings.hibr	setting
+DT_DAVTIMEOUT	2	2	wm/remote.hibr	local
+DT_DBLACTION	2	2	wm/settings.hibr	setting
+DT_DIGITS	2	2	wm/lang.hibr	local
+DT_DLGBTN	2	2	wm/settings.hibr	setting
+DT_DRAGKEY	2	2	wm/settings.hibr	setting
+DT_DRAWSKIP	2	2	wm/settings.hibr	setting
+DT_FILMDETAIL	2	2	wm/wallpaper.hibr	setting
+DT_FULLEND	2	2	wm/settings.hibr	setting
+DT_FULLON	2	2	wm/settings.hibr	setting
+DT_ICONBG	2	2	wm/icons.hibr	setting
+DT_IMGCOMP	2	2	wm/wallpaper.hibr	setting
+DT_IMGDETAIL	2	2	wm/wallpaper.hibr	setting
+DT_IMGEDITS	2	2	wm/wallpaper.hibr	setting
+DT_IMGFD	2	2	wm/wallpaper.hibr	setting
+DT_KB	4	0	wm/kbd.hibr	mirror
+DT_LIVEMS	2	2	wm/settings.hibr	setting
+DT_LOCKAFTER	2	2	wm/lock.hibr	setting
+DT_LOCKWHERE	2	2	wm/lock.hibr	setting
+DT_LOG	4	0	wm/settings.hibr	setting
+DT_MENUMARK	2	2	wm/settings.hibr	setting
+DT_MENUMAX	2	2	wm/settings.hibr	setting
+DT_MIRROR	2	2	wm/lang.hibr	local
+DT_MOVEMODE	2	2	wm/settings.hibr	setting
+DT_MSHADOW	2	2	wm/settings.hibr	setting
+DT_NATFOCUS	2	2	wm/native.hibr	setting
+DT_NETBAR	4	0	wm/settings.hibr	setting
+DT_NETRULE	2	2	wm/settings.hibr	setting
+DT_NEWON	2	2	wm/settings.hibr	setting
+DT_NOTEAPP	2	2	wm/notify.hibr	arg
+DT_NOTECOLOUR	2	2	wm/notify.hibr	setting
+DT_NOTECOUNT	2	2	wm/notify.hibr	setting
+DT_NOTEFRAME	2	2	wm/notify.hibr	setting
+DT_NOTEFROM	0	4	wm/notify.hibr	arg
+DT_NOTEHIST	4	0	wm/notify.hibr	mirror
+DT_NOTEHMAX	2	2	wm/notify.hibr	setting
+DT_NOTEHMIN	2	2	wm/notify.hibr	setting
+DT_NOTELIST	2	2	wm/notify.hibr	setting
+DT_NOTEMS	2	2	wm/notify.hibr	setting
+DT_NOTEPOS	2	2	wm/notify.hibr	setting
+DT_NOTEQ	2	2	wm/notify.hibr	request
+DT_NOTEQ_ORDER	2	2	wm/notify.hibr	request
+DT_NOTEUNSEEN	0	4	wm/notify.hibr	request
+DT_NOTEWHERE	2	2	wm/notify.hibr	setting
+DT_NOTEWMAX	2	2	wm/notify.hibr	setting
+DT_NOTEWMIN	2	2	wm/notify.hibr	setting
+DT_OPENSHELL	2	2	wm/handlers.hibr	arg
+DT_OPENWITH	2	2	wm/handlers.hibr	setting
+DT_OWLIST	4	0	wm/handlers.hibr	mirror
+DT_PATHAN	2	2	wm/prayer.hibr	setting
+DT_PATHANF	2	2	wm/prayer.hibr	setting
+DT_PBEFORE	2	2	wm/prayer.hibr	setting
+DT_PLACE	2	2	wm/place.hibr	setting
+DT_PNOTE	2	2	wm/prayer.hibr	setting
+DT_PROGAUTO	2	2	wm/programs.hibr	setting
+DT_PW	4	0	wm/machine.hibr	mirror
+DT_PWLEVEL	4	0	wm/settings.hibr	setting
+DT_SAVER	2	2	wm/saver.hibr	setting
+DT_SAVERIDLE	2	2	wm/saver.hibr	setting
+DT_SHADOWSHAPE	2	2	wm/settings.hibr	setting
+DT_SHOTDIR	3	1	wm/shot.hibr	setting
+DT_SNDBAR	4	0	wm/settings.hibr	setting
+DT_SNDLEVEL	4	0	wm/settings.hibr	setting
+DT_STANDBYAUTO	2	2	wm/standby.hibr	setting
+DT_SWMS	2	2	wm/settings.hibr	setting
+DT_SWSKIP	2	2	wm/settings.hibr	setting
+DT_TERMHERE	2	2	wm/handlers.hibr	setting
+DT_TILEMAIN	2	2	wm/tile.hibr	setting
+DT_TIPMS	2	2	wm/settings.hibr	setting
+DT_TITLEBARS	4	0	wm/settings.hibr	setting
+DT_TITLEKEY	2	2	wm/settings.hibr	setting
+DT_TREELINES	2	2	widgets/tree.hibr	local
+DT_TREESTYLE	2	2	widgets/tree.hibr	local
+DT_VER	4	0	desktop.hibr	mirror
+DT_VWA	4	0	wm/vault.hibr	mirror
+DT_VWCLEAR	2	2	wm/vault.hibr	setting
+DT_VWJOB	4	0	wm/vault.hibr	mirror
+DT_VWSYNC	2	2	wm/vault.hibr	setting
+DT_WALLDMODE	2	2	wm/wallpaper.hibr	request
+DT_WALLDPIC	2	2	wm/wallpaper.hibr	request
+DT_WALLIMGMODE	2	2	wm/wallpaper.hibr	setting
+DT_WEEKSTART	2	2	wm/lang.hibr	local
+DT_WHY	4	0	wm/frame.hibr	mirror
+DT_WS	4	0	wm/workspaces.hibr	mirror
+DT_ZOOMFILL	2	2	wm/settings.hibr	setting
+LANG	4	0	wm/locale.hibr	local
+PMOWN	2	2	wm/programs.hibr	request
+PW	4	0	system/panel.hibr	declare
+WP_GLYPHS	4	0	wm/settings.hibr	setting
+WS_ALIGNS	4	0	wm/settings.hibr	setting
+WS_FRAMES	4	0	wm/settings.hibr	setting
+WS_STYLES	4	0	wm/settings.hibr	setting
+DT_IME	3	0	wm/ime.hibr	mirror
+DT_IMEC	3	0	wm/ime.hibr	mirror
+DT_IMEP	3	0	wm/ime.hibr	mirror
+DT_PX	3	0	wm/input.hibr	mirror
+DT_SHOTFMT	2	1	wm/shot.hibr	setting
+DT_SHOTLAST	2	1	wm/shot.hibr	setting
+HIBR_DAV_TIMEOUT	0	3	wm/remote.hibr	local
+MB_CY	3	0	wm/menus.hibr	mirror
+BD_COL	2	0	widgets/bidi.hibr	local
+BD_SRC	2	0	widgets/bidi.hibr	local
+BD_VIS	2	0	widgets/bidi.hibr	local
+CP_PANES	2	0	system/panel.hibr	declare
+CS_CLICKC	2	0	wm/strip.hibr	mirror
+CS_MOD_ALL	2	0	wm/strip.hibr	mirror
+CS_MOD_ORD	2	0	wm/strip.hibr	mirror
+DRW	2	0	wm/remote.hibr	local
+DTJ_N	2	0	wm/jobs.hibr	local
+DT_AKEY	2	0	wm/keys.hibr	mirror
+DT_AKEYORDER	2	0	wm/keys.hibr	mirror
+DT_APPKEY	2	0	wm/settings.hibr	setting
+DT_APPNAMEV	2	0	wm/apps.hibr	mirror
+DT_BANDS	2	0	wm/settings.hibr	setting
+DT_BARORDER	0	2	wm/settings.hibr	setting
+DT_BARREAD	2	0	wm/bar.hibr	mirror
+DT_BARWCOL	2	0	wm/bar.hibr	mirror
+DT_BELLICONS	2	0	wm/bar.hibr	mirror
+DT_BTNS	2	0	wm/settings.hibr	setting
+DT_CH	2	0	wm/clip.hibr	mirror
+DT_CLIPKEEP	2	0	wm/clip.hibr	setting
+DT_CLIPOP	0	2	wm/state.hibr	arg
+DT_CONFJ	2	0	wm/settings.hibr	setting
+DT_DAVSAVE	2	0	wm/remote.hibr	local
+DT_DISKS	2	0	wm/icons.hibr	setting
+DT_DISPNAMES	2	0	wm/state.hibr	mirror
+DT_DLGBTNS	2	0	wm/settings.hibr	setting
+DT_DND	2	0	wm/state.hibr	mirror
+DT_DOT	0	2	wm/settings.hibr	setting
+DT_DRAGMOD	2	0	wm/settings.hibr	setting
+DT_EDGERESIZE	2	0	wm/settings.hibr	setting
+DT_FIELD	1	1	widgets/text.hibr	local
+DT_FOCUSHOVER	2	0	wm/settings.hibr	setting
+DT_FULLENDS	2	0	wm/settings.hibr	setting
+DT_GLYPHSETS	2	0	wm/glyphs.hibr	local
+DT_HANDLERS	2	0	wm/handlers.hibr	mirror
+DT_HIGHLIGHT	0	2	wm/settings.hibr	setting
+DT_HOT	0	2	wm/settings.hibr	setting
+DT_ICONPENS	2	0	wm/settings.hibr	setting
+DT_ICONS	2	0	wm/icons.hibr	setting
+DT_IMEBY	1	1	wm/ime.hibr	local
+DT_IMGEDIT	0	2	wm/session.hibr	request
+DT_IMGFDNOW	0	2	wm/session.hibr	request
+DT_ISON	1	1	wm/isolate.hibr	gone
+DT_KBCUR	2	0	wm/kbd.hibr	mirror
+DT_KBLOC	2	0	wm/kbd.hibr	mirror
+DT_KBLOCAL	2	0	wm/kbd.hibr	setting
+DT_KBN	2	0	wm/kbd.hibr	mirror
+DT_KBRES	2	0	wm/kbd.hibr	mirror
+DT_KEYORDER	2	0	wm/keys.hibr	mirror
+DT_LOC	2	0	wm/locale.hibr	local
+DT_LOCEX	2	0	wm/locale.hibr	local
+DT_LOCINFO	2	0	wm/locale.hibr	local
+DT_LOCLIST	2	0	wm/locale.hibr	local
+DT_LOCNAMES	2	0	wm/locale.hibr	local
+DT_LOCSUP	2	0	wm/locale.hibr	local
+DT_LOCSUPN	2	0	wm/locale.hibr	local
+DT_LOCSUPRD	2	0	wm/locale.hibr	local
+DT_MENUBOLD	2	0	wm/settings.hibr	setting
+DT_MONTHS	2	0	wm/lang.hibr	local
+DT_NATFOCUSES	2	0	wm/native.hibr	mirror
+DT_NATIVE	2	0	wm/native.hibr	setting
+DT_NATLAYOUT	0	2	wm/native.hibr	request
+DT_NATREMEMBER	2	0	wm/native.hibr	setting
+DT_NATX11	2	0	wm/native.hibr	setting
+DT_NOTECOLOURS	2	0	wm/frame.hibr	mirror
+DT_NOTELEVELS	2	0	wm/notify.hibr	mirror
+DT_NOTEWIN	1	1	wm/notify.hibr	arg
+DT_NOTE_NEXT	2	0	wm/notify.hibr	mirror
+DT_OPENERORDER	2	0	wm/handlers.hibr	mirror
+DT_OPENERS	2	0	wm/handlers.hibr	mirror
+DT_OPENVERBS	2	0	wm/handlers.hibr	mirror
+DT_OVLIST	2	0	wm/handlers.hibr	mirror
+DT_PKEY	0	2	wm/prayer.hibr	request
+DT_PKRES	2	0	wm/polkit.hibr	mirror
+DT_PLACES	2	0	wm/place.hibr	mirror
+DT_POPONNEXT	0	2	widgets/dropdown.hibr	local
+DT_PRIMARY_COL	2	0	wm/state.hibr	mirror
+DT_PRIMARY_H	2	0	wm/state.hibr	mirror
+DT_PRIMARY_W	2	0	wm/state.hibr	mirror
+DT_PWDOING	0	2	wm/machine.hibr	request
+DT_RESTORED	2	0	wm/restart.hibr	mirror
+DT_SBLIST	2	0	wm/standby.hibr	mirror
+DT_SHADOWINK	0	2	wm/settings.hibr	setting
+DT_SHADOWSHAPES	2	0	wm/settings.hibr	setting
+DT_SHADOW_PCT	0	2	wm/settings.hibr	setting
+DT_SWITCHER	2	0	wm/settings.hibr	setting
+DT_TERMCTRL	2	0	wm/settings.hibr	setting
+DT_THEMECHECKS	0	2	wm/settings.hibr	setting
+DT_TIPS	2	0	wm/settings.hibr	setting
+DT_TITLE	0	2	wm/settings.hibr	setting
+DT_TITLEINK	0	2	wm/settings.hibr	setting
+DT_TRASH	2	0	wm/files.hibr	mirror
+DT_TRASHN	2	0	wm/menus.hibr	mirror
+DT_TREESTYLES	2	0	widgets/tree.hibr	local
+DT_UPNEW	2	0	wm/restart.hibr	mirror
+DT_UPSESSION	2	0	wm/restart.hibr	mirror
+DT_VWERR	2	0	wm/vault.hibr	mirror
+DT_VWITEMS	2	0	wm/vault.hibr	mirror
+DT_VWOUT	1	1	wm/vault.hibr	request
+DT_VWST	0	2	wm/vault.hibr	request
+DT_VWSYNCED	2	0	wm/vault.hibr	mirror
+DT_WALL	0	2	wm/settings.hibr	setting
+DT_WALLTRIED	0	2	wm/settings.hibr	setting
+DT_WDAYS	2	0	wm/lang.hibr	local
+DT_ZOOMFILLS	2	0	wm/settings.hibr	setting
+FP	1	1	wm/filepick.hibr	request
+MB_CTXID	2	0	wm/menus.hibr	mirror
+MB_CTXWHO	2	0	wm/menus.hibr	mirror
+SV_LIST	2	0	savers/saver.hibr	mirror
+TB_EC	2	0	widgets/textarea.hibr	local
+TB_ER	2	0	widgets/textarea.hibr	local
+TB_SC	2	0	widgets/textarea.hibr	local
+TB_SR	2	0	widgets/textarea.hibr	local
+VW_SESSION	2	0	wm/vault.hibr	mirror
+CP_MSLIDE	1	0	system/panel.hibr	declare
+DT_HOSTMARK	1	0	wm/isolate.hibr	mirror
+DT_IMEAT	1	0	wm/ime.hibr	mirror
+DT_KEYBASE	1	0	wm/keyphase.hibr	mirror
+DT_KEYCODE	1	0	wm/keyphase.hibr	mirror
+DT_KEYMODS	1	0	wm/keyphase.hibr	mirror
+DT_KEYPHASE	1	0	wm/keyphase.hibr	mirror
+DT_NATCH	1	0	wm/native.hibr	mirror
+DT_NATCW	1	0	wm/native.hibr	mirror
+DT_PHASEWIN	1	0	wm/keyphase.hibr	mirror
+DT_PY	1	0	wm/input.hibr	mirror
+MB_CX	1	0	wm/menus.hibr	mirror
