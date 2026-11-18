@@ -657,9 +657,26 @@ try:
     lvl = open(state).read().split()
     check("and alt-0 mutes Master", "♪ ✕" in bar(sc) and lvl[2] == "off",
           (bar(sc), lvl))
+    # A sound server that hangs on a change holds nothing: a volume step is
+    # sent and not waited for (the owner's desktop held 7 s on one stuck
+    # pactl set-sink-volume, 2026-11-18). The mixer here takes 5 s to set;
+    # the bar shows the new level at once, and no held: line is written
+    # (any would fail this suite).
+    slow = os.path.join(D, "slowbin")
+    os.makedirs(slow, exist_ok=True)
+    open(os.path.join(slow, "amixer"), "w").write(
+        "#!/bin/sh\ncase \" $* \" in *\" sset \"*) sleep 5 ;; esac\nexec %s \"$@\"\n"
+        % os.path.join(bindir, "amixer"))
+    os.chmod(os.path.join(slow, "amixer"), 0o755)
+    senv = dict(aenv, PATH=slow + os.pathsep + aenv["PATH"])
+    t0 = time.time()
+    sc = srun([b"\x1b="], env=senv, until=lambda sc: "♪ 60%" in bar(sc) or "♪ 55%" in bar(sc))
+    took = time.time() - t0
+    check("a sound server that hangs on a change holds nothing: the level shows at once",
+          ("♪ 60%" in bar(sc) or "♪ 55%" in bar(sc)) and took < 4.5, (bar(sc), round(took, 2)))
 finally:
     stop()
     shutil.rmtree(RT, True)
     shutil.rmtree(RT2, True)
     shutil.rmtree(D, True)
-report(41)
+report(42)

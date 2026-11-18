@@ -39,7 +39,7 @@
 
 strict
 
-app sound "The speaker on the menu bar and the sound it watches" 1.5.1
+app sound "The speaker on the menu bar and the sound it watches" 1.5.2
 
 # The state: kind (pulse, pw, alsa, none, or gone for a server that went;
 # empty until the first frame looks), server (what the server calls
@@ -74,6 +74,49 @@ DT_SNDRC="${DT_SNDRC-$HOME/.asoundrc}"
 # its words are the ones read here, saying nothing on stderr.
 fn dt_snpa(...a) {
 	LC_ALL=C pactl "${a[@]}" 2> /dev/null
+}
+
+# A setting sent to the sound server and never waited for: a stuck server
+# held the owner's desktop 7 seconds on one volume change ("held: pass ...
+# slowest call pactl set-sink-volume", 2026-11-18). One command a setting is
+# in flight at a time; a newer one waits behind it and replaces any older
+# one waiting, so a slider dragged over a stuck server queues one command,
+# not a hundred. key names the setting: out, outmute, in, inmute, default.
+declare -gA DT_SNDBUSY DT_SNDNEXT DT_SNDNEXTN
+fn dt_sndbg(key, ...cmd) {
+	local p=${DT_SNDBUSY["$key"]-} i
+
+	if [ -n "$p" ] && kill -0 "$p" 2> /dev/null; then
+		DT_SNDNEXTN["$key"]=${#cmd[@]}
+		for i in "${!cmd[@]}"; do
+			DT_SNDNEXT["$key,$i"]=${cmd[$i]}
+		done
+		dt_ticker dt_sndflush
+		return 0
+	fi
+	LC_ALL=C "${cmd[@]}" > /dev/null 2>&1 < /dev/null &
+	DT_SNDBUSY["$key"]=$!
+	return 0
+}
+
+# A setting that waited behind one in flight, sent once that one is done.
+dt_sndflush() {
+	local key n i p
+	local -a cmd
+
+	for key in "${!DT_SNDNEXTN[@]}"; do
+		p=${DT_SNDBUSY["$key"]-}
+		[ -n "$p" ] && kill -0 "$p" 2> /dev/null && { dt_want 50; continue; }
+		n=${DT_SNDNEXTN["$key"]}
+		cmd=()
+		for ((i = 0; i < n; i++)); do
+			cmd+=("${DT_SNDNEXT["$key,$i"]}")
+			unset DT_SNDNEXT["$key,$i"]
+		done
+		unset DT_SNDNEXTN["$key"]
+		dt_sndbg "$key" "${cmd[@]}"
+	done
+	return 0
 }
 
 # And PipeWire, through wpctl.
@@ -591,9 +634,9 @@ fn dt_sndvol(int v) {
 	[ "$v" -lt 0 ] && v=0
 	[ "$v" -gt 100 ] && v=100
 	case ${DT_SND["kind"]} in
-	pulse) dt_snpa set-sink-volume "${DT_SND["out"]}" "$v%" > /dev/null ;;
-	pw) dt_snpw set-volume "${DT_SND["out"]}" "$v%" > /dev/null ;;
-	alsa) amixer -q -c "${DT_SND["out"]:-0}" sset "${DT_SND["octl"]:-Master}" "$v%" 2> /dev/null ;;
+	pulse) dt_sndbg out pactl set-sink-volume "${DT_SND["out"]}" "$v%" ;;
+	pw) dt_sndbg out wpctl set-volume "${DT_SND["out"]}" "$v%" ;;
+	alsa) dt_sndbg out amixer -q -c "${DT_SND["out"]:-0}" sset "${DT_SND["octl"]:-Master}" "$v%" ;;
 	*) return 0 ;;
 	esac
 	DT_SND["vol"]=$v
@@ -628,9 +671,9 @@ dt_sndnote() {
 # Mute the chosen output, or let it be heard again.
 dt_sndmute() {
 	case ${DT_SND["kind"]} in
-	pulse) dt_snpa set-sink-mute "${DT_SND["out"]}" toggle > /dev/null ;;
-	pw) dt_snpw set-mute "${DT_SND["out"]}" toggle > /dev/null ;;
-	alsa) amixer -q -c "${DT_SND["out"]:-0}" sset "${DT_SND["octl"]:-Master}" toggle 2> /dev/null ;;
+	pulse) dt_sndbg outmute pactl set-sink-mute "${DT_SND["out"]}" toggle ;;
+	pw) dt_sndbg outmute wpctl set-mute "${DT_SND["out"]}" toggle ;;
+	alsa) dt_sndbg outmute amixer -q -c "${DT_SND["out"]:-0}" sset "${DT_SND["octl"]:-Master}" toggle ;;
 	*) return 0 ;;
 	esac
 	if [ "${DT_SND["mute"]}" = 1 ]; then
@@ -652,9 +695,9 @@ fn dt_sndivol(int v) {
 	[ "$v" -lt 0 ] && v=0
 	[ "$v" -gt 100 ] && v=100
 	case ${DT_SND["kind"]} in
-	pulse) dt_snpa set-source-volume "${DT_SND["in"]}" "$v%" > /dev/null ;;
-	pw) dt_snpw set-volume "${DT_SND["in"]}" "$v%" > /dev/null ;;
-	alsa) amixer -q -c "${DT_SND["in"]:-0}" sset "${DT_SND["ictl"]:-Capture}" "$v%" 2> /dev/null ;;
+	pulse) dt_sndbg in pactl set-source-volume "${DT_SND["in"]}" "$v%" ;;
+	pw) dt_sndbg in wpctl set-volume "${DT_SND["in"]}" "$v%" ;;
+	alsa) dt_sndbg in amixer -q -c "${DT_SND["in"]:-0}" sset "${DT_SND["ictl"]:-Capture}" "$v%" ;;
 	*) return 0 ;;
 	esac
 	DT_SND["ivol"]=$v
@@ -662,9 +705,9 @@ fn dt_sndivol(int v) {
 
 dt_sndimute() {
 	case ${DT_SND["kind"]} in
-	pulse) dt_snpa set-source-mute "${DT_SND["in"]}" toggle > /dev/null ;;
-	pw) dt_snpw set-mute "${DT_SND["in"]}" toggle > /dev/null ;;
-	alsa) amixer -q -c "${DT_SND["in"]:-0}" sset "${DT_SND["ictl"]:-Capture}" toggle 2> /dev/null ;;
+	pulse) dt_sndbg inmute pactl set-source-mute "${DT_SND["in"]}" toggle ;;
+	pw) dt_sndbg inmute wpctl set-mute "${DT_SND["in"]}" toggle ;;
+	alsa) dt_sndbg inmute amixer -q -c "${DT_SND["in"]:-0}" sset "${DT_SND["ictl"]:-Capture}" toggle ;;
 	*) return 0 ;;
 	esac
 	if [ "${DT_SND["imute"]}" = 1 ]; then
@@ -678,36 +721,43 @@ dt_sndimute() {
 # moves to it too, since it leaves a stream where it was; WirePlumber moves
 # what follows the default itself. With ALSA the card goes in ~/.asoundrc,
 # the input's left where it was.
+# Sent as one job, never waited for (dt_sndbg): what is playing follows it
+# there, and the sound server's own news of the change -- the watcher --
+# is what reads the new state back, as for a change made anywhere else.
 fn dt_sndout(nm) {
-	local l id
-	local -a w
-
 	case ${DT_SND["kind"]} in
-	pulse)
-		dt_snpa set-default-sink "$nm" > /dev/null || return 1
-		while IFS= read -r l; do
-			read -ra w <<< "$l"
-			id=${w[0]}
-			[ -n "$id" ] && dt_snpa move-sink-input "$id" "$nm" > /dev/null
-		done <<< "$(dt_snpa list short sink-inputs)"
-		;;
-	pw) dt_snpw set-default "$nm" > /dev/null || return 1 ;;
+	pulse) dt_sndbg default dt_sndmoveall "$nm" ;;
+	pw) dt_sndbg default wpctl set-default "$nm" ;;
 	alsa) dt_sndrcwrite "$nm" "${DT_SND["in"]:-$nm}" || return 1 ;;
 	*) return 0 ;;
 	esac
-	dt_sndread
+	DT_SND["out"]=$nm
 	dt_sndbar
+}
+
+# The default output set, and everything playing moved to it: in a job.
+fn dt_sndmoveall(nm) {
+	local l id
+	local -a w
+
+	LC_ALL=C pactl set-default-sink "$nm" || return 1
+	while IFS= read -r l; do
+		read -ra w <<< "$l"
+		id=${w[0]}
+		[ -n "$id" ] && LC_ALL=C pactl move-sink-input "$id" "$nm"
+	done <<< "$(LC_ALL=C pactl list short sink-inputs)"
+	return 0
 }
 
 # Make an input the one used, the output left where it was.
 fn dt_sndin(nm) {
 	case ${DT_SND["kind"]} in
-	pulse) dt_snpa set-default-source "$nm" > /dev/null || return 1 ;;
-	pw) dt_snpw set-default "$nm" > /dev/null || return 1 ;;
+	pulse) dt_sndbg default pactl set-default-source "$nm" ;;
+	pw) dt_sndbg default wpctl set-default "$nm" ;;
 	alsa) dt_sndrcwrite "${DT_SND["out"]:-$nm}" "$nm" || return 1 ;;
 	*) return 0 ;;
 	esac
-	dt_sndread
+	DT_SND["in"]=$nm
 }
 
 # Write ALSA's default output and input, a card each, when ~/.asoundrc is
