@@ -235,14 +235,17 @@ fn dt_glyphs(set = "unicode") {
 		GL["sleft"]=$'◂'     # BLACK LEFT-POINTING SMALL TRIANGLE
 		# A player's transport, each one cell wide by the width table.
 		GL["play"]=$'▶'    # BLACK RIGHT-POINTING TRIANGLE
-		GL["pause"]=$'⏸'   # DOUBLE VERTICAL BAR
-		GL["stop"]=$'⏹'    # BLACK SQUARE FOR STOP
-		GL["prev"]=$'⏮'    # BLACK LEFT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR
-		GL["next"]=$'⏭'    # BLACK RIGHT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR
+		# Each from DejaVu Sans Mono, which nearly every terminal has: the media
+		# symbols themselves (U+23EE, U+23F8 ...) are only in Noto Sans Symbols2,
+		# so most terminals drew them as boxes (huiamp, 2026-11-18).
+		GL["pause"]=$'\u2016'    # DOUBLE VERTICAL LINE
+		GL["stop"]=$'\u25a0'     # BLACK SQUARE
+		GL["prev"]=$'\u21e4'     # LEFTWARDS ARROW TO BAR
+		GL["next"]=$'\u21e5'     # RIGHTWARDS ARROW TO BAR
 		GL["rewind"]=$'«'  # LEFT-POINTING DOUBLE ANGLE QUOTATION MARK: U+23EA is two cells
 		GL["ffwd"]=$'»'    # RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK: U+23E9 is two cells
 		GL["eject"]=$'⏏'   # EJECT SYMBOL
-		GL["record"]=$'⏺'  # BLACK CIRCLE FOR RECORD
+		GL["record"]=$'\u25cf'   # BLACK CIRCLE
 		GL["repeat"]=$'↻'  # CLOCKWISE OPEN CIRCLE ARROW
 		GL["repeat1"]=$'①' # CIRCLED DIGIT ONE
 		GL["shuffle"]=$'⇄' # RIGHTWARDS ARROW OVER LEFTWARDS ARROW
