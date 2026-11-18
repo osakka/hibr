@@ -67,8 +67,9 @@ OVERRIDE["dt_identify"] = "request"
 OVERRIDE["dt_sbscan"] = "request"
 # The prototype's own plumbing, and what only the platform's own windows
 # reach for: no installable calls these once the runtime exists.
-for _n in """dt_isosent dt_isomsg dt_isodrop dt_isosend dt_isomenus dt_natlayout
-        dt_launched""".split():
+OVERRIDE["dt_launched"] = "request"
+OVERRIDE["dt_natlayout"] = "request"
+for _n in """dt_isosent dt_isomsg dt_isodrop dt_isosend dt_isomenus""".split():
     OVERRIDE[_n] = "gone"
 
 
@@ -86,12 +87,21 @@ def defs():
     return where
 
 
+def platform(f):
+    """A file ADR 0046 marks as the platform's own: not an installable here."""
+    try:
+        return any(l.startswith("# platform:") for l in open(f, errors="replace"))
+    except OSError:
+        return False
+
+
 def installables():
-    """Every installable script: the catalogue's bundles and the shipped tree's."""
+    """Every installable script: the catalogue's bundles and the shipped
+    tree's, less the platform's own (ADR 0046, kept by the owner 2026-11-18)."""
     fs = set(glob.glob(os.path.join(APPS, "bundles", "**", "*.hibr"), recursive=True))
     for d in ("apps", "system", "control-panel", "control-strip", "menubar", "savers"):
         fs |= set(glob.glob(os.path.join(ROOT, "programs/desktop", d, "**", "*.hibr"), recursive=True))
-    return sorted(fs)
+    return sorted(f for f in fs if not platform(f))
 
 
 def classify(name, rel):

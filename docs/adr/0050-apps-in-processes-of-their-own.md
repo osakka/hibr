@@ -143,15 +143,22 @@ today, measured from both sides:
    That table, generated and checked by a tool, is this design's centre; a
    new platform function an installable calls fails the gate until it is
    classified. **Done (2026-11-18):** `tools/appcalls.py` reads every
-   installable -- 216, the catalogue's and the shipped tree's, none
-   unreadable -- and classes the **373** platform functions they call:
-   **207 local** (the widgets, translation, glyphs, jobs, regions, timers,
-   pure helpers, and facts about the display pushed to the app), **112
-   requests** (windows, notes, dialogs, the clipboard, openers, file undo,
-   chrome, the input method, the saver, the wallpaper, the app registry),
-   **47 declarations** (menus, bar and strip items, kept settings) and **7
-   gone** (the prototype's own plumbing). The table is
-   `docs/adr/0050-calls.tsv`, rewritten by `tools/appcalls.py --write`.
+   installable -- 210, the catalogue's and the shipped tree's less the
+   platform's own `# platform:` files, none unreadable -- and classes the
+   **360** platform functions they call: **203 local** (the widgets,
+   translation, glyphs, jobs, regions, timers, pure helpers, and facts about
+   the display pushed to the app), **109 requests** (windows, notes,
+   dialogs, the clipboard, openers, file undo, chrome, the input method, the
+   saver, the wallpaper, the app registry, the displays' layout), **43
+   declarations** (menus, bar and strip items, kept settings) and **5 gone**
+   (the prototype's hooks in `apps/term.hibr`, which go with it). The table
+   is `docs/adr/0050-calls.tsv`, rewritten by `tools/appcalls.py --write`.
+   Still owed before runtime code (advisor, second review): what installables
+   read and write of the platform's state (`DT[...]`, `DT_FOCUS`, `GL`, `CP`,
+   `MB`), each a pushed mirror, the app's own or refused; that every
+   "local" function stays local through the platform's call graph; and the
+   requests split into told and asked -- `id := dt_new` answers a window id
+   used on the next line.
 2. **The desktop holds each hosted window's cells.** A move, an uncovering,
    a workspace switch or a restart repaints a hosted window without asking
    the app -- or the desktop would wait on it. So the console keeps a hosted
