@@ -217,6 +217,13 @@ More tools sit around it:
   not load, and a call into another installable with no `dt_has`,
   `dt_needs` or `command -v` in its function (ADR 0046). A suite in
   `all.py`; under a second.
+- **`tests/appcalls.py`** -- every platform function an installable in this
+  tree calls is classed for an app's own process (ADR 0050), and fails on
+  one that is not: `tools/appcalls.py --check`, read by the inspect module,
+  never run; and the desktop's list of saved settings can be read, which
+  `tools/appstate.py` classes the platform's globals by. The catalogue's
+  half is checked by `./stale` in its own checkout. A suite in `all.py`;
+  about five seconds.
 - **`tests/scopes.py`** -- starts the desktop with the platform alone, as
   the package ships it, with each installable alone in an empty data folder
   over the platform (and then launched, opened or started, so its callbacks

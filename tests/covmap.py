@@ -46,7 +46,7 @@ DEFS = [re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{"),
         re.compile(r"^\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(")]
 # Suites that read every desktop file rather than run it: whatever changes
 # under programs/desktop, they are cheap and they always run.
-READERS = ("run.sh", "strictvars", "deps", "scopes")
+READERS = ("run.sh", "strictvars", "deps", "appcalls", "scopes")
 
 
 def git(*a, check=True):

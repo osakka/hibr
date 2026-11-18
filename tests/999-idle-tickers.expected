@@ -1,0 +1,42 @@
+0
+a bare desktop runs 15 tickers a pass:
+  dt_swtick
+  dt_shadownote
+  dt_movednote
+  dt_jobtick
+  dt_writetick
+  dt_notetick
+  dt_bustick
+  dt_ctlpoll
+  dt_hudtick
+  dt_ptick
+  dt_vwtick
+  dt_kbtick
+  dt_pktick
+  dt_nattick
+  dt_modetick
+with this tree loaded, 24:
+  dt_swtick
+  dt_shadownote
+  dt_movednote
+  dt_jobtick
+  dt_writetick
+  dt_notetick
+  dt_bustick
+  dt_ctlpoll
+  dt_hudtick
+  dt_ptick
+  dt_vwtick
+  dt_kbtick
+  dt_pktick
+  dt_nattick
+  dt_modetick
+  pe_tick
+  cv_alarms
+  fb_watch
+  dt_bttick
+  dt_nettick
+  dt_pwtick
+  dt_sndtick
+  dt_traytick
+  dt_pnotetick

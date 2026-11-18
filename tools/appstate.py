@@ -97,6 +97,9 @@ def kept():
 
 
 KEPT = kept()
+if not KEPT:
+    sys.exit("FAIL the desktop's own list of saved settings (DT_KEEP) came back empty, "
+             "so every setting would be classed as desktop state: is build/hibr built?")
 # A module's own status variable, set in whichever process called it.
 MODVARS = ("DAV_CODE",)
 

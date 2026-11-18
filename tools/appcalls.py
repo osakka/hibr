@@ -5,6 +5,7 @@ desktop, never waited on), declare (built in the app and pushed up), or
 decide (not yet classified).
 
   python3 tools/appcalls.py [--write]   # print the summary; --write the table
+  python3 tools/appcalls.py --check     # fail on a function not classed (tests/appcalls.py)
 
 Every call is read by the inspect module (ADR 0056), never run, from every
 installable the catalogue checkout holds (~/hibr-apps/bundles, or $HIBR_APPS)
@@ -211,6 +212,16 @@ def main():
         print("wrote", os.path.relpath(OUT, ROOT))
     for f in bad:
         print("unreadable:", f)
+    if "--check" in sys.argv:
+        undecided = [r[1] for r in rows if r[0] == "decide"]
+        for n in undecided:
+            print("FAIL %s (%s) is called by an installable and not classed: "
+                  "add it to BYFILE or OVERRIDE in tools/appcalls.py (ADR 0050)" % (n, where[n]))
+        for f in bad:
+            print("FAIL %s could not be read by the inspect module" % f)
+        fails = len(undecided) + len(bad)
+        print("\n%d passed, %d failed" % (len(rows) - len(undecided), fails))
+        sys.exit(1 if fails else 0)
 
 
 main()
