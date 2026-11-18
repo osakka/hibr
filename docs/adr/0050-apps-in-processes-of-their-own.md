@@ -153,9 +153,18 @@ today, measured from both sides:
    declarations** (menus, bar and strip items, kept settings) and **5 gone**
    (the prototype's hooks in `apps/term.hibr`, which go with it). The table
    is `docs/adr/0050-calls.tsv`, rewritten by `tools/appcalls.py --write`.
-   Still owed before runtime code (advisor, second review): what installables
-   read and write of the platform's state (`DT[...]`, `DT_FOCUS`, `GL`, `CP`,
-   `MB`), each a pushed mirror, the app's own or refused; that every
+   **The platform's state, surveyed (2026-11-18):** `tools/appstate.py`
+   (`docs/adr/0050-state.tsv`) finds installables touching **338** of the
+   platform's 1,019 globals and writing **185**. They fall into: pushed
+   mirrors the app only reads -- the theme's colours (`DT_FACE` and the rest,
+   read in about 100 files), the glyphs (`GL`, 115), the screen's size, the
+   mirroring flag, the wheel's step, the focus (`DT_FOCUS`, 56); the app's
+   own -- the dialog's geometry, the job table (`DTJ`), a text area's state;
+   declarations -- a pane's rows (`CP`, written in 82); and requests -- a
+   desktop setting a pane writes (the wallpaper, the buttons, the cursor),
+   accepted against its declared rows, and hints such as `DT_FORCEONCE`.
+   Still owed before runtime code (advisor, second review): each of the 338
+   classed in the table as the 360 functions are; that every
    "local" function stays local through the platform's call graph; and the
    requests split into told and asked -- `id := dt_new` answers a window id
    used on the next line.
