@@ -84,7 +84,9 @@ carry over; its route does not.
    (done in the prototype).
 7. **A crash or a hang is the app's alone.** An ended app's windows say so
    and offer to start it again; a Restart Desktop finds the host by its pid.
-8. **Moved in one release, every kind.** The suites already open apps
+8. **Moved together, once the Review's counts exist** -- in one release, or
+   kind by kind (staging is not a switch: each kind moves for good), which
+   is the owner's to choose when the counts are in. The suites already open apps
    through the window manager, so they run against hosted apps unchanged;
    `tests/isolation.py` goes into `all.py` then, passing without `ISO=1`,
    which no longer exists. The prototype's terminal hooks (`term_draw`'s
@@ -112,8 +114,14 @@ today, measured from both sides:
   a core with programs running, the frame budget), and names an app over it
   in the log and in a per-app view in Task Manager.
 - **The gate keeps its teeth.** Suites assert an app's latency and CPU
-  budget, not only that the desktop did not freeze, and the catalogue runs
-  an app's suites against the same budgets before it publishes.
+  budget, not only that the desktop did not freeze. Whether the catalogue
+  also runs an app's suites before it publishes is the owner's to say: the
+  package work it belongs to is parked (ADR 0058-0062).
+- **Checked, not trusted.** A check fails against a build with the
+  detection taken out -- a stall that logs nothing, a latency nobody
+  measures -- so the requirement cannot be lost quietly; and an app over its
+  budget is shown to the person as well as logged, in a form the owner
+  chooses.
 
 ## Review (advisor, 2026-11-18): what the design must settle
 
@@ -150,7 +158,10 @@ today, measured from both sides:
    cell runs as `hold` carries between processes -- and it is chosen
    against these: idle costs nothing; an app echoing a key is on screen in
    the next frame; an app redrawing a full window ten times a second costs
-   the desktop no more than 1% of a core beside the app's own.
+   the desktop no more than 1% of a core beside the app's own; and the
+   heaviest installable, the Terminal, with three programs each writing
+   every 10 ms -- the case CLAUDE.md has a baseline for -- costs the desktop
+   no more than it does today.
 3. **Every kind, said.** Of the catalogue's thirteen kinds (CAT_KINDS):
    apps (31) and system apps (7) are processes with windows; Control Panel
    panes (48), Control Strip modules (9), menu bar items (10) and savers
@@ -176,7 +187,12 @@ today, measured from both sides:
    lets Escape reach Menu Bar after vi declines it. The protocol: a key goes
    down with a number, the app answers took or declined by number, the
    desktop holds that key's own fallback until the answer or `DT_HOLDMS`,
-   and later keys go down in order behind it. The table of told and pushed
+   and **holds the keys typed after it too**, sending each only once the
+   one before is answered -- sending them on would hand the letter typed
+   after Escape to the app instead of the menu it opened. Only a plain key
+   that is also on a shortcut's list needs the round trip; every other key
+   goes down at once. The key's number is also the latency measurement the
+   sensitivity requirement asks for: one mechanism, not two. The table of told and pushed
    calls is built from ARCHITECTURE.md's callback table and the arity table
    in `tests/540-examples.t`, not a new list.
 5. **"Read, not run" is checked, not assumed.** Registrations sit behind
@@ -207,9 +223,16 @@ today, measured from both sides:
    their apps the same way. Each is counted and given its answer before the
    one release.
 8. **Told to every app process:** the theme, colour scheme, glyph set,
-   language and cell size when they change; whether app processes survive a
-   Restart Desktop (they do, as a terminal's programs do) and a supervisor's
-   restart; and a bound on what the desktop reads from one app a frame.
+   language and cell size when they change; and a bound on what the desktop
+   reads from one app a frame. **After an update** an app process must not
+   go on running the old runtime against a new desktop -- the stale-session
+   trap CLAUDE.md records for hold. The hello carries a protocol version;
+   on a mismatch, or when the runtime was replaced on disk, each app process
+   re-executes itself into the new one, keeping its descriptors as Restart
+   Desktop keeps a terminal's -- so a terminal's programs, the hard case,
+   survive an update -- and an app that cannot is restarted and says so.
+   App processes survive a Restart Desktop and a supervisor's restart, as a
+   terminal's programs do.
 9. **Not a goal: containment.** An app's process has the person's rights;
    this buys stability, not a sandbox.
 
