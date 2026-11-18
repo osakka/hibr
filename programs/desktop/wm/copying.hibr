@@ -221,7 +221,7 @@ fn dt_copylocated(x, op, dst, ...rest) {
 	local id j
 
 	shift 3
-	if dt_has "${x}_ok" && ! "${x}_ok"; then
+	if dt_has "${x}_ok" && ! dt_prefixfn "$x" ok; then
 		dt_notep high "$DT_WHY"
 		return 1
 	fi

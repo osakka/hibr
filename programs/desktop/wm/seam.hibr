@@ -1,0 +1,58 @@
+# wm/seam -- the one place the desktop calls into code that is not its own
+# (ADR 0050): an app's window callbacks and input handlers, a callback an
+# app handed it, and an installable's hooks. Each call names whose code it
+# is -- an app, or the file of the installable that registered the hook --
+# so that once apps and installables run in processes of their own the call
+# is sent there, and the desktop never waits on it. Every one is in this
+# process today, so it is called. tools/callsites.py fails a call into
+# such code by a name anywhere but here.
+#
+# Part of the window manager; desktop.hibr sources it first of its own, so
+# a file that registers a hook while it loads finds this already here. It
+# only defines functions and sets state, so it can be read on its own and
+# is never run.
+
+strict
+
+# The app whose code is running now, through dt_appfn; empty for the
+# desktop's own.
+DT_CALLER=
+# Every call the desktop makes into an app's own code goes through here --
+# a window's _draw, _dirty, _open, _menus and the rest, an app's _launch --
+# named with the app it belongs to, so that when an app runs in a process of
+# its own the call is sent there and the desktop never waits on it (ADR
+# 0050). Every app is in this process today, so it is called. Its status,
+# and what it answered with ret, are the callee's. While it runs,
+# DT_CALLER is the app, so a callback it hands the desktop -- a dialog's
+# answer, a menu command, a note's action -- is recorded as its own and
+# called back through here with it. One line on purpose: a few calls a
+# window a frame, about 2.5 us each over a direct call where a body with
+# locals cost 5 (measured 2026-11-18).
+dt_appfn() { local DT_CALLER=$1; "${@:2}" && ret -k; }
+
+# A window's own input handler (_key, _click, _mouse, _wheel, _focus, a
+# paste or a drop) called by the desktop: through the seam, by the
+# window's app, and timed by dt_appcall in the process that runs it -- the
+# desktop's own, today. dt_winget is the same for one that answers with ret.
+dt_wincall() { dt_appfn "${DT[$1]["app"]-}" dt_appcall "$@"; }
+dt_winget() { dt_appfn "${DT[$1]["app"]-}" dt_appget "$@" && ret -k; }
+
+# Whose a hook is: the function a registration names -- a mode hook, a bar
+# hook, a bus handler, a start-up or unload hook -- or "prefix_" for one
+# whose callbacks are named by a prefix (a strip module, a location): the
+# file that registered it while it loaded, or the app whose code was
+# running. Empty is the desktop's own.
+declare -gA DT_HOOKOWNER
+fn dt_hookown(name) {
+	DT_HOOKOWNER["$name"]=${DT_LOADING:-$DT_CALLER}
+	return 0
+}
+
+# An installable's hook, called through the seam as its owner's.
+dt_hookfn() { dt_appfn "${DT_HOOKOWNER["$1"]-}" "$@" && ret -k; }
+
+# A hook named by a prefix and what follows it -- a strip module's
+# name_draw, a location's prefix_can -- through the seam as the prefix's
+# owner's. The prefix is said, never guessed from the name, since one may
+# hold an underscore of its own.
+dt_prefixfn() { dt_appfn "${DT_HOOKOWNER["$1_"]-}" "$1_$2" "${@:3}" && ret -k; }

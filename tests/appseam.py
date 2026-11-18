@@ -44,6 +44,9 @@ fn ow_ask() { dt_ask "Name" "Name:" "" ow_answer; return 0; }
 fn ow_answer(text, int id) { ow_said ask; return 0; }
 dt_app ow "Owner" 6 30
 OWID := dt_new "Owner" 6 30 3 3 ow
+DT_LOADING=%s
+. "$DT_LOADING"
+DT_LOADING=
 tst_menu() {
 	local m i
 	for ((m = 0; m < MB_N; m++)); do
@@ -70,8 +73,25 @@ dt_run
 dt_close
 '''
 
+# An installable of its own, loaded from its file as the desktop loads one
+# (DT_LOADING): its hooks run as that file's.
+INST = scratch("appseam-inst.hibr")
+open(INST, "w").write(r'''fn in_said(how, ...rest) { echo "$how ${DT_CALLER:-desktop}" >> %s; return 0; }
+in_barhook() { [ -n "${IN_ONCE-}" ] && return 0; IN_ONCE=1; in_said barhook; }
+fn in_mode(m) { in_said mode; }
+fn in_item() { in_said item; }
+fn inst_draw(int row, int col) { [ -n "${IN_DREW-}" ] && return 0; IN_DREW=1; in_said strip; }
+fn inloc_can(op, p) { in_said location; }
+fn inloc_ls(...a) { return 0; }
+dt_barhook in_barhook
+dt_modehook in_mode
+dt_baritem initem "x" in_item
+cs_module inst "Inst" 4
+dt_location inl inloc
+''' % OUT)
+
 p = scratch("appseam.hibr")
-open(p, "w").write(SESSION % (load(MOD), WM, OUT, OUT, MARK, MARK, MARK))
+open(p, "w").write(SESSION % (load(MOD), WM, OUT, INST, OUT, MARK, MARK, MARK))
 if os.path.exists(OUT):
     os.unlink(OUT)
 t = Term(p, rows=24, cols=90, settle=0.6)
@@ -131,8 +151,18 @@ time.sleep(0.3)
 check("what the desktop asks for itself runs as the desktop's",
       "mine desktop" in said(), said())
 
+# An installable's hooks, each registered while its file loaded, run as
+# that file's: a bar hook, a mode hook (called once at registration), a bar
+# item's command, a strip module's drawing, a location's question.
+do('dt_bar; dt_barido initem left; dt_stripdraw; dt_loccan inl:///x read; true')
+time.sleep(0.3)
+mine = [l for l in said() if l.split(" ")[-1:] == [INST]]
+for how in ("barhook", "mode", "item", "location"):
+    check("an installable's %s runs as the file that registered it" % how,
+          any(l.startswith(how + " ") for l in mine), said())
+
 t.quit(b"q", 1.0)
-for f in (p, OUT, MARK):
+for f in (p, OUT, MARK, INST):
     if os.path.exists(f):
         os.unlink(f)
-report(6)
+report(10)

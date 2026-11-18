@@ -102,7 +102,7 @@ dt_barrescan() {
 			for nm in "${DT_BARIN[@]}"; do
 				[ "${DT_BARI["$nm"]["src"]-}" = "$f" ] || continue
 				h=${DT_BARI["$nm"]["stop"]-}
-				[ -n "$h" ] && dt_has "$h" && "$h"
+				[ -n "$h" ] && dt_has "$h" && dt_appfn "${DT_BARI["$nm"]["owner"]-}" "$h"
 				dt_baritem "$nm" ""
 			done
 			keep=()
@@ -220,6 +220,7 @@ fn dt_baritem(name, text = "", ...cmd) {
 		# Which file put it there, so a rescan that finds the file gone
 		# can take it off again (dt_barrescan).
 		DT_BARI["$name"]["src"]=${DT_LOADING-}
+		DT_BARI["$name"]["owner"]=${DT_LOADING:-$DT_CALLER}
 	fi
 	# A change asks for the frame that shows it: an item set from a ticker
 	# -- the battery's first reading -- runs after the frame is drawn, and
@@ -291,7 +292,7 @@ fn dt_baritoggle(name) {
 
 	if [ -n "$v" ]; then
 		dt_swflip "$v"
-		[ -n "$f" ] && dt_has "$f" && "$f"
+		[ -n "$f" ] && dt_has "$f" && dt_appfn "${DT_BARI["$name"]["owner"]-}" "$f"
 	elif dt_barishown "$name"; then
 		DT_BARHIDE="${DT_BARHIDE:+$DT_BARHIDE }$name"
 	else
@@ -423,6 +424,8 @@ fn dt_bariright(name, ...cmd) {
 # press, drag, release, or up and down for the wheel -- and a row and column inside
 # the panel, counted from 0) and, if it takes keys, <who>_popkey.
 DT_POP=
+# Whose the open panel's code is: the bar item's that opened it (dt_appfn).
+DT_POPOWN=
 DT_POPITEM=
 DT_POPR=0
 DT_POPC=0
@@ -454,6 +457,7 @@ fn dt_popat(name, who, int c, int h, int w) {
 	[ "$c" -lt "$pl" ] && c=$pl
 	[ $((r + h)) -gt "$pbot" ] && h=$((pbot - r))
 	DT_POP=$who
+	DT_POPOWN=${DT_BARI["$name"]["owner"]:-$DT_CALLER}
 	DT_POPITEM=$name
 	DT_POPR=$r
 	DT_POPC=$c
@@ -505,7 +509,7 @@ fn dt_barikey(name) {
 	DT_POPKBD=$name
 	b=${DT_BARI["$name"]["press"]-}
 	if [ -n "$b" ]; then
-		"$b" left "$r" "$c" || dt_barido "$name" left
+		dt_appfn "${DT_BARI["$name"]["owner"]-}" "$b" left "$r" "$c" || dt_barido "$name" left
 	else
 		dt_barido "$name" left
 	fi
@@ -557,7 +561,7 @@ fn dt_pophit(int r, int c) {
 
 # Tell the owner about the mouse, at screen row r, column c.
 fn dt_popmouse(act, int r, int c) {
-	"${DT_POP}_popmouse" "$act" $((r - DT_POPR)) $((c - DT_POPC))
+	dt_appfn "$DT_POPOWN" "${DT_POP}_popmouse" "$act" $((r - DT_POPR)) $((c - DT_POPC))
 	dt_want 10
 }
 
@@ -573,7 +577,7 @@ dt_popdraw() {
 		dt_castshadow "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW"
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW" " "
-	"${DT_POP}_popdraw" "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW"
+	dt_appfn "$DT_POPOWN" "${DT_POP}_popdraw" "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW"
 }
 
 # Which item is at column c on the bar, if any. A bare `return 1` on a
@@ -608,7 +612,7 @@ fn dt_barido(name, btn = "") {
 		a+=("${DT_BARI["$name"]["$p$i"]}")
 		i=$((i + 1))
 	done
-	"${a[@]}"
+	dt_appfn "${DT_BARI["$name"]["owner"]-}" "${a[@]}"
 }
 
 # The places on the bar an item may pin itself to, rather than take its turn
@@ -659,6 +663,7 @@ fn dt_barhook(fn) {
 	case " ${DT_BARHOOKS[*]-} " in *" $fn "*) return 0 ;; esac
 	DT_BARHOOKS+=("$fn")
 	DT_BARHOOKSRC["$fn"]=${DT_LOADING-}
+	dt_hookown "$fn"
 }
 
 # What stops whatever an item keeps running -- a watcher on a program --
@@ -740,7 +745,7 @@ fn dt_barilay(int gap) {
 		[ "$nm" = "$DT_HOVERBI" ] && hv=1
 		d=${DT_BARI["$nm"]["draw"]-}
 		if [ -n "$d" ]; then
-			"$d" "$c" "$hv"
+			dt_appfn "${DT_BARI["$nm"]["owner"]-}" "$d" "$c" "$hv"
 		else
 			dt_bariput "$nm" "$c" "$t"
 		fi
@@ -870,7 +875,7 @@ dt_bar() {
 	# dt_baritem. Before the gate, never inside it: gating a drawing takes
 	# with it whatever asks for the next frame from inside it, and the
 	# clock's hook is the thing that wakes an idle desktop once a minute.
-	for hk in "${DT_BARHOOKS[@]}"; do "$hk"; done
+	for hk in "${DT_BARHOOKS[@]}"; do dt_hookfn "$hk"; done
 	key := dt_barkey
 	# Two things can make the cells underneath wrong without anything in
 	# that key moving -- a screen saver's own `console clear` outside the

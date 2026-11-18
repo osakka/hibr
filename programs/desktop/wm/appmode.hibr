@@ -39,8 +39,9 @@ fn dt_modehook(fn) {
 	local m
 
 	DT_MODEHOOKS+=("$fn")
+	dt_hookown "$fn"
 	m := dt_modename
-	"$fn" "$m"
+	dt_hookfn "$fn" "$m"
 	return 0
 }
 
@@ -63,7 +64,7 @@ dt_modetick() {
 		fi
 	fi
 	for f in "${DT_MODEHOOKS[@]}"; do
-		dt_has "$f" && "$f" "$m"
+		dt_has "$f" && dt_hookfn "$f" "$m"
 	done
 	dt_log "programs are told the desktop is $m"
 	return 0

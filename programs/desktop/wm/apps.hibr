@@ -23,13 +23,14 @@ DT_LOADING=
 DT_ATSTART=()
 fn dt_atstart(f) {
 	DT_ATSTART+=("$f")
+	dt_hookown "$f"
 }
 
 dt_runatstart() {
 	local f
 
 	for f in "${DT_ATSTART[@]}"; do
-		dt_has "$f" && "$f"
+		dt_has "$f" && dt_hookfn "$f"
 	done
 	DT_ATSTART=()
 }
@@ -473,13 +474,15 @@ fn dt_onunload(stop, start = "") {
 	[ -n "${DT_LOADING-}" ] || return 0
 	DT_UNLOADFN["$DT_LOADING"]=$stop
 	DT_RELOADFN["$DT_LOADING"]=$start
+	dt_hookown "$stop"
+	[ -n "$start" ] && dt_hookown "$start"
 	return 0
 }
 
 fn dt_unload(f) {
 	local n k
 
-	[ -n "${DT_UNLOADFN["$f"]-}" ] && dt_has "${DT_UNLOADFN["$f"]}" && "${DT_UNLOADFN["$f"]}"
+	[ -n "${DT_UNLOADFN["$f"]-}" ] && dt_has "${DT_UNLOADFN["$f"]}" && dt_hookfn "${DT_UNLOADFN["$f"]}"
 	for n in "${!DT_APPS[@]}"; do
 		[ "${DT_APPS[$n]["src"]}" = "$f" ] || continue
 		for k in "${!DT_APPS[$n][@]}"; do
@@ -496,7 +499,7 @@ fn dt_unload(f) {
 fn dt_reinstate(f) {
 	local n k
 
-	[ -n "${DT_RELOADFN["$f"]-}" ] && dt_has "${DT_RELOADFN["$f"]}" && "${DT_RELOADFN["$f"]}"
+	[ -n "${DT_RELOADFN["$f"]-}" ] && dt_has "${DT_RELOADFN["$f"]}" && dt_hookfn "${DT_RELOADFN["$f"]}"
 	for n in "${!DT_GONE[@]}"; do
 		[ "${DT_GONE[$n]["src"]}" = "$f" ] || continue
 		for k in "${!DT_GONE[$n][@]}"; do

@@ -358,7 +358,23 @@ the 17 is called by a name any more, and the check fails one that is.
 `tests/appseam.py` drives four of them from an app's own code and one from
 the desktop's, and fails against the desktop before the owners were kept.
 The seam costs about 2.5 us a call with `DT_CALLER` (a frame unchanged
-within its noise). `tests/appcalls.py` fails on a site no rule classes, and on any difference from the committed table -- keyed on the
+within its noise). **And an installable's hooks keep theirs**: every
+registration -- a bar item, a bar hook, a mode hook, a strip module, a
+location, a bus handler, an opener's verb, a start-up or unload hook --
+records the file that registered it (`DT_LOADING`) or the app whose code
+did (`DT_CALLER`), and all 24 hook calls go through `dt_hookfn`,
+`dt_prefixfn` (a hook named by a prefix, which is said rather than guessed
+from the name) or `dt_appfn` with it. The seam has a file of its own,
+`wm/seam.hibr`, loaded first of the desktop's own so a file registering a
+hook while it loads finds it there. Its cost, counted rather than timed
+(the machine's clock was too noisy that day): a forced frame of three
+windows with the shipped bar items and strip modules makes 8 calls through
+the seam, 5 of them hooks -- about 26 us, 0.6% of that frame and about 4%
+of the 0.7 ms a frame the owner's CPU bar allows; an unforced frame makes
+fewer. What is left of the platform's 94
+calls by a name is 26: the seam itself, 12 of the desktop's own (a program
+it starts, its own tickers) and 13 in shared code, which runs in whichever
+process called it. `tests/appcalls.py` fails on a site no rule classes, and on any difference from the committed table -- keyed on the
 function and the call's own text, not its line -- so a new call inside a
 listed function is classed on purpose.
 

@@ -14,8 +14,9 @@ processes of their own (ADR 0050). Read by the inspect module, never run.
            here: none may be -- each is stored with its owner (DT_CALLER,
            which dt_appfn sets) and called back through dt_appfn with it
   hook     another installable's registered hook (a bar item, a strip
-           module, a location, a bus handler, a ticker): run in that
-           installable's own process
+           module, a location, a bus handler) called by a name here: none
+           may be -- each records its owner when registered and is called
+           through dt_hookfn, dt_prefixfn or dt_appfn with it
   desktop  the desktop's own: a program it starts, its own tickers, its own
            dispatch
   local    shared code (the app interface) calling a name in its own
@@ -134,7 +135,7 @@ def main():
     # anything else that calls one has to go through it, and shared code --
     # which runs in an app's process as well -- never calls into another.
     cross = [r for r in rows if r[0] == "window" and r[3] != "dt_appfn"]
-    cross += [r for r in rows if r[0] == "handed"]
+    cross += [r for r in rows if r[0] in ("handed", "hook")]
     cross += [r for r in rows if r[0] == "local" and shared(r[1]) and
               own.get(r[3]) in ("window", "hook") and r[3] not in ("dt_appcall", "dt_appget")]
     for r in cross:

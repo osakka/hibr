@@ -27,29 +27,6 @@ declare -gA DT_RTC
 # makes, read once from the file (never run) and kept by its path.
 declare -gA DT_RTALLOW DT_RTWIN DT_RTMAY DT_RTMAYOF
 
-# The app whose code is running now, through dt_appfn; empty for the
-# desktop's own.
-DT_CALLER=
-# Every call the desktop makes into an app's own code goes through here --
-# a window's _draw, _dirty, _open, _menus and the rest, an app's _launch --
-# named with the app it belongs to, so that when an app runs in a process of
-# its own the call is sent there and the desktop never waits on it (ADR
-# 0050). Every app is in this process today, so it is called. Its status,
-# and what it answered with ret, are the callee's. While it runs,
-# DT_CALLER is the app, so a callback it hands the desktop -- a dialog's
-# answer, a menu command, a note's action -- is recorded as its own and
-# called back through here with it. One line on purpose: a few calls a
-# window a frame, about 2.5 us each over a direct call where a body with
-# locals cost 5 (measured 2026-11-18).
-dt_appfn() { local DT_CALLER=$1; "${@:2}" && ret -k; }
-
-# A window's own input handler (_key, _click, _mouse, _wheel, _focus, a
-# paste or a drop) called by the desktop: through the seam, by the
-# window's app, and timed by dt_appcall in the process that runs it -- the
-# desktop's own, today. dt_winget is the same for one that answers with ret.
-dt_wincall() { dt_appfn "${DT[$1]["app"]-}" dt_appcall "$@"; }
-dt_winget() { dt_appfn "${DT[$1]["app"]-}" dt_appget "$@" && ret -k; }
-
 # Start listening for app processes, once: the socket beside the control
 # socket's, its path exported for what the desktop starts to inherit.
 dt_rtlisten() {

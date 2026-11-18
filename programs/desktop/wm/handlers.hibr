@@ -209,6 +209,7 @@ fn dt_openerverb(ext, label, app, call = "", when = "") {
 	DT_OPENVERBS[$DT_OVN]["app"]=$app
 	DT_OPENVERBS[$DT_OVN]["call"]=$call
 	DT_OPENVERBS[$DT_OVN]["when"]=$when
+	DT_OPENVERBS[$DT_OVN]["owner"]=${DT_LOADING:-$DT_CALLER}
 	DT_OVN=$((DT_OVN + 1))
 }
 
@@ -248,7 +249,7 @@ fn dt_openverbs(...paths) {
 			[ "$ok" = 1 ] || break
 			ext := dt_ext "$p"
 			dt_extin "$p" "$ext" "$ty" || ok=0
-			[ -z "$when" ] || "$when" "$p" || ok=0
+			[ -z "$when" ] || dt_appfn "${DT_OPENVERBS[$i]["owner"]-}" "$when" "$p" || ok=0
 		done
 		[ "$ok" = 1 ] && DT_OVLIST+=("$i")
 		i=$((i + 1))
@@ -261,7 +262,7 @@ fn dt_openverb(int n, ...paths) {
 	local call=${DT_OPENVERBS[$n]["call"]}
 
 	if [ -n "$call" ]; then
-		"$call" "${paths[@]}"
+		dt_appfn "${DT_OPENVERBS[$n]["owner"]-}" "$call" "${paths[@]}"
 	else
 		dt_launch "${DT_OPENVERBS[$n]["app"]}" "${paths[0]}"
 	fi

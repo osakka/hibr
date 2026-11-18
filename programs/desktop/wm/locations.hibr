@@ -55,6 +55,7 @@ declare -gA DT_LOCS DT_LOCAPP
 fn dt_location(scheme, prefix, app = "") {
 	DT_LOCS["$scheme"]=$prefix
 	DT_LOCAPP["$scheme"]=$app
+	dt_hookown "${prefix}_"
 	return 0
 }
 
@@ -87,5 +88,5 @@ fn dt_loccan(p, op) {
 
 	x := dt_locof "$p" || return 0
 	dt_has "${x}_can" || return 1
-	"${x}_can" "$op" "$p"
+	dt_prefixfn "$x" can "$op" "$p"
 }

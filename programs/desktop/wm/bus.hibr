@@ -22,6 +22,7 @@ declare -gA DT_BUSH
 fn dt_buson(w, fn) {
 	case " ${DT_BUSH["$w"]-} " in *" $fn "*) return 0 ;; esac
 	DT_BUSH["$w"]="${DT_BUSH["$w"]-} $fn"
+	dt_hookown "$fn"
 	return 0
 }
 
@@ -61,7 +62,7 @@ fn dt_busgive(e) {
 
 	read -ra fs <<< "${DT_BUSH["$w"]-}"
 	for f in "${fs[@]}"; do
-		dt_has "$f" && "$f" "$e"
+		dt_has "$f" && dt_hookfn "$f" "$e"
 	done
 	return 0
 }
