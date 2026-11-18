@@ -53,6 +53,11 @@
  *                              window WIN at its pixels X, Y, offered as a
  *                              uri-list; news `clip hover SEQ copy|none`
  *                              and `clip drop SEQ taken|refused`
+ *   frames clip N odrag|odrop WIN X Y, oleave, oread TYPE, oend HOW
+ *                              a program's drag out (news `clip dragout
+ *                              o<n> W ACTIONS TYPES`, `clip odata o<n>
+ *                              TEXT`, `clip dragclear o<n>`), carried by
+ *                              the desktop and ended copy|move|none
  *   frames clip N offer|clear|get clipboard|primary [-s] [TEXT]
  *                              the desktop's side of the clipboard with the
  *                              compositor's programs; news `clip SEL
