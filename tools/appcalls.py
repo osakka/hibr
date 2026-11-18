@@ -62,6 +62,8 @@ for _n in """dt_changed dt_fopsave dt_fopundo dt_trash dt_fileop dt_locof dt_loc
         dt_unload dt_onunload dt_scanold dt_appvia dt_appunvia dt_modehook
         dt_pbar dt_rslog dt_rscarry dt_rsclaim""".split():
     OVERRIDE[_n] = "request"
+for _n in "dt_wintitle dt_ext dt_chromeoff".split():
+    OVERRIDE[_n] = "local"
 OVERRIDE["dt_atstart"] = "declare"
 OVERRIDE["dt_identify"] = "request"
 OVERRIDE["dt_sbscan"] = "request"
@@ -104,6 +106,58 @@ def installables():
     return sorted(f for f in fs if not platform(f))
 
 
+def bodies():
+    """Each platform function's body, a closing brace at column 0 ending it."""
+    body, cur = collections.defaultdict(str), None
+    for f in (glob.glob(os.path.join(ROOT, "programs/desktop/wm/*.hibr")) +
+              glob.glob(os.path.join(ROOT, "programs/desktop/widgets/*.hibr")) +
+              glob.glob(os.path.join(ROOT, "programs/desktop/lib/*.hibr"))):
+        for line in open(f, errors="replace"):
+            m = re.match(r"(?:fn\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(.*\)\s*\{?\s*$", line)
+            if m:
+                cur = m.group(1)
+            elif line.startswith("}"):
+                cur = None
+            elif cur and not line.lstrip().startswith("#"):
+                body[cur] += line
+    return body
+
+
+def reaches(cls):
+    """Every local function that reaches a request through the platform's own
+    calls, with one path each: local code that sends one is fine if nothing
+    waits for the answer, and the ADR reads the rest."""
+    body = bodies()
+    calls = {n: set(w for w in re.findall(r"\b([a-z][a-z0-9]*_[a-z0-9_]+)\b", b) if w in body and w != n)
+             for n, b in body.items()}
+    out = {}
+    for n, c in cls.items():
+        if c != "local":
+            continue
+        seen, stack = {n}, [(n, [n])]
+        while stack:
+            x, path = stack.pop()
+            for y in sorted(calls.get(x, ())):
+                if y in seen:
+                    continue
+                seen.add(y)
+                if cls.get(y) == "request":
+                    out.setdefault(n, " > ".join(path + [y]))
+                    continue
+                stack.append((y, path + [y]))
+    return out
+
+
+def asked(files, names):
+    """The platform functions whose answer an installable takes (x := f, $(f))."""
+    hit = collections.Counter()
+    for f in files:
+        for m in re.finditer(r"(?::=\s*|\$\(\s*)(dt_[a-z0-9_]+)", open(f, errors="replace").read()):
+            if m.group(1) in names:
+                hit[m.group(1)] += 1
+    return hit
+
+
 def classify(name, rel):
     if name in OVERRIDE:
         return OVERRIDE[name]
@@ -129,20 +183,31 @@ def main():
             if n in where:
                 use[n] += 1
                 users[n].add(f)
-    rows = sorted(((classify(n, where[n]), n, where[n], use[n], len(users[n])) for n in use),
+    ask = asked(installables(), set(use))
+    rows = sorted(((classify(n, where[n]), n, where[n], use[n], len(users[n]),
+                    "asked" if ask[n] else "told") for n in use),
                   key=lambda r: (r[0], -r[3]))
+    cls = {r[1]: r[0] for r in rows}
+    far = reaches(cls)
     kinds = collections.Counter(r[0] for r in rows)
     print("installables read: %d, unreadable: %d" % (len(installables()), len(bad)))
     print("platform functions called: %d -- %s" % (len(rows), ", ".join(
         "%s %d" % (k, kinds[k]) for k in ("local", "request", "declare", "gone", "decide"))))
+    req = [r for r in rows if r[0] == "request"]
+    print("requests: %d told, %d asked (an answer the app takes): %s" % (
+        sum(1 for r in req if r[5] == "told"), sum(1 for r in req if r[5] == "asked"),
+        ", ".join(r[1] for r in req if r[5] == "asked")))
+    print("local functions that reach a request: %d" % len(far))
+    for n in sorted(far):
+        print("  %-22s %s" % (n, far[n]))
     for r in rows:
         if r[0] == "decide":
             print("  decide  %-26s %-24s %4d calls in %d files" % (r[1], r[2], r[3], r[4]))
     if "--write" in sys.argv:
         with open(OUT, "w") as o:
-            o.write("# class\tfunction\tdefined in\tcalls\tfiles -- tools/appcalls.py --write\n")
+            o.write("# class\tfunction\tdefined in\tcalls\tfiles\tanswer\treaches -- tools/appcalls.py --write\n")
             for r in rows:
-                o.write("%s\t%s\t%s\t%d\t%d\n" % r)
+                o.write("%s\t%s\t%s\t%d\t%d\t%s\t%s\n" % (r + (far.get(r[1], ""),)))
         print("wrote", os.path.relpath(OUT, ROOT))
     for f in bad:
         print("unreadable:", f)

@@ -145,9 +145,9 @@ today, measured from both sides:
    classified. **Done (2026-11-18):** `tools/appcalls.py` reads every
    installable -- 210, the catalogue's and the shipped tree's less the
    platform's own `# platform:` files, none unreadable -- and classes the
-   **360** platform functions they call: **203 local** (the widgets,
+   **360** platform functions they call: **206 local** (the widgets,
    translation, glyphs, jobs, regions, timers, pure helpers, and facts about
-   the display pushed to the app), **109 requests** (windows, notes,
+   the display pushed to the app), **106 requests** (windows, notes,
    dialogs, the clipboard, openers, file undo, chrome, the input method, the
    saver, the wallpaper, the app registry, the displays' layout), **43
    declarations** (menus, bar and strip items, kept settings) and **5 gone**
@@ -163,11 +163,29 @@ today, measured from both sides:
    declarations -- a pane's rows (`CP`, written in 82); and requests -- a
    desktop setting a pane writes (the wallpaper, the buttons, the cursor),
    accepted against its declared rows, and hints such as `DT_FORCEONCE`.
-   Still owed before runtime code (advisor, second review): each of the 338
-   classed in the table as the 360 functions are; that every
-   "local" function stays local through the platform's call graph; and the
-   requests split into told and asked -- `id := dt_new` answers a window id
-   used on the next line.
+   **Told and asked (2026-11-18):** of the 106 requests, **93 are told** --
+   sent, never waited for -- and **13 are asked**, their answer taken with
+   `:=` (the table's `answer` column). They resolve three ways, none a
+   round trip in a frame: **`dt_new`** (61 calls) takes an id the app
+   process allocates from a block the desktop hands it at the hello, so the
+   next line has it; **`dt_ids`, `dt_locof` and `dt_openertitle`** read the
+   desktop's window list and its location and opener registries, which the
+   desktop pushes as mirrors, as it pushes the theme; and the rest
+   (`dt_launch`, `dt_place`, `dt_openbrowse`, `dt_walldrawn`, `dt_pbar`,
+   `dt_notehist_what`) answer later, as a callback, each converted by hand.
+   **Local, through the call graph:** `tools/appcalls.py` walks the
+   platform's own calls from every local function; **29** reach a request
+   (the `reaches` column). Most send one -- a note, the clipboard, a dialog,
+   a launch -- which local code may, since nothing waits. Three read desktop
+   state and become pushed facts: `dt_size` (the displays' layout),
+   `dt_keyphases` (whether a window is hidden), `dt_cellpx` (what a display
+   can draw). **The input method is the one real question**: the text
+   widgets (`dt_textdraw`, `dt_textkey`, the text area, search, the start
+   menu's field) ask it for every key and every draw, and it lives in the
+   desktop. It runs in each app process instead -- the same code, its
+   choice of method pushed like the theme -- so typing never crosses a
+   process. Still owed before runtime code: each of the 338 globals classed
+   in its table as the functions are.
 2. **The desktop holds each hosted window's cells.** A move, an uncovering,
    a workspace switch or a restart repaints a hosted window without asking
    the app -- or the desktop would wait on it. So the console keeps a hosted
