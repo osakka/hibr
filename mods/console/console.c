@@ -12,6 +12,7 @@ extern int cn_crow, cn_ccol, cn_cvis;
 extern str cn_pend;
 extern int cn_pendo;
 int cn_waiting(void);
+void cn_woke(str *o, int n, char **fds);
 
 vec cn_panes;
 
@@ -1704,6 +1705,15 @@ int m_console(sh *s, int ac, char **av)
 		hibr_ret(s, k.p ? k.p : "");
 		if (!s->bind)
 			printf("%s\n", k.p ? k.p : "");
+		s_free(&k);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "woke")) {
+		s_init(&k);
+		cn_woke(&k, ac - 2, av + 2);
+		hibr_ret(s, k.p ? k.p : "");
+		if (!s->bind && k.p)
+			printf("%s\n", k.p);
 		s_free(&k);
 		return HIBR_OK;
 	}

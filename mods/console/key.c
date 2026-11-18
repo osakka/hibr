@@ -36,6 +36,7 @@ typedef struct {
 	long long since;
 	int mute;
 	long long check;
+	int woke;
 } cn_wst;
 static cn_wst *cn_ws;
 
@@ -237,6 +238,25 @@ int cn_wmuted(int fd)
 	return 0;
 }
 
+/* Which of the n descriptors named in fds a wait found readable since it
+   was last asked, for `console woke`; each is cleared as it is told, and
+   one not named is left for whoever asks about it. */
+void cn_woke(str *o, int n, char **fds)
+{
+	size_t i;
+	int j, fd;
+
+	for (j = 0; j < n; j++) {
+		fd = atoi(fds[j]);
+		for (i = 0; i < cn_wn; i++) {
+			if (cn_wfd[i] != fd || !cn_ws[i].woke)
+				continue;
+			cn_ws[i].woke = 0;
+			s_fmt(o, "%s%d", o->n ? " " : "", fd);
+		}
+	}
+}
+
 /* The watched descriptors, for `console watching`: how many, and each. */
 size_t cn_wlist(int **fds)
 {
@@ -311,6 +331,9 @@ int cn_wait1(int ms)
 	sigprocmask(SIG_SETMASK, &old, 0);
 	errno = e;
 	if (k > 0) {
+		for (i = 0; !cn_quiet && i < (int)cn_wn; i++)
+			if (!cn_ws[i].mute && FD_ISSET(cn_wfd[i], &r))
+				cn_ws[i].woke = 1;
 		w = cn_fdhookrun(&r);
 		if (FD_ISSET(cn_fd, &r))
 			return 1;

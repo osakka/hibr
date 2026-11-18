@@ -25,6 +25,10 @@
 #ifndef HIBR_IOCH
 #define HIBR_IOCH 4096
 #endif
+/* The most `recv -p` takes in one call; the rest waits for the next. */
+#ifndef HIBR_PENDMAX
+#define HIBR_PENDMAX 65536
+#endif
 /* The largest datagram a read may meet: UDP's own 16-bit length fixes it. */
 #ifndef HIBR_DGRAM
 #define HIBR_DGRAM 65536

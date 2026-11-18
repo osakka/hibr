@@ -416,6 +416,7 @@ fn dt_hwdone(int n, int st) {
 # Give the terminal back.
 dt_close() {
 	dt_ctlclose
+	dt_rtclose
 	dt_has dt_natquit && dt_natquit
 	dt_hwstop
 	dt_snapdrop

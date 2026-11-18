@@ -123,6 +123,7 @@ dt_restart() {
 	# terminal, where a message would be drawn over the screen.
 	dt_upsession || true
 	dt_ctlclose
+	dt_rtclose
 	dt_hwstop
 	# The screen and its pictures stay for the desktop the exec starts,
 	# which takes them away in its first frame inside one synchronized

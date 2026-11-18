@@ -140,6 +140,7 @@ and the flush cost shown live. Run it and press things.
 | `console notify text` | ask the terminal for a notification (OSC 9) |
 | `console watch fd` / `console unwatch fd` | let `console key` also wake when a descriptor is readable; a watched pipe that stays readable for two seconds with nothing reading it is no longer woken for, and the log says which, until it is read again |
 | `console watching` | the watched descriptors, a muted one marked `:muted` |
+| `console woke fd...` | which of the descriptors named a wait has found readable since this was last asked about them, each cleared as it is told -- so a loop reads only what has something to say, one call for any number of descriptors; one not named is left for whoever asks about it |
 | `console consumed` | how many bytes of input have become keys |
 | `console keyphases [on\|off]` | whether this terminal can report key events; on for a key's press, repeat and release (kitty flags 1, 2, 4 and 8), off for escapes alone |
 | `console keyinfo` | the phase, code, base-layout key and modifier bits of the key just read |

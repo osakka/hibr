@@ -204,6 +204,38 @@ running desktop does not. So:
   `catalogue update`; a new copy reaches apps at the next Restart Desktop.
   The manifest separates them from the platform's files.
 
+## The socket, as built (2026-11-18)
+
+`runtime.hibr` (the app side), `wm/rtserve.hibr` (the desktop's end) and
+`wm/rtwire.hibr` (the shared wire), driven end to end by `tests/rtchan.py`.
+What it holds, each a check there:
+
+- **Nothing listens until an app process is started**, so an idle desktop
+  pays nothing; a pass with ten idle connections costs under 100 us,
+  because the display says which connections woke it (`console woke`) and
+  only those are read.
+- **The desktop never waits on an app.** A connection is read with
+  `recv -p`, which takes what is waiting and never waits: half a line and a
+  pause hold the desktop up not at all, and the line is carried whole when
+  its end comes. One connection has at most `DT_RTLINES` (64) lines carried
+  a pass, so a flood holds nothing up; a line longer than `DT_RTLINEMAX`
+  with no end lets its connection go.
+- **A peer that has gone cannot end the desktop**: every answer goes out
+  through `send`, which a gone peer fails rather than signals. The first
+  version answered with `printf`, which a vanished client turned into a
+  SIGPIPE that ended the desktop -- and no suite could see it, because the
+  harness ran every desktop with SIGPIPE ignored, as Python leaves it, where
+  a real one has it at its default. `tests/screen.py` now gives each
+  session the default, so every pty suite sees what a person's desktop
+  would.
+- **A carried request is timed** under its own name, as a callback is
+  (`dt_spent`), with the app's name beside it.
+- **Quit and Restart Desktop close it**: the socket goes and every app
+  process's connection ends. That is not yet what Requirement 8 says --
+  app processes surviving a restart -- which needs the connection kept
+  across the restart's exec or made again; it is built with the zygote,
+  and until then an app process ends with its desktop.
+
 ## Review (advisor, 2026-11-18): what the design must settle
 
 1. **An app runtime, not a whole desktop in a hosted mode.** The prototype's

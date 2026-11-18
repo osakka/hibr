@@ -107,8 +107,114 @@ check("the refusal is in the log with both versions",
 
 if os.environ.get("RTDEBUG"):
     print("\n".join(l for l in log().split("\n") if "runtime" in l or "rtt" in l or "hibr:" in l))
+# The holes a socket has that the polite client above never finds, each
+# from a client that misbehaves on the wire itself.
+import socket
+do('echo "$DT_RTPATH" > %s.path; echo "$HIBR_VERSION" >> %s.path' % (SAID, SAID))
+deadline = time.time() + 5
+while time.time() < deadline and not (os.path.exists(SAID + ".path") and
+                                      len(open(SAID + ".path").read().split()) == 2):
+    time.sleep(0.05)
+path, ver = open(SAID + ".path").read().split()
+
+
+def client(name):
+    """A raw connection that has said hello and been answered."""
+    k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    k.connect(path)
+    k.sendall(("hello 1 %s %s\n" % (ver, name)).encode())
+    k.settimeout(5)
+    k.recv(64)
+    return k
+
+
+def answered(secs):
+    """How long the desktop takes to run one command from its ticker."""
+    t0 = time.time()
+    do("dt_want 0")
+    return time.time() - t0
+
+
+# Said hello and went at once, before reading the answer: the answer goes
+# to a peer that has gone, which must not be a SIGPIPE.
+for i in range(5):
+    k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    k.connect(path)
+    k.sendall(("hello 1 %s gone%d\n" % (ver, i)).encode())
+    k.close()
+time.sleep(0.5)
+try:
+    k = client("after")
+    k.sendall("tell dt_notep low still%20here\n".encode())
+    sc = t.until("still here", tries=60, step=0.1)
+    alive = sc.find("still here") is not None
+except OSError as e:
+    alive, sc = False, None
+check("a client that says hello and goes before the answer does not end the desktop",
+      alive and "signal 13" not in log(), log()[-400:])
+if not alive:
+    report(18)
+
+# Half a line, then nothing for three seconds: the desktop must not wait.
+half = client("half")
+half.sendall("tell dt_notep low half%20a".encode())
+time.sleep(0.3)
+took = max(answered(1) for _ in range(3))
+check("half a line and a pause hold the desktop up not at all", took < 0.6, round(took, 3))
+half.sendall("%20line\n".encode())
+sc = t.until("half a line", tries=60, step=0.1)
+check("and the line is carried whole once its end arrives",
+      sc.find("half a line") is not None, sc.text())
+
+# A flood: thousands of lines at once. The desktop answers between them,
+# and every one is carried in the end, in order.
+flood = client("flood")
+flood.sendall(("tell dt_log flood\n" * 3000 + "tell dt_notep low flood%20done\n").encode())
+time.sleep(0.2)
+took = max(answered(1) for _ in range(3))
+check("a flood of lines from one app holds the desktop up not at all", took < 0.6, round(took, 3))
+sc = t.until("flood done", tries=200, step=0.1)
+check("and all of it is carried, the last line last", sc.find("flood done") is not None,
+      (log().count("not a told request"), sc.text()))
+
+# Blame: what an app's request cost is timed under the request's name and
+# the app's, the way a callback is (wm/budget.hibr).
+do('echo "${DT_MAX["dt_notep"]-none}" > %s.blame' % SAID)
+deadline = time.time() + 5
+while time.time() < deadline and not os.path.exists(SAID + ".blame"):
+    time.sleep(0.05)
+blame = open(SAID + ".blame").read().strip() if os.path.exists(SAID + ".blame") else ""
+check("a carried request is timed under its own name", blame.isdigit(), blame)
+
+# Idle cost: ten connections that say nothing cost a pass next to nothing.
+idle = [client("idle%d" % i) for i in range(10)]
+time.sleep(0.3)
+do('t0=${EPOCHREALTIME/./}; for i in {1..200}; do dt_rttick; done; '
+   'echo $(( (${EPOCHREALTIME/./} - t0) / 200 )) > %s.idle' % SAID)
+deadline = time.time() + 10
+while time.time() < deadline and not os.path.exists(SAID + ".idle"):
+    time.sleep(0.05)
+us = open(SAID + ".idle").read().strip() if os.path.exists(SAID + ".idle") else ""
+check("a pass with ten idle app connections costs under 100 us", us.isdigit() and int(us) < 100, us)
+
+# What Quit and Restart Desktop both call (dt_close, dt_restart): the
+# socket goes and every app process's connection ends. Called here, since
+# a test session's q only opens the Quit question.
+do("dt_rtclose")
+time.sleep(0.3)
+check("closing takes the socket away", not os.path.exists(path), path)
+ends = []
+for k in idle:
+    k.settimeout(2)
+    try:
+        ends.append(k.recv(16) == b"")
+    except OSError:
+        ends.append(True)
+check("and every app process sees its connection end", all(ends), ends)
+for k in idle + [half, flood]:
+    k.close()
 t.quit(b"q", 1.0)
-for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad"):
+for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle"):
     if os.path.exists(f):
         os.unlink(f)
-report(9)
+report(18)

@@ -49,24 +49,64 @@ dt_rtlisten() {
 	return 0
 }
 
-# Every pass while listening: take new connections, and every whole line
-# each has sent. A line is read with a bound, never waited for.
+# How many lines one connection may have carried in one pass -- the rest
+# waits for the next, so an app that floods holds nothing up -- and how long
+# a line may grow with no end before its connection is let go.
+DT_RTLINES="${DT_RTLINES-64}"
+DT_RTLINEMAX="${DT_RTLINEMAX-1048576}"
+# What each connection has sent that is not yet a whole line, and the
+# connections with whole lines still waiting for the next pass.
+declare -gA DT_RTBUF DT_RTMORE
+
+# Every pass while listening: what woke the display is asked of it, so a
+# connection with nothing to say costs nothing; each that did is read with
+# recv -p, which takes what is waiting and never waits, and its whole lines
+# are carried, at most DT_RTLINES a pass.
 dt_rttick() {
-	local c l
+	local c x n w b
+	local -a ready
 
 	[ -n "$DT_RTLFD" ] || return 0
-	while accept -t 0 "$DT_RTLFD" c 2> /dev/null; do
-		DT_RTC["$c"]=-
-		command -v console > /dev/null && console watch "$c" 2> /dev/null
-	done
-	for c in "${!DT_RTC[@]}"; do
-		while read -t 0 -u "$c" 2> /dev/null; do
-			if ! read -r -t 1 -u "$c" l 2> /dev/null; then
+	if command -v console > /dev/null; then
+		w := console woke "$DT_RTLFD" "${!DT_RTC[@]}"
+		read -ra ready <<< "$w"
+	else
+		ready=("$DT_RTLFD" "${!DT_RTC[@]}")
+	fi
+	for c in "${ready[@]}" "${!DT_RTMORE[@]}"; do
+		if [ "$c" = "$DT_RTLFD" ]; then
+			while accept -t 0 "$DT_RTLFD" x 2> /dev/null; do
+				DT_RTC["$x"]=-
+				DT_RTBUF["$x"]=
+				command -v console > /dev/null && console watch "$x" 2> /dev/null
+			done
+			continue
+		fi
+		[ -n "${DT_RTC["$c"]+x}" ] || continue
+		if [ -z "${DT_RTMORE["$c"]+x}" ]; then
+			if ! recv -p "$c" b 2> /dev/null; then
 				dt_rtdrop "$c"
+				continue
+			fi
+			DT_RTBUF["$c"]+=$b
+		fi
+		unset DT_RTMORE["$c"]
+		n=0
+		while [[ ${DT_RTBUF["$c"]} == *$'\n'* ]]; do
+			if [ "$n" -ge "$DT_RTLINES" ]; then
+				DT_RTMORE["$c"]=1
+				dt_want 0
 				break
 			fi
-			dt_rtmsg "$c" "$l" || break
+			x=${DT_RTBUF["$c"]%%$'\n'*}
+			DT_RTBUF["$c"]=${DT_RTBUF["$c"]#*$'\n'}
+			n=$((n + 1))
+			dt_rtmsg "$c" "$x" || continue 2
 		done
+		if [ "${#DT_RTBUF["$c"]}" -gt "$DT_RTLINEMAX" ]; then
+			dt_log "app runtime: ${DT_RTC["$c"]} sent ${#DT_RTBUF["$c"]} bytes with no end of line; let go"
+			dt_rtdrop "$c"
+		fi
 	done
 	return 0
 }
@@ -75,13 +115,31 @@ dt_rttick() {
 fn dt_rtdrop(int c) {
 	command -v console > /dev/null && console unwatch "$c" 2> /dev/null
 	exec {c}>&-
-	unset DT_RTC["$c"]
+	unset DT_RTC["$c"] DT_RTBUF["$c"] DT_RTMORE["$c"]
+	return 0
+}
+
+# Stop listening, let every app process go, and take the socket away: at
+# Quit and before Restart Desktop's exec, as the control socket is. An app
+# process sees its connection end.
+dt_rtclose() {
+	local c
+
+	[ -n "$DT_RTLFD" ] || return 0
+	for c in "${!DT_RTC[@]}"; do
+		dt_rtdrop "$c"
+	done
+	command -v console > /dev/null && console unwatch "$DT_RTLFD" 2> /dev/null
+	exec {DT_RTLFD}>&-
+	DT_RTLFD=
+	[ -n "$DT_RTPATH" ] && command rm -f -- "$DT_RTPATH"
+	DT_RTPATH=
 	return 0
 }
 
 # One message from a connection; status 1 when it was let go.
 fn dt_rtmsg(int c, line) {
-	local i x who=${DT_RTC["$c"]-} t
+	local i x who=${DT_RTC["$c"]-} t t0
 	local -a w a
 
 	read -ra w <<< "$line"
@@ -91,13 +149,13 @@ fn dt_rtmsg(int c, line) {
 	done
 	if [ "$who" = - ]; then
 		if [ "${a[0]-}" != hello ]; then
-			printf 'refused %s\n' "said%20nothing%20first" >&"$c" 2> /dev/null
+			send "$c" "refused said%20nothing%20first" 2> /dev/null
 			dt_rtdrop "$c"
 			return 1
 		fi
 		if [ "${a[1]-}" != "$DT_RTPROTO" ] || [ "${a[2]-}" != "$HIBR_VERSION" ]; then
 			x := dt_rtline refused "hibr $HIBR_VERSION protocol $DT_RTPROTO here, ${a[2]-?} protocol ${a[1]-?} there"
-			printf '%s\n' "$x" >&"$c" 2> /dev/null
+			send "$c" "$x" 2> /dev/null
 			dt_log "app runtime: refused ${a[3]-an app}: hibr ${a[2]-?} protocol ${a[1]-?}, this desktop runs $HIBR_VERSION protocol $DT_RTPROTO"
 			t := dt_tr "hibr was updated: click to restart the desktop and open %s" "${a[3]-the app}"
 			dt_notifyp high "$t" dt_restart
@@ -105,7 +163,7 @@ fn dt_rtmsg(int c, line) {
 			return 1
 		fi
 		DT_RTC["$c"]=${a[3]:-app}
-		printf 'ok %s\n' "$DT_RTPROTO" >&"$c" 2> /dev/null
+		send "$c" "ok $DT_RTPROTO" 2> /dev/null
 		return 0
 	fi
 	case ${a[0]-} in
@@ -114,7 +172,9 @@ fn dt_rtmsg(int c, line) {
 			dt_log "app runtime: $who asked for ${a[1]-nothing}, which is not a told request in interface.tsv"
 			return 0
 		fi
+		t0=${EPOCHREALTIME/./}
 		"${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
+		dt_spent "${a[1]}" "$((${EPOCHREALTIME/./} - t0))" "$who"
 		;;
 	*)
 		dt_log "app runtime: $who sent ${a[0]-nothing}, which is not carried yet"

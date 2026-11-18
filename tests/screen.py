@@ -721,6 +721,16 @@ class Term:
             HOME, str(self.pid), "state")
         self.log = os.path.join(state, "hibr", "desktop.log")
         if self.pid == 0:
+            # Python ignores SIGPIPE and SIGXFSZ, and an ignored signal
+            # survives exec and cannot be taken back by the shell it reaches
+            # (POSIX; hibr keeps that rule) -- so every session ran with
+            # SIGPIPE ignored, where a real desktop, started from a login
+            # or by hold, has it at its default. A write to a peer that has
+            # gone then killed a real desktop (Gitea #229) and no suite
+            # could see it: the app runtime's socket answered a vanished
+            # client with printf and passed (tests/rtchan.py, 0.99.553).
+            signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+            signal.signal(signal.SIGXFSZ, signal.SIG_DFL)
             # A shell this suite happens to run from can itself be a hold
             # client -- inside a held desktop, in CI under one, anywhere --
             # and HIBR_HOLD is a real environment variable, inherited like

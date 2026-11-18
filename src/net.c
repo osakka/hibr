@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
@@ -1420,9 +1421,49 @@ int net_isdgram(int fd)
 }
 
 /* Read from a descriptor into a variable. */
+/* What is waiting on fd now, never waited for: at most HIBR_PENDMAX bytes; HIBR_FAIL at end of file or on an error. */
+int net_pending(int fd, str *b)
+{
+	struct pollfd p;
+	int r, avail = 0;
+	ssize_t n;
+	char *buf;
+
+	p.fd = fd;
+	p.events = POLLIN;
+	p.revents = 0;
+	while ((r = poll(&p, 1, 0)) < 0 && errno == EINTR)
+		;
+	if (r < 0)
+		return HIBR_FAIL;
+	if (r == 0) {
+		lg(HIBR_LDBG, "recv -p: nothing waiting on %d", fd);
+		return HIBR_OK;
+	}
+	if (ioctl(fd, FIONREAD, &avail) < 0)
+		avail = HIBR_IOCH;
+	if (avail <= 0) {
+		lg(HIBR_LDBG, "recv -p: %d is readable with nothing to read: its end", fd);
+		return HIBR_FAIL;
+	}
+	if (avail > HIBR_PENDMAX)
+		avail = HIBR_PENDMAX;
+	buf = xm((size_t)avail);
+	while ((n = read(fd, buf, (size_t)avail)) < 0 && errno == EINTR)
+		;
+	if (n <= 0) {
+		free(buf);
+		return HIBR_FAIL;
+	}
+	s_add(b, buf, (size_t)n);
+	free(buf);
+	lg(HIBR_LDBG, "recv -p: took %ld bytes waiting on %d", (long)n, fd);
+	return HIBR_OK;
+}
+
 int b_recv(sh *s, int ac, char **av)
 {
-	int i = 1, fd, all = 0, want = 0, hasn = 0;
+	int i = 1, fd, all = 0, want = 0, hasn = 0, pend = 0;
 	const char *nm, *q;
 	str b;
 	char *buf;
@@ -1432,6 +1473,8 @@ int b_recv(sh *s, int ac, char **av)
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		if (!strcmp(av[i], "-a"))
 			all = 1;
+		else if (!strcmp(av[i], "-p"))
+			pend = 1;
 		else if (!strcmp(av[i], "-n") && i + 1 < ac) {
 			q = av[++i];
 			while (*q >= '0' && *q <= '9')
@@ -1449,7 +1492,7 @@ int b_recv(sh *s, int ac, char **av)
 		}
 	}
 	if (ac - i < 1) {
-		lg(HIBR_LERR, "usage: recv [-a|-n bytes] fd [var]");
+		lg(HIBR_LERR, "usage: recv [-a|-p|-n bytes] fd [var]");
 		return 2;
 	}
 	if (net_fdarg(av[i], &fd) != HIBR_OK)
@@ -1460,6 +1503,11 @@ int b_recv(sh *s, int ac, char **av)
 	s_init(&b);
 	if (hasn && !want) {
 		lg(HIBR_LDBG, "recv -n 0 reads nothing");
+	} else if (pend) {
+		if (net_pending(fd, &b) != HIBR_OK) {
+			s_free(&b);
+			return HIBR_FAIL;
+		}
 	} else if (net_isdgram(fd)) {
 		buf = xm(65536);
 		n = recv(fd, buf, 65536, 0);
