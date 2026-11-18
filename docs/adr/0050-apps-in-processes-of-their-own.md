@@ -30,8 +30,8 @@ in-process mode for an installable: a per-app "Separate Processes" choice
 was proposed and refused (owner: "is this parallels, and breaks one source
 of truth?"), because it is two ways to run every app, each needing its own
 tests and fixes. What stays in the desktop's process is the platform alone
--- the window manager (`wm/`), the widgets, `lib/` -- since that *is* the
-desktop. Going back is the previous release, not a toggle.
+-- the window manager (`wm/`) and the widgets -- since that *is* the
+desktop (`lib` is installable code, Review 3). Going back is the previous release, not a toggle.
 
 **Why the prototype is not the design.** The prototype (below) answered
 "does it work, and what does it cost" with no new C by riding on the
@@ -61,7 +61,7 @@ carry over; its route does not.
    its keys go on being sent; it is never paused (ADR 0049's rule).
 3. **What an app declares is read, not run.** Its `dt_app`, `cp_pane`,
    `cs_module`, `dt_baritem`, `dt_keep` and `dt_ticker` lines are read by the
-   `inspect` module (ADR 0056) when the desktop scans the catalogue's
+   `inspect` module (ADR 0056; Review, 5) when the desktop scans the catalogue's
    scopes, so the menus, the Control Panel's list and the bar know every
    app without one line of its code running in the desktop. Its tickers and
    hooks run in its own process, where a slow one stops only it.
@@ -69,7 +69,8 @@ carry over; its route does not.
    prepared host (the zygote, measured below: +1.1 MB an app). The windows
    of one app share its globals today on purpose (Mail and its compose
    window); per window would change what an app is.
-5. **One channel each way, made for it.** The prototype carried messages
+5. **One channel each way, made for it** (see the Review, 2: the desktop
+   holds a hosted window's cells). The prototype carried messages
    in-band in the terminal stream (OSC up, a bracketed paste down) and its
    cells through a terminal emulator; the design gives each app process a
    socket of its own to the desktop for messages, and its cells reach the
@@ -90,6 +91,111 @@ carry over; its route does not.
    notes, `term_menus`, `term_drop`, `term_canclose`, `term_paste`'s mark
    and the rest) are removed in the same change: the terminal window is a
    terminal again.
+
+## Requirement: we stay as sensitive to a slow app as we are now (owner, 2026-11-18)
+
+Today a slow app freezes the desktop, so it is seen, reported and fixed.
+Once it can stop only its own window nobody notices, and apps get worse
+quietly. Isolation does not ship unless detection is at least as sharp as
+today, measured from both sides:
+
+- **Inside the app's process, the same instruments.** Every callback is
+  timed with the same budgets (`DT_SLOWMS`, `DT_HOLDMS`) and the slowest
+  call named with its file and line (`slowest`), as now. A stall is a
+  `held:` line about the app, and **it fails the suites as a held: line
+  does today** -- the prototype's `slow: ... held its own window` wording
+  is withdrawn for that reason.
+- **From the desktop's side, what the person feels.** It knows when each
+  key or click went down and when the app's answer and cells came back, so
+  it measures every app's input-to-screen latency, frame rate, CPU and
+  memory per process, continuously, against the desktop's own budget (1% of
+  a core with programs running, the frame budget), and names an app over it
+  in the log and in a per-app view in Task Manager.
+- **The gate keeps its teeth.** Suites assert an app's latency and CPU
+  budget, not only that the desktop did not freeze, and the catalogue runs
+  an app's suites against the same budgets before it publishes.
+
+## Review (advisor, 2026-11-18): what the design must settle
+
+1. **An app runtime, not a whole desktop in a hosted mode.** The prototype's
+   child is the window manager with `DT_HOSTED` branches in settings,
+   budget, fullscreen, bar and input -- the parallel moved inside `wm/`.
+   The app's process runs an app runtime: the widgets, and the platform
+   calls an app makes, each **local** (drawing into its own window, text
+   and scroll helpers, regions, timers, translation), a **request** sent to
+   the desktop (a window opened, closed, retitled or focused, a note, a
+   dialog, a file picker, a setting kept, a launch) or **gone**. Measured
+   with `inspect calls` over the catalogue's 119 installables, none
+   unreadable: they call **352** distinct platform functions -- the most
+   `dt_item` (422 calls in 46 files), `dt_notep` (359), `dt_tr`, `dt_has`,
+   `dt_tput`, `dt_want`, `dt_del`, `dt_sep`, `dt_wreg`, `dt_keep`, `dt_new`.
+   That table, generated and checked by a tool, is this design's centre; a
+   new platform function an installable calls fails the gate until it is
+   classified.
+2. **The desktop holds each hosted window's cells.** A move, an uncovering,
+   a workspace switch or a restart repaints a hosted window without asking
+   the app -- or the desktop would wait on it. So the console keeps a hosted
+   pane's cells: that is the part of #421 (panes own their cells) this
+   design needs, which was wrongly said not to be needed. Only the wire is
+   open -- an escape stream through an emulator, as the prototype does, or
+   cell runs as `hold` carries between processes -- and it is chosen
+   against these: idle costs nothing; an app echoing a key is on screen in
+   the next frame; an app redrawing a full window ten times a second costs
+   the desktop no more than 1% of a core beside the app's own.
+3. **Every kind, said.** Of the catalogue's thirteen kinds (CAT_KINDS):
+   apps (31) and system apps (7) are processes with windows; Control Panel
+   panes (48), Control Strip modules (9), menu bar items (10) and savers
+   (6) draw into the desktop's own surfaces, so each needs a contract of
+   pushed data -- a bar item's text and glyphs, a strip module's cells, a
+   pane's rows -- the desktop draws from, and a process that lives without a
+   window open (a bar item, a ticker); themes (10), colour schemes (16) and
+   languages (4) are data, read and never run; modules are native code in
+   whichever process loads them; command-line programs (3) are processes
+   already; `lib` (5) is code sourced by installables, so it runs in theirs
+   -- it is not platform, as the Decision first said; bundles (6) only
+   group. **The unit is the installable, not the `dt_app` name**: a part
+   shares its owner's state (Audio Player's pane reads the app's names), and
+   one file registers several apps (Files: `rn`, `gi`, `ow`).
+4. **A declined key is not an answer to cache.** `_key` returning 1 is what
+   lets Escape reach Menu Bar after vi declines it. The protocol: a key goes
+   down with a number, the app answers took or declined by number, the
+   desktop holds that key's own fallback until the answer or `DT_HOLDMS`,
+   and later keys go down in order behind it. The table of told and pushed
+   calls is built from ARCHITECTURE.md's callback table and the arity table
+   in `tests/540-examples.t`, not a new list.
+5. **"Read, not run" is checked, not assumed.** Registrations sit behind
+   `command -v dt_app &&`, take values from variables, and include openers
+   and locations; a gate check fails any installable whose registrations
+   `inspect` cannot read, `dt_keep` is read by the same reader (the
+   prototype's line scan is a second parser and goes), and the startup cost
+   of reading them all is measured.
+6. **What apps share today.** The Browser and the Video Player share one
+   web module and engine set in the desktop's process. hibr-browser's
+   answer (2026-11-18): two processes with an engine set each work -- the
+   module has no state outside its process; a second idle set adds about
+   110 MB (the engine library's pages are shared), and exists only while a
+   Video window is open; the Video Player must open its tab on a profile of
+   its own (`web open "" video`), since WebKit takes one network process per
+   data store, so a sign-in made in the Browser is no longer the Video
+   Player's; the Browser's memory gauge counts engine processes by name and
+   needs the module to list its own (`web pids`); and a page that hangs the
+   Video Player's engine no longer stops the Browser. Two processes, not one
+   installable. Calendar, Contacts and Mail share `lib/pim.hibr`'s sync
+   state the same way, and are settled the same way before the move.
+7. **"The suites run unchanged" is counted first.** `tests/apps.py` reaches
+   into an app from the test session -- calling its functions, reading its
+   maps -- in about 44 places, the other suites in a handful; fixtures
+   define apps inline; the idle marker stops proving a key was drawn once
+   the app draws in another process; the census, `coverage.tsv` and
+   `affected.py` are per process; hibr-browser's and huiamp's suites drive
+   their apps the same way. Each is counted and given its answer before the
+   one release.
+8. **Told to every app process:** the theme, colour scheme, glyph set,
+   language and cell size when they change; whether app processes survive a
+   Restart Desktop (they do, as a terminal's programs do) and a supervisor's
+   restart; and a bound on what the desktop reads from one app a frame.
+9. **Not a goal: containment.** An app's process has the person's rights;
+   this buys stability, not a sandbox.
 
 ## The first plan (2026-11-01), superseded
 
