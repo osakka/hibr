@@ -208,8 +208,8 @@ WS_ALIGNS	4	0	wm/settings.hibr	setting
 WS_FRAMES	4	0	wm/settings.hibr	setting
 WS_STYLES	4	0	wm/settings.hibr	setting
 DT_IME	3	0	wm/ime.hibr	mirror
-DT_IMEC	3	0	wm/ime.hibr	mirror
-DT_IMEP	3	0	wm/ime.hibr	mirror
+DT_IMEC	3	0	wm/ime.hibr	local
+DT_IMEP	3	0	wm/ime.hibr	local
 DT_PX	3	0	wm/input.hibr	mirror
 DT_SHOTFMT	2	1	wm/shot.hibr	setting
 DT_SHOTLAST	2	1	wm/shot.hibr	setting
@@ -332,7 +332,7 @@ TB_SR	2	0	widgets/textarea.hibr	local
 VW_SESSION	2	0	wm/vault.hibr	mirror
 CP_MSLIDE	1	0	system/panel.hibr	declare
 DT_HOSTMARK	1	0	wm/isolate.hibr	mirror
-DT_IMEAT	1	0	wm/ime.hibr	mirror
+DT_IMEAT	1	0	wm/ime.hibr	local
 DT_KEYBASE	1	0	wm/keyphase.hibr	mirror
 DT_KEYCODE	1	0	wm/keyphase.hibr	mirror
 DT_KEYMODS	1	0	wm/keyphase.hibr	mirror

@@ -58,9 +58,9 @@ local	dt_hit	widgets/hit.hibr	86	52	asked
 local	dt_wclear	widgets/hit.hibr	79	47	told	
 local	dt_dlgbtns	widgets/button.hibr	70	33	told	
 local	dt_keepstate	wm/restart.hibr	68	34	told	
-local	dt_textdraw	widgets/text.hibr	65	41	told	dt_textdraw > dt_imepre
+local	dt_textdraw	widgets/text.hibr	65	41	told	
 local	dt_focus	widgets/button.hibr	56	33	asked	
-local	dt_textkey	widgets/text.hibr	53	41	asked	dt_textkey > dt_imekey
+local	dt_textkey	widgets/text.hibr	53	41	asked	
 local	dt_rpad	wm/lang.hibr	48	19	asked	
 local	dt_scrollbar	widgets/scrollbar.hibr	45	31	told	
 local	dt_droplist	widgets/dropdown.hibr	45	19	told	dt_droplist > dt_dropat > dt_context_open
@@ -96,12 +96,12 @@ local	dt_joblast	wm/jobs.hibr	17	11	asked
 local	dt_buttons	widgets/button.hibr	16	4	told	
 local	dt_searchshut	widgets/search.hibr	16	10	told	
 local	tb_insert	widgets/textarea.hibr	16	8	told	
-local	dt_searchkey	widgets/search.hibr	15	14	told	dt_searchkey > dt_textkey > dt_imekey
+local	dt_searchkey	widgets/search.hibr	15	14	told	
 local	dt_wcol	widgets/hit.hibr	15	5	asked	
 local	dt_ptyjob	wm/jobs.hibr	15	4	asked	
 local	dt_imggfx	wm/wallpaper.hibr	14	12	asked	
 local	dt_digits	wm/lang.hibr	14	6	asked	
-local	dt_searchdraw	widgets/search.hibr	14	14	told	dt_searchdraw > dt_textdraw > dt_imepre
+local	dt_searchdraw	widgets/search.hibr	14	14	told	
 local	dt_scrollview	widgets/scrollbar.hibr	14	13	asked	
 local	dt_isdbl	wm/input.hibr	14	10	told	
 local	dt_rep	wm/draw.hibr	14	10	asked	
@@ -113,7 +113,7 @@ local	dt_tip	widgets/hit.hibr	12	1	told
 local	dt_buson	wm/bus.hibr	12	4	told	
 local	dt_jobrunning	wm/jobs.hibr	11	5	asked	
 local	dt_searchfree	widgets/search.hibr	10	8	told	
-local	tb_draw	widgets/textarea.hibr	10	8	told	tb_draw > tb_preon > dt_imepre
+local	tb_draw	widgets/textarea.hibr	10	8	told	
 local	dt_akeyof	wm/keys.hibr	10	3	asked	
 local	dt_dblclear	wm/input.hibr	10	3	told	
 local	dt_chromeoff	wm/frame.hibr	10	4	asked	
@@ -123,12 +123,13 @@ local	dt_cellpx	wm/input.hibr	8	4	asked	dt_cellpx > dt_capped
 local	dt_ploc	wm/prayer.hibr	8	4	asked	
 local	dt_hijri	wm/lang.hibr	8	6	asked	
 local	tb_free	widgets/textarea.hibr	8	8	told	
-local	tb_key	widgets/textarea.hibr	8	8	told	tb_key > dt_imekey
+local	tb_key	widgets/textarea.hibr	8	8	told	
 local	tb_mouse	widgets/textarea.hibr	8	8	told	
 local	tb_cut	widgets/textarea.hibr	8	8	told	
 local	tb_undo	widgets/textarea.hibr	8	8	told	
 local	tb_redo	widgets/textarea.hibr	8	8	told	
 local	tb_selall	widgets/textarea.hibr	8	8	told	
+local	dt_imepre	wm/ime.hibr	8	5	asked	
 local	dt_keyassigned	wm/keys.hibr	8	4	told	
 local	dt_split	widgets/split.hibr	8	4	asked	
 local	bd_row	widgets/bidi.hibr	8	2	told	
@@ -164,6 +165,8 @@ local	dt_bg	wm/glyphs.hibr	5	1	told
 local	dt_pnext	wm/prayer.hibr	4	4	asked	
 local	dt_ptime	wm/prayer.hibr	4	4	asked	
 local	ms_open	lib/mailsync.hibr	4	2	told	
+local	dt_imeflush	wm/ime.hibr	4	1	asked	
+local	dt_imekey	wm/ime.hibr	4	3	told	
 local	dt_splitbar	widgets/split.hibr	4	4	told	
 local	dia_pens	lib/diagram.hibr	4	4	told	
 local	dt_hscrollbar	widgets/scrollbar.hibr	4	4	told	
@@ -200,8 +203,8 @@ local	dt_omnifree	widgets/omnibox.hibr	2	1	told
 local	dt_omniselect	widgets/omnibox.hibr	2	1	told	
 local	dt_omnilist	widgets/omnibox.hibr	2	1	told	
 local	dt_omnisig	widgets/omnibox.hibr	2	1	asked	
-local	dt_omnidraw	widgets/omnibox.hibr	2	1	told	dt_omnidraw > dt_textdraw > dt_imepre
-local	dt_omnikey	widgets/omnibox.hibr	2	1	asked	dt_omnikey > dt_textkey > dt_imekey
+local	dt_omnidraw	widgets/omnibox.hibr	2	1	told	
+local	dt_omnikey	widgets/omnibox.hibr	2	1	asked	
 local	dt_omnihit	widgets/omnibox.hibr	2	1	asked	
 local	dt_fieldedit	wm/files.hibr	2	2	told	dt_fieldedit > dt_clipset
 local	tb_clampc	widgets/textarea.hibr	2	2	told	
@@ -237,7 +240,7 @@ local	dt_pastefold	widgets/text.hibr	1	1	told
 local	dt_hotcolour	widgets/button.hibr	1	1	asked	
 local	dt_lcd	wm/glyphs.hibr	1	1	asked	
 local	dt_fieldsel	widgets/text.hibr	1	1	asked	
-local	dt_fieldcut	widgets/text.hibr	1	1	asked	dt_fieldcut > dt_fdtype > dt_imedone > dt_imeflush
+local	dt_fieldcut	widgets/text.hibr	1	1	asked	
 local	dt_blitread	wm/glyphs.hibr	1	1	told	
 request	dt_notep	wm/notify.hibr	587	86	told	
 request	dt_del	wm/windows.hibr	220	46	told	
@@ -269,7 +272,6 @@ request	dt_sticky	wm/workspaces.hibr	10	3	told
 request	dt_vwstate	wm/vault.hibr	10	5	asked	
 request	dt_openfile	wm/handlers.hibr	10	6	told	
 request	dt_openers	wm/handlers.hibr	10	4	told	
-request	dt_imepre	wm/ime.hibr	8	5	asked	
 request	dt_away	wm/workspaces.hibr	8	3	told	
 request	dt_openwith	wm/handlers.hibr	8	4	told	
 request	dt_loccan	wm/locations.hibr	8	2	told	
@@ -290,8 +292,6 @@ request	dt_progload	wm/programs.hibr	6	2	told
 request	dt_clipdel	wm/clip.hibr	6	2	told	
 request	dt_vwmatch	wm/vault.hibr	5	1	asked	
 request	dt_pointerlock	wm/input.hibr	5	1	told	
-request	dt_imeflush	wm/ime.hibr	4	1	asked	
-request	dt_imekey	wm/ime.hibr	4	3	told	
 request	dt_location	wm/locations.hibr	4	2	told	
 request	dt_isbundle	wm/handlers.hibr	4	2	told	
 request	dt_setgeom	wm/windows.hibr	4	2	told	

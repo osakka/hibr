@@ -81,6 +81,11 @@ for _n in "dt_size dt_edit dt_natcell".split():
 for _n in "dt_keyphases dt_keyswap".split():
     OVERRIDE[_n] = "request"
 OVERRIDE["dt_appaction"] = "declare"
+# The input method runs in every app process, its data shared from the
+# zygote (owner, 2026-11-18): what a text field asks of it is local. The
+# teach box and the chords told to Blit stay the desktop's.
+for _n in "dt_imepre dt_imekey dt_imeflush".split():
+    OVERRIDE[_n] = "local"
 OVERRIDE["dt_atstart"] = "declare"
 OVERRIDE["dt_identify"] = "request"
 OVERRIDE["dt_sbscan"] = "request"

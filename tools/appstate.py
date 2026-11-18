@@ -114,7 +114,10 @@ for _n in """DT_OPENCMD DT_OPENSELF DT_OPENSHELL DT_CLIPKIND DT_CLIP DT_CLIPOP
     BYNAME[_n] = "arg"
 for _n in "DT_FORCEONCE DT_MENUIN DT_BARWAS DT_ISON".split():
     BYNAME[_n] = "gone"
-for _n in "DT_IMEPRE DT_IMEBY".split():
+# The input method's engine runs in every app process (owner, 2026-11-18):
+# what it holds is each process's; the teach box and the chords told to
+# Blit (DT_IMET*, DT_IMEKSENT) stay the desktop's.
+for _n in "DT_IMEPRE DT_IMEBY DT_IMEC DT_IMEP DT_IMEAT DT_IMEWIN DT_IMEH DT_IMEMOD DT_IMEBAD DT_IMEM".split():
     BYNAME[_n] = "local"
 # A helper's answer handed back through a global (a watcher's descriptors
 # and lines, a reason, an image's arguments), and a process's own cache or
