@@ -1,6 +1,8 @@
 # 0050 — Apps in processes of their own
 
-Status: proposed (0.99.400), to be decided with the owner
+Status: decided (owner, 2026-11-18): every installable runs in a process of
+its own, by one path, with no switch -- the Decision below. The first plan
+(0.99.400) and the prototype that measured it follow it, as history.
 
 ## Context
 
@@ -19,7 +21,77 @@ the picture modules, which write at absolute coordinates (`img draw`, and
 media, web and the pager through it), could not be placed in either order
 against a pane's own chrome. `dp_api` has no paned put for a picture.
 
-## Proposal
+## Decision (owner, 2026-11-18)
+
+**One path.** Every installable -- an app, a Control Panel pane, a Control
+Strip module, a menu bar item, a saver, of every kind the catalogue carries
+-- runs in a process of its own, always. There is no switch and no
+in-process mode for an installable: a per-app "Separate Processes" choice
+was proposed and refused (owner: "is this parallels, and breaks one source
+of truth?"), because it is two ways to run every app, each needing its own
+tests and fixes. What stays in the desktop's process is the platform alone
+-- the window manager (`wm/`), the widgets, `lib/` -- since that *is* the
+desktop. Going back is the previous release, not a toggle.
+
+**Why the prototype is not the design.** The prototype (below) answered
+"does it work, and what does it cost" with no new C by riding on the
+terminal window: a hosted app is a program in a terminal, and every window
+manager feature reached it through a hook in `apps/term.hibr`. That is a
+bolt-on, and its gaps are its shape -- the bar told the app's name by
+special case, titles that do not cross, dialogs drawn inside the app's own
+screen, a fixed-size app made resizable. Its measurements and its suites
+carry over; its route does not.
+
+**The design.**
+
+1. **A hosted window is a window, not a terminal.** It keeps its app's
+   identity (Calculator is `calc`, not `term`), and the window manager calls
+   it as it calls any window -- `_draw`, `_key`, `_click`, `_mouse`,
+   `_wheel`, `_paste`, `_drop`, `_copy`, `_menus`, `_canclose`, `_close` --
+   through **one** place, `dt_appcall`/`dt_appget`, which sends the call
+   across when the app is not the platform's. A title, a second window, a
+   dialog, a fixed size, an `_open` argument: each is the window manager's
+   own, said by the app as a message, never a hook in another app.
+2. **The window manager never waits on an app.** Every call across is one
+   of two kinds, and the table of which is part of the contract: told (keys,
+   clicks, the wheel, a paste, a drop, focus, a close) or answered from what
+   the app last pushed (`_dirty`, `_menus`, `_copy`, `_canclose`, a key's
+   own "handled") -- the app pushes, the desktop caches, nothing blocks.
+   Input not answered within `DT_HOLDMS` marks the window "not responding";
+   its keys go on being sent; it is never paused (ADR 0049's rule).
+3. **What an app declares is read, not run.** Its `dt_app`, `cp_pane`,
+   `cs_module`, `dt_baritem`, `dt_keep` and `dt_ticker` lines are read by the
+   `inspect` module (ADR 0056) when the desktop scans the catalogue's
+   scopes, so the menus, the Control Panel's list and the bar know every
+   app without one line of its code running in the desktop. Its tickers and
+   hooks run in its own process, where a slow one stops only it.
+4. **One process per app, holding all its windows**, forked from one
+   prepared host (the zygote, measured below: +1.1 MB an app). The windows
+   of one app share its globals today on purpose (Mail and its compose
+   window); per window would change what an app is.
+5. **One channel each way, made for it.** The prototype carried messages
+   in-band in the terminal stream (OSC up, a bracketed paste down) and its
+   cells through a terminal emulator; the design gives each app process a
+   socket of its own to the desktop for messages, and its cells reach the
+   desktop's console as cells -- the "pane drawn from another process" of
+   the first plan's step 2 -- with pictures by descriptor as the prototype
+   already does (`frames`). Which carriage of cells is cheapest is measured
+   before it is chosen: the desktop's frame budget (0.7 ms, 1% of a core) is
+   the bar.
+6. **Settings stay the desktop's.** It owns `desktop.json`; an app sends
+   its kept settings up and only names its own file keeps are accepted
+   (done in the prototype).
+7. **A crash or a hang is the app's alone.** An ended app's windows say so
+   and offer to start it again; a Restart Desktop finds the host by its pid.
+8. **Moved in one release, every kind.** The suites already open apps
+   through the window manager, so they run against hosted apps unchanged;
+   `tests/isolation.py` goes into `all.py` then, passing without `ISO=1`,
+   which no longer exists. The prototype's terminal hooks (`term_draw`'s
+   notes, `term_menus`, `term_drop`, `term_canclose`, `term_paste`'s mark
+   and the rest) are removed in the same change: the terminal window is a
+   terminal again.
+
+## The first plan (2026-11-01), superseded
 
 In three steps, each a release that stands on its own:
 
