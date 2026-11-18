@@ -150,6 +150,7 @@ fn dt_davjob(what, then, ...cmd) {
 	shift 2
 	n := dt_job "dav:$what" "" dt_davdone "$@" || return 1
 	DTJ[$n]["dthen"]=$then
+	DTJ[$n]["downer"]=$DT_CALLER
 	DR_LIVE=$((DR_LIVE + 1))
 	ret "$n"
 }
@@ -161,7 +162,7 @@ fn dt_davdone(int n, int st) {
 	e := dt_jobfile "$n" err
 	dt_davwhy "$e"
 	DR_LIVE=$((DR_LIVE - 1))
-	"${DTJ[$n]["dthen"]}" "$n" "$st"
+	dt_appfn "${DTJ[$n]["downer"]-}" "${DTJ[$n]["dthen"]}" "$n" "$st"
 }
 
 # A finished job's output, the first line or all of it.

@@ -10,8 +10,9 @@ processes of their own (ADR 0050). Read by the inspect module, never run.
            sends it to the app's process when the app is hosted; every other
            call into an app goes through it
   handed   a callback an app handed the platform (a dialog's answer, a
-           job's end, a menu command, a note's action): run in the process
-           of whoever handed it
+           job's end, a menu command, a note's action), called by a name
+           here: none may be -- each is stored with its owner (DT_CALLER,
+           which dt_appfn sets) and called back through dt_appfn with it
   hook     another installable's registered hook (a bar item, a strip
            module, a location, a bus handler, a ticker): run in that
            installable's own process
@@ -35,10 +36,8 @@ OUT = os.path.join(ROOT, "programs", "desktop", "callsites.tsv")
 # By the function the site is in.
 BYOWNER = {
     "window": """dt_appfn""",
-    "handed": """dt_askok dtask_close fp_done fpick_close dt_jobvarsdone dt_jobtick dt_ptyjobtick
-                 dt_davdone dt_mdo dt_note_act dt_notehist_run dt_confirm_key dt_vwpick vwp_choose
-                 dt_vwfill dt_vwfilled dt_vwjobdone dt_openverbs dt_openverb dt_copylocated""",
-    "hook": """dt_modehook dt_modetick dt_runatstart dt_unload dt_reinstate dt_barrescan
+    "handed": """""",
+    "hook": """dt_copylocated dt_openverbs dt_openverb dt_modehook dt_modetick dt_runatstart dt_unload dt_reinstate dt_barrescan
                dt_baritoggle dt_barikey dt_popmouse dt_popdraw dt_barido dt_barilay dt_bar
                dt_busgive dt_loccan cs_relist dt_stripdraw cs_press""",
     "local": """bd_put dt_dropcontext dt_omniask dt_sbto""",
@@ -135,6 +134,7 @@ def main():
     # anything else that calls one has to go through it, and shared code --
     # which runs in an app's process as well -- never calls into another.
     cross = [r for r in rows if r[0] == "window" and r[3] != "dt_appfn"]
+    cross += [r for r in rows if r[0] == "handed"]
     cross += [r for r in rows if r[0] == "local" and shared(r[1]) and
               own.get(r[3]) in ("window", "hook") and r[3] not in ("dt_appcall", "dt_appget")]
     for r in cross:

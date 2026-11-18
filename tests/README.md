@@ -217,6 +217,13 @@ More tools sit around it:
   not load, and a call into another installable with no `dt_has`,
   `dt_needs` or `command -v` in its function (ADR 0046). A suite in
   `all.py`; under a second.
+- **`tests/appseam.py`** -- the seam every call into an app goes through
+  (`dt_appfn`, ADR 0050): a menu command the app declared, a
+  confirmation's Yes, a note's action and a dialog's answer, each handed in
+  from the app's own code, run as the app's when called back -- recorded
+  with their owner (`DT_CALLER`) -- and what the desktop asks for itself
+  stays the desktop's. Fails against the desktop before the owners were
+  recorded.
 - **`tests/rtchan.py`** -- the app runtime's socket (ADR 0050) through a
   pty: an app process sourcing only `runtime.hibr` says hello and what it
   tells the desktop happens there, its words whole (blanks, a percent, an

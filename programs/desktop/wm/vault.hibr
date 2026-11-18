@@ -62,6 +62,8 @@ VWJ_USEPIN=0
 # taken up once the unlock it opened succeeds, forgotten if it is closed.
 DT_VWPICKH=
 DT_VWPICKCB=
+# Whose the pick's callback is (dt_appfn), carried across the unlock.
+DT_VWPICKOWN=
 # The picker's windows: each one's site, choices and selection.
 declare -gA VWP
 VWJ_KEEP=0
@@ -136,6 +138,7 @@ fn dt_vwjob(tag, then, f, ...vars) {
 	DT_VWERR=
 	n := dt_job vault "$tag" dt_vwjobdone dt_jobvarsrun "$f" DT_VWST DT_VWERR "${vars[@]}" || return 1
 	DTJ[$n]["vwthen"]=$then
+	DTJ[$n]["vwowner"]=$DT_CALLER
 	DTJ[$n]["vwgen"]=$DT_VWGEN
 	ret "$n"
 }
@@ -152,7 +155,7 @@ fn dt_vwjobdone(int n, int st) {
 	fi
 	export VW_SESSION
 	dt_vwbar
-	[ -n "$then" ] && "$then" "$n" "$DT_VWST"
+	[ -n "$then" ] && dt_appfn "${DTJ[$n]["vwowner"]-}" "$then" "$n" "$DT_VWST"
 	return 0
 }
 
@@ -387,6 +390,7 @@ fn dt_vwpick(host, callback) {
 	locked)
 		DT_VWPICKH=$host
 		DT_VWPICKCB=$callback
+		DT_VWPICKOWN=$DT_CALLER
 		id := dt_vwdialog unlock
 		return 0
 		;;
@@ -397,6 +401,7 @@ fn dt_vwpick(host, callback) {
 	2)
 		DT_VWPICKH=$host
 		DT_VWPICKCB=$callback
+		DT_VWPICKOWN=$DT_CALLER
 		id := dt_vwdialog unlock
 		return 0
 		;;
@@ -409,7 +414,7 @@ fn dt_vwpick(host, callback) {
 	n=${#l[@]}
 	if [ "$n" = 1 ]; then
 		m=${l[0]#*$'\t'}
-		"$callback" "${m%%$'\t'*}"
+		dt_appfn "$DT_CALLER" "$callback" "${m%%$'\t'*}"
 		return 0
 	fi
 	h=$((n + 5))
@@ -419,6 +424,7 @@ fn dt_vwpick(host, callback) {
 	id := dt_new "Choose a Login" "$DT_DLGH" "$DT_DLGW" "$DT_DLGR" "$DT_DLGC" vwp
 	VWP[$id]["host"]=$host
 	VWP[$id]["cb"]=$callback
+	VWP[$id]["owner"]=$DT_CALLER
 	VWP[$id]["n"]=$n
 	VWP[$id]["sel"]=0
 	VWP[$id]["top"]=0
@@ -493,11 +499,11 @@ fn vwp_click(int? id = "", int? r = "", int? c = "", btn = "") {
 
 # Hand the chosen login's id to whoever asked, once the picker is gone.
 fn vwp_choose(int id, int i) {
-	local m=${VWP[$id]["l$i"]} cb=${VWP[$id]["cb"]}
+	local m=${VWP[$id]["l$i"]} cb=${VWP[$id]["cb"]} own=${VWP[$id]["owner"]-}
 
 	m=${m#*$'\t'}
 	dt_del "$id"
-	"$cb" "${m%%$'\t'*}"
+	dt_appfn "$own" "$cb" "${m%%$'\t'*}"
 }
 
 fn vwp_close(int id) { unset VWP["$id"]; }
@@ -544,7 +550,7 @@ fn dt_vwfill(win = "") {
 
 	[ -n "$id" ] && [ -n "${DT[$id]["signin"]-}" ] || return 1
 	cb=${DT[$id]["signin"]}
-	host := "$cb" "$id" || return 1
+	host := dt_appfn "${DT[$id]["app"]-}" "$cb" "$id" || return 1
 	DT_VWFILLWIN=$id
 	dt_vwpick "$host" dt_vwfilled
 	return 0
@@ -571,7 +577,7 @@ fn dt_vwfilled(item) {
 	pw=${DT_VWOUT#*$'\n'}
 	DT_VWOUT=
 	DT_NOTEWIN=$id
-	"$cb" "$id" "$us" "$pw"
+	dt_appfn "${DT[$id]["app"]-}" "$cb" "$id" "$us" "$pw"
 	pw=
 	dt_notep low "Filled in from the vault"
 	return 0
@@ -958,10 +964,10 @@ fn vwd_done(int n, int st) {
 	pin) dt_notep low "The PIN is set" ;;
 	*) dt_notep low "The vault is unlocked" ;;
 	esac
-	local ph=$DT_VWPICKH pc=$DT_VWPICKCB
+	local ph=$DT_VWPICKH pc=$DT_VWPICKCB po=$DT_VWPICKOWN
 	DT_VWPICKCB=
 	dt_del "$id"
-	[ "$m" = unlock ] && [ -n "$pc" ] && dt_vwpick "$ph" "$pc"
+	[ "$m" = unlock ] && [ -n "$pc" ] && DT_CALLER=$po dt_vwpick "$ph" "$pc"
 	return 0
 }
 

@@ -186,6 +186,7 @@ dt_noteq() {
 		n=$((n + 1))
 	done
 	DT_NOTEQ[$id]["argvn"]=$n
+	DT_NOTEQ[$id]["owner"]=$DT_CALLER
 	if dt_noteok list "${DT_NOTEQ[$id]["from"]}" "${DT_NOTEQ[$id]["prio"]}"; then
 		dt_notehist_add "$id"
 	fi
@@ -589,19 +590,20 @@ command -v dt_ticker > /dev/null && dt_ticker dt_notetick
 # Run a note's own action, if it has one, and take it off the screen
 # either way.
 fn dt_note_act(int id) {
-	local n=${DT_NOTEQ[$id]["argvn"]:-0} i=0 o
+	local n=${DT_NOTEQ[$id]["argvn"]:-0} i=0 o own
 	local -a args keep
 
 	while [ "$i" -lt "$n" ]; do
 		args+=("${DT_NOTEQ[$id]["arg$i"]}")
 		i=$((i + 1))
 	done
+	own=${DT_NOTEQ[$id]["owner"]-}
 	unset "DT_NOTEQ[$id]"
 	for o in "${DT_NOTEQ_ORDER[@]}"; do
 		[ "$o" != "$id" ] && keep+=("$o")
 	done
 	DT_NOTEQ_ORDER=("${keep[@]}")
-	[ "$n" -gt 0 ] && "${args[@]}"
+	[ "$n" -gt 0 ] && dt_appfn "$own" "${args[@]}"
 }
 
 # Copy a note's action into its history record. Clicking the *live* note has
@@ -614,6 +616,7 @@ fn dt_notehist_act(int hid, int id) {
 	local i=0
 
 	DT_NOTEHIST[$hid]["argvn"]=$n
+	DT_NOTEHIST[$hid]["owner"]=${DT_NOTEQ[$id]["owner"]-}
 	while [ "$i" -lt "$n" ]; do
 		DT_NOTEHIST[$hid]["arg$i"]=${DT_NOTEQ[$id]["arg$i"]}
 		i=$((i + 1))
@@ -640,7 +643,7 @@ fn dt_notehist_run(int hid) {
 		args+=("${DT_NOTEHIST[$hid]["arg$i"]}")
 		i=$((i + 1))
 	done
-	"${args[@]}"
+	dt_appfn "${DT_NOTEHIST[$hid]["owner"]-}" "${args[@]}"
 	return 0
 }
 

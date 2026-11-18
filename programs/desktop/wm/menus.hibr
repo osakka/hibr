@@ -221,6 +221,7 @@ fn dt_row(tick, int dim, lb, k, ...rest) {
 	MI[$m][$n]["label"]="$lb"
 	MI[$m][$n]["key"]="$k"
 	MI[$m][$n]["cmd"]="$*"
+	MI[$m][$n]["owner"]=$DT_CALLER
 	for a in "$@"; do
 		[ -z "$a" ] && continue
 		MI[$m][$n]["a$i"]=$a
@@ -1737,7 +1738,7 @@ dt_mdo() {
 		j=$((j + 1))
 	done
 	DT_NOTEWIN=${MB[$m]["own"]}
-	[ "$argc" -gt 0 ] && "${argv[@]}"
+	[ "$argc" -gt 0 ] && dt_appfn "${MI[$m][$i]["owner"]-}" "${argv[@]}"
 	DT_NOTEWIN=
 }
 

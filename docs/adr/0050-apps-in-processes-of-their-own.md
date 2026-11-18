@@ -347,7 +347,18 @@ the mouse, the wheel, focus, a paste, a drop) go through `dt_wincall`/
 timed by `dt_appcall` in the process that runs it; a direct call from a
 desktop file fails the check, which a census of dynamic calls alone could
 not see, since that call is made inside the shared `budget.hibr`.
-`tests/appcalls.py` fails on a site no rule classes, and on any difference from the committed table -- keyed on the
+**And a callback an app hands in keeps its owner**: while `dt_appfn`
+runs an app's code, `DT_CALLER` is that app, and every place the desktop
+stores a callback it was handed -- a menu item's command, a note's action,
+a confirmation's command, a dialog's answer, a file picker's choice, the
+vault's pick and its jobs, a remote transfer's end -- stores the owner
+beside it and calls it back through the seam with that owner; a told
+request from an app's socket runs with `DT_CALLER` as the sender. None of
+the 17 is called by a name any more, and the check fails one that is.
+`tests/appseam.py` drives four of them from an app's own code and one from
+the desktop's, and fails against the desktop before the owners were kept.
+The seam costs about 2.5 us a call with `DT_CALLER` (a frame unchanged
+within its noise). `tests/appcalls.py` fails on a site no rule classes, and on any difference from the committed table -- keyed on the
 function and the call's own text, not its line -- so a new call inside a
 listed function is classed on purpose.
 

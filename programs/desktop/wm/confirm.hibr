@@ -17,11 +17,14 @@ strict
 # the menu) say whose they are with "desktop" and open on the primary,
 # whatever window happens to have focus (Gitea #390).
 DT_CONFIRM_OWNER=
+# The app that asked, through dt_appfn: Yes runs its command as its own.
+DT_CONFIRM_CALLER=
 fn dt_confirm(msg, cmd, owner = "") {
 	case $DT_LANG in ?*) msg := dt_tr "$msg" ;; esac
 	dt_note_clear
 	DT_CONFIRM="$msg"
 	DT_CONFIRM_CMD=$cmd
+	DT_CONFIRM_CALLER=$DT_CALLER
 	DT_CONFIRM_FOCUS=y
 	DT_CONFIRM_OWNER=$DT_FOCUS
 	[ "$owner" = desktop ] && DT_CONFIRM_OWNER=
@@ -105,7 +108,7 @@ dt_confirm_draw() {
 # button that has focus, and tab or the arrows move it. Any other key
 # cancels, the same as No.
 fn dt_confirm_key(key) {
-	local cmd=$DT_CONFIRM_CMD d
+	local cmd=$DT_CONFIRM_CMD d own=$DT_CONFIRM_CALLER
 
 	if d := dt_focuskey "$key" 1; then
 		DT_CONFIRM_FOCUS := dt_focus "$DT_CONFIRM_FOCUS" "$d" y n
@@ -121,7 +124,7 @@ fn dt_confirm_key(key) {
 		# already cleared above, so that is what a pty test's last
 		# frame shows rather than the box still up.
 		dt_draw
-		$cmd
+		dt_appfn "$own" $cmd
 		;;
 	esac
 	return 0

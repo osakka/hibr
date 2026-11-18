@@ -52,6 +52,7 @@ fn dt_filepick(mode, title, types, dir, name, callback, for, oncancel = "") {
 	FP[$rid]["cb"]=$callback
 	FP[$rid]["for"]=$for
 	FP[$rid]["oncancel"]=$oncancel
+	FP[$rid]["owner"]=$DT_CALLER
 	FP[$rid]["buf"]=$name
 	FP[$rid]["cur"]=${#name}
 	FP[$rid]["focus"]=list
@@ -470,7 +471,7 @@ fn fp_done(int id, p) {
 	DT_FPLAST["$cb"]=${p%/*}
 	FP[$id]["oncancel"]=
 	dt_del "$id"
-	"$cb" "$for" "$p" "$lab"
+	dt_appfn "${FP[$id]["owner"]-}" "$cb" "$for" "$p" "$lab"
 }
 
 fn fpick_key(int id, key) {
@@ -672,6 +673,6 @@ fn fpick_close(int id) {
 	local oc=${FP[$id]["oncancel"]} for=${FP[$id]["for"]}
 
 	unset FP["$id"]
-	[ -n "$oc" ] && "$oc" "$for"
+	[ -n "$oc" ] && dt_appfn "${FP[$id]["owner"]-}" "$oc" "$for"
 	return 0
 }

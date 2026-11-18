@@ -44,6 +44,7 @@ fn dt_ask(title, label, value, then, hint = "", masked = "", int width = 54, can
 	DTA[$id]["buf"]=$value
 	DTA[$id]["cur"]=${#value}
 	DTA[$id]["then"]=$then
+	DTA[$id]["owner"]=$DT_CALLER
 	DTA[$id]["hn"]=${#hl[@]}
 	while [ "$i" -lt "${#hl[@]}" ]; do
 		DTA[$id]["h$i"]=${hl[$i]}
@@ -89,7 +90,7 @@ fn dtask_draw(int id, int h, int w, int row, int col) {
 
 # OK: hand the answer over, and close unless the callback refused it.
 fn dt_askok(int id) {
-	"${DTA[$id]["then"]}" "${DTA[$id]["buf"]}" "$id" || return 0
+	dt_appfn "${DTA[$id]["owner"]-}" "${DTA[$id]["then"]}" "${DTA[$id]["buf"]}" "$id" || return 0
 	DTA[$id]["answered"]=1
 	dt_del "$id"
 }
@@ -139,6 +140,6 @@ fn dtask_key(int id, key) {
 fn dtask_close(int id) {
 	local c=${DTA[$id]["cancelled"]}
 
-	[ -z "${DTA[$id]["answered"]}" ] && [ -n "$c" ] && "$c" "$id"
+	[ -z "${DTA[$id]["answered"]}" ] && [ -n "$c" ] && dt_appfn "${DTA[$id]["owner"]-}" "$c" "$id"
 	unset "DTA[$id]"
 }
