@@ -30,8 +30,12 @@ in-process mode for an installable: a per-app "Separate Processes" choice
 was proposed and refused (owner: "is this parallels, and breaks one source
 of truth?"), because it is two ways to run every app, each needing its own
 tests and fixes. What stays in the desktop's process is the platform alone
--- the window manager (`wm/`) and the widgets -- since that *is* the
-desktop (`lib` is installable code, Review 3). Going back is the previous release, not a toggle.
+-- the window manager (`wm/`), the widgets, and the files ADR 0046 marks
+`# platform:` (the Control Panel's window, the saver framework, the four
+bar items the package ships) -- since that *is* the desktop (owner,
+2026-11-18: ADR 0046's definition kept); `lib` is installable code
+(Review 3), and `tools/appcalls.py` leaves the platform's files out of the
+installables it reads. Going back is the previous release, not a toggle.
 
 **Why the prototype is not the design.** The prototype (below) answered
 "does it work, and what does it cost" with no new C by riding on the
@@ -172,14 +176,17 @@ today, measured from both sides:
    whichever process loads them; command-line programs (3) are processes
    already; `lib` (5) is code sourced by installables, so it runs in theirs
    -- it is not platform, as the Decision first said; bundles (6) only
-   group. **Panes, counted (2026-11-18):** of 90 pane files, the
-   catalogue's and the shipped tree's, **70 set the desktop's own settings**
-   (`DT_*`, `CS_*`) and only **19 draw for themselves**; the rest declare
-   rows the Control Panel draws. So a pane is not an app: it is a
-   declaration of the desktop's own settings, which the desktop draws and
-   applies -- a hosted process that could set `DT_*` is exactly what the keep
-   rule refuses -- and only the 19 that draw need a process, drawing into a
-   region of the Control Panel's window. **The unit is the installable, not the `dt_app` name**: a part
+   group. **Panes, counted (2026-11-18), unique by name:** of **51** panes,
+   **27** set a setting the desktop keeps (a `DT_KEEP` name), **12** draw for
+   themselves, **7** start programs (network, Bluetooth, power), and none is
+   marked platform. **Decided (owner, 2026-11-18): a pane's code runs in a
+   process of its own** -- a part in its app's process -- like every
+   installable; it declares its rows, the Control Panel's window (platform)
+   draws them, and a change to a desktop setting is a **request the desktop
+   accepts only for a setting that pane declared on its rows**, refused
+   otherwise, as the keep rule refuses a hosted app's. The 12 that draw
+   draw into a region of the Control Panel's window, as a hosted window
+   draws into its pane. **The unit is the installable, not the `dt_app` name**: a part
    shares its owner's state (Audio Player's pane reads the app's names), and
    one file registers several apps (Files: `rn`, `gi`, `ow`).
 4. **A declined key is not an answer to cache.** `_key` returning 1 is what
@@ -213,6 +220,13 @@ today, measured from both sides:
    Video Player's engine no longer stops the Browser. Two processes, not one
    installable. Calendar, Contacts and Mail share `lib/pim.hibr`'s sync
    state the same way, and are settled the same way before the move.
+6b. **The owner's desktop, counted (Blit, 2026-11-18, read only):** 87
+   installed entries -- 28 panes, 20 apps, 8 bar items, 7 system apps, 5
+   libraries, 2 savers, 2 strip modules, and data -- and the desktop's own
+   process at 104 MB PSS, about 15% of a core while in use. A stall on that
+   machine the same day, `held: pass 7068 ms ... pactl set-sink-volume`, was
+   the sound bar item waiting on its server in the frame (fixed in Sound
+   1.5.2): exactly what isolation ends for good.
 7. **"The suites run unchanged" is counted first.** `tests/apps.py` reaches
    into an app from the test session -- calling its functions, reading its
    maps -- in about 44 places, the other suites in a handful; fixtures
