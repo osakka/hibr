@@ -211,9 +211,18 @@ today, measured from both sides:
    desktop holds that key's own fallback until the answer or `DT_HOLDMS`,
    and **holds the keys typed after it too**, sending each only once the
    one before is answered -- sending them on would hand the letter typed
-   after Escape to the app instead of the menu it opened. Only a plain key
-   that is also on a shortcut's list needs the round trip; every other key
-   goes down at once. The key's number is also the latency measurement the
+   after Escape to the app instead of the menu it opened. **Which keys need
+   the round trip, read from `wm/input.hibr`:** Menu Bar's chords and the
+   Start key are taken before any window, and need none; then the focused
+   window is offered the key; a key it declines falls through to the plain
+   Menu Bar key (Escape) and then to **every** desktop action checked after
+   the window -- close, quit, cycle, move, resize, the workspaces, the
+   screenshot and the rest of `DT_KEYS`. So a key matching any of those
+   (what `dt_keyassigned` already answers) waits for the app's answer; every
+   other key goes down at once, since declining it does nothing. **A key
+   whose answer does not come within `DT_HOLDMS`** is taken as declined --
+   its desktop action runs, so a hung app cannot keep the person from
+   closing or leaving it -- and the app's late answer is discarded. The key's number is also the latency measurement the
    sensitivity requirement asks for: one mechanism, not two. The table of told and pushed
    calls is built from ARCHITECTURE.md's callback table and the arity table
    in `tests/540-examples.t`, not a new list.
