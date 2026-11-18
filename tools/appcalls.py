@@ -186,10 +186,18 @@ def sigs():
     for f in sorted(glob.glob(os.path.join(ROOT, "programs/desktop/wm/*.hibr")) +
                     glob.glob(os.path.join(ROOT, "programs/desktop/widgets/*.hibr")) +
                     glob.glob(os.path.join(ROOT, "programs/desktop/lib/*.hibr"))):
-        for line in open(f, errors="replace"):
-            m = re.match(r"(?:fn\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*\{?", line)
-            if m and m.group(1) not in out:
-                out[m.group(1)] = "%s(%s)" % (m.group(1), " ".join(m.group(2).split()))
+        lines = open(f, errors="replace").read().split("\n")
+        for i, line in enumerate(lines):
+            m = re.match(r"(?:fn\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)", line)
+            if not m or m.group(1) in out:
+                continue
+            text, j = m.group(2), i
+            while ")" not in text and j + 1 < len(lines) and j - i < 8:
+                j += 1
+                text += " " + lines[j]
+            if ")" not in text:
+                continue
+            out[m.group(1)] = "%s(%s)" % (m.group(1), " ".join(text[:text.index(")")].split()))
     return out
 
 

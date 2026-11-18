@@ -142,7 +142,7 @@ local	dt_keyis	wm/keys.hibr	7	3	told		dt_keyis(what, key)	-
 local	dt_imgm	wm/wallpaper.hibr	6	6	told		dt_imgm(mode = "")	-
 local	dt_pname	wm/prayer.hibr	6	4	asked		dt_pname(int i)	-
 local	dt_live	wm/session.hibr	6	2	told		dt_live(int id, on = "")	-
-local	dt_putruns	widgets/putruns.hibr	6	6	told			-
+local	dt_putruns	widgets/putruns.hibr	6	6	told		dt_putruns(int id, int row, int col, text, runs, int off, int room, face, pens)	-
 local	tb_snap	widgets/textarea.hibr	6	2	told		tb_snap(int id, kind)	-
 local	tb_changed	widgets/textarea.hibr	6	2	told		tb_changed(int id)	-
 local	pe_running	lib/pim.hibr	6	4	told		pe_running(srv)	-
