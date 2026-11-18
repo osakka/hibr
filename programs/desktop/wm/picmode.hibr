@@ -1,0 +1,104 @@
+# wm/picmode -- how a picture is drawn here: pixels, half blocks or characters, by
+# what the display can show and what was chosen.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+# How a picture is drawn, everywhere the desktop draws one: auto takes
+# pixels where the terminal can place them (the kitty graphics protocol, or
+# sixel) and half blocks where it cannot, and the rest say outright. dt_imgm
+# is what every caller passes to `img draw -m`, so one setting reaches the
+# viewer, the wallpaper, Mail's pictures, the film player and the browser.
+# The value is `pixels`; a settings file written before 0.99.76 says `sixel`
+# and means the same thing, which is why nothing migrates it.
+DT_IMGMODE="${DT_IMGMODE-auto}"
+
+DT_IMGARG=()
+
+# How the wallpaper itself is drawn: follow, the Pictures setting above, or
+# half, ascii, mono or pixels of its own -- the same five YouTube's player
+# offers, so a wallpaper in half blocks no longer means every picture in
+# half blocks (Gitea #275). Control Panel > Wallpaper >
+# Picture. Pixels on a display whose terminal cannot show them is still
+# half blocks there (#258): this says what is wanted, dt_wallpixon where it
+# can be had.
+DT_WALLIMGMODE="${DT_WALLIMGMODE-follow}"
+
+# What the terminal can do with a picture: "kitty 10 20", "sixel 8 16" or
+# "none 0 0". Which protocol is the console's business, not an app's: an app
+# asks dt_imgpix whether there are pixels to be had at all.
+dt_imggfx() {
+	local g
+
+	if ! command -v console > /dev/null; then
+		ret "none 0 0"
+	fi
+	g := console gfx 2> /dev/null || g="none 0 0"
+	ret "$g"
+}
+
+# The -m argument for the mode chosen, as an array since it is two words or
+# none, and a strict file cannot split a string into them. mode is the
+# Pictures setting unless a caller names another -- the wallpaper names
+# its own.
+fn dt_imgm(mode = "") {
+	local m=${mode:-$DT_IMGMODE}
+
+	DT_IMGARG=()
+	case $m in
+	auto | "") ;;
+	*) DT_IMGARG=(-m "$m") ;;
+	esac
+	return 0
+}
+
+# Whether this terminal places pixels, whichever protocol it speaks.
+#
+# The cell size is part of the question, not decoration. `console gfx`
+# names the protocol from the terminal whether or not a size is to be had,
+# so it answers `kitty 0 0` for one that speaks kitty and says nothing
+# about its cells -- and this read the first word alone and called that
+# "yes, pixels". `img draw`'s own gate is `cw > 1 && chh > 1`, so the two
+# disagreed exactly there, and this is the side that was wrong: `dt_wall`
+# blanked the rectangle it was about to put a bitmap in and img then drew
+# cells into it, and the Browser and the YouTube player were each told to
+# place pixels that cannot be placed (Gitea #211). One question, one rule,
+# and the rule belongs to the module that draws.
+dt_imgpix() {
+	local g w h
+	local -a p
+
+	g := dt_imggfx
+	read -ra p <<< "$g"
+	w=${p[1]:-0}
+	h=${p[2]:-0}
+	case $w$h in *[!0-9]*) return 1 ;; esac
+	case ${p[0]} in
+	kitty | sixel) [ "$w" -gt 1 ] && [ "$h" -gt 1 ] && return 0 ;;
+	esac
+	return 1
+}
+
+# Whether a picture drawn now will be real pixels rather than cells: the
+# setting says so outright, or it says auto and the terminal can. What a
+# caller needs when the two cases want different cells around the picture --
+# the wallpaper blanks what it is about to put a bitmap over.
+fn dt_imgwill(mode = "") {
+	case ${mode:-$DT_IMGMODE} in
+	pixels | sixel) return 0 ;;
+	auto | "") dt_imgpix && return 0 ;;
+	esac
+	return 1
+}
+
+# The mode the wallpaper is drawn in now, in DT_IMGMODE's own words.
+dt_wallimgmode() {
+	case $DT_WALLIMGMODE in
+	follow | "") ret "${DT_IMGMODE:-auto}" ;;
+	*) ret "$DT_WALLIMGMODE" ;;
+	esac
+}

@@ -1,0 +1,21 @@
+#!/usr/bin/env hibr
+#
+# interface -- the app interface (ADR 0050): the platform's files that the
+# desktop and every app's own process both source, in the one order both
+# use. desktop.hibr sources it before anything else of the window manager;
+# the app runtime sources it and nothing else of it. Each file it names says
+# `# interface: shared` in its header, and acts on nothing the desktop alone
+# owns: requests, declarations and registrations stay in the window
+# manager's other files. Owned, versioned and shipped by hibr, read from
+# $DT_HERE only; docs/adr/0050-calls.tsv is the contract.
+
+strict
+
+for dt_part in loop names glyphs state lang locale budget draw jobs keymatch chrome \
+	servers picmode prayertimes powerlist ime; do
+	. "$DT_HERE/wm/$dt_part.hibr"
+done
+for dt_part in "$DT_HERE"/widgets/*.hibr; do
+	. "$dt_part"
+done
+unset dt_part

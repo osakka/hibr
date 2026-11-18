@@ -42,6 +42,7 @@
 # are diagnostics, not choices anybody has to make, so they are constants
 # here rather than Control Panel rows; the suites, which run many desktops
 # at once, double the second and scale it again under the sanitizers.
+# interface: shared
 
 strict
 

@@ -22,43 +22,8 @@ DT_KEYORDER=(menu start save undo redo copy cut paste selectall signin scrollup 
 	ws7 ws8 ws9 wsnext wsprev tile tilemain close quitapp cycle cycleback strip shot
 	refresh lock context winmenu volup voldown mute kbdnext imecycle imeback imeteach
 	ptrrelease fsleave detach quit)
-declare -gA DT_KEYNAME
-DT_KEYNAME["menu"]="Menu Bar"
-DT_KEYNAME["start"]="Start Menu"
-DT_KEYNAME["save"]="Save"
-DT_KEYNAME["undo"]="Undo"
-DT_KEYNAME["redo"]="Redo"
-DT_KEYNAME["copy"]="Copy"
-DT_KEYNAME["cut"]="Cut"
-DT_KEYNAME["paste"]="Paste"
-DT_KEYNAME["selectall"]="Select All"
-DT_KEYNAME["signin"]="Fill Sign-In"
-DT_KEYNAME["scrollup"]="Terminal Page Back"
-DT_KEYNAME["scrolldown"]="Terminal Page On"
-DT_KEYNAME["zoom"]="Zoom"
-DT_KEYNAME["fullscreen"]="Full Screen"
-DT_KEYNAME["hide"]="Minimise"
-DT_KEYNAME["shade"]="Shade"
-DT_KEYNAME["snapleft"]="Snap Left"
-DT_KEYNAME["snapright"]="Snap Right"
-DT_KEYNAME["snaptop"]="Snap Top"
-DT_KEYNAME["snapbottom"]="Snap Bottom"
-DT_KEYNAME["snapcenter"]="Center"
 for dt_k in 1 2 3 4 5 6 7 8 9; do DT_KEYNAME["ws$dt_k"]="Workspace $dt_k"; done
 unset dt_k
-DT_KEYNAME["wsnext"]="Next Workspace"
-DT_KEYNAME["wsprev"]="Previous Workspace"
-DT_KEYNAME["tile"]="Tile Workspace"
-DT_KEYNAME["tilemain"]="Make Main"
-DT_KEYNAME["close"]="Close Window"
-DT_KEYNAME["quitapp"]="Quit Application"
-DT_KEYNAME["volup"]="Volume Up"
-DT_KEYNAME["voldown"]="Volume Down"
-DT_KEYNAME["mute"]="Mute"
-DT_KEYNAME["kbdnext"]="Next Keyboard"
-DT_KEYNAME["imecycle"]="Next Spelling"
-DT_KEYNAME["imeback"]="Previous Spelling"
-DT_KEYNAME["imeteach"]="Teach Word"
 
 # Two actions on one chord is silent: dt_keyed asks about each in a fixed
 # order, so the first of them fires and the other simply never does. A saved
@@ -86,88 +51,6 @@ fn dt_keydups() {
 	done
 	return 0
 }
-DT_KEYNAME["ptrrelease"]="Release Pointer"
-DT_KEYNAME["fsleave"]="Leave Full Screen"
-DT_KEYNAME["detach"]="Detach"
-DT_KEYNAME["quit"]="Quit"
-DT_KEYNAME["cycle"]="Cycle Windows"
-DT_KEYNAME["cycleback"]="Cycle Windows Back"
-DT_KEYNAME["strip"]="Control Strip"
-DT_KEYNAME["shot"]="Screenshot"
-DT_KEYNAME["refresh"]="Refresh Desktop"
-DT_KEYNAME["lock"]="Lock Screen"
-DT_KEYNAME["move"]="Move Window"
-DT_KEYNAME["resize"]="Resize Window"
-DT_KEYNAME["context"]="Context Menu"
-
-DT_KEYNAME["winmenu"]="Window Menu"
-
-# A chord in one canonical modifier order, ctrl then alt then shift,
-# whatever order it named them in -- an alt combination arrives as ESC
-# followed by the plain control byte, and is named "alt-" then whatever
-# that byte is, in that order; a CSI-encoded one (some terminals report
-# a modified plain key this way too, not only function keys and arrows)
-# is named "ctrl-" before "alt-". Comparing shortcuts by this instead of
-# by the exact string is what makes alt-ctrl-t and ctrl-alt-t the same
-# shortcut regardless of which encoding a real keypress happened to take
-# -- a user typing what looks like the natural chord should not have to
-# know or care which one their own terminal uses.
-#
-# A shortcut is the chords it is written as (ADR 0057): there is no
-# placeholder modifier. A chord naming a modifier this does not know --
-# `mod-c`, from before 0.99.509 -- comes back as itself after a `?`, which
-# no key pressed ever is, so it matches nothing rather than a plain c.
-fn dt_keynorm(k) {
-	local base=$k mods= out= c=0 a=0 s=0 u=0 w
-	local -a ws
-
-	# A key that is itself a minus -- `-`, Volume Down's `mod--` -- ends
-	# in one: taking what follows the last dash made it no key at all,
-	# which matched every action left unbound, Quit among them.
-	case $k in
-	*-) base=-; mods=${k%-}; mods=${mods%-} ;;
-	*-*) base=${k##*-}; mods=${k%-"$base"} ;;
-	esac
-	# The space bar arrives as itself, " ", and is written `space` in a
-	# binding (Window Menu's alt-space): one name for both.
-	[ "$base" = " " ] && base=space
-	IFS=- read -ra ws <<< "$mods"
-	for w in "${ws[@]}"; do
-		case $w in
-		ctrl) c=1 ;;
-		alt) a=1 ;;
-		shift) s=1 ;;
-		super) u=1 ;;
-		"") ;;
-		*) ret "?$k"; return 0 ;;
-		esac
-	done
-	# A terminal with no kitty keyboard sends alt-shift-l as ESC L, which
-	# reads as alt with a capital: the same key, so the same name.
-	if [ "$a" = 1 ]; then
-		case $base in [A-Z]) s=1; base=${base,,} ;; esac
-	fi
-	[ "$c" = 1 ] && out="${out}ctrl-"
-	[ "$a" = 1 ] && out="${out}alt-"
-	[ "$s" = 1 ] && out="${out}shift-"
-	[ "$u" = 1 ] && out="${out}super-"
-	ret "$out$base"
-}
-
-# Whether a key, already through dt_keynorm, is one of a shortcut's chords
-# -- a shortcut being one chord or several, space-separated (ADR 0057).
-fn dt_keyin(list, knorm) {
-	local c n
-	local -a cs
-
-	[ -n "$list" ] && [ -n "$knorm" ] || return 1
-	read -ra cs <<< "$list"
-	for c in "${cs[@]}"; do
-		n := dt_keynorm "$c"
-		[ "$n" = "$knorm" ] && return 0
-	done
-	return 1
-}
 
 # A shortcut as a person presses it: its chords, or, short, the first of
 # them alone, which is what a menu has room for.
@@ -179,45 +62,6 @@ fn dt_keyshow(k, short = "") {
 	ret "${cs[0]-}"
 }
 
-# Whether a key is one of the desktop's own shortcuts -- an action's, or an
-# app's launch key -- and a chord or a function key: a window that takes
-# every key may give these back, and a plain key never, since a terminal
-# that cannot receive q or tab cannot be used. With DT_TERMCTRL on, as it
-# is by default, ctrl with a single letter is not given back either: those
-# are the control characters programs read -- ctrl-c, a shell's ctrl-w
-# deleting a word, vi's ctrl-w window commands -- so ctrl-w closes any
-# window but a terminal's, where it reaches the program.
-fn dt_keyassigned(key) {
-	local knorm an v
-
-	case $key in
-	ctrl-* | alt-* | super-* | shift-f[0-9]* | f[0-9]* | button[0-9]* | shift-button[0-9]*) ;;
-	*) return 1 ;;
-	esac
-	if [ "$DT_TERMCTRL" = 1 ]; then
-		case $key in ctrl-[a-z]) return 1 ;; esac
-	fi
-	knorm := dt_keynorm "$key"
-	for an in "${!DT_KEYS[@]}"; do
-		# An input method's keys are taken only while a word is held
-		# (dt_imeaction, before the window): otherwise a terminal keeps
-		# them, ctrl-space for emacs among them.
-		case $an in ime*) continue ;; esac
-		dt_keyin "${DT_KEYS["$an"]}" "$knorm" && return 0
-	done
-	for an in "${!DT_APPKEY[@]}"; do
-		dt_keyin "${DT_APPKEY["$an"]}" "$knorm" && return 0
-	done
-	return 1
-}
-
-# An app's own actions on keys (Gitea #402): what Files' Show Hidden Files
-# is on, listed in the Shortcuts pane under the app and changed there like
-# any other, and acted on only while the app's window has the focus. They
-# are never in dt_keyassigned, so a terminal window keeps every one of them
-# -- alt-. is a shell's last argument there, and Files' hidden files here.
-# Keyed "app:action"; DT_AKEY is saved with the rest.
-declare -gA DT_AKEY DT_AKEYNAME
 DT_AKEYORDER=()
 
 # Declare one: the app, the action, what the pane calls it, and the key it
@@ -234,20 +78,6 @@ fn dt_appaction(app, act, name, key = "") {
 	return 0
 }
 
-# Whether key is what an app's action is on.
-fn dt_akeyis(app, act, key) {
-	local b
-
-	[ -n "${DT_AKEY["$app:$act"]}" ] || return 1
-	b := dt_keynorm "$key"
-	dt_keyin "${DT_AKEY["$app:$act"]}" "$b"
-}
-
-# The key an app's action is on, empty for none; dt_rowaccel shows it.
-fn dt_akeyof(app, act) {
-	ret "${DT_AKEY["$app:$act"]}"
-}
-
 # Launch whichever app, if any, has key as its own shortcut -- the general
 # form the desktop's fixed actions are not: any number of apps, not a few
 # of them by name in a case statement.
@@ -261,16 +91,6 @@ fn dt_appkeyed(key) {
 			return 0
 		fi
 	done
-}
-
-# What an action is called: "app:term" is the Terminal app's launch, and
-# anything else is one of the desktop's own.
-fn dt_keylabel(what) {
-	case $what in
-	app:*) ret "${DT_APPS["${what#app:}"]["title"]:-${what#app:}}" ;;
-	act:*) ret "${DT_AKEYNAME["${what#act:}"]:-${what#act:}}" ;;
-	*) ret "${DT_KEYNAME["$what"]:-$what}" ;;
-	esac
 }
 
 # Whether a key is plain: no modifier and not a function key. A plain key
@@ -297,16 +117,6 @@ fn dt_keynav(key) {
 		return 0 ;;
 	esac
 	return 1
-}
-
-# Whether key is one of action's chords, compared in canonical order; an
-# action with no key matches nothing.
-fn dt_keyis(what, key) {
-	local b
-
-	[ -n "${DT_KEYS["$what"]}" ] || return 1
-	b := dt_keynorm "$key"
-	dt_keyin "${DT_KEYS["$what"]}" "$b"
 }
 
 # A bound chord as Blit's `INPUT keep` spells it: ctrl, alt, shift, super
@@ -400,15 +210,6 @@ dt_keepsend() {
 	# session's displays is not open yet, and dt_size asks again.
 	console keep "${w[@]}" 2> /dev/null && DT_KEEPSENT=$out
 	return 0
-}
-
-# The key an action has now, empty for none.
-fn dt_keyof(what) {
-	case $what in
-	app:*) ret "${DT_APPKEY["${what#app:}"]}" ;;
-	act:*) ret "${DT_AKEY["${what#act:}"]}" ;;
-	*) ret "${DT_KEYS["$what"]}" ;;
-	esac
 }
 
 # Give an action a key, its only one, or with an empty one take its keys

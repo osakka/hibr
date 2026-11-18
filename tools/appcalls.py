@@ -298,7 +298,7 @@ def manifest(cls):
     need, stack, why = set(), [n for n, c in cls.items() if c == "local"], {}
     while stack:
         x = stack.pop()
-        if x in need or cls.get(x) in ("request", "declare", "gone"):
+        if x in need or (cls.get(x) or OVERRIDE.get(x)) in ("request", "declare", "gone"):
             continue
         need.add(x)
         for y in calls.get(x, ()):
@@ -348,9 +348,41 @@ def toplevel(rel, cls=None):
     return out
 
 
+SHARED = {}
+
+
+def shared(rel):
+    """Whether a platform file is part of the app interface: it says
+    `# interface: shared` in its header (interface.hibr loads it)."""
+    if rel not in SHARED:
+        try:
+            SHARED[rel] = any(l.startswith("# interface: shared")
+                              for l in open(os.path.join(ROOT, "programs/desktop", rel), errors="replace"))
+        except OSError:
+            SHARED[rel] = False
+    return SHARED[rel]
+
+
+def interface():
+    """The app interface's files in interface.hibr's own order, and the
+    files that say they belong to it: the two must be one list."""
+    text = open(os.path.join(ROOT, "programs/desktop/interface.hibr")).read()
+    m = re.search(r"for dt_part in (.*?); do", text, re.S)
+    listed = ["wm/%s.hibr" % w for w in m.group(1).replace("\\", " ").split()]
+    listed += sorted(os.path.relpath(f, os.path.join(ROOT, "programs/desktop"))
+                     for f in glob.glob(os.path.join(ROOT, "programs/desktop/widgets/*.hibr")))
+    marked = sorted(os.path.relpath(f, os.path.join(ROOT, "programs/desktop"))
+                    for f in glob.glob(os.path.join(ROOT, "programs/desktop/wm/*.hibr")) +
+                    glob.glob(os.path.join(ROOT, "programs/desktop/widgets/*.hibr"))
+                    if shared(os.path.relpath(f, os.path.join(ROOT, "programs/desktop"))))
+    return listed, marked
+
+
 def classify(name, rel):
     if name in OVERRIDE:
         return OVERRIDE[name]
+    if shared(rel):
+        return "local"
     for k, v in BYFILE.items():
         if rel == k or (k.endswith("/") and rel.startswith(k)):
             return v
@@ -478,6 +510,25 @@ def main():
         for b in floors(rows):
             print("FAIL %s: raise its floor" % b)
             fails += 1
+        listed, marked = interface()
+        for f in sorted(set(listed) - set(marked)):
+            print("FAIL interface.hibr loads %s, which does not say `# interface: shared`" % f)
+            fails += 1
+        for f in sorted(set(marked) - set(listed)):
+            print("FAIL %s says `# interface: shared` and interface.hibr does not load it" % f)
+            fails += 1
+        files, stubs, mixed, need = manifest(cls)
+        for f in files:
+            if f.startswith(("wm/", "widgets/")) and f not in listed:
+                print("FAIL the app runtime needs %s from %s, which is not in the app interface: %s" % (
+                      ", ".join(sorted(n for n in need if where.get(n) == f))[:120], f,
+                      "move it to a shared file (tools/appcalls.py --manifest)"))
+                fails += 1
+        for f in listed:
+            for t in toplevel(f, cls):
+                if not re.search(r"\bdt_ticker dt_jobtick\b|^dt_glyphs |^dt_locload$", t):
+                    print("FAIL %s, part of the app interface, registers at load: %s" % (f, t[:80]))
+                    fails += 1
         print("\n%d passed, %d failed" % (len(rows) - len(undecided), fails))
         sys.exit(1 if fails else 0)
 

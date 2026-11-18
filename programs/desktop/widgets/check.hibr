@@ -2,6 +2,7 @@
 # flat or embossed windows, a knob, a block, a tick, or Blit's capsule.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
+# interface: shared
 
 strict
 

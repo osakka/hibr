@@ -31,6 +31,7 @@
 # offset. That costs one `str width` a row to notice and is only paid by a
 # row that actually holds one -- which no picture in sysinfo does and only
 # a CJK label in a diagram does.
+# interface: shared
 
 strict
 

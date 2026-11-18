@@ -21,6 +21,7 @@
 #
 # Part of the window manager; desktop.hibr sources it first, since the
 # frame styles in settings are built from it.
+# interface: shared
 
 strict
 

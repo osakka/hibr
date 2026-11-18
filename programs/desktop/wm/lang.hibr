@@ -22,6 +22,7 @@
 # each of those is left to do it; anything unknown is still hibr's to do.
 #
 # Part of the window manager; desktop.hibr sources it.
+# interface: shared
 
 strict
 
@@ -42,7 +43,6 @@ DT_LANGON=
 DT_LANGRTL=
 # Scratch for a translated label built from a template, before it is handed on.
 DT_T=
-dt_keep DT_BIDI DT_MIRROR
 # Dates as a region writes them (ADR 0034): the Hijri date shown beside
 # the Gregorian one, in which calendar and moved by how many days for local
 # sighting; Western or Arabic-Indic digits; the day a week starts, auto
@@ -58,7 +58,6 @@ DT_WEEKSTART="${DT_WEEKSTART-auto}"
 DT_HCALOK=
 DT_HJCACHE=
 declare -ga DT_MONTHS DT_MONTHSB DT_WDAYS DT_WDAYSA DT_HMONTHS
-dt_keep DT_HCAL DT_HADJ DT_DIGITS DT_WEEKSTART
 
 # dt_tr and dt_trn, the text a person reads in the chosen language, are
 # lib/tr.hibr's, which the login screen shares (Gitea #389).

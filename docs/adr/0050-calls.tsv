@@ -51,9 +51,9 @@ gone	dt_isodrop	wm/isolate.hibr	1	1	told		dt_isodrop(int id, int r, int c, op, .
 gone	dt_isosend	wm/isolate.hibr	1	1	told		dt_isosend(int id, cmd)	-
 gone	dt_isomenus	wm/isolate.hibr	1	1	told		dt_isomenus(int id)	-
 local	dt_tr	lib/tr.hibr	535	82	asked		dt_tr(key, ...rest)	-
-local	dt_has	wm/windows.hibr	432	110	told		dt_has(name)	-
+local	dt_has	wm/names.hibr	432	110	told		dt_has(name)	-
 local	dt_tput	wm/lang.hibr	321	52	told		dt_tput(int id, int r, int c, text, ...rest)	-
-local	dt_want	wm/session.hibr	253	75	told		dt_want(int ms)	-
+local	dt_want	wm/loop.hibr	253	75	told		dt_want(int ms)	-
 local	dt_wreg	widgets/hit.hibr	169	43	told		dt_wreg(id, int r, int c, int w, tag, int? h = "")	-
 local	dt_hit	widgets/hit.hibr	86	52	asked		dt_hit(id, int r, int c)	-
 local	dt_wclear	widgets/hit.hibr	79	47	told		dt_wclear(id)	-
@@ -67,14 +67,14 @@ local	dt_droplist	widgets/dropdown.hibr	45	19	told	dt_droplist > dt_dropat > dt_
 local	dt_focuskey	widgets/button.hibr	44	33	asked		dt_focuskey(key, int? onbtn = "")	-
 local	dt_searchq	widgets/search.hibr	43	14	asked		dt_searchq(int id)	-
 local	dt_job	wm/jobs.hibr	41	25	asked		dt_job(kind, tag, then, ...cmd)	-
-local	dt_log	wm/session.hibr	41	17	told		dt_log(text)	-
+local	dt_log	wm/loop.hibr	41	17	told		dt_log(text)	-
 local	dt_scrollfit	widgets/scrollbar.hibr	38	16	asked		dt_scrollfit(int top, int total, int vis, int? at = "")	-
-local	dt_ms	wm/input.hibr	37	16	asked		dt_ms()	-
+local	dt_ms	wm/loop.hibr	37	16	asked		dt_ms()	-
 local	dt_jobfile	wm/jobs.hibr	36	25	asked		dt_jobfile(int n, which = "out")	-
 local	dt_searchopen	widgets/search.hibr	36	14	told		dt_searchopen(int id)	-
 local	dt_cut	wm/draw.hibr	32	14	asked		dt_cut(t, int n)	-
 local	dt_scrollmove	widgets/scrollbar.hibr	32	21	asked		dt_scrollmove(k, int top, int total, int vis, int? step = "")	-
-local	dt_ticker	wm/session.hibr	32	20	told		dt_ticker(name)	-
+local	dt_ticker	wm/loop.hibr	32	20	told		dt_ticker(name)	-
 local	pe_sync	lib/pim.hibr	32	6	told		pe_sync(srv = "")	-
 local	dt_searchon	widgets/search.hibr	31	14	told		dt_searchon(int id)	-
 local	dt_wdrop	widgets/dropdown.hibr	31	16	told		dt_wdrop(int id, int r, int c, int w, value, tag = "")	-
@@ -82,11 +82,11 @@ local	dt_hotreg	widgets/hit.hibr	31	13	told		dt_hotreg(id, int r, int c, int w, 
 local	pe_dir	lib/pim.hibr	30	6	told		pe_dir(srv)	-
 local	dt_check	widgets/check.hibr	27	11	told		dt_check(int id, int r, int c, int on, label, tag = "")	-
 local	tb_set	widgets/textarea.hibr	24	8	told		tb_set(int id, text = "")	-
-local	dt_wintitle	wm/windows.hibr	23	18	asked		dt_wintitle(app, detail = "")	-
+local	dt_wintitle	wm/names.hibr	23	18	asked		dt_wintitle(app, detail = "")	-
 local	dt_jobvars	wm/jobs.hibr	23	11	asked		dt_jobvars(kind, tag, then, f, ...vars)	-
 local	pe_servers	lib/pim.hibr	22	4	told		pe_servers()	-
-local	dt_needs	wm/apps.hibr	22	9	told	dt_needs > dt_notep	dt_needs(app, f)	-
-local	dt_imgpix	wm/wallpaper.hibr	21	14	told		dt_imgpix()	-
+local	dt_needs	wm/names.hibr	22	9	told	dt_needs > dt_notep	dt_needs(app, f)	-
+local	dt_imgpix	wm/picmode.hibr	21	14	told		dt_imgpix()	-
 local	tb_text	widgets/textarea.hibr	20	8	told		tb_text(int id)	-
 local	dt_hotpen	widgets/hit.hibr	20	13	told		dt_hotpen(id, tag, fg, bg, ...attrs)	-
 local	dt_searchclear	widgets/search.hibr	18	12	told		dt_searchclear(int id)	-
@@ -99,27 +99,27 @@ local	tb_insert	widgets/textarea.hibr	16	8	told		tb_insert(int id, text)	-
 local	dt_searchkey	widgets/search.hibr	15	14	told		dt_searchkey(int id, key)	-
 local	dt_wcol	widgets/hit.hibr	15	5	asked		dt_wcol(int id, int r, tag)	-
 local	dt_ptyjob	wm/jobs.hibr	15	4	asked		dt_ptyjob(kind, tag, then, prompt, ...cmd)	-
-local	dt_imggfx	wm/wallpaper.hibr	14	12	asked		dt_imggfx()	-
+local	dt_imggfx	wm/picmode.hibr	14	12	asked		dt_imggfx()	-
 local	dt_digits	wm/lang.hibr	14	6	asked		dt_digits(t)	-
 local	dt_searchdraw	widgets/search.hibr	14	14	told		dt_searchdraw(int id, int r, int w)	-
 local	dt_scrollview	widgets/scrollbar.hibr	14	13	asked		dt_scrollview(int top, int total, int vis, int sel, seen = "")	-
-local	dt_isdbl	wm/input.hibr	14	10	told		dt_isdbl(int id, item = "")	-
+local	dt_isdbl	wm/loop.hibr	14	10	told		dt_isdbl(int id, item = "")	-
 local	dt_rep	wm/draw.hibr	14	10	asked		dt_rep(int n, s)	-
 local	dt_searchrows	widgets/search.hibr	13	12	asked		dt_searchrows(int id)	-
 local	tb_scroll	widgets/textarea.hibr	12	6	told		tb_scroll(int id, int d)	-
 local	tb_seltext	widgets/textarea.hibr	12	8	told		tb_seltext(int id)	-
-local	dt_akeyis	wm/keys.hibr	12	3	told		dt_akeyis(app, act, key)	-
+local	dt_akeyis	wm/keymatch.hibr	12	3	told		dt_akeyis(app, act, key)	-
 local	dt_tip	widgets/hit.hibr	12	1	told		dt_tip(id, tag, text)	-
 local	dt_jobrunning	wm/jobs.hibr	11	5	asked		dt_jobrunning(kind, tag = "")	-
 local	dt_searchfree	widgets/search.hibr	10	8	told		dt_searchfree(int id)	-
 local	tb_draw	widgets/textarea.hibr	10	8	told		tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "")	-
-local	dt_akeyof	wm/keys.hibr	10	3	asked		dt_akeyof(app, act)	-
-local	dt_dblclear	wm/input.hibr	10	3	told		dt_dblclear()	-
-local	dt_chromeoff	wm/frame.hibr	10	4	asked		dt_chromeoff(...vals)	-
-local	dt_pwlocal	wm/machine.hibr	10	6	told		dt_pwlocal()	-
+local	dt_akeyof	wm/keymatch.hibr	10	3	asked		dt_akeyof(app, act)	-
+local	dt_dblclear	wm/loop.hibr	10	3	told		dt_dblclear()	-
+local	dt_chromeoff	wm/chrome.hibr	10	4	asked		dt_chromeoff(...vals)	-
+local	dt_pwlocal	wm/powerlist.hibr	10	6	told		dt_pwlocal()	-
 local	pk_busy	lib/pkrun.hibr	9	3	told		pk_busy()	-
-local	dt_cellpx	wm/input.hibr	8	4	asked	dt_cellpx > dt_capped	dt_cellpx(int id, int r, int c, int cw, int ch)	-
-local	dt_ploc	wm/prayer.hibr	8	4	asked		dt_ploc()	-
+local	dt_cellpx	wm/loop.hibr	8	4	asked	dt_cellpx > dt_capped	dt_cellpx(int id, int r, int c, int cw, int ch)	-
+local	dt_ploc	wm/prayertimes.hibr	8	4	asked		dt_ploc()	-
 local	dt_hijri	wm/lang.hibr	8	6	asked		dt_hijri(int when = -1)	-
 local	tb_free	widgets/textarea.hibr	8	8	told		tb_free(int id)	-
 local	tb_key	widgets/textarea.hibr	8	8	told		tb_key(int id, key)	-
@@ -129,17 +129,17 @@ local	tb_undo	widgets/textarea.hibr	8	8	told		tb_undo(int id)	-
 local	tb_redo	widgets/textarea.hibr	8	8	told		tb_redo(int id)	-
 local	tb_selall	widgets/textarea.hibr	8	8	told		tb_selall(int id)	-
 local	dt_imepre	wm/ime.hibr	8	5	asked		dt_imepre(int id, at)	-
-local	dt_keyassigned	wm/keys.hibr	8	4	told		dt_keyassigned(key)	-
+local	dt_keyassigned	wm/keymatch.hibr	8	4	told		dt_keyassigned(key)	-
 local	dt_split	widgets/split.hibr	8	4	asked		dt_split(var, int w, int min = 8, int? def = "")	-
 local	bd_row	widgets/bidi.hibr	8	2	told		bd_row(line, int a, int b)	-
-local	dt_davok	wm/remote.hibr	8	4	told		dt_davok()	-
-local	dt_davserver	wm/remote.hibr	8	4	told	dt_davserver > dt_dlgat	dt_davserver(name = "")	-
+local	dt_davok	wm/servers.hibr	8	4	told		dt_davok()	-
+local	dt_davserver	wm/servers.hibr	8	4	told	dt_davserver > dt_dlgat	dt_davserver(name = "")	-
 local	dt_sysdir	wm/state.hibr	8	2	asked		dt_sysdir(kind)	-
 local	dt_watchstart	wm/state.hibr	8	6	told		dt_watchstart(...cmd)	-
-local	dt_keyis	wm/keys.hibr	7	3	told		dt_keyis(what, key)	-
-local	dt_imgm	wm/wallpaper.hibr	6	6	told		dt_imgm(mode = "")	-
-local	dt_pname	wm/prayer.hibr	6	4	asked		dt_pname(int i)	-
-local	dt_live	wm/session.hibr	6	2	told		dt_live(int id, on = "")	-
+local	dt_keyis	wm/keymatch.hibr	7	3	told		dt_keyis(what, key)	-
+local	dt_imgm	wm/picmode.hibr	6	6	told		dt_imgm(mode = "")	-
+local	dt_pname	wm/prayertimes.hibr	6	4	asked		dt_pname(int i)	-
+local	dt_live	wm/loop.hibr	6	2	told		dt_live(int id, on = "")	-
 local	dt_putruns	widgets/putruns.hibr	6	6	told		dt_putruns(int id, int row, int col, text, runs, int off, int room, face, pens)	-
 local	tb_snap	widgets/textarea.hibr	6	2	told		tb_snap(int id, kind)	-
 local	tb_changed	widgets/textarea.hibr	6	2	told		tb_changed(int id)	-
@@ -149,18 +149,18 @@ local	dt_locbyname	wm/locale.hibr	6	2	asked		dt_locbyname(name)	-
 local	dt_locset	wm/locale.hibr	6	2	told	dt_locset > dt_notep	dt_locset(...pairs)	-
 local	dt_locname	wm/locale.hibr	6	2	asked		dt_locname(l)	-
 local	dt_trn	lib/tr.hibr	6	4	asked		dt_trn(int n, one, many, ...rest)	-
-local	dt_pwitems	wm/machine.hibr	6	4	told	dt_pwitems > dt_pwdo	dt_pwitems()	-
+local	dt_pwitems	wm/powerlist.hibr	6	4	told	dt_pwitems > dt_pwdo	dt_pwitems()	-
 local	dt_watchstop	wm/state.hibr	6	6	told		dt_watchstop(fd = "", id = "")	-
 local	dt_watchlines	wm/state.hibr	6	6	told		dt_watchlines(int id)	-
 local	dt_jobmerge	wm/jobs.hibr	6	4	told		dt_jobmerge(...cmd)	-
 local	dt_searchset	widgets/search.hibr	5	3	told		dt_searchset(int id, q)	-
-local	dt_imgwill	wm/wallpaper.hibr	5	3	told		dt_imgwill(mode = "")	-
+local	dt_imgwill	wm/picmode.hibr	5	3	told		dt_imgwill(mode = "")	-
 local	dt_wwhere	widgets/hit.hibr	5	5	asked		dt_wwhere(int id, tag)	-
 local	dt_scrollsel	widgets/scrollbar.hibr	5	5	asked		dt_scrollsel(int sel, int n)	-
 local	pk_run	lib/pkrun.hibr	5	3	told	pk_run > dt_notep	pk_run(kind, title, says, then, ...cmd)	-
 local	dt_bg	wm/glyphs.hibr	5	1	told		dt_bg(name, ...ids)	-
-local	dt_pnext	wm/prayer.hibr	4	4	asked		dt_pnext()	-
-local	dt_ptime	wm/prayer.hibr	4	4	asked		dt_ptime(int t)	-
+local	dt_pnext	wm/prayertimes.hibr	4	4	asked		dt_pnext()	-
+local	dt_ptime	wm/prayertimes.hibr	4	4	asked		dt_ptime(int t)	-
 local	ms_open	lib/mailsync.hibr	4	2	told		ms_open()	-
 local	dt_imeflush	wm/ime.hibr	4	1	asked		dt_imeflush()	-
 local	dt_imekey	wm/ime.hibr	4	3	told		dt_imekey(key, at)	-
@@ -177,14 +177,14 @@ local	dt_slidepos	widgets/slider.hibr	4	1	asked		dt_slidepos(int c, int c0, int 
 local	dt_textpaste	widgets/text.hibr	4	4	asked		dt_textpaste(text, int cur, ins)	-
 local	dt_weekstart	wm/lang.hibr	4	2	asked		dt_weekstart()	-
 local	dt_band	widgets/band.hibr	4	2	told		dt_band(pane, int r0, int c0, int r1, int c1, bg = "")	-
-local	dt_wallimgmode	wm/wallpaper.hibr	4	2	asked		dt_wallimgmode()	-
+local	dt_wallimgmode	wm/picmode.hibr	4	2	asked		dt_wallimgmode()	-
 local	dt_holdsess	wm/hold.hibr	4	4	asked		dt_holdsess()	-
 local	dt_glyphs	wm/glyphs.hibr	4	2	told		dt_glyphs(set = "unicode")	-
 local	dt_langapply	wm/lang.hibr	4	2	told	dt_langapply > dt_rslog	dt_langapply()	-
 local	dt_locinfostart	wm/locale.hibr	4	2	told		dt_locinfostart()	-
 local	dt_locinstall	wm/locale.hibr	4	2	told	dt_locinstall > dt_notep	dt_locinstall(name)	-
-local	dt_keynorm	wm/keys.hibr	4	2	asked		dt_keynorm(k)	-
-local	dt_keyof	wm/keys.hibr	4	2	asked		dt_keyof(what)	-
+local	dt_keynorm	wm/keymatch.hibr	4	2	asked		dt_keynorm(k)	-
+local	dt_keyof	wm/keymatch.hibr	4	2	asked		dt_keyof(what)	-
 local	sy_cpupct	lib/sysstat.hibr	4	4	told		sy_cpupct(key)	-
 local	sy_mempct	lib/sysstat.hibr	4	4	told		sy_mempct()	-
 local	dt_treepre	widgets/tree.hibr	4	2	asked		dt_treepre(int depth, int branch, int? open = 0, int? last = 0, bars = "")	-
@@ -192,9 +192,9 @@ local	dt_treelead	widgets/tree.hibr	4	2	asked		dt_treelead(int depth, int? last 
 local	dt_writelater	wm/jobs.hibr	3	1	told		dt_writelater(f, text, mode = "")	-
 local	dt_jobdir	wm/jobs.hibr	3	3	told		dt_jobdir()	-
 local	dt_btnw	widgets/button.hibr	2	2	asked		dt_btnw(...labels)	-
-local	dt_ptimes	wm/prayer.hibr	2	2	asked		dt_ptimes(int when = -1)	-
+local	dt_ptimes	wm/prayertimes.hibr	2	2	asked		dt_ptimes(int when = -1)	-
 local	dt_jobname	wm/draw.hibr	2	1	told		dt_jobname(what, detail = "")	-
-local	dt_isdark	wm/appmode.hibr	2	1	told		dt_isdark()	-
+local	dt_isdark	wm/chrome.hibr	2	1	told		dt_isdark()	-
 local	dt_omnifree	widgets/omnibox.hibr	2	1	told		dt_omnifree(int id)	-
 local	dt_omniselect	widgets/omnibox.hibr	2	1	told		dt_omniselect(int id)	-
 local	dt_omnilist	widgets/omnibox.hibr	2	1	told		dt_omnilist(int id, int h)	-
@@ -202,7 +202,7 @@ local	dt_omnisig	widgets/omnibox.hibr	2	1	asked		dt_omnisig(int id)	-
 local	dt_omnidraw	widgets/omnibox.hibr	2	1	told		dt_omnidraw(int id, int r, int c, int w, text, int cur, int focused, paste = "")	-
 local	dt_omnikey	widgets/omnibox.hibr	2	1	asked		dt_omnikey(int id, cb, text, int cur, key)	-
 local	dt_omnihit	widgets/omnibox.hibr	2	1	asked		dt_omnihit(int id, int r, int c)	-
-local	dt_fieldedit	wm/files.hibr	2	2	told	dt_fieldedit > dt_clipset	dt_fieldedit(op)	-
+local	dt_fieldedit	widgets/text.hibr	2	2	told	dt_fieldedit > dt_clipset	dt_fieldedit(op)	-
 local	tb_clampc	widgets/textarea.hibr	2	2	told		tb_clampc(int id)	-
 local	tb_wrap	widgets/textarea.hibr	2	2	told		tb_wrap(line, int w)	-
 local	tb_layout	widgets/textarea.hibr	2	2	told		tb_layout(int id, int w)	-
@@ -214,11 +214,11 @@ local	bd_glyph	widgets/bidi.hibr	2	2	told		bd_glyph(int c)	-
 local	bd_at	widgets/bidi.hibr	2	2	told		bd_at(int c)	-
 local	dt_slider	widgets/slider.hibr	2	1	told		dt_slider(int id, int r, int c, int w, int value, int min, int max, tag)	-
 local	dt_hothit	widgets/hit.hibr	2	1	asked		dt_hothit(id, int r, int c)	-
-local	dt_hoveron	wm/session.hibr	2	1	told		dt_hoveron()	-
+local	dt_hoveron	wm/loop.hibr	2	1	told		dt_hoveron()	-
 local	pe_onsync	lib/pim.hibr	2	2	told		pe_onsync(name)	-
-local	dt_isremote	wm/remote.hibr	2	2	told		dt_isremote(p)	-
-local	dt_davname	wm/remote.hibr	2	2	asked		dt_davname(p)	-
-local	dt_ext	wm/handlers.hibr	2	2	asked		dt_ext(path)	-
+local	dt_isremote	wm/servers.hibr	2	2	told		dt_isremote(p)	-
+local	dt_davname	wm/servers.hibr	2	2	asked		dt_davname(p)	-
+local	dt_ext	wm/names.hibr	2	2	asked		dt_ext(path)	-
 local	dt_shortname	wm/draw.hibr	2	2	asked		dt_shortname(role, inst = "", handle = "")	-
 local	dt_procfull	wm/draw.hibr	2	2	asked		dt_procfull(role, sess = "", handle = "", detail = "")	-
 local	cp_colourread	lib/colours.hibr	2	2	told		cp_colourread(n, f)	-
@@ -228,9 +228,9 @@ local	dt_checkmark	widgets/check.hibr	2	2	asked		dt_checkmark(int on)	-
 local	dt_bidion	wm/lang.hibr	2	2	asked		dt_bidion()	-
 local	dt_locsupstart	wm/locale.hibr	2	2	told		dt_locsupstart()	-
 local	pk_helper	lib/pkrun.hibr	2	2	told		pk_helper(action)	-
-local	dt_davclear	wm/remote.hibr	2	2	told	dt_davclear > dt_notep	dt_davclear()	-
-local	dt_keylabel	wm/keys.hibr	2	2	asked		dt_keylabel(what)	-
-local	dt_kblabel	wm/kbd.hibr	2	2	asked		dt_kblabel(int n)	-
+local	dt_davclear	wm/servers.hibr	2	2	told	dt_davclear > dt_notep	dt_davclear()	-
+local	dt_keylabel	wm/keymatch.hibr	2	2	asked		dt_keylabel(what)	-
+local	dt_kblabel	wm/keymatch.hibr	2	2	asked		dt_kblabel(int n)	-
 local	dt_pastefold	widgets/text.hibr	1	1	told		dt_pastefold(t, mode = "")	-
 local	dt_hotcolour	widgets/button.hibr	1	1	asked		dt_hotcolour()	-
 local	dt_lcd	wm/glyphs.hibr	1	1	asked		dt_lcd(text)	-

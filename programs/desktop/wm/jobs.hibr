@@ -41,6 +41,7 @@
 # while a job is live is only a net, for a wake that was somehow lost, and
 # costs a desktop running a 25-minute mail IDLE one wake in five seconds
 # rather than five a second.
+# interface: shared
 
 strict
 
@@ -284,18 +285,6 @@ dt_jobtick() {
 
 command -v dt_ticker > /dev/null && dt_ticker dt_jobtick
 
-# Files the desktop writes for itself -- its settings, the crash snapshot,
-# the clipboard history -- are written by a child, so a slow disk delays a
-# save and never a frame (0.99.546). The owner's root volume spans a USB
-# stick at 24 ms a write, and a snapshot's rename held their desktop 2.7 s
-# from inside the frame loop. The text is made here; a child writes it
-# beside the file and renames it over, which is whole or not at all. One
-# writer at a time for each file: a save made while the last is still
-# going waits, and only the newest waiting text is written, so the last
-# save always wins. dt_writeflush finishes them all before the desktop
-# ends or restarts.
-declare -gA DT_WLPID DT_WLNEXT DT_WLMODE
-
 fn dt_writelater(f, text, mode = "") {
 	if [ -n "${DT_WLPID["$f"]-}" ] && kill -0 "${DT_WLPID["$f"]}" 2> /dev/null; then
 		DT_WLNEXT["$f"]=$text
@@ -320,65 +309,3 @@ fn dt_writego(f, text, mode = "") {
 	unset DT_WLNEXT["$f"]
 	return 0
 }
-
-# A file the desktop is about to remove or to write itself, here and now:
-# its waiting text is dropped and its writer waited for, so neither lands
-# after -- the clipboard's history put back on the disk once keeping it was
-# turned off, or an old crash snapshot over the state a stop just wrote.
-# The pid is the one dt_writego remembered; a pid reused since answers kill
-# -0 too, which costs one needless wait and never a lost write.
-fn dt_writedrop(f) {
-	unset DT_WLNEXT["$f"]
-	[ -n "${DT_WLPID["$f"]-}" ] && wait "${DT_WLPID["$f"]}" 2> /dev/null
-	unset DT_WLPID["$f"]
-	return 0
-}
-
-# Start the next write of any file whose last writer has finished.
-dt_writetick() {
-	local f
-
-	for f in "${!DT_WLNEXT[@]}"; do
-		kill -0 "${DT_WLPID["$f"]}" 2> /dev/null && continue
-		dt_writego "$f" "${DT_WLNEXT["$f"]}" "${DT_WLMODE["$f"]}"
-	done
-	return 0
-}
-
-# A file the desktop is about to read back, settled first: its writer
-# waited for and any waiting text written here and now, so a read never
-# sees an older file than the desktop last wrote -- the start-up's
-# dt_clipload took a history saved a moment before as its first copy only,
-# and dt_save then dt_load read the settings from before the save.
-fn dt_writesettle(f) {
-	[ -n "${DT_WLPID["$f"]-}" ] && wait "${DT_WLPID["$f"]}" 2> /dev/null
-	unset DT_WLPID["$f"]
-	[ -n "${DT_WLNEXT["$f"]+x}" ] || return 0
-	(
-		[ "${DT_WLMODE["$f"]}" = 600 ] && umask 077
-		printf '%s' "${DT_WLNEXT["$f"]}" > "$f.$$.w" && mv -f "$f.$$.w" "$f"
-	) > /dev/null
-	unset DT_WLNEXT["$f"]
-	return 0
-}
-
-# Every write finished before the desktop ends or restarts: the writers
-# waited for, and anything still waiting written here and now.
-dt_writeflush() {
-	local f
-
-	for f in "${!DT_WLPID[@]}"; do
-		wait "${DT_WLPID["$f"]}" 2> /dev/null
-	done
-	for f in "${!DT_WLNEXT[@]}"; do
-		(
-			[ "${DT_WLMODE["$f"]}" = 600 ] && umask 077
-			printf '%s' "${DT_WLNEXT["$f"]}" > "$f.$$.w" && mv -f "$f.$$.w" "$f"
-		) > /dev/null 2>&1
-		unset DT_WLNEXT["$f"]
-	done
-	DT_WLPID=()
-	return 0
-}
-
-command -v dt_ticker > /dev/null && dt_ticker dt_writetick

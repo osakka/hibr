@@ -1022,38 +1022,6 @@ fn dt_hover(int r, int c) {
 	return 0
 }
 
-# Where the pointer was in pixels of the screen at the last mouse report,
-# counted from zero, or empty when the terminal reports cells only (Gitea
-# #370). An app that draws pixels reads it beside the cell it is told; no
-# callback is handed it, since every one declares what it takes.
-DT_PX=
-DT_PY=
-
-# Where in cell r c of a window the pointer was at the last mouse report,
-# as `x y` in a cell of cw by ch -- the caller's own measure, so an app that
-# counts 8 by 16 cells while the terminal's are 10 by 20 still gets a place
-# inside its cell. The middle of the cell when the terminal reports cells
-# only, or the pixel is not in that cell. For an app that turns a click into
-# a point on what it draws: a page, an X screen (Gitea #370).
-fn dt_cellpx(int id, int r, int c, int cw, int ch) {
-	local x=$((cw / 2)) y=$((ch / 2)) g gk tw th ox oy wa
-
-	if [ -n "$DT_PX" ] && [ -n "${DT[$id]["col"]}" ] && g := console gfx 2> /dev/null; then
-		read -r gk tw th <<< "$g"
-		# A window with no frame counts its columns from one left of
-		# itself, as a click on it does.
-		wa=${DT[$id]["col"]}
-		dt_capped "$id" && wa=$((wa - 1))
-		if [ "${tw:-0}" -gt 1 ] && [ "${th:-0}" -gt 1 ]; then
-			ox=$((DT_PX - (wa + c) * tw))
-			oy=$((DT_PY - (${DT[$id]["row"]} + r) * th))
-			[ "$ox" -ge 0 ] && [ "$ox" -lt "$tw" ] && x=$((ox * cw / tw))
-			[ "$oy" -ge 0 ] && [ "$oy" -lt "$th" ] && y=$((oy * ch / th))
-		fi
-	fi
-	ret "$x $y"
-}
-
 # Handle one decoded key or mouse line.
 #
 # The wheel goes to the window under the pointer rather than to the focused
@@ -1567,42 +1535,4 @@ fn dt_event(k) {
 	else
 		dt_appkeyed "$k"
 	fi
-}
-
-# Whether this press in a window is the second of a double click: another
-# press in the same window, on the same item when the caller names one,
-# within DT_DBLMS. An app's _click asks it for itself; the window manager
-# asks it for a window with no chrome. A list names the row, so a press on
-# the selected row long after it was selected is a click and not an open --
-# Files kept its own untimed "pressed this row last" and opened a file on
-# any second click, however slow.
-DT_DBLWIN=
-DT_DBLITEM=
-DT_DBLWT=0
-fn dt_isdbl(int id, item = "") {
-	local now
-
-	now := dt_ms
-	if [ "$DT_DBLWIN" = "$id" ] && [ "$DT_DBLITEM" = "$item" ] &&
-	   [ $((now - DT_DBLWT)) -lt "$DT_DBLMS" ]; then
-		DT_DBLWIN=
-		return 0
-	fi
-	DT_DBLWIN=$id
-	DT_DBLITEM=$item
-	DT_DBLWT=$now
-	return 1
-}
-
-# Forget a first click: what it was on has changed, or a press with a
-# modifier came between.
-dt_dblclear() {
-	DT_DBLWIN=
-}
-
-# Milliseconds, for telling a double click from two.
-dt_ms() {
-	local t=${EPOCHREALTIME/./}
-
-	ret $((t / 1000))
 }

@@ -1,0 +1,94 @@
+# wm/chrome -- how a window's frame looks and whether the desktop is light or dark:
+# the chrome a theme can draw, lightened pens.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+DT_APPMODE="${DT_APPMODE-follow}"
+
+# Whether a value of Frame, Title Bar, Window Buttons, Dialog Buttons or a
+# note's Frame can be drawn with the glyph set in use: curved needs a cell
+# for a rounded top corner, and chalk and slate Blit's window glyphs
+# (blit#140, Blit ADR 0210), which only Blit's own set has. Elsewhere they
+# are drawn as the plain style, so a list shows them dimmed and the arrows
+# step past them. The value is a setting's own word or a row's label.
+fn dt_chromedrawable(v) {
+	case ${v,,} in
+	curved) [ "${GL[capl]}" != " " ] ;;
+	edge) [ -n "${GL[frame-left]-}" ] ;;
+	chalk) [ -n "${GL[chalk-stripe]-}" ] ;;
+	slate) [ -n "${GL[slate-stripe]-}" ] ;;
+	capsule) [ -n "${GL[capsule-on]-}" ] ;;
+	*) return 0 ;;
+	esac
+}
+
+# The values of a list that cannot be drawn with these glyphs, joined for a
+# Control Panel row's CP[..]["dims"]: shown in its list, never offered.
+fn dt_chromeoff(...vals) {
+	local f IFS=$'\x1f'
+	local -a off=()
+
+	for f in "${vals[@]}"; do
+		dt_chromedrawable "$f" || off+=("$f")
+	done
+	ret "${off[*]}"
+}
+
+# The glyph set a value of Frame, Title Bar, Window Buttons or Dialog
+# Buttons draws from: chalk or slate while Blit's glyphs are in force;
+# nothing for any other value, or without them.
+fn dt_chromeset(v) {
+	case $v in
+	edge) [ -n "${GL[frame-left]-}" ] && ret edge ;;
+	chalk) [ -n "${GL[chalk-stripe]-}" ] && ret chalk ;;
+	slate) [ -n "${GL[slate-stripe]-}" ] && ret slate ;;
+	esac
+	ret ""
+}
+
+# A #rrggbb colour moved pct of the way toward white; anything else as it
+# came.
+fn dt_lighten(c, int p) {
+	local r g b
+
+	match "$c" '^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$' ||
+		{ ret "$c"; return 0; }
+	r=$((16#${M[1]})); g=$((16#${M[2]})); b=$((16#${M[3]}))
+	r=$((r + (255 - r) * p / 100))
+	g=$((g + (255 - g) * p / 100))
+	b=$((b + (255 - b) * p / 100))
+	printf -v c '#%02x%02x%02x' "$r" "$g" "$b"
+	ret "$c"
+}
+
+# Whether programs are told the desktop is dark: status 0 when they are.
+dt_isdark() {
+	local m
+
+	m := dt_modename
+	[ "$m" = dark ]
+}
+
+# Whether a colour is light: over half bright, by the eye's own weights.
+fn dt_islight(c) {
+	local r g b
+
+	[[ $c =~ ^#[0-9a-fA-F]{6}$ ]] || return 1
+	r=$((16#${c:1:2}))
+	g=$((16#${c:3:2}))
+	b=$((16#${c:5:2}))
+	[ $(((2126 * r + 7152 * g + 722 * b) / 10000)) -gt 127 ]
+}
+
+# light or dark, as programs are to be told: the setting, or the scheme's.
+dt_modename() {
+	case $DT_APPMODE in
+	light | dark) ret "$DT_APPMODE"; return 0 ;;
+	esac
+	if dt_islight "${DT_FACE:-}"; then ret light; else ret dark; fi
+}

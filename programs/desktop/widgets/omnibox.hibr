@@ -22,6 +22,7 @@
 # Like the textarea, this is a widget that keeps state: the rows on offer,
 # which is highlighted and what was typed, under the window id in DT_OMNI.
 # An app's _close calls dt_omnifree.
+# interface: shared
 
 strict
 

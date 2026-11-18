@@ -2,6 +2,7 @@
 # to it.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
+# interface: shared
 
 strict
 
@@ -759,4 +760,92 @@ fn dt_fieldcut(id) {
 	t := dt_fieldsel || return 1
 	dt_fdtype "$id" backspace 1
 	ret "$t"
+}
+
+# Copy, cut or paste in the focused one-line field, for a window whose app
+# offers no clipboard of its own. Status 1 when there is no field to act
+# on, so dt_edit goes on to say the window cannot do it.
+#
+# Twenty files draw a field with dt_textdraw; eleven had ever called
+# dt_textpaste, none could copy or cut, and the Control Panel -- which
+# hosts more fields than anything else in the desktop -- offered none of
+# the three, so whether a text box had a clipboard depended on which
+# window happened to host it (Gitea #214). This cannot live in dt_textkey:
+# dt_event takes those three keys before any app's own _key is called, so
+# nothing would ever reach it.
+#
+# There is deliberately no write path to an app's own value -- a field's
+# value belongs to its app, the same as a checkbox's does -- so the write
+# is done by **typing**. Every one of those twenty routes keys through
+# dt_textkey, so handing the app's own _key the characters of the
+# clipboard is exactly what a person pasting by hand does, and a cut is
+# ctrl-u then ctrl-k, which dt_textkey already means as "to the start" and
+# "to the end". Nothing per app to implement, and no second rule to keep
+# in step.
+#
+# Copy and Cut take what is selected in the field, the same as every other
+# Copy in the desktop, and say so when nothing is (Gitea #295, which also
+# chose that over the whole field): a field had no selection until then,
+# and its Copy and Cut were the whole of it. Cut is backspace typed over
+# the selection, which dt_textkey takes as "remove what is selected", and
+# Select All is end typed and the far end put at the start.
+fn dt_fieldedit(op) {
+	local cb=${DT[$DT_FOCUS]["key"]} t i c n
+	local -a part
+
+	[ -n "$cb" ] || return 1
+	dt_fieldlive || return 1
+	# Text an input method holds is committed first, where it was typed.
+	dt_imedone
+	case $op in
+	copy | cut)
+		if ! t := dt_fieldsel || [ -z "$t" ]; then
+			# Nothing selected in the field: the window's own selection,
+			# where it has one, is what Copy and Cut mean -- the file a
+			# search found in Files, not the search's own empty text
+			# (the owner, 2026-11-13: "it says Nothing is selected").
+			[ -n "${DT[$DT_FOCUS]["$op"]-}" ] && return 1
+			dt_notep low "Nothing is selected"
+			return 0
+		fi
+		dt_clipset "$t" "$op" text
+		if [ "$op" = cut ]; then
+			dt_appcall "$DT_FOCUS" "$cb" backspace || true
+			dt_notep low "Cut %s characters" "${#t}"
+		else
+			dt_notep low "Copied %s characters" "${#t}"
+		fi
+		return 0
+		;;
+	selall)
+		dt_appcall "$DT_FOCUS" "$cb" end || true
+		[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
+		dt_want 10
+		return 0
+		;;
+	paste)
+		t=$DT_CLIP
+		[ -n "$t" ] || return 0
+		# One line: what was copied across several becomes one, by the
+		# field's own rule, as dt_textpaste folds it.
+		t := dt_pastefold "$t" "${DT_FIELD["paste"]}"
+		n=${#t}
+		if [ "$n" -gt "$DT_FIELDMAX" ]; then
+			t=${t:0:$DT_FIELDMAX}
+			dt_notep low "Pasted the first %s characters of %s" \
+				"$DT_FIELDMAX" "$n"
+		fi
+		# Typed past any input method: a paste is text already.
+		DT_IMEBY=1
+		i=0
+		while [ "$i" -lt "${#t}" ]; do
+			c=${t:$i:1}
+			dt_appcall "$DT_FOCUS" "$cb" "$c" || true
+			i=$((i + 1))
+		done
+		DT_IMEBY=
+		return 0
+		;;
+	esac
+	return 1
 }

@@ -57,19 +57,6 @@ dt_tdone() {
 # about a millisecond, there being no builtin that knows a file's size.
 DT_LOGMAX="${DT_LOGMAX-8388608}"
 
-# A line of the desktop's own on standard error -- its log once dt_open has
-# run -- stamped the way the shell stamps its own there under logtime: the
-# local time, RFC 3339, then `desktop:`. Every line in desktop.log carries
-# when it was written, which is what tells the last start's lines from a
-# week-old one's (Gitea #329). printf's %z has no colon, so one goes in.
-fn dt_log(text) {
-	local t
-
-	printf -v t '%(%Y-%m-%dT%H:%M:%S%z)T' -1
-	printf '%s desktop: %s\n' "${t:0:22}:${t:22}" "$text" >&2
-	return 0
-}
-
 dt_logturn() {
 	local n
 
@@ -442,12 +429,6 @@ dt_close() {
 	console close
 }
 
-# What runs after every frame whether or not any window is drawn --
-# Calendar's reminders, which must go off with no Calendar open. An app
-# registers a function with dt_ticker; it runs once a frame, must be cheap
-# when there is nothing to do, and asks for the frame it next needs with
-# dt_want, so an idle desktop still sleeps.
-DT_TICKERS=()
 # What the desktop does, counted the same on every platform (Gitea #343):
 # wakes of the loop, frames, events, each layer's re-reads of its server --
 # always, since each is one addition -- and while DT_STATON is set, each
@@ -455,14 +436,7 @@ DT_TICKERS=()
 # reads them (wm/ctl.hibr); its reset zeroes them and turns the timing on.
 declare -gA DT_STAT
 DT_STATON=
-declare -gA DT_TICKSRC
 declare -gA DT_TICKGONE
-fn dt_ticker(name) {
-	case " ${DT_TICKERS[*]} " in *" $name "*) return 0 ;; esac
-	DT_TICKERS+=("$name")
-	[ -n "${DT_LOADING-}" ] && DT_TICKSRC["$name"]=$DT_LOADING
-	return 0
-}
 
 # Take off, and put back, the tickers a file registered -- for a file a
 # rescan finds gone, and finds back (dt_barrescan).
@@ -525,46 +499,6 @@ dt_tickers() {
 		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "$f" "$t" "$ap"
 	done
 	[ "${#keep[@]}" = "${#DT_TICKERS[@]}" ] || DT_TICKERS=("${keep[@]}")
-	return 0
-}
-
-# Ask for the next frame within ms, from inside an app's _draw.
-#
-# The request lasts one frame: a game that is paused, hidden or not focused
-# simply stops asking, and the desktop goes back to sleeping until input.
-# An idle desktop must not pay for an animation nobody is watching. The
-# soonest of every ask in a frame wins; anything that shows the time has
-# to ask for its next change, or it stops changing.
-DT_WANT=
-DT_WANTBY=
-# The callback running now, by the name it is timed under, for DT_WANTBY.
-DT_WHO=
-
-# DT_WANTBY keeps who asked for the soonest frame -- the callback running
-# when it was asked (DT_WHO), or the desktop -- so `desktop ctl stats` can
-# say which of them each timed wake was for (woke).
-fn dt_want(int ms) {
-	# A time already past is now: console key takes a negative wait
-	# as none, and the desktop would sleep until a key.
-	[ "$ms" -ge 0 ] || ms=0
-	if [ -z "$DT_WANT" ] || [ "$ms" -lt "$DT_WANT" ]; then
-		DT_WANT=$ms
-		DT_WANTBY=${DT_WHO:-desktop}
-	fi
-}
-
-# Windows playing something that moves. A frame woken by a program's
-# output is held DT_TERMMS apart, which is right for a terminal and halves a
-# video: YouTube's page paints every 33 ms, and held to 70 it showed every
-# second or third paint, ten frames a second (measured from Blit, Gitea
-# #397). A window says so while it plays and stops saying so when it stops.
-declare -gA DT_LIVE
-fn dt_live(int id, on = "") {
-	if [ -z "$on" ]; then
-		unset DT_LIVE["$id"]
-	else
-		DT_LIVE["$id"]=1
-	fi
 	return 0
 }
 
@@ -688,32 +622,11 @@ DT_HOSTACK=
 # test was suddenly true for ever.
 DT_MOUSEWANT=off
 DT_MOUSEHELD=0
-# Whether a display of this held session reports the pointer in pixels by
-# itself, from `hold pixels`, asked in dt_size with the rest of the displays.
-DT_HOVERNAT=0
 # Whether one of a held session's displays can hide its pointer, from
 # `hold pointers`, asked beside it (Gitea #373).
 DT_PTRNAT=0
 # Whether one of them can hold the pointer, from `hold locks` (Gitea #379).
 DT_LOCKNAT=0
-
-# Whether hovering is on: Control Panel > Mouse > Hover, where Auto is on
-# where a display reports pixels by itself -- one of the held session's,
-# or, unheld, the terminal the console asked.
-fn dt_hoveron() {
-	local p
-
-	case $DT_HOVER in
-	on) return 0 ;;
-	off) return 1 ;;
-	esac
-	if [ -n "$HIBR_HOLD" ]; then
-		[ "$DT_HOVERNAT" = 1 ]
-		return
-	fi
-	p := console pixels 2> /dev/null || return 1
-	[ "$p" = on ]
-}
 
 # Set the mode the desktop wants, which is what dt_mousecheck restores to.
 fn dt_mouseset(mode) {

@@ -1,10 +1,31 @@
 # `wm/` — the window manager, one concern to a file
 
 `desktop.hibr` is the window manager's table of contents: it asks for a
-display, then sources these files in the order it names them, then the widget
-library in [`../widgets/`](../widgets/README.md). Each file here defines
-functions and sets state; none of them runs anything while it loads, so each
-can be read on its own, and the order is only for reading.
+display, then sources [`../interface.hibr`](../interface.hibr) -- the app
+interface (ADR 0050): the files here that say `# interface: shared`, and the
+widget library in [`../widgets/`](../widgets/README.md), which every app's
+own process sources too -- and then the rest of these files in the order it
+names them. Each file here defines functions and sets state, so each can be
+read on its own. A shared file acts on nothing the desktop alone owns: a
+request, a declaration or a registration at load belongs in one of the
+others, and `tests/appcalls.py` fails one that does (`tools/appcalls.py
+--manifest` says what the app runtime needs, and from where).
+
+The app interface's own files, beside `state`, `glyphs`, `lang`, `locale`,
+`budget`, `draw`, `jobs` and `ime` below:
+
+| file | what it holds |
+|---|---|
+| `loop.hibr` | what the frame loop offers code on either side of it: `dt_want`, `dt_ticker`, `dt_log`, `dt_ms`, double clicks, a cell's pixels, `dt_live`, hover |
+| `names.hibr` | `dt_has`, `dt_needs`, `dt_wintitle`, `dt_ext` |
+| `keymatch.hibr` | the shortcut a key is: `dt_keynorm`, `dt_keyin`, `dt_keyis`, an app's own actions, the label a key is shown by |
+| `chrome.hibr` | how a frame looks and whether the desktop is light or dark |
+| `servers.hibr` | the WebDAV servers a person has set up, and whether a path is on one |
+| `picmode.hibr` | how a picture is drawn here: pixels, half blocks or characters |
+| `prayertimes.hibr` | prayer times worked out by the salat module; `prayer.hibr` keeps the bar's segment and the notes |
+| `powerlist.hibr` | the power actions this machine offers; `machine.hibr` runs them |
+
+The rest:
 
 | file | what it holds |
 |---|---|

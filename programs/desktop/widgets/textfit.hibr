@@ -12,6 +12,7 @@
 # a space can say so the same way.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
+# interface: shared
 
 strict
 

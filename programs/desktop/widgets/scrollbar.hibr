@@ -1,6 +1,7 @@
 # widgets/scrollbar -- a vertical scrollbar.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
+# interface: shared
 
 strict
 

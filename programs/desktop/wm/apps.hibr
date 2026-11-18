@@ -748,28 +748,6 @@ fn dt_appwin(app) {
 	return 1
 }
 
-# Open a registered app in a fresh window, where dt_place puts it -- in the
-# first free spot, by default. An app may say how big it wants to be at
-# the moment it opens with <app>_size, answering "h w" (the terminal's
-# depends on a setting); otherwise its dt_app size. An app declared `once`
-# has one window at most: launching it again brings that one forward,
-# shown if it was hidden.  Anything after the name goes to its _open.
-# Whether another installed thing is here, for a caller about to use one
-# of its functions -- and when it is not, the same message dt_launch
-# gives, so a person learns what to fetch rather than seeing nothing.
-#
-# An installable may call the platform freely and another installable
-# only behind a check like this one, in the same function (Gitea #262):
-# that is what keeps every link between two apps an optional integration
-# rather than a dependency nothing resolves, and tests/deps.py fails a
-# call that has none. `dt_has` is the quiet form, for an integration
-# that simply does less when the other side is absent.
-fn dt_needs(app, f) {
-	dt_has "$f" && return 0
-	dt_notep high "%s is not installed. Find it in the Catalogue." "$app"
-	return 1
-}
-
 # Open an address (Gitea #423): a mailbox in Mail's New Message when Mail is
 # installed, anything else in the Browser; with neither, it is copied and
 # said so, since a desktop drawn on another machine has nowhere else to send

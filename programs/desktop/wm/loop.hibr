@@ -1,0 +1,178 @@
+# wm/loop -- what the frame loop offers code on either side of it: asking for a
+# frame, tickers, the log, the time in milliseconds, double clicks, a
+# cell's pixels, a window playing something that moves, hover.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+# Whether a display of this held session reports the pointer in pixels by
+# itself, from `hold pixels`, asked in dt_size with the rest of the displays.
+DT_HOVERNAT=0
+
+# Windows playing something that moves. A frame woken by a program's
+# output is held DT_TERMMS apart, which is right for a terminal and halves a
+# video: YouTube's page paints every 33 ms, and held to 70 it showed every
+# second or third paint, ten frames a second (measured from Blit, Gitea
+# #397). A window says so while it plays and stops saying so when it stops.
+declare -gA DT_LIVE
+
+# What runs after every frame whether or not any window is drawn --
+# Calendar's reminders, which must go off with no Calendar open. An app
+# registers a function with dt_ticker; it runs once a frame, must be cheap
+# when there is nothing to do, and asks for the frame it next needs with
+# dt_want, so an idle desktop still sleeps.
+DT_TICKERS=()
+
+declare -gA DT_TICKSRC
+
+# Ask for the next frame within ms, from inside an app's _draw.
+#
+# The request lasts one frame: a game that is paused, hidden or not focused
+# simply stops asking, and the desktop goes back to sleeping until input.
+# An idle desktop must not pay for an animation nobody is watching. The
+# soonest of every ask in a frame wins; anything that shows the time has
+# to ask for its next change, or it stops changing.
+DT_WANT=
+
+DT_WANTBY=
+
+# The callback running now, by the name it is timed under, for DT_WANTBY.
+DT_WHO=
+
+# Where the pointer was in pixels of the screen at the last mouse report,
+# counted from zero, or empty when the terminal reports cells only (Gitea
+# #370). An app that draws pixels reads it beside the cell it is told; no
+# callback is handed it, since every one declares what it takes.
+DT_PX=
+
+DT_PY=
+
+# Whether this press in a window is the second of a double click: another
+# press in the same window, on the same item when the caller names one,
+# within DT_DBLMS. An app's _click asks it for itself; the window manager
+# asks it for a window with no chrome. A list names the row, so a press on
+# the selected row long after it was selected is a click and not an open --
+# Files kept its own untimed "pressed this row last" and opened a file on
+# any second click, however slow.
+DT_DBLWIN=
+
+DT_DBLITEM=
+
+DT_DBLWT=0
+
+# Whether hovering is on: Control Panel > Mouse > Hover, where Auto is on
+# where a display reports pixels by itself -- one of the held session's,
+# or, unheld, the terminal the console asked.
+fn dt_hoveron() {
+	local p
+
+	case $DT_HOVER in
+	on) return 0 ;;
+	off) return 1 ;;
+	esac
+	if [ -n "$HIBR_HOLD" ]; then
+		[ "$DT_HOVERNAT" = 1 ]
+		return
+	fi
+	p := console pixels 2> /dev/null || return 1
+	[ "$p" = on ]
+}
+
+fn dt_live(int id, on = "") {
+	if [ -z "$on" ]; then
+		unset DT_LIVE["$id"]
+	else
+		DT_LIVE["$id"]=1
+	fi
+	return 0
+}
+
+# A line of the desktop's own on standard error -- its log once dt_open has
+# run -- stamped the way the shell stamps its own there under logtime: the
+# local time, RFC 3339, then `desktop:`. Every line in desktop.log carries
+# when it was written, which is what tells the last start's lines from a
+# week-old one's (Gitea #329). printf's %z has no colon, so one goes in.
+fn dt_log(text) {
+	local t
+
+	printf -v t '%(%Y-%m-%dT%H:%M:%S%z)T' -1
+	printf '%s desktop: %s\n' "${t:0:22}:${t:22}" "$text" >&2
+	return 0
+}
+
+fn dt_ticker(name) {
+	case " ${DT_TICKERS[*]} " in *" $name "*) return 0 ;; esac
+	DT_TICKERS+=("$name")
+	[ -n "${DT_LOADING-}" ] && DT_TICKSRC["$name"]=$DT_LOADING
+	return 0
+}
+
+# DT_WANTBY keeps who asked for the soonest frame -- the callback running
+# when it was asked (DT_WHO), or the desktop -- so `desktop ctl stats` can
+# say which of them each timed wake was for (woke).
+fn dt_want(int ms) {
+	# A time already past is now: console key takes a negative wait
+	# as none, and the desktop would sleep until a key.
+	[ "$ms" -ge 0 ] || ms=0
+	if [ -z "$DT_WANT" ] || [ "$ms" -lt "$DT_WANT" ]; then
+		DT_WANT=$ms
+		DT_WANTBY=${DT_WHO:-desktop}
+	fi
+}
+
+# Where in cell r c of a window the pointer was at the last mouse report,
+# as `x y` in a cell of cw by ch -- the caller's own measure, so an app that
+# counts 8 by 16 cells while the terminal's are 10 by 20 still gets a place
+# inside its cell. The middle of the cell when the terminal reports cells
+# only, or the pixel is not in that cell. For an app that turns a click into
+# a point on what it draws: a page, an X screen (Gitea #370).
+fn dt_cellpx(int id, int r, int c, int cw, int ch) {
+	local x=$((cw / 2)) y=$((ch / 2)) g gk tw th ox oy wa
+
+	if [ -n "$DT_PX" ] && [ -n "${DT[$id]["col"]}" ] && g := console gfx 2> /dev/null; then
+		read -r gk tw th <<< "$g"
+		# A window with no frame counts its columns from one left of
+		# itself, as a click on it does.
+		wa=${DT[$id]["col"]}
+		dt_capped "$id" && wa=$((wa - 1))
+		if [ "${tw:-0}" -gt 1 ] && [ "${th:-0}" -gt 1 ]; then
+			ox=$((DT_PX - (wa + c) * tw))
+			oy=$((DT_PY - (${DT[$id]["row"]} + r) * th))
+			[ "$ox" -ge 0 ] && [ "$ox" -lt "$tw" ] && x=$((ox * cw / tw))
+			[ "$oy" -ge 0 ] && [ "$oy" -lt "$th" ] && y=$((oy * ch / th))
+		fi
+	fi
+	ret "$x $y"
+}
+
+# Forget a first click: what it was on has changed, or a press with a
+# modifier came between.
+dt_dblclear() {
+	DT_DBLWIN=
+}
+
+fn dt_isdbl(int id, item = "") {
+	local now
+
+	now := dt_ms
+	if [ "$DT_DBLWIN" = "$id" ] && [ "$DT_DBLITEM" = "$item" ] &&
+	   [ $((now - DT_DBLWT)) -lt "$DT_DBLMS" ]; then
+		DT_DBLWIN=
+		return 0
+	fi
+	DT_DBLWIN=$id
+	DT_DBLITEM=$item
+	DT_DBLWT=$now
+	return 1
+}
+
+# Milliseconds, for telling a double click from two.
+dt_ms() {
+	local t=${EPOCHREALTIME/./}
+
+	ret $((t / 1000))
+}

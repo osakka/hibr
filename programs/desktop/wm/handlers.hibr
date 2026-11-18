@@ -37,18 +37,6 @@ fn dt_handler(ext, ...rest) {
 	DT_HANDLERS[$ext]["n"]=$i
 }
 
-# The extension a name is opened by: everything after the last dot, or
-# empty for one with none -- "Makefile" and ".bashrc" both have none, since
-# a leading dot is the name, not a separator.
-fn dt_ext(path) {
-	local nm=${path##*/}
-
-	case $nm in
-	*.*) ret "${nm##*.}" ;;
-	*) ret "" ;;
-	esac
-}
-
 # A handler's own argv, read by term_open once it is asked to run one
 # instead of hvi: set right here, right before dt_launch term, so term.hibr
 # never has to know this table exists.
@@ -430,4 +418,3 @@ fn dt_termhere(dir) {
 	DT_OPENSHELL=1
 	dt_launch term "$dir"
 }
-

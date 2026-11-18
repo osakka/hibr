@@ -2,6 +2,7 @@
 # under it.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
+# interface: shared
 
 strict
 

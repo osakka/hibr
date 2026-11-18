@@ -17,6 +17,7 @@
 # other columns out from a fixed left edge, so a style that was two columns
 # in one and three in another would move every column in the window when it
 # was changed. `[+]` is three; the arrows are padded to three.
+# interface: shared
 
 strict
 
@@ -25,12 +26,10 @@ strict
 # every desktop here and is still the clearest.
 DT_TREESTYLE="${DT_TREESTYLE-plus}"
 DT_TREESTYLES=(plus arrows triangles dots)
-command -v dt_keep > /dev/null && dt_keep DT_TREESTYLE
 # Whether the rules joining a child to its parent are drawn at all. They
 # cost two columns of depth each and read as clutter in a tree two levels
 # deep, which is why this is a setting and not a style.
 DT_TREELINES="${DT_TREELINES-1}"
-command -v dt_keep > /dev/null && dt_keep DT_TREELINES
 
 TR_OPEN=
 TR_SHUT=

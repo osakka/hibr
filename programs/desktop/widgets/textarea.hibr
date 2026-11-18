@@ -25,6 +25,7 @@
 # Every change bumps TB[$id]["ver"], so an app can tell when to save; it
 # starts again at 0 with tb_set. TB[$id]["gen"] never repeats -- a change
 # or a tb_set gives it a number no text has had -- so it can key a cache.
+# interface: shared
 
 strict
 

@@ -13,10 +13,6 @@
 
 strict
 
-# The list as last read: DT_KB[n]["layout"], ["variant"], ["name"]; how many,
-# which is current, and the count the console moves whenever Blit says the
-# list again, which is the only thing asked each frame.
-declare -gA DT_KB
 DT_KBN=0
 DT_KBCUR=-1
 DT_KBGEN=
@@ -37,7 +33,6 @@ DT_KBRES=
 DT_KBLOC=
 DT_KBLOCAL=
 DT_KBLOCTRY=
-declare -gA DT_KBLABEL
 dt_keep DT_KBLOCAL
 
 # Read the list the console holds.
@@ -75,24 +70,6 @@ dt_kbread() {
 dt_kbshow() {
 	dt_has dt_kbbar && dt_kbbar
 	return 0
-}
-
-# What the bar says for keyboard n: the label an input method gives itself
-# (AR), else its layout in capitals.
-fn dt_kblabel(int n) {
-	local v=${DT_KB[$n]["variant"]-} r
-
-	if [ -n "${DT_KB[$n]["label"]-}" ]; then
-		ret "${DT_KB[$n]["label"]}"
-		return 0
-	fi
-	if [ -n "$v" ] && [ -z "${DT_KBLABEL["$v"]+x}" ]; then
-		DT_KBLABEL["$v"]=
-		[ "$DT_IMEMOD" = 1 ] && r := ime info "$v" 2> /dev/null &&
-			DT_KBLABEL["$v"]=${RET[0]}
-	fi
-	[ -n "$v" ] && [ -n "${DT_KBLABEL["$v"]}" ] && { ret "${DT_KBLABEL["$v"]}"; return 0; }
-	ret "${DT_KB[$n]["layout"]^^}"
 }
 
 # Make keyboard n the one typing: in the desktop's own list it is chosen

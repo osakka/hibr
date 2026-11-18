@@ -1,6 +1,7 @@
 # widgets/button -- push buttons, a row of them, and moving focus.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
+# interface: shared
 
 strict
 

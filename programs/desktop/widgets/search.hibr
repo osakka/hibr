@@ -26,6 +26,7 @@
 # has left it, because a filtered list with nothing on screen to say so is
 # a window lying about what it is showing. Escape clears the query and
 # closes; enter closes and keeps it.
+# interface: shared
 
 strict
 

@@ -12,6 +12,7 @@
 # character, a cluster and a column are the same thing.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
+# interface: shared
 
 strict
 

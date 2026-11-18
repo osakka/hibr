@@ -47,19 +47,15 @@ export DT_T0
 DT_HERE=${BASH_SOURCE%/*}
 [ "$DT_HERE" = "$BASH_SOURCE" ] && DT_HERE=.
 
-# The window manager, one concern to a file. Nothing in them runs a desktop
-# function while loading, so the order is for reading: the state everything
-# shares first, then what is built on it.
-for dt_part in glyphs state settings lang locale session budget windows workspaces tile place frame draw \
+# The app interface first (interface.hibr, ADR 0050): the files the desktop
+# and every app's own process both source, the widgets among them. Then the
+# window manager's own, one concern to a file: the state everything shares
+# first, then what is built on it.
+. "$DT_HERE/interface.hibr"
+for dt_part in settings session windows workspaces tile place frame \
 	wallpaper input keys menus bar context apps \
-	files copying fullscreen keyphase jobs locations remote handlers filepick saver lock icons hold standby notify bus confirm ask restart recover shot clip strip ctl hud prayer vault kbd ime polkit machine native appmode programs isolate; do
+	files copying fullscreen keyphase locations remote handlers filepick saver lock icons hold standby notify bus confirm ask restart recover shot clip strip ctl hud prayer vault kbd polkit machine native appmode programs isolate; do
 	. "$DT_HERE/wm/$dt_part.hibr"
-done
-
-# The widgets apps draw with: a library, every file in widgets/ -- see
-# widgets/README.md for what makes a file belong there.
-for dt_part in "$DT_HERE"/widgets/*.hibr; do
-	. "$dt_part"
 done
 unset dt_part
 # The bar's own items: whatever has been installed in a person's scopes,

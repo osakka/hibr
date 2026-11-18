@@ -21,33 +21,17 @@
 
 strict
 
-declare -gA DRW
-declare -gA DSV
-DR_LIVE=0
 DR_WATCHT=0
 DR_STAMPN=0
-DR_READY=
-DR_JOBS=
-DR_ERRF=
 DSV_RMID=
 DSV_FIELDS=(name url user pass verify test ok del cancel)
-HIBR_DAV_TIMEOUT=
 DAV_CODE=0
 
 # Upload a remote file's copy when it is saved; how long a server may take.
 DT_DAVSAVE="${DT_DAVSAVE-1}"
-DT_DAVTIMEOUT="${DT_DAVTIMEOUT-15}"
 command -v dt_keep > /dev/null && dt_keep DT_DAVSAVE DT_DAVTIMEOUT
 
-# Where copies of remote files are kept while they are open.
-DT_DAVCACHE="${DT_DAVCACHE-${XDG_CACHE_HOME:-$HOME/.cache}/hibr/dav}"
-
 command -v dt_app > /dev/null && dt_app dsv "Server" 15 66 "" "" fixed hidden
-
-# Whether a path is on a server.
-fn dt_isremote(p) {
-	[[ $p == dav://* ]]
-}
 
 # --- a folder on a server, as a location (wm/locations.hibr) ---------------
 #
@@ -143,30 +127,6 @@ fn rdav_delete(...rest) {
 }
 
 command -v dt_location > /dev/null && dt_location dav rdav
-
-# The server a location is on: dav://NAME/x gives NAME.
-fn dt_davname(p) {
-	p=${p#dav://}
-	ret "${p%%/*}"
-}
-
-# The module, a timeout and somewhere to keep jobs' results; once a session.
-dt_davok() {
-	HIBR_DAV_TIMEOUT=$DT_DAVTIMEOUT
-	[ -n "$DR_READY" ] && return 0
-	if ! need dav 2> /dev/null; then
-		DT_WHY="Remote folders need the dav module"
-		return 1
-	fi
-	DR_JOBS="$DT_DAVCACHE/.jobs"
-	DR_ERRF="$DR_JOBS/err"
-	command rm -rf -- "$DR_JOBS" 2> /dev/null
-	if ! command mkdir -p -- "$DR_JOBS" "$DT_DAVCACHE/.stamps" 2> /dev/null; then
-		DT_WHY="Cannot make $DT_DAVCACHE"
-		return 1
-	fi
-	DR_READY=1
-}
 
 # The reason the last dav command gave, from its error file, into DT_WHY.
 fn dt_davwhy(f = "") {
@@ -666,67 +626,7 @@ fn dt_davconflicted(int n, int st) {
 	dt_changed
 }
 
-# Forget every copy and the cache itself -- Control Panel's Clear Cache.
-# A copy with an edit not yet uploaded is kept, and says so.
-dt_davclear() {
-	local f kept=0
-
-	if [ "$DR_LIVE" -gt 0 ]; then
-		dt_notep high "Wait for the transfers running to finish first"
-		return 0
-	fi
-	for f in "${!DRW[@]}"; do
-		if [ -e "$f" ] && [ "$f" -nt "${DRW["$f"]["stamp"]}" ]; then
-			kept=$((kept + 1))
-			continue
-		fi
-		unset DRW["$f"]
-	done
-	if [ "$kept" -gt 0 ]; then
-		dt_notep high "%s edited file(s) not yet saved to a server were kept" "$kept"
-		return 0
-	fi
-	command rm -rf -- "$DT_DAVCACHE" 2> /dev/null
-	DR_READY=
-	dt_notep low "The remote file cache is empty"
-}
-
 # --- a server: the dialog that adds or changes one ------------------------
-
-# Open the dialog, on a server by name or empty for a new one.
-fn dt_davserver(name = "") {
-	local id h=15 w=66 r c s
-
-	dt_davok || { dt_notep high "$DT_WHY"; return 1; }
-	dt_dlgat "$h" "$w"
-	r=$DT_DLGR c=$DT_DLGC h=$DT_DLGH w=$DT_DLGW
-	if [ -n "$name" ]; then
-		id := dt_new "Edit Server" "$h" "$w" "$r" "$c" dsv
-	else
-		id := dt_new "Connect to Server" "$h" "$w" "$r" "$c" dsv
-	fi
-	DSV[$id]["orig"]=$name
-	DSV[$id]["name"]=$name
-	DSV[$id]["url"]=
-	DSV[$id]["user"]=
-	DSV[$id]["pass"]=
-	DSV[$id]["verify"]=1
-	DSV[$id]["haspass"]=
-	DSV[$id]["status"]=
-	DSV[$id]["sgood"]=
-	DSV[$id]["focus"]=name
-	[ -n "$name" ] && DSV[$id]["focus"]=url
-	if [ -n "$name" ] && s := dav servers 2> /dev/null; then
-		DSV[$id]["url"]=${s["$name"]["url"]}
-		DSV[$id]["user"]=${s["$name"]["user"]}
-		DSV[$id]["verify"]=${s["$name"]["verify"]}
-		DSV[$id]["haspass"]=${s["$name"]["haspass"]}
-	fi
-	for c in name url user pass; do
-		DSV[$id]["${c}cur"]=${#DSV[$id]["$c"]}
-	done
-	ret "$id"
-}
 
 # The dialog: four fields, the certificate box, a line for what a test
 # said, and Test, Save, Remove and Cancel.
