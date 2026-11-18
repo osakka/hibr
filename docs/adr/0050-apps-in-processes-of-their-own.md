@@ -84,9 +84,8 @@ carry over; its route does not.
    (done in the prototype).
 7. **A crash or a hang is the app's alone.** An ended app's windows say so
    and offer to start it again; a Restart Desktop finds the host by its pid.
-8. **Moved together, once the Review's counts exist** -- in one release, or
-   kind by kind (staging is not a switch: each kind moves for good), which
-   is the owner's to choose when the counts are in. The suites already open apps
+8. **Moved in one release, every kind** (owner, 2026-11-18: "one release,
+   all kinds"), once the Review's counts are in. The suites already open apps
    through the window manager, so they run against hosted apps unchanged;
    `tests/isolation.py` goes into `all.py` then, passing without `ISO=1`,
    which no longer exists. The prototype's terminal hooks (`term_draw`'s
