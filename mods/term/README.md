@@ -41,7 +41,8 @@ same underlying grid, not the interface itself.
     term key   t name            # a decoded key name, as the program expects it
     term write t text            # raw bytes, to the program
     term feed  t text... | -f file  # bytes into the emulator itself, as if the program wrote them
-    term size  t [rows cols]     # ask, or resize (the program gets SIGWINCH)
+    term size  t [rows cols [cw ch]]  # ask, or resize (the program gets SIGWINCH);
+                                 # cw ch, a cell in pixels, tell it that too
     term alive t                 # status 0 while the program runs
     term status t                # its exit status once it has ended
     term title t                 # what it last called itself with OSC 0 or 2
@@ -49,6 +50,7 @@ same underlying grid, not the interface itself.
     term bell t                  # status 0 if it rang the bell since last asked
     term note t                  # its next notification (OSC 9, 777): title, tab, text
     term gen   t                 # a count that moves whenever the emulator is fed: unchanged means nothing to draw
+    term images t                # the pictures it placed: "id row col rows cols" a line
     term fd    t                 # the pty descriptor, for console watch
     term pid   t                 # the program's process id
     term save  t file            # screen, scrollback, cursor, modes, title -- for a restart

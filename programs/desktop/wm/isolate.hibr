@@ -45,7 +45,7 @@ fn dt_isonew(prefix, file, title, int h, int w, int r = 2, int c = 4) {
 		dt_isozygote || return 1
 		DT_OPENCMD=("$HIBR" "$DT_HERE/lib/appstub.hibr" "$DT_ISOSOCK" "$file" "$prefix" "$title" "$ack" "$fs" "$ft")
 	else
-		DT_OPENCMD=("$HIBR" "$DT_HERE/lib/apphost.hibr" "$file" "$prefix" "$title" "$ack")
+		DT_OPENCMD=(env DT_HERE="$DT_HERE" "$HIBR" "$DT_HERE/lib/apphost.hibr" "$file" "$prefix" "$title" "$ack")
 	fi
 	DT_OPENSELF=1
 	id := dt_new "$title" "$h" "$w" "$r" "$c" term
@@ -99,7 +99,7 @@ dt_isozygote() {
 		[ -n "$zp" ] && kill -0 "$zp" 2> /dev/null && DT_ISOZPID=$zp
 	fi
 	[ -n "$DT_ISOZPID" ] && kill -0 "$DT_ISOZPID" 2> /dev/null && return 0
-	"$HIBR" "$DT_HERE/lib/apphost.hibr" --zygote "$DT_ISOSOCK" "$$" < /dev/null > /dev/null &
+	DT_HERE=$DT_HERE "$HIBR" "$DT_HERE/lib/apphost.hibr" --zygote "$DT_ISOSOCK" "$$" < /dev/null > /dev/null &
 	DT_ISOZPID=$!
 	dt_log "isolated: app host started, pid $!"
 	return 0

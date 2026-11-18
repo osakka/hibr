@@ -271,4 +271,4 @@ t.quit(b"q", 1.0)
 for f in (app, p, MARK, OUT, DROPPED):
     if os.path.exists(f):
         os.unlink(f)
-report(14)
+report(15)

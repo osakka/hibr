@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.550
+
+**Dragging files over a program's window, the program says whether it would
+take them** (Blit 0.3.118, #160 row 1). While files from Files are dragged
+over a program's window the compositor is told where, the program answers,
+and the drag wears a plus or a cross; the drop then goes where the program
+already said yes, under the drag's own number, and a drag that leaves the
+programs' windows, lands elsewhere or is cancelled says so. `frames clip N
+drag|leave` are the new verbs, `clip hover SEQ copy|none` the new news.
+
+**A player's keys draw on every terminal.** The unicode set's pause, stop,
+previous, next and record were the media symbols themselves, which only Noto
+Sans Symbols2 has, so most terminals drew boxes (the Audio Player found it);
+they are now a double vertical line, a square, the arrows to a bar and a
+circle, all in DejaVu Sans Mono. Blit draws the originals, so nothing
+changes there.
+
+**An app in a process of its own, the prototype** (ADR 0050, on main and
+switched off: nothing opens an app this way yet). An app hosted this way
+runs in a desktop of its own, forked from one prepared host, and is shown
+through a terminal window: an app that sleeps, spins or blocks stops only
+its own window, which is marked "(not responding)". Its menus are on the
+bar, its settings saved by the desktop, Copy, Paste and drops reach it, and
+its pictures come as pixels by descriptor; `tests/isolation.py ISO=1`,
+`tests/isoapps.py` and `tests/isopix.py` hold it. The ADR has the
+measurements. For it, `term size` takes a cell's pixel size and `term images`
+lists the pictures a program placed.
+
 ## 0.99.549
 
 **A script that left a terminal open crashed on its way out.** `term`

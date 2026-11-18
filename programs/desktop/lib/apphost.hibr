@@ -20,7 +20,9 @@ declare -g HS_PID="" hs_sock="" hs_parent="" HS_LFD="" HS_C=""
 unset HIBR_HOLD DT_SUPERVISED DT_RESTORE HIBR_TESTIDLE
 DT_SUPERVISE=off
 need console || exit 1
-. "${BASH_SOURCE%/*}/../desktop.hibr"
+# The desktop's own folder, from the desktop that started this one: a path
+# made from this file's place is only right in the shipped tree.
+. "${DT_HERE:?the desktop that starts an app host says where it is}/desktop.hibr"
 DT_HOSTED=1
 
 # Run one app on this process's standard input and output, which are its
