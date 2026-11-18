@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.551
+
+**Dragging out of a program** (Blit 0.3.120, #160 row 3). A program that
+starts a drag out of its window -- a file from a GTK file chooser, a tab or
+a link from Firefox -- hands it to the desktop, which carries it from the
+program's own press: let go on the desktop or in Files, the files it offers
+are dropped there as any drag of files is; let go on another program, the
+compositor gives that program the first one's data; escape cancels it. The
+program is told what became of it each time. A compositor carries a drag
+out only to a desktop that says so (`drag=1`, from this release), so an
+older hibr is never left with a program window deaf to the mouse.
+
 ## 0.99.550
 
 **Dragging files over a program's window, the program says whether it would
