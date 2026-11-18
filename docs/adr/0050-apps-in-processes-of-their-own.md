@@ -186,9 +186,18 @@ running desktop does not. So:
   running desktop was started with, even after an upgrade on disk; a
   zygote needed later is forked from the old one, never read from disk.
   The hello carries `HIBR_VERSION` and a protocol number, and a process
-  started any other way that disagrees is refused, and said so. (An
-  edited development tree with the same version is not caught; that is
-  said, not hidden.)
+  started any other way that disagrees is refused: that app does not open,
+  and a note says hibr was updated and offers Restart Desktop, which keeps
+  the terminals' programs (owner, 2026-11-18) -- nothing runs half old and
+  half new. (An edited development tree with the same version is not
+  caught; that is said, not hidden.)
+- **Background work is declared** (owner, 2026-11-18). An app process
+  lives while the app has a window, unless the app declares work with
+  none -- Calendar's reminders (`cv_alarms`), the calendar and contacts
+  sync timer (`pe_tick`) -- in which case it keeps a process for the
+  session, as a bar item does, measured and blamed like any app and shown
+  in Task Manager. What only serves an open window (Files watching the
+  folder it shows) is not background work and goes with the window.
 - **Libraries are a second tier.** Loaded once, into the zygote, in
   `dt_libs`' order -- as today, "sourced once per desktop" -- so Calendar
   and Contacts never run two copies of `lib/pim` against one store after a
