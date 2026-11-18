@@ -378,6 +378,65 @@ def interface():
     return listed, marked
 
 
+STUBS = os.path.join(ROOT, "programs", "desktop", "requests.hibr")
+
+
+def stubargs(sig):
+    """A signature's parameters as the words a stub forwards them with."""
+    inner = sig[sig.index("(") + 1:sig.rindex(")")].strip()
+    if not inner:
+        return '"$@"'
+    out = []
+    for p in inner.split(","):
+        p = p.split("=")[0].strip()
+        words = p.split()
+        if not words:
+            continue
+        nm = words[-1]
+        if nm.startswith("..."):
+            out.append('"${%s[@]}"' % nm[3:])
+        else:
+            out.append('"$%s"' % nm)
+    return " ".join(out)
+
+
+def tablerows():
+    """The calls table as written, the contract: stubs come from it, never
+    from whichever installables one run happens to read."""
+    return [l.rstrip("\n").split("\t") for l in open(OUT)
+            if l.strip() and not l.startswith("#")]
+
+
+def stubtext(rows):
+    """requests.hibr: every request and declaration in the calls table as a
+    function of the same signature that sends itself to the desktop, for
+    the app runtime to source after interface.hibr (ADR 0050). Generated,
+    and checked against the table: never edited by hand."""
+    out = ["#!/usr/bin/env hibr", "#",
+           "# requests -- the app interface's other half (ADR 0050): every request and",
+           "# declaration an app may make of the desktop, as a function with the",
+           "# platform's own signature that sends itself to the desktop over the",
+           "# app's socket (dt_rtsend, runtime.hibr). The app runtime sources it after",
+           "# interface.hibr; the desktop never does. Generated from",
+           "# docs/adr/0050-calls.tsv by `tools/appcalls.py --stubs`: never edit it by",
+           "# hand, and tests/appcalls.py fails when it is not what the table says.",
+           "", "strict", ""]
+    for r in sorted(rows, key=lambda r: r[1]):
+        cls, name, sig, answer = r[0], r[1], r[7], r[5]
+        if cls not in ("request", "declare") or not sig:
+            continue
+        params = sig[sig.index("(") + 1:sig.rindex(")")].strip()
+        head = "fn %s(%s)" % (name, params) if params else "%s()" % name
+        verb = "declare" if cls == "declare" else ("ask" if answer == "asked" else "tell")
+        out.append("# %s, %s." % ({"declare": "Declared to the desktop", "ask": "Asked of the desktop",
+                                    "tell": "Told to the desktop"}[verb], r[2]))
+        out.append("%s {" % head)
+        out.append("\tdt_rtsend %s %s %s" % (verb, name, stubargs(sig)))
+        out.append("}")
+        out.append("")
+    return "\n".join(out)
+
+
 def classify(name, rel):
     if name in OVERRIDE:
         return OVERRIDE[name]
@@ -461,6 +520,10 @@ def main():
                     print("           at load: %s" % t[:90])
             else:
                 print("  whole  %s" % f)
+    if "--stubs" in sys.argv:
+        open(STUBS, "w").write(stubtext(tablerows()))
+        print("wrote", os.path.relpath(STUBS, ROOT))
+        return
     if "--writes" in sys.argv:
         files, stubs, mixed, need = manifest(cls)
         state = {}
@@ -509,6 +572,10 @@ def main():
             fails += len(broken)
         for b in floors(rows):
             print("FAIL %s: raise its floor" % b)
+            fails += 1
+        if not os.path.exists(STUBS) or open(STUBS).read() != stubtext(tablerows()):
+            print("FAIL programs/desktop/requests.hibr is not what the calls table says: "
+                  "run tools/appcalls.py --stubs")
             fails += 1
         listed, marked = interface()
         for f in sorted(set(listed) - set(marked)):

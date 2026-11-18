@@ -1,0 +1,891 @@
+#!/usr/bin/env hibr
+#
+# requests -- the app interface's other half (ADR 0050): every request and
+# declaration an app may make of the desktop, as a function with the
+# platform's own signature that sends itself to the desktop over the
+# app's socket (dt_rtsend, runtime.hibr). The app runtime sources it after
+# interface.hibr; the desktop never does. Generated from
+# docs/adr/0050-calls.tsv by `tools/appcalls.py --stubs`: never edit it by
+# hand, and tests/appcalls.py fails when it is not what the table says.
+
+strict
+
+# Declared to the desktop, wm/strip.hibr.
+fn cs_dropopen(int r, int c, cb, ...rest) {
+	dt_rtsend declare cs_dropopen "$r" "$c" "$cb" "${rest[@]}"
+}
+
+# Declared to the desktop, wm/strip.hibr.
+fn cs_module(name, title, w = "") {
+	dt_rtsend declare cs_module "$name" "$title" "$w"
+}
+
+# Declared to the desktop, wm/strip.hibr.
+fn cs_moduleswitch(name, var, fn = "") {
+	dt_rtsend declare cs_moduleswitch "$name" "$var" "$fn"
+}
+
+# Declared to the desktop, wm/strip.hibr.
+cs_ordered() {
+	dt_rtsend declare cs_ordered "$@"
+}
+
+# Declared to the desktop, wm/strip.hibr.
+cs_relist() {
+	dt_rtsend declare cs_relist "$@"
+}
+
+# Declared to the desktop, wm/apps.hibr.
+fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "", bare = "") {
+	dt_rtsend declare dt_app "$name" "$title" "$h" "$w" "$once" "$icon" "$fixed" "$hidden" "$bare"
+}
+
+# Declared to the desktop, wm/keys.hibr.
+fn dt_appaction(app, act, name, key = "") {
+	dt_rtsend declare dt_appaction "$app" "$act" "$name" "$key"
+}
+
+# Asked of the desktop, wm/apps.hibr.
+dt_appnames() {
+	dt_rtsend ask dt_appnames "$@"
+}
+
+# Told to the desktop, wm/apps.hibr.
+fn dt_appunvia(via) {
+	dt_rtsend tell dt_appunvia "$via"
+}
+
+# Told to the desktop, wm/apps.hibr.
+fn dt_appvia(name, title, via, arg = "", dir = "") {
+	dt_rtsend tell dt_appvia "$name" "$title" "$via" "$arg" "$dir"
+}
+
+# Told to the desktop, wm/ask.hibr.
+fn dt_ask(title, label, value, then, hint = "", masked = "", int width = 54, cancelled = "") {
+	dt_rtsend tell dt_ask "$title" "$label" "$value" "$then" "$hint" "$masked" "$width" "$cancelled"
+}
+
+# Declared to the desktop, wm/apps.hibr.
+fn dt_atstart(f) {
+	dt_rtsend declare dt_atstart "$f"
+}
+
+# Told to the desktop, wm/workspaces.hibr.
+fn dt_away(int id) {
+	dt_rtsend tell dt_away "$id"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_barhook(fn) {
+	dt_rtsend declare dt_barhook "$fn"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_baridraw(name, fn) {
+	dt_rtsend declare dt_baridraw "$name" "$fn"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_barikbd(name) {
+	dt_rtsend declare dt_barikbd "$name"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_barilabel(name, label) {
+	dt_rtsend declare dt_barilabel "$name" "$label"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_baripop(name, who, int h, int w) {
+	dt_rtsend declare dt_baripop "$name" "$who" "$h" "$w"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_baripress(name, fn) {
+	dt_rtsend declare dt_baripress "$name" "$fn"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_bariright(name, ...cmd) {
+	dt_rtsend declare dt_bariright "$name" "${cmd[@]}"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_barishown(name) {
+	dt_rtsend declare dt_barishown "$name"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_baristop(name, fn) {
+	dt_rtsend declare dt_baristop "$name" "$fn"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_bariswitch(name, var, fn = "") {
+	dt_rtsend declare dt_bariswitch "$name" "$var" "$fn"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_baritem(name, text = "", ...cmd) {
+	dt_rtsend declare dt_baritem "$name" "$text" "${cmd[@]}"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_baritoggle(name) {
+	dt_rtsend declare dt_baritoggle "$name"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_bariwheel(name, fn) {
+	dt_rtsend declare dt_bariwheel "$name" "$fn"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_barmenu(name, who, id = "") {
+	dt_rtsend declare dt_barmenu "$name" "$who" "$id"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_barput(int col, t) {
+	dt_rtsend declare dt_barput "$col" "$t"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+dt_barreading() {
+	dt_rtsend declare dt_barreading "$@"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_bellglyph(style) {
+	dt_rtsend declare dt_bellglyph "$style"
+}
+
+# Told to the desktop, wm/standby.hibr.
+fn dt_blank(nm) {
+	dt_rtsend tell dt_blank "$nm"
+}
+
+# Told to the desktop, wm/frame.hibr.
+fn dt_btnhidden(k) {
+	dt_rtsend tell dt_btnhidden "$k"
+}
+
+# Told to the desktop, wm/frame.hibr.
+dt_btnlist() {
+	dt_rtsend tell dt_btnlist "$@"
+}
+
+# Told to the desktop, wm/bus.hibr.
+fn dt_busoff(w, fn) {
+	dt_rtsend tell dt_busoff "$w" "$fn"
+}
+
+# Told to the desktop, wm/bus.hibr.
+fn dt_buson(w, fn) {
+	dt_rtsend tell dt_buson "$w" "$fn"
+}
+
+# Told to the desktop, wm/frame.hibr.
+fn dt_capped(int id) {
+	dt_rtsend tell dt_capped "$id"
+}
+
+# Told to the desktop, wm/files.hibr.
+dt_changed() {
+	dt_rtsend tell dt_changed "$@"
+}
+
+# Told to the desktop, wm/clip.hibr.
+dt_clipclear() {
+	dt_rtsend tell dt_clipclear "$@"
+}
+
+# Told to the desktop, wm/clip.hibr.
+fn dt_clipdel(int id) {
+	dt_rtsend tell dt_clipdel "$id"
+}
+
+# Told to the desktop, wm/clip.hibr.
+fn dt_clipkeep(text, kind = text) {
+	dt_rtsend tell dt_clipkeep "$text" "$kind"
+}
+
+# Told to the desktop, wm/clip.hibr.
+fn dt_clippin(int id) {
+	dt_rtsend tell dt_clippin "$id"
+}
+
+# Told to the desktop, wm/clip.hibr.
+dt_clipsave() {
+	dt_rtsend tell dt_clipsave "$@"
+}
+
+# Told to the desktop, wm/clip.hibr.
+fn dt_clipset(text, op = copy, kind = text, send = 1) {
+	dt_rtsend tell dt_clipset "$text" "$op" "$kind" "$send"
+}
+
+# Told to the desktop, wm/clip.hibr.
+dt_cliptrim() {
+	dt_rtsend tell dt_cliptrim "$@"
+}
+
+# Told to the desktop, wm/clip.hibr.
+fn dt_clipuse(int id) {
+	dt_rtsend tell dt_clipuse "$id"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_clocktext(fmt, int when) {
+	dt_rtsend declare dt_clocktext "$fmt" "$when"
+}
+
+# Told to the desktop, wm/windows.hibr.
+dt_close_focused() {
+	dt_rtsend tell dt_close_focused "$@"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_closereq(int id) {
+	dt_rtsend tell dt_closereq "$id"
+}
+
+# Told to the desktop, wm/wallpaper.hibr.
+dt_colours() {
+	dt_rtsend tell dt_colours "$@"
+}
+
+# Told to the desktop, wm/confirm.hibr.
+fn dt_confirm(msg, cmd, owner = "") {
+	dt_rtsend tell dt_confirm "$msg" "$cmd" "$owner"
+}
+
+# Told to the desktop, wm/context.hibr.
+fn dt_context_open(who, id, int r, int c) {
+	dt_rtsend tell dt_context_open "$who" "$id" "$r" "$c"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_del(int id) {
+	dt_rtsend tell dt_del "$id"
+}
+
+# Told to the desktop, wm/icons.hibr.
+dt_deskscan() {
+	dt_rtsend tell dt_deskscan "$@"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+fn dt_dim(label) {
+	dt_rtsend declare dt_dim "$label"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_dlgat(int h, int w, int? m = "") {
+	dt_rtsend tell dt_dlgat "$h" "$w" "$m"
+}
+
+# Told to the desktop, wm/files.hibr.
+dt_dnd() {
+	dt_rtsend tell dt_dnd "$@"
+}
+
+# Told to the desktop, wm/files.hibr.
+fn dt_edit(op) {
+	dt_rtsend tell dt_edit "$op"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+fn dt_editdo(op) {
+	dt_rtsend declare dt_editdo "$op"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+dt_editmenu() {
+	dt_rtsend declare dt_editmenu "$@"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+dt_end() {
+	dt_rtsend declare dt_end "$@"
+}
+
+# Told to the desktop, wm/copying.hibr.
+fn dt_fileop(op, dst, ...rest) {
+	dt_rtsend tell dt_fileop "$op" "$dst" "${rest[@]}"
+}
+
+# Told to the desktop, wm/filepick.hibr.
+fn dt_filepick(mode, title, types, dir, name, callback, for, oncancel = "") {
+	dt_rtsend tell dt_filepick "$mode" "$title" "$types" "$dir" "$name" "$callback" "$for" "$oncancel"
+}
+
+# Told to the desktop, wm/files.hibr.
+fn dt_fopsave(kind, ...rest) {
+	dt_rtsend tell dt_fopsave "$kind" "${rest[@]}"
+}
+
+# Told to the desktop, wm/files.hibr.
+fn dt_fopundo(op) {
+	dt_rtsend tell dt_fopundo "$op"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_handler(ext, ...rest) {
+	dt_rtsend tell dt_handler "$ext" "${rest[@]}"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_hidden(int id) {
+	dt_rtsend tell dt_hidden "$id"
+}
+
+# Told to the desktop, wm/hold.hibr.
+fn dt_identify(name, int row, int col, int rows, int cols) {
+	dt_rtsend tell dt_identify "$name" "$row" "$col" "$rows" "$cols"
+}
+
+# Asked of the desktop, wm/windows.hibr.
+dt_ids() {
+	dt_rtsend ask dt_ids "$@"
+}
+
+# Told to the desktop, wm/standby.hibr.
+fn dt_isblank(nm) {
+	dt_rtsend tell dt_isblank "$nm"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_isbundle(path) {
+	dt_rtsend tell dt_isbundle "$path"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+dt_item() {
+	dt_rtsend declare dt_item "$@"
+}
+
+# Told to the desktop, wm/kbd.hibr.
+fn dt_kbset(int n) {
+	dt_rtsend tell dt_kbset "$n"
+}
+
+# Declared to the desktop, wm/settings.hibr.
+dt_keep() {
+	dt_rtsend declare dt_keep "$@"
+}
+
+# Declared to the desktop, wm/restart.hibr.
+fn dt_keepstate(app, ...maps) {
+	dt_rtsend declare dt_keepstate "$app" "${maps[@]}"
+}
+
+# Told to the desktop, wm/keyphase.hibr.
+fn dt_keyphases(int id, on) {
+	dt_rtsend tell dt_keyphases "$id" "$on"
+}
+
+# Told to the desktop, wm/keys.hibr.
+fn dt_keyswap(from, to) {
+	dt_rtsend tell dt_keyswap "$from" "$to"
+}
+
+# Asked of the desktop, wm/apps.hibr.
+fn dt_launch(n, arg = "") {
+	dt_rtsend ask dt_launch "$n" "$arg"
+}
+
+# Told to the desktop, wm/native.hibr.
+dt_launched() {
+	dt_rtsend tell dt_launched "$@"
+}
+
+# Told to the desktop, wm/locations.hibr.
+fn dt_location(scheme, prefix, app = "") {
+	dt_rtsend tell dt_location "$scheme" "$prefix" "$app"
+}
+
+# Told to the desktop, wm/locations.hibr.
+fn dt_loccan(p, op) {
+	dt_rtsend tell dt_loccan "$p" "$op"
+}
+
+# Asked of the desktop, wm/locations.hibr.
+fn dt_locof(p) {
+	dt_rtsend ask dt_locof "$p"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+fn dt_mark(lb, k, int on, ...rest) {
+	dt_rtsend declare dt_mark "$lb" "$k" "$on" "${rest[@]}"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+dt_mclose() {
+	dt_rtsend declare dt_mclose "$@"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+fn dt_menu(title) {
+	dt_rtsend declare dt_menu "$title"
+}
+
+# Told to the desktop, wm/appmode.hibr.
+fn dt_modehook(fn) {
+	dt_rtsend tell dt_modehook "$fn"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_move(int id, int r, int c) {
+	dt_rtsend tell dt_move "$id" "$r" "$c"
+}
+
+# Told to the desktop, wm/native.hibr.
+dt_natcell() {
+	dt_rtsend tell dt_natcell "$@"
+}
+
+# Told to the desktop, wm/native.hibr.
+dt_natlayout() {
+	dt_rtsend tell dt_natlayout "$@"
+}
+
+# Asked of the desktop, wm/windows.hibr.
+fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
+	dt_rtsend ask dt_new "$title" "$h" "$w" "$row" "$col" "$ap" "$arg"
+}
+
+# Told to the desktop, wm/notify.hibr.
+fn dt_note(text, ...rest) {
+	dt_rtsend tell dt_note "$text" "${rest[@]}"
+}
+
+# Told to the desktop, wm/notify.hibr.
+fn dt_notehist_clear(prio) {
+	dt_rtsend tell dt_notehist_clear "$prio"
+}
+
+# Told to the desktop, wm/notify.hibr.
+fn dt_notehist_del(int hid) {
+	dt_rtsend tell dt_notehist_del "$hid"
+}
+
+# Told to the desktop, wm/notify.hibr.
+fn dt_notehist_run(int hid) {
+	dt_rtsend tell dt_notehist_run "$hid"
+}
+
+# Asked of the desktop, wm/notify.hibr.
+fn dt_notehist_what(int hid) {
+	dt_rtsend ask dt_notehist_what "$hid"
+}
+
+# Told to the desktop, wm/notify.hibr.
+fn dt_notep(prio, text, ...rest) {
+	dt_rtsend tell dt_notep "$prio" "$text" "${rest[@]}"
+}
+
+# Told to the desktop, wm/notify.hibr.
+dt_noteq() {
+	dt_rtsend tell dt_noteq "$@"
+}
+
+# Told to the desktop, wm/notify.hibr.
+fn dt_notify(text, ...rest) {
+	dt_rtsend tell dt_notify "$text" "${rest[@]}"
+}
+
+# Told to the desktop, wm/notify.hibr.
+fn dt_notifyp(prio, text, ...rest) {
+	dt_rtsend tell dt_notifyp "$prio" "$text" "${rest[@]}"
+}
+
+# Told to the desktop, wm/apps.hibr.
+fn dt_onunload(stop, start = "") {
+	dt_rtsend tell dt_onunload "$stop" "$start"
+}
+
+# Asked of the desktop, wm/handlers.hibr.
+fn dt_openbrowse(path) {
+	dt_rtsend ask dt_openbrowse "$path"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_opener(name, title, types, how, app = "", kind = "") {
+	dt_rtsend tell dt_opener "$name" "$title" "$types" "$how" "$app" "$kind"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_openers(path, kind = "") {
+	dt_rtsend tell dt_openers "$path" "$kind"
+}
+
+# Asked of the desktop, wm/handlers.hibr.
+fn dt_openertitle(name, ext = "") {
+	dt_rtsend ask dt_openertitle "$name" "$ext"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_openerverb(ext, label, app, call = "", when = "") {
+	dt_rtsend tell dt_openerverb "$ext" "$label" "$app" "$call" "$when"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_openfile(path) {
+	dt_rtsend tell dt_openfile "$path"
+}
+
+# Told to the desktop, wm/apps.hibr.
+fn dt_openlink(u) {
+	dt_rtsend tell dt_openlink "$u"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_openverb(int n, ...paths) {
+	dt_rtsend tell dt_openverb "$n" "${paths[@]}"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_openverbs(...paths) {
+	dt_rtsend tell dt_openverbs "${paths[@]}"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_openwith(name, path) {
+	dt_rtsend tell dt_openwith "$name" "$path"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_openwithcmd(cmd, path) {
+	dt_rtsend tell dt_openwithcmd "$cmd" "$path"
+}
+
+# Told to the desktop, wm/context.hibr.
+fn dt_panelpane(pane) {
+	dt_rtsend tell dt_panelpane "$pane"
+}
+
+# Asked of the desktop, wm/prayer.hibr.
+dt_pbar() {
+	dt_rtsend ask dt_pbar "$@"
+}
+
+# Told to the desktop, wm/polkit.hibr.
+dt_pkstart() {
+	dt_rtsend tell dt_pkstart "$@"
+}
+
+# Told to the desktop, wm/polkit.hibr.
+dt_pkstop() {
+	dt_rtsend tell dt_pkstop "$@"
+}
+
+# Asked of the desktop, wm/place.hibr.
+fn dt_place(int h, int w) {
+	dt_rtsend ask dt_place "$h" "$w"
+}
+
+# Told to the desktop, wm/input.hibr.
+fn dt_pointer(int id, shape = "") {
+	dt_rtsend tell dt_pointer "$id" "$shape"
+}
+
+# Told to the desktop, wm/input.hibr.
+fn dt_pointerlock(int id, on) {
+	dt_rtsend tell dt_pointerlock "$id" "$on"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+dt_popclose() {
+	dt_rtsend declare dt_popclose "$@"
+}
+
+# Told to the desktop, wm/programs.hibr.
+dt_progload() {
+	dt_rtsend tell dt_progload "$@"
+}
+
+# Told to the desktop, wm/programs.hibr.
+dt_progsave() {
+	dt_rtsend tell dt_progsave "$@"
+}
+
+# Told to the desktop, wm/input.hibr.
+dt_ptrlockcan() {
+	dt_rtsend tell dt_ptrlockcan "$@"
+}
+
+# Told to the desktop, wm/machine.hibr.
+fn dt_pwdo(what) {
+	dt_rtsend tell dt_pwdo "$what"
+}
+
+# Told to the desktop, wm/machine.hibr.
+dt_pwgo() {
+	dt_rtsend tell dt_pwgo "$@"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_raise(int id) {
+	dt_rtsend tell dt_raise "$id"
+}
+
+# Told to the desktop, wm/apps.hibr.
+dt_rescan() {
+	dt_rtsend tell dt_rescan "$@"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_resize(int id, int h, int w) {
+	dt_rtsend tell dt_resize "$id" "$h" "$w"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_retitle(int id, title) {
+	dt_rtsend tell dt_retitle "$id" "$title"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+fn dt_rowaccel(text) {
+	dt_rtsend declare dt_rowaccel "$text"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+fn dt_rowtext(text) {
+	dt_rtsend declare dt_rowtext "$text"
+}
+
+# Told to the desktop, wm/restart.hibr.
+fn dt_rscarry(int fd, int pid) {
+	dt_rtsend tell dt_rscarry "$fd" "$pid"
+}
+
+# Told to the desktop, wm/restart.hibr.
+fn dt_rsclaim(int fd) {
+	dt_rtsend tell dt_rsclaim "$fd"
+}
+
+# Told to the desktop, wm/restart.hibr.
+fn dt_rslog(text) {
+	dt_rtsend tell dt_rslog "$text"
+}
+
+# Told to the desktop, wm/settings.hibr.
+dt_save() {
+	dt_rtsend tell dt_save "$@"
+}
+
+# Told to the desktop, wm/saver.hibr.
+dt_saverload() {
+	dt_rtsend tell dt_saverload "$@"
+}
+
+# Told to the desktop, wm/saver.hibr.
+fn dt_saverstart(how = "") {
+	dt_rtsend tell dt_saverstart "$how"
+}
+
+# Told to the desktop, wm/standby.hibr.
+dt_sbauto() {
+	dt_rtsend tell dt_sbauto "$@"
+}
+
+# Told to the desktop, wm/standby.hibr.
+fn dt_sbcall(nm) {
+	dt_rtsend tell dt_sbcall "$nm"
+}
+
+# Told to the desktop, wm/standby.hibr.
+dt_sbscan() {
+	dt_rtsend tell dt_sbscan "$@"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+dt_sep() {
+	dt_rtsend declare dt_sep "$@"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_setgeom(int id, int r, int c, int h, int w) {
+	dt_rtsend tell dt_setgeom "$id" "$r" "$c" "$h" "$w"
+}
+
+# Told to the desktop, wm/shot.hibr.
+dt_shot() {
+	dt_rtsend tell dt_shot "$@"
+}
+
+# Told to the desktop, wm/vault.hibr.
+fn dt_signmark(int id, int r, int c) {
+	dt_rtsend tell dt_signmark "$id" "$r" "$c"
+}
+
+# Told to the desktop, wm/session.hibr.
+dt_size() {
+	dt_rtsend tell dt_size "$@"
+}
+
+# Told to the desktop, wm/workspaces.hibr.
+fn dt_sticky(int id, on = "") {
+	dt_rtsend tell dt_sticky "$id" "$on"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+fn dt_sub(label, key = "") {
+	dt_rtsend declare dt_sub "$label" "$key"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+fn dt_subtext(text) {
+	dt_rtsend declare dt_subtext "$text"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_swflip(var) {
+	dt_rtsend declare dt_swflip "$var"
+}
+
+# Declared to the desktop, wm/bar.hibr.
+fn dt_swon(var) {
+	dt_rtsend declare dt_swon "$var"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_termhere(dir) {
+	dt_rtsend tell dt_termhere "$dir"
+}
+
+# Told to the desktop, wm/tile.hibr.
+fn dt_tile(int? n = "") {
+	dt_rtsend tell dt_tile "$n"
+}
+
+# Asked of the desktop, wm/windows.hibr.
+fn dt_title(int id) {
+	dt_rtsend ask dt_title "$id"
+}
+
+# Told to the desktop, wm/files.hibr.
+dt_trash() {
+	dt_rtsend tell dt_trash "$@"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+dt_trashask() {
+	dt_rtsend declare dt_trashask "$@"
+}
+
+# Declared to the desktop, wm/menus.hibr.
+dt_trashcount() {
+	dt_rtsend declare dt_trashcount "$@"
+}
+
+# Told to the desktop, wm/vault.hibr.
+fn dt_vw(input, ...args) {
+	dt_rtsend tell dt_vw "$input" "${args[@]}"
+}
+
+# Told to the desktop, wm/vault.hibr.
+dt_vwacct() {
+	dt_rtsend tell dt_vwacct "$@"
+}
+
+# Told to the desktop, wm/vault.hibr.
+fn dt_vwcopy(field, id) {
+	dt_rtsend tell dt_vwcopy "$field" "$id"
+}
+
+# Told to the desktop, wm/vault.hibr.
+fn dt_vwdialog(mode) {
+	dt_rtsend tell dt_vwdialog "$mode"
+}
+
+# Told to the desktop, wm/vault.hibr.
+fn dt_vwfill(win = "") {
+	dt_rtsend tell dt_vwfill "$win"
+}
+
+# Told to the desktop, wm/vault.hibr.
+fn dt_vwget(field, id) {
+	dt_rtsend tell dt_vwget "$field" "$id"
+}
+
+# Asked of the desktop, wm/vault.hibr.
+fn dt_vwhost(addr) {
+	dt_rtsend ask dt_vwhost "$addr"
+}
+
+# Told to the desktop, wm/vault.hibr.
+fn dt_vwjob(tag, then, f, ...vars) {
+	dt_rtsend tell dt_vwjob "$tag" "$then" "$f" "${vars[@]}"
+}
+
+# Told to the desktop, wm/vault.hibr.
+dt_vwlock() {
+	dt_rtsend tell dt_vwlock "$@"
+}
+
+# Asked of the desktop, wm/vault.hibr.
+fn dt_vwmatch(host) {
+	dt_rtsend ask dt_vwmatch "$host"
+}
+
+# Told to the desktop, wm/vault.hibr.
+fn dt_vwpick(host, callback) {
+	dt_rtsend tell dt_vwpick "$host" "$callback"
+}
+
+# Asked of the desktop, wm/vault.hibr.
+dt_vwstate() {
+	dt_rtsend ask dt_vwstate "$@"
+}
+
+# Told to the desktop, wm/vault.hibr.
+fn dt_vwsyncnow(int hand = 0) {
+	dt_rtsend tell dt_vwsyncnow "$hand"
+}
+
+# Asked of the desktop, wm/vault.hibr.
+dt_vwuntil() {
+	dt_rtsend ask dt_vwuntil "$@"
+}
+
+# Told to the desktop, wm/wallpaper.hibr.
+fn dt_walldisp(name, img = "", mode = "", pic = "") {
+	dt_rtsend tell dt_walldisp "$name" "$img" "$mode" "$pic"
+}
+
+# Asked of the desktop, wm/wallpaper.hibr.
+dt_walldrawn() {
+	dt_rtsend ask dt_walldrawn "$@"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_wantclose(int id) {
+	dt_rtsend tell dt_wantclose "$id"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_windisp(int id) {
+	dt_rtsend tell dt_windisp "$id"
+}
+
+# Told to the desktop, wm/workspaces.hibr.
+fn dt_wsgo(int n) {
+	dt_rtsend tell dt_wsgo "$n"
+}
+
+# Told to the desktop, wm/workspaces.hibr.
+fn dt_wsset(int n) {
+	dt_rtsend tell dt_wsset "$n"
+}
+
+# Told to the desktop, wm/filepick.hibr.
+fn fp_go(int id, d) {
+	dt_rtsend tell fp_go "$id" "$d"
+}
+
+# Told to the desktop, wm/filepick.hibr.
+fn fp_path(int id, int i) {
+	dt_rtsend tell fp_path "$id" "$i"
+}

@@ -9,7 +9,12 @@ names them. Each file here defines functions and sets state, so each can be
 read on its own. A shared file acts on nothing the desktop alone owns: a
 request, a declaration or a registration at load belongs in one of the
 others, and `tests/appcalls.py` fails one that does (`tools/appcalls.py
---manifest` says what the app runtime needs, and from where).
+--manifest` says what the app runtime needs, and from where). The other
+half is [`../requests.hibr`](../requests.hibr): every request and
+declaration in the calls table as a function of the platform's own
+signature that sends itself to the desktop. It is generated from the table
+(`tools/appcalls.py --stubs`), sourced only by the app runtime, never by the
+desktop, and `tests/appcalls.py` fails when it is not what the table says.
 
 The app interface's own files, beside `state`, `glyphs`, `lang`, `locale`,
 `budget`, `draw`, `jobs` and `ime` below:
