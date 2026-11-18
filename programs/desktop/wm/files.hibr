@@ -97,7 +97,7 @@ fn dt_ondrop(int mr, int mc, mods) {
 		wr=${DT[$id]["row"]}
 		wc=${DT[$id]["col"]}
 		DT_NOTEWIN=$id
-		dt_appcall "$id" "$ap" $((mr - wr)) $((mc - wc)) "$op" "${src[@]}"
+		dt_wincall "$id" "$ap" $((mr - wr)) $((mc - wc)) "$op" "${src[@]}"
 		return 0
 	fi
 	dt_has dt_natleave && dt_natleave
@@ -274,7 +274,7 @@ dt_changed() {
 	dt_wins
 	for id in "${DT_WINS[@]}"; do
 		cb=${DT[$id]["refresh"]}
-		[ -n "$cb" ] && DT_NOTEWIN=$id && dt_appcall "$id" "$cb"
+		[ -n "$cb" ] && DT_NOTEWIN=$id && dt_wincall "$id" "$cb"
 	done
 	DT_NOTEWIN=
 	dt_has dt_deskscan && dt_deskscan
@@ -417,23 +417,23 @@ fn dt_fieldundo(op) {
 	dt_imedone
 	DT_IMEBY=1
 	DT_FWANT=1
-	dt_appcall "$DT_FOCUS" "$cb" end || true
+	dt_wincall "$DT_FOCUS" "$cb" end || true
 	[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
 	if [ -z "$t" ]; then
-		dt_appcall "$DT_FOCUS" "$cb" backspace || true
+		dt_wincall "$DT_FOCUS" "$cb" backspace || true
 	else
 		i=0
 		while [ "$i" -lt "${#t}" ]; do
-			dt_appcall "$DT_FOCUS" "$cb" "${t:$i:1}" || true
+			dt_wincall "$DT_FOCUS" "$cb" "${t:$i:1}" || true
 			i=$((i + 1))
 		done
 	fi
-	dt_appcall "$DT_FOCUS" "$cb" home || true
+	dt_wincall "$DT_FOCUS" "$cb" home || true
 	# The cursor goes back a cluster to an arrow, as the field moves it.
 	n := dt_clcount "$t" 0 "$n"
 	i=0
 	while [ "$i" -lt "$n" ]; do
-		dt_appcall "$DT_FOCUS" "$cb" right || true
+		dt_wincall "$DT_FOCUS" "$cb" right || true
 		i=$((i + 1))
 	done
 	DT_IMEBY=
@@ -485,11 +485,11 @@ fn dt_edit(op) {
 		return 0
 	fi
 	if [ "$op" = paste ]; then
-		[ -n "$DT_CLIP" ] && dt_appcall "$DT_FOCUS" "$cb" "$DT_CLIP" "${DT_CLIPOP:-copy}"
+		[ -n "$DT_CLIP" ] && dt_wincall "$DT_FOCUS" "$cb" "$DT_CLIP" "${DT_CLIPOP:-copy}"
 		return 0
 	fi
 	DT_CLIPKIND=text
-	if ! t := dt_appget "$DT_FOCUS" "$cb" || [ -z "$t" ]; then
+	if ! t := dt_winget "$DT_FOCUS" "$cb" || [ -z "$t" ]; then
 		dt_notep low "Nothing is selected"
 		return 0
 	fi

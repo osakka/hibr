@@ -340,8 +340,14 @@ is where a hosted app's call will be sent. A shared file (`# interface:
 shared`) runs in whichever process called it, so its sites are local, and
 shared code calling into an app -- `dt_idlecall` was one, and moved to
 `wm/session.hibr` -- fails the check, as does a call into an app by a
-name anywhere but the seam. `tests/appcalls.py` fails on a site no rule
-classes, and on any difference from the committed table -- keyed on the
+name anywhere but the seam. A window's input handlers reach it the same
+way: the desktop's 30 calls of `dt_appcall`/`dt_appget` (a key, a click,
+the mouse, the wheel, focus, a paste, a drop) go through `dt_wincall`/
+`dt_winget`, which route by the window's app through `dt_appfn` and are
+timed by `dt_appcall` in the process that runs it; a direct call from a
+desktop file fails the check, which a census of dynamic calls alone could
+not see, since that call is made inside the shared `budget.hibr`.
+`tests/appcalls.py` fails on a site no rule classes, and on any difference from the committed table -- keyed on the
 function and the call's own text, not its line -- so a new call inside a
 listed function is classed on purpose.
 

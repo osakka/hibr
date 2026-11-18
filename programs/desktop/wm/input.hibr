@@ -36,12 +36,12 @@ fn dt_altclick(int id, btn, int mr, int mc, mods = "") {
 	dt_capped "$id" && wa=$((wc - 1))
 	mo=${DT[$id]["mouse"]}
 	if [ -n "$mo" ]; then
-		dt_appcall "$id" "$mo" press "$btn" $((mr - wr)) $((mc - wa)) "$mods"
-		dt_appcall "$id" "$mo" release "$btn" $((mr - wr)) $((mc - wa)) "$mods"
+		dt_wincall "$id" "$mo" press "$btn" $((mr - wr)) $((mc - wa)) "$mods"
+		dt_wincall "$id" "$mo" release "$btn" $((mr - wr)) $((mc - wa)) "$mods"
 		return 0
 	fi
 	ap=${DT[$id]["click"]}
-	[ -n "$ap" ] && dt_appcall "$id" "$ap" $((mr - wr)) $((mc - wa)) "$btn"
+	[ -n "$ap" ] && dt_wincall "$id" "$ap" $((mr - wr)) $((mc - wa)) "$btn"
 	return 0
 }
 
@@ -191,7 +191,7 @@ dt_mouse() {
 				return 0
 			fi
 			if dt_isdbl "$id"; then
-				[ -n "$ap" ] && dt_appcall "$id" "$ap" $((mr - wr)) $((mc - wa)) double
+				[ -n "$ap" ] && dt_wincall "$id" "$ap" $((mr - wr)) $((mc - wa)) double
 				return 0
 			fi
 			DT_DRAG=$id
@@ -238,7 +238,7 @@ dt_mouse() {
 			mo=${DT[$id]["mouse"]}
 			if [ -n "$mo" ]; then
 				DT_MOUSE=$id
-				dt_appcall "$id" "$mo" press "$1" $((mr - wr)) $((mc - wa)) \
+				dt_wincall "$id" "$mo" press "$1" $((mr - wr)) $((mc - wa)) \
 					"$mods"
 				return 0
 			fi
@@ -251,10 +251,10 @@ dt_mouse() {
 			# A key named in a hint is a button for it (dt_khint).
 			if [ "$1" = left ] && [ -n "${DT[$id]["key"]-}" ] &&
 			   kt := dt_hit "$id" $((mr - wr)) $((mc - wa)) && [[ $kt == key:* ]]; then
-				dt_appcall "$id" "${DT[$id]["key"]}" "${kt#key:}"
+				dt_wincall "$id" "${DT[$id]["key"]}" "${kt#key:}"
 				return 0
 			fi
-			[ -n "$ap" ] && dt_appcall "$id" "$ap" $((mr - wr)) $((mc - wa)) "$1"
+			[ -n "$ap" ] && dt_wincall "$id" "$ap" $((mr - wr)) $((mc - wa)) "$1"
 			return 0
 		fi
 		b := dt_btnat "$id" $((mc - wc))
@@ -394,7 +394,7 @@ dt_mouse() {
 			dt_capped "$id" && wa=$((wa - 1))
 			[ "$act" = release ] && DT_MOUSE=
 			[ -n "$mo" ] &&
-				dt_appcall "$id" "$mo" "$act" "$1" $((mr - wr)) $((mc - wa)) \
+				dt_wincall "$id" "$mo" "$act" "$1" $((mr - wr)) $((mc - wa)) \
 					"$mods"
 			DT_DNDR=$mr
 			DT_DNDC=$mc
@@ -582,7 +582,7 @@ dt_mouse() {
 		wr=${DT[$id]["row"]}
 		wa=${DT[$id]["col"]}
 		dt_capped "$id" && wa=$((wa - 1))
-		dt_appcall "$id" "$ap" "${act#wheel}" $((mr - wr)) $((mc - wa))
+		dt_wincall "$id" "$ap" "${act#wheel}" $((mr - wr)) $((mc - wa))
 		;;
 	esac
 }
@@ -718,7 +718,7 @@ dt_ptrunlock() {
 	DT_PTRNOW=-
 	[ -n "${DT[$id]["mouse"]+x}" ] || return 0
 	mo=${DT[$id]["mouse"]}
-	[ -n "$mo" ] && dt_appcall "$id" "$mo" unlock none 0 0 ""
+	[ -n "$mo" ] && dt_wincall "$id" "$mo" unlock none 0 0 ""
 	return 0
 }
 
@@ -746,7 +746,7 @@ fn dt_ptrrel(act, btn, int dx, int dy) {
 	mo=${DT[$id]["mouse"]}
 	act=${act##*-}
 	[ "$act" = move ] || [ "$act" = drag ] && act=rel
-	[ -n "$mo" ] && dt_appcall "$id" "$mo" "$act" "$btn" "$dy" "$dx" rel
+	[ -n "$mo" ] && dt_wincall "$id" "$mo" "$act" "$btn" "$dy" "$dx" rel
 	return 0
 }
 
@@ -1069,7 +1069,7 @@ fn dt_mbtnev(k) {
 		wr=${DT[$id]["row"]}
 		wa=${DT[$id]["col"]}
 		dt_capped "$id" && wa=$((wa - 1))
-		dt_appcall "$id" "${DT[$id]["mouse"]}" "$act" "$b" \
+		dt_wincall "$id" "${DT[$id]["mouse"]}" "$act" "$b" \
 			$((${ev[3]} - wr)) $((${ev[4]} - wa)) "${mods%-}"
 	fi
 	return 0
@@ -1132,7 +1132,7 @@ fn dt_event(k) {
 						dt_full_focused
 					return 0
 				fi
-				dt_appcall "$DT_KEYSWIN" "${DT[$DT_KEYSWIN]["key"]}" "$k"
+				dt_wincall "$DT_KEYSWIN" "${DT[$DT_KEYSWIN]["key"]}" "$k"
 				return 0
 			fi
 			;;
@@ -1433,7 +1433,7 @@ fn dt_event(k) {
 	fi
 	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
 		DT_NOTEWIN=$DT_FOCUS
-		if dt_appcall "$DT_FOCUS" "${DT[$DT_FOCUS]["key"]}" "$k"; then
+		if dt_wincall "$DT_FOCUS" "${DT[$DT_FOCUS]["key"]}" "$k"; then
 			[ -n "$DT_KEYHELD" ] && DT_KH[$DT_FOCUS]["$DT_KEYHELD"]=$k
 			return 0
 		fi

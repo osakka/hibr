@@ -879,7 +879,7 @@ fn dt_editdo(op) {
 		return 0
 	fi
 	DT_NOTEWIN=$DT_FOCUS
-	dt_appcall "$DT_FOCUS" "$cb" || dt_notep low "Nothing to %s" "$op"
+	dt_wincall "$DT_FOCUS" "$cb" || dt_notep low "Nothing to %s" "$op"
 	return 0
 }
 

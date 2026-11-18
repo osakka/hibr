@@ -93,6 +93,22 @@ def shared(rel):
     return SHAREDF[rel]
 
 
+def direct():
+    """The desktop's own calls of dt_appcall or dt_appget by name: an input
+    handler reached around the seam, which a dynamic-call census cannot see
+    -- the dynamic call is inside the shared budget.hibr. Only wm/rtserve's
+    dt_wincall and dt_winget may make them."""
+    out = []
+    for f in sorted(glob.glob(os.path.join(ROOT, "programs/desktop/wm/*.hibr"))):
+        rel = os.path.relpath(f, os.path.join(ROOT, "programs/desktop"))
+        if shared(rel) or rel == "wm/rtserve.hibr":
+            continue
+        for c in records(f, "calls").get("calls", []):
+            if c.get("name") in ("dt_appcall", "dt_appget"):
+                out.append((rel, c["span"]["line"], c.get("owner", "")))
+    return out
+
+
 def classify(site, own):
     rel, ln, owner, text = site
     if shared(rel):
@@ -160,6 +176,11 @@ def main():
         for r in cross:
             print("FAIL %s:%d in %s calls into an app by a name, not through dt_appfn "
                   "(ADR 0050)" % (r[1], r[2], r[3]))
+        around = direct()
+        for r in around:
+            print("FAIL %s:%d in %s calls a window's handler with dt_appcall or dt_appget "
+                  "directly: dt_wincall or dt_winget, the seam's (ADR 0050)" % r)
+        cross = cross + around
         fails = len(bad) + len(diff[0]) + len(diff[1]) + len(cross)
         print("\n%d passed, %d failed" % (len(rows) - len(bad), fails))
         sys.exit(1 if fails else 0)

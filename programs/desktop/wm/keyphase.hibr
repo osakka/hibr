@@ -62,7 +62,7 @@ fn dt_keyletgo(int id) {
 		DT_KEYCODE=$c
 		[[ $c =~ ^[0-9]+$ ]] || DT_KEYCODE=0
 		DT_KEYBASE=0
-		dt_appcall "$id" "$fn" "$n"
+		dt_wincall "$id" "$fn" "$n"
 	done
 	DT_KEYPHASE=press
 	DT_KEYCODE=0
@@ -71,7 +71,7 @@ fn dt_keyletgo(int id) {
 	if [ "$DT_MOUSE" = "$id" ]; then
 		DT_MOUSE=
 		[ -n "${DT[$id]["mouse"]-}" ] &&
-			dt_appcall "$id" "${DT[$id]["mouse"]}" release left 0 0 ""
+			dt_wincall "$id" "${DT[$id]["mouse"]}" release left 0 0 ""
 	fi
 	return 0
 }
@@ -147,9 +147,9 @@ dt_focuscheck() {
 	[ "$w" = "$old" ] && return 0
 	DT_FOCUSWIN=$w
 	if [ -n "$old" ] && [ -n "${DT[$old]["focus"]-}" ]; then
-		dt_appcall "$old" "${DT[$old]["focus"]}" off
+		dt_wincall "$old" "${DT[$old]["focus"]}" off
 	fi
-	[ -n "$w" ] && dt_appcall "$w" "${DT[$w]["focus"]}" on
+	[ -n "$w" ] && dt_wincall "$w" "${DT[$w]["focus"]}" on
 	return 0
 }
 
@@ -174,7 +174,7 @@ fn dt_keyphase(k) {
 		return 1
 	fi
 	if [ -n "${DT_KH[$id]["$h"]+x}" ]; then
-		dt_appcall "$id" "${DT[$id]["key"]}" "${DT_KH[$id]["$h"]}"
+		dt_wincall "$id" "${DT[$id]["key"]}" "${DT_KH[$id]["$h"]}"
 		[ "$DT_KEYPHASE" = release ] && unset DT_KH["$id"]["$h"]
 	fi
 	DT_KEYPHASE=press
