@@ -246,8 +246,15 @@ today, measured from both sides:
    in every app, the data shared**, and it measures as shared: a process
    that has loaded Arabizi (14.5 MB) forks three children, each opens its
    own engine in **0 ms** and types a word, and each owns **0.1 MB** of its
-   own -- the four together cost about one engine. So the zygote loads the
-   method the keyboard names, and loads again when the keyboard changes. The cycle and teach chords are taken in the desktop's
+   own -- the four together cost about one engine. Loaded **after** the
+   fork it is not shared: three running apps that each open one when the
+   keyboard switches to Arabizi mid-session take **143 to 150 ms** each --
+   a stall at the budget's own line -- and **14.6 MB** of their own. So the
+   zygote loads, when it starts, every method a configured keyboard names
+   (`ime_feed` checks the person's own layer each time, `im_fresh`, so a
+   word taught later still reaches every engine); a keyboard added during
+   the session costs the apps already running that load once, and the
+   zygote starts again for the next. The cycle and teach chords are taken in the desktop's
    key path before the window, and only while the desktop's engine holds a
    word (`dt_imeaction`); with the word held in the app, the app tells the
    desktop it holds one, and those chords go down to it. A held word is
@@ -282,7 +289,8 @@ today, measured from both sides:
    the desktop no more than 1% of a core beside the app's own; and the
    heaviest installable, the Terminal, with three programs each writing
    every 10 ms -- the case CLAUDE.md has a baseline for -- costs the desktop
-   no more than it does today.
+   no more than it does today; nor does a screen saver redrawing the whole
+   screen every frame, the heaviest hosted window there is.
 3. **Every kind, said.** Of the catalogue's thirteen kinds (CAT_KINDS):
    apps (31) and system apps (7) are processes with windows; Control Panel
    panes (48), Control Strip modules (9), menu bar items (10) and savers
@@ -302,7 +310,20 @@ today, measured from both sides:
    installable; it declares its rows, the Control Panel's window (platform)
    draws them, and a change to a desktop setting is a **request the desktop
    accepts only for a setting that pane declared on its rows**, refused
-   otherwise, as the keep rule refuses a hosted app's. The 12 that draw
+   otherwise, as the keep rule refuses a hosted app's. **What "declared"
+   is, mechanically:** a row names a setter function, not a variable, so
+   the allowlist is the `DT_KEEP` names a process's own files assign, read
+   from those files (inspect, never run) when it starts. That also covers
+   the eight settings written outside a pane -- the image viewer's Set as
+   Wallpaper (`DT_WALLIMG`), Prayer Times' place (`DT_PLAT`, `DT_PLON`),
+   the cursor, shadow and wallpaper strip modules (`DT_CURSOR`,
+   `DT_SHADOW`, `DT_GLYPH`, `DT_WALLIMG`) and the network bar item
+   (`DT_NETRULE`) -- which have no rows to declare them on. **And an app
+   reads what it just wrote:** a pane sets a setting and draws its row from
+   it, the Video player sets its window's place and reads it back, `dt_new`
+   is followed by `DT[$id]` -- so the runtime applies its own change to its
+   mirror at once, sends the request, and puts the old value back if the
+   desktop refuses it, saying so in the log. The 12 that draw
    draw into a region of the Control Panel's window, as a hosted window
    draws into its pane. **The unit is the installable, not the `dt_app` name**: a part
    shares its owner's state (Audio Player's pane reads the app's names), and
@@ -370,16 +391,30 @@ today, measured from both sides:
    converted, never left. Shared code moves into a library each process
    sources (Calendar's card for Mail); an action becomes a request the
    desktop routes to the other app's process (add a contact, list a folder
-   again), as the clipboard and open-with already are. Two entries are
-   never put in one process: from outside they could not be told apart,
-   which the sensitivity requirement forbids. **A bundle's members are one
-   process (owner, 2026-11-18)**: one feature split by kind, measured and
-   blamed under the bundle's name, which is the name the person sees; a
-   member installed alone runs alone. The 157 calls stay as they are. Library state does fork: each process has its
+   again), as the clipboard and open-with already are. Two separate
+   features are never put in one process: from outside they could not be
+   told apart, which the sensitivity requirement forbids. **A bundle's
+   members are one process (owner, 2026-11-18)**: one feature split by
+   kind, measured and blamed under the bundle's name, which is the name the
+   person sees; a member installed alone runs alone. The 157 calls stay as
+   they are. **What says so on an installed machine is `# needs:`**, the
+   only link an installed file carries: the members of a process are the
+   desktop installables joined by `needs`, leaving out command-line entries
+   and libraries (or Calendar, Contacts and Mail would merge through
+   `lib/pim`). Over the catalogue that rule gives exactly the six bundles
+   -- Wiretap's four entries, Longwire's three, Bluetooth, Network, Power
+   and Sound's two each -- and merges nothing else. The Power strip module
+   needs nothing, as the owner made each Power piece installable on its
+   own, so it is a process of its own and its two calls into the bar item
+   are converted. Library state does fork: each process has its
    own job table, so Calendar and Contacts could each start a sync of one
    server; both sync scripts already take a lock folder on disk and the
-   second answers "Another sync is running", so the store is safe and only
-   the queueing changes.
+   second answers "Another sync is running", so the store is safe. More
+   changes than queueing, though: who is told a sync finished (`pe_onsync`)
+   and the status shown (`PES`) are per process, so Calendar would not hear
+   that Contacts' process synced the store they share. Each process watches
+   the store folder itself (`dirwatch`) and reads the status from the store,
+   not from a sibling's memory.
 6b. **The owner's desktop, counted (Blit, 2026-11-18, read only):** 87
    installed entries -- 28 panes, 20 apps, 8 bar items, 7 system apps, 5
    libraries, 2 savers, 2 strip modules, and data -- and the desktop's own
@@ -391,10 +426,14 @@ today, measured from both sides:
    app while it has a window (about 5 on a working day), a pane only while
    the Control Panel shows it, a saver only while it runs; a library runs
    in the process of the app that sources it, and themes, colours and
-   languages are data with none. About **15 processes**, and with the
-   prototype's measured cost -- 14.6 MB for the zygote, 1.1 MB each beside
-   it -- about **31 MB** beside the desktop's 104 MB, an app at rest waking
-   nothing. Measured again on the owner's set, with Blit, before the flip.
+   languages are data with none. Counted by process group rather than by
+   entry: the four bar items the package ships are platform and have no
+   process, and a bundle's bar item, strip module and pane are one -- so
+   the owner's always-running set is about four (Wiretap, Longwire, the
+   keyboard, the tray), and with apps open **about 9 to 10 processes**, at
+   the prototype's measured cost (14.6 MB for the zygote, 1.1 MB each
+   beside it) **about 26 MB** beside the desktop's 104 MB, an app at rest
+   waking nothing. Measured again on the owner's set, with Blit, before the flip.
 7. **"The suites run unchanged" is counted first.** `tests/apps.py` reaches
    into an app from the test session -- calling its functions, reading its
    maps -- in about 44 places, the other suites in a handful; fixtures
