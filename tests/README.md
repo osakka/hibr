@@ -223,8 +223,9 @@ More tools sit around it:
   from the app's own code, run as the app's when called back -- recorded
   with their owner (`DT_CALLER`) -- and what the desktop asks for itself
   stays the desktop's; and an installable's hooks -- a bar hook, a mode
-  hook, a bar item's command, a location's question -- registered while its
-  file loaded, run as that file's. Fails against the desktop before the
+  hook, a bar item's command, a location's question, a ticker -- registered
+  while its file loaded, run as that file's, and a ticker an app registers
+  from its own code runs as the app's. Fails against the desktop before the
   owners were recorded.
 - **`tests/rtchan.py`** -- the app runtime's socket (ADR 0050) through a
   pty: an app process sourcing only `runtime.hibr` says hello and what it

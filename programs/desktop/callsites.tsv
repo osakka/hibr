@@ -20,7 +20,7 @@ desktop	wm/recover.hibr	79	dt_supervise	"$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
 desktop	wm/restart.hibr	568	dt_updcheck	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2> /dev/null)
 desktop	wm/rtserve.hibr	239	dt_rtmsg	DT_CALLER=$who "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
 window	wm/seam.hibr	31	dt_appfn	dt_appfn() { local DT_CALLER=$1; "${@:2}" && ret -k; }
-desktop	wm/session.hibr	497	dt_tickers	"$f"
+desktop	wm/session.hibr	503	dt_tickers	"$f"
 desktop	wm/vault.hibr	107	dt_vw	DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef")
 desktop	wm/vault.hibr	109	dt_vw	DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef" < /dev/null)
 desktop	wm/vault.hibr	349	dt_vwget	DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" get "$field" "$id" 2> "$ef" < /dev/null) # fork: a password reaches the clipboard through a pipe, never a job's file; one vw reading one item, on a click

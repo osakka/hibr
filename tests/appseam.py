@@ -40,6 +40,8 @@ fn ow_post() {
 	dt_notify "ow note" ow_said note
 	return 0
 }
+ow_tick() { [ -n "${OW_TICKED-}" ] && return 0; OW_TICKED=1; ow_said rtick; }
+fn ow_regtick() { dt_ticker ow_tick; return 0; }
 fn ow_ask() { dt_ask "Name" "Name:" "" ow_answer; return 0; }
 fn ow_answer(text, int id) { ow_said ask; return 0; }
 dt_app ow "Owner" 6 30
@@ -83,6 +85,8 @@ fn in_item() { in_said item; }
 fn inst_draw(int row, int col) { [ -n "${IN_DREW-}" ] && return 0; IN_DREW=1; in_said strip; }
 fn inloc_can(op, p) { in_said location; }
 fn inloc_ls(...a) { return 0; }
+in_tick() { [ -n "${IN_TICKED-}" ] && return 0; IN_TICKED=1; in_said ticker; }
+dt_ticker in_tick
 dt_barhook in_barhook
 dt_modehook in_mode
 dt_baritem initem "x" in_item
@@ -157,7 +161,11 @@ check("what the desktop asks for itself runs as the desktop's",
 do('dt_bar; dt_barido initem left; dt_stripdraw; dt_loccan inl:///x read; true')
 time.sleep(0.3)
 mine = [l for l in said() if l.split(" ")[-1:] == [INST]]
-for how in ("barhook", "mode", "item", "location"):
+do('dt_appfn ow ow_regtick')
+time.sleep(0.5)
+check("a ticker an app registers from its own code runs as the app's", "rtick ow" in said(), said())
+mine = [l for l in said() if l.split(" ")[-1:] == [INST]]
+for how in ("barhook", "mode", "item", "location", "ticker"):
     check("an installable's %s runs as the file that registered it" % how,
           any(l.startswith(how + " ") for l in mine), said())
 
@@ -165,4 +173,4 @@ t.quit(b"q", 1.0)
 for f in (p, OUT, MARK, INST):
     if os.path.exists(f):
         os.unlink(f)
-report(10)
+report(12)

@@ -28,6 +28,9 @@ declare -gA DT_LIVE
 DT_TICKERS=()
 
 declare -gA DT_TICKSRC
+# Whose each ticker is, for the seam (ADR 0050): the file that registered
+# it while it loaded, or the app whose code did; empty for the desktop's own.
+declare -gA DT_TICKOWN
 
 # Ask for the next frame within ms, from inside an app's _draw.
 #
@@ -108,6 +111,7 @@ fn dt_ticker(name) {
 	case " ${DT_TICKERS[*]} " in *" $name "*) return 0 ;; esac
 	DT_TICKERS+=("$name")
 	[ -n "${DT_LOADING-}" ] && DT_TICKSRC["$name"]=$DT_LOADING
+	DT_TICKOWN["$name"]=${DT_LOADING:-${DT_CALLER-}}
 	return 0
 }
 

@@ -494,7 +494,14 @@ dt_tickers() {
 		DT_SPENTWHY=
 		slowest on "$DT_SLOWMS"
 		t0=${EPOCHREALTIME/./}
-		"$f"
+		# An installable's ticker runs through the seam as its owner's; the
+		# desktop's own are called, so an idle pass pays the seam only for
+		# what has an owner.
+		if [ -n "${DT_TICKOWN["$f"]-}" ]; then
+			dt_appfn "${DT_TICKOWN["$f"]}" "$f"
+		else
+			"$f"
+		fi
 		t=$((${EPOCHREALTIME/./} - t0))
 		DT_WHO=
 		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "$f" "$t" "$ap"

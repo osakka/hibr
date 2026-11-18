@@ -371,7 +371,14 @@ hook while it loads finds it there. Its cost, counted rather than timed
 windows with the shipped bar items and strip modules makes 8 calls through
 the seam, 5 of them hooks -- about 26 us, 0.6% of that frame and about 4%
 of the 0.7 ms a frame the owner's CPU bar allows; an unforced frame makes
-fewer. What is left of the platform's 94
+fewer. **Tickers too** (found by the advisor after the hooks were called
+done, since the check classed the ticker loop as the desktop's own): a
+ticker records its owner when registered (`DT_TICKOWN`: the loading file,
+or the app whose code registered it at run time), and the loop runs one
+that has an owner through the seam and calls the desktop's own directly,
+so a pass pays the seam only for what has one -- 10 of a full desktop's
+25 tickers, about 25 us a pass, beside the 45 us a ticker's timing already
+costs each. What is left of the platform's 94
 calls by a name is 26: the seam itself, 12 of the desktop's own (a program
 it starts, its own tickers) and 13 in shared code, which runs in whichever
 process called it. `tests/appcalls.py` fails on a site no rule classes, and on any difference from the committed table -- keyed on the
