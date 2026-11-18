@@ -1510,6 +1510,12 @@ fn dt_natdrop(int id, int mr, int mc, ...paths) {
 	x=$(((mc - ${DT[$id]["col"]} - o) * DT_NATCW + ${NW[$id]["gx"]:-0}))
 	[ "$x" -ge 0 ] || x=0
 	[ "$y" -ge 0 ] || y=0
+	if [ -n "$DT_NATOUT" ]; then
+		frames clip "$DT_NATSRV" odrop "${NW[$id]["bid"]}" "$x" "$y" 2> /dev/null ||
+			dt_natoutend none
+		DT_NATOUTWAIT=1
+		return 0
+	fi
 	if ! seq := frames clip "$DT_NATSRV" drop "${NW[$id]["bid"]}" "$x" "$y" "${paths[@]}" 2> /dev/null; then
 		dt_notep low "%s does not take files" "${DT[$id]["title"]}"
 		return 0
@@ -1542,14 +1548,93 @@ fn dt_natdragat(int r, int c) {
 	[ -n "$DT_NATDRAG" ] && [ "$DT_NATDRAG" != "$id" ] && DT_NATHOVER=
 	DT_NATDRAG=$id
 	DT_NATDRAGAT="$id $x $y"
-	frames clip "$DT_NATSRV" drag "${NW[$id]["bid"]}" "$x" "$y" "${DT_DNDS[@]}" > /dev/null 2>&1
+	if [ -n "$DT_NATOUT" ]; then
+		frames clip "$DT_NATSRV" odrag "${NW[$id]["bid"]}" "$x" "$y" > /dev/null 2>&1
+	else
+		frames clip "$DT_NATSRV" drag "${NW[$id]["bid"]}" "$x" "$y" "${DT_DNDS[@]}" > /dev/null 2>&1
+	fi
+	return 0
+}
+
+# A program dragging something out of its window (Blit 0.3.119, #160 row
+# 3): from its press on, the drag is the desktop's, as a program's own move
+# is -- drawn and followed here, dropped where it is let go. Its data is
+# read only for a drop on the desktop itself; a drop on another program's
+# window is the compositor's to serve. DT_NATOUT is its token, o<n>.
+declare -g DT_NATOUT="" DT_NATOUTWIN="" DT_NATOUTACT="" DT_NATOUTWAIT=""
+fn dt_natdragout(tok, int n, acts, ...types) {
+	local id=${NWN["$n"]-} pr pc ty want=
+
+	dt_iswin "$id" || { frames clip "$DT_NATSRV" oend none 2> /dev/null; return 0; }
+	for ty in "${types[@]}"; do
+		case $ty in text/uri-list) want=$ty ;; esac
+	done
+	read -r pr pc <<< "${NW[$id]["down"]-}"
+	[ -n "$pr" ] || { pr=$((${DT[$id]["row"]} + 1)); pc=$((${DT[$id]["col"]} + 1)); }
+	DT_NATOUT=$tok
+	DT_NATOUTWIN=$id
+	DT_NATOUTACT=$acts
+	DT_NATOUTWAIT=
+	dt_dnd "${DT[$id]["title"]}" "${GL[file]}"
+	DT_DNDR=$pr
+	DT_DNDC=$pc
+	[ "$DT_MOUSE" = "$id" ] && DT_MOUSE=
+	NW[$id]["down"]=
+	[ -n "$want" ] && frames clip "$DT_NATSRV" oread "$want" 2> /dev/null
+	dt_want 30
+	return 0
+}
+
+# What the program offers, arrived: a uri-list's file addresses become the
+# paths a drop on the desktop or in Files moves or copies.
+fn dt_natoutdata(tok, text = "") {
+	local -a us
+	local u p
+
+	[ "$tok" = "$DT_NATOUT" ] || return 0
+	DT_DNDS=()
+	IFS=$'\t' read -ra us <<< "$text"
+	for u in "${us[@]}"; do
+		case $u in file://*) ;; *) continue ;; esac
+		p=${u#file://}
+		p=${p#localhost}
+		p=${p//%/\\x}
+		printf -v p '%b' "$p"
+		DT_DNDS+=("$p")
+	done
+	[ "${#DT_DNDS[@]}" = 1 ] && DT_DNDN=${DT_DNDS[0]##*/}
+	[ "${#DT_DNDS[@]}" -gt 1 ] && DT_DNDN := dt_tr "%s items" "${#DT_DNDS[@]}"
+	dt_want 30
+	return 0
+}
+
+# The drag out over: the program told what became of it -- copy or move
+# when something took it, none when nothing did -- and the desktop's drag
+# ends with it.
+fn dt_natoutend(how) {
+	[ -n "$DT_NATOUT" ] || return 0
+	if [ "$how" = took ]; then
+		case $DT_NATOUTACT in *copy*) how=copy ;; *) how=move ;; esac
+	fi
+	frames clip "$DT_NATSRV" oend "$how" 2> /dev/null
+	DT_NATOUT=
+	DT_NATOUTWIN=
+	DT_NATOUTACT=
+	DT_NATOUTWAIT=
+	DT_NATDRAG=
+	DT_NATDRAGAT=
+	DT_NATHOVER=
 	return 0
 }
 
 # The drag gone from the programs' windows, or ended without a drop on one.
 dt_natleave() {
 	[ -n "$DT_NATDRAG" ] || return 0
-	frames clip "$DT_NATSRV" leave 2> /dev/null
+	if [ -n "$DT_NATOUT" ]; then
+		frames clip "$DT_NATSRV" oleave 2> /dev/null
+	else
+		frames clip "$DT_NATSRV" leave 2> /dev/null
+	fi
 	DT_NATDRAG=
 	DT_NATDRAGAT=
 	DT_NATHOVER=
@@ -1564,9 +1649,44 @@ fn dt_natclip(rest = "") {
 	local sel kind t more
 
 	read -r sel kind more <<< "$rest"
+	case $sel in
+	dragout)
+		local -a dw
+		read -ra dw <<< "$more"
+		dt_natdragout "$kind" "${dw[@]}"
+		return 0
+		;;
+	odata)
+		dt_natoutdata "$kind" "$more"
+		return 0
+		;;
+	dragclear)
+		[ "$kind" = "$DT_NATOUT" ] || return 0
+		DT_NATOUT=
+		DT_NATOUTWIN=
+		DT_NATDRAG=
+		DT_NATDRAGAT=
+		DT_NATHOVER=
+		DT_DND=
+		DT_DNDS=()
+		DT_MOUSE=
+		dt_want 30
+		return 0
+		;;
+	esac
 	if [ "$sel" = hover ]; then
 		DT_NATHOVER=$more
 		dt_want 30
+		return 0
+	fi
+	if [ "$sel" = drop ] && [ -n "$DT_NATOUT" ] && [ "$kind" = "$DT_NATOUT" ]; then
+		# A program's drag let go on another program: what that one
+		# answered is what the first is told.
+		if [ "$more" = taken ]; then
+			dt_natoutend took
+		else
+			dt_natoutend none
+		fi
 		return 0
 	fi
 	if [ "$sel" = drop ]; then

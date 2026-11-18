@@ -138,7 +138,7 @@ typedef struct fl_srv {
 	char *ctext[2];
 	int csec[2];
 	unsigned long cseq[2];
-	struct fl_clipin *cin[2];
+	struct fl_clipin *cin[3];
 	char *ptext[2];
 	int psec[2];
 	unsigned long pseq[2];
@@ -149,10 +149,15 @@ typedef struct fl_srv {
 	   or refused. */
 	char *dtext;
 	unsigned long dseq;
+	/* A program dragging out (Blit 0.3.119, #160 row 3): its drag's
+	   token, o<n>, and the types it offers, said back with each line
+	   about it; its data read into cin[2]. */
+	char *oseq, *otypes;
 } fl_srv;
 
 void fl_clipreset(fl_srv *f);
 void fl_clipline(fl_srv *f, const char *m, size_t k, int fd);
+int fl_cliplineo(fl_srv *f, const char *m, size_t k, int fd);
 int fl_clipverb(sh *s, fl_srv *f, int ac, char **av);
 
 static vec fl_srvs;
@@ -519,6 +524,11 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 		s_cat(&o, "OK dmabuf=0");
 	}
 	s_cat(&o, f->win ? " window=1" : " window=0");
+	/* A compositor carries a program's drag out only to a desktop that
+	   says it takes one (Blit 0.3.120): every hibr before this ignored
+	   CLIP dragout, and the program's window was left deaf to the mouse. */
+	if (f->win)
+		s_cat(&o, " drag=1");
 	s_ch(&o, '\n');
 	fl_say(f, o.p);
 	lg(HIBR_LDBG, "frames %u: hello at version %lu, %s", f->n, ver, o.p);
@@ -1017,6 +1027,25 @@ void fl_clipdone(fl_clipin *ci, int ok)
 	close(ci->fd);
 	f->cin[ci->sel] = 0;
 	s_init(&o);
+	if (ci->sel == 2) {
+		size_t j;
+
+		/* A line of news a line: the data's own line ends become
+		   tabs, which no address in a uri-list holds. */
+		s_cat(&o, "odata ");
+		s_cat(&o, f->oseq ? f->oseq : "o0");
+		s_ch(&o, ' ');
+		for (j = 0; ok && ci->buf.p && j < ci->buf.n; j++)
+			if (ci->buf.p[j] == '\n')
+				s_ch(&o, '\t');
+			else if (ci->buf.p[j] != '\r')
+				s_ch(&o, ci->buf.p[j]);
+		fl_ev(f, "clip", 0, o.p);
+		s_free(&o);
+		s_free(&ci->buf);
+		free(ci);
+		return;
+	}
 	s_cat(&o, nm);
 	if (ok) {
 		free(f->ptext[ci->sel]);
@@ -1086,6 +1115,10 @@ void fl_clipreset(fl_srv *f)
 	free(f->dtext);
 	f->dtext = 0;
 	f->dseq = 0;
+	fl_clipstop(f, 2);
+	free(f->oseq);
+	free(f->otypes);
+	f->oseq = f->otypes = 0;
 }
 
 /* Send a line with a descriptor beside it, one packet. */
@@ -1199,6 +1232,126 @@ void fl_clipwrite(int fd, const char *t)
 /* A CLIP line from the compositor: a program's selection offered (read at
    once when it is text), a program pasting what the desktop offered (fd
    the pipe to write it into), or a program's selection gone. */
+/* A line about a program's drag out (Blit 0.3.119, #160 row 3), whose
+   token is o<n> where every other CLIP line has a number: dragout starts
+   it, and hover, dropped and clear are said of it as of a drop. 1 when the
+   line was one of these. */
+int fl_cliplineo(fl_srv *f, const char *m, size_t k, int fd)
+{
+	char verb[16], tok[32];
+	unsigned long win;
+	int n = 0, nw = 0;
+	fl_srv *t;
+	str l, o;
+
+	s_init(&l);
+	s_add(&l, m, k);
+	while (l.n && (l.p[l.n - 1] == '\n' || l.p[l.n - 1] == '\r'))
+		l.p[--l.n] = 0;
+	if (sscanf(l.p, "CLIP %15s %31s %n", verb, tok, &n) != 2 || tok[0] != 'o') {
+		s_free(&l);
+		return 0;
+	}
+	if (fd >= 0)
+		close(fd);
+	s_init(&o);
+	if (!strcmp(verb, "dragout") && sscanf(l.p + n, "%lu %n", &win, &nw) == 1) {
+		const char *rest = l.p + n + nw, *ty = strchr(rest, ' ');
+
+		t = f->win ? fl_win(f, win) : f;
+		free(f->oseq);
+		free(f->otypes);
+		f->oseq = xs(tok);
+		f->otypes = xs(ty ? ty + 1 : "");
+		s_cat(&o, "dragout ");
+		s_cat(&o, tok);
+		s_ch(&o, ' ');
+		s_num(&o, t ? (long)t->n : 0);
+		s_ch(&o, ' ');
+		s_cat(&o, rest);
+	} else if (f->oseq && !strcmp(tok, f->oseq) &&
+		   (!strcmp(verb, "hover") || !strcmp(verb, "dropped"))) {
+		s_cat(&o, !strcmp(verb, "hover") ? "hover " : "drop ");
+		s_cat(&o, tok);
+		if (!strcmp(verb, "hover"))
+			s_cat(&o, strncmp(l.p + n, "copy", 4) ? " none" : " copy");
+		else
+			s_cat(&o, strncmp(l.p + n, "taken", 5) ? " refused" : " taken");
+	} else if (f->oseq && !strcmp(tok, f->oseq) && !strcmp(verb, "clear")) {
+		s_cat(&o, "dragclear ");
+		s_cat(&o, tok);
+		fl_clipstop(f, 2);
+		free(f->oseq);
+		free(f->otypes);
+		f->oseq = f->otypes = 0;
+	}
+	if (o.n)
+		fl_ev(f, "clip", 0, o.p);
+	s_free(&o);
+	s_free(&l);
+	return 1;
+}
+
+/* frames clip N odrag|odrop WIN X Y, oleave, oread TYPE, oend copy|move|none:
+   the desktop's side of a program's drag out -- over a program's window
+   (the compositor serves that one's reads from the source), its data read
+   for a drop on the desktop (news `clip odata TOKEN TEXT`, its lines tabs),
+   and its end, which tells the program what became of it. */
+int fl_overb(sh *s, fl_srv *f, int ac, char **av)
+{
+	str o;
+	int p[2];
+	fl_clipin *ci;
+
+	if (!f->oseq) {
+		lg(HIBR_LDBG, "frames %u: no drag out to %s", f->n, av[3]);
+		return HIBR_FAIL;
+	}
+	s_init(&o);
+	if ((!strcmp(av[3], "odrag") || !strcmp(av[3], "odrop")) && ac >= 7) {
+		s_fmt(&o, "CLIP %s %s %s %s %s %s\n", av[3] + 1, f->oseq, av[4], av[5],
+		      av[6], f->otypes ? f->otypes : FL_CLIPTEXT);
+		fl_say(f, o.p);
+	} else if (!strcmp(av[3], "oleave")) {
+		s_fmt(&o, "CLIP leave %s\n", f->oseq);
+		fl_say(f, o.p);
+	} else if (!strcmp(av[3], "oend") && ac >= 5) {
+		s_fmt(&o, "CLIP dragend %s %s\n", f->oseq, av[4]);
+		fl_say(f, o.p);
+		fl_clipstop(f, 2);
+		free(f->oseq);
+		free(f->otypes);
+		f->oseq = f->otypes = 0;
+	} else if (!strcmp(av[3], "oread") && ac >= 5 && pipe(p) == 0) {
+		fcntl(p[0], F_SETFD, FD_CLOEXEC);
+		fcntl(p[1], F_SETFD, FD_CLOEXEC);
+		fl_clipstop(f, 2);
+		s_fmt(&o, "CLIP read %s %s\n", f->oseq, av[4]);
+		if (!fl_sayfd(f, o.p, p[1])) {
+			close(p[0]);
+			close(p[1]);
+			s_free(&o);
+			return HIBR_FAIL;
+		}
+		close(p[1]);
+		fcntl(p[0], F_SETFL, fcntl(p[0], F_GETFL) | O_NONBLOCK);
+		ci = xm(sizeof *ci);
+		memset(ci, 0, sizeof *ci);
+		ci->f = f;
+		ci->sel = 2;
+		ci->fd = p[0];
+		s_init(&ci->buf);
+		f->cin[2] = ci;
+		fl_dpf->hook(p[0], fl_clipread, ci);
+	} else {
+		lg(HIBR_LERR, "usage: frames clip N odrag|odrop WIN X Y | oleave | oread TYPE | oend copy|move|none");
+		s_free(&o);
+		return 2;
+	}
+	s_free(&o);
+	return fl_cfd(f) >= 0 ? HIBR_OK : HIBR_FAIL;
+}
+
 void fl_clipline(fl_srv *f, const char *m, size_t k, int fd)
 {
 	str w, v, r;
@@ -1209,6 +1362,8 @@ void fl_clipline(fl_srv *f, const char *m, size_t k, int fd)
 	s_init(&w);
 	s_init(&v);
 	s_init(&r);
+	if (fl_cliplineo(f, m, k, fd))
+		goto out;
 	if (!fl_wsplit(m, k, &w, &v, &seq, &r)) {
 		if (fd >= 0)
 			close(fd);
@@ -1338,6 +1493,8 @@ int fl_clipverb(sh *s, fl_srv *f, int ac, char **av)
 	if (ac > 3 && (!strcmp(av[3], "drop") || !strcmp(av[3], "drag") ||
 		       !strcmp(av[3], "leave")))
 		return fl_dropverb(s, f, ac, av);
+	if (ac > 3 && av[3][0] == 'o' && strcmp(av[3], "offer"))
+		return fl_overb(s, f, ac, av);
 	if (ac < 5 || (i = fl_clipsel(av[4])) < 0) {
 		lg(HIBR_LERR, "usage: frames clip N offer|clear|get clipboard|primary [-s] [TEXT]");
 		return 2;

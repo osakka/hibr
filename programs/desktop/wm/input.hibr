@@ -346,8 +346,20 @@ dt_mouse() {
 			DT_DNDR=$mr
 			DT_DNDC=$mc
 			if [ "$act" = release ]; then
+				local had=${#DT_DNDS[@]}
+
 				DT_MOUSE=
 				dt_ondrop "$mr" "$mc" "$mods"
+				# A program's drag out let go anywhere but on a
+				# program's window: it is told now -- taken when
+				# there were files to hand on, else none.
+				if [ -n "${DT_NATOUT-}" ] && [ -z "${DT_NATOUTWAIT-}" ]; then
+					if [ "$had" -gt 0 ]; then
+						dt_natoutend took
+					else
+						dt_natoutend none
+					fi
+				fi
 			fi
 			return 0
 		fi
@@ -1304,6 +1316,7 @@ fn dt_event(k) {
 		DT_DND=
 		DT_MOUSE=
 		dt_has dt_natleave && dt_natleave
+		dt_has dt_natoutend && dt_natoutend none
 		[ "$k" = escape ] && return 0
 	fi
 	# The window switcher (Gitea #391) takes Cycle, Cycle Back and

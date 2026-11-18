@@ -88,6 +88,7 @@ def dial():
         c.close()
         return None
     s = c
+    note(kind="hello", answer=ans)
     return ans
 
 
@@ -202,6 +203,8 @@ SIZEOK = re.compile(r"^WINDOW size \d+ \d+ \d+( fullscreen)?( maximized)?( activ
                     r"( tiled-left)?( tiled-right)?( tiled-top)?( tiled-bottom)?$")
 CLIPS = {}
 DRAGS = set()
+ODATA = {}
+ON = 0
 clipn = 100
 
 
@@ -263,6 +266,16 @@ def clipline(w, fds):
         note(kind="drop", seq=w[2], win=w[3], x=w[4], y=w[5], types=w[6:], reads=reads,
              taken=not refuse, inside=inside, size=sz)
         say("CLIP dropped %s %s" % (w[2], "refused" if refuse else "taken"))
+    elif w[1] == "read" and fds and w[2].startswith("o"):
+        # A read of a program's drag out (row 3), answered from what the
+        # program offered; a type it does not offer reads empty.
+        t = ODATA.get((w[2], w[3]) if len(w) > 3 else None, "")
+        os.write(fds[0], t.encode())
+        os.close(fds[0])
+        fds = fds[1:]
+        note(kind="oread", seq=w[2], type=w[3] if len(w) > 3 else "")
+    elif w[1] == "dragend":
+        note(kind="dragend", seq=w[2], how=w[3] if len(w) > 3 else "")
     elif w[1] == "read" and fds:
         t = CLIPS.get(w[2])
         if t is not None:
@@ -404,6 +417,17 @@ while True:
             arg = open(LOG + "." + verb).read().strip()
             os.unlink(LOG + "." + verb)
             say(("WINDOW %s 7 %s" % (verb, arg)).strip())
+    if os.path.exists(LOG + ".dragout"):
+        # The program starts dragging a file out of window 7 (row 3).
+        arg = open(LOG + ".dragout").read().strip()
+        os.unlink(LOG + ".dragout")
+        ON += 1
+        tok = "o%d" % ON
+        ODATA[(tok, "text/uri-list")] = "file://" + arg.replace(" ", "%20") + "\r\n"
+        say("CLIP dragout %s 7 copy,move text/uri-list text/plain;charset=utf-8" % tok)
+    if os.path.exists(LOG + ".dragclear"):
+        os.unlink(LOG + ".dragclear")
+        say("CLIP clear o%d" % ON)
     if os.path.exists(LOG + ".copy"):
         arg = open(LOG + ".copy").read().split("\n")
         os.unlink(LOG + ".copy")

@@ -698,6 +698,46 @@ lv2 = wait(lambda: len(comp("leave")) > nleave2)
 check("and a drag cancelled with escape over it says it left too", lv2, comp("leave")[nleave2:])
 os.unlink(complog + ".droprefuse")
 
+# A program dragging out of its window (Blit 0.3.119, #160 row 3), offered
+# only to a desktop whose hello says drag=1: the drag becomes the desktop's,
+# from the program's press, carrying the files the program offers; let go on
+# the desktop it is told copy, cancelled none, and a program that withdraws
+# its drag ends the desktop's.
+hel = comp("hello")
+check("the desktop tells the compositor it takes a program's drag out (drag=1)",
+      hel and "drag=1" in hel[-1]["answer"], hel[-1:] if hel else None)
+noread, nend = len(comp("oread")), len(comp("dragend"))
+t.send(press(at[0], at[1]), settle=0.3)
+open(complog + ".dragout", "w").write(DPATH)
+t.keys([0.3])
+rd = wait(lambda: comp("oread")[noread:])
+ghost = wait(lambda: "a dropped" in scr().text())
+check("a program's drag out is the desktop's drag, with the file it offers",
+      rd and rd[0]["type"] == "text/uri-list" and ghost, (comp("oread")[noread:], scr()))
+t.send(mousedrag(at[2] + 1, at[1] + 2), settle=0.3)
+t.send(release(at[2] + 1, at[1] + 2), settle=0.5)
+de = wait(lambda: comp("dragend")[nend:])
+check("let go on the desktop, the program is told it was copied",
+      de and de[0]["how"] == "copy", comp("dragend")[nend:])
+nend = len(comp("dragend"))
+t.send(press(at[0], at[1]), settle=0.3)
+open(complog + ".dragout", "w").write(DPATH)
+t.keys([0.3])
+wait(lambda: "a dropped" in scr().text())
+t.keys([b"\x1b", 0.5])
+de2 = wait(lambda: comp("dragend")[nend:])
+check("cancelled with escape, it is told none", de2 and de2[0]["how"] == "none",
+      comp("dragend")[nend:])
+t.send(press(at[0], at[1]), settle=0.3)
+open(complog + ".dragout", "w").write(DPATH)
+t.keys([0.3])
+wait(lambda: "a dropped" in scr().text())
+open(complog + ".dragclear", "w").close()
+t.keys([0.3])
+gone = wait(lambda: "a dropped" not in scr().text())
+t.send(release(at[0], at[1]), settle=0.3)
+check("and a program that drops its own drag ends the desktop's", gone, scr())
+
 # A size line is sent when it says something new: the same size and state
 # twice in a row -- a decoration said again, a focus change -- before any restart (which tells a reconnected
 # compositor again, rightly), was a focus change clearing what had been sent, seen as a
@@ -1192,4 +1232,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(95)
+report(100)

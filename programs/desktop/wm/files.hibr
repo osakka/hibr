@@ -71,6 +71,13 @@ fn dt_ondrop(int mr, int mc, mods) {
 			DT[$id]["drop"]=$ap
 			dt_log "drop: window $id (${DT[$id]["app"]}) had no drop handler recorded and has $ap now"
 		fi
+		# A program's own drag out let go on a program's window: the
+		# compositor serves it whatever it carries, files or not.
+		if [ -n "${DT_NATOUT-}" ] && [ "${DT[$id]["app"]}" = native ] &&
+		   [ -n "${NW[$id]["bid"]-}" ]; then
+			dt_natdrop "$id" "$mr" "$mc"
+			return 0
+		fi
 		if [ "${#src[@]}" = 0 ]; then
 			dt_notep low "Only files can be dropped on a window"
 			return 0
