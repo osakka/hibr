@@ -24,6 +24,12 @@ out = calls.stdout + calls.stderr
 fails = [l for l in out.splitlines() if l.startswith("FAIL")]
 state = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "appstate.py")],
                        cwd=ROOT, env=env, capture_output=True, text=True)
+sites = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "callsites.py"), "--check"],
+                       cwd=ROOT, env=env, capture_output=True, text=True)
+fails += [l for l in (sites.stdout + sites.stderr).splitlines() if l.startswith("FAIL")]
+if sites.returncode and not [l for l in sites.stdout.splitlines() if l.startswith("FAIL")]:
+    fails.append("FAIL tools/callsites.py --check exited %d: %s" % (sites.returncode,
+                 (sites.stdout + sites.stderr).strip()[-300:]))
 if state.returncode:
     fails.append((state.stdout + state.stderr).strip().splitlines()[-1])
 passed = 0

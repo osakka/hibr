@@ -423,7 +423,7 @@ def stubtext(rows):
            "", "strict", ""]
     for r in sorted(rows, key=lambda r: r[1]):
         cls, name, sig, answer = r[0], r[1], r[7], r[5]
-        if cls not in ("request", "declare") or not sig:
+        if cls not in ("request", "declare") or not sig or sig == "-":
             continue
         params = sig[sig.index("(") + 1:sig.rindex(")")].strip()
         head = "fn %s(%s)" % (name, params) if params else "%s()" % name
@@ -480,7 +480,7 @@ def main():
     sig = sigs()
     old = readtable(open(OUT).read()) if os.path.exists(OUT) else {}
     nv = nextver()
-    rows = [r + (far.get(r[1], ""), sig.get(r[1], ""),
+    rows = [r + (far.get(r[1], "-"), sig.get(r[1], "-"),
                  old[r[1]][2] if r[1] in old else (nv if old else "-")) for r in rows]
     kinds = collections.Counter(r[0] for r in rows)
     print("installables read: %d, unreadable: %d" % (len(installables()), len(bad)))
@@ -500,7 +500,8 @@ def main():
         with open(OUT, "w") as o:
             o.write("# class\tfunction\tdefined in\tcalls\tfiles\tanswer\treaches\tsignature\tsince"
                     " -- tools/appcalls.py --write; since is the release a row first shipped in, - before"
-                    " the contract (ADR 0050)\n")
+                    " the contract; no field is ever empty, since a tab is IFS whitespace and a shell"
+                    " reading the table would lose one (ADR 0050)\n")
             for r in rows:
                 o.write("%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\n" % r)
         print("wrote", os.path.relpath(OUT, ROOT))

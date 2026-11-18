@@ -6,7 +6,11 @@
 # another hibr version is refused and the person told hibr was updated,
 # with Restart Desktop one click away (owner, 2026-11-18): nothing runs half
 # old and half new. Only a told request named in interface.tsv is carried;
-# anything else is refused by name in the log.
+# anything else is refused by name in the log. The guards are against an
+# app's bugs and against blaming the wrong app, not a sandbox -- containment
+# is not a goal (ADR 0050): only the desktop's own user connects, a hello
+# names an installed app, an app makes only the requests its own file
+# makes, and a request naming a window names one of the app's own.
 #
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
@@ -18,19 +22,25 @@ strict
 DT_RTPATH=
 DT_RTLFD=
 declare -gA DT_RTC
-# The told requests interface.tsv names, which alone are carried.
-declare -gA DT_RTALLOW
+# The told requests interface.tsv names, which alone are carried; those
+# whose first word is a window; and, per app, the requests its own file
+# makes, read once from the file (never run) and kept by its path.
+declare -gA DT_RTALLOW DT_RTWIN DT_RTMAY DT_RTMAYOF
 
 # Start listening for app processes, once: the socket beside the control
 # socket's, its path exported for what the desktop starts to inherit.
 dt_rtlisten() {
-	local p c f n a
+	local p c f n a sg
 
 	[ -n "$DT_RTLFD" ] && return 0
 	p := dt_ctlwhere
 	p=${p%.ctl}.rt
 	if ! [ -d "${p%/*}" ]; then
 		mkdir -p -m 700 "${p%/*}" 2> /dev/null || { dt_log "app runtime: cannot make ${p%/*}"; return 1; }
+	fi
+	if ! [ -O "${p%/*}" ]; then
+		dt_log "app runtime: ${p%/*} belongs to someone else; not listening"
+		return 1
 	fi
 	if ! listen -b "$p" DT_RTLFD 2> /dev/null; then
 		DT_RTLFD=
@@ -39,8 +49,10 @@ dt_rtlisten() {
 	fi
 	DT_RTPATH=$p
 	export DT_RTSOCK=$p
-	while IFS=$'\t' read -r c f _ _ _ a _; do
-		[ "$c" = request ] && [ "$a" = told ] && DT_RTALLOW["$f"]=1
+	while IFS=$'\t' read -r c f _ _ _ a _ sg _; do
+		[ "$c" = request ] && [ "$a" = told ] || continue
+		DT_RTALLOW["$f"]=1
+		[[ $sg == "$f"\(id* || $sg == "$f(int id"* ]] && DT_RTWIN["$f"]=1
 	done < "$DT_HERE/interface.tsv"
 	n=${#DT_RTALLOW[@]}
 	command -v console > /dev/null && console watch "$DT_RTLFD" 2> /dev/null
@@ -76,6 +88,12 @@ dt_rttick() {
 	for c in "${ready[@]}" "${!DT_RTMORE[@]}"; do
 		if [ "$c" = "$DT_RTLFD" ]; then
 			while accept -t 0 "$DT_RTLFD" x 2> /dev/null; do
+				if [ "$REMOTE" != "uid:$UID" ]; then
+					send "$x" "refused not%20this%20desktop's%20user" 2> /dev/null
+					exec {x}>&-
+					dt_log "app runtime: refused a connection from $REMOTE"
+					continue
+				fi
 				DT_RTC["$x"]=-
 				DT_RTBUF["$x"]=
 				command -v console > /dev/null && console watch "$x" 2> /dev/null
@@ -95,7 +113,7 @@ dt_rttick() {
 		while [[ ${DT_RTBUF["$c"]} == *$'\n'* ]]; do
 			if [ "$n" -ge "$DT_RTLINES" ]; then
 				DT_RTMORE["$c"]=1
-				dt_want 0
+				dt_want "${DT_TERMMS:-70}"
 				break
 			fi
 			x=${DT_RTBUF["$c"]%%$'\n'*}
@@ -137,6 +155,36 @@ dt_rtclose() {
 	return 0
 }
 
+# Whether name is an installed app, and if so what its own file may ask:
+# the told requests the file's text names, read once per file and kept.
+# Read, never run, as everything an app declares is (ADR 0050, 3).
+fn dt_rtmay(name) {
+	local src t f
+
+	[ -n "$name" ] && [ -n "${DT_APPS["$name"]["title"]+x}" ] || return 1
+	src=${DT_APPS["$name"]["src"]-}
+	[ -n "$src" ] && [ -r "$src" ] || return 1
+	[ "${DT_RTMAYOF["$name"]-}" = "$src" ] && return 0
+	t=$(< "$src")
+	for f in "${!DT_RTALLOW[@]}"; do
+		[[ $t == *"$f"* ]] && DT_RTMAY["$name $f"]=1
+	done
+	DT_RTMAYOF["$name"]=$src
+	return 0
+}
+
+# Whether a window is the app's own: one of its windows, or a dialog the
+# desktop opened for one of them (a file picker).
+fn dt_rtowns(who, id) {
+	local f
+
+	[[ $id =~ ^[0-9]+$ ]] || return 1
+	dt_iswin "$id" || return 1
+	[ "${DT[$id]["app"]-}" = "$who" ] && return 0
+	f=${FP[$id]["for"]-}
+	[ -n "$f" ] && dt_iswin "$f" && [ "${DT[$f]["app"]-}" = "$who" ]
+}
+
 # One message from a connection; status 1 when it was let go.
 fn dt_rtmsg(int c, line) {
 	local i x who=${DT_RTC["$c"]-} t t0
@@ -162,7 +210,14 @@ fn dt_rtmsg(int c, line) {
 			dt_rtdrop "$c"
 			return 1
 		fi
-		DT_RTC["$c"]=${a[3]:-app}
+		if ! dt_rtmay "${a[3]-}"; then
+			x := dt_rtline refused "${a[3]:-nothing} is not an installed app"
+			send "$c" "$x" 2> /dev/null
+			dt_log "app runtime: refused a hello from ${a[3]:-nothing}, which is not an installed app"
+			dt_rtdrop "$c"
+			return 1
+		fi
+		DT_RTC["$c"]=${a[3]}
 		send "$c" "ok $DT_RTPROTO" 2> /dev/null
 		return 0
 	fi
@@ -170,6 +225,14 @@ fn dt_rtmsg(int c, line) {
 	tell)
 		if [ -z "${DT_RTALLOW["${a[1]-}"]+x}" ]; then
 			dt_log "app runtime: $who asked for ${a[1]-nothing}, which is not a told request in interface.tsv"
+			return 0
+		fi
+		if [ -z "${DT_RTMAY["$who ${a[1]}"]+x}" ]; then
+			dt_log "app runtime: $who asked for ${a[1]}, which its own file never asks for"
+			return 0
+		fi
+		if [ -n "${DT_RTWIN["${a[1]}"]+x}" ] && ! dt_rtowns "$who" "${a[2]-}"; then
+			dt_log "app runtime: $who asked for ${a[1]} of window ${a[2]-none}, which is not its own"
 			return 0
 		fi
 		t0=${EPOCHREALTIME/./}

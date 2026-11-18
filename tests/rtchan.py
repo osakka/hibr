@@ -31,6 +31,7 @@ if ! dt_rtopen demo; then
 	exit 1
 fi
 printf 'ok: %%s\n' "$DT_RTSAID" > %s
+demo_bye() { dt_del "$1"; }
 dt_notep low "from the app: %%s %%s [%%s] done" "50%%25 off" "two  blanks" ""
 dt_rtsend tell dt_quit
 dt_notep low "second note"
@@ -45,6 +46,9 @@ dt_rtopen olddemo || printf 'refused: %%s\n' "$DT_RTSAID" > %s.bad
 SESSION = r'''%s. %s
 dt_open
 DT_NOTEMS=60000
+DT_LOADING=%s dt_app demo "Demo" 8 40
+DT_LOADING=%s dt_app olddemo "Old Demo" 8 40
+OTHER := dt_new Other 6 30 3 3
 tst_go() {
 	[ -f %s ] || { dt_want 100; return 0; }
 	local c
@@ -59,7 +63,7 @@ dt_close
 '''
 MARK = scratch("rtchan-do")
 p = scratch("rtchan.hibr")
-open(p, "w").write(SESSION % (load(MOD), WM, MARK, MARK, MARK))
+open(p, "w").write(SESSION % (load(MOD), WM, GOOD, BAD, MARK, MARK, MARK))
 t = Term(p, rows=30, cols=110, settle=0.6)
 
 
@@ -124,7 +128,9 @@ def client(name):
     k.connect(path)
     k.sendall(("hello 1 %s %s\n" % (ver, name)).encode())
     k.settimeout(5)
-    k.recv(64)
+    said = k.recv(256)
+    if not said.startswith(b"ok"):
+        raise OSError("refused: %r" % said)
     return k
 
 
@@ -140,11 +146,11 @@ def answered(secs):
 for i in range(5):
     k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     k.connect(path)
-    k.sendall(("hello 1 %s gone%d\n" % (ver, i)).encode())
+    k.sendall(("hello 1 %s demo\n" % ver).encode())
     k.close()
 time.sleep(0.5)
 try:
-    k = client("after")
+    k = client("demo")
     k.sendall("tell dt_notep low still%20here\n".encode())
     sc = t.until("still here", tries=60, step=0.1)
     alive = sc.find("still here") is not None
@@ -153,10 +159,10 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(18)
+    report(21)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
-half = client("half")
+half = client("demo")
 half.sendall("tell dt_notep low half%20a".encode())
 time.sleep(0.3)
 took = max(answered(1) for _ in range(3))
@@ -168,7 +174,7 @@ check("and the line is carried whole once its end arrives",
 
 # A flood: thousands of lines at once. The desktop answers between them,
 # and every one is carried in the end, in order.
-flood = client("flood")
+flood = client("demo")
 flood.sendall(("tell dt_log flood\n" * 3000 + "tell dt_notep low flood%20done\n").encode())
 time.sleep(0.2)
 took = max(answered(1) for _ in range(3))
@@ -176,6 +182,36 @@ check("a flood of lines from one app holds the desktop up not at all", took < 0.
 sc = t.until("flood done", tries=200, step=0.1)
 check("and all of it is carried, the last line last", sc.find("flood done") is not None,
       (log().count("not a told request"), sc.text()))
+
+# The guards (against an app's bugs and blaming the wrong app, not a
+# sandbox): a hello naming no installed app is refused; a request the
+# app's own file never makes is refused; a window named must be its own.
+k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+k.connect(path)
+k.sendall(("hello 1 %s nobody\n" % ver).encode())
+k.settimeout(5)
+said = k.recv(256)
+k.close()
+check("a hello naming no installed app is refused", said.startswith(b"refused") and
+      b"not%20an%20installed%20app" in said, said)
+do('echo "$OTHER" > %s.other' % SAID)
+deadline = time.time() + 5
+while time.time() < deadline and not (os.path.exists(SAID + ".other") and open(SAID + ".other").read().strip()):
+    time.sleep(0.05)
+other = open(SAID + ".other").read().strip()
+g = client("demo")
+g.sendall(("tell dt_rslog from%%20demo\ntell dt_del %s\ntell dt_notep low guarded\n" % other).encode())
+sc = t.until("guarded", tries=60, step=0.1)
+check("a request its own file never makes is refused by name",
+      "demo asked for dt_rslog, which its own file never asks for" in log(), log()[-500:])
+do('dt_iswin "$OTHER" && echo yes > %s.alive || echo no > %s.alive' % (SAID, SAID))
+deadline = time.time() + 5
+while time.time() < deadline and not os.path.exists(SAID + ".alive"):
+    time.sleep(0.05)
+alive = open(SAID + ".alive").read().strip() if os.path.exists(SAID + ".alive") else ""
+check("a request naming another app's window is refused, and the window stays",
+      "which is not its own" in log() and alive == "yes", (alive, log()[-500:]))
+g.close()
 
 # Blame: what an app's request cost is timed under the request's name and
 # the app's, the way a callback is (wm/budget.hibr).
@@ -187,7 +223,7 @@ blame = open(SAID + ".blame").read().strip() if os.path.exists(SAID + ".blame") 
 check("a carried request is timed under its own name", blame.isdigit(), blame)
 
 # Idle cost: ten connections that say nothing cost a pass next to nothing.
-idle = [client("idle%d" % i) for i in range(10)]
+idle = [client("demo") for i in range(10)]
 time.sleep(0.3)
 do('t0=${EPOCHREALTIME/./}; for i in {1..200}; do dt_rttick; done; '
    'echo $(( (${EPOCHREALTIME/./} - t0) / 200 )) > %s.idle' % SAID)
@@ -214,7 +250,8 @@ check("and every app process sees its connection end", all(ends), ends)
 for k in idle + [half, flood]:
     k.close()
 t.quit(b"q", 1.0)
-for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle"):
+for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle",
+          SAID + ".other", SAID + ".alive"):
     if os.path.exists(f):
         os.unlink(f)
-report(18)
+report(21)

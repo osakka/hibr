@@ -4181,6 +4181,16 @@ went in the shell.
   off now. **A list rebuilt after a loop over it must keep what the loop
   added**, which a length comparison cannot tell from what it removed.
 
+- **A check that preloads a library never ran under the sanitizers.**
+  ASan refuses to start when another library comes before its runtime
+  ("ASan runtime does not come first in initial library list"), so
+  `tests/desktop.py`'s slow-disk checks, which `LD_PRELOAD` a stand-in for
+  `rename`, saw a desktop that never drew -- every wait `None` -- in every
+  sanitizer run, and read as the desktop being slow there. It failed the
+  same at v0.99.552 as on the day it was found (2026-11-18). A suite that
+  preloads adds `verify_asan_link_order=0` to `ASAN_OPTIONS` when that is
+  set, and widens its own timing bound there.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

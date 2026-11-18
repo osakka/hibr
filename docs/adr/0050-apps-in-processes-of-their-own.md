@@ -236,6 +236,102 @@ What it holds, each a check there:
   across the restart's exec or made again; it is built with the zygote,
   and until then an app process ends with its desktop.
 
+## Why not a desktop service between apps and the desktop (owner's question, 2026-11-18)
+
+The question: would a service or daemon apps talk to, rather than code
+calls tightly coupled to the desktop's functions, make things naturally
+asynchronous? The answer has two halves.
+
+**There is no separate service, because the desktop already is one.** Apps
+are clients on a socket of their own, and `interface.tsv` is the protocol:
+X's shape, where the server is the thing that draws. A broker between them
+would add a hop to every key and every frame, and a second holder of window
+state beside the process that draws the windows -- two sources of truth for
+the same screen, and a latency the frame budget (0.7 ms) cannot pay. The
+function-call shape is kept on the app's side only so that 210 installables
+run unchanged: `requests.hibr` turns each call into a message, and most of
+them -- 93 of 106 requests -- are already sent and never waited for.
+
+**What is still call-shaped is said, not hidden.**
+
+- **The asked requests are the synchronous residue**: 31 of 106, 13 whose
+  answer is taken with `:=` and 18 whose status is tested. Each becomes a
+  pushed fact, an id the app allocates, or a callback -- a change to the
+  apps that call them, not plumbing beneath them. That count is what
+  "naturally asynchronous" costs, and it is the measure of the work.
+- **The wire names the desktop's internal functions**, which were written
+  for a trusted caller in the same process. So the desktop does not trust
+  the wire: a process may make only the requests its own installable's
+  files make (read, never run, when it says hello, as its settings are),
+  a request naming a window must name one of its own, and its identity is
+  the desktop's to assign when the zygote starts it, never what its hello
+  claims. Until those three hold, nothing calls `dt_rtlisten` in a real
+  session.
+- **What a service would have bought is apps outliving the desktop**,
+  which is the owner's decision below. What stays is reconnecting across a
+  restart the desktop chose: Restart Desktop carries every app's pty across
+  its exec, and each app connects again to the new desktop and declares
+  its windows, menus and settings again; the desktop only caches what it is
+  told. That becomes a conformance check: Restart Desktop, and the screen is
+  the same.
+
+**And `hold` is that kind of service already** (owner's follow-up, the same
+day). It owns a program's terminal, keeps its screen -- cells, pictures,
+title, clipboard, bell -- serves any number of displays and outlives every
+one of them. It and the socket are two layers, not alternatives: `hold`
+keeps what a program *looks like*, which is generic, and the socket carries
+what an app *means* -- its menus, its settings, whose window, which key it
+took -- none of which is screen. Everything not screen that `hold` carries
+was added to it one thing at a time, and pushing an app's meaning through
+the screen channel is the prototype's path this ADR replaced.
+
+Three things can go away, and each has its keeper: a display (`hold` keeps
+everything), an app once isolated (the desktop keeps its window's cells),
+and the desktop process itself -- which nothing outlives today: a crash
+brings the desktop back from its snapshot with every terminal's program
+gone, because a pty's master belongs to the process that died. **The owner
+decided that stays (2026-11-18): a crash may lose programs.** The desktop
+keeps owning every app's and terminal's pty; Restart Desktop, which carries
+the ptys across its exec, still keeps them, and a crash does not. A keeper
+that outlived the desktop -- a `hold` session per app, or the supervisor
+holding each master and lending it -- was the alternative, at a process and
+a second screen emulation per app for the first.
+
+## The socket's guards, and every call by a name (2026-11-18)
+
+The wire names the desktop's own functions, written for a trusted caller
+in the same process, so the desktop does not trust the wire. The guards
+are against an app's bugs and against blaming the wrong app -- containment
+stays a non-goal (Decision 9) -- and each is a check in `tests/rtchan.py`,
+failing against the socket before them:
+
+- only the desktop's own user connects (`$REMOTE` after `accept`), and the
+  socket's folder must be the desktop's own, as the control socket's is;
+- a hello names an installed app, or is refused;
+- an app makes only the requests its own file makes: the told requests the
+  file's text names, read once per file, never run;
+- a request whose first word is a window (`interface.tsv`'s signature says
+  so) names one of the app's own windows, or a dialog opened for one of
+  them (a file picker), or is refused, and the window stays.
+
+Still owed, and the condition for any real session to listen: the app's
+identity is the desktop's to give when the zygote starts it, not what its
+hello says; until then the name in a hello is believed.
+
+**Every call by a name, classed.** The platform runs code whose name it
+does not write in 94 places (inspect's dynamic calls, `tools/callsites.py`,
+`programs/desktop/callsites.tsv`): 33 a window's own callback, which goes
+through `dt_appcall`/`dt_appget` to reach a hosted app; 20 a callback an
+app handed it (a dialog's answer, a job's end, a menu command, a note's
+action), which runs in the process of whoever handed it, so its owner is
+recorded where it is stored; 21 another installable's hook (a bar item, a
+strip module, a location, a bus handler), which runs in that installable's
+process; 16 the desktop's own; and 4 a widget calling the app that drew
+it, in the same process. `tests/appcalls.py` fails on a site no rule
+classes, and on any difference from the committed table -- keyed on the
+function and the call's own text, not its line -- so a new call inside a
+listed function is classed on purpose.
+
 ## Review (advisor, 2026-11-18): what the design must settle
 
 1. **An app runtime, not a whole desktop in a hosted mode.** The prototype's
@@ -531,8 +627,10 @@ What it holds, each a check there:
    re-executes itself into the new one, keeping its descriptors as Restart
    Desktop keeps a terminal's -- so a terminal's programs, the hard case,
    survive an update -- and an app that cannot is restarted and says so.
-   App processes survive a Restart Desktop and a supervisor's restart, as a
-   terminal's programs do.
+   App processes survive a Restart Desktop, as a terminal's programs do:
+   their ptys are carried across its exec, and each connects again. A crash
+   is another matter, and the owner decided it may lose programs (below,
+   "Why not a desktop service").
 9. **Not a goal: containment.** An app's process has the person's rights;
    this buys stability, not a sandbox.
 

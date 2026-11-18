@@ -229,9 +229,11 @@ More tools sit around it:
   tree calls is classed for an app's own process (ADR 0050), and fails on
   one that is not: `tools/appcalls.py --check`, read by the inspect module,
   never run; and the desktop's list of saved settings can be read, which
-  `tools/appstate.py` classes the platform's globals by. The catalogue's
-  half is checked by `./stale` in its own checkout. A suite in `all.py`;
-  about five seconds.
+  `tools/appstate.py` classes the platform's globals by; and every place
+  the platform runs code by a name it does not write is classed for an
+  app's own process and matches `programs/desktop/callsites.tsv`
+  (`tools/callsites.py --check`). The catalogue's half is checked by
+  `./stale` in its own checkout. A suite in `all.py`; about ten seconds.
 - **`tests/scopes.py`** -- starts the desktop with the platform alone, as
   the package ships it, with each installable alone in an empty data folder
   over the platform (and then launched, opened or started, so its callbacks

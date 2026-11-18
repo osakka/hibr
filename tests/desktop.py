@@ -7282,7 +7282,13 @@ open(slp, "w").write(
     "  if [ \"$key\" = k ]; then dt_clipset kept-text copy; DT_CLIPKEEP=0; dt_clipsave; fi; return 0; }\n"
     "dt_app slw \"Slow Disk\" 6 30\ndt_new \"Slow Disk\" 6 30 3 4 slw\n"
     "dt_run\ndt_close\n" % (load(MOD), WM))
+# Under the sanitizers the preload comes before ASan's runtime, which ASan
+# refuses at startup, so this desktop never ran there and every wait read
+# None (found 2026-11-18); and a key takes longer there to be drawn.
+SLASAN = os.environ.get("ASAN_OPTIONS")
+SLBOUND = 0.5 * (4 if SLASAN else 1)
 slt = Term(slp, env={"LD_PRELOAD": SLSO if built else "", "HIBR_SLOWDIR": SLD,
+                     **({"ASAN_OPTIONS": SLASAN + ":verify_asan_link_order=0"} if SLASAN else {}),
                      "XDG_CONFIG_HOME": os.path.join(SLD, "config"),
                      "XDG_STATE_HOME": os.path.join(SLD, "state"),
                      "DT_SUPERVISED": "1", "DT_SNAPMS": "200"},
@@ -7303,10 +7309,10 @@ snapf = [f for f in os.listdir(os.path.join(SLD, "state", "hibr", "restart"))] \
     if os.path.isdir(os.path.join(SLD, "state", "hibr", "restart")) else []
 check("with crash snapshots falling due on a disk whose renames take two "
       "seconds, every key is drawn within half a second",
-      NOSLOW or built and snapf and all(waits[k] is not None and waits[k] < 0.5 for k in "abcd"),
+      NOSLOW or built and snapf and all(waits[k] is not None and waits[k] < SLBOUND for k in "abcd"),
       (built, waits, snapf))
 check("and so is the key that saves the settings",
-      NOSLOW or built and waits["s"] is not None and waits["s"] < 0.5, (built, waits))
+      NOSLOW or built and waits["s"] is not None and waits["s"] < SLBOUND, (built, waits))
 check("and the save still reaches the disk by the time the desktop has ended",
       os.path.exists(os.path.join(SLD, "config", "hibr", "desktop.json")), os.listdir(SLD))
 # Keeping the clipboard's history turned off while its write is still
