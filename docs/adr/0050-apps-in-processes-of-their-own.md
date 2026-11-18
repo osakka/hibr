@@ -142,6 +142,14 @@ today, measured from both sides:
   budget, not only that the desktop did not freeze. Whether the catalogue
   also runs an app's suites before it publishes is the owner's to say: the
   package work it belongs to is parked (ADR 0058-0062).
+- **Wall clock, not only processor time.** `tests/screen.py` counts a
+  stall in processor time (`DT_HOLDBY=cpu`) so a loaded gate cannot trip
+  it -- and a desktop waiting on a program spends none, so today no suite
+  catches a desktop that waits: Sound 1.5.1's 5 s wait on a stuck mixer
+  passed every suite (found 2026-11-18, `tests/sound.py` now asks by the
+  wall clock with a two-second budget). Isolation moves exactly this kind
+  of stall into app processes, so the per-app measure counts waiting as
+  well as working, and the suites ask both.
 - **Checked, not trusted.** A check fails against a build with the
   detection taken out -- a stall that logs nothing, a latency nobody
   measures -- so the requirement cannot be lost quietly; and an app over its
@@ -176,8 +184,13 @@ today, measured from both sides:
    (the prototype's hooks in `apps/term.hibr`, which go with it). The table
    is `docs/adr/0050-calls.tsv`, rewritten by `tools/appcalls.py --write`.
    **The platform's state, surveyed (2026-11-18):** `tools/appstate.py`
-   (`docs/adr/0050-state.tsv`) finds installables touching **338** of the
-   platform's 1,019 globals and writing **185**. They fall into: pushed
+   (`docs/adr/0050-state.tsv`) finds installables touching **343** of the
+   platform's 1,023 globals and writing **186** -- a word match, so a lower
+   bound on what a parse would find; the first version missed the tables
+   declared `declare -A` without `-g`, among them the window table `DT`,
+   read directly in **27** installables and written in 3 (the Video app's
+   mini player sets its own window's chrome, shadow and place there, which
+   become requests), and `DT_APPS` read in 6. They fall into: pushed
    mirrors the app only reads -- the theme's colours (`DT_FACE` and the rest,
    read in about 100 files), the glyphs (`GL`, 115), the screen's size, the
    mirroring flag, the wheel's step, the focus (`DT_FOCUS`, 56); the app's
@@ -195,18 +208,38 @@ today, measured from both sides:
    desktop pushes as mirrors, as it pushes the theme; and the rest
    (`dt_launch`, `dt_place`, `dt_openbrowse`, `dt_walldrawn`, `dt_pbar`,
    `dt_notehist_what`) answer later, as a callback, each converted by hand.
+   **Asked through the status as well:** a request whose exit status an
+   installable tests (`if`, `while`, `!`, or a statement going on with `&&`
+   or `||`) is asked too, which the `:=` count misses: predicates over the
+   desktop's state -- `dt_hidden`, `dt_btnhidden`, `dt_loccan`, `dt_away`,
+   `dt_capped`, `dt_termhere`, `dt_ptrlockcan`, and `dt_title` with them --
+   become pushed facts; actions whose failure the app checks -- `dt_save`,
+   `dt_fopsave`, `dt_shot`, `dt_setgeom`, `dt_saverstart`, `dt_saverload`,
+   `dt_progsave`, `dt_progload`, `dt_notehist_run`, `dt_colours`,
+   `dt_appvia` -- answer by callback, or the desktop reports the failure
+   itself and the app's branch goes. That is 31 asked of 106, not 13.
    **Local, through the call graph:** `tools/appcalls.py` walks the
    platform's own calls from every local function; **29** reach a request
    (the `reaches` column). Most send one -- a note, the clipboard, a dialog,
    a launch -- which local code may, since nothing waits. Three read desktop
    state and become pushed facts: `dt_size` (the displays' layout),
    `dt_keyphases` (whether a window is hidden), `dt_cellpx` (what a display
-   can draw). **The input method is the one real question**: the text
-   widgets (`dt_textdraw`, `dt_textkey`, the text area, search, the start
-   menu's field) ask it for every key and every draw, and it lives in the
-   desktop. It runs in each app process instead -- the same code, its
-   choice of method pushed like the theme -- so typing never crosses a
-   process. Still owed before runtime code: each of the 338 globals classed
+   can draw). The walk is a **lower bound**: it starts only from functions
+   installables call by name, so a local function reaching desktop state
+   through a helper of its own passes it; the classed globals are its other
+   input, and each local function's reachable bodies are checked against
+   the refused globals once those are classed. **The input method is the
+   one real question** (proposed, not decided): the text widgets
+   (`dt_textdraw`, `dt_textkey`, the text area, search, the start menu's
+   field) ask it for every key and every draw, and `wm/ime.hibr` keeps one
+   engine in the desktop, the words a person teaches it with it. Proposed:
+   the engine runs in each app process, the method chosen pushed like the
+   theme, and a word taught is a request whose result the desktop pushes to
+   every process -- so typing never crosses a process, and learning crosses
+   it once. The alternative, every key to the desktop's engine and the
+   preedit back, is a round trip per key and is what the key protocol
+   exists to avoid. To be checked with hibr-ime's own state before it is
+   decided. Still owed before runtime code: each of the 343 globals classed
    in its table as the functions are.
 2. **The desktop holds each hosted window's cells.** A move, an uncovering,
    a workspace switch or a restart repaints a hosted window without asking
@@ -262,7 +295,12 @@ today, measured from both sides:
    other key goes down at once, since declining it does nothing. **A key
    whose answer does not come within `DT_HOLDMS`** is taken as declined --
    its desktop action runs, so a hung app cannot keep the person from
-   closing or leaving it -- and the app's late answer is discarded. The key's number is also the latency measurement the
+   closing or leaving it -- and the app's late answer is discarded. The app
+   still holds that key and acts on it when it wakes, so a timed-out key
+   would be **done twice**; the desktop therefore sends a revoke by the
+   key's number, which the runtime honours before it dispatches the key. A
+   loaded gate will miss 150 ms now and then, so the suites drive this with
+   a stand-in that is slow on purpose, never with timing luck. The key's number is also the latency measurement the
    sensitivity requirement asks for: one mechanism, not two. The table of told and pushed
    calls is built from ARCHITECTURE.md's callback table and the arity table
    in `tests/540-examples.t`, not a new list.
@@ -291,7 +329,15 @@ today, measured from both sides:
    process at 104 MB PSS, about 15% of a core while in use. A stall on that
    machine the same day, `held: pass 7068 ms ... pactl set-sink-volume`, was
    the sound bar item waiting on its server in the frame (fixed in Sound
-   1.5.2): exactly what isolation ends for good.
+   1.5.2 and 1.5.3): exactly what isolation ends for good. **Projected:** a
+   bar item or strip module runs for the session (10 processes here), an
+   app while it has a window (about 5 on a working day), a pane only while
+   the Control Panel shows it, a saver only while it runs; a library runs
+   in the process of the app that sources it, and themes, colours and
+   languages are data with none. About **15 processes**, and with the
+   prototype's measured cost -- 14.6 MB for the zygote, 1.1 MB each beside
+   it -- about **31 MB** beside the desktop's 104 MB, an app at rest waking
+   nothing. Measured again on the owner's set, with Blit, before the flip.
 7. **"The suites run unchanged" is counted first.** `tests/apps.py` reaches
    into an app from the test session -- calling its functions, reading its
    maps -- in about 44 places, the other suites in a handful; fixtures

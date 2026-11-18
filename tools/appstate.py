@@ -9,7 +9,8 @@ pushes, the app's own copy, or refused.
 
 Read from the text, not run: a name counts as written where it is assigned
 (NAME=, NAME[...]=, NAME+=, declare/read/unset of it) and as read where it is
-expanded (${NAME, $NAME). Approximate by design -- a word, not a parse -- and
+expanded (${NAME, $NAME, ${!NAME, ${#NAME, or NAME[...] read in arithmetic);
+a top-level `declare -A` counts as the platform's, `-g` or not. Approximate by design -- a word, not a parse -- and
 said so in the table's header.
 """
 import collections, glob, os, re, sys
@@ -44,7 +45,7 @@ def installables():
 
 
 DECL = re.compile(r"^\s*(?:declare\s+-g\w*\s+|export\s+)?([A-Z][A-Z0-9_]*)(?:\[[^\]]*\])?\+?=")
-DECLG = re.compile(r"^\s*declare\s+-g\w*\s+(.*)")
+DECLG = re.compile(r"^(?:declare|typeset)\s+-\w+\s+(.*)")
 
 
 def globals_():
@@ -72,11 +73,11 @@ def main():
     files = installables()
     for f in files:
         text = open(f, errors="replace").read()
-        own = set(re.findall(r"^\s*declare\s+-g\w*\s+([A-Z][A-Z0-9_]*)", text, re.M))
+        own = set(re.findall(r"^(?:declare|typeset)\s+-\w+\s+([A-Z][A-Z0-9_]*)", text, re.M))
         for n in names:
             if n in own or n not in text:
                 continue
-            if re.search(r"\$\{?%s\b" % n, text):
+            if re.search(r"\$\{?[!#]?%s\b|\b%s\[[^\]]*\](?!\S*\+?=)" % (n, n), text):
                 reads[n].add(f)
             if re.search(r"(^|[\s;(&|])%s(\[[^\]]*\])*\+?=|\b(unset|read\b[^\n]*)\s+%s\b" % (n, n), text, re.M):
                 writes[n].add(f)
