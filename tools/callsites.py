@@ -6,8 +6,9 @@ processes of their own (ADR 0050). Read by the inspect module, never run.
 
     python3 tools/callsites.py [--write|--check]
 
-  window   a window's own callback: through dt_appcall/dt_appget, which
-           send it to the app's process when the app is hosted
+  window   a call into an app's own code: dt_appfn, the one place, which
+           sends it to the app's process when the app is hosted; every other
+           call into an app goes through it
   handed   a callback an app handed the platform (a dialog's answer, a
            job's end, a menu command, a note's action): run in the process
            of whoever handed it
@@ -33,9 +34,7 @@ OUT = os.path.join(ROOT, "programs", "desktop", "callsites.tsv")
 
 # By the function the site is in.
 BYOWNER = {
-    "window": """dt_win dt_winbare dt_clean dt_contentonly dt_new dt_del dt_restore dt_rswrite
-                 dt_menus dt_aboutapp dt_ctxbuild dt_appname dt_editmenu dt_idlecall dt_answer
-                 dt_hover dt_fulltell dt_saverawake dt_launch dt_appcall dt_appget""",
+    "window": """dt_appfn""",
     "handed": """dt_askok dtask_close fp_done fpick_close dt_jobvarsdone dt_jobtick dt_ptyjobtick
                  dt_davdone dt_mdo dt_note_act dt_notehist_run dt_confirm_key dt_vwpick vwp_choose
                  dt_vwfill dt_vwfilled dt_vwjobdone dt_openverbs dt_openverb dt_copylocated""",
@@ -82,8 +81,22 @@ def sites():
     return out
 
 
+SHAREDF = {}
+
+
+def shared(rel):
+    """Whether a platform file is part of the app interface (its header says
+    `# interface: shared`): code there runs in whichever process called it."""
+    if rel not in SHAREDF:
+        SHAREDF[rel] = any(l.startswith("# interface: shared") for l in
+                           open(os.path.join(ROOT, "programs/desktop", rel), errors="replace"))
+    return SHAREDF[rel]
+
+
 def classify(site, own):
     rel, ln, owner, text = site
+    if shared(rel):
+        return "local"
     key = "%s:%d" % (rel, ln)
     if key in BYSITE:
         return BYSITE[key]
@@ -102,6 +115,15 @@ def main():
     print("dynamic call sites: %d -- %s" % (len(rows), ", ".join(
         "%s %d" % (k, kinds[k]) for k in ("window", "handed", "hook", "desktop", "local", "unclassed"))))
     bad = [r for r in rows if not r[0]]
+    # The seam is the one place a window's or an app's own code is called:
+    # anything else that calls one has to go through it, and shared code --
+    # which runs in an app's process as well -- never calls into another.
+    cross = [r for r in rows if r[0] == "window" and r[3] != "dt_appfn"]
+    cross += [r for r in rows if r[0] == "local" and shared(r[1]) and
+              own.get(r[3]) in ("window", "hook") and r[3] not in ("dt_appcall", "dt_appget")]
+    for r in cross:
+        print("  across  %s:%d in %s calls into an app by a name; it goes through dt_appfn, "
+              "from a file of the desktop's own" % (r[1], r[2], r[3]))
     for r in bad:
         print("  unclassed  %s:%d in %s: %s" % (r[1], r[2], r[3], r[4][:80]))
     if "--write" in sys.argv:
@@ -135,7 +157,10 @@ def main():
         for k in diff[1]:
             print("FAIL gone or changed: %s in %s (%s) %s -- tools/callsites.py --write" %
                   (k[0], k[2], k[1], k[3][:70]))
-        fails = len(bad) + len(diff[0]) + len(diff[1])
+        for r in cross:
+            print("FAIL %s:%d in %s calls into an app by a name, not through dt_appfn "
+                  "(ADR 0050)" % (r[1], r[2], r[3]))
+        fails = len(bad) + len(diff[0]) + len(diff[1]) + len(cross)
         print("\n%d passed, %d failed" % (len(rows) - len(bad), fails))
         sys.exit(1 if fails else 0)
 

@@ -33,7 +33,7 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	DT_FOCUS=$id
 	local nw=$DT_NOTEWIN
 	DT_NOTEWIN=$id
-	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" "$arg"
+	[ -n "${DT[$id]["open"]}" ] && dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["open"]} "$id" "$arg"
 	DT_NOTEWIN=$nw
 	dt_tile
 	ret "$id"
@@ -114,7 +114,7 @@ fn dt_del(int id) {
 	unset DT_LIVE["$id"]
 
 	DT_NOTEWIN=$id
-	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"
+	[ -n "${DT[$id]["close"]}" ] && dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["close"]} "$id"
 	DT_NOTEWIN=
 	console pane drop "w$id"
 	dt_winforget "$id"

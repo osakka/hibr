@@ -62,7 +62,7 @@ dt_ctxbuild() {
 			return 0
 		fi
 		before=$MB_N
-		"${who}_context" "$MB_CTXID"
+		dt_appfn "$who" "${who}_context" "$MB_CTXID"
 		k=$before
 		while [ "$k" -lt "$MB_N" ]; do
 			MB[$k]["own"]=$MB_CTXID

@@ -543,9 +543,9 @@ fn dt_answer(int now) {
 	dt_answering "$now" || return 1
 	ap=${DT[$id]["app"]-}
 	[ -n "$ap" ] || return 1
-	dt_has "${ap}_idle" && "${ap}_idle" "$id"
+	dt_has "${ap}_idle" && dt_appfn "$ap" "${ap}_idle" "$id"
 	dt_has "${ap}_dirty" || return 0
-	"${ap}_dirty" "$id"
+	dt_appfn "$ap" "${ap}_dirty" "$id"
 }
 
 # How far apart frames woken by output are held now: DT_TERMMS, or
@@ -904,3 +904,21 @@ dt_run() {
 }
 
 dt_quit() { DT_QUIT=1; }
+
+# A window's _idle, timed under `idle:<app>`. Called for a paused app too:
+# a terminal's program left unread keeps its pty readable, and the desktop
+# would spin -- so it is timed and logged, never held.
+fn dt_idlecall(int id) {
+	local ap=${DT[$id]["app"]} t0 t
+
+	# Not again inside a window's draw, which is already timed: its own
+	# record would be reset half-way and name only what came after.
+	[ -n "$DT_WHO" ] || slowest on "$DT_SLOWMS"
+	DT_WHO="idle:${ap:-bare}"
+	t0=${EPOCHREALTIME/./}
+	dt_appfn "$ap" ${DT[$id]["idle"]} "$id"
+	t=$((${EPOCHREALTIME/./} - t0))
+	DT_WHO=
+	[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "idle:${ap:-bare}" "$t"
+	return 0
+}

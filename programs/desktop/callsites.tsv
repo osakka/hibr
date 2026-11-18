@@ -8,9 +8,6 @@ hook	wm/appmode.hibr	66	dt_modetick	dt_has "$f" && "$f" "$m"
 hook	wm/apps.hibr	32	dt_runatstart	dt_has "$f" && "$f"
 hook	wm/apps.hibr	482	dt_unload	[ -n "${DT_UNLOADFN["$f"]-}" ] && dt_has "${DT_UNLOADFN["$f"]}" && "${DT_UNLOADFN["$f"]}"
 hook	wm/apps.hibr	499	dt_reinstate	[ -n "${DT_RELOADFN["$f"]-}" ] && dt_has "${DT_RELOADFN["$f"]}" && "${DT_RELOADFN["$f"]}"
-window	wm/apps.hibr	813	dt_launch	"${DT_APPS[$n]["via"]}_launch" "${arg:-${DT_APPS[$n]["arg"]}}"
-window	wm/apps.hibr	827	dt_launch	"${n}_launch" "$arg"
-window	wm/apps.hibr	837	dt_launch	if dt_has "${n}_size" && sz := "${n}_size"; then
 handed	wm/ask.hibr	92	dt_askok	"${DTA[$id]["then"]}" "${DTA[$id]["buf"]}" "$id" || return 0
 handed	wm/ask.hibr	142	dtask_close	[ -z "${DTA[$id]["answered"]}" ] && [ -n "$c" ] && "$c" "$id"
 hook	wm/bar.hibr	105	dt_barrescan	[ -n "$h" ] && dt_has "$h" && "$h"
@@ -21,64 +18,39 @@ hook	wm/bar.hibr	576	dt_popdraw	"${DT_POP}_popdraw" "$DT_POPR" "$DT_POPC" "$DT_P
 hook	wm/bar.hibr	611	dt_barido	"${a[@]}"
 hook	wm/bar.hibr	743	dt_barilay	"$d" "$c" "$hv"
 hook	wm/bar.hibr	873	dt_bar	for hk in "${DT_BARHOOKS[@]}"; do "$hk"; done
-window	wm/bar.hibr	1042	dt_appname	elif dt_has "${MB_APP}_appname" && n := "${MB_APP}_appname" "$DT_FOCUS" && [ -n "$n" ]; then
-window	wm/budget.hibr	220	dt_appcall	"$cb" "$id" "${args[@]}"
-window	wm/budget.hibr	238	dt_appget	"$cb" "$id" "${args[@]}"
+local	wm/budget.hibr	220	dt_appcall	"$cb" "$id" "${args[@]}"
+local	wm/budget.hibr	238	dt_appget	"$cb" "$id" "${args[@]}"
 hook	wm/bus.hibr	64	dt_busgive	dt_has "$f" && "$f" "$e"
 handed	wm/confirm.hibr	124	dt_confirm_key	$cmd
-window	wm/context.hibr	65	dt_ctxbuild	"${who}_context" "$MB_CTXID"
 handed	wm/copying.hibr	224	dt_copylocated	if dt_has "${x}_ok" && ! "${x}_ok"; then
-window	wm/draw.hibr	395	dt_idlecall	${DT[$id]["idle"]} "$id"
 handed	wm/filepick.hibr	473	fp_done	"$cb" "$for" "$p" "$lab"
 handed	wm/filepick.hibr	675	fpick_close	[ -n "$oc" ] && "$oc" "$for"
-window	wm/frame.hibr	107	dt_winbare	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
-window	wm/frame.hibr	191	dt_clean	"${ap}_dirty" "$id" && { DT_WHY=dirty; return 1; }
-window	wm/frame.hibr	861	dt_contentonly	dt_has "${ap}_paintsall" && "${ap}_paintsall" "$id" || return 1
-window	wm/frame.hibr	923	dt_win	[ -n "$dr" ] && $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
-window	wm/frame.hibr	926	dt_win	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
-window	wm/frame.hibr	971	dt_win	[ -n "$dr" ] && $dr "$id" "$h" "$w" "$wr" "$wc"
-window	wm/frame.hibr	1000	dt_win	[ -n "$dr" ] && $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
-window	wm/frame.hibr	1003	dt_win	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
-window	wm/fullscreen.hibr	157	dt_fulltell	[ -n "$ap" ] && dt_has "${ap}_fullscreen" && "${ap}_fullscreen" "$id" "$how"
 desktop	wm/handlers.hibr	70	dt_runhandler	( "${DT_OPENCMD[@]}" "$path" >> "$DT_LOG" 2>&1 & )
 handed	wm/handlers.hibr	251	dt_openverbs	[ -z "$when" ] || "$when" "$p" || ok=0
 handed	wm/handlers.hibr	264	dt_openverb	"$call" "${paths[@]}"
 desktop	wm/hold.hibr	253	dt_autohold	"${HIBR:-hibr}" "$DT_HERE/lib/ctl.hibr" -s "$base" \
 hook	wm/input.hibr	101	dt_mouse	"$b" "$1" "$mr" "$mc" && return 0
-window	wm/input.hibr	265	dt_mouse	"${DT[$id]["app"]}_titlemenu" "$id" 0 $((mc - wc))
 hook	wm/input.hibr	561	dt_mouse	"${DT_BARI["$bi"]["wheel"]}" "${act#wheel}"
-window	wm/input.hibr	997	dt_hover	[ -n "$ap" ] && $ap "$DT_HOVERWIN" -1 -1
-window	wm/input.hibr	1002	dt_hover	${DT[$id]["hover"]} "$id" $((r - wr)) $((c - wa))
 hook	wm/input.hibr	1327	dt_event	if dt_has "${DT_POP}_popkey" && "${DT_POP}_popkey" "$k"; then
-window	wm/input.hibr	1373	dt_event	${DT[$DT_FOCUS]["savefile"]} "$DT_FOCUS"
 desktop	wm/isolate.hibr	107	dt_isozygote	DT_HERE=$DT_HERE "$HIBR" "$DT_HERE/lib/apphost.hibr" --zygote "$DT_ISOSOCK" "$$" < /dev/null > /dev/null &
-desktop	wm/jobs.hibr	83	dt_job	"${cmd[@]}" > "$d/$n.out" 2> "$d/$n.err"
-desktop	wm/jobs.hibr	96	dt_jobmerge	"${cmd[@]}" 2>&1
-desktop	wm/jobs.hibr	117	dt_jobvarsrun	"$f" > /dev/null 2>&1
-handed	wm/jobs.hibr	128	dt_jobvarsdone	[ -n "$then" ] && "$then" "$n" "$st"
-handed	wm/jobs.hibr	197	dt_ptyjobtick	[ -n "${DTJ[$n]["prompt"]}" ] && { "${DTJ[$n]["prompt"]}" "$n" "$t" && r=0; }
-handed	wm/jobs.hibr	274	dt_jobtick	"${DTJ[$n]["then"]}" "$n" "$st"
+local	wm/jobs.hibr	83	dt_job	"${cmd[@]}" > "$d/$n.out" 2> "$d/$n.err"
+local	wm/jobs.hibr	96	dt_jobmerge	"${cmd[@]}" 2>&1
+local	wm/jobs.hibr	117	dt_jobvarsrun	"$f" > /dev/null 2>&1
+local	wm/jobs.hibr	128	dt_jobvarsdone	[ -n "$then" ] && "$then" "$n" "$st"
+local	wm/jobs.hibr	197	dt_ptyjobtick	[ -n "${DTJ[$n]["prompt"]}" ] && { "${DTJ[$n]["prompt"]}" "$n" "$t" && r=0; }
+local	wm/jobs.hibr	274	dt_jobtick	"${DTJ[$n]["then"]}" "$n" "$st"
 hook	wm/locations.hibr	90	dt_loccan	"${x}_can" "$op" "$p"
-window	wm/menus.hibr	380	dt_menus	${ap}_menus
-window	wm/menus.hibr	697	dt_aboutapp	"${own}_about"
-window	wm/menus.hibr	855	dt_editmenu	sh := "${DT[$who]["signin"]}" "$who"; then
 handed	wm/menus.hibr	1740	dt_mdo	[ "$argc" -gt 0 ] && "${argv[@]}"
 desktop	wm/native.hibr	281	dt_natver	v := "$b" --version 2> /dev/null
 handed	wm/notify.hibr	604	dt_note_act	[ "$n" -gt 0 ] && "${args[@]}"
 handed	wm/notify.hibr	643	dt_notehist_run	"${args[@]}"
-desktop	wm/powerlist.hibr	44	dt_pwlocal	o=$("$DT_PWCTL" show-session "$XDG_SESSION_ID" -p Remote -p Seat 2> /dev/null)
+local	wm/powerlist.hibr	44	dt_pwlocal	o=$("$DT_PWCTL" show-session "$XDG_SESSION_ID" -p Remote -p Seat 2> /dev/null)
 desktop	wm/recover.hibr	79	dt_supervise	"$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
 handed	wm/remote.hibr	164	dt_davdone	"${DTJ[$n]["dthen"]}" "$n" "$st"
-window	wm/restart.hibr	192	dt_rswrite	${ap}_stash "$id" "$DT_RSDIR"
-window	wm/restart.hibr	293	dt_restore	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" ""
-window	wm/restart.hibr	301	dt_restore	${ap}_resume "$id"
-window	wm/restart.hibr	303	dt_restore	${DT[$id]["open"]} "$id" ""
 desktop	wm/restart.hibr	568	dt_updcheck	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2> /dev/null)
-desktop	wm/rtserve.hibr	239	dt_rtmsg	"${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
-window	wm/saver.hibr	168	dt_saverawake	[ -n "$ap" ] && dt_has "${ap}_awake" && "${ap}_awake" "$id" &&
+window	wm/rtserve.hibr	38	dt_appfn	dt_appfn() { "${@:2}" && ret -k; }
+desktop	wm/rtserve.hibr	249	dt_rtmsg	"${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
 desktop	wm/session.hibr	497	dt_tickers	"$f"
-window	wm/session.hibr	546	dt_answer	dt_has "${ap}_idle" && "${ap}_idle" "$id"
-window	wm/session.hibr	548	dt_answer	"${ap}_dirty" "$id"
 hook	wm/strip.hibr	101	cs_relist	dt_has "${m}_shown" && ! "${m}_shown" && continue
 hook	wm/strip.hibr	470	dt_stripdraw	dt_has "${m}_draw" && "${m}_draw" "$row" $((c + 1))
 hook	wm/strip.hibr	516	cs_press	dt_has "${m}_click" && "${m}_click" "$row" "$mc"
@@ -91,5 +63,3 @@ handed	wm/vault.hibr	412	dt_vwpick	"$callback" "${m%%$'\t'*}"
 handed	wm/vault.hibr	500	vwp_choose	"$cb" "${m%%$'\t'*}"
 handed	wm/vault.hibr	547	dt_vwfill	host := "$cb" "$id" || return 1
 handed	wm/vault.hibr	574	dt_vwfilled	"$cb" "$id" "$us" "$pw"
-window	wm/windows.hibr	36	dt_new	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" "$arg"
-window	wm/windows.hibr	117	dt_del	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"

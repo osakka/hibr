@@ -104,7 +104,7 @@ fn dt_winbare(int id) {
 	DT_NOTEWIN=$id
 	dt_wclear "$id"
 	dt_fieldstale "$id"
-	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+	[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
 	DT_NOTEWIN=
 	console pen "$fg" "$bg"
 	t := str repeat " " "$w"
@@ -188,7 +188,7 @@ fn dt_clean(int id) {
 	dt_hotmoved "$id" && { DT_WHY=hover; return 1; }
 	case " $DT_ALONE " in *" $id "*) ;; *) dt_under "$id" && { DT_WHY=overlap; return 1; } ;; esac
 	dt_has "${ap}_dirty" || { DT_WHY=nodirty; return 1; }
-	"${ap}_dirty" "$id" && { DT_WHY=dirty; return 1; }
+	dt_appfn "$ap" "${ap}_dirty" "$id" && { DT_WHY=dirty; return 1; }
 	DT_WHY=left
 	return 0
 }
@@ -858,7 +858,7 @@ fn dt_contentonly(int id) {
 	[ -n "$DT_FORCEONCE" ] && return 1
 	case $DT_FORCEWIN in *" $id "*) return 1 ;; esac
 	[ -n "$ap" ] && [ -n "${DT[$id]["csig"]}" ] || return 1
-	dt_has "${ap}_paintsall" && "${ap}_paintsall" "$id" || return 1
+	dt_has "${ap}_paintsall" && dt_appfn "$ap" "${ap}_paintsall" "$id" || return 1
 	dt_hotmoved "$id" && return 1
 	case " $DT_ALONE " in *" $id "*) ;; *) dt_under "$id" && return 1 ;; esac
 	s := dt_chromesig "$id"
@@ -920,10 +920,10 @@ fn dt_win(int id) {
 		dt_fieldstale "$id"
 		if dt_capped "$id"; then
 			console pane origin "w$id" 0 1
-			[ -n "$dr" ] && $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
+			[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
 			console pane origin "w$id" 0 0
 		else
-			[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+			[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
 		fi
 		[ "${DT_WINTRANS:-0}" != 0 ] && console translucent off
 		DT_NOTEWIN=
@@ -968,7 +968,7 @@ fn dt_win(int id) {
 		DT_NOTEWIN=$id
 		dt_wclear "$id"
 		dt_fieldstale "$id"
-		[ -n "$dr" ] && $dr "$id" "$h" "$w" "$wr" "$wc"
+		[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" "$h" "$w" "$wr" "$wc"
 		DT_NOTEWIN=
 		return 0
 	fi
@@ -997,10 +997,10 @@ fn dt_win(int id) {
 	if dt_capped "$id"; then
 		cap=1
 		console pane origin "w$id" 0 1
-		[ -n "$dr" ] && $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
+		[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
 		console pane origin "w$id" 0 0
 	else
-		[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+		[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
 	fi
 	[ "${DT_WINTRANS:-0}" != 0 ] && console translucent off
 	DT_NOTEWIN=

@@ -377,7 +377,7 @@ dt_menus() {
 	MB_EDITED=0
 	if [ -n "$ap" ] && dt_has "${ap}_menus"; then
 		local m0=$MB_N
-		${ap}_menus
+		dt_appfn "$ap" "${ap}_menus"
 		while [ "$m0" -lt "$MB_N" ]; do
 			MB[$m0]["own"]=$DT_FOCUS
 			m0=$((m0 + 1))
@@ -694,7 +694,7 @@ fn dt_aboutapp(ap) {
 	dt_aboutinfo "$ap" || return 0
 	own=${DT_ABOUT["$ap"]["own"]:-$ap}
 	if dt_has "${own}_about"; then
-		"${own}_about"
+		dt_appfn "$own" "${own}_about"
 		return 0
 	fi
 	local wt
@@ -852,7 +852,7 @@ dt_editmenu() {
 	# shape while the window is open.
 	local sh
 	if [ -n "$who" ] && [ -n "${DT[$who]["signin"]}" ] &&
-	   sh := "${DT[$who]["signin"]}" "$who"; then
+	   sh := dt_appfn "${DT[$who]["app"]-}" "${DT[$who]["signin"]}" "$who"; then
 		dt_sep
 		dt_item "Fill Sign-In" l dt_vwfill
 		dt_rowaccel "${DT_KEYS["signin"]}"

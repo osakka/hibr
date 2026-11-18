@@ -189,7 +189,7 @@ fn dt_rswrite(f, int carry, why = "restart") {
 	for id in "${DT_WINS[@]}"; do
 		ap=${DT[$id]["app"]}
 		if [ "$carry" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
-			${ap}_stash "$id" "$DT_RSDIR"
+			dt_appfn "$ap" "${ap}_stash" "$id" "$DT_RSDIR"
 		fi
 		j := json get DT ".$id"
 		json parse DT_RS["win"]["$id"] "$j"
@@ -290,7 +290,7 @@ dt_restore() {
 		DT[$id]["autoclose"]=
 		if [ "${DT_RS["fresh"]}" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
 			dt_rslog "window $id ($ap): what it held could not survive, opened fresh"
-			[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" ""
+			[ -n "${DT[$id]["open"]}" ] && dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["open"]} "$id" ""
 		else
 			read -ra ms <<< "${DT_KEEPSTATE["$ap"]}"
 			for m in "${ms[@]}"; do
@@ -298,9 +298,9 @@ dt_restore() {
 				json parse "$m[$id]" "$j"
 			done
 			if [ -n "$ap" ] && dt_has "${ap}_resume"; then
-				${ap}_resume "$id"
+				dt_appfn "$ap" "${ap}_resume" "$id"
 			elif [ "${#ms[@]}" = 0 ] && [ -n "${DT[$id]["open"]}" ]; then
-				${DT[$id]["open"]} "$id" ""
+				dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["open"]} "$id" ""
 			fi
 		fi
 		dt_away "$id" || dt_hidden "$id" ||

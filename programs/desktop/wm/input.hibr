@@ -262,7 +262,7 @@ dt_mouse() {
 		   dt_has "${DT[$id]["app"]}_titlemenu"; then
 			case "-$mods-" in
 			*"-$DT_TITLEKEY-"*)
-				"${DT[$id]["app"]}_titlemenu" "$id" 0 $((mc - wc))
+				dt_appfn "${DT[$id]["app"]}" "${DT[$id]["app"]}_titlemenu" "$id" 0 $((mc - wc))
 				return 0
 				;;
 			esac
@@ -994,12 +994,12 @@ fn dt_hover(int r, int c) {
 	fi
 	if [ -n "$DT_HOVERWIN" ] && [ "$DT_HOVERWIN" != "$id" ]; then
 		ap=${DT[$DT_HOVERWIN]["hover"]}
-		[ -n "$ap" ] && $ap "$DT_HOVERWIN" -1 -1
+		[ -n "$ap" ] && dt_appfn "${DT[$DT_HOVERWIN]["app"]-}" $ap "$DT_HOVERWIN" -1 -1
 		DT_HOVERWIN=
 	fi
 	if [ "${t#w:*:}" != "$t" ]; then
 		DT_HOVERWIN=$id
-		${DT[$id]["hover"]} "$id" $((r - wr)) $((c - wa))
+		dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["hover"]} "$id" $((r - wr)) $((c - wa))
 	fi
 	[ "$t" != "$was" ] && dt_tipfor "$t" "$r" "$c"
 	DT_PTRR=$r
@@ -1370,7 +1370,7 @@ fn dt_event(k) {
 	if [ -z "$pa" ] && [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["savefile"]}" ] &&
 	   dt_keyis save "$k"; then
 		DT_NOTEWIN=$DT_FOCUS
-		${DT[$DT_FOCUS]["savefile"]} "$DT_FOCUS"
+		dt_appfn "${DT[$DT_FOCUS]["app"]-}" ${DT[$DT_FOCUS]["savefile"]} "$DT_FOCUS"
 		return 0
 	fi
 	# Fill Sign-In, the same way: only a window with a sign-in form of its

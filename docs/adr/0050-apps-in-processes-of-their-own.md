@@ -327,7 +327,20 @@ action), which runs in the process of whoever handed it, so its owner is
 recorded where it is stored; 21 another installable's hook (a bar item, a
 strip module, a location, a bus handler), which runs in that installable's
 process; 16 the desktop's own; and 4 a widget calling the app that drew
-it, in the same process. `tests/appcalls.py` fails on a site no rule
+it, in the same process. **The window calls have one seam** since the
+same day: `dt_appfn app callback args...`, in the desktop's own
+`wm/rtserve.hibr`, which every one of the 31 calls into an app's own code
+from the desktop's files goes through (a window's `_draw`, `_dirty`,
+`_idle`, `_open`, `_close`, `_menus`, `_stash`, `_resume`, an app's
+`_launch`, `_size`, `_about`, `_context`) -- its status and its `ret`
+answer the callee's, at 1.2 us a call over a direct one, a forced
+three-window frame unchanged within its noise (4.1-4.6 ms against
+4.2-4.6). Every app is in the desktop's process today, so it calls; it
+is where a hosted app's call will be sent. A shared file (`# interface:
+shared`) runs in whichever process called it, so its sites are local, and
+shared code calling into an app -- `dt_idlecall` was one, and moved to
+`wm/session.hibr` -- fails the check, as does a call into an app by a
+name anywhere but the seam. `tests/appcalls.py` fails on a site no rule
 classes, and on any difference from the committed table -- keyed on the
 function and the call's own text, not its line -- so a new call inside a
 listed function is classed on purpose.

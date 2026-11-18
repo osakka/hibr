@@ -810,7 +810,7 @@ fn dt_launch(n, arg = "") {
 		# -- a program on the Applications menu (wm/programs) -- is
 		# that app's _launch with the entry's argument.
 		if dt_has "${DT_APPS[$n]["via"]}_launch"; then
-			"${DT_APPS[$n]["via"]}_launch" "${arg:-${DT_APPS[$n]["arg"]}}"
+			dt_appfn "${DT_APPS[$n]["via"]}" "${DT_APPS[$n]["via"]}_launch" "${arg:-${DT_APPS[$n]["arg"]}}"
 			return 0
 		fi
 		h=${DT_APPS[$n]["h"]}
@@ -824,7 +824,7 @@ fn dt_launch(n, arg = "") {
 	# An app that does something rather than showing a window -- the
 	# Screenshot desk accessory -- gives <app>_launch, and that is all.
 	if dt_has "${n}_launch"; then
-		"${n}_launch" "$arg"
+		dt_appfn "$n" "${n}_launch" "$arg"
 		return 0
 	fi
 	if [ -n "${DT_APPS[$n]["once"]}" ] && id := dt_appwin "$n"; then
@@ -834,7 +834,7 @@ fn dt_launch(n, arg = "") {
 	fi
 	h=${DT_APPS[$n]["h"]}
 	w=${DT_APPS[$n]["w"]}
-	if dt_has "${n}_size" && sz := "${n}_size"; then
+	if dt_has "${n}_size" && sz := dt_appfn "$n" "${n}_size"; then
 		h=${sz% *}
 		w=${sz#* }
 	fi

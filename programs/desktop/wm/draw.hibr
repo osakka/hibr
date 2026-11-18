@@ -381,24 +381,6 @@ dt_idle() {
 	DT_NOTEWIN=
 }
 
-# A window's _idle, timed under `idle:<app>`. Called for a paused app too:
-# a terminal's program left unread keeps its pty readable, and the desktop
-# would spin -- so it is timed and logged, never held.
-fn dt_idlecall(int id) {
-	local ap=${DT[$id]["app"]} t0 t
-
-	# Not again inside a window's draw, which is already timed: its own
-	# record would be reset half-way and name only what came after.
-	[ -n "$DT_WHO" ] || slowest on "$DT_SLOWMS"
-	DT_WHO="idle:${ap:-bare}"
-	t0=${EPOCHREALTIME/./}
-	${DT[$id]["idle"]} "$id"
-	t=$((${EPOCHREALTIME/./} - t0))
-	DT_WHO=
-	[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "idle:${ap:-bare}" "$t"
-	return 0
-}
-
 # Read what every window's own program has written and draw nothing: the
 # same calls dt_idle makes, for every window rather than only the ones no
 # frame draws. A frame held back to keep the rate down must still do this,

@@ -154,7 +154,7 @@ fn dt_fulldisp(int id) {
 fn dt_fulltell(int id, how) {
 	local ap=${DT[$id]["app"]}
 
-	[ -n "$ap" ] && dt_has "${ap}_fullscreen" && "${ap}_fullscreen" "$id" "$how"
+	[ -n "$ap" ] && dt_has "${ap}_fullscreen" && dt_appfn "$ap" "${ap}_fullscreen" "$id" "$how"
 	return 0
 }
 
