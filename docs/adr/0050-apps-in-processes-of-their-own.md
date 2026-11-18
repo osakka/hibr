@@ -242,8 +242,12 @@ today, measured from both sides:
    costs, measured 2026-11-18: an Arabizi engine takes **100 ms** to open
    and **14.5 MB** (PSS), nearly all of it word lists -- so ten typing apps
    would be 145 MB unless the zygote loads the data while a keyboard names
-   a method and every app shares its pages; that sharing is measured before
-   this is decided. The cycle and teach chords are taken in the desktop's
+   a method and every app shares its pages. **Decided (owner, 2026-11-18):
+   in every app, the data shared**, and it measures as shared: a process
+   that has loaded Arabizi (14.5 MB) forks three children, each opens its
+   own engine in **0 ms** and types a word, and each owns **0.1 MB** of its
+   own -- the four together cost about one engine. So the zygote loads the
+   method the keyboard names, and loads again when the keyboard changes. The cycle and teach chords are taken in the desktop's
    key path before the window, and only while the desktop's engine holds a
    word (`dt_imeaction`); with the word held in the app, the app tells the
    desktop it holds one, and those chords go down to it. A held word is
@@ -354,9 +358,10 @@ today, measured from both sides:
    desktop routes to the other app's process (add a contact, list a folder
    again), as the clipboard and open-with already are. Two entries are
    never put in one process: from outside they could not be told apart,
-   which the sensitivity requirement forbids. **Whether a bundle's members
-   are one process is the owner's to decide** -- one feature split by kind,
-   or 157 calls converted. Library state does fork: each process has its
+   which the sensitivity requirement forbids. **A bundle's members are one
+   process (owner, 2026-11-18)**: one feature split by kind, measured and
+   blamed under the bundle's name, which is the name the person sees; a
+   member installed alone runs alone. The 157 calls stay as they are. Library state does fork: each process has its
    own job table, so Calendar and Contacts could each start a sync of one
    server; both sync scripts already take a lock folder on disk and the
    second answers "Another sync is running", so the store is safe and only
