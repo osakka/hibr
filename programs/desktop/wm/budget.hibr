@@ -85,6 +85,13 @@ declare -g DT_PASS0=0 DT_PASSHELD= DT_PASSON=0 DT_PASSWAIT=0
 # somebody else's machine says which part it was rather than only that it
 # happened. Cleared before every ticker and after every timing.
 declare -g DT_SPENTWHY=""
+# What the desktop does, counted the same on every platform (Gitea #343):
+# wakes of the loop, frames, events, each layer's re-reads of its server --
+# always, since each is one addition -- and while DT_STATON is set, each
+# ticker's runs and time and the time frames take. `desktop ctl stats`
+# reads them (wm/ctl.hibr); its reset zeroes them and turns the timing on.
+declare -gA DT_STAT
+DT_STATON=
 # Which app each ticker belongs to, worked out once from the file that
 # registered it; "-" for one that is the desktop's own.
 declare -gA DT_TICKAPP

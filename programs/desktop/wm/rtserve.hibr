@@ -66,14 +66,6 @@ dt_rtlisten() {
 	return 0
 }
 
-# How many lines one connection may have carried in one pass -- the rest
-# waits for the next, so an app that floods holds nothing up -- and how long
-# a line may grow with no end before its connection is let go.
-DT_RTLINES="${DT_RTLINES-64}"
-DT_RTLINEMAX="${DT_RTLINEMAX-1048576}"
-# What each connection has sent that is not yet a whole line, and the
-# connections with whole lines still waiting for the next pass.
-declare -gA DT_RTBUF DT_RTMORE
 # How much of what the desktop says to one app may wait for the app to read
 # it before the app is taken to have stopped reading and is let go, and the
 # connections with something still waiting: each is offered it again every
@@ -84,11 +76,11 @@ declare -gA DT_RTPEND
 
 # Every pass while listening: what woke the display is asked of it, so a
 # connection with nothing to say costs nothing; each that did is read with
-# recv -p, which takes what is waiting and never waits, and its whole lines
-# are carried, at most DT_RTLINES a pass.
+# dt_rtlines (wm/rtwire.hibr), which never waits, and its whole lines are
+# carried, at most DT_RTLINES a pass.
 dt_rttick() {
-	local c x n w b
-	local -a ready
+	local c x w st
+	local -a ready got
 
 	[ -n "$DT_RTLFD" ] || return 0
 	for c in "${!DT_RTPEND[@]}"; do
@@ -117,32 +109,60 @@ dt_rttick() {
 			continue
 		fi
 		[ -n "${DT_RTC["$c"]+x}" ] || continue
-		if [ -z "${DT_RTMORE["$c"]+x}" ]; then
-			if ! recv -p "$c" b 2> /dev/null; then
-				dt_rtdrop "$c"
-				continue
-			fi
-			DT_RTBUF["$c"]+=$b
+		dt_rtlines "$c"
+		st=$?
+		if [ "$st" = 1 ]; then
+			dt_rtdrop "$c"
+			continue
 		fi
-		unset DT_RTMORE["$c"]
-		n=0
-		while [[ ${DT_RTBUF["$c"]} == *$'\n'* ]]; do
-			if [ "$n" -ge "$DT_RTLINES" ]; then
-				DT_RTMORE["$c"]=1
-				dt_want "${DT_TERMMS:-70}"
-				break
-			fi
-			x=${DT_RTBUF["$c"]%%$'\n'*}
-			DT_RTBUF["$c"]=${DT_RTBUF["$c"]#*$'\n'}
-			n=$((n + 1))
+		[ -n "${DT_RTMORE["$c"]+x}" ] && dt_want "${DT_TERMMS:-70}"
+		got=("${DT_RTGOT[@]}")
+		for x in "${got[@]}"; do
 			dt_rtmsg "$c" "$x" || continue 2
 		done
-		if [ "${#DT_RTBUF["$c"]}" -gt "$DT_RTLINEMAX" ]; then
+		if [ "$st" = 2 ]; then
 			dt_log "app runtime: ${DT_RTC["$c"]} sent ${#DT_RTBUF["$c"]} bytes with no end of line; let go"
 			dt_rtdrop "$c"
 		fi
 	done
 	return 0
+}
+
+# Start an app's own process from its file with three descriptors and no
+# more: standard input and output /dev/null, never the desktop's terminal,
+# so it can neither read the person's keys nor write over the screen;
+# standard error the desktop's own, its log. Everything else the desktop
+# holds -- the terminal under another number, its listening socket, other
+# apps' connections -- is closed in the child before the program starts,
+# since an app holding them would keep them open past the desktop's own
+# close.
+fn dt_rtspawn(file) {
+	local f
+
+	(
+		for f in /proc/self/fd/*; do
+			f=${f##*/}
+			[ "$f" -gt 2 ] && [ -e "/proc/self/fd/$f" ] && exec {f}>&-
+		done
+		exec "$HIBR" "$file" < /dev/null > /dev/null
+	) &
+	dt_log "app runtime: started $file as $!"
+	return 0
+}
+
+# Tell an app's own process to run one of its own functions -- the one
+# verb the desktop says today (ADR 0050): sent, never waited for. Status 1
+# when no process of that app is connected.
+fn dt_rttell(app, name, ...args) {
+	local c x
+
+	for c in "${!DT_RTC[@]}"; do
+		[ "${DT_RTC["$c"]}" = "$app" ] || continue
+		x := dt_rtline tell "$name" "${args[@]}"
+		dt_rtsay "$c" "$x"
+		return $?
+	done
+	return 1
 }
 
 # Let a connection go.

@@ -243,8 +243,14 @@ More tools sit around it:
   empty word); a name `interface.tsv` does not carry as a told request is
   refused by name; another protocol is refused and the person told hibr was
   updated, with Restart Desktop on the note; and nothing listens until an
-  app process is started. Fails against a ticker loop that drops a ticker
-  registered during its pass.
+  app process is started. And an app with a loop of its own: told to run
+  its own function, it does and tells back; 300 tells run whole and in
+  order; a fifo it watches wakes it; idle it spends nothing; a name the
+  interface defines is refused; it holds none of the desktop's terminal;
+  and it ends on its own when the desktop closes its socket or is killed
+  outright -- each failing against the fault it was written for (an
+  inherited terminal, a lost standard error, a hangup). Fails against a
+  ticker loop that drops a ticker registered during its pass.
 - **`tests/appcalls.py`** -- every platform function an installable in this
   tree calls is classed for an app's own process (ADR 0050), and fails on
   one that is not: `tools/appcalls.py --check`, read by the inspect module,

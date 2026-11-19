@@ -115,6 +115,64 @@ fn dt_ticker(name) {
 	return 0
 }
 
+# Every frame, and every pass of an app's own loop (runtime.hibr) -- one
+# runner for both, so a fix to one is a fix to both. A ticker whose function is not there -- registered by a
+# file whose library failed to load, or by an app since removed -- is
+# taken off the list with one line in the log saying so, rather than
+# called on every frame for as long as the desktop runs: that is how one
+# missing library put 1.78 million `pe_servers: command not found` lines
+# into the owner's desktop.log (Gitea #262). The check costs one lookup
+# per ticker per frame, and there are a handful.
+# Each is timed (wm/budget.hibr), and one whose app is paused is skipped.
+dt_tickers() {
+	local f t0 t ap g
+	local -a gone=() keep=()
+
+	# The processor-wait baseline again (wm/budget.hibr): the saver's and
+	# the lock's waits call this and not the loop's own read, and a
+	# baseline an hour old would excuse the first stall after them.
+	read -r DT_SCHON DT_SCHWAIT _ 2> /dev/null < "/proc/$$/schedstat" ||
+		{ DT_SCHON=0; DT_SCHWAIT=0; }
+
+	for f in "${DT_TICKERS[@]}"; do
+		if ! dt_has "$f"; then
+			dt_log "ticker $f is not defined; taken off the list"
+			gone+=("$f")
+			continue
+		fi
+		ap := dt_tickowner "$f"
+		[ "$ap" = - ] && ap=
+		DT_WHO=$f
+		DT_SPENTWHY=
+		slowest on "$DT_SLOWMS"
+		t0=${EPOCHREALTIME/./}
+		# An installable's ticker runs through the seam as its owner's; the
+		# desktop's own are called, so an idle pass pays the seam only for
+		# what has an owner.
+		if [ -n "${DT_TICKOWN["$f"]-}" ]; then
+			dt_appfn "${DT_TICKOWN["$f"]}" "$f"
+		else
+			"$f"
+		fi
+		t=$((${EPOCHREALTIME/./} - t0))
+		DT_WHO=
+		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "$f" "$t" "$ap"
+	done
+	# Only what is not defined is taken off: a ticker registered while the
+	# list ran -- one started on demand from another ticker, a timer or a
+	# control request -- stays on it (it was dropped until 0.99.553, which
+	# is how the app runtime's first socket never served a connection).
+	[ "${#gone[@]}" = 0 ] && return 0
+	for f in "${DT_TICKERS[@]}"; do
+		for g in "${gone[@]}"; do
+			[ "$f" = "$g" ] && continue 2
+		done
+		keep+=("$f")
+	done
+	DT_TICKERS=("${keep[@]}")
+	return 0
+}
+
 # DT_WANTBY keeps who asked for the soonest frame -- the callback running
 # when it was asked (DT_WHO), or the desktop -- so `desktop ctl stats` can
 # say which of them each timed wake was for (woke).

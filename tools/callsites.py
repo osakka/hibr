@@ -155,6 +155,7 @@ REACHOK = {
     "dt_jobvarsrun": "runs the job's own body in the job's child",
     "dt_pwlocal": "runs a program",
     "sv_call": "goes through dt_prefixfn when the desktop runs it",
+    "dt_tickers": "calls only a ticker with no owner -- the desktop's own in the desktop, the app's own in an app; an installable's goes through dt_appfn",
     "dt_appcall": "the seam's own dispatch, reached through dt_wincall",
     "dt_appget": "the seam's own dispatch, reached through dt_winget",
 }

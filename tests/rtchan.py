@@ -36,6 +36,33 @@ dt_notep low "from the app: %%s %%s [%%s] done" "50%%25 off" "two  blanks" ""
 dt_rtsend tell dt_quit
 dt_notep low "second note"
 ''' % (HERE, SAID, SAID))
+# An app with a loop of its own (dt_rtrun): it says hello, records its pid,
+# runs what the desktop tells it -- a function of its own, which tells the
+# desktop a note back and writes down what it was given -- watches a fifo of
+# its own, read by its own ticker, and writes how its loop ended.
+LOOP = scratch("rtchan-loop.hibr")
+FIFO = scratch("rtchan-fifo")
+open(LOOP, "w").write(r'''DT_HERE=%s
+. "$DT_HERE/runtime.hibr"
+dt_rtopen loopdemo || exit 1
+echo "$$" > %s.pid
+fn demo_ping(what) {
+	echo "$what" >> %s.pings
+	dt_notep low "pinged: %%s" "$what"
+}
+exec {DEMO_FF}<> %s
+console watch "$DEMO_FF"
+demo_tick() {
+	local w l
+	w := console woke "$DEMO_FF"
+	[ -n "$w" ] || return 0
+	read -r -u "$DEMO_FF" l
+	dt_notep low "the fifo said %%s" "$l"
+}
+dt_ticker demo_tick
+dt_rtrun
+echo "ended $?" > %s.end
+''' % (HERE, SAID, SAID, FIFO, SAID))
 # One that speaks another protocol.
 open(BAD, "w").write(r'''DT_HERE=%s
 . "$DT_HERE/runtime.hibr"
@@ -48,6 +75,7 @@ dt_open
 DT_NOTEMS=60000
 DT_LOADING=%s dt_app demo "Demo" 8 40
 DT_LOADING=%s dt_app olddemo "Old Demo" 8 40
+DT_LOADING=%s dt_app loopdemo "Loop Demo" 8 40
 OTHER := dt_new Other 6 30 3 3
 tst_go() {
 	[ -f %s ] || { dt_want 100; return 0; }
@@ -63,7 +91,7 @@ dt_close
 '''
 MARK = scratch("rtchan-do")
 p = scratch("rtchan.hibr")
-open(p, "w").write(SESSION % (load(MOD), WM, GOOD, BAD, MARK, MARK, MARK))
+open(p, "w").write(SESSION % (load(MOD), WM, GOOD, BAD, LOOP, MARK, MARK, MARK))
 t = Term(p, rows=30, cols=110, settle=0.6)
 
 
@@ -113,7 +141,7 @@ if os.environ.get("RTDEBUG"):
     print("\n".join(l for l in log().split("\n") if "runtime" in l or "rtt" in l or "hibr:" in l))
 # The holes a socket has that the polite client above never finds, each
 # from a client that misbehaves on the wire itself.
-import socket
+import socket, signal
 do('echo "$DT_RTPATH" > %s.path; echo "$HIBR_VERSION" >> %s.path' % (SAID, SAID))
 deadline = time.time() + 5
 while time.time() < deadline and not (os.path.exists(SAID + ".path") and
@@ -159,7 +187,7 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(25)
+    report(33)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
@@ -299,6 +327,96 @@ while time.time() < deadline and not os.path.exists(SAID + ".idle"):
 us = open(SAID + ".idle").read().strip() if os.path.exists(SAID + ".idle") else ""
 check("a pass with ten idle app connections costs under 100 us", us.isdigit() and int(us) < 100, us)
 
+# The app's own loop: told to run its own function, it does, and tells the
+# desktop back; a flood of tells is run whole and in order; what it watches
+# and its own ticker wake it; idle, it spends next to nothing; and a name the
+# app interface defines is refused rather than run.
+for x in (SAID + ".pid", SAID + ".pings", SAID + ".end"):
+    if os.path.exists(x):
+        os.unlink(x)
+if os.path.exists(FIFO):
+    os.unlink(FIFO)
+os.mkfifo(FIFO)
+do('dt_rtspawn %s' % LOOP)
+deadline = time.time() + 10
+while time.time() < deadline and not os.path.exists(SAID + ".pid"):
+    time.sleep(0.05)
+apid = int(open(SAID + ".pid").read()) if os.path.exists(SAID + ".pid") else 0
+time.sleep(0.3)
+def noted(text, secs=10):
+    """Whether a note holding text is in the desktop's queue: this session
+    keeps each note up a minute, so a new one waits behind the last rather
+    than showing at once."""
+    deadline = time.time() + secs
+    got = ""
+    while time.time() < deadline:
+        got = result('for k in "${!DT_NOTEQ[@]}"; do printf "%%s\\n" "${DT_NOTEQ[$k]["text"]}"; done > %s.pend' % SAID)
+        if text in got:
+            return True, got
+        time.sleep(0.3)
+    return False, got
+
+
+do('dt_rttell loopdemo demo_ping "hello world"')
+ok, got = noted("pinged: hello world")
+check("an app's own loop runs a function of its own the desktop tells it to, and tells back", ok, got)
+do('for i in {1..300}; do dt_rttell loopdemo demo_ping "n$i"; done')
+deadline = time.time() + 15
+pings = []
+while time.time() < deadline:
+    pings = open(SAID + ".pings").read().split("\n")[:-1] if os.path.exists(SAID + ".pings") else []
+    if len(pings) >= 301:
+        break
+    time.sleep(0.1)
+check("a flood of 300 tells is run whole and in order",
+      pings[1:] == ["n%d" % i for i in range(1, 301)], (len(pings), pings[-3:]))
+with open(FIFO, "w") as ff:
+    ff.write("knock\n")
+ok, got = noted("the fifo said knock")
+check("what the app watches wakes its loop, and its own ticker reads it", ok, got)
+
+
+def cpu(pid):
+    f = open("/proc/%d/stat" % pid).read().rsplit(")", 1)[1].split()
+    return int(f[11]) + int(f[12])
+
+
+c0 = cpu(apid) if apid else 0
+time.sleep(3)
+c1 = cpu(apid) if apid else 99
+check("idle for three seconds, the app's loop spends next to nothing (%d ticks)" % (c1 - c0),
+      apid and c1 - c0 <= 2, c1 - c0)
+do('dt_rttell loopdemo dt_notep low "from the desktop, as the app"')
+deadline = time.time() + 5
+while time.time() < deadline and "not this app's own" not in log():
+    time.sleep(0.1)
+ok, got = noted("from the desktop, as the app", 1)
+check("a name the app interface defines is refused, never run",
+      "the desktop told dt_notep, which is not this app's own" in log() and not ok, log()[-400:])
+# Started by the desktop, it holds nothing of the desktop's terminal: its
+# standard input and output are /dev/null, so it can neither read the
+# person's keys nor write over the screen.
+tty = os.readlink("/proc/%d/fd/0" % t.pid)
+held = [os.readlink("/proc/%d/fd/%s" % (apid, f)) for f in os.listdir("/proc/%d/fd" % apid)] if apid else [tty]
+dfds = {}
+for f in os.listdir("/proc/%d/fd" % t.pid):
+    try:
+        tgt = os.readlink("/proc/%d/fd/%s" % (t.pid, f))
+        flags = [l for l in open("/proc/%d/fdinfo/%s" % (t.pid, f)) if l.startswith("flags")][0].split()[1]
+        if tgt == tty:
+            dfds[f] = flags
+    except OSError:
+        pass
+afds = {}
+for f in (os.listdir("/proc/%d/fd" % apid) if apid else []):
+    try:
+        if os.readlink("/proc/%d/fd/%s" % (apid, f)) == tty:
+            afds[f] = 1
+    except OSError:
+        pass
+check("an app process the desktop started holds no descriptor on the desktop's terminal",
+      apid and tty not in held, (tty, held, "app fds", afds, "desktop fds/flags", dfds))
+
 # What Quit and Restart Desktop both call (dt_close, dt_restart): the
 # socket goes and every app process's connection ends. Called here, since
 # a test session's q only opens the Quit question.
@@ -313,11 +431,33 @@ for k in idle:
     except OSError:
         ends.append(True)
 check("and every app process sees its connection end", all(ends), ends)
+deadline = time.time() + 2
+while time.time() < deadline and not os.path.exists(SAID + ".end"):
+    time.sleep(0.05)
+end = open(SAID + ".end").read().strip() if os.path.exists(SAID + ".end") else ""
+check("an app's loop ends when the desktop closes its socket, on its own, within two seconds",
+      end == "ended 0", end)
 for k in idle + [half, flood]:
     k.close()
-t.quit(b"q", 1.0)
+for x in (SAID + ".pid", SAID + ".end"):
+    if os.path.exists(x):
+        os.unlink(x)
+do('dt_rtlisten; dt_rtspawn %s' % LOOP)
+deadline = time.time() + 10
+while time.time() < deadline and not os.path.exists(SAID + ".pid"):
+    time.sleep(0.05)
+time.sleep(0.5)
+os.kill(t.pid, signal.SIGKILL)
+deadline = time.time() + 2
+while time.time() < deadline and not os.path.exists(SAID + ".end"):
+    time.sleep(0.05)
+end = open(SAID + ".end").read().strip() if os.path.exists(SAID + ".end") else ""
+check("a desktop killed outright ends an app's loop within two seconds, never by a signal",
+      end == "ended 0", end)
+t.close()
 for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle",
-          SAID + ".other", SAID + ".alive", SAID + ".before", SAID + ".after", SAID + ".pend"):
+          SAID + ".other", SAID + ".alive", SAID + ".before", SAID + ".after", SAID + ".pend",
+          SAID + ".pid", SAID + ".pings", SAID + ".end", LOOP, FIFO):
     if os.path.exists(f):
         os.unlink(f)
-report(25)
+report(33)

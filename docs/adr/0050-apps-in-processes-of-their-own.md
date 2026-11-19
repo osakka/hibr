@@ -285,6 +285,39 @@ What it holds, each a check there:
   would.
 - **A carried request is timed** under its own name, as a callback is
   (`dt_spent`), with the app's name beside it.
+- **An app's own process has a loop of its own** (`dt_rtrun`, 2026-11-19):
+  one wait for everything -- the desktop's socket, what the app watches,
+  its timers -- through `console key`, which in a process that did not open
+  the console waits on those and the time alone; then the app's tickers,
+  through the same runner the desktop uses (`dt_tickers`, moved whole into
+  the shared `wm/loop.hibr` rather than copied); then what the desktop said,
+  through the same line reader (`dt_rtlines`, in the shared wire), at most
+  `DT_RTLINES` a pass. The one verb the desktop says today is `tell NAME
+  words` (`dt_rttell`), which runs the app's own function -- never one the
+  app interface defines, recorded before the app's file is read, and never
+  by eval. Idle, it spends nothing; three hundred tells run whole and in
+  order; a fifo it watches wakes it and its own ticker reads it; and it ends
+  on its own when the desktop closes its socket, and when the desktop is
+  killed outright. The app writes with a plain `send`: the desktop never
+  blocks reading, so it never waits, and a full buffer is the brake on an
+  app that floods.
+- **An app process holds three of the desktop's descriptors and no more**
+  (`dt_rtspawn`): standard input and output `/dev/null`, standard error the
+  desktop's log, and everything else -- the terminal under another number,
+  the listening socket, other apps' connections -- closed before it starts.
+  Building it found three faults, each a check now: the shell's own saved
+  copy of a redirected descriptor was inherited by every program started
+  inside a function or group with a redirection, and by `exec prog <file`
+  (`rd_save`, now kept at 10 or above and closed on exec, as bash keeps
+  it), so an app started from the desktop held its terminal; the runtime's
+  connect, `exec {fd}<> ... 2> /dev/null`, threw away the app's standard
+  error for good, since an exec of redirections alone is permanent (CLAUDE.md
+  records the trap; it was walked into again); and an app process is in the
+  desktop's process group, so a desktop dying outright hung it up before it
+  read that its socket had ended -- the runtime handles SIGHUP (never
+  ignores it, which programs it starts would inherit) and goes in order on
+  the socket's end. The zygote, which starts app processes from C, will give
+  each a session of its own, which no portable shell command can.
 - **Quit and Restart Desktop close it**: the socket goes and every app
   process's connection ends. That is not yet what Requirement 8 says --
   app processes surviving a restart -- which needs the connection kept

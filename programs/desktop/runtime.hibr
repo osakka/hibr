@@ -15,6 +15,32 @@ strict
 
 . "$DT_HERE/interface.hibr"
 . "$DT_HERE/requests.hibr"
+# A hangup is not an app's end: the desktop's end of its socket is. An app
+# process started from the desktop is in the desktop's process group, as a
+# non-interactive shell's jobs are, so a desktop that dies outright -- its
+# terminal hung up, or killed -- hangs it up too, and it ended before it had
+# read that its socket had ended. With a handler it reads the end and goes
+# in order; a handler, never an ignore, which the programs an app starts
+# would inherit across exec.
+trap : HUP
+# Every app process waits through the console (dt_rtrun) and may watch its
+# own descriptors with it before the loop starts, so it is loaded here.
+need console || dt_log "app runtime: no console module, so no wait for this app"
+
+# Every function the app interface defines, recorded before the app's own
+# file is read: the desktop telling this process to run one of them is
+# refused, since only the app's own functions are its to call here.
+declare -gA DT_RTIFACE
+dt_rtifacerec() {
+	local l x
+
+	x := declare -F
+	while read -r l; do
+		DT_RTIFACE["${l##* }"]=1
+	done <<< "$x"
+	return 0
+}
+dt_rtifacerec
 
 # The connection to the desktop, and what it said to the hello.
 DT_RTFD=
@@ -24,13 +50,22 @@ DT_RTSAID=
 # the app's name. A desktop that refuses says why, which is kept in
 # DT_RTSAID and is status 1; so is no desktop answering within two seconds.
 fn dt_rtopen(app) {
-	local l w
+	local l w e st
 
 	[ -n "${DT_RTSOCK-}" ] || { DT_RTSAID="no desktop socket was given"; return 1; }
-	exec {DT_RTFD}<> "/dev/unix/$DT_RTSOCK" 2> /dev/null ||
+	# An exec of redirections alone is for good, so the quieting of a
+	# failed connect is put back after it: written as one exec, it threw
+	# away this process's standard error -- every line its runtime logs --
+	# from then on.
+	exec {e}>&2 2> /dev/null
+	exec {DT_RTFD}<> "/dev/unix/$DT_RTSOCK"
+	st=$?
+	exec 2>&"$e" {e}>&-
+	[ "$st" = 0 ] ||
 		{ DT_RTFD=; DT_RTSAID="cannot reach the desktop at $DT_RTSOCK"; return 1; }
 	l := dt_rtline hello "$DT_RTPROTO" "$HIBR_VERSION" "$app"
-	printf '%s\n' "$l" >&"$DT_RTFD"
+	send "$DT_RTFD" "$l" 2> /dev/null ||
+		{ DT_RTSAID="the desktop went before the hello"; return 1; }
 	if ! read -r -t 2 -u "$DT_RTFD" l; then
 		DT_RTSAID="the desktop did not answer the hello"
 		return 1
@@ -55,7 +90,71 @@ fn dt_rtsend(verb, name, ...args) {
 		;;
 	esac
 	l := dt_rtline "$verb" "$name" "${args[@]}"
-	printf '%s\n' "$l" >&"$DT_RTFD" 2> /dev/null ||
+	# A plain send: the desktop never blocks reading, so this never waits
+	# on it, and a full buffer is the right brake on an app that floods.
+	# A desktop that has gone is a status, never a signal.
+	send "$DT_RTFD" "$l" 2> /dev/null ||
 		{ dt_log "app runtime: the desktop has gone"; return 1; }
 	return 0
+}
+
+# What the desktop said: `tell NAME words` runs this app's own function
+# NAME with the words -- never one the app interface defines, and never by
+# eval. Anything else is not carried yet, and says so.
+fn dt_rtcalled(line) {
+	local -a w a
+	local x name
+
+	read -ra w <<< "$line"
+	if [ "${w[0]-}" != tell ]; then
+		dt_log "app runtime: the desktop said ${w[0]:-nothing}, which is not carried yet (ADR 0050)"
+		return 0
+	fi
+	name := dt_rtdec "${w[1]-}"
+	for x in "${w[@]:2}"; do
+		x := dt_rtdec "$x"
+		a+=("$x")
+	done
+	if [ -n "${DT_RTIFACE["$name"]+x}" ] || ! dt_has "$name"; then
+		dt_log "app runtime: the desktop told $name, which is not this app's own; refused"
+		return 0
+	fi
+	"$name" "${a[@]}"
+	return 0
+}
+
+# The app's own loop: one wait for everything -- the desktop's socket,
+# whatever the app watches, its timers (dt_want) -- through `console key`,
+# which with no display waits on those and the time alone; then the app's
+# tickers, the one runner the desktop has too; then what the desktop said,
+# at most DT_RTLINES a pass. It ends when the desktop does: a closed socket
+# is readable for ever, so the end is noticed, not spun on.
+dt_rtrun() {
+	local w l st
+	local -a got
+
+	console watch "$DT_RTFD" || return 1
+	while :; do
+		console key ${DT_WANT:+"$DT_WANT"}
+		DT_WANT=
+		dt_tickers
+		w := console woke "$DT_RTFD"
+		[ -n "$w" ] || [ -n "${DT_RTMORE["$DT_RTFD"]+x}" ] || continue
+		dt_rtlines "$DT_RTFD"
+		st=$?
+		got=("${DT_RTGOT[@]}")
+		for l in "${got[@]}"; do
+			dt_rtcalled "$l"
+		done
+		[ -n "${DT_RTMORE["$DT_RTFD"]+x}" ] && dt_want 0
+		if [ "$st" = 1 ]; then
+			console unwatch "$DT_RTFD"
+			dt_log "app runtime: the desktop has gone; this app ends with it"
+			return 0
+		fi
+		if [ "$st" = 2 ]; then
+			dt_log "app runtime: the desktop sent a line with no end past DT_RTLINEMAX"
+			return 1
+		fi
+	done
 }

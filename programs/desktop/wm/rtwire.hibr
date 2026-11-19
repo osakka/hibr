@@ -37,6 +37,44 @@ fn dt_rtdec(v) {
 	ret "$v"
 }
 
+# What each connection has sent that is not yet a whole line, the
+# connections with whole lines still waiting for the next pass, how many
+# lines one pass carries -- so a flood holds nothing up -- and how long a
+# line may grow with no end before its connection is let go.
+declare -gA DT_RTBUF DT_RTMORE
+DT_RTLINES="${DT_RTLINES-64}"
+DT_RTLINEMAX="${DT_RTLINEMAX-1048576}"
+# The whole lines the last dt_rtlines took, in the order they came.
+DT_RTGOT=()
+
+# Read what is waiting on fd, never waiting (recv -p), and take up to
+# DT_RTLINES whole lines into DT_RTGOT; the rest waits for the next pass,
+# which reads nothing new until they are taken (DT_RTMORE). One reader for
+# the desktop's end and an app's. Status 1 when the other end has gone, 2
+# when a line has passed DT_RTLINEMAX with no end.
+fn dt_rtlines(int fd) {
+	local b x n=0
+
+	DT_RTGOT=()
+	if [ -z "${DT_RTMORE["$fd"]+x}" ]; then
+		recv -p "$fd" b 2> /dev/null || return 1
+		DT_RTBUF["$fd"]+=$b
+	fi
+	unset DT_RTMORE["$fd"]
+	while [[ ${DT_RTBUF["$fd"]} == *$'\n'* ]]; do
+		if [ "$n" -ge "$DT_RTLINES" ]; then
+			DT_RTMORE["$fd"]=1
+			break
+		fi
+		x=${DT_RTBUF["$fd"]%%$'\n'*}
+		DT_RTBUF["$fd"]=${DT_RTBUF["$fd"]#*$'\n'}
+		DT_RTGOT+=("$x")
+		n=$((n + 1))
+	done
+	[ "${#DT_RTBUF["$fd"]}" -le "$DT_RTLINEMAX" ] || return 2
+	return 0
+}
+
 # A message's words, every one encoded, as the line that carries them.
 fn dt_rtline(...w) {
 	local x e line=
