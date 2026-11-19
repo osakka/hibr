@@ -86,8 +86,14 @@ carry over; its route does not.
 6. **Settings stay the desktop's.** It owns `desktop.json`; an app sends
    its kept settings up and only names its own file keeps are accepted
    (done in the prototype).
-7. **A crash or a hang is the app's alone.** An ended app's windows say so
-   and offer to start it again; a Restart Desktop finds the host by its pid.
+7. **A crash or a hang is the app's alone.** What an ended app's windows
+   do is the person's to choose (owner, 2026-11-18), a row in Control Panel
+   > Windows with three choices: **keep them showing their last picture and
+   offer Reopen** (the default), **reopen the app at once**, or **close
+   them**. Whichever is chosen, one note says the app has gone -- an event,
+   once -- and the log says why it ended (its exit status or signal). A late
+   app's window is marked, never paused or withheld, as the requirement
+   below says. A Restart Desktop finds the host by its pid.
 8. **Moved in one release, every kind** (owner, 2026-11-18: "one release,
    all kinds"), once the Review's counts are in. The suites already open apps
    through the window manager, so they run against hosted apps unchanged;
@@ -318,6 +324,21 @@ What it holds, each a check there:
   ignores it, which programs it starts would inherit) and goes in order on
   the socket's end. The zygote, which starts app processes from C, will give
   each a session of its own, which no portable shell command can.
+- **Whose a process is comes from its launch** (2026-11-19, protocol 2):
+  `dt_rtspawn` issues a token for the app it starts, hands it to the
+  process in its environment (never in `ps`), and records whose it is; the
+  hello carries it, the desktop takes the app from its record -- what the
+  hello says of itself is only compared, and a difference logged -- and the
+  token is spent, so a second hello with it is refused, and so is one with
+  none. The runtime takes the token out of its environment as it says
+  hello, so nothing the app starts is handed it. Its point is blame: the
+  wrong app is never named for what another did. And `dt_rttell` addresses
+  a launch, not a name, so two processes of one app are two addresses.
+  Every socket the desktop and an app make with the shell's net builtins is
+  close-on-exec now (accept's and connect's beside the listening one,
+  `connect -U` for the app's end): a child the desktop started after an
+  app connected held the desktop's end, and a child an app started held the
+  app's, so neither side saw the other go while any such child lived.
 - **Quit and Restart Desktop close it**: the socket goes and every app
   process's connection ends. That is not yet what Requirement 8 says --
   app processes surviving a restart -- which needs the connection kept

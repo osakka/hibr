@@ -8,8 +8,10 @@
 # through: opened with a hello carrying the protocol and the hibr version,
 # which the desktop checks before it carries anything.
 #
-# DT_HERE is where the desktop's files are, and DT_RTSOCK the desktop's
-# socket for app processes; both are given by whatever started this one.
+# DT_HERE is where the desktop's files are, DT_RTSOCK the desktop's socket
+# for app processes, and DT_RTTOKEN the token of this launch, which the
+# hello spends and which says whose this process is; all three are given by
+# whatever started this one (dt_rtspawn).
 
 strict
 
@@ -50,20 +52,23 @@ DT_RTSAID=
 # the app's name. A desktop that refuses says why, which is kept in
 # DT_RTSAID and is status 1; so is no desktop answering within two seconds.
 fn dt_rtopen(app) {
-	local l w e st
+	local l w t=${DT_RTTOKEN-}
 
 	[ -n "${DT_RTSOCK-}" ] || { DT_RTSAID="no desktop socket was given"; return 1; }
-	# An exec of redirections alone is for good, so the quieting of a
-	# failed connect is put back after it: written as one exec, it threw
-	# away this process's standard error -- every line its runtime logs --
-	# from then on.
-	exec {e}>&2 2> /dev/null
-	exec {DT_RTFD}<> "/dev/unix/$DT_RTSOCK"
-	st=$?
-	exec 2>&"$e" {e}>&-
-	[ "$st" = 0 ] ||
-		{ DT_RTFD=; DT_RTSAID="cannot reach the desktop at $DT_RTSOCK"; return 1; }
-	l := dt_rtline hello "$DT_RTPROTO" "$HIBR_VERSION" "$app"
+	# connect, not a /dev/unix redirection: its descriptor is close-on-exec,
+	# so a program this app starts never holds the app's end and keeps it
+	# looking alive to the desktop once the app has gone; and its quieting
+	# lasts the one command, where `exec {fd}<> ... 2> /dev/null` threw away
+	# this process's standard error for good.
+	if ! connect -U "$DT_RTSOCK" DT_RTFD 2> /dev/null; then
+		DT_RTFD=
+		DT_RTSAID="cannot reach the desktop at $DT_RTSOCK"
+		return 1
+	fi
+	# The launch's token, which says whose this process is, is spent by
+	# the hello, and nothing this app starts is handed it.
+	unset DT_RTTOKEN
+	l := dt_rtline hello "$DT_RTPROTO" "$HIBR_VERSION" "$app" "$t"
 	send "$DT_RTFD" "$l" 2> /dev/null ||
 		{ DT_RTSAID="the desktop went before the hello"; return 1; }
 	if ! read -r -t 2 -u "$DT_RTFD" l; then

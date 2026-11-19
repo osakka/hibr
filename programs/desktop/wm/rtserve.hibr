@@ -27,6 +27,12 @@ strict
 DT_RTPATH=
 DT_RTLFD=
 declare -gA DT_RTC
+# The launches the desktop has made and not yet heard from, token -> app:
+# a hello names its launch by the token the process was started with, and
+# the app is the launch's, never what the hello says of itself -- the point
+# being blame, not a lock. Each connection's launch, both ways, so a tell
+# reaches that one process and not the first of its name.
+declare -gA DT_RTLAUNCH DT_RTCTOK DT_RTTOKC
 # The told requests interface.tsv names, which alone are carried; those
 # whose first word is a window; and, per app, the requests its own file
 # makes, read once from the file (never run) and kept by its path.
@@ -128,6 +134,17 @@ dt_rttick() {
 	return 0
 }
 
+# A launch: a token no one can guess from outside, recorded as app's until
+# a hello spends it. Answered with ret.
+fn dt_rtissue(app) {
+	local t
+
+	read -r t < <(od -An -tx1 -N16 /dev/urandom)
+	t=${t// /}
+	DT_RTLAUNCH["$t"]=$app
+	ret "$t"
+}
+
 # Start an app's own process from its file with three descriptors and no
 # more: standard input and output /dev/null, never the desktop's terminal,
 # so it can neither read the person's keys nor write over the screen;
@@ -136,33 +153,35 @@ dt_rttick() {
 # apps' connections -- is closed in the child before the program starts,
 # since an app holding them would keep them open past the desktop's own
 # close.
-fn dt_rtspawn(file) {
-	local f
+fn dt_rtspawn(app, file) {
+	local f t
 
+	t := dt_rtissue "$app"
+
+	# /dev/fd is this process's own descriptors on Linux and macOS alike,
+	# where /proc/self/fd is Linux's alone; a name that is not a number is
+	# the pattern left unexpanded, and skipped.
 	(
-		for f in /proc/self/fd/*; do
+		for f in /dev/fd/*; do
 			f=${f##*/}
-			[ "$f" -gt 2 ] && [ -e "/proc/self/fd/$f" ] && exec {f}>&-
+			case $f in "" | *[!0-9]*) continue ;; esac
+			[ "$f" -gt 2 ] && [ -e "/dev/fd/$f" ] && exec {f}>&-
 		done
-		exec "$HIBR" "$file" < /dev/null > /dev/null
+		DT_RTTOKEN=$t exec "$HIBR" "$file" < /dev/null > /dev/null
 	) &
-	dt_log "app runtime: started $file as $!"
-	return 0
+	dt_log "app runtime: started $app from $file as $!"
+	ret "$t"
 }
 
-# Tell an app's own process to run one of its own functions -- the one
-# verb the desktop says today (ADR 0050): sent, never waited for. Status 1
-# when no process of that app is connected.
-fn dt_rttell(app, name, ...args) {
-	local c x
+# Tell the process of one launch to run one of its own functions -- the
+# one verb the desktop says today (ADR 0050): sent, never waited for.
+# Status 1 when that launch has no connection.
+fn dt_rttell(launch, name, ...args) {
+	local c=${DT_RTTOKC["$launch"]-} x
 
-	for c in "${!DT_RTC[@]}"; do
-		[ "${DT_RTC["$c"]}" = "$app" ] || continue
-		x := dt_rtline tell "$name" "${args[@]}"
-		dt_rtsay "$c" "$x"
-		return $?
-	done
-	return 1
+	[ -n "$c" ] || return 1
+	x := dt_rtline tell "$name" "${args[@]}"
+	dt_rtsay "$c" "$x"
 }
 
 # Let a connection go.
@@ -171,7 +190,8 @@ fn dt_rtdrop(int c) {
 	command -v console > /dev/null && console unwatch "$c" 2> /dev/null
 	send -c "$c"
 	exec {c}>&-
-	unset DT_RTC["$c"] DT_RTBUF["$c"] DT_RTMORE["$c"] DT_RTPEND["$c"]
+	[ -z "${DT_RTCTOK["$c"]-}" ] || unset DT_RTTOKC["${DT_RTCTOK["$c"]}"]
+	unset DT_RTC["$c"] DT_RTBUF["$c"] DT_RTMORE["$c"] DT_RTPEND["$c"] DT_RTCTOK["$c"]
 	return 0
 }
 
@@ -277,14 +297,29 @@ fn dt_rtmsg(int c, line) {
 			dt_rtdrop "$c"
 			return 1
 		fi
-		if ! dt_rtmay "${a[3]-}"; then
-			x := dt_rtline refused "${a[3]:-nothing} is not an installed app"
-			dt_rtsay "$c" "$x"
-			dt_log "app runtime: refused a hello from ${a[3]:-nothing}, which is not an installed app"
+		# Whose it is comes from the launch, by its token, and each token
+		# is good for one hello.
+		x=${a[4]-}
+		if [ -z "$x" ] || [ -z "${DT_RTLAUNCH["$x"]+x}" ]; then
+			dt_rtsay "$c" "refused no%20launch%20of%20this%20desktop's"
+			dt_log "app runtime: refused a hello from ${a[3]:-nothing} with no launch of this desktop's behind it"
 			dt_rtdrop "$c"
 			return 1
 		fi
-		DT_RTC["$c"]=${a[3]}
+		who=${DT_RTLAUNCH["$x"]}
+		unset DT_RTLAUNCH["$x"]
+		[ "${a[3]-}" = "$who" ] ||
+			dt_log "app runtime: a hello said it was ${a[3]:-nothing}; it is $who, by its launch"
+		if ! dt_rtmay "$who"; then
+			x := dt_rtline refused "$who is not an installed app"
+			dt_rtsay "$c" "$x"
+			dt_log "app runtime: refused a hello from $who, which is not an installed app"
+			dt_rtdrop "$c"
+			return 1
+		fi
+		DT_RTC["$c"]=$who
+		DT_RTCTOK["$c"]=${a[4]}
+		DT_RTTOKC["${a[4]}"]=$c
 		dt_rtsay "$c" "ok $DT_RTPROTO" || return 1
 		return 0
 	fi

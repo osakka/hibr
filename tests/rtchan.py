@@ -45,11 +45,13 @@ FIFO = scratch("rtchan-fifo")
 open(LOOP, "w").write(r'''DT_HERE=%s
 . "$DT_HERE/runtime.hibr"
 dt_rtopen loopdemo || exit 1
+env | grep -c '^DT_RTTOKEN=' > %s.tokenv
 echo "$$" > %s.pid
 fn demo_ping(what) {
 	echo "$what" >> %s.pings
 	dt_notep low "pinged: %%s" "$what"
 }
+fn demo_child() { ( sleep 60 ) & }
 exec {DEMO_FF}<> %s
 console watch "$DEMO_FF"
 demo_tick() {
@@ -62,7 +64,7 @@ demo_tick() {
 dt_ticker demo_tick
 dt_rtrun
 echo "ended $?" > %s.end
-''' % (HERE, SAID, SAID, FIFO, SAID))
+''' % (HERE, SAID, SAID, SAID, FIFO, SAID))
 # One that speaks another protocol.
 open(BAD, "w").write(r'''DT_HERE=%s
 . "$DT_HERE/runtime.hibr"
@@ -112,7 +114,7 @@ before = t.screen()
 check("an idle desktop is not listening for app processes until one is started",
       "app runtime: listening" not in log(), log()[-300:])
 
-do('dt_rtlisten; "$HIBR" %s &' % GOOD)
+do('dt_rtlisten; dt_rtspawn demo %s' % GOOD)
 sc = t.until("second note", tries=80, step=0.1)
 said = open(SAID).read() if os.path.exists(SAID) else ""
 check("an app process sourcing only the runtime says hello and is answered",
@@ -123,7 +125,7 @@ check("and the next one after it, in order", sc.find("second note") is not None,
 check("a name that is no told request is refused by name, and the desktop runs on",
       "dt_quit, which is not a told request" in log() and sc.find("second note") is not None, log()[-600:])
 
-do('"$HIBR" %s &' % BAD)
+do('dt_rtspawn olddemo %s' % BAD)
 sc = t.until("hibr was updated", tries=80, step=0.1)
 bad = ""
 deadline = time.time() + 5
@@ -150,11 +152,23 @@ while time.time() < deadline and not (os.path.exists(SAID + ".path") and
 path, ver = open(SAID + ".path").read().split()
 
 
-def client(name):
+def issue(app):
+    """A launch's token from the desktop, as dt_rtspawn hands one to a
+    process it starts, for a raw client to say hello with."""
+    if os.path.exists(SAID + ".tok"):
+        os.unlink(SAID + ".tok")
+    do('x := dt_rtissue %s; echo "$x" > %s.tok' % (app, SAID))
+    deadline = time.time() + 10
+    while time.time() < deadline and not (os.path.exists(SAID + ".tok") and open(SAID + ".tok").read().strip()):
+        time.sleep(0.05)
+    return open(SAID + ".tok").read().strip()
+
+
+def client(name, tok=None):
     """A raw connection that has said hello and been answered."""
     k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     k.connect(path)
-    k.sendall(("hello 1 %s %s\n" % (ver, name)).encode())
+    k.sendall(("hello 2 %s %s %s\n" % (ver, name, tok or issue(name))).encode())
     k.settimeout(5)
     said = k.recv(256)
     if not said.startswith(b"ok"):
@@ -174,7 +188,7 @@ def answered(secs):
 for i in range(5):
     k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     k.connect(path)
-    k.sendall(("hello 1 %s demo\n" % ver).encode())
+    k.sendall(("hello 2 %s demo %s\n" % (ver, issue("demo"))).encode())
     k.close()
 time.sleep(0.5)
 try:
@@ -187,7 +201,7 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(33)
+    report(38)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
@@ -216,12 +230,42 @@ check("and all of it is carried, the last line last", sc.find("flood done") is n
 # app's own file never makes is refused; a window named must be its own.
 k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 k.connect(path)
-k.sendall(("hello 1 %s nobody\n" % ver).encode())
+k.sendall(("hello 2 %s nobody %s\n" % (ver, issue("nobody"))).encode())
 k.settimeout(5)
 said = k.recv(256)
 k.close()
 check("a hello naming no installed app is refused", said.startswith(b"refused") and
       b"not%20an%20installed%20app" in said, said)
+
+# Whose a process is comes from the desktop's record of its launch, by the
+# token the process was started with -- never from what the hello says.
+def hello(line):
+    k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    k.connect(path)
+    k.sendall(line.encode())
+    k.settimeout(5)
+    try:
+        return k, k.recv(256)
+    except OSError:
+        return k, b""
+
+
+k, said = hello("hello 2 %s demo\n" % ver)
+k.close()
+check("a hello with no launch of this desktop's behind it is refused",
+      said.startswith(b"refused") and b"no%20launch" in said, said)
+tok = issue("demo")
+k1, said1 = hello("hello 2 %s demo %s\n" % (ver, tok))
+k2, said2 = hello("hello 2 %s demo %s\n" % (ver, tok))
+check("a launch's token is good for one hello", said1.startswith(b"ok") and said2.startswith(b"refused"),
+      (said1, said2))
+k2.close()
+tok = issue("demo")
+k3, said3 = hello("hello 2 %s olddemo %s\n" % (ver, tok))
+check("a process is the app its launch names, whatever its hello says",
+      said3.startswith(b"ok") and "said it was olddemo; it is demo, by its launch" in log(), (said3, log()[-300:]))
+k1.close()
+k3.close()
 do('echo "$OTHER" > %s.other' % SAID)
 deadline = time.time() + 5
 while time.time() < deadline and not (os.path.exists(SAID + ".other") and open(SAID + ".other").read().strip()):
@@ -337,7 +381,7 @@ for x in (SAID + ".pid", SAID + ".pings", SAID + ".end"):
 if os.path.exists(FIFO):
     os.unlink(FIFO)
 os.mkfifo(FIFO)
-do('dt_rtspawn %s' % LOOP)
+do('LT := dt_rtspawn loopdemo %s' % LOOP)
 deadline = time.time() + 10
 while time.time() < deadline and not os.path.exists(SAID + ".pid"):
     time.sleep(0.05)
@@ -357,10 +401,10 @@ def noted(text, secs=10):
     return False, got
 
 
-do('dt_rttell loopdemo demo_ping "hello world"')
+do('dt_rttell "$LT" demo_ping "hello world"')
 ok, got = noted("pinged: hello world")
 check("an app's own loop runs a function of its own the desktop tells it to, and tells back", ok, got)
-do('for i in {1..300}; do dt_rttell loopdemo demo_ping "n$i"; done')
+do('for i in {1..300}; do dt_rttell "$LT" demo_ping "n$i"; done')
 deadline = time.time() + 15
 pings = []
 while time.time() < deadline:
@@ -386,7 +430,7 @@ time.sleep(3)
 c1 = cpu(apid) if apid else 99
 check("idle for three seconds, the app's loop spends next to nothing (%d ticks)" % (c1 - c0),
       apid and c1 - c0 <= 2, c1 - c0)
-do('dt_rttell loopdemo dt_notep low "from the desktop, as the app"')
+do('dt_rttell "$LT" dt_notep low "from the desktop, as the app"')
 deadline = time.time() + 5
 while time.time() < deadline and "not this app's own" not in log():
     time.sleep(0.1)
@@ -414,12 +458,43 @@ for f in (os.listdir("/proc/%d/fd" % apid) if apid else []):
             afds[f] = 1
     except OSError:
         pass
+tokenv = open(SAID + ".tokenv").read().strip() if os.path.exists(SAID + ".tokenv") else "?"
+check("a program the app starts is not handed its launch's token", tokenv == "0", tokenv)
 check("an app process the desktop started holds no descriptor on the desktop's terminal",
       apid and tty not in held, (tty, held, "app fds", afds, "desktop fds/flags", dfds))
 
 # What Quit and Restart Desktop both call (dt_close, dt_restart): the
 # socket goes and every app process's connection ends. Called here, since
 # a test session's q only opens the Quit question.
+# A child an app starts must not keep the app looking alive once the app
+# has gone: killed outright with a child of its own running, its
+# connection ends for the desktop, which lets it go.
+do('dt_rttell "$LT" demo_child')
+time.sleep(0.5)
+os.kill(apid, signal.SIGKILL)
+deadline = time.time() + 3
+left = "?"
+while time.time() < deadline:
+    left = result('n=0; for c in "${!DT_RTC[@]}"; do [ "${DT_RTC["$c"]}" = loopdemo ] && n=$((n + 1)); done; echo "$n" > %s.pend' % SAID)
+    if left == "0":
+        break
+    time.sleep(0.2)
+check("an app killed with a child of its own running is let go: the child holds nothing of it",
+      left == "0", left)
+for x in (SAID + ".pid", SAID + ".end"):
+    if os.path.exists(x):
+        os.unlink(x)
+do('LT := dt_rtspawn loopdemo %s' % LOOP)
+deadline = time.time() + 10
+while time.time() < deadline and not os.path.exists(SAID + ".pid"):
+    time.sleep(0.05)
+time.sleep(0.3)
+
+# A child the desktop starts after an app has connected -- a terminal's
+# shell, a job, a watcher -- must not hold the desktop's end of that app's
+# socket, or the app never sees its socket end, however the desktop goes.
+do('( sleep 60 ) &')
+time.sleep(0.3)
 do("dt_rtclose")
 time.sleep(0.3)
 check("closing takes the socket away", not os.path.exists(path), path)
@@ -442,7 +517,7 @@ for k in idle + [half, flood]:
 for x in (SAID + ".pid", SAID + ".end"):
     if os.path.exists(x):
         os.unlink(x)
-do('dt_rtlisten; dt_rtspawn %s' % LOOP)
+do('dt_rtlisten; LT := dt_rtspawn loopdemo %s' % LOOP)
 deadline = time.time() + 10
 while time.time() < deadline and not os.path.exists(SAID + ".pid"):
     time.sleep(0.05)
@@ -457,7 +532,7 @@ check("a desktop killed outright ends an app's loop within two seconds, never by
 t.close()
 for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle",
           SAID + ".other", SAID + ".alive", SAID + ".before", SAID + ".after", SAID + ".pend",
-          SAID + ".pid", SAID + ".pings", SAID + ".end", LOOP, FIFO):
+          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", LOOP, FIFO):
     if os.path.exists(f):
         os.unlink(f)
-report(33)
+report(38)
