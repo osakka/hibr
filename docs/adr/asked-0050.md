@@ -599,7 +599,24 @@ by an installable, which is the scan in this section.
 
 ---
 
-## 10. Questions for the owner (short)
+## 10. The owner's answers (2026-11-19)
+
+1. **`dt_openverbs`' `when` checks:** declared data -- Archives says, as
+   data, which files it handles (a kind or a test), re-sent when its tools
+   change; Files reads it, never calls into Archives.
+2. **Actions on another app's data:** a shared library writing the shared
+   store, the owning app watching its files (dirwatch).
+3. **Applying a theme:** a shared library -- Appearance's applying code
+   becomes a library Appearance and the strip both load; it stays in the
+   catalogue (not the recommended platform request).
+4. **Wallpaper and wallset:** one process, as parts of one bundle.
+5. **Power strip:** its own battery reading, through a small library both
+   use; no new mechanism.
+6. **Ask timeout and statuses:** 2000 ms; 125 not answered, 126 refused.
+7. **`pimset.hibr`:** its own process, a pane like the desktop's others,
+   writing the shared settings both Calendar and Contacts read.
+
+## 10a. The questions as they were put
 
 1. **`dt_openverbs`' `when` predicates** (Archives' `arc_canextract`/`arc_cancompress`).
    Options:

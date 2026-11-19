@@ -1006,6 +1006,69 @@ desktop's side and fails against the code before.
 9. **Not a goal: containment.** An app's process has the person's rights;
    this buys stability, not a sandbox.
 
+## Cells, measured (2026-11-19)
+
+How an app's drawing reaches its window when the app is a process of its
+own was measured before it was designed: the real Clock and Calculator,
+every draw call unchanged, and a 24x80 window changing every cell, each
+carried several ways between two processes in lockstep, compared first for
+correctness (every carrier's window, cell by cell, the same as in-process)
+and then by instructions with callgrind, one side at a time, since the box
+was at load 6. About 5,000 instructions are a microsecond here, so the
+desktop's 0.7 ms frame is about 3.5 M.
+
+Desktop's cost per frame, thousands of instructions (F a whole frame, O one
+cell changed):
+
+| carried as | Clock 7x26 F / O | Calculator 16x24 F / O | 24x80 F / O |
+|---|---|---|---|
+| in-process today | 216 / 216 | 1679 / 1679 | 2107 / 2107 |
+| each draw call a socket line | 1728 / 1725 | 15890 / 15918 | 18320 / - |
+| only the changed calls | 1893 / 1124 | 17637 / 1244 | 19987 / 1342 |
+| changed cells, split in script | 699 / 453 | 1455 / 562 | 3067 / 581 |
+| **changed cells, read and applied in C** | **176 / 81** | **385 / 103** | **1174 / 99** |
+| the app's own terminal, through `term` | 321 / 294 | 537 / 553 | 2774 / 1903 |
+
+So carrying cells as script work at the desktop's end is ruled out: the
+calculator's frame cost the desktop nine times what running it in-process
+does, four times the whole frame budget, and splitting a 3 kB line in
+script is 1.4 M of it on its own. The way is **changed cells, as records the
+console reads from the socket and applies in C**, which is cheaper at the
+desktop than in-process for every app and frame measured, because the app's
+drawing script no longer runs there; the one-cell figures include the
+harness's own handshake, so they are an upper bound. A terminal per app
+works and comes second: `term draw` repaints the whole window each frame,
+so one cell on 24x80 costs what in-process does, and each app needs a pty
+and two grids. Shared memory saves only the encode, the system call and the
+parse, which are already small, and would let a misbehaving app's memory
+reach the desktop; it is not built.
+
+What the console needs, in C, for that way:
+
+1. **A headless grid in the app's process.** `console put`, `pen` and `fill`
+   with `-p` write into it with no terminal; `cn_flush`'s diff against what
+   was last sent makes a record of runs (row, column, colours, attributes,
+   text, wide and combining characters, underline colour, links). The
+   runtime clears it before each `_draw`, or a shorter string leaves a
+   stale cell (measured: `Novemberr`).
+2. **A verb at the desktop** that reads a connection's cell records without
+   waiting, applies them to the pane, and keeps them in the pane's own kept
+   grid -- the hosted pane of #421 -- with the socket's guards rebuilt in C:
+   a bounded amount per pass, a longest line, the connection dropped past
+   it, never a wait.
+3. **A repaint from that kept grid** for a move, an uncovering, a workspace
+   and a restart, straight into the back grid (1.05 M through `dp->put` at
+   24x80).
+4. **Cell records on a channel of their own**, or the console taking them
+   and handing everything else to `rtserve`; pictures stay on `frames`.
+
+Memory, from the structures: the kept grid is 40 bytes a cell (77 kB for
+24x80), the app's grid and its last-sent copy twice that, beside the +1.1 MB
+an app costs as a fork of one host. Still to measure: wall time for the C
+path beside the others under one load, its handshake alone, and a repaint
+after many frames rather than one. The harness and every result are kept
+with the work (`cellprobe`).
+
 ## The first plan (2026-11-01), superseded
 
 In three steps, each a release that stands on its own:
