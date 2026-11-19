@@ -431,7 +431,9 @@ def stubtext(rows):
         out.append("# %s, %s." % ({"declare": "Declared to the desktop", "ask": "Asked of the desktop",
                                     "tell": "Told to the desktop"}[verb], r[2]))
         out.append("%s {" % head)
-        out.append("\tdt_rtsend %s %s %s" % (verb, name, stubargs(sig)))
+        # An asked request hands its answer on to whoever called it.
+        out.append("\tdt_rtsend %s %s %s%s" % (verb, name, stubargs(sig),
+                                                " && ret -k" if verb == "ask" else ""))
         out.append("}")
         out.append("")
     return "\n".join(out)

@@ -52,6 +52,10 @@ declare -gA DT_RTCFILE
 # whose first word is a window; and, per app, the requests its own file
 # makes, read once from the file (never run) and kept by its path.
 declare -gA DT_RTALLOW DT_RTWIN DT_RTMAY DT_RTMAYOF
+# The asked requests interface.tsv names: an app waits for each one's answer
+# (dt_rtask in runtime.hibr), which the desktop sends once what the request
+# changed has gone out, so a read after it sees it.
+declare -gA DT_RTASK
 
 # Start listening for app processes, once: the socket beside the control
 # socket's, its path exported for what the desktop starts to inherit.
@@ -76,8 +80,12 @@ dt_rtlisten() {
 	DT_RTPATH=$p
 	export DT_RTSOCK=$p
 	while IFS=$'\t' read -r c f _ _ _ a _ sg _; do
-		[ "$c" = request ] && [ "$a" = told ] || continue
-		DT_RTALLOW["$f"]=1
+		[ "$c" = request ] || continue
+		case $a in
+		told) DT_RTALLOW["$f"]=1 ;;
+		asked) DT_RTASK["$f"]=1 ;;
+		*) continue ;;
+		esac
 		[[ $sg == "$f"\(id* || $sg == "$f(int id"* ]] && DT_RTWIN["$f"]=1
 	done < "$DT_HERE/interface.tsv"
 	# Every shared name watched from now on (wm/rtwire.hibr, dt_share);
@@ -540,7 +548,7 @@ fn dt_rtmay(name) {
 	[ -n "$src" ] && [ -r "$src" ] || return 1
 	[ "${DT_RTMAYOF["$name"]-}" = "$src" ] && return 0
 	t=$(< "$src")
-	for f in "${!DT_RTALLOW[@]}"; do
+	for f in "${!DT_RTALLOW[@]}" "${!DT_RTASK[@]}"; do
 		[[ $t == *"$f"* ]] && DT_RTMAY["$name $f"]=1
 	done
 	DT_RTMAYOF["$name"]=$src
@@ -648,9 +656,66 @@ fn dt_rtmsg(int c, line) {
 		DT_CALLER=$who "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
 		dt_spent "${a[1]}" "$((${EPOCHREALTIME/./} - t0))" "$who"
 		;;
+	ask)
+		dt_rtanswer "$c" "$who" "${a[@]:1}"
+		;;
 	*)
 		dt_log "app runtime: $who sent ${a[0]-nothing}, which is not carried yet"
 		;;
 	esac
 	return 0
+}
+
+# An app's asked request: `ask SEQ UNTIL NAME WORDS...`, answered `answer SEQ
+# STATUS KIND VALUE` -- KIND s a scalar, j a map as JSON, - nothing handed
+# back -- once the pass has sent every change the request made, so the app
+# reads what it asked for and what followed from it alike. UNTIL is the
+# moment, in milliseconds, past which the app has stopped waiting: a request
+# read after it is answered 125 and not run, or the desktop would make a
+# window, say, that the app had already given up on. Guarded as a tell
+# is; a refusal is answered (126) and logged, never left to the app's
+# timeout. The desktop never waits on an app, so an app asking from inside
+# a call the desktop made to it cannot hold either side.
+fn dt_rtanswer(int c, who, seq, until, name = "", ...args) {
+	local x k t0 st
+	local -a r
+
+	if [[ $until != +([0-9]) ]] || [ "$((${EPOCHREALTIME/./} / 1000))" -gt "$until" ]; then
+		dt_log "app runtime: $who asked for ${name:-nothing} after it had stopped waiting; not run"
+		dt_rtsay "$c" "answer $seq 125 - %"
+		return 0
+	fi
+	if [ -z "${DT_RTASK["$name"]+x}" ]; then
+		dt_log "app runtime: $who asked for ${name:-nothing}, which is not an asked request in interface.tsv"
+		dt_rtsay "$c" "answer $seq 126 - %"
+		return 0
+	fi
+	if [ -z "${DT_RTMAY["$who $name"]+x}" ]; then
+		dt_log "app runtime: $who asked for $name, which its own file never asks for"
+		dt_rtsay "$c" "answer $seq 126 - %"
+		return 0
+	fi
+	if [ -n "${DT_RTWIN["$name"]+x}" ] && ! dt_rtowns "$who" "${args[0]-}"; then
+		dt_log "app runtime: $who asked for $name of window ${args[0]-none}, which is not its own"
+		dt_rtsay "$c" "answer $seq 126 - %"
+		return 0
+	fi
+	t0=${EPOCHREALTIME/./}
+	DT_CALLER=$who
+	x := "$name" "${args[@]}"
+	st=$?
+	DT_CALLER=
+	dt_spent "$name" "$((${EPOCHREALTIME/./} - t0))" "$who"
+	# What the request changed goes first, held or not.
+	dt_rtpass force
+	k=${x@a}
+	if [[ $k == *[aA]* ]]; then
+		x := json emit x
+		k := dt_rtline answer "$seq" "$st" j "$x"
+	elif [ -n "$x" ]; then
+		k := dt_rtline answer "$seq" "$st" s "$x"
+	else
+		k := dt_rtline answer "$seq" "$st" - ""
+	fi
+	dt_rtsay "$c" "$k"
 }

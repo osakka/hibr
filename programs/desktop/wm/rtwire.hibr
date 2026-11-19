@@ -13,7 +13,7 @@ strict
 
 # The protocol's number: a change to what crosses the wire changes it, and
 # a process speaking another is refused at its hello.
-DT_RTPROTO=5
+DT_RTPROTO=6
 
 # The desktop's state shared with every app process that reads it (ADR
 # 0050, one path): named once, in the file that owns it, with dt_share --

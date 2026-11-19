@@ -149,6 +149,10 @@ fn dt_rtsend(verb, name, ...args) {
 	[ -n "$DT_RTFD" ] || { dt_log "app runtime: $name with no desktop connected"; return 1; }
 	case $verb in
 	tell) ;;
+	ask)
+		dt_rtask "$name" "${args[@]}" && ret -k
+		return
+		;;
 	*)
 		dt_log "app runtime: $name is $verb, which is not carried yet (ADR 0050)"
 		return 1
@@ -163,6 +167,98 @@ fn dt_rtsend(verb, name, ...args) {
 	return 0
 }
 
+# An asked request: `ask SEQ NAME WORDS...`, and this process waits for its
+# answer (owner, 2026-11-19: DT_RTASKMS, 2000 ms). Only the desktop's
+# socket wakes the wait -- what the app itself watches is set aside for it
+# -- and while it waits, what the desktop shares is applied as it arrives
+# and anything it tells is queued (DT_RTQ), never run inside the caller's
+# own call. The answer's value is handed back as ret, a map when it is one;
+# the status is the request's, 125 when no answer came in time (it is not
+# sent again: a second dt_new is a second window), 126 when the desktop
+# refused, 1 when the desktop has gone. The wait is the desktop's, never
+# this app's: it is logged as `asked:`, not charged as a stall.
+DT_RTASKN=0
+DT_RTASKMS="${DT_RTASKMS-2000}"
+DT_RTQ=()
+fn dt_rtask(name, ...args) {
+	local l x seq st=125 got= kind val end now t0 i
+	local -a w watched keep
+
+	[ -n "$DT_RTFD" ] || { dt_log "app runtime: $name asked with no desktop connected"; return 1; }
+	DT_RTASKN=$((DT_RTASKN + 1))
+	seq=$DT_RTASKN
+	t0=${EPOCHREALTIME/./}
+	end=$((t0 / 1000 + DT_RTASKMS))
+	l := dt_rtline ask "$seq" "$end" "$name" "${args[@]}"
+	send "$DT_RTFD" "$l" 2> /dev/null || { dt_log "app runtime: the desktop has gone"; return 1; }
+	# What waited from before applies first, in order: shared lines now,
+	# tells kept for after.
+	for l in "${DT_RTQ[@]}"; do
+		case $l in
+		json\ * | jsonk\ * | unsetk\ *) dt_rtcalled "$l" ;;
+		*) keep+=("$l") ;;
+		esac
+	done
+	DT_RTQ=("${keep[@]}")
+	x := console watching
+	read -ra watched <<< "$x"
+	for x in "${watched[@]}"; do
+		x=${x%%:*}
+		[ "$x" = "$DT_RTFD" ] || console unwatch "$x"
+	done
+	console watch "$DT_RTFD"
+	while [ -z "$got" ]; do
+		dt_rtlines "$DT_RTFD"
+		i=$?
+		for l in "${DT_RTGOT[@]}"; do
+			if [ -n "$got" ]; then
+				DT_RTQ+=("$l")
+				continue
+			fi
+			read -ra w <<< "$l"
+			case ${w[0]-} in
+			answer)
+				if [ "${w[1]-}" != "$seq" ]; then
+					dt_log "app runtime: an answer to ask ${w[1]-?} came after its time; dropped"
+					continue
+				fi
+				got=1
+				st=${w[2]-1}
+				kind=${w[3]--}
+				val := dt_rtdec "${w[4]-%}"
+				;;
+			json | jsonk | unsetk) dt_rtcalled "$l" ;;
+			*) DT_RTQ+=("$l") ;;
+			esac
+		done
+		[ -n "$got" ] && break
+		[ -n "${DT_RTMORE["$DT_RTFD"]+x}" ] && continue
+		if [ "$i" = 1 ]; then
+			st=1
+			break
+		fi
+		now=$((${EPOCHREALTIME/./} / 1000))
+		[ "$now" -lt "$end" ] || break
+		console key $((end - now)) > /dev/null
+	done
+	for x in "${watched[@]}"; do
+		x=${x%%:*}
+		[ "$x" = "$DT_RTFD" ] || console watch "$x"
+	done
+	dt_rtderived
+	x=$(((${EPOCHREALTIME/./} - t0) / 1000))
+	[ "$x" -lt "${DT_SLOWMS:-50}" ] || dt_log "asked: $name waited $x ms for the desktop"
+	[ -n "$got" ] || { [ "$st" = 1 ] || dt_log "app runtime: $name asked and not answered in $DT_RTASKMS ms"; return "$st"; }
+	case $kind in
+	j)
+		json parse RET <<< "$val"
+		[ "$st" = 0 ] && ret -k
+		;;
+	s) [ "$st" = 0 ] && ret "$val" ;;
+	esac
+	return "$st"
+}
+
 # What the desktop said: `tell NAME words` runs this app's own function
 # NAME with the words -- never one the app interface defines, and never by
 # eval. Anything else is not carried yet, and says so.
@@ -175,6 +271,10 @@ fn dt_rtcalled(line) {
 	case ${w[0]-} in
 	json | jsonk | unsetk)
 		dt_rtmirrored "${w[@]}"
+		return 0
+		;;
+	answer)
+		dt_log "app runtime: an answer to ask ${w[1]-?} came after its time; dropped"
 		return 0
 		;;
 	tell) ;;
@@ -257,12 +357,23 @@ dt_rtrun() {
 		console key ${DT_WANT:+"$DT_WANT"}
 		DT_WANT=
 		dt_tickers
+		# Tells an ask kept for after it run first, in order.
+		while [ "${#DT_RTQ[@]}" -gt 0 ]; do
+			l=${DT_RTQ[0]}
+			DT_RTQ=("${DT_RTQ[@]:1}")
+			dt_rtcalled "$l"
+		done
 		w := console woke "$DT_RTFD"
 		[ -n "$w" ] || [ -n "${DT_RTMORE["$DT_RTFD"]+x}" ] || continue
 		dt_rtlines "$DT_RTFD"
 		st=$?
-		got=("${DT_RTGOT[@]}")
-		for l in "${got[@]}"; do
+		# The batch waits in DT_RTQ and is taken one line at a time, so an
+		# ask made by one of them applies the rest of the batch's shared
+		# lines first, in the order they came.
+		DT_RTQ+=("${DT_RTGOT[@]}")
+		while [ "${#DT_RTQ[@]}" -gt 0 ]; do
+			l=${DT_RTQ[0]}
+			DT_RTQ=("${DT_RTQ[@]:1}")
 			dt_rtcalled "$l"
 		done
 		dt_rtderived

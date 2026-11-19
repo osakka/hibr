@@ -55,6 +55,8 @@ fn demo_child() { ( sleep 60 ) & }
 fn demo_win(id) { printf '%%s\t%%s\t%%s\n' "${DT[$id]["title"]-none}" "${DT[$id]["w"]-}" "${DT[$id]["col"]-}" > %s.win; }
 fn demo_mark() { GL["wifi1"]=kept; }
 fn demo_app(a) { printf '%%s\t%%s\n' "${DT_APPS[$a]["title"]-none}" "${DT_APPS[$a]["src"]-}" > %s.app; }
+fn demo_new() { local id st; id := dt_new "Asked Window" 6 24 3 4 loopdemo; st=$?; printf '%%s\t%%s\t%%s\n' "$st" "$id" "${DT[$id]["title"]-none}" > %s.new; }
+fn demo_slowask() { local id st; id := dt_new "Too Late" 6 24 3 4 loopdemo; st=$?; printf '%%s\t%%s\n' "$st" "$id" > %s.slow; }
 fn demo_attr() { printf '%%s\n' "${DT_KEYS@a} ${DT_BTNS@a}" > %s.attr; }
 fn demo_write() { local was=$DT_FOCUS; DT_FOCUS=hack 2> /dev/null; printf '%%s %%s\n' "$?" "$was" > %s.wrote; }
 fn demo_list() { printf '%%s\n' "${#DT_BTNS[@]} ${DT_BTNS[*]}" > %s.list; }
@@ -72,7 +74,7 @@ demo_tick() {
 dt_ticker demo_tick
 dt_rtrun
 echo "ended $?" > %s.end
-''' % (HERE, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, FIFO, SAID))
+''' % (HERE, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, FIFO, SAID))
 # One that speaks another protocol.
 open(BAD, "w").write(r'''DT_HERE=%s
 . "$DT_HERE/runtime.hibr"
@@ -232,7 +234,7 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(65)
+    report(68)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
@@ -765,6 +767,45 @@ check("and no reader is let go for it: the next copy reaches it too",
       (ec, en, ec2, [w[:2] for w in lc2]))
 kc.close()
 kn.close()
+# An asked request: the app waits for the desktop's answer, which comes once
+# what the request changed has been sent, so the app reads the window it
+# asked for, record and all, the moment the answer is in.
+def waitfile(suffix, secs=10):
+    deadline = time.time() + secs
+    while time.time() < deadline and not os.path.exists(SAID + suffix):
+        time.sleep(0.05)
+    return open(SAID + suffix).read().strip().split("\t") if os.path.exists(SAID + suffix) else ["?"]
+
+
+do('dt_rttell "$LT" demo_new')
+nw = waitfile(".new")
+check("an app's asked request is answered, and what it made is in the app's copy when the answer is",
+      nw[0] == "0" and nw[1:2] != [""] and nw[2:3] == ["Asked Window"],
+      nw)
+# One the desktop does not carry is refused with 126 at once, never left to
+# the app's timeout.
+kr = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+kr.connect(path)
+kr.sendall(("hello %s %s demo %s\n" % (proto, ver, issue("demo"))).encode())
+answer(kr)
+kr.sendall(b"ask 1 99999999999999 dt_nosuchthing\n")
+ra, _ = rawlines(kr, 3, b"answer 1")
+kr.close()
+check("an asked request the desktop does not carry is refused at once (126), and logged",
+      any(w[:3] == ["answer", "1", "126"] for w in ra) and "not an asked request in interface.tsv" in log(),
+      [w[:3] for w in ra])
+# A desktop that does not answer in time: the app gives up (125), says so,
+# and drops the answer when it comes late -- it never asks twice.
+do('dt_rttell "$LT" demo_slowask; sleep 3')
+sl = waitfile(".slow", 15)
+deadline = time.time() + 10
+while time.time() < deadline and "came after its time; dropped" not in log():
+    time.sleep(0.1)
+check("an ask the desktop does not answer within DT_RTASKMS gives up with 125, the desktop does not run it late, and its answer is dropped",
+      sl[0] == "125" and "asked and not answered in 2000 ms" in log()
+      and "asked for dt_new after it had stopped waiting; not run" in log()
+      and "came after its time; dropped" in log(),
+      (sl, [l for l in log().split("\n") if "asked" in l or "dropped" in l][-3:]))
 # A map arrives declared -A and a list as a list, so a key with a dash in
 # it reads back literally in the app.
 do('dt_rttell "$LT" demo_attr')
@@ -922,7 +963,7 @@ check("a desktop killed outright ends an app's loop within two seconds, never by
 t.close()
 for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle",
           SAID + ".other", SAID + ".alive", SAID + ".before", SAID + ".after", SAID + ".pend",
-          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", SAID + ".win", SAID + ".gl", SAID + ".list", SAID + ".app", SAID + ".attr", SAID + ".wrote", LOOP, FIFO, scratch("rtchan-quitter.hibr")):
+          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", SAID + ".win", SAID + ".gl", SAID + ".list", SAID + ".app", SAID + ".attr", SAID + ".wrote", SAID + ".new", SAID + ".slow", LOOP, FIFO, scratch("rtchan-quitter.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-report(65)
+report(68)

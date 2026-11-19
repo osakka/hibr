@@ -1,0 +1,6 @@
+0
+a map: 2 [1 2] [a]
+a scalar after it: [7] 1 []
+ret -k still passes the map: 2 [a]
+a builtin after it: [AB] 1 []
+a script's own assignment keeps bash's rule: 5 2

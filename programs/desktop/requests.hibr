@@ -47,7 +47,7 @@ fn dt_appaction(app, act, name, key = "") {
 
 # Asked of the desktop, wm/apps.hibr.
 dt_appnames() {
-	dt_rtsend ask dt_appnames "$@"
+	dt_rtsend ask dt_appnames "$@" && ret -k
 }
 
 # Told to the desktop, wm/apps.hibr.
@@ -352,7 +352,7 @@ fn dt_identify(name, int row, int col, int rows, int cols) {
 
 # Asked of the desktop, wm/windows.hibr.
 dt_ids() {
-	dt_rtsend ask dt_ids "$@"
+	dt_rtsend ask dt_ids "$@" && ret -k
 }
 
 # Told to the desktop, wm/standby.hibr.
@@ -397,7 +397,7 @@ fn dt_keyswap(from, to) {
 
 # Asked of the desktop, wm/apps.hibr.
 fn dt_launch(n, arg = "") {
-	dt_rtsend ask dt_launch "$n" "$arg"
+	dt_rtsend ask dt_launch "$n" "$arg" && ret -k
 }
 
 # Told to the desktop, wm/native.hibr.
@@ -417,7 +417,7 @@ fn dt_loccan(p, op) {
 
 # Asked of the desktop, wm/locations.hibr.
 fn dt_locof(p) {
-	dt_rtsend ask dt_locof "$p"
+	dt_rtsend ask dt_locof "$p" && ret -k
 }
 
 # Declared to the desktop, wm/menus.hibr.
@@ -457,7 +457,7 @@ dt_natlayout() {
 
 # Asked of the desktop, wm/windows.hibr.
 fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
-	dt_rtsend ask dt_new "$title" "$h" "$w" "$row" "$col" "$ap" "$arg"
+	dt_rtsend ask dt_new "$title" "$h" "$w" "$row" "$col" "$ap" "$arg" && ret -k
 }
 
 # Told to the desktop, wm/notify.hibr.
@@ -482,7 +482,7 @@ fn dt_notehist_run(int hid) {
 
 # Asked of the desktop, wm/notify.hibr.
 fn dt_notehist_what(int hid) {
-	dt_rtsend ask dt_notehist_what "$hid"
+	dt_rtsend ask dt_notehist_what "$hid" && ret -k
 }
 
 # Told to the desktop, wm/notify.hibr.
@@ -512,7 +512,7 @@ fn dt_onunload(stop, start = "") {
 
 # Asked of the desktop, wm/handlers.hibr.
 fn dt_openbrowse(path) {
-	dt_rtsend ask dt_openbrowse "$path"
+	dt_rtsend ask dt_openbrowse "$path" && ret -k
 }
 
 # Told to the desktop, wm/handlers.hibr.
@@ -527,7 +527,7 @@ fn dt_openers(path, kind = "") {
 
 # Asked of the desktop, wm/handlers.hibr.
 fn dt_openertitle(name, ext = "") {
-	dt_rtsend ask dt_openertitle "$name" "$ext"
+	dt_rtsend ask dt_openertitle "$name" "$ext" && ret -k
 }
 
 # Told to the desktop, wm/handlers.hibr.
@@ -572,7 +572,7 @@ fn dt_panelpane(pane) {
 
 # Asked of the desktop, wm/prayer.hibr.
 dt_pbar() {
-	dt_rtsend ask dt_pbar "$@"
+	dt_rtsend ask dt_pbar "$@" && ret -k
 }
 
 # Told to the desktop, wm/polkit.hibr.
@@ -587,7 +587,7 @@ dt_pkstop() {
 
 # Asked of the desktop, wm/place.hibr.
 fn dt_place(int h, int w) {
-	dt_rtsend ask dt_place "$h" "$w"
+	dt_rtsend ask dt_place "$h" "$w" && ret -k
 }
 
 # Told to the desktop, wm/input.hibr.
@@ -767,7 +767,7 @@ fn dt_tile(int? n = "") {
 
 # Asked of the desktop, wm/windows.hibr.
 fn dt_title(int id) {
-	dt_rtsend ask dt_title "$id"
+	dt_rtsend ask dt_title "$id" && ret -k
 }
 
 # Told to the desktop, wm/files.hibr.
@@ -817,7 +817,7 @@ fn dt_vwget(field, id) {
 
 # Asked of the desktop, wm/vault.hibr.
 fn dt_vwhost(addr) {
-	dt_rtsend ask dt_vwhost "$addr"
+	dt_rtsend ask dt_vwhost "$addr" && ret -k
 }
 
 # Told to the desktop, wm/vault.hibr.
@@ -832,7 +832,7 @@ dt_vwlock() {
 
 # Asked of the desktop, wm/vault.hibr.
 fn dt_vwmatch(host) {
-	dt_rtsend ask dt_vwmatch "$host"
+	dt_rtsend ask dt_vwmatch "$host" && ret -k
 }
 
 # Told to the desktop, wm/vault.hibr.
@@ -842,7 +842,7 @@ fn dt_vwpick(host, callback) {
 
 # Asked of the desktop, wm/vault.hibr.
 dt_vwstate() {
-	dt_rtsend ask dt_vwstate "$@"
+	dt_rtsend ask dt_vwstate "$@" && ret -k
 }
 
 # Told to the desktop, wm/vault.hibr.
@@ -852,7 +852,7 @@ fn dt_vwsyncnow(int hand = 0) {
 
 # Asked of the desktop, wm/vault.hibr.
 dt_vwuntil() {
-	dt_rtsend ask dt_vwuntil "$@"
+	dt_rtsend ask dt_vwuntil "$@" && ret -k
 }
 
 # Told to the desktop, wm/wallpaper.hibr.
@@ -862,7 +862,7 @@ fn dt_walldisp(name, img = "", mode = "", pic = "") {
 
 # Asked of the desktop, wm/wallpaper.hibr.
 dt_walldrawn() {
-	dt_rtsend ask dt_walldrawn "$@"
+	dt_rtsend ask dt_walldrawn "$@" && ret -k
 }
 
 # Told to the desktop, wm/windows.hibr.

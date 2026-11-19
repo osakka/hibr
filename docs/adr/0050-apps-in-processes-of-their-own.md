@@ -433,6 +433,27 @@ What it holds, each a check there:
   across the restart's exec or made again; it is built with the zygote,
   and until then an app process ends with its desktop.
 
+### Asked requests (2026-11-19, protocol 6)
+
+A request whose answer the app takes (`asked` in `interface.tsv`) is sent
+as `ask SEQ UNTIL NAME WORDS...` and answered `answer SEQ STATUS KIND VALUE`,
+KIND `s` a scalar, `j` a map as JSON, `-` nothing. The desktop answers once
+the pass has sent everything the request changed, so the app reads the
+window it asked for, record and all, the moment the answer is in; it runs a
+request only if it is one the app's own file makes, and never one read
+after UNTIL, the moment the app stopped waiting (125, not run -- or it would
+make a window the app had already given up on). It never waits on an app,
+so an app asking from inside a call the desktop made to it holds neither
+side. The app waits on the desktop's socket alone, for `DT_RTASKMS` (2000
+ms, the owner's), applying shared lines in order as they come and keeping
+tells for after; it answers its caller with the request's status, 125 when
+nothing came in time, 126 when the desktop refused, and drops a late answer
+by its number. The wait is the desktop's, so it is logged `asked:` and never
+charged to the app as a stall. Finding it turned up a core bug in every
+release before: once `RET` had held a map, a later scalar result kept the
+map's array mark, so the window's id went out as `[]`
+(`tests/999-ret-scalar-after-map.t`).
+
 ## Why not a desktop service between apps and the desktop (owner's question, 2026-11-18)
 
 The question: would a service or daemon apps talk to, rather than code

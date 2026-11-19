@@ -304,6 +304,7 @@ int v_assign(sh *s, const char *k, const char *v, int ex, int keep)
 		}
 		nv = xs(v);
 		v_free_el(e);
+		e->am = 0;
 		free(e->v);
 		e->v = nv;
 		if (ex)
