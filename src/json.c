@@ -447,6 +447,13 @@ int b_json(sh *s, int ac, char **av)
 			return HIBR_FAIL;
 		}
 		v = v_find(s, av[2]);
+		if (v && (v->at & A_WATCH) && (root.map || root.ty == J_ARR || root.ty == J_OBJ) &&
+		    v_watchask(s, av[2], 0, 0)) {
+			mp_free(root.map);
+			free(root.s);
+			free(txt);
+			return HIBR_FAIL;
+		}
 		if (v) {
 			v_free_el(v);
 			v->map = root.map;

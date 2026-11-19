@@ -57,6 +57,26 @@ void v_grow(sh *s)
 	lg(HIBR_LDBG, "var table now %lu slots", (unsigned long)ns);
 }
 
+/* Who is asked before a watched variable (A_WATCH) is written: the varwatch
+   module, when loaded. An event is 0 a write that changes it at key (NULL:
+   the whole of it), 3 one that changes nothing, 1 an unset, 2 a variable
+   created while a watched one waits to be declared again -- asked only while
+   v_watchpend says one does. A nonzero answer refuses the write. */
+int (*v_watchfn)(sh *s, const char *nm, const char *key, int ev);
+int v_watchpend;
+/* How many names waiting to be declared again fall at each low byte of their hash: a creation asks only where one does. */
+unsigned short v_watchbits[256];
+
+/* Ask the watcher about a write; a refusal fails the command as a readonly variable does. */
+int v_watchask(sh *s, const char *nm, const char *key, int ev)
+{
+	if (!v_watchfn || !v_watchfn(s, nm, key, ev))
+		return 0;
+	s->st = 1;
+	v_refused = 1;
+	return 1;
+}
+
 /* A variable the shell keeps a copy of has been set or removed: IFS, FUNCNEST. Asked by its first letter, so any other name pays one comparison. */
 void v_named(sh *s, const char *k)
 {
@@ -224,7 +244,7 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 int v_assign(sh *s, const char *k, const char *v, int ex, int keep)
 {
 	var *e;
-	unsigned b;
+	unsigned b, h;
 	char *nv;
 
 	if ((k[0] == 'R' || k[0] == 'S' || k[0] == 'E') && v_dyn(s, k, v))
@@ -277,6 +297,11 @@ int v_assign(sh *s, const char *k, const char *v, int ex, int keep)
 			s->st = 1;
 			return HIBR_FAIL;
 		}
+		if ((e->at & A_WATCH) &&
+		    v_watchask(s, k, 0, !e->map && !e->am && e->v && !strcmp(e->v, v) ? 3 : 0)) {
+			s_free(&t);
+			return HIBR_FAIL;
+		}
 		nv = xs(v);
 		v_free_el(e);
 		free(e->v);
@@ -301,10 +326,13 @@ int v_assign(sh *s, const char *k, const char *v, int ex, int keep)
 	v_named(s, k);
 	if (e->ex)
 		setenv(k, e->v, 1);
-	b = vh(k) & (s->tsz - 1);
+	h = vh(k);
+	b = h & (s->tsz - 1);
 	e->nx = s->tab[b];
 	s->tab[b] = e;
 	s->tn++;
+	if (v_watchpend && v_watchbits[h & 255] && v_watchfn)
+		v_watchfn(s, k, 0, 2);
 	return HIBR_OK;
 }
 
@@ -319,6 +347,8 @@ void v_del(sh *s, const char *k)
 	pp = &s->tab[vh(k) & (s->tsz - 1)];
 	while ((v = *pp)) {
 		if (!strcmp(v->k, k)) {
+			if ((v->at & A_WATCH) && v_watchask(s, k, 0, 1))
+				return;
 			*pp = v->nx;
 			v_named(s, k);
 			if (v->ex)
@@ -749,6 +779,8 @@ ent *v_path(sh *s, const char *nm, char **ks, int nk, int make)
 		if (!v)
 			return 0;
 	}
+	if (make && (v->at & A_WATCH) && v_watchask(s, nm, nk ? ks[0] : 0, 0))
+		return 0;
 	return v_walk(v, ks, nk, make);
 }
 
@@ -796,6 +828,14 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 	if (!v) {
 		hibr_set(s, nm, "", 0);
 		v = v_find(s, nm);
+	}
+	if (v && (v->at & A_WATCH)) {
+		ent *o = v_walk(v, ks, nk, 0);
+
+		if (v_watchask(s, nm, ks[0], o && !o->map && o->s && !strcmp(o->s, val) ? 3 : 0)) {
+			s_free(&ct);
+			return;
+		}
 	}
 	e = v ? v_walk(v, ks, nk, 1) : 0;
 	if (!e) {
@@ -940,6 +980,8 @@ void v_arr(sh *s, const char *k, vec *vals)
 	e = v_findr(s, &k);
 	if (!e)
 		return;
+	if ((e->at & A_WATCH) && !e->am && v_watchask(s, k, 0, 0))
+		return;
 	v_free_el(e);
 	e->am = 1;
 	v_arrput(s, k, vals, 0);
@@ -1019,6 +1061,8 @@ void v_copy(sh *s, const char *dst, const char *src)
 	hibr_set(s, dst, a && a->v ? a->v : "", 0);
 	b = v_find(s, dst);
 	if (!a || !b)
+		return;
+	if ((b->at & A_WATCH) && (a->map || a->am) && v_watchask(s, dst, 0, 0))
 		return;
 	v_free_el(b);
 	b->map = m_clone(a->map);
@@ -1115,6 +1159,8 @@ int v_delp(sh *s, const char *nm, char **ks, int nk)
 		mp = &e->map;
 		np = &e->n;
 	}
+	if ((v->at & A_WATCH) && mp_find(*mp, ks[nk - 1]) && v_watchask(s, nm, ks[0], 0))
+		return HIBR_FAIL;
 	if (!mp_del(mp, np, ks[nk - 1]))
 		return HIBR_FAIL;
 	if (nk == 1 && !strcmp(ks[0], "0") && !(v->at & A_REF)) {

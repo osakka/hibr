@@ -1,0 +1,189 @@
+0
+watched: A G H S
+seq moved on a watched write: yes
+== the printed form, unbound
+H\tk$
+S\t$
+  asked again: 0 lines
+== plain assignment
+  before declare -- S="one"
+  after  declare -- S="two"
+  moved  [S:]
+== += on a scalar
+  before declare -- S="two"
+  after  declare -- S="twomore"
+  moved  [S:]
+== += on an array
+  before declare -a A=([0]="a" [1]="b")
+  after  declare -a A=([0]="a" [1]="b" [2]="c")
+  moved  [A] (names)
+== a[k]=
+  before declare -A H=([k]="old" )
+  after  declare -A H=([k]="new" )
+  moved  [H:k]
+== a[k][j]= nested
+  before declare -A H=([k]="new" )
+  after  declare -A H=()
+  after  H["k"]["j"]="deep"
+  moved  [H:k]
+== unset 'a[k]'
+  before declare -A H=([k]="old" [o]="other" )
+  after  declare -A H=([o]="other" )
+  moved  [H:k]
+== unset a["k"]
+  before declare -A H=([o]="other" [k]="old" )
+  after  declare -A H=([o]="other" )
+  moved  [H:k]
+== a=(...)
+  before declare -a A=([0]="a" [1]="b" [2]="c")
+  after  declare -a A=([0]="x" [1]="y" [2]="z")
+  moved  [A] (names)
+== declare -A a=(...)
+  before declare -A H=([o]="other" )
+  after  declare -A H=([p]="1" [q]="2" )
+  moved  [H] (names)
+== read -a
+  before declare -a A=([0]="x" [1]="y" [2]="z")
+  after  declare -a A=([0]="r1" [1]="r2")
+  moved  [A] (names)
+== read -r
+  before declare -- S="twomore"
+  after  declare -- S="a line"
+  moved  [S:]
+== mapfile -t
+  before declare -a A=([0]="r1" [1]="r2")
+  after  declare -a A=([0]="m1" [1]="m2")
+  moved  [A] (names)
+== json parse a
+  before declare -A H=([p]="1" [q]="2" )
+  after  declare -A H=([j]="1" [t]="x" )
+  moved  [H] (names)
+== json parse a[k] TEXT
+  before declare -A H=([j]="1" [t]="x" [k]="old" )
+  after  declare -A H=()
+  after  H["j"]="1"
+  after  H["t"]="x"
+  after  H["k"]["x"]["0"]="1"
+  after  H["k"]["x"]["1"]="2"
+  moved  [H:k]
+== x := cmd binding a map into a[k]
+  before declare -A H=([j]="1" [t]="x" [k]="old" )
+  after  declare -A H=()
+  after  H["j"]="1"
+  after  H["t"]="x"
+  after  H["k"]["0"]="p"
+  after  H["k"]["1"]="q"
+  moved  [H:k]
+== nameref write (local -n r=a; r[k]=v)
+  before declare -A H=([j]="1" [t]="x" [k]="old" )
+  after  declare -A H=([j]="1" [t]="x" [k]="via" )
+  moved  [H:k]
+== printf -v
+  before declare -- S="a line"
+  after  declare -- S="p-q"
+  moved  [S:]
+== (( a[k]++ ))
+  before declare -A H=([j]="1" [t]="x" [k]="via" [n]="1" )
+  after  declare -A H=([j]="1" [t]="x" [k]="via" [n]="2" )
+  moved  [H:n]
+== ${a:=d}
+  before declare -- S=""
+  after  declare -- S="dflt"
+  moved  [S:]
+== declare -g a=... in a function
+  before declare -- S="dflt"
+  after  declare -- S="fromfn"
+  moved  [S:]
+== a job's hand-back (eval "declare -g ...")
+  before declare -A H=([j]="1" [t]="x" [k]="via" [n]="2" )
+  after  declare -A H=([from]="job" )
+  moved  [H] (names)
+== temporary prefix a=x on a builtin
+  before declare -- S="keep"
+  after  declare -x S="keep"
+  moved  [S:]
+== temporary prefix a=x on a function
+  before declare -- S="keep"
+  after  declare -x S="keep"
+  moved  [S:]
+== still watched after a prefix
+  before declare -- S="keep"
+  after  declare -- S="after"
+  moved  [S:]
+== unset a
+  before declare -- G="gone"
+  after  G is unset
+  moved  [G:]
+== unset then declared again: the watch survives
+  before G is unset
+  after  declare -- G="back"
+  moved  [G:]
+== and keeps surviving
+  before declare -- G="back"
+  after  declare -- G="again"
+  moved  [G:]
+watched: A G H S
+== unset then declare -gA again
+  before G is unset
+  after  declare -A G=([k]="v" )
+  moved  [G] (names)
+== 33 keys of one variable: more than 32, so the whole variable
+  before declare -A H=()
+  after  declare -A H=([k0]="1" [k1]="1" [k2]="1" [k3]="1" [k4]="1" [k5]="1" [k6]="1" [k7]="1" [k8]="1" [k9]="1" [k10]="1" [k11]="1" [k12]="1" [k13]="1" [k14]="1" [k15]="1" [k16]="1" [k17]="1" [k18]="1" [k19]="1" [k20]="1" [k21]="1" [k22]="1" [k23]="1" [k24]="1" [k25]="1" [k26]="1" [k27]="1" [k28]="1" [k29]="1" [k30]="1" [k31]="1" [k32]="1" )
+  moved  [H:]
+== a local shadowing a watched global: writes to the local are not reported
+  before declare -- S="global"
+  before declare -A H=([k]="global" )
+  inside: S=dynamic H[k]=inner H[d]=dynamic
+  after  declare -- S="global"
+  after  declare -A H=([k]="global" )
+  moved  []
+== the global written once the local has gone
+  before declare -- S="global"
+  after  declare -- S="global2"
+  moved  [S:]
+== a local made while a watched global is pending re-creation
+  before G is unset
+  inside: G=yz
+  after  G is unset
+  moved  []
+== and the global made after it is still watched
+  before G is unset
+  after  declare -- G="back"
+  moved  [G:]
+== a dropped watch
+  before declare -- S="global2"
+  after  declare -- S="dropped"
+  moved  []
+watched: A G H
+== watched again once added back
+  before declare -- S="dropped"
+  after  declare -- S="readded"
+  moved  [S:]
+== json parse of an object into a watched empty scalar
+  before declare -- E1=""
+  after  declare -a E1=(["a"]="1")
+  moved  [E1] (names)
+== NAME=() on a watched empty scalar
+  before declare -- E2=""
+  after  declare -a E2=()
+  moved  [E2] (names)
+== := of a map into a watched empty scalar
+  before declare -- E3=""
+  after  declare -a E3=([0]="p" [1]="q")
+  moved  [E3] (names)
+== an unwatched variable, written every way
+  before declare -- C="one"
+  before declare -a CA=([0]="a" [1]="b")
+  before declare -A CH=([k]="old" [n]="1" )
+  before declare -A CX=([k]="1" )
+  after  declare -- C="back"
+  after  declare -a CA=([0]="m1" [1]="m2")
+  after  declare -A CH=([from]="job" )
+  after  declare -A CX=([p]="1" [q]="2" )
+  moved  []
+seq moved on unwatched writes: no
+== a watched write after all of that
+  before declare -- S="readded"
+  after  declare -- S="last"
+  moved  [S:]

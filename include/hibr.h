@@ -144,6 +144,7 @@
 #define A_LOW 4u
 #define A_UPP 8u
 #define A_ASSOC 16u
+#define A_WATCH 32u
 #define A_TYSH 8
 #define A_TYMASK 0xf00u
 #endif
