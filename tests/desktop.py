@@ -7258,6 +7258,35 @@ for f in (drp, DRMARK):
     if os.path.exists(f):
         os.unlink(f)
 
+# A drop is told where a click on the same cell is: under the bar frame an
+# app counts its columns from one left of its window (dt_wapp), and a drop
+# counted from the window's own column arrived one to the left of a click.
+DCM = scratch("desktop-dropcol")
+if os.path.exists(DCM):
+    os.unlink(DCM)
+dcp = scratch("desktop-dropcol.hibr")
+open(dcp, "w").write(
+    "%s. %s\ndt_open\n"
+    "fn dcl_draw(int id, int h, int w, int row, int col) { console put -p \"w$id\" 1 1 C; }\n"
+    "fn dcl_click(int id, int r, int c, ...rest) { echo \"click $r $c\" >> %s; }\n"
+    "fn dcl_drop(int id, int r, int c, op, ...paths) { echo \"drop $r $c\" >> %s; }\n"
+    "dt_app dcl \"Columns\" 6 20\ndt_new \"Columns\" 6 20 3 4 dcl\n"
+    "dt_draw\n"
+    "dt_event \"mouse press left 5 9\"; dt_event \"mouse release left 5 9\"\n"
+    "DT_DNDS=(/tmp/c-file.txt); dt_ondrop 5 9 \"\"\n"
+    "dt_run\ndt_close\n" % (load(MOD), WM, DCM, DCM))
+dct = Term(dcp, rows=ROWS, cols=COLS, settle=0.8, env={"DT_FRAME": "none"})
+dct.collect(0.5)
+said = open(DCM).read().split("\n") if os.path.exists(DCM) else []
+dct.quit(b"q", 1.0)
+clk = [l.split()[1:] for l in said if l.startswith("click ")]
+drp2 = [l.split()[1:] for l in said if l.startswith("drop ")]
+check("under the bar frame a drop reaches the app at the cell a click there does",
+      clk and drp2 and clk[0] == drp2[0], said)
+for f in (dcp, DCM):
+    if os.path.exists(f):
+        os.unlink(f)
+
 # A slow disk delays a save and never a frame (0.99.546). The owner's root
 # volume spans a USB stick at 24 ms a write, and the crash snapshot's
 # rename held their desktop 2.7 s from inside the frame loop. Here every
@@ -10470,4 +10499,4 @@ check("and what it cost: the processor a busy ticker took, and that ticker named
 check("and when it stops asking, nothing more is sent",
       hudoff >= 2 and len(hst) == hudoff, (hudoff, hst))
 
-report(1121)
+report(1122)

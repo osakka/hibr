@@ -94,8 +94,12 @@ fn dt_ondrop(int mr, int mc, mods) {
 			dt_notep low "%s does not take files" "${DT[$id]["title"]}"
 			return 0
 		fi
+		# The app is told the drop where it would be told a click on the
+		# same cell: its columns counted from dt_wapp, one left of the
+		# window's own under the bar frame -- the drop counted from the
+		# window's own and arrived a column left of the click.
 		wr=${DT[$id]["row"]}
-		wc=${DT[$id]["col"]}
+		wc := dt_wapp "$id"
 		DT_NOTEWIN=$id
 		dt_wincall "$id" "$ap" $((mr - wr)) $((mc - wc)) "$op" "${src[@]}"
 		return 0
