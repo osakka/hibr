@@ -388,10 +388,10 @@ the next entry, `~-1` the one before last, and `~+` and `~-` are `$PWD` and
 
 | builtin | synopsis |
 |---|---|
-| `connect [-u\|-s] host port [var]` | **[hibr]** open a client connection; `-u` UDP, `-s` TLS; the descriptor goes in `var`, `FD` by default |
+| `connect [-u\|-s] host port [var]` / `connect -U path [var]` | **[hibr]** open a client connection; `-u` UDP, `-s` TLS, `-U` a Unix socket at path; the descriptor goes in `var`, `FD` by default, and is the script's: a program it starts does not inherit it, except through a redirection (`prog <&$FD`), so no program left running keeps the connection open after the script has gone (ADR 0050) |
 | `listen [-f] [-n count] port handler` | **[hibr]** serve connections with a handler, which is given the peer as `$1` and in `$REMOTE` |
 | `listen [-u] -b port [var]` | **[hibr]** bind only, and hand back the descriptor in `var`, `FD` by default; a port with a `/` is a Unix socket, owner-only; `-u` binds a UDP port, which `recv` then reads a datagram at a time |
-| `accept [-t secs] listenfd [var]` | **[hibr]** wait for one connection, at most secs with `-t`, its descriptor in `var`, `FD` by default; `$REMOTE` is `uid:N` for a Unix socket |
+| `accept [-t secs] listenfd [var]` | **[hibr]** wait for one connection, at most secs with `-t`, its descriptor in `var`, `FD` by default; `$REMOTE` is `uid:N` for a Unix socket. Like the listening socket and `connect`'s, the descriptor is not inherited by a program the script starts, except through a redirection: a program left running after an accept held the connection open for its peer however the script went |
 | `send [-n\|-r] [-p] fd text…` / `send -c fd` | **[hibr]** write to a descriptor; `-r` ends CRLF; a peer that has gone is a failing status, never a signal. `-p` writes what the descriptor takes now and never waits: the rest is kept for it (`send -p fd` with no text writes more of it), `RET` is how much is still kept, and the status is 3 while any is -- for a loop that must not be held up by a peer that has stopped reading (the desktop's end of an app's socket, ADR 0050). `send -c fd` forgets what is kept for fd |
 | `recv [-a\|-p\|-n bytes] fd [var]` | **[hibr]** read one line, all of it, or `n` bytes (a count, and `0` reads nothing), into `var`, `REPLY` by default; from a datagram socket, one datagram. `-p` takes only what is waiting now and never waits -- nothing, if nothing is, and a failing status at end of file -- for a loop that must not be held up by a peer (the desktop's end of an app's socket, ADR 0050) |
 

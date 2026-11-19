@@ -149,12 +149,16 @@ int fd_high(int fd)
 	return n;
 }
 
-/* A listening socket is the listener's, and no program it starts takes it
-   along: the desktop's control socket was inherited by every program run in
-   a terminal window, and a connect that reached one of those copies was
-   accepted by nobody (Gitea #411). A connection accepted on it, and the
-   process a `listen -f` forks, are unaffected -- close-on-exec acts only at
-   exec, and a redirection's dup2 clears it. */
+/* A socket the shell's own net builtins make is the script's, and no program
+   it starts takes it along: the desktop's control socket was inherited by
+   every program run in a terminal window, and a connect that reached one of
+   those copies was accepted by nobody (Gitea #411) -- and a connection
+   accepted from an app's own process (ADR 0050), or made by `connect`, held
+   by any program started after it, never ended for its peer however the
+   script that owned it went. So listening sockets, accepted connections and
+   `connect`'s are close-on-exec; a program that is meant to have one gets it
+   through a redirection, whose dup2 clears the flag, and the process a
+   `listen -f` forks keeps it, since close-on-exec acts only at exec. */
 int net_noinherit(int fd)
 {
 	if (fd >= 0)
@@ -958,7 +962,7 @@ void net_slot(sh *s, const char *nm, int fd)
 /* Open a client connection and report its descriptor. */
 int b_connect(sh *s, int ac, char **av)
 {
-	int i = 1, udp = 0, tls = 0, fd;
+	int i = 1, udp = 0, tls = 0, unx = 0, fd;
 	const char *nm = "FD";
 
 	if (s->sopt & O_PLAN) {
@@ -979,13 +983,26 @@ int b_connect(sh *s, int ac, char **av)
 			udp = 1;
 		else if (!strcmp(av[i], "-s"))
 			tls = 1;
+		else if (!strcmp(av[i], "-U"))
+			unx = 1;
 		else {
 			lg(HIBR_LERR, "connect: %s: unknown option", av[i]);
 			return 2;
 		}
 	}
+	if (unx) {
+		if (ac - i < 1) {
+			lg(HIBR_LERR, "usage: connect -U path [var]");
+			return 2;
+		}
+		fd = net_unix(av[i]);
+		if (fd < 0)
+			return HIBR_FAIL;
+		net_slot(s, ac - i > 1 ? av[i + 1] : nm, net_noinherit(fd));
+		return HIBR_OK;
+	}
 	if (ac - i < 2) {
-		lg(HIBR_LERR, "usage: connect [-u|-s] host port [var]");
+		lg(HIBR_LERR, "usage: connect [-u|-s] host port [var] | connect -U path [var]");
 		return 2;
 	}
 	if (ac - i > 2)
@@ -1002,7 +1019,7 @@ int b_connect(sh *s, int ac, char **av)
 	}
 	if (fd < 0)
 		return HIBR_FAIL;
-	net_slot(s, nm, fd);
+	net_slot(s, nm, net_noinherit(fd));
 	return HIBR_OK;
 }
 
@@ -1069,7 +1086,7 @@ int b_accept(sh *s, int ac, char **av)
 	peer = net_who(fd, (struct sockaddr *)&ss, sl);
 	hibr_set(s, "REMOTE", peer, 0);
 	free(peer);
-	net_slot(s, nm, fd_high(fd));
+	net_slot(s, nm, net_noinherit(fd_high(fd)));
 	return HIBR_OK;
 }
 
