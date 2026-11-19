@@ -1975,5 +1975,269 @@ pens = " ".join(str(p) for row in sc.p for p in row)
 check("a shadow attribute crosses hold with its kind, width and inset",
       "66:2:1:0" in pens and "66:3:1:1" in pens, pens[:300])
 
+# A display whose mode changes under a running held desktop (Blit #60):
+# 1920x1080 to 1280x720 and back, which reaches hibr as nothing more than
+# that client's terminal resizing -- fewer rows and columns at the same
+# cell size. A cell of 24 by 45 pixels makes 1920x1080 an 80 by 24 grid and
+# 1280x720 a 53 by 16 one. The second display sits to the right of the
+# primary and holds three windows: one that fits the smaller mode, one
+# wider than it (70 columns against 53), and one below and right of where
+# the smaller mode ends. After each resize the rectangles the desktop holds
+# (DT_DISPLAYS, written out by a ticker whenever it changes) and the ones
+# its control socket answers have to be the client's new size, the primary
+# has to be left exactly as it was, and every window has to be somewhere a
+# person can reach it: wholly inside one display, its title bar -- title
+# and buttons -- on that display's screen.
+RCELL = (24, 45)
+RBIG, RSMALL = (24, 80), (16, 53)
+RBTN = "┤□ _ x├"
+RWINS = {"Wide": (2, 86, 8, 70), "Small": (10, 84, 5, 24), "Far": (17, 136, 6, 20)}
+
+
+def rsnapread(path):
+    """The desktop's own DT_DISPLAYS, and its primary, as the ticker last
+    wrote them: [(row, col, rows, cols)], (row, col, rows, cols)."""
+    try:
+        last = open(path).read().strip().split("\n")[-1]
+    except OSError:
+        return None, None
+    if "|" not in last:
+        return None, None
+    disp, pri = last.split("|")[:2]
+    w = disp.split()
+    rects = [tuple(int(x) for x in w[i:i + 4]) for i in range(0, len(w) - 4, 5)]
+    return rects, tuple(int(x) for x in pri.split())
+
+
+def rctl(nm, *a):
+    """desktop ctl, against this session's own control socket."""
+    r = subprocess.run([sx.HIBR, sx.tree("programs/desktop/lib/ctl.hibr"),
+                        "--session", nm] + list(a), env=dict(os.environ, TMPDIR=D),
+                       capture_output=True, text=True, timeout=20)
+    try:
+        return json.loads(r.stdout)
+    except ValueError:
+        return {"raw": r.stdout + r.stderr}
+
+
+def rrects(j):
+    """name -> (row, col, rows, cols, primary), from desktop ctl displays."""
+    return {d["name"]: (d["row"], d["col"], d["rows"], d["cols"], d["primary"])
+            for d in j.get("displays", [])}
+
+
+def rplaced(wins, rects, screens):
+    """For each window from desktop ctl windows: the display (name) that
+    holds it whole, and whether its title bar -- the title and the buttons
+    at its end -- is on that display's screen on the window's own top row,
+    inside the window's own columns; or None and where the window is."""
+    out = {}
+    for w in wins:
+        t = w["title"]
+        r, c, h, wd = w["row"], w["col"], w["h"], w["w"]
+        home = None
+        for nm, (dr, dc, drows, dcols, _) in rects.items():
+            if dr <= r and dc <= c and r + h <= dr + drows and c + wd <= dc + dcols:
+                home = nm
+                break
+        if home is None:
+            out[t] = (None, "at %d,%d %dx%d, inside no display of %s"
+                      % (r, c, h, wd, rects))
+            continue
+        dr, dc = rects[home][:2]
+        line = screens[home].row(r - dr)
+        i = line.find("┤ %s ├" % t)
+        b = line.find(RBTN, max(i, 0))
+        out[t] = (home, i >= 0 and b >= 0 and dc + i >= c
+                  and dc + b + len(RBTN) <= c + wd)
+    return out
+
+
+def dispresize(steps=(RSMALL, RBIG)):
+    """Display two through the sizes in steps, each a (rows, cols); a step
+    ("move", title, row, col) moves that window as a person would, through
+    dt_move. What look() saw before and after each size, in order."""
+    nm = name()
+    snap = os.path.join(D, "rsnap%s" % nm)
+    rmv = os.path.join(D, "rmove%s" % nm)
+    sess = os.path.join(D, "rdesk%s.hibr" % nm)
+    mk = "".join("dt_new %s %d %d %d %d; " % (t, h, w, r, c)
+                 for t, (r, c, h, w) in RWINS.items())
+    open(sess, "w").write(
+        load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
+        + "DT_BARTIME=HELD\nRSNAP=\nRWINS=\n"
+        + "rsnap() { local s=\"${DT_DISPLAYS[*]}|$DT_PRIMARY_ROW $DT_PRIMARY_COL "
+        + "$DT_PRIMARY_H $DT_PRIMARY_W\"; [ \"$s\" = \"$RSNAP\" ] && return 0; "
+        + "RSNAP=$s; echo \"$s\" >> %s; }\n" % snap
+        + "rwins() { [ -n \"$RWINS\" ] && return 0; [ \"${#DT_DISPLAYS[@]}\" -ge 2 ] "
+        + "|| { dt_want 200; return 0; }; RWINS=1; %sdt_want 30; }\n" % mk
+        + "rmove() { dt_want 300; [ -f %s ] || return 0; local t r c id; read -r t r c < %s; " % (rmv, rmv)
+        + "rm -f %s; dt_wins; for id in \"${DT_WINS[@]}\"; do " % rmv
+        + "[ \"${DT[$id][\"title\"]}\" = \"$t\" ] || continue; "
+        + "if [ \"$r\" = zoom ]; then dt_zoom \"$id\"; else dt_move \"$id\" \"$r\" \"$c\"; fi; done; "
+        + "dt_want 30; }\n"
+        + "dt_ticker rsnap\ndt_ticker rwins\ndt_ticker rmove\n"
+        + "dt_open || exit 1\ndt_new Stay 8 30 4 6\ndt_run\ndt_close\n")
+    one = os.path.join(D, "rone%s.hibr" % nm)
+    two = os.path.join(D, "rtwo%s.hibr" % nm)
+    open(one, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, sess)
+                         + "sleep 0.8\nhold attach -m -n one %s 0 0\n" % nm)
+    open(two, "w").write(load("hold") + "hold attach -m -n two %s 0 80\n" % nm)
+    t1 = Term(one, rows=24, cols=80, settle=1.0, cellw=RCELL[0], cellh=RCELL[1],
+              env={"TMPDIR": D})
+    for _ in range(int(16 * SLOW)):
+        t1.collect(0.25)
+    t2 = Term(two, rows=RBIG[0], cols=RBIG[1], settle=1.0, cellw=RCELL[0],
+              cellh=RCELL[1], env={"TMPDIR": D})
+
+    def settle(size):
+        """Collect both until the desktop holds display two at size, its
+        windows are drawn and nothing more is arriving; bounded."""
+        for _ in range(int(60 * SLOW)):
+            t1.collect(0.1)
+            t2.collect(0.1)
+            rects, _ = rsnapread(snap)
+            if rects and (0, 80) + size in rects and len(rects) == 2 \
+                    and t2.screen().find("┤ Small ├"):
+                break
+        n = -1
+        for _ in range(int(20 * SLOW)):
+            if len(t1.raw) + len(t2.raw) == n:
+                break
+            n = len(t1.raw) + len(t2.raw)
+            t1.collect(0.3)
+            t2.collect(0.3)
+
+    def look(tag, mark=0):
+        """What the desktop holds and both screens show. The resized
+        display's screen is built from what it was sent since the resize
+        alone -- its first frame at a new size is a whole repaint -- so a
+        cell left over from before cannot pass for one drawn after."""
+        rects, pri = rsnapread(snap)
+        j = rctl(nm, "displays")
+        w = rctl(nm, "windows").get("windows", [])
+        ctlr = rrects(j)
+        s1 = t1.screen()
+        s2 = sx.Screen(t2.rows, t2.cols).feed(t2.raw[mark:].decode("utf8", "replace"))
+        return {"tag": tag, "dt": rects, "pri": pri, "ctl": ctlr, "wins": w,
+                "s1": s1, "s2": s2,
+                "placed": rplaced(w, ctlr, {"one": s1, "two": s2})}
+
+    settle(RBIG)
+    r = [look("before")]
+    size = RBIG
+    for st in steps:
+        if st[0] in ("move", "zoom"):
+            if st[0] == "zoom":
+                open(rmv, "w").write("%s zoom 0\n" % st[1])
+            else:
+                open(rmv, "w").write("%s %d %d\n" % st[1:])
+            for _ in range(int(40 * SLOW)):
+                t1.collect(0.1)
+                t2.collect(0.1)
+                if not os.path.exists(rmv):
+                    break
+            settle(size)
+            continue
+        size = st
+        mark = len(t2.raw)
+        t2.resize(size[0], size[1], RCELL[0], RCELL[1])
+        settle(size)
+        r.append(look("%dx%d" % (size[1], size[0]), mark))
+    if steps and steps[-1][0] in ("move", "zoom"):
+        r.append(look("after " + steps[-1][0]))
+    t2.quit(None, 0.5)
+    t1.quit(None, 0.5)
+    kill(nm)
+    return r
+
+
+def rshow(o):
+    return "%s: DT_DISPLAYS %s primary %s; ctl %s; windows %s; placed %s\n%s\n%s" % (
+        o["tag"], o["dt"], o["pri"], o["ctl"],
+        [(w["title"], w["row"], w["col"], w["h"], w["w"]) for w in o["wins"]],
+        o["placed"], o["s1"].dump(), o["s2"].dump())
+
+
+r0, r1, r2 = dispresize()
+ONE, TWO = (0, 0) + RBIG, (0, 80)
+check("a display whose mode shrinks under a held desktop is held by the "
+      "desktop at its new size, beside the primary",
+      r0["dt"] == [ONE, TWO + RBIG] and r1["dt"] == [ONE, TWO + RSMALL]
+      and r1["ctl"].get("two") == TWO + RSMALL + (False,), rshow(r1))
+check("and the primary is untouched by it: the same rectangle, the same "
+      "screen, its window where it was",
+      r1["ctl"].get("one") == r0["ctl"].get("one") == ONE + (True,)
+      and r1["pri"] == r0["pri"] == ONE and r1["s1"].text() == r0["s1"].text()
+      and [w for w in r1["wins"] if w["title"] == "Stay"]
+      == [w for w in r0["wins"] if w["title"] == "Stay"], rshow(r1))
+check("every window is reachable before the change: each wholly inside a "
+      "display, its title bar on that display's screen",
+      sorted(r0["placed"]) == sorted(list(RWINS) + ["Stay"])
+      and all(v[0] and v[1] is True for v in r0["placed"].values()), rshow(r0))
+check("after it, a window that fits the smaller mode is still inside it, its "
+      "title bar on that display's screen",
+      r1["placed"].get("Small") == ("two", True), rshow(r1))
+# A person at the smaller mode needs every window inside it: a title bar
+# whose buttons are past the display's edge cannot be closed or zoomed from
+# there, and a window wholly past it cannot be reached at all.
+check("and the window wider than the smaller mode is brought inside it, "
+      "its title bar and buttons on its screen",
+      r1["placed"].get("Wide") == ("two", True), rshow(r1))
+check("and the window past the smaller mode's edge is brought inside it, "
+      "its title bar on its screen",
+      r1["placed"].get("Far") == ("two", True), rshow(r1))
+check("and back at the first mode, the display is its first rectangle again "
+      "and the primary still untouched",
+      r2["dt"] == r0["dt"] == [ONE, TWO + RBIG] and r2["ctl"] == r0["ctl"]
+      and r2["pri"] == ONE and r2["s1"].text() == r0["s1"].text(), rshow(r2))
+check("with every window reachable there too",
+      sorted(r2["placed"]) == sorted(list(RWINS) + ["Stay"])
+      and all(v[0] and v[1] is True for v in r2["placed"].values()), rshow(r2))
+
+
+def rgeom(o, t):
+    """A window's rectangle as row, col, rows, cols, from desktop ctl."""
+    return [(w["row"], w["col"], w["h"], w["w"]) for w in o["wins"] if w["title"] == t]
+
+
+def rwas(t):
+    r, c, h, w = RWINS[t]
+    return [(r, c, h, w)]
+
+
+# A display mode tried and taken back -- Blit applies one provisionally
+# and reverts it unless it is confirmed -- or one attach from a smaller
+# machine: the windows the smaller size moved or made smaller go back to
+# exactly where they were once their display holds them again.
+check("and back at the first mode, the windows the smaller one moved and "
+      "narrowed are where they were before it, exactly",
+      rgeom(r2, "Wide") == rwas("Wide") and rgeom(r2, "Far") == rwas("Far")
+      and rgeom(r2, "Small") == rwas("Small"), rshow(r2))
+# But a window the person moved meanwhile is theirs: growing back leaves it
+# where they put it.
+h0, h1, h2 = dispresize((RSMALL, ("move", "Wide", 5, 80), RBIG))
+check("a window moved by hand at the smaller mode stays where it was put "
+      "when the display grows back, the others back where they were",
+      rgeom(h1, "Wide") == [(2, 80, 8, 53)] and rgeom(h2, "Wide") == [(5, 80, 8, 53)]
+      and rgeom(h2, "Far") == rwas("Far"), rshow(h2))
+# Two smaller modes in a row, and back: what returns is where the windows
+# were before the first, not the size between.
+RMID = (20, 60)
+m0, m1, m2, m3 = dispresize((RMID, RSMALL, RBIG))
+check("through two smaller modes and back, every window returns to where it "
+      "was before the first",
+      all(rgeom(m3, t) == rwas(t) for t in RWINS)
+      and rgeom(m1, "Wide") != rwas("Wide") and rgeom(m2, "Wide") != rgeom(m1, "Wide"),
+      rshow(m1) + "\n" + rshow(m2) + "\n" + rshow(m3))
+# And where a zoomed window goes back to: zoomed, the display smaller and
+# then its first size again, Zoom taken off puts the window exactly where it
+# was before it was zoomed, not where the smaller size had pulled that place.
+z0, z1, z2, z3 = dispresize((("zoom", "Wide"), RSMALL, RBIG, ("zoom", "Wide")))
+check("a window zoomed through a smaller mode and back, un-zoomed, is where it "
+      "was before the zoom, exactly",
+      rgeom(z1, "Wide") == [(0, 80, 16, 53)] and rgeom(z2, "Wide") == [(0, 80, 24, 80)]
+      and rgeom(z3, "Wide") == rwas("Wide"), rshow(z1) + "\n" + rshow(z2) + "\n" + rshow(z3))
+
 shutil.rmtree(D, True)
-report(108)
+report(120)

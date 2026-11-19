@@ -91,6 +91,7 @@ fn dt_winforget(id) {
 	[ "${DT_HOTWIN-}" = "$id" ] && { DT_HOTWIN=; DT_HOTTAG=; }
 	[ -n "${DT_GRAB-}" ] && [ "${DT_FOCUS-}" = "$id" ] && DT_GRAB=
 	dt_has dt_fulltake && dt_fulltake "$id"
+	unset DT_WKEEP["$id"] DT_WKEEP["$id o"] DT_WKEEP["$id s"] DT_WKEEP["$id fs"]
 	return 0
 }
 
@@ -544,23 +545,12 @@ fn dt_snap(int id, dir) {
 			DT[$id]["sh"]=${DT[$id]["h"]}
 			DT[$id]["sw"]=${DT[$id]["w"]}
 		fi
-		r=$top
-		c=$left
-		h=$ph
-		w=$pw
-		case $dir in
-		left) w=$((pw / 2)) ;;
-		right) c=$((left + pw / 2)); w=$((pw - pw / 2)) ;;
-		top) h=$((ph / 2)) ;;
-		bottom) r=$((top + ph / 2)); h=$((ph - ph / 2)) ;;
-		center)
-			h=${DT[$id]["h"]}
-			w=${DT[$id]["w"]}
-			r=$((top + (ph - h) / 2))
-			c=$((left + (pw - w) / 2))
-			;;
-		*) return 1 ;;
-		esac
+		dt_snapat "$dir" "$top" "$left" "$ph" "$pw" "${DT[$id]["h"]}" \
+			"${DT[$id]["w"]}" || return 1
+		r=$DTF_R
+		c=$DTF_C
+		h=$DTF_H
+		w=$DTF_W
 		DT[$id]["snap"]=$dir
 	fi
 	DT[$id]["oh"]=
@@ -572,6 +562,32 @@ fn dt_snap(int id, dir) {
 }
 
 dt_snap_focused() { [ -n "$DT_FOCUS" ] && dt_snap "$DT_FOCUS" "$1"; }
+
+# Where a window h by w snapped dir goes in a display's rectangle below its
+# bar, top and left its corner, ph by pw its size: into DTF_R, DTF_C, DTF_H
+# and DTF_W, or status 1 for a direction there is none of. One rule for a
+# snap and for a snapped window following its display's new size.
+DTF_R=0
+DTF_C=0
+DTF_H=0
+DTF_W=0
+fn dt_snapat(dir, int top, int left, int ph, int pw, int h, int w) {
+	local r=$top c=$left
+
+	case $dir in
+	left) h=$ph; w=$((pw / 2)) ;;
+	right) h=$ph; c=$((left + pw / 2)); w=$((pw - pw / 2)) ;;
+	top) w=$pw; h=$((ph / 2)) ;;
+	bottom) w=$pw; r=$((top + ph / 2)); h=$((ph - ph / 2)) ;;
+	center) r=$((top + (ph - h) / 2)); c=$((left + (pw - w) / 2)) ;;
+	*) return 1 ;;
+	esac
+	DTF_R=$r
+	DTF_C=$c
+	DTF_H=$h
+	DTF_W=$w
+	return 0
+}
 
 # The rectangle a window's own display gives it, in DTW_R, DTW_C, DTW_H
 # and DTW_W (Gitea #286): the display holding the window's centre -- the
@@ -615,6 +631,438 @@ fn dt_dispat(int cr, int cc) {
 	DTW_C=$dc
 	DTW_H=$drows
 	DTW_W=$dcols
+	return 0
+}
+
+# A rectangle kept inside a display's own, into DTF_R, DTF_C, DTF_H and
+# DTF_W: top the first row a window may stand at there (one below the bar
+# on the primary), bot the row past its last, dc and dw its columns. Its
+# place is kept where it fits and pulled back from the right and the
+# bottom where it does not; it is made smaller only where it cannot fit at
+# all, and never when fx says its size is not the desktop's to change -- a
+# fixed window keeps its top left on the display instead, its title there.
+fn dt_rectfit(int r, int c, int h, int w, int top, int bot, int dc, int dw, fx = "") {
+	if [ -z "$fx" ]; then
+		[ "$h" -gt $((bot - top)) ] && h=$((bot - top))
+		[ "$w" -gt "$dw" ] && w=$dw
+	fi
+	[ $((r + h)) -gt "$bot" ] && r=$((bot - h))
+	[ $((c + w)) -gt $((dc + dw)) ] && c=$((dc + dw - w))
+	[ "$r" -lt "$top" ] && r=$top
+	[ "$c" -lt "$dc" ] && c=$dc
+	DTF_R=$r
+	DTF_C=$c
+	DTF_H=$h
+	DTF_W=$w
+	return 0
+}
+
+# The displays as windows were last kept inside them: each one's rectangle
+# by key -- "d" and its name, which is empty for a desktop nothing holds --
+# in DT_WFR, DT_WFC, DT_WFH and DT_WFW; their keys in DT_WFITORD, those
+# attached then first in the order hold gave them and after them up to
+# DT_WFITKEEP that had left, newest first; and hold's shift and the
+# primary's corner as they were then. DT_WFITSIG is all of what they were
+# read from, so a resize that changed no display costs one comparison.
+declare -gA DT_WFR DT_WFC DT_WFH DT_WFW
+declare -ga DT_WFITORD=()
+DT_WFITSHIFT=
+DT_WFITPRI=
+DT_WFITSIG=
+DT_WFITKEEP=8
+# Each window a display's change of size moved or made smaller, by id:
+# where it was before the first such change and where the last one put it,
+# "r c h w|r c h w". It goes back to the first when its display can hold
+# it again and it is still where the last put it; anything else that moved
+# or sized it since makes the place the person's, and the record goes.
+# Where a zoomed, snapped or full-screen window goes back to is kept the
+# same way, under "id o", "id s" and "id fs" (dt_wsavedfit).
+declare -gA DT_WKEEP
+# The display dt_wfithome found, by its key, or empty.
+DTF_HOME=
+
+# Keep every window inside the display it was on, after a resize changed
+# that display's rectangle -- a display's mode changing (Blit #60) reaches
+# the desktop as nothing more than its terminal resizing, and a window
+# wider than the new size kept its place with its buttons off the screen,
+# one past the new edge ended up on no display at all. dt_size calls this
+# on every resize, as it calls dt_iconlay for the icons.
+#
+# A display is known by its name. One that has left is remembered, so it
+# coming back at another size or place is a change like any other; and one
+# under a name never seen, at the corner of one that has left, is that one
+# again, a client that replaced another. A
+# window's display is the one its middle was on before (its top left when
+# its middle was on none, as a window over a seam can be), and only a
+# window whose display changed is touched: one on a display that did not
+# change is left where the person put it, and one on a display that has
+# left, or that was on none, is not this function's -- nothing here knows
+# which display to give it. A display that moved carries its windows with
+# it before they are fitted. What each kind of window gets is dt_winfit1's;
+# a window zoomed over every display (Zoom Fills) covers the whole screen
+# again after any change.
+#
+# A window this moved or made smaller goes back where it was once its
+# display can hold it again (DT_WKEEP): a display mode tried and taken
+# back -- Blit applies one provisionally and reverts it unless it is
+# confirmed -- or one attach from a smaller machine leaves every window as
+# it was. Several smaller sizes in a row keep the place from before the
+# first. A window moved or sized by anything else since -- the person, a
+# snap, a zoom -- is the person's, and stays. A desktop hosting one app is
+# that app's, and is left alone.
+fn dt_winsfit() {
+	local i k n dr dc drows dcols dgx sdr=0 sdc=0 id pr pc o moved=0 sig
+	local otop ntop zh
+	local -a ord=() gone=() keep=() kq
+	local -A qr qc qh qw map chg taken
+
+	[ -n "${DT_HOSTED-}" ] && return 0
+	# Held with nothing attached, the screen hold keeps is no display
+	# anybody sees -- the union's whole size, at its corner -- and taking
+	# it for one would fit every window into it, or match it to whichever
+	# display had left from that corner. Nothing is kept or remembered
+	# until a display attaches.
+	[ -n "${HIBR_HOLD-}" ] && [ -z "${DT_DISPNAMES[0]-}" ] && return 0
+	pr=${DT_PRIMARY_ROW:-0}
+	pc=${DT_PRIMARY_COL:-0}
+	sig="${DT_DISPNAMES[*]}|${DT_DISPLAYS[*]}|${DT_SHIFTWAS-}|$pr $pc"
+	[ "$sig" = "$DT_WFITSIG" ] && return 0
+	DT_WFITSIG=$sig
+	for i in "${!DT_DISPLAYS[@]}"; do
+		IFS=' ' read -r dr dc drows dcols dgx <<< "${DT_DISPLAYS[$i]}"
+		k="d${DT_DISPNAMES[$i]-}"
+		qr["$k"]=$dr
+		qc["$k"]=$dc
+		qh["$k"]=$drows
+		qw["$k"]=$dcols
+		ord+=("$k")
+	done
+	# What hold has moved every display by since, which dt_shiftorigin
+	# has already moved the windows by: the old rectangles move with
+	# them, so a display that only moved with the rest is no change.
+	if [ -n "$DT_WFITSHIFT" ] && [ -n "${DT_SHIFTWAS-}" ]; then
+		sdr=$((${DT_SHIFTWAS%% *} - ${DT_WFITSHIFT%% *}))
+		sdc=$((${DT_SHIFTWAS##* } - ${DT_WFITSHIFT##* }))
+	fi
+	# And what is kept to put windows back, which dt_shiftorigin did not
+	# move -- but not where a snap goes back to, which it does not move
+	# either.
+	if [ "$sdr $sdc" != "0 0" ]; then
+		for id in "${!DT_WKEEP[@]}"; do
+			[ "${id% s}" = "$id" ] || continue
+			read -ra kq <<< "${DT_WKEEP["$id"]/|/ }"
+			DT_WKEEP["$id"]="$((kq[0] + sdr)) $((kq[1] + sdc)) ${kq[2]} ${kq[3]}|$((kq[4] + sdr)) $((kq[5] + sdc)) ${kq[6]} ${kq[7]}"
+		done
+	fi
+	for k in "${DT_WFITORD[@]}"; do
+		DT_WFR["$k"]=$((DT_WFR["$k"] + sdr))
+		DT_WFC["$k"]=$((DT_WFC["$k"] + sdc))
+		if [ -n "${qr["$k"]+x}" ]; then
+			map["$k"]=$k
+			taken["$k"]=1
+		else
+			gone+=("$k")
+		fi
+	done
+	for k in "${gone[@]}"; do
+		for n in "${ord[@]}"; do
+			[ -z "${taken["$n"]-}" ] && [ -z "${DT_WFR["$n"]+x}" ] || continue
+			[ "${qr["$n"]} ${qc["$n"]}" = "${DT_WFR["$k"]} ${DT_WFC["$k"]}" ] || continue
+			map["$k"]=$n
+			taken["$n"]=1
+			break
+		done
+	done
+	for k in "${!map[@]}"; do
+		n=${map["$k"]}
+		[ "${qr["$n"]} ${qc["$n"]} ${qh["$n"]} ${qw["$n"]}" = \
+		  "${DT_WFR["$k"]} ${DT_WFC["$k"]} ${DT_WFH["$k"]} ${DT_WFW["$k"]}" ] || chg["$k"]=1
+	done
+	# The primary's corner then, in the same terms, for the row its bar
+	# took from a snapped window's display.
+	o=$DT_WFITPRI
+	[ -n "$o" ] && o="$((${o% *} + sdr)) $((${o#* } + sdc))"
+	if [ "${#chg[@]}" != 0 ]; then
+		zh=$((DT_ROWS - 1))
+		dt_wins
+		for id in "${DT_WINS[@]}"; do
+			[ -n "${DT_TILED["${DT[$id]["ws"]:-1}"]-}" ] && dt_intile "$id" && continue
+			[ -n "${DT[$id]["row"]-}" ] && [ -n "${DT[$id]["col"]-}" ] || continue
+			if [ -n "${DT[$id]["oh"]-}" ] && [ "$DT_ZOOMFILL" = every ] &&
+			   ! { [ "${#DT_FULLS[@]}" != 0 ] && dt_isfull "$id"; }; then
+				# Where it goes back to, kept inside its own display
+				# when that is one that changed.
+				dt_wfithome "${DT[$id]["or"]:-0}" "${DT[$id]["oc"]:-0}" \
+					"${DT[$id]["oh"]}" "${DT[$id]["ow"]:-1}"
+				if [ -n "$DTF_HOME" ] && [ -n "${chg["$DTF_HOME"]-}" ]; then
+					n=${map["$DTF_HOME"]}
+					ntop=${qr["$n"]}
+					[ "${qr["$n"]} ${qc["$n"]}" = "$pr $pc" ] && ntop=$((ntop + 1))
+					dt_wsavedfit "$id" o $((qr["$n"] - DT_WFR["$DTF_HOME"])) \
+						$((qc["$n"] - DT_WFC["$DTF_HOME"])) "$ntop" \
+						$((qr["$n"] + qh["$n"])) "${qc["$n"]}" "${qw["$n"]}"
+				fi
+				[ "1 0 $zh $DT_COLS" = "${DT[$id]["row"]} ${DT[$id]["col"]} ${DT[$id]["h"]} ${DT[$id]["w"]}" ] &&
+					continue
+				DT[$id]["row"]=1
+				DT[$id]["col"]=0
+				DT[$id]["h"]=$zh
+				DT[$id]["w"]=$DT_COLS
+				dt_away "$id" || dt_hidden "$id" || console pane "w$id" 1 0 "$zh" "$DT_COLS"
+				moved=$((moved + 1))
+				continue
+			fi
+			dt_wfithome "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+				"${DT[$id]["shaded"]:-${DT[$id]["h"]}}" "${DT[$id]["w"]}"
+			[ -n "$DTF_HOME" ] && [ -n "${chg["$DTF_HOME"]-}" ] || continue
+			k=$DTF_HOME
+			n=${map["$k"]}
+			ntop=${qr["$n"]}
+			[ "${qr["$n"]} ${qc["$n"]}" = "$pr $pc" ] && ntop=$((ntop + 1))
+			# The common case, asked here rather than in a call: a plain
+			# window on a display that grew, or shrank somewhere else, and
+			# did not move, still inside it as it is.
+			if [ "${DT_WFR["$k"]} ${DT_WFC["$k"]}" = "${qr["$n"]} ${qc["$n"]}" ] &&
+			   [ -z "${DT[$id]["oh"]-}${DT[$id]["snap"]-}${DT_WKEEP["$id"]-}" ] &&
+			   [ "${DT[$id]["row"]}" -ge "$ntop" ] && [ "${DT[$id]["col"]}" -ge "${qc["$n"]}" ] &&
+			   [ $((DT[$id]["row"] + ${DT[$id]["shaded"]:-${DT[$id]["h"]}})) -le $((qr["$n"] + qh["$n"])) ] &&
+			   [ $((DT[$id]["col"] + DT[$id]["w"])) -le $((qc["$n"] + qw["$n"])) ] &&
+			   ! { [ "${#DT_FULLS[@]}" != 0 ] && dt_isfull "$id"; }; then
+				continue
+			fi
+			otop=${DT_WFR["$k"]}
+			[ "${DT_WFR["$k"]} ${DT_WFC["$k"]}" = "$o" ] && otop=$((otop + 1))
+			dt_winfit1 "$id" "${DT_WFR["$k"]}" "${DT_WFC["$k"]}" "${DT_WFH["$k"]}" \
+				"${DT_WFW["$k"]}" "$otop" "${qr["$n"]}" "${qc["$n"]}" "${qh["$n"]}" \
+				"${qw["$n"]}" "$ntop" && moved=$((moved + 1))
+		done
+	fi
+	# Those attached now, then those that have left and were not seen
+	# again under another name, the newest leaving first.
+	for k in "${DT_WFITORD[@]}"; do
+		[ -n "${map["$k"]+x}" ] && continue
+		[ "${#keep[@]}" -lt "$DT_WFITKEEP" ] || break
+		keep+=("$k ${DT_WFR["$k"]} ${DT_WFC["$k"]} ${DT_WFH["$k"]} ${DT_WFW["$k"]}")
+	done
+	DT_WFR=()
+	DT_WFC=()
+	DT_WFH=()
+	DT_WFW=()
+	for k in "${ord[@]}"; do
+		DT_WFR["$k"]=${qr["$k"]}
+		DT_WFC["$k"]=${qc["$k"]}
+		DT_WFH["$k"]=${qh["$k"]}
+		DT_WFW["$k"]=${qw["$k"]}
+	done
+	DT_WFITORD=("${ord[@]}")
+	for i in "${keep[@]}"; do
+		read -r k dr dc drows dcols <<< "$i"
+		DT_WFR["$k"]=$dr
+		DT_WFC["$k"]=$dc
+		DT_WFH["$k"]=$drows
+		DT_WFW["$k"]=$dcols
+		DT_WFITORD+=("$k")
+	done
+	DT_WFITSHIFT=${DT_SHIFTWAS-}
+	DT_WFITPRI="$pr $pc"
+	if [ "$moved" != 0 ]; then
+		DT_FORCEONCE=1
+		o=
+		for k in "${!chg[@]}"; do
+			k=${k#d}
+			o="$o ${k:-(the screen)}"
+		done
+		dt_log "a display changed size:$o; $moved windows kept inside it"
+	fi
+	return 0
+}
+
+# Which remembered display a rectangle was on, into DTF_HOME: the one its
+# middle is on, else the one its top left is on, else none.
+fn dt_wfithome(int r, int c, int h, int w) {
+	local k cr=$((r + h / 2)) cc=$((c + w / 2))
+
+	DTF_HOME=
+	for k in "${DT_WFITORD[@]}"; do
+		if [ "$cr" -ge "${DT_WFR["$k"]}" ] && [ "$cr" -lt $((DT_WFR["$k"] + DT_WFH["$k"])) ] &&
+		   [ "$cc" -ge "${DT_WFC["$k"]}" ] && [ "$cc" -lt $((DT_WFC["$k"] + DT_WFW["$k"])) ]; then
+			DTF_HOME=$k
+			return 0
+		fi
+	done
+	for k in "${DT_WFITORD[@]}"; do
+		if [ "$r" -ge "${DT_WFR["$k"]}" ] && [ "$r" -lt $((DT_WFR["$k"] + DT_WFH["$k"])) ] &&
+		   [ "$c" -ge "${DT_WFC["$k"]}" ] && [ "$c" -lt $((DT_WFC["$k"] + DT_WFW["$k"])) ]; then
+			DTF_HOME=$k
+			return 0
+		fi
+	done
+	return 0
+}
+
+# A rectangle a window goes back to -- pre o for where Zoom put it from, s
+# for its snap, fs for full screen -- moved by ddr and ddc with its display
+# and kept inside it as dt_rectfit says. One the window does not have is
+# left alone. As for the window itself, what it was before the first fit is
+# kept (DT_WKEEP, under "id pre") and put back once the display holds it
+# again, unless something else has changed it since.
+fn dt_wsavedfit(int id, pre, int ddr, int ddc, int top, int bot, int dc, int dw, fx = "") {
+	local kr kc kh kw cur k="$id $pre" kept= keep
+	local -a kq
+
+	case $pre in
+	o) kr=or kc=oc kh=oh kw=ow ;;
+	s) kr=sr kc=sc kh=sh kw=sw ;;
+	fs) kr=fsr kc=fsc kh=fsh kw=fsw ;;
+	*) return 1 ;;
+	esac
+	[ -n "${DT[$id]["$kr"]-}" ] && [ -n "${DT[$id]["$kc"]-}" ] &&
+		[ -n "${DT[$id]["$kh"]-}" ] && [ -n "${DT[$id]["$kw"]-}" ] || return 0
+	cur="${DT[$id]["$kr"]} ${DT[$id]["$kc"]} ${DT[$id]["$kh"]} ${DT[$id]["$kw"]}"
+	if [ -n "${DT_WKEEP["$k"]+x}" ]; then
+		if [ "${DT_WKEEP["$k"]#*|}" = "$cur" ]; then
+			read -ra kq <<< "${DT_WKEEP["$k"]%|*}"
+			kept="$((kq[0] + ddr)) $((kq[1] + ddc)) ${kq[2]} ${kq[3]}"
+		else
+			unset DT_WKEEP["$k"]
+		fi
+	fi
+	keep=${kept:-$((DT[$id]["$kr"] + ddr)) $((DT[$id]["$kc"] + ddc)) ${DT[$id]["$kh"]} ${DT[$id]["$kw"]}}
+	read -ra kq <<< "$keep"
+	if [ -n "$kept" ] && [ "${kq[0]}" -ge "$top" ] && [ "${kq[1]}" -ge "$dc" ] &&
+	   [ $((kq[0] + kq[2])) -le "$bot" ] && [ $((kq[1] + kq[3])) -le $((dc + dw)) ]; then
+		DTF_R=${kq[0]}
+		DTF_C=${kq[1]}
+		DTF_H=${kq[2]}
+		DTF_W=${kq[3]}
+		unset DT_WKEEP["$k"]
+	else
+		dt_rectfit $((DT[$id]["$kr"] + ddr)) $((DT[$id]["$kc"] + ddc)) \
+			"${DT[$id]["$kh"]}" "${DT[$id]["$kw"]}" "$top" "$bot" "$dc" "$dw" "$fx" ||
+			return 0
+		if [ -n "$kept" ] || [ "$DTF_R $DTF_C $DTF_H $DTF_W" != "$cur" ]; then
+			DT_WKEEP["$k"]="$keep|$DTF_R $DTF_C $DTF_H $DTF_W"
+		fi
+	fi
+	DT[$id]["$kr"]=$DTF_R
+	DT[$id]["$kc"]=$DTF_C
+	DT[$id]["$kh"]=$DTF_H
+	DT[$id]["$kw"]=$DTF_W
+	return 0
+}
+
+# Keep one window inside its display, which was at odr, odc, odh by odw
+# (its first row for a window otop, below the bar on the primary) and is at
+# nr, nc, nh by nw now (ntop). Status 1 when the window did not move.
+#
+#   - An ordinary window moves with its display, keeps its place where it
+#     still fits, is pulled back from the right and the bottom where it
+#     does not, and is made smaller only where it cannot fit at all
+#     (dt_rectfit); a fixed one never is, and keeps its top left and its
+#     title on the display. A shaded one is fitted by the height it unrolls
+#     to. Where it was before is kept (DT_WKEEP) and it goes back there
+#     once the display holds that again, unless it was moved or sized
+#     since by anything but this.
+#   - A zoomed window fills its display at the new size, as Zoom would;
+#     where it goes back to is kept inside the display too.
+#   - A snapped one still where its snap put it is snapped again on the new
+#     size; one moved since keeps the snap's name and is fitted as an
+#     ordinary window. Where it goes back to is kept inside either way.
+#   - A full-screen one covers its display at the new size at once
+#     (dt_fullfit). dt_fullcheck follows a display by the window's middle,
+#     which a display shrinking by more than half takes with it; where it
+#     goes back to is kept inside.
+#   - A minimised one, or one on another workspace, has its record kept
+#     inside and no pane until it is shown.
+#   - A program's window (wm/native.hibr) is told its new size by its own
+#     next draw, which sees the size change, and its fitted place moves
+#     with it so dt_natkeep does not remember the desktop's doing as the
+#     person's. A program's own least size cannot outweigh the display, as
+#     in dt_natclamp: a window is made smaller only to the display's own
+#     size, never past it.
+#
+# A tiled window never comes here: the layout is redone after this by
+# dt_size, or when its workspace is shown.
+fn dt_winfit1(int id, int odr, int odc, int odh, int odw, int otop, int nr, int nc, int nh, int nw, int ntop) {
+	local r=${DT[$id]["row"]} c=${DT[$id]["col"]} h=${DT[$id]["h"]} w=${DT[$id]["w"]}
+	local hh fx= sn ddr=$((nr - odr)) ddc=$((nc - odc)) bot=$((nr + nh)) kept= keep=
+	local -a kq
+
+	hh=${DT[$id]["shaded"]:-$h}
+	[ "${DT_APPS["${DT[$id]["app"]:-none}"]["fixed"]-}" = 1 ] && fx=1
+	# Where it was before a change of size moved it, still worth going
+	# back to only while it is where that change put it.
+	if [ -n "${DT_WKEEP["$id"]+x}" ]; then
+		if [ "${DT_WKEEP["$id"]#*|}" = "$r $c $hh $w" ]; then
+			read -ra kq <<< "${DT_WKEEP["$id"]%|*}"
+			kept="$((kq[0] + ddr)) $((kq[1] + ddc)) ${kq[2]} ${kq[3]}"
+		else
+			unset DT_WKEEP["$id"]
+		fi
+	fi
+	if [ "${#DT_FULLS[@]}" != 0 ] && dt_isfull "$id"; then
+		dt_wsavedfit "$id" fs "$ddr" "$ddc" "$ntop" "$bot" "$nc" "$nw" "$fx"
+		DT[$id]["row"]=$nr
+		DT[$id]["col"]=$nc
+		DT[$id]["h"]=$nh
+		DT[$id]["w"]=$nw
+		dt_fullfit "$id"
+		return 0
+	fi
+	if [ -n "${DT[$id]["oh"]-}" ]; then
+		dt_wsavedfit "$id" o "$ddr" "$ddc" "$ntop" "$bot" "$nc" "$nw" "$fx"
+		DTF_R=$ntop
+		DTF_C=$nc
+		DTF_H=$((bot - ntop))
+		DTF_W=$nw
+	else
+		sn=${DT[$id]["snap"]-}
+		if [ -n "$sn" ]; then
+			dt_snapat "$sn" "$otop" "$odc" $((odr + odh - otop)) "$odw" "$h" "$w" &&
+				[ "$DTF_R $DTF_C $DTF_H $DTF_W" = "$r $c $h $w" ] || sn=
+			dt_wsavedfit "$id" s "$ddr" "$ddc" "$ntop" "$bot" "$nc" "$nw" "$fx"
+		fi
+		if [ -n "$sn" ]; then
+			dt_snapat "$sn" "$ntop" "$nc" $((bot - ntop)) "$nw" "$h" "$w"
+			dt_rectfit "$DTF_R" "$DTF_C" "$DTF_H" "$DTF_W" "$ntop" "$bot" "$nc" "$nw" "$fx"
+		else
+			# Back where it was when its display holds that again;
+			# else fitted from where it is, the first place kept.
+			keep=${kept:-$((r + ddr)) $((c + ddc)) $hh $w}
+			if [ -n "$kept" ]; then
+				read -ra kq <<< "$kept"
+				if [ "${kq[0]}" -ge "$ntop" ] && [ "${kq[1]}" -ge "$nc" ] &&
+				   [ $((kq[0] + kq[2])) -le "$bot" ] && [ $((kq[1] + kq[3])) -le $((nc + nw)) ]; then
+					DTF_R=${kq[0]}
+					DTF_C=${kq[1]}
+					DTF_H=${kq[2]}
+					DTF_W=${kq[3]}
+					keep=
+					unset DT_WKEEP["$id"]
+				fi
+			fi
+			[ -n "$keep" ] &&
+				dt_rectfit $((r + ddr)) $((c + ddc)) "$hh" "$w" "$ntop" "$bot" "$nc" "$nw" "$fx"
+		fi
+	fi
+	# What is kept moves with the display even when the window does not.
+	[ -n "$keep" ] && DT_WKEEP["$id"]="$keep|$DTF_R $DTF_C $DTF_H $DTF_W"
+	[ "$DTF_R $DTF_C $DTF_H $DTF_W" = "$r $c $hh $w" ] && {
+		[ -n "$kept" ] || unset DT_WKEEP["$id"]
+		return 1
+	}
+	DT[$id]["row"]=$DTF_R
+	DT[$id]["col"]=$DTF_C
+	DT[$id]["w"]=$DTF_W
+	if [ -n "${DT[$id]["shaded"]-}" ]; then
+		DT[$id]["shaded"]=$DTF_H
+	else
+		DT[$id]["h"]=$DTF_H
+	fi
+	[ "${DT[$id]["app"]}" = native ] && dt_has dt_natmoved &&
+		dt_natmoved "$id" "$r $c $h $w" "$DTF_R $DTF_C ${DT[$id]["h"]} $DTF_W"
+	dt_away "$id" || dt_hidden "$id" ||
+		console pane "w$id" "$DTF_R" "$DTF_C" "${DT[$id]["h"]}" "$DTF_W"
 	return 0
 }
 

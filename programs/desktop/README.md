@@ -138,6 +138,25 @@ and below the bar on the primary (Gitea #286). Control Panel > Windows >
 instead, as it did before; snapping always keeps to the window's own
 display.
 
+**A display that changes size keeps its windows on it** -- its terminal
+resized, or its mode changed under Blit, which reaches the desktop as the
+same thing. A window that still fits stays where it is, one past the new
+right or bottom edge is pulled back inside, and one larger than the
+display is made as small as the display and no smaller; a fixed window
+keeps its size and its top left on the display. A zoomed, snapped or
+full-screen window fills its share of the new size, a tiled workspace is
+laid out again, and where a zoomed, snapped or full-screen window goes
+back to is kept inside too. A display that comes back under its own name,
+or under a new one where one has just left, is the same display; one that
+moves carries its windows with it. When the display grows again -- a mode
+tried and taken back, or the next attach from a bigger machine -- every
+window it moved or made smaller goes back exactly where it was before the
+first change, unless you have moved or sized it since, which makes the
+new place yours -- and so does the place a zoomed, snapped or full-screen
+window returns to. Windows on a display that has left are left where they
+are. `dt_size` calls `dt_winsfit` on every resize, as it calls
+`dt_iconlay` for the icons.
+
 **Workspaces**: three by default (Control Panel > Desktop > Workspaces, 1
 to 9), for the whole desktop at once, every window on the one that was
 current when it opened. The bar shows the numbers left of the notification

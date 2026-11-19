@@ -868,6 +868,15 @@ fn dt_natkeep(int id) {
 	return 0
 }
 
+# A program's window the desktop moved or sized itself -- its display
+# changed size under it (dt_winfit1) -- from was to now, each "r c h w":
+# where it was fitted moves with it, so dt_natkeep does not remember the
+# desktop's doing as the person's.
+fn dt_natmoved(int id, was, now) {
+	[ "${NW[$id]["fit"]-}" = "$was" ] && NW[$id]["fit"]=$now
+	return 0
+}
+
 # A popup the compositor has opened: a pane above its parent at its place,
 # and its picture joined to the parent's input route, so the pointer over
 # it reaches the program as a point of the parent's.

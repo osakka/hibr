@@ -1220,15 +1220,32 @@ check("held on two displays, each display's rate is its own: the window on "
 # A display that moves in the session takes its rate with it: the lower
 # one moved further down and the window put on it there is still told the
 # lower's 144 Hz, where its rate was filed under the place it had left.
+# The window moves with its display (dt_winsfit), so moving it within the
+# display may tell it nothing new: what it is told last is the lower's.
+def nwin3():
+    r = subprocess.run([sx.HIBR, tree("programs/desktop/lib/ctl.hibr"), "--session", hn3,
+                        "windows"], env=dict(os.environ, **henv), capture_output=True,
+                       text=True, timeout=20)
+    try:
+        return [(w["row"], w["h"]) for w in json.loads(r.stdout).get("windows", [])]
+    except ValueError:
+        return r.stdout + r.stderr
+
+
+nb3 = len(out3())
 mv = subprocess.run([sx.HIBR, "-c", load("hold") + "hold move %s bottom 48 0" % hn3],
                     env=dict(os.environ, **henv), capture_output=True, text=True, timeout=20)
+on3 = wait(lambda: (lambda w: isinstance(w, list) and w and w[0][0] >= 48 and w)(nwin3()), 6) or nwin3()
 wait(lambda: False, 1.0 * SLOW)
-n3 = len(out3())
 open(MV, "w").write("52\n")
 st1.keys([b"x"])
-moved = wait(lambda: len(out3()) > n3 and out3()[-1:] == ["144000"], 8)
+wait(lambda: False, 1.0 * SLOW)
+moved = wait(lambda: out3()[-1:] == ["144000"], 8)
 check("a display moved in the session keeps its own rate for the windows on it",
-      mv.returncode == 0 and moved, (mv.stderr, out3()[-6:]))
+      mv.returncode == 0 and moved, (mv.stderr, out3()[nb3 - 1:]))
+check("and the window on the moved display went with it, wholly inside it",
+      isinstance(on3, list) and len(on3) == 1 and on3[0][0] >= 48
+      and on3[0][0] + on3[0][1] <= 72, on3)
 st0.quit(None, 0.3)
 st1.quit(None, 0.3)
 subprocess.run([sx.HIBR, "-c", load("hold") + "hold kill %s" % hn3],
@@ -1276,4 +1293,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(103)
+report(104)

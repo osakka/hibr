@@ -390,6 +390,9 @@ dt_size() {
 	# And Blit the chords kept from programs, once there is a way to it
 	# (Gitea #530).
 	dt_has dt_keepsend && dt_keepsend
+	# Every window inside the display it is on, where that display
+	# changed size, before the icons and the layout are redone.
+	dt_winsfit
 	dt_iconlay
 	dt_has dt_tile && dt_tile
 	return 0
