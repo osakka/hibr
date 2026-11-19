@@ -281,7 +281,7 @@ void xaslice(sh *s, part *p, char **ks, int nk, vec *lst, long *off, long *len)
 		xslice(s, p, lst->n, off, len);
 }
 
-/* One element's value; a scalar is its own element 0, as in bash. */
+/* One element's value; a scalar, or the one a nameref reaches, is its own element 0, as in bash. */
 const char *xgetk(sh *s, const char *nm, char **ks, int nk)
 {
 	const char *v = v_getp(s, nm, ks, nk);
@@ -289,6 +289,13 @@ const char *xgetk(sh *s, const char *nm, char **ks, int nk)
 
 	if (!v && nk == 1 && !strcmp(ks[0], "0")) {
 		sv = v_find(s, nm);
+		if (sv && (sv->at & A_REF)) {
+			sv = v_findr(s, &nm);
+			if (sv && (sv->at & A_REF)) {
+				lg(HIBR_LTRC, "%s[0]: the reference reaches no scalar", nm);
+				return 0;
+			}
+		}
 		if (sv && sv->v && !sv->map && !sv->am)
 			v = sv->v;
 	}

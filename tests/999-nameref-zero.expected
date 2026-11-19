@@ -1,0 +1,18 @@
+0
+0: [] set=[] def=[d] colon=[d] len=[0]
+1: [] set=[] def=[d] colon=[d] len=[0]
+-v m[0]: unset
+arith m[0]: 1
+field: [x] keys: [t]
+direct: [] set=[]
+global ref: [] set=[]
+a value at 0: [val] set=[x] len=[3]
+indexed: [p] [q] set=[x] len=[1]
+associative: [z] [w]
+scalar: [hello] set=[x] len=[5] def=[hello] one=[u]
+two hops: [hello] len=[5]
+sparse, no 0: [u] set=[]
+to itself: [u] set=[]
+to nothing: [u] set=[] len=[0]
+to an element: [u] set=[]
+under -u: refused
