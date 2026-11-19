@@ -156,6 +156,53 @@ today, measured from both sides:
   budget is shown to the person as well as logged, in a form the owner
   chooses.
 
+**The desktop's side, as built (2026-11-19, `wm/latency.hibr`).** Each of
+the person's inputs -- a key, a press, a release, the wheel, never the
+pointer moving or a drag -- is numbered as it is acted on, with the clock
+and the processor read then (not where the wait returned: a key that comes
+during a resize waits out the settling, which is the desktop's wait, never
+the focused app's); the window whose input
+handler it reaches is noted where every handler runs (`dt_appcall`), and
+two times are kept for that window's app: input to answer, when the
+desktop has finished with the input, and input to screen, at the flush of
+the frame after the answer, when it drew the window -- decided at that
+frame and never carried to a later one, since a terminal stays clean until
+its program echoes and a slow program is not its window's app being late. Per app, with the worst of each, in
+`desktop ctl stats` (`latency`). Past `DT_HOLDMS` to the screen it is a
+`late:` line, judged by the same rule as `held:` (the processor the desktop
+used, under `DT_HOLDBY=cpu`, which the suites set, or the clock), and the
+suites fail on it as on a stall. That catches what `held:` cannot: an app
+no single callback of which is a stall -- a key and the draw after it each
+at 60% of the mark -- whose input still reaches the screen late. In one
+process the pass that ran both is caught as well, as `held: pass`, which
+names no app; `late:` is what names it, and once the app runs in a process
+of its own the desktop's pass is quick and `late:` is the only line that
+sees it. `tests/inputlat.py` drives exactly that, and a fast app beside it,
+and fails against the build before. Input no window takes, and one whose window
+that frame does not draw, is counted as answered without a draw, never as
+late. The number is the one the declined-key protocol needs once
+the answer comes from another process: one mechanism. 
+
+**How it is shown (owner, 2026-11-19).** As live state, by the clock --
+what the person feels, where the log's rule decides blame: while the
+focused window has the person's input unanswered past a first mark, the
+pointer is `progress` (an arrow with a spinner, not `wait`, since the
+desktop still takes clicks), and past a second the window's title bar
+carries the not-responding mark, which names the window and is the only
+sign on a terminal that cannot change the pointer. Both go the moment the
+answer comes, and on every other way out -- the focus moving, the window
+closing, the app dying, a detach, Quit -- since a pointer shape left
+behind outlives the desktop; on a held session the shape goes to the
+display showing the window, as a pointer lock does. On by default, with a
+row in Control Panel > Mouse that turns it off and sets both marks (0.5 s
+and 3 s by default). Beside it: Close and Quit App always work on a
+waiting window (Close Anyway); Task Manager has a row per app -- latency,
+late count, CPU, memory, not responding, End; one note when an app is let
+go or dies, an event, never a note per slow key; and nothing is dimmed,
+blocked or withheld. It is built with the input slice: today a slow
+callback runs inside the desktop's own loop, which can change nothing on
+the screen until it returns.
+
 ## The app interface: who owns it, how it ships, how it stays one (2026-11-18)
 
 The functions an app process takes from the desktop's own files (the

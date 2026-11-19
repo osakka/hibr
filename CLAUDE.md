@@ -4201,6 +4201,19 @@ went in the shell.
   16. Copy a function by renaming it: `eval "$(declare -f f | sed
   's/^f()/copy()/')"`, and print the copy before trusting what it reports.
 
+- **Shared code is local only while no code of the desktop's own runs
+  it** (ADR 0050, 2026-11-19). The census took "runs in whichever process
+  called it" to mean every call shared code makes by a name stays in the
+  caller's process -- true, and the caller was the desktop: its mouse path
+  drags a scrollbar, which called the window's `_scroll`; a text field it
+  types into called the window's `_key` through `dt_appcall`; building a
+  list's menu called the namer an app had set. Three calls into apps,
+  around the seam, all classed local. `tools/callsites.py` now follows
+  each shared function's callers to the first file of the desktop's own,
+  and the seam is itself shared code, so every such call goes through it.
+  The question for any helper both sides load: **who calls it, and whose
+  is the name it calls?**
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

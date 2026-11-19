@@ -214,6 +214,7 @@ fn dt_appcall(int id, cb, ...args) {
 	local ap=${DT[$id]["app"]} t0 t st
 
 	[ -n "$cb" ] || return 1
+	[ -z "${DT_INANS-}" ] || DT_INWIN=$id
 	DT_WHO="input:${ap:-bare}"
 	slowest on "$DT_SLOWMS"
 	t0=${EPOCHREALTIME/./}
@@ -232,6 +233,7 @@ fn dt_appget(int id, cb, ...args) {
 	local ap=${DT[$id]["app"]} t0 t rv
 
 	[ -n "$cb" ] || return 1
+	[ -z "${DT_INANS-}" ] || DT_INWIN=$id
 	DT_WHO="input:${ap:-bare}"
 	slowest on "$DT_SLOWMS"
 	t0=${EPOCHREALTIME/./}

@@ -1454,6 +1454,11 @@ fn dt_event(k) {
 fn dt_keyrest(k) {
 	local knorm
 
+	# Declined, or taken by no window: from here the key is the desktop's,
+	# and what the desktop does with it -- Lock, Detach, a dialog -- is
+	# never timed against the app that declined it (wm/latency.hibr).
+	DT_INWIN=
+	DT_INPEND=
 	if [ -z "$DT_FOCUS" ] && [ "$DT_ICONS" = 1 ] && dt_iconkey "$k"; then
 		return 0
 	fi

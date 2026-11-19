@@ -556,6 +556,7 @@ dt_draw() {
 	console flush
 	t0=$((${EPOCHREALTIME/./} - t0))
 	[ -z "$DT_STATON" ] && [ "$t0" -lt 1000 ] || dt_spent flush "$t0"
+	[ -z "$DT_INPEND" ] || [ -z "$DT_INWIN" ] || dt_inscreen
 	DT_INDRAW=
 	[ -z "${DT_FDGO-}" ] || dt_fdgo
 }
@@ -597,6 +598,7 @@ fn dt_wintimed(...ids) {
 		dt_win "$id"
 		[ "$DT_WHY" = left ] ||
 			DT_DRAWNR+=("${DT[$id]["row"]} ${DT[$id]["col"]} $((DT[$id]["h"] + 1)) $((DT[$id]["w"] + 2))")
+		[ "$id" = "$DT_INWIN" ] && [ "$DT_WHY" != left ] && DT_INDREW=1
 		t=$((${EPOCHREALTIME/./} - t0))
 		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "win:${ap:-bare}" "$t" "$ap"
 		[ -n "$DT_STATON" ] && [ -n "$DT_WHY" ] &&

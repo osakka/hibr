@@ -1,0 +1,130 @@
+# wm/latency -- how long the person's input takes to reach the screen, per
+# app (ADR 0050's sensitivity requirement): each key, press, release or
+# wheel turn is numbered as it is acted on, the window whose input handler
+# it reached is noted (dt_appcall), and two times are kept for that
+# window's app -- input to answer, when the desktop has finished with the
+# input, and input to screen, at the flush of the frame after the answer,
+# when that frame drew the window. One mechanism for both the measure and, once apps run in
+# processes of their own, the key's number the declined-key protocol needs.
+#
+# Past DT_HOLDMS to the screen it is a `late:` line in the log, judged as a
+# `held:` one is (DT_HOLDBY: the processor the desktop used, or the clock),
+# which the suites fail on as they fail on a stall -- so an app no single
+# callback of which is over budget, but whose input still reaches the
+# screen late, is named all the same. It is decided at that one frame and
+# never carried to a later one: a terminal stays clean until its program
+# echoes, and a program's slowness -- an ssh echo 200 ms away -- is not its
+# window's app's. Input no window took, or whose window that frame did not
+# draw, is counted as answered without a draw, never as late.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# The number of the last input, the one still waiting for its window to
+# draw (empty when none is), when it was read (microseconds of the clock
+# and nanoseconds of the processor), the window it reached and whether that
+# window was drawn in the frame being made.
+DT_INSEQ=0
+DT_INPEND=
+DT_INUS=0
+DT_INCPU=0
+DT_INWIN=
+DT_INDREW=
+# Per app, since the desktop started or `desktop ctl stats` reset it:
+# "n:APP" inputs, "a:APP" and "am:APP" input to answer (total and worst,
+# microseconds), "s:APP", "sn:APP" and "sm:APP" input to screen (total,
+# count, worst), "x:APP" inputs answered without a draw, "l:APP" late ones.
+declare -gA DT_LAT
+# When each app was last named late, so a run of late input is one line
+# every ten seconds, as a stall is.
+declare -gA DT_LATAT
+
+# An input is about to be acted on: number it, with the clock and the
+# processor as they are now -- not as they were when the wait returned, which
+# a resize's settling can be long before.
+dt_innum() {
+	DT_INSEQ=$((DT_INSEQ + 1))
+	DT_INPEND=$DT_INSEQ
+	DT_INANS=1
+	DT_INUS=${EPOCHREALTIME/./}
+	read -r DT_INCPU _ _ 2> /dev/null < "/proc/$$/schedstat" || DT_INCPU=0
+	DT_INWIN=
+	DT_INDREW=
+	return 0
+}
+
+# The desktop has finished with the input: its answer time, for the app
+# whose window took it; input no window took is not followed further.
+dt_inanswered() {
+	local ap t
+
+	if [ -z "$DT_INWIN" ] || [ -z "${DT[$DT_INWIN]["app"]-}" ]; then
+		DT_INPEND=
+		return 0
+	fi
+	ap=${DT[$DT_INWIN]["app"]}
+	t=$((${EPOCHREALTIME/./} - DT_INUS))
+	DT_LAT["n:$ap"]=$((${DT_LAT["n:$ap"]:-0} + 1))
+	DT_LAT["a:$ap"]=$((${DT_LAT["a:$ap"]:-0} + t))
+	[ "$t" -gt "${DT_LAT["am:$ap"]:-0}" ] && DT_LAT["am:$ap"]=$t
+	return 0
+}
+
+# The frame after the answer was flushed: if it drew the window the input
+# reached, that input is on the screen -- timed, and named late past
+# DT_HOLDMS; if not, it was answered without a draw. Either way it is done.
+dt_inscreen() {
+	local ap=${DT[$DT_INWIN]["app"]-} now t cpu ms
+
+	DT_INPEND=
+	[ -n "$ap" ] || return 0
+	if [ -z "$DT_INDREW" ]; then
+		DT_LAT["x:$ap"]=$((${DT_LAT["x:$ap"]:-0} + 1))
+		return 0
+	fi
+	now=${EPOCHREALTIME/./}
+	t=$((now - DT_INUS))
+	DT_LAT["s:$ap"]=$((${DT_LAT["s:$ap"]:-0} + t))
+	DT_LAT["sn:$ap"]=$((${DT_LAT["sn:$ap"]:-0} + 1))
+	[ "$t" -gt "${DT_LAT["sm:$ap"]:-0}" ] && DT_LAT["sm:$ap"]=$t
+	ms=$((t / 1000))
+	if [ "$DT_HOLDBY" = cpu ]; then
+		read -r cpu _ _ 2> /dev/null < "/proc/$$/schedstat" || cpu=$DT_INCPU
+		ms=$(((cpu - DT_INCPU) / 1000000))
+	fi
+	[ "$ms" -ge "$DT_HOLDMS" ] || return 0
+	DT_LAT["l:$ap"]=$((${DT_LAT["l:$ap"]:-0} + 1))
+	now=$((now / 1000))
+	[ $((now - ${DT_LATAT["$ap"]:-0})) -ge 10000 ] || return 0
+	DT_LATAT["$ap"]=$now
+	if [ "$DT_HOLDBY" = cpu ]; then
+		dt_log "late: $ap's window reached the screen $ms ms after the person's input, on the processor ($((t / 1000)) ms by the clock; late is $DT_HOLDMS ms)"
+	else
+		dt_log "late: $ap's window reached the screen $ms ms after the person's input (late is $DT_HOLDMS ms)"
+	fi
+	return 0
+}
+
+# Every app's figures, as JSON members for `desktop ctl stats`: inputs, the
+# mean and worst input to answer and to screen in milliseconds, how many
+# were answered without a draw and how many were late.
+dt_latjson() {
+	local k ap n sn nm out=
+
+	for k in "${!DT_LAT[@]}"; do
+		[ "${k%%:*}" = n ] || continue
+		ap=${k#n:}
+		n=${DT_LAT["n:$ap"]}
+		sn=${DT_LAT["sn:$ap"]:-0}
+		nm := dt_jstr "$ap"
+		out+="${out:+,}$nm:{\"inputs\":$n"
+		out+=",\"answer_ms\":$((${DT_LAT["a:$ap"]:-0} / n / 1000)),\"answer_max_ms\":$((${DT_LAT["am:$ap"]:-0} / 1000))"
+		if [ "$sn" -gt 0 ]; then
+			out+=",\"screen_ms\":$((${DT_LAT["s:$ap"]} / sn / 1000)),\"screen_max_ms\":$((${DT_LAT["sm:$ap"]:-0} / 1000))"
+		fi
+		out+=",\"no_draw\":${DT_LAT["x:$ap"]:-0},\"late\":${DT_LAT["l:$ap"]:-0}}"
+	done
+	ret "$out"
+}

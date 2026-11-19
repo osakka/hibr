@@ -533,6 +533,9 @@ dt_tickers() {
 # window stays held.
 DT_ANSWERMS="${DT_ANSWERMS-300}"
 DT_INAT=
+# Set while the desktop is acting on a numbered input (wm/latency.hibr), so
+# the window whose input handler it reaches is the one noted.
+DT_INANS=
 # Whether what the wait returned is input whose answer is not held: a key,
 # a press, a release or the wheel, never the pointer moving.
 fn dt_answerable(k = "") {
@@ -902,7 +905,14 @@ dt_run() {
 			fi
 		fi
 		pk=
-		[ -n "$k" ] && dt_saverseen && dt_event "$k"
+		# Numbered as it is acted on, not as it was read: a key that
+		# came during a resize waits out the settling above, and that
+		# wait is the desktop's, never the focused app's (wm/latency.hibr).
+		if [ -n "$k" ] && dt_saverseen; then
+			dt_answerable "$k" && dt_innum
+			dt_event "$k"
+			[ -z "$DT_INANS" ] || { DT_INANS=; dt_inanswered; }
+		fi
 		[ -n "$DT_PTRLOCK" ] && dt_ptrlockcheck
 		[ "${#DT_FULLS[@]}" = 0 ] || dt_fullcheck
 		[ -z "$DT_PHASEUSED" ] || dt_keyphasecheck

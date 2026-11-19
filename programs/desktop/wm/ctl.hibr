@@ -398,7 +398,7 @@ dt_statcpu() {
 DT_STATC0 := dt_statcpu
 fn dt_ctlstats(reset = "", stop = "") {
 	local now el c self kids s0 k0 pct k nm tk= rd= v cs= ds= dl dnm db df mx
-	local wo= yw= im= il
+	local wo= yw= im= il la
 
 	if [ "$reset" = true ]; then
 		for k in "${!DT_STAT[@]}"; do
@@ -406,6 +406,9 @@ fn dt_ctlstats(reset = "", stop = "") {
 		done
 		for k in "${!DT_MAX[@]}"; do
 			unset DT_MAX["$k"]
+		done
+		for k in "${!DT_LAT[@]}"; do
+			unset DT_LAT["$k"]
 		done
 		DT_STATT0=${EPOCHREALTIME/./}
 		c := dt_statcpu
@@ -475,9 +478,10 @@ fn dt_ctlstats(reset = "", stop = "") {
 			fi
 		done <<< "$il"
 	fi
+	la := dt_latjson
 	v=false
 	[ -n "$DT_STATON" ] && v=true
-	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"woke\":{$wo},\"drawn_why\":{$yw},\"tickers\":{$tk},\"img\":{$im},\"console_bytes\":${cs:-0},\"displays\":[$ds],\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
+	ret "{\"ok\":true,\"secs\":$((el / 1000)).$((el % 1000 / 100)),\"timing\":$v,\"cpu\":{\"self_ms\":$self,\"children_ms\":$kids,\"pct\":$((pct / 10)).$((pct % 10))},\"wakes\":${DT_STAT["wakes"]:-0},\"frames\":${DT_STAT["frames"]:-0},\"events\":${DT_STAT["events"]:-0},\"draw_ms\":$((${DT_STAT["t:draw"]:-0} / 1000)).$((${DT_STAT["t:draw"]:-0} % 1000 / 100)),\"rereads\":{$rd},\"woke\":{$wo},\"drawn_why\":{$yw},\"tickers\":{$tk},\"latency\":{$la},\"img\":{$im},\"console_bytes\":${cs:-0},\"displays\":[$ds],\"unseen\":\"hold's server and the terminal or Blit are other processes, not counted here\"}"
 }
 
 dt_ctlsession() {

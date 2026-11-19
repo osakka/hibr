@@ -44,6 +44,7 @@ The rest:
 | `lang.hibr` | the language the desktop speaks and whether it orders right-to-left text itself; `dt_tr` itself is `lib/tr.hibr`, shared with the login screen (ADR 0032) |
 | `session.hibr` | `dt_open`, `dt_run` (the event loop, asleep until something needs a frame), `dt_close` |
 | `budget.hibr` | every callback timed one way: `slow:` past 50 ms and `held:` past 150 ms in the log, and the totals and longest runs `desktop ctl stats` reads (ADR 0049); nothing is ever done to the app |
+| `latency.hibr` | how long the person's input takes to reach the screen, per app (ADR 0050): each key, press, release or wheel turn numbered as `dt_run` acts on it, the window whose handler it reached noted in `dt_appcall`, input to answer and input to screen (the frame after the answer, when it drew the window) kept per app in `desktop ctl stats` (`latency`), and a `late:` line past `DT_HOLDMS`, judged as `held:` is, which the suites fail on; `tests/inputlat.py` |
 | `windows.hibr` | `dt_new`, `dt_del`, what an app may ask about windows, moving, sizing, zooming, minimising, the grab |
 | `workspaces.hibr` | the virtual workspaces: which one is shown, which a window is on, sticky windows |
 | `tile.hibr` | a workspace the window manager lays out itself, Window > Tile Workspace and Make Main |

@@ -7116,7 +7116,8 @@ check("a job's variables come back to the desktop, a nested map and a value "
 # the app goes on being drawn and handed its keys. The stall mark is
 # lowered for this session, and its `held:` lines are the point of the test
 # rather than a failure.
-expect(r"(held|slow): win:slw")
+# A slow app's input reaches the screen late as well (wm/latency.hibr).
+expect(r"(held|slow): win:slw|late: slw's window")
 SLWMARK = scratch("desktop-slw-key")
 SLW = ('fn slw_draw(int id, int h, int w, int row, int col) {\n'
        '    sleep 0.3\n'

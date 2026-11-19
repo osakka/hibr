@@ -217,6 +217,15 @@ More tools sit around it:
   not load, and a call into another installable with no `dt_has`,
   `dt_needs` or `command -v` in its function (ADR 0046). A suite in
   `all.py`; under a second.
+- **`tests/inputlat.py`** -- how long the person's input takes to reach
+  the screen, per app (ADR 0050's sensitivity requirement,
+  `wm/latency.hibr`): an app whose key and the draw after it each stay
+  under a stall, together past `DT_HOLDMS`, is named `late:` in the log
+  (which the suites fail on, as on `held:`), a fast app beside it is not,
+  each app's inputs and times are in `desktop ctl stats`, and a window
+  whose program echoes 200 ms late is never blamed for the program -- by
+  the processor for the first, by the clock at a person's own mark for the
+  last. Fails against the build without the measure.
 - **`tests/appseam.py`** -- the seam every call into an app goes through
   (`dt_appfn`, ADR 0050): a menu command the app declared, a
   confirmation's Yes, a note's action and a dialog's answer, each handed in
