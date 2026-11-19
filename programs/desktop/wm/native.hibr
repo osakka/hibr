@@ -1560,7 +1560,12 @@ fn dt_natdragat(int r, int c) {
 # 3): from its press on, the drag is the desktop's, as a program's own move
 # is -- drawn and followed here, dropped where it is let go. Its data is
 # read only for a drop on the desktop itself; a drop on another program's
-# window is the compositor's to serve. DT_NATOUT is its token, o<n>.
+# window is the compositor's to serve. DT_NATOUT is its token, o<n>. One
+# that arrives once its press has ended -- an X program's drag starts only
+# past its toolkit's threshold, and a quick flick lets the button go
+# before the news of it reaches here -- has no drag left to follow, and is
+# answered none at once: started anyway, it would wait for a release that
+# has already happened.
 declare -g DT_NATOUT="" DT_NATOUTWIN="" DT_NATOUTACT="" DT_NATOUTWAIT=""
 fn dt_natdragout(tok, int n, acts, ...types) {
 	local id=${NWN["$n"]-} pr pc ty want=
@@ -1570,7 +1575,11 @@ fn dt_natdragout(tok, int n, acts, ...types) {
 		case $ty in text/uri-list) want=$ty ;; esac
 	done
 	read -r pr pc <<< "${NW[$id]["down"]-}"
-	[ -n "$pr" ] || { pr=$((${DT[$id]["row"]} + 1)); pc=$((${DT[$id]["col"]} + 1)); }
+	if [ -z "$pr" ]; then
+		dt_log "native: $tok, a drag out of ${DT[$id]["title"]}, came after its press had ended; answered none"
+		frames clip "$DT_NATSRV" oend none 2> /dev/null
+		return 0
+	fi
 	DT_NATOUT=$tok
 	DT_NATOUTWIN=$id
 	DT_NATOUTACT=$acts

@@ -728,6 +728,19 @@ t.keys([b"\x1b", 0.5])
 de2 = wait(lambda: comp("dragend")[nend:])
 check("cancelled with escape, it is told none", de2 and de2[0]["how"] == "none",
       comp("dragend")[nend:])
+# A drag out whose news comes after the button is already up -- an X
+# program's starts only past its toolkit's threshold, and a quick flick
+# lets go first -- is answered none at once, never started: it would wait
+# for a release that has already happened.
+nend = len(comp("dragend"))
+t.send(press(at[0], at[1]), settle=0.3)
+t.send(release(at[0], at[1]), settle=0.3)
+open(complog + ".dragout", "w").write(DPATH)
+t.keys([0.3])
+late = wait(lambda: comp("dragend")[nend:])
+check("a drag out told only after its press has ended is answered none, and no drag starts",
+      late and late[0]["how"] == "none" and "a dropped" not in scr().text(),
+      (comp("dragend")[nend:], scr()))
 t.send(press(at[0], at[1]), settle=0.3)
 open(complog + ".dragout", "w").write(DPATH)
 t.keys([0.3])
@@ -1232,4 +1245,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(100)
+report(101)
