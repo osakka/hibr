@@ -1,9 +1,7 @@
 # class	file	line	function	the call -- tools/callsites.py --write (ADR 0050)
 local	savers/saver.hibr	63	sv_call	"${name}_$what" "${rest[@]}"
 local	widgets/bidi.hibr	113	bd_put	"$pen" "$y"
-local	widgets/dropdown.hibr	118	dt_dropcontext	[ -n "$DT_POPNAME" ] && l := "$DT_POPNAME" "$v"
 local	widgets/omnibox.hibr	78	dt_omniask	out := "$cb" "$id" "$text" || out=
-local	widgets/scrollbar.hibr	204	dt_sbto	"${DT[$id]["app"]}_scroll" "$id" "$key" "$t"
 local	wm/budget.hibr	220	dt_appcall	"$cb" "$id" "${args[@]}"
 local	wm/budget.hibr	238	dt_appget	"$cb" "$id" "${args[@]}"
 desktop	wm/handlers.hibr	70	dt_runhandler	( "${DT_OPENCMD[@]}" "$path" >> "$DT_LOG" 2>&1 & )
@@ -19,8 +17,8 @@ desktop	wm/native.hibr	281	dt_natver	v := "$b" --version 2> /dev/null
 local	wm/powerlist.hibr	44	dt_pwlocal	o=$("$DT_PWCTL" show-session "$XDG_SESSION_ID" -p Remote -p Seat 2> /dev/null)
 desktop	wm/recover.hibr	79	dt_supervise	"$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
 desktop	wm/restart.hibr	568	dt_updcheck	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2> /dev/null)
-desktop	wm/rtserve.hibr	239	dt_rtmsg	DT_CALLER=$who "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
-window	wm/seam.hibr	31	dt_appfn	dt_appfn() { local DT_CALLER=$1; "${@:2}" && ret -k; }
+desktop	wm/rtserve.hibr	286	dt_rtmsg	DT_CALLER=$who "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
+window	wm/seam.hibr	36	dt_appfn	dt_appfn() { local DT_CALLER=$1; "${@:2}" && ret -k; }
 desktop	wm/session.hibr	503	dt_tickers	"$f"
 desktop	wm/vault.hibr	107	dt_vw	DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef")
 desktop	wm/vault.hibr	109	dt_vw	DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef" < /dev/null)

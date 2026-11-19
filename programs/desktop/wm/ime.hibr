@@ -132,7 +132,7 @@ fn dt_imetype(id, cb, text) {
 
 	DT_IMEBY=1
 	while [ "$i" -lt "${#text}" ]; do
-		dt_appcall "$id" "$cb" "${text:$i:1}" || true
+		dt_wincall "$id" "$cb" "${text:$i:1}" || true
 		i=$((i + 1))
 	done
 	DT_IMEBY=

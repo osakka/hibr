@@ -21,7 +21,19 @@ MARK = scratch("appseam-do")
 SESSION = r'''%s. %s
 dt_open
 declare -gA OW
-fn ow_draw(int id, int h, int w, int row, int col) { console put -p "w$id" 1 1 "owner app"; }
+fn ow_draw(int id, int h, int w, int row, int col) {
+	console put -p "w$id" 1 1 "owner app"
+	dt_scrollbar "$id" 1 "$w" 4 40 4 0 bar
+}
+fn ow_key(int id, key) { [ "$key" = Z ] || return 1; ow_said key; return 0; }
+fn ow_scroll(int id, key, int top) { ow_said scroll; return 0; }
+fn ow_name(v) { ow_said namer; ret "$v"; }
+fn ow_pick(int id, v) { return 0; }
+fn ow_list() {
+	DT_POPNAMENEXT=ow_name
+	dt_droplist "$OWID" 1 1 ow_pick one two
+	return 0
+}
 ow_menus() {
 	dt_menu "File"
 	dt_item "Close" w dt_close_focused
@@ -191,6 +203,23 @@ for how in ("barhook", "mode", "item", "location", "ticker", "saver"):
     check("an installable's %s runs as the file that registered it" % how,
           any(l.startswith(how + " ") for l in mine), said())
 
+# Shared code the desktop runs calls into an app through the seam too: a
+# text field typing into its window's _key, a scrollbar dragged telling its
+# window where, and a list's namer while the desktop builds the list --
+# each runs as the app's, never as the desktop's.
+do('dt_fdtype "$OWID" Z 1; true')
+time.sleep(0.3)
+check("a field typing into a window's own _key runs it as the app's", "key ow" in said(), said())
+do('dt_sbto "$OWID" bar 3 0; true')
+time.sleep(0.3)
+check("a scrollbar the desktop drags tells the window as the app's", "scroll ow" in said(), said())
+do('dt_appfn ow ow_list')
+time.sleep(0.5)
+check("a list the app opened is named, while the desktop builds it, as the app's",
+      "namer ow" in said(), said())
+do('dt_mclose 2> /dev/null; true')
+time.sleep(0.3)
+
 # A pane's row is named through its namer as the pane's own, whichever id
 # the rows were built under: here the search's, typed into the Control
 # Panel, which builds every pane's rows under a scratch id of its own.
@@ -206,4 +235,4 @@ t.quit(b"q", 1.0)
 for f in (p, OUT, MARK, INST, OUT + ".pane"):
     if os.path.exists(f):
         os.unlink(f)
-report(15)
+report(18)

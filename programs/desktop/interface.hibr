@@ -11,7 +11,7 @@
 
 strict
 
-for dt_part in loop names glyphs state lang locale budget draw jobs keymatch chrome \
+for dt_part in seam loop names glyphs state lang locale budget draw jobs keymatch chrome \
 	servers picmode prayertimes powerlist ime rtwire; do
 	. "$DT_HERE/wm/$dt_part.hibr"
 done

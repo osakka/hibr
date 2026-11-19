@@ -1076,7 +1076,7 @@ fn dt_mbtnev(k) {
 }
 
 fn dt_event(k) {
-	local an knorm ev px pa
+	local an ev px pa
 
 	# The pointer lock (Gitea #379) first: a held pointer's reports are
 	# its window's alone, the display giving the pointer back is the end
@@ -1440,6 +1440,20 @@ fn dt_event(k) {
 		[ -n "$DT_KEYHELD" ] && DT_KH[$DT_FOCUS]["$DT_KEYHELD"]=$k
 		DT_NOTEWIN=
 	fi
+	dt_keyrest "$k"
+}
+
+# What a key does once no window has taken it: the icons' when nothing is
+# focused, then Menu Bar's plain key and every desktop action checked after
+# the window. A function of its own so that, with apps in processes of
+# their own, it runs when the app's answer says declined, or its wait runs
+# out (ADR 0050, a declined key) -- the same code at whichever moment. It
+# acts on the focused window as it stands when it runs, so while a key's
+# answer is awaited every input behind it is held, clicks as well as keys:
+# nothing can move the focus between the key and what it does.
+fn dt_keyrest(k) {
+	local knorm
+
 	if [ -z "$DT_FOCUS" ] && [ "$DT_ICONS" = 1 ] && dt_iconkey "$k"; then
 		return 0
 	fi

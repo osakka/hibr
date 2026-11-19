@@ -57,6 +57,9 @@ DT_POPDIMNEXT=()
 # is still handed the value.
 DT_POPNAME=
 DT_POPNAMENEXT=
+# Whose the namer is: the code that opened the list (DT_CALLER), so the
+# list's rows are named through the seam as that code's (ADR 0050).
+DT_POPNAMEOWN=
 # The value chosen now, which the list opens on and ticks: a caller sets
 # DT_POPCURNEXT just before dt_droplist, the same way. DT_POPSELONCE is the
 # row to start on, taken by the first build alone, so the arrows are not
@@ -92,6 +95,7 @@ fn dt_dropat(int r, int c, id, cb, ...rest) {
 	DT_POPDIM=("${DT_POPDIMNEXT[@]}")
 	DT_POPDIMNEXT=()
 	DT_POPNAME=$DT_POPNAMENEXT
+	DT_POPNAMEOWN=${DT_CALLER-}
 	DT_POPNAMENEXT=
 	DT_POPCUR=$DT_POPCURNEXT
 	DT_POPCURNEXT=
@@ -115,7 +119,7 @@ dt_dropcontext() {
 	dt_menu ""
 	for v in "${DT_POPVALS[@]}"; do
 		l=$v
-		[ -n "$DT_POPNAME" ] && l := "$DT_POPNAME" "$v"
+		[ -n "$DT_POPNAME" ] && l := dt_appfn "$DT_POPNAMEOWN" "$DT_POPNAME" "$v"
 		on=0
 		for d in "${DT_POPON[@]}"; do
 			[ "$d" = "$v" ] && { on=1; break; }

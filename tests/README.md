@@ -243,7 +243,12 @@ More tools sit around it:
   `tools/appstate.py` classes the platform's globals by; and every place
   the platform runs code by a name it does not write is classed for an
   app's own process and matches `programs/desktop/callsites.tsv`
-  (`tools/callsites.py --check`). The catalogue's half is checked by
+  (`tools/callsites.py --check`), a call by a name in shared code the
+  desktop reaches failing unless it is listed with its reason; and every
+  call into an installable through the seam is of a kind decided as asked,
+  pushed or told, with what no answer means, no told kind's answer read
+  anywhere, matching `programs/desktop/seamcalls.tsv`
+  (`tools/seamcalls.py --check`). The catalogue's half is checked by
   `./stale` in its own checkout. A suite in `all.py`; about ten seconds.
 - **`tests/scopes.py`** -- starts the desktop with the platform alone, as
   the package ships it, with each installable alone in an empty data folder

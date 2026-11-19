@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Every platform function an installable in this tree calls is classed for
 an app's own process (ADR 0050): local, a request, a declaration or gone --
-tools/appcalls.py --check -- and the desktop's own list of saved settings,
+tools/appcalls.py --check -- every call into one is of a decided kind
+(tools/seamcalls.py --check), and the desktop's own list of saved settings,
 which the state survey classes by, can be read (tools/appstate.py).
 
     python3 tests/appcalls.py
@@ -30,6 +31,13 @@ fails += [l for l in (sites.stdout + sites.stderr).splitlines() if l.startswith(
 if sites.returncode and not [l for l in sites.stdout.splitlines() if l.startswith("FAIL")]:
     fails.append("FAIL tools/callsites.py --check exited %d: %s" % (sites.returncode,
                  (sites.stdout + sites.stderr).strip()[-300:]))
+# Every call into an installable is of a kind that is decided -- asked,
+# pushed or told -- and no told kind's answer is read (tools/seamcalls.py).
+seam = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "seamcalls.py"), "--check"],
+                      cwd=ROOT, env=env, capture_output=True, text=True)
+if seam.returncode:
+    said = [l for l in (seam.stdout + seam.stderr).splitlines() if l.startswith("seamcalls:")]
+    fails += ["FAIL " + l for l in said] or ["FAIL tools/seamcalls.py --check exited %d" % seam.returncode]
 if state.returncode:
     fails.append((state.stdout + state.stderr).strip().splitlines()[-1])
 passed = 0

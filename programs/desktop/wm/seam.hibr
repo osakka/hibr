@@ -7,10 +7,15 @@
 # process today, so it is called. tools/callsites.py fails a call into
 # such code by a name anywhere but here.
 #
-# Part of the window manager; desktop.hibr sources it first of its own, so
-# a file that registers a hook while it loads finds this already here. It
-# only defines functions and sets state, so it can be read on its own and
-# is never run.
+# Part of the app interface: shared code the desktop also runs -- a text
+# field typing into its window's _key, a scrollbar telling its window where
+# it was dragged -- calls into an app through here as well, so the one path
+# is the same wherever it runs; in an app's own process every owner is that
+# process, and the call is a call. interface.hibr sources it first, so a
+# file that registers a hook while it loads finds this already here.
+# It only defines functions and sets state, so it can be read on its own
+# and is never run.
+# interface: shared
 
 strict
 

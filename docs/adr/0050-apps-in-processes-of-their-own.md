@@ -219,9 +219,17 @@ What it holds, each a check there:
   pause hold the desktop up not at all, and the line is carried whole when
   its end comes. One connection has at most `DT_RTLINES` (64) lines carried
   a pass, so a flood holds nothing up; a line longer than `DT_RTLINEMAX`
-  with no end lets its connection go.
+  with no end lets its connection go. Nor in the other direction: every
+  answer goes out through `dt_rtsay`, `send -p`, which writes what the app
+  takes now and keeps the rest for it, offered again every pass -- a plain
+  `send` to an app that had stopped reading waited until the app went,
+  7.7 s measured, with the whole desktop stopped behind it. An app that
+  never reads again is let go once `DT_RTQMAX` (1 MiB) waits for it, and
+  the log names it, so a hung app cannot grow the desktop's memory. Each
+  half is a check that fails with that half taken out.
 - **A peer that has gone cannot end the desktop**: every answer goes out
-  through `send`, which a gone peer fails rather than signals. The first
+  through `send`, which a gone peer fails rather than signals -- `send -p`
+  as much as the plain one, with SIGPIPE blocked around its write. The first
   version answered with `printf`, which a vanished client turned into a
   SIGPIPE that ended the desktop -- and no suite could see it, because the
   harness ran every desktop with SIGPIPE ignored, as Python leaves it, where
@@ -390,12 +398,96 @@ a row's setter and its namer -- and the saver framework into savers in 2.
 `cp_pane` and `sv_saver` record their owner, and every one of the 20 goes
 through `dt_prefixfn` or `dt_appfn`; the saver framework run on its own,
 with no desktop (`sv_main`), calls its saver directly, which is local by
-definition. The census now reads every `# platform:` file too. What is left of the platform's 94
-calls by a name is 26: the seam itself, 12 of the desktop's own (a program
-it starts, its own tickers) and 13 in shared code, which runs in whichever
-process called it. `tests/appcalls.py` fails on a site no rule classes, and on any difference from the committed table -- keyed on the
+definition. The census now reads every `# platform:` file too. What is left of the platform's
+calls by a name is 25: the seam itself, 12 of the desktop's own (a program
+it starts, its own tickers) and 12 in shared code, which runs in whichever
+process called it -- each followed up its callers, so one the desktop
+reaches is local only for a stated reason (see "How each call into an app
+is met" below: three were not, and go through the seam now). `tests/appcalls.py` fails on a site no rule classes, and on any difference from the committed table -- keyed on the
 function and the call's own text, not its line -- so a new call inside a
 listed function is classed on purpose.
+
+## How each call into an app is met, and what happens when it is not answered (2026-11-18)
+
+Once an app has a process, every call the desktop makes into it through
+the seam has to be met some way across the socket, and a call that is not
+answered has to have an outcome the person can live with. Both are decided
+**per kind of call** -- a window's `_draw`, `_key`, `_menus`; a bar item's
+press; a pane's rows; a callback an app handed over; a hook -- because the
+wire is per kind, not per place in the source. `tools/seamcalls.py` takes
+every seam call from inspect (127 in the platform's files, shared code
+included), resolves the
+variable ones to their kind from the field they were read out of
+(`DT[$id]["draw"]`, `DT_BARI[...]["press"]`, `FP[$id]["cb"]`), and reads
+what the caller does with the answer:
+
+- **a value** (10): it is bound with `:=`, or `$RET` is read just after it;
+- **a status** (24): it is tested (`if`, `!`, `&&`/`||` after it, a
+  `then`: 14 -- but not `|| true`, which reads nothing), a `$?` on the
+  next line reads it (2), or it is its
+  function's last command or followed by a bare `return`, so its status is
+  that function's -- counted only when some caller of that function reads
+  *its* status in turn, followed up the chain (8 are, 5 are not, and
+  `right) cp_do` is how a pane's `_do` becomes the Control Panel's "was
+  this key handled"). A call merely preceded by `&&` (`[ -n "$dr" ] &&
+  dt_appfn ...`) is none of these;
+- **nothing** (93).
+
+Each of the 69 kinds is then met one of three ways:
+
+- **push** (20 kinds, 28 calls): the app sends it whenever it changes, and
+  the desktop uses the last it sent -- a window's cells and dirty state,
+  its menus, context and title menus, its name and size, a pane's rows and
+  cells, a strip module's and a saver's cells, a bar item's, the words a
+  list of choices shows (sent with the list when it opens). Everything a
+  frame asks for is here, so **a frame never waits on an app process**:
+  sixteen round trips a frame would not fit the 0.7 ms frame budget, and a
+  hung app would stop the desktop, which is the thing this ADR exists to
+  end. Not pushed yet means the last one stands.
+- **ask** (17 kinds, 51 calls): a round trip the desktop waits for, at most
+  `DT_HOLDMS`, each kind with its outcome when no answer comes -- a key the
+  desktop also acts on is declined, its action runs and the key is revoked
+  (the declined-key section above); the window goes when `_close` is not
+  answered, and its process finishes its own close and is ended only if it
+  has not gone a few seconds later, so an app that saves on close is not
+  cut off; a restart goes on without `_stash` and the window reopens
+  fresh; a handed callback leaves its dialog
+  up; a location's `_ok` is refused with the reason it gave, which is the
+  one answer that carries a global (`DT_WHY`) back with it; Copy finds
+  nothing selected. Each such outcome also marks the window not
+  responding.
+- **tell** (32 kinds, 48 calls): sent, and the desktop goes on -- input,
+  focus and lifecycle news, whose effect reaches the screen through the
+  requests the callback makes, in order, and the next frame.
+
+The table is `programs/desktop/seamcalls.tsv`, its kinds at the end with
+how each is met and what no answer means. `tests/appcalls.py` fails when it
+differs from the source, when a call resolves to a kind the tool does not
+decide, and when a told kind's answer is read anywhere -- so a new kind,
+or a new caller that starts reading what a told callback answers, is a
+decision somebody makes rather than a default. Counting found the shapes a
+reading by eye gets wrong, both in the direction that is a bug rather
+than a delay: a tail through a `case` arm or an `else`, and a status read
+one line later by `return $?`.
+
+**And it found three calls into apps that went around the seam.** Shared
+code -- the app interface -- runs in whichever process calls it, which the
+census took to mean every call it makes by a name is local. Not when the
+desktop is the one running it: the desktop's mouse path drags a
+scrollbar, which told the window's `_scroll` directly; a text field the
+desktop types into (and Copy, Cut and Paste in one, and the input
+method's commit) called the window's `_key` through `dt_appcall` itself;
+and building a list of choices called the namer the app had set, while
+the desktop built its menu. All three ran in the desktop's process as
+the desktop's, and would have kept doing so with apps in processes of
+their own. The seam is therefore part of the shared interface now (in an
+app's own process every owner is that process, and a call is a call), the
+three go through it, and `tools/callsites.py` follows every shared
+function's callers up to the first file of the desktop's own: a call by a
+name in shared code the desktop reaches fails unless it is listed with the
+reason it is not an app's (a text's pen is the drawing code's own; a job
+runs a program). `tests/appseam.py` drives each of the three from the
+desktop's side and fails against the code before.
 
 ## Review (advisor, 2026-11-18): what the design must settle
 
@@ -573,7 +665,8 @@ listed function is classed on purpose.
    lets Escape reach Menu Bar after vi declines it. The protocol: a key goes
    down with a number, the app answers took or declined by number, the
    desktop holds that key's own fallback until the answer or `DT_HOLDMS`,
-   and **holds the keys typed after it too**, sending each only once the
+   and **holds the input that comes after it too** -- keys and clicks --
+   sending each only once the
    one before is answered -- sending them on would hand the letter typed
    after Escape to the app instead of the menu it opened. **Which keys need
    the round trip, read from `wm/input.hibr`:** Menu Bar's chords and the
@@ -592,9 +685,13 @@ listed function is classed on purpose.
    key's number, which the runtime honours before it dispatches the key. A
    loaded gate will miss 150 ms now and then, so the suites drive this with
    a stand-in that is slow on purpose, never with timing luck. The key's number is also the latency measurement the
-   sensitivity requirement asks for: one mechanism, not two. The table of told and pushed
-   calls is built from ARCHITECTURE.md's callback table and the arity table
-   in `tests/540-examples.t`, not a new list.
+   sensitivity requirement asks for: one mechanism, not two. The table of
+   asked, pushed and told calls is `tools/seamcalls.py`'s, taken from the
+   source rather than written by hand, its kinds the callbacks in
+   ARCHITECTURE.md's table (see "How each call into an app is met" above).
+   A key's fallback acts on the focused window as it stands, so **every
+   input behind a key awaiting its answer is held, clicks as well as keys**:
+   nothing can move the focus between a key and what it does.
 5. **"Read, not run" is checked, not assumed.** Registrations sit behind
    `command -v dt_app &&`, take values from variables, and include openers
    and locations; a gate check fails any installable whose registrations

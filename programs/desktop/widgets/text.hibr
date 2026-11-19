@@ -541,7 +541,7 @@ fn dt_fdtype(id, key, int k) {
 	# A press commits what an input method holds before the cursor moves.
 	[ -z "${DT_IMEPRE-}" ] || dt_imedone
 	while [ "$k" -gt 0 ]; do
-		dt_appcall "$id" "$cb" "$key" || true
+		dt_wincall "$id" "$cb" "$key" || true
 		k=$((k - 1))
 	done
 }
@@ -810,7 +810,7 @@ fn dt_fieldedit(op) {
 		fi
 		dt_clipset "$t" "$op" text
 		if [ "$op" = cut ]; then
-			dt_appcall "$DT_FOCUS" "$cb" backspace || true
+			dt_wincall "$DT_FOCUS" "$cb" backspace || true
 			dt_notep low "Cut %s characters" "${#t}"
 		else
 			dt_notep low "Copied %s characters" "${#t}"
@@ -818,7 +818,7 @@ fn dt_fieldedit(op) {
 		return 0
 		;;
 	selall)
-		dt_appcall "$DT_FOCUS" "$cb" end || true
+		dt_wincall "$DT_FOCUS" "$cb" end || true
 		[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
 		dt_want 10
 		return 0
@@ -840,7 +840,7 @@ fn dt_fieldedit(op) {
 		i=0
 		while [ "$i" -lt "${#t}" ]; do
 			c=${t:$i:1}
-			dt_appcall "$DT_FOCUS" "$cb" "$c" || true
+			dt_wincall "$DT_FOCUS" "$cb" "$c" || true
 			i=$((i + 1))
 		done
 		DT_IMEBY=

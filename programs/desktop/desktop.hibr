@@ -52,7 +52,7 @@ DT_HERE=${BASH_SOURCE%/*}
 # window manager's own, one concern to a file: the state everything shares
 # first, then what is built on it.
 . "$DT_HERE/interface.hibr"
-for dt_part in seam settings session windows workspaces tile place frame \
+for dt_part in settings session windows workspaces tile place frame \
 	wallpaper input keys menus bar context apps \
 	files copying fullscreen keyphase locations remote handlers filepick saver lock icons hold standby notify bus confirm ask restart recover shot clip strip ctl hud prayer vault kbd polkit machine native appmode programs isolate rtserve; do
 	. "$DT_HERE/wm/$dt_part.hibr"

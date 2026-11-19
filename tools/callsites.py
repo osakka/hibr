@@ -109,14 +109,17 @@ def shared(rel):
 
 
 def direct():
-    """The desktop's own calls of dt_appcall or dt_appget by name: an input
-    handler reached around the seam, which a dynamic-call census cannot see
-    -- the dynamic call is inside the shared budget.hibr. Only wm/rtserve's
-    dt_wincall and dt_winget may make them."""
+    """Calls of dt_appcall or dt_appget by name: an input handler reached
+    around the seam, which a dynamic-call census cannot see -- the dynamic
+    call is inside the shared budget.hibr. Only the seam's own dt_wincall and
+    dt_winget, and wm/rtserve's, may make them; shared code included, since
+    the desktop runs it too (a text field typing into its window)."""
     out = []
-    for f in sorted(glob.glob(os.path.join(ROOT, "programs/desktop/wm/*.hibr"))):
+    files = (glob.glob(os.path.join(ROOT, "programs/desktop/wm/*.hibr")) +
+             glob.glob(os.path.join(ROOT, "programs/desktop/widgets/*.hibr")))
+    for f in sorted(files):
         rel = os.path.relpath(f, os.path.join(ROOT, "programs/desktop"))
-        if shared(rel) or rel == "wm/rtserve.hibr":
+        if rel in ("wm/rtserve.hibr", "wm/seam.hibr", "wm/budget.hibr"):
             continue
         for c in records(f, "calls").get("calls", []):
             if c.get("name") in ("dt_appcall", "dt_appget"):
@@ -126,6 +129,8 @@ def direct():
 
 def classify(site, own):
     rel, ln, owner, text = site
+    if owner == "dt_appfn":
+        return "window"
     if shared(rel):
         return "local"
     key = "%s:%d" % (rel, ln)
@@ -137,6 +142,49 @@ def classify(site, own):
                 return k
         return SPLIT[owner][""]
     return own.get(owner, "")
+
+
+# Shared code runs in whichever process called it, so a call it makes by a
+# name is local only while no code of the desktop's own reaches it: the
+# desktop running a scrollbar's press, or a dropdown's namer, would be
+# calling an app's code in its own process. Reached anyway, by reason:
+REACHOK = {
+    "bd_put": "the pen is a function of the code drawing the text",
+    "dt_job": "runs a program",
+    "dt_jobmerge": "runs a program",
+    "dt_jobvarsrun": "runs the job's own body in the job's child",
+    "dt_pwlocal": "runs a program",
+    "sv_call": "goes through dt_prefixfn when the desktop runs it",
+    "dt_appcall": "the seam's own dispatch, reached through dt_wincall",
+    "dt_appget": "the seam's own dispatch, reached through dt_winget",
+}
+
+
+def reached():
+    """For each shared function, a chain from desktop code that reaches it,
+    following callers through shared code."""
+    D = os.path.join(ROOT, "programs/desktop")
+    fs = sorted(f for f in glob.glob(os.path.join(D, "**", "*.hibr"), recursive=True) if "/tests/" not in f)
+    callers = collections.defaultdict(set)
+    for f in fs:
+        for c in records(f, "calls").get("calls", []):
+            if c.get("name"):
+                callers[c["name"]].add((os.path.relpath(f, D), c.get("owner", "")))
+    desk = lambda rel: not shared(rel) and (rel.startswith("wm/") or os.path.join(D, rel) in platform())
+    out = {}
+
+    def up(fn):
+        seen, todo = {fn}, [(fn, [fn])]
+        while todo:
+            name, path = todo.pop()
+            for rel, owner in sorted(callers.get(name, ())):
+                if desk(rel):
+                    return " <- ".join(path + ["%s (%s)" % (owner or "top", rel)])
+                if shared(rel) and owner and owner not in seen:
+                    seen.add(owner)
+                    todo.append((owner, path + [owner]))
+        return ""
+    return up
 
 
 def main():
@@ -153,9 +201,14 @@ def main():
     cross += [r for r in rows if r[0] in ("handed", "hook")]
     cross += [r for r in rows if r[0] == "local" and shared(r[1]) and
               own.get(r[3]) in ("window", "hook") and r[3] not in ("dt_appcall", "dt_appget")]
+    up = reached()
+    reach = [(r, up(r[3])) for r in rows if r[0] == "local" and r[3] not in REACHOK]
+    reach = [(r, why) for r, why in reach if why]
     for r in cross:
         print("  across  %s:%d in %s calls into an app by a name; it goes through dt_appfn, "
               "from a file of the desktop's own" % (r[1], r[2], r[3]))
+    for r, why in reach:
+        print("  reached  %s:%d in %s, shared code the desktop runs: %s" % (r[1], r[2], r[3], why))
     for r in bad:
         print("  unclassed  %s:%d in %s: %s" % (r[1], r[2], r[3], r[4][:80]))
     if "--write" in sys.argv:
@@ -196,8 +249,12 @@ def main():
         for r in around:
             print("FAIL %s:%d in %s calls a window's handler with dt_appcall or dt_appget "
                   "directly: dt_wincall or dt_winget, the seam's (ADR 0050)" % r)
+        for r, why in reach:
+            print("FAIL %s:%d in %s calls by a name in shared code the desktop runs (%s): "
+                  "through the seam, or in REACHOK with the reason it is not an app's code" %
+                  (r[1], r[2], r[3], why))
         cross = cross + around
-        fails = len(bad) + len(diff[0]) + len(diff[1]) + len(cross)
+        fails = len(bad) + len(diff[0]) + len(diff[1]) + len(cross) + len(reach)
         print("\n%d passed, %d failed" % (len(rows) - len(bad), fails))
         sys.exit(1 if fails else 0)
 

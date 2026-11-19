@@ -201,7 +201,7 @@ fn dt_sbto(int id, key, int r, int c) {
 	else
 		t := dt_scrollpos "$c" "${f[2]}" "${f[3]}" "${f[4]}" "${f[5]}"
 	fi
-	"${DT[$id]["app"]}_scroll" "$id" "$key" "$t"
+	dt_wincall "$id" "${DT[$id]["app"]}_scroll" "$key" "$t"
 	dt_want 10
 }
 
