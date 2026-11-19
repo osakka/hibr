@@ -61,6 +61,7 @@ python3 tests/uifuzz.py     random input into each app, seeded, and the
                             forced-redraw oracle: uifuzz.py oracle
 python3 tests/mailapp.py    Mail, against tests/mailserve.py
 python3 tests/contacts.py   Contacts, against tests/davserve.py --pim
+python3 tests/contactscmd.py  the contacts command, against the same
 python3 tests/calapp.py     Calendar, against the same
 python3 tests/vault.py      the Vault accessory and the desktop's vault
 python3 tests/web.py        the web module and the Browser, on local pages

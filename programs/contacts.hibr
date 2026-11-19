@@ -1,0 +1,547 @@
+#!/usr/bin/env hibr
+#
+# contacts -- the person's address book from a script, with no window and
+# no desktop running.
+#
+#   contacts find TEXT            every card whose name, a phone or a line
+#                                 of its note holds TEXT, any case: a line
+#                                 each, "UID<TAB>NAME", then a field
+#                                 "phone:NUMBER" for each phone and
+#                                 "note:LINE" for each line of the note
+#   contacts put [-u UID] [--name NAME] [--phone NUMBER]... [--note LINE]...
+#                                 a new card (--name wanted), or with -u
+#                                 that card changed: the name replaced when
+#                                 given, a phone or note line added when it
+#                                 is not there already; answers the uid
+#   contacts sync                 bring the copy kept here up to date now
+#
+# The address book is the desktop's own: the servers chosen in Control
+# Panel > Calendar & Contacts (DT_PIMSERVERS in desktop.json), each kept
+# under ~/.local/share/hibr/pim/SERVER by lib/pimsync.hibr. A card is
+# written and queued exactly as an edit in the Contacts app is -- the same
+# function, lib/pim.hibr's pe_write -- and put then runs the sync that
+# sends it. find never syncs and never reaches the network: it answers
+# from the copy kept here at once, and says how old that copy is when it
+# is older than the desktop's own interval. Every sync this runs is
+# bounded: a server that does not take a connection in CT_CONNMS is not
+# synced at all, and one that stops answering is given HIBR_DAV_TIMEOUT
+# (CT_DAVS seconds here unless set).
+#
+# Status: 0 done; 1 refused or failed, with the reason on standard error;
+# 2 no address book chosen, and nothing kept anywhere.
+
+strict
+
+CT_LIB=${BASH_SOURCE%/*}/desktop/lib
+CT_WHY=
+CT_OUT=
+CT_FAIL=
+CT_WAIT=10
+CT_CONNMS=3000
+CT_DAVS=10
+CT_FD=
+declare -gA CT_SRVS
+
+. "$CT_LIB/pim.hibr"
+
+# A complaint, and the status to leave with.
+fn ct_die(text, int st = 1) {
+	printf 'contacts: %s\n' "$text" >&2
+	exit "$st"
+}
+
+ct_usage() {
+	printf '%s\n' "usage: contacts find TEXT" \
+		"       contacts put [-u UID] [--name NAME] [--phone NUMBER]... [--note LINE]..." \
+		"       contacts sync"
+}
+
+# Whether a server takes a connection within CT_CONNMS (HIBR_CONNTIMEO,
+# when the caller set one): a connection made and closed, nothing sent.
+# The dav client's own wait for a connection is its whole timeout, so a
+# server that is off or unreachable is found out here, in seconds. A
+# server whose address cannot be read is left for the sync to judge.
+fn ct_reach(srv) {
+	local u hp host port w
+
+	CT_SRVS := dav servers 2> /dev/null || return 0
+	u=${CT_SRVS["$srv"]["url"]}
+	case $u in
+	http://*) port=80 ;;
+	https://*) port=443 ;;
+	*) return 0 ;;
+	esac
+	hp=${u#*://}
+	hp=${hp%%/*}
+	hp=${hp##*@}
+	case $hp in
+	\[*\]:*) host=${hp%\]:*}; host=${host#\[}; port=${hp##*\]:} ;;
+	\[*\]) host=${hp#\[}; host=${host%\]} ;;
+	*:*) host=${hp%:*}; port=${hp##*:} ;;
+	*) host=$hp ;;
+	esac
+	if ! w=$( (
+		export HIBR_CONNTIMEO=${HIBR_CONNTIMEO:-$CT_CONNMS}
+		exec {CT_FD}<> "/dev/tcp/$host/$port"
+	) 2>&1); then
+		w=${w%%$'\n'*}
+		CT_WHY="cannot reach $host:$port: ${w##*: }"
+		return 1
+	fi
+	return 0
+}
+
+# The servers chosen for contacts, from the desktop's settings file, and
+# the modules the store is read with. No server is status 2, before
+# anything is made on the disk.
+ct_ready() {
+	DT_PIMSERVERS=
+	pe_conf || ct_die "${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.json} is not JSON"
+	pe_servers || ct_die "no address book is chosen: Control Panel > Calendar & Contacts chooses a server for contacts" 2
+	[[ $DT_PIMEVERY =~ ^[0-9]+$ ]] || DT_PIMEVERY=15
+	need db 2> /dev/null || ct_die "the db module is not installed"
+	need pim 2> /dev/null || ct_die "the pim module is not installed"
+	need dav 2> /dev/null || ct_die "the dav module is not installed"
+}
+
+# Sync one server now, the way the desktop does: lib/pimsync.hibr, which
+# sends the queue and then reads the server -- once ct_reach says it takes
+# a connection. A sync another process is running is waited for, CT_WAIT
+# seconds at most. What it said is left in CT_OUT, and why one failed in
+# CT_WHY.
+fn ct_sync(srv) {
+	local d out l t0=$EPOCHSECONDS
+	local -i st
+	local -a ls
+
+	CT_WHY=
+	CT_OUT=
+	ct_reach "$srv" || return 1
+	d := pe_dir "$srv"
+	while :; do
+		out=$(HIBR_DAV_TIMEOUT=${HIBR_DAV_TIMEOUT:-$CT_DAVS} "$HIBR" "$PE_LIB/pimsync.hibr" "$srv" "$d" 2>&1)
+		st=$?
+		CT_OUT=$out
+		[ "$st" = 3 ] || break
+		if [ $((EPOCHSECONDS - t0)) -ge "$CT_WAIT" ]; then
+			CT_WHY="another sync of $srv is still running"
+			return 1
+		fi
+		sleep 0.3
+	done
+	[ "$st" = 0 ] && return 0
+	IFS=$'\n' read -d '' -ra ls <<< "$out"
+	for l in "${ls[@]}"; do
+		case $l in
+		"error "*) CT_WHY=${l#error } ;;
+		esac
+	done
+	[ -n "$CT_WHY" ] || CT_WHY="${ls[-1]:-the sync failed}"
+	CT_WHY=${CT_WHY#hibr: }
+	return 1
+}
+
+# How long ago a server's copy was last brought up to date, in seconds,
+# or nothing when it never has been.
+fn ct_age(srv) {
+	local d t=
+
+	d := pe_dir "$srv"
+	[ -r "$d/synced" ] && read -r t < "$d/synced"
+	[[ $t =~ ^[0-9]+$ ]] || return 1
+	ret $((EPOCHSECONDS - t))
+}
+
+# An age said the way a person says it.
+fn ct_ago(int n) {
+	if [ "$n" -lt 7200 ]; then
+		ret "$((n / 60)) minutes"
+	elif [ "$n" -lt 172800 ]; then
+		ret "$((n / 3600)) hours"
+	else
+		ret "$((n / 86400)) days"
+	fi
+}
+
+# One line on standard error for each chosen server whose copy is older
+# than DT_PIMEVERY minutes, or was never made; CT_FAIL holds the servers
+# with no copy at all.
+ct_stale() {
+	local s a d w
+
+	CT_FAIL=
+	for s in "${PE_SRVS[@]}"; do
+		d := pe_dir "$s"
+		if a := ct_age "$s"; then
+			[ "$a" -ge $((DT_PIMEVERY * 60)) ] || continue
+			w := ct_ago "$a"
+			printf 'contacts: the copy of %s is %s old: contacts sync, or a desktop running, brings it up to date\n' "$s" "$w" >&2
+		elif [ ! -f "$d/contacts.db" ]; then
+			CT_FAIL+="${CT_FAIL:+; }$s has never been synced here: contacts sync brings it"
+		fi
+	done
+	return 0
+}
+
+# Whether any chosen server keeps an address book.
+ct_anybook() {
+	local s c
+
+	for s in "${PE_SRVS[@]}"; do
+		c := pe_book "$s" && return 0
+	done
+	return 1
+}
+
+# A value as find writes it: a backslash, a tab, a newline and a return
+# each written as an escape, so a line is always one card.
+fn ct_esc(v) {
+	v=${v//\\/\\\\}
+	v=${v//$'\t'/\\t}
+	v=${v//$'\n'/\\n}
+	v=${v//$'\r'/\\r}
+	ret "$v"
+}
+
+# A phone number for comparing: its digits alone, so "+44 20 7946 0000"
+# and "+442079460000" are one number.
+fn ct_digits(p) { ret "${p//[^0-9]/}"; }
+
+# Whether a phone is one of a list already: the same digits, or, for one
+# with none (a sip: address), the same text in any case.
+fn ct_hasphone(p, ...list) {
+	local x a b
+
+	a := ct_digits "$p"
+	for x in "${list[@]}"; do
+		if [ -n "$a" ]; then
+			b := ct_digits "$x"
+			[ "$a" = "$b" ] && return 0
+		elif [ "${x,,}" = "${p,,}" ]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+# Whether a card matches: TEXT in its name, a phone or a note line, any
+# case; a phone also by its digits alone, when TEXT is a number.
+fn ct_match(t, name, tels, note) {
+	local x d
+	local -a ts
+
+	[[ ${name,,} == *"$t"* ]] && return 0
+	[[ ${note,,} == *"$t"* ]] && return 0
+	IFS=$'\t' read -ra ts <<< "$tels"
+	d=
+	x=${t//[0-9+ ().-]/}
+	[[ $t == *[0-9]* ]] && [ -z "$x" ] && d=${t//[^0-9]/}
+	for x in "${ts[@]}"; do
+		[[ ${x,,} == *"$t"* ]] && return 0
+		[ -n "$d" ] && [[ ${x//[^0-9]/} == *"$d"* ]] && return 0
+	done
+	return 1
+}
+
+fn ct_find(...a) {
+	local t k uid nm tels note em l out
+	local -a ts ns
+
+	[ "${#a[@]}" = 1 ] || { ct_usage >&2; exit 1; }
+	ct_ready
+	pe_load
+	ct_stale
+	if [ "$PE_N" = 0 ]; then
+		[ -n "$CT_FAIL" ] && ct_die "$CT_FAIL"
+		ct_anybook || ct_die "none of the servers chosen keeps an address book" 2
+		return 0
+	fi
+	[ -n "$CT_FAIL" ] && printf 'contacts: %s\n' "$CT_FAIL" >&2
+	t=${a[0],,}
+	for ((k = 0; k < PE_N; k++)); do
+		nm := pe_f "$k" fn
+		tels := pe_f "$k" tels
+		note := pe_f "$k" note
+		ct_match "$t" "$nm" "$tels" "$note" || continue
+		uid := pe_f "$k" uid
+		if [ -z "$uid" ]; then
+			uid := pe_f "$k" href
+			uid=${uid##*/}
+		fi
+		if [ -z "$nm" ]; then
+			em := pe_f "$k" emails
+			nm=${em%%$'\t'*}
+			[ -n "$nm" ] || nm=$uid
+		fi
+		uid := ct_esc "$uid"
+		nm := ct_esc "$nm"
+		out="$uid"$'\t'"$nm"
+		IFS=$'\t' read -ra ts <<< "$tels"
+		for l in "${ts[@]}"; do
+			[ -n "$l" ] || continue
+			l := ct_esc "$l"
+			out+=$'\t'"phone:$l"
+		done
+		mapfile -t ns <<< "$note"
+		for l in "${ns[@]}"; do
+			l=${l%$'\r'}
+			[ -n "$l" ] || continue
+			l := ct_esc "$l"
+			out+=$'\t'"note:$l"
+		done
+		printf '%s\n' "$out"
+	done
+	return 0
+}
+
+# A value put takes must be one line.
+fn ct_oneline(what, v) {
+	case $v in
+	*$'\n'* | *$'\r'*) ct_die "$what must be one line" ;;
+	esac
+	return 0
+}
+
+# The card a uid names, or the last part of its address -- what find
+# shows for a card with no uid -- as a list position in PE; pe_load first.
+fn ct_at(key) {
+	local k x
+
+	for ((k = 0; k < PE_N; k++)); do
+		x := pe_f "$k" uid
+		[ "$x" = "$key" ] && { ret "$k"; return 0; }
+	done
+	for ((k = 0; k < PE_N; k++)); do
+		x := pe_f "$k" href
+		[ "${x##*/}" = "$key" ] && { ret "$k"; return 0; }
+	done
+	return 1
+}
+
+# What the sync just run said of one card it sent: "conflict" when the
+# server's copy had changed since it was read, "refused" with the reason
+# when the server would not take it, nothing when it was taken.
+CT_SAID=
+fn ct_said(base) {
+	local l
+	local -a ls
+
+	CT_SAID=
+	IFS=$'\n' read -d '' -ra ls <<< "$CT_OUT"
+	for l in "${ls[@]}"; do
+		case $l in
+		"conflict put $base:"*) CT_SAID=conflict ;;
+		"refused put $base:"*) CT_SAID="refused ${l#*: }" ;;
+		esac
+	done
+	return 0
+}
+
+# What put -u has to write to the card at a list position: the pe_write
+# arguments in CT_ARGS, and status 1 when the card already holds every
+# phone and note line asked for and the name -- nothing to send.
+CT_ARGS=()
+fn ct_plan(int k, name, int hasname, ...want) {
+	local c file x p i=0 changed=0 note oldname
+	local -a olds add lines
+
+	CT_ARGS=()
+	file := pe_f "$k" file
+	oldname := pe_f "$k" fn
+	c := pim vcf cards "$file" 2> /dev/null || ct_die "the card $file cannot be read"
+	while [ -n "${c[0]["tel"][$i]["v"]+x}" ]; do
+		olds+=("${c[0]["tel"][$i]["v"]}")
+		i=$((i + 1))
+	done
+	note=${c[0]["note"]}
+	[ "$hasname" = 1 ] || name=$oldname
+	[ "$name" = "$oldname" ] || changed=1
+	for x in "${want[@]}"; do
+		[[ $x == phone:* ]] || continue
+		p=${x#phone:}
+		ct_hasphone "$p" "${olds[@]}" "${add[@]}" && continue
+		add+=("$p")
+		CT_ARGS+=(-t "$p")
+		changed=1
+	done
+	[ -n "$note" ] && mapfile -t lines <<< "$note"
+	for x in "${want[@]}"; do
+		[[ $x == note:* ]] || continue
+		x=${x#note:}
+		for p in "${lines[@]}"; do
+			[ "${p%$'\r'}" = "$x" ] && continue 2
+		done
+		lines+=("$x")
+		changed=1
+	done
+	[ "$changed" = 1 ] || return 1
+	note=
+	for x in "${lines[@]}"; do
+		note+="${note:+$'\n'}${x%$'\r'}"
+	done
+	[ -n "$note" ] && CT_ARGS+=(-N "$note")
+	CT_ARGS=("$name" "${CT_ARGS[@]}")
+	return 0
+}
+
+# Write a card and send it. A server whose copy changed since the one read
+# here refuses the write; the sync has just brought its copy, so the change
+# is planned again over that and written once more -- or not at all, when
+# the copy already holds it. A server out of reach leaves the card queued,
+# which is still a card kept.
+fn ct_put(...a) {
+	local key= name= hasname=0 x p i=0 k srv= coll= u= made= tries=0 uid href etag file note= base
+	local -a want add
+
+	while [ "$i" -lt "${#a[@]}" ]; do
+		x=${a[$i]}
+		case $x in
+		-u | --name | --phone | --note)
+			i=$((i + 1))
+			[ "$i" -lt "${#a[@]}" ] || ct_die "$x wants a value"
+			case $x in
+			-u) key=${a[$i]} ;;
+			--name) name=${a[$i]}; hasname=1 ;;
+			--phone) want+=("phone:${a[$i]}") ;;
+			--note) want+=("note:${a[$i]}") ;;
+			esac
+			;;
+		--name=*) name=${x#--name=}; hasname=1 ;;
+		--phone=*) want+=("phone:${x#--phone=}") ;;
+		--note=*) want+=("note:${x#--note=}") ;;
+		*) ct_usage >&2; ct_die "put does not take $x" ;;
+		esac
+		i=$((i + 1))
+	done
+	ct_oneline "a name" "$name"
+	for x in "${want[@]}"; do
+		case $x in
+		phone:*)
+			p=${x#phone:}
+			ct_oneline "a phone" "$p"
+			[ -n "${p// /}" ] || ct_die "a phone cannot be empty"
+			[[ $p != *\;* ]] || ct_die "a phone cannot hold a ;"
+			;;
+		note:*)
+			ct_oneline "a note line" "${x#note:}"
+			[ "$x" != note: ] || ct_die "a note line cannot be empty"
+			;;
+		esac
+	done
+	if [ -z "$key" ] && [ -z "${name// /}" ]; then
+		ct_die "a new card needs --name NAME"
+	fi
+	if [ "$hasname" = 1 ] && [ -z "${name// /}" ]; then
+		ct_die "a name cannot be empty"
+	fi
+	ct_ready
+
+	if [ -z "$key" ]; then
+		for x in "${PE_SRVS[@]}"; do
+			coll := pe_book "$x" && { srv=$x; break; }
+		done
+		if [ -z "$srv" ]; then
+			CT_FAIL=
+			for x in "${PE_SRVS[@]}"; do
+				if ct_sync "$x"; then
+					coll := pe_book "$x" && { srv=$x; break; }
+				else
+					CT_FAIL+="${CT_FAIL:+; }$x: $CT_WHY"
+				fi
+			done
+		fi
+		if [ -z "$srv" ]; then
+			[ -n "$CT_FAIL" ] && ct_die "$CT_FAIL"
+			ct_die "none of the servers chosen keeps an address book" 2
+		fi
+		CT_ARGS=("$name")
+		for x in "${want[@]}"; do
+			case $x in
+			phone:*)
+				p=${x#phone:}
+				ct_hasphone "$p" "${add[@]}" && continue
+				add+=("$p")
+				CT_ARGS+=(-t "$p")
+				;;
+			note:*)
+				p=${x#note:}
+				case $'\n'"$note"$'\n' in *$'\n'"$p"$'\n'*) continue ;; esac
+				note+="${note:+$'\n'}$p"
+				;;
+			esac
+		done
+		[ -n "$note" ] && CT_ARGS+=(-N "$note")
+		u := pe_write "$srv" "" "$coll" "" - "" NOTE "${CT_ARGS[@]}" || ct_die "$PE_WHY"
+		made=$u
+	fi
+
+	while :; do
+		if [ -n "$made" ]; then
+			key=$made
+			base="$made.vcf"
+			made=
+		else
+			pe_load
+			if ! k := ct_at "$key"; then
+				[ -n "$CT_FAIL" ] && ct_die "$CT_FAIL"
+				[ "$tries" = 0 ] || ct_die "$srv did not keep the card $key"
+				ct_die "no card $key in the address book"
+			fi
+			if ! ct_plan "$k" "$name" "$hasname" "${want[@]}"; then
+				printf '%s\n' "$key"
+				return 0
+			fi
+			[ "$tries" -lt 2 ] || ct_die "$srv refused the change to $key: its copy changed while it was sent; try again"
+			srv=${PE[$k]["srv"]}
+			uid := pe_f "$k" uid
+			href := pe_f "$k" href
+			coll := pe_f "$k" coll
+			etag := pe_f "$k" etag
+			file := pe_f "$k" file
+			u := pe_write "$srv" "$href" "$coll" "$uid" "$etag" "$file" NOTE "${CT_ARGS[@]}" || ct_die "$PE_WHY"
+			key=$u
+			base=${href##*/}
+			[ -n "$base" ] || base="$u.vcf"
+		fi
+		tries=$((tries + 1))
+		if ! ct_sync "$srv"; then
+			printf 'contacts: kept, and queued for %s, which has not got it yet: %s\n' "$srv" "$CT_WHY" >&2
+			printf '%s\n' "$key"
+			return 0
+		fi
+		ct_said "$base"
+		case $CT_SAID in
+		conflict) continue ;;
+		refused*) ct_die "$srv refused the card $key: ${CT_SAID#refused }" ;;
+		esac
+		printf '%s\n' "$key"
+		return 0
+	done
+}
+
+# Sync every chosen server now: 0 when all were, 1 with the reasons when
+# one was not, 2 when none keeps an address book.
+fn ct_sync_all(...a) {
+	local s fail=
+
+	[ "${#a[@]}" = 0 ] || { ct_usage >&2; exit 1; }
+	ct_ready
+	for s in "${PE_SRVS[@]}"; do
+		ct_sync "$s" || fail+="${fail:+; }$s: $CT_WHY"
+	done
+	[ -n "$fail" ] && ct_die "$fail"
+	ct_anybook || ct_die "none of the servers chosen keeps an address book" 2
+	return 0
+}
+
+fn ct_main(verb = "", ...rest) {
+	case $verb in
+	find) ct_find "${rest[@]}" ;;
+	put) ct_put "${rest[@]}" ;;
+	sync) ct_sync_all "${rest[@]}" ;;
+	-h | --help | help) ct_usage ;;
+	*) ct_usage >&2; return 1 ;;
+	esac
+}
+
+ct_main "$@"

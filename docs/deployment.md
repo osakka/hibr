@@ -48,7 +48,7 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
    |---|---|
    | `bin/hibr` | the shell |
    | `bin/desktop` | a launcher for the desktop |
-   | `bin/catalogue`, `bin/vw` | the catalogue and the vault client, each a hibr script under `share/hibr/` |
+   | `bin/catalogue`, `bin/vw`, `bin/contacts` | the catalogue, the vault client and the address book's command ([contacts.md](contacts.md)), each a hibr script under `share/hibr/` |
    | `lib/hibr/*.so` | the modules, and the manifest |
    | `share/hibr/desktop/` | the window manager, its apps and accessories |
    | `share/hibr/calendars/`, `share/hibr/salat/` | the calendar systems and prayer-time methods the `hcal` and `salat` modules read |

@@ -42,8 +42,8 @@ man hibr                    # every flag, variable and exit status
 ## Install
 
 Every route installs `hibr`, its modules, `man hibr`, the text desktop with
-a `desktop` launcher and `man desktop`, and the `catalogue` and `vw`
-commands. The packages, and any install on macOS, add
+a `desktop` launcher and `man desktop`, and the `catalogue`, `vw` and
+[`contacts`](docs/contacts.md) commands. The packages, and any install on macOS, add
 [`please`](docs/please.md), which runs a command as root; on Linux it and
 the desktop's root helpers go through polkit's `pkexec`, so only an install
 to `/usr` -- the packages' -- carries them. hibr needs only libc and libdl;
@@ -234,7 +234,7 @@ text.
 | [`include/`](include/) | Public header and module ABI, internal declarations, regex declarations |
 | [`src/`](src/) | The shell itself — lexer, parser, expansion, execution, builtins, editor, networking |
 | [`mods/`](mods/) | Reference modules, including the prompt and its git implementation |
-| [`programs/`](programs/) | What is written in hibr and installed beside it: the desktop, `catalogue`, `vw`, `please` and the root helpers polkit runs |
+| [`programs/`](programs/) | What is written in hibr and installed beside it: the desktop, `catalogue`, `vw`, `contacts`, `please` and the root helpers polkit runs |
 | [`packaging/`](packaging/) | The deb, rpm, Arch, AUR and Homebrew builds, the polkit policy, and `ships`, the list of what the package's desktop carries |
 | [`tools/`](tools/) | What builds, measures and documents the tree: the screenshot renderer, table generators, `measure.py` |
 | [`tests/`](tests/) | The harness, the scripts compared against bash or recorded, the full-screen suites, and the suite hibr runs on itself |

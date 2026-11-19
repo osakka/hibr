@@ -13,6 +13,11 @@
 # reminder is read from a fresh copy and Mail finishes addresses from one.
 # An app that wants to know a sync has finished registers with pe_onsync;
 # one that only wants to know whether to read again compares PE_GEN.
+#
+# The address book itself is read and written here too, so the Contacts
+# app and the `contacts` command (programs/contacts.hibr) keep one store
+# one way: pe_load reads every card, those still waiting in the queue
+# among them, and pe_write writes one and queues it for its server.
 
 strict
 
@@ -27,6 +32,10 @@ declare -gA PES
 PE_GEN=0
 PE_SRVS=()
 PE_HOOKS=()
+declare -gA PE
+PE_N=0
+PE_ERR=
+PE_WHY=
 
 command -v dt_ticker > /dev/null && dt_ticker pe_tick
 
@@ -141,4 +150,273 @@ pe_tick() {
 	done
 	[ "$next" -gt 0 ] && dt_want $(((next - EPOCHSECONDS) * 1000 + 50))
 	return 0
+}
+
+# --- the address book ---------------------------------------------------------
+
+# The two settings this library keeps, read from the desktop's own settings
+# file (wm/settings.hibr's DT_CONF) for a script that runs with no desktop:
+# the file is data, parsed and never sourced, and only these two names are
+# taken from it.
+fn pe_conf() {
+	local f=${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.json}
+	local -A j
+
+	[ -r "$f" ] || return 0
+	json parse j < "$f" 2> /dev/null || return 1
+	[ -n "${j["settings"]["DT_PIMSERVERS"]+x}" ] && DT_PIMSERVERS=${j["settings"]["DT_PIMSERVERS"]}
+	[ -n "${j["settings"]["DT_PIMEVERY"]+x}" ] && DT_PIMEVERY=${j["settings"]["DT_PIMEVERY"]}
+	return 0
+}
+
+# The address book a new card goes to on a server: the first collection of
+# contacts its last sync found.
+fn pe_book(srv) {
+	local d h r
+
+	d := pe_dir "$srv"
+	[ -f "$d/colls.db" ] && need db 2> /dev/null || return 1
+	h := db open "$d/colls.db" 2> /dev/null || return 1
+	r := db query "$h" where kind eq card
+	db close "$h"
+	[ -n "${r[0]["href"]}" ] || return 1
+	ret "${r[0]["href"]}"
+}
+
+# Every contact of every server chosen, into PE: PE[i][...] the row, with
+# ["srv"] its server; PE_N how many. Sorted by name, as a list is read.
+# A card the queue still holds is read from the file that goes up, so a
+# change shows before the server has it, and one waiting to be removed is
+# left out. The store keeps a note, the phones and the emails cut to their
+# column's width, so a row that may have been cut is read from its card.
+pe_load() {
+	local s d h i n=0 rest srv row k
+	local -a order
+
+	unset PE
+	declare -gA PE
+	PE_N=0
+	pe_servers || return 0
+	need db 2> /dev/null || return 0
+	need pim 2> /dev/null || return 0
+	for s in "${PE_SRVS[@]}"; do
+		d := pe_dir "$s"
+		if [ -f "$d/contacts.db" ] && h := db open "$d/contacts.db" 2> /dev/null; then
+			PE["r"]["$s"] := db query "$h"
+			db close "$h"
+		fi
+		pe_pending "$s" "$d"
+		i=0
+		while [ -n "${PE["r"]["$s"][$i]["href"]+x}" ]; do
+			if [ "${PE["r"]["$s"][$i]["gone"]}" != 1 ]; then
+				k=${PE["r"]["$s"][$i]["fn"],,}
+				k=${k//[$'\t\n']/ }
+				order+=("$k"$'\t'"$s"$'\t'"$i")
+			fi
+			i=$((i + 1))
+		done
+	done
+	[ "${#order[@]}" -gt 0 ] || return 0
+	IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -f)"
+	for i in "${order[@]}"; do
+		rest=${i#*$'\t'}
+		srv=${rest%%$'\t'*}
+		row=${rest#*$'\t'}
+		PE[$n]["srv"]=$srv
+		PE[$n]["row"]=$row
+		n=$((n + 1))
+	done
+	PE_N=$n
+	return 0
+}
+
+# What the queue of one server still holds, laid over its rows: a card
+# waiting to go up replaces its row -- the same address book and the same
+# name in it -- or is a row of its own when it is new; one waiting to be
+# removed marks its row gone. Later lines win, and queue.work is older
+# than queue.
+fn pe_pending(srv, dir) {
+	local q l op coll a b etag key i=0 w
+	local -a ls
+	local -A put del
+
+	for q in "$dir/queue.work" "$dir/queue"; do
+		[ -s "$q" ] || continue
+		mapfile -t ls < "$q"
+		for l in "${ls[@]}"; do
+			IFS=$'\t' read -r op coll a b etag <<< "$l"
+			case $op in
+			put) put["${coll%/}/$a"]="$coll"$'\t'"$b"$'\t'"$etag" ;;
+			del) del["$a"]=1 ;;
+			esac
+		done
+	done
+	while [ -n "${PE["r"]["$srv"][$i]["href"]+x}" ]; do
+		a=${PE["r"]["$srv"][$i]["href"]}
+		key="${PE["r"]["$srv"][$i]["coll"]%/}/${a##*/}"
+		w=${put["$key"]}
+		if [ -n "${del["$a"]}" ]; then
+			PE["r"]["$srv"][$i]["gone"]=1
+		elif [ -n "$w" ]; then
+			IFS=$'\t' read -r coll b etag <<< "$w"
+			pe_cardrow "$srv" "$i" "$b"
+		elif [ "${#PE["r"]["$srv"][$i]["note"]}" -ge 190 ] || [ "${#PE["r"]["$srv"][$i]["tels"]}" -ge 190 ] ||
+			[ "${#PE["r"]["$srv"][$i]["emails"]}" -ge 290 ]; then
+			pe_cardrow "$srv" "$i" "${PE["r"]["$srv"][$i]["file"]}"
+		fi
+		unset put["$key"]
+		i=$((i + 1))
+	done
+	for key in "${!put[@]}"; do
+		IFS=$'\t' read -r coll b etag <<< "${put["$key"]}"
+		[ -f "$b" ] || continue
+		PE["r"]["$srv"][$i]["href"]=$key
+		PE["r"]["$srv"][$i]["coll"]=$coll
+		PE["r"]["$srv"][$i]["etag"]=$etag
+		pe_cardrow "$srv" "$i" "$b" && i=$((i + 1))
+	done
+	return 0
+}
+
+# A row's fields read from the card file itself, the way the sync reads
+# one into the store, but nothing cut.
+fn pe_cardrow(srv, int i, file) {
+	local c em= tl= j=0
+
+	[ -f "$file" ] || return 1
+	c := pim vcf cards "$file" 2> /dev/null || return 1
+	while [ -n "${c[0]["email"][$j]["v"]+x}" ]; do
+		em+="${em:+$'\t'}${c[0]["email"][$j]["v"]}"
+		j=$((j + 1))
+	done
+	j=0
+	while [ -n "${c[0]["tel"][$j]["v"]+x}" ]; do
+		tl+="${tl:+$'\t'}${c[0]["tel"][$j]["v"]}"
+		j=$((j + 1))
+	done
+	PE["r"]["$srv"][$i]["uid"]=${c[0]["uid"]}
+	PE["r"]["$srv"][$i]["fn"]=${c[0]["fn"]}
+	PE["r"]["$srv"][$i]["given"]=${c[0]["given"]}
+	PE["r"]["$srv"][$i]["family"]=${c[0]["family"]}
+	PE["r"]["$srv"][$i]["org"]=${c[0]["org"]}
+	PE["r"]["$srv"][$i]["emails"]=$em
+	PE["r"]["$srv"][$i]["tels"]=$tl
+	PE["r"]["$srv"][$i]["nick"]=${c[0]["nick"]}
+	PE["r"]["$srv"][$i]["note"]=${c[0]["note"]}
+	PE["r"]["$srv"][$i]["photo"]=${c[0]["photo"]:-0}
+	PE["r"]["$srv"][$i]["file"]=$file
+	return 0
+}
+
+# A field of the contact at a list position.
+fn pe_f(int i, f) {
+	ret "${PE["r"]["${PE[$i]["srv"]}"][${PE[$i]["row"]}]["$f"]}"
+}
+
+# Write a card and queue it for its server, conditional on the copy it was
+# read from (its ETag; "-" or empty for a new card); nothing here syncs or
+# says anything, so a window and a script call it alike. NAME and ARGS are
+# what `pim vcf build` is given beyond the uid, which a new card is made.
+# OLD is the card file being replaced, if any: every line of it the build
+# does not write again is carried over as it was -- an address, a picture,
+# a birthday, the types and groups of its emails -- except the properties
+# OWN names, which this write replaces whole, and its N, which goes when
+# the name changes. Answers the uid; a refusal leaves PE_ERR (nobook,
+# disk, build) and PE_WHY, a sentence.
+fn pe_write(srv, href, coll, uid, etag, old, own, name, ...args) {
+	local d f u base q keepn=0 b
+	local -a a
+
+	PE_ERR=
+	PE_WHY=
+	if [ -z "$coll" ]; then
+		if ! coll := pe_book "$srv"; then
+			PE_ERR=nobook
+			PE_WHY="$srv has no address book yet"
+			return 1
+		fi
+	fi
+	d := pe_dir "$srv"
+	if ! mkdir -p "$d/out" 2> /dev/null; then
+		PE_ERR=disk
+		PE_WHY="cannot write in $d"
+		return 1
+	fi
+	u=${uid:-hibr-$EPOCHSECONDS-$RANDOM-$$}
+	base=${href##*/}
+	[ -n "$base" ] || base="$u.vcf"
+	f="$d/out/$base"
+	a=(-u "$u" -f "$name")
+	if [ -n "$old" ] && [ -r "$old" ]; then
+		b := pim vcf cards "$old" 2> /dev/null
+		[ "${b[0]["version"]}" = 4.0 ] && a=(-V 4.0 "${a[@]}")
+		[ "${b[0]["fn"]}" = "$name" ] && keepn=1
+	fi
+	if ! pim vcf build "$f.new" "${a[@]}" "${args[@]}" 2> "$d/out/build.err"; then
+		read -r q < "$d/out/build.err"
+		command rm -f "$f.new"
+		PE_ERR=build
+		PE_WHY=${q#hibr: }
+		return 1
+	fi
+	[ -n "$old" ] && [ -r "$old" ] && pe_carry "$f.new" "$old" "$own" "$keepn"
+	mv -f "$f.new" "$f"
+	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$base" "$f" "${etag:--}" >> "$d/queue"
+	ret "$u"
+}
+
+# Carry into a card just built every content line of the one it replaces
+# that the build did not write: placed after the name, before the rest of
+# what was built, folded lines kept whole. OWN is the properties not
+# carried; the old N is carried, and the built one dropped, when KEEPN says
+# the name is the same.
+fn pe_carry(new, old, own = "", int keepn = 0) {
+	local l p keep=0 hasn=0 to=head
+	local -a nl ol head mid tail
+
+	mapfile -t nl < "$new"
+	mapfile -t ol < "$old"
+	if [ "$keepn" = 1 ]; then
+		for l in "${ol[@]}"; do
+			p=${l%%[:;]*}
+			p=${p##*.}
+			[ "${p^^}" = N ] && { hasn=1; break; }
+		done
+	fi
+	for l in "${nl[@]}"; do
+		l=${l%$'\r'}
+		case $l in
+		" "* | $'\t'*) ;;
+		*)
+			p=${l%%[:;]*}
+			case ${p^^} in
+			BEGIN | VERSION | PRODID | UID | FN) to=head ;;
+			N) to=head; [ "$hasn" = 1 ] && to=none ;;
+			END) to=none ;;
+			*) to=tail ;;
+			esac
+			;;
+		esac
+		case $to in
+		head) head+=("$l") ;;
+		tail) tail+=("$l") ;;
+		esac
+	done
+	for l in "${ol[@]}"; do
+		l=${l%$'\r'}
+		case $l in
+		"") continue ;;
+		" "* | $'\t'*) [ "$keep" = 1 ] && mid+=("$l"); continue ;;
+		esac
+		p=${l%%[:;]*}
+		p=${p##*.}
+		p=${p^^}
+		case " BEGIN END VERSION PRODID UID FN REV $own " in
+		*" $p "*) keep=0 ;;
+		*) keep=1 ;;
+		esac
+		[ "$p" = N ] && keep=$hasn
+		[ "$keep" = 1 ] && mid+=("$l")
+	done
+	printf '%s\r\n' "${head[@]}" "${mid[@]}" "${tail[@]}" END:VCARD > "$new"
 }

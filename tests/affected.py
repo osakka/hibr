@@ -68,6 +68,7 @@ SUITE_MODS = {
     "sound": ["media"],
     "pim": ["pim", "dav"],
     "contacts": ["pim", "dav", "email", "db"],
+    "contactscmd": ["pim", "dav", "db"],
     "calapp": ["pim", "dav", "email", "db"],
     "pim_rrule": ["pim"],
     "uni_bidi": ["uni"],
@@ -208,8 +209,22 @@ def veronly(path, base):
                                for l in lines)
 
 
+# The desktop's libraries a command outside it sources too: the coverage
+# map sees only the desktop's suites calling them.
+LIBCMD = {"programs/desktop/lib/pim.hibr": "contactscmd",
+          "programs/desktop/lib/pimsync.hibr": "contactscmd"}
+
+
 def suites_for(path, req, prov, where, desk=None, since=None):
     """The suites one changed path reaches, and a word on why."""
+    hit, because = path_suites(path, req, prov, where, desk, since)
+    if path in LIBCMD:
+        return hit | {LIBCMD[path]}, because + "; and the command that sources it"
+    return hit, because
+
+
+def path_suites(path, req, prov, where, desk=None, since=None):
+    """suites_for, before LIBCMD."""
     if veronly(path, since):
         return set(), "the release's version line"
     if path.startswith(EVERYTHING) or path == "include":
@@ -251,6 +266,8 @@ def suites_for(path, req, prov, where, desk=None, since=None):
             return set(), "a tool, not a suite"
     if path == "programs/vw.hibr":
         return {"vw", "vault", "run.sh"}, "the vw command"
+    if path == "programs/contacts.hibr":
+        return {"contactscmd", "run.sh"}, "the contacts command"
     if path == "programs/catalogue.hibr":
         return {"appmgr", "run.sh"}, "the application manager"
     if path.startswith(("docs/", "examples/", "programs/")):

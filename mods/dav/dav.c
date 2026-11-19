@@ -747,9 +747,19 @@ int dv_put1(sh *s, const char *src, const char *url, const dv_srv *sv,
 	if ((ifmatch && *ifmatch) || ifnone) {
 		vec cur = { 0, 0, 0 };
 		dv_res r0;
-		int there, same;
+		int there, same, lr;
 
-		there = dv_listurl(s, url, sv, 0, &cur, &r0) == HIBR_OK && cur.n;
+		lr = dv_listurl(s, url, sv, 0, &cur, &r0);
+		if (lr != HIBR_OK && !r0.code) {
+			lg(HIBR_LDBG, "dav: %s could not be asked about before upload",
+			   url);
+			dv_resfree(&r0);
+			dv_entfree(&cur);
+			dv_reqfree(&rq);
+			close(fd);
+			return HIBR_FAIL;
+		}
+		there = lr == HIBR_OK && cur.n;
 		same = there && ifmatch &&
 		       !strcmp(((dv_ent *)cur.p[0])->etag, ifmatch);
 		dv_resfree(&r0);

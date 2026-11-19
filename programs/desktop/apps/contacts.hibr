@@ -16,7 +16,7 @@
 
 strict
 
-app contacts "The people in your address books, kept offline from CardDAV" 1.8
+app contacts "The people in your address books, kept offline from CardDAV" 1.8.1
 # part: control-panel/pimset.hibr
 # modules: dav db pim
 
@@ -26,53 +26,9 @@ command -v dt_app > /dev/null && dt_app pedit "Contact" 16 64 many "" "" hidden
 [ -n "${PE_LIBDONE-}" ] || . "$DT_HERE/lib/pim.hibr"
 
 declare -gA PCW
-declare -gA PE
 declare -gA PED
-PE_N=0
 PE_HITS=()
 pe_onsync pe_reload
-
-# Every contact of every server chosen, into PE: PE[i][...] the row, with
-# ["srv"] its server; PE_N how many. Sorted by name, as a list is read.
-pe_load() {
-	local s d h i n=0 rest srv row
-	local -a order
-
-	unset PE
-	declare -gA PE
-	PE_N=0
-	pe_servers || return 0
-	need db 2> /dev/null || return 0
-	for s in "${PE_SRVS[@]}"; do
-		d := pe_dir "$s"
-		[ -f "$d/contacts.db" ] || continue
-		h := db open "$d/contacts.db" 2> /dev/null || continue
-		PE["r"]["$s"] := db query "$h"
-		db close "$h"
-		i=0
-		while [ -n "${PE["r"]["$s"][$i]["href"]+x}" ]; do
-			order+=("${PE["r"]["$s"][$i]["fn"],,}"$'\t'"$s"$'\t'"$i")
-			i=$((i + 1))
-		done
-	done
-	[ "${#order[@]}" -gt 0 ] || return 0
-	IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -f)"
-	for i in "${order[@]}"; do
-		rest=${i#*$'\t'}
-		srv=${rest%%$'\t'*}
-		row=${rest#*$'\t'}
-		PE[$n]["srv"]=$srv
-		PE[$n]["row"]=$row
-		n=$((n + 1))
-	done
-	PE_N=$n
-	return 0
-}
-
-# A field of the contact at a list position.
-fn pe_f(int i, f) {
-	ret "${PE["r"]["${PE[$i]["srv"]}"][${PE[$i]["row"]}]["$f"]}"
-}
 
 # Whether a contact matches a search: every word, in name, emails, phones
 # and organisation.
@@ -188,32 +144,16 @@ fn pe_reload(srv) {
 
 # --- changing a contact -----------------------------------------------------
 
-# Write a contact and queue it for its server: a new one (no href) gets a
-# uid and a name of its own; an old one keeps both, and goes up only if the
-# server's copy is still the one it was read from.
-fn pe_put(href, srv, coll, uid, etag, name, emails, tels, org, note) {
-	local d f q i u base
+# Write a contact and queue it for its server (lib/pim.hibr's pe_write,
+# which the contacts command calls too): a new one (no href) gets a uid
+# and a name of its own; an old one keeps both, and goes up only if the
+# server's copy is still the one it was read from. Emails and phones come
+# from the editor separated by commas; what the editor does not show of
+# the card it was read from (FILE) is kept.
+fn pe_put(href, srv, coll, uid, etag, name, emails, tels, org, note, file = "") {
+	local i u
 	local -a args ems ts
 
-	d := pe_dir "$srv"
-	mkdir -p "$d/out"
-	if [ -z "$coll" ] && need db 2> /dev/null && [ -f "$d/colls.db" ]; then
-		local h r
-		h := db open "$d/colls.db" 2> /dev/null && {
-			r := db query "$h" where kind eq card
-			db close "$h"
-			coll=${r[0]["href"]}
-		}
-	fi
-	if [ -z "$coll" ]; then
-		dt_notep high "%s has no address book yet -- sync it first" "$srv"
-		return 1
-	fi
-	u=${uid:-hibr-$EPOCHSECONDS-$RANDOM-$$}
-	base=${href##*/}
-	[ -n "$base" ] || base="$u.vcf"
-	f="$d/out/$base"
-	args=(-u "$u" -f "$name")
 	IFS=',' read -ra ems <<< "$emails"
 	for i in "${ems[@]}"; do
 		i=${i# }
@@ -228,12 +168,13 @@ fn pe_put(href, srv, coll, uid, etag, name, emails, tels, org, note) {
 	done
 	[ -n "$org" ] && args+=(-o "$org")
 	[ -n "$note" ] && args+=(-N "$note")
-	pim vcf build "$f" "${args[@]}" 2> "$d/out/build.err" || {
-		read -r q < "$d/out/build.err"
-		dt_notep high "Could not make the contact: %s" "${q#hibr: }"
+	u := pe_write "$srv" "$href" "$coll" "$uid" "$etag" "$file" "EMAIL TEL ORG NOTE" "$name" "${args[@]}" || {
+		case $PE_ERR in
+		nobook) dt_notep high "%s has no address book yet -- sync it first" "$srv" ;;
+		*) dt_notep high "Could not make the contact: %s" "$PE_WHY" ;;
+		esac
 		return 1
 	}
-	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$base" "$f" "${etag:--}" >> "$d/queue"
 	pe_sync "$srv"
 	return 0
 }
@@ -632,7 +573,7 @@ fn pedit_show(i = "") {
 	if [ -n "$i" ]; then
 		id := dt_new "Edit Contact" "$h" "$w" "$r" "$c" pedit
 		PED[$id]["srv"]=${PE[$i]["srv"]}
-		for k in href coll uid etag org note; do
+		for k in href coll uid etag org note file; do
 			PED[$id]["$k"] := pe_f "$i" "$k"
 		done
 		PED[$id]["name"] := pe_f "$i" fn
@@ -643,7 +584,7 @@ fn pedit_show(i = "") {
 	else
 		id := dt_new "New Contact" "$h" "$w" "$r" "$c" pedit
 		PED[$id]["srv"]=${PE_SRVS[0]}
-		for k in href coll uid etag name emails tels org note; do PED[$id]["$k"]=; done
+		for k in href coll uid etag name emails tels org note file; do PED[$id]["$k"]=; done
 	fi
 	for k in "${PE_FIELDS[@]}"; do PED[$id]["${k}cur"]=${#PED[$id]["$k"]}; done
 	PED[$id]["focus"]=name
@@ -657,7 +598,7 @@ fn pedit_open(int id, arg = "") {
 
 	pe_servers
 	PED[$id]["srv"]=${PE_SRVS[0]}
-	for k in href coll uid etag name emails tels org note; do PED[$id]["$k"]=; done
+	for k in href coll uid etag name emails tels org note file; do PED[$id]["$k"]=; done
 	for k in "${PE_FIELDS[@]}"; do PED[$id]["${k}cur"]=0; done
 	PED[$id]["focus"]=name
 	return 0
@@ -738,7 +679,8 @@ fn pedit_do(int id, what) {
 		fi
 		pe_put "${PED[$id]["href"]}" "${PED[$id]["srv"]}" "${PED[$id]["coll"]}" "${PED[$id]["uid"]}" \
 			"${PED[$id]["etag"]}" "${PED[$id]["name"]:-${PED[$id]["emails"]%%,*}}" \
-			"${PED[$id]["emails"]}" "${PED[$id]["tels"]}" "${PED[$id]["org"]}" "${PED[$id]["note"]}" &&
+			"${PED[$id]["emails"]}" "${PED[$id]["tels"]}" "${PED[$id]["org"]}" "${PED[$id]["note"]}" \
+			"${PED[$id]["file"]}" &&
 			dt_notep low "Saved; the server has it at the next sync"
 		dt_del "$id"
 		;;

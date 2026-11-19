@@ -412,6 +412,12 @@ endif
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/vw-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/vw
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/vw
+# contacts reads the desktop's lib/pim.hibr from desktop/lib beside it, the
+# same place in the tree and installed.
+	install -m 644 programs/contacts.hibr $(DESTDIR)$(SHAREDIR)/contacts.hibr
+	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/contacts-launcher.in \
+		> $(DESTDIR)$(PREFIX)/bin/contacts
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/contacts
 	install -m 644 packaging/hibr-apps.gpg $(DESTDIR)$(SHAREDIR)/keyring.gpg
 # `apps` was this command's name until 0.99.195. dpkg takes a file the new
 # package no longer ships, but `make install` does not -- so without this a
@@ -465,6 +471,7 @@ endif
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/hibr $(DESTDIR)$(PREFIX)/bin/desktop \
 		$(DESTDIR)$(PREFIX)/bin/vw $(DESTDIR)$(SHAREDIR)/vw.hibr \
+		$(DESTDIR)$(PREFIX)/bin/contacts $(DESTDIR)$(SHAREDIR)/contacts.hibr \
 		$(DESTDIR)$(PREFIX)/bin/catalogue \
 		$(DESTDIR)$(SHAREDIR)/catalogue.hibr \
 		$(DESTDIR)$(PREFIX)/bin/apps $(DESTDIR)$(SHAREDIR)/apps.hibr \

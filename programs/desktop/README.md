@@ -1170,6 +1170,15 @@ list at once and goes to the server at the next sync -- only if the
 server's copy is still the one it was read from; if someone changed it
 meanwhile, theirs wins and the next sync brings it.
 
+A script reaches the same address book with no window through the
+`contacts` command ([docs/contacts.md](../../docs/contacts.md)): `contacts
+find` and `contacts put` read and write these copies with the app's own
+functions, `contacts sync` runs the same sync, and a card put that way is in
+the list like any other. An edit
+in Contacts keeps what the editor does not show of a card -- its address,
+picture, birthday and the rest -- and replaces only the name, emails,
+phones, organisation and note.
+
 Mail uses the same copies: typing in To, Cc or Bcc offers the people who
 match -- from Contacts and from everyone Mail has had a message from --
 and tab or enter takes one; Message > Add Sender to Contacts adds whoever

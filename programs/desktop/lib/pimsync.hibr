@@ -18,7 +18,8 @@
 # each in DIR/contacts.db; calendar objects are files under DIR/cal/, a
 # row each in DIR/obj.db, and their occurrences from a year back to two
 # years on are rows of DIR/inst.db, which the Calendar reads by date;
-# collections are rows in DIR/colls.db. Only this
+# collections are rows in DIR/colls.db, and DIR/synced holds the time the
+# last sync finished. Only this
 # job writes either -- the apps open, query and close -- and a lock folder
 # keeps two from running at once. It says what it is doing a line at a
 # time, ending with "done N" or "error WHY".
@@ -524,6 +525,7 @@ fn ps_main(srv = "", dir = "", ...rest) {
 	db flush "$PS_CB" > /dev/null
 	db flush "$PS_OB" > /dev/null
 	db flush "$PS_IB" > /dev/null
+	printf '%s\n' "$EPOCHSECONDS" > "$PS_DIR/synced"
 	ps_say "done $PS_NEW"
 	ps_done
 	return 0

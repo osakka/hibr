@@ -106,6 +106,7 @@ fi
 /usr/bin/desktop
 /usr/bin/catalogue
 /usr/bin/vw
+/usr/bin/contacts
 /usr/bin/please
 /usr/lib/hibr
 /usr/share/hibr

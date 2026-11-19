@@ -182,10 +182,10 @@ Keeps the published Homebrew tap's formula on the newest tag the public
 mirror can serve: it fetches that tag's tarball, takes its checksum and pushes
 the formula when it is behind. Run on a timer, not by hand.
 
-## desktop-launcher.in, vw-launcher.in, catalogue-launcher.in
+## desktop-launcher.in, vw-launcher.in, catalogue-launcher.in, contacts-launcher.in
 
-The templates for the three commands `make install` places in
-`$(PREFIX)/bin`: `desktop`, `vw` and `catalogue`. Each is a short hibr
+The templates for the four commands `make install` places in
+`$(PREFIX)/bin`: `desktop`, `vw`, `catalogue` and `contacts`. Each is a short hibr
 script that runs the installed copy, with the place it went (`@DESKDIR@`
 or `@SHAREDIR@`) filled in by `sed` at install time. The catalogue's also
 points `HIBR_APPS_KEYRING` at the installed signing key unless it is set
