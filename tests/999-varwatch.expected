@@ -100,11 +100,11 @@ S\t$
   moved  [H] (names)
 == temporary prefix a=x on a builtin
   before declare -- S="keep"
-  after  declare -x S="keep"
+  after  declare -- S="keep"
   moved  [S:]
 == temporary prefix a=x on a function
   before declare -- S="keep"
-  after  declare -x S="keep"
+  after  declare -- S="keep"
   moved  [S:]
 == still watched after a prefix
   before declare -- S="keep"

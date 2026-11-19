@@ -3350,7 +3350,7 @@ long ax_get(struct ax *a, const char *nm)
 	if (strchr(nm, '[')) {
 		ks = vb_get(a->s);
 		ax_path(a, nm, &base, ks);
-		t = hibr_getp(a->s, base, (char **)ks->p, (int)ks->n);
+		t = xgetk(a->s, base, (char **)ks->p, (int)ks->n);
 		vb_put(a->s, ks);
 		lg(HIBR_LTRC, "arithmetic read %s as '%s'", nm, t ? t : "");
 		return ax_val(a, t);

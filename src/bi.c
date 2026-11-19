@@ -1479,7 +1479,8 @@ int t_int(const char *a, long *v)
 }
 
 /* Whether a variable or an element is set, for test -v and [[ -v ]]: a
-   subscript is read as bi_keys reads one, quoted keys literal by mk. */
+   subscript is read as bi_keys reads one, quoted keys literal by mk, and a
+   scalar is its own element 0 as it is to an expansion. */
 int t_isset(sh *s, const char *w, const char *mk)
 {
 	vec *ks = vb_get(s);
@@ -1487,7 +1488,7 @@ int t_isset(sh *s, const char *w, const char *mk)
 	int set;
 
 	br = bi_keys(s, nm, mk, ks);
-	set = br ? v_getp(s, nm, (char **)ks->p, (int)ks->n) != 0 :
+	set = br ? xgetk(s, nm, (char **)ks->p, (int)ks->n) != 0 :
 		   v_find(s, nm) != 0;
 	vb_put(s, ks);
 	return set;

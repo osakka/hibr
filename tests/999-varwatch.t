@@ -206,16 +206,11 @@ begin "temporary prefix a=x on a builtin" S
 S=tmp true
 end
 
-declare +x S
 nothing() { :; }
 begin "temporary prefix a=x on a function" S
 S=tmp nothing
 end
 
-# hibr leaves a variable exported after a temporary prefix on a builtin or
-# a function, where bash does not; that is not this test's business, so the
-# attribute is taken off again before it reaches every later line.
-declare +x S
 begin "still watched after a prefix" S
 S=after
 end

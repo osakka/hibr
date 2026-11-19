@@ -260,6 +260,7 @@ char *xone(sh *s, word *w);
 char *xkey(sh *s, const char *nm, char *t);
 int xassoc(sh *s, const char *nm);
 const char *xbyname(sh *s, const char *r);
+const char *xgetk(sh *s, const char *nm, char **ks, int nk);
 char *xkey_q(sh *s, const char *nm, char *t, const char *mk);
 char *xquote(sh *s, const char *v, int bs);
 int xqsafe(int c, int first);
@@ -384,6 +385,7 @@ const char *fn_src(sh *s, node *f);
 var *v_take(sh *s, const char *k);
 void v_back(sh *s, var *v);
 void asg_pop(sh *s, vec *old);
+void asg_back(sh *s, struct sav *sv);
 long long bi_ms(void);
 long bi_rddgram(int fd, int delim, int want, int exact, str *b, long long dl,
 		int *tout);

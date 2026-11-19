@@ -1208,12 +1208,18 @@ void asv_put(struct sav *sv)
 	v_add(&asv_free, sv);
 }
 
-/* Remember a variable's current binding so it can be restored. */
+/* Remember a variable's current binding so it can be restored: through a
+   nameref, the binding of the variable the assignment will reach. */
 void asg_keep(sh *s, vec *old, const char *k)
 {
 	var *v = v_find(s, k);
-	struct sav *sv = asv_new(k);
+	struct sav *sv;
 
+	if (v && (v->at & A_REF)) {
+		v = v_findr(s, &k);
+		lg(HIBR_LDBG, "the prefix reaches %s through a reference: that is kept", k);
+	}
+	sv = asv_new(k);
 	sv->v = 0;
 	sv->ex = v ? v->ex : 0;
 	if (v && (v->am || v->map) && !v->ro) {
@@ -1422,6 +1428,27 @@ void asg_push(sh *s, vec *asg, vec *old)
 	}
 }
 
+/* Put back a scalar a temporary assignment replaced, and take back the
+   export it gave one that had none, as bash does -- under set -a too. The
+   export goes first, so the restore does not put it in the environment
+   only for it to come out again. */
+void asg_back(sh *s, struct sav *sv)
+{
+	var *v = sv->ex ? 0 : v_find(s, sv->k);
+
+	if (v && (!v->ex || v->ro || (v->at & A_REF)))
+		v = 0;
+	if (v) {
+		lg(HIBR_LDBG, "%s was exported by its prefix alone: no longer", sv->k);
+		v->ex = 0;
+		unsetenv(sv->k);
+	}
+	if (hibr_set(s, sv->k, sv->v, sv->ex) == HIBR_OK && v && v->ex) {
+		v->ex = 0;
+		unsetenv(sv->k);
+	}
+}
+
 /* Restore variables saved by a temporary assignment. */
 void asg_pop(sh *s, vec *old)
 {
@@ -1433,7 +1460,7 @@ void asg_pop(sh *s, vec *old)
 		if (sv->w) {
 			v_back(s, sv->w);
 		} else if (sv->v) {
-			hibr_set(s, sv->k, sv->v, sv->ex);
+			asg_back(s, sv);
 		} else {
 			v_del(s, sv->k);
 		}
