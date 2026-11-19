@@ -270,13 +270,13 @@ int hdfd(const char *t, size_t n)
 	return fd;
 }
 
-/* Record a descriptor so a redirection can be undone. */
+/* Record a descriptor so a redirection can be undone: the copy goes at 10 or above and is closed on exec, as bash keeps its, since it exists only for this shell to put back -- a plain dup took the lowest number free and was inherited, so every program run inside a function or group with a redirection, and every `exec prog <file`, held the shell's copy of what the redirection had replaced (an app process started from the desktop held its terminal). */
 void rd_save(vec *sv, int fd)
 {
 	int *e = xm(2 * sizeof *e);
 
 	e[0] = fd;
-	e[1] = dup(fd);
+	e[1] = fcntl(fd, F_DUPFD_CLOEXEC, 10);
 	v_add(sv, e);
 }
 

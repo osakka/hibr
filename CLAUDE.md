@@ -2527,6 +2527,20 @@ went in the shell.
 - **`exec` with only redirections makes them permanent.** `exec 2>
   /dev/null {fd}<>...` to quiet a failing connect silenced the rest of the
   script; save stderr first (`exec {e}>&2 2> /dev/null`), then restore it.
+  Walked into again in 2026-11 by the app runtime's own connect, which
+  threw away every app process's standard error -- found only because a
+  test looked for a line the app had logged and the log had nothing.
+- **A redirection's saved copy belongs to the shell, never to a child**
+  (2026-11-19). `rd_save` took a plain `dup`, inheritable at the lowest
+  free number, so every program run inside a function or a `{ }` with a
+  redirection -- and every `exec prog <file` -- held the shell's copy of
+  what the redirection replaced: `f < /dev/null` running `ls` showed the
+  script's own standard input at fd 4, and an app process started from the
+  desktop held its terminal. bash keeps the copy at 10 or above, closed on
+  exec, and so does hibr now (`tests/999-redir-saved.t`, against bash). A
+  plain external command never showed it, since its redirection is made in
+  the child -- which is why it survived so long: the shape that leaks is the
+  one a desktop uses everywhere.
 
 - **A string that carries a value cannot be a catalogue key, and the count
   of them is the check.** `dt_retitle "$id" "Mail [$acct]"` makes a key
