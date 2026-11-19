@@ -57,7 +57,11 @@
  *                              a program's drag out (news `clip dragout
  *                              o<n> W ACTIONS TYPES`, `clip odata o<n>
  *                              TEXT`, `clip dragclear o<n>`), carried by
- *                              the desktop and ended copy|move|none
+ *                              the desktop and ended copy|move|none; its
+ *                              own picture, when the program gave one
+ *                              (Blit 0.3.123), is news `dragicon N o<n> DX
+ *                              DY` and frames as any picture's, gone with
+ *                              `gone N`
  *   frames clip N offer|clear|get clipboard|primary [-s] [TEXT]
  *                              the desktop's side of the clipboard with the
  *                              compositor's programs; news `clip SEL
@@ -694,6 +698,16 @@ int fl_window(fl_srv *f, const char *m, size_t k)
 		fl_ev(f, v.p, t->n, o.p);
 	} else if (!strcmp(v.p, "sub")) {
 		fl_wsub(f, id, r.p, &o);
+	} else if (!strcmp(v.p, "dragicon")) {
+		/* A program's drag icon (Blit 0.3.123): a picture of its own,
+		   never a window -- no input, focus or decorations -- whose
+		   frames come as any picture's, said again when its offset
+		   from the pointer moves, gone with `WINDOW gone`. The desktop
+		   is told its number, the drag's token and the offset. */
+		t = fl_win(f, id);
+		if (!t)
+			t = fl_newwin(f, id);
+		fl_ev(f, "dragicon", t->n, r.p);
 	} else if ((t = fl_win(f, id)) == 0) {
 		lg(HIBR_LDBG, "frames %u: WINDOW %s for %lu, which is not here",
 		   f->n, v.p, id);

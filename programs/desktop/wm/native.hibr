@@ -504,7 +504,12 @@ fn dt_natevent(verb, n, rest = "") {
 	new) dt_natnew "$n" "$verb" "$rest"; return 0 ;;
 	popup) dt_natpopup "$n" "$rest"; return 0 ;;
 	sub) dt_natsub "$n" "$rest"; return 0 ;;
+	dragicon) dt_naticon "$n" "$rest"; return 0 ;;
 	esac
+	if [ "$n" = "${DT_NATICON%% *}" ]; then
+		[ "$verb" = gone ] && dt_naticonoff
+		return 0
+	fi
 	if [ -n "${NWS["$n"]-}" ]; then
 		[ "$verb" = gone ] && dt_natsubgone "$n"
 		return 0
@@ -1567,6 +1572,10 @@ fn dt_natdragat(int r, int c) {
 # answered none at once: started anyway, it would wait for a release that
 # has already happened.
 declare -g DT_NATOUT="" DT_NATOUTWIN="" DT_NATOUTACT="" DT_NATOUTWAIT=""
+# A program's own picture for its drag out (Blit 0.3.123): its number here
+# and its top-left from the pointer's hot spot in pixels, "N DX DY", while
+# the drag it was said for is up.
+declare -g DT_NATICON=""
 fn dt_natdragout(tok, int n, acts, ...types) {
 	local id=${NWN["$n"]-} pr pc ty want=
 
@@ -1592,6 +1601,68 @@ fn dt_natdragout(tok, int n, acts, ...types) {
 	[ -n "$want" ] && frames clip "$DT_NATSRV" oread "$want" 2> /dev/null
 	dt_want 30
 	return 0
+}
+
+# The program's own picture for its drag out, said with the drag's token
+# and its offset from the pointer, again when the offset moves: kept for the
+# drag it belongs to, and drawn once its first frame has come.
+fn dt_naticon(int n, rest = "") {
+	local tok dx dy
+
+	read -r tok dx dy <<< "$rest"
+	[ "$tok" = "$DT_NATOUT" ] || return 0
+	DT_NATICON="$n ${dx:-0} ${dy:-0}"
+	dt_want 30
+	return 0
+}
+
+# The drag's picture gone: its pane with it.
+dt_naticonoff() {
+	[ -n "$DT_NATICON" ] || return 0
+	DT_NATICON=
+	console pane drop dragicon 2> /dev/null
+	dt_want 30
+	return 0
+}
+
+# Draw the drag's own picture at the pointer cell r, c plus its offset, in a
+# pane of its own above everything; the columns it takes are answered, so
+# the badge goes beside it. Status 1 until its first frame has come, when
+# the desktop's glyph stands in. A picture larger than 256 pixels, which
+# only a tiled buffer is, is placed at 256 with its shape kept: the
+# compositor scales a placement without a copy.
+fn dt_naticondraw(int r, int c) {
+	local n dx dy i kv fw=0 fh=0 f=0 pw ph m
+	local -a a
+
+	read -r n dx dy <<< "$DT_NATICON"
+	[ -n "$n" ] && dt_natcell || return 1
+	i := frames info "$n" 2> /dev/null
+	read -ra a <<< "$i"
+	for kv in "${a[@]}"; do
+		case $kv in
+		"width="*) fw=${kv#*=} ;;
+		"height="*) fh=${kv#*=} ;;
+		"frames="*) f=${kv#*=} ;;
+		esac
+	done
+	[ "$f" -gt 0 ] && [ "$fw" -gt 0 ] && [ "$fh" -gt 0 ] || return 1
+	m=$fw
+	[ "$fh" -gt "$m" ] && m=$fh
+	if [ "$m" -gt 256 ]; then
+		fw=$((fw * 256 / m))
+		fh=$((fh * 256 / m))
+	fi
+	pw=$(((fw + DT_NATCW - 1) / DT_NATCW))
+	ph=$(((fh + DT_NATCH - 1) / DT_NATCH))
+	r=$((r + dy / DT_NATCH))
+	c=$((c + dx / DT_NATCW))
+	[ "$r" -ge 0 ] || r=0
+	[ "$c" -ge 0 ] || c=0
+	console pane dragicon "$r" "$c" "$ph" "$pw" 2> /dev/null || return 1
+	console pane raise dragicon 2> /dev/null
+	frames place "$n" dragicon 0 0 "$ph" "$pw" 2> /dev/null || return 1
+	ret "$((c + pw))"
 }
 
 # What the program offers, arrived: a uri-list's file addresses become the
@@ -1626,6 +1697,7 @@ fn dt_natoutend(how) {
 		case $DT_NATOUTACT in *copy*) how=copy ;; *) how=move ;; esac
 	fi
 	frames clip "$DT_NATSRV" oend "$how" 2> /dev/null
+	dt_naticonoff
 	DT_NATOUT=
 	DT_NATOUTWIN=
 	DT_NATOUTACT=
@@ -1671,6 +1743,7 @@ fn dt_natclip(rest = "") {
 		;;
 	dragclear)
 		[ "$kind" = "$DT_NATOUT" ] || return 0
+		dt_naticonoff
 		DT_NATOUT=
 		DT_NATOUTWIN=
 		DT_NATDRAG=

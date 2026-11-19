@@ -29,7 +29,7 @@ dt_dnd() {
 }
 
 dt_dnddraw() {
-	local b=""
+	local b="" e
 
 	# Over a program's window, the compositor is told, and what the
 	# program answered is a mark on the drag: it would take them, or not.
@@ -41,6 +41,12 @@ dt_dnddraw() {
 		esac
 	fi
 	console pen "$DT_FACE" "$DT_ACTIVE" bold
+	# A program dragging out with a picture of its own (Blit 0.3.123): that
+	# picture in place of the glyph, the label and the badge beside it.
+	if [ -n "${DT_NATICON-}" ] && dt_has dt_naticondraw && e := dt_naticondraw "$DT_DNDR" $((DT_DNDC + 1)); then
+		console put "$DT_DNDR" "$e" " $DT_DNDN$b "
+		return 0
+	fi
 	console put "$DT_DNDR" $((DT_DNDC + 1)) " $DT_DNDG $DT_DNDN$b "
 }
 

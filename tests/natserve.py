@@ -276,6 +276,9 @@ def clipline(w, fds):
         note(kind="oread", seq=w[2], type=w[3] if len(w) > 3 else "")
     elif w[1] == "dragend":
         note(kind="dragend", seq=w[2], how=w[3] if len(w) > 3 else "")
+        if 15 in size:
+            del size[15]
+            say("WINDOW gone 15")
     elif w[1] == "read" and fds:
         t = CLIPS.get(w[2])
         if t is not None:
@@ -425,6 +428,12 @@ while True:
         tok = "o%d" % ON
         ODATA[(tok, "text/uri-list")] = "file://" + arg.replace(" ", "%20") + "\r\n"
         say("CLIP dragout %s 7 copy,move text/uri-list text/plain;charset=utf-8" % tok)
+        if os.path.exists(LOG + ".dragicon"):
+            # The program's own picture for the drag (Blit 0.3.123): a
+            # 32x32 picture, 15, four pixels up and left of the pointer,
+            # its frames sent as any picture's while the drag is up.
+            size[15] = (32, 32)
+            say("WINDOW dragicon 15 %s -4 -4" % tok)
     if os.path.exists(LOG + ".dragclear"):
         os.unlink(LOG + ".dragclear")
         say("CLIP clear o%d" % ON)

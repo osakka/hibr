@@ -89,6 +89,9 @@ open(p, "w").write(
     "move) DT_DNDC=$((DT[$id][\"col\"] + 6)) ;; off) DT_DNDR=$((DT[$id][\"row\"] + DT[$id][\"h\"] + 2)) ;; "
     "drop) dt_ondrop \"$DT_DNDR\" \"$DT_DNDC\" \"\" ;; esac; dt_want 30; }\n"
     "dt_ticker tst_drag\n"
+    "tst_icon() { [ -f \"$NTICON\" ] || return 0; rm -f \"$NTICON\"; local p; p := console pane list; "
+    "echo \"[$DT_NATICON] $p\" > \"$NTICON.got\"; }\n"
+    "dt_ticker tst_icon\n"
     "dt_open\n"
     "sh -c 'printf %%s \"${WAYLAND_DISPLAY-unset} ${DISPLAY-unset}\"' > %s\ndt_run\ndt_close\n"
     % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, MARK, MARK,
@@ -104,7 +107,8 @@ t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "loc
               "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D,
               "WAYLAND_DISPLAY": None, "DISPLAY": None,
               "DT_PROGAUTO": "1", "XDG_DATA_DIRS": os.path.join(D, "share"),
-              "NTAUGHT": MARK + ".taught", "NTDROP": MARK + ".drop", "NTDRAG": MARK + ".drag"})
+              "NTAUGHT": MARK + ".taught", "NTDROP": MARK + ".drop", "NTDRAG": MARK + ".drag",
+                  "NTICON": MARK + ".icon"})
 
 
 def scr():
@@ -751,6 +755,33 @@ gone = wait(lambda: "a dropped" not in scr().text())
 t.send(release(at[0], at[1]), settle=0.3)
 check("and a program that drops its own drag ends the desktop's", gone, scr())
 
+# A program dragging out with a picture of its own (Blit 0.3.123): once its
+# first frame has come it is drawn in a pane of its own, above everything,
+# in place of the desktop's glyph; and it goes with the drag.
+def icon():
+    for x in (MARK + ".icon.got",):
+        if os.path.exists(x):
+            os.unlink(x)
+    open(MARK + ".icon", "w").close()
+    return wait(lambda: os.path.exists(MARK + ".icon.got") and open(MARK + ".icon.got").read().strip())
+
+
+open(complog + ".dragicon", "w").close()
+nend = len(comp("dragend"))
+t.send(press(at[0], at[1]), settle=0.3)
+open(complog + ".dragout", "w").write(DPATH)
+t.keys([0.5])
+got = wait(lambda: (lambda g: g if g and "dragicon" in g else None)(icon()))
+check("a program's own drag icon is drawn in a pane of its own once its first frame has come",
+      got and got.startswith("[") and " -4 -4]" in got and "dragicon" in got, got)
+t.keys([b"\x1b", 0.5])
+wait(lambda: comp("dragend")[nend:])
+gone = wait(lambda: (lambda g: g if g and "dragicon" not in g else None)(icon()))
+check("and it goes with the drag, having been there", got and "dragicon" in got and
+      gone and gone.startswith("[]"), (got, gone))
+os.unlink(complog + ".dragicon")
+t.send(release(at[0], at[1]), settle=0.3)
+
 # A size line is sent when it says something new: the same size and state
 # twice in a row -- a decoration said again, a focus change -- before any restart (which tells a reconnected
 # compositor again, rightly), was a focus change clearing what had been sent, seen as a
@@ -1245,4 +1276,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(101)
+report(103)
