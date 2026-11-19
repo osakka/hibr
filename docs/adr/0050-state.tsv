@@ -7,7 +7,7 @@ DT_DIM	78	2	wm/settings.hibr	setting	save
 DT_ACTIVE	71	2	wm/settings.hibr	setting	save
 DT_SELINK	59	2	wm/settings.hibr	setting	save
 DT_FOCUS	56	0	wm/state.hibr	mirror	hot
-DT_SCROLLWHEEL	39	2	widgets/scrollbar.hibr	local	-
+DT_SCROLLWHEEL	39	2	widgets/scrollbar.hibr	setting	save
 DT_DLGC	38	0	wm/windows.hibr	mirror	answer
 DT_DLGH	38	0	wm/windows.hibr	mirror	answer
 DT_DLGR	38	0	wm/windows.hibr	mirror	answer
@@ -17,7 +17,7 @@ DT_ROWS	35	0	wm/bar.hibr	mirror	hot
 DT_WELL	33	2	wm/settings.hibr	setting	save
 DT_WARN	32	2	wm/settings.hibr	setting	save
 DTJ	21	12	wm/jobs.hibr	local	-
-DT	27	3	wm/settings.hibr	setting	save
+DT	27	3	wm/settings.hibr	setting	window
 DT_IDLE	27	2	wm/settings.hibr	setting	save
 DT_GOOD	24	2	wm/settings.hibr	setting	save
 DT_HERE	25	0	desktop.hibr	mirror	hello
@@ -26,7 +26,7 @@ DT_POPCURNEXT	0	20	widgets/dropdown.hibr	local	-
 DT_MIRRORON	19	0	wm/lang.hibr	local	-
 DT_WALLIMG	9	9	wm/settings.hibr	setting	save
 DT_T	16	0	wm/lang.hibr	local	-
-DT_GLYPHSET	13	2	wm/glyphs.hibr	local	-
+DT_GLYPHSET	13	2	wm/glyphs.hibr	setting	save
 DT_GLYPH	6	6	wm/settings.hibr	setting	save
 TB	6	6	widgets/textarea.hibr	local	-
 DAV_CODE	4	6	wm/native.hibr	local	-
@@ -49,7 +49,7 @@ DT_SHADOW	4	4	wm/settings.hibr	setting	save
 DT_TITLEALIGN	4	4	wm/settings.hibr	setting	save
 DT_TITLEBAR	4	4	wm/settings.hibr	setting	save
 DT_WINTRANS	4	4	wm/settings.hibr	setting	save
-DT_LANG	7	0	wm/lang.hibr	local	-
+DT_LANG	7	0	wm/lang.hibr	mirror	hot
 DT_WALLBAD	0	7	wm/settings.hibr	setting	save
 CS_MODS	4	2	wm/strip.hibr	request	-
 DT_APPS	6	0	wm/menus.hibr	mirror	registry
@@ -58,8 +58,8 @@ DT_BARSHADOW	4	2	wm/settings.hibr	setting	save
 DT_BTKIND	4	2	wm/settings.hibr	setting	save
 DT_CLIP	4	2	wm/state.hibr	arg	-
 DT_DESKICON	4	2	wm/settings.hibr	setting	save
-DT_HADJ	4	2	wm/lang.hibr	local	-
-DT_HCAL	4	2	wm/lang.hibr	local	-
+DT_HADJ	4	2	wm/lang.hibr	setting	save
+DT_HCAL	4	2	wm/lang.hibr	setting	save
 DT_IMEPRE	5	1	wm/ime.hibr	local	-
 DT_IMGARG	6	0	wm/picmode.hibr	local	-
 DT_MENUIN	0	6	wm/draw.hibr	gone	-
@@ -103,7 +103,7 @@ DT_BARICON	2	2	wm/settings.hibr	setting	save
 DT_BARTIME	2	2	wm/bar.hibr	setting	save
 DT_BARWAS	0	4	wm/bar.hibr	gone	-
 DT_BELLICON	2	2	wm/bar.hibr	setting	save
-DT_BIDI	2	2	wm/lang.hibr	local	-
+DT_BIDI	2	2	wm/lang.hibr	setting	save
 DT_BTBAR	4	0	wm/settings.hibr	setting	save
 DT_BTNL	4	0	wm/frame.hibr	mirror	registry
 DT_BTNORDER	0	4	wm/settings.hibr	setting	save
@@ -118,7 +118,7 @@ DT_CURSOR_BLINK	4	0	wm/settings.hibr	setting	save
 DT_CYCLE	2	2	wm/settings.hibr	setting	save
 DT_DAVTIMEOUT	2	2	wm/servers.hibr	setting	save
 DT_DBLACTION	2	2	wm/settings.hibr	setting	save
-DT_DIGITS	2	2	wm/lang.hibr	local	-
+DT_DIGITS	2	2	wm/lang.hibr	setting	save
 DT_DLGBTN	2	2	wm/settings.hibr	setting	save
 DT_DRAGKEY	2	2	wm/settings.hibr	setting	save
 DT_DRAWSKIP	2	2	wm/settings.hibr	setting	save
@@ -137,7 +137,7 @@ DT_LOCKWHERE	2	2	wm/lock.hibr	setting	save
 DT_LOG	4	0	wm/settings.hibr	setting	save
 DT_MENUMARK	2	2	wm/settings.hibr	setting	save
 DT_MENUMAX	2	2	wm/settings.hibr	setting	save
-DT_MIRROR	2	2	wm/lang.hibr	local	-
+DT_MIRROR	2	2	wm/lang.hibr	setting	save
 DT_MOVEMODE	2	2	wm/settings.hibr	setting	save
 DT_MSHADOW	2	2	wm/settings.hibr	setting	save
 DT_NATFOCUS	2	2	wm/native.hibr	setting	save
@@ -186,8 +186,8 @@ DT_TILEMAIN	2	2	wm/tile.hibr	setting	save
 DT_TIPMS	2	2	wm/settings.hibr	setting	save
 DT_TITLEBARS	4	0	wm/settings.hibr	setting	save
 DT_TITLEKEY	2	2	wm/settings.hibr	setting	save
-DT_TREELINES	2	2	widgets/tree.hibr	local	-
-DT_TREESTYLE	2	2	widgets/tree.hibr	local	-
+DT_TREELINES	2	2	widgets/tree.hibr	setting	save
+DT_TREESTYLE	2	2	widgets/tree.hibr	setting	save
 DT_VER	4	0	desktop.hibr	mirror	hello
 DT_VWA	4	0	wm/vault.hibr	mirror	registry
 DT_VWCLEAR	2	2	wm/vault.hibr	setting	save
@@ -196,7 +196,7 @@ DT_VWSYNC	2	2	wm/vault.hibr	setting	save
 DT_WALLDMODE	2	2	wm/wallpaper.hibr	request	-
 DT_WALLDPIC	2	2	wm/wallpaper.hibr	request	-
 DT_WALLIMGMODE	2	2	wm/picmode.hibr	setting	save
-DT_WEEKSTART	2	2	wm/lang.hibr	local	-
+DT_WEEKSTART	2	2	wm/lang.hibr	setting	save
 DT_WHY	4	0	wm/frame.hibr	local	-
 DT_WS	4	0	wm/workspaces.hibr	mirror	hot
 DT_ZOOMFILL	2	2	wm/settings.hibr	setting	save
@@ -237,8 +237,8 @@ DT_BTNS	2	0	wm/settings.hibr	setting	save
 DT_CH	2	0	wm/clip.hibr	mirror	registry
 DT_CLIPKEEP	2	0	wm/clip.hibr	setting	save
 DT_CLIPOP	0	2	wm/state.hibr	arg	-
-DT_CONFJ	2	0	wm/settings.hibr	setting	save
-DT_DAVSAVE	2	0	wm/remote.hibr	local	-
+DT_CONFJ	2	0	wm/settings.hibr	setting	kept
+DT_DAVSAVE	2	0	wm/remote.hibr	setting	save
 DT_DISKS	2	0	wm/icons.hibr	setting	save
 DT_DISPNAMES	2	0	wm/state.hibr	mirror	hot
 DT_DLGBTNS	2	0	wm/settings.hibr	setting	save

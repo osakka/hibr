@@ -13,7 +13,7 @@ strict
 
 # The protocol's number: a change to what crosses the wire changes it, and
 # a process speaking another is refused at its hello.
-DT_RTPROTO=2
+DT_RTPROTO=3
 
 # A word as it crosses the wire.
 fn dt_rtenc(v) {

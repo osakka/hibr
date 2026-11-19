@@ -52,6 +52,7 @@ fn demo_ping(what) {
 	dt_notep low "pinged: %%s" "$what"
 }
 fn demo_child() { ( sleep 60 ) & }
+fn demo_show() { printf '%%s\t%%s\t%%s\t%%s\t%%s\n' "$DT_FACE" "$DT_GLYPHSET" "${GL[vline]}" "$DT_FOCUS" "$DT_RTRECV" > %s.show; }
 exec {DEMO_FF}<> %s
 console watch "$DEMO_FF"
 demo_tick() {
@@ -64,7 +65,7 @@ demo_tick() {
 dt_ticker demo_tick
 dt_rtrun
 echo "ended $?" > %s.end
-''' % (HERE, SAID, SAID, SAID, FIFO, SAID))
+''' % (HERE, SAID, SAID, SAID, SAID, FIFO, SAID))
 # One that speaks another protocol.
 open(BAD, "w").write(r'''DT_HERE=%s
 . "$DT_HERE/runtime.hibr"
@@ -144,12 +145,33 @@ if os.environ.get("RTDEBUG"):
 # The holes a socket has that the polite client above never finds, each
 # from a client that misbehaves on the wire itself.
 import socket, signal
-do('echo "$DT_RTPATH" > %s.path; echo "$HIBR_VERSION" >> %s.path' % (SAID, SAID))
+do('echo "$DT_RTPATH" > %s.path; echo "$HIBR_VERSION" >> %s.path; echo "$DT_RTPROTO" >> %s.path' % (SAID, SAID, SAID))
 deadline = time.time() + 5
 while time.time() < deadline and not (os.path.exists(SAID + ".path") and
-                                      len(open(SAID + ".path").read().split()) == 2):
+                                      len(open(SAID + ".path").read().split()) == 3):
     time.sleep(0.05)
-path, ver = open(SAID + ".path").read().split()
+path, ver, proto = open(SAID + ".path").read().split()
+
+
+def answer(k, secs=5):
+    """The desktop's answer to a hello: what it sends first -- its mirrored
+    state, a line each -- and then ok or refused, which is what is given
+    back."""
+    k.settimeout(secs)
+    buf = b""
+    deadline = time.time() + secs
+    while time.time() < deadline:
+        for l in buf.split(b"\n")[:-1]:
+            if l.startswith(b"ok") or l.startswith(b"refused"):
+                return l
+        try:
+            b = k.recv(65536)
+        except OSError:
+            return b""
+        if not b:
+            return b""
+        buf += b
+    return b""
 
 
 def issue(app):
@@ -168,9 +190,8 @@ def client(name, tok=None):
     """A raw connection that has said hello and been answered."""
     k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     k.connect(path)
-    k.sendall(("hello 2 %s %s %s\n" % (ver, name, tok or issue(name))).encode())
-    k.settimeout(5)
-    said = k.recv(256)
+    k.sendall(("hello %s %s %s %s\n" % (proto, ver, name, tok or issue(name))).encode())
+    said = answer(k)
     if not said.startswith(b"ok"):
         raise OSError("refused: %r" % said)
     return k
@@ -188,7 +209,7 @@ def answered(secs):
 for i in range(5):
     k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     k.connect(path)
-    k.sendall(("hello 2 %s demo %s\n" % (ver, issue("demo"))).encode())
+    k.sendall(("hello %s %s demo %s\n" % (proto, ver, issue("demo"))).encode())
     k.close()
 time.sleep(0.5)
 try:
@@ -201,7 +222,7 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(38)
+    report(42)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
@@ -230,9 +251,8 @@ check("and all of it is carried, the last line last", sc.find("flood done") is n
 # app's own file never makes is refused; a window named must be its own.
 k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 k.connect(path)
-k.sendall(("hello 2 %s nobody %s\n" % (ver, issue("nobody"))).encode())
-k.settimeout(5)
-said = k.recv(256)
+k.sendall(("hello %s %s nobody %s\n" % (proto, ver, issue("nobody"))).encode())
+said = answer(k)
 k.close()
 check("a hello naming no installed app is refused", said.startswith(b"refused") and
       b"not%20an%20installed%20app" in said, said)
@@ -243,25 +263,21 @@ def hello(line):
     k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     k.connect(path)
     k.sendall(line.encode())
-    k.settimeout(5)
-    try:
-        return k, k.recv(256)
-    except OSError:
-        return k, b""
+    return k, answer(k)
 
 
-k, said = hello("hello 2 %s demo\n" % ver)
+k, said = hello("hello %s %s demo\n" % (proto, ver))
 k.close()
 check("a hello with no launch of this desktop's behind it is refused",
       said.startswith(b"refused") and b"no%20launch" in said, said)
 tok = issue("demo")
-k1, said1 = hello("hello 2 %s demo %s\n" % (ver, tok))
-k2, said2 = hello("hello 2 %s demo %s\n" % (ver, tok))
+k1, said1 = hello("hello %s %s demo %s\n" % (proto, ver, tok))
+k2, said2 = hello("hello %s %s demo %s\n" % (proto, ver, tok))
 check("a launch's token is good for one hello", said1.startswith(b"ok") and said2.startswith(b"refused"),
       (said1, said2))
 k2.close()
 tok = issue("demo")
-k3, said3 = hello("hello 2 %s olddemo %s\n" % (ver, tok))
+k3, said3 = hello("hello %s %s olddemo %s\n" % (proto, ver, tok))
 check("a process is the app its launch names, whatever its hello says",
       said3.startswith(b"ok") and "said it was olddemo; it is demo, by its launch" in log(), (said3, log()[-300:]))
 k1.close()
@@ -466,6 +482,47 @@ check("an app process the desktop started holds no descriptor on the desktop's t
 # What Quit and Restart Desktop both call (dt_close, dt_restart): the
 # socket goes and every app process's connection ends. Called here, since
 # a test session's q only opens the Quit question.
+# What the desktop's state is, the app has: its settings at the hello; a
+# setting changed and saved, as a setter does, before the next thing the
+# desktop tells it, with what it derives (the glyph table) rebuilt; the
+# focus moving, likewise; and nothing at all while nothing changes.
+def show():
+    if os.path.exists(SAID + ".show"):
+        os.unlink(SAID + ".show")
+    do('dt_rttell "$LT" demo_show')
+    deadline = time.time() + 10
+    while time.time() < deadline and not (os.path.exists(SAID + ".show") and open(SAID + ".show").read().strip()):
+        time.sleep(0.05)
+    return open(SAID + ".show").read().rstrip("\n").split("\t") if os.path.exists(SAID + ".show") else []
+
+
+face = result('echo "$DT_FACE" > %s.pend' % SAID)
+seen = show()
+check("at its hello an app is sent the desktop's settings", seen[:1] == [face] and face != "", (face, seen))
+do('DT_GLYPHSET=ascii; dt_glyphs ascii; dt_save')
+seen = show()
+check("a setting changed and saved reaches the app before the next thing it is told, "
+      "and what it derives is rebuilt", seen[1:3] == ["ascii", "|"], seen)
+do('DT_GLYPHSET=unicode; dt_glyphs unicode; dt_save')
+# The focus changes and the app is told something in the same pass: the
+# change must go out ahead of the tell, not at the next pass.
+if os.path.exists(SAID + ".show"):
+    os.unlink(SAID + ".show")
+focus = result('DT_FOCUS=990077; dt_rttell "$LT" demo_show; echo "$DT_FOCUS" > %s.pend' % SAID)
+deadline = time.time() + 10
+while time.time() < deadline and not (os.path.exists(SAID + ".show") and open(SAID + ".show").read().strip()):
+    time.sleep(0.05)
+seen = open(SAID + ".show").read().rstrip("\n").split("\t") if os.path.exists(SAID + ".show") else []
+do('DT_FOCUS=$OTHER')
+check("the focus moving reaches the app before the next thing it is told", seen[3:4] == [focus] and focus != "",
+      (focus, seen))
+seen = show()
+n1 = int(seen[4]) if len(seen) > 4 else -1
+time.sleep(3)
+seen = show()
+n2 = int(seen[4]) if len(seen) > 4 else -1
+check("idle for three seconds, the desktop sends an app nothing", n2 - n1 == 1, (n1, n2))
+
 # A child an app starts must not keep the app looking alive once the app
 # has gone: killed outright with a child of its own running, its
 # connection ends for the desktop, which lets it go.
@@ -500,11 +557,18 @@ time.sleep(0.3)
 check("closing takes the socket away", not os.path.exists(path), path)
 ends = []
 for k in idle:
+    # What the hello sent is still unread; the end comes after it.
     k.settimeout(2)
+    end = False
     try:
-        ends.append(k.recv(16) == b"")
+        while True:
+            b = k.recv(65536)
+            if not b:
+                end = True
+                break
     except OSError:
-        ends.append(True)
+        end = True
+    ends.append(end)
 check("and every app process sees its connection end", all(ends), ends)
 deadline = time.time() + 2
 while time.time() < deadline and not os.path.exists(SAID + ".end"):
@@ -532,7 +596,7 @@ check("a desktop killed outright ends an app's loop within two seconds, never by
 t.close()
 for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle",
           SAID + ".other", SAID + ".alive", SAID + ".before", SAID + ".after", SAID + ".pend",
-          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", LOOP, FIFO):
+          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", LOOP, FIFO):
     if os.path.exists(f):
         os.unlink(f)
-report(38)
+report(42)

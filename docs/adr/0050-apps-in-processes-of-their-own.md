@@ -339,6 +339,24 @@ What it holds, each a check there:
   `connect -U` for the app's end): a child the desktop started after an
   app connected held the desktop's end, and a child an app started held the
   app's, so neither side saw the other go while any such child lived.
+- **The desktop's state reaches the app through its doors** (2026-11-19,
+  protocol 3, the save and hot doors): at the hello the desktop sends every
+  name of the save, hello and hot doors -- `set NAME VALUE`, or a map's
+  `clear` and `setk NAME KEY VALUE` -- and only then `ok`, so the app's
+  first line after its hello sees all of it; `dt_save` sends each setting
+  that moved to every app (`dt_rtsettings`), and the hot scalars are joined
+  into one string and compared once a pass, 3 us, and again before every
+  tell, so a change always arrives ahead of the call that may read it. The
+  app declares every name it may be sent (`dt_rtdeclare`, generated into
+  `mirrors.hibr` from the survey with the door table both ends read), takes
+  only those, by lookup, and after each batch rebuilds what they derive
+  with the one function the desktop's own load runs too (`dt_derive`: the
+  glyph table, and the language once it is in effect). Building it found
+  that the survey had called the glyph set, bidi and mirroring each
+  process's own, since shared files declare them -- a kept setting is the
+  desktop's wherever it is declared now -- and that the language, which
+  follows the system's locale and is kept nowhere, is a hot mirror. An idle
+  desktop sends an app nothing.
 - **Quit and Restart Desktop close it**: the socket goes and every app
   process's connection ends. That is not yet what Requirement 8 says --
   app processes surviving a restart -- which needs the connection kept

@@ -41,6 +41,9 @@ CS_SIDEX=left
 DT_NOTEPOSX=top-right
 DT_LANGON=
 DT_LANGRTL=
+# The language, bidi and mirroring last put into effect in this process, so
+# dt_derive applies them again only when one has moved.
+DT_LANGSIG=
 # Scratch for a translated label built from a template, before it is handed on.
 DT_T=
 # Dates as a region writes them (ADR 0034): the Hijri date shown beside
@@ -169,10 +172,24 @@ dt_bidion() {
 	ret 1
 }
 
+# What a batch of settings derives, rebuilt once it has arrived -- in the
+# desktop as it loads its settings, and in an app's own process as the
+# desktop sends them (ADR 0050): the glyph table from DT_GLYPHSET, and the
+# language, once it has been put into effect in this process, when the
+# language, bidi or mirroring has moved. One function for both ends, so
+# what is derived cannot differ between them.
+dt_derive() {
+	dt_glyphs "$DT_GLYPHSET"
+	[ -n "$DT_LANGSIG" ] || return 0
+	[ "$DT_LANG|$DT_BIDI|$DT_MIRROR" = "$DT_LANGSIG" ] && return 0
+	dt_langapply
+}
+
 # Put DT_LANG and DT_BIDI into effect: load the catalogue, set the console's order.
 dt_langapply() {
 	local f on
 
+	DT_LANGSIG="$DT_LANG|$DT_BIDI|$DT_MIRROR"
 	DT_LANGON=
 	DT_LANGRTL=
 	DT_MIRRORON=

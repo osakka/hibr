@@ -43,6 +43,15 @@ dt_rtifacerec() {
 	return 0
 }
 dt_rtifacerec
+# Every name the desktop sends declared, so this strict process may be given
+# them (mirrors.hibr, generated from the state survey).
+dt_rtdeclare
+# Whether a batch of what the desktop sent has set anything, so what it
+# derives (dt_derive) is rebuilt once after the batch.
+DT_RTDERIVE=
+# How many lines the desktop has sent this process, for a check that an idle
+# desktop sends none.
+DT_RTRECV=0
 
 # The connection to the desktop, and what it said to the hello.
 DT_RTFD=
@@ -71,13 +80,53 @@ fn dt_rtopen(app) {
 	l := dt_rtline hello "$DT_RTPROTO" "$HIBR_VERSION" "$app" "$t"
 	send "$DT_RTFD" "$l" 2> /dev/null ||
 		{ DT_RTSAID="the desktop went before the hello"; return 1; }
-	if ! read -r -t 2 -u "$DT_RTFD" l; then
-		DT_RTSAID="the desktop did not answer the hello"
-		return 1
-	fi
-	read -ra w <<< "$l"
-	DT_RTSAID := dt_rtdec "${w[1]-}"
-	[ "${w[0]-}" = ok ]
+	# The answer: what the desktop sends this process first -- its
+	# settings and the rest of what is mirrored -- then ok, or refused and
+	# why. Read through the line reader both ends use, waiting on the
+	# socket for at most two seconds in all, never a byte at a time.
+	console watch "$DT_RTFD" || { DT_RTSAID="no console to wait with"; return 1; }
+	local end=$((${EPOCHREALTIME/./} / 1000 + 2000)) now st
+	local -a got
+	while :; do
+		dt_rtlines "$DT_RTFD"
+		st=$?
+		got=("${DT_RTGOT[@]}")
+		for l in "${got[@]}"; do
+			read -ra w <<< "$l"
+			case ${w[0]-} in
+			ok)
+				console unwatch "$DT_RTFD"
+				dt_rtderived
+				# The language put into effect here once, as the
+				# desktop's is at its start; after this dt_derive
+				# follows it when it moves.
+				dt_langapply
+				return 0
+				;;
+			refused)
+				console unwatch "$DT_RTFD"
+				DT_RTSAID := dt_rtdec "${w[1]-}"
+				return 1
+				;;
+			*) dt_rtcalled "$l" ;;
+			esac
+		done
+		[ -n "${DT_RTMORE["$DT_RTFD"]+x}" ] && continue
+		now=$((${EPOCHREALTIME/./} / 1000))
+		if [ "$st" = 1 ] || [ "$now" -ge "$end" ]; then
+			console unwatch "$DT_RTFD"
+			DT_RTSAID="the desktop did not answer the hello"
+			return 1
+		fi
+		console key $((end - now)) > /dev/null
+	done
+}
+
+# What the desktop's state arriving derives, rebuilt once after a batch.
+dt_rtderived() {
+	[ -n "$DT_RTDERIVE" ] || return 0
+	DT_RTDERIVE=
+	dt_derive
 }
 
 # One message to the desktop: tell, ask or declare, the function, and its
@@ -111,10 +160,18 @@ fn dt_rtcalled(line) {
 	local x name
 
 	read -ra w <<< "$line"
-	if [ "${w[0]-}" != tell ]; then
+	DT_RTRECV=$((DT_RTRECV + 1))
+	case ${w[0]-} in
+	set | setk | clear)
+		dt_rtmirrored "${w[@]}"
+		return 0
+		;;
+	tell) ;;
+	*)
 		dt_log "app runtime: the desktop said ${w[0]:-nothing}, which is not carried yet (ADR 0050)"
 		return 0
-	fi
+		;;
+	esac
 	name := dt_rtdec "${w[1]-}"
 	for x in "${w[@]:2}"; do
 		x := dt_rtdec "$x"
@@ -125,6 +182,42 @@ fn dt_rtcalled(line) {
 		return 0
 	fi
 	"$name" "${a[@]}"
+	return 0
+}
+
+# A mirrored name's new value: `set NAME VALUE`, or a map's `clear NAME` and
+# `setk NAME KEY VALUE`. Only a name the door table says is sent is taken,
+# by lookup, never eval.
+fn dt_rtmirrored(...w) {
+	local name k v
+
+	name := dt_rtdec "${w[1]-}"
+	case ${DT_RTDOOR["$name"]-} in
+	save | hello | hot) ;;
+	*)
+		dt_log "app runtime: the desktop sent $name, which is not a name it sends; refused"
+		return 0
+		;;
+	esac
+	DT_RTDERIVE=1
+	case ${w[0]} in
+	set)
+		v := dt_rtdec "${w[2]-}"
+		printf -v "$name" '%s' "$v"
+		;;
+	clear)
+		local -n m=$name
+		for k in "${!m[@]}"; do
+			unset m["$k"]
+		done
+		;;
+	setk)
+		local -n m=$name
+		k := dt_rtdec "${w[2]-}"
+		v := dt_rtdec "${w[3]-}"
+		m["$k"]=$v
+		;;
+	esac
 	return 0
 }
 
@@ -151,6 +244,7 @@ dt_rtrun() {
 		for l in "${got[@]}"; do
 			dt_rtcalled "$l"
 		done
+		dt_rtderived
 		[ -n "${DT_RTMORE["$DT_RTFD"]+x}" ] && dt_want 0
 		if [ "$st" = 1 ]; then
 			console unwatch "$DT_RTFD"

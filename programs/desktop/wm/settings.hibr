@@ -610,7 +610,7 @@ dt_load() {
 		dt_handler "$ext" "${argv[@]}"
 	done
 	dt_keydups
-	dt_glyphs "$DT_GLYPHSET"
+	dt_derive
 	return 0
 }
 
@@ -627,6 +627,9 @@ dt_save() {
 		dt_hostkeep
 		return 0
 	fi
+	# Every connected app process is sent what changed, before anything
+	# else it is told this pass (ADR 0050, the settings' door).
+	dt_has dt_rtsettings && dt_rtsettings
 	# A rebind or Use Super Instead of Alt is saved as it is made: Blit is told
 	# the chords kept from programs then (Gitea #530).
 	dt_has dt_keepsend && dt_keepsend

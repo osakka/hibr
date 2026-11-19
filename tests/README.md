@@ -249,7 +249,10 @@ More tools sit around it:
   interface defines is refused; it holds none of the desktop's terminal;
   and it ends on its own when the desktop closes its socket or is killed
   outright -- each failing against the fault it was written for (an
-  inherited terminal, a lost standard error, a hangup). Fails against a
+  inherited terminal, a lost standard error, a hangup). And the desktop's
+  state reaches it: its settings at the hello, a setting saved and the
+  focus moving ahead of the next thing it is told (each failing with its
+  door taken out), and nothing at all over three idle seconds. Fails against a
   ticker loop that drops a ticker registered during its pass.
 - **`tests/appcalls.py`** -- every platform function an installable in this
   tree calls is classed for an app's own process (ADR 0050), and fails on

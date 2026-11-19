@@ -33,6 +33,12 @@ declare -gA DT_RTC
 # being blame, not a lock. Each connection's launch, both ways, so a tell
 # reaches that one process and not the first of its name.
 declare -gA DT_RTLAUNCH DT_RTCTOK DT_RTTOKC
+# What each mirrored name was when it was last sent to every app process,
+# so only a change goes out; and the names of the hot door, compared as one
+# string each pass while an app is connected.
+declare -gA DT_RTSENT
+DT_RTHOT=()
+DT_RTHOTSIG=
 # The told requests interface.tsv names, which alone are carried; those
 # whose first word is a window; and, per app, the requests its own file
 # makes, read once from the file (never run) and kept by its path.
@@ -41,7 +47,7 @@ declare -gA DT_RTALLOW DT_RTWIN DT_RTMAY DT_RTMAYOF
 # Start listening for app processes, once: the socket beside the control
 # socket's, its path exported for what the desktop starts to inherit.
 dt_rtlisten() {
-	local p c f n a sg
+	local p c f n a sg x
 
 	[ -n "$DT_RTLFD" ] && return 0
 	p := dt_ctlwhere
@@ -65,6 +71,14 @@ dt_rtlisten() {
 		DT_RTALLOW["$f"]=1
 		[[ $sg == "$f"\(id* || $sg == "$f(int id"* ]] && DT_RTWIN["$f"]=1
 	done < "$DT_HERE/interface.tsv"
+	# What every app has been sent is what is true now: a later change
+	# is what goes out.
+	for x in "${!DT_RTDOOR[@]}"; do
+		case ${DT_RTDOOR["$x"]} in
+		save | hello) DT_RTSENT["$x"] := dt_rtsig "$x" ;;
+		hot) DT_RTHOT+=("$x"); DT_RTSENT["$x"] := dt_rtsig "$x" ;;
+		esac
+	done
 	n=${#DT_RTALLOW[@]}
 	command -v console > /dev/null && console watch "$DT_RTLFD" 2> /dev/null
 	dt_ticker dt_rttick
@@ -80,6 +94,86 @@ dt_rtlisten() {
 DT_RTQMAX="${DT_RTQMAX-1048576}"
 declare -gA DT_RTPEND
 
+# A mirrored name's value, as one string to compare: a scalar's value, or a
+# map's entries in their order.
+fn dt_rtsig(name) {
+	local k o=
+
+	if [ "${DT_RTMAP["$name"]-}" = 1 ]; then
+		local -n m=$name
+		for k in "${!m[@]}"; do
+			o+="$k=${m[$k]}"$'\n'
+		done
+		ret "$o"
+		return 0
+	fi
+	ret "${!name-}"
+}
+
+# Send connection c what name holds now: `set NAME VALUE`, or for a map
+# `clear NAME` and then `setk NAME KEY VALUE` for each entry.
+fn dt_rtmirror(int c, name) {
+	local k x
+
+	if [ "${DT_RTMAP["$name"]-}" = 1 ]; then
+		local -n m=$name
+		x := dt_rtline clear "$name"
+		dt_rtsay "$c" "$x" || return 1
+		for k in "${!m[@]}"; do
+			x := dt_rtline setk "$name" "$k" "${m[$k]}"
+			dt_rtsay "$c" "$x" || return 1
+		done
+		return 0
+	fi
+	x := dt_rtline set "$name" "${!name-}"
+	dt_rtsay "$c" "$x"
+}
+
+# Send every app process each name in names whose value has moved since it
+# was last sent to them all.
+fn dt_rtsendmoved(...names) {
+	local n s c
+
+	for n in "${names[@]}"; do
+		s := dt_rtsig "$n"
+		[ "$s" = "${DT_RTSENT["$n"]-}" ] && continue
+		DT_RTSENT["$n"]=$s
+		for c in "${!DT_RTC[@]}"; do
+			[ "${DT_RTC["$c"]}" = - ] && continue
+			dt_rtmirror "$c" "$n"
+		done
+	done
+	return 0
+}
+
+# The settings' door: dt_save calls this on every change, and what moved
+# goes to every app process.
+dt_rtsettings() {
+	local x
+	local -a names
+
+	[ "${#DT_RTC[@]}" = 0 ] && return 0
+	for x in "${!DT_RTDOOR[@]}"; do
+		[ "${DT_RTDOOR["$x"]}" = save ] && names+=("$x")
+	done
+	dt_rtsendmoved "${names[@]}"
+}
+
+# The hot door: the few scalars that change often, compared as one string,
+# so a pass with nothing moved costs one comparison; and only while an app
+# is connected.
+dt_rthot() {
+	local x s=
+
+	[ "${#DT_RTC[@]}" = 0 ] && return 0
+	for x in "${DT_RTHOT[@]}"; do
+		s+="${!x-}"$'\t'
+	done
+	[ "$s" = "$DT_RTHOTSIG" ] && return 0
+	DT_RTHOTSIG=$s
+	dt_rtsendmoved "${DT_RTHOT[@]}"
+}
+
 # Every pass while listening: what woke the display is asked of it, so a
 # connection with nothing to say costs nothing; each that did is read with
 # dt_rtlines (wm/rtwire.hibr), which never waits, and its whole lines are
@@ -89,6 +183,7 @@ dt_rttick() {
 	local -a ready got
 
 	[ -n "$DT_RTLFD" ] || return 0
+	dt_rthot
 	for c in "${!DT_RTPEND[@]}"; do
 		dt_rtsay "$c" ""
 	done
@@ -180,6 +275,8 @@ fn dt_rttell(launch, name, ...args) {
 	local c=${DT_RTTOKC["$launch"]-} x
 
 	[ -n "$c" ] || return 1
+	# A changed mirror goes out before a call that may read it.
+	dt_rthot
 	x := dt_rtline tell "$name" "${args[@]}"
 	dt_rtsay "$c" "$x"
 }
@@ -320,6 +417,13 @@ fn dt_rtmsg(int c, line) {
 		DT_RTC["$c"]=$who
 		DT_RTCTOK["$c"]=${a[4]}
 		DT_RTTOKC["${a[4]}"]=$c
+		# What it is sent, before its ok, so the app's first line after the
+		# hello sees all of it.
+		for x in "${!DT_RTDOOR[@]}"; do
+			case ${DT_RTDOOR["$x"]} in
+			save | hello | hot) dt_rtmirror "$c" "$x" || return 1 ;;
+			esac
+		done
 		dt_rtsay "$c" "ok $DT_RTPROTO" || return 1
 		return 0
 	fi
