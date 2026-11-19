@@ -136,6 +136,25 @@ class VariableInspection(unittest.TestCase):
         self.assertNotIn('unrelated', {c['owner'] for c in analysis['candidates']})
         self.assertIn('external callers', analysis['unknown'])
 
+    def test_truncated_candidate_set_is_explicit(self):
+        source = ('fn leaf() { echo "$shared"; }\n'
+                  'fn bridge() { leaf; }\n' + ''.join(
+                      f'fn caller_{index}() {{ local shared; bridge; }}\n'
+                      for index in range(65)))
+        result = inspect(self.write('truncated-candidates.hibr', source), 'leaf')
+        self.assertEqual(result['state'], 'ok', result)
+        self.assertFalse(result['partial'], result)
+        read = next(r for r in result['vars'] if r['kind'] == 'read')
+        analysis = read['binding_analysis']
+        self.assertEqual(analysis['state'], 'candidate-set')
+        self.assertFalse(analysis['complete'])
+        self.assertTrue(analysis['truncated'])
+        candidates = [c for c in analysis['candidates']
+                      if c['relation'] == 'dynamic-caller']
+        self.assertEqual(len(candidates), 64)
+        self.assertEqual(candidates[0]['call_path'][0]['name'], 'bridge')
+        self.assertEqual(candidates[0]['call_path'][1]['name'], 'leaf')
+
     def test_arithmetic_comparison_reads_and_no_false_comparison_write(self):
         source = 'fn f() { ((left < right)); ((left == right)); }\n'
         result = inspect(self.write('compare.hibr', source))
