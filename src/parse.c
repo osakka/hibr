@@ -272,11 +272,14 @@ node *p_arrasg(lex *l, word *w)
 {
 	node *cl;
 	word **et;
+	const char *at = l->tkb;
 
 	lx_next(l);
 	p_nl(l);
 	cl = nd(l, N_CLAUSE);
 	cl->s = ar_dup(l->a, w->p->t, w->p->n - 1);
+	if (l->observe && at && (size_t)(at - l->bol) >= w->p->n)
+		l->observe(l->observer, cl, at - w->p->n, at - 1);
 	et = &cl->w;
 	while (l->tk == T_WORD) {
 		*et = p_arrel(l);

@@ -35,7 +35,8 @@ for n in range(rounds):
     path = '/tmp/nsh-fuzz-%d-%d.t' % (os.getpid(), n)
     open(path,'wb').write(data)
     try:
-        args = [nsh, '-c', 'need inspect; inspect check "$1" -j', '_', path] if inspect else [nsh, '-n', path]
+        request = 'vars' if n % 2 else 'check'
+        args = [nsh, '-c', 'need inspect; inspect "$1" "$2" -j', '_', request, path] if inspect else [nsh, '-n', path]
         r = subprocess.run(args, capture_output=True, timeout=3, env=runenv)
         if inspect and r.returncode >= 0 and r.returncode < 128:
             try:

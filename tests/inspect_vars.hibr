@@ -1,0 +1,80 @@
+# The variable facts inspect vars must find: one or more lines per form.
+# Read by tests/inspect_vars.py, never run. DT_COMMENT is only a comment.
+fn fx_draw(id, h) {
+	local a=${DT_FOCUS} b=$DT_ROWS
+	local DT_SHADOW
+	DT_CLIP="x"
+	DT["$id"]["row"]=3
+	unset DT_NOTEWIN DT_MAP["gone"]
+	unset -f fx_gone
+	read -r -a DT_LIST DT_WHY < /dev/null
+	r := dt_foo
+	DT_KB["k"] := dt_bar
+	printf -v DT_IMGARG %s x
+	(( DT_COLS + 1, DT_N++ ))
+	echo "${DT_APPS[$id]["title"]} ${#DT_LEN} ${!DT_KEYS[@]} ${!DT_IND} ${DT_DEF:=x}"
+	declare -n ref=DT_CH
+	declare -g DT_GLOBAL=1
+	mapfile -t DT_LINES < /dev/null
+	json parse DT_CONF "{}"
+	arr push DT_QUEUE x
+	x=$(echo "$DT_INSUB"; DT_SUBW=1)
+	echo 'DT_SINGLE' "DT_DOUBLE $DT_DQ"
+	[[ -v DT_ISSET ]]
+	for DT_LOOP in 1; do :; done
+	exec {DT_FD}>/dev/null
+	DT_ARR=([k1]=v [k2]=w)
+	cat <<-Q
+	$DT_HERE
+	Q
+	cat <<-'Q'
+	$DT_QHERE
+	Q
+	dt_keep DT_KEPT
+	(( DT_M["mk"] += 2 ))
+	x=$(( DT_P[$id] ))
+}
+DT_TOP=1
+declare -gA DT_TOPMAP=()
+DT_APPEND+=x
+DT_LIST2+=(more)
+DT_PRE=1 dt_run
+getopts ab: DT_OPT
+let "DT_LET = DT_LEFT + 1"
+match "$DT_SUBJ" '^a' DT_MATCHED
+rsub -g x y z DT_RSUBBED
+json set DT_JSET k v
+json get DT_JGET .k DT_JOUT
+arr len DT_ALEN DT_ACOUNT
+str upper hi DT_UP
+[ -v DT_TESTED ]
+select DT_PICK in a b; do break; done
+for ((DT_I = 0; DT_I < DT_LIMIT; DT_I++)); do :; done
+read -aDT_INLINE < /dev/null
+printf -vDT_PINLINE %s x
+readarray DT_RA < /dev/null
+declare -p DT_SHOWN
+export DT_EXPORTED=1
+readonly DT_FROZEN
+echo "${DT_S:DT_OFF:2} $[ DT_OLD + 1 ] ${!DT_PFX@} ${DT_UNSET:-$DT_FALLBACK}"
+echo $(echo $(echo "$DT_DEEP")) <(echo "$DT_PS")
+[[ $DT_RE =~ ^a ]]
+case $DT_CASE in *) : ;; esac
+declare int DT_TYPED=1
+fn fx_set(name, value) {
+	local -n out=$1
+	out=$2
+}
+fx_set DT_BYNAME 1
+fn fx_more(x=$DT_PDEF) {
+	local -a items=(one)
+	local y
+	y=$x
+	DT_SEEN=${items[0]}
+}
+fn fx_get(name) { echo "${!name}"; }
+fx_get DT_BYGET
+DT_BOUND := DT_ENV=1 dt_baz
+typeset DT_TS=1
+fn fx_put(name) { printf -v "$name" x; }
+fx_put DT_BYPUT

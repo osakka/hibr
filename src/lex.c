@@ -847,10 +847,13 @@ word *lx_word(lex *l, int lit)
 			continue;
 		}
 		if (c == '$' || c == '`') {
+			const char *db = l->p;
 			lx_flush(l, &b, &t, cq);
 			x = lx_dol(l, q);
 			if (!x)
 				break;
+			if (l->observe && (x->k == P_VAR || x->k == P_ARI))
+				l->observe(l->observer, x, db, l->p);
 			*t = x;
 			t = &x->nx;
 			continue;
@@ -1182,6 +1185,8 @@ int lx_next(lex *l)
 		    (q[1] == '<' || q[1] == '>')) {
 			l->fdvar = ar_dup(l->a, l->p + 1,
 					  (size_t)(q - l->p - 1));
+			if (l->observe)
+				l->observe(l->observer, l->fdvar, l->p + 1, q);
 			l->p = q + 1;
 			return lx_redir(l);
 		}

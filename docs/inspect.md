@@ -4,11 +4,12 @@ This is the authoritative contract for Hibr's `inspect` builtin and versioned C 
 
 ## Requests and results
 
-Load the module with `need inspect`. Requests are `functions FILE`, `calls FILE [FUNCTION]`, `refs FILE` and `check FILE`. Unbound requests render a human summary and all evidence fields. `-j` prints JSON instead. A bound request (`r := inspect ...`) is quiet and returns the same data as a typed map, including when `-j` is present. Exit status is zero for ok/empty input, nonzero for invalid, incomplete, unreadable or unsupported requests. Capture a failed bound request inside `if` when using strict error handling.
+Load the module with `need inspect`. Requests are `functions FILE`, `calls FILE [FUNCTION]`, `refs FILE`, `vars FILE [FUNCTION]` and `check FILE`. Unbound requests render a human summary and all evidence fields. `-j` prints JSON instead. A bound request (`r := inspect ...`) is quiet and returns the same data as a typed map, including when `-j` is present. Exit status is zero for ok/empty input, nonzero for invalid, incomplete, unreadable or unsupported requests. Capture a failed bound request inside `if` when using strict error handling.
 
 - `functions` reports definitions, declared parameters, preceding author comments and body locations.
 - `calls` reports command words and command substitutions. An optional function name filters by enclosing function. It classifies names against this file's definitions, core builtins and already loaded modules; everything else stays unresolved.
 - `refs` reports literal arguments naming functions defined in this file. `--symbols JSON_ARRAY` additionally matches caller-supplied literal candidates. Such candidates remain unresolved; they do not establish cross-file execution or resolution.
+- `vars` reports every variable the parser sees read, written or named, one record per access, with its form, subscripts, enclosing function and whether that function declares the name. An optional function name filters by enclosing function. See [Variable facts](#variable-facts).
 - `check` reports parser diagnostics and findings from the same implementation as `--explain`, with stable rule identifiers.
 
 ```sh
@@ -36,7 +37,9 @@ foreign_command unresolved bound=true target=top
 
 ## Record vocabulary
 
-The result contains `inspect: 1`, `state`, `partial`, `source`, the requested array (`functions`, `calls`, `refs`, or `findings`), and `diagnostics`. An unsupported request has `state: unsupported` and diagnostics, without claiming source inspection.
+The result contains `inspect: 1`, `state`, `partial`, `source`, the requested array (`functions`, `calls`, `refs`, `vars`, or `findings`), and `diagnostics`. An unsupported request has `state: unsupported` and diagnostics, without claiming source inspection.
+
+Requests are added within an interface version; the number moves only when a request, field or value already documented changes meaning or goes. A consumer that needs a later request asks for it and treats `state: unsupported` as the producer not offering it: `vars` arrived this way, so a producer from before it answers `unsupported` for `vars` and everything else as it did.
 
 `state` is `ok`, `empty` (zero source bytes), `incomplete`, `invalid`, or `unreadable`. `partial` means syntax damage or a substitution that could not be fully analysed; an empty array is never proof of no runtime behavior. Valid top-level units survive recovery after invalid syntax. Definitions are discovered statically, including those inside conditional branches; inspection does not claim they ran.
 
@@ -59,6 +62,104 @@ Every evidence record has `source`, `span` and `known`. Nested body metadata inh
 | `lookup` | References distinguish `inspected-file` from `supplied-symbol`. Literal references prove naming, not calling. |
 | `registration`, `rule`, `rules_path`, `rules_source` | Optional convention inference, its named rule and exact convention-file identity. Registration records also identify prefix and role. |
 | `message`, `reference` | Diagnostic/finding text and, for lint findings, the supporting guideline reference. |
+| `access`, `form` | For `vars`: `read`, `write` or `name`, and the syntax the access is written in (see [Variable facts](#variable-facts)). |
+| `declared` | For `vars`: `param` or `local` when the enclosing function declares the name as a parameter or with `local` (or `declare`/`typeset` without `-g`) anywhere in its own body; otherwise null. |
+| `exact`, `lexical` | For `vars`: whether the span covers the access's own bytes, and whether the fact came from the lexical scan of arithmetic text. |
+| `subscripts`, `keys` | For `vars`: how many subscripts the access is written with, and the first two as `text` and `quote` (`quoted`, `unquoted` or `dynamic`). |
+| `verb`, `callee` | For `vars`: the operation of an `arr`, `json` or `str` access, and the command a named argument is given to. |
+
+## Variable facts
+
+`vars` reads the same parse as every other request and runs nothing. Each record names one variable access in the inspected file:
+
+```sh
+need inspect
+cat > sample.hibr <<'SOURCE'
+fn note(id) {
+	local msg=${NOTE_TEXT[$id]}
+	NOTES["$id"]+=$msg
+	(( NOTE_COUNT++ ))
+}
+SOURCE
+r := inspect vars sample.hibr
+for i in "${!r[vars][@]}"; do
+	printf '%s %s %s line=%s declared=%s\n' "${r[vars][$i][name]}" "${r[vars][$i][access]}" \
+		"${r[vars][$i][form]}" "${r[vars][$i][span][line]}" "${r[vars][$i][declared]}"
+done
+printf '%s: %s %s\n' "${r[vars][4][name]}" "${r[vars][4][keys][0][quote]}" "${r[vars][4][keys][0][text]}"
+printf '%s lexical=%s %s\n' "${r[vars][7][name]}" "${r[vars][7][lexical]}" "${r[vars][7][rule]}"
+```
+```output
+id write param line=1 declared=param
+msg write local line=2 declared=local
+NOTE_TEXT read expand line=2 declared=null
+id read expand line=2 declared=param
+NOTES write append line=3 declared=null
+id read expand line=3 declared=param
+msg read expand line=3 declared=local
+NOTE_COUNT write arithmetic line=4 declared=null
+NOTES: dynamic "$id"
+NOTE_COUNT lexical=true arithmetic-text
+```
+
+Records come in source order. Every one carries `source`, `span`, `known`, `exact`, `name`, `access`, `form`, `owner` (the enclosing function, empty at top level), `declared`, `lexical`, `subscripts` and `keys`; `scope: substitution` marks one found inside `$( )`, a backquote or a process substitution:
+
+```sh
+need inspect
+printf 'TOTAL+=1\n' > sample.hibr
+inspect vars sample.hibr -j
+```
+```output
+{"inspect":1,"state":"ok","partial":false,"source":{"path":"sample.hibr","size":9,"id":"fnv1a64:e7895b4e401d6e1a"},"vars":[{"source":{"path":"sample.hibr","size":9,"id":"fnv1a64:e7895b4e401d6e1a"},"known":"syntax","span":{"start":0,"end":5,"line":1,"col":1,"endline":1},"exact":true,"name":"TOTAL","access":"write","form":"append","owner":"","declared":null,"lexical":false,"subscripts":0,"keys":[]}],"diagnostics":[]}
+```
+
+| form | access | written as |
+| --- | --- | --- |
+| `assign`, `append` | write | `name=v`, `name[k]=v`, `name+=v` as a command of its own |
+| `prefix` | write | `name=v cmd`, an assignment for one command |
+| `array`, `array-append`, `array-key` | write | `name=(...)`, `name+=(...)`, and one record per `[k]=v` element |
+| `bind` | write | `name := cmd` and `name[k] := cmd` |
+| `local`, `declare`, `typeset`, `export`, `readonly` | write (read for `-p`) | a declaration's names and array clauses; a type word such as `int` before a name is not one |
+| `nameref` | write, name | `declare -n ref=TARGET`: the reference is written and the target named |
+| `param` | write | a declared parameter of `fn name(...)`; the span is the parameter as declared |
+| `unset`, `read`, `read-array`, `mapfile`, `printf`, `getopts`, `match`, `rsub` | write | the names these builtins write, flags and their operands skipped (`readarray` is `mapfile`) |
+| `arr`, `json`, `str` | read, write | the variable an `arr`, `json` or `str` operation reads or writes by name, with its `verb`; one that changes a variable in place gives both |
+| `test` | read | `[[ -v name ]]`, `[ -v name ]`, `test -v name` |
+| `for`, `select` | write | the loop variable |
+| `fd-variable` | write | `{name}>file` and its kin |
+| `expand`, `length`, `keys`, `indirect`, `names` | read | `$x` and `${x...}`, `${#x}`, `${!x[@]}`, `${!x}`, `${!prefix@}` (the name is the prefix) |
+| `default-assign` | write | `${x:=word}`, beside its `expand` read |
+| `arithmetic` | read, write | a name in `(( ))`, `$(( ))`, `$[ ]`, `for (( ))`, `let` or a `${x:offset:length}`; written when an assignment operator, `++` or `--` follows or `++`/`--` precedes it |
+| `argument` | name | a literal argument naming a variable, below |
+
+`known` is `syntax` for everything the parser marks. Arithmetic text has no parse tree until it runs, so the names in it are found by a lexical scan of the parser-delimited text: those records are `known: inferred`, `rule: arithmetic-text`, `lexical: true`. The `$` expansions inside arithmetic are lexed as words and are ordinary `expand` records.
+
+`exact` is false when the parser recorded no bytes for the access itself; the span is then the enclosing word or command. Here-document bodies are the common case: they are read from a copy, so a `$name` in one points at the command that opened it. Every other form gets its own bytes, checked against the source before they are given.
+
+A literal argument is a variable's name in two cases. When a function in the same file takes that argument by name -- as the value of `local -n`/`declare -n`, as an indirect `${!param}`, or as the name an `unset`, `read`, `printf -v`, `arr`, `json` or similar builtin writes through `"$param"` -- the call's argument at that position is `access: name`, `known: inferred`, `rule: by-name-parameter`, with `callee`. Otherwise only a name supplied with `--symbols` is reported, `lookup: supplied-symbol`, as `refs` does: other argument text stays private.
+
+```sh
+need inspect
+cat > sample.hibr <<'SOURCE'
+fn keep(name) { local -n slot=$1; slot=1; }
+keep SAVED_STATE
+dt_keep KEPT_STATE
+SOURCE
+r := inspect vars sample.hibr --symbols '["KEPT_STATE"]'
+for i in "${!r[vars][@]}"; do
+	[ "${r[vars][$i][access]}" = name ] || continue
+	printf '%s to %s: %s %s%s\n' "${r[vars][$i][name]}" "${r[vars][$i][callee]}" "${r[vars][$i][known]}" \
+		"${r[vars][$i][rule]}" "${r[vars][$i][lookup]}"
+done
+```
+```output
+SAVED_STATE to keep: inferred by-name-parameter
+KEPT_STATE to dt_keep: syntax supplied-symbol
+```
+
+A subscript's `text` is its literal value, quotes removed, when it is `quoted` or `unquoted`; a `dynamic` one gives its source as written, or null when it holds command code. An unquoted literal subscript of an array not declared `-A` is arithmetic when the script runs, so a bare name there may read that variable; it is reported as the key `unquoted`, not as a read.
+
+`declared` is lexical: it says what the enclosing function declares, not what is in scope at run time. A function a caller's `local` reaches through dynamic scope is not followed, nor is anything across files. Variables the shell sets implicitly (`REPLY`, `M`, `BASH_REMATCH`, `RET`, `OPTARG`, `OPTIND`, `PWD`), positional and special parameters, the names a by-name builtin is handed through a variable whose value is unknown, the text inside quoted strings that another command may later run (`eval`, `trap`, `sh -c`, `arr map`), and a name arithmetic would read through the value of another variable are not reported.
 
 ## Options and limits
 
@@ -122,6 +223,6 @@ sample_draw inferred window.draw
 
 Nothing in inspected source runs: no commands, substitutions, imports, aliases, traps or module initialization. Classification never scans the autoload index. Source identity and explicit uncertainty must accompany any explanation. Privacy defaults to names, locations, signatures and author comments; unrelated argument strings and body text are not disclosed. Signatures can contain sensitive defaults or comments: choosing to inspect does not authorize sending records elsewhere.
 
-C consumers include `hibr.h` and installed `hibr/inspect.h`, then request `hibr_require(s, "inspect", 1)`. The `ix_api.query(caller, request, path, options, out)` function appends JSON to an initialized, caller-owned `str`. Options is null or JSON containing optional `function`, `rules` and `symbols` fields with the same meanings and limits. The consumer frees the string. No parser pointers escape. C queries preserve caller status, RET and line state; the builtin uses the normal result slot. Interface version matching uses Hibr's existing provide/require mechanism, independently of public AST layout (there is none).
+C consumers include `hibr.h` and installed `hibr/inspect.h`, then request `hibr_require(s, "inspect", 1)`. The `ix_api.query(caller, request, path, options, out)` function appends JSON to an initialized, caller-owned `str`. Requests are the same names as the builtin's (`functions`, `calls`, `refs`, `vars`, `check`). Options is null or JSON containing optional `function`, `rules` and `symbols` fields with the same meanings and limits. The consumer frees the string. No parser pointers escape. C queries preserve caller status, RET and line state; the builtin uses the normal result slot. Interface version matching uses Hibr's existing provide/require mechanism, independently of public AST layout (there is none).
 
 These examples are executed by `tests/531-doc-examples.t`. `make check-inspect` covers behavior, bounds, provenance, non-execution, recovery, all tracked source files and function extraction round trips. The sanitizer gate and inspection fuzzer include symbol-limit cases. Review and Hibr's release gate precede freezing the interface.

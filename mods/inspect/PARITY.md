@@ -16,7 +16,7 @@ Compared `ef6e412`'s token-based dependency checker with producer `calls` and `r
 
 The new checker supplies the known installable function names to `refs` as an explicit `symbols` whitelist. This requests literal candidate names, not cross-file resolution: records remain syntax, say `lookup: supplied-symbol`, and remain unresolved. Without that option, refs retains its inspected-file-only scope and privacy. The module does not read other source files. It never reveals unrelated argument literals. Calls and refs supply the line and enclosing function, including inline definitions and nested substitutions.
 
-The line counter changes from 32,118 to 34,099 because it now includes 1,981 declaration lines formerly skipped wholesale. This is a reporting difference; the candidate-location comparison above is unchanged. Guard-argument, resource-path and catalogue-header recognition remain explicit text checks: version 1 does not expose those argument/path facts. Variable analysis and dt_app metadata are separate follow-ups, not duplicate parsers introduced here.
+The line counter changes from 32,118 to 34,099 because it now includes 1,981 declaration lines formerly skipped wholesale. This is a reporting difference; the candidate-location comparison above is unchanged. Guard-argument, resource-path and catalogue-header recognition remain explicit text checks: version 1 does not expose those argument/path facts. dt_app metadata is a separate follow-up, not a duplicate parser introduced here; variable facts have since become the `vars` request.
 
 ## Formatting oracle
 

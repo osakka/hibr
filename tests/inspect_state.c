@@ -47,6 +47,7 @@ static int ixs_check(sh *s, int ac, char **av)
 	ixs_api->query(s, "calls", av[1], 0, &out);
 	ixs_api->query(s, "refs", av[1], 0, &out);
 	ixs_api->query(s, "check", av[1], 0, &out);
+	ixs_api->query(s, "vars", av[1], 0, &out);
 #ifdef __linux__
 	dl_iterate_phdr(ixs_loaded, &after);
 #endif
