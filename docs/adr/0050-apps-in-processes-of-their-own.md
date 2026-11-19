@@ -357,6 +357,33 @@ What it holds, each a check there:
   desktop's wherever it is declared now -- and that the language, which
   follows the system's locale and is kept nowhere, is a hot mirror. An idle
   desktop sends an app nothing.
+- **An app is sent its own windows' records** (2026-11-19, the window
+  door): the fields installables read of a window (`DT_RTWINF`, found by
+  the survey -- title, size, place, app, chrome and a few more), as one
+  `win ID FIELD VALUE ...` line when any moved, and `wingone ID` when one
+  has gone; another app's windows are never sent. A window's record is
+  written in 106 places across twelve files, so there is no one writer to
+  hook, and walking every window's fields every pass was measured at 244 us
+  with five apps of two windows each -- a third of the frame budget, idle.
+  The frame is the door instead: a record that changes in any way an app
+  reads is drawn again and one that has not is left alone, so a window of a
+  connected app is compared as it is drawn, about 15 us, and nothing is
+  done on a pass that draws none (16 us a pass in that same case, all of it
+  the hot scalars). Before every tell and at the hello, that connection's
+  own app's windows are compared too, so a retitle reaches the app ahead of
+  the call that may read it. A window being moved or sized waits until it
+  stops, or a solid drag would send a line a step.
+- **Corrections from review** (2026-11-19): the record of what every app
+  was sent is kept on every save while the desktop listens, connected app
+  or not -- a setting changed with none connected, sent to the next app at
+  its hello and changed back, equalled a stale record and was never sent;
+  what the settings derive is rebuilt only when its own setting moved
+  (`dt_glyphs` records the set it filled), where every batch, a focus
+  change included, had refilled every app's glyph table; a second listen
+  starts the hot list afresh; and a hello's state is each name's lines,
+  kept encoded and made again only when the name moves, joined and sent in
+  one write -- 8 ms once, then under a millisecond, where encoding and
+  sending about two hundred lines one at a time took 20 ms of a pass.
 - **Quit and Restart Desktop close it**: the socket goes and every app
   process's connection ends. That is not yet what Requirement 8 says --
   app processes surviving a restart -- which needs the connection kept

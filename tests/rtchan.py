@@ -52,6 +52,9 @@ fn demo_ping(what) {
 	dt_notep low "pinged: %%s" "$what"
 }
 fn demo_child() { ( sleep 60 ) & }
+fn demo_win(id) { printf '%%s\t%%s\t%%s\n' "${DT[$id]["title"]-none}" "${DT[$id]["w"]-}" "${DT[$id]["col"]-}" > %s.win; }
+fn demo_mark() { GL["wifi1"]=kept; }
+fn demo_gl() { printf '%%s\n' "${GL["wifi1"]-}" > %s.gl; }
 fn demo_show() { printf '%%s\t%%s\t%%s\t%%s\t%%s\n' "$DT_FACE" "$DT_GLYPHSET" "${GL[vline]}" "$DT_FOCUS" "$DT_RTRECV" > %s.show; }
 exec {DEMO_FF}<> %s
 console watch "$DEMO_FF"
@@ -65,7 +68,7 @@ demo_tick() {
 dt_ticker demo_tick
 dt_rtrun
 echo "ended $?" > %s.end
-''' % (HERE, SAID, SAID, SAID, SAID, FIFO, SAID))
+''' % (HERE, SAID, SAID, SAID, SAID, SAID, SAID, FIFO, SAID))
 # One that speaks another protocol.
 open(BAD, "w").write(r'''DT_HERE=%s
 . "$DT_HERE/runtime.hibr"
@@ -222,7 +225,7 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(42)
+    report(49)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
@@ -520,12 +523,65 @@ seen = open(SAID + ".show").read().rstrip("\n").split("\t") if os.path.exists(SA
 do('DT_FOCUS=$OTHER')
 check("the focus moving reaches the app before the next thing it is told", seen[3:4] == [focus] and focus != "",
       (focus, seen))
+# What a setting derives is rebuilt only when its own setting moved: a
+# focus change left every app refilling its glyph table.
+do('dt_rttell "$LT" demo_mark')
+# The focus moves in one pass and is read in a later one, so whatever the
+# batch that carried it rebuilt has been rebuilt by then.
+result('DT_FOCUS=990078; echo x > %s.pend' % SAID)
+time.sleep(0.3)
+result('dt_rttell "$LT" demo_gl; echo x > %s.pend' % SAID)
+deadline = time.time() + 10
+while time.time() < deadline and not os.path.exists(SAID + ".gl"):
+    time.sleep(0.05)
+gl = open(SAID + ".gl").read().strip() if os.path.exists(SAID + ".gl") else "?"
+do('DT_FOCUS=$OTHER')
+check("a focus change leaves what the settings derive alone", gl == "kept", gl)
 seen = show()
 n1 = int(seen[4]) if len(seen) > 4 else -1
 time.sleep(3)
 seen = show()
 n2 = int(seen[4]) if len(seen) > 4 else -1
 check("idle for three seconds, the desktop sends an app nothing", n2 - n1 == 1, (n1, n2))
+
+# The window door: an app's own windows' records are sent -- what
+# installables read of them -- when one moves, and when one goes; another
+# app's are never sent.
+def win(wid):
+    if os.path.exists(SAID + ".win"):
+        os.unlink(SAID + ".win")
+    do('dt_rttell "$LT" demo_win %s' % wid)
+    deadline = time.time() + 10
+    while time.time() < deadline and not (os.path.exists(SAID + ".win") and open(SAID + ".win").read().strip()):
+        time.sleep(0.05)
+    return open(SAID + ".win").read().rstrip("\n").split("\t") if os.path.exists(SAID + ".win") else []
+
+
+lw = result('LW := dt_new "Loop Window" 6 30 3 40 loopdemo; echo "$LW" > %s.pend' % SAID)
+own = win(lw)
+check("an app's own window's record is sent to its process", own[:2] == ["Loop Window", "30"], own)
+# A window being dragged is sent once it stops, not a line a step.
+n1 = int(show()[4])
+for c in (41, 42, 43, 44, 45):
+    result('DT_DRAG=$LW; DT[$LW]["col"]=%d; echo x > %s.pend' % (c, SAID))
+n2 = int(show()[4])
+result('DT_DRAG=; echo x > %s.pend' % SAID)
+moved = win(lw)
+check("a window dragged sends its app nothing while it moves, and its place once it stops",
+      n2 - n1 == 1 and moved[2:3] == ["45"], (n1, n2, moved))
+result('dt_retitle "$LW" "Renamed"; dt_rttell "$LT" demo_win "$LW"; echo x > %s.pend' % SAID)
+deadline = time.time() + 10
+while time.time() < deadline and not (os.path.exists(SAID + ".win") and "Renamed" in open(SAID + ".win").read()):
+    time.sleep(0.05)
+got = open(SAID + ".win").read().rstrip("\n").split("\t") if os.path.exists(SAID + ".win") else []
+check("a window retitled reaches its app before the next thing it is told", got[:1] == ["Renamed"], got)
+other = result('echo "$OTHER" > %s.pend' % SAID)
+check("another app's window is never sent, where its own is", own[:2] == ["Loop Window", "30"] and
+      win(other)[:1] == ["none"], (own, win(other)))
+result('dt_del "$LW"; echo x > %s.pend' % SAID)
+time.sleep(0.3)
+check("a window that has gone is gone from its app too, having been there", got[:1] == ["Renamed"] and
+      win(lw)[:1] == ["none"], (got, win(lw)))
 
 # A child an app starts must not keep the app looking alive once the app
 # has gone: killed outright with a child of its own running, its
@@ -585,7 +641,21 @@ for k in idle + [half, flood]:
 for x in (SAID + ".pid", SAID + ".end"):
     if os.path.exists(x):
         os.unlink(x)
-do('dt_rtlisten; LT := dt_rtspawn loopdemo %s' % LOOP)
+# A setting changed with no app connected, sent to the next app at its
+# hello, and changed back, reaches that app: the record of what every app
+# was sent is kept on every save while the desktop listens.
+do('dt_rtlisten')
+result('DT_GLYPHSET=ascii; dt_glyphs ascii; dt_save; echo x > %s.pend' % SAID)
+do('LT := dt_rtspawn loopdemo %s' % LOOP)
+deadline = time.time() + 10
+while time.time() < deadline and not os.path.exists(SAID + ".pid"):
+    time.sleep(0.05)
+time.sleep(0.5)
+first = show()
+do('DT_GLYPHSET=unicode; dt_glyphs unicode; dt_save')
+back = show()
+check("a setting changed with no app connected, and back, reaches the app it was sent to",
+      first[1:2] == ["ascii"] and back[1:2] == ["unicode"], (first, back))
 deadline = time.time() + 10
 while time.time() < deadline and not os.path.exists(SAID + ".pid"):
     time.sleep(0.05)
@@ -600,7 +670,7 @@ check("a desktop killed outright ends an app's loop within two seconds, never by
 t.close()
 for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle",
           SAID + ".other", SAID + ".alive", SAID + ".before", SAID + ".after", SAID + ".pend",
-          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", LOOP, FIFO):
+          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", SAID + ".win", SAID + ".gl", LOOP, FIFO):
     if os.path.exists(f):
         os.unlink(f)
-report(42)
+report(49)

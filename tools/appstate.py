@@ -22,7 +22,7 @@ OUT = os.path.join(ROOT, "docs", "adr", "0050-state.tsv")
 MIRRORS = os.path.join(ROOT, "programs", "desktop", "mirrors.hibr")
 # The doors an app's own process is sent through today; the rest are
 # declared as their slices land.
-SENT = ("save", "hello", "hot")
+SENT = ("save", "hello", "hot", "window")
 DESK = os.path.join(ROOT, "programs/desktop")
 
 
@@ -188,6 +188,15 @@ def maps():
     return out
 
 
+def winfields():
+    """The fields of a window's record (DT[$id]["x"]) any installable reads:
+    what an app's own process is sent of its own windows."""
+    out = set()
+    for f in installables():
+        out.update(re.findall(r'\bDT\[\$?\{?[A-Za-z_]+\}?\]\["([a-z]+)"\]', open(f, errors="replace").read()))
+    return sorted(out)
+
+
 def mirrors(rows):
     """programs/desktop/mirrors.hibr: every mirror's door, which the desktop
     reads to know what to send and the app to know what it may be sent; and
@@ -205,6 +214,9 @@ def mirrors(rows):
            "# interface: shared",
            "",
            "declare -gA DT_RTDOOR=(" + " ".join("[%s]=%s" % (n, d) for n, d in doors) + ")",
+           "# The fields of a window's record installables read: what an app's own",
+           "# process is sent of its own windows (the window door).",
+           "DT_RTWINF=(" + " ".join(winfields()) + ")",
            "# Which of them are maps, sent entry by entry.",
            "declare -gA DT_RTMAP=(" + " ".join("[%s]=1" % n for n, d in doors if n in mp) + ")",
            "",

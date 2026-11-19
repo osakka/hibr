@@ -37,8 +37,18 @@ declare -gA DT_RTLAUNCH DT_RTCTOK DT_RTTOKC
 # so only a change goes out; and the names of the hot door, compared as one
 # string each pass while an app is connected.
 declare -gA DT_RTSENT
+# Each mirrored name's lines as they cross, kept encoded and made again only
+# when the name moves, so a hello joins what is kept and sends it at once:
+# encoding about two hundred names and sending them a line at a time took
+# 20 ms of one pass, measured.
+declare -gA DT_RTLINE
 DT_RTHOT=()
 DT_RTHOTSIG=
+# What each connection was last sent of each of its app's windows, "C ID"
+# -> the fields joined: the window door. And the apps with a connection,
+# with how many, so a frame drawing a window asks one lookup whether any
+# process is to be told of it.
+declare -gA DT_RTWSIG DT_RTAPPS
 # The told requests interface.tsv names, which alone are carried; those
 # whose first word is a window; and, per app, the requests its own file
 # makes, read once from the file (never run) and kept by its path.
@@ -72,7 +82,9 @@ dt_rtlisten() {
 		[[ $sg == "$f"\(id* || $sg == "$f(int id"* ]] && DT_RTWIN["$f"]=1
 	done < "$DT_HERE/interface.tsv"
 	# What every app has been sent is what is true now: a later change
-	# is what goes out.
+	# is what goes out. A second listen starts the hot list afresh.
+	DT_RTHOT=()
+	DT_RTHOTSIG=
 	for x in "${!DT_RTDOOR[@]}"; do
 		case ${DT_RTDOOR["$x"]} in
 		save | hello) DT_RTSENT["$x"] := dt_rtsig "$x" ;;
@@ -110,23 +122,30 @@ fn dt_rtsig(name) {
 	ret "${!name-}"
 }
 
-# Send connection c what name holds now: `set NAME VALUE`, or for a map
-# `clear NAME` and then `setk NAME KEY VALUE` for each entry.
-fn dt_rtmirror(int c, name) {
-	local k x
+# What name holds now as the lines that carry it, kept in DT_RTLINE: `set
+# NAME VALUE`, or for a map `clear NAME` and then `setk NAME KEY VALUE` for
+# each entry.
+fn dt_rtencode(name) {
+	local k x o
 
 	if [ "${DT_RTMAP["$name"]-}" = 1 ]; then
 		local -n m=$name
-		x := dt_rtline clear "$name"
-		dt_rtsay "$c" "$x" || return 1
+		o := dt_rtline clear "$name"
 		for k in "${!m[@]}"; do
 			x := dt_rtline setk "$name" "$k" "${m[$k]}"
-			dt_rtsay "$c" "$x" || return 1
+			o+=$'\n'$x
 		done
-		return 0
+	else
+		o := dt_rtline set "$name" "${!name-}"
 	fi
-	x := dt_rtline set "$name" "${!name-}"
-	dt_rtsay "$c" "$x"
+	DT_RTLINE["$name"]=$o
+	return 0
+}
+
+# Send connection c what name holds now, from the lines kept for it.
+fn dt_rtmirror(int c, name) {
+	[ -n "${DT_RTLINE["$name"]+x}" ] || dt_rtencode "$name"
+	dt_rtsay "$c" "${DT_RTLINE["$name"]}"
 }
 
 # Send every app process each name in names whose value has moved since it
@@ -138,6 +157,7 @@ fn dt_rtsendmoved(...names) {
 		s := dt_rtsig "$n"
 		[ "$s" = "${DT_RTSENT["$n"]-}" ] && continue
 		DT_RTSENT["$n"]=$s
+		dt_rtencode "$n"
 		for c in "${!DT_RTC[@]}"; do
 			[ "${DT_RTC["$c"]}" = - ] && continue
 			dt_rtmirror "$c" "$n"
@@ -152,11 +172,80 @@ dt_rtsettings() {
 	local x
 	local -a names
 
-	[ "${#DT_RTC[@]}" = 0 ] && return 0
+	[ -n "$DT_RTLFD" ] || return 0
 	for x in "${!DT_RTDOOR[@]}"; do
 		[ "${DT_RTDOOR["$x"]}" = save ] && names+=("$x")
 	done
 	dt_rtsendmoved "${names[@]}"
+}
+
+# The window door: each app process is sent its own app's windows' records
+# -- the fields installables read (DT_RTWINF), as one `win ID FIELD VALUE
+# ...` line when any moved -- and `wingone ID` when one has gone. A window
+# is the app's when its record names it; other apps' windows are not sent.
+# A record that changes in any way an app reads is drawn again, and one
+# that has not is left alone, so the frame is the door: dt_rtwin1 after a
+# window of a connected app is drawn (wm/draw.hibr), about 15 us, and
+# nothing on a pass that draws none; dt_rtwinsc, every window of one
+# connection's app, at its hello and before every tell, so a call never
+# arrives ahead of its window. A window being moved or sized waits until
+# it stops: a solid drag would be a line a step. Walking every window every
+# pass cost 244 us with five apps of two windows each, measured.
+
+# Send connection c window id's record, when it moved since c was last sent it.
+fn dt_rtwinto(int c, int id) {
+	local f s= x
+	local -a w=(win "$id")
+
+	[ "$id" = "${DT_DRAG-}" ] || [ "$id" = "${DT_SIZE-}" ] && return 0
+	for f in "${DT_RTWINF[@]}"; do
+		s+="${DT[$id]["$f"]-}"$'\t'
+		w+=("$f" "${DT[$id]["$f"]-}")
+	done
+	[ "$s" = "${DT_RTWSIG["$c $id"]-}" ] && return 0
+	DT_RTWSIG["$c $id"]=$s
+	x := dt_rtline "${w[@]}"
+	dt_rtsay "$c" "$x"
+}
+
+# A window of a connected app was drawn: every connection of its app is sent
+# it, if it moved.
+fn dt_rtwin1(int id) {
+	local c ap=${DT[$id]["app"]-}
+
+	for c in "${!DT_RTC[@]}"; do
+		[ "${DT_RTC["$c"]}" = "$ap" ] && dt_rtwinto "$c" "$id"
+	done
+	return 0
+}
+
+# Every window of connection c's app, and those it was sent that have gone.
+fn dt_rtwinsc(int c) {
+	local ap=${DT_RTC["$c"]-} id k x
+
+	[ -n "$ap" ] && [ "$ap" != - ] || return 0
+	for id in "${DT_WINS[@]}"; do
+		[ "${DT[$id]["app"]-}" = "$ap" ] && dt_rtwinto "$c" "$id"
+	done
+	for k in "${!DT_RTWSIG[@]}"; do
+		[ "${k%% *}" = "$c" ] || continue
+		id=${k#* }
+		dt_iswin "$id" && [ "${DT[$id]["app"]-}" = "$ap" ] && continue
+		unset DT_RTWSIG["$k"]
+		x := dt_rtline wingone "$id"
+		dt_rtsay "$c" "$x"
+	done
+	return 0
+}
+
+# Forget what connection c was sent of its windows, as it goes.
+fn dt_rtwforget(int c) {
+	local k
+
+	for k in "${!DT_RTWSIG[@]}"; do
+		[ "${k%% *}" = "$c" ] && unset DT_RTWSIG["$k"]
+	done
+	return 0
 }
 
 # The hot door: the few scalars that change often, compared as one string,
@@ -275,20 +364,30 @@ fn dt_rttell(launch, name, ...args) {
 	local c=${DT_RTTOKC["$launch"]-} x
 
 	[ -n "$c" ] || return 1
-	# A changed mirror goes out before a call that may read it.
+	# A changed mirror, or a window of its own, goes out before a call
+	# that may read it.
 	dt_rthot
+	dt_rtwinsc "$c"
 	x := dt_rtline tell "$name" "${args[@]}"
 	dt_rtsay "$c" "$x"
 }
 
 # Let a connection go.
 fn dt_rtdrop(int c) {
+	local x
+
 	[ -n "${DT_RTC["$c"]+x}" ] || return 0
 	command -v console > /dev/null && console unwatch "$c" 2> /dev/null
 	send -c "$c"
 	exec {c}>&-
 	[ -z "${DT_RTCTOK["$c"]-}" ] || unset DT_RTTOKC["${DT_RTCTOK["$c"]}"]
+	x=${DT_RTC["$c"]}
+	if [ "$x" != - ] && [ -n "${DT_RTAPPS["$x"]-}" ]; then
+		DT_RTAPPS["$x"]=$((DT_RTAPPS["$x"] - 1))
+		[ "${DT_RTAPPS["$x"]}" -gt 0 ] || unset DT_RTAPPS["$x"]
+	fi
 	unset DT_RTC["$c"] DT_RTBUF["$c"] DT_RTMORE["$c"] DT_RTPEND["$c"] DT_RTCTOK["$c"]
+	dt_rtwforget "$c"
 	return 0
 }
 
@@ -417,13 +516,20 @@ fn dt_rtmsg(int c, line) {
 		DT_RTC["$c"]=$who
 		DT_RTCTOK["$c"]=${a[4]}
 		DT_RTTOKC["${a[4]}"]=$c
+		DT_RTAPPS["$who"]=$((${DT_RTAPPS["$who"]:-0} + 1))
 		# What it is sent, before its ok, so the app's first line after the
-		# hello sees all of it.
+		# hello sees all of it: the kept lines joined, in one write.
+		t=
 		for x in "${!DT_RTDOOR[@]}"; do
 			case ${DT_RTDOOR["$x"]} in
-			save | hello | hot) dt_rtmirror "$c" "$x" || return 1 ;;
+			save | hello | hot)
+				[ -n "${DT_RTLINE["$x"]+x}" ] || dt_rtencode "$x"
+				t+=${t:+$'\n'}${DT_RTLINE["$x"]}
+				;;
 			esac
 		done
+		dt_rtsay "$c" "$t" || return 1
+		dt_rtwinsc "$c"
 		dt_rtsay "$c" "ok $DT_RTPROTO" || return 1
 		return 0
 	fi

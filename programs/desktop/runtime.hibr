@@ -166,6 +166,10 @@ fn dt_rtcalled(line) {
 		dt_rtmirrored "${w[@]}"
 		return 0
 		;;
+	win | wingone)
+		dt_rtwindow "${w[@]}"
+		return 0
+		;;
 	tell) ;;
 	*)
 		dt_log "app runtime: the desktop said ${w[0]:-nothing}, which is not carried yet (ADR 0050)"
@@ -218,6 +222,31 @@ fn dt_rtmirrored(...w) {
 		m["$k"]=$v
 		;;
 	esac
+	return 0
+}
+
+# One of this app's windows, as the desktop holds it: `win ID FIELD VALUE
+# ...` with the fields installables read (DT_RTWINF), or `wingone ID`. Only
+# those fields are taken, by lookup.
+fn dt_rtwindow(...w) {
+	local id f v i=2 ok x
+
+	id := dt_rtdec "${w[1]-}"
+	case $id in "" | *[!0-9]*) return 0 ;; esac
+	if [ "${w[0]}" = wingone ]; then
+		unset DT["$id"]
+		return 0
+	fi
+	while [ "$i" -lt "${#w[@]}" ]; do
+		f := dt_rtdec "${w[$i]}"
+		v := dt_rtdec "${w[$((i + 1))]-}"
+		i=$((i + 2))
+		ok=
+		for x in "${DT_RTWINF[@]}"; do
+			[ "$x" = "$f" ] && { ok=1; break; }
+		done
+		[ -n "$ok" ] && DT[$id]["$f"]=$v
+	done
 	return 0
 }
 
