@@ -1354,29 +1354,147 @@ int net_fdarg(const char *t, int *fd)
 }
 
 /* Write arguments to a descriptor. */
+/* What each descriptor written with `send -p` still has to take, kept here so a script never cuts a write in a character's middle. */
+static vec net_pq;
+
+typedef struct {
+	int fd;
+	str q;
+} net_pend;
+
+/* The queue for fd, made when mk and there is none. */
+net_pend *net_pqof(int fd, int mk)
+{
+	size_t i;
+	net_pend *p;
+
+	for (i = 0; i < net_pq.n; i++)
+		if (((net_pend *)net_pq.p[i])->fd == fd)
+			return net_pq.p[i];
+	if (!mk)
+		return 0;
+	p = xm(sizeof *p);
+	memset(p, 0, sizeof *p);
+	p->fd = fd;
+	s_init(&p->q);
+	v_add(&net_pq, p);
+	return p;
+}
+
+/* Forget fd's queue, taken out by identity. */
+void net_pqdrop(int fd)
+{
+	size_t i;
+	net_pend *p;
+
+	for (i = 0; i < net_pq.n; i++) {
+		p = net_pq.p[i];
+		if (p->fd != fd)
+			continue;
+		s_free(&p->q);
+		free(p);
+		net_pq.p[i] = net_pq.p[net_pq.n - 1];
+		net_pq.n--;
+		return;
+	}
+}
+
+/* Write what fd takes now of buf, never waiting and never raising SIGPIPE, on every platform: the count written, 0 when it takes nothing now, -1 on an error. As hibr_wrall, a SIGPIPE this write raised is drained and one already pending is left. */
+ssize_t net_trywr(int fd, const char *buf, size_t n)
+{
+	ssize_t k;
+	int fl, e, wasp, got;
+	sigset_t one, old, pend;
+
+	fl = fcntl(fd, F_GETFL);
+	if (fl < 0)
+		return -1;
+	sigemptyset(&one);
+	sigaddset(&one, SIGPIPE);
+	if (sigprocmask(SIG_BLOCK, &one, &old) != 0)
+		return -1;
+	sigemptyset(&pend);
+	sigpending(&pend);
+	wasp = sigismember(&pend, SIGPIPE) == 1;
+	if (!(fl & O_NONBLOCK))
+		fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+	while ((k = write(fd, buf, n)) < 0 && errno == EINTR)
+		;
+	e = errno;
+	if (!(fl & O_NONBLOCK))
+		fcntl(fd, F_SETFL, fl);
+	if (!wasp) {
+		sigemptyset(&pend);
+		sigpending(&pend);
+		if (sigismember(&pend, SIGPIPE) == 1)
+			sigwait(&one, &got);
+	}
+	sigprocmask(SIG_SETMASK, &old, NULL);
+	errno = e;
+	if (k < 0 && (e == EAGAIN || e == EWOULDBLOCK))
+		return 0;
+	return k;
+}
+
+/* send -p: add text to fd's queue and write what it takes now; RET is what is still queued, status 3 while any is, 1 when the peer has gone. */
+int net_sendp(sh *s, int fd, str *b)
+{
+	net_pend *p = net_pqof(fd, 1);
+	ssize_t k = 0;
+	str t;
+
+	s_add(&p->q, b->p ? b->p : "", b->n);
+	while (p->q.n > 0 && (k = net_trywr(fd, p->q.p, p->q.n)) > 0) {
+		memmove(p->q.p, p->q.p + k, p->q.n - (size_t)k);
+		p->q.n -= (size_t)k;
+		p->q.p[p->q.n] = 0;
+	}
+	if (k < 0) {
+		lg(HIBR_LDBG, "send -p: %d: %s; its queue forgotten", fd, strerror(errno));
+		net_pqdrop(fd);
+		hibr_set(s, "RET", "0", 0);
+		return HIBR_FAIL;
+	}
+	k = (ssize_t)p->q.n;
+	if (!k)
+		net_pqdrop(fd);
+	s_init(&t);
+	s_fmt(&t, "%ld", (long)k);
+	hibr_set(s, "RET", t.p, 0);
+	s_free(&t);
+	return k ? 3 : HIBR_OK;
+}
+
 int b_send(sh *s, int ac, char **av)
 {
-	int i = 1, nl = 1, fd;
+	int i = 1, nl = 1, fd, pend = 0, clr = 0, r;
 	str b;
 
-	(void)s;
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		if (!strcmp(av[i], "-n"))
 			nl = 0;
 		else if (!strcmp(av[i], "-r"))
 			nl = 2;
+		else if (!strcmp(av[i], "-p"))
+			pend = 1;
+		else if (!strcmp(av[i], "-c"))
+			clr = 1;
 		else {
 			lg(HIBR_LERR, "send: %s: unknown option", av[i]);
 			return 2;
 		}
 	}
 	if (ac - i < 1) {
-		lg(HIBR_LERR, "usage: send [-n|-r] fd text...");
+		lg(HIBR_LERR, "usage: send [-n|-r] [-p] fd text... | send -c fd");
 		return 2;
 	}
 	if (net_fdarg(av[i], &fd) != HIBR_OK)
 		return 2;
 	i++;
+	if (clr) {
+		net_pqdrop(fd);
+		return HIBR_OK;
+	}
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		if (!strcmp(av[i], "-n"))
 			nl = 0;
@@ -1392,10 +1510,20 @@ int b_send(sh *s, int ac, char **av)
 			s_ch(&b, ' ');
 		s_cat(&b, av[i]);
 	}
+	if (pend && !b.n) {
+		r = net_sendp(s, fd, &b);
+		s_free(&b);
+		return r;
+	}
 	if (nl == 2)
 		s_cat(&b, "\r\n");
 	else if (nl)
 		s_ch(&b, '\n');
+	if (pend) {
+		r = net_sendp(s, fd, &b);
+		s_free(&b);
+		return r;
+	}
 	/* hibr_wrall, not write: a peer that has gone must come back as
 	   EPIPE for this builtin to report, never as a signal that ends the
 	   script -- which is what `send` is for, and is why wm/ctl.hibr

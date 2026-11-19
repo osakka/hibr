@@ -6,8 +6,13 @@
 # another hibr version is refused and the person told hibr was updated,
 # with Restart Desktop one click away (owner, 2026-11-18): nothing runs half
 # old and half new. Only a told request named in interface.tsv is carried;
-# anything else is refused by name in the log. The guards are against an
-# app's bugs and against blaming the wrong app, not a sandbox -- containment
+# anything else is refused by name in the log. Every answer goes out through
+# dt_rtsay, send -p, which writes what the app takes now and keeps the rest
+# for it, offered again every pass: a plain send to an app that had stopped
+# reading waited until the app went (7.7 s, measured), the whole desktop
+# stopped behind it; and an app that never reads again is let go once
+# DT_RTQMAX waits for it. The guards are
+# against an app's bugs and against blaming the wrong app, not a sandbox -- containment
 # is not a goal (ADR 0050): only the desktop's own user connects, a hello
 # names an installed app, an app makes only the requests its own file
 # makes, and a request naming a window names one of the app's own.
@@ -69,6 +74,13 @@ DT_RTLINEMAX="${DT_RTLINEMAX-1048576}"
 # What each connection has sent that is not yet a whole line, and the
 # connections with whole lines still waiting for the next pass.
 declare -gA DT_RTBUF DT_RTMORE
+# How much of what the desktop says to one app may wait for the app to read
+# it before the app is taken to have stopped reading and is let go, and the
+# connections with something still waiting: each is offered it again every
+# pass (a frame asked for while any is), so nothing said is left behind and
+# a hung app cannot grow the desktop's memory past this.
+DT_RTQMAX="${DT_RTQMAX-1048576}"
+declare -gA DT_RTPEND
 
 # Every pass while listening: what woke the display is asked of it, so a
 # connection with nothing to say costs nothing; each that did is read with
@@ -79,6 +91,9 @@ dt_rttick() {
 	local -a ready
 
 	[ -n "$DT_RTLFD" ] || return 0
+	for c in "${!DT_RTPEND[@]}"; do
+		dt_rtsay "$c" ""
+	done
 	if command -v console > /dev/null; then
 		w := console woke "$DT_RTLFD" "${!DT_RTC[@]}"
 		read -ra ready <<< "$w"
@@ -89,7 +104,8 @@ dt_rttick() {
 		if [ "$c" = "$DT_RTLFD" ]; then
 			while accept -t 0 "$DT_RTLFD" x 2> /dev/null; do
 				if [ "$REMOTE" != "uid:$UID" ]; then
-					send "$x" "refused not%20this%20desktop's%20user" 2> /dev/null
+					send -p "$x" "refused not%20this%20desktop's%20user" 2> /dev/null
+					send -c "$x"
 					exec {x}>&-
 					dt_log "app runtime: refused a connection from $REMOTE"
 					continue
@@ -131,10 +147,41 @@ dt_rttick() {
 
 # Let a connection go.
 fn dt_rtdrop(int c) {
+	[ -n "${DT_RTC["$c"]+x}" ] || return 0
 	command -v console > /dev/null && console unwatch "$c" 2> /dev/null
+	send -c "$c"
 	exec {c}>&-
-	unset DT_RTC["$c"] DT_RTBUF["$c"] DT_RTMORE["$c"]
+	unset DT_RTC["$c"] DT_RTBUF["$c"] DT_RTMORE["$c"] DT_RTPEND["$c"]
 	return 0
+}
+
+# Say a line to a connection, or with an empty line offer it what is still
+# waiting: send -p writes what the app takes now and keeps the rest, never
+# waiting. Status 1 when the connection was let go -- it had gone, or what
+# waits for it passed DT_RTQMAX, which an app still reading never reaches.
+fn dt_rtsay(int c, line) {
+	local st
+
+	send -p "$c" "$line" 2> /dev/null
+	st=$?
+	case $st in
+	0)
+		unset DT_RTPEND["$c"]
+		return 0
+		;;
+	3)
+		if [ "$RET" -gt "$DT_RTQMAX" ]; then
+			dt_log "app runtime: ${DT_RTC["$c"]-a connection} stopped reading ($RET bytes waiting for it); let go"
+			dt_rtdrop "$c"
+			return 1
+		fi
+		DT_RTPEND["$c"]=1
+		dt_want "${DT_TERMMS:-70}"
+		return 0
+		;;
+	esac
+	dt_rtdrop "$c"
+	return 1
 }
 
 # Stop listening, let every app process go, and take the socket away: at
@@ -197,13 +244,13 @@ fn dt_rtmsg(int c, line) {
 	done
 	if [ "$who" = - ]; then
 		if [ "${a[0]-}" != hello ]; then
-			send "$c" "refused said%20nothing%20first" 2> /dev/null
+			dt_rtsay "$c" "refused said%20nothing%20first"
 			dt_rtdrop "$c"
 			return 1
 		fi
 		if [ "${a[1]-}" != "$DT_RTPROTO" ] || [ "${a[2]-}" != "$HIBR_VERSION" ]; then
 			x := dt_rtline refused "hibr $HIBR_VERSION protocol $DT_RTPROTO here, ${a[2]-?} protocol ${a[1]-?} there"
-			send "$c" "$x" 2> /dev/null
+			dt_rtsay "$c" "$x"
 			dt_log "app runtime: refused ${a[3]-an app}: hibr ${a[2]-?} protocol ${a[1]-?}, this desktop runs $HIBR_VERSION protocol $DT_RTPROTO"
 			t := dt_tr "hibr was updated: click to restart the desktop and open %s" "${a[3]-the app}"
 			dt_notifyp high "$t" dt_restart
@@ -212,13 +259,13 @@ fn dt_rtmsg(int c, line) {
 		fi
 		if ! dt_rtmay "${a[3]-}"; then
 			x := dt_rtline refused "${a[3]:-nothing} is not an installed app"
-			send "$c" "$x" 2> /dev/null
+			dt_rtsay "$c" "$x"
 			dt_log "app runtime: refused a hello from ${a[3]:-nothing}, which is not an installed app"
 			dt_rtdrop "$c"
 			return 1
 		fi
 		DT_RTC["$c"]=${a[3]}
-		send "$c" "ok $DT_RTPROTO" 2> /dev/null
+		dt_rtsay "$c" "ok $DT_RTPROTO" || return 1
 		return 0
 	fi
 	case ${a[0]-} in

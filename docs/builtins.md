@@ -392,7 +392,7 @@ the next entry, `~-1` the one before last, and `~+` and `~-` are `$PWD` and
 | `listen [-f] [-n count] port handler` | **[hibr]** serve connections with a handler, which is given the peer as `$1` and in `$REMOTE` |
 | `listen [-u] -b port [var]` | **[hibr]** bind only, and hand back the descriptor in `var`, `FD` by default; a port with a `/` is a Unix socket, owner-only; `-u` binds a UDP port, which `recv` then reads a datagram at a time |
 | `accept [-t secs] listenfd [var]` | **[hibr]** wait for one connection, at most secs with `-t`, its descriptor in `var`, `FD` by default; `$REMOTE` is `uid:N` for a Unix socket |
-| `send [-n\|-r] fd text…` | **[hibr]** write to a descriptor; `-r` ends CRLF; a peer that has gone is a failing status, never a signal |
+| `send [-n\|-r] [-p] fd text…` / `send -c fd` | **[hibr]** write to a descriptor; `-r` ends CRLF; a peer that has gone is a failing status, never a signal. `-p` writes what the descriptor takes now and never waits: the rest is kept for it (`send -p fd` with no text writes more of it), `RET` is how much is still kept, and the status is 3 while any is -- for a loop that must not be held up by a peer that has stopped reading (the desktop's end of an app's socket, ADR 0050). `send -c fd` forgets what is kept for fd |
 | `recv [-a\|-p\|-n bytes] fd [var]` | **[hibr]** read one line, all of it, or `n` bytes (a count, and `0` reads nothing), into `var`, `REPLY` by default; from a datagram socket, one datagram. `-p` takes only what is waiting now and never waits -- nothing, if nothing is, and a failing status at end of file -- for a loop that must not be held up by a peer (the desktop's end of an app's socket, ADR 0050) |
 
 Descriptors come back above 9, so a redirection cannot tread on one. `send`

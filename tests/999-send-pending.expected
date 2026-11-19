@@ -1,0 +1,10 @@
+0
+a reader that never reads: status 3, waited: no
+the rest is kept: yes
+once it reads, a flush empties it: status 0, left 0
+all of it arrived: yes
+send -c: status 0
+and a flush after it has nothing to write: status 0, kept 0
+the reader got less than was sent: yes
+a reader that has gone: status 1, and no signal ended this
+hibr: usage: send [-n|-r] [-p] fd text... | send -c fd

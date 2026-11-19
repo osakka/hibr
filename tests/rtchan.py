@@ -159,7 +159,7 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(21)
+    report(25)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
@@ -222,6 +222,58 @@ while time.time() < deadline and not os.path.exists(SAID + ".blame"):
 blame = open(SAID + ".blame").read().strip() if os.path.exists(SAID + ".blame") else ""
 check("a carried request is timed under its own name", blame.isdigit(), blame)
 
+# An app that stops reading: what the desktop says to it waits for it, the
+# desktop answering everything else meanwhile, and arrives whole once it
+# reads again; past DT_RTQMAX waiting, the app is taken to have stopped and
+# let go, by name. Its connection is found as the one added between two
+# listings of the table.
+def newconn(name):
+    do('echo "${!DT_RTC[@]}" > %s.before' % SAID)
+    k = client(name)
+    do('echo "${!DT_RTC[@]}" > %s.after' % SAID)
+    before = set(open(SAID + ".before").read().split())
+    added = [c for c in open(SAID + ".after").read().split() if c not in before]
+    return k, (added[0] if len(added) == 1 else "")
+
+
+def readall(k, want, secs):
+    got, deadline = b"", time.time() + secs
+    k.settimeout(0.2)
+    while len(got) < want and time.time() < deadline:
+        try:
+            b = k.recv(65536)
+        except socket.timeout:
+            continue
+        if not b:
+            return got, True
+        got += b
+    return got, False
+
+
+LINE = 100000
+stuck, sfd = newconn("demo")
+do('big=$(printf "%%0%dd" 0); for i in 1 2 3 4 5 6; do dt_rtsay %s "$i$big"; done; '
+   'echo "${DT_RTPEND[%s]-none} $RET" > %s.pend' % (LINE - 1, sfd, sfd, SAID))
+pend = open(SAID + ".pend").read().split() if os.path.exists(SAID + ".pend") else []
+took = answered(5)
+check("what the desktop says to an app that has stopped reading waits for it, and the desktop answers at once",
+      sfd != "" and pend[:1] == ["1"] and int(pend[1]) > 0 and took < 0.6, (sfd, pend, round(took, 3)))
+got, _ = readall(stuck, 6 * (LINE + 1), 10)
+do('echo "${DT_RTPEND[%s]-none}" > %s.pend' % (sfd, SAID))
+lines = got.split(b"\n")
+check("once it reads, all of it arrives in order and nothing is left waiting",
+      len(got) == 6 * (LINE + 1) and [l[:1] for l in lines[:6]] == [b"1", b"2", b"3", b"4", b"5", b"6"]
+      and open(SAID + ".pend").read().strip() == "none", (len(got), open(SAID + ".pend").read()))
+hung, hfd = newconn("demo")
+do('big=$(printf "%%0%dd" 0); for i in {1..20}; do dt_rtsay %s "$big" || break; done; '
+   'echo "${DT_RTC[%s]-gone}" > %s.pend' % (LINE - 1, hfd, hfd, SAID))
+check("past DT_RTQMAX waiting, the app is let go, and the log says which and why",
+      open(SAID + ".pend").read().strip() == "gone" and "demo stopped reading" in log(), log()[-300:])
+ended, eof = readall(hung, 50 * (LINE + 1), 10)
+check("and its connection ends, before all that was said to it", eof and len(ended) < 20 * (LINE + 1),
+      (eof, len(ended)))
+for k in (stuck, hung):
+    k.close()
 # Idle cost: ten connections that say nothing cost a pass next to nothing.
 idle = [client("demo") for i in range(10)]
 time.sleep(0.3)
@@ -251,7 +303,7 @@ for k in idle + [half, flood]:
     k.close()
 t.quit(b"q", 1.0)
 for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle",
-          SAID + ".other", SAID + ".alive"):
+          SAID + ".other", SAID + ".alive", SAID + ".before", SAID + ".after", SAID + ".pend"):
     if os.path.exists(f):
         os.unlink(f)
-report(21)
+report(25)
