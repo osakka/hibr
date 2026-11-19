@@ -417,11 +417,16 @@ What it holds, each a check there:
     refuses: `dt_hotmark` (DT), `dt_imecheck` (DT_IME), `dt_locload`
     (DT_LANG) and `dt_davclear` (DRW); each becomes a request
     (`tools/appstate.py --shared`).
-  - **The inventory is the parser's.** The survey still finds reads and
-    writes by word matching; `inspect` reports no variable facts yet, and a
-    variables request is being added to it from a working walker (which
-    found what the word match misses: bare names in arithmetic, `:=`
-    writes, names passed by name).
+  - **The inventory is the parser's** (2026-11-19): the survey reads which
+    installable reads and writes each platform global from `inspect vars`
+    (one process over every installable, 15 s), never a word match; a name
+    local to, or a parameter of, its function is that function's own, and a
+    name only passed by name (`dt_keep NAME`) is a registration, not an
+    access. Against the word match it classes every name the same, and
+    corrects five counts -- `:=` targets the regex read as reads (`CP`, 23
+    files to 4) and writes it never saw (`DT_T`, `DT_WHY`, `PM`,
+    `DT_POPCURNEXT`). The platform functions that write a shared name are
+    found the same way.
 - **Quit and Restart Desktop close it**: the socket goes and every app
   process's connection ends. That is not yet what Requirement 8 says --
   app processes surviving a restart -- which needs the connection kept

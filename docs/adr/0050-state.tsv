@@ -1,8 +1,8 @@
-# name	read in	written in	declared in	class -- tools/appstate.py --write (a word match, not a parse)
+# name	read in	written in	declared in	class -- tools/appstate.py --write (the parser's inventory, inspect vars)
 GL	115	0	wm/glyphs.hibr	local
 DT_FACE	106	2	wm/settings.hibr	shared
-CP	23	82	system/panel.hibr	declare
 DT_INK	100	2	wm/settings.hibr	shared
+CP	4	82	system/panel.hibr	declare
 DT_DIM	78	2	wm/settings.hibr	shared
 DT_ACTIVE	71	2	wm/settings.hibr	shared
 DT_SELINK	59	2	wm/settings.hibr	shared
@@ -17,15 +17,15 @@ DT_ROWS	35	0	wm/bar.hibr	shared
 DT_WELL	33	2	wm/settings.hibr	shared
 DT_WARN	32	2	wm/settings.hibr	shared
 DTJ	21	12	wm/jobs.hibr	local
+DT_T	16	16	wm/lang.hibr	local
 DT	27	3	wm/settings.hibr	shared
 DT_IDLE	27	2	wm/settings.hibr	shared
 DT_GOOD	24	2	wm/settings.hibr	shared
 DT_HERE	25	0	desktop.hibr	shared
+DT_POPCURNEXT	0	22	widgets/dropdown.hibr	local
 DT_INFO	19	2	wm/settings.hibr	shared
-DT_POPCURNEXT	0	20	widgets/dropdown.hibr	local
 DT_MIRRORON	19	0	wm/lang.hibr	local
 DT_WALLIMG	9	9	wm/settings.hibr	shared
-DT_T	16	0	wm/lang.hibr	local
 DT_GLYPHSET	13	2	wm/glyphs.hibr	shared
 DT_GLYPH	6	6	wm/settings.hibr	shared
 DT_STAT	6	6	wm/budget.hibr	request
@@ -51,6 +51,7 @@ DT_PW	6	2	wm/powerlist.hibr	local
 DT_SHADOW	4	4	wm/settings.hibr	shared
 DT_TITLEALIGN	4	4	wm/settings.hibr	shared
 DT_TITLEBAR	4	4	wm/settings.hibr	shared
+DT_WHY	4	4	wm/frame.hibr	local
 DT_WINTRANS	4	4	wm/settings.hibr	shared
 DT_LANG	7	0	wm/lang.hibr	shared
 DT_WALLBAD	0	7	wm/settings.hibr	request
@@ -200,10 +201,10 @@ DT_WALLDMODE	2	2	wm/wallpaper.hibr	request
 DT_WALLDPIC	2	2	wm/wallpaper.hibr	request
 DT_WALLIMGMODE	2	2	wm/picmode.hibr	shared
 DT_WEEKSTART	2	2	wm/lang.hibr	shared
-DT_WHY	4	0	wm/frame.hibr	local
 DT_WS	4	0	wm/workspaces.hibr	shared
 DT_ZOOMFILL	2	2	wm/settings.hibr	shared
 LANG	4	0	wm/locale.hibr	local
+PM	2	2	wm/programs.hibr	shared
 PMOWN	2	2	wm/programs.hibr	request
 PW	4	0	system/panel.hibr	declare
 WP_GLYPHS	4	0	wm/settings.hibr	shared
@@ -328,7 +329,6 @@ DT_ZOOMFILLS	2	0	wm/settings.hibr	shared
 FP	1	1	wm/filepick.hibr	request
 MB_CTXID	2	0	wm/menus.hibr	call
 MB_CTXWHO	2	0	wm/menus.hibr	call
-PM	2	0	wm/programs.hibr	shared
 SV_LIST	2	0	savers/saver.hibr	shared
 TB_EC	2	0	widgets/textarea.hibr	local
 TB_ER	2	0	widgets/textarea.hibr	local

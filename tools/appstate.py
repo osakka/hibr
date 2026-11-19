@@ -221,26 +221,24 @@ WRITE = r"(^|[\s;(&|])%s(\[[^\]]*\])*\+?=|\bunset\s+[\"']?%s\b|\b(json\s+parse|m
 
 def writers():
     """Every platform function that writes a shared name: (file, function,
-    name). A write at top level is the declaration, not one."""
-    out = []
-    for f in platfiles():
-        fn, body = None, []
-        for line in open(f, errors="replace").read().split("\n") + ["}"]:
-            m = re.match(r"^(?:fn\s+([A-Za-z_][A-Za-z0-9_]*)\(|([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{)", line)
-            if m:
-                fn, body = m.group(1) or m.group(2), []
-                continue
-            if fn is None:
-                continue
-            if line.startswith("}"):
-                text = "\n".join(body)
-                for n in SHARED:
-                    if n in text and any(re.search(WRITE % ((n,) * 5), x) for x in body):
-                        out.append((os.path.relpath(f, DESK), fn, n))
-                fn = None
-                continue
-            body.append(line)
-    return out
+    name), from the parser. A write at top level is the declaration, not one;
+    a name the function declares local is its own."""
+    import json, subprocess
+    hibr = os.environ.get("HIBR", os.path.join(ROOT, "build", "hibr"))
+    env = dict(os.environ, HIBR_MODPATH=os.path.join(ROOT, "build", "mods"))
+    files = platfiles()
+    out = subprocess.run([hibr, "-c", 'need inspect || exit 1; for f; do inspect vars "$f" -j; printf "\\n"; done',
+                          "x"] + files, capture_output=True, text=True, env=env)
+    docs = [l for l in out.stdout.split("\n") if l.strip()]
+    if out.returncode or len(docs) != len(files):
+        sys.exit("FAIL inspect vars answered %d of %d platform files" % (len(docs), len(files)))
+    found = []
+    for f, d in zip(files, docs):
+        for v in json.loads(d).get("vars", []):
+            if (v.get("access") == "write" and v.get("owner") and v.get("name") in SHARED
+                    and v.get("declared") not in ("local", "param")):
+                found.append((os.path.relpath(f, DESK), v["owner"], v["name"]))
+    return sorted(set(found))
 
 
 def mirrors(reads):
@@ -313,29 +311,47 @@ def klass(name, wr, where):
     return CONVERT.get(name, "?")
 
 
-# Read: an expansion, a subscript, or a bare name inside arithmetic, where
-# $((DT_POPH - 2)) names it with no $. A name a file redeclares is still the
-# platform's: in the desktop's process the two are one variable.
-READ = r"\$\{?[!#]?%s\b|\b%s\[[^\]]*\](?!\S*\+?=)|\(\([^)]*\b%s\b"
+def inventory(files, names):
+    """Which installable reads and which writes each platform global, from the
+    parser (`inspect vars`, ADR 0056): every access the shell itself would
+    make, arithmetic included, by name. A name local to, or a parameter of,
+    the function it appears in is that function's own, never the platform's;
+    a name a file declares at its top level is still the platform's, since in
+    the desktop's process the two are one variable. A name only passed by name
+    (`dt_keep NAME`) is a registration, not an access."""
+    import json, subprocess
+    hibr = os.environ.get("HIBR", os.path.join(ROOT, "build", "hibr"))
+    env = dict(os.environ, HIBR_MODPATH=os.path.join(ROOT, "build", "mods"))
+    out = subprocess.run([hibr, "-c", 'need inspect || exit 1; for f; do inspect vars "$f" -j; printf "\\n"; done',
+                          "x"] + files, capture_output=True, text=True, env=env)
+    reads, writes = collections.defaultdict(set), collections.defaultdict(set)
+    docs = [l for l in out.stdout.split("\n") if l.strip()]
+    if out.returncode or len(docs) != len(files):
+        sys.exit("FAIL inspect vars answered %d of %d installables (status %d): %s" % (
+            len(docs), len(files), out.returncode, out.stderr.strip()[-300:]))
+    for f, d in zip(files, docs):
+        j = json.loads(d)
+        if j.get("state") != "ok":
+            sys.exit("FAIL inspect vars: %s: %s" % (f, j.get("state")))
+        for v in j.get("vars", []):
+            n = v.get("name")
+            if n not in names or v.get("declared") in ("local", "param"):
+                continue
+            if v.get("access") == "read":
+                reads[n].add(f)
+            elif v.get("access") == "write":
+                writes[n].add(f)
+    return reads, writes
 
 
 def main():
     names = globals_()
-    reads, writes = collections.defaultdict(set), collections.defaultdict(set)
     files = installables()
-    for f in files:
-        text = open(f, errors="replace").read()
-        for n in names:
-            if n not in text:
-                continue
-            if re.search(READ % (n, n, n), text):
-                reads[n].add(f)
-            if re.search(r"(^|[\s;(&|])%s(\[[^\]]*\])*\+?=|\b(unset|read\b[^\n]*)\s+[\"']?%s\b" % (n, n), text, re.M):
-                writes[n].add(f)
+    reads, writes = inventory(files, names)
     rows = sorted(((n, len(reads[n]), len(writes[n]), WHERE.get(n, "?"),
                     klass(n, writes[n], WHERE.get(n, "?"))) for n in names if reads[n] or writes[n]),
                   key=lambda r: (-(r[1] + r[2]), r[0]))
-    print("installables: %d; platform globals: %d; touched by installables: %d (written by %d)" % (
+    print("installables: %d (read by inspect vars); platform globals: %d; touched by installables: %d (written by %d)" % (
         len(files), len(names), len(rows), sum(1 for r in rows if r[2])))
     kinds = collections.Counter(r[4] for r in rows)
     print("  " + ", ".join("%s %d" % kv for kv in sorted(kinds.items())))
@@ -350,7 +366,7 @@ def main():
             print("    %-22s %s" % (n, who[:90]))
     if "--write" in sys.argv:
         with open(OUT, "w") as o:
-            o.write("# name\tread in\twritten in\tdeclared in\tclass -- tools/appstate.py --write (a word match, not a parse)\n")
+            o.write("# name\tread in\twritten in\tdeclared in\tclass -- tools/appstate.py --write (the parser's inventory, inspect vars)\n")
             for row in rows:
                 o.write("%s\t%d\t%d\t%s\t%s\n" % row)
         print("wrote", os.path.relpath(OUT, ROOT))
