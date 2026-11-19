@@ -1018,3 +1018,7 @@ fn dt_win(int id) {
 # Which title-bar button is at this column, if any.  fixed omits max, whose
 # button is not drawn there either, so a click at its old column falls
 # through to the window's body instead of hitting a button that is not there.
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_NOTECOLOURS

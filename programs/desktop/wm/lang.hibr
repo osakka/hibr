@@ -398,3 +398,7 @@ dt_langs() {
 	done
 	ret "$out"
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_LANG

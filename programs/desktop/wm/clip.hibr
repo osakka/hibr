@@ -42,13 +42,11 @@ fn dt_clipset(text, op = copy, kind = text, send = 1) {
 fn dt_clipkeep(text, kind = text) {
 	local n=${#DT_CHORDER[@]} last id
 
-	dt_rtreg DT_CHORDER
 	[ -n "$text" ] || return 0
 	if [ "$n" -gt 0 ]; then
 		last=${DT_CHORDER[$((n - 1))]}
 		if [ "${DT_CH[$last]["text"]}" = "$text" ]; then
 			DT_CH[$last]["at"]=$EPOCHSECONDS
-			dt_rtregk DT_CH "$last"
 			dt_clipsave
 			return 0
 		fi
@@ -59,7 +57,6 @@ fn dt_clipkeep(text, kind = text) {
 	DT_CH[$id]["kind"]=$kind
 	DT_CH[$id]["at"]=$EPOCHSECONDS
 	DT_CH[$id]["pin"]=0
-	dt_rtregk DT_CH "$id"
 	DT_CHORDER+=("$id")
 	dt_cliptrim
 	dt_clipsave
@@ -70,7 +67,6 @@ dt_cliptrim() {
 	local id k=0 over
 	local -a keep
 
-	dt_rtreg DT_CHORDER
 	for id in "${DT_CHORDER[@]}"; do
 		[ "${DT_CH[$id]["pin"]}" = 1 ] || k=$((k + 1))
 	done
@@ -79,7 +75,6 @@ dt_cliptrim() {
 	for id in "${DT_CHORDER[@]}"; do
 		if [ "$over" -gt 0 ] && [ "${DT_CH[$id]["pin"]}" != 1 ]; then
 			unset "DT_CH[$id]"
-			dt_rtregk DT_CH "$id"
 			over=$((over - 1))
 		else
 			keep+=("$id")
@@ -93,9 +88,7 @@ fn dt_clipdel(int id) {
 	local o
 	local -a keep
 
-	dt_rtreg DT_CHORDER
 	unset "DT_CH[$id]"
-	dt_rtregk DT_CH "$id"
 	for o in "${DT_CHORDER[@]}"; do
 		[ "$o" = "$id" ] || keep+=("$o")
 	done
@@ -105,7 +98,6 @@ fn dt_clipdel(int id) {
 
 # Pin an entry, or unpin it.
 fn dt_clippin(int id) {
-	dt_rtregk DT_CH "$id"
 	if [ "${DT_CH[$id]["pin"]}" = 1 ]; then
 		DT_CH[$id]["pin"]=0
 		dt_cliptrim
@@ -129,7 +121,6 @@ dt_clipclear() {
 	local id
 	local -a keep
 
-	dt_rtreg DT_CH DT_CHORDER
 	for id in "${DT_CHORDER[@]}"; do
 		if [ "${DT_CH[$id]["pin"]}" = 1 ]; then
 			keep+=("$id")
@@ -165,7 +156,6 @@ dt_clipsave() {
 dt_clipload() {
 	local id
 
-	dt_rtreg DT_CH DT_CHORDER
 	dt_has dt_writesettle && dt_writesettle "$DT_CLIPFILE"
 	[ "$DT_CLIPKEEP" = 1 ] && [ -s "$DT_CLIPFILE" ] || return 0
 	json parse DT_CH < "$DT_CLIPFILE" 2> /dev/null || return 0
@@ -176,3 +166,7 @@ dt_clipload() {
 	done
 	return 0
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_CH DT_CHORDER

@@ -553,8 +553,18 @@ dt_keep() {
 		done
 		DT_KEEP+=("$v")
 		dt_keepload "$v"
+		dt_share "$v"
 	done
 }
+# A kept setting is shared with every app process that reads it (ADR 0050):
+# kept is shared, never a second list.
+dt_share "${DT_KEEP[@]}"
+# The window table, each window to the app it belongs to.
+dt_share -o app DT
+# The lists of choices a pane offers, the key tables, and where the log is.
+dt_share DT_BANDS DT_BTNS DT_DLGBTNS DT_FULLENDS DT_ICONPENS DT_SHADOWSHAPES
+dt_share DT_TITLEBARS DT_ZOOMFILLS WP_GLYPHS WP_MODES WS_ALIGNS WS_FRAMES
+dt_share WS_STYLES DT_APPKEY DT_KEYS DT_LOG
 
 # Give a kept name its saved value. Only a name something has kept is ever
 # set from the file, so the file cannot reach any other variable.
@@ -569,7 +579,6 @@ dt_load() {
 	local v k i ext
 	local -a argv
 
-	dt_rtreg DT_AKEY
 	dt_has dt_writesettle && dt_writesettle "$DT_CONF"
 	unset DT_CONFJ
 	declare -gA DT_CONFJ
@@ -630,7 +639,6 @@ dt_save() {
 	fi
 	# Every connected app process is sent what changed, before anything
 	# else it is told this pass (ADR 0050, the settings' door).
-	dt_has dt_rtsettings && dt_rtsettings
 	# A rebind or Use Super Instead of Alt is saved as it is made: Blit is told
 	# the chords kept from programs then (Gitea #530).
 	dt_has dt_keepsend && dt_keepsend

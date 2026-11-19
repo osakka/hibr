@@ -351,3 +351,7 @@ fn dt_imepre(int id, at) {
 	[ -n "$DT_IMEPRE" ] && [ "$DT_IMEWIN" = "$id" ] && [ "$DT_IMEAT" = "$at" ] || return 1
 	ret "$DT_IMEPRE"
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_IME

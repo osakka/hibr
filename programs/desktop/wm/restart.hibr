@@ -574,3 +574,7 @@ dt_updcheck() {
 	dt_notify "$t" dt_restart
 	dt_want 10
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_RESTORED DT_UPNEW DT_UPSESSION

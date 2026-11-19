@@ -39,7 +39,6 @@ declare -gA PKA
 dt_pkstart() {
 	local id
 
-	dt_rtreg DT_PKRES
 	DT_PKUSES=$((DT_PKUSES + 1))
 	[ -n "$DT_PKID" ] && return 0
 	command -v pkttyagent > /dev/null || return 1
@@ -108,11 +107,9 @@ dt_pktick() {
 			DT_PKMSG=
 			DT_PKUSER=
 			DT_PKRES=
-			dt_rtreg DT_PKRES
 			;;
 		"==== AUTHENTICATION COMPLETE"*)
 			DT_PKRES=ok
-			dt_rtreg DT_PKRES
 			dt_pkclose
 			;;
 		"==== AUTHENTICATION FAILED"* | "==== AUTHENTICATION CANCELED"*)
@@ -120,7 +117,6 @@ dt_pktick() {
 			# asked -- "Could not join X: the password was not accepted"
 			# -- rather than a second note beside its own.
 			DT_PKRES=fail
-			dt_rtreg DT_PKRES
 			dt_pkclose
 			;;
 		"Authenticating as: "*) DT_PKUSER=${l#Authenticating as: } ;;
@@ -252,3 +248,7 @@ fn pkauth_close(int id) {
 
 command -v dt_app > /dev/null && dt_app pkauth "Authentication" 12 56 "" "" fixed hidden
 dt_ticker dt_pktick
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_PKRES

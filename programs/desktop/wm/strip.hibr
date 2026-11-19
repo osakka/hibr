@@ -74,7 +74,6 @@ CS_CLICKC=0
 # -- there is never more than one instance of a strip module, unlike a
 # window.
 fn cs_module(name, title, w = "") {
-	dt_rtreg CS_MOD_ALL
 	CS_MODS[$name]["title"]="$title"
 	CS_MODS[$name]["w"]="${w:-${#2}}"
 	CS_MODS[$name]["src"]="${DT_LOADING-}"
@@ -166,7 +165,6 @@ cs_rescan() {
 	local -A win
 	local -a all
 
-	dt_rtreg CS_MOD_ALL
 	for d in "${CS_MODDIRS[@]}"; do
 		for f in "$d"/*.hibr; do
 			[ -r "$f" ] || continue
@@ -539,3 +537,7 @@ fn cs_dropopen(int r, int c, cb, ...rest) {
 	fi
 	dt_dropat "$r" "$c" "" "$cb" "$@"
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share CS_MOD_ALL

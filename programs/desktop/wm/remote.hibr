@@ -511,7 +511,6 @@ fn dt_davopened(int n, int st) {
 fn dt_davwatchset(f, loc, etag) {
 	local st=${DRW["$f"]["stamp"]}
 
-	dt_rtreg DRW
 	if [ -z "$st" ]; then
 		DR_STAMPN=$((DR_STAMPN + 1))
 		st="$DT_DAVCACHE/.stamps/$$.$DR_STAMPN"
@@ -573,7 +572,6 @@ fn dt_davputc(f, loc) {
 fn dt_davsave(f) {
 	local n
 
-	dt_rtreg DRW
 	DRW["$f"]["busy"]=1
 	if ! n := dt_davjob Saving dt_davsaved dt_davput1 "$f" \
 		"${DRW["$f"]["loc"]}" "${DRW["$f"]["etag"]}"; then
@@ -588,7 +586,6 @@ fn dt_davsave(f) {
 fn dt_davsaved(int n, int st) {
 	local f=${DTJ[$n]["file"]} r loc m nm
 
-	dt_rtreg DRW
 	loc=${DRW["$f"]["loc"]}
 	r := dt_davout "$n"
 	if [ "${r%% *}" = ok ]; then
@@ -616,7 +613,6 @@ fn dt_davconflicted(int n, int st) {
 	local -a l
 	local o
 
-	dt_rtreg DRW
 	loc=${DRW["$f"]["loc"]}
 	if [ "$st" != 0 ]; then
 		command touch -r "$f" -- "${DRW["$f"]["stamp"]}" 2> /dev/null

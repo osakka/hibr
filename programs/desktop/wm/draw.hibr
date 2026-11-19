@@ -599,9 +599,6 @@ fn dt_wintimed(...ids) {
 		[ "$DT_WHY" = left ] ||
 			DT_DRAWNR+=("${DT[$id]["row"]} ${DT[$id]["col"]} $((DT[$id]["h"] + 1)) $((DT[$id]["w"] + 2))")
 		[ "$id" = "$DT_INWIN" ] && [ "$DT_WHY" != left ] && DT_INDREW=1
-		# Drawn again, so its record may have moved: its app's process,
-		# if one is connected, is sent it (ADR 0050, the window door).
-		[ "$DT_WHY" = left ] || [ -z "${DT_RTAPPS["$ap"]+x}" ] || dt_rtwin1 "$id"
 		t=$((${EPOCHREALTIME/./} - t0))
 		[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "win:${ap:-bare}" "$t" "$ap"
 		[ -n "$DT_STATON" ] && [ -n "$DT_WHY" ] &&

@@ -276,3 +276,7 @@ fn prog_launch(arg = "") {
 	dt_log "programs: started $nm ($cmd)"
 	return 0
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share PM

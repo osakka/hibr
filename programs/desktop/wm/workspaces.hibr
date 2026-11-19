@@ -217,3 +217,7 @@ fn dt_wshit(int c) {
 	[ $((k % 2)) = 0 ] || return 1
 	ret $((k / 2 + 1))
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_WS

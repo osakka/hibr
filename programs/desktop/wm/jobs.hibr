@@ -139,10 +139,6 @@ fn dt_jobvarsread(int n) {
 		case $l in
 		"declare "*)
 			eval "${l/#declare /declare -g }"
-			# A registry handed back this way is one moved (ADR 0050): the
-			# survey cannot see a write by name, so the reader marks it.
-			[[ $l =~ ^declare\ [^\ ]*\ ([A-Za-z_][A-Za-z0-9_]*) ]] &&
-				[ "${DT_RTDOOR["${BASH_REMATCH[1]}"]-}" = registry ] && dt_rtreg "${BASH_REMATCH[1]}"
 			;;
 		?*) eval "$l" ;;
 		esac

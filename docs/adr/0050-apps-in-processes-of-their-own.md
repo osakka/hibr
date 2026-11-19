@@ -339,117 +339,89 @@ What it holds, each a check there:
   `connect -U` for the app's end): a child the desktop started after an
   app connected held the desktop's end, and a child an app started held the
   app's, so neither side saw the other go while any such child lived.
-- **The desktop's state reaches the app through its doors** (2026-11-19,
-  protocol 3, the save and hot doors): at the hello the desktop sends every
-  name of the save, hello and hot doors -- `set NAME VALUE`, or a map's
-  `clear` and `setk NAME KEY VALUE` -- and only then `ok`, so the app's
-  first line after its hello sees all of it; `dt_save` sends each setting
-  that moved to every app (`dt_rtsettings`), and the hot scalars are joined
-  into one string and compared once a pass, 3 us, and again before every
-  tell, so a change always arrives ahead of the call that may read it. The
-  app declares every name it may be sent (`dt_rtdeclare`, generated into
-  `mirrors.hibr` from the survey with the door table both ends read), takes
-  only those, by lookup, and after each batch rebuilds what they derive
-  with the one function the desktop's own load runs too (`dt_derive`: the
-  glyph table, and the language once it is in effect). Building it found
-  that the survey had called the glyph set, bidi and mirroring each
-  process's own, since shared files declare them -- a kept setting is the
-  desktop's wherever it is declared now -- and that the language, which
-  follows the system's locale and is kept nowhere, is a hot mirror. An idle
-  desktop sends an app nothing.
-- **An app is sent its own windows' records** (2026-11-19, the window
-  door): the fields installables read of a window (`DT_RTWINF`, found by
-  the survey -- title, size, place, app, chrome and a few more), as one
-  `win ID FIELD VALUE ...` line when any moved, and `wingone ID` when one
-  has gone; another app's windows are never sent. A window's record is
-  written in 106 places across twelve files, so there is no one writer to
-  hook, and walking every window's fields every pass was measured at 244 us
-  with five apps of two windows each -- a third of the frame budget, idle.
-  The frame is the door instead: a record that changes in any way an app
-  reads is drawn again and one that has not is left alone, so a window of a
-  connected app is compared as it is drawn, about 15 us, and nothing is
-  done on a pass that draws none (16 us a pass in that same case, all of it
-  the hot scalars). Before every tell and at the hello, that connection's
-  own app's windows are compared too, so a retitle reaches the app ahead of
-  the call that may read it. A window being moved or sized waits until it
-  stops, or a solid drag would send a line a step.
-- **Corrections from review** (2026-11-19): the record of what every app
-  was sent is kept on every save while the desktop listens, connected app
-  or not -- a setting changed with none connected, sent to the next app at
-  its hello and changed back, equalled a stale record and was never sent;
-  what the settings derive is rebuilt only when its own setting moved
-  (`dt_glyphs` records the set it filled), where every batch, a focus
-  change included, had refilled every app's glyph table; a second listen
-  starts the hot list afresh; and a hello's state is each name's lines,
-  kept encoded and made again only when the name moves, joined and sent in
-  one write -- 8 ms once, then under a millisecond, where encoding and
-  sending about two hundred lines one at a time took 20 ms of a pass.
-- **The registry door** (2026-11-19): the tables the desktop keeps of what
-  is registered or what happened -- the apps, the bar's items, file
-  handlers and openers, keyboard layouts, the clipboard and notification
-  histories, the vault's state, the strip's modules, the savers, a remote
-  file's state -- reach an app's own process when they move. Every platform
-  function that writes one marks it (`dt_rtreg NAME`, `wm/rtwire.hibr`, two
-  lookups), and the desktop's pass encodes each marked table again; when
-  what it holds moved, its generation goes up, and every connection that
-  reads it and holds an older generation is sent it -- so a mark with
-  nothing moved sends nothing, a quiet pass costs one comparison, and what
-  a connection holds is a number, never a copy. Whatever is marked is sent
-  before a hello, so the generation a new connection is given is true, and
-  a change made while nobody reading the table was connected reaches
-  whoever connects next. The clipboard's history, whose entries are
-  whatever was copied, is marked by entry (`dt_rtregk DT_CH ID`) and sent
-  by entry (`jsonk NAME KEY JSON`, `unsetk NAME KEY`): a copy of 200 kB is
-  one line to each reader, never the history again. A reader is let go
-  only when what waits for it is past `DT_RTQMAX` and has not shrunk for
-  `DT_RTQSECS` (2), since one line longer than the limit -- that copy, or
-  the history at a hello -- is not an app that stopped; the app's own limit
-  on a line from the desktop is 256 MiB. Who reads a table is the survey's:
-  `DT_RTAUD` names the files that read it, by the kind folder's view of the
-  file (`apps/files.hibr`, the same in this tree, the catalogue and an
-  installed scope) and the files whose parts read it, since a bundle's
-  members share one process, or every process where the app interface or
-  a library reads it (the app list, the shortcut table, the keyboard
-  layouts, a remote file's state); a file the survey has never read is sent every table but a
-  secret -- the vault's session key and its items -- so it is never
-  silently empty. Most apps get none. A map or a list crosses whole as JSON
-  (`json NAME TEXT`), nested records, a list's every element and the order:
-  a line per key had carried a list's first element alone and a nested
-  record's scalars only, which is how the fourteen lists the settings and
-  hot doors send had been crossing (the protocol is 4 for it). A record's fields that move with a frame
-  -- a bar item's column and width -- are left out (`DT_RTSKIP`) and travel
-  in the call that uses them, and every field an installable reads has a
-  door in the survey (`FIELDDOOR`), or it fails. Six tables written only
-  where they are declared are constants, sent at the hello; five written
-  by a function an installable calls for the answer (`dt_openers`,
-  `dt_openverbs`, `cs_ordered`, `dt_btnlist`, `dt_barreading`) are
-  answers, and the bar's wheel column is the call's. The survey fails a
-  function that writes a table and does not mark it -- a mark at the top
-  of the function, since a mark beside a write in one branch missed every
-  write after it, which the first version did for `dt_baritem`'s text; a
-  ticker marks beside its write, so a quiet pass marks nothing -- and,
-  since a writer may use a form a word match cannot see, the harness looks
-  at every table once a second and names one that moved with no mark
-  (`unmarked:`, which fails a suite as `held:` does; a secret's value is
-  never shown), about 1 ms a look. Its first gate found three: `json
-  parse` into the table, a job handing variables back by name
-  (`dt_jobvarsread`, which now marks each registry it sets), and two
-  Control Panel panes editing a table directly -- File Types and
-  Notifications, which now ask the desktop instead (`dt_handlerdrop`, a new
-  told request, and `dt_notehist_clear`); the history's order became a
-  registry with them. Counted in a shipped desktop over a minute, marks are rare: four
-  standby scans and two bar changes in twenty idle seconds, and a focus
-  change moves the bar's application name, a real change. A map's entry
-  at key 0 that holds only fields reads, through a nameref, as the
-  nameref's own value (Gitea #595), so the entry encoder tells a record by
-  its keys. Forty-one places
-  where an installable changes a table through the desktop and reads it
-  back (`tools/appstate.py --back`) are the asked-requests slice's to
-  convert -- each read one by one, with the cross-feature links and a
-  proposed ask mechanism, in [asked-0050.md](asked-0050.md): in a process of its own such a call is a request answered only
-  after the table is sent, or the read sees the old one; `dt_davclear`,
-  shared code that writes the remote-file table in whichever process
-  calls it, is one of them.
+- **One path for the desktop's shared state** (owner, 2026-11-19: one
+  source of truth, no duplication, no compatibility, no placeholders, and
+  every installable, tree and catalogue, converted in the one release --
+  "bundles run unmodified" is reversed). An app's own process reads the
+  desktop's state as a local, read-only copy: 30 reads through a function
+  measured 160 us against 46 us as plain expansions, so reads stay
+  expansions, and the copy is generated from the desktop's one owner and
+  never written by its reader. What is shared is said once, in the file
+  that owns it -- `dt_share [-s] [-o FIELD] NAME...` (`wm/rtwire.hibr`),
+  and every kept setting, which `dt_keep` shares; `-s` is a secret (the
+  vault's session key and items), `-o app` a map whose entries each belong
+  to the app their `app` field names (the window table). Nothing else is
+  hand-kept: what changed comes from the variable table itself, its shape
+  travels with it, and who reads it is generated from the inventory
+  (`mirrors.hibr`, `DT_RTAUD`).
+  - **The change is seen at the variable** (core, owner's yes 2026-11-19):
+    one attribute bit (`A_WATCH`), one hook pointer and six checks in the
+    functions that hand out or replace a variable's content (`v_assign`,
+    `v_del`, `v_setp`, `v_delp`, `v_path` when it creates, and creation
+    while a watched name waits to be declared again, asked only where that
+    name's hash falls). The hook is asked before the write, is told whether
+    the write changes anything, and may refuse it. An unwatched write costs
+    4 instructions (scalar) or 9 (subscripted), 0.13% on a write-heavy loop,
+    every other function identical. The verbs are a module, `varwatch`
+    (`add`, `drop`, `seq`, `moved`, `list`, `guard`, `apply`, `asks`);
+    `tests/999-varwatch.t` drives 38 write forms -- json parse, read -a,
+    mapfile, `:=`, namerefs, a job's hand-back, unset and re-declared, a
+    local shadowing the global (not reported) -- and fails on a labelled
+    line with any one of the six hooks taken out.
+  - **One pass, one wire form.** Each pass asks `varwatch seq`; unchanged,
+    it is one comparison (8 us idle, measured -- a `2> /dev/null` on it had
+    made it 17). Changed, `varwatch moved` names each changed name, or first-
+    level key of a map, and each goes to every connection that reads it:
+    `json NAME KIND TEXT` for the whole (KIND its attribute, `A` a map
+    declared -A, `a` a list, `s` a scalar, so the app declares it as the
+    desktop does), `jsonk NAME KEY JSON` / `unsetk NAME KEY` for an entry.
+    A write of the same value is not reported, so the bar laying out its
+    items every frame sends nothing; the layout had written each width
+    twice a frame and now writes it once. An entry that changes pass after
+    pass (a window dragged) is held until it settles or `DT_RTSETTLE` (250
+    ms) passes -- a drag sends its start and its end, where a window's
+    record is 137 us to encode -- and a tell or a hello sends what is held
+    first, so a call never reads a place the app has not been sent. Counted
+    in a shipped desktop with every shared name watched: a full frame asks
+    the module 30 times, about a microsecond; idle, a few standby scans a
+    minute.
+  - **The copy is the app's to read, never to write.** In an app's process
+    `varwatch guard on` makes the variable table refuse every write to a
+    shared name but the runtime's own applying of what arrived ("DT_FOCUS:
+    the desktop's, read only in an app's own process"), and the runtime
+    runs under `keepgoing`, so the refusal fails that command rather than
+    ending the app's loop. An installable that writes the desktop's state
+    today (165 names, `tools/appstate.py --writes`) is a request to convert.
+  - **Deleted by it:** the hot, settings, hello, registry and window doors
+    and everything they kept -- 77 hand-placed `dt_rtreg` marks and
+    `dt_rtregk`, the per-door caches (`DT_RTSENT`, `DT_RTHOTSIG`,
+    `DT_RTWSIG`, `DT_RTREGS`, `DT_RTGEN`, `DT_RTLINE`), the harness's hunt
+    for unmarked writes, the job reader's mark, the survey's hand tables
+    (`DOOR`, `FIELDDOOR`, `SECRET`, `SETDOOR`) and `mirrors.hibr`'s door,
+    map, field and declaration tables. The survey's one gate now is: a
+    desktop name an installable reads is shared, the app interface's own,
+    or named in `CONVERT` with the slice that converts it (call, answer,
+    gone, kept) -- 233 shared, 37 to convert.
+  - **Review fixes** (2026-11-19): three places graft a map onto a
+    variable after its assignment was asked about -- `json parse NAME`,
+    `NAME=()` and `:=` of a map -- and the first two went unreported on a
+    watched empty scalar; they ask again (three rows of the test, two of
+    which failed before). A hello runs the pass before its connection is a
+    reader, so it is never sent an entry of a name it has not had whole.
+    The survey reads what is shared from the desktop itself, loaded with
+    its platform files as a session loads them, so there is one list. Each
+    name's whole line is kept once made and dropped when the variable table
+    reports it changed: a hello encoded every name its file reads, 237 for
+    a file the inventory never read, which was 31 ms a launch. Four
+    functions in shared files write a shared name, which an app's guard
+    refuses: `dt_hotmark` (DT), `dt_imecheck` (DT_IME), `dt_locload`
+    (DT_LANG) and `dt_davclear` (DRW); each becomes a request
+    (`tools/appstate.py --shared`).
+  - **The inventory is the parser's.** The survey still finds reads and
+    writes by word matching; `inspect` reports no variable facts yet, and a
+    variables request is being added to it from a working walker (which
+    found what the word match misses: bare names in arithmetic, `:=`
+    writes, names passed by name).
 - **Quit and Restart Desktop close it**: the socket goes and every app
   process's connection ends. That is not yet what Requirement 8 says --
   app processes surviving a restart -- which needs the connection kept

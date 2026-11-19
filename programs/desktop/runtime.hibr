@@ -14,6 +14,10 @@
 # whatever started this one (dt_rtspawn).
 
 strict
+# A slip in an app -- a write the desktop's copies refuse, an arithmetic
+# error -- fails that one command and is logged, as it does in the desktop,
+# never ends the app's loop with it.
+set -o keepgoing
 
 # A line from the desktop may be as long as what it holds -- the clipboard's
 # history at the hello, one large copy -- and the desktop is not a peer this
@@ -47,9 +51,12 @@ dt_rtifacerec() {
 	return 0
 }
 dt_rtifacerec
-# Every name the desktop sends declared, so this strict process may be given
-# them (mirrors.hibr, generated from the state survey).
-dt_rtdeclare
+# The desktop's state this process is sent is a copy, never this process's
+# to write: the variable table refuses any write to it but the runtime's own
+# applying of what arrived (ADR 0050, varwatch). Without the module nothing
+# can be shared, so no app runs.
+need varwatch || { dt_log "app runtime: no varwatch module"; exit 1; }
+varwatch guard on
 # Whether a batch of what the desktop sent has set anything, so what it
 # derives (dt_derive) is rebuilt once after the batch.
 DT_RTDERIVE=
@@ -166,12 +173,8 @@ fn dt_rtcalled(line) {
 	read -ra w <<< "$line"
 	DT_RTRECV=$((DT_RTRECV + 1))
 	case ${w[0]-} in
-	set | json | jsonk | unsetk)
+	json | jsonk | unsetk)
 		dt_rtmirrored "${w[@]}"
-		return 0
-		;;
-	win | wingone)
-		dt_rtwindow "${w[@]}"
 		return 0
 		;;
 	tell) ;;
@@ -193,31 +196,33 @@ fn dt_rtcalled(line) {
 	return 0
 }
 
-# A mirrored name's new value: `set NAME VALUE`, or a map's or a list's
-# `json NAME TEXT`, which replaces the whole of it; or one entry of a
-# registry sent by entry, `jsonk NAME KEY JSON` and `unsetk NAME KEY`. Only a name the door table says is sent is taken,
-# by lookup, never eval.
+# What the desktop shares, arriving: `json NAME KIND TEXT` the whole of a
+# name, declared as the desktop has it (KIND A a map declared -A, a a list,
+# s a scalar) and from then on guarded; `jsonk NAME KEY JSON` one entry of a
+# map, `unsetk NAME KEY` one gone. Written only here, with the guard lifted
+# for the write, never by eval.
 fn dt_rtmirrored(...w) {
-	local name v k
+	local name kind v k
 
 	name := dt_rtdec "${w[1]-}"
-	case ${DT_RTDOOR["$name"]-} in
-	save | hello | hot | registry) ;;
-	*)
-		dt_log "app runtime: the desktop sent $name, which is not a name it sends; refused"
+	if ! [[ $name =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+		dt_log "app runtime: the desktop sent ${name:-nothing}, which is no shared name; refused"
 		return 0
-		;;
-	esac
+	fi
 	DT_RTDERIVE=1
+	varwatch apply on
 	case ${w[0]} in
-	set)
-		v := dt_rtdec "${w[2]-}"
-		printf -v "$name" '%s' "$v"
-		;;
 	json)
-		v := dt_rtdec "${w[2]-}"
+		kind := dt_rtdec "${w[2]-}"
+		v := dt_rtdec "${w[3]-}"
+		case $kind in
+		A) declare -gA "$name" ;;
+		a) declare -ga "$name" ;;
+		*) declare -g "$name" ;;
+		esac
 		json parse "$name" <<< "$v" ||
 			dt_log "app runtime: the desktop sent $name as JSON this app could not read; kept the old"
+		varwatch add "$name"
 		;;
 	jsonk)
 		k := dt_rtdec "${w[2]-}"
@@ -233,31 +238,7 @@ fn dt_rtmirrored(...w) {
 		unset m["$k"]
 		;;
 	esac
-	return 0
-}
-
-# One of this app's windows, as the desktop holds it: `win ID FIELD VALUE
-# ...` with the fields installables read (DT_RTWINF), or `wingone ID`. Only
-# those fields are taken, by lookup.
-fn dt_rtwindow(...w) {
-	local id f v i=2 ok x
-
-	id := dt_rtdec "${w[1]-}"
-	case $id in "" | *[!0-9]*) return 0 ;; esac
-	if [ "${w[0]}" = wingone ]; then
-		unset DT["$id"]
-		return 0
-	fi
-	while [ "$i" -lt "${#w[@]}" ]; do
-		f := dt_rtdec "${w[$i]}"
-		v := dt_rtdec "${w[$((i + 1))]-}"
-		i=$((i + 2))
-		ok=
-		for x in "${DT_RTWINF[@]}"; do
-			[ "$x" = "$f" ] && { ok=1; break; }
-		done
-		[ -n "$ok" ] && DT[$id]["$f"]=$v
-	done
+	varwatch apply off
 	return 0
 }
 

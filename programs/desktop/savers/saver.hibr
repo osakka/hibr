@@ -65,9 +65,6 @@ fn sv_call(name, what, ...rest) {
 }
 
 fn sv_saver(name, title, int ms) {
-	# Marked for the processes that read it (ADR 0050), in a desktop; run
-	# on its own, to try a saver out, there is nobody to tell.
-	[ -z "$SV_SEAM" ] || dt_rtreg SV_LIST
 	[ -n "${SV[$name]["ms"]}" ] || SV_LIST+=("$name")
 	[ -n "$SV_SEAM" ] && dt_hookown "${name}_"
 	SV_LAST=$name
@@ -164,3 +161,7 @@ fn sv_main(name = "random") {
 }
 
 [ "${BASH_SOURCE}" = "$0" ] && sv_main "$@"
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+[ -z "$SV_SEAM" ] || dt_share SV_LIST

@@ -32,7 +32,6 @@ declare -gA DSV
 dt_davclear() {
 	local f kept=0
 
-	dt_rtreg DRW
 	if [ "$DR_LIVE" -gt 0 ]; then
 		dt_notep high "Wait for the transfers running to finish first"
 		return 0
@@ -116,3 +115,7 @@ fn dt_davserver(name = "") {
 fn dt_isremote(p) {
 	[[ $p == dav://* ]]
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DRW

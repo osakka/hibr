@@ -205,7 +205,6 @@ fn dt_standby(base, dname = "") {
 dt_sbscan() {
 	local f nm line pid st base sess boot start
 
-	dt_rtreg DT_SBLIST
 	DT_SBLIST=()
 	[ -d "$DT_STANDBYDIR" ] || return 0
 	sess := dt_holdsess
@@ -345,3 +344,7 @@ dt_sbstart() {
 	dt_sbauto
 }
 DT_ATSTART+=(dt_sbstart)
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_SBLIST

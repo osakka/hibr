@@ -37,7 +37,6 @@ dt_runatstart() {
 
 # Register an app the hibr menu can open: name, title, height, width.
 fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "", bare = "") {
-	dt_rtreg DT_APPS
 	# The plan and the built menus both describe the app list, so both go
 	# when the registry changes. Apps register before the first frame, so
 	# this costs nothing at run time; it is here so that one registering
@@ -81,7 +80,6 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 # registers these registers them again whenever its list changes, since
 # they come from data rather than from a file of their own.
 fn dt_appvia(name, title, via, arg = "", dir = "") {
-	dt_rtreg DT_APPS
 	[ -n "${DT_APPS[$via]["title"]}" ] || return 1
 	DT_APPPLANK=
 	DT_MENUIN=
@@ -104,7 +102,6 @@ fn dt_appvia(name, title, via, arg = "", dir = "") {
 fn dt_appunvia(via) {
 	local n
 
-	dt_rtreg DT_APPS
 	for n in "${!DT_APPS[@]}"; do
 		[ "${DT_APPS[$n]["via"]}" = "$via" ] && unset DT_APPS["$n"]
 	done
@@ -485,7 +482,6 @@ fn dt_onunload(stop, start = "") {
 fn dt_unload(f) {
 	local n k
 
-	dt_rtreg DT_APPS
 	[ -n "${DT_UNLOADFN["$f"]-}" ] && dt_has "${DT_UNLOADFN["$f"]}" && dt_hookfn "${DT_UNLOADFN["$f"]}"
 	for n in "${!DT_APPS[@]}"; do
 		[ "${DT_APPS[$n]["src"]}" = "$f" ] || continue
@@ -503,7 +499,6 @@ fn dt_unload(f) {
 fn dt_reinstate(f) {
 	local n k
 
-	dt_rtreg DT_APPS
 	[ -n "${DT_RELOADFN["$f"]-}" ] && dt_has "${DT_RELOADFN["$f"]}" && dt_hookfn "${DT_RELOADFN["$f"]}"
 	for n in "${!DT_GONE[@]}"; do
 		[ "${DT_GONE[$n]["src"]}" = "$f" ] || continue

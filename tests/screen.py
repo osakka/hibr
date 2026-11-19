@@ -662,7 +662,7 @@ EXPECTED = []
 # drew the Control Panel past four times the mark. A `late:` line -- input
 # that reached the screen past the same mark (wm/latency.hibr) -- fails the
 # same way. A `slow:` line is advice and fails nothing.
-SLOWLINE = re.compile(rb" desktop: ((?:held|late|unmarked): [^\r\n]*)\r?\n")
+SLOWLINE = re.compile(rb" desktop: ((?:held|late): [^\r\n]*)\r?\n")
 os.environ.setdefault("DT_HOLDMS", str(300 * (8 if os.environ.get("ASAN_OPTIONS") else 1)))
 # And judged by the processor the desktop itself used, not by the clock
 # (wm/budget.hibr): a test checking the desktop's own wall-time rule -- the

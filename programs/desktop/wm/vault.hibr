@@ -100,7 +100,6 @@ fn dt_vwwhy(line) {
 fn dt_vw(input, ...args) {
 	local st ef
 
-	dt_rtreg DT_VWERR
 	dt_vwdirs
 	ef="$DT_VWRUN/desk.$$.$DTJ_N.err"
 	DT_VWERR=
@@ -119,7 +118,6 @@ fn dt_vw(input, ...args) {
 fn dt_vwerrs(int st, ef) {
 	local l
 
-	dt_rtreg DT_VWERR
 	if [ "$st" != 0 ] && [ -s "$ef" ]; then
 		while IFS= read -r l; do
 			[ -n "$l" ] && DT_VWERR := dt_vwwhy "$l"
@@ -136,7 +134,6 @@ fn dt_vwerrs(int st, ef) {
 fn dt_vwjob(tag, then, f, ...vars) {
 	local n
 
-	dt_rtreg DT_VWERR
 	DT_VWST=0
 	DT_VWERR=
 	n := dt_job vault "$tag" dt_vwjobdone dt_jobvarsrun "$f" DT_VWST DT_VWERR "${vars[@]}" || return 1
@@ -149,7 +146,6 @@ fn dt_vwjob(tag, then, f, ...vars) {
 fn dt_vwjobdone(int n, int st) {
 	local then=${DTJ[$n]["vwthen"]}
 
-	dt_rtreg DT_VWERR
 	if [ "${DTJ[$n]["vwgen"]}" = "$DT_VWGEN" ]; then
 		dt_jobvarsread "$n"
 		[ "$st" = 0 ] || DT_VWST=$st
@@ -190,7 +186,6 @@ declare -gA DT_VWA
 dt_vwacct() {
 	local -A a
 
-	dt_rtreg DT_VWA
 	DT_VWA=()
 	[ -r "$DT_VWCONF/account.json" ] || return 1
 	json parse a < "$DT_VWCONF/account.json" 2> /dev/null || return 1
@@ -207,7 +202,6 @@ dt_vwacct() {
 dt_vwtake() {
 	local k e w
 
-	dt_rtreg DT_VWSYNCED VW_SESSION
 	k=${DT_VWOUT##*VW_SESSION=}
 	[ -n "$k" ] && [ "$k" != "$DT_VWOUT" ] || return 1
 	VW_SESSION=$k
@@ -223,7 +217,6 @@ dt_vwtake() {
 
 # Unlock with the master password, or with the PIN.
 fn dt_vwunlock(pw, int pin = 0) {
-	dt_rtreg DT_VWSYNCED
 	if [ "$pin" = 1 ]; then
 		dt_vw "$pw" unlock --pin || return 1
 	else
@@ -271,7 +264,6 @@ dt_vwlockjob() { dt_vw "" lock || DT_VWST=$?; }
 # Forget the session and everything read with it. VW_SESSION stays
 # exported, empty, which every vw reads as locked.
 dt_vwforget() {
-	dt_rtreg DT_VWITEMS VW_SESSION
 	DT_VWGEN=$((DT_VWGEN + 1))
 	VW_SESSION=
 	DT_VWW=
@@ -306,7 +298,6 @@ dt_vwlist() {
 	local id nm us
 	local -a l=()
 
-	dt_rtreg DT_VWITEMS
 	DT_VWITEMS=()
 	dt_vw "" list || return 1
 	while IFS=$'\t' read -r id nm us; do
@@ -352,7 +343,6 @@ fn dt_vwcopy(field, id) {
 fn dt_vwget(field, id) {
 	local st ef
 
-	dt_rtreg DT_VWERR
 	dt_vwdirs
 	ef="$DT_VWRUN/desk.$$.get.err"
 	DT_VWERR=
@@ -370,7 +360,6 @@ fn dt_vwget(field, id) {
 fn dt_vwmatch(host) {
 	local st ef out
 
-	dt_rtreg DT_VWERR
 	dt_vwdirs
 	ef="$DT_VWRUN/desk.$$.match.err"
 	DT_VWERR=
@@ -597,7 +586,6 @@ fn dt_vwfilled(item) {
 # Start a sync, unless a vault job is running; by hand, it says how it
 # went. The list is read again in the same job.
 fn dt_vwsyncnow(int hand = 0) {
-	dt_rtreg DT_VWJOB DT_VWSYNCED
 	[ "$DT_VWJOB" = 1 ] && return 0
 	dt_vwdirs
 	DT_VWHAND=$hand
@@ -613,7 +601,6 @@ dt_vwsyncjob() {
 
 # A finished sync, said how it went when asked for.
 fn dt_vwsyncdone(int n, int st) {
-	dt_rtreg DT_VWJOB
 	DT_VWJOB=0
 	if [ "$st" = 0 ]; then
 		[ "$DT_VWHAND" = 1 ] && dt_notep low "The vault is synced"
@@ -655,7 +642,7 @@ dt_vwtick() {
 			dt_vwforget
 			return 0
 		fi
-		[ "$DT_VWJOB" = 1 ] || { dt_vwjob list dt_vwlistdone dt_vwlistjob DT_VWITEMS && DT_VWJOB=1 && dt_rtreg DT_VWJOB; }
+		[ "$DT_VWJOB" = 1 ] || { dt_vwjob list dt_vwlistdone dt_vwlistjob DT_VWITEMS && DT_VWJOB=1; }
 	fi
 	s := dt_vwstate
 	if [ "$s" != unlocked ]; then
@@ -682,7 +669,6 @@ dt_vwlistjob() { dt_vwlist || DT_VWST=$?; }
 
 # A session found open whose list cannot be read is one to forget.
 fn dt_vwlistdone(int n, int st) {
-	dt_rtreg DT_VWJOB
 	DT_VWJOB=0
 	[ "$st" = 0 ] || dt_vwforget
 }
@@ -989,3 +975,9 @@ fn vwd_close(int id) {
 	[ "${VWD[$id]["mode"]-}" = unlock ] && DT_VWPICKCB=
 	unset VWD["$id"]
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_VWA DT_VWERR DT_VWJOB DT_VWSYNCED
+# The session key and the items: never to a file the inventory has not read.
+dt_share -s VW_SESSION DT_VWITEMS

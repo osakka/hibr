@@ -13,39 +13,36 @@ strict
 
 # The protocol's number: a change to what crosses the wire changes it, and
 # a process speaking another is refused at its hello.
-DT_RTPROTO=4
+DT_RTPROTO=5
 
-# A registry moved (ADR 0050, the registry door): every function that writes
-# one marks it, and the desktop sends what moved to the processes that read
-# it on its next pass -- never on a pass when it did not move. A mark costs
-# two lookups; in an app's own process, whose shared code may write one, it
-# is kept and nothing reads it. tools/appstate.py fails a writer that does
-# not mark, and under the harness a table that moved with no mark is named
-# (dt_rtregcheck).
-declare -gA DT_RTREGQ DT_RTREGM DT_RTREGK
-dt_rtreg() {
-	local n
+# The desktop's state shared with every app process that reads it (ADR
+# 0050, one path): named once, in the file that owns it, with dt_share --
+# a kept setting is shared by dt_keep itself. Nothing else says what an app
+# is sent: the variable table tells the varwatch module whenever a shared
+# variable changes (no writer marks anything), its shape travels with it,
+# and who reads it comes from the parser (mirrors.hibr). -s marks a secret,
+# never sent to a file the inventory has not read; -o FIELD a map whose
+# entries each belong to the app their FIELD names, sent to that app alone.
+declare -gA DT_SHARED DT_SHAREOWN
+dt_share() {
+	local sec= own= n
 
+	while :; do
+		case ${1-} in
+		-s) sec=1; shift ;;
+		-o) own=$2; shift 2 ;;
+		*) break ;;
+		esac
+	done
 	for n; do
-		DT_RTREGQ["$n"]=1
-		DT_RTREGM["$n"]=1
+		DT_SHARED["$n"]=$sec
+		[ -z "$own" ] || DT_SHAREOWN["$n"]=$own
+		# Shared once the desktop listens: watched from then on.
+		[ -z "${DT_RTLFD-}" ] || varwatch add "$n" 2> /dev/null ||
+			dt_log "app runtime: $n is shared and does not exist"
 	done
 	return 0
 }
-
-# A registry moved in these entries alone: what moved is sent entry by
-# entry, so a table that may grow large -- the clipboard's history, whose
-# entries are whatever was copied -- is never sent whole for one copy.
-fn dt_rtregk(name, ...keys) {
-	local k
-
-	DT_RTREGM["$name"]=1
-	for k in "${keys[@]}"; do
-		DT_RTREGK["$name"]+="$k"$'\n'
-	done
-	return 0
-}
-
 # A word as it crosses the wire.
 fn dt_rtenc(v) {
 	v=${v//%/%25}

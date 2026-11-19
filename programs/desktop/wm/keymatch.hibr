@@ -280,3 +280,7 @@ fn dt_kblabel(int n) {
 	[ -n "$v" ] && [ -n "${DT_KBLABEL["$v"]}" ] && { ret "${DT_KBLABEL["$v"]}"; return 0; }
 	ret "${DT_KB[$n]["layout"]^^}"
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_AKEY DT_KB

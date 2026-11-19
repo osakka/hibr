@@ -210,7 +210,6 @@ DT_COLS=80
 fn dt_baritem(name, text = "", ...cmd) {
 	local i=0 n=${#DT_BARIN[@]}
 
-	dt_rtreg DT_BARI
 	[ -n "$name" ] || return 1
 	while [ "$i" -lt "$n" ]; do
 		[ "${DT_BARIN[$i]}" = "$name" ] && break
@@ -244,7 +243,6 @@ fn dt_baritem(name, text = "", ...cmd) {
 # dt_baritem, so nothing else keeps a list of who puts what on the bar
 # (Gitea #341).
 fn dt_barilabel(name, label) {
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["label"]=$label
 }
 
@@ -254,7 +252,6 @@ fn dt_barilabel(name, label) {
 # checkbox and the pane's are one setting rather than two that disagree
 # (Gitea #396). An item that names none is hidden by DT_BARHIDE.
 fn dt_bariswitch(name, var, fn = "") {
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["svar"]=$var
 	DT_BARI["$name"]["sfn"]=$fn
 }
@@ -402,7 +399,6 @@ fn dt_barmenu(name, who, id = "") {
 DT_BARWROW=0
 DT_BARWCOL=0
 fn dt_bariwheel(name, fn) {
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["wheel"]=$fn
 }
 
@@ -411,7 +407,6 @@ fn dt_bariwheel(name, fn) {
 fn dt_bariright(name, ...cmd) {
 	local i=0
 
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["rargc"]=${#cmd[@]}
 	while [ "$i" -lt "${#cmd[@]}" ]; do
 		DT_BARI["$name"]["r$i"]=${cmd[$i]}
@@ -476,7 +471,6 @@ fn dt_popat(name, who, int c, int h, int w) {
 # keyboard steps through from the menu bar (Gitea #519). An item whose press
 # starts an app or opens a menu is not: arriving at it would set it off.
 fn dt_barikbd(name) {
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["kbd"]=1
 }
 
@@ -630,7 +624,6 @@ fn dt_barido(name, btn = "") {
 # one sits beyond every ordinary item, -1 nearest them. An ordinary item is
 # never pinned and is the only kind Item Order offers to move.
 fn dt_baripin(name, int n) {
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["pin"]=$n
 }
 
@@ -639,7 +632,6 @@ fn dt_baripin(name, int n) {
 # application menu keeps fourteen for a name of up to eleven columns, and
 # its own leading space is one of the gap's.
 fn dt_bariwide(name, int w, int adj = 0) {
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["rw"]=$w
 	DT_BARI["$name"]["gadj"]=$adj
 }
@@ -648,7 +640,6 @@ fn dt_bariwide(name, int w, int adj = 0) {
 # given the column it landed at and whether the pointer is over it. The text
 # is still what is measured, and what says whether there is anything to draw.
 fn dt_baridraw(name, fn) {
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["draw"]=$fn
 }
 
@@ -657,7 +648,6 @@ fn dt_baridraw(name, fn) {
 # numbers), or that opens something at the pointer. A status of 1 says it
 # did not want this press, which then goes on to the bar's own menu.
 fn dt_baripress(name, fn) {
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["press"]=$fn
 }
 
@@ -679,7 +669,6 @@ fn dt_barhook(fn) {
 # What stops whatever an item keeps running -- a watcher on a program --
 # when its file is taken away while the desktop runs.
 fn dt_baristop(name, fn) {
-	dt_rtreg DT_BARI
 	DT_BARI["$name"]["stop"]=$fn
 }
 
@@ -729,21 +718,23 @@ fn dt_barilay(int gap) {
 	dt_barlist
 	for nm in "${DT_BARLAY[@]}"; do
 		t=${DT_BARI["$nm"]["text"]}
-		DT_BARI["$nm"]["w"]=0
-		[ -n "$t" ] || continue
-		case " ${DT_BARHIDE-} " in *" $nm "*) continue ;; esac
+		# Written once a frame: an item not shown is 0, one shown its width.
+		if [ -z "$t" ] || [[ " ${DT_BARHIDE-} " == *" $nm "* ]]; then
+			DT_BARI["$nm"]["w"]=0
+			continue
+		fi
 		iw=${DT_BARI["$nm"]["rw"]-}
 		[ -n "$iw" ] || iw := str width "$t"
 		case $DT_MIRRORON in
 		1)
 			c=$pc
 			[ "$n" -gt 0 ] && c=$((pc + pw + gap - pg))
-			[ "$n" -gt 0 ] && [ $((c + iw)) -gt "$DT_MENUSTART" ] && continue
+			[ "$n" -gt 0 ] && [ $((c + iw)) -gt "$DT_MENUSTART" ] && { DT_BARI["$nm"]["w"]=0; continue; }
 			;;
 		*)
 			c=$((pc - iw))
 			[ "$n" -gt 0 ] && c=$((pc - gap + pg - iw))
-			[ "$n" -gt 0 ] && [ "$c" -le "$DT_MENUEND" ] && continue
+			[ "$n" -gt 0 ] && [ "$c" -le "$DT_MENUEND" ] && { DT_BARI["$nm"]["w"]=0; continue; }
 			;;
 		esac
 		DT_BARI["$nm"]["c"]=$c
@@ -1066,3 +1057,7 @@ dt_appname() {
 		ret "$MB_APP"
 	fi
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_BARI DT_BELLICONS DT_COLS DT_ROWS

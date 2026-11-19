@@ -540,3 +540,7 @@ fn dt_notefiles(op, paths) {
 		dt_notep low "Copied %s files" "$n"
 	fi
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_TRASH

@@ -287,3 +287,7 @@ fn dt_watchstop(fd = "", id = "") {
 	[ -n "$fd$id" ] && dt_log "stopped watching descriptor ${fd:-none}, pty ${id:-none}"
 	return 0
 }
+
+# What of this file's state every app process that reads it is sent (ADR
+# 0050, wm/rtwire.hibr).
+dt_share DT_DISPNAMES DT_FOCUS DT_PRIMARY_COL DT_PRIMARY_H DT_PRIMARY_W
