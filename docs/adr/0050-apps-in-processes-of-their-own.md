@@ -632,6 +632,27 @@ desktop's side and fails against the code before.
    declarations -- a pane's rows (`CP`, written in 82); and requests -- a
    desktop setting a pane writes (the wallpaper, the buttons, the cursor),
    accepted against its declared rows, and hints such as `DT_FORCEONCE`.
+   **Each mirror's door (2026-11-19).** Pushing every name every frame
+   costs the frame what isolation was meant to save, and hooking every
+   writer is a list nobody keeps; so each name the survey calls a mirror
+   or a setting is given the one place the desktop already changes it
+   through (`DOOR` in `tools/appstate.py`, the table's last column):
+   **save** for the 174 settings (`dt_save` walks every kept setting on
+   each change); **registry** for 40 tables changed only when something
+   registers, goes or is rescanned (the app list, bar items, openers,
+   places, keyboards, the clipboard and notification histories, the
+   vault's state); **hot** for 14 scalars compared as one string a pass
+   while an app is connected (the focus, the screen's size, the workspace,
+   the primary display, the update marks); **hello** for this desktop's
+   constants; **call** for 16 that move with input or a frame -- the
+   pointer, a menu's place, a drag, a key's phase, a cell's pixels -- which
+   travel in the call that uses them and are never mirrored; **answer** for
+   the dialog geometry an asked request sets; and **gone** for the
+   prototype's. A mirror with no door fails the survey, and so does a door
+   for a name no installable reads (where the catalogue is read too). What
+   a setting arriving derives in the app -- the glyph table from
+   `DT_GLYPHSET`, the language catalogue from `DT_LANG` -- is rebuilt by
+   one function both ends run after a batch of settings.
    **Told and asked (2026-11-18):** of the 106 requests, **93 are told** --
    sent, never waited for -- and **13 are asked**, their answer taken with
    `:=` (the table's `answer` column). They resolve three ways, none a

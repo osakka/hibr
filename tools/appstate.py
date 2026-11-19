@@ -126,6 +126,47 @@ for _n in "DT_APPNAMEV DT_WHY DT_IMGARG DT_WLINES DT_WFD DT_WPTY DT_BUSFD DT_PW 
     BYNAME[_n] = "local"
 
 
+# How each mirror reaches an app's own process (ADR 0050, "mirrors"): each
+# door is a place the desktop already changes the value through, so nothing
+# new hooks the writers. A setting's door is `save` (dt_save walks every kept
+# setting on each change). A mirror with no door fails the survey.
+#   hot       one string compared each pass while an app is connected
+#   registry  sent when it is registered, unregistered or rescanned
+#   hello     a constant of this desktop, sent once at the hello
+#   call      moves with input or a frame: travels in the call that uses it,
+#             never a mirror (the pointer, a menu's place, a drag, a key's
+#             phase, a cell's pixels)
+#   answer    comes back as the answer of the asked request that set it
+#   gone      the prototype's, removed with it
+DOOR = {}
+for _n in """DT_FOCUS DT_ROWS DT_COLS DT_WS DT_PRIMARY_COL DT_PRIMARY_H DT_PRIMARY_W
+        DT_DISPNAMES DT_UPNEW DT_UPSESSION DT_TRASHN DT_KBCUR DT_IME DT_RESTORED""".split():
+    DOOR[_n] = "hot"
+for _n in """DT_APPS DT_BARI DT_HANDLERS DT_OPENERS DT_OPENERORDER DT_OPENVERBS DT_OVLIST
+        DT_OWLIST DT_BUNDLEEXT DT_PLACES SV_LIST CS_MOD_ALL CS_MOD_ORD DT_SBLIST DT_KB DT_KBLOC
+        DT_KBN DT_KBRES DT_AKEY DT_AKEYORDER DT_KEYORDER DT_BELLICONS DT_NOTELEVELS DT_NOTECOLOURS
+        DT_CH DT_CHORDER DT_NOTEHIST DT_NOTE_NEXT DT_VWA DT_VWJOB DT_VWERR DT_VWITEMS DT_VWSYNCED
+        VW_SESSION DT_TRASH DT_PKRES DT_BTNL DT_BARREAD DT_BARWCOL DRW""".split():
+    DOOR[_n] = "registry"
+for _n in "DT_HERE DT_VER".split():
+    DOOR[_n] = "hello"
+for _n in """DT_PX DT_PY MB_CX MB_CY MB_CTXID MB_CTXWHO DT_DND DT_KEYBASE DT_KEYCODE DT_KEYMODS
+        DT_KEYPHASE DT_PHASEWIN DT_NATFOCUSES DT_NATCH DT_NATCW CS_CLICKC""".split():
+    DOOR[_n] = "call"
+for _n in "DT_DLGR DT_DLGC DT_DLGH DT_DLGW".split():
+    DOOR[_n] = "answer"
+for _n in "DT_HOSTMARK".split():
+    DOOR[_n] = "gone"
+
+
+def door(name, k):
+    if k == "setting":
+        return "save"
+    if k == "mirror":
+        return DOOR.get(name, "?")
+    return "-"
+
+
 def klass(name, wr, where):
     if name in BYNAME:
         return BYNAME[name]
@@ -165,10 +206,23 @@ def main():
                   " ".join(sorted(os.path.basename(f) for f in writes[n]))[:60]))
     if "--write" in sys.argv:
         with open(OUT, "w") as o:
-            o.write("# name\tread in\twritten in\tdeclared in\tclass -- tools/appstate.py --write (a word match, not a parse)\n")
+            o.write("# name\tread in\twritten in\tdeclared in\tclass\tdoor -- tools/appstate.py --write (a word match, not a parse)\n")
             for row in rows:
-                o.write("%s\t%d\t%d\t%s\t%s\n" % row)
+                o.write("%s\t%d\t%d\t%s\t%s\t%s\n" % (row + (door(row[0], row[4]),)))
         print("wrote", os.path.relpath(OUT, ROOT))
+    undoored = [r[0] for r in rows if door(r[0], r[4]) == "?"]
+    # A door no installable needs is stale only where every installable was
+    # read: run over this tree alone (no catalogue checkout), a name only the
+    # catalogue's apps read is simply not seen.
+    stale = [n for n in DOOR if not any(r[0] == n and r[4] == "mirror" for r in rows)] if os.path.isdir(APPS) else []
+    for n in undoored:
+        print("FAIL %s is a mirror an installable reads, with no door: say in DOOR how it reaches an app's process" % n)
+    for n in stale:
+        print("FAIL %s has a door and is no mirror any installable reads: take it out of DOOR" % n)
+    doors = collections.Counter(door(r[0], r[4]) for r in rows if r[4] in ("mirror", "setting"))
+    print("  doors: " + ", ".join("%s %d" % kv for kv in sorted(doors.items())))
+    if undoored or stale:
+        sys.exit(1)
 
 
 main()
