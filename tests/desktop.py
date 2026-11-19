@@ -5098,7 +5098,9 @@ t.quit(None, 0.5); shutil.rmtree(d, True)
 DTPANEL = 'dt_new "Control Panel" 22 70 1 2 panel'
 DOWN_DT = [b"\x1b[B"] * ORDER.index("datetime")
 t, d = dotrun(DTPANEL, keys=DOWN_DT)
-sc = t.screen()
+# The pane's rows are drawn a frame after its keys: under the sanitizers,
+# later still, so the row is waited for rather than read at once.
+sc = t.until("Menu bar", tries=80, step=0.1) or t.screen()
 row = next((r for r in range(ROWS) if "Menu bar" in sc.row(r)), None)
 check("Date & Time has a Menu bar clock dropdown and a Time zone button",
       row is not None and "▾" in sc.row(row) and sc.find("[ Change… ]"), sc)
@@ -5107,13 +5109,15 @@ host = os.path.exists("/run/systemd/container") or \
 check("setting the clock is offered only where this machine owns it",
       (sc.find("set by the host") is not None) == host and
       (sc.find("[ Set… ]") is not None) == (not host), sc)
-t.keys([press(row, sc.row(row).index("▾") - 2)], settle=0.6)
+if row is not None and "▾" in sc.row(row):
+    t.keys([press(row, sc.row(row).index("▾") - 2)], settle=0.6)
 sc = t.screen()
 item = sc.find("2:05:09 PM")
 check("its list shows examples, not strftime codes",
       item is not None and sc.find("Custom…") is not None and
       sc.find("%H") is None, sc)
-t.keys([press(item[0], item[1] + 1)], settle=0.8)
+if item is not None:
+    t.keys([press(item[0], item[1] + 1)], settle=0.8)
 sc = t.screen()
 saved = screen.conftext(os.path.join(d, "config", "hibr", "desktop.json"))
 check("choosing one changes the bar at once, and is saved",
@@ -5122,9 +5126,10 @@ check("choosing one changes the bar at once, and is saved",
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 t, d = dotrun(DTPANEL, keys=DOWN_DT)
-sc = t.screen()
-row = next(r for r in range(ROWS) if "Menu bar" in sc.row(r))
-t.keys([press(row, sc.row(row).index("▾") - 2)], settle=0.6)
+sc = t.until("Menu bar", tries=80, step=0.1) or t.screen()
+row = next((r for r in range(ROWS) if "Menu bar" in sc.row(r)), None)
+if row is not None and "▾" in sc.row(row):
+    t.keys([press(row, sc.row(row).index("▾") - 2)], settle=0.6)
 sc = t.screen()
 cu = sc.find("Custom…")
 t.keys([press(cu[0], cu[1] + 1)], settle=0.6)

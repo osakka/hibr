@@ -385,7 +385,11 @@ deadline = time.time() + 10
 while time.time() < deadline and not os.path.exists(SAID + ".idle"):
     time.sleep(0.05)
 us = open(SAID + ".idle").read().strip() if os.path.exists(SAID + ".idle") else ""
-check("a pass with ten idle app connections costs under 100 us", us.isdigit() and int(us) < 100, us)
+# The sanitizer build runs several times slower; the bound scales with it,
+# as every timing check in the tree does.
+PASSUS = 100 * (4 if os.environ.get("ASAN_OPTIONS") else 1)
+check("a pass with ten idle app connections costs under %d us" % PASSUS,
+      us.isdigit() and int(us) < PASSUS, us)
 
 # The app's own loop: told to run its own function, it does, and tells the
 # desktop back; a flood of tells is run whole and in order; what it watches
