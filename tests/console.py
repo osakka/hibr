@@ -9,7 +9,7 @@ Unlike the other suites this one mostly asserts on the *bytes* rather than on
 the reassembled screen, because what is being checked is that the damage model
 sends the right escapes and not merely that the right picture comes out.
 """
-import os, re, signal, sys
+import os, re, signal, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -1059,4 +1059,29 @@ check("one that repeats a character is sent a run as a count",
 check("and the run is drawn whole, where it was",
       sc.row(5) == "  " + "─" * 16 and sc.row(3) == "  HUE", (sc.row(3), sc.row(5)))
 
-report(len(WANT) + len(MWANT) + 131)
+# A child forked while the console is open inherits the terminal's
+# descriptor, and must not read from it: `console key` there waits on what it
+# watches and the time, and the key typed meanwhile is the parent's. Before
+# 0.99.553 the child read it -- whatever forked from a desktop could take
+# the person's keys from it.
+FK = "/tmp/hibr-console-fork-%d" % os.getpid()
+for x in (FK + ".c", FK + ".p"):
+    if os.path.exists(x):
+        os.unlink(x)
+run('''console open
+( console key 1500; echo "child $?" > %s.c ) &
+k := console key 4000
+echo "parent [$k]" > %s.p
+wait
+console close
+''' % (FK, FK), after=lambda t: (time.sleep(0.6), t.send(b"x", settle=0.2, collect=0.2)), wait=3.0)
+child = open(FK + ".c").read().strip() if os.path.exists(FK + ".c") else "?"
+parent = open(FK + ".p").read().strip() if os.path.exists(FK + ".p") else "?"
+check("a child forked while the console is open takes no key from the terminal",
+      child == "child 1", child)
+check("and the key typed meanwhile is the parent's", parent == "parent [x]", parent)
+for x in (FK + ".c", FK + ".p"):
+    if os.path.exists(x):
+        os.unlink(x)
+
+report(len(WANT) + len(MWANT) + 133)

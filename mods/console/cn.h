@@ -444,6 +444,11 @@ int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w);
 
 extern vec cn_panes;
 extern int cn_quiet;
+extern int cn_nofd;
+extern pid_t cn_pid;
+int cn_mine(void);
+int cn_bare(int ms);
+void cn_watchfree(void);
 extern int cn_mousemode;
 #ifndef CN_DETAIL_AUTO
 #define CN_DETAIL_AUTO 0

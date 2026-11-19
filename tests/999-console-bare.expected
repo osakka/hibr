@@ -1,0 +1,8 @@
+0
+nothing ready: status 1, waited out the time: yes
+and spent none of it on the processor: yes
+a watched one has something: status 1, key [], woke at once: yes, woke [it]
+and it is still there to read: hi
+quiet, with something left out: status 1, waited out the time: yes
+nothing watched and no time: status 2
+hibr: console: not open, and nothing watched to wait for

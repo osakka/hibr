@@ -160,6 +160,12 @@ int cn_waiting(void)
    already decided to hold. Its bytes keep in the pty's own buffer, which is
    what a buffer is for, and one drain at the end of the wait takes the lot. */
 int cn_quiet;
+/* Set for a wait that leaves the terminal out: in a process that did not
+   open the console -- an app's own process, with no display (ADR 0050), or
+   a child forked while it was open, which must never read the keys its
+   parent is waiting for -- `console key` waits on the watched descriptors
+   and the time alone. */
+int cn_nofd;
 
 /* Whether a descriptor is readable this instant. */
 int cn_wready(int fd)
@@ -313,8 +319,11 @@ int cn_wait1(int ms)
 	if (!cn_quiet)
 		cn_wguard();
 	FD_ZERO(&r);
-	FD_SET(cn_fd, &r);
-	mx = cn_fd;
+	mx = -1;
+	if (!cn_nofd) {
+		FD_SET(cn_fd, &r);
+		mx = cn_fd;
+	}
 	for (i = 0; !cn_quiet && i < (int)cn_wn; i++) {
 		if (cn_ws[i].mute)
 			continue;
@@ -335,7 +344,7 @@ int cn_wait1(int ms)
 			if (!cn_ws[i].mute && FD_ISSET(cn_wfd[i], &r))
 				cn_ws[i].woke = 1;
 		w = cn_fdhookrun(&r);
-		if (FD_ISSET(cn_fd, &r))
+		if (!cn_nofd && FD_ISSET(cn_fd, &r))
 			return 1;
 		for (i = 0; !cn_quiet && i < (int)cn_wn; i++)
 			if (!cn_ws[i].mute && FD_ISSET(cn_wfd[i], &r))
@@ -353,6 +362,44 @@ int cn_wait1(int ms)
 		return 0;
 	}
 	return -1;
+}
+
+/* Let the watched descriptors' list go, at the module's end: it was kept
+   for the life of the process and never freed, which no leak check saw
+   until a recorded test watched a descriptor. The descriptors themselves
+   are their owners'. */
+void cn_watchfree(void)
+{
+	free(cn_wfd);
+	free(cn_ws);
+	cn_wfd = 0;
+	cn_ws = 0;
+	cn_wn = 0;
+}
+
+/* Whether this process holds the terminal: it opened the console. A child
+   forked while it was open inherits the flag and the descriptor, and is
+   not the one reading. */
+int cn_mine(void)
+{
+	return cn_on && cn_fd >= 0 && getpid() == cn_pid;
+}
+
+/* Wait with the terminal left out (cn_nofd): on the watched descriptors,
+   hooks included, and the time -- 2 when a watched one has something, 0
+   when the time ran out, -1 when there is nothing to wait for at all, which
+   would otherwise be a wait for ever. */
+int cn_bare(int ms)
+{
+	int r;
+
+	if (ms < 0 && (cn_quiet || !cn_wn) && !cn_fdhookn())
+		return -1;
+	cn_nofd = 1;
+	r = cn_wait(ms);
+	cn_nofd = 0;
+	lg(HIBR_LDBG, "console: a wait with no terminal of this process's own, %d ms: %d", ms, r);
+	return r;
 }
 
 /* Read whatever is waiting onto the pending buffer. */

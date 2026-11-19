@@ -1524,8 +1524,6 @@ int m_console(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "key")) {
 		int r, q = 0;
-		if (!cn_need())
-			return HIBR_FAIL;
 		/* -q: a quiet wait, which ends on input, a resize or the time
 		   running out, and not on a watched descriptor having
 		   something to say -- for a caller that is deliberately not
@@ -1534,6 +1532,21 @@ int m_console(sh *s, int ac, char **av)
 			q = 1;
 			av++;
 			ac--;
+		}
+		/* Not this process's terminal -- no display at all, as in an
+		   app's own process (ADR 0050), or one inherited by a forked
+		   child, whose reading would take its parent's keys -- the
+		   wait is on the watched descriptors and the time, and ends
+		   with no key: `console woke` says what is ready. */
+		if (!cn_mine()) {
+			cn_quiet = q;
+			r = cn_bare(ac > 2 ? atoi(av[2]) : -1);
+			cn_quiet = 0;
+			if (r < 0) {
+				lg(HIBR_LERR, "console: not open, and nothing watched to wait for");
+				return 2;
+			}
+			return HIBR_FAIL;
 		}
 		s_init(&k);
 		cn_quiet = q;
@@ -1898,6 +1911,7 @@ void cn_fini(sh *s)
 	}
 	s_free(&cn_pend);
 	cn_pendo = 0;
+	cn_watchfree();
 	hibr_unprovide(s, "dpframes");
 	hibr_unprovide(s, "dpover");
 	hibr_unprovide(s, "scroll");

@@ -101,7 +101,7 @@ and the flush cost shown live. Run it and press things.
 | `console cursor row col` / `console cursor off` | where the cursor should be seen |
 | `console flush` | send what changed; gives the byte count |
 | `console shot [-f ansi\|html\|text] file [row col h w]` | write what is on screen -- the last flush -- or a rectangle of it: `ansi` the cells with their colours as a terminal draws them (`cat` it), `html` the same as a page, `text` the characters alone |
-| `console key [ms]` | wait for a key, up to ms; gives its name |
+| `console key [ms]` | wait for a key, up to ms; gives its name. In a process that did not open the console -- one with no display, as an app's own process (ADR 0050), or a child forked while it was open -- it reads no key: it waits on the watched descriptors and the time and ends with none, `console woke` saying what is ready; with nothing watched and no time it refuses (status 2), rather than waiting for ever |
 | `console key -q [ms]` | the same, but not woken by a watched descriptor -- for a wait that is only running down the clock, with what is watched to be read afterwards |
 | `console waiting` | true when more input is already there; never waits |
 | `console resizing` | true while a resize is pending, without consuming it |
