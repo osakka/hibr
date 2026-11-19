@@ -15,6 +15,10 @@
 
 strict
 
+# A line from the desktop may be as long as what it holds -- the clipboard's
+# history at the hello, one large copy -- and the desktop is not a peer this
+# process guards against, so its lines may run to 256 MiB.
+DT_RTLINEMAX="${DT_RTLINEMAX-268435456}"
 . "$DT_HERE/interface.hibr"
 . "$DT_HERE/requests.hibr"
 # A hangup is not an app's end: the desktop's end of its socket is. An app
@@ -162,7 +166,7 @@ fn dt_rtcalled(line) {
 	read -ra w <<< "$line"
 	DT_RTRECV=$((DT_RTRECV + 1))
 	case ${w[0]-} in
-	set | setk | clear)
+	set | json | jsonk | unsetk)
 		dt_rtmirrored "${w[@]}"
 		return 0
 		;;
@@ -189,15 +193,16 @@ fn dt_rtcalled(line) {
 	return 0
 }
 
-# A mirrored name's new value: `set NAME VALUE`, or a map's `clear NAME` and
-# `setk NAME KEY VALUE`. Only a name the door table says is sent is taken,
+# A mirrored name's new value: `set NAME VALUE`, or a map's or a list's
+# `json NAME TEXT`, which replaces the whole of it; or one entry of a
+# registry sent by entry, `jsonk NAME KEY JSON` and `unsetk NAME KEY`. Only a name the door table says is sent is taken,
 # by lookup, never eval.
 fn dt_rtmirrored(...w) {
-	local name k v
+	local name v k
 
 	name := dt_rtdec "${w[1]-}"
 	case ${DT_RTDOOR["$name"]-} in
-	save | hello | hot) ;;
+	save | hello | hot | registry) ;;
 	*)
 		dt_log "app runtime: the desktop sent $name, which is not a name it sends; refused"
 		return 0
@@ -209,17 +214,23 @@ fn dt_rtmirrored(...w) {
 		v := dt_rtdec "${w[2]-}"
 		printf -v "$name" '%s' "$v"
 		;;
-	clear)
-		local -n m=$name
-		for k in "${!m[@]}"; do
-			unset m["$k"]
-		done
+	json)
+		v := dt_rtdec "${w[2]-}"
+		json parse "$name" <<< "$v" ||
+			dt_log "app runtime: the desktop sent $name as JSON this app could not read; kept the old"
 		;;
-	setk)
-		local -n m=$name
+	jsonk)
 		k := dt_rtdec "${w[2]-}"
 		v := dt_rtdec "${w[3]-}"
-		m["$k"]=$v
+		local -n m=$name
+		unset m["$k"]
+		json parse m["$k"] "$v" ||
+			dt_log "app runtime: the desktop sent an entry of $name this app could not read"
+		;;
+	unsetk)
+		k := dt_rtdec "${w[2]-}"
+		local -n m=$name
+		unset m["$k"]
 		;;
 	esac
 	return 0

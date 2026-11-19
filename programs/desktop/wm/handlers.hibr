@@ -24,6 +24,7 @@ declare -gA DT_HANDLERS
 fn dt_handler(ext, ...rest) {
 	local term=0 i=0 a
 
+	dt_rtreg DT_HANDLERS
 	shift
 	if [ "$1" = term ]; then
 		term=1
@@ -35,6 +36,14 @@ fn dt_handler(ext, ...rest) {
 		i=$((i + 1))
 	done
 	DT_HANDLERS[$ext]["n"]=$i
+}
+
+# Forget what opens a file of this extension: the File Types pane's Delete,
+# and its Save when the extension was renamed.
+fn dt_handlerdrop(ext) {
+	dt_rtreg DT_HANDLERS
+	[ -n "$ext" ] || return 0
+	unset "DT_HANDLERS[$ext]"
 }
 
 # A handler's own argv, read by term_open once it is asked to run one
@@ -175,6 +184,7 @@ DT_OWLIST=()
 DT_OWCONF=
 
 fn dt_opener(name, title, types, how, app = "", kind = "") {
+	dt_rtreg DT_BUNDLEEXT DT_OPENERORDER DT_OPENERS
 	[ -n "${DT_OPENERS[$name]["title"]}" ] || DT_OPENERORDER+=("$name")
 	DT_OPENERS[$name]["title"]=$title
 	DT_OPENERS[$name]["types"]=" $types "
@@ -204,6 +214,7 @@ DT_OVN=0
 DT_OVLIST=()
 
 fn dt_openerverb(ext, label, app, call = "", when = "") {
+	dt_rtreg DT_OPENVERBS
 	DT_OPENVERBS[$DT_OVN]["ext"]=$ext
 	DT_OPENVERBS[$DT_OVN]["label"]=$label
 	DT_OPENVERBS[$DT_OVN]["app"]=$app

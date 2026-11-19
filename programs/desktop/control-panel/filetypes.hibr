@@ -191,7 +191,7 @@ fn ft_draw(int id, int h, int w, int row, int col) {
 # Forget the extension being edited: Delete, or ctrl-d.
 fn ft_delete(int id) {
 	[ -n "${FT[$id]["orig"]}" ] || return 0
-	unset "DT_HANDLERS[${FT[$id]["orig"]}]"
+	dt_handlerdrop "${FT[$id]["orig"]}"
 	command -v dt_save > /dev/null && dt_save
 	dt_del "$id"
 }
@@ -292,7 +292,7 @@ fn ft_apply(int id) {
 		return 0
 	fi
 	orig=${FT[$id]["orig"]}
-	[ -n "$orig" ] && [ "$orig" != "$ext" ] && unset "DT_HANDLERS[$orig]"
+	[ -n "$orig" ] && [ "$orig" != "$ext" ] && dt_handlerdrop "$orig"
 	# str split, not an unquoted $cmd expanded straight into an array --
 	# hibr's own globbing is always on, and a command typed here with a
 	# literal * in it (a real one: "grep foo *.log") would otherwise

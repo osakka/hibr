@@ -5,7 +5,9 @@ and, for each, how many installables read it and how many write it. What a
 process of its own may still see is decided from this: a mirror the desktop
 pushes, the app's own copy, or refused.
 
-  python3 tools/appstate.py [--write]   # --write puts docs/adr/0050-state.tsv
+  python3 tools/appstate.py [--write] [--back]
+      # --write puts docs/adr/0050-state.tsv and programs/desktop/mirrors.hibr;
+      # --back lists what an installable reads back after changing it
 
 Read from the text, not run: a name counts as written where it is assigned
 (NAME=, NAME[...]=, NAME+=, declare/read/unset of it) and as read where it is
@@ -22,7 +24,7 @@ OUT = os.path.join(ROOT, "docs", "adr", "0050-state.tsv")
 MIRRORS = os.path.join(ROOT, "programs", "desktop", "mirrors.hibr")
 # The doors an app's own process is sent through today; the rest are
 # declared as their slices land.
-SENT = ("save", "hello", "hot", "window")
+SENT = ("save", "hello", "hot", "window", "registry")
 DESK = os.path.join(ROOT, "programs/desktop")
 
 
@@ -154,17 +156,113 @@ for _n in """DT_FOCUS DT_ROWS DT_COLS DT_WS DT_PRIMARY_COL DT_PRIMARY_H DT_PRIMA
         DT_DISPNAMES DT_UPNEW DT_UPSESSION DT_TRASHN DT_KBCUR DT_IME DT_RESTORED DT_LANG""".split():
     DOOR[_n] = "hot"
 for _n in """DT_APPS DT_BARI DT_HANDLERS DT_OPENERS DT_OPENERORDER DT_OPENVERBS DT_OVLIST
-        DT_OWLIST DT_BUNDLEEXT DT_PLACES SV_LIST CS_MOD_ALL CS_MOD_ORD DT_SBLIST DT_KB DT_KBLOC
-        DT_KBN DT_KBRES DT_AKEY DT_AKEYORDER DT_KEYORDER DT_BELLICONS DT_NOTELEVELS DT_NOTECOLOURS
-        DT_CH DT_CHORDER DT_NOTEHIST DT_NOTE_NEXT DT_VWA DT_VWJOB DT_VWERR DT_VWITEMS DT_VWSYNCED
-        VW_SESSION DT_TRASH DT_PKRES DT_BTNL DT_BARREAD DT_BARWCOL DRW""".split():
+        DT_BUNDLEEXT SV_LIST CS_MOD_ALL DT_SBLIST DT_KB DT_KBLOC DT_KBN DT_KBRES DT_AKEY
+        DT_AKEYORDER DT_CH DT_CHORDER DT_NOTEHIST DT_NOTEHIST_ORDER DT_VWA DT_VWJOB DT_VWERR
+        DT_VWITEMS DT_VWSYNCED VW_SESSION DT_PKRES DRW""".split():
     DOOR[_n] = "registry"
-for _n in "DT_HERE DT_VER".split():
+# Written only where they are declared, so constants of this desktop: sent
+# once, at the hello.
+for _n in """DT_HERE DT_VER DT_BELLICONS DT_KEYORDER DT_NOTECOLOURS DT_NOTELEVELS DT_PLACES
+        DT_TRASH""".split():
     DOOR[_n] = "hello"
 for _n in """DT_PX DT_PY MB_CX MB_CY MB_CTXID MB_CTXWHO DT_DND DT_KEYBASE DT_KEYCODE DT_KEYMODS
-        DT_KEYPHASE DT_PHASEWIN DT_NATFOCUSES DT_NATCH DT_NATCW CS_CLICKC""".split():
+        DT_KEYPHASE DT_PHASEWIN DT_NATFOCUSES DT_NATCH DT_NATCW CS_CLICKC DT_BARWCOL""".split():
     DOOR[_n] = "call"
-for _n in "DT_DLGR DT_DLGC DT_DLGH DT_DLGW".split():
+# The next note's number, bumped per note and read only by the pane that
+# writes the note queue: part of that request, not a mirror.
+BYNAME["DT_NOTE_NEXT"] = "request"
+
+# A registry whose entries are records: each field an installable reads, and
+# its door -- `registry`, sent with the table, or `call`, moving with a frame
+# or input and so travelling in the call that uses it, left out of what is
+# sent. A field read and not named here fails the survey.
+FIELDDOOR = {
+    "DT_APPS": {"hidden": "registry", "src": "registry", "title": "registry"},
+    "DT_BARI": {"label": "registry", "text": "registry", "c": "call", "w": "call"},
+    "DT_CH": {"at": "registry", "pin": "registry", "text": "registry"},
+    "DT_HANDLERS": {"n": "registry", "orig": "registry", "term": "registry", "$i": "registry"},
+    "DT_KB": {"label": "registry", "layout": "registry", "name": "registry", "variant": "registry"},
+    "DT_NOTEHIST": {"at": "registry", "from": "registry", "prio": "registry", "text": "registry"},
+    "DT_OPENERS": {"types": "registry"},
+    "DT_OPENVERBS": {"label": "registry"},
+    "DRW": {"stamp": "registry"},
+}
+# Registries an app the survey has not read is never sent: one that is not
+# known gets every other registry, so it is never silently empty, but not a
+# key or what it opens.
+SECRET = {"VW_SESSION", "DT_VWITEMS"}
+KINDS = ("apps", "system", "control-panel", "control-strip", "menubar", "savers")
+
+
+def kindrel(f):
+    """A file as the kind folder it is in sees it, apps/files.hibr, wherever
+    the scope that holds it is: the same in this tree, the catalogue's
+    bundles and an installed copy."""
+    parts = os.path.abspath(f).split(os.sep)
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i] in KINDS:
+            return "/".join(parts[i:])
+    return os.path.basename(f)
+
+
+def shared():
+    out = []
+    for f in platfiles():
+        try:
+            if any(l.startswith("# interface: shared") for l in open(f, errors="replace")):
+                out.append(f)
+        except OSError:
+            pass
+    return out
+
+
+WRITE = r"(^|[\s;(&|])%s(\[[^\]]*\])*\+?=|\bunset\s+[\"']?%s\b|\b(json\s+parse|mapfile|readarray)\s+(-\S+\s+)*%s\b|\bread\s+[^\n]*-\w*a\w*\s+%s\b|\b%s(\[[^\]]*\])*\s+:="
+
+
+def regwriters():
+    """Every platform function that writes a registry, with the fields it
+    writes: (file, function, name, fields, marks). A write at top level is
+    the declaration, made before any app can connect, and is not one."""
+    regs = [n for n, d in DOOR.items() if d == "registry"]
+    out = []
+    for f in platfiles():
+        fn, body, start = None, [], 0
+        for line in open(f, errors="replace").read().split("\n") + ["}"]:
+            m = re.match(r"^(?:fn\s+([A-Za-z_][A-Za-z0-9_]*)\(|([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{)", line)
+            if m:
+                fn, body = m.group(1) or m.group(2), []
+                continue
+            if fn is None:
+                continue
+            if line.startswith("}"):
+                text = "\n".join(body)
+                marks = set()
+                for mm in re.finditer(r"\bdt_rtreg((?:\s+[A-Z][A-Z0-9_]*)+)", text):
+                    marks.update(mm.group(1).split())
+                marks.update(re.findall(r"\bdt_rtregk\s+([A-Z][A-Z0-9_]*)", text))
+                for n in regs:
+                    if n not in text:
+                        continue
+                    flds = set()
+                    hit = False
+                    for b in body:
+                        if re.search(WRITE % ((n,) * 5), b):
+                            hit = True
+                            flds.update(re.findall(r'\b%s\[[^\]]*\]\["?([a-z0-9_]+)"?\]\+?=' % n, b))
+                            if not re.search(r'\b%s\[[^\]]*\]\["?[a-z0-9_]+"?\]\+?=' % n, b):
+                                flds.add("*")
+                    if hit:
+                        out.append((os.path.relpath(f, DESK), fn, n, flds, n in marks))
+                fn = None
+                continue
+            body.append(line)
+    return out
+# What a function an installable calls passes back through a global: the
+# openers for a path (dt_openers), a selection's verbs (dt_openverbs), the
+# strip's modules in order (cs_ordered), the title bar's buttons
+# (dt_btnlist), the bar's items as they read (dt_barreading).
+for _n in """DT_DLGR DT_DLGC DT_DLGH DT_DLGW DT_OWLIST DT_OVLIST CS_MOD_ORD DT_BTNL
+        DT_BARREAD""".split():
     DOOR[_n] = "answer"
 for _n in "DT_HOSTMARK".split():
     DOOR[_n] = "gone"
@@ -188,6 +286,22 @@ def maps():
     return out
 
 
+def lists():
+    """The platform's globals that are lists: assigned NAME=( at top level,
+    or declared -a. Like a map, a list crosses whole, as JSON."""
+    out = set()
+    for f in platfiles():
+        for line in open(f, errors="replace"):
+            m = re.match(r"^(?:declare\s+-g\w*\s+)?([A-Z][A-Z0-9_]*)=\(", line)
+            if m:
+                out.add(m.group(1))
+            m = re.match(r"^(?:declare|typeset)\s+-\w*a\w*\s+(.*)", line)
+            if m:
+                out.update(w.split("=")[0] for w in m.group(1).split()
+                           if re.match(r"^[A-Z][A-Z0-9_]*", w))
+    return out - maps()
+
+
 def winfields():
     """The fields of a window's record (DT[$id]["x"]) any installable reads:
     what an app's own process is sent of its own windows."""
@@ -197,13 +311,14 @@ def winfields():
     return sorted(out)
 
 
-def mirrors(rows):
+def mirrors(rows, reads):
     """programs/desktop/mirrors.hibr: every mirror's door, which the desktop
     reads to know what to send and the app to know what it may be sent; and
     the declarations of what is sent today, in a function only the app's
     runtime calls -- in the desktop they would come before its settings'
     defaults, which are written ${X-default} and would find X set empty."""
     mp = maps()
+    ls = lists()
     doors = sorted((r[0], door(r[0], r[4])) for r in rows if r[4] in ("mirror", "setting"))
     sent = [(n, d) for n, d in doors if d in SENT]
     out = ["# mirrors -- the desktop state an app's own process is sent, and how (ADR",
@@ -217,20 +332,66 @@ def mirrors(rows):
            "# The fields of a window's record installables read: what an app's own",
            "# process is sent of its own windows (the window door).",
            "DT_RTWINF=(" + " ".join(winfields()) + ")",
-           "# Which of them are maps, sent entry by entry.",
-           "declare -gA DT_RTMAP=(" + " ".join("[%s]=1" % n for n, d in doors if n in mp) + ")",
+           "# Who reads each registry, as the kind folder sees the file (\"*\": the",
+           "# app interface does, so every process); every installable the survey",
+           "# read, so one it did not is sent every registry but a secret; the",
+           "# secrets; and a record's fields that move with input or a frame, left",
+           "# out of what is sent.",
+           "declare -gA DT_RTAUD=(" + " ".join('[%s]="%s"' % (n, aud(n, reads)) for n, d in doors if d == "registry") + ")",
+           "declare -gA DT_RTKNOWN=(" + " ".join("[%s]=1" % k for k in sorted(set(kindrel(f) for f in installables()))) + ")",
+           "declare -gA DT_RTSECRET=(" + " ".join("[%s]=1" % n for n in sorted(SECRET)) + ")",
+           "declare -gA DT_RTSKIP=(" + " ".join('[%s]="%s"' % (n, " ".join(sorted(k for k, v in fd.items() if v != "registry")))
+                                               for n, fd in sorted(FIELDDOOR.items()) if any(v != "registry" for v in fd.values())) + ")",
+           "# Which of them are maps or lists, each sent whole, as JSON.",
+           "declare -gA DT_RTMAP=(" + " ".join("[%s]=1" % n for n, d in doors if n in mp or n in ls) + ")",
            "",
            "# The names sent today, declared in an app's own process: called by the",
            "# runtime alone, before its hello.",
            "dt_rtdeclare() {"]
-    sc = [n for n, d in sent if n not in mp]
+    sc = [n for n, d in sent if n not in mp and n not in ls]
     mm = [n for n, d in sent if n in mp]
+    ll = [n for n, d in sent if n in ls]
     for i in range(0, len(sc), 8):
         out.append("\tdeclare -g " + " ".join(sc[i:i + 8]))
     for i in range(0, len(mm), 8):
         out.append("\tdeclare -gA " + " ".join(mm[i:i + 8]))
+    for i in range(0, len(ll), 8):
+        out.append("\tdeclare -ga " + " ".join(ll[i:i + 8]))
     out += ["\treturn 0", "}", ""]
     return "\n".join(out)
+
+
+def owners():
+    """Each part (`# part: control-panel/x.hibr`) and the files that bring
+    it: a bundle's members share one process, so the file it is launched
+    from is sent what any of them reads."""
+    out = collections.defaultdict(set)
+    for f in installables():
+        for line in open(f, errors="replace"):
+            m = re.match(r"^# part:\s*(\S+)", line)
+            if m:
+                out[m.group(1)].add(kindrel(f))
+    return out
+
+
+OWNERS = None
+
+
+def aud(n, reads):
+    """Who is sent registry n: "*" when the app interface or a library any
+    app may source reads it; else the files that read it and the files whose
+    parts do."""
+    global OWNERS
+    libs = glob.glob(os.path.join(DESK, "lib", "*.hibr"))
+    for f in shared() + libs:
+        if re.search(r"\$\{?[!#]?%s\b|\b%s\[[^\]]*\]" % (n, n), open(f, errors="replace").read()):
+            return "*"
+    if OWNERS is None:
+        OWNERS = owners()
+    who = set(kindrel(f) for f in reads[n])
+    for r in list(who):
+        who |= OWNERS.get(r, set())
+    return " ".join(sorted(who))
 
 
 def door(name, k):
@@ -241,9 +402,18 @@ def door(name, k):
     return "-"
 
 
+DIRECT = []
+
+
 def klass(name, wr, where):
     if name in BYNAME:
         return BYNAME[name]
+    # A registry an installable also writes directly is still sent; the
+    # direct write is a request to convert, listed, and marked meanwhile.
+    if DOOR.get(name) == "registry":
+        if wr:
+            DIRECT.append((name, " ".join(sorted(set(kindrel(f) for f in wr)))))
+        return "mirror"
     # A kept setting is the desktop's wherever it is declared: the glyph set,
     # the language and the mirroring are declared in shared files, and taken
     # for each process's own they would never have been sent.
@@ -270,7 +440,7 @@ def main():
                 continue
             if re.search(r"\$\{?[!#]?%s\b|\b%s\[[^\]]*\](?!\S*\+?=)" % (n, n), text):
                 reads[n].add(f)
-            if re.search(r"(^|[\s;(&|])%s(\[[^\]]*\])*\+?=|\b(unset|read\b[^\n]*)\s+%s\b" % (n, n), text, re.M):
+            if re.search(r"(^|[\s;(&|])%s(\[[^\]]*\])*\+?=|\b(unset|read\b[^\n]*)\s+[\"']?%s\b" % (n, n), text, re.M):
                 writes[n].add(f)
     rows = sorted(((n, len(reads[n]), len(writes[n]), WHERE.get(n, "?"),
                     klass(n, writes[n], WHERE.get(n, "?"))) for n in names if reads[n] or writes[n]),
@@ -289,7 +459,7 @@ def main():
             for row in rows:
                 o.write("%s\t%d\t%d\t%s\t%s\t%s\n" % (row + (door(row[0], row[4]),)))
         print("wrote", os.path.relpath(OUT, ROOT))
-    mtext = mirrors(rows)
+    mtext = mirrors(rows, reads)
     if "--write" in sys.argv:
         open(MIRRORS, "w").write(mtext)
         print("wrote", os.path.relpath(MIRRORS, ROOT))
@@ -307,8 +477,52 @@ def main():
         print("FAIL %s has a door and is no mirror any installable reads: take it out of DOOR" % n)
     doors = collections.Counter(door(r[0], r[4]) for r in rows if r[4] in ("mirror", "setting"))
     print("  doors: " + ", ".join("%s %d" % kv for kv in sorted(doors.items())))
-    if undoored or stale:
+    # Every function that writes a registry marks it (dt_rtreg NAME), or the
+    # processes that read it never see the change; a write of a field whose
+    # door is the call is not one.
+    unmarked = []
+    for f, fn, n, flds, marked in regwriters():
+        fd = FIELDDOOR.get(n, {})
+        if flds and "*" not in flds and all(fd.get(x, "registry") != "registry" for x in flds):
+            continue
+        if not marked:
+            unmarked.append((f, fn, n))
+    for f, fn, n in unmarked:
+        print("FAIL %s: %s writes the registry %s and never marks it: dt_rtreg %s" % (f, fn, n, n))
+    # An installable that changes a registry through the desktop and reads it
+    # back: in a process of its own that call is an asked request, answered
+    # only after the table has been sent, or the read sees the old one. The
+    # asked-requests slice is built from this list.
+    wr = collections.defaultdict(set)
+    for f, fn, n, flds, marked in regwriters():
+        wr[n].add(fn)
+    back = set()
+    for f in files:
+        t = open(f, errors="replace").read()
+        for n, fns in wr.items():
+            if n not in reads or f not in reads[n]:
+                continue
+            for fn in fns:
+                if re.search(r"(^|[\s;&|(])%s\b" % fn, t, re.M):
+                    back.add((kindrel(f), n, fn))
+    print("  read back after a change through the desktop: %d (an installable, a registry, the call)" % len(back))
+    if "--back" in sys.argv:
+        for b in sorted(back):
+            print("    %-34s %-14s %s" % b)
+    for n, who in sorted(set(DIRECT)):
+        print("  written directly by an installable, a request to convert: %s (%s)" % (n, who))
+    # A field of a record read by an installable has a door.
+    undf = []
+    for n, fd in FIELDDOOR.items():
+        for f in reads[n]:
+            for x in re.findall(r'\b%s\[[^\]]*\]\["?([a-z0-9_$]+)"?\]' % n, open(f, errors="replace").read()):
+                if x not in fd:
+                    undf.append((n, x, kindrel(f)))
+    for n, x, f in sorted(set(undf)):
+        print("FAIL %s reads the field %s of %s, which has no door in FIELDDOOR" % (f, x, n))
+    if undoored or stale or unmarked or undf:
         sys.exit(1)
 
 
-main()
+if __name__ == "__main__":
+    main()

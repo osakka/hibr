@@ -104,43 +104,236 @@ dt_rtlisten() {
 # pass (a frame asked for while any is), so nothing said is left behind and
 # a hung app cannot grow the desktop's memory past this.
 DT_RTQMAX="${DT_RTQMAX-1048576}"
+DT_RTQSECS="${DT_RTQSECS-2}"
+declare -gA DT_RTPENDB DT_RTPENDT
 declare -gA DT_RTPEND
 
 # A mirrored name's value, as one string to compare: a scalar's value, or a
 # map's entries in their order.
 fn dt_rtsig(name) {
-	local k o=
+	local o
 
 	if [ "${DT_RTMAP["$name"]-}" = 1 ]; then
-		local -n m=$name
-		for k in "${!m[@]}"; do
-			o+="$k=${m[$k]}"$'\n'
-		done
+		o := json emit "$name"
 		ret "$o"
 		return 0
 	fi
 	ret "${!name-}"
 }
 
-# What name holds now as the lines that carry it, kept in DT_RTLINE: `set
-# NAME VALUE`, or for a map `clear NAME` and then `setk NAME KEY VALUE` for
-# each entry.
+# What name holds now as the line that carries it, kept in DT_RTLINE: `set
+# NAME VALUE`, or for a map or a list `json NAME TEXT`, the whole of it --
+# nested entries, a list's every element and the order -- where a line per
+# key carried a list's first element and a nested map's scalars alone.
 fn dt_rtencode(name) {
-	local k x o
+	local o j
 
 	if [ "${DT_RTMAP["$name"]-}" = 1 ]; then
-		local -n m=$name
-		o := dt_rtline clear "$name"
-		for k in "${!m[@]}"; do
-			x := dt_rtline setk "$name" "$k" "${m[$k]}"
-			o+=$'\n'$x
-		done
+		j := dt_rtwhole "$name"
+		o := dt_rtline json "$name" "$j"
 	else
 		o := dt_rtline set "$name" "${!name-}"
 	fi
 	DT_RTLINE["$name"]=$o
 	return 0
 }
+
+# A map or a list as JSON, the whole of it, less the fields of its records
+# whose door is the call (DT_RTSKIP): those move with a frame or input, and
+# travel in the call that uses them.
+fn dt_rtwhole(name) {
+	local j k f
+	local -a sk
+
+	j := json emit "$name" 2> /dev/null || j="{}"
+	if [ -n "${DT_RTSKIP["$name"]-}" ]; then
+		local -A cp
+		read -ra sk <<< "${DT_RTSKIP["$name"]}"
+		json parse cp <<< "$j"
+		for k in "${!cp[@]}"; do
+			for f in "${sk[@]}"; do
+				unset cp["$k"]["$f"]
+			done
+		done
+		j := json emit cp
+	fi
+	ret "$j"
+}
+
+# Whether connection c is sent registry name: when the app interface reads
+# it, or the file that connected does; a file the survey never read is sent
+# every registry but a secret, so it is never silently empty.
+fn dt_rtwants(int c, name) {
+	local a=${DT_RTAUD["$name"]-} f=${DT_RTCFILE["$c"]-}
+
+	[ "$a" = "*" ] && return 0
+	if [ -z "$f" ] || [ -z "${DT_RTKNOWN["$f"]+x}" ]; then
+		[ -z "${DT_RTSECRET["$name"]+x}" ]
+		return
+	fi
+	case " $a " in *" $f "*) return 0 ;; esac
+	return 1
+}
+
+# The registries marked since the last pass. One marked whole is encoded
+# again, and when what it holds moved its generation goes up; every
+# connection that reads it and holds an older generation is sent it, so a
+# mark with nothing moved sends nothing. One marked by entry is sent those
+# entries -- `jsonk NAME KEY JSON`, or `unsetk NAME KEY` for one gone -- and
+# every reader is then current at a new generation, with the whole encoding
+# made again only when somebody needs it. What each connection holds is a
+# number, never a copy.
+dt_rtregflush() {
+	local n c s g
+	local -a keys out
+
+	for n in "${!DT_RTREGQ[@]}"; do
+		unset DT_RTREGQ["$n"] DT_RTREGK["$n"]
+		[ "${DT_RTDOOR["$n"]-}" = registry ] || continue
+		s := dt_rtcode "$n"
+		if [ "$s" != "${DT_RTLINE["$n"]-}" ]; then
+			DT_RTLINE["$n"]=$s
+			DT_RTGEN["$n"]=$((${DT_RTGEN["$n"]:-0} + 1))
+		fi
+		g=${DT_RTGEN["$n"]:-0}
+		for c in "${!DT_RTC[@]}"; do
+			[ "${DT_RTC["$c"]}" = - ] && continue
+			dt_rtwants "$c" "$n" || continue
+			[ "${DT_RTREGS["$c $n"]-}" = "$g" ] && continue
+			DT_RTREGS["$c $n"]=$g
+			dt_rtsay "$c" "$s"
+		done
+	done
+	for n in "${!DT_RTREGK[@]}"; do
+		mapfile -t keys <<< "${DT_RTREGK["$n"]%$'\n'}"
+		unset DT_RTREGK["$n"]
+		[ "${DT_RTDOOR["$n"]-}" = registry ] || continue
+		dt_rtentlines "$n" "${keys[@]}"
+		out=("${DT_RTOUT[@]}")
+		unset DT_RTLINE["$n"]
+		g=$((${DT_RTGEN["$n"]:-0} + 1))
+		DT_RTGEN["$n"]=$g
+		for c in "${!DT_RTC[@]}"; do
+			[ "${DT_RTC["$c"]}" = - ] && continue
+			dt_rtwants "$c" "$n" || continue
+			DT_RTREGS["$c $n"]=$g
+			for s in "${out[@]}"; do
+				dt_rtsay "$c" "$s" || break
+			done
+		done
+	done
+	return 0
+}
+
+# A registry's line as it would cross now: `set NAME VALUE` or `json NAME
+# TEXT`.
+fn dt_rtcode(name) {
+	local j x
+
+	if [ "${DT_RTMAP["$name"]-}" = 1 ]; then
+		j := dt_rtwhole "$name"
+		x := dt_rtline json "$name" "$j"
+	else
+		x := dt_rtline set "$name" "${!name-}"
+	fi
+	ret "$x"
+}
+
+# The lines that carry these entries of a map as it holds them now, into
+# DT_RTOUT: `jsonk NAME KEY JSON` for each still there, `unsetk NAME KEY`
+# for each gone. A key marked twice is sent once.
+DT_RTOUT=()
+fn dt_rtentlines(name, ...keys) {
+	local k j s
+	local -A seen
+	local -n m=$name
+
+	DT_RTOUT=()
+	for k in "${keys[@]}"; do
+		[ -n "${seen["$k"]+x}" ] && continue
+		seen["$k"]=1
+		if [ -n "${m["$k"]+x}" ] || [ "${#m["$k"][@]}" -gt 0 ]; then
+			j := dt_rtentry "$name" "$k"
+			s := dt_rtline jsonk "$name" "$k" "$j"
+		else
+			s := dt_rtline unsetk "$name" "$k"
+		fi
+		DT_RTOUT+=("$s")
+	done
+	return 0
+}
+
+# One entry of a map as JSON: a record's fields, or a value.
+fn dt_rtentry(name, key) {
+	local f v
+	local -a ks
+	local -A e
+	local -n m=$name
+
+	# A record is an entry with fields; asked by its keys, since through a
+	# nameref an entry at key 0 holding only fields reads as the name the
+	# nameref holds (Gitea #595).
+	ks=("${!m["$key"][@]}")
+	if [ "${#ks[@]}" -gt 0 ]; then
+		for f in "${ks[@]}"; do
+			e["$f"]=${m["$key"]["$f"]}
+		done
+		v := json emit e
+	else
+		v=${m["$key"]}
+		v := json emit v
+	fi
+	ret "$v"
+}
+
+# Under the harness, once a second: every registry that moved since the last
+# look with no mark is named, as a late: line is, so a writer the survey
+# cannot read -- a form of write it does not know -- fails a suite rather
+# than leaving an app with an old table.
+dt_rtregcheck() {
+	local n s x
+
+	[ "$EPOCHSECONDS" != "$DT_RTREGT" ] || return 0
+	DT_RTREGT=$EPOCHSECONDS
+	for n in "${!DT_RTDOOR[@]}"; do
+		[ "${DT_RTDOOR["$n"]}" = registry ] || continue
+		if [ "${DT_RTMAP["$n"]-}" = 1 ]; then
+			s := dt_rtwhole "$n"
+		else
+			s=${!n-}
+		fi
+		if [ -n "${DT_RTREGC["$n"]+x}" ] && [ "$s" != "${DT_RTREGC["$n"]}" ] &&
+			[ -z "${DT_RTREGM["$n"]+x}" ]; then
+			x := dt_rtdiffat "${DT_RTREGC["$n"]}" "$s"
+			if [ -n "${DT_RTSECRET["$n"]+x}" ]; then
+				dt_log "unmarked: the registry $n moved with no dt_rtreg $n (a secret: not shown)"
+			else
+				dt_log "unmarked: the registry $n moved with no dt_rtreg $n (now ...${s:x:80}...)"
+			fi
+		fi
+		DT_RTREGC["$n"]=$s
+	done
+	DT_RTREGM=()
+	return 0
+}
+# Where two texts first differ, a little before it: what an unmarked line
+# shows of the table, so it names the entry that moved.
+fn dt_rtdiffat(a, b) {
+	local lo=0 hi=${#a} m
+
+	[ "${#b}" -lt "$hi" ] && hi=${#b}
+	while [ "$lo" -lt "$hi" ]; do
+		m=$(((lo + hi + 1) / 2))
+		if [ "${a:0:m}" = "${b:0:m}" ]; then lo=$m; else hi=$((m - 1)); fi
+	done
+	m=$((lo - 30))
+	[ "$m" -ge 0 ] || m=0
+	ret "$m"
+}
+# Each registry's generation, and the generation of it each connection holds.
+declare -gA DT_RTREGC DT_RTCFILE DT_RTREGS DT_RTGEN
+DT_RTREGT=
+[ -z "${DT_TESTIDLE-}" ] || dt_ticker dt_rtregcheck
 
 # Send connection c what name holds now, from the lines kept for it.
 fn dt_rtmirror(int c, name) {
@@ -255,6 +448,7 @@ dt_rthot() {
 	local x s=
 
 	[ "${#DT_RTC[@]}" = 0 ] && return 0
+	[ "${#DT_RTREGQ[@]}${#DT_RTREGK[@]}" = 00 ] || dt_rtregflush
 	for x in "${DT_RTHOT[@]}"; do
 		s+="${!x-}"$'\t'
 	done
@@ -272,6 +466,7 @@ dt_rttick() {
 	local -a ready got
 
 	[ -n "$DT_RTLFD" ] || return 0
+	[ "${#DT_RTLAUNCH[@]}" = 0 ] || dt_rtlaunches
 	dt_rthot
 	for c in "${!DT_RTPEND[@]}"; do
 		dt_rtsay "$c" ""
@@ -320,13 +515,64 @@ dt_rttick() {
 
 # A launch: a token no one can guess from outside, recorded as app's until
 # a hello spends it. Answered with ret.
-fn dt_rtissue(app) {
+fn dt_rtissue(app, file = "") {
 	local t
 
 	read -r t < <(od -An -tx1 -N16 /dev/urandom)
 	t=${t// /}
 	DT_RTLAUNCH["$t"]=$app
+	DT_RTLFILE["$t"]=$file
+	DT_RTLTIME["$t"]=$EPOCHSECONDS
 	ret "$t"
+}
+
+# A file as the kind folder it is in sees it, apps/files.hibr, wherever the
+# scope holding it is -- what DT_RTAUD and DT_RTKNOWN name it by.
+fn dt_rtkindrel(f) {
+	local k r=$f t
+
+	for k in apps system control-panel control-strip menubar savers; do
+		case $f in
+		*/"$k"/*)
+			t="$k/${f##*/"$k"/}"
+			[ "${#t}" -lt "${#r}" ] && r=$t
+			;;
+		esac
+	done
+	ret "$r"
+}
+# When each launch was issued, and the process a spawn started for it: a
+# token is good for DT_RTLAUNCHSECS, and a launch whose process has gone
+# before its hello is reported at once (dt_rtlaunches).
+declare -gA DT_RTLFILE DT_RTLTIME DT_RTLPID
+DT_RTLAUNCHSECS="${DT_RTLAUNCHSECS-15}"
+
+# Launches not yet spent: one whose process has exited, or whose time is up,
+# is void -- its token refused from then on -- and said once, in the log and
+# to the person, since an app that never came is otherwise only an absence.
+# Asked only while a launch is pending, so a pass with none costs one test.
+dt_rtlaunches() {
+	local t p why
+
+	for t in "${!DT_RTLAUNCH[@]}"; do
+		p=${DT_RTLPID["$t"]-}
+		why=
+		if [ -n "$p" ] && ! kill -0 "$p" 2> /dev/null; then
+			why="exited before it said hello"
+		elif [ $((EPOCHSECONDS - ${DT_RTLTIME["$t"]:-0})) -ge "$DT_RTLAUNCHSECS" ]; then
+			why="did not say hello within $DT_RTLAUNCHSECS seconds"
+		fi
+		[ -n "$why" ] || continue
+		dt_log "app runtime: ${DT_RTLAUNCH["$t"]} started from ${DT_RTLFILE["$t"]:-nothing} $why; its launch is void"
+		# A note from a ticker asks for the frame that shows it, or it
+		# expires before anything draws.
+		if [ -n "${DT_RTLFILE["$t"]-}" ]; then
+			dt_notep normal "%s did not start" "${DT_RTLAUNCH["$t"]}"
+			dt_want 30
+		fi
+		unset DT_RTLAUNCH["$t"] DT_RTLFILE["$t"] DT_RTLTIME["$t"] DT_RTLPID["$t"]
+	done
+	return 0
 }
 
 # Start an app's own process from its file with three descriptors and no
@@ -340,7 +586,7 @@ fn dt_rtissue(app) {
 fn dt_rtspawn(app, file) {
 	local f t
 
-	t := dt_rtissue "$app"
+	t := dt_rtissue "$app" "$file"
 
 	# /dev/fd is this process's own descriptors on Linux and macOS alike,
 	# where /proc/self/fd is Linux's alone; a name that is not a number is
@@ -353,6 +599,7 @@ fn dt_rtspawn(app, file) {
 		done
 		DT_RTTOKEN=$t exec "$HIBR" "$file" < /dev/null > /dev/null
 	) &
+	DT_RTLPID["$t"]=$!
 	dt_log "app runtime: started $app from $file as $!"
 	ret "$t"
 }
@@ -374,7 +621,7 @@ fn dt_rttell(launch, name, ...args) {
 
 # Let a connection go.
 fn dt_rtdrop(int c) {
-	local x
+	local x k
 
 	[ -n "${DT_RTC["$c"]+x}" ] || return 0
 	command -v console > /dev/null && console unwatch "$c" 2> /dev/null
@@ -386,7 +633,11 @@ fn dt_rtdrop(int c) {
 		DT_RTAPPS["$x"]=$((DT_RTAPPS["$x"] - 1))
 		[ "${DT_RTAPPS["$x"]}" -gt 0 ] || unset DT_RTAPPS["$x"]
 	fi
-	unset DT_RTC["$c"] DT_RTBUF["$c"] DT_RTMORE["$c"] DT_RTPEND["$c"] DT_RTCTOK["$c"]
+	unset DT_RTC["$c"] DT_RTBUF["$c"] DT_RTMORE["$c"] DT_RTPEND["$c"] DT_RTCTOK["$c"] DT_RTCFILE["$c"]
+	unset DT_RTPENDB["$c"] DT_RTPENDT["$c"]
+	for k in "${!DT_RTREGS[@]}"; do
+		[ "${k%% *}" = "$c" ] && unset DT_RTREGS["$k"]
+	done
 	dt_rtwforget "$c"
 	return 0
 }
@@ -402,11 +653,20 @@ fn dt_rtsay(int c, line) {
 	st=$?
 	case $st in
 	0)
-		unset DT_RTPEND["$c"]
+		unset DT_RTPEND["$c"] DT_RTPENDB["$c"] DT_RTPENDT["$c"]
 		return 0
 		;;
 	3)
-		if [ "$RET" -gt "$DT_RTQMAX" ]; then
+		# Shrinking since it was last looked at is reading: the time is
+		# kept, and only a backlog past DT_RTQMAX that has not shrunk for
+		# DT_RTQSECS is an app that stopped -- one line longer than the
+		# limit, the clipboard's history at a hello, is not.
+		if [ "$RET" -lt "${DT_RTPENDB["$c"]:-0}" ] || [ -z "${DT_RTPENDT["$c"]-}" ] ||
+			[ "${DT_RTPENDB["$c"]:-0}" -le "$DT_RTQMAX" ]; then
+			DT_RTPENDT["$c"]=$EPOCHSECONDS
+		fi
+		DT_RTPENDB["$c"]=$RET
+		if [ "$RET" -gt "$DT_RTQMAX" ] && [ $((EPOCHSECONDS - DT_RTPENDT["$c"])) -ge "$DT_RTQSECS" ]; then
 			dt_log "app runtime: ${DT_RTC["$c"]-a connection} stopped reading ($RET bytes waiting for it); let go"
 			dt_rtdrop "$c"
 			return 1
@@ -490,6 +750,10 @@ fn dt_rtmsg(int c, line) {
 			dt_log "app runtime: refused ${a[3]-an app}: hibr ${a[2]-?} protocol ${a[1]-?}, this desktop runs $HIBR_VERSION protocol $DT_RTPROTO"
 			t := dt_tr "hibr was updated: click to restart the desktop and open %s" "${a[3]-the app}"
 			dt_notifyp high "$t" dt_restart
+			# The launch is spent: the note above says why it did not
+			# start, so it is not said a second time when its process goes.
+			x=${a[4]-}
+			[ -z "$x" ] || unset DT_RTLAUNCH["$x"] DT_RTLFILE["$x"] DT_RTLTIME["$x"] DT_RTLPID["$x"]
 			dt_rtdrop "$c"
 			return 1
 		fi
@@ -503,7 +767,9 @@ fn dt_rtmsg(int c, line) {
 			return 1
 		fi
 		who=${DT_RTLAUNCH["$x"]}
-		unset DT_RTLAUNCH["$x"]
+		DT_RTCFILE["$c"]=
+		[ -z "${DT_RTLFILE["$x"]-}" ] || DT_RTCFILE["$c"] := dt_rtkindrel "${DT_RTLFILE["$x"]}"
+		unset DT_RTLAUNCH["$x"] DT_RTLFILE["$x"] DT_RTLTIME["$x"] DT_RTLPID["$x"]
 		[ "${a[3]-}" = "$who" ] ||
 			dt_log "app runtime: a hello said it was ${a[3]:-nothing}; it is $who, by its launch"
 		if ! dt_rtmay "$who"; then
@@ -517,16 +783,21 @@ fn dt_rtmsg(int c, line) {
 		DT_RTCTOK["$c"]=${a[4]}
 		DT_RTTOKC["${a[4]}"]=$c
 		DT_RTAPPS["$who"]=$((${DT_RTAPPS["$who"]:-0} + 1))
+		# Whatever was marked goes out first, so a registry's kept line is
+		# what it holds now and the generation recorded below is true.
+		[ "${#DT_RTREGQ[@]}${#DT_RTREGK[@]}" = 00 ] || dt_rtregflush
 		# What it is sent, before its ok, so the app's first line after the
 		# hello sees all of it: the kept lines joined, in one write.
 		t=
 		for x in "${!DT_RTDOOR[@]}"; do
 			case ${DT_RTDOOR["$x"]} in
-			save | hello | hot)
-				[ -n "${DT_RTLINE["$x"]+x}" ] || dt_rtencode "$x"
-				t+=${t:+$'\n'}${DT_RTLINE["$x"]}
-				;;
+			save | hello | hot) ;;
+			registry) dt_rtwants "$c" "$x" || continue ;;
+			*) continue ;;
 			esac
+			[ -n "${DT_RTLINE["$x"]+x}" ] || dt_rtencode "$x"
+			t+=${t:+$'\n'}${DT_RTLINE["$x"]}
+			[ "${DT_RTDOOR["$x"]}" = registry ] && DT_RTREGS["$c $x"]=${DT_RTGEN["$x"]:-0}
 		done
 		dt_rtsay "$c" "$t" || return 1
 		dt_rtwinsc "$c"

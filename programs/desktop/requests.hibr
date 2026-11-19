@@ -335,6 +335,11 @@ fn dt_handler(ext, ...rest) {
 	dt_rtsend tell dt_handler "$ext" "${rest[@]}"
 }
 
+# Told to the desktop, wm/handlers.hibr.
+fn dt_handlerdrop(ext) {
+	dt_rtsend tell dt_handlerdrop "$ext"
+}
+
 # Told to the desktop, wm/windows.hibr.
 fn dt_hidden(int id) {
 	dt_rtsend tell dt_hidden "$id"

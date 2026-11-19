@@ -662,7 +662,7 @@ EXPECTED = []
 # drew the Control Panel past four times the mark. A `late:` line -- input
 # that reached the screen past the same mark (wm/latency.hibr) -- fails the
 # same way. A `slow:` line is advice and fails nothing.
-SLOWLINE = re.compile(rb" desktop: ((?:held|late): [^\r\n]*)\r?\n")
+SLOWLINE = re.compile(rb" desktop: ((?:held|late|unmarked): [^\r\n]*)\r?\n")
 os.environ.setdefault("DT_HOLDMS", str(300 * (8 if os.environ.get("ASAN_OPTIONS") else 1)))
 # And judged by the processor the desktop itself used, not by the clock
 # (wm/budget.hibr): a test checking the desktop's own wall-time rule -- the
@@ -702,6 +702,9 @@ class Term:
     def __init__(self, *argv, rows=ROWS, cols=COLS, env=None, settle=0.4,
                  size=True, cellw=0, cellh=0, bg=None, pal=None, caps=None):
         self.rows, self.cols = rows, cols
+        # What it runs, named on a held: or late: line it leaves, so a stall
+        # in a gate says which session it came from.
+        self.what = os.path.basename(argv[0]) if argv else "?"
         # What this terminal answers a colour query with, and how far the
         # output has been scanned for one. None answers nothing, as a
         # terminal that does not implement the queries does.
@@ -1092,7 +1095,7 @@ class Term:
             for m in SLOWLINE.finditer(lt):
                 e = m.group(1).decode("utf8", "replace")
                 if not any(x.search(e) for x in EXPECTED):
-                    ERRS.append(e)
+                    ERRS.append("%s (in the session %s)" % (e, self.what))
         if self.status is None:
             try:
                 pid, st = os.waitpid(self.pid, os.WNOHANG)

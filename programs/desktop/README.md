@@ -1552,6 +1552,8 @@ one, in place of the hvi a file with no handler opens in. A name with no
 extension, or one nothing was registered for, still opens in a terminal with
 hvi. The file browser's Open With lists every registered handler by the
 program it runs, letting an entry be opened by one other than its own.
+`dt_handlerdrop ext` forgets one again, as Control Panel > File Types'
+Delete does.
 
 In a terminal window, drag with the left button to select; the selection
 stays put while more output scrolls past. When the program there has taken

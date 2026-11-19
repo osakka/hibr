@@ -39,6 +39,7 @@ declare -gA PKA
 dt_pkstart() {
 	local id
 
+	dt_rtreg DT_PKRES
 	DT_PKUSES=$((DT_PKUSES + 1))
 	[ -n "$DT_PKID" ] && return 0
 	command -v pkttyagent > /dev/null || return 1
@@ -107,9 +108,11 @@ dt_pktick() {
 			DT_PKMSG=
 			DT_PKUSER=
 			DT_PKRES=
+			dt_rtreg DT_PKRES
 			;;
 		"==== AUTHENTICATION COMPLETE"*)
 			DT_PKRES=ok
+			dt_rtreg DT_PKRES
 			dt_pkclose
 			;;
 		"==== AUTHENTICATION FAILED"* | "==== AUTHENTICATION CANCELED"*)
@@ -117,6 +120,7 @@ dt_pktick() {
 			# asked -- "Could not join X: the password was not accepted"
 			# -- rather than a second note beside its own.
 			DT_PKRES=fail
+			dt_rtreg DT_PKRES
 			dt_pkclose
 			;;
 		"Authenticating as: "*) DT_PKUSER=${l#Authenticating as: } ;;

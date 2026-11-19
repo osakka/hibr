@@ -569,6 +569,7 @@ dt_load() {
 	local v k i ext
 	local -a argv
 
+	dt_rtreg DT_AKEY
 	dt_has dt_writesettle && dt_writesettle "$DT_CONF"
 	unset DT_CONFJ
 	declare -gA DT_CONFJ

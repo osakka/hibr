@@ -54,6 +54,8 @@ fn demo_ping(what) {
 fn demo_child() { ( sleep 60 ) & }
 fn demo_win(id) { printf '%%s\t%%s\t%%s\n' "${DT[$id]["title"]-none}" "${DT[$id]["w"]-}" "${DT[$id]["col"]-}" > %s.win; }
 fn demo_mark() { GL["wifi1"]=kept; }
+fn demo_app(a) { printf '%%s\t%%s\n' "${DT_APPS[$a]["title"]-none}" "${DT_APPS[$a]["src"]-}" > %s.app; }
+fn demo_list() { printf '%%s\n' "${#DT_BTNS[@]} ${DT_BTNS[*]}" > %s.list; }
 fn demo_gl() { printf '%%s\n' "${GL["wifi1"]-}" > %s.gl; }
 fn demo_show() { printf '%%s\t%%s\t%%s\t%%s\t%%s\n' "$DT_FACE" "$DT_GLYPHSET" "${GL[vline]}" "$DT_FOCUS" "$DT_RTRECV" > %s.show; }
 exec {DEMO_FF}<> %s
@@ -68,7 +70,7 @@ demo_tick() {
 dt_ticker demo_tick
 dt_rtrun
 echo "ended $?" > %s.end
-''' % (HERE, SAID, SAID, SAID, SAID, SAID, SAID, FIFO, SAID))
+''' % (HERE, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, FIFO, SAID))
 # One that speaks another protocol.
 open(BAD, "w").write(r'''DT_HERE=%s
 . "$DT_HERE/runtime.hibr"
@@ -98,7 +100,10 @@ dt_close
 MARK = scratch("rtchan-do")
 p = scratch("rtchan.hibr")
 open(p, "w").write(SESSION % (load(MOD), WM, GOOD, BAD, LOOP, MARK, MARK, MARK))
-t = Term(p, rows=30, cols=110, settle=0.6)
+# The bar's clock is pinned: a minute turning is a real change the bar's
+# table carries to every app that reads it, which checks counting what an
+# app was sent would take for their own.
+t = Term(p, rows=30, cols=110, settle=0.6, env={"DT_BARTIME": "12:00"})
 
 
 def do(cmd):
@@ -225,7 +230,7 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(49)
+    report(64)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
@@ -372,8 +377,16 @@ check("once it reads, all of it arrives in order and nothing is left waiting",
 hung, hfd = newconn("demo")
 result('big=$(printf "%%0%dd" 0); for i in {1..20}; do dt_rtsay %s "$big" || break; done; '
    'echo "${DT_RTC[%s]-gone}" > %s.pend' % (LINE - 1, hfd, hfd, SAID))
-check("past DT_RTQMAX waiting, the app is let go, and the log says which and why",
-      open(SAID + ".pend").read().strip() == "gone" and "demo stopped reading" in log(), log()[-300:])
+early = open(SAID + ".pend").read().strip()
+deadline = time.time() + 10
+gone = ""
+while time.time() < deadline:
+    gone = result('echo "${DT_RTC[%s]-gone}" > %s.pend' % (hfd, SAID))
+    if gone == "gone":
+        break
+    time.sleep(0.3)
+check("past DT_RTQMAX waiting and not shrinking for DT_RTQSECS, the app is let go, and the log says which and why",
+      early != "gone" and gone == "gone" and "demo stopped reading" in log(), (early, gone, log()[-300:]))
 ended, eof = readall(hung, 50 * (LINE + 1), 10)
 check("and its connection ends, before all that was said to it", eof and len(ended) < 20 * (LINE + 1),
       (eof, len(ended)))
@@ -537,6 +550,227 @@ while time.time() < deadline and not os.path.exists(SAID + ".gl"):
 gl = open(SAID + ".gl").read().strip() if os.path.exists(SAID + ".gl") else "?"
 do('DT_FOCUS=$OTHER')
 check("a focus change leaves what the settings derive alone", gl == "kept", gl)
+# A list crosses whole, every element in order, where a line per key once
+# carried its first element alone.
+want = result('echo "${#DT_BTNS[@]} ${DT_BTNS[*]}" > %s.pend' % SAID)
+do('dt_rttell "$LT" demo_list')
+deadline = time.time() + 10
+while time.time() < deadline and not os.path.exists(SAID + ".list"):
+    time.sleep(0.05)
+got = open(SAID + ".list").read().strip() if os.path.exists(SAID + ".list") else "?"
+check("a list the desktop sends arrives whole and in order", got == want and int(want.split()[0]) > 1, (got, want))
+
+
+# The registry door. A raw connection whose launch names a file, and every
+# line its hello brings before ok: what it is sent, by name.
+def dec(w):
+    if w == "%":
+        return ""
+    for a, b in (("%20", " "), ("%09", "\t"), ("%0A", "\n"), ("%0D", "\r"), ("%25", "%")):
+        w = w.replace(a, b)
+    return w
+
+
+def hello_from(f):
+    if os.path.exists(SAID + ".tok"):
+        os.unlink(SAID + ".tok")
+    do('x := dt_rtissue demo %s; echo "$x" > %s.tok' % (f, SAID))
+    deadline = time.time() + 10
+    while time.time() < deadline and not (os.path.exists(SAID + ".tok") and open(SAID + ".tok").read().strip()):
+        time.sleep(0.05)
+    tok = open(SAID + ".tok").read().strip()
+    os.unlink(SAID + ".tok")
+    k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    k.connect(path)
+    k.sendall(("hello %s %s demo %s\n" % (proto, ver, tok)).encode())
+    k.settimeout(5)
+    buf = b""
+    deadline = time.time() + 10
+    while time.time() < deadline and b"\nok " not in b"\n" + buf:
+        try:
+            b = k.recv(65536)
+        except socket.timeout:
+            continue
+        if not b:
+            break
+        buf += b
+    got = {}
+    for l in buf.decode("utf8", "replace").split("\n"):
+        w = l.split(" ")
+        if len(w) >= 3 and w[0] in ("set", "json"):
+            got[dec(w[1])] = dec(w[2])
+    if b"\nok " not in b"\n" + buf:
+        got["?"] = buf[:300].decode("utf8", "replace")
+    return k, got
+
+
+def lines_in(k, secs):
+    got, _ = readall(k, 1 << 20, secs)
+    out = {}
+    for l in got.decode("utf8", "replace").split("\n"):
+        w = l.split(" ")
+        if len(w) >= 3 and w[0] in ("set", "json"):
+            out[dec(w[1])] = dec(w[2])
+    return out
+
+
+import json as pyjson
+kf, files = hello_from("/elsewhere/apps/files.hibr")
+check("a file is sent the registries it reads and the interface reads, and no other",
+      "DT_OPENVERBS" in files and "DT_APPS" in files and "DT_CH" not in files and "DT_NOTEHIST" not in files,
+      (files.get("?"), sorted(n for n in files if n.isupper())))
+ku, unknown = hello_from("/elsewhere/apps/nobody-read-this.hibr")
+check("a file the survey never read is sent every registry but a secret",
+      "DT_CH" in unknown and "DT_NOTEHIST" in unknown and "VW_SESSION" not in unknown and "DT_VWITEMS" not in unknown,
+      sorted(n for n in unknown if n.startswith(("DT_CH", "DT_NOTE", "VW", "DT_VW"))))
+bari = result('echo "${DT_BARI["app"]["c"]-}" > %s.pend' % SAID)
+kt, tray = hello_from("/elsewhere/menubar/tray.hibr")
+bj = pyjson.loads(tray.get("DT_BARI", "{}") or "{}")
+check("a record's fields that move with a frame are left out of what is sent",
+      bari != "" and bj and not any("c" in v for v in bj.values() if isinstance(v, dict)) and
+      any("text" in v for v in bj.values() if isinstance(v, dict)), (bari, list(bj.items())[:2]))
+apps = pyjson.loads(unknown.get("DT_APPS", "{}"))
+check("a table of records crosses whole: every entry with its fields",
+      apps and all(isinstance(v, dict) and "title" in v for v in apps.values()), list(apps.items())[:1])
+# A mark with nothing moved sends nothing; a registration sends the table.
+do('dt_rtreg DT_APPS')
+quiet = lines_in(ku, 1.0)
+do('dt_app rtfresh "Fresh Title" 10 30')
+moved = lines_in(ku, 2.0)
+fresh = pyjson.loads(moved.get("DT_APPS", "{}"))
+check("a registry marked with nothing moved is not sent, and one that moved is",
+      "DT_APPS" not in quiet and fresh.get("rtfresh", {}).get("title") == "Fresh Title", (sorted(quiet), sorted(moved)))
+do('dt_rttell "$LT" demo_app rtfresh')
+deadline = time.time() + 10
+while time.time() < deadline and not os.path.exists(SAID + ".app"):
+    time.sleep(0.05)
+got = open(SAID + ".app").read().strip() if os.path.exists(SAID + ".app") else "?"
+check("an app's own process sees an app registered after its hello", got.startswith("Fresh Title"), got)
+# A registry changed with nobody connected that reads it, and changed back,
+# reaches the next reader: a secret, so the unknown connections do not count.
+def items(d):
+    try:
+        return " ".join(pyjson.loads(d.get("DT_VWITEMS", "[]") or "[]"))
+    except ValueError:
+        return "?"
+
+
+k1, v1 = hello_from("/elsewhere/apps/vault.hibr")
+do('DT_VWITEMS=(first); dt_rtreg DT_VWITEMS')
+s1 = lines_in(k1, 1.5)
+k1.close()
+time.sleep(0.5)
+do('DT_VWITEMS=(second); dt_rtreg DT_VWITEMS')
+time.sleep(0.3)
+do('DT_VWITEMS=(first); dt_rtreg DT_VWITEMS')
+k2, v2 = hello_from("/elsewhere/apps/vault.hibr")
+do('DT_VWITEMS=(second); dt_rtreg DT_VWITEMS')
+s2 = lines_in(k2, 1.5)
+check("a registry changed with no reader connected, and back, reaches the next reader",
+      items(s1) == "first" and items(v2) == "first" and items(s2) == "second",
+      (s1, v2.get("DT_VWITEMS"), s2))
+for k in (kf, ku, kt, k2):
+    k.close()
+do('DT_VWITEMS=(); dt_rtreg DT_VWITEMS')
+# A launch is good for DT_RTLAUNCHSECS: a token never spent goes void, and
+# one spent after its time is refused.
+do('DT_RTLAUNCHSECS=1')
+late = issue("demo")
+time.sleep(2.5)
+k = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+k.connect(path)
+k.sendall(("hello %s %s demo %s\n" % (proto, ver, late)).encode())
+said = answer(k)
+k.close()
+check("a launch not spent within its time is void, and the log says so",
+      said.startswith(b"refused") and "did not say hello within 1 seconds; its launch is void" in log(),
+      (said, log()[-300:]))
+do('DT_RTLAUNCHSECS=15')
+# An app that exits before its hello is noticed at once and told to the
+# person, never left as a window that silently never came.
+QUIT = scratch("rtchan-quitter.hibr")
+open(QUIT, "w").write("exit 3\n")
+do('dt_rtspawn quitter %s' % QUIT)
+deadline = time.time() + 10
+while time.time() < deadline and "quitter started from" not in log():
+    time.sleep(0.1)
+noted = result('o=; for k in "${!DT_NOTEHIST[@]}"; do o+="${DT_NOTEHIST[$k]["text"]}|"; done; echo "$o" > %s.pend' % SAID)
+check("an app whose process exits before its hello is told to the person, and logged",
+      "quitter did not start" in noted and
+      "quitter started from %s exited before it said hello" % QUIT in log() and
+      "olddemo did not start" not in noted,
+      (noted[-200:], [l for l in log().split("\n") if "quitter" in l][-2:]))
+# A table moved with no mark is named under the harness, so a writer the
+# survey cannot read still fails a suite.
+screen.expect(r"unmarked: the registry DT_CH moved")
+do('DT_CH[990]["text"]=sneaky')
+deadline = time.time() + 5
+while time.time() < deadline and "unmarked: the registry DT_CH moved" not in log():
+    time.sleep(0.1)
+# A file is sent what its parts read: a bundle's members share its process.
+kv, vlt = hello_from("/elsewhere/apps/vault.hibr")
+check("a file is sent the registries its parts read", "DT_VWERR" in vlt and "VW_SESSION" in vlt,
+      (vlt.get("?"), sorted(n for n in vlt if n.startswith(("DT_VW", "VW_")))))
+kv.close()
+
+
+# The clipboard's history crosses by entry: one large copy is one line, to
+# each reader, and nobody is let go for it.
+def rawlines(k, secs, until=None):
+    """What arrives on k for up to secs, split into lines of words, and
+    whether the desktop ended the connection."""
+    got, deadline, eof = b"", time.time() + secs, False
+    k.settimeout(0.2)
+    while time.time() < deadline:
+        try:
+            b = k.recv(1 << 20)
+        except socket.timeout:
+            if until and until in got:
+                break
+            continue
+        if not b:
+            eof = True
+            break
+        got += b
+    return [l.split(" ") for l in got.decode("utf8", "replace").split("\n") if l], eof
+
+
+kc, _ = hello_from("/elsewhere/system/clipboard.hibr")
+kn, _ = hello_from("/elsewhere/apps/nobody-read-this-either.hibr")
+do('dt_clipkeep "$(printf "%0200000d" 0)Z"')
+lc, ec = rawlines(kc, 6, b"Z")
+ln, en = rawlines(kn, 6, b"Z")
+
+
+def bigentry(ls):
+    for w in ls:
+        if len(w) >= 4 and w[0] == "jsonk" and w[1] == "DT_CH":
+            v = pyjson.loads(dec(w[3]))
+            if isinstance(v, dict) and v.get("text", "").endswith("Z") and len(v["text"]) == 200001:
+                return True
+    return False
+
+
+check("a copy of 200 kB reaches each reader of the history as one entry, never the whole table",
+      bigentry(lc) and bigentry(ln) and not any(w[0] == "json" and w[1] == "DT_CH" for w in lc + ln),
+      ([(w[:3], w[3][:60] if len(w) > 3 else "") for w in lc][:6], [w[:3] for w in ln][:6]))
+do('dt_clipkeep "after the large one"')
+lc2, ec2 = rawlines(kc, 3, b"after%20the%20large%20one")
+check("and no reader is let go for it: the next copy reaches it too",
+      not ec and not en and not ec2 and any(w[0] == "jsonk" and w[1] == "DT_CH" for w in lc2),
+      (ec, en, ec2, [w[:2] for w in lc2]))
+kc.close()
+kn.close()
+# Every name the desktop sends that is a map or a list crosses whole: no
+# list filled inside a function, which the survey's top-level match cannot
+# see, is sent as its first element.
+odd = result('o=; for x in "${!DT_RTDOOR[@]}"; do case ${DT_RTDOOR[$x]} in save|hello|hot|registry|window) '
+             'p=$(declare -p "$x" 2> /dev/null); case $p in "declare -a"*|"declare -A"*) '
+             '[ "${DT_RTMAP[$x]-}" = 1 ] || o+=" $x" ;; esac ;; esac; done; echo "ok$o" > %s.pend' % SAID)
+check("every map or list the desktop sends is sent whole", odd == "ok", odd)
+check("a registry moved with no mark is named in the log under the harness",
+      "unmarked: the registry DT_CH moved" in log(), log()[-300:])
+do('unset "DT_CH[990]"; dt_rtreg DT_CH')
 seen = show()
 n1 = int(seen[4]) if len(seen) > 4 else -1
 time.sleep(3)
@@ -560,15 +794,15 @@ def win(wid):
 lw = result('LW := dt_new "Loop Window" 6 30 3 40 loopdemo; echo "$LW" > %s.pend' % SAID)
 own = win(lw)
 check("an app's own window's record is sent to its process", own[:2] == ["Loop Window", "30"], own)
-# A window being dragged is sent once it stops, not a line a step.
-n1 = int(show()[4])
+# A window being dragged is sent once it stops, not a line a step: told
+# mid-drag, the app still has the place the drag started from.
 for c in (41, 42, 43, 44, 45):
     result('DT_DRAG=$LW; DT[$LW]["col"]=%d; echo x > %s.pend' % (c, SAID))
-n2 = int(show()[4])
+mid = win(lw)
 result('DT_DRAG=; echo x > %s.pend' % SAID)
 moved = win(lw)
 check("a window dragged sends its app nothing while it moves, and its place once it stops",
-      n2 - n1 == 1 and moved[2:3] == ["45"], (n1, n2, moved))
+      mid[2:3] != ["45"] and moved[2:3] == ["45"], (mid, moved))
 result('dt_retitle "$LW" "Renamed"; dt_rttell "$LT" demo_win "$LW"; echo x > %s.pend' % SAID)
 deadline = time.time() + 10
 while time.time() < deadline and not (os.path.exists(SAID + ".win") and "Renamed" in open(SAID + ".win").read()):
@@ -670,7 +904,7 @@ check("a desktop killed outright ends an app's loop within two seconds, never by
 t.close()
 for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle",
           SAID + ".other", SAID + ".alive", SAID + ".before", SAID + ".after", SAID + ".pend",
-          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", SAID + ".win", SAID + ".gl", LOOP, FIFO):
+          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", SAID + ".win", SAID + ".gl", SAID + ".list", SAID + ".app", LOOP, FIFO, scratch("rtchan-quitter.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-report(49)
+report(64)

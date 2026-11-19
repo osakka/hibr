@@ -69,6 +69,7 @@ DT_AKEYORDER=()
 fn dt_appaction(app, act, name, key = "") {
 	local k="$app:$act"
 
+	dt_rtreg DT_AKEY DT_AKEYORDER
 	case " ${DT_AKEYORDER[*]} " in
 	*" $k "*) ;;
 	*) DT_AKEYORDER+=("$k") ;;
@@ -222,6 +223,7 @@ fn dt_keyset(what, key) {
 
 # Store what's whole list of chords and keep it.
 fn dt_keyput(what, list) {
+	dt_rtreg DT_AKEY
 	case $what in
 	app:*) DT_APPKEY["${what#app:}"]=$list ;;
 	act:*) DT_AKEY["${what#act:}"]=$list ;;
@@ -381,6 +383,7 @@ dt_keymove() {
 fn dt_keyswap(from, to) {
 	local a v n=0
 
+	dt_rtreg DT_AKEY
 	for a in "${DT_KEYORDER[@]}"; do
 		v := dt_keyswap1 "${DT_KEYS["$a"]-}" "$from" "$to"
 		[ "$v" = "${DT_KEYS["$a"]-}" ] && continue

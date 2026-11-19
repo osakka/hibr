@@ -26,6 +26,7 @@
   "%s changed outside Sheet: its formulas run contained until you give it full access again": "⟦%s changed outside Sheet: its formulas run contained until you give it full access again⟧",
   "%s columns": "⟦%s columns⟧",
   "%s connected": "⟦%s connected⟧",
+  "%s did not start": "⟦%s did not start⟧",
   "%s does not take files": "⟦%s does not take files⟧",
   "%s edited file(s) not yet saved to a server were kept": "⟦%s edited file(s) not yet saved to a server were kept⟧",
   "%s file with it": "⟦%s file with it⟧",

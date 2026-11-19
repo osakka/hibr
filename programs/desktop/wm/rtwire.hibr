@@ -13,7 +13,38 @@ strict
 
 # The protocol's number: a change to what crosses the wire changes it, and
 # a process speaking another is refused at its hello.
-DT_RTPROTO=3
+DT_RTPROTO=4
+
+# A registry moved (ADR 0050, the registry door): every function that writes
+# one marks it, and the desktop sends what moved to the processes that read
+# it on its next pass -- never on a pass when it did not move. A mark costs
+# two lookups; in an app's own process, whose shared code may write one, it
+# is kept and nothing reads it. tools/appstate.py fails a writer that does
+# not mark, and under the harness a table that moved with no mark is named
+# (dt_rtregcheck).
+declare -gA DT_RTREGQ DT_RTREGM DT_RTREGK
+dt_rtreg() {
+	local n
+
+	for n; do
+		DT_RTREGQ["$n"]=1
+		DT_RTREGM["$n"]=1
+	done
+	return 0
+}
+
+# A registry moved in these entries alone: what moved is sent entry by
+# entry, so a table that may grow large -- the clipboard's history, whose
+# entries are whatever was copied -- is never sent whole for one copy.
+fn dt_rtregk(name, ...keys) {
+	local k
+
+	DT_RTREGM["$name"]=1
+	for k in "${keys[@]}"; do
+		DT_RTREGK["$name"]+="$k"$'\n'
+	done
+	return 0
+}
 
 # A word as it crosses the wire.
 fn dt_rtenc(v) {

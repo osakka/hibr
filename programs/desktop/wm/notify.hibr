@@ -252,6 +252,7 @@ dt_note_clear() {
 fn dt_notehist_add(int id) {
 	local hid=$DT_NOTEHIST_NEXT lv min
 
+	dt_rtreg DT_NOTEHIST DT_NOTEHIST_ORDER
 	DT_NOTEHIST_NEXT=$((DT_NOTEHIST_NEXT + 1))
 	DT_NOTEHIST[$hid]["text"]=${DT_NOTEQ[$id]["text"]}
 	DT_NOTEHIST[$hid]["prio"]=${DT_NOTEQ[$id]["prio"]:-normal}
@@ -615,6 +616,7 @@ fn dt_notehist_act(int hid, int id) {
 	local n=${DT_NOTEQ[$id]["argvn"]:-0}
 	local i=0
 
+	dt_rtreg DT_NOTEHIST
 	DT_NOTEHIST[$hid]["argvn"]=$n
 	DT_NOTEHIST[$hid]["owner"]=${DT_NOTEQ[$id]["owner"]-}
 	while [ "$i" -lt "$n" ]; do
@@ -652,6 +654,7 @@ fn dt_notehist_del(int hid) {
 	local o
 	local -a keep
 
+	dt_rtreg DT_NOTEHIST DT_NOTEHIST_ORDER
 	unset "DT_NOTEHIST[$hid]"
 	for o in "${DT_NOTEHIST_ORDER[@]}"; do
 		[ "$o" != "$hid" ] && keep+=("$o")
@@ -665,6 +668,7 @@ fn dt_notehist_clear(prio) {
 	local hid lv max
 	local -a keep
 
+	dt_rtreg DT_NOTEHIST DT_NOTEHIST_ORDER
 	max := dt_notelevel "$prio"
 	for hid in "${DT_NOTEHIST_ORDER[@]}"; do
 		lv := dt_notelevel "${DT_NOTEHIST[$hid]["prio"]}"

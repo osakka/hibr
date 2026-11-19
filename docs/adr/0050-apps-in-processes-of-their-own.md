@@ -384,6 +384,72 @@ What it holds, each a check there:
   kept encoded and made again only when the name moves, joined and sent in
   one write -- 8 ms once, then under a millisecond, where encoding and
   sending about two hundred lines one at a time took 20 ms of a pass.
+- **The registry door** (2026-11-19): the tables the desktop keeps of what
+  is registered or what happened -- the apps, the bar's items, file
+  handlers and openers, keyboard layouts, the clipboard and notification
+  histories, the vault's state, the strip's modules, the savers, a remote
+  file's state -- reach an app's own process when they move. Every platform
+  function that writes one marks it (`dt_rtreg NAME`, `wm/rtwire.hibr`, two
+  lookups), and the desktop's pass encodes each marked table again; when
+  what it holds moved, its generation goes up, and every connection that
+  reads it and holds an older generation is sent it -- so a mark with
+  nothing moved sends nothing, a quiet pass costs one comparison, and what
+  a connection holds is a number, never a copy. Whatever is marked is sent
+  before a hello, so the generation a new connection is given is true, and
+  a change made while nobody reading the table was connected reaches
+  whoever connects next. The clipboard's history, whose entries are
+  whatever was copied, is marked by entry (`dt_rtregk DT_CH ID`) and sent
+  by entry (`jsonk NAME KEY JSON`, `unsetk NAME KEY`): a copy of 200 kB is
+  one line to each reader, never the history again. A reader is let go
+  only when what waits for it is past `DT_RTQMAX` and has not shrunk for
+  `DT_RTQSECS` (2), since one line longer than the limit -- that copy, or
+  the history at a hello -- is not an app that stopped; the app's own limit
+  on a line from the desktop is 256 MiB. Who reads a table is the survey's:
+  `DT_RTAUD` names the files that read it, by the kind folder's view of the
+  file (`apps/files.hibr`, the same in this tree, the catalogue and an
+  installed scope) and the files whose parts read it, since a bundle's
+  members share one process, or every process where the app interface or
+  a library reads it (the app list, the shortcut table, the keyboard
+  layouts, a remote file's state); a file the survey has never read is sent every table but a
+  secret -- the vault's session key and its items -- so it is never
+  silently empty. Most apps get none. A map or a list crosses whole as JSON
+  (`json NAME TEXT`), nested records, a list's every element and the order:
+  a line per key had carried a list's first element alone and a nested
+  record's scalars only, which is how the fourteen lists the settings and
+  hot doors send had been crossing (the protocol is 4 for it). A record's fields that move with a frame
+  -- a bar item's column and width -- are left out (`DT_RTSKIP`) and travel
+  in the call that uses them, and every field an installable reads has a
+  door in the survey (`FIELDDOOR`), or it fails. Six tables written only
+  where they are declared are constants, sent at the hello; five written
+  by a function an installable calls for the answer (`dt_openers`,
+  `dt_openverbs`, `cs_ordered`, `dt_btnlist`, `dt_barreading`) are
+  answers, and the bar's wheel column is the call's. The survey fails a
+  function that writes a table and does not mark it -- a mark at the top
+  of the function, since a mark beside a write in one branch missed every
+  write after it, which the first version did for `dt_baritem`'s text; a
+  ticker marks beside its write, so a quiet pass marks nothing -- and,
+  since a writer may use a form a word match cannot see, the harness looks
+  at every table once a second and names one that moved with no mark
+  (`unmarked:`, which fails a suite as `held:` does; a secret's value is
+  never shown), about 1 ms a look. Its first gate found three: `json
+  parse` into the table, a job handing variables back by name
+  (`dt_jobvarsread`, which now marks each registry it sets), and two
+  Control Panel panes editing a table directly -- File Types and
+  Notifications, which now ask the desktop instead (`dt_handlerdrop`, a new
+  told request, and `dt_notehist_clear`); the history's order became a
+  registry with them. Counted in a shipped desktop over a minute, marks are rare: four
+  standby scans and two bar changes in twenty idle seconds, and a focus
+  change moves the bar's application name, a real change. A map's entry
+  at key 0 that holds only fields reads, through a nameref, as the
+  nameref's own value (Gitea #595), so the entry encoder tells a record by
+  its keys. Forty-one places
+  where an installable changes a table through the desktop and reads it
+  back (`tools/appstate.py --back`) are the asked-requests slice's to
+  convert -- each read one by one, with the cross-feature links and a
+  proposed ask mechanism, in [asked-0050.md](asked-0050.md): in a process of its own such a call is a request answered only
+  after the table is sent, or the read sees the old one; `dt_davclear`,
+  shared code that writes the remote-file table in whichever process
+  calls it, is one of them.
 - **Quit and Restart Desktop close it**: the socket goes and every app
   process's connection ends. That is not yet what Requirement 8 says --
   app processes surviving a restart -- which needs the connection kept

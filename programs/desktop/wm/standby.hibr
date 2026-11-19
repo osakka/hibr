@@ -205,6 +205,7 @@ fn dt_standby(base, dname = "") {
 dt_sbscan() {
 	local f nm line pid st base sess boot start
 
+	dt_rtreg DT_SBLIST
 	DT_SBLIST=()
 	[ -d "$DT_STANDBYDIR" ] || return 0
 	sess := dt_holdsess

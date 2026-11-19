@@ -50,7 +50,7 @@ gone	dt_isomsg	wm/isolate.hibr	1	1	told	-	dt_isomsg(int id, msg)	-
 gone	dt_isodrop	wm/isolate.hibr	1	1	told	-	dt_isodrop(int id, int r, int c, op, ...paths)	-
 gone	dt_isosend	wm/isolate.hibr	1	1	told	-	dt_isosend(int id, cmd)	-
 gone	dt_isomenus	wm/isolate.hibr	1	1	told	-	dt_isomenus(int id)	-
-local	dt_tr	lib/tr.hibr	535	82	asked	-	dt_tr(key, ...rest)	-
+local	dt_tr	lib/tr.hibr	540	82	asked	-	dt_tr(key, ...rest)	-
 local	dt_has	wm/names.hibr	432	110	told	-	dt_has(name)	-
 local	dt_tput	wm/lang.hibr	321	52	told	-	dt_tput(int id, int r, int c, text, ...rest)	-
 local	dt_want	wm/loop.hibr	253	75	told	-	dt_want(int ms)	-
@@ -290,6 +290,7 @@ request	dt_progload	wm/programs.hibr	6	2	told	-	dt_progload()	-
 request	dt_clipdel	wm/clip.hibr	6	2	told	-	dt_clipdel(int id)	-
 request	dt_vwmatch	wm/vault.hibr	5	1	asked	-	dt_vwmatch(host)	-
 request	dt_pointerlock	wm/input.hibr	5	1	told	-	dt_pointerlock(int id, on)	-
+request	dt_notehist_clear	wm/notify.hibr	5	3	told	-	dt_notehist_clear(prio)	-
 request	dt_location	wm/locations.hibr	4	2	told	-	dt_location(scheme, prefix, app = "")	-
 request	dt_isbundle	wm/handlers.hibr	4	2	told	-	dt_isbundle(path)	-
 request	dt_setgeom	wm/windows.hibr	4	2	told	-	dt_setgeom(int id, int r, int c, int h, int w)	-
@@ -324,7 +325,6 @@ request	dt_pbar	wm/prayer.hibr	4	2	asked	-	dt_pbar()	-
 request	dt_rescan	wm/apps.hibr	4	2	told	-	dt_rescan()	-
 request	dt_clippin	wm/clip.hibr	4	2	told	-	dt_clippin(int id)	-
 request	dt_notehist_del	wm/notify.hibr	4	2	told	-	dt_notehist_del(int hid)	-
-request	dt_notehist_clear	wm/notify.hibr	4	2	told	-	dt_notehist_clear(prio)	-
 request	dt_shot	wm/shot.hibr	4	2	told	-	dt_shot()	-
 request	dt_natcell	wm/native.hibr	4	1	told	-	dt_natcell()	-
 request	dt_capped	wm/frame.hibr	3	1	told	-	dt_capped(int id)	-
@@ -364,6 +364,7 @@ request	dt_clipuse	wm/clip.hibr	2	2	told	-	dt_clipuse(int id)	-
 request	dt_clipkeep	wm/clip.hibr	2	2	told	-	dt_clipkeep(text, kind = text)	-
 request	dt_notehist_what	wm/notify.hibr	2	2	asked	-	dt_notehist_what(int hid)	-
 request	dt_notehist_run	wm/notify.hibr	2	2	told	-	dt_notehist_run(int hid)	-
+request	dt_handlerdrop	wm/handlers.hibr	2	1	told	-	dt_handlerdrop(ext)	0.99.553
 request	dt_appunvia	wm/apps.hibr	1	1	told	-	dt_appunvia(via)	-
 request	dt_windisp	wm/windows.hibr	1	1	told	-	dt_windisp(int id)	-
 request	fp_path	wm/filepick.hibr	1	1	told	-	fp_path(int id, int i)	-

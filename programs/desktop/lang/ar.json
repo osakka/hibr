@@ -6,6 +6,7 @@
  "plural": "ar",
  "strings": {
   " %s Compose ": " %s إنشاء ",
+  "%s did not start": "لم يبدأ %s",
   "Choose a Login": "اختر بيانات دخول",
   "Fill Sign-In": "ملء بيانات الدخول",
   "Shade": "طيّ",

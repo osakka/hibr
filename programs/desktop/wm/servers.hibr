@@ -32,6 +32,7 @@ declare -gA DSV
 dt_davclear() {
 	local f kept=0
 
+	dt_rtreg DRW
 	if [ "$DR_LIVE" -gt 0 ]; then
 		dt_notep high "Wait for the transfers running to finish first"
 		return 0

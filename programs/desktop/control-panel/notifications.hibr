@@ -138,15 +138,11 @@ fn cp_set_notehmax(int? id = "", int? value = "") { cp_set_notesize notehmax "$v
 
 # Empties the in-memory-only history log -- what is currently stacked and
 # showing is untouched, since that lives in DT_NOTEQ, a separate array.
+# Urgent is the highest priority, so the desktop's own clear takes every
+# note and the unseen count with them.
 cp_clearhist() {
-	local hid
-
 	dt_notep low "History cleared"
-	for hid in "${DT_NOTEHIST_ORDER[@]}"; do
-		unset "DT_NOTEHIST[$hid]"
-	done
-	DT_NOTEHIST_ORDER=()
-	DT_NOTEUNSEEN=0
+	dt_notehist_clear urgent
 }
 
 fn notify_rows(int w) {

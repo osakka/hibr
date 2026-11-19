@@ -40,6 +40,7 @@ dt_kbread() {
 	local l w n lay var nm
 	local -a lines
 
+	dt_rtreg DT_KB DT_KBLOC DT_KBN DT_KBRES
 	l := console keyboard 2> /dev/null || return 1
 	DT_KB=()
 	DT_KBN=0
@@ -95,6 +96,7 @@ dt_kblocal() {
 	local m n=1 r t i
 	local -a ms
 
+	dt_rtreg DT_KB DT_KBLOC DT_KBN
 	if [ -z "$DT_IMEMOD" ]; then
 		DT_IMEMOD=0
 		need ime 2> /dev/null && DT_IMEMOD=1
