@@ -18,10 +18,16 @@ typedef struct ix_pos ix_pos;
 typedef struct ix_arith ix_arith;
 struct ix_arith { size_t start, end; ix_arith *next; };
 typedef struct ix_var ix_var;
+typedef struct ix_call ix_call;
 struct ix_var {
 	char *name, *kind, *owner, *storage;
-	size_t start, end;
+	size_t start, end, id;
 	ix_var *next;
+};
+struct ix_call {
+	char *name, *owner;
+	size_t start, end;
+	ix_call *next;
 };
 struct ix_pos {
 	const void *object;
@@ -41,11 +47,12 @@ struct ix_ctx {
 	ix_pos **positions;
 	ix_arith *arith_head, **arith_tail;
 	ix_var *vars_head, **vars_tail;
+	ix_call *calls_head, **calls_tail;
 	const char *input;
-	size_t inputsize, origin;
+	size_t inputsize, origin, call_count;
 	size_t start, end, cursor, fncursor, unitstart, unitend;
 	size_t *lines, nlines;
-	int count, subdepth, partial;
+	int count, subdepth, partial, call_overflow;
 };
 
 static void ix_var_record(ix_ctx *, const char *, const char *, size_t,
@@ -281,6 +288,27 @@ static void ix_var_record(ix_ctx *c, const char *name, const char *kind,
 	if (!c->vars_tail) c->vars_tail = &c->vars_head;
 	*c->vars_tail = v;
 	c->vars_tail = &v->next;
+}
+
+/* Keep same-file literal function calls for conservative dynamic-scope candidates. */
+static void ix_var_call(ix_ctx *c, const char *name, size_t start, size_t end)
+{
+	ix_call *call;
+
+	if (!c->calls_tail) c->calls_tail = &c->calls_head;
+	if (c->call_count >= 4096) {
+		c->call_overflow = 1;
+		return;
+	}
+	call = xm(sizeof *call);
+	call->name = xs(name);
+	call->owner = c->owner ? xs(c->owner) : 0;
+	call->start = start;
+	call->end = end;
+	call->next = 0;
+	*c->calls_tail = call;
+	c->calls_tail = &call->next;
+	c->call_count++;
 }
 
 /* Return a variable's base name from an assignment word. */
@@ -574,6 +602,170 @@ static const char *ix_var_owner_in(ix_ctx *c, node *n, size_t offset,
 	if (n->x)
 		inside = ix_var_owner_in(c, n->x, offset, inside);
 	return inside;
+}
+
+typedef struct {
+	const char *name;
+	ix_call *via;
+} ix_var_owner_path;
+
+/* Follow the bounded same-file literal call graph outward from one function. */
+static size_t ix_var_callers(ix_ctx *c, const char *target,
+			     ix_var_owner_path *owners, size_t capacity)
+{
+	ix_call *call;
+	size_t count = 0, at, i;
+
+	if (!target || !*target || !capacity)
+		return 0;
+	owners[count].name = target;
+	owners[count++].via = 0;
+	for (at = 0; at < count; at++)
+		for (call = c->calls_head; call; call = call->next) {
+			if (strcmp(call->name, owners[at].name) || !call->owner)
+				continue;
+			for (i = 0; i < count && strcmp(owners[i].name, call->owner); i++)
+				;
+			if (i < count)
+				continue;
+			if (count == capacity)
+				return count + 1;
+			owners[count].name = call->owner;
+			owners[count++].via = call;
+		}
+	return count;
+}
+
+static size_t ix_var_total(ix_var *v)
+{
+	size_t count = 0;
+	for (; v; v = v->next) count++;
+	return count;
+}
+
+static int ix_var_owner_index(ix_var_owner_path *owners, size_t count,
+			      const char *name)
+{
+	size_t i;
+	for (i = 0; name && i < count; i++)
+		if (!strcmp(owners[i].name, name)) return (int)i;
+	return -1;
+}
+
+static int ix_var_candidate(const ix_var *v)
+{
+	return !strcmp(v->kind, "parameter") ||
+		(!strcmp(v->kind, "declaration") && v->storage &&
+		 !strcmp(v->storage, "local"));
+}
+
+static void ix_var_candidate_source(ix_ctx *c, str *out, ix_var *candidate,
+				    const char *relation,
+				    ix_var_owner_path *owners, size_t owner_count)
+{
+	ix_call *call;
+	int owner_index;
+	const char *next;
+	int first = 1;
+
+	s_fmt(out, "{\"id\":\"var:%lu\",\"source\":",
+	      (unsigned long)candidate->id);
+	s_cat(out, c->identity);
+	s_cat(out, ",\"known\":\"syntax\",");
+	{
+		str *was = c->out;
+		c->out = out;
+		ix_span(c, candidate->start, candidate->end);
+		c->out = was;
+	}
+	s_cat(out, ",\"name\":"); ix_quote(out, candidate->name);
+	s_cat(out, ",\"kind\":"); ix_quote(out, candidate->kind);
+	s_cat(out, ",\"owner\":");
+	if (candidate->owner) ix_quote(out, candidate->owner); else s_cat(out, "null");
+	if (candidate->storage) {
+		s_cat(out, ",\"storage\":");
+		ix_quote(out, candidate->storage);
+	}
+	s_cat(out, ",\"relation\":"); ix_quote(out, relation);
+	s_cat(out, ",\"call_path\":[");
+	owner_index = ix_var_owner_index(owners, owner_count, candidate->owner);
+	while (owner_index > 0 && (call = owners[owner_index].via)) {
+		if (!first) s_ch(out, ',');
+		first = 0;
+		s_cat(out, "{\"source\":"); s_cat(out, c->identity);
+		s_cat(out, ",\"known\":\"syntax\",");
+		{
+			str *was = c->out;
+			c->out = out;
+			ix_span(c, call->start, call->end);
+			c->out = was;
+		}
+		s_cat(out, ",\"name\":"); ix_quote(out, call->name);
+		s_cat(out, ",\"owner\":");
+		if (call->owner) ix_quote(out, call->owner); else s_cat(out, "null");
+		s_ch(out, '}');
+		next = call->name;
+		owner_index = ix_var_owner_index(owners, owner_count, next);
+	}
+	s_cat(out, "]}");
+}
+
+/* Report source declarations that may participate in a dynamic lookup. */
+static void ix_var_binding(ix_ctx *c, str *out, ix_var *site,
+			   ix_var *all, size_t total, size_t *work)
+{
+	ix_var_owner_path owners[256];
+	ix_var *candidate;
+	size_t owner_count = 0, count = 0;
+	const char *relation;
+	int owner_index, first = 1, unavailable = 0, truncated = 0;
+	int call_limited = c->call_overflow || c->call_count > 512;
+
+	if (site->owner && !call_limited) {
+		owner_count = ix_var_callers(c, site->owner, owners,
+					     sizeof owners / sizeof owners[0]);
+		if (owner_count > sizeof owners / sizeof owners[0])
+			unavailable = 1;
+	} else if (site->owner) {
+		owners[0].name = site->owner;
+		owners[0].via = 0;
+		owner_count = 1;
+	}
+	if (*work > 1000000 || total > 1000000 - *work)
+		unavailable = 1;
+	else
+		*work += total;
+	s_cat(out, ",\"binding_analysis\":{\"state\":");
+	ix_quote(out, unavailable ? "unavailable" : call_limited ? "incomplete" : "candidate-set");
+	s_cat(out, ",\"complete\":false,\"candidates\":[");
+	if (!unavailable)
+	for (candidate = all; candidate; candidate = candidate->next) {
+		if (strcmp(candidate->name, site->name)) continue;
+		relation = 0;
+		if (ix_var_candidate(candidate)) {
+			owner_index = ix_var_owner_index(owners, owner_count,
+							 candidate->owner);
+			if (owner_index == 0) relation = "same-function";
+			else if (owner_index > 0 && !call_limited)
+				relation = "dynamic-caller";
+		} else if ((candidate->kind && !strcmp(candidate->kind, "declaration") &&
+			    candidate->storage && !strcmp(candidate->storage, "global")) ||
+			   (!candidate->owner &&
+			    (!strcmp(candidate->kind, "write") ||
+			     !strcmp(candidate->kind, "bind") ||
+			     !strcmp(candidate->kind, "loop-write") ||
+			     !strcmp(candidate->kind, "array-write"))))
+			relation = "possible-global";
+		if (!relation) continue;
+		if (count++ >= 64) { truncated = 1; break; }
+		if (!first) s_ch(out, ',');
+		first = 0;
+		ix_var_candidate_source(c, out, candidate, relation,
+					owners, owner_count);
+	}
+	s_cat(out, "],\"truncated\":");
+	s_cat(out, truncated ? "true" : "false");
+	s_cat(out, ",\"unknown\":\"control flow, dynamic calls, external callers, sourced-file context and environment bindings\"}");
 }
 
 /* Describe the author's preceding comment without treating it as behavior. */
@@ -1029,10 +1221,6 @@ static void ix_walk(ix_ctx *c, node *n)
 	}
 	if (!n)
 		return;
-	if (!strcmp(c->request, "vars") && c->filter && c->owner &&
-	    strcmp(c->filter, c->owner))
-		return;
-
 	start = ix_start(c, n);
 	end = n->tx ? start + strlen(n->tx) : start;
 	ix_position(c, n, &start, &end);
@@ -1142,9 +1330,12 @@ static void ix_walk(ix_ctx *c, node *n)
 		}
 	}
 	if (n->k == N_CMD && n->w &&
-	    (!c->filter || (c->owner && !strcmp(c->filter, c->owner)))) {
+	    (!c->filter || (c->owner && !strcmp(c->filter, c->owner)) ||
+	     !strcmp(c->request, "vars"))) {
 		name = ix_literal(n->w);
 		located = ix_callspan(c, n, &start, &end);
+		if (!strcmp(c->request, "vars") && name && ix_named(c, name) && located)
+			ix_var_call(c, name, start, end);
 		ix_convention(c, n, start, end);
 		if (!strcmp(c->request, "calls")) {
 			kind = !name			 ? "unresolved"
@@ -1564,6 +1755,7 @@ static int ix_query(sh *caller, const char *request, const char *path,
 		if (!strcmp(request, "vars")) {
 			ix_arith *a;
 			ix_var *v, *next, *sorted = 0;
+			size_t variable_total, variable_id = 0, binding_work = 0;
 			for (a = c.arith_head; a; a = a->next) {
 				char *text = ar_dup(own.ar, c.src + a->start, a->end - a->start);
 				char *clean = xs(text);
@@ -1614,24 +1806,27 @@ static int ix_query(sh *caller, const char *request, const char *path,
 				}
 				v = next;
 			}
+			variable_total = ix_var_total(sorted);
+			for (v = sorted; v; v = v->next) {
+				v->id = variable_id++;
+				if (!v->owner)
+					for (i = 0; i < units.n && !v->owner; i++) {
+						const char *found = ix_var_owner_in(&c,
+							((ix_unit *)units.p[i])->tree,
+							v->start, 0);
+						if (found) v->owner = xs(found);
+					}
+			}
 			c.vars_head = 0; c.vars_tail = 0;
 			for (v = sorted; v; v = next) {
 				const char *owner = v->owner;
 				next = v->next;
-				if (!owner)
-				for (i = 0; i < units.n; i++)
-					if (!owner)
-						owner = ix_var_owner_in(&c,
-							((ix_unit *)units.p[i])->tree,
-							v->start, owner);
 				if (c.filter && (!owner || strcmp(c.filter, owner))) {
-					free(v->name); free(v->kind); free(v->owner);
-					free(v->storage); free(v);
 					continue;
 				}
 				ix_record(&c, v->start, v->end, "syntax");
 				s_fmt(&records, ",\"id\":\"var:%lu\",\"name\":",
-				      (unsigned long)(c.count - 1));
+				      (unsigned long)v->id);
 				ix_quote(&records, v->name);
 				s_cat(&records, ",\"kind\":"); ix_quote(&records, v->kind);
 				s_cat(&records, ",\"owner\":");
@@ -1649,9 +1844,15 @@ static int ix_query(sh *caller, const char *request, const char *path,
 					s_cat(&records, ",\"storage\":");
 					ix_quote(&records, v->storage);
 				}
+				if (!strcmp(v->kind, "read") || !strcmp(v->kind, "write"))
+					ix_var_binding(&c, &records, v, sorted,
+						       variable_total, &binding_work);
 				s_ch(&records, '}');
-				free(v->name); free(v->kind); free(v->owner); free(v->storage);
-				free(v);
+			}
+			for (v = sorted; v; v = next) {
+				next = v->next;
+				free(v->name); free(v->kind); free(v->owner);
+				free(v->storage); free(v);
 			}
 		}
 
@@ -1682,6 +1883,7 @@ static int ix_query(sh *caller, const char *request, const char *path,
 		}
 
 		{ ix_arith *a = c.arith_head, *next; while (a) { next = a->next; free(a); a = next; } }
+		{ ix_call *call = c.calls_head, *next; while (call) { next = call->next; free(call->name); free(call->owner); free(call); call = next; } }
 		free(c.positions);
 		v_free(&units);
 		v_free(&c.names);

@@ -18,7 +18,14 @@ Load the module with `need inspect`. Requests are `functions FILE`, `calls FILE 
   innermost enclosing function. This groups sites by syntax owner; it
   does not resolve a read to a declaration or claim lexical binding. Hibr
   function-local variables can be visible through caller frames, so dynamic
-  lookup and runtime reaching definitions require execution evidence.
+  lookup and runtime reaching definitions require execution evidence. Read and
+  write records include an incomplete `binding_analysis.candidates` list:
+  same-function locals, locals in same-file literal caller chains, and possible
+  globals. Each candidate carries its exact source span; caller candidates also
+  carry the literal call path. These are possibilities, not resolved bindings.
+  `complete` is always false; branches, execution order, dynamic calls, external
+  callers, sourced-file context and environment state remain unknown. A bounded
+  analysis may report `incomplete` or `unavailable`.
   Declaration records include `storage: local|global` where
   Hibr's declaration command determines it. Command-prefix assignments have
   `kind: prefix`; they are not treated as persistent writes by strict-variable
@@ -72,6 +79,7 @@ Every evidence record has `source`, `span` and `known`. Nested body metadata inh
 | `dynamic`, `expression`, `expression_state`, `reason` | An expanded command name remains dynamic/unresolved. Its expression is shown unless it contains command code; then source-span-required replaces disclosure. Unmapped transformed backticks and depth-limited fragments are explicitly unresolved/partial. |
 | `lookup` | References distinguish `inspected-file` from `supplied-symbol`. Literal references prove naming, not calling. |
 | `id`, `kind`, `storage`, `scope_kind`, `scope_id` | Variable records use deterministic `var:N` IDs scoped to this source snapshot. `kind` distinguishes `parameter`, `declaration`, `write`, `prefix`, `bind`, `loop-write`, `array-write` and `read`. `storage` appears on declarations and distinguishes function-local from global declaration commands. Scope groups records by innermost syntactic owner (`function:<name>`) or top-level module (`module`); it does not identify a unique runtime frame or resolve reads to declarations. Hibr local lookup can see caller frames; static inspection does not resolve dynamic lookup or runtime reaching definitions. |
+| `binding_analysis` | For reads and writes, a bounded, incomplete set of same-function, same-file direct-caller-chain and possible-global candidates. Candidates have exact source evidence; dynamic-caller candidates include the literal call path. This is an over-approximation, not a points-to or execution result. `complete` is false; dynamic/unresolved calls, cross-file callers, conditional execution, environment state and sourced-file context remain unknown. Overflow is explicit as `incomplete` or `unavailable`. |
 | `registration`, `rule`, `rules_path`, `rules_source` | Optional convention inference, its named rule and exact convention-file identity. Registration records also identify prefix and role. |
 | `message`, `reference` | Diagnostic/finding text and, for lint findings, the supporting guideline reference. |
 

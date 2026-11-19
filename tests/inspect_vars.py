@@ -112,6 +112,30 @@ class VariableInspection(unittest.TestCase):
         self.assertEqual(len({r['scope_id'] for r in inner}), 1)
         self.assertNotEqual(outer[0]['scope_id'], inner[0]['scope_id'])
 
+    def test_dynamic_binding_candidates_keep_call_path_and_exclude_unrelated_scope(self):
+        source = ('carried=0\n'
+                  'fn leaf() { echo "$carried"; }\n'
+                  'fn middle() { leaf; }\n'
+                  'fn caller() { local carried=8; middle; }\n'
+                  'fn unrelated() { local carried=5; }\n')
+        result = inspect(self.write('dynamic-binding.hibr', source), 'leaf')
+        self.assertEqual(result['state'], 'ok', result)
+        reads = [r for r in result['vars'] if r['kind'] == 'read']
+        self.assertEqual(len(reads), 1, result)
+        analysis = reads[0]['binding_analysis']
+        self.assertEqual(analysis['state'], 'candidate-set')
+        self.assertFalse(analysis['complete'])
+        caller = next(c for c in analysis['candidates']
+                      if c['relation'] == 'dynamic-caller')
+        self.assertEqual(caller['owner'], 'caller')
+        self.assertEqual(caller['name'], 'carried')
+        self.assertEqual([edge['name'] for edge in caller['call_path']],
+                         ['middle', 'leaf'])
+        self.assertTrue(any(c['relation'] == 'possible-global'
+                            for c in analysis['candidates']))
+        self.assertNotIn('unrelated', {c['owner'] for c in analysis['candidates']})
+        self.assertIn('external callers', analysis['unknown'])
+
     def test_arithmetic_comparison_reads_and_no_false_comparison_write(self):
         source = 'fn f() { ((left < right)); ((left == right)); }\n'
         result = inspect(self.write('compare.hibr', source))
