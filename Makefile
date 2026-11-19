@@ -344,6 +344,8 @@ check-inspect: $(BIN) $(B)/mods/inspect.so $(B)/mods/lint.so
 	python3 tests/inspect_tree.py
 	python3 tests/inspect_roundtrip.py
 	HIBR=$(abspath $(BIN)) HIBR_TESTMODS=$(abspath $(B)/mods) python3 tests/inspect_spans.py
+	HIBR=$(abspath $(BIN)) HIBR_TESTMODS=$(abspath $(B)/mods) python3 tests/inspect_vars.py
+	HIBR=$(abspath $(BIN)) HIBR_TESTMODS=$(abspath $(B)/mods) python3 tests/strictvars.py
 
 .PHONY: check-inspect
 

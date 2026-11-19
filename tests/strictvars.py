@@ -1,189 +1,129 @@
 #!/usr/bin/env python3
-"""Every global a strict desktop file's functions would create, found by reading.
+"""Check strict functions using Hibr's variable inspection records.
 
-    python3 tests/strictvars.py [prefix...]     # default: the whole desktop
-
-`strict vars` refuses, at run time, an assignment in a function that would
-create a global -- but only on the paths something actually runs, and a
-refusal on one path hides whatever the next line would have been refused
-for. This finds them all at once, by reading each function in every file
-that says `strict`: whatever it assigns (`x=`, `x+=`, `x[k]=`, `x := f`,
-`read x`, `for x in`, `printf -v x`, and inside `(( ))`) must be one of its
-parameters, declared local in it, set at the top level of some desktop
-file, or one of the shell's own names. Anything else is reported with its
-file and line, and fails the suite.
-
-It reads, it does not parse: quotes and comments are stripped a line at a
-time and a function ends at the first `}` in column 0, which is how every
-function in the desktop is written. A name assigned only as a caller's local
-(which strict allows) would be reported here, and none is -- keep it so.
+The former source-text checker remains a temporary parity oracle in
+strictvars_legacy.py. It is not used to produce the new checker's findings.
 """
 import os
-from inspectlib import functions
-import re
+from inspectlib import records
+from strictvars_legacy import SHELL, assigned, declared, functions, read_all
 import sys
 
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-DESK = os.path.join(os.path.dirname(HERE), "programs", "desktop")
-SHELL = {"RET", "M", "REPLY", "IFS", "OPTIND", "OPTARG", "RANDOM", "SECONDS",
-         "PWD", "OLDPWD", "HOME", "PATH", "COLUMNS", "LINES", "LC_ALL", "_"}
-NAME = r"[A-Za-z_][A-Za-z0-9_]*"
-ASG = re.compile(r"(?:^|[\s;&|({!])(%s)(?:\[[^]]*\])*\+?=(?!=)" % NAME)
-BIND = re.compile(r"(?:^|[\s;&|({!])(%s)(?:\[[^]]*\])*\s+:=\s" % NAME)
-READ = re.compile(r"\bread\s+((?:-[a-zA-Z]+\s+(?:\S+\s+)?)*)(%s[\w \t]*)"
-                  % NAME)
-FOR = re.compile(r"\bfor\s+(%s)\s+in\b" % NAME)
-PRV = re.compile(r"\bprintf\s+-v\s+(%s)" % NAME)
-ARIX = re.compile(r"\(\((.*?)\)\)")
-ARI = re.compile(r"(?:\(\(|[,(]|\b)\s*(%s)\s*(?:\+\+|--|[-+*/%%&|^]=|=(?!=))"
-                 % NAME)
-DECL = re.compile(r"^\s*(local|declare|typeset|readonly|export)\b(.*)$")
+DESK = os.path.join(os.path.dirname(HERE), 'programs', 'desktop')
+WRITES = {'write', 'bind', 'loop-write', 'array-write'}
 
 
-def strip(line):
-    """The line with quoted text blanked and any comment removed."""
-    out, q, i = [], None, 0
-    while i < len(line):
-        c = line[i]
-        if q == "'":
-            q = None if c == "'" else q
-            i += 1
+def inspected_files():
+    for directory, _, names in os.walk(DESK):
+        for name in sorted(names):
+            if name.endswith('.hibr'):
+                yield os.path.join(directory, name)
+
+
+def findings_from_inspect(path, vars_records, tops):
+    """Return per-function strict findings from parsed producer evidence."""
+    source_functions = functions(path)
+    rows = {}
+    for record in vars_records:
+        owner = record['owner']
+        if owner:
+            rows.setdefault(owner, []).append(record)
+    found = []
+    for function in source_functions:
+        name = function['name']
+        owned = rows.get(name, [])
+        local = {r['name'] for r in owned if r['kind'] == 'parameter'}
+        local.update(r['name'] for r in owned
+                     if r['kind'] == 'declaration' and r.get('storage') == 'local')
+        declaration_lines = {r['span']['line'] for r in owned
+                             if r['kind'] == 'declaration'}
+        assigned_names = {r['name'] for r in owned
+                          if r['kind'] in WRITES and
+                          r['span']['line'] not in declaration_lines}
+        for variable in sorted(assigned_names - local - tops - SHELL):
+            found.append((name, variable))
+    return found
+
+
+def legacy_answers(path, legacy_functions, legacy_tops, strict):
+    """Return legacy per-function assignment sets for migration parity."""
+    old = {}
+    for file, name, params, body in legacy_functions:
+        if file != path or file not in strict:
             continue
-        if q == '"':
-            if c == "\\":
-                i += 2
-                continue
-            if c == '"':
-                q = None
-            out.append(" ")
-            i += 1
-            continue
-        if c == "\\":
-            i += 2
-            continue
-        if c in "'\"":
-            q = c
-            out.append(c)
-            i += 1
-            continue
-        if c == "#" and (i == 0 or line[i - 1] in " \t;"):
-            break
-        out.append(c)
-        i += 1
-    return "".join(out)
-
-
-def prefix(s, i):
-    """Whether the assignment whose value starts at s[i] is a prefix to a
-    command -- `LC_ALL=C TERM=dumb pty spawn ...` -- which sets nothing
-    after the command and so creates no global (Gitea #339)."""
-    n = len(s)
-    if s[i:i + 1] == "(":
-        return False
-    while True:
-        while i < n and not s[i].isspace() and s[i] not in ";&|)":
-            if s[i] in "'\"":
-                j = s.find(s[i], i + 1)
-                i = n if j < 0 else j + 1
-            else:
-                i += 1
-        while i < n and s[i] in " \t":
-            i += 1
-        if i >= n or s[i] in ";&|)":
-            return False
-        m = re.match(r"(%s)(?:\[[^]]*\])*\+?=(?!=)" % NAME, s[i:])
-        if not m:
-            return True
-        i += m.end()
-
-
-def assigned(s):
-    """Every name a stripped line assigns."""
-    names = set()
-    names.update(m.group(1) for m in ASG.finditer(s)
-                 if not prefix(s, m.end()))
-    for rx in (BIND, FOR, PRV):
-        names.update(m.group(1) for m in rx.finditer(s))
-    m = READ.search(s)
-    if m:
-        for w in re.split(r"[;&|]", m.group(2))[0].split():
-            if w in ("do", "then"):
-                break
-            if re.match(NAME + "$", w):
-                names.add(w)
-    for ax in ARIX.finditer(s):
-        if s[max(0, ax.start() - 1)] != "$":
-            names.update(m.group(1) for m in ARI.finditer(ax.group(1)))
-    return names
-
-
-def declared(s):
-    """The names a declaration line declares, and whether it is global."""
-    d = DECL.match(s)
-    if not d:
-        return None, set()
-    words = d.group(2).split()
-    names = {re.split(r"[=\[]", w)[0] for w in words if not w.startswith("-")}
-    glob = d.group(1) not in ("local", "declare", "typeset") or "-g" in words
-    return glob, names
-
-
-def read_all():
-    """Use inspection spans for functions; retain legacy variable analysis."""
-    tops, funcs, strict = set(), [], set()
-    for d, _, fs in os.walk(DESK):
-        for f in sorted(fs):
-            if not f.endswith(".hibr"):
-                continue
-            p = os.path.join(d, f)
-            source = open(p, 'rb').read()
-            text = source.decode(errors="replace")
-            if re.search(r"^strict\b", text, re.M):
-                strict.add(p)
-            covered = set()
-            for record in functions(p):
-                span = record['span']
-                covered.update(range(span['line'], span['endline'] + 1))
-                bodyspan = record.get('body', {}).get('span', span)
-                body = source[bodyspan['start']:bodyspan['end']].decode(errors='replace')
-                if body.startswith('{') and body.endswith('}'):
-                    body = body[1:-1]
-                lines = [(bodyspan['line'] + i, strip(raw))
-                         for i, raw in enumerate(body.split('\n'))]
-                params = {a['name'] for a in record['params']}
-                funcs.append((p, record['name'], params, lines))
-            for n, raw in enumerate(text.split('\n'), 1):
-                if n not in covered:
-                    statement = strip(raw)
-                    tops |= assigned(statement) | declared(statement)[1]
-    return tops, funcs, strict
+        local = set(params)
+        declaration_lines = set()
+        for line, statement in body:
+            glob, names = declared(statement)
+            if glob is False:
+                local.update(names)
+            if declared(statement)[0] is not None:
+                declaration_lines.add(line)
+        names = set()
+        for line, statement in body:
+            if line not in declaration_lines:
+                names.update(assigned(statement))
+        old[name] = names - local - legacy_tops - SHELL
+    return old
 
 
 def main():
-    want = [os.path.join(DESK, a) for a in sys.argv[1:]] or [DESK]
-    tops, funcs, strict = read_all()
-    found = []
+    wanted = [os.path.join(DESK, arg) for arg in sys.argv[1:]]
+    selected = lambda path: not wanted or any(path.startswith(p) for p in wanted)
+    files = list(inspected_files())
+
+    # Discover file-scope names first, because strict checks may refer to a
+    # global declared in any other desktop source file.
+    top_names = set()
+    parsed = {}
+    strict_paths = set()
+    legacy_tops, legacy_functions, legacy_strict = read_all()
+    for path in files:
+        vars_records = records(path, 'vars')['vars']
+        parsed[path] = vars_records
+        if any(line == 'strict' or line.startswith('strict ') or
+               line.startswith('strict\t')
+               for line in open(path, encoding='utf-8').read().splitlines()):
+            strict_paths.add(path)
+        top_names.update(r['name'] for r in vars_records
+                         if r['owner'] is None and r['kind'] in
+                         {'write', 'bind', 'declaration', 'array-write'})
+
+    new_findings = []
+    parity_failures = []
     checked = 0
-    for p, name, params, body in funcs:
-        if p not in strict or not any(p.startswith(w) for w in want):
+    for path in files:
+        if path not in strict_paths or path not in legacy_strict or not selected(path):
             continue
         checked += 1
-        loc = set(params)
-        for _, s in body:
-            g, names = declared(s)
-            if g is False:
-                loc |= names
-        for n, s in body:
-            if DECL.match(s):
-                continue
-            for v in sorted(assigned(s) - loc - tops - SHELL):
-                found.append("%s:%d: %s in %s creates a global" % (
-                    os.path.relpath(p, DESK), n, v, name))
-    for f in found:
-        print("FAIL " + f)
-    print("\n%d passed, %d failed" % (checked - len(found), len(found)))
-    sys.exit(1 if found else 0)
+        current = findings_from_inspect(path, parsed[path], top_names)
+        new_findings.extend((path, name, variable) for name, variable in current)
+
+        old = legacy_answers(path, legacy_functions, legacy_tops, legacy_strict)
+        new_by_function = {}
+        for name, variable in current:
+            new_by_function.setdefault(name, set()).add(variable)
+        all_functions = set(old) | set(new_by_function)
+        for name in sorted(all_functions):
+            before = old.get(name, set())
+            after = new_by_function.get(name, set())
+            if before != after:
+                parity_failures.append((path, name, before, after))
+
+    for path, name, before, after in parity_failures:
+        rel = os.path.relpath(path, DESK)
+        print('PARITY %s: %s old=%s inspect=%s' %
+              (rel, name, ','.join(sorted(before)) or '-',
+               ','.join(sorted(after)) or '-'))
+    for path, name, variable in new_findings:
+        print('FAIL %s: %s in %s creates a global' %
+              (os.path.relpath(path, DESK), variable, name))
+    print('\n%d strict files checked, %d findings, %d parity differences' %
+          (checked, len(new_findings), len(parity_failures)))
+    sys.exit(1 if new_findings or parity_failures else 0)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

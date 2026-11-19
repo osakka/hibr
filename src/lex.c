@@ -23,6 +23,8 @@ int isname(const char *t)
 	return 1;
 }
 
+static void lx_arithmetic_refs(lex *, const char *, const char *);
+
 /* Prepare a lexer over a source string. */
 void lx_init(lex *l, sh *s, const char *src)
 {
@@ -507,7 +509,7 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 part *lx_dol(lex *l, int q)
 {
 	part *p = ar_alloc(l->a, sizeof *p);
-	const char *b, *e;
+	const char *b, *e, *dollar = l->p;
 	int c;
 
 	p->q = (unsigned)q;
@@ -564,6 +566,11 @@ part *lx_dol(lex *l, int q)
 				p->k = P_ARI;
 				p->t = ar_dup(l->a, b + 1, (size_t)(in - b - 1));
 				p->n = (size_t)(in - b - 1);
+				if (l->observe_arithmetic)
+					l->observe_arithmetic(l->observer, b + 1, in);
+				lx_arithmetic_refs(l, b + 1, in);
+				if (l->observe)
+					l->observe(l->observer, p, dollar, l->p);
 				return p;
 			}
 			l->more = more;
@@ -587,6 +594,10 @@ part *lx_dol(lex *l, int q)
 		p->k = P_ARI;
 		p->t = ar_dup(l->a, b, (size_t)(e - b));
 		p->n = (size_t)(e - b);
+		if (l->observe_arithmetic)
+			l->observe_arithmetic(l->observer, b, e);
+		lx_arithmetic_refs(l, b, e);
+		if (l->observe) l->observe(l->observer, p, dollar, l->p);
 		lg(HIBR_LTRC, "lex: $[...] is bash's old spelling of $((...))");
 		return p;
 	}
@@ -597,6 +608,8 @@ part *lx_dol(lex *l, int q)
 			return 0;
 		l->p = e + 1;
 		lx_brace(l, p, b, e, q);
+		if (p->k == P_VAR && l->observe)
+			l->observe(l->observer, p, dollar, l->p);
 		return p;
 	}
 	if (isalpha(c) || c == '_') {
@@ -606,6 +619,8 @@ part *lx_dol(lex *l, int q)
 		p->k = P_VAR;
 		p->t = ar_dup(l->a, b, (size_t)(l->p - b));
 		p->n = (size_t)(l->p - b);
+		if (l->observe)
+			l->observe(l->observer, p, dollar, l->p);
 		return p;
 	}
 	if (isdigit(c) || strchr("?#$!*@-", c)) {
@@ -613,6 +628,8 @@ part *lx_dol(lex *l, int q)
 		p->t = ar_dup(l->a, l->p, 1);
 		p->n = 1;
 		l->p++;
+		if (l->observe)
+			l->observe(l->observer, p, dollar, l->p);
 		return p;
 	}
 	p->k = P_TXT;
@@ -1054,6 +1071,49 @@ int lx_redir(lex *l)
 }
 
 /* Advance to the next token. */
+/* Record shell parameter expansions embedded in arithmetic source. */
+static void lx_arithmetic_refs(lex *l, const char *begin, const char *end)
+{
+	const char *p;
+	int depth = 0, quote = 0;
+
+	if (!l->observe)
+		return;
+	for (p = begin; p < end; p++) {
+		if (quote) {
+			if (*p == '\\' && p + 1 < end)
+				p++;
+			else if (*p == quote)
+				quote = 0;
+			continue;
+		}
+		if (*p == '\'' || *p == '"')
+			quote = *p;
+		else if (*p == '(' || *p == '[')
+			depth++;
+		else if ((*p == ')' || *p == ']') && depth)
+			depth--;
+		else if (*p == '$' && p + 1 < end && p[1] == '{') {
+			const char *e = p + 2;
+			int braces = 1;
+			while (e < end && braces) {
+				if (*e == '{') braces++;
+				else if (*e == '}') braces--;
+				e++;
+			}
+			if (!braces)
+				l->observe(l->observer, 0, p, e);
+			p = e - 1;
+		} else if (*p == '$' && p + 1 < end &&
+			   (isalpha((unsigned char)p[1]) || p[1] == '_')) {
+			const char *e = p + 2;
+			while (e < end && (isalnum((unsigned char)*e) || *e == '_')) e++;
+			l->observe(l->observer, 0, p, e);
+			p = e - 1;
+		}
+	}
+}
+
 int lx_next(lex *l)
 {
 	const char *q;
@@ -1107,6 +1167,7 @@ int lx_next(lex *l)
 		return l->tk = T_SEMI;
 	}
 	if (c == '(' && l->p + 1 < l->e && l->p[1] == '(') {
+		const char *begin = l->p;
 		const char *outer = sk_bal(l, l->p + 1, '(', ')', 0);
 		const char *inner = outer ?
 			sk_bal(l, l->p + 2, '(', ')', 0) : 0;
@@ -1120,6 +1181,13 @@ int lx_next(lex *l)
 			w->p = pp;
 			l->w = w;
 			l->p = outer + 1;
+			if (l->observe_arithmetic)
+				l->observe_arithmetic(l->observer, begin + 2, inner);
+			lx_arithmetic_refs(l, begin + 2, inner);
+			if (l->observe) {
+				l->observe(l->observer, w, begin, l->p);
+				l->observe(l->observer, pp, begin, l->p);
+			}
 			return l->tk = T_ARITH;
 		}
 		if (!outer)

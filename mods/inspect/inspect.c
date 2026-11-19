@@ -1,6 +1,7 @@
 #include "../../include/pri.h"
 #include "inspect.h"
 #include "../lint.h"
+#include <ctype.h>
 
 static const li_api *ix_lint;
 const char *p_param(lex *, node *, const char *, const char *);
@@ -14,13 +15,22 @@ void j_out(str *, ent *, size_t, const char *, short, int, int);
 #include <sys/stat.h>
 
 typedef struct ix_pos ix_pos;
+typedef struct ix_arith ix_arith;
+struct ix_arith { size_t start, end; ix_arith *next; };
+typedef struct ix_var ix_var;
+struct ix_var {
+	char *name, *kind, *owner, *storage;
+	size_t start, end;
+	ix_var *next;
+};
 struct ix_pos {
 	const void *object;
 	size_t start, end;
 	ix_pos *next;
 };
 
-typedef struct {
+typedef struct ix_ctx ix_ctx;
+struct ix_ctx {
 	str *out;
 	sh *rules;
 	const char *rulespath, *ruleidentity;
@@ -29,12 +39,17 @@ typedef struct {
 	const char *src, *path, *request, *filter, *owner;
 	vec names, symbols;
 	ix_pos **positions;
+	ix_arith *arith_head, **arith_tail;
+	ix_var *vars_head, **vars_tail;
 	const char *input;
 	size_t inputsize, origin;
 	size_t start, end, cursor, fncursor, unitstart, unitend;
 	size_t *lines, nlines;
 	int count, subdepth, partial;
-} ix_ctx;
+};
+
+static void ix_var_record(ix_ctx *, const char *, const char *, size_t,
+			  size_t, const char *);
 
 typedef struct {
 	node *tree;
@@ -53,8 +68,42 @@ static void ix_observe(void *data, const void *object, const char *begin,
 {
 	ix_ctx *c = data;
 	ix_pos *p;
-	size_t bucket = ix_bucket(object);
+	size_t bucket;
 
+	if (!object) {
+		size_t start, finish, n, i;
+		char name[256];
+		if (strcmp(c->request, "vars") ||
+		    (uintptr_t)begin < (uintptr_t)c->input ||
+		    (uintptr_t)end < (uintptr_t)begin ||
+		    (uintptr_t)end > (uintptr_t)c->input + c->inputsize)
+			return;
+		start = c->origin + (size_t)(begin - c->input);
+		finish = c->origin + (size_t)(end - c->input);
+		if (*begin != '$')
+			return;
+		if (begin[1] == '{') {
+			const char *p = begin + 2;
+			if (*p == '#') p++;
+			if (!(isalpha((unsigned char)*p) || *p == '_')) return;
+			for (n = 0; p + n < end &&
+			     (isalnum((unsigned char)p[n]) || p[n] == '_'); n++);
+			if (!n || n >= sizeof name) return;
+			memcpy(name, p, n);
+		} else {
+			const char *p = begin + 1;
+			for (n = 0; p + n < end &&
+			     (isalnum((unsigned char)p[n]) || p[n] == '_'); n++);
+			if (!n || n >= sizeof name) return;
+			memcpy(name, p, n);
+		}
+		name[n] = 0;
+		for (i = 0; i < n; i++)
+			if (!(isalnum((unsigned char)name[i]) || name[i] == '_')) return;
+		ix_var_record(c, name, "read", start, finish, 0);
+		return;
+	}
+	bucket = ix_bucket(object);
 	if ((uintptr_t)begin < (uintptr_t)c->input ||
 	    (uintptr_t)end < (uintptr_t)begin ||
 	    (uintptr_t)end > (uintptr_t)c->input + c->inputsize)
@@ -215,6 +264,318 @@ static void ix_record(ix_ctx *c, size_t start, size_t end, const char *known)
 		s_cat(c->out, ",\"scope\":\"substitution\"");
 }
 
+/* Variable records are syntax only; the source identity scopes their IDs. */
+static void ix_var_record(ix_ctx *c, const char *name, const char *kind,
+			  size_t start, size_t end, const char *storage)
+{
+	ix_var *v;
+
+	v = xm(sizeof *v);
+	v->name = xs(name);
+	v->kind = xs(kind);
+	v->owner = c->owner ? xs(c->owner) : 0;
+	v->storage = storage ? xs(storage) : 0;
+	v->start = start;
+	v->end = end;
+	v->next = 0;
+	if (!c->vars_tail) c->vars_tail = &c->vars_head;
+	*c->vars_tail = v;
+	c->vars_tail = &v->next;
+}
+
+/* Return a variable's base name from an assignment word. */
+static int ix_var_assignment_name(ix_ctx *c, word *w, char *name,
+				  size_t capacity, size_t *start, size_t *end)
+{
+	size_t i, j;
+	int depth, quote;
+
+	if (!ix_position(c, w, start, end) || *start >= *end)
+		return 0;
+	i = *start;
+	if (!(isalpha((unsigned char)c->src[i]) || c->src[i] == '_'))
+		return 0;
+	for (j = i + 1; j < *end &&
+	     (isalnum((unsigned char)c->src[j]) || c->src[j] == '_'); j++)
+		;
+	if (j - i >= capacity)
+		return 0;
+	memcpy(name, c->src + i, j - i);
+	name[j - i] = 0;
+	while (j < *end && c->src[j] == '[') {
+		depth = 0;
+		quote = 0;
+		for (; j < *end; j++) {
+			if (quote) {
+				if (c->src[j] == '\\' && j + 1 < *end)
+					j++;
+				else if (c->src[j] == quote)
+					quote = 0;
+				continue;
+			}
+			if (c->src[j] == '\'' || c->src[j] == '"')
+				quote = c->src[j];
+			else if (c->src[j] == '[')
+				depth++;
+			else if (c->src[j] == ']' && --depth == 0) {
+				j++;
+				break;
+			}
+		}
+		if (depth)
+			return 0;
+	}
+	if (j < *end && c->src[j] == '+')
+		j++;
+	return j < *end && c->src[j] == '=';
+}
+
+/* Emit an assignment target at its exact token span. */
+static void ix_var_assignment(ix_ctx *c, word *w, const char *kind)
+{
+	char name[256];
+	size_t start, end, n;
+
+	if (!ix_var_assignment_name(c, w, name, sizeof name, &start, &end)) {
+		c->partial = 1;
+		return;
+	}
+	n = strlen(name);
+	if (start + n > end || memcmp(c->src + start, name, n)) {
+		c->partial = 1;
+		return;
+	}
+	ix_var_record(c, name, kind, start, start + n, 0);
+}
+
+static void ix_var_declaration_assignment(ix_ctx *c, word *w, const char *storage)
+{
+	char name[256];
+	size_t start, end, n;
+
+	if (!ix_var_assignment_name(c, w, name, sizeof name, &start, &end)) {
+		c->partial = 1;
+		return;
+	}
+	n = strlen(name);
+	if (start + n > end || memcmp(c->src + start, name, n)) {
+		c->partial = 1;
+		return;
+	}
+	ix_var_record(c, name, "declaration", start, start + n, storage);
+	ix_var_record(c, name, "write", start, start + n, 0);
+}
+
+/* Locate an identifier inside a parser-owned construct span. */
+static int ix_var_node(ix_ctx *c, node *n, const char *name,
+		       const char *kind, const char *storage)
+{
+	size_t start, end, i, len = strlen(name);
+
+	if (!len || !ix_position(c, n, &start, &end))
+		return 0;
+	for (i = start; i + len <= end; i++)
+		if (!memcmp(c->src + i, name, len) &&
+		    (i == start || !(isalnum((unsigned char)c->src[i - 1]) || c->src[i - 1] == '_')) &&
+		    (i + len == end || !(isalnum((unsigned char)c->src[i + len]) || c->src[i + len] == '_'))) {
+			ix_var_record(c, name, kind, i, i + len, storage);
+			return 1;
+		}
+	return 0;
+}
+
+static int ix_decl_command(const char *name)
+{
+	return name && (!strcmp(name, "local") || !strcmp(name, "declare") ||
+		!strcmp(name, "typeset") || !strcmp(name, "readonly") ||
+		!strcmp(name, "export"));
+}
+
+/* Emit declaration and builtin write targets using parsed command words. */
+static void ix_var_command(ix_ctx *c, node *n)
+{
+	const char *command = n->w ? ix_literal(n->w) : 0;
+	word *w;
+	char name[256];
+	size_t start, end;
+	int local, after_option = 0;
+
+	if (!command)
+		return;
+	if (ix_decl_command(command)) {
+		local = strcmp(command, "readonly") && strcmp(command, "export") && c->owner;
+		for (w = n->w->nx; w; w = w->nx) {
+			const char *literal = ix_literal(w);
+			if (ix_var_assignment_name(c, w, name, sizeof name,
+						   &start, &end)) {
+				ix_var_declaration_assignment(c, w, local ? "local" : "global");
+				continue;
+			}
+			if (!literal)
+				continue;
+			if (!after_option && literal[0] == '-' && literal[1]) {
+				if (!strcmp(literal, "-g"))
+					local = 0;
+				if (strchr("Au", literal[1]) && literal[2] == 0)
+					after_option = 1;
+				continue;
+			}
+			if (isname(literal))
+				ix_var_node(c, (node *)n, literal, "declaration",
+					    local ? "local" : "global");
+		}
+		return;
+	}
+	if (!strcmp(command, "read")) {
+		int expect = 0;
+		for (w = n->w->nx; w; w = w->nx) {
+			const char *literal = ix_literal(w);
+			if (!literal)
+				continue;
+			if (expect) {
+				expect = 0;
+				if (isname(literal))
+					ix_var_node(c, (node *)n, literal, "write", 0);
+				continue;
+			}
+			if (literal[0] == '-' && literal[1]) {
+				const char *option = literal + 1;
+				while (*option) {
+					if (strchr("pnNtuad", *option++)) {
+						if (!*option)
+							expect = 1;
+						break;
+					}
+				}
+				continue;
+			}
+			if (isname(literal))
+				ix_var_node(c, (node *)n, literal, "write", 0);
+		}
+	} else if (!strcmp(command, "mapfile") || !strcmp(command, "readarray")) {
+		int expect = 0, target = 0;
+		for (w = n->w->nx; w; w = w->nx) {
+			const char *literal = ix_literal(w);
+			if (!literal)
+				continue;
+			if (expect) {
+				expect = 0;
+				continue;
+			}
+			if (literal[0] == '-' && literal[1]) {
+				if (strchr("nsOud", literal[1]) && !literal[2])
+					expect = 1;
+				continue;
+			}
+			if (!target && isname(literal)) {
+				ix_var_node(c, (node *)n, literal, "write", 0);
+				target = 1;
+			}
+		}
+		if (!target)
+			ix_var_node(c, (node *)n, "MAPFILE", "write", 0);
+	} else if (!strcmp(command, "printf")) {
+		w = n->w->nx;
+		while (w && !ix_literal(w))
+			w = w->nx;
+		if (w && ix_literal(w) && !strcmp(ix_literal(w), "-v") && w->nx &&
+		    ix_literal(w->nx) && isname(ix_literal(w->nx)))
+			ix_var_node(c, (node *)n, ix_literal(w->nx), "write", 0);
+	}
+}
+
+/* Map Hibr arithmetic parser evidence back into the original source. */
+
+
+static void ix_var_arithmetic(void *data, const char *name,
+			     const char *begin, const char *end, const char *kind)
+{
+	ix_ctx *c = data;
+	size_t start, finish, n;
+	const char *base_end;
+
+	if (!name || (!isname(name) && !strchr(name, '['))) {
+		c->partial = 1;
+		return;
+	}
+	if ((uintptr_t)begin < (uintptr_t)c->input ||
+	    (uintptr_t)end < (uintptr_t)begin ||
+	    (uintptr_t)end > (uintptr_t)c->input + c->inputsize) {
+		c->partial = 1;
+		return;
+	}
+	start = c->origin + (size_t)(begin - c->input);
+	finish = c->origin + (size_t)(end - c->input);
+	n = strlen(name);
+	base_end = memchr(name, '[', n);
+	if (base_end)
+		n = (size_t)(base_end - name);
+	if (!n || start + n > finish || memcmp(c->src + start, name, n)) {
+		if (c->input != c->src) {
+			size_t i;
+			for (i = c->origin; i + n <= c->origin + c->inputsize; i++)
+				if (!memcmp(c->src + i, name, n)) { start = i; finish = i + n; break; }
+		}
+		if (!n || start + n > finish || memcmp(c->src + start, name, n)) {
+			c->partial = 1;
+			return;
+		}
+	}
+	{
+		char base[256];
+		if (n >= sizeof base) {
+			c->partial = 1;
+			return;
+		}
+		memcpy(base, name, n);
+		base[n] = 0;
+		ix_var_record(c, base, kind, start, finish, 0);
+	}
+}
+
+
+/* Arithmetic parser records source structure; it does not run shell code. */
+
+
+
+static void ix_arithmetic_observe(void *data, const char *begin, const char *end)
+{
+	ix_ctx *c = data;
+	ix_arith *a;
+	if (strcmp(c->request, "vars")) return;
+	a = xm(sizeof *a);
+	a->start = c->origin + (size_t)(begin - c->input);
+	a->end = c->origin + (size_t)(end - c->input);
+	a->next = 0;
+	if (!c->arith_tail) c->arith_tail = &c->arith_head;
+	*c->arith_tail = a;
+	c->arith_tail = &a->next;
+}
+
+static const char *ix_var_owner_in(ix_ctx *c, node *n, size_t offset,
+				   const char *owner)
+{
+	size_t start, end;
+	const char *inside = owner;
+
+	while (n && n->k == N_SEQ) {
+		owner = ix_var_owner_in(c, n->l, offset, owner);
+		n = n->r;
+	}
+	if (!n)
+		return owner;
+	if (n->k == N_FUNC && n->s && ix_position(c, n, &start, &end) &&
+	    offset >= start && offset < end)
+		inside = n->s;
+	if (n->l)
+		inside = ix_var_owner_in(c, n->l, offset, inside);
+	if (n->r)
+		inside = ix_var_owner_in(c, n->r, offset, inside);
+	if (n->x)
+		inside = ix_var_owner_in(c, n->x, offset, inside);
+	return inside;
+}
+
 /* Describe the author's preceding comment without treating it as behavior. */
 static void ix_summary(ix_ctx *c, size_t start)
 {
@@ -290,6 +651,56 @@ static void ix_body(ix_ctx *c, node *n, size_t start, size_t end)
 	}
 	v_free(&l.hq);
 	ar_free(own.ar);
+}
+
+/* Locate one parameter in the producer-parsed signature copy. */
+static int ix_parameter_span(ix_ctx *c, node *function, int index,
+			     size_t *start, size_t *end)
+{
+	sh own;
+	lex l;
+	node parameter;
+	char *signature;
+	const char *at, *next = 0, *last;
+	size_t function_start;
+	int i;
+
+	if (!ix_position(c, function, &function_start, end) || !function->tx)
+		return 0;
+	memset(&own, 0, sizeof own);
+	own.ar = ar_new(4096);
+	lx_init(&l, &own, function->tx);
+	lx_next(&l);
+	lx_next(&l);
+	lx_next(&l);
+	function_start += (size_t)(l.p - function->tx);
+	signature = l.tk == T_LP ? lx_span(&l) : 0;
+	at = signature;
+	for (i = 0; at && i <= index; i++) {
+		while (*at == ' ' || *at == '\t' || *at == '\n' || *at == ',')
+			at++;
+		memset(&parameter, 0, sizeof parameter);
+		next = p_param(&l, &parameter, at, signature + strlen(signature));
+		if (!next)
+			break;
+		if (i == index) {
+			if (!parameter.s)
+				break;
+			last = at;
+			while (last + strlen(parameter.s) <= next &&
+			       memcmp(last, parameter.s, strlen(parameter.s)))
+				last++;
+			if (last + strlen(parameter.s) > next)
+				break;
+			*start = function_start + (size_t)(last - signature);
+			*end = *start + strlen(parameter.s);
+			break;
+		}
+		at = next;
+	}
+	v_free(&l.hq);
+	ar_free(own.ar);
+	return signature && next && i == index;
 }
 
 /* Recover exact declared parameter and default spans using the same parser. */
@@ -515,6 +926,12 @@ static void ix_words(ix_ctx *c, word *w, size_t *search)
 
 	for (; w; w = w->nx)
 		for (p = w->p; p; p = p->nx) {
+			if (!strcmp(c->request, "vars") && p->k == P_VAR && p->t && isname(p->t)) {
+				if (ix_position(c, p, &start, &end))
+					ix_var_record(c, p->t, "read", start, end, 0);
+				else
+					c->partial = 1;
+			}
 			if ((p->k == P_CMD || p->k == P_PSUB) && p->t && *p->t) {
 				if (!ix_position(c, p, &start, &end)) {
 					c->partial = 1;
@@ -545,6 +962,7 @@ static void ix_words(ix_ctx *c, word *w, size_t *search)
 				lx_init(&l, &own, p->t);
 				l.observe = ix_observe;
 				l.observer = c;
+				l.observe_arithmetic = ix_arithmetic_observe;
 				lv = hibr_lv;
 				hibr_lv = -1;
 				lx_next(&l);
@@ -611,6 +1029,10 @@ static void ix_walk(ix_ctx *c, node *n)
 	}
 	if (!n)
 		return;
+	if (!strcmp(c->request, "vars") && c->filter && c->owner &&
+	    strcmp(c->filter, c->owner))
+		return;
+
 	start = ix_start(c, n);
 	end = n->tx ? start + strlen(n->tx) : start;
 	ix_position(c, n, &start, &end);
@@ -620,6 +1042,13 @@ static void ix_walk(ix_ctx *c, node *n)
 		c->fncursor = start + 1;
 		was = c->owner;
 		c->owner = n->s;
+		if (!strcmp(c->request, "vars"))
+			for (p = n->x, count = 0; p; p = p->x, count++) {
+				if (p->s && ix_parameter_span(c, n, count, &start, &end))
+					ix_var_record(c, p->s, "parameter", start, end, "local");
+				else
+					c->partial = 1;
+			}
 		if (!strcmp(c->request, "functions")) {
 			ix_record(c, start, end, "syntax");
 			s_cat(c->out, ",\"name\":");
@@ -654,8 +1083,64 @@ static void ix_walk(ix_ctx *c, node *n)
 		return;
 	}
 	search = start;
-	if ((!strcmp(c->request, "calls") || !strcmp(c->request, "refs")) && n->aw)
+	if ((!strcmp(c->request, "calls") || !strcmp(c->request, "refs") ||
+	     !strcmp(c->request, "vars")) && n->aw)
 		ix_words(c, n->aw, &search);
+	if (!strcmp(c->request, "vars")) {
+		if (n->k == N_CFOR) {
+			size_t source_cursor = start;
+			for (w = n->w; w; w = w->nx) {
+				const char *text = ix_literal(w), *found;
+				char *copy, *part, *q;
+				if (!text || strchr(text, '$')) continue;
+				copy = xs(text);
+				for (part = copy;; part = q + 1) {
+					for (q = part; *q && *q != ';'; q++)
+						;
+					if (*q == ';') *q = 0;
+					while (*part == ' ' || *part == '\t') part++;
+					if (*part) {
+						found = strstr(c->src + source_cursor, part);
+						if (!found) c->partial = 1;
+						else {
+							source_cursor = (size_t)(found - c->src) + strlen(part);
+							c->input = part; c->inputsize = strlen(part);
+							c->origin = (size_t)(found - c->src);
+							if (!ax_inspect(part, ix_var_arithmetic, c)) c->partial = 1;
+						}
+					}
+					if (!*q) break;
+				}
+				free(copy);
+			}
+			c->input = c->src; c->inputsize = strlen(c->src); c->origin = 0;
+
+		} else if (n->k == N_CMD) {
+			for (w = n->aw; w; w = w->nx)
+				ix_var_assignment(c, w, n->w ? "prefix" : "write");
+			if (n->f == 2 && n->s && !ix_var_node(c, n, n->s, "bind", 0))
+				c->partial = 1;
+			ix_var_command(c, n);
+			for (p = n->x; p; p = p->x)
+				if (p->k == N_CLAUSE && p->s) {
+					char name[256];
+					size_t len = strlen(p->s);
+					if (len && p->s[len - 1] == '+')
+						len--;
+					if (!len || len >= sizeof name) {
+						c->partial = 1;
+						continue;
+					}
+					memcpy(name, p->s, len);
+					name[len] = 0;
+					if (!ix_var_node(c, n, name, "array-write", 0))
+						c->partial = 1;
+				}
+		} else if ((n->k == N_FOR || n->k == N_SELECT) && n->s) {
+			if (!ix_var_node(c, n, n->s, "loop-write", 0))
+				c->partial = 1;
+		}
+	}
 	if (n->k == N_CMD && n->w &&
 	    (!c->filter || (c->owner && !strcmp(c->filter, c->owner)))) {
 		name = ix_literal(n->w);
@@ -731,12 +1216,14 @@ static void ix_walk(ix_ctx *c, node *n)
 					s_ch(c->out, '}');
 				}
 	}
-	if (!strcmp(c->request, "calls") || !strcmp(c->request, "refs"))
+	if (!strcmp(c->request, "calls") || !strcmp(c->request, "refs") ||
+	    !strcmp(c->request, "vars"))
 		ix_words(c, n->w, &search);
 	ix_walk(c, n->l);
 	ix_walk(c, n->r);
 	ix_walk(c, n->x);
-	if (!strcmp(c->request, "calls") || !strcmp(c->request, "refs"))
+	if (!strcmp(c->request, "calls") || !strcmp(c->request, "refs") ||
+	    !strcmp(c->request, "vars"))
 		for (r = n->rd; r; r = r->nx)
 			ix_words(c, r->w, &search);
 }
@@ -944,7 +1431,8 @@ static int ix_query(sh *caller, const char *request, const char *path,
 	s_init(&ruleidentity);
 	memset(&settings, 0, sizeof settings);
 	if (strcmp(request, "functions") && strcmp(request, "calls") &&
-	    strcmp(request, "refs") && strcmp(request, "check")) {
+	    strcmp(request, "refs") && strcmp(request, "vars") &&
+	    strcmp(request, "check")) {
 		s_cat(out,
 		      "{\"inspect\":1,\"state\":\"unsupported\",\"diagnostics\":[]}");
 		return 1;
@@ -1015,6 +1503,7 @@ static int ix_query(sh *caller, const char *request, const char *path,
 		lx_init(&l, &own, c.src);
 		l.observe = ix_observe;
 		l.observer = &c;
+		l.observe_arithmetic = ix_arithmetic_observe;
 		lv = hibr_lv;
 		hibr_lv = -1;
 		lx_next(&l);
@@ -1072,6 +1561,90 @@ static int ix_query(sh *caller, const char *request, const char *path,
 			c.unitend = unit->end;
 			ix_walk(&c, unit->tree);
 		}
+		if (!strcmp(request, "vars")) {
+			ix_arith *a;
+			ix_var *v, *next, *sorted = 0;
+			for (a = c.arith_head; a; a = a->next) {
+				char *text = ar_dup(own.ar, c.src + a->start, a->end - a->start);
+				char *clean = xs(text);
+				char *p;
+				const char *owner = 0;
+				for (i = 0; i < units.n; i++)
+					owner = ix_var_owner_in(&c, ((ix_unit *)units.p[i])->tree, a->start, owner);
+				c.owner = owner;
+				c.input = clean; c.inputsize = strlen(clean); c.origin = a->start;
+				if (c.filter && (!owner || strcmp(c.filter, owner))) { free(clean); continue; }
+				for (p = clean; *p; p++) {
+					if (*p == '$' && p[1] == '{') {
+						char *end = p + 2;
+						int depth = 1;
+						while (*end && depth) {
+							if (end[0] == '$' && end[1] == '{') {
+								depth++;
+								end += 2;
+							} else if (*end == '}') {
+								depth--;
+								end++;
+							} else end++;
+						}
+						*p = '0';
+						while (p + 1 < end) *++p = ' ';
+					} else if (*p == '$' &&
+						   (isalpha((unsigned char)p[1]) || p[1] == '_')) {
+						*p = '0';
+						while (isalnum((unsigned char)p[1]) || p[1] == '_') *++p = ' ';
+					}
+				}
+				if (strchr(clean, ';')) { free(clean); continue; }
+				if (!ax_inspect(clean, ix_var_arithmetic, &c)) c.partial=1;
+				free(clean);
+			}
+			c.input = c.src; c.inputsize = src.n; c.origin = 0; c.owner = 0;
+			v = c.vars_head;
+			c.out = &records;
+			c.count = 0;
+			while (v) {
+				next = v->next;
+				{
+					ix_var **at = &sorted;
+					while (*at && (*at)->start <= v->start)
+						at = &(*at)->next;
+					v->next = *at;
+					*at = v;
+				}
+				v = next;
+			}
+			c.vars_head = 0; c.vars_tail = 0;
+			for (v = sorted; v; v = next) {
+				const char *owner = v->owner;
+				next = v->next;
+				if (!owner)
+					for (i = 0; i < units.n; i++)
+						owner = ix_var_owner_in(&c,
+							((ix_unit *)units.p[i])->tree,
+							v->start, owner);
+				if (c.filter && (!owner || strcmp(c.filter, owner))) {
+					free(v->name); free(v->kind); free(v->owner);
+					free(v->storage); free(v);
+					continue;
+				}
+				ix_record(&c, v->start, v->end, "syntax");
+				s_fmt(&records, ",\"id\":\"var:%lu\",\"name\":",
+				      (unsigned long)(c.count - 1));
+				ix_quote(&records, v->name);
+				s_cat(&records, ",\"kind\":"); ix_quote(&records, v->kind);
+				s_cat(&records, ",\"owner\":");
+				if (owner) ix_quote(&records, owner); else s_cat(&records, "null");
+				if (v->storage) {
+					s_cat(&records, ",\"storage\":");
+					ix_quote(&records, v->storage);
+				}
+				s_ch(&records, '}');
+				free(v->name); free(v->kind); free(v->owner); free(v->storage);
+				free(v);
+			}
+		}
+
 		c.unitstart = c.unitend = 0;
 		if (!strcmp(request, "check") && ix_lint) {
 			node *all = 0, **tail = &all, *seq;
@@ -1097,6 +1670,8 @@ static int ix_query(sh *caller, const char *request, const char *path,
 				p = next;
 			}
 		}
+
+		{ ix_arith *a = c.arith_head, *next; while (a) { next = a->next; free(a); a = next; } }
 		free(c.positions);
 		v_free(&units);
 		v_free(&c.names);
@@ -1302,7 +1877,7 @@ static int ix_builtin(sh *s, int ac, char **av)
 
 static const ix_api ix_table = {ix_query};
 static const hibr_bi ix_builtins[] = {
-    {"inspect", ix_builtin, "experimental inspection: inspect functions FILE -j"},
+	{"inspect", ix_builtin, "read-only inspection: inspect functions|calls|refs|vars|check FILE -j"},
     HIBR_BI_END};
 
 /* Register the inspection producer. */

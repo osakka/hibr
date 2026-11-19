@@ -3207,7 +3207,20 @@ char **xargv(sh *s, word *w, int *ac, char ***am)
 	return r;
 }
 
-struct ax { sh *s; const char *p; int depth, bad, skip, hasq; };
+struct ax {
+	sh *s;
+	const char *p;
+	int depth, bad, skip, hasq;
+	ax_observer_fn observer;
+	void *observer_data;
+};
+
+void ax_observe(struct ax *a, const char *name, const char *begin,
+		const char *end, const char *kind)
+{
+	if (a->observer)
+		a->observer(a->observer_data, name, begin, end, kind);
+}
 
 long ax_comma(struct ax *a);
 long ax_assign(struct ax *a);
@@ -3224,8 +3237,8 @@ void ax_ws(struct ax *a)
 /* Report an arithmetic error once. */
 void ax_err(struct ax *a, const char *m)
 {
-	if (!a->bad && !a->skip)
-		lg(HIBR_LERR, "arithmetic: %s near '%.20s'", m, a->p);
+	if (!a->bad && !a->skip && !a->observer)
+			lg(HIBR_LERR, "arithmetic: %s near '%.20s'", m, a->p);
 	a->bad = 1;
 }
 
@@ -3289,6 +3302,8 @@ long ax_sub(struct ax *a, const char *src)
 	b.bad = 0;
 	b.skip = a->skip;
 	b.hasq = ax_hasasg(src);
+	b.observer = a->observer;
+	b.observer_data = a->observer_data;
 	v = ax_comma(&b);
 	ax_ws(&b);
 	if (*b.p && !b.bad)
@@ -3336,7 +3351,8 @@ long ax_val(struct ax *a, const char *t)
 		e++;
 	if (!*e)
 		return v;
-	lg(HIBR_LTRC, "arithmetic re-reads '%s' as an expression", t);
+	if (!a->observer)
+		lg(HIBR_LTRC, "arithmetic re-reads '%s' as an expression", t);
 	return ax_sub(a, t);
 }
 
@@ -3347,12 +3363,15 @@ long ax_get(struct ax *a, const char *nm)
 	char *base;
 	vec *ks;
 
+	if (a->observer)
+		return 0;
 	if (strchr(nm, '[')) {
 		ks = vb_get(a->s);
 		ax_path(a, nm, &base, ks);
 		t = hibr_getp(a->s, base, (char **)ks->p, (int)ks->n);
 		vb_put(a->s, ks);
-		lg(HIBR_LTRC, "arithmetic read %s as '%s'", nm, t ? t : "");
+		if (!a->observer)
+			lg(HIBR_LTRC, "arithmetic read %s as '%s'", nm, t ? t : "");
 		return ax_val(a, t);
 	}
 	t = nm[1] ? hibr_get(a->s, nm) : xval(a->s, nm);
@@ -3371,7 +3390,7 @@ void ax_set(struct ax *a, const char *nm, long v)
 	char *base;
 	vec *ks;
 
-	if (a->skip || a->bad)
+	if (a->skip || a->bad || a->observer)
 		return;
 	if (strchr(nm, '[')) {
 		ks = vb_get(a->s);
@@ -3483,12 +3502,16 @@ long ax_prim(struct ax *a)
 		return v;
 	}
 	if (isalpha((unsigned char)*a->p) || *a->p == '_') {
+		const char *begin = a->p, *name_end;
 		nm = sb_get(a->s);
 		if (ax_name(a, nm)) {
+			name_end = a->p;
+			ax_observe(a, nm->p, begin, name_end, "read");
 			v = ax_get(a, nm->p);
 			ax_ws(a);
 			if ((a->p[0] == '+' && a->p[1] == '+') ||
 			    (a->p[0] == '-' && a->p[1] == '-')) {
+				ax_observe(a, nm->p, begin, name_end, "write");
 				ax_set(a, nm->p, a->p[0] == '+' ? v + 1 : v - 1);
 				a->p += 2;
 			}
@@ -3531,12 +3554,15 @@ long ax_un(struct ax *a)
 		int up = a->p[0] == '+';
 		a->p += 2;
 		ax_ws(a);
+		const char *begin = a->p;
 		nm = sb_get(a->s);
 		if (!ax_name(a, nm)) {
 			ax_err(a, "++ and -- need a variable");
 			sb_put(a->s, nm);
 			return 0;
 		}
+		ax_observe(a, nm->p, begin, a->p, "read");
+		ax_observe(a, nm->p, begin, a->p, "write");
 		v = ax_get(a, nm->p) + (up ? 1 : -1);
 		ax_set(a, nm->p, v);
 		sb_put(a->s, nm);
@@ -3719,6 +3745,7 @@ long ax_assign(struct ax *a)
 		return ax_tern(a);
 	nm = sb_get(a->s);
 	if (ax_name(a, nm)) {
+		const char *name_end = a->p;
 		ax_ws(a);
 		for (i = 0; ax_as[i]; i++) {
 			n = strlen(ax_as[i]);
@@ -3727,6 +3754,9 @@ long ax_assign(struct ax *a)
 			if (ax_asop[i] < 0 && a->p[1] == '=')
 				break;
 			a->p += n;
+			ax_observe(a, nm->p, save, name_end, "write");
+			if (ax_asop[i] >= 0)
+				ax_observe(a, nm->p, save, name_end, "read");
 			r = ax_assign(a);
 			v = ax_asop[i] < 0 ? r : ax_do(a, ax_asop[i], ax_get(a, nm->p), r);
 			ax_set(a, nm->p, v);
@@ -3783,6 +3813,8 @@ long ax_run(sh *s, const char *src)
 	a.bad = 0;
 	a.skip = 0;
 	a.hasq = ax_hasasg(src);
+	a.observer = 0;
+	a.observer_data = 0;
 	v = ax_comma(&a);
 	ax_ws(&a);
 	if (*a.p && !a.bad)
@@ -3790,6 +3822,48 @@ long ax_run(sh *s, const char *src)
 	if (a.bad)
 		s->xerr = 2;
 	return a.bad ? 0 : v;
+}
+
+/* Parse arithmetic for source inspection, without evaluating user state or
+   applying variable writes. Numeric results are discarded. */
+int ax_inspect(const char *src, ax_observer_fn observer, void *data)
+{
+	sh s;
+	struct ax a;
+	long v;
+	str *b;
+	vec *q;
+	size_t i;
+
+	memset(&s, 0, sizeof s);
+	s.ar = ar_new(HIBR_ARCH);
+	s.xa = ar_new(HIBR_ARCH);
+	memset(&a, 0, sizeof a);
+	a.s = &s;
+	a.p = src;
+	a.hasq = ax_hasasg(src);
+	a.observer = observer;
+	a.observer_data = data;
+	v = ax_comma(&a);
+	ax_ws(&a);
+	if (*a.p && !a.bad)
+		ax_err(&a, "unexpected text");
+	(void)v;
+	for (i = 0; i < s.sbf.n; i++) {
+		b = s.sbf.p[i];
+		s_free(b);
+		free(b);
+	}
+	v_free(&s.sbf);
+	for (i = 0; i < s.vbf.n; i++) {
+		q = s.vbf.p[i];
+		v_free(q);
+		free(q);
+	}
+	v_free(&s.vbf);
+	ar_free(s.xa);
+	ar_free(s.ar);
+	return a.bad ? 0 : 1;
 }
 
 /* Put quotes back around the quoted runs inside a subscript, so the evaluator reads m["key"] as a literal key. */

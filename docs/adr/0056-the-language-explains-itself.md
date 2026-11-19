@@ -92,8 +92,14 @@ Version 1 is not released until all of these pass in the gate:
 - **Which tests reach this**: `tests/coverage.tsv` joined by function name.
 - **Live state**: the running desktop's own answers through `desktop ctl`,
   as `observed`.
-- **Variables**: reads, writes and declarations as syntax, kept apart from
-  any runtime value.
+- **Variables**: `inspect vars FILE [FUNCTION]` now reports syntax-only
+  parameters, declarations, writes, bindings, loop and builtin destinations,
+  arithmetic reads/writes and parameter reads. It shares Hibr's arithmetic
+  parser through a private observer and an empty shell; no variable values or
+  executed behavior are returned. The version-1 record shape is unchanged;
+  this is an additive request documented in `docs/inspect.md` and tracked by
+  Gitea #536. The strict-variable checker consumes these records and compares
+  its findings with the preserved legacy checker.
 
 ## Consequences
 
@@ -105,12 +111,14 @@ Version 1 is not released until all of these pass in the gate:
   `node` field nor an ABI change:
   - an error message and position stored in the lexer as well as logged,
     so a silent parse can return it;
-  - an optional observer, a function pointer in the lexer that only
-    `inspect` sets. The lexer and `p_cmd` call it with each word, part and
-    command and the bytes it came from, before quoting is removed. The
-    first version took spans from the lexer's position afterwards, and
-    could not tell `'$(touch m)'` (quoted data) from `"$(touch m)"` (a
-    command that runs) on one line; the observer knows the exact bytes.
+  - optional observers, function pointers in the lexer and arithmetic parser
+    that only `inspect` sets. The lexer and `p_cmd` call the source observer
+    with each word, part and command and the bytes it came from, before
+    quoting is removed. The first version took spans from the lexer's
+    position afterwards, and could not tell `'$(touch m)'` (quoted data) from
+    `"$(touch m)"` (a command that runs) on one line; the observer knows the
+    exact bytes. The arithmetic observer reports parsed variable names and
+    source locations while reads and writes are disabled on its private shell.
     Unset, it costs one load a word parsed: 0.45% more instructions to
     parse the whole desktop, and nothing at all to run a loop -- per
     function under callgrind, every hibr function of a 50,000-iteration

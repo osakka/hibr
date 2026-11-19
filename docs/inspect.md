@@ -4,11 +4,19 @@ This is the authoritative contract for Hibr's `inspect` builtin and versioned C 
 
 ## Requests and results
 
-Load the module with `need inspect`. Requests are `functions FILE`, `calls FILE [FUNCTION]`, `refs FILE` and `check FILE`. Unbound requests render a human summary and all evidence fields. `-j` prints JSON instead. A bound request (`r := inspect ...`) is quiet and returns the same data as a typed map, including when `-j` is present. Exit status is zero for ok/empty input, nonzero for invalid, incomplete, unreadable or unsupported requests. Capture a failed bound request inside `if` when using strict error handling.
+Load the module with `need inspect`. Requests are `functions FILE`, `calls FILE [FUNCTION]`, `refs FILE`, `vars FILE [FUNCTION]` and `check FILE`. Unbound requests render a human summary and all evidence fields. `-j` prints JSON instead. A bound request (`r := inspect ...`) is quiet and returns the same data as a typed map, including when `-j` is present. Exit status is zero for ok/empty input, nonzero for invalid, incomplete, unreadable or unsupported requests. Capture a failed bound request inside `if` when using strict error handling.
 
 - `functions` reports definitions, declared parameters, preceding author comments and body locations.
 - `calls` reports command words and command substitutions. An optional function name filters by enclosing function. It classifies names against this file's definitions, core builtins and already loaded modules; everything else stays unresolved.
 - `refs` reports literal arguments naming functions defined in this file. `--symbols JSON_ARRAY` additionally matches caller-supplied literal candidates. Such candidates remain unresolved; they do not establish cross-file execution or resolution.
+- `vars` reports parameter declarations, variable declarations, assignments,
+  `:=` bindings, loop targets, `read`/`mapfile`/`printf -v` destinations,
+  arithmetic reads and writes, and parameter-expansion reads. An optional
+  function name selects records owned by that function. Top-level records have
+  `owner: null`. Declaration records include `storage: local|global` where
+  Hibr's declaration command determines it. Command-prefix assignments have
+  `kind: prefix`; they are not treated as persistent writes by strict-variable
+  analysis. All records describe syntax, never a runtime value.
 - `check` reports parser diagnostics and findings from the same implementation as `--explain`, with stable rule identifiers.
 
 ```sh
@@ -36,7 +44,7 @@ foreign_command unresolved bound=true target=top
 
 ## Record vocabulary
 
-The result contains `inspect: 1`, `state`, `partial`, `source`, the requested array (`functions`, `calls`, `refs`, or `findings`), and `diagnostics`. An unsupported request has `state: unsupported` and diagnostics, without claiming source inspection.
+The result contains `inspect: 1`, `state`, `partial`, `source`, the requested array (`functions`, `calls`, `refs`, `vars`, or `findings`), and `diagnostics`. An unsupported request has `state: unsupported` and diagnostics, without claiming source inspection.
 
 `state` is `ok`, `empty` (zero source bytes), `incomplete`, `invalid`, or `unreadable`. `partial` means syntax damage or a substitution that could not be fully analysed; an empty array is never proof of no runtime behavior. Valid top-level units survive recovery after invalid syntax. Definitions are discovered statically, including those inside conditional branches; inspection does not claim they ran.
 
@@ -57,6 +65,7 @@ Every evidence record has `source`, `span` and `known`. Nested body metadata inh
 | `bound`, `binding`, `binding_source` | Whether `:=` binds a call, its static target when known, or a computed target's source span. |
 | `dynamic`, `expression`, `expression_state`, `reason` | An expanded command name remains dynamic/unresolved. Its expression is shown unless it contains command code; then source-span-required replaces disclosure. Unmapped transformed backticks and depth-limited fragments are explicitly unresolved/partial. |
 | `lookup` | References distinguish `inspected-file` from `supplied-symbol`. Literal references prove naming, not calling. |
+| `id`, `kind`, `storage` | Variable records use deterministic `var:N` IDs scoped to this source snapshot. `kind` distinguishes `parameter`, `declaration`, `write`, `prefix`, `bind`, `loop-write`, `array-write` and `read`. `storage` appears on declarations and distinguishes function-local from global declaration commands. |
 | `registration`, `rule`, `rules_path`, `rules_source` | Optional convention inference, its named rule and exact convention-file identity. Registration records also identify prefix and role. |
 | `message`, `reference` | Diagnostic/finding text and, for lint findings, the supporting guideline reference. |
 
@@ -121,6 +130,11 @@ sample_draw inferred window.draw
 ## Safety and C consumers
 
 Nothing in inspected source runs: no commands, substitutions, imports, aliases, traps or module initialization. Classification never scans the autoload index. Source identity and explicit uncertainty must accompany any explanation. Privacy defaults to names, locations, signatures and author comments; unrelated argument strings and body text are not disclosed. Signatures can contain sensitive defaults or comments: choosing to inspect does not authorize sending records elsewhere.
+
+The `vars` request sends arithmetic expressions through Hibr's own arithmetic
+parser using a private empty shell. It records parsed names and operators only;
+it never evaluates source variables, executes commands, or publishes computed
+values. Unsupported or malformed arithmetic makes the result partial.
 
 C consumers include `hibr.h` and installed `hibr/inspect.h`, then request `hibr_require(s, "inspect", 1)`. The `ix_api.query(caller, request, path, options, out)` function appends JSON to an initialized, caller-owned `str`. Options is null or JSON containing optional `function`, `rules` and `symbols` fields with the same meanings and limits. The consumer frees the string. No parser pointers escape. C queries preserve caller status, RET and line state; the builtin uses the normal result slot. Interface version matching uses Hibr's existing provide/require mechanism, independently of public AST layout (there is none).
 

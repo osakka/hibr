@@ -49,6 +49,7 @@ struct lex {
 	unsigned errln, errcol;
 	void (*observe)(void *, const void *, const char *, const char *);
 	void *observer;
+	void (*observe_arithmetic)(void *, const char *, const char *);
 	vec hq;
 	const char *lnp, *bol;
 	unsigned ln;
@@ -227,6 +228,8 @@ void p_nl(lex *l);
 int ax_digit(int c, long base, long *out);
 int ax_hasasg(const char *t);
 long ax_run(sh *s, const char *src);
+typedef void (*ax_observer_fn)(void *, const char *, const char *, const char *, const char *);
+int ax_inspect(const char *src, ax_observer_fn observer, void *data);
 long ax_text(sh *s, part *p);
 #ifndef AX_QKEY
 #define AX_PLAIN 1

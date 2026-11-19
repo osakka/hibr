@@ -18,6 +18,20 @@ The new checker supplies the known installable function names to `refs` as an ex
 
 The line counter changes from 32,118 to 34,099 because it now includes 1,981 declaration lines formerly skipped wholesale. This is a reporting difference; the candidate-location comparison above is unchanged. Guard-argument, resource-path and catalogue-header recognition remain explicit text checks: version 1 does not expose those argument/path facts. Variable analysis and dt_app metadata are separate follow-ups, not duplicate parsers introduced here.
 
+## Variable assignment parity
+
+The former variable checker is preserved as `tests/strictvars_legacy.py` for
+the migration audit. `tests/strictvars.py` now derives variables from the
+producer's `vars` records and compares its per-function findings with that
+legacy checker before reporting. On the full desktop corpus, the legacy suite
+reports **3,355 passed, 0 failed**; producer-backed analysis checks **200
+strict files, 0 findings, 0 parity differences**. Prefix assignments are
+reported as `kind: prefix` and excluded from persistent-write checks. Top-level
+array assignments count as file-scope names. No unexplained differences remain
+in the strict desktop corpus; this is not a claim that every possible Hibr
+program construct is represented, so producer-level fixtures cover each
+supported record kind and mark incomplete arithmetic as partial.
+
 ## Formatting oracle
 
 After the required semantic changes and before the one-statement-per-line rewrite, `python3 tests/inspect_oracle.py capture build/inspect-format-oracle` captured raw `-j` bytes for all four requests over all 197 tracked Hibr files (788 outputs). The same script's `compare` mode checks every byte and the source corpus hashes after the rewrite. `gcc -fsyntax-only -Wall -Wextra -Iinclude mods/inspect/inspect.c` also passes. These are formatting checks; the endline/default/binding changes are intentionally covered by separate behavioral regressions.
