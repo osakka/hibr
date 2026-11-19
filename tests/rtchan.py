@@ -251,21 +251,35 @@ def readall(k, want, secs):
 
 
 LINE = 100000
+def result(cmd):
+    """Run cmd in the desktop and wait for it to write its .pend file:
+    do() returns once the command is taken, which a slow build may finish
+    well after."""
+    if os.path.exists(SAID + ".pend"):
+        os.unlink(SAID + ".pend")
+    do(cmd)
+    deadline = time.time() + 20
+    while time.time() < deadline and not os.path.exists(SAID + ".pend"):
+        time.sleep(0.05)
+    time.sleep(0.1)
+    return open(SAID + ".pend").read().strip() if os.path.exists(SAID + ".pend") else ""
+
+
 stuck, sfd = newconn("demo")
-do('big=$(printf "%%0%dd" 0); for i in 1 2 3 4 5 6; do dt_rtsay %s "$i$big"; done; '
+result('big=$(printf "%%0%dd" 0); for i in 1 2 3 4 5 6; do dt_rtsay %s "$i$big"; done; '
    'echo "${DT_RTPEND[%s]-none} $RET" > %s.pend' % (LINE - 1, sfd, sfd, SAID))
 pend = open(SAID + ".pend").read().split() if os.path.exists(SAID + ".pend") else []
 took = answered(5)
 check("what the desktop says to an app that has stopped reading waits for it, and the desktop answers at once",
       sfd != "" and pend[:1] == ["1"] and int(pend[1]) > 0 and took < 0.6, (sfd, pend, round(took, 3)))
 got, _ = readall(stuck, 6 * (LINE + 1), 10)
-do('echo "${DT_RTPEND[%s]-none}" > %s.pend' % (sfd, SAID))
+result('echo "${DT_RTPEND[%s]-none}" > %s.pend' % (sfd, SAID))
 lines = got.split(b"\n")
 check("once it reads, all of it arrives in order and nothing is left waiting",
       len(got) == 6 * (LINE + 1) and [l[:1] for l in lines[:6]] == [b"1", b"2", b"3", b"4", b"5", b"6"]
       and open(SAID + ".pend").read().strip() == "none", (len(got), open(SAID + ".pend").read()))
 hung, hfd = newconn("demo")
-do('big=$(printf "%%0%dd" 0); for i in {1..20}; do dt_rtsay %s "$big" || break; done; '
+result('big=$(printf "%%0%dd" 0); for i in {1..20}; do dt_rtsay %s "$big" || break; done; '
    'echo "${DT_RTC[%s]-gone}" > %s.pend' % (LINE - 1, hfd, hfd, SAID))
 check("past DT_RTQMAX waiting, the app is let go, and the log says which and why",
       open(SAID + ".pend").read().strip() == "gone" and "demo stopped reading" in log(), log()[-300:])
