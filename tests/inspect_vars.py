@@ -83,9 +83,34 @@ class VariableInspection(unittest.TestCase):
                          'local')
         self.assertEqual({r['owner'] for r in records if r['name'] == 'total'},
                          {'update'})
+        self.assertEqual({r['scope_kind'] for r in records if r['name'] == 'total'},
+                         {'function'})
+        self.assertEqual(len({r['scope_id'] for r in records if r['name'] == 'total'}), 1)
         parameter = next(r for r in records if r['kind'] == 'parameter')
         self.assertEqual(parameter['name'], 'amount')
         self.assertEqual(records[0]['owner'], None)
+        self.assertEqual(records[0]['scope_kind'], 'module')
+        self.assertEqual(records[0]['scope_id'], 'module')
+
+    def test_nested_function_sites_have_distinct_enclosing_scope_ids(self):
+        source = ('fn outer() {\n'
+                  '  local value=1\n'
+                  '  fn inner() { value=2; echo "$value"; }\n'
+                  '  value=3\n'
+                  '}\n')
+        result = inspect(self.write('nested-scope.hibr', source))
+        self.assertEqual(result['state'], 'ok', result)
+        self.assertFalse(result['partial'], result)
+        outer = [r for r in result['vars'] if r['name'] == 'value' and
+                 r['owner'] == 'outer']
+        inner = [r for r in result['vars'] if r['name'] == 'value' and
+                 r['owner'] == 'inner']
+        self.assertTrue(outer, result)
+        self.assertTrue(inner, result)
+        self.assertEqual({r['scope_kind'] for r in outer + inner}, {'function'})
+        self.assertEqual(len({r['scope_id'] for r in outer}), 1)
+        self.assertEqual(len({r['scope_id'] for r in inner}), 1)
+        self.assertNotEqual(outer[0]['scope_id'], inner[0]['scope_id'])
 
     def test_arithmetic_comparison_reads_and_no_false_comparison_write(self):
         source = 'fn f() { ((left < right)); ((left == right)); }\n'

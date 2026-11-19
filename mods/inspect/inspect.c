@@ -1619,7 +1619,8 @@ static int ix_query(sh *caller, const char *request, const char *path,
 				const char *owner = v->owner;
 				next = v->next;
 				if (!owner)
-					for (i = 0; i < units.n; i++)
+				for (i = 0; i < units.n; i++)
+					if (!owner)
 						owner = ix_var_owner_in(&c,
 							((ix_unit *)units.p[i])->tree,
 							v->start, owner);
@@ -1635,6 +1636,15 @@ static int ix_query(sh *caller, const char *request, const char *path,
 				s_cat(&records, ",\"kind\":"); ix_quote(&records, v->kind);
 				s_cat(&records, ",\"owner\":");
 				if (owner) ix_quote(&records, owner); else s_cat(&records, "null");
+				s_cat(&records, ",\"scope_kind\":");
+				ix_quote(&records, owner ? "function" : "module");
+				s_cat(&records, ",\"scope_id\":");
+				if (owner) {
+					s_cat(&records, "\"function:");
+					lg_jstr(&records, owner);
+					s_ch(&records, '"');
+				} else
+					s_cat(&records, "\"module\"");
 				if (v->storage) {
 					s_cat(&records, ",\"storage\":");
 					ix_quote(&records, v->storage);

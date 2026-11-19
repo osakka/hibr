@@ -13,7 +13,13 @@ Load the module with `need inspect`. Requests are `functions FILE`, `calls FILE 
   `:=` bindings, loop targets, `read`/`mapfile`/`printf -v` destinations,
   arithmetic reads and writes, and parameter-expansion reads. An optional
   function name selects records owned by that function. Top-level records have
-  `owner: null`. Declaration records include `storage: local|global` where
+  `owner: null`. Every record has `scope_kind` (`function` or `module`) and a
+  source-snapshot-local `scope_id` (`function:<name>` or `module`) for its
+  innermost enclosing function. This groups sites by syntax owner; it
+  does not resolve a read to a declaration or claim lexical binding. Hibr
+  function-local variables can be visible through caller frames, so dynamic
+  lookup and runtime reaching definitions require execution evidence.
+  Declaration records include `storage: local|global` where
   Hibr's declaration command determines it. Command-prefix assignments have
   `kind: prefix`; they are not treated as persistent writes by strict-variable
   analysis. All records describe syntax, never a runtime value.
@@ -65,7 +71,7 @@ Every evidence record has `source`, `span` and `known`. Nested body metadata inh
 | `bound`, `binding`, `binding_source` | Whether `:=` binds a call, its static target when known, or a computed target's source span. |
 | `dynamic`, `expression`, `expression_state`, `reason` | An expanded command name remains dynamic/unresolved. Its expression is shown unless it contains command code; then source-span-required replaces disclosure. Unmapped transformed backticks and depth-limited fragments are explicitly unresolved/partial. |
 | `lookup` | References distinguish `inspected-file` from `supplied-symbol`. Literal references prove naming, not calling. |
-| `id`, `kind`, `storage` | Variable records use deterministic `var:N` IDs scoped to this source snapshot. `kind` distinguishes `parameter`, `declaration`, `write`, `prefix`, `bind`, `loop-write`, `array-write` and `read`. `storage` appears on declarations and distinguishes function-local from global declaration commands. |
+| `id`, `kind`, `storage`, `scope_kind`, `scope_id` | Variable records use deterministic `var:N` IDs scoped to this source snapshot. `kind` distinguishes `parameter`, `declaration`, `write`, `prefix`, `bind`, `loop-write`, `array-write` and `read`. `storage` appears on declarations and distinguishes function-local from global declaration commands. Scope groups records by innermost syntactic owner (`function:<name>`) or top-level module (`module`); it does not identify a unique runtime frame or resolve reads to declarations. Hibr local lookup can see caller frames; static inspection does not resolve dynamic lookup or runtime reaching definitions. |
 | `registration`, `rule`, `rules_path`, `rules_source` | Optional convention inference, its named rule and exact convention-file identity. Registration records also identify prefix and role. |
 | `message`, `reference` | Diagnostic/finding text and, for lint findings, the supporting guideline reference. |
 
