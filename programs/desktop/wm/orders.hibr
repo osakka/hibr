@@ -156,3 +156,9 @@ dt_barreading() {
 		DT_BARREAD+=("$nm")
 	done
 }
+
+# Whether the list has button k switched off.
+fn dt_btnhidden(k) {
+	case " title $DT_BTNON " in *" $k "*) return 1 ;; esac
+	return 0
+}

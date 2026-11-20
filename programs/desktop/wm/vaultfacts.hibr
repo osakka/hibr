@@ -32,3 +32,18 @@ fn dt_vwhost(addr) {
 	esac
 	ret "${h,,}"
 }
+
+# The key mark a sign-in form draws beside its password field, at pane row
+# r and column c, while there is a vault to fill it from: a press on it is
+# Fill Sign-In, taken by the desktop before the app is asked. Nothing is
+# drawn, and nothing taken, with no vault.
+fn dt_signmark(int id, int r, int c) {
+	local g=${GL["signin"]} n
+
+	[ -r "$DT_VWCMD" ] && [ -r "$DT_VWCONF/account.json" ] || return 1
+	n := str width "$g"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$r" "$c" "$g"
+	dt_wreg "$id" "$r" "$c" "$n" dt-signin
+	return 0
+}

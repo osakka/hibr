@@ -60,3 +60,29 @@ fn dt_dispat(int cr, int cc) {
 	DTW_W=$dcols
 	return 0
 }
+
+# Is it minimised?
+fn dt_hidden(int id) {
+	[ "${DT[$id]["min"]}" = 1 ]
+}
+
+# Whether a window is on a workspace other than the current one. A sticky
+# window (DT[id]["sticky"]) is on every workspace, so never away.
+fn dt_away(int id) {
+	[ "${DT[$id]["sticky"]}" != 1 ] && [ "${DT[$id]["ws"]:-1}" != "$DT_WS" ]
+}
+
+# Whether a window is drawn with no border, Frame none: its title bar the
+# only row of frame, and no border anywhere else -- so its content runs to
+# its edge, and the app's own column 1 is the window's first. A bare window
+# and one with no chrome draw every cell themselves already.
+fn dt_capped(int id) {
+	[ "$DT_FRAME" = none ] || return 1
+	[ "${DT[$id]["chrome"]}" != none ] || return 1
+	[ "${DT_APPS[${DT[$id]["app"]}]["bare"]}" != 1 ]
+}
+
+# Whether a display is blank.
+fn dt_isblank(nm) {
+	[[ " $DT_BLANK " == *" $nm "* ]]
+}

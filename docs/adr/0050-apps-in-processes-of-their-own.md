@@ -453,6 +453,29 @@ answer from shared state live in shared files (`winfacts`, `orders`,
 `namefacts`, `wallfacts`, `prayerfacts`, `vaultfacts`), so an app answers
 them from its own copy: the asked requests went from 16 to 8.
 
+### What makes a request asked (2026-11-20)
+
+A request is asked, never by choice, when an installable needs an answer
+from it, and the parser says so (`tools/appcalls.py`, `asked()`): its value
+taken (`x := f`, `$(f)`), its status tested where it stands (`inspect calls`'
+`tested`: the condition of `if`, `while` and `until`, the left of `&&` and
+`||`, what `!` negates, the last command of a tested group), or what it
+changed read back in the same function after the call (`tools/appstate.py`'s
+`backs`, by the parser's positions: ADR 0050's read-your-own-writes). Told,
+any of these would answer 0 and leave the caller reading its own stale copy.
+The old rule saw only `:=` and `$( )` and called 8 requests asked; this one
+finds 27, from 54 once a request's predicates that only read shared state
+moved to the app's own copy (`dt_hidden`, `dt_away`, `dt_capped`,
+`dt_isblank`, `dt_btnhidden`, `dt_signmark`). Two status reads `tested`
+cannot see are held at none (`statusholes`): `$?` read after a told request,
+and a function ending in one whose own status a caller tests. An ask reachable
+from a frame path -- `_draw`, `_dirty`, `_idle`, a ticker -- is a round trip
+each time the path runs; the count is held (`FRAMEASKS`, 41) and only ever
+lowered. What is left there is conditional (a title changed, a note on an
+error, a bell) or waits on the openers becoming declared data (`dt_isbundle`,
+`dt_locof`, `dt_loccan`). Counting only code, not comments, as handing a
+function over brought the names sent to every process to 24 of 246.
+
 ### Asked requests (2026-11-19, protocol 6)
 
 A request whose answer the app takes (`asked` in `interface.tsv`) is sent
@@ -469,7 +492,17 @@ ms, the owner's), applying shared lines in order as they come and keeping
 tells for after; it answers its caller with the request's status, 125 when
 nothing came in time, 126 when the desktop refused, and drops a late answer
 by its number. The wait is the desktop's, so it is logged `asked:` and never
-charged to the app as a stall. Finding it turned up a core bug in every
+charged to the app as a stall. Measured (2026-11-20), 300 asks in a row from one app, each
+posting a note: **70 ms an ask** at the default `DT_TERMMS` and 53 ms with it at
+20. Two costs stack. The desktop waits out a held frame with `console key
+-q`, which ignores every watched descriptor, the app's socket among them --
+so the app's socket is to wake that wait as a key does (an input-class
+descriptor, with the cells channel's echo rule beside it). And each answer
+lets the app send its next ask, which then queues behind the frame the last
+one asked for: in-process, 300 notes are drawn once; asked one by one, they
+are 300 frames. So an ask costs up to a desktop frame by construction, which
+is why the asks reachable from a frame path are counted (`FRAMEASKS`) and only
+ever lowered, and why a request whose status nobody needs is told. Finding it turned up a core bug in every
 release before: once `RET` had held a map, a later scalar result kept the
 map's array mark, so the window's id went out as `[]`
 (`tests/999-ret-scalar-after-map.t`).

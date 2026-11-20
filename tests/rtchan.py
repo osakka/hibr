@@ -13,6 +13,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
 from screen import Term, check, report, load, tree, scratch
 
+# A note sent the way the contract says dt_notep crosses -- told, or asked
+# with a far deadline -- read from interface.tsv, never assumed: its class is
+# the parser's (an installable that tests its status makes it asked).
+NOTEVERB = [l.split("\t")[5] for l in open(tree("programs/desktop/interface.tsv"))
+            if l.startswith("request\tdt_notep\t")][0]
+NOTESEQ = [0]
+
+
+def note(text):
+    """The line that has the desktop show text (already %-encoded) as a note."""
+    if NOTEVERB == "told":
+        return "tell dt_notep low %s\n" % text
+    NOTESEQ[0] += 1
+    return "ask %d 99999999999999 dt_notep low %s\n" % (900 + NOTESEQ[0], text)
+
+
 MOD = tree("build/mods/console.so")
 WM = tree("programs/desktop/desktop.hibr")
 HERE = tree("programs/desktop")
@@ -226,7 +242,7 @@ for i in range(5):
 time.sleep(0.5)
 try:
     k = client("demo")
-    k.sendall("tell dt_notep low still%20here\n".encode())
+    k.sendall(note("still%20here").encode())
     sc = t.until("still here", tries=60, step=0.1)
     alive = sc.find("still here") is not None
 except OSError as e:
@@ -238,7 +254,7 @@ if not alive:
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
-half.sendall("tell dt_notep low half%20a".encode())
+half.sendall(note("half%20a").rstrip("\n").encode())
 time.sleep(0.3)
 took = max(answered(1) for _ in range(3))
 check("half a line and a pause hold the desktop up not at all", took < 0.6, round(took, 3))
@@ -250,7 +266,7 @@ check("and the line is carried whole once its end arrives",
 # A flood: thousands of lines at once. The desktop answers between them,
 # and every one is carried in the end, in order.
 flood = client("demo")
-flood.sendall(("tell dt_log flood\n" * 3000 + "tell dt_notep low flood%20done\n").encode())
+flood.sendall(("tell dt_log flood\n" * 3000 + note("flood%20done")).encode())
 time.sleep(0.2)
 took = max(answered(1) for _ in range(3))
 check("a flood of lines from one app holds the desktop up not at all", took < 0.6, round(took, 3))
@@ -300,7 +316,7 @@ while time.time() < deadline and not (os.path.exists(SAID + ".other") and open(S
     time.sleep(0.05)
 other = open(SAID + ".other").read().strip()
 g = client("demo")
-g.sendall(("tell dt_rslog from%%20demo\ntell dt_del %s\ntell dt_notep low guarded\n" % other).encode())
+g.sendall(("tell dt_rslog from%%20demo\ntell dt_del %s\n" % other + note("guarded")).encode())
 sc = t.until("guarded", tries=60, step=0.1)
 check("a request its own file never makes is refused by name",
       "demo asked for dt_rslog, which its own file never asks for" in log(), log()[-500:])

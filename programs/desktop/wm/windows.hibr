@@ -245,11 +245,6 @@ fn dt_ghostgone(id) {
 	return 0
 }
 
-# Is it minimised?
-fn dt_hidden(int id) {
-	[ "${DT[$id]["min"]}" = 1 ]
-}
-
 # Put a window on top and give it the keyboard.
 fn dt_raise(int id) {
 	dt_winok "$id" dt_raise || return 1

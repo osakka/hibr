@@ -245,6 +245,55 @@ def writers():
     return sorted(set(found))
 
 
+def backs(files, reads):
+    """What an installable reads back after changing it through the desktop:
+    (installable, name, the platform function that writes it) -- a read of the
+    name in the same function, after the call, by the parser's positions. In
+    a process of its own the change reaches the app's copy only after the
+    pass, so that call is an asked request, answered once it has (ADR 0050's
+    read-your-own-writes); a read in another callback, later, already sees
+    it. tools/appcalls.py reads this, one list."""
+    wr = collections.defaultdict(set)
+    for f, fn, n in writers():
+        wr[fn].add(n)
+    back = set()
+    for f in files:
+        if not any(f in reads.get(n, ()) for ns in wr.values() for n in ns):
+            continue
+        calls = co_calls(f)
+        rd = co_reads(f)
+        for owner, fn, at in calls:
+            for n in wr.get(fn, ()):
+                if any(o == owner and nm == n and pos > at for o, nm, pos in rd):
+                    back.add((kindrel(f), n, fn))
+    return back
+
+
+def co_calls(f):
+    """Each call in f: (owning function, name, source offset)."""
+    out = []
+    for c in inspect("calls", [f])[0].get("calls", []):
+        if c.get("owner") and c.get("name"):
+            out.append((c["owner"], c["name"], c.get("span", {}).get("start", 0)))
+    return out
+
+
+def co_reads(f):
+    """Each read of a variable in f: (owning function, name, source offset)."""
+    out = []
+    for v in inspect("vars", [f])[0].get("vars", []):
+        if v.get("access") == "read" and v.get("owner") and v.get("declared") not in ("local", "param"):
+            out.append((v["owner"], v["name"], v.get("span", {}).get("start", 0)))
+    return out
+
+
+def readbacks():
+    """backs() over every installable, for a caller outside this tool."""
+    files = installables()
+    reads, _ = inventory(files, globals_())
+    return backs(files, reads)
+
+
 def mirrors(reads):
     """programs/desktop/mirrors.hibr: who reads each shared name, which is
     all the desktop needs besides the names themselves (dt_share): every
@@ -358,14 +407,17 @@ def reach():
     # every process.
     words = co.Counter()
     for f in common:
-        words.update(re.findall(r"\b(%s)\b" % "|".join(map(re.escape, fnreads)),
-                                open(f, errors="replace").read()))
+        code = "\n".join(l for l in open(f, errors="replace").read().split("\n")
+                         if not l.lstrip().startswith("#"))
+        words.update(re.findall(r"\b(%s)\b" % "|".join(map(re.escape, fnreads)), code))
     for fn in fnreads:
         if words[fn] > static[fn] + 1:
             star |= fnreads[fn]
     pat = re.compile(r"\b(%s)\b" % "|".join(map(re.escape, fnreads)))
     for f in inst:
-        for fn in set(pat.findall(open(f, errors="replace").read())):
+        code = "\n".join(l for l in open(f, errors="replace").read().split("\n")
+                         if not l.lstrip().startswith("#"))
+        for fn in set(pat.findall(code)):
             callers[fn].add(("file", kindrel(f)))
     files = {}
 
@@ -510,22 +562,7 @@ def main():
             if not any(row[0] == n and row[4] == CONVERT[n] for row in rows):
                 print("FAIL %s is in CONVERT and no installable reads it: take it out" % n)
                 fail = 1
-    # What an installable reads back after changing it through the desktop:
-    # in a process of its own that call is an asked request, answered only
-    # after the change has been sent. The asked-requests slice works from
-    # this list.
-    wr = collections.defaultdict(set)
-    for f, fn, n in writers():
-        wr[n].add(fn)
-    back = set()
-    for f in files:
-        t = open(f, errors="replace").read()
-        for n, fns in wr.items():
-            if f not in reads.get(n, ()):
-                continue
-            for fn in fns:
-                if re.search(r"(^|[\s;&|(])%s\b" % fn, t, re.M):
-                    back.add((kindrel(f), n, fn))
+    back = backs(files, reads)
     print("  read back after a change through the desktop: %d (an installable, a name, the call)" % len(back))
     # Shared code writes a shared name in whichever process calls it, and in
     # an app's process the guard refuses it: each is a request to convert

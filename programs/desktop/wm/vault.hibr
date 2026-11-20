@@ -25,6 +25,7 @@ dt_keep DT_VWCLEAR DT_VWSYNC
 DT_VWCMD="$DT_HERE/../vw.hibr"
 DT_VWRUN=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-vw-$UID
 DT_VWCONF=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/vw
+dt_share DT_VWCMD DT_VWCONF
 # The session key, inherited from whoever started the desktop or set here.
 VW_SESSION="${VW_SESSION-}"
 # Set as a prefix on every vw this file runs, so it reads a password from
@@ -499,21 +500,6 @@ fn vwp_choose(int id, int i) {
 }
 
 fn vwp_close(int id) { unset VWP["$id"]; }
-
-# The key mark a sign-in form draws beside its password field, at pane row
-# r and column c, while there is a vault to fill it from: a press on it is
-# Fill Sign-In, taken by the desktop before the app is asked. Nothing is
-# drawn, and nothing taken, with no vault.
-fn dt_signmark(int id, int r, int c) {
-	local g=${GL["signin"]} n
-
-	[ -r "$DT_VWCMD" ] && [ -r "$DT_VWCONF/account.json" ] || return 1
-	n := str width "$g"
-	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" "$r" "$c" "$g"
-	dt_wreg "$id" "$r" "$c" "$n" dt-signin
-	return 0
-}
 
 # The window whose sign-in a pick is filling, while the pick is open.
 DT_VWFILLWIN=

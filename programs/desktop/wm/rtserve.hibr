@@ -52,10 +52,16 @@ declare -gA DT_RTCFILE
 # whose first word is a window; and, per app, the requests its own file
 # makes, read once from the file (never run) and kept by its path.
 declare -gA DT_RTALLOW DT_RTWIN DT_RTMAY DT_RTMAYOF
-# The asked requests interface.tsv names: an app waits for each one's answer
-# (dt_rtask in runtime.hibr), which the desktop sends once what the request
-# changed has gone out, so a read after it sees it.
+# The asked and waited requests interface.tsv names: an app waits for each
+# one's answer (dt_rtask in runtime.hibr), which the desktop sends once what
+# the request changed has gone out, so a read after it sees it. `bind` for one
+# that answers with a value (it calls ret), `wait` for one whose status is the
+# whole answer -- the contract's own column, never decided here.
 declare -gA DT_RTASK
+# The connection a request being run came in on, empty for the desktop's own
+# and an in-process app's calls: what a request checks before trusting
+# DT_CALLER as a hosted process (dt_set's allowlist).
+DT_RTFROM=
 
 # Start listening for app processes, once: the socket beside the control
 # socket's, its path exported for what the desktop starts to inherit.
@@ -83,7 +89,8 @@ dt_rtlisten() {
 		[ "$c" = request ] || continue
 		case $a in
 		told) DT_RTALLOW["$f"]=1 ;;
-		asked) DT_RTASK["$f"]=1 ;;
+		asked) DT_RTASK["$f"]=bind ;;
+		waited) DT_RTASK["$f"]=wait ;;
 		*) continue ;;
 		esac
 		[[ $sg == "$f"\(id* || $sg == "$f(int id"* ]] && DT_RTWIN["$f"]=1
@@ -551,6 +558,11 @@ fn dt_rtmay(name) {
 	for f in "${!DT_RTALLOW[@]}" "${!DT_RTASK[@]}"; do
 		[[ $t == *"$f"* ]] && DT_RTMAY["$name $f"]=1
 	done
+	# The settings it may change through dt_set: a kept one its own file
+	# names as a word (ADR 0050: accepted only for a setting it declares).
+	for f in "${DT_KEEP[@]}"; do
+		[[ $t =~ (^|[^A-Za-z0-9_])$f([^A-Za-z0-9_]|$) ]] && DT_RTMAY["$name set:$f"]=1
+	done
 	DT_RTMAYOF["$name"]=$src
 	return 0
 }
@@ -653,7 +665,7 @@ fn dt_rtmsg(int c, line) {
 			return 0
 		fi
 		t0=${EPOCHREALTIME/./}
-		DT_CALLER=$who "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
+		DT_CALLER=$who DT_RTFROM=$c "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
 		dt_spent "${a[1]}" "$((${EPOCHREALTIME/./} - t0))" "$who"
 		;;
 	ask)
@@ -702,9 +714,16 @@ fn dt_rtanswer(int c, who, seq, until, name = "", ...args) {
 	fi
 	t0=${EPOCHREALTIME/./}
 	DT_CALLER=$who
-	x := "$name" "${args[@]}"
-	st=$?
+	DT_RTFROM=$c
+	if [ "${DT_RTASK["$name"]}" = bind ]; then
+		x := "$name" "${args[@]}"
+		st=$?
+	else
+		"$name" "${args[@]}"
+		st=$?
+	fi
 	DT_CALLER=
+	DT_RTFROM=
 	dt_spent "$name" "$((${EPOCHREALTIME/./} - t0))" "$who"
 	# What the request changed goes first, held or not.
 	dt_rtpass force

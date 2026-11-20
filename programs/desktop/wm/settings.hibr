@@ -630,6 +630,43 @@ dt_load() {
 # A desktop hosting one app for another saves nothing: desktop.json is the
 # other desktop's, and two writers would each undo the other.
 DT_HOSTED=
+# A desktop setting changed by name, and saved at once: the one way anything
+# but the desktop's own code sets one (ADR 0050), the same in-process and
+# hosted. Pairs of NAME VALUE, every name a kept setting (DT_KEEP), all
+# checked before any is set, one save for them all -- a theme's colours are
+# one request. From an app's own process (DT_RTFROM) a name its own file
+# never names is refused, as the ADR decided a pane may change only what its
+# rows declare.
+fn dt_set(...pairs) {
+	local i n k ok
+
+	if [ "${#pairs[@]}" = 0 ] || (( ${#pairs[@]} % 2 )); then
+		dt_log "dt_set: a name with no value"
+		return 2
+	fi
+	for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+		n=${pairs[$i]}
+		ok=
+		for k in "${DT_KEEP[@]}"; do
+			[ "$k" = "$n" ] && { ok=1; break; }
+		done
+		if [ -z "$ok" ]; then
+			dt_log "dt_set: $n is not a kept setting"
+			return 1
+		fi
+		if [ -n "${DT_RTFROM-}" ] && [ -z "${DT_RTMAY["$DT_CALLER set:$n"]+x}" ]; then
+			dt_log "app runtime: ${DT_CALLER:-an app} set $n, which its own file never names"
+			return 1
+		fi
+	done
+	for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+		local -n v=${pairs[$i]}
+		v=${pairs[$((i + 1))]}
+		unset -n v
+	done
+	dt_save
+}
+
 dt_save() {
 	local v k n i s
 

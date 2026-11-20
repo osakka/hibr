@@ -22,12 +22,6 @@ DT_WS=1
 DT_WSN="${DT_WSN-3}"
 declare -gA DT_WSORD
 
-# Whether a window is on a workspace other than the current one. A sticky
-# window (DT[id]["sticky"]) is on every workspace, so never away.
-fn dt_away(int id) {
-	[ "${DT[$id]["sticky"]}" != 1 ] && [ "${DT[$id]["ws"]:-1}" != "$DT_WS" ]
-}
-
 # Put a window on every workspace, or take it off them -- toggled, unless
 # on says which. Made sticky it shows here at once if it was elsewhere;
 # taken off, it stays on the workspace it is seen on now.

@@ -62,7 +62,7 @@ for _n in """dt_vwstate dt_vwcopy dt_vwlock dt_vwacct dt_vwjob dt_vw dt_vwget
 # What changes the desktop itself: asked of it, never done in the app.
 for _n in """dt_changed dt_fopsave dt_fopundo dt_trash dt_fileop dt_locof dt_loccan
         dt_location dt_context_open dt_panelpane dt_vwdialog dt_chromeoff
-        dt_btnhidden dt_capped dt_imepre dt_imekey dt_imeflush
+        dt_imepre dt_imekey dt_imeflush
         dt_pointer dt_pointerlock dt_ptrlockcan dt_sbauto dt_sbcall dt_tile
         dt_place dt_openlink dt_progload dt_progsave dt_deskscan dt_dnd dt_pwdo
         dt_pwgo dt_pkstart dt_pkstop dt_kbset dt_saverload dt_saverstart
@@ -82,10 +82,9 @@ for _n in "dt_size dt_edit dt_natcell".split():
 for _n in "dt_keyphases dt_keyswap".split():
     OVERRIDE[_n] = "request"
 OVERRIDE["dt_appaction"] = "declare"
-# The vault's sign-in mark is the desktop's key path; whether a display is
-# blank is the desktop's fact, pushed; the bus is one
+# The bus is one
 # connection, the desktop's, so an app subscribes to it by asking.
-for _n in "dt_signmark dt_isblank dt_buson dt_busoff".split():
+for _n in "dt_buson dt_busoff".split():
     OVERRIDE[_n] = "request"
 OVERRIDE["dt_keepstate"] = "declare"
 # The input method runs in every app process, its data shared from the
@@ -116,6 +115,33 @@ def defs():
             if m:
                 where.setdefault(m.group(1), rel)
     return where
+
+
+def rets(where):
+    """The platform functions that answer with a value: their body calls
+    `ret`, by the parser. Only those are bound when asked (`x := f` in the
+    desktop, `ret -k` in the stub); one that does not is waited for, its
+    status the whole answer -- a fact of the function, never of a caller."""
+    out = set()
+    for rel in sorted(set(where.values())):
+        f = os.path.join(ROOT, "programs/desktop", rel)
+        for c in records(f, "calls").get("calls", []):
+            if c.get("name") == "ret" and c.get("owner"):
+                out.add(c["owner"])
+    return out
+
+
+def binders(rows):
+    """Each call site binding a request that answers with no value: (file,
+    line, request) -- `x := f` of a function that never calls ret binds
+    empty, in-process as hosted, so the site is the bug."""
+    waited = set(r[1] for r in rows if r[0] == "request" and r[5] == "waited")
+    out = []
+    for f in installables():
+        for c in records(f, "calls").get("calls", []):
+            if c.get("name") in waited and (c.get("bound") or c.get("scope") == "substitution"):
+                out.append((os.path.basename(f), c.get("line", "?"), c["name"]))
+    return out
 
 
 def platform(f):
@@ -178,13 +204,121 @@ def reaches(cls):
 
 
 def asked(files, names):
-    """The platform functions whose answer an installable takes (x := f, $(f))."""
+    """The platform functions an installable needs an answer from, by the
+    parser: their value taken (`x := f`, `$(f)`), their status tested (`if
+    f`, `f ||`, `! f` -- inspect's `tested`), or what they change read back
+    after (tools/appstate.py's backs). Told, any of them would answer 0 and
+    leave the caller reading its own stale copy; asked, the answer comes after
+    the change has been sent."""
+    import appstate
     hit = collections.Counter()
     for f in files:
-        for m in re.finditer(r"(?::=\s*|\$\(\s*)(dt_[a-z0-9_]+)", open(f, errors="replace").read()):
-            if m.group(1) in names:
-                hit[m.group(1)] += 1
+        for c in records(f, "calls").get("calls", []):
+            n = c.get("name")
+            if n in names and (c.get("bound") or c.get("tested") or c.get("scope") == "substitution"):
+                hit[n] += 1
+                why = "bound" if c.get("bound") or c.get("scope") == "substitution" else "tested"
+                asked.why[n].append((f, c.get("line", "?"), why))
+    for f, _, fn in appstate.readbacks():
+        if fn in names:
+            hit[fn] += 1
+            tree = os.path.join(ROOT, "programs", "desktop", f)
+            asked.why[fn].append((tree if os.path.exists(tree) else f, "?", "read back"))
     return hit
+
+
+asked.why = collections.defaultdict(list)
+
+
+def flips(rows):
+    """Each request whose answer differs from the committed table: (name, was,
+    now, why), why the sites that make it so. A class changes for every app
+    at once -- one installable's tested status made dt_notep a round trip
+    for all of them -- so a difference fails until it is taken with --write,
+    which puts it in the commit's diff where it is read."""
+    if not os.path.exists(OUT):
+        return []
+    was = {}
+    for l in open(OUT):
+        c = l.rstrip("\n").split("\t")
+        if len(c) > 5 and c[0] == "request":
+            was[c[1]] = c[5]
+    return [(r[1], was[r[1]], r[5], asked.why.get(r[1], [])) for r in rows
+            if r[0] == "request" and r[1] in was and was[r[1]] != r[5]]
+
+
+# Asked requests reachable from a frame path, held to this many and only ever
+# lowered (54, then 41 once Switchboard 0.5.66 tested no note): an ask there
+# is a round trip each time the path runs. What is left
+# is conditional -- a title changed, a note on an error, a bell -- or waits on
+# the openers being declared data (dt_isbundle, dt_locof, dt_loccan).
+FRAMEASKS = 41
+
+
+def kinds(rows):
+    """The requests by how they cross: (told, asked or waited)."""
+    told = set(r[1] for r in rows if r[0] == "request" and r[5] == "told")
+    asked = set(r[1] for r in rows if r[0] == "request" and r[5] in ("asked", "waited"))
+    return told, asked
+
+
+def frameasks(rows):
+    """Each (installable, asked request, a path to it) reachable from a
+    function a frame runs -- an app's _draw, _dirty and _idle, and a ticker it
+    registers -- through the functions of its own file."""
+    _, asked = kinds(rows)
+    frame = re.compile(r"_(draw|dirty|idle)$")
+    out = set()
+    for f in installables():
+        calls = collections.defaultdict(set)
+        roots = set()
+        for c in records(f, "calls").get("calls", []):
+            o, n = c.get("owner"), c.get("name")
+            if o and n:
+                calls[o].add(n)
+                if frame.search(o):
+                    roots.add(o)
+        roots |= set(re.findall(r"\bdt_ticker\s+([A-Za-z_][A-Za-z0-9_]*)", open(f, errors="replace").read()))
+        rel = os.path.relpath(f, os.path.join(ROOT, "programs", "desktop"))
+        for r in roots:
+            seen, stack = {r}, [(r, [r])]
+            while stack:
+                fn, path = stack.pop()
+                for g in calls.get(fn, ()):
+                    if g in asked:
+                        out.add((rel, g, " > ".join(path + [g])))
+                    elif g in calls and g not in seen:
+                        seen.add(g)
+                        stack.append((g, path + [g]))
+    best = {}
+    for f, g, p in sorted(out):
+        best.setdefault((f, g), p)
+    return [(f, g, p) for (f, g), p in best.items()]
+
+
+def statusholes(rows):
+    """Status reads `tested` cannot see, of a told request (which answers 0 in
+    an app's own process): `$?` read on the next line, and a function ending
+    in one whose own status a caller in the file tests or takes."""
+    told, _ = kinds(rows)
+    qm, tail = [], []
+    for f in installables():
+        lines = open(f, errors="replace").read().split("\n")
+        calls = records(f, "calls").get("calls", [])
+        last = {}
+        rel = os.path.basename(f)
+        for c in calls:
+            o, n, ln = c.get("owner"), c.get("name"), c.get("line")
+            if o and ln:
+                if o not in last or c["span"]["start"] > last[o][1]:
+                    last[o] = (n, c["span"]["start"], ln)
+            if n in told and ln and ln < len(lines) and re.search(r"\$\?", lines[ln]):
+                qm.append((rel, ln + 1, n))
+        tested = set(c["name"] for c in calls if c.get("tested") or c.get("bound"))
+        for o, (n, _, ln) in last.items():
+            if n in told and o in tested:
+                tail.append((rel, ln, o, n))
+    return qm, tail
 
 
 def sigs():
@@ -428,13 +562,14 @@ def stubtext(rows):
             continue
         params = sig[sig.index("(") + 1:sig.rindex(")")].strip()
         head = "fn %s(%s)" % (name, params) if params else "%s()" % name
-        verb = "declare" if cls == "declare" else ("ask" if answer == "asked" else "tell")
+        verb = "declare" if cls == "declare" else ("ask" if answer in ("asked", "waited") else "tell")
         out.append("# %s, %s." % ({"declare": "Declared to the desktop", "ask": "Asked of the desktop",
                                     "tell": "Told to the desktop"}[verb], r[2]))
         out.append("%s {" % head)
-        # An asked request hands its answer on to whoever called it.
+        # An asked request hands its answer on to whoever called it; a waited
+        # one has none to hand, only its status.
         out.append("\tdt_rtsend %s %s %s%s" % (verb, name, stubargs(sig),
-                                                " && ret -k" if verb == "ask" else ""))
+                                                " && ret -k" if answer == "asked" else ""))
         out.append("}")
         out.append("")
     return "\n".join(out)
@@ -475,8 +610,9 @@ def main():
                 use[n] += 1
                 users[n].add(f)
     ask = asked(installables(), set(use))
+    ret = rets(where)
     rows = sorted(((classify(n, where[n]), n, where[n], use[n], len(users[n]),
-                    "asked" if ask[n] else "told") for n in use),
+                    ("asked" if n in ret else "waited") if ask[n] else "told") for n in use),
                   key=lambda r: (r[0], -r[3]))
     cls = {r[1]: r[0] for r in rows}
     far = reaches(cls)
@@ -491,7 +627,7 @@ def main():
         "%s %d" % (k, kinds[k]) for k in ("local", "request", "declare", "gone", "decide"))))
     req = [r for r in rows if r[0] == "request"]
     print("requests: %d told, %d asked (an answer the app takes): %s" % (
-        sum(1 for r in req if r[5] == "told"), sum(1 for r in req if r[5] == "asked"),
+        sum(1 for r in req if r[5] == "told"), sum(1 for r in req if r[5] in ("asked", "waited")),
         ", ".join(r[1] for r in req if r[5] == "asked")))
     print("local functions that reach a request: %d" % len(far))
     for n in sorted(far):
@@ -600,7 +736,38 @@ def main():
                 if not re.search(r"\bdt_ticker dt_jobtick\b|^dt_glyphs |^dt_locload$", t):
                     print("FAIL %s, part of the app interface, registers at load: %s" % (f, t[:80]))
                     fails += 1
-        print("\n%d passed, %d failed" % (len(rows) - len(undecided), fails))
+        if not os.path.isdir(APPS):
+            print("note: no catalogue at %s, whose installables decide some requests' classes: "
+                  "the classes are not compared with interface.tsv" % APPS)
+        for n, old, new, why in (flips(rows) if os.path.isdir(APPS) else []):
+            mine = lambda f: f.startswith(ROOT + os.sep)
+            sites = ["%s:%s (%s)" % (os.path.relpath(f, ROOT) if mine(f) else f, ln, w) for f, ln, w in why[:4]]
+            print("FAIL %s is %s in interface.tsv and %s now: %s -- read why, then take it with "
+                  "tools/appcalls.py --write" % (n, old, new, "; ".join(sites) or "no site wants an answer now"))
+            fails += 1
+        for x in binders(tablerows()):
+            print("FAIL %s:%s binds %s, which answers with no value (it never calls ret): "
+                  "test its status, or have it ret what it means" % x)
+            fails += 1
+        qm, tail = statusholes(tablerows())
+        for x in qm:
+            print("FAIL %s:%s reads $? after %s, a told request whose status is 0 in an app's own "
+                  "process: test it where it stands, or make it asked" % x)
+        for x in tail:
+            print("FAIL %s:%s %s ends with %s, a told request, and a caller tests %s's status: "
+                  "end it on something of its own, or make the request asked" % (x[0], x[1], x[2], x[3], x[2]))
+        fails += len(qm) + len(tail)
+        hot = frameasks(tablerows())
+        if len(hot) > FRAMEASKS and os.path.isdir(APPS):
+            for f, g, path in sorted(hot)[:20]:
+                print("  %s: %s" % (f, path))
+            print("FAIL %d asked requests are reachable from a frame path (_draw, _dirty, _idle, a ticker), "
+                  "more than the %d held to: an ask there is a round trip a frame" % (len(hot), FRAMEASKS))
+            fails += 1
+        elif len(hot) < FRAMEASKS:
+            print("note: %d asked requests reachable from a frame path, under the %d held to: "
+                  "lower FRAMEASKS in tools/appcalls.py" % (len(hot), FRAMEASKS))
+        print("\n%d passed, %d failed" % (len(rows) - len(undecided) + 3, fails))
         sys.exit(1 if fails else 0)
 
 

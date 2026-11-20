@@ -91,8 +91,6 @@ DT_WRAPLINES	4	2	widgets/textfit.hibr	local
 DT_WSN	6	0	wm/workspaces.hibr	shared
 DT_COLS	5	0	wm/bar.hibr	shared
 DT_HOVER	3	2	wm/settings.hibr	shared
-DT_NOTEHIST	4	1	wm/notify.hibr	shared
-DT_NOTEHIST_ORDER	4	1	wm/notify.hibr	shared
 DT_POPNAMENEXT	0	5	widgets/dropdown.hibr	local
 DT_TERMKEEP	5	0	wm/settings.hibr	shared
 WP_MODES	5	0	wm/settings.hibr	shared
@@ -136,6 +134,7 @@ DT_IMGCOMP	2	2	wm/wallpaper.hibr	shared
 DT_IMGDETAIL	2	2	wm/wallpaper.hibr	shared
 DT_IMGEDITS	2	2	wm/wallpaper.hibr	shared
 DT_IMGFD	2	2	wm/wallpaper.hibr	shared
+DT_ISON	2	2	wm/isolate.hibr	gone
 DT_KB	4	0	wm/keymatch.hibr	shared
 DT_KBN	4	0	wm/kbd.hibr	shared
 DT_LIVEMS	2	2	wm/settings.hibr	shared
@@ -156,6 +155,8 @@ DT_NOTECOLOUR	2	2	wm/notify.hibr	shared
 DT_NOTECOUNT	2	2	wm/notify.hibr	shared
 DT_NOTEFRAME	2	2	wm/notify.hibr	shared
 DT_NOTEFROM	0	4	wm/notify.hibr	arg
+DT_NOTEHIST	4	0	wm/notify.hibr	shared
+DT_NOTEHIST_ORDER	4	0	wm/notify.hibr	shared
 DT_NOTEHMAX	2	2	wm/notify.hibr	shared
 DT_NOTEHMIN	2	2	wm/notify.hibr	shared
 DT_NOTELIST	2	2	wm/notify.hibr	shared
@@ -211,11 +212,9 @@ WP_GLYPHS	4	0	wm/settings.hibr	shared
 WS_ALIGNS	4	0	wm/settings.hibr	shared
 WS_FRAMES	4	0	wm/settings.hibr	shared
 WS_STYLES	4	0	wm/settings.hibr	shared
-DT_HANDLERS	2	1	wm/handlers.hibr	shared
 DT_IME	3	0	wm/ime.hibr	shared
 DT_IMEC	3	0	wm/ime.hibr	local
 DT_IMEP	3	0	wm/ime.hibr	local
-DT_NOTEUNSEEN	0	3	wm/notify.hibr	request
 DT_PX	3	0	wm/loop.hibr	call
 DT_PY	3	0	wm/loop.hibr	call
 DT_SHOTFMT	2	1	wm/shot.hibr	shared
@@ -257,14 +256,15 @@ DT_FIELD	1	1	widgets/text.hibr	local
 DT_FOCUSHOVER	2	0	wm/settings.hibr	shared
 DT_FULLENDS	2	0	wm/settings.hibr	shared
 DT_GLYPHSETS	2	0	wm/glyphs.hibr	local
+DT_HANDLERS	2	0	wm/handlers.hibr	shared
 DT_HIGHLIGHT	0	2	wm/settings.hibr	shared
+DT_HOSTMARK	2	0	wm/isolate.hibr	gone
 DT_HOT	0	2	wm/settings.hibr	shared
 DT_ICONPENS	2	0	wm/settings.hibr	shared
 DT_ICONS	2	0	wm/icons.hibr	shared
 DT_IMEBY	1	1	wm/ime.hibr	local
 DT_IMGEDIT	0	2	wm/session.hibr	request
 DT_IMGFDNOW	0	2	wm/session.hibr	request
-DT_ISON	1	1	wm/isolate.hibr	gone
 DT_KBCUR	2	0	wm/kbd.hibr	shared
 DT_KBLOC	2	0	wm/kbd.hibr	shared
 DT_KBLOCAL	2	0	wm/kbd.hibr	shared
@@ -280,6 +280,8 @@ DT_LOCSUPN	2	0	wm/locale.hibr	local
 DT_LOCSUPRD	2	0	wm/locale.hibr	local
 DT_MENUBOLD	2	0	wm/settings.hibr	shared
 DT_MONTHS	2	0	wm/lang.hibr	local
+DT_NATCH	2	0	wm/native.hibr	call
+DT_NATCW	2	0	wm/native.hibr	call
 DT_NATFOCUSES	2	0	wm/native.hibr	call
 DT_NATIVE	2	0	wm/native.hibr	shared
 DT_NATLAYOUT	0	2	wm/native.hibr	request
@@ -287,6 +289,7 @@ DT_NATREMEMBER	2	0	wm/native.hibr	shared
 DT_NATX11	2	0	wm/native.hibr	shared
 DT_NOTECOLOURS	2	0	wm/frame.hibr	shared
 DT_NOTELEVELS	2	0	wm/notify.hibr	shared
+DT_NOTEUNSEEN	0	2	wm/notify.hibr	request
 DT_NOTEWIN	1	1	wm/notify.hibr	arg
 DT_NOTE_NEXT	2	0	wm/notify.hibr	request
 DT_OPENERORDER	2	0	wm/handlers.hibr	shared
@@ -341,14 +344,11 @@ DTW_C	1	0	wm/winfacts.hibr	local
 DTW_H	1	0	wm/winfacts.hibr	local
 DTW_R	1	0	wm/winfacts.hibr	local
 DTW_W	1	0	wm/winfacts.hibr	local
-DT_HOSTMARK	1	0	wm/isolate.hibr	gone
 DT_IMEAT	1	0	wm/ime.hibr	local
 DT_KEYBASE	1	0	wm/keyphase.hibr	call
 DT_KEYCODE	1	0	wm/keyphase.hibr	call
 DT_KEYMODS	1	0	wm/keyphase.hibr	call
 DT_KEYPHASE	1	0	wm/keyphase.hibr	call
-DT_NATCH	1	0	wm/native.hibr	call
-DT_NATCW	1	0	wm/native.hibr	call
 DT_PHASEWIN	1	0	wm/keyphase.hibr	call
 HIBR_GLYPHS	1	0	wm/glyphs.hibr	local
 MB_CX	1	0	wm/menus.hibr	call

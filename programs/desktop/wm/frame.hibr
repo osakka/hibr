@@ -57,12 +57,6 @@ fn dt_btnspec(style, int? fixed, int stuck = 0) {
 	done
 }
 
-# Whether the list has button k switched off.
-fn dt_btnhidden(k) {
-	case " title $DT_BTNON " in *" $k "*) return 1 ;; esac
-	return 0
-}
-
 # Draw one window: its face, then its app, then its frame over the top.
 # Its widget regions are forgotten just before its app draws, whichever
 # shape it is: an app that never called dt_wclear itself -- the terminal,
@@ -259,16 +253,6 @@ fn dt_castshadow(int r, int c, int h, int w, int? lim = "") {
 	[ "$bw" -gt 0 ] && console darken -s $((r + h)) $((c + 2)) 1 "$bw" "$p"
 	[ "$rw" -gt 0 ] && [ "$h" -gt 1 ] && console darken -s $((r + 1)) $((c + w)) $((h - 1)) "$rw" "$p"
 	return 0
-}
-
-# Whether a window is drawn with no border, Frame none: its title bar the
-# only row of frame, and no border anywhere else -- so its content runs to
-# its edge, and the app's own column 1 is the window's first. A bare window
-# and one with no chrome draw every cell themselves already.
-fn dt_capped(int id) {
-	[ "$DT_FRAME" = none ] || return 1
-	[ "${DT[$id]["chrome"]}" != none ] || return 1
-	[ "${DT_APPS[${DT[$id]["app"]}]["bare"]}" != 1 ]
 }
 
 # The screen column a window's app counts its own columns from: the

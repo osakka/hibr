@@ -25,6 +25,7 @@ strict
 DT_STANDBYDIR="${DT_STANDBYDIR-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/standby}"
 DT_STANDBYAUTO="${DT_STANDBYAUTO-1}"
 DT_BLANK=
+dt_share DT_BLANK
 DT_BLANKR=()
 DT_SBNAME=
 # The name it joins under, which is the one a display's wallpaper is
@@ -245,11 +246,6 @@ dt_sbauto() {
 # --- blank ------------------------------------------------------------------------
 
 DT_BLANKFILE="${XDG_STATE_HOME:-$HOME/.local/state}/hibr/blanked"
-
-# Whether a display is blank.
-fn dt_isblank(nm) {
-	[[ " $DT_BLANK " == *" $nm "* ]]
-}
 
 # Where each blank display is, from hold clients, into DT_BLANKR as "row
 # col rows cols" -- read again with every resize, as the primary is.
