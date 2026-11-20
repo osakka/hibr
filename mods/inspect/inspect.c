@@ -37,7 +37,7 @@ typedef struct {
 	int count, subdepth, partial;
 	vec vrecs, vfns, vused, vskip;
 	size_t vfn, cstart, cend, wstart, wend;
-	int wknown;
+	int wknown, tested;
 } ix_ctx;
 
 typedef struct {
@@ -626,6 +626,17 @@ static int ix_namecode(part *p)
 }
 
 /* Walk parsed units to produce function, call and literal-reference records. */
+/* Whether a node's first child's status is tested, as the shell tests it: a
+   condition of if, while and until, the left of && and ||, what ! negates;
+   a pipeline, a group, a subshell and time pass on what their own status
+   is; anything else -- a loop's body, a background job -- is not. */
+static int ix_testsl(int k, int t)
+{
+	if (k == N_AND || k == N_OR || k == N_IF || k == N_WHILE || k == N_UNTIL || k == N_NOT)
+		return 1;
+	return k == N_PIPE || k == N_GRP || k == N_SUB || k == N_TIME ? t : 0;
+}
+
 static void ix_walk(ix_ctx *c, node *n)
 {
 	node *p;
@@ -633,10 +644,12 @@ static void ix_walk(ix_ctx *c, node *n)
 	const char *was, *name, *kind;
 	size_t start, end, search;
 	redir *r;
-	int count, located;
+	int count, located, t = c->tested;
 
 	while (n && n->k == N_SEQ) {
+		c->tested = 0;
 		ix_walk(c, n->l);
+		c->tested = t;
 		n = n->r;
 	}
 	if (!n)
@@ -679,7 +692,9 @@ static void ix_walk(ix_ctx *c, node *n)
 			      n->f == 1 ? "true" : "false");
 			s_ch(c->out, '}');
 		}
+		c->tested = 0;
 		ix_walk(c, n->r);
+		c->tested = t;
 		c->owner = was;
 		return;
 	}
@@ -706,8 +721,9 @@ static void ix_walk(ix_ctx *c, node *n)
 			ix_quote(c->out, c->owner);
 			s_cat(c->out, ",\"resolution\":");
 			ix_quote(c->out, kind);
-			s_fmt(c->out, ",\"dynamic\":%s,\"bound\":%s",
-			      name ? "false" : "true", n->f == 2 ? "true" : "false");
+			s_fmt(c->out, ",\"dynamic\":%s,\"bound\":%s,\"tested\":%s",
+			      name ? "false" : "true", n->f == 2 ? "true" : "false",
+			      c->tested ? "true" : "false");
 			if (n->f == 2) {
 				s_cat(c->out, ",\"binding\":");
 				if (n->s)
@@ -763,9 +779,13 @@ static void ix_walk(ix_ctx *c, node *n)
 	}
 	if (!strcmp(c->request, "calls") || !strcmp(c->request, "refs"))
 		ix_words(c, n->w, &search);
+	c->tested = ix_testsl(n->k, t);
 	ix_walk(c, n->l);
+	c->tested = n->k == N_AND || n->k == N_OR || n->k == N_PIPE ? t : 0;
 	ix_walk(c, n->r);
+	c->tested = 0;
 	ix_walk(c, n->x);
+	c->tested = t;
 	if (!strcmp(c->request, "calls") || !strcmp(c->request, "refs"))
 		for (r = n->rd; r; r = r->nx)
 			ix_words(c, r->w, &search);
@@ -2515,6 +2535,10 @@ static void ix_plain(sh *s, const char *request, const char *path)
 				value = hibr_getp(s, "RET", keys, 3);
 				printf(" bound (%s :=)", value ? value : "?");
 			}
+			keys[2] = "tested";
+			value = hibr_getp(s, "RET", keys, 3);
+			if (value && !strcmp(value, "true"))
+				printf(" tested");
 		}
 		if (!strcmp(request, "vars")) {
 			keys[2] = "access";

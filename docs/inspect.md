@@ -58,6 +58,7 @@ Every evidence record has `source`, `span` and `known`. Nested body metadata inh
 | `summary`, `body` | Preceding author comment evidence and body span. A comment describes intent, not proven behavior. Body bytes are not returned. |
 | `resolution` | `function`, `builtin`, `module` or `unresolved`. A supplied external reference stays unresolved. |
 | `bound`, `binding`, `binding_source` | Whether `:=` binds a call, its static target when known, or a computed target's source span. |
+| `tested` | Whether the call's exit status is tested where it stands, as the shell tests it: the condition of `if`, `while` or `until`, the left of `&&` or `||`, what `!` negates, or the last command of a group, subshell, pipeline or `time` that is itself tested. A function body starts untested, and a status read later through `$?` is not seen. |
 | `dynamic`, `expression`, `expression_state`, `reason` | An expanded command name remains dynamic/unresolved. Its expression is shown unless it contains command code; then source-span-required replaces disclosure. Unmapped transformed backticks and depth-limited fragments are explicitly unresolved/partial. |
 | `lookup` | References distinguish `inspected-file` from `supplied-symbol`. Literal references prove naming, not calling. |
 | `registration`, `rule`, `rules_path`, `rules_source` | Optional convention inference, its named rule and exact convention-file identity. Registration records also identify prefix and role. |
