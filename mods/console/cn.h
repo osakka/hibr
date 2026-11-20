@@ -346,6 +346,8 @@ int cn_key(int ms, str *out);
 extern size_t cn_eaten;
 void cn_watchadd(int fd);
 void cn_watchdel(int fd);
+void cn_watchin(int fd, int on, int tmp);
+int cn_wis(size_t i);
 size_t cn_wlist(int **fds);
 void cn_gotkbd(void);
 /* SGR-Pixels, 1016 (Gitea #370): whether a program asked for the pointer
@@ -416,6 +418,55 @@ int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w);
 #ifndef CN_FILLED
 #define CN_FILLED (1u << 17)
 #endif
+
+/* A cell an app's own console holds that the app did not draw this frame:
+   whatever the desktop draws there shows (ADR 0050, the cell record's n).
+   A code point no glyph has, and not cn_inval's 0xFFFFFFFF, which says a
+   front cell is unknown. */
+#ifndef CN_NONE
+#define CN_NONE 0xFFFFFFFEu
+#endif
+/* A cell an `under` pen wrote over none, in an app's own console: its
+   background is only the pen's fallback, and the desktop keeps the one
+   beneath it, as cn_put does with CN_KEEPBG -- the record's kept bit. And
+   the translucency it was written under, 0 for the window's own, in three
+   bits above it. Private, and stripped before a cell reaches the screen. */
+#ifndef CN_KEPT
+#define CN_KEPT (1u << 20)
+#define CN_TSSHIFT 21
+#define CN_TSMASK (7u << CN_TSSHIFT)
+#endif
+/* Whether this console is an app's own, with no terminal: writes go to a
+   headless screen whose views cells.c sends to the desktop as records, and
+   the translucency bits every write carries there. */
+extern int cn_hl;
+extern unsigned cn_hlts;
+int cn_putg(int row, int col, unsigned cp, const char *ext, size_t en, int w,
+	    int g);
+void cn_cellext(cn_cell *c, const char *t, size_t n);
+int cn_gband(int row);
+int cn_same(const cn_cell *a, const cn_cell *b);
+void cn_transget(unsigned *fb, unsigned *mat);
+/* The cell record's bounds (ADR 0050, "The cell record"): bytes read from a
+   connection a pass, the longest line, the most a run of one cell takes,
+   one cell's text, a URI, the URIs live on a connection together, the link
+   IDs and the translucencies one may name at once. */
+#ifndef CN_CWPASS
+#define CN_CWPASS 262144
+#define CN_CWLINE 65536
+#define CN_CWRUN 96
+#define CN_CWCELL 32
+#define CN_CWURI 2048
+#define CN_CWLKB 65536
+#define CN_CWLINKS 1024
+#define CN_CWTS 7
+#endif
+int cw_verb(sh *s, int ac, char **av);
+long cw_flush(void);
+void cw_size(int *rows, int *cols);
+void cw_tsnow(int pct, unsigned fb, unsigned mat);
+void cw_fin(void);
+int cn_dpopen(void);
 
 /* A pen's background that is the cell's own: a write keeps the background
    already there -- the wallpaper's colour, the window beneath, or none over

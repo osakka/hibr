@@ -28,7 +28,10 @@ static size_t cn_wn;
 /* Per watched descriptor, in step with cn_wfd: whether it is a pipe, the
    bytes waiting on it when the last wait began, whether it was readable
    then, since when it has stayed readable with what waits never going down,
-   whether it is muted, and when a muted one was last looked at. */
+   whether it is muted, and when a muted one was last looked at; and
+   whether it is input -- `console watch -i`, or an app's cells channel
+   between a key told to it and the frame that answers it (cn_watchin) --
+   which ends even a quiet wait, as a key does. */
 typedef struct {
 	int fifo;
 	long av;
@@ -37,7 +40,11 @@ typedef struct {
 	int mute;
 	long long check;
 	int woke;
+	int in, tin;
 } cn_wst;
+/* How many watched descriptors are input now, so a quiet wait with none
+   looks at none of them, as it always has. */
+static int cn_win;
 static cn_wst *cn_ws;
 
 /* The ready-and-never-drained span after which a watched pipe stops waking
@@ -79,6 +86,36 @@ void cn_watchadd(int fd)
 	cn_wfd[cn_wn++] = fd;
 }
 
+/* Make a watched descriptor input or not -- for good (tmp 0, `console
+   watch -i`) or until the frame it is waited on for has come (tmp 1) --
+   watching it first when it is not. */
+void cn_watchin(int fd, int on, int tmp)
+{
+	size_t i;
+	int was;
+
+	if (on)
+		cn_watchadd(fd);
+	for (i = 0; i < cn_wn; i++) {
+		if (cn_wfd[i] != fd)
+			continue;
+		was = cn_ws[i].in || cn_ws[i].tin;
+		if (tmp)
+			cn_ws[i].tin = on;
+		else
+			cn_ws[i].in = on;
+		cn_win += (cn_ws[i].in || cn_ws[i].tin) - was;
+		return;
+	}
+}
+
+/* Whether watched descriptor i is waited on now: every one that is not
+   muted, and in a quiet wait only those that are input. */
+int cn_wis(size_t i)
+{
+	return !cn_ws[i].mute && (!cn_quiet || cn_ws[i].in || cn_ws[i].tin);
+}
+
 /* Stop watching it -- called once a terminal's own pty is closed, so a
    descriptor number the kernel reuses next is never mistaken for a live
    one still worth waking for. */
@@ -89,6 +126,7 @@ void cn_watchdel(int fd)
 	for (i = 0; i < cn_wn; i++) {
 		if (cn_wfd[i] != fd)
 			continue;
+		cn_win -= cn_ws[i].in || cn_ws[i].tin;
 		memmove(cn_wfd + i, cn_wfd + i + 1,
 			(cn_wn - i - 1) * sizeof *cn_wfd);
 		memmove(cn_ws + i, cn_ws + i + 1,
@@ -324,8 +362,8 @@ int cn_wait1(int ms)
 		FD_SET(cn_fd, &r);
 		mx = cn_fd;
 	}
-	for (i = 0; !cn_quiet && i < (int)cn_wn; i++) {
-		if (cn_ws[i].mute)
+	for (i = 0; (!cn_quiet || cn_win) && i < (int)cn_wn; i++) {
+		if (!cn_wis((size_t)i))
 			continue;
 		FD_SET(cn_wfd[i], &r);
 		if (cn_wfd[i] > mx)
@@ -340,14 +378,14 @@ int cn_wait1(int ms)
 	sigprocmask(SIG_SETMASK, &old, 0);
 	errno = e;
 	if (k > 0) {
-		for (i = 0; !cn_quiet && i < (int)cn_wn; i++)
-			if (!cn_ws[i].mute && FD_ISSET(cn_wfd[i], &r))
+		for (i = 0; (!cn_quiet || cn_win) && i < (int)cn_wn; i++)
+			if (cn_wis((size_t)i) && FD_ISSET(cn_wfd[i], &r))
 				cn_ws[i].woke = 1;
 		w = cn_fdhookrun(&r);
 		if (!cn_nofd && FD_ISSET(cn_fd, &r))
 			return 1;
-		for (i = 0; !cn_quiet && i < (int)cn_wn; i++)
-			if (!cn_ws[i].mute && FD_ISSET(cn_wfd[i], &r))
+		for (i = 0; (!cn_quiet || cn_win) && i < (int)cn_wn; i++)
+			if (cn_wis((size_t)i) && FD_ISSET(cn_wfd[i], &r))
 				return 2;
 		return w ? 2 : 3;
 	}
@@ -375,6 +413,7 @@ void cn_watchfree(void)
 	cn_wfd = 0;
 	cn_ws = 0;
 	cn_wn = 0;
+	cn_win = 0;
 }
 
 /* Whether this process holds the terminal: it opened the console. A child
@@ -393,7 +432,7 @@ int cn_bare(int ms)
 {
 	int r;
 
-	if (ms < 0 && (cn_quiet || !cn_wn) && !cn_fdhookn())
+	if (ms < 0 && (cn_quiet ? !cn_win : !cn_wn) && !cn_fdhookn())
 		return -1;
 	cn_nofd = 1;
 	r = cn_wait(ms);

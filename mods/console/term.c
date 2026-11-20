@@ -752,6 +752,10 @@ void cn_size(int *rows, int *cols)
 	struct winsize w;
 	int i;
 
+	if (cn_hl) {
+		cw_size(rows, cols);
+		return;
+	}
 	for (i = 0; i < 50; i++) {
 		if (cn_fd >= 0 && ioctl(cn_fd, TIOCGWINSZ, &w) == 0 &&
 		    w.ws_row > 2 && w.ws_col > 2) {

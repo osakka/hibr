@@ -1110,6 +1110,242 @@ path beside the others under one load, its handshake alone, and a repaint
 after many frames rather than one. The harness and every result are kept
 with the work (`cellprobe`).
 
+### The cell record (2026-11-20)
+
+What an app's console sends for its windows, and the desktop's console
+applies: lines on a stream socket of the app's own, each one letter and its
+fields, separated by single spaces and ended by a newline. Positions and
+counts are decimal; colours and attributes are hex. A line that carries
+text says its length first, and the reader takes that many bytes whatever
+they are, so the newline after them ends the line and nothing inside them
+can. Nothing in it is for a terminal -- no cursor moves, no SGR, no erases,
+no repeats, no synchronized-update pair -- because what reads it is a grid,
+not a screen.
+
+```text
+w VIEW GEN                          the frame that follows is this view's, drawn at generation GEN
+s ROWS COLS                         its size: the kept grid starts again, every cell none
+l ID LEN URI                        link ID is the LEN bytes of URI, from here on
+t ID PCT FB MATCH                   translucency ID is PCT percent over FB, MATCH counting as none
+r ROW COL FG BG AT UL LK LEN TEXT   cells from ROW, COL in one pen
+n ROW COL COUNT                     COUNT cells the app no longer draws
+e                                   the frame is whole
+```
+
+- **VIEW** is a rectangle the desktop gave this connection to draw in, by
+  a name both ends use: the app's console knows it as the pane its writes
+  go through (`w12`), the desktop as a place -- a pane and a rectangle of
+  it, or a rectangle of the screen -- bound to this connection alone (the
+  table below). **GEN** is the binding's generation, which the desktop
+  moves on every change of the view's size and hands the app with the new
+  size; it is how a frame drawn before a resize is told from one drawn
+  after.
+- **ROW, COL** are the view's own rectangle from 0, 0 at its top left --
+  after its origin (`console pane origin`), which is where `cn_pput` lands
+  a write once it has taken the origin off, and so what the desktop adds
+  the view's place to.
+- **FG, BG, UL** are the console's own colour word: `0` the terminal's
+  default, `10000NN` palette entry NN, `2RRGGBB` a colour. UL is the line
+  colour framing and underline are drawn in (SGR 58), `0` the foreground.
+- **AT** is the console's attribute word: bits 0-6 the `DP_` attributes,
+  7-9 the framing kind (SGR 51, `DP_FRAME`), 10-14 the shadow (SGR 66),
+  18-19 the icon colours (SGR 68), 17 *filled* (`CN_FILLED`: a fill's
+  pattern, which a half-block shadow may replace), and 20 *kept*: the pen
+  said `under` over a cell the app had not drawn, so BG is only its
+  fallback and the desktop keeps the background its own drawing has there,
+  taking BG where that is the default -- the `under:COLOUR` rule, resolved
+  where the cell beneath is known. Bits 21-23 are the translucency the
+  cell was written under: `0` the window's own, whatever the desktop has
+  in force as it writes the cell (Control Panel's window translucency, as
+  around an in-process `_draw` today), or an ID a `t` line named, for a
+  cell written while the app's own `console translucent` was in force (the
+  Terminal's). `CN_SHADOWED` is the desktop's own mark and is never sent.
+- **LK** is `0` for none or an ID an `l` line on this connection named;
+  the desktop takes the URI into its own link table at the `l`, so a run
+  carries a number. An `l` may name an ID again, for the runs after it:
+  the app's console gives a new URI an ID no cell of its grids still
+  carries, so the IDs live at once are never more than its cells, and
+  never more than `CN_CWLINKS` (1024), past which a further link is drawn
+  as text. A URI
+  longer than `CN_CWURI` (2 kB) is sent as no link, its text drawn as it
+  is, and the URIs live on one connection at once are at most `CN_CWLKB`
+  (64 kB) together, an `l` giving an ID again freeing what it held; past
+  that the app's console sends the link as none.
+- **t** names a translucency the app set, `PCT` 0 being the app's own
+  `console translucent off` -- opaque, which is not the same as the
+  window's. Seven at once, IDs 1-7, given again the way link IDs are; an
+  eighth at once is drawn as the window's, said once in the app's log.
+- **TEXT** is exactly LEN bytes of UTF-8. It is laid into cells as `cn_put`
+  lays a string: a wide glyph takes two cells, a zero-width code point (a
+  combining mark, or a control) joins the cell before it, and
+  right-to-left text is already in display order, the app's console having
+  done it. A run is cut at a glyph, never through one: it does not begin on
+  a wide glyph's right half or with a zero-width code point. One cell's
+  text is at most `CN_CWCELL` (32) bytes, its glyph and the marks that fit;
+  marks past that are dropped by the app's console, the one thing a cell
+  can hold in-process and not here.
+- **n** is a cell the app's `_draw` did not write this frame: the desktop's
+  own drawing shows there, as a cell an in-process app does not write
+  shows its face or its frame today. The app's grid is cleared to none
+  before each `_draw`, so a shorter string leaves no stale cell
+  (`Novemberr`). A none touches only this connection's kept grid for this
+  view, never a cell another process or the desktop drew. The desktop
+  cannot put its own drawing back under a cell by itself -- the face is a
+  fill `dt_win` makes, kept nowhere -- so a frame with a none in it is
+  answered as *uncovered*, and whoever owns the rest of the view's place
+  (the table below) draws it whole: the window manager a window's face,
+  the kept grid over it and its frame, the Control Panel its own window.
+  That is what an in-process window costs on every frame it is drawn; a
+  frame that only changes cells costs the cells alone. How often a frame
+  carries one, measured with the C (2026-11-20, the app's own console
+  writing its records to a file, 24x80): Files moving its selection down
+  /usr/bin a row at a time until the list scrolls, 0 of 39 frames; Write
+  deleting a line's text a character at a time, 0 of 39. Both paint a row's
+  whole width -- a list row, a line of text and the face after it -- so a
+  shorter string leaves nothing undrawn. (The fixture had no `dt_locof` and
+  no icon colour, so Files drew its icons with a refusal each; the rows are
+  the same width either way.)
+- **e** ends the frame. The desktop applies a frame only once its `e` has
+  arrived, all of it at once, so no window is ever shown half drawn.
+
+**`l` and `t` are the connection's, not a frame's.** They come before the
+`w` of the frame that first uses them, outside any frame, and are applied
+as they are read -- never kept back with a frame and never thrown away
+with one -- so a frame discarded below takes nothing the app believes the
+desktop has.
+
+A view's first frame on a connection, and the first after its size
+changes, begins with `s` and carries every cell the app drew; so does any
+frame the desktop asks for again, since an `s` may open any frame. Restart
+Desktop is not one of those: it ends every app's connection before its
+exec (`dt_rtclose`), and an app's next connection is new at both ends --
+its links, its translucencies and what it last sent start again, and so
+does every view. After that a frame carries only the cells that changed
+since the last one, as runs of one pen along a row -- a gap of unchanged
+cells in the same pen shorter than a run's header may be carried inside
+the run rather than cutting it -- and a view whose cells did not change
+sends nothing, not even `w` and `e`. Translucency, the `under` rule and an opaque background over a
+picture (`cn_bgfor`, `cn_opaque`) are applied at the desktop as each cell
+is written, exactly as they are to an app's write today, because only the
+desktop knows what is beneath; the record carries what the app asked for.
+
+Every installable kind that draws cells draws them through a view, and
+each view is one connection's alone, at one place; the rest of that place
+is somebody else's, and is what an uncovered view asks to be drawn again.
+The desktop refuses to bind a view over cells another connection's view
+already holds.
+
+| kind | draws today | its view is bound to | the rest of the place is |
+|---|---|---|---|
+| an app's window | `console put -p w$id`, the pane's own coordinates | pane `w$id`, the whole pane | the window manager's: the face before, the frame after |
+| a Control Panel pane | `-p w$id` into the panel's window, `h` by `bw` from column `bx` | pane `w$id`, that rectangle of it, with the app's pane origin at its corner | the Control Panel's (platform, in the desktop): its list, divider and face |
+| a Control Strip module | the screen at the row and column it is given, `CS_MODS[m]["w"]` wide | the screen, its slot inside the brackets | the strip's: brackets, arrows, face |
+| a menu bar item that draws (the tray's `dt_traydraw`) | pane `bar` through `dt_barput` | pane `bar`, its slot | the bar's |
+| a menu bar item of text (`dt_baritem`) | nothing: the bar draws the text it sends | no view -- a request, not cells | -- |
+| a saver | the screen, all of it, from `console clear` | the screen, all of it | nothing: it is the whole screen |
+
+None of these needed a change to the record. A view of the screen and a
+view of a pane differ only in where the desktop puts its rectangle, and a
+module that draws at screen coordinates in the app's process -- the
+strip's, a saver, the Terminal's `term draw` through `dp->put` -- lands in
+the app's headless screen at the place the runtime gave its view, which is
+what the diff walks.
+
+**A stale frame is a race, not a broken app.** A view resized while a
+frame drawn at its old size is in flight, or closed while one is, is
+ordinary, and the connection carries the app's other views. So a frame
+whose `w` names a view the connection no longer has, or a generation that
+is not the view's own, is skipped to its `e` -- its lines read and let go
+as they come, never held, since there is no size to bound them by -- and
+logged; for a closed view that is the end of it, and for a resized
+one the app's next frame opens with `s` anyway, its grid having taken the
+new size. A frame of the current generation that has no `s` where the
+desktop holds no kept grid for it, or whose `s` differs from the size the
+desktop itself gave the view, is discarded the same way, and the view is
+answered as *again* -- as is one with no `s` where the kept grid is not
+the view's size, the view having been bound again at another size, which
+unguarded wrote past the kept grid in the desktop on an app's bytes
+(measured under ASan before it was guarded) -- so the runtime has the app
+send its next frame whole
+(`console cells again`). `s` is checked, never trusted: every bound below
+is computed from the size the desktop gave, not the one the app said. A
+frame of a view the desktop holds is read into a buffer only while it is
+inside its bound; one that passes it goes over to skipping, the same way.
+
+At the desktop the guards are the socket's, in C: at most `CN_CWPASS`
+(256 kB) read a pass with `MSG_DONTWAIT`, never a wait, the rest left in
+the socket for the next pass; every pass drains, whether or not the view's
+window is drawn, applying what it reads to the kept grids and marking what
+changed, and the cells reach the screen when the view's owner draws it. A
+run or a none past its view's edge is clipped and a frame whose runs and
+nones pass `CN_CWRUN` (96) bytes for each cell of its view -- the most a
+run of one cell can take, so a picture drawn in half blocks, a pen a cell,
+is inside it -- is discarded and answered *again*. The connection is
+dropped only for what no race can make: an unknown letter, a field that is
+not a number, a line longer than `CN_CWLINE` (64 kB, its header and its
+counted text together), a link or a translucency it never named, or live
+URIs past `CN_CWLKB`. The app's console sends none of these -- it cuts a
+run before `CN_CWLINE` and a cell at `CN_CWCELL` -- so each is a broken
+app.
+
+**Input is never held.** `dt_run` waits out a frame the output cap holds
+with `console key -q`, which ignores every watched descriptor -- a
+terminal's pty writing a hundred times a second must not wake it -- and so
+an app's request, and the cells a key makes it draw, would each sit out the
+hold (70 ms measured for an ask). So a watched descriptor has a class:
+output, ignored by a quiet wait, which a pty and a cells channel are by
+default; or input, which ends even a quiet wait as a key does and which
+`console woke` names like any other -- `console watch -i FD`, which the
+desktop gives each app's request socket. And the echo rule: when the
+desktop tells an app something the person did (`console cells input
+VIEW`), that app's cells channel is input until the next `e` it reads on
+it, so the frame the key caused is drawn when it arrives, never held -- as
+in-process, where the key's echo was drawn in the frame the key began.
+None of this costs a wait anything while no descriptor is input: the quiet
+wait asks a count before it looks at the list.
+
+What the desktop's read answers, for each connection, is what it applied:
+frames, cells and bytes, and the views it changed, uncovered or wants
+again. The bytes and cells are what the desktop's budget (`dt_spent`)
+charges the app with, so an app flooding its channel is a `held:` line
+like any slow callback, its time spent in the desktop being the C that
+read it.
+
+Sizes. A run's header, its newline included, is 19 bytes at its smallest
+(every field one digit) and 54 at its largest; a window's usual, an RGB pen
+at a two-digit row and column, is 34. A cell is its glyph in UTF-8 -- 1 byte
+for ASCII, 3 for a box-drawing or Blit glyph in the BMP, 4 for one in plane
+16 -- and its combining marks; a wide glyph's right half is 0. A none run is
+8 to 14 bytes, `w` about 8, `e` 2, `s` 8. So a whole 24x80 window of ASCII
+in 48 runs is about 3.6 kB, and one cell changed is 45 bytes, `w` and `e`
+included. Kept, a cell is a `cn_cell`, 40 bytes, at the desktop and twice at
+the app (its grid and what it last sent); none is a code point no glyph has,
+so nothing grows for it.
+
+Built and measured (2026-11-20, callgrind, thousands of instructions a
+frame, from 40 frames less 20 so start-up falls out; each side alone, the
+other running plain; the desktop's figure is its whole frame -- the face,
+the drawing or the records, and the flush, which is 419 of every row and
+966 of a 24x80 window changed whole):
+
+| | in-process today | records, desktop | of which read and drawn | records, app |
+|---|---|---|---|---|
+| Clock 7x26, whole | 719 | 602 | 40 | 287 |
+| Clock, one cell | 702 | 492 | 9 | 236 |
+| Calculator 16x24, whole | 2220 | 537 | 13 | 1828 |
+| Calculator, one cell | 2220 | 526 | 11 | 1828 |
+| 24x80, every cell | 3935 | 2343 | 1277 | 3060 |
+| 24x80, one cell | 3386 | 522 | 11 | 2647 |
+
+The desktop pays less than in-process on every row, and the window's own
+script is gone from it, which is the point. A repaint from the kept grid
+(`console cells show -a`, all 1716 cells of the 24x80 window) is 732,
+against 1.05 M through `dp->put`. The write the records land through is the
+one every in-process write uses (`CN_PUTG`), and sharing it made in-process
+cheaper too: an 80x24 window drawn whole, 3,530 a frame against 3,660 at
+0.99.553. `tests/cellwire.py` holds the records to in-process cell for
+cell.
+
 ## The first plan (2026-11-01), superseded
 
 In three steps, each a release that stands on its own:

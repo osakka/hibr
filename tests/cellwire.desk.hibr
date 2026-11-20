@@ -1,0 +1,302 @@
+# The desktop's end of tests/cellwire.py: a console on a terminal, window 1
+# drawn in-process at the left (its app's _draw run here, as today) and the
+# same app's window drawn at the right from its own process's cell records
+# (console cells), frame by frame, each side's cells shot to a file so the
+# suite can compare them. CW_CASE picks what else happens around them.
+
+need console || exit 1
+. "$CW_DIR/cellwire.fix.hibr"
+case $CW_CASE in trans | pic | place) need img || exit 1 ;; esac
+console open || exit 1
+L=2
+R=$((CW_W + 20))
+PH=$CW_H PW=$CW_W
+[ "$CW_CASE" = place ] && PH=9 PW=40 R=60
+console pane w1 2 "$L" "$PH" "$PW"
+console pane w2 2 "$R" "$PH" "$PW"
+[ "$CW_CASE" = close ] && console pane w4 30 2 3 20
+rm -f "$CW_SOCK"
+listen -b "$CW_SOCK" LFD || exit 1
+"$CW_HIBR" "$CW_DIR/cellwire.app.hibr" 2>> "$CW_OUT.apperr" &
+accept -t 20 "$LFD" CFD || { echo "cellwire: no app" >&2; exit 1; }
+if [ "$CW_CASE" = place ]; then
+	console cells own "$CFD" w1 1 w2 1 12 "$CW_H" "$CW_W" || exit 1
+else
+	console cells own "$CFD" w1 1 w2 0 0 "$CW_H" "$CW_W" || exit 1
+fi
+[ "$CW_CASE" = close ] && { console cells own "$CFD" w3 1 w4 0 0 3 20 || exit 1; }
+H=$CW_H W=$CW_W
+CW_UNC=0 CW_RC=0
+
+# What a take answered, kept in the log a line, and whether any of the
+# views it names was uncovered.
+fn cw_take1(i) {
+	local r rc=0
+
+	r := console cells take "$CFD" || rc=$?
+	CW_RC=$rc
+	echo "take $i rc=$rc ${r//$'\n'/|}" >> "$CW_OUT.log"
+	case $r in *uncovered\ *w1*) CW_UNC=1 ;; esac
+	CW_LAST=$r
+	return 0
+}
+
+# Take until a frame has been applied, the far end has gone, or it broke.
+fn cw_takef(i) {
+	local t f
+
+	CW_UNC=0
+	for ((t = 0; t < 400; t++)); do
+		cw_take1 "$i"
+		f=${CW_LAST%% *}
+		[ "$f" -ge 1 ] || [ "$CW_RC" != 0 ] && return 0
+		console key 10 > /dev/null
+	done
+	echo "take $i: nothing came" >> "$CW_OUT.log"
+}
+
+# Take until bytes have come and stopped coming, applied or not.
+fn cw_takeb(i) {
+	local t b x got=0 quiet=0
+
+	for ((t = 0; t < 2000 && quiet < 3; t++)); do
+		cw_take1 "$i"
+		[ "$CW_RC" != 0 ] && break
+		read -r x x b <<< "${CW_LAST%%$'\n'*}"
+		if [ "$b" -gt 0 ]; then
+			got=1
+			quiet=0
+		elif [ "$got" = 1 ]; then
+			quiet=$((quiet + 1))
+		fi
+		console key 20 > /dev/null
+	done
+}
+
+fn cw_wall() {
+	[ "$CW_CASE" = trans ] &&
+		img draw "$CW_OUT.wall.ppm" 0 0 40 200 -m pixels -u
+	return 0
+}
+
+fn cw_trans(on) {
+	[ "$CW_CASE" = trans ] || return 0
+	if [ "$on" = 1 ]; then
+		console translucent 50 "$DT_FACE" "$DT_FACE"
+	else
+		console translucent off
+	fi
+}
+
+fn cw_left(i) {
+	cw_trans 1
+	console pen "$DT_INK" "$DT_FACE"
+	console fill -p w1 0 0 "$H" "$W" " "
+	cw_frame "$i" "$H" "$W"
+	cw_trans 0
+	[ "$CW_CASE" = pic ] &&
+		img draw "$CW_OUT.pic.ppm" 11 15 3 6 -m pixels -p w1
+	return 0
+}
+
+fn cw_right(all = 0) {
+	cw_trans 1
+	if [ "$CW_UNC" = 1 ] || [ "$all" = 1 ]; then
+		console pen "$DT_INK" "$DT_FACE"
+		console fill -p w2 0 0 "$H" "$W" " "
+		console cells show w1 -a
+	else
+		console cells show w1
+	fi
+	cw_trans 0
+	[ "$CW_CASE" = pic ] &&
+		img draw "$CW_OUT.pic.ppm" 11 15 3 6 -m pixels -p w2
+	return 0
+}
+
+# A window above each, over the bottom right of it, and its shadow on it.
+fn cw_over() {
+	local p c
+
+	for p in o1 o2; do
+		c=$L
+		[ "$p" = o2 ] && c=$R
+		console pane "$p" $((2 + H - 4)) $((c + W - 9)) 5 12
+		console pen "$DT_INK" "$DT_WELL"
+		console fill -p "$p" 0 0 5 12 " "
+		console put -p "$p" 1 1 "over it"
+		console darken -s $((2 + H - 3)) $((c + W - 7)) 5 12 55
+	done
+}
+
+fn cw_shot(tag) {
+	console shot -f ansi "$CW_OUT.A$tag" 2 "$L" "$H" "$W"
+	console shot -f ansi "$CW_OUT.B$tag" 2 "$R" "$H" "$W"
+}
+
+fn cw_step(int i) {
+	cw_wall
+	cw_left "$i"
+	send "$CFD" "go $i"
+	cw_takef "$i"
+	cw_right
+	[ "$CW_CASE" = overlap ] && cw_over
+	console flush > /dev/null
+}
+
+# A view in part of a pane the desktop also draws in -- a Control Panel
+# pane's place in the panel's window -- and a view of the screen, a strip
+# module's, whose app draws a picture into its cells through dp->put; and a
+# second connection refused another's cells and another's name.
+if [ "$CW_CASE" = place ]; then
+	console cells own "$CFD" w3 1 - 20 60 3 20 || exit 1
+	connect -U "$CW_SOCK" FD2 && accept -t 5 "$LFD" CFD2
+	if console cells own "$CFD2" x9 1 w2 2 14 2 2 2> /dev/null; then
+		echo "own-overlap accepted" >> "$CW_OUT.log"
+	else
+		echo "own-overlap refused" >> "$CW_OUT.log"
+	fi
+	if console cells own "$CFD2" w1 1 w1 0 0 2 2 2> /dev/null; then
+		echo "own-name accepted" >> "$CW_OUT.log"
+	else
+		echo "own-name refused" >> "$CW_OUT.log"
+	fi
+	console pane s1 20 2 3 20
+	for ((i = 1; i <= 3; i++)); do
+		console pen "$DT_INK" "$DT_FACE"
+		console fill -p w1 0 0 "$PH" "$PW" " "
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p w1 0 1 "the panel's own list"
+		console pane origin w1 -1 -12
+		cw_frame "$i"
+		console pane origin w1 0 0
+		console pen "$DT_INK" "$DT_FACE"
+		console fill -p s1 0 0 3 20 " "
+		console put -p s1 1 1 "frame $i"
+		img draw "$CW_OUT.pic.ppm" 0 12 2 6 -m half -p s1
+		send "$CFD" "go $i"
+		cw_takef "$i"
+		console pen "$DT_INK" "$DT_FACE"
+		console fill -p w2 0 0 "$PH" "$PW" " "
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p w2 0 1 "the panel's own list"
+		console cells show w1 -a
+		console pen "$DT_INK" "$DT_FACE"
+		console fill 20 60 3 20 " "
+		console cells show w3 -a
+		console flush > /dev/null
+	done
+	console shot -f ansi "$CW_OUT.AP" 2 "$L" "$PH" "$PW"
+	console shot -f ansi "$CW_OUT.BP" 2 "$R" "$PH" "$PW"
+	console shot -f ansi "$CW_OUT.AS" 20 2 3 20
+	console shot -f ansi "$CW_OUT.BS" 20 60 3 20
+	send "$CFD" quit
+	console close
+	exit 0
+fi
+
+# A held frame, as dt_run waits one out with `console key -q`: a descriptor
+# watched as input ends it, one watched plainly does not (CW_PLAIN).
+if [ "$CW_CASE" = inwatch ]; then
+	if [ -n "${CW_PLAIN-}" ]; then
+		console watch "$CFD"
+	else
+		console watch -i "$CFD"
+	fi
+	for ((i = 1; i <= 5; i++)); do
+		t0=${EPOCHREALTIME/./}
+		send "$CFD" ping
+		console key -q 2000 > /dev/null
+		t1=${EPOCHREALTIME/./}
+		wk := console woke "$CFD"
+		echo "lat $i $(((t1 - t0) / 1000)) woke=$wk" >> "$CW_OUT.log"
+		read -r -t 1 -u "$CFD" x
+	done
+	send "$CFD" quit
+	console close
+	exit 0
+fi
+
+# A key told to the app, then a held frame: its echo is drawn when it comes,
+# not when the hold ends, once the desktop says it told the app something
+# (console cells input); CW_PLAIN leaves that out.
+if [ "$CW_CASE" = echo ]; then
+	console watch "$CFD"
+	cw_step 1
+	for ((i = 2; i <= 9; i++)); do
+		t0=${EPOCHREALTIME/./}
+		send "$CFD" "go $i"
+		[ -n "${CW_PLAIN-}" ] || console cells input w1
+		console key -q 2000 > /dev/null
+		cw_takef "$i"
+		cw_left "$i"
+		cw_right
+		console flush > /dev/null
+		t1=${EPOCHREALTIME/./}
+		echo "lat $i $(((t1 - t0) / 1000))" >> "$CW_OUT.log"
+	done
+	cw_shot E
+	send "$CFD" quit
+	console close
+	exit 0
+fi
+
+if [ "$CW_CASE" = raw ]; then
+	for f in "$CW_OUT".raw??; do
+		if [ -f "$f.own" ]; then
+			read -r g h w < "$f.own"
+			console cells own "$CFD" w1 "$g" w2 0 0 "$h" "$w"
+		fi
+		send "$CFD" "raw $f"
+		cw_takeb "${f##*.}"
+		[ "$CW_RC" = 2 ] && break
+	done
+	send "$CFD" quit 2> /dev/null
+	console close
+	exit 0
+fi
+
+for ((i = 1; i <= CW_N; i++)); do
+	if [ "$CW_CASE" = resize ] && [ "$i" = 4 ]; then
+		H=$((CW_H - 2)) W=$((CW_W - 4))
+		console pane w1 2 "$L" "$H" "$W"
+		console pane w2 2 "$R" "$H" "$W"
+		console cells own "$CFD" w1 2 w2 0 0 "$H" "$W"
+		send "$CFD" "go $i"
+		cw_takeb "stale$i"
+		send "$CFD" "size 2 $H $W"
+		continue
+	fi
+	if [ "$CW_CASE" = close ] && [ "$i" = 3 ]; then
+		console cells drop "$CFD" w3
+		console pane drop w4
+	fi
+	if [ "$CW_CASE" = die ] && [ "$i" = 4 ]; then
+		send "$CFD" die
+		for ((t = 0; t < 400; t++)); do
+			cw_take1 "die"
+			[ "$CW_RC" != 0 ] && break
+			console key 10 > /dev/null
+		done
+		cw_right
+		console flush > /dev/null
+		cw_shot "D"
+		console close
+		exit 0
+	fi
+	cw_step "$i"
+	[ "$i" = 1 ] || [ "$i" = "$CW_N" ] || [ "$CW_CASE" = resize ] ||
+		[ "$CW_CASE" = die ] && cw_shot "$i"
+done
+# A repaint from what the desktop keeps, as a move or an uncovering asks:
+# the in-process side draws its app again, the other side draws its face and
+# every kept cell over it, with no app asked anything.
+cw_wall
+cw_left "$CW_N"
+CW_UNC=0
+cw_right 1
+[ "$CW_CASE" = overlap ] && cw_over
+console flush > /dev/null
+cw_shot R
+send "$CFD" quit
+console close

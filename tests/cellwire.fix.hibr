@@ -1,0 +1,86 @@
+# The fixture both ends of tests/cellwire.py source: the app interface as an
+# app's own process loads it, the midnight theme, the shipped Clock and
+# Calculator unmodified, and a 24x80 window ("big") whose every cell can
+# change. CW_APP says which; CW_KIND F changes all it can a frame, O one
+# cell. cw_frame I draws frame I into window 1, in whichever console this
+# process has -- a terminal's, or an app's own with no terminal.
+
+DT_HERE=$CW_TREE/programs/desktop
+DT_ROWS=40
+. "$DT_HERE/interface.hibr"
+DT_FACE="#101820" DT_INK="#cbd5e0" DT_DIM="#718096" DT_SELINK="#1a202c"
+DT_GOOD="#68d391" DT_WARN="#f6ad55" DT_BAD="#f56565" DT_INFO="#4fd1c5"
+DT_WELL="#2d3748"
+. "$DT_HERE/apps/Accessories/clock.hibr"
+. "$DT_HERE/apps/Accessories/calc.hibr"
+
+# The clock's own function with its time given rather than now, so what a
+# frame changes is chosen: the one edit is its -1 to $CW_T.
+CW_T=0
+eval "$(declare -f clock_draw | sed 's/ -1$/ "$CW_T"/')"
+declare -f clock_draw | grep -q CW_T || { echo "cellwire: clock not rewritten" >&2; exit 1; }
+
+# Rows no run can shorten: no two cells alike along a row, none in the same
+# place in two of the four. The big window draws all 22 of them a frame, in
+# two pens, its first row in its own translucency when CW_TS is set (as the
+# Terminal does), one cell of it a link when CW_LINK is.
+BIG_C=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
+BIG_L=()
+for ((k = 0; k < 4; k++)); do
+	t=
+	for ((j = 0; j < 78; j++)); do
+		t+=${BIG_C:$(((j * 7 + k * 13) % 62)):1}
+	done
+	BIG_L+=("$t")
+done
+BIG_V="#${BIG_L[0]:1}"
+BIG_N=0 BIG_ONE=0
+fn big_draw(int id, int h, int w, int row, int col) {
+	local r t
+
+	for ((r = 1; r <= h; r++)); do
+		if ((r % 2)); then
+			console pen "$DT_INK" "$DT_FACE"
+		else
+			console pen "$DT_GOOD" "$DT_WELL" bold underline
+		fi
+		[ -n "${CW_TS-}" ] && ((r == 1)) &&
+			console translucent 40 "$DT_FACE" "$DT_FACE"
+		t=${BIG_L[BIG_N % 4]}
+		((r == 1 && BIG_ONE)) && t=$BIG_V
+		console put -p "w$id" "$r" 1 "${t:0:w}"
+		[ -n "${CW_TS-}" ] && ((r == 1)) && console translucent off
+	done
+	if [ -n "${CW_LINK-}" ]; then
+		console link "https://example.org/$((BIG_N % 3))"
+		console pen "$DT_INFO" "$DT_FACE" underline
+		console put -p "w$id" 2 3 "link 漢字 e"$'́'
+		console link -
+	fi
+}
+
+case $CW_APP in
+clock) CW_H=7 CW_W=26 ;;
+calc) CW_H=16 CW_W=24 ;;
+big) CW_H=24 CW_W=80 ;;
+esac
+calc_open 1 ""
+
+# Frame i's state: F changes what it can (the clock jumps four days and
+# eleven hours; every cell of the big window), O one cell.
+T0=$((1795046400 + 43200))
+fn cw_state(int i) {
+	case $CW_APP$CW_KIND in
+	clockF) CW_T=$((i % 2 ? T0 + 385871 : T0)) ;;
+	clockO) CW_T=$((T0 + i % 2)) ;;
+	calcF) CA[1]["in"]=$((i % 2 ? 12 : 34)) ;;
+	calcO) CA[1]["in"]=$((i % 2 ? 1 : 2)) ;;
+	bigF) BIG_N=$i ;;
+	bigO) BIG_ONE=$((i % 2)) ;;
+	esac
+}
+
+fn cw_frame(int i, h = "$CW_H", w = "$CW_W") {
+	cw_state "$i"
+	"${CW_APP}_draw" 1 $((h - 2)) $((w - 2)) 2 2
+}

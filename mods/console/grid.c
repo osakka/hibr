@@ -29,7 +29,6 @@ static int cn_ownr, cn_ownc, cn_ownok, cn_behindon;
 size_t cn_wrote;
 static size_t cn_wflush;
 static int cn_skip(int row, int col);
-static int cn_gband(int row);
 unsigned cn_fg, cn_bg, cn_penat, cn_ul, cn_kfb;
 /* While this is non-zero, a cell written with no background colour of its
    own, over a picture drawn under the text, takes that picture's colour
@@ -664,6 +663,14 @@ int cn_translucent(int pct, unsigned fb)
 	return was;
 }
 
+/* What a translucent write lands on, and the colour it treats as none, for
+   a writer that sets its own and puts these back. */
+void cn_transget(unsigned *fb, unsigned *mat)
+{
+	*fb = cn_transfb;
+	*mat = cn_transmat;
+}
+
 /* The colour a translucent write treats as no background, until the next
    cn_translucent. */
 void cn_transmatch(unsigned bg)
@@ -923,13 +930,112 @@ void cn_split(int row, int col)
 	}
 }
 
+/* Add combining characters, n bytes of them, to what a cell already holds. */
+void cn_cellext(cn_cell *c, const char *t, size_t n)
+{
+	size_t o;
+	char *e;
+
+	if (!c->ext) {
+		cn_cellset(c, c->cp, t, n);
+		return;
+	}
+	o = strlen(c->ext);
+	e = xm(o + n + 1);
+	memcpy(e, c->ext, o);
+	memcpy(e + o, t, n);
+	e[o + n] = 0;
+	free(c->ext);
+	c->ext = e;
+}
+
+/* One glyph w columns wide, with its combining characters (ext, en bytes,
+   or none), into the back buffer at row, col in the pen, as every write
+   lays one; ok is 0 where the cell is not the writer's to write (off the
+   grid, behind a pane while the wallpaper paints, or under a top pane, g
+   saying the row crosses one). An app's own console with no terminal
+   (cn_hl) keeps what the app asked for and leaves the background to the
+   desktop, which alone knows what is beneath: the record's kept bit and
+   translucency carry it there. A macro rather than a function because
+   cn_put and cn_fill lay every cell of a frame through it: as a call it
+   cost an 80x24 window drawn whole 575,000 more instructions a frame, and
+   as this, with the split asked only of a wide glyph's halves, 130,000
+   fewer than before it was shared. */
+#ifndef CN_PUTG
+#define CN_PUTG(R, C, CP, EXT, EN, W, G, OK)                               \
+	do {                                                                   \
+		cn_cell *pg_c;                                                 \
+		unsigned pg_k = 0;                                             \
+		(OK) = 0;                                                      \
+		if ((R) < 0 || (R) >= cn_back.rows || (C) < 0 ||         \
+		    (C) + (W) > cn_back.cols || cn_skip((R), (C)) ||     \
+		    ((G) && (cn_ptopat((R), (C)) ||                        \
+			     ((W) == 2 && cn_ptopat((R), (C) + 1)))))      \
+			break;                                                 \
+		(OK) = 1;                                                      \
+		pg_c = &cn_back.c[(R) * cn_back.cols + (C)];               \
+		if (pg_c->cont || pg_c->w == 2)                                \
+			cn_split((R), (C));                                \
+		if ((W) == 2 && (pg_c[1].cont || pg_c[1].w == 2))              \
+			cn_split((R), (C) + 1);                            \
+		if (cn_hl) {                                                   \
+			if (cn_bg != CN_KEEPBG)                                \
+				pg_c->bg = cn_bg;                              \
+			else if (pg_c->cp == CN_NONE) {                        \
+				pg_c->bg = cn_kfb;                             \
+				pg_k = CN_KEPT;                                \
+			} else                                                 \
+				pg_k = pg_c->attr & CN_KEPT;                   \
+		} else if (cn_bg != CN_KEEPBG)                                 \
+			pg_c->bg = cn_opaque((R), (C),                     \
+					     cn_bgfor((R), (C), pg_c->bg)); \
+		else if (pg_c->bg == DP_DEFAULT)                               \
+			pg_c->bg = cn_kfb;                                     \
+		if (EXT)                                                       \
+			cn_cellset(pg_c, (CP), (EXT), (EN));                   \
+		else {                                                         \
+			if (pg_c->ext) {                                       \
+				free(pg_c->ext);                               \
+				pg_c->ext = 0;                                 \
+			}                                                      \
+			pg_c->cp = (CP);                                       \
+		}                                                              \
+		pg_c->w = (unsigned char)(W);                                  \
+		pg_c->cont = 0;                                                \
+		pg_c->fg = cn_fg;                                              \
+		pg_c->attr = cn_penat | pg_k | cn_hlts;                        \
+		pg_c->ul = cn_ul;                                              \
+		pg_c->link = cn_plink;                                         \
+		if ((W) == 2) {                                                \
+			cn_tbelow((R), (C) + 1, pg_c[1].bg);               \
+			cn_cellset(pg_c + 1, 0, 0, 0);                         \
+			pg_c[1].w = 0;                                         \
+			pg_c[1].cont = 1;                                      \
+			pg_c[1].fg = cn_fg;                                    \
+			pg_c[1].bg = pg_c->bg;                                 \
+			pg_c[1].attr = pg_c->attr;                             \
+			pg_c[1].ul = cn_ul;                                    \
+			pg_c[1].link = cn_plink;                               \
+		}                                                              \
+	} while (0)
+#endif
+
+/* CN_PUTG as a function, for a writer outside this file: 1 when written. */
+int cn_putg(int row, int col, unsigned cp, const char *ext, size_t en, int w,
+	    int g)
+{
+	int ok;
+
+	CN_PUTG(row, col, cp, ext, en, w, g, ok);
+	return ok;
+}
+
 /* Write text into the back buffer, returning the columns it advanced. */
 int cn_put(int row, int col, const char *t)
 {
 	size_t n, i = 0;
-	int start = col, w, l, g;
+	int start = col, w, l, g, ok;
 	unsigned cp;
-	cn_cell *c;
 
 	if (cn_fitq() != HIBR_OK || !t)
 		return 0;
@@ -940,60 +1046,17 @@ int cn_put(int row, int col, const char *t)
 		l = u8dec(t + i, n - i, &cp);
 		w = u8w(cp);
 		if (w == 0) {
-			if (col > start && row >= 0 && row < cn_back.rows) {
-				c = &cn_back.c[row * cn_back.cols + col - 1];
-				if (!c->ext)
-					cn_cellset(c, c->cp, t + i, (size_t)l);
-				else {
-					size_t o = strlen(c->ext);
-					char *e = xm(o + (size_t)l + 1);
-					memcpy(e, c->ext, o);
-					memcpy(e + o, t + i, (size_t)l);
-					e[o + (size_t)l] = 0;
-					free(c->ext);
-					c->ext = e;
-				}
-			}
+			if (col > start && row >= 0 && row < cn_back.rows)
+				cn_cellext(&cn_back.c[row * cn_back.cols + col - 1],
+					   t + i, (size_t)l);
 			i += (size_t)l;
 			continue;
 		}
-		if (row < 0 || row >= cn_back.rows || col < 0 ||
-		    col + w > cn_back.cols || cn_skip(row, col) ||
-		    (g && (cn_ptopat(row, col) ||
-			   (w == 2 && cn_ptopat(row, col + 1))))) {
-			col += w;
-			i += (size_t)l;
-			continue;
-		}
-		cn_split(row, col);
-		if (w == 2)
-			cn_split(row, col + 1);
-		c = &cn_back.c[row * cn_back.cols + col];
-		cn_cellset(c, cp, 0, 0);
-		c->w = (unsigned char)w;
-		c->cont = 0;
-		c->fg = cn_fg;
-		if (cn_bg != CN_KEEPBG)
-			c->bg = cn_opaque(row, col, cn_bgfor(row, col, c->bg));
-		else if (c->bg == DP_DEFAULT)
-			c->bg = cn_kfb;
-		c->attr = cn_penat;
-		c->ul = cn_ul;
-		c->link = cn_plink;
-		if (w == 2) {
-			cn_tbelow(row, col + 1, (c + 1)->bg);
-			cn_cellset(c + 1, 0, 0, 0);
-			(c + 1)->w = 0;
-			(c + 1)->cont = 1;
-			(c + 1)->fg = cn_fg;
-			(c + 1)->bg = c->bg;
-			(c + 1)->attr = cn_penat;
-			(c + 1)->ul = cn_ul;
-			(c + 1)->link = cn_plink;
-		}
+		CN_PUTG(row, col, cp, 0, 0, w, g, ok);
 		col += w;
 		i += (size_t)l;
 	}
+	(void)ok;
 	return col - start;
 }
 
@@ -1009,9 +1072,8 @@ int cn_put(int row, int col, const char *t)
    wide glyph or a string, still goes through cn_put. */
 void cn_fill(int row, int col, int h, int w, const char *t)
 {
-	int r, c, adv, l, gw, g;
+	int r, c, adv, l, gw, g, ok;
 	unsigned cp;
-	cn_cell *p;
 
 	if (!t || !*t)
 		t = " ";
@@ -1026,24 +1088,10 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 				continue;
 			g = cn_gband(r);
 			for (c = col; c < col + w; c++) {
-				if (c < 0 || c >= cn_back.cols ||
-				    cn_skip(r, c) || (g && cn_ptopat(r, c)))
-					continue;
-				cn_split(r, c);
-				p = &cn_back.c[r * cn_back.cols + c];
-				free(p->ext);
-				p->ext = 0;
-				p->cp = cp;
-				p->w = 1;
-				p->cont = 0;
-				p->fg = cn_fg;
-				if (cn_bg != CN_KEEPBG)
-					p->bg = cn_opaque(r, c, cn_bgfor(r, c, p->bg));
-				else if (p->bg == DP_DEFAULT)
-					p->bg = cn_kfb;
-				p->attr = cn_penat | CN_FILLED;
-				p->ul = cn_ul;
-				p->link = cn_plink;
+				CN_PUTG(r, c, cp, 0, 0, 1, g, ok);
+				if (ok)
+					cn_back.c[r * cn_back.cols + c].attr |=
+						CN_FILLED;
 			}
 		}
 		return;
@@ -1195,7 +1243,7 @@ void cn_owninval(void)
    cell, so a row outside the band -- every row but the bar's -- costs the
    writers nothing per cell. Asking per cell measured 2 ns a cell, about
    35 us a frame at 232x71, against a 0.7 ms frame budget. */
-static int cn_gband(int row)
+int cn_gband(int row)
 {
 	if (!cn_tok)
 		cn_tband();
@@ -1344,6 +1392,8 @@ long cn_flush(void)
 	cn_cell *bk, *ft, *e, oc;
 	unsigned g;
 
+	if (cn_hl)
+		return cw_flush();
 	if (!cn_on)
 		return 0;
 	if (cn_fit() != HIBR_OK)

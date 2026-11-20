@@ -470,7 +470,7 @@ unsigned cn_attr(const char *t)
 /* Refuse an operation that needs the screen to be held. */
 int cn_need(void)
 {
-	if (cn_isopen())
+	if (cn_isopen() || cn_hl)
 		return 1;
 	lg(HIBR_LERR, "console: not open");
 	return 0;
@@ -1456,6 +1456,12 @@ int m_console(sh *s, int ac, char **av)
 			}
 			cn_transmatch(mt);
 		}
+		if (cn_hl) {
+			unsigned tfb, tmat;
+
+			cn_transget(&tfb, &tmat);
+			cw_tsnow(cn_translucent(-1, DP_DEFAULT), tfb, tmat);
+		}
 		return HIBR_OK;
 	}
 	/* What the terminal said its own background is, and whether it said
@@ -1513,6 +1519,8 @@ int m_console(sh *s, int ac, char **av)
 		cn_cursor(atoi(av[2]), atoi(av[3]), 1);
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "cells"))
+		return cw_verb(s, ac, av);
 	if (!strcmp(sub, "flush")) {
 		if (!cn_need())
 			return HIBR_FAIL;
@@ -1731,8 +1739,16 @@ int m_console(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "watch") || !strcmp(sub, "unwatch")) {
+		/* -i: watched as input, which ends even a quiet wait, as a
+		   key does -- an app's request socket, which must not sit out
+		   a frame the output cap is holding. A plain watch of one
+		   already watched leaves its class as it was. */
+		if (ac == 4 && sub[0] == 'w' && !strcmp(av[2], "-i")) {
+			cn_watchin(atoi(av[3]), 1, 0);
+			return HIBR_OK;
+		}
 		if (ac < 3) {
-			lg(HIBR_LERR, "usage: console %s fd", sub);
+			lg(HIBR_LERR, "usage: console %s [-i] fd", sub);
 			return 2;
 		}
 		if (sub[0] == 'w')
@@ -1870,7 +1886,7 @@ int m_console(sh *s, int ac, char **av)
 }
 
 static const dp_api console_api = {
-	cn_open, cn_close, cn_isopen, cn_size, cn_resized, cn_pen,
+	cn_open, cn_close, cn_dpopen, cn_size, cn_resized, cn_pen,
 	cn_clear, cn_put, cn_fill, cn_cursor, cn_flush, cn_key,
 	cn_colour, cn_attr, cn_mouseon, cn_prect, cn_link, cn_image, cn_cellpx,
 	cn_imgkeep
@@ -1903,6 +1919,7 @@ int cn_ini(sh *s)
 void cn_fini(sh *s)
 {
 	cn_close(s);
+	cw_fin();
 	cn_pclear();
 	cn_gfree(&cn_back);
 	{

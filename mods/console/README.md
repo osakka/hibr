@@ -21,6 +21,7 @@ system monitor, and anything else full-screen. Building it once is the point.
 | `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste, the kitty keyboard protocol's `CSI u` named as the old form of each key with `super-` in front (Gitea #326); the wait, with the descriptors it watches and the guard that stops waking for a watched pipe nobody reads (Gitea #323) |
 | `console.c` | panes, colour parsing, and the `console` builtin |
 | `shot.c` | `console shot`: the front grid written out as ANSI, HTML or plain text |
+| `cells.c` | an app's window drawn from its own process (ADR 0050, "The cell record"): at the app, a console with no terminal whose views are panes of a headless screen and whose flush sends the cells that changed as records; at the desktop, each connection read without waiting into its views' kept grids, and a view drawn into the screen from them |
 
 Every `console` subcommand, with what it takes, is in the command table of
 [Full-screen programs](../../docs/display.md); this page is how the module
@@ -434,6 +435,47 @@ refused, so `bf_say` sends `KEYBOARD` only to a Blit of 0.3.94 or newer and
 sets in every session it starts, read in the process that talks to Blit,
 which under hold is each display's own client.
 
+## Cells from another process
+
+An app in a process of its own draws its window as it always has --
+`console pen`, `put -p`, `fill -p` and every widget built on them -- into
+a console that has no terminal: `console cells open FD` makes it one, and
+each window it draws is a view (`console cells view NAME GEN H W`), a pane
+of a headless screen laid one view under the next, so a module drawing at
+screen coordinates through `dp->put` and `prect` (`term draw`, `img draw`'s
+cells) lands in it too. The app's runtime clears a view to *none* before
+each `_draw` (`console cells clear NAME`), and `console flush` diffs each
+view drawn since the last against the front grid -- which here is what the
+desktop was last sent -- and writes the records ADR 0050 describes: runs of
+one pen along a row, nones, and the links and translucencies they name.
+Nothing is resolved at the app: what is beneath a cell is the desktop's to
+know, so an `under` pen over none is sent as the record's kept bit, and a
+cell written under the app's own `console translucent` carries that
+translucency's ID.
+
+At the desktop, `console cells own FD VIEW GEN PANE|- ROW COL H W` binds a
+view to a connection and a place, and refuses one over cells another
+connection's view holds. `console cells take FD` reads at most `CN_CWPASS`
+without waiting, applies each whole frame to its view's kept grid -- one
+`cn_cell` a cell -- and answers frames, cells and bytes, then the views
+changed, uncovered and wanted again; a frame for a view or a generation the
+connection no longer has is skipped as it comes, and only what no race can
+make (a line it cannot read, an ID it never named) breaks the connection.
+`console cells show VIEW [-a]` writes the changed kept cells, or all of
+them, into the back grid through `cn_putg`, the very write `cn_put` and
+`cn_fill` lay every cell with (the `CN_PUTG` macro: as a function call it
+cost an 80x24 frame 575,000 instructions more, as a macro 130,000 fewer than
+before), so what is beneath, the translucency in force and the panes above
+decide each cell's background as they did in-process.
+
+A watched descriptor is output or input. A quiet wait (`console key -q`,
+the one `dt_run` sits out a held frame with) ignores output -- a pty, a
+cells channel -- and ends on input as it ends on a key: `console watch -i
+FD` for good, an app's request socket, or `console cells input VIEW` until
+the next frame end that app's cells channel brings, so the echo of a key
+told to an app is drawn when it arrives. The wait asks a count of input
+descriptors before it looks at the list, so with none it costs what it did.
+
 ## Naming
 
 Everything is `cn_`, not `sc_`. `src/net.c` already uses `sc_` for schemes and
@@ -576,5 +618,9 @@ program that never asks `resized` does not spin on a flag it never clears.
 `tests/console.py` drives all of it through a pseudo terminal, because none of
 it happens without one; `tests/640-console.t` covers what `run.sh` can reach,
 which is the no-terminal behaviour and the argument checking.
+`tests/cellwire.py` draws an app in-process and from its own process side
+by side and compares them cell for cell, and drives every guard of the
+record with a stream written by hand.
 
     python3 tests/console.py
+    python3 tests/cellwire.py
