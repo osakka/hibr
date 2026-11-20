@@ -288,9 +288,11 @@ void kt_placepc(int cols, int rows, unsigned id, unsigned pid, long z, int sx,
 /* A subsurface's picture by descriptor (Gitea #496): the sw by sh pixels
    at sx, sy of it, at their own size -- no c= or r=, so nothing scales --
    ox, oy pixels into the cell at the cursor. Blit takes X and Y within a
-   cell; the size it draws at is the source rectangle's. */
+   cell; the size it draws at is the source rectangle's, or dw by dh
+   pixels where those are given (W=, T=, Blit 0.3.127): a subsurface
+   drawn through its view (Blit #159). */
 void kt_placesub(unsigned id, unsigned pid, int sx, int sy, int sw, int sh,
-		 int ox, int oy, long z, str *o)
+		 int ox, int oy, int dw, int dh, long z, str *o)
 {
 	s_cat(o, "\033_Ga=p,q=2,C=1,i=");
 	s_num(o, id);
@@ -304,6 +306,12 @@ void kt_placesub(unsigned id, unsigned pid, int sx, int sy, int sw, int sh,
 	s_num(o, sw);
 	s_cat(o, ",h=");
 	s_num(o, sh);
+	if (dw > 0 && dh > 0) {
+		s_cat(o, ",W=");
+		s_num(o, dw);
+		s_cat(o, ",T=");
+		s_num(o, dh);
+	}
 	if (ox) {
 		s_cat(o, ",X=");
 		s_num(o, ox);

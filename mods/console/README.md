@@ -390,7 +390,16 @@ as `INPUT view <id> ...` once the picture is in a route under its id --
 its own, after `INPUT sock`, or its window's, after `INPUT member` -- since
 Blit maps the pointer through it and refuses one for a picture in no route.
 It is said again whenever a route is (a new id, or a new connection after
-`hold upgrade`), and only to a Blit of 0.3.125 or newer (`bf_say`).
+`hold upgrade`), and only to a Blit of 0.3.125 or newer (`bf_say`). A
+subsurface is drawn through its view only by a Blit that takes a
+placement's size in pixels (`BF_SUBVIEW`, 0.3.127, `W=`/`T=`): the shown
+rectangle `cn_imgsubbox` cut to the body becomes the part of the buffer
+behind it (`bf_viewrect`), drawn at the shown size; to an older Blit it is
+drawn at its buffer's pixels as before and its view is not said, or Blit
+would map every click on it through a view it is not drawn through
+(`cn_dsubv`, one rule for both). Held, the console places it the old way
+and says its view to hold, which draws it and says it per display, by each
+display's own Blit.
 
 The same channel carries things that concern no picture.
 - **`console keep CHORD...`** tells Blit the chords the desktop keeps from

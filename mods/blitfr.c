@@ -44,6 +44,53 @@ const char *bf_idat(const char *l)
 	return *p >= '0' && *p <= '9' ? p : 0;
 }
 
+/* Blit's version, as BLIT_VERSION says in every session Blit starts (Blit
+   0.2.39), as one number: 3098 for 0.3.98. A process Blit did not start
+   is taken to talk to a current one. Plain text, so on every platform:
+   the console and hold's client ask it in code every platform has. */
+long bf_blitver(void)
+{
+	static long v = -1;
+	const char *e;
+	long a = 0, b = 0, c = 0;
+
+	if (v >= 0)
+		return v;
+	e = getenv("BLIT_VERSION");
+	if (!e || sscanf(e, "%ld.%ld.%ld", &a, &b, &c) != 3)
+		v = LONG_MAX;
+	else
+		v = a * 1000000 + b * 1000 + c;
+	return v;
+}
+
+/* A rectangle as shown, through a view, in its buffer's pixels: each edge
+   mapped on its own, so two rectangles that meet as shown meet in the
+   buffer too; kept inside the view's own rectangle -- a sub's shown size
+   and its view's can disagree for a frame while it is resized -- and
+   never less than a pixel. */
+void bf_viewrect(const int *v, int x, int y, int w, int h, int *o)
+{
+	long e[4];
+	int k;
+
+	e[0] = v[0] + (long)x * v[2] / v[4];
+	e[1] = v[1] + (long)y * v[3] / v[5];
+	e[2] = v[0] + (long)(x + w) * v[2] / v[4];
+	e[3] = v[1] + (long)(y + h) * v[3] / v[5];
+	for (k = 0; k < 4; k++) {
+		long lo = v[k & 1], hi = (long)v[k & 1] + v[2 + (k & 1)];
+
+		e[k] = e[k] < lo ? lo : e[k] > hi ? hi : e[k];
+	}
+	for (k = 0; k < 2; k++) {
+		if (e[k] > (long)v[k] + v[2 + k] - 1)
+			e[k] = (long)v[k] + v[2 + k] - 1;
+		o[k] = (int)e[k];
+		o[2 + k] = e[2 + k] - e[k] < 1 ? 1 : (int)(e[2 + k] - e[k]);
+	}
+}
+
 #ifdef __linux__
 #include <sys/socket.h>
 #include <sys/syscall.h>
@@ -357,25 +404,6 @@ int bf_line(const char *l, int *hud)
 
 /* One line of the wire's text -- an INPUT request (Blit 0.3.64) -- as a
    message of its own. 1 when it went. */
-/* Blit's version, as BLIT_VERSION says in every session Blit starts (Blit
-   0.2.39), as one number: 3098 for 0.3.98. A process Blit did not start
-   is taken to talk to a current one. */
-long bf_blitver(void)
-{
-	static long v = -1;
-	const char *e;
-	long a = 0, b = 0, c = 0;
-
-	if (v >= 0)
-		return v;
-	e = getenv("BLIT_VERSION");
-	if (!e || sscanf(e, "%ld.%ld.%ld", &a, &b, &c) != 3)
-		v = LONG_MAX;
-	else
-		v = a * 1000000 + b * 1000 + c;
-	return v;
-}
-
 int bf_say(int fd, const char *line)
 {
 	size_t n = strlen(line);

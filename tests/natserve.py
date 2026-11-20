@@ -28,7 +28,12 @@ unread from it. LOG.shm, there from the start, draws 7 in shared memory (FRM1), 
 by dmabuf, as Firefox does. LOG.scale draws 7 at twice its size each way and
 says so with WINDOW view (wp_viewporter's scale, Blit #159), and its removal
 says WINDOW view 7 -; LOG.vpopup opens a popup, 16, of 7 at 12,63 whose
-buffer of 160 by 120 is shown at 80 by 60, and LOG.vpopupgone ends it. When the desktop goes it dials again for sixty seconds and announces every
+buffer of 160 by 120 is shown at 80 by 60, and LOG.vpopupgone ends it.
+LOG.vsub gives 7 two subsurfaces drawn through views (VSUBS): 17 at half
+its buffer's size, as mpv's video is, and 18 a cropped part of its buffer
+at its own scale hanging past 7's top left; LOG.vsubdrop says 17's view
+dropped alone, its buffer then shown at its own pixels (WINDOW view 17 -),
+and LOG.vsubgone ends them. When the desktop goes it dials again for sixty seconds and announces every
 window again under the same ids, as blit-compositor does across a Restart
 Desktop. Everything it is told is a JSON line in LOG.
 """
@@ -123,15 +128,25 @@ def announce():
     if 16 in size:
         say("WINDOW popup 16 7 12 63")
         say("WINDOW view 16 0 0 160 120 80 60")
+    if vsubs and 7 in size:
+        for l in VSUBS:
+            say(l)
 
 
 # Two subsurfaces of 7 (Gitea #496), bottom to top: 11 under the window's
 # picture, hanging 8 pixels past its body's top left so it has to be cut,
 # and 10 over it, inside it.
 SUBS = ("WINDOW sub 11 7 -8 -8 64 32 below", "WINDOW sub 10 7 24 40 96 48 above")
+# Two subsurfaces of 7 through views (Blit #159, Gitea #600), each its sub
+# line (where, and the size it is shown at) then its view: 17's buffer of
+# 128 by 64 shown at 64 by 32; 18's buffer of 100 by 60, of which the 48 by
+# 24 at 20,10 is shown at its own size, hanging 8 and 4 pixels past 7's
+# body so it has to be cut too.
+VSUBS = ("WINDOW sub 17 7 40 8 64 32 above", "WINDOW view 17 0 0 128 64 64 32",
+         "WINDOW sub 18 7 -8 -4 48 24 above", "WINDOW view 18 20 10 48 24 48 24")
 
 
-full = child = popup = csd = lock = subs = geom = scale7 = False
+full = child = popup = csd = lock = subs = geom = scale7 = vsubs = False
 fs7 = False
 ans = dial()
 note(kind="hello", answer=ans)
@@ -357,6 +372,10 @@ while True:
                         for sid in (10, 11):
                             say("WINDOW gone %d" % sid)
                             size.pop(sid, None)
+                    if w[2] == "7" and vsubs:
+                        for sid in (17, 18):
+                            say("WINDOW gone %d" % sid)
+                            size.pop(sid, None)
                     say("WINDOW gone %s" % w[2])
                     size.pop(int(w[2]), None)
                 elif w[:3] == ["WINDOW", "quit", "0"]:
@@ -438,6 +457,23 @@ while True:
             say(l)
         size[11] = (64, 32)
         size[10] = (96, 48)
+    if not vsubs and os.path.exists(LOG + ".vsub") and 7 in size:
+        vsubs = True
+        for l in VSUBS:
+            say(l)
+        size[17] = (128, 64)
+        size[18] = (100, 60)
+    if vsubs and os.path.exists(LOG + ".vsubdrop"):
+        os.unlink(LOG + ".vsubdrop")
+        say("WINDOW view 17 -")
+    if vsubs and os.path.exists(LOG + ".vsubgone"):
+        os.unlink(LOG + ".vsubgone")
+        if os.path.exists(LOG + ".vsub"):
+            os.unlink(LOG + ".vsub")
+        vsubs = False
+        for wid in (17, 18):
+            size.pop(wid, None)
+            say("WINDOW gone %d" % wid)
     if not geom and os.path.exists(LOG + ".geom") and 7 in size:
         geom = True
         say("WINDOW geometry 7 10 10 %d %d" % size[7])

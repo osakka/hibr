@@ -283,6 +283,11 @@ static struct hd_in {
 	int hold;
 	str mem;
 	str view;	/* its INPUT view (Blit #159), or empty for none */
+	/* What its picture is placed as, from the emulator: 0 not seen yet,
+	   1 at a size of its own (a subsurface), 2 by its cells; and whether
+	   its view waits on that to reach a display that draws a subsurface
+	   at its buffer's pixels (hd_vto). */
+	int nat, vwait;
 } *hd_ins;
 static size_t hd_nin;
 /* The chords the desktop keeps from programs (`INPUT keep`, Gitea #530):
@@ -626,14 +631,66 @@ void hd_insame(size_t k)
 	}
 }
 
+/* Whether a display is told a picture's view (Blit #159): one whose Blit
+   draws a subsurface through it (BF_SUBVIEW, render.c's hd_imgview), and
+   any that can be sent frames for a picture placed by its cells. A
+   subsurface's view told to a Blit that draws it at its buffer's pixels
+   would put every click on it somewhere else. */
+int hd_vto(const struct hd_cli *cn, const struct hd_in *e)
+{
+	return cn->fdok && (cn->bver >= BF_SUBVIEW || e->nat == 2);
+}
+
+/* What a picture is placed as, seen by the render pass: a view that came
+   before its placement and waited for it goes now to the displays it was
+   kept from, where the picture turns out to be placed by its cells. */
+void hd_innat(unsigned id, int nat)
+{
+	size_t i, j;
+
+	for (i = 0; i < hd_nin && hd_ins[i].id != id; i++)
+		;
+	if (i == hd_nin || hd_ins[i].nat == nat)
+		return;
+	hd_ins[i].nat = nat;
+	if (!hd_ins[i].vwait)
+		return;
+	hd_ins[i].vwait = 0;
+	if (nat != 2 || !hd_ins[i].view.n || !hd_rencls)
+		return;
+	for (j = 0; j < hd_rencls->n; j++) {
+		struct hd_cli *cn = hd_rencls->p[j];
+
+		if (hd_vto(cn, &hd_ins[i]) && cn->bver < BF_SUBVIEW)
+			hd_send(cn->fd, HD_INPUT, hd_ins[i].view.p, hd_ins[i].view.n);
+	}
+}
+
+/* A picture's view, SX SY SW SH DW DH into v: 1 when it has one. */
+int hd_inview(unsigned id, int *v)
+{
+	size_t i;
+	int k = 0;
+
+	for (i = 0; i < hd_nin && hd_ins[i].id != id; i++)
+		;
+	if (i == hd_nin || hd_ins[i].view.n < 12)
+		return 0;
+	return sscanf(hd_ins[i].view.p + 11, "%*u %d %d %d %d %d %d%n", &v[0],
+		      &v[1], &v[2], &v[3], &v[4], &v[5], &k) == 6 && v[2] > 0 &&
+	       v[3] > 0 && v[4] > 0 && v[5] > 0;
+}
+
 /* An input route's line from a producer (Blit 0.3.64, Gitea #486): who
    asked is remembered by picture, and the line goes to every display that
    can be sent frames, each saying it to its own Blit. With none, the
-   producer is told at once, as Blit would tell it. */
-void hd_inputput(vec *cls, int prod, const char *line, size_t n)
+   producer is told at once, as Blit would tell it. 1 when the displays'
+   pictures are owed a render: a view changes what a subsurface is drawn
+   as on a display that draws it through one. */
+int hd_inputput(vec *cls, int prod, const char *line, size_t n)
 {
 	unsigned long id = hd_inid(line, n);
-	size_t i;
+	size_t i, k;
 	int sent = 0;
 	str o;
 
@@ -645,7 +702,7 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 			if (cn->fdok)
 				hd_send(cn->fd, HD_INPUT, line, n);
 		}
-		return;
+		return 0;
 	}
 	if (n > 9 && !memcmp(line, "KEYBOARD ", 9)) {
 		struct hd_cli *pc = hd_cprimary(cls);
@@ -658,7 +715,7 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 				if (cn->fdok)
 					hd_send(cn->fd, HD_INPUT, line, n);
 			}
-			return;
+			return 0;
 		}
 		/* A switch, once: on the primary display's channel, or the
 		   first that can be sent anything. */
@@ -667,7 +724,7 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 				pc = cls->p[i];
 		if (pc && pc->fdok)
 			hd_send(pc->fd, HD_INPUT, line, n);
-		return;
+		return 0;
 	}
 	if (n >= 13 && !memcmp(line, "INPUT imekeys", 13) && (n == 13 || line[13] == ' ')) {
 		hd_imek.n = 0;
@@ -675,17 +732,17 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 		for (i = 0; i < cls->n; i++)
 			if (((struct hd_cli *)cls->p[i])->fdok)
 				hd_send(((struct hd_cli *)cls->p[i])->fd, HD_INPUT, hd_imek.p, hd_imek.n);
-		return;
+		return 0;
 	}
 	if (n >= 10 && !memcmp(line, "INPUT keep", 10) && (n == 10 || line[10] == ' ')) {
 		hd_keep.n = 0;
 		s_add(&hd_keep, line, n);
 		for (i = 0; i < cls->n; i++)
 			hd_keepto(cls->p[i]);
-		return;
+		return 0;
 	}
 	if (!id || n < 9 || memcmp(line, "INPUT ", 6))
-		return;
+		return 0;
 	/* A producer's own line comes after any replay, so whatever a
 	   display's Blit has not answered of a replay by now it never will:
 	   counted on, it would swallow the answer to this one. */
@@ -718,6 +775,25 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 		hd_ins[i].view.n = 0;
 		if (n < 2 || memcmp(line + n - 2, " -", 2))
 			s_add(&hd_ins[i].view, line, n);
+		/* Only to a display hd_vto says may be told it, and taken as
+		   said by the rest, as an older Blit's bf_say takes a line it
+		   does not know: an error would end the producer's route. One
+		   whose picture is not placed yet waits for hd_innat. */
+		k = i;
+		for (i = 0; i < cls->n; i++) {
+			struct hd_cli *cn = cls->p[i];
+
+			if (!cn->fdok)
+				continue;
+			sent = 1;
+			cn->imgen = 0;
+			if (hd_vto(cn, &hd_ins[k]))
+				hd_send(cn->fd, HD_INPUT, line, n);
+			else if (!hd_ins[k].nat)
+				hd_ins[k].vwait = 1;
+		}
+		if (sent)
+			return 1;
 	} else if (n > 11 && !memcmp(line, "INPUT hold ", 11)) {
 		hd_ins[i].hold = n >= 7 && !memcmp(line + n - 7, "confine", 7) ? 2 : 1;
 	}
@@ -728,13 +804,14 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 			sent = 1;
 	}
 	if (sent)
-		return;
+		return 0;
 	s_init(&o);
 	s_cat(&o, "INPUT error ");
 	s_num(&o, (long)id);
 	s_cat(&o, " ENOTSUP");
 	hd_send(prod, HD_FRMANS, o.p, o.n);
 	s_free(&o);
+	return 0;
 }
 
 /* Whether s, n bytes long, holds w. */
@@ -817,6 +894,11 @@ void hd_inreplay(struct hd_cli *cn)
 	for (i = 0; i < hd_nin; i++) {
 		if (!hd_ins[i].view.n)
 			continue;
+		if (!hd_vto(cn, &hd_ins[i])) {
+			if (!hd_ins[i].nat)
+				hd_ins[i].vwait = 1;
+			continue;
+		}
 		if (hd_send(cn->fd, HD_INPUT, hd_ins[i].view.p, hd_ins[i].view.n))
 			cn->inrep++;
 	}

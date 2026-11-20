@@ -1228,8 +1228,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 			else
 				while (nf > 0)
 					close(fds[--nf]);
-			if (t == HD_INPUT)
-				hd_inputput(&cls, pf, in.p, in.n);
+			if (t == HD_INPUT && hd_inputput(&cls, pf, in.p, in.n))
+				owed = 1;
 		}
 		if (q[1].revents) {
 			size_t got = 0;
@@ -1417,6 +1417,14 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					s_init(&cn->dmafmt);
 					s_add(&cn->dmafmt, in.p, in.n);
 					lg(HIBR_LDBG, "hold: a display imports dmabufs");
+				}
+			} else if (t == HD_BVER && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+
+				if (cn) {
+					memcpy(&cn->bver, in.p, sizeof cn->bver);
+					cn->imgen = 0;
+					lg(HIBR_LDBG, "hold: a display's Blit is %d", cn->bver);
 				}
 			} else if (t == HD_FDCAP && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
@@ -1711,6 +1719,11 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 		   clients simply stay on the code they have. */
 		if (cn->cabi)
 			fprintf(f, "carry %d %d\n", cn->fd, cn->cabi);
+		/* And which Blit it said it is (HD_BVER), or a subsurface would
+		   be drawn there at its buffer's pixels again after every
+		   upgrade, until it attached again. */
+		if (cn->bver)
+			fprintf(f, "bver %d %d\n", cn->fd, cn->bver);
 		hd_keepexec(cn->fd);
 	}
 	fclose(f);
@@ -1903,6 +1916,13 @@ int hd_resume(sh *s)
 				cm->lockok = pb != 0;
 				cm->fdok = pr != 0;
 			}
+			continue;
+		}
+		if (sscanf(line, "bver %d %d", &fd, &pa) == 2) {
+			struct hd_cli *cb = hd_cfind(&cls, fd);
+
+			if (cb)
+				cb->bver = pa;
 			continue;
 		}
 		if (sscanf(line, "carry %d %d", &fd, &pa) == 2) {

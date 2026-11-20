@@ -3,6 +3,7 @@
 #include "hd.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -257,8 +258,16 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	hd_clis = s;
 	bf_answer = hd_clians;
 	bfd = bf_open();
-	if (bfd >= 0)
+	/* Which Blit it is, before the server hears it takes frames and
+	   tells it every route there is: what a picture may be drawn as
+	   there, and so which views it is told. */
+	if (bfd >= 0) {
+		long bv = bf_blitver();
+		int v = bv > INT_MAX ? INT_MAX : (int)bv;
+
+		hd_send(s, HD_BVER, (const char *)&v, sizeof v);
 		hd_send(s, HD_FDCAP, (const char *)&one, sizeof one);
+	}
 	if (bfd >= 0 && bf_dmabuf)
 		hd_send(s, HD_DMABUF, bf_formats, strlen(bf_formats));
 	if (tc.bce == 1)

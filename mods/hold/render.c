@@ -356,7 +356,7 @@ int hd_imgnatcut(struct hd_cli *cn, str *pic, str *cut, int *r, int *c)
 		return 0;
 	cut->n = 0;
 	hd_imgcutnat(cut, pic->p, pic->n, (int)(x + l - left), (int)(y + t - top),
-		     (int)(rt - l), (int)(b - t), (int)(l % cw), (int)(t % ch));
+		     (int)(rt - l), (int)(b - t), (int)(l % cw), (int)(t % ch), 0, 0);
 	pic->n = 0;
 	s_add(pic, cut->p, cut->n);
 	*r = (int)(t / ch);
@@ -377,9 +377,10 @@ int hd_imgnat(const char *p, size_t n)
 /* A picture drawn at its own size (no c= or r=: a program window's
    subsurface, Gitea #496) showing only part of itself: the source
    rectangle x, y, w by h of it, offset ox, oy into the cell it is placed
-   at -- every key but those passed on as they were. */
+   at, and drawn at dw by dh pixels where those are given (W=, T=, Blit
+   0.3.127) -- every key but those passed on as they were. */
 void hd_imgcutnat(str *o, const char *p, size_t n, int x, int y, int w,
-		  int h, int ox, int oy)
+		  int h, int ox, int oy, int dw, int dh)
 {
 	size_t i = 3, s, e;
 	int first = 1;
@@ -391,7 +392,7 @@ void hd_imgcutnat(str *o, const char *p, size_t n, int x, int y, int w,
 		for (s = i; s < e && p[s] != ','; s++)
 			;
 		if (!(s - i >= 2 && p[i + 1] == '=' &&
-		      strchr("xywhXY", p[i]))) {
+		      strchr("xywhXYWT", p[i]))) {
 			if (!first)
 				s_ch(o, ',');
 			s_add(o, p + i, s - i);
@@ -409,6 +410,12 @@ void hd_imgcutnat(str *o, const char *p, size_t n, int x, int y, int w,
 	s_num(o, w);
 	s_cat(o, ",h=");
 	s_num(o, h);
+	if (dw > 0 && dh > 0) {
+		s_cat(o, ",W=");
+		s_num(o, dw);
+		s_cat(o, ",T=");
+		s_num(o, dh);
+	}
 	if (ox) {
 		s_cat(o, ",X=");
 		s_num(o, ox);
@@ -418,6 +425,31 @@ void hd_imgcutnat(str *o, const char *p, size_t n, int x, int y, int w,
 		s_num(o, oy);
 	}
 	s_add(o, p + e, n - e);
+}
+
+/* A subsurface's placement drawn through its view v (Blit #159), for a
+   display whose Blit takes a placement's size in pixels: the rectangle it
+   shows, as the console placed it, becomes the part of its buffer behind
+   it, drawn at the size it shows it -- after any cut at this display's
+   edge, which is made in what is shown. */
+void hd_imgview(str *pic, str *cut, const int *v)
+{
+	long x = 0, y = 0, w = 0, h = 0, ox = 0, oy = 0;
+	int b[4];
+
+	if (!hd_imgkey(pic->p, pic->n, 'w', &w) || !hd_imgkey(pic->p, pic->n, 'h', &h) ||
+	    w <= 0 || h <= 0)
+		return;
+	hd_imgkey(pic->p, pic->n, 'x', &x);
+	hd_imgkey(pic->p, pic->n, 'y', &y);
+	hd_imgkey(pic->p, pic->n, 'X', &ox);
+	hd_imgkey(pic->p, pic->n, 'Y', &oy);
+	bf_viewrect(v, (int)x, (int)y, (int)w, (int)h, b);
+	cut->n = 0;
+	hd_imgcutnat(cut, pic->p, pic->n, b[0], b[1], b[2], b[3], (int)ox,
+		     (int)oy, (int)w, (int)h);
+	pic->n = 0;
+	s_add(pic, cut->p, cut->n);
 }
 
 /* The same picture, showing only part of itself: its first control string
@@ -995,7 +1027,7 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		s_init(&cut);
 		for (k = 0; k < n; k++) {
 			unsigned id, h;
-			int had = 0, moved = 0, trans;
+			int had = 0, moved = 0, trans, vw[6];
 			long pos, pv = 0, zv = 0;
 
 			pic.n = 0;
@@ -1003,6 +1035,8 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 					  &pic))
 				continue;
 			id = hd_imgid(pic.p, pic.n);
+			if (id && pic.n > 5 && !memcmp(pic.p, "\033_Ga=p", 6))
+				hd_innat(id, hd_imgnat(pic.p, pic.n) ? 1 : 2);
 			g[0] = ir;
 			g[1] = ic;
 			g[2] = irows;
@@ -1096,6 +1130,9 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				ir = r0;
 				ic = c0;
 			}
+			if (pic.p[1] == '_' && hd_imgnat(pic.p, pic.n) && cn->fdok &&
+			    cn->bver >= BF_SUBVIEW && hd_inview(id, vw))
+				hd_imgview(&pic, &cut, vw);
 			h = hd_hash(pic.p, pic.n);
 			/* A placement by descriptor that moves sends the same
 			   bytes at another cell (Gitea #486, a stream keeps its

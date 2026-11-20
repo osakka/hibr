@@ -3,7 +3,7 @@
 the only one since Blit 0.3.74: every line about a picture is
 `<WORD> <verb> <id> [arguments]`, the id the third word.
 
-    python3 tests/frameserve.py NAME TOKEN LOG [old|v3|nodma]
+    python3 tests/frameserve.py NAME TOKEN LOG [old|v3|nodma] [ver=X.Y.Z]
 
 With old it is a Blit older than 0.3.74, refusing a version 5 hello with
 EINVAL as that one does. v3 imports dmabufs (ADR 0223); without it, or with
@@ -14,6 +14,9 @@ panel is shown, and each client is sent "HUD1 on\n" -- right after its OK
 when it already applies -- and "HUD1 off\n" when the file goes. A STA1
 message is checked as Blit's frame_status checks it and logged with its
 lines, or refused with "FRAME error 0 EINVAL\n".
+
+ver= is the Blit it stands in for, 0.3.127 by default, which decides how it
+draws a placement it is handed (LOG.place, below).
 
 Listens on the abstract Unix socket NAME (SOCK_SEQPACKET), as Blit does,
 takes a hello carrying TOKEN, and then frames: a 48-byte header and one
@@ -44,6 +47,8 @@ OLD = len(sys.argv) > 4 and sys.argv[4] in ("old", "v1")
 # hold on to everything. A fifth word, once `hold` for Blit 0.3.70, is
 # taken and ignored: every version 5 Blit takes INPUT hold and member.
 NODMA = not (len(sys.argv) > 4 and sys.argv[4] == "v3")
+VER = next((tuple(int(x) for x in a[4:].split(".")) for a in sys.argv[4:]
+            if a.startswith("ver=")), (0, 3, 127))
 F_GET_SEALS = 1034
 SEALS = 0x0002 | 0x0004 | 0x0008
 
@@ -68,6 +73,33 @@ def keepok(c):
 def note(**kw):
     with open(LOG, "a") as f:
         f.write(json.dumps(kw) + "\n")
+
+
+def placement(ctrl):
+    """A placement as Blit draws it (api.md, "Placing a picture"): the
+    source rectangle x, y, w by h of the picture, X, Y pixels into the cell
+    at the cursor, filling c by r cells -- or, from 0.3.127, W by T pixels:
+    both or neither, 1 to 16384 each, never with c or r, or the placement
+    is refused EINVAL and nothing stored. An older Blit does not know W and
+    T and draws the source rectangle at its own size. The stand-in cannot
+    see the terminal, so the test hands it the placements it saw, one
+    control string a line, in LOG.place, and it notes what it would draw."""
+    k = dict(kv.split("=", 1) for kv in ctrl.split(",") if "=" in kv)
+    num = lambda n, d=0: int(k[n]) if k.get(n, "").lstrip("-").isdigit() else d
+    iid = num("i")
+    src = [num("x"), num("y"), num("w"), num("h")]
+    if VER >= (0, 3, 127) and ("W" in k or "T" in k):
+        if "W" not in k or "T" not in k or "c" in k or "r" in k or \
+                not (1 <= num("W") <= 16384 and 1 <= num("T") <= 16384):
+            note(kind="placed", id=iid, error="EINVAL")
+            return
+        size = [num("W"), num("T")]
+    elif "c" in k or "r" in k:
+        size = None
+    else:
+        size = src[2:]
+    note(kind="placed", id=iid, src=src, size=size, at=[num("X"), num("Y")],
+         cells=[num("c"), num("r")] if size is None else None)
 
 
 def frame(conn, st, data, fds):
@@ -398,6 +430,11 @@ def main():
                         if ok:
                             c.send(b"FRAME release %d %d\n" % (iid, seq))
                     note(kind="released", id=iid, seq=seq, deleted=True)
+        if os.path.exists(LOG + ".place"):
+            ps = open(LOG + ".place").read().split()
+            os.unlink(LOG + ".place")
+            for ctrl in ps:
+                placement(ctrl)
         if os.path.exists(LOG + ".rate"):
             RATE[0] = int(open(LOG + ".rate").read().strip() or 60000)
             os.unlink(LOG + ".rate")

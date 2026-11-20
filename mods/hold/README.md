@@ -475,6 +475,19 @@ the **primary** display's answer, since every display's Blit answers for
 its own route and only the focused session's is live. A display whose Blit
 is on another machine gets an error for the route -- Blit takes an EIS
 socket only from its own machine's user -- and still shows the picture.
+A picture's `INPUT view` (Blit #159) is kept and said again to a display
+that comes afresh, after its routes. A subsurface's view is the server's to
+draw, per display (Gitea #600): each client with Blit's frame socket says
+which Blit it is (`HD_BVER`, `bf_blitver` in its own session, before
+`HD_FDCAP`), and to one of 0.3.127 or newer (`BF_SUBVIEW`) the render pass
+redraws a subsurface's placement through its view (`hd_imgview`: the part
+of the buffer behind what it shows, drawn there with `W=`/`T=`), after any
+cut at that display's edge, and tells it the view. An older one, or a
+client that never said, is sent the placement as the console made it and
+not the view (`hd_vto`), since its Blit would map the pointer through a
+view the picture is not drawn through. Which pictures are subsurfaces the
+emulator says, by how each is placed; a view that arrives before its
+picture's placement waits for that (`hd_innat`).
 `HD_FRM3` is `'N'` since 0.99.469: it was `'K'`, which `HD_HUDQ` already
 was, and `tests/999-hold-letters.t` now refuses any letter used twice. A
 session started before 0.99.469 needs `hold upgrade` before dmabuf frames

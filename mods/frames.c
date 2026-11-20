@@ -697,9 +697,9 @@ void fl_vtext(const fl_srv *t, str *o, char sep)
 /* A picture's view said (Blit #159): "SX SY SW SH DW DH" after its id, or
    "-". Kept for its drawing, told to the console for Blit, which maps the
    pointer through it, and news for the desktop, which sizes the picture
-   by what is shown. A sub's is kept and not yet told: it is drawn at its
-   buffer's pixels, and Blit mapping the pointer through a view the picture
-   is not drawn through would put every click somewhere else. */
+   by what is shown. A sub's is the console's to draw through, since only
+   a Blit that takes a placement's size in pixels can (0.3.127), and the
+   console says it to Blit only where it is drawn so. */
 void fl_wview(fl_srv *f, fl_srv *t, const char *rest)
 {
 	int v[6], k = 0;
@@ -724,8 +724,7 @@ void fl_wview(fl_srv *f, fl_srv *t, const char *rest)
 	}
 	s_init(&o);
 	fl_vtext(t, &o, ' ');
-	if (!t->sub)
-		fl_dpf->input(f->s, t->n, "view", o.p);
+	fl_dpf->input(f->s, t->n, "view", o.p);
 	fl_ev(f, "view", t->n, o.p);
 	lg(HIBR_LDBG, "frames %u: window %u is viewed as %s", f->n, t->n, o.p);
 	s_free(&o);

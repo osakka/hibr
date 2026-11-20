@@ -30,6 +30,7 @@
 const hf_api *cn_hold(sh *s);
 struct cn_dst;
 void cn_dinsync(sh *s, struct cn_dst *d);
+void cn_imgdmaview(unsigned sid);
 
 typedef struct cn_dst {
 	unsigned sid;		/* the caller's number for it */
@@ -58,9 +59,12 @@ typedef struct cn_dst {
 	int mx, my;
 	/* Its view (Blit #159): "SX SY SW SH DW DH", or null for its frame's
 	   own pixels; and the one Blit was last told, under ivcid. Blit keeps
-	   a view on the input route, so a route said again is told it again. */
+	   a view on the input route, so a route said again is told it again.
+	   sub: a subsurface, which is drawn through its view only by a Blit
+	   that takes a placement's size in pixels (cn_dsubv). */
 	char *view, *vsaid;
 	unsigned ivcid;
+	int sub;
 } cn_dst;
 
 /* Which stream a kitty id belonged to, kept after the picture has gone,
@@ -643,15 +647,31 @@ int cn_dsub(sh *s, const char *pane, int row, int col, int h, int w,
 	sr.ph = ph;
 	sr.slot = slot;
 	sr.crop = 0;
+	d = cn_dget(sid, 1);
+	d->sub = 1;
 	if (!cn_imgdmas(s, pane, row, col, h, w, sid, &cid, &sr))
 		return 0;
-	d = cn_dget(sid, 1);
 	if (d->cid != cid) {
 		d->cid = cid;
 		cn_dmapadd(cid, sid);
 		cn_dsend(s, d);
 	}
 	return 1;
+}
+
+/* Whether a subsurface is drawn through its view, into v: only where it
+   has one and the Blit placing it takes a placement's size in pixels
+   (Blit 0.3.127). Held, never here: hold draws each display's own way. */
+int cn_dsubv(unsigned sid, int *v)
+{
+	cn_dst *d = cn_dget(sid, 0);
+	int k = 0;
+
+	if (!d || !d->view || cn_imgfd == 1 || bf_blitver() < BF_SUBVIEW)
+		return 0;
+	return sscanf(d->view, "%d %d %d %d %d %d%n", &v[0], &v[1], &v[2],
+		      &v[3], &v[4], &v[5], &k) == 6 && !d->view[k] && v[2] > 0 &&
+	       v[3] > 0 && v[4] > 0 && v[5] > 0;
 }
 
 /* A stream's picture placed as cn_dplace's, showing only part of itself:
@@ -835,8 +855,15 @@ void cn_dvsync(sh *s, cn_dst *d)
 {
 	const char *want = d->view ? d->view : "-";
 	const char *had;
+	int v[6];
 	str o;
 
+	/* A subsurface's view is said only where it is drawn through it, or
+	   to hold, which draws it each display's own way and says it to the
+	   displays that draw it so: Blit mapping the pointer through a view
+	   the picture is not drawn through puts every click elsewhere. */
+	if (d->sub && cn_imgfd != 1 && !cn_dsubv(d->sid, v))
+		want = "-";
 	if (!d->cid || d->fcid != d->cid)
 		return;
 	if (!(d->sock && d->icid == d->cid) && !(d->mpar && d->imcid == d->cid))
@@ -914,6 +941,7 @@ int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path)
 		   !strchr(path, '\n')) {
 		free(d->view);
 		d->view = strcmp(path, "-") ? xs(path) : 0;
+		cn_imgdmaview(sid);
 	} else if (!strcmp(verb, "hold") && path &&
 		   (!strcmp(path, "confine") || !strcmp(path, "relative"))) {
 		d->hold = !strcmp(path, "confine") ? 2 : 1;

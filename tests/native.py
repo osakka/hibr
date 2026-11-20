@@ -105,7 +105,7 @@ open(os.path.join(D, "share", "applications", "hibr.natserve.desktop"), "w").wri
 t = Term(p, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty", "lock"],
          env={"HIBR_GFX": "kitty", "BLIT_FRAME_SOCKET": "@" + nm,
               "BLIT_FRAME_TOKEN": "tok", "XDG_RUNTIME_DIR": D,
-              "WAYLAND_DISPLAY": None, "DISPLAY": None,
+              "WAYLAND_DISPLAY": None, "DISPLAY": None, "BLIT_VERSION": "0.3.127",
               "DT_PROGAUTO": "1", "XDG_DATA_DIRS": os.path.join(D, "share"),
               "NTAUGHT": MARK + ".taught", "NTDROP": MARK + ".drop", "NTDRAG": MARK + ".drag",
                   "NTICON": MARK + ".icon"})
@@ -545,6 +545,72 @@ check("and each joins its window's input route at its place, so the pointer "
       mb and {(x["x"], x["y"]) for x in mb} == {(24, 40), (-8, -8)},
       [x for x in lines(blitlog) if x["kind"] == "member"][-4:])
 nsub = len([a for a in aps() if "w=96,h=48" in a])
+
+
+def placed(lg, ctrls, iid):
+    """What the stand-in Blit at lg draws for the placements ctrls, handed
+    to it in its LOG.place: its note for the picture iid."""
+    open(lg + ".tmp", "w").write("\n".join(ctrls) + "\n")
+    os.replace(lg + ".tmp", lg + ".place")
+    return wait(lambda: [x for x in lines(lg) if x["kind"] == "placed" and x["id"] == iid])
+
+
+def lastp(out, iid):
+    """The last placement of the picture iid in a terminal's output."""
+    ms = [m.decode() for m in re.findall(rb"\x1b_G(a=p[^;\x1b]*)", out)
+          if iid and ("i=%d," % iid).encode() in m]
+    return ms[-1] if ms else ""
+
+
+# Subsurfaces drawn through their views (Blit #159, Gitea #600): mpv's
+# video at half its buffer's size, and a cropped part of a buffer at its own
+# scale, cut by the window's body. To a Blit that takes a placement's size in
+# pixels (0.3.127) each is the part of its buffer behind what it shows, drawn
+# at exactly the size it shows it (W=, T=), and its view goes up, so Blit
+# maps the pointer through what is drawn.
+open(complog + ".vsub", "w").close()
+t.keys([b"x"])
+m17 = wait(lambda: [x for x in blitkind("member", top=cid) if (x["x"], x["y"]) == (40, 8)])
+m18 = wait(lambda: [x for x in blitkind("member", top=cid) if (x["x"], x["y"]) == (-8, -4)])
+i17 = m17[-1]["id"] if m17 else None
+i18 = m18[-1]["id"] if m18 else None
+p17 = wait(lambda: scr() and ",W=" in lastp(t.out, i17) and lastp(t.out, i17))
+p18 = wait(lambda: ",W=" in lastp(t.out, i18) and lastp(t.out, i18))
+d17 = placed(blitlog, [p17], i17) if p17 else None
+check("a subsurface shown at half its buffer's size is drawn through its view: "
+      "its whole buffer, at exactly the size it is shown, offset into its cell",
+      p17 and [akey(p17, k) for k in "xywhWTY"] == [0, 0, 128, 64, 64, 32, 8] and
+      akey(p17, "c") is None and akey(p17, "r") is None and
+      d17 and d17[-1]["size"] == [64, 32] and d17[-1]["src"] == [0, 0, 128, 64],
+      (i17, p17, d17, lastp(t.out, i17)))
+d18 = placed(blitlog, [p18], i18) if p18 else None
+check("a cropped subsurface shows that rectangle of its buffer at its place, "
+      "cut to the window's body at its own scale",
+      p18 and [akey(p18, k) for k in "xywhWT"] == [28, 14, 40, 20, 40, 20] and
+      akey(p18, "X") is None and akey(p18, "Y") is None and
+      d18 and d18[-1]["size"] == [40, 20] and d18[-1]["src"] == [28, 14, 40, 20],
+      (i18, p18, d18, lastp(t.out, i18)))
+check("and each one's view goes up under its own id after its membership, "
+      "rectangle and shown size exact",
+      i17 and i18 and
+      wait(lambda: [x for x in blitkind("view", id=i17) if x.get("view") == [0, 0, 128, 64, 64, 32]]) and
+      wait(lambda: [x for x in blitkind("view", id=i18) if x.get("view") == [20, 10, 48, 24, 48, 24]]),
+      [x for x in lines(blitlog) if x["kind"] in ("view", "member")][-6:])
+# Its view dropped alone, on the subsurface already drawn through it
+# (`WINDOW view 17 -`): placed again at its buffer's own pixels, and the
+# drop goes up, so Blit stops mapping the pointer through it.
+nv17 = len(blitkind("view", id=i17))
+open(complog + ".vsubdrop", "w").close()
+t.keys([b"x"])
+q17 = wait(lambda: scr() and ",W=" not in lastp(t.out, i17) and lastp(t.out, i17))
+check("a subsurface's view dropped alone places it again at its buffer's own "
+      "pixels, and the drop goes up",
+      p17 and q17 and [akey(q17, k) for k in "xywhWTY"] == [0, 0, 64, 32, None, None, 8] and
+      wait(lambda: [x for x in blitkind("view", id=i17)[nv17:] if x.get("view") is None]),
+      (q17, blitkind("view", id=i17)[nv17:]))
+open(complog + ".vsubgone", "w").close()
+t.keys([b"x"])
+wait(lambda: not os.path.exists(complog + ".vsubgone"))
 
 # A program that draws its own shadow says where its window is in its
 # buffer (Wayland's window geometry): its picture is cut to that, the
@@ -1003,6 +1069,19 @@ check("quitting the desktop ends the compositor at once", q,
 blit.terminate()
 blit.wait()
 
+def blitd(tag, ver="0.3.127"):
+    """A stand-in Blit of its own, for one display, standing in for Blit ver
+    -- and that display's environment, its BLIT_VERSION ver too."""
+    nmx = "hibr-nat2%s-%d" % (tag, os.getpid())
+    lg = os.path.join(D, "blit2%s.log" % tag)
+    open(lg, "w").close()
+    pr = subprocess.Popen([sys.executable, os.path.join(HERE, "frameserve.py"),
+                           nmx, "tok" + tag, lg, "v3", "ver=" + ver])
+    wait(lambda: "listening" in open(lg).read())
+    return pr, {"BLIT_FRAME_SOCKET": "@" + nmx, "BLIT_FRAME_TOKEN": "tok" + tag,
+                "BLIT_VERSION": ver}
+
+
 # Held, as every desktop of the owner's is: what the compositor asks of
 # Blit -- its route by socket, a popup's membership -- goes through hold to
 # the display's Blit, and comes back after `hold upgrade`.
@@ -1047,7 +1126,8 @@ subprocess.run([sx.HIBR, "-c", load("hold") + 'hold new -d %s "$HIBR" %s' % (hn,
 a0 = os.path.join(D, "att.hibr")
 open(a0, "w").write(load("hold") + "hold attach -m -n top %s 0 0\n" % hn)
 ht = Term(a0, rows=26, cols=82, settle=1.0, cellw=10, cellh=20, caps=["kitty"],
-          env=dict(henv, BLIT_FRAME_SOCKET="@" + nm2, BLIT_FRAME_TOKEN="tok2"))
+          env=dict(henv, BLIT_FRAME_SOCKET="@" + nm2, BLIT_FRAME_TOKEN="tok2",
+                   BLIT_VERSION="0.3.127"))
 
 
 def hscr():
@@ -1188,7 +1268,8 @@ nre = len(lines(blitlog2))
 a1 = os.path.join(D, "att2.hibr")
 open(a1, "w").write(load("hold") + "hold attach -m -n again %s 0 0\n" % hn)
 ht2 = Term(a1, rows=26, cols=82, settle=1.0, cellw=10, cellh=20, caps=["kitty"],
-           env=dict(henv, BLIT_FRAME_SOCKET="@" + nm2, BLIT_FRAME_TOKEN="tok2"))
+           env=dict(henv, BLIT_FRAME_SOCKET="@" + nm2, BLIT_FRAME_TOKEN="tok2",
+                    BLIT_VERSION="0.3.127"))
 
 
 def hjoin():
@@ -1201,6 +1282,60 @@ check("a display coming to the session afresh, as a restarted Blit does, is "
       "told the window's view again, after its route", rj and rj[0]["verb"] == "sock",
       hjoin())
 ht2.close()
+# Held, a subsurface's view is hold's to draw, for each display by its own
+# Blit (Gitea #600): the desktop places it as it is shown and says its view
+# to hold, which draws it through the view for a display whose Blit takes a
+# placement's size in pixels, and tells that display the view.
+open(complog2 + ".vsub", "w").close()
+ht.keys([b"x"])
+hm17 = wait(lambda: [x for x in hk("member") if (x["x"], x["y"]) == (40, 8)], 6)
+hi17 = hm17[-1]["id"] if hm17 else None
+hp17 = wait(lambda: hscr() and ",W=" in lastp(ht.out, hi17) and lastp(ht.out, hi17), 6)
+hd17 = placed(blitlog2, [hp17], hi17) if hp17 else None
+check("held, a subsurface reaches a display of Blit 0.3.127 through hold drawn "
+      "through its view: its whole buffer at exactly the size it is shown",
+      hp17 and [akey(hp17, k) for k in "xywhWTY"] == [0, 0, 128, 64, 64, 32, 8] and
+      akey(hp17, "c") is None and hd17 and hd17[-1]["size"] == [64, 32],
+      (hi17, hp17, hd17, lastp(ht.out, hi17)))
+check("and its view reaches that display's Blit through hold",
+      hi17 and wait(lambda: [x for x in hk("view", id=hi17)
+                             if x.get("view") == [0, 0, 128, 64, 64, 32]], 6),
+      [x for x in lines(blitlog2) if x["kind"] in ("view", "member")][-6:])
+# And a display of Blit 0.3.126 showing the same, beside it: drawn as it
+# always was there, at its buffer's pixels at the size it is shown, and not
+# told the subsurface's view -- that Blit would map the pointer through a
+# view the picture is not drawn through -- while the window's own view,
+# which it draws, it is told.
+po, eo = blitd("ho", "0.3.126")
+a2 = os.path.join(D, "att3.hibr")
+open(a2, "w").write(load("hold") + "hold attach -m -n old %s 0 0\n" % hn)
+ht3 = Term(a2, rows=26, cols=82, settle=1.0, cellw=10, cellh=20, caps=["kitty"],
+           env=dict(henv, **eo))
+holog = os.path.join(D, "blit2ho.log")
+op17 = wait(lambda: (ht3.collect(0.1), lastp(ht3.out, hi17))[1], 8)
+od17 = placed(holog, [op17], hi17) if op17 else None
+otop = wait(lambda: [x for x in lines(holog) if x["kind"] == "view" and x["id"] == hcid], 6)
+check("held, a display of Blit 0.3.126 beside it is sent the subsurface as it "
+      "always was, its buffer's pixels at the size it is shown, and not its "
+      "view, while the window's own view reaches it",
+      op17 and [akey(op17, k) for k in "xywhWT"] == [0, 0, 64, 32, None, None] and
+      od17 and od17[-1]["size"] == [64, 32] and otop and
+      not [x for x in lines(holog) if x["kind"] in ("view", "input") and x.get("id") == hi17
+           and (x["kind"] == "view" or x.get("verb") == "view")],
+      (op17, od17, otop, [x for x in lines(holog) if x["kind"] in ("view", "member")][-6:]))
+ht3.close()
+po.terminate()
+# Its view dropped alone, held: hold draws it again at its buffer's own
+# pixels on the display that drew it through the view, and tells it so.
+nhv17 = len(hk("view", id=hi17))
+open(complog2 + ".vsubdrop", "w").close()
+ht.keys([b"x"])
+hq17 = wait(lambda: hscr() and hp17 and ",W=" not in lastp(ht.out, hi17) and lastp(ht.out, hi17), 6)
+check("held, a subsurface's view dropped alone is drawn again at its buffer's "
+      "own pixels on that display, and the drop reaches its Blit",
+      hq17 and [akey(hq17, k) for k in "xywhWT"] == [0, 0, 64, 32, None, None] and
+      wait(lambda: [x for x in hk("view", id=hi17)[nhv17:] if x.get("view") is None], 6),
+      (hq17, hk("view", id=hi17)[nhv17:]))
 open(MARK2 + ".quit", "w").close()
 ht.keys([b"x"])
 wait(lambda: [x for x in lines(complog2) if x["kind"] == "quit"], 6)
@@ -1215,16 +1350,6 @@ blit2.wait()
 # window's own picture cut by its cells, the subsurface by its pixels, each
 # display sent its own slice; it went whole to the top-left one's display
 # and the other showed nothing of it.
-def blitd(tag):
-    nmx = "hibr-nat2%s-%d" % (tag, os.getpid())
-    lg = os.path.join(D, "blit2%s.log" % tag)
-    open(lg, "w").close()
-    pr = subprocess.Popen([sys.executable, os.path.join(HERE, "frameserve.py"),
-                           nmx, "tok" + tag, lg, "v3"])
-    wait(lambda: "listening" in open(lg).read())
-    return pr, {"BLIT_FRAME_SOCKET": "@" + nmx, "BLIT_FRAME_TOKEN": "tok" + tag}
-
-
 pa, ea = blitd("a")
 pb, eb = blitd("b")
 complog3 = os.path.join(D, "comp3.log")
@@ -1402,5 +1527,43 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
       "frame channel used all the same", used and not asked, (used, asked))
 vg.quit(None, 0.3)
 pv.terminate()
+
+# And a desktop whose Blit is 0.3.126, which draws a placement's source
+# rectangle at its own size whatever W= and T= say: its subsurfaces drawn
+# through views are placed as they always were, at their buffers' pixels at
+# the size they are shown, and their views are not said, so Blit maps the
+# pointer through what it draws (Gitea #600).
+po4, eo4 = blitd("o4", "0.3.126")
+complog4 = os.path.join(D, "comp4.log")
+open(complog4 + ".vsub", "w").close()
+wrap4 = os.path.join(D, "blit-compositor4")
+open(wrap4, "w").write("#!/bin/sh\nexec %s %s %s \"$@\"\n"
+                       % (sys.executable, os.path.join(HERE, "natserve.py"), complog4))
+os.chmod(wrap4, 0o755)
+p4 = sx.scratch("native-old.hibr")
+open(p4, "w").write("%s. %s\nDT_NATBIN=%s\nDT_SUPERVISE=off\ndt_open\ndt_run\ndt_close\n"
+                    % (load("console"), tree("programs/desktop/desktop.hibr"), wrap4))
+og = Term(p4, rows=26, cols=82, settle=1.0, cellw=8, cellh=16, caps=["kitty"],
+          env=dict(eo4, HIBR_GFX="kitty", XDG_RUNTIME_DIR=D, WAYLAND_DISPLAY=None,
+                   DISPLAY=None, DT_PROGAUTO="1"))
+olog = os.path.join(D, "blit2o4.log")
+om = wait(lambda: [x for x in lines(olog) if x["kind"] == "member"
+                   and (x["x"], x["y"]) in ((40, 8), (-8, -4))], 10)
+oi = {(x["x"], x["y"]): x["id"] for x in om or []}
+o17 = wait(lambda: (og.collect(0.1), lastp(og.out, oi.get((40, 8))))[1], 8)
+o18 = lastp(og.out, oi.get((-8, -4)))
+od = placed(olog, [o17], oi.get((40, 8))) if o17 else None
+wait(lambda: False, 1.0 * SLOW)
+check("to a Blit of 0.3.126 subsurfaces with views are drawn as they always "
+      "were -- at their buffers' pixels, the size they are shown -- and their "
+      "views are not said",
+      o17 and o18 and [akey(o17, k) for k in "xywhWT"] == [0, 0, 64, 32, None, None] and
+      [akey(o18, k) for k in "xywhWT"] == [8, 4, 40, 20, None, None] and
+      od and od[-1]["size"] == [64, 32] and
+      not [x for x in lines(olog) if x["kind"] == "view" or
+           (x["kind"] == "input" and x.get("verb") == "view")],
+      (oi, o17, o18, od, [x for x in lines(olog) if x["kind"] in ("view", "input")][-6:]))
+og.quit(None, 0.3)
+po4.terminate()
 shutil.rmtree(D, True)
-report(115)
+report(124)

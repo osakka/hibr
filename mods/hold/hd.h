@@ -110,6 +110,14 @@ enum {
 	   answer, or by one older than this, and those are sent what they
 	   always were. A server that does not know it ignores it. */
 	HD_BLIT = 'B',
+	/* From a client with Blit's frame socket: the Blit it speaks to, as
+	   one int, 3127 for 0.3.127 (bf_blitver, from BLIT_VERSION, which is
+	   the display's own Blit since the client runs in its session). A
+	   server that does not know it ignores it, and a client that never
+	   sends it is drawn for a Blit older than any this asks of: a
+	   subsurface is drawn through its view only to a display whose Blit
+	   takes a placement's size in pixels (Blit #159). */
+	HD_BVER = 'A',
 	/* Each display's answer, name and yes, no or unknown a line. Its own
 	   request for the reason HD_GFXLIST is. */
 	HD_BLITLIST = 'E',
@@ -404,6 +412,8 @@ struct hd_cli {
 	   did; 1 Blit; 2 not, so Blit's glyphs and SGR extensions stop here
 	   (hd_subst). Never a default read as an answer (Gitea #274). */
 	int blit;
+	/* Its Blit's version as HD_BVER said, 0 when it did not. */
+	int bver;
 	/* Whether this client's terminal copies rectangles, and the last of
 	   the program's copies it has been sent or no longer needs. */
 	int copy;
@@ -499,7 +509,9 @@ void hd_ratemoved(struct hd_cli *cn, int orow, int ocol);
 unsigned long hd_inid(const char *line, size_t n);
 const char *hd_inpath(const char *line, size_t n, size_t *len);
 void hd_insame(size_t k);
-void hd_inputput(vec *cls, int prod, const char *line, size_t n);
+int hd_inputput(vec *cls, int prod, const char *line, size_t n);
+void hd_innat(unsigned id, int nat);
+int hd_inview(unsigned id, int *v);
 int hd_inputans(vec *cls, int cfd, const char *line);
 void hd_f3sweep(int tid);
 unsigned hd_hash(const char *p, size_t n);
@@ -513,7 +525,8 @@ int hd_imgpx(const char *p, size_t n, unsigned id, int *pw, int *ph);
 int hd_imgnat(const char *p, size_t n);
 int hd_imgnatcut(struct hd_cli *cn, str *pic, str *cut, int *r, int *c);
 void hd_imgcutnat(str *o, const char *p, size_t n, int x, int y, int w,
-		  int h, int ox, int oy);
+		  int h, int ox, int oy, int dw, int dh);
+void hd_imgview(str *pic, str *cut, const int *v);
 void hd_imgcrop(str *o, const char *p, size_t n, int x, int y, int w, int h,
 		int c, int r);
 int hd_frmpx(unsigned id, int *pw, int *ph);

@@ -76,9 +76,14 @@ typedef struct cn_img {
 	   replaced, when it moves. 0 for every other picture. */
 	unsigned dma;
 	/* A program window's subsurface (Gitea #496): drawn at its own size,
-	   the sw by sh pixels at sx, sy of it, ox, oy into its first cell. */
+	   the sw by sh pixels at sx, sy of it, ox, oy into its first cell --
+	   those as it is shown, and through its view v (Blit #159) where vset,
+	   the buffer's own rectangle drawn at that size. */
 	int sub, sx, sy, sw, sh, ox, oy;
+	int vset, v[6];
 } cn_img;
+
+int cn_dsubv(unsigned sid, int *v);
 
 static cn_img *cn_imgs;
 static size_t cn_nimg, cn_imgcap;
@@ -523,17 +528,52 @@ int cn_imgdma(sh *s, const char *pane, int row, int col, int h, int w,
 }
 
 /* The placement a stream's picture goes out as: its whole box, or a
-   subsurface's own pixels. */
+   subsurface's own pixels -- through its view, the part of its buffer
+   behind what it shows, drawn at the size it shows it. */
 void cn_imgdmaput(cn_img *im)
 {
-	if (im->sub == 2)
+	int b[4];
+
+	if (im->sub == 2) {
 		kt_placepc(im->w, im->h, im->id, 1, im->z, im->sx, im->sy,
 			   im->sw, im->sh, &im->data);
-	else if (im->sub)
+	} else if (im->sub && im->vset) {
+		bf_viewrect(im->v, im->sx, im->sy, im->sw, im->sh, b);
+		kt_placesub(im->id, 1, b[0], b[1], b[2], b[3], im->ox, im->oy,
+			    im->sw, im->sh, im->z, &im->data);
+	} else if (im->sub) {
 		kt_placesub(im->id, 1, im->sx, im->sy, im->sw, im->sh, im->ox,
-			    im->oy, im->z, &im->data);
-	else
+			    im->oy, 0, 0, im->z, &im->data);
+	} else {
 		kt_placep(im->w, im->h, im->id, 1, im->z, &im->data);
+	}
+}
+
+/* A stream's view has changed (Blit #159): a subsurface's placement made
+   again through the view it is drawn through now, sent at the next flush. */
+void cn_imgdmaview(unsigned sid)
+{
+	int v[6], vs;
+	size_t i;
+	cn_img *im;
+
+	for (i = 0; i < cn_nimg; i++)
+		if (cn_imgs[i].dma == sid && cn_imgs[i].sub == 1)
+			break;
+	if (i == cn_nimg)
+		return;
+	im = &cn_imgs[i];
+	memset(v, 0, sizeof v);
+	vs = cn_dsubv(sid, v);
+	if (vs == im->vset && (!vs || !memcmp(v, im->v, sizeof v)))
+		return;
+	im->vset = vs;
+	memcpy(im->v, v, sizeof v);
+	im->data.n = 0;
+	cn_imgdmaput(im);
+	im->sent = 0;
+	lg(HIBR_LDBG, "image: stream %u drawn %s its view", sid,
+	   vs ? "through" : "without");
 }
 
 /* cn_imgdma, or a subsurface's picture placed within its window's body
@@ -542,7 +582,7 @@ int cn_imgdmas(sh *s, const char *pane, int row, int col, int h, int w,
 	       unsigned sid, unsigned *cid, const cn_dsubr *sr)
 {
 	int prow = 0, pcol = 0, ph = 0, pw = 0;
-	int sx = 0, sy = 0, sw = 0, sh = 0, ox = 0, oy = 0;
+	int sx = 0, sy = 0, sw = 0, sh = 0, ox = 0, oy = 0, vs = 0, v[6];
 	size_t i, j;
 	cn_pane *pp;
 	cn_img *im;
@@ -569,6 +609,9 @@ int cn_imgdmas(sh *s, const char *pane, int row, int col, int h, int w,
 				       &sh, &ox, &oy, &z)) {
 		return 0;
 	}
+	memset(v, 0, sizeof v);
+	if (sr && !sr->crop)
+		vs = cn_dsubv(sid, v);
 	row += prow;
 	col += pcol;
 	if (row < 0 || col < 0 || row + h > cn_back.rows ||
@@ -589,7 +632,8 @@ int cn_imgdmas(sh *s, const char *pane, int row, int col, int h, int w,
 		    !strcmp(im->pane, pane) &&
 		    im->sub == (sr ? (sr->crop ? 2 : 1) : 0) &&
 		    (!sr || (im->sx == sx && im->sy == sy && im->sw == sw &&
-			     im->sh == sh && im->ox == ox && im->oy == oy)))
+			     im->sh == sh && im->ox == ox && im->oy == oy)) &&
+		    im->vset == vs && !memcmp(im->v, v, sizeof v))
 			return 1;
 		lg(HIBR_LDBG, "image: stream %u moved to %d,%d %dx%d", sid,
 		   row, col, w, h);
@@ -608,6 +652,8 @@ int cn_imgdmas(sh *s, const char *pane, int row, int col, int h, int w,
 		im->sh = sh;
 		im->ox = ox;
 		im->oy = oy;
+		im->vset = vs;
+		memcpy(im->v, v, sizeof v);
 		im->data.n = 0;
 		cn_imgdmaput(im);
 		im->sent = 0;
@@ -662,6 +708,8 @@ int cn_imgdmas(sh *s, const char *pane, int row, int col, int h, int w,
 	im->sh = sh;
 	im->ox = ox;
 	im->oy = oy;
+	im->vset = vs;
+	memcpy(im->v, v, sizeof v);
 	s_init(&im->data);
 	cn_imgdmaput(im);
 	*cid = im->id;

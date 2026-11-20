@@ -183,7 +183,7 @@ void kt_delp(str *o, unsigned id);
 void kt_place(int cols, int rows, unsigned id, long z, str *o);
 void kt_placep(int cols, int rows, unsigned id, unsigned pid, long z, str *o);
 void kt_placesub(unsigned id, unsigned pid, int sx, int sy, int sw, int sh,
-		 int ox, int oy, long z, str *o);
+		 int ox, int oy, int dw, int dh, long z, str *o);
 void kt_placepc(int cols, int rows, unsigned id, unsigned pid, long z, int sx,
 		int sy, int sw, int sh, str *o);
 void kt_edit(const unsigned char *rgb, int iw, int ih, int x, int y,

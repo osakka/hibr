@@ -111,6 +111,18 @@ int bf_say(int fd, const char *line);
    did not say. */
 long bf_blitver(void);
 
+/* The first Blit that places a picture at a size in pixels of its own
+   (W=, T=, 0.3.127): a subsurface is drawn through its view, and the view
+   said to it, only from this one on (Blit #159). */
+#ifndef BF_SUBVIEW
+#define BF_SUBVIEW 3127
+#endif
+
+/* The rectangle x, y, w by h of a picture as it is shown, in the pixels of
+   its buffer through its view v -- SX SY SW SH DW DH, the buffer's SW by SH
+   at SX, SY shown at DW by DH -- into o[0..3] as x, y, w, h. */
+void bf_viewrect(const int *v, int x, int y, int w, int h, int *o);
+
 /* A 32-bit number into four bytes, little-endian, as every field of the
    wire is. */
 void bf_put32(unsigned char *p, unsigned long v);
