@@ -65,6 +65,7 @@ DT_COLOURS="${DT_COLOURS-auto}"
 dt_keep DT_COLOURS
 dt_onset DT_IMGDETAIL DT_FILMDETAIL DT_IMGCOMP DT_IMGEDITS DT_IMGFD dt_imgapply
 dt_onset DT_COLOURS dt_colours
+dt_onset DT_WALLIMG dt_wallretry
 
 # Put the picture settings into effect, at the console's open and whenever
 # one is set (dt_onset): the detail, the film's, the compression, and

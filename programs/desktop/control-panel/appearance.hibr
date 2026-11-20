@@ -283,7 +283,6 @@ fn cp_theme(t) {
 		esac
 	done
 	g=${CP_TH["$t"]["glyphs"]}
-	dt_wallretry
 	cp_colours "${CP_TH["$t"]["colours"]}" \
 		CP_THEME "$t" \
 		DT_GLYPH "${CP_TH["$t"]["wallpaper"]}" \

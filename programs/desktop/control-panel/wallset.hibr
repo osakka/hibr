@@ -88,7 +88,7 @@ fn cp_wdset(field, value = "") {
 
 	if [ -z "$CP_WDISP" ]; then
 		case $field in
-		img) dt_wallretry; dt_set DT_WALLIMG "$value" ;;
+		img) dt_set DT_WALLIMG "$value" ;;
 		mode) dt_set DT_WALLMODE "$value" ;;
 		*) dt_set DT_WALLIMGMODE "$value" ;;
 		esac

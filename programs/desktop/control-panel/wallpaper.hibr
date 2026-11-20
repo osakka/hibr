@@ -60,7 +60,7 @@ fn wp_put(field, value = "") {
 		return 0
 	fi
 	case $field in
-	img) dt_wallretry; dt_set DT_WALLIMG "$value" ;;
+	img) dt_set DT_WALLIMG "$value" ;;
 	*) dt_set DT_WALLMODE "$value" ;;
 	esac
 }

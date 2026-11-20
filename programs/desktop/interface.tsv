@@ -338,7 +338,6 @@ request	dt_rescan	wm/apps.hibr	4	2	told	-	dt_rescan()	-	-
 request	dt_clippin	wm/clip.hibr	4	2	told	-	dt_clippin(int id)	-	-
 request	dt_notehist_del	wm/notify.hibr	4	2	told	-	dt_notehist_del(int hid)	-	-
 request	dt_shot	wm/shot.hibr	4	2	told	-	dt_shot()	-	-
-request	dt_wallretry	wm/wallpaper.hibr	4	4	told	-	dt_wallretry()	0.99.555	-
 request	dt_vwget	wm/vault.hibr	3	1	waited	-	dt_vwget(field, id)	-	-
 request	dt_vwfill	wm/vault.hibr	3	1	told	-	dt_vwfill(win = "")	-	-
 request	dt_progdrop	wm/programs.hibr	3	1	told	-	dt_progdrop(key)	0.99.555	-

@@ -820,11 +820,6 @@ fn dt_wallforget(name) {
 	dt_rtsend tell dt_wallforget "$name"
 }
 
-# Told to the desktop, wm/wallpaper.hibr.
-dt_wallretry() {
-	dt_rtsend tell dt_wallretry "$@"
-}
-
 # Asked of the desktop, wm/windows.hibr.
 fn dt_wantclose(int id) {
 	dt_rtsend ask dt_wantclose "$id"
