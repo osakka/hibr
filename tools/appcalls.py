@@ -164,6 +164,53 @@ def installables():
     return sorted(f for f in fs if not platform(f))
 
 
+# What a setting does is the desktop's (dt_onset, ADR 0050): an installable
+# calling a registered effect right after dt_set of its name does it twice,
+# and in an app's own process the second call acts on a stale copy.
+def onsets(root):
+    """NAME -> the effect functions dt_onset registers for it, read from the
+    window manager's own files (a registration is `dt_onset NAME... FUNC`,
+    continued with a backslash)."""
+    out = {}
+    for f in glob.glob(os.path.join(root, "programs/desktop/wm/*.hibr")):
+        text = open(f, errors="replace").read().replace("\\\n", " ")
+        for line in text.split("\n"):
+            m = re.match(r"^\s*dt_onset\s+(.+?)\s*$", line)
+            if not m:
+                continue
+            w = m.group(1).split()
+            for n in w[:-1]:
+                out.setdefault(n, set()).add(w[-1])
+    return out
+
+
+def doubled(root, files, near=3):
+    """Each call of a registered effect within `near` lines after a dt_set of
+    one of its names, in the same function (a line at column 0 ends one)."""
+    reg = onsets(root)
+    sites = []
+    for f in files:
+        lines = open(f, errors="replace").read().split("\n")
+        for i, l in enumerate(lines):
+            m = re.search(r"\bdt_set\s+(.*)", l)
+            if not m or l.lstrip().startswith("#"):
+                continue
+            names = [w for w in m.group(1).split() if re.match(r"^[A-Z][A-Z0-9_]*$", w)]
+            fx = set().union(*(reg.get(n, set()) for n in names)) if names else set()
+            if not fx:
+                continue
+            for j in range(i, min(i + near + 1, len(lines))):
+                if j > i and lines[j][:1] not in ("\t", " ", ""):
+                    break
+                t = lines[j] if j > i else l[m.end():]
+                if t.lstrip().startswith("#"):
+                    continue
+                for fn in fx:
+                    if re.search(r"(^|[^A-Za-z0-9_])%s([^A-Za-z0-9_]|$)" % re.escape(fn), t):
+                        sites.append((f, j + 1, " ".join(names), fn))
+    return sites
+
+
 def bodies():
     """Each platform function's body, a closing brace at column 0 ending it."""
     body, cur = collections.defaultdict(str), None
@@ -913,6 +960,10 @@ def main():
             for b in broken:
                 print("FAIL %s: a breaking change to the app interface (ADR 0050)" % b)
             fails += len(broken)
+        for f, ln, n, fn in doubled(ROOT, [x for x in installables() if x.startswith(ROOT + os.sep)]):
+            print("FAIL %s:%d calls %s right after dt_set %s, which the desktop runs itself (dt_onset): "
+                  "drop the call" % (os.path.relpath(f, ROOT), ln, fn, n))
+            fails += 1
         for b in floors(rows):
             print("FAIL %s: raise its floor" % b)
             fails += 1

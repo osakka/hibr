@@ -399,7 +399,10 @@ fn dt_keyswap(from, to) {
 		DT_AKEY["$a"]=$v
 		n=$((n + 1))
 	done
-	[ "$n" -gt 0 ] && dt_save
+	if [ "$n" -gt 0 ]; then
+		DT_MENUIN=
+		dt_save
+	fi
 	dt_notep low "%d shortcuts changed" "$n"
 }
 

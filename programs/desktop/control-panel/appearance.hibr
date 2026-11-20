@@ -24,7 +24,7 @@ command -v dt_keep > /dev/null && dt_keep CP_THEME CP_COLOURS
 CP_CHECKS=(theme box knob block tick capsule)
 fn cp_set_checks(int? id = "", value = "") { dt_set DT_CHECKS "$value"; }
 fn cp_set_baricon(int? id = "", value = "") { dt_set DT_BARICON "$value"; }
-fn cp_set_deskicon(int? id = "", value = "") { dt_set DT_DESKICON "$value"; DT_FORCEONCE=1; }
+fn cp_set_deskicon(int? id = "", value = "") { dt_set DT_DESKICON "$value"; }
 
 # A colour scheme is a JSON file (lib/colours.hibr says what is in one).
 # 55 is a soft shadow on a dark face; a light face needs much less of a
@@ -105,7 +105,6 @@ fn cp_colours(t, ...more) {
 		DT_SHADOWINK "${CP_CO["$t"]["shadowink"]:-#000000}" \
 		DT_HOT "${CP_CO["$t"]["hot"]}" \
 		"${more[@]}"
-	command -v console > /dev/null && console darkdefault "${CP_CO["$t"]["ink"]}" "${CP_CO["$t"]["face"]}"
 	return 0
 }
 
@@ -271,7 +270,7 @@ cp_themes
 # Its layout is the buttons in the order it names, the title among them;
 # a button it does not name goes after them, switched off.
 fn cp_theme(t) {
-	local x l ord on= g gl=
+	local x l ord on= g
 
 	[ -n "${CP_TH["$t"]["colours"]+x}" ] || return 1
 	[ -n "${CP_CO["${CP_TH["$t"]["colours"]}"]["wall"]+x}" ] || return 1
@@ -284,7 +283,6 @@ fn cp_theme(t) {
 		esac
 	done
 	g=${CP_TH["$t"]["glyphs"]}
-	[ "$DT_GLYPHSET" != "$g" ] && gl=1
 	dt_wallretry
 	cp_colours "${CP_TH["$t"]["colours"]}" \
 		CP_THEME "$t" \
@@ -312,8 +310,6 @@ fn cp_theme(t) {
 		DT_BARTRANS "${CP_TH["$t"]["bartrans"]}" \
 		DT_GLYPHSET "$g"
 	dt_treespec
-	DT_BARWAS=
-	[ -n "$gl" ] && dt_glyphs "$g"
 	return 0
 }
 
@@ -601,7 +597,6 @@ fn appearance_do(int w, k, int dir) {
 	themedel) cp_themedelask; return 0 ;;
 	DT_SHADOW | DT_MSHADOW | DT_BTNSHADOW) cp_toggle "$k" ;;
 	esac
-	cp_save
 }
 
 
@@ -618,11 +613,9 @@ fn cp_shadowname(v) {
 
 fn cp_set_shadowshape(int? id = "", value = "") {
 	dt_set DT_SHADOWSHAPE "$value"
-	DT_FORCEONCE=1
 }
 
 # The glyph set takes effect at once: every name in GL, and the frames.
 fn cp_set_glyphset(int? id = "", value = "") {
 	dt_set DT_GLYPHSET "$value"
-	dt_glyphs "$value"
 }

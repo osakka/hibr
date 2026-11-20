@@ -41,7 +41,7 @@ fn cliphist_rows(int w) {
 
 fn cliphist_do(int? w = "", k = "", int? dir = "") {
 	case $k in
-	DT_CLIPKEEP) cp_toggle "$k"; dt_clipsave ;;
+	DT_CLIPKEEP) cp_toggle "$k"; dt_clipsave; return 0 ;;
 
 	clipopen) dt_has clipboard_draw && dt_launch clipboard ;;
 	clipclear) dt_clipclear; dt_notep low "Clipboard history cleared, pins kept" ;;

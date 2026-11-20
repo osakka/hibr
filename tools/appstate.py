@@ -464,7 +464,9 @@ def klass(name, wr, where):
     or a conversion still to come (CONVERT); `?` fails the survey."""
     if name in BYNAME:
         return BYNAME[name]
-    if name in SHARED:
+    # A setting an installable keeps itself is shared by its own dt_keep
+    # once that file is loaded, which the bare desktop asked here is not.
+    if name in SHARED or name in SAMEV:
         return "shared"
     if where.startswith(LOCAL) or name in MODVARS:
         return "local"
@@ -473,6 +475,47 @@ def klass(name, wr, where):
     if wr:
         return "request"
     return CONVERT.get(name, "?")
+
+
+# A top-level default an installable writes for a setting it keeps itself
+# (`X="${X-v}"` or `: "${X=v}"`, beside dt_keep in its own file or one of
+# its parts): in the desktop the line declares the setting, and in the app's
+# own process, where the name has arrived, it writes the value already there,
+# which the guard lets pass (varwatch, a write that changes nothing). Counted,
+# never a write to convert. Filled by inventory, by name.
+SAMEV = collections.defaultdict(set)
+
+
+def keepgroups(files):
+    """Each installable's own kept settings, its parts' and those of the
+    files that bring it: one process, one set of settings it keeps."""
+    keeps, parts = collections.defaultdict(set), collections.defaultdict(set)
+    for f in files:
+        k = kindrel(f)
+        for line in open(f, errors="replace"):
+            m = re.match(r"^# part:\s*(\S+)", line)
+            if m:
+                parts[k].add(m.group(1))
+            m = re.search(r"\bdt_keep\s+([A-Z][A-Z0-9_ ]*)", line)
+            if m:
+                keeps[k] |= set(m.group(1).split())
+    group = {}
+    for f in files:
+        k = kindrel(f)
+        g = {k} | parts[k]
+        for o, ps in parts.items():
+            if k in ps:
+                g |= {o} | ps
+        group[f] = set().union(*(keeps[x] for x in g))
+    return group
+
+
+def samevalue(line, n, form):
+    """Whether a top-level line is only a default for n."""
+    line = line.strip()
+    if form == "default-assign":
+        return re.match(r'^: "?\$\{%s:?=[^}]*\}"?$' % n, line) is not None
+    return re.match(r'^%s="?\$\{%s:?-[^}]*\}"?$' % (n, n), line) is not None
 
 
 def inventory(files, names):
@@ -493,10 +536,12 @@ def inventory(files, names):
     if out.returncode or len(docs) != len(files):
         sys.exit("FAIL inspect vars answered %d of %d installables (status %d): %s" % (
             len(docs), len(files), out.returncode, out.stderr.strip()[-300:]))
+    group = keepgroups(files)
     for f, d in zip(files, docs):
         j = json.loads(d)
         if j.get("state") != "ok":
             sys.exit("FAIL inspect vars: %s: %s" % (f, j.get("state")))
+        text = None
         for v in j.get("vars", []):
             n = v.get("name")
             if n not in names or v.get("declared") in ("local", "param"):
@@ -504,6 +549,13 @@ def inventory(files, names):
             if v.get("access") == "read":
                 reads[n].add(f)
             elif v.get("access") == "write":
+                if not v.get("owner") and v.get("form") in ("assign", "default-assign") and n in group[f]:
+                    if text is None:
+                        text = open(f, errors="replace").read().split("\n")
+                    ln = v.get("span", {}).get("line", 0)
+                    if 0 < ln <= len(text) and samevalue(text[ln - 1], n, v.get("form")):
+                        SAMEV[n].add(f)
+                        continue
                 writes[n].add(f)
     return reads, writes
 
@@ -525,6 +577,7 @@ def main():
     # setting a pane changes goes by the kept-settings slice, the rest by
     # the request conversions; in an app's own process the write is refused.
     print("  written by an installable, each a request to convert: %d (--writes lists them)" % len(direct))
+    print("  a top-level default for a setting its own file keeps, the same value in its process: %d" % len(SAMEV))
     if "--writes" in sys.argv:
         for n, who in direct:
             print("    %-22s %s" % (n, who[:90]))

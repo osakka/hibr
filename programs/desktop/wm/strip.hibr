@@ -58,6 +58,10 @@ CS_SCROLL="${CS_SCROLL-0}"
 # not just when a window moves, so someone who wants window shadows without
 # paying for this one every frame should be able to say so.
 CS_SHADOW="${CS_SHADOW-1}"
+# Where the strip is and what is on it is cells outside every pane: a whole
+# frame; which modules show is the list again.
+dt_onset CS_SIDE CS_YREL CS_COLLAPSED CS_LEN CS_SHADOW CS_SHOW CS_HIDE CS_ORDER dt_setwhole
+dt_onset CS_SHOW CS_HIDE CS_ORDER cs_relist
 CS_ATTN=0
 CS_DRAG=
 CS_DRAGKIND=

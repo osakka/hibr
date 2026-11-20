@@ -137,6 +137,38 @@ DT_APPKEY[tasks]="alt-ctrl-p"
 DT_KEYCAP=
 declare -A DT
 
+# What a kept setting does beyond its value, on the desktop's side (ADR
+# 0050): effect functions of the desktop's own, named once beside the
+# setting's declaration, which dt_set runs once per call after every name
+# is assigned -- on set, not on change. A setting with none redraws only
+# what is drawn every frame, the pane that changed it among them; what the
+# frame's own signatures read (dt_alone's look, dt_barkey, dt_wallsig)
+# needs none, since a change there is already a frame.
+declare -gA DT_ONSET
+# Register FUNC for each NAME: dt_onset NAME... FUNC.
+fn dt_onset(...args) {
+	local f=${args[-1]} n
+
+	for n in "${args[@]:0:${#args[@]}-1}"; do
+		case " ${DT_ONSET["$n"]-} " in *" $f "*) continue ;; esac
+		DT_ONSET["$n"]+="${DT_ONSET["$n"]:+ }$f"
+	done
+	return 0
+}
+# A setting every window's look reads: one whole frame.
+dt_setwhole() {
+	DT_FORCEONCE=1
+	DT_FORCEBY=setting
+}
+# One the menus are built from: built again.
+dt_setmenus() {
+	DT_MENUIN=
+}
+# One only the bar draws: the bar's gate opened.
+dt_setbar() {
+	DT_BARWAS=
+}
+
 DT_WALL="${DT_WALL-#0d1b2a}"
 DT_DOT="${DT_DOT-#16324a}"
 DT_BAR="${DT_BAR-#1b3a5c}"
@@ -173,6 +205,12 @@ DT_WELL="${DT_WELL-#2d3748}"
 # default, is the accent made brighter: see dt_hotcolour.
 DT_HOT="${DT_HOT-}"
 DT_GLYPH="${DT_GLYPH-·}"
+# A colour is the screen; ink and face are also what the console darkens a
+# default-coloured cell toward (dt_darkdef).
+dt_onset DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_DIM DT_SELINK DT_TITLE \
+	DT_TITLEINK DT_HIGHLIGHT DT_SHADOWINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL DT_HOT \
+	DT_GLYPH dt_setwhole
+dt_onset DT_INK DT_FACE dt_darkdef
 
 # A real image as the wallpaper instead of the repeated glyph, drawn by the
 # img module (mods/img) if it can be loaded -- empty means the glyph, same
@@ -226,6 +264,7 @@ DT_SHADOW="${DT_SHADOW-1}"
 # whatever this says. It is the one thing that decides a shadow's shape:
 # no frame, title bar or theme changes it except by choosing this.
 DT_SHADOWSHAPE="${DT_SHADOWSHAPE-half}"
+dt_onset DT_SHADOWSHAPE dt_setwhole
 DT_SHADOWSHAPES=(half cols thin)
 
 # The order of the items on the menu bar's right -- the speaker, the
@@ -241,6 +280,7 @@ DT_BARHIDE="${DT_BARHIDE-}"
 # from 0.2.40, or mark, its monogram from 0.3.51 (Control Panel > Menu Bar >
 # Menu Mark).
 DT_MENUMARK="${DT_MENUMARK-pen}"
+dt_onset DT_MENUMARK dt_setmenus
 
 # The same, for an open menu -- a separate setting, since a menu is drawn
 # far more often than a window is moved, and someone who wants one without
@@ -294,10 +334,12 @@ DT_MENUBOLD="${DT_MENUBOLD-0}"
 # The widest a menu may be, in columns, or 0 for as wide as its longest
 # row (Gitea #324): Control Panel > Menu Bar > Menu Width.
 DT_MENUMAX="${DT_MENUMAX-40}"
+dt_onset DT_MENUBOLD DT_MENUMAX dt_setmenus
 
 # A shadow under a dialog's buttons -- widgets/button.hibr draws it, and
 # this is its own setting for the same reason each of the others is.
 DT_BTNSHADOW="${DT_BTNSHADOW-1}"
+dt_onset DT_BTNSHADOW dt_setwhole
 
 # How a dialog's buttons are drawn: filled, a block of colour each, or
 # brackets, [OK] on the window's face, filled only while it has focus -- the
@@ -307,6 +349,7 @@ DT_BTNSHADOW="${DT_BTNSHADOW-1}"
 # Only this setting draws a dialog's buttons; the title bar's are Window
 # Buttons'.
 DT_DLGBTN="${DT_DLGBTN-filled}"
+dt_onset DT_DLGBTN dt_setwhole
 DT_DLGBTNS=(filled brackets chalk slate)
 
 # How much a shadow darkens what is under it -- console darken's own pct,
@@ -346,6 +389,8 @@ DT_FRAME="${DT_FRAME-single}"
 # 100 the picture. A terminal has its own, which wins inside it.
 DT_WINTRANS="${DT_WINTRANS-0}"
 DT_BARTRANS="${DT_BARTRANS-0}"
+dt_onset DT_WINTRANS dt_setwhole
+dt_onset DT_BARTRANS dt_setbar
 WS_FRAMES=(single double rounded solid edge none)
 
 # The title bar: a line, the title sitting in the frame's own top line as
@@ -375,6 +420,7 @@ DT_BTNORDER="${DT_BTNORDER-title shade max min close}"
 DT_BTNON="${DT_BTNON-max min close}"
 DT_TITLEALIGN="${DT_TITLEALIGN-left}"
 DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
+dt_onset DT_BTNSTYLE dt_setwhole
 # chalk and slate buttons are Blit's boxes, on any title bar, and brackets
 # anywhere Blit's glyphs are not in force; a dialog's buttons are Dialog
 # Buttons'.
@@ -400,6 +446,8 @@ DT_FULLON="${DT_FULLON-window}"
 # display and a program that asks for full screen left where it opened,
 # not moved to another (Control Panel > Displays > New Programs Open On).
 DT_NEWON="${DT_NEWON-working}"
+# Either is what the compositor is told of the displays, said again.
+dt_onset DT_FULLON DT_NEWON dt_natset
 
 # How a wallpaper image is fitted to the screen -- see dt_wallfit.
 WP_MODES=(stretch scale zoom center)
@@ -414,6 +462,7 @@ WP_GLYPHS=("·" "░" "▒" "⋅" "+" "╱" "▞")
 DT_ICONPENS=(colour auto black white)
 DT_BARICON="${DT_BARICON-colour}"
 DT_DESKICON="${DT_DESKICON-colour}"
+dt_onset DT_DESKICON DT_ICONBG dt_setwhole
 
 # How an on/off choice is drawn, wherever there is one: theme -- what the
 # theme suggests (DT_THEMECHECKS, set when one is applied), a box when it
@@ -422,6 +471,7 @@ DT_DESKICON="${DT_DESKICON-colour}"
 # under a Chalk or Slate title bar: it follows the window, and is not a choice.
 DT_CHECKS="${DT_CHECKS-theme}"
 DT_THEMECHECKS="${DT_THEMECHECKS-}"
+dt_onset DT_CHECKS DT_THEMECHECKS dt_setwhole
 
 # Whether a plain side (not just a corner) resizes too -- one dimension,
 # the opposite edge anchored. On by default; off leaves the four corners
@@ -439,6 +489,7 @@ DT_FOCUSHOVER="${DT_FOCUSHOVER-0}"
 DT_BANDS=(frame dashed solid translucent)
 DT_BAND="${DT_BAND-frame}"
 DT_BANDPCT="${DT_BANDPCT-30}"
+dt_onset DT_BAND DT_BANDPCT dt_setwhole
 # Tooltips: what a glyph with no word beside it does, said once the pointer
 # has rested on it for DT_TIPMS (Gitea #370). On by default.
 DT_TIPS="${DT_TIPS-1}"
@@ -536,6 +587,9 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_DRAGMOD DT_DRAGKEY DT_TITLEKEY DT_MOVEMODE DT_DRAWSKIP DT_TERMMS DT_LIVEMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTEFRAME DT_NOTECOLOUR DT_NOTEWHERE DT_NOTECOUNT DT_NOTELIST DT_NOTEWMIN DT_NOTEWMAX DT_NOTEHMIN DT_NOTEHMAX DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BARORDER DT_BARHIDE DT_MENUMARK DT_BTNSHADOW DT_SHADOWSHAPE DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
 	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_MENUMAX DT_SCROLLWHEEL DT_NETKIND DT_NETBAR DT_NETRULE DT_PWBAR DT_PWLEVEL DT_PWLOW DT_PWCRIT DT_PWCRITDO DT_HOVER DT_FOCUSHOVER DT_TIPS DT_TIPMS DT_SWITCHER DT_SWMS DT_SWSKIP DT_BAND DT_BANDPCT DT_BTKIND DT_BTBAR)
+# The glyph set is declared in every process (wm/glyphs.hibr) and redone by
+# dt_derive; the desktop's menus are built from its glyphs.
+dt_onset DT_GLYPHSET dt_setmenus
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -638,7 +692,8 @@ DT_HOSTED=
 # never names is refused, as the ADR decided a pane may change only what its
 # rows declare.
 fn dt_set(...pairs) {
-	local i n k ok
+	local i n k ok f
+	local -a fx=() hs
 
 	if [ "${#pairs[@]}" = 0 ] || (( ${#pairs[@]} % 2 )); then
 		dt_log "dt_set: a name with no value"
@@ -663,14 +718,19 @@ fn dt_set(...pairs) {
 		local -n v=${pairs[$i]}
 		v=${pairs[$((i + 1))]}
 		unset -n v
+		read -ra hs <<< "${DT_ONSET["${pairs[$i]}"]-}"
+		for f in "${hs[@]}"; do
+			case " ${fx[*]} " in *" $f "*) ;; *) fx+=("$f") ;; esac
+		done
 	done
-	# A setting can change anything drawn -- a colour, the bar, a menu's
-	# rows -- so the next frame is whole, the menus are built again and the
-	# bar is drawn again: the redraw follows from the setting arriving, the
-	# desktop's own job, never a hint an installable writes (ADR 0050).
-	DT_FORCEONCE=1
-	DT_MENUIN=
-	DT_BARWAS=
+	# What is derived from the settings (the glyph set, the language) is
+	# redone where one it reads has moved; then what each name set does
+	# beyond its value, each effect once (dt_onset) -- the redraw follows
+	# from the setting arriving, never a hint an installable writes.
+	dt_derive
+	for f in "${fx[@]}"; do
+		"$f"
+	done
 	dt_save
 }
 

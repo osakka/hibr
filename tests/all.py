@@ -39,7 +39,7 @@ for _v in ("HIBR_MODPATH", "HIBR_MODULES", "HIBR_HOLD", "HIBR_HOLDCOPY",
 SUITES = ["inspect_symbols", "inspect_records", "inspect_spans", "inspect_vars", "run.sh", "desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session", "apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars", "deps", "appcalls", "scopes",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "contactscmd", "calapp", "pim", "pim_rrule", "web", "dav", "fetch", "media", "sound", "net", "bt",
-          "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "dmabuf", "frames", "holdrenew", "holdseam", "holdlock", "native", "isoapps", "isopix", "rtchan", "audience", "cellwire", "appseam", "inputlat", "archive", "mermaid", "pdfapp",
+          "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "dmabuf", "frames", "holdrenew", "holdseam", "holdlock", "native", "isoapps", "isopix", "rtchan", "onset", "audience", "cellwire", "appseam", "inputlat", "archive", "mermaid", "pdfapp",
           "appmgr", "menuedit", "shots", "contain", "archives", "traymod", "upgrade"]
 
 

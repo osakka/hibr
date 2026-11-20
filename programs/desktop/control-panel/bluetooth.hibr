@@ -152,7 +152,7 @@ fn bluetooth_do(int w, k, int dir) {
 	visible) dt_btvisible ;;
 	scan) dt_btscan ;;
 	dev:*) dt_bttoggle "${k#dev:}" ;;
-	DT_BTBAR) cp_toggle "$k"; dt_btbar ;;
+	DT_BTBAR) cp_toggle "$k"; dt_btbar; return 0 ;;
 	esac
 	cp_save
 }

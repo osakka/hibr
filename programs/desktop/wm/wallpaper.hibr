@@ -63,6 +63,47 @@ dt_keep DT_IMGFD
 # display's own terminal said, or 24, 256 or 16 for all of them.
 DT_COLOURS="${DT_COLOURS-auto}"
 dt_keep DT_COLOURS
+dt_onset DT_IMGDETAIL DT_FILMDETAIL DT_IMGCOMP DT_IMGEDITS DT_IMGFD dt_imgapply
+dt_onset DT_COLOURS dt_colours
+
+# Put the picture settings into effect, at the console's open and whenever
+# one is set (dt_onset): the detail, the film's, the compression, and
+# whether pictures are edited in place and sent by descriptor -- off is
+# said here and is a whole frame, each window's picture going out whole on
+# the terminal; on, outside hold it is the console's own, and inside it each
+# display's answer, asked again (dt_size) only when one was off and the
+# screen has been read.
+dt_imgapply() {
+	command -v console > /dev/null || return 0
+	console imgdetail "$DT_IMGDETAIL"
+	console filmdetail "${DT_FILMDETAIL:-full}"
+	console imgcomp "$DT_IMGCOMP"
+	local ask=
+	if [ "$DT_IMGEDITS" = off ]; then
+		console imgedit off
+		[ "$DT_IMGEDIT" = off ] || DT_FORCEONCE=1
+		DT_IMGEDIT=off
+	elif [ -z "${HIBR_HOLD-}" ]; then
+		console imgedit auto
+		DT_IMGEDIT=
+	elif [ "$DT_IMGEDIT" = off ]; then
+		DT_IMGEDIT=
+		ask=1
+	fi
+	if [ "$DT_IMGFD" = off ]; then
+		console imgfd off
+		[ "$DT_IMGFDNOW" = off ] || DT_FORCEONCE=1
+		DT_IMGFDNOW=off
+	elif [ -z "${HIBR_HOLD-}" ]; then
+		console imgfd auto
+		DT_IMGFDNOW=
+	elif [ "$DT_IMGFDNOW" = off ]; then
+		DT_IMGFDNOW=
+		ask=1
+	fi
+	[ -n "$ask" ] && [ -n "$DT_SIZEWAS" ] && dt_size
+	return 0
+}
 
 # Send that to the display, or through hold to every display of a held
 # session.

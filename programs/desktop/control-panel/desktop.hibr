@@ -252,6 +252,5 @@ fn cp_set_iconbg(int? id = "", value = "") {
 
 	[ "$value" = solid ] && v=solid
 	dt_set DT_ICONBG "$v"
-	DT_FORCEONCE=1
 }
 

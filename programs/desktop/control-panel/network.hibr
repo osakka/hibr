@@ -57,7 +57,7 @@ fn network_do(int? w = "", k = "", int? dir = "") {
 	case $k in
 	srv:*) dt_davserver "${k#srv:}" ;;
 	add) dt_davserver ;;
-	DT_DAVSAVE) cp_toggle "$k" ;;
+	DT_DAVSAVE) cp_toggle "$k"; return 0 ;;
 
 	clear) dt_davclear ;;
 	esac

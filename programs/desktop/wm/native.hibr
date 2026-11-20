@@ -387,6 +387,13 @@ dt_natlayout() {
 	return 0
 }
 
+# Say the layout again, the same or not: Full Screen On or New Programs Open
+# On was set (dt_onset), and the primary the compositor is told follows them.
+dt_natset() {
+	DT_NATLAYOUT=
+	dt_natlayout
+}
+
 # What the compositor has said since last asked, acted on: a ticker, so it
 # is read between frames, and the first quiet frame starts it.
 dt_nattick() {

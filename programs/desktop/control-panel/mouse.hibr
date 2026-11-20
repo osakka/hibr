@@ -21,17 +21,14 @@ MS_DBLACTIONS=(zoom min close none)
 # Hover: whether the desktop hears the pointer move with no button held.
 # Auto is on where a display reports the pointer in pixels by itself.
 MS_HOVERS=(auto on off)
-DT_HOVER="${DT_HOVER-auto}"
 # Wheel Scrolls' choices, as DT_SCROLLWHEEL keeps them and as the row shows
 # them: one notch of the wheel, in rows, in every window that scrolls.
 MS_WHEELV=(1 2 3 5 8)
 MS_WHEELL=("1 row" "2 rows" "3 rows" "5 rows" "8 rows")
-DT_SCROLLWHEEL="${DT_SCROLLWHEEL-3}"
 # Tooltip Delay's choices, as DT_TIPMS keeps them and as the row shows them:
 # how long the pointer rests on a glyph before its tooltip shows.
 MS_TIPV=(300 600 1000 1500 2500)
 MS_TIPL=("300 ms" "600 ms" "1 second" "1.5 seconds" "2.5 seconds")
-DT_TIPMS="${DT_TIPMS-600}"
 
 fn cp_set_dragkey(int? id = "", value = "") { dt_set DT_DRAGKEY "$value"; }
 fn cp_set_titlekey(int? id = "", value = "") { dt_set DT_TITLEKEY "$value"; }

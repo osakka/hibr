@@ -17,10 +17,6 @@ command -v cp_pane > /dev/null && cp_pane power "Power" "↯" hardware
 PW_LOWS=(off 5 10 15 20 25)
 PW_CRITS=(3 5 8 10)
 PW_CRITDOS=(nothing suspend hibernate poweroff)
-DT_PWBAR="${DT_PWBAR-1}"
-DT_PWLOW="${DT_PWLOW-10}"
-DT_PWCRIT="${DT_PWCRIT-5}"
-DT_PWCRITDO="${DT_PWCRITDO-nothing}"
 
 fn cp_set_pwlow(int? id = "", value = "") { dt_set DT_PWLOW "$value"; }
 fn cp_set_pwcrit(int? id = "", value = "") { dt_set DT_PWCRIT "$value"; }

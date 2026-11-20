@@ -80,7 +80,6 @@ fn displays_setfull(int? id = "", value = "") {
 	?*) v=$value ;;
 	esac
 	dt_set DT_FULLON "$v"
-	dt_has dt_natlayout && dt_natlayout
 	return 0
 }
 
@@ -104,7 +103,6 @@ fn displays_setnew(int? id = "", value = "") {
 	"The Main Display") v=main ;;
 	esac
 	dt_set DT_NEWON "$v"
-	dt_has dt_natlayout && { DT_NATLAYOUT=; dt_natlayout; }
 	return 0
 }
 

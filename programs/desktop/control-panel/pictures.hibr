@@ -36,20 +36,8 @@ CP_IMGEDITS=(auto off)
 # Colours: how many every display is sent (Gitea #353).
 CP_DEPTHS=(auto 24 256 16)
 
-# Repeated here because a pane is loaded without its own app under the panel
-# tests, and a strict file may not create a global it has not declared.
-DT_IMGDETAIL="${DT_IMGDETAIL-auto}"
-command -v dt_keep > /dev/null && dt_keep DT_IMGDETAIL
-DT_FILMDETAIL="${DT_FILMDETAIL-full}"
-command -v dt_keep > /dev/null && dt_keep DT_FILMDETAIL
-DT_IMGCOMP="${DT_IMGCOMP-zlib}"
-command -v dt_keep > /dev/null && dt_keep DT_IMGCOMP
-DT_IMGEDITS="${DT_IMGEDITS-auto}"
-command -v dt_keep > /dev/null && dt_keep DT_IMGEDITS
-DT_IMGFD="${DT_IMGFD-auto}"
-command -v dt_keep > /dev/null && dt_keep DT_IMGFD
-DT_COLOURS="${DT_COLOURS-auto}"
-command -v dt_keep > /dev/null && dt_keep DT_COLOURS
+# Each setting is the window manager's (wm/wallpaper.hibr), declared and
+# kept there, and what it does to the console follows from dt_set there.
 
 fn cp_set_imgdetail(int? id = "", value = "") {
 	local v=auto
@@ -58,7 +46,6 @@ fn cp_set_imgdetail(int? id = "", value = "") {
 	full | half) v=$value ;;
 	esac
 	dt_set DT_IMGDETAIL "$v"
-	command -v console > /dev/null && console imgdetail "$v"
 }
 
 fn cp_set_filmdetail(int? id = "", value = "") {
@@ -66,7 +53,6 @@ fn cp_set_filmdetail(int? id = "", value = "") {
 
 	[ "$value" = half ] && v=half
 	dt_set DT_FILMDETAIL "$v"
-	command -v console > /dev/null && console filmdetail "$v"
 }
 
 # What that setting is called in the list, with what it does rather than
@@ -101,7 +87,6 @@ fn cp_set_imgcomp(int? id = "", value = "") {
 	png | off) v=$value ;;
 	esac
 	dt_set DT_IMGCOMP "$v"
-	command -v console > /dev/null && console imgcomp "$v"
 }
 
 # Whether a picture that changed only in part goes out as that part,
@@ -112,19 +97,6 @@ fn cp_set_imgedits(int? id = "", value = "") {
 
 	[ "$value" = off ] && v=off
 	dt_set DT_IMGEDITS "$v"
-	if command -v console > /dev/null; then
-		if [ "$v" = off ]; then
-			console imgedit off
-			DT_IMGEDIT=off
-			DT_FORCEONCE=1
-		elif [ -n "${HIBR_HOLD-}" ] && dt_has dt_size; then
-			DT_IMGEDIT=
-			dt_size
-		else
-			console imgedit auto
-			DT_IMGEDIT=
-		fi
-	fi
 }
 
 # Whether a window's picture goes to Blit by descriptor rather than through
@@ -136,19 +108,6 @@ fn cp_set_imgfd(int? id = "", value = "") {
 
 	[ "$value" = off ] && v=off
 	dt_set DT_IMGFD "$v"
-	if command -v console > /dev/null; then
-		if [ "$v" = off ]; then
-			console imgfd off
-			DT_IMGFDNOW=off
-			DT_FORCEONCE=1
-		elif [ -n "${HIBR_HOLD-}" ] && dt_has dt_size; then
-			DT_IMGFDNOW=
-			dt_size
-		else
-			console imgfd auto
-			DT_IMGFDNOW=
-		fi
-	fi
 }
 
 fn cp_set_depth(int? id = "", value = "") {
@@ -158,7 +117,6 @@ fn cp_set_depth(int? id = "", value = "") {
 	24 | 256 | 16) v=$value ;;
 	esac
 	dt_set DT_COLOURS "$v"
-	dt_has dt_colours && dt_colours
 }
 
 # The name a colour depth has in the list.

@@ -102,7 +102,7 @@ APPS = ("apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "a
 DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session")
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
                                          "sound", "net", "bt", "archives", "holdrenew", "native",
-                                         "traymod", "rtchan", "audience", "appseam", "inputlat")
+                                         "traymod", "rtchan", "onset", "audience", "appseam", "inputlat")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 

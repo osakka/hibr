@@ -1,7 +1,7 @@
 # class	function	defined in	calls	files	answer	reaches	signature	since	args -- tools/appcalls.py --write; since is the release a row first shipped in, - before the contract; args is N@release for each optional parameter added since, a call of N words or more needing that release; no field is ever empty, since a tab is IFS whitespace and a shell reading the table would lose one (ADR 0050)
 declare	dt_item	wm/menus.hibr	673	78	told	-	dt_item()	-	-
 declare	dt_app	wm/apps.hibr	240	86	told	-	dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "", bare = "")	-	-
-declare	dt_keep	wm/settings.hibr	235	63	told	-	dt_keep()	-	-
+declare	dt_keep	wm/settings.hibr	223	62	told	-	dt_keep()	-	-
 declare	dt_sep	wm/menus.hibr	196	73	told	-	dt_sep()	-	-
 declare	dt_menu	wm/menus.hibr	182	79	told	-	dt_menu(title)	-	-
 declare	dt_dim	wm/menus.hibr	168	36	told	-	dt_dim(label)	-	-
@@ -13,11 +13,11 @@ declare	dt_baritem	wm/bar.hibr	55	17	told	-	dt_baritem(name, text = "", ...cmd)	
 declare	dt_end	wm/menus.hibr	41	17	told	-	dt_end()	-	-
 declare	dt_sub	wm/menus.hibr	33	13	told	-	dt_sub(label, key = "")	-	-
 declare	cs_module	wm/strip.hibr	32	16	told	-	cs_module(name, title, w = "")	-	-
-declare	cs_relist	wm/strip.hibr	20	4	told	-	cs_relist()	-	-
 declare	dt_barmenu	wm/bar.hibr	19	15	told	-	dt_barmenu(name, who, id = "")	-	-
 declare	dt_barilabel	wm/bar.hibr	17	17	told	-	dt_barilabel(name, label)	-	-
 declare	dt_clocktext	wm/bar.hibr	16	6	asked	-	dt_clocktext(fmt, int when)	-	-
 declare	dt_popclose	wm/bar.hibr	16	6	told	-	dt_popclose()	-	-
+declare	cs_relist	wm/strip.hibr	14	4	told	-	cs_relist()	-	-
 declare	dt_bariright	wm/bar.hibr	14	12	told	-	dt_bariright(name, ...cmd)	-	-
 declare	dt_bariswitch	wm/bar.hibr	13	13	told	-	dt_bariswitch(name, var, fn = "")	-	-
 declare	dt_appaction	wm/keys.hibr	12	3	told	-	dt_appaction(app, act, name, key = "")	-	-
@@ -49,7 +49,7 @@ gone	dt_isodrop	wm/isolate.hibr	2	2	told	-	dt_isodrop(int id, int r, int c, op, 
 gone	dt_isosend	wm/isolate.hibr	2	2	told	-	dt_isosend(int id, cmd)	-	-
 gone	dt_isomenus	wm/isolate.hibr	2	2	told	-	dt_isomenus(int id)	-	-
 local	dt_tr	lib/tr.hibr	541	82	asked	-	dt_tr(key, ...rest)	-	-
-local	dt_has	wm/names.hibr	429	109	waited	-	dt_has(name)	-	-
+local	dt_has	wm/names.hibr	421	107	waited	-	dt_has(name)	-	-
 local	dt_tput	wm/lang.hibr	321	52	told	-	dt_tput(int id, int r, int c, text, ...rest)	-	-
 local	dt_want	wm/loop.hibr	253	74	waited	-	dt_want(int ms)	-	-
 local	dt_wreg	widgets/hit.hibr	171	43	told	-	dt_wreg(id, int r, int c, int w, tag, int? h = "")	-	-
@@ -189,9 +189,7 @@ local	dt_wallimgmode	wm/picmode.hibr	4	2	asked	-	dt_wallimgmode()	-	-
 local	dt_holdsess	wm/hold.hibr	4	4	asked	-	dt_holdsess()	-	-
 local	dt_vwuntil	wm/vaultfacts.hibr	4	4	asked	-	dt_vwuntil()	-	-
 local	dt_btnlist	wm/orders.hibr	4	4	told	-	dt_btnlist()	-	-
-local	dt_glyphs	wm/glyphs.hibr	4	2	told	-	dt_glyphs(set = "unicode")	-	-
 local	cs_ordered	wm/orders.hibr	4	2	told	-	cs_ordered()	-	-
-local	dt_langapply	wm/lang.hibr	4	2	told	dt_langapply > dt_rslog	dt_langapply()	-	-
 local	dt_locinfostart	wm/locale.hibr	4	2	told	-	dt_locinfostart()	-	-
 local	dt_locinstall	wm/locale.hibr	4	2	told	dt_locinstall > dt_notep	dt_locinstall(name)	-	-
 local	dt_signmark	wm/vaultfacts.hibr	4	2	waited	-	dt_signmark(int id, int r, int c)	-	-
@@ -242,9 +240,11 @@ local	dt_shortname	wm/draw.hibr	2	2	asked	-	dt_shortname(role, inst = "", handle
 local	dt_procfull	wm/draw.hibr	2	2	asked	-	dt_procfull(role, sess = "", handle = "", detail = "")	-	-
 local	cp_colourread	lib/colours.hibr	2	2	waited	-	cp_colourread(n, f)	-	-
 local	dt_treespec	widgets/tree.hibr	2	2	told	-	dt_treespec(style = "")	-	-
+local	dt_glyphs	wm/glyphs.hibr	2	1	told	-	dt_glyphs(set = "unicode")	-	-
 local	dt_jobtick	wm/jobs.hibr	2	1	told	-	dt_jobtick()	-	-
 local	dt_checkmark	widgets/check.hibr	2	2	asked	-	dt_checkmark(int on)	-	-
 local	dt_bidion	wm/lang.hibr	2	2	asked	-	dt_bidion()	-	-
+local	dt_langapply	wm/lang.hibr	2	1	told	dt_langapply > dt_rslog	dt_langapply()	-	-
 local	dt_locsupstart	wm/locale.hibr	2	2	told	-	dt_locsupstart()	-	-
 local	pk_helper	lib/pkrun.hibr	2	2	asked	-	pk_helper(action)	-	-
 local	dt_vwhost	wm/vaultfacts.hibr	2	2	asked	-	dt_vwhost(addr)	-	-
@@ -272,7 +272,7 @@ request	dt_close_focused	wm/windows.hibr	54	51	told	-	dt_close_focused()	-	-
 request	dt_filepick	wm/filepick.hibr	52	22	told	-	dt_filepick(mode, title, types, dir, name, callback, for, oncancel = "")	-	-
 request	dt_confirm	wm/confirm.hibr	46	35	told	-	dt_confirm(msg, cmd, owner = "")	-	-
 request	dt_note	wm/notify.hibr	42	19	told	-	dt_note(text, ...rest)	-	-
-request	dt_ask	wm/ask.hibr	37	11	told	-	dt_ask(title, label, value, then, hint = "", masked = "", int width = 54, cancelled = "")	-	-
+request	dt_ask	wm/ask.hibr	38	11	told	-	dt_ask(title, label, value, then, hint = "", masked = "", int width = 54, cancelled = "")	-	-
 request	dt_changed	wm/files.hibr	36	8	told	-	dt_changed()	-	-
 request	dt_locof	wm/locations.hibr	34	2	asked	-	dt_locof(p)	-	-
 request	dt_wantclose	wm/windows.hibr	26	17	waited	-	dt_wantclose(int id)	-	-
@@ -296,8 +296,6 @@ request	dt_loccan	wm/locations.hibr	8	2	waited	-	dt_loccan(p, op)	-	-
 request	dt_fopsave	wm/files.hibr	8	2	told	-	dt_fopsave(kind, ...rest)	-	-
 request	dt_fopundo	wm/files.hibr	8	2	told	-	dt_fopundo(op)	-	-
 request	dt_natcell	wm/native.hibr	8	2	told	-	dt_natcell()	-	-
-request	dt_natlayout	wm/native.hibr	8	2	told	-	dt_natlayout()	-	-
-request	dt_size	wm/session.hibr	8	2	told	-	dt_size()	-	-
 request	dt_busoff	wm/bus.hibr	8	4	told	-	dt_busoff(w, fn)	-	-
 request	dt_vwcopy	wm/vault.hibr	7	3	told	-	dt_vwcopy(field, id)	-	-
 request	dt_resize	wm/windows.hibr	6	4	waited	-	dt_resize(int id, int h, int w)	-	-
@@ -321,11 +319,12 @@ request	dt_vwsyncnow	wm/vault.hibr	4	4	told	-	dt_vwsyncnow(int hand = 0)	-	-
 request	dt_clipsave	wm/clip.hibr	4	2	told	-	dt_clipsave()	-	-
 request	dt_clipclear	wm/clip.hibr	4	4	told	-	dt_clipclear()	-	-
 request	dt_deskscan	wm/icons.hibr	4	2	told	-	dt_deskscan()	-	-
+request	dt_natlayout	wm/native.hibr	4	1	told	-	dt_natlayout()	-	-
 request	dt_handlerdrop	wm/handlers.hibr	4	2	told	-	dt_handlerdrop(ext)	0.99.553	-
 request	dt_handler	wm/handlers.hibr	4	2	told	-	dt_handler(ext, ...rest)	-	-
 request	dt_kbset	wm/kbd.hibr	4	4	told	-	dt_kbset(int n)	-	-
 request	dt_progload	wm/programs.hibr	4	2	told	-	dt_progload()	-	-
-request	dt_colours	wm/wallpaper.hibr	4	2	told	-	dt_colours()	-	-
+request	dt_size	wm/session.hibr	4	1	told	-	dt_size()	-	-
 request	dt_onunload	wm/apps.hibr	4	2	told	-	dt_onunload(stop, start = "")	-	-
 request	dt_saverload	wm/saver.hibr	4	2	told	-	dt_saverload()	-	-
 request	dt_saverstart	wm/saver.hibr	4	2	told	-	dt_saverstart(how = "")	-	-
@@ -366,6 +365,7 @@ request	dt_sbcall	wm/standby.hibr	2	2	told	-	dt_sbcall(nm)	-	-
 request	dt_blank	wm/standby.hibr	2	2	told	-	dt_blank(nm)	-	-
 request	dt_notifyp	wm/notify.hibr	2	2	told	-	dt_notifyp(prio, text, ...rest)	-	-
 request	dt_progsave	wm/programs.hibr	2	1	told	-	dt_progsave()	-	-
+request	dt_colours	wm/wallpaper.hibr	2	1	told	-	dt_colours()	-	-
 request	dt_noteq	wm/notify.hibr	2	2	asked	-	dt_noteq()	-	-
 request	dt_pwdo	wm/machine.hibr	2	2	told	-	dt_pwdo(what)	-	-
 request	dt_walldisp	wm/wallpaper.hibr	2	2	told	-	dt_walldisp(name, img = "", mode = "", pic = "")	-	-

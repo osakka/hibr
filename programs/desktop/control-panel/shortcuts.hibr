@@ -23,14 +23,10 @@ fn shortcuts_do(int w, k, int dir) {
 	# there was (Gitea #531): the desktop's shortcuts there or not, and
 	# ctrl with a letter always the program's.
 	case $k in
-	DT_TERMKEEP | DT_TERMCTRL)
-		cp_toggle "$k"
-		cp_save
-		;;
+	DT_TERMKEEP | DT_TERMCTRL) cp_toggle "$k" ;;
 	sc:super) dt_keyswap alt super ;;
 	sc:alt) dt_keyswap super alt ;;
 	esac
-	DT_MENUIN=
 	return 0
 }
 

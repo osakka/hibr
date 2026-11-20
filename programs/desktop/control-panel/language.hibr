@@ -49,13 +49,11 @@ fn cp_set_bidi(int? id = "", value = "") {
 
 	case $value in on | off) v=$value ;; esac
 	dt_set DT_BIDI "$v"
-	dt_langapply
 }
 
 # Mirror the layout: auto (with the language), on or off.
 fn cp_set_mirror(int? id = "", value = "") {
 	dt_set DT_MIRROR "$value"
-	dt_langapply
 }
 
 # Western or Arabic-Indic digits.

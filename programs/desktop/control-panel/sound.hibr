@@ -120,7 +120,7 @@ fn sound_do(int w, k, int dir) {
 	ivol) dt_sndivol $((${DT_SND["ivol"]:-0} + dir * ${DT_SNDSTEP:-5})) ;;
 	mute) dt_sndmute ;;
 	imute) dt_sndimute ;;
-	DT_SNDBAR | DT_SNDLEVEL) cp_toggle "$k"; dt_sndbar ;;
+	DT_SNDBAR | DT_SNDLEVEL) cp_toggle "$k"; dt_sndbar; return 0 ;;
 	step)
 		v=$((${DT_SNDSTEP:-5} + dir))
 		[ "$v" -lt 1 ] && v=1

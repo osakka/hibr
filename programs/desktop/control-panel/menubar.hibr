@@ -23,7 +23,6 @@ fn cp_bartrans(int v) {
 	[ "$v" -lt 0 ] && v=0
 	[ "$v" -gt 100 ] && v=100
 	dt_set DT_BARTRANS "$(((v + 5) / 10 * 10))"
-	DT_BARWAS=
 	return 0
 }
 
@@ -45,7 +44,6 @@ fn cp_menumaxname(v) {
 
 fn cp_set_menumax(int? id = "", int value = 40) {
 	dt_set DT_MENUMAX "$value"
-	DT_MENUIN=
 }
 
 # Menu Mark's choices, as the row shows them and as DT_MENUMARK keeps them.
@@ -53,7 +51,6 @@ fn cp_set_menumax(int? id = "", int value = 40) {
 # them: chosen in Appearance > Glyphs, which is what says a Blit font is in use.
 CP_MARKV=(pen hui mark)
 CP_MARKL=("Pen" "hui" "hui Monogram")
-DT_MENUMARK="${DT_MENUMARK-pen}"
 
 # The mark the bar draws: the one kept, or the pen where the glyph set has
 # not got that one.
@@ -82,8 +79,6 @@ fn cp_set_menumark(int? id = "", value = "") {
 	*) value=pen ;;
 	esac
 	dt_set DT_MENUMARK "$value"
-	DT_MENUIN=
-	DT_BARWAS=
 }
 
 # The notification icon, shown as its glyph and its name; the name is kept.
@@ -179,9 +174,11 @@ fn barset_do(int w, k, int dir) {
 		return 0
 		;;
 	DT_BARSHADOW | DT_MENUBOLD) cp_toggle "$k" ;;
-	bari:*) dt_baritoggle "${k#bari:}" ;;
+	bari:*)
+		dt_baritoggle "${k#bari:}"
+		cp_save
+		;;
 	esac
-	cp_save
 }
 
 # A slider set where its track is clicked.
@@ -202,5 +199,4 @@ fn barset_slide(int w, k, int value) {
 fn barset_order(int w, group, ...names) {
 	[ "$group" = bar ] || return 0
 	dt_set DT_BARORDER "${names[*]}"
-	DT_BARWAS=
 }

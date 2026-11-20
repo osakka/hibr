@@ -14,10 +14,6 @@ app control_strip "The Control Panel pane for the strip itself" 1.4.2
 command -v cp_pane > /dev/null && cp_pane control_strip "Control Strip" "▤"
 
 CP_CS_SIDES=(left right)
-# Repeated here because a pane is loaded without the strip under the panel
-# tests, and a strict file may not create a global it has not declared.
-CS_HIDE="${CS_HIDE-}"
-CS_ORDER="${CS_ORDER-}"
 
 fn cp_set_csside(int? id = "", value = "") { dt_set CS_SIDE "$value"; }
 
@@ -79,14 +75,13 @@ fn control_strip_rows(int w) {
 fn control_strip_order(int w, group, ...names) {
 	[ "$group" = strip ] || return 0
 	dt_set CS_ORDER "${names[*]}"
-	dt_has cs_relist && cs_relist
-	DT_FORCEONCE=1
 }
 
 # Take a module off the strip, or put it back: through its own switch where
 # it has one, CS_HIDE where it has not.
 fn cp_csmodule(m) {
 	local o= x v=${CS_MODS[$m]["svar"]-} f=${CS_MODS[$m]["sfn"]-}
+	local -a hid
 
 	if [ -n "$v" ]; then
 		dt_swflip "$v"
@@ -98,15 +93,14 @@ fn cp_csmodule(m) {
 	fi
 	case " ${CS_HIDE-} " in
 	*" $m "*)
-		for x in ${CS_HIDE-}; do
+		read -ra hid <<< "${CS_HIDE-}"
+		for x in "${hid[@]}"; do
 			[ "$x" = "$m" ] || o+="${o:+ }$x"
 		done
 		;;
 	*) o="${CS_HIDE:+$CS_HIDE }$m" ;;
 	esac
 	dt_set CS_HIDE "$o"
-	dt_has cs_relist && cs_relist
-	DT_FORCEONCE=1
 }
 
 fn control_strip_do(int? w = "", k = "", int? dir = "") {
@@ -118,10 +112,8 @@ fn control_strip_do(int? w = "", k = "", int? dir = "") {
 	show)
 		[ "${CS_SHOW:-0}" = 1 ] && v=0
 		dt_set CS_SHOW "$v"
-		dt_has cs_relist && cs_relist
 		[ "$v" = 1 ] && [ "${#CS_MOD_ALL[@]}" = 0 ] &&
 			dt_note "No Control Strip modules are installed -- the Catalogue has them"
-		DT_FORCEONCE=1
 		;;
 	esac
 	return 0
