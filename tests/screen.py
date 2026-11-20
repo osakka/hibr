@@ -662,7 +662,13 @@ EXPECTED = []
 # drew the Control Panel past four times the mark. A `late:` line -- input
 # that reached the screen past the same mark (wm/latency.hibr) -- fails the
 # same way. A `slow:` line is advice and fails nothing.
-SLOWLINE = re.compile(rb" desktop: ((?:held|late): [^\r\n]*)\r?\n")
+# And a setting refused (dt_set, ADR 0050): a name that is no kept setting,
+# or one an app's own files never name. A refusal is a status a caller like
+# cp_toggle does not test, so a pane whose toggle silently did nothing would
+# otherwise pass; a test provoking one on purpose says expect().
+SLOWLINE = re.compile(rb" desktop: ((?:held|late): [^\r\n]*"
+                      rb"|dt_set: [^\r\n]*"
+                      rb"|app runtime: [^\r\n]* set [A-Z][A-Z0-9_]*, which its own file never names)\r?\n")
 os.environ.setdefault("DT_HOLDMS", str(300 * (8 if os.environ.get("ASAN_OPTIONS") else 1)))
 # And judged by the processor the desktop itself used, not by the clock
 # (wm/budget.hibr): a test checking the desktop's own wall-time rule -- the

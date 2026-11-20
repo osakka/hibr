@@ -408,6 +408,39 @@ def floors(rows):
     return out
 
 
+def derivedfloors():
+    """Each catalogue entry's hibr floor as the contract says it: the newest
+    release among the platform functions it and its parts call (the calls
+    table's since column). Printed by --floors for the catalogue's mkindex,
+    which takes the later of this and a floor written by hand -- for what the
+    contract cannot see, a widget's file or a module's verb. Keyed as mkindex
+    keys an entry: kind/name."""
+    rows = tablerows()
+    since = {r[1]: r[8] for r in rows if len(r) > 8}
+    vk = lambda v: tuple(int(x) for x in re.findall(r"\d+", v))
+    root = os.path.join(APPS, "bundles")
+    out = {}
+    for f in installables():
+        if not f.startswith(root + os.sep):
+            continue
+        rel = os.path.relpath(f, root)[:-5]
+        kind = rel.split(os.sep)[0]
+        files = [f]
+        for l in open(f, errors="replace"):
+            m = re.match(r"^# part:\s*(\S+)", l)
+            if m and m.group(1).endswith(".hibr") and os.path.exists(os.path.join(root, m.group(1))):
+                files.append(os.path.join(root, m.group(1)))
+        top = None
+        for g in files:
+            for c in records(g, "calls").get("calls", []):
+                v = since.get(c.get("name"), "-")
+                if v not in ("-", "") and (top is None or vk(v) > vk(top)):
+                    top = v
+        if top:
+            out["%s/%s" % (kind, os.path.basename(rel))] = top
+    return out
+
+
 def defsall():
     """Every platform function and its file, all of them (defs keeps the first)."""
     where = {}
@@ -589,6 +622,13 @@ def classify(name, rel):
 
 
 def main():
+    # Floors read the table as written and the catalogue's own files, nothing
+    # this run would survey, so they are answered first and alone: mkindex
+    # reads every line as a floor.
+    if "--floors" in sys.argv:
+        for k, v in sorted(derivedfloors().items()):
+            print("%s\t%s" % (k, v))
+        return
     where = defs()
     use, users, bad = collections.Counter(), collections.defaultdict(set), []
     for f in installables():

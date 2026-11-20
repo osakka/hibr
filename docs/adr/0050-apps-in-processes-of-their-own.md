@@ -476,6 +476,20 @@ error, a bell) or waits on the openers becoming declared data (`dt_isbundle`,
 `dt_locof`, `dt_loccan`). Counting only code, not comments, as handing a
 function over brought the names sent to every process to 24 of 246.
 
+### What a setting redraws (2026-11-20, measured, open)
+
+dt_set makes the next frame whole and rebuilds the menus and the bar on
+every call, since a setting can change anything drawn and an installable's
+own hint writes (DT_FORCEONCE and the rest) do nothing from its own process.
+Correct, and blunt: a Control Panel slider step -- a setter and the frame
+after it -- measured 9.7 ms before and **15.9 ms** after (40 steps,
+DT_TIPMS, the panel open). The way out is the setting saying what it
+affects, once, on the desktop's side: `dt_onset NAME EFFECT`, effects only
+the desktop's own (a whole frame, the menus, the bar, a console call, a
+cache cleared), never a function an installable names -- so a tooltip
+delay redraws its pane and a colour the screen. Until then every setting
+pays the whole frame.
+
 ### Asked requests (2026-11-19, protocol 6)
 
 A request whose answer the app takes (`asked` in `interface.tsv`) is sent

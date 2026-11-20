@@ -11,7 +11,7 @@ name; and the words cross whole, blanks, percents and empty ones included.
 import os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
-from screen import Term, check, report, load, tree, scratch
+from screen import Term, check, report, load, tree, scratch, expect
 
 # A note sent the way the contract says dt_notep crosses -- told, or asked
 # with a far deadline -- read from interface.tsv, never assumed: its class is
@@ -484,6 +484,7 @@ while time.time() < deadline and tips != "1234":
 check("an app sets a kept setting its own file names through dt_set, and the desktop takes it",
       tips == "1234", tips)
 was = result('echo "$DT_DRAWSKIP" > %s.pend' % SAID)
+expect(r"set DT_DRAWSKIP, which its own file never names")
 do('dt_rttell "$LT" demo_setany DT_DRAWSKIP')
 deadline = time.time() + 10
 while time.time() < deadline and "which its own file never names" not in log():
