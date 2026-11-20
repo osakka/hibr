@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.99.553
+
+**Windows stay inside a display that shrinks, and go back when it grows.**
+A display made smaller -- a monitor's mode changed, a Blit session resized --
+moves each window that would leave it back inside, and a display grown back
+returns every window it moved to exactly where it was (Blit #60).
+
+**Pictures drawn through a view** (wp_viewporter, Blit #159, #600). A
+program window, popup, X window or drag icon whose program draws at twice
+its size, or crops its buffer, is cut and scaled through its view, and the
+program is told its own size back; the view goes to Blit after the picture's
+route, so clicks map through it, and hold says it again to a display that
+comes afresh. A video sub's view waits for Blit 0.3.127.
+
+**`contacts`, the address book from a script**: `contacts find`, `put`
+and `sync`, with no window, from the copy Contacts keeps -- `find` never
+touches the network, `put` is bounded and queues when the server is away.
+
+**Blit 0.3.126's player glyphs** (LCD digits, meters, sliders, transport,
+discs) are in the blit glyph set's table, by id.
+
+**Shell.**
+- A temporary assignment no longer leaves a variable exported after a
+  builtin or a function (#596); `[[ -v s[0] ]]` and `$(( n[0] ))` read a
+  scalar as element 0, as bash does (#597, #598); a nameref's element 0 is
+  the element (#595).
+- Once `RET` had held a map, a later plain result kept the map's array mark,
+  so `x := f` read `${#x[@]}` as 0; it reads 1.
+- A redirection's saved copy of a descriptor is kept above 9 and closed on
+  exec, as bash keeps it, so a program never inherits the shell's copy.
+- Sockets made by `accept` and `connect` are close-on-exec, `connect -U`
+  reaches a Unix socket, `send -p`/`-c` and `recv -p` never wait, and
+  `console key` waits with no terminal of its own.
+
+**New modules and tools.** `varwatch`: the variable table tells a watcher
+which variables changed, for sharing state between processes (a new
+attribute and a hook asked before a write; an unwatched write costs about
+four instructions). `inspect vars`: every variable access in a script, as
+the parser sees it.
+
+**ADR 0050, apps in processes of their own: the machinery, not yet switched
+on.** An app process's runtime and its socket to the desktop with its
+guards; the desktop's shared state sent as it changes, read-only in the app,
+to exactly the apps that read it; requests told and asked (protocol 6), with
+a deadline; one seam for every call into an app; the contract
+(`interface.tsv`) generated, never hand-written. Every app still runs inside
+the desktop in this release; nothing an app writes changes.
+
 ## 0.99.552
 
 **A desktop that hosts no app pays nothing for the isolation prototype.**
