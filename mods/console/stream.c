@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 /* stream -- a window's picture whose frames another program sends.
  *
  * Gitea #486, Blit ADR 0223. A program on the far side of the frames
